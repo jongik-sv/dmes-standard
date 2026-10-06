@@ -23,6 +23,7 @@ import type {
   EditableCallbackParams,
   GridApi,
   ITooltipParams,
+  ColumnState,
 } from "ag-grid-community";
 import { GRID_TEMP_ID_FIELD } from "./GridPanel";
 import {
@@ -46,6 +47,10 @@ import { useGridTooltipOutside } from "./grid-tooltip-parent";
 import { AgDataGridExcelFrame, type AgDataGridExcelExport } from "./AgDataGridExcel";
 import { MdmHeaderLabel, type MdmHeaderLabelParams } from "./MdmHeaderLabel";
 import type { GridPersonalize } from "./grid-personalize";
+import { useGridPersonalize, type GridPersonalizeColumn } from "./grid-personalize-hook";
+import { useGridPanelRegistry, type GridPanelGridControls } from "./grid-panel-context";
+import { ColumnSettingsModal } from "./ColumnSettingsModal";
+import { GridHeaderContextMenu } from "./GridHeaderContextMenu";
 
 /** `rowNumber` 로 넣는 행번호 열의 colId — 테스트·화면이 이 칸을 집을 때 쓴다. */
 export const ROW_NUMBER_COL_ID = "__rowNo";
@@ -162,6 +167,13 @@ const SelectCellEditor = function SelectCellEditor(props: {
 };
 
 const DEFAULT_FIXED_COLUMN_WIDTH = 120;
+
+/** 요소가 대화 상자(Mantine Modal 등 role="dialog") 안에 있는가. */
+function isInDialog(el: Element): boolean {
+  return el.closest('[role="dialog"]') != null;
+}
+/** 저장 너비 컬럼이 없을 때의 집합(공유 상수 — 렌더마다 새로 만들지 않는다). */
+const EMPTY_SIZED_COLUMNS: ReadonlySet<string> = new Set();
 export { GRID_TOOLTIP_SHOW_DELAY_MS };
 
 function toColumnWidth(width: number | string | undefined): number | undefined {
@@ -450,9 +462,10 @@ export interface AgDataGridProps {
    */
   fieldErrors?: Array<{ rowKey?: string; rowIndex?: number; field: string; message: string }>;
   /**
-   * 표 아래에 「N행」과 [엑셀] 단추 줄(GridExcelFoot)을 붙이고, 누르면 그리드에 지금 보이는 컬럼·행을 엑셀로 내려받는다. 주지 않으면 줄도 단추도 없다.
+   * 표 아래에 「N행」과 [엑셀] 단추 줄(GridExcelFoot)을 붙이고, 누르면 그리드의 컬럼·행을 엑셀로 내려받는다. 주지 않으면 줄도 단추도 없다.
    * 주면 바깥을 세로 flex 상자로 감싸 표가 남은 높이를 채우고 아래 줄이 바닥에 붙는다(`height` 는 이 바깥 상자의 높이).
-   * 컬럼은 보이는 순서·제목, 숨긴 열·행 번호·체크박스는 뺀다(`excludeKeys` 로 render 전용 열도 뺄 수 있다). 행은 정렬·필터 순서, 값은 `render` 가 아니라 행의 원래 값이다.
+   * 컬럼은 모든 데이터 열을 사용자 순서(왼쪽 고정 → 가운데 → 오른쪽 고정)·제목으로 내보내고, 사용자가 숨긴 열은 엑셀에도 숨긴 열로 넣는다.
+   * 화면 정의에서 `hide: true` 인 내부 열·행 번호·체크박스는 뺀다(`excludeKeys` 로 render 전용 열도 뺄 수 있다). 행은 정렬·필터 순서, 값은 `render` 가 아니라 행의 원래 값이다.
    * 객체를 렌더마다 새로 만들면 memo 가 깨지니 상수나 `useMemo` 로 둔다.
    */
   excelExport?: AgDataGridExcelExport;
@@ -464,7 +477,7 @@ export interface AgDataGridProps {
   /**
    * 사용자별 컬럼 개인화(순서·너비·표시 여부·좌우 고정·정렬을 브라우저에 저장하고 다시 열 때 복원). 기본 켬.
    * `false` 면 끈다. `{ sort: false }` 면 정렬은 저장·복원하지 않는다(서버 페이징 그리드 — 정렬이 서버 조회 조건이라서).
-   * 저장값이 있으면 컬럼 자동 너비 맞춤은 저장된 너비를 덮지 않는다.
+   * 너비는 사용자가 머리글 경계를 끌어 바꾼 컬럼만 저장되고, 그 컬럼만 자동 너비 맞춤에서 빠진다(나머지는 예전처럼 자동).
    */
   personalize?: GridPersonalize;
 }
@@ -1053,6 +1066,8 @@ function AgDataGridComponent({
   mdmValidate = false,
   fieldErrors,
   excelExport,
+  gridId,
+  personalize,
 }: AgDataGridProps) {
   const gridRef = useRef<AgGridReact>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1060,6 +1075,11 @@ function AgDataGridComponent({
   useGridTooltipOutside(containerRef, gridRef);
   const [gridReady, setGridReady] = useState(false);
   const userResizedRef = useRef(false);
+  /**
+   * 컬럼 개인화로 너비가 저장된 colId(사용자가 직접 끌어 맞춘 컬럼). 자동 너비는 나머지 컬럼에만, 여백 분배는 이 컬럼 너비를 고정한 채로 한다.
+   * 비어 있으면(저장값 없음·저장 너비 없음) 자동 너비 흐름은 개인화 전과 같은 호출(autoSizeAllColumns·기존 sizeColumnsToFit)이다.
+   */
+  const sizedColumnsRef = useRef<ReadonlySet<string>>(EMPTY_SIZED_COLUMNS);
   const autoSizeTimerRef = useRef<number | null>(null);
   const sizeChangeTimerRef = useRef<number | null>(null);
   /** 직전 grid size-change 시점의 컨테이너 폭. 0 이하면 숨김/미레이아웃. */
@@ -1352,12 +1372,15 @@ function AgDataGridComponent({
       const totalWidth = cols.reduce((sum, c) => sum + (c.getActualWidth?.() ?? 0), 0);
       const gridWidth = containerRef.current?.clientWidth ?? 0;
       if (gridWidth > 0 && totalWidth > 0 && totalWidth < gridWidth) {
+        const sized = sizedColumnsRef.current;
         api.sizeColumnsToFit({
           defaultMinWidth: 1,
-          columnLimits: cols.map((c) => ({
-            key: c.getColId(),
-            minWidth: c.getActualWidth(),
-          })),
+          columnLimits: cols.map((c) =>
+            // 저장 너비 컬럼은 늘리지도 줄이지도 않는다(개인화). 없으면 예전과 같은 한계값이다.
+            sized.has(c.getColId())
+              ? { key: c.getColId(), minWidth: c.getActualWidth(), maxWidth: c.getActualWidth() }
+              : { key: c.getColId(), minWidth: c.getActualWidth() }
+          ),
         });
       }
     } catch {
@@ -1370,7 +1393,16 @@ function AgDataGridComponent({
     // 컨텐츠 기반 자동 폭은 columnSizing="auto" 또는 autoSizeColumns={true}일 때만 사용한다.
     if (!shouldAutoSizeColumns) return;
     try {
-      gridRef.current.api.autoSizeAllColumns(false);
+      const sized = sizedColumnsRef.current;
+      if (sized.size === 0) gridRef.current.api.autoSizeAllColumns(false);
+      else {
+        // 저장 너비 컬럼(사용자가 직접 맞춘 컬럼)은 빼고 나머지만 내용에 맞춘다 — autoSizeAllColumns 와 같은 대상(보이는 컬럼)에서 뺀다.
+        const keys = gridRef.current.api
+          .getAllDisplayedColumns()
+          .map((c) => c.getColId())
+          .filter((id) => !sized.has(id));
+        if (keys.length > 0) gridRef.current.api.autoSizeColumns(keys, false);
+      }
       // 컨텐츠 기준 자동 폭 합계가 그리드보다 좁으면 남는 공간을 분배하여 채움.
       fillRemainingColumnSpace();
       lastGridWidthRef.current = containerRef.current?.clientWidth ?? 0;
@@ -1399,6 +1431,96 @@ function AgDataGridComponent({
       lastGridWidthRef.current = containerRef.current?.clientWidth ?? 0;
     }, GRID_SIZE_CHANGE_SETTLE_MS);
   }, [fillRemainingColumnSpace]);
+
+  // 컬럼 개인화(gridId·personalize) — 복원·자동 저장·열 정의 재주입 뒤 재적용. 결과(handle)는 컬럼 설정 창(C3)이 쓴다.
+  // 기본값 복원 뒤에는 아래 마운트 직후 효과와 같은 갈래로 자동 너비 맞춤을 다시 돌린다.
+  const getGridApi = useCallback(() => gridRef.current?.api, []);
+  const rerunAutoSize = useCallback(() => {
+    if (resolvedColumnSizing === "auto" && shouldAutoSizeColumns) scheduleAutoSizeAllColumns();
+    else scheduleFillRemainingColumnSpace();
+  }, [resolvedColumnSizing, shouldAutoSizeColumns, scheduleAutoSizeAllColumns, scheduleFillRemainingColumnSpace]);
+  const rerunAutoSizeAfterRestore = useCallback(() => {
+    if (!userResizedRef.current) rerunAutoSize();
+  }, [rerunAutoSize]);
+  const rerunAutoSizeAfterReset = useCallback(() => {
+    userResizedRef.current = false;
+    rerunAutoSize();
+  }, [rerunAutoSize]);
+  const personalizeHandle = useGridPersonalize({
+    getApi: getGridApi,
+    gridReady,
+    gridId,
+    personalize,
+    columns,
+    columnDefs,
+    selectable,
+    rowKey,
+    rowDragField,
+    sizedColumnsRef,
+    onRestored: rerunAutoSizeAfterRestore,
+    onReset: rerunAutoSizeAfterReset,
+  });
+
+  // 컬럼 설정 창·머리글 우클릭 메뉴·GridPanel [컬럼 설정] 단추 — 개인화가 동작 중(handle.enabled)일 때만 생긴다. 꺼진 그리드는 DOM·핸들러가 예전과 같다.
+  // 창·메뉴는 열렸을 때만 그린다(닫힌 동안은 상태가 null 이라 Mantine 부품을 만들지 않는다).
+  const personalizeEnabled = personalizeHandle.enabled;
+  const personalizeHandleRef = useRef(personalizeHandle);
+  personalizeHandleRef.current = personalizeHandle;
+  const [settingsColumns, setSettingsColumns] = useState<GridPersonalizeColumn[] | null>(null);
+  const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number; nonce: number } | null>(null);
+  const headerMenuNonceRef = useRef(0);
+  const openSettings = useCallback(() => {
+    const handle = personalizeHandleRef.current;
+    if (!handle.enabled) return;
+    const cols = handle.getColumns();
+    if (cols.length === 0) return;
+    setHeaderMenu(null);
+    setSettingsColumns(cols);
+  }, []);
+  const closeSettings = useCallback(() => setSettingsColumns(null), []);
+  const closeHeaderMenu = useCallback(() => setHeaderMenu(null), []);
+  const resetPersonalize = useCallback(() => personalizeHandleRef.current.reset(), []);
+  // 창에서 숨기거나 다시 켠 뒤에는 복원 때와 같은 갈래로 자동 너비·여백 분배를 다시 돌린다(auto 그리드의 오른쪽 빈 공간·다시 켠 컬럼 너비).
+  // 저장 너비가 있는 컬럼은 sizedColumnsRef 가 지킨다.
+  const rerunAfterApplyRef = useRef(rerunAutoSizeAfterRestore);
+  rerunAfterApplyRef.current = rerunAutoSizeAfterRestore;
+  const applyPersonalize = useCallback((state: ColumnState[]) => {
+    personalizeHandleRef.current.apply(state);
+    rerunAfterApplyRef.current();
+  }, []);
+  // GridPanel 에 올리는 명령 — 그리드가 사는 동안 같은 객체(렌더마다 새로 만들지 않는다).
+  const gridControls = useMemo<GridPanelGridControls>(() => ({ openSettings, reset: resetPersonalize }), [openSettings, resetPersonalize]);
+  const gridPanelRegistry = useGridPanelRegistry();
+  useEffect(() => {
+    if (!gridPanelRegistry || !personalizeEnabled) return;
+    // React context 는 포털을 넘어 오므로, GridPanel 안에서 띄운 팝업(룩업 등)의 그리드도 여기로 온다. 실제로 그 패널의
+    // 그리드 영역 안에 있고 대화 상자 안이 아닌 그리드만 등록한다 — 개인화가 꺼진 패널에 남의 [컬럼 설정] 단추가 생기지 않게.
+    const el = containerRef.current;
+    if (!el || !el.closest(".grid-panel-content") || isInDialog(el)) return;
+    return gridPanelRegistry.register(gridControls);
+  }, [gridPanelRegistry, personalizeEnabled, gridControls]);
+  // 개인화가 꺼지면(탭 비활성·키 충돌로 대기) 열려 있던 창·메뉴를 닫는다. 처음부터 꺼진 그리드는 아무 상태도 건드리지 않는다.
+  const wasPersonalizeEnabledRef = useRef(false);
+  useEffect(() => {
+    if (!personalizeEnabled && wasPersonalizeEnabledRef.current) {
+      setSettingsColumns(null);
+      setHeaderMenu(null);
+    }
+    wasPersonalizeEnabledRef.current = personalizeEnabled;
+  }, [personalizeEnabled]);
+  // 머리글 우클릭 — 머리글이면 브라우저 기본 메뉴를 막고 마우스 위치에 메뉴를 띄운다. 셀·그 밖의 영역·머리글 안의 입력 칸(필터 입력 등)은
+  // 브라우저 기본 동작을 그대로 둔다.
+  const handleContextMenu = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!personalizeHandleRef.current.enabled) return;
+    const target = e.target;
+    if (!(target instanceof Element) || !target.closest(".ag-header")) return;
+    if (target.closest("input, textarea, select, [contenteditable]")) return;
+    // 대화 상자(룩업 창 등) 안의 그리드는 설정 창을 겹쳐 띄우지 않는다 — 겹친 창에서는 Esc 한 번에 바깥 창까지 닫히고 Tab 이 갇힌다.
+    if (isInDialog(target)) return;
+    e.preventDefault();
+    headerMenuNonceRef.current += 1;
+    setHeaderMenu({ x: e.clientX, y: e.clientY, nonce: headerMenuNonceRef.current });
+  }, []);
 
   // ★그리드 준비 직후 1회 폭 정리 — 데이터가 0건이면 ag-grid 가 firstDataRendered / rowDataUpdated 를
   //   내보내지 않아 아래 핸들러들이 한 번도 호출되지 않는다. 그 결과 "조회 결과가 없습니다" 상태에서
@@ -1870,6 +1992,7 @@ function AgDataGridComponent({
       aria-busy={loading}
       tabIndex={-1}
       onKeyDown={handleContainerKeyDown}
+      onContextMenu={personalizeEnabled ? handleContextMenu : undefined}
     >
       <AgGridReact
         ref={gridRef}
@@ -1931,6 +2054,9 @@ function AgDataGridComponent({
         }
         suppressColumnVirtualisation={resolvedColumnSizing === "auto"}
         suppressHorizontalScroll={false}
+        // 개인화가 켜지면 머리글을 그리드 밖으로 끌어도 컬럼이 숨겨지지 않는다 — 실수 숨김이 자동 저장되어 계속 사라지는 것을 막는다.
+        // 숨김은 컬럼 설정 창으로만 한다. 꺼진 그리드는 ag-grid 기본(false)이라 예전과 같다.
+        suppressDragLeaveHidesColumns={personalizeEnabled}
         alwaysShowHorizontalScroll={alwaysShowHorizontalScroll}
         domLayout={isAutoHeight ? "autoHeight" : "normal"}
         {...rowDrag.gridProps}
@@ -1938,8 +2064,7 @@ function AgDataGridComponent({
     </div>
   );
 
-  if (!excelExport) return grid;
-  return (
+  const body = excelExport ? (
     <AgDataGridExcelFrame
       options={excelExport}
       columns={columns}
@@ -1950,6 +2075,33 @@ function AgDataGridComponent({
     >
       {grid}
     </AgDataGridExcelFrame>
+  ) : (
+    grid
+  );
+  // 늘 같은 모양(Fragment)으로 돌려준다 — 개인화가 켜지고 꺼질 때 그리드가 다시 마운트되지 않게. 꺼진 동안 덧붙는 DOM 은 없다.
+  return (
+    <>
+      {body}
+      {personalizeEnabled && headerMenu ? (
+        <GridHeaderContextMenu
+          x={headerMenu.x}
+          y={headerMenu.y}
+          nonce={headerMenu.nonce}
+          onOpenSettings={openSettings}
+          onReset={resetPersonalize}
+          onClose={closeHeaderMenu}
+        />
+      ) : null}
+      {personalizeEnabled && settingsColumns ? (
+        <ColumnSettingsModal
+          opened
+          columns={settingsColumns}
+          onApply={applyPersonalize}
+          onReset={resetPersonalize}
+          onClose={closeSettings}
+        />
+      ) : null}
+    </>
   );
 }
 

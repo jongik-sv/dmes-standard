@@ -45,7 +45,7 @@ dev 로 서버를 재기동하고 주요 화면을 확인한다(조정자만). �
 
 ## 6. 닫기
 
-- 마지막으로 `coord-state.sh close-run` 을 부른다(`event run-closed - '{}'` 도 같은 함수를 탄다). run-closed 이벤트를 남기고, `office.sh finish` 로 에이전트 오피스의 팀장·팀원 표시를 내린 뒤, `.run.closed_at` 에 마감 시각을 적는다(`contract.md` §3.4·§4). 이 명령을 빼면 오피스에 팀장 칸이 서버 TTL(70분)까지 남고, 같은 세션이 새 회차를 시작하면 팀장 칸이 둘로 보인다.
+- 마지막으로 `coord-state.sh close-run` 을 부른다(`event run-closed - '{}'` 도 같은 함수를 탄다). run-closed 이벤트를 남기고, `office.sh finish` 로 에이전트 오피스에서 이 회차의 팀원 표시를 내린 뒤, `.run.closed_at` 에 마감 시각을 적는다(`contract.md` §3.4·§4). 팀장 칸은 조정 세션 단위(`coord:<세션8>`)라서 같은 세션에 다른 열린 회차가 남았으면 내리지 않고 slots·busy 만 다시 합산하며, 이 세션의 마지막 열린 회차를 닫을 때만 내린다. 이 명령을 빼면 회차가 열린 채 남아 팀장 칸의 slots·busy 에 계속 합산된다(조정 세션이 죽으면 PC 폴러의 `office.sh reap` 이 표시를 내린다).
 - 끝낸 회차의 `.run.state` 같은 칸을 직접 써서 마감을 표시하지 않는다(계약에 없는 칸이라 아무 동작도 하지 않는다).
-- 마감하지 못한 채 새 회차를 시작했다면 `init` 이 낸 `STALE_RUN` 줄(자동 마감됐거나 경고)과 틱의 `STALE_RUN <회차>` 줄을 보고 `COORD_RUN=<회차> coord-state.sh close-run` 으로 닫는다.
+- 마감하지 못한 채 새 회차를 시작했다면 `init` 이 낸 `SESSION_RUNS <세션8> open=<n>` 줄(같은 세션의 열린 회차, 자동 마감하지 않는다)을 보고 끝난 회차를 `COORD_RUN=<회차> coord-state.sh close-run` 으로 직접 닫는다. `STALE_RUN` 줄(init·틱)은 다른 조정 세션의 회차에 대한 경고뿐이라 진행 중이면 그대로 둔다.
 - 조정자 자신의 세션은 사용자가 닫는다. state 폴더는 지우지 않는다(다음 회차 근거).

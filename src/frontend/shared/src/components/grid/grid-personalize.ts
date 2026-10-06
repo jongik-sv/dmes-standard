@@ -315,6 +315,9 @@ export function mergeColumnState(
     };
     const width = s?.width ?? d.width;
     if (width != null) state.width = width;
+    // 저장 너비가 있으면 flex 를 끈다 — flex 가 남아 있으면 ag-grid 가 width 를 무시한다(columnSizing="fit").
+    // 저장 너비가 없는 컬럼(fit 그리드에서 사용자가 너비를 바꾸지 않은 컬럼)은 정의의 flex 를 그대로 둔다.
+    if (s?.width != null) state.flex = null;
     if (applySort) {
       const rank = sortRank.get(colId);
       state.sort = rank ? rank.sort : null;
@@ -324,11 +327,16 @@ export function mergeColumnState(
   });
 }
 
-/** `api.getColumnState()` 결과 → 저장값. `sort` 가 false 면 정렬은 담지 않는다. */
+/**
+ * `api.getColumnState()` 결과 → 저장값. `sort` 가 false 면 정렬은 담지 않는다.
+ * flex 컬럼(`flex > 0`)은 너비를 담지 않는다 — 너비는 그리드 폭에 따라 정해지는 값이라서다. ag-grid 는 사용자가 flex 컬럼의 너비를
+ * 끌어 바꾸면 그 컬럼의 flex 를 끄므로, fit 그리드에서는 사용자가 직접 맞춘 컬럼만 너비가 저장된다.
+ */
 export function toGridPrefs(state: readonly ColumnState[], options: { sort: boolean; now?: number }): GridPrefs {
   const cols: GridPrefColumn[] = state.map((s) => {
     const col: GridPrefColumn = { colId: s.colId, hide: !!s.hide, pinned: s.pinned === "left" || s.pinned === "right" ? s.pinned : null };
-    if (typeof s.width === "number" && Number.isFinite(s.width) && s.width > 0) col.width = Math.round(s.width);
+    const flexed = typeof s.flex === "number" && s.flex > 0;
+    if (!flexed && typeof s.width === "number" && Number.isFinite(s.width) && s.width > 0) col.width = Math.round(s.width);
     return col;
   });
   const prefs: GridPrefs = { v: 1, savedAt: options.now ?? Date.now(), cols };

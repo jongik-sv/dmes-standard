@@ -35,7 +35,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 
 1. 설정 확인: `<repo>/.coord.json`(공용)·`.coord.local.json`(PC 전용). `launch.claude`·`integration_check`·`git_bin` 처럼 PC마다 다른 값은 사용자에게 한 번 확인한다.
 2. `scripts/coord-state.sh init <run-id> --goal "<목표>" [--rules-doc <경로>]`
-   `init` 은 `CLAUDE_CODE_SESSION_ID`(또는 `COORD_SESSION_ID`)를 `.run.coordinator.session_id` 에 적고, 같은 세션의 앞 회차가 마감 없이 남았으면 자동 마감한 뒤 `STALE_RUN <회차> auto-closed` 줄을 낸다(마감에 실패하면 `close-failed`, 직접 `close-run`). 다른 세션의 열린 회차는 `STALE_RUN <회차> open …` 경고만 낸다(진행 중인 다른 조정자의 회차일 수 있으니 직접 닫지 않는다).
+   `init` 은 `COORD_SESSION_ID`(또는 `CLAUDE_CODE_SESSION_ID`)와 조정 세션 pid(`CLAUDE_PID`, 없으면 0 — 생존 판정에서 빠지고 TTL 70분에 맡긴다)를 `.run.coordinator.session_id`·`.pid` 에 적는다. 오피스 팀장 칸은 회차가 아니라 조정 세션당 하나(`coord:<세션8>`)라서, 같은 세션의 앞 회차가 열려 있어도 자동 마감하지 않고 `SESSION_RUNS <세션8> open=<n>`(새 회차 포함 열린 회차 수) 줄만 낸다 — 팀장 칸 하나를 공유하고 slots·busy 가 합산된다. 끝난 회차라면 `COORD_RUN=<회차> scripts/coord-state.sh close-run` 으로 닫는다. 다른 세션의 열린 회차는 `STALE_RUN <회차> open …` 경고만 낸다(진행 중인 다른 조정자의 회차일 수 있으니 직접 닫지 않는다).
 3. 분해: `references/decompose.md`(초안은 판단 올리기). 사용자에게 확정받는다. 레인 공통 규칙 문서는 `templates/lane-rules-README.md`.
 4. 레인 확보: `references/spawn.md`. 사용자 세션은 신원 보고로 연결, 스킬이 띄우는 세션은 `spawn-lane.sh`. 띄운 세션에는 `Monitor` 로 `prompt-watch.sh <레인> --follow 1200` 을 붙인다. 각 레인은 `coord-state.sh lane-add`(에이전트 오피스 슬롯 이름이 될 지시 한 줄은 `"brief"` 로 함께 넣는다. 오피스 표시는 `init`·`spawn-lane.sh`·틱이 자동으로 보내고, 표시 전용이라 실패해도 무시한다. 키 규칙은 `references/contract.md` §4).
 5. 착수 지시: `templates/brief.md` 에 `protocol.md` 템플릿과 `workflow.md` 블록을 채워 SendMessage 로 보낸다. 번호는 `coord-state.sh instr <레인> start`, 원문은 `lanes/<레인>/brief.md`.
@@ -63,7 +63,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 | `WINDOW_DUE` | `references/heavy.md` 창 닫기·점검 |
 | `UNACKED` | 「`<instr_id>` 받았는지 한 줄 답」(최대 2회, 그 뒤 화면 확인) |
 | `UNLINKED` | 그 세션에 신원 보고를 요청할지 사용자에게 한 줄 |
-| `STALE_RUN <회차>` | 내 세션이 앞서 돌린 회차가 마감 표식 없이 오피스 팀장 키를 남겼다. `COORD_RUN=<회차> scripts/coord-state.sh close-run` 으로 마감한다(`closing.md` §6) |
+| `STALE_RUN <회차>` | 다른 조정 세션이 연 회차가 마감 표식 없이 살아 있는 레인을 둔 채 남았다(경고만, 자동 마감 없음). 진행 중인 다른 조정자의 회차일 수 있으니 그대로 두고, 끝난 회차가 확실하면 사용자에게 알린 뒤 `COORD_RUN=<회차> scripts/coord-state.sh close-run`(`closing.md` §6). 오피스 표시는 조정 세션이 죽으면 PC 폴러의 `office.sh reap` 이 내린다 |
 
 4. 바뀐 것이 있었으면 `coord-state.sh summary`.
 

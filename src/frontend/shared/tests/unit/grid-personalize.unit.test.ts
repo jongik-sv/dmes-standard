@@ -223,10 +223,20 @@ describe("mergeColumnState", () => {
       ]),
     );
     expect(out).toEqual([
-      { colId: "c", width: 50, hide: false, pinned: "left" },
-      { colId: "a", width: 70, hide: true, pinned: null },
+      { colId: "c", width: 50, flex: null, hide: false, pinned: "left" },
+      { colId: "a", width: 70, flex: null, hide: true, pinned: null },
       { colId: "b", width: 100, hide: false, pinned: null },
     ]);
+  });
+  it("turns flex off only for columns with a saved width (fit grid keeps filling)", () => {
+    const fit: GridDefaultColumn[] = [{ colId: "a" }, { colId: "b" }, { colId: "c" }];
+    const out = mergeColumnState(fit, prefs([{ colId: "a", width: 140 }, { colId: "b" }, { colId: "c", hide: true }]));
+    expect(out.map((s) => [s.colId, s.width, s.flex])).toEqual([
+      ["a", 140, null],
+      ["b", undefined, undefined],
+      ["c", undefined, undefined],
+    ]);
+    expect("flex" in out[1]).toBe(false);
   });
   it("inserts new columns after their default predecessor (front, middle, end)", () => {
     const d: GridDefaultColumn[] = [{ colId: "n0" }, { colId: "a" }, { colId: "n1" }, { colId: "b" }, { colId: "c" }, { colId: "n2" }];
@@ -318,5 +328,20 @@ describe("toGridPrefs", () => {
       ],
     });
     expect(toGridPrefs([{ colId: "a", sort: "asc" }], { sort: false, now: 1 }).sort).toBeUndefined();
+  });
+  it("does not save widths of flex columns (only the ones the user resized lose flex)", () => {
+    const p = toGridPrefs(
+      [
+        { colId: "a", width: 150, flex: 2 },
+        { colId: "b", width: 120, flex: null },
+        { colId: "c", width: 90, flex: 0 },
+      ],
+      { sort: false, now: 1 },
+    );
+    expect(p.cols.map((c) => [c.colId, c.width])).toEqual([
+      ["a", undefined],
+      ["b", 120],
+      ["c", 90],
+    ]);
   });
 });

@@ -14,7 +14,9 @@ chk() { if [ "$1" = ok ]; then echo "ok   $2"; else echo "FAIL $2${3:+ — $3}";
 eq() { if [ "$2" = "$3" ]; then chk ok "$1"; else chk fail "$1" "기대 [$3] 실제 [$2]"; fi; }
 
 repo="$tmp/repo"; mkdir -p "$repo"
-export COORD_REPO="$repo" COORD_RUN=t1 FAKE_LOG="$tmp/fake.log"
+# 조정 세션 식별을 고정한다(Claude Code 안에서 돌려도 실제 세션 id·pid 가 키에 섞이지 않게). <세션8> = s1a2b3c4, pid = 이 셸(살아 있음).
+unset CLAUDE_CODE_SESSION_ID COORD_STATE_ROOT COORD_DRY
+export COORD_REPO="$repo" COORD_RUN=t1 FAKE_LOG="$tmp/fake.log" COORD_SESSION_ID="S1A2B3C4-ffff-0000" CLAUDE_PID=$$
 cat > "$tmp/fake-dflow.sh" <<'EOF'
 #!/bin/sh
 # 가짜 dflow.sh — 인자·cwd·설정 폴더를 적는다.
@@ -46,31 +48,48 @@ log() { cat "$FAKE_LOG" 2>/dev/null; }
 reset() { : > "$FAKE_LOG"; }
 lines() { log | grep -c .; }
 sent() { $CS get ".office.sent[\"$1\"] // \"\""; }
+S8=s1a2b3c4
+LK="$ID/coord:$S8"                      # 팀장 키(조정 세션 단위)
+SREC="$tmp/state/_session/$S8.json"     # 조정 세션 기록
+srec() { jq -r "($1) // empty" "$SREC" 2>/dev/null; }
 
 # --- 1. init → 팀장 등록 ------------------------------------------------------
 : > "$FAKE_LOG"
 $CS init t1 --goal "시험 회차" >/dev/null
-eq "init: 팀장 키 $ID/coord:t1" "$(log | grep -c -- "--agent $ID/coord:t1 --slots 0 --busy 0 --project proj-1")" 1
-eq "init: 레인이 없으면 slots 0 busy 0" "$(log | grep -c -- "--agent $ID/coord:t1 --slots 0 --busy 0")" 1
+eq "init: 조정 세션 pid(CLAUDE_PID) 기록" "$($CS get .run.coordinator.pid)" "$$"
+eq "init: 팀장 키 $LK(세션 id 앞 8자 소문자)" "$(log | grep -c -- "--agent $LK --slots 0 --busy 0 --project proj-1")" 1
+eq "init: 레인이 없으면 slots 0 busy 0" "$(log | grep -c -- "--agent $LK --slots 0 --busy 0")" 1
 eq "init: dflow 는 리포 루트에서 설정 폴더 지정 후 실행" "$(log | grep -c "cwd=$repo cfg=$repo")" 1
-eq "init: 팀장 키 기록(._lead)" "$(sent _lead)" "$ID/coord:t1"
+eq "init: 세션 기록 _session/$S8.json 의 key" "$(srec .key)" "$LK"
+eq "init: 세션 기록 칸(session_id·user·host·pid·slots·busy·sent_at)" \
+  "$(srec '"\(.session_id) \(.user) \(.host) \(.pid) \(.slots) \(.busy) \(.sent_at != "")"')" "S1A2B3C4-ffff-0000 jji-test $host $$ 0 0 true"
+eq "init: 회차의 ._lead·.office.lead 는 쓰지 않는다" "$(sent _lead)$($CS get '.office.lead // ""')" ""
 eq "init: 신원 /me 는 한 번만(state 캐시)" "$(log | grep -c '^ME$')" 1
 
-# --- 1b. 팀장 키 coord:<run-id> ----------------------------------------------------
+# --- 1b. 옛 키(coord:<run-id>·…/coord)는 새 키를 처음 보내는 beat 에서 stop -------------------------
+rm -f "$SREC"
+$CS set '.office.sent["_lead"]' "\"$ID/coord:t1\"" >/dev/null   # 옛 회차 단위 키가 기록된 회차(시험이 직접 심는다)
 reset
-$CS set '.run.id' '"x/y\nz w"' >/dev/null
-$OFF lead-up
-eq "팀장 키: run-id 의 슬래시·개행·공백은 제거" "$(log | grep -c -- "--agent $ID/coord:xyzw ")" 1
-$CS set '.run.id' '"t1"' >/dev/null
+FAKE_MODE=failstop $OFF beat 2>/dev/null
+eq "옛 키 stop 실패: 새 팀장 키를 보내지 않는다" "$(log | grep -c -- "--agent $LK ")" 0
+eq "옛 키 stop 실패: 세션 기록을 만들지 않는다" "$([ -f "$SREC" ] && echo yes || echo no)" no
+reset
+$OFF beat
+eq "옛 키: 첫 beat 의 첫 호출이 옛 키 stop" "$(log | head -1 | sed 's/ | cwd=.*//')" "watch --agent $ID/coord:t1 --stop"
+eq "옛 키: 이어 새 키 등록" "$(log | sed -n 2p | cut -d' ' -f1-3)" "watch --agent $LK"
+eq "옛 키: 세션 기록이 새 키" "$(srec .key)" "$LK"
+reset
+$OFF beat
+eq "옛 키: 다음 beat 는 stop 없음" "$(log | grep -c -- '--stop')" 0
+$CS set '.office.sent["_lead"]' "\"$ID/coord\"" >/dev/null   # 옛 형식(식별자 없음)
+jq --arg k "$ID/coord:old-run" '.key = $k' "$SREC" > "$tmp/s.json" && mv "$tmp/s.json" "$SREC"   # 세션 기록의 키가 다른 경우
 reset
 $OFF lead-up
-eq "팀장 키: run-id 가 바뀌면 옛 키 stop 먼저" "$(log | head -1 | cut -d' ' -f1-3)" "watch --agent $ID/coord:xyzw"
-eq "팀장 키: 새 키 등록" "$(log | sed -n 2p | cut -d' ' -f1-3)" "watch --agent $ID/coord:t1"
-$CS set '.office.sent["_lead"]' "\"$ID/coord\"" >/dev/null   # 옛 형식(run-id 없음)이 기록돼 있던 경우
-reset
-$OFF lead-up
-eq "팀장 키: 옛 형식 기록은 stop 뒤 새 키" "$(log | head -1 | cut -d' ' -f1-4)" "watch --agent $ID/coord --stop"
-eq "팀장 키: 기록이 새 키" "$(sent _lead)" "$ID/coord:t1"
+eq "옛 키: 세션 기록의 다른 키와 …/coord 를 모두 stop 한 뒤 새 키" \
+  "$(log | sed -n 1,2p | grep -c -- '--stop')$(log | sed -n 3p | cut -d' ' -f1-3)" "2watch --agent $LK"
+eq "옛 키: …/coord stop" "$(log | grep -c -- "--agent $ID/coord --stop")" 1
+eq "옛 키: 기록 키 stop" "$(log | grep -c -- "--agent $ID/coord:old-run --stop")" 1
+$CS set '.office.sent["_lead"]' null >/dev/null
 
 # --- 2. lane-up ---------------------------------------------------------------
 $CS lane-add a1 '{"brief":"툴팁 사전 정리","session":{"handle":"h1"}}' >/dev/null
@@ -78,7 +97,7 @@ reset
 $OFF lane-up a1 >"$tmp/o.out" 2>"$tmp/o.err"
 eq "lane-up: 종료 코드 0·무출력" "$(wc -c < "$tmp/o.out" | tr -d ' ')$(wc -c < "$tmp/o.err" | tr -d ' ')" "00"
 eq "lane-up: 팀원 키·until·project" "$(log | grep -c -- "--agent $ID/임시:a1·툴팁 사전 정리 --until 작업 중 --project proj-1")" 1
-eq "lane-up: 팀장 slots=1 busy=1" "$(log | grep -c -- "--agent $ID/coord:t1 --slots 1 --busy 1")" 1
+eq "lane-up: 팀장 slots=1 busy=1" "$(log | grep -c -- "--agent $LK --slots 1 --busy 1")" 1
 eq "lane-up: 기록(.office.sent.a1)" "$(sent a1)" "$ID/임시:a1·툴팁 사전 정리"
 reset
 $OFF lane-up a1
@@ -109,7 +128,8 @@ emo="$(printf '😀%.0s' $(seq 1 60))"
 lane_long="$(printf 'q%.0s' $(seq 1 60))"
 jq '.office.label_max = 200' "$repo/.coord.local.json" > "$tmp/c.json" && mv "$tmp/c.json" "$repo/.coord.local.json"
 $CS lane-add emo "$(jq -nc --arg b "$emo" '{brief:$b}')" >/dev/null
-$CS lane-add "$lane_long" '{"brief":"긴 이름"}' >/dev/null
+# lane-add 는 40자 넘는 이름을 거절하므로(아래 시험), 옛 state 에 이미 있는 긴 이름은 직접 써서 키 자르기만 확인한다.
+$CS set ".lanes[\"$lane_long\"]" '{"brief":"긴 이름","state":"active","session":{},"hold":null}' >/dev/null
 $OFF lane-up emo; $OFF lane-up "$lane_long"
 ke="$(sent emo)"; kl="$(sent "$lane_long")"
 eq "이모지 요약: UTF-16 길이 119~120(쌍을 쪼개지 않음)" "$([ "$(printf '%s' "$ke" | u16)" -ge 119 ] && [ "$(printf '%s' "$ke" | u16)" -le 120 ] && echo yes)" yes
@@ -144,7 +164,7 @@ eq "lane-state auto: 같은 값이면 보내지 않는다" "$(lines)" 0
 reset
 $CS hold a2 user-wait >/dev/null
 eq "hold 훅: a2 대기" "$(log | grep -c -- "임시:a2·두 번째 레인 목표 --until 대기")" 1
-eq "hold 훅: 팀장 busy 4→3" "$(log | grep -c -- "--agent $ID/coord:t1 --slots 4 --busy 3")" 1
+eq "hold 훅: 팀장 busy 4→3" "$(log | grep -c -- "--agent $LK --slots 4 --busy 3")" 1
 reset
 $CS set '.merge.in_flight' '{"lane":"a1","branch":"b","expected_tree":"t","granted_at":"x"}' >/dev/null
 eq "머지 훅: a1 머지 중" "$(log | grep -c -- "임시:a1·툴팁 마무리 점검 --until 머지 중")" 1
@@ -170,7 +190,7 @@ reset
 $OFF lane-down a2
 eq "lane-down: 기록된 키로 stop" "$(log | head -1 | cut -d'|' -f1)" "watch --agent $k2 --stop "
 eq "lane-down: 기록 삭제" "$(sent a2)" ""
-eq "lane-down: 팀장 slots 3" "$(log | grep -c -- "--agent $ID/coord:t1 --slots 3")" 1
+eq "lane-down: 팀장 slots 3" "$(log | grep -c -- "--agent $LK --slots 3")" 1
 k3="$(sent a3)"
 $CS set '.lanes.a3.state' '"closed"' >/dev/null
 reset
@@ -269,17 +289,19 @@ $OFF beat   # 정상으로 되돌림
 nkeys="$($CS get '[.office.sent | to_entries[] | select(.value != null)] | length')"
 reset
 FAKE_MODE=netstop $CS event run-closed - '{}' >/dev/null 2>&1
-eq "finish(stop 이 네트워크 오류): 기록된 모든 키에 stop 을 시도한다" "$(log | grep -c -- '--stop')" "$nkeys"
+eq "finish(stop 이 네트워크 오류): 기록된 모든 팀원 키와 팀장 키에 stop 을 시도한다" "$(log | grep -c -- '--stop')" "$((nkeys + 1))"
 eq "finish: 마감 표식은 남는다" "$($CS get '.office.finished')" true
 eq "finish: 실패한 키는 기록에 남는다" "$($CS get '[.office.sent | to_entries[] | select(.value != null)] | length')" "$nkeys"
+eq "finish: 팀장 stop 이 실패하면 세션 기록을 둔다" "$(srec .key)" "$LK"
 reset
 $OFF lane-up a1; $CS report a1 "마감 뒤" >/dev/null
 eq "마감 뒤에도 report·lane-up 은 아무것도 보내지 않는다" "$(lines)" 0
 $OFF beat
-eq "마감 뒤 beat 는 남은 키만 stop(등록은 하지 않는다)" "$(log | grep -c -- '--stop')$(log | grep -vc -- '--stop')" "${nkeys}0"
+eq "마감 뒤 beat 는 남은 키(팀원·팀장)만 stop(등록은 하지 않는다)" "$(log | grep -c -- '--stop')$(log | grep -vc -- '--stop')" "$((nkeys + 1))0"
 eq "마감 뒤 beat: 기록이 모두 비워짐" "$($CS get '[.office.sent | to_entries[] | select(.value != null)] | length')" 0
+eq "마감 뒤 beat: 세션 기록 삭제" "$([ -f "$SREC" ] && echo yes || echo no)" no
 # 아래 12a 의 finish 시험을 위해 마감 표식을 푼다
-$CS set '.office.finished' false >/dev/null
+$CS set '.office.finished' false >/dev/null; $CS set '.run.closed_at' null >/dev/null
 $OFF lead-up; $OFF lane-up a1; $OFF lane-up a2; $OFF lane-up a4
 
 # --- 12a. finish(마감 표식이 서면 뒤 시험이 막히므로 마지막 쪽에 둔다) ----------------------------------------------------------------
@@ -287,8 +309,9 @@ reset
 $CS event run-closed - '{}' >/dev/null; cp "$FAKE_LOG" "$tmp/fin.log"
 # a2 는 state 에 active 로 남아 있어 앞 beat 가 다시 등록했다(lane-down 은 state 를 바꾸지 않는다 — close-lane.sh 가 closed 로 먼저 쓴다)
 eq "run-closed 이벤트 → finish: 팀원 a1·a2·a4 와 팀장 stop" "$(log | grep -c -- '--stop')" 4
-eq "finish: 팀장 stop" "$(log | grep -c -- "--agent $ID/coord:t1 --stop")" 1
+eq "finish: 팀장 stop" "$(log | grep -c -- "--agent $LK --stop")" 1
 eq "finish: 기록 비움" "$($CS get '[.office.sent[]? | select(. != null)] | length')" 0
+eq "finish(마지막 열린 회차): 세션 기록 삭제" "$([ -f "$SREC" ] && echo yes || echo no)" no
 
 # --- 12. 연결 지점이 실제로 불러지는지(소스 대조) ----------------------------------
 has() { grep -q "$2" "$SD/$1" && echo yes; }
@@ -309,7 +332,118 @@ jq -n --arg st "$tmp/state2" --arg ds "$tmp/fake-dflow.sh" '{state_dir:$st, offi
 ( cd "$tmp/wt" && env -u COORD_REPO COORD_RUN=w1 bash "$SD/coord-state.sh" init w1 >/dev/null )
 reset
 ( cd "$tmp/wt" && env -u COORD_REPO -u DFLOW_CONFIG_DIR COORD_RUN=w1 bash "$SD/office.sh" lead-up )
-eq "워크트리에서: 메인 루트 설정(.coord.local.json) 사용" "$(log | grep -c -- "--agent $ID/coord:w1")" 1
+eq "워크트리에서: 메인 루트 설정(.coord.local.json) 사용" "$(log | grep -c -- "--agent $LK")" 1
 eq "워크트리에서: cwd·DFLOW_CONFIG_DIR 이 메인 체크아웃 루트" "$(log | grep -c "cwd=$main cfg=$main")" 1
+
+# --- 15. 팀장은 조정 세션 단위(회차 둘·마감·세션 둘·reap) ------------------------------------------
+st3="$tmp/state3"
+jq -n --arg st "$st3" --arg ds "$tmp/fake-dflow.sh" '{state_dir:$st, office:{enabled:true, project_id:"proj-1", label_max:40, dflow_script:$ds}}' > "$repo/.coord.local.json"
+leads() { log | grep -v -- '--stop' | grep -o -- "--agent $ID/coord[^ ]*" | sort -u | wc -l | tr -d ' '; }
+sfiles() { ls "$st3/_session" 2>/dev/null | grep -c '\.json$'; }
+deadpid() { ( : ) & local p=$!; wait "$p" 2>/dev/null; echo "$p"; }
+XA="$ID/coord:xa11xa11"
+# (a)(b) 한 세션이 회차 둘을 연다 — 앞 회차를 마감하지 않은 채 새 회차 init
+reset
+COORD_SESSION_ID=xa11xa11-0001 COORD_RUN=ra $CS init ra >/dev/null
+COORD_RUN=ra $CS lane-add L1 '{"brief":"가 회차 레인"}' >/dev/null; COORD_RUN=ra $OFF lane-up L1
+out="$(COORD_SESSION_ID=xa11xa11-0001 COORD_RUN=rb $CS init rb 2>"$tmp/e.err")"
+eq "(b) init: 첫 줄은 그대로 RUN" "$(printf '%s\n' "$out" | head -1 | cut -d' ' -f1-2)" "RUN rb"
+eq "(b) init: SESSION_RUNS 줄(새 회차 포함 열린 회차 수)" "$(printf '%s\n' "$out" | grep -c '^SESSION_RUNS xa11xa11 open=2$')" 1
+eq "(b) init: SESSION_RUNS 경고는 stderr" "$(grep -c 'SESSION_RUNS xa11xa11' "$tmp/e.err")" 1
+eq "(b) init: 앞 회차 ra 는 자동 마감되지 않는다" "$(COORD_RUN=ra $CS get '.run.closed_at')$(COORD_RUN=ra $CS get '.office.finished // false')" "nullfalse"
+eq "(b) init: 같은 세션 회차는 STALE_RUN 아님" "$(printf '%s\n' "$out" | grep -c '^STALE_RUN ra ')" 0
+eq "(b) init: 팀장 키는 stop 되지 않는다" "$(log | grep -c -- "--agent $XA --stop")" 0
+COORD_RUN=rb $CS lane-add L1 '{"brief":"나 회차 레인"}' >/dev/null; COORD_RUN=rb $OFF lane-up L1
+eq "(a) 회차 둘: 팀장 키는 하나" "$(leads)" 1
+eq "(a) 회차 둘: 세션 기록 하나" "$(sfiles)" 1
+eq "(a) 회차 둘: slots·busy 합산(같은 레인 이름 L1 도 둘 다 센다)" "$(log | tail -1 | grep -c -- "--agent $XA --slots 2 --busy 2")" 1
+eq "(a) 회차 둘: 세션 기록 slots·busy" "$(jq -r '"\(.slots),\(.busy)"' "$st3/_session/xa11xa11.json")" "2,2"
+COORD_RUN=ra $CS hold L1 user-wait >/dev/null
+eq "(a) 한 회차 레인이 대기면 busy 만 준다" "$(jq -r '"\(.slots),\(.busy)"' "$st3/_session/xa11xa11.json")" "2,1"
+# 마지막 회차를 닫을 때만 팀장이 내려간다
+reset
+COORD_RUN=ra $CS close-run >/dev/null
+eq "앞 회차 마감: 그 회차 팀원만 stop" "$(log | grep -c -- '--stop')$(log | grep -c -- "--agent $ID/임시:L1·가 회차 레인 --stop")" "11"
+eq "앞 회차 마감: 팀장 stop 없음" "$(log | grep -c -- "--agent $XA --stop")" 0
+eq "앞 회차 마감: 남은 회차 합산을 다시 보낸다(slots 1 busy 1)" "$(log | grep -c -- "--agent $XA --slots 1 --busy 1")" 1
+eq "앞 회차 마감: 세션 기록 유지" "$(sfiles)" 1
+reset
+COORD_RUN=rb $CS close-run >/dev/null
+eq "마지막 회차 마감: 팀원·팀장 stop" "$(log | grep -c -- "--agent $ID/임시:L1·나 회차 레인 --stop")$(log | grep -c -- "--agent $XA --stop")" "11"
+eq "마지막 회차 마감: 세션 기록 삭제" "$(sfiles)" 0
+# (d) session_id 가 다른 조정 세션 둘은 팀장 둘
+reset
+COORD_SESSION_ID=yb22yb22-0001 COORD_RUN=rc $CS init rc >/dev/null 2>&1
+COORD_SESSION_ID=zc33zc33-0001 COORD_RUN=rd $CS init rd >/dev/null 2>&1
+eq "(d) 세션 둘: 팀장 키 둘" "$(leads)" 2
+eq "(d) 세션 둘: 세션 기록 둘" "$(sfiles)" 2
+eq "(d) 세션 둘: 각 키" "$(log | grep -c -- "--agent $ID/coord:yb22yb22 ")$(log | grep -c -- "--agent $ID/coord:zc33zc33 ")" "11"
+# 레인 pid 가 죽으면 팀원만 내린다(살아 있는 세션 rc)
+lp_dead="$(deadpid)"
+eq "시험 준비: 죽은 레인 pid" "$(kill -0 "$lp_dead" 2>/dev/null && echo alive || echo dead)" dead
+COORD_RUN=rc $CS lane-add Ldead "$(jq -nc --argjson p "$lp_dead" '{brief:"죽은 레인", session:{pid:$p}}')" >/dev/null
+COORD_RUN=rc $CS lane-add Llive "$(jq -nc --argjson p $$ '{brief:"산 레인", session:{pid:$p}}')" >/dev/null
+COORD_RUN=rc $CS lane-add Lnopid '{"brief":"pid 모름"}' >/dev/null
+for L in Ldead Llive Lnopid; do COORD_RUN=rc $OFF lane-up "$L"; done
+reset
+out="$(COORD_RUN=rc $OFF reap 2>"$tmp/e.err")"; rc=$?
+eq "reap(레인 pid 사망): 종료 코드 0·stdout 없음" "$rc$out" 0
+eq "reap(레인 pid 사망): 죽은 레인 팀원 키만 stop" "$(log | grep -c -- '--stop')$(log | grep -c -- "임시:Ldead·죽은 레인 --stop")" "11"
+eq "reap(레인 pid 사망): 팀장은 그대로" "$(log | grep -c -- "coord:yb22yb22")" 0
+eq "reap(레인 pid 사망): 기록 삭제" "$(COORD_RUN=rc $CS get '.office.sent.Ldead // ""')" ""
+eq "reap(레인 pid 사망): 살아 있는 레인 기록 유지" "$(COORD_RUN=rc $CS get '.office.sent.Llive // "" | length > 0')" true
+# (c) 조정 세션 pid 사망 → reap 한 번에 팀장·팀원 키 stop(현재 회차 없이, --state-dir 로)
+cp_dead="$(deadpid)"
+COORD_SESSION_ID=dd44dd44-0001 CLAUDE_PID="$cp_dead" COORD_RUN=re $CS init re >/dev/null 2>&1
+COORD_RUN=re $CS lane-add E1 '{"brief":"유령 될 레인"}' >/dev/null; COORD_RUN=re $OFF lane-up E1
+COORD_SESSION_ID=dd44dd44-0001 CLAUDE_PID="$cp_dead" COORD_RUN=rf $CS init rf >/dev/null 2>&1
+COORD_RUN=rf $CS lane-add F1 '{"brief":"둘째 회차 레인"}' >/dev/null; COORD_RUN=rf $OFF lane-up F1
+eq "시험 준비: 죽은 조정 세션의 기록 pid" "$(jq -r .pid "$st3/_session/dd44dd44.json")" "$cp_dead"
+rm -f "$st3/current"
+reset
+out="$(env -u COORD_RUN bash "$SD/office.sh" reap --state-dir "$st3" 2>"$tmp/e.err")"; rc=$?
+eq "(c) reap: 종료 코드 0·stdout 없음" "$rc$out" 0
+eq "(c) reap: 팀장 키 stop" "$(log | grep -c -- "--agent $ID/coord:dd44dd44 --stop")" 1
+eq "(c) reap: 두 회차의 팀원 키 stop" "$(log | grep -c -- "임시:E1·유령 될 레인 --stop")$(log | grep -c -- "임시:F1·둘째 회차 레인 --stop")" "11"
+eq "(c) reap: 다른(살아 있는) 세션 키는 건드리지 않는다" "$(log | grep -c -- 'coord:yb22yb22\|coord:zc33zc33\|Llive')" 0
+eq "(c) reap: 세션 기록 삭제" "$([ -f "$st3/_session/dd44dd44.json" ] && echo yes || echo no)" no
+eq "(c) reap: finished 표식은 남기지 않는다" "$(COORD_RUN=re $CS get '.office.finished // false')$(COORD_RUN=rf $CS get '.office.finished // false')" "falsefalse"
+eq "(c) reap: 팀원 기록 삭제" "$(COORD_RUN=re $CS get '.office.sent.E1 // ""')" ""
+reset
+env -u COORD_RUN bash "$SD/office.sh" reap --state-dir "$st3" 2>/dev/null
+eq "(c) 다시 reap: 보낼 것 없음" "$(lines)" 0
+eq "reap: 인자 오류는 종료 코드 2" "$(bash "$SD/office.sh" reap --nope 2>/dev/null; echo $?)" 2
+
+# (e) 리뷰 지적 1: 환경 없는 호출이 세션 기록 pid 를 죽은 값으로 되돌리면 안 된다(살아 있는 세션을 reap 이 내리는 오판정)
+cp_dead2="$(deadpid)"
+COORD_SESSION_ID=gg55gg55-0001 CLAUDE_PID="$cp_dead2" COORD_RUN=rg1 $CS init rg1 >/dev/null 2>&1
+COORD_SESSION_ID=gg55gg55-0001 CLAUDE_PID="$cp_dead2" COORD_RUN=rg2 $CS init rg2 >/dev/null 2>&1
+COORD_RUN=rg1 $CS lane-add G1 '{"brief":"g1"}' >/dev/null; COORD_RUN=rg1 $OFF lane-up G1
+COORD_SESSION_ID=gg55gg55-0001 CLAUDE_PID=$$ COORD_RUN=rg2 $OFF beat 2>/dev/null     # resume 뒤 새(살아 있는) pid
+eq "(e) 살아 있는 세션의 beat: 기록 pid 갱신" "$(jq -r .pid "$st3/_session/gg55gg55.json")" "$$"
+eq "(e) 같은 세션의 다른 회차에도 pid 전파" "$(COORD_RUN=rg1 $CS get .run.coordinator.pid)" "$$"
+env -u COORD_SESSION_ID -u CLAUDE_CODE_SESSION_ID -u CLAUDE_PID COORD_RUN=rg1 bash "$SD/office.sh" beat 2>/dev/null   # 환경 없는 호출
+eq "(e) 환경 없는 호출은 기록 pid 를 되돌리지 않는다" "$(jq -r .pid "$st3/_session/gg55gg55.json")" "$$"
+reset
+env -u COORD_RUN bash "$SD/office.sh" reap --state-dir "$st3" 2>/dev/null
+eq "(e) reap: 살아 있는 세션의 팀장·팀원은 내리지 않는다" "$(log | grep -c -- 'coord:gg55gg55 --stop\|Llive\|임시:G1')" 0
+# 오래 사는 폴러가 죽은 옛 CLAUDE_PID 를 물려받은 호출도 pid 를 덮어쓰지 못한다
+CLAUDE_PID="$cp_dead2" COORD_SESSION_ID=gg55gg55-0001 COORD_RUN=rg1 bash "$SD/office.sh" beat 2>/dev/null
+eq "(e) 죽은 CLAUDE_PID 를 믿지 않는다" "$(jq -r .pid "$st3/_session/gg55gg55.json")" "$$"
+
+# (f) 리뷰 지적 2: 다른 세션이 죽은 세션의 회차를 닫아도 reap 이 내린 팀장 칸이 되살아나지 않는다
+cp_dead3="$(deadpid)"
+COORD_SESSION_ID=hh66hh66-0001 CLAUDE_PID="$cp_dead3" COORD_RUN=rh1 $CS init rh1 >/dev/null 2>&1
+COORD_SESSION_ID=hh66hh66-0001 CLAUDE_PID="$cp_dead3" COORD_RUN=rh2 $CS init rh2 >/dev/null 2>&1
+env -u COORD_RUN bash "$SD/office.sh" reap --state-dir "$st3" 2>/dev/null
+eq "(f) 시험 준비: 죽은 세션 기록이 reap 으로 지워짐" "$([ -f "$st3/_session/hh66hh66.json" ] && echo yes || echo no)" no
+reset
+COORD_SESSION_ID=other-session-9 CLAUDE_PID=$$ COORD_RUN=rh1 $CS close-run >/dev/null 2>&1
+eq "(f) 다른 세션의 close-run: 죽은 세션 팀장 키를 다시 보내지 않는다" "$(log | grep -c -- 'coord:hh66hh66 --slots')" 0
+eq "(f) 다른 세션의 close-run: 세션 기록이 다시 생기지 않는다" "$([ -f "$st3/_session/hh66hh66.json" ] && echo yes || echo no)" no
+
+n40="$(printf 'a%.0s' $(seq 1 40))"; n41="${n40}b"
+eq "lane-add: 40자 이름은 받는다" "$(COORD_RUN=re $CS lane-add "$n40" '{}' >/dev/null 2>&1; echo $?)" 0
+eq "lane-add: 41자 이름은 거절한다(rc 2)" "$(COORD_RUN=re $CS lane-add "$n41" '{}' >/dev/null 2>&1; echo $?)" 2
 
 exit "$fail"
