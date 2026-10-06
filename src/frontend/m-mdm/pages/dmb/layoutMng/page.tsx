@@ -21,6 +21,7 @@ import {
 } from "@dk-oasis/shared/layout";
 import { GridLimitNotice } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRefetch, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { Tabs } from "@dk-oasis/shared/tabs";
 import { exportToExcel } from "@dk-oasis/shared/utils";
 import { FIRST_SEARCH_LIMIT } from "@/oasis-screen";
@@ -99,12 +100,14 @@ export default function LayoutMngPage() {
   const me = rbac.userId;
   const { showMessage } = useMessage();
 
-  const [filters, setFilters] = useState<SearchFilters>(EMPTY_FILTERS);
-  const [rows, setRows] = useState<LayoutRow[]>([]);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·조회 결과(bulky)·건수·전체 보기 여부.
+  // 선택 전문의 상세·항목·버전(서버 view 결과와 편집 초안)은 이어받지 않으므로 선택 키(selectedId)도 두지 않는다. 시스템·EAI·헤더 콤보는 진입 때 다시 받는다.
+  const [filters, setFilters] = useCarryState<SearchFilters>("filters", EMPTY_FILTERS);
+  const [rows, setRows] = useCarryState<LayoutRow[]>("rows", [], { bulky: true });
   /** 목록이 상한으로 잘렸을 때의 전체 건수(안 잘렸으면 null). */
-  const [rowsTotal, setRowsTotal] = useState<number | null>(null);
+  const [rowsTotal, setRowsTotal] = useCarryState<number | null>("rowsTotal", null);
   /** 마지막 조회가 [전체 보기](상한 없음)였는지. */
-  const [showAll, setShowAll] = useState(false);
+  const [showAll, setShowAll] = useCarryState("showAll", false);
   const [systems, setSystems] = useState<SystemRow[]>([]);
   const [eais, setEais] = useState<EaiRow[]>([]);
   const [headerFilter, setHeaderFilter] = useState<HeaderOption[]>([]);
@@ -177,7 +180,10 @@ export default function LayoutMngPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setRows, setRowsTotal, setShowAll]);
+
+  // 분리 창이 조회 결과(행)를 못 받았을 때만 이어받은 조건으로 한 번 다시 조회한다(조회 안 한 탭은 재조회하지 않는다).
+  useCarryRefetch(() => runSearch(filters, showAll));
 
   // 첫 진입 자동 목록 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청).
   // 진입 때 콤보 값만 받는다(optionsOnly — 서버 목록 조회 없음). 목록(rows)은 채우지 않는다.

@@ -12,6 +12,7 @@ import { ContentBody, ContentPanel, canDoButton, useUserButtonRbac } from "@dk-o
 import { Button, Checkbox, DateTimePicker, Input } from "@dk-oasis/shared/form";
 import { AgDataGrid, GridLimitNotice, type GridColumn } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { FIRST_SEARCH_LIMIT } from "@/oasis-screen";
 import { DraftLockBadge, MdmPageLayout, VersionStatusBadge, fmtVer, normVer, useMdmPageParams } from "@/shell";
 
@@ -84,12 +85,14 @@ export default function LayoutConfirmPage({ tabId }: LayoutConfirmPageProps) {
   const canValidate = canDoButton(rbac, SCREEN_ID, "validate");
   const confirmPermitted = canDoButton(rbac, SCREEN_ID, "confirm");
 
-  const [keyword, setKeyword] = useState("");
-  const [drafts, setDrafts] = useState<DraftRow[] | null>(null);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 검색어·확정 대기 목록(bulky)·건수·전체 보기 여부.
+  // 선택 대상(target)·상세(view)·적용 시각 입력·검사 결과는 이어받지 않는다 — 진입 대상은 handoff(useMdmPageParams)가 정하고, 확정 폼은 새 창에서 다시 고른다.
+  const [keyword, setKeyword] = useCarryState("keyword", "");
+  const [drafts, setDrafts] = useCarryState<DraftRow[] | null>("drafts", null, { bulky: true });
   /** 목록이 상한으로 잘렸을 때의 전체 건수(안 잘렸으면 null). */
-  const [draftsTotal, setDraftsTotal] = useState<number | null>(null);
+  const [draftsTotal, setDraftsTotal] = useCarryState<number | null>("draftsTotal", null);
   /** 마지막 조회가 [전체 보기](상한 없음)였는지. */
-  const [showAll, setShowAll] = useState(false);
+  const [showAll, setShowAll] = useCarryState("showAll", false);
   const [target, setTarget] = useState<Target | null>(null);
   const [view, setView] = useState<ViewResult | null>(null);
   const [applyInput, setApplyInput] = useState("");
@@ -111,7 +114,7 @@ export default function LayoutConfirmPage({ tabId }: LayoutConfirmPageProps) {
     } catch (e) {
       fail(e);
     }
-  }, [fail]);
+  }, [fail, setDrafts, setDraftsTotal, setShowAll]);
 
   const load = useCallback(async (t: Target) => {
     setBusy(true);
@@ -143,8 +146,10 @@ export default function LayoutConfirmPage({ tabId }: LayoutConfirmPageProps) {
     }
   });
 
+  // 마운트 자동 조회 — 분리 창이 이어받은 목록이 있으면 건너뛴다(행 없이 복원됐거나 비었으면 이어받은 검색어로 한 번 조회한다).
+  const restored = useCarryRestored();
   useEffect(() => {
-    void refreshList("");
+    if (!restored || !drafts || drafts.length === 0) void refreshList(keyword, showAll);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

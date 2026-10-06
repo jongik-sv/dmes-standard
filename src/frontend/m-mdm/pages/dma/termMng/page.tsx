@@ -11,6 +11,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { ContentBody, ContentPanel, ErrorModal, SearchArea, SearchField } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridLimitNotice, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { ProgressBar } from "@dk-oasis/shared/form";
+import { useCarryRefetch, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { FIRST_SEARCH_LIMIT } from "@/oasis-screen";
 import { MdmPageLayout } from "@/shell";
 
@@ -35,12 +36,15 @@ const TERM_COLUMNS: GridColumn[] = [
 ];
 
 export default function TermMngPage() {
-  const [filters, setFilters] = useState<TermMngFilters>(emptyFilters);
-  const [rows, setRows] = useState<TermRow[]>([]);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·조회 결과(bulky)·건수·전체 보기 여부.
+  // 선택 행의 상세 폼(입력 값은 TermDetailPane 이 가진다)은 이어받지 않으므로 선택 키도 두지 않는다
+  // (선택 키만 남으면 같은 행을 눌러도 폼이 안 채워진다).
+  const [filters, setFilters] = useCarryState<TermMngFilters>("filters", emptyFilters);
+  const [rows, setRows] = useCarryState<TermRow[]>("rows", [], { bulky: true });
   /** 목록이 상한으로 잘렸을 때의 전체 건수(안 잘렸으면 null). */
-  const [rowsTotal, setRowsTotal] = useState<number | null>(null);
+  const [rowsTotal, setRowsTotal] = useCarryState<number | null>("rowsTotal", null);
   /** 마지막 조회가 [전체 보기](상한 없음)였는지. */
-  const [showAll, setShowAll] = useState(false);
+  const [showAll, setShowAll] = useCarryState("showAll", false);
   const [selectedTermId, setSelectedTermId] = useState<number | null>(null);
   /** 상세 폼 — 입력 값은 TermDetailPane 이 갖고, 루트는 "폼이 있는지"만 안다(R12: 한 글자마다 루트가 다시 그려지지 않게). */
   const detailRef = useRef<TermDetailHandle>(null);
@@ -82,13 +86,15 @@ export default function TermMngPage() {
     } finally {
       setIsBusy(false);
     }
-  }, [filters, loadForm]);
+  }, [filters, loadForm, setRows, setRowsTotal, setShowAll]);
 
   // 첫 진입 자동 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청)
+  // 분리 창이 조회 결과(행)를 못 받았을 때만 이어받은 조건으로 한 번 다시 조회한다(조회 안 한 탭은 재조회하지 않는다).
+  useCarryRefetch(() => handleSearch(showAll));
 
   const handleFilterChange = useCallback((key: keyof TermMngFilters, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
-  }, []);
+  }, [setFilters]);
 
   /** B-002 등록 — A-DETAIL·A-RECO 초기화. */
   const handleNew = useCallback(() => {
