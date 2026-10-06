@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_ruleCalc" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="ruleCalc" name="조업 계산기" isExecutable="true">
+    <bpmn:documentation>ruleCalc — 조업 계산기 위젯(rule-calc)이 룰·룰 세트를 입력 칸 자동 생성과 계산에 쓰는 서비스 (읽기 전용, dme 업무기준).
+정본: docs/widget-2026-10/rule-calc-api.md (요청·응답 계약 A0).
+
+action=io  -&gt; ioTask  (ruleCalcService.io)  READ — 입력·출력 모양 조회(입력 칸·결과 칸·세트 단계), 판정 시각은 지금
+action=run -&gt; runTask (ruleCalcService.run) READ — 입력 값으로 계산(최종 결과·룰별 단계·메시지)
+
+BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개다. 버전은 RELEASED 만 쓰고 preview=true 일 때만 내 DRAFT 를 쓴다. 확정 버전 없음·입력 누락·평가 오류는 예외가 아니라 응답 messages 로 돌려준다.</bpmn:documentation>
+    <bpmn:startEvent id="start" name="시작">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway" name="action 분기">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_io</bpmn:outgoing>
+      <bpmn:outgoing>flow_run</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="ioTask" name="입출력 모양 조회" camunda:class="ruleCalcService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="io" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleCalc.dto.RuleCalcRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_io</bpmn:incoming>
+      <bpmn:outgoing>flow_io_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="runTask" name="계산" camunda:class="ruleCalcService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="run" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleCalc.dto.RuleCalcRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_run</bpmn:incoming>
+      <bpmn:outgoing>flow_run_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endIo" name="조회 완료">
+      <bpmn:incoming>flow_io_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endRun" name="계산 완료">
+      <bpmn:incoming>flow_run_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_io" name="io" sourceRef="actionGateway" targetRef="ioTask" />
+    <bpmn:sequenceFlow id="flow_run" name="run" sourceRef="actionGateway" targetRef="runTask" />
+    <bpmn:sequenceFlow id="flow_io_end" sourceRef="ioTask" targetRef="endIo" />
+    <bpmn:sequenceFlow id="flow_run_end" sourceRef="runTask" targetRef="endRun" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="ruleCalc">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="150" y="200" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="250" y="200" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ioTask_di" bpmnElement="ioTask">
+        <dc:Bounds x="400" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="runTask_di" bpmnElement="runTask">
+        <dc:Bounds x="400" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endIo_di" bpmnElement="endIo">
+        <dc:Bounds x="600" y="100" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endRun_di" bpmnElement="endRun">
+        <dc:Bounds x="600" y="300" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="186" y="218" />
+        <di:waypoint x="250" y="225" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_io_di" bpmnElement="flow_io">
+        <di:waypoint x="275" y="200" />
+        <di:waypoint x="275" y="140" />
+        <di:waypoint x="400" y="140" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="317.5" y="123" width="12" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_run_di" bpmnElement="flow_run">
+        <di:waypoint x="275" y="250" />
+        <di:waypoint x="275" y="340" />
+        <di:waypoint x="400" y="340" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="317.5" y="233" width="18" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_io_end_di" bpmnElement="flow_io_end">
+        <di:waypoint x="500" y="140" />
+        <di:waypoint x="600" y="118" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_run_end_di" bpmnElement="flow_run_end">
+        <di:waypoint x="500" y="340" />
+        <di:waypoint x="600" y="318" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

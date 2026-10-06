@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mdm.common.rule;
 
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.common.rule.RuleIo.IoName;
+import com.dongkuk.dmes.mdm.common.rule.definition.RuleVersionPick;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
@@ -98,6 +99,24 @@ public class RuleIoReader {
             }
             Map<String, BigDecimal> out = new LinkedHashMap<>();
             byRule.forEach((id, vs) -> RuleVersions.currentReleased(vs, at).ifPresent(v -> out.put(id, v.getVer())));
+            return out;
+        });
+    }
+
+    /**
+     * 버전 선택 모드({@link RuleVersionPick})와 기준 시각으로 룰마다 버전을 골라 계산한 입출력(조업 계산기 {@code ruleCalc}). RELEASED 모드면
+     * {@link #readAt} 과 같고, {@code myDraft} 모드면 내 DRAFT(여럿이면 VER 최대)를 먼저 고른다. 고르지 못한 룰은 {@code releasedVer=null}·빈 목록이다.
+     * DRAFT 를 고른 룰의 {@code releasedVer} 는 그 DRAFT 버전이다(이름은 그대로지만 상태는 RELEASED 가 아닐 수 있다). 적중 정책·기본 행 여부는
+     * RELEASED 헤더만 읽으므로 DRAFT 룰은 null·false 다.
+     */
+    public Map<String, RuleIo> read(Collection<String> ruleIds, LocalDateTime at, RuleVersionPick pick, RuleVarTypeResolver.Scope scope) {
+        return read(ruleIds, scope, ids -> {
+            Map<String, List<MdmRuleVer>> byRule = new HashMap<>();
+            for (MdmRuleVer v : queries.versionsOf(ids)) {
+                byRule.computeIfAbsent(v.getMaruRuleId(), k -> new ArrayList<>()).add(v);
+            }
+            Map<String, BigDecimal> out = new LinkedHashMap<>();
+            byRule.forEach((id, vs) -> pick.pick(vs, MdmRuleVer::getOwnerId, at).ifPresent(v -> out.put(id, v.getVer())));
             return out;
         });
     }
