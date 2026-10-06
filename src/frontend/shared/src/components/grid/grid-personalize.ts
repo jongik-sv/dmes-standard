@@ -252,6 +252,33 @@ export interface GridDefaultColumn {
   width?: number;
   hide?: boolean;
   pinned?: GridPinned;
+  /** 이 잎을 품은 열 그룹 id 경로(바깥 → 안쪽). 그룹이 없으면 생략. 병합이 그룹의 잎을 한데 모으는 데 쓴다. */
+  groupPath?: readonly string[];
+}
+
+/**
+ * 순서(colId 배열)에서 열 그룹의 잎이 갈라져 있으면 각 그룹의 잎을 그 그룹의 첫 잎 자리로 모은다. 그룹 안 순서는 입력 순서를 지킨다.
+ * 중첩 그룹은 바깥부터 안쪽으로 차례로 모은다. 그룹이 없거나 이미 붙어 있으면 입력과 같은 순서를 돌려준다.
+ * ag-grid 는 marryChildren 그룹을 가르는 applyOrder 를 받으면 경고(#39)만 내고 순서 전체를 버리므로(설치본 sortColsLikeKeys),
+ * 병합 단계에서 미리 붙여야 저장 순서의 나머지도 살아난다.
+ */
+export function gatherGroupedColumns(order: readonly string[], groupPathOf: (colId: string) => readonly string[] | undefined): string[] {
+  const arrange = (ids: readonly string[], depth: number): string[] => {
+    const out: string[] = [];
+    const done = new Set<string>();
+    for (const id of ids) {
+      const g = groupPathOf(id)?.[depth];
+      if (g === undefined) {
+        out.push(id);
+        continue;
+      }
+      if (done.has(g)) continue;
+      done.add(g);
+      out.push(...arrange(ids.filter((x) => groupPathOf(x)?.[depth] === g), depth + 1));
+    }
+    return out;
+  };
+  return arrange(order, 0);
 }
 
 export interface MergeColumnStateOptions {
@@ -264,6 +291,7 @@ export interface MergeColumnStateOptions {
 /**
  * 기본 컬럼 + 저장값 → `applyColumnState({ state, applyOrder: true })` 에 넘길 전체 상태.
  * - 순서: 저장값에 있는 컬럼은 저장 순서, 새 컬럼은 기본 순서에서 바로 앞 컬럼의 뒤(앞 컬럼이 없으면 맨 앞).
+ * - 열 그룹의 잎이 저장 순서에서 갈라져 있으면 그룹의 첫 잎 자리로 모은다(`gatherGroupedColumns`, 그룹 안 순서는 저장 순서).
  * - 없어진 컬럼(저장값에만 있는 colId)은 버린다.
  * - 화면 정의에서 `hide: true` 인 내부 컬럼과 잠긴 컬럼은 저장된 hide 를 무시하고 기본값을 쓴다.
  * ag-grid 는 applyOrder 때 state 에 없는 컬럼을 뒤로 보내므로 결과는 늘 기본 컬럼 전부를 담는다.
@@ -294,6 +322,11 @@ export function mergeColumnState(
     }
     order.splice(at, 0, d.colId);
   });
+  // 그룹 머리글이 있는 그리드 — 저장 순서(예전 저장값·화면이 그룹 구조를 바꾼 경우)가 그룹을 가르면 잎을 모은다.
+  if (defaults.some((d) => d.groupPath && d.groupPath.length > 0)) {
+    const gathered = gatherGroupedColumns(order, (id) => byId.get(id)?.groupPath);
+    order.splice(0, order.length, ...gathered);
+  }
 
   const sortRank = new Map<string, { sort: "asc" | "desc"; index: number }>();
   const applySort = options.sort === true && prefs.sort != null;

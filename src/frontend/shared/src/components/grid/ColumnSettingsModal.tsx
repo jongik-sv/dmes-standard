@@ -8,16 +8,26 @@
  *   원래 자리 그대로 담는다 — 보이는 컬럼 순서만 보내면 ag-grid 가 빠진 컬럼(선택 체크박스 등)을 뒤로 보내기 때문이다.
  * - 숨길 수 없는 컬럼(`locked`)은 체크가 고정(비활성)이고 순서 이동만 된다.
  * - 고정(pinned) 컬럼은 구역(왼쪽 고정 · 일반 · 오른쪽 고정)별로 모아 보이고, 순서는 같은 구역 안에서만 옮긴다.
+ * - 열 그룹(`group`·`groupPath`)이 있는 컬럼은 그룹 이름을 제목 줄로 앞에 보이고, 순서는 같은 그룹 안에서만 옮긴다(그룹 경계의 위로·아래로
+ *   단추는 비활성). 그룹을 통째로 옮기는 기능은 없다. 그룹 없는 컬럼끼리는 구역 규칙만 따른다.
  * - 적용할 때 너비는 넘기지 않는다(`width` 가 있으면 컬럼 개인화가 그 컬럼 너비를 저장·잠근다).
  * - 열린 동안만 그린다(`opened` 가 false 면 아무것도 그리지 않는다). 열 때마다 `columns` 로 처음부터 시작한다.
  * - 스타일은 컴포넌트가 직접 넣는다(포털이 원격 모듈의 CSS 파일을 싣지 않는다 — Part B §18-3).
  */
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { IconChevronDown, IconChevronUp } from "@tabler/icons-react";
 
 import { Modal } from "../modal";
 import { Button } from "../form/Button";
 import { Checkbox } from "../form/Checkbox";
+
+/** 열 그룹 하나 — 제목 줄에 이름을 보인다. */
+export interface ColumnSettingsGroup {
+  /** 그룹 id. 같은 그룹인지 가르는 열쇠다. */
+  id: string;
+  /** 그룹 머리글 이름. 비었으면 id 를 보인다. */
+  header: string;
+}
 
 /** 설정 창에 보일 컬럼 하나 — 지금 그리드 순서대로 준다. */
 export interface ColumnSettingsColumn {
@@ -32,6 +42,10 @@ export interface ColumnSettingsColumn {
   locked?: boolean;
   /** 설정 창에 보이지 않을 컬럼(선택 체크박스·행 번호·내부 컬럼). 적용 상태에는 원래 자리로 들어간다. */
   internal?: boolean;
+  /** 이 컬럼을 품은 가장 가까운 열 그룹. 없으면(생략) 그룹 밖 컬럼 — 순서는 같은 그룹 안에서만 옮긴다. */
+  group?: ColumnSettingsGroup;
+  /** 그룹 경로(바깥 → 안쪽, 마지막이 `group`) — 중첩 그룹의 제목 줄. 생략하면 `group` 하나로 본다. */
+  groupPath?: readonly ColumnSettingsGroup[];
 }
 
 /** 적용 상태의 한 항목 — 순서는 배열 순서, `hide` 는 숨김 여부. 너비는 없다. */
@@ -67,11 +81,27 @@ function zoneOf(c: Pick<ColumnSettingsColumn, "pinned">): Zone {
   return c.pinned === "left" ? "left" : c.pinned === "right" ? "right" : "center";
 }
 
+function groupIdOf(c: Pick<ColumnSettingsColumn, "group">): string {
+  return c.group?.id ?? "";
+}
+
+/** 그룹 경로(바깥 → 안쪽). `groupPath` 가 없으면 `group` 하나. */
+function pathOf(c: Pick<ColumnSettingsColumn, "group" | "groupPath">): readonly ColumnSettingsGroup[] {
+  return c.groupPath ?? (c.group ? [c.group] : []);
+}
+
+/** 서로 자리를 바꿀 수 있는 이웃인가 — 같은 고정 구역, 같은 그룹. */
+function sameBlock(a: ColumnSettingsColumn, b: ColumnSettingsColumn): boolean {
+  return zoneOf(a) === zoneOf(b) && groupIdOf(a) === groupIdOf(b);
+}
+
 export const COLUMN_SETTINGS_STYLE_HREF = "cm-column-settings";
 
 const COLUMN_SETTINGS_CSS = `
 .cm-colset-list { list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow-y: auto; border: 1px solid var(--color-border-light); border-radius: var(--radius-md); }
 .cm-colset-zone { padding: 3px var(--spacing-md); font-size: var(--font-size-xs); color: var(--color-text-muted); background: var(--color-bg-header); border-bottom: 1px solid var(--color-border-light); }
+.cm-colset-group { padding: 3px var(--spacing-md); padding-left: calc(var(--spacing-md) + var(--cm-depth, 0) * var(--spacing-lg)); font-size: var(--font-size-xs); font-weight: 600; color: var(--color-text); background: var(--color-bg-header); border-bottom: 1px solid var(--color-border-light); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cm-colset-row[data-depth] { padding-left: calc(var(--spacing-md) + var(--cm-depth, 0) * var(--spacing-lg)); }
 .cm-colset-row { display: flex; align-items: center; gap: var(--spacing-sm); padding: 3px var(--spacing-md); border-bottom: 1px solid var(--color-border-light); font-size: var(--font-size-md); color: var(--color-text); }
 .cm-colset-row:last-child { border-bottom: 0; }
 .cm-colset-row:hover { background: var(--color-bg-hover); }
@@ -124,7 +154,7 @@ function ColumnSettingsBody({ columns, onApply, onReset, onClose, title = "컬�
   const move = (colId: string, dir: -1 | 1) => {
     const i = shown.findIndex((r) => r.colId === colId);
     const neighbor = shown[i + dir];
-    if (i < 0 || !neighbor || zoneOf(neighbor) !== zoneOf(shown[i])) return;
+    if (i < 0 || !neighbor || !sameBlock(neighbor, shown[i])) return;
     focusRef.current = { colId, dir };
     // 두 컬럼이 서로의 자리를 바꾼다 — 사이에 낀 내부 컬럼과 다른 컬럼은 제자리다.
     setRows((prev) => {
@@ -147,6 +177,7 @@ function ColumnSettingsBody({ columns, onApply, onReset, onClose, title = "컬�
   };
 
   let lastZone: Zone | null = null;
+  let lastPath: readonly ColumnSettingsGroup[] = [];
   return (
     <>
       <style href={COLUMN_SETTINGS_STYLE_HREF} precedence="default">
@@ -183,16 +214,35 @@ function ColumnSettingsBody({ columns, onApply, onReset, onClose, title = "컬�
                   </li>,
                 );
               }
+              // 그룹 제목 줄 — 앞 줄과 경로가 달라진 깊이부터 그린다(구역이 바뀌면 처음부터).
+              const path = pathOf(r);
+              let diff = 0;
+              if (zone === lastZone) while (diff < path.length && diff < lastPath.length && path[diff].id === lastPath[diff].id) diff++;
+              for (let d = diff; d < path.length; d++) {
+                out.push(
+                  <li
+                    key={`group:${zone}:${i}:${path[d].id}`}
+                    className="cm-colset-group"
+                    style={{ "--cm-depth": d } as CSSProperties}
+                    data-testid={`${testId}-group-${path[d].id}`}
+                  >
+                    {path[d].header || path[d].id}
+                  </li>,
+                );
+              }
+              lastPath = path;
               lastZone = zone;
               const label = r.header || r.colId;
               const checked = r.locked ? true : !r.hide;
-              const upDisabled = i === 0 || zoneOf(shown[i - 1]) !== zone;
-              const downDisabled = i === shown.length - 1 || zoneOf(shown[i + 1]) !== zone;
+              const upDisabled = i === 0 || !sameBlock(shown[i - 1], r);
+              const downDisabled = i === shown.length - 1 || !sameBlock(shown[i + 1], r);
               out.push(
                 <li
                   key={r.colId}
                   className={`cm-colset-row${checked ? "" : " cm-colset-row--hidden"}`}
                   data-testid={`${testId}-row-${r.colId}`}
+                  data-depth={path.length > 0 ? path.length : undefined}
+                  style={path.length > 0 ? ({ "--cm-depth": path.length } as CSSProperties) : undefined}
                 >
                   <span className="cm-colset-check" title={r.locked ? LOCKED_TIP : undefined} data-testid={`${testId}-check-${r.colId}`}>
                     <Checkbox

@@ -878,12 +878,17 @@ function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
 /**
  * GridColumn 트리 → ag-grid 열 정의. `children` 이 있으면 ColGroupDef(groupId = key)로, 잎만 ColDef 로 바꾼다(여러 줄 머리).
  * 순수 함수라 단위 테스트가 ag-grid 렌더 없이 확인한다.
+ *
+ * 모든 열 그룹에 `marryChildren: true` 를 늘 준다 — 개인화 상태와 무관하다. 머리글 끌기로 잎이 그룹 밖으로 나가거나 남의 열이
+ * 그룹 사이에 끼어 그룹 머리가 갈라지는 것을 ag-grid 가 막는다(설치본 colDef.d.ts·doesMovePassMarryChildren).
+ * 개인화 훅이 이 열 정의를 입력으로 받으므로, 개인화 상태로 열 정의를 바꾸면 순환이 생긴다 — 그래서 조건 없이 준다.
  */
 export function buildColumnDefs(columns: GridColumn[], opts: BuildColumnDefsOptions): (ColDef | ColGroupDef)[] {
   return columns.map((col) => {
     if (col.children && col.children.length > 0) {
       const group: ColGroupDef = {
         groupId: col.key,
+        marryChildren: true,
         headerName: col.header ?? col.key,
         headerGroupComponent: col.headerComponent,
         headerGroupComponentParams: col.headerComponentParams,

@@ -13,7 +13,7 @@
  *   소유자가 빠지면 기다리던 그리드가 이어받는다(등록부 구독).
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type MutableRefObject } from "react";
-import type { ColDef, ColGroupDef, ColumnState, GridApi } from "ag-grid-community";
+import type { ColDef, ColGroupDef, Column, ColumnState, GridApi } from "ag-grid-community";
 
 import { useTabPage } from "../../portal-shell/tab-page-context";
 import { peekCurrentUser, subscribeCurrentUser } from "../../portal-shell/current-user";
@@ -137,10 +137,11 @@ export function defaultColumnsFromDefs(
   selectable: boolean,
 ): GridDefaultColumn[] {
   const out: GridDefaultColumn[] = selectable ? [{ colId: GRID_SELECTION_COL_ID }] : [];
-  const walk = (list: ReadonlyArray<ColDef | ColGroupDef>) => {
+  const walk = (list: ReadonlyArray<ColDef | ColGroupDef>, path: readonly string[]) => {
     for (const d of list) {
       if ("children" in d && Array.isArray(d.children)) {
-        walk(d.children);
+        const gid = d.groupId;
+        walk(d.children, gid ? [...path, gid] : path);
         continue;
       }
       const c = d as ColDef;
@@ -151,11 +152,29 @@ export function defaultColumnsFromDefs(
       if (c.hide != null) col.hide = !!c.hide;
       const pinned = toPinned(c.pinned);
       if (pinned !== undefined) col.pinned = pinned;
+      if (path.length > 0) col.groupPath = path;
       out.push(col);
     }
   };
-  walk(defs);
+  walk(defs, []);
   return out;
+}
+
+// ── 열 그룹 경로 ────────────────────────────────────────────────────────────────
+
+/** 잎 컬럼 → 열 그룹 경로(바깥 → 안쪽). `getOriginalParent`(정의 트리의 부모)를 따라 오르며 패딩 그룹은 건너뛴다. */
+function groupPathOf(col: Column): GridPersonalizeGroup[] {
+  const path: GridPersonalizeGroup[] = [];
+  let g = col.getOriginalParent();
+  while (g) {
+    if (!g.isPadding()) {
+      const id = g.getGroupId();
+      const name = g.getColGroupDef()?.headerName;
+      path.unshift({ id, header: typeof name === "string" && name !== "" ? name : id });
+    }
+    g = g.getOriginalParent();
+  }
+  return path;
 }
 
 // ── 제어기(그리드 API 와 저장소를 잇는다 — React 없이 시험한다) ─────────────────
@@ -358,6 +377,14 @@ export function createGridPersonalizeController(opts: GridPersonalizeControllerO
 
 // ── 훅 ─────────────────────────────────────────────────────────────────────────
 
+/** 열 그룹 하나 — 설정 창 제목 줄에 쓴다. */
+export interface GridPersonalizeGroup {
+  /** 그룹 id(GridColumn.key). */
+  id: string;
+  /** 그룹 머리글 이름(없으면 id). */
+  header: string;
+}
+
 /** 설정 창(C3)에 보일 컬럼 하나 — 지금 그리드 순서대로. */
 export interface GridPersonalizeColumn {
   colId: string;
@@ -370,6 +397,13 @@ export interface GridPersonalizeColumn {
   locked: boolean;
   /** 설정 창에 보이지 않을 컬럼 — 선택 체크박스·행번호, 화면 정의에서 `hide: true` 인 내부 컬럼. */
   internal: boolean;
+  /**
+   * 이 잎을 품은 가장 가까운 열 그룹(ag-grid 원래 부모 그룹 — 패딩 그룹은 건너뜀). 그룹이 없으면 생략.
+   * 설정 창은 순서 이동을 같은 그룹 안으로만 허용한다.
+   */
+  group?: GridPersonalizeGroup;
+  /** 그룹 경로(바깥 → 안쪽, 마지막이 `group`). 중첩 그룹의 제목 줄을 그린다. 그룹이 없으면 생략. */
+  groupPath?: GridPersonalizeGroup[];
 }
 
 /** `useGridPersonalize` 결과 — C3 설정 창이 GridPanel 에서 부를 명령. */
@@ -582,6 +616,11 @@ export function useGridPersonalize(opts: UseGridPersonalizeOptions): GridPersona
             locked: locked.has(colId),
             internal: colId === GRID_SELECTION_COL_ID || colId === "__rowNo" || defHidden.has(colId),
           };
+          const groupPath = groupPathOf(col);
+          if (groupPath.length > 0) {
+            state.group = groupPath[groupPath.length - 1];
+            state.groupPath = groupPath;
+          }
           const w = col.getActualWidth();
           if (w > 0) state.width = w;
           return state;
