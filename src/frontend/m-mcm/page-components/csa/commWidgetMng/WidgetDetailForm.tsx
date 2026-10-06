@@ -103,6 +103,8 @@ export interface WidgetDetailFormProps {
   errors: readonly string[];
   /** 미리보기(WidgetPreview) — 표 맨 아래 줄에 넣는다. */
   preview?: ReactNode;
+  /** 미리보기 줄 제목 — 미리보기로 고른 크기 종류에 맞춘다(기본 「미리보기(기본 크기)」). */
+  previewTitle?: string;
   onChange: (patch: Partial<DefForm>) => void;
   onConfigChange: (next: unknown) => void;
   onEditorValidate: (errors: string[]) => void;
@@ -117,6 +119,7 @@ export function WidgetDetailForm({
   disabled,
   errors,
   preview,
+  previewTitle = "미리보기(기본 크기)",
   onChange,
   onConfigChange,
   onEditorValidate,
@@ -361,7 +364,7 @@ export function WidgetDetailForm({
         {form && preview && (
           <tr>
             <th style={DETAIL_LABEL_CELL} colSpan={3}>
-              <MdmFieldLabel name="preview" meta={false} label="미리보기(기본 크기)" />
+              <MdmFieldLabel name="preview" meta={false} label={previewTitle} />
             </th>
           </tr>
         )}

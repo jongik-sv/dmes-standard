@@ -38,7 +38,9 @@ import {
   newDefForm,
   rowToForm,
   toSaveParams,
+  previewTitle,
   validateDefForm,
+  type SizeTarget,
 } from "./form-model";
 import {
   KIND_OPTIONS,
@@ -160,6 +162,8 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
   const [editorReady, setEditorReady] = useState(false);
   /** 상세를 새로 열 때마다 올린다 — 유형 편집기·미리보기를 다시 마운트한다. */
   const [openSeq, setOpenSeq] = useState(0);
+  /** 미리보기로 보고 끌어 바꿀 크기 종류 — 다른 위젯을 열면 기본으로 돌아간다. */
+  const [sizeTarget, setSizeTarget] = useState<SizeTarget>("def");
   /** [복사] 로 연 사본 폼의 안내(사용자 데이터가 따로 있는 유형). 상세를 새로 열면 지운다. */
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
   /** 첫 조회 중으로 시작한다(첫 조회 effect 가 setState 를 동기로 부르지 않게). */
@@ -200,6 +204,7 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
     setEditorErrors([]);
     setEditorReady(false);
     setCopyNotice(null);
+    setSizeTarget("def");
     setOpenSeq((n) => n + 1);
   }, []);
 
@@ -517,9 +522,19 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
                 editorKey={String(openSeq)}
                 disabled={!editable}
                 errors={shownErrors}
+                previewTitle={previewTitle(sizeTarget)}
                 preview={
                   form && (codeEntry || typeEntry) ? (
-                    <WidgetPreview key={openSeq} form={form} codeEntry={codeEntry} typeEntry={typeEntry} />
+                    <WidgetPreview
+                      key={openSeq}
+                      form={form}
+                      codeEntry={codeEntry}
+                      typeEntry={typeEntry}
+                      target={sizeTarget}
+                      onTargetChange={setSizeTarget}
+                      onSizeChange={handleFormChange}
+                      disabled={isBusy}
+                    />
                   ) : null
                 }
                 onChange={handleFormChange}

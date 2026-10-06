@@ -69,6 +69,7 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 | 모달·트리·탭·룩업 | `modal`, `tree`, `tabs`, `lookup` |
 | 여러 문서를 열어 두고 오가는 닫을 수 있는 탭(숨은 탭 상태·효과 유지) | `closable-tabs`: `ClosableTabs`(탭 머리 제목·● 변경 점·닫기 단추, 모든 패널 마운트 유지, ←/→·Delete, 닫기 확인은 화면이 `onClose` 에서). 닫지 않는 고정 보기 전환이면 `tabs` |
 | 모양이 정해지지 않은 JSON 값 보기(캐시 값·설정·응답 본문) | `json-view`: `JsonView`(읽기 전용 접는 트리, `fill` 로 패널 남은 높이 채움) |
+| 24열 격자 단위 크기(위젯 가로×세로)를 미리 보면서 마우스로 끌어 정하기 | `grid-resize-box`: `GridResizeBox`(제어형 `size`·`areaWidth`·`onResizeEnd`, 오른쪽·아래·모서리 손잡이, 끄는 중 「12×8」 표시), 순수 함수 `gridBoxPx`·`snapGridSize` |
 | 편집 화면에 카드 여러 장 쌓기(제목 줄 카드·함께 접는 묶음·흐린 보조 글) | `card`: `CardFrame`(제목 줄 + 본문), `CardGroup`(접어도 본문을 내리지 않음, `columns` 격자·`testIdPrefix`), `MutedText`. 그리드 툴바면 `GridPanel`, 대시보드면 `dashboard` |
 | 그리드 밖에서 항목의 표시 여부·순서를 고르는 창(그리드 컬럼 설정은 AgDataGrid 가 스스로 연다) | `column-settings-modal`: `ColumnSettingsModal`(제어형 `opened`·`columns`·`onApply`·`onReset`·`onClose`, 잠금·내부 컬럼·고정 구역 규칙, 적용은 `{colId, hide}` 만). AgDataGrid 컬럼 개인화는 화면이 연결할 것이 없다(「그리드 설정」 메뉴의 「컬럼 설정…」(GridPanel 머리줄 또는 GridPanel 밖 그리드 머리글 줄 아이콘, 대화 상자 안에는 없음)·헤더 우클릭) |
 | 후보에서 골라 묶음에 넣고 빼기(좌 가능·우 소속 전송 목록) | `transfer-list`: `TransferList`(제어형 `value`·`onChange`, 검색·분류 필터·Shift 범위·`>`/`>>`/`<`/`<<`, 배지·숨김·문구·testId 접두어는 props), 순수 함수 `visibleList`·`diffSets` 등. 한 건 고르기면 `lookup`·`ComboBox` |

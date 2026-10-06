@@ -15,9 +15,14 @@ import {
   formToRow,
   isFormDirty,
   newDefForm,
+  otherSizes,
   previewBox,
+  previewSizes,
+  previewTitle,
   rowToForm,
+  sizePatch,
   stripScreenOnlyKeys,
+  targetSize,
   toSaveParams,
   validateDefForm,
 } from "./form-model";
@@ -666,5 +671,79 @@ describe("previewBox", () => {
     expect(previewBox(480, { w: 12, h: 10 })).toEqual({ width: 240, height: 272 });
     expect(previewBox(480, { w: 30, h: 1 })).toEqual({ width: 480, height: 20 });
     expect(previewBox(0, { w: 8, h: 6 })).toEqual({ width: 0, height: 160 });
+  });
+});
+
+describe("미리보기 크기 조절(기본·최소·최대)", () => {
+  const base = { defaultSize: { w: 12, h: 8 }, minSize: { w: 5, h: 5 } };
+  const blank = dForm({ defW: "", defH: "", minW: "", minH: "", maxW: "", maxH: "" });
+
+  it("행 제목이 고른 대상을 따른다", () => {
+    expect(previewTitle("def")).toBe("미리보기(기본 크기)");
+    expect(previewTitle("min")).toBe("미리보기(최소 크기)");
+    expect(previewTitle("max")).toBe("미리보기(최대 크기)");
+  });
+
+  it("칸이 비면 코드·유형 값, 최소는 4×6, 최대는 제한 없음(null)", () => {
+    expect(previewSizes(blank, base)).toEqual({ def: { w: 12, h: 8 }, min: { w: 5, h: 5 }, max: null });
+    expect(previewSizes(blank, { defaultSize: { w: 8, h: 10 } }).min).toEqual({ w: 4, h: 6 });
+  });
+
+  it("칸 값이 코드·유형 값보다 앞서고, 축마다 따로 대체한다", () => {
+    const s = previewSizes({ ...blank, defW: "6", minH: "3", maxW: "20", maxH: "30" }, base);
+    expect(s.def).toEqual({ w: 6, h: 8 });
+    expect(s.min).toEqual({ w: 5, h: 3 });
+    expect(s.max).toEqual({ w: 20, h: 30 });
+  });
+
+  it("코드·유형에 값이 없는데 한 축만 입력하면 보드처럼 무시한다(최소 4×6, 최대 제한 없음)", () => {
+    const s = previewSizes({ ...blank, minW: "2", maxW: "16" }, { defaultSize: { w: 12, h: 8 } });
+    expect(s.min).toEqual({ w: 4, h: 6 });
+    expect(s.max).toBeNull();
+  });
+
+  it("코드·유형에 값이 있으면 한 축만 입력해도 나머지 축은 그 값을 쓴다", () => {
+    const s = previewSizes({ ...blank, minW: "2", maxW: "16" }, { ...base, maxSize: { w: 20, h: 18 } });
+    expect(s.min).toEqual({ w: 2, h: 5 });
+    expect(s.max).toEqual({ w: 16, h: 18 });
+  });
+
+  it("코드 위젯 메타의 최대가 있으면 그 값을 쓴다", () => {
+    expect(previewSizes(blank, { ...base, maxSize: { w: 20, h: 16 } }).max).toEqual({ w: 20, h: 16 });
+  });
+
+  it("정수가 아니거나 1 미만인 칸은 무시하고 가로는 24 로 맞춘다", () => {
+    const s = previewSizes({ ...blank, defW: "abc", defH: "0", minW: "40" }, base);
+    expect(s.def).toEqual({ w: 12, h: 8 });
+    expect(s.min.w).toBe(24);
+  });
+
+  it("고른 대상의 크기 — 최대가 제한 없음이면 기본 크기에서 시작", () => {
+    const s = previewSizes(blank, base);
+    expect(targetSize(s, "def")).toEqual({ w: 12, h: 8 });
+    expect(targetSize(s, "min")).toEqual({ w: 5, h: 5 });
+    expect(targetSize(s, "max")).toEqual({ w: 12, h: 8 });
+    expect(targetSize(previewSizes({ ...blank, maxW: "20", maxH: "16" }, base), "max")).toEqual({ w: 20, h: 16 });
+  });
+
+  it("나머지 두 크기 — 최대가 제한 없음이면 뺀다", () => {
+    const s = previewSizes(blank, base);
+    expect(otherSizes(s, "def").map((o) => o.target)).toEqual(["min"]);
+    expect(otherSizes(s, "min").map((o) => o.target)).toEqual(["def"]);
+    const withMax = previewSizes({ ...blank, maxW: "20", maxH: "16" }, base);
+    expect(otherSizes(withMax, "min").map((o) => o.target)).toEqual(["def", "max"]);
+    expect(otherSizes(withMax, "max").map((o) => o.target)).toEqual(["def", "min"]);
+  });
+
+  it("드래그 결과는 고른 대상의 가로·세로 칸 값이 된다(문자열)", () => {
+    expect(sizePatch("def", { w: 10, h: 7 })).toEqual({ defW: "10", defH: "7" });
+    expect(sizePatch("min", { w: 3, h: 4 })).toEqual({ minW: "3", minH: "4" });
+    expect(sizePatch("max", { w: 24, h: 30 })).toEqual({ maxW: "24", maxH: "30" });
+  });
+
+  it("양방향 — 칸에 넣은 값이 미리보기에 반영되고, 드래그 값으로 검증이 깨지면 기존 문구가 나온다", () => {
+    const form = { ...dForm({ title: "t", typeId: "markdown" }), ...sizePatch("min", { w: 10, h: 4 }), defW: "8", defH: "8" };
+    expect(previewSizes(form, base).min).toEqual({ w: 10, h: 4 });
+    expect(validateDefForm(form)).toContain("최소 너비는 기본 너비 이하여야 합니다.");
   });
 });
