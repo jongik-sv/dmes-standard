@@ -4,13 +4,16 @@ import type { GridColumn } from "../../src/components/grid/AgDataGrid";
 import {
   GRID_SELECTION_COL_ID,
   clearGridPrefs,
+  gridOptsKey,
   gridPrefKey,
   hideLockedColIds,
   isColumnHideLocked,
+  loadGridAutoSave,
   loadGridPrefs,
   mergeColumnState,
   parseGridPrefs,
   resolvePersonalize,
+  saveGridAutoSave,
   saveGridPrefs,
   toGridPrefs,
   type GridDefaultColumn,
@@ -51,13 +54,14 @@ const prefs = (cols: GridPrefs["cols"], extra: Partial<GridPrefs> = {}): GridPre
 
 describe("resolvePersonalize", () => {
   it("defaults to on with sort", () => {
-    expect(resolvePersonalize(undefined)).toEqual({ enabled: true, sort: true });
-    expect(resolvePersonalize(true)).toEqual({ enabled: true, sort: true });
+    expect(resolvePersonalize(undefined)).toEqual({ enabled: true, sort: true, autoSave: true });
+    expect(resolvePersonalize(true)).toEqual({ enabled: true, sort: true, autoSave: true });
   });
   it("false turns everything off, object adjusts sort", () => {
-    expect(resolvePersonalize(false)).toEqual({ enabled: false, sort: false });
-    expect(resolvePersonalize({ sort: false })).toEqual({ enabled: true, sort: false });
-    expect(resolvePersonalize({})).toEqual({ enabled: true, sort: true });
+    expect(resolvePersonalize(false)).toEqual({ enabled: false, sort: false, autoSave: false });
+    expect(resolvePersonalize({ sort: false })).toEqual({ enabled: true, sort: false, autoSave: true });
+    expect(resolvePersonalize({})).toEqual({ enabled: true, sort: true, autoSave: true });
+    expect(resolvePersonalize({ autoSave: false })).toEqual({ enabled: true, sort: true, autoSave: false });
   });
 });
 
@@ -343,5 +347,67 @@ describe("toGridPrefs", () => {
       ["b", 120],
       ["c", 90],
     ]);
+  });
+});
+
+describe("자동 저장 스위치 옆 키", () => {
+  it("dmes:grid-opts:v1:{user}:{screen}:{grid} 이고 gridId 가 비면 main 이다 — 컬럼 저장 키와 접두어가 다르다", () => {
+    expect(gridOptsKey("u1", "/mcm/a", "detail")).toBe("dmes:grid-opts:v1:u1:/mcm/a:detail");
+    expect(gridOptsKey("u1", "/mcm/a", "")).toBe("dmes:grid-opts:v1:u1:/mcm/a:main");
+    expect(gridOptsKey("u1", "s", "g").startsWith("dmes:grid:v1:")).toBe(false);
+  });
+  it("저장한 값을 그대로 읽는다(true·false 모두)", () => {
+    const store = new FakeStorage();
+    expect(saveGridAutoSave("u1", "s", "g", false, store)).toBe(true);
+    expect(loadGridAutoSave("u1", "s", "g", store)).toBe(false);
+    expect(saveGridAutoSave("u1", "s", "g", true, store)).toBe(true);
+    expect(loadGridAutoSave("u1", "s", "g", store)).toBe(true);
+    expect(JSON.parse(store.getItem(gridOptsKey("u1", "s", "g"))!)).toEqual({ autoSave: true });
+  });
+  it("값이 없거나(옛 저장값) 깨졌으면 null — 호출자가 개발자 기본값을 쓴다", () => {
+    const store = new FakeStorage();
+    expect(loadGridAutoSave("u1", "s", "g", store)).toBeNull();
+    for (const bad of ["", "not json", "null", "[]", "{}", '{"autoSave":"no"}', '{"autoSave":1}', "7"]) {
+      store.setItem(gridOptsKey("u1", "s", "g"), bad);
+      expect(loadGridAutoSave("u1", "s", "g", store), bad).toBeNull();
+    }
+  });
+  it("userId·screenKey·저장소가 없으면 읽지도 쓰지도 않는다", () => {
+    const store = new FakeStorage();
+    expect(saveGridAutoSave("", "s", "g", false, store)).toBe(false);
+    expect(saveGridAutoSave("u1", "", "g", false, store)).toBe(false);
+    expect(saveGridAutoSave("u1", "s", "g", false, null)).toBe(false);
+    expect(store.length).toBe(0);
+    store.setItem(gridOptsKey("u1", "s", "g"), '{"autoSave":false}');
+    expect(loadGridAutoSave("", "s", "g", store)).toBeNull();
+    expect(loadGridAutoSave("u1", "", "g", store)).toBeNull();
+    expect(loadGridAutoSave("u1", "s", "g", null)).toBeNull();
+  });
+  it("저장소가 던져도 던지지 않는다", () => {
+    const store = new FakeStorage(1);
+    expect(saveGridAutoSave("u1", "s", "g", false, store)).toBe(false);
+    const thrower = { getItem: () => { throw new Error("blocked"); } } as unknown as Storage;
+    expect(loadGridAutoSave("u1", "s", "g", thrower)).toBeNull();
+  });
+  it("용량 초과 정리(saveGridPrefs)는 옆 키를 지우지 않는다", () => {
+    const one = (savedAt: number) => prefs([{ colId: "a", width: 10 }], { savedAt });
+    const opt = JSON.stringify({ autoSave: false }).length;
+    // 옆 키 하나 + 컬럼 저장값 둘이 들어갈 만큼만 용량을 준다 — 셋째를 쓰면 가장 오래된 컬럼 저장값이 지워진다
+    const store = new FakeStorage(opt + JSON.stringify(one(1)).length * 2 + 5);
+    saveGridAutoSave("u1", "s", "other", false, store);
+    saveGridPrefs("u1", "s", "old", one(1), store);
+    saveGridPrefs("u1", "s", "mid", one(2), store);
+    expect(saveGridPrefs("u1", "s", "new", one(9), store)).toBe(true);
+    expect(store.getItem(gridPrefKey("u1", "s", "old"))).toBeNull();
+    expect(store.getItem(gridPrefKey("u1", "s", "mid"))).not.toBeNull();
+    expect(loadGridAutoSave("u1", "s", "other", store)).toBe(false);
+  });
+  it("초기화(clearGridPrefs)는 옆 키를 지우지 않는다", () => {
+    const store = new FakeStorage();
+    saveGridAutoSave("u1", "s", "g", false, store);
+    saveGridPrefs("u1", "s", "g", prefs([{ colId: "a" }]), store);
+    clearGridPrefs("u1", "s", "g", store);
+    expect(loadGridPrefs("u1", "s", "g", store)).toBeNull();
+    expect(loadGridAutoSave("u1", "s", "g", store)).toBe(false);
   });
 });
