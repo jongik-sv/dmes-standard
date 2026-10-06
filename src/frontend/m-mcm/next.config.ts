@@ -18,6 +18,9 @@ const nextConfig: NextConfig = {
     // 복제 없이 흘려보내며 101MB 상한을 직접 지킨다(lib/http/body-limit.ts, 스펙 2026-10-02-widget-admin-generic §16.3).
     // 옛 이름 middlewareClientMaxBodySize 와 함께 두면 Next 가 기동을 거부한다.
     proxyClientMaxBodySize: API_BODY_MAX_BYTES,
+    // next dev 의 Turbopack 캐시 상한(바이트). 포털이 모듈 7개를 묶어 개발 서버가 4GB 넘게 불어난 적이 있어 2GB 로 묶는다.
+    // 2026-10-06 측정: 같은 화면 기준 2,221MB → 2,028MB. 운영 빌드에는 영향이 없다.
+    turbopackMemoryLimit: 2 * 1024 ** 3,
   },
 };
 
