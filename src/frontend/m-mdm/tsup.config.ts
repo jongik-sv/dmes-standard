@@ -27,7 +27,9 @@ const common: Options = {
   // clean: false 유지 — 호스트(m-mcm) dev 서버가 dist/ 를 watch 하므로
   // 빌드 시작 순간 dist 가 비면 번들러 캐시가 깨진다(m-mls/m-mqc 와 동일 이유).
   clean: false,
-  splitting: true,
+  // splitting 을 켜면 공유 청크가 내용 해시 이름(chunk-XXXX.js)으로 나오는데, clean: false 라 재빌드마다 새 해시 청크가 쌓이고
+  // 옛 청크가 dist 에 남는다(2026-10-06 측정: 청크 85개 중 65개가 고아). shared 와 같이 끈다.
+  splitting: false,
   outDir: "dist",
   external,
   // `inline-worker:` — Worker 소스를 문자열로 넣는다(의사결정표 즉시 검사).
