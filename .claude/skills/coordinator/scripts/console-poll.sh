@@ -1047,13 +1047,20 @@ cmd_start() {
   has_work || { echo "CONSOLE_POLLER skipped idle"; exit 0; }
   lock_take || { echo "CONSOLE_POLLER running pid=$HELD"; exit 0; }
   # 부른 쪽의 stdout·stderr 를 붙잡지 않게 모두 닫고, 가능하면 새 세션으로 떼어 낸다(부른 셸의 프로세스 그룹 정리에 같이 죽지 않게).
-  if command -v perl >/dev/null 2>&1; then
-    CONSOLE_POLL_LOCKED=1 CONSOLE_POLL_IDENT="$IDENT" perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV or exit 127' \
-      bash "$SELF" run </dev/null >/dev/null 2>&1 &
-  else
-    CONSOLE_POLL_LOCKED=1 CONSOLE_POLL_IDENT="$IDENT" nohup bash "$SELF" run </dev/null >/dev/null 2>&1 &
+  # setsid 명령 → node detached spawn(자식 pid 를 stdout 에 찍고 바로 끝난다) → nohup 순. 어느 경로든 cpid 는 실제 폴러 pid 다.
+  cpid=""
+  if command -v setsid >/dev/null 2>&1; then
+    # 백그라운드 & 안에서는 그룹 리더가 아니라서 setsid 가 포크하지 않고 같은 pid 로 exec 한다
+    CONSOLE_POLL_LOCKED=1 CONSOLE_POLL_IDENT="$IDENT" setsid bash "$SELF" run </dev/null >/dev/null 2>&1 &
+    cpid=$!
+  elif command -v node >/dev/null 2>&1; then
+    cpid="$(CONSOLE_POLL_LOCKED=1 CONSOLE_POLL_IDENT="$IDENT" node -e 'const c=require("child_process").spawn("bash",[process.argv[1],"run"],{detached:true,stdio:"ignore",env:process.env});c.unref();process.stdout.write(String(c.pid))' "$SELF" 2>/dev/null)"
+    case "$cpid" in ''|*[!0-9]*) cpid="" ;; esac
   fi
-  cpid=$!
+  if [ -z "$cpid" ]; then
+    CONSOLE_POLL_LOCKED=1 CONSOLE_POLL_IDENT="$IDENT" nohup bash "$SELF" run </dev/null >/dev/null 2>&1 &
+    cpid=$!
+  fi
   lock_write "$cpid"
   plog "start → pid=$cpid"
   echo "CONSOLE_POLLER started pid=$cpid"

@@ -106,7 +106,11 @@ mk_question() {  # 맨 위(끝에서 41번째) 줄에 표식을 둔다 — 캐�
   n="$(wc -l < "$1.body" | tr -d ' ')"
   { sed -n "1,$((n - 41))p" "$1.body"; echo TOP41LINE; tail -n 40 "$1.body"; } > "$1"; rm -f "$1.body"
 }
-ms_now() { perl -MTime::HiRes=time -e 'printf "%d", time * 1000'; }
+ms_now() {  # 지금 에포크 ms — date +%s.%N(9자리 소수)이면 그것, 아니면 node
+  local t; t="$(date +%s.%N 2>/dev/null)"
+  if [[ "$t" =~ ^([0-9]+)\.([0-9]{9})$ ]]; then printf '%d' $(( ${BASH_REMATCH[1]} * 1000 + 10#${BASH_REMATCH[2]:0:3} ))
+  else node -e 'process.stdout.write(String(Date.now()))'; fi
+}
 # 폴러의 쓰기를 흉내: 진짜 쓰기 함수로 캐시를 남긴다 — plant <handle> <화면 파일> [나이 초] [창 지문]. 화면은 41줄만 담는다(폴러와 같게)
 plant() {
   local h="$1" f="$2" age="${3:-0}" full="${4:-}"
@@ -118,7 +122,7 @@ reads() { grep -c -- '^terminal read ' "$FAKE_DIR/orca.log"; }
 resetlog() { : > "$FAKE_DIR/orca.log"; }
 pw() { resetlog; bash "$PW" "$@" 2>"$S/pw.err"; }
 setcfg() { base_cfg "$1"; }
-mode_of() { stat -f %Lp "$1" 2>/dev/null || stat -c %a "$1"; }
+mode_of() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"; }   # GNU 먼저(GNU stat -f 는 rc 0 으로 ? 를 낸다)
 SECRET="sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789"
 
 # =================================================================================================

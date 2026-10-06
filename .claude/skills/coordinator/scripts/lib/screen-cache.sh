@@ -25,8 +25,23 @@ sc_key() {
   printf '%s' "${1//:/=}"
 }
 
+# 지금 에포크 밀리초(정수·개행 없음). bash 5 $EPOCHREALTIME(프로세스 0개) → date +%s.%N(한 프로세스) → node → 초×1000.
+# 앞 셋은 결과가 `숫자(.|,)숫자` 꼴일 때만 쓴다.
 sc_now_ms() {
-  perl -MTime::HiRes=time -e 'printf "%d", time * 1000' 2>/dev/null || printf '%s000' "$(date +%s)"
+  local t s f
+  t="${EPOCHREALTIME:-}"
+  if [[ "$t" =~ ^([0-9]+)[.,]([0-9]+)$ ]]; then
+    s="${BASH_REMATCH[1]}"; f="${BASH_REMATCH[2]}000"; printf '%d' $(( 10#$s * 1000 + 10#${f:0:3} )); return 0
+  fi
+  t="$(date +%s.%N 2>/dev/null)"
+  if [[ "$t" =~ ^([0-9]+)\.([0-9]{9})$ ]]; then
+    s="${BASH_REMATCH[1]}"; f="${BASH_REMATCH[2]}"; printf '%d' $(( 10#$s * 1000 + 10#${f:0:3} )); return 0
+  fi
+  if command -v node >/dev/null 2>&1; then
+    t="$(node -e 'process.stdout.write(String(Date.now()))' 2>/dev/null)"
+    case "$t" in ''|*[!0-9]*) ;; *) printf '%s' "$t"; return 0 ;; esac
+  fi
+  printf '%s000' "$(date +%s)"
 }
 
 # 파일의 `<소유 uid> <권한> <mtime> <크기>`
