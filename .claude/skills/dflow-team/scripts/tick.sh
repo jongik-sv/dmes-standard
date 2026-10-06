@@ -63,7 +63,11 @@ SWEEP="${DFLOW_SWEEP_CHECK:-$HERE/../../dflow-merge/scripts/sweep-check.sh}"
 INTERVAL="${DFLOW_TICK_SEC:-1800}"
 POLL="${DFLOW_TICK_POLL:-20}"
 LEAD_PID=${PID_ARG:-${CLAUDE_PID:-$(ps -o ppid= -p "$PPID" 2>/dev/null | tr -d ' ')}}
-[ -n "$LEAD_PID" ] || { read -r LEAD_PID < "/proc/$PPID/ppid"; } 2>/dev/null || LEAD_PID=   # Git Bash 의 ps 는 -o 를 모른다 — /proc 로 같은 값을 읽는다
+# Git Bash 의 ps 는 -o 를 모른다 — /proc 로 같은 값을 읽는다(끝 줄바꿈이 없어도 읽고, 숫자가 아니거나 0·1 이면 버린다)
+if [ -z "$LEAD_PID" ]; then
+  _lp=; { read -r _lp < "/proc/$PPID/ppid" || [ -n "$_lp" ]; } 2>/dev/null
+  case "$_lp" in ''|*[!0-9]*|0|1) ;; *) LEAD_PID=$_lp ;; esac
+fi
 
 # 세 경로는 git 에 직접 묻는다(링크드 워크트리에선 .git 이 파일이라 손으로 조립하지 않는다)
 GEN_FILE=$(git rev-parse --path-format=absolute --git-path dflow-team.gen) || { echo "FAIL NOT_GIT" >&2; exit 2; }

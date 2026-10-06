@@ -22,19 +22,24 @@ mk M3 'true' 'nothere' 'x'                                                  # �
 mk M4 'true' 'a' 'x'                                                        # `a`+줄바꿈이 alpha·beta 끝에 두 번 → anchor count=2
 mk M5 'exit 75' 'alpha' 'x'                                                 # 75 → busy
 printf 'rule: r\nfile: src/a.txt\ntest: true\n--- find\nalpha\nkeep=한글 값\n--- replace\nZ\n' > muts/M6.mut   # 여러 줄 원문
+mkdir -p src/한글폴더; printf 'zeta\n' > src/한글폴더/b.txt
+mk M8 'grep -q "^keep=한글 값$" src/a.txt' 'alpha' 'ALPHA'                 # 한글 test: 변이는 한글 줄과 무관하므로 survived 여야 한다(헤더가 UTF-8 로 풀려야 함)
+mk M9 'true' 'zeta' 'ZETA' 'src/한글폴더/b.txt'                              # 한글 폴더의 file:
 
 r="$(bash "$MUT" run muts 2>&1)"
-eq "결과 줄 6개 + 요약" "$(printf '%s\n' "$r" | grep -c '^MUTATION_')" 7
+eq "결과 줄 8개 + 요약" "$(printf '%s\n' "$r" | grep -c '^MUTATION_')" 9
 eq "M1 caught" "$(printf '%s\n' "$r" | grep -c '^MUTATION_RESULT M1 caught rc=1 ')" 1
 eq "M2 survived" "$(printf '%s\n' "$r" | grep -c '^MUTATION_RESULT M2 survived rc=0 ')" 1
 eq "M3 anchor count=0" "$(printf '%s\n' "$r" | grep -c '^MUTATION_RESULT M3 anchor count=0 file=src/a.txt')" 1
 eq "M4 anchor count=2" "$(printf '%s\n' "$r" | grep -c '^MUTATION_RESULT M4 anchor count=2 ')" 1
 eq "M5 busy" "$(printf '%s\n' "$r" | grep -c '^MUTATION_RESULT M5 busy rc=75 ')" 1
 eq "M6 여러 줄 원문 survived" "$(printf '%s\n' "$r" | grep -c '^MUTATION_RESULT M6 survived ')" 1
-eq "요약" "$(printf '%s\n' "$r" | tail -1)" "MUTATION_SUMMARY total=6 caught=1 survived=2 anchor=2 busy=1"
+eq "M8 한글 test: survived" "$(printf '%s\n' "$r" | grep -c '^MUTATION_RESULT M8 survived rc=0 ')" 1
+eq "M9 한글 폴더 file: survived" "$(printf '%s\n' "$r" | grep -c '^MUTATION_RESULT M9 survived rc=0 ')" 1
+eq "요약" "$(printf '%s\n' "$r" | tail -1)" "MUTATION_SUMMARY total=8 caught=1 survived=4 anchor=2 busy=1"
 eq "파일은 바이트 그대로 되돌아온다(한글 포함)" "$(cmp -s src/a.txt a.orig && echo same)" same
 eq "사본 폴더에 파일이 남지 않는다" "$(find .git/dflow-bak/mutate -type f 2>/dev/null | wc -l | tr -d ' ')" 0
-eq "로그가 남는다" "$(ls .git/dflow-bak/mutate-logs | wc -l | tr -d ' ')" 4
+eq "로그가 남는다" "$(ls .git/dflow-bak/mutate-logs | wc -l | tr -d ' ')" 6
 
 r="$(bash "$MUT" run muts --ids M2 2>&1)"
 eq "--ids 는 그 변이만" "$(printf '%s\n' "$r" | tail -1)" "MUTATION_SUMMARY total=1 caught=0 survived=1 anchor=0 busy=0"

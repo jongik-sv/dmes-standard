@@ -29,9 +29,13 @@ Git Bash 에 **없는** 명령: `ps -o`·`ps -x`(Cygwin 판 ps 는 `-W`·`-e`·`
 4. **프로세스 조회·종료는 공용 함수로.** Git Bash 에서는 `/proc/<pid>/{ppid,cmdline,cwd}` 를 bash 내장으로 읽는다(fork 0). 후손 목록은 pid·ppid 표를 한 번 읽어 awk 로 구한다(`pgrep -P` 재귀 대신).
 5. **`kill -0` 은 Git Bash 에서 네이티브 Windows pid 를 못 알아본다.** 살아 있는지 확인할 때는 `compat_pid_alive`(또는 `ps -W` 의 WINPID 열)를 쓴다.
 6. **경로**: `/tmp` 는 Git Bash 에서도 동작하지만 `$TMPDIR` 우선(`${TMPDIR:-/tmp}`). PC 이름·사용자 홈 경로를 스크립트·문서에 박지 않는다. `ln -s` 는 Git Bash 기본이 **복사**를 만든다(진짜 심링크는 개발자 모드 + `MSYS=winsymlinks:nativestrict`) — 심링크를 전제로 하는 기능(`deps.sh` 의 의존성 링크)은 윈도우에서 동작이 다르다.
-7. 시간 상한은 GNU `timeout`(Git Bash 에 있음) → 셸 감시 순. macOS 에는 `timeout` 이 없다. 새 프로세스 세션이 필요하면 `setsid`(없으면 node spawn detached → nohup) 순.
+7. 시간 상한·새 프로세스 세션은 아직 통일하지 못했다: `console-poll.sh` 는 perl `POSIX::setsid` → nohup, `heavy.sh` 는 `set -m` + nohup, `console-input.sh` 의 시간 상한은 perl `alarm` 이다. 새로 쓸 때는 시간 상한을 GNU `timeout`(Git Bash 에 있음, macOS 에는 없음) → 셸 감시 순으로, 새 세션은 node spawn detached → nohup 순으로 한다.
 
 ## 알려진 한계(Git Bash)
+
+- **perl·pgrep 제거가 아직 끝나지 않은 파일**(다른 작업이 끝나는 대로 `compat.sh` 함수로 교체한다): `lib/common.sh`(`stat -f` 순서·`ps -o lstart`·`lsof`·`ps -axo`), `console-poll.sh`(`pgrep -P` 후손 종료·perl setsid), `lib/console-input.sh`(perl alarm·밀리초 시각), `lib/screen-cache.sh`(perl 밀리초). Git Bash 에서는 perl 이 있으면 그대로 돌고, `pgrep`·`lsof` 가 필요한 부분(폴러의 후손 종료·`coord_wt_procs`)은 동작하지 않는다.
+- 신호: MSYS `kill -TERM` 이 node.exe 를 강제 종료하면 신호 핸들러가 돌지 못한다(`mutate.sh` 는 다음 실행이 사본을 되돌린다).
+- /proc 에는 MSYS 가 띄운 프로세스만 보인다. 네이티브 프로세스(node.exe 등)의 손자는 후손 목록·`compat_kill_tree` 에서 빠져 시간 초과 정리 때 남을 수 있다.
 
 윈도우에서 얻을 수 없는 값은 「관측 불가」로 열어 두고, 그 값이 필요한 판정은 하지 않는다(판정 불가를 알린다).
 

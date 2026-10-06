@@ -60,7 +60,8 @@ for (const f of files) {
   const [find, repl] = splitOnce(r1, /^--- replace\n/m); if (repl === undefined) bad(f, '--- replace 표지 없음');
   if (!find.length) bad(f, '원문이 비었다');
   const h = {};
-  for (const line of head.split('\n')) { const m = /^([a-z0-9]+):\s*(.*?)\s*$/.exec(line); if (m) h[m[1]] = m[2]; }
+  // 헤더(file·test 등)는 UTF-8 글로 풀어 쓴다(본문 find·repl 은 바이트 그대로 latin1). perl 은 바이트를 그대로 넘겼다.
+  for (const line of Buffer.from(head, 'latin1').toString('utf8').split('\n')) { const m = /^([a-z0-9]+):\s*(.*?)\s*$/.exec(line); if (m) h[m[1]] = m[2]; }
   for (const k of ['rule', 'file', 'test']) if (!h[k]) bad(f, `${k}: 없음`);
   muts.push({ id, file: h.file, test: h.test, e2e: (h.e2e ?? 'no') === 'yes' ? 'yes' : 'no', find, repl });
 }
@@ -83,7 +84,8 @@ process.on('exit', () => { if (curBak !== undefined) restore(); });
 const runTest = (cmd, logPath) => new Promise((resolve) => {
   const fd = fs.openSync(logPath, 'w');
   child = spawn('sh', ['-c', cmd], { stdio: ['inherit', fd, fd] });
-  const done = (rc) => { fs.closeSync(fd); child = undefined; resolve(rc); };
+  let finished = false;   // spawn 실패 때는 error 뒤에 close 도 온다 — 한 번만 끝낸다
+  const done = (rc) => { if (finished) return; finished = true; fs.closeSync(fd); child = undefined; resolve(rc); };
   child.on('error', () => done(127));
   child.on('close', (code, sig) => done(sig ? 128 + (os.constants.signals[sig] ?? 0) : code ?? 127));
 });
