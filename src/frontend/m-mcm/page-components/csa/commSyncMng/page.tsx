@@ -56,6 +56,7 @@ import {
 } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryState } from "@dk-oasis/shared/portal-shell";
 import { uiCols } from "@/lib/ui-meta";
 
 import { reg as apiReg } from "./api";
@@ -96,9 +97,10 @@ export default function CommSyncMngPage() {
   const { showMessage } = useMessage();
 
   // S-002 처리유형 (콤보) — null 일 때 fn_sync 차단 (xfdl:134~137)
-  const [pSyncTarget, setPSyncTarget] = useState<SyncTarget | "">("");
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 결과가 없는 화면이라 입력값·선택 키만(light) 옮긴다.
+  const [pSyncTarget, setPSyncTarget] = useCarryState<SyncTarget | "">("pSyncTarget", "");
   // S-004 처리대상 (TextBox, 기본값 "AA_TEST" — xfdl:20)
-  const [edtTarget, setEdtTarget] = useState<string>("AA_TEST");
+  const [edtTarget, setEdtTarget] = useCarryState<string>("edtTarget", "AA_TEST");
 
   // ds_main 16 행 정적 (xfdl 자산 폐기 + React State 상수 이전).
   // CHK 는 GridPanel selectable 의 selectedKeys 로 관리 — row 자체에는 보관 ✗ (G-1 fix).
@@ -106,7 +108,7 @@ export default function CommSyncMngPage() {
 
   // G-001 CHK 등가물 — selectable+multiSelect 의 selectedKeys (W6/W7 정본 패턴).
   // 초기값: 빈 배열 (xfdl ds_main 16 행 초기 모두 CHK="0" 동치 — xfdl:273~450).
-  const [selectedKeys, setSelectedKeys] = useState<(string | number)[]>([]);
+  const [selectedKeys, setSelectedKeys] = useCarryState<(string | number)[]>("selectedKeys", []);
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -134,14 +136,14 @@ export default function CommSyncMngPage() {
     // 자동 선택 targetid 목록 산출 — As-Is xfdl 처리유형별 prefix 매칭 (xfdl:201/211/221/230/239)
     const autoIds = autoSelectTargetIds(INITIAL_SYNC_ROWS, value as SyncTarget);
     setSelectedKeys(autoIds);
-  }, []);
+  }, [setPSyncTarget, setSelectedKeys]);
 
   // ─────────────────────────────────────────────────────────────
   // G-001 CHK 토글 — selectable+multiSelect 의 onRowSelect callback (W6/W7 정본)
   // ─────────────────────────────────────────────────────────────
   const handleRowSelect = useCallback((ids: (string | number)[]) => {
     setSelectedKeys(ids);
-  }, []);
+  }, [setSelectedKeys]);
 
   // ─────────────────────────────────────────────────────────────
   // B-001 "이행" 버튼 — fn_sync (xfdl:121~168)

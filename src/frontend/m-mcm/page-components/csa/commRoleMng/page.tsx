@@ -69,6 +69,7 @@ import {
 } from "@dk-oasis/shared/form";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import {
   searchCmRole as apiSearchCmRole,
   saveCmRole as apiSaveCmRole,
@@ -273,13 +274,16 @@ function emptyRow(): CommRoleMngRow {
 export default function CommRoleMngPage() {
   const { showMessage } = useMessage();
 
-  const [filters, setFilters] = useState<CommRoleMngFilters>(DEFAULT_FILTERS);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·선택 키·목록 필터는 가볍게, 조회 결과 행은 bulky.
+  // 권한 매핑·권한 그리드·OBJECT 목록·체크 선택은 선택한 역할이 정해지면 다시 조회하므로 이어받지 않는다(useState).
+  const [filters, setFilters] = useCarryState<CommRoleMngFilters>("filters", DEFAULT_FILTERS);
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [rows, setRows] = useState<(CommRoleMngRow & GridRow)[]>([]);
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [rows, setRows] = useCarryState<(CommRoleMngRow & GridRow)[]>("rows", [], { bulky: true });
+  const [selectedKey, setSelectedKey] = useCarryState<string | null>("selectedKey", null);
+  const restored = useCarryRestored();
 
   const [roleMapRows, setRoleMapRows] = useState<(CommRoleMngRoleMapRow & { __rmId: string })[]>([]);
   const [permRows, setPermRows] = useState<(CommRoleMngPermRow & { __pmId: string })[]>([]);
@@ -293,7 +297,7 @@ export default function CommRoleMngPage() {
    *  - {@code objectLoading}         : OBJECT 조회 중 표시
    */
   const [objectRows, setObjectRows] = useState<(ObjectLovRow & { __olId: string })[]>([]);
-  const [objectFilter, setObjectFilter] = useState<string>("");
+  const [objectFilter, setObjectFilter] = useCarryState<string>("objectFilter", "");
   const [objectSelectedKeys, setObjectSelectedKeys] = useState<(string | number)[]>([]);
   const [objectLoading, setObjectLoading] = useState<boolean>(false);
 
@@ -304,9 +308,9 @@ export default function CommRoleMngPage() {
   const [permSelectedKeys, setPermSelectedKeys] = useState<(string | number)[]>([]);
 
   /** sub1 PERM 필터 (xfdl edt_permfilter2 onkeyup — UPPER LIKE). */
-  const [roleMapFilter, setRoleMapFilter] = useState<string>("");
+  const [roleMapFilter, setRoleMapFilter] = useCarryState<string>("roleMapFilter", "");
   /** sub2 우 PERM 필터 (xfdl edt_permfilter onkeyup — UPPER LIKE). */
-  const [permFilter, setPermFilter] = useState<string>("");
+  const [permFilter, setPermFilter] = useCarryState<string>("permFilter", "");
 
   const selected = useMemo<(CommRoleMngRow & GridRow) | null>(() => {
     if (!selectedKey) return null;
@@ -388,6 +392,8 @@ export default function CommRoleMngPage() {
    */
   useEffect(() => {
     const visible = new Set(filteredObjectRows.map((r) => r.__olId));
+    // effect 안 상태 갱신(조회·초기화)은 의도된 동작이다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setObjectSelectedKeys((prev) => {
       const next = prev.filter((k) => visible.has(String(k)));
       return next.length === prev.length ? prev : next;
@@ -431,6 +437,8 @@ export default function CommRoleMngPage() {
   }, []);
 
   useEffect(() => {
+    // effect 안 상태 갱신(조회·초기화)은 의도된 동작이다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadObjectList();
   }, [loadObjectList]);
 
@@ -473,7 +481,7 @@ export default function CommRoleMngPage() {
         setIsSearching(false);
       }
     },
-    [showMessage],
+    [showMessage, setRows, setSelectedKey],
   );
 
   const handleFilterChange = (k: keyof CommRoleMngFilters, v: string) =>
@@ -517,7 +525,10 @@ export default function CommRoleMngPage() {
 
   // W5 F — csa 그룹 화면 진입 시 자동조회 (AsIs gfn_formOnLoad(obj,true) 등가).
   useEffect(() => {
-    void loadList(DEFAULT_FILTERS);
+    // 새 창이 이어받은 행이 있으면 자동 조회를 건너뛴다(행 없이 복원됐으면 이어받은 조건으로 조회). 복원값이 없으면 DEFAULT_FILTERS 다.
+    // 조회 결과를 상태에 담는 비동기 호출이라 effect 안 setState 규칙에 걸린다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!restored || rows.length === 0) void loadList(filters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -536,6 +547,8 @@ export default function CommRoleMngPage() {
 
   useEffect(() => {
     if (!selectedRoleId) {
+      // effect 안 상태 갱신(조회·초기화)은 의도된 동작이다.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRoleMapRows([]);
       setPermRows([]);
       setRoleMapSelectedKeys([]);
@@ -570,7 +583,7 @@ export default function CommRoleMngPage() {
       );
     });
     setSelectedKey(null);
-  }, [selectedKey]);
+  }, [selectedKey, setRows, setSelectedKey]);
 
   /** 행추가 / 행복사 / 행삭제 통합 (GridPanel showAddButton/showCopyButton/showDeleteButton onDataChange). */
   const handleDataChange = useCallback(
@@ -615,7 +628,7 @@ export default function CommRoleMngPage() {
         });
       }
     },
-    [],
+    [setRows, setSelectedKey],
   );
 
   /**
@@ -645,7 +658,7 @@ export default function CommRoleMngPage() {
         }),
       );
     },
-    [],
+    [setRows],
   );
 
   /**

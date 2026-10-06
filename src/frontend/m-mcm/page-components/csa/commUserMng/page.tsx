@@ -42,6 +42,7 @@ import { GridPanel, AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { LookupModal, type LookupRow, type LookupFetchFn } from "@dk-oasis/shared/lookup";
 import { Modal } from "@dk-oasis/shared/modal";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import {
   Button,
   Input,
@@ -286,13 +287,16 @@ function emptyUserRow(): CommUserMngRow {
 export default function CommUserMngPage() {
   const { showMessage } = useMessage();
 
-  const [filters, setFilters] = useState<CommUserMngFilters>(DEFAULT_FILTERS);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·선택 키는 가볍게, 조회 결과 행은 bulky.
+  // 역할그룹 그리드·후보 풀·체크 선택(Set 포함)·초기화 라디오는 선택한 사용자가 정해지면 다시 조회·초기화되므로 이어받지 않는다(useState).
+  const [filters, setFilters] = useCarryState<CommUserMngFilters>("filters", DEFAULT_FILTERS);
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [rows, setRows] = useState<(CommUserMngRow & GridRow)[]>([]);
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [rows, setRows] = useCarryState<(CommUserMngRow & GridRow)[]>("rows", [], { bulky: true });
+  const [selectedKey, setSelectedKey] = useCarryState<string | null>("selectedKey", null);
+  const restored = useCarryRestored();
 
   // 우상 그리드 — 선택 사용자 보유 역할그룹
   const [userRoleGrpRows, setUserRoleGrpRows] = useState<
@@ -378,7 +382,7 @@ export default function CommUserMngPage() {
         setIsSearching(false);
       }
     },
-    [showMessage],
+    [showMessage, setRows, setSelectedKey],
   );
 
   const handleFilterChange = (k: keyof CommUserMngFilters, v: string) =>
@@ -418,12 +422,21 @@ export default function CommUserMngPage() {
   // 2026-06-02 iter#5 사용자 검수 J-017 — csa 8 화면 진입 시 자동조회 (AsIs xfdl:439 gfn_formOnLoad(obj, true) 정합).
   // DEFAULT_FILTERS (사용 여부="Y") 기준 1 회만 호출. selected 변경 의존 ✗.
   useEffect(() => {
-    void loadList(DEFAULT_FILTERS);
+    // 새 창이 이어받은 행이 있으면 자동 조회를 건너뛴다(행 없이 복원됐으면 이어받은 조건으로 조회). 복원값이 없으면 DEFAULT_FILTERS 다.
+    // 행 없이 복원됐으면 이어받은 선택 키를 먼저 비운다 — 조회 뒤 같은 키가 다시 잡혀도 하위 그리드 effect(selectedKey 변경)가 돌게 한다.
+    if (!restored || rows.length === 0) {
+      if (restored) setSelectedKey(null);
+      // 조회 결과를 상태에 담는 비동기 호출이라 effect 안 setState 규칙에 걸린다.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      void loadList(filters);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     // As-Is xfdl:1398~1402 (edt_user_id_onchanged) 정합 — row 변경 시 Radio + role 복사 USER_ID 리셋.
+    // effect 안 상태 갱신(조회·초기화)은 의도된 동작이다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPwdResetFlag("N");
     setSsoResetFlag("N");
     setRoleCopyUserId("");
@@ -477,7 +490,7 @@ export default function CommUserMngPage() {
         });
       }
     },
-    [],
+    [setRows, setSelectedKey],
   );
 
   const handleCellChange = useCallback(
@@ -500,7 +513,7 @@ export default function CommUserMngPage() {
         }),
       );
     },
-    [],
+    [setRows],
   );
 
   // 공통 필수 검증 — fn_modify / fn_register / fn_delete 의 gfn_dsRequired (V-002 / V-102 / V-202)

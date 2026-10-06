@@ -25,6 +25,7 @@ import { JsonView } from "@dk-oasis/shared/json-view";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { uiCols } from "@/lib/ui-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 
 import { describeForceFailure, fetchAllStatus, fetchAppliedSeq, fetchEntries, fetchEntry, forceByType, groupByType } from "./api";
 import { runForceWait } from "./forceWait";
@@ -170,12 +171,15 @@ function DetailStateBadge({ busy, error, lookup }: { busy: boolean; error: strin
 
 export default function MdmCacheMngPage() {
   const { showMessage } = useMessage();
-  const [filters, setFilters] = useState<EntryFilters>(emptyFilters);
-  const [modules, setModules] = useState<ModuleStatusRow[]>([]);
-  const [latestSeq, setLatestSeq] = useState(-1);
-  const [entries, setEntries] = useState<CacheEntryRow[]>([]);
-  const [selectedModule, setSelectedModule] = useState("");
-  const [selectedKeys, setSelectedKeys] = useState<(string | number)[]>([]);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·선택 키·순번은 가볍게, 조회 결과(모듈 상태·항목 행)는 bulky.
+  // 상세 패널(detailTarget·detailLookup)·진행 중 표시는 이어받지 않는다(useState) — 새 창에서 항목을 다시 누르면 상세를 받는다.
+  const [filters, setFilters] = useCarryState<EntryFilters>("filters", emptyFilters);
+  const [modules, setModules] = useCarryState<ModuleStatusRow[]>("modules", [], { bulky: true });
+  const [latestSeq, setLatestSeq] = useCarryState<number>("latestSeq", -1);
+  const [entries, setEntries] = useCarryState<CacheEntryRow[]>("entries", [], { bulky: true });
+  const [selectedModule, setSelectedModule] = useCarryState<string>("selectedModule", "");
+  const [selectedKeys, setSelectedKeys] = useCarryState<(string | number)[]>("selectedKeys", []);
+  const restored = useCarryRestored();
   const [isBusy, setIsBusy] = useState(false);
   const [isDetailBusy, setIsDetailBusy] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
@@ -284,7 +288,7 @@ export default function MdmCacheMngPage() {
         setIsDetailBusy(false);
       }
     },
-    [showMessage],
+    [showMessage, setEntries, setSelectedKeys],
   );
 
   const handleSearch = useCallback(async () => {
@@ -309,12 +313,13 @@ export default function MdmCacheMngPage() {
     } finally {
       setIsBusy(false);
     }
-  }, [cancelForceWait, closeDetail, filters, loadEntries, refreshDetail, selectedModule, showMessage]);
+  }, [cancelForceWait, closeDetail, filters, loadEntries, refreshDetail, selectedModule, showMessage, setEntries, setLatestSeq, setModules, setSelectedKeys, setSelectedModule]);
 
   useEffect(() => {
     // 첫 진입 때 한 번 조회한다(조회 결과를 상태에 담는 비동기 호출이라 effect 안 setState 규칙에 걸린다).
+    // 새 창이 이어받은 모듈 상태가 있으면 건너뛴다(없이 복원됐으면 이어받은 조건·선택 모듈로 조회).
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void handleSearch();
+    if (!restored || modules.length === 0) void handleSearch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -333,7 +338,7 @@ export default function MdmCacheMngPage() {
       if (moduleId !== detailTargetRef.current?.module) closeDetail();
       await loadEntries(moduleId, filters);
     },
-    [cancelForceWait, closeDetail, filters, loadEntries, selectedModule],
+    [cancelForceWait, closeDetail, filters, loadEntries, selectedModule, setEntries, setSelectedKeys, setSelectedModule],
   );
 
   /** 항목 행을 누르면 그 항목의 상세(캐시 값 전체)를 연다. 같은 행을 다시 누르면 다시 받는다. */
@@ -416,7 +421,7 @@ export default function MdmCacheMngPage() {
         setIsBusy(false);
       }
     },
-    [filters, loadEntries, refreshDetail, selectedEntries, selectedModule, showMessage],
+    [filters, loadEntries, refreshDetail, selectedEntries, selectedModule, showMessage, setEntries, setSelectedKeys],
   );
 
   /** 중요 액션(Local-Rules §9) — 영향 범위(모든 모듈·인스턴스, 다음 확인 약 10초)를 보여 주고 확인을 받는다. */

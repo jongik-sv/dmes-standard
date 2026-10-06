@@ -12,6 +12,7 @@ import { useCallback, useMemo, useState } from "react";
 import { DatePicker } from "@dk-oasis/shared/form";
 import { PageLayout, SearchArea, SearchField } from "@dk-oasis/shared/layout";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRefetch, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { Tabs } from "@dk-oasis/shared/tabs";
 import { exportToExcel, today } from "@dk-oasis/shared/utils";
 
@@ -41,11 +42,13 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export default function ScreenUsageStatPage() {
   const { showMessage } = useMessage();
-  const [filters, setFilters] = useState<StatFilters>(emptyFilters);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·고정 조건·활성 탭은 가볍게, 조회 결과(탭별 목록 묶음)는 bulky.
+  // 결과가 탭별 배열을 담은 한 객체라 비었는지는 알 수 없다 — 조회 전에는 submitted 가 null 이라 재조회 함수가 아무것도 부르지 않는다.
+  const [filters, setFilters] = useCarryState<StatFilters>("filters", emptyFilters);
   /** [조회] 로 고정한 조건. null 이면 아직 조회 전이라 탭을 바꿔도 부르지 않는다. */
-  const [submitted, setSubmitted] = useState<StatFilters | null>(null);
-  const [tab, setTab] = useState<StatTab>("overview");
-  const [data, setData] = useState<StatData>(emptyStatData);
+  const [submitted, setSubmitted] = useCarryState<StatFilters | null>("submitted", null);
+  const [tab, setTab] = useCarryState<StatTab>("tab", "overview");
+  const [data, setData] = useCarryState<StatData>("data", emptyStatData, { bulky: true });
   const [isBusy, setIsBusy] = useState(false);
   // 요청 조정기는 렌더마다 새로 만들지 않도록 초기화 함수로 한 번만 만든다(렌더 중에는 읽지 않는다).
   const [tracker] = useState(() => createTabRequestTracker<StatTab>());
@@ -76,8 +79,11 @@ export default function ScreenUsageStatPage() {
         setIsBusy(tracker.finish());
       }
     },
-    [tracker, showMessage]
+    [tracker, showMessage, setData]
   );
+
+  // 분리 창이 조회 결과를 못 받았을 때(opener 를 못 쓰는 경우) 이어받은 고정 조건으로 활성 탭을 한 번 다시 조회한다.
+  useCarryRefetch(() => (submitted ? loadTab(tab, submitted) : undefined));
 
   const handleSearch = useCallback(() => {
     const msg = checkSearch(tab, filters);
@@ -91,7 +97,7 @@ export default function ScreenUsageStatPage() {
     // 새 조건의 조회이므로 이전 결과를 비운다(검사에서 막히거나 실패해도 옛 결과가 남지 않게).
     setData(emptyStatData());
     void loadTab(tab, q);
-  }, [filters, tab, tracker, loadTab, showMessage]);
+  }, [filters, tab, tracker, loadTab, showMessage, setData, setSubmitted]);
 
   const handleTabChange = useCallback(
     (k: string) => {
@@ -99,7 +105,7 @@ export default function ScreenUsageStatPage() {
       setTab(next);
       if (submitted) void loadTab(next, submitted);
     },
-    [submitted, loadTab]
+    [submitted, loadTab, setTab]
   );
 
   const exportInfo = useMemo(() => TAB_MODULES[tab].toExport(data), [tab, data]);

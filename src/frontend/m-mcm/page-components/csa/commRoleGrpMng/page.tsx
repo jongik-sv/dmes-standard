@@ -69,6 +69,7 @@ import {
 } from "@dk-oasis/shared/form";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import {
   searchCmRoleGrp as apiSearchCmRoleGrp,
   saveCmRoleGrp as apiSaveCmRoleGrp,
@@ -296,13 +297,16 @@ function emptyRow(): CommRoleGrpMngRow {
 export default function CommRoleGrpMngPage() {
   const { showMessage } = useMessage();
 
-  const [filters, setFilters] = useState<CommRoleGrpMngFilters>(DEFAULT_FILTERS);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·선택 키·필터는 가볍게, 조회 결과 행은 bulky.
+  // 하위 그리드(역할 매핑·역할 목록)와 체크 선택은 선택 키가 바뀔 때 다시 조회하므로 이어받지 않는다(useState).
+  const [filters, setFilters] = useCarryState<CommRoleGrpMngFilters>("filters", DEFAULT_FILTERS);
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [rows, setRows] = useState<(CommRoleGrpMngRow & GridRow)[]>([]);
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [rows, setRows] = useCarryState<(CommRoleGrpMngRow & GridRow)[]>("rows", [], { bulky: true });
+  const [selectedKey, setSelectedKey] = useCarryState<string | null>("selectedKey", null);
+  const restored = useCarryRestored();
 
   const [roleMapRows, setRoleMapRows] = useState<(CommRoleGrpMngRoleMapRow & { __rmId: string })[]>([]);
   const [roleRows, setRoleRows] = useState<(CommRoleGrpMngRoleRow & { __rId: string })[]>([]);
@@ -312,7 +316,7 @@ export default function CommRoleGrpMngPage() {
   const [roleSelectedKeys, setRoleSelectedKeys] = useState<(string | number)[]>([]);
 
   /** GE2 필터 입력 — As-Is V-801 (xfdl:862~870 / `edt_rolefilter`). ROLE_ID indexOf 부분 일치. */
-  const [roleFilter, setRoleFilter] = useState<string>("");
+  const [roleFilter, setRoleFilter] = useCarryState<string>("roleFilter", "");
 
   const selected = useMemo<(CommRoleGrpMngRow & GridRow) | null>(() => {
     if (!selectedKey) return null;
@@ -373,7 +377,7 @@ export default function CommRoleGrpMngPage() {
         setIsSearching(false);
       }
     },
-    [showMessage],
+    [showMessage, setRows, setSelectedKey],
   );
 
   const handleFilterChange = (k: keyof CommRoleGrpMngFilters, v: string) =>
@@ -417,13 +421,21 @@ export default function CommRoleGrpMngPage() {
 
   // W5 F — csa 그룹 화면 진입 시 자동조회 (AsIs gfn_formOnLoad(obj,true) 정합).
   useEffect(() => {
-    void loadList(DEFAULT_FILTERS);
+    // 새 창이 이어받은 행이 있으면 자동 조회를 건너뛴다(행 없이 복원됐으면 이어받은 조건으로 조회). 복원값이 없으면 DEFAULT_FILTERS 다.
+    // 행 없이 복원됐으면 이어받은 선택 키를 먼저 비운다 — 조회 뒤 같은 키가 다시 잡혀도 하위 그리드 effect(selectedKey 변경)가 돌게 한다.
+    if (!restored || rows.length === 0) {
+      if (restored) setSelectedKey(null);
+      // 조회 결과를 상태에 담는 비동기 호출이라 effect 안 setState 규칙에 걸린다.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      void loadList(filters);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // selectedKey 변경 시 2 sub 자동 갱신 (inserted ✗ / 메뉴 트리 영역 제거로 2-chain)
   useEffect(() => {
     if (!selectedKey || !selected) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRoleMapRows([]);
       setRoleRows([]);
       return;
@@ -469,7 +481,7 @@ export default function CommRoleGrpMngPage() {
           : r,
       ),
     );
-  }, [rows, selectedKey]);
+  }, [rows, selectedKey, setRows, setSelectedKey]);
 
   /** 행추가 / 행복사 / 행삭제 통합 (GridPanel showAddButton/showCopyButton/showDeleteButton onDataChange). */
   const handleDataChange = useCallback(
@@ -520,7 +532,7 @@ export default function CommRoleGrpMngPage() {
         });
       }
     },
-    [rows],
+    [rows, setRows, setSelectedKey],
   );
 
   /** 셀 변경 — Detail 폼 → 양방향 bind. PK ROLE_GROUP_ID 는 신규 행만 편집 가능. */
@@ -543,7 +555,7 @@ export default function CommRoleGrpMngPage() {
         }),
       );
     },
-    [],
+    [setRows],
   );
 
   /**
