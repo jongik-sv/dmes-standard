@@ -139,6 +139,18 @@ describe("WidgetPicker", () => {
     expect(onPreview).toHaveBeenCalledWith(REG["def.k3x9q2ab"].meta);
   });
 
+  it("배치(placement) B(업무 화면만) 위젯은 서랍에서 빠지고 W·A·없음은 남는다", () => {
+    const reg: WidgetRegistry = {
+      "def.pb": entry({ id: "def.pb", title: "업무만", kind: "def", typeId: "query-table", placement: "B" }),
+      "def.pw": entry({ id: "def.pw", title: "위젯만", kind: "def", typeId: "query-table", placement: "W" }),
+      "def.pa": entry({ id: "def.pa", title: "둘 다", kind: "def", typeId: "query-table", placement: "A" }),
+      "def.pn": entry({ id: "def.pn", title: "기본", kind: "def", typeId: "query-table", floatable: true }),
+    };
+    render({ registry: reg, typeTitles: TYPE_TITLES });
+    expect(ids()).not.toContain("def.pb");
+    expect(ids()).toEqual(expect.arrayContaining(["def.pw", "def.pa", "def.pn"]));
+  });
+
   it("비공개 위젯은 목록에 없고 부분 검색어로도 안 보인다", () => {
     const reg: WidgetRegistry = {
       ...REG,
