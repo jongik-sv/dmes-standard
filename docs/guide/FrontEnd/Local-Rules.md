@@ -456,3 +456,8 @@ AgDataGrid 는 사용자별로 컬럼 순서·너비·표시·고정·정렬을 
 ## 41. 도움말 마크다운 — 범위는 하이픈으로 쓴다 (2026-10-07)
 
 - 도움말 마크다운에서 범위는 하이픈(`1-20`)으로 쓴다. 물결표 하나가 두 번 나오면 GFM 이 그 사이 글을 취소선으로 그린다.  화면 메시지를 그대로 인용하는 문구의 물결표만 `\~` 로 이스케이프한다. 시험(widget-guide-sync.test.ts)이 위젯 도움말 두 문서의 물결표 하나를 막는다.
+
+## 42. 위젯 본문 높이 채우기 — ContentBody 를 쓰는 위젯은 flex 사슬을 직접 잇는다 (2026-10-07)
+
+- `ContentBody`·`ContentPanel` 의 가로 배치·높이 규칙(`flex:1`·`height:0`·패널 `height:100%`)은 `.page-layout`·`.cm-modal-body` 안에서만 걸린다. 위젯 본문(`cm-widget__body`) 안에서는 이 규칙에 기대지 말고, 위젯 루트에 자기 클래스를 두어 직접 채운다. 홈 공지(`home.notice`)가 위쪽 약 180px 만 쓰고 아래가 비던 결함이 이 경우였다.
+- 위젯 루트는 `height:100%` 백분율 사슬 대신 `position:absolute; inset:0; display:flex; flex-direction:column; min-height:0` 로 두고, 위젯 본문에는 `.cm-widget__body:has(.클래스){ position:relative; overflow:hidden }` 를 준다. 그 안의 ContentBody 는 `flex:1 1 0; min-height:0`, 패널은 `min-height:0; overflow:hidden` 으로 이어 넘칠 때만 패널 안에서 스크롤되게 한다. 견본: `m-mcm/page-components/home/home-styles.ts` 의 `.mcm-home-notice`.
