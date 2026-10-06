@@ -17,7 +17,7 @@ coord_default_repo
 
 case "${1:-}" in
   "") ;;
-  -h|--help) sed -n '2,14p' "$0" >&2; exit 0 ;;
+  -h|--help) sed -n '2,12p' "$0" >&2; exit 0 ;;
   *) coord_die 2 "사용법: usage-band.sh (인자 없음)" ;;
 esac
 

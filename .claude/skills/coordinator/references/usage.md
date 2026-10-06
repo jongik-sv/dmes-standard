@@ -46,7 +46,7 @@
 
 1. `coord-state.sh set '.usage' '<json>'` 으로 띠와 수치를 갱신하고 이벤트를 남긴다.
 2. 전 레인에 `protocol.md` 3.7 `사용량 조정` 을 **한 번** 보낸다(`run.usage_band_notified` 에 띠를 기록해 같은 알림을 반복하지 않는다).
-3. 띠별 행동을 집행한다: Y 는 조사·문서·쉬운 반복 구현을 opencode·agy 로 옮기고, O 는 대기 작업 자동 배정을 중단하며 일반 구현도 opencode 워커 우선으로 돌리고(쉬라는 지시는 없다), R 은 Claude 레인을 멈추고 남은 일은 opencode·agy 워커로 넘긴다(새 레인은 위 「새 레인 상한」 이 허용하면 띄운다).
+3. 띠별 행동을 집행한다: Y 는 조사·문서·쉬운 반복 구현을 opencode·agy 로 옮기고, O 는 대기 작업 자동 배정을 중단하며 일반 구현도 opencode 워커 우선으로 돌리고(쉬라는 지시는 없다), R 은 Claude 레인을 멈추고 남은 일은 opencode·agy 워커로 넘긴다(새 레인은 위 「새 레인 상한」 이 허용하면 띄우되, R 에서는 opencode·agy 워커로만 띄운다).
 4. 이미 도는 Workflow 는 멈추지 않는다. 멈추면 작업이 반쯤 남는다. 다음 Workflow 부터 새 상한을 적용하게 한다.
 5. 일을 안 준 레인은 `coord-state.sh hold <레인> usage-band` 로 표시한다(`monitor.md`).
 6. 띠가 내려오면(예: O→Y) 같은 방식으로 한 번 알리고 `usage-band` hold 를 푼다.

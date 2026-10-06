@@ -14,6 +14,7 @@
 #   opencode 질의에서는 `!`·`@` 를 지운다(TUI·셸 모드 오작동 방지, 사용자 규칙).
 #   설정: search.workers, search.command·tab_command(agy), search.opencode.command·tab_command(자리 {prompt}·{timeout}·{out}), search.timeout_s
 set -uo pipefail
+shopt -u patsub_replacement 2>/dev/null   # bash 5.2 이상: 치환문 안 & 가 일치한 글로 바뀌지 않게
 source "$(dirname "$0")/lib/common.sh"
 source "$(dirname "$0")/lib/compat.sh"
 
@@ -74,9 +75,9 @@ run_worker() {
     th="$(orca terminal create --worktree active --title "search-$w-$(date +%H%M%S)" --json 2>/dev/null | jq -r '[.. | objects | .handle? | strings | select(startswith("term_"))][0] // empty')"
     if [ -n "$th" ]; then
       if [ "$w" = opencode ]; then
-        # run 출력이 화면에 흐르면서 tee 로 파일에 남는다. 끝나면 .done 표지가 생긴다.
+        # run 출력이 화면에 흐르면서 tee 로 파일에 남는다. 끝나면 .done 에 종료 코드가 적힌다(pipefail 이라 opencode 의 코드).
         line="${ttmpl//\{prompt\}/$(shq "$prompt")}"; line="${line//\{out\}/$(shq "$out")}"
-        line="cd $(shq "${cwd:-$(coord_repo)}") && { $line ; touch $(shq "$out.done") ; }"
+        line="cd $(shq "${cwd:-$(coord_repo)}") && ( set -o pipefail; $line ; echo \$? > $(shq "$out.done") )"
         wait_for="$out.done"
       else
         tprompt="$prompt 답을 다 쓰면 그 내용을 파일 $out 에 저장하라(이 파일 하나만 만든다)."
@@ -85,11 +86,18 @@ run_worker() {
       fi
       term_send "$th" "$line" --enter >/dev/null
       coord_log "검색 탭 $th($w)에서 진행 중(사용자가 화면에서 볼 수 있다)"
-      while [ ! -e "$wait_for" ] && [ $(( $(coord_now_epoch) - start )) -lt "$timeout" ]; do sleep 5; done
+      while [ ! -e "$wait_for" ] && { [ "$w" = opencode ] || [ ! -s "$wait_for" ]; } && [ $(( $(coord_now_epoch) - start )) -lt "$timeout" ]; do sleep 5; done
       sleep 2
       term_close "$th" >/dev/null
-      rm -f "$out.done"
       secs=$(( $(coord_now_epoch) - start ))
+      done_ok=1
+      if [ "$w" = opencode ]; then
+        # 종료 표지가 없으면 시간 초과, 코드가 0 이 아니면 오류다(부분 출력·오류 문구를 답으로 쓰지 않는다)
+        [ -e "$out.done" ] || { echo "SEARCH fail timeout $w 탭 검색이 ${timeout}초 안에 끝나지 않음"; return 1; }
+        [ "$(tr -d '[:space:]' < "$out.done")" = 0 ] || done_ok=""
+        rm -f "$out.done"
+      fi
+      [ -n "$done_ok" ] || { echo "SEARCH fail error $w 종료 코드가 0 이 아님"; return 1; }
       if [ -s "$out" ]; then
         coord_has_run 2>/dev/null && coord_state_call event search - "$(jq -cn --arg q "$query" --arg f "$out" --arg w "$w" --argjson s "$secs" '{q:($q|.[0:200]),file:$f,secs:$s,mode:"tab",worker:$w}')" >/dev/null
         echo "SEARCH ok $out $secs worker=$w"; return 0
