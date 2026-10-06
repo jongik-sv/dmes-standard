@@ -13,6 +13,7 @@ import {
 } from "@dk-oasis/shared/layout";
 import { GridPanel, AgDataGrid, Pagination, type GridColumn } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRefetch, useCarryState } from "@dk-oasis/shared/portal-shell";
 import {
   MasterRuleListPopModal,
   OBJ_ID as RULE_LIST_POP_OBJ_ID,
@@ -70,11 +71,13 @@ export default function MasterRuleDataListPage() {
   // 조회 핸들러·팝업 진입점(버튼 + 마스터코드 셀 클릭)의 RBAC 판정용.
   const rbac = useUserButtonRbac(true);
 
-  const [filters, setFilters] = useState<DataListFilters>(DEFAULT_FILTERS);
-  const [colDefs, setColDefs] = useState<ColDef[]>([]);
-  const [rows, setRows] = useState<GridRow[]>([]);
-  const [page, setPage] = useState(0);   // 0-based (BE 1-based 변환은 repository)
-  const [totalCount, setTotalCount] = useState(0);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·쪽·건수는 가볍게, 조회 결과(컬럼정의·행)는 bulky.
+  // 컬럼정의(colDefs)는 [조회]·업무기준 선택 때 받는 결과의 일부라 행과 함께 옮긴다.
+  const [filters, setFilters] = useCarryState<DataListFilters>("filters", DEFAULT_FILTERS);
+  const [colDefs, setColDefs] = useCarryState<ColDef[]>("colDefs", [], { bulky: true });
+  const [rows, setRows] = useCarryState<GridRow[]>("rows", [], { bulky: true });
+  const [page, setPage] = useCarryState<number>("page", 0);   // 0-based (BE 1-based 변환은 repository)
+  const [totalCount, setTotalCount] = useCarryState<number>("totalCount", 0);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rulePopOpen, setRulePopOpen] = useState(false);
@@ -143,7 +146,7 @@ export default function MasterRuleDataListPage() {
       setColDefs(result.colDefs);
       return result.colDefs;
     },
-    [repo],
+    [repo, setColDefs],
   );
 
   // ── search (BR-001 가드 + 페이징 + M-001) ──
@@ -170,7 +173,7 @@ export default function MasterRuleDataListPage() {
         if (seq === searchSeqRef.current) setIsSearching(false);
       }
     },
-    [repo, showMessage],
+    [repo, showMessage, setRows, setTotalCount],
   );
 
   /**
@@ -205,6 +208,14 @@ export default function MasterRuleDataListPage() {
     void loadData(filters, 0);
   };
 
+  // 분리 창이 조회 결과(컬럼정의·행)를 못 받았을 때(opener 를 못 쓰는 경우) 이어받은 조건·쪽으로 한 번 다시 조회한다.
+  // 조회하지 않은 탭(행이 빈 배열)은 공통 장치가 재조회하지 않는다. 컬럼정의를 먼저 받아야 행을 그릴 수 있어 lov → search 연쇄다.
+  useCarryRefetch(() =>
+    loadLov(filters)
+      .then((defs) => (defs ? loadData(filters, page) : undefined))
+      .catch((e) => setError(e instanceof Error ? e.message : "컬럼정의 조회 실패")),
+  );
+
   // ── P-001 업무기준 선택 → lov → search 자동 연쇄 (As-Is fn_returnRulePopupCallBack → fn_lov → search) ──
   const handleRuleSelected = useCallback(
     (r: RuleSelectResult) => {
@@ -225,7 +236,7 @@ export default function MasterRuleDataListPage() {
       setPage(0);
       void loadLov(next).then((defs) => (defs ? loadData(next, 0) : undefined)).catch((e) => setError(e instanceof Error ? e.message : "컬럼정의 조회 실패"));
     },
-    [filters, loadLov, loadData],
+    [filters, loadLov, loadData, setFilters, setPage],
   );
 
   // ── 엑셀다운 (B-002 — searchExport 전건, BR-011 업무기준ID 있을 때만) ──

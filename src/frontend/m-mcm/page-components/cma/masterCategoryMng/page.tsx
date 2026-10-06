@@ -11,6 +11,7 @@ import {
 } from "@dk-oasis/shared/layout";
 import { GridPanel, AgDataGrid } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { createMasterCategoryMngRepository, type SaveRow } from "./repository";
 import { CATEGORY_COLUMNS, DEFAULT_FILTERS } from "./constants";
 import type { CategoryAllRow, CategoryFilters, CategoryRow } from "./types";
@@ -75,14 +76,16 @@ export default function MasterCategoryMngPage() {
   const repo = useMemo(() => createMasterCategoryMngRepository(), []);
   const { showMessage } = useMessage();
 
-  const [filters, setFilters] = useState<CategoryFilters>(DEFAULT_FILTERS);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·선택 키는 가볍게, 조회 결과(rows·allKeys)는 bulky.
+  const [filters, setFilters] = useCarryState<CategoryFilters>("filters", DEFAULT_FILTERS);
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [rows, setRows] = useState<(CategoryRow & GridRow)[]>([]);
-  const [allKeys, setAllKeys] = useState<CategoryAllRow[]>([]);
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [rows, setRows] = useCarryState<(CategoryRow & GridRow)[]>("rows", [], { bulky: true });
+  const [allKeys, setAllKeys] = useCarryState<CategoryAllRow[]>("allKeys", [], { bulky: true });
+  const [selectedKey, setSelectedKey] = useCarryState<string | null>("selectedKey", null);
+  const restored = useCarryRestored();
 
   // W5 E 정책: 변경 유무에 따른 사전 disable 분기 ✗.
   // 변경 유무는 handleSave (V-001) / handleRowCancel (V-002, V-003) 핸들러 내 검증으로 처리.
@@ -109,11 +112,14 @@ export default function MasterCategoryMngPage() {
         setIsSearching(false);
       }
     },
-    [repo]
+    [repo, setRows, setAllKeys]
   );
 
   useEffect(() => {
-    void loadCategories(DEFAULT_FILTERS);
+    // 마운트 자동 조회 — 새 창이 이어받은 행이 있으면 건너뛴다(행 없이 복원됐으면 이어받은 조건으로 조회).
+    // 조회 결과를 상태에 담는 비동기 호출이라 effect 안 setState 규칙에 걸린다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!restored || rows.length === 0) void loadCategories(filters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -150,7 +156,7 @@ export default function MasterCategoryMngPage() {
       );
     });
     setSelectedKey(null);
-  }, [selectedKey]);
+  }, [selectedKey, setRows, setSelectedKey]);
 
   // ── grid handlers ──
   /**
@@ -199,7 +205,7 @@ export default function MasterCategoryMngPage() {
         });
       }
     },
-    []
+    [setRows, setSelectedKey]
   );
 
   const handleCellChange = useCallback(
@@ -222,7 +228,7 @@ export default function MasterCategoryMngPage() {
         })
       );
     },
-    []
+    [setRows]
   );
 
   // ── save ──
@@ -317,7 +323,7 @@ export default function MasterCategoryMngPage() {
     } finally {
       setIsSaving(false);
     }
-  }, [rows, allKeys, repo, showMessage]);
+  }, [rows, allKeys, repo, showMessage, setRows, setAllKeys, setSelectedKey]);
 
   const visibleCount = rows.filter(
     (r) => r.nativeeditor_status !== "deleted"

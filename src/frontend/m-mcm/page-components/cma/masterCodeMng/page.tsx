@@ -27,6 +27,7 @@ import {
 } from "@dk-oasis/shared/layout";
 import { GridPanel, AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { searchMaster, searchDetail, saveMaster, saveDetail } from "./api";
 import {
   MasterCodeUploadFilePopupDialog,
@@ -245,17 +246,21 @@ export default function MasterCodeMngPage() {
   //   (훅은 globalThis 단일 store 캐시라 PageLayout 과 같이 써도 fetch 는 1회다.)
   const rbac = useUserButtonRbac(true);
 
-  const [filters, setFilters] = useState<MasterCodeFilters>(DEFAULT_FILTERS);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·선택 키는 가볍게, Master 조회 결과(행·전체 코드 LOV)는 bulky.
+  // Detail 행·카테고리 LOV·카테고리 선택은 이어받지 않는다 — 이어받은 Master 선택이 있으면 새 창이 상세를 한 번 다시 조회해 채운다.
+  const [filters, setFilters] = useCarryState<MasterCodeFilters>("filters", DEFAULT_FILTERS);
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [masterRows, setMasterRows] = useState<(MasterRow & GridRow)[]>([]);
-  const [masterLov, setMasterLov] = useState<MasterLov[]>([]);
-  const [selectedMasterKey, setSelectedMasterKey] = useState<string | null>(null);
+  const [masterRows, setMasterRows] = useCarryState<(MasterRow & GridRow)[]>("masterRows", [], { bulky: true });
+  // 전체 코드 LOV 는 Master 조회 응답에 실려 오고 행 없이는 다시 채워지지 않아(자동 조회를 건너뛴다) 행과 함께 옮긴다.
+  const [masterLov, setMasterLov] = useCarryState<MasterLov[]>("masterLov", [], { bulky: true });
+  const [selectedMasterKey, setSelectedMasterKey] = useCarryState<string | null>("selectedMasterKey", null);
+  const restored = useCarryRestored();
 
   const [detailRows, setDetailRows] = useState<(DetailRow & GridRow)[]>([]);
-  const [selectedDetailKey, setSelectedDetailKey] = useState<string | null>(null);
+  const [selectedDetailKey, setSelectedDetailKey] = useCarryState<string | null>("selectedDetailKey", null);
   const [categoryLov, setCategoryLov] = useState<CategoryLov[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [refLovs, setRefLovs] = useState<{
@@ -313,7 +318,7 @@ export default function MasterCodeMngPage() {
         setIsSearching(false);
       }
     },
-    [selectedMasterKey, showMessage]
+    [selectedMasterKey, showMessage, setMasterRows, setMasterLov, setSelectedMasterKey]
   );
 
   /** action=searchDetail 호출 (fn_searchDetail, xfdl:410). */
@@ -360,16 +365,21 @@ export default function MasterCodeMngPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "상세 조회 실패");
     }
-  }, []);
+  }, [setMasterLov]);
 
   // 초기 로드 + Master 선택 시 Detail 로드
   useEffect(() => {
-    void loadMaster(DEFAULT_FILTERS);
+    // 새 창이 이어받은 Master 행이 있으면 자동 조회를 건너뛴다(행 없이 복원됐으면 이어받은 조건으로 조회). 복원값이 없으면 DEFAULT_FILTERS 다.
+    // 조회 결과를 상태에 담는 비동기 호출이라 effect 안 setState 규칙에 걸린다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!restored || masterRows.length === 0) void loadMaster(filters);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     // 선택된 Master 가 있고 rowType != "inserted" (신규 아님) 일 때만 loadDetail (V-702).
     if (selectedMaster && selectedMaster.nativeeditor_status !== "inserted") {
+      // 상세 조회 결과를 상태에 담는 비동기 호출이라 effect 안 setState 규칙에 걸린다.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       void loadDetail(selectedMaster);
     } else {
       void loadDetail(null);
@@ -408,7 +418,7 @@ export default function MasterCodeMngPage() {
     const r = row as MasterRow & GridRow;
     const key = getMasterRowId(r);
     setSelectedMasterKey(key);
-  }, []);
+  }, [setSelectedMasterKey]);
 
   // Master 그리드 데이터 변경 (행 추가 / 복사 / 삭제)
   const handleMasterDataChange = useCallback(
@@ -444,7 +454,7 @@ export default function MasterCodeMngPage() {
         setMasterRows(newData as (MasterRow & GridRow)[]);
       }
     },
-    [masterRows]
+    [masterRows, setMasterRows, setSelectedMasterKey]
   );
 
   const handleMasterCellChange = useCallback(
@@ -459,7 +469,7 @@ export default function MasterCodeMngPage() {
         })
       );
     },
-    []
+    [setMasterRows]
   );
 
   // Detail 그리드 데이터 변경
@@ -714,7 +724,7 @@ export default function MasterCodeMngPage() {
           : r,
       );
     });
-  }, [selectedMasterKey]);
+  }, [selectedMasterKey, setMasterRows]);
 
   // ── B-010 Detail 행취소 — 선택된 단일 row 만 취소 (사용자 결정 2026-05-29) ──
   const handleResetDetail = useCallback(() => {

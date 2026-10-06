@@ -13,6 +13,7 @@ import {
 } from "@dk-oasis/shared/layout";
 import { GridPanel, AgDataGrid } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRefetch, useCarryState } from "@dk-oasis/shared/portal-shell";
 import {
   MasterRuleListPopModal,
   OBJ_ID as RULE_LIST_POP_OBJ_ID,
@@ -109,17 +110,18 @@ export default function MasterRuleFramePage() {
   //   raw button)는 PageLayout 판정을 우회하므로 여기서 직접 판정한다.
   const rbac = useUserButtonRbac(true);
 
-  const [filters, setFilters] = useState<FrameFilters>(DEFAULT_FILTERS);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·선택 키는 가볍게, 조회 결과 행(IN·OUT)은 bulky.
+  const [filters, setFilters] = useCarryState<FrameFilters>("filters", DEFAULT_FILTERS);
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const searchSeqRef = useRef(0);   // stale 응답 가드 — 최신 조회만 반영 (연속 조회 race 차단)
-  const [inRows, setInRows] = useState<(RuleColRow & GridRow)[]>([]);
-  const [outRows, setOutRows] = useState<(RuleColRow & GridRow)[]>([]);
+  const [inRows, setInRows] = useCarryState<(RuleColRow & GridRow)[]>("inRows", [], { bulky: true });
+  const [outRows, setOutRows] = useCarryState<(RuleColRow & GridRow)[]>("outRows", [], { bulky: true });
   // 행삭제(B-006/B-008) 대상 선택 — GridPanel 삭제 버튼은 selectedRowKey 기준으로 동작
-  const [selectedInKey, setSelectedInKey] = useState<string | null>(null);
-  const [selectedOutKey, setSelectedOutKey] = useState<string | null>(null);
+  const [selectedInKey, setSelectedInKey] = useCarryState<string | null>("selectedInKey", null);
+  const [selectedOutKey, setSelectedOutKey] = useCarryState<string | null>("selectedOutKey", null);
 
   // P-001 업무기준 선택 팝업 — 정식 masterRuleListPop 연동 (D-003 P-001 해소 2026-07-08)
   const [rulePopOpen, setRulePopOpen] = useState(false);
@@ -151,8 +153,12 @@ export default function MasterRuleFramePage() {
         if (seq === searchSeqRef.current) setIsSearching(false);
       }
     },
-    [repo, showMessage],
+    [repo, showMessage, setInRows, setOutRows, setSelectedInKey, setSelectedOutKey],
   );
+
+  // 분리 창이 조회 결과(행)를 못 받았을 때(opener 를 못 쓰는 경우) 이어받은 조회 조건으로 한 번 다시 조회한다.
+  // 조회하지 않은 탭(행이 빈 배열)은 공통 장치가 재조회하지 않는다. loadCols 가 선택 키를 비우므로 행과 어긋난 선택이 남지 않는다.
+  useCarryRefetch(() => loadCols(filters));
 
   /**
    * 조회 (B-001).
@@ -184,7 +190,7 @@ export default function MasterRuleFramePage() {
       setRulePopOpen(false);
       void loadCols(next);   // fn_returnMasterPopupCallBack → fn_search 자동 (xfdl:419)
     },
-    [loadCols],
+    [loadCols, setFilters],
   );
 
   // ── P-002 기초데이터등록 (B-004) — 가드 BR-013/MSG-006 후 정식 팝업 오픈 ──
@@ -222,11 +228,11 @@ export default function MasterRuleFramePage() {
 
   const handleInDataChange = useMemo(
     () => makeDataChangeHandler("IN", setInRows, setSelectedInKey),
-    [makeDataChangeHandler],
+    [makeDataChangeHandler, setInRows, setSelectedInKey],
   );
   const handleOutDataChange = useMemo(
     () => makeDataChangeHandler("OUT", setOutRows, setSelectedOutKey),
-    [makeDataChangeHandler],
+    [makeDataChangeHandler, setOutRows, setSelectedOutKey],
   );
 
   // ── 셀 편집 (col 1~6 — 모든 행 편집 가능, delete-all-then-insert) ──
@@ -245,8 +251,8 @@ export default function MasterRuleFramePage() {
     [],
   );
 
-  const handleInCellChange = useMemo(() => makeCellChangeHandler(setInRows), [makeCellChangeHandler]);
-  const handleOutCellChange = useMemo(() => makeCellChangeHandler(setOutRows), [makeCellChangeHandler]);
+  const handleInCellChange = useMemo(() => makeCellChangeHandler(setInRows), [makeCellChangeHandler, setInRows]);
+  const handleOutCellChange = useMemo(() => makeCellChangeHandler(setOutRows), [makeCellChangeHandler, setOutRows]);
 
   // ── 저장 (B-002 / action=save) — 검증 IN 5종 → OUT 5종 → 전량 송신 (As-Is fn_save) ──
   const handleSave = useCallback(async () => {
@@ -274,7 +280,7 @@ export default function MasterRuleFramePage() {
     } finally {
       setIsSaving(false);
     }
-  }, [ruleSelected, inRows, outRows, filters, repo, showMessage]);
+  }, [ruleSelected, inRows, outRows, filters, repo, showMessage, setInRows, setOutRows, setSelectedInKey, setSelectedOutKey]);
 
   const displayIn = useMemo(() => inRows.map((r, i) => ({ ...r, no: i + 1 })), [inRows]);
   const displayOut = useMemo(() => outRows.map((r, i) => ({ ...r, no: i + 1 })), [outRows]);
