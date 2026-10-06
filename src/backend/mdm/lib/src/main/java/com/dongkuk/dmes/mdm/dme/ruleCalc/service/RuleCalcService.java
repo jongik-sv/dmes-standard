@@ -39,6 +39,10 @@ import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import com.dongkuk.dmes.mdm.repository.MdmDomainRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleSetRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.exc.StreamConstraintsException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -91,6 +95,9 @@ import org.springframework.stereotype.Service;
  */
 @Service("ruleCalcService")
 public class RuleCalcService {
+
+    /** valuesJson 이 JSON 객체로 안 읽힐 때 원인이 숫자 길이 제한인지 가려내는 파서({@link RuleCaseJudge} 와 같은 설정). */
+    private static final ObjectMapper NUMBER_PROBE = new ObjectMapper().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
 
     static final String RULE = "RULE";
     static final String SET = "SET";
@@ -156,7 +163,13 @@ public class RuleCalcService {
         if (!s.ok()) {
             return out;
         }
-        Map<String, Object> values = valuesOf(request);
+        Map<String, Object> values;
+        try {
+            values = valuesOf(request);
+        } catch (NumberTooBig e) {
+            out.getMessages().add(new RuleCalcMessage(RuleCalcMessage.INPUT_INVALID, e.getMessage()));
+            return out;
+        }
 
         // 입력 검사 — 키 없음·null·빈 글자는 엔진을 부르지 않고 돌려준다. 이름은 io 가 알려 준 표기 그대로 찾는다.
         Map<String, Object> record = new LinkedHashMap<>();
@@ -171,8 +184,12 @@ public class RuleCalcService {
                 continue;
             }
             try {
-                // 타입을 풀지 못한 입력(컬럼 사전에도 룰 선언에도 없다)은 글자로 바꾸지 않고 받은 타입 그대로 엔진에 넘긴다.
-                record.put(in.getName(), s.untyped().contains(upper(in.getName())) ? passThrough(raw) : toInput(raw, in.getDataType()));
+                // 타입을 풀지 못한 입력(컬럼 사전에도 세트 안 어느 룰의 선언에도 없다)은 글자로 바꾸지 않고 받은 타입 그대로 엔진에 넘긴다.
+                String key = upper(in.getName());
+                record.put(in.getName(), s.untyped().contains(key) ? passThrough(raw, s.boolText().contains(key)) : toInput(raw, in.getDataType()));
+            } catch (NumberTooBig e) {
+                problems.add(new RuleCalcMessage(RuleCalcMessage.INPUT_INVALID, "입력 " + in.getName() + " 의 숫자가 너무 큽니다(자릿수·지수는 "
+                        + MAX_DIGITS + " 이하). 값을 줄이세요."));
             } catch (IllegalArgumentException e) {
                 problems.add(new RuleCalcMessage(RuleCalcMessage.INPUT_INVALID, "입력 " + in.getName() + " 에는 " + typeText(in.getDataType())
                         + " 값이 와야 합니다(지금 값: '" + shown(raw) + "'). " + typeText(in.getDataType()) + " 값으로 고치세요."));
@@ -233,15 +250,16 @@ public class RuleCalcService {
      * 입출력 모양 계산 결과. {@code ok=false} 면 {@code flow} 는 null 이고 {@code messages} 에 사유가 있다.
      *
      * @param ios     최상위 룰 ID → 룰 입출력(run 의 steps[].inputs 가 룰의 입력 이름을 찾는 데 쓴다)
-     * @param untyped 타입을 풀지 못한 입력 이름(대문자) — 컬럼 사전에도 룰 선언에도 없는 것. run 이 받은 타입 그대로 넘긴다
+     * @param untyped  타입을 풀지 못한 입력 이름(대문자) — 컬럼 사전에도, 세트 안 어느 룰의 선언(조건·결과)에도 없는 것. run 이 받은 타입 그대로 넘긴다
+     * @param boolText untyped 이면서 IF 조건에만 쓰이는 변수(CondWalk 가 더한 이름, 대문자) — 글자 {@code TRUE}·{@code FALSE} 를 불린으로 읽는다
      */
     private record Shape(boolean ok, RuleCalcIoResult.Target target, List<RuleCalcIoResult.Item> inputs, List<RuleCalcIoResult.Item> outputs,
                          List<RuleCalcIoResult.Step> steps, List<RuleCalcMessage> messages, FlowDefinition flow, List<String> ruleIds,
-                         Map<String, RuleIo> ios, Set<String> untyped) {
+                         Map<String, RuleIo> ios, Set<String> untyped, Set<String> boolText) {
 
         static Shape fail(RuleCalcIoResult.Target target, String code, String text) {
             return new Shape(false, target, List.of(), List.of(), List.of(), List.of(new RuleCalcMessage(code, text)), null, List.of(), Map.of(),
-                    Set.of());
+                    Set.of(), Set.of());
         }
     }
 
@@ -270,9 +288,23 @@ public class RuleCalcService {
         }
         Map<String, Object> parsed = RuleCaseJudge.object(json);
         if (parsed == null) {
+            if (numberTooLong(json)) {
+                throw new NumberTooBig("valuesJson 숫자가 너무 큼 — 따옴표 없는 숫자 하나는 " + MAX_DIGITS + "자 이하여야 합니다. 자릿수를 줄이세요.");
+            }
             throw new BusinessException(ErrorCode.INVALID_VALUE, "입력 값(valuesJson) 은 {\"이름\": 값} 모양의 JSON 객체여야 합니다.");
         }
         return parsed;
+    }
+
+    /** 따옴표 없는 JSON 숫자가 Jackson 의 숫자 길이 제한(1000자)을 넘어 {@link RuleCaseJudge#object} 가 null 을 돌려준 경우인가. */
+    private static boolean numberTooLong(String json) {
+        try {
+            NUMBER_PROBE.readValue(json, Object.class);
+            return false;
+        } catch (JsonProcessingException e) {
+            Throwable t = e instanceof StreamConstraintsException ? e : e.getCause();
+            return t instanceof StreamConstraintsException && String.valueOf(t.getMessage()).startsWith("Number");
+        }
     }
 
     private RuleVersionPick pickOf(RuleCalcRequest request) {
@@ -317,7 +349,7 @@ public class RuleCalcService {
         List<RuleCalcIoResult.Item> inputs = items(io.conds(), units, true);
         List<RuleCalcIoResult.Item> outputs = items(io.results(), units, false);
         return new Shape(true, head, inputs, outputs, List.of(), List.of(), FlowParser.linear(List.of(id)), List.of(id), Map.of(id, io),
-                untypedOf(io.conds()));
+                untypedOf(io.conds(), Set.of(), scope), Set.of());
     }
 
     private Shape setShape(String id, LocalDateTime at, RuleVersionPick pick) {
@@ -366,7 +398,8 @@ public class RuleCalcService {
 
         Map<String, BigDecimal> vers = new LinkedHashMap<>();
         rules.forEach((r, io) -> vers.put(r, VersionNumbers.parse(io.releasedVer())));
-        Units units = new Units(scope, queries.varsOf(vers));
+        Map<String, List<MdmRuleVar>> varsByRule = queries.varsOf(vers);
+        Units units = new Units(scope, varsByRule);
 
         SetCallIo sio = RuleSetInterface.of(id, set.get().getMaruRuleSetName(), true, status, flow, rules, calls);
         List<RuleCalcIoResult.Item> inputs = items(sio.inputs(), units, true);
@@ -374,8 +407,10 @@ public class RuleCalcService {
         for (SetCallIo.OutputName o : sio.outputs()) {
             outputs.add(item(o.name(), labelOfResult(o.name(), ruleIds, rules), o.dataType(), o.scale(), units.unit(o.name()), false));
         }
-        Set<String> untyped = untypedOf(sio.inputs());
-        addConditionInputs(flow, rules, calls, id, scope, inputs, untyped);
+        Set<String> declared = declaredIn(rules, calls, varsByRule);
+        Set<String> untyped = untypedOf(sio.inputs(), declared, scope);
+        Set<String> boolText = new HashSet<>();
+        addConditionInputs(flow, rules, calls, id, scope, inputs, untyped, boolText, declared);
 
         List<RuleCalcIoResult.Step> steps = new ArrayList<>();
         for (String r : ruleIds) {
@@ -386,17 +421,53 @@ public class RuleCalcService {
             st.setOutputs(items(io.results(), units, false));
             steps.add(st);
         }
-        return new Shape(true, head, inputs, outputs, steps, List.of(), flow, ruleIds, rules, untyped);
+        return new Shape(true, head, inputs, outputs, steps, List.of(), flow, ruleIds, rules, untyped, boolText);
     }
 
-    /** 컬럼 사전에도 룰 선언에도 없는(출처 NONE) 입력 이름(대문자). */
-    private static Set<String> untypedOf(List<IoName> names) {
+    /**
+     * 타입을 풀지 못한 입력 이름(대문자) — 처음 읽은 룰의 출처가 NONE 이고, 컬럼 사전에도 {@code declared}(세트 안 어느 룰이든 선언한 이름)에도
+     * 없는 것. 처음 읽은 룰만 보면 다른 룰이 타입을 선언한 이름도 타입 없음으로 오판한다.
+     */
+    private static Set<String> untypedOf(List<IoName> names, Set<String> declared, RuleVarTypeResolver.Scope scope) {
         Set<String> out = new HashSet<>();
         for (IoName n : names) {
-            if (RuleIo.NONE.equals(n.source())) {
-                out.add(upper(n.name()));
+            String key = upper(n.name());
+            if (RuleIo.NONE.equals(n.source()) && !declared.contains(key) && scope.column(n.name()).isEmpty()) {
+                out.add(key);
             }
         }
+        return out;
+    }
+
+    /**
+     * 세트 안 어느 룰이든 타입(도메인·데이터 타입)을 선언한 이름(대문자) — 룰 입출력의 컬럼 사전 출처(DICT)·조건 열 선언(PROG), 결과 변수 선언,
+     * 하위 세트 입출력의 타입. 엔진 {@code FlowKeys.declared} 가 세트 안 룰의 선언에서 이름마다 타입을 모으는 것과 같은 범위다.
+     */
+    private static Set<String> declaredIn(Map<String, RuleIo> rules, Map<String, SetCallIo> calls, Map<String, List<MdmRuleVar>> varsByRule) {
+        Set<String> out = new HashSet<>();
+        rules.values().forEach(io -> {
+            if (io != null && io.conds() != null) {
+                io.conds().stream().filter(c -> c.source() != null && !RuleIo.NONE.equals(c.source())).forEach(c -> out.add(upper(c.name())));
+            }
+        });
+        varsByRule.values().forEach(vars -> vars.forEach(v -> {
+            if (v.getDomainId() == null && (v.getDataType() == null || v.getDataType().isBlank())) {
+                return;
+            }
+            if ("RESULT".equals(v.getVarKind())) {
+                String name = v.getResGrp() != null && !v.getResGrp().isBlank() ? v.getResGrp() : v.getVarName();
+                if (name != null) {
+                    out.add(upper(name));
+                }
+            } else if ("COND".equals(v.getVarKind()) && !"Expression".equals(v.getDispType()) && (v.getVarAst() == null || v.getVarAst().isBlank())
+                    && v.getVarName() != null) {
+                out.add(upper(v.getVarName()));
+            }
+        }));
+        calls.values().forEach(c -> {
+            c.inputs().stream().filter(i -> i.source() != null && !RuleIo.NONE.equals(i.source())).forEach(i -> out.add(upper(i.name())));
+            c.outputs().stream().filter(o -> o.dataType() != null && !o.dataType().isBlank()).forEach(o -> out.add(upper(o.name())));
+        });
         return out;
     }
 
@@ -407,7 +478,8 @@ public class RuleCalcService {
      * 는 뺀다. 이미 입력인 이름은 더하지 않는다. 구조 오류로 트리가 없으면 더하지 않는다(실행이 FLOW_INVALID 로 막는다).
      */
     private void addConditionInputs(FlowDefinition flow, Map<String, RuleIo> rules, Map<String, SetCallIo> calls, String setId,
-                                    RuleVarTypeResolver.Scope scope, List<RuleCalcIoResult.Item> inputs, Set<String> untyped) {
+                                    RuleVarTypeResolver.Scope scope, List<RuleCalcIoResult.Item> inputs, Set<String> untyped,
+                                    Set<String> boolText, Set<String> declared) {
         if (flow.nodes().stream().noneMatch(n -> n.kind() == NodeKind.IF)) {
             return;
         }
@@ -417,7 +489,7 @@ public class RuleCalcService {
         }
         Set<String> known = new HashSet<>();
         inputs.forEach(i -> known.add(upper(i.getName())));
-        CondWalk w = new CondWalk(ioReader.condIo(flow, scope), rules, calls, setId, scope, inputs, untyped, known);
+        CondWalk w = new CondWalk(ioReader.condIo(flow, scope), rules, calls, setId, scope, inputs, untyped, boolText, declared, known);
         w.seq(parse.tree().root(), new HashSet<>());
     }
 
@@ -430,11 +502,13 @@ public class RuleCalcService {
         private final RuleVarTypeResolver.Scope scope;
         private final List<RuleCalcIoResult.Item> inputs;
         private final Set<String> untyped;
+        private final Set<String> boolText;
+        private final Set<String> declared;
         private final Set<String> known;
         private int seq;
 
         CondWalk(Map<String, CondIo> condIo, Map<String, RuleIo> rules, Map<String, SetCallIo> calls, String setId, RuleVarTypeResolver.Scope scope,
-                 List<RuleCalcIoResult.Item> inputs, Set<String> untyped, Set<String> known) {
+                 List<RuleCalcIoResult.Item> inputs, Set<String> untyped, Set<String> boolText, Set<String> declared, Set<String> known) {
             this.condIo = condIo;
             this.rules = rules;
             this.calls = calls;
@@ -442,6 +516,8 @@ public class RuleCalcService {
             this.scope = scope;
             this.inputs = inputs;
             this.untyped = untyped;
+            this.boolText = boolText;
+            this.declared = declared;
             this.known = known;
         }
 
@@ -463,8 +539,10 @@ public class RuleCalcService {
                     Set<String> after = new HashSet<>();
                     for (Branch br : sp.branches()) {
                         Set<String> inBranch = new HashSet<>(made);       // 갈래는 분기 직전까지 만들어진 이름만 본다(병렬 형제 결과는 보지 않는다)
-                        seq(br.body(), inBranch);
-                        after.addAll(inBranch);
+                        seq(br.body(), inBranch);                         // 끝내는 갈래도 걷는다 — 안쪽 IF 조건 변수는 입력으로 모은다
+                        if (!br.ends()) {                                 // 끝내는 IF 갈래는 블록 뒤로 이어지지 않는다(엔진 FlowKeys.walk 와 같다)
+                            after.addAll(inBranch);
+                        }
                     }
                     made.addAll(after);
                 } else if (b instanceof Guarded g) {
@@ -478,7 +556,9 @@ public class RuleCalcService {
                         inHandler.addAll(ReservedNames.CATCH_NAMES);
                         seq(h.body(), inHandler);
                         inHandler.removeAll(ReservedNames.CATCH_NAMES);
-                        after.addAll(inHandler);
+                        if (!h.ends()) {                                  // END 로 가는 처리 갈래는 받는 노드 블록 뒤로 이어지지 않는다(엔진 FlowKeys.guardAll 과 같다)
+                            after.addAll(inHandler);
+                        }
                     }
                     made.addAll(after);
                 }
@@ -516,8 +596,9 @@ public class RuleCalcService {
                 probe.setVarName(v.name());
                 ResolvedVar r = scope.resolve(setId, BigDecimal.ONE.setScale(3), List.of(probe)).get(0);
                 inputs.add(item(v.name(), r.label(), r.dataType(), r.scale(), unitOfDomain(r.domainId(), scope, v.name()), true));
-                if (RuleVarTypeResolver.UNRESOLVED.equals(r.typeSource())) {
+                if (RuleVarTypeResolver.UNRESOLVED.equals(r.typeSource()) && !declared.contains(key)) {
                     untyped.add(key);
+                    boolText.add(key);        // IF 조건에만 쓰이는 타입 없는 변수 — 글자 TRUE·FALSE 를 불린으로 읽는다
                 }
             }
         }
@@ -621,11 +702,46 @@ public class RuleCalcService {
         return d.precision() > MAX_DIGITS || Math.abs((long) d.scale()) > MAX_DIGITS;
     }
 
+    /** 숫자 크기 방어에 걸렸다 — 응답 메시지가 「숫자가 너무 큽니다」 로 따로 나간다. */
+    static final class NumberTooBig extends IllegalArgumentException {
+        NumberTooBig(String message) {
+            super(message);
+        }
+    }
+
     private static BigDecimal checked(BigDecimal d) {
         if (oversized(d)) {
-            throw new IllegalArgumentException("숫자가 너무 큽니다");
+            throw new NumberTooBig("숫자가 너무 큽니다");
         }
         return d;
+    }
+
+    /**
+     * 글자 값이 BigDecimal 로 읽히는 모양이면 크기 방어를 적용한다 — 선언 타입이 글자여도 같은 이름을 다른 룰이 NUMBER 로 선언해 엔진이 바꿀 수 있어
+     * 우회로가 된다. 비용 때문에 길이 {@link #MAX_NUMBER_TEXT} 를 넘는 글자는 파싱하지 않고, 숫자 문자로만 이루어졌으면 거절하고 아니면 보통 글자다.
+     */
+    private static void rejectOversizedText(String raw) {
+        String text = raw.trim();
+        if (text.isEmpty()) {
+            return;
+        }
+        if (text.length() > MAX_NUMBER_TEXT) {
+            if (text.chars().allMatch(c -> c >= '0' && c <= '9' || c == '+' || c == '-' || c == '.' || c == 'e' || c == 'E')) {
+                throw new NumberTooBig("숫자가 너무 큽니다");
+            }
+            return;
+        }
+        char first = text.charAt(0);
+        if (!(first >= '0' && first <= '9' || first == '+' || first == '-' || first == '.')) {
+            return;                                           // 숫자로 시작하지 않으면 BigDecimal 로 읽히지 않는다
+        }
+        BigDecimal d;
+        try {
+            d = new BigDecimal(text);
+        } catch (NumberFormatException e) {
+            return;                                           // 숫자 모양이 아니다 — 보통 글자
+        }
+        checked(d);
     }
 
     /** 숫자 값 → BigDecimal(double 을 거치지 않는다). 숫자가 아니면 {@link IllegalArgumentException}. 자릿수가 너무 크면 거절. */
@@ -649,7 +765,7 @@ public class RuleCalcService {
         if (raw instanceof CharSequence s) {
             String text = s.toString().trim();
             if (text.length() > MAX_NUMBER_TEXT) {
-                throw new IllegalArgumentException("숫자가 너무 큽니다");
+                throw new NumberTooBig("숫자가 너무 큽니다");
             }
             try {
                 return checked(new BigDecimal(text));
@@ -684,27 +800,32 @@ public class RuleCalcService {
                 if (raw instanceof BigDecimal d) {
                     return checked(d).toPlainString();
                 }
-                return raw.toString();
+                String text = raw.toString();
+                rejectOversizedText(text);                  // 글자 칸이어도 BigDecimal 로 읽히는 모양이면 같은 방어(타입 선언 우회 방지)
+                return text;
         }
     }
 
     /**
-     * 타입을 풀지 못한 입력(컬럼 사전에도 룰 선언에도 없다)은 글자로 바꾸지 않고 받은 타입 그대로 넘긴다 — 불린은 불린, 숫자는 BigDecimal(자릿수
-     * 방어는 그대로), 글자는 글자. 그 밖의 JSON(배열·객체)은 거절한다. 단 글자가 정확히 {@code TRUE}·{@code FALSE}(대소문자 무시)이면 불린으로
-     * 읽는다 — IF 조건 전용 불린 변수는 타입 선언이 없어 입력 칸이 글자로만 오기 때문이다(문서 §3 의 불린 표기와 같다).
+     * 타입을 풀지 못한 입력(컬럼 사전에도 세트 안 어느 룰의 선언에도 없다)은 글자로 바꾸지 않고 받은 타입 그대로 넘긴다 — 불린은 불린, 숫자는
+     * BigDecimal(자릿수 방어는 그대로), 글자는 글자(숫자 모양이면 크기 방어). 그 밖의 JSON(배열·객체)은 거절한다.
+     *
+     * @param boolText 이 입력이 IF 조건에만 쓰이는 변수인가 — 맞으면 앞뒤 공백을 떼고 대소문자 무시로 {@code TRUE}·{@code FALSE} 인 글자를 불린으로
+     *                 읽는다(IF 조건 전용 불린 변수는 타입 선언이 없어 입력 칸이 글자로만 오기 때문이다). 아니면 글자는 늘 글자 그대로다
      */
-    static Object passThrough(Object raw) {
+    static Object passThrough(Object raw, boolean boolText) {
         if (raw instanceof Boolean) {
             return raw;
         }
         if (raw instanceof CharSequence cs) {
             String text = cs.toString();
-            if (text.trim().equalsIgnoreCase("TRUE")) {
+            if (boolText && text.trim().equalsIgnoreCase("TRUE")) {
                 return Boolean.TRUE;
             }
-            if (text.trim().equalsIgnoreCase("FALSE")) {
+            if (boolText && text.trim().equalsIgnoreCase("FALSE")) {
                 return Boolean.FALSE;
             }
+            rejectOversizedText(text);
             return text;
         }
         return toNumber(raw);
@@ -772,6 +893,8 @@ public class RuleCalcService {
         private final Map<String, RuleIo> ios;
         private final LocalDateTime at;
         private final RuleVersionPick pick;
+        /** 요청 하나가 쓰는 타입 해석 범위 — 하위 세트 룰마다 새로 만들지 않고 처음 필요할 때 한 번 만들어 나눠 쓴다. */
+        private RuleVarTypeResolver.Scope scope;
 
         StepIo(Map<String, RuleIo> known, LocalDateTime at, RuleVersionPick pick) {
             this.ios = new HashMap<>(known);
@@ -780,15 +903,24 @@ public class RuleCalcService {
         }
 
         RuleIo of(String ruleId) {
-            return ios.computeIfAbsent(ruleId, id -> ioReader.read(List.of(id), at, pick, ioReader.scope()).get(id));
+            RuleIo known = ios.get(ruleId);
+            if (known == null) {
+                if (scope == null) {
+                    scope = ioReader.scope();
+                }
+                known = ioReader.read(List.of(ruleId), at, pick, scope).get(ruleId);
+                ios.put(ruleId, known);
+            }
+            return known;
         }
     }
 
     /**
      * 실행한 룰 노드(OK 만, 받는 노드로 넘긴 CAUGHT 는 제외)를 실행 순서로 담는다. SET 노드는 하위 기록을 펼친다.
      *
-     * <p>{@code steps[].inputs} 는 그 룰의 입력 이름({@link RuleIo#conds}, 식 칸 변수 포함)마다 실행 중 값 맵({@code running} — 입력 레코드와 앞 단계
-     * 결과의 누적)에 값이 있으면 그 시점 값이다. 하위 세트는 자기 입력 레코드({@code sub.input()})에서 시작하는 별도 값 맵을 쓰고, 끝나면 넘겨받은
+     * <p>{@code steps[].inputs} 는 그 룰의 입력 이름({@link RuleIo#conds}, 식 칸 변수 포함)마다 엔진이 그 시점에 기록한 읽은 값
+     * ({@link NodeTrace#reads()} — 병렬 형제 값·{@code CATCH_*} 값까지 정확하다)을 먼저 쓰고, 거기에 없는 이름(식 칸 변수)만 실행 중 값 맵
+     * ({@code running} — 입력 레코드와 앞 단계 결과의 누적)에서 채운다. 하위 세트는 자기 입력 레코드({@code sub.input()})에서 시작하는 별도 값 맵을 쓰고, 끝나면 넘겨받은
      * 이름({@code outputs})만 부모 값 맵에 더한다.
      */
     private void collectSteps(RunTrace trace, Map<String, Object> running, List<RuleCalcRunResult.Step> out, List<String> ruleIds, StepIo io) {
@@ -817,9 +949,12 @@ public class RuleCalcService {
         if (rio == null || !rio.exists() || rio.conds() == null) {
             return formatAll(n.reads());                   // 룰 입출력을 못 읽으면 엔진이 기록한 읽은 값으로 대신한다
         }
+        Map<String, Object> reads = runningValues(n.reads());
         Map<String, Object> out = new LinkedHashMap<>();
         for (IoName c : rio.conds()) {
-            if (running.containsKey(c.name())) {
+            if (reads.containsKey(c.name())) {
+                out.put(c.name(), format(reads.get(c.name())));
+            } else if (running.containsKey(c.name())) {
                 out.put(c.name(), format(running.get(c.name())));
             }
         }

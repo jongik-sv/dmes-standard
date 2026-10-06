@@ -26,8 +26,22 @@ class RuleCalcServiceValueTest {
         assertThrows(IllegalArgumentException.class, () -> RuleCalcService.toInput("9".repeat(1001), "NUMBER"));
         assertThrows(IllegalArgumentException.class, () -> RuleCalcService.toInput("9".repeat(5000), "NUMBER"));
         assertThrows(IllegalArgumentException.class, () -> RuleCalcService.toInput(new BigDecimal("1e999999999"), "NUMBER"));
-        assertThrows(IllegalArgumentException.class, () -> RuleCalcService.passThrough(new BigDecimal("1e999999999")));
+        assertThrows(IllegalArgumentException.class, () -> RuleCalcService.passThrough(new BigDecimal("1e999999999"), false));
         assertThrows(IllegalArgumentException.class, () -> RuleCalcService.toInput(new BigDecimal("1e999999999"), "STRING"), "글자 칸에 담을 때 펼치지 않는다");
+    }
+
+    @Test
+    void 글자_칸이어도_숫자_모양이면_크기_방어를_적용한다() {
+        for (String huge : List.of("1e999999999", " 1e-999999999 ", "9".repeat(1001), "0." + "0".repeat(1500) + "1", "9".repeat(5000), "1e5".repeat(1) + "0".repeat(2500))) {
+            assertThrows(RuleCalcService.NumberTooBig.class, () -> RuleCalcService.toInput(huge, "STRING"), huge.length() + "자");
+            assertThrows(RuleCalcService.NumberTooBig.class, () -> RuleCalcService.toInput(huge, "DATE"), huge.length() + "자");
+            assertThrows(RuleCalcService.NumberTooBig.class, () -> RuleCalcService.passThrough(huge, false), huge.length() + "자");
+            assertThrows(RuleCalcService.NumberTooBig.class, () -> RuleCalcService.passThrough(huge, true), huge.length() + "자");
+        }
+        assertEquals("1e5", RuleCalcService.toInput("1e5", "STRING"), "상한 이내의 숫자 모양 글자는 글자 그대로");
+        assertEquals("가".repeat(5000), RuleCalcService.toInput("가".repeat(5000), "STRING"), "긴 보통 글자는 막지 않는다");
+        assertEquals("1e".repeat(3000) + "x", RuleCalcService.toInput("1e".repeat(3000) + "x", "STRING"), "숫자 문자만이 아니면 긴 글자도 보통 글자");
+        assertEquals("0x1e999999999", RuleCalcService.passThrough("0x1e999999999", false), "숫자 모양이 아니면 글자");
     }
 
     @Test
@@ -51,14 +65,15 @@ class RuleCalcServiceValueTest {
 
     @Test
     void passThrough_는_불린_숫자_글자를_받은_타입_그대로_넘긴다() {
-        assertSame(Boolean.TRUE, RuleCalcService.passThrough(true));
-        assertEquals("Hot", RuleCalcService.passThrough("Hot"), "글자는 글자 그대로");
-        assertSame(Boolean.TRUE, RuleCalcService.passThrough(" true "), "정확히 TRUE·FALSE 글자만 불린으로 읽는다(IF 전용 불린 변수)");
-        assertSame(Boolean.FALSE, RuleCalcService.passThrough("FALSE"));
-        assertEquals("TRUE_LOVE", RuleCalcService.passThrough("TRUE_LOVE"));
-        assertEquals(new BigDecimal("2.0"), RuleCalcService.passThrough(new BigDecimal("2.0")));
-        assertEquals(BigDecimal.valueOf(7), RuleCalcService.passThrough(7));
-        assertThrows(IllegalArgumentException.class, () -> RuleCalcService.passThrough(List.of(1)), "배열·객체는 받지 않는다");
+        assertSame(Boolean.TRUE, RuleCalcService.passThrough(true, false));
+        assertEquals("Hot", RuleCalcService.passThrough("Hot", false), "글자는 글자 그대로");
+        assertSame(Boolean.TRUE, RuleCalcService.passThrough(" true ", true), "IF 조건 전용 변수면 TRUE·FALSE 글자(앞뒤 공백 무시, 대소문자 무시)를 불린으로 읽는다");
+        assertSame(Boolean.FALSE, RuleCalcService.passThrough("FALSE", true));
+        assertEquals(" true ", RuleCalcService.passThrough(" true ", false), "IF 조건 전용 변수가 아니면 글자 그대로");
+        assertEquals("TRUE_LOVE", RuleCalcService.passThrough("TRUE_LOVE", true));
+        assertEquals(new BigDecimal("2.0"), RuleCalcService.passThrough(new BigDecimal("2.0"), false));
+        assertEquals(BigDecimal.valueOf(7), RuleCalcService.passThrough(7, false));
+        assertThrows(IllegalArgumentException.class, () -> RuleCalcService.passThrough(List.of(1), false), "배열·객체는 받지 않는다");
     }
 
     // ── 엔진 위반 → 메시지 코드 ─────────────────────────────────────────────
