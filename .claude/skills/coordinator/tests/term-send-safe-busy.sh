@@ -130,6 +130,16 @@ use idle-draft
 eq "(d) 쓰다 만 글 → draft-in-input" "$(FAKE_IDLE=true run --handle h1 --text x)" "REFUSED h1 draft-in-input"
 eq "(d) 글에 ! → bang-in-text" "$(FAKE_IDLE=true run --handle h1 --text 'a!b')" "REFUSED h1 bang-in-text"
 eq "(d) 없는 핸들 → stale" "$(FAKE_IDLE=true run --handle h9 --text x)" "REFUSED h9 stale"
+use idle-draft
+eq "(f) --over-draft: 입력창 글(추천 문구일 수 있음)이 있어도 보낸다" "$(FAKE_IDLE=true run --handle h1 --text x --over-draft)$(calls send)" "SENT h1 turn_started1"
+eq "(f) --over-draft 없이는 그대로 draft-in-input·send 0" "$(FAKE_IDLE=true run --handle h1 --text x)$(calls send)" "REFUSED h1 draft-in-input0"
+use busy-draft
+eq "(f) --over-draft --allow-busy 도 같다" "$(FAKE_IDLE=false run --handle h1 --allow-busy --over-draft --text x)$(calls send)" "SENT h1 turn_started1"
+cp "$fx/claude-no-input-box.txt" "$FAKE_SCREENS/h1.txt"
+eq "(f) --over-draft 여도 입력창을 못 찾으면(unknown) 거절·send 0" "$(FAKE_IDLE=true run --handle h1 --text x --over-draft)$(calls send)" "REFUSED h1 draft-in-input0"
+use busy-prompt
+eq "(f) --over-draft 여도 확인 창이면 prompt-open·send 0" "$(FAKE_IDLE=false run --handle h1 --allow-busy --over-draft --text x)$(calls send)" "REFUSED h1 prompt-open0"
+eq "(f) --over-draft 는 --raw 와 함께 못 쓴다(exit 2·send 0)" "$(FAKE_IDLE=true run --handle h1 --raw --over-draft --text 1 >/dev/null 2>&1; echo $?)$(calls send)" "20"
 use idle-empty
 eq "(d) --dry-run 은 DRY SENT 이고 send 없음" "$(FAKE_IDLE=true run --handle h1 --text x --dry-run)$(calls send)" "DRY SENT h1 -0"
 eq "(d) --allow-busy --dry-run 도 DRY SENT" "$(FAKE_IDLE=false run --handle h1 --allow-busy --text x --dry-run)$(calls send)$(calls wait)" "DRY SENT h1 -00"
