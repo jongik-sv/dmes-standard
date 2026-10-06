@@ -50,6 +50,7 @@ DFLOW="${DFLOW_SH:-.claude/skills/dflow-work/scripts/dflow.sh}"
 EVENTS_MD="$HERE/../references/events.md"
 
 LEAD_PID=${PID_ARG:-${CLAUDE_PID:-$(ps -o ppid= -p "$PPID" 2>/dev/null | tr -d ' ')}}
+[ -n "$LEAD_PID" ] || { read -r LEAD_PID < "/proc/$PPID/ppid"; } 2>/dev/null || LEAD_PID=   # Git Bash 의 ps 는 -o 를 모른다 — /proc 로 같은 값을 읽는다
 LOCK=$(git rev-parse --git-path dflow-team.lock); o_who=; o_ts=; o_pid=
 { read -r o_who o_ts o_pid < "$LOCK/owner"; } 2>/dev/null || true
 if [ "$o_who" = "$OWNER" ] && [ -n "$LEAD_PID" ] && [ "$o_pid" = "$LEAD_PID" ]; then
