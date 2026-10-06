@@ -4,8 +4,8 @@
     <bpmn:documentation>ruleCalc — 조업 계산기 위젯(rule-calc)이 룰·룰 세트를 입력 칸 자동 생성과 계산에 쓰는 서비스 (읽기 전용, dme 업무기준).
 정본: docs/widget-2026-10/rule-calc-api.md (요청·응답 계약 A0).
 
-action=io  -&gt; ioTask  (ruleCalcService.io)  READ — 입력·출력 모양 조회(입력 칸·결과 칸·세트 단계), 판정 시각은 지금
-action=run -&gt; runTask (ruleCalcService.run) READ — 입력 값으로 계산(최종 결과·룰별 단계·메시지)
+action=view    -&gt; ioTask  (ruleCalcService.io)  READ — 입력·출력 모양 조회(입력 칸·결과 칸·세트 단계), 판정 시각은 지금
+action=execute -&gt; runTask (ruleCalcService.run) READ — 입력 값으로 계산(최종 결과·룰별 단계·메시지)
 
 BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개다. 버전은 RELEASED 만 쓰고 preview=true 일 때만 내 DRAFT 를 쓴다. 확정 버전 없음·입력 누락·평가 오류는 예외가 아니라 응답 messages 로 돌려준다.</bpmn:documentation>
     <bpmn:startEvent id="start" name="시작">
@@ -50,8 +50,8 @@ BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개�
       <bpmn:incoming>flow_run_end</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
-    <bpmn:sequenceFlow id="flow_io" name="io" sourceRef="actionGateway" targetRef="ioTask" />
-    <bpmn:sequenceFlow id="flow_run" name="run" sourceRef="actionGateway" targetRef="runTask" />
+    <bpmn:sequenceFlow id="flow_io" name="view" sourceRef="actionGateway" targetRef="ioTask" />
+    <bpmn:sequenceFlow id="flow_run" name="execute" sourceRef="actionGateway" targetRef="runTask" />
     <bpmn:sequenceFlow id="flow_io_end" sourceRef="ioTask" targetRef="endIo" />
     <bpmn:sequenceFlow id="flow_run_end" sourceRef="runTask" targetRef="endRun" />
   </bpmn:process>

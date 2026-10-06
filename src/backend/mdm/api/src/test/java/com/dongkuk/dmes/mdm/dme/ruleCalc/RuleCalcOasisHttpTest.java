@@ -29,7 +29,7 @@ import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * {@code ruleCalc} 를 BPMN({@code services/dme/ruleCalc.bpmn})까지 태우는 HTTP 시험 — OASIS 파라미터 바인딩(중첩 {@code values} 객체·JSON 숫자),
- * action 분기 {@code io}·{@code run}, 응답 키가 {@code data.result} 아래로 나오는지 확인한다. 역할·사용자는 헤더 → {@code ClientKeyFilter} →
+ * action 분기 {@code view}·{@code execute}, 응답 키가 {@code data.result} 아래로 나오는지 확인한다. 역할·사용자는 헤더 → {@code ClientKeyFilter} →
  * {@code CactusMdmCurrentUser} 실제 경로로 준다({@code DmeOasisHttpTest} 형식).
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
@@ -93,7 +93,7 @@ class RuleCalcOasisHttpTest {
 
     @Test
     void io_는_BPMN_을_거쳐_data_result_로_입력_칸을_돌려준다() throws Exception {
-        JsonNode res = post("io", envelope("RULE", "QLTY_GRD_JDG"));
+        JsonNode res = post("view", envelope("RULE", "QLTY_GRD_JDG"));
 
         assertTrue(res.path("meta").path("success").asBoolean(false), res.toString());
         JsonNode result = res.path("data").path("result");
@@ -112,7 +112,7 @@ class RuleCalcOasisHttpTest {
         ObjectNode body = envelope("RULE", "QLTY_GRD_JDG");
         ((ObjectNode) body.path("params")).put("valuesJson", "{\"COIL_THK\":2.1,\"COIL_WID\":1200,\"SURF_GRD\":\"A\"}");
 
-        JsonNode res = post("run", body);
+        JsonNode res = post("execute", body);
 
         assertTrue(res.path("meta").path("success").asBoolean(false), res.toString());
         JsonNode result = res.path("data").path("result");
@@ -125,12 +125,12 @@ class RuleCalcOasisHttpTest {
 
     @Test
     void 확정_버전이_없거나_입력이_비어도_HTTP_오류가_아니라_messages_다() throws Exception {
-        JsonNode missing = post("run", envelope("RULE", "QLTY_GRD_JDG"));
+        JsonNode missing = post("execute", envelope("RULE", "QLTY_GRD_JDG"));
         assertTrue(missing.path("meta").path("success").asBoolean(false), missing.toString());
         assertFalse(missing.path("data").path("result").path("ok").asBoolean(true));
         assertEquals("INPUT_MISSING", missing.path("data").path("result").path("messages").path(0).path("code").asText(), missing.toString());
 
-        JsonNode notFound = post("io", envelope("SET", "NO_SUCH_SET"));
+        JsonNode notFound = post("view", envelope("SET", "NO_SUCH_SET"));
         assertTrue(notFound.path("meta").path("success").asBoolean(false), notFound.toString());
         assertEquals("NOT_FOUND", notFound.path("data").path("result").path("messages").path(0).path("code").asText(), notFound.toString());
     }

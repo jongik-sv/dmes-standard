@@ -181,9 +181,11 @@ public class RuleCalcSeedSetTest extends AbstractMdmSharedDbTest {
         assertNum("53", r.getSteps().get(0).getOutputs().get("GOT_ATT_AMT"), "1단계 GOT_ATT_AMT");
         assertFalse(r.getSteps().get(0).isHit(), "A00000 는 용도코드 4행에 안 맞아 그 밖(DEFAULT) 행");
         assertTrue(r.getSteps().get(0).isDefaultApplied());
-        // steps[].inputs 는 조건 칸이 읽은 값만 싣는다(식 칸이 읽는 GOT_ATT_AMT·도막두께는 안 나온다 — 관찰, 서비스 결함 여부는 보고서 참조)
+        // steps[].inputs 는 그 룰의 입력 이름(식 칸 변수 포함) → 그 시점 값(앞 룰 결과 포함)이다.
         assertEquals("A00000", String.valueOf(r.getSteps().get(0).getInputs().get("ORD_USG_CD")));
         assertEquals("61", String.valueOf(r.getSteps().get(1).getInputs().get("PROC_CD")));
+        assertNum("53", r.getSteps().get(1).getInputs().get("GOT_ATT_AMT"), "2단계 입력 GOT_ATT_AMT(앞 룰 결과)");
+        assertTrue(r.getSteps().get(1).getInputs().containsKey("COIL_WTH"), "식 칸이 읽는 입력도 담는다: " + r.getSteps().get(1).getInputs());
         assertNum("16", r.getSteps().get(1).getOutputs().get("COIL_COT_WGT"), "2단계 COIL_COT_WGT");
         assertTrue(r.getSteps().get(1).isHit(), "Sheet 행 1 적중");
         assertNum("16", r.getResult().get("COIL_COT_WGT"), "최종 COIL_COT_WGT");
@@ -236,9 +238,8 @@ public class RuleCalcSeedSetTest extends AbstractMdmSharedDbTest {
     }
 
     /**
-     * 계약(docs/widget-2026-10/rule-calc-api.md §2.1·§3 70행): 세트 {@code outputs} 는 세트 밖으로 나오는 최종 결과만이고 중간 결과는
-     * {@code steps[].outputs} 에서만 본다. 그런데 {@code run} 의 {@code result} 는 {@code finalValues} 에서 입력 키만 빼서 만들기 때문에
-     * 중간값 GOT_ATT_AMT 도 같이 나온다 — io.outputs 와 어긋난다(서비스 결함 의심, 이 시험은 그 차이를 드러낸다).
+     * 계약(docs/widget-2026-10/rule-calc-api.md §2.1·§3): 세트 {@code outputs} 는 세트 밖으로 나오는 최종 결과만이고 중간 결과는
+     * {@code steps[].outputs} 에서만 본다. {@code run} 의 {@code result} 도 io 의 {@code outputs} 이름만 담는다(중간값 GOT_ATT_AMT 는 뺀다).
      */
     @Test
     void run_세트_result_키는_io_outputs_와_같아야_한다_중간값_GOT_ATT_AMT_제외() {

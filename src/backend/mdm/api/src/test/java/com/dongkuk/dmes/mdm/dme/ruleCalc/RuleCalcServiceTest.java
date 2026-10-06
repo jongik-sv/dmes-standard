@@ -8,146 +8,31 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
-import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
-import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dme.ruleCalc.dto.RuleCalcIoResult;
 import com.dongkuk.dmes.mdm.dme.ruleCalc.dto.RuleCalcMessage;
 import com.dongkuk.dmes.mdm.dme.ruleCalc.dto.RuleCalcRequest;
 import com.dongkuk.dmes.mdm.dme.ruleCalc.dto.RuleCalcRunResult;
-import com.dongkuk.dmes.mdm.dme.ruleCalc.service.RuleCalcService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * 조업 계산기 {@code ruleCalc}(docs/widget-2026-10/rule-calc-api.md) 서비스 시험. 시드(SQLite):
- *
- * <ul>
- *   <li>{@code R_PRE} — COIL_THK(사전, MM) 구간 → PRE_FCT(NUMBER). v1 RELEASED(1.05, 기본 0.90), v2 kim DRAFT(2.00)</li>
- *   <li>{@code R_POST} — PRE_FCT(앞 룰 결과)·COIL_WID(사전, MM) → FINAL_WT(사전, KG). RELEASED</li>
- *   <li>{@code S_CALC} — [R_PRE, R_POST] 세트(한 줄 흐름). RELEASED</li>
- *   <li>{@code R_ONLY_DRAFT} — kim 의 DRAFT 만. {@code R_DEP} — DEPRECATED. {@code R_UNQ} — UNIQUE 인데 두 행이 같이 맞는다</li>
- * </ul>
- * 로그인 사용자는 kim, 현재 시각은 2026-06-15 09:00(KST).
+ * 조업 계산기 {@code ruleCalc}(docs/widget-2026-10/rule-calc-api.md) 서비스 시험. 시드(SQLite)는 {@link RuleCalcTestBase} 에 있다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(DmeTestSupport.Config.class)
-public class RuleCalcServiceTest extends AbstractMdmSharedDbTest {
+public class RuleCalcServiceTest extends RuleCalcTestBase {
 
     private static final ObjectMapper JSON = new ObjectMapper();
-
-    @Autowired RuleCalcService service;
-    @Autowired MutableCurrentUser currentUser;
-    @Autowired JdbcTemplate jdbc;
-
-    @BeforeEach
-    void seed() {
-        DmeTestSupport.clear(jdbc);
-        DmeTestSupport.clearDictionary(jdbc);
-        jdbc.update("DELETE FROM TB_MDM_UNIT WHERE UNIT_CODE IN ('MM', 'KG')");
-        jdbc.update("INSERT INTO TB_MDM_UNIT (UNIT_CODE, DIMENSION, BASE_UNIT, FACTOR, CHG_SEQ) VALUES ('MM', 'LENGTH', 'MM', 1, 0)");
-        jdbc.update("INSERT INTO TB_MDM_UNIT (UNIT_CODE, DIMENSION, BASE_UNIT, FACTOR, CHG_SEQ) VALUES ('KG', 'WEIGHT', 'KG', 1, 0)");
-        column("COIL_THK", "COIL_THK_D", 3, "MM", "두께");
-        column("COIL_WID", "COIL_WID_D", 0, "MM", "폭");
-        column("FINAL_WT", "FINAL_WT_D", 2, "KG", "최종 중량");
-
-        // R_PRE — COIL_THK 구간 → PRE_FCT(NUMBER). 선언만 있는 결과(사전에 없음 → 단위 "").
-        DmeTestSupport.rule(jdbc, "R_PRE", "사전 계수", "DECISION", "INUSE");
-        DmeTestSupport.released(jdbc, "R_PRE", 1, "FIRST", "2026-01-01 00:00:00", null);
-        preFactor(1, "1.05");
-        DmeTestSupport.pending(jdbc, "R_PRE", 2, "DRAFT", "kim", "FIRST", 1);
-        preFactor(2, "2.00");
-
-        // R_POST — PRE_FCT(R_PRE 가 만든다) 와 COIL_WID 를 읽어 FINAL_WT.
-        DmeTestSupport.rule(jdbc, "R_POST", "최종 중량", "DECISION", "INUSE");
-        DmeTestSupport.released(jdbc, "R_POST", 1, "FIRST", "2026-01-01 00:00:00", null);
-        DmeTestSupport.var(jdbc, "R_POST", 1, 1, "COND", "1", "PRE_FCT", 1, null);
-        DmeTestSupport.var(jdbc, "R_POST", 1, 2, "COND", "1", "COIL_WID", 2, null);
-        DmeTestSupport.var(jdbc, "R_POST", 1, 3, "RESULT", "Value", "FINAL_WT", 1, null);          // 타입은 컬럼 사전에서(라벨·소수 자리·단위)
-        DmeTestSupport.row(jdbc, "R_POST", 1, 1, 1, "NORMAL",
-                "{\"1\":{\"op\":\"GE\",\"left\":\"1\"},\"2\":{\"op\":\"GT\",\"left\":\"1000\"},\"3\":{\"val\":\"12.34\"}}");
-        DmeTestSupport.row(jdbc, "R_POST", 1, 2, 0, "DEFAULT", "{\"3\":{\"val\":\"0.50\"}}");
-
-        DmeTestSupport.ruleSet(jdbc, "S_CALC", "계산 세트", "[\"R_PRE\",\"R_POST\"]", "INUSE", 0);
-
-        DmeTestSupport.rule(jdbc, "R_ONLY_DRAFT", "초안만", "DECISION", "CREATED");
-        DmeTestSupport.pending(jdbc, "R_ONLY_DRAFT", 1, "DRAFT", "kim", "FIRST", null);
-        DmeTestSupport.var(jdbc, "R_ONLY_DRAFT", 1, 1, "COND", "1", "COIL_WID", 1, null);
-        DmeTestSupport.var(jdbc, "R_ONLY_DRAFT", 1, 2, "RESULT", "Value", "OD_OUT", 1, "STRING");
-        DmeTestSupport.row(jdbc, "R_ONLY_DRAFT", 1, 1, 0, "DEFAULT", "{\"2\":{\"val\":\"draft\"}}");
-
-        DmeTestSupport.rule(jdbc, "R_DEP", "폐기 룰", "DECISION", "DEPRECATED");
-        DmeTestSupport.released(jdbc, "R_DEP", 1, "FIRST", "2026-01-01 00:00:00", null);
-        DmeTestSupport.var(jdbc, "R_DEP", 1, 1, "COND", "1", "COIL_WID", 1, null);
-        DmeTestSupport.var(jdbc, "R_DEP", 1, 2, "RESULT", "Value", "DEP_OUT", 1, "STRING");
-        DmeTestSupport.row(jdbc, "R_DEP", 1, 1, 0, "DEFAULT", "{\"2\":{\"val\":\"old\"}}");
-
-        DmeTestSupport.rule(jdbc, "R_UNQ", "겹치는 행", "DECISION", "INUSE");
-        DmeTestSupport.released(jdbc, "R_UNQ", 1, "UNIQUE", "2026-01-01 00:00:00", null);
-        DmeTestSupport.var(jdbc, "R_UNQ", 1, 1, "COND", "1", "COIL_WID", 1, null);
-        DmeTestSupport.var(jdbc, "R_UNQ", 1, 2, "RESULT", "Value", "U_OUT", 1, "STRING");
-        DmeTestSupport.row(jdbc, "R_UNQ", 1, 1, 1, "NORMAL", "{\"1\":{\"op\":\"GT\",\"left\":\"1\"},\"2\":{\"val\":\"A\"}}");
-        DmeTestSupport.row(jdbc, "R_UNQ", 1, 2, 2, "NORMAL", "{\"1\":{\"op\":\"GT\",\"left\":\"1\"},\"2\":{\"val\":\"B\"}}");
-
-        currentUser.set("kim", STEWARD);
-    }
-
-    private void column(String phys, String domain, int scale, String unit, String label) {
-        long id = DmeTestSupport.domain(jdbc, domain, "QTY", "NUMBER", scale);
-        jdbc.update("UPDATE TB_MDM_DOMAIN SET UNIT_CODE = ? WHERE DOMAIN_ID = ?", unit, id);
-        DmeTestSupport.column(jdbc, phys, id);
-        jdbc.update("UPDATE TB_MDM_COLUMN SET LABEL_MID = ? WHERE PHYS_NAME = ?", label, phys);
-    }
-
-    /** 버전 {@code ver} 의 R_PRE 정의 — COIL_THK 구간(1.6 이상 2.5 미만)이면 {@code factor}, 아니면 기본 0.90. */
-    private void preFactor(int ver, String factor) {
-        DmeTestSupport.var(jdbc, "R_PRE", ver, 1, "COND", "2", "COIL_THK", 1, null);
-        DmeTestSupport.var(jdbc, "R_PRE", ver, 2, "RESULT", "Value", "PRE_FCT", 1, "NUMBER");
-        DmeTestSupport.row(jdbc, "R_PRE", ver, 1, 1, "NORMAL",
-                "{\"1\":{\"op\":\"<= 변수 <\",\"left\":\"1.6\",\"right\":\"2.5\"},\"2\":{\"val\":\"" + factor + "\"}}");
-        DmeTestSupport.row(jdbc, "R_PRE", ver, 2, 0, "DEFAULT", "{\"2\":{\"val\":\"0.90\"}}");
-    }
-
-    private static RuleCalcRequest req(String tp, String id, boolean preview) {
-        RuleCalcRequest r = new RuleCalcRequest();
-        r.setTargetTp(tp);
-        r.setTargetId(id);
-        r.setPreview(preview);
-        return r;
-    }
-
-    private static RuleCalcRequest run(String tp, String id, Object thk, Object wid) {
-        RuleCalcRequest r = req(tp, id, false);
-        Map<String, Object> values = new LinkedHashMap<>();
-        if (thk != null) {
-            values.put("COIL_THK", thk);
-        }
-        if (wid != null) {
-            values.put("COIL_WID", wid);
-        }
-        r.setValues(values);
-        return r;
-    }
-
-    private static List<String> names(List<RuleCalcIoResult.Item> items) {
-        return items.stream().map(RuleCalcIoResult.Item::getName).toList();
-    }
-
-    private static List<String> codes(List<RuleCalcMessage> messages) {
-        return messages.stream().map(RuleCalcMessage::getCode).toList();
-    }
 
     // ── (1) io ──────────────────────────────────────────────────────────────
 
@@ -197,22 +82,86 @@ public class RuleCalcServiceTest extends AbstractMdmSharedDbTest {
         assertEquals(List.of("FINAL_WT"), names(r.getSteps().get(1).getOutputs()));
     }
 
+    /** IF 가 R_PRE 보다 앞에 있는 세트 — 조건식이 읽는 PRE_FCT 는 IF 뒤 룰이 만들므로 입력이다. */
+    private static final String FLOW_IF_BEFORE = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},{\"id\":\"if1\",\"kind\":\"IF\"},"
+            + "{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"R_PRE\"},{\"id\":\"end\",\"kind\":\"END\"}],"
+            + "\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"if1\"},"
+            + "{\"id\":\"e2\",\"from\":\"if1\",\"to\":\"end\",\"order\":1,\"cond\":\"SKIP_FLAG == TRUE && PRE_FCT > 0\"},"
+            + "{\"id\":\"e3\",\"from\":\"if1\",\"to\":\"r1\",\"otherwise\":true},{\"id\":\"e4\",\"from\":\"r1\",\"to\":\"end\"}]}";
+
+    /** R_PRE → IF → (참이면 끝, 아니면 R_ALT) — 조건식이 읽는 PRE_FCT 는 IF 앞의 R_PRE 가 만든다. */
+    private static final String FLOW_IF_AFTER = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},"
+            + "{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"R_PRE\"},{\"id\":\"if1\",\"kind\":\"IF\"},"
+            + "{\"id\":\"r2\",\"kind\":\"RULE\",\"ruleId\":\"R_ALT\"},{\"id\":\"end\",\"kind\":\"END\"}],"
+            + "\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"r1\"},{\"id\":\"e2\",\"from\":\"r1\",\"to\":\"if1\"},"
+            + "{\"id\":\"e3\",\"from\":\"if1\",\"to\":\"end\",\"order\":1,\"cond\":\"SKIP_FLAG == TRUE && PRE_FCT > 0\"},"
+            + "{\"id\":\"e4\",\"from\":\"if1\",\"to\":\"r2\",\"otherwise\":true},{\"id\":\"e5\",\"from\":\"r2\",\"to\":\"end\"}]}";
+
+    /** R_ALT — COIL_THK 를 읽어 ALT_OUT(STRING) "alt". */
+    private void ruleAlt() {
+        DmeTestSupport.rule(jdbc, "R_ALT", "대안 룰", "DECISION", "INUSE");
+        DmeTestSupport.released(jdbc, "R_ALT", 1, "FIRST", "2026-01-01 00:00:00", null);
+        DmeTestSupport.var(jdbc, "R_ALT", 1, 1, "COND", "1", "COIL_THK", 1, null);
+        DmeTestSupport.var(jdbc, "R_ALT", 1, 2, "RESULT", "Value", "ALT_OUT", 1, "STRING");
+        DmeTestSupport.row(jdbc, "R_ALT", 1, 1, 0, "DEFAULT", "{\"2\":{\"val\":\"alt\"}}");
+    }
+
     @Test
-    void io_세트의_IF_갈래_조건식_변수는_앞_결과가_만든_이름이_아니면_입력에_더한다() {
-        String flow = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},{\"id\":\"if1\",\"kind\":\"IF\"},"
-                + "{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"R_PRE\"},{\"id\":\"end\",\"kind\":\"END\"}],"
-                + "\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"if1\"},"
-                + "{\"id\":\"e2\",\"from\":\"if1\",\"to\":\"end\",\"order\":1,\"cond\":\"SKIP_FLAG == TRUE && PRE_FCT > 0\"},"
-                + "{\"id\":\"e3\",\"from\":\"if1\",\"to\":\"r1\",\"otherwise\":true},{\"id\":\"e4\",\"from\":\"r1\",\"to\":\"end\"}]}";
+    void io_세트의_IF_조건식_변수는_그_IF_앞에서_만들어진_이름만_입력에서_뺀다() {
         DmeTestSupport.ruleSet(jdbc, "S_IF", "분기 세트", "[\"R_PRE\"]", "INUSE", 0);
-        DmeTestSupport.ruleSetFlow(jdbc, "S_IF", flow);
+        DmeTestSupport.ruleSetFlow(jdbc, "S_IF", FLOW_IF_BEFORE);
 
         RuleCalcIoResult r = service.io(req("SET", "S_IF", false));
 
         assertTrue(r.isOk());
-        // SKIP_FLAG 는 어느 룰도 만들지 않아 입력에 더해지고, PRE_FCT 는 R_PRE 가 만드는 이름이라 더하지 않는다. EVAL_TS·_ 접두는 뺀다.
-        assertEquals(List.of("COIL_THK", "SKIP_FLAG"), names(r.getInputs()));
-        assertEquals("STRING", r.getInputs().get(1).getDataType());
+        // PRE_FCT 는 R_PRE 가 만들지만 IF 뒤라서 IF 가 읽으면 입력이다. SKIP_FLAG 는 어느 룰도 만들지 않아 입력이다. EVAL_TS·_ 접두는 뺀다.
+        assertEquals(Set.of("COIL_THK", "PRE_FCT", "SKIP_FLAG"), Set.copyOf(names(r.getInputs())), names(r.getInputs()).toString());
+        assertEquals("COIL_THK", r.getInputs().get(0).getName(), "룰 입력이 먼저, IF 조건 변수는 그 뒤");
+        assertEquals("STRING", r.getInputs().stream().filter(i -> i.getName().equals("SKIP_FLAG")).findFirst().orElseThrow().getDataType());
+
+        // IF 앞에 R_PRE 가 있으면 PRE_FCT 는 입력이 아니다.
+        ruleAlt();
+        DmeTestSupport.ruleSet(jdbc, "S_IF2", "분기 세트 2", "[\"R_PRE\",\"R_ALT\"]", "INUSE", 0);
+        DmeTestSupport.ruleSetFlow(jdbc, "S_IF2", FLOW_IF_AFTER);
+        assertEquals(List.of("COIL_THK", "SKIP_FLAG"), names(service.io(req("SET", "S_IF2", false)).getInputs()));
+    }
+
+    @Test
+    void run_IF_앞_룰이_만든_PRE_FCT_는_입력_칸_없이_SKIP_FLAG_와_COIL_THK_만으로_성공한다() {
+        ruleAlt();
+        DmeTestSupport.ruleSet(jdbc, "S_IF2", "분기 세트 2", "[\"R_PRE\",\"R_ALT\"]", "INUSE", 0);
+        DmeTestSupport.ruleSetFlow(jdbc, "S_IF2", FLOW_IF_AFTER);
+        RuleCalcRequest q = req("SET", "S_IF2", false);
+        q.setValues(Map.of("SKIP_FLAG", true, "COIL_THK", "2.0"));
+
+        RuleCalcRunResult r = service.run(q);
+
+        assertTrue(r.isOk(), r.getMessages().toString());
+        assertEquals(List.of(), r.getMessages());
+        assertEquals(List.of("R_PRE"), r.getSteps().stream().map(RuleCalcRunResult.Step::getRuleId).toList(), "SKIP_FLAG 가 참이라 R_ALT 는 안 돈다");
+        assertEquals(Map.of("PRE_FCT", "1.05"), r.getResult());
+    }
+
+    @Test
+    void run_타입을_풀지_못한_불린_입력은_받은_타입_그대로_넘어가_갈래가_맞게_탄다() {
+        ruleAlt();
+        DmeTestSupport.ruleSet(jdbc, "S_IF2", "분기 세트 2", "[\"R_PRE\",\"R_ALT\"]", "INUSE", 0);
+        DmeTestSupport.ruleSetFlow(jdbc, "S_IF2", FLOW_IF_AFTER);
+
+        for (Object flag : List.of(true, "TRUE")) {
+            RuleCalcRequest q = req("SET", "S_IF2", false);
+            q.setValues(Map.of("SKIP_FLAG", flag, "COIL_THK", "2.0"));
+            RuleCalcRunResult r = service.run(q);
+            assertTrue(r.isOk(), flag + " → " + r.getMessages());
+            assertEquals(Map.of("PRE_FCT", "1.05"), r.getResult(), "SKIP_FLAG=" + flag + " 면 참 갈래(끝)");
+        }
+        for (Object flag : List.of(false, "FALSE")) {
+            RuleCalcRequest q = req("SET", "S_IF2", false);
+            q.setValues(Map.of("SKIP_FLAG", flag, "COIL_THK", "2.0"));
+            RuleCalcRunResult r = service.run(q);
+            assertTrue(r.isOk(), flag + " → " + r.getMessages());
+            assertEquals(Map.of("PRE_FCT", "1.05", "ALT_OUT", "alt"), r.getResult(), "SKIP_FLAG=" + flag + " 면 otherwise 갈래(R_ALT)");
+        }
     }
 
     // ── (2) run 정상 ────────────────────────────────────────────────────────
@@ -234,12 +183,13 @@ public class RuleCalcServiceTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void run_세트는_앞_룰_결과를_다음_룰에_넘기고_결과는_입력_키를_뺀_전부다() {
+    void run_세트는_앞_룰_결과를_다음_룰에_넘기고_result_는_최종_결과만_담는다() {
         // JSON 숫자(Double·Integer)와 글자를 섞어 받는다.
         RuleCalcRunResult r = service.run(run("SET", "S_CALC", 2.0d, 1200));
 
         assertTrue(r.isOk(), r.getMessages().toString());
-        assertEquals(Map.of("PRE_FCT", "1.05", "FINAL_WT", "12.34"), r.getResult());
+        assertEquals(Map.of("FINAL_WT", "12.34"), r.getResult(), "중간값 PRE_FCT 는 steps[].outputs 에만 있다");
+        assertEquals(Map.of("PRE_FCT", "1.05"), r.getSteps().get(0).getOutputs());
         assertEquals(List.of("R_PRE", "R_POST"), r.getSteps().stream().map(RuleCalcRunResult.Step::getRuleId).toList());
         assertEquals(Map.of("PRE_FCT", "1.05", "COIL_WID", "1200"), r.getSteps().get(1).getInputs());
         assertEquals(Map.of("FINAL_WT", "12.34"), r.getSteps().get(1).getOutputs());
@@ -395,6 +345,21 @@ public class RuleCalcServiceTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void 숫자_자릿수가_너무_큰_입력은_메모리를_쓰지_않고_INPUT_INVALID_다() {
+        for (String huge : List.of("1e999999999", "1e-999999999", "9".repeat(1001), "0." + "0".repeat(1500) + "1")) {
+            RuleCalcRequest q = req("RULE", "R_PRE", false);
+            q.setValuesJson("{\"COIL_THK\":\"" + huge + "\"}");
+
+            RuleCalcRunResult r = service.run(q);
+
+            assertFalse(r.isOk(), huge);
+            assertEquals(List.of("INPUT_INVALID"), codes(r.getMessages()), huge);
+            assertTrue(r.getMessages().get(0).getText().contains("COIL_THK"), r.getMessages().get(0).getText());
+            assertTrue(r.getMessages().get(0).getText().length() < 400, "받은 값을 통째로 되돌리지 않는다");
+        }
+    }
+
+    @Test
     void 판정_중_오류는_EVAL_ERROR_메시지다() {
         RuleCalcRequest q = req("RULE", "R_UNQ", false);
         q.setValues(Map.of("COIL_WID", "5"));
@@ -478,6 +443,42 @@ public class RuleCalcServiceTest extends AbstractMdmSharedDbTest {
         RuleCalcIoResult released = service.io(req("SET", "S_CALC", false));
         assertEquals("1.000", released.getTarget().getVer());
         assertEquals(List.of("COIL_THK", "COIL_WID"), names(released.getInputs()));
+    }
+
+    @Test
+    void io_는_preview_false_면_룰의_DRAFT_모양을_읽지_않고_true_면_읽는다() {
+        // R_PRE v2(kim DRAFT)는 PRE_NOTE 결과가 더 있어 v1 과 모양이 다르다.
+        assertEquals(List.of("PRE_FCT"), names(service.io(req("RULE", "R_PRE", false)).getOutputs()));
+        assertEquals(List.of("PRE_FCT", "PRE_NOTE"), names(service.io(req("RULE", "R_PRE", true)).getOutputs()));
+
+        RuleCalcIoResult released = service.io(req("SET", "S_CALC", false));
+        assertEquals(List.of("PRE_FCT"), names(released.getSteps().get(0).getOutputs()), "preview=false 면 io 도 DRAFT 를 안 읽는다");
+        assertEquals(Set.of("FINAL_WT"), Set.copyOf(names(released.getOutputs())));
+
+        RuleCalcIoResult draft = service.io(req("SET", "S_CALC", true));
+        assertEquals(List.of("PRE_FCT", "PRE_NOTE"), names(draft.getSteps().get(0).getOutputs()));
+        assertEquals(Set.of("FINAL_WT", "PRE_NOTE"), Set.copyOf(names(draft.getOutputs())), "DRAFT 룰의 PRE_NOTE 는 뒤 룰이 안 읽으니 최종 결과다");
+    }
+
+    @Test
+    void preview_여도_남의_DRAFT_세트_버전은_무시한다() {
+        DmeTestSupport.ruleSetDraft(jdbc, "S_CALC", "2.000", "lee", "[\"R_POST\"]", 0);       // lee 의 DRAFT — kim 에게는 보이지 않는다
+
+        RuleCalcIoResult kim = service.io(req("SET", "S_CALC", true));
+        assertEquals("1.000", kim.getTarget().getVer());
+        assertEquals("RELEASED", kim.getTarget().getVerStatus());
+        assertEquals(List.of("COIL_THK", "COIL_WID"), names(kim.getInputs()));
+        RuleCalcRequest q = run("SET", "S_CALC", "2.0", "1200");
+        q.setPreview(true);
+        RuleCalcRunResult run = service.run(q);
+        assertEquals("12.34", run.getResult().get("FINAL_WT"));
+        assertEquals(List.of("R_PRE", "R_POST"), run.getSteps().stream().map(RuleCalcRunResult.Step::getRuleId).toList(), "kim 의 run 도 RELEASED 세트(R_PRE→R_POST)로 돈다");
+
+        currentUser.set("lee", STEWARD);
+        RuleCalcIoResult lee = service.io(req("SET", "S_CALC", true));
+        assertEquals("2.000", lee.getTarget().getVer());
+        assertEquals("DRAFT", lee.getTarget().getVerStatus());
+        assertEquals(List.of("PRE_FCT", "COIL_WID"), names(lee.getInputs()));
     }
 
     // ── (7) 계약 키 모양 ────────────────────────────────────────────────────
