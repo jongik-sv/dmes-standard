@@ -13,6 +13,7 @@ import {
   getPortalMenuItemPageId,
   updateRecentMenuPageIds,
 } from "./menu-search";
+import { buildServiceIdByPageId } from "./service-id";
 import { MenuSearchDialog } from "./MenuSearchDialog";
 import { Header } from "./header/Header";
 import { Sidebar, type SidebarNavigationViewMode } from "./sidebar/Sidebar";
@@ -278,29 +279,8 @@ export function PortalShell({
     return map;
   }, [menu]);
 
-  /**
-   * pageId → serviceId 매핑. menu tree 에서 page 의 직계 parent (dir 메뉴) 의 menuId.
-   * 권한관리 endpoint 양식 `/api/{module}/{serviceId}/{objId}/{action}` 에서 service segment.
-   * Page 가 menu tree root 직계 (parent 가 dir 이 아닌 경우) 면 빈 문자열.
-   */
-  const serviceIdByPageId = useMemo(() => {
-    const map = new Map<string, string>();
-    function walk(items: PortalShellMenuItem[], parentDirId: string) {
-      for (const item of items) {
-        if (item.type === "page") {
-          const pageId = getPortalMenuItemPageId(item);
-          if (pageId) map.set(pageId, parentDirId);
-        }
-        if (item.items.length > 0) {
-          // dir 메뉴면 자기 자신을 자식의 serviceId 로 전달, 아니면 상위 dir 유지
-          const nextDir = item.type === "dir" ? item.id : parentDirId;
-          walk(item.items, nextDir);
-        }
-      }
-    }
-    walk(menu.items, "");
-    return map;
-  }, [menu]);
+  // pageId → serviceId(상위 dir 메뉴 id). 규칙은 service-id.ts 에 둔다.
+  const serviceIdByPageId = useMemo(() => buildServiceIdByPageId(menu.items), [menu]);
 
   // 탭 훅의 복원 effect deps 에 들어간다 — menuDisplayTextByPageId 가 그대로면 참조가 바뀌지 않아야 한다.
   const resolveDisplayText = useCallback(
