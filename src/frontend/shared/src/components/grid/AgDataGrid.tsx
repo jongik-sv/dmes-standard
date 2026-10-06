@@ -30,6 +30,7 @@ import { displayedRowKeys, useRowCursor } from "./row-cursor";
 import { useGridSelection } from "./useGridSelection";
 import { useGridEditing, useGridRowClass } from "./useGridEditing";
 import { useGridAutoSize } from "./useGridAutoSize";
+import { useGridCarry } from "./useGridCarry";
 
 export type { GridColumn, AgDataGridProps, AgDataGridFieldError } from "./grid-types";
 export { gridRowIdOf, indexFieldErrors } from "./field-errors";
@@ -435,6 +436,22 @@ function AgDataGridComponent({
     pendingHighlightRedrawRef,
   });
 
+  // 새 창 분리 때 선택·스크롤·포커스·자체 커서 이어받기(useGridCarry.ts) — gridId 가 없거나 carry 컨텍스트 밖이면 하는 일이 없다. 커서 훅 뒤에서 부른다.
+  const { initialState } = useGridCarry({
+    gridRef,
+    containerRef,
+    gridReady,
+    gridId,
+    data,
+    rowKey,
+    selectable,
+    selectedRows,
+    cursorControlled,
+    highlightedRowKeyRef,
+    setOwnCursorKey,
+    onRowClick,
+  });
+
   const handleRowClicked = useCallback(
     (event: RowClickedEvent) => {
       // 행 클릭 시 컨테이너로 focus 이동 → 이후 ArrowUp/Down 키보드 네비게이션이 동작.
@@ -530,6 +547,7 @@ function AgDataGridComponent({
         defaultColDef={defaultColDef}
         getRowId={getRowId}
         getRowClass={getRowClass}
+        initialState={initialState}
         rowSelection={
           selectable
             ? {

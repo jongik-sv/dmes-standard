@@ -261,6 +261,33 @@ export function useCarryState<T>(
 }
 
 /**
+ * 화면 상태(useState)를 따로 두지 않는 공통 부품(AgDataGrid 등)이 쓰는 저수준 훅. 값 자체는 부품 안에 있으므로 getter 만 light 로 등록하고,
+ * 분리 창에서는 그 key 의 복원값을 돌려준다(없으면 undefined). 복원값은 마운트 때 한 번 읽어 그 컴포넌트가 계속 들고 있다 —
+ * useCarryState 와 같은 규칙으로 key 당 한 번만 쓰이고(StrictMode 이중 effect 에서도 첫 마운트가 받는다), 컨텍스트 밖에서는 등록도 복원도 없다.
+ * key 가 null 이면 아무것도 하지 않는다. opts.accept 는 마운트 effect 에서 한 번 불러 false 면 등록하지 않는다(DOM 위치로 판정할 때).
+ * getter 는 collect 때 불린다 — 렌더 중이 아니고, 던지면 그 key 만 빠진다. 반환값은 JSON 으로 옮길 수 있어야 한다.
+ */
+export function useCarryValue<T>(
+  key: string | null | undefined,
+  getter: () => T,
+  opts?: { accept?: () => boolean }
+): T | undefined {
+  const registry = useContext(CarryStateContext);
+  const [restored] = useState<{ value: unknown } | null>(() => (key && registry ? registry.peekRestored(key, false) : null));
+  const getterRef = useRef(getter);
+  getterRef.current = getter;
+  const acceptRef = useRef(opts?.accept);
+  acceptRef.current = opts?.accept;
+  useEffect(() => {
+    if (!registry || !key) return undefined;
+    if (acceptRef.current && !acceptRef.current()) return undefined;
+    registry.markRestoredUsed(key);
+    return registry.register(key, { get: () => getterRef.current(), bulky: false });
+  }, [registry, key]);
+  return (restored?.value ?? undefined) as T | undefined;
+}
+
+/**
  * 큰 값(행 등)이 빠진 채 복원됐을 때 마운트 뒤 한 번 refetch 를 부른다(원래 큰 값이 있었던 경우만).
  * 화면당 한 번만 둔다 — 호출 여부는 등록소 단위 표시로 막으므로 둘째 호출은 불리지 않는다.
  * refetch 는 매 렌더 새 함수여도 된다(최신 것을 ref 로 읽는다). Promise 를 돌려주면 끝난 때를 알아 새로고침 저장에 쓴다.
