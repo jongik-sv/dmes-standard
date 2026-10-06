@@ -2,7 +2,7 @@
 
 표(그리드) 바로 아래에 왼쪽 행 수 안내와 오른쪽 [엑셀] 단추를 한 줄로 붙이고, 그 줄을 표 영역 바닥에 고정할 때 쓴다. 단추를 누르면 `onExcel` 만 부르므로 파일 만들기는 화면이 한다.
 
-> 표 아래 줄과 그리드 컬럼·행 내려받기를 그대로 쓰면 되는 화면은 이 컴포넌트를 직접 붙이지 말고 [AgDataGrid](ag-data-grid.md) 의 `excelExport` 속성을 준다. 그리드가 이 줄(`GridExcelFoot`)·감싸개·내려받기를 모두 맡는다. 그리드가 [GridPanel](grid-panel.md) 안의 설정 메뉴 대상이면 [엑셀] 은 머리줄 「그리드 설정」 메뉴로 옮겨 가고 이 줄은 `hideButton` 으로 「N행」 안내만 남긴다. 이 컴포넌트는 엑셀 내용을 화면이 직접 정해야 할 때(열을 골라 바꾸거나 값을 변환) 단독으로 쓴다.
+> 표 아래 줄과 그리드 컬럼·행 내려받기를 그대로 쓰면 되는 화면은 이 컴포넌트를 직접 붙이지 말고 [AgDataGrid](ag-data-grid.md) 의 `excelExport` 속성을 준다. 그리드가 이 줄(`GridExcelFoot`)·감싸개·내려받기를 모두 맡는다. 그리드의 「그리드 설정」 메뉴가 엑셀을 맡으면([GridPanel](grid-panel.md) 안의 설정 메뉴 대상이거나, GridPanel 밖 그리드의 머리글 줄 설정 아이콘) [엑셀] 은 그 메뉴로 옮겨 가고 이 줄은 `hideButton` 으로 「N행」 안내만 남긴다. 이 컴포넌트는 엑셀 내용을 화면이 직접 정해야 할 때(열을 골라 바꾸거나 값을 변환) 단독으로 쓴다.
 
 - import: `import { GridExcelFoot, type GridExcelFootProps } from "@dk-oasis/shared/grid";` (CSS import 없음)
 - 소스: `src/frontend/shared/src/components/grid/GridExcelFoot.tsx`
@@ -11,7 +11,7 @@
 
 ## 언제 쓰나
 
-- 쓴다: 카드·위젯 안의 작은 목록처럼 PageLayout 상단 버튼 막대가 없는 자리에서, 표 아래에 안내 글과 엑셀 단추를 두되 **엑셀 내용을 화면이 직접 정할 때**. 그리드의 컬럼·행을 그대로 내려받기만 하면 `AgDataGrid` 의 `excelExport` 가 더 간단하다([AgDataGrid](ag-data-grid.md) §아래 줄과 엑셀 내려받기). GridPanel 안의 그리드는 줄 없이도 머리줄 「그리드 설정」 메뉴에 「엑셀 출력」 이 기본으로 켜져 있다.
+- 쓴다: 카드·위젯 안의 작은 목록처럼 PageLayout 상단 버튼 막대가 없는 자리에서, 표 아래에 안내 글과 엑셀 단추를 두되 **엑셀 내용을 화면이 직접 정할 때**. 그리드의 컬럼·행을 그대로 내려받기만 하면 `AgDataGrid` 의 `excelExport` 가 더 간단하다([AgDataGrid](ag-data-grid.md) §아래 줄과 엑셀 내려받기). 그리드는 줄 없이도 「그리드 설정」 메뉴(GridPanel 안은 머리줄, 밖은 머리글 줄 오른쪽 끝 아이콘)에 「엑셀 출력」 이 기본으로 켜져 있다.
 - 쓰지 않는다: 화면 전체 목록의 엑셀 버튼 → PageLayout 상단 「엑셀」 버튼(`action: "export"`)과 [exportToExcel](export-to-excel.md). 이 컴포넌트는 파일을 만들지 않고 단추 줄만 그린다.
 - 쓰지 않는다: 서버 페이징 막대 → [Pagination](pagination.md)(페이지 이동·총 건수). 패널 머리의 건수·버튼 → [GridPanel](grid-panel.md)(`count`·`buttons`).
 - 엑셀 파일 내용(컬럼·파일 이름)은 `onExcel` 안에서 [exportToExcel](export-to-excel.md) 로 만든다. 파일 이름·열 폭 계산은 같은 유틸의 `excelFileName`·`toExcelColumns` 를 쓸 수 있다.
@@ -79,7 +79,7 @@ export function OrderTable({ rows }: { rows: Record<string, unknown>[] }) {
 | onExcel | `() => void` | 필수 | [엑셀] 을 눌렀을 때. 파일 만들기는 호출한 쪽이 한다 |
 | disabled | `boolean` | `false` | 단추 비활성(내려받을 행 없음) |
 | testId | `string` | `"grid-excel"` | [엑셀] 단추의 `data-testid` |
-| hideButton | `boolean` | `false` | 참이면 단추를 그리지 않고 안내 글만 둔다. [GridPanel](grid-panel.md) 「그리드 설정」 메뉴의 「엑셀 출력」 이 대신할 때 `AgDataGrid` 가 켠다(`onExcel`·`disabled`·`testId` 는 무시) |
+| hideButton | `boolean` | `false` | 참이면 단추를 그리지 않고 안내 글만 둔다. 「그리드 설정」 메뉴의 「엑셀 출력」 이 대신할 때 `AgDataGrid` 가 켠다. [GridPanel](grid-panel.md) 안의 설정 메뉴 대상 그리드와, GridPanel 밖에서 머리글 줄 설정 아이콘이 있는 그리드(`settingsMenu={false}` 도 대화 상자 안도 아닐 때)가 이 경우다(`onExcel`·`disabled`·`testId` 는 무시) |
 
 ## 표준값: 모든 화면 동일
 
@@ -99,5 +99,5 @@ export function OrderTable({ rows }: { rows: Record<string, unknown>[] }) {
 
 ## 실제 사용 예
 
-- 단독 사용처는 아직 없다. 쿼리 표(`src/frontend/m-mcm/widget-types/query-table/renderer.tsx`)와 홈 기본 표 위젯(`widgets/home/workOrders/widget.tsx`·`shipments/widget.tsx`)은 `AgDataGrid` 의 `excelExport` 속성으로 옮겼다(이 줄은 그리드 안에서 그려진다).
-- 모양과 `data-testid`(줄 `grid-foot`, 글 `grid-foot-note`)는 `excelExport` 를 써도 이 컴포넌트와 같다. [엑셀] 단추의 기본 `data-testid` 는 `grid-excel` 이고, m-mcm 의 세 위젯은 `testId: "wq-excel"` 을 넘긴다. 시험: `src/frontend/shared/tests/unit/grid-excel-foot.unit.test.ts`(이 줄), `ag-data-grid-excel.unit.test.ts`(`excelExport`), `grid-settings-menu-excel.unit.test.ts`(설정 메뉴가 엑셀을 맡을 때 단추 숨김).
+- 단독 사용처는 아직 없다. 쿼리 표(`src/frontend/m-mcm/widget-types/query-table/renderer.tsx`)와 홈 기본 표 위젯(`widgets/home/workOrders/widget.tsx`·`shipments/widget.tsx`)은 `AgDataGrid` 의 `excelExport` 속성으로 옮겼다(이 줄은 그리드 안에서 그려진다). 세 곳은 GridPanel 밖이므로 그리드 머리글 줄 오른쪽 끝의 「그리드 설정」 아이콘 메뉴가 엑셀을 맡고 아래 줄에는 「N행」 안내만 남는다. 이 세 곳의 아래 줄 단추를 `testId`(`wq-excel`)로 찾던 시험은 메뉴 항목으로 바뀐다: 아이콘(`grid-settings-menu`)을 열고 항목 `grid-excel` 을 누른다(`wq-excel` 단추는 없다).
+- 모양과 `data-testid`(줄 `grid-foot`, 글 `grid-foot-note`)는 `excelExport` 를 써도 이 컴포넌트와 같다. [엑셀] 단추의 기본 `data-testid` 는 `grid-excel` 이고, m-mcm 의 세 위젯은 `testId: "wq-excel"` 을 넘기지만 단추가 메뉴로 옮겨 가 지금은 쓰이지 않는다(위 줄 참고). 시험: `src/frontend/shared/tests/unit/grid-excel-foot.unit.test.ts`(이 줄), `ag-data-grid-excel.unit.test.ts`(`excelExport`), `grid-settings-menu-excel.unit.test.ts`(설정 메뉴가 엑셀을 맡을 때 단추 숨김), `grid-settings-overlay.unit.test.ts`(GridPanel 밖 그리드의 머리글 줄 설정 아이콘).

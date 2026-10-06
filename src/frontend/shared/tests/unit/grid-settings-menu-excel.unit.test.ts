@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 
 // GridPanel 「그리드 설정」 메뉴의 [엑셀 출력] — excelExport 를 켠 그리드가 GridPanel 안에 있으면 아래 줄 [엑셀] 단추는 빠지고
-// 메뉴 항목이 같은 내보내기를 부른다. GridPanel 안의 그리드는 excelExport 를 주지 않아도 메뉴 항목이 기본으로 나오고 excelExport={false} 로 끈다. GridPanel 밖의 그리드·대상이 아닌 둘째 그리드는 아래 줄 단추를 그대로 둔다.
+// 메뉴 항목이 같은 내보내기를 부른다. GridPanel 안의 그리드는 excelExport 를 주지 않아도 메뉴 항목이 기본으로 나오고 excelExport={false} 로 끈다. GridPanel 밖의 그리드는 같은 메뉴를 머리글 줄 아이콘으로 달고(grid-settings-overlay 시험), 대상이 아닌 둘째 그리드는 아래 줄 단추를 그대로 둔다.
 // 파일 쓰기(exportToExcel)와 오늘 날짜만 대역으로 바꾸고 실제 그리드를 happy-dom 에 띄운다.
 import { act, createElement, type ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -216,13 +216,14 @@ describe("GridPanel 안의 기본 켬", () => {
     expect(tid("grid-excel")).toBeNull();
   });
 
-  it("GridPanel 밖의 그리드는 excelExport 를 주지 않으면 아래 줄도 단추도 없다", async () => {
+  it("GridPanel 밖의 그리드도 excelExport 를 주지 않으면 아래 줄은 없고, 머리글 줄 아이콘 메뉴에만 엑셀 출력이 나온다(자세한 것은 grid-settings-overlay 시험)", async () => {
     await show(
       createElement(TabPageContext.Provider, { value: { pageId: "scr-xl", serviceId: "", tabId: "t1" } }, gridEl()),
     );
-    expect(tid("grid-excel")).toBeNull();
     expect(tid("grid-foot")).toBeNull();
-    expect(tid("grid-settings-menu")).toBeNull();
+    expect(tid("grid-settings-overlay")).not.toBeNull();
+    await openMenu();
+    expect(tid("grid-excel")!.textContent).toBe("엑셀 출력");
   });
 
   it("serverPaged 패널은 항목 이름에 「(현재 페이지)」 가 붙는다", async () => {
@@ -267,7 +268,7 @@ describe("메뉴 항목 순서", () => {
 });
 
 describe("메뉴가 없는 곳과 대상이 아닌 그리드", () => {
-  it("GridPanel 없이 쓰는 그리드는 아래 줄 [엑셀] 단추가 그대로 있다", async () => {
+  it("GridPanel 없이 쓰는 그리드도 excelExport 를 주면 아래 줄은 행 수만 남고 [엑셀] 은 머리글 줄 아이콘 메뉴로 옮겨 간다", async () => {
     await show(
       createElement(
         TabPageContext.Provider,
@@ -275,6 +276,23 @@ describe("메뉴가 없는 곳과 대상이 아닌 그리드", () => {
         gridEl({ excelExport: { title: "작업" } }),
       ),
     );
+    expect(tid("grid-foot-note")!.textContent).toBe("2행");
+    expect(tid("grid-foot")!.querySelector("button")).toBeNull();
+    await openMenu();
+    await click(tid("grid-excel"));
+    expect(h.exportToExcel).toHaveBeenCalledTimes(1);
+    expect((h.exportToExcel.mock.calls[0] as [unknown, string])[1]).toBe("작업_20261006.xlsx");
+  });
+
+  it("settingsMenu={false} 인 그리드는 아이콘이 없고 아래 줄 [엑셀] 단추가 그대로 남는다", async () => {
+    await show(
+      createElement(
+        TabPageContext.Provider,
+        { value: { pageId: "scr-xl", serviceId: "", tabId: "t1" } },
+        gridEl({ excelExport: { title: "작업" }, settingsMenu: false }),
+      ),
+    );
+    expect(tid("grid-settings-menu")).toBeNull();
     expect(tid("grid-excel")).not.toBeNull();
     await click(tid("grid-excel"));
     expect(h.exportToExcel).toHaveBeenCalledTimes(1);
