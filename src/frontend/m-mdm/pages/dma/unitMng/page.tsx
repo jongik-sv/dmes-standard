@@ -17,6 +17,7 @@ import {
   SearchField,
 } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
+import { useCarryRefetch, useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { MdmPageLayout } from "@/shell";
 
 import { deleteUnit, saveUnit, searchUnits, loadUnitOptions } from "./api";
@@ -41,12 +42,25 @@ const UNIT_COLUMNS: GridColumn[] = [
   { key: "baseUnitBadge", header: "기준 단위 여부", meta: false, width: 120, align: "center" },
 ];
 
+/** 목록 행(또는 그리드가 돌려준 행)으로 상세 폼 값을 만든다. */
+function unitFormFromRow(row: { unitCode?: unknown; dimension?: unknown; baseUnit?: unknown; factor?: unknown }): UnitForm {
+  return {
+    unitCode: String(row.unitCode ?? ""),
+    dimension: String(row.dimension ?? ""),
+    baseUnit: String(row.baseUnit ?? ""),
+    factor: String(row.factor ?? ""),
+  };
+}
+
 export default function UnitMngPage() {
-  const [filters, setFilters] = useState<UnitMngFilters>(emptyFilters);
-  const [rows, setRows] = useState<UnitRow[]>([]);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·조회 결과(bulky)·선택 행(selectedUnitCode).
+  // 선택 행의 상세 폼(입력 값은 UnitDetailForm 이 가진다)은 이어받지 않는다. 선택 키만 남으면 같은 행을 눌러도 폼이 안 채워지므로
+  // (`handleRowClick` 이 같은 행이면 빠져나간다) 새 창에서 이어받은 행으로 폼 적재 함수(`loadForm`)를 직접 한 번 부른다. 차원·단위 콤보는 진입 때 다시 받으므로 useState 다.
+  const [filters, setFilters] = useCarryState<UnitMngFilters>("filters", emptyFilters);
+  const [rows, setRows] = useCarryState<UnitRow[]>("rows", [], { bulky: true });
   const [dimensionOptions, setDimensionOptions] = useState<DimensionOption[]>([]);
   const [unitOptions, setUnitOptions] = useState<UnitOption[]>([]);
-  const [selectedUnitCode, setSelectedUnitCode] = useState<string>("");
+  const [selectedUnitCode, setSelectedUnitCode] = useCarryState<string>("selectedUnitCode", "");
   /** 상세 폼 — 입력 값은 UnitDetailForm 이 갖고, 루트는 "폼이 있는지"만 안다(R12: 한 글자마다 루트가 다시 그려지지 않게). */
   const detailRef = useRef<UnitDetailHandle>(null);
   const [hasForm, setHasForm] = useState(false);
@@ -68,21 +82,38 @@ export default function UnitMngPage() {
     setHasForm(next != null);
   }, []);
 
-  const handleSearch = useCallback(async () => {
+  // keepUnitCode 는 행 없이 복원돼 재조회할 때만 준다 — 받은 목록에 그 행이 있으면 선택을 비우지 않고 폼을 다시 채운다.
+  const handleSearch = useCallback(async (keepUnitCode = "") => {
     setIsBusy(true);
     try {
       const payload = await searchUnits(filters.unitCode, filters.dimension);
-      setRows(payload.list ?? []);
+      const list = payload.list ?? [];
+      setRows(list);
       setDimensionOptions(payload.dimensionOptions ?? []);
       setUnitOptions(payload.unitOptions ?? []);
-      setSelectedUnitCode("");
-      loadForm(null);
+      const kept = keepUnitCode ? list.find((r) => r.unitCode === keepUnitCode) : undefined;
+      setSelectedUnitCode(kept ? kept.unitCode : "");
+      loadForm(kept ? unitFormFromRow(kept) : null);
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : String(e));
     } finally {
       setIsBusy(false);
     }
-  }, [filters, loadForm]);
+  }, [filters, loadForm, setRows, setSelectedUnitCode]);
+
+  // 분리 창이 조회 결과(행)를 못 받았을 때만 이어받은 조건으로 한 번 다시 조회한다(조회 안 한 탭은 재조회하지 않는다).
+  useCarryRefetch(() => handleSearch(selectedUnitCode));
+
+  // 행이 함께 넘어왔으면(행 없이 복원된 경우는 위 재조회가 같은 일을 한다) 이어받은 선택 행의 폼을 목록 값으로 채운다. 포털 탭은 복원값이 없어 아무것도 하지 않는다.
+  const restored = useCarryRestored();
+  useEffect(() => {
+    if (!restored || !selectedUnitCode) return;
+    const original = rows.find((r) => r.unitCode === selectedUnitCode);
+    // 서버 조회 결과를 상태에 담는 호출이라 effect 안 setState 규칙에 걸린다(분리 창 복원 때만 돈다).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (original) loadForm(unitFormFromRow(original));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 첫 진입 자동 목록 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청).
   // 진입 때 콤보 값만 받는다(optionsOnly — 서버 목록 조회 없음). 목록(rows)은 채우지 않는다.
@@ -104,13 +135,13 @@ export default function UnitMngPage() {
 
   const handleFilterChange = useCallback((key: keyof UnitMngFilters, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
-  }, []);
+  }, [setFilters]);
 
   /** B-002 단위 등록 — 그리드에 빈 행 추가 + A-DETAIL 초기화. 서버 호출 없음. */
   const handleNew = useCallback(() => {
     setSelectedUnitCode("");
     loadForm(emptyUnitForm());
-  }, [loadForm]);
+  }, [loadForm, setSelectedUnitCode]);
 
   const handleRowClick = useCallback((row: Record<string, unknown>) => {
     const unitCode = String(row.unitCode ?? "");
@@ -118,13 +149,8 @@ export default function UnitMngPage() {
     // 고친 입력만 말없이 사라진다(2026-10-03).
     if (unitCode === selectedUnitCode) return;
     setSelectedUnitCode(unitCode);
-    loadForm({
-      unitCode,
-      dimension: String(row.dimension ?? ""),
-      baseUnit: String(row.baseUnit ?? ""),
-      factor: String(row.factor ?? ""),
-    });
-  }, [selectedUnitCode, loadForm]);
+    loadForm(unitFormFromRow(row));
+  }, [selectedUnitCode, loadForm, setSelectedUnitCode]);
 
   const validate = useCallback((f: UnitForm): string | null => {
     if (!f.unitCode.trim()) return "단위 코드는 영문·숫자·밑줄 20자 이내여야 합니다."; // V-001

@@ -21,6 +21,7 @@ import {
 } from "@dk-oasis/shared/layout";
 import { GridLimitNotice } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRefetch, useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { Tabs } from "@dk-oasis/shared/tabs";
 import { exportToExcel } from "@dk-oasis/shared/utils";
 import { FIRST_SEARCH_LIMIT } from "@/oasis-screen";
@@ -99,26 +100,29 @@ export default function LayoutMngPage() {
   const me = rbac.userId;
   const { showMessage } = useMessage();
 
-  const [filters, setFilters] = useState<SearchFilters>(EMPTY_FILTERS);
-  const [rows, setRows] = useState<LayoutRow[]>([]);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·조회 결과(bulky)·건수·전체 보기 여부·선택 전문(selectedId)·고른 버전(selectedVersion)·판정 시각 T(asOf).
+  // 선택 전문의 상세·항목·버전 목록(서버 view 결과와 편집 초안)은 이어받지 않는다 — 새 창에서 selectedId·selectedVersion·asOf 로 `openLayout` 을 한 번 불러 서버에서 다시 읽는다.
+  // 시스템·EAI·헤더 콤보는 진입 때 다시 받는다.
+  const [filters, setFilters] = useCarryState<SearchFilters>("filters", EMPTY_FILTERS);
+  const [rows, setRows] = useCarryState<LayoutRow[]>("rows", [], { bulky: true });
   /** 목록이 상한으로 잘렸을 때의 전체 건수(안 잘렸으면 null). */
-  const [rowsTotal, setRowsTotal] = useState<number | null>(null);
+  const [rowsTotal, setRowsTotal] = useCarryState<number | null>("rowsTotal", null);
   /** 마지막 조회가 [전체 보기](상한 없음)였는지. */
-  const [showAll, setShowAll] = useState(false);
+  const [showAll, setShowAll] = useCarryState("showAll", false);
   const [systems, setSystems] = useState<SystemRow[]>([]);
   const [eais, setEais] = useState<EaiRow[]>([]);
   const [headerFilter, setHeaderFilter] = useState<HeaderOption[]>([]);
   const [catalog, setCatalog] = useState<HeaderOption[] | null>(null);
   const [loading, setLoading] = useState(false);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useCarryState<number | null>("selectedId", null);
   const [mode, setMode] = useState<Mode>("none");
   const [draft, setDraft] = useState<LayoutDraft>(EMPTY_DRAFT);
   // ── D-144 3단계 버전 ──
   const [view, setView] = useState<ViewResult | null>(null);
   /** 시각 T(null = 지금). 다른 전문을 열어도 유지한다. */
-  const [asOf, setAsOf] = useState<string | null>(null);
+  const [asOf, setAsOf] = useCarryState<string | null>("asOf", null);
   /** 사용자가 고른 편집 대상 버전(null = 서버가 고른다 — 내 DRAFT 우선, 없으면 T 시점 현재). */
-  const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
+  const [selectedVersion, setSelectedVersion] = useCarryState<string | null>("selectedVersion", null);
   const [handoverTo, setHandoverTo] = useState("");
   /** view 요청 순번 — T 를 연달아 바꾸면 늦게 온 옛 응답을 버린다. */
   const viewSeq = useRef(0);
@@ -177,7 +181,10 @@ export default function LayoutMngPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setRows, setRowsTotal, setShowAll]);
+
+  // 분리 창이 조회 결과(행)를 못 받았을 때만 이어받은 조건으로 한 번 다시 조회한다(조회 안 한 탭은 재조회하지 않는다).
+  useCarryRefetch(() => runSearch(filters, showAll));
 
   // 첫 진입 자동 목록 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청).
   // 진입 때 콤보 값만 받는다(optionsOnly — 서버 목록 조회 없음). 목록(rows)은 채우지 않는다.
@@ -235,6 +242,15 @@ export default function LayoutMngPage() {
     } finally {
       if (seq === viewSeq.current) setBusy(false);
     }
+  }, [setSelectedId, setSelectedVersion]);
+
+  // 분리 창이 이어받은 선택 전문이 있으면 상세를 서버에서 다시 읽는다(상세는 전문 ID·버전·시각 T 로 읽으므로 행이 왔든 안 왔든 같다). 포털 탭은 복원값이 없어 아무것도 하지 않는다.
+  const restored = useCarryRestored();
+  useEffect(() => {
+    // 서버 조회 결과를 상태에 담는 호출이라 effect 안 setState 규칙에 걸린다(분리 창 복원 때만 돈다).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (restored && selectedId != null) void openLayout(selectedId, selectedVersion, asOf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const startNew = () => {

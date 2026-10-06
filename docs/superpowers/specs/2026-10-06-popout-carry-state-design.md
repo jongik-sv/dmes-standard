@@ -110,11 +110,18 @@ useCarryRefetch(() => loadMaster(filters));
 - 셀 편집기가 열려 있는 값은 그리드 안에만 있다. 2 단계에서 AgDataGrid 가 모으기 전에 `api.stopEditing()` 으로 확정한다. 1 단계에서는 열린 편집기의 값이 빠질 수 있다(한계로 적는다).
 - 확인 창은 두지 않는다. 띄우려면 확인 버튼 처리기 안에서 `window.open` 을 동기로 불러야 하므로 TabsBar 메뉴 흐름을 바꿔야 한다. 필요하면 §8-3 에서 고른다.
 
-### 4.7 그리드 선택 행·스크롤 (2 단계, grid-core-2 머지 뒤)
+### 4.7 그리드 선택 행·스크롤·커서 (2 단계, 구현됨)
 
-- 지금 AgDataGrid 는 grid api 를 화면에 내보내지 않는다(내부 `gridRef`, `onGridReady` 를 넘겨받지 않음). 그래서 화면 쪽 훅만으로는 스크롤을 못 잡는다. 1 단계에서는 grid/** 를 고치지 않는다.
-- 2 단계: `gridId` 가 있는 AgDataGrid 는 carry 컨텍스트 안에서 스스로 등록한다(key `grid:{gridId}`). 모을 때 `api.stopEditing()` 후 `api.getState()` 의 `rowSelection`·`scroll`·`focusedCell` 만 담고, 새 창에서는 `initialState` 로 넘긴다. ag-grid 33.3.2 에 `getState()`·`initialState` 는 있고 `setState()` 는 없다. 새 창에서는 행이 첫 렌더부터 들어 있으므로 생성 때 `initialState` 로 충분하다. 화면 수정은 없다(gridId 사용처 119곳).
-- 2 단계 전에는 행·조건·선택 키(화면 상태)는 넘어가지만 그리드의 선택 표시와 스크롤 위치는 처음 상태다. 선택 표시를 `selectedRows` prop 으로 제어하는 화면은 1 단계만으로도 선택 표시가 되살아난다.
+구현: shared `components/grid/useGridCarry.ts`(새 파일). `AgDataGrid.tsx` 는 훅 호출과 `initialState` prop 만 더했고(공개 props 변화 없음), 등록소 쪽은 `carry-state.ts` 에 저수준 훅 `useCarryValue(key, getter, { accept })` 하나를 더했다(기존 함수 동작 불변). 시험 `tests/unit/grid-carry.unit.test.ts`.
+
+- **대상**: `gridId` 를 준 AgDataGrid 만, carry 컨텍스트(포털 탭·분리 창) 안에서만. key 는 `grid:{gridId}`, light 로 올린다. `gridId` 가 없거나 컨텍스트 밖이거나 대화 상자(`role="dialog"`) 안 그리드는 등록도 복원도 없어 지금과 같다. ag-grid 33.3.2 에 `getState()`·`initialState` 는 있고 `setState()` 는 없다.
+- **모으기**: 열린 셀 편집기가 있으면 `api.stopEditing()` 으로 확정한 뒤 `api.getState()` 의 `rowSelection`·`scroll` 과, 그리드가 자체 관리하는 커서 행 키(`useRowCursor` 의 `highlightedRowKeyRef`)만 담는다. `focusedCell` 은 담지 않는다(ag-grid 는 포커스가 그리드를 벗어나도 지우지 않아 오래된 값으로 포커스를 가져간다). 컬럼 상태(너비·순서·정렬)는 담지 않아 그리드 개인화와 겹치지 않는다. 화면이 `highlightedRowKey` 를 넘기면(controlled) 커서는 화면 소유라 담지 않고, `selectedRows`(제어형 선택)나 `selectable` 아님이면 체크 선택도 뺀다. 체크 선택이 2000행을 넘으면 선택만 뺀다(light 256KB 보호). 담을 것이 없으면 getter 가 null 을 돌려주고, `useCarryValue` 경로는 null·undefined 를 collect 결과에 넣지 않는다(그리드만 있는 화면은 분리 때 carry 를 넘기지 않아 "훅을 쓰지 않는 탭은 지금과 같은 handoff" 가 지켜진다. `useCarryState` 는 null 도 값으로 담는다).
+- **편집기 확정 순서**: ag-grid 기본 값 쓰기는 행 객체(`data[field]`)에 바로 쓰므로 `stopEditing()` 이 확정한 값은 화면 행 getter 가 읽는 같은 행 객체에 반영된다. 반면 `onCellValueChanged` 로 일어나는 화면 setState(`_rowState = modified` 표시 등)는 분리 버튼 처리기 안에서는 렌더 뒤에 반영되어 같은 모으기에 들지 못한다. 등록소에 먼저 부를 getter 를 두어도 해결되지 않아(렌더 뒤 반영) 만들지 않았고 한계로 둔다. 다만 `stopEditingWhenCellsLoseFocus`(기본 켬)라 탭 우클릭 때 편집기는 이미 닫혀 있는 것이 보통이다.
+- **복원**: 그 key 복원값이 있으면 `initialState={{ rowSelection, scroll }}` 를 넘긴다(그리드 생성 때 한 번만 읽힘, 첫 렌더 값으로 고정). 행은 화면 `useCarryState` 복원으로 첫 렌더부터 있으므로 ag-grid 가 `rowCountReady`(체크 선택)·`firstDataRendered`(스크롤)에서 적용한다. 체크 선택 id 는 `getRowId`(`gridRowIdOf`) 규칙과 같다(ag-grid 가 `getState` 로 내는 노드 id 를 그대로 되돌린다). 행이 첫 렌더에 없으면(opener 를 못 써 재조회하는 경우, 행을 이어받지 않는 화면) `initialState` 를 넘기지 않아 체크 선택·스크롤은 되살리지 않는다(나중에 온 다른 목록에 옛 id·위치가 엉뚱하게 적용되지 않게). 같은 key 의 복원값은 한 번만 쓰인다.
+- **selectionChanged**: `initialState` 의 체크 선택 복원은 `selectionChanged`(source `gridInitializing`)를 한 번 내고 화면 `onRowSelect(ids, row|rows)` 가 불린다(실측). 막지 않고 화면에 넘긴다 — 체크를 carry 한 화면은 같은 값을 다시 쓰고, carry 하지 않은 화면은 그리드 체크와 화면 상태가 어긋나지 않는다. 현재 치환 화면 중 해당하는 곳은 `commUserRoleCopy` 의 copyTargetList 뿐이고 핸들러는 키 setter 다.
+- **커서 되살리기와 onRowClick 재호출**: 자체 관리 커서를 되살린 경우(화면이 `highlightedRowKey` 를 안 넘김) 그리드가 준비되고 그 행이 `data` 에 있으면 커서를 세우고 화면 `onRowClick(row, new MouseEvent("click"))` 를 한 번 부른다(마운트 뒤 1회, StrictMode 에서도 1회). 커서는 첫 렌더에 행이 있을 때, 또는 마운트 뒤 처음 행이 도착한 그 한 번에만 판단한다(행이 비어 있으면 처음 도착할 때까지 기다린다). 그때 그 키 행이 없으면 버리고 나중 목록에서는 되살리지 않는다 — 이어받은 키가 나중 조회 결과의 행을 몰래 열지 않게. 사용자가 먼저 다른 행을 누르거나 화면이 커서를 쥐면 포기한다. 화면이 `highlightedRowKey` 를 넘기면(controlled) 부르지 않는다 — 그 화면은 선택 키를 `useCarryState` 로 이어받아 화면 쪽에서 상세를 되살린다.
+- **한계**: ① 포커스 칸은 이어받지 않는다(복원하면 오래된 `focusedCell` 이 브라우저 포커스를 그리드 칸으로 가져가고 `onFocusedRowChange` 를 부른다). ② `scroll` 은 행 id 가 아니라 픽셀이라, 분리 창의 정렬(개인화 복원 순서 등)이 다르면 다른 행을 가리킬 수 있다. ③ 복원값은 렌더 때 읽고 대화 상자 판정(`accept`)은 마운트 effect 에서 하므로, 대화 상자 안 그리드가 본 화면 그리드와 같은 gridId 를 쓰면 적용될 수 있다(문서가 모달 그리드에 다른 gridId 를 요구한다). ④ 체크 선택은 2000행까지만 옮긴다.
+- 화면 수정은 없다.
 
 ### 4.8 「새 탭으로 하나 더 열기」
 

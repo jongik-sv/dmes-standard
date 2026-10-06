@@ -20,6 +20,7 @@ import {
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, DateTimePicker, Input } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { DraftLockBadge, MdmPageLayout, VEIL_FRESH, VEIL_STALE, VersionStatusBadge, useMdmPageParams } from "@/shell";
 
 import { confirmDraft, searchDrafts, validateDraft, viewDraft } from "./api";
@@ -137,9 +138,11 @@ export default function CodeConfirmPage({ tabId }: CodeConfirmPageProps) {
   const canValidate = canDoButton(rbac, SCREEN_ID, "validate");
   const confirmPermitted = canDoButton(rbac, SCREEN_ID, "confirm");
 
-  const [keyword, setKeyword] = useState("");
-  const [drafts, setDrafts] = useState<PendingDraft[] | null>(null);
-  const [target, setTarget] = useState<Target | null>(null);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 검색어·확정 대기 목록(bulky).
+  // 선택 대상(target)도 이어받고, 상세(view)·적용 시각 입력·검사 결과는 이어받지 않는다 — 새 창에서 target 으로 `choose` 를 한 번 불러 확정 폼을 서버에서 다시 읽는다(진입 대상은 handoff(useMdmPageParams)가 우선).
+  const [keyword, setKeyword] = useCarryState("keyword", "");
+  const [drafts, setDrafts] = useCarryState<PendingDraft[] | null>("drafts", null, { bulky: true });
+  const [target, setTarget] = useCarryState<Target | null>("target", null);
   const [view, setView] = useState<ViewResult | null>(null);
   const [applyInput, setApplyInput] = useState("");
   const [checks, setChecks] = useState<CheckRow[] | null>(null);
@@ -165,7 +168,7 @@ export default function CodeConfirmPage({ tabId }: CodeConfirmPageProps) {
     } catch (e) {
       fail(e);
     }
-  }, [fail]);
+  }, [fail, setDrafts]);
 
   const load = useCallback(async (t: Target) => {
     const seq = ++viewSeq.current;
@@ -199,17 +202,27 @@ export default function CodeConfirmPage({ tabId }: CodeConfirmPageProps) {
     setTarget(t);
     setError(null);
     void load(t);
-  }, [load]);
+  }, [load, setTarget]);
 
   // 진입 값: handoff(한 번만). 선택 행은 snapshot 에 담지 않는다(R8)
+  const handedOff = useRef(false);
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
     if (params.maruCodeId) {
+      handedOff.current = true;
       choose({ maruCodeId: params.maruCodeId, ver: params.ver || null });
     }
   });
 
+  // 마운트 자동 조회 — 분리 창이 이어받은 목록이 있으면 건너뛴다(행 없이 복원됐거나 비었으면 이어받은 검색어로 한 번 조회한다).
+  const restored = useCarryRestored();
   useEffect(() => {
-    void refreshList("");
+    if (!restored || !drafts || drafts.length === 0) void refreshList(keyword);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 분리 창이 이어받은 선택 대상(target)이 있으면 확정 폼을 서버에서 다시 읽는다. handoff 로 들어왔으면 handoff 가 이긴다(분리 창에는 handoff 가 없다).
+  useEffect(() => {
+    if (restored && target && !handedOff.current) choose(target);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

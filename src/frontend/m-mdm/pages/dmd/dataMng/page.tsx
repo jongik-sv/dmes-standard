@@ -19,7 +19,7 @@
  * 쓰기(저장·폐기·등록)가 진행 중이면 목록 행 클릭을 받지 않는다 — 결과(토스트, 충돌 모달과 다시 불러오기)를 그
  * 데이터 위에서 보게 하려는 것이다. handoff 는 쓰기 중에도 받으므로 응답 가드는 그대로 둔다.
  */
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
   ContentBody,
@@ -34,6 +34,7 @@ import { AgDataGrid, GridPanel } from "@dk-oasis/shared/grid";
 import { Input, Select } from "@dk-oasis/shared/form";
 import { Modal } from "@dk-oasis/shared/modal";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRefetch, useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { MdmPageLayout, VEIL_FRESH, VEIL_STALE, openMdmPage, useMdmPageParams } from "@/shell";
 
 import { registerDataMng, searchDataMng } from "./api";
@@ -73,20 +74,24 @@ export default function DataMngPage({ tabId }: DataMngPageProps) {
   const rbac = useUserButtonRbac(true);
 
   // ── 목록(조회조건·그리드) ──
-  const [id, setId] = useState("");
-  const [name, setName] = useState("");
-  const [status, setStatus] = useState("");
-  const [rows, setRows] = useState<DataMngRow[]>([]);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·조회 결과(bulky)·마지막으로 조회에 쓴 조건·선택 데이터(selectedId).
+  // 상세(view)·헤더 폼은 이어받지 않는다 — 새 창에서 selectedId 로 `chooseDetail` 을 한 번 불러 서버에서 다시 읽는다(진입 데이터는 handoff(useMdmPageParams)가 우선).
+  const [id, setId] = useCarryState("id", "");
+  const [name, setName] = useCarryState("name", "");
+  const [status, setStatus] = useCarryState("status", "");
+  const [rows, setRows] = useCarryState<DataMngRow[]>("rows", [], { bulky: true });
   const [listLoading, setListLoading] = useState(false);
   // 마지막으로 조회에 쓴 조건 — 액션 뒤 목록 재조회는 입력만 하고 [조회] 하지 않은 값이 아니라 이 값을 쓴다.
-  const appliedQuery = useRef({ id: "", name: "", status: "" });
+  // 분리 창에서도 이 조건으로 재조회하도록 carry 상태(appliedCarry)에 같이 둔다(ref(appliedQuery)가 원본이고 carry 상태는 이어받기용 사본이다).
+  const [appliedCarry, setAppliedCarry] = useCarryState("appliedQuery", { id: "", name: "", status: "" });
+  const appliedQuery = useRef(appliedCarry);
 
   // ── 화면 모드·선택 ──
   const [mode, setMode] = useState<Mode>("none");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useCarryState<string | null>("selectedId", null);
   const [isRegOpen, setIsRegOpen] = useState(false);
   // 응답 가드용 — 지금 고른 데이터와 상세 요청 순번. 선택을 바꾸거나 새 상세 요청을 낼 때마다 순번을 올린다.
-  const selectedIdRef = useRef<string | null>(null);
+  const selectedIdRef = useRef<string | null>(selectedId);
   const detailSeq = useRef(0);
   // 진행 중인 쓰기 수 — 0 이 아니면 목록 행 클릭을 받지 않는다.
   const writing = useRef(0);
@@ -117,6 +122,7 @@ export default function DataMngPage({ tabId }: DataMngPageProps) {
   const loadList = useCallback(
     async (i: string, n: string, s: string) => {
       appliedQuery.current = { id: i, name: n, status: s };
+      setAppliedCarry(appliedQuery.current);
       setListLoading(true);
       try {
         const result = await searchDataMng(i, n, s);
@@ -127,7 +133,7 @@ export default function DataMngPage({ tabId }: DataMngPageProps) {
         setListLoading(false);
       }
     },
-    [fail],
+    [fail, setRows, setAppliedCarry],
   );
 
   const reloadList = useCallback(
@@ -150,7 +156,7 @@ export default function DataMngPage({ tabId }: DataMngPageProps) {
       setView(null);
       setForm(null);
     }
-  }, []);
+  }, [setSelectedId]);
 
   // 같은 데이터를 다시 읽었는데 사용자가 고친 칸이 있으면(이전 서버 값과도 새 서버 값과도 다르면) 보이는 상세(항목 수·카테고리)만
   // 새 값으로 바꾸고 폼과 그 폼이 기대는 auditVer 는 그대로 둔다. discard 면(충돌 뒤 다시 불러오기) 입력을 버린다.
@@ -216,8 +222,10 @@ export default function DataMngPage({ tabId }: DataMngPageProps) {
 
   // 진입 값: handoff(마운트 때·자기 탭 재활성화 때마다). handoff 는 목록도 함께 조회한다 — 이미 열린 탭이
   // 다시 handoff 를 받을 때 방금 등록된 데이터가 목록에 보이도록.
+  const handedOff = useRef(false);
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
     if (params.maruDataId) {
+      handedOff.current = true;
       setId("");
       setName("");
       setStatus("");
@@ -229,6 +237,16 @@ export default function DataMngPage({ tabId }: DataMngPageProps) {
   // 첫 진입 자동 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청). 선택 행은 snapshot 에 담지 않는다(R8, 2026-10-05).
 
   const handleSearch = useCallback(() => void loadList(id, name, status), [loadList, id, name, status]);
+
+  // 분리 창이 조회 결과(행)를 못 받았을 때만 마지막 조회 조건으로 한 번 다시 조회한다(조회 안 한 탭은 재조회하지 않는다).
+  useCarryRefetch(reloadList);
+
+  // 분리 창이 이어받은 선택 데이터가 있으면 상세를 서버에서 다시 읽는다(상세는 데이터 ID 로 읽으므로 행이 왔든 안 왔든 같다). handoff 가 있으면 handoff 가 이긴다.
+  const restored = useCarryRestored();
+  useEffect(() => {
+    if (restored && selectedId && !handedOff.current) void chooseDetail(selectedId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 상세를 바꾸는 액션(저장·폐기) 뒤에는 목록의 이름·상태도 다시 조회한다. 응답이 올 때 이미 다른 데이터를 골랐으면
   // (handoff) 그 view 는 버린다 — 쓰기 자체는 끝났으므로 토스트·목록 재조회는 한다.

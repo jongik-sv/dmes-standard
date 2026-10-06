@@ -51,6 +51,7 @@ import { Modal } from "@dk-oasis/shared/modal";
 import { Tree, type TreeNode } from "@dk-oasis/shared/tree";
 import "@dk-oasis/shared/tree.css";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import {
   searchCmMenu as apiSearchCmMenu,
   searchMenuGrp as apiSearchMenuGrp,
@@ -390,20 +391,23 @@ function emptyRow(menuIdFromTree: string): CommMenuMngRow {
 export default function CommMenuMngPage() {
   const { showMessage } = useMessage();
 
-  const [filters, setFilters] = useState<CommMenuMngFilters>(DEFAULT_FILTERS);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·선택 키는 가볍게, 조회 결과(메뉴 행·OBJECT 행)는 bulky.
+  // 좌측 메뉴 트리(treeRows)·펼침 상태는 마운트 때 다시 받는 목록이라 이어받지 않는다(useState).
+  const [filters, setFilters] = useCarryState<CommMenuMngFilters>("filters", DEFAULT_FILTERS);
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [rows, setRows] = useState<(CommMenuMngRow & GridRow)[]>([]);
+  const [rows, setRows] = useCarryState<(CommMenuMngRow & GridRow)[]>("rows", [], { bulky: true });
+  const restored = useCarryRestored();
   // ds_menuTreeList — 평면 LEV/PARENT_MENU_ID. nested TreeNode 변환은 useMemo.
   const [treeRows, setTreeRows] = useState<CommMenuMngTreeRow[]>([]);
-  const [objRows, setObjRows] = useState<CommMenuMngObjRow[]>([]);
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [objRows, setObjRows] = useCarryState<CommMenuMngObjRow[]>("objRows", [], { bulky: true });
+  const [selectedKey, setSelectedKey] = useCarryState<string | null>("selectedKey", null);
   // shared Tree 의 expandedItems / selectedItems 는 string|number array (controlled).
   // AsIs treeinitstatus="expand,all" → 트리 로드 직후 모든 노드 ID 를 expanded 에 적재.
   const [expandedTreeIds, setExpandedTreeIds] = useState<(string | number)[]>([]);
-  const [selectedTreeMenuId, setSelectedTreeMenuId] = useState<string>("");
+  const [selectedTreeMenuId, setSelectedTreeMenuId] = useCarryState<string>("selectedTreeMenuId", "");
 
   // OBJECT_ID LoV 팝업 state (AsIs div_object_id / commonDynamic.xfdl 등가).
   // AsIs: D-007 Detail OBJECT_ID 필드 옆 검색 버튼 → 팝업 → 그리드 클릭 → fn_callBack commonList → ds_menuList OBJECT_ID 세트.
@@ -509,7 +513,7 @@ export default function CommMenuMngPage() {
         setIsSearching(false);
       }
     },
-    [showMessage],
+    [showMessage, setObjRows, setRows, setSelectedKey],
   );
 
   // ── load ──
@@ -529,8 +533,10 @@ export default function CommMenuMngPage() {
         setError(e instanceof Error ? e.message : "메뉴 트리 조회 실패");
       }
     })();
-    // 메인 그리드 자동 조회 — 트리 미선택 상태로 DEFAULT_FILTERS 기준 전체 조회
-    void loadList(DEFAULT_FILTERS);
+    // 메인 그리드 자동 조회 — 트리 미선택 상태로 DEFAULT_FILTERS 기준 전체 조회.
+    // 새 창이 이어받은 행이 있으면 건너뛴다(행 없이 복원됐으면 이어받은 조건·트리 선택으로 조회). 복원값이 없으면 DEFAULT_FILTERS·트리 미선택 그대로다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!restored || rows.length === 0) void loadList(filters, selectedTreeMenuId || undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -561,7 +567,7 @@ export default function CommMenuMngPage() {
       setSelectedTreeMenuId(menuId);
       void loadList(filters, menuId);
     },
-    [filters, loadList],
+    [filters, loadList, setSelectedTreeMenuId],
   );
 
   const handleTreeExpand = useCallback(
@@ -588,7 +594,7 @@ export default function CommMenuMngPage() {
         setObjRows([]);
       }
     },
-    [],
+    [setObjRows, setSelectedKey],
   );
 
   /**
@@ -616,7 +622,7 @@ export default function CommMenuMngPage() {
       );
     });
     setSelectedKey(null);
-  }, [selectedKey]);
+  }, [selectedKey, setRows, setSelectedKey]);
 
   /**
    * 행추가 / 행복사 / 행삭제 통합 핸들러 (W1 commObjMng 패턴).
@@ -662,7 +668,7 @@ export default function CommMenuMngPage() {
         });
       }
     },
-    [selectedTreeMenuId],
+    [selectedTreeMenuId, setRows, setSelectedKey],
   );
 
   /** 셀 변경 핸들러 — D-004 onkillfocus 의 MENU_SEQ 자동 조합 (V-302) 등 As-Is 룰. */
@@ -686,7 +692,7 @@ export default function CommMenuMngPage() {
         }),
       );
     },
-    [],
+    [setRows],
   );
 
   /**
@@ -768,7 +774,7 @@ export default function CommMenuMngPage() {
     } finally {
       setIsSaving(false);
     }
-  }, [rows, hasAnyChanges, showMessage]);
+  }, [rows, hasAnyChanges, showMessage, setRows, setSelectedKey]);
 
   /** Detail 필드 변경 — handleCellChange 위임. */
   const updateDetailField = (field: keyof CommMenuMngRow, value: string) => {

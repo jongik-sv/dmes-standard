@@ -47,6 +47,7 @@ import {
 } from "@dk-oasis/shared/form";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { searchCommObjMng, saveCommObjMng, loadLov, searchSystemLov } from "./api";
 import type {
   CommObjMngFilters,
@@ -209,13 +210,16 @@ function emptyRow(defaultSystemCode: string = "mcm"): CommObjMngRow {
 export default function CommObjMngPage() {
   const { showMessage } = useMessage();
 
-  const [filters, setFilters] = useState<CommObjMngFilters>(DEFAULT_FILTERS);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·선택 키는 가볍게, 조회 결과 행은 bulky.
+  // 메뉴·SYSTEM LoV 는 마운트 때 다시 받는 목록이라 이어받지 않는다(useState).
+  const [filters, setFilters] = useCarryState<CommObjMngFilters>("filters", DEFAULT_FILTERS);
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [rows, setRows] = useState<(CommObjMngRow & GridRow)[]>([]);
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [rows, setRows] = useCarryState<(CommObjMngRow & GridRow)[]>("rows", [], { bulky: true });
+  const [selectedKey, setSelectedKey] = useCarryState<string | null>("selectedKey", null);
+  const restored = useCarryRestored();
 
   const [menuLov, setMenuLov] = useState<MenuIdLov[]>([]);
   /**
@@ -294,11 +298,14 @@ export default function CommObjMngPage() {
         setIsSearching(false);
       }
     },
-    [showMessage],
+    [showMessage, setRows, setSelectedKey],
   );
 
   useEffect(() => {
-    void loadList(DEFAULT_FILTERS);
+    // 새 창이 이어받은 행이 있으면 자동 조회를 건너뛴다(행 없이 복원됐으면 이어받은 조건으로 조회). 복원값이 없으면 DEFAULT_FILTERS 다.
+    // 조회 결과를 상태에 담는 비동기 호출이라 effect 안 setState 규칙에 걸린다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!restored || rows.length === 0) void loadList(filters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -337,7 +344,7 @@ export default function CommObjMngPage() {
       );
     });
     setSelectedKey(null);
-  }, [selectedKey]);
+  }, [selectedKey, setRows, setSelectedKey]);
 
   /**
    * 행추가 / 행복사 / 행삭제 통합 핸들러 (GridPanel onDataChange 시그니처).
@@ -387,7 +394,7 @@ export default function CommObjMngPage() {
         });
       }
     },
-    [systemOptions],
+    [systemOptions, setRows, setSelectedKey],
   );
 
   /** 셀 변경 — FORM_URL 자동 채움 (MENU_ID / OBJECT_ID 변경 시 `${MENU_ID}/${OBJECT_ID}` 재계산).
@@ -424,7 +431,7 @@ export default function CommObjMngPage() {
         }),
       );
     },
-    [],
+    [setRows],
   );
 
   /** B-003 저장 (fn_save / xfdl:464). V-001 ~ V-003 validation → API 호출. */
@@ -475,7 +482,7 @@ export default function CommObjMngPage() {
     } finally {
       setIsSaving(false);
     }
-  }, [rows, hasAnyChanges, showMessage]);
+  }, [rows, hasAnyChanges, showMessage, setRows, setSelectedKey]);
 
   /** Detail 필드 변경 — handleCellChange 위임. */
   const updateDetailField = (field: keyof CommObjMngRow, value: string) => {

@@ -13,6 +13,7 @@ import {
   useCarryRefetch,
   useCarryRestored,
   useCarryState,
+  useCarryValue,
   type CarryRegistry,
   type CarryRestore,
 } from "../../src/portal-shell/carry-state";
@@ -183,6 +184,38 @@ describe("useCarryState", () => {
     const restore: CarryRestore = { light: { other: 1 }, bulky: {}, hadBulky: false };
     mount(withProvider(createCarryRegistry(restore), createElement(makeScreen({}))));
     expect(q()).toBe("");
+  });
+});
+
+describe("useCarryValue", () => {
+  function Valued(props: { value: unknown }) {
+    useCarryValue("v", () => props.value);
+    return createElement("div");
+  }
+
+  it("getter 가 null·undefined 를 돌려주면 collect 결과에 그 key 를 넣지 않는다", () => {
+    const registry = createCarryRegistry();
+    mount(withProvider(registry, createElement(Valued, { value: null })));
+    expect(registry.collect()).toEqual({ light: {}, bulky: {} });
+    rendered?.unmount();
+    mount(withProvider(registry, createElement(Valued, { value: undefined })));
+    expect(registry.collect()).toEqual({ light: {}, bulky: {} });
+  });
+
+  it("값이 있으면 light 로 담는다", () => {
+    const registry = createCarryRegistry();
+    mount(withProvider(registry, createElement(Valued, { value: { a: 1 } })));
+    expect(registry.collect()).toEqual({ light: { v: { a: 1 } }, bulky: {} });
+  });
+
+  it("useCarryState 는 값이 null 이어도 key 를 담는다(화면이 null 을 의도적으로 carry 할 수 있다)", () => {
+    const registry = createCarryRegistry();
+    function Nullable() {
+      useCarryState<number | null>("sel", null);
+      return createElement("div");
+    }
+    mount(withProvider(registry, createElement(Nullable)));
+    expect(registry.collect()).toEqual({ light: { sel: null }, bulky: {} });
   });
 });
 

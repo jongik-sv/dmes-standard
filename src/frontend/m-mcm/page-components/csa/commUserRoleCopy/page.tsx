@@ -70,6 +70,7 @@ import {
 import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, Input } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { searchUserList as apiSearchUserList, search as apiSearch, save as apiSave } from "./api";
 import type {
   CommUserRoleCopyCopyRoleGrpRow,
@@ -130,23 +131,25 @@ export default function CommUserRoleCopyPage() {
   const { showMessage } = useMessage();
 
   // 조회조건
-  const [filterUserId, setFilterUserId] = useState(""); // S-001 Copy 대상 사용자 ID/사번
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·필터·선택 키는 가볍게, 조회 결과·셔틀 목록(4 dataset)은 bulky.
+  const [filterUserId, setFilterUserId] = useCarryState("filterUserId", ""); // S-001 Copy 대상 사용자 ID/사번
   // 2026-06-04 사용자 명시 제거 — D-002 infReqNo / D-004 description 관련 state 폐기.
   //   BE save 호출 시 빈 문자열("") 로 고정 전달 → BE service 는 null/blank 처리 (영향 ✗).
   // 클라이언트 필터 (D-005 / D-006)
-  const [userFilter, setUserFilter] = useState("");
-  const [deptFilter, setDeptFilter] = useState("");
+  const [userFilter, setUserFilter] = useCarryState("userFilter", "");
+  const [deptFilter, setDeptFilter] = useCarryState("deptFilter", "");
 
   // 4 dataset
-  const [copyUser, setCopyUser] = useState<CommUserRoleCopyCopyUserRow[]>([]);
-  const [copyRolegrp, setCopyRolegrp] = useState<CommUserRoleCopyCopyRoleGrpRow[]>([]);
-  const [userTo, setUserTo] = useState<(CommUserRoleCopyUserToRow & RowWithKey)[]>([]);
-  const [userFrom, setUserFrom] = useState<(CommUserRoleCopyUserFromRow & RowWithKey)[]>([]);
+  const [copyUser, setCopyUser] = useCarryState<CommUserRoleCopyCopyUserRow[]>("copyUser", [], { bulky: true });
+  const [copyRolegrp, setCopyRolegrp] = useCarryState<CommUserRoleCopyCopyRoleGrpRow[]>("copyRolegrp", [], { bulky: true });
+  const [userTo, setUserTo] = useCarryState<(CommUserRoleCopyUserToRow & RowWithKey)[]>("userTo", [], { bulky: true });
+  const [userFrom, setUserFrom] = useCarryState<(CommUserRoleCopyUserFromRow & RowWithKey)[]>("userFrom", [], { bulky: true });
+  const restored = useCarryRestored();
 
   // 셔틀 선택 — D-2: CHK 컬럼 폐기 + AgDataGrid selectable 의 selectedIds 추적
   // 2026-06-04 fix (c) — userTo 그리드 selectable 제거로 userToSelectedKeys state 폐기.
   // userFrom 만 선택 추적 유지 (◀ 좌 셔틀 — userFrom 선택행만 → userTo 이동).
-  const [userFromSelectedKeys, setUserFromSelectedKeys] = useState<(string | number)[]>([]);
+  const [userFromSelectedKeys, setUserFromSelectedKeys] = useCarryState<(string | number)[]>("userFromSelectedKeys", []);
 
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -188,22 +191,17 @@ export default function CommUserRoleCopyPage() {
     } finally {
       setIsSearching(false);
     }
-  }, [showMessage]);
-
-  // V-705 onload 자동 호출 — 초기 진입은 Copy 대상 미선택이라 본인 제외 ✗ (전체 반환)
-  useEffect(() => {
-    void loadUserList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [showMessage, setUserFrom, setUserFromSelectedKeys]);
 
   // ─────────────────────────────────────────────────────────────
   // action: search — Copy 대상 + RoleGroup chain (B-001 btn_search)
   // ─────────────────────────────────────────────────────────────
-  const handleSearch = useCallback(async () => {
+  // 돌려주는 값: 조회는 성공했는데 Copy 대상이 0건이면 false(그 밖에는 true — 오류는 화면에 이미 보인다). 분리 창 복원 때 사용자 List 로 물러서는 데 쓴다.
+  const handleSearch = useCallback(async (): Promise<boolean> => {
     // V-101: edt_userIdCopy null 차단 (xfdl:300~303)
     if (!filterUserId || filterUserId.trim().length === 0) {
       setError("Copy 대상 사용자 ID/사번 입력 후 조회해주세요.");
-      return;
+      return true;
     }
     setIsSearching(true);
     setError(null);
@@ -221,14 +219,34 @@ export default function CommUserRoleCopyPage() {
       if (cnt > 0 && exclude) {
         await loadUserList(String(exclude));
       }
+      return cnt > 0;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Copy 대상 조회 실패");
       setCopyUser([]);
       setCopyRolegrp([]);
+      return true;
     } finally {
       setIsSearching(false);
     }
-  }, [filterUserId, showMessage, loadUserList]);
+  }, [filterUserId, showMessage, loadUserList, setCopyRolegrp, setCopyUser]);
+
+  // V-705 onload 자동 호출 — 초기 진입은 Copy 대상 미선택이라 본인 제외 ✗ (전체 반환)
+  // 새 창이 이어받은 목록(사용자 List·권한 생성 대상)이 있으면 건너뛴다. 목록 없이 복원됐으면 이어받은 Copy 대상으로 다시 조회한다
+  // (Copy 대상 ID 가 있으면 조회 버튼과 같은 흐름 — 그 조회가 0건이면 사용자 List 가 비지 않게 전체 List 로 물러선다. 없으면 전체 List).
+  // 셔틀로 한쪽이 비어도 반대쪽이 차 있으면 이어받은 것으로 본다.
+  useEffect(() => {
+    if (restored && (userFrom.length > 0 || userTo.length > 0)) return;
+    if (restored && filterUserId.trim()) {
+      // 조회 결과를 상태에 담는 비동기 호출이라 effect 안 setState 규칙에 걸린다.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      void handleSearch().then((found) => {
+        if (!found) void loadUserList();
+      });
+    } else {
+      void loadUserList();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ─────────────────────────────────────────────────────────────
   // 셔틀 좌 (B-003 btn_left) — userFrom 선택행 → userTo 이동
@@ -267,7 +285,7 @@ export default function CommUserRoleCopyPage() {
     const movedIds = new Set(toMove.map((r) => r.USER_ID));
     setUserFrom((prev) => prev.filter((r) => !movedIds.has(r.USER_ID)));
     setUserFromSelectedKeys([]);
-  }, [userFrom, userFromSelectedKeys, userTo]);
+  }, [userFrom, userFromSelectedKeys, userTo, setUserFrom, setUserFromSelectedKeys, setUserTo]);
 
   // ─────────────────────────────────────────────────────────────
   // 셔틀 우 (B-004 btn_right) — userTo 전체 → userFrom 복귀
@@ -299,7 +317,7 @@ export default function CommUserRoleCopyPage() {
       ]);
     }
     setUserTo([]);
-  }, [userTo, userFrom]);
+  }, [userTo, userFrom, setUserFrom, setUserTo]);
 
   // ─────────────────────────────────────────────────────────────
   // 클라이언트 필터 (D-005 / D-006 결합 AND / V-401~V-411)
@@ -364,7 +382,7 @@ export default function CommUserRoleCopyPage() {
     } finally {
       setIsSaving(false);
     }
-  }, [copyUser, userTo, showMessage, loadUserList]);
+  }, [copyUser, userTo, showMessage, loadUserList, setCopyRolegrp, setCopyUser, setDeptFilter, setFilterUserId, setUserFilter, setUserFromSelectedKeys, setUserTo]);
 
   /** 저장 (B-002 fn_save / xfdl:317~358 / V-001~V-002). */
   const handleSave = useCallback(async () => {

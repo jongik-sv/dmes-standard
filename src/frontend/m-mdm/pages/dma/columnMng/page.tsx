@@ -33,6 +33,7 @@ import {
 import { Button, Input, Select } from "@dk-oasis/shared/form";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRefetch, useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { FIRST_SEARCH_LIMIT } from "@/oasis-screen";
 import { MdmPageLayout, badgeStyle } from "@/shell";
 
@@ -92,11 +93,13 @@ export default function ColumnMngPage() {
   const rbac = useUserButtonRbac(true);
   const { showMessage } = useMessage();
 
-  const [keyword, setKeyword] = useState("");
-  const [domainFilter, setDomainFilter] = useState("");
-  const [list, setList] = useState<ColumnListRow[]>([]);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·조회 결과(bulky)·건수·전체 보기 여부·선택 컬럼(selectedColumnId).
+  // 선택한 컬럼의 상세(입력 값은 ColumnDetailForm 이 가진다)는 이어받지 않는다 — 새 창에서 selectedColumnId 로 `openColumn` 을 한 번 불러 서버에서 다시 읽는다.
+  const [keyword, setKeyword] = useCarryState("keyword", "");
+  const [domainFilter, setDomainFilter] = useCarryState("domainFilter", "");
+  const [list, setList] = useCarryState<ColumnListRow[]>("list", [], { bulky: true });
   const [systems, setSystems] = useState<SystemOption[]>([]);
-  const [selectedColumnId, setSelectedColumnId] = useState<number | null>(null);
+  const [selectedColumnId, setSelectedColumnId] = useCarryState<number | null>("selectedColumnId", null);
 
   const [direction, setDirection] = useState<Direction>("FORWARD");
   const [genInput, setGenInput] = useState("");
@@ -114,9 +117,9 @@ export default function ColumnMngPage() {
   // 목록 그리드의 로딩 표시는 목록 조회만 켠다 — 상세·분해 호출까지 따라 켜면 행을 누를 때마다 목록이 깜빡인다.
   const [listLoading, setListLoading] = useState(false);
   /** 목록이 상한으로 잘렸을 때의 전체 건수(안 잘렸으면 null). */
-  const [listTotal, setListTotal] = useState<number | null>(null);
+  const [listTotal, setListTotal] = useCarryState<number | null>("listTotal", null);
   /** 마지막 조회가 [전체 보기](상한 없음)였는지. */
-  const [showAll, setShowAll] = useState(false);
+  const [showAll, setShowAll] = useCarryState("showAll", false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fail = useCallback(
@@ -157,8 +160,11 @@ export default function ColumnMngPage() {
         setListLoading(false);
       }
     },
-    [fail],
+    [fail, setList, setListTotal, setShowAll],
   );
+
+  // 분리 창이 조회 결과(행)를 못 받았을 때만 이어받은 조건으로 한 번 다시 조회한다(조회 안 한 탭은 재조회하지 않는다).
+  useCarryRefetch(() => loadList(keyword, domainFilter, showAll));
 
   // 첫 진입 자동 목록 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청).
   // 진입 때 시스템 콤보 값만 받는다(optionsOnly — 서버 목록 조회 없음). 목록(list)은 채우지 않는다.
@@ -233,8 +239,21 @@ export default function ColumnMngPage() {
         setBusy(false);
       }
     },
-    [fail, list],
+    [fail, list, setSelectedColumnId],
   );
+
+  // 분리 창이 이어받은 선택 컬럼이 있으면 마운트 직후 한 번 상세를 서버에서 다시 읽는다(상세는 컬럼 ID 로 읽는다). 목록 도착을 기다리지 않는다 —
+  // 기다리면 목록이 0건이거나 재조회가 실패했을 때 대기가 남아, 나중에 사용자가 [조회]·저장한 뒤 이어받은 컬럼이 몰래 열려 작성 중인 폼을 덮는다.
+  // 행이 함께 왔으면 도메인 이름은 목록 행에서, 행 없이 재조회 중이면 `openColumn` 의 물러서는 표시(「도메인 N」)로 둔다.
+  // 포털 탭은 복원값이 없어 아무것도 하지 않는다. 한 번 쓰면 비워 두므로 openColumn 이 바뀌어 effect 가 다시 돌아도(StrictMode 포함) 다시 열지 않는다.
+  const restored = useCarryRestored();
+  const pendingRestoreId = useRef<number | null>(restored ? selectedColumnId : null);
+  useEffect(() => {
+    const id = pendingRestoreId.current;
+    if (id == null) return;
+    pendingRestoreId.current = null;
+    void openColumn(id);
+  }, [openColumn]);
 
   // ── 자동 생성 ─────────────────────────────────────────────────────────
   const runCompare = useCallback(
@@ -357,7 +376,7 @@ export default function ColumnMngPage() {
     setGenInput("");
     setGenDomain("");
     setPicks({});
-  }, []);
+  }, [setSelectedColumnId]);
 
   const handleSave = useCallback(async () => {
     // 서버와 같은 문구로 선검사한다(I12). 서버도 다시 막는다. 도메인은 필수가 아니다(D-141).

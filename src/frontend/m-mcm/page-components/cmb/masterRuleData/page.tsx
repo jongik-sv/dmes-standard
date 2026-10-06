@@ -13,6 +13,7 @@ import {
 } from "@dk-oasis/shared/layout";
 import { GridPanel, AgDataGrid, Pagination, type GridColumn } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRefetch, useCarryState } from "@dk-oasis/shared/portal-shell";
 import {
   MasterRuleListPopModal,
   OBJ_ID as RULE_LIST_POP_OBJ_ID,
@@ -58,6 +59,16 @@ const STATUS_LABEL: Record<string, string> = { C: "신규", U: "수정", D: "삭
  */
 const PAGE_OBJ_ID = "masterRuleData";
 
+/** 행들의 임시 키(`t-N`) 가운데 가장 큰 N — 이어받은 행이 없으면 0. */
+function maxTempSeq(rows: GridRow[]): number {
+  let max = 0;
+  for (const r of rows) {
+    const m = /^t-(\d+)$/.exec(String(r.__rowId ?? ""));
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return max;
+}
+
 export default function MasterRuleDataPage() {
   const repo = useMemo(() => createMasterRuleDataRepository(), []);
   const { showMessage } = useMessage();
@@ -65,19 +76,24 @@ export default function MasterRuleDataPage() {
   //   판정하지만, 툴바를 거치지 않는 경로(조회조건 Enter, SearchArea·GridPanel 버튼)는 직접 판정한다.
   const rbac = useUserButtonRbac(true);
 
-  const [filters, setFilters] = useState<DataFilters>(DEFAULT_FILTERS);
-  const [colDefs, setColDefs] = useState<ColDef[]>([]);
-  const [rows, setRows] = useState<GridRow[]>([]);
-  const [selectedKeys, setSelectedKeys] = useState<(string | number)[]>([]);   // CHK 등가 (다중 선택)
-  const [page, setPage] = useState(0);   // 0-based (BE 1-based 변환은 repository)
-  const [totalCount, setTotalCount] = useState(0);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·선택 키·쪽·건수는 가볍게, 조회 결과(컬럼정의·행)는 bulky.
+  // 컬럼정의(colDefs)는 [조회]·업무기준 선택 때 받는 결과의 일부라 행과 함께 옮긴다. 미저장 편집 행(rowStatus)도 행과 함께 옮겨진다.
+  const [filters, setFilters] = useCarryState<DataFilters>("filters", DEFAULT_FILTERS);
+  const [colDefs, setColDefs] = useCarryState<ColDef[]>("colDefs", [], { bulky: true });
+  const [rows, setRows] = useCarryState<GridRow[]>("rows", [], { bulky: true });
+  const [selectedKeys, setSelectedKeys] = useCarryState<(string | number)[]>("selectedKeys", []);   // CHK 등가 (다중 선택)
+  const [page, setPage] = useCarryState<number>("page", 0);   // 0-based (BE 1-based 변환은 repository)
+  const [totalCount, setTotalCount] = useCarryState<number>("totalCount", 0);
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rulePopOpen, setRulePopOpen] = useState(false);
   const [uploadPopOpen, setUploadPopOpen] = useState(false);   // P-002 엑셀업로드
   const searchSeqRef = useRef(0);
-  const tempSeqRef = useRef(0);
+  // 이어받은 신규·복사 행의 임시 키(t-N)와 새 행의 키가 겹치지 않게 번호를 이어서 센다.
+  // 마운트 때 한 번만 센다(useRef(maxTempSeq(rows)) 는 렌더마다 다시 센다).
+  const [initialTempSeq] = useState(() => maxTempSeq(rows));
+  const tempSeqRef = useRef(initialTempSeq);
 
   const ruleSelected = !!filters.pRuleId.trim();
 
@@ -109,7 +125,7 @@ export default function MasterRuleDataPage() {
       setColDefs(result.colDefs);
       return result.colDefs;
     },
-    [repo],
+    [repo, setColDefs],
   );
 
   // ── search (BR-001 가드 + 페이징 + MSG-010) ──
@@ -137,7 +153,7 @@ export default function MasterRuleDataPage() {
         if (seq === searchSeqRef.current) setIsSearching(false);
       }
     },
-    [repo, showMessage],
+    [repo, showMessage, setRows, setTotalCount, setSelectedKeys],
   );
 
   /**
@@ -172,6 +188,14 @@ export default function MasterRuleDataPage() {
     void loadData(filters, 0);
   };
 
+  // 분리 창이 조회 결과(컬럼정의·행)를 못 받았을 때(opener 를 못 쓰는 경우) 이어받은 조건·쪽으로 한 번 다시 조회한다.
+  // 조회하지 않은 탭(행이 빈 배열)은 공통 장치가 재조회하지 않는다. 컬럼정의를 먼저 받아야 행을 그릴 수 있어 lov → search 연쇄다.
+  useCarryRefetch(() =>
+    loadLov(filters)
+      .then(() => loadData(filters, page))
+      .catch((e) => setError(e instanceof Error ? e.message : "컬럼정의 조회 실패")),
+  );
+
   // ── P-001 업무기준 선택 → lov → search 자동 연쇄 (BR-002/003) ──
   const handleRuleSelected = useCallback(
     (r: RuleSelectResult) => {
@@ -192,7 +216,7 @@ export default function MasterRuleDataPage() {
       setPage(0);
       void loadLov(next).then(() => loadData(next, 0)).catch((e) => setError(e instanceof Error ? e.message : "컬럼정의 조회 실패"));
     },
-    [filters, loadLov, loadData],
+    [filters, loadLov, loadData, setFilters, setPage],
   );
 
   // ── 행조작 (우측 메뉴 B-003~B-006) ──
@@ -201,7 +225,7 @@ export default function MasterRuleDataPage() {
     const empty: GridRow = { rowStatus: "C", __rowId: `t-${++tempSeqRef.current}`, SEQ: "", RULE_SEQ: "" };
     for (const d of colDefs) empty[d.COL_ID] = "";
     setRows((prev) => [...prev, empty]);
-  }, [colDefs]);
+  }, [colDefs, setRows]);
 
   const handleRowCopy = useCallback(() => {
     if (selectedKeys.length === 0) {
@@ -214,7 +238,7 @@ export default function MasterRuleDataPage() {
         .map((r) => ({ ...r, rowStatus: "C" as const, __rowId: `t-${++tempSeqRef.current}`, SEQ: "", RULE_SEQ: "" }));
       return [...prev, ...copies];
     });
-  }, [selectedKeys]);
+  }, [selectedKeys, setRows]);
 
   const handleRowDelete = useCallback(() => {
     if (selectedKeys.length === 0) {
@@ -227,7 +251,7 @@ export default function MasterRuleDataPage() {
         .map((r) => (selectedKeys.includes(String(r.__rowId)) && r.rowStatus !== "C" ? { ...r, rowStatus: "D" as const } : r)),
     );
     setSelectedKeys([]);
-  }, [selectedKeys]);
+  }, [selectedKeys, setRows, setSelectedKeys]);
 
   const handleRowCancel = useCallback(() => {
     void loadData(filters, page);   // As-Is gfn_grdInit 등가 — 재조회로 초기화
@@ -245,7 +269,7 @@ export default function MasterRuleDataPage() {
         }),
       );
     },
-    [],
+    [setRows],
   );
 
   // ── 저장 (B-002 — BR-006 PK 검증 → BR-013 긴급적용 confirm → C/U/D 송신) ──
@@ -265,7 +289,7 @@ export default function MasterRuleDataPage() {
       })
       .catch((e) => setError(e instanceof Error ? e.message : "저장 실패"))
       .finally(() => setIsSaving(false));
-  }, [rows, filters, page, repo, showMessage]);
+  }, [rows, filters, page, repo, showMessage, setRows, setTotalCount, setSelectedKeys]);
 
   const handleSave = useCallback(() => {
     const changed = rows.filter((r) => r.rowStatus);
