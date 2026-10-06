@@ -112,7 +112,8 @@ describe("NoticeCard 본문", () => {
     const card = host.querySelector('[data-testid="home-notice-card"]');
     expect(card?.className).toBe("mcm-home-notice");
     expect(HOME_CSS).toMatch(/\.mcm-home-notice \{[^}]*position: absolute; inset: 0/);
-    expect(HOME_CSS).toMatch(/\.mcm-home-notice\.mcm-home-notice > \.content-body \{[^}]*flex: 1 1 0/);
+    // 위젯 관리 미리보기(resizable ContentBody 패널 안)에서는 부모 context 가 인라인 flex·min-width 를 붙이므로 !important 로 이긴다.
+    expect(HOME_CSS).toMatch(/\.mcm-home-notice\.mcm-home-notice > \.content-body\.content-body \{[^}]*flex: 1 1 0 !important; min-width: 0 !important/);
     // 목록 행 보조 줄(고정·작성자·날짜)은 줄바꿈 없이 한 줄로, 본문 판은 가로로 넘치지 않는다.
     expect(HOME_CSS).toMatch(/\.mcm-home-nlist__meta > span \{[^}]*white-space: nowrap/);
     expect(HOME_CSS).toMatch(/\.mcm-home-viewer \{[^}]*min-width: 0/);
