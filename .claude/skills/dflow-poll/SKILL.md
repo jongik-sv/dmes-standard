@@ -121,6 +121,10 @@ description: D'Flow 할당 작업 폴링 루프 — 백그라운드 스크립트
   통지를 기다릴 필요 없이 머지 스윕 → 재기동이 자동으로 이어진다. 다른 세션·다른 PC 가
   그 선행을 지금 당장 기다리면 /dflow-merge 를 직접 써도 된다.
 
+## 지원 환경: macOS · Git Bash(윈도우)
+
+`scripts/poll.sh` 는 macOS 와 Git for Windows 의 Git Bash 에서 돈다. 필요 도구: bash, git, jq, curl. 종료 시각 해석은 BSD `date -j` 먼저, 없으면 GNU `date -d`. 스크립트를 새로 쓸 때는 macOS 전용 명령·perl 을 쓰지 않는다(정본: `../_shared/platform-support.md`).
+
 ## 종료 조건 요약
 
 | 조건 | 동작 |

@@ -258,3 +258,7 @@ dflow.sh show <순번>
 
 **마지막 업데이트**: 2026-08-28
 **API 계약 버전**: 2.2
+
+## 지원 환경: macOS · Git Bash(윈도우)
+
+`scripts/dflow.sh` 는 macOS 와 Git for Windows 의 Git Bash 에서 돈다. 필요 도구: bash, curl, jq, git, awk·sed(GNU 또는 BSD). jq 는 Git Bash 에 기본 제공이 아니다(`winget install jqlang.jq` 또는 scoop). 스크립트를 새로 쓸 때는 macOS 전용 명령·perl 을 쓰지 않는다(`stat -f %m` 은 GNU 에서 `?` 라 `stat -c %Y` 를 앞에 둔다). 정본·도구 표·한계: `../_shared/platform-support.md`.
