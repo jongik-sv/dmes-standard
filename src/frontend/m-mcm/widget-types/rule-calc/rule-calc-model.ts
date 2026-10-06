@@ -98,10 +98,13 @@ export interface RuleCalcIo {
   messages: RuleCalcMessage[];
 }
 
+/** 값 한 칸 — 보통 글자(숫자는 소수 자리를 지키는 글자), 결과가 목록(COLLECT LIST)이면 원소마다 글자인 배열. */
+export type RuleCalcValue = string | string[];
+
 export interface RuleCalcRunStep {
   ruleId: string;
-  inputs: Record<string, string>;
-  outputs: Record<string, string>;
+  inputs: Record<string, RuleCalcValue>;
+  outputs: Record<string, RuleCalcValue>;
   /** 일반 행이 적중했는지. */
   hit: boolean;
   /** 적중이 없어 기본 행을 썼는지. */
@@ -115,7 +118,7 @@ export interface RuleCalcMessage {
 
 export interface RuleCalcRun {
   ok: boolean;
-  result: Record<string, string>;
+  result: Record<string, RuleCalcValue>;
   steps: RuleCalcRunStep[];
   messages: RuleCalcMessage[];
 }
@@ -124,18 +127,21 @@ function list(v: unknown): unknown[] {
   return Array.isArray(v) ? v : [];
 }
 
-function valueText(v: unknown): string {
+function scalarText(v: unknown): string {
   if (v == null) return "";
   if (typeof v === "string") return v;
   if (typeof v === "number" || typeof v === "boolean") return String(v);
-  // 결과가 목록(COLLECT LIST)이면 JSON 배열 — 원소마다 같은 규칙으로 글자를 만들어 쉼표로 잇는다.
-  if (Array.isArray(v)) return v.map(valueText).join(", ");
   return "";
 }
 
-function valueMap(v: unknown): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const [k, val] of Object.entries(asRecord(v))) out[k] = valueText(val);
+/** 목록이면 원소마다 글자(표시할 때 원소마다 scale 을 적용한다 — A0 §4), 아니면 글자 하나. */
+function valueOf(v: unknown): RuleCalcValue {
+  return Array.isArray(v) ? v.map(scalarText) : scalarText(v);
+}
+
+function valueMap(v: unknown): Record<string, RuleCalcValue> {
+  const out: Record<string, RuleCalcValue> = {};
+  for (const [k, val] of Object.entries(asRecord(v))) out[k] = valueOf(val);
   return out;
 }
 
@@ -255,7 +261,7 @@ export function collectValues(inputs: readonly RuleCalcInput[], draft: Readonly<
         continue;
       }
       // 서버는 입력을 반올림하지 않는다 — 허용 소수 자릿수(scale)를 넘기면 보내기 전에 알린다.
-      const frac = text.split(".")[1] ?? "";
+      const frac = (text.split(".")[1] ?? "").replace(/0+$/, "");
       if (input.scale != null && frac.length > input.scale) {
         errors[input.name] = input.scale === 0 ? "정수만 입력할 수 있습니다" : `소수 ${input.scale}자리까지 입력할 수 있습니다`;
         continue;
@@ -315,6 +321,12 @@ export function formatResultValue(text: string, scale: number | null, dataType =
   return `${neg && !zero ? "-" : ""}${groupInt(int)}${frac ? `.${frac}` : ""}`;
 }
 
+/** 값 한 칸 표시 — 목록이면 원소마다 같은 규칙을 적용해 쉼표로 잇는다. dataType 을 모르면(빈 글자) 서버 글자를 그대로 보인다. */
+export function displayValue(value: RuleCalcValue, scale: number | null, dataType: string): string {
+  const one = (t: string) => (dataType ? formatResultValue(t, scale, dataType) : t);
+  return Array.isArray(value) ? value.map(one).join(", ") : one(value);
+}
+
 /** 안내 문구 — 서버가 text 를 주면 그것을, 없으면 코드별 기본 문구를 쓴다. */
 export const MESSAGE_DEFAULTS: Readonly<Record<string, string>> = {
   NOT_FOUND: "룰 또는 룰 세트를 찾을 수 없습니다",
@@ -353,4 +365,9 @@ export function stepOutputLabel(io: RuleCalcIo | null, ruleId: string, name: str
 export function stepOutputScale(io: RuleCalcIo | null, ruleId: string, name: string): number | null {
   const step = io?.steps.find((s) => s.ruleId === ruleId);
   return step?.outputs.find((o) => o.name === name)?.scale ?? null;
+}
+
+export function stepOutputDataType(io: RuleCalcIo | null, ruleId: string, name: string): string {
+  const step = io?.steps.find((s) => s.ruleId === ruleId);
+  return step?.outputs.find((o) => o.name === name)?.dataType ?? "";
 }

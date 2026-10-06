@@ -13,6 +13,8 @@ import {
   normalizeRun,
   readRuleCalcConfig,
   RULE_CALC_DEFAULT_CONFIG,
+  displayValue,
+  stepOutputDataType,
   stepOutputLabel,
   stepOutputScale,
   validateRuleCalcConfig,
@@ -92,14 +94,14 @@ describe("normalizeIo", () => {
 });
 
 describe("normalizeRun", () => {
-  it("값은 모두 글자로 — 숫자·불린·목록·null", () => {
+  it("값은 글자로 — 숫자·불린·null, 목록은 원소별 글자 배열", () => {
     const run = normalizeRun({
       ok: true,
       result: { A: "12.340", B: 3, C: true, D: ["1.0", "2.5"], E: null },
       steps: [{ ruleId: "R1", inputs: { X: "1" }, outputs: { Y: "2.50" }, hit: false, defaultApplied: true }],
       messages: [],
     });
-    expect(run.result).toEqual({ A: "12.340", B: "3", C: "true", D: "1.0, 2.5", E: "" });
+    expect(run.result).toEqual({ A: "12.340", B: "3", C: "true", D: ["1.0", "2.5"], E: "" });
     expect(run.steps[0]).toEqual({ ruleId: "R1", inputs: { X: "1" }, outputs: { Y: "2.50" }, hit: false, defaultApplied: true });
   });
   it("ok 가 true 가 아니면 false", () => {
@@ -152,6 +154,31 @@ describe("formatResultValue — scale 로 HALF_UP, 글자 연산", () => {
     expect(formatResultValue("ABC", 2)).toBe("ABC");
     expect(formatResultValue("", 2)).toBe("");
     expect(formatResultValue("1.5", 2, "STRING")).toBe("1.5");
+  });
+});
+
+describe("displayValue", () => {
+  it("목록은 원소마다 scale·쉼표를 적용해 잇는다", () => {
+    expect(displayValue(["1.2345", "2.5"], 2, "NUMBER")).toBe("1.23, 2.50");
+    expect(displayValue("1.5", 2, "NUMBER")).toBe("1.50");
+  });
+  it("dataType 을 모르거나 숫자 계열이 아니면 서버 글자 그대로(앞 0·긴 숫자 보존)", () => {
+    expect(displayValue("00123", 2, "")).toBe("00123");
+    expect(displayValue("00123", null, "STRING")).toBe("00123");
+    expect(displayValue("1234567", null, "STRING")).toBe("1234567");
+  });
+  it("세트 단계 출력의 dataType 을 찾는다", () => {
+    const io = normalizeIo({ steps: [{ ruleId: "R1", outputs: [{ name: "A", dataType: "STRING" }] }] });
+    expect(stepOutputDataType(io, "R1", "A")).toBe("STRING");
+    expect(stepOutputDataType(io, "R1", "Z")).toBe("");
+  });
+});
+
+describe("collectValues — 소수 자리", () => {
+  it("뒤쪽 0 은 자리로 세지 않는다(엑셀 붙여넣기 1.50 · 5.0)", () => {
+    expect(collectValues([num("A", { scale: 1 })], { A: "1.50" }).errors).toEqual({});
+    expect(collectValues([num("A", { scale: 0 })], { A: "5.0" }).errors).toEqual({});
+    expect(collectValues([num("A", { scale: 1 })], { A: "1.51" }).errors.A).toBeTruthy();
   });
 });
 

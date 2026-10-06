@@ -6,7 +6,7 @@
  * 중간값 표시는 룰 세트에서만 뜻이 있어 룰이면 끈 채 잠근다. 종류·ID 를 바꾸면 이전 미리보기는 지운다.
  * 미리보기는 저장 전에 입력 칸이 어떻게 생기는지(라벨·단위·필수·결과·단계)를 보는 용도이며 위젯 실행과 달리 내 DRAFT 를 쓴다.
  */
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Button, Checkbox, FormGroup, Input, Select } from "@dk-oasis/shared/form";
 import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
 
@@ -73,8 +73,8 @@ function IoPreview({ io }: { io: RuleCalcIo }) {
             <>
               <div>실행 순서 {io.steps.length}단계</div>
               <ol className="mcm-rc-editor__list">
-                {io.steps.map((s) => (
-                  <li key={s.ruleId}>
+                {io.steps.map((s, i) => (
+                  <li key={`${s.ruleId}-${i}`}>
                     {s.name || s.ruleId} → {s.outputs.map((o) => o.label).join(", ")}
                   </li>
                 ))}
@@ -91,13 +91,10 @@ export default function RuleCalcTypeEditor({ value, onChange, onValidate }: Widg
   const cfg = readRuleCalcConfig(value);
   const key = `${cfg.targetTp}\u0000${cfg.targetId}`;
   const [shown, setShown] = useState<{ key: string; state: PreviewState }>({ key, state: { status: "idle" } });
-  const keyRef = useRef(key);
   useReportErrors(validateRuleCalcConfig(cfg), onValidate);
 
-  // 종류·ID 가 바뀌면(키가 달라지면) 이전 미리보기를 보이지 않고, 늦게 온 옛 응답도 버린다.
-  useEffect(() => {
-    keyRef.current = key;
-  }, [key]);
+  // 종류·ID 가 바뀌면(키가 달라지면) 이전 미리보기를 보이지 않는다. 응답은 자기 키로 쓰므로 늦게 와도 지금 키의 화면을 덮지 못하고,
+  // 키가 되돌아오면 그 키의 결과가 그대로 보인다(「확인 중」 으로 남지 않는다).
   const preview: PreviewState = shown.key === key ? shown.state : { status: "idle" };
 
   const patch = (next: Partial<RuleCalcConfig>) => {
@@ -108,9 +105,7 @@ export default function RuleCalcTypeEditor({ value, onChange, onValidate }: Widg
 
   const check = () => {
     const at = key;
-    const settle = (state: PreviewState) => {
-      if (keyRef.current === at) setShown({ key: at, state });
-    };
+    const settle = (state: PreviewState) => setShown((prev) => (prev.key === at ? { key: at, state } : prev));
     setShown({ key: at, state: { status: "loading" } });
     fetchRuleCalcIo(cfg.targetTp, cfg.targetId, true).then(
       (io) => settle({ status: "ready", io }),

@@ -303,6 +303,89 @@ describe("렌더러 — 계산·결과", () => {
   });
 });
 
+describe("렌더러 — 늦게 온 응답과 상태", () => {
+  beforeEach(() => h.fetchIo.mockResolvedValue(ruleIo()));
+
+  it("계산 중에 입력을 고치면 옛 값의 결과는 버린다", async () => {
+    let resolveRun!: (v: ReturnType<typeof normalizeRun>) => void;
+    h.run.mockReturnValueOnce(new Promise((r) => (resolveRun = r)));
+    await renderRc({ targetTp: "RULE", targetId: "M47C0001" });
+    await type("rc-input-THK", "1");
+    await click("rc-run");
+    await type("rc-input-THK", "2");
+    await act(async () => resolveRun(normalizeRun({ ok: true, result: { COIL_WT: "9" }, steps: [], messages: [] })));
+    expect(q("rc-results")).toBeNull();
+    expect(must("rc-run").textContent).toBe("계산");
+  });
+
+  it("계산 중에 대상이 바뀌었다 돌아와도 결과가 반영되고 단추가 잠기지 않는다", async () => {
+    let resolveRun!: (v: ReturnType<typeof normalizeRun>) => void;
+    h.run.mockReturnValueOnce(new Promise((r) => (resolveRun = r)));
+    const a = { targetTp: "RULE", targetId: "M47C0001" };
+    await renderRc(a);
+    await type("rc-input-THK", "1");
+    await click("rc-run");
+    await renderRc({ targetTp: "RULE", targetId: "OTHER" });
+    await renderRc(a);
+    await act(async () => resolveRun(normalizeRun({ ok: true, result: { COIL_WT: "4" }, steps: [], messages: [] })));
+    expect(must("rc-result-COIL_WT").textContent).toBe("4.00KG");
+    expect((must("rc-run") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("같은 대상의 새로 고침(refreshKey)은 입력한 값을 지우지 않는다", async () => {
+    const def = { targetTp: "RULE", targetId: "M47C0001" };
+    await renderRc(def, 0);
+    await type("rc-input-THK", "0.5");
+    await renderRc(def, 1);
+    expect((must("rc-input-THK") as HTMLInputElement).value).toBe("0.5");
+  });
+
+  it("ok=false 인데 안내가 비어 오면 기본 문구를 보인다", async () => {
+    h.run.mockResolvedValue(normalizeRun({ ok: false, result: {}, steps: [], messages: [] }));
+    await renderRc({ targetTp: "RULE", targetId: "M47C0001" });
+    await type("rc-input-THK", "1");
+    await click("rc-run");
+    await flush();
+    expect(must("rc-run-fail").textContent).toBe("계산하지 못했습니다");
+  });
+
+  it("결과 영역은 알림 영역(aria-live)이고 실패 안내는 alert 로 읽힌다", async () => {
+    h.run.mockResolvedValue(normalizeRun({ ok: false, result: {}, steps: [], messages: [{ code: "EVAL_ERROR", text: "x" }] }));
+    await renderRc({ targetTp: "RULE", targetId: "M47C0001" });
+    await type("rc-input-THK", "1");
+    await click("rc-run");
+    await flush();
+    expect(must("rc-done").getAttribute("aria-live")).toBe("polite");
+    expect(must("rc-messages").getAttribute("role")).toBe("alert");
+  });
+
+  it("목록 결과는 원소마다 소수 자리를 맞추고, 문자 출력의 중간값은 서식을 입히지 않는다", async () => {
+    h.fetchIo.mockResolvedValue(
+      normalizeIo({
+        ok: true,
+        target: { name: "세트" },
+        inputs: [],
+        outputs: [{ name: "LST", label: "목록", dataType: "NUMBER", scale: 2 }],
+        steps: [{ ruleId: "R1", name: "앞", outputs: [{ name: "CODE", label: "코드", dataType: "STRING" }] }],
+        messages: [],
+      })
+    );
+    h.run.mockResolvedValue(
+      normalizeRun({
+        ok: true,
+        result: { LST: ["1.2345", "2.5"] },
+        steps: [{ ruleId: "R1", inputs: {}, outputs: { CODE: "00123" }, hit: true, defaultApplied: false }],
+        messages: [],
+      })
+    );
+    await renderRc({ targetTp: "SET", targetId: "S1", showSteps: true });
+    await click("rc-run");
+    await flush();
+    expect(must("rc-result-LST").textContent).toBe("1.23, 2.50");
+    expect(must("rc-step-R1").textContent).toContain("00123");
+  });
+});
+
 describe("렌더러 — 룰 세트 중간값", () => {
   beforeEach(() => {
     h.fetchIo.mockResolvedValue(setIo());
@@ -385,6 +468,24 @@ describe("편집기", () => {
     expect(text).toContain("입력 칸 1개");
     expect(text).toContain("두께 (THK, NUMBER");
     expect(text).toContain("실행 순서 2단계");
+  });
+
+  it("확인 중에 ID 를 바꿨다 되돌려도 단추가 잠기지 않는다", async () => {
+    let resolveIo!: (v: ReturnType<typeof ruleIo>) => void;
+    h.fetchIo.mockReturnValueOnce(new Promise((r) => (resolveIo = r)));
+    const onChange = vi.fn();
+    const a = { targetTp: "RULE", targetId: "M47C0001", showSteps: false };
+    const show = async (value: unknown) =>
+      act(async () => {
+        root.render(createElement(RuleCalcEditor, { value, onChange, onValidate: vi.fn() } as never));
+      });
+    await show(a);
+    await click("rc-editor-check");
+    await show({ ...a, targetId: "M47C0001X" });
+    await show(a);
+    await act(async () => resolveIo(ruleIo()));
+    expect((must("rc-editor-check") as HTMLButtonElement).disabled).toBe(false);
+    expect(must("rc-editor-preview").textContent).toContain("입력 칸 3개");
   });
 
   it("미리보기가 실패하면 오류 문구, 확정 버전이 없으면 안내만", async () => {

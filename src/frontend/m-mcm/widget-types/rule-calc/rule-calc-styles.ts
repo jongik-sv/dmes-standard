@@ -30,7 +30,7 @@ export const RULE_CALC_CSS = `
 .mcm-rc__msg--warn { border-color: var(--color-warning); background: var(--color-warning-soft); }
 .mcm-rc__msg--info { background: var(--color-bg-light); }
 
-.mcm-rc__results { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; border: 1px solid var(--color-border-light); border-radius: var(--radius-md); background: var(--color-bg-light); }
+.mcm-rc__results { margin: 0; display: grid; grid-template-columns: minmax(4em, 1fr) minmax(0, auto); border: 1px solid var(--color-border-light); border-radius: var(--radius-md); background: var(--color-bg-light); }
 .mcm-rc__results > dt, .mcm-rc__results > dd { margin: 0; padding: var(--spacing-xs) var(--spacing-sm); border-top: 1px solid var(--color-border-light); }
 .mcm-rc__results > dt:first-of-type, .mcm-rc__results > dt:first-of-type + dd { border-top: 0; }
 .mcm-rc__results > dt { font-size: var(--font-size-sm); color: var(--color-text-secondary); overflow: hidden; text-overflow: ellipsis; }

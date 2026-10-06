@@ -1,7 +1,7 @@
 /**
  * 룰 계산기 서버 호출(조정 README §1 API 계약 초안 — rule-calc-api 레인 A0 문서가 정본).
  *   - 입력·출력 정의: `POST /api/mdm/oasis/ruleCalc/io`  — {targetTp, targetId, preview}
- *   - 계산:           `POST /api/mdm/oasis/ruleCalc/run` — {targetTp, targetId, values, evalTs, preview}
+ *   - 계산:           `POST /api/mdm/oasis/ruleCalc/run` — {targetTp, targetId, values, evalTs}
  * m-mcm 의 OASIS 프록시(app/api/[module]/oasis/...)가 module=mdm 을 MDM 서버로 넘긴다.
  * 요청 본문은 CactusRequest 표준(`{meta, params}`)이고 params 는 A0 문서 §1·§3 의 키를 그대로 싣는다(values 는 객체).
  * 위젯 실행은 확정(RELEASED) 버전만 쓴다 — run 은 preview 를 보내지 않는다. preview=true 는 편집기 미리보기의 io 호출 전용이다.
@@ -57,5 +57,5 @@ export async function runRuleCalc(
   values: Readonly<Record<string, string>>
 ): Promise<RuleCalcRun> {
   if (RULE_CALC_USE_MOCK) return mockRuleCalcRun(targetTp, targetId, values);
-  return normalizeRun(await post(RULE_CALC_RUN_URL, "HOME", { targetTp, targetId, values, evalTs: null, preview: false }));
+  return normalizeRun(await post(RULE_CALC_RUN_URL, "HOME", { targetTp, targetId, values, evalTs: null }));
 }

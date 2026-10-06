@@ -15,12 +15,13 @@ import type { WidgetProps } from "@dk-oasis/shared/widget";
 
 import {
   blocksInput,
-  formatResultValue,
+  displayValue,
   isNumericType,
   messageText,
   messageTone,
   NO_TARGET_MESSAGE,
   readRuleCalcConfig,
+  stepOutputDataType,
   stepOutputLabel,
   stepOutputScale,
   type RuleCalcInput,
@@ -30,6 +31,8 @@ import {
 } from "./rule-calc-model";
 import { RULE_CALC_CSS, RULE_CALC_STYLE_HREF } from "./rule-calc-styles";
 import { useRuleCalc } from "./use-rule-calc";
+
+const RUN_FAIL_MESSAGE = "계산하지 못했습니다";
 
 const BOOLEAN_OPTIONS = [
   { value: "true", label: "예" },
@@ -46,8 +49,10 @@ export function RuleCalcStyle() {
 
 function Messages({ messages }: { messages: readonly RuleCalcMessage[] }) {
   if (messages.length === 0) return null;
+  // 계산을 못 한 사유(error)는 낭독이 끊기지 않게 alert, 그 밖은 status 로 알린다.
+  const role = messages.some((m) => messageTone(m.code) === "error") ? "alert" : "status";
   return (
-    <ul className="mcm-rc__msgs" data-testid="rc-messages">
+    <ul className="mcm-rc__msgs" role={role} data-testid="rc-messages">
       {messages.map((m, i) => (
         <li key={`${m.code}-${i}`} className={`mcm-rc__msg mcm-rc__msg--${messageTone(m.code)}`} data-code={m.code}>
           {messageText(m)}
@@ -104,7 +109,7 @@ function Results({ io, run }: { io: RuleCalcIo; run: RuleCalcRun }) {
   return (
     <dl className="mcm-rc__results" data-testid="rc-results">
       {rows.map((r) => (
-        <ResultRow key={r.name} label={r.label} unit={r.unit} testId={`rc-result-${r.name}`} text={formatResultValue(run.result[r.name], r.scale, r.dataType)} />
+        <ResultRow key={r.name} label={r.label} unit={r.unit} testId={`rc-result-${r.name}`} text={displayValue(run.result[r.name], r.scale, r.dataType)} />
       ))}
     </dl>
   );
@@ -138,10 +143,10 @@ function Steps({ io, run }: { io: RuleCalcIo; run: RuleCalcRun }) {
               {!s.hit && !s.defaultApplied && <span className="mcm-rc__step-note">적중 없음</span>}
               {s.defaultApplied && <span className="mcm-rc__step-note">기본값 적용</span>}
             </div>
-            {Object.entries(s.outputs).map(([name, text]) => (
+            {Object.entries(s.outputs).map(([name, value]) => (
               <div key={name} className="mcm-rc__step-row">
                 <span>{stepOutputLabel(io, s.ruleId, name)}</span>
-                <span>{formatResultValue(text, stepOutputScale(io, s.ruleId, name))}</span>
+                <span>{displayValue(value, stepOutputScale(io, s.ruleId, name), stepOutputDataType(io, s.ruleId, name))}</span>
               </div>
             ))}
           </div>
@@ -237,11 +242,16 @@ export default function RuleCalcRenderer({ definition, refreshKey }: WidgetProps
           </div>
         )}
         {done && (
-          <>
+          <div aria-live="polite" data-testid="rc-done">
             <Messages messages={done.messages} />
+            {!done.ok && done.messages.length === 0 && (
+              <div className="mcm-rc__msg mcm-rc__msg--error" role="alert" data-testid="rc-run-fail">
+                {RUN_FAIL_MESSAGE}
+              </div>
+            )}
             {done.ok && <Results io={io} run={done} />}
             {done.ok && showSteps && <Steps io={io} run={done} />}
-          </>
+          </div>
         )}
       </form>
     </>
