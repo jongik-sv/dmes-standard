@@ -95,6 +95,8 @@ export function EditableRowList<T extends object>({
     <div style={{ height }} data-testid={testId}>
       <GridPanel title={title} count={items.length} buttons={buttons}>
         <AgDataGrid
+          // 편집기 안의 작은 설정 목록이라 컬럼 개인화를 두지 않는다(본 화면 그리드와 저장 키가 겹치지 않게).
+          personalize={false}
           rowKey={ROW_KEY}
           columns={columns}
           data={data}

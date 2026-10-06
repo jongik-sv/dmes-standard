@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import { NativeSelect, TextInput } from "@mantine/core";
 import { Modal } from "../modal";
 import { Button } from "../form";
-import { AgDataGrid, Pagination, type GridColumn } from "../grid";
+import { AgDataGrid, Pagination, type GridColumn, type GridPersonalizeOptions } from "../grid";
 
 export interface LookupRow {
   code: string;
@@ -83,6 +83,7 @@ const COLUMNS: GridColumn[] = [
 const DEFAULT_PAGE_SIZE = 50;
 const PAGE_SIZE_OPTIONS = [50, 100, 200];
 const GRID_HEIGHT = 320;
+const LOOKUP_PERSONALIZE: GridPersonalizeOptions = { sort: false };
 
 const FIELD_WRAP_STYLE: CSSProperties = { display: "flex", flexDirection: "column", gap: 4 };
 const FIELD_LABEL_STYLE: CSSProperties = {
@@ -324,6 +325,9 @@ export function LookupModal({
         </div>
         <div className="cm-lookup-grid" style={{ height: GRID_HEIGHT }}>
           <AgDataGrid
+            // 화면 위에 뜨는 모달이라 본 화면 그리드("main")와 저장을 나눈다. 서버 페이징이라 정렬은 저장하지 않는다.
+            gridId="lookup"
+            personalize={LOOKUP_PERSONALIZE}
             columns={COLUMNS}
             data={rows as unknown as Record<string, unknown>[]}
             rowKey="code"
