@@ -222,7 +222,7 @@
     "html-to-image": "^1.11.13",
     "marked": "^17.0.6",
     "mermaid": "^11.17.2",
-    "next": "16.1.6",
+    "next": "16.3.8",
     "next-auth": "^4.24.13",
     "react-grid-layout": "2.2.4"
   },
