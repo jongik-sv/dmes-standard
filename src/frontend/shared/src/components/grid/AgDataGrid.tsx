@@ -46,6 +46,7 @@ import { useGridTooltipOutside } from "./grid-tooltip-parent";
 import { AgDataGridExcelFrame, type AgDataGridExcelExport } from "./AgDataGridExcel";
 import { MdmHeaderLabel, type MdmHeaderLabelParams } from "./MdmHeaderLabel";
 import type { GridPersonalize } from "./grid-personalize";
+import { useGridPersonalize } from "./grid-personalize-hook";
 
 /** `rowNumber` 로 넣는 행번호 열의 colId — 테스트·화면이 이 칸을 집을 때 쓴다. */
 export const ROW_NUMBER_COL_ID = "__rowNo";
@@ -1053,6 +1054,8 @@ function AgDataGridComponent({
   mdmValidate = false,
   fieldErrors,
   excelExport,
+  gridId,
+  personalize,
 }: AgDataGridProps) {
   const gridRef = useRef<AgGridReact>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1060,6 +1063,11 @@ function AgDataGridComponent({
   useGridTooltipOutside(containerRef, gridRef);
   const [gridReady, setGridReady] = useState(false);
   const userResizedRef = useRef(false);
+  /**
+   * 컬럼 개인화가 저장 너비를 적용했거나 사용자가 이번에 컬럼을 바꿨으면 true — 자동 너비 맞춤(autoSize·여백 분배)이 저장 너비를 덮지 않게
+   * 실행 시점에 막는다. 저장값이 없으면 늘 false 라 자동 너비 흐름은 예전과 같다.
+   */
+  const personalizedWidthRef = useRef(false);
   const autoSizeTimerRef = useRef<number | null>(null);
   const sizeChangeTimerRef = useRef<number | null>(null);
   /** 직전 grid size-change 시점의 컨테이너 폭. 0 이하면 숨김/미레이아웃. */
@@ -1342,7 +1350,7 @@ function AgDataGridComponent({
 
   /** 현재 컬럼 폭을 min 으로 잠그고, 그리드가 더 넓을 때만 여백을 분배한다. */
   const fillRemainingColumnSpace = useCallback(() => {
-    if (!gridRef.current?.api) return;
+    if (!gridRef.current?.api || personalizedWidthRef.current) return;
     // fit 은 flex 가 이미 그리드 폭을 채운다. 컨테이너와 ag 루트의 1px 테두리 차이로 여기에 들어오면
     // sizeColumnsToFit 이 flex 가중치(col.width 비율)를 버리고 모든 열을 같은 폭으로 만든다.
     if (columnSizingRef.current === "fit") return;
@@ -1366,7 +1374,7 @@ function AgDataGridComponent({
   }, []);
 
   const autoSizeAllColumnsHandler = useCallback(() => {
-    if (!gridRef.current?.api) return;
+    if (!gridRef.current?.api || personalizedWidthRef.current) return;
     // 컨텐츠 기반 자동 폭은 columnSizing="auto" 또는 autoSizeColumns={true}일 때만 사용한다.
     if (!shouldAutoSizeColumns) return;
     try {
@@ -1399,6 +1407,30 @@ function AgDataGridComponent({
       lastGridWidthRef.current = containerRef.current?.clientWidth ?? 0;
     }, GRID_SIZE_CHANGE_SETTLE_MS);
   }, [fillRemainingColumnSpace]);
+
+  // 컬럼 개인화(gridId·personalize) — 복원·자동 저장·열 정의 재주입 뒤 재적용. 결과(handle)는 컬럼 설정 창(C3)이 쓴다.
+  // 기본값 복원 뒤에는 아래 마운트 직후 효과와 같은 갈래로 자동 너비 맞춤을 다시 돌린다.
+  const getGridApi = useCallback(() => gridRef.current?.api, []);
+  const rerunAutoSizeAfterReset = useCallback(() => {
+    userResizedRef.current = false;
+    if (resolvedColumnSizing === "auto" && shouldAutoSizeColumns) scheduleAutoSizeAllColumns();
+    else scheduleFillRemainingColumnSpace();
+  }, [resolvedColumnSizing, shouldAutoSizeColumns, scheduleAutoSizeAllColumns, scheduleFillRemainingColumnSpace]);
+  // personalizeHandle 은 C3 가 GridPanel 설정 창에 잇는다(context 연결은 C3 몫).
+  const personalizeHandle = useGridPersonalize({
+    getApi: getGridApi,
+    gridReady,
+    gridId,
+    personalize,
+    columns,
+    columnDefs,
+    selectable,
+    rowKey,
+    rowDragField,
+    widthLockRef: personalizedWidthRef,
+    onReset: rerunAutoSizeAfterReset,
+  });
+  void personalizeHandle;
 
   // ★그리드 준비 직후 1회 폭 정리 — 데이터가 0건이면 ag-grid 가 firstDataRendered / rowDataUpdated 를
   //   내보내지 않아 아래 핸들러들이 한 번도 호출되지 않는다. 그 결과 "조회 결과가 없습니다" 상태에서
