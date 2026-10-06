@@ -79,7 +79,7 @@
   "ok": true,
   "target": {"tp": "RULE", "id": "M47C0001", "name": "원판 중량", "ver": "1.000", "verStatus": "RELEASED", "status": "INUSE"},
   "inputs": [
-    {"name": "THK", "label": "두께", "dataType": "NUMBER", "scale": 3, "unit": "MM", "required": true}
+    {"name": "THK", "label": "두께", "dataType": "NUMBER", "scale": 3, "unit": "MM", "required": false}
   ],
   "outputs": [
     {"name": "COIL_WT", "label": "원판 중량", "dataType": "NUMBER", "scale": 2, "unit": "KG"}
@@ -101,7 +101,7 @@
 | `inputs[].dataType` | `"NUMBER"` \| `"STRING"` \| `"BOOLEAN"` \| `"DATE"` | `IoName.dataType`. 풀지 못하면 `STRING` |
 | `inputs[].scale` | integer \| null | `IoName.scale`. NUMBER 가 아니거나 모르면 null |
 | `inputs[].unit` | string | 단위 코드(§5). 없으면 빈 문자열 `""` |
-| `inputs[].required` | boolean | 엔진이 키를 요구하면 `true`. 지금은 모든 입력이 `true`(키는 있어야 하고, 값이 비면 §3 `INPUT_MISSING`) |
+| `inputs[].required` | boolean | 필수 입력이면 `true`. **지금은 모든 입력이 `false`** 다. M47 룰은 분기 행마다 쓰는 변수가 달라 값을 일부만 넣고 계산하는 것이 정상이므로(레거시 시험 사례도 그렇다) 서버는 빈 입력을 막지 않고 `null` 로 엔진에 넘긴다(§3). 실제 필수 판정 근거가 생기면 그 입력만 `true` 로 낸다 |
 | `outputs[].name`·`label`·`dataType`·`scale`·`unit` | | 위 입력과 같은 규칙. 룰은 `RuleIo.results`, 세트는 **최종 결과**(`SetCallIo.outputs`, 뒤 룰이 읽지 않는 결과)만 담는다 |
 | `steps` | array | **세트일 때만** 값이 있고 룰이면 빈 배열. 실행 순서대로 `[{"ruleId","name","outputs":[{name,label,dataType,scale,unit}]}]`. 앞 룰 결과(중간값) 표시용 |
 | `messages` | array | §3. `view` 도 `NO_RELEASED`·`RULE_DEPRECATED`·`NOT_FOUND` 를 돌려줄 수 있다 |
@@ -167,7 +167,7 @@
 | `NOT_FOUND` | 룰·세트가 없다 | false | view·execute |
 | `NO_RELEASED` | 판정 시각에 적용되는 확정(RELEASED) 버전이 없다. 문구는 「확정 버전 없음」으로 시작한다. `preview=true` 인데 내 DRAFT 도 없으면 같은 코드 | false | view·execute |
 | `RULE_DEPRECATED` | 폐기(DEPRECATED) 룰이 들어 있다. 계산은 막지 않고 경고만 한다(`RuleSetRunner.RULE_DEPRECATED` 와 같은 코드) | 유지 | view·execute |
-| `INPUT_MISSING` | 필수 입력이 비어 있다(키 없음·null·빈 문자열). 문구에 입력 이름을 담는다. 엔진을 부르지 않고 돌려준다. 엔진 `MISSING_KEY`·`REQUIRED_NULL` 위반도 위반의 이름이 `inputs[].name` 일 때만 이 코드다 | false | execute |
+| `INPUT_MISSING` | 엔진이 입력의 키 없음·null 로 판정하지 못했다(엔진 `MISSING_KEY`·`REQUIRED_NULL` 위반의 이름이 `inputs[].name` 일 때만 이 코드). **서버가 빈 입력(키 없음·null·빈 문자열)을 먼저 막지는 않는다** — 그런 입력은 `null` 로 엔진에 넘어간다. 문구에 입력 이름을 담는다 | false | execute |
 | `INPUT_INVALID` | 값을 선언 타입으로 바꾸지 못했다(숫자 칸에 글자 등), 또는 숫자 자릿수가 너무 크다(§4). `valuesJson` 의 따옴표 없는 JSON 숫자가 1000자를 넘어도 이 코드이고 문구에 「valuesJson 숫자가 너무 큼」 이 든다. 엔진 `TYPE_CONVERSION` 위반도 위반의 이름이 `inputs[].name` 일 때만 이 코드다. 문구에 입력 이름을 담는다 | false | execute |
 | `EVAL_ERROR` | 판정 중 오류(엔진 `EngineEvaluationException` 의 위반: 중복 적중, 식 평가 오류, 룰 없음 등). 키 없음·NULL·타입 변환 위반이라도 위반의 이름이 입력 이름이 아니면(앞 룰 결과·중간 값이 비었거나 타입이 안 맞음) 이 코드다. 문구는 `RuleErrorText` 의 사용자 문구를 쓴다 | false | execute |
 

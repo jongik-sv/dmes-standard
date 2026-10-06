@@ -89,7 +89,7 @@ import org.springframework.stereotype.Service;
  *
  * <p>버전은 RELEASED 만 쓴다(룰·세트마다 판정 시각에 적용되는 RELEASED). {@code preview=true} 일 때만 로그인 사용자({@link MdmCurrentUser})의 내
  * DRAFT 를 먼저 쓴다({@link RuleVersionPick#myDraft}). 사용자 ID 를 요청으로 받지 않는다. 확정 버전이 없거나(NO_RELEASED) 대상이 없거나
- * (NOT_FOUND) 입력이 비었거나(INPUT_MISSING) 판정이 실패해도 예외가 아니라 응답 본문의 {@code messages} 로 돌려준다. 저장 정의가 깨진 경우만
+ * (NOT_FOUND) 엔진이 입력 부족(INPUT_MISSING)·평가 오류로 판정하지 못해도 예외가 아니라 응답 본문의 {@code messages} 로 돌려준다. 저장 정의가 깨진 경우만
  * 오류(MDM026)다.
  *
  * <p>세트의 입력·최종 결과는 {@link RuleSetInterface#of}(앞 룰 결과 이름 제외·{@code CATCH_*} 제외)가 정하고, IF 갈래 조건식이 읽는 변수 중 <b>그 IF
@@ -175,7 +175,9 @@ public class RuleCalcService {
             return out;
         }
 
-        // 입력 검사 — 키 없음·null·빈 글자는 엔진을 부르지 않고 돌려준다. 이름은 io 가 알려 준 표기 그대로 찾는다.
+        // 입력 검사 — 키 없음·null·빈 글자는 막지 않고 null 로 엔진에 넘긴다(M47 룰은 분기 행마다 쓰는 변수가 달라 일부만 넣고 계산하는 것이 정상이다).
+        // 엔진이 그 null 때문에 판정하지 못하면 위반으로 돌아와 아래에서 메시지가 된다. 값이 있는데 선언 타입으로 못 바꾸면 INPUT_INVALID 다.
+        // 이름은 io 가 알려 준 표기 그대로 찾는다.
         Map<String, Object> record = new LinkedHashMap<>();
         List<RuleCalcMessage> problems = new ArrayList<>();
         Set<String> inputNames = new HashSet<>();
@@ -183,8 +185,7 @@ public class RuleCalcService {
             inputNames.add(upper(in.getName()));
             Object raw = values.get(in.getName());
             if (raw == null || raw instanceof CharSequence cs && cs.toString().isBlank()) {
-                problems.add(new RuleCalcMessage(RuleCalcMessage.INPUT_MISSING, "입력 " + in.getName() + " 값이 비어 있습니다. "
-                        + in.getName() + " 값을 넣으세요."));
+                record.put(in.getName(), null);
                 continue;
             }
             try {
@@ -341,8 +342,7 @@ public class RuleCalcService {
     }
 
     /**
-     * 입력 값 — {@code values}(객체)가 있으면 그것, 없으면 {@code valuesJson}(JSON 객체 글자, 소수는 BigDecimal). 둘 다 없으면 빈 맵(필수 입력은
-     * INPUT_MISSING). {@code valuesJson} 이 JSON 객체가 아니면 INVALID_VALUE.
+     * 입력 값 — {@code values}(객체)가 있으면 그것, 없으면 {@code valuesJson}(JSON 객체 글자, 소수는 BigDecimal). 둘 다 없으면 빈 맵(빈 입력은 null 로 엔진에 넘긴다). {@code valuesJson} 이 JSON 객체가 아니면 INVALID_VALUE.
      */
     private static Map<String, Object> valuesOf(RuleCalcRequest request) {
         if (request.getValues() != null) {
@@ -412,7 +412,7 @@ public class RuleCalcService {
         RuleVarTypeResolver.Scope scope = ioReader.scope();
         RuleIo io = ioReader.read(List.of(id), at, pick, scope).get(id);
         Units units = new Units(scope, queries.varsOf(Map.of(id, ver.get().getVer())));
-        List<RuleCalcIoResult.Item> inputs = items(io.conds(), units, true);
+        List<RuleCalcIoResult.Item> inputs = items(io.conds(), units, false);
         List<RuleCalcIoResult.Item> outputs = items(io.results(), units, false);
         return new Shape(true, head, inputs, outputs, List.of(), List.of(), FlowParser.linear(List.of(id)), List.of(id), Map.of(id, io),
                 untypedOf(io.conds(), Set.of(), scope), Set.of());
@@ -468,7 +468,7 @@ public class RuleCalcService {
         Units units = new Units(scope, varsByRule);
 
         SetCallIo sio = RuleSetInterface.of(id, set.get().getMaruRuleSetName(), true, status, flow, rules, calls);
-        List<RuleCalcIoResult.Item> inputs = items(sio.inputs(), units, true);
+        List<RuleCalcIoResult.Item> inputs = items(sio.inputs(), units, false);
         List<RuleCalcIoResult.Item> outputs = new ArrayList<>();
         for (SetCallIo.OutputName o : sio.outputs()) {
             outputs.add(item(o.name(), labelOfResult(o.name(), ruleIds, rules), o.dataType(), o.scale(), units.unit(o.name()), false));

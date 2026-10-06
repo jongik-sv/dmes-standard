@@ -126,11 +126,10 @@ public class RuleCalcFlowTest extends RuleCalcTestBase {
         assertEquals("1.05", ended.getResult().get("PRE_FCT"));
         assertEquals(List.of("R_PRE"), ended.getSteps().stream().map(RuleCalcRunResult.Step::getRuleId).toList());
 
-        // 입력 PRE_FCT 를 빼면 엔진을 부르지 않고 INPUT_MISSING.
+        // 입력 PRE_FCT 를 빼도 막지 않고 null 로 엔진에 넘긴다(F1). 엔진이 그 null 로 뒤 IF 를 판정하지 못하면 EVAL_ERROR 로 안내한다.
         RuleCalcRunResult missing = service.run(values("S_END_IF", Map.of("SKIP_FLAG", "false", "COIL_THK", "2.0", "COIL_WID", "1200")));
         assertFalse(missing.isOk());
-        assertEquals(List.of("INPUT_MISSING"), codes(missing.getMessages()));
-        assertTrue(missing.getMessages().get(0).getText().contains("PRE_FCT"));
+        assertEquals(List.of("EVAL_ERROR"), codes(missing.getMessages()), missing.getMessages().toString());
     }
 
     /**
@@ -207,8 +206,9 @@ public class RuleCalcFlowTest extends RuleCalcTestBase {
             assertTrue(declared.getMessages().get(0).getText().contains("FOO"));
             assertTrue(declared.getMessages().get(0).getText().length() < 400);
 
+            // 입력을 안 보내도(값 없음) 막지 않는다 — null 로 엔진에 넘긴다(F1).
             RuleCalcRunResult untyped = service.run(run("RULE", "R_T3", null, null));
-            assertEquals(List.of("INPUT_MISSING"), codes(untyped.getMessages()));
+            assertFalse(codes(untyped.getMessages()).contains("INPUT_MISSING"), untyped.getMessages().toString());
             RuleCalcRequest q = req("RULE", "R_T3", false);
             q.setValues(Map.of("BAR", huge));
             RuleCalcRunResult bar = service.run(q);

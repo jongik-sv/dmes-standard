@@ -235,11 +235,43 @@ describe("렌더러 — 입력 칸 자동 생성과 검사", () => {
     expect(must("rc-root").textContent).toContain("원판 중량");
   });
 
-  it("필수가 비면 칸 아래에 알리고 서버로 보내지 않는다", async () => {
+  it("필수로 알려 준 칸이 비면 칸 아래에 알리고 서버로 보내지 않는다", async () => {
     await renderRc({ targetTp: "RULE", targetId: "M47C0001" });
     await click("rc-run");
     expect(container.querySelector('[data-err-for="rc-input-THK"]')?.textContent).toBe("필수 입력입니다");
     expect(h.run).not.toHaveBeenCalled();
+  });
+
+  it("필수가 아닌 칸은(서버가 모두 required=false 로 낸다) 비워도 계산 단추가 막히지 않고 넣은 칸만 보낸다", async () => {
+    h.fetchIo.mockResolvedValue(
+      normalizeIo({
+        ok: true,
+        target: { name: "M47 룰" },
+        inputs: [
+          { name: "COIL_THK", label: "코일두께", dataType: "NUMBER", scale: 3, unit: "MM", required: false },
+          { name: "COIL_LTH", label: "코일길이", dataType: "NUMBER", scale: null, unit: "", required: false },
+          { name: "COIL_IDIA", label: "내경", dataType: "NUMBER", scale: null, unit: "", required: false },
+        ],
+        outputs: [{ name: "COIL_ODIA", label: "코일외경", dataType: "NUMBER", scale: 0 }],
+        steps: [],
+        messages: [],
+      })
+    );
+    h.run.mockResolvedValue(normalizeRun({ ok: true, result: { COIL_ODIA: "1251" }, steps: [], messages: [] }));
+    await renderRc({ targetTp: "RULE", targetId: "M47C0025" });
+    expect(q("rc-blank-note")?.textContent).toContain("비운 칸은 값 없음");
+    expect(container.querySelectorAll(".mcm-rc__req")).toHaveLength(0);
+    await type("rc-input-COIL_THK", "0.5");
+    await type("rc-input-COIL_LTH", "2000");
+    await type("rc-input-COIL_IDIA", "508");
+    await click("rc-run");
+    await flush();
+    expect(h.run).toHaveBeenCalledWith("RULE", "M47C0025", { COIL_THK: "0.5", COIL_LTH: "2000", COIL_IDIA: "508" });
+    await type("rc-input-COIL_IDIA", "");
+    await click("rc-run");
+    await flush();
+    expect(h.run).toHaveBeenLastCalledWith("RULE", "M47C0025", { COIL_THK: "0.5", COIL_LTH: "2000" });
+    expect(must("rc-result-COIL_ODIA").textContent).toBe("1,251");
   });
 
   it("숫자 모양이 아니거나 소수 자리를 넘으면 보내지 않는다", async () => {
