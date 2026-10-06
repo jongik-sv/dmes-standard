@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 사용법: term-send-safe.sh (--handle <h> | --lane <레인>) (--text <글> | --text-file <f>) [--timeout-ms 300000] [--raw [--expect-sha <sha>]] [--allow-busy] [--dry-run]
+# 사용법: term-send-safe.sh (--handle <h> | --lane <레인>) (--text <글> | --text-file <f>) [--timeout-ms 300000] [--raw [--expect-sha <sha>]] [--allow-busy] [--over-draft] [--dry-run]
 #   다른 세션 터미널에 안전하게 글을 넣는다(설계 §2.1·§3.j-3·§3.l-3). 정본 출력: references/contract.md §3.5
 #   순서: handle 존재 → 글에 ! 없음 → tui-idle(satisfied) → 화면에 esc to interrupt·확인 창·Compacting 없음
 #         → 입력창에 쓰다 만 글 없음(애매하면 보내지 않음) → send --enter --wait-submit 10.
@@ -23,6 +23,10 @@
 #          옵션이 없을 때의 동작·출력은 불변. 바쁜 세션의 입력창은 화면이 계속 바뀌므로 draft 판정은 입력창 모양만 본다.
 #          대신 입력창 틀(가로줄·입력줄·가로줄)이 화면 끝(닫는 가로줄 아래 글 줄 6개 이하, `claude --resume` 안내 없음)에
 #          있어야 한다 — 아니면 `REFUSED <h> draft-in-input`(셸로 돌아간 탭에 넣지 않게).
+#   --over-draft: 입력창에 글이 있어도(`draft-in-input` 중 draft 판정만) 보낸다. 화면은 이스케이프(색·dim)가 지워진 평문이라 Claude Code 의 회색
+#          추천 문구(prompt suggestion)와 사용자가 쓰다 만 글이 같은 `❯ 글` 로 읽혀 구분할 수 없다(교훈 17: 추천 문구 때문에 레인이 30분 멈춤).
+#          조정자가 화면을 읽고 추천 문구라고 판단한 때만 쓴다(추천 문구는 글을 치면 대체된다). 입력창을 못 찾은 애매한 화면(unknown)·
+#          stale·prompt-open·compacting·bang-in-text 는 그대로 거절한다. --raw 와는 함께 쓰지 않는다.
 #   --dry-run: 읽기·판정은 실제로 하고, 보내기 직전에 멈춰 stderr 에 DRY 를 찍고 stdout 에 `DRY SENT <h> -`(보냈다면 나올 줄에 DRY 를 붙임).
 set -uo pipefail
 _SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.   # dirname 대신(프로세스 0개)
@@ -30,7 +34,7 @@ _SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.   # dirname 대신(프로세스 0개)
 . "$_SD/lib/term.sh"
 coord_cfg_prime   # 설정을 서브셸 밖에서 한 번 읽어 둔다
 
-h="" lane="" text="" textfile="" timeout_ms=300000 raw=0 busy=0 dry=0 has_text=0 expect=""
+h="" lane="" text="" textfile="" timeout_ms=300000 raw=0 busy=0 dry=0 has_text=0 expect="" over=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --handle) h="${2:-}"; shift ;;
@@ -41,6 +45,7 @@ while [ $# -gt 0 ]; do
     --timeout-ms) timeout_ms="${2:-}"; shift ;;
     --raw) raw=1 ;;
     --allow-busy) busy=1 ;;
+    --over-draft) over=1 ;;
     --dry-run) dry=1 ;;
     -h|--help) sed -n '2,/^set -uo/p' "$0" | sed '$d'; exit 0 ;;
     *) coord_die 2 "모르는 인자: $1" ;;
@@ -49,6 +54,7 @@ while [ $# -gt 0 ]; do
 done
 [ "$dry" = 1 ] && export COORD_DRY=1
 [ -z "$expect" ] || [ "$raw" = 1 ] || coord_die 2 "--expect-sha 는 --raw 와 함께만 쓴다"
+[ "$over" = 0 ] || [ "$raw" = 0 ] || coord_die 2 "--over-draft 는 --raw 와 함께 쓰지 않는다"
 [ -z "$expect" ] || [ -n "$lane" ] || coord_die 2 "--expect-sha 는 --lane 과 함께만 쓴다(레인 잠금 없이 보내지 않는다)"
 case "$timeout_ms" in ''|*[!0-9]*) coord_die 2 "--timeout-ms 는 정수(ms)" ;; esac
 if [ -n "$textfile" ]; then
@@ -206,7 +212,7 @@ case "$bottom" in *Compacting*) refuse compacting ;; esac
 st="$(printf '%s\n' "$scr" | input_state)"
 case "$st" in
   empty) ;;
-  draft) refuse draft-in-input "입력창에 쓰다 만 글이 있다" ;;
+  draft) [ "$over" = 1 ] && coord_log "입력창에 글이 있지만 --over-draft 로 보낸다: $h" || refuse draft-in-input "입력창에 쓰다 만 글이 있다" ;;
   *) refuse draft-in-input "입력창을 찾지 못해 판정이 애매하다(보내지 않음)" ;;
 esac
 # --allow-busy 는 tui-idle 을 보지 않으므로 Claude Code 가 떠 있는지를 입력창 틀 위치로 한 번 더 본다(옵션 없는 동작은 그대로)

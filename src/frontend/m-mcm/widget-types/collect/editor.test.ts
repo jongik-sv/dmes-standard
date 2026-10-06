@@ -1,6 +1,6 @@
 /** @vitest-environment happy-dom */
 /**
- * 정시 수집 편집기 — 일정·원천 칸 전환이 정의 설정(onChange)을 어떻게 고치는지, 칸 단위 오류와 onValidate 보고.
+ * 자동 수집 편집기 — 일정·원천 칸 전환이 정의 설정(onChange)을 어떻게 고치는지, 칸 단위 오류와 onValidate 보고.
  * 진짜 shared(dist) 의 입력 부품·그리드·공급자를 쓴다(_query/editors-mdm-meta.test.ts 와 같은 설정). JSX 없이 createElement 로 쓴다.
  */
 import { act, createElement } from "react";
@@ -79,7 +79,7 @@ async function choose(id: string, value: string) {
 
 const labels = () => [...host.querySelectorAll("th")].map((el) => el.textContent);
 
-describe("정시 수집 편집기", () => {
+describe("자동 수집 편집기", () => {
   it("라벨 3개(일정·원천·표시)와 data-testid", async () => {
     await show(VALID_SQL);
     expect(labels()).toEqual(["일정 *", "원천 *", "표시"]);

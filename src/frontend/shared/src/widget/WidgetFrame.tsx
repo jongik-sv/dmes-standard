@@ -24,6 +24,7 @@ import {
 import { MIN_REFRESH_SEC } from "./constants";
 import { openPortalPage, WidgetFrameContext, type WidgetFrameApi, type WidgetRenameHandler, type WidgetStatus } from "./frame-context";
 import { WidgetStyle } from "./styles";
+import { WidgetHelpButton } from "./WidgetHelpButton";
 import { WidgetTitleRename } from "./WidgetTitleRename";
 import type { ScreenApply, ScreenContext } from "../screen-context/types";
 import { useWidgetVisible } from "./use-widget-visible";
@@ -316,6 +317,7 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
             <button type="button" className="cm-widget__btn" data-action="refresh" title="새로 고침" aria-label="새로 고침" onClick={() => { lastRefreshAt.current = Date.now(); setRefreshKey((k) => k + 1); }}>
               ↻
             </button>
+            {entry.meta.help && <WidgetHelpButton help={entry.meta.help} />}
             {entry.meta.linkPageId && (
               <button type="button" className="cm-widget__btn" data-action="open" title="화면 열기" aria-label="화면 열기" onClick={() => openPortalPage(entry.meta.linkPageId!)}>
                 ↗

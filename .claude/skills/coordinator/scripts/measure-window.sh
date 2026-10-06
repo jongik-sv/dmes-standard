@@ -14,6 +14,7 @@
 #                2분 유지 판정은 조정자가 두 번 불러 확인한다.
 set -uo pipefail
 . "$(dirname "$0")/lib/common.sh"
+. "$(dirname "$0")/lib/compat.sh"
 
 sub="${1:-}"; [ $# -gt 0 ] && shift
 kind="" lane="" until_iso="" hold=0 dry=0
@@ -105,7 +106,7 @@ quiet-check)
   else
     coord_log "heavy.script 가 없다 — RUN 수는 0 으로 본다(ps 검사만)"
   fi
-  procs="$(ps -axo pid=,command= 2>/dev/null | grep -E 'GradleWrapperMain|vitest|playwright' | grep -viE 'mcp|grep' | awk -v me="$$" '$1 != me' | wc -l | tr -d ' ')"
+  procs="$(compat_ps_table | awk '{ $2 = ""; print }' | grep -E 'GradleWrapperMain|vitest|playwright' | grep -viE 'mcp|grep' | awk -v me="$$" '$1 != me' | wc -l | tr -d ' ')"
   load="$(coord_load1)"; cpus="$(coord_cpus)"
   pc="$(awk -v l="${load:-0}" -v c="${cpus:-1}" 'BEGIN { printf "%.2f", (c > 0 ? l / c : l) }')"
   q="$(coord_cfg .heavy.measure_quiet)"; q="${q:-0.5}"

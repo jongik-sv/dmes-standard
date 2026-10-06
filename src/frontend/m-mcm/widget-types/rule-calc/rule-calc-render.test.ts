@@ -8,16 +8,19 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { normalizeIo, normalizeRun } from "./rule-calc-model";
+import { normalizeIo, normalizeRun, normalizeSearch } from "./rule-calc-model";
 
 const h = vi.hoisted(() => ({
   fetchIo: vi.fn(),
   run: vi.fn(),
+  search: vi.fn(),
 }));
 
 vi.mock("./api", () => ({
   fetchRuleCalcIo: (...a: unknown[]) => h.fetchIo(...a),
   runRuleCalc: (...a: unknown[]) => h.run(...a),
+  searchRuleCalcTargets: (...a: unknown[]) => h.search(...a),
+  RULE_CALC_SEARCH_LIMIT: 2,
 }));
 
 // 이름 정규화 비교(대소문자·밑줄·하이픈·공백 무시)는 shared 와 같은 규칙의 대역이다.
@@ -35,7 +38,7 @@ vi.mock("@dk-oasis/shared/screen-context", () => {
 
 vi.mock("@dk-oasis/shared/form", async () => {
   const { createElement: el } = await import("react");
-  type P = Record<string, unknown> & { onChange?: (v: never) => void };
+  type P = Record<string, unknown> & { onChange?: (v: never, item?: never) => void };
   return {
     Button: (p: P) =>
       el("button", { type: p.type ?? "button", disabled: p.disabled as boolean, onClick: p.onClick as never, "data-testid": p["data-testid"] }, p.children as never),
@@ -49,6 +52,7 @@ vi.mock("@dk-oasis/shared/form", async () => {
           value: p.value as string,
           inputMode: p.inputMode,
           "data-testid": p["data-testid"],
+          onKeyDown: p.onKeyDown as never,
           onChange: (e: { currentTarget: { value: string } }) => p.onChange?.(e.currentTarget.value as never),
         }),
         p.error ? el("em", { "data-err-for": p["data-testid"] }, p.error as string) : null
@@ -65,6 +69,20 @@ vi.mock("@dk-oasis/shared/form", async () => {
         ...(p.placeholder ? [el("option", { key: "", value: "" }, p.placeholder as string)] : []),
         ...(p.options as { value: string; label: string }[]).map((o) => el("option", { key: o.value, value: o.value }, o.label))
       ),
+    ComboBox: (p: P) => {
+      const items = p.data as { value: string; label: string }[];
+      return el(
+        "select",
+        {
+          "data-testid": "rc-editor-pick",
+          value: p.value as string,
+          onChange: (e: { currentTarget: { value: string } }) =>
+            p.onChange?.(e.currentTarget.value as never, items.find((x) => x.value === e.currentTarget.value) as never),
+        },
+        el("option", { key: "", value: "" }, p.placeholder as string),
+        ...items.map((o) => el("option", { key: o.value, value: o.value }, o.label))
+      );
+    },
     Checkbox: (p: P) =>
       el("input", {
         type: "checkbox",
@@ -88,6 +106,7 @@ let root: Root;
 beforeEach(() => {
   h.fetchIo.mockReset();
   h.run.mockReset();
+  h.search.mockReset();
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -129,9 +148,9 @@ const click = async (testId: string) => {
 
 const baseProps = { instanceId: "i1", widgetId: "def.rc", size: { w: 6, h: 12 }, config: null };
 
-async function renderRc(definition: unknown, refreshKey = 0, screenContext: unknown = null) {
+async function renderRc(definition: unknown, refreshKey = 0, screenContext: unknown = null, screenApply: unknown = null) {
   await act(async () => {
-    root.render(createElement(RuleCalcRenderer, { ...baseProps, definition, refreshKey, screenContext } as never));
+    root.render(createElement(RuleCalcRenderer, { ...baseProps, definition, refreshKey, screenContext, screenApply } as never));
   });
   await flush();
 }
@@ -235,8 +254,9 @@ describe("렌더러 — 입력 칸 자동 생성과 검사", () => {
     expect(must("rc-root").textContent).toContain("원판 중량");
   });
 
-  it("필수로 알려 준 칸이 비면 칸 아래에 알리고 서버로 보내지 않는다", async () => {
+  it("다른 칸만 채우고 필수로 알려 준 칸이 비면 칸 아래에 알리고 서버로 보내지 않는다", async () => {
     await renderRc({ targetTp: "RULE", targetId: "M47C0001" });
+    await type("rc-input-GRADE", "SPCC");
     await click("rc-run");
     expect(container.querySelector('[data-err-for="rc-input-THK"]')?.textContent).toBe("필수 입력입니다");
     expect(h.run).not.toHaveBeenCalled();
@@ -283,6 +303,63 @@ describe("렌더러 — 입력 칸 자동 생성과 검사", () => {
     await click("rc-run");
     expect(container.querySelector('[data-err-for="rc-input-THK"]')?.textContent).toBe("소수 3자리까지 입력할 수 있습니다");
     expect(h.run).not.toHaveBeenCalled();
+  });
+});
+
+describe("렌더러 — 전부 빈 칸이면 계산을 막는다", () => {
+  beforeEach(() => h.fetchIo.mockResolvedValue(ruleIo()));
+
+  it("모든 입력이 비면 [계산]이 잠기고 안내가 보이며, 제출해도 서버를 부르지 않는다", async () => {
+    await renderRc({ targetTp: "RULE", targetId: "M47C0001" });
+    expect((must("rc-run") as HTMLButtonElement).disabled).toBe(true);
+    expect(must("rc-need-one").textContent).toBe("값을 하나 이상 넣으세요");
+    await act(async () => {
+      must("rc-root").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    expect(h.run).not.toHaveBeenCalled();
+    expect(q("rc-done")).toBeNull();
+  });
+
+  it("공백만 넣은 칸도 빈 칸으로 본다", async () => {
+    await renderRc({ targetTp: "RULE", targetId: "M47C0001" });
+    await type("rc-input-THK", "   ");
+    expect((must("rc-run") as HTMLButtonElement).disabled).toBe(true);
+    expect(q("rc-need-one")).not.toBeNull();
+  });
+
+  it("한 칸이라도 채우면 풀리고, 다시 모두 비우면 막히며 이전 결과도 사라진다", async () => {
+    h.run.mockResolvedValue(normalizeRun({ ok: true, result: { COIL_WT: "3" }, steps: [], messages: [] }));
+    await renderRc({ targetTp: "RULE", targetId: "M47C0001" });
+    await type("rc-input-THK", "1");
+    expect((must("rc-run") as HTMLButtonElement).disabled).toBe(false);
+    expect(q("rc-need-one")).toBeNull();
+    await click("rc-run");
+    await flush();
+    expect(q("rc-results")).not.toBeNull();
+    await type("rc-input-THK", "");
+    expect((must("rc-run") as HTMLButtonElement).disabled).toBe(true);
+    expect(q("rc-results")).toBeNull();
+  });
+
+  it("화면 값으로 채운 칸이 있으면 막지 않는다", async () => {
+    await renderRc({ targetTp: "RULE", targetId: "M47C0001", fillMode: "auto" }, 0, ctx({ THK: 0.5 }));
+    expect((must("rc-input-THK") as HTMLInputElement).value).toBe("0.5");
+    expect((must("rc-run") as HTMLButtonElement).disabled).toBe(false);
+    expect(q("rc-need-one")).toBeNull();
+  });
+
+  it("입력 칸이 0개인 대상은 막지 않는다", async () => {
+    h.fetchIo.mockResolvedValue(
+      normalizeIo({ ok: true, target: { name: "상수" }, inputs: [], outputs: [{ name: "K", label: "상수", dataType: "NUMBER", scale: 1, unit: "" }], steps: [], messages: [] })
+    );
+    h.run.mockResolvedValue(normalizeRun({ ok: true, result: { K: "2" }, steps: [], messages: [] }));
+    await renderRc({ targetTp: "RULE", targetId: "K1" });
+    expect((must("rc-run") as HTMLButtonElement).disabled).toBe(false);
+    expect(q("rc-need-one")).toBeNull();
+    await click("rc-run");
+    await flush();
+    expect(h.run).toHaveBeenCalledWith("RULE", "K1", {});
+    expect(must("rc-result-K").textContent).toBe("2.0");
   });
 });
 
@@ -501,6 +578,82 @@ describe("렌더러 — 업무 화면 값 채우기(screenContext)", () => {
   });
 });
 
+describe("렌더러 — 화면에 넣기(screenApply)", () => {
+  beforeEach(() => {
+    h.fetchIo.mockResolvedValue(ruleIo());
+    h.run.mockResolvedValue(normalizeRun({ ok: true, result: { COIL_WT: "12345.675", NOTE: "" }, steps: [], messages: [] }));
+  });
+  const def = { targetTp: "RULE", targetId: "M47C0001" };
+  const calc = async (screenApply: unknown) => {
+    await renderRc(def, 0, null, screenApply);
+    await type("rc-input-THK", "1");
+    await click("rc-run");
+    await flush();
+  };
+
+  it("없거나 null·available=false 면 단추를 보이지 않는다", async () => {
+    for (const sa of [null, undefined, { available: false, apply: vi.fn() }]) {
+      await calc(sa);
+      expect(q("rc-apply")).toBeNull();
+    }
+  });
+
+  it("계산 결과가 없으면(계산 전) 단추도 없다", async () => {
+    await renderRc(def, 0, null, { available: true, apply: vi.fn() });
+    expect(q("rc-apply")).toBeNull();
+  });
+
+  it("누르면 표시 전 원값 문자열(빈 값 제외)과 라벨을 보내고, 넣은 칸 수·건너뛴 항목을 안내한다", async () => {
+    const apply = vi.fn().mockResolvedValue({ applied: ["COIL_WT"], skipped: ["NOTE"] });
+    await calc({ available: true, apply });
+    await click("rc-apply-btn");
+    await flush();
+    expect(apply).toHaveBeenCalledWith({ COIL_WT: "12345.675" }, { label: "원판 중량" });
+    expect(must("rc-apply-note").textContent).toBe("1칸에 넣었습니다 · 넣지 못함: NOTE");
+  });
+
+  it("넣는 동안 단추가 잠기고 실패하면 오류 문구를 보인다", async () => {
+    let rejectApply!: (e: Error) => void;
+    const apply = vi.fn().mockReturnValue(new Promise((_, rj) => (rejectApply = rj)));
+    await calc({ available: true, apply });
+    await click("rc-apply-btn");
+    expect((must("rc-apply-btn") as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => rejectApply(new Error("화면이 받지 못했습니다.")));
+    expect(must("rc-apply-note").textContent).toBe("화면이 받지 못했습니다.");
+    expect((must("rc-apply-btn") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("넣은 칸이 하나도 없으면 그렇게 알린다", async () => {
+    const apply = vi.fn().mockResolvedValue({ applied: [], skipped: ["COIL_WT"] });
+    await calc({ available: true, apply });
+    await click("rc-apply-btn");
+    await flush();
+    expect(must("rc-apply-note").textContent).toBe("넣을 수 있는 칸이 없었습니다 · 넣지 못함: 원판 중량");
+  });
+
+  it("활성 탭이 바뀌어 screenApply 가 교체되면 이전 탭에 넣은 안내는 보이지 않는다", async () => {
+    const first = { available: true, apply: vi.fn().mockResolvedValue({ applied: ["COIL_WT"], skipped: [] }) };
+    await calc(first);
+    await click("rc-apply-btn");
+    await flush();
+    expect(must("rc-apply-note").textContent).toBe("1칸에 넣었습니다");
+    await renderRc(def, 0, null, { available: true, apply: vi.fn() });
+    expect(must("rc-apply-note").textContent).toBe("");
+  });
+
+  it("다시 계산하면 이전 안내는 사라진다", async () => {
+    const apply = vi.fn().mockResolvedValue({ applied: ["COIL_WT"], skipped: [] });
+    await calc({ available: true, apply });
+    await click("rc-apply-btn");
+    await flush();
+    expect(must("rc-apply-note").textContent).toBe("1칸에 넣었습니다");
+    h.run.mockResolvedValue(normalizeRun({ ok: true, result: { COIL_WT: "3" }, steps: [], messages: [] }));
+    await click("rc-run");
+    await flush();
+    expect(must("rc-apply-note").textContent).toBe("");
+  });
+});
+
 describe("렌더러 — 룰 세트 중간값", () => {
   beforeEach(() => {
     h.fetchIo.mockResolvedValue(setIo());
@@ -546,6 +699,25 @@ describe("편집기", () => {
     });
     return { onChange, onValidate };
   }
+
+  it("위 공통 칸과 같은 라벨 칸·값 칸 표로 그리고, 입력은 감싼 칸이 남은 폭을 쓴다", async () => {
+    await renderEditor({ targetTp: "RULE", targetId: "R1", showSteps: false });
+    const table = must("widget-type-editor-rule-calc").querySelector("table")!;
+    expect(table).not.toBeNull();
+    expect(Array.from(table.querySelectorAll("tr > th")).map((th) => th.textContent?.replace("*", "").trim())).toEqual(["대상", "찾기", "중간값", "화면 값 채우기"]);
+    // 종류 선택은 좁은 칸, ID 입력과 검색어 입력은 남은 폭 칸 안에 있다(className 은 input 자체로 가므로 폭은 감싼 칸이 맡는다).
+    expect(must("rc-editor-tp").closest(".mcm-rc-editor__tp")).not.toBeNull();
+    expect(must("rc-editor-id").closest(".mcm-rc-editor__row > .mcm-rc-editor__grow")).not.toBeNull();
+    expect(must("rc-editor-keyword").closest(".mcm-rc-editor__row > .mcm-rc-editor__grow")).not.toBeNull();
+    expect(must("rc-editor-fill").closest("td")).not.toBeNull();
+  });
+
+  it("검색 결과 ComboBox 의 안쪽 입력 묶음이 남은 폭을 쓰고 바깥 상자 테두리는 없앤다(좁은 입력+빈 상자 두 겹 방지)", async () => {
+    const { RULE_CALC_CSS } = await import("./rule-calc-styles");
+    expect(RULE_CALC_CSS).toContain(".mcm-rc-editor .form-combobox > .mantine-Input-wrapper { flex: 1 1 auto; width: 100%; min-width: 0; }");
+    expect(RULE_CALC_CSS).toMatch(/\.mcm-rc-editor \.form-combobox \{[^}]*border: 0/);
+    expect(RULE_CALC_CSS).toMatch(/\.mcm-rc-editor \.form-combobox \.mantine-Select-dropdown \{ min-width:/);
+  });
 
   it("ID 가 비면 검사 오류를 알리고 [입력 칸 확인] 은 잠긴다", async () => {
     const { onValidate } = await renderEditor({ targetTp: "RULE", targetId: "", showSteps: false });
@@ -608,6 +780,65 @@ describe("편집기", () => {
     await act(async () => resolveIo(ruleIo()));
     expect((must("rc-editor-check") as HTMLButtonElement).disabled).toBe(false);
     expect(must("rc-editor-preview").textContent).toContain("입력 칸 3개");
+  });
+
+  describe("ID 검색", () => {
+    const rowsOf = () =>
+      normalizeSearch({
+        rows: [
+          { tp: "RULE", id: "M47C0001", name: "원판 중량", ver: "1.000", verStatus: "RELEASED" },
+          { tp: "SET", id: "M47_COAT_WT", name: "코팅중량 세트", ver: "1.000", verStatus: "RELEASED" },
+        ],
+      });
+
+    it("검색어로 룰·세트를 찾고(ALL), 골라 넣으면 종류·ID 를 채운다", async () => {
+      h.search.mockResolvedValue(rowsOf());
+      const { onChange } = await renderEditor({ targetTp: "RULE", targetId: "", showSteps: false });
+      await type("rc-editor-keyword", " 코팅 ");
+      await click("rc-editor-search");
+      await flush();
+      expect(h.search).toHaveBeenCalledWith("ALL", "코팅");
+      expect(must("rc-editor-results").textContent).toContain("코팅중량 세트 (M47_COAT_WT) · 룰 세트");
+      await type("rc-editor-pick", "SET:M47_COAT_WT");
+      expect(onChange).toHaveBeenLastCalledWith({ targetTp: "SET", targetId: "M47_COAT_WT", showSteps: false, fillMode: "auto" });
+    });
+
+    it("고른 대상이 결과에 없으면 선택으로 보이지 않고, 건수가 한도에 닿으면 좁히라고 안내한다", async () => {
+      h.search.mockResolvedValue(rowsOf());
+      await renderEditor({ targetTp: "RULE", targetId: "OTHER", showSteps: false });
+      await click("rc-editor-search");
+      await flush();
+      expect((must("rc-editor-pick") as HTMLSelectElement).value).toBe("");
+      expect(must("rc-editor-more").textContent).toContain("검색어를 좁히세요");
+    });
+
+    it("Enter 로도 찾고, 결과가 없으면 안내만 보인다", async () => {
+      h.search.mockResolvedValue([]);
+      await renderEditor({ targetTp: "RULE", targetId: "", showSteps: false });
+      await act(async () => {
+        must("rc-editor-keyword").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+      });
+      await flush();
+      expect(h.search).toHaveBeenCalledTimes(1);
+      expect(must("rc-editor-results").textContent).toContain("찾은 룰·룰 세트가 없습니다");
+      expect(q("rc-editor-pick")).toBeNull();
+    });
+
+    it("검색이 실패하면 오류 문구, 늦게 온 옛 검색 응답은 버린다", async () => {
+      let resolveOld!: (v: ReturnType<typeof rowsOf>) => void;
+      h.search.mockReturnValueOnce(new Promise((r) => (resolveOld = r)));
+      h.search.mockRejectedValueOnce(new Error("권한이 없습니다."));
+      await renderEditor({ targetTp: "RULE", targetId: "", showSteps: false });
+      await click("rc-editor-search");
+      // 찾는 중에는 단추가 잠기므로 두 번째 검색은 Enter 로 건다.
+      await act(async () => {
+        must("rc-editor-keyword").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+      });
+      await flush();
+      expect(must("rc-editor-search-error").textContent).toBe("권한이 없습니다.");
+      await act(async () => resolveOld(rowsOf()));
+      expect(q("rc-editor-results")).toBeNull();
+    });
   });
 
   it("미리보기가 실패하면 오류 문구, 확정 버전이 없으면 안내만", async () => {

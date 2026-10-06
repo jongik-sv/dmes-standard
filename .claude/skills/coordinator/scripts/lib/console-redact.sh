@@ -10,7 +10,7 @@
 #                           자른 뒤 64KB 넘는 줄이면 실패(71)하는 검사는 안전망으로 남아 있다(자른 뒤라 닿지 않는다).
 #                           그다음 여러 줄 가림(PEM·YAML 블록) → 줄 이음 → 가림 → 400자(코드포인트) 자름 → 다시 가림 → 마지막
 #                           40줄 → 합계 8192바이트(줄바꿈 포함) 초과분을 앞쪽 줄부터 버림 → 앞뒤 빈 줄 제거.
-#   console_screen_sha      stdin 의 sha256 hex(64자) 한 줄. openssl dgst -sha256 -r → shasum -a 256 → sha256sum 순. 없으면 종료 코드 1.
+#   console_screen_sha      stdin 의 sha256 hex(64자) 한 줄. openssl dgst -sha256 -r → sha256sum → shasum -a 256 순. 없으면 종료 코드 1.
 #   console_clean_prompt    stdin 프롬프트 본문 정리: 줄바꿈(CR·LF·U+2028·U+2029)·탭 → 공백 하나씩 → 나머지 제어 문자(C0·C1·DEL)와
 #                           보이지 않는 문자(아래) 제거(연속 공백은 접지 않는다) → 앞뒤 공백 제거. 종료 코드 0 정상(stdout 한 줄)
 #                           · 1 빔(Unicode 공백만 남은 것 포함) · 2 `!` 포함 · 3 2000자(코드포인트) 초과(원문이 32KB 를 넘거나
@@ -784,8 +784,8 @@ console_screen_filter() { _console_awk "$_CONSOLE_REDACT_AWK_SCREEN"; }
 console_screen_sha() {
   local _h
   if command -v openssl >/dev/null 2>&1; then _h="$(openssl dgst -sha256 -r 2>/dev/null)" || return 1   # openssl 우선(shasum 은 perl 이라 호출당 5배쯤 든다)
+  elif command -v sha256sum >/dev/null 2>&1; then _h="$(sha256sum 2>/dev/null)" || return 1   # GNU·Git Bash(shasum 은 perl 이라 뒤로)
   elif command -v shasum >/dev/null 2>&1; then _h="$(shasum -a 256 2>/dev/null)" || return 1
-  elif command -v sha256sum >/dev/null 2>&1; then _h="$(sha256sum 2>/dev/null)" || return 1
   else return 1
   fi
   _h="${_h%% *}"

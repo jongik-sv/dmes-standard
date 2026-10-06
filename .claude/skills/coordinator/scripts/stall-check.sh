@@ -14,6 +14,7 @@
 set -uo pipefail
 # shellcheck source=lib/common.sh
 . "$(dirname "$0")/lib/common.sh"
+. "$(dirname "$0")/lib/compat.sh"
 coord_default_repo
 
 case "${1:-}" in -h|--help) sed -n '2,13p' "$0" >&2; exit 0 ;; -*) coord_die 2 "사용법: stall-check.sh [레인…]" ;; esac
@@ -25,10 +26,13 @@ NOW="$(coord_now_epoch)"
 QUIET="$(coord_cfg .stall.quiet_min)"; case "$QUIET" in ""|*[!0-9]*) QUIET=20 ;; esac
 SNAP=""
 if HS="$(coord_heavy_script)"; then SNAP="$(bash "$HS" snapshot 2>/dev/null)"; fi
-if stat -f %m / >/dev/null 2>&1; then STATF="-f %m"; else STATF="-c %Y"; fi
+if [ "$COMPAT_GNU" = 1 ]; then STATF="-c %Y"; else STATF="-f %m"; fi   # GNU `stat -f %m` 은 `?` 와 rc 0 이라 GNU 판별을 먼저 한다(lib/compat.sh)
 
+# 누적 CPU 시간(ps -o time=)은 Git Bash 의 ps 에 없다 — 읽을 수 없으면 판정 2)를 할 수 없으므로 STALL 을 내지 않는다(OK 만, 관측 불가)
+CPU_OBS=1; [ "$COMPAT_WIN" = 1 ] && { CPU_OBS=0; coord_log "Git Bash: 프로세스 누적 CPU 시간을 읽을 수 없어 STALL 판정을 하지 않는다(OK 만 낸다)"; }
 # ps 한 번: pid ppid cpu초 args
-PS="$(ps -axo pid=,ppid=,time=,args= 2>/dev/null | awk '{
+PS=""
+[ "$CPU_OBS" = 1 ] && PS="$(ps -axo pid=,ppid=,time=,args= 2>/dev/null | awk '{
   t = $3; d = 0; if (index(t, "-")) { split(t, dd, "-"); d = dd[1]; t = dd[2] }
   n = split(t, p, ":"); s = 0; for (i = 1; i <= n; i++) s = s * 60 + p[i]; s += d * 86400
   a = $0; sub(/^ *[0-9]+ +[0-9]+ +[^ ]+ +/, "", a)
@@ -94,6 +98,7 @@ for L in $lanes; do
   case "$spid" in ""|*[!0-9]*) spid=0 ;; esac
   tf="$TICKS/stall-$L"
   if [ -z "$wt" ] || [ ! -d "$wt" ]; then coord_log "$L: 워크트리 없음 — 판정 생략"; echo "OK $L"; continue; fi
+  [ "$CPU_OBS" = 1 ] || { echo "OK $L"; continue; }
 
   tree="$(lane_tree "$wt" "$spid")"
   out="$(lane_output "$wt")"; sig="$(printf '%s' "$out" | cut -f1)"; latest="$(printf '%s' "$out" | cut -f2)"

@@ -8,7 +8,7 @@ import { QUERY_LOAD_ERROR } from "../_query/format";
 import { collectDataOf, shouldRunCollect, type CollectData } from "./format";
 
 /**
- * 정시 수집 위젯 데이터 — `widgetData/run(widgetId)`(수집 값·lastRun). refreshKey 가 바뀌거나 [다시 시도] 하면 다시 부른다.
+ * 자동 수집 위젯 데이터 — `widgetData/run(widgetId)`(수집 값·lastRun). refreshKey 가 바뀌거나 [다시 시도] 하면 다시 부른다.
  * 저장 전 정의(widgetId 없음·자리 표시 ID)는 서버를 부르지 않는다. 오류는 틀에 고정 문구로 알린다(서버 메시지는 보이지 않는다 — 쿼리 위젯과 같다).
  * 돌려주는 값이 null 이면 아직 결과가 없다(틀이 로딩 띠를 보인다).
  */

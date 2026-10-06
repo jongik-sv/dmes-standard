@@ -11,6 +11,7 @@
 set -uo pipefail
 . "$(dirname "$0")/lib/common.sh"
 . "$(dirname "$0")/lib/term.sh"
+. "$(dirname "$0")/lib/compat.sh"
 
 lane="" h="" force_report=0 dry=0
 while [ $# -gt 0 ]; do
@@ -57,7 +58,7 @@ fi
 # 1. 백그라운드 실행
 HEAVY_RE='GradleWrapperMain|gradlew|vitest|playwright (test|show-report)|/tsc( |$)|tsup|heavy\.sh|jest|npm (run|test|exec vite)'
 bg=()
-ps_all="$(ps -axo pid=,ppid=,command= 2>/dev/null)"
+ps_all="$(compat_ps_table)"   # pid ppid args(Git Bash 는 /proc)
 # (가) 세션 pid 의 자손 중 무거운 명령(mcp 서버는 뺀다)
 if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
   desc="$(printf '%s\n' "$ps_all" | awk -v root="$pid" '
@@ -78,7 +79,7 @@ if [ -n "$wt_check" ]; then
   while read -r hp hc; do
     [ -n "$hp" ] || continue
     printf '%s' "$hc" | grep -qi mcp && continue
-    cwd="$(lsof -a -p "$hp" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
+    cwd="$(compat_pid_cwd "$hp")"
     case "$cwd" in "$wt_check"|"$wt_check"/*) bg+=("pid=$hp cwd=$cwd ${hc:0:100}") ;; esac
   done < <(printf '%s\n' "$ps_all" | awk '{ $2 = ""; print }' | grep -E "$HEAVY_RE" | grep -v grep)
   # (다) heavy.sh snapshot 의 RUN cwd

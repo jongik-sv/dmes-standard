@@ -7,6 +7,7 @@
 set -uo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 SD="$here/../scripts"
+. "$SD/lib/compat.sh"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/office-test.XXXXXX")" && tmp="$(cd "$tmp" && pwd -P)"
 trap 'rm -rf "$tmp"' EXIT
 fail=0
@@ -285,11 +286,11 @@ eq "stop 시간 초과: 옛 키 기록 유지" "$(sent a1)" "$ka1"
 $OFF beat   # 새 키로 맞춰 둔다
 
 # --- 11c. 5초 제한 kill 은 손자까지 죽인다(리뷰 3) ---------------------------------------
-pkill -f 'sleep 47' 2>/dev/null
+compat_pkill_f '^sleep 47$'
 FAKE_MODE=slowsub $OFF lane-state a1 "대기" 2>/dev/null
 sleep 1
-eq "x=\$(sleep 47) 손자 프로세스가 고아로 남지 않는다" "$(pgrep -f 'sleep 47' | wc -l | tr -d ' ')" 0
-pkill -f 'sleep 47' 2>/dev/null
+eq "x=\$(sleep 47) 손자 프로세스가 고아로 남지 않는다" "$(compat_pgrep_f '^sleep 47$' | grep -c .)" 0
+compat_pkill_f '^sleep 47$'
 
 # --- 11d. API 4xx 거절은 그 건만 건너뛰고 나머지는 계속 보낸다(리뷰 4) ----------------------
 alive="$($CS get '[.lanes[] | select(.state != "closed")] | length')"

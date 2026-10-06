@@ -9,11 +9,12 @@
  * - 안내: messages(NO_RELEASED·INPUT_MISSING 등)를 문구로 보인다. 확정 버전이 없거나 대상이 없으면 입력 칸 없이 문구만 보인다.
  * 보드와 도크(업무 화면 도구 창) 양쪽에서 같은 렌더러를 쓰며, 입력 칸이 칸 너비에 맞춰 열 수를 바꾼다.
  */
-import { useId } from "react";
+import { useId, useState } from "react";
 import { Button, Input, Select } from "@dk-oasis/shared/form";
 import type { WidgetProps } from "@dk-oasis/shared/widget";
 
 import {
+  applyValues,
   blocksInput,
   displayValue,
   isNumericType,
@@ -29,10 +30,12 @@ import {
   type RuleCalcMessage,
   type RuleCalcRun,
 } from "./rule-calc-model";
+import { readScreenApply, type ScreenApply, type ScreenApplyResult } from "./screen-apply";
 import { RULE_CALC_CSS, RULE_CALC_STYLE_HREF } from "./rule-calc-styles";
 import { useRuleCalc } from "./use-rule-calc";
 
 const RUN_FAIL_MESSAGE = "계산하지 못했습니다";
+const NEED_ONE_MESSAGE = "값을 하나 이상 넣으세요";
 
 const BOOLEAN_OPTIONS = [
   { value: "true", label: "예" },
@@ -122,6 +125,43 @@ function Results({ io, run }: { io: RuleCalcIo; run: RuleCalcRun }) {
   );
 }
 
+/** [화면에 넣기] — 결과 원값을 활성 업무 화면 칸에 넣고 넣은 칸·건너뛴 칸을 짧게 알린다. 결과가 바뀌면(다른 run 객체) 이전 안내는 보이지 않는다. */
+function ApplyBar({ io, run, screenApply, label }: { io: RuleCalcIo; run: RuleCalcRun; screenApply: ScreenApply; label: string }) {
+  // 안내는 넣은 화면(screenApply 객체)별로 갖는다 — 활성 탭이 바뀌어 처리기가 교체되면 이전 탭에 넣은 안내가 새 탭에 남지 않는다.
+  // 결과가 바뀌면(다시 계산) 이 컴포넌트가 새로 마운트되므로 이전 안내는 거기서 사라진다.
+  const [state, setState] = useState<{ target: ScreenApply; pending: boolean; result?: ScreenApplyResult; error?: string } | null>(null);
+  const mine = state && state.target === screenApply ? state : null;
+  const nameOf = (n: string) => io.outputs.find((o) => o.name === n)?.label ?? n;
+  const values = applyValues(run, io);
+  const onClick = () => {
+    setState({ target: screenApply, pending: true });
+    screenApply.apply(values, { label }).then(
+      (result) => setState((prev) => (prev && prev.target === screenApply ? { target: screenApply, pending: false, result } : prev)),
+      (e: unknown) =>
+        setState((prev) =>
+          prev && prev.target === screenApply
+            ? { target: screenApply, pending: false, error: e instanceof Error && e.message ? e.message : "화면에 넣지 못했습니다." }
+            : prev
+        )
+    );
+  };
+  return (
+    <div className="mcm-rc__apply" data-testid="rc-apply">
+      <Button onClick={onClick} disabled={mine?.pending === true || Object.keys(values).length === 0} data-testid="rc-apply-btn">
+        화면에 넣기
+      </Button>
+      <span className="mcm-rc__fill-note" role={mine?.error ? "alert" : undefined} data-testid="rc-apply-note">
+        {mine?.error ??
+          (mine?.result
+            ? `${mine.result.applied.length > 0 ? `${mine.result.applied.length}칸에 넣었습니다` : "넣을 수 있는 칸이 없었습니다"}${
+                mine.result.skipped.length > 0 ? ` · 넣지 못함: ${mine.result.skipped.map(nameOf).join(", ")}` : ""
+              }`
+            : "")}
+      </span>
+    </div>
+  );
+}
+
 function ResultRow({ label, unit, text, testId }: { label: string; unit: string | null; text: string; testId: string }) {
   return (
     <>
@@ -163,9 +203,11 @@ function Steps({ io, run }: { io: RuleCalcIo; run: RuleCalcRun }) {
   );
 }
 
-export default function RuleCalcRenderer({ definition, refreshKey, screenContext }: WidgetProps) {
+export default function RuleCalcRenderer(props: WidgetProps) {
+  const { definition, refreshKey, screenContext } = props;
+  const screenApply = readScreenApply(props);
   const cfg = readRuleCalcConfig(definition);
-  const { ioState, draft, errors, runState, setValue, run, available, filled, fillFromScreen } = useRuleCalc(
+  const { ioState, draft, errors, runState, setValue, run, allBlank, available, filled, fillFromScreen } = useRuleCalc(
     cfg.targetTp,
     cfg.targetId,
     refreshKey,
@@ -249,13 +291,18 @@ export default function RuleCalcRenderer({ definition, refreshKey, screenContext
           </div>
         )}
         <div className="mcm-rc__actions">
-          <Button type="submit" variant="primary" disabled={running} data-testid="rc-run">
+          <Button type="submit" variant="primary" disabled={running || allBlank} data-testid="rc-run">
             {running ? "계산 중…" : "계산"}
           </Button>
           {cfg.fillMode === "button" && (
             <Button onClick={fillFromScreen} disabled={!available} data-testid="rc-fill">
               화면 값 넣기
             </Button>
+          )}
+          {allBlank && (
+            <span className="mcm-rc__fill-note" role="status" data-testid="rc-need-one">
+              {NEED_ONE_MESSAGE}
+            </span>
           )}
           {filled.length > 0 && (
             <span className="mcm-rc__fill-note" data-testid="rc-fill-note">
@@ -277,6 +324,7 @@ export default function RuleCalcRenderer({ definition, refreshKey, screenContext
               </div>
             )}
             {done.ok && <Results io={io} run={done} />}
+            {done.ok && screenApply && <ApplyBar io={io} run={done} screenApply={screenApply} label={io.target.name || cfg.targetId} />}
             {done.ok && showSteps && <Steps io={io} run={done} />}
           </div>
         )}

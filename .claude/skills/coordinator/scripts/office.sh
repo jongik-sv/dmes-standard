@@ -29,6 +29,7 @@ trap 'exit "${OFFICE_RC:-0}"' EXIT
 set -uo pipefail
 _SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.   # dirname 대신(프로세스 0개)
 . "$_SD/lib/common.sh"
+. "$_SD/lib/compat.sh"
 coord_default_repo
 
 OFFICE_TIMEOUT_S=5
@@ -113,7 +114,7 @@ on_exit() {  # 폴러의 kill_tree 는 TERM 0.3초 뒤 KILL 하므로 잠금·�
   [ -n "$HELD_LOCK" ] && coord_unlock "$HELD_LOCK"
   rm -rf "$TMPD"
   [ -n "$DFL_WD" ] && { kill "$DFL_WD" 2>/dev/null; }   # 감시자의 TERM trap 이 자기 sleep 을 죽인다
-  if [ -n "$DFL_PID" ]; then for p in $(descendants "$DFL_PID") "$DFL_PID"; do kill -TERM "$p" 2>/dev/null; done; fi
+  if [ -n "$DFL_PID" ]; then for p in $(compat_descendants "$DFL_PID") "$DFL_PID"; do kill -TERM "$p" 2>/dev/null; done; fi
   exit "${OFFICE_RC:-0}"
 }
 trap on_exit EXIT
@@ -122,15 +123,6 @@ trap 'exit' TERM INT HUP
 # ---- dflow.sh 호출(5초 제한, timeout 명령 없이) ----------------------------------
 # 반환: 0 성공 · 124 시간 초과 · 그 밖 dflow.sh 종료 코드. 출력은 $TMPD/out 에 둔다(파이프를 쓰면 남은 자식이 붙잡는다).
 ABORT=0   # 1 이면 이번 호출의 남은 전송을 건너뛴다(시간 초과·설정 없음·네트워크 오류·인증 거절)
-# pid 와 모든 후손(재귀). `x=$(sleep 47)` 처럼 서브셸 아래 손자도 포함한다.
-descendants() { local c; for c in $(pgrep -P "$1" 2>/dev/null); do descendants "$c"; echo "$c"; done; }
-kill_tree() {  # kill_tree <pid> — 후손부터 TERM, 잠깐 뒤 남은 것은 KILL
-  local all p; all="$(descendants "$1"; echo "$1")"
-  for p in $all; do kill -TERM "$p" 2>/dev/null; done
-  sleep 0.3
-  for p in $all; do kill -0 "$p" 2>/dev/null && kill -KILL "$p" 2>/dev/null; done
-  return 0
-}
 dfl() {
   local pid wd rc
   : > "$TMPD/out"; : > "$TMPD/err"; [ ! -f "$TMPD/timeout" ] || rm -f "$TMPD/timeout"
@@ -142,7 +134,7 @@ dfl() {
     wait "$sp" 2>/dev/null || exit 0       # sleep 이 중간에 죽었으면(명령이 먼저 끝나 정리됨) 시간 초과가 아니다
     kill -0 "$pid" 2>/dev/null || exit 0   # 막 끝난 명령(또는 pid 재사용)은 건드리지 않는다
     trap '' TERM                           # 정리(TERM → 0.3초 → KILL)를 끝까지 한다
-    : > "$TMPD/timeout"; kill_tree "$pid" ) >/dev/null 2>&1 &
+    : > "$TMPD/timeout"; compat_kill_tree "$pid" ) >/dev/null 2>&1 &
   wd=$!; DFL_WD="$wd"
   wait "$pid" 2>/dev/null; rc=$?
   kill "$wd" 2>/dev/null; wait "$wd" 2>/dev/null
@@ -262,12 +254,7 @@ def run_sum($inp; $now; $qmin; $xr; $xl; $red): . as $r | (input_filename | spli
                     load_adjust: ((.load.hard_ticks // 0) | if type == "number" then floor else 0 end),
                     banned: (((.load.banned // []) | if type == "array" or type == "object" then length else 0 end) > 0)},
          alive: {last_tick_at: (.run.last_tick_at | isotz)}}};'
-sha256() {  # openssl 우선(shasum 은 perl 이라 호출당 5배쯤 든다) → shasum → sha256sum. 소문자 hex 64자 한 줄
-  local h
-  if command -v openssl >/dev/null 2>&1; then h="$(openssl dgst -sha256 -r 2>/dev/null)"; printf '%s\n' "${h%% *}"
-  elif command -v shasum >/dev/null 2>&1; then shasum -a 256 | cut -d' ' -f1
-  else sha256sum | cut -d' ' -f1; fi
-}
+sha256() { compat_sha256; }   # openssl → sha256sum → shasum → node. 소문자 hex 64자 한 줄(lib/compat.sh)
 # 레인 입력 요청 기록이 그 회차·그 레인 세션의 것인지: 기록의 run 이 <run-id> 이고 handle 이 그 회차 state 의
 # lanes.<레인>.session.handle 과 같으면(둘 다 비지 않음) 0. 같은 PC 의 다른 조정 세션이 같은 레인 이름을 써도 섞이지 않게 한다.
 # 인자: <기록 파일> <run-id> <레인>. run·handle 이 없는 옛 기록은 쓰지 않는다(폴러가 다음 주기에 다시 쓴다).

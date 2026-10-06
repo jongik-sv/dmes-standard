@@ -295,6 +295,8 @@ shared `Modal` 의 `lg`·`xl` 은 최소 높이(70·80vh)만 있고 고정 높�
 - 여러 줄 내용은 FormGroup 에 높이 고정을 푸는 클래스를 주고, 그 클래스에서 `height: auto; min-height: 26px`, 라벨 `height: auto`, 칸 안 입력칸 테두리 복원을 함께 정한다. 예시: `m-mcm/widget-types/_ext/styles.ts` 의 `.mcm-fg-block`.
 - 칸 안 그리드·목록은 `flex: 1 1 auto; min-width: 0` 를 줘야 폭을 얻는다. 주지 않으면 `auto-fill` 그리드가 한 열로 접힌다.
 - 확인은 브라우저에서 한다: 값 칸의 `scrollHeight > clientHeight` 이면 넘친 것이다.
+- **위젯 유형 편집기(`widget-types/*/editor.tsx`)는 위 공통 칸과 같은 표(`DETAIL_TABLE_STYLE`·`DETAIL_LABEL_CELL`·`DETAIL_VALUE_CELL` + `MdmFieldLabel`)로 그린다.** FormGroup 으로 그리면 라벨이 회색 둥근 박스로 뜨고 값 칸이 26px 로 눌려 입력 테두리가 잘린다(룰 계산기 편집기, 2026-10-07). 한 줄에 선택+입력, 입력+단추를 둘 때 `Input`·`Select` 의 `className` 은 바깥 Mantine 래퍼가 아니라 input 요소로 가므로 폭이 안 늘어난다. 감싸는 `div` 에 `flex: 1 1 auto; min-width: 0`(남은 폭) 또는 고정 `flex-basis`(종류 선택)를 준다. 예시: `m-mcm/widget-types/rule-calc/editor.tsx`.
+- **shared `ComboBox` 는 바깥 상자(`.form-combobox`, 테두리·폭 100%) 안에 Mantine 입력 묶음(`.mantine-Input-wrapper`)이 내용 폭만 차지한다.** 한 줄 행에 넣으면 입력이 좁고 빈 바깥 상자가 행 끝까지 이어져 테두리가 두 겹으로 보이고, 펼친 목록(입력 폭)도 좁아 항목이 접힌다(룰 계산기 편집기 검색 결과, 2026-10-07). 화면 쪽 스타일에서 `.form-combobox` 테두리를 없애고 `> .mantine-Input-wrapper { flex: 1 1 auto; width: 100%; min-width: 0 }`, 목록은 `.mantine-Select-dropdown { min-width }`·옵션 한 줄 말줄임으로 맞춘다(shared 는 그대로). 예시: `m-mcm/widget-types/rule-calc/rule-calc-styles.ts`.
 
 ## 27. MDM 캡션·툴팁·값 검증 — 컬럼 사전을 화면이 따른다 (2026-10-03)
 
@@ -450,3 +452,7 @@ AgDataGrid 는 사용자별로 컬럼 순서·너비·표시·고정·정렬을 
 - 값은 JSON 으로 옮길 수 있어야 한다. `Date` 는 문자열로 두고 `Set`·`Map`·`dayjs` 는 쓰지 않는다. key 는 화면 안에서 유일하게 둔다. setter 는 `useCallback`·`useEffect` deps 에 넣는다.
 - 성능 가이드 [R8](Screen-Performance-Guide.md) 과 어긋나지 않는다. 이 훅은 분리 순간에만 값을 모으고 `onSnapshotChange`·탭 저장소를 쓰지 않아 렌더가 늘지 않으므로 R8 대상이 아니다. 탭 복귀 때 되살릴 값은 여전히 snapshot 으로 둔다.
 - 사용법·전달 경로·한계·견본(masterCodeMngList)은 스킬 문서 [use-carry-state.md](../../../.claude/skills/mantine-aggrid-ui/references/components/use-carry-state.md) 가 정본이다.
+
+## 41. 도움말 마크다운 — 범위는 하이픈으로 쓴다 (2026-10-07)
+
+- 도움말 마크다운에서 범위는 하이픈(`1-20`)으로 쓴다. 물결표 하나가 두 번 나오면 GFM 이 그 사이 글을 취소선으로 그린다.  화면 메시지를 그대로 인용하는 문구의 물결표만 `\~` 로 이스케이프한다. 시험(widget-guide-sync.test.ts)이 위젯 도움말 두 문서의 물결표 하나를 막는다.

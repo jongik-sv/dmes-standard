@@ -158,7 +158,7 @@
 
 모든 스크립트는 `scripts/` 아래, `#!/usr/bin/env bash`, `set -uo pipefail`, 첫 줄 아래에 사용법 주석. 공통 함수는
 `scripts/lib/common.sh`(설정·회차·시각·잠금·로그), 터미널은 `scripts/lib/term.sh`(어댑터) 에서만 부른다.
-macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과는 **stdout**, 사람용 설명·경고는 **stderr**.
+macOS(BSD `date`·`stat`) 와 GNU(Git Bash 포함) 양쪽에서 돈다. 기계가 읽는 결과는 **stdout**, 사람용 설명·경고는 **stderr**.
 보내기·닫기 같은 부작용이 있는 스크립트는 모두 `--dry-run`(하려던 명령을 stderr 에 `DRY` 로 찍고 실제로 하지 않음)을 받는다. dry-run 의 성공 줄은 보냈다면 나왔을 줄 앞에 `DRY ` 를 붙인다(`DRY SENT <h> -`, `DRY SPAWNED … handle=-`). 거부 판정 줄은 원래 형식 그대로다. 값을 모르는 칸은 `-` 로 낸다(`for=-m`, `ctx=-%`, `heavy=-/-/-`).
 비밀값(토큰·키)은 어떤 출력·로그·이벤트에도 남기지 않는다.
 
@@ -224,7 +224,7 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 
 | 스크립트 | 인자 | stdout |
 |---|---|---|
-| `term-send-safe.sh` | `--handle <h>` \| `--lane <레인>`, `--text <글>` \| `--text-file <f>`, `[--timeout-ms 300000] [--raw [--expect-sha <sha>]] [--allow-busy]` | `SENT <h> <turn_started|submitted|accepted>` 또는 `REFUSED <h> <stale|not-idle|interrupt-visible|prompt-open|compacting|bang-in-text|draft-in-input|no-prompt|lane-busy|prompt-changed>`. `--raw` 는 확인 창 응답(`1`·`2`)용: tui-idle 검사 없이 확인 창이 보일 때만 보낸다. `--raw` 에 `--lane <레인>` 을 주면 핸들 찾기에 더해 폴러·auto-answer 와 같은 레인 잠금(§4.1)을 쥐고(못 얻으면 `lane-busy`, 막 보낸 같은 창이면 `prompt-changed`) 보낸 뒤 보낸 표식을 남기고, `--expect-sha <sha>`(`console-poll.sh judge-sha` 의 창 지문 — 가리기 전 원문 창의 sha, §4.1 `full`)를 주면 잠금 안에서 다시 읽은 화면의 값이 다르거나 지문이 없을 때 `prompt-changed` 로 보내지 않는다. **`--expect-sha` 는 `--lane` 필수**(없으면 사용법 오류 종료 코드 2 — 잠금 없이 보내지 않는다). `--lane` 을 주면 화면을 41줄 읽고, `SENT` 직후 잠금 안에서 같은 창 기록에만 처리됨·소비를 남긴다. `--allow-busy` 는 작업 중 세션에도 넣는다(Claude Code 가 작업 중 입력을 다음 차례로 받아 둔다): tui-idle 대기와 `esc to interrupt` 거절(`not-idle`·`interrupt-visible`)을 건너뛰고, `stale`·`bang-in-text`·`prompt-open`·`compacting`·`draft-in-input` 판정은 그대로 한다. 옵션이 없을 때의 동작·출력은 불변이다 |
+| `term-send-safe.sh` | `--handle <h>` \| `--lane <레인>`, `--text <글>` \| `--text-file <f>`, `[--timeout-ms 300000] [--raw [--expect-sha <sha>]] [--allow-busy] [--over-draft]` | `SENT <h> <turn_started|submitted|accepted>` 또는 `REFUSED <h> <stale|not-idle|interrupt-visible|prompt-open|compacting|bang-in-text|draft-in-input|no-prompt|lane-busy|prompt-changed>`. `--raw` 는 확인 창 응답(`1`·`2`)용: tui-idle 검사 없이 확인 창이 보일 때만 보낸다. `--raw` 에 `--lane <레인>` 을 주면 핸들 찾기에 더해 폴러·auto-answer 와 같은 레인 잠금(§4.1)을 쥐고(못 얻으면 `lane-busy`, 막 보낸 같은 창이면 `prompt-changed`) 보낸 뒤 보낸 표식을 남기고, `--expect-sha <sha>`(`console-poll.sh judge-sha` 의 창 지문 — 가리기 전 원문 창의 sha, §4.1 `full`)를 주면 잠금 안에서 다시 읽은 화면의 값이 다르거나 지문이 없을 때 `prompt-changed` 로 보내지 않는다. **`--expect-sha` 는 `--lane` 필수**(없으면 사용법 오류 종료 코드 2 — 잠금 없이 보내지 않는다). `--lane` 을 주면 화면을 41줄 읽고, `SENT` 직후 잠금 안에서 같은 창 기록에만 처리됨·소비를 남긴다. `--allow-busy` 는 작업 중 세션에도 넣는다(Claude Code 가 작업 중 입력을 다음 차례로 받아 둔다): tui-idle 대기와 `esc to interrupt` 거절(`not-idle`·`interrupt-visible`)을 건너뛰고, `stale`·`bang-in-text`·`prompt-open`·`compacting`·`draft-in-input` 판정은 그대로 한다. 옵션이 없을 때의 동작·출력은 불변이다 |
 | `compact-lane.sh` | `<레인> [--force-no-memo]` | `COMPACT_REFUSED <레인> <merge-in-flight|measure-lane|no-memo|cooldown|unsupported-kind|no-handle|term-send-safe 거부 사유>` · `COMPACT_DONE <레인> before=<n> after=<n>` · `COMPACT_TIMEOUT <레인>` |
 | `spawn-lane.sh` | `--name <n> --kind <claude|glm|opencode> [--worktree <경로|선택자>] [--model m] [--effort e] [--autocompact t] [--prompt-file f]` | `SPAWNED <n> handle=<h> pid=<pid|-> session_id=<id|->` 또는 `SPAWN_FAIL <n> <wait|process|screen|preflight|glm-cap> <사유>`. glm 은 preflight 실패 시 `SPAWN_FAIL … preflight` (대체 여부는 조정자가 정한다) |
 | `close-lane.sh` | `<레인>` \| `--handle <h>` | `CLOSED <레인> handle=<h>` 또는 `CLOSE_REFUSED <레인> <bg-running|worktree-left|branch-left|not-reported>` (worktree·branch 는 경고만, `--force-report` 로 통과) |
@@ -233,6 +233,13 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 | `statusline-dump.sh` | stdin = statusLine JSON | `<state_dir>/ctx/<session_id>.json` 에 `{at,session_id,context_window,rate_limits}` 저장 뒤 `COORD_STATUSLINE_NEXT` 명령이 있으면 같은 stdin 으로 실행해 그 출력을 그대로 낸다 |
 | `console-poll.sh` | `[--once] [--dry-run]` \| `start` \| `stop` \| `status` \| `input-handled (--lane <레인> \| --lead <세션8>) --by <coordinator\|auto>` \| `judge-sha --lane <레인>` | 정본 §4.1. `judge-sha` → `JUDGE <h> <kind> <창 지문(가리기 전 원문 창의 sha)>`·`NONE <h>`·`STALE <h>`·`NOFP <h>`(창 머리를 못 찾아 지문 없음 — 직접 보내지 않는다). `start` → `CONSOLE_POLLER started pid=<pid>`·`CONSOLE_POLLER running pid=<pid>`·`CONSOLE_POLLER skipped <사유>`, `stop` → `CONSOLE_POLLER stopped`·`CONSOLE_POLLER none`, `status` → `CONSOLE_POLLER up pid=<pid> since=<iso> cycle=<초>`·`CONSOLE_POLLER down`. 본문 루프는 stdout 에 아무것도 쓰지 않고 로그를 `~/.dflow/console/poller-<신원>.log` 에 남긴다 |
 | `office.sh` | `lead-up` \| `lead-sync` \| `lane-up <레인>` \| `lane-state <레인> <작업 중\|대기\|머지 중\|답 대기\|끝\|auto>` \| `lane-down <레인>` \| `beat` \| `finish` \| `reap [--state-dir <경로>]` | 없음(늘 종료 코드 0, 사용법 오류만 2). 경고는 stderr 한 줄. 정본 §4. `lead-sync` 는 이 세션의 팀장 칸(라벨·자리 요약)을 다시 보낸다(폴러가 입력 요청 기록을 바꾼 직후). `reap` 은 현재 회차 없이 돌고 상태 뿌리를 `--state-dir` → `COORD_STATE_ROOT` → 설정 `state_dir` 순으로 정한다 |
+
+### 지원 환경: macOS · Git Bash(윈도우)
+
+- 필요 도구: bash 3.2+, git, curl, **jq**, openssl 또는 sha256sum, orca CLI, node(드문 경로 — 변이 검증·포트 폴백)·python3(선택). Git Bash 에는 jq·node·orca 가 기본 제공이 아니다(설치 필요).
+- 플랫폼 차이(stat·date·프로세스 표·후손 종료·pgrep/pkill·cwd·sha256)는 `scripts/lib/compat.sh` 한 곳에 모은다. Git Bash 는 `ps -o`·`pgrep`·`lsof` 가 없어 `/proc/<pid>/{ppid,cmdline,cwd}` 를 읽는다.
+- **작성 규칙**: 스크립트에 macOS 전용 명령·옵션(`ps -axo`·`pgrep`·`pkill`·`lsof`·`stat -f`·`date -r/-j/-v`·`sed -i ''`·`shasum`)을 직접 쓰지 않고 perl 을 쓰지 않는다. `BSD || GNU` 사슬은 GNU 를 앞에 둔다(GNU `stat -f` 는 `?` 와 rc 0). 정본·도구 표·한계: `../../_shared/platform-support.md`.
+- 윈도우에서 얻을 수 없는 값(프로세스 누적 CPU·시작 시각·부하)은 「관측 불가」로 열어 둔다: `stall-check.sh` 는 STALL 을 내지 않는다.
 
 ## 4. 에이전트 오피스 표시 계약
 
