@@ -1,24 +1,14 @@
 /**
- * 화면에 넣기(역방향) 계약의 위젯 쪽 모양 — screen-context 레인 D5 가 shared 의 WidgetProps.screenApply 로 만들면 그 타입으로 바꾼다.
- * 그때까지 위젯 폴더 안의 로컬 타입으로 두고, 렌더러는 props 에서 이 모양을 읽는다(없거나 null 이면 단추를 숨긴다).
+ * 화면에 넣기(역방향) — 위젯 props 의 screenApply 읽기. 계약 타입은 shared screen-context(`ScreenApply`)가 정본이다.
+ * 도크의 업무 화면이 받는 처리기를 등록했을 때만 available 이고, 보드(위젯 화면)에서는 null 이다.
+ * 타입만 가져오므로 런타임에 shared 를 부르지 않는다.
  */
-export interface ScreenApplyResult {
-  /** 화면 칸에 넣은 항목 이름. */
-  applied: string[];
-  /** 화면에 맞는 칸이 없거나 넣을 수 없어 건너뛴 항목 이름. */
-  skipped: string[];
-}
+import type { ScreenApply, ScreenApplyResult } from "@dk-oasis/shared/screen-context";
 
-export interface ScreenApply {
-  /** 활성 업무 화면이 받을 수 있는 상태인지. false 면 단추를 보이지 않는다. */
-  available: boolean;
-  apply(values: Record<string, string>, opts?: { label?: string }): Promise<ScreenApplyResult>;
-}
+export type { ScreenApply, ScreenApplyResult };
 
-/** WidgetProps 에서 screenApply 를 읽는다(shared 타입이 오기 전이라 느슨하게 읽는다). 모양이 틀리면 null. */
-export function readScreenApply(props: object): ScreenApply | null {
-  const v = (props as { screenApply?: unknown }).screenApply;
-  if (v === null || typeof v !== "object") return null;
-  const r = v as { available?: unknown; apply?: unknown };
-  return typeof r.apply === "function" && r.available === true ? (v as ScreenApply) : null;
+/** props 의 screenApply 가 쓸 수 있는 상태(함수가 있고 available===true)일 때만 돌려주고, 그 밖은 null 이라 단추를 숨긴다. */
+export function readScreenApply(props: { screenApply?: ScreenApply | null }): ScreenApply | null {
+  const v = props.screenApply;
+  return v && typeof v.apply === "function" && v.available === true ? v : null;
 }

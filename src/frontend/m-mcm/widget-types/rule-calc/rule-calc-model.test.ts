@@ -198,6 +198,10 @@ describe("applyValues", () => {
   it("원값 글자 그대로(소수·쉼표 서식 없이), 목록은 쉼표로 잇고, 빈 값은 뺀다", () => {
     expect(applyValues({ result: { A: "12345.675", B: ["1.20", "3"], C: "", D: " " } })).toEqual({ A: "12345.675", B: "1.20, 3" });
   });
+  it("숫자 출력의 과학 표기만 풀고 문자 출력·타입을 모르는 값은 그대로 둔다", () => {
+    const io = { outputs: [{ name: "N", label: "n", dataType: "NUMBER", scale: 2, unit: null }, { name: "S", label: "s", dataType: "STRING", scale: null, unit: null }] };
+    expect(applyValues({ result: { N: "1.25E+3", S: "1E+3", X: "1E+3" } }, io)).toEqual({ N: "1250", S: "1E+3", X: "1E+3" });
+  });
 });
 
 describe("readScreenApply", () => {
@@ -205,7 +209,7 @@ describe("readScreenApply", () => {
     const apply = () => Promise.resolve({ applied: [], skipped: [] });
     expect(readScreenApply({ screenApply: { available: true, apply } })).not.toBeNull();
     expect(readScreenApply({ screenApply: { available: false, apply } })).toBeNull();
-    expect(readScreenApply({ screenApply: { available: true } })).toBeNull();
+    expect(readScreenApply({ screenApply: { available: true } as never })).toBeNull();
     expect(readScreenApply({ screenApply: null })).toBeNull();
     expect(readScreenApply({})).toBeNull();
   });

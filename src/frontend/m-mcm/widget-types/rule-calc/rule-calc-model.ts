@@ -438,13 +438,16 @@ export function searchRowValue(row: Pick<RuleCalcSearchRow, "tp" | "id">): strin
 // ───────────────────────── 화면에 넣기 ─────────────────────────
 
 /**
- * 계산 결과를 업무 화면에 넣을 값으로 — 이름 → 표시 전 원값 글자(소수 자리·쉼표를 입히지 않는다). 목록 결과는 쉼표로 이어 한 칸에 넣고,
+ * 계산 결과를 업무 화면에 넣을 값으로 — 이름 → 표시 전 원값 글자(소수 자리·쉼표를 입히지 않는다. 숫자 출력의 과학 표기만 일반 소수 글자로 푼다). 목록 결과는 쉼표로 이어 한 칸에 넣고,
  * 비어 있는 값은 뺀다(화면 칸을 빈 값으로 지우지 않는다).
  */
-export function applyValues(run: Pick<RuleCalcRun, "result">): Record<string, string> {
+export function applyValues(run: Pick<RuleCalcRun, "result">, io?: Pick<RuleCalcIo, "outputs"> | null): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [name, v] of Object.entries(run.result)) {
-    const text = (Array.isArray(v) ? v.join(", ") : v).trim();
+    // 숫자 출력의 과학 표기는 화면 칸이 못 읽을 수 있어 일반 소수 글자로 푼다(값은 그대로, 반올림 없음).
+    const numeric = isNumericType(io?.outputs.find((o) => o.name === name)?.dataType ?? "");
+    const one = (t: string) => (numeric ? expandExponent(t) : t);
+    const text = (Array.isArray(v) ? v.map(one).join(", ") : one(v)).trim();
     if (text !== "") out[name] = text;
   }
   return out;

@@ -129,7 +129,7 @@ function ApplyBar({ io, run, screenApply, label }: { io: RuleCalcIo; run: RuleCa
   const [state, setState] = useState<{ run: RuleCalcRun; pending: boolean; result?: ScreenApplyResult; error?: string } | null>(null);
   const mine = state && state.run === run ? state : null;
   const nameOf = (n: string) => io.outputs.find((o) => o.name === n)?.label ?? n;
-  const values = applyValues(run);
+  const values = applyValues(run, io);
   const onClick = () => {
     setState({ run, pending: true });
     screenApply.apply(values, { label }).then(
