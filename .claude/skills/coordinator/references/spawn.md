@@ -68,7 +68,7 @@
 2. 세션 json 에서 `name == <레인 이름>` 인 항목이 생기고 pid 가 살아 있는지(`process`). 없으면 화면을 읽어 원인(업데이트 중 Permission denied, 폴더 신뢰 확인 창 등)을 본다(`screen`). 빈 셸이면 `terminal close` 뒤 다시 띄운다.
 3. 첫 지시 제출 증거: `send --wait-submit` 결과의 `turn_started`.
 4. 첫 화면의 폴더 신뢰 확인은 `spawn-lane.sh` 가 기동 대기 중에 `auto-answer.sh` 로 자동 처리한다(리포 안 폴더만 Yes).
-5. 띄운 직후 조정자는 그 세션에 `Monitor` 로 `scripts/prompt-watch.sh <레인> --follow 1200` 을 붙인다. 감지하면 `auto-answer.sh --lane <레인>` 을 돌린다(`approvals.md` §5). 권한 창은 약 1분 뒤 자동 거부되므로 틱만으로는 늦다.
+5. 띄운 직후 조정자는 그 세션에 `Monitor` 로 `scripts/prompt-watch.sh <레인> --follow 1200` 을 붙인다(간격 기본 10초). 레인이 여럿이면 레인마다 따로 붙이지 말고 `scripts/prompt-watch.sh --lanes a,b,c --follow 1200` 한 프로세스로 합친다(읽기마다 `orca terminal read` 가 CPU 를 쓴다). 감지하면 `auto-answer.sh --lane <레인>` 을 돌린다(`approvals.md` §5). 권한 창은 약 1분 뒤 자동 거부되므로 틱만으로는 늦다.
 
 신원 연결(감시·compact 의 전제):
 
