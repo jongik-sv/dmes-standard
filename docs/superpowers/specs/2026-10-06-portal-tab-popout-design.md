@@ -87,7 +87,7 @@ shared 에 새 모듈 `portal-shell/popout.ts` 를 둔다.
 
 ```ts
 export interface PortalPopoutHandoff { pageId: string; snapshot: unknown; createdAt: number }
-/** 반환: 열린 창(성공) 또는 null(팝업 차단). 동기 함수 — 클릭 처리기 안에서 await 없이 부른다. */
+/** 반환: 열린 창(성공) 또는 null(팝업 차단 전용). 그 밖의 실패는 예외로 전파한다. 동기 함수 — 클릭 처리기 안에서 await 없이 부른다. */
 export function openPagePopout(args: {
   pageId: string;
   snapshot: unknown;
@@ -99,12 +99,14 @@ export function takePopoutHandoff(token: string): PortalPopoutHandoff | null;
 
 처리 순서:
 1. 남은 옛 handoff 키(만든 지 10분 넘은 `oasis.portal.popout.*`)를 지운다.
-2. token(`crypto.randomUUID()`)을 만들고 `oasis.portal.popout.{token}` 에 `{pageId, snapshot, createdAt}` 를 `writeSecureJson` 으로 쓴다.
-3. `window.open(buildUrl(pageId, token), "dmes-popout-" + token, features)` 를 동기로 부른다. 창 이름을 매번 다르게 해서 같은 화면을 두 창으로 띄울 수 있게 한다. features 는 `popup,width,height,left,top` 이며 크기는 지금 포털 창 크기, 위치는 포털 창에서 40px 비켜 둔다. `noopener` 는 넣지 않는다. 넣으면 반환값이 늘 null 이라 차단과 구분할 수 없다.
-4. 반환값이 null 이면 handoff 키를 지우고 null 을 돌려준다.
+2. token(`createRandomId()` — `crypto.randomUUID` 가 없는 비보안 문맥에서도 되는 대체 포함)을 만들고, `buildUrl(pageId, token)` 과 features 를 handoff 를 쓰기 전에 만든다(여기서 던지면 남는 것이 없고 예외는 그대로 전파한다). features 는 `popup,width,height,left,top` 이며 크기는 지금 포털 창 크기, 위치는 포털 창에서 40px 비켜 둔다.
+3. `oasis.portal.popout.{token}` 에 `{pageId, snapshot, createdAt}` 를 `writeSecureJson` 으로 쓴다. 쓰기가 실패(Quota 등)하면 `console.warn` 만 남기고 handoff 없이 계속한다(상태 넘김은 best-effort, 새 창은 빈 상태로 정상 표시).
+4. `window.open(url, "dmes-popout-" + token, features)` 를 동기로 부른다. 창 이름을 매번 다르게 해서 같은 화면을 두 창으로 띄울 수 있게 한다. `noopener` 는 넣지 않는다. 넣으면 반환값이 늘 null 이라 차단과 구분할 수 없다. `window.open` 이 던지면 handoff 키를 지우고 예외를 다시 던진다.
+5. 반환값이 null 이면 handoff 키를 지우고 null 을 돌려준다.
 
 `PortalShell` 의 `onPopoutTab` 처리:
 - 열기에 성공하면 원래 탭을 닫는다(`closeTab`). 연 창의 참조를 셸이 들고 있다가 로그아웃 때 닫는다(5.7).
+- 예외(null 이 아닌 실패)면 `console.error` 후 `popout.onError?.(err)` 를 부르고 탭은 닫지 않는다. m-mcm 은 `gfn_message` 로 "새 창을 열지 못했습니다. 다시 시도해 주세요." 를 띄운다.
 - null 이면 탭을 두고 `popout.onBlocked()` 를 부른다. m-mcm 은 여기서 `gfn_message` 경고 창으로 "팝업이 차단되어 새 창을 열지 못했습니다. 브라우저 주소창의 팝업 차단을 이 사이트에 대해 허용한 뒤 다시 시도해 주세요." 를 띄운다. 셸이 `useGfnMessage` 를 직접 쓰지 않는 이유는 MessageProvider 없이 셸을 그리는 시험·사용처에서 그 훅이 예외를 던지기 때문이다.
 - 탭 동작 실행은 TabsBar 의 클릭 처리기에서 동기로 이어진다. 중간에 await 를 넣지 않는다.
 
@@ -205,3 +207,4 @@ shared 단위 시험(vitest, jsdom):
 | D5 | 히스토리 state 에 탭 id 를 싣고 pageId 는 대체 키로 둔다 | 중복 탭 사이 뒤로가기 구분, 옛 기록 호환 |
 | D6 | `/popup` 경로는 첫 칸을 moduleId 로 재정의하고 인증 layout 을 둔다 | 기존 경로는 mpp 고정·호출처 0건·인증 없음 |
 | D7 | 분리 창 snapshot 의 sessionStorage 키를 `oasis.portal.popoutSnap.{token}` 으로 정한다(설계 5.4 초안의 `oasis.portal.popout.snap.{token}` 에서 변경) | 구현 계획(Global Constraints)에서 handoff 키 접두 `oasis.portal.popout.` 와 이름이 겹치지 않게 갈랐다. 두 키는 저장소도 다르다(handoff localStorage, snapshot sessionStorage) |
+| D8 | 분리 실패 계약 — null 은 팝업 차단 전용, 그 밖의 실패는 예외로 전파해 셸이 onError 로 알림. 토큰은 비보안 문맥(http IP 접속)에서도 되는 createRandomId. 로그아웃 때 handoff 키 삭제 — 최종 리뷰(2026-10-06) | 다른 실패를 null 로 삼키면 호출부가 "팝업 차단을 허용하라"는 틀린 안내를 띄운다 |

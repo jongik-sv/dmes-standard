@@ -19,7 +19,11 @@
 ```tsx
 <PortalShell
   /* …기존 props */
-  popout={{ buildUrl: buildPopoutUrl, onBlocked: () => gfn_message("팝업이 차단되어 …", "", "", "warning") }}
+  popout={{
+    buildUrl: buildPopoutUrl,
+    onBlocked: () => gfn_message("팝업이 차단되어 …", "", "", "warning"),
+    onError: () => gfn_message("새 창을 열지 못했습니다. 다시 시도해 주세요.", "", "", "warning"),
+  }}
   allowDuplicateTabs
 />
 ```
@@ -80,11 +84,12 @@ export default function PopupRoute({ params, searchParams }: { params: Promise<{
 
 | 이름 | 설명 |
 |---|---|
-| `openPagePopout({ pageId, snapshot, buildUrl, win?, now?, createToken? })` | handoff 를 쓰고 `window.open` 을 부른다. 열린 창 또는 `null`(팝업 차단·이때 handoff 를 지운다). **동기 함수** |
+| `openPagePopout({ pageId, snapshot, buildUrl, win?, now?, createToken? })` | `buildUrl` 로 URL 을 먼저 만들고, handoff 를 쓴 뒤 `window.open` 을 부른다. 열린 창 또는 `null`. **`null` 은 팝업 차단 전용**(이때 handoff 를 지운다)이고, `buildUrl`·`window.open` 이 던진 예외는 handoff 를 지운 뒤 그대로 전파한다. handoff 쓰기만 실패(Quota 등)하면 `console.warn` 만 남기고 창은 연다(새 창은 빈 상태로 표시). 토큰은 `createRandomId()` 라 `crypto.randomUUID` 가 없는 비보안 문맥(http IP 접속)에서도 동작한다. **동기 함수** |
+| `clearPopoutHandoffs()` | 만료와 무관하게 handoff 키(`oasis.portal.popout.*`)를 모두 지운다. 셸이 로그아웃 때 부른다 |
 | `takePopoutHandoff(token)` | handoff 를 읽고 바로 지운다. 한 번만 준다. 10분(`POPOUT_HANDOFF_TTL_MS`) 지났거나 없으면 `null`(타입 `PortalPopoutHandoff`) |
 | `readPopoutSnapshot(token)` / `writePopoutSnapshot(token, snapshot)` | 이 창 sessionStorage 의 snapshot 읽기·쓰기. 읽기는 `{ found, snapshot }` |
 | `POPOUT_HANDOFF_PREFIX`·`POPOUT_SNAPSHOT_PREFIX`·`POPOUT_HANDOFF_TTL_MS` | 저장 키 접두와 만료 시간 |
-| `PortalShellPopout` | `PortalShell` 의 `popout` prop 타입 `{ buildUrl(pageId, token); onBlocked?() }`. `buildUrl` 은 basePath 를 아는 모듈이 `/popup/…` URL 을 만든다 |
+| `PortalShellPopout` | `PortalShell` 의 `popout` prop 타입 `{ buildUrl(pageId, token); onBlocked?(); onError?(error) }`. `buildUrl` 은 basePath 를 아는 모듈이 `/popup/…` URL 을 만든다. `onError` 는 차단이 아닌 이유(예외)로 창을 못 열었을 때 불리며, 없으면 셸이 `console.error` 만 남긴다. 어느 쪽이든 탭은 닫지 않는다 |
 
 저장 위치:
 
@@ -95,8 +100,8 @@ export default function PopupRoute({ params, searchParams }: { params: Promise<{
 ## 표준값: 모든 화면 동일
 
 - 창 크기·위치는 지금 포털 창 크기(최소 640×480)에서 40px 비켜 둔다. 창 이름은 `dmes-popout-{token}` 이라 같은 화면을 두 창으로 띄울 수 있다.
-- 분리가 성공하면 셸이 원래 탭을 닫고, 포털 로그아웃 때 셸이 들고 있는 분리 창을 닫는다(포털을 새로고침해 참조를 잃은 창은 닫지 못한다).
-- 창 안에서 `portal-open-tab` 이벤트가 나면 포털 창(opener)이 살아 있을 때 그쪽으로 다시 내고 앞으로 가져온다. opener 가 없거나 닫혔으면 아무 일도 없다.
+- 분리가 성공하면 셸이 원래 탭을 닫고, 포털 로그아웃 때 셸이 들고 있는 분리 창을 닫고 새 창이 아직 가져가지 않은 handoff 키를 모두 지운다(포털을 새로고침해 참조를 잃은 창은 닫지 못한다).
+- 창 안에서 `portal-open-tab` 이벤트가 나면 포털 창(opener)이 살아 있을 때 그쪽으로 다시 내고 앞으로 가져온다. opener 가 없거나 닫혔거나 다른 출처로 이동해 넘기지 못해도(예외) 아무 일도 없다(경고만 남긴다).
 
 ## 흔한 실수
 
