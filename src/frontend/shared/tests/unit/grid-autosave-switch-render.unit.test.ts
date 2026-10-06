@@ -43,7 +43,8 @@ const wait = (ms: number) =>
   });
 
 function gridEl(props: Partial<AgDataGridProps> = {}, key?: string) {
-  return createElement(AgDataGrid, { key, columns: COLUMNS, rowKey: "code", data: DATA, columnSizing: "fixed", height: "auto", ...props });
+  // 엑셀 출력은 GridPanel 안에서 기본 켬이라 메뉴가 늘 생긴다. 이 파일은 개인화 항목만 보므로 엑셀은 끈다(엑셀은 grid-settings-menu-excel 시험).
+  return createElement(AgDataGrid, { key, columns: COLUMNS, rowKey: "code", data: DATA, columnSizing: "fixed", height: "auto", excelExport: false, ...props });
 }
 function panel(children: ReactElement[], key?: string) {
   return createElement(TabPageContext.Provider, { value: { pageId: SCREEN, serviceId: "", tabId: "t1" } }, createElement(GridPanel, { key, title: "목록" }, ...children));

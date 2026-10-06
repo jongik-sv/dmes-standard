@@ -11,7 +11,7 @@
 
 ## 언제 쓰나
 
-- 쓴다: 카드·위젯 안의 작은 목록처럼 PageLayout 상단 버튼 막대가 없는 자리에서, 표 아래에 안내 글과 엑셀 단추를 두되 **엑셀 내용을 화면이 직접 정할 때**. 그리드의 컬럼·행을 그대로 내려받기만 하면 `AgDataGrid` 의 `excelExport` 가 더 간단하다([AgDataGrid](ag-data-grid.md) §아래 줄과 엑셀 내려받기).
+- 쓴다: 카드·위젯 안의 작은 목록처럼 PageLayout 상단 버튼 막대가 없는 자리에서, 표 아래에 안내 글과 엑셀 단추를 두되 **엑셀 내용을 화면이 직접 정할 때**. 그리드의 컬럼·행을 그대로 내려받기만 하면 `AgDataGrid` 의 `excelExport` 가 더 간단하다([AgDataGrid](ag-data-grid.md) §아래 줄과 엑셀 내려받기). GridPanel 안의 그리드는 줄 없이도 머리줄 「그리드 설정」 메뉴에 「엑셀 출력」 이 기본으로 켜져 있다.
 - 쓰지 않는다: 화면 전체 목록의 엑셀 버튼 → PageLayout 상단 「엑셀」 버튼(`action: "export"`)과 [exportToExcel](export-to-excel.md). 이 컴포넌트는 파일을 만들지 않고 단추 줄만 그린다.
 - 쓰지 않는다: 서버 페이징 막대 → [Pagination](pagination.md)(페이지 이동·총 건수). 패널 머리의 건수·버튼 → [GridPanel](grid-panel.md)(`count`·`buttons`).
 - 엑셀 파일 내용(컬럼·파일 이름)은 `onExcel` 안에서 [exportToExcel](export-to-excel.md) 로 만든다. 파일 이름·열 폭 계산은 같은 유틸의 `excelFileName`·`toExcelColumns` 를 쓸 수 있다.
@@ -79,7 +79,7 @@ export function OrderTable({ rows }: { rows: Record<string, unknown>[] }) {
 | onExcel | `() => void` | 필수 | [엑셀] 을 눌렀을 때. 파일 만들기는 호출한 쪽이 한다 |
 | disabled | `boolean` | `false` | 단추 비활성(내려받을 행 없음) |
 | testId | `string` | `"grid-excel"` | [엑셀] 단추의 `data-testid` |
-| hideButton | `boolean` | `false` | 참이면 단추를 그리지 않고 안내 글만 둔다. [GridPanel](grid-panel.md) 「그리드 설정」 메뉴가 엑셀 내려받기를 대신할 때 `AgDataGrid` 가 켠다(`onExcel`·`disabled`·`testId` 는 무시) |
+| hideButton | `boolean` | `false` | 참이면 단추를 그리지 않고 안내 글만 둔다. [GridPanel](grid-panel.md) 「그리드 설정」 메뉴의 「엑셀 출력」 이 대신할 때 `AgDataGrid` 가 켠다(`onExcel`·`disabled`·`testId` 는 무시) |
 
 ## 표준값: 모든 화면 동일
 

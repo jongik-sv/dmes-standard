@@ -27,7 +27,7 @@ import type { RuleFilters, RuleRow } from "./types";
  * 형제 masterCategoryMng 과의 차이:
  *  - rowStatus C/U 만 (delete 부재 — As-Is 기존행 서버 삭제 없음, USE_TP 논리삭제)
  *  - 단일 그리드 (allList 중복체크 미사용 — As-Is AllList 노드 부재). 중복 PK 는 서버 existsById.
- *  - 우측 메뉴 = 행추가 / 행삭제 / 엑셀다운 (rowCopy / rowCancel 없음 — 분석 §4.2)
+ *  - 우측 메뉴 = 행추가 / 행삭제 (엑셀은 그리드 설정 메뉴 「엑셀 출력」, rowCopy / rowCancel 없음 — 분석 §4.2)
  */
 
 type RowStatus = "" | "inserted" | "updated";
@@ -224,35 +224,7 @@ export default function MasterRuleListPage() {
     }
   }, [rows, filters, repo, showMessage, setRows, setSelectedKey]);
 
-  // ── excel export (B-005) ──
-  /**
-   * 엑셀 다운로드 — As-Is `fn_excelDown` / `gfn_exportExcel(grd_Main, titletext)` (xfdl:216~219) 의 To-Be 정합.
-   * 형제 cia/interfaceList 패턴 (XLSX.writeFile 직접) — shared libExcel 의 file-saver dependency 회피.
-   * internal field(__gridTempId/__rowId/nativeeditor_status) 제외, RULE_COLUMNS 9 컬럼 한글 헤더 + body 만 추출.
-   */
-  const handleExcelDown = useCallback(async () => {
-    if (rows.length === 0) {
-      setError("내보낼 데이터가 없습니다.");
-      return;
-    }
-    const XLSX = await import("xlsx");
-    const header = RULE_COLUMNS.map((c) => c.header);
-    const keys = RULE_COLUMNS.map((c) => c.key);
-    const body: (string | number | null)[][] = rows.map((r) => {
-      const clean = stripInternal(r);
-      return keys.map((k) => {
-        const v = clean[k];
-        if (v == null) return "";
-        if (typeof v === "number") return v;
-        return String(v);
-      });
-    });
-    const ws = XLSX.utils.aoa_to_sheet([header, ...body]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "업무기준");
-    const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    XLSX.writeFile(wb, `masterRuleList_${stamp}.xlsx`);
-  }, [rows]);
+  // 엑셀 출력(B-005)은 목록 그리드의 「그리드 설정」 메뉴 [엑셀 출력] 이 맡는다(공통 기능 — 컬럼 순서·정렬·필터 반영).
 
   return (
     <PageLayout
@@ -275,14 +247,6 @@ export default function MasterRuleListPage() {
           type: "save" as const,
           disabled: !hasAnyChanges || isSaving,
           action: "save",
-        },
-        {
-          id: "btn_excel",
-          label: "엑셀",
-          onClick: () => void handleExcelDown(),
-          type: "light" as const,
-          disabled: isSearching || isSaving,
-          action: "excel",
         },
       ]}
     >

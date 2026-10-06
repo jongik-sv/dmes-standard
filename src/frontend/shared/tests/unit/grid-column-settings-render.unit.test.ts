@@ -59,6 +59,8 @@ function gridEl(props: Partial<AgDataGridProps> = {}, key?: string) {
     data: DATA,
     columnSizing: "fixed",
     height: "auto",
+    // 엑셀 출력은 GridPanel 안에서 기본 켬이라 메뉴가 늘 생긴다. 이 파일은 개인화 항목만 보므로 엑셀은 끈다(엑셀은 grid-settings-menu-excel 시험).
+    excelExport: false,
     ...props,
   });
 }

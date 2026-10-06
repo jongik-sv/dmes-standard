@@ -18,7 +18,7 @@ import type { GridColumn } from "./grid-types";
 import { GridExcelFoot } from "./GridExcelFoot";
 
 export interface AgDataGridExcelExport {
-  /** 파일 이름 앞부분 — 「{title}_{yyyyMMdd}.xlsx」. 못 쓰는 글자는 `_` 로 바뀌고 80자까지만 쓴다. */
+  /** 파일 이름 앞부분 — 「{title}_{yyyyMMdd}.xlsx」. 못 쓰는 글자는 `_` 로 바뀌고 80자까지만 쓴다. 비우면 GridPanel 제목(GridPanel 안일 때), 그것도 없으면 `fallbackName`. */
   title?: string;
   /** `title` 이 비었을 때 쓸 이름. 기본 「목록」. */
   fallbackName?: string;
@@ -111,7 +111,8 @@ const GRID_EXCEL_FRAME_CSS = `
 `;
 
 /**
- * 엑셀 내려받기 — 아래 줄 [엑셀] 단추와 GridPanel 「그리드 설정」 메뉴의 [엑셀 내려받기] 가 같이 쓴다(컬럼 순서·숨긴 열·정렬·필터 동일).
+ * 엑셀 내려받기 — 아래 줄 [엑셀] 단추와 GridPanel 「그리드 설정」 메뉴의 [엑셀 출력] 이 같이 쓴다(컬럼 순서·숨긴 열·정렬·필터 동일).
+ * 파일 이름은 `options.title` → `getDefaultTitle()`(GridPanel 제목) → `options.fallbackName`/「목록」 순이다. 옵션 없이 메뉴만 쓰는 그리드(GridPanel 안 기본 켬)도 부른다.
  * 행이 없으면 아무 일도 하지 않는다.
  */
 export function useGridExcelExport(
@@ -119,6 +120,7 @@ export function useGridExcelExport(
   columns: readonly GridColumn[],
   fallbackRows: readonly Record<string, unknown>[],
   getApi: () => ExcelGridApi | null | undefined,
+  getDefaultTitle?: () => string | undefined,
 ): () => void {
   const title = options?.title;
   const fallbackName = options?.fallbackName;
@@ -132,11 +134,11 @@ export function useGridExcelExport(
       api && !api.isDestroyed() ? gridExcelColumns(api, definitionHiddenKeys(columns)) : propsExcelColumns(columns);
     void exportToExcel(
       rows,
-      excelFileName(title, today(), fallbackName),
+      excelFileName(title?.trim() || getDefaultTitle?.(), today(), fallbackName),
       sheetName,
       toExcelColumns(cols, rows, excludeKeys),
     );
-  }, [getApi, fallbackRows, columns, title, fallbackName, sheetName, excludeKeys]);
+  }, [getApi, getDefaultTitle, fallbackRows, columns, title, fallbackName, sheetName, excludeKeys]);
 }
 
 interface AgDataGridExcelFrameProps {

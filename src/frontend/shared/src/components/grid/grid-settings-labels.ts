@@ -7,6 +7,8 @@ export const GRID_SETTINGS_LABELS = {
   menu: "그리드 설정",
   settings: "컬럼 설정…",
   autoSave: "자동 설정 저장",
-  excel: "엑셀 내려받기",
+  excel: "엑셀 출력",
+  /** 서버 페이징 그리드(GridPanel 안에 Pagination 이 둘 이상의 쪽을 보일 때)의 엑셀 항목 — 지금 쪽의 행만 나간다. */
+  excelPaged: "엑셀 출력 (현재 페이지)",
   reset: "설정 초기화…",
 } as const;
