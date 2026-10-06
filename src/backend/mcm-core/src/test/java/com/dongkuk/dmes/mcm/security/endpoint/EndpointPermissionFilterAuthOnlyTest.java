@@ -82,6 +82,20 @@ class EndpointPermissionFilterAuthOnlyTest {
     }
 
     @Test
+    void ruleCalc_view_execute_는_AUTH_ONLY_이고_다른_action_은_아니다() {
+        for (String action : new String[] {"view", "execute"}) {
+            PermKey k = PermKey.parseUrl("/api/mdm/oasis/ruleCalc/" + action);
+            assertThat(k).as(action).isNotNull();
+            assertThat(EndpointPermissionFilter.isAuthOnly(k)).as(action).isTrue();
+        }
+        for (String action : new String[] {"save", "delete", "confirm"}) {
+            PermKey k = PermKey.parseUrl("/api/mdm/oasis/ruleCalc/" + action);
+            assertThat(k).as(action).isNotNull();
+            assertThat(EndpointPermissionFilter.isAuthOnly(k)).as(action).isFalse();
+        }
+    }
+
+    @Test
     void mdmMeta_는_AUTH_ONLY_다() {
         for (String action : new String[] {"columns", "domains", "status", "entries", "load"}) {
             PermKey k = PermKey.parseUrl("/api/mcm/mdmMeta/" + action);

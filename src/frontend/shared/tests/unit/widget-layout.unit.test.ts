@@ -144,6 +144,11 @@ describe("addItem · removeItem · toggleLock · canAddWidget", () => {
     const many = Array.from({ length: 30 }, (_, i) => it_(`w${i}`, "t.a", 0, i * 6, 6, 6));
     expect(canAddWidget(many, REG["t.a"].meta)).toBe(false);
   });
+  it("배치가 B(업무 화면만)인 위젯은 새로 놓을 수 없고 W·A 는 놓을 수 있다", () => {
+    expect(canAddWidget([], { ...REG["t.a"].meta, placement: "B" })).toBe(false);
+    expect(canAddWidget([], { ...REG["t.a"].meta, placement: "W" })).toBe(true);
+    expect(canAddWidget([], { ...REG["t.a"].meta, placement: "A" })).toBe(true);
+  });
 });
 
 describe("moveByKey", () => {

@@ -67,6 +67,7 @@ function defRow(p: Partial<WidgetDefRow> & Pick<WidgetDefRow, "widgetId" | "srcT
     multipleYn: null,
     categoryCd: null,
     privateYn: null,
+    placeTp: null,
     useYn: "Y",
     dataSrc: null,
     config: null,
@@ -313,6 +314,16 @@ describe("폼 ↔ 행 변환", () => {
     );
   });
 
+  it("배치(placeTp) — 빈 칸은 NULL(유형 기본), W·B·A 는 그대로, 행 값은 폼에 되돌아온다", () => {
+    expect(codeForm("home.notice").placeTp).toBe("");
+    expect(formToRow({ ...codeForm("home.notice"), placeTp: "" }).placeTp).toBeNull();
+    for (const tp of ["W", "B", "A"] as const) {
+      expect(formToRow({ ...codeForm("home.notice"), placeTp: tp }).placeTp).toBe(tp);
+    }
+    expect(codeForm("home.notice", defRow({ widgetId: "home.notice", srcTp: "C", placeTp: "B" })).placeTp).toBe("B");
+    expect(codeForm("home.notice", defRow({ widgetId: "home.notice", srcTp: "C" })).placeTp).toBe("");
+  });
+
   it("코드 위젯은 typeId·dataSrc·config 를 늘 NULL 로 만든다", () => {
     const row = formToRow({ ...codeForm("home.notice"), typeId: "markdown", dataSrc: "mcm", config: { a: 1 } });
     expect(row).toMatchObject({ typeId: null, dataSrc: null, config: null });
@@ -556,6 +567,7 @@ describe("toSaveParams", () => {
       multipleYn: "Y",
       categoryCd: null,
       privateYn: "N",
+      placeTp: null,
       useYn: "Y",
       dataSrc: "mcm",
       configJson: '{"sql":"select 1"}',

@@ -2,7 +2,7 @@
 # 시나리오: local-legacy-stub · 프로필=[local] · 고정값=LEGACY_STUB · 방언=Microsoft SQL Server
 # 형식: 순번 | 종류 | SQL(이스케이프) 또는 @만든 줄 순번 | 파라미터(이름순) | => 반환
 # 다시 쓰기: MSSQLSQL_UPDATE=true ../gradlew :api:test --tests '*DataInitializerMssqlSqlCharacterizationTest'
-# 기록 호출 수: 1089
+# 기록 호출 수: 1091
 00001 | unwrap |  | org.hibernate.Session |
 00002 | doReturningWork |  |  |
 00003 | getDatabaseProductName |  |  | => Microsoft SQL Server
@@ -1053,42 +1053,44 @@
 01048 | getSingleResult | @01047 | v=mdmCacheMng | => (Integer)1
 01049 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
 01050 | getSingleResult | @01049 | v=metaFeed | => (Integer)1
-01051 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
-01052 | getSingleResult | @01051 | v0=SYSADMIN, v1=mdmCacheMng, v2=PERM_ALL | => (Integer)1
+01051 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+01052 | getSingleResult | @01051 | v=ruleCalc | => (Integer)1
 01053 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
-01054 | getSingleResult | @01053 | v0=SYSADMIN, v1=metaFeed, v2=PERM_ALL | => (Integer)1
-01055 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
-01056 | getSingleResult | @01055 | v=screenUsageStat | => (Integer)1
-01057 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+01054 | getSingleResult | @01053 | v0=SYSADMIN, v1=mdmCacheMng, v2=PERM_ALL | => (Integer)1
+01055 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+01056 | getSingleResult | @01055 | v0=SYSADMIN, v1=metaFeed, v2=PERM_ALL | => (Integer)1
+01057 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
 01058 | getSingleResult | @01057 | v=screenUsageStat | => (Integer)1
-01059 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
-01060 | getSingleResult | @01059 | v0=SYSADMIN, v1=screenUsageStat, v2=PERM_ALL | => (Integer)1
-01061 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
-01062 | getSingleResult | @01061 | v=commWidgetMng | => (Integer)1
-01063 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+01059 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+01060 | getSingleResult | @01059 | v=screenUsageStat | => (Integer)1
+01061 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+01062 | getSingleResult | @01061 | v0=SYSADMIN, v1=screenUsageStat, v2=PERM_ALL | => (Integer)1
+01063 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
 01064 | getSingleResult | @01063 | v=commWidgetMng | => (Integer)1
-01065 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
-01066 | getSingleResult | @01065 | v0=SYSADMIN, v1=commWidgetMng, v2=PERM_ALL | => (Integer)1
-01067 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_SEC_CODE_GROUP WHERE GROUP_CD = :v |  |
-01068 | getSingleResult | @01067 | v=WIDGET_CTG | => (Integer)1
-01069 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_SEC_CODE_ITEM WHERE GROUP_CD = :v0 AND ITEM_CD = :v1 |  |
-01070 | getSingleResult | @01069 | v0=WIDGET_CTG, v1=COMMON | => (Integer)1
+01065 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+01066 | getSingleResult | @01065 | v=commWidgetMng | => (Integer)1
+01067 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+01068 | getSingleResult | @01067 | v0=SYSADMIN, v1=commWidgetMng, v2=PERM_ALL | => (Integer)1
+01069 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_SEC_CODE_GROUP WHERE GROUP_CD = :v |  |
+01070 | getSingleResult | @01069 | v=WIDGET_CTG | => (Integer)1
 01071 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_SEC_CODE_ITEM WHERE GROUP_CD = :v0 AND ITEM_CD = :v1 |  |
-01072 | getSingleResult | @01071 | v0=WIDGET_CTG, v1=PROD | => (Integer)1
+01072 | getSingleResult | @01071 | v0=WIDGET_CTG, v1=COMMON | => (Integer)1
 01073 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_SEC_CODE_ITEM WHERE GROUP_CD = :v0 AND ITEM_CD = :v1 |  |
-01074 | getSingleResult | @01073 | v0=WIDGET_CTG, v1=QUAL | => (Integer)1
+01074 | getSingleResult | @01073 | v0=WIDGET_CTG, v1=PROD | => (Integer)1
 01075 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_SEC_CODE_ITEM WHERE GROUP_CD = :v0 AND ITEM_CD = :v1 |  |
-01076 | getSingleResult | @01075 | v0=WIDGET_CTG, v1=LOGI | => (Integer)1
+01076 | getSingleResult | @01075 | v0=WIDGET_CTG, v1=QUAL | => (Integer)1
 01077 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_SEC_CODE_ITEM WHERE GROUP_CD = :v0 AND ITEM_CD = :v1 |  |
-01078 | getSingleResult | @01077 | v0=WIDGET_CTG, v1=TOOL | => (Integer)1
+01078 | getSingleResult | @01077 | v0=WIDGET_CTG, v1=LOGI | => (Integer)1
 01079 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_SEC_CODE_ITEM WHERE GROUP_CD = :v0 AND ITEM_CD = :v1 |  |
-01080 | getSingleResult | @01079 | v0=WIDGET_CTG, v1=INFO | => (Integer)1
-01081 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU_FLD SET MENU_SEQ = '00000001' WHERE MENU_ID = 'mpn' AND (MENU_SEQ IS NULL OR MENU_SEQ <> '00000001') |  |
-01082 | executeUpdate | @01081 |  | => 0
-01083 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU_FLD SET MENU_SEQ = '00000002' WHERE MENU_ID = 'mcm' AND (MENU_SEQ IS NULL OR MENU_SEQ <> '00000002') |  |
+01080 | getSingleResult | @01079 | v0=WIDGET_CTG, v1=TOOL | => (Integer)1
+01081 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_SEC_CODE_ITEM WHERE GROUP_CD = :v0 AND ITEM_CD = :v1 |  |
+01082 | getSingleResult | @01081 | v0=WIDGET_CTG, v1=INFO | => (Integer)1
+01083 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU_FLD SET MENU_SEQ = '00000001' WHERE MENU_ID = 'mpn' AND (MENU_SEQ IS NULL OR MENU_SEQ <> '00000001') |  |
 01084 | executeUpdate | @01083 |  | => 0
-01085 | flush |  |  |
-01086 | createNativeQuery | SELECT MENU_ID, PARENT_MENU_ID, FULL_SEQ, MENU_SEQ FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD |  |
-01087 | getResultList | @01086 |  | => []
-01088 | createNativeQuery | SELECT MENU_ID, MENU_SEQ, PARENT_MENU_ID, FULL_SEQ FROM MCMAPUSER.TB_MCM_SEC_MENU |  |
+01085 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU_FLD SET MENU_SEQ = '00000002' WHERE MENU_ID = 'mcm' AND (MENU_SEQ IS NULL OR MENU_SEQ <> '00000002') |  |
+01086 | executeUpdate | @01085 |  | => 0
+01087 | flush |  |  |
+01088 | createNativeQuery | SELECT MENU_ID, PARENT_MENU_ID, FULL_SEQ, MENU_SEQ FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD |  |
 01089 | getResultList | @01088 |  | => []
+01090 | createNativeQuery | SELECT MENU_ID, MENU_SEQ, PARENT_MENU_ID, FULL_SEQ FROM MCMAPUSER.TB_MCM_SEC_MENU |  |
+01091 | getResultList | @01090 |  | => []
