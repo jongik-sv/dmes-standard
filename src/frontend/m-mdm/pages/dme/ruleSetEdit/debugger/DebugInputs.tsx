@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 
 import { Button, Select, Textarea } from "@dk-oasis/shared/form";
 
+import type { RuleVersionMode } from "../types";
 import { InputForm, loadExactInput } from "./InputForm";
 import { TestCasePanel } from "./TestCasePanel";
 import type { Simulation } from "./useSimulation";
@@ -25,10 +26,10 @@ export interface DebugInputsProps {
   onError(e: unknown): void;
 }
 
-/** 최근 입력 한 줄 라벨 — 판정 시각(없으면 "지금") + 레코드 JSON 앞 40자. */
-export function recentLabel(evalTs: string, recordJson: string): string {
+/** 최근 입력 한 줄 라벨 — 내 DRAFT 우선이면 "DRAFT · " + 판정 시각(없으면 "지금") + 레코드 JSON 앞 40자. */
+export function recentLabel(evalTs: string, recordJson: string, ruleVersions?: RuleVersionMode): string {
   const head = recordJson.length > 40 ? `${recordJson.slice(0, 40)}…` : recordJson;
-  return `${evalTs || "지금"} · ${head}`;
+  return `${ruleVersions === "MY_DRAFT" ? "DRAFT · " : ""}${evalTs || "지금"} · ${head}`;
 }
 
 export function DebugInputs({ sim, tests, canEditCases, canRun }: DebugInputsProps) {
@@ -39,7 +40,7 @@ export function DebugInputs({ sim, tests, canEditCases, canRun }: DebugInputsPro
     if (hasJson) setJsonOpen(true);
   }, [hasJson]);
 
-  const recentOptions = sim.recent.map((r, i) => ({ value: String(i), label: recentLabel(r.evalTs, r.recordJson) }));
+  const recentOptions = sim.recent.map((r, i) => ({ value: String(i), label: recentLabel(r.evalTs, r.recordJson, r.ruleVersions) }));
   const pickRecent = (v: string) => {
     const r = sim.recent[Number(v)];
     if (v !== "" && r) loadExactInput(sim, r);

@@ -22,7 +22,7 @@ import { uiCols } from "@/ui-meta";
 import { REJECT_BADGE } from "../panels/ChecksPanel";
 import type { CaseDraft, CaseRunResult, RuleSetCaseView } from "../types";
 import { CaseEditModal } from "./CaseEditModal";
-import { EDITED_EXPECTED_TITLE, RUN_DENIED_TITLE, expectedFromFinal } from "./debug-model";
+import { DRAFT_CASES_NOTE, DRAFT_EXPECTED_NOTE, EDITED_EXPECTED_TITLE, RUN_DENIED_TITLE, expectedFromFinal } from "./debug-model";
 import { loadExactInput } from "./InputForm";
 import { sameInput, type Simulation } from "./useSimulation";
 import type { TestCases } from "./useTestCases";
@@ -90,6 +90,8 @@ export function TestCasePanel({ sim, tests, canEditCases, canRun }: TestCasePane
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [draft, setDraft] = useState<CaseDraft | null>(null);
   const [busy, setBusy] = useState(false);
+  /** 새 케이스 기대값을 내 DRAFT 우선 실행 결과로 채웠을 때만 창에 보일 안내(막지 않는다). */
+  const [draftNote, setDraftNote] = useState<string | null>(null);
 
   const selected = cases.find((c) => c.caseId === selectedId) ?? null;
   const selectedResult = selected ? results[selected.caseId] : undefined;
@@ -138,6 +140,7 @@ export function TestCasePanel({ sim, tests, canEditCases, canRun }: TestCasePane
     if (!input) return;
     const last = sim.last;
     const expectedJson = last && !sim.stale && !editedRecord && sameInput(last.input, input) ? expectedFromFinal(last.trace.finalValues ?? {}) : "";
+    setDraftNote(expectedJson !== "" && last?.ruleVersions === "MY_DRAFT" ? DRAFT_EXPECTED_NOTE : null);
     setDraft({
       caseId: null,
       rowVersion: null,
@@ -151,6 +154,7 @@ export function TestCasePanel({ sim, tests, canEditCases, canRun }: TestCasePane
 
   const openEdit = () => {
     if (!selected) return;
+    setDraftNote(null);
     setDraft({
       caseId: selected.caseId,
       rowVersion: selected.rowVersion,
@@ -191,6 +195,11 @@ export function TestCasePanel({ sim, tests, canEditCases, canRun }: TestCasePane
           </span>
         )}
       </div>
+      {tests.draft && (
+        <p className="rsf-panel-note" data-testid="case-draft-run" role="status">
+          {`${DRAFT_CASES_NOTE} · DRAFT 룰 ${Object.keys(tests.draft.draftVersions.rules).join("·") || "없음"}`}
+        </p>
+      )}
       <div className="rsf-case-actions">
         <Button
           size="sm"
@@ -284,7 +293,7 @@ export function TestCasePanel({ sim, tests, canEditCases, canRun }: TestCasePane
           )}
         </div>
       )}
-      <CaseEditModal draft={draft} busy={busy} error={tests.error} onSave={onSave} onClose={() => setDraft(null)} />
+      <CaseEditModal draft={draft} busy={busy} error={tests.error} note={draftNote} onSave={onSave} onClose={() => setDraft(null)} />
     </section>
   );
 }

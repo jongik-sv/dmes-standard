@@ -17,7 +17,7 @@ import { isRowVersionConflict } from "@/dme/oasis-call";
 
 import { deleteCase, runCases, saveCase, viewSet } from "../api";
 import { CONFLICT_MESSAGE } from "../state/useRuleSetEdit";
-import type { CaseDraft, CaseRunResult, RuleSetCaseView } from "../types";
+import { NO_DRAFTS, type CaseDraft, type CaseRunResult, type DraftVersions, type RuleSetCaseView, type RuleVersionMode } from "../types";
 
 export interface TestCases {
   cases: RuleSetCaseView[];
@@ -30,6 +30,8 @@ export interface TestCases {
   remove(c: RuleSetCaseView): Promise<void>;
   /** 저장된 케이스를 지금 흐름(저장하지 않은 흐름 포함)으로 모두 돌린다. */
   runAll(): Promise<void>;
+  /** 마지막 일괄 실행이 내 DRAFT 우선이었으면 그 모드·DRAFT 목록, 아니면 null. */
+  draft: { ruleVersions: RuleVersionMode; draftVersions: DraftVersions } | null;
 }
 
 /** 빈 결과 — 참조가 렌더마다 바뀌지 않게 모듈 상수로 둔다. */
@@ -50,17 +52,27 @@ function without(results: Record<number, CaseRunResult>, caseId: number | null):
  * @param initial view 응답의 `cases` — page 가 세트를 열거나 [다시 불러오기] 했을 때(`viewEpoch`·setId)만 새 참조로 넘긴다(F25)
  * @param flowVersion 흐름 구조 버전 — 바뀌면 마지막 결과를 지운다(P-D19)
  * @param flowJson 지금 흐름의 정규 JSON(저장하지 않은 흐름)
+ * @param ruleVersions 지금 룰 버전 모드 — 실행 때 읽는다(spec 2026-10-06)
  */
-export function useTestCases(setId: string | null, initial: RuleSetCaseView[], flowVersion: number, flowJson: () => string): TestCases {
+export function useTestCases(
+  setId: string | null,
+  initial: RuleSetCaseView[],
+  flowVersion: number,
+  flowJson: () => string,
+  ruleVersions: () => RuleVersionMode = () => "RELEASED",
+): TestCases {
   const [cases, setCases] = useState<RuleSetCaseView[]>(initial);
   const [results, setResults] = useState<Record<number, CaseRunResult>>(NO_RESULTS);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [draft, setDraft] = useState<TestCases["draft"]>(null);
 
   const setIdRef = useRef(setId);
   setIdRef.current = setId;
   const flowJsonRef = useRef(flowJson);
   flowJsonRef.current = flowJson;
+  const ruleVersionsRef = useRef(ruleVersions);
+  ruleVersionsRef.current = ruleVersions;
   /** 목록 다시 읽기 순번 — 세트가 바뀌거나 initial 이 새로 오면 올려 떠난 응답을 버린다. */
   const listSeq = useRef(0);
   /** [모두 실행] 순번 — 세트·흐름 구조가 바뀌면 올려 떠난 응답을 버린다. */
@@ -75,6 +87,7 @@ export function useTestCases(setId: string | null, initial: RuleSetCaseView[], f
     runSeq.current += 1;
     setCases(initial);
     setResults(NO_RESULTS);
+    setDraft(null);
     setRunning(false);
     setError(null);
   }, [initial]);
@@ -87,6 +100,7 @@ export function useTestCases(setId: string | null, initial: RuleSetCaseView[], f
     seenKey.current = k;
     runSeq.current += 1;
     setResults(NO_RESULTS);
+    setDraft(null);
     setRunning(false);
   }, [setId, flowVersion]);
 
@@ -145,11 +159,12 @@ export function useTestCases(setId: string | null, initial: RuleSetCaseView[], f
     setRunning(true);
     setError(null);
     try {
-      const res = await runCases(forSet, flowJsonRef.current(), []);
+      const res = await runCases(forSet, flowJsonRef.current(), [], ruleVersionsRef.current());
       if (mine !== runSeq.current) return;
       const next: Record<number, CaseRunResult> = {};
       for (const c of res.cases ?? []) next[c.caseId] = c;
       setResults(Object.keys(next).length === 0 ? NO_RESULTS : next);
+      setDraft(res.ruleVersions === "MY_DRAFT" ? { ruleVersions: "MY_DRAFT", draftVersions: res.draftVersions ?? NO_DRAFTS } : null);
     } catch (e) {
       if (mine !== runSeq.current) return;
       setError(errorText(e));
@@ -158,5 +173,5 @@ export function useTestCases(setId: string | null, initial: RuleSetCaseView[], f
     }
   }, []);
 
-  return { cases, results, running, error, save, remove, runAll };
+  return { cases, results, running, error, save, remove, runAll, draft };
 }

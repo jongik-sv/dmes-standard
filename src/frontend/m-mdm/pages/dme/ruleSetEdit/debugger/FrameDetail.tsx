@@ -7,11 +7,13 @@
  */
 import { useMemo } from "react";
 
+import { badgeStyle, fmtVer, normVer } from "@/shell";
+
 import { debugStatus, endedBranchText } from "./debug-model";
 import { NodeDescNote, TraceDetail } from "./TraceDetail";
 import { NOT_RUN_NOTE } from "./VariablePanel";
 import type { CallFrame } from "./call-stack";
-import type { CalledFlow } from "../types";
+import type { CalledFlow, DraftVersions } from "../types";
 
 export interface FrameDetailProps {
   frame: CallFrame;
@@ -20,11 +22,13 @@ export interface FrameDetailProps {
   calledFlows: Readonly<Record<string, CalledFlow | undefined>>;
   onOpenRule(ruleId: string): void;
   onEnter(nodeId: string): void;
+  /** DRAFT 로 실행한 룰·세트(spec 2026-10-06). 없으면 표시하지 않는다. */
+  draftVersions?: DraftVersions;
 }
 
 export const FRAME_PICK_NOTE = "하위 세트 노드를 고르면 실행 기록이 보인다";
 
-export function FrameDetail({ frame, selectedId, calledFlows, onOpenRule, onEnter }: FrameDetailProps) {
+export function FrameDetail({ frame, selectedId, calledFlows, onOpenRule, onEnter, draftVersions }: FrameDetailProps) {
   const status = useMemo(() => debugStatus(frame.trace, frame.cursor, 0, frame.flow), [frame]);
   const endedBranch = useMemo(() => endedBranchText(frame.trace, frame.flow), [frame]);
   const flowNode = selectedId ? frame.flow.nodes.find((n) => n.id === selectedId) : undefined;
@@ -33,7 +37,14 @@ export function FrameDetail({ frame, selectedId, calledFlows, onOpenRule, onEnte
   return (
     <div className="rsf-var-panel" data-testid="frame-detail">
       <section className="rsf-var-section" aria-label="하위 세트 기록">
-        <p className="rsf-dbg-title">{`하위 세트 ${frame.setId}`}</p>
+        <p className="rsf-dbg-title">
+          {`하위 세트 ${frame.setId}`}
+          {draftVersions?.sets[frame.setId] && (
+            <span data-testid="frame-detail-draft" style={{ ...badgeStyle("warning"), marginLeft: "var(--spacing-xs)" }}>
+              {`DRAFT ${fmtVer(normVer(draftVersions.sets[frame.setId]))}`}
+            </span>
+          )}
+        </p>
         <p className="rsf-panel-note" data-testid="frame-detail-status" role="status">
           {status}
         </p>
@@ -54,6 +65,7 @@ export function FrameDetail({ frame, selectedId, calledFlows, onOpenRule, onEnte
             endedBranch={endedBranch}
             onEnter={onEnter}
             calledFlows={calledFlows}
+            draftVersions={draftVersions}
           />
         ) : (
           <div className="rsf-panel" data-testid="sim-detail">
