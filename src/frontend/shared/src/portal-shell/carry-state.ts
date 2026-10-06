@@ -10,6 +10,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
+import { useIsomorphicLayoutEffect } from "../hooks/use-isomorphic-layout-effect";
 
 /*
  * 포털 탭 「새 창으로 분리」 때 화면 상태를 이어받는 장치(설계 2026-10-06-popout-carry-state-design §4).
@@ -245,8 +246,11 @@ export function useCarryState<T>(
     return typeof initial === "function" ? (initial as () => T)() : initial;
   });
   // getter 가 읽을 최신 값 — ref 에만 두므로 등록이 렌더를 늘리지 않는다.
+  // 커밋된 값만 담는다(렌더 중에 쓰면 버려진 동시성 렌더의 값이 분리 순간에 모일 수 있다).
   const valueRef = useRef(value);
-  valueRef.current = value;
+  useIsomorphicLayoutEffect(() => {
+    valueRef.current = value;
+  }, [value]);
   useEffect(() => {
     if (!registry) return undefined;
     // "썼다" 표시는 렌더가 아니라 등록 effect 에서 한다 — StrictMode 이중 렌더·이중 effect 에서도 첫 마운트가 복원값을 받는다.

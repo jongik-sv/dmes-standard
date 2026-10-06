@@ -183,6 +183,8 @@ export default function MasterCodeMngListPage() {
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : "상세 조회 실패");
+        // LOV 를 못 받았으면 이어받은 카테고리 필터를 풀어 둔다 — 선택지 없는 필터가 걸린 채 남지 않게.
+        if (keepCategory) setSelectedCategoryId("");
       } finally {
         // 이어받은 선택에 대한 첫 조회가 끝났다 — 이후 조회는 평소대로 카테고리를 "" 로 돌린다.
         if (keepCategory) restoredDetailKeyRef.current = null;

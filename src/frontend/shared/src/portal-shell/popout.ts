@@ -137,7 +137,10 @@ function estimateEncodedBytes(value: unknown): number | null {
   }
 }
 
-/** light 가 handoff·sessionStorage 에 담을 수 있는 크기(인코딩 뒤 256KB 이하)이고 직렬화되는가. */
+/**
+ * light 가 handoff·sessionStorage 에 담을 수 있는 크기(인코딩 뒤 256KB 이하)이고 직렬화되는가.
+ * sessionStorage 는 base64 없이 날 JSON 을 쓰지만 같은 추정(base64 기준)을 쓴다 — 더 엄격한 쪽으로 같은 상한을 둔다.
+ */
 export function isCarryLightStorable(light: Record<string, unknown>): boolean {
   const size = estimateEncodedBytes(light);
   return size !== null && size <= POPOUT_CARRY_MAX_ENCODED_BYTES;
