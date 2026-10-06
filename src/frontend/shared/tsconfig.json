@@ -12,7 +12,10 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "types": ["node"],
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "@dk-oasis/shared/markdown-editor": ["./src/components/markdown-editor/index.ts"]
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "tsup.config.ts"],
   "exclude": ["dist", "node_modules"]

@@ -41,14 +41,13 @@ export function WidgetHelpModal({ open, onClose }: WidgetHelpModalProps) {
   return (
     <Modal open={open} onClose={onClose} title={doc.title} size="xl" className="cm-widget-help-modal">
       <style>{HELP_MODAL_STYLE}</style>
-      <div role="tablist" aria-label="도움말 문서" style={{ display: "flex", gap: 6, marginBottom: 8 }} data-testid="widget-help-tabs">
+      <div role="group" aria-label="도움말 문서" style={{ display: "flex", gap: 6, marginBottom: 8 }} data-testid="widget-help-tabs">
         {DOCS.map((d) => (
           <Button
             key={d.key}
             size="sm"
             variant={d.key === docKey ? "primary" : "default"}
-            role="tab"
-            aria-selected={d.key === docKey}
+            aria-pressed={d.key === docKey}
             data-testid={`widget-help-tab-${d.key}`}
             onClick={() => setDocKey(d.key)}
           >

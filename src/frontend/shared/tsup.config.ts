@@ -81,6 +81,9 @@ export default defineConfig((options) => ({
     "@tabler/icons-react",
     "clsx",
     "xlsx",
+    // widget 도움말 모달이 지연 import 하는 문서 보기(tiptap·marked). widget 번들에 넣으면 포털 모든 화면이 「?」 를 누르기 전에 받는다.
+    // 소비 앱(Next)이 이 경로를 따로 청크로 나눈다. 소스 쪽 해석은 tsconfig paths·vitest alias 가 맡는다.
+    "@dk-oasis/shared/markdown-editor",
   ],
   loader: {
     ".svg": "dataurl",
