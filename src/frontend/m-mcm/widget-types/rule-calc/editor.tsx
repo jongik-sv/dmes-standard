@@ -89,15 +89,16 @@ function IoPreview({ io }: { io: RuleCalcIo }) {
 
 export default function RuleCalcTypeEditor({ value, onChange, onValidate }: WidgetTypeEditorProps) {
   const cfg = readRuleCalcConfig(value);
-  const [preview, setPreview] = useState<PreviewState>({ status: "idle" });
-  const seq = useRef(0);
+  const key = `${cfg.targetTp}\u0000${cfg.targetId}`;
+  const [shown, setShown] = useState<{ key: string; state: PreviewState }>({ key, state: { status: "idle" } });
+  const keyRef = useRef(key);
   useReportErrors(validateRuleCalcConfig(cfg), onValidate);
 
-  // 종류·ID 가 바뀌면 이전 미리보기와 진행 중 요청을 버린다.
+  // 종류·ID 가 바뀌면(키가 달라지면) 이전 미리보기를 보이지 않고, 늦게 온 옛 응답도 버린다.
   useEffect(() => {
-    seq.current += 1;
-    setPreview({ status: "idle" });
-  }, [cfg.targetTp, cfg.targetId]);
+    keyRef.current = key;
+  }, [key]);
+  const preview: PreviewState = shown.key === key ? shown.state : { status: "idle" };
 
   const patch = (next: Partial<RuleCalcConfig>) => {
     const merged: RuleCalcConfig = { ...cfg, ...next };
@@ -106,15 +107,14 @@ export default function RuleCalcTypeEditor({ value, onChange, onValidate }: Widg
   };
 
   const check = () => {
-    const my = ++seq.current;
-    setPreview({ status: "loading" });
+    const at = key;
+    const settle = (state: PreviewState) => {
+      if (keyRef.current === at) setShown({ key: at, state });
+    };
+    setShown({ key: at, state: { status: "loading" } });
     fetchRuleCalcIo(cfg.targetTp, cfg.targetId, true).then(
-      (io) => {
-        if (seq.current === my) setPreview({ status: "ready", io });
-      },
-      (e: unknown) => {
-        if (seq.current === my) setPreview({ status: "error", message: e instanceof Error && e.message ? e.message : "입력 정의를 불러오지 못했습니다." });
-      }
+      (io) => settle({ status: "ready", io }),
+      (e: unknown) => settle({ status: "error", message: e instanceof Error && e.message ? e.message : "입력 정의를 불러오지 못했습니다." })
     );
   };
 
