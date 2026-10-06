@@ -258,6 +258,16 @@ describe("useGridCarry — 복원", () => {
     expect(onRowClick).toHaveBeenCalledWith(data[2], expect.any(MouseEvent));
   });
 
+  it("행이 첫 렌더에 없으면(재조회) initialState 는 넘기지 않고, 커서는 행이 오면 되살린다", async () => {
+    const onRowClick = vi.fn();
+    const initial = vi.fn();
+    const registry = restoreRegistry({ "grid:g1": value });
+    await mountProbe({ gridId: "g1", onRowClick, data: [], onInitial: initial }, registry);
+    await mountProbe({ gridId: "g1", onRowClick, data, onInitial: initial }, registry);
+    expect(initial).toHaveBeenLastCalledWith(undefined);
+    expect(onRowClick).toHaveBeenCalledTimes(1);
+  });
+
   it("StrictMode 에서도 onRowClick 은 한 번이다", async () => {
     const onRowClick = vi.fn();
     const initial = vi.fn();

@@ -17,7 +17,7 @@ import type { AgDataGridProps } from "./grid-types";
  *   담지 않아 그리드 개인화(grid-personalize-hook.ts)의 복원과 겹치지 않는다. 화면이 `highlightedRowKey` 를 넘기면(controlled) 커서는 화면 소유라 담지 않고,
  *   넘기지 않아 그리드가 자체 관리하는 커서 행 키만 담는다.
  * - 복원: ag-grid 33.3.2 에는 `api.setState` 가 없어 `initialState`(그리드 생성 때 한 번만 읽힘)로 넘긴다. 행은 화면 useCarryState 복원으로 첫 렌더부터 들어 있다.
- *   체크 선택·scroll 은 ag-grid 가 행이 들어온 뒤(rowCountReady·firstDataRendered) 적용한다. 행이 첫 렌더에 없었으면(재조회) 체크 선택은 복원되지 않는다.
+ *   체크 선택·scroll·focusedCell 은 ag-grid 가 행이 들어온 뒤(rowCountReady·firstDataRendered) 적용한다. 행이 첫 렌더에 없었으면(재조회) initialState 를 넘기지 않는다.
  *   화면이 `selectedRows`(제어형 선택)를 넘기면 체크 선택은 건너뛴다.
  * - 자체 관리 커서를 되살린 경우 화면 `onRowClick(row, 합성 click)` 를 그리드가 준비되고 그 행이 있을 때 한 번 부른다(상세 폼 되살리기).
  */
@@ -115,11 +115,15 @@ export function useGridCarry(opts: UseGridCarryOptions): { initialState: GridSta
     { accept: () => !containerRef.current?.closest('[role="dialog"]') }
   );
 
-  // 그리드는 만들 때 한 번만 initialState 를 읽는다 — 첫 렌더 값으로 고정한다.
+  // 그리드는 만들 때 한 번만 initialState 를 읽는다 — 첫 렌더 값으로 고정한다. 행이 첫 렌더에 없으면(재조회·행을 이어받지 않는 화면) 넘기지 않는다:
+  // 나중에 온 다른 행 목록에 옛 체크 id·스크롤·포커스 칸 번호가 엉뚱하게 적용되지 않게 한다(커서 되살리기는 아래에서 행이 올 때 따로 한다).
   const initialRef = useRef<{ value: GridState | undefined } | null>(null);
   if (initialRef.current === null) {
     initialRef.current = {
-      value: buildGridInitialState(restored, { selectable, selectedRowsControlled: selectedRows !== undefined }),
+      value:
+        data.length > 0
+          ? buildGridInitialState(restored, { selectable, selectedRowsControlled: selectedRows !== undefined })
+          : undefined,
     };
   }
 
