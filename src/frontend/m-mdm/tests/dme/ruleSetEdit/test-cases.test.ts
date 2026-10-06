@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { TypedValue } from "../../../src/contract/engine-contract.generated";
 import { debugStatus, expectedFromFinal } from "../../../pages/dme/ruleSetEdit/debugger/debug-model";
 import { useTestCases, type TestCases } from "../../../pages/dme/ruleSetEdit/debugger/useTestCases";
-import type { CaseDraft, CaseRunResult, RuleSetCaseView, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
+import type { CaseDraft, CaseRunResult, RuleSetCaseView, RuleSetView, RuleVersionMode } from "../../../pages/dme/ruleSetEdit/types";
 import { golden } from "../helpers/rule-set-golden";
 import { calls, installServer, ok, settle, srv, uninstallServer } from "../helpers/rule-set-page";
 
@@ -94,14 +94,15 @@ interface ProbeProps {
   setId: string | null;
   initial: RuleSetCaseView[];
   flowVersion: number;
+  mode?: RuleVersionMode;
 }
 
 let tests: TestCases | null = null;
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 
-function Probe({ setId, initial, flowVersion }: ProbeProps) {
-  tests = useTestCases(setId, initial, flowVersion, () => '{"version":1}');
+function Probe({ setId, initial, flowVersion, mode }: ProbeProps) {
+  tests = useTestCases(setId, initial, flowVersion, () => '{"version":1}', mode ? () => mode : undefined);
   return null;
 }
 
@@ -234,5 +235,24 @@ describe("useTestCases — 케이스 목록·쓰기·모두 실행", () => {
     await settle(10);
     expect(tests!.results).toEqual({});
     expect(tests!.running).toBe(false);
+  });
+  it("내 DRAFT 우선이면 execute 에 ruleVersions 를 싣고 응답 draftVersions 를 tests.draft 에 남긴다", async () => {
+    await mount({ setId: "GT_SET", initial: [CASE_1], flowVersion: 0, mode: "MY_DRAFT" });
+    srv.replies.execute = ok({ cases: [passResult(1, true)], ruleVersions: "MY_DRAFT", draftVersions: { rules: { R_A: "2.000" }, sets: {} } });
+    await act(async () => {
+      await tests!.runAll();
+    });
+    expect(calls("execute")[0].body.params).toMatchObject({ runCases: true, ruleVersions: "MY_DRAFT" });
+    expect(tests!.draft).toEqual({ ruleVersions: "MY_DRAFT", draftVersions: { rules: { R_A: "2.000" }, sets: {} } });
+  });
+
+  it("적용 중이면 ruleVersions 칸이 없고 tests.draft 는 null", async () => {
+    await mount({ setId: "GT_SET", initial: [CASE_1], flowVersion: 0, mode: "RELEASED" });
+    srv.replies.execute = ok({ cases: [passResult(1, true)] });
+    await act(async () => {
+      await tests!.runAll();
+    });
+    expect(calls("execute")[0].body.params).not.toHaveProperty("ruleVersions");
+    expect(tests!.draft).toBeNull();
   });
 });

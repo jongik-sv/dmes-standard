@@ -11,7 +11,7 @@ import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { badgeStyle } from "@/shell";
 
 import { subTraceAt } from "./call-stack";
-import { compareRuns } from "./debug-model";
+import { compareRuns, modeDiffNote } from "./debug-model";
 import { cellText } from "./ValueTable";
 import type { Simulation } from "./useSimulation";
 
@@ -71,6 +71,7 @@ export function RunCompare({ sim, framePath }: RunCompareProps) {
     const a = subTraceAt(after.trace, path);
     return b && a ? compareRuns(b, a) : null;
   }, [before, after, pathKey]);
+  const modeNote = before && after ? modeDiffNote(before.ruleVersions, after.ruleVersions) : null;
   const rows = useMemo(
     () => (diff?.values ?? []).map((v) => ({ name: v.name, before: cellText(v.before), after: cellText(v.after), same: v.same })),
     [diff],
@@ -86,6 +87,7 @@ export function RunCompare({ sim, framePath }: RunCompareProps) {
   const changed = rows.filter((r) => !r.same).length;
   return (
     <div className="rsf-run-compare" data-testid="run-compare">
+      {modeNote && <p className="rsf-panel-note" data-testid="run-compare-mode" role="status">{modeNote}</p>}
       <p className="rsf-panel-sub">{`결과 값 — ${rows.length}개 가운데 ${changed}개 다름`}</p>
       <div data-testid="run-compare-values">
         <AgDataGrid columns={COLUMNS} data={rows} rowKey="name" height="auto" sortable={false} getRowClassExtra={rowClass} emptyMessage="두 실행 모두 결과 값이 없다" ariaLabel="실행 비교 결과 값" />

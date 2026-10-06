@@ -26,7 +26,7 @@ import { simulate } from "../api";
 import type { EditFlow } from "../flow-edit";
 import { flowJsonOf } from "../flow-edit";
 import { flowIo } from "../set-model";
-import type { CalledFlow, InputRow, RuleIoMap, SetCallIoMap, SimWarning } from "../types";
+import { NO_DRAFTS, type CalledFlow, type DraftVersions, type InputRow, type RuleIoMap, type RuleVersionMode, type SetCallIoMap, type SimWarning } from "../types";
 import { validEdits } from "../trace-view";
 import {
   applyPending,
@@ -40,7 +40,7 @@ import {
   variablesAt,
   type DebugVar,
 } from "./debug-model";
-import { loadInputs, loadStrings, pushRecent, saveInputs, saveStrings, storeKeys } from "./local-store";
+import { loadInputs, loadRuleVersions, loadStrings, pushRecent, saveInputs, saveRuleVersions, saveStrings, storeKeys } from "./local-store";
 
 /** 판정 시각 형식 — 서버 `evalTs` 와 같은 `yyyy-MM-dd HH:mm:ss`. */
 export const EVAL_TS_PATTERN = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
@@ -50,6 +50,8 @@ export const EVAL_TS_MESSAGE = "판정 시각은 yyyy-MM-dd HH:mm:ss 형식으�
 export interface DebugInput {
   recordJson: string;
   evalTs: string;
+  /** 룰 버전 모드(spec 2026-10-06). 없으면 RELEASED — 케이스 입력은 모드가 없다. */
+  ruleVersions?: RuleVersionMode;
 }
 
 /** 실행 결과 — 받은 기록·경고와 그때의 흐름 사본·흐름 구조 버전·입력. */
@@ -61,6 +63,10 @@ export interface SimResult {
   input: DebugInput;
   /** 실행 중 부른 세트의 저장된 흐름(들어가기, 하위 세트 spec §8). 서버가 주지 않으면 빈 객체다. */
   calledFlows: Readonly<Record<string, CalledFlow>>;
+  /** DRAFT 로 실행한 룰·세트(spec §4.5). 서버가 주지 않으면 NO_DRAFTS. */
+  draftVersions: DraftVersions;
+  /** 이 기록을 만든 모드(서버 응답, 없으면 입력 모드). */
+  ruleVersions: RuleVersionMode;
 }
 
 /** 입력 폼 한 칸 — 폼 줄과 그 이름의 세트 입력 변수 정보(계약 밖 키는 meta 가 null). */
@@ -83,6 +89,9 @@ export interface Simulation {
   setEvalTs(v: string): void;
   /** 판정 시각 형식 오류 문구 또는 null. */
   evalTsError: string | null;
+  /** 룰 버전 모드 — 적용 중(기본) · 내 DRAFT 우선. 바꾸면 다음 실행이 새로 돈다(sameInput 이 모드를 비교). */
+  ruleVersions: RuleVersionMode;
+  setRuleVersions(v: RuleVersionMode): void;
   /** 실행 요청을 보내지 못한 이유(서버 거부·입력 오류) 또는 null. */
   error: string | null;
   running: boolean;
@@ -156,10 +165,11 @@ const BREAKABLE: ReadonlySet<FlowNodeKind> = new Set<FlowNodeKind>(["RULE", "TAS
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const DEFAULT_ROW = (key: string): CaseFormRow => ({ key, value: "", on: true, extra: false });
 
-/** 두 입력이 같은가 — 레코드 JSON 글자와 판정 시각이 모두 같아야 같다. */
 /** 기록의 판정 시각(`RunTraceJson`, KST `yyyy-MM-dd'T'HH:mm:ss`)을 요청 형식(KST `yyyy-MM-dd HH:mm:ss`)으로. */
 export const kstRequestTs = (traceTs: string) => traceTs.replace("T", " ");
-export const sameInput = (a: DebugInput, b: DebugInput) => a.recordJson === b.recordJson && a.evalTs === b.evalTs;
+export const modeOf = (input: DebugInput): RuleVersionMode => input.ruleVersions ?? "RELEASED";
+/** 두 입력이 같은가 — 레코드 JSON 글자·판정 시각·룰 버전 모드가 모두 같아야 같다. */
+export const sameInput = (a: DebugInput, b: DebugInput) => a.recordJson === b.recordJson && a.evalTs === b.evalTs && modeOf(a) === modeOf(b);
 
 /** 훅 안 기록 — 공개 `SimResult` 에 그 기록을 만든 세트를 더한다(P9). */
 interface Stored extends SimResult {
@@ -183,6 +193,7 @@ interface Inputs {
   rows: CaseFormRow[];
   json: string;
   evalTs: string;
+  ruleVersions: RuleVersionMode;
 }
 
 /** 폼 칸 — 입력 계약 이름(DICT·PROG) 순서 뒤에 계약 밖 키. */
@@ -210,7 +221,7 @@ const evalTsErrorOf = (evalTs: string) => (evalTs.trim() !== "" && !EVAL_TS_PATT
 function inputOf(inputs: Inputs, metas: readonly InputRow[]): DebugInput | null {
   if (jsonErrorOf(inputs.json) || evalTsErrorOf(inputs.evalTs)) return null;
   const json = inputs.json.trim();
-  return { recordJson: json !== "" ? json : inputJsonOf(fieldsOf(inputs.rows, metas).map((f) => f.row)), evalTs: inputs.evalTs.trim() };
+  return { recordJson: json !== "" ? json : inputJsonOf(fieldsOf(inputs.rows, metas).map((f) => f.row)), evalTs: inputs.evalTs.trim(), ruleVersions: inputs.ruleVersions };
 }
 
 /** 지금 흐름에 있고 걸 수 있는 종류인 노드만 남긴다(순서 유지). */
@@ -238,7 +249,7 @@ const NO_CALLS: SetCallIoMap = {};
 export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersion: number, setId: string | null, calls: SetCallIoMap = NO_CALLS): Simulation {
   const [rec, setRecState] = useState<Rec>(() => emptyRec(setId, flowVersion));
   const recRef = useRef(rec);
-  const [inputs, setInputsState] = useState<Inputs>({ rows: [], json: "", evalTs: "" });
+  const [inputs, setInputsState] = useState<Inputs>(() => ({ rows: [], json: "", evalTs: "", ruleVersions: loadRuleVersions() }));
   const inputsRef = useRef(inputs);
   const [breakpoints, setBreakpointsState] = useState<ReadonlySet<string>>(NO_BREAKPOINTS);
   const bpRef = useRef(breakpoints);
@@ -377,6 +388,15 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
     [writeInputs, dropPending],
   );
 
+  const setRuleVersions = useCallback(
+    (v: RuleVersionMode) => {
+      dropPending();
+      writeInputs({ ruleVersions: v });
+      saveRuleVersions(v);
+    },
+    [writeInputs, dropPending],
+  );
+
   const importJson = useCallback(() => {
     dropPending();
     try {
@@ -407,8 +427,9 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
       }
       writeInputs(rows ? { rows, json: "", evalTs: input.evalTs } : { json: input.recordJson, evalTs: input.evalTs });
       setImportError(null);
+      if (input.ruleVersions) setRuleVersions(input.ruleVersions);
     },
-    [writeInputs, dropPending],
+    [writeInputs, dropPending, setRuleVersions],
   );
 
   /** 이 세트의 지금 기록 묶음(세트가 막 바뀌어 아직 비우지 않았으면 빈 묶음). */
@@ -474,14 +495,15 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
       setRunning(true);
       setError(null);
       try {
-        const res = await simulate(flowJsonOf(f), input.recordJson, (edits.length > 0 ? pinnedTs : undefined) || input.evalTs || undefined, edits.length > 0 ? editsJsonOf(edits) : undefined);
+        const res = await simulate(flowJsonOf(f), input.recordJson, (edits.length > 0 ? pinnedTs : undefined) || input.evalTs || undefined, edits.length > 0 ? editsJsonOf(edits) : undefined, modeOf(input));
         if (mine !== seq.current) return;
         if (versionRef.current !== version || setIdRef.current !== forSet) {
           setRunning(false);
           return;
         }
         const trace = Array.isArray(res.trace.nodes) ? res.trace : { ...res.trace, nodes: [] };
-        const record: Stored = { trace, warnings: res.warnings ?? [], flow: f, setId: forSet, flowVersion: version, input, calledFlows: res.calledFlows ?? NO_CALLED };
+        const record: Stored = { trace, warnings: res.warnings ?? [], flow: f, setId: forSet, flowVersion: version, input, calledFlows: res.calledFlows ?? NO_CALLED,
+          draftVersions: res.draftVersions ?? NO_DRAFTS, ruleVersions: res.ruleVersions ?? modeOf(input) };
         const next = pick(trace);
         writeRec((r) => ({
           ...r,
@@ -640,6 +662,8 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
     evalTs: inputs.evalTs,
     setEvalTs,
     evalTsError,
+    ruleVersions: inputs.ruleVersions,
+    setRuleVersions,
     error,
     running,
     currentInput,

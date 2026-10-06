@@ -10,6 +10,7 @@ import com.dongkuk.dmes.mdm.common.rule.RuleVersions;
 import com.dongkuk.dmes.mdm.common.support.MdmClockConfig;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
+import com.dongkuk.dmes.mdm.common.version.VersionedRow;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
@@ -24,6 +25,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -38,6 +40,7 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
  * 운영 정의 조회기(spec §6.1, 계획 Task 11) — MDM 앱 안에서 원장을 직접 읽는다. 룰은 판정 시각(KST 벽시계)에 적용되는 RELEASED 버전
  * ({@link RuleVersions#currentReleased}: {@code APPLY_FROM <= now < APPLY_TO}), 세트는 판정 시각에 적용되는 RELEASED 버전(D-144 2단계, 룰과 같은
  * 해석. FLOW_JSON 이 없으면 흐름 null = 한 줄 흐름)과 부모의 계산 상태({@link RuleVersions#effectiveStatus}).
+ * 버전 선택은 {@link RuleVersionPick}(기본 RELEASED, 디버거 MY_DRAFT — spec 2026-10-06).
  *
  * <p><b>스프링 빈이 아니다</b> — {@code MdmBusinessRuleMigrationTest} 가 {@code DefinitionLookup} 빈 0개를 요구한다. {@code RuleSetRunner} 가 호출마다
  * (테스트 케이스 일괄 실행이면 한 요청에 하나) 만든다. 한 인스턴스 안에서 룰 헤더·버전 목록·(룰, 버전) 정의·(룰, 판정 시각) 결과를 캐시하고,
@@ -62,6 +65,9 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
     private final Map<String, Optional<RuleDefinition>> definitions = new HashMap<>();
     private final Map<String, Optional<RuleSetDefinition>> setCache = new HashMap<>();
     private final Map<String, Raw> prefetched = new HashMap<>();
+    private final RuleVersionPick pick;
+    private final Map<String, BigDecimal> draftRules = new LinkedHashMap<>();
+    private final Map<String, MdmRuleSetVer> draftSets = new LinkedHashMap<>();
     private RuleVarTypeResolver.Scope scope;
 
     /** 미리 읽어 둔 (룰, 버전)의 변수·행 — 아직 해석하지 않은 원장 행 그대로. */
@@ -70,11 +76,31 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
 
     public StoredDefinitionLookup(RuleQueries queries, StoredRuleDefinitions stored, MdmRuleRepository rules,
                                   RuleSetVersionQueries setVersions, MdmRuleSetRepository sets) {
+        this(queries, stored, rules, setVersions, sets, RuleVersionPick.RELEASED);
+    }
+
+    /**
+     * 버전 선택 모드를 받는 생성자(spec 2026-10-06 §4.2). 모드는 인스턴스마다 고정이라 캐시 키({@code ruleId@evalTs}·{@code setId@evalTs})에
+     * 모드를 넣지 않는다.
+     */
+    public StoredDefinitionLookup(RuleQueries queries, StoredRuleDefinitions stored, MdmRuleRepository rules,
+                                  RuleSetVersionQueries setVersions, MdmRuleSetRepository sets, RuleVersionPick pick) {
         this.queries = queries;
         this.stored = stored;
         this.rules = rules;
         this.setVersions = setVersions;
         this.sets = sets;
+        this.pick = pick;
+    }
+
+    /** 엔진이 흐름을 준비하며 {@link #rule} 로 정의를 물어 DRAFT 로 돌려준 룰 → VER(흐름·하위 세트에 든 것이며 지나간 갈래만이 아니다). prefetch 만으로는 남지 않는다. 넣은 순서. */
+    public Map<String, BigDecimal> draftRules() {
+        return Collections.unmodifiableMap(new LinkedHashMap<>(draftRules));
+    }
+
+    /** 엔진이 흐름을 준비하며 {@link #ruleSet} 으로 정의를 물어 DRAFT 로 돌려준 세트 → 그 버전 행(흐름·하위 세트에 든 것이며 지나간 갈래만이 아니다). prefetch 만으로는 남지 않는다. 넣은 순서. */
+    public Map<String, MdmRuleSetVer> draftSets() {
+        return Collections.unmodifiableMap(new LinkedHashMap<>(draftSets));
     }
 
     @Override
@@ -94,7 +120,7 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
     }
 
     /**
-     * 판정 시각 {@code evalTs} 로 {@link #rule} 을 부를 룰들을 미리 한 번에 읽어 둔다 — 헤더·버전 목록, 그 시각에 고를 RELEASED 버전의 변수·행.
+     * 판정 시각 {@code evalTs} 로 {@link #rule} 을 부를 룰들을 미리 한 번에 읽어 둔다 — 헤더·버전 목록, 그 시각에 모드({@link RuleVersionPick})대로 고를 버전(RELEASED 면 판정 시각의 RELEASED, MY_DRAFT 면 내 DRAFT 우선)의 변수·행.
      * 룰마다 따로 읽을 것을 묶을 뿐 읽는 행은 같다. 저장값을 해석하지 않으므로 손상으로 던지지 않는다(손상 판단은 {@link #rule} 이 지금처럼 한다).
      * 엔진이 실제로 정의를 물을 룰만 넘긴다(흐름 구조가 올바를 때 트리의 룰).
      */
@@ -114,7 +140,7 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
             if (headers.get(id).isEmpty() || pairs.containsKey(id)) {
                 continue;
             }
-            RuleVersions.currentReleased(versions.get(id), now).map(MdmRuleVer::getVer)
+            pick.pick(versions.get(id), MdmRuleVer::getOwnerId, now).map(MdmRuleVer::getVer)
                     .filter(ver -> !definitions.containsKey(key(id, ver)) && !prefetched.containsKey(key(id, ver)))
                     .ifPresent(ver -> pairs.put(id, ver));
         }
@@ -144,7 +170,7 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
         return out;
     }
 
-    /** 판정 시각에 적용되는 RELEASED 세트 버전({@link RuleVersions#currentReleased}). 한 인스턴스 안에서 (세트, 시각)마다 캐시한다. */
+    /** 모드({@link RuleVersionPick})에 따라 고른 세트 버전: RELEASED 면 판정 시각에 적용되는 RELEASED({@link RuleVersions#currentReleased}), MY_DRAFT 면 내 DRAFT 우선. 한 인스턴스 안에서 (세트, 시각)마다 캐시한다. */
     @Override
     public Optional<RuleSetDefinition> ruleSet(String setId, Instant evalTs) {
         String key = setId + "@" + evalTs;
@@ -164,7 +190,16 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
         LocalDateTime at = LocalDateTime.ofInstant(evalTs, MdmClockConfig.KST);
         List<MdmRuleSetVer> versions = setVersions.versions(setId);
         String status = RuleVersions.effectiveStatus(parent.get().getStatus(), versions, at);
-        return RuleVersions.currentReleased(versions, at).map(v -> toDefinition(setId, status, v));
+        Optional<MdmRuleSetVer> v = pick.pick(versions, MdmRuleSetVer::getOwnerId, at);
+        if (v.isEmpty()) {
+            return Optional.empty();
+        }
+        if (!isDraft(v.get())) {
+            return Optional.of(toDefinition(setId, status, v.get()));
+        }
+        RuleSetDefinition def = draftLabeled("세트 " + setId, v.get().getVer(), () -> toDefinition(setId, status, v.get()));
+        draftSets.put(setId, v.get());
+        return Optional.of(def);
     }
 
     /**
@@ -204,7 +239,7 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
             return Optional.empty();
         }
         LocalDateTime now = LocalDateTime.ofInstant(evalTs, MdmClockConfig.KST);
-        Optional<MdmRuleVer> ver = RuleVersions.currentReleased(versions(ruleId), now);
+        Optional<MdmRuleVer> ver = pick.pick(versions(ruleId), MdmRuleVer::getOwnerId, now);
         if (ver.isEmpty()) {
             return Optional.empty();
         }
@@ -214,11 +249,28 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
         if (known == null) {
             // 저장값 손상은 캐시하지 않는다 — 던지면 다음 호출이 다시 읽는다(예전과 같다).
             Raw raw = prefetched.remove(key);
-            known = Optional.of(readStored(() -> definition(ruleId, rule.getRuleKind(),
-                    raw == null ? stored.read(ruleId, v, scope()) : stored.read(ruleId, v, raw.vars(), raw.rows(), scope()))));
+            Supplier<RuleDefinition> read = () -> readStored(() -> definition(ruleId, rule.getRuleKind(),
+                    raw == null ? stored.read(ruleId, v, scope()) : stored.read(ruleId, v, raw.vars(), raw.rows(), scope())));
+            known = Optional.of(isDraft(v) ? draftLabeled("룰 " + ruleId, v.getVer(), read) : read.get());
             definitions.put(key, known);
         }
+        if (isDraft(v)) {
+            draftRules.put(ruleId, v.getVer());
+        }
         return known;
+    }
+
+    private static boolean isDraft(VersionedRow v) {
+        return "DRAFT".equals(v.getStatus()); // pick 은 RELEASED 가 아니면 내 DRAFT 만 돌려준다
+    }
+
+    /** 내 DRAFT 를 읽다 난 손상 예외에 {@code "{대상} 의 내 DRAFT 버전 x.xxx: "} 머리말을 붙인다(spec §4.2·§8). */
+    private static <T> T draftLabeled(String target, BigDecimal ver, Supplier<T> read) {
+        try {
+            return read.get();
+        } catch (StoredDefinitionException e) {
+            throw new StoredDefinitionException(target + " 의 내 DRAFT 버전 " + VersionNumbers.plain(ver) + ": " + e.getMessage(), e.getCause());
+        }
     }
 
     /** 정의 캐시 키 — 버전은 scale 3 문자열({@code R@1.001})이라 SQLite 가 돌려준 scale 과 무관하다. */

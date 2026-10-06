@@ -13,6 +13,8 @@ import java.util.List;
  *
  * <p>{@code editsJson} 은 디버거에서 고친 값(4단계 spec §2.3) — JSON 배열 문자열 {@code [{beforeSeq, nodeId, values}]}, values 는 recordJson 과
  * 같은 변환기로 푼다. {@code runCases} 면 읽지 않는다. OASIS params 는 목록을 받지 못해 문자열로 받는다(D-111).
+ *
+ * <p>{@code ruleVersions} 는 룰 버전 모드(spec 2026-10-06) — {@code RELEASED}(비면 이것) 또는 {@code MY_DRAFT}. 단건·케이스 일괄 실행 모두 읽는다.
  */
 public class RuleSetSimulateRequest {
 
@@ -23,6 +25,7 @@ public class RuleSetSimulateRequest {
     private Boolean runCases;
     private String caseIds;
     private String editsJson;
+    private String ruleVersions;
 
     public String getFlowJson() { return flowJson; }
     public String getRecordJson() { return recordJson; }
@@ -32,6 +35,7 @@ public class RuleSetSimulateRequest {
     public Boolean getRunCases() { return runCases; }
     public String getCaseIds() { return caseIds; }
     public String getEditsJson() { return editsJson; }
+    public String getRuleVersions() { return ruleVersions; }
 
     /**
      * {@code caseIds} 문자열을 목록으로 — 콤마로 나눠 빈 항목을 버린다. 숫자가 아니면 조용히 넘기지 않고 {@code -1} 로 밀어 넣어 어떤 케이스와도
@@ -56,6 +60,7 @@ public class RuleSetSimulateRequest {
     public void setRunCases(Boolean v) { this.runCases = v; }
     public void setCaseIds(String v) { this.caseIds = v; }
     public void setEditsJson(String v) { this.editsJson = v; }
+    public void setRuleVersions(String v) { this.ruleVersions = v; }
     public void setFlowJson(String v) { this.flowJson = v; }
     public void setRecordJson(String v) { this.recordJson = v; }
     public void setEvalTs(String v) { this.evalTs = v; }

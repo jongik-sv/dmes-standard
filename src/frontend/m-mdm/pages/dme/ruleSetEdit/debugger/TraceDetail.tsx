@@ -23,8 +23,9 @@ import { badgeStyle, fmtVer, normVer } from "@/shell";
 import { CATCH_KIND_LABEL, NO_RESULT_MESSAGE } from "../catch-text";
 import { REJECT_BADGE } from "../panels/ChecksPanel";
 import { catchValues } from "../trace-view";
-import type { CalledFlow } from "../types";
+import { NO_DRAFTS, type CalledFlow, type DraftVersions } from "../types";
 import { caughtCount } from "./call-stack";
+import { isDraftNode } from "./debug-model";
 import { cellText } from "./ValueTable";
 
 const KIND_TEXT: Record<NodeTrace["kind"], string> = {
@@ -109,12 +110,14 @@ export interface TraceDetailProps {
   onEnter?: (nodeId: string) => void;
   /** 실행 응답의 하위 세트 흐름(`calledFlows`) — 그 세트 항목이 없으면 [안으로 들어가기]를 끄고 안내한다. */
   calledFlows?: Readonly<Record<string, CalledFlow | undefined>>;
+  /** DRAFT 로 실행한 룰·세트(spec 2026-10-06). 없으면 표시하지 않는다. */
+  draftVersions?: DraftVersions;
 }
 
 /** 실행 응답에 하위 세트 흐름이 없을 때(서버가 아직 주지 않음) [안으로 들어가기] 자리 안내. */
 export const ENTER_OFF_NOTE = "하위 세트 흐름을 받지 못해 안으로 들어갈 수 없다";
 
-export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenRule, endedBranch, onEnter, calledFlows }: TraceDetailProps) {
+export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenRule, endedBranch, onEnter, calledFlows, draftVersions = NO_DRAFTS }: TraceDetailProps) {
   const edges = useMemo(() => new Map(flow.edges.map((e) => [e.id, e] as const)), [flow]);
   const edgeName = (id: string) => edges.get(id)?.label ?? id;
   const flowNode = flow.nodes.find((n) => n.id === nodeId);
@@ -222,6 +225,9 @@ export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenR
           <p className="rsf-panel-note">
             <code>{node.ruleId}</code>
             {node.ver != null ? ` · 버전 ${fmtVer(normVer(node.ver))}` : ""}
+            {isDraftNode(draftVersions, node.ruleId, node.ver) && (
+              <span data-testid="sim-detail-draft" style={{ ...badgeStyle("warning"), marginLeft: "var(--spacing-xs)" }}>DRAFT</span>
+            )}
           </p>
           {node.ruleId && (
             <Button size="sm" data-testid="sim-detail-open-rule" onClick={() => onOpenRule(node.ruleId!)}>

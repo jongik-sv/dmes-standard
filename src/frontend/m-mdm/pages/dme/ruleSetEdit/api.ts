@@ -21,6 +21,7 @@ import type {
   RuleSetStatusResult,
   RuleSetVersionResult,
   RuleSetView,
+  RuleVersionMode,
 } from "./types";
 
 const SERVICE = "ruleSetEdit";
@@ -30,6 +31,9 @@ function blankToUndefined(v: string | null | undefined): string | undefined {
   const t = (v ?? "").trim();
   return t ? t : undefined;
 }
+
+/** RELEASED 는 서버 기본이라 칸을 보내지 않는다(요청이 지금과 같게). */
+const draftOnly = (v: RuleVersionMode | undefined) => (v === "MY_DRAFT" ? v : undefined);
 
 /** 세트 고르기 후보 — ID·세트명 부분 일치 20건. */
 export function searchSets(keyword: string): Promise<RuleSetPickResult> {
@@ -87,8 +91,10 @@ export function validateFlow(flowJson: string): Promise<RuleSetCondIoResult> {
  * 기록 실행(디버거) — 저장하지 않은 흐름을 레코드로 돌려 노드별 기록을 받는다. evalTs 가 없으면 서버 현재 시각.
  * editsJson(4단계 E4)은 멈춘 자리에서 고친 값 목록(`editsJsonOf`)이고, 없으면 칸을 보내지 않는다.
  */
-export function simulate(flowJson: string, recordJson: string, evalTs: string | undefined, editsJson?: string): Promise<RuleSetSimulateResult> {
-  return callOasis<RuleSetSimulateResult>(SERVICE, "execute", { flowJson, recordJson, evalTs: blankToUndefined(evalTs), editsJson: blankToUndefined(editsJson) });
+export function simulate(flowJson: string, recordJson: string, evalTs: string | undefined, editsJson?: string, ruleVersions?: RuleVersionMode): Promise<RuleSetSimulateResult> {
+  return callOasis<RuleSetSimulateResult>(SERVICE, "execute", {
+    flowJson, recordJson, evalTs: blankToUndefined(evalTs), editsJson: blankToUndefined(editsJson), ruleVersions: draftOnly(ruleVersions),
+  });
 }
 
 /** 폐기(INUSE → DEPRECATED) — delete target SET. 행 버전을 보내지 않는다(부모에 행 버전이 없다). */
@@ -152,8 +158,8 @@ export function deleteCase(setId: string, caseId: number, rowVersion: number): P
 }
 
 /** 저장된 케이스 일괄 실행(3단계 P8) — 저장하지 않은 흐름으로 돌린다. caseIds 가 비면 전체. */
-export function runCases(setId: string, flowJson: string, caseIds: readonly number[]): Promise<RuleSetCaseRunResult> {
-  return callOasis<RuleSetCaseRunResult>(SERVICE, "execute", { setId, flowJson, runCases: true, caseIds: caseIds.join(",") });
+export function runCases(setId: string, flowJson: string, caseIds: readonly number[], ruleVersions?: RuleVersionMode): Promise<RuleSetCaseRunResult> {
+  return callOasis<RuleSetCaseRunResult>(SERVICE, "execute", { setId, flowJson, runCases: true, caseIds: caseIds.join(","), ruleVersions: draftOnly(ruleVersions) });
 }
 
 /** 식 파싱(3단계 P-D1) — `validate` 의 `exprText`. 평가는 화면(`evalex`)이 한다. */

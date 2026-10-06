@@ -18,7 +18,7 @@ import { badgeStyle } from "@/shell";
 
 import { ToolButton } from "../canvas/ToolButton";
 import { CATCH_KIND_LABEL, catchTitle } from "../catch-text";
-import { RUN_DENIED_TITLE, debugStatus } from "./debug-model";
+import { DRAFT_CORRUPT_TIP, RUN_DENIED_TITLE, debugStatus, draftRunText } from "./debug-model";
 import type { Simulation } from "./useSimulation";
 
 export interface DebugToolbarProps {
@@ -31,6 +31,7 @@ export interface DebugToolbarProps {
 
 export const PENDING_RUN_PREFIX = "고친 값으로 처음부터 다시 실행한 뒤 ";
 const RUN_TO_NEEDS_NODE = "캔버스에서 흐름 노드를 먼저 고른다";
+const DRAFT_ERROR_MARK = "내 DRAFT 버전";
 export const STOP_TIP = "중지 — 디버그를 끝내고 실행 전으로 (Shift+F5)";
 
 export function DebugToolbar({ sim, canRun, selectedId }: DebugToolbarProps) {
@@ -44,7 +45,9 @@ export function DebugToolbar({ sim, canRun, selectedId }: DebugToolbarProps) {
   const [caughtOpen, setCaughtOpen] = useState(false);
   const redo = pendingCount > 0 ? PENDING_RUN_PREFIX : "";
   const hasEdits = pendingCount > 0 || sim.appliedEdits.length > 0;
-  const alert = sim.notice ?? sim.error;
+  // 서버 MDM026 머리말(Task 1)에 "내 DRAFT 버전" 이 있고 내 DRAFT 우선으로 돌렸으면 적용 중으로 돌리는 방법을 덧붙인다.
+  const rawAlert = sim.notice ?? sim.error;
+  const alert = rawAlert && !sim.notice && sim.ruleVersions === "MY_DRAFT" && rawAlert.includes(DRAFT_ERROR_MARK) ? `${rawAlert} ${DRAFT_CORRUPT_TIP}` : rawAlert;
   const end = !sim.last ? "idle" : n === 0 || (sim.cursor >= n && sim.last.trace.nodes[n - 1]?.status === "ERROR") ? "error" : sim.cursor >= n ? "done" : "running";
 
   const btn = (testId: string, label: string, icon: ReactNode, onClick: () => void, off: boolean, tip: string) => (
@@ -93,6 +96,9 @@ export function DebugToolbar({ sim, canRun, selectedId }: DebugToolbarProps) {
             </ul>
           )}
         </span>
+      )}
+      {sim.last?.ruleVersions === "MY_DRAFT" && (
+        <span data-testid="dbg-draft-run" style={badgeStyle("warning")}>{draftRunText(sim.last.draftVersions)}</span>
       )}
       {sim.stale && (
         <span data-testid="dbg-stale" style={badgeStyle("warning")} title="흐름 구조가 이 실행 뒤 바뀌었다. 다음 동작에서 새로 실행한다">

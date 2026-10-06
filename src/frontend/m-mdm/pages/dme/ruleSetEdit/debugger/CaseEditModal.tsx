@@ -24,6 +24,8 @@ export interface CaseEditModalProps {
   error: string | null;
   onSave(d: CaseDraft): Promise<boolean>;
   onClose(): void;
+  /** 본문 위에 보일 안내 한 줄(예: 내 DRAFT 로 돌린 결과를 기대값으로 채웠다). 없으면 그리지 않는다. */
+  note?: string | null;
 }
 
 type FieldErrors = Partial<Record<"caseName" | "inputJson" | "evalTs" | "expectedJson", string>>;
@@ -55,7 +57,7 @@ export function caseDraftErrors(d: CaseDraft): FieldErrors {
 const label = { display: "block", margin: "var(--spacing-sm) 0 2px", fontSize: "var(--font-size-sm)", color: "var(--color-text-secondary)" } as const;
 const mono = { fontFamily: "var(--font-family-mono)" } as const;
 
-export function CaseEditModal({ draft, busy, error, onSave, onClose }: CaseEditModalProps) {
+export function CaseEditModal({ draft, busy, error, onSave, onClose, note }: CaseEditModalProps) {
   // 팝업은 body 로 포털되어 숨은 세트 탭(패널 display:none)을 따라 숨지 않는다 — 고른 탭일 때만 그린다. 작성 중인 칸(f)은 이 부품에 남아 탭을 다시 고르면 이어진다.
   const active = useContext(EditorActiveContext);
   const [f, setF] = useState<CaseDraft | null>(draft);
@@ -103,6 +105,11 @@ export function CaseEditModal({ draft, busy, error, onSave, onClose }: CaseEditM
     >
       {f && (
         <div data-testid="case-modal">
+          {note && (
+            <p className="rsf-panel-note" data-testid="case-edit-draft-note">
+              {note}
+            </p>
+          )}
           <label style={label}>이름</label>
           <Input data-testid="case-modal-name" data-autofocus value={f.caseName} error={errors.caseName} onChange={set("caseName")} />
           <label style={label}>설명</label>

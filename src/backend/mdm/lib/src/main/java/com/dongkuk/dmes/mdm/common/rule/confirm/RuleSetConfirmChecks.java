@@ -35,11 +35,13 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import kr.dongkuk.maru.mdm.engine.flow.FlowParser;
@@ -113,7 +115,28 @@ public class RuleSetConfirmChecks {
         } catch (RuntimeException e) {
             caseFailure = String.valueOf(e.getMessage());
         }
-        return RuleSetConfirmReport.report(draft, checks, future, notReleased, applyFrom, cases, caseFailure);
+        return RuleSetConfirmReport.report(draft, checks, future, notReleased, applyFrom, cases, caseFailure,
+                caseFailed(cases, caseFailure) ? ownerDraftRules(ids, v.getOwnerId()) : List.of());
+    }
+
+    /** 안내가 붙을 실패가 있는가 — 기대값 있는 케이스의 pass=false 또는 일괄 실행 실패. 없으면 원장을 더 읽지 않는다. */
+    private static boolean caseFailed(List<Map<String, Object>> cases, String caseFailure) {
+        return caseFailure != null || cases.stream().anyMatch(c -> Boolean.FALSE.equals(c.get("pass"))
+                && !Boolean.FALSE.equals(c.get(RuleSetConfirmReport.HAS_EXPECTED)));
+    }
+
+    /** 흐름 룰 가운데 {@code owner} 의 DRAFT 가 있는 룰 ID(흐름 순서, spec 2026-10-06 §6). 작성자가 없으면 빈 목록. */
+    private List<String> ownerDraftRules(List<String> ids, String owner) {
+        if (owner == null || ids.isEmpty()) {
+            return List.of();
+        }
+        Set<String> drafted = new HashSet<>();
+        for (MdmRuleVer r : ruleQueries.versionsOf(ids)) {
+            if (VersionStatus.DRAFT.name().equals(r.getStatus()) && owner.equals(r.getOwnerId())) {
+                drafted.add(r.getMaruRuleId());
+            }
+        }
+        return ids.stream().distinct().filter(drafted::contains).toList();
     }
 
     /**

@@ -7,10 +7,12 @@
  */
 import type { DataType, RunTrace, RuleSetFlow, TraceEdit, TypedValue } from "@/contract/engine-contract.generated";
 import { EVAL_TS, RESERVED_CONSTANTS, RESERVED_PREFIX } from "@/evalex";
+import { normVer } from "@/shell";
 
 import { catchTitle } from "../catch-text";
 import { CATCH_NAMES, endingBranches } from "../flow-model";
 import { frames, sameTyped, validEdits } from "../trace-view";
+import type { DraftVersions, RuleVersionMode } from "../types";
 
 /** 변수 패널 한 줄 — 커서 자리에서 본 값. created·changed 는 바로 앞 노드가 만들었거나 바꿨는가.
  *  edited 는 커서 자리까지 적용된 고친 값과 지금 값이 같은가(4단계 E4), pending 은 아직 보내지 않은 고침 대기 값인가. */
@@ -330,3 +332,24 @@ export function applyPending(vars: DebugVar[], pending: TraceEdit | null): Debug
   for (const [name, value] of rest.values()) out.push({ name, value, created: false, changed: false, edited: false, pending: true });
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
+
+/** 이 룰 노드가 DRAFT 로 돌았는가(spec 2026-10-06 §4.5) — 응답 draftVersions 의 그 룰 VER 와 노드 VER 가 같을 때만. VER 는 룰마다 유일하다. */
+export function isDraftNode(drafts: DraftVersions, ruleId: string | null | undefined, ver: string | number | null | undefined): boolean {
+  if (!ruleId || ver == null) return false;
+  const want = drafts.rules[ruleId];
+  return want != null && normVer(want) === normVer(ver);
+}
+
+export const MODE_LABEL: Record<RuleVersionMode, string> = { RELEASED: "적용 중", MY_DRAFT: "내 DRAFT 우선" };
+
+/** 기록 머리 요약(spec §7.4). 엔진이 흐름 준비 때 묻는 DRAFT(하위 세트 포함, 지나간 갈래만이 아님)의 개수다. */
+export const draftRunText = (d: DraftVersions) =>
+  `내 DRAFT 우선으로 실행 · 흐름의 DRAFT 룰 ${Object.keys(d.rules).length}개·세트 ${Object.keys(d.sets).length}개`;
+
+/** 두 실행의 모드가 다르면 안내(spec §7.3), 같으면 null. */
+export const modeDiffNote = (before: RuleVersionMode, now: RuleVersionMode): string | null =>
+  before === now ? null : `이전 실행은 ${MODE_LABEL[before]}, 지금은 ${MODE_LABEL[now]}으로 돌렸다`;
+
+export const DRAFT_CASES_NOTE = "내 DRAFT 우선으로 돌렸다 — 확정 검사는 적용 중 버전으로 돌린다";
+export const DRAFT_EXPECTED_NOTE = "내 DRAFT 우선으로 돌린 결과다. 룰 DRAFT 를 확정해야 세트 확정 검사가 이 기대값으로 통과한다";
+export const DRAFT_CORRUPT_TIP = "[적용 중(기본)] 으로 바꾸면 RELEASED 로 돌릴 수 있다";

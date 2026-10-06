@@ -235,7 +235,7 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const initialCases = useMemo(() => view?.cases ?? NO_CASES, [viewEpoch, setId]);
   const flowJson = useCallback(() => (flowRef.current ? flowJsonOf(flowRef.current) : ""), []);
-  const tests = useTestCases(setId, initialCases, state.flowVersion, flowJson);
+  const tests = useTestCases(setId, initialCases, state.flowVersion, flowJson, () => sim.ruleVersions);
   const collapse = useCollapse(flow, setId);
   const drag = useDragActions(state);
 
@@ -1011,7 +1011,7 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
               <ContentPanel key="right" width={360} minSize={280}>
                 <div className="rsf-props" data-testid="flow-props">
                   {top ? (
-                    <FrameDetail frame={top} selectedId={selectedId} calledFlows={last?.calledFlows ?? NO_CALLED} onOpenRule={openRule} onEnter={enterSet} />
+                    <FrameDetail frame={top} selectedId={selectedId} calledFlows={last?.calledFlows ?? NO_CALLED} onOpenRule={openRule} onEnter={enterSet} draftVersions={last?.draftVersions} />
                   ) : debugging ? (
                     <VariablePanel
                       sim={sim}

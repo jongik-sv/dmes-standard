@@ -153,6 +153,23 @@ class RuleSetConfirmChecksSqliteTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void failingCaseHintsOwnerRuleDraftOnlyWhenTheSetOwnerHasIt() {   // spec 2026-10-06 §6 — 안내는 문구만, 심각도·이슈 수는 그대로
+        draftSet("S_HINT", "[\"R_A\"]");   // 세트 DRAFT 작성자 kim
+        jdbc.update("INSERT INTO TB_MDM_RULE_SET_TEST_CASE (MARU_RULE_SET_ID, CASE_ID, CASE_NAME, INPUT_JSON, EXPECTED_JSON) "
+                + "VALUES ('S_HINT', 1, 'c1', '{\"CF_IN\":1}', '{\"OUT_A\":\"Z\"}')");
+        DmeTestSupport.pending(jdbc, "R_A", 2, "DRAFT", "lee", "FIRST", 1);
+        RuleSetConfirmReport.Item other = item(report("S_HINT", JUL1), MdmRuleSetConfirmCheckItem.TEST_CASES);
+        assertThat(other.issues()).extracting(i -> i.issue().code()).containsExactly("CASE_FAILED");
+        assertThat(other.issues().get(0).issue().message()).doesNotContain("DRAFT");   // 남의 DRAFT 는 안내하지 않는다
+
+        jdbc.update("UPDATE TB_MDM_RULE_VER SET OWNER_ID = 'kim' WHERE MARU_RULE_ID = 'R_A' AND STATUS = 'DRAFT'");
+        RuleSetConfirmReport.Item own = item(report("S_HINT", JUL1), MdmRuleSetConfirmCheckItem.TEST_CASES);
+        assertThat(own.status()).isEqualTo(ItemStatus.REJECTED);
+        assertThat(own.issues()).extracting(i -> i.issue().code()).containsExactly("CASE_FAILED");
+        assertThat(own.issues().get(0).issue().message()).endsWith(RuleSetConfirmReport.draftHint(List.of("R_A")));
+    }
+
+    @Test
     void runErrorOfCaseWithoutExpectedIsOnlyAWarning() {   // Ruling P2-22(I-1) — 스펙 §6 항목 4 는 기대값 있는 케이스의 실패만 막는다
         draftSet("S_RUN", "[\"R_A\"]");
         jdbc.update("INSERT INTO TB_MDM_RULE_SET_TEST_CASE (MARU_RULE_SET_ID, CASE_ID, CASE_NAME, INPUT_JSON, EXPECTED_JSON) "

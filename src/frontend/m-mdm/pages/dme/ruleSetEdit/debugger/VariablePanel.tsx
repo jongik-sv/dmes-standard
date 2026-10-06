@@ -369,6 +369,7 @@ export function VariablePanel({ sim, setId, flow, rules, selectedId, canParse, o
               traceViolations={last.trace.violations ?? []}
               desc={flow.view.descs?.[selectedId]}
               onOpenRule={onOpenRule}
+              draftVersions={last.draftVersions}
               endedBranch={endedBranch}
               onEnter={onEnterSet}
               calledFlows={last.calledFlows}
