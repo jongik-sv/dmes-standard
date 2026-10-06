@@ -23,9 +23,11 @@ import {
   GRID_SELECTION_COL_ID,
   clearGridPrefs,
   hideLockedColIds,
+  loadGridAutoSave,
   loadGridPrefs,
   mergeColumnState,
   resolvePersonalize,
+  saveGridAutoSave,
   saveGridPrefs,
   toGridPrefs,
   type GridDefaultColumn,
@@ -189,6 +191,8 @@ export interface GridPersonalizeContext {
   screenKey: string;
   gridId: string;
   sort: boolean;
+  /** 자동 저장 스위치. false 면 변경을 저장하지 않고 화면에만 둔다(`saveNow` 로 직접 저장). */
+  autoSave: boolean;
   defaults: GridDefaultColumn[];
   /** 숨김 잠금 colId. */
   locked: ReadonlySet<string>;
@@ -215,13 +219,26 @@ export interface GridPersonalizeController {
   restore(): boolean;
   /** 열 정의가 다시 들어온 뒤(newColumnsLoaded) 지금 개인 상태를 다시 적용한다. 개인 상태가 없으면 아무것도 하지 않는다. */
   reapply(): boolean;
-  /** 그리드 이벤트 — 사용자 변경이면 지금 상태를 잡아 두고 debounce 뒤 저장한다. */
+  /**
+   * 그리드 이벤트 — 사용자 변경이면 지금 상태를 잡아 두고 debounce 뒤 저장한다.
+   * 자동 저장이 꺼져 있으면 잡아만 두고(재주입 때 유지) 저장하지 않는다.
+   */
   handleEvent(e: GridPersonalizeEvent): void;
   /** 대기 중인 저장을 바로 쓴다. 그리드 API 없이도 된다(잡아 둔 값을 쓴다). */
   flush(): void;
-  /** 상태를 적용하고 바로 저장한다(설정 창 확인). 잠긴 컬럼의 hide 는 무시한다. `width` 를 준 컬럼만 너비를 저장한다. */
+  /**
+   * 상태를 적용하고 바로 저장한다(설정 창 확인). 잠긴 컬럼의 hide 는 무시한다. `width` 를 준 컬럼만 너비를 저장한다.
+   * 자동 저장이 꺼져 있으면 적용만 하고 저장하지 않는다.
+   */
   apply(state: ColumnState[]): void;
-  /** 저장값을 지우고 정의 기준 상태로 되돌린 뒤 자동 너비 맞춤을 다시 살린다. */
+  /** 지금 그리드 상태를 바로 저장한다(자동 저장이 꺼진 그리드의 수동 저장). 대기 중인 저장·저장 안 한 변경 표시를 비운다. */
+  saveNow(): void;
+  /**
+   * 자동 저장 스위치가 `next` 로 바뀌었음을 알린다(바뀌기 전 값은 `getContext().autoSave`).
+   * 켬 → 끔: 켜져 있던 동안의 대기 저장을 먼저 쓴다. 끔 → 켬: 저장 안 한 변경이 있으면 지금 모습을 저장한다.
+   */
+  setAutoSave(next: boolean): void;
+  /** 저장값을 지우고 정의 기준 상태로 되돌린 뒤 자동 너비 맞춤을 다시 살린다. 자동 저장 스위치 값은 건드리지 않는다. */
   reset(): void;
   /** 지금 적용 중인 개인 상태(없으면 null). */
   current(): GridPrefs | null;
@@ -241,6 +258,10 @@ export function createGridPersonalizeController(opts: GridPersonalizeControllerO
   let current: GridPrefs | null = null;
   let pending: { prefs: GridPrefs; userId: string; screenKey: string; gridId: string } | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  /** 자동 저장이 꺼진 동안 저장하지 않고 둔 변경이 있는 저장 키(`userId\0screenKey\0gridId`). 없으면 null. */
+  let dirtyKey: string | null = null;
+  const keyOf = (c: { userId: string; screenKey: string; gridId: string }) => `${c.userId}\u0000${c.screenKey}\u0000${c.gridId}`;
+  const isDirty = () => dirtyKey !== null && dirtyKey === keyOf(opts.getContext());
 
   const liveApi = () => {
     const api = opts.getApi();
@@ -300,12 +321,32 @@ export function createGridPersonalizeController(opts: GridPersonalizeControllerO
     return prefs;
   };
 
+  /** 지금 그리드 상태를 잡아 바로 저장한다. 너비는 이미 저장된 너비와 이번 세션에 사용자가 끌어 바꾼 컬럼만 담긴다(`capture` 규칙). */
+  const saveNow = () => {
+    const ctx = opts.getContext();
+    const prefs = capture([]);
+    if (!prefs) return;
+    if (timer != null) clearTimeout(timer);
+    timer = null;
+    pending = null;
+    dirtyKey = null;
+    save(ctx.userId, ctx.screenKey, ctx.gridId, prefs);
+  };
+
   return {
     restore() {
       const ctx = opts.getContext();
       if (!ctx.active || !ctx.userId || !ctx.screenKey) return false;
       const s = store();
-      const prefs = s === undefined ? loadGridPrefs(ctx.userId, ctx.screenKey, ctx.gridId) : loadGridPrefs(ctx.userId, ctx.screenKey, ctx.gridId, s);
+      // 자동 저장을 끈 채 바꾼 저장 안 한 상태가 있으면(숨은 탭이 꺼졌다 켜질 때) 저장값으로 되돌리지 않고 그 상태를 다시 적용한다.
+      const keepUnsaved = isDirty() && current;
+      // 저장값을 읽는 갈래에서는 다른 키의 저장 안 한 표시를 비운다 — `current` 가 이 키의 저장값으로 덮이므로 그 표시를 남기면 나중에 되돌아왔을 때 남의 상태를 저장한다.
+      if (!keepUnsaved) dirtyKey = null;
+      const prefs = keepUnsaved
+        ? current
+        : s === undefined
+          ? loadGridPrefs(ctx.userId, ctx.screenKey, ctx.gridId)
+          : loadGridPrefs(ctx.userId, ctx.screenKey, ctx.gridId, s);
       current = prefs;
       if (!prefs) {
         // 끈 동안 다른 그리드가 기본값 복원을 했을 수 있다 — 저장값 기준으로 다시 계산한다.
@@ -325,6 +366,10 @@ export function createGridPersonalizeController(opts: GridPersonalizeControllerO
       const resized = e.type === "columnResized" ? (e.columns ?? []).map((c) => c.getColId()) : [];
       const prefs = capture(resized);
       if (!prefs) return;
+      if (!ctx.autoSave) {
+        dirtyKey = keyOf(ctx);
+        return;
+      }
       pending = { prefs, userId: ctx.userId, screenKey: ctx.screenKey, gridId: ctx.gridId };
       if (timer != null) clearTimeout(timer);
       timer = setTimeout(flush, debounceMs);
@@ -346,13 +391,24 @@ export function createGridPersonalizeController(opts: GridPersonalizeControllerO
       if (timer != null) clearTimeout(timer);
       timer = null;
       pending = null;
+      if (!ctx.autoSave) {
+        dirtyKey = keyOf(ctx);
+        return;
+      }
       save(ctx.userId, ctx.screenKey, ctx.gridId, prefs);
+    },
+    saveNow,
+    setAutoSave(next) {
+      if (opts.getContext().autoSave === next) return;
+      if (!next) flush();
+      else if (isDirty()) saveNow();
     },
     reset() {
       const ctx = opts.getContext();
       if (timer != null) clearTimeout(timer);
       timer = null;
       pending = null;
+      dirtyKey = null;
       current = null;
       if (ctx.userId && ctx.screenKey) {
         const s = store();
@@ -420,8 +476,20 @@ export interface GridPersonalizeHandle {
    * 사용자가 너비를 실제로 바꾼 컬럼만 `width` 를 넣는다.
    */
   apply(state: ColumnState[]): void;
-  /** 저장값을 지우고 정의 기준 상태로 되돌린 뒤 자동 너비 맞춤을 다시 살린다. */
+  /** 저장값을 지우고 정의 기준 상태로 되돌린 뒤 자동 너비 맞춤을 다시 살린다. 자동 저장 스위치 값은 그대로 둔다. */
   reset(): void;
+  /**
+   * 자동 저장 스위치 — 사용자가 정한 값(없으면 `personalize.autoSave`, 그것도 없으면 켬). false 면 순서·너비·표시·고정·정렬을 화면에만
+   * 적용하고 저장하지 않는다(새로 고치면 마지막 저장 상태로 돌아간다). 개인화가 동작 중이 아니면 의미가 없다.
+   */
+  autoSave: boolean;
+  /**
+   * 스위치를 바꾼다. 값은 옆 키(`dmes:grid-opts:v1:…`)에 저장한다. 켬 → 끔이면 대기 중인 저장을 먼저 쓰고,
+   * 끔 → 켬이면 저장 안 한 변경이 있을 때 지금 모습을 저장한다. 개인화가 동작 중이 아니면 아무것도 하지 않는다.
+   */
+  setAutoSave(next: boolean): void;
+  /** 지금 그리드 상태를 바로 저장한다(자동 저장이 꺼진 그리드의 수동 저장). 개인화가 동작 중이 아니면 아무것도 하지 않는다. */
+  saveNow(): void;
 }
 
 export interface UseGridPersonalizeOptions {
@@ -496,8 +564,20 @@ export function useGridPersonalize(opts: UseGridPersonalizeOptions): GridPersona
     setWaitingState(v);
   };
 
-  const ctxRef = useRef({ enabled, userId, screenKey, gridId: gid, sort: resolved.sort, defaults, locked });
-  ctxRef.current = { enabled, userId, screenKey, gridId: gid, sort: resolved.sort, defaults, locked };
+  // 자동 저장 스위치 — 저장값(옆 키)은 렌더 중에 읽는다. 효과로 읽어 setState 하면 사용자 ID 가 들어올 때마다 렌더가 하나 늘고, 첫 복원 직후의
+  // 사용자 변경이 옛 값으로 처리된다. 사용자가 이번 마운트에서 토글한 값만 상태에 두고, 저장 키가 바뀌면 그 값은 버린다.
+  // `waiting` 이 deps 에 있는 것은 등록부를 이어받을 때(대기 → 차지) 먼저 있던 그리드가 바꾼 값을 다시 읽기 위해서다(그 전환이 이미 렌더를 일으킨다).
+  const savedAutoSave = useMemo(
+    () => (enabled ? loadGridAutoSave(userId, screenKey, gid) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [enabled, userId, screenKey, gid, waiting],
+  );
+  const optsKey = `${userId}\u0000${screenKey}\u0000${gid}`;
+  const [toggled, setToggled] = useState<{ key: string; value: boolean } | null>(null);
+  const autoSave = toggled && toggled.key === optsKey ? toggled.value : (savedAutoSave ?? resolved.autoSave);
+
+  const ctxRef = useRef({ enabled, userId, screenKey, gridId: gid, sort: resolved.sort, autoSave, defaults, locked });
+  ctxRef.current = { enabled, userId, screenKey, gridId: gid, sort: resolved.sort, autoSave, defaults, locked };
   const getApiRef = useRef(opts.getApi);
   getApiRef.current = opts.getApi;
   const onResetRef = useRef(opts.onReset);
@@ -634,7 +714,21 @@ export function useGridPersonalize(opts: UseGridPersonalizeOptions): GridPersona
         if (!ctxRef.current.enabled || !claimedRef.current) return;
         controller.reset();
       },
+      autoSave,
+      setAutoSave(next) {
+        const c = ctxRef.current;
+        if (!c.enabled || !claimedRef.current || !c.userId || !c.screenKey || c.autoSave === next) return;
+        saveGridAutoSave(c.userId, c.screenKey, c.gridId, next);
+        controller.setAutoSave(next);
+        // 다음 렌더 전에 오는 이벤트도 새 값을 보게 한다(렌더가 ctxRef 를 같은 값으로 다시 채운다).
+        ctxRef.current = { ...c, autoSave: next };
+        setToggled({ key: `${c.userId}\u0000${c.screenKey}\u0000${c.gridId}`, value: next });
+      },
+      saveNow() {
+        if (!ctxRef.current.enabled || !claimedRef.current) return;
+        controller.saveNow();
+      },
     }),
-    [handleEnabled, locked, controller],
+    [handleEnabled, locked, controller, autoSave],
   );
 }

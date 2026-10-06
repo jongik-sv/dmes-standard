@@ -99,6 +99,8 @@ const settingsRows = () =>
     e.getAttribute("data-testid")!.replace("column-settings-row-", ""),
   );
 const click = (el: Element | null) => act(async () => void (el as HTMLElement).click());
+/** 초기화 확인 창(MessageModal confirm)의 단추를 누른다. */
+const confirmButton = (text: "확인" | "취소") => Array.from(document.querySelectorAll("button")).find((b) => b.textContent === text) ?? null;
 
 /** 머리글 칸·데이터 칸에 우클릭(contextmenu)을 보낸다. 기본 동작이 막혔는지(defaultPrevented)를 돌려준다. */
 function rightClick(el: Element, x = 40, y = 30): boolean {
@@ -164,7 +166,7 @@ describe("GridPanel [컬럼 설정] 단추", () => {
       ),
     );
     const ids = Array.from(document.querySelectorAll(".grid-panel-buttons button")).map((e) => e.id);
-    expect(ids).toEqual(["btn_grid_add", "btn_x", "btn_grid_columns"]);
+    expect(ids).toEqual(["btn_grid_add", "btn_x", "btn_grid_columns", "btn_grid_reset"]);
     const actions = document.querySelector(".grid-panel-header-actions")!;
     expect(Array.from(actions.children).map((e) => e.className)).toEqual(["grid-panel-buttons", "grid-panel-header-extra"]);
   });
@@ -263,7 +265,8 @@ describe("머리글 우클릭 메뉴", () => {
     await wait(50);
     expect(tid("grid-header-menu")).not.toBeNull();
     expect(tid("grid-header-menu-settings")!.textContent).toBe("컬럼 설정");
-    expect(tid("grid-header-menu-reset")!.textContent).toBe("기본값 복원");
+    expect(tid("grid-header-menu-autosave")!.textContent).toBe("자동 저장");
+    expect(tid("grid-header-menu-reset")!.textContent).toBe("초기화");
   });
 
   it("마우스 위치에 띄운다 — 기준 요소가 클릭 좌표의 고정 위치이고 다시 우클릭하면 새 위치로 옮긴다", async () => {
@@ -323,7 +326,7 @@ describe("머리글 우클릭 메뉴", () => {
     expect(tid("grid-header-menu")).toBeNull();
   });
 
-  it("[기본값 복원] 은 저장값을 지우고 정의 상태로 되돌린다", async () => {
+  it("[초기화] 는 확인 창을 거쳐 저장값을 지우고 정의 상태로 되돌린다", async () => {
     await stubUser("u1");
     seed({
       cols: [
@@ -340,6 +343,13 @@ describe("머리글 우클릭 메뉴", () => {
     await wait(50);
     await click(tid("grid-header-menu-reset"));
     await wait(50);
+    // 확인 전에는 아무것도 바뀌지 않는다
+    expect(tid("grid-reset-confirm")).not.toBeNull();
+    expect(localStorage.getItem(KEY)).not.toBeNull();
+    expect(order(a).filter((c) => c !== "secret")).toEqual(["qty", "code", "name"]);
+    await click(confirmButton("확인"));
+    await wait(50);
+    expect(tid("grid-reset-confirm")).toBeNull();
     expect(localStorage.getItem(KEY)).toBeNull();
     expect(order(a)).toEqual(["code", "name", "qty", "secret"]);
     expect(visible(a)).toEqual(["code", "name", "qty"]);

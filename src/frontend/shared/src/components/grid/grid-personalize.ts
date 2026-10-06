@@ -4,6 +4,7 @@
  * - 저장: localStorage `dmes:grid:v1:{userId}:{screenKey}:{gridId}` = GridPrefs.
  *   `cols` 배열 순서가 컬럼 순서다. 컬럼 구성 해시는 키에 넣지 않고, 적용할 때 병합한다
  *   (아는 colId 는 저장값, 새 컬럼은 기본 위치, 없어진 컬럼은 버림).
+ * - 자동 저장 스위치 값: 옆 키 `dmes:grid-opts:v1:{userId}:{screenKey}:{gridId}` = `{"autoSave": boolean}`. 없으면 개발자 기본값.
  * - userId 가 "" 이면 읽지도 쓰지도 않는다(사용자 확인 전).
  * - 모든 저장소 접근은 try/catch. 용량 초과면 같은 사용자의 오래된 그리드 키부터 지우고 다시 시도하고,
  *   그래도 안 되면 조용히 포기한다(개인화가 안 될 뿐 그리드는 동작).
@@ -18,6 +19,11 @@ import type { GridColumn } from "./grid-types";
 export interface GridPersonalizeOptions {
   /** false 면 정렬 상태를 저장·복원하지 않는다(서버 페이징 그리드). 기본 true. */
   sort?: boolean;
+  /**
+   * 사용자가 자동 저장 스위치를 아직 정하지 않은 그리드의 기본값(개발자 기본값). 기본 true.
+   * 사용자가 스위치를 한 번 바꾸면 그 값(옆 키 `dmes:grid-opts:v1:…`)이 이 값을 이긴다.
+   */
+  autoSave?: boolean;
 }
 
 /** AgDataGrid `personalize` prop. 생략·true = 켬, false = 끔, 객체 = 켜고 일부 항목만 조정. */
@@ -26,15 +32,22 @@ export type GridPersonalize = boolean | GridPersonalizeOptions;
 export interface ResolvedGridPersonalize {
   enabled: boolean;
   sort: boolean;
+  /** 개발자 기본값 — 사용자가 정한 값이 없을 때 쓴다. */
+  autoSave: boolean;
 }
 
 export function resolvePersonalize(personalize: GridPersonalize | undefined): ResolvedGridPersonalize {
-  if (personalize === false) return { enabled: false, sort: false };
-  if (personalize === true || personalize == null) return { enabled: true, sort: true };
-  return { enabled: true, sort: personalize.sort !== false };
+  if (personalize === false) return { enabled: false, sort: false, autoSave: false };
+  if (personalize === true || personalize == null) return { enabled: true, sort: true, autoSave: true };
+  return { enabled: true, sort: personalize.sort !== false, autoSave: personalize.autoSave !== false };
 }
 
 export const GRID_PREF_KEY_PREFIX = "dmes:grid:v1:";
+/**
+ * 그리드별 옵션(자동 저장 스위치 값)의 키 접두어. 컬럼 저장값(`dmes:grid:v1:`)과 접두어를 달리해 둔다 — 「초기화」가 컬럼 저장값을 지워도
+ * 스위치 값이 남고, 용량 초과 정리(`oldestUserGridKeys`)가 이 키를 지우지 않는다.
+ */
+export const GRID_OPTS_KEY_PREFIX = "dmes:grid-opts:v1:";
 /** `gridId` 를 주지 않은 그리드의 이름. */
 export const DEFAULT_GRID_ID = "main";
 /** ag-grid 33 이 `rowSelection` 체크박스로 만드는 컬럼의 colId. */
@@ -44,6 +57,10 @@ const ROW_NUMBER_COL_ID = "__rowNo";
 
 export function gridPrefKey(userId: string, screenKey: string, gridId: string = DEFAULT_GRID_ID): string {
   return `${GRID_PREF_KEY_PREFIX}${userId}:${screenKey}:${gridId || DEFAULT_GRID_ID}`;
+}
+
+export function gridOptsKey(userId: string, screenKey: string, gridId: string = DEFAULT_GRID_ID): string {
+  return `${GRID_OPTS_KEY_PREFIX}${userId}:${screenKey}:${gridId || DEFAULT_GRID_ID}`;
 }
 
 export type GridPinned = "left" | "right" | null;
@@ -128,6 +145,38 @@ export function loadGridPrefs(
   } catch {
     return null;
   }
+}
+
+/** 사용자가 정한 자동 저장 스위치 값. 없거나(옛 저장값 포함) 깨졌으면 null — 호출자가 개발자 기본값을 쓴다. */
+export function loadGridAutoSave(
+  userId: string,
+  screenKey: string,
+  gridId: string = DEFAULT_GRID_ID,
+  store: Storage | null = defaultStorage(),
+): boolean | null {
+  if (!userId || !screenKey || !store) return null;
+  try {
+    const raw = store.getItem(gridOptsKey(userId, screenKey, gridId));
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    const v = (parsed as Record<string, unknown>).autoSave;
+    return typeof v === "boolean" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 자동 저장 스위치 값을 저장한다. 성공하면 true. 용량 초과여도 다른 키를 지우지 않는다(값 하나라 조용히 포기). */
+export function saveGridAutoSave(
+  userId: string,
+  screenKey: string,
+  gridId: string,
+  autoSave: boolean,
+  store: Storage | null = defaultStorage(),
+): boolean {
+  if (!userId || !screenKey || !store) return false;
+  return trySet(store, gridOptsKey(userId, screenKey, gridId), JSON.stringify({ autoSave })) === null;
 }
 
 /**
