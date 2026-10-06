@@ -452,3 +452,7 @@ AgDataGrid 는 사용자별로 컬럼 순서·너비·표시·고정·정렬을 
 - 값은 JSON 으로 옮길 수 있어야 한다. `Date` 는 문자열로 두고 `Set`·`Map`·`dayjs` 는 쓰지 않는다. key 는 화면 안에서 유일하게 둔다. setter 는 `useCallback`·`useEffect` deps 에 넣는다.
 - 성능 가이드 [R8](Screen-Performance-Guide.md) 과 어긋나지 않는다. 이 훅은 분리 순간에만 값을 모으고 `onSnapshotChange`·탭 저장소를 쓰지 않아 렌더가 늘지 않으므로 R8 대상이 아니다. 탭 복귀 때 되살릴 값은 여전히 snapshot 으로 둔다.
 - 사용법·전달 경로·한계·견본(masterCodeMngList)은 스킬 문서 [use-carry-state.md](../../../.claude/skills/mantine-aggrid-ui/references/components/use-carry-state.md) 가 정본이다.
+
+## 41. 도움말 마크다운 — 범위는 하이픈으로 쓴다 (2026-10-07)
+
+- 도움말 마크다운에서 범위는 하이픈(`1-20`)으로 쓴다. 물결표 하나가 두 번 나오면 GFM 이 그 사이 글을 취소선으로 그린다. 시험(widget-guide-sync.test.ts)이 위젯 도움말 두 문서의 물결표 하나를 막는다.
