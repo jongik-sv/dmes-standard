@@ -519,6 +519,30 @@ describe("createGridPersonalizeController — 자동 저장 스위치", () => {
     expect(t.storage.map.get("dmes:grid-opts:v1:u1:scr:main")).toBe('{"autoSave":false}');
   });
 
+  it("restore — 다른 키로 바뀐 뒤 되돌아오면 저장 안 한 표시가 남지 않아 남의 배치를 저장하지 않는다", () => {
+    const t = setup({ autoSave: false, gridId: "a" });
+    const keyA = gridPrefKey("u1", "scr", "a");
+    const keyB = gridPrefKey("u1", "scr", "b");
+    const storedA = JSON.stringify({ ...PREFS, savedAt: 5, cols: [{ colId: "a" }, { colId: "b" }, { colId: "c" }], sort: undefined });
+    t.storage.map.set(keyA, storedA);
+    t.storage.map.set(keyB, JSON.stringify(PREFS));
+    t.c.restore();
+    // a 에서 끈 채 바꾼다 → a 가 저장 안 한 변경을 가진다
+    t.api.set([{ colId: "b", width: 100 }, { colId: "a", width: 100 }, { colId: "c", width: 100 }]);
+    t.c.handleEvent({ type: "columnMoved", source: "uiColumnMoved", finished: true });
+    // gridId 가 b 로 바뀌어 복원 → current 는 b 의 저장값
+    t.ctx.gridId = "b";
+    t.c.restore();
+    expect(t.c.current()!.cols.map((c) => c.colId)).toEqual(["c", "a", "b"]);
+    // 다시 a 로 돌아오면 a 의 저장값을 쓴다(b 의 배치가 아니다)
+    t.ctx.gridId = "a";
+    t.c.restore();
+    expect(t.c.current()!.cols.map((c) => c.colId)).toEqual(["a", "b", "c"]);
+    // 켜도 저장할 것이 없다 — a 의 키에 b 배치가 쓰이지 않는다
+    t.c.setAutoSave(true);
+    expect(t.storage.sets).toEqual([]);
+    expect(t.storage.map.get(keyA)).toBe(storedA);
+  });
   it("restore — 끈 채 바꾼 상태가 있으면(숨은 탭이 꺼졌다 켜질 때) 저장값이 아니라 그 상태를 다시 적용한다", () => {
     const t = setup({ autoSave: false });
     t.storage.map.set(gridPrefKey("u1", "scr", "main"), JSON.stringify(PREFS));

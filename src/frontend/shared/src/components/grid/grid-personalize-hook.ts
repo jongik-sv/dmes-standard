@@ -339,7 +339,10 @@ export function createGridPersonalizeController(opts: GridPersonalizeControllerO
       if (!ctx.active || !ctx.userId || !ctx.screenKey) return false;
       const s = store();
       // 자동 저장을 끈 채 바꾼 저장 안 한 상태가 있으면(숨은 탭이 꺼졌다 켜질 때) 저장값으로 되돌리지 않고 그 상태를 다시 적용한다.
-      const prefs = isDirty() && current
+      const keepUnsaved = isDirty() && current;
+      // 저장값을 읽는 갈래에서는 다른 키의 저장 안 한 표시를 비운다 — `current` 가 이 키의 저장값으로 덮이므로 그 표시를 남기면 나중에 되돌아왔을 때 남의 상태를 저장한다.
+      if (!keepUnsaved) dirtyKey = null;
+      const prefs = keepUnsaved
         ? current
         : s === undefined
           ? loadGridPrefs(ctx.userId, ctx.screenKey, ctx.gridId)
@@ -563,7 +566,12 @@ export function useGridPersonalize(opts: UseGridPersonalizeOptions): GridPersona
 
   // 자동 저장 스위치 — 저장값(옆 키)은 렌더 중에 읽는다. 효과로 읽어 setState 하면 사용자 ID 가 들어올 때마다 렌더가 하나 늘고, 첫 복원 직후의
   // 사용자 변경이 옛 값으로 처리된다. 사용자가 이번 마운트에서 토글한 값만 상태에 두고, 저장 키가 바뀌면 그 값은 버린다.
-  const savedAutoSave = useMemo(() => (enabled ? loadGridAutoSave(userId, screenKey, gid) : null), [enabled, userId, screenKey, gid]);
+  // `waiting` 이 deps 에 있는 것은 등록부를 이어받을 때(대기 → 차지) 먼저 있던 그리드가 바꾼 값을 다시 읽기 위해서다(그 전환이 이미 렌더를 일으킨다).
+  const savedAutoSave = useMemo(
+    () => (enabled ? loadGridAutoSave(userId, screenKey, gid) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [enabled, userId, screenKey, gid, waiting],
+  );
   const optsKey = `${userId}\u0000${screenKey}\u0000${gid}`;
   const [toggled, setToggled] = useState<{ key: string; value: boolean } | null>(null);
   const autoSave = toggled && toggled.key === optsKey ? toggled.value : (savedAutoSave ?? resolved.autoSave);

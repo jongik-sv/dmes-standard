@@ -228,6 +228,28 @@ describe("GridPanel 의 자동 저장 스위치", () => {
   });
 });
 
+describe("등록부 이어받기", () => {
+  it("같은 키 그리드 둘에서 주인이 스위치를 끄고 사라지면 이어받은 그리드도 꺼짐이고 헤더를 옮겨도 저장하지 않는다", async () => {
+    seed(SEEDED);
+    clearSetCalls();
+    // 둘 다 gridId 가 같다 — 첫째(a)가 키를 차지하고 둘째(b)는 기다린다
+    await show(panel([gridEl({}, "a"), gridEl({}, "b")], "p"));
+    expect(switchInput()!.checked).toBe(true);
+    await click(switchInput());
+    expect(switchInput()!.checked).toBe(false);
+    expect(JSON.parse(localStorage.getItem(OPTS)!)).toEqual({ autoSave: false });
+    // 주인이 사라지면 b 가 이어받는다
+    await show(panel([gridEl({}, "b")], "p"));
+    expect(switchInput()).not.toBeNull();
+    expect(switchInput()!.checked).toBe(false);
+    clearSetCalls();
+    const b = apis().at(-1)!;
+    await dragMove(b, "name", 0);
+    await wait(GRID_PERSONALIZE_SAVE_DEBOUNCE_MS + 150);
+    expect(setCount(KEY)).toBe(0);
+  });
+});
+
 describe("[초기화]", () => {
   it("누르면 확인 창이 뜨고, [확인] 뒤에는 저장 키가 없고 화면이 정의 순서이며 옆 키는 남는다", async () => {
     seed(SEEDED);
@@ -289,6 +311,7 @@ describe("머리글 우클릭 메뉴", () => {
     await wait(50);
     const item = () => tid("grid-header-menu-autosave")!;
     expect(item().textContent).toBe("자동 저장");
+    expect(item().getAttribute("aria-label")).toBe("자동 저장 켜짐");
     expect(item().querySelector("svg")).not.toBeNull();
     await click(item());
     await wait(400);
@@ -299,6 +322,7 @@ describe("머리글 우클릭 메뉴", () => {
     rightClick(headerCell("name"));
     await wait(50);
     expect(item().querySelector("svg")).toBeNull();
+    expect(item().getAttribute("aria-label")).toBe("자동 저장 꺼짐");
     await click(item());
     expect(JSON.parse(localStorage.getItem(OPTS)!)).toEqual({ autoSave: true });
     expect(switchInput()!.checked).toBe(true);

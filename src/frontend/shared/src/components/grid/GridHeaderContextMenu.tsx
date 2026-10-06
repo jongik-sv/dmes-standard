@@ -74,8 +74,7 @@ export function GridHeaderContextMenu({ x, y, nonce, autoSave, onOpenSettings, o
         </Menu.Item>
         <Menu.Item
           data-testid="grid-header-menu-autosave"
-          role="menuitemcheckbox"
-          aria-checked={autoSave}
+          aria-label={autoSave ? "자동 저장 켜짐" : "자동 저장 꺼짐"}
           leftSection={autoSave ? <IconCheck size={14} /> : <span style={{ display: "inline-block", width: 14 }} />}
           onClick={() => {
             onClose();
