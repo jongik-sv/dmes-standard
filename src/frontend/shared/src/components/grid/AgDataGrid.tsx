@@ -351,8 +351,11 @@ function AgDataGridComponent({
     for (const fn of [...autoSaveListenersRef.current]) fn();
   }, [autoSave]);
   // GridPanel 에 올리는 명령 — 켜짐 상태(개인화·엑셀)가 같은 동안 같은 객체(렌더마다 새로 만들지 않는다). 개인화 명령은 개인화가 켜진 동안만,
-  // 엑셀 명령은 excelExport 를 켠 그리드만 채운다. 엑셀 함수·행 수는 ref 로 읽어 명령 객체가 바뀌지 않게 한다.
-  const hasExcel = !!excelExport;
+  // 엑셀 명령은 엑셀 출력이 켜진 그리드만 채운다. 엑셀 함수·행 수는 ref 로 읽어 명령 객체가 바뀌지 않게 한다.
+  // GridPanel 안이면 excelExport 를 주지 않아도 켠다(메뉴 항목만 — 아래 줄·행 수 안내는 excelExport 객체를 줄 때만). false 는 끈다.
+  const gridPanelRegistry = useGridPanelRegistry();
+  const excelOptions = excelExport || undefined;
+  const hasExcel = excelExport !== false && (!!excelExport || gridPanelRegistry !== null);
   const exportExcelRef = useRef<() => void>(() => {});
   const rowCountRef = useRef(0);
   const gridControls = useMemo<GridPanelGridControls>(
@@ -377,7 +380,6 @@ function AgDataGridComponent({
     }),
     [personalizeEnabled, hasExcel, openSettings, requestReset],
   );
-  const gridPanelRegistry = useGridPanelRegistry();
   // 이 그리드가 GridPanel 설정 메뉴의 대상이면 아래 줄 [엑셀] 단추를 뺀다(메뉴가 엑셀을 맡는다). 한 패널에 그리드가 여럿이면 대상이 아닌 그리드는 단추를 그대로 둔다.
   const [isMenuTarget, setIsMenuTarget] = useState(false);
   // 페인트 전에 등록해야 대상이 된 그리드의 아래 줄 [엑셀] 단추가 첫 프레임에 보였다 사라지지 않는다.
@@ -546,7 +548,8 @@ function AgDataGridComponent({
 
   const isAutoHeight = height === "auto";
   const getExcelApi = useCallback(() => gridRef.current?.api, []);
-  const exportExcel = useGridExcelExport(excelExport, columns, sortedData, getExcelApi);
+  const getPanelTitle = useCallback(() => gridPanelRegistry?.getTitle(), [gridPanelRegistry]);
+  const exportExcel = useGridExcelExport(excelOptions, columns, sortedData, getExcelApi, getPanelTitle);
   exportExcelRef.current = exportExcel;
   rowCountRef.current = data.length;
 
@@ -554,7 +557,7 @@ function AgDataGridComponent({
     <div
       ref={containerRef}
       className={`cm-data-grid ag-theme-alpine${isAutoHeight ? " cm-data-grid-auto-height" : ""}${isAutoHeight && sortedData.length === 0 ? " cm-data-grid-empty" : ""} ${className}`.trim()}
-      style={{ height: isAutoHeight ? "auto" : excelExport ? "100%" : height || "100%", width: "100%" }}
+      style={{ height: isAutoHeight ? "auto" : excelOptions ? "100%" : height || "100%", width: "100%" }}
       aria-label={ariaLabel || "데이터 목록"}
       aria-busy={loading}
       tabIndex={-1}
@@ -632,9 +635,9 @@ function AgDataGridComponent({
     </div>
   );
 
-  const body = excelExport ? (
+  const body = excelOptions ? (
     <AgDataGridExcelFrame
-      options={excelExport}
+      options={excelOptions}
       data={data}
       onExcel={exportExcel}
       height={height}

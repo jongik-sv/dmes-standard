@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 
-// GridPanel 「그리드 설정」 메뉴의 [엑셀 내려받기] — excelExport 를 켠 그리드가 GridPanel 안에 있으면 아래 줄 [엑셀] 단추는 빠지고
-// 메뉴 항목이 같은 내보내기를 부른다. GridPanel 밖의 그리드·대상이 아닌 둘째 그리드는 아래 줄 단추를 그대로 둔다.
+// GridPanel 「그리드 설정」 메뉴의 [엑셀 출력] — excelExport 를 켠 그리드가 GridPanel 안에 있으면 아래 줄 [엑셀] 단추는 빠지고
+// 메뉴 항목이 같은 내보내기를 부른다. GridPanel 안의 그리드는 excelExport 를 주지 않아도 메뉴 항목이 기본으로 나오고 excelExport={false} 로 끈다. GridPanel 밖의 그리드·대상이 아닌 둘째 그리드는 아래 줄 단추를 그대로 둔다.
 // 파일 쓰기(exportToExcel)와 오늘 날짜만 대역으로 바꾸고 실제 그리드를 happy-dom 에 띄운다.
 import { act, createElement, type ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -105,7 +105,7 @@ describe("GridPanel 안의 excelExport 그리드", () => {
     expect(tid("grid-foot")!.querySelector("button")).toBeNull();
     expect(tid("grid-excel")).toBeNull(); // 메뉴가 닫혀 있으면 항목도 없다
     await openMenu();
-    expect(tid("grid-excel")!.textContent).toBe("엑셀 내려받기");
+    expect(tid("grid-excel")!.textContent).toBe("엑셀 출력");
   });
 
   it("항목을 누르면 아래 줄 단추와 같은 내보내기를 부른다(파일 이름·행 순서)", async () => {
@@ -135,9 +135,134 @@ describe("GridPanel 안의 excelExport 그리드", () => {
     expect(tid("grid-reset-button")).toBeNull();
   });
 
-  it("엑셀을 켜지 않고 개인화도 끈 그리드에는 메뉴가 없다", async () => {
-    await show(panel([gridEl({ personalize: false })]));
+  it("엑셀(excelExport={false})과 개인화를 모두 끈 그리드에는 메뉴가 없다", async () => {
+    await show(panel([gridEl({ personalize: false, excelExport: false })]));
     expect(tid("grid-settings-menu")).toBeNull();
+  });
+});
+
+describe("GridPanel 안의 기본 켬", () => {
+  it("excelExport 를 주지 않아도 메뉴에 [엑셀 출력] 이 나오고, 아래 줄(행 수 안내·단추)은 생기지 않는다", async () => {
+    await show(panel([gridEl()]));
+    expect(tid("grid-foot")).toBeNull();
+    expect(tid("grid-excel-frame")).toBeNull();
+    await openMenu();
+    expect(tid("grid-excel")!.textContent).toBe("엑셀 출력");
+  });
+
+  it("개인화(gridId)와 무관하게 메뉴 아이콘이 보이고, 엑셀 항목만 있다", async () => {
+    await show(panel([gridEl({ personalize: false })]));
+    await openMenu();
+    expect(tid("grid-excel")).not.toBeNull();
+    expect(tid("grid-columns-button")).toBeNull();
+    expect(tid("grid-reset-button")).toBeNull();
+  });
+
+  it("파일 이름은 excelExport.title → GridPanel 제목 → 「목록」 순이다", async () => {
+    await show(panel([gridEl()]));
+    await openMenu();
+    await click(tid("grid-excel"));
+    expect((h.exportToExcel.mock.calls[0] as [unknown, string])[1]).toBe("목록_20261006.xlsx"); // panel() 의 title 은 「목록」
+
+    h.exportToExcel.mockClear();
+    await show(
+      createElement(
+        TabPageContext.Provider,
+        { value: { pageId: "scr-xl", serviceId: "", tabId: "t1" } },
+        createElement(GridPanel, { key: "t", title: "작업 목록" }, gridEl()),
+      ),
+    );
+    await openMenu();
+    await click(tid("grid-excel"));
+    expect((h.exportToExcel.mock.calls[0] as [unknown, string])[1]).toBe("작업 목록_20261006.xlsx");
+
+    h.exportToExcel.mockClear();
+    await show(
+      createElement(
+        TabPageContext.Provider,
+        { value: { pageId: "scr-xl", serviceId: "", tabId: "t1" } },
+        createElement(GridPanel, { key: "n" }, gridEl()),
+      ),
+    );
+    await openMenu();
+    await click(tid("grid-excel"));
+    expect((h.exportToExcel.mock.calls[0] as [unknown, string])[1]).toBe("목록_20261006.xlsx");
+
+    h.exportToExcel.mockClear();
+    await show(
+      createElement(
+        TabPageContext.Provider,
+        { value: { pageId: "scr-xl", serviceId: "", tabId: "t1" } },
+        createElement(GridPanel, { key: "e", title: "패널" }, gridEl({ excelExport: { title: "지정" } })),
+      ),
+    );
+    await openMenu();
+    await click(tid("grid-excel"));
+    expect((h.exportToExcel.mock.calls[0] as [unknown, string])[1]).toBe("지정_20261006.xlsx");
+  });
+
+  it("행이 0 이면 기본 켬 항목도 비활성이다", async () => {
+    await show(panel([gridEl({ data: [] })]));
+    await openMenu();
+    expect(tid("grid-excel")!.hasAttribute("disabled")).toBe(true);
+    await click(tid("grid-excel"));
+    expect(h.exportToExcel).not.toHaveBeenCalled();
+  });
+
+  it("excelExport={false} 인 그리드는 개인화가 켜져 있어도 엑셀 항목이 없다", async () => {
+    await show(panel([gridEl({ excelExport: false })]));
+    await openMenu();
+    expect(tid("grid-columns-button")).not.toBeNull();
+    expect(tid("grid-excel")).toBeNull();
+  });
+
+  it("GridPanel 밖의 그리드는 excelExport 를 주지 않으면 아래 줄도 단추도 없다", async () => {
+    await show(
+      createElement(TabPageContext.Provider, { value: { pageId: "scr-xl", serviceId: "", tabId: "t1" } }, gridEl()),
+    );
+    expect(tid("grid-excel")).toBeNull();
+    expect(tid("grid-foot")).toBeNull();
+    expect(tid("grid-settings-menu")).toBeNull();
+  });
+
+  it("serverPaged 패널은 항목 이름에 「(현재 페이지)」 가 붙는다", async () => {
+    await show(
+      createElement(
+        TabPageContext.Provider,
+        { value: { pageId: "scr-xl", serviceId: "", tabId: "t1" } },
+        createElement(GridPanel, { key: "sp", title: "목록", serverPaged: true }, gridEl()),
+      ),
+    );
+    await openMenu();
+    expect(tid("grid-excel")!.textContent).toBe("엑셀 출력 (현재 페이지)");
+  });
+});
+
+describe("메뉴 항목 순서", () => {
+  it("컬럼 설정… → 자동 설정 저장 → 설정 초기화… → (구분선) → 엑셀 출력 순서이고, 머리글 우클릭 메뉴의 항목도 같은 이름·순서다", async () => {
+    await show(panel([gridEl()]));
+    await openMenu();
+    const dropdown = tid("grid-settings-dropdown")!;
+    const items = [...dropdown.children].map((el) =>
+      el.getAttribute("role") === "separator" || el.tagName === "HR" || el.classList.toString().includes("divider")
+        ? "|"
+        : (el.textContent ?? "").trim(),
+    ).filter((t) => t !== ""); // 드롭다운 맨 앞의 빈 자리(포커스 가드) 제외
+    expect(items).toEqual(["컬럼 설정…", "자동 설정 저장", "설정 초기화…", "|", "엑셀 출력"]);
+
+    // 머리글 우클릭 메뉴 — 같은 이름·순서(엑셀 항목은 없다)
+    await act(async () => {
+      document.body.click();
+    });
+    await wait(60);
+    const header = document.querySelector(".ag-header-cell");
+    expect(header).not.toBeNull();
+    await act(async () => {
+      header!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 40, clientY: 40 }));
+    });
+    await wait(60);
+    const headerItems = [...tid("grid-header-menu")!.children].map((el) => (el.textContent ?? "").trim()).filter((t) => t !== "");
+    expect(headerItems).toEqual(["컬럼 설정…", "자동 설정 저장", "설정 초기화…"]);
   });
 });
 

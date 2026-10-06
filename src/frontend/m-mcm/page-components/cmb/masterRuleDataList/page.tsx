@@ -325,6 +325,7 @@ export default function MasterRuleDataListPage() {
         <ContentPanel>
           <GridPanel
             title="업무기준 상세"
+            serverPaged
             count={totalCount}
             data={rows}
             rowKey="__rowId"

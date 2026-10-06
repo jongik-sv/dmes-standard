@@ -423,6 +423,7 @@ export default function MasterRuleDataPage() {
         <ContentPanel>
           <GridPanel
             title="업무기준 데이터"
+            serverPaged
             count={totalCount}
             data={rows}
             rowKey="__rowId"

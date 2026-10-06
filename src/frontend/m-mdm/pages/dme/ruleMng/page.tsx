@@ -282,6 +282,7 @@ export default function RuleMngPage() {
         <ContentPanel>
           <GridPanel
             title="룰 목록"
+            serverPaged
             count={totalCount}
             buttons={[
               {

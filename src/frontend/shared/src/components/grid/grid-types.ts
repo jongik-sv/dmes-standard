@@ -276,8 +276,12 @@ export interface AgDataGridProps {
    * 컬럼은 모든 데이터 열을 사용자 순서(왼쪽 고정 → 가운데 → 오른쪽 고정)·제목으로 내보내고, 사용자가 숨긴 열은 엑셀에도 숨긴 열로 넣는다.
    * 화면 정의에서 `hide: true` 인 내부 열·행 번호·체크박스는 뺀다(`excludeKeys` 로 render 전용 열도 뺄 수 있다). 행은 정렬·필터 순서, 값은 `render` 가 아니라 행의 원래 값이다.
    * 객체를 렌더마다 새로 만들면 memo 가 깨지니 상수나 `useMemo` 로 둔다.
+   *
+   * GridPanel 안의 그리드는 이 속성을 주지 않아도 「그리드 설정」 메뉴에 [엑셀 출력] 이 기본으로 나온다(아래 줄·「N행」 없이 메뉴 항목만).
+   * 파일 이름은 GridPanel `title` → 「목록」, 내용 규칙은 위와 같다. 메뉴 항목까지 끄려면 `excelExport={false}`.
+   * GridPanel 밖의 그리드는 이 속성을 준 곳만 아래 줄 단추가 생긴다(주지 않으면 없음 — 예전과 같다).
    */
-  excelExport?: AgDataGridExcelExport;
+  excelExport?: AgDataGridExcelExport | false;
   /**
    * 한 화면(탭)에 그리드가 여럿일 때 개인화 저장을 나누는 이름. 비우면 `"main"`. 화면 안에서 그리드마다 다르게, 렌더마다 바뀌지 않는 고정 문자열로 준다.
    * 저장 키는 `dmes:grid:v1:{사용자ID}:{화면}:{gridId}` 다. 같은 키의 그리드가 이미 떠 있으면 나중 그리드는 개인화를 끈다.

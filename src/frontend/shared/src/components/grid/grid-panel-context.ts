@@ -1,5 +1,5 @@
 /**
- * GridPanel ↔ 안쪽 AgDataGrid 연결 — 컬럼 개인화가 켜졌거나 엑셀 내려받기(excelExport)를 켠 그리드가 「컬럼 설정 열기·초기화 요청·자동 설정 저장 스위치·엑셀 내려받기」
+ * GridPanel ↔ 안쪽 AgDataGrid 연결 — 컬럼 개인화가 켜졌거나 엑셀 출력이 켜진 그리드(GridPanel 안에서는 `excelExport={false}` 가 아니면 기본 켬)가 「컬럼 설정 열기·초기화 요청·자동 설정 저장 스위치·엑셀 내려받기」
  * 명령을 GridPanel 에 올려 두면 GridPanel 머리줄의 「그리드 설정」 아이콘 메뉴(GridSettingsMenu)가 그것을 부른다.
  *
  * - GridPanel 이 등록 함수를 Provider 로 내리고, 개인화가 켜진 AgDataGrid 가 등록·해제한다. Provider 밖(GridPanel 없이 쓰는 그리드)이면 null 이다.
@@ -9,10 +9,10 @@
 import { createContext, useContext, type Context } from "react";
 
 /**
- * 개인화가 켜졌거나 엑셀 내려받기(`excelExport`)를 켠 그리드가 GridPanel 에 내주는 명령. 객체는 그리드가 사는 동안(켜짐 상태가 같은 동안)
+ * 개인화가 켜졌거나 엑셀 출력이 켜진 그리드가 GridPanel 에 내주는 명령. 객체는 그리드가 사는 동안(켜짐 상태가 같은 동안)
  * 같은 것이어야 한다(렌더마다 새로 만들지 않는다).
  * - 개인화 명령 5개(openSettings·requestReset·getAutoSave·setAutoSave·subscribeAutoSave)는 개인화가 켜진 그리드만 채운다. 엑셀만 켠 그리드는 비워 둔다.
- * - 엑셀 명령 2개(exportExcel·canExportExcel)는 `excelExport` 를 켠 그리드만 채운다.
+ * - 엑셀 명령 2개(exportExcel·canExportExcel)는 엑셀 출력이 켜진 그리드만 채운다(GridPanel 안이면 `excelExport={false}` 가 아닌 모든 그리드).
  */
 export interface GridPanelGridControls {
   /** 컬럼 설정 창을 연다. */
@@ -25,13 +25,15 @@ export interface GridPanelGridControls {
   setAutoSave?(next: boolean): void;
   /** 스위치 값이 바뀔 때 알린다(`useSyncExternalStore` 의 subscribe). 돌려주는 함수로 해제한다. */
   subscribeAutoSave?(listener: () => void): () => void;
-  /** 엑셀 파일을 내려받는다 — 아래 줄 [엑셀] 단추와 같은 로직(컬럼 순서·숨긴 열·정렬·필터 반영). */
+  /** 엑셀 파일을 내려받는다 — `excelExport` 를 준 그리드는 아래 줄 [엑셀] 단추와 같은 로직(컬럼 순서·숨긴 열·정렬·필터 반영). */
   exportExcel?(): void;
   /** 내려받을 수 있는가 — 행이 0 이면 false. 메뉴를 열 때와 GridPanel 이 그릴 때 읽는다. */
   canExportExcel?(): boolean;
 }
 
 export interface GridPanelRegistry {
+  /** 이 GridPanel 의 제목(`title`) — 엑셀 파일 이름의 기본값. 내려받을 때 읽는다. */
+  getTitle(): string | undefined;
   /**
    * 명령을 등록한다. 돌려주는 함수로 해제한다. 같은 GridPanel 에 여럿이면 개인화 명령을 가진 그리드 중 먼저 등록한 것이 대상이고, 없으면 먼저 등록한 것이다.
    * `onTargetChange` 는 이 그리드가 대상이 되거나 대상에서 빠질 때(등록 직후 포함) 부른다 — 대상이 된 그리드만 아래 줄 [엑셀] 단추를 숨기려고 쓴다.

@@ -32,6 +32,11 @@ export interface GridPanelProps {
   title?: string;
   /** 건수 (직접 전달, 없으면 표시 안함) */
   count?: number;
+  /**
+   * 서버 페이징 목록 — Pagination 으로 쪽을 넘기며 한 쪽의 행만 `data` 로 들고 있는 화면이면 준다. 「그리드 설정」 메뉴의 엑셀 항목이
+   * 「엑셀 출력 (현재 페이지)」 로 바뀌어 지금 쪽의 행만 나간다는 것을 알린다. 전체를 받는 업무 단추(엑셀다운)가 따로 있으면 그것은 그대로 둔다.
+   */
+  serverPaged?: boolean;
   /** 버튼 배열 [{id, label, onClick, className, disabled}] */
   buttons?: GridButton[];
   /** 추가 CSS 클래스 */
@@ -117,6 +122,7 @@ export function getRowIdentifier(row: Record<string, unknown>, rowKey: string): 
 function GridPanelComponent({
   title,
   count,
+  serverPaged = false,
   buttons = [],
   className = "",
   usePermission = false,
@@ -149,6 +155,8 @@ function GridPanelComponent({
   const gridEntriesRef = useRef<Array<{ controls: GridPanelGridControls; onTargetChange?: (isTarget: boolean) => void }>>([]);
   const [gridTarget, setGridTarget] = useState<GridPanelGridControls | null>(null);
   const [, bumpMenuOpen] = useReducer((n: number) => n + 1, 0);
+  const titleRef = useRef(title);
+  titleRef.current = title;
   const gridRegistry = useMemo<GridPanelRegistry>(() => {
     const syncTarget = () => {
       const list = gridEntriesRef.current;
@@ -158,6 +166,7 @@ function GridPanelComponent({
       for (const entry of [...list]) entry.onTargetChange?.(entry.controls === first);
     };
     return {
+      getTitle: () => titleRef.current,
       register(controls, onTargetChange) {
         const entry = { controls, onTargetChange };
         gridEntriesRef.current.push(entry);
@@ -290,8 +299,9 @@ function GridPanelComponent({
                       {btn.label}
                     </button>
                   ))}
-                  {/* 그리드 설정 메뉴 — 개인화가 켜졌거나 엑셀을 켠 그리드가 있을 때만. 컬럼 설정·자동 설정 저장·엑셀 내려받기·설정 초기화를 모은다.
-                      권한 검사·loading 과 무관하게 늘 활성(그리드 모양 설정과 보이는 행 내려받기라 데이터를 바꾸지 않는다). */}
+                  {/* 그리드 설정 메뉴 — 개인화가 켜졌거나 엑셀 출력이 켜진 그리드(GridPanel 안은 excelExport={false} 가 아니면 기본 켬)가 있을 때만.
+                      컬럼 설정·자동 설정 저장·설정 초기화·엑셀 출력을 모은다. 권한 검사·loading 과 무관하게 늘 활성
+                      (그리드 모양 설정과 화면에 보이는 행 내려받기라 데이터를 바꾸지 않는다). */}
                   {hasGridControls ? (
                     <GridSettingsMenu
                       key="grid_settings_menu"
@@ -299,6 +309,7 @@ function GridPanelComponent({
                       hasExcel={hasGridExcel}
                       autoSave={gridAutoSave}
                       excelDisabled={gridExcelDisabled}
+                      excelPaged={serverPaged}
                       onOpenSettings={openGridSettings}
                       onToggleAutoSave={toggleGridAutoSave}
                       onExportExcel={exportGridExcel}

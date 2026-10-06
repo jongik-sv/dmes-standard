@@ -135,7 +135,7 @@ export default function RuleSetMngPage() {
 
       <ContentBody root resizable storageKey="mdm.dme.ruleSetMng">
         <ContentPanel>
-          <GridPanel title="룰 세트 목록" count={totalCount}>
+          <GridPanel title="룰 세트 목록" count={totalCount} serverPaged>
             <div data-testid="set-list" style={{ position: "absolute", inset: 0 }}>
               <AgDataGrid gridId="ruleSetList" personalize={{ sort: false }}
                 columnSizing="fit"

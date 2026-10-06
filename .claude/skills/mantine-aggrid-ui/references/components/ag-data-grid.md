@@ -12,7 +12,7 @@
 - 쓴다: 조회 결과 목록, 편집 가능한 목록, 팝업·카드 안의 작은 목록(`height="auto"`).
 - 쓰지 않는다: 라벨-값 짝의 상세 폼 표 → [detail-form](detail-form.md). 비교 매트릭스(피벗) 표 → [matrix-table](matrix-table.md).
 - 제목·건수·행추가 버튼이 필요하면 [GridPanel](grid-panel.md) 안에 넣는다. 저장형 화면의 행 상태는 [use-grid-data-manager](use-grid-data-manager.md) 가 맡는다.
-- 카드·위젯 안의 표처럼 상단 버튼 막대가 없는 자리에서 표 아래에 「N행」과 [엑셀] 단추를 붙이려면 `excelExport` 속성을 준다(아래 §아래 줄과 엑셀 내려받기). GridPanel 안이면 [엑셀] 은 머리줄 「그리드 설정」 메뉴로 옮겨 가고 아래 줄에는 「N행」만 남는다.
+- 카드·위젯 안의 표처럼 상단 버튼 막대가 없는 자리에서 표 아래에 「N행」과 [엑셀] 단추를 붙이려면 `excelExport` 속성을 준다(아래 §아래 줄과 엑셀 내려받기). GridPanel 안이면 [엑셀] 은 머리줄 「그리드 설정」 메뉴로 옮겨 가고 아래 줄에는 「N행」만 남는다. 메뉴의 「엑셀 출력」 은 `excelExport` 를 주지 않아도 GridPanel 안에서 기본으로 켜진다(끄려면 `excelExport={false}`).
 
 ## 표준 사용
 
@@ -137,9 +137,10 @@ const excelColumns = useResolvedGridColumns(COLUMNS); // header 가 그리드와
 
 ### 아래 줄과 엑셀 내려받기: excelExport
 
-카드·위젯 안의 표 바로 아래에 「N행」과 [엑셀] 단추 줄([GridExcelFoot](grid-excel-foot.md))을 붙이고, 누르면 그리드의 컬럼·행을 엑셀로 내려받게 한다. 사용자가 숨긴 컬럼은 엑셀에도 숨긴 열로 들어간다. 속성을 주지 않으면 줄도 단추도 없고 모양·동작은 예전과 똑같다.
+카드·위젯 안의 표 바로 아래에 「N행」과 [엑셀] 단추 줄([GridExcelFoot](grid-excel-foot.md))을 붙이고, 누르면 그리드의 컬럼·행을 엑셀로 내려받게 한다. 사용자가 숨긴 컬럼은 엑셀에도 숨긴 열로 들어간다. 속성을 주지 않으면 줄도 단추도 없고 모양·동작은 예전과 똑같다. 단 GridPanel 안의 그리드는 속성을 주지 않아도 머리줄 「그리드 설정」 메뉴에 「엑셀 출력」 항목이 기본으로 나온다(아래 줄·「N행」 안내·감싸개 없이 메뉴 항목만). 끄려면 `excelExport={false}` 를 준다(타입 `AgDataGridExcelExport | false`).
 
-- [GridPanel](grid-panel.md) 안의 그리드가 설정 메뉴 대상(먼저 등록된 그리드)이면 같은 내려받기를 머리줄 「그리드 설정」 메뉴의 「엑셀 내려받기」(`data-testid` `grid-excel`, 행 0 이면 비활성)로 부르고 아래 줄의 [엑셀] 단추는 뺀다(「N행」 안내만 남고 줄·감싸개 모양은 그대로, `GridExcelFoot` 의 `hideButton`). GridPanel 밖의 그리드와 대상이 아닌 둘째 그리드는 아래 줄 단추를 그대로 둔다. 어느 쪽이든 내려받는 내용은 같다(내부 훅 `useGridExcelExport`).
+- [GridPanel](grid-panel.md) 안의 그리드가 설정 메뉴 대상(먼저 등록된 그리드)이면 같은 내려받기를 머리줄 「그리드 설정」 메뉴의 「엑셀 출력」(`data-testid` `grid-excel`, 행 0 이면 비활성)으로 부르고 아래 줄의 [엑셀] 단추는 뺀다(「N행」 안내만 남고 줄·감싸개 모양은 그대로, `GridExcelFoot` 의 `hideButton`). GridPanel 밖의 그리드는 `excelExport` 를 준 곳만 아래 줄 단추가 생기고(주지 않으면 없음), 대상이 아닌 둘째 그리드는 아래 줄 단추를 그대로 둔다. 어느 쪽이든 내려받는 내용은 같다(내부 훅 `useGridExcelExport`). GridPanel 의 `serverPaged` 를 주면 메뉴 항목 이름이 「엑셀 출력 (현재 페이지)」 가 된다.
+- 파일 이름은 `excelExport.title`, 없으면 GridPanel 의 `title`, 없으면 `fallbackName` 또는 「목록」 이다(`excelExport` 를 주지 않은 메뉴 전용도 같다).
 
 - 속성을 주면 그리드를 세로 flex 상자로 감싸 표가 남은 높이를 채우고 아래 줄이 바닥에 붙는다. `height` 는 이 바깥 상자의 높이다(기본 부모 높이 100%). `height="auto"` 일 때는 flex 대신 block 감싸개(`cm-grid-excel--auto`)이고, 표가 행 수만큼 늘어난 바로 뒤에 아래 줄이 온다.
 - 컬럼: 모든 데이터 열을 사용자가 정한 순서(왼쪽 고정 → 가운데 → 오른쪽 고정)로 내보낸다. 사용자가 컬럼 설정에서 숨긴 열도 엑셀에는 숨긴 열(`!cols` 의 `hidden`, 열은 있고 접힌 상태)로 들어가니 엑셀에서 펼쳐 볼 수 있다. 화면 정의에서 `hide: true` 인 내부 열, `field` 가 없는 그리드 내부 열(행번호 `rowNumber`·선택 체크박스)은 빠진다. 단추·링크처럼 `render` 로만 그리는 열은 `excludeKeys` 에 key 를 넣어 뺀다(화면에 보이는 열이어도 엑셀에는 나가지 않는다). 같은 제목이 겹치면 「(2)」가 붙되 보이는 열이 먼저 원래 제목을 갖는다(숨긴 열이 번호를 받는다). 열 폭은 제목과 앞 100행 값의 길이로 어림한다(8~50).
@@ -166,11 +167,11 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 
 | 키 | 타입 | 기본값 | 설명 |
 |---|---|---|---|
-| title | `string` | - | 파일 이름 앞부분. 파일에 못 쓰는 글자는 `_` 로 바뀌고 80자까지만 쓴다 |
+| title | `string` | - | 파일 이름 앞부분. 파일에 못 쓰는 글자는 `_` 로 바뀌고 80자까지만 쓴다. 비우면 GridPanel 의 `title`(GridPanel 안일 때) |
 | fallbackName | `string` | `"목록"` | `title` 이 없거나 공백뿐일 때의 이름 |
 | note | `string` | `"{n}행"`(천 단위 쉼표) | 아래 줄 왼쪽 글. 「N건」「상위 500행만 표시합니다」처럼 바꿀 때 준다 |
 | sheetName | `string` | `"Sheet1"` | 시트 이름 |
-| testId | `string` | `"grid-excel"` | 아래 줄 [엑셀] 단추의 `data-testid`. GridPanel 설정 메뉴의 「엑셀 내려받기」 항목은 늘 `grid-excel` 이다 |
+| testId | `string` | `"grid-excel"` | 아래 줄 [엑셀] 단추의 `data-testid`. GridPanel 설정 메뉴의 「엑셀 출력」 항목은 늘 `grid-excel` 이다 |
 | excludeKeys | `string[]` | - | 엑셀에서 뺄 열 key. `render` 전용 열(단추·링크)에 쓴다. 상수나 `useMemo` 로 둔다 |
 
 화면 전체 목록의 엑셀은 PageLayout 상단 「엑셀」 버튼(`action: "export"`)과 [exportToExcel](export-to-excel.md) 을 쓴다. 엑셀 내용을 직접 정해야 하면(열을 골라 바꾸거나 코드 대신 명칭으로 변환) 이 속성 대신 [GridExcelFoot](grid-excel-foot.md) 에 `onExcel` 을 넘긴다.
@@ -252,7 +253,7 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 | onRowOrderChange | `(orderedKeys) => void` | - | 드래그 후 새 순서의 행 키 목록. 이 prop 이 있어야 드래그가 동작한다 |
 | mdmValidate | `boolean` | `false` | 편집 가능 + MDM 연결 열의 바뀐 값을 MDM 정의로 검사해 `cell-mdm-invalid`·셀 툴팁을 단다(포털 탭 안에서만) |
 | fieldErrors | `Array<{ rowKey?; rowIndex?; field; message }>` | - | 서버 오류 칸 표시(`toFieldErrors` 결과). rowKey → rowIndex(data 자리) 순으로 행을 찾는다 |
-| excelExport | `{ title?; fallbackName?; note?; sheetName?; testId?; excludeKeys? }` | - | 주면 표 아래에 「N행」·[엑셀] 줄을 붙이고 컬럼·행을 내려받는다(사용자가 숨긴 열은 엑셀에도 숨긴 열). GridPanel 안의 대상 그리드는 [엑셀] 이 머리줄 「그리드 설정」 메뉴로 옮겨 가고 아래 줄에는 「N행」만 남는다. 없으면 줄도 단추도 없다(§아래 줄과 엑셀 내려받기). 상수나 `useMemo` 로 둔다 |
+| excelExport | `{ title?; fallbackName?; note?; sheetName?; testId?; excludeKeys? } \| false` | 켬(GridPanel 안만) | GridPanel 안이면 주지 않아도 「그리드 설정」 메뉴에 「엑셀 출력」 항목이 기본으로 생긴다(아래 줄 없이 항목만). 끄려면 `false`. 객체를 주면 표 아래에 「N행」·[엑셀] 줄을 붙이고 컬럼·행을 내려받는다(사용자가 숨긴 열은 엑셀에도 숨긴 열). GridPanel 안의 대상 그리드는 [엑셀] 이 머리줄 「그리드 설정」 메뉴로 옮겨 가고 아래 줄에는 「N행」만 남는다. GridPanel 밖에서는 객체를 준 곳만 줄·단추가 생긴다(§아래 줄과 엑셀 내려받기). 상수나 `useMemo` 로 둔다 |
 | gridId | `string` | `"main"` | 한 화면(탭)에 그리드가 여럿일 때 컬럼 개인화 저장을 나누는 이름. 화면 안에서 그리드마다 다른, 렌더마다 바뀌지 않는 고정 문자열로 준다(§컬럼 개인화) |
 | personalize | `boolean \| { sort?: boolean; autoSave?: boolean }` | 켬 | 사용자별 컬럼 개인화. `false` 면 끈다. `{ sort: false }` 면 정렬은 저장·복원하지 않는다(서버 페이징 그리드). `{ autoSave: false }` 면 「자동 설정 저장」 스위치의 개발자 기본값이 끔이다(사용자가 정한 값이 이긴다) |
 
@@ -328,7 +329,7 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 | 저장 실패 오류의 `rowIndex`(요청 목록 자리)를 바뀐 행만 보낸 화면에서 그대로 넘긴다 | 그리드는 `data` 자리로 본다. `rowKey` 를 쓰거나 자리를 바꿔 넘긴다 |
 | 표 아래 줄을 직접 만들려고 감싸개 CSS 와 `GridExcelFoot` 을 따로 붙인다 | `excelExport` 를 준다. 감싸개·아래 줄·내려받기를 그리드가 맡는다 |
 | `excelExport={{ … }}` 를 렌더 안에서 인라인으로 넘긴다 | 렌더마다 새 객체라 `memo` 가 깨진다. 모듈 상수 또는 `useMemo` |
-| `excelExport` 를 조건부로 줬다 뺐다 한다 | 루트 요소가 바뀌어 그리드가 다시 마운트된다(정렬·선택·스크롤 초기화). 항상 주거나 항상 뺀다 |
+| `excelExport` 객체를 조건부로 줬다 뺐다 한다 | 루트 요소가 바뀌어 그리드가 다시 마운트된다(정렬·선택·스크롤 초기화). 객체는 항상 주거나 항상 뺀다. 메뉴 항목만 끄고 켜는 것(`false` ↔ 생략)은 감싸개가 없어 다시 마운트되지 않는다 |
 | 한 화면에 그리드가 여럿인데 `gridId` 를 안 준다 | 모두 `"main"` 이라 먼저 뜬 그리드만 개인화되고 나중 그리드는 개인화가 꺼진다(개발 모드 경고). 그리드마다 다른 고정 `gridId` 를 준다 |
 | 모달 안 그리드에 `gridId` 를 안 준다 | 본 화면 그리드와 저장 키(`"main"`)가 겹쳐 나중에 뜬 모달 그리드의 개인화가 꺼진다(개발 모드 경고). `"modal-user"` 처럼 다른 이름을 준다(`LookupModal`·`EditableRowList` 는 `gridId` prop) |
 | `gridId` 를 렌더마다 바뀌는 값(행 번호·시각)으로 준다 | 저장 키가 계속 바뀌어 복원이 안 된다. 코드에 박은 고정 문자열을 쓴다 |
