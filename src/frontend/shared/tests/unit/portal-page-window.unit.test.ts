@@ -3,13 +3,19 @@
  * 단독 창 호스트 PortalPageWindow(설계 2026-10-06-portal-tab-popout §5.4).
  * 탭과 같은 조건(TabPageContext·ErrorBoundary)으로 화면 하나를 그리고, handoff·snapshot·opener 전달을 맡는다.
  */
-import { act, createElement, StrictMode } from "react";
+import { act, createElement, StrictMode, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PortalPageWindow } from "../../src/portal-shell/page-window/PortalPageWindow";
 import { useTabPage } from "../../src/portal-shell/tab-page-context";
 import type { PageProps, PortalShellMenuItem, PortalShellMenuResponse } from "../../src/portal-shell/types";
 import { useCarryRefetch, useCarryRestored, useCarryState } from "../../src/portal-shell/carry-state";
-import { POPOUT_CARRY_GLOBAL, POPOUT_CARRY_SESSION_PREFIX, POPOUT_HANDOFF_PREFIX, POPOUT_SNAPSHOT_PREFIX } from "../../src/portal-shell/popout";
+import {
+  openPagePopout,
+  POPOUT_CARRY_GLOBAL,
+  POPOUT_CARRY_SESSION_PREFIX,
+  POPOUT_HANDOFF_PREFIX,
+  POPOUT_SNAPSHOT_PREFIX,
+} from "../../src/portal-shell/popout";
 import { readSecureJson, writeSecureJson } from "../../src/secure-storage";
 import { resetMdmMetaStore } from "../../src/mdm-meta";
 import { renderWithMantine, type Rendered } from "./mantine-test-utils";
@@ -211,12 +217,18 @@ describe("PortalPageWindow", () => {
 
   // ── 화면 상태 이어받기(carry-state) ───────────────────────────────────────────────
 
-  const carry: { refetch: ReturnType<typeof vi.fn>; restored?: boolean; setFilters?: (v: { q: string }) => void } = { refetch: vi.fn() };
+  const carry: {
+    refetch: ReturnType<typeof vi.fn>;
+    restored?: boolean;
+    setFilters?: (v: { q: string }) => void;
+    setRows?: (v: number[]) => void;
+  } = { refetch: vi.fn() };
   const CarryPage = () => {
     const [filters, setFilters] = useCarryState("filters", { q: "" });
-    const [rows] = useCarryState<number[]>("rows", [], { bulky: true });
+    const [rows, setRows] = useCarryState<number[]>("rows", [], { bulky: true });
     carry.restored = useCarryRestored();
     carry.setFilters = setFilters;
+    carry.setRows = setRows;
     useCarryRefetch(() => carry.refetch());
     return createElement("div", { "data-testid": "carry", "data-q": filters.q, "data-rows": rows.join(",") });
   };
@@ -311,7 +323,7 @@ describe("PortalPageWindow", () => {
     expect(sessionCarry()).toBeNull();
   });
 
-  it("pagehide 때 등록소의 light 를 다시 모아 sessionStorage 에 쓴다(hadBulky 는 bulky key 가 있으면 true)", async () => {
+  it("pagehide 때 등록소의 light 를 다시 모아 sessionStorage 에 쓴다(hadBulky 는 행이 있을 때만 true)", async () => {
     await mount({ resolvePage: resolveCarryPage, opener: null });
     await act(async () => {
       carry.setFilters?.({ q: "바뀐 조건" });
@@ -320,7 +332,136 @@ describe("PortalPageWindow", () => {
     act(() => {
       window.dispatchEvent(new Event("pagehide"));
     });
+    expect(sessionCarry()).toEqual({ light: { filters: { q: "바뀐 조건" } }, hadBulky: false }); // 조회하지 않아 rows 가 빈 배열
+    await act(async () => {
+      carry.setRows?.([4, 5]);
+      await settle(5);
+    });
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+    });
     expect(sessionCarry()).toEqual({ light: { filters: { q: "바뀐 조건" } }, hadBulky: true });
+  });
+
+  it("이어받은 hadBulky 의 재조회가 끝나기 전에 새로고침되면 지금 행이 없어도 hadBulky true 를 유지한다", async () => {
+    sessionStorage.setItem(`${POPOUT_CARRY_SESSION_PREFIX}tok`, JSON.stringify({ light: { filters: { q: "조건" } }, hadBulky: true }));
+    carry.refetch = vi.fn(() => new Promise(() => undefined)); // 끝나지 않는 재조회
+    await mount({ resolvePage: resolveCarryPage, opener: null });
+    expect(carry.refetch).toHaveBeenCalledTimes(1);
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    expect(sessionCarry()).toEqual({ light: { filters: { q: "조건" } }, hadBulky: true });
+  });
+
+  it("재조회가 끝났는데 행이 없으면(0건) 새로고침 저장은 hadBulky false", async () => {
+    sessionStorage.setItem(`${POPOUT_CARRY_SESSION_PREFIX}tok`, JSON.stringify({ light: { filters: { q: "조건" } }, hadBulky: true }));
+    carry.refetch = vi.fn(async () => undefined);
+    await mount({ resolvePage: resolveCarryPage, opener: null });
+    expect(carry.refetch).toHaveBeenCalledTimes(1);
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    expect(sessionCarry()).toEqual({ light: { filters: { q: "조건" } }, hadBulky: false });
+  });
+
+  // ── 조회하지 않은 탭(빈 배열) / 행이 있는 탭의 실제 분리 → opener 없이 열기 → F5 ─────────────────
+
+  function detach(bulky: Record<string, unknown>) {
+    const win = { open: vi.fn(() => ({}) as Window), outerWidth: 1200, outerHeight: 800, screenX: 0, screenY: 0 };
+    openPagePopout({
+      pageId: PAGE_ID,
+      snapshot: null,
+      carry: { light: { filters: { q: "조건" } }, bulky },
+      buildUrl: (_p, t) => `/popup/x?h=${t}`,
+      win,
+      createToken: () => "tok",
+    });
+  }
+
+  it("조회하지 않은 탭(rows 빈 배열)을 분리해 opener 없이 열면 재조회하지 않고, 새로고침(F5)해도 재조회하지 않는다", async () => {
+    detach({ rows: [] });
+    await mount({ resolvePage: resolveCarryPage, opener: null });
+    expect(shown()).toEqual({ q: "조건", rows: "" });
+    expect(carry.restored).toBe(true);
+    expect(carry.refetch).not.toHaveBeenCalled();
+    expect(sessionCarry()).toEqual({ light: { filters: { q: "조건" } }, hadBulky: false });
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    rendered?.unmount();
+    rendered = null;
+    // F5 — handoff 는 이미 소비됐고 이 창 sessionStorage 만 남아 있다.
+    await mount({ resolvePage: resolveCarryPage, opener: null });
+    expect(shown()).toEqual({ q: "조건", rows: "" });
+    expect(carry.refetch).not.toHaveBeenCalled();
+  });
+
+  it("행이 있던 탭을 분리해 opener 없이 열면 재조회 1회, 새로고침(F5)에서도 1회", async () => {
+    detach({ rows: [1, 2] });
+    await mount({ resolvePage: resolveCarryPage, opener: null });
+    expect(carry.refetch).toHaveBeenCalledTimes(1);
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    rendered?.unmount();
+    rendered = null;
+    await mount({ resolvePage: resolveCarryPage, opener: null });
+    expect(carry.refetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("opener 보관소의 값이 빈 배열뿐이면 재조회하지 않고 sessionStorage hadBulky 도 false", async () => {
+    await mount({ resolvePage: resolveCarryPage, opener: fakeOpener({ light: { filters: { q: "조건" } }, bulky: { rows: [] } }) });
+    expect(shown()).toEqual({ q: "조건", rows: "" });
+    expect(carry.refetch).not.toHaveBeenCalled();
+    expect(sessionCarry()).toEqual({ light: { filters: { q: "조건" } }, hadBulky: false });
+  });
+
+  it("opener 보관소 항목의 pageId 가 이 창의 pageId 와 다르면 버리고 handoff light 로 물러선다", async () => {
+    writeSecureJson(`${POPOUT_HANDOFF_PREFIX}tok`, {
+      pageId: PAGE_ID,
+      snapshot: null,
+      createdAt: Date.now(),
+      carry: { light: { filters: { q: "보조" } }, hadBulky: false },
+    });
+    const take = vi.fn(() => ({ pageId: "x:other/page", light: { filters: { q: "다른 화면" } }, bulky: { rows: [9] } }));
+    const opener = { closed: false, [POPOUT_CARRY_GLOBAL]: { take } } as unknown as Window;
+    await mount({ resolvePage: resolveCarryPage, opener });
+    expect(take).toHaveBeenCalledWith("tok", PAGE_ID);
+    expect(shown()).toEqual({ q: "보조", rows: "" });
+  });
+
+  it("opener 보관소 값을 JSON 으로 복제하지 못하면(순환) handoff light 로 물러선다", async () => {
+    writeSecureJson(`${POPOUT_HANDOFF_PREFIX}tok`, {
+      pageId: PAGE_ID,
+      snapshot: null,
+      createdAt: Date.now(),
+      carry: { light: { filters: { q: "보조" } }, hadBulky: true },
+    });
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+    await mount({ resolvePage: resolveCarryPage, opener: fakeOpener({ light: { filters: { q: "주" } }, bulky: { rows: cyclic } }) });
+    expect(shown()).toEqual({ q: "보조", rows: "" });
+    expect(carry.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("같은 key 는 한 번만 복원 — 화면 안 목록이 나중에 다시 마운트돼도 이어받은 값을 되살리지 않는다", async () => {
+    let rerender: (v: number) => void = () => undefined;
+    const Remounting = () => {
+      const [n, setN] = useState(0);
+      rerender = setN;
+      return createElement(CarryPage, { key: n });
+    };
+    await mount({
+      resolvePage: vi.fn(async () => Remounting) as unknown as NonNullable<Parameters<typeof PortalPageWindow>[0]["resolvePage"]>,
+      opener: fakeOpener({ light: { filters: { q: "조건" } }, bulky: { rows: [1, 2] } }),
+    });
+    expect(shown()).toEqual({ q: "조건", rows: "1,2" });
+    await act(async () => {
+      rerender(1);
+      await settle(5);
+    });
+    expect(shown()).toEqual({ q: "", rows: "" });
   });
 
   it("훅을 쓰지 않는 화면은 pagehide 에도 sessionStorage carry 를 쓰지 않는다", async () => {

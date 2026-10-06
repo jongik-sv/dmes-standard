@@ -25,7 +25,7 @@ import { numberDuplicateTitles } from "./tab-duplicates";
 import { Dashboard } from "./dashboard/Dashboard";
 import { FavoriteFolderPickerModal, type FavoriteFolderChoice } from "./FavoriteFolderPickerModal";
 import { TabPageContext } from "./tab-page-context";
-import { CarryStateProvider, createCarryRegistry, type CarryRegistry } from "./carry-state";
+import { CarryStateProvider, createCarryRegistryMap, type CarryRegistry } from "./carry-state";
 import { MdmMetaProvider, mdmMetaTabProps } from "../mdm-meta/context";
 import { ErrorBoundary } from "../components/error-boundary";
 import { createHomeTabId, usePortalTabs, type PortalShellTabState } from "./use-portal-tabs";
@@ -210,7 +210,7 @@ const TabPageSlot = memo(function TabPageSlot({
       <TabPageContext.Provider value={contextValue}>
         <MdmMetaProvider {...mdmMetaTabProps(tab.pageId)}>
           {/* 새 창 분리 때 화면 상태를 모으는 등록소(carry-state). 포털 탭에는 복원값이 없다(restore=null). 등록은 ref 로만 해 렌더가 늘지 않는다. */}
-          <CarryStateProvider registry={carryRegistry} restore={null}>
+          <CarryStateProvider registry={carryRegistry}>
             {body}
           </CarryStateProvider>
         </MdmMetaProvider>
@@ -374,22 +374,10 @@ export function PortalShell({
   const popoutRef = useRef(popout);
   popoutRef.current = popout;
   // 탭마다 화면 상태 등록소 — 분리 때 그 탭의 값을 모은다(carry-state). 열린 탭 목록에서 사라진 탭의 등록소는 지운다.
-  const carryRegistriesRef = useRef<Map<string, CarryRegistry>>(new Map());
-  const getCarryRegistry = (tabId: string): CarryRegistry => {
-    const map = carryRegistriesRef.current;
-    let registry = map.get(tabId);
-    if (!registry) {
-      registry = createCarryRegistry();
-      map.set(tabId, registry);
-    }
-    return registry;
-  };
+  const [carryRegistries] = useState(createCarryRegistryMap);
   useEffect(() => {
-    const open = new Set(tabs.map((t) => t.id));
-    for (const id of [...carryRegistriesRef.current.keys()]) {
-      if (!open.has(id)) carryRegistriesRef.current.delete(id);
-    }
-  }, [tabs]);
+    carryRegistries.prune(tabs.map((t) => t.id));
+  }, [tabs, carryRegistries]);
   // 셸이 연 분리 창 — 로그아웃 때 닫는다.
   const popoutWindowsRef = useRef<Set<Window>>(new Set());
   // 탭 우클릭 '새 창으로 분리' — 클릭 처리기에서 동기로 창을 연다(await 금지, 팝업 차단 판정). 열리면 탭을 닫고, 차단이면 탭을 두고 호출부가 안내한다.
@@ -399,7 +387,7 @@ export function PortalShell({
       const tab = tabsRef.current.find((t) => t.id === tabId);
       if (!current || !tab || tab.isHome) return;
       // 화면이 useCarryState 로 올려 둔 값을 분리 순간에 동기로 모은다(await 없음). 등록이 하나도 없으면 carry 를 넘기지 않는다.
-      const collected = carryRegistriesRef.current.get(tabId)?.collect();
+      const collected = carryRegistries.peek(tabId)?.collect();
       const carry =
         collected && (Object.keys(collected.light).length > 0 || Object.keys(collected.bulky).length > 0)
           ? collected
@@ -420,7 +408,7 @@ export function PortalShell({
       popoutWindowsRef.current.add(opened);
       closeTab(tabId);
     },
-    [closeTab, tabsRef]
+    [closeTab, tabsRef, carryRegistries]
   );
 
   const doLogout = useCallback(() => {
@@ -805,7 +793,7 @@ export function PortalShell({
                       tab={tab}
                       isActive={tab.id === activeTabId}
                       serviceId={serviceIdByPageId.get(tab.pageId) ?? ""}
-                      carryRegistry={getCarryRegistry(tab.id)}
+                      carryRegistry={carryRegistries.get(tab.id)}
                       onTabSnapshotChange={onTabSnapshotChange}
                     />
                   ))

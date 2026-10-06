@@ -1,4 +1,5 @@
 import { readSecureJson, removeSecureValue, writeSecureJson } from "../secure-storage";
+import { hasCarriedBulky } from "./carry-state";
 import { createRandomId } from "./random-id";
 
 /*
@@ -11,6 +12,10 @@ import { createRandomId } from "./random-id";
  * - light(조건·선택 키 등)·bulky(조회 결과 행 등)를 셸 창 메모리 보관소에 넣고 창 전역(window.__dmesPopoutCarry)으로 노출한다.
  *   새 창이 window.opener 로 token 의 값을 한 번 꺼내 자기 창 안으로 복제한다(크기 제한 없음).
  * - light 는 인코딩 뒤 256KB 이하일 때만 handoff 에도 담는다(opener 를 못 쓰는 경우의 보조 경로). bulky 는 localStorage 에 담지 않는다.
+ *   handoff 쓰기가 쿼터로 실패하면 carry 를 뺀 handoff(snapshot 만)로 한 번 더 쓴다.
+ * - opener 보관소 항목은 새 창이 가져가지 않아도 TTL 뒤 타이머로 지운다. 항목에는 pageId 를 넣고, 새 창이 자기 pageId 와 다르면 버린다.
+ * - 세 경로(opener·handoff·새로고침)의 값 타입을 같게 하려고 opener 경로도 JSON 왕복으로 복제한다. 복제가 실패하면(순환 등) null 로 물러서
+ *   handoff light 를 쓴다.
  * - 분리 창 새로고침용으로 light 를 그 창 sessionStorage 에 둔다.
  */
 
@@ -50,6 +55,7 @@ export interface OpenPagePopoutArgs {
 }
 
 interface CarryStoreEntry extends PopoutCarryPayload {
+  pageId: string;
   createdAt: number;
 }
 
@@ -64,14 +70,18 @@ function getCarryStore(): Map<string, CarryStoreEntry> {
   return (holder[CARRY_STORE_KEY] ??= new Map<string, CarryStoreEntry>());
 }
 
-/** 보관소에서 token 의 값을 한 번만 꺼낸다(꺼내면 지움). 없거나 TTL 이 지났으면 null. 창 전역 take 가 이것이다. */
-function takeFromCarryStore(token: string): PopoutCarryPayload | null {
+/**
+ * 보관소에서 token 의 값을 한 번만 꺼낸다(꺼내면 지움). 없거나 TTL 이 지났으면 null. 창 전역 take 가 이것이다.
+ * pageId 를 주면 항목의 pageId 와 같을 때만 돌려준다 — 다르면 버리고(지우고) null.
+ */
+function takeFromCarryStore(token: string, pageId?: string): (PopoutCarryPayload & { pageId: string }) | null {
   const store = getCarryStore();
   const entry = store.get(token);
   if (!entry) return null;
   store.delete(token);
   if (Date.now() - entry.createdAt > POPOUT_HANDOFF_TTL_MS) return null;
-  return { light: entry.light, bulky: entry.bulky };
+  if (pageId !== undefined && entry.pageId !== pageId) return null;
+  return { pageId: entry.pageId, light: entry.light, bulky: entry.bulky };
 }
 
 /** 새 창이 window.opener 로 꺼낼 수 있게 창 전역을 노출한다. 여러 번 불러도 같은 take 하나만 둔다. */
@@ -133,10 +143,6 @@ export function isCarryLightStorable(light: Record<string, unknown>): boolean {
   return size !== null && size <= POPOUT_CARRY_MAX_ENCODED_BYTES;
 }
 
-function hasKeys(value: Record<string, unknown>): boolean {
-  return Object.keys(value).length > 0;
-}
-
 /**
  * 실패 계약: 반환 null 은 팝업 차단 전용이다. 그 밖의 실패(buildUrl·window.open 예외)는 예외로 전파한다.
  * handoff 쓰기(Quota 등)만 best-effort — 실패하면 경고만 남기고 창은 연다(새 창은 빈 상태로 정상 표시).
@@ -155,12 +161,12 @@ export function openPagePopout({ pageId, snapshot, carry, buildUrl, win = window
   let carryInStore = false;
   if (carry) {
     // 주 경로: opener 메모리 보관소(크기 제한 없음). 새 창이 window.opener 로 한 번 꺼낸다.
-    getCarryStore().set(token, { light: carry.light, bulky: carry.bulky, createdAt: at });
+    getCarryStore().set(token, { pageId, light: carry.light, bulky: carry.bulky, createdAt: at });
     exposeCarryStore();
     carryInStore = true;
     // 보조 경로: light 만 handoff 에 — opener 를 못 쓰는 경우에도 조건·선택 키를 잇고, hadBulky 면 새 창이 행을 다시 조회한다.
     if (isCarryLightStorable(carry.light)) {
-      handoff.carry = { light: carry.light, hadBulky: hasKeys(carry.bulky) };
+      handoff.carry = { light: carry.light, hadBulky: hasCarriedBulky(carry.bulky) };
     } else {
       console.warn("[popout] 화면 상태(light)가 256KB 를 넘어 handoff 에 담지 않는다 — opener 를 못 쓰면 처음 상태로 열린다");
     }
@@ -168,7 +174,18 @@ export function openPagePopout({ pageId, snapshot, carry, buildUrl, win = window
   try {
     writeSecureJson<PortalPopoutHandoff>(key, handoff);
   } catch (err) {
-    console.warn("[popout] handoff 를 쓰지 못해 상태 없이 새 창을 연다", err);
+    if (handoff.carry) {
+      // 쿼터 실패 — carry 가 커서일 수 있다. carry 를 뺀 기존 형태(snapshot 만)로 한 번 더 써서 snapshot 이어받기는 지킨다.
+      console.warn("[popout] carry 를 담은 handoff 를 쓰지 못해 carry 를 빼고 다시 쓴다", err);
+      const plain: PortalPopoutHandoff = { pageId, snapshot, createdAt: at };
+      try {
+        writeSecureJson<PortalPopoutHandoff>(key, plain);
+      } catch (err2) {
+        console.warn("[popout] handoff 를 쓰지 못해 상태 없이 새 창을 연다", err2);
+      }
+    } else {
+      console.warn("[popout] handoff 를 쓰지 못해 상태 없이 새 창을 연다", err);
+    }
   }
   let opened: Window | null;
   try {
@@ -182,6 +199,11 @@ export function openPagePopout({ pageId, snapshot, carry, buildUrl, win = window
     removeSecureValue(key);
     if (carryInStore) getCarryStore().delete(token);
     return null;
+  }
+  if (carryInStore) {
+    // 새 창이 가져가지 않아도(닫힘·opener 차단 등) 큰 값을 TTL 넘게 붙잡지 않는다. 다른 token 의 항목은 건드리지 않는다.
+    const timer = setTimeout(() => getCarryStore().delete(token), POPOUT_HANDOFF_TTL_MS);
+    (timer as { unref?: () => void }).unref?.();
   }
   return opened;
 }
@@ -212,9 +234,11 @@ export function writePopoutSnapshot(token: string, snapshot: unknown): void {
   }
 }
 
+/**
+ * opener 창의 객체를 이 창 안의 복사본으로 만든다 — opener 가 닫히거나 이동해도 값이 남게.
+ * handoff·새로고침 경로와 값 타입을 같게(Date 는 문자열 등) JSON 왕복으로 복제한다. 직렬화할 수 없으면(순환·BigInt) 던진다.
+ */
 function cloneIntoThisWindow<T>(value: T): T {
-  // opener 창의 객체를 이 창 안의 복사본으로 만든다 — opener 가 닫히거나 이동해도 값이 남게.
-  if (typeof structuredClone === "function") return structuredClone(value);
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
@@ -223,19 +247,25 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * 새 창이 opener(셸 창)의 메모리 보관소에서 token 의 값을 한 번 꺼내 이 창 안으로 복제한다.
- * opener 가 없거나 닫혔거나 다른 출처로 이동했거나 값이 없으면(이미 가져감·TTL) null — 던지지 않는다.
+ * 새 창이 opener(셸 창)의 메모리 보관소에서 token 의 값을 한 번 꺼내 이 창 안으로 JSON 복제한다.
+ * pageId 를 주면 보관소 항목의 pageId 와 같을 때만 받는다(다르면 버린다).
+ * opener 가 없거나 닫혔거나 다른 출처로 이동했거나 값이 없거나(이미 가져감·TTL) 복제에 실패하면 null — 던지지 않는다(호출부가 handoff light 로 물러선다).
  */
 export function takePopoutCarryFromOpener(
   token: string,
-  opener: Window | null | undefined = typeof window === "undefined" ? null : window.opener
+  opener: Window | null | undefined = typeof window === "undefined" ? null : window.opener,
+  pageId?: string
 ): PopoutCarryPayload | null {
   try {
     if (!opener || opener.closed) return null;
-    const bridge = (opener as unknown as Record<string, unknown>)[POPOUT_CARRY_GLOBAL] as { take?: (token: string) => unknown } | undefined;
+    const bridge = (opener as unknown as Record<string, unknown>)[POPOUT_CARRY_GLOBAL] as
+      | { take?: (token: string, pageId?: string) => unknown }
+      | undefined;
     if (!bridge || typeof bridge.take !== "function") return null;
-    const taken = bridge.take(token);
+    const taken = bridge.take(token, pageId);
     if (!isPlainRecord(taken) || !isPlainRecord(taken.light) || !isPlainRecord(taken.bulky)) return null;
+    // 보관소가 pageId 를 돌려주면 한 번 더 맞춰 본다(오래된 opener 코드가 pageId 인자를 무시해도 막힌다).
+    if (pageId !== undefined && typeof taken.pageId === "string" && taken.pageId !== pageId) return null;
     return cloneIntoThisWindow({ light: taken.light, bulky: taken.bulky });
   } catch {
     return null;

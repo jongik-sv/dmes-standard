@@ -9,7 +9,7 @@ import { ErrorBoundary } from "../../components/error-boundary";
 import { MdmMetaProvider, mdmMetaTabProps } from "../../mdm-meta/context";
 import { buildMenuSearchItems } from "../menu-search";
 import type { PortalShellResolvePage } from "../module";
-import { CarryStateProvider, createCarryRegistry, type CarryRestore } from "../carry-state";
+import { CarryStateProvider, createCarryRegistry, hasCarriedBulky, type CarryRestore } from "../carry-state";
 import {
   readPopoutCarry,
   readPopoutSnapshot,
@@ -73,9 +73,9 @@ function resolveInitialState(token: string | null, pageId: string, opener: Windo
   }
 
   let restore: CarryRestore | null = null;
-  const fromOpener = takePopoutCarryFromOpener(token, opener);
+  const fromOpener = takePopoutCarryFromOpener(token, opener, pageId);
   if (fromOpener) {
-    restore = { light: fromOpener.light, bulky: fromOpener.bulky, hadBulky: Object.keys(fromOpener.bulky).length > 0 };
+    restore = { light: fromOpener.light, bulky: fromOpener.bulky, hadBulky: hasCarriedBulky(fromOpener.bulky) };
   } else {
     const light = validHandoff?.carry ?? readPopoutCarry(token);
     if (light) restore = { light: light.light, bulky: null, hadBulky: light.hadBulky };
@@ -109,24 +109,26 @@ export function PortalPageWindow({
   const title = menuItem?.title ?? null;
 
   // 처음 상태(snapshot·이어받은 화면 상태): 마운트 때 한 번만 정한다. 같은 take 결과를 함께 쓴다(resolveInitialState).
-  const [initial] = useState<PopoutInitialState>(() =>
-    resolveInitialState(token, pageId, opener !== undefined ? opener : typeof window === "undefined" ? null : window.opener)
-  );
-  const [snapshot, setSnapshot] = useState<unknown>(initial.snapshot);
+  // 결과 객체를 state 로 들고 있지 않는다 — 큰 값(bulky)을 등록소가 다 쓴 뒤 놓을 수 있게 snapshot 과 등록소로 나눠 담는다.
+  const resolveInitial = () =>
+    resolveInitialState(token, pageId, opener !== undefined ? opener : typeof window === "undefined" ? null : window.opener);
+  const [snapshot, setSnapshot] = useState<unknown>(() => resolveInitial().snapshot);
+  // 화면 상태 등록소 — 이어받은 값을 들고 있다가 화면이 key 별로 한 번씩 가져간다. 화면이 useCarryState 로 올린 값을
+  // pagehide 때 모아 새로고침(F5)용으로 이 창 sessionStorage 에 둔다.
+  const [carryRegistry] = useState(() => createCarryRegistry(resolveInitial().restore));
   // 커밋됐다 — 이제 state 가 값을 들고 있으니 재시도용 보관을 지운다.
   useEffect(() => {
     if (token) initialStateByToken.delete(token);
   }, [token]);
 
-  // 화면 상태 등록소 — 화면이 useCarryState 로 올린 값을 pagehide 때 모아 새로고침(F5)용으로 이 창 sessionStorage 에 둔다.
-  const [carryRegistry] = useState(createCarryRegistry);
   useEffect(() => {
     if (!token) return undefined;
     const onPageHide = () => {
       const collected = carryRegistry.collect();
-      const hadBulky = Object.keys(collected.bulky).length > 0;
+      // 지금 조회 결과가 있거나, 이어받은 hadBulky 의 재조회가 아직 안 끝났으면 true — 새로고침 때 행을 다시 조회한다.
+      const hadBulky = carryRegistry.hadBulkyForReload(collected.bulky);
       // 등록이 하나도 없으면(훅을 쓰지 않는 화면) 건드리지 않는다.
-      if (!hadBulky && Object.keys(collected.light).length === 0) return;
+      if (Object.keys(collected.bulky).length === 0 && Object.keys(collected.light).length === 0) return;
       writePopoutCarry(token, { light: collected.light, hadBulky });
     };
     window.addEventListener("pagehide", onPageHide);
@@ -253,7 +255,7 @@ export function PortalPageWindow({
     // 탭과 같이 경계를 둔다. 화면의 렌더 오류가 창 전체를 하얗게 만들지 않게 한다.
     body = (
       <ErrorBoundary>
-        <CarryStateProvider registry={carryRegistry} restore={initial.restore}>
+        <CarryStateProvider registry={carryRegistry}>
           <PageComponent tabId={tabId} snapshot={snapshot} onSnapshotChange={handleSnapshotChange} />
         </CarryStateProvider>
       </ErrorBoundary>

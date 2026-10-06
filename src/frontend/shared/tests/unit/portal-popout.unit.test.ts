@@ -270,7 +270,7 @@ describe("opener 메모리 보관소", () => {
     expect(bridge()?.take("tok") ?? null).toBeNull(); // 아직 아무것도 없다
     expect(openWithCarry()).not.toBeNull();
     expect(typeof bridge()?.take).toBe("function");
-    expect(bridge()!.take("tok")).toEqual(CARRY);
+    expect(bridge()!.take("tok")).toEqual({ pageId: "page-a", ...CARRY });
     expect(bridge()!.take("tok")).toBeNull();
   });
 
@@ -294,7 +294,7 @@ describe("opener 메모리 보관소", () => {
     openWithCarry({ createToken: () => "new", now: () => NOW + POPOUT_HANDOFF_TTL_MS + 1 });
     now.mockReturnValue(NOW + POPOUT_HANDOFF_TTL_MS + 2);
     expect(bridge()!.take("old")).toBeNull();
-    expect(bridge()!.take("new")).toEqual(CARRY);
+    expect(bridge()!.take("new")).toMatchObject(CARRY);
   });
 
   it("clearPopoutHandoffs 가 보관소를 비운다", () => {
@@ -332,7 +332,58 @@ describe("opener 메모리 보관소", () => {
       })
     ).toThrow("bad url");
     expect(bridge()!.take("tok")).toBeNull();
-    expect(bridge()!.take("keep")).toEqual(CARRY);
+    expect(bridge()!.take("keep")).toMatchObject(CARRY);
+  });
+
+  it("창 열기가 성공하면 TTL 뒤 타이머가 그 token 항목만 지운다(새 창이 가져가지 않아도)", () => {
+    // Date 는 그대로 두고 타이머만 가짜로 — take 의 TTL 판정이 아니라 타이머가 지웠는지를 본다.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      vi.spyOn(Date, "now").mockReturnValue(NOW);
+      openWithCarry({ createToken: () => "a" });
+      openWithCarry({ createToken: () => "b" });
+      vi.advanceTimersByTime(POPOUT_HANDOFF_TTL_MS - 1);
+      expect(vi.getTimerCount()).toBe(2);
+      vi.advanceTimersByTime(1);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(bridge()!.take("a")).toBeNull();
+      expect(bridge()!.take("b")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("새 창이 이미 가져간 항목은 타이머가 돌아도 오류 없이 지나간다", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      vi.spyOn(Date, "now").mockReturnValue(NOW);
+      openWithCarry({ createToken: () => "a" });
+      expect(bridge()!.take("a")).not.toBeNull();
+      vi.advanceTimersByTime(POPOUT_HANDOFF_TTL_MS);
+      expect(bridge()!.take("a")).toBeNull(); // 지워진 채 — 오류 없이
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("차단·예외로 열리지 않으면 타이머를 걸지 않는다", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      vi.spyOn(Date, "now").mockReturnValue(NOW);
+      openWithCarry({ win: makeWin(null) });
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("보관소 항목에 pageId 가 들어 있고, 다른 pageId 로 꺼내면 버린다(그 뒤 맞는 pageId 로도 못 꺼낸다)", () => {
+    vi.spyOn(Date, "now").mockReturnValue(NOW);
+    openWithCarry();
+    expect(bridge()!.take("tok", "other-page")).toBeNull();
+    expect(bridge()!.take("tok", "page-a")).toBeNull();
+    openWithCarry();
+    expect(bridge()!.take("tok", "page-a")).toEqual({ pageId: "page-a", ...CARRY });
   });
 });
 
@@ -347,6 +398,91 @@ describe("handoff carry(light 보조 경로)", () => {
   it("bulky 가 비어 있으면 hadBulky false", () => {
     openWithCarry({ carry: { light: { a: 1 }, bulky: {} } });
     expect(takePopoutHandoff("tok", () => NOW)?.carry).toEqual({ light: { a: 1 }, hadBulky: false });
+  });
+
+  it("조회하지 않은 탭(빈 배열·null)의 bulky 는 hadBulky false, 행이 있으면 true", () => {
+    openWithCarry({ carry: { light: { a: 1 }, bulky: { rows: [], detail: null } } });
+    expect(takePopoutHandoff("tok", () => NOW)?.carry).toEqual({ light: { a: 1 }, hadBulky: false });
+    openWithCarry({ carry: { light: { a: 1 }, bulky: { rows: [], detail: [{ id: 1 }] } }, createToken: () => "tok2" });
+    expect(takePopoutHandoff("tok2", () => NOW)?.carry).toEqual({ light: { a: 1 }, hadBulky: true });
+  });
+
+  it("쿼터로 carry 가 든 handoff 쓰기가 실패하면 carry 를 뺀 handoff 로 한 번 더 쓴다(snapshot 은 지킨다)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const real = localStorage;
+    let handoffWrites = 0;
+    vi.stubGlobal("localStorage", {
+      get length() {
+        return real.length;
+      },
+      key: (index: number) => real.key(index),
+      getItem: (key: string) => real.getItem(key),
+      removeItem: (key: string) => real.removeItem(key),
+      setItem: (key: string, value: string) => {
+        if (key.startsWith(POPOUT_HANDOFF_PREFIX)) {
+          handoffWrites += 1;
+          if (handoffWrites === 1) throw new DOMException("quota", "QuotaExceededError");
+        }
+        real.setItem(key, value);
+      },
+    });
+    const fake = { name: "fake-window" };
+    const result = openWithCarry({ snapshot: { q: 9 }, win: makeWin(fake) });
+    expect(result).toBe(fake);
+    expect(handoffWrites).toBe(2);
+    expect(warn).toHaveBeenCalled();
+    expect(readSecureJson<PortalPopoutHandoff>(`${POPOUT_HANDOFF_PREFIX}tok`)).toEqual({ pageId: "page-a", snapshot: { q: 9 }, createdAt: NOW });
+  });
+
+  it("carry 를 뺀 쓰기도 실패하면 경고만 하고 창은 연다(opener 보관소는 그대로)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.spyOn(Date, "now").mockReturnValue(NOW);
+    const real = localStorage;
+    let handoffWrites = 0;
+    vi.stubGlobal("localStorage", {
+      get length() {
+        return real.length;
+      },
+      key: (index: number) => real.key(index),
+      getItem: (key: string) => real.getItem(key),
+      removeItem: (key: string) => real.removeItem(key),
+      setItem: (key: string, value: string) => {
+        if (key.startsWith(POPOUT_HANDOFF_PREFIX)) {
+          handoffWrites += 1;
+          throw new DOMException("quota", "QuotaExceededError");
+        }
+        real.setItem(key, value);
+      },
+    });
+    const fake = { name: "fake-window" };
+    expect(openWithCarry({ win: makeWin(fake) })).toBe(fake);
+    expect(handoffWrites).toBe(2);
+    expect(warn.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(real.length).toBe(0);
+    expect(bridge()!.take("tok")).toMatchObject(CARRY);
+  });
+
+  it("carry 가 없는 handoff 쓰기 실패는 다시 쓰지 않는다", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const real = localStorage;
+    let handoffWrites = 0;
+    vi.stubGlobal("localStorage", {
+      get length() {
+        return real.length;
+      },
+      key: (index: number) => real.key(index),
+      getItem: (key: string) => real.getItem(key),
+      removeItem: (key: string) => real.removeItem(key),
+      setItem: (key: string, value: string) => {
+        if (key.startsWith(POPOUT_HANDOFF_PREFIX)) {
+          handoffWrites += 1;
+          throw new DOMException("quota", "QuotaExceededError");
+        }
+        real.setItem(key, value);
+      },
+    });
+    expect(openWithCarry({ carry: undefined })).not.toBeNull();
+    expect(handoffWrites).toBe(1);
   });
 
   it("인코딩 뒤 256KB 를 넘으면 light 를 빼고 console.warn, opener 보관소에는 그대로 있다", () => {
@@ -407,6 +543,39 @@ describe("takePopoutCarryFromOpener", () => {
       },
     }) as unknown as Window;
     expect(takePopoutCarryFromOpener("tok", opener)).toBeNull();
+  });
+
+  it("Date 같은 값은 JSON 왕복으로 문자열이 된다(handoff·새로고침 경로와 같은 타입)", () => {
+    const stored = { light: { at: new Date(0), n: 1 }, bulky: { rows: [{ d: new Date(86_400_000), skip: undefined }] } };
+    const opener = { closed: false, [POPOUT_CARRY_GLOBAL]: { take: () => stored } } as unknown as Window;
+    expect(takePopoutCarryFromOpener("tok", opener)).toEqual({
+      light: { at: "1970-01-01T00:00:00.000Z", n: 1 },
+      bulky: { rows: [{ d: "1970-01-02T00:00:00.000Z" }] },
+    });
+  });
+
+  it("JSON 복제에 실패하는 값(순환 참조)이면 던지지 않고 null — 호출부가 handoff light 로 물러선다", () => {
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+    const opener = { closed: false, [POPOUT_CARRY_GLOBAL]: { take: () => ({ light: {}, bulky: { cyclic } }) } } as unknown as Window;
+    expect(takePopoutCarryFromOpener("tok", opener)).toBeNull();
+  });
+
+  it("pageId 를 주면 take 에 넘기고, 보관소가 돌려준 pageId 와 다르면 null", () => {
+    const take = vi.fn(() => ({ pageId: "page-b", light: {}, bulky: {} }));
+    const opener = { closed: false, [POPOUT_CARRY_GLOBAL]: { take } } as unknown as Window;
+    expect(takePopoutCarryFromOpener("tok", opener, "page-a")).toBeNull();
+    expect(take).toHaveBeenCalledWith("tok", "page-a");
+    expect(takePopoutCarryFromOpener("tok", opener, "page-b")).toEqual({ light: {}, bulky: {} });
+    expect(takePopoutCarryFromOpener("tok", opener)).toEqual({ light: {}, bulky: {} }); // pageId 를 안 주면 거르지 않는다
+  });
+
+  it("셸이 넣은 항목을 다른 pageId 의 창이 꺼내려 하면 null 이고 항목은 버려진다", () => {
+    vi.spyOn(Date, "now").mockReturnValue(NOW);
+    openWithCarry();
+    const opener = window as unknown as Window;
+    expect(takePopoutCarryFromOpener("tok", opener, "other-page")).toBeNull();
+    expect(takePopoutCarryFromOpener("tok", opener, "page-a")).toBeNull();
   });
 
   it("셸이 openPagePopout 으로 넣은 값을 한 번만 꺼낸다(왕복)", () => {
