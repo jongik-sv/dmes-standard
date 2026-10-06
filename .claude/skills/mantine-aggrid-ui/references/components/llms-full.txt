@@ -2005,7 +2005,7 @@ import { SelectOrInput } from "@dk-oasis/shared/form";
 데이터 목록(머리행 + 데이터 행 반복)을 화면에 표로 그릴 때 쓴다. 열 정의는 `GridColumn` 으로 준다.
 
 - import: `import { AgDataGrid, GridBadge, type GridColumn } from "@dk-oasis/shared/grid";` (CSS 는 `AgDataGrid` 가 스스로 불러오므로 화면에서 따로 import 하지 않는다)
-- 소스: `src/frontend/shared/src/components/grid/AgDataGrid.tsx`
+- 소스: `src/frontend/shared/src/components/grid/AgDataGrid.tsx` — 훅을 조립하고 `AgGridReact` 를 그리는 본체다. 같은 폴더에 나뉜 부분이 있다: 타입 `grid-types.ts`, 열 정의 `column-defs.ts`, 셀 편집기 `cell-editors.tsx`, MDM 머리글·툴팁·칸 검증 문구 `grid-mdm.tsx`, 서버 오류 칸 `field-errors.ts`, 행 커서·키보드 `row-cursor.ts`, 선택 `useGridSelection.ts`, 편집·행 클래스 `useGridEditing.ts`, 자동 너비 `useGridAutoSize.ts`, 개인화 `grid-personalize*.ts`. 화면은 이 파일들을 직접 import 하지 않고 `@dk-oasis/shared/grid` 만 쓴다
 - 내부 구현: ag-grid-community 33 `AgGridReact` (shared 를 고치는 개발자용 참고. 화면은 `ag-grid-react`·`ag-grid-community` 를 import 하지 않는다)
 - `DataGrid` 는 `AgDataGrid` 의 별칭이다. 새 화면은 `AgDataGrid` 로 쓴다.
 
