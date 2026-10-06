@@ -12,15 +12,18 @@
 #   item-done <레인> <항목id>                      항목 완료 · `PROGRESS <레인> <pct>%`
 #   progress                                       레인마다 `PROGRESS <레인> <pct>% <끝>/<전체>`, 끝에 `PROGRESS ALL <pct>%`
 #   hold <레인> <사유|-> [until-iso]               hold 세우기(`-` 는 풀기) · `OK`
+#   close-run [json]                               회차 마감: run-closed 이벤트 → office finish → `.run.closed_at` 기록 · `OK`
+#                                                  (`event run-closed` 도 같은 길. 이미 마감했으면 closed_at 은 그대로, finish 는 다시 건다)
 #   summary                                        summary.md 재생성 · 경로
 # state.json 은 이 스크립트만 쓴다. 쓰기는 mkdir 잠금(<회차>/.lock) 아래에서 임시 파일 → mv 로 원자적으로 한다.
 # 회차는 COORD_RUN 환경 변수 → <state_dir>/current 순으로 정한다(init 은 인자의 run-id).
+# init 은 마감 표식(.run.closed_at)이 없고 오피스 팀장 키가 남은 다른 회차를 `STALE_RUN` 줄로 알린다(같은 조정 세션이면 자동 마감).
 set -uo pipefail
 # shellcheck source=lib/common.sh
 . "$(dirname "$0")/lib/common.sh"
 coord_default_repo
 
-usage() { coord_die 2 "사용법: coord-state.sh init|use|get|set|lane-add|event|instr|ack|report|item-done|progress|hold|summary … (contract §3.4)"; }
+usage() { coord_die 2 "사용법: coord-state.sh init|use|get|set|lane-add|event|instr|ack|report|item-done|progress|hold|close-run|summary … (contract §3.4)"; }
 
 LANE_SKEL='{"session":{"name":"","addr":"","session_id":"","pid":0,"handle":"","kind":"claude","window":null,"spawned_by":"user"},
  "branch":"","worktree":"","owned":[],"forbidden":[],"heavy_env":null,"priority":2,"items":[],"queue":[],"hold":null,
@@ -74,7 +77,7 @@ lane_exists() {
 json_ok() { printf '%s' "$1" | jq empty >/dev/null 2>&1 && [ -n "$1" ] || coord_die 2 "json 오류: $1"; }
 
 cmd_init() {
-  local id="${1:-}" goal="" rules="" root dir
+  local id="${1:-}" goal="" rules="" root dir sid="${COORD_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}"
   [ -n "$id" ] || usage; shift
   case "$id" in */*|.*|current|ctx|*[!A-Za-z0-9._-]*) coord_die 2 "run-id 형식 오류: $id" ;; esac
   while [ $# -gt 0 ]; do
@@ -89,10 +92,10 @@ cmd_init() {
   [ -f "$dir/state.json" ] && coord_die 2 "이미 있는 회차: $dir (이어 쓰려면 use $id)"
   mkdir -p "$dir/lanes" "$dir/ticks" || coord_die 4 "폴더 생성 실패: $dir"
   jq -n --arg id "$id" --arg goal "$goal" --arg rules "$rules" --arg ib "$(coord_cfg .integration_branch)" \
-    --arg now "$(coord_now_iso)" '{
+    --arg now "$(coord_now_iso)" --arg sid "$sid" '{
       schema: 1,
-      run: {id: $id, goal: $goal, rules_doc: $rules, integration_branch: $ib, created_at: $now,
-            coordinator: {name: "", addr: "", session_id: "", handle: "", pid: 0},
+      run: {id: $id, goal: $goal, rules_doc: $rules, integration_branch: $ib, created_at: $now, closed_at: null,
+            coordinator: {name: "", addr: "", session_id: $sid, handle: "", pid: 0},
             cron_id: null, usage_band_notified: null},
       lanes: {}, deps: [],
       merge: {in_flight: null, queue: [], history: []},
@@ -107,6 +110,40 @@ cmd_init() {
   ev_append "$dir" init - "$(jq -nc --arg g "$goal" '{goal:$g}')"
   COORD_RUN="$id" office lead-up
   echo "RUN $id $dir"
+  init_stale_check "$id" "$sid"
+}
+
+# 새 회차를 시작할 때 앞 회차가 마감되지 않은 채 남았는지 본다(오피스에 팀장 칸이 둘 보이는 사고 방지).
+# 같은 조정 세션(session_id 가 같음)의 회차는 자동 마감하고, 그 밖에는 경고만 낸다(다른 조정자의 진행 중 회차일 수 있다).
+init_stale_check() {  # init_stale_check <새 run-id> <현재 세션 id>
+  local rid sid age mt now; now="$(coord_now_epoch)"
+  while IFS=$'\t' read -r rid sid; do
+    [ -n "$rid" ] || continue
+    if [ -n "$2" ] && [ "$sid" = "$2" ]; then
+      COORD_RUN="$rid" bash "$COORD_SCRIPTS_DIR/coord-state.sh" close-run "$(jq -nc --arg by "$1" '{auto:"init", by:$by}')" >/dev/null 2>&1 \
+        && echo "STALE_RUN $rid auto-closed session=$sid" || echo "STALE_RUN $rid close-failed session=$sid"
+    else
+      mt="$(coord_file_mtime "$(coord_state_root)/$rid/state.json")"; age="-"
+      [ -n "$mt" ] && age="$(( (now - mt) / 60 ))m"
+      echo "STALE_RUN $rid open session=$sid idle=$age"
+      coord_log "STALE_RUN $rid: 마감 표식이 없는데 오피스 팀장 키가 남아 있다. 끝난 회차라면 COORD_RUN=$rid coord-state.sh close-run (진행 중인 다른 조정자의 회차면 그대로 둔다)"
+    fi
+  done < <(coord_stale_runs "$1")
+}
+
+# 회차 마감(closing.md §6): run-closed 이벤트 → 오피스 finish(팀장·팀원 표시 내림) → .run.closed_at 기록.
+# 이미 마감한 회차면 closed_at 은 처음 값을 두고, finish 는 다시 건다(stop 이 실패해 남은 키를 마저 내리는 용도).
+close_run() {  # close_run [레인|-] [json]
+  state_file_checked >/dev/null
+  ev_append "$(run_dir)" run-closed "${1:--}" "${2:-}"
+  office finish
+  st_update --arg now "$(coord_now_iso)" '.run.closed_at = (.run.closed_at // $now)' || exit 4
+}
+
+cmd_close_run() {
+  [ $# -le 1 ] || usage
+  close_run - "${1:-}"
+  echo OK
 }
 
 cmd_use() {
@@ -150,9 +187,11 @@ cmd_lane_add() {
 
 cmd_event() {
   [ $# -ge 1 ] || usage
-  state_file_checked >/dev/null
-  ev_append "$(run_dir)" "$1" "${2:--}" "${3:-}"
-  [ "$1" != run-closed ] || office finish   # 회차 마감(closing.md §6)
+  if [ "$1" = run-closed ]; then close_run "${2:--}" "${3:-}"   # 회차 마감(closing.md §6)
+  else
+    state_file_checked >/dev/null
+    ev_append "$(run_dir)" "$1" "${2:--}" "${3:-}"
+  fi
   echo OK
 }
 
@@ -302,7 +341,8 @@ case "$sub" in
   item-done) cmd_item_done "$@" ;;
   progress) cmd_progress ;;
   hold) cmd_hold "$@" ;;
+  close-run) cmd_close_run "$@" ;;
   summary) cmd_summary ;;
-  -h|--help|help) sed -n '2,16p' "$0" >&2; exit 0 ;;
+  -h|--help|help) sed -n '2,19p' "$0" >&2; exit 0 ;;
   *) usage ;;
 esac

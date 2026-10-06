@@ -45,5 +45,7 @@ dev 로 서버를 재기동하고 주요 화면을 확인한다(조정자만). �
 
 ## 6. 닫기
 
-- 마지막으로 `coord-state.sh event run-closed - '{}'` 를 남긴다. 이 이벤트가 `office.sh finish` 를 불러 에이전트 오피스의 팀장·팀원 표시를 내린다(`contract.md` §4).
+- 마지막으로 `coord-state.sh close-run` 을 부른다(`event run-closed - '{}'` 도 같은 함수를 탄다). run-closed 이벤트를 남기고, `office.sh finish` 로 에이전트 오피스의 팀장·팀원 표시를 내린 뒤, `.run.closed_at` 에 마감 시각을 적는다(`contract.md` §3.4·§4). 이 명령을 빼면 오피스에 팀장 칸이 서버 TTL(70분)까지 남고, 같은 세션이 새 회차를 시작하면 팀장 칸이 둘로 보인다.
+- 끝낸 회차의 `.run.state` 같은 칸을 직접 써서 마감을 표시하지 않는다(계약에 없는 칸이라 아무 동작도 하지 않는다).
+- 마감하지 못한 채 새 회차를 시작했다면 `init` 이 낸 `STALE_RUN` 줄(자동 마감됐거나 경고)과 틱의 `STALE_RUN <회차>` 줄을 보고 `COORD_RUN=<회차> coord-state.sh close-run` 으로 닫는다.
 - 조정자 자신의 세션은 사용자가 닫는다. state 폴더는 지우지 않는다(다음 회차 근거).

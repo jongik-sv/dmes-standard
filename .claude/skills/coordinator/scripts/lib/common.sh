@@ -157,6 +157,19 @@ coord_has_run() {
   local id; id="$(coord_run_id 2>/dev/null)" || return 1
   [ -n "$id" ] && [ -f "$(coord_state_root)/$id/state.json" ]
 }
+# 마감 표식(.run.closed_at·.office.finished)이 없고 오피스 팀장 키(.office.sent._lead)가 남은 회차. 인자: <제외할 run-id>.
+# 한 줄에 `<run-id>\t<조정 세션 id|->`. 다른 조정자의 진행 중 회차도 걸리므로 호출자가 세션 id 로 가른다.
+coord_stale_runs() {
+  local root d id sid; root="$(coord_state_root)"
+  for d in "$root"/*/; do
+    [ -f "${d}state.json" ] || continue
+    id="$(basename "$d")"; [ "$id" != "${1:-}" ] || continue
+    sid="$(jq -r 'select((.run.closed_at // null) == null and (.office.finished // false) != true and (.office.sent._lead // null) != null)
+      | (.run.coordinator.session_id // "") | if . == "" then "-" else . end' "${d}state.json" 2>/dev/null)"
+    [ -n "$sid" ] && printf '%s\t%s\n' "$id" "$sid"
+  done
+  return 0
+}
 # 레인 값 읽기: coord_lane_get <레인> <jq 하위경로 예: .session.handle>. 없거나 null 이면 빈 줄. 회차 없으면 rc 3.
 coord_lane_get() {
   coord_has_run || return 3
