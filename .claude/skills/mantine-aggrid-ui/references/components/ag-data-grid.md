@@ -208,6 +208,16 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 { key: "remark", header: "비고", editable: true, hideable: true }
 ```
 
+### 새 창 분리 때 이어받기(2026-10-06)
+
+포털 탭을 「새 창으로 분리」 하면 `gridId` 를 준 그리드가 체크 선택·스크롤 위치·포커스 칸·자체 관리 행 커서를 자동으로 이어받는다([useCarryState](use-carry-state.md) 장치). 화면이 더 할 일은 없다(새 prop 도 없다).
+
+- 하지 않는 경우: `gridId` 가 없는 그리드, 대화 상자 안 그리드, `selectedRows`(제어형 선택)를 넘긴 그리드의 체크 선택(화면 값이 소유), `highlightedRowKey` 를 넘긴 그리드의 커서(화면이 선택 키를 carry 해야 한다).
+- 자체 커서(`highlightedRowKey` 를 안 넘김)를 되살린 그리드는 화면 `onRowClick(row, 합성 click)` 을 마운트 뒤 한 번 부른다(상세 폼 되살리기). `onRowClick` 이 같은 키에 상세를 다시 조회·초기화하면 같은 키 가드를 둔다.
+- 체크 선택을 되살리면 화면 `onRowSelect` 가 한 번 불린다(그리드 체크와 화면 상태가 어긋나지 않게).
+- 열 상태(너비·순서·정렬)는 이어받지 않는다(컬럼 개인화 소관). 행이 첫 렌더에 없으면(재조회) 체크 선택·스크롤·포커스는 되살리지 않는다. 포커스 칸 복원은 `onFocusedRowChange` 를 한 번 부를 수 있다.
+- 소스: `src/frontend/shared/src/components/grid/useGridCarry.ts`, 시험 `tests/unit/grid-carry.unit.test.ts`.
+
 ## Props
 
 자주 쓰는 props. 기본값은 소스의 구조분해 기본값이다.
