@@ -161,7 +161,7 @@ Claude Code 세션이 claude.ai 사용 한도(5시간 슬롯)에 걸리면 작�
 
 | 스크립트 | 기본 동작 | 주요 옵션 |
 |---|---|---|
-| `be-run` | 7개 모듈 동시 기동 (2개 이상이면 먼저 [선빌드](#백엔드-선빌드-be-run)) | `--all` / 모듈별 `--mcm --mpn --mls --mqc --mpp --mdm --analog` / `--keep-port` / [`--dry-run`](#드라이런---dry-run) |
+| `be-run` | 7개 모듈 동시 기동 (먼저 Gradle 로 [빌드](#백엔드-빌드와-기동-be-run)하고 앱은 `java` 로 직접 띄운다) | `--all` / 모듈별 `--mcm --mpn --mls --mqc --mpp --mdm --analog` / `--keep-port` / `--build-only` / [`--dry-run`](#드라이런---dry-run) |
 | `fe-run` | pnpm install → 화면 라이브러리 build → 전체 dev | `--all` · `--mpn` · `-q`(설치·빌드 skip) · `--clean` · `--build` |
 | `local-run` | BE + FE 동시 | 인자는 FE 로 전달. BE 대상은 `.run.env` 의 `BE_RUN_ARGS` |
 | `dmes-up` (Windows 전용) | JDK 21 지정 → wrapper jar 보충 → 포트 정리 → BE + FE | `-Detach` · `-Be` · `-Fe` · `-Full` · `-Clean` · `-Warmup`(아무 동작 안 함) — [아래](#windows-한-번에-띄우기-dmes-up) |
@@ -200,42 +200,67 @@ FE 는 `m-mcm/.env` 의 `{모듈}_WAS_URL` 로 각 백엔드를 찾는다. 이 �
 
 세부 규칙(영속성·테스트·보안·배포·명명)은 모두 [docs/guide/](docs/guide/README.md) 하위 정본 문서를 따른다.
 
-### 백엔드 선빌드 (be-run)
+### 백엔드 빌드와 기동 (be-run)
 
-모듈을 **2개 이상** 띄우면(`--all` 포함) be-run 은 모듈별 bootRun 앞에서 `src/backend` 루트 composite 로 Gradle 을 한 번 돌려
-bootRun 이 쓸 산출물(classes·jar)을 먼저 만든다. 모듈마다 따로 도는 bootRun 여러 개가 공유 includeBuild(cactus-core·mcm-core·
-maru-mdm-engine 등)를 동시에 빌드하며 서로의 `build/classes`·jar 를 덮어쓰던 경합을 없애려는 단계다.
+> 이 절은 셸 판(`be-run.sh`)이다. ps1 판(`be-run.ps1`)은 아직 종전대로 모듈마다 `gradlew :api:bootRun` 을 띄우며 선빌드 계획(`-m`)을 쓴다.
 
-1. **계획** — `src/backend/gradlew :<모듈>:api:bootRun … -m -q`. `-m` 이라 태스크를 실행하지 않고 목록만 받는다. 여기서 `bootRun` 을 뺀 태스크가 선빌드 대상이다(손으로 적지 않아 의존이 바뀌어도 따라간다).
-2. **선빌드** — 그 태스크 전부를 Gradle 1회로 실행한다(`--continue`). 셸 판은 종전 bootRun 처럼 PC 전역 무거운 명령 슬롯(heavy.sh) 없이 돈다.
-3. **기동** — 모듈 폴더에서 종전처럼 `:api:bootRun`. 컴파일·jar 가 UP-TO-DATE 라 기동만 한다.
+be-run.sh 는 Gradle 로 **빌드만 하고 앱은 `java` 로 직접 띄운다.** bootRun 은 모듈마다 Gradle 데몬 하나(약 0.6GB)를 서버가 도는 내내 붙들었다.
+3개 모듈이면 데몬 3개(약 1.7GB)에 gradlew 실행기 3개(약 0.3GB)가 더 상주해, 16GB PC 에서 스왑이 9GB 까지 찼다.
 
-- 모듈이 1개면 선빌드 없이 bootRun 이 직접 빌드한다(종전 동작).
-- 계획이나 선빌드가 실패하면 **아무 모듈도 띄우지 않고** 끝난다. 실패한 채 띄우면 bootRun 들이 다시 동시에 빌드해 경합이 되살아나기 때문이다.
-  종료 코드는 셸 판 `1`, ps1 판은 계획 실패 `1`·빌드 실패 Gradle 종료 코드다. `local-run` 은 be-run 종료를 보고 FE 까지 정리하고,
-  `dmes-up.ps1 -Detach` 는 대기를 멈추고 함께 띄운 FE 를 정리한 뒤 `1` 로 끝난다.
-- 셸 판에서 선빌드 도중 Ctrl+C·TERM 을 받으면 선빌드 프로세스까지 정리하고 130·143 으로 끝난다. 계획(`-m`, 몇 초) 도중 받은 TERM 은 계획 프로세스까지 정리하지 못한다.
+1. **빌드** — `scripts/lib/be-run-classpath.init.gradle` 을 `-I` 로 줘서 `<모듈>/api/build/be-run/classpath.txt`(1행 main class, 2행 classpath)를 만든다.
+   값은 bootRun 이 쓰는 것과 같다. 모듈이 2개 이상이면 `src/backend` 루트 composite 에서 한 번(공유 includeBuild 를 Gradle 하나가 빌드해 경합이 없다),
+   1개면 그 모듈 폴더에서 한다. 기본은 `--no-daemon` 이라 빌드가 끝나면 Gradle 프로세스가 남지 않는다. 코드를 고친 뒤 다시 띄우면 늘 최신 코드로 빌드된다.
+2. **기동** — 모듈 폴더(`src/backend/<모듈>`)에서 `java <JVM 옵션> -cp <classpath> <main class> --spring.profiles.active=local …`. mdm 은 종전처럼 `--mdm.sample.path` 도 붙는다.
+
+- 빌드가 실패하면 **아무 모듈도 띄우지 않고** exit 1 로 끝난다. 이전 빌드의 classpath.txt 는 빌드 직전에 지우므로 낡은 값으로 뜨지 않는다.
+  `local-run` 은 be-run 종료를 보고 FE 까지 정리하고, `dmes-up.ps1 -Detach` 는 함께 띄운 FE 를 정리한 뒤 `1` 로 끝난다.
+- 빌드 도중 Ctrl+C·TERM 을 받으면 빌드 프로세스(단일 사용 데몬 포함)까지 정리하고 130·143 으로 끝난다.
+- `./be-run.sh --mcm --build-only` 는 빌드까지만 하고 끝난다. 아무것도 띄우지 않으므로 이전 be-run 종료·포트 회수도 하지 않는다.
+- 앱 JVM 의 pid 는 be-run 의 자식이다. 종료 신호를 받으면 TERM → 5초 대기 → KILL 순서로 정리하고, 이 체크아웃 모듈 폴더에서 도는 포트 리스너도 정리한다.
+  프로세스 명령줄에 `-Dbe.run.module=<모듈>` 이 있어 `ps` 로 어느 모듈인지 알 수 있다. (명령줄에 `bootRun` 이 더는 없다.)
 
 | 변수 | 값 | 동작 |
 |---|---|---|
-| `BE_PREBUILD` | `0` | 선빌드를 끈다 — 모듈별 bootRun 이 종전처럼 각자 빌드한다 |
-| `BE_PREBUILD_CONTINUE` | `1` | 선빌드가 실패해도 모듈을 띄운다 — 실패한 모듈은 자기 로그에 같은 오류를 다시 낸다 |
+| `BE_GRADLE_DAEMON` | `1` | 빌드에 Gradle 데몬을 쓴다 — 재기동이 몇 초 빨라지지만 데몬이 10분 남는다 |
+| `BE_GRADLE_RUN` | `1` | **되돌리기** — 종전처럼 모듈별 `gradlew :api:bootRun` 으로 띄운다(아래 선빌드 설명 참고) |
+| `BE_PREBUILD` | `0` | 빌드를 건너뛰고 직전 빌드의 classpath.txt 로 바로 띄운다(코드를 고쳤다면 최신이 아니다) |
+| `BE_PREBUILD_CONTINUE` | `1` | 빌드가 실패해도 classpath.txt 가 만들어진 모듈은 띄운다 |
+
+`BE_GRADLE_RUN=1` 이면 종전 동작이다. 모듈이 2개 이상일 때만 `src/backend` 루트 composite 로 `gradlew :<모듈>:api:bootRun … -m -q`(계획)를 돌려 `bootRun` 을 뺀
+태스크를 Gradle 1회(`--continue`)로 선빌드한 뒤 모듈별 bootRun 을 띄운다. 계획·선빌드가 실패하면 아무 모듈도 띄우지 않으며(`BE_PREBUILD_CONTINUE=1` 이면 계속), `BE_PREBUILD=0` 이면 선빌드를 건너뛴다.
 
 ```bash
-BE_PREBUILD=0 ./be-run.sh --all            # 선빌드 없이
+BE_GRADLE_RUN=1 ./be-run.sh --all          # 종전 bootRun 방식으로 되돌려 기동
+BE_PREBUILD=0 ./be-run.sh --all            # 빌드 없이 직전 classpath.txt 로 기동
 BE_PREBUILD_CONTINUE=1 ./be-run.sh --all   # 실패해도 기동
 ```
 
-둘 다 환경변수나 `.run.env` 에 둔다. 둘이 겹칠 때 어느 쪽이 이기는지는 셸 판과 ps1 판이 다르다([아래 표](#runenv-와-환경변수-우선순위)).
+모두 환경변수나 `.run.env` 에 둔다. `BE_PREBUILD`·`BE_PREBUILD_CONTINUE` 가 겹칠 때 어느 쪽이 이기는지는 셸 판과 ps1 판이 다르다([아래 표](#runenv-와-환경변수-우선순위)).
+
+#### 앱 JVM 메모리 옵션
+
+기본값은 로컬 PC 메모리를 아끼는 쪽이다(실측 힙 사용 66~141MB, 종전 서버 1개 점유 383~472MB, `-Xmx` 없음 → 최대 힙 = PC 메모리의 1/4).
+
+| 옵션 | 기본 | 비고 |
+|---|---|---|
+| `-XX:TieredStopAtLevel=1` · `-Dfile.encoding=UTF-8` · `-Duser.country=KR` · `-Duser.language=ko` · `-Duser.variant` | 종전 bootRun 과 같음 | |
+| `-Xmx` | `768m` | `BE_JAVA_XMX` |
+| `-XX:+UseSerialGC` | 켬 | G1 은 스레드·영역 관리로 힙 밖을 더 쓴다 |
+| `-Xss` | `512k` | `BE_JAVA_XSS` (종전 macOS 기본 2MB) |
+| `-XX:ReservedCodeCacheSize` | `40m` | `BE_JAVA_CODECACHE`. C1 만 쓰는 기본값이 이미 48MB 라 줄어드는 폭은 작다(실측 사용 최대 약 27MB) |
+
+덧붙이기: `BE_JAVA_OPTS="-Xmx1g"` 는 모든 모듈, `BE_JAVA_OPTS_MDM="-Xmx1g"` 는 mdm 만(`BE_JAVA_OPTS_<모듈 대문자>`). 뒤에 오는 옵션이 이기므로 기본값도 덮는다.
+엑셀 내보내기처럼 큰 요청이 `OutOfMemoryError` 를 내면 그 모듈의 `-Xmx` 를 올린다.
+**KURE 임베딩 인코더를 다시 켜면**(`application-local.yml.kure-on` 로 복구) mdm 은 힙 밖(ONNX 네이티브 메모리)이 약 1GB 더 든다. `-Xmx` 로는 막을 수 없으니 그만큼 여유가 있을 때만 켠다.
 
 ### 드라이런 (`--dry-run`)
 
 `./be-run.sh --all --dry-run` (ps1 판도 같은 이름 — `.\be-run.ps1 --all --dry-run`)은 **서버를 띄우지도 끄지도 않고** 이전 인스턴스 종료·포트 회수도
-하지 않은 채 할 일만 출력한다 — 기동 대상, 회수할 포트, 선빌드 계획과 태스크 목록, 모듈별 bootRun 명령.
+하지 않은 채 할 일만 출력한다 — 기동 대상, 회수할 포트, 빌드 명령, 모듈별 `java` 명령(JVM 옵션 포함).
 
-- 단 선빌드 대상(모듈 2개 이상이고 `BE_PREBUILD` 가 `0` 이 아님)이면 태스크 목록을 보이려고 **`gradlew -m`(계획만, 태스크 실행 없음)을 한 번 부른다.**
-  그래서 Gradle 데몬 기동·설정 시간이 들고, 계획이 실패하면 그 출력 끝 15줄을 보인다(드라이런 자체는 0 으로 끝난다).
-  모듈이 1개거나 `BE_PREBUILD=0` 이면 Gradle 을 부르지 않는다.
+- 셸 판의 기본 방식은 Gradle 을 부르지 않는다. 종전 방식(`BE_GRADLE_RUN=1`)에서 선빌드 대상(모듈 2개 이상이고 `BE_PREBUILD` 가 `0` 이 아님)이면
+  태스크 목록을 보이려고 **`gradlew -m`(계획만, 태스크 실행 없음)을 한 번 부른다.** 이때는 Gradle 데몬이 뜨고(10분 뒤 스스로 내려간다),
+  계획이 실패하면 그 출력 끝 15줄을 보인다(드라이런 자체는 0 으로 끝난다). ps1 판은 이 계획을 부른다.
 - 모듈 플래그 없이 `--dry-run`(·`--keep-port`)만 주면 `BE_RUN_ARGS`(없으면 `--all`)의 모듈을 대상으로 한다.
 
 ### 모듈을 나중에 하나 더 띄울 때 (현재 동작)

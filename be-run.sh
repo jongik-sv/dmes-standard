@@ -13,23 +13,38 @@
 #   ./be-run.sh --all --dry-run  # 아무것도 끄거나 띄우지 않고, 실행할 명령만 출력
 #   ./be-run.sh --dry-run        # 모듈 플래그가 없으면 BE_RUN_ARGS(없으면 --all) 대상으로
 #
+#   ./be-run.sh --mcm --build-only  # 빌드(classpath 산출)만 하고 기동하지 않는다. 포트·이전 실행은 건드리지 않는다
+#
 # 모듈 플래그: --mpn --mcm --mls --mqc --mpp --mdm --analog
 # --all 은 7개 JVM 을 동시에 띄운다. 메모리가 빠듯하면 필요한 모듈만 골라 쓴다.
-# 옵션(--dry-run·--keep-port)만 주고 모듈 플래그가 없으면 BE_RUN_ARGS(없으면 --all)의 모듈을 쓴다.
+# 옵션(--dry-run·--keep-port·--build-only)만 주고 모듈 플래그가 없으면 BE_RUN_ARGS(없으면 --all)의 모듈을 쓴다.
 #
-# 모듈을 2개 이상 띄우면 기동 전에 src/backend 루트 composite 에서 Gradle 한 번으로 선빌드한다
-# (공유 includeBuild 를 여러 bootRun 이 동시에 빌드하지 않게). 건너뛰려면 BE_PREBUILD=0.
-# 선빌드(또는 그 계획 gradlew -m)가 실패하면 아무 모듈도 띄우지 않고 exit 1 로 끝난다.
-#   BE_PREBUILD=0 ./be-run.sh --all           # 선빌드 없이 종전처럼 모듈별 bootRun 이 각자 빌드
-#   BE_PREBUILD_CONTINUE=1 ./be-run.sh --all  # 선빌드가 실패해도 기동 (모듈 하나의 오류가 나머지를 막지 않게)
-# 선빌드 계획(gradlew -m, 몇 초) 도중 받은 TERM 은 계획 프로세스까지 정리하지 못한다.
+# 기동 방식: Gradle 로 빌드만 하고(모듈이 2개 이상이면 src/backend 루트 composite 에서 한 번, 1개면 그 모듈 폴더에서),
+#   앱은 java 로 직접 띄운다. bootRun 은 모듈마다 Gradle 데몬을 붙들어(데몬 1개 약 0.6GB) 서버가 도는 내내 메모리를 썼다.
+#   빌드는 --no-daemon 이라 끝나면 Gradle 프로세스가 남지 않는다. main class·classpath 는 scripts/lib/be-run-classpath.init.gradle
+#   이 <모듈>/api/build/be-run/classpath.txt 에 쓴다(bootRun 과 같은 값). 앱 작업 디렉터리는 bootRun 때처럼 src/backend/<모듈>.
+#   BE_GRADLE_DAEMON=1   빌드에 Gradle 데몬을 쓴다(재기동이 몇 초 빨라지지만 데몬이 10분 남는다)
+#   BE_GRADLE_RUN=1      종전처럼 모듈별 gradlew :api:bootRun 으로 띄운다(되돌리기용. 아래 BE_PREBUILD* 는 이때의 선빌드 설정)
+#   BE_PREBUILD=0        빌드를 건너뛰고 직전 빌드가 남긴 classpath.txt 로 바로 띄운다(코드를 고쳤다면 최신이 아니다)
+#   BE_PREBUILD_CONTINUE=1  빌드가 실패해도 classpath.txt 가 만들어진 모듈은 띄운다 (모듈 하나의 오류가 나머지를 막지 않게)
+# 빌드가 실패하면 아무 모듈도 띄우지 않고 exit 1 로 끝난다.
+#
+# 앱 JVM 옵션(메모리 절약 기본값. 종전 서버 1개의 점유는 힙 밖 포함 383~472MB 였다):
+#   기본 -XX:TieredStopAtLevel=1 -Xmx768m -XX:+UseSerialGC -Xss512k -XX:ReservedCodeCacheSize=40m
+#        -Dfile.encoding=UTF-8 -Duser.country=KR -Duser.language=ko -Duser.variant -Dbe.run.module=<모듈>
+#   BE_JAVA_XMX(768m)·BE_JAVA_XSS(512k)·BE_JAVA_CODECACHE(40m)  기본값만 바꾼다
+#   BE_JAVA_OPTS="-Xmx1g"        모든 모듈에 덧붙인다(뒤에 오는 옵션이 이긴다 — 위 기본값도 덮는다)
+#   BE_JAVA_OPTS_MDM="-Xmx1g"    모듈 하나에만 덧붙인다(BE_JAVA_OPTS_<모듈 대문자>)
+#   엑셀 내보내기처럼 큰 요청이 OOM 이면 그 모듈의 -Xmx 를 올린다. 실측 힙은 모듈당 66~141MB 였다.
+#   KURE 임베딩 인코더를 다시 켜면(application-local.yml.kure-on) mdm 은 힙 밖(ONNX 네이티브)이 약 1GB 더 든다.
+#   -Xmx 로는 막을 수 없으니 그만큼 메모리 여유가 있을 때만 켠다.
 #
 # 대상 포트를 이미 물고 있는 프로세스가 있으면 정리하고 시작한다.
 #   ./be-run.sh --keep-port  # 회수하지 않고 "점유 중" 으로 중단 (종전 동작)
 #
-# 종료: Ctrl+C 로 이 실행이 띄운 것(gradlew 실행기·이 체크아웃의 bootRun 앱 JVM)만 정리한다.
+# 종료: Ctrl+C 로 이 실행이 띄운 것(앱 JVM·빌드 프로세스)만 정리한다.
 #   Gradle 데몬은 멈추지 않는다(gradlew --stop 은 같은 버전의 모든 데몬을 멈춰 다른 워크트리 빌드를 깬다).
-#   쉬는 데몬은 org.gradle.daemon.idletimeout(10분)으로 스스로 내려간다.
+#   기본 방식은 데몬을 새로 남기지 않는다. 다른 곳에서 쉬는 데몬은 org.gradle.daemon.idletimeout(10분)으로 스스로 내려간다.
 # ── 머리말 끝 (--help 는 여기까지 출력) ──
 
 set -u
@@ -53,13 +68,13 @@ fi
 . "$SCRIPT_LIB_DIR/args.sh"
 . "$SCRIPT_LIB_DIR/modules.sh"
 
-# 인자가 없거나 옵션(--dry-run·--keep-port)뿐인지. 그러면 모듈 대상은 기본값(BE_RUN_ARGS, 없으면 --all)에서
+# 인자가 없거나 옵션(--dry-run·--keep-port·--build-only)뿐인지. 그러면 모듈 대상은 기본값(BE_RUN_ARGS, 없으면 --all)에서
 # 가져온다. 모듈 플래그·--help·모르는 인자가 하나라도 있으면 기본값을 붙이지 않는다.
 be_args_options_only() {
   local a
   for a in "$@"; do
     case "$a" in
-      --dry-run|--keep-port) ;;
+      --dry-run|--keep-port|--build-only) ;;
       *) return 1 ;;
     esac
   done
@@ -106,6 +121,64 @@ be_module_boot_args() {
   printf '%s' "$args"
 }
 
+# BE_GRADLE_RUN=1 이면 종전처럼 모듈별 gradlew :api:bootRun 으로 띄운다(되돌리기용).
+be_legacy_mode() {
+  [ "${BE_GRADLE_RUN:-0}" = "1" ]
+}
+
+# 앱을 java 로 직접 띄우는 데 필요한 정보(1행 main class, 2행 classpath)를 빌드가 남기는 곳.
+BE_CLASSPATH_INIT="$SCRIPT_LIB_DIR/be-run-classpath.init.gradle"
+be_module_classpath_file() {
+  printf '%s/%s/api/build/be-run/classpath.txt' "$BACKEND_DIR" "$1"
+}
+
+# 모듈 $1 의 java 를 고른다. 빌드가 남긴 classpath.txt 3행(bootRun 이 쓰던 java launcher 경로)이 있으면 그것,
+# 없으면(빌드 전 드라이런 등) JAVA_HOME 이 있으면 그것, 없으면 PATH 의 java.
+be_java_bin() {
+  local launcher=""
+  local file
+  file="$(be_module_classpath_file "$1")"
+  [ -s "$file" ] && launcher="$(sed -n 3p "$file")"
+  if [ -n "$launcher" ] && [ -x "$launcher" ]; then
+    printf '%s' "$launcher"
+  elif [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+    printf '%s' "$JAVA_HOME/bin/java"
+  else
+    printf 'java'
+  fi
+}
+
+# 모듈 $1 의 앱 JVM 옵션을 BE_JVM_ARGS 배열에 채운다. 종전 bootRun 이 붙이던 옵션(TieredStopAtLevel·file.encoding·user.*)은
+# 그대로 두고, 메모리 상한·GC·스택·코드 캐시를 줄인다. 환경 변수로 얹은 옵션은 뒤에 와서 앞의 기본값을 덮는다.
+# 코드 캐시는 TieredStopAtLevel=1 에서 기본 48MB 이고 실측 사용 최대 약 27MB 라 40MB 로 둔다(예약만 줄어 효과는 작다).
+be_module_jvm_args() {
+  local m="$1" upper var opt file
+  upper="$(printf '%s' "$m" | tr '[:lower:]' '[:upper:]')"
+  var="BE_JAVA_OPTS_$upper"
+  BE_JVM_ARGS=(
+    -XX:TieredStopAtLevel=1
+    "-Xmx${BE_JAVA_XMX:-768m}"
+    -XX:+UseSerialGC
+    "-Xss${BE_JAVA_XSS:-512k}"
+    "-XX:ReservedCodeCacheSize=${BE_JAVA_CODECACHE:-40m}"
+    -Dfile.encoding=UTF-8
+    -Duser.country=KR
+    -Duser.language=ko
+    -Duser.variant
+    "-Dbe.run.module=$m"
+  )
+  # 모듈 build.gradle 의 bootRun.jvmArgs(classpath.txt 4행~, 예: analog 의 stdout 인코딩)는 기본값 뒤·환경 변수 앞에 둔다.
+  file="$(be_module_classpath_file "$m")"
+  if [ -s "$file" ]; then
+    while IFS= read -r opt; do
+      [ -n "$opt" ] && BE_JVM_ARGS+=("$opt")
+    done < <(sed -n '4,$p' "$file")
+  fi
+  for opt in ${BE_JAVA_OPTS:-} ${!var:-}; do
+    BE_JVM_ARGS+=("$opt")
+  done
+}
+
 be_selected_contains() {
   local m
   for m in "${SELECTED_MODULES[@]:-}"; do
@@ -121,10 +194,12 @@ be_select_module() {
 SELECTED_MODULES=()
 KEEP_PORT=0
 DRY_RUN=0
+BUILD_ONLY=0
 for arg in "$@"; do
   case "$arg" in
     --keep-port) KEEP_PORT=1 ;;
     --dry-run) DRY_RUN=1 ;;
+    --build-only) BUILD_ONLY=1 ;;
     --all|--full)
       for m in "${BE_ALL_MODULES[@]}"; do be_select_module "$m"; done ;;
     -h|--help) sed -n '2,/^# ── 머리말 끝/p' "$0" | sed '$d'; exit 0 ;;
@@ -159,8 +234,57 @@ fi
 BE_PREBUILD_TASKS=()
 BE_PREBUILD_PLAN_OUTPUT=""
 
+# 직접 기동 방식은 classpath.txt 를 만들려고 모듈이 1개여도 늘 빌드한다(BE_PREBUILD=0 이면 건너뛴다).
+# 종전 bootRun 방식(BE_GRADLE_RUN=1)은 경합이 생기는 모듈 2개 이상일 때만 선빌드한다.
 be_prebuild_enabled() {
-  [ "${BE_PREBUILD:-1}" != "0" ] && [ "${#SELECTED_MODULES[@]}" -ge 2 ]
+  [ "${BE_PREBUILD:-1}" != "0" ] || return 1
+  be_legacy_mode || return 0
+  [ "${#SELECTED_MODULES[@]}" -ge 2 ]
+}
+
+# 빌드 실행 방법: 어느 폴더에서 어느 gradlew 로 어떤 태스크·옵션을 줄지 BE_BUILD_* 와 BE_PREBUILD_TASKS 에 채운다.
+# 모듈이 2개 이상이면 루트 composite 에서 한 번(공유 includeBuild 를 한 Gradle 이 빌드), 1개면 그 모듈 폴더에서 한다.
+# 종전 방식(BE_GRADLE_RUN=1)은 be_prebuild_plan 이 BE_PREBUILD_TASKS 를 채운 뒤 flags 만 정한다.
+BE_BUILD_DIR=""
+BE_BUILD_GRADLEW=""
+BE_BUILD_FLAGS=()
+be_build_setup() {
+  local m
+  if be_legacy_mode; then
+    BE_BUILD_DIR="$BACKEND_DIR"
+    BE_BUILD_GRADLEW="$BACKEND_DIR/gradlew"
+    BE_BUILD_FLAGS=(--continue --console=plain)
+    return 0
+  fi
+
+  BE_BUILD_FLAGS=(-I "$BE_CLASSPATH_INIT" --continue --console=plain)
+  # Gradle 클라이언트는 데몬을 따로 띄워 빌드한다. --no-daemon 이면 빌드가 끝날 때 그 프로세스도 같이 끝난다.
+  [ "${BE_GRADLE_DAEMON:-0}" = "1" ] || BE_BUILD_FLAGS+=(--no-daemon)
+  BE_PREBUILD_TASKS=()
+  if [ "${#SELECTED_MODULES[@]}" -ge 2 ]; then
+    BE_BUILD_DIR="$BACKEND_DIR"
+    BE_BUILD_GRADLEW="$BACKEND_DIR/gradlew"
+    for m in "${SELECTED_MODULES[@]}"; do
+      BE_PREBUILD_TASKS+=(":$m:api:beRunClasspath")
+    done
+  else
+    m="${SELECTED_MODULES[0]}"
+    BE_BUILD_DIR="$BACKEND_DIR/$m"
+    BE_BUILD_GRADLEW="$(be_module_gradlew "$m")"
+    BE_PREBUILD_TASKS=(":api:beRunClasspath")
+  fi
+}
+
+# 선택한 모듈의 classpath.txt 가 모두 있는지. 없는 모듈은 오류로 알리고 1 을 돌려준다.
+be_check_classpath_files() {
+  local m missing=0
+  for m in "${SELECTED_MODULES[@]}"; do
+    if [ ! -s "$(be_module_classpath_file "$m")" ]; then
+      dev_log_error "be-$m 실행 정보가 없다: $(be_module_classpath_file "$m")"
+      missing=1
+    fi
+  done
+  return "$missing"
 }
 
 be_prebuild_plan_args() {
@@ -216,7 +340,11 @@ be_prebuild_fail() {
     return 0
   fi
   dev_log_error "선빌드가 실패해 백엔드 모듈을 띄우지 않고 종료한다 (exit 1)."
-  dev_log_error "  선빌드 없이 종전처럼 모듈별 bootRun 으로 띄우려면: BE_PREBUILD=0 $0 ${SELECTED_MODULES[*]/#/--}"
+  if be_legacy_mode; then
+    dev_log_error "  선빌드 없이 종전처럼 모듈별 bootRun 으로 띄우려면: BE_PREBUILD=0 $0 ${SELECTED_MODULES[*]/#/--}"
+  else
+    dev_log_error "  종전 bootRun 방식으로 띄우려면: BE_GRADLE_RUN=1 $0 ${SELECTED_MODULES[*]/#/--}"
+  fi
   dev_log_error "  선빌드 실패에도 기동을 이어 가려면: BE_PREBUILD_CONTINUE=1 (.run.env 에 둬도 된다)"
   exit 1
 }
@@ -241,15 +369,24 @@ be_prebuild_abort() {
 }
 
 be_run_prebuild() {
-  local rc
+  local rc m
 
-  if ! be_prebuild_plan; then
-    be_prebuild_print_plan_failure
-    be_prebuild_fail
-    return 0
+  if be_legacy_mode; then
+    if ! be_prebuild_plan; then
+      be_prebuild_print_plan_failure
+      be_prebuild_fail
+      return 0
+    fi
+    be_build_setup
+  else
+    be_build_setup
+    # 이번 빌드가 실패한 뒤 지난 빌드의 낡은 classpath.txt 로 기동하지 않게 먼저 지운다.
+    for m in "${SELECTED_MODULES[@]}"; do
+      rm -f "$(be_module_classpath_file "$m")"
+    done
   fi
 
-  dev_log_print "be" "선빌드 시작 (태스크 ${#BE_PREBUILD_TASKS[@]}개, Gradle 1회) — cwd=$BACKEND_DIR"
+  dev_log_print "be" "선빌드 시작 (태스크 ${#BE_PREBUILD_TASKS[@]}개, Gradle 1회) — cwd=$BE_BUILD_DIR"
   # src/backend/gradlew 는 bootRun 이 아닌 실행을 PC 전역 무거운 명령 슬롯(heavy.sh)에 줄 세운다. 선빌드는
   # 종전에 bootRun 7개가 슬롯 없이 하던 컴파일을 한 번으로 모은 것이라, 슬롯을 기다리게 하면 다른 세션의
   # 테스트가 많을 때 서버 기동이 수십 분 밀린다(종전엔 없던 대기). 그래서 종전처럼 슬롯 없이 돈다.
@@ -257,9 +394,9 @@ be_run_prebuild() {
   # 바깥 서브셸은 gradlew 의 종료 코드(PIPESTATUS[0])로 끝나므로 wait 가 그 값을 돌려준다.
   (
     (
-      cd "$BACKEND_DIR" || exit 1
+      cd "$BE_BUILD_DIR" || exit 1
       export DFLOW_GRADLEW_NO_HEAVY=1
-      dev_log_run "$BACKEND_DIR/gradlew" "${BE_PREBUILD_TASKS[@]}" --continue --console=plain 2>&1
+      dev_log_run "$BE_BUILD_GRADLEW" "${BE_PREBUILD_TASKS[@]}" "${BE_BUILD_FLAGS[@]}" 2>&1
     ) | dev_log_prefix_stream "be-build"
     exit "${PIPESTATUS[0]}"
   ) &
@@ -271,8 +408,16 @@ be_run_prebuild() {
   trap - INT TERM
   BE_PREBUILD_BG_PID=""
 
+  if [ "$rc" = "0" ] && ! be_legacy_mode; then
+    be_check_classpath_files || rc=1
+  fi
+
   if [ "$rc" = "0" ]; then
-    dev_log_print "be" "선빌드 완료 — 이어서 모듈별 bootRun 은 컴파일 없이 기동한다."
+    if be_legacy_mode; then
+      dev_log_print "be" "선빌드 완료 — 이어서 모듈별 bootRun 은 컴파일 없이 기동한다."
+    else
+      dev_log_print "be" "빌드 완료 — 이어서 java 로 직접 기동한다(Gradle 프로세스는 남지 않는다)."
+    fi
     return 0
   fi
   dev_log_error "선빌드 실패 (exit=$rc) — 위 [be-build] 로그에서 원인을 확인하세요."
@@ -291,7 +436,19 @@ if [ "$DRY_RUN" = "1" ]; then
     dev_log_print "be" "[dry-run] 이 체크아웃의 이전 be-run.sh 종료 뒤 포트 회수: $(for m in "${SELECTED_MODULES[@]}"; do printf '%s ' "$(be_module_port "$m")"; done)"
   fi
 
-  if be_prebuild_enabled; then
+  if ! be_legacy_mode; then
+    if be_prebuild_enabled; then
+      be_build_setup
+      dev_log_print "be" "[dry-run] 1) 빌드 (Gradle 1회, 태스크 ${#BE_PREBUILD_TASKS[@]}개, classpath.txt 산출): (cd $BE_BUILD_DIR && DFLOW_GRADLEW_NO_HEAVY=1 $BE_BUILD_GRADLEW ${BE_PREBUILD_TASKS[*]} ${BE_BUILD_FLAGS[*]})"
+      if be_prebuild_continue; then
+        dev_log_print "be" "[dry-run]    빌드가 실패해도 classpath.txt 가 만들어진 모듈은 기동한다 (BE_PREBUILD_CONTINUE=1)."
+      else
+        dev_log_print "be" "[dry-run]    빌드가 실패하면 아무 모듈도 띄우지 않고 exit 1 (우회: BE_GRADLE_RUN=1 또는 BE_PREBUILD_CONTINUE=1)."
+      fi
+    else
+      dev_log_print "be" "[dry-run] 빌드 생략 (BE_PREBUILD=0) — 직전 빌드가 남긴 classpath.txt 로 기동한다."
+    fi
+  elif be_prebuild_enabled; then
     dev_log_print "be" "[dry-run] 1) 선빌드 계획: (cd $BACKEND_DIR && $BACKEND_DIR/gradlew $(be_prebuild_plan_args | tr '\n' ' ')-m -q --console=plain)"
     if be_prebuild_plan; then
       dev_log_print "be" "[dry-run] 2) 선빌드 (Gradle 1회, 태스크 ${#BE_PREBUILD_TASKS[@]}개): (cd $BACKEND_DIR && DFLOW_GRADLEW_NO_HEAVY=1 $BACKEND_DIR/gradlew <아래 태스크> --continue --console=plain)"
@@ -312,8 +469,14 @@ if [ "$DRY_RUN" = "1" ]; then
 
   dev_log_print "be" "[dry-run] 기동 순서 (각자 백그라운드, 로그 접두어 [be-<모듈>]):"
   for m in "${SELECTED_MODULES[@]}"; do
-    dev_log_print "be" "[dry-run]   be-$m :$(be_module_port "$m") — (cd $BACKEND_DIR/$m && $(be_module_gradlew "$m") :api:bootRun --args=\"$(be_module_boot_args "$m")\" --console=plain)"
+    if be_legacy_mode; then
+      dev_log_print "be" "[dry-run]   be-$m :$(be_module_port "$m") — (cd $BACKEND_DIR/$m && $(be_module_gradlew "$m") :api:bootRun --args=\"$(be_module_boot_args "$m")\" --console=plain)"
+    else
+      be_module_jvm_args "$m"
+      dev_log_print "be" "[dry-run]   be-$m :$(be_module_port "$m") — (cd $BACKEND_DIR/$m && $(be_java_bin "$m") ${BE_JVM_ARGS[*]} -cp <$(be_module_classpath_file "$m") 2행> <같은 파일 1행: main class> $(be_module_boot_args "$m"))"
+    fi
   done
+  [ "$BUILD_ONLY" = "1" ] && dev_log_print "be" "[dry-run] --build-only: 빌드까지만 하고 기동하지 않는다."
   exit 0
 fi
 
@@ -326,6 +489,28 @@ for m in "${SELECTED_MODULES[@]}"; do
   fi
 done
 [ -x "$BACKEND_DIR/gradlew" ] || chmod +x "$BACKEND_DIR/gradlew" 2>/dev/null || true
+
+# --build-only: 빌드(classpath.txt 산출)까지만 한다. 아무것도 띄우지 않으므로 이전 be-run.sh 종료·포트 회수는 하지 않는다
+# (다른 체크아웃의 서버를 건드리지 않는다). 선빌드 도중 TERM·INT 는 be_run_prebuild 의 임시 트랩이 빌드 트리만 정리한다.
+if [ "$BUILD_ONLY" = "1" ]; then
+  if be_legacy_mode; then
+    dev_log_error "--build-only 는 BE_GRADLE_RUN=1(종전 bootRun 방식)에서 쓸 수 없다."
+    exit 2
+  fi
+  if be_prebuild_enabled; then
+    BE_PREBUILD_CONTINUE=0
+    be_run_prebuild
+  else
+    be_check_classpath_files || exit 1
+  fi
+  dev_log_print "be" "--build-only: 빌드만 끝내고 기동하지 않는다."
+  exit 0
+fi
+
+# 빌드를 건너뛰는데(BE_PREBUILD=0) 직전 빌드의 classpath.txt 가 없으면, 이전 서버를 끄기 전에 알리고 끝낸다.
+if ! be_legacy_mode && ! be_prebuild_enabled; then
+  be_check_classpath_files || exit 1
+fi
 
 # local 프로파일 SQLite 파일 위치 — 모든 모듈의 application.yml 이 ../data/{모듈}.db 를 가리킨다.
 # bootRun 의 workingDir 이 모듈 루트라 이 디렉토리가 없으면 SQLITE_CANTOPEN 으로 죽는다.
@@ -489,7 +674,13 @@ run_with_prefix() {
 
   (
     cd "$dir" || exit 1
-    dev_log_run "$@" 2>&1 &
+    # 직접 기동 방식은 함수(dev_log_run)를 거치지 않는다 — 함수를 백그라운드로 부르면 서브셸이 한 겹 더 생겨
+    # 추적 pid 가 java 가 아니게 되고, 그 서브셸이 먼저 죽으면 java 가 고아로 남아 KILL 단계에서 빠진다.
+    if [ "${BE_RUN_DIRECT:-0}" = "1" ]; then
+      "$@" 2>&1 &
+    else
+      dev_log_run "$@" 2>&1 &
+    fi
     local child_pid="$!"
     printf '%s\n' "$child_pid" > "$pid_file"
     wait "$child_pid" 2>/dev/null || true
@@ -661,7 +852,11 @@ cleanup() {
   # Gradle 데몬은 멈추지 않는다. gradlew --stop 은 같은 사용자·같은 Gradle 버전의 데몬을 모두 멈춰
   # 다른 워크트리에서 도는 빌드·시험을 "Gradle build daemon has been stopped" 로 깨뜨린다.
   # bootRun 을 돌던 데몬은 빌드가 끝나 쉬게 되고, org.gradle.daemon.idletimeout(10분)으로 스스로 내려간다.
-  dev_log_print "be" "정리 완료. (Gradle 데몬은 그대로 둔다 — 쉬면 10분 뒤 스스로 내려간다)"
+  if be_legacy_mode; then
+    dev_log_print "be" "정리 완료. (Gradle 데몬은 그대로 둔다 — 쉬면 10분 뒤 스스로 내려간다)"
+  else
+    dev_log_print "be" "정리 완료. (앱을 Gradle 없이 직접 띄웠으므로 이 실행이 남긴 Gradle 데몬은 없다)"
+  fi
 
   case "$reason" in
     INT) exit 130 ;;
@@ -673,10 +868,34 @@ trap 'cleanup TERM' TERM
 trap 'cleanup EXIT' EXIT
 
 # ── 백엔드 실행 ─────────────────────────────────────────────
+# 앱을 java 로 직접 띄운다. 작업 디렉터리는 bootRun 의 workingDir 과 같은 모듈 폴더(application.yml 의 ../data 가 걸린다).
+be_start_module() {
+  local m="$1" file main cp
+  file="$(be_module_classpath_file "$m")"
+  if [ ! -s "$file" ]; then
+    dev_log_error "be-$m 는 실행 정보(classpath.txt)가 없어 띄우지 않는다: $file"
+    return 0
+  fi
+  { IFS= read -r main; IFS= read -r cp; } < "$file"
+  be_module_jvm_args "$m"
+  # shellcheck disable=SC2046  # 부트 인자는 공백 없는 --키=값 들이라 단어 분리가 의도다
+  BE_RUN_DIRECT=1 run_with_prefix "be-$m" "$BACKEND_DIR/$m" \
+    "$(be_java_bin "$m")" ${BE_JVM_ARGS[@]+"${BE_JVM_ARGS[@]}"} -cp "$cp" "$main" $(be_module_boot_args "$m")
+}
+
 for m in "${SELECTED_MODULES[@]}"; do
-  run_with_prefix "be-$m" "$BACKEND_DIR/$m" \
-    "$(be_module_gradlew "$m")" :api:bootRun --args="$(be_module_boot_args "$m")" --console=plain
+  if be_legacy_mode; then
+    run_with_prefix "be-$m" "$BACKEND_DIR/$m" \
+      "$(be_module_gradlew "$m")" :api:bootRun --args="$(be_module_boot_args "$m")" --console=plain
+  else
+    be_start_module "$m"
+  fi
 done
+
+if [ "${#PIDS[@]}" -eq 0 ]; then
+  dev_log_error "띄운 백엔드 모듈이 없다 — 실행 정보(classpath.txt)가 없거나 실행 PID 를 확인하지 못했다."
+  exit 1
+fi
 
 dev_log_print "be" "기동 대상: $(printf '%s ' "${SELECTED_MODULES[@]}")"
 for m in "${SELECTED_MODULES[@]}"; do
