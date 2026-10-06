@@ -22,6 +22,20 @@ NULLIFY=(
   TB_MDM_TERM.EMBEDDING        # KURE 벡터(BLOB, 전체 크기 대부분) — 복원 뒤 다시 계산
   TB_MDM_TERM.EMBEDDING_MODEL  # NULL 이면 재계산 대상
 )
+# 사용자 관련 표는 admin 행만 내보낸다 ("표이름|WHERE 조건")
+ROW_FILTER=(
+  "TB_MCM_SEC_USER|USER_ID='admin'"
+  "TB_MCM_SEC_USER_MAPPING|USER_ID='admin'"
+  "TB_MCM_SEC_USER_FAVORITE|USER_ID='admin'"
+  "TB_MCM_SEC_USER_FAVORITE_FOLD|USER_ID='admin'"
+  "TB_MCM_SEC_USER_START_PGM|USER_ID='admin'"
+  "TB_MCM_SEC_USER_WIDGET|USER_ID='admin'"
+  "TB_MCM_SEC_USER_WIDGET_TAB|USER_ID='admin'"
+  "TB_MCM_SEC_USER_WIDGET_CHAT|USER_ID='admin'"
+  "TB_MCM_SEC_USER_WIDGET_MEMO|USER_ID='admin'"
+  "TB_SEC_SCREEN_USAGE_DAY|USER_ID='admin'"
+  "TB_SEC_SCREEN_USAGE_LOG|USER_ID='admin'"
+)
 # -----------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -55,6 +69,8 @@ for db in "${DBS[@]}"; do
 
   for t in "${tables[@]}"; do
     f="$out/$t.sql"
+    where=""
+    for rf in "${ROW_FILTER[@]}"; do [ "${rf%%|*}" = "$t" ] && where="where ${rf#*|}"; done
     if in_list "$t" "${EXCL[@]}"; then : > "$f"; echo "-- 데이터 제외(스키마만): $t" > "$f"; continue; fi
     # 칸 표현식: 문자열의 줄바꿈을 char() 이어붙임으로 바꿔 INSERT 를 한 줄로 만든다
     exprs=""; cols=""
@@ -67,7 +83,7 @@ for db in "${DBS[@]}"; do
     if [ -n "$pk" ]; then order="$pk"; else order="rowid"; fi
     if ! sqlite3 -readonly "$copy" "select 1 from \"$t\" limit 0" >/dev/null 2>&1; then echo "읽기 실패: $t" >&2; exit 1; fi
     # WITHOUT ROWID 표는 PK 정렬만 쓴다(위에서 pk 가 있으면 그대로)
-    sqlite3 -readonly "$copy" "select 'INSERT INTO \"$t\"($cols) VALUES('||$exprs||');' from \"$t\" order by $order" > "$f"
+    sqlite3 -readonly "$copy" "select 'INSERT INTO \"$t\"($cols) VALUES('||$exprs||');' from \"$t\" $where order by $order" > "$f"
   done
 
   # AUTOINCREMENT 시퀀스: 마지막에 덮어쓴다

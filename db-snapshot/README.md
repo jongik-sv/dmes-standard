@@ -45,7 +45,13 @@ scripts/db-snapshot/import.sh mcm /경로/mcm.db         # 대상 경로 지정
 | mcm `TB_SEC_LOGIN_LOG` | 로그인 기록(IP·UA), 계속 쌓여 diff 가 흔들림 |
 | mcm `TB_SEC_AUDIT_LOG` | 감사 로그 |
 
-복원한 DB 에는 이 표들이 비어 있으므로, 비밀번호 계정(`TB_MCM_SEC_USER_PWD`)은 새로 만들어야 로그인된다. `TB_MCM_SEC_USER` 에는 이름·이메일·전화가 들어 있다(비밀 값은 아님).
+## 사용자 관련 표는 admin 행만 내보낸다
+
+사용자별 표는 `USER_ID='admin'` 행만 내보낸다(스크립트 맨 위 `ROW_FILTER` 배열). 대상은 mcm 의 `TB_MCM_SEC_USER`, `_USER_MAPPING`, `_USER_FAVORITE`, `_USER_FAVORITE_FOLD`, `_USER_START_PGM`, `_USER_WIDGET`, `_USER_WIDGET_TAB`, `_USER_WIDGET_CHAT`, `_USER_WIDGET_MEMO`, `TB_SEC_SCREEN_USAGE_DAY`, `TB_SEC_SCREEN_USAGE_LOG` 이다. 그래서 다른 사용자의 이름·이메일·전화는 스냅샷에 남지 않는다. C_USR_ID·U_USR_ID 같은 작성자 감사 칸과 `OWNER_ID`·`*_OWNER_EMP_NO`(소유자 사번 속성) 는 거르지 않는다.
+
+## 복원 뒤 admin 비밀번호
+
+`TB_MCM_SEC_USER_PWD` 가 비어 있다. mcm 서버를 기동하면 `DataInitializer` 의 `CoreRbacSeeder`(`src/backend/mcm/api/.../init/seed/CoreRbacSeeder.java`)가 admin 비밀번호 행을 넣고, 매 부팅 때 `admin123` 으로 강제 재설정한다(주석: 2026-06-05 결정, 운영 프로파일 차단은 후속 검토). 따라서 복원 뒤 mcm 을 한 번 기동하면 `admin` / `admin123` 으로 로그인된다. 비밀번호 칸 사용은 로컬 개발용이다.
 
 ## 임베딩 처리
 
