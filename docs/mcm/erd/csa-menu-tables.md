@@ -26,6 +26,7 @@
 | `TB_MCM_SEC_USER_WIDGET_TAB` | 개인 위젯 탭 | 신규(2026-10-02) | 포털 홈 위젯 |
 | `TB_MCM_SEC_USER_WIDGET` | 개인 위젯 배치 | 신규(2026-10-02) | 포털 홈 위젯 |
 | `TB_MCM_SEC_USER_START_PGM` | 개인 기본 화면(처음 시작할 때 여는 화면) | 신설 | 포털 탭 우클릭·사이드바 |
+| `TB_MCM_SEC_USER_SRCH_DFLT` | 개인 조회 칸 기본값(화면·칸마다 규칙 한 줄) | 신규(2026-10-07) | 조회 영역 설정 아이콘 |
 | `TB_MCM_WIDGET_DEF` | 위젯 정의·코드 위젯 덮어쓰기 | 신규(2026-10-02) | 위젯 관리 |
 | `TB_MCM_WIDGET_DEFAULT_LAYOUT` | 「홈」 기본 배치(전사·부서) | 신규(2026-10-02) | 위젯 관리 → 기본 배치 |
 | `TB_MCM_WIDGET_MEDIA` | 미디어 위젯 업로드 파일 메타 | 신규(2026-10-02) | 위젯 관리(미디어 위젯) |
@@ -191,6 +192,12 @@
   사이드바 '기본 화면' 목록에서 열거나 해제한다. 관리 방식은 즐겨찾기와 같고 폴더만 없다.
 - PK = (`USER_ID`, `FULL_ID`, `MENU_ID`, `MENU_SEQ`), `START_SEQ` 가 여는 순서다. `FULL_ID` 는 즐겨찾기처럼 componentPath 다.
 - 서비스는 `secStartPgm`(search·toggle, `SecStartPgmService`)이다. Flyway 파일이 없으므로 wildfly(`ddl-auto: none`) 환경은 DDL 을 미리 만들어야 한다.
+
+### 조회 칸 사용자 기본값 — `TB_MCM_SEC_USER_SRCH_DFLT` (2026-10-07 신설, 스펙 `docs/superpowers/specs/2026-10-07-search-defaults-design.md` §5)
+
+- 사용자가 조회 칸마다 정한 기본값 규칙이다. PK = (`USER_ID`, `PAGE_ID`, `FIELD_KEY`). `PAGE_ID` 는 포털 화면 키(`{moduleId}:{componentPath}`, 그리드 개인화의 화면 키와 같다)이고 `FIELD_KEY` 는 칸 식별자(`defaultKey ?? name`)다.
+- `RULE_JSON`(VARCHAR 1000) 은 `{"kind":"fixed","value":…}`·`{"kind":"relative","base":"today|monthStart|monthEnd","months":N,"days":N}`·`{"kind":"last"}` 중 하나다. 서버가 검사한 정규형으로 저장한다(`months` ±120, `days` ±3660, 화면당 50행 이하). `FIELD_META`·`FIELD_LABEL` 은 나중에 관리자 배포 기본값이 칸을 찾고 사람이 알아보기 위한 속성이며 NULL 을 허용한다.
+- 서비스는 `secSrchDflt`(search·savePage·resetPage, `SecSrchDfltService`, AUTH_ONLY)다. 사용자는 늘 인증 컨텍스트 값이고 `savePage` 는 그 화면의 행을 한 트랜잭션(`SecSrchDfltWriter`)으로 지우고 다시 넣는다. Flyway 파일이 없으므로 개발계·운영계(Oracle·PostgreSQL)는 앱 배포 전에 DDL 을 미리 만든다(`csa-menu.dbml` 참고).
 
 ### 위젯 B·C·D — 테이블 6개 (2026-10-02 신설·10-03 메모 추가, 스펙 `docs/superpowers/specs/2026-10-02-widget-admin-generic-design.md` §4·§17)
 
