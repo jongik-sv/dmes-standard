@@ -302,6 +302,10 @@ describe("그룹 머리글 그리드 — 실제 ag-grid", () => {
     expect(order(a)).toEqual(DEFAULT_ORDER);
     act(() => a.moveColumns(["plan_amt"], 1)); // 같은 그룹 안 교환은 된다
     expect(order(a).slice(1, 3)).toEqual(["plan_amt", "plan_qty"]);
+    // 그룹 밖 열이 그룹을 통째로 건너뛰는 이동·그룹 둘의 자리 바꿈은 막지 않는다(문서: 머리글 끌기로는 된다)
+    act(() => a.moveColumns(["code"], 2));
+    expect(order(a).slice(0, 3)).toEqual(["plan_amt", "plan_qty", "code"]);
+    expect(groupsContiguous(order(a))).toBe(true);
   });
 
   it("ag-grid 는 그룹을 가르는 applyOrder 를 받으면 순서 전체를 버린다(그래서 병합이 미리 모은다)", async () => {
