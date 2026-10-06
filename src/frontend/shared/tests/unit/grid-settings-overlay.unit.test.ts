@@ -4,6 +4,7 @@
 // 항목·순서·testid 는 GridPanel 안과 같고, GridPanel 안 그리드는 아이콘을 따로 그리지 않는다(중복 없음). GridPanel 머리줄에서는 아이콘이 늘 맨 끝이다.
 import { readFileSync } from "node:fs";
 import { act, createElement, type ReactElement } from "react";
+import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({ exportToExcel: vi.fn() }));
@@ -140,7 +141,7 @@ describe("GridPanel 밖 그리드의 설정 아이콘", () => {
     const css = readFileSync("src/components/grid/grid.css", "utf8");
     expect(css).toMatch(/\.cm-data-grid:hover > \.cm-grid-settings-overlay/);
     expect(css).toMatch(/\.cm-data-grid:focus-within > \.cm-grid-settings-overlay/);
-    expect(css).toMatch(/\.ag-column-last[\s\S]*padding-right: 28px/);
+    expect(css).toMatch(/\.cm-data-grid\.cm-grid-settings-on \.ag-header-cell\.ag-column-last,[^{]*\{\s*padding-right: 28px;/);
   });
 
   it("개인화가 없는(gridId·화면 없음, personalize={false}) 그리드는 엑셀 항목만 있다", async () => {
@@ -171,10 +172,32 @@ describe("GridPanel 밖 그리드의 설정 아이콘", () => {
     expect(tid("grid-excel")!.hasAttribute("disabled")).toBe(true);
   });
 
-  it("대화 상자 안의 그리드에는 아이콘이 없다(설정 창이 겹쳐 Esc·Tab 이 꼬이지 않게)", async () => {
+  it("대화 상자 안의 그리드는 엑셀 항목만 있는 아이콘을 단다(설정 창이 겹쳐 Esc·Tab 이 꼬이지 않게 개인화 항목은 뺀다)", async () => {
     await show(page(createElement("div", { role: "dialog" }, gridEl())));
+    expect(tid("grid-settings-overlay")).not.toBeNull();
+    await openMenu();
+    expect(menuItems()).toEqual(["엑셀 출력"]);
+    await click(tid("grid-excel"));
+    expect(h.exportToExcel).toHaveBeenCalledTimes(1);
+  });
+
+  it("대화 상자 안에서 excelExport={false} 면 항목이 없어 아이콘도 없다", async () => {
+    await show(page(createElement("div", { role: "dialog" }, gridEl({ excelExport: false }))));
     expect(tid("grid-settings-overlay")).toBeNull();
-    expect(tid("grid-settings-menu")).toBeNull();
+  });
+
+  it("MantineProvider 밖에서는 아이콘을 그리지 않고 그리드만 그린다(Mantine Menu 을 못 쓰는 자리에서 죽지 않는다)", async () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    await act(async () => {
+      root.render(page(gridEl()));
+    });
+    await wait(120);
+    expect(document.querySelector(".ag-header-cell")).not.toBeNull();
+    expect(tid("grid-settings-overlay")).toBeNull();
+    await act(async () => root.unmount());
+    host.remove();
   });
 
   it("컬럼 설정…을 누르면 설정 창이 열린다", async () => {

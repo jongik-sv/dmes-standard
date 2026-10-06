@@ -386,7 +386,7 @@ function AgDataGridComponent({
   );
   // 이 그리드가 GridPanel 설정 메뉴의 대상이면 아래 줄 [엑셀] 단추를 뺀다(메뉴가 엑셀을 맡는다). 한 패널에 그리드가 여럿이면 대상이 아닌 그리드는 단추를 그대로 둔다.
   const [isMenuTarget, setIsMenuTarget] = useState(false);
-  // 이 그리드가 놓인 자리 — panel(GridPanel 그리드 영역: 메뉴는 GridPanel 머리줄), dialog(대화 상자 안: 메뉴 없음), standalone(그 밖: 이 그리드의 머리글 줄 아이콘).
+  // 이 그리드가 놓인 자리 — panel(GridPanel 그리드 영역: 메뉴는 GridPanel 머리줄), dialog(대화 상자 안: 엑셀만 있는 머리글 줄 아이콘), standalone(그 밖: 이 그리드의 머리글 줄 아이콘).
   // DOM 을 봐야 알 수 있어 페인트 전에 한 번 정한다(null 인 첫 렌더에는 아이콘을 그리지 않아 깜빡이지 않는다).
   const [host, setHost] = useState<"panel" | "dialog" | "standalone" | null>(null);
   useLayoutEffect(() => {
@@ -566,9 +566,15 @@ function AgDataGridComponent({
   rowCountRef.current = data.length;
 
   // GridPanel 밖 그리드의 설정 아이콘 — 항목(개인화·엑셀)이 하나라도 있을 때만. 있으면 아래 줄 [엑셀] 단추는 메뉴가 맡는다.
+  // 대화 상자 안 그리드는 엑셀 항목만 둔다 — 컬럼 설정·초기화는 모달을 하나 더 띄우는데, 겹친 모달에서는 Esc 한 번에 바깥 창까지 닫히고 Tab 이 갇힌다(머리글 우클릭 메뉴를 뺀 이유와 같다).
   // MantineProvider 밖(Mantine Menu 을 못 쓰는 자리)이면 아이콘을 그리지 않는다 — 아래 줄 [엑셀] 단추도 그대로 둔다.
   const hasMantine = useContext(MantineContext) !== null;
-  const showSettingsOverlay = host === "standalone" && settingsMenu && hasMantine && (personalizeEnabled || hasExcel);
+  const dialogControls = useMemo<GridPanelGridControls>(
+    () => ({ exportExcel: gridControls.exportExcel, canExportExcel: gridControls.canExportExcel }),
+    [gridControls],
+  );
+  const showSettingsOverlay =
+    settingsMenu && hasMantine && ((host === "standalone" && (personalizeEnabled || hasExcel)) || (host === "dialog" && hasExcel));
 
   const grid = (
     <div
@@ -649,7 +655,7 @@ function AgDataGridComponent({
         domLayout={isAutoHeight ? "autoHeight" : "normal"}
         {...rowDrag.gridProps}
       />
-      {showSettingsOverlay ? <GridSettingsOverlay controls={gridControls} /> : null}
+      {showSettingsOverlay ? <GridSettingsOverlay controls={host === "dialog" ? dialogControls : gridControls} /> : null}
     </div>
   );
 

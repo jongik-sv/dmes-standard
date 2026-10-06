@@ -899,10 +899,8 @@ body > .ag-popup {
  * GridPanel 밖 그리드의 「그리드 설정」 아이콘(GridSettingsOverlay) — 머리글 줄 맨 오른쪽 끝 위에 겹친다. 높이를 늘리는 막대는 없다.
  * 마지막 열 머리글(ag-column-last)은 아이콘 폭만큼 오른쪽 여백을 줘 글자·정렬·필터 표시를 가리지 않는다.
  * 평소엔 흐리고, 그리드에 마우스·키보드 초점이 있거나 메뉴가 열려 있으면 진하다.
+ * 기준 위치는 .cm-data-grid 의 contain(strict·layout paint)이 이미 만든다 — position 을 따로 걸면 화면 className 의 absolute 를 덮으므로 걸지 않는다.
  */
-.cm-data-grid.cm-grid-settings-on {
-  position: relative;
-}
 .cm-data-grid.cm-grid-settings-on .ag-header-cell.ag-column-last,
 .cm-data-grid.cm-grid-settings-on .ag-header-group-cell.ag-column-last {
   padding-right: 28px;

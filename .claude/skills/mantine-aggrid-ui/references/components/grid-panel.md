@@ -55,7 +55,7 @@ const confirmDeleteRow = () =>
 
 ### 그리드 설정 메뉴
 
-안쪽 `AgDataGrid` 의 컬럼 개인화가 켜져 있거나(기본 켬) 엑셀 출력이 켜져 있으면(GridPanel 안은 `excelExport={false}` 가 아닌 한 기본 켬), 머리줄 맨 오른쪽 끝(업무 버튼 묶음과 `headerExtra` 뒤)에 톱니 아이콘 버튼 「그리드 설정」(`data-testid="grid-settings-menu"`, 툴팁·`aria-label` 「그리드 설정」)이 저절로 붙는다. 누르면 Mantine `Menu` 가 열린다. 내부 부품 `GridSettingsMenu`(`GridSettingsMenu.tsx`)가 그리며 화면이 직접 쓰지 않으므로 별도 문서 파일은 없다. GridPanel 에 줄 prop 은 없고(엑셀 이름만 `serverPaged`), 끄고 켜는 것은 안쪽 `AgDataGrid` 의 `settingsMenu`·`excelExport`·`personalize` 가 정한다. 예전의 머리줄 [컬럼 설정] 단추·「자동 저장」 스위치·[초기화] 단추와 그리드 아래 줄 [엑셀] 단추는 이 메뉴 하나로 모였다. 팝업(대화 상자) 안의 그리드는 이전처럼 메뉴에 등록되지 않는다. 같은 메뉴를 GridPanel 밖의 그리드도 자기 머리글 줄 오른쪽 끝의 작은 아이콘으로 단다(항목·순서·이름·`data-testid` 가 같다. [AgDataGrid](ag-data-grid.md) §그리드 설정 아이콘과 settingsMenu).
+안쪽 `AgDataGrid` 의 컬럼 개인화가 켜져 있거나(기본 켬) 엑셀 출력이 켜져 있으면(GridPanel 안은 `excelExport={false}` 가 아닌 한 기본 켬), 머리줄 맨 오른쪽 끝(업무 버튼 묶음과 `headerExtra` 뒤)에 톱니 아이콘 버튼 「그리드 설정」(`data-testid="grid-settings-menu"`, 툴팁·`aria-label` 「그리드 설정」)이 저절로 붙는다. 누르면 Mantine `Menu` 가 열린다. 내부 부품 `GridSettingsMenu`(`GridSettingsMenu.tsx`)가 그리며 화면이 직접 쓰지 않으므로 별도 문서 파일은 없다. GridPanel 에 줄 prop 은 없고(엑셀 이름만 `serverPaged`), 끄고 켜는 것은 안쪽 `AgDataGrid` 의 `settingsMenu`·`excelExport`·`personalize` 가 정한다. 예전의 머리줄 [컬럼 설정] 단추·「자동 저장」 스위치·[초기화] 단추와 그리드 아래 줄 [엑셀] 단추는 이 메뉴 하나로 모였다. 팝업(대화 상자) 안의 그리드는 이전처럼 이 머리줄 메뉴에 등록되지 않고, 자기 머리글 줄 아이콘에 엑셀 출력 항목만 둔다. 같은 메뉴를 GridPanel 밖의 그리드도 자기 머리글 줄 오른쪽 끝의 작은 아이콘으로 단다(항목·순서·이름·`data-testid` 가 같다. [AgDataGrid](ag-data-grid.md) §그리드 설정 아이콘과 settingsMenu).
 
 | 항목 | 이름 | id · `data-testid` | 보이는 때·동작 |
 |---|---|---|---|

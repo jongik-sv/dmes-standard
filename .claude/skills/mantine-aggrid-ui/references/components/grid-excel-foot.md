@@ -79,7 +79,7 @@ export function OrderTable({ rows }: { rows: Record<string, unknown>[] }) {
 | onExcel | `() => void` | 필수 | [엑셀] 을 눌렀을 때. 파일 만들기는 호출한 쪽이 한다 |
 | disabled | `boolean` | `false` | 단추 비활성(내려받을 행 없음) |
 | testId | `string` | `"grid-excel"` | [엑셀] 단추의 `data-testid` |
-| hideButton | `boolean` | `false` | 참이면 단추를 그리지 않고 안내 글만 둔다. 「그리드 설정」 메뉴의 「엑셀 출력」 이 대신할 때 `AgDataGrid` 가 켠다. [GridPanel](grid-panel.md) 안의 설정 메뉴 대상 그리드와, GridPanel 밖에서 머리글 줄 설정 아이콘이 있는 그리드(`settingsMenu={false}` 도 대화 상자 안도 아닐 때)가 이 경우다(`onExcel`·`disabled`·`testId` 는 무시) |
+| hideButton | `boolean` | `false` | 참이면 단추를 그리지 않고 안내 글만 둔다. 「그리드 설정」 메뉴의 「엑셀 출력」 이 대신할 때 `AgDataGrid` 가 켠다. [GridPanel](grid-panel.md) 안의 설정 메뉴 대상 그리드와, GridPanel 밖에서 머리글 줄 설정 아이콘이 있는 그리드(`settingsMenu={false}` 가 아닐 때. 대화 상자 안의 그리드도 포함)가 이 경우다(`onExcel`·`disabled`·`testId` 는 무시) |
 
 ## 표준값: 모든 화면 동일
 

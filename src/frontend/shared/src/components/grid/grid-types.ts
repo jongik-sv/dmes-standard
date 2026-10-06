@@ -285,7 +285,7 @@ export interface AgDataGridProps {
   excelExport?: AgDataGridExcelExport | false;
   /**
    * 「그리드 설정」 메뉴(컬럼 설정…·자동 설정 저장·설정 초기화…·엑셀 출력)를 이 그리드에 두는가. 기본 켬 — GridPanel 안이면 GridPanel 머리줄 맨 오른쪽,
-   * GridPanel 밖이면 그리드 머리글 줄 오른쪽 끝에 작은 아이콘으로 나온다(대화 상자 안의 그리드는 두지 않는다). 항목이 하나도 없으면(개인화·엑셀 모두 끔) 아이콘도 없다.
+   * GridPanel 밖이면 그리드 머리글 줄 오른쪽 끝에 작은 아이콘으로 나온다(대화 상자 안의 그리드는 엑셀 출력 항목만 둔다). 항목이 하나도 없으면(개인화·엑셀 모두 끔) 아이콘도 없다.
    * `false` 면 이 그리드의 메뉴를 통째로 끈다(읽기 전용 작은 표 등). 아래 줄 [엑셀] 단추는 `excelExport` 객체를 준 경우 그대로 남는다.
    */
   settingsMenu?: boolean;

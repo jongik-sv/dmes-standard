@@ -5,6 +5,7 @@
  *
  * - 메뉴는 GridPanel 머리줄과 같은 GridSettingsMenu 라서 항목·순서·이름·testid 가 같다. 값은 useGridSettingsMenuProps 가 같은 방식으로 만든다.
  * - 그리드 높이를 늘리는 막대를 만들지 않는다. 머리글 높이(28px) 안, 마지막 열 머리글의 오른쪽 여백(grid.css 의 `cm-grid-settings-on`) 위에 놓는다.
+ * - 대화 상자(role="dialog") 안의 그리드는 엑셀 출력 항목만 둔다(컬럼 설정·초기화 모달이 대화 상자 위에 겹치면 Esc·Tab 이 꼬인다).
  * - 평소에는 흐리고 그리드에 마우스가 오거나 키보드 초점이 들어오면 진해진다(CSS). 항목이 하나도 없으면 AgDataGrid 가 이 부품을 그리지 않는다.
  */
 import { memo } from "react";
