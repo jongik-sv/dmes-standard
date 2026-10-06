@@ -46,6 +46,7 @@
 - `--autocompact <tokens>` 는 백스톱이다. 정확한 발동 토큰이 확인되지 않아 주 경로는 외부 `/compact`(`compact.md`)다.
 - 레인 수 상한은 사용량 띠(`usage.md`: Y 부터 새 레인 금지)와, dflow-team 의 `capacity.sh` 가 있는 PC 에서는 그 판정(free·swap·load)으로 정한다. 없으면 건너뛴다.
 - 터미널 입력은 `term-send-safe.sh` 만 쓴다.
+- 레인 이름은 40자 이하다(`lane-add` 가 넘으면 거절한다). 띄운 뒤 첫 `lane-add` 에 정본 메모 경로 `memo` 도 함께 넣는다. 비면 compact 문구가 「정본은 -」 로 나가고 `lane-add` 가 stderr 에 `WARN` 을 낸다(`decompose.md` §5).
 
 ## 3. GLM 기동 절차
 

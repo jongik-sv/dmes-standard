@@ -26,12 +26,15 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 7. **조정자는 적게 읽고 적게 말한다.** 틱은 `tick.sh` 한 번이고 `TICK quiet` 면 말 없이 끝낸다. reference 는 그 절차를 탈 때 그 절만 읽는다. 레인에 다시 묻기 전에 state·보고를 본다.
 8. **사용량 띠가 오르면 상한을 낮춘다.** Y: 사다리 끝 opus/high·대기 작업 배정 중단 · O: opus 는 판정만·새 Workflow 금지 · R: 머지·정리만(`references/usage.md`).
 9. **같은 일을 두 번 하지 않는다.** 재개 캐시를 깨는 지시 수정, 도는 Workflow 와 겹치는 지시, 같은 질문 반복을 피한다.
+10. **남의 진단은 직접 재 보고 옮긴다.** 레인·다른 세션의 원인 진단을 확인 없이 사용자에게 전하지 않는다. 화면 한 줄로 결론 내지 않고, 부하는 `ps`·`time` 으로 잰 숫자로 말한다(`stall.md` §5, `heavy.md` §4).
 
 ## 판단 올리기
 
 조정자는 medium 이므로 다음은 **opus/high 서브에이전트**에 원문(게이트 출력·명령 전문·jstack 발췌·분해 입력)과 해당 reference 절을 넘겨 결론을 받고 그대로 집행한다: `merge-gate.sh` 의 `SHARED_API`·`OUTSIDE` 판정(`merge-gate.md`), `auto-answer.sh` 의 권한 창 `ESCALATE`(`approvals.md`), `STALL` 원인(`stall.md`), `start` 의 분해 초안(`decompose.md`), `finish` 의 결정·후속 정리(`closing.md`).
 
 ## 시작 절차 (`start <run-id> [목표]`)
+
+조정 세션 하나에는 회차 하나만 둔다. 열린 회차가 있는데 새 업무가 들어오면 새 회차를 열지 않고 그 회차에 `lane-add` 하고 `run.goal` 을 덧붙인다(`decompose.md` §1).
 
 1. 설정 확인: `<repo>/.coord.json`(공용)·`.coord.local.json`(PC 전용). `launch.claude`·`integration_check`·`git_bin` 처럼 PC마다 다른 값은 사용자에게 한 번 확인한다.
 2. `scripts/coord-state.sh init <run-id> --goal "<목표>" [--rules-doc <경로>]`
@@ -69,7 +72,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 
 ## 메시지 분기
 
-첫 줄 `[보내는쪽→받는쪽] <종류>:` 로 분기한다. 받으면 `coord-state.sh report <레인> "<요약>"`, 첫 줄에 `instr_id` 가 있으면 `ack`.
+첫 줄 `[보내는쪽→받는쪽] <종류>:` 로 분기한다. 받으면 `coord-state.sh report <레인> "<요약>"`, 첫 줄에 `instr_id` 가 있으면 `coord-state.sh ack <instr-id>`(레인 이름을 앞에 붙이면 사용법 오류다).
 
 | 종류 | 처리 |
 |---|---|

@@ -4,7 +4,7 @@
 
 ## 1. 정본 메모 규칙
 
-- 레인마다 **정본 메모**(메모리 파일 또는 scratchpad `resume-*.md`)를 하나 두게 한다. 형식: 지금 상태, 남은 순서, 결정, 조정 세션 이름, 다음 단계. 착수 지시에 정본 메모 경로를 정하라고 넣고 state `lanes.<레인>.memo` 에 기록한다.
+- 레인마다 **정본 메모**(메모리 파일 또는 scratchpad `resume-*.md`)를 하나 두게 한다. 형식: 지금 상태, 남은 순서, 결정, 조정 세션 이름, 다음 단계. 착수 지시에 정본 메모 경로를 정하라고 넣고 state `lanes.<레인>.memo` 에 기록한다(첫 `lane-add` 에 `memo` 로 함께 넣는다. 비면 compact 문구가 「정본은 -」 로 나가고 `lane-add` 가 경고한다: `decompose.md` §5).
 - 조정자의 정본은 state 폴더(`state.json`, `summary.md`)와 사람이 읽는 메모 하나다. compact 전과 주요 결정 뒤 갱신한다(`coord-state.sh summary`).
 - compact 뒤 스킬 전체를 다시 부르지 않게 SKILL.md 맨 위에 재독 세트 인용문이 있다(`resume.md`).
 
@@ -46,11 +46,13 @@
 1. 임계 초과 레인을 찾으면 조건 4 를 본다. Workflow 가 돌면 `coord-state.sh set '.lanes.<레인>.compact.pending' true` 로 세우고 끝난 뒤 첫 틱에 한다(Workflow 결과를 세션이 처리해 정본을 갱신한 다음이어야 한다).
 2. `protocol.md` 3.8 `정본 갱신 요청` 을 보낸다.
 3. 답 `정본 갱신 완료: 경로 / 남은 일 3줄` 을 받으면 「남은 일 3줄」을 `lanes.<레인>.compact.pre_compact` 에 적는다. **30분 안에 답이 없으면 이번 틱은 넘긴다**(다음 틱에 다시, 최대 2회 뒤 사용자 알림).
-4. `scripts/compact-lane.sh <레인>`(`--dry-run` 가능). 스크립트가 안전 확인 → `/compact <레인> 진행 중. 정본은 <경로>. 조정 세션 <이름>(<주소>). 다음 단계: <한 줄>` 전송 → Compacting 사라짐 대기 → 사용률 재측정을 한다. 출력: `COMPACT_REFUSED <레인> <사유>` · `COMPACT_DONE <레인> before=<n> after=<n>` · `COMPACT_TIMEOUT <레인>`. 문구에 `!` 를 넣지 않는다. 정본 갱신 확인이 없으면 `--force-no-memo` 없이는 거절된다.
+4. `scripts/compact-lane.sh <레인>`(`--dry-run` 가능). 스크립트가 안전 확인 → `/compact <레인> 진행 중. 정본은 <경로>. 조정 세션 <이름>(<주소>). 다음 단계: <한 줄>` 전송 → Compacting 사라짐 대기 → 사용률 재측정을 한다. 출력: `COMPACT_REFUSED <레인> <사유>` · `COMPACT_DONE <레인> before=<n> after=<n|->` · `COMPACT_TIMEOUT <레인>`. 문구에 `!` 를 넣지 않는다. 정본 갱신 확인이 없으면 `--force-no-memo` 없이는 거절된다.
+
+**Workflow·agent 가 도는 동안 임계를 넘으면 compact 를 미룬다.** 도는 중에 정본 갱신 요청을 보내지 않고 `compact.pending` 만 세운다(위 1). 레인이 머지 요청을 앞두고 있으면 정본 갱신 요청에 「머지 요청 뒤에는 입력 대기로 있어라」 를 함께 지시한다: 머지 직후 세션이 바로 입력 대기가 되어 머지 완료·정리 완료 보고를 받은 그 틱에 compact 할 수 있다(web 레인에서 효과를 봤다). 단 `compact.hard_pct` 를 넘으면 7 의 예외를 따른다.
 
 ## 6. compact 뒤 확인
 
-1. `COMPACT_DONE` 이면 사용률이 크게 줄었는지 본다(보통 10% 아래). `COMPACT_TIMEOUT` 이면 화면을 읽어 상태를 확인하고 사용자에게 알린다.
+1. `COMPACT_DONE` 이면 사용률이 크게 줄었는지 본다(보통 10% 아래). **스크립트의 재측정 숫자를 그대로 믿지 않는다.** compact 직후에는 transcript 가 아직 갱신되지 않아 `before` 와 `after` 가 같게 나온 일이 있다. 같게 나오면 `compact-lane.sh` 가 화면 상태줄의 ctx % 로 `after` 를 어림하고(stderr 에 `COMPACT_NOTE`), 그것도 못 읽으면 화면의 `Compacted` 문구만 확인한 채 `after=-` 로 낸다. `after=-` 이거나 `COMPACT_NOTE` 가 있으면 화면(`terminal read --screen`)에서 ctx % 나 「Compacted」 를 직접 보고, 몇 분 뒤 `ctx-usage.sh --lane <레인>` 으로 한 번 더 잰 값으로 `compact.history` 를 바로잡는다. `COMPACT_TIMEOUT` 이면 화면을 읽어 상태를 확인하고 사용자에게 알린다.
 2. `protocol.md` 3.9 `재개 확인` 을 보낸다. 답을 `pre_compact` 와 대조한다. 크게 다르면 정본 경로를 다시 짚어 준다.
 3. compact 기록(`at`, before, after)을 `compact.history` 와 `last_at` 에 남긴다. 같은 레인은 compact 뒤 최소 `compact.cooldown_min`(30분)은 다시 하지 않는다. `compact.pending` 은 끈다.
 
