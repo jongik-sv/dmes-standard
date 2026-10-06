@@ -14,7 +14,7 @@
  */
 
 import React, { memo, useState, useEffect, useCallback, useMemo, useRef, type ReactNode, type CSSProperties } from "react";
-import type { GridColumn } from "./AgDataGrid";
+import type { GridColumn } from "./grid-types";
 import { GridHelpButton, type GridHelpConfig } from "./GridHelpButton";
 import { GridPanelContext, type GridPanelGridControls, type GridPanelRegistry } from "./grid-panel-context";
 

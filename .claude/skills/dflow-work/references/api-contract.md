@@ -61,6 +61,8 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
 
 레거시 호출은 400 `identity_required`, 다른 사람의 행은 404(존재 비구분).
 
+**프로젝트 한정 PAT**: 프롬프트에는 프로젝트가 없어서 한정 토큰이 같은 사용자의 다른 프로젝트 세션 프롬프트를 집어 갈 수 있으므로, poll·ack 는 프로젝트로 한정한 PAT 에 403 `forbidden_role` 을 준다(dflow.sh exit 5). screen 은 그 프로젝트의 좌석만 받는다. 폴러는 이 403 을 받으면 콘솔 전달(poll·ack)만 끄고 생존 감시·화면 올리기는 계속한다.
+
 **POST `/api/v1/agent/console/poll`** — 본문 `{host, limit?}`(`host` = 폴러가 도는 PC 슬러그, `limit` 기본 5·최대 10).
 이 PAT 의 사용자가 owner 이고 `host` 가 같은 `pending`(만료 전) 행을 오래된 순으로 `limit` 건 **한 문장(원자적)으로 `claimed` 로 바꾸며**
 `claim_token`·`claimed_at`·`attempts+1` 을 채운다. 같은 행을 두 폴러가 받을 수 없다. 응답:
@@ -98,7 +100,7 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
 ```
 `lines` 가 있으면 저장(덮어쓰기), 없으면 **touch**(`sha` 가 저장된 것과 같을 때 `captured_at` 만 갱신). 응답
 `{ok, results:[{target_kind, target_ref, status:"stored"|"touched"|"need_full"|"rejected", reason?}]}` — touch 인데 sha 가 다르거나 행이 없으면
-`need_full`(폴러가 전체를 다시 보낸다). 검증: `lines` ≤40개, 항목 합계 ≤8KB, 한 줄 ≤400자, 제어 문자(탭 제외) 금지, `sha` 는 64자 hex.
+`need_full`(폴러가 전체를 다시 보낸다). 검증: `lines` ≤40개, 항목 합계 ≤8KB(줄 바이트의 합, 개행은 세지 않는다), 한 줄 ≤400자(코드포인트), `captured_at` 은 ISO 8601 이고 서버 시각보다 5분 넘게 미래면 `rejected`(`invalid_captured_at`), 같은 요청에 같은 대상을 두 번 넣으면 앞의 것이 `rejected`(`duplicate_target`), 제어 문자(탭 제외) 금지, `sha` 는 64자 hex.
 위반 항목만 `rejected` 로 두고 나머지는 처리한다. 폴러는 이 PC 에서 찾은 대상만 올린다 — 서버는 **owner 의 좌석(watcher·점유 주문)에 없는 대상**을 `rejected`(`unknown_target`)로 거른다.
 화면은 **폴러가 비밀 모양 문자열을 가린 뒤** 올린다(§4.1). 서버는 저장·표시 모두 글자 그대로 다루고(HTML 이스케이프는 화면 몫) 로그에 남기지 않는다.
 
@@ -128,7 +130,7 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
 ### CLI (`dflow.sh`)
 
 - `dflow.sh console-poll --host <슬러그> [--limit n]` — poll. stdout: 프롬프트마다 한 줄 JSON(`{id,target_kind,target_ref,text,claim_token,expires_at}`).
-- `dflow.sh console-ack <id> <claim_token> <sent|refused|retry> [--reason r] [--detail d]` — stdout `ACK <status>`(멱등 재호출이면 `ACK <status> already`).
+- `dflow.sh console-ack <id> <claim_token> <sent|refused|retry> [--reason r] [--detail d]` — stdout `ACK <status>`(멱등 재호출이면 `ACK <status> already`). **404 는 본문 `code` 로 가른다**: 옛 서버(라우트 없음)의 404 는 본문에 `code` 가 없어 exit 7 이고, 새 라우트의 `{code:"not_found"}` 는 `retry` 를 다시 부를 때(서버가 이미 `claim_token` 을 비움)만 이미 반영된 것으로 보아 `ACK pending already`·exit 0 이다(`sent`·`refused` 의 404 는 그대로 exit 7).
 - `dflow.sh console-screen --host <슬러그>` — stdin 에 `items` 배열 JSON, stdout 은 항목마다 `SCREEN <kind> <ref> <status>`.
 - exit code 는 위 「로컬 클라이언트 계약」 그대로다. 옛 서버(404)는 7.
 

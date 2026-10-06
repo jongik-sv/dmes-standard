@@ -8,7 +8,7 @@ bypass permissions 모드인 세션에서도 Workflow 하위 에이전트의 복
 
 - `scripts/prompt-watch.sh <레인>`(또는 `--handle <h>`)이 화면 끝부분에서 확인 창을 찾는다. 출력: `NONE <h>` 또는 `PROMPT <h> <trust|usage-limit|permission|question|choice>` 다음 줄부터 `---` 로 감싼 화면 발췌.
 - 확인 창 문자열: `Do you want to proceed?`, `❯ 1. Yes`, `will automatically deny this request`, `Esc to cancel · Tab to amend`.
-- 틱에서 busy 레인은 매번 `prompt-watch.sh` 를 본다. 권한 창은 약 1분 뒤 자동 거부되므로 틱(20분)만으로는 놓친다. 그래서 **조정자가 띄운 세션과 Workflow 가 도는 레인**에는 `Monitor` 로 `prompt-watch.sh <레인> --follow 1200` 을 붙여, 감지하면 조정자를 깨운다. 깨어나면 곧바로 `auto-answer.sh --lane <레인>` 을 돌린다(§5). Monitor 는 레인마다 하나만 두고, 끝나면(감지하거나 시간이 다 되면) 다시 붙인다. 이 감시는 셸 스크립트라 토큰을 쓰지 않는다.
+- 틱에서 busy 레인은 매번 `prompt-watch.sh` 를 본다. 권한 창은 약 1분 뒤 자동 거부되므로 틱(20분)만으로는 놓친다. 그래서 **조정자가 띄운 세션과 Workflow 가 도는 레인**에는 `Monitor` 로 `prompt-watch.sh <레인> --follow 1200`(레인이 여럿이면 `--lanes a,b,c` 하나로, 간격 `--every` 기본 10초)을 붙여, 감지하면 조정자를 깨운다. 깨어나면 곧바로 `auto-answer.sh --lane <레인>` 을 돌린다(§5). Monitor 는 레인마다 하나만 두고, 끝나면(감지하거나 시간이 다 되면) 다시 붙인다. 이 감시는 셸 스크립트라 토큰을 쓰지 않는다.
 - 종류별 처리: 모든 종류를 먼저 `auto-answer.sh` 에 넘긴다(§5). `ESCALATE` 가 나온 것만 조정자가 판단 올리기 또는 사용자 알림으로 처리한다.
 - 발췌가 잘려 명령 전문이 안 보이면 `terminal read` 의 줄 수를 늘려 다시 읽는다.
 

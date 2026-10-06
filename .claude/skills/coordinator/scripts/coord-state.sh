@@ -17,7 +17,8 @@
 #   summary                                        summary.md 재생성 · 경로
 # state.json 은 이 스크립트만 쓴다. 쓰기는 mkdir 잠금(<회차>/.lock) 아래에서 임시 파일 → mv 로 원자적으로 한다.
 # 회차는 COORD_RUN 환경 변수 → <state_dir>/current 순으로 정한다(init 은 인자의 run-id).
-# init 은 조정 세션 id·pid(CLAUDE_PID, 없으면 0 — TTL 에 맡긴다)를 .run.coordinator 에 적고, 같은 조정 세션의 다른 열린 회차가 있으면
+# init 은 조정 세션 id·pid(CLAUDE_PID, 없으면 0 — TTL 에 맡긴다)·Orca 핸들(ORCA_TERMINAL_HANDLE, 없으면 빈 값)을 .run.coordinator 에 적고,
+# 오피스 콘솔 폴러를 띄운다(console-poll.sh start — COORD_DRY=1·COORD_CONSOLE_POLL=0 이면 건너뜀). 같은 조정 세션의 다른 열린 회차가 있으면
 # `SESSION_RUNS <세션8> open=<n>`, 다른 세션의 마감 표식 없는 회차는 `STALE_RUN <run-id> open …` 줄로 알린다(둘 다 경고만, 자동 마감 없음).
 set -uo pipefail
 # shellcheck source=lib/common.sh
@@ -94,10 +95,10 @@ cmd_init() {
   [ -f "$dir/state.json" ] && coord_die 2 "이미 있는 회차: $dir (이어 쓰려면 use $id)"
   mkdir -p "$dir/lanes" "$dir/ticks" || coord_die 4 "폴더 생성 실패: $dir"
   jq -n --arg id "$id" --arg goal "$goal" --arg rules "$rules" --arg ib "$(coord_cfg .integration_branch)" \
-    --arg now "$(coord_now_iso)" --arg sid "$sid" --argjson cpid "$cpid" '{
+    --arg now "$(coord_now_iso)" --arg sid "$sid" --argjson cpid "$cpid" --arg h "${ORCA_TERMINAL_HANDLE:-}" '{
       schema: 1,
       run: {id: $id, goal: $goal, rules_doc: $rules, integration_branch: $ib, created_at: $now, closed_at: null,
-            coordinator: {name: "", addr: "", session_id: $sid, handle: "", pid: $cpid},
+            coordinator: {name: "", addr: "", session_id: $sid, handle: $h, pid: $cpid},
             cron_id: null, usage_band_notified: null},
       lanes: {}, deps: [],
       merge: {in_flight: null, queue: [], history: []},
@@ -111,6 +112,10 @@ cmd_init() {
   printf '%s\n' "$id" | atomic_write "$root/current" || coord_die 4 "current 쓰기 실패"
   ev_append "$dir" init - "$(jq -nc --arg g "$goal" '{goal:$g}')"
   COORD_RUN="$id" office lead-up
+  # 오피스 콘솔 폴러(contract §4.1). 이미 돌면 그대로 둔다. 실패해도 init 은 계속한다(stdout 계약 불변).
+  if [ "${COORD_DRY:-0}" != 1 ] && [ "${COORD_CONSOLE_POLL:-1}" != 0 ]; then
+    bash "$COORD_SCRIPTS_DIR/console-poll.sh" start >/dev/null 2>&1 || true
+  fi
   echo "RUN $id $dir"
   local s8; s8="$(coord_sess8 "$dir/state.json")"
   # 세션 id 도 pid 도 모르면 <세션8> 이 회차 id 로 떨어져 회차마다 팀장 칸이 따로 생긴다(contract §4).
@@ -188,6 +193,9 @@ cmd_lane_add() {
   st_update --arg l "$1" --argjson j "$2" --argjson sk "$LANE_SKEL" '.lanes[$l] = ($sk * (.lanes[$l] // {}) * $j)' || exit 4
   mkdir -p "$(run_dir)/lanes/$1"
   ev_append "$(run_dir)" lane-add "$1"
+  # 정본 메모 경로가 비면 compact 문구가 「정본은 -」 로 나간다(decompose.md §5): 경고만 내고 OK 는 그대로
+  [ -n "$(jq -r --arg l "$1" '.lanes[$l].memo // empty' "$(state_file_checked)" 2>/dev/null)" ] \
+    || echo "WARN lane-add $1: memo(정본 메모 경로)가 비어 있다 — compact 문구가 「정본은 -」 로 나간다" >&2
   # 이미 오피스에 올라간 레인이면 지시 요약(brief)이 바뀐 것을 바로 반영한다(처음 올리는 일은 spawn-lane·beat 몫)
   [ -z "$(jq -r --arg l "$1" '.office.sent[$l] // empty' "$(state_file_checked)" 2>/dev/null)" ] || office lane-state "$1" auto
   echo OK
@@ -351,6 +359,6 @@ case "$sub" in
   hold) cmd_hold "$@" ;;
   close-run) cmd_close_run "$@" ;;
   summary) cmd_summary ;;
-  -h|--help|help) sed -n '2,21p' "$0" >&2; exit 0 ;;
+  -h|--help|help) sed -n '2,22p' "$0" >&2; exit 0 ;;
   *) usage ;;
 esac

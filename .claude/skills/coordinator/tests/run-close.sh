@@ -15,7 +15,9 @@ eq() { if [ "$2" = "$3" ]; then chk ok "$1"; else chk fail "$1" "기대 [$3] 실
 repo="$tmp/repo"; mkdir -p "$repo"
 # CLAUDE_PID 는 이 셸(살아 있음)로 고정한다(Claude Code 안에서 돌려도 실제 세션 값이 섞이지 않게).
 export COORD_REPO="$repo" FAKE_LOG="$tmp/fake.log" CLAUDE_PID=$$
-unset COORD_RUN COORD_SESSION_ID CLAUDE_CODE_SESSION_ID COORD_DRY COORD_STATE_ROOT
+unset COORD_RUN COORD_SESSION_ID CLAUDE_CODE_SESSION_ID COORD_DRY COORD_STATE_ROOT ORCA_TERMINAL_HANDLE DFLOW_CONFIG_DIR
+# 콘솔 폴러(init 이 띄움)는 이 시험에서 띄우지 않는다(tests/console-poll.sh 몫). HOME·콘솔 폴더도 임시로.
+export COORD_CONSOLE_POLL=0 HOME="$tmp/home" DFLOW_CONSOLE_DIR="$tmp/console"; mkdir -p "$HOME"
 cat > "$tmp/fake-dflow.sh" <<'FAKE'
 #!/bin/sh
 if [ "$1" = me ]; then printf '{"user_email":"Jji.Test@x.com"}'; exit 0; fi

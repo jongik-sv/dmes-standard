@@ -54,6 +54,13 @@ LOCK=$(git rev-parse --git-path dflow-team.lock); o_who=; o_ts=; o_pid=
 { read -r o_who o_ts o_pid < "$LOCK/owner"; } 2>/dev/null || true
 if [ "$o_who" = "$OWNER" ] && [ -n "$LEAD_PID" ] && [ "$o_pid" = "$LEAD_PID" ]; then
   date +%s > "$LOCK/beat" && { echo LOCK_OK
+    # 오피스 콘솔: 팀장 세션 핸들·slots·busy·표시 라벨을 기록하고 폴러를 띄운다(없으면 건너뜀, 실패해도 기상은 그대로). 정본 coordinator contract §4.1
+    CP="$HERE/../../coordinator/scripts/console-poll.sh"
+    if [ -f "$CP" ]; then
+      ( CLAUDE_PID="$LEAD_PID" bash "$CP" handle-record team --agent "$o_who" --repo "$(git rev-parse --show-toplevel)" \
+          --slots "$SLOTS" --busy "$BUSY" --until-label "$LABEL"
+        bash "$CP" start ) >/dev/null 2>&1 </dev/null &
+    fi
     h=$("$DFLOW" lease holder) || h=''
     if [ -n "$h" ]; then
       wr=$("$DFLOW" watch --agent "$o_who" \

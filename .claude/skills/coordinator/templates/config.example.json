@@ -179,7 +179,8 @@
       "edit-own",
       "commit-own",
       "heavy-build"
-    ]
+    ],
+    "watch_every_s": 10
   },
   "restart_rules": [],
   "office": {

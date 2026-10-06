@@ -64,6 +64,7 @@
 | `glm.max_sessions` | `1` | 동시 GLM 세션 상한 |
 | `glm.timeout_s` | `10` | 사전 확인 호출 제한 시간 |
 | `approvals.auto_allow` | `["read","status"]` | 사용자가 띄운 세션의 확인 창 자동 승인 범주. 가능한 값: `read`·`status`·`edit-own`·`commit-own`·`heavy-build`. 기본은 가장 좁게 |
+| `approvals.watch_every_s` | `10` | `prompt-watch.sh --follow` 의 화면 읽기 간격(초). 읽을 때마다 `orca terminal read` 가 Electron 노드를 띄워 CPU 를 쓰므로 3초는 레인이 늘면 부하가 크다 |
 | `approvals.auto_allow_spawned` | `["read","status","edit-own","commit-own","heavy-build"]` | 조정자가 띄운 세션(`spawned_by=coordinator`)의 자동 승인 범주. 거부 칸은 여기에 넣어도 늘 거부 |
 | `restart_rules` | `[]` | `[{"glob":"src/backend/**","note":"세 서버 내린 뒤 jar 빌드·재기동"}]` |
 | `office.enabled` | `true` | 에이전트 오피스 표시(§4). false 면 `office.sh` 는 아무것도 하지 않는다 |
@@ -190,7 +191,7 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 | `idle-check.sh` | `[레인…]` (없으면 active 레인 전부) | 레인마다 하나: `IDLE <레인> since=<iso>` · `CANDIDATE <레인>`(첫 관측, 확정 전) · `BUSY <레인> <사유>` · `HOLD <레인> <사유>` · `WAIT_USER <레인> <창 종류>` · `COMPACTING <레인>` · `STALL? <레인> bg=<분>m` · `GONE <레인>` |
 | `stall-check.sh` | `[레인…]` | `STALL <레인> pid=<pid> cpu_delta=<초> quiet=<분>m heavy=<yes|no>` 또는 `OK <레인>` |
 | `merge-gate.sh` | `<레인>` \| `--branch <브랜치>` | 첫 줄 `GATE <ok|wait|conflict> branch=<b> base=<integration> tree=<hash|-> files=<n>`, 이어 사유 줄 `CONFLICT <경로>` · `FORBIDDEN <경로>` · `OUTSIDE <경로>`(소유 밖) · `SHARED_API <경로>` · `RESTART <note>` · `WINDOW <kind> until=<iso>` · `INFLIGHT <레인>` |
-| `prompt-watch.sh` | `<레인>` \| `--handle <h>` `[--follow <초>]` | `NONE <h>` 또는 `PROMPT <h> <trust|usage-limit|permission|question|choice>` 다음 줄부터 `---` 로 감싼 화면 발췌. `--follow` 는 감지할 때까지(최대 초) 3초 간격 반복 |
+| `prompt-watch.sh` | `<레인>` \| `--handle <h>` \| `--lanes a,b,c` `[--follow <초>] [--every <초>]` | `NONE <h>` 또는 `PROMPT <h> <trust|usage-limit|permission|question|choice>` 다음 줄부터 `---` 로 감싼 화면 발췌. `--follow` 는 감지할 때까지(최대 초) `--every` 간격(기본 `approvals.watch_every_s`=10, 직접 주면 그 값) 반복. `--lanes` 는 한 프로세스에서 레인을 차례로 보며 줄 형식은 같고 줄 앞에 `<레인> ` 이 붙는다(`<레인> PROMPT <h> <kind>`·`<레인> NONE <h>`): 레인마다 창이 새로 뜨거나 종류가 바뀔 때 한 번 블록을 내고 끝나지 않고 계속 보며(`--follow` 시간이 다하면 레인마다 `NONE` 줄), 창이 사라지면 그 레인을 다시 새로 뜨는 것으로 센다 |
 | `search.sh` | `[--tab\|--print] [--cwd <폴더>] [--timeout <초>] <질의…>` | `SEARCH ok <답 파일> <초>` 또는 `SEARCH fail <no-command|timeout|error|empty> <사유>`. 답은 회차 `searches/` 폴더(회차가 없으면 `$TMPDIR/coord-searches/`)에 쓴다 |
 | `glm-preflight.sh` | 없음 | `ok <host> <model> <초>` 또는 `fail <alias|host|call|model> <사유>` |
 
@@ -279,10 +280,10 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 구현은 `scripts/console-poll.sh` 하나이고 조정자(coordinator)와 `/dflow-team` 이 함께 쓴다. LLM 을 부르지 않는다(Claude 토큰 0).
 
 **단위·잠금**: PC 하나 × 신원 하나당 폴러 하나. `~/.dflow/console/poller-<신원>.lock/`(mkdir, 안에 `pid`·`since`)로 단일 실행을 보장한다.
-잠금이 있어도 그 `pid` 가 죽었으면 탈취한다. 신원은 `office.sh` 와 같은 슬러그(`<신원>/<host>` 의 앞 칸)이고 PAT 는 `dflow.sh profiles` 에서 슬러그가 같은 키를 `--as` 로 고른다.
+잠금이 있어도 그 `pid` 가 죽었으면 탈취한다. 신원은 `office.sh` 와 같은 슬러그(`<신원>/<host>` 의 앞 칸)이고 PAT 는 `dflow.sh` 의 기본 토큰이다. 한 신원에 PAT 가 여럿이거나 기본 토큰이 프로젝트 한정이면 서버가 `forbidden_role` 로 거절해 콘솔 전달이 꺼지고 아래 「프로젝트 한정 PAT」 의 안내 문구를 낸다(`dflow.sh profiles` 에서 `--as` 로 고르는 것은 후속).
 `DFLOW_CONFIG_DIR`·cwd 규칙은 위 「D'Flow 설정 로드」 와 같다.
 
-**주기**: 30초(서버 watch 응답의 `console.poll_s` 가 있으면 15~120 으로 잘라 따른다). 한 주기는 아래 세 일을 순서대로 하고, 한 일의 실패가 나머지를 막지 않는다.
+**주기**: 환경 변수 `COORD_CONSOLE_CYCLE_S`(기본 30초)로 정한다. watch 응답의 `console.poll_s` 는 읽지 않는다. 서버가 콘솔을 모르는지는 `dflow.sh console-poll`(또는 `console-screen`)의 exit 7 로 판정하고, 그러면 2·3 을 10분 쉰다. 한 주기는 아래 세 일을 순서대로 하고, 한 일의 실패가 나머지를 막지 않는다.
 
 1. **생존 감시(서버 지원과 무관하게 늘 한다)**: `_session/*.json` 의 `pid` 와 열린 회차 레인의 `session.pid` 를 `kill -0` 으로 확인해 죽은 대상의 오피스 키를 stop 한다(§4 「생존 판정」). 확인할 조정 세션 기록(`_session/*.json`)·살아 있는 세션의 열린 회차·팀장 핸들 기록이 하나도 없으면 폴러는 두 주기 연속 빈 채로 보고 스스로 끝난다.
 2. **프롬프트 전달**(watch 응답에 `console` 칸이 있는 서버에서만): `dflow.sh console-poll --host <host>` → 프롬프트마다 대상 해석 → 안전 입력 → `console-ack`.
@@ -312,6 +313,10 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 | `REFUSED <h> prompt-open` / `draft-in-input` / `bang-in-text` | `refused` + 같은 사유 |
 | 그 밖(종료 코드 비정상 등) | `refused` + `error` |
 
+**한 번에 한 건**: 폴러는 `console-poll --limit 1` 로 한 건만 집고, 그 건의 전달과 ack 를 끝낸 뒤에 다음 건을 집는다(한 주기 안에서 대기열이 빌 때까지, 최대 20건). 여러 건을 한꺼번에 집으면 모두 같은 `claimed_at` 으로 서버의 120초 ack 창을 함께 쓰므로 앞 건이 오래 걸리면 뒤 건이 `unknown` 이 된다.
+
+**프로젝트 한정 PAT**: poll·ack 가 exit 5 + 본문 `code=forbidden_role` 이면 콘솔 전달(poll·ack)만 끄고(폴러를 다시 시작하면 다시 시도) 「프로젝트 한정 PAT 라 오피스 프롬프트 전달 불가. 한정 없는 PAT 필요」 를 로그와 stderr 에 한 번만 낸다. 생존 감시·화면 올리기·답 대기는 계속한다. `console-screen` 은 같은 요청에 같은 대상을 두 번 넣지 않고, `captured_at` 은 ISO 8601 UTC 로 보낸다.
+
 **1회 전달**: poll 이 `claimed` 로 바꾼 뒤에만 보내고, ack 하기 전에 폴러가 죽으면 서버가 120초 뒤 `unknown` 으로 닫는다. 폴러는 다시 시작해도 이전에 claim 한 행을 모르고, 모르는 채로 다시 보내지 않는다. ack 가 네트워크로 실패하면(rc 6) 같은 인자로 세 번까지 다시 부르고 그래도 안 되면 포기한다(서버가 `unknown` 으로 닫는다). **`retry` ack 를 다시 부를 때 404 가 오면 이미 반영된 것으로 본다**(서버가 `retry` 를 받으면 `claim_token` 을 비워 같은 토큰이 더는 통하지 않는다).
 
 **머리글**: 터미널에 넣는 글은 한 줄이다.
@@ -323,9 +328,9 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 `<ref>` = `coord_lane` 이면 레인 이름, 두 팀장(`coord_lead`·`team_lead`)이면 `lead`, `team_worker` 이면 그 슬롯의 주문 `id8`. 형식 `^[A-Za-z0-9._-]{1,40}$` 이어야 하고 아니면 `lead` 로 쓴다.
 Messages 창(`lane-tools` 의 `mail.tsx`)은 사용자 입력의 첫머리에서 정규식 `^\[오피스→([A-Za-z0-9._-]{1,40})\] 프롬프트: ([\s\S]*)$` 를 찾아 peer 「오피스」, via `office` 로 보인다. `cross-session-message` 태그는 흉내 내지 않는다.
 
-**화면 수집·가림**: `term_read_screen <h> 40` 의 결과를 이 순서로 가공한다.
+**화면 수집·가림**: `term_read_screen <h> 41` 의 결과를 이 순서로 가공한다(맨 앞 한 줄은 줄 꺾임으로 이어진 비밀 판정에만 쓰고 올리는 것은 마지막 40줄이다).
 
-1. ANSI 이스케이프(CSI·OSC)와 제어 문자(탭 제외)를 지운다. 줄 끝 공백을 지운다. 한 줄은 400자(코드포인트)로 자른다.
+1. ANSI 이스케이프(CSI·OSC)와 제어 문자(탭 제외)를 지운다. 줄 끝 공백을 지운다. 눈에 안 보이는 문자(제로폭·방향 표식·soft hyphen·결합 문자)를 지운다. **가림 처리 전에** 한 줄을 2000바이트(UTF-8 글자 경계)로 먼저 자르고(자르고 나서 가림 — 경계에 걸린 비밀이 반쯤 남지 않게 잘린 끝 토막이 12자 이상이거나 알려진 접두어로 시작하면 가린다), 가린 뒤 한 줄을 400자(코드포인트)로 자른다.
 2. **비밀 모양 문자열을 `[가림]` 으로 바꾼다.** 한 줄씩 아래 규칙을 모두 적용한다(앞 규칙이 바꾼 자리는 다시 보지 않아도 된다).
 
    | # | 규칙 | 값 |
@@ -337,13 +342,15 @@ Messages 창(`lane-tools` 의 `mail.tsx`)은 사용자 입력의 첫머리에서
    | 5 | Authorization 헤더 | `Authorization:` 뒤 한 줄 전부, 그리고 `Bearer <값>` 의 값 |
    | 6 | 긴 base64·hex | 연속 40자 이상의 `[A-Za-z0-9+/_=-]`. 단 경로·단어 오탐을 줄이기 위해 대문자·소문자·숫자 중 둘 이상을 섞은 것, 또는 `[0-9a-fA-F]{40,}`(hex)만 가린다. 40자 hex(git 전체 SHA)도 가려지는 것을 받아들인다 |
 
+   규칙 1~6 은 최소선이고 구현은 더 넓다(`lib/console-redact.sh`, 시험 `tests/console-redact.sh`): 접두어가 뚜렷한 40자 미만 토큰(`AIza`·`glpat-`·`hf_`·`GOCSPX-`·`sk_live_`·`whsec_`·`xox[abpr]-`·`gh[pousr]_`·`github_pat_`·`npm_`·`sbp_`·`(AKIA|ASIA)…` 등), 이름 목록 확장(`pass`·`pw`·`passphrase`·`cookie`·`session`·`sig`·`*_key`·한글 `키`), 이름과 값이 공백으로 나뉜 CLI 인자(`--token X`·`-p X`·`-u user:pass`·`.netrc`), 구분자·구조 변형(`'DB_PASSWORD', 'x'`·전각 `：`·YAML 블록 값), URL·DB 접속 문자열의 암호(`://u:p@h`·`user/pass@db`), 줄 꺾임·줄 번호·표 테두리로 끊긴 긴 비밀과 PEM 블록 전체. 64KB 가 넘는 줄은 거절하지 않고 먼저 잘라 가린다(65,000바이트 한 줄도 20ms 안에 끝난다). 의도한 오탐과 알려진 한계는 시험 파일 머리에 적혀 있다.
+
    가림 규칙은 `tests/` 의 단위 시험으로 고정한다: 위 여섯 종류 각각의 가려지는 예와, 가려지면 안 되는 예(40자 이하의 평범한 단어·소문자만의 긴 경로 `src/frontend/packages/shared/src/components/AgDataGrid`·7~12자 짧은 SHA·40자 미만 hex)를 둔다. 짧은 SHA(7~12자)는 가리지 않는다는 것을 시험으로 고정한다.
 3. 마지막 40줄을 남기고, 합계 8KB(UTF-8) 를 넘으면 앞쪽 줄부터 버린다. 가림이 끝난 줄들의 sha256(hex)을 `sha` 로 한다.
 
 화면은 **`sha` 가 바뀐 것만** 전체(`lines` 포함)로 올리고, 같으면 touch(`lines` 없음)만 보낸다. 서버가 `need_full` 을 돌려주면 다음 주기에 전체를 올린다. 올리기 전에 가림을 건너뛰는 경로는 없다(가림 함수 실패 시 그 대상은 올리지 않는다).
 
 **기동·정지**: `start` 는 잠금을 잡고 백그라운드로 루프를 띄운다(`CONSOLE_POLLER started|running|skipped`). 부르는 곳:
-조정자 `coord-state.sh init`(회차를 열 때)·`/dflow-team` 시작, 정지는 `coord-state.sh close-run`(이 PC 에 열린 회차·살아 있는 팀장 기록이 모두 없을 때만)·`/dflow-team` 마감이다.
-`start` 는 늘 안전하게 여러 번 부를 수 있다(이미 돌면 `running`). 폴러가 스스로 끝나는 조건은 위 「생존 감시」 의 두 주기 연속 빈 상태다.
+조정자 `coord-state.sh init`(회차를 열 때)·`/dflow-team` 시작. `coord-state.sh close-run` 과 `/dflow-team` 마감은 폴러를 멈추지 않는다(마감은 팀장 핸들 기록만 지운다) — 폴러가 스스로 끝난다. `stop` 은 손으로 멈출 때 쓴다.
+`start` 는 늘 안전하게 여러 번 부를 수 있다(이미 돌면 `running`). 폴러가 스스로 끝나는 조건은 위 「생존 감시」 의 두 주기 연속 빈 상태(이 신원·host 의 `pid` 가 있는 세션 기록, 살아 있음이 확인된 열린 회차, `pid` 가 살아 있는 팀장 기록이 모두 없음 — `pid` 0·빈 값인 기록·회차는 세지 않는다)와 `office.enabled` 가 꺼진 것이다.
 
 **실패 정책**: §4 와 같다 — 어떤 실패도 부른 쪽 동작을 막지 않고, 폴러 안에서는 한 주기의 실패가 다음 주기를 막지 않는다. 비밀값(토큰·claim_token·원문 화면)은 로그에 남기지 않는다. 로그에는 시각·대상·결과·사유만 적는다.
