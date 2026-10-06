@@ -439,3 +439,14 @@ AgDataGrid 는 사용자별로 컬럼 순서·너비·표시·고정·정렬을 
 - **같은 유형이 한 화면에 여러 개 뜨는 그리드**(위젯 렌더러 등): 정적 `gridId` 를 정할 수 없으므로 `personalize={false}` 로 끈다.
 - **hideable**: 편집 가능한 컬럼은 기본적으로 숨길 수 없다(필수 입력이 잠기게 하려는 기본값). 숨겨도 저장 검증·의미에 영향이 없는 선택 입력 컬럼(비고·설명·약칭)만 `hideable: true` 로 푼다. 반대로 편집 불가여도 사용자가 보고 판단해야 하는 컬럼(행 키·상태 배지·검사 오류·행 단위 버튼 컬럼)은 `hideable: false` 로 잠근다. 애매하면 붙이지 않는다.
 - 새 그리드를 만들 때 위 항목을 처음부터 지정한다. 감사 기준은 `grep -rn "<AgDataGrid" src/frontend/m-*` 로 `gridId` 없는 곳을 찾는 것이다.
+
+## 40. 조회 화면 — 조건·결과·선택 키는 useCarryState 로 둔다 (2026-10-06)
+
+포털 탭 「새 창으로 분리」 를 하면 새 창이 원래 탭과 같은 화면을 재조회 없이 보여야 한다. 화면 상태가 모두 화면의 `useState` 에 있으므로, 조회 화면은 `useState` 몇 개를 `@dk-oasis/shared/portal-shell` 의 `useCarryState` 로 바꿔 둔다. 포털 탭·분리 창 밖에서는 `useState` 와 똑같이 동작한다.
+
+- 조회 조건 객체·선택 키는 `useCarryState("filters", DEFAULT)` 로 둔다.
+- 사용자가 [조회]로 받은 결과 배열만 `{ bulky: true }` 로 둔다. 마운트 때 불러오는 LOV·콤보 목록은 `useState` 그대로 둔다. 결과가 `{ rows, total }` 객체면 배열만 bulky 로 나눈다.
+- `useCarryRefetch(handleSearch)` 를 두어 행이 빠진 채 복원됐을 때 한 번 재조회하게 한다. 마운트 때 자동 조회하는 화면은 `useCarryRestored()` 가 true 면 건너뛴다.
+- 값은 JSON 으로 옮길 수 있어야 한다. `Date` 는 문자열로 두고 `Set`·`Map`·`dayjs` 는 쓰지 않는다. key 는 화면 안에서 유일하게 둔다. setter 는 `useCallback`·`useEffect` deps 에 넣는다.
+- 성능 가이드 [R8](Screen-Performance-Guide.md) 과 어긋나지 않는다. 이 훅은 분리 순간에만 값을 모으고 `onSnapshotChange`·탭 저장소를 쓰지 않아 렌더가 늘지 않으므로 R8 대상이 아니다. 탭 복귀 때 되살릴 값은 여전히 snapshot 으로 둔다.
+- 사용법·전달 경로·한계·견본(masterCodeMngList)은 스킬 문서 [use-carry-state.md](../../../.claude/skills/mantine-aggrid-ui/references/components/use-carry-state.md) 가 정본이다.

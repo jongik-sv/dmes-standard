@@ -28,6 +28,7 @@ UI(폼·모달·메시지·탭·트리·레이아웃·portal-shell·로그인 �
 | `@dk-oasis/shared/ui-provider`                | MUST (호스트 root)     | `DmesUiProvider`, Mantine theme      | §4-2             |
 | `@dk-oasis/shared/portal-shell-core`          | MUST                   | 페이지 컴포넌트 타입                 | §14-2            |
 | `@dk-oasis/shared/portal-shell`               | MUST NOT (일반 페이지) | 포털 프레임 전용                     | —                |
+| `@dk-oasis/shared/portal-shell` 의 `useCarryState`·`useCarryRefetch`·`useCarryRestored` | SHOULD (조회 화면) | 새 창 분리 때 조회 조건·결과·선택 키 이어받기. 이 세 훅만 일반 화면에서 쓴다 | §18, Local-Rules §40 |
 | `@dk-oasis/shared/layout`                     | MUST                   | 레이아웃 컴포넌트                    | §14-2            |
 | `@dk-oasis/shared/variables.css`              | MUST                   | 공통 디자인 토큰                     | §4-1             |
 | `@dk-oasis/shared/form`                       | MUST                   | 입력 컨트롤                          | §14-2            |
@@ -361,7 +362,7 @@ import { cloneSnapshot, isSnapshotEqual } from "@dk-oasis/shared/snapshot";
 
 ## 15. ASK 대상 (일반 페이지 사용 제한)
 
-- `/portal-shell`, `/portal-menu*`, `/auth-*`, `/oasis`, `/oasis-proxy`, `/access-db`, `/pages/home-page` : 포털/인증/메뉴 전용. 일반 업무 페이지에서 MUST NOT.
+- `/portal-shell`(단, `useCarryState`·`useCarryRefetch`·`useCarryRestored` 는 예외), `/portal-menu*`, `/auth-*`, `/oasis`, `/oasis-proxy`, `/access-db`, `/pages/home-page` : 포털/인증/메뉴 전용. 일반 업무 페이지에서 MUST NOT.
 - 필요 판단 시 Part A §12 절차 적용.
 
 ---
