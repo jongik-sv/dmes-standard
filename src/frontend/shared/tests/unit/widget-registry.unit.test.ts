@@ -99,6 +99,32 @@ describe("mergeWidgetRegistry", () => {
     expect(out["def.c1"].meta.category).toBe("QUAL");
   });
 
+  it("배치(placeTp): 행 값이 meta.placement 로, 비었거나 알 수 없으면 코드 값을 둔다", () => {
+    const code: WidgetRegistry = {
+      "home.a": { meta: meta("home.a", { placement: "B" }), load: codeLoad },
+      "home.b": { meta: meta("home.b"), load: codeLoad },
+      "home.c": { meta: meta("home.c", { placement: "W" }), load: codeLoad },
+    };
+    const out = mergeWidgetRegistry(code, TYPES, [
+      row({ widgetId: "home.a", placeTp: null }),
+      row({ widgetId: "home.b", placeTp: "A" }),
+      row({ widgetId: "home.c", placeTp: "X" as never }),
+      row({ widgetId: "def.c1", srcTp: "D", typeId: "query-table", title: "x", placeTp: "B" }),
+      row({ widgetId: "def.c2", srcTp: "D", typeId: "query-table", title: "y" }),
+    ]);
+    expect(out["home.a"].meta.placement).toBe("B");
+    expect(out["home.b"].meta.placement).toBe("A");
+    expect(out["home.c"].meta.placement).toBe("W");
+    expect(out["def.c1"].meta.placement).toBe("B");
+    expect(out["def.c2"].meta.placement).toBeUndefined();
+  });
+
+  it("toWidgetDefRow 는 서버 placeTp 를 W·B·A 만 받고 나머지는 null 로 둔다", () => {
+    expect(toWidgetDefRow({ widgetId: "def.x", srcTp: "D", placeTp: "A" })?.placeTp).toBe("A");
+    expect(toWidgetDefRow({ widgetId: "def.x", srcTp: "D", placeTp: "Z" })?.placeTp).toBeNull();
+    expect(toWidgetDefRow({ widgetId: "def.x", srcTp: "D" })?.placeTp).toBeNull();
+  });
+
   it("비공개(privateYn): 행 Y 면 meta.private, 덮어쓰기 N·빈값은 코드 값을 둔다", () => {
     const code: WidgetRegistry = {
       "home.a": { meta: meta("home.a", { private: true }), load: codeLoad },

@@ -146,7 +146,7 @@ describe("GridPanel 「그리드 설정」 메뉴의 [컬럼 설정…]", () => 
     const icon = settingsMenuButton()!;
     expect(icon).not.toBeNull();
     expect(icon.getAttribute("aria-label")).toBe("그리드 설정");
-    expect(icon.closest(".grid-panel-buttons")).not.toBeNull();
+    expect(icon.closest(".grid-panel-settings-slot")).not.toBeNull(); // 머리줄 맨 끝 칸
     const b = (await menuItem("btn_grid_columns")) as HTMLButtonElement;
     expect(b.textContent).toBe("컬럼 설정…");
     expect(tid("grid-columns-button")).toBe(b);
@@ -171,7 +171,7 @@ describe("GridPanel 「그리드 설정」 메뉴의 [컬럼 설정…]", () => 
     expect(tid("column-settings")).not.toBeNull();
   });
 
-  it("업무 버튼 묶음 맨 끝에 설정 아이콘 하나만 놓이고 그 뒤에 headerExtra 가 온다", async () => {
+  it("업무 버튼 → headerExtra → 설정 아이콘 순서로 아이콘이 머리줄 맨 끝에 하나만 놓인다", async () => {
     await stubUser("u1");
     await show(
       tab(
@@ -183,9 +183,14 @@ describe("GridPanel 「그리드 설정」 메뉴의 [컬럼 설정…]", () => 
       ),
     );
     const ids = Array.from(document.querySelectorAll(".grid-panel-buttons button")).map((e) => e.getAttribute("data-testid") ?? e.id);
-    expect(ids).toEqual(["btn_grid_add", "btn_x", "grid-settings-menu"]);
+    expect(ids).toEqual(["btn_grid_add", "btn_x"]);
     const actions = document.querySelector(".grid-panel-header-actions")!;
-    expect(Array.from(actions.children).map((e) => e.className)).toEqual(["grid-panel-buttons", "grid-panel-header-extra"]);
+    expect(Array.from(actions.children).map((e) => e.className)).toEqual([
+      "grid-panel-buttons",
+      "grid-panel-header-extra",
+      "grid-panel-settings-slot",
+    ]);
+    expect(actions.lastElementChild!.querySelector('[data-testid="grid-settings-menu"]')).not.toBeNull();
   });
 
   it("개인화를 끈 그리드·그리드 없음이면 단추가 없고 머리 DOM 이 같다", async () => {
@@ -249,12 +254,14 @@ describe("GridPanel 「그리드 설정」 메뉴의 [컬럼 설정…]", () => 
     expect(settingsRows()).toEqual(["bcode", "bname"]);
   });
 
-  it("패널 안에서 포털로 띄운 그리드(룩업 등)는 바깥 패널에 등록되지 않는다 — 개인화를 끈 패널에 단추가 생기지 않는다", async () => {
+  it("패널 안에서 포털로 띄운 그리드(룩업 등)는 바깥 패널에 등록되지 않는다 — 개인화를 끈 패널의 머리줄에 단추가 생기지 않는다", async () => {
     await stubUser("u1");
     const portaled = createPortal(gridEl({ gridId: "popup" }), document.body);
     await show(tab(panel(createElement("div", null, gridEl({ personalize: false }), portaled))));
     expect(apis()).toHaveLength(2);
-    expect(settingsMenuButton()).toBeNull();
+    expect(document.querySelector(".grid-panel-header [data-testid='grid-settings-menu']")).toBeNull();
+    // 포털로 밖에 나간 그리드는 GridPanel 밖 그리드라서 자기 머리글 줄 아이콘을 단다
+    expect(document.querySelectorAll("[data-testid='grid-settings-overlay']")).toHaveLength(1);
   });
 
   it("대화 상자 안의 GridPanel·그리드는 등록하지 않는다(설정 창을 겹쳐 띄우지 않는다)", async () => {
@@ -264,10 +271,11 @@ describe("GridPanel 「그리드 설정」 메뉴의 [컬럼 설정…]", () => 
     expect(settingsMenuButton()).toBeNull();
   });
 
-  it("GridPanel 없이 쓰는 그리드는 예전처럼 동작한다(등록할 곳이 없다)", async () => {
+  it("GridPanel 없이 쓰는 그리드는 등록할 곳이 없어 자기 머리글 줄 아이콘으로 같은 메뉴를 단다", async () => {
     await stubUser("u1");
     await show(tab(gridEl()));
-    expect(settingsMenuButton()).toBeNull();
+    expect(document.querySelector(".grid-panel-header")).toBeNull();
+    expect(settingsMenuButton()!.closest("[data-testid='grid-settings-overlay']")).not.toBeNull();
     expect(api().getAllGridColumns().length).toBeGreaterThan(0);
   });
 });

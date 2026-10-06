@@ -56,7 +56,8 @@ async function settle() {
 }
 
 async function render(props: Record<string, unknown> = {}) {
-  const element = createElement(AgDataGrid, { columns, data, rowKey: "woNo", ...props } as never);
+  // 이 파일은 아래 줄 [엑셀] 단추 쪽을 시험한다 — GridPanel 밖 그리드는 기본으로 머리글 줄 설정 메뉴가 엑셀을 맡으므로(grid-settings-overlay 시험) 메뉴를 끈다.
+  const element = createElement(AgDataGrid, { columns, data, rowKey: "woNo", settingsMenu: false, ...props } as never);
   if (r) rerender(r, element);
   else {
     r = renderWithMantine(element);
@@ -323,7 +324,7 @@ describe("AgDataGrid excelExport — 실제 그리드의 화면 상태를 따른
         createElement(
           TabPageContext.Provider,
           { value: { pageId: "scr-excel", serviceId: "", tabId: "t1" } },
-          createElement(AgDataGrid, { columns, data, rowKey: "woNo", excelExport: {} } as never)
+          createElement(AgDataGrid, { columns, data, rowKey: "woNo", excelExport: {}, settingsMenu: false } as never)
         )
       );
       container = r.host;
@@ -376,6 +377,7 @@ describe("AgDataGrid excelExport — 실제 그리드의 화면 상태를 따른
           rowKey: "title",
           data: [{ title: "가", category: "A" }],
           excelExport: {},
+          settingsMenu: false,
         } as never)
       );
       r = renderWithMantine(element);

@@ -10,6 +10,7 @@ import { WidgetStyle } from "./styles";
 import type { WidgetItem, WidgetMeta, WidgetRegistry } from "./types";
 import { setDraggingWidget } from "./widget-dnd";
 import { canAddWidget } from "./widget-layout";
+import { resolveWidgetPlacement } from "./widget-placement";
 
 export interface WidgetPickerProps {
   registry: WidgetRegistry;
@@ -40,6 +41,8 @@ export function WidgetPicker({ registry, items, onAdd, typeTitles, categoryTitle
     return Object.values(registry)
       .map((e) => e.meta)
       .filter((m) => !m.disabled)
+      // 배치가 「업무 화면만」(B)인 위젯은 보드에 놓지 않으므로 서랍에서 뺀다(2026-10-06).
+      .filter((m) => resolveWidgetPlacement(m).board)
       // 비공개는 검색어가 위젯 ID 와 전부 같을 때만 보인다(2026-10-05 위젯 개선 §10) — 이때는 이름 검색을 우회한다.
       .filter((m) => !m.private || q === m.id)
       .filter((m) => !categoryTitles || !activeCat || m.category === activeCat)
@@ -60,7 +63,7 @@ export function WidgetPicker({ registry, items, onAdd, typeTitles, categoryTitle
     const present = new Set(
       Object.values(registry)
         .map((e) => e.meta)
-        .filter((m) => !m.disabled && !m.private && m.category)
+        .filter((m) => !m.disabled && !m.private && m.category && resolveWidgetPlacement(m).board)
         .map((m) => m.category as string),
     );
     return Object.keys(categoryTitles).filter((c) => present.has(c));

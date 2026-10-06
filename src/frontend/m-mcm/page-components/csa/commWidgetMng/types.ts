@@ -59,6 +59,14 @@ export const USE_YN_OPTIONS = [
   { value: "N", label: "중지" },
 ];
 
+/** 배치 선택지 — 「유형 기본」("")은 코드 위젯이면 코드 값, 정의 위젯이면 유형 floatable 을 따른다. */
+export const PLACE_OPTIONS = [
+  { value: "", label: "유형 기본" },
+  { value: "W", label: "위젯 화면" },
+  { value: "B", label: "업무 화면" },
+  { value: "A", label: "둘 다" },
+];
+
 export const MULTIPLE_OPTIONS = [
   { value: "Y", label: "허용" },
   { value: "N", label: "허용 안 함" },
@@ -90,6 +98,8 @@ export interface DefForm {
   categoryCd: string;
   /** 비공개 — Y 면 서랍에 안 보인다. 체크칸이라 늘 Y·N. */
   privateYn: "Y" | "N";
+  /** 배치 — "" = 유형·코드 값(유형 floatable 을 따름), W=위젯 화면만, B=업무 화면만, A=둘 다. */
+  placeTp: "" | "W" | "B" | "A";
   useYn: "Y" | "N";
   /** 쿼리 유형의 실행 모듈(지금은 mcm 만). 그 밖 유형·코드 위젯은 null. */
   dataSrc: string | null;
@@ -116,6 +126,7 @@ export interface WidgetSaveParams {
   multipleYn: "Y" | "N" | null;
   categoryCd: string | null;
   privateYn: "Y" | "N" | null;
+  placeTp: "W" | "B" | "A" | null;
   useYn: "Y" | "N";
   dataSrc: string | null;
   configJson: string | null;

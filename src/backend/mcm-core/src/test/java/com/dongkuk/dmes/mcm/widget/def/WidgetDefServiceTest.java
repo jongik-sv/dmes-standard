@@ -120,7 +120,7 @@ class WidgetDefServiceTest {
         Map<String, Object> q1Row = byId(result, "def.q1");
         assertThat(q1Row.keySet()).containsExactly("widgetId", "srcTp", "typeId", "title", "subtitle", "description",
                 "defW", "defH", "minW", "minH", "maxW", "maxH", "refreshSec", "linkPageId", "multipleYn", "useYn",
-                "dataSrc", "categoryCd", "privateYn", "configJson");
+                "dataSrc", "categoryCd", "privateYn", "placeTp", "configJson");
         assertThat(q1Row).containsEntry("srcTp", "D").containsEntry("typeId", "query-table")
                 .containsEntry("defW", 8).containsEntry("useYn", "Y").containsEntry("dataSrc", "mcm");
         assertThat(result).containsEntry("homeDefault", null).containsEntry("homeDefaultKey", null);

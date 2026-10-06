@@ -13,11 +13,12 @@
  * - 행삭제: selectedRowKey에 해당하는 행을 제거하고 onDataChange로 전달
  */
 
-import { memo, useState, useEffect, useCallback, useMemo, useReducer, useRef, useSyncExternalStore, type ReactNode, type CSSProperties } from "react";
+import { memo, useState, useEffect, useCallback, useMemo, useRef, type ReactNode, type CSSProperties } from "react";
 import type { GridColumn } from "./grid-types";
 import { GridHelpButton, type GridHelpConfig } from "./GridHelpButton";
 import { GridSettingsMenu } from "./GridSettingsMenu";
 import { GridPanelContext, type GridPanelGridControls, type GridPanelRegistry } from "./grid-panel-context";
+import { useGridSettingsMenuProps } from "./useGridSettingsMenu";
 
 export interface GridButton {
   id?: string;
@@ -154,7 +155,6 @@ function GridPanelComponent({
   // 대상이 바뀌면 스위치 구독을 새 대상으로 갈아 끼우고, 등록한 그리드마다 「내가 대상인가」를 알려 준다(대상 그리드만 아래 줄 [엑셀] 단추를 숨긴다).
   const gridEntriesRef = useRef<Array<{ controls: GridPanelGridControls; onTargetChange?: (isTarget: boolean) => void }>>([]);
   const [gridTarget, setGridTarget] = useState<GridPanelGridControls | null>(null);
-  const [, bumpMenuOpen] = useReducer((n: number) => n + 1, 0);
   const titleRef = useRef(title);
   titleRef.current = title;
   const gridRegistry = useMemo<GridPanelRegistry>(() => {
@@ -180,22 +180,9 @@ function GridPanelComponent({
       },
     };
   }, []);
-  const hasGridControls = gridTarget !== null;
-  const hasGridPersonalize = gridTarget?.openSettings !== undefined;
-  const hasGridExcel = gridTarget?.exportExcel !== undefined;
-  const openGridSettings = useCallback(() => gridTarget?.openSettings?.(), [gridTarget]);
-  const requestGridReset = useCallback(() => gridTarget?.requestReset?.(), [gridTarget]);
-  const exportGridExcel = useCallback(() => gridTarget?.exportExcel?.(), [gridTarget]);
-  // 자동 설정 저장 스위치 — 대상 그리드의 값을 읽는다. 대상이 바뀌면 구독과 읽기 함수가 새 대상으로 바뀐다.
-  const subscribeGridAutoSave = useCallback(
-    (onChange: () => void) => gridTarget?.subscribeAutoSave?.(onChange) ?? (() => {}),
-    [gridTarget],
-  );
-  const getGridAutoSave = useCallback(() => gridTarget?.getAutoSave?.() ?? true, [gridTarget]);
-  const gridAutoSave = useSyncExternalStore(subscribeGridAutoSave, getGridAutoSave, () => true);
-  const toggleGridAutoSave = useCallback((next: boolean) => gridTarget?.setAutoSave?.(next), [gridTarget]);
-  // 행이 0 이면 엑셀 항목은 비활성 — 그릴 때와 메뉴를 열 때마다 다시 읽는다.
-  const gridExcelDisabled = !(gridTarget?.canExportExcel?.() ?? true);
+  // 메뉴 props — 대상 그리드의 명령에서 만든다(GridPanel 밖 그리드의 머리글 줄 아이콘과 같은 훅). 대상이 없으면 null 이라 메뉴를 그리지 않는다.
+  const menuProps = useGridSettingsMenuProps(gridTarget, serverPaged);
+  const hasGridControls = menuProps !== null;
 
   useEffect(() => {
     if (!usePermission || !fetchPermissions) return;
@@ -286,7 +273,7 @@ function GridPanelComponent({
           </div>
           {hasHeaderActions ? (
             <div className="grid-panel-header-actions">
-              {allButtons.length > 0 || hasGridControls ? (
+              {allButtons.length > 0 ? (
                 <div className="grid-panel-buttons">
                   {allButtons.map((btn, index) => (
                     <button
@@ -299,27 +286,18 @@ function GridPanelComponent({
                       {btn.label}
                     </button>
                   ))}
-                  {/* 그리드 설정 메뉴 — 개인화가 켜졌거나 엑셀 출력이 켜진 그리드(GridPanel 안은 excelExport={false} 가 아니면 기본 켬)가 있을 때만.
-                      컬럼 설정·자동 설정 저장·설정 초기화·엑셀 출력을 모은다. 권한 검사·loading 과 무관하게 늘 활성
-                      (그리드 모양 설정과 화면에 보이는 행 내려받기라 데이터를 바꾸지 않는다). */}
-                  {hasGridControls ? (
-                    <GridSettingsMenu
-                      key="grid_settings_menu"
-                      hasPersonalize={hasGridPersonalize}
-                      hasExcel={hasGridExcel}
-                      autoSave={gridAutoSave}
-                      excelDisabled={gridExcelDisabled}
-                      excelPaged={serverPaged}
-                      onOpenSettings={openGridSettings}
-                      onToggleAutoSave={toggleGridAutoSave}
-                      onExportExcel={exportGridExcel}
-                      onRequestReset={requestGridReset}
-                      onOpen={bumpMenuOpen}
-                    />
-                  ) : null}
                 </div>
               ) : null}
               {headerExtra ? <div className="grid-panel-header-extra">{headerExtra}</div> : null}
+              {/* 그리드 설정 메뉴 — 머리줄의 맨 오른쪽 끝, 업무 버튼·headerExtra 보다 늘 뒤(예외 없음: DOM 순서가 마지막이고 CSS order 도 최대값).
+                  개인화가 켜졌거나 엑셀 출력이 켜진 그리드(GridPanel 안은 excelExport={false} 가 아니면 기본 켬)가 있을 때만.
+                  컬럼 설정·자동 설정 저장·설정 초기화·엑셀 출력을 모은다. 권한 검사·loading 과 무관하게 늘 활성
+                  (그리드 모양 설정과 화면에 보이는 행 내려받기라 데이터를 바꾸지 않는다). */}
+              {menuProps ? (
+                <div className="grid-panel-settings-slot" data-testid="grid-panel-settings-slot">
+                  <GridSettingsMenu key="grid_settings_menu" {...menuProps} />
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>

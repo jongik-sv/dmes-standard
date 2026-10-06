@@ -17,6 +17,7 @@ import type {
   WidgetTypeRegistry,
   WidgetTypeRegistryEntry,
 } from "./types";
+import { normalizeWidgetPlacement } from "./widget-placement";
 
 const num = (v: unknown): number | null => {
   if (v === null || v === undefined || v === "") return null;
@@ -59,6 +60,7 @@ export function toWidgetDefRow(raw: Record<string, unknown>): WidgetDefRow | nul
     multipleYn: yn(raw.multipleYn),
     categoryCd: str(raw.categoryCd),
     privateYn: yn(raw.privateYn),
+    placeTp: normalizeWidgetPlacement(raw.placeTp) ?? null,
     useYn: raw.useYn === "N" ? "N" : "Y",
     dataSrc: str(raw.dataSrc),
     config: "config" in raw ? (raw.config ?? null) : parseConfig(raw.configJson),
@@ -87,6 +89,8 @@ export function applyWidgetOverride(base: WidgetMeta, row: WidgetDefRow): Widget
   if (row.multipleYn) meta.multiple = row.multipleYn === "Y";
   if (row.categoryCd) meta.category = row.categoryCd;
   if (row.privateYn) meta.private = row.privateYn === "Y";
+  const placement = normalizeWidgetPlacement(row.placeTp);
+  if (placement) meta.placement = placement;
   meta.disabled = row.useYn === "N";
   return meta;
 }
@@ -106,6 +110,8 @@ export function defWidgetMeta(row: WidgetDefRow, type: WidgetTypeRegistryEntry):
   if (row.subtitle) meta.subtitle = row.subtitle;
   if (row.categoryCd) meta.category = row.categoryCd;
   if (row.privateYn === "Y") meta.private = true;
+  const placement = normalizeWidgetPlacement(row.placeTp);
+  if (placement) meta.placement = placement;
   meta.description = row.description ?? t.description;
   const min = size(row.minW, row.minH, t.minSize);
   if (min) meta.minSize = min;

@@ -27,6 +27,7 @@ import type {
   WidgetTab,
   WidgetTabExportFile,
 } from "./types";
+import { resolveWidgetPlacement } from "./widget-placement";
 
 const WIDGET_ID_RE = /^[a-z][a-zA-Z0-9]*\.[a-zA-Z][a-zA-Z0-9]*$/;
 
@@ -133,9 +134,13 @@ export function reflowLayout(items: readonly WidgetItem[], cols: number): Widget
   return compact(scaled, cols);
 }
 
-/** 사용 중지 위젯(스펙 widget-admin-generic §1.1)·탭 한도·이미 놓인 multiple:false 위젯은 새로 놓을 수 없다. */
+/**
+ * 사용 중지 위젯(스펙 widget-admin-generic §1.1)·배치가 「업무 화면만」(B)인 위젯·탭 한도·이미 놓인 multiple:false 위젯은 새로 놓을 수 없다.
+ * 이미 보드에 놓인 B 위젯은 이 함수를 거치지 않으므로 그대로 남는다.
+ */
 export function canAddWidget(items: readonly WidgetItem[], meta: WidgetMeta): boolean {
   if (meta.disabled) return false;
+  if (!resolveWidgetPlacement(meta).board) return false;
   if (items.length >= MAX_WIDGETS_PER_TAB) return false;
   if (meta.multiple === false && items.some((i) => i.widgetId === meta.id)) return false;
   return true;
@@ -361,7 +366,7 @@ export function buildTabExport(tab: WidgetTab): WidgetTabExportFile {
 /** 가져오면서 뺀 위젯 — missing: 등록부에 없음, disabled: 사용 중지, duplicate: 한 번만 놓는 위젯(multiple:false)의 두 번째부터. */
 export interface TabImportDrop {
   widgetId: string;
-  reason: "missing" | "disabled" | "duplicate";
+  reason: "missing" | "disabled" | "placement" | "duplicate";
 }
 
 export type TabImportResult = { ok: true; tab: WidgetTab; dropped: TabImportDrop[] } | { ok: false; error: string };
@@ -436,6 +441,7 @@ export function parseTabImport(text: string, ctx: TabImportContext): TabImportRe
     const meta = ownEntry(ctx.registry, r.widgetId)?.meta;
     if (!meta) dropped.push({ widgetId: r.widgetId, reason: "missing" });
     else if (meta.disabled) dropped.push({ widgetId: r.widgetId, reason: "disabled" });
+    else if (!resolveWidgetPlacement(meta).board) dropped.push({ widgetId: r.widgetId, reason: "placement" });
     else if (meta.multiple === false && kept.some((k) => k.widgetId === r.widgetId)) dropped.push({ widgetId: r.widgetId, reason: "duplicate" });
     else kept.push({ instId: newId(), widgetId: r.widgetId, x: r.x, y: r.y, w: r.w, h: r.h, locked: r.locked === true, config: r.config ?? null });
   }
@@ -459,6 +465,7 @@ export function tabImportMessage(tabName: string, dropped: readonly TabImportDro
   const groups: [string, string[]][] = [
     ["없는 위젯", ids("missing")],
     ["사용 중지 위젯", ids("disabled")],
+    ["업무 화면 전용 위젯", ids("placement")],
     ["한 번만 놓는 위젯의 중복", ids("duplicate")],
   ];
   const parts = groups.filter(([, list]) => list.length > 0).map(([label, list]) => `${label}(${list.join(", ")})`);

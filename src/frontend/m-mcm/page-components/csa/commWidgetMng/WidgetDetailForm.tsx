@@ -24,7 +24,7 @@ import {
 import { WIDGET_TYPE_REGISTRY } from "@/lib/generated/widget-type-registry";
 
 import { REFRESH_MIN_SEC } from "./form-model";
-import { MULTIPLE_OPTIONS, USE_YN_OPTIONS, type DefForm } from "./types";
+import { MULTIPLE_OPTIONS, PLACE_OPTIONS, USE_YN_OPTIONS, type DefForm } from "./types";
 
 function lazyEditor(type: WidgetTypeRegistryEntry): LazyExoticComponent<WidgetTypeEditorComponent> {
   return lazy(async () => {
@@ -265,6 +265,18 @@ export function WidgetDetailForm({
               disabled={off}
               data-testid="widget-admin-category"
               onChange={(v) => onChange({ categoryCd: v })}
+            />
+          </td>
+        </tr>
+        <tr>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="placeTp" meta={false} label="배치" /></th>
+          <td style={DETAIL_VALUE_CELL} colSpan={2}>
+            <Select
+              value={form?.placeTp ?? ""}
+              options={PLACE_OPTIONS}
+              disabled={off}
+              data-testid="widget-admin-placement"
+              onChange={(v) => onChange({ placeTp: v as DefForm["placeTp"] })}
             />
           </td>
         </tr>

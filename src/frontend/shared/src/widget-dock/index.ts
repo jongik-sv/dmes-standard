@@ -11,6 +11,7 @@ export {
   dockItemSize,
   dockStackOrder,
   isDockableEntry,
+  isDockMenuEntry,
   listDockableEntries,
   moveDockWindow,
   openDockWindow,

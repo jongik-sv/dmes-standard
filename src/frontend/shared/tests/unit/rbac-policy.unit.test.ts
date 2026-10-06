@@ -21,6 +21,9 @@ const CFG: RbacPolicyConfig = {
     "/api/mcm/oasis/widgetExt/",
     "/api/mcm/oasis/widgetChat/",
     "/api/mcm/oasis/widgetMemo/",
+    // m-mcm proxy.ts 와 같은 값 — 조업 계산기 위젯(MDM ruleCalc, 2026-10-06)
+    "/api/mdm/oasis/ruleCalc/view",
+    "/api/mdm/oasis/ruleCalc/execute",
   ],
   // m-mcm proxy.ts 와 같은 값 — MDM 메타 캐시(2026-10-02). 모듈 이름과 무관한 한 규칙이다.
   authOnlyPatterns: [/^\/api\/[^/]+\/mdmMeta\//],
@@ -163,6 +166,15 @@ describe("evaluateApiPolicy 매트릭스 (방식 C — perms 는 로더로 lazy 
     }
     expect(await evaluateApiPolicy("/api/mcm/oasis/secWidget/search", null, CFG, loadThrow)).toBe("unauthorized");
     expect(await evaluateApiPolicy("/api/mcm/oasis/secWidgetAdmin/search", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
+  });
+  it("AUTH_ONLY(mdm ruleCalc 조업 계산기) — view·execute 만 권한키 없이 pass, 미로그인은 unauthorized, 다른 action 은 권한키 필요", async () => {
+    for (const action of ["view", "execute"]) {
+      expect(await evaluateApiPolicy(`/api/mdm/oasis/ruleCalc/${action}`, viewer, CFG, loadThrow)).toBe("pass");
+      expect(await evaluateApiPolicy(`/api/mdm/oasis/ruleCalc/${action}`, null, CFG, loadThrow)).toBe("unauthorized");
+    }
+    for (const action of ["save", "delete", "confirm"]) {
+      expect(await evaluateApiPolicy(`/api/mdm/oasis/ruleCalc/${action}`, viewer, CFG, loadEmpty)).toBe("forbidden-perm");
+    }
   });
   it("AUTH_ONLY(위젯 B·C·D 사용자용) — 열린 action 만 pass, 관리자용·다른 action 은 권한키 필요", async () => {
     for (const url of [
