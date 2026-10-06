@@ -5,7 +5,15 @@
  *   - 세트 SET: 도장부착량(M47C0007) 결과 → 코팅중량(M47C0006) 입력, 입력 칸에서는 앞 룰 결과로 채워지는 변수를 뺀다.
  *   - 그 밖의 룰: 입력 두 칸(두께·폭)과 출력 한 칸(결과 = 두께 × 폭, 소수 3자리).
  */
-import { normalizeIo, normalizeRun, type RuleCalcIo, type RuleCalcRun, type RuleCalcTargetTp } from "./rule-calc-model";
+import {
+  normalizeIo,
+  normalizeRun,
+  normalizeSearch,
+  type RuleCalcIo,
+  type RuleCalcRun,
+  type RuleCalcSearchRow,
+  type RuleCalcTargetTp,
+} from "./rule-calc-model";
 
 const MOCK_DELAY_MS = 120;
 
@@ -84,4 +92,21 @@ export async function mockRuleCalcRun(
     });
   }
   return normalizeRun({ ok: true, result: { WEIGHT: (num("THK") * num("WIDTH")).toFixed(3) }, steps: [], messages: [] });
+}
+
+const MOCK_TARGETS = [
+  { tp: "RULE", id: "M47C0001", name: "원판 중량", ver: "1.000", verStatus: "RELEASED" },
+  { tp: "RULE", id: "M47C0005", name: "도금중량", ver: "1.000", verStatus: "RELEASED" },
+  { tp: "RULE", id: "M47C0007", name: "도장부착량", ver: "1.000", verStatus: "RELEASED" },
+  { tp: "RULE", id: "M47C0014", name: "이론 길이", ver: "1.000", verStatus: "RELEASED" },
+  { tp: "RULE", id: "M47C0025", name: "외경", ver: "1.000", verStatus: "DRAFT" },
+  { tp: "SET", id: "M47_COAT_WT", name: "코팅중량 세트", ver: "1.000", verStatus: "RELEASED" },
+];
+
+export async function mockRuleCalcSearch(targetTp: RuleCalcTargetTp | "ALL", keyword: string, limit: number): Promise<RuleCalcSearchRow[]> {
+  await wait();
+  const kw = keyword.trim().toLowerCase();
+  return normalizeSearch({
+    rows: MOCK_TARGETS.filter((t) => (targetTp === "ALL" || t.tp === targetTp) && (kw === "" || `${t.id} ${t.name}`.toLowerCase().includes(kw))).slice(0, limit),
+  });
 }

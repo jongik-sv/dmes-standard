@@ -42,6 +42,13 @@ describe("목 서버(B3 전까지)", () => {
     const run = await runRuleCalc("SET", "M47_COAT_WT", { COAT_AREA: "10", COAT_THK: "20" });
     expect(run.steps.map((s) => s.ruleId)).toEqual(["M47C0007", "M47C0006"]);
   });
+  it("검색: 이름·ID 에 키워드가 든 줄, 종류로 좁히고, 상한을 지킨다", async () => {
+    const { searchRuleCalcTargets, RULE_CALC_SEARCH_URL } = await import("./api");
+    expect(RULE_CALC_SEARCH_URL).toBe("/api/mdm/oasis/ruleCalc/search");
+    expect((await searchRuleCalcTargets("ALL", "코팅")).map((r) => r.id)).toEqual(["M47_COAT_WT"]);
+    expect((await searchRuleCalcTargets("RULE", "m47c")).every((r) => r.tp === "RULE")).toBe(true);
+    expect(await searchRuleCalcTargets("ALL", "", 2)).toHaveLength(2);
+  });
   it("NONE 로 시작하는 대상은 확정 버전 없음", async () => {
     const io = await fetchRuleCalcIo("RULE", "NONE1");
     expect(io.messages[0].code).toBe("NO_RELEASED");

@@ -12,13 +12,25 @@
  */
 import { createJsonApiClient } from "@/lib/http/json-api-client";
 
-import { mockRuleCalcIo, mockRuleCalcRun } from "./rule-calc-mock";
-import { normalizeIo, normalizeRun, type RuleCalcIo, type RuleCalcRun, type RuleCalcTargetTp } from "./rule-calc-model";
+import { mockRuleCalcIo, mockRuleCalcRun, mockRuleCalcSearch } from "./rule-calc-mock";
+import {
+  normalizeIo,
+  normalizeRun,
+  normalizeSearch,
+  type RuleCalcIo,
+  type RuleCalcRun,
+  type RuleCalcSearchRow,
+  type RuleCalcTargetTp,
+} from "./rule-calc-model";
 
 const api = createJsonApiClient();
 
 export const RULE_CALC_VIEW_URL = "/api/mdm/oasis/ruleCalc/view";
 export const RULE_CALC_EXECUTE_URL = "/api/mdm/oasis/ruleCalc/execute";
+export const RULE_CALC_SEARCH_URL = "/api/mdm/oasis/ruleCalc/search";
+
+/** 검색 결과 상한(서버가 더 줄일 수 있다). */
+export const RULE_CALC_SEARCH_LIMIT = 50;
 
 /** B3(실제 API 연동)에서 false 로 바꾸고 목 파일을 걷는다. */
 export const RULE_CALC_USE_MOCK = true;
@@ -59,4 +71,17 @@ export async function runRuleCalc(
 ): Promise<RuleCalcRun> {
   if (RULE_CALC_USE_MOCK) return mockRuleCalcRun(targetTp, targetId, values);
   return normalizeRun(await post(RULE_CALC_EXECUTE_URL, "HOME", { targetTp, targetId, valuesJson: JSON.stringify(values), evalTs: null }));
+}
+
+/**
+ * 편집기 ID 검색 — 이름·ID 에 키워드가 들어간 룰·세트(ALL 이면 둘 다)를 찾는다. 편집기 전용이라 미리보기(내 DRAFT 포함)로 부른다.
+ * 요청 `{targetTp, keyword, preview, limit}` → 응답 `rows[{tp,id,name,ver,verStatus}]`(rule-calc-api A3).
+ */
+export async function searchRuleCalcTargets(
+  targetTp: RuleCalcTargetTp | "ALL",
+  keyword: string,
+  limit = RULE_CALC_SEARCH_LIMIT
+): Promise<RuleCalcSearchRow[]> {
+  if (RULE_CALC_USE_MOCK) return mockRuleCalcSearch(targetTp, keyword, limit);
+  return normalizeSearch(await post(RULE_CALC_SEARCH_URL, "HOME", { targetTp, keyword, preview: true, limit }));
 }

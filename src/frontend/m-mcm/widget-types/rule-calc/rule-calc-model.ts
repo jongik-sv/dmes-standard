@@ -379,6 +379,40 @@ export function stepOutputScale(io: RuleCalcIo | null, ruleId: string, name: str
   return step?.outputs.find((o) => o.name === name)?.scale ?? null;
 }
 
+// ───────────────────────── 대상 검색(편집기 ID 찾기) ─────────────────────────
+
+/** 검색 결과 한 줄 — 룰 또는 룰 세트 하나. */
+export interface RuleCalcSearchRow {
+  tp: RuleCalcTargetTp;
+  id: string;
+  name: string;
+  ver: string;
+  verStatus: string;
+}
+
+/** 검색 응답(봉투 해제 뒤) → 줄 목록. `{rows:[…]}` 또는 배열 자체를 받고, 종류·ID 가 없는 줄은 버린다. 종류는 "SET" 만 세트, 나머지는 룰. */
+export function normalizeSearch(raw: unknown): RuleCalcSearchRow[] {
+  const items = Array.isArray(raw) ? raw : list(asRecord(raw).rows);
+  const out: RuleCalcSearchRow[] = [];
+  for (const item of items) {
+    const r = asRecord(item);
+    const id = str(r.id).trim();
+    if (!id) continue;
+    out.push({ tp: str(r.tp).toUpperCase() === "SET" ? "SET" : "RULE", id, name: str(r.name), ver: str(r.ver), verStatus: str(r.verStatus) });
+  }
+  return out;
+}
+
+/** 검색 결과를 고르는 목록의 한 칸 글자 — 「이름 (ID) · 종류」. 이름이 없으면 ID 만. */
+export function searchRowLabel(row: RuleCalcSearchRow): string {
+  const kind = TARGET_TP_LABELS[row.tp];
+  return row.name ? `${row.name} (${row.id}) · ${kind}` : `${row.id} · ${kind}`;
+}
+
+export function searchRowValue(row: Pick<RuleCalcSearchRow, "tp" | "id">): string {
+  return `${row.tp}:${row.id}`;
+}
+
 export function stepOutputDataType(io: RuleCalcIo | null, ruleId: string, name: string): string {
   const step = io?.steps.find((s) => s.ruleId === ruleId);
   return step?.outputs.find((o) => o.name === name)?.dataType ?? "";

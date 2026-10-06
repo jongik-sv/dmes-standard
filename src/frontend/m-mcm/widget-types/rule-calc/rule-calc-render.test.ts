@@ -8,16 +8,18 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { normalizeIo, normalizeRun } from "./rule-calc-model";
+import { normalizeIo, normalizeRun, normalizeSearch } from "./rule-calc-model";
 
 const h = vi.hoisted(() => ({
   fetchIo: vi.fn(),
   run: vi.fn(),
+  search: vi.fn(),
 }));
 
 vi.mock("./api", () => ({
   fetchRuleCalcIo: (...a: unknown[]) => h.fetchIo(...a),
   runRuleCalc: (...a: unknown[]) => h.run(...a),
+  searchRuleCalcTargets: (...a: unknown[]) => h.search(...a),
 }));
 
 // 이름 정규화 비교(대소문자·밑줄·하이픈·공백 무시)는 shared 와 같은 규칙의 대역이다.
@@ -35,7 +37,7 @@ vi.mock("@dk-oasis/shared/screen-context", () => {
 
 vi.mock("@dk-oasis/shared/form", async () => {
   const { createElement: el } = await import("react");
-  type P = Record<string, unknown> & { onChange?: (v: never) => void };
+  type P = Record<string, unknown> & { onChange?: (v: never, item?: never) => void };
   return {
     Button: (p: P) =>
       el("button", { type: p.type ?? "button", disabled: p.disabled as boolean, onClick: p.onClick as never, "data-testid": p["data-testid"] }, p.children as never),
@@ -49,6 +51,7 @@ vi.mock("@dk-oasis/shared/form", async () => {
           value: p.value as string,
           inputMode: p.inputMode,
           "data-testid": p["data-testid"],
+          onKeyDown: p.onKeyDown as never,
           onChange: (e: { currentTarget: { value: string } }) => p.onChange?.(e.currentTarget.value as never),
         }),
         p.error ? el("em", { "data-err-for": p["data-testid"] }, p.error as string) : null
@@ -65,6 +68,20 @@ vi.mock("@dk-oasis/shared/form", async () => {
         ...(p.placeholder ? [el("option", { key: "", value: "" }, p.placeholder as string)] : []),
         ...(p.options as { value: string; label: string }[]).map((o) => el("option", { key: o.value, value: o.value }, o.label))
       ),
+    ComboBox: (p: P) => {
+      const items = p.data as { value: string; label: string }[];
+      return el(
+        "select",
+        {
+          "data-testid": "rc-editor-pick",
+          value: p.value as string,
+          onChange: (e: { currentTarget: { value: string } }) =>
+            p.onChange?.(e.currentTarget.value as never, items.find((x) => x.value === e.currentTarget.value) as never),
+        },
+        el("option", { key: "", value: "" }, p.placeholder as string),
+        ...items.map((o) => el("option", { key: o.value, value: o.value }, o.label))
+      );
+    },
     Checkbox: (p: P) =>
       el("input", {
         type: "checkbox",
@@ -88,6 +105,7 @@ let root: Root;
 beforeEach(() => {
   h.fetchIo.mockReset();
   h.run.mockReset();
+  h.search.mockReset();
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -576,6 +594,56 @@ describe("편집기", () => {
     await act(async () => resolveIo(ruleIo()));
     expect((must("rc-editor-check") as HTMLButtonElement).disabled).toBe(false);
     expect(must("rc-editor-preview").textContent).toContain("입력 칸 3개");
+  });
+
+  describe("ID 검색", () => {
+    const rowsOf = () =>
+      normalizeSearch({
+        rows: [
+          { tp: "RULE", id: "M47C0001", name: "원판 중량", ver: "1.000", verStatus: "RELEASED" },
+          { tp: "SET", id: "M47_COAT_WT", name: "코팅중량 세트", ver: "1.000", verStatus: "RELEASED" },
+        ],
+      });
+
+    it("검색어로 룰·세트를 찾고(ALL), 골라 넣으면 종류·ID 를 채운다", async () => {
+      h.search.mockResolvedValue(rowsOf());
+      const { onChange } = await renderEditor({ targetTp: "RULE", targetId: "", showSteps: false });
+      await type("rc-editor-keyword", " 코팅 ");
+      await click("rc-editor-search");
+      await flush();
+      expect(h.search).toHaveBeenCalledWith("ALL", "코팅");
+      expect(must("rc-editor-results").textContent).toContain("코팅중량 세트 (M47_COAT_WT) · 룰 세트");
+      await type("rc-editor-pick", "SET:M47_COAT_WT");
+      expect(onChange).toHaveBeenLastCalledWith({ targetTp: "SET", targetId: "M47_COAT_WT", showSteps: false, fillMode: "auto" });
+    });
+
+    it("Enter 로도 찾고, 결과가 없으면 안내만 보인다", async () => {
+      h.search.mockResolvedValue([]);
+      await renderEditor({ targetTp: "RULE", targetId: "", showSteps: false });
+      await act(async () => {
+        must("rc-editor-keyword").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+      });
+      await flush();
+      expect(h.search).toHaveBeenCalledTimes(1);
+      expect(must("rc-editor-results").textContent).toContain("찾은 룰·룰 세트가 없습니다");
+      expect(q("rc-editor-pick")).toBeNull();
+    });
+
+    it("검색이 실패하면 오류 문구, 늦게 온 옛 검색 응답은 버린다", async () => {
+      let resolveOld!: (v: ReturnType<typeof rowsOf>) => void;
+      h.search.mockReturnValueOnce(new Promise((r) => (resolveOld = r)));
+      h.search.mockRejectedValueOnce(new Error("권한이 없습니다."));
+      await renderEditor({ targetTp: "RULE", targetId: "", showSteps: false });
+      await click("rc-editor-search");
+      // 찾는 중에는 단추가 잠기므로 두 번째 검색은 Enter 로 건다.
+      await act(async () => {
+        must("rc-editor-keyword").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+      });
+      await flush();
+      expect(must("rc-editor-search-error").textContent).toBe("권한이 없습니다.");
+      await act(async () => resolveOld(rowsOf()));
+      expect(q("rc-editor-results")).toBeNull();
+    });
   });
 
   it("미리보기가 실패하면 오류 문구, 확정 버전이 없으면 안내만", async () => {

@@ -6,22 +6,25 @@
  * 중간값 표시는 룰 세트에서만 뜻이 있어 룰이면 끈 채 잠근다. 종류·ID 를 바꾸면 이전 미리보기는 지운다.
  * 미리보기는 저장 전에 입력 칸이 어떻게 생기는지(라벨·단위·필수·결과·단계)를 보는 용도이며 위젯 실행과 달리 내 DRAFT 를 쓴다.
  */
-import { useState } from "react";
-import { Button, Checkbox, FormGroup, Input, Select } from "@dk-oasis/shared/form";
+import { useRef, useState } from "react";
+import { Button, Checkbox, ComboBox, FormGroup, Input, Select } from "@dk-oasis/shared/form";
 import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
 
 import { useReportErrors } from "../_content/hooks";
-import { fetchRuleCalcIo } from "./api";
+import { fetchRuleCalcIo, searchRuleCalcTargets } from "./api";
 import {
   blocksInput,
   messageText,
   messageTone,
   readRuleCalcConfig,
   FILL_MODE_LABELS,
+  searchRowLabel,
+  searchRowValue,
   TARGET_TP_LABELS,
   validateRuleCalcConfig,
   type RuleCalcConfig,
   type RuleCalcFillMode,
+  type RuleCalcSearchRow,
   type RuleCalcIo,
   type RuleCalcTargetTp,
 } from "./rule-calc-model";
@@ -29,7 +32,12 @@ import { RULE_CALC_CSS, RULE_CALC_STYLE_HREF } from "./rule-calc-styles";
 
 const TARGET_OPTIONS = (Object.keys(TARGET_TP_LABELS) as RuleCalcTargetTp[]).map((value) => ({ value, label: TARGET_TP_LABELS[value] }));
 
+/** 결과 목록에 한 번에 그리는 최대 건수(검색 상한 이하). */
+const RESULT_VISIBLE = 100;
+
 const FILL_OPTIONS = (Object.keys(FILL_MODE_LABELS) as RuleCalcFillMode[]).map((value) => ({ value, label: FILL_MODE_LABELS[value] }));
+
+type SearchState = { status: "idle" } | { status: "loading" } | { status: "error"; message: string } | { status: "done"; rows: RuleCalcSearchRow[] };
 
 type PreviewState = { status: "idle" } | { status: "loading" } | { status: "error"; message: string } | { status: "ready"; io: RuleCalcIo };
 
@@ -97,6 +105,24 @@ export default function RuleCalcTypeEditor({ value, onChange, onValidate }: Widg
   const [shown, setShown] = useState<{ key: string; state: PreviewState }>({ key, state: { status: "idle" } });
   useReportErrors(validateRuleCalcConfig(cfg), onValidate);
 
+  // ID 검색 — 키워드로 룰·세트를 찾아 고르면 종류·ID 를 채운다. 늦게 온 옛 검색 응답은 번호로 버린다.
+  const [keyword, setKeyword] = useState("");
+  const [search, setSearch] = useState<SearchState>({ status: "idle" });
+  const searchSeq = useRef(0);
+  const doSearch = () => {
+    const my = ++searchSeq.current;
+    setSearch({ status: "loading" });
+    searchRuleCalcTargets("ALL", keyword.trim()).then(
+      (rows) => {
+        if (searchSeq.current === my) setSearch({ status: "done", rows });
+      },
+      (e: unknown) => {
+        if (searchSeq.current === my) setSearch({ status: "error", message: e instanceof Error && e.message ? e.message : "검색하지 못했습니다." });
+      }
+    );
+  };
+  const rows = search.status === "done" ? search.rows : [];
+
   // 종류·ID 가 바뀌면(키가 달라지면) 이전 미리보기를 보이지 않는다. 응답은 자기 키로 쓰므로 늦게 와도 지금 키의 화면을 덮지 못하고,
   // 키가 되돌아오면 그 키의 결과가 그대로 보인다(「확인 중」 으로 남지 않는다).
   const preview: PreviewState = shown.key === key ? shown.state : { status: "idle" };
@@ -141,6 +167,52 @@ export default function RuleCalcTypeEditor({ value, onChange, onValidate }: Widg
           />
         </div>
       </FormGroup>
+      <FormGroup label="찾기">
+        <div className="mcm-rc-editor__row">
+          <Input
+            className="mcm-rc-editor__grow"
+            aria-label="룰·룰 세트 검색어"
+            placeholder="이름 또는 ID 로 찾기"
+            value={keyword}
+            onChange={setKeyword}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                doSearch();
+              }
+            }}
+            data-testid="rc-editor-keyword"
+          />
+          <Button onClick={doSearch} disabled={search.status === "loading"} data-testid="rc-editor-search">
+            {search.status === "loading" ? "찾는 중…" : "찾기"}
+          </Button>
+        </div>
+      </FormGroup>
+      {search.status === "error" && (
+        <div className="mcm-rc__msg mcm-rc__msg--error" role="alert" data-testid="rc-editor-search-error">
+          {search.message}
+        </div>
+      )}
+      {search.status === "done" && (
+        <div className="mcm-rc-editor__row" data-testid="rc-editor-results">
+          {rows.length === 0 ? (
+            <span className="mcm-rc-editor__note">찾은 룰·룰 세트가 없습니다</span>
+          ) : (
+            <ComboBox
+              className="mcm-rc-editor__grow"
+              aria-label="찾은 룰·룰 세트"
+              data={rows.map((r) => ({ value: searchRowValue(r), label: searchRowLabel(r), row: r }))}
+              value={searchRowValue({ tp: cfg.targetTp, id: cfg.targetId })}
+              placeholder={`${rows.length}건 — 골라 넣기`}
+              maxVisible={RESULT_VISIBLE}
+              onChange={(_v, item) => {
+                const row = (item as { row?: RuleCalcSearchRow } | undefined)?.row;
+                if (row) patch({ targetTp: row.tp, targetId: row.id });
+              }}
+            />
+          )}
+        </div>
+      )}
       <FormGroup label="중간값">
         <Checkbox
           checked={cfg.targetTp === "SET" && cfg.showSteps}

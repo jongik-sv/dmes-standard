@@ -13,6 +13,9 @@ import {
   messageTone,
   normalizeIo,
   normalizeRun,
+  normalizeSearch,
+  searchRowLabel,
+  searchRowValue,
   readRuleCalcConfig,
   RULE_CALC_DEFAULT_CONFIG,
   displayValue,
@@ -168,6 +171,22 @@ describe("formatResultValue — scale 로 HALF_UP, 글자 연산", () => {
     expect(formatResultValue("ABC", 2)).toBe("ABC");
     expect(formatResultValue("", 2)).toBe("");
     expect(formatResultValue("1.5", 2, "STRING")).toBe("1.5");
+  });
+});
+
+describe("normalizeSearch", () => {
+  it("rows 또는 배열을 읽고 ID 없는 줄은 버리며 SET 만 세트로 본다", () => {
+    const rows = normalizeSearch({
+      rows: [{ tp: "set", id: "S1", name: "세트", ver: "1.000", verStatus: "RELEASED" }, { tp: "RULE", id: " R1 " }, { name: "ID 없음" }, { tp: "X", id: "R2" }],
+    });
+    expect(rows.map((r) => [r.tp, r.id])).toEqual([["SET", "S1"], ["RULE", "R1"], ["RULE", "R2"]]);
+    expect(normalizeSearch([{ id: "A" }])).toHaveLength(1);
+    expect(normalizeSearch(null)).toEqual([]);
+  });
+  it("목록 글자와 값", () => {
+    expect(searchRowLabel({ tp: "RULE", id: "M47C0001", name: "원판 중량", ver: "", verStatus: "" })).toBe("원판 중량 (M47C0001) · 룰");
+    expect(searchRowLabel({ tp: "SET", id: "S1", name: "", ver: "", verStatus: "" })).toBe("S1 · 룰 세트");
+    expect(searchRowValue({ tp: "SET", id: "S1" })).toBe("SET:S1");
   });
 });
 
