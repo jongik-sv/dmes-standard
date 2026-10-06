@@ -11,6 +11,8 @@
  */
 import { memo, useCallback, useMemo, type ComponentType } from "react";
 
+import { useScreenContext } from "../screen-context/hooks";
+import type { ScreenContext } from "../screen-context/types";
 import type { WidgetFrameProps } from "../widget/WidgetFrame";
 import type { WidgetItem, WidgetRegistry, WidgetRegistryEntry } from "../widget/types";
 import {
@@ -35,6 +37,8 @@ export interface WidgetDockLayerProps {
   frame: ComponentType<WidgetFrameProps>;
   /** 지정하면 이 크기를 쓴다(시험·고정 영역). 없으면 창이 있는 동안 화면 크기를 직접 구독한다. */
   viewport?: DockViewport;
+  /** 활성 업무 탭 id — 이 탭이 게시한 화면 문맥(그리드 선택 행 등)을 창 안 위젯의 screenContext 로 넘긴다. 없으면 null 을 넘긴다. */
+  activeTabId?: string | null;
   onMove: (id: string, x: number, y: number) => void;
   onResize: (id: string, w: number, h: number) => void;
   onToggleCollapse: (id: string) => void;
@@ -52,6 +56,7 @@ interface DockWindowViewProps {
   zIndex: number;
   frame: ComponentType<WidgetFrameProps>;
   viewport: DockViewport;
+  screenContext: ScreenContext | null;
   onMove: WidgetDockLayerProps["onMove"];
   onResize: WidgetDockLayerProps["onResize"];
   onToggleCollapse: WidgetDockLayerProps["onToggleCollapse"];
@@ -66,6 +71,7 @@ const DockWindowView = memo(function DockWindowView({
   zIndex,
   frame: Frame,
   viewport,
+  screenContext,
   onMove,
   onResize,
   onToggleCollapse,
@@ -89,8 +95,10 @@ const DockWindowView = memo(function DockWindowView({
     [id, win.widgetId, size.w, size.h]
   );
   const frame = useMemo(
-    () => <Frame item={item} entry={entry} editing={false} onToggleLock={noop} onRemove={noop} hideTitle />,
-    [Frame, item, entry]
+    () => (
+      <Frame item={item} entry={entry} editing={false} onToggleLock={noop} onRemove={noop} hideTitle screenContext={screenContext} />
+    ),
+    [Frame, item, entry, screenContext]
   );
   const move = useCallback((x: number, y: number) => onMove(id, x, y), [onMove, id]);
   const resize = useCallback((w: number, h: number) => onResize(id, w, h), [onResize, id]);
@@ -129,6 +137,7 @@ export function WidgetDockLayer({
   registry,
   frame,
   viewport: viewportOverride,
+  activeTabId = null,
   onMove,
   onResize,
   onToggleCollapse,
@@ -139,6 +148,8 @@ export function WidgetDockLayer({
   const liveViewport = useDockViewport(viewportOverride === undefined && windows.length > 0);
   const viewport = viewportOverride ?? liveViewport;
   const stack = useMemo(() => dockStackOrder(windows), [windows]);
+  // 활성 탭의 화면 문맥 — 탭을 바꾸면 그 탭의 문맥으로 바뀌고, 게시된 것이 없으면 null.
+  const screenContext = useScreenContext(activeTabId);
   return (
     <div className="cm-widget-dock" data-testid={testId}>
       <WidgetDockStyle />
@@ -154,6 +165,7 @@ export function WidgetDockLayer({
             zIndex={stack.get(win.id) ?? 1}
             frame={frame}
             viewport={viewport}
+            screenContext={screenContext}
             onMove={onMove}
             onResize={onResize}
             onToggleCollapse={onToggleCollapse}
