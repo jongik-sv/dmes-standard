@@ -4212,7 +4212,7 @@ WidgetStore 계약(화면이 서버 서비스로 구현해 주입, 실패는 `Er
 
 업무 화면이 가진 값(그리드 선택 행·폼 입력값)을 업무 화면 위 도구 창(위젯 도크)의 위젯이 자동으로 받고, 반대로 위젯이 계산한 값을 업무 화면에 넣을 때 쓰는 공통 통로다. 탭마다 한 건을 보관하고 도크에는 활성 탭의 것만 보인다.
 
-- import: `import { usePublishScreenContext, useScreenContext, useScreenContextPublisher, useScreenApplyHandler, useScreenApply, findScreenContextValue, normalizeScreenKey, screenKeysMatch, toScreenContextValue, screenContextStore, screenApplyStore, type ScreenContext, type ScreenContextValue, type ScreenApply, type ScreenApplyHandler, type ScreenApplyResult } from "@dk-oasis/shared/screen-context";` (CSS import 없음)
+- import: `import { usePublishScreenContext, useScreenContext, useScreenContextPublisher, useScreenApplyHandler, useScreenApply, findScreenContextValue, normalizeScreenKey, normalizeScreenContextValues, screenKeysMatch, screenContextEqual, screenContextKey, toScreenContextValue, screenContextStore, screenApplyStore, type ScreenContext, type ScreenContextValue, type ScreenApply, type ScreenApplyHandler, type ScreenApplyResult } from "@dk-oasis/shared/screen-context";` (CSS import 없음)
 - 소스: `src/frontend/shared/src/screen-context/`(`types.ts`·`normalize-key.ts`·`store.ts`·`apply-store.ts`·`hooks.ts`), 그리드 연결 `components/grid/useGridScreenContext.ts`, 도크 연결 `widget-dock/WidgetDockLayer.tsx`
 - 저장소(`screenContextStore`·`screenApplyStore`)는 `globalThis` 단일 인스턴스다. shared 는 진입점마다 따로 묶여(tsup `splitting: false`) 같은 모듈이 여러 번 들어가므로, 그리드(`grid` 진입점)가 게시한 값을 도크(`portal-shell` 진입점)가 읽으려면 전역 단일 인스턴스여야 한다.
 
@@ -4236,6 +4236,7 @@ interface ScreenContext {
 
 - 위젯 본체가 받는 것: `WidgetProps.screenContext?: ScreenContext | null`(활성 탭의 문맥, 게시된 것이 없거나 보드면 null)·`WidgetProps.screenApply?: ScreenApply | null`(보드면 null).
 - 키 비교는 정규화한다: `findScreenContextValue(ctx?.values, "coilWidth")` 는 `COIL_WIDTH`·`coil_width`·`CoilWidth` 를 같은 키로 본다(대소문자·밑줄·하이픈·공백 무시). 없으면 `undefined`, 있고 비었으면 `null` 이다. 0 과 빈 문자열은 비어 있음이 아니다.
+- 그 밖의 도구: `normalizeScreenContextValues(values)`(키를 정규형으로 바꾼 사전, 겹치면 먼저 나온 키), `screenContextEqual(a, b)`(시각 `at` 을 뺀 같은 문맥 판정), `screenContextKey(tabId, pageId)`(저장소 키 = 탭 id, 없으면 pageId).
 - 값 변환(`toScreenContextValue`): 숫자·문자열은 그대로, null·NaN 은 null, 불리언은 `"true"`·`"false"`, 날짜는 ISO 문자열이다. 객체·배열은 게시에서 뺀다.
 
 ## 화면 → 위젯 (게시)
