@@ -8,6 +8,17 @@ import type { ScreenApply, ScreenContext } from "../screen-context/types";
 /** 위젯 아이콘 — size·stroke 를 받는 아이콘 컴포넌트(@tabler/icons-react 와 같은 모양). */
 export type WidgetIcon = ComponentType<{ size?: number; stroke?: number }>;
 
+/**
+ * 위젯 도움말 — 값이 있는 위젯에만 틀 머리에 「?」 단추가 보이고, 누르면 이 문서를 모달로 연다.
+ * 문서 원문은 화면 번들에 사본으로 두고(동기화 시험으로 원문과 맞춘다) loadMarkdown 이 지연 로딩한다.
+ */
+export interface WidgetHelp {
+  /** 모달 제목. */
+  title: string;
+  /** 마크다운 문서 원문을 불러온다(`##`·`###` 절이 목차가 된다). 실패하면 모달에 오류 문구를 보인다. */
+  loadMarkdown: () => Promise<string>;
+}
+
 /** 격자 칸 수. */
 export interface WidgetSize {
   w: number;
@@ -51,6 +62,8 @@ export interface WidgetMeta {
   icon?: WidgetIcon;
   /** 배치 옵션(2026-10-06). W=위젯 화면만, B=업무 화면(도구 창)만, A=둘 다. 없으면 floatable 을 따른다(resolveWidgetPlacement). */
   placement?: WidgetPlacement;
+  /** 도움말 문서(선택). 있으면 틀 머리에 「?」 단추가 생긴다. 없으면 기존 모양 그대로. */
+  help?: WidgetHelp;
 }
 
 /** 위젯 배치 옵션 — W=위젯 화면(보드)만, B=업무 화면(도구 창)만, A=둘 다. */
@@ -102,6 +115,8 @@ export interface WidgetTypeMeta {
   floatable?: boolean;
   /** 접힌 도구 창 아이콘. 정의 위젯 meta.icon 으로 전달된다. */
   icon?: WidgetIcon;
+  /** 도움말 문서(선택). 정의 위젯 meta.help 로 전달되어 틀 머리 「?」 단추가 된다. */
+  help?: WidgetHelp;
 }
 
 /** 관리 화면이 유형 편집기(editor.tsx default export)에 넘기는 props. */

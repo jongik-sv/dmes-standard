@@ -122,6 +122,7 @@ export function defWidgetMeta(row: WidgetDefRow, type: WidgetTypeRegistryEntry):
   if (t.bodyPadding !== undefined) meta.bodyPadding = t.bodyPadding;
   if (t.floatable) meta.floatable = true;
   if (t.icon) meta.icon = t.icon;
+  if (t.help) meta.help = t.help;
   return meta;
 }
 

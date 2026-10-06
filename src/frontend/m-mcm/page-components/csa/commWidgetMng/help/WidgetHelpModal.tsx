@@ -5,9 +5,12 @@
  * 원문은 docs/guide/FrontEnd/Widget-Authoring-Guide.md 이고 widget-guide-content.ts 는 scripts/gen-widget-guide.mjs 가 만든 사본이다.
  * 문서 렌더·목차는 shared MarkdownDocViewer 가 맡는다.
  */
+import { useState } from "react";
+import { Button } from "@dk-oasis/shared/form";
 import { Modal } from "@dk-oasis/shared/modal";
 import { MarkdownDocViewer } from "@dk-oasis/shared/markdown-editor";
 
+import { WIDGET_SCREEN_LINK_GUIDE_MARKDOWN } from "../../../../widget-types/rule-calc/help-content";
 import { WIDGET_GUIDE_MARKDOWN } from "./widget-guide-content";
 
 /**
@@ -21,18 +24,41 @@ const HELP_MODAL_STYLE = `
 .cm-widget-help-modal .cm-doc-body-inner { max-width: 960px; }
 `;
 
+/** 모달이 보이는 문서 — 만드는 방법(Widget-Authoring-Guide) 또는 업무 화면 값 연결 안내(Widget-Screen-Link-Guide). */
+const DOCS = [
+  { key: "make", tab: "만드는 방법", title: "위젯 만드는 여러 가지 방법", ariaLabel: "위젯 만드는 방법", markdown: WIDGET_GUIDE_MARKDOWN, testId: "widget-help-doc" },
+  { key: "link", tab: "업무 화면 값 연결", title: "업무 화면과 위젯 값 연결 안내", ariaLabel: "업무 화면과 위젯 값 연결 안내", markdown: WIDGET_SCREEN_LINK_GUIDE_MARKDOWN, testId: "widget-help-link-doc" },
+] as const;
+
 export interface WidgetHelpModalProps {
   open: boolean;
   onClose: () => void;
 }
 
 export function WidgetHelpModal({ open, onClose }: WidgetHelpModalProps) {
+  const [docKey, setDocKey] = useState<(typeof DOCS)[number]["key"]>("make");
+  const doc = DOCS.find((d) => d.key === docKey) ?? DOCS[0];
   return (
-    <Modal open={open} onClose={onClose} title="위젯 만드는 여러 가지 방법" size="xl" className="cm-widget-help-modal">
+    <Modal open={open} onClose={onClose} title={doc.title} size="xl" className="cm-widget-help-modal">
       <style>{HELP_MODAL_STYLE}</style>
+      <div role="tablist" aria-label="도움말 문서" style={{ display: "flex", gap: 6, marginBottom: 8 }} data-testid="widget-help-tabs">
+        {DOCS.map((d) => (
+          <Button
+            key={d.key}
+            size="sm"
+            variant={d.key === docKey ? "primary" : "default"}
+            role="tab"
+            aria-selected={d.key === docKey}
+            data-testid={`widget-help-tab-${d.key}`}
+            onClick={() => setDocKey(d.key)}
+          >
+            {d.tab}
+          </Button>
+        ))}
+      </div>
       {/* 모달 최대 높이(92dvh)에서 머리·본문 여백(약 125px)을 뺀 높이 — 뷰포트가 커도 모달 안에서 이중 스크롤이 생기지 않는다. */}
-      <div style={{ height: "calc(92dvh - 140px)", minHeight: 320 }} data-testid="widget-help-body">
-        <MarkdownDocViewer markdown={WIDGET_GUIDE_MARKDOWN} testId="widget-help-doc" skipTitle ariaLabel="위젯 만드는 방법" />
+      <div style={{ height: "calc(92dvh - 176px)", minHeight: 320 }} data-testid="widget-help-body">
+        <MarkdownDocViewer key={doc.key} markdown={doc.markdown} testId={doc.testId} skipTitle ariaLabel={doc.ariaLabel} />
       </div>
     </Modal>
   );
