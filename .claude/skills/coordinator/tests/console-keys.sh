@@ -407,15 +407,17 @@ once
 bad=""; for i in $(seq 11 "$n"); do [ "$(ackof "$i")" = "tok-KEY-0$i refused --reason error" ] || bad="$bad $i"; done
 eq "키 행: 형식 위반 11가지 모두 refused error" "${bad:-none}" none
 eq "키 행: 형식 위반은 send 0" "$(sends)" 0
-mkkey 30 kit '["Enter"]' "" "" "" "" coord_lead; once
+# 보내지 않고 거절만 하는 행들은 기록·화면을 바꾸지 않으므로 한 주기에 함께 받아도 행마다 같은 판정이다(행마다 ack 로 따로 단언한다)
+mkkey 30 kit '["Enter"]' "" "" "" "" coord_lead
+mkkey 31 kit '["Enter"]' "" "" "" "$PAST"
+mkkey 32 kit '["Enter"]' question
+mkkey 33 kit '["Enter"]' "" "" "$(printf '0%.0s' $(seq 1 64))"
+mkkey 34 kit '["Enter"]' "" "2026-10-06T00:00:00.000Z"
+once
 eq "키 행: target_kind 가 coord_lane 이 아니면 refused error" "$(ackof 30)" "tok-KEY-030 refused --reason error"
-mkkey 31 kit '["Enter"]' "" "" "" "$PAST"; once
 eq "키 행: 만료 → refused stale" "$(ackof 31)" "tok-KEY-031 refused --reason stale"
-mkkey 32 kit '["Enter"]' question; once
 eq "키 행: kind 다름 → prompt_changed" "$(ackof 32)" "tok-KEY-032 refused --reason prompt_changed"
-mkkey 33 kit '["Enter"]' "" "" "$(printf '0%.0s' $(seq 1 64))"; once
 eq "키 행: sha 다름 → prompt_changed" "$(ackof 33)" "tok-KEY-033 refused --reason prompt_changed"
-mkkey 34 kit '["Enter"]' "" "2026-10-06T00:00:00.000Z"; once
 eq "키 행: since 가 다른 순간 → prompt_changed" "$(ackof 34)" "tok-KEY-034 refused --reason prompt_changed"
 eq "키 행: 불일치 네 경우 send 0" "$(sends)" 0
 # 같은 순간을 다른 표기(+09:00)로 → 시각 비교라 통과
@@ -434,13 +436,15 @@ COORD_RUN=r1 bash "$CP" input-handled --lane kit --by coordinator >/dev/null 2>&
 mkkey 37 kit '["Enter"]'; once
 eq "키 행: 소비된 (since, sha) 재요청 → prompt_changed·send 0" "$(ackof 37):$(sends)" "tok-KEY-037 refused --reason prompt_changed:0"
 # 대상 해석
-mkkey 38 nope '["Enter"]'; once
+# 대상을 못 찾는 행들도 같은 주기에 함께 받는다(대상 해석에서 끝나 화면·기록을 건드리지 않는다)
+mkkey 38 nope '["Enter"]'
+mkkey 39 dup '["Enter"]'
+mkkey 40 ghost '["Enter"]'
+mkkey 41 '../kit' '["Enter"]'
+once
 eq "키 행: 대상 못 찾음 → target-not-found" "$(ackof 38)" "tok-KEY-038 refused --reason target-not-found"
-mkkey 39 dup '["Enter"]'; once
 eq "키 행: 두 회차에 같은 레인 → ambiguous" "$(ackof 39)" "tok-KEY-039 refused --reason ambiguous"
-mkkey 40 ghost '["Enter"]'; once
 eq "키 행: 터미널 목록에 없는 핸들 → stale" "$(ackof 40)" "tok-KEY-040 refused --reason stale"
-mkkey 41 '../kit' '["Enter"]'; once
 eq "키 행: 경로 이탈 ref → refused error" "$(ackof 41)" "tok-KEY-041 refused --reason error"
 # 화면이 재판정과 보내기 직전 사이에 바뀜(2번째 읽기에서 다른 창)
 once   # 새 since 기록
@@ -791,7 +795,14 @@ mkwin() {  # <파일> <도구 이름 줄> <질문 줄> <본문 줄>... — 실�
 }
 mkbash() { local f="$1"; shift; mkwin "$f" " Bash command" " Do you want to proceed?" "$@"; }
 hexes() { sed -n 's/.*hex=//p' "$FAKE_DIR/send.log" | paste -sd, -; }
-AAK() { fresh "$1"; echo "$(AA | cut -d' ' -f1-4):$(hexes)"; }
+# 창 판정 시험: auto-answer 는 화면만 보고 판정한다(기록은 보내기 뒤 handled 표시용). 그래서 판정만 보는 시험은 감지 once(약 0.45초 CPU)를 건너뛰고
+# 화면·보낸 키 기록만 비운다(fresh0). 감지 → 기록 → handled·소비·알림 경로까지 거치는 대표 시험(AAKF)만 once 를 돌린다.
+fresh0() {  # <화면 파일> — fresh 에서 감지 once 만 뺀 것
+  rm -rf "$DFLOW_CONSOLE_DIR/input" "$DFLOW_CONSOLE_DIR/lock"; resetreads; rm -f "$FAKE_DIR"/screens/hk.*.txt
+  cp "$1" "$FAKE_DIR/screens/hk.txt"; : > "$FAKE_DIR/send.log"
+}
+AAK() { fresh0 "$1"; echo "$(AA | cut -d' ' -f1-4):$(hexes)"; }
+AAKF() { fresh "$1"; echo "$(AA | cut -d' ' -f1-4):$(hexes)"; }
 fsha() { lib console_full_sha < "$1"; echo "rc=$?"; }
 # 실제 창 샘플(fixture)에서 머리·도구 이름 줄·질문·선택지가 잡힌다
 eq "실제 샘플: 권한 창 fixture 의 창(도구·질문·본문 2줄·선택지 3)" \
@@ -799,7 +810,7 @@ eq "실제 샘플: 권한 창 fixture 의 창(도구·질문·본문 2줄·선�
 eq "실제 샘플: 질문 창 fixture 도 지문이 있다(권한 창 아님)" "$(lib console_window_json < "$FX/prompt-question.txt" | jq -r '"\(.perm)|\(.text | length > 0)"')" "null|true"
 # 정상 창은 여전히 허용
 mkbash "$tmp/w-ok.txt" "git status"
-eq "정상 창(git status) → ANSWER 1" "$(AAK "$tmp/w-ok.txt")" "ANSWER hk permission 1:31"
+eq "정상 창(git status) → ANSWER 1" "$(AAKF "$tmp/w-ok.txt")" "ANSWER hk permission 1:31"
 { echo "⏺ 작업"; echo "╭$(printf '─%.0s' $(seq 1 40))╮"; echo "│ Bash command                            │"; echo "│                                         │"
   echo "│   git status                            │"; echo "│                                         │"; echo "│ Do you want to proceed?                 │"
   echo "│ ❯ 1. Yes                                │"; echo "│   2. No                                 │"; echo "╰$(printf '─%.0s' $(seq 1 40))╯"; } > "$tmp/w-box.txt"
@@ -810,7 +821,7 @@ mkbash "$tmp/w-desc.txt" "git status" "Show working tree status"
 eq "설명 줄이 있는 창은 본문으로 보아 올린다(기존과 같은 보수 동작)" "$(AAK "$tmp/w-desc.txt")" "ESCALATE hk permission unknown:Show:"
 # A: 본문 줄 끝 글로 구간을 토글하던 awk 폐기 — 창 본문 전부로 판정한다
 mkbash "$tmp/w-a1.txt" "git push --force origin main; echo command" "git status"
-eq "A1: 본문 줄 끝 command(위 줄 빠지던 것) → DENY·Esc 1회" "$(AAK "$tmp/w-a1.txt")" "DENY hk permission deny-table:1b"
+eq "A1: 본문 줄 끝 command(위 줄 빠지던 것) → DENY·Esc 1회" "$(AAKF "$tmp/w-a1.txt")" "DENY hk permission deny-table:1b"
 mkbash "$tmp/w-a2.txt" "rm -rf ~/work # Fetch" "ls"
 eq "A2: 본문 줄 끝 Fetch → DENY·Esc 1회" "$(AAK "$tmp/w-a2.txt")" "DENY hk permission deny-table:1b"
 mkbash "$tmp/w-a3.txt" "rm -rf ~/work" 'echo "Do you want to proceed?"' "ls"
@@ -843,7 +854,7 @@ eq "C1: 그 창(rm -rf)은 DENY" "$(AAK "$tmp/w-c1b.txt")" "DENY hk permission d
 { echo "⏺ 작업"; echo ""; echo "$RULE"; echo " Bash command"; echo ""; echo "   rm -rf ~/work"; echo "$RULE"; echo "   ls"; echo ""
   echo " Do you want to proceed?"; echo " ❯ 1. Yes"; echo "   2. No"; } > "$tmp/w-c2.txt"
 eq "C2: 들여쓰기 0 가로줄 다음이 도구 이름 줄이 아니면 머리로 인정하지 않는다(지문 없음)" "$(fsha "$tmp/w-c2.txt")" "rc=1"
-eq "C2: 그 창은 ESCALATE no-fingerprint·보낸 키 없음" "$(AAK "$tmp/w-c2.txt")" "ESCALATE hk permission no-fingerprint:"
+eq "C2: 그 창은 ESCALATE no-fingerprint·보낸 키 없음" "$(AAKF "$tmp/w-c2.txt")" "ESCALATE hk permission no-fingerprint:"
 L46=("git push --force origin main"); for i in $(seq 1 45); do if [ "$i" = 30 ]; then L46+=("$RULE"); else L46+=("--opt$i v$i"); fi; done
 mkbash "$tmp/w-c3a.txt" "${L46[@]}"; L46[0]="git status"; mkbash "$tmp/w-c3b.txt" "${L46[@]}"
 tail -n 41 "$tmp/w-c3a.txt" > "$tmp/w-c3a41.txt"; tail -n 41 "$tmp/w-c3b.txt" > "$tmp/w-c3b41.txt"
@@ -893,7 +904,7 @@ eq "끝맺지 않은 ESC 든 본문 → 지문 없음" "$(fsha "$tmp/cesc.txt")"
 # 정상: CRLF·ANSI 색·커서 이동 시퀀스는 통과
 mkbash "$tmp/crlf0.txt" "git status"; sed "s/\$/$CR/" "$tmp/crlf0.txt" > "$tmp/crlf.txt"
 eq "CRLF 정상 창 → 지문은 CRLF 없는 창과 같다" "$(lib console_full_sha < "$tmp/crlf.txt")" "$(lib console_full_sha < "$tmp/crlf0.txt")"
-eq "CRLF 정상 창 → ANSWER 1" "$(AAK "$tmp/crlf.txt")" "ANSWER hk permission 1:31"
+eq "CRLF 정상 창 → ANSWER 1" "$(AAKF "$tmp/crlf.txt")" "ANSWER hk permission 1:31"
 { echo "⏺ 작업"; echo ""; printf '\e[2m%s\e[0m\n' "$RULE"; printf ' \e[1mBash command\e[0m\n'; echo ""; printf '   \e[33mgit status\e[0m\e[K\n'; echo ""
   printf ' Do you want to proceed?\e[1G\e[1C\n'; printf ' \e[36m❯ 1. Yes\e[39m\n'; echo "   2. No"; } > "$tmp/ansi.txt"
 eq "ANSI 색·커서 이동 정상 창 → ANSWER 1" "$(AAK "$tmp/ansi.txt")" "ANSWER hk permission 1:31"
@@ -902,7 +913,7 @@ eq "창 밖(대화 기록)의 CR·제어 문자는 정상 창을 막지 않는�
 # kind 위조 — usage-limit: 본문 heredoc 으로 한도 창 문구
 mkbash "$tmp/u1.txt" "cat <<'EOF'" "What do you want to do?" "1. Wait for limit to reset" "EOF" "git push --force origin main"
 eq "U1 준비: kind 는 usage-limit(마지막 30줄 글)" "$(lib console_input_kind < "$tmp/u1.txt")" usage-limit
-eq "U1: 본문 echo 한도 문구 → ESCALATE window-shape·키 0" "$(AAK "$tmp/u1.txt")" "ESCALATE hk usage-limit window-shape:"
+eq "U1: 본문 echo 한도 문구 → ESCALATE window-shape·키 0" "$(AAKF "$tmp/u1.txt")" "ESCALATE hk usage-limit window-shape:"
 mkbash "$tmp/u2.txt" "git push --force origin main" "What do you want to do?" "1. Wait for limit to reset"
 eq "U2: 가짜 기다리기 선택지가 진짜 블록에 붙어도 → ESCALATE window-shape·키 0" "$(AAK "$tmp/u2.txt")" "ESCALATE hk usage-limit window-shape:"
 { echo "   git push --force origin main"; echo "   What do you want to do?"; echo "   1. Wait for limit to reset"; echo ""
@@ -928,7 +939,7 @@ eq "CH2 준비: kind 는 question" "$(lib console_input_kind < "$tmp/ch2.txt")" 
 eq "CH2: 본문 속 (Recommended) 선택지가 권한 창 블록에 붙음 → ESCALATE window-shape·키 0" "$(AAK "$tmp/ch2.txt")" "ESCALATE hk question window-shape:"
 # 정상 창은 기존대로
 printf '%s\n' "Do you trust the files in this folder?" "❯ 1. Yes, proceed" "  2. No, exit" > "$tmp/tok.txt"
-eq "정상 trust 창(리포 안) → ANSWER 1" "$(AAK "$tmp/tok.txt")" "ANSWER hk trust 1:31"
+eq "정상 trust 창(리포 안) → ANSWER 1" "$(AAKF "$tmp/tok.txt")" "ANSWER hk trust 1:31"
 { echo "$RULE"; echo " Accessing workspace:"; echo ""; echo " $tmp/repo/wt-kit"; echo ""
   echo " Quick safety check: Is this a project you created or one you trust? (Like your own code)"; echo ""
   echo " ❯ 1. Yes, I trust this folder"; echo "   2. No, exit"; echo ""; echo " Enter to confirm · Esc to cancel"; } > "$tmp/tok2.txt"
@@ -937,10 +948,10 @@ eq "정상 trust 창(머리 가로줄·제목) → ANSWER 1" "$(AAK "$tmp/tok2.t
   echo " ❯ No, exit"; echo "   Yes, I trust this folder"; echo ""; echo " Enter to confirm · Esc to cancel"; } > "$tmp/tok3.txt"
 eq "번호 없는 trust 창(첫 항목 No, exit) → 1 을 짐작해 보내지 않고 ESCALATE no-yes-option" "$(AAK "$tmp/tok3.txt")" "ESCALATE hk trust no-yes-option:"
 printf '%s\n' "Usage limit reached" "What do you want to do?" "❯ 1. Wait for limit to reset" "  2. Upgrade your plan" > "$tmp/uok.txt"
-eq "정상 usage-limit 창 → ANSWER 1" "$(AAK "$tmp/uok.txt")" "ANSWER hk usage-limit 1:31"
+eq "정상 usage-limit 창 → ANSWER 1" "$(AAKF "$tmp/uok.txt")" "ANSWER hk usage-limit 1:31"
 { echo "⏺ Usage limit reached · resets 3pm"; echo ""; echo "$RULE"; echo " What do you want to do?"; echo ""; echo " ❯ 1. Upgrade your plan"; echo "   2. Stop and wait for limit to reset"; } > "$tmp/uok2.txt"
 eq "정상 usage-limit 창(제목 줄, 기다리기 2번) → ANSWER 2" "$(AAK "$tmp/uok2.txt")" "ANSWER hk usage-limit 2:32"
-eq "정상 질문 창 fixture → ANSWER 2(Recommended)" "$(AAK "$FX/prompt-question.txt")" "ANSWER hk question 2:32"
+eq "정상 질문 창 fixture → ANSWER 2(Recommended)" "$(AAKF "$FX/prompt-question.txt")" "ANSWER hk question 2:32"
 # 판단 올리기 기록: 가짜 질문 아래 위험 줄도 cmd 에 남는다(K4)
 mkbash "$tmp/k4.txt" "echo hi" "Do you want to proceed?" "1. Yes" "rm -rf ~/work"
 fresh "$tmp/k4.txt"; r="$(AA | cut -d' ' -f1-4)"

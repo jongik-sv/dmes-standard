@@ -181,7 +181,8 @@
       "commit-own",
       "heavy-build"
     ],
-    "watch_every_s": 10
+    "watch_every_s": 10,
+    "screen_cache_s": 20
   },
   "restart_rules": [],
   "office": {

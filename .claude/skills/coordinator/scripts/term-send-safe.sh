@@ -25,8 +25,10 @@
 #          있어야 한다 — 아니면 `REFUSED <h> draft-in-input`(셸로 돌아간 탭에 넣지 않게).
 #   --dry-run: 읽기·판정은 실제로 하고, 보내기 직전에 멈춰 stderr 에 DRY 를 찍고 stdout 에 `DRY SENT <h> -`(보냈다면 나올 줄에 DRY 를 붙임).
 set -uo pipefail
-. "$(dirname "$0")/lib/common.sh"
-. "$(dirname "$0")/lib/term.sh"
+_SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.   # dirname 대신(프로세스 0개)
+. "$_SD/lib/common.sh"
+. "$_SD/lib/term.sh"
+coord_cfg_prime   # 설정을 서브셸 밖에서 한 번 읽어 둔다
 
 h="" lane="" text="" textfile="" timeout_ms=300000 raw=0 busy=0 dry=0 has_text=0 expect=""
 while [ $# -gt 0 ]; do

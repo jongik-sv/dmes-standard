@@ -66,6 +66,7 @@
 | `glm.timeout_s` | `10` | 사전 확인 호출 제한 시간 |
 | `approvals.auto_allow` | `["read","status"]` | 사용자가 띄운 세션의 확인 창 자동 승인 범주. 가능한 값: `read`·`status`·`edit-own`·`commit-own`·`heavy-build`. 기본은 가장 좁게 |
 | `approvals.watch_every_s` | `10` | `prompt-watch.sh --follow` 의 화면 읽기 간격(초). 읽을 때마다 `orca terminal read` 가 Electron 노드를 띄워 CPU 를 쓰므로 3초는 레인이 늘면 부하가 크다 |
+| `approvals.screen_cache_s` | `20` | 폴러가 남긴 레인 화면 캐시(§4.1 「레인 화면 캐시」)를 `prompt-watch.sh` 가 믿는 시간(초). 이 안에 읽은 신선한 캐시가 있으면 orca 를 부르지 않고 그 화면으로 「창이 떴는가」 를 판정한다. `0` 이면 캐시를 쓰지도 읽지도 않고 늘 직접 읽는다. 자동 응답 재판정은 이 값과 무관하게 늘 직접 읽는다 |
 | `approvals.auto_allow_spawned` | `["read","status","edit-own","commit-own","heavy-build"]` | 조정자가 띄운 세션(`spawned_by=coordinator`)의 자동 승인 범주. 거부 칸은 여기에 넣어도 늘 거부 |
 | `restart_rules` | `[]` | `[{"glob":"src/backend/**","note":"세 서버 내린 뒤 jar 빌드·재기동"}]` |
 | `office.enabled` | `true` | 에이전트 오피스 표시(§4). false 면 `office.sh` 는 아무것도 하지 않는다 |
@@ -194,7 +195,7 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 | `idle-check.sh` | `[레인…]` (없으면 active 레인 전부) | 레인마다 하나: `IDLE <레인> since=<iso>` · `CANDIDATE <레인>`(첫 관측, 확정 전) · `BUSY <레인> <사유>` · `HOLD <레인> <사유>` · `WAIT_USER <레인> <창 종류>` · `COMPACTING <레인>` · `STALL? <레인> bg=<분>m` · `GONE <레인>` |
 | `stall-check.sh` | `[레인…]` | `STALL <레인> pid=<pid> cpu_delta=<초> quiet=<분>m heavy=<yes|no>` 또는 `OK <레인>` |
 | `merge-gate.sh` | `<레인>` \| `--branch <브랜치>` | 첫 줄 `GATE <ok|wait|conflict> branch=<b> base=<integration> tree=<hash|-> files=<n>`, 이어 사유 줄 `CONFLICT <경로>` · `FORBIDDEN <경로>` · `OUTSIDE <경로>`(소유 밖) · `SHARED_API <경로>` · `RESTART <note>` · `WINDOW <kind> until=<iso>` · `INFLIGHT <레인>` |
-| `prompt-watch.sh` | `<레인>` \| `--handle <h>` \| `--lanes a,b,c` `[--follow <초>] [--every <초>]` | `NONE <h>` 또는 `PROMPT <h> <trust|usage-limit|permission|question|choice>` 다음 줄부터 `---` 로 감싼 화면 발췌. `--follow` 는 감지할 때까지(최대 초) `--every` 간격(기본 `approvals.watch_every_s`=10, 직접 주면 그 값) 반복. `--lanes` 는 한 프로세스에서 레인을 차례로 보며 줄 형식은 같고 줄 앞에 `<레인> ` 이 붙는다(`<레인> PROMPT <h> <kind>`·`<레인> NONE <h>`): 레인마다 창이 새로 뜨거나 종류가 바뀔 때 한 번 블록을 내고 끝나지 않고 계속 보며(`--follow` 시간이 다하면 레인마다 `NONE` 줄), 창이 사라지면 그 레인을 다시 새로 뜨는 것으로 센다 |
+| `prompt-watch.sh` | `<레인>` \| `--handle <h>` \| `--lanes a,b,c` `[--follow <초>] [--every <초>]` | `NONE <h>` 또는 `PROMPT <h> <trust|usage-limit|permission|question|choice>` 다음 줄부터 `---` 로 감싼 화면 발췌. `--follow` 는 감지할 때까지(최대 초) `--every` 간격(기본 `approvals.watch_every_s`=10, 직접 주면 그 값) 반복. `--lanes` 는 한 프로세스에서 레인을 차례로 보며 줄 형식은 같고 줄 앞에 `<레인> ` 이 붙는다(`<레인> PROMPT <h> <kind>`·`<레인> NONE <h>`): 레인마다 창이 새로 뜨거나 종류가 바뀔 때 한 번 블록을 내고 끝나지 않고 계속 보며(`--follow` 시간이 다하면 레인마다 `NONE` 줄), 창이 사라지면 그 레인을 다시 새로 뜨는 것으로 센다. 같은 종류의 창이 사이에 「창 없음」 표본 없이 이어져도(권한 창 A → B) 창 지문(`full`)이 바뀌면 새 창으로 다시 알린다: 알린 창의 식별자는 종류 + 지문이고, 지문은 캐시 json 의 `full` 이며(직접 읽은 화면은 `lib/console-input.sh` 의 `console_full_sha` 로 같은 방식으로 계산) 창 부분의 지문이라 상태줄·사용량 숫자만 바뀐 같은 창은 다시 알리지 않는다. **한계**: 지문이 없는 창(머리를 못 찾음 — §4.1)은 종류로만 비교하므로, 그런 창끼리 사이 표본 없이 이어지면 한 번만 알린다(지문이 한쪽에만 있어도 종류로만 비교). 단일 모드(`<레인>`·`--handle`)는 첫 감지에서 끝나 이 비교가 없고, 응답 뒤 `screen_cache_s` 초 안에는 낡은 캐시가 이미 처리한 창을 다시 `PROMPT` 로 낼 수 있다(무해: `auto-answer.sh` 가 직접 읽어 `NONE`). **화면 캐시**: 폴러가 도는 동안은 `$DFLOW_CONSOLE_DIR/screen/<핸들>.json`(§4.1)의 `read_at_ms` 가 `approvals.screen_cache_s`(기본 20초, 0 이면 끔) 안이면 orca 를 부르지 않고 캐시 화면의 마지막 40줄로 판정한다(출력 형식은 그대로). 없음·낡음·깨짐·폴더·파일이 현재 사용자 소유·권한 700/600 이 아니거나 심볼릭 링크이거나 json 의 kind 가 화면 판정과 다르면 조용히(오류 없이) 직접 읽는다. `permission` 의 120줄 재읽기는 늘 직접 읽고, 그 화면에 권한 창이 없으면(그사이 사라짐) 이미 읽은 40줄(캐시·직접) 화면으로 발췌한다. `--follow` 는 신선한 캐시가 있는 동안 캐시 json 이 바뀐 때만 새로 판정하고(같은 창은 위 seen 규칙대로 다시 알리지 않는다), 캐시가 낡거나 사라지면(폴러가 꺼짐) 그때부터 직접 읽는다. **보안 경계**: 캐시는 「창이 떴는가」 감지와 Monitor 알림 전용이다 — `auto-answer.sh`·`term-send-safe.sh`·폴러 키 행·`console-poll.sh judge-sha` 의 재판정은 캐시를 읽지 않고 늘 터미널을 직접 읽는다(캐시가 최대 `screen_cache_s` 늦거나 틀려도 응답은 직접 읽은 화면대로). **감지 지연 상한**: 폴러가 도는 동안에도 캐시가 `screen_cache_s`(20초)보다 오래되면 직접 읽어 새 창을 잡으므로, 새 창은 최대 `screen_cache_s`(20) + `--every`(10) = 30초 안에 알린다 |
 | `search.sh` | `[--tab\|--print] [--cwd <폴더>] [--timeout <초>] <질의…>` | `SEARCH ok <답 파일> <초>` 또는 `SEARCH fail <no-command|timeout|error|empty> <사유>`. 답은 회차 `searches/` 폴더(회차가 없으면 `$TMPDIR/coord-searches/`)에 쓴다 |
 | `glm-preflight.sh` | 없음 | `ok <host> <model> <초>` 또는 `fail <alias|host|call|model> <사유>` |
 
@@ -305,7 +306,7 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 
 1. **생존 감시(서버 지원과 무관하게 늘 한다)**: `_session/*.json` 의 `pid` 와 열린 회차 레인의 `session.pid` 를 `kill -0` 으로 확인해 죽은 대상의 오피스 키를 stop 한다(§4 「생존 판정」). 확인할 조정 세션 기록(`_session/*.json`)·살아 있는 세션의 열린 회차·팀장 핸들 기록이 하나도 없으면 폴러는 두 주기 연속 빈 채로 보고 스스로 끝난다.
 2. **프롬프트 전달**(watch 응답에 `console` 칸이 있는 서버에서만): `dflow.sh console-poll --host <host> [--accepts keys] --limit 1`(`--accepts keys` 는 키 입력 답하기를 켰을 때만 — 기본은 꺼짐) → 프롬프트마다 대상 해석 → 안전 입력(글 행) 또는 아래 「키 입력 답하기」(키 행, 켰을 때) → `console-ack`.
-3. **화면 올리기**(2 와 같은 조건): 해석되는 대상마다 화면 끝 40줄을 읽어 가린 뒤 `console-screen` 으로 올린다. 같은 화면으로 아래 「입력 요청 감지」 를 한다(새 읽기 없음).
+3. **화면 올리기**(2 와 같은 조건): 해석되는 대상마다 화면 끝 40줄을 읽어 가린 뒤 `console-screen` 으로 올린다. 같은 화면으로 아래 「입력 요청 감지」 를 한다(새 읽기 없음). 조정 레인 화면은 같은 읽기 결과를 아래 「레인 화면 캐시」 로 남긴다(새 읽기 없음).
 4. **입력 요청 알림**: 3 에서 바뀐 입력 요청 기록(과 키 입력 뒤 지운 기록)을 알린다 — 조정 레인·조정 팀장은 `office.sh`, `/dflow-team` 팀장은 폴러가 직접 `watch`.
 
 **대상 해석** — `target_kind`·`target_ref` 를 이 PC 의 터미널 핸들로 바꾼다. 이 PC 에서 찾지 못하면 `refused`·`target-not-found`, 둘 이상이면 `refused`·`ambiguous`.
@@ -367,6 +368,14 @@ Messages 창(`lane-tools` 의 `mail.tsx`)은 사용자 입력의 첫머리에서
 3. 마지막 40줄을 남기고, 합계 8KB(UTF-8) 를 넘으면 앞쪽 줄부터 버린다. 가림이 끝난 줄들의 sha256(hex)을 `sha` 로 한다.
 
 화면은 **`sha` 가 바뀐 것만** 전체(`lines` 포함)로 올리고, 같으면 touch(`lines` 없음)만 보낸다. 서버가 `need_full` 을 돌려주면 다음 주기에 전체를 올린다. 올리기 전에 가림을 건너뛰는 경로는 없다(가림 함수 실패 시 그 대상은 올리지 않는다).
+
+**레인 화면 캐시**(`lib/screen-cache.sh`, 시험 `tests/screen-cache.sh`): 화면 올리기가 조정 레인(`coord_lane`)의 화면을 읽은 **그 한 번**의 결과를 로컬에 남겨 `prompt-watch.sh` 가 같은 화면을 또 읽지 않게 한다(전 대상 화면 읽기 지점은 `screens_collect` 한 곳이고 읽은 그 자리에서 레인마다 바로 캐시를 쓴다 — 서버 올리기·입력 요청 알림보다 앞이다. 상주 폴러만 창이 보인 레인에 한해 아래 「재읽기」 를 더 하고, 키 행 재판정·`judge-sha` 의 읽기는 캐시와 무관한 직접 읽기다).
+- 위치·권한: `$DFLOW_CONSOLE_DIR/screen/`(폴더 700). 키는 터미널 핸들(`[A-Za-z0-9._:-]`, 앞 `.` 불가·100자 이하, `:` 는 `=` 로 바꾼다 — 경로 이탈 불가). 파일은 `<키>.txt`(읽은 화면 원문 그대로, **가리기 전** — 로컬 600 에만 두고 서버·로그·stderr 로 내지 않는다)와 `<키>.json`(600) = `{"kind":"permission|choice|question|usage-limit|trust|null","read_at_ms":<읽은 시각 에포크 ms>,"lines":<줄 수 41>,"full":"<창 지문, 있을 때만>"}`. `kind` 는 `coord_screen_prompt_kind` 결과(창 없음이면 null).
+- 쓰기: 임시 파일에 쓴 뒤 `mv -f` 로 교체한다. `.txt` 를 먼저, `.json` 을 나중에 바꾸므로 json 이 새로우면 txt 도 새롭다(읽는 쪽이 반쯤 쓴 파일을 보지 않는다).
+- 정리: 읽기에 실패했거나 터미널 목록에서 빠진 핸들의 캐시는 바로 지우고(낡은 캐시를 남기지 않는다), 대상에서 빠진 핸들·끝난 회차의 것은 주기마다 10분 넘은 파일(임시 파일 포함)을 지운다. 설정 `approvals.screen_cache_s` 가 0 이면 쓰지 않고 있던 캐시도 지운다. `--dry-run` 은 캐시를 쓰지도 지우지도 않는다.
+- 재읽기(⑤): 상주 폴러(`run`)는 화면 읽기에서 창(`kind` 가 null 이 아님)이 보인 레인만 `COORD_CONSOLE_REREAD_S`(기본 5)초 뒤 한 번 더 읽어 캐시(`full` 포함)를 바로 갱신한다 — 창이 사라졌는지·바뀌었는지를 다음 30초 주기까지 기다리지 않고 `prompt-watch.sh` 가 믿게 한다. 주기당 한 번·레인당 한 번, 입력 요청 알림 다음에 돌고 시간은 구간 상한(`COORD_CONSOLE_PHASE_MAX_S`)과 주기 몫의 남은 시간 안이다(다른 단계·주기 길이는 그대로). 창이 없는 레인은 다시 읽지 않는다. 입력 요청 기록·서버 올리기는 하지 않는다(다음 주기 몫). `--once`·`--dry-run` 은 하지 않는다.
+- 끝낼 때(4.1 종료 정리): 폴러가 끝나면(`stop`·TERM·자동 종료·`--once` 끝 — 단일 인스턴스 잠금의 주인일 때만) 화면 캐시 폴더의 파일(`.txt`·`.json`·임시 파일)을 모두 지운다(원문이 로컬에 남지 않게). `stop` 이 TERM 뒤 KILL 하는 경우는 `stop` 이 대신 지운다. `--dry-run` 은 지우지 않는다. 낡은 캐시는 `prompt-watch.sh` 가 직접 읽기로 물러나므로 지워도 안전하다(시험용 `COORD_CONSOLE_KEEP_SCREEN=1` 은 지우지 않는다).
+- 읽는 쪽은 `prompt-watch.sh` 하나(§3.3)이고, 폴더·파일이 현재 사용자 소유·권한 700/600·심볼릭 링크 아님일 때만 믿는다. 자동 응답 직전 재판정(`auto-answer.sh`·`term-send-safe.sh`·키 행·`judge-sha`)은 이 캐시를 절대 읽지 않는다.
 
 **입력 요청 감지**(k11 — `lib/console-input.sh`, 시험 `tests/console-keys.sh`): 화면 올리기에서 읽은 같은 화면(41줄)으로 조정 레인(`coord_lane`)·조정 팀장(`coord_lead`)·`/dflow-team` 팀장(`team_lead`) 세션에 사용자 입력을 기다리는 창이 있는지 판정한다(팀원 `team_worker` 는 하지 않는다). 판정은 `coord_screen_prompt_kind`(마지막 30줄, `trust`·`usage-limit`·`permission`·`question`·`choice`) 그대로이고 모델 토큰을 쓰지 않는다.
 

@@ -4,6 +4,7 @@
 #   use <run-id>                                   current 바꾸기 · `OK`
 #   get [jq식]                                     state.json 에 jq 적용 결과
 #   set <jq경로> <json값>                          값 쓰기 · `OK`
+#   set-many <경로> <값> [<경로> <값> …]           값 여러 개를 한 번에(한 번의 잠금·쓰기) · `OK`
 #   lane-add <레인> <json>                         기본 레인 골격 * 기존 값 * json 병합 · `OK`
 #   event <kind> [레인|-] [json]                   events.jsonl 에 한 줄 · `OK`
 #   instr <레인> <kind>                            다음 지시 번호 발급·기록 · `<레인>-<n>`
@@ -24,10 +25,11 @@
 # `SESSION_RUNS <세션8> open=<n>`, 다른 세션의 마감 표식 없는 회차는 `STALE_RUN <run-id> open …` 줄로 알린다(둘 다 경고만, 자동 마감 없음).
 set -uo pipefail
 # shellcheck source=lib/common.sh
-. "$(dirname "$0")/lib/common.sh"
+_SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.   # dirname 대신(프로세스 0개)
+. "$_SD/lib/common.sh"
 coord_default_repo
 
-usage() { coord_die 2 "사용법: coord-state.sh init|use|get|set|lane-add|event|instr|ack|report|item-done|progress|hold|close-run|summary … (contract §3.4)"; }
+usage() { coord_die 2 "사용법: coord-state.sh init|use|get|set|set-many|lane-add|event|instr|ack|report|item-done|progress|hold|close-run|summary … (contract §3.4)"; }
 
 LANE_SKEL='{"session":{"name":"","addr":"","session_id":"","pid":0,"handle":"","kind":"claude","window":null,"spawned_by":"user"},
  "branch":"","worktree":"","owned":[],"forbidden":[],"heavy_env":null,"priority":2,"items":[],"queue":[],"hold":null,
@@ -58,7 +60,7 @@ st_apply() {
 # 잠금 → 적용 → 해제. 인자 = jq 인자들.
 st_update() {
   local dir f rc
-  f="$(state_file_checked)"; dir="$(dirname "$f")"
+  f="$(state_file_checked)"; dir="${f%/*}"
   st_lock "$dir"; st_apply "$f" "$@"; rc=$?; st_unlock "$dir"
   return "$rc"
 }
@@ -193,6 +195,28 @@ cmd_set() {
   echo OK
 }
 
+# set-many <jq경로> <json값> [<경로> <값> …] — set 을 여러 개 한 번의 잠금·jq·쓰기로(office.sh 가 레인 상태 세 칸을 한꺼번에 적는 용도).
+# 하나라도 형식이 틀리면 아무것도 쓰지 않는다. .merge*·.pending_user* 는 office 갱신 부수 효과가 있어 따로 하나씩 set 으로 처리한다.
+cmd_set_many() {
+  [ $# -ge 2 ] && [ $(( $# % 2 )) -eq 0 ] || usage
+  local i=1 args=() prog="" a
+  for a in "$@"; do
+    if [ $((i % 2)) -eq 1 ]; then
+      case "$a" in .*) ;; *) coord_die 2 "jq 경로는 . 으로 시작한다: $a" ;; esac
+      case "$a" in .merge*|.pending_user*) cmd_set_each "$@"; return ;; esac
+    else json_ok "$a"
+    fi
+    i=$((i + 1))
+  done
+  i=0
+  while [ $# -gt 0 ]; do
+    i=$((i + 1)); args+=(--argjson "v$i" "$2"); prog="${prog:+$prog | }$1 = \$v$i"; shift 2
+  done
+  st_update "${args[@]}" "$prog" || exit 4
+  echo OK
+}
+cmd_set_each() { while [ $# -gt 0 ]; do cmd_set "$1" "$2" >/dev/null || exit 4; shift 2; done; echo OK; }
+
 cmd_lane_add() {
   [ $# -eq 2 ] || usage
   lane_name_ok "$1"; json_ok "$2"
@@ -223,7 +247,7 @@ cmd_instr() {
   [ $# -eq 2 ] || usage
   lane_exists "$1"
   local f dir id now
-  f="$(state_file_checked)"; dir="$(dirname "$f")"; now="$(coord_now_iso)"
+  f="$(state_file_checked)"; dir="${f%/*}"; now="$(coord_now_iso)"
   st_lock "$dir"
   id="$(jq -r --arg l "$1" '$l + "-" + ((([.instrs[]? | select(.lane == $l) | .id | ltrimstr($l + "-") | tonumber?] | max) // 0) + 1 | tostring)' "$f")"
   if ! st_apply "$f" --arg id "$id" --arg l "$1" --arg k "$2" --arg now "$now" \
@@ -318,7 +342,7 @@ cmd_hold() {
 
 cmd_summary() {
   local f dir out
-  f="$(state_file_checked)"; dir="$(dirname "$f")"; out="$dir/summary.md"
+  f="$(state_file_checked)"; dir="${f%/*}"; out="$dir/summary.md"
   jq -r --arg now "$(coord_now_iso)" "$PCT_DEF"'
     def v: if . == null or . == "" then "-" else tostring end;
     def hm: if . == null or . == "" then "-" else (tostring | capture("T(?<h>[0-9]{2}:[0-9]{2})").h // tostring) end;
@@ -379,6 +403,7 @@ case "$sub" in
   use) cmd_use "$@" ;;
   get) cmd_get "$@" ;;
   set) cmd_set "$@" ;;
+  set-many) cmd_set_many "$@" ;;
   lane-add) cmd_lane_add "$@" ;;
   event) cmd_event "$@" ;;
   instr) cmd_instr "$@" ;;
@@ -389,6 +414,6 @@ case "$sub" in
   hold) cmd_hold "$@" ;;
   close-run) cmd_close_run "$@" ;;
   summary) cmd_summary ;;
-  -h|--help|help) sed -n '2,22p' "$0" >&2; exit 0 ;;
+  -h|--help|help) sed -n '2,23p' "$0" >&2; exit 0 ;;
   *) usage ;;
 esac

@@ -22,8 +22,10 @@
 #   없으면 예전처럼 1 을 보내지 않고 `ESCALATE <h> trust no-yes-option`). 창을 못 잡으면 `ESCALATE <h> <kind> no-fingerprint`.
 #   판단 올리기 기록의 cmd: 권한 창 모양 사유는 창 안 도구 이름 줄 아래 전부, 지문 없음은 화면 아래 30줄을 가린 것.
 set -uo pipefail
-source "$(dirname "$0")/lib/common.sh"
-source "$(dirname "$0")/lib/term.sh"
+_SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.   # dirname 대신(프로세스 0개)
+source "$_SD/lib/common.sh"
+source "$_SD/lib/term.sh"
+coord_cfg_prime   # 설정을 서브셸 밖에서 한 번 읽어 둔다(coord_cfg 호출들이 jq 없이 물려받게)
 
 h="" lane="" dry=0
 while [ $# -gt 0 ]; do
@@ -68,7 +70,7 @@ fp_of() {
     console_input_snapshot "$tf" && { FP_FULL="$CI_FULL"; FP_SHA="$CI_SHA"; FP_WIN="$CI_WIN"; }
     rm -f "$tf"
   else
-    FP_FULL="$(printf '%s\n' "$1" | tail -41 | { shasum -a 256 2>/dev/null || sha256sum; } | cut -d' ' -f1)"
+    FP_FULL="$(printf '%s\n' "$1" | tail -41 | { if command -v openssl >/dev/null 2>&1; then h="$(openssl dgst -sha256 -r 2>/dev/null)"; printf '%s\n' "${h%% *}"; else { shasum -a 256 2>/dev/null || sha256sum; } | cut -d' ' -f1; fi; })"
   fi
   [ -n "$FP_FULL" ]
 }

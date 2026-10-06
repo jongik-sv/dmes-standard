@@ -42,7 +42,7 @@ COORD_DEFAULTS='{
              "tab_command": "agy -i {prompt}", "timeout_s": 240},
   "approvals": {"auto_allow": ["read", "status"],
                 "auto_allow_spawned": ["read", "status", "edit-own", "commit-own", "heavy-build"],
-                "watch_every_s": 10},
+                "watch_every_s": 10, "screen_cache_s": 20},
   "restart_rules": [],
   "office": {"enabled": true, "project_id": null, "label_max": 40, "dflow_script": null, "quiet_min": 30},
   "console": {"keys_enabled": false},
@@ -54,8 +54,12 @@ COORD_DEFAULTS='{
   "wake_targets": null
 }'
 
-COORD_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COORD_SCRIPTS_DIR="$(dirname "$COORD_LIB_DIR")"
+_cd="${BASH_SOURCE[0]%/*}"; [ "$_cd" != "${BASH_SOURCE[0]}" ] || _cd=.
+case "$_cd" in   # 깨끗한 절대 경로면 cd·pwd 서브셸 없이 그대로 쓴다(. · .. · // 가 들었으면 종전처럼 정리)
+  /*) case "$_cd" in *..*|*/./*|*//*|*/.) COORD_LIB_DIR="$(cd "$_cd" && pwd)" ;; *) COORD_LIB_DIR="$_cd" ;; esac ;;
+  *) COORD_LIB_DIR="$(cd "$_cd" && pwd)" ;;
+esac
+COORD_SCRIPTS_DIR="${COORD_LIB_DIR%/*}"; [ -n "$COORD_SCRIPTS_DIR" ] || COORD_SCRIPTS_DIR=/
 
 coord_log() { printf '%s\n' "$*" >&2; }
 coord_die() { local rc="$1"; shift; coord_log "$*"; exit "$rc"; }
@@ -64,33 +68,90 @@ command -v jq >/dev/null 2>&1 || coord_die 4 "jq 가 필요하다"
 
 coord_expand() { local p="$1"; case "$p" in "~") p="$HOME" ;; "~/"*) p="$HOME/${p#\~/}" ;; esac; printf '%s' "$p"; }
 
+# cwd 가 속한 리포의 메인 경로. 같은 cwd 의 결과는 변수에 기억해(_COORD_REPO_KEY·_COORD_REPO_VAL — 서브셸 $(…) 은 부모가 채워 둔 값을
+# 물려받는다) git 을 다시 부르지 않는다. 못 찾은 것도 같은 cwd 안에서는 기억한다(rc 1).
+_COORD_REPO_KEY=""; _COORD_REPO_VAL=""
+coord_repo_prime() {  # 서브셸 없이 부른다 — _COORD_REPO_VAL 을 채운다(리포가 아니면 빈 값)
+  if [ "${_COORD_REPO_KEY:-}" = "$PWD" ] && [ "${_COORD_REPO_SET:-0}" = 1 ]; then return 0; fi
+  local common; common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || common=""
+  if [ -n "$common" ]; then common="${common%/*}"; [ -n "$common" ] || common=/; fi
+  _COORD_REPO_KEY="$PWD"; _COORD_REPO_VAL="$common"; _COORD_REPO_SET=1
+}
 coord_repo() {
   if [ -n "${COORD_REPO:-}" ]; then printf '%s' "$COORD_REPO"; return; fi
-  local common; common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
-  dirname "$common"
+  coord_repo_prime
+  [ -n "$_COORD_REPO_VAL" ] || return 1
+  printf '%s' "$_COORD_REPO_VAL"
 }
 
-_COORD_CFG=""
-coord_cfg_all() {
-  if [ -z "$_COORD_CFG" ]; then
-    local repo shared local_ files
-    repo="$(coord_repo 2>/dev/null || true)"
-    shared="$repo/.coord.json"; local_="$repo/.coord.local.json"
-    files=()
-    [ -n "$repo" ] && [ -f "$shared" ] && files+=("$shared")
-    [ -n "$repo" ] && [ -f "$local_" ] && files+=("$local_")
-    if [ "${#files[@]}" -gt 0 ]; then
-      _COORD_CFG="$( { printf '%s' "$COORD_DEFAULTS"; cat "${files[@]}"; } | jq -cs 'reduce .[] as $x ({}; . * $x)')" \
-        || coord_die 3 "설정 파일 JSON 오류: ${files[*]}"
-    else
-      _COORD_CFG="$(printf '%s' "$COORD_DEFAULTS" | jq -c .)"
-    fi
+# ---------- 설정 병합 캐시 ----------
+# 설정 = 기본값 * <repo>/.coord.json * <repo>/.coord.local.json. 병합(jq)은 재료(기본값·두 파일의 글)가 바뀔 때만 다시 한다.
+# 재료는 매 호출마다 bash 내장 read 로 다시 읽어 직전 재료와 글자로 견주므로(프로세스 0개) 설정을 바꾸면 곧바로 반영된다.
+# 결과는 환경 변수로 내보내 같은 재료를 쓰는 자식 스크립트도 jq 없이 물려받는다(자식도 재료를 다시 읽어 견준다).
+#   _COORD_CFG        병합 결과(JSON 한 줄) — 시험 등이 직접 덮어쓸 수 있다: _COORD_CFG_MINE 과 다르면 덮어쓴 것으로 보고 그대로 쓴다
+#   _COORD_CFG_SRC    병합에 쓴 재료(기본값·파일 유무·파일 글)
+#   _CFJ<이름>·_CFR<이름>  단순 경로(.a.b.c)마다 값 변수(JSON 글·coord_cfg 가 낼 글). 이름 = 경로의 `_`→`_U`·`.`→`_D`. 있는 경로는 jq 없이 읽는다
+#     (표 하나를 문자열로 찾으면 bash 3.2 의 패턴 맞추기가 표 길이만큼 느려 변수로 둔다)
+export _COORD_CFG="${_COORD_CFG:-}" _COORD_CFG_MINE="${_COORD_CFG_MINE:-}" _COORD_CFG_SRC="${_COORD_CFG_SRC:-}"
+# 출력: 1줄 병합 결과(JSON) · 2줄 값 변수 이름 목록(`_CFJ<이름> _CFR<이름> …`) · 나머지 줄은 `이름='값' …` 대입문(값은 @sh 로 따옴표 처리).
+# 이름은 경로의 `_`→`_U`·`.`→`_D` 라 [A-Za-z0-9_] 밖의 글자가 든 키가 하나라도 있으면 jq 가 2줄·대입문을 비워 보내 표 없이(jq 로) 읽는다.
+_COORD_CFG_JQ='def flat($p):
+    if type == "object" then to_entries[] | .key as $k | .value | flat($p + "." + $k)
+    else [$p, tojson, (if . == null or . == false then "" elif type == "string" or type == "number" or type == "boolean" then tostring else tojson end)] end;
+  reduce .[] as $x ({}; . * $x)
+  | tojson, ([flat("") | (.[0] | split("_") | join("_U") | split(".") | join("_D")) as $n
+      | ["_CFJ" + $n + " _CFR" + $n, "_CFJ" + $n + "=" + (.[1] | @sh) + " _CFR" + $n + "=" + (.[2] | @sh)]]
+      | (map(.[0]) | join(" ")) as $names
+      | if ($names | test("^[A-Za-z0-9_ ]*$")) then $names, (map(.[1]) | join("\n")) else "", "" end)'
+_coord_cfg_ensure() {  # 서브셸 없이 부르면 부모에 남는다(서브셸에서 부르면 그 안에서만 — 부모가 미리 한 번 부르면 물려받는다)
+  if [ -n "$_COORD_CFG" ] && [ "$_COORD_CFG" != "$_COORD_CFG_MINE" ]; then return 0; fi   # 바깥에서 덮어쓴 값
+  local repo shared="" local_="" sf="" lf="" src out us=$'\037' v rest names
+  if [ -n "${COORD_REPO:-}" ]; then repo="$COORD_REPO"; else coord_repo_prime; repo="$_COORD_REPO_VAL"; fi
+  if [ -n "$repo" ]; then
+    [ -f "$repo/.coord.json" ] && { IFS= read -r -d '' shared < "$repo/.coord.json"; sf=1; }
+    [ -f "$repo/.coord.local.json" ] && { IFS= read -r -d '' local_ < "$repo/.coord.local.json"; lf=1; }
   fi
-  printf '%s' "$_COORD_CFG"
+  src="$COORD_DEFAULTS$us${sf:--}$shared$us${lf:--}$local_"
+  if [ -n "$_COORD_CFG" ] && [ "$src" = "$_COORD_CFG_SRC" ]; then return 0; fi
+  out="$(printf '%s%s%s' "$COORD_DEFAULTS" "$shared" "$local_" | jq -rs "$_COORD_CFG_JQ")" || {
+    [ "${1:-}" = quiet ] && return 1   # 미리 읽어 두기(coord_cfg_prime)는 조용히 — 오류는 첫 실제 사용에서 난다(종전과 같다)
+    coord_die 3 "설정 파일 JSON 오류:${sf:+ $repo/.coord.json}${lf:+ $repo/.coord.local.json}"
+  }
+  if [ -n "$_COORD_CFG_SRC" ]; then   # 다시 읽는 경우: 옛 값 변수는 모두 지우고 다시 만든다
+    for v in $(compgen -A variable _CFJ) $(compgen -A variable _CFR); do unset "$v"; done
+  fi
+  # 줄 나누기는 내장 read 로(bash 3.2 의 ${v%%패턴*}·${v:위치} 는 긴 글에서 느리다)
+  { IFS= read -r _COORD_CFG; IFS= read -r names; IFS= read -r -d '' rest; } <<< "$out"
+  _COORD_CFG_MINE="$_COORD_CFG"; _COORD_CFG_SRC="$src"
+  [ -z "$names" ] || { eval "$rest"; export $names; }   # 이름에 이상한 글자가 든 키가 있으면 jq 가 빈 값을 내 값 변수 없이 jq 로 읽는다
+  return 0
 }
+# 서브셸 $(…) 안에서 처음 부르면 결과가 부모에 남지 않아 호출마다 jq 를 다시 부른다 — 스크립트 맨 앞에서 서브셸 없이 한 번 불러 둔다
+coord_cfg_prime() { _coord_cfg_ensure quiet; return 0; }
+# 단순 경로(.a.b.c)가 값 변수에 있으면 0 — _CF_JSON·_CF_RAW 에 값. 없거나(객체·없는 경로·특수 글자) 덮어쓴 설정이면 1(jq 로 읽는다)
+_coord_flat_get() {
+  local p="$1" n j r
+  [ "$_COORD_CFG" = "$_COORD_CFG_MINE" ] || return 1
+  case "$p" in .[A-Za-z_]*) ;; *) return 1 ;; esac
+  case "$p" in *[!A-Za-z0-9_.]*|*..*|*.) return 1 ;; esac
+  n="${p//_/_U}"; n="${n//./_D}"; j="_CFJ$n"; r="_CFR$n"
+  _CF_JSON="${!j:-}"
+  [ -n "$_CF_JSON" ] || return 1
+  _CF_RAW="${!r:-}"
+  return 0
+}
+coord_cfg_all() { _coord_cfg_ensure; printf '%s' "$_COORD_CFG"; }
 # 값(문자열은 따옴표 없이). null·없음은 빈 줄.
-coord_cfg() { coord_cfg_all | jq -r "($1) // empty | if type==\"string\" or type==\"number\" or type==\"boolean\" then tostring else tojson end"; }
-coord_cfg_json() { coord_cfg_all | jq -c "($1)"; }
+coord_cfg() {
+  _coord_cfg_ensure
+  if _coord_flat_get "$1"; then [ -z "$_CF_RAW" ] || printf '%s\n' "$_CF_RAW"; return 0; fi
+  printf '%s' "$_COORD_CFG" | jq -r "($1) // empty | if type==\"string\" or type==\"number\" or type==\"boolean\" then tostring else tojson end"
+}
+coord_cfg_json() {
+  _coord_cfg_ensure
+  if _coord_flat_get "$1"; then printf '%s\n' "$_CF_JSON"; return 0; fi
+  printf '%s' "$_COORD_CFG" | jq -c "($1)"
+}
 
 # 상태 뿌리. COORD_STATE_ROOT 환경 변수가 있으면 그것(office.sh reap --state-dir 이 하위 호출에 넘긴다), 없으면 설정 state_dir.
 coord_state_root() {
@@ -133,8 +194,8 @@ coord_runs_summary() {
 coord_run_id() {
   if [ -n "${1:-}" ]; then printf '%s' "$1"; return; fi
   if [ -n "${COORD_RUN:-}" ]; then printf '%s' "$COORD_RUN"; return; fi
-  local cur; cur="$(coord_state_root)/current"
-  [ -f "$cur" ] && head -1 "$cur" && return
+  local cur line=""; cur="$(coord_state_root)/current"
+  if [ -f "$cur" ]; then IFS= read -r line < "$cur" || true; printf '%s\n' "$line"; return 0; fi   # head -1 대신 내장 read(프로세스 0개)
   return 1
 }
 coord_run_dir() {
@@ -145,13 +206,38 @@ coord_state_file() { printf '%s/state.json' "$(coord_run_dir "${1:-}")"; }
 # 현재 state.json 에 jq 적용(없으면 빈 출력, rc 3)
 coord_state() { local f; f="$(coord_state_file)" || return 3; [ -f "$f" ] || return 3; jq -r "$1" "$f"; }
 
-coord_now_epoch() { date +%s; }
+# 오래 사는 프로세스(폴러)는 coord_clock_init 으로 「지금 초 ↔ bash SECONDS」 대응을 한 번 잡아 두면 이후 coord_now_epoch 이 date 를 부르지 않는다.
+# SECONDS 는 date 와 같은 벽시계 초 차이라, 대응을 잡을 때 SECONDS 가 date 앞뒤로 같았던(초가 안 넘어간) 값만 쓰면 date +%s 와 같은 값이다.
+_COORD_EP0=""; _COORD_SEC0=""
+coord_clock_init() {  # 서브셸 없이 부른다
+  local a b e
+  while :; do a=$SECONDS; e="$(date +%s)"; b=$SECONDS; [ "$a" = "$b" ] && break; done
+  _COORD_EP0="$e"; _COORD_SEC0="$a"
+}
+coord_now_epoch() { if [ -n "$_COORD_EP0" ]; then printf '%s\n' $(( _COORD_EP0 + SECONDS - _COORD_SEC0 )); else date +%s; fi; }
 coord_now_iso() { local s; s="$(date +%Y-%m-%dT%H:%M:%S%z)"; printf '%s:%s' "${s%??}" "${s: -2}"; }
 coord_epoch_to_hm() { date -r "$1" +%H:%M 2>/dev/null || date -d "@$1" +%H:%M; }
 # ISO 8601(+09:00·Z·소수초 허용) → epoch. 실패하면 빈 출력.
 coord_iso_to_epoch() {
   local iso="$1" base tz
   [ -z "$iso" ] || [ "$iso" = "null" ] && return 0
+  # 시간대(Z·±HH:MM)가 적힌 정상 범위 시각은 날짜 계산을 bash 산술로 직접 한다(date 프로세스 0개, 같은 값). 범위 밖·그 밖의 꼴은 아래 종전 길.
+  if [[ "$iso" =~ ^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(\.[0-9]+)?(Z|([+-])([0-9]{2}):([0-9]{2}))$ ]]; then
+    local Y=$((10#${BASH_REMATCH[1]})) M=$((10#${BASH_REMATCH[2]})) D=$((10#${BASH_REMATCH[3]})) h=$((10#${BASH_REMATCH[4]})) mi=$((10#${BASH_REMATCH[5]})) sc=$((10#${BASH_REMATCH[6]})) off=0 dim era yoe doy doe
+    if [ "${BASH_REMATCH[8]}" != Z ]; then
+      off=$(( 10#${BASH_REMATCH[10]} * 3600 + 10#${BASH_REMATCH[11]} * 60 )); [ "${BASH_REMATCH[9]}" = - ] && off=$((-off))
+    fi
+    case "$M" in 1|3|5|7|8|10|12) dim=31 ;; 4|6|9|11) dim=30 ;; 2) if [ $(( Y % 4 )) -eq 0 ] && { [ $(( Y % 100 )) -ne 0 ] || [ $(( Y % 400 )) -eq 0 ]; }; then dim=29; else dim=28; fi ;; *) dim=0 ;; esac
+    if [ "$Y" -ge 1970 ] && [ "$D" -ge 1 ] && [ "$D" -le "$dim" ] && [ "$h" -le 23 ] && [ "$mi" -le 59 ] && [ "$sc" -le 59 ] \
+       && [ "${BASH_REMATCH[10]:-0}" -le 23 ] 2>/dev/null; then
+      [ "$M" -le 2 ] && Y=$((Y - 1))
+      era=$((Y / 400)); yoe=$((Y - era * 400))
+      doy=$(( (153 * (M > 2 ? M - 3 : M + 9) + 2) / 5 + D - 1 ))
+      doe=$(( yoe * 365 + yoe / 4 - yoe / 100 + doy ))
+      printf '%s\n' $(( (era * 146097 + doe - 719468) * 86400 + h * 3600 + mi * 60 + sc - off ))
+      return 0
+    fi
+  fi
   base="${iso%%[.+Z]*}"; base="${base%-[0-9][0-9]:[0-9][0-9]}"
   case "$iso" in
     *Z) tz="+0000" ;;
@@ -160,6 +246,9 @@ coord_iso_to_epoch() {
   esac
   date -j -f '%Y-%m-%dT%H:%M:%S%z' "${base}${tz}" +%s 2>/dev/null || date -d "$iso" +%s 2>/dev/null || true
 }
+# 파일 첫 줄을 변수에(없거나 못 읽으면 빈 값) — `$(cat 파일)` 대신(프로세스 0개). 서브셸 안에서 부르면 그 안에서만 남는다
+coord_read1() { local _v=""; { IFS= read -r _v < "$2"; } 2>/dev/null || true; printf -v "$1" '%s' "$_v"; }
+coord_mkdirp() { [ -d "$1" ] || mkdir -p "$1" 2>/dev/null; }   # 이미 있으면 프로세스를 부르지 않는다
 coord_file_mtime() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null; }
 
 # mkdir 잠금 `<dir>.lock/`(안에 주인 pid·pstart). 최대 30초 기다리고 못 얻으면 rc 1(로그 한 줄).
@@ -171,10 +260,10 @@ _coord_lock_stale() {  # <잠금 폴더> — 탈취해도 되면 0
   [ -d "$d" ] || return 1
   mt="$(coord_file_mtime "$d")"; case "$mt" in ''|*[!0-9]*) return 1 ;; esac
   [ $(( $(date +%s) - mt )) -ge "$max" ] && return 0
-  p="$(cat "$d/pid" 2>/dev/null)"
+  coord_read1 p "$d/pid"
   case "$p" in ''|*[!0-9]*) return 1 ;; esac      # 막 만든 직후(주인을 쓰기 전)·옛 형식은 오래될 때만
   kill -0 "$p" 2>/dev/null || return 0
-  ps="$(cat "$d/pstart" 2>/dev/null)"
+  coord_read1 ps "$d/pstart"
   [ -n "$ps" ] && [ "$ps" != "$(coord_pstart "$p")" ] && return 0   # pid 재사용
   return 1
 }
@@ -200,7 +289,7 @@ coord_lock() {
 # 내가 쥔 잠금만 푼다(주인 pid 가 나이거나 비었을 때). 탈취당한 뒤 남의 새 잠금을 지우지 않는다
 coord_unlock() {
   local d="$1.lock" p
-  p="$(cat "$d/pid" 2>/dev/null)"
+  coord_read1 p "$d/pid"
   [ -z "$p" ] || [ "$p" = "$$" ] || return 0
   rm -f "$d/pid" "$d/pstart" 2>/dev/null; rmdir "$d" 2>/dev/null || true
 }
@@ -213,7 +302,12 @@ coord_load1() { sysctl -n vm.loadavg 2>/dev/null | awk '{print $2}' || awk '{pri
 # 화면 글에서 확인 창·질문 창 종류를 판정(없으면 빈 출력). stdin = 화면.
 coord_screen_prompt_kind() {
   # 창은 화면 아래에 그려지므로 마지막 30줄만 본다(대화 기록 속 같은 문구에 속지 않게).
-  local s; s="$(tail -30)"
+  # tail -30 대신 내장 read 로 마지막 30줄만 남긴다(프로세스 0개). $(…) 처럼 끝의 빈 줄은 떼고 비교한다.
+  local s="" line n=0 i cnt start; local -a b=()
+  while IFS= read -r line || [ -n "$line" ]; do b[$((n % 30))]="$line"; n=$((n + 1)); done
+  if [ "$n" -gt 30 ]; then cnt=30; start=$((n % 30)); else cnt=$n; start=0; fi
+  i=0; while [ "$i" -lt "$cnt" ]; do s="$s${b[$(( (start + i) % 30 ))]}"$'\n'; i=$((i + 1)); done
+  while [ "${s%$'\n'}" != "$s" ]; do s="${s%$'\n'}"; done
   case "$s" in
     *"trust the files in this folder"*|*"one you trust"*) echo trust ;;
     *"What do you want to do?"*"Wait for limit to reset"*|*"What do you want to do?"*"Wait here, then continue"*|*"Usage limit reached"*"Stop and wait"*) echo usage-limit ;;
@@ -281,7 +375,12 @@ coord_heavy_script() {
   printf '%s' "$p"
 }
 # 프로세스 시작 시각(pid 재사용 판정용, heavy.sh 의 pstart 와 같은 형식).
-coord_pstart() { LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null | sed 's/^ *//;s/ *$//'; }
+coord_pstart() {  # ps 한 번(앞뒤 공백 정리는 sed 대신 bash 로)
+  local s; s="$(LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null)"
+  s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"
+  [ -z "$s" ] || printf '%s\n' "$s"
+  return 0
+}
 
 # ---------- 상태 수집·판정 스크립트용(추가) ----------
 # epoch 초 → ISO 8601(+09:00 꼴). 빈 값·실패면 빈 출력.
@@ -292,13 +391,14 @@ coord_epoch_to_iso() {
   return 0
 }
 # cwd 가 리포 밖(예: ~)이어도 스크립트가 든 리포를 쓰게 COORD_REPO 를 채운다. 이미 있거나 cwd 가 리포면 그대로.
-coord_default_repo() {
+_coord_default_repo_set() {
   [ -n "${COORD_REPO:-}" ] && return 0
-  git rev-parse --git-common-dir >/dev/null 2>&1 && return 0
+  coord_repo_prime; [ -z "$_COORD_REPO_VAL" ] || return 0   # cwd 가 리포(같은 판정을 기억해 git 을 다시 부르지 않는다)
   local common; common="$(cd "$COORD_SCRIPTS_DIR" && git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 0
-  [ -n "$common" ] && { COORD_REPO="$(dirname "$common")"; export COORD_REPO; }
+  [ -n "$common" ] && { COORD_REPO="${common%/*}"; [ -n "$COORD_REPO" ] || COORD_REPO=/; export COORD_REPO; }
   return 0
 }
+coord_default_repo() { _coord_default_repo_set; coord_cfg_prime; return 0; }   # 설정도 미리 읽어 둔다(서브셸 호출들이 물려받게)
 # 레인 워크트리 값(리포 기준 상대 허용) → 절대경로(끝 / 없음). 빈 값이면 빈 출력.
 coord_wt_abs() {
   local p; p="$(coord_expand "${1:-}")"
