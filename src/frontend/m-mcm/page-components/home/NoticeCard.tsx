@@ -226,7 +226,7 @@ export function NoticeCard({
   }
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column" }} data-testid="home-notice-card">
+    <div className="mcm-home-notice" data-testid="home-notice-card">
       {subtitle && (
         <WidgetTitleExtra>
           <span className="mcm-home-sub">{subtitle}</span>

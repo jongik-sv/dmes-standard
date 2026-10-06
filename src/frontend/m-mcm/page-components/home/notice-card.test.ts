@@ -6,6 +6,7 @@
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { HOME_CSS } from "./home-styles";
 
 vi.mock("@dk-oasis/shared/layout", async () => {
   const { createElement: el } = await import("react");
@@ -104,5 +105,16 @@ describe("NoticeCard 본문", () => {
       host.querySelector<HTMLButtonElement>('[data-testid="home-notice-body-error"] button')?.click();
     });
     expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it("루트는 위젯 본문을 가득 채우는 mcm-home-notice 클래스이고, 그 채우기 규칙이 홈 스타일에 있다", () => {
+    render({ status: "ok", content: "x", format: null });
+    const card = host.querySelector('[data-testid="home-notice-card"]');
+    expect(card?.className).toBe("mcm-home-notice");
+    expect(HOME_CSS).toMatch(/\.mcm-home-notice \{[^}]*position: absolute; inset: 0/);
+    expect(HOME_CSS).toMatch(/\.mcm-home-notice\.mcm-home-notice > \.content-body \{[^}]*flex: 1 1 0/);
+    // 목록 행 보조 줄(고정·작성자·날짜)은 줄바꿈 없이 한 줄로, 본문 판은 가로로 넘치지 않는다.
+    expect(HOME_CSS).toMatch(/\.mcm-home-nlist__meta > span \{[^}]*white-space: nowrap/);
+    expect(HOME_CSS).toMatch(/\.mcm-home-viewer \{[^}]*min-width: 0/);
   });
 });

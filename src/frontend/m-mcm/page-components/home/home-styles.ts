@@ -15,6 +15,12 @@ export const HOME_CSS = `
 .mcm-home-urgent__label { flex-shrink: 0; font-size: var(--font-size-sm); font-weight: 700; color: var(--color-danger); white-space: nowrap; }
 .mcm-home-urgent__title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text); }
 
+/* 공지 위젯 — 본문 높이 채우기. 위젯 본문 → div(height:100%) 백분율 사슬과 .page-layout 전용 ContentBody 규칙에 기대지 않고,
+   위젯 본문(cm-widget__body)을 기준으로 가득 펼친 뒤 ContentBody·ContentPanel 을 직접 flex 로 채운다(Local-Rules §42). */
+.cm-widget__body:has(.mcm-home-notice) { position: relative; overflow: hidden; }
+.mcm-home-notice { position: absolute; inset: 0; display: flex; flex-direction: column; min-height: 0; box-sizing: border-box; }
+.mcm-home-notice.mcm-home-notice > .content-body { flex: 1 1 0; display: flex; flex-direction: row; gap: var(--spacing-sm); min-height: 0; height: auto; overflow: hidden; box-sizing: border-box; padding: 0 10px 8px; }
+.mcm-home-notice .content-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: auto; align-self: stretch; overflow: hidden; background-color: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm); box-shadow: none; }
 .mcm-home-scroll { flex: 1 1 0; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
 .mcm-home-nlist { list-style: none; margin: 0; padding: 0; }
 .mcm-home-nlist__item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 3px 8px; padding: 7px 10px; border-bottom: 1px solid var(--color-border-light); cursor: pointer; outline: none; }
@@ -24,8 +30,10 @@ export const HOME_CSS = `
 .mcm-home-nlist__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--color-text); }
 .mcm-home-nlist__meta { grid-column: 2 / 4; display: flex; gap: var(--spacing-sm); min-width: 0; font-size: var(--font-size-xs); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
 .mcm-home-nlist__pin { color: var(--color-primary); font-weight: 600; }
+.mcm-home-nlist__meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mcm-home-nlist__meta > span:last-child, .mcm-home-nlist__pin { flex-shrink: 0; }
 
-.mcm-home-viewer { padding: var(--spacing-md) 14px; }
+.mcm-home-viewer { box-sizing: border-box; min-width: 0; max-width: 100%; padding: var(--spacing-md) 14px; }
 .mcm-home-viewer__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding-bottom: var(--spacing-sm); margin-bottom: var(--spacing-md); border-bottom: 1px solid var(--color-border-light); }
 .mcm-home-viewer__title { flex-basis: 100%; margin: 0; font-size: 14px; font-weight: 700; line-height: 1.35; color: var(--color-text); overflow-wrap: anywhere; }
 .mcm-home-viewer__meta { font-size: var(--font-size-xs); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
