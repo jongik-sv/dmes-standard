@@ -28,7 +28,7 @@ export default function HomePage({ store, userId }: { store: WidgetStore; userId
 }
 ```
 
-위젯 본체는 `default export` 로 `WidgetProps` 를 받는 컴포넌트다. 틀 훅으로 상태를 알린다.
+위젯 본체는 `default export` 로 `WidgetProps` 를 받는 컴포넌트다. 틀 훅으로 상태를 알린다. 도구 창(도크)에서 띄운 위젯은 `WidgetProps.screenContext`(활성 업무 탭의 그리드 선택 행 등)·`screenApply`(업무 화면에 값 넣기)도 받는다(보드는 null) — [screen-context](screen-context.md).
 
 ```tsx
 import { useWidgetStatus, WidgetHeaderActions, type WidgetProps } from "@dk-oasis/shared/widget";

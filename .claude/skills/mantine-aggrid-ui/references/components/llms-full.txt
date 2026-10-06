@@ -2283,6 +2283,8 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 | stopEditingWhenCellsLoseFocus | `boolean` | `true` | 칸이 포커스를 잃으면 편집을 끝낸다 |
 | enableRowClickSelect · rowClickCheck | `boolean` | `false` | 행 클릭으로 선택·체크를 토글한다. `rowClickCheck` 는 편집 열이 있는 그리드에 쓰지 않는다 |
 | selectExcludeColumns | `string[]` | `[]` | 클릭 선택에서 뺄 열 key |
+| publishScreenContext | `boolean` | `true` | 선택 행(없으면 포커스 행)의 colDef field 값을 화면 문맥으로 자동 게시해 도구 창 위젯이 받게 한다. 화면 모양·이벤트는 그대로다. 대화 상자 안 그리드는 게시하지 않는다. 자세한 것은 [screen-context](screen-context.md) |
+| acceptScreenApply | `boolean` | `false` | 도구 창 위젯이 보낸 값을 선택 행(없으면 포커스 행)의 편집 가능한 열 중 field 가 맞는 칸에 넣는다(행 수정 표시·`onCellValueChanged` 는 사용자 편집과 같은 경로). 데이터를 바꾸므로 기본 끔 |
 | getRowHeight | `(row) => number \| undefined` | 26 | 행별 높이(여러 줄 셀) |
 | wrapHeaderText · autoHeaderHeight | `boolean` | `false` | 머리 글자 줄바꿈 · 머리 높이를 내용에 맞춤 |
 | alwaysShowHorizontalScroll | `boolean` | `false` | 가로 스크롤 막대를 항상 표시 |
@@ -3986,7 +3988,7 @@ export default function HomePage({ store, userId }: { store: WidgetStore; userId
 }
 ```
 
-위젯 본체는 `default export` 로 `WidgetProps` 를 받는 컴포넌트다. 틀 훅으로 상태를 알린다.
+위젯 본체는 `default export` 로 `WidgetProps` 를 받는 컴포넌트다. 틀 훅으로 상태를 알린다. 도구 창(도크)에서 띄운 위젯은 `WidgetProps.screenContext`(활성 업무 탭의 그리드 선택 행 등)·`screenApply`(업무 화면에 값 넣기)도 받는다(보드는 null) — [screen-context](screen-context.md).
 
 ```tsx
 import { useWidgetStatus, WidgetHeaderActions, type WidgetProps } from "@dk-oasis/shared/widget";
@@ -4239,6 +4241,10 @@ import { WidgetFrame } from "@dk-oasis/shared/widget";
 - 상태: `useWidgetDock({ enabled, userId, registry, registryStatus, store, isSaveBlocked })` — 불러오기, 조작 뒤 `DOCK_SAVE_DELAY_MS`(400ms) 디바운스 저장, 언마운트·사용자 바뀜·`pagehide` 때 남은 저장. 등록부가 `ready` 면 `sanitizeDockWindows` 로 없는·사용 중지·floatable 아닌 위젯 창을 정리해 저장한다.
 - 머리: `Header toolsSlot` 에 `DockToolsMenu`(목록은 `useDockableEntries(registry)` = `listDockableEntries`, 제목순).
 - 창 층: `WidgetDockLayer` 를 AppShell 최상위(탭 슬롯 바깥)에 둔다. `position: fixed; inset: 0; pointer-events: none`, z-index `WIDGET_DOCK_Z_INDEX`(160 — 사이드바 컨테이너가 z 150 쌓임 맥락이라 폭 조절 손잡이가 창 위로 새지 않고, Mantine 모달 200·팝오버 300 아래. 탭 화면 안 드롭다운은 z 1000 이라 창 위에 보인다). 접힌 아이콘은 `dockStackOrder` 로 펼친 창들보다 항상 위에 그린다. 화면 크기는 창이 있을 때만 층이 rAF 로 구독한다. 등록부에 아직 없는 창은 그리지 않고 상태에만 남긴다.
+
+### 화면 문맥 전달(2026-10-06)
+
+`WidgetDockLayer` 의 `activeTabId`(셸이 활성 탭 id 를 넘긴다)로 활성 업무 탭이 게시한 화면 문맥(그리드 선택 행 등)을 위젯 본체 `WidgetProps.screenContext` 로, 그 탭의 받기 처리기를 `screenApply` 로 내린다. 탭을 바꾸면 그 탭의 것으로 바뀌고 게시가 없으면 null·`available=false` 다. 보드(`WidgetFrame` 을 직접 쓰는 곳)는 null 이다. 계약·훅은 [screen-context](screen-context.md).
 
 ### 순수 함수(dock-model)
 

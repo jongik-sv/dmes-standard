@@ -36,6 +36,10 @@ import { WidgetFrame } from "@dk-oasis/shared/widget";
 - 머리: `Header toolsSlot` 에 `DockToolsMenu`(목록은 `useDockableEntries(registry)` = `listDockableEntries`, 제목순).
 - 창 층: `WidgetDockLayer` 를 AppShell 최상위(탭 슬롯 바깥)에 둔다. `position: fixed; inset: 0; pointer-events: none`, z-index `WIDGET_DOCK_Z_INDEX`(160 — 사이드바 컨테이너가 z 150 쌓임 맥락이라 폭 조절 손잡이가 창 위로 새지 않고, Mantine 모달 200·팝오버 300 아래. 탭 화면 안 드롭다운은 z 1000 이라 창 위에 보인다). 접힌 아이콘은 `dockStackOrder` 로 펼친 창들보다 항상 위에 그린다. 화면 크기는 창이 있을 때만 층이 rAF 로 구독한다. 등록부에 아직 없는 창은 그리지 않고 상태에만 남긴다.
 
+### 화면 문맥 전달(2026-10-06)
+
+`WidgetDockLayer` 의 `activeTabId`(셸이 활성 탭 id 를 넘긴다)로 활성 업무 탭이 게시한 화면 문맥(그리드 선택 행 등)을 위젯 본체 `WidgetProps.screenContext` 로, 그 탭의 받기 처리기를 `screenApply` 로 내린다. 탭을 바꾸면 그 탭의 것으로 바뀌고 게시가 없으면 null·`available=false` 다. 보드(`WidgetFrame` 을 직접 쓰는 곳)는 null 이다. 계약·훅은 [screen-context](screen-context.md).
+
 ### 순수 함수(dock-model)
 
 | 함수 | 하는 일 |
