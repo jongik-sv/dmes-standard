@@ -94,7 +94,7 @@ export function InspList({ rows, selectedId, isBusy, onSelect }: {
 
 - 선택: `selectable`(체크박스 열), `multiSelect`(여러 행 + 머리 체크박스), `selectedRows`(제어형), `onRowSelect`, `checkRowOnEdit`(편집한 행을 자동 체크).
 - 행번호: `rowNumber` 는 맨 앞에 "No" 열(폭 56)을 둔다. 정렬하면 다시 매겨지는 표시 순서다.
-- 열 그룹: `GridColumn.children` 이 있으면 그 항목은 열 그룹이고 잎만 데이터 열이다. 모든 열 그룹에는 `marryChildren: true` 가 늘 붙는다 — 머리글 끌기로 잎이 그룹 밖으로 나가거나 남의 열이 그룹 사이에 끼면 ag-grid 가 거절한다(개인화 여부와 무관, 화면이 줄 것 없음).
+- 열 그룹: `GridColumn.children` 이 있으면 그 항목은 열 그룹이고 잎만 데이터 열이다. 모든 열 그룹에는 `marryChildren: true` 가 늘 붙는다 — 머리글 끌기로 잎이 그룹 밖으로 나가거나 남의 열이 그룹 사이에 끼면 ag-grid 가 거절한다. 그룹 아래 잎에는 `lockPinned: true` 가 붙어 머리글 끌기로 고정 구역에 넣을 수 없다(정의에 적은 `pinned` 는 적용된다). 둘 다 개인화 여부와 무관하고 화면이 줄 것은 없다.
 - 행 드래그: `rowDragField`(손잡이 열 key)와 `onRowOrderChange(orderedKeys)` 를 항상 함께 준다. 켜면 정렬이 꺼진다. 순서는 호출자가 `data` 를 다시 만들어 넘겨 확정한다.
 
 ### MDM 캡션·머리글 툴팁(2026-10-03)
@@ -282,7 +282,7 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 | cellClassRules | `Record<string, (row) => boolean>` | - | 조건부 셀 클래스 |
 | rowDrag · headerTooltip | `boolean` · `string` | - | 이 열에 행 드래그 손잡이(`onRowOrderChange` 필요) · 머리 툴팁(주면 MDM 툴팁 대신 이것. 생략하면 표시 머리글 이름이 기본, `""` 면 끔) |
 | headerStyle · headerComponent · headerComponentParams | ag-grid 패스스루 | - | 머리 인라인 스타일(색은 의미 토큰만) · 커스텀 머리 컴포넌트 |
-| children | `GridColumn[]` | - | 있으면 열 그룹. `groupId` 는 `key`, 열 정의에 `marryChildren: true` 가 붙는다 |
+| children | `GridColumn[]` | - | 있으면 열 그룹. `groupId` 는 `key`, 열 정의에 `marryChildren: true`, 그룹 아래 잎에 `lockPinned: true` 가 붙는다 |
 
 ## 표준값: 모든 화면 동일
 
