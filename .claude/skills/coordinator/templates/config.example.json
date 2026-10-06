@@ -50,7 +50,8 @@
         "week": 95
       }
     },
-    "week_pace": true
+    "week_pace": true,
+    "spawn_week_max": 95
   },
   "compact": {
     "threshold_pct": 40,
@@ -83,9 +84,9 @@
   },
   "workflow": {
     "agents_by_band": {
-      "G": 3,
+      "G": 2,
       "Y": 2,
-      "O": 1,
+      "O": 2,
       "R": 0
     },
     "model_table": [
@@ -187,7 +188,11 @@
     "enabled": true,
     "project_id": null,
     "label_max": 40,
-    "dflow_script": null
+    "dflow_script": null,
+    "quiet_min": 30
+  },
+  "console": {
+    "keys_enabled": false
   },
   "records_check": false,
   "integration_check": "",

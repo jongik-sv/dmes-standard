@@ -5,7 +5,7 @@
 # 판정(셋 다 맞으면 STALL)
 #   1) 프로세스 트리: 레인 워크트리를 cwd 로 둔 빌드·시험 프로세스(GradleWrapperMain·GradleMain·gradlew·GradleWorkerMain·
 #      Gradle Test Executor·vitest·playwright·tsc·jest) 와, 레인 세션이 띄운 java·node 를 뿌리로 그 자손까지.
-#      서버(bootRun)·공용 데몬(GradleDaemon)·MCP 서버·레인 Claude 세션 자신은 뺀다. 트리가 없으면 OK.
+#      서버(bootRun·`-Dbe.run.module=` 로 띄운 앱 JVM)·공용 데몬(GradleDaemon)·MCP 서버·레인 Claude 세션 자신은 뺀다. 트리가 없으면 OK.
 #   2) 누적 CPU(ps -o time=)가 직전 관측보다 합계 2초 미만 늘었다(새 pid 는 전부 증가로 친다). 직전 관측이 없거나
 #      60초 안이면 판정하지 않는다(OK, 관측만 남김).
 #   3) 산출물 무변화가 stall.quiet_min 이상: 마지막 변화 = max(워크트리 git status --porcelain 내용이 바뀐 시각,
@@ -42,7 +42,7 @@ lane_tree() {
     END {
       for (p in pid) {
         a = args[p]
-        if (p == sp || a ~ /bootRun|GradleDaemon|mcp|^([^ ]*\/)?awk /) continue
+        if (p == sp || a ~ /bootRun|be\.run\.module|GradleDaemon|mcp|^([^ ]*\/)?awk /) continue
         hit = (a ~ /GradleWrapperMain|org\.gradle\.launcher\.GradleMain|(^|[\/ ])gradlew?( |$)|GradleWorkerMain|Gradle Test Executor|vitest|playwright|(^|[\/ ])tsc( |$)|typescript\/bin\/tsc|(^|[\/ ])jest( |$)/)
         if (!hit && sp > 0 && a ~ /^([^ ]*\/)?(java|node)( |$)/) {
           q = pid[p]; n = 0
@@ -63,7 +63,7 @@ lane_tree() {
       n = split(roots, r, ","); for (i = 1; i <= n; i++) in_[r[i]] = 1
       changed = 1
       while (changed) { changed = 0
-        for (p in pid) if (!(p in in_) && (pid[p] in in_) && p != sp && args[p] !~ /bootRun|GradleDaemon|mcp/) { in_[p] = 1; changed = 1 } }
+        for (p in pid) if (!(p in in_) && (pid[p] in in_) && p != sp && args[p] !~ /bootRun|be\.run\.module|GradleDaemon|mcp/) { in_[p] = 1; changed = 1 } }
       for (p in in_) if (p in cpu) printf "%s\t%s\n", p, cpu[p]
     }'
 }

@@ -54,9 +54,13 @@ usage() {
                          --clear-merge-conflict 로 해제(출력 MERGE_CONFLICT_SET·CLEARED·ABSENT)
   watch [--agent id] [--slots n] [--busy n] [--until HH:MM] [--project id] [--holder h] [--require-tag t] [--wp W] [--json] [--stop]
                          감시자 존재 신호(좌석표 STANDBY). 기본 agent 는 <신원>/<host>/poll. --json 이면 build_ready·resume_requests 를 그대로
-  console-poll [--host h] [--limit n]
+        [--summary-json j] [--lead-summary-json j] [--input-request-json j|null]
+                         요약 칸(계약 §2.12 「watch 요약 칸」): 본문 summary·lead_summary·input_request 로 그대로 싣는다(안 주면 칸 없음,
+                         잘못된 JSON 은 exit 2). 응답 summary_error 는 stderr 에 `SUMMARY_ERROR <글>` 한 줄(stdout·종료 코드 불변)
+  console-poll [--host h] [--limit n] [--accepts keys]
                          오피스에서 온 프롬프트를 이 PC(host 기본 이 PC)용으로 claim 한다(계약 §2.12). 프롬프트마다 한 줄 JSON
                          {id,target_kind,target_ref,text,claim_token,expires_at}. 옛 서버(404)는 exit 7
+                         --accepts keys: 본문 accepts:['keys'] — 키 입력 행({…,kind:'keys',keys:[…],input_request:{kind,since,sha}}, text 없음)도 받는다
   console-ack <id> <claim_token> <sent|refused|retry> [--reason r] [--detail d]
                          전달 결과를 알린다. refused·retry 는 --reason 필수. 출력 ACK <status> (이미 반영된 같은 결과면 ACK <status> already)
   console-screen [--host h]
@@ -665,8 +669,13 @@ cmd_heartbeat() {
 
 cmd_watch() {
   _agent=''; _slots=''; _busy=''; _until=''; _project="${DFLOW_PROJECT_ID:-}"; _stop=''; _raw=''; _holder=''; _tag=''; _wp=''
+  # 요약 칸(§2.12): 값이 null 이어도 칸을 싣으므로 「줬는지」 를 따로 기억한다(빈 값 = 안 줌). 서버는 빠진 칸을 null 로 덮어쓴다.
+  _sum=''; _lsum=''; _inreq=''
   while [ $# -gt 0 ]; do
     case "$1" in
+      --summary-json)       _sum="${2:-}";   [ -n "$_sum" ] || die 2 "--summary-json 값이 비었다";   shift 2 || usage ;;
+      --lead-summary-json)  _lsum="${2:-}";  [ -n "$_lsum" ] || die 2 "--lead-summary-json 값이 비었다"; shift 2 || usage ;;
+      --input-request-json) _inreq="${2:-}"; [ -n "$_inreq" ] || die 2 "--input-request-json 값이 비었다"; shift 2 || usage ;;
       --agent)   _agent="${2:-}";   shift 2 || usage ;;
       --slots)   _slots="${2:-}";   shift 2 || usage ;;
       --busy)    _busy="${2:-}";    shift 2 || usage ;;
@@ -695,8 +704,23 @@ cmd_watch() {
        + (if $hd != "" then {holder:$hd} else {} end)
        + (if $tg != "" then {require_tag:$tg} else {} end)
        + (if $wp != "" then {wp:$wp} else {} end)')
+    # 요약 칸: 값 하나짜리 JSON 객체(input_request 는 null 도)여야 한다. 그대로 본문에 싣는다(형식 검증은 서버 몫).
+    _jok() { printf '%s' "$1" | jq -se "length == 1 and (.[0] | type) as \$t | ($2)" >/dev/null 2>&1; }
+    [ -z "$_sum" ] || _jok "$_sum" '$t == "object"' || die 2 "--summary-json 은 JSON 객체여야 한다"
+    [ -z "$_lsum" ] || _jok "$_lsum" '$t == "object"' || die 2 "--lead-summary-json 은 JSON 객체여야 한다"
+    [ -z "$_inreq" ] || _jok "$_inreq" '$t == "object" or $t == "null"' || die 2 "--input-request-json 은 JSON 객체 또는 null 이어야 한다"
+    if [ -n "$_sum$_lsum$_inreq" ]; then
+      _json=$(printf '%s' "$_json" | jq -c --arg s "$_sum" --arg l "$_lsum" --arg i "$_inreq" \
+        '. + (if $s != "" then {summary: ($s | fromjson)} else {} end)
+           + (if $l != "" then {lead_summary: ($l | fromjson)} else {} end)
+           + (if $i != "" then {input_request: ($i | fromjson)} else {} end)') || die 2 "요약 칸 JSON 처리 실패"
+    fi
   fi
   _body=$(TOKEN="$TOK" api_raw POST /api/v1/agent/watch "$_json") || exit $?
+  # 서버가 요약 칸 일부를 null 로 저장했으면(형식 오류) 응답 summary_error 를 stderr 한 줄로만 알린다(stdout·종료 코드 불변).
+  _serr=$(printf '%s' "$_body" | jq -r '.summary_error // empty | if type == "string" then . else tojson end' 2>/dev/null | tr '\r\n\t' '   ')
+  _serr="${_serr% }"
+  [ -z "$_serr" ] || printf 'SUMMARY_ERROR %s\n' "$_serr" >&2
   # --json 은 응답 본문 그대로. 기본 출력(expires_at 한 줄)만 두면 응답에 실려 오는 resume_requests
   # (좌석표의 「이어서 시작」 요청)가 버려져 팀장에게 닿지 않는다.
   if [ -n "$_stop" ]; then printf 'stopped\n'
@@ -712,17 +736,20 @@ console_host() {  # 인자 없으면 이 PC 슬러그. 형식이 틀리면 exit 
 }
 
 cmd_console_poll() {
-  _host=''; _limit=''
+  _host=''; _limit=''; _accepts=''
   while [ $# -gt 0 ]; do
     case "$1" in
       --host)  _host="${2:-}";  shift 2 || usage ;;
       --limit) _limit="${2:-}"; shift 2 || usage ;;
+      --accepts) _accepts="${2:-}"; shift 2 || usage ;;   # 쉼표 목록. 지금 아는 값은 keys(키 입력 행)뿐
       *) usage ;;
     esac
   done
   _host=$(console_host "$_host") || exit $?
   case "$_limit" in ''|[1-9]|10) ;; *) die 2 "--limit 은 1~10: $_limit" ;; esac
-  _json=$(jq -nc --arg h "$_host" --arg l "$_limit" '{host:$h} + (if $l != "" then {limit:($l|tonumber)} else {} end)')
+  case "$_accepts" in ''|keys) ;; *) die 2 "--accepts 는 keys 만: $_accepts" ;; esac
+  _json=$(jq -nc --arg h "$_host" --arg l "$_limit" --arg a "$_accepts" '{host:$h} + (if $l != "" then {limit:($l|tonumber)} else {} end)
+    + (if $a != "" then {accepts:($a | split(","))} else {} end)')
   _body=$(TOKEN="$TOK" api_raw POST /api/v1/agent/console/poll "$_json") || exit $?
   printf '%s' "$_body" | jq -c '.prompts[]?' || die 6 "poll 응답 파싱 실패"
 }

@@ -51,6 +51,13 @@ eq "poll: host 기본값은 슬러그" "$(cut -d' ' -f2- "$FAKE_LOG" | jq -r '.h
 FAKE_BODY='{"ok":true,"prompts":[]}' run console-poll --host mac-1 2>/dev/null | wc -c | tr -d ' ' | { read -r n; eq "poll: 프롬프트 없으면 빈 출력" "$n" 0; }
 eq "poll: host 형식 오류 exit 2" "$(run console-poll --host 'Bad_Host' >/dev/null 2>&1; echo $?)" 2
 eq "poll: limit 범위 오류 exit 2" "$(run console-poll --host a --limit 11 >/dev/null 2>&1; echo $?)" 2
+run console-poll --host mac-1 --accepts keys --limit 1 >/dev/null 2>&1
+eq "poll --accepts keys: 본문 accepts:['keys']" "$(cut -d' ' -f2- "$FAKE_LOG" | jq -c .)" '{"host":"mac-1","limit":1,"accepts":["keys"]}'
+eq "poll --accepts: keys 밖의 값 exit 2" "$(run console-poll --host a --accepts text >/dev/null 2>&1; echo $?)" 2
+eq "poll --accepts: 빈 값 없이 끝나면 usage exit 2" "$(run console-poll --host a --accepts >/dev/null 2>&1; echo $?)" 2
+KEYROW='{"id":"33333333-3333-3333-3333-333333333333","target_kind":"coord_lane","target_ref":"kit","claim_token":"c0de","expires_at":"2026-10-06T10:00:00Z","kind":"keys","keys":["Down","Enter"],"input_request":{"kind":"choice","since":"2026-10-06T00:00:00.000Z","sha":"aa"}}'
+out="$(FAKE_BODY="{\"ok\":true,\"prompts\":[$KEYROW]}" run console-poll --host mac-1 --accepts keys --limit 1 2>/dev/null)"
+eq "poll --accepts keys: 키 행 JSON 을 그대로 한 줄로" "$(printf '%s' "$out" | jq -c '[.kind, .keys, .input_request.kind, has("text")]')" '["keys",["Down","Enter"],"choice",false]'
 eq "poll: 옛 서버 404 → exit 7" "$(FAKE_CODE=404 run console-poll --host mac-1 >/dev/null 2>&1; echo $?)" 7
 eq "poll: 인증 401 → exit 3" "$(FAKE_CODE=401 run console-poll --host mac-1 >/dev/null 2>&1; echo $?)" 3
 
@@ -63,6 +70,8 @@ eq "ack: 경로" "$(cut -d' ' -f1 "$FAKE_LOG")" "http://fake.invalid/api/v1/agen
 FAKE_BODY='{"ok":true,"status":"sent","already":true}' run console-ack $ID abcd sent 2>/dev/null | { read -r l; eq "ack: 이미 반영" "$l" "ACK sent already"; }
 FAKE_BODY='{"ok":true,"status":"pending"}' run console-ack $ID abcd retry --reason compacting 2>/dev/null | { read -r l; eq "ack retry: 출력" "$l" "ACK pending"; }
 eq "ack retry: 본문 reason" "$(cut -d' ' -f2- "$FAKE_LOG" | jq -r .reason)" compacting
+FAKE_BODY='{"ok":true,"status":"refused"}' run console-ack $ID abcd refused --reason prompt_changed >/dev/null 2>&1
+eq "ack refused prompt_changed: reason 을 검증 없이 그대로 싣는다" "$(cut -d' ' -f2- "$FAKE_LOG" | jq -c '[.result, .reason]')" '["refused","prompt_changed"]'
 eq "ack refused: reason 없으면 exit 2" "$(run console-ack $ID abcd refused >/dev/null 2>&1; echo $?)" 2
 eq "ack retry: reason 없으면 exit 2" "$(run console-ack $ID abcd retry >/dev/null 2>&1; echo $?)" 2
 eq "ack: 결과 값 오류 exit 2" "$(run console-ack $ID abcd done >/dev/null 2>&1; echo $?)" 2

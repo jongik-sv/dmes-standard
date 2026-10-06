@@ -6,6 +6,7 @@
 
 ## 1. 신호와 판정
 
+레인 상태 판단은 state.json 요약이 기본이고, 터미널 화면은 `prompt-watch.sh` 가 이상을 판정한 레인 하나만 읽는다(정지 의심 레인도 화면 전체를 훑지 않는다).
 `scripts/stall-check.sh [레인…]` 이 틱마다 직전 관측(`ticks/`)과 비교해 판정한다. 출력: `STALL <레인> pid=<pid> cpu_delta=<초> quiet=<분>m heavy=<yes|no>` 또는 `OK <레인>`.
 
 세 신호가 겹치면 정지 의심이다.

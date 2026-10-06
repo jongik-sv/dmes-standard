@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 터미널 어댑터. 정본 사양: ../../references/contract.md §3.2
-# 공개 함수 다섯 개만 쓴다: term_list · term_read_screen · term_wait_idle · term_send · term_close.
+# 공개 함수만 쓴다: term_list · term_read_screen · term_wait_idle · term_send · term_close · term_send_keys(콘솔 키 입력 전용).
 # 백엔드는 설정 terminal_backend(orca 기본, tmux 는 뼈대). common.sh 를 먼저 source 해야 한다.
 
 _term_backend() { local b; b="$(coord_cfg .terminal_backend)"; printf '%s' "${b:-orca}"; }
@@ -43,6 +43,21 @@ _orca_term_send() {
     *) echo accepted ;;
   esac
 }
+# 키 이름 → 원시 바이트(Up=ESC [A · Down=ESC [B · Tab · Enter=CR · Esc=ESC · 1~9). 목록 밖이면 rc 1
+_term_key_bytes() {
+  case "$1" in
+    Up) printf '\033[A' ;; Down) printf '\033[B' ;; Tab) printf '\t' ;; Enter) printf '\r' ;; Esc) printf '\033' ;;
+    [1-9]) printf '%s' "$1" ;;
+    *) return 1 ;;
+  esac
+}
+# 키 전체를 한 번의 terminal send 로(Enter 옵션 없이). 키 하나라도 목록 밖이면 아무것도 보내지 않고 `error bad-key`
+_orca_term_send_keys() {
+  local h="$1" b="" k; shift
+  for k in "$@"; do b="$b$(_term_key_bytes "$k")" || { echo "error bad-key"; return 0; }; done
+  [ -n "$b" ] || { echo "error bad-key"; return 0; }
+  _orca_term_send "$h" "$b"
+}
 _orca_term_close() {
   local out; out="$(_orca_json terminal close --terminal "$1" --tab)"
   if [ "$(printf '%s' "$out" | jq -r '.ok // false')" = "true" ]; then echo closed; elif _orca_stale "$out"; then echo stale; else echo "error"; fi
@@ -68,6 +83,15 @@ _tmux_term_send() {
   echo accepted
 }
 _tmux_term_close() { tmux kill-pane -t "$1" 2>/dev/null && echo closed || echo stale; }
+_tmux_term_send_keys() {  # 이름 키를 send-keys 한 번에(Esc → Escape)
+  local h="$1" k a=(); shift
+  for k in "$@"; do
+    case "$k" in Esc) a+=(Escape) ;; Up|Down|Tab|Enter|[1-9]) a+=("$k") ;; *) echo "error bad-key"; return 0 ;; esac
+  done
+  [ "${#a[@]}" -gt 0 ] || { echo "error bad-key"; return 0; }
+  tmux send-keys -t "$h" "${a[@]}" 2>/dev/null || { echo stale; return 0; }
+  echo accepted
+}
 
 # ---------- 공개 함수 ----------
 term_list()        { "_$(_term_backend)_term_list" "$@"; }
@@ -75,3 +99,6 @@ term_read_screen() { "_$(_term_backend)_term_read_screen" "$@"; }
 term_wait_idle()   { "_$(_term_backend)_term_wait_idle" "$@"; }
 term_send()        { "_$(_term_backend)_term_send" "$@"; }
 term_close()       { "_$(_term_backend)_term_close" "$@"; }
+# term_send_keys <h> <키 이름…> — 확인·선택 창에 키(Up·Down·Tab·Enter·Esc·1~9)를 한 번에 넣는다(콘솔 키 입력, contract §4.1).
+#   stdout: accepted|submitted|turn_started · stale(넣지 못함이 확실) · `error <사유>`(bad-key 는 아무것도 보내지 않음)
+term_send_keys()   { "_$(_term_backend)_term_send_keys" "$@"; }

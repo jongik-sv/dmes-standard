@@ -8,7 +8,9 @@
 #   event <kind> [레인|-] [json]                   events.jsonl 에 한 줄 · `OK`
 #   instr <레인> <kind>                            다음 지시 번호 발급·기록 · `<레인>-<n>`
 #   ack <instr-id>                                 ack 시각 기록 · `OK`
-#   report <레인> [요약 글]                        last_report_at 갱신, reports.md 에 한 줄 · `OK`
+#   report <레인> [요약 글] [--question <글>|--answered]  last_report_at 갱신, reports.md 에 한 줄 · `OK`
+#                                                  --question: .lanes.<레인>.question = {at, text(첫 줄 200자)} (레인의 문장 질문 —
+#                                                  오피스 입력 요청 kind 'message'), --answered: 그 질문을 지운다
 #   item-done <레인> <항목id>                      항목 완료 · `PROGRESS <레인> <pct>%`
 #   progress                                       레인마다 `PROGRESS <레인> <pct>% <끝>/<전체>`, 끝에 `PROGRESS ALL <pct>%`
 #   hold <레인> <사유|-> [until-iso]               hold 세우기(`-` 는 풀기) · `OK`
@@ -172,15 +174,21 @@ cmd_set() {
   [ $# -eq 2 ] || usage
   case "$1" in .*) ;; *) coord_die 2 "jq 경로는 . 으로 시작한다: $1" ;; esac
   json_ok "$2"
-  local merge_old="" merge_new=""
-  case "$1" in .merge*) merge_old="$(jq -r '.merge.in_flight.lane // empty' "$(state_file_checked)" 2>/dev/null)" ;; esac
+  local merge_old="" merge_new="" q_old="" q_new=""
+  case "$1" in .merge*)
+    merge_old="$(jq -r '.merge.in_flight.lane // empty' "$(state_file_checked)" 2>/dev/null)"
+    q_old="$(jq -c '.merge.queue // []' "$(state_file_checked)" 2>/dev/null)" ;;
+  esac
   st_update --argjson v "$2" "$1 = \$v" || exit 4
-  case "$1" in .merge*)   # 머지 중 라벨(오피스)은 in_flight 레인이 바뀔 때만 다시 보낸다
-    merge_new="$(jq -r '.merge.in_flight.lane // empty' "$(state_file_checked)" 2>/dev/null)"
-    if [ "$merge_old" != "$merge_new" ]; then
-      [ -z "$merge_old" ] || office lane-state "$merge_old" auto
-      [ -z "$merge_new" ] || office lane-state "$merge_new" auto
-    fi ;;
+  case "$1" in
+    .merge*)   # 머지 중 라벨(오피스)은 in_flight 레인이 바뀔 때만 다시 보낸다. 대기열만 바뀌면 팀장 자리 요약만 다시 보낸다
+      merge_new="$(jq -r '.merge.in_flight.lane // empty' "$(state_file_checked)" 2>/dev/null)"
+      q_new="$(jq -c '.merge.queue // []' "$(state_file_checked)" 2>/dev/null)"
+      if [ "$merge_old" != "$merge_new" ]; then
+        [ -z "$merge_old" ] || office lane-state "$merge_old" auto
+        [ -z "$merge_new" ] || office lane-state "$merge_new" auto
+      elif [ "$q_old" != "$q_new" ]; then office lead-sync; fi ;;
+    .pending_user*) office lead-sync ;;   # 팀장 라벨(답 대기)·자리 요약(decision)
   esac
   echo OK
 }
@@ -238,8 +246,30 @@ cmd_ack() {
 cmd_report() {
   [ $# -ge 1 ] || usage
   lane_exists "$1"
-  local now dir; now="$(coord_now_iso)"; dir="$(run_dir)"
-  st_update --arg l "$1" --arg now "$now" '.lanes[$l].last_report_at = $now' || exit 4
+  local lane="$1" text="" have_text=0 q="" qset=0 ans=0 now dir
+  shift
+  # `--question <글>`·`--answered` 만 옵션이다(그 밖의 인자는 종전처럼 요약 글 — 첫 번째만 쓴다)
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --question) [ $# -ge 2 ] || usage; q="$2"; qset=1; shift ;;
+      --answered) ans=1 ;;
+      *) [ "$have_text" = 0 ] && { text="$1"; have_text=1; } ;;
+    esac
+    shift
+  done
+  [ "$qset" = 1 ] && [ "$ans" = 1 ] && usage
+  now="$(coord_now_iso)"; dir="$(run_dir)"
+  # 레인이 조정자에게 문장으로 물은 질문(오피스 입력 요청 kind 'message', contract §4.1): 첫 줄 200자, 제어 문자 정리
+  if [ "$qset" = 1 ]; then
+    q="$(printf '%s' "$q" | jq -Rsr 'gsub("\r"; "\n") | split("\n") | map(gsub("\t"; " ") | gsub("[\u0000-\u001f\u007f-\u009f]"; "") | sub("^\\s+"; "") | sub("\\s+\\z"; "")) | map(select(. != "")) | (.[0] // "") | .[0:200]')"
+    [ -n "$q" ] || coord_die 2 "--question 글이 비었다"
+    st_update --arg l "$lane" --arg now "$now" --arg q "$q" '.lanes[$l].last_report_at = $now | .lanes[$l].question = {at: $now, text: $q}' || exit 4
+  elif [ "$ans" = 1 ]; then
+    st_update --arg l "$lane" --arg now "$now" '.lanes[$l].last_report_at = $now | del(.lanes[$l].question)' || exit 4
+  else
+    st_update --arg l "$lane" --arg now "$now" '.lanes[$l].last_report_at = $now' || exit 4
+  fi
+  set -- "$lane" "$text"
   mkdir -p "$dir/lanes/$1"
   printf -- '- %s %s\n' "$now" "${2:-}" >> "$dir/lanes/$1/reports.md"
   ev_append "$dir" report "$1" "$(jq -nc --arg t "${2:-}" '{text:$t}')"

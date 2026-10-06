@@ -61,9 +61,11 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
 
 레거시 호출은 400 `identity_required`, 다른 사람의 행은 404(존재 비구분).
 
-**프로젝트 한정 PAT**: 프롬프트에는 프로젝트가 없어서 한정 토큰이 같은 사용자의 다른 프로젝트 세션 프롬프트를 집어 갈 수 있으므로, poll·ack 는 프로젝트로 한정한 PAT 에 403 `forbidden_role` 을 준다(dflow.sh exit 5). screen 은 그 프로젝트의 좌석만 받는다. 폴러는 이 403 을 받으면 콘솔 전달(poll·ack)만 끄고 생존 감시·화면 올리기는 계속한다.
+**프로젝트 한정 PAT**: 프롬프트에는 프로젝트가 없어서 한정 토큰이 같은 사용자의 다른 프로젝트 세션 프롬프트를 집어 갈 수 있으므로, poll·ack 는 프로젝트로 한정한 PAT 에 403 `forbidden_role` 을 준다(dflow.sh exit 5). screen 은 그 프로젝트의 좌석만 받는다. 폴러는 이 403 을 받으면 콘솔 전달(poll·ack)만 끄고(30분 뒤 한 번 다시 시도) 생존 감시·화면 올리기는 계속한다. **한정 PAT 는 같은 owner 의 조정 칸(coord_lead·coord_lane)만 허용한다**(wbs-web 0112): screen 은 열쇠 좌석이 전부 자기 프로젝트이거나 전부 프로젝트 없는 조정 칸일 때, poll 은 서버가 `p_target_kinds=[coord_lead,coord_lane]` 로 걸러 주고, ack 는 조정 칸 행만 받는다(그 밖은 404).
 
-**POST `/api/v1/agent/console/poll`** — 본문 `{host, limit?}`(`host` = 폴러가 도는 PC 슬러그, `limit` 기본 5·최대 10).
+**POST `/api/v1/agent/console/poll`** — 본문 `{host, limit?, accepts?}`(`host` = 폴러가 도는 PC 슬러그, `limit` 기본 5·최대 10,
+`accepts` = 받을 수 있는 행 종류 배열 — 지금은 `['keys']` 뿐. kit 폴러는 `limit:1` 로 부르고, 키 입력 답하기를 켠 경우(`console.keys_enabled=true`·`COORD_CONSOLE_KEYS_ENABLED=1`)에만 `accepts:['keys']` 를 싣는다(기본 꺼짐 — 아래 키 행). `accepts` 에 `keys` 가 없으면
+서버는 키 행을 집지 않고(응답에서 빼고) 그 행은 60초 뒤 만료된다).
 이 PAT 의 사용자가 owner 이고 `host` 가 같은 `pending`(만료 전) 행을 오래된 순으로 `limit` 건 **한 문장(원자적)으로 `claimed` 로 바꾸며**
 `claim_token`·`claimed_at`·`attempts+1` 을 채운다. 같은 행을 두 폴러가 받을 수 없다. 응답:
 ```json
@@ -71,6 +73,16 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
                               "claim_token": "<hex>", "expires_at": "…" } ] }
 ```
 `host` 가 슬러그 형식이 아니면 400. 호출할 때마다 `claimed_at` 이 120초 지난 `claimed` 행을 `unknown` 으로 바꾼다.
+
+**키 행**(오피스의 「키 입력 답하기」, 마이그레이션 0111) — **기본 꺼짐(`console.keys_enabled=false`), 다음 회차에 훅 기반(구조화된 권한 이벤트)으로 재설계.** 꺼진 폴러는 `accepts` 를 보내지 않고, 키 행을 받아도 키를 보내지 않고 `refused`·`keys_disabled` 로 ack 한다. 켰을 때의 계약은 아래와 같다. 글 행 칸(`id`·`target_kind`·`target_ref`·`claim_token`·`expires_at`)에 `kind:"keys"`·`keys`·`input_request` 가 붙고 `text` 칸은 없다(글 행에는 `kind` 칸이 없다).
+```json
+{ "id": "<uuid>", "target_kind": "coord_lane", "target_ref": "kit", "claim_token": "<hex>", "expires_at": "…",
+  "kind": "keys", "keys": ["Down", "Enter"], "input_request": { "kind": "choice", "since": "2026-10-06T01:02:03.004Z", "sha": "<64 hex>" } }
+```
+- `target_kind` 는 `coord_lane` 뿐, 만료는 만든 뒤 60초, 보내는 사람은 세션 주인 본인뿐(관리자 불가).
+- `keys`: 1~4개, `^((Up|Down),){0,3}(Up|Down|Tab|[1-9]|Enter|Esc)$` 모양(앞자리 이동 키는 `Up`·`Down` 만, `Tab`·`1~9`·`Enter`·`Esc` 는 마지막 한 자리). 위반 행은 서버가 만들지 않는다.
+- `input_request` = 웹이 보던 입력 요청의 `kind`·`since`(서버가 UTC 밀리초 ISO 로 정규화)·`sha`(서버가 발췌로 계산 — 줄마다 제어 문자 제거 → 줄 끝 U+0020 제거 → `\n` 으로 이은 UTF-8 sha256 소문자 hex). 같은 since+sha 는 서버가 한 번만 받는다.
+- 폴러(coordinator `contract.md` §4.1 「키 입력 답하기」)는 행을 믿지 않고 대상·만료·허용 키를 다시 검사하고, 보내기 직전 화면을 다시 판정해 kind·sha(문자열)·since(시각) 중 하나라도 다르면 보내지 않고 `refused`·`prompt_changed` 로 ack 한다. 키를 하나라도 넣었을 수 있으면 `refused` 로 ack 하지 않는다(`sent` 또는 ack 생략 → `unknown`).
 
 **POST `/api/v1/agent/console/ack`** — 본문 `{id, claim_token, result, reason?, detail?}`. `result`:
 - `sent` — 입력창에 넣었다. `detail` ∈ `turn_started`·`submitted`·`accepted`. → `sent`
@@ -90,6 +102,8 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
 | `prompt-open` | `refused` | 확인·선택 창이 열려 있음 |
 | `draft-in-input` | `refused` | 입력창에 쓰다 만 글이 있음(찾지 못한 경우 포함) |
 | `error` | `refused` | 그 밖의 보내기 실패 |
+| `keys_disabled` | `refused` | 키 행: 폴러의 웹 키 입력이 꺼져 있음(`console.keys_enabled=false`, 기본) — 키를 보내지 않음. 서버는 이 값을 허용 목록에 더해야 한다 |
+| `prompt_changed` | `refused` | 키 행: 보내기 직전 다시 본 창(kind·발췌 sha·since)이 요청과 다르거나 창이 없음·이미 답한 창·다른 쪽이 답하는 중(`refused` 와만 쓴다) |
 
 서버는 `reason` 을 위 목록으로 검사하고, 어떤 `result`·`reason` 짝을 쓸지는 폴러가 정한다(어느 사유를 재시도로 볼지 폴러 쪽 한 줄로 바꿀 수 있다).
 서버가 `result=retry` 에 허용하는 `reason` 은 `compacting` 뿐이다.
@@ -125,13 +139,24 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
 
 서버는 `until` 을 그대로 저장하는 표시 문자열로만 다룬다(변경 없음). 세션이 사용자 입력(선택·확인 창)을 기다리는 동안 로컬이 `until` 을 정확히 `답 대기` 로 보내고,
 끝나면 원래 값으로 되돌린다. 화면은 이 값(정확히 일치)에 반응해 「사장님 빨리 답해주세요」 같은 말풍선을 띄운다. 대상별 원래 값은 팀원(`임시:`) = `작업 중`·`대기`·`머지 중`,
-조정 팀장(`coord:`) = `조정 중`, `/dflow-team` 팀장(`…/lead`) = 종료 시각 라벨이다. 판정과 전송은 로컬 폴러의 일이고(coordinator `references/contract.md` §4), 옛 키 `…/coord`(식별자 없음)에는 콘솔을 열지 않는다.
+조정 팀장(`coord:`) = `조정 중`, `/dflow-team` 팀장(`…/lead`) = 종료 시각 라벨이다. 화면 감지는 로컬 폴러가, 조정 세션 좌석의 라벨 판정·전송은 폴러가 남긴 입력 요청 기록을 읽는 `office.sh` 가 한다(coordinator `references/contract.md` §4). 옛 키 `…/coord`(식별자 없음)에는 콘솔을 열지 않는다.
+
+### watch 요약 칸 `summary`·`lead_summary`·`input_request` (2026-10-06, 마이그레이션 0110 — 계약 버전 불변)
+
+`POST /api/v1/agent/watch` 본문의 추가 칸이다. 모두 `v:1`. 형식 정본은 coordinator `references/contract.md` §4 「레인 요약·팀장 자리 요약·입력 요청」.
+
+- `summary`(팀원 키 `…/임시:`): 레인 요약 객체, 전체 2048바이트 이하. `lead_summary`(조정 팀장 키 `…/coord:`): `{v:1, runs:[≤5]}`, 8192바이트 이하. `input_request`(팀원 키): `{v:1, kind, since, excerpt:[≤10줄, 줄당 ≤200], handled}` 또는 null, 3072바이트 이하(`sha` 는 서버가 계산한다 — 보내지 않는다).
+- **칸을 보내지 않으면 서버는 그 칸을 null 로 덮어쓴다**(이전 값을 두지 않는다). 그래서 로컬은 그 키로 보내는 모든 watch 에 매번 싣는다. 모르는 키는 버린다.
+- 형식이 틀린 칸은 400 으로 거절하지 않고 **그 칸만 null** 로 저장하며 응답에 `summary_error`(`칸: 사유 | 칸: 사유`)를 싣는다. 감시자 생존 신호는 끊기지 않는다. 시각은 시간대 있는 ISO 만, 문자열 제어 문자는 서버도 지운다(킷이 먼저 같은 정리를 한다).
+- 보조 감시자 행(`임시:`·`coord:`)의 `project_id` 는 서버가 늘 null 로 저장한다.
 
 ### CLI (`dflow.sh`)
 
-- `dflow.sh console-poll --host <슬러그> [--limit n]` — poll. stdout: 프롬프트마다 한 줄 JSON(`{id,target_kind,target_ref,text,claim_token,expires_at}`).
+- `dflow.sh console-poll --host <슬러그> [--limit n] [--accepts keys]` — poll(kit 폴러는 키 입력 답하기를 켠 경우에만 `--accepts keys`). stdout: 프롬프트마다 한 줄 JSON(`{id,target_kind,target_ref,text,claim_token,expires_at}`, 키 행은 `text` 대신 `kind`·`keys`·`input_request`). `--accepts keys` 는 본문에 `accepts:['keys']` 를 싣는다(`keys` 밖의 값은 exit 2).
+- `console-ack … refused --reason prompt_changed` 처럼 `reason` 은 형식 검사 없이 그대로 싣는다(목록 검사는 서버 몫).
 - `dflow.sh console-ack <id> <claim_token> <sent|refused|retry> [--reason r] [--detail d]` — stdout `ACK <status>`(멱등 재호출이면 `ACK <status> already`). **404 는 본문 `code` 로 가른다**: 옛 서버(라우트 없음)의 404 는 본문에 `code` 가 없어 exit 7 이고, 새 라우트의 `{code:"not_found"}` 는 `retry` 를 다시 부를 때(서버가 이미 `claim_token` 을 비움)만 이미 반영된 것으로 보아 `ACK pending already`·exit 0 이다(`sent`·`refused` 의 404 는 그대로 exit 7).
 - `dflow.sh console-screen --host <슬러그>` — stdin 에 `items` 배열 JSON, stdout 은 항목마다 `SCREEN <kind> <ref> <status>`.
+- `dflow.sh watch … [--summary-json <json>] [--lead-summary-json <json>] [--input-request-json <json|null>]` — 본문 `summary`·`lead_summary`·`input_request` 로 그대로 싣는다(옵션이 없으면 칸 없음). 값 하나짜리 JSON 객체(input_request 는 null 도)가 아니면 exit 2. 응답에 `summary_error` 가 있으면 stderr 에 `SUMMARY_ERROR <글>` 한 줄을 내고 stdout·종료 코드는 그대로다. `--stop` 이면 칸을 싣지 않는다.
 - exit code 는 위 「로컬 클라이언트 계약」 그대로다. 옛 서버(404)는 7.
 
 ## v2.11 변경점 (2026-09-27)
