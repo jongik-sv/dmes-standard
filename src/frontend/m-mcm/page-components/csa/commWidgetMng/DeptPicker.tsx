@@ -43,6 +43,7 @@ export function DeptPicker({ open, onPick, onClose }: DeptPickerProps) {
 
   return (
     <LookupModal
+      gridId="modal-deptPicker"
       open={open}
       title="부서 검색"
       placeholder="부서코드 또는 부서명 입력"
