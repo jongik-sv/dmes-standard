@@ -45,6 +45,7 @@ import { GRID_TOOLTIP_SHOW_DELAY_MS } from "./grid-tooltip";
 import { useGridTooltipOutside } from "./grid-tooltip-parent";
 import { AgDataGridExcelFrame, type AgDataGridExcelExport } from "./AgDataGridExcel";
 import { MdmHeaderLabel, type MdmHeaderLabelParams } from "./MdmHeaderLabel";
+import type { GridPersonalize } from "./grid-personalize";
 
 /** `rowNumber` 로 넣는 행번호 열의 colId — 테스트·화면이 이 칸을 집을 때 쓴다. */
 export const ROW_NUMBER_COL_ID = "__rowNo";
@@ -241,8 +242,15 @@ export interface GridColumn {
    * 기본(미지정)은 전용 SelectCellEditor — 단일 클릭 즉시 드롭다운 오픈·선택 즉시 commit.
    */
   selectNativeEditor?: boolean;
-  /** 컬럼 숨김 (ag-grid 표준 ColDef.hide 패스스루). */
+  /** 컬럼 숨김 (ag-grid 표준 ColDef.hide 패스스루). 화면이 숨긴 내부 컬럼은 컬럼 설정 창에 나오지 않고 엑셀에서도 빠진다. */
   hide?: boolean;
+  /**
+   * 컬럼 개인화에서 사용자가 이 컬럼을 숨길 수 있는가.
+   * 기본: 편집 가능한 컬럼(`editable` 이 true 또는 함수)은 잠금(숨길 수 없음), 나머지는 숨길 수 있다.
+   * `true` 면 편집 가능한 컬럼도 숨길 수 있고, `false` 면 편집 불가 컬럼도 잠근다.
+   * 선택 체크박스·행번호·`rowKey`·행 드래그 컬럼은 이 값과 관계없이 늘 잠금이다. 잠긴 컬럼도 순서 이동은 된다.
+   */
+  hideable?: boolean;
   /** 틀고정(좌/우 pinned) — ag-grid ColDef.pinned 패스스루. 가로 스크롤 시 해당 컬럼 고정. */
   pinned?: "left" | "right";
   /** 셀에 상시 부여할 CSS 클래스 (문자열 또는 행 단위 동적 함수). */
@@ -448,6 +456,17 @@ export interface AgDataGridProps {
    * 객체를 렌더마다 새로 만들면 memo 가 깨지니 상수나 `useMemo` 로 둔다.
    */
   excelExport?: AgDataGridExcelExport;
+  /**
+   * 한 화면(탭)에 그리드가 여럿일 때 개인화 저장을 나누는 이름. 비우면 `"main"`. 화면 안에서 그리드마다 다르게, 렌더마다 바뀌지 않는 고정 문자열로 준다.
+   * 저장 키는 `dmes:grid:v1:{사용자ID}:{화면}:{gridId}` 다. 같은 키의 그리드가 이미 떠 있으면 나중 그리드는 개인화를 끈다.
+   */
+  gridId?: string;
+  /**
+   * 사용자별 컬럼 개인화(순서·너비·표시 여부·좌우 고정·정렬을 브라우저에 저장하고 다시 열 때 복원). 기본 켬.
+   * `false` 면 끈다. `{ sort: false }` 면 정렬은 저장·복원하지 않는다(서버 페이징 그리드 — 정렬이 서버 조회 조건이라서).
+   * 저장값이 있으면 컬럼 자동 너비 맞춤은 저장된 너비를 덮지 않는다.
+   */
+  personalize?: GridPersonalize;
 }
 
 /** 칸 검증 표시 한 건 — `AgDataGridProps.fieldErrors` 의 항목. */

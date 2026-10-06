@@ -10,6 +10,7 @@ export {
   type MdmGridTooltipParams,
 } from "./AgDataGrid";
 export type { AgDataGridExcelExport } from "./AgDataGridExcel";
+export type { GridPersonalize, GridPersonalizeOptions } from "./grid-personalize";
 export { EditableRowList, type EditableRowListProps } from "./EditableRowList";
 export { moveItem, removeAt, updateAt } from "./row-list-ops";
 export {
