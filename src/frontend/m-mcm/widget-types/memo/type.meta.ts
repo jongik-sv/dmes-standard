@@ -1,3 +1,5 @@
+import { IconNote } from "@tabler/icons-react";
+
 import type { WidgetTypeMeta } from "@dk-oasis/shared/widget";
 
 /**
@@ -12,4 +14,5 @@ export const meta: WidgetTypeMeta = {
   minSize: { w: 4, h: 6 },
   initialConfig: { scope: "personal", format: "text", content: "" },
   floatable: true,
+  icon: IconNote,
 };

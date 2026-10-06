@@ -1,3 +1,5 @@
+import { IconCalculator } from "@tabler/icons-react";
+
 import type { WidgetTypeMeta } from "@dk-oasis/shared/widget";
 
 /**
@@ -12,4 +14,5 @@ export const meta: WidgetTypeMeta = {
   minSize: { w: 4, h: 9 },
   initialConfig: { showHistory: true },
   floatable: true,
+  icon: IconCalculator,
 };

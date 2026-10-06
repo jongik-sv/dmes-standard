@@ -9,7 +9,7 @@
 
 ## 언제 쓰나
 
-- 쓴다: 포털 호스트(m-mcm `app/portal/page.tsx`)가 도구 창 기능을 켤 때. 위젯 메타(코드 위젯 `meta.floatable` 또는 유형 `type.meta.ts` 의 `floatable: true`)로 띄울 위젯을 정한다.
+- 쓴다: 포털 호스트(m-mcm `app/portal/page.tsx`)가 도구 창 기능을 켤 때. 위젯 메타(코드 위젯 `meta.floatable` 또는 유형 `type.meta.ts` 의 `floatable: true`)로 띄울 위젯을 정한다. 접힌 단추 아이콘은 `meta.icon`(유형은 `type.meta.ts` 의 `icon`, tabler 아이콘 컴포넌트)으로 정하고, 없으면 제목 첫 글자를 보인다.
 - 쓰지 않는다: 홈 보드에 위젯을 놓기 → [widget](widget.md) 의 `WidgetWorkspace`. 위젯이 아닌 아무 내용의 떠 있는 창 → [FloatingWindow](floating-window.md).
 
 ## 표준 사용

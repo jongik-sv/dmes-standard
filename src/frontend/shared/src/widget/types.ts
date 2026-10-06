@@ -2,7 +2,10 @@
  * 위젯 계약 — 위젯 = 자유 배치 가능한 조각 프로그램(화면 컴포넌트). 스펙 §2.
  * 위젯 하나 = 폴더 하나(widget.meta.ts + widget.tsx). 등록부(WidgetRegistry)는 화면 쪽(m-mcm)이 코드 생성으로 만든다.
  */
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
+
+/** 위젯 아이콘 — size·stroke 를 받는 아이콘 컴포넌트(@tabler/icons-react 와 같은 모양). */
+export type WidgetIcon = ComponentType<{ size?: number; stroke?: number }>;
 
 /** 격자 칸 수. */
 export interface WidgetSize {
@@ -43,6 +46,8 @@ export interface WidgetMeta {
   private?: boolean;
   /** 업무 화면 위에 떠 있는 도구 창(포털 머리 「도구」)으로 띄울 수 있는 도구형 위젯인지(기본 false). */
   floatable?: boolean;
+  /** 접힌 도구 창 아이콘(예: tabler 아이콘 컴포넌트). 없으면 제목 첫 글자를 보인다. */
+  icon?: WidgetIcon;
 }
 
 export interface WidgetProps {
@@ -79,6 +84,8 @@ export interface WidgetTypeMeta {
   initialConfig: unknown;
   /** 이 유형의 정의 위젯을 도구 창으로 띄울 수 있는지(기본 false). 정의 위젯 meta.floatable 로 전달된다. */
   floatable?: boolean;
+  /** 접힌 도구 창 아이콘. 정의 위젯 meta.icon 으로 전달된다. */
+  icon?: WidgetIcon;
 }
 
 /** 관리 화면이 유형 편집기(editor.tsx default export)에 넘기는 props. */
