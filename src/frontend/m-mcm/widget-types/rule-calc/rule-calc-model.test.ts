@@ -16,6 +16,7 @@ import {
   readRuleCalcConfig,
   RULE_CALC_DEFAULT_CONFIG,
   displayValue,
+  expandExponent,
   stepOutputDataType,
   stepOutputLabel,
   stepOutputScale,
@@ -164,6 +165,23 @@ describe("formatResultValue — scale 로 HALF_UP, 글자 연산", () => {
   ])("%s / scale %s → %s", (text, scale, expected) => {
     expect(formatResultValue(text, scale)).toBe(expected);
   });
+  it.each([
+    ["1E+3", 2, "1,000.00"],
+    ["1.2345E+3", 2, "1,234.50"],
+    ["1.25e-4", 5, "0.00013"],
+    ["1.25E-4", null, "0.000125"],
+    ["-5E-1", 1, "-0.5"],
+    ["9.995E+2", 2, "999.50"],
+    ["1E+12", 0, "1,000,000,000,000"],
+  ])("지수 표기 %s / scale %s → %s", (text, scale, expected) => {
+    expect(formatResultValue(text, scale, "NUMBER")).toBe(expected);
+  });
+  it("지수 표기가 아닌 글자·너무 큰 지수·문자 타입은 건드리지 않는다", () => {
+    expect(formatResultValue("1E+999", 2, "NUMBER")).toBe("1E+999");
+    expect(formatResultValue("1E+3", 2, "STRING")).toBe("1E+3");
+    expect(formatResultValue("E+3", 2, "NUMBER")).toBe("E+3");
+    expect(formatResultValue("1e", 2, "NUMBER")).toBe("1e");
+  });
   it("숫자가 아니면 그대로", () => {
     expect(formatResultValue("ABC", 2)).toBe("ABC");
     expect(formatResultValue("", 2)).toBe("");
@@ -206,6 +224,20 @@ describe("collectValues — 소수 자리", () => {
     expect(collectValues([num("A", { scale: 1 })], { A: "1.50" }).errors).toEqual({});
     expect(collectValues([num("A", { scale: 0 })], { A: "5.0" }).errors).toEqual({});
     expect(collectValues([num("A", { scale: 1 })], { A: "1.51" }).errors.A).toBeTruthy();
+  });
+});
+
+describe("expandExponent", () => {
+  it("자리만 옮겨 값을 바꾸지 않는다", () => {
+    expect(expandExponent("1E+3")).toBe("1000");
+    expect(expandExponent("1.5E+1")).toBe("15");
+    expect(expandExponent("1.5E+0")).toBe("1.5");
+    expect(expandExponent("12.5e-3")).toBe("0.0125");
+    expect(expandExponent("-1.2E+2")).toBe("-120");
+    expect(expandExponent("+3E-2")).toBe("0.03");
+  });
+  it("지수 표기가 아니면 그대로", () => {
+    for (const t of ["12.5", "abc", "", "1e", "E3", ".E3"]) expect(expandExponent(t)).toBe(t);
   });
 });
 

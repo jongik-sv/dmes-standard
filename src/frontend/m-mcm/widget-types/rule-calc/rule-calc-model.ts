@@ -286,6 +286,28 @@ export function collectValues(inputs: readonly RuleCalcInput[], draft: Readonly<
 
 // ───────────────────────── 값 표시 ─────────────────────────
 
+const EXPONENT_TEXT = /^([+-]?)(\d*)\.?(\d*)[eE]([+-]?\d+)$/;
+/** 지수가 이보다 크면 풀어 쓰지 않고 서버 글자를 그대로 둔다(수백 자리 0 으로 화면이 깨지는 것을 막는다). */
+const MAX_EXPONENT = 400;
+
+/**
+ * 과학 표기(1E+3, 1.25e-4)를 일반 소수 글자로 푼다 — 서버가 큰 수·작은 수를 그렇게 보낼 수 있다(BigDecimal.toString).
+ * 글자의 자리만 옮기므로 값이 변하지 않는다. 지수 표기가 아니거나 모양이 틀리거나 지수가 너무 크면 입력을 그대로 돌려준다.
+ */
+export function expandExponent(text: string): string {
+  const m = EXPONENT_TEXT.exec(text.trim());
+  if (!m || (m[2] === "" && m[3] === "")) return text;
+  const exp = Number(m[4]);
+  if (Math.abs(exp) > MAX_EXPONENT) return text;
+  const digits = m[2] + m[3];
+  const point = m[2].length + exp; // 숫자열 안에서 소수점이 놓일 자리
+  let body: string;
+  if (point <= 0) body = `0.${"0".repeat(-point)}${digits}`;
+  else if (point >= digits.length) body = digits + "0".repeat(point - digits.length);
+  else body = `${digits.slice(0, point)}.${digits.slice(point)}`;
+  return `${m[1] === "-" ? "-" : ""}${body}`;
+}
+
 /** 정수부에 천 단위 쉼표를 넣는다. 부호는 앞에 둔다. */
 function groupInt(int: string): string {
   return int.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -294,12 +316,12 @@ function groupInt(int: string): string {
 /**
  * 결과 값 표시 — 숫자 모양이고 소수 자리(scale)가 있으면 그 자리로 맞춰 천 단위 쉼표를 넣는다.
  * 부족한 자리는 0 으로 채우고, 넘치는 자리는 반올림(half-up)한다. 글자 연산이라 큰 수·긴 소수도 값이 변하지 않는다.
- * 숫자 모양이 아니거나 scale 이 없으면 서버가 준 글자를 그대로 보인다(scale 이 없는 숫자는 쉼표만 더한다).
+ * 과학 표기(1E+3)는 먼저 일반 소수 글자로 풀어 같은 규칙을 적용한다. 숫자 모양이 아니거나 scale 이 없으면 서버가 준 글자를 그대로 보인다(scale 이 없는 숫자는 쉼표만 더한다).
  */
 export function formatResultValue(text: string, scale: number | null, dataType = ""): string {
-  const t = text.trim();
-  if (t === "" || !NUMBER_TEXT.test(t)) return text;
   if (dataType && !isNumericType(dataType)) return text;
+  const t = expandExponent(text.trim());
+  if (t === "" || !NUMBER_TEXT.test(t)) return text;
   const neg = t.startsWith("-");
   const body = t.replace(/^[+-]/, "");
   const [intRaw, fracRaw = ""] = body.split(".");
