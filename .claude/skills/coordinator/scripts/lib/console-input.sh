@@ -331,7 +331,7 @@ console_ms_to_iso() {
   local ms="${1:-}" s
   case "$ms" in ''|*[!0-9]*) return 1 ;; esac
   s=$(( ms / 1000 ))
-  printf '%s.%03dZ\n' "$(date -u -r "$s" +%Y-%m-%dT%H:%M:%S 2>/dev/null || date -u -d "@$s" +%Y-%m-%dT%H:%M:%S)" $(( ms % 1000 ))
+  printf '%s.%03dZ\n' "$(compat_epoch_fmt "$s" %Y-%m-%dT%H:%M:%S -u)" $(( ms % 1000 ))
 }
 
 # ---- 레인 잠금·보낸 표식 -----------------------------------------------------------------------

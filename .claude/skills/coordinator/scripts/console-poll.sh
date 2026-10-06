@@ -125,7 +125,7 @@ plog() { [ -n "$LOG" ] && printf '%s %s\n' "$(coord_now_iso)" "$*" >> "$LOG" 2>/
 drylog() { coord_log "DRY $*"; plog "DRY $*"; }
 
 # ---- 제한 시간 실행(timeout 명령 없이, 후손까지 죽인다 — office.sh 와 같은 방식) ---------------------
-descendants() { local c; for c in $(pgrep -P "$1" 2>/dev/null); do descendants "$c"; echo "$c"; done; }
+descendants() { compat_descendants "$1"; }   # 깊은 쪽부터(pgrep -P 재귀와 같은 순서, 프로세스 표 한 번 — lib/compat.sh)
 # 나무를 먼저 멈춰(STOP) 세는 사이에 새로 뜬 자손이 빠지지 않게 하고(세 번까지 다시 센다), TERM → CONT → 남으면 KILL
 kill_tree() {
   local all="" p n=0 new
@@ -1101,7 +1101,7 @@ stop_one() {
   while kill -0 "$HELD" 2>/dev/null && [ "$i" -lt "$n" ]; do sleep 0.1; i=$((i + 1)); done
   if kill -0 "$HELD" 2>/dev/null; then
     t="$(head -1 "$LK/tmpd" 2>/dev/null)"
-    kill_tree "$HELD"       # 주인이 죽기 전에 자손을 모아 함께 죽인다(주인이 죽으면 자손을 pgrep -P 로 못 찾는다)
+    kill_tree "$HELD"       # 주인이 죽기 전에 자손을 모아 함께 죽인다(주인이 죽으면 자손을 ppid 로 못 찾는다)
     case "$t" in
       /*/coord-console.*) case "$t" in *..*) ;; *) case "${t##*/}" in coord-console.*) [ -d "$t" ] && rm -rf "$t" ;; esac ;; esac ;;
     esac

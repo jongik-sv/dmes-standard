@@ -38,7 +38,13 @@ esac
 case "${COMPAT_FORCE_USERLAND:-}" in
   gnu) COMPAT_GNU=1 ;;
   bsd) COMPAT_GNU=0 ;;
-  *) if stat -c %Y / >/dev/null 2>&1; then COMPAT_GNU=1; else COMPAT_GNU=0; fi ;;
+  *)
+    # 프로세스를 새로 띄우지 않는 판별: macOS 기본 stat 은 /usr/bin/stat(BSD), 그 밖의 OS(Linux·Git Bash)는 GNU.
+    # macOS 에서 PATH 앞에 GNU coreutils(gnubin)가 있으면 /usr/bin/stat 이 아니므로 stat -c 로 한 번 시험한다.
+    case "${OSTYPE:-}" in
+      darwin*) if [ "$(command -v stat)" = /usr/bin/stat ]; then COMPAT_GNU=0; elif stat -c %Y / >/dev/null 2>&1; then COMPAT_GNU=1; else COMPAT_GNU=0; fi ;;
+      *) COMPAT_GNU=1 ;;
+    esac ;;
 esac
 
 compat_stat_mtime() {
@@ -46,6 +52,13 @@ compat_stat_mtime() {
 }
 compat_stat_mode() {
   if [ "$COMPAT_GNU" = 1 ]; then stat -c %a "$1" 2>/dev/null; else stat -f %Lp "$1" 2>/dev/null; fi
+}
+
+compat_stat_info() {  # <파일> → `<소유 uid> <8진 권한> <mtime> <크기>` 한 줄(못 읽으면 rc 1)
+  local o
+  if [ "$COMPAT_GNU" = 1 ]; then o="$(stat -c '%u %a %Y %s' "$1" 2>/dev/null)"; else o="$(stat -f '%u %Lp %m %z' "$1" 2>/dev/null)"; fi
+  case "$o" in *[!0-9\ ]*|'') return 1 ;; esac
+  printf '%s' "$o"
 }
 
 compat_epoch_fmt() {  # <epoch> <형식(+ 없이)> [-u]
@@ -83,6 +96,26 @@ compat_ps_table() {
 compat_ps_pairs() {
   if [ "$COMPAT_WIN" = 1 ]; then _compat_proc_scan 0; else ps -axo pid=,ppid= 2>/dev/null; fi
 }
+
+compat_ps_pidargs() {  # 한 줄에 `pid args`(ppid 없음)
+  if [ "$COMPAT_WIN" = 1 ]; then _compat_proc_scan 1 | sed -E 's/^([0-9]+) [0-9]+/\1/'; else ps -axo pid=,args= 2>/dev/null; fi
+}
+
+compat_proc_cwds() {  # pid 콤마 목록 → 한 줄에 `<pid>\t<cwd>`(lsof 가 있으면 한 번에, 없으면 /proc)
+  local root="${COMPAT_PROC_ROOT:-/proc}" p c
+  [ -n "${1:-}" ] || return 0
+  if [ ! -e "$root/self/cwd" ] && command -v lsof >/dev/null 2>&1; then
+    lsof -a -d cwd -p "$1" -Fpn 2>/dev/null | awk '/^p/ { p = substr($0, 2) } /^n/ { print p "\t" substr($0, 2) }'
+    return 0
+  fi
+  local IFS=,
+  for p in $1; do c="$(compat_pid_cwd "$p")"; [ -z "$c" ] || printf '%s\t%s\n' "$p" "$c"; done
+  return 0
+}
+
+# 프로세스 그룹(시험 정리용): 그룹 전체에 KILL·생존 확인. `kill -- -<pgid>` 는 macOS·Git Bash 모두 내장이다.
+compat_kill_pgroup() { _compat_pid_ok "${1:-}" && kill -KILL -- "-$1" 2>/dev/null; return 0; }
+compat_pgroup_alive() { _compat_pid_ok "${1:-}" && kill -0 -- "-$1" 2>/dev/null; }
 
 compat_descendants() {  # 깊은 쪽부터(후위 순회) — 부모를 죽여도 자식을 잃지 않게 후손부터 보낼 수 있다
   [ -n "${1:-}" ] || return 0

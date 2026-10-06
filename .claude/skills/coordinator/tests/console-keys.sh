@@ -14,6 +14,7 @@
 set -uo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 SD="$(cd "$here/../scripts" && pwd)"
+. "$SD/lib/compat.sh"
 CP="$SD/console-poll.sh"
 FX="$here/fixtures"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/console-keys-test.XXXXXX")" && tmp="$(cd "$tmp" && pwd -P)"
@@ -21,14 +22,14 @@ BG=""
 cleanup() {
   local p
   for p in $BG; do kill "$p" 2>/dev/null; done
-  pkill -f "$tmp/bin/" 2>/dev/null
+  compat_pkill_f "$tmp/bin/"
   rm -rf "$tmp"
 }
 trap cleanup EXIT
 fail=0; pass=0
 chk() { if [ "$1" = ok ]; then pass=$((pass + 1)); echo "ok   $2"; else fail=1; echo "FAIL $2${3:+ — $3}"; fi; }
 eq() { if [ "$2" = "$3" ]; then chk ok "$1"; else chk fail "$1" "기대 [$3] 실제 [$2]"; fi; }
-udate() { date -u -d "@$1" "$2" 2>/dev/null || date -u -r "$1" "$2"; }   # <epoch> <+형식> — UTC(GNU -d @ 먼저, BSD 는 -d 를 몰라 rc≠0 → -r)
+udate() { compat_epoch_fmt "$1" "${2#+}" -u; }   # <epoch> <+형식> — UTC(GNU -d @ · BSD -r 분기는 compat.sh)
 
 unset ORCA_TERMINAL_HANDLE CLAUDE_PID COORD_SESSION_ID CLAUDE_CODE_SESSION_ID COORD_RUN DFLOW_CONFIG_DIR COORD_DRY CONSOLE_POLL_IDENT COORD_CONSOLE_POLL
 mkdir -p "$tmp/bin" "$tmp/repo" "$tmp/home"
@@ -246,7 +247,7 @@ eq "감지: 새 창 → 기록(kind)" "$(recf coord_lane_kit .kind)" permission
 eq "감지: since 는 UTC 밀리초 ISO" "$(recf coord_lane_kit .since | grep -cE '^[0-9-]{10}T[0-9:]{8}\.[0-9]{3}Z$')" 1
 eq "감지: handled null·v 1" "$(recf coord_lane_kit '"\(.v) \(.handled)"')" "1 null"
 eq "감지: 발췌는 console_excerpt 와 같다" "$(recf coord_lane_kit '.excerpt[]')" "$(lib console_excerpt < "$FX/prompt-permission.txt")"
-eq "감지: 기록 권한 600" "$(stat -c %a "$DFLOW_CONSOLE_DIR/input/coord_lane_kit.json" 2>/dev/null || stat -f %Lp "$DFLOW_CONSOLE_DIR/input/coord_lane_kit.json")" 600
+eq "감지: 기록 권한 600" "$(compat_stat_mode "$DFLOW_CONSOLE_DIR/input/coord_lane_kit.json")" 600
 eq "감지: office.sh lane-state <레인> auto 를 그 회차로" "$(cat "$FAKE_DIR/office.log")" "COORD_RUN=r1 lane-state kit auto"
 eq "감지: 로그·stderr 에 발췌·비밀 없음" "$(cat "$DFLOW_CONSOLE_DIR"/poller-*.log "$tmp/once.err" | grep -cE 'Do you want|AbCdEf|rm -rf')" 0
 since1="$(recf coord_lane_kit .since)"
@@ -1009,13 +1010,13 @@ t1="$(now_ms)"
 eq "느린 jq → 상한에서 끊고 창 없음(rc 1)" "$r" "rc=1"
 eq "느린 jq → 3초 안(상한 1초)" "$(( t1 - t0 < 3000 ? 1 : 0 ))" 1
 sleep 0.2
-eq "느린 jq 의 sleep 이 남지 않는다(셸 감시가 끊음)" "$(pgrep -fx 'sleep 21.5' | grep -c .)" 0
+eq "느린 jq 의 sleep 이 남지 않는다(셸 감시가 끊음)" "$(compat_pgrep_f '^sleep 21\.5$' | grep -c .)" 0
 eq "누수: 임시 화면 파일이 남지 않는다(15)" "$(ls -A "$tmp/tmpd" | grep -c .)" 0
 printf '%s\n' "$cfg0" > "$tmp/repo/.coord.local.json"
 
 # =================================================================================================
 echo "남은 프로세스 확인"
 for p in $BG; do kill "$p" 2>/dev/null; wait "$p" 2>/dev/null; done; BG=""
-eq "정리: 이 시험의 폴러·sleep 이 남지 않는다" "$(pgrep -f "$tmp" 2>/dev/null | grep -c .)" 0
+eq "정리: 이 시험의 폴러·sleep 이 남지 않는다" "$(compat_pgrep_f "$tmp" | grep -c .)" 0
 echo "통과 $pass · 실패 $([ "$fail" = 0 ] && echo 0 || echo '1+')"
 exit "$fail"
