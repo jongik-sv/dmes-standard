@@ -446,7 +446,7 @@ AgDataGrid 는 사용자별로 컬럼 순서·너비·표시·고정·정렬을 
 
 - 조회 조건 객체·선택 키는 `useCarryState("filters", DEFAULT)` 로 둔다.
 - 사용자가 [조회]로 받은 결과 배열만 `{ bulky: true }` 로 둔다. 마운트 때 불러오는 LOV·콤보 목록은 `useState` 그대로 둔다. 결과가 `{ rows, total }` 객체면 배열만 bulky 로 나눈다.
-- `useCarryRefetch(handleSearch)` 를 두어 행이 빠진 채 복원됐을 때 한 번 재조회하게 한다. 마운트 때 자동 조회하는 화면은 `useCarryRestored()` 가 true 면 건너뛴다.
+- `useCarryRefetch(handleSearch)` 를 두어 행이 빠진 채 복원됐을 때 한 번 재조회하게 한다. 마운트 때 자동 조회하는 화면은 `useCarryRefetch` 를 두지 않고, `!useCarryRestored() || 결과 배열.length === 0` 일 때만 자동 조회한다(분리 순간 조회 중이었던 경우까지 덮는다).
 - 값은 JSON 으로 옮길 수 있어야 한다. `Date` 는 문자열로 두고 `Set`·`Map`·`dayjs` 는 쓰지 않는다. key 는 화면 안에서 유일하게 둔다. setter 는 `useCallback`·`useEffect` deps 에 넣는다.
 - 성능 가이드 [R8](Screen-Performance-Guide.md) 과 어긋나지 않는다. 이 훅은 분리 순간에만 값을 모으고 `onSnapshotChange`·탭 저장소를 쓰지 않아 렌더가 늘지 않으므로 R8 대상이 아니다. 탭 복귀 때 되살릴 값은 여전히 snapshot 으로 둔다.
 - 사용법·전달 경로·한계·견본(masterCodeMngList)은 스킬 문서 [use-carry-state.md](../../../.claude/skills/mantine-aggrid-ui/references/components/use-carry-state.md) 가 정본이다.
