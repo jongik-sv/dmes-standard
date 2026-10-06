@@ -16,3 +16,4 @@ export * from "./use-current-user-id";
 export * from "../widget-dock";
 export * from "./page-window/PortalPageWindow";
 export * from "./popout";
+export * from "./carry-state";
