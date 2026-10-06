@@ -18,6 +18,11 @@
 #   compat_pid_cwd <pid>            프로세스 작업 폴더(알 수 없으면 빈 출력)
 #   compat_pid_alive <pid>          살아 있으면 0(Git Bash 는 네이티브 Windows pid 라 ps -W 로 한 번 더 본다)
 #   compat_sha256                   표준입력 → 소문자 hex 64자 한 줄(openssl → sha256sum → shasum → node)
+# compat_pgrep_f 주의: 호출한 셸($$)만 뺀다. `$(…)`·파이프라인 서브셸은 호출 셸과 명령줄이 같아, 호출 셸의 명령줄에 패턴이 들어 있으면
+#   그 일시 pid 도 잡힌다(pgrep -f 는 이런 서브셸을 잡지 않는다). 패턴은 `^sleep 47$` 같은 앵커나 임시 폴더 경로처럼 고유한 것으로 쓴다.
+#   pid 는 2 이상의 정수만 신호를 받는다(0·1·-1 은 프로세스 그룹·전체라 거른다).
+# 알려진 한계(Git Bash): /proc 에는 MSYS 가 띄운 프로세스만 보인다 — 네이티브 프로세스(node.exe 등)가 CreateProcess 로 띄운 손자는
+#   후손 목록·kill_tree 에서 빠져 시간 초과 정리 때 고아로 남을 수 있다.
 # 알려진 한계(Git Bash): 프로세스 누적 CPU 시간·시작 시각·1분 부하는 얻을 수 없다(호출한 쪽이 「관측 불가」로 둔다).
 
 [ -z "${_COMPAT_LOADED:-}" ] || return 0
@@ -49,8 +54,9 @@ compat_epoch_fmt() {  # <epoch> <형식(+ 없이)> [-u]
   if [ "$COMPAT_GNU" = 1 ]; then date $u -d "@$e" "+$f" 2>/dev/null; else date $u -r "$e" "+$f" 2>/dev/null; fi
 }
 compat_touch_ago() {  # <초> <파일>
-  local t; t="$(compat_epoch_fmt $(( $(date +%s) - $1 )) %Y%m%d%H%M.%S)" || return 1
-  [ -n "$t" ] && touch -t "$t" "$2"
+  # 형식화와 touch 를 같은 시간대(UTC)로 맞춘다(서머타임 겹침 구간에서 1시간 어긋나지 않게)
+  local t; t="$(TZ=UTC compat_epoch_fmt $(( $(date +%s) - $1 )) %Y%m%d%H%M.%S)" || return 1
+  [ -n "$t" ] && TZ=UTC touch -t "$t" "$2"
 }
 
 # ---- 프로세스 -----------------------------------------------------------------------------------------------------
@@ -59,11 +65,12 @@ _compat_proc_scan() {  # <1=args 포함 | 0=pid ppid 만>
   local root="${COMPAT_PROC_ROOT:-/proc}" d p pp a w
   for d in "$root"/[0-9]*; do
     p="${d##*/}"; pp=""
-    { IFS= read -r pp < "$d/ppid"; } 2>/dev/null || continue
+    { IFS= read -r pp < "$d/ppid" || [ -n "$pp" ]; } 2>/dev/null || continue   # 끝 줄바꿈이 없어도 값을 읽는다
     case "$pp" in ''|*[!0-9]*) continue ;; esac
     if [ "$1" = 1 ]; then
       a=""
-      while IFS= read -r -d '' w || [ -n "$w" ]; do a="$a $w"; done < "$d/cmdline" 2>/dev/null
+      # 인자 속 줄바꿈은 공백으로 바꾼다 — 한 프로세스가 표에서 여러 줄로 갈라지면 둘째 줄의 첫 낱말이 pid 로 읽힌다
+      while IFS= read -r -d '' w || [ -n "$w" ]; do a="$a ${w//$'\n'/ }"; done < "$d/cmdline" 2>/dev/null
       printf '%s %s%s\n' "$p" "$pp" "$a"
     else
       printf '%s %s\n' "$p" "$pp"
@@ -87,13 +94,15 @@ compat_descendants() {  # 깊은 쪽부터(후위 순회) — 부모를 죽여�
     }
     END { walk(root) }'
 }
+# 신호를 보내도 되는 pid 인가(2 이상의 정수만 — 0·1·-1 은 프로세스 그룹·전체에 가므로 절대 보내지 않는다)
+_compat_pid_ok() { case "${1:-}" in ''|*[!0-9]*|0|1) return 1 ;; esac; return 0; }
 compat_kill_tree() {
   local all p
   all="$(compat_descendants "$1"; echo "$1")"
-  for p in $all; do kill -TERM "$p" 2>/dev/null; done
+  for p in $all; do _compat_pid_ok "$p" && kill -TERM "$p" 2>/dev/null; done
   sleep 0.3
   for p in $all; do
-    kill -0 "$p" 2>/dev/null || continue
+    _compat_pid_ok "$p" && kill -0 "$p" 2>/dev/null || continue
     kill -KILL "$p" 2>/dev/null
     # MSYS 의 kill 내장은 네이티브 프로세스를 못 끝낼 수 있다 — /usr/bin/kill -f 가 WINPID 로 강제 종료한다
     if [ "$COMPAT_WIN" = 1 ] && kill -0 "$p" 2>/dev/null; then /usr/bin/kill -f "$p" 2>/dev/null; fi
@@ -106,12 +115,12 @@ compat_pgrep_f() {
   # 패턴은 환경 변수로 넘긴다 — awk 의 인자에 두면 awk 자신의 명령줄이 패턴에 맞아 잡힌다(pgrep -f 는 자기 자신을 뺀다).
   # bash 3.2(macOS 기본)에는 BASHPID 가 없어 서브셸 안의 pid 를 알 수 없으므로 호출 셸($$)만 뺀다.
   compat_ps_table | COMPAT_PAT="$1" awk -v me="$$" '
-    $1 == me { next }
+    $1 == me || $1 !~ /^[0-9]+$/ { next }
     { a = $0; sub(/^ *[0-9]+ +[0-9]+ */, "", a); if (a ~ ENVIRON["COMPAT_PAT"]) print $1 }'
 }
 compat_pkill_f() {
   local p
-  for p in $(compat_pgrep_f "$1"); do kill -TERM "$p" 2>/dev/null; done
+  for p in $(compat_pgrep_f "$1"); do _compat_pid_ok "$p" && kill -TERM "$p" 2>/dev/null; done
   return 0
 }
 

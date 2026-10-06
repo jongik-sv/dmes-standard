@@ -7,8 +7,9 @@ set -uo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 LIB="$(cd "$here/../scripts/lib" && pwd)/compat.sh"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/compat-test.XXXXXX")" && tmp="$(cd "$tmp" && pwd -P)"
+. "$LIB"
 BG=""
-cleanup() { local p; for p in $BG; do kill "$p" 2>/dev/null; done; pkill -f "$tmp/" 2>/dev/null; rm -rf "$tmp"; }
+cleanup() { local p; for p in $BG; do kill "$p" 2>/dev/null; done; compat_pkill_f "$tmp/"; rm -rf "$tmp"; }
 trap cleanup EXIT
 fail=0; pass=0
 chk() { if [ "$1" = ok ]; then pass=$((pass+1)); echo "ok   $2"; else fail=$((fail+1)); echo "FAIL $2${3:+ — $3}"; fi; }
@@ -35,16 +36,19 @@ bash -c 'sleep 61 & ( sleep 62 & wait ) & wait' "$tmp/tree" &
 TREE=$!; BG="$BG $TREE"; sleep 0.5
 desc="$(run "compat_descendants $TREE" | tr '\n' ' ')"
 eq "후손: 자손 3개(sleep 61·서브셸·sleep 62)" "$(printf '%s\n' $desc | grep -c .)" 3
-eq "후손: 자기 자신은 빼고 서브셸 밑 손자가 서브셸보다 앞" "$(run "compat_descendants $TREE" | awk -v t="$TREE" '$1 == t { bad = 1 } END { print bad + 0 }')" 0
+eq "후손: 자기 자신은 목록에 없다" "$(run "compat_descendants $TREE" | awk -v t="$TREE" '$1 == t { bad = 1 } END { print bad + 0 }')" 0
+# 후위 순서: 부모는 자기 자식보다 뒤에 나온다(실제 ps 경로)
+pairs="$(ps -axo pid=,ppid=)"
+eq "후손: 깊은 쪽부터(부모는 자식보다 뒤)" "$(run "compat_descendants $TREE" | PAIRS="$pairs" awk 'BEGIN { n = split(ENVIRON["PAIRS"], L, "\n"); for (i = 1; i <= n; i++) { split(L[i], a, " "); pp[a[1]] = a[2] } } { idx[$1] = NR } END { bad = 0; for (c in idx) if ((pp[c] in idx) && idx[pp[c]] < idx[c]) bad = 1; print bad }')" 0
 eq "pgrep_f: sleep 62 를 찾는다" "$(run "compat_pgrep_f '^sleep 62\$'" | grep -c .)" 1
 run "compat_kill_tree $TREE"
-{ wait "$TREE"; } 2>/dev/null
+{ wait "$TREE"; } 2>/dev/null; BG="${BG/$TREE/}"   # 거둔 pid 는 정리 대상에서 뺀다(재사용된 pid 에 TERM 이 가지 않게)
 eq "kill_tree: 후손이 모두 사라진다" "$(run "compat_pgrep_f '^sleep 6[12]\$'" | grep -c .)" 0
 eq "pid_alive: 죽은 pid" "$(run "compat_pid_alive $TREE && echo y || echo n")" n
 eq "pid_alive: 자기 셸" "$(run 'compat_pid_alive $$ && echo y || echo n')" y
 eq "pid_cwd: 자기 셸 작업 폴더" "$(cd "$tmp" && run 'compat_pid_cwd $$')" "$tmp"
-bash -c 'sleep 63' "$tmp/pk" & BG="$BG $!"; sleep 0.3
-run "compat_pkill_f '^sleep 63\$'"; sleep 0.3
+bash -c 'sleep 63' "$tmp/pk" & PK=$!; BG="$BG $PK"; sleep 0.3
+run "compat_pkill_f '^sleep 63\$'"; sleep 0.3; { wait "$PK"; } 2>/dev/null; BG="${BG/$PK/}"
 eq "pkill_f: sleep 63 종료" "$(run "compat_pgrep_f '^sleep 63\$'" | grep -c .)" 0
 
 # ---- 2) GNU 경로 강제 ---------------------------------------------------------------------------------------------
@@ -74,8 +78,14 @@ done
 if [ -n "$e" ]; then exec /bin/date $u -r "$e" "$fmt"; else exec /bin/date $u "$fmt"; fi
 EOF
 chmod +x "$tmp/gnubin/stat" "$tmp/gnubin/date"
-gnu() { PATH="$tmp/gnubin:$PATH" run "$@"; }
-eq "GNU: 흉내 stat 의 -f 함정(대안으로 못 넘어감)이 실제로 재현된다" "$("$tmp/gnubin/stat" -f %m "$f"; echo "rc=$?")" "$(printf '?\nrc=0')"
+# 이 PC 가 이미 GNU(Git Bash·Linux)이면 흉내 대신 실제 명령을 쓴다(흉내는 BSD stat·date 에 기대므로 macOS 에서만 의미가 있다)
+if [ "$COMPAT_GNU" = 1 ]; then
+  gnu() { run "$@"; }
+  echo "ok   GNU: 이 PC 가 GNU 라 실제 stat·date 로 시험한다"; pass=$((pass+1))
+else
+  gnu() { PATH="$tmp/gnubin:$PATH" run "$@"; }
+  eq "GNU: 흉내 stat 의 -f 함정(대안으로 못 넘어감)이 실제로 재현된다" "$("$tmp/gnubin/stat" -f %m "$f"; echo "rc=$?")" "$(printf '?\nrc=0')"
+fi
 eq "GNU: 판별" "$(gnu 'echo $COMPAT_GNU')" 1
 mt="$(gnu "compat_stat_mtime '$f'")"
 d=$(( now - mt )); [ "$d" -ge 7195 ] && [ "$d" -le 7260 ] && chk ok "GNU: mtime 이 숫자로 나온다(? 아님)" || chk fail "GNU: mtime" "[$mt]"
@@ -105,6 +115,15 @@ eq "Win: pgrep_f" "$(win "compat_pgrep_f 'node server'" | tr '\n' ' ')" "400 "
 eq "Win: cwd 는 /proc/<pid>/cwd" "$(win 'compat_pid_cwd 200')" "$tmp/wd"
 eq "Win: cwd 없는 pid 는 빈 출력" "$(win 'compat_pid_cwd 400' | grep -c .)" 0
 eq "Win: 후손 없는 pid" "$(win 'compat_descendants 300' | grep -c .)" 0
+
+# 여러 줄 인자·끝 줄바꿈 없는 ppid·숫자가 아닌 첫 낱말(과거 결함: 둘째 줄의 `-1` 이 pid 로 읽혀 kill -TERM -1 이 될 수 있었다)
+mkproc 500 100 bash -c $'echo a\n5 MARK_X\n-1 MARK_X'
+mkdir -p "$P/600"; printf '100' > "$P/600/ppid"; printf '%s\0' sleep MARK_Y > "$P/600/cmdline"
+eq "Win: 인자 속 줄바꿈이 있어도 표는 한 프로세스 한 줄" "$(win 'compat_ps_table' | grep -c '^500 ')" 1
+eq "Win: pgrep_f 는 진짜 pid 만(5·-1 같은 가짜가 없다)" "$(win "compat_pgrep_f MARK_X" | tr '\n' ' ')" "500 "
+eq "Win: 끝 줄바꿈이 없는 ppid 도 읽는다" "$(win "compat_pgrep_f MARK_Y" | tr '\n' ' ')" "600 "
+eq "Win: descendants 에 600 포함(끝 줄바꿈 없는 ppid)" "$(win 'compat_descendants 100' | grep -c '^600$')" 1
+eq "신호 가드: 0·1·-1·빈 값은 거른다" "$(run 'for x in 0 1 -1 "" abc 2 4242; do _compat_pid_ok "$x" && printf "%s " "$x"; done')" "2 4242 "
 
 echo "통과 $pass · 실패 $fail"
 [ "$fail" = 0 ]

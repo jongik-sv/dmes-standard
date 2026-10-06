@@ -646,7 +646,8 @@ term_children() {
   if command -v pkill >/dev/null 2>&1; then pkill -TERM -P "$1" 2>/dev/null; return 0; fi
   for d in /proc/[0-9]*; do
     p="${d##*/}"; pp=""
-    { IFS= read -r pp < "$d/ppid"; } 2>/dev/null || continue
+    { IFS= read -r pp < "$d/ppid" || [ -n "$pp" ]; } 2>/dev/null || continue
+    case "$p" in ''|*[!0-9]*|0|1) continue ;; esac
     [ "$pp" = "$1" ] && kill -TERM "$p" 2>/dev/null
   done
   return 0
