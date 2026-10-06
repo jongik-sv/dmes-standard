@@ -700,6 +700,18 @@ describe("편집기", () => {
     return { onChange, onValidate };
   }
 
+  it("위 공통 칸과 같은 라벨 칸·값 칸 표로 그리고, 입력은 감싼 칸이 남은 폭을 쓴다", async () => {
+    await renderEditor({ targetTp: "RULE", targetId: "R1", showSteps: false });
+    const table = must("widget-type-editor-rule-calc").querySelector("table")!;
+    expect(table).not.toBeNull();
+    expect(Array.from(table.querySelectorAll("tr > th")).map((th) => th.textContent?.replace("*", "").trim())).toEqual(["대상", "찾기", "중간값", "화면 값 채우기"]);
+    // 종류 선택은 좁은 칸, ID 입력과 검색어 입력은 남은 폭 칸 안에 있다(className 은 input 자체로 가므로 폭은 감싼 칸이 맡는다).
+    expect(must("rc-editor-tp").closest(".mcm-rc-editor__tp")).not.toBeNull();
+    expect(must("rc-editor-id").closest(".mcm-rc-editor__row > .mcm-rc-editor__grow")).not.toBeNull();
+    expect(must("rc-editor-keyword").closest(".mcm-rc-editor__row > .mcm-rc-editor__grow")).not.toBeNull();
+    expect(must("rc-editor-fill").closest("td")).not.toBeNull();
+  });
+
   it("ID 가 비면 검사 오류를 알리고 [입력 칸 확인] 은 잠긴다", async () => {
     const { onValidate } = await renderEditor({ targetTp: "RULE", targetId: "", showSteps: false });
     expect(onValidate).toHaveBeenLastCalledWith(["룰 또는 룰 세트를 지정하세요"]);

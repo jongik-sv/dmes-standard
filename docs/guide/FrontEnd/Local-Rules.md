@@ -295,6 +295,7 @@ shared `Modal` 의 `lg`·`xl` 은 최소 높이(70·80vh)만 있고 고정 높�
 - 여러 줄 내용은 FormGroup 에 높이 고정을 푸는 클래스를 주고, 그 클래스에서 `height: auto; min-height: 26px`, 라벨 `height: auto`, 칸 안 입력칸 테두리 복원을 함께 정한다. 예시: `m-mcm/widget-types/_ext/styles.ts` 의 `.mcm-fg-block`.
 - 칸 안 그리드·목록은 `flex: 1 1 auto; min-width: 0` 를 줘야 폭을 얻는다. 주지 않으면 `auto-fill` 그리드가 한 열로 접힌다.
 - 확인은 브라우저에서 한다: 값 칸의 `scrollHeight > clientHeight` 이면 넘친 것이다.
+- **위젯 유형 편집기(`widget-types/*/editor.tsx`)는 위 공통 칸과 같은 표(`DETAIL_TABLE_STYLE`·`DETAIL_LABEL_CELL`·`DETAIL_VALUE_CELL` + `MdmFieldLabel`)로 그린다.** FormGroup 으로 그리면 라벨이 회색 둥근 박스로 뜨고 값 칸이 26px 로 눌려 입력 테두리가 잘린다(룰 계산기 편집기, 2026-10-07). 한 줄에 선택+입력, 입력+단추를 둘 때 `Input`·`Select` 의 `className` 은 바깥 Mantine 래퍼가 아니라 input 요소로 가므로 폭이 안 늘어난다. 감싸는 `div` 에 `flex: 1 1 auto; min-width: 0`(남은 폭) 또는 고정 `flex-basis`(종류 선택)를 준다. 예시: `m-mcm/widget-types/rule-calc/editor.tsx`.
 
 ## 27. MDM 캡션·툴팁·값 검증 — 컬럼 사전을 화면이 따른다 (2026-10-03)
 
