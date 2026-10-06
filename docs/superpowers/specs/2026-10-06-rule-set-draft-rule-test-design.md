@@ -1,5 +1,7 @@
 # 룰 세트 디버거·테스트 케이스 — 내 DRAFT 룰로 시험하기 설계
 
+> 2026-10-06 최종 리뷰 반영: draftVersions 의미 정정(지나간 노드가 아니라 흐름에 든 DRAFT)
+
 - 작성: 2026-10-06, 레인 draft-test(조정 세션 dmes-standard-90, 지시 draft-test-1)
 - 상태: 설계 승인 대기
 - 결정 번호: docs/mdm/decisions.md D-156(구현 단계에서 기록)
@@ -119,7 +121,8 @@ public record RuleVersionPick(String draftOwner) {
 - **캐시 키는 바꾸지 않는다.** 모드는 인스턴스마다 고정이고(세션 하나에 모드 하나), 조회기는 빈이 아니라 세션마다 새로 만든다.
   그래서 `ruleId@evalTs`·`setId@evalTs` 키 안에서 모드가 섞일 일이 없다. `definitions`·`prefetched` 는 `ruleId@ver` 라 원래 모드와 무관하다.
 - **DRAFT 사용 기록**: `load`·`loadSet` 이 DRAFT 행을 골랐을 때만 `draftRules`(룰 ID → VER)·`draftSets`(세트 ID → 버전 행)에 남긴다.
-  `prefetch` 에서는 남기지 않는다. `prefetch` 는 실제로 지나지 않는 갈래의 룰도 읽기 때문이다.
+  `prefetch` 에서는 남기지 않는다. `prefetch` 는 흐름에 있어도 엔진이 묻지 않을 룰까지 미리 읽기 때문이다.
+  엔진 `prepareSet` 은 흐름을 준비할 때 트리의 룰 전부에 정의를, SET 노드마다 하위 세트 정의를 묻는다. 그래서 기록에는 지나간 노드의 DRAFT 가 아니라 **흐름(하위 세트 포함)에 든 DRAFT** 가 담긴다(지나가지 않은 갈래의 룰도 들 수 있다).
   공개 읽기: `Map<String, BigDecimal> draftRules()`, `Map<String, MdmRuleSetVer> draftSets()`(둘 다 넣은 순서, 읽기 전용 사본).
 - **내 DRAFT 가 깨졌을 때**: DRAFT 를 골라 정의를 읽다가 `StoredDefinitionException` 이 나면,
   메시지 앞에 `"룰 {R} 의 내 DRAFT 버전 {x.xxx}: "`(세트는 `"세트 {S} 의 내 DRAFT 버전 {x.xxx}: "`)를 붙여 다시 던진다.
@@ -148,7 +151,8 @@ public record RuleVersionPick(String draftOwner) {
 
 - `RELEASED` 모드이거나 DRAFT 를 하나도 안 썼으면 `{ "rules": {}, "sets": {} }`. 키는 늘 둔다(화면이 null 검사를 하지 않게).
 - VER 는 `VersionNumbers.plain`(scale 3 글자)이다. 화면은 노드의 `ver` 를 `normVer` 로 맞춰 이 값과 같을 때만 DRAFT 로 표시한다.
-  VER 는 룰마다 유일하므로 (룰 ID, VER) 일치가 곧 「이 노드는 DRAFT 로 돌았다」 이다.
+  기록은 엔진이 흐름 준비 때 묻는 룰·세트(흐름 전체)이고, 노드 배지는 기록된 노드의 `ver` 와 VER 가 같을 때만 그리므로 지나간 노드에만 붙는다.
+  VER 는 룰마다 유일하므로 (룰 ID, VER) 일치가 곧 「이 노드는 DRAFT 로 돌았다」 이다(노드는 기록 노드에만 있으므로 흐름에 들었어도 지나가지 않은 룰에는 배지가 없다).
 - 단건 실행은 그 실행의 조회기 기록, 케이스 일괄 실행은 **일괄 실행 전체에 한 묶음**이다(세션 하나를 같이 쓰고, DRAFT 선택은 판정 시각과 무관해
   케이스마다 달라지지 않는다). 케이스별 칸은 두지 않는다.
 - 응답 칸 `ruleVersions`(실제로 쓴 모드, `DRAFT_USER_UNKNOWN` 이면 `RELEASED`)를 함께 싣는다. 화면은 기록 머리 표시에 이 값을 쓴다.
@@ -219,7 +223,7 @@ public record RuleVersionPick(String draftOwner) {
 - 룰 노드 상세(`TraceDetail`): `버전 1.003` 옆에 `DRAFT` 표시(`badgeStyle("warning")`, testid `sim-detail-draft`). 조건: 응답 `draftVersions.rules[ruleId]`
   와 노드 `ver` 가 같음. 하위 세트 프레임 머리(`FrameDetail`): `draftVersions.sets[setId]` 가 있으면 `하위 세트 S · DRAFT 2.001`.
   캔버스 노드 위 표시는 이번에 하지 않는다.
-- 기록 머리(디버거 도구 막대 상태 줄): 마지막 실행이 `MY_DRAFT` 이면 `내 DRAFT 우선으로 실행 · DRAFT 룰 n개·세트 m개` 를 보인다(testid `dbg-draft-run`).
+- 기록 머리(디버거 도구 막대 상태 줄): 마지막 실행이 `MY_DRAFT` 이면 `내 DRAFT 우선으로 실행 · 흐름의 DRAFT 룰 n개·세트 m개` 를 보인다(testid `dbg-draft-run`). n·m 은 엔진이 흐름 준비 때 묻는 룰·세트(하위 세트 포함)이며 지나간 노드 수가 아니다.
 - 검사 기준 안내: 선택이 `MY_DRAFT` 일 때 선택 칸 아래에 `"검사 결과(거부·경고)는 적용 중 버전 기준이다. 실행만 내 DRAFT 를 쓴다"`(testid `dbg-draft-check-note`).
 - 케이스 일괄 실행 결과 머리: `MY_DRAFT` 로 돌렸으면 `내 DRAFT 우선으로 돌렸다 — 확정 검사는 적용 중 버전으로 돌린다` 와 DRAFT 룰 목록을 보인다.
 - 새 케이스 기대값 채우기: `MY_DRAFT` 기록으로도 채운다(룰 DRAFT 를 먼저 확정하면 확정 검사가 같은 값을 낸다). 대신 케이스 편집 창에
