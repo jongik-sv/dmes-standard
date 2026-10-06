@@ -35,22 +35,39 @@ _cr_sess_mine() {
   _cr_ident_ok || return 1
   [ "$(jq -r '"\(.user // "")/\(.host // "")"' "$1" 2>/dev/null)" = "$CR_IDENT/$CR_HOST" ]
 }
+# _cr_sess_read <세션 기록 파일> — jq 한 번으로 _CR_MINE(_cr_sess_mine 과 같은 판정이면 1, 아니면 0)·_CR_PID(.pid // 0 | tostring)·
+#   _CR_HANDLE(.handle // empty | tostring)을 채운다. 기록을 못 읽으면(깨진 JSON·객체 아님) 셋 다 빈 값·_CR_MINE=0
+_CR_MINE=0; _CR_PID=""; _CR_HANDLE=""
+_cr_sess_read() {
+  local u=""
+  _CR_MINE=0; _CR_PID=""; _CR_HANDLE=""
+  IFS=$'\x1f' read -r -d '' u _CR_PID _CR_HANDLE < <(jq -j '"\(.user // "")/\(.host // "")", "\u001f", (.pid // 0 | tostring), "\u001f", (.handle // "" | tostring)' "$1" 2>/dev/null)
+  _cr_ident_ok && [ "$u" = "$CR_IDENT/$CR_HOST" ] && _CR_MINE=1
+  return 0
+}
 # _cr_session_dead <세션8> <회차 coordinator pid> [strict] — 죽은 세션이면 0.
 #   strict 이면 「살아 있음이 확인되지 않음」(pid 0·빈 값 포함)도 죽은 것으로 본다.
 #   세션 기록이 있지만 다른 신원의 것이면 그 회차는 이 신원의 것이 아니므로 죽은 것으로 친다(고르지 않음).
 _cr_session_dead() {
   local f p; f="$(coord_state_root)/_session/$1.json"
   if [ -f "$f" ]; then
-    _cr_sess_mine "$f" || return 0
-    p="$(jq -r '.pid // 0 | tostring' "$f" 2>/dev/null)"
+    _cr_sess_read "$f"
+    [ "$_CR_MINE" = 1 ] || return 0
+    p="$_CR_PID"
     case "$p" in ''|0|null) ;; *) _cr_pid_dead "$p"; return ;; esac
   fi
   if [ "${3:-}" = strict ]; then _cr_pid_live "${2:-0}" && return 1; return 0; fi
   _cr_pid_dead "${2:-0}"
 }
 # 살아 있는(죽지 않은) 세션의 열린 이 신원 회차: 줄마다 `<state.json>\t<세션8>`. [strict] 이면 살아 있음이 확인된 것만
+#   cr_memo_begin 뒤(cr_memo_end 전)에는 non-strict 결과를 한 번만 구해 다시 쓴다(한 순회 안의 같은 판정을 jq 로 되풀이하지 않게).
+#   strict 은 늘 새로 판정한다.
+_CR_LR_SET=0; _CR_LR=""
+cr_memo_begin() { [ "$_CR_LR_SET" = 1 ] && return 1; _CR_LR="$(_cr_live_runs)"; _CR_LR_SET=1; return 0; }   # 이미 켜져 있으면 rc 1(끄는 것은 켠 쪽 몫)
+cr_memo_end() { _CR_LR_SET=0; _CR_LR=""; }
 _cr_live_runs() {
   local root f line s8 rpid u
+  if [ "$_CR_LR_SET" = 1 ] && [ -z "${1:-}" ]; then [ -z "$_CR_LR" ] || printf '%s\n' "$_CR_LR"; return 0; fi
   _cr_ident_ok || return 0
   root="$(coord_state_root)"
   for f in "$root"/*/state.json; do
@@ -122,10 +139,11 @@ _cr_coord_lead() {
   _cr_ref_ok "$s8" || return 1
   f="$(coord_state_root)/_session/$s8.json"
   if [ -f "$f" ]; then
-    _cr_sess_mine "$f" || return 1          # 다른 신원·host(또는 신원 없는 옛 기록)
-    p="$(jq -r '.pid // 0 | tostring' "$f" 2>/dev/null)"
+    _cr_sess_read "$f"                     # 신원·pid·handle 을 jq 한 번으로
+    [ "$_CR_MINE" = 1 ] || return 1        # 다른 신원·host(또는 신원 없는 옛 기록)
+    p="$_CR_PID"
     _cr_pid_dead "$p" && return 1          # 죽은 조정 세션
-    h="$(jq -r '.handle // empty' "$f" 2>/dev/null)"
+    h="$_CR_HANDLE"
     [ -n "$h" ] && { printf '%s\n' "$h"; return 0; }
   fi
   hs="$(_cr_live_runs | awk -F'\t' -v s="$s8" '$2 == s { print $1 }' | while IFS= read -r sf; do
@@ -192,8 +210,15 @@ console_header_ref() {  # console_header_ref <target_kind> <target_ref>
 }
 
 console_list_targets() {
-  local root f s8 k h lanes L slots n rc
+  local root f s8 k h lanes L slots n rc memo=0
   root="$(coord_state_root)"
+  cr_memo_begin && memo=1   # 이 순회 안에서는 살아 있는 회차 판정을 한 번만(부른 쪽이 이미 켰으면 그대로)
+  _cr_list_targets "$root"
+  [ "$memo" = 1 ] && cr_memo_end
+  return 0
+}
+_cr_list_targets() {
+  local root="$1" f s8 k h lanes L slots n rc
   # 조정 팀장: 세션 기록이 있고 새 키(…/coord:<세션8>)인 것만. 옛 …/coord(식별자 없음)는 콘솔을 열지 않는다.
   for f in "$root"/_session/*.json; do
     [ -f "$f" ] || continue

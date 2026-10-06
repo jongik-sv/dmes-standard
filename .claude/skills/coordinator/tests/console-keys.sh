@@ -28,6 +28,7 @@ trap cleanup EXIT
 fail=0; pass=0
 chk() { if [ "$1" = ok ]; then pass=$((pass + 1)); echo "ok   $2"; else fail=1; echo "FAIL $2${3:+ — $3}"; fi; }
 eq() { if [ "$2" = "$3" ]; then chk ok "$1"; else chk fail "$1" "기대 [$3] 실제 [$2]"; fi; }
+udate() { date -u -r "$1" "$2" 2>/dev/null || date -u -d "@$1" "$2"; }   # <epoch> <+형식> — UTC(BSD -r → GNU -d @)
 
 unset ORCA_TERMINAL_HANDLE CLAUDE_PID COORD_SESSION_ID CLAUDE_CODE_SESSION_ID COORD_RUN DFLOW_CONFIG_DIR COORD_DRY CONSOLE_POLL_IDENT COORD_CONSOLE_POLL
 mkdir -p "$tmp/bin" "$tmp/repo" "$tmp/home"
@@ -365,8 +366,8 @@ printf '%s\n' "조정 중" > "$FAKE_DIR/screens/hL.txt"
 cp "$FX/prompt-permission.txt" "$FAKE_DIR/screens/hk.txt"
 once
 kid() { printf '2222bbbb-0000-0000-0000-%012d' "$1"; }
-FUT="$(date -u -r $(( $(date +%s) + 120 )) +%Y-%m-%dT%H:%M:%S.000Z)"
-PAST="$(date -u -r $(( $(date +%s) - 5 )) +%Y-%m-%dT%H:%M:%S.000Z)"
+FUT="$(udate $(( $(date +%s) + 120 )) +%Y-%m-%dT%H:%M:%S.000Z)"
+PAST="$(udate $(( $(date +%s) - 5 )) +%Y-%m-%dT%H:%M:%S.000Z)"
 mkkey() {  # <n> <ref> <keys JSON> [kind] [since] [sha] [expires] [target_kind]
   jq -nc --arg id "$(kid "$1")" --arg r "$2" --argjson k "$3" --arg ik "${4:-$(recf coord_lane_kit .kind)}" \
     --arg is "${5:-$(recf coord_lane_kit .since)}" --arg sh "${6:-$(sha_of_rec coord_lane_kit)}" --arg ex "${7:-$FUT}" --arg tk "${8:-coord_lane}" \
@@ -422,7 +423,7 @@ eq "키 행: since 가 다른 순간 → prompt_changed" "$(ackof 34)" "tok-KEY-
 eq "키 행: 불일치 네 경우 send 0" "$(sends)" 0
 # 같은 순간을 다른 표기(+09:00)로 → 시각 비교라 통과
 cs="$(recf coord_lane_kit .since)"; csm="$(lib console_iso_to_ms "$cs")"
-kst="$(date -r $(( csm / 1000 + 32400 )) -u +%Y-%m-%dT%H:%M:%S).$(printf '%03d' $(( csm % 1000 )))+09:00"
+kst="$(udate $(( csm / 1000 + 32400 )) +%Y-%m-%dT%H:%M:%S).$(printf '%03d' $(( csm % 1000 )))+09:00"
 mkkey 35 kit '["Enter"]' "" "$kst"; once
 eq "키 행: since 가 같은 순간(다른 시간대 표기)이면 보낸다" "$(ackof 35 | cut -d' ' -f2):$(sends)" "sent:1"
 # 창 없음
@@ -575,7 +576,7 @@ mkkey2() {  # <n> <expires> — 지금 기록의 kind·since·sha 로 [1]
     '{id:$id, target_kind:"coord_lane", target_ref:"kit", claim_token:("tok-KEY-" + ($id | .[-3:])), expires_at:$ex, kind:"keys", keys:["1"],
       input_request:{kind:"permission", since:$is, sha:$sh}}' >> "$FAKE_DIR/queue"
 }
-FUT="$(date -u -r $(( $(date +%s) + 600 )) +%Y-%m-%dT%H:%M:%S.000Z)"
+FUT="$(udate $(( $(date +%s) + 600 )) +%Y-%m-%dT%H:%M:%S.000Z)"
 cp "$tmp/pd.txt" "$FAKE_DIR/screens/hk.txt"     # 발췌는 같고 발췌 밖 줄만 다른 화면
 mkkey2 70 "$FUT"; once
 eq "키 행: 발췌 sha 는 같아도 full 이 다르면 prompt_changed·send 0" "$(ackof 70):$(sends)" "tok-KEY-070 refused --reason prompt_changed:0"
@@ -937,7 +938,7 @@ eq "T2: 머리 밀림 + 본문 들여쓴 가로줄 아래 신뢰 문구 → ESCA
 eq "CH1 준비: kind 는 choice" "$(lib console_input_kind < "$tmp/ch1.txt")" choice
 eq "CH1: 대화 줄 (Recommended) + settings.json 편집 창 → ESCALATE window-shape·키 0" "$(AAK "$tmp/ch1.txt")" "ESCALATE hk choice window-shape:"
 mkbash "$tmp/ch2.txt" "python3 evil.py" "Pick one" "2. Go (Recommended)"
-printf '\nEnter to select\n' >> "$tmp/ch2.txt"; sed -i '' 's/ Do you want to proceed?/ Do you want to run it?/' "$tmp/ch2.txt"
+printf '\nEnter to select\n' >> "$tmp/ch2.txt"; sed 's/ Do you want to proceed?/ Do you want to run it?/' "$tmp/ch2.txt" > "$tmp/ch2.tmp" && mv "$tmp/ch2.tmp" "$tmp/ch2.txt"   # sed -i 는 BSD·GNU 문법이 달라 쓰지 않는다
 eq "CH2 준비: kind 는 question" "$(lib console_input_kind < "$tmp/ch2.txt")" question
 eq "CH2: 본문 속 (Recommended) 선택지가 권한 창 블록에 붙음 → ESCALATE window-shape·키 0" "$(AAK "$tmp/ch2.txt")" "ESCALATE hk question window-shape:"
 # 정상 창은 기존대로
