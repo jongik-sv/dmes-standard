@@ -296,6 +296,7 @@ shared `Modal` 의 `lg`·`xl` 은 최소 높이(70·80vh)만 있고 고정 높�
 - 칸 안 그리드·목록은 `flex: 1 1 auto; min-width: 0` 를 줘야 폭을 얻는다. 주지 않으면 `auto-fill` 그리드가 한 열로 접힌다.
 - 확인은 브라우저에서 한다: 값 칸의 `scrollHeight > clientHeight` 이면 넘친 것이다.
 - **위젯 유형 편집기(`widget-types/*/editor.tsx`)는 위 공통 칸과 같은 표(`DETAIL_TABLE_STYLE`·`DETAIL_LABEL_CELL`·`DETAIL_VALUE_CELL` + `MdmFieldLabel`)로 그린다.** FormGroup 으로 그리면 라벨이 회색 둥근 박스로 뜨고 값 칸이 26px 로 눌려 입력 테두리가 잘린다(룰 계산기 편집기, 2026-10-07). 한 줄에 선택+입력, 입력+단추를 둘 때 `Input`·`Select` 의 `className` 은 바깥 Mantine 래퍼가 아니라 input 요소로 가므로 폭이 안 늘어난다. 감싸는 `div` 에 `flex: 1 1 auto; min-width: 0`(남은 폭) 또는 고정 `flex-basis`(종류 선택)를 준다. 예시: `m-mcm/widget-types/rule-calc/editor.tsx`.
+- **shared `ComboBox` 는 바깥 상자(`.form-combobox`, 테두리·폭 100%) 안에 Mantine 입력 묶음(`.mantine-Input-wrapper`)이 내용 폭만 차지한다.** 한 줄 행에 넣으면 입력이 좁고 빈 바깥 상자가 행 끝까지 이어져 테두리가 두 겹으로 보이고, 펼친 목록(입력 폭)도 좁아 항목이 접힌다(룰 계산기 편집기 검색 결과, 2026-10-07). 화면 쪽 스타일에서 `.form-combobox` 테두리를 없애고 `> .mantine-Input-wrapper { flex: 1 1 auto; width: 100%; min-width: 0 }`, 목록은 `.mantine-Select-dropdown { min-width }`·옵션 한 줄 말줄임으로 맞춘다(shared 는 그대로). 예시: `m-mcm/widget-types/rule-calc/rule-calc-styles.ts`.
 
 ## 27. MDM 캡션·툴팁·값 검증 — 컬럼 사전을 화면이 따른다 (2026-10-03)
 

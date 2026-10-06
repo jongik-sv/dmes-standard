@@ -53,6 +53,15 @@ export const RULE_CALC_CSS = `
 .mcm-rc-editor__row > .mcm-rc-editor__grow { flex: 1 1 auto; min-width: 0; }
 .mcm-rc-editor__row > .mcm-rc-editor__tp { flex: 0 0 9rem; min-width: 0; }
 .mcm-rc-editor__row + .mcm-rc-editor__row, .mcm-rc-editor__row + .mcm-rc__msg, .mcm-rc__msg + .mcm-rc-editor__row { margin-top: var(--spacing-xs); }
+/* 검색 결과 ComboBox — shared ComboBox 의 바깥 상자(.form-combobox, 테두리·폭 100%) 안 Mantine 입력 묶음(.mantine-Input-wrapper)이 내용 폭만 차지해
+   입력이 좁고 바깥 상자만 행 끝까지 이어져 테두리가 두 겹으로 보인다. 묶음이 남은 폭을 쓰고 테두리는 입력 하나만 남긴다(shared 는 그대로). */
+.mcm-rc-editor .form-combobox { height: auto; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.mcm-rc-editor .form-combobox:focus-within { box-shadow: none; }
+.mcm-rc-editor .form-combobox > .mantine-Input-wrapper { flex: 1 1 auto; width: 100%; min-width: 0; }
+/* 펼친 목록은 입력 폭 이상으로 하고, 긴 항목은 한 줄 말줄임으로 둔다. */
+.mcm-rc-editor .form-combobox .mantine-Select-dropdown { min-width: min(32rem, 90vw); }
+.mcm-rc-editor .form-combobox .mantine-Select-option { white-space: nowrap; }
+.mcm-rc-editor .form-combobox .mantine-Select-option > span { overflow: hidden; text-overflow: ellipsis; }
 .mcm-rc-editor__note { font-size: var(--font-size-xs); color: var(--color-text-muted); }
 .mcm-rc-editor__preview { display: flex; flex-direction: column; gap: var(--spacing-xs); padding: var(--spacing-sm); border: 1px solid var(--color-border-light); border-radius: var(--radius-sm); background: var(--color-bg-light); font-size: var(--font-size-sm); }
 .mcm-rc-editor__list { margin: 0; padding-left: var(--spacing-lg); }

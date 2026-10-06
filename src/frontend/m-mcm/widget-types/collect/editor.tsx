@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 정시 수집 편집기(docs/widget-2026-10/spec-widget-data.md §2·§6) — 일정(주기 또는 시각 목록)·원천(SQL·HTTP JSON·환율)과 종류별 칸·표시(기간·단위).
+ * 자동 수집 편집기(docs/widget-2026-10/spec-widget-data.md §2·§6) — 일정(주기 또는 시각 목록)·원천(SQL·HTTP JSON·환율)과 종류별 칸·표시(기간·단위).
  * SQL 칸은 쿼리 위젯의 SqlEditor 를 재사용한다(조회 조건 params 는 쓰지 않는다). HTTP·환율은 시험 버튼 없이 안내 문구만 둔다.
  * 검사(collectErrors)가 칸 단위로 오류를 보이고, 합친 목록을 onValidate 로 알려 저장을 막는다.
  */
