@@ -1,4 +1,5 @@
 import { parsePageId } from "./module";
+import { createRandomId } from "./random-id";
 
 /**
  * 화면 사용 구간 추적기 — 활성화된 탭마다 열린 구간 하나를 두고 그 탭을 실제로 보고 있던 시간을 누적한다.
@@ -91,23 +92,9 @@ export function toUsagePageId(tabPageId: string): string {
   return parsePageId(tabPageId)?.pageName ?? tabPageId;
 }
 
-/**
- * 구간 ID(36자 UUID v4). http 로 IP 접속하면 보안 컨텍스트가 아니라 crypto.randomUUID 가 없으므로
- * getRandomValues(보안 컨텍스트 불필요)로 만든다. 그것도 없으면 Math.random 으로 채운다.
- */
+/** 구간 ID(36자 UUID v4). 비보안 컨텍스트(http IP 접속)에서도 되도록 createRandomId 로 만든다. */
 export function createUsageSegmentId(): string {
-  const cryptoApi = (globalThis as { crypto?: Partial<Crypto> }).crypto;
-  if (cryptoApi && typeof cryptoApi.randomUUID === "function") return cryptoApi.randomUUID();
-  const bytes = new Uint8Array(16);
-  if (cryptoApi && typeof cryptoApi.getRandomValues === "function") {
-    cryptoApi.getRandomValues(bytes);
-  } else {
-    for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
-  }
-  bytes[6] = (bytes[6] & 0x0f) | 0x40; // 버전 4
-  bytes[8] = (bytes[8] & 0x3f) | 0x80; // RFC 4122 변형
-  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  return createRandomId();
 }
 
 export class UsageTracker {

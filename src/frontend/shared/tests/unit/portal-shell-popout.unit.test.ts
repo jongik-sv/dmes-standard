@@ -211,6 +211,44 @@ describe("PortalShell 탭 분리·하나 더 열기", () => {
     expect(popoutKeys()).toEqual([]);
   });
 
+  it("window.open 이 던지면 탭이 남고 onError 가 한 번, onBlocked 는 부르지 않으며 console.error 를 남긴다", async () => {
+    const boom = new Error("open boom");
+    vi.spyOn(window, "open").mockImplementation(() => {
+      throw boom;
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const onBlocked = vi.fn();
+    const onError = vi.fn();
+    rendered = renderWithMantine(
+      shell({ popout: { buildUrl: (_p, t) => `/popup/x?h=${t}`, onBlocked, onError } })
+    );
+    await flush();
+    await openTab("t:g/a");
+    openContextMenu("A");
+    act(() => contextItem(POPOUT_LABEL)!.click());
+    await flush();
+    expect(order()).toEqual(["A"]);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith(boom);
+    expect(onBlocked).not.toHaveBeenCalled();
+    expect(popoutKeys()).toEqual([]);
+    expect(consoleError).toHaveBeenCalledWith("[PortalShell] popout failed", "t:g/a", boom);
+  });
+
+  it("onError 가 없어도 window.open 예외가 밖으로 나오지 않고 탭이 남는다", async () => {
+    vi.spyOn(window, "open").mockImplementation(() => {
+      throw new Error("open boom");
+    });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    rendered = renderWithMantine(shell({ popout: { buildUrl: (_p, t) => `/popup/x?h=${t}` } }));
+    await flush();
+    await openTab("t:g/a");
+    openContextMenu("A");
+    expect(() => act(() => contextItem(POPOUT_LABEL)!.click())).not.toThrow();
+    await flush();
+    expect(order()).toEqual(["A"]);
+  });
+
   it("메뉴에 없는 화면 탭은 '새 창으로 분리' 가 is-disabled 다", async () => {
     rendered = renderWithMantine(
       shell({ popout: { buildUrl: (_p, t) => `/popup/x?h=${t}` } })
@@ -258,5 +296,29 @@ describe("PortalShell 탭 분리·하나 더 열기", () => {
     expect(logout).toBeDefined();
     await act(async () => logout!.click());
     expect(fakeWin.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("로그아웃하면 새 창이 아직 가져가지 않은 handoff 키가 지워진다", async () => {
+    vi.spyOn(window, "open").mockReturnValue({ close: vi.fn() } as unknown as Window);
+    rendered = renderWithMantine(
+      shell({
+        popout: { buildUrl: (_p, t) => `/popup/x?h=${t}` },
+        onBeforeLogout: (go) => go(),
+      })
+    );
+    await flush();
+    await openTab("t:g/a");
+    openContextMenu("A");
+    act(() => contextItem(POPOUT_LABEL)!.click());
+    await flush();
+    expect(popoutKeys()).toHaveLength(1);
+
+    act(() => document.querySelector<HTMLElement>(".portal-header__user-button")!.click());
+    const logout = [...document.querySelectorAll<HTMLElement>("*")].find(
+      (el) => el.textContent?.trim() === "로그아웃" && el.children.length === 0
+    );
+    expect(logout).toBeDefined();
+    await act(async () => logout!.click());
+    expect(popoutKeys()).toEqual([]);
   });
 });

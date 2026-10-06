@@ -20,7 +20,7 @@ import { Sidebar, type SidebarNavigationViewMode } from "./sidebar/Sidebar";
 import type { StartPageLeaf } from "./sidebar/StartPagesList";
 import { clearStartPagesOpened, type PortalStartPageRecord } from "./start-pages";
 import { TabsBar } from "./tabs-bar/TabsBar";
-import { openPagePopout } from "./popout";
+import { clearPopoutHandoffs, openPagePopout } from "./popout";
 import { numberDuplicateTitles } from "./tab-duplicates";
 import { Dashboard } from "./dashboard/Dashboard";
 import { FavoriteFolderPickerModal, type FavoriteFolderChoice } from "./FavoriteFolderPickerModal";
@@ -93,6 +93,8 @@ export interface PortalShellPopout {
   buildUrl: (pageId: string, token: string) => string;
   /** 팝업이 차단돼 창을 못 열었을 때 — 호출부가 안내한다(셸은 MessageProvider 를 요구하지 않는다). */
   onBlocked?: () => void;
+  /** 차단이 아닌 이유로 창을 못 열었을 때(예외). 미지정이면 console.error 만 남긴다. */
+  onError?: (error: unknown) => void;
 }
 
 export interface PortalShellProps {
@@ -370,7 +372,15 @@ export function PortalShell({
       const current = popoutRef.current;
       const tab = tabsRef.current.find((t) => t.id === tabId);
       if (!current || !tab || tab.isHome) return;
-      const opened = openPagePopout({ pageId: tab.pageId, snapshot: tab.snapshot, buildUrl: current.buildUrl });
+      let opened: Window | null;
+      try {
+        opened = openPagePopout({ pageId: tab.pageId, snapshot: tab.snapshot, buildUrl: current.buildUrl });
+      } catch (err) {
+        // 차단이 아닌 실패(URL 생성·window.open 예외) — 탭은 그대로 두고 호출부가 안내한다.
+        console.error("[PortalShell] popout failed", tab.pageId, err);
+        current.onError?.(err);
+        return;
+      }
       if (!opened) {
         current.onBlocked?.();
         return;
@@ -402,6 +412,7 @@ export function PortalShell({
       try { win.close(); } catch { /* 이미 닫힘 */ }
     }
     popoutWindowsRef.current.clear();
+    clearPopoutHandoffs(); // 새 창이 아직 가져가지 않은 snapshot 이 localStorage 에 남지 않게
     writeSecureJson(storageKey, { tabs: [], activeTabId: null });
     // 공유 사용자·RBAC 캐시를 비운다 — 다음 로그인 사용자에게 남지 않게(K3). signOut 은 전체 이동이지만 실패 대비로도 비운다.
     clearCurrentUserCache();

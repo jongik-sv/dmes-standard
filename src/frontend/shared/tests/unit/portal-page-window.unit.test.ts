@@ -174,6 +174,31 @@ describe("PortalPageWindow", () => {
     expect(opener.focus).toHaveBeenCalledTimes(1);
   });
 
+  it("opener.dispatchEvent 가 던져도(다른 출처로 이동) 오류가 밖으로 나오지 않는다", async () => {
+    const opener = {
+      closed: false,
+      dispatchEvent: vi.fn(() => {
+        throw new DOMException("blocked a frame", "SecurityError");
+      }),
+      focus: vi.fn(),
+    };
+    await mount({ opener: opener as unknown as Window });
+    const errors: unknown[] = [];
+    const onError = (event: Event) => errors.push(event);
+    window.addEventListener("error", onError);
+    try {
+      expect(() => {
+        act(() => {
+          window.dispatchEvent(new CustomEvent("portal-open-tab", { detail: { pageId: "x:b" } }));
+        });
+      }).not.toThrow();
+    } finally {
+      window.removeEventListener("error", onError);
+    }
+    expect(opener.dispatchEvent).toHaveBeenCalledTimes(1);
+    expect(errors).toEqual([]);
+  });
+
   it("opener 가 null 이어도 portal-open-tab 에서 오류가 없다", async () => {
     await mount({ opener: null });
     expect(() => {

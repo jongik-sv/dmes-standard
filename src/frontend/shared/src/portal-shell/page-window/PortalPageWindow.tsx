@@ -105,19 +105,24 @@ export function PortalPageWindow({
   // 창 안의 portal-open-tab 은 이 창에 탭이 없으므로 포털 창(opener)으로 넘기고 앞으로 가져온다. opener 가 없거나 닫혔으면 아무 일 없다.
   useEffect(() => {
     const handler = (event: Event) => {
-      const target = opener !== undefined ? opener : window.opener;
-      if (!target || target.closed) return;
-      const detail = (event as CustomEvent).detail;
-      let forwarded: Event;
+      // opener 가 다른 출처로 이동했으면 dispatchEvent·focus 가 SecurityError 를 던진다 — 넘기지 못해도 이 창은 그대로 둔다.
       try {
-        // opener 창의 생성자로 만들어야 그 창의 리스너가 같은 실행 영역의 이벤트로 받는다. 없으면 이 창 것을 쓴다.
-        const Ctor = (target as Window & typeof globalThis).CustomEvent ?? CustomEvent;
-        forwarded = new Ctor("portal-open-tab", { detail });
-      } catch {
-        forwarded = new CustomEvent("portal-open-tab", { detail });
+        const target = opener !== undefined ? opener : window.opener;
+        if (!target || target.closed) return;
+        const detail = (event as CustomEvent).detail;
+        let forwarded: Event;
+        try {
+          // opener 창의 생성자로 만들어야 그 창의 리스너가 같은 실행 영역의 이벤트로 받는다. 없으면 이 창 것을 쓴다.
+          const Ctor = (target as Window & typeof globalThis).CustomEvent ?? CustomEvent;
+          forwarded = new Ctor("portal-open-tab", { detail });
+        } catch {
+          forwarded = new CustomEvent("portal-open-tab", { detail });
+        }
+        target.dispatchEvent(forwarded);
+        target.focus();
+      } catch (err) {
+        console.warn("[PortalPageWindow] opener 로 화면 열기를 넘기지 못했다", err);
       }
-      target.dispatchEvent(forwarded);
-      target.focus();
     };
     window.addEventListener("portal-open-tab", handler);
     return () => window.removeEventListener("portal-open-tab", handler);

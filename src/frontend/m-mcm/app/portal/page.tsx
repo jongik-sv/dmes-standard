@@ -208,6 +208,7 @@ function PortalShellWithMessage({
           "",
           "warning"
         ),
+      onError: () => gfn_message("새 창을 열지 못했습니다. 다시 시도해 주세요.", "", "", "warning"),
     }),
     [gfn_message]
   );
