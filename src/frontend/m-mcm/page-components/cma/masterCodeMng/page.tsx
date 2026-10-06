@@ -246,7 +246,7 @@ export default function MasterCodeMngPage() {
   //   (훅은 globalThis 단일 store 캐시라 PageLayout 과 같이 써도 fetch 는 1회다.)
   const rbac = useUserButtonRbac(true);
 
-  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·선택 키는 가볍게, Master 조회 결과(행·전체 코드 LOV)는 bulky.
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·Master 선택 키는 가볍게, Master 조회 결과(행·전체 코드 LOV)는 bulky.
   // Detail 행·카테고리 LOV·카테고리 선택은 이어받지 않는다 — 이어받은 Master 선택이 있으면 새 창이 상세를 한 번 다시 조회해 채운다.
   const [filters, setFilters] = useCarryState<MasterCodeFilters>("filters", DEFAULT_FILTERS);
   const [isSearching, setIsSearching] = useState(false);
@@ -260,7 +260,8 @@ export default function MasterCodeMngPage() {
   const restored = useCarryRestored();
 
   const [detailRows, setDetailRows] = useState<(DetailRow & GridRow)[]>([]);
-  const [selectedDetailKey, setSelectedDetailKey] = useCarryState<string | null>("selectedDetailKey", null);
+  // 상세 행(detailRows)을 이어받지 않으므로 상세 선택 키도 이어받지 않는다(키만 남으면 없는 행을 가리킨다).
+  const [selectedDetailKey, setSelectedDetailKey] = useState<string | null>(null);
   const [categoryLov, setCategoryLov] = useState<CategoryLov[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [refLovs, setRefLovs] = useState<{

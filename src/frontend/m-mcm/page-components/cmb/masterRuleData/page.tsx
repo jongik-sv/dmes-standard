@@ -91,7 +91,9 @@ export default function MasterRuleDataPage() {
   const [uploadPopOpen, setUploadPopOpen] = useState(false);   // P-002 엑셀업로드
   const searchSeqRef = useRef(0);
   // 이어받은 신규·복사 행의 임시 키(t-N)와 새 행의 키가 겹치지 않게 번호를 이어서 센다.
-  const tempSeqRef = useRef(maxTempSeq(rows));
+  // 마운트 때 한 번만 센다(useRef(maxTempSeq(rows)) 는 렌더마다 다시 센다).
+  const [initialTempSeq] = useState(() => maxTempSeq(rows));
+  const tempSeqRef = useRef(initialTempSeq);
 
   const ruleSelected = !!filters.pRuleId.trim();
 

@@ -97,7 +97,7 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
   const [rows, setRows] = useCarryState<CodeMngRow[]>("rows", [], { bulky: true });
   const [listLoading, setListLoading] = useState(false);
   // 마지막으로 조회에 쓴 조건 — 액션 뒤 목록 재조회는 입력만 하고 [조회] 하지 않은 값이 아니라 이 값을 쓴다.
-  // 분리 창에서도 이 조건으로 재조회하도록 carry 상태(appliedCarry)에 같이 둔다(ref 는 읽기용 사본).
+  // 분리 창에서도 이 조건으로 재조회하도록 carry 상태(appliedCarry)에 같이 둔다(ref(appliedQuery)가 원본이고 carry 상태는 이어받기용 사본이다).
   const [appliedCarry, setAppliedCarry] = useCarryState("appliedQuery", { keyword: "", status: "" });
   const appliedQuery = useRef(appliedCarry);
 

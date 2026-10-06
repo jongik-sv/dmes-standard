@@ -107,7 +107,7 @@ export default function NoticeMgmtScreen() {
   const [rows, setRows] = useCarryState<NoticeRow[]>("rows", [], { bulky: true });
   /** 목록이 상한으로 잘렸을 때의 전체 건수(안 잘렸으면 null). */
   const [rowsTotal, setRowsTotal] = useCarryState<number | null>("rowsTotal", null);
-  /** 마지막 조회가 [전체 보기](상한 없음)였는지 — 저장·삭제·게시중지 뒤 재조회가 이 모드를 따른다(ref 는 읽기용 사본, 이어받기는 showAllCarry). */
+  /** 마지막 조회가 [전체 보기](상한 없음)였는지 — 저장·삭제·게시중지 뒤 재조회가 이 모드를 따른다(ref(showAllRef)가 원본이고, showAllCarry 는 이어받기용 사본이다). */
   const [showAllCarry, setShowAllCarry] = useCarryState("showAll", false);
   const showAllRef = useRef(showAllCarry);
   /** 늦게 도착한 이전 상세 응답을 버리기 위한 요청 순번. */

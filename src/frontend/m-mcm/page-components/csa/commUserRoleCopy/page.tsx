@@ -196,11 +196,12 @@ export default function CommUserRoleCopyPage() {
   // ─────────────────────────────────────────────────────────────
   // action: search — Copy 대상 + RoleGroup chain (B-001 btn_search)
   // ─────────────────────────────────────────────────────────────
-  const handleSearch = useCallback(async () => {
+  // 돌려주는 값: 조회는 성공했는데 Copy 대상이 0건이면 false(그 밖에는 true — 오류는 화면에 이미 보인다). 분리 창 복원 때 사용자 List 로 물러서는 데 쓴다.
+  const handleSearch = useCallback(async (): Promise<boolean> => {
     // V-101: edt_userIdCopy null 차단 (xfdl:300~303)
     if (!filterUserId || filterUserId.trim().length === 0) {
       setError("Copy 대상 사용자 ID/사번 입력 후 조회해주세요.");
-      return;
+      return true;
     }
     setIsSearching(true);
     setError(null);
@@ -218,10 +219,12 @@ export default function CommUserRoleCopyPage() {
       if (cnt > 0 && exclude) {
         await loadUserList(String(exclude));
       }
+      return cnt > 0;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Copy 대상 조회 실패");
       setCopyUser([]);
       setCopyRolegrp([]);
+      return true;
     } finally {
       setIsSearching(false);
     }
@@ -229,13 +232,16 @@ export default function CommUserRoleCopyPage() {
 
   // V-705 onload 자동 호출 — 초기 진입은 Copy 대상 미선택이라 본인 제외 ✗ (전체 반환)
   // 새 창이 이어받은 목록(사용자 List·권한 생성 대상)이 있으면 건너뛴다. 목록 없이 복원됐으면 이어받은 Copy 대상으로 다시 조회한다
-  // (Copy 대상 ID 가 있으면 조회 버튼과 같은 흐름, 없으면 전체 List). 셔틀로 한쪽이 비어도 반대쪽이 차 있으면 이어받은 것으로 본다.
+  // (Copy 대상 ID 가 있으면 조회 버튼과 같은 흐름 — 그 조회가 0건이면 사용자 List 가 비지 않게 전체 List 로 물러선다. 없으면 전체 List).
+  // 셔틀로 한쪽이 비어도 반대쪽이 차 있으면 이어받은 것으로 본다.
   useEffect(() => {
     if (restored && (userFrom.length > 0 || userTo.length > 0)) return;
     if (restored && filterUserId.trim()) {
       // 조회 결과를 상태에 담는 비동기 호출이라 effect 안 setState 규칙에 걸린다.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      void handleSearch();
+      void handleSearch().then((found) => {
+        if (!found) void loadUserList();
+      });
     } else {
       void loadUserList();
     }
