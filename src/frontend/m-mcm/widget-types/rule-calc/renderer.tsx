@@ -126,17 +126,21 @@ function Results({ io, run }: { io: RuleCalcIo; run: RuleCalcRun }) {
 
 /** [화면에 넣기] — 결과 원값을 활성 업무 화면 칸에 넣고 넣은 칸·건너뛴 칸을 짧게 알린다. 결과가 바뀌면(다른 run 객체) 이전 안내는 보이지 않는다. */
 function ApplyBar({ io, run, screenApply, label }: { io: RuleCalcIo; run: RuleCalcRun; screenApply: ScreenApply; label: string }) {
-  const [state, setState] = useState<{ run: RuleCalcRun; pending: boolean; result?: ScreenApplyResult; error?: string } | null>(null);
-  const mine = state && state.run === run ? state : null;
+  // 안내는 넣은 화면(screenApply 객체)별로 갖는다 — 활성 탭이 바뀌어 처리기가 교체되면 이전 탭에 넣은 안내가 새 탭에 남지 않는다.
+  // 결과가 바뀌면(다시 계산) 이 컴포넌트가 새로 마운트되므로 이전 안내는 거기서 사라진다.
+  const [state, setState] = useState<{ target: ScreenApply; pending: boolean; result?: ScreenApplyResult; error?: string } | null>(null);
+  const mine = state && state.target === screenApply ? state : null;
   const nameOf = (n: string) => io.outputs.find((o) => o.name === n)?.label ?? n;
   const values = applyValues(run, io);
   const onClick = () => {
-    setState({ run, pending: true });
+    setState({ target: screenApply, pending: true });
     screenApply.apply(values, { label }).then(
-      (result) => setState((prev) => (prev && prev.run === run ? { run, pending: false, result } : prev)),
+      (result) => setState((prev) => (prev && prev.target === screenApply ? { target: screenApply, pending: false, result } : prev)),
       (e: unknown) =>
         setState((prev) =>
-          prev && prev.run === run ? { run, pending: false, error: e instanceof Error && e.message ? e.message : "화면에 넣지 못했습니다." } : prev
+          prev && prev.target === screenApply
+            ? { target: screenApply, pending: false, error: e instanceof Error && e.message ? e.message : "화면에 넣지 못했습니다." }
+            : prev
         )
     );
   };
@@ -145,10 +149,10 @@ function ApplyBar({ io, run, screenApply, label }: { io: RuleCalcIo; run: RuleCa
       <Button onClick={onClick} disabled={mine?.pending === true || Object.keys(values).length === 0} data-testid="rc-apply-btn">
         화면에 넣기
       </Button>
-      <span aria-live="polite" className="mcm-rc__fill-note" data-testid="rc-apply-note">
+      <span className="mcm-rc__fill-note" role={mine?.error ? "alert" : undefined} data-testid="rc-apply-note">
         {mine?.error ??
           (mine?.result
-            ? `${mine.result.applied.length}칸에 넣었습니다${
+            ? `${mine.result.applied.length > 0 ? `${mine.result.applied.length}칸에 넣었습니다` : "넣을 수 있는 칸이 없었습니다"}${
                 mine.result.skipped.length > 0 ? ` · 넣지 못함: ${mine.result.skipped.map(nameOf).join(", ")}` : ""
               }`
             : "")}

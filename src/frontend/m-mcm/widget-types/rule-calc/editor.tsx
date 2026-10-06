@@ -11,7 +11,7 @@ import { Button, Checkbox, ComboBox, FormGroup, Input, Select } from "@dk-oasis/
 import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
 
 import { useReportErrors } from "../_content/hooks";
-import { fetchRuleCalcIo, searchRuleCalcTargets } from "./api";
+import { fetchRuleCalcIo, RULE_CALC_SEARCH_LIMIT, searchRuleCalcTargets } from "./api";
 import {
   blocksInput,
   messageText,
@@ -31,9 +31,6 @@ import {
 import { RULE_CALC_CSS, RULE_CALC_STYLE_HREF } from "./rule-calc-styles";
 
 const TARGET_OPTIONS = (Object.keys(TARGET_TP_LABELS) as RuleCalcTargetTp[]).map((value) => ({ value, label: TARGET_TP_LABELS[value] }));
-
-/** 결과 목록에 한 번에 그리는 최대 건수(검색 상한 이하). */
-const RESULT_VISIBLE = 100;
 
 const FILL_OPTIONS = (Object.keys(FILL_MODE_LABELS) as RuleCalcFillMode[]).map((value) => ({ value, label: FILL_MODE_LABELS[value] }));
 
@@ -193,6 +190,11 @@ export default function RuleCalcTypeEditor({ value, onChange, onValidate }: Widg
           {search.message}
         </div>
       )}
+      {search.status === "done" && rows.length >= RULE_CALC_SEARCH_LIMIT && (
+        <span className="mcm-rc-editor__note" data-testid="rc-editor-more">
+          {RULE_CALC_SEARCH_LIMIT}건까지만 보입니다. 더 있을 수 있으니 검색어를 좁히세요.
+        </span>
+      )}
       {search.status === "done" && (
         <div className="mcm-rc-editor__row" data-testid="rc-editor-results">
           {rows.length === 0 ? (
@@ -202,9 +204,9 @@ export default function RuleCalcTypeEditor({ value, onChange, onValidate }: Widg
               className="mcm-rc-editor__grow"
               aria-label="찾은 룰·룰 세트"
               data={rows.map((r) => ({ value: searchRowValue(r), label: searchRowLabel(r), row: r }))}
-              value={searchRowValue({ tp: cfg.targetTp, id: cfg.targetId })}
+              // 지금 대상이 결과 목록에 있을 때만 선택으로 보인다(없는 값을 넣으면 ComboBox 가 내부 값 「TP:ID」 를 글자로 보인다).
+              value={rows.some((r) => searchRowValue(r) === searchRowValue({ tp: cfg.targetTp, id: cfg.targetId })) ? searchRowValue({ tp: cfg.targetTp, id: cfg.targetId }) : ""}
               placeholder={`${rows.length}건 — 골라 넣기`}
-              maxVisible={RESULT_VISIBLE}
               onChange={(_v, item) => {
                 const row = (item as { row?: RuleCalcSearchRow } | undefined)?.row;
                 if (row) patch({ targetTp: row.tp, targetId: row.id });

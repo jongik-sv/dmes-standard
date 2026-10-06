@@ -20,6 +20,7 @@ vi.mock("./api", () => ({
   fetchRuleCalcIo: (...a: unknown[]) => h.fetchIo(...a),
   runRuleCalc: (...a: unknown[]) => h.run(...a),
   searchRuleCalcTargets: (...a: unknown[]) => h.search(...a),
+  RULE_CALC_SEARCH_LIMIT: 2,
 }));
 
 // 이름 정규화 비교(대소문자·밑줄·하이픈·공백 무시)는 shared 와 같은 규칙의 대역이다.
@@ -532,6 +533,24 @@ describe("렌더러 — 화면에 넣기(screenApply)", () => {
     expect((must("rc-apply-btn") as HTMLButtonElement).disabled).toBe(false);
   });
 
+  it("넣은 칸이 하나도 없으면 그렇게 알린다", async () => {
+    const apply = vi.fn().mockResolvedValue({ applied: [], skipped: ["COIL_WT"] });
+    await calc({ available: true, apply });
+    await click("rc-apply-btn");
+    await flush();
+    expect(must("rc-apply-note").textContent).toBe("넣을 수 있는 칸이 없었습니다 · 넣지 못함: 원판 중량");
+  });
+
+  it("활성 탭이 바뀌어 screenApply 가 교체되면 이전 탭에 넣은 안내는 보이지 않는다", async () => {
+    const first = { available: true, apply: vi.fn().mockResolvedValue({ applied: ["COIL_WT"], skipped: [] }) };
+    await calc(first);
+    await click("rc-apply-btn");
+    await flush();
+    expect(must("rc-apply-note").textContent).toBe("1칸에 넣었습니다");
+    await renderRc(def, 0, null, { available: true, apply: vi.fn() });
+    expect(must("rc-apply-note").textContent).toBe("");
+  });
+
   it("다시 계산하면 이전 안내는 사라진다", async () => {
     const apply = vi.fn().mockResolvedValue({ applied: ["COIL_WT"], skipped: [] });
     await calc({ available: true, apply });
@@ -673,6 +692,15 @@ describe("편집기", () => {
       expect(must("rc-editor-results").textContent).toContain("코팅중량 세트 (M47_COAT_WT) · 룰 세트");
       await type("rc-editor-pick", "SET:M47_COAT_WT");
       expect(onChange).toHaveBeenLastCalledWith({ targetTp: "SET", targetId: "M47_COAT_WT", showSteps: false, fillMode: "auto" });
+    });
+
+    it("고른 대상이 결과에 없으면 선택으로 보이지 않고, 건수가 한도에 닿으면 좁히라고 안내한다", async () => {
+      h.search.mockResolvedValue(rowsOf());
+      await renderEditor({ targetTp: "RULE", targetId: "OTHER", showSteps: false });
+      await click("rc-editor-search");
+      await flush();
+      expect((must("rc-editor-pick") as HTMLSelectElement).value).toBe("");
+      expect(must("rc-editor-more").textContent).toContain("검색어를 좁히세요");
     });
 
     it("Enter 로도 찾고, 결과가 없으면 안내만 보인다", async () => {

@@ -305,6 +305,8 @@ export function expandExponent(text: string): string {
   if (point <= 0) body = `0.${"0".repeat(-point)}${digits}`;
   else if (point >= digits.length) body = digits + "0".repeat(point - digits.length);
   else body = `${digits.slice(0, point)}.${digits.slice(point)}`;
+  // 값이 0 이면(0E+3, 0.00E+3) 자리 0 을 늘어놓지 않고 "0" 으로 쓴다.
+  if (/^0*(\.0*)?$/.test(body)) return "0";
   return `${m[1] === "-" ? "-" : ""}${body}`;
 }
 
@@ -428,7 +430,9 @@ export function normalizeSearch(raw: unknown): RuleCalcSearchRow[] {
 /** 검색 결과를 고르는 목록의 한 칸 글자 — 「이름 (ID) · 종류」. 이름이 없으면 ID 만. */
 export function searchRowLabel(row: RuleCalcSearchRow): string {
   const kind = TARGET_TP_LABELS[row.tp];
-  return row.name ? `${row.name} (${row.id}) · ${kind}` : `${row.id} · ${kind}`;
+  const base = row.name ? `${row.name} (${row.id}) · ${kind}` : `${row.id} · ${kind}`;
+  // 위젯 실행은 확정(RELEASED) 버전만 쓴다 — 내 작성 중(DRAFT) 버전만 있는 대상은 위젯에서 「확정 버전 없음」 이 나오므로 미리 알린다.
+  return row.verStatus === "DRAFT" ? `${base} · 작성 중` : base;
 }
 
 export function searchRowValue(row: Pick<RuleCalcSearchRow, "tp" | "id">): string {
@@ -447,8 +451,9 @@ export function applyValues(run: Pick<RuleCalcRun, "result">, io?: Pick<RuleCalc
     // 숫자 출력의 과학 표기는 화면 칸이 못 읽을 수 있어 일반 소수 글자로 푼다(값은 그대로, 반올림 없음).
     const numeric = isNumericType(io?.outputs.find((o) => o.name === name)?.dataType ?? "");
     const one = (t: string) => (numeric ? expandExponent(t) : t);
-    const text = (Array.isArray(v) ? v.map(one).join(", ") : one(v)).trim();
-    if (text !== "") out[name] = text;
+    // 목록은 빈 원소를 빼고 잇는다(", " 만 남지 않게). 숫자는 앞뒤 공백을 떼고, 글자 출력은 원값 그대로(공백 포함) 둔다.
+    const joined = Array.isArray(v) ? v.map(one).filter((t) => t.trim() !== "").join(", ") : one(v);
+    if (joined.trim() !== "") out[name] = numeric ? joined.trim() : joined;
   }
   return out;
 }
