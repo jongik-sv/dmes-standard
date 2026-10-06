@@ -2,6 +2,10 @@
 # 조정자 스크립트 공통 함수. 정본 사양: ../../references/contract.md §1·§3.1
 # source 로만 쓴다. 설정 = 기본값(COORD_DEFAULTS) * <repo>/.coord.json * <repo>/.coord.local.json (jq 깊은 병합).
 
+# 플랫폼 차이(stat·date·프로세스 표·후손·cwd·sha256)는 compat.sh 한 곳에 모은다(macOS·Git Bash — ../../../_shared/platform-support.md)
+_coord_d="${BASH_SOURCE[0]%/*}"; [ "$_coord_d" != "${BASH_SOURCE[0]}" ] || _coord_d=.   # 슬래시 없이 `. common.sh` 해도 같은 폴더를 가리키게
+. "$_coord_d/compat.sh"
+
 COORD_DEFAULTS='{
   "integration_branch": "dev",
   "git_bin": "git",
@@ -216,7 +220,7 @@ coord_clock_init() {  # 서브셸 없이 부른다
 }
 coord_now_epoch() { if [ -n "$_COORD_EP0" ]; then printf '%s\n' $(( _COORD_EP0 + SECONDS - _COORD_SEC0 )); else date +%s; fi; }
 coord_now_iso() { local s; s="$(date +%Y-%m-%dT%H:%M:%S%z)"; printf '%s:%s' "${s%??}" "${s: -2}"; }
-coord_epoch_to_hm() { date -r "$1" +%H:%M 2>/dev/null || date -d "@$1" +%H:%M; }
+coord_epoch_to_hm() { compat_epoch_fmt "$1" %H:%M; }
 # ISO 8601(+09:00·Z·소수초 허용) → epoch. 실패하면 빈 출력.
 coord_iso_to_epoch() {
   local iso="$1" base tz
@@ -244,13 +248,14 @@ coord_iso_to_epoch() {
     *[+-][0-9][0-9]:[0-9][0-9]) tz="${iso: -6}"; tz="${tz/:/}" ;;
     *) tz="$(date +%z)" ;;
   esac
-  date -j -f '%Y-%m-%dT%H:%M:%S%z' "${base}${tz}" +%s 2>/dev/null || date -d "$iso" +%s 2>/dev/null || true
+  if [ "$COMPAT_GNU" = 1 ]; then date -d "$iso" +%s 2>/dev/null || true
+  else date -j -f '%Y-%m-%dT%H:%M:%S%z' "${base}${tz}" +%s 2>/dev/null || true; fi
 }
 # 파일 첫 줄을 변수에(없거나 못 읽으면 빈 값) — `$(cat 파일)` 대신(프로세스 0개). 서브셸 안에서 부르면 그 안에서만 남는다
 coord_read1() { local _v=""; { IFS= read -r _v < "$2"; } 2>/dev/null || true; printf -v "$1" '%s' "$_v"; }
 coord_mkdirp() { [ -d "$1" ] || mkdir -p "$1" 2>/dev/null; }   # 이미 있으면 프로세스를 부르지 않는다
-# GNU stat -c 먼저(BSD stat 은 -c 를 모르고 rc≠0). GNU stat -f 는 파일시스템 모드라 `?` 를 내고 rc 0 이어서 BSD 를 먼저 쓰면 대안으로 넘어가지 못한다
-coord_file_mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null; }
+# GNU 판별은 compat.sh 가 한 번만 한다(GNU stat -f 는 파일시스템 모드라 `?` 와 rc 0 이어서 BSD 를 먼저 쓰면 대안으로 넘어가지 못한다)
+coord_file_mtime() { compat_stat_mtime "$1"; }
 
 # mkdir 잠금 `<dir>.lock/`(안에 주인 pid·pstart). 최대 30초 기다리고 못 얻으면 rc 1(로그 한 줄).
 # 주인이 죽었거나(pid 없음·pstart 다름) 잠금이 COORD_LOCK_STALE_S(기본 60초)보다 오래됐으면 탈취한다 — 시간 제한으로 끊긴
@@ -393,7 +398,7 @@ coord_pstart() {  # ps 한 번(앞뒤 공백 정리는 sed 대신 bash 로)
 # epoch 초 → ISO 8601(+09:00 꼴). 빈 값·실패면 빈 출력.
 coord_epoch_to_iso() {
   [ -n "${1:-}" ] && [ "$1" != "null" ] || return 0
-  local s; s="$(date -r "$1" +%Y-%m-%dT%H:%M:%S%z 2>/dev/null || date -d "@$1" +%Y-%m-%dT%H:%M:%S%z 2>/dev/null)"
+  local s; s="$(compat_epoch_fmt "$1" %Y-%m-%dT%H:%M:%S%z)"
   [ -n "$s" ] && printf '%s:%s' "${s%??}" "${s: -2}"
   return 0
 }
@@ -417,6 +422,7 @@ coord_wt_abs() {
 # <경로> 가 <워크트리> 안이면 0. 워크트리가 메인 체크아웃이면 그 아래 .claude/worktrees/ 는 다른 워크트리라 뺀다.
 coord_path_in_wt() {
   local p="${1%/}" w="${2%/}" repo
+  if [ "$COMPAT_WIN" = 1 ]; then p="$(compat_posix_path "$p")"; w="$(compat_posix_path "$w")"; p="${p%/}"; w="${w%/}"; fi   # Git Bash: C:/x 와 /c/x 를 같은 꼴로
   [ -n "$p" ] && [ -n "$w" ] || return 1
   case "$p/" in "$w/"*) ;; *) return 1 ;; esac
   repo="$(coord_repo 2>/dev/null)"
@@ -426,11 +432,8 @@ coord_path_in_wt() {
   return 0
 }
 coord_pid_alive() { [ -n "${1:-}" ] && [ "$1" != 0 ] && [ "$1" != null ] && kill -0 "$1" 2>/dev/null; }
-# pid 콤마 목록 → 한 줄에 `<pid>\t<cwd>`(lsof).
-coord_proc_cwds() {
-  [ -n "${1:-}" ] || return 0
-  lsof -a -d cwd -p "$1" -Fpn 2>/dev/null | awk '/^p/ { p = substr($0, 2) } /^n/ { print p "\t" substr($0, 2) }'
-}
+# pid 콤마 목록 → 한 줄에 `<pid>\t<cwd>`(lsof, 없으면 /proc — compat.sh).
+coord_proc_cwds() { compat_proc_cwds "$@"; }
 # 세션 상태 json 경로: <sessions_dir>/<pid>.json 이 있으면 그것(/clear 로 sessionId 가 바뀌어도 pid 가 정본),
 # 없으면 sessionId 가 같은 파일을 찾는다. 못 찾으면 rc 1.
 coord_session_file() {
@@ -449,7 +452,7 @@ coord_session_file() {
 coord_wt_procs() {
   local wt="$1" cand pids
   [ -n "$wt" ] || return 0
-  cand="$(ps -axo pid=,args= 2>/dev/null | awk '
+  cand="$(compat_ps_pidargs | awk '
     { a = $0; sub(/^ *[0-9]+ +/, "", a); n = "" }
     a ~ /^([^ ]*\/)?awk / || a ~ /bootRun|be\.run\.module|GradleDaemon/ { next }
     a ~ /GradleWrapperMain/ { n = "GradleWrapperMain" }

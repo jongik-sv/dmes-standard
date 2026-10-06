@@ -6,11 +6,12 @@
 set -uo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 LIB="$here/../scripts/lib/console-redact.sh"
+. "$here/../scripts/lib/compat.sh"
 # shellcheck source=../scripts/lib/console-redact.sh
 . "$LIB"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/console-redact-test.XXXXXX")" && tmp="$(cd "$tmp" && pwd -P)"
 PGIDS=""   # 시간 제한 시험이 만든 프로세스 그룹들 — 끝날 때 남은 것을 모두 끈다
-cleanup() { local g; for g in $PGIDS; do pkill -KILL -g "$g" 2>/dev/null; done; rm -rf "$tmp"; }
+cleanup() { local g; for g in $PGIDS; do compat_kill_pgroup "$g"; done; rm -rf "$tmp"; }
 trap cleanup EXIT
 pass=0; fail=0
 chk() { if [ "$1" = ok ]; then echo "ok   $2"; pass=$((pass + 1)); else echo "FAIL $2${3:+ — $3}"; fail=$((fail + 1)); fi; }
@@ -325,7 +326,7 @@ done
 rep eyJ 20000 > "$tmp/jwt"; echo >> "$tmp/jwt"
 read -r g rc ms <<< "$(timed console_redact_text "$tmp/jwt")"; PGIDS="$PGIDS $g"
 eq "성능: eyJ 2만 번 한 줄 console_redact_text 3초 안(${ms}ms)" "$rc:$([ "${ms:-9999}" -lt 3000 ] && echo fast)" "0:fast"
-left=""; for g in $PGIDS; do pgrep -g "$g" >/dev/null 2>&1 && { left="$left $g"; pkill -KILL -g "$g" 2>/dev/null; }; done
+left=""; for g in $PGIDS; do compat_pgroup_alive "$g" && { left="$left $g"; compat_kill_pgroup "$g"; }; done
 eq "성능: 시간 제한 시험 뒤 남은 자식 프로세스 없음" "${left:-none}" none
 
 # --- 항목 8: 보이지 않는 문자 -------------------------------------------------------------------

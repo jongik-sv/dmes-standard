@@ -6,6 +6,7 @@
 set -uo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 SD="$(cd "$here/../scripts" && pwd)"
+. "$SD/lib/compat.sh"
 CP="$SD/console-poll.sh"; PW="$SD/prompt-watch.sh"; AA="$SD/auto-answer.sh"; TSS="$SD/term-send-safe.sh"
 fx="$here/fixtures"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/screen-cache-test.XXXXXX")" && tmp="$(cd "$tmp" && pwd -P)"
@@ -13,7 +14,7 @@ BG=""
 cleanup() {
   local p
   for p in $BG; do kill "$p" 2>/dev/null; done
-  pkill -f "$tmp/bin/" 2>/dev/null
+  compat_pkill_s "$tmp/bin/"
   rm -rf "$tmp"
 }
 trap cleanup EXIT
@@ -122,7 +123,7 @@ reads() { grep -c -- '^terminal read ' "$FAKE_DIR/orca.log"; }
 resetlog() { : > "$FAKE_DIR/orca.log"; }
 pw() { resetlog; bash "$PW" "$@" 2>"$S/pw.err"; }
 setcfg() { base_cfg "$1"; }
-mode_of() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"; }   # GNU 먼저(GNU stat -f 는 rc 0 으로 ? 를 낸다)
+mode_of() { compat_stat_mode "$1"; }   # GNU·BSD 분기는 compat.sh
 SECRET="sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789"
 
 # =================================================================================================

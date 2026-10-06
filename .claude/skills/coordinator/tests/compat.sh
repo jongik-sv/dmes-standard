@@ -25,6 +25,11 @@ mt="$(run "compat_stat_mtime '$f'")"
 case "$mt" in ''|*[!0-9]*) chk fail "mtime 은 숫자" "[$mt]" ;; *) [ $(( now - mt )) -le 5 ] && chk ok "mtime: 방금 만든 파일" || chk fail "mtime: 방금 만든 파일" "[$mt]" ;; esac
 eq "권한: 640" "$(run "compat_stat_mode '$f'")" 640
 eq "epoch 형식(UTC)" "$(run "compat_epoch_fmt 86400 %Y-%m-%dT%H:%M:%S -u")" "1970-01-02T00:00:00"
+chmod 640 "$f"
+eq "stat_info: uid 권한 mtime 크기" "$(run "compat_stat_info '$f'" | awk '{ print ($1 == '"$(id -u)"') "," $2 "," ($3 > 1000000000) "," $4 }')" "1,640,1,0"
+eq "stat_info: 없는 파일은 rc 1" "$(run "compat_stat_info '$tmp/nofile' >/dev/null; echo \$?")" 1
+eq "후손: ps_pidargs 는 pid 와 args 두 열 뒤에 ppid 가 없다" "$(run 'compat_ps_pidargs' | awk -v me=$$ '$1 == me { print $2 }' | head -1)" "$(ps -o args= -p $$ | awk '{ print $1 }')"
+eq "cwds: 자기 셸 pid" "$(cd "$tmp" && run 'compat_proc_cwds $$,$$' | awk -F'\t' 'NR == 1 { print $2 }')" "$tmp"
 run "compat_touch_ago 7200 '$f'"
 mt="$(run "compat_stat_mtime '$f'")"
 d=$(( now - mt )); [ "$d" -ge 7195 ] && [ "$d" -le 7260 ] && chk ok "touch_ago: 2시간 전(분 단위 반올림 허용)" || chk fail "touch_ago: 2시간 전" "차이 ${d}초"
@@ -51,13 +56,32 @@ bash -c 'sleep 63' "$tmp/pk" & PK=$!; BG="$BG $PK"; sleep 0.3
 run "compat_pkill_f '^sleep 63\$'"; sleep 0.3; { wait "$PK"; } 2>/dev/null; BG="${BG/$PK/}"
 eq "pkill_f: sleep 63 종료" "$(run "compat_pgrep_f '^sleep 63\$'" | grep -c .)" 0
 
+# 고정 문자열 판: 공백·괄호·+ 가 든 경로도 그대로 찾는다(정규식이면 깨진다)
+mkdir -p "$tmp/sp (a+b)"; printf '#!/bin/sh\nsleep 66\n' > "$tmp/sp (a+b)/run.sh"; chmod +x "$tmp/sp (a+b)/run.sh"
+"$tmp/sp (a+b)/run.sh" & SPP=$!; BG="$BG $SPP"; sleep 0.4
+eq "pgrep_s: 공백·괄호·+ 경로를 고정 문자열로 찾는다" "$(run "compat_pgrep_s '$tmp/sp (a+b)/run.sh'" | grep -c .)" 1
+eq "pgrep_f: 같은 경로를 정규식으로 주면 못 찾는다(그래서 _s 가 있다)" "$(run "compat_pgrep_f '$tmp/sp (a+b)/run.sh'" | grep -c .)" 0
+run "compat_pkill_s '$tmp/sp (a+b)/run.sh'"; { wait "$SPP"; } 2>/dev/null; BG="${BG/$SPP/}"
+compat_pkill_f '^sleep 66$'   # 스크립트가 죽어도 자식 sleep 은 남는다
+eq "pkill_s: 종료" "$(run "compat_pgrep_s '$tmp/sp (a+b)/run.sh'" | grep -c .)" 0
+# common.sh 를 슬래시 없이 source 해도 compat.sh 가 같이 읽힌다
+eq "common.sh 슬래시 없는 source" "$(cd "$here/../scripts/lib" && bash -c '. common.sh; type -t compat_stat_mtime')" function
+eq "common.sh 상대 경로 source" "$(cd "$here/../scripts" && bash -c '. lib/common.sh; type -t compat_stat_mtime')" function
+
+# 프로세스 그룹: 새 그룹(set -m)의 리더와 자식을 한 번에 끈다
+set -m; ( sleep 64 & sleep 65 & wait ) & PGL=$!; set +m; BG="$BG $PGL"; sleep 0.5   # 작업 제어로 서브셸이 새 그룹의 리더(pgid = $PGL)가 된다
+eq "pgroup_alive: 살아 있는 그룹" "$(run "compat_pgroup_alive $PGL && echo y || echo n")" y
+run "compat_kill_pgroup $PGL"; { wait "$PGL"; } 2>/dev/null; BG="${BG/$PGL/}"; sleep 0.3
+eq "kill_pgroup 뒤 sleep 64·65 가 없다" "$(run "compat_pgrep_f '^sleep 6[45]\$'" | grep -c .)" 0
+eq "pgroup 가드: 0·1 은 신호를 보내지 않는다" "$(run 'compat_kill_pgroup 0; compat_kill_pgroup 1; compat_pgroup_alive 1 && echo y || echo n')" n
+
 # ---- 2) GNU 경로 강제 ---------------------------------------------------------------------------------------------
 # GNU 의 `stat -f` 는 파일시스템 모드: `stat -f %m 파일` 이 `?` 와 rc 0 을 낸다(BSD 먼저 시도하는 || 사슬이 대안으로 못 넘어가는 이유)
 mkdir -p "$tmp/gnubin"
 cat > "$tmp/gnubin/stat" <<'EOF'
 #!/bin/sh
 case "$1" in
-  -c) case "$2" in %Y) exec /usr/bin/stat -f %m "$3" ;; %a) exec /usr/bin/stat -f %Lp "$3" ;; esac ;;
+  -c) case "$2" in %Y) exec /usr/bin/stat -f %m "$3" ;; %a) exec /usr/bin/stat -f %Lp "$3" ;; "%u %a %Y %s") exec /usr/bin/stat -f "%u %Lp %m %z" "$3" ;; esac ;;
   -f) echo "?"; exit 0 ;;
 esac
 echo "stat: 잘못된 사용" >&2; exit 1
@@ -90,6 +114,7 @@ eq "GNU: 판별" "$(gnu 'echo $COMPAT_GNU')" 1
 mt="$(gnu "compat_stat_mtime '$f'")"
 d=$(( now - mt )); [ "$d" -ge 7195 ] && [ "$d" -le 7260 ] && chk ok "GNU: mtime 이 숫자로 나온다(? 아님)" || chk fail "GNU: mtime" "[$mt]"
 eq "GNU: 권한" "$(gnu "compat_stat_mode '$f'")" 640
+eq "GNU: stat_info" "$(gnu "compat_stat_info '$f'" | awk '{ print $2 }')" 640
 eq "GNU: epoch 형식(UTC)" "$(gnu "compat_epoch_fmt 86400 %Y-%m-%dT%H:%M:%S -u")" "1970-01-02T00:00:00"
 gnu "compat_touch_ago 3600 '$f'"
 mt="$(gnu "compat_stat_mtime '$f'")"; d=$(( now - mt ))
@@ -106,7 +131,7 @@ mkproc() {  # <pid> <ppid> <인자…> — /proc/<pid>/ppid·cmdline(NUL 구분)
 }
 mkproc 100 1 init; mkproc 200 100 bash -c "echo hi"; mkproc 300 200 sleep 99; mkproc 400 100 node server.js
 mkdir -p "$tmp/wd"; ln -s "$tmp/wd" "$P/200/cwd"
-mkdir -p "$P/self"   # 숫자가 아닌 이름은 건너뛴다
+mkdir -p "$P/self"; ln -s "$tmp" "$P/self/cwd"   # 숫자가 아닌 이름은 건너뛴다(self/cwd 는 /proc 이 있다는 표지로도 쓴다)
 win() { PATH="$tmp/winbin:$PATH" COMPAT_FORCE_OS=windows COMPAT_PROC_ROOT="$P" run "$@"; }
 eq "Win: 후손 순서(깊은 쪽부터)" "$(win 'compat_descendants 100' | tr '\n' ' ')" "300 200 400 "
 eq "Win: ps 표는 /proc 에서(ps 를 부르지 않는다)" "$(win 'compat_ps_table' | grep -c .)" 4
@@ -114,6 +139,12 @@ eq "Win: ps 표의 args 는 한 줄" "$(win 'compat_ps_table' | grep '^200 ')" "
 eq "Win: pgrep_f" "$(win "compat_pgrep_f 'node server'" | tr '\n' ' ')" "400 "
 eq "Win: cwd 는 /proc/<pid>/cwd" "$(win 'compat_pid_cwd 200')" "$tmp/wd"
 eq "Win: cwd 없는 pid 는 빈 출력" "$(win 'compat_pid_cwd 400' | grep -c .)" 0
+eq "Win: ps_pidargs 는 ppid 를 뺀다" "$(win 'compat_ps_pidargs' | grep '^200 ')" "200 bash -c echo hi"
+eq "Win: proc_cwds 는 /proc 에서(lsof 없이)" "$(win 'compat_proc_cwds 200,400')" "$(printf '200\t%s' "$tmp/wd")"
+mkdir -p "$tmp/cyg"; printf '#!/bin/sh\n[ "$1" = -u ] && printf "%%s" "$2" | sed "s|^\\([A-Za-z]\\):|/\\1|" | tr A-Z a-z | sed "s|^/\\(.\\)|/\\1|"\n' > "$tmp/cyg/cygpath"; chmod +x "$tmp/cyg/cygpath"
+eq "Win: posix_path 는 cygpath 로 C:/x 를 /c/x 꼴로" "$(PATH="$tmp/cyg:$PATH" COMPAT_FORCE_OS=windows run 'compat_posix_path C:/Users/x/wt')" "/c/users/x/wt"
+eq "Unix: posix_path 는 그대로" "$(PATH="$tmp/cyg:$PATH" COMPAT_FORCE_OS=unix run 'compat_posix_path C:/Users/x/wt')" "C:/Users/x/wt"
+eq "Win: coord_path_in_wt 가 두 꼴을 같게 본다" "$(PATH="$tmp/cyg:$PATH" COMPAT_FORCE_OS=windows COORD_REPO="$tmp" bash -c '. "$1/lib/common.sh"; coord_path_in_wt /c/users/x/wt/sub C:/Users/x/wt && echo in || echo out' _ "$here/../scripts")" in
 eq "Win: 후손 없는 pid" "$(win 'compat_descendants 300' | grep -c .)" 0
 
 # 여러 줄 인자·끝 줄바꿈 없는 ppid·숫자가 아닌 첫 낱말(과거 결함: 둘째 줄의 `-1` 이 pid 로 읽혀 kill -TERM -1 이 될 수 있었다)

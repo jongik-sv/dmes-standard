@@ -46,11 +46,7 @@ sc_now_ms() {
 
 # 파일의 `<소유 uid> <권한> <mtime> <크기>`
 sc_stat() {
-  local o
-  o="$(stat -f '%u %Lp %m %z' "$1" 2>/dev/null)"
-  case "$o" in *[!0-9\ ]*|'') o="$(stat -c '%u %a %Y %s' "$1" 2>/dev/null)" ;; esac
-  case "$o" in *[!0-9\ ]*|'') return 1 ;; esac
-  printf '%s' "$o"
+  compat_stat_info "$1"   # GNU·BSD stat 분기는 compat.sh 한 곳(비숫자·빈 출력이면 rc 1)
 }
 
 # ---- 쓰는 쪽(폴러) --------------------------------------------------------------------------

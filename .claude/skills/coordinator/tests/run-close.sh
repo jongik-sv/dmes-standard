@@ -6,6 +6,7 @@
 set -uo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 SD="$here/../scripts"
+. "$SD/lib/compat.sh"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/run-close-test.XXXXXX")" && tmp="$(cd "$tmp" && pwd -P)"
 trap 'rm -rf "$tmp"' EXIT
 fail=0
@@ -100,7 +101,7 @@ COORD_RUN=r8 $CS lane-add c1 '{"brief":"같은 세션 레인"}' >/dev/null
 # 조정 세션이 둘이면 서로의 회차가 늘 보이므로 tick 은 120분 넘게 조용한 회차만 알린다.
 tk0="$(COORD_RUN=r9 bash "$SD/tick.sh" --dry-run --no-answer 2>/dev/null)"
 eq "tick: 방금 갱신된 다른 세션 회차 r10 은 STALE_RUN 없음(120분 미만)" "$(printf '%s\n' "$tk0" | grep -c '^STALE_RUN r10 ')" 0
-touch -t "$(date -v-3H +%Y%m%d%H%M 2>/dev/null || date -d '3 hours ago' +%Y%m%d%H%M)" "$tmp/state/r10/state.json"
+compat_touch_ago 10800 "$tmp/state/r10/state.json"
 tk="$(COORD_RUN=r9 bash "$SD/tick.sh" --dry-run --no-answer 2>/dev/null)"
 eq "tick: 다른 세션의 열린 r10(살아 있는 레인) 은 STALE_RUN" "$(printf '%s\n' "$tk" | grep -c '^STALE_RUN r10 session=s-oth idle=[0-9]*m$')" 1
 eq "tick: 같은 세션의 열린 r8 은 STALE_RUN 없음(팀장 칸 공유)" "$(printf '%s\n' "$tk" | grep -c '^STALE_RUN r8 ')" 0
