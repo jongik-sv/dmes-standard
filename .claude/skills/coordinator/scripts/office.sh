@@ -233,6 +233,20 @@ group_runs() {
   done < <(coord_runs_summary "$RID" "${1:-}")
 }
 
+# 회차들의 옛 `.office.sent._lead` 중 새 키와 다른 것을 stop 하고 기록을 비운다. 인자: <새 키> <run-id 목록(줄바꿈 구분, 첫 칸만 읽는다)>.
+# stop 이 하나라도 실패하면 rc 1(새 키를 보내지 않는다 — 서버 stop 은 멱등이라 다음 호출이 재시도).
+drop_old_leads() {
+  local key="$1" rid o seen=" "
+  while IFS=$'\t' read -r rid _; do
+    [ -n "$rid" ] || continue
+    o="$(run_sent "$rid" '.office.sent._lead // empty')"
+    [ -n "$o" ] && [ "$o" != "$key" ] || continue
+    case "$seen" in *" $o "*) ;; *) seen="$seen$o "; watch_call "stop $o" --agent "$o" --stop || return 1 ;; esac
+    rec_run "$rid" '.office.sent["_lead"]' null
+  done <<< "$2"
+  return 0
+}
+
 # 팀장 갱신. 인자: [제외할 레인] [self=1 이면 현재 회차를 합산에서 뺀다(finish)]. 같은 키·slots/busy 이면 force 가 아닐 때 보내지 않는다.
 FORCE=0
 send_lead() {
@@ -247,23 +261,18 @@ send_lead() {
     slots=$((slots + ${a:-0})); busy=$((busy + ${b:-0}))
   done <<< "$runs"
   old="$(sess_get "$MY_S8" .key)"
+  # 회차에 남은 옛 `.office.sent._lead`(coord:<run-id>·…/coord)는 새 키와 다르면 stop 하고 기록을 비운다(성공했을 때만 — 실패하면 다음 호출이 재시도).
+  # 새 키를 이미 보낸 뒤에도 남아 있을 수 있으므로 같은 키·같은 slots/busy 로 일찍 끝나는 길보다 앞서 처리한다.
+  local runs_all; runs_all="$runs"$'\n'"$RID"
+  drop_old_leads "$key" "$runs_all" || return 1
   if [ "$FORCE" = 0 ] && [ "$old" = "$key" ] && [ "$(sess_get "$MY_S8" .slots)" = "$slots" ] && [ "$(sess_get "$MY_S8" .busy)" = "$busy" ]; then
     return 0
   fi
   # 새 키를 처음 보낼 때(세션 기록이 없거나 키가 다를 때) 옛 키를 먼저 내린다: 세션 기록의 옛 키와, 이 세션 열린 회차·현재 회차의
   # 옛 `.office.sent._lead`(coord:<run-id>·…/coord). 하나라도 못 내렸으면 새 키를 보내지 않는다(서버 stop 은 멱등, 다음 호출이 재시도).
   if [ "$old" != "$key" ]; then
-    local olds=() seen=" "
-    [ -n "$old" ] && olds+=("$old")
-    while IFS=$'\t' read -r rid _; do
-      [ -n "$rid" ] || continue
-      o="$(run_sent "$rid" '.office.sent._lead // empty')"; [ -n "$o" ] && olds+=("$o")
-    done <<< "$runs"$'\n'"$RID"
-    for o in "${olds[@]+"${olds[@]}"}"; do
-      [ "$o" != "$key" ] || continue
-      case "$seen" in *" $o "*) continue ;; esac; seen="$seen$o "
-      watch_call "stop $o" --agent "$o" --stop || return 1
-    done
+    # 세션 기록의 옛 키(이 세션의 키가 바뀐 경우, 예: host 변경)
+    [ -n "$old" ] && { watch_call "stop $old" --agent "$old" --stop || return 1; }
   fi
   local args=(--agent "$key" --slots "$slots" --busy "$busy")
   [ -n "$PROJECT" ] && args+=(--project "$PROJECT")
@@ -344,7 +353,7 @@ case "$sub" in
     if [ "$FINISHED" = 1 ]; then   # 마감 뒤: 남은 키만 내린다
       for L in $(st '(.office.sent // {}) | to_entries[] | select(.value != null and .key != "_lead") | .key'); do stop_lane "$L"; done
       old="$(sent_key _lead)"   # 옛 형식 팀장 키(읽기만, 서버 stop 은 멱등)
-      [ -n "$old" ] && watch_call "stop $old" --agent "$old" --stop
+      [ -n "$old" ] && watch_call "stop $old" --agent "$old" --stop && rec '.office.sent["_lead"]' null
       # 이 세션에 열린 회차가 더 없는데 팀장 기록이 남았으면(finish 때 stop 실패) 마저 내린다
       [ -z "$(group_runs "" 1)" ] && lead_down
       exit 0
@@ -363,7 +372,7 @@ case "$sub" in
     for L in $(st '(.office.sent // {}) | to_entries[] | select(.value != null and .key != "_lead") | .key'); do ABORT=0; stop_lane "$L"; done
     ABORT=0
     old="$(sent_key _lead)"   # 옛 형식 팀장 키(coord:<run-id>)가 이 회차에 남았으면 내린다(읽기만)
-    [ -n "$old" ] && [ "$old" != "$(sess_get "$MY_S8" .key)" ] && watch_call "stop $old" --agent "$old" --stop
+    [ -n "$old" ] && [ "$old" != "$(sess_get "$MY_S8" .key)" ] && watch_call "stop $old" --agent "$old" --stop && rec '.office.sent["_lead"]' null
     ABORT=0
     # 팀장: 같은 세션에 다른 열린 회차가 남았으면 합산만 다시 보내고(이 회차를 뺀 값), 마지막 열린 회차일 때만 내린다.
     if [ -n "$MY_S8" ]; then
@@ -393,7 +402,7 @@ case "$sub" in
           else ok=0; fi
         done < <(run_sent "$rid" '(.office.sent // {}) | to_entries[] | select(.value != null and .key != "_lead") | "\(.key)\t\(.value)"')
         o="$(run_sent "$rid" '.office.sent._lead // empty')"
-        [ -n "$o" ] && { watch_call "stop $o" --agent "$o" --stop || ok=0; }
+        [ -n "$o" ] && { if watch_call "stop $o" --agent "$o" --stop; then rec_run "$rid" '.office.sent["_lead"]' null; else ok=0; fi; }
       done <<< "$summary"
       k="$(jq -r '.key // empty' "$f" 2>/dev/null)"
       [ -n "$k" ] && { watch_call "stop $k" --agent "$k" --stop || ok=0; }
