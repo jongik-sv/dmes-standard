@@ -13,6 +13,9 @@ export const DOCK_MIN_SIZE = { w: 220, h: 160 } as const;
 export const DOCK_MAX_WINDOWS = 8;
 /** 접힌 아이콘 한 변(px). */
 export const DOCK_ICON_SIZE = 44;
+/** 접힌 단추 안 아이콘 한 변(px)·선 굵기. */
+export const DOCK_ICON_GLYPH_SIZE = 22;
+export const DOCK_ICON_GLYPH_STROKE = 1.8;
 /** 새 창 계단식 배치 — 오른쪽 위에서 시작해 한 칸씩 왼쪽 아래로. */
 const CASCADE = { right: 32, top: 72, step: 28 } as const;
 /** 창 ID = 위젯 본체 instanceId — 메모 서버 키 규칙(WidgetMemoService INST_ID)과 같다. */

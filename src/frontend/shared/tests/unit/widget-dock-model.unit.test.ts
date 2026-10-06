@@ -374,4 +374,12 @@ describe("defWidgetMeta — floatable 전달", () => {
     expect(defWidgetMeta(row, type()).floatable).toBeUndefined();
     expect(defWidgetMeta(row, type(false)).floatable).toBeUndefined();
   });
+
+  it("유형의 icon 은 정의 위젯 메타로 전달되고, 없으면 싣지 않는다", () => {
+    const Icon = () => null;
+    const withIcon = type(true);
+    withIcon.meta.icon = Icon;
+    expect(defWidgetMeta(row, withIcon).icon).toBe(Icon);
+    expect("icon" in defWidgetMeta(row, type(true))).toBe(false);
+  });
 });

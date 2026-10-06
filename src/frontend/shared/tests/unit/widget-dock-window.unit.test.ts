@@ -376,6 +376,39 @@ describe("WidgetDockLayer", () => {
     );
   });
 
+  it("접힌 단추는 meta.icon 이 있으면 아이콘을 그리고, 없으면 제목 첫 글자를 남긴다", async () => {
+    const Icon = ({ size, stroke }: { size?: number; stroke?: number }) =>
+      h("svg", { "data-testid": "dock-icon", "data-size": size, "data-stroke": stroke });
+    const registry: WidgetRegistry = {
+      "def.calc": entry("def.calc", { icon: Icon }),
+      "def.plain": entry("def.plain"),
+    };
+    act(() =>
+      root.render(
+        h(WidgetDockLayer, {
+          windows: [
+            win("a", { collapsed: true }),
+            win("b", { widgetId: "def.plain", collapsed: true, x: 80 }),
+          ],
+          registry,
+          frame: WidgetFrame,
+          viewport: { width: 1200, height: 800 },
+          ...handlers(),
+        })
+      )
+    );
+    await flush();
+    const withIcon = q<HTMLElement>('[data-testid="widget-dock-window-a-icon"]');
+    const svg = withIcon.querySelector('[data-testid="dock-icon"]');
+    expect(svg).not.toBeNull();
+    expect(svg!.getAttribute("data-size")).toBe("22");
+    expect(svg!.getAttribute("data-stroke")).toBe("1.8");
+    expect(withIcon.textContent).toBe("");
+    const plain = q<HTMLElement>('[data-testid="widget-dock-window-b-icon"]');
+    expect(plain.querySelector("svg")).toBeNull();
+    expect(plain.textContent).toBe("d");
+  });
+
   it("viewport 를 안 주면 창이 있는 동안 화면 크기를 직접 구독하고(rAF 로 묶어), 창이 없으면 구독하지 않는다", async () => {
     const add = vi.spyOn(window, "addEventListener");
     const resizeListeners = () => add.mock.calls.filter(([type]) => type === "resize").length;

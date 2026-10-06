@@ -15,6 +15,8 @@ import type { WidgetFrameProps } from "../widget/WidgetFrame";
 import type { WidgetItem, WidgetRegistry, WidgetRegistryEntry } from "../widget/types";
 import {
   clampDockWindow,
+  DOCK_ICON_GLYPH_SIZE,
+  DOCK_ICON_GLYPH_STROKE,
   DOCK_ICON_SIZE,
   DOCK_MIN_SIZE,
   dockItemSize,
@@ -95,6 +97,7 @@ const DockWindowView = memo(function DockWindowView({
   const toggle = useCallback(() => onToggleCollapse(id), [onToggleCollapse, id]);
   const close = useCallback(() => onClose(id), [onClose, id]);
   const focus = useCallback(() => onFocus(id), [onFocus, id]);
+  const Icon = entry.meta.icon;
   return (
     <FloatingWindow
       title={entry.meta.title}
@@ -108,6 +111,7 @@ const DockWindowView = memo(function DockWindowView({
       minWidth={DOCK_MIN_SIZE.w}
       minHeight={DOCK_MIN_SIZE.h}
       iconSize={DOCK_ICON_SIZE}
+      icon={Icon ? <Icon size={DOCK_ICON_GLYPH_SIZE} stroke={DOCK_ICON_GLYPH_STROKE} /> : undefined}
       testId={`widget-dock-window-${id}`}
       onMove={move}
       onResize={resize}
