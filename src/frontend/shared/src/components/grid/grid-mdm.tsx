@@ -14,7 +14,7 @@ import {
 } from "../../mdm-meta";
 import { MdmHeaderLabel } from "./MdmHeaderLabel";
 import type { GridColumn } from "./grid-types";
-import type { BuildColumnDefsOptions } from "./AgDataGrid";
+import type { BuildColumnDefsOptions } from "./column-defs";
 
 /** 화면 검사 결과 한 칸 — 검사한 값과 문구. */
 export interface MdmCellCheck {
