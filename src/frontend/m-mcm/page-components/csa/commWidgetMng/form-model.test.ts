@@ -696,9 +696,16 @@ describe("미리보기 크기 조절(기본·최소·최대)", () => {
     expect(s.max).toEqual({ w: 20, h: 30 });
   });
 
-  it("최대 한 축만 있으면 빈 축은 가로 24·세로 기본 높이로 둔다", () => {
-    expect(previewSizes({ ...blank, maxW: "16" }, base).max).toEqual({ w: 16, h: 8 });
-    expect(previewSizes({ ...blank, maxH: "20" }, base).max).toEqual({ w: 24, h: 20 });
+  it("코드·유형에 값이 없는데 한 축만 입력하면 보드처럼 무시한다(최소 4×6, 최대 제한 없음)", () => {
+    const s = previewSizes({ ...blank, minW: "2", maxW: "16" }, { defaultSize: { w: 12, h: 8 } });
+    expect(s.min).toEqual({ w: 4, h: 6 });
+    expect(s.max).toBeNull();
+  });
+
+  it("코드·유형에 값이 있으면 한 축만 입력해도 나머지 축은 그 값을 쓴다", () => {
+    const s = previewSizes({ ...blank, minW: "2", maxW: "16" }, { ...base, maxSize: { w: 20, h: 18 } });
+    expect(s.min).toEqual({ w: 2, h: 5 });
+    expect(s.max).toEqual({ w: 16, h: 18 });
   });
 
   it("코드 위젯 메타의 최대가 있으면 그 값을 쓴다", () => {

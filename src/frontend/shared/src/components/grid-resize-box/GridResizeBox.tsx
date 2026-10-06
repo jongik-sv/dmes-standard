@@ -108,7 +108,7 @@ export function GridResizeBox({
   };
 
   const onPointerDown = (handle: Handle) => (e: PointerEvent<HTMLDivElement>) => {
-    if (disabled || e.button !== 0) return;
+    if (disabled || areaWidth <= 0 || e.button !== 0) return;
     const start = gridBoxPx(areaWidth, size, metrics);
     drag.current = {
       handle,
@@ -140,7 +140,7 @@ export function GridResizeBox({
   };
 
   const onKeyDown = (handle: Handle) => (e: KeyboardEvent<HTMLDivElement>) => {
-    if (disabled) return;
+    if (disabled || areaWidth <= 0) return;
     const dw = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
     const dh = e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0;
     if ((dw === 0 && dh === 0) || (handle === "e" && dh !== 0) || (handle === "s" && dw !== 0)) return;

@@ -447,11 +447,20 @@ export function previewTitle(target: SizeTarget): string {
 /** shared WIDGET_DEFAULT_MIN_SIZE 와 같은 값 — 최소 크기를 비우면 쓰이는 값(런타임 import 를 피하려고 따로 둔다). */
 const DEFAULT_MIN_SIZE: WidgetSize = { w: 4, h: 6 };
 
-/** 폼 칸이 비었거나 1 이상 정수가 아니면 fallback(검사는 validateDefForm 몫). */
-const posInt = (text: string, fallback: number): number => {
+/** 폼 칸이 비었거나 1 이상 정수가 아니면 null(검사는 validateDefForm 몫). */
+const axisOrNull = (text: string): number | null => {
   const v = intOrNull(text);
-  return v != null && v >= 1 ? v : fallback;
+  return v != null && v >= 1 ? v : null;
 };
+
+/** shared applyWidgetOverride 의 size() 와 같다 — 둘 다 비면 base, base 가 없는데 한 축만 있으면 무시(undefined), 아니면 축마다 대체. */
+function mergeSize(wText: string, hText: string, base: WidgetSize | undefined): WidgetSize | undefined {
+  const w = axisOrNull(wText);
+  const h = axisOrNull(hText);
+  if (w === null && h === null) return base;
+  if (!base && (w === null || h === null)) return undefined;
+  return { w: w ?? base!.w, h: h ?? base!.h };
+}
 
 export interface PreviewSizeBase {
   defaultSize: WidgetSize;
@@ -462,24 +471,20 @@ export interface PreviewSizeBase {
 export interface PreviewSizes {
   def: WidgetSize;
   min: WidgetSize;
-  /** 최대가 한 축도 없으면(제한 없음) null. 한 축만 비어 있으면 그 축은 가로 24·세로는 기본 크기로 둔다. */
+  /** 제한 없음이면 null. */
   max: WidgetSize | null;
 }
 
 /**
- * 폼 값(없으면 코드·유형 값, 최소는 4×6) 으로 미리보기에서 그릴 기본·최소·최대 크기를 구한다. 축마다 따로 대체한다(applyWidgetOverride 와 같다).
- * 가로는 24 를 넘지 않게 맞춘다 — 잘못된 값은 validateDefForm 이 막는다.
+ * 폼 값(없으면 코드·유형 값, 최소는 4×6, 최대는 제한 없음) 으로 미리보기에서 그릴 기본·최소·최대 크기를 구한다.
+ * 보드가 실제로 쓰는 값(applyWidgetOverride → minSizeOf·maxSizeOf)과 같은 규칙이다. 가로는 24 를 넘지 않게 맞춘다 — 잘못된 값은 validateDefForm 이 막는다.
  */
 export function previewSizes(form: DefForm, base?: PreviewSizeBase): PreviewSizes {
-  const baseDef = base?.defaultSize ?? { w: 1, h: 1 };
-  const baseMin = base?.minSize ?? DEFAULT_MIN_SIZE;
-  const col = (w: number) => Math.min(w, GRID_COLS);
-  const def = { w: col(posInt(form.defW, baseDef.w)), h: posInt(form.defH, baseDef.h) };
-  const min = { w: col(posInt(form.minW, baseMin.w)), h: posInt(form.minH, baseMin.h) };
-  const maxW = posInt(form.maxW, base?.maxSize?.w ?? 0);
-  const maxH = posInt(form.maxH, base?.maxSize?.h ?? 0);
-  const max = maxW === 0 && maxH === 0 ? null : { w: col(maxW || GRID_COLS), h: maxH || def.h };
-  return { def, min, max };
+  const col = (s: WidgetSize): WidgetSize => ({ w: Math.min(s.w, GRID_COLS), h: s.h });
+  const def = col(mergeSize(form.defW, form.defH, base?.defaultSize) ?? { w: 1, h: 1 });
+  const min = col(mergeSize(form.minW, form.minH, base?.minSize) ?? DEFAULT_MIN_SIZE);
+  const max = mergeSize(form.maxW, form.maxH, base?.maxSize);
+  return { def, min, max: max ? col(max) : null };
 }
 
 /** 고른 대상의 시작 크기 — 최대가 「제한 없음」이면 기본 크기에서 시작한다. */
