@@ -28,7 +28,7 @@ trap cleanup EXIT
 fail=0; pass=0
 chk() { if [ "$1" = ok ]; then pass=$((pass + 1)); echo "ok   $2"; else fail=1; echo "FAIL $2${3:+ — $3}"; fi; }
 eq() { if [ "$2" = "$3" ]; then chk ok "$1"; else chk fail "$1" "기대 [$3] 실제 [$2]"; fi; }
-udate() { date -u -r "$1" "$2" 2>/dev/null || date -u -d "@$1" "$2"; }   # <epoch> <+형식> — UTC(BSD -r → GNU -d @)
+udate() { date -u -d "@$1" "$2" 2>/dev/null || date -u -r "$1" "$2"; }   # <epoch> <+형식> — UTC(GNU -d @ 먼저, BSD 는 -d 를 몰라 rc≠0 → -r)
 
 unset ORCA_TERMINAL_HANDLE CLAUDE_PID COORD_SESSION_ID CLAUDE_CODE_SESSION_ID COORD_RUN DFLOW_CONFIG_DIR COORD_DRY CONSOLE_POLL_IDENT COORD_CONSOLE_POLL
 mkdir -p "$tmp/bin" "$tmp/repo" "$tmp/home"

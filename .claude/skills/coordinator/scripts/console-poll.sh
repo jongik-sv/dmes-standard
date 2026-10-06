@@ -630,12 +630,14 @@ lane_run_h() {
 }
 # 기록 JSON(stdin)이 「살아 있는」 입력 요청(handled null·usage-limit·trust 아님)이면 y
 rec_active() { jq -r 'if type == "object" and .handled == null and .kind != "usage-limit" and .kind != "trust" then "y" else "n" end' 2>/dev/null; }
-# input_detect 의 기록 읽기(jq -j 한 번): 객체가 아니면 빈 출력. 객체면 rec_active · kind · since · full · handle · run 을 U+001F 로 잇는다
-#   (빈 칸 = 없음·null·false — 예전 `// empty` 와 같은 글)
-_CP_REC_JQ='if type == "object" then
-  [(if .handled == null and .kind != "usage-limit" and .kind != "trust" then "y" else "n" end),
-   (.kind // "" | tostring), (.since // "" | tostring), (.full // "" | tostring), (.handle // "" | tostring), (.run // "" | tostring)]
-  | join("\u001f") else empty end'
+# input_detect 의 기록 읽기(jq -sj 한 번): 값이 정확히 객체 하나가 아니면(깨진·값 여럿) 빈 출력 = 기록 없음으로 보고 새로 쓴다.
+#   객체면 rec_active · kind · since · full · handle · run 을 U+001F 로 잇는다(빈 칸 = 없음·null·false — 예전 `// empty` 와 같은 글).
+#   칸 값에 U+001F 가 있으면 칸이 밀리므로 그 기록도 없는 것으로 본다
+_CP_REC_JQ='if length == 1 and (.[0] | type) == "object" then .[0]
+  | [(if .handled == null and .kind != "usage-limit" and .kind != "trust" then "y" else "n" end),
+     (.kind // "" | tostring), (.since // "" | tostring), (.full // "" | tostring), (.handle // "" | tostring), (.run // "" | tostring)]
+  | if any(.[]; test("\u001f")) then empty else join("\u001f") end
+  else empty end'
 # 새 기록 $a 와 지금 기록 $b(없으면 null) 비교(jq -nj 한 번): 같으면 `same`, 다르면 `diff` · 새 kind · 새 rec_active 를 U+001F 로 잇는다
 _CP_CMP_JQ='if $a == $b then "same" else
   ["diff", ($a.kind | tostring), (if ($a | type) == "object" and $a.handled == null and $a.kind != "usage-limit" and $a.kind != "trust" then "y" else "n" end)]
@@ -677,7 +679,7 @@ input_detect() {
   cur="$(cat "$f" 2>/dev/null)"
   # 기록을 jq 한 번으로 읽는다(객체가 아니면 cur 를 비운다): 살아 있음(rec_active 와 같은 판정)·kind·since·full·handle·run
   ca=n; ck=""; cs=""; cf=""; ch=""; cr=""
-  if [ -n "$cur" ] && rd="$(printf '%s' "$cur" | jq -j "$_CP_REC_JQ" 2>/dev/null)" && [ -n "$rd" ]; then
+  if [ -n "$cur" ] && rd="$(printf '%s' "$cur" | jq -sj "$_CP_REC_JQ" 2>/dev/null)" && [ -n "$rd" ]; then
     IFS=$'\x1f' read -r -d '' ca ck cs cf ch cr <<< "$rd"; cr="${cr%$'\n'}"
     had=1
   else cur=""; fi
@@ -708,8 +710,13 @@ input_detect() {
       new="$(printf '%s' "$cur" | jq -c --argjson ex "$CI_EXC" '.excerpt = $ex')"   # 같은 창: since·handled·full 유지, 발췌만
     fi
   fi
-  # 새 기록이 지금 기록과 다를 때만 쓴다(jq 한 번: 같음 판정 + 새 기록의 kind·살아 있음)
-  if [ -n "$new" ] && rd="$(jq -nj --argjson a "$new" --argjson b "${cur:-null}" "$_CP_CMP_JQ" 2>/dev/null)" && [ -n "$rd" ] && [ "$rd" != same ]; then
+  # 새 기록이 지금 기록과 다를 때만 쓴다(jq 한 번: 같음 판정 + 새 기록의 kind·살아 있음). 지금 기록을 JSON 하나로 못 읽으면 다른 것으로 본다
+  rd=""
+  if [ -n "$new" ]; then
+    rd="$(jq -nj --argjson a "$new" --argjson b "${cur:-null}" "$_CP_CMP_JQ" 2>/dev/null)" \
+      || rd="$(jq -nj --argjson a "$new" --argjson b null "$_CP_CMP_JQ" 2>/dev/null)"
+  fi
+  if [ -n "$rd" ] && [ "$rd" != same ]; then
     IFS=$'\x1f' read -r -d '' _ nk na <<< "$rd"; na="${na%$'\n'}"
     if console_input_write "$name" "$new"; then
       plog "input $k/$ref $nk $([ "$had" = 1 ] && echo 갱신 || echo 생성)"
@@ -1054,6 +1061,7 @@ cmd_once() {
   exit 0
 }
 
+_cp_is_windows() { case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) return 0 ;; esac; return 1; }
 cmd_start() {
   local cpid
   [ "$DRY" = 1 ] && { echo "CONSOLE_POLLER skipped dry"; exit 0; }
@@ -1069,7 +1077,8 @@ cmd_start() {
     # 백그라운드 & 안에서는 그룹 리더가 아니라서 setsid 가 포크하지 않고 같은 pid 로 exec 한다
     CONSOLE_POLL_LOCKED=1 CONSOLE_POLL_IDENT="$IDENT" setsid bash "$SELF" run </dev/null >/dev/null 2>&1 &
     cpid=$!
-  elif command -v node >/dev/null 2>&1; then
+  elif command -v node >/dev/null 2>&1 && ! _cp_is_windows; then
+    # 윈도우 node 는 네이티브라 c.pid 가 Windows PID 다(MSYS·Cygwin 셸의 $$ 와 다를 수 있어 잠금 주인 판정이 어긋난다) — 윈도우는 nohup 으로
     cpid="$(CONSOLE_POLL_LOCKED=1 CONSOLE_POLL_IDENT="$IDENT" node -e 'const c=require("child_process").spawn("bash",[process.argv[1],"run"],{detached:true,stdio:"ignore",env:process.env});c.unref();process.stdout.write(String(c.pid))' "$SELF" 2>/dev/null)"
     case "$cpid" in ''|*[!0-9]*) cpid="" ;; esac
   fi

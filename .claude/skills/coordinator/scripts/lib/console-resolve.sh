@@ -36,13 +36,20 @@ _cr_sess_mine() {
   [ "$(jq -r '"\(.user // "")/\(.host // "")"' "$1" 2>/dev/null)" = "$CR_IDENT/$CR_HOST" ]
 }
 # _cr_sess_read <세션 기록 파일> — jq 한 번으로 _CR_MINE(_cr_sess_mine 과 같은 판정이면 1, 아니면 0)·_CR_PID(.pid // 0 | tostring)·
-#   _CR_HANDLE(.handle // empty | tostring)을 채운다. 기록을 못 읽으면(깨진 JSON·객체 아님) 셋 다 빈 값·_CR_MINE=0
+#   _CR_HANDLE(.handle // empty | tostring)을 채운다. 기록이 정확히 객체 하나가 아니면(깨진 JSON·객체 아님·값 여럿) 셋 다 빈 값·_CR_MINE=0.
+#   신원 비교는 jq 안에서 한다(칸 구분자 U+001F 를 칸 값에 넣어 비교를 속이지 못하게). pid·handle 에 U+001F 가 있으면 믿지 않는다(_CR_MINE=0)
 _CR_MINE=0; _CR_PID=""; _CR_HANDLE=""
 _cr_sess_read() {
-  local u=""
+  local m=""
   _CR_MINE=0; _CR_PID=""; _CR_HANDLE=""
-  IFS=$'\x1f' read -r -d '' u _CR_PID _CR_HANDLE < <(jq -j '"\(.user // "")/\(.host // "")", "\u001f", (.pid // 0 | tostring), "\u001f", (.handle // "" | tostring)' "$1" 2>/dev/null)
-  _cr_ident_ok && [ "$u" = "$CR_IDENT/$CR_HOST" ] && _CR_MINE=1
+  _cr_ident_ok || return 0
+  IFS=$'\x1f' read -r -d '' m _CR_PID _CR_HANDLE < <(jq -sj --arg w "$CR_IDENT/$CR_HOST" '
+    if length == 1 and (.[0] | type) == "object" then .[0]
+      | ((.pid // 0 | tostring) as $p | (.handle // "" | tostring) as $h
+         | if ($p + $h | test("\u001f")) then empty
+           else (if "\(.user // "")/\(.host // "")" == $w then "1" else "0" end), "\u001f", $p, "\u001f", $h end)
+    else empty end' "$1" 2>/dev/null)
+  if [ "$m" = 1 ]; then _CR_MINE=1; else _CR_PID=""; _CR_HANDLE=""; fi
   return 0
 }
 # _cr_session_dead <세션8> <회차 coordinator pid> [strict] — 죽은 세션이면 0.
