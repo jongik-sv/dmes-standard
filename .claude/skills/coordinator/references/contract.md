@@ -198,7 +198,7 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 
 | 하위명령 | 하는 일 · stdout |
 |---|---|
-| `init <run-id> [--goal 글] [--rules-doc 경로]` | 회차 폴더·빈 state.json 생성, current 지정 · `RUN <run-id> <폴더>`. 현재 세션 id(`COORD_SESSION_ID` → `CLAUDE_CODE_SESSION_ID`)를 `.run.coordinator.session_id` 에 적는다. 이어 마감 표식(`.run.closed_at`·`.office.finished`)이 없고 오피스 팀장 키(`.office.sent._lead`)가 남은 다른 회차마다 한 줄: 세션 id 가 같으면 자동 마감하고 `STALE_RUN <run-id> auto-closed session=<id>`, 그 밖에는 `STALE_RUN <run-id> open session=<id\|-> idle=<분>m`(경고만, 안내는 stderr) |
+| `init <run-id> [--goal 글] [--rules-doc 경로]` | 회차 폴더·빈 state.json 생성, current 지정 · `RUN <run-id> <폴더>`. 현재 세션 id(`COORD_SESSION_ID` → `CLAUDE_CODE_SESSION_ID`)를 `.run.coordinator.session_id` 에 적는다. 이어 마감 표식(`.run.closed_at`·`.office.finished`)이 없고 오피스 팀장 키(`.office.sent._lead`)가 남은 다른 회차마다 한 줄: 세션 id 가 같으면 자동 마감하고 `STALE_RUN <run-id> auto-closed session=<id>`(마감 실패 시 `close-failed`), 그 밖에는 `STALE_RUN <run-id> open session=<id\|-> idle=<분>m`(경고만, 안내는 stderr) |
 | `use <run-id>` | current 바꾸기 |
 | `get [jq식]` | state.json 에 jq 적용 결과 |
 | `set <jq경로> <json값>` | 값 쓰기(예: `set '.lanes.a8.priority' 3`) · `OK` |

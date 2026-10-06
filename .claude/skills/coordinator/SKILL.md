@@ -35,10 +35,10 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 
 1. 설정 확인: `<repo>/.coord.json`(공용)·`.coord.local.json`(PC 전용). `launch.claude`·`integration_check`·`git_bin` 처럼 PC마다 다른 값은 사용자에게 한 번 확인한다.
 2. `scripts/coord-state.sh init <run-id> --goal "<목표>" [--rules-doc <경로>]`
+   `init` 은 `CLAUDE_CODE_SESSION_ID`(또는 `COORD_SESSION_ID`)를 `.run.coordinator.session_id` 에 적고, 같은 세션의 앞 회차가 마감 없이 남았으면 자동 마감한 뒤 `STALE_RUN <회차> auto-closed` 줄을 낸다(마감에 실패하면 `close-failed`, 직접 `close-run`). 다른 세션의 열린 회차는 `STALE_RUN <회차> open …` 경고만 낸다(진행 중인 다른 조정자의 회차일 수 있으니 직접 닫지 않는다).
 3. 분해: `references/decompose.md`(초안은 판단 올리기). 사용자에게 확정받는다. 레인 공통 규칙 문서는 `templates/lane-rules-README.md`.
 4. 레인 확보: `references/spawn.md`. 사용자 세션은 신원 보고로 연결, 스킬이 띄우는 세션은 `spawn-lane.sh`. 띄운 세션에는 `Monitor` 로 `prompt-watch.sh <레인> --follow 1200` 을 붙인다. 각 레인은 `coord-state.sh lane-add`(에이전트 오피스 슬롯 이름이 될 지시 한 줄은 `"brief"` 로 함께 넣는다. 오피스 표시는 `init`·`spawn-lane.sh`·틱이 자동으로 보내고, 표시 전용이라 실패해도 무시한다. 키 규칙은 `references/contract.md` §4).
 5. 착수 지시: `templates/brief.md` 에 `protocol.md` 템플릿과 `workflow.md` 블록을 채워 SendMessage 로 보낸다. 번호는 `coord-state.sh instr <레인> start`, 원문은 `lanes/<레인>/brief.md`.
-   `init` 은 `CLAUDE_CODE_SESSION_ID`(또는 `COORD_SESSION_ID`)를 `.run.coordinator.session_id` 에 적고, 같은 세션의 앞 회차가 마감 없이 남았으면 자동 마감한 뒤 `STALE_RUN <회차> auto-closed` 줄을 낸다. 다른 세션의 열린 회차는 `STALE_RUN <회차> open …` 경고만 낸다(진행 중인 다른 조정자의 회차일 수 있으니 직접 닫지 않는다).
 6. `CronCreate`(`tick.cron`, 위 고정 문구) → `coord-state.sh set '.run.cron_id' '"<id>"'`, `.run.coordinator` 에 자기 이름·주소·핸들·session_id.
 
 ## 틱 절차
