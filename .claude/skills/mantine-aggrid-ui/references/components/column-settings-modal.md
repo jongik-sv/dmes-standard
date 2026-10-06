@@ -2,7 +2,7 @@
 
 그리드 컬럼의 표시 여부와 순서를 한 줄씩 바꾸는 제어형 창이다. 컬럼 목록을 받아 보여 주고 [적용]·[기본값 복원] 결과만 돌려주는 순수 UI 라서 그리드 내부를 모른다.
 
-- import: `import { ColumnSettingsModal, type ColumnSettingsColumn, type ColumnSettingsModalProps, type ColumnSettingsState } from "@dk-oasis/shared/grid";` (CSS import 없음 — 컴포넌트가 자기 `<style>` 을 넣는다)
+- import: `import { ColumnSettingsModal, type ColumnSettingsColumn, type ColumnSettingsGroup, type ColumnSettingsModalProps, type ColumnSettingsState } from "@dk-oasis/shared/grid";` (CSS import 없음 — 컴포넌트가 자기 `<style>` 을 넣는다)
 - 소스: `src/frontend/shared/src/components/grid/ColumnSettingsModal.tsx`
 - 내부 구현: shared [Modal](modal.md)(`size="md"`) 안에 shared `form` 의 `Checkbox`·`Button`(순서 이동은 `size="mini"` 위·아래 단추)
 - 함께 추가된 내부 부품: 머리글 우클릭 메뉴 `GridHeaderContextMenu.tsx`(Mantine `Menu`, 화면이 쓰지 않는 내부 부품이라 export 하지 않는다), GridPanel 과 안쪽 그리드를 잇는 `grid-panel-context.ts`
@@ -73,6 +73,7 @@ export function ExportItemPicker({ onChange }: { onChange: (items: ColumnSetting
 - 잠긴 컬럼(`locked: true`): 체크가 켜진 채 비활성이고 숨길 수 없다(「숨길 수 없는 컬럼」 툴팁). 순서 이동은 된다. 보이는 컬럼이 하나도 없으면(잠긴 컬럼이 없고 전부 숨기면) [적용]이 비활성이다.
 - 내부 컬럼(`internal: true`): 선택 체크박스·행 번호·화면 정의에서 숨긴 컬럼. 창에 줄이 나오지 않는다. 그래도 `onApply` 로 넘기는 상태에는 **모든 컬럼을 원래 자리 그대로** 담는다. 보이는 컬럼 순서만 보내면 ag-grid 가 빠진 컬럼(선택 체크박스 등)을 맨 뒤로 보내기 때문이다.
 - 고정(pinned) 컬럼: 고정 컬럼이 하나라도 있으면 「왼쪽 고정」·「일반」·「오른쪽 고정」 구역 머리로 모아 보인다. 순서 이동은 **같은 구역 안에서만** 되고(구역 경계의 단추는 비활성), 고정 구역을 바꾸는 일은 이 창이 아니라 그리드 머리글 조작이다.
+- 열 그룹: `group`(가장 가까운 그룹 `{ id, header }`)·`groupPath`(바깥 → 안쪽 경로, 중첩 그룹용)가 있는 컬럼은 앞에 그룹 이름 제목 줄(`{testId}-group-{groupId}`)이 나오고, 순서 이동은 **같은 그룹(같은 `group.id`) 안에서만** 된다(그룹 경계의 단추는 비활성, 그룹 밖 컬럼끼리는 구역 규칙만). 그룹을 통째로 옮기는 기능은 없다. 둘 다 생략하면 이전과 같다.
 - 너비: `onApply` 는 `{ colId, hide }` 만 넘기고 `width` 를 넘기지 않는다. `width` 가 있으면 컬럼 개인화가 그 컬럼 너비를 저장하고 잠그기 때문이다. 너비는 헤더 경계를 끌 때만 저장된다.
 - 순서 이동 뒤에는 같은 이동 단추로 초점이 돌아와 키보드로 이어서 옮길 수 있다.
 - 두 컬럼이 서로 자리를 바꾸는 방식이라 사이에 낀 내부 컬럼은 제자리에 남는다.
@@ -89,7 +90,8 @@ export function ExportItemPicker({ onChange }: { onChange: (items: ColumnSetting
 | title | `string` | `"컬럼 설정"` | 창 제목 |
 | testId | `string` | `"column-settings"` | 바깥 상자의 `data-testid` 접두어(`-reset`·`-cancel`·`-apply`·`-row-{colId}`·`-up-{colId}`·`-down-{colId}` 등이 붙는다) |
 
-`ColumnSettingsColumn`: `colId: string`, `header: string`, `hide: boolean`, `pinned?: "left" | "right" | null`, `locked?: boolean`, `internal?: boolean`.
+`ColumnSettingsColumn`: `colId: string`, `header: string`, `hide: boolean`, `pinned?: "left" | "right" | null`, `locked?: boolean`, `internal?: boolean`, `group?: ColumnSettingsGroup`, `groupPath?: readonly ColumnSettingsGroup[]`.
+`ColumnSettingsGroup`: `id: string`, `header: string`.
 `ColumnSettingsState`: `colId: string`, `hide: boolean`.
 
 ## 표준값: 모든 화면 동일
@@ -107,6 +109,7 @@ export function ExportItemPicker({ onChange }: { onChange: (items: ColumnSetting
 | 창이 열린 동안 `columns` 를 바꾸면 창에 반영될 거라 기대한다 | 창은 열릴 때의 `columns` 로 한 번 시작하고 이후 바뀐 값은 반영하지 않는다. 열기 직전에 목록을 만든다 |
 | 항목 추가·삭제·이름 변경까지 이 창에 기대한다 | 표시 여부와 순서만 다룬다. 항목을 고치려면 `EditableRowList`, 소속 편집은 `TransferList` 를 쓴다 |
 | 고정 컬럼을 다른 구역으로 옮기려 한다 | 이 창은 구역 안 순서만 옮긴다. 고정 변경은 그리드 머리글 조작이다 |
+| 열 그룹 잎을 그룹 밖으로 옮기려 한다 | `group` 을 준 컬럼은 같은 그룹 안에서만 옮겨진다. 그룹 경계는 단추가 비활성이다 |
 
 ## 실제 사용 예
 

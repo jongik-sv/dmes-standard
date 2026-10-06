@@ -94,7 +94,7 @@ export function InspList({ rows, selectedId, isBusy, onSelect }: {
 
 - 선택: `selectable`(체크박스 열), `multiSelect`(여러 행 + 머리 체크박스), `selectedRows`(제어형), `onRowSelect`, `checkRowOnEdit`(편집한 행을 자동 체크).
 - 행번호: `rowNumber` 는 맨 앞에 "No" 열(폭 56)을 둔다. 정렬하면 다시 매겨지는 표시 순서다.
-- 열 그룹: `GridColumn.children` 이 있으면 그 항목은 열 그룹이고 잎만 데이터 열이다.
+- 열 그룹: `GridColumn.children` 이 있으면 그 항목은 열 그룹이고 잎만 데이터 열이다. 모든 열 그룹에는 `marryChildren: true` 가 늘 붙는다 — 머리글 끌기로 잎이 그룹 밖으로 나가거나 남의 열이 그룹 사이에 끼면 ag-grid 가 거절한다. 그룹 아래 잎에는 `lockPinned: true` 가 붙어 머리글 끌기로 고정 구역에 넣을 수 없다(정의에 적은 `pinned` 는 적용된다). 둘 다 개인화 여부와 무관하고 화면이 줄 것은 없다.
 - 행 드래그: `rowDragField`(손잡이 열 key)와 `onRowOrderChange(orderedKeys)` 를 항상 함께 준다. 켜면 정렬이 꺼진다. 순서는 호출자가 `data` 를 다시 만들어 넘겨 확정한다.
 
 ### MDM 캡션·머리글 툴팁(2026-10-03)
@@ -184,6 +184,7 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
   - [GridPanel](grid-panel.md) 의 「컬럼 설정」 버튼: 그리드를 `GridPanel` 안에 두면 개인화가 켜진 동안 자동으로 붙는다.
 - 헤더를 그리드 밖으로 끌어도 개인화가 켜진 그리드는 컬럼이 숨겨지지 않는다(숨김은 컬럼 설정 창으로만). `personalize={false}` 인 그리드는 ag-grid 기본대로 끌어서 숨겨지고 창·우클릭 메뉴·버튼도 없다.
 - 컬럼 설정 창 규칙: 숨길 수 없는 열(`hideable` 잠금)은 체크가 고정이고 순서만 옮긴다. 선택 체크박스·행번호·화면이 숨긴 열은 창에 나오지 않지만 원래 자리를 지킨다. 고정 열은 구역(왼쪽 고정·일반·오른쪽 고정)별로 모여 같은 구역 안에서만 순서를 옮긴다. [적용]은 너비를 저장하지 않는다(너비는 헤더 경계를 끌 때만).
+- 열 그룹(`children`) 규칙: 컬럼 설정 창은 그룹 이름을 제목 줄로 앞에 보이고(중첩 그룹은 바깥 → 안쪽), 순서는 **같은 그룹 안에서만** 옮긴다(그룹 경계의 위로·아래로 단추 비활성, 그룹 밖 열이 그룹 안으로 들어가거나 그 반대도 안 된다). 그룹을 통째로 옮기는 기능은 없고, 그룹 밖 열이 그룹 건너편으로 건너뛰는 이동은 창에서 안 되며 머리글 끌기로만 된다. 저장값 순서가 그룹을 가르면(예전 저장값·화면이 그룹 구조를 바꾼 경우) 복원 때 각 그룹의 잎을 그 그룹의 첫 잎 자리로 모은다(그룹 안 순서는 저장 순서). ag-grid 는 그룹을 가르는 `applyOrder` 를 받으면 순서 전체를 버리므로 이 모으기가 필요하다.
 - 너비: 사용자가 머리글 경계를 끌어 바꾼 컬럼만 저장되고 그 컬럼은 폭이 고정된다. 나머지 컬럼은 예전처럼 자동 너비 맞춤(`columnSizing`)을 받고, 저장값이 없으면 동작은 예전과 같다.
 - 숨김 잠금: 편집 가능한 열은 기본으로 숨길 수 없다(`GridColumn.hideable: true` 로 푼다). 선택 체크박스·행번호·`rowKey`·행 드래그 열은 늘 잠금이다. 잠긴 열도 순서는 옮길 수 있다.
 - `gridId`: 한 화면(탭)에 그리드가 하나면 생략한다(`"main"`). 둘 이상이면 그리드마다 다른 고정 문자열을 준다. 같은 탭에 같은 키의 그리드가 이미 떠 있으면 나중 그리드는 개인화를 끈다(개발 모드 경고). **모달 안 그리드는 반드시 본 화면과 다른 `gridId`**(예: `"modal-user"`)를 준다. `LookupModal`·`EditableRowList` 는 자기 `gridId` prop 으로 안쪽 그리드에 넘긴다.
@@ -281,7 +282,7 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 | cellClassRules | `Record<string, (row) => boolean>` | - | 조건부 셀 클래스 |
 | rowDrag · headerTooltip | `boolean` · `string` | - | 이 열에 행 드래그 손잡이(`onRowOrderChange` 필요) · 머리 툴팁(주면 MDM 툴팁 대신 이것. 생략하면 표시 머리글 이름이 기본, `""` 면 끔) |
 | headerStyle · headerComponent · headerComponentParams | ag-grid 패스스루 | - | 머리 인라인 스타일(색은 의미 토큰만) · 커스텀 머리 컴포넌트 |
-| children | `GridColumn[]` | - | 있으면 열 그룹. `groupId` 는 `key` |
+| children | `GridColumn[]` | - | 있으면 열 그룹. `groupId` 는 `key`, 열 정의에 `marryChildren: true`, 그룹 아래 잎에 `lockPinned: true` 가 붙는다 |
 
 ## 표준값: 모든 화면 동일
 
@@ -326,4 +327,3 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 - `src/frontend/m-mdm/pages/dmc/codeItemEdit/page.tsx:498-505`: `rowDragField` + `isRowDraggable` + `onRowOrderChange`. `rowNumber` 는 `src/frontend/m-mdm/pages/dmd/dataItemMng/page.tsx:698`.
 - `src/frontend/m-mcm/page-components/cmb/masterRuleData/page.tsx:419-428`: `selectable` + `multiSelect` + `selectedRows` + `onRowSelect`.
 - `excelExport`: `src/frontend/m-mcm/widget-types/query-table/renderer.tsx`(쿼리 표, 잘리면 `note` 를 「상위 N행만 표시합니다」로), `src/frontend/m-mcm/widgets/home/workOrders/widget.tsx`·`shipments/widget.tsx`(홈 기본 표, `note` 「N건」·기본 이름 「작업지시」「출하」·`testId: "wq-excel"`).
-- 열 그룹(`children`)은 아직 사용처 없음.

@@ -13,6 +13,7 @@ export type { AgDataGridExcelExport } from "./AgDataGridExcel";
 export {
   ColumnSettingsModal,
   type ColumnSettingsColumn,
+  type ColumnSettingsGroup,
   type ColumnSettingsModalProps,
   type ColumnSettingsState,
 } from "./ColumnSettingsModal";

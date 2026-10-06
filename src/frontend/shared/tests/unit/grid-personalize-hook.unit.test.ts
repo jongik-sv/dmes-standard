@@ -170,8 +170,8 @@ describe("defaultColumnsFromDefs", () => {
       { colId: GRID_SELECTION_COL_ID },
       { colId: "__rowNo", width: 56, pinned: "left" },
       { colId: "a", width: 100, hide: true },
-      { colId: "b" },
-      { colId: "c", width: 80, pinned: "right" },
+      { colId: "b", groupPath: ["g"] },
+      { colId: "c", width: 80, pinned: "right", groupPath: ["g"] },
     ]);
     expect(defaultColumnsFromDefs(defs, false)[0].colId).toBe("__rowNo");
   });

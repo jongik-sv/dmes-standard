@@ -605,6 +605,11 @@ export interface BuildColumnDefsOptions {
    * 있으면 잎 열마다 `cell-mdm-invalid` 규칙과 오류 문구를 먼저 보이는 셀 툴팁을 단다. 없으면 열 정의는 예전과 같다.
    */
   cellIssue?: (rowId: string, colKey: string, value: unknown) => string | null;
+  /**
+   * 열 그룹을 묶는다(그룹에 marryChildren, 그룹 아래 잎에 lockPinned) — 그룹 머리가 갈라진 순서·고정이 생기거나 저장되지 않게 한다.
+   * AgDataGrid 는 늘 켠다. 없으면 열 정의는 예전과 같다(순수 함수 시험용).
+   */
+  lockGroups?: boolean;
 }
 
 /** 칸 검증 오류 칸에 다는 클래스. */
@@ -878,23 +883,29 @@ function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
 /**
  * GridColumn 트리 → ag-grid 열 정의. `children` 이 있으면 ColGroupDef(groupId = key)로, 잎만 ColDef 로 바꾼다(여러 줄 머리).
  * 순수 함수라 단위 테스트가 ag-grid 렌더 없이 확인한다.
+ *
+ * `lockGroups` 면 열 그룹에 `marryChildren: true`, 그룹 아래 잎에 `lockPinned: true` 를 준다(AgDataGrid 는 늘 켠다 — 이유는 호출부 주석).
+ * 머리글 끌기로 잎이 그룹 밖으로 나가거나 남의 열이 그룹 사이에 끼거나(설치본 doesMovePassMarryChildren), 잎 하나만 고정 구역으로
+ * 끌려 그룹 머리가 갈라진 채 저장되는 것(attemptToPinColumns 는 lockPinned 만 거른다)을 막는다. 정의에 적은 `pinned` 는 그대로 적용된다.
  */
-export function buildColumnDefs(columns: GridColumn[], opts: BuildColumnDefsOptions): (ColDef | ColGroupDef)[] {
+export function buildColumnDefs(columns: GridColumn[], opts: BuildColumnDefsOptions, inGroup = false): (ColDef | ColGroupDef)[] {
   return columns.map((col) => {
     if (col.children && col.children.length > 0) {
       const group: ColGroupDef = {
         groupId: col.key,
+        ...(opts.lockGroups ? { marryChildren: true } : {}),
         headerName: col.header ?? col.key,
         headerGroupComponent: col.headerComponent,
         headerGroupComponentParams: col.headerComponentParams,
         headerTooltip: col.headerTooltip,
         headerClass: col.headerAlign ? `header-${col.headerAlign}` : "header-center",
         headerStyle: col.headerStyle as ColGroupDef["headerStyle"],
-        children: buildColumnDefs(col.children, opts),
+        children: buildColumnDefs(col.children, opts, true),
       };
       return group;
     }
-    return leafColDef(col, opts);
+    const leaf = leafColDef(col, opts);
+    return inGroup && opts.lockGroups ? { ...leaf, lockPinned: true } : leaf;
   });
 }
 
@@ -1135,6 +1146,9 @@ function AgDataGridComponent({
     walk(columns);
     return m;
   }, [columns]);
+  // 열 그룹 묶기는 개인화 여부와 무관하게 늘 켠다. 개인화 상태(실행 중)로 판정하면 개인화 훅 ↔ 열 정의 순환이 생기고, personalize prop 으로
+  // 판정하면 숨은 탭처럼 prop 이 켜지고 꺼질 때마다 열 정의가 다시 들어가 ag-grid 가 컬럼 상태를 정의값으로 되돌린다. 그룹 묶기는 그룹 머리를
+  // 가르는 이동·고정만 막으므로 개인화를 끈 그룹 그리드에도 해가 없다. 그룹 없는 그리드는 열 정의에 영향이 없다.
   const columnDefs = useMemo<(ColDef | ColGroupDef)[]>(() => {
     const defs = buildColumnDefs(columns, {
       sortable: effectiveSortable,
@@ -1144,6 +1158,7 @@ function AgDataGridComponent({
       isRowDraggable: stableIsRowDraggable,
       ...(mdm ? { mdm } : {}),
       ...(issuesEnabled ? { cellIssue } : {}),
+      lockGroups: true,
     });
     // 체크박스는 rowSelection 설정에서 자동 관리 (수동 컬럼 불필요)
     if (!rowNumber) return defs;
