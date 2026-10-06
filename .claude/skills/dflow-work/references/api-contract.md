@@ -90,7 +90,7 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
 | `error` | `refused` | 그 밖의 보내기 실패 |
 
 서버는 `reason` 을 위 목록으로 검사하고, 어떤 `result`·`reason` 짝을 쓸지는 폴러가 정한다(어느 사유를 재시도로 볼지 폴러 쪽 한 줄로 바꿀 수 있다).
-서버가 `result=retry` 에 허용하는 `reason` 은 `compacting` 과 `not-idle` 뿐이다.
+서버가 `result=retry` 에 허용하는 `reason` 은 `compacting` 뿐이다.
 
 **POST `/api/v1/agent/console/screen`** — 본문 `{host, items:[…]}`, 항목 ≤20개:
 ```json
@@ -110,14 +110,20 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
 | 동작 | 누가 |
 |---|---|
 | 프롬프트 보내기 | **세션 주인 본인만**(`actor.userId === owner`). 프로젝트 관리자·슈퍼유저도 남의 세션에는 못 보낸다(403 `not_owner`). `agentHub.ts` 의 stop·resume 게이트(관리자 허용)를 베끼지 않는다 |
-| 화면 보기 | 본인 + 그 좌석이 속한 프로젝트의 관리자 |
+| 화면 보기 | 본인 + 그 좌석이 속한 프로젝트의 관리자. 좌석의 프로젝트는 팀원이면 점유 주문의 `project_id`, 감시자(팀장·조정 레인)이면 `watcher.project_id` 로 정한다. **프로젝트를 정할 수 없으면(`project_id` 가 null — 조정 세션 대부분) 본인만 본다(fail-closed)** |
 | 전달 상태·프롬프트 본문 보기 | 본인만 |
 
-서버가 본문을 받을 때 정리한다: 제어 문자(C0·C1·DEL, U+2028·U+2029 포함) 제거 → 줄바꿈·탭은 공백 하나로 → 앞뒤 공백 제거. 정리한 결과가 비면 400 `empty`,
+서버가 본문을 받을 때 이 순서로 정리한다: ① 줄바꿈(CR·LF·U+2028·U+2029)과 탭을 공백 하나로 바꾼다 → ② 나머지 제어 문자(C0·C1·DEL)를 지운다 → ③ 앞뒤 공백을 지운다. 연속 공백은 접지 않는다(줄바꿈을 먼저 지우면 단어가 붙기 때문에 ①이 ②보다 앞선다). 정리한 결과가 비면 400 `empty`,
 `!` 가 들어 있으면 400 `bang_in_text`, 2000자(코드포인트)를 넘으면 400 `too_long`. 보내는 사람마다 1분에 5건(429 `rate_limited`),
 한 대상(owner·host·kind·ref)에 `pending`·`claimed` 가 3건이면 409 `queue_full`. 대상이 owner 의 좌석에 없으면 404 `target_unknown`.
 
 폴러는 서버를 믿지 않고 같은 정리를 한 번 더 한다(§4.1).
+
+### 좌석 `until` 라벨 `답 대기` (watch 의 기존 `until` 칸)
+
+서버는 `until` 을 그대로 저장하는 표시 문자열로만 다룬다(변경 없음). 세션이 사용자 입력(선택·확인 창)을 기다리는 동안 로컬이 `until` 을 정확히 `답 대기` 로 보내고,
+끝나면 원래 값으로 되돌린다. 화면은 이 값(정확히 일치)에 반응해 「사장님 빨리 답해주세요」 같은 말풍선을 띄운다. 대상별 원래 값은 팀원(`임시:`) = `작업 중`·`대기`·`머지 중`,
+조정 팀장(`coord:`) = `조정 중`, `/dflow-team` 팀장(`…/lead`) = 종료 시각 라벨이다. 판정과 전송은 로컬 폴러의 일이고(coordinator `references/contract.md` §4), 옛 키 `…/coord`(식별자 없음)에는 콘솔을 열지 않는다.
 
 ### CLI (`dflow.sh`)
 
