@@ -10,7 +10,7 @@
  * 미래 적용 경고는 대화상자에서 한다(D4·D9). 서버 거부 message 는 오류 영역에 그대로 보인다(I39).
  * 시안 「상신」의 긴급·사유·결재 영역과 적용시점 하한은 만들지 않는다(spec 제약). OBJECT_ID = screenId = 'ruleConfirm'.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ContentBody, ContentPanel, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
 import { Button, Checkbox, DateTimePicker, Input } from "@dk-oasis/shared/form";
@@ -150,14 +150,14 @@ export default function RuleConfirmPage({ tabId }: RuleConfirmPageProps) {
   const confirmPermitted = canDoButton(rbac, SCREEN_ID, "confirm");
 
   // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 검색어·확정 대기 목록(bulky)·건수·전체 보기 여부.
-  // 선택 대상(target)·상세(view)·적용 시각 입력·검사 결과는 이어받지 않는다 — 진입 대상은 handoff(useMdmPageParams)가 정하고, 확정 폼은 새 창에서 다시 고른다.
+  // 선택 대상(target)도 이어받고, 상세(view)·적용 시각 입력·검사 결과는 이어받지 않는다 — 새 창에서 target 으로 `choose` 를 한 번 불러 확정 폼을 서버에서 다시 읽는다(진입 대상은 handoff(useMdmPageParams)가 우선).
   const [keyword, setKeyword] = useCarryState("keyword", "");
   const [drafts, setDrafts] = useCarryState<PendingDraft[] | null>("drafts", null, { bulky: true });
   /** 목록이 상한으로 잘렸을 때의 전체 건수(안 잘렸으면 null). */
   const [draftsTotal, setDraftsTotal] = useCarryState<number | null>("draftsTotal", null);
   /** 마지막 조회가 [전체 보기](상한 없음)였는지 — 확정 뒤 재조회가 이 모드를 따른다. */
   const [showAll, setShowAll] = useCarryState("showAll", false);
-  const [target, setTarget] = useState<Target | null>(null);
+  const [target, setTarget] = useCarryState<Target | null>("target", null);
   const [view, setView] = useState<ViewResult | null>(null);
   const [applyInput, setApplyInput] = useState("");
   const [checked, setChecked] = useState<Checked | null>(null);
@@ -202,11 +202,13 @@ export default function RuleConfirmPage({ tabId }: RuleConfirmPageProps) {
     setClosedPreviousVer(null);
     setError(null);
     void load(t);
-  }, [load]);
+  }, [load, setTarget]);
 
   // 진입 값: handoff(한 번만). 선택 행은 snapshot 에 담지 않는다(R8). handoff 의 ver 문자열은 `normVer` 로 맞춘다(소수부를 버리지 않는다, D-144).
+  const handedOff = useRef(false);
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
     if (params.maruRuleId) {
+      handedOff.current = true;
       choose({ maruRuleId: params.maruRuleId, ver: toVer(params.ver) });
     }
   });
@@ -215,6 +217,12 @@ export default function RuleConfirmPage({ tabId }: RuleConfirmPageProps) {
   const restored = useCarryRestored();
   useEffect(() => {
     if (!restored || !drafts || drafts.length === 0) void refreshList(keyword, showAll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 분리 창이 이어받은 선택 대상(target)이 있으면 확정 폼을 서버에서 다시 읽는다. handoff 로 들어왔으면 handoff 가 이긴다(분리 창에는 handoff 가 없다).
+  useEffect(() => {
+    if (restored && target && !handedOff.current) choose(target);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

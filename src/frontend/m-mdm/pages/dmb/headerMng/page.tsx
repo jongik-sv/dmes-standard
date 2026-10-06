@@ -18,7 +18,7 @@ import {
   ContentBody, ContentPanel, ErrorModal, SearchArea, SearchField, canDoButton, useUserButtonRbac,
 } from "@dk-oasis/shared/layout";
 import { useMessage } from "@dk-oasis/shared/message-provider";
-import { useCarryRefetch, useCarryState } from "@dk-oasis/shared/portal-shell";
+import { useCarryRefetch, useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { ColumnPickModal } from "@/layout/ColumnPickModal";
 import { LayoutItemDetail } from "@/layout/LayoutItemDetail";
 import { precheck } from "@/layout/fill-kind";
@@ -59,8 +59,9 @@ export default function HeaderMngPage() {
   const me = rbac.userId;
   const { showMessage } = useMessage();
 
-  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·조회 결과(bulky)·건수·전체 보기 여부.
-  // 선택 헤더의 상세·항목·버전(서버 view 결과와 편집 초안)은 이어받지 않으므로 선택 키(selectedId)도 두지 않는다. EAI 콤보는 진입 때 다시 받는다.
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·조회 결과(bulky)·건수·전체 보기 여부·선택 헤더(selectedId).
+  // 선택 헤더의 상세·항목·버전(서버 view 결과와 편집 초안)은 이어받지 않는다 — 새 창에서 selectedId 로 `openHeader` 를 한 번 불러 서버에서 다시 읽는다(버전은 서버가 고른다).
+  // EAI 콤보는 진입 때 다시 받는다.
   const [keyword, setKeyword] = useCarryState("keyword", "");
   const [rows, setRows] = useCarryState<HeaderRow[]>("rows", [], { bulky: true });
   /** 목록이 상한으로 잘렸을 때의 전체 건수(안 잘렸으면 null). */
@@ -69,7 +70,7 @@ export default function HeaderMngPage() {
   const [showAll, setShowAll] = useCarryState("showAll", false);
   const [eais, setEais] = useState<EaiRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useCarryState<number | null>("selectedId", null);
   const [mode, setMode] = useState<Mode>("none");
   const [draft, setDraft] = useState<HeaderDraft>(EMPTY_DRAFT);
   const [items, setItems] = useState<LayoutItemRow[]>([]);
@@ -161,6 +162,15 @@ export default function HeaderMngPage() {
     } finally {
       if (seq === viewSeq.current) setBusy(false);
     }
+  }, [setSelectedId]);
+
+  // 분리 창이 이어받은 선택 헤더가 있으면 상세를 서버에서 다시 읽는다(상세는 헤더 ID 로 읽으므로 행이 왔든 안 왔든 같다). 포털 탭은 복원값이 없어 아무것도 하지 않는다.
+  const restored = useCarryRestored();
+  useEffect(() => {
+    // 서버 조회 결과를 상태에 담는 호출이라 effect 안 setState 규칙에 걸린다(분리 창 복원 때만 돈다).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (restored && selectedId != null) void openHeader(selectedId, null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const startNew = () => {

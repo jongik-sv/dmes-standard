@@ -6,12 +6,12 @@
  * 정본: docs/mdm/screens/termMng/termMng_기능설계서.md. mls `noticeMgmt` 패턴 + 새 유사어 추천 패널
  * (A-RECO, 리포에 선례가 없어 새로 만든다 — 순수 `setTimeout`+`AbortController`).
  */
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ContentBody, ContentPanel, ErrorModal, SearchArea, SearchField } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridLimitNotice, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { ProgressBar } from "@dk-oasis/shared/form";
-import { useCarryRefetch, useCarryState } from "@dk-oasis/shared/portal-shell";
+import { useCarryRefetch, useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { FIRST_SEARCH_LIMIT } from "@/oasis-screen";
 import { MdmPageLayout } from "@/shell";
 
@@ -36,16 +36,16 @@ const TERM_COLUMNS: GridColumn[] = [
 ];
 
 export default function TermMngPage() {
-  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·조회 결과(bulky)·건수·전체 보기 여부.
-  // 선택 행의 상세 폼(입력 값은 TermDetailPane 이 가진다)은 이어받지 않으므로 선택 키도 두지 않는다
-  // (선택 키만 남으면 같은 행을 눌러도 폼이 안 채워진다).
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·조회 결과(bulky)·건수·전체 보기 여부·선택 행(selectedTermId).
+  // 선택 행의 상세 폼(입력 값은 TermDetailPane 이 가진다)은 이어받지 않는다. 선택 키만 남으면 같은 행을 눌러도 폼이 안 채워지므로
+  // (`handleRowClick` 이 같은 행이면 빠져나간다) 새 창에서 이어받은 행으로 폼 적재 함수(`loadForm`)를 직접 한 번 부른다.
   const [filters, setFilters] = useCarryState<TermMngFilters>("filters", emptyFilters);
   const [rows, setRows] = useCarryState<TermRow[]>("rows", [], { bulky: true });
   /** 목록이 상한으로 잘렸을 때의 전체 건수(안 잘렸으면 null). */
   const [rowsTotal, setRowsTotal] = useCarryState<number | null>("rowsTotal", null);
   /** 마지막 조회가 [전체 보기](상한 없음)였는지. */
   const [showAll, setShowAll] = useCarryState("showAll", false);
-  const [selectedTermId, setSelectedTermId] = useState<number | null>(null);
+  const [selectedTermId, setSelectedTermId] = useCarryState<number | null>("selectedTermId", null);
   /** 상세 폼 — 입력 값은 TermDetailPane 이 갖고, 루트는 "폼이 있는지"만 안다(R12: 한 글자마다 루트가 다시 그려지지 않게). */
   const detailRef = useRef<TermDetailHandle>(null);
   const [hasForm, setHasForm] = useState(false);
@@ -72,25 +72,39 @@ export default function TermMngPage() {
   }, []);
 
   // [조회] 는 첫 조회 상한(R1)을 걸고, [전체 보기] 는 상한 없이 받는다. 저장·삭제 뒤 재조회는 지금 모드를 따른다.
-  const handleSearch = useCallback(async (all = false) => {
+  // keepTermId 는 행 없이 복원돼 재조회할 때만 준다 — 받은 목록에 그 행이 있으면 선택을 비우지 않고 폼을 다시 채운다.
+  const handleSearch = useCallback(async (all = false, keepTermId: number | null = null) => {
     setIsBusy(true);
     try {
       const payload = await searchTerms(filters.keyword, filters.systems, filters.context, all ? undefined : FIRST_SEARCH_LIMIT);
-      setRows(payload.list ?? []);
+      const list = payload.list ?? [];
+      setRows(list);
       setRowsTotal(payload.truncated ? (payload.totalCount ?? null) : null);
       setShowAll(all);
-      setSelectedTermId(null);
-      loadForm(null);
+      const kept = keepTermId != null ? list.find((r) => r.termId === keepTermId) : undefined;
+      setSelectedTermId(kept ? kept.termId : null);
+      loadForm(kept ? termFormFromRow(kept) : null, !kept);
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : String(e));
     } finally {
       setIsBusy(false);
     }
-  }, [filters, loadForm, setRows, setRowsTotal, setShowAll]);
+  }, [filters, loadForm, setRows, setRowsTotal, setShowAll, setSelectedTermId]);
 
   // 첫 진입 자동 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청)
   // 분리 창이 조회 결과(행)를 못 받았을 때만 이어받은 조건으로 한 번 다시 조회한다(조회 안 한 탭은 재조회하지 않는다).
-  useCarryRefetch(() => handleSearch(showAll));
+  useCarryRefetch(() => handleSearch(showAll, selectedTermId));
+
+  // 행이 함께 넘어왔으면(행 없이 복원된 경우는 위 재조회가 같은 일을 한다) 이어받은 선택 행의 폼을 목록 값으로 채운다. 포털 탭은 복원값이 없어 아무것도 하지 않는다.
+  const restored = useCarryRestored();
+  useEffect(() => {
+    if (!restored || selectedTermId == null) return;
+    const original = rows.find((r) => r.termId === selectedTermId);
+    // 서버 조회 결과를 상태에 담는 호출이라 effect 안 setState 규칙에 걸린다(분리 창 복원 때만 돈다).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (original) loadForm(termFormFromRow(original), false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleFilterChange = useCallback((key: keyof TermMngFilters, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -100,7 +114,7 @@ export default function TermMngPage() {
   const handleNew = useCallback(() => {
     setSelectedTermId(null);
     loadForm(emptyTermForm());
-  }, [loadForm]);
+  }, [loadForm, setSelectedTermId]);
 
   const handleRowClick = useCallback((row: Record<string, unknown>) => {
     const termId = Number(row.termId);
@@ -112,7 +126,7 @@ export default function TermMngPage() {
     if (original) {
       loadForm(termFormFromRow(original), false);
     }
-  }, [rows, selectedTermId, loadForm]);
+  }, [rows, selectedTermId, loadForm, setSelectedTermId]);
 
   const validate = useCallback((f: TermForm): string | null => {
     if (!f.termName.trim()) return "표기(한글)는 필수입니다."; // V-001

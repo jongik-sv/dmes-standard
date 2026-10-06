@@ -33,7 +33,7 @@ import {
 import { Button, Input, Select } from "@dk-oasis/shared/form";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
-import { useCarryRefetch, useCarryState } from "@dk-oasis/shared/portal-shell";
+import { useCarryRefetch, useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { FIRST_SEARCH_LIMIT } from "@/oasis-screen";
 import { MdmPageLayout, badgeStyle } from "@/shell";
 
@@ -93,13 +93,13 @@ export default function ColumnMngPage() {
   const rbac = useUserButtonRbac(true);
   const { showMessage } = useMessage();
 
-  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·조회 결과(bulky)·건수·전체 보기 여부.
-  // 선택한 컬럼의 상세(입력 값은 ColumnDetailForm 이 가진다)는 이어받지 않으므로 선택 키도 두지 않는다.
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·조회 결과(bulky)·건수·전체 보기 여부·선택 컬럼(selectedColumnId).
+  // 선택한 컬럼의 상세(입력 값은 ColumnDetailForm 이 가진다)는 이어받지 않는다 — 새 창에서 selectedColumnId 로 `openColumn` 을 한 번 불러 서버에서 다시 읽는다.
   const [keyword, setKeyword] = useCarryState("keyword", "");
   const [domainFilter, setDomainFilter] = useCarryState("domainFilter", "");
   const [list, setList] = useCarryState<ColumnListRow[]>("list", [], { bulky: true });
   const [systems, setSystems] = useState<SystemOption[]>([]);
-  const [selectedColumnId, setSelectedColumnId] = useState<number | null>(null);
+  const [selectedColumnId, setSelectedColumnId] = useCarryState<number | null>("selectedColumnId", null);
 
   const [direction, setDirection] = useState<Direction>("FORWARD");
   const [genInput, setGenInput] = useState("");
@@ -239,8 +239,17 @@ export default function ColumnMngPage() {
         setBusy(false);
       }
     },
-    [fail, list],
+    [fail, list, setSelectedColumnId],
   );
+
+  // 분리 창이 이어받은 선택 컬럼이 있으면 상세를 서버에서 다시 읽는다(상세는 컬럼 ID 로 읽는다). 행 없이 복원돼 재조회 중이면 도메인 이름 칸만 「도메인 번호」 로 보인다. 포털 탭은 복원값이 없어 아무것도 하지 않는다.
+  const restored = useCarryRestored();
+  useEffect(() => {
+    // 서버 조회 결과를 상태에 담는 호출이라 effect 안 setState 규칙에 걸린다(분리 창 복원 때만 돈다).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (restored && selectedColumnId != null) void openColumn(selectedColumnId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── 자동 생성 ─────────────────────────────────────────────────────────
   const runCompare = useCallback(
@@ -363,7 +372,7 @@ export default function ColumnMngPage() {
     setGenInput("");
     setGenDomain("");
     setPicks({});
-  }, []);
+  }, [setSelectedColumnId]);
 
   const handleSave = useCallback(async () => {
     // 서버와 같은 문구로 선검사한다(I12). 서버도 다시 막는다. 도메인은 필수가 아니다(D-141).

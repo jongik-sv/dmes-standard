@@ -23,7 +23,7 @@
  * 코드 삭제·등록)가 진행 중이면 목록 행 클릭(↑/↓ 키 이동 포함)을 받지 않는다 — 사용자가 누른 쓰기의 결과(토스트,
  * 충돌 모달과 다시 불러오기)를 그 코드 위에서 보게 하려는 것이다. handoff 는 쓰기 중에도 받으므로 응답 가드는 그대로 둔다.
  */
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
   ContentBody,
@@ -38,7 +38,7 @@ import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { Input, Select } from "@dk-oasis/shared/form";
 import { Modal } from "@dk-oasis/shared/modal";
 import { useMessage } from "@dk-oasis/shared/message-provider";
-import { useCarryRefetch, useCarryState } from "@dk-oasis/shared/portal-shell";
+import { useCarryRefetch, useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { MdmPageLayout, VEIL_FRESH, VEIL_STALE, openMdmPage, useMdmPageParams } from "@/shell";
 
 import { registerCode, searchCodes } from "./api";
@@ -90,8 +90,8 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
   const rbac = useUserButtonRbac(true);
 
   // ── 목록(조회조건·그리드) ──
-  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·조회 결과(bulky)·마지막으로 조회에 쓴 조건.
-  // 선택 코드(selectedId)·상세·버전은 이어받지 않는다 — 진입 코드는 handoff(useMdmPageParams)가 정하고, 상세 폼(헤더 입력·버전 선택)은 새 창에서 다시 고른다.
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·조회 결과(bulky)·마지막으로 조회에 쓴 조건·선택 코드(selectedId)·고른 버전(selectedVer).
+  // 상세(view)·헤더 폼 입력은 이어받지 않는다 — 새 창에서 selectedId 로 `chooseDetail` 을 한 번 불러 서버에서 다시 읽는다(진입 코드는 handoff(useMdmPageParams)가 우선).
   const [keyword, setKeyword] = useCarryState("keyword", "");
   const [status, setStatus] = useCarryState("status", "");
   const [rows, setRows] = useCarryState<CodeMngRow[]>("rows", [], { bulky: true });
@@ -103,11 +103,11 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
 
   // ── 화면 모드·선택 ──
   const [mode, setMode] = useState<Mode>("none");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useCarryState<string | null>("selectedId", null);
   // 등록 팝업 — 열 때만 마운트해 열 때마다 칸이 빈다.
   const [isRegOpen, setIsRegOpen] = useState(false);
   // 응답 가드용 — 지금 고른 코드와 상세 요청 순번. 선택을 바꾸거나 새 상세 요청을 낼 때마다 순번을 올린다.
-  const selectedIdRef = useRef<string | null>(null);
+  const selectedIdRef = useRef<string | null>(selectedId);
   const detailSeq = useRef(0);
   // 진행 중인 쓰기 수 — 0 이 아니면 목록 행 클릭을 받지 않는다.
   const writing = useRef(0);
@@ -115,7 +115,7 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
   // ── 오른쪽 상세(옛 codeEdit) ──
   const [view, setView] = useState<CodeEditView | null>(null);
   const [form, setForm] = useState<HeaderForm | null>(null);
-  const [selectedVer, setSelectedVer] = useState<string | null>(null);
+  const [selectedVer, setSelectedVer] = useCarryState<string | null>("selectedVer", null);
   const [pending, setPending] = useState(0);
   const [error, setError] = useState<{ message: string; reload: boolean } | null>(null);
   const [newVersionKind, setNewVersionKind] = useState<VerKind | null>(null);
@@ -176,7 +176,7 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
     }
     setNewVersionKind(null);
     setHandoverOpen(false);
-  }, []);
+  }, [setSelectedId, setSelectedVer]);
 
   // 상세 view 를 화면 상태로 반영. ver 를 주면(목록 선택·handoff) 그 버전을 고르고, 안 주면(액션 뒤 새로고침) 이전 선택을
   // 버전이 아직 있으면 유지한다.
@@ -207,7 +207,7 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
       const want = ver === undefined ? prev : ver;
       return want && next.versions.some((v) => v.ver === want) ? want : null;
     });
-  }, []);
+  }, [setSelectedVer]);
 
   const loadDetail = useCallback(
     async (id: string, ver?: string | null, discard = false) => {
@@ -248,8 +248,10 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
 
   // 진입 값: handoff(마운트 때·자기 탭 재활성화 때마다). handoff 는 목록도 함께 조회한다(§9) — 이미 열린
   // 탭이 다시 handoff 를 받을 때(재활성화) 목록이 그 코드로 안 좁혀도 최소한 최신 상태를 보이게.
+  const handedOff = useRef(false);
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
     if (params.maruCodeId) {
+      handedOff.current = true;
       setKeyword("");
       setStatus("");
       void loadList("", "");
@@ -263,6 +265,13 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
 
   // 분리 창이 조회 결과(행)를 못 받았을 때만 마지막 조회 조건으로 한 번 다시 조회한다(조회 안 한 탭은 재조회하지 않는다).
   useCarryRefetch(reloadList);
+
+  // 분리 창이 이어받은 선택 코드가 있으면 상세를 서버에서 다시 읽는다(상세는 코드 ID 로 읽으므로 행이 왔든 안 왔든 같다). handoff 가 있으면 handoff 가 이긴다.
+  const restored = useCarryRestored();
+  useEffect(() => {
+    if (restored && selectedId && !handedOff.current) void chooseDetail(selectedId, selectedVer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 상세를 바꾸는 액션(저장·폐기·새 버전·DRAFT 삭제·선점·해제·넘기기) 뒤에는 목록의 상태·현재·미적용 칸도 다시 조회한다.
   // 응답이 올 때 이미 다른 코드를 골랐으면(handoff) 그 view 는 버린다 — 쓰기 자체는 끝났으므로 토스트·목록 재조회는 한다.
@@ -333,7 +342,7 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
       if (stale) return;
       setSelectedVer(ver);
     },
-    [stale],
+    [stale, setSelectedVer],
   );
 
   const runDraft = useCallback(

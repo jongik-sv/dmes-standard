@@ -19,7 +19,7 @@
  * `selectedId` effect 가 아니라 고르는 곳에서 직접 부른다. 응답은 요청 순번(`detailSeq`)이 지금 것과 다르면 버린다 —
  * 늦게 온 A 응답이 B 상세를 덮지 않는다. 저장하지 않은 헤더 입력은 `RuleDetailPanel` 이 같은 룰을 다시 읽어도 남긴다.
  */
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ContentBody,
@@ -33,7 +33,7 @@ import {
 import { AgDataGrid, GridPanel, Pagination, type GridColumn } from "@dk-oasis/shared/grid";
 import { Input } from "@dk-oasis/shared/form";
 import { Modal } from "@dk-oasis/shared/modal";
-import { useCarryRefetch, useCarryState } from "@dk-oasis/shared/portal-shell";
+import { useCarryRefetch, useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { MdmPageLayout, badgeStyle, fmtVer } from "@/shell";
 import { openRuleEdit } from "@/dme/rule-handoff";
 
@@ -73,8 +73,8 @@ function pendingText(row: RuleListRow): string {
 
 export default function RuleMngPage() {
   const rbac = useUserButtonRbac();
-  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·마지막 조회 조건·조회 결과(bulky)·건수·쪽.
-  // 선택 룰(selectedId)·상세(헤더 입력·버전)는 이어받지 않는다 — 상세는 새 창에서 룰을 다시 골라 읽는다.
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·마지막 조회 조건·조회 결과(bulky)·건수·쪽·선택 룰(selectedId).
+  // 상세(헤더 입력·버전)는 이어받지 않는다 — 새 창에서 이어받은 selectedId 로 `choose` 를 한 번 불러 서버에서 다시 읽는다(아래 효과).
   const [filters, setFilters] = useCarryState<RuleSearchFilters>("filters", emptyFilters);
   const [applied, setApplied] = useCarryState<RuleSearchFilters>("applied", emptyFilters);
   const [rows, setRows] = useCarryState<RuleListRow[]>("rows", [], { bulky: true });
@@ -83,12 +83,13 @@ export default function RuleMngPage() {
   const [isBusy, setIsBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   // 선택된 룰의 상세(D-105) — 목록에서 고른 룰 하나만 불러온다.
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useCarryState<string | null>("selectedId", null);
   const [detail, setDetail] = useState<RuleMngView | null>(null);
   const [isDetailBusy, setIsDetailBusy] = useState(false);
   const [isRegOpen, setIsRegOpen] = useState(false);
   // 응답 가드용 — 지금 고른 룰과 상세 요청 순번. 상세 요청을 낼 때마다 순번을 올린다.
-  const selectedIdRef = useRef<string | null>(null);
+  // 이어받은 선택으로 시작한다 — 행 없이 복원돼 `load` 가 돌 때 첫 줄 자동 선택이 이어받은 선택을 덮지 않게 한다.
+  const selectedIdRef = useRef<string | null>(selectedId);
   const detailSeq = useRef(0);
   // 진행 중인 상세 쓰기 수 — 0 이 아니면 목록 행 클릭을 받지 않는다. 쓰기 결과를 그 룰 위에서 보게 하려는 것이다(dmc codeMng 과
   // 같다, 재검토 I3). [조회]로 선택이 바뀌는 경우는 아래 reload 가드가 막는다.
@@ -123,7 +124,7 @@ export default function RuleMngPage() {
       setSelectedId(ruleId);
       return loadDetail(ruleId);
     },
-    [loadDetail],
+    [loadDetail, setSelectedId],
   );
 
   // refreshDetail 이면([조회]) 목록이 온 뒤 고른 룰의 상세도 다시 읽는다. 고른 룰이 없으면 첫 줄을 연다 — 상세가
@@ -158,6 +159,15 @@ export default function RuleMngPage() {
   // 첫 진입 자동 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청)
   // 분리 창이 조회 결과(행)를 못 받았을 때만 이어받은 조건·쪽으로 한 번 다시 조회한다(조회 안 한 탭은 재조회하지 않는다).
   useCarryRefetch(() => load(applied, page));
+
+  // 분리 창이 이어받은 선택 룰이 있으면 상세를 서버에서 다시 읽는다(행이 왔든 안 왔든 같다 — 상세는 룰 ID 로 읽는다). 포털 탭은 복원값이 없어 아무것도 하지 않는다.
+  const restored = useCarryRestored();
+  useEffect(() => {
+    // 서버 조회 결과를 상태에 담는 호출이라 effect 안 setState 규칙에 걸린다(분리 창 복원 때만 돈다).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (restored && selectedId) void choose(selectedId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSearch = useCallback(() => void load(filters, 0, true), [filters, load]);
 

@@ -15,7 +15,7 @@ import {
   ContentBody, ContentPanel, ErrorModal, SearchArea, SearchField, canDoButton, useUserButtonRbac,
 } from "@dk-oasis/shared/layout";
 import { useMessage } from "@dk-oasis/shared/message-provider";
-import { useCarryRefetch, useCarryState } from "@dk-oasis/shared/portal-shell";
+import { useCarryRefetch, useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { MdmPageLayout } from "@/shell";
 import { executePreview, saveDomain, searchDomains, validateDomain, viewDomain } from "./api";
 import { parentCandidates } from "./domain-tree";
@@ -64,12 +64,12 @@ export default function DomainMngPage() {
   const canExecute = canDoButton(rbac, SCREEN_ID, "execute");
   const { showMessage } = useMessage();
 
-  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·조회 결과(bulky).
-  // 선택 행의 상세(기본 속성·검증식 초안 등)는 이어받지 않으므로 선택 키(selectedId)도 두지 않는다.
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·조회 결과(bulky)·선택 도메인(selectedId).
+  // 선택 행의 상세(기본 속성·검증식 초안 등)는 이어받지 않는다 — 새 창에서 selectedId 로 `openDomain` 을 한 번 불러 서버에서 다시 읽는다.
   const [filters, setFilters] = useCarryState<SearchFilters>("filters", { keyword: "", domainKind: "" });
   const [rows, setRows] = useCarryState<DomainRow[]>("rows", [], { bulky: true });
   const [loading, setLoading] = useState(false);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useCarryState<number | null>("selectedId", null);
   const [selectedRow, setSelectedRow] = useState<DomainDetail | null>(null);
   const [mode, setMode] = useState<Mode>("none");
   const [draft, setDraft] = useState<DomainDraft>(EMPTY_DRAFT);
@@ -154,6 +154,15 @@ export default function DomainMngPage() {
     } finally {
       setBusy(false);
     }
+  }, [setSelectedId]);
+
+  // 분리 창이 이어받은 선택 도메인이 있으면 상세를 서버에서 다시 읽는다(상세는 도메인 ID 로 읽으므로 행이 왔든 안 왔든 같다). 포털 탭은 복원값이 없어 아무것도 하지 않는다.
+  const restored = useCarryRestored();
+  useEffect(() => {
+    // 서버 조회 결과를 상태에 담는 호출이라 effect 안 setState 규칙에 걸린다(분리 창 복원 때만 돈다).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (restored && selectedId != null) void openDomain(selectedId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── B-002 / B-003 ──
