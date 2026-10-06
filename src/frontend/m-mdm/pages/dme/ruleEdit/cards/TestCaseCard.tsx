@@ -35,6 +35,17 @@ import { BoundaryCaseModal, type BoundarySession } from "./BoundaryCaseModal";
 import { TestCaseEditModal } from "./TestCaseEditModal";
 
 /** 카드 ④ 의 입력 JSON → 객체(경계값 후보의 기본 입력). 못 읽거나 객체가 아니면 빈 객체. */
+/** 표에 한 번에 보이는 최대 행 수. 넘는 행은 표 안에서 세로 스크롤로 본다. */
+export const TC_GRID_MAX_ROWS = 20;
+const TC_GRID_ROW_PX = 28;
+// 헤더 1줄 + 최대 행 수 + 테두리 여유 2px
+const TC_GRID_MAX_HEIGHT = TC_GRID_ROW_PX * (TC_GRID_MAX_ROWS + 1) + 2;
+
+/** 최대 행 수 이하이면 행 수만큼 늘어나고("auto"), 넘으면 최대 행 높이로 고정한다. */
+export function tcGridHeight(rowCount: number): "auto" | number {
+  return rowCount > TC_GRID_MAX_ROWS ? TC_GRID_MAX_HEIGHT : "auto";
+}
+
 function inputObject(json: string | null | undefined): Record<string, unknown> {
   if (!json) return {};
   try {
@@ -487,7 +498,7 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
         columns={columns}
         data={rows as unknown as Record<string, unknown>[]}
         rowKey="caseId"
-        height="auto"
+        height={tcGridHeight(rows.length)}
         columnSizing="fit"
         selectable
         multiSelect
