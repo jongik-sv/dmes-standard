@@ -280,6 +280,8 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 | stopEditingWhenCellsLoseFocus | `boolean` | `true` | 칸이 포커스를 잃으면 편집을 끝낸다 |
 | enableRowClickSelect · rowClickCheck | `boolean` | `false` | 행 클릭으로 선택·체크를 토글한다. `rowClickCheck` 는 편집 열이 있는 그리드에 쓰지 않는다 |
 | selectExcludeColumns | `string[]` | `[]` | 클릭 선택에서 뺄 열 key |
+| publishScreenContext | `boolean` | `true` | 선택 행(없으면 포커스 행)의 colDef field 값을 화면 문맥으로 자동 게시해 도구 창 위젯이 받게 한다. 화면 모양·이벤트는 그대로다. 대화 상자 안 그리드는 게시하지 않는다. 자세한 것은 [screen-context](screen-context.md) |
+| acceptScreenApply | `boolean` | `false` | 도구 창 위젯이 보낸 값을 선택 행(없으면 포커스 행)의 편집 가능한 열 중 field 가 맞는 칸에 넣는다(행 수정 표시·`onCellValueChanged` 는 사용자 편집과 같은 경로). 데이터를 바꾸므로 기본 끔 |
 | getRowHeight | `(row) => number \| undefined` | 26 | 행별 높이(여러 줄 셀) |
 | wrapHeaderText · autoHeaderHeight | `boolean` | `false` | 머리 글자 줄바꿈 · 머리 높이를 내용에 맞춤 |
 | alwaysShowHorizontalScroll | `boolean` | `false` | 가로 스크롤 막대를 항상 표시 |

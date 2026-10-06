@@ -20,3 +20,29 @@ export interface ScreenContext {
   /** 게시한 시각(epoch ms). */
   at: number;
 }
+
+/** 위젯이 업무 화면에 값을 넣은 결과. 키는 요청한 values 의 원래 표기. */
+export interface ScreenApplyResult {
+  /** 화면에 넣은 키. */
+  applied: string[];
+  /** 넣지 못한 키(받는 칸이 없거나 편집할 수 없음). */
+  skipped: string[];
+}
+
+export interface ScreenApplyOptions {
+  /** 사용자에게 보일 이름(예: "조업 계산 결과"). 받는 화면이 참고만 한다. */
+  label?: string;
+}
+
+/** 화면이 등록하는 받기 처리기. 키 비교는 `normalizeScreenKey` 를 쓴다. */
+export type ScreenApplyHandler = (
+  values: Record<string, ScreenContextValue>,
+  opts?: ScreenApplyOptions
+) => ScreenApplyResult | Promise<ScreenApplyResult>;
+
+/** 위젯이 받는 역방향 통로(`WidgetProps.screenApply`). 보드(위젯 화면)에서는 null. */
+export interface ScreenApply {
+  /** 활성 탭에 받는 쪽이 있는가. false 면 위젯은 버튼을 숨기거나 막는다. */
+  available: boolean;
+  apply(values: Record<string, ScreenContextValue>, opts?: ScreenApplyOptions): Promise<ScreenApplyResult>;
+}

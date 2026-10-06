@@ -88,6 +88,14 @@ class MdmOasisActionVocabularyTest {
         assertEquals(Set.of("search", "view", "save"),actionsFromGateway(path));
     }
 
+    /** 조업 계산기 ruleCalc — 읽기 전용 서비스(인증만, AUTH_ONLY)라 편집 권한 세트는 보지 않는다. action 은 기존 어휘(view·execute)를 쓴다. */
+    @Test
+    void dme_ruleCalc_bpmn_의_액션은_어휘_안의_view_execute_다() throws Exception {
+        Path path = bpmnPath("dme", "ruleCalc.bpmn");
+        assertActionsWithinVocabulary(path);
+        assertEquals(Set.of("view", "execute"), actionsFromGateway(path));
+    }
+
     /** D-144 2단계 — 룰 세트 확정. confirm 은 CONFIRM 세트에만 있다(ruleConfirm 과 같다). */
     @Test
     void dme_ruleSetConfirm_bpmn_의_모든_액션이_어휘_안에_있다() throws Exception {
@@ -195,13 +203,13 @@ class MdmOasisActionVocabularyTest {
     }
 
     /**
-     * design.md B1 (i)-3 — BPMN 26개(`find src/main/resources/services -iname "*.bpmn"`, D-144 2단계 ruleSetConfirm·3단계 layoutConfirm·메타 캐시 metaFeed 포함) 중
-     * metaFeed 를 뺀 화면 목록과 mcm
+     * design.md B1 (i)-3 — BPMN 27개(`find src/main/resources/services -iname "*.bpmn"`, D-144 2단계 ruleSetConfirm·3단계 layoutConfirm·메타 캐시 metaFeed·조업 계산기 ruleCalc 포함) 중
+     * metaFeed·ruleCalc 를 뺀 화면 목록과 mcm
      * {@code MdmMenuSeeder} 의 모든 {@code seedMdmObjectRbac(...)} 호출에서 뽑은 objectId 목록을 대조한다.
      * {@code mdmSample} 은 BPMN 없는 샘플 화면이라 예외로 둔다(원천이 원래 다르다).
      */
     @Test
-    void mcm_시드가_BPMN_26개_화면을_모두_커버한다() throws Exception {
+    void mcm_시드가_BPMN_27개_화면을_모두_커버한다() throws Exception {
         String source = Files.readString(MDM_MENU_SEEDER_SOURCE);
         Set<String> bpmnScreens = new LinkedHashSet<>();
         try (var files = Files.walk(Path.of("src/main/resources/services"))) {
@@ -210,10 +218,14 @@ class MdmOasisActionVocabularyTest {
                 bpmnScreens.add(name.substring(0, name.length() - ".bpmn".length()));
             }
         }
-        assertEquals(26, bpmnScreens.size(), "BPMN 수가 26개가 아니다(늘거나 줄었으면 이 상수를 갱신한다): " + bpmnScreens);
+        assertEquals(27, bpmnScreens.size(), "BPMN 수가 27개가 아니다(늘거나 줄었으면 이 상수를 갱신한다): " + bpmnScreens);
         // metaFeed(services/feed) 는 화면이 아니라 업무 모듈 캐시가 부르는 서비스다 — 그룹 RBAC(seedMdmObjectRbac)를 받지 않고
         // SYSADMIN 전용 OBJECT 로만 시드한다(Task 11 의 seedMdmCacheMenus). spec 2026-10-02-mdm-meta-cache-design §5.5·§9.
         bpmnScreens.remove("metaFeed");
+        // ruleCalc(services/dme) 도 화면이 아니라 조업 계산기 위젯이 부르는 서비스다 — 그룹 RBAC 대신 view·execute 를 인증만(AUTH_ONLY)으로 등록한다.
+        bpmnScreens.remove("ruleCalc");
+        assertTrue(source.contains("insertMcmSecObjIfAbsent(\"ruleCalc\", "),
+                "ruleCalc OBJECT(SYSTEM_CODE=mdm, AUTH_ONLY) 시드가 없다 — 위젯이 view·execute 를 부를 수 없다");
         assertTrue(source.contains("insertMcmSecObjIfAbsent(\"metaFeed\", "),
                 "metaFeed OBJECT(SYSTEM_CODE=mdm, SYSADMIN 전용) 시드가 없다 — BFF 권한키 mdm/metafeed/save 가 없어 화면 삭제·재등록이 403 이다");
 
