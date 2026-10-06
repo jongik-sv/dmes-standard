@@ -2015,7 +2015,7 @@ import { SelectOrInput } from "@dk-oasis/shared/form";
 - 쓴다: 조회 결과 목록, 편집 가능한 목록, 팝업·카드 안의 작은 목록(`height="auto"`).
 - 쓰지 않는다: 라벨-값 짝의 상세 폼 표 → [detail-form](detail-form.md). 비교 매트릭스(피벗) 표 → [matrix-table](matrix-table.md).
 - 제목·건수·행추가 버튼이 필요하면 [GridPanel](grid-panel.md) 안에 넣는다. 저장형 화면의 행 상태는 [use-grid-data-manager](use-grid-data-manager.md) 가 맡는다.
-- 카드·위젯 안의 표처럼 상단 버튼 막대가 없는 자리에서 표 아래에 「N행」과 [엑셀] 단추를 붙이려면 `excelExport` 속성을 준다(아래 §아래 줄과 엑셀 내려받기).
+- 카드·위젯 안의 표처럼 상단 버튼 막대가 없는 자리에서 표 아래에 「N행」과 [엑셀] 단추를 붙이려면 `excelExport` 속성을 준다(아래 §아래 줄과 엑셀 내려받기). GridPanel 안이면 [엑셀] 은 머리줄 「그리드 설정」 메뉴로 옮겨 가고 아래 줄에는 「N행」만 남는다.
 
 ## 표준 사용
 
@@ -2142,11 +2142,13 @@ const excelColumns = useResolvedGridColumns(COLUMNS); // header 가 그리드와
 
 카드·위젯 안의 표 바로 아래에 「N행」과 [엑셀] 단추 줄([GridExcelFoot](grid-excel-foot.md))을 붙이고, 누르면 그리드의 컬럼·행을 엑셀로 내려받게 한다. 사용자가 숨긴 컬럼은 엑셀에도 숨긴 열로 들어간다. 속성을 주지 않으면 줄도 단추도 없고 모양·동작은 예전과 똑같다.
 
+- [GridPanel](grid-panel.md) 안의 그리드가 설정 메뉴 대상(먼저 등록된 그리드)이면 같은 내려받기를 머리줄 「그리드 설정」 메뉴의 「엑셀 내려받기」(`data-testid` `grid-excel`, 행 0 이면 비활성)로 부르고 아래 줄의 [엑셀] 단추는 뺀다(「N행」 안내만 남고 줄·감싸개 모양은 그대로, `GridExcelFoot` 의 `hideButton`). GridPanel 밖의 그리드와 대상이 아닌 둘째 그리드는 아래 줄 단추를 그대로 둔다. 어느 쪽이든 내려받는 내용은 같다(내부 훅 `useGridExcelExport`).
+
 - 속성을 주면 그리드를 세로 flex 상자로 감싸 표가 남은 높이를 채우고 아래 줄이 바닥에 붙는다. `height` 는 이 바깥 상자의 높이다(기본 부모 높이 100%). `height="auto"` 일 때는 flex 대신 block 감싸개(`cm-grid-excel--auto`)이고, 표가 행 수만큼 늘어난 바로 뒤에 아래 줄이 온다.
 - 컬럼: 모든 데이터 열을 사용자가 정한 순서(왼쪽 고정 → 가운데 → 오른쪽 고정)로 내보낸다. 사용자가 컬럼 설정에서 숨긴 열도 엑셀에는 숨긴 열(`!cols` 의 `hidden`, 열은 있고 접힌 상태)로 들어가니 엑셀에서 펼쳐 볼 수 있다. 화면 정의에서 `hide: true` 인 내부 열, `field` 가 없는 그리드 내부 열(행번호 `rowNumber`·선택 체크박스)은 빠진다. 단추·링크처럼 `render` 로만 그리는 열은 `excludeKeys` 에 key 를 넣어 뺀다(화면에 보이는 열이어도 엑셀에는 나가지 않는다). 같은 제목이 겹치면 「(2)」가 붙되 보이는 열이 먼저 원래 제목을 갖는다(숨긴 열이 번호를 받는다). 열 폭은 제목과 앞 100행 값의 길이로 어림한다(8~50).
 - 행: 그리드의 정렬·필터 순서. 값은 `render` 결과가 아니라 행의 원래 값이다(숫자는 숫자, 배지 열은 상태 글). 그리드 API 가 아직 없으면 그리드가 화면에 쓰는 행 순서(정렬된 `data`, 추가한 행은 맨 뒤)이고 열은 `columns` 에서 숨긴 열을 뺀 잎 열이다. 「{n}행」과 단추 비활성은 늘 전체 `data` 수로 정한다.
-- 행이 0이면 단추는 비활성이다. 아래 줄의 모양·`data-testid`(줄 `grid-foot`, 글 `grid-foot-note`)는 [GridExcelFoot](grid-excel-foot.md) 과 같다.
-- [엑셀] 단추가 Mantine `Button` 이라 `MantineProvider` 안에서만 그린다(포털에서는 늘 감싸져 있다).
+- 행이 0이면 단추(메뉴 항목 포함)는 비활성이다. 아래 줄의 모양·`data-testid`(줄 `grid-foot`, 글 `grid-foot-note`)는 [GridExcelFoot](grid-excel-foot.md) 과 같다.
+- [엑셀] 단추·설정 메뉴가 Mantine 컴포넌트라 `MantineProvider` 안에서만 그린다(포털에서는 늘 감싸져 있다).
 - 객체를 렌더마다 새로 만들면 `memo` 가 깨진다. 모듈 상수로 두거나 값이 바뀔 때만 `useMemo` 로 만든다.
 
 ```tsx
@@ -2171,7 +2173,7 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 | fallbackName | `string` | `"목록"` | `title` 이 없거나 공백뿐일 때의 이름 |
 | note | `string` | `"{n}행"`(천 단위 쉼표) | 아래 줄 왼쪽 글. 「N건」「상위 500행만 표시합니다」처럼 바꿀 때 준다 |
 | sheetName | `string` | `"Sheet1"` | 시트 이름 |
-| testId | `string` | `"grid-excel"` | [엑셀] 단추의 `data-testid` |
+| testId | `string` | `"grid-excel"` | 아래 줄 [엑셀] 단추의 `data-testid`. GridPanel 설정 메뉴의 「엑셀 내려받기」 항목은 늘 `grid-excel` 이다 |
 | excludeKeys | `string[]` | - | 엑셀에서 뺄 열 key. `render` 전용 열(단추·링크)에 쓴다. 상수나 `useMemo` 로 둔다 |
 
 화면 전체 목록의 엑셀은 PageLayout 상단 「엑셀」 버튼(`action: "export"`)과 [exportToExcel](export-to-excel.md) 을 쓴다. 엑셀 내용을 직접 정해야 하면(열을 골라 바꾸거나 코드 대신 명칭으로 변환) 이 속성 대신 [GridExcelFoot](grid-excel-foot.md) 에 `onExcel` 을 넘긴다.
@@ -2181,17 +2183,17 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 사용자가 바꾼 컬럼 순서·너비·표시 여부·좌우 고정·정렬을 저장했다가 같은 화면을 다시 열 때 복원한다. **기본 켬**이라 전 화면에 자동으로 적용되고, 화면은 아무것도 주지 않아도 된다.
 
 - 저장: 브라우저 `localStorage` 에만 둔다(서버에 보내지 않아 PC·브라우저를 바꾸면 공유되지 않는다). 키는 `dmes:grid:v1:{사용자ID}:{화면}:{gridId}` 이고 화면은 포털 탭의 `pageId`(없으면 `location.pathname`)다.
-- 자동 저장: 헤더 조작(컬럼 이동·너비 끌기·고정·정렬)은 바로 저장된다. 사용자는 그리드마다 「자동 저장」 스위치로 끄고 켤 수 있다(§자동 저장 스위치·초기화).
+- 자동 저장: 헤더 조작(컬럼 이동·너비 끌기·고정·정렬)은 바로 저장된다. 사용자는 그리드마다 「자동 설정 저장」 스위치로 끄고 켤 수 있다(§자동 설정 저장 스위치·초기화).
 - 컬럼 설정 창: 표시 여부·순서를 한 줄씩 바꾸고 [적용]으로 저장하거나 [기본값 복원]으로 저장값을 지운다(자동 저장을 끈 그리드는 [적용]이 화면에만 반영하고 [지금 상태 저장]이 따로 보인다). 공통 컴포넌트 [ColumnSettingsModal](column-settings-modal.md)을 AgDataGrid 가 스스로 소유하므로 화면은 아무것도 연결하지 않는다. 여는 길은 둘이다.
-  - 헤더 우클릭 메뉴: 머리글 영역을 우클릭하면 마우스 위치에 「컬럼 설정」·「자동 저장」·「초기화」 메뉴가 뜬다. 셀·빈 영역 우클릭과 머리글 안 입력 칸(필터 입력 등)은 브라우저 기본 메뉴 그대로다.
-  - [GridPanel](grid-panel.md) 의 「컬럼 설정」 버튼: 그리드를 `GridPanel` 안에 두면 개인화가 켜진 동안 자동으로 붙는다.
-- 자동 저장 스위치·초기화(2026-10-06): 개인화가 켜진 그리드마다 사용자가 저장 여부를 정한다.
-  - 위치: [GridPanel](grid-panel.md) 단추 줄의 「자동 저장」 스위치와 [초기화] 단추(`id: "btn_grid_reset"`), 헤더 우클릭 메뉴의 「자동 저장」(켜져 있으면 체크 표시)·「초기화」. 개인화가 꺼진 그리드에는 둘 다 없다.
+  - 헤더 우클릭 메뉴: 머리글 영역을 우클릭하면 마우스 위치에 「컬럼 설정…」·「자동 설정 저장」·「설정 초기화…」 메뉴가 뜬다(GridPanel 설정 메뉴와 같은 이름, `grid-settings-labels.ts`). 셀·빈 영역 우클릭과 머리글 안 입력 칸(필터 입력 등)은 브라우저 기본 메뉴 그대로다.
+  - [GridPanel](grid-panel.md) 머리줄 「그리드 설정」 메뉴의 「컬럼 설정…」: 그리드를 `GridPanel` 안에 두면 개인화가 켜진 동안 자동으로 붙는다.
+- 자동 설정 저장 스위치·초기화(2026-10-06): 개인화가 켜진 그리드마다 사용자가 저장 여부를 정한다.
+  - 위치: [GridPanel](grid-panel.md) 머리줄 「그리드 설정」 메뉴의 「자동 설정 저장」(스위치가 항목 안에 있고 누르면 메뉴가 닫히지 않는다)·「설정 초기화…」(`id: "btn_grid_reset"`), 헤더 우클릭 메뉴의 「자동 설정 저장」(켜져 있으면 체크 표시)·「설정 초기화…」. 개인화가 꺼진 그리드에는 둘 다 없다.
   - 스위치 값: 사용자·화면·그리드마다 옆 키 `dmes:grid-opts:v1:{사용자ID}:{화면}:{gridId}` = `{"autoSave":boolean}` 에 저장한다. 컬럼 저장값(`dmes:grid:v1:…`)과 키가 달라서 「초기화」가 지워도 스위치 값은 남고 용량 초과 정리 대상도 아니다. 값이 없으면(옛 저장값 포함) `personalize.autoSave`(개발자 기본값, 기본 켬)를 쓴다.
   - 끄면: 순서·너비·표시·고정·정렬은 화면에 바로 적용되지만 저장하지 않는다. 열 정의가 다시 들어와도 저장 안 한 모습은 유지되고, 탭을 닫거나 새로 고치면 마지막 저장 상태로 돌아간다. 이미 저장된 값은 지우지 않고 다음에 열 때 그대로 복원한다. 설정 창의 [지금 상태 저장]으로 직접 저장한다.
   - 전환 규칙: 켬 → 끔은 대기 중인 저장을 먼저 쓴다(켜져 있던 동안의 변경은 남긴다). 끔 → 켬은 저장 안 한 변경이 있을 때만 지금 모습을 한 번 저장한다(다시 켠다는 것은 지금 모습을 남기겠다는 뜻으로 본다).
   - 초기화: 확인 창(「이 그리드의 컬럼 순서·너비·표시·고정·정렬을 기본값으로 되돌리고 저장한 설정을 지웁니다. 계속할까요?」)에서 [확인]하면 저장값을 지우고 화면 정의 기본값으로 되돌린다. 스위치 값은 건드리지 않고 자동 저장이 꺼져 있어도 동작한다. 설정 창의 [기본값 복원]은 창 안에서 하는 일이라 확인 없이 같은 복원을 한다.
-  - 대화 상자 안의 그리드는 스위치·초기화 UI 가 없다(GridPanel 등록·우클릭 메뉴가 없다). 개발자 기본값과 옆 키 값을 따른다.
+  - 대화 상자 안의 그리드는 스위치·초기화 UI 가 없다(GridPanel 설정 메뉴 등록·우클릭 메뉴가 없다). 개발자 기본값과 옆 키 값을 따른다.
 - 헤더를 그리드 밖으로 끌어도 개인화가 켜진 그리드는 컬럼이 숨겨지지 않는다(숨김은 컬럼 설정 창으로만). `personalize={false}` 인 그리드는 ag-grid 기본대로 끌어서 숨겨지고 창·우클릭 메뉴·버튼도 없다.
 - 컬럼 설정 창 규칙: 숨길 수 없는 열(`hideable` 잠금)은 체크가 고정이고 순서만 옮긴다. 선택 체크박스·행번호·화면이 숨긴 열은 창에 나오지 않지만 원래 자리를 지킨다. 고정 열은 구역(왼쪽 고정·일반·오른쪽 고정)별로 모여 같은 구역 안에서만 순서를 옮긴다. [적용]은 너비를 저장하지 않는다(너비는 헤더 경계를 끌 때만).
 - 열 그룹(`children`) 규칙: 컬럼 설정 창은 그룹 이름을 제목 줄로 앞에 보이고(중첩 그룹은 바깥 → 안쪽), 순서는 **같은 그룹 안에서만** 옮긴다(그룹 경계의 위로·아래로 단추 비활성, 그룹 밖 열이 그룹 안으로 들어가거나 그 반대도 안 된다). 그룹을 통째로 옮기는 기능은 없고, 그룹 밖 열이 그룹 건너편으로 건너뛰는 이동은 창에서 안 되며 머리글 끌기로만 된다. 저장값 순서가 그룹을 가르면(예전 저장값·화면이 그룹 구조를 바꾼 경우) 복원 때 각 그룹의 잎을 그 그룹의 첫 잎 자리로 모은다(그룹 안 순서는 저장 순서). ag-grid 는 그룹을 가르는 `applyOrder` 를 받으면 순서 전체를 버리므로 이 모으기가 필요하다.
@@ -2253,9 +2255,9 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 | onRowOrderChange | `(orderedKeys) => void` | - | 드래그 후 새 순서의 행 키 목록. 이 prop 이 있어야 드래그가 동작한다 |
 | mdmValidate | `boolean` | `false` | 편집 가능 + MDM 연결 열의 바뀐 값을 MDM 정의로 검사해 `cell-mdm-invalid`·셀 툴팁을 단다(포털 탭 안에서만) |
 | fieldErrors | `Array<{ rowKey?; rowIndex?; field; message }>` | - | 서버 오류 칸 표시(`toFieldErrors` 결과). rowKey → rowIndex(data 자리) 순으로 행을 찾는다 |
-| excelExport | `{ title?; fallbackName?; note?; sheetName?; testId?; excludeKeys? }` | - | 주면 표 아래에 「N행」·[엑셀] 줄을 붙이고 컬럼·행을 내려받는다(사용자가 숨긴 열은 엑셀에도 숨긴 열). 없으면 줄도 단추도 없다(§아래 줄과 엑셀 내려받기). 상수나 `useMemo` 로 둔다 |
+| excelExport | `{ title?; fallbackName?; note?; sheetName?; testId?; excludeKeys? }` | - | 주면 표 아래에 「N행」·[엑셀] 줄을 붙이고 컬럼·행을 내려받는다(사용자가 숨긴 열은 엑셀에도 숨긴 열). GridPanel 안의 대상 그리드는 [엑셀] 이 머리줄 「그리드 설정」 메뉴로 옮겨 가고 아래 줄에는 「N행」만 남는다. 없으면 줄도 단추도 없다(§아래 줄과 엑셀 내려받기). 상수나 `useMemo` 로 둔다 |
 | gridId | `string` | `"main"` | 한 화면(탭)에 그리드가 여럿일 때 컬럼 개인화 저장을 나누는 이름. 화면 안에서 그리드마다 다른, 렌더마다 바뀌지 않는 고정 문자열로 준다(§컬럼 개인화) |
-| personalize | `boolean \| { sort?: boolean; autoSave?: boolean }` | 켬 | 사용자별 컬럼 개인화. `false` 면 끈다. `{ sort: false }` 면 정렬은 저장·복원하지 않는다(서버 페이징 그리드). `{ autoSave: false }` 면 「자동 저장」 스위치의 개발자 기본값이 끔이다(사용자가 정한 값이 이긴다) |
+| personalize | `boolean \| { sort?: boolean; autoSave?: boolean }` | 켬 | 사용자별 컬럼 개인화. `false` 면 끈다. `{ sort: false }` 면 정렬은 저장·복원하지 않는다(서버 페이징 그리드). `{ autoSave: false }` 면 「자동 설정 저장」 스위치의 개발자 기본값이 끔이다(사용자가 정한 값이 이긴다) |
 
 나머지 props.
 
@@ -2357,13 +2359,13 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 
 - import: `import { GridPanel, getRowIdentifier, type GridButton } from "@dk-oasis/shared/grid";`
 - 소스: `src/frontend/shared/src/components/grid/GridPanel.tsx` (도움말 팝업은 `GridHelpButton.tsx`)
-- 내부 구현: 일반 `div` + `button`(`grid-btn` 클래스). 도움말 팝업은 shared `Modal`
+- 내부 구현: 일반 `div` + `button`(`grid-btn` 클래스). 도움말 팝업은 shared `Modal`, 그리드 설정 메뉴는 Mantine `Menu`(`GridSettingsMenu.tsx`)
 
 ## 언제 쓰나
 
 - 쓴다: 모든 목록의 머리. 제목과 건수만 있어도 쓴다.
 - 쓴다: 행추가·행삭제·행복사 버튼을 그리드 머리에 둘 때(상단 PageLayout 버튼이 아니다).
-- 컬럼 개인화가 켜진 그리드를 안에 두면 「컬럼 설정」 버튼과 「자동 저장」 스위치·「초기화」 버튼이 자동으로 붙는다(§컬럼 설정 버튼·§자동 저장 스위치·초기화 버튼).
+- 컬럼 개인화가 켜졌거나 `excelExport` 를 준 그리드를 안에 두면 머리줄에 「그리드 설정」 아이콘 메뉴(컬럼 설정…·자동 설정 저장·엑셀 내려받기·설정 초기화…)가 자동으로 붙는다(§그리드 설정 메뉴).
 - 쓰지 않는다: 그리드 없는 일반 카드 제목. 목록 자체는 [AgDataGrid](ag-data-grid.md), 행 상태 관리는 [useGridDataManager](use-grid-data-manager.md).
 
 ## 표준 사용
@@ -2406,24 +2408,28 @@ const confirmDeleteRow = () =>
 
  행 상태는 `useGridDataManager` 가 받으므로 `onDataChange` 는 훅의 `handleGridDataChange` 로 잇는다. 전체 연결 예제는 [use-grid-data-manager](use-grid-data-manager.md) 를 본다.
 
-### 컬럼 설정 버튼
+### 그리드 설정 메뉴
 
-안쪽 `AgDataGrid` 의 컬럼 개인화가 켜져 있으면(기본 켬) 버튼 묶음 맨 끝(`buttons` 뒤, `headerExtra` 앞)에 「컬럼 설정」 버튼(`id: "btn_grid_columns"`)이 저절로 붙는다. 누르면 그 그리드의 [컬럼 설정 창](column-settings-modal.md)이 열려 컬럼 표시 여부·순서를 바꾸고 기본값으로 되돌릴 수 있다. 화면이 따로 줄 prop 은 없다.
+안쪽 `AgDataGrid` 의 컬럼 개인화가 켜져 있거나(기본 켬) `excelExport` 를 주면, 버튼 묶음 맨 끝(`buttons` 뒤, `headerExtra` 앞)에 톱니 아이콘 버튼 「그리드 설정」(`data-testid="grid-settings-menu"`, 툴팁·`aria-label` 「그리드 설정」)이 저절로 붙는다. 누르면 Mantine `Menu` 가 열린다. 내부 부품 `GridSettingsMenu`(`GridSettingsMenu.tsx`)가 그리며 화면이 직접 쓰지 않으므로 별도 문서 파일은 없다. 화면이 따로 줄 prop 도 없다. 예전의 머리줄 [컬럼 설정] 단추·「자동 저장」 스위치·[초기화] 단추와 그리드 아래 줄 [엑셀] 단추는 이 메뉴 하나로 모였다.
 
-- 보이는 때: 개인화가 동작 중인 안쪽 `AgDataGrid` 가 있을 때만. `personalize={false}` 인 그리드, 포털 밖이나 사용자 확인 전처럼 개인화가 아직 동작하지 않는 그리드, 개인화를 끄는 숨은 탭 패널의 그리드만 있으면 버튼이 없다. 그리드가 개인화를 켜고 끌 때 따라서 나타나고 사라진다.
-- 권한 검사를 거치지 않는다: `usePermission`·`fetchPermissions` 가 허용 id 목록에 `btn_grid_columns` 를 넣지 않아도 보인다. 그리드 모양만 바꾸고 데이터를 건드리지 않기 때문이다.
-- `loading` 이어도 활성이다: 다른 내장 버튼과 달리 `loading` 이 참이어도 비활성이 되지 않는다.
-- 한 GridPanel 안에 개인화가 켜진 그리드가 여럿이면 먼저 등록된 그리드가 대상이다(버튼은 하나뿐이다). 그리드마다 따로 쓰게 하려면 그리드마다 GridPanel 을 둔다.
-- GridPanel 없이 쓰는 그리드는 버튼이 없어도 머리글 우클릭 메뉴로 같은 창을 열 수 있다.
+| 항목 | 이름 | id · `data-testid` | 보이는 때·동작 |
+|---|---|---|---|
+| 컬럼 설정 | 컬럼 설정… | `btn_grid_columns` · `grid-columns-button` | 개인화가 동작 중일 때. 그 그리드의 [컬럼 설정 창](column-settings-modal.md)을 연다 |
+| 자동 설정 저장 | 자동 설정 저장 | 항목 `grid-autosave-item`, 안의 스위치 `grid-autosave-switch` | 개인화가 동작 중일 때. 스위치(`xs`)가 항목 안에 있고 항목 어디를 눌러도 값이 바뀌며 메뉴는 닫히지 않는다 |
+| (구분선) | | | 개인화와 엑셀 항목이 함께 있을 때 |
+| 엑셀 내려받기 | 엑셀 내려받기 | `grid-excel` | `excelExport` 를 준 그리드가 대상일 때만. 행이 0 이면 비활성(메뉴를 열 때마다 다시 읽는다) |
+| (구분선) | | | 초기화 항목이 있을 때 |
+| 설정 초기화 | 설정 초기화… | `btn_grid_reset` · `grid-reset-button` | 개인화가 동작 중일 때. 빨간 글자, 누르면 그리드가 확인 창을 띄운다 |
 
-### 자동 저장 스위치·초기화 버튼
-
-「컬럼 설정」 버튼 바로 뒤에 Mantine `Switch`(size `xs`, 라벨 「자동 저장」, `data-testid="grid-autosave-switch"`)와 「초기화」 버튼(`id: "btn_grid_reset"`, `data-testid="grid-reset-button"`, class `grid-btn`)이 같은 조건(개인화가 동작 중인 안쪽 그리드가 있을 때)으로 붙는다. 화면이 줄 prop 은 없다.
-
-- 스위치는 대상 그리드(먼저 등록된 그리드)의 값을 보이고 바꾼다. 값은 사용자·화면·그리드별 옆 키에 저장되고, 저장 규칙(끄면 화면에만 적용, 켜면 저장)은 [AgDataGrid](ag-data-grid.md) 「컬럼 개인화」 절의 「자동 저장 스위치·초기화」 항목을 본다.
-- 대상 그리드가 사라져 다음 그리드가 대상이 되면 스위치가 그 그리드의 값으로 바뀐다.
-- 「초기화」는 바로 되돌리지 않고 그리드가 확인 창을 띄운다. [확인]하면 그 그리드의 컬럼 상태를 기본값으로 되돌리고 저장값을 지운다(스위치 값은 그대로).
-- 둘 다 「컬럼 설정」처럼 권한 검사·`loading` 과 무관하게 늘 활성이다.
+- 항목 이름은 `grid-settings-labels.ts` 의 `GRID_SETTINGS_LABELS` 한 곳에서 가져오며 머리글 우클릭 메뉴(`GridHeaderContextMenu`)도 같은 이름을 쓴다. 스위치 이름이 「자동 저장」에서 「자동 설정 저장」으로 바뀌었다.
+- 항목은 대상 그리드가 올려 둔 명령에 따라 달라진다. 개인화 항목은 개인화가 켜진 그리드가, 엑셀 항목은 `excelExport` 를 준 그리드가 채운다. 둘 다 없으면 메뉴 버튼이 없다. `personalize={false}` 인 그리드, 포털 밖이나 사용자 확인 전처럼 개인화가 아직 동작하지 않는 그리드, 개인화를 끄는 숨은 탭 패널의 그리드는 개인화 항목이 없다. 그리드가 켜고 끌 때 따라서 나타나고 사라진다.
+- 권한 검사를 거치지 않는다: `usePermission`·`fetchPermissions` 가 허용 id 목록에 `btn_grid_columns`·`btn_grid_reset` 을 넣지 않아도 보이고 `loading` 이어도 활성이다. 그리드 모양만 바꾸고 보이는 행을 내려받을 뿐 데이터를 바꾸지 않기 때문이다.
+- 한 GridPanel 안에 그리드가 여럿이면 먼저 등록된 그리드가 대상이다(메뉴는 하나뿐이다). 그리드마다 따로 쓰게 하려면 그리드마다 GridPanel 을 둔다.
+- 자동 설정 저장 스위치는 대상 그리드의 값을 보이고 바꾼다. 대상 그리드가 사라져 다음 그리드가 대상이 되면 그 그리드의 값으로 바뀐다. 값은 사용자·화면·그리드별 옆 키에 저장되고, 저장 규칙(끄면 화면에만 적용, 켜면 저장)은 [AgDataGrid](ag-data-grid.md) 「컬럼 개인화」 절의 「자동 설정 저장 스위치·초기화」 항목을 본다.
+- 「설정 초기화…」는 바로 되돌리지 않고 그리드가 확인 창을 띄운다. [확인]하면 그 그리드의 컬럼 상태를 기본값으로 되돌리고 저장값을 지운다(스위치 값은 그대로).
+- 엑셀: 메뉴가 대상 그리드의 엑셀을 맡으면 그 그리드의 아래 줄에서는 [엑셀] 단추가 빠지고 「N행」 안내만 남는다([GridExcelFoot](grid-excel-foot.md) 의 `hideButton`). GridPanel 밖의 그리드와 대상이 아닌 둘째 그리드는 아래 줄 단추를 그대로 둔다. 화면의 업무 버튼(`btn_excelDown` 등)은 그대로다.
+- GridPanel 없이 쓰는 그리드는 메뉴가 없어도 머리글 우클릭 메뉴로 컬럼 설정·자동 설정 저장·초기화를 쓸 수 있다.
+- 구현 계약: 그리드는 `register(controls, onTargetChange?)` 로 명령을 올린다. 개인화 명령 5개(`openSettings`·`requestReset`·`getAutoSave`·`setAutoSave`·`subscribeAutoSave`)와 엑셀 명령 2개(`exportExcel`·`canExportExcel`)는 모두 선택 속성이다(`grid-panel-context.ts`). `onTargetChange(isTarget)` 로 대상 여부를 알려 받는다.
 
 ### 추가 버튼·도움말·머리 노드
 
@@ -2467,13 +2473,13 @@ const confirmDeleteRow = () =>
 | titleExtra | `ReactNode` | - | 제목·건수 오른쪽 노드 |
 | headerExtra | `ReactNode` | - | 버튼 묶음 오른쪽 끝 노드 |
 | help | `GridHelpConfig` | - | `{ title?, summary?, columns: { header, description, values?, note? }[] }`. `title` 기본값은 "그리드 도움말" |
-| loading | `boolean` | `false` | 참이면 행추가·행삭제·행복사·`buttons` 를 비활성화한다(「컬럼 설정」·「자동 저장」·「초기화」 버튼은 제외) |
-| usePermission | `boolean` | `false` | 참이면 `fetchPermissions` 가 돌려준 버튼 id 만 누를 수 있고, 나머지 버튼은 보이되 비활성이다(「컬럼 설정」·「자동 저장」·「초기화」 버튼은 제외 — 늘 활성) |
+| loading | `boolean` | `false` | 참이면 행추가·행삭제·행복사·`buttons` 를 비활성화한다(「그리드 설정」 메뉴는 제외) |
+| usePermission | `boolean` | `false` | 참이면 `fetchPermissions` 가 돌려준 버튼 id 만 누를 수 있고, 나머지 버튼은 보이되 비활성이다(「그리드 설정」 메뉴는 제외 — 늘 활성) |
 | fetchPermissions | `() => Promise<string[]>` | - | 허용 버튼 id 목록 조회 |
 | className | `string` | `""` | 루트 클래스 |
 | style | `CSSProperties` | - | 루트 스타일 |
 
-내장 버튼의 id 는 `btn_grid_add`·`btn_grid_delete`·`btn_grid_copy` 다. 개인화가 켜진 그리드가 있으면 자동으로 붙는 「컬럼 설정」 버튼(`btn_grid_columns`)·「초기화」 버튼(`btn_grid_reset`)·「자동 저장」 스위치는 권한·`loading` 과 무관하다(§컬럼 설정 버튼). 같은 모듈에서 `getRowIdentifier(row, rowKey)`·`isTempRow`·`GRID_TEMP_ID_FIELD` 도 export 한다.
+내장 버튼의 id 는 `btn_grid_add`·`btn_grid_delete`·`btn_grid_copy` 다. 개인화가 켜졌거나 `excelExport` 를 준 그리드가 있으면 자동으로 붙는 「그리드 설정」 메뉴(항목 id `btn_grid_columns`·`btn_grid_reset`)는 권한·`loading` 과 무관하다(§그리드 설정 메뉴). 같은 모듈에서 `getRowIdentifier(row, rowKey)`·`isTempRow`·`GRID_TEMP_ID_FIELD` 도 export 한다.
 
 ## 표준값: 모든 화면 동일
 
@@ -3022,12 +3028,12 @@ function normalize(field: string, value: unknown): unknown {
 
 ## 언제 쓰나
 
-- **대부분의 화면은 직접 쓸 일이 없다.** [AgDataGrid](ag-data-grid.md) 는 컬럼 개인화가 켜져 있으면(기본 켬) 이 창을 스스로 소유한다. 열 때마다 지금 컬럼 목록을 만들어 주고, 적용·복원 결과를 개인화 저장에 반영한다. 사용자는 [GridPanel](grid-panel.md) 의 「컬럼 설정」 버튼이나 그리드 머리글 우클릭 메뉴로 연다. 화면은 `gridId`·`personalize` 만 신경 쓰면 된다(자세한 동작은 ag-data-grid 의 「컬럼 개인화」 절).
+- **대부분의 화면은 직접 쓸 일이 없다.** [AgDataGrid](ag-data-grid.md) 는 컬럼 개인화가 켜져 있으면(기본 켬) 이 창을 스스로 소유한다. 열 때마다 지금 컬럼 목록을 만들어 주고, 적용·복원 결과를 개인화 저장에 반영한다. 사용자는 [GridPanel](grid-panel.md) 머리줄 「그리드 설정」 메뉴의 「컬럼 설정…」이나 그리드 머리글 우클릭 메뉴로 연다. 화면은 `gridId`·`personalize` 만 신경 쓰면 된다(자세한 동작은 ag-data-grid 의 「컬럼 개인화」 절).
 - 쓴다: 그리드 밖에서 "열(항목)을 골라 보이고 순서를 정하는" UI 가 필요할 때. 예를 들어 엑셀·인쇄 대상 항목 고르기, 자체 표·차트의 계열 표시 설정처럼 항목 목록 하나에 표시 체크와 순서 이동만 있으면 된다.
 - 쓰지 않는다:
   - 후보 목록에서 골라 어떤 묶음에 넣고 빼는 편집(좌 가능·우 소속) → [TransferList](transfer-list.md). 이 창은 한 목록에서 켜고 끄며 순서만 바꾼다.
   - 항목마다 이름·타입 같은 여러 칸을 고치고 행을 추가·삭제해야 할 때 → [EditableRowList](editable-row-list.md).
-  - AgDataGrid 의 컬럼 설정을 화면이 따로 열려는 경우 → 이미 있는 GridPanel 버튼·헤더 우클릭을 쓴다. 두 번째 창을 만들지 않는다.
+  - AgDataGrid 의 컬럼 설정을 화면이 따로 열려는 경우 → 이미 있는 GridPanel 「그리드 설정」 메뉴·헤더 우클릭을 쓴다. 두 번째 창을 만들지 않는다.
 - 제어형이다. `opened`·`columns` 와 결과(`onApply`·`onReset`)는 모두 props 로 오간다. 열린 동안만 그리며, 열 때마다 `columns` 로 처음부터 시작하므로 바깥에서 편집 중 상태를 유지할 필요가 없다. 창 안 변경은 [적용]을 눌러야 `onApply` 로 나가고 [취소]·X·Esc 는 버린다.
 
 ## 표준 사용
@@ -3109,14 +3115,14 @@ export function ExportItemPicker({ onChange }: { onChange: (items: ColumnSetting
 
 ## 표준값: 모든 화면 동일
 
-- 제목·버튼 문구(「컬럼 설정」·「기본값 복원」·「지금 상태 저장」·「취소」·「적용」)는 기본값 그대로 쓴다. AgDataGrid·GridPanel·헤더 우클릭 메뉴가 같은 문구를 쓴다.
+- 제목·버튼 문구(「컬럼 설정」·「기본값 복원」·「지금 상태 저장」·「취소」·「적용」)는 기본값 그대로 쓴다. AgDataGrid·GridPanel 설정 메뉴·헤더 우클릭 메뉴가 같은 문구를 쓴다(메뉴 항목 이름은 `grid-settings-labels.ts`).
 - `testId` 도 AgDataGrid 가 소유하는 창은 기본값(`column-settings`)이다. 같은 화면에서 직접 쓴 창이 따로 있으면 다른 접두어를 준다.
 
 ## 흔한 실수
 
 | 실수 | 바로잡기 |
 |---|---|
-| AgDataGrid 컬럼을 고르게 하려고 이 창을 화면에서 직접 연다 | 개인화가 켜져 있으면 GridPanel 「컬럼 설정」 버튼·헤더 우클릭 메뉴가 이미 같은 창을 연다. 끈 그리드(`personalize={false}`)에는 이 기능을 붙이지 않는다 |
+| AgDataGrid 컬럼을 고르게 하려고 이 창을 화면에서 직접 연다 | 개인화가 켜져 있으면 GridPanel 「그리드 설정」 메뉴·헤더 우클릭 메뉴가 이미 같은 창을 연다. 끈 그리드(`personalize={false}`)에는 이 기능을 붙이지 않는다 |
 | `onApply` 로 받은 상태에서 내부 컬럼을 걸러 낸다 | 모든 컬럼이 원래 자리에 담겨 온다. 걸러 내면 선택 체크박스 등이 뒤로 밀린다 |
 | `columns` 에 `width` 를 얹어 `onApply` 결과에 합쳐 넘긴다 | 너비를 넘기면 개인화가 그 컬럼 너비를 저장·잠근다. `{ colId, hide }` 만 쓴다 |
 | 창이 열린 동안 `columns` 를 바꾸면 창에 반영될 거라 기대한다 | 창은 열릴 때의 `columns` 로 한 번 시작하고 이후 바뀐 값은 반영하지 않는다. 열기 직전에 목록을 만든다 |
@@ -3135,7 +3141,7 @@ export function ExportItemPicker({ onChange }: { onChange: (items: ColumnSetting
 
 표(그리드) 바로 아래에 왼쪽 행 수 안내와 오른쪽 [엑셀] 단추를 한 줄로 붙이고, 그 줄을 표 영역 바닥에 고정할 때 쓴다. 단추를 누르면 `onExcel` 만 부르므로 파일 만들기는 화면이 한다.
 
-> 표 아래 줄과 그리드 컬럼·행 내려받기를 그대로 쓰면 되는 화면은 이 컴포넌트를 직접 붙이지 말고 [AgDataGrid](ag-data-grid.md) 의 `excelExport` 속성을 준다. 그리드가 이 줄(`GridExcelFoot`)·감싸개·내려받기를 모두 맡는다. 이 컴포넌트는 엑셀 내용을 화면이 직접 정해야 할 때(열을 골라 바꾸거나 값을 변환) 단독으로 쓴다.
+> 표 아래 줄과 그리드 컬럼·행 내려받기를 그대로 쓰면 되는 화면은 이 컴포넌트를 직접 붙이지 말고 [AgDataGrid](ag-data-grid.md) 의 `excelExport` 속성을 준다. 그리드가 이 줄(`GridExcelFoot`)·감싸개·내려받기를 모두 맡는다. 그리드가 [GridPanel](grid-panel.md) 안의 설정 메뉴 대상이면 [엑셀] 은 머리줄 「그리드 설정」 메뉴로 옮겨 가고 이 줄은 `hideButton` 으로 「N행」 안내만 남긴다. 이 컴포넌트는 엑셀 내용을 화면이 직접 정해야 할 때(열을 골라 바꾸거나 값을 변환) 단독으로 쓴다.
 
 - import: `import { GridExcelFoot, type GridExcelFootProps } from "@dk-oasis/shared/grid";` (CSS import 없음)
 - 소스: `src/frontend/shared/src/components/grid/GridExcelFoot.tsx`
@@ -3212,10 +3218,11 @@ export function OrderTable({ rows }: { rows: Record<string, unknown>[] }) {
 | onExcel | `() => void` | 필수 | [엑셀] 을 눌렀을 때. 파일 만들기는 호출한 쪽이 한다 |
 | disabled | `boolean` | `false` | 단추 비활성(내려받을 행 없음) |
 | testId | `string` | `"grid-excel"` | [엑셀] 단추의 `data-testid` |
+| hideButton | `boolean` | `false` | 참이면 단추를 그리지 않고 안내 글만 둔다. [GridPanel](grid-panel.md) 「그리드 설정」 메뉴가 엑셀 내려받기를 대신할 때 `AgDataGrid` 가 켠다(`onExcel`·`disabled`·`testId` 는 무시) |
 
 ## 표준값: 모든 화면 동일
 
-- 단추는 `size="mini"` 의 기본(회색) 버튼에 아이콘과 「엑셀」, `title` 은 「보이는 행을 엑셀로 내려받기」로 고정이다. props 로 바꿀 수 없다.
+- 단추는 `size="mini"` 의 기본(회색) 버튼에 아이콘과 「엑셀」, `title` 은 「보이는 행을 엑셀로 내려받기」로 고정이다. props 로 바꿀 수 없다. `hideButton` 이면 단추 없이 안내 글 줄만 남는다.
 - 줄 모양은 높이 자동(위아래 2px), 윗 테두리 1px(`--color-border-light`), 글자는 `--font-size-xs`·`--color-text-muted` 이다.
 - 엑셀 파일 이름은 「{제목}_{yyyyMMdd}.xlsx」, 시트 이름은 `Sheet1`, 보이는 행·컬럼 그대로 내려받는다.
 
@@ -3232,7 +3239,7 @@ export function OrderTable({ rows }: { rows: Record<string, unknown>[] }) {
 ## 실제 사용 예
 
 - 단독 사용처는 아직 없다. 쿼리 표(`src/frontend/m-mcm/widget-types/query-table/renderer.tsx`)와 홈 기본 표 위젯(`widgets/home/workOrders/widget.tsx`·`shipments/widget.tsx`)은 `AgDataGrid` 의 `excelExport` 속성으로 옮겼다(이 줄은 그리드 안에서 그려진다).
-- 모양과 `data-testid`(줄 `grid-foot`, 글 `grid-foot-note`)는 `excelExport` 를 써도 이 컴포넌트와 같다. [엑셀] 단추의 기본 `data-testid` 는 `grid-excel` 이고, m-mcm 의 세 위젯은 `testId: "wq-excel"` 을 넘긴다. 시험: `src/frontend/shared/tests/unit/grid-excel-foot.unit.test.ts`(이 줄), `ag-data-grid-excel.unit.test.ts`(`excelExport`).
+- 모양과 `data-testid`(줄 `grid-foot`, 글 `grid-foot-note`)는 `excelExport` 를 써도 이 컴포넌트와 같다. [엑셀] 단추의 기본 `data-testid` 는 `grid-excel` 이고, m-mcm 의 세 위젯은 `testId: "wq-excel"` 을 넘긴다. 시험: `src/frontend/shared/tests/unit/grid-excel-foot.unit.test.ts`(이 줄), `ag-data-grid-excel.unit.test.ts`(`excelExport`), `grid-settings-menu-excel.unit.test.ts`(설정 메뉴가 엑셀을 맡을 때 단추 숨김).
 
 
 <!-- ===== grid-limit-notice.md ===== -->
@@ -6326,7 +6333,7 @@ StackedColumnChart (`StackedColumnChartProps` 를 export 한다)
 
 - 쓴다: PageLayout 상단 "엑셀" 버튼에서 현재 목록(`rows`)을 내려받을 때.
 - 쓰지 않는다: ag-grid Excel Export(`ag-grid-enterprise`) 사용 금지. 서버가 만든 파일 다운로드는 별도 처리다.
-- 카드·위젯 안의 표 아래에 「N행」과 [엑셀] 단추를 두는 자리에서 그리드의 컬럼·행을 그대로 내려받기만 하면 이 함수를 직접 부르지 말고 [AgDataGrid](ag-data-grid.md) 의 `excelExport` 속성을 준다. 그리드가 이 함수를 불러 준다.
+- 카드·위젯 안의 표 아래에 「N행」과 [엑셀] 단추를 두는 자리에서 그리드의 컬럼·행을 그대로 내려받기만 하면 이 함수를 직접 부르지 말고 [AgDataGrid](ag-data-grid.md) 의 `excelExport` 속성을 준다. 그리드가 이 함수를 불러 준다(GridPanel 안이면 머리줄 「그리드 설정」 메뉴의 「엑셀 내려받기」가 같은 내려받기를 맡고 아래 줄 단추는 빠진다).
 
 ## 표준 사용
 
