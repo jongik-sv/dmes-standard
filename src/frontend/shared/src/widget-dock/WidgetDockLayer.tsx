@@ -11,8 +11,8 @@
  */
 import { memo, useCallback, useMemo, type ComponentType } from "react";
 
-import { useScreenContext } from "../screen-context/hooks";
-import type { ScreenContext } from "../screen-context/types";
+import { useScreenApply, useScreenContext } from "../screen-context/hooks";
+import type { ScreenApply, ScreenContext } from "../screen-context/types";
 import type { WidgetFrameProps } from "../widget/WidgetFrame";
 import type { WidgetItem, WidgetRegistry, WidgetRegistryEntry } from "../widget/types";
 import {
@@ -57,6 +57,7 @@ interface DockWindowViewProps {
   frame: ComponentType<WidgetFrameProps>;
   viewport: DockViewport;
   screenContext: ScreenContext | null;
+  screenApply: ScreenApply;
   onMove: WidgetDockLayerProps["onMove"];
   onResize: WidgetDockLayerProps["onResize"];
   onToggleCollapse: WidgetDockLayerProps["onToggleCollapse"];
@@ -72,6 +73,7 @@ const DockWindowView = memo(function DockWindowView({
   frame: Frame,
   viewport,
   screenContext,
+  screenApply,
   onMove,
   onResize,
   onToggleCollapse,
@@ -96,9 +98,9 @@ const DockWindowView = memo(function DockWindowView({
   );
   const frame = useMemo(
     () => (
-      <Frame item={item} entry={entry} editing={false} onToggleLock={noop} onRemove={noop} hideTitle screenContext={screenContext} />
+      <Frame item={item} entry={entry} editing={false} onToggleLock={noop} onRemove={noop} hideTitle screenContext={screenContext} screenApply={screenApply} />
     ),
-    [Frame, item, entry, screenContext]
+    [Frame, item, entry, screenContext, screenApply]
   );
   const move = useCallback((x: number, y: number) => onMove(id, x, y), [onMove, id]);
   const resize = useCallback((w: number, h: number) => onResize(id, w, h), [onResize, id]);
@@ -150,6 +152,7 @@ export function WidgetDockLayer({
   const stack = useMemo(() => dockStackOrder(windows), [windows]);
   // 활성 탭의 화면 문맥 — 탭을 바꾸면 그 탭의 문맥으로 바뀌고, 게시된 것이 없으면 null.
   const screenContext = useScreenContext(activeTabId);
+  const screenApply = useScreenApply(activeTabId);
   return (
     <div className="cm-widget-dock" data-testid={testId}>
       <WidgetDockStyle />
@@ -166,6 +169,7 @@ export function WidgetDockLayer({
             frame={frame}
             viewport={viewport}
             screenContext={screenContext}
+            screenApply={screenApply}
             onMove={onMove}
             onResize={onResize}
             onToggleCollapse={onToggleCollapse}

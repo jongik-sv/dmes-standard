@@ -192,6 +192,12 @@ export interface AgDataGridProps {
    */
   publishScreenContext?: boolean;
   /**
+   * 도구 창(도크) 위젯이 보낸 값(예: 계산기 결과)을 이 그리드에 받는다. 선택 행(없으면 포커스 행)의 **편집 가능한 열** 중 field 가
+   * (대소문자·밑줄 차이를 무시하고) 맞는 칸에 넣고, 편집 불가·없는 키는 건너뛴다. 사용자가 칸을 고친 것과 같은 경로(행 수정 표시·`onCellValueChanged`)를 탄다.
+   * 데이터를 바꾸므로 기본 false. 대화 상자 안 그리드는 받지 않는다. 한 화면에 여러 그리드가 켜져 있으면 마지막으로 행을 고른 그리드가 받는다.
+   */
+  acceptScreenApply?: boolean;
+  /**
    * 행 아무 곳이나 클릭 시 그 행의 체크박스를 토글한다(기본 false). `selectable` 과 함께 사용.
    * 단 클릭 대상이 입력요소(input/select/textarea/button/a·contentEditable)·편집 중 셀·행 선택 체크박스면
    * 토글하지 않는다(이벤트 타깃 검사). `selectExcludeColumns` 도 함께 적용된다.

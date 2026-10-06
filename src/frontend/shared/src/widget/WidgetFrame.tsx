@@ -25,7 +25,7 @@ import { MIN_REFRESH_SEC } from "./constants";
 import { openPortalPage, WidgetFrameContext, type WidgetFrameApi, type WidgetRenameHandler, type WidgetStatus } from "./frame-context";
 import { WidgetStyle } from "./styles";
 import { WidgetTitleRename } from "./WidgetTitleRename";
-import type { ScreenContext } from "../screen-context/types";
+import type { ScreenApply, ScreenContext } from "../screen-context/types";
 import { useWidgetVisible } from "./use-widget-visible";
 import type { WidgetComponent, WidgetItem, WidgetMoveKey, WidgetProps, WidgetRegistryEntry } from "./types";
 
@@ -43,6 +43,8 @@ export interface WidgetFrameProps {
   hideTitle?: boolean;
   /** 도구 창(도크)이 넘기는 활성 업무 탭의 화면 문맥. 본체 `screenContext` 로 전달한다. 보드는 넘기지 않는다(null). */
   screenContext?: ScreenContext | null;
+  /** 도구 창(도크)이 넘기는 활성 업무 탭의 값 넣기 통로. 본체 `screenApply` 로 전달한다. 보드는 넘기지 않는다(null). */
+  screenApply?: ScreenApply | null;
 }
 
 // 지연 로딩 캐시는 entry 객체가 아니라 본체 로더(entry.load) 기준이다 — 덮어쓰기 행으로 meta 만 바뀐 새 entry 가 와도
@@ -87,7 +89,7 @@ class WidgetErrorBoundary extends Component<{ onRetry: () => void; children: Rea
 
 const KEY_MAP: Record<string, WidgetMoveKey> = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down" };
 
-export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onRemove, onKeyMove, hideTitle = false, screenContext = null }: WidgetFrameProps) {
+export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onRemove, onKeyMove, hideTitle = false, screenContext = null, screenApply = null }: WidgetFrameProps) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [attempt, setAttempt] = useState(0);
   const [status, setStatus] = useState<WidgetStatus>({ kind: "ready" });
@@ -270,6 +272,7 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
     widgetId: item.widgetId,
     title: entry.meta.title,
     screenContext,
+    screenApply,
   };
   const padded = meta?.bodyPadding !== false;
 

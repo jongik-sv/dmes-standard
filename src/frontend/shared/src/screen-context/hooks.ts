@@ -1,10 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useSyncExternalStore } from "react";
 
 import { useTabPage } from "../portal-shell/tab-page-context";
+import { screenApplyStore } from "./apply-store";
 import { screenContextStore } from "./store";
-import type { ScreenContext, ScreenContextSource, ScreenContextValue } from "./types";
+import type {
+  ScreenApply,
+  ScreenApplyHandler,
+  ScreenContext,
+  ScreenContextSource,
+  ScreenContextValue,
+} from "./types";
 
 export interface PublishScreenContextOptions {
   /** 문맥 출처. 기본 "form". 그리드가 자동 게시할 때는 "grid". */
@@ -19,6 +26,8 @@ export function screenContextKey(tabId: string | undefined, pageId: string): str
 }
 
 export interface ScreenContextPublisher {
+  /** 이 게시자의 소유자 id. 받기 처리기를 같은 소유자로 등록하면(`useScreenApplyHandler` 의 owner) 이 게시자가 마지막으로 고른 곳일 때 우선한다. */
+  owner: string;
   /** 문맥을 게시한다. 포털 탭 밖(탭 id·pageId 모두 없음)이면 아무것도 하지 않는다. */
   publish(values: Record<string, ScreenContextValue>, source?: ScreenContextSource): void;
   /** 이 게시자가 지금 이 탭 문맥의 마지막 게시자인가(다른 곳이 이어받았으면 false). 사용자 조작이 아닌 갱신(데이터 새로 고침 등)이 남의 문맥을 빼앗지 않게 거른다. */
@@ -58,7 +67,7 @@ export function useScreenContextPublisher(): ScreenContextPublisher {
     };
   }, [key, owner]);
 
-  return { publish, owned, clear };
+  return useMemo(() => ({ owner, publish, owned, clear }), [owner, publish, owned, clear]);
 }
 
 /**
@@ -91,4 +100,46 @@ export function useScreenContext(tabId?: string | null): ScreenContext | null {
   const key = tabId === undefined ? screenContextKey(page.tabId, page.pageId) : tabId || "";
   const getSnapshot = useCallback(() => (key ? screenContextStore.get(key) : null), [key]);
   return useSyncExternalStore(screenContextStore.subscribe, getSnapshot, () => null);
+}
+
+export interface ScreenApplyHandlerOptions {
+  /** false 면 등록하지 않는다(기본 true). */
+  enabled?: boolean;
+  /** 소유자 id. 그리드처럼 문맥도 게시하는 곳은 게시자의 `owner` 를 넘겨 「마지막으로 고른 곳」 의 처리기가 먼저 쓰이게 한다. 없으면 훅이 하나 만든다. */
+  owner?: string;
+}
+
+/**
+ * 화면이 위젯의 값 넣기 요청을 받는다(역방향 통로). 처리기는 ref 로 읽으므로 렌더마다 새 함수를 넘겨도 다시 등록하지 않는다.
+ * 활성 탭의 위젯만 부를 수 있고(도크가 활성 탭의 처리기만 연결), 언마운트(탭 닫힘)하면 등록을 거둔다. 포털 탭 밖이면 하는 일이 없다.
+ */
+export function useScreenApplyHandler(handler: ScreenApplyHandler | null | undefined, opts: ScreenApplyHandlerOptions = {}): void {
+  const { tabId, pageId } = useTabPage();
+  const ownId = useId();
+  const { enabled = true, owner = ownId } = opts;
+  const key = screenContextKey(tabId, pageId);
+  const ref = useRef(handler);
+  ref.current = handler;
+  const active = enabled && !!handler && !!key;
+  useEffect(() => {
+    if (!active) return;
+    return screenApplyStore.register(key, owner, (values, o) =>
+      ref.current ? ref.current(values, o) : { applied: [], skipped: Object.keys(values) }
+    );
+  }, [active, key, owner]);
+}
+
+/**
+ * 역방향 통로를 구독한다. tabId 는 도크 호스트가 활성 탭 id 를 넘긴다(없으면 이 화면의 탭). 받는 쪽이 없으면 available=false.
+ * 받는 쪽이 생기거나 사라질 때만 새 값을 돌려주고, apply 는 부르는 순간의 처리기에 값을 넘긴다.
+ */
+export function useScreenApply(tabId?: string | null): ScreenApply {
+  const page = useTabPage();
+  const key = tabId === undefined ? screenContextKey(page.tabId, page.pageId) : tabId || "";
+  const getSnapshot = useCallback(() => (key ? screenApplyStore.has(key) : false), [key]);
+  const available = useSyncExternalStore(screenApplyStore.subscribe, getSnapshot, () => false);
+  return useMemo<ScreenApply>(
+    () => ({ available, apply: (values, o) => screenApplyStore.apply(key, values, o) }),
+    [available, key]
+  );
 }

@@ -6,7 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AgDataGrid } from "../../src/components/grid/AgDataGrid";
 import { TabPageContext } from "../../src/portal-shell/tab-page-context";
-import { screenContextStore } from "../../src/screen-context";
+import { screenApplyStore, screenContextStore } from "../../src/screen-context";
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -163,5 +163,56 @@ describe("AgDataGrid 선택 행 자동 게시", () => {
     await settle();
     await clickRow("2");
     expect(screenContextStore.get("")).toBeNull();
+  });
+});
+
+describe("AgDataGrid 위젯 값 받기(acceptScreenApply)", () => {
+  const editableColumns = [
+    { key: "name", header: "이름" },
+    { key: "COIL_WIDTH", header: "폭", editable: true },
+    { key: "note", header: "비고", editable: true },
+  ];
+  const baseProps = { columns: editableColumns, selectable: true, enableRowClickSelect: true };
+
+  it("기본(끔)이면 받는 쪽으로 등록하지 않는다", async () => {
+    await render(baseProps);
+    expect(screenApplyStore.has("t1")).toBe(false);
+  });
+
+  it("켜면 선택 행의 편집 가능한 칸에 넣고, 편집 불가·없는 키는 skipped 로 돌려준다", async () => {
+    const changes: Array<{ field: string; newValue: unknown }> = [];
+    await render({ ...baseProps, acceptScreenApply: true, onCellValueChanged: (p: { field: string; newValue: unknown }) => changes.push(p) });
+    expect(screenApplyStore.has("t1")).toBe(true);
+    await clickRow("2");
+    let result: { applied: string[]; skipped: string[] } | null = null;
+    await act(async () => {
+      result = await screenApplyStore.apply("t1", { coilWidth: "1450", NAME: "바꿈", missing: 1, note: "계산 결과" });
+    });
+    expect(result).toEqual({ applied: ["coilWidth", "note"], skipped: ["NAME", "missing"] });
+    // 기존 편집 경로(onCellValueChanged)를 탄다. 숫자 칸에는 숫자 문자열이 숫자로 들어간다.
+    expect(changes.map((c) => [c.field, c.newValue])).toEqual([
+      ["COIL_WIDTH", 1450],
+      ["note", "계산 결과"],
+    ]);
+    // 값이 바뀌면 문맥도 다시 게시된다.
+    expect(screenContextStore.get("t1")?.values.COIL_WIDTH).toBe(1450);
+  });
+
+  it("행이 없으면 전부 skipped", async () => {
+    await render({ ...baseProps, acceptScreenApply: true });
+    expect(await screenApplyStore.apply("t1", { note: "x" })).toEqual({ applied: [], skipped: ["note"] });
+  });
+
+  it("대화 상자 안 그리드는 받지 않는다", async () => {
+    await render({ ...baseProps, acceptScreenApply: true }, true);
+    await clickRow("2");
+    expect(await screenApplyStore.apply("t1", { note: "x" })).toEqual({ applied: [], skipped: ["note"] });
+  });
+
+  it("언마운트하면 등록을 거둔다", async () => {
+    await render({ ...baseProps, acceptScreenApply: true });
+    await act(async () => root!.unmount());
+    root = createRoot(container);
+    expect(screenApplyStore.has("t1")).toBe(false);
   });
 });

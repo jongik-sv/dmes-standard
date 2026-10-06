@@ -98,6 +98,7 @@ function AgDataGridComponent({
   enableRowClickSelect = false,
   selectExcludeColumns = [],
   publishScreenContext = true,
+  acceptScreenApply = false,
   rowClickCheck = false,
   onCellValueChanged,
   singleClickEdit = false,
@@ -287,7 +288,7 @@ function AgDataGridComponent({
   });
 
   // 화면 문맥 자동 게시(useGridScreenContext.ts) — 선택 행(없으면 포커스 행)을 도구 창 위젯에 넘긴다. 아래 이벤트 처리기에 덧붙이며, 끄면(false) 이벤트 배선이 예전과 같다.
-  const screenCtx = useGridScreenContext({ gridRef, containerRef, enabled: publishScreenContext });
+  const screenCtx = useGridScreenContext({ gridRef, containerRef, enabled: publishScreenContext, acceptApply: acceptScreenApply });
   const onSelectionChangedWithCtx = useCallback(
     (event: SelectionChangedEvent) => {
       handleSelectionChanged(event);
