@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fetchRuleCalcIo, RULE_CALC_EXECUTE_URL, RULE_CALC_VIEW_URL, runRuleCalc, unwrapRuleCalc } from "./api";
+import {
+  fetchRuleCalcIo,
+  RULE_CALC_EXECUTE_URL,
+  RULE_CALC_SEARCH_LIMIT,
+  RULE_CALC_SEARCH_URL,
+  RULE_CALC_VIEW_URL,
+  runRuleCalc,
+  searchRuleCalcTargets,
+  unwrapRuleCalc,
+} from "./api";
 
 const fetchMock = vi.fn();
 
@@ -119,13 +128,40 @@ describe("execute", () => {
   });
 });
 
-// A3 머지 전까지 검색은 목이다. 실연동 때 이 묶음을 fetch 대역(요청 params·rows 응답) 시험으로 바꾼다.
-describe("검색(목, A3 전)", () => {
-  it("이름·ID 에 키워드가 든 줄, 종류로 좁히고, 상한을 지킨다", async () => {
-    const { searchRuleCalcTargets, RULE_CALC_SEARCH_URL } = await import("./api");
+describe("search", () => {
+  it("MDM ruleCalc/search 에 종류·키워드·미리보기·건수를 싣고 rows 를 정규화한다", async () => {
+    reply(
+      ok({
+        ok: true,
+        rows: [
+          { tp: "RULE", id: "M47C0001", name: "코일원판중량", ver: "1.000", verStatus: "RELEASED", desc: "설명" },
+          { tp: "SET", id: "M47_COAT_WT", name: "코팅중량", ver: "1.000", verStatus: "RELEASED" },
+          { name: "ID 없음" },
+        ],
+        messages: [],
+      })
+    );
+    const rows = await searchRuleCalcTargets("ALL", "M47");
+    const req = sent();
     expect(RULE_CALC_SEARCH_URL).toBe("/api/mdm/oasis/ruleCalc/search");
-    expect((await searchRuleCalcTargets("ALL", "코팅")).map((r) => r.id)).toEqual(["M47_COAT_WT"]);
-    expect((await searchRuleCalcTargets("RULE", "m47c")).every((r) => r.tp === "RULE")).toBe(true);
-    expect(await searchRuleCalcTargets("ALL", "", 2)).toHaveLength(2);
+    expect([req.url, req.method]).toEqual([RULE_CALC_SEARCH_URL, "POST"]);
+    expect(req.body.params).toEqual({ targetTp: "ALL", keyword: "M47", preview: true, limit: RULE_CALC_SEARCH_LIMIT });
+    expect(rows.map((r) => [r.tp, r.id, r.name])).toEqual([
+      ["RULE", "M47C0001", "코일원판중량"],
+      ["SET", "M47_COAT_WT", "코팅중량"],
+    ]);
+  });
+
+  it("건수를 넘기면 그대로 싣고, 결과가 0건이면 빈 목록", async () => {
+    reply(ok({ ok: true, rows: [], messages: [] }));
+    expect(await searchRuleCalcTargets("RULE", "", 200)).toEqual([]);
+    expect(sent().body.params).toEqual({ targetTp: "RULE", keyword: "", preview: true, limit: 200 });
+  });
+
+  it("업무 거절·HTTP 오류는 Error", async () => {
+    reply({ meta: { success: false, message: "종류 값이 틀립니다." } });
+    await expect(searchRuleCalcTargets("ALL", "x")).rejects.toThrow("종류 값이 틀립니다.");
+    reply({ message: "권한이 없습니다." }, 403);
+    await expect(searchRuleCalcTargets("ALL", "x")).rejects.toThrow("권한이 없습니다.");
   });
 });
