@@ -63,3 +63,7 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/thecodinglog/bpmn-skil
 ## 라이선스
 
 MIT
+
+## 지원 환경
+
+macOS(`install.sh`)와 윈도우(`install.ps1`, 또는 Git Bash 에서 `install.sh`) 모두 설치할 수 있다. 필요 도구: node·npm(`@cothe/bpmn-tool` 설치용), curl 또는 PowerShell(스킬 파일 내려받기).

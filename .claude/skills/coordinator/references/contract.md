@@ -158,7 +158,7 @@
 
 모든 스크립트는 `scripts/` 아래, `#!/usr/bin/env bash`, `set -uo pipefail`, 첫 줄 아래에 사용법 주석. 공통 함수는
 `scripts/lib/common.sh`(설정·회차·시각·잠금·로그), 터미널은 `scripts/lib/term.sh`(어댑터) 에서만 부른다.
-macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과는 **stdout**, 사람용 설명·경고는 **stderr**.
+macOS(BSD `date`·`stat`) 와 GNU(Git Bash 포함) 양쪽에서 돈다. 기계가 읽는 결과는 **stdout**, 사람용 설명·경고는 **stderr**.
 보내기·닫기 같은 부작용이 있는 스크립트는 모두 `--dry-run`(하려던 명령을 stderr 에 `DRY` 로 찍고 실제로 하지 않음)을 받는다. dry-run 의 성공 줄은 보냈다면 나왔을 줄 앞에 `DRY ` 를 붙인다(`DRY SENT <h> -`, `DRY SPAWNED … handle=-`). 거부 판정 줄은 원래 형식 그대로다. 값을 모르는 칸은 `-` 로 낸다(`for=-m`, `ctx=-%`, `heavy=-/-/-`).
 비밀값(토큰·키)은 어떤 출력·로그·이벤트에도 남기지 않는다.
 
@@ -233,6 +233,13 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 | `statusline-dump.sh` | stdin = statusLine JSON | `<state_dir>/ctx/<session_id>.json` 에 `{at,session_id,context_window,rate_limits}` 저장 뒤 `COORD_STATUSLINE_NEXT` 명령이 있으면 같은 stdin 으로 실행해 그 출력을 그대로 낸다 |
 | `console-poll.sh` | `[--once] [--dry-run]` \| `start` \| `stop` \| `status` \| `input-handled (--lane <레인> \| --lead <세션8>) --by <coordinator\|auto>` \| `judge-sha --lane <레인>` | 정본 §4.1. `judge-sha` → `JUDGE <h> <kind> <창 지문(가리기 전 원문 창의 sha)>`·`NONE <h>`·`STALE <h>`·`NOFP <h>`(창 머리를 못 찾아 지문 없음 — 직접 보내지 않는다). `start` → `CONSOLE_POLLER started pid=<pid>`·`CONSOLE_POLLER running pid=<pid>`·`CONSOLE_POLLER skipped <사유>`, `stop` → `CONSOLE_POLLER stopped`·`CONSOLE_POLLER none`, `status` → `CONSOLE_POLLER up pid=<pid> since=<iso> cycle=<초>`·`CONSOLE_POLLER down`. 본문 루프는 stdout 에 아무것도 쓰지 않고 로그를 `~/.dflow/console/poller-<신원>.log` 에 남긴다 |
 | `office.sh` | `lead-up` \| `lead-sync` \| `lane-up <레인>` \| `lane-state <레인> <작업 중\|대기\|머지 중\|답 대기\|끝\|auto>` \| `lane-down <레인>` \| `beat` \| `finish` \| `reap [--state-dir <경로>]` | 없음(늘 종료 코드 0, 사용법 오류만 2). 경고는 stderr 한 줄. 정본 §4. `lead-sync` 는 이 세션의 팀장 칸(라벨·자리 요약)을 다시 보낸다(폴러가 입력 요청 기록을 바꾼 직후). `reap` 은 현재 회차 없이 돌고 상태 뿌리를 `--state-dir` → `COORD_STATE_ROOT` → 설정 `state_dir` 순으로 정한다 |
+
+### 지원 환경: macOS · Git Bash(윈도우)
+
+- 필요 도구: bash 3.2+, git, curl, **jq**, openssl 또는 sha256sum, orca CLI, node(드문 경로 — 변이 검증·포트 폴백)·python3(선택). Git Bash 에는 jq·node·orca 가 기본 제공이 아니다(설치 필요).
+- 플랫폼 차이(stat·date·프로세스 표·후손 종료·pgrep/pkill·cwd·sha256)는 `scripts/lib/compat.sh` 한 곳에 모은다. Git Bash 는 `ps -o`·`pgrep`·`lsof` 가 없어 `/proc/<pid>/{ppid,cmdline,cwd}` 를 읽는다.
+- **작성 규칙**: 스크립트에 macOS 전용 명령·옵션(`ps -axo`·`pgrep`·`pkill`·`lsof`·`stat -f`·`date -r/-j/-v`·`sed -i ''`·`shasum`)을 직접 쓰지 않고 perl 을 쓰지 않는다. `BSD || GNU` 사슬은 GNU 를 앞에 둔다(GNU `stat -f` 는 `?` 와 rc 0). 정본·도구 표·한계: `../../_shared/platform-support.md`.
+- 윈도우에서 얻을 수 없는 값(프로세스 누적 CPU·시작 시각·부하)은 「관측 불가」로 열어 둔다: `stall-check.sh` 는 STALL 을 내지 않는다.
 
 ## 4. 에이전트 오피스 표시 계약
 

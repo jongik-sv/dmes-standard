@@ -24,6 +24,7 @@
 set -uo pipefail
 _SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.   # dirname 대신(프로세스 0개)
 source "$_SD/lib/common.sh"
+source "$_SD/lib/compat.sh"
 source "$_SD/lib/term.sh"
 coord_cfg_prime   # 설정을 서브셸 밖에서 한 번 읽어 둔다(coord_cfg 호출들이 jq 없이 물려받게)
 
@@ -70,7 +71,7 @@ fp_of() {
     console_input_snapshot "$tf" && { FP_FULL="$CI_FULL"; FP_SHA="$CI_SHA"; FP_WIN="$CI_WIN"; }
     rm -f "$tf"
   else
-    FP_FULL="$(printf '%s\n' "$1" | tail -41 | { if command -v openssl >/dev/null 2>&1; then h="$(openssl dgst -sha256 -r 2>/dev/null)"; printf '%s\n' "${h%% *}"; else { shasum -a 256 2>/dev/null || sha256sum; } | cut -d' ' -f1; fi; })"
+    FP_FULL="$(printf '%s\n' "$1" | tail -41 | compat_sha256)"   # openssl → sha256sum → shasum → node(lib/compat.sh)
   fi
   [ -n "$FP_FULL" ]
 }

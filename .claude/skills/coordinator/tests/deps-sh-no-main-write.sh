@@ -42,10 +42,10 @@ mk_main() {
 # 메인 지문: 파일 내용·링크 대상·이름 목록(이식 가능한 명령만)
 fingerprint() {
   ( cd "$1" && {
-      find . -path ./.git -prune -o -type f -exec shasum {} +
+      find . -path ./.git -prune -o -type f -exec cksum {} +
       find . -path ./.git -prune -o -type l -exec sh -c 'for f; do echo "$f -> $(readlink "$f")"; done' _ {} +
       find . -path ./.git -prune -o -print
-    } 2>/dev/null | sort | shasum | cut -c1-12 )
+    } 2>/dev/null | sort | cksum | cut -c1-12 )
 }
 run_deps() {  # run_deps <워크트리> <메인>
   ( cd "$1" && MAIN_CHECKOUT="$2" DFLOW_HEAVY_DIR="$tmp/heavy" bash "$deps" 2>&1 )

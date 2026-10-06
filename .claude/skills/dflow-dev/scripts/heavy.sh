@@ -640,6 +640,19 @@ mine_release() { # 내 것일 때만 지운다(회수된 뒤 남이 잡은 슬�
   wait_unmark
 }
 
+# 직계 자식에게 TERM. Git Bash 에는 pkill 이 없어 /proc/<pid>/ppid 를 읽어 찾는다(bash 내장만 쓴다).
+term_children() {
+  local d p pp
+  if command -v pkill >/dev/null 2>&1; then pkill -TERM -P "$1" 2>/dev/null; return 0; fi
+  for d in /proc/[0-9]*; do
+    p="${d##*/}"; pp=""
+    { IFS= read -r pp < "$d/ppid" || [ -n "$pp" ]; } 2>/dev/null || continue
+    case "$p" in ''|*[!0-9]*|0|1) continue ;; esac
+    [ "$pp" = "$1" ] && kill -TERM "$p" 2>/dev/null
+  done
+  return 0
+}
+
 # 분리 실행의 손자 heavy.sh 인가(cmd_job 이 DFLOW_HEAVY_IN_JOB=1 로 띄운다). 그 손자는 세션의 hold 를 다시 쓰지 않고 자기
 # 슬롯을 잡는다 — 세션이 서버를 끄고 release 하면 그 hold 가 풀려, 아직 도는 잡이 슬롯 없이 돌게 되기 때문이다.
 # 변수는 곧바로 지워 실제 명령(과 그 안의 heavy.sh)에는 물려주지 않는다.
@@ -660,7 +673,7 @@ cmd_run() {
 
   MYPID=$$; SLOT=; child=
   on_sig() {
-    [ -n "$child" ] && { command -v pkill >/dev/null 2>&1 && pkill -TERM -P "$child" 2>/dev/null; kill -TERM "$child" 2>/dev/null; wait "$child" 2>/dev/null; }
+    [ -n "$child" ] && { term_children "$child"; kill -TERM "$child" 2>/dev/null; wait "$child" 2>/dev/null; }
     mine_release; exit "$1"
   }
   trap 'on_sig 130' INT; trap 'on_sig 143' TERM; trap 'on_sig 129' HUP
@@ -696,7 +709,7 @@ cmd_run_docker() {
 
   MYPID=$$; SLOT=; DSLOT=; child=
   on_sig() {
-    [ -n "$child" ] && { command -v pkill >/dev/null 2>&1 && pkill -TERM -P "$child" 2>/dev/null; kill -TERM "$child" 2>/dev/null; wait "$child" 2>/dev/null; }
+    [ -n "$child" ] && { term_children "$child"; kill -TERM "$child" 2>/dev/null; wait "$child" 2>/dev/null; }
     mine_release; exit "$1"
   }
   trap 'on_sig 130' INT; trap 'on_sig 143' TERM; trap 'on_sig 129' HUP
@@ -778,7 +791,7 @@ cmd_run_exclusive() {
 
   MYPID=$$; SLOT=; EXSLOTS=; child=; EXCL_RUN=1
   on_sig() {
-    [ -n "$child" ] && { command -v pkill >/dev/null 2>&1 && pkill -TERM -P "$child" 2>/dev/null; kill -TERM "$child" 2>/dev/null; wait "$child" 2>/dev/null; }
+    [ -n "$child" ] && { term_children "$child"; kill -TERM "$child" 2>/dev/null; wait "$child" 2>/dev/null; }
     excl_unmark
     excl_release_all; wait_unmark; exit "$1"
   }

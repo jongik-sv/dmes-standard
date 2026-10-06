@@ -13,6 +13,7 @@
 set -uo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 SD="$(cd "$here/../scripts" && pwd)"
+. "$SD/lib/compat.sh"
 CP="$SD/console-poll.sh"
 FX="$here/fixtures"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/console-keys-test.XXXXXX")" && tmp="$(cd "$tmp" && pwd -P)"
@@ -20,7 +21,7 @@ BG=""
 cleanup() {
   local p
   for p in $BG; do kill "$p" 2>/dev/null; done
-  pkill -f "$tmp/bin/" 2>/dev/null
+  compat_pkill_f "$tmp/bin/"
   rm -rf "$tmp"
 }
 trap cleanup EXIT
@@ -147,7 +148,7 @@ printf '%s\n' "조정 중" > "$FAKE_DIR/screens/hL.txt"
 cp "$FX/prompt-permission.txt" "$FAKE_DIR/screens/hk.txt"
 once
 kid() { printf '3333cccc-0000-0000-0000-%012d' "$1"; }
-FUT="$(date -u -r $(( $(date +%s) + 120 )) +%Y-%m-%dT%H:%M:%S.000Z)"
+FUT="$(compat_epoch_fmt $(( $(date +%s) + 120 )) %Y-%m-%dT%H:%M:%S.000Z -u)"
 mkkey() {  # <n> <keys JSON> — 창이 맞아도(유효한 요청이어도) 꺼져 있으면 보내지 않는다
   jq -nc --arg id "$(kid "$1")" --argjson k "$2" --arg ik "$(recf coord_lane_kit .kind)" --arg is "$(recf coord_lane_kit .since)" --arg sh "$(sha_of_rec coord_lane_kit)" --arg ex "$FUT" \
     '{id:$id, target_kind:"coord_lane", target_ref:"kit", claim_token:("tok-KEY-" + ($id | .[-3:])), expires_at:$ex, kind:"keys", keys:$k,
@@ -178,6 +179,6 @@ eq "환경변수 켬: poll 에 --accepts keys" "$(grep '^console-poll ' "$FAKE_L
 # =================================================================================================
 echo "남은 프로세스 확인"
 for p in $BG; do kill "$p" 2>/dev/null; wait "$p" 2>/dev/null; done; BG=""
-eq "정리: 이 시험의 폴러·sleep 이 남지 않는다" "$(pgrep -f "$tmp" 2>/dev/null | grep -c .)" 0
+eq "정리: 이 시험의 폴러·sleep 이 남지 않는다" "$(compat_pgrep_f "$tmp" | grep -c .)" 0
 echo "통과 $pass · 실패 $([ "$fail" = 0 ] && echo 0 || echo '1+')"
 exit "$fail"

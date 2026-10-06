@@ -154,3 +154,7 @@ SKILL.md 「1. 시작」 1번 전제 검사 블록이 `PRECHECK_OK` 없이 끝�
   답하거나 화면을 보거나 `blocked` 를 맥락을 지킨 채 풀 자리가 없었기 때문이다.
 - `find_tmux` 가 절대경로 후보를 훑는 이유: Orca 는 PATH 앞에 tmux shim 을 끼우는데, 그 shim 은 명령
   부분집합만 처리하고 `tmux -V` 에 거짓 버전을 답한다. 판별 방법은 backends.md 「진짜 tmux 찾기」 다.
+
+## 지원 환경: macOS · Git Bash(윈도우)
+
+`scripts/*.sh` 는 macOS 와 Git Bash 에서 같이 돈다. 필요 도구: bash, git, jq, tmux 또는 Orca(터미널 백엔드), curl. Git Bash 에는 `ps -o`·`sysctl`·`memory_pressure` 가 없다 — `tick.sh`·`wake.sh` 는 `/proc/$PPID/ppid` 로 팀장 pid 를 읽고, `capacity.sh` 는 읽을 수 없는 자원 값을 `CAPACITY_UNKNOWN`(막지 않음)으로 처리한다. 종료 시각 해석은 BSD `date -j` 먼저, 없으면 GNU `date -d`(Git Bash 는 GNU). 스크립트를 새로 쓸 때는 macOS 전용 명령·perl 을 쓰지 않는다. 정본·도구 표·한계: `../../_shared/platform-support.md`.

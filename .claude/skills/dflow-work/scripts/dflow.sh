@@ -226,7 +226,7 @@ resolve_ref() {
     [0-9]|[0-9][0-9])
       [ -f "$LIST_CACHE" ] || die 2 "목록 캐시가 없습니다 — 먼저 list 를 실행하세요."
       # 캐시 TTL 30분
-      _now=$(date +%s); _mt=$(stat -f %m "$LIST_CACHE" 2>/dev/null || stat -c %Y "$LIST_CACHE")
+      _now=$(date +%s); _mt=$(stat -c %Y "$LIST_CACHE" 2>/dev/null || stat -f %m "$LIST_CACHE")   # GNU 먼저: GNU `stat -f %m` 은 `?` 와 rc 0 이라 대안으로 넘어가지 못한다
       [ $((_now - _mt)) -le 1800 ] || die 2 "목록 캐시가 오래됐습니다 — list 를 다시 실행하세요."
       _id=$(jq -r --argjson n "$1" '.[$n-1].id // empty' "$LIST_CACHE")
       [ -n "$_id" ] || die 2 "순번 $1 이 목록에 없습니다."

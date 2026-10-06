@@ -50,6 +50,11 @@ DFLOW="${DFLOW_SH:-.claude/skills/dflow-work/scripts/dflow.sh}"
 EVENTS_MD="$HERE/../references/events.md"
 
 LEAD_PID=${PID_ARG:-${CLAUDE_PID:-$(ps -o ppid= -p "$PPID" 2>/dev/null | tr -d ' ')}}
+# Git Bash 의 ps 는 -o 를 모른다 — /proc 로 같은 값을 읽는다(끝 줄바꿈이 없어도 읽고, 숫자가 아니거나 0·1 이면 버린다)
+if [ -z "$LEAD_PID" ]; then
+  _lp=; { read -r _lp < "/proc/$PPID/ppid" || [ -n "$_lp" ]; } 2>/dev/null
+  case "$_lp" in ''|*[!0-9]*|0|1) ;; *) LEAD_PID=$_lp ;; esac
+fi
 LOCK=$(git rev-parse --git-path dflow-team.lock); o_who=; o_ts=; o_pid=
 { read -r o_who o_ts o_pid < "$LOCK/owner"; } 2>/dev/null || true
 if [ "$o_who" = "$OWNER" ] && [ -n "$LEAD_PID" ] && [ "$o_pid" = "$LEAD_PID" ]; then

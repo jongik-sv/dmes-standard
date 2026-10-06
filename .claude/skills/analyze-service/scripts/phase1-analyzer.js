@@ -413,8 +413,10 @@ async function main() {
     if (serviceId.startsWith('B')) {
       serviceType = 'nui';
     } else {
-      var jspPattern = path.join(legacyRootPath, 'WebContents', serviceId + '*.jsp');
-      var jspFiles = require('child_process').execSync('ls ' + jspPattern + ' 2>/dev/null || true').toString().trim();
+      // `ls WebContents/<서비스ID>*.jsp` 와 같은 판정(셸 없이 — 윈도우 cmd 에서도 돈다)
+      var jspDir = path.join(legacyRootPath, 'WebContents');
+      var jspFiles = [];
+      try { jspFiles = fs.readdirSync(jspDir).filter(function(n) { return n.startsWith(serviceId) && n.endsWith('.jsp'); }); } catch (e) { jspFiles = []; }
       serviceType = jspFiles.length > 0 ? 'ui' : 'nui';
     }
     const structure = {
