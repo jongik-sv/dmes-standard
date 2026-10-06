@@ -208,6 +208,8 @@ def lane_sum($k; $max; $rb; $rh): (.lanes[$k] // {}) as $l | {
     last_report_at: ($l.last_report_at | isotz), last_instr_at: ($l.last_instr_at | isotz),
     ctx_pct: ($l.ctx | if type == "object" then .pct elif type == "number" then . else null end | rng(0; 100)),
     compact_pending: ((($l.compact // {}) | if type == "object" then .pending else false end) == true) }
+  # lead = 이 레인을 가진 조정 팀장 키(coord:<세션8>)의 <세션8>(≤40자). 모르면 칸을 뺀다(null 로 싣지 않는다). 칸 순서는 맨 끝
+  + (coord_s8 | if . == "" then {} else {lead: str(40)} end)
   # 바이트 상한을 넘으면 brief → hold → branch 순으로 한 글자씩 줄인다
   | until(bytes <= $max or ((.brief | length) == 0 and ((.hold // "") | length) == 0 and (.branch | length) == 0);
       if (.brief | length) > 0 then .brief |= .[0:length - 1]
@@ -298,7 +300,7 @@ lane_summary() {  # 레인 summary 한 줄(자유 글은 red 로 가린다)
   local rb rh
   rb="$(red "$(st --arg l "$1" '.lanes[$l].brief // "" | tostring')")" || rb=""
   rh="$(red "$(st --arg l "$1" '.lanes[$l].hold | if . == null then "" elif type == "object" then (.reason // "" | tostring) else tostring end')")" || rh=""
-  st -c --arg l "$1" --argjson max "$SUM_MAX" --arg rb "$rb" --arg rh "$rh" "$LABEL_JQ$SUM_JQ"' lane_sum($l; $max; $rb; $rh)'
+  st -c --arg l "$1" --argjson max "$SUM_MAX" --arg rb "$rb" --arg rh "$rh" "$COORD_S8_JQ$LABEL_JQ$SUM_JQ"' lane_sum($l; $max; $rb; $rh)'
 }
 # 값 기록은 늘 coord-state.sh 로(state.json 은 그 스크립트만 쓴다).
 rec() { bash "$COORD_SCRIPTS_DIR/coord-state.sh" set "$1" "$2" >/dev/null 2>&1 || warn "state 기록 실패: $1"; }

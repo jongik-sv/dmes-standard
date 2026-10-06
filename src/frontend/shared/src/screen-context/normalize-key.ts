@@ -56,3 +56,25 @@ export function screenContextEqual(a: ScreenContext | null | undefined, b: Scree
   }
   return true;
 }
+
+/**
+ * 화면 값을 문맥 값(문자열·숫자·null)으로 바꾼다. 위젯 입력 칸에 그대로 채울 수 없는 값(객체·배열·함수)은 undefined 로 돌려 게시에서 뺀다.
+ * 숫자(유한)·문자열은 그대로, null·undefined·NaN 은 null, 불리언은 "true"/"false", 날짜는 ISO 문자열.
+ */
+export function toScreenContextValue(v: unknown): ScreenContextValue | undefined {
+  if (v == null) return null;
+  switch (typeof v) {
+    case "number":
+      return Number.isFinite(v) ? v : null;
+    case "string":
+      return v;
+    case "boolean":
+      return String(v);
+    case "bigint":
+      return v.toString();
+    case "object":
+      return v instanceof Date ? (Number.isNaN(v.getTime()) ? null : v.toISOString()) : undefined;
+    default:
+      return undefined;
+  }
+}

@@ -824,6 +824,7 @@ export function PortalShell({
           windows={dock.windows}
           registry={dockRegistry}
           frame={widgetDock.frame}
+          activeTabId={activeTabId}
           onMove={dock.move}
           onResize={dock.resize}
           onToggleCollapse={dock.toggleCollapse}

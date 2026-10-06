@@ -3,7 +3,7 @@
  * 위젯 하나 = 폴더 하나(widget.meta.ts + widget.tsx). 등록부(WidgetRegistry)는 화면 쪽(m-mcm)이 코드 생성으로 만든다.
  */
 import type { ComponentType, ReactNode } from "react";
-import type { ScreenContext } from "../screen-context/types";
+import type { ScreenApply, ScreenContext } from "../screen-context/types";
 
 /** 위젯 아이콘 — size·stroke 를 받는 아이콘 컴포넌트(@tabler/icons-react 와 같은 모양). */
 export type WidgetIcon = ComponentType<{ size?: number; stroke?: number }>;
@@ -75,6 +75,11 @@ export interface WidgetProps {
    * 키 비교는 `findScreenContextValue` 로 한다(대소문자·밑줄 차이 무시).
    */
   screenContext?: ScreenContext | null;
+  /**
+   * 활성 업무 탭에 값을 넣는 역방향 통로. 도구 창(도크)에서만 채워지고 보드에서는 null 이거나 없다.
+   * 받는 화면이 없으면 `available` 이 false 이므로 위젯은 버튼을 숨기거나 막는다.
+   */
+  screenApply?: ScreenApply | null;
 }
 
 export type WidgetComponent = (props: WidgetProps) => ReactNode;
