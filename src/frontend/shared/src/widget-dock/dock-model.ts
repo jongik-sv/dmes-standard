@@ -33,13 +33,14 @@ export function isDockMenuEntry(
 }
 
 /**
- * 도구 창을 그리고 저장값에 남길 수 있는 위젯인지 — 메뉴 항목이거나, 배치를 W 로 바꾸기 전에 이미 열린 floatable 창이다
- * (사용자가 열어 둔 창을 관리자 설정 변경으로 갑자기 없애지 않는다. 닫으면 메뉴에서는 다시 못 연다).
+ * 도구 창을 그리고 저장값에 남길 수 있는 위젯인지 — 메뉴 항목이거나, 배치를 W 로 바꾸기 전에 이미 열린 창이다
+ * (저장된 창만 이 함수로 판정되므로 W 는 「새로 못 연다」는 뜻이다. 사용자가 열어 둔 창을 관리자 설정 변경으로 갑자기 없애지 않고,
+ * 닫으면 메뉴에서는 다시 못 연다).
  */
 export function isDockableEntry(
   entry: WidgetRegistryEntry | undefined
 ): entry is WidgetRegistryEntry {
-  return !!entry && !entry.meta.disabled && (resolveWidgetPlacement(entry.meta).dock || entry.meta.floatable === true);
+  return !!entry && !entry.meta.disabled && (resolveWidgetPlacement(entry.meta).dock || entry.meta.placement === "W");
 }
 
 /** 「도구」 메뉴 목록 — 새로 띄울 수 있는 위젯을 제목순(한국어)으로. */

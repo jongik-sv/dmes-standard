@@ -63,7 +63,7 @@ export function WidgetPicker({ registry, items, onAdd, typeTitles, categoryTitle
     const present = new Set(
       Object.values(registry)
         .map((e) => e.meta)
-        .filter((m) => !m.disabled && !m.private && m.category)
+        .filter((m) => !m.disabled && !m.private && m.category && resolveWidgetPlacement(m).board)
         .map((m) => m.category as string),
     );
     return Object.keys(categoryTitles).filter((c) => present.has(c));

@@ -72,10 +72,15 @@ describe("dock-model — 목록·크기", () => {
     const w = entry("a", { floatable: true, placement: "W" });
     expect(isDockMenuEntry(w)).toBe(false);
     expect(isDockableEntry(w)).toBe(true);
-    expect(isDockableEntry(entry("a", { floatable: false, placement: "W" }))).toBe(false);
     expect(isDockableEntry(entry("a", { floatable: false, placement: "B" }))).toBe(true);
-    const registry: WidgetRegistry = { a: w };
-    const windows = [win("w1", { widgetId: "a" })];
+    // A·B 로 열어 둔 창(유형 floatable 아님)을 관리자가 W 로 바꿔도 열린 창은 남는다.
+    const wNotFloatable = entry("b", { floatable: false, placement: "W" });
+    expect(isDockMenuEntry(wNotFloatable)).toBe(false);
+    expect(isDockableEntry(wNotFloatable)).toBe(true);
+    // 배치가 없고 floatable 도 아니면 예전처럼 창을 지운다.
+    expect(isDockableEntry(entry("c", { floatable: false }))).toBe(false);
+    const registry: WidgetRegistry = { a: w, b: wNotFloatable };
+    const windows = [win("w1", { widgetId: "a" }), win("w2", { widgetId: "b" })];
     expect(sanitizeDockWindows(windows, registry, "ready")).toBe(windows);
   });
 

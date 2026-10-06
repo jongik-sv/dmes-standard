@@ -126,6 +126,16 @@ describe("WidgetPicker", () => {
     expect(ids()).toHaveLength(3);
   });
 
+  it("B(업무 화면만) 위젯만 있는 분류는 칩이 생기지 않는다", () => {
+    const reg: WidgetRegistry = {
+      ...REG,
+      "def.tb1": entry({ id: "def.tb1", title: "도구 전용", kind: "def", typeId: "query-table", category: "TOOL", placement: "B" }),
+    };
+    render({ registry: reg, typeTitles: TYPE_TITLES, categoryTitles: { COMMON: "공통", PROD: "생산", TOOL: "도구" } });
+    const chips = [...host.querySelectorAll(".cm-widget-picker__cat")].map((e) => e.textContent);
+    expect(chips).toEqual(["전체", "공통", "생산"]);
+  });
+
   it("categoryTitles 가 없으면 묶음 머리글·칩이 없다(기존 서랍 그대로)", () => {
     render({ typeTitles: TYPE_TITLES });
     expect(host.querySelector(".cm-widget-picker__group")).toBeNull();

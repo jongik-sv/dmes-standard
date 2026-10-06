@@ -116,6 +116,26 @@ describe("parseTabImport", () => {
     });
   });
 
+  it("배치가 B(업무 화면만)인 위젯은 가져오지 않고 알림에 사유를 적는다", () => {
+    const reg: WidgetRegistry = {
+      ...REG,
+      "t.tool": { meta: { id: "t.tool", title: "도구", defaultSize: { w: 6, h: 6 }, placement: "B" }, load },
+    };
+    const text = file({
+      items: [
+        { widgetId: "t.a", x: 0, y: 0, w: 6, h: 6, locked: false, config: null },
+        { widgetId: "t.tool", x: 6, y: 0, w: 6, h: 6, locked: false, config: null },
+      ],
+    });
+    const out = parseTabImport(text, { registry: reg, tabs: base, newId: () => "fresh" });
+    expect(out.ok).toBe(true);
+    if (out.ok) {
+      expect(out.dropped).toEqual([{ widgetId: "t.tool", reason: "placement" }]);
+      expect(out.tab.items.map((i) => i.widgetId)).toEqual(["t.a"]);
+      expect(tabImportMessage("생산", out.dropped)).toContain("업무 화면 전용 위젯(t.tool)");
+    }
+  });
+
   it("JSON 이 아니면 거절한다", () => {
     expect(parseTabImport("{oops", { registry: REG, tabs: base })).toEqual({ ok: false, error: "JSON 파일이 아닙니다." });
   });

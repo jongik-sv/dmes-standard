@@ -41,7 +41,7 @@ import { WidgetFrame } from "@dk-oasis/shared/widget";
 | 함수 | 하는 일 |
 |---|---|
 | `isDockMenuEntry(entry)` | 새로 띄울 수 있음 — 사용 중지가 아니고 배치 해석(`resolveWidgetPlacement`)이 도구 창을 허용(A·B 는 floatable 무관, W 는 막음, 배치 없으면 floatable) |
-| `isDockableEntry(entry)` | 창을 그리고 저장값에 남길 수 있음 — 위 조건이거나 이미 열린 floatable 창(배치를 W 로 바꿔도 열린 창은 닫지 않음) |
+| `isDockableEntry(entry)` | 창을 그리고 저장값에 남길 수 있음 — 위 조건이거나 배치 W(이미 열린 창은 W 로 바꿔도 닫지 않음, 새로는 못 염) |
 | `listDockableEntries(registry)` | 「도구」 메뉴 항목(`isDockMenuEntry`)을 제목순(한국어) |
 | `windowSizeFor(meta)` | `defaultSize` 칸 → px(`DOCK_CELL_PX` 가로 40·세로 30), 최소 `DOCK_MIN_SIZE` 220×160 |
 | `dockItemSize(win)` | 창 px → 위젯 본체 `size`(칸) |
