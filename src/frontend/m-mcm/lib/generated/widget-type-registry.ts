@@ -15,9 +15,10 @@ import { meta as t8 } from "@/widget-types/memo/type.meta";
 import { meta as t9 } from "@/widget-types/query-chart/type.meta";
 import { meta as t10 } from "@/widget-types/query-number/type.meta";
 import { meta as t11 } from "@/widget-types/query-table/type.meta";
-import { meta as t12 } from "@/widget-types/unit-converter/type.meta";
-import { meta as t13 } from "@/widget-types/weather/type.meta";
-import { meta as t14 } from "@/widget-types/web/type.meta";
+import { meta as t12 } from "@/widget-types/rule-calc/type.meta";
+import { meta as t13 } from "@/widget-types/unit-converter/type.meta";
+import { meta as t14 } from "@/widget-types/weather/type.meta";
+import { meta as t15 } from "@/widget-types/web/type.meta";
 
 export const WIDGET_TYPE_REGISTRY: WidgetTypeRegistry = {
   "calculator": {
@@ -80,18 +81,23 @@ export const WIDGET_TYPE_REGISTRY: WidgetTypeRegistry = {
     loadRenderer: () => import("@/widget-types/query-table/renderer"),
     loadEditor: () => import("@/widget-types/query-table/editor"),
   },
-  "unit-converter": {
+  "rule-calc": {
     meta: t12,
+    loadRenderer: () => import("@/widget-types/rule-calc/renderer"),
+    loadEditor: () => import("@/widget-types/rule-calc/editor"),
+  },
+  "unit-converter": {
+    meta: t13,
     loadRenderer: () => import("@/widget-types/unit-converter/renderer"),
     loadEditor: () => import("@/widget-types/unit-converter/editor"),
   },
   "weather": {
-    meta: t13,
+    meta: t14,
     loadRenderer: () => import("@/widget-types/weather/renderer"),
     loadEditor: () => import("@/widget-types/weather/editor"),
   },
   "web": {
-    meta: t14,
+    meta: t15,
     loadRenderer: () => import("@/widget-types/web/renderer"),
     loadEditor: () => import("@/widget-types/web/editor"),
   },

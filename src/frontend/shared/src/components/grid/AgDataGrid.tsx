@@ -6,6 +6,9 @@ import { MantineContext } from "@mantine/core";
 import { AgGridReact } from "ag-grid-react";
 import { AllCommunityModule, ModuleRegistry } from "ag-grid-community";
 import type {
+  CellFocusedEvent,
+  CellValueChangedEvent,
+  SelectionChangedEvent,
   GridReadyEvent,
   RowClickedEvent,
   ColDef,
@@ -30,6 +33,7 @@ import { useGridMdm, mdmHeaderLabelSignature } from "./grid-mdm";
 import { buildColumnDefs, hasEditableColumn, resolveRowDrag } from "./column-defs";
 import { displayedRowKeys, useRowCursor } from "./row-cursor";
 import { useGridSelection } from "./useGridSelection";
+import { useGridScreenContext } from "./useGridScreenContext";
 import { useGridEditing, useGridRowClass } from "./useGridEditing";
 import { useGridAutoSize } from "./useGridAutoSize";
 import { useGridCarry } from "./useGridCarry";
@@ -93,6 +97,8 @@ function AgDataGridComponent({
   getRowHeight,
   enableRowClickSelect = false,
   selectExcludeColumns = [],
+  publishScreenContext = true,
+  acceptScreenApply = false,
   rowClickCheck = false,
   onCellValueChanged,
   singleClickEdit = false,
@@ -281,6 +287,32 @@ function AgDataGridComponent({
     autoSizeOnDataUpdate,
   });
 
+  // 화면 문맥 자동 게시(useGridScreenContext.ts) — 선택 행(없으면 포커스 행)을 도구 창 위젯에 넘긴다. 아래 이벤트 처리기에 덧붙이며, 끄면(false) 이벤트 배선이 예전과 같다.
+  const screenCtx = useGridScreenContext({ gridRef, containerRef, enabled: publishScreenContext, acceptApply: acceptScreenApply });
+  const onSelectionChangedWithCtx = useCallback(
+    (event: SelectionChangedEvent) => {
+      handleSelectionChanged(event);
+      // 새 데이터를 받으며 옛 선택이 사라지는 변경은 사용자 조작이 아니라 데이터 갱신이다(다른 그리드의 문맥을 빼앗지 않는다).
+      if (event.source === "rowDataChanged" || event.source === "gridInitializing") screenCtx.onDataChange();
+      else screenCtx.onUserPick();
+    },
+    [handleSelectionChanged, screenCtx]
+  );
+  const onRowDataUpdatedWithCtx = useCallback(
+    () => {
+      onRowDataUpdated();
+      screenCtx.onDataChange();
+    },
+    [onRowDataUpdated, screenCtx]
+  );
+  const onCellValueChangedWithCtx = useCallback(
+    (event: CellValueChangedEvent) => {
+      handleCellValueChanged(event);
+      screenCtx.onDataChange();
+    },
+    [handleCellValueChanged, screenCtx]
+  );
+
   // 컬럼 개인화(gridId·personalize) — 복원·자동 저장·열 정의 재주입 뒤 재적용. 결과(handle)는 컬럼 설정 창(C3)이 쓴다.
   const getGridApi = useCallback(() => gridRef.current?.api, []);
   const personalizeHandle = useGridPersonalize({
@@ -456,6 +488,14 @@ function AgDataGridComponent({
     onRowExpandCollapse,
   });
 
+  // 칸 포커스 — 화면이 onFocusedRowChange 를 받지 않고 문맥 게시도 끈 그리드는 예전처럼 처리기를 달지 않는다.
+  const onCellFocusedWithCtx = useCallback(
+    (event: CellFocusedEvent) => {
+      handleCellFocused(event);
+      screenCtx.onUserPick();
+    },
+    [handleCellFocused, screenCtx]
+  );
   // 행 클래스(useGridEditing.ts) — 커서 훅 바로 뒤에서 불러 커서 → rowClassRefreshToken → _rowState 효과 순서를 지킨다.
   const getRowClass = useGridRowClass({
     gridRef,
@@ -610,16 +650,16 @@ function AgDataGridComponent({
         }
         onGridReady={onGridReady}
         onFirstDataRendered={onFirstDataRendered}
-        onRowDataUpdated={onRowDataUpdated}
+        onRowDataUpdated={publishScreenContext ? onRowDataUpdatedWithCtx : onRowDataUpdated}
         onGridSizeChanged={onGridSizeChanged}
         onColumnResized={handleColumnResized}
         onRowClicked={handleRowClicked}
         onRowDoubleClicked={handleRowDoubleClicked}
-        onCellFocused={onFocusedRowChange ? handleCellFocused : undefined}
+        onCellFocused={publishScreenContext ? onCellFocusedWithCtx : onFocusedRowChange ? handleCellFocused : undefined}
         onCellKeyDown={handleCellKeyDown}
         onCellEditingStopped={handleCellEditingStopped}
-        onSelectionChanged={handleSelectionChanged}
-        onCellValueChanged={handleCellValueChanged}
+        onSelectionChanged={publishScreenContext ? onSelectionChangedWithCtx : handleSelectionChanged}
+        onCellValueChanged={publishScreenContext ? onCellValueChangedWithCtx : handleCellValueChanged}
         singleClickEdit={singleClickEdit}
         suppressClickEdit={false}
         stopEditingWhenCellsLoseFocus={stopEditingWhenCellsLoseFocus}

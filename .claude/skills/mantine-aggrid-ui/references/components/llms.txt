@@ -59,6 +59,10 @@
 
 - [위젯 (WidgetWorkspace · WidgetBoard · WidgetFrame · WidgetTabs · WidgetPicker)](widget.md): 사용자가 위젯(조각 프로그램)을 24칸 격자에서 자유롭게 옮기고 크기를 바꾸며, 탭으로 나눠 서버에 저장하게 하는 홈 화면을 만들 때 쓴다(관리자 정의 위젯·사용 중지·기본 배치 편집 포함). 행 단위 대시보드가 필요하면 [dashboard](dashboard.md), 사용자가 자유 배치·탭·서버 저장을 쓰면 widget 을 고른다.
 
+## 화면 문맥 — 업무 화면 ↔ 도구 창 위젯 (`@dk-oasis/shared/screen-context`)
+
+- [화면 문맥 (screen-context · usePublishScreenContext · useScreenContext · useScreenApplyHandler · useScreenApply)](screen-context.md): 업무 화면이 가진 값(그리드 선택 행·폼 입력값)을 업무 화면 위 도구 창(위젯 도크)의 위젯이 자동으로 받고, 반대로 위젯이 계산한 값을 업무 화면에 넣을 때 쓰는 공통 통로다. 탭마다 한 건을 보관하고 도크에는 활성 탭의 것만 보인다.
+
 ## 위젯 도크·떠 있는 창·탭 분리 창·분리 상태 이어받기 (`@dk-oasis/shared/portal-shell`)
 
 - [위젯 도크 (PortalShell widgetDock · WidgetDockLayer · DockToolsMenu · useWidgetDock)](widget-dock.md): 포털 머리 「도구」 버튼으로 `floatable` 위젯(계산기·단위 변환·메모)을 업무 화면 위 떠 있는 창으로 띄울 때 쓴다. 창은 여러 개·이동·크기 조절·접기(아이콘)가 되고, 탭을 바꿔도 남으며 사용자별로 저장한다. 화면(m-*)은 이 부품을 직접 쓰지 않는다 — 포털 호스트가 `PortalShell` 에 `widgetDock` 을 넘기면 셸이 그린다.
