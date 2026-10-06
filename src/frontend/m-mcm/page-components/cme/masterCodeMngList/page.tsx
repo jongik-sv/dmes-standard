@@ -28,7 +28,7 @@ import {
 import { Select } from "@dk-oasis/shared/form";
 import { GridPanel, AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
-import { useCarryRefetch, useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
+import { useCarryRefetch, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { searchMaster, searchDetail } from "./api";
 import type {
   MasterCodeMngListCategoryLov,
@@ -93,7 +93,8 @@ const DETAIL_COLUMNS: GridColumn[] = [
 export default function MasterCodeMngListPage() {
   const { showMessage } = useMessage();
 
-  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·선택 키는 가볍게, 조회 결과(행·카테고리 LOV)는 bulky 로 옮긴다.
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·선택 키는 가볍게, 사용자가 조회한 결과 배열(Master·Detail 행)은 bulky 로 옮긴다.
+  // 카테고리 LOV 는 Master 선택 때 불러오는 목록이라 이어받지 않는다(useState) — 이어받은 선택이 있으면 새 창이 상세를 한 번 다시 불러 채운다.
   const [filters, setFilters] = useCarryState<MasterCodeMngListFilters>("filters", DEFAULT_FILTERS);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,16 +103,13 @@ export default function MasterCodeMngListPage() {
   const [selectedMasterKey, setSelectedMasterKey] = useCarryState<string | null>("selectedMasterKey", null);
 
   const [detailRows, setDetailRows] = useCarryState<(MasterCodeMngListDetailRow & { __rowId: string })[]>("detailRows", [], { bulky: true });
-  const [categoryLov, setCategoryLov] = useCarryState<MasterCodeMngListCategoryLov[]>("categoryLov", [], { bulky: true });
+  const [categoryLov, setCategoryLov] = useState<MasterCodeMngListCategoryLov[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useCarryState<string>("selectedCategoryId", "");
-  // 한 번이라도 조회했는가 — 이 화면은 진입 때 자동 조회하지 않는다(V-702). 분리 창이 행을 못 받았을 때 조회한 적 없는 화면까지
-  // 전체 조회로 채우지 않도록, 자동 재조회는 이 값이 true 일 때만 한다.
-  const [searched, setSearched] = useCarryState<boolean>("searched", false);
 
-  // 이어받은 값으로 시작했고 선택한 Master 의 상세(카테고리 LOV 포함)까지 있으면, 그 선택에 대한 첫 상세 조회를 건너뛴다.
-  // 다시 조회하면 요청이 한 번 더 나가고 이어받은 카테고리 선택이 "" 로 지워진다. 사용자가 다른 행을 고르거나 다시 조회하면 해제한다.
-  const restored = useCarryRestored();
-  const restoredDetailKeyRef = useRef<string | null>(restored && selectedMasterKey != null && categoryLov.length > 0 ? selectedMasterKey : null);
+  // 이어받은 Master 선택(첫 렌더에 이미 선택 키가 있으면 이어받은 것이다)의 첫 상세 조회는 카테고리 LOV 만 채운다 —
+  // 이어받은 카테고리 선택(selectedCategoryId)은 "" 로 지우지 않고, "N건 조회" 안내도 띄우지 않는다.
+  // 사용자가 다른 행을 고르거나 다시 조회하면 해제한다.
+  const restoredDetailKeyRef = useRef<string | null>(selectedMasterKey);
 
   const selectedMaster = useMemo<MasterCodeMngListMasterRow | null>(() => {
     if (!selectedMasterKey) return null;
@@ -134,7 +132,6 @@ export default function MasterCodeMngListPage() {
         const payload = await searchMaster(f);
         const rows = (payload.ds_GetCodeMasterList ?? []) as MasterCodeMngListMasterRow[];
         restoredDetailKeyRef.current = null;
-        setSearched(true);
         setMasterRows(rows);
         // V-702 (xfdl:266) — 자동 조회 ✗, 초기 진입 시 자동 선택 ✗.
         // 본 함수 호출 후에는 선택을 재초기화 (As-Is fn_search 의 ds_grdMain.clearData() 와 정합)
@@ -150,12 +147,12 @@ export default function MasterCodeMngListPage() {
         setIsSearching(false);
       }
     },
-    [showMessage],
+    [showMessage, setMasterRows, setSelectedMasterKey, setDetailRows, setSelectedCategoryId],
   );
 
-  /** action=searchDetail 호출 (fn_searchDetail, xfdl:303). */
+  /** action=searchDetail 호출 (fn_searchDetail, xfdl:303). keepCategory: 이어받은 첫 상세 조회 — 카테고리 선택·안내를 건드리지 않는다. */
   const loadDetail = useCallback(
-    async (master: MasterCodeMngListMasterRow | null) => {
+    async (master: MasterCodeMngListMasterRow | null, keepCategory = false) => {
       if (!master) {
         // V-203 (xfdl:373~376) — Master 없으면 Detail clear
         setDetailRows([]);
@@ -180,13 +177,18 @@ export default function MasterCodeMngListPage() {
           ...cats,
         ];
         setCategoryLov(catsWithAll);
-        setSelectedCategoryId("");
-        showMessage({ message: `${rows.length}건 조회 되었습니다.`, toast: true });
+        if (!keepCategory) {
+          setSelectedCategoryId("");
+          showMessage({ message: `${rows.length}건 조회 되었습니다.`, toast: true });
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "상세 조회 실패");
+      } finally {
+        // 이어받은 선택에 대한 첫 조회가 끝났다 — 이후 조회는 평소대로 카테고리를 "" 로 돌린다.
+        if (keepCategory) restoredDetailKeyRef.current = null;
       }
     },
-    [showMessage],
+    [showMessage, setDetailRows, setSelectedCategoryId],
   );
 
   // V-702 (xfdl:266) — fn_formAfterOnload 의 this.fn_search(); 가 주석 처리됨 → 자동 조회 ✗.
@@ -195,9 +197,9 @@ export default function MasterCodeMngListPage() {
   useEffect(() => {
     // Master row 선택 변경 시 Detail 자동 조회 (V-202 / V-203, xfdl:366~376)
     if (selectedMaster) {
-      // 분리 창이 이어받은 상세가 이미 있으면 다시 조회하지 않는다.
-      if (restoredDetailKeyRef.current === getMasterRowId(selectedMaster)) return;
-      void loadDetail(selectedMaster);
+      // 분리 창이 이어받은 선택이면 LOV 만 채우고 이어받은 카테고리 선택은 그대로 둔다(한 번만).
+      const keepCategory = restoredDetailKeyRef.current === getMasterRowId(selectedMaster);
+      void loadDetail(selectedMaster, keepCategory);
     } else {
       void loadDetail(null);
     }
@@ -211,17 +213,15 @@ export default function MasterCodeMngListPage() {
   const handleSearch = () => void loadMaster(filters);
 
   // 분리 창이 조회 결과(행)를 못 받았을 때(opener 를 못 쓰는 경우) 이어받은 조회 조건으로 한 번 다시 조회한다.
-  // loadMaster 가 선택·상세를 비우므로 행과 어긋난 선택 키가 남지 않는다.
-  useCarryRefetch(() => {
-    if (searched) handleSearch();
-  });
+  // 조회하지 않은 탭(행이 빈 배열)은 공통 장치가 재조회하지 않는다. loadMaster 가 선택·상세를 비우므로 행과 어긋난 선택 키가 남지 않는다.
+  useCarryRefetch(() => loadMaster(filters));
 
   /** Master 그리드 행 클릭 → Detail 자동 조회 (V-201~V-204). */
   const handleMasterRowClick = useCallback((row: Record<string, unknown>) => {
     const r = row as MasterCodeMngListMasterRow;
     restoredDetailKeyRef.current = null;
     setSelectedMasterKey(getMasterRowId(r));
-  }, []);
+  }, [setSelectedMasterKey]);
 
   // Detail 그리드 카테고리 필터 (FX-002 onitemchanged, xfdl:355~360)
   const filteredDetailRows = useMemo(() => {
