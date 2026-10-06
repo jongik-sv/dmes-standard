@@ -54,6 +54,11 @@ useEffect(() => {
 6. 값은 JSON 으로 옮길 수 있어야 한다. `Date` 는 문자열로 두고, `Set`·`Map`·`dayjs` 같은 값은 쓰지 않는다(개발 모드 경고). 그런 상태는 `useState` 로 둔다.
 7. key 는 화면 안에서 유일해야 한다. 같은 key 를 두 번 쓰면 개발 모드에서 경고한다. 같은 key 의 복원값은 한 번만 쓰인다.
 8. setter 를 `useCallback`·`useEffect` deps 에 넣는다. eslint 가 안정값으로 인식하지 못해 요구하지만 넣어도 무해하다.
+9. 선택 키를 carry 하면 마운트 effect 에서 `useCarryRestored() && 키` 일 때 기존 선택 함수를 한 번 불러 상세를 다시 읽는다. 포털 탭(복원값 없음)에서는 이 effect 가 아무것도 하지 않아야 한다. 선택 함수가 같은 id 면 바로 빠져나가는 핸들러(`handleRowClick` 등)이면 핸들러 대신 목록 행으로 적재 함수(`loadForm` 등)를 직접 부른다. 상세를 carry 하지 않으면서 상세 선택 키(`selectedDetailKey` 등)만 carry 하지 않는다(키만 남아 없는 행을 가리킨다).
+10. 진입 대상을 handoff 가 정하는 화면은 복원 호출에서 handoff 가 이기게 한다(handoff 콜백이 `ref` 에 표시하고 복원 effect 는 그 표시가 없을 때만 부른다). 선택 함수가 토스트·확인 창을 띄우면 복원 호출에서는 뜨지 않게 한다.
+11. 행 없이 복원돼 재조회하는 화면에서 하위 그리드가 선택 키 변경으로 다시 조회된다면, 복원된 선택 키가 같은 값이라 effect 가 안 돌 수 있다. 재조회 경로에서 선택 함수를 직접 부르거나 키를 한 번 비운다. 선택 함수가 목록 행에서 값을 찾는 화면은 행이 생긴 뒤 한 번 부른다(`dma/columnMng`: 첫 렌더에 행이 없으면 ref 에 대기시키고 `[list]` effect 에서 부른다). 재조회·`handleSearch` 가 선택을 비우는 화면은 재조회 함수가 이어받은 선택 키를 받아 새 목록에서 그 행을 찾아 지키게 한다(`dma/termMng`·`dma/unitMng`).
+12. 조회 결과가 객체 하나(탭별 배열을 담은 객체 등)라 빈 값 판정이 안 되면, "조회한 조건"(예: `submitted`)이 없을 때 refetch 가 아무것도 하지 않게 가드한다.
+13. 마운트 effect 에서 조회·선택 함수를 부르면 `react-hooks/set-state-in-effect` 에 걸릴 수 있다. 기존 화면처럼 해당 줄 바로 위에 `// eslint-disable-next-line react-hooks/set-state-in-effect` 한 줄로 둔다(deps 는 `// eslint-disable-next-line react-hooks/exhaustive-deps`).
 
 ## API
 
@@ -74,6 +79,7 @@ useEffect(() => {
 - 그리드 선택 표시·스크롤 위치는 AgDataGrid 2단계 작업 전까지 이어지지 않는다. 선택을 `selectedRows` prop 으로 제어하는 화면은 선택 키만으로 선택 표시가 살아난다.
 - 열려 있는 셀 편집기의 값은 그리드 안에만 있어 빠질 수 있다. 화면 상태에 있는 미저장 편집 행은 그대로 옮겨진다(분리는 원래 탭을 닫는 옮기기다).
 - 분리 순간에 조회가 진행 중이면 조건과 행이 어긋날 수 있다.
+- 선택에 따라 다시 조회하는 하위 그리드·상세 폼(자식 컴포넌트 ref 가 들고 있는 값)의 미저장 편집은 빠진다. 화면이 선택 키만 이어받고, 새 창에서 선택 함수로 상세를 서버에서 다시 읽는다.
 - 탭 snapshot(`onSnapshotChange`)과는 별개다. 성능 가이드 R8(선택 행을 snapshot 에 넣지 않음)과 충돌하지 않는다. 분리 순간에만 모으고 렌더가 늘지 않기 때문이다.
 
 ## 흔한 실수
@@ -87,11 +93,18 @@ useEffect(() => {
 | 마운트 자동 조회 화면이 `useCarryRestored()` 를 확인하지 않음 | 틀린 화면은 되지 않지만 같은 조건으로 한 번 더 조회한다. `!restored \|\| 행.length === 0` 일 때만 자동 조회한다 |
 | 마운트 자동 조회 화면이 `useCarryRestored()` 만 보고 건너뜀 | 분리 순간 조회 중이었으면 빈 그리드로 남는다. 행 길이도 함께 본다 |
 | 마운트 자동 조회 화면에 `useCarryRefetch` 도 둠 | 행 없이 복원되면 두 번 조회한다. 자동 조회 화면은 `useCarryRefetch` 를 두지 않는다 |
-| 조회 여부 플래그(`searched` 등)를 따로 두어 재조회를 막음 | 필요 없다. 빈 배열·null 인 bulky 값은 "넘겨받은 행" 으로 세지 않으므로 공통 장치가 막는다 |
+| 조회 여부 플래그(`searched` 등)를 따로 두어 재조회를 막음 | bulky 값이 배열·null 이면 필요 없다. 빈 배열·null 은 "넘겨받은 행" 으로 세지 않으므로 공통 장치가 막는다. 예외: 결과가 객체 하나라 빈 값 판정이 안 되면 "조회한 조건"(`submitted` 등)을 두고 refetch 에서 가드한다(치환 규칙 12) |
 | setter 를 `useCallback`·`useEffect` deps 에서 뺌 | eslint `react-hooks/exhaustive-deps` 경고가 난다. setter 도 넣는다(무해) |
+| 선택 키만 carry 하고 상세를 다시 읽지 않음 | 새 창에서 행 강조만 있고 상세가 빈다. 마운트 effect 에서 `useCarryRestored() && 키` 일 때 선택 함수를 한 번 부른다(포털 탭은 복원값이 없어 아무것도 하지 않는다) |
+| 같은 id 면 빠져나가는 핸들러로 선택을 복원하려 함 | 핸들러가 그냥 돌아와 폼이 안 채워진다. 목록 행으로 적재 함수(`loadForm`)를 직접 부른다 |
+| 상세 행은 carry 하지 않으면서 상세 선택 키만 carry 함 | 키가 없는 행을 가리킨다. 상세 선택 키는 `useState` 로 둔다 |
+| 행 없이 복원돼 재조회하는 화면에서 선택 함수를 재조회 전에 부르거나, 재조회 함수가 선택을 비움 | 선택이 사라지거나 목록에서 행을 못 찾는다. 재조회 함수가 이어받은 선택 키를 받아 새 목록에서 찾아 지킨다 |
+| 복원 선택 호출이 handoff 진입 대상을 덮음 | handoff 콜백이 표시한 ref 가 있으면 복원 호출을 건너뛴다 |
+| 조회 결과가 객체 하나인 화면에서 조회한 적이 없는데 refetch 가 서버를 부름 | "조회한 조건"(`submitted` 등)이 없으면 refetch 가 아무것도 하지 않게 가드한다 |
 | 탭 복귀용으로 이 훅을 씀 | 이 훅은 분리 순간에만 값을 모은다. 탭 복귀 상태는 snapshot 이다 |
 
 ## 실제 사용 예
 
 - `src/frontend/m-mcm/page-components/cme/masterCodeMngList/page.tsx`: 조회 조건·마스터 행·상세 행·선택 키·선택 카테고리를 이어받고, 행 없이 복원되면 `useCarryRefetch(() => loadMaster(filters))` 로 재조회한다. 카테고리 LOV 는 마운트 때 다시 받으므로 `useState` 다. 진입 때 자동 조회가 없는 화면이라 `useCarryRestored` 는 쓰지 않는다.
-- 시험: `src/frontend/shared/tests/unit/carry-state.unit.test.ts`(shared vitest).
+- 선택 복원 예: `src/frontend/m-mdm/pages/dme/ruleMng/page.tsx` — `selectedId` 를 light 로 이어받고, 마운트 effect 에서 `useCarryRestored() && selectedId` 일 때 `choose(selectedId)` 를 한 번 불러 상세를 서버에서 다시 읽는다. `choose` 가 `selectedIdRef` 를 동기로 채우므로(재조회 effect 뒤에 돌아도 재조회 응답보다 먼저다) 행 없이 복원돼 재조회가 돌아도 첫 줄 자동 선택이 이어받은 선택을 덮지 않는다. `selectedIdRef` 를 이어받은 값으로 시작하는 것은 순서에 기대지 않으려는 방어다. 폼을 목록 행으로 채우는 화면은 `dma/termMng`·`dma/unitMng`(`loadForm` 직접 호출), handoff 가 우선인 화면은 `dme/ruleConfirm`(`handedOff` ref).
+- 시험: `src/frontend/shared/tests/unit/carry-state.unit.test.ts`(shared vitest). 화면 복원 시험은 `createCarryRegistry(restore)` + `CarryStateProvider` 로 감싸 렌더한다 — `src/frontend/m-mdm/tests/dme/ruleMng/rule-mng-carry-restore.test.ts`.
