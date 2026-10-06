@@ -3,6 +3,7 @@
  * 창 크기는 위젯 메타 defaultSize(격자 칸)를 칸당 가로 40px·세로 30px 로 바꾸고 최소 220×160 을 지킨다.
  */
 import type { WidgetMeta, WidgetRegistry, WidgetRegistryEntry } from "../widget/types";
+import { resolveWidgetPlacement } from "../widget/widget-placement";
 import type { DockRegistryStatus, DockViewport, DockWindow } from "./types";
 
 /** 격자 한 칸의 px — 가로·세로. */
@@ -21,17 +22,31 @@ const CASCADE = { right: 32, top: 72, step: 28 } as const;
 /** 창 ID = 위젯 본체 instanceId — 메모 서버 키 규칙(WidgetMemoService INST_ID)과 같다. */
 export const DOCK_WINDOW_ID_PATTERN = /^[A-Za-z0-9_-]{1,40}$/;
 
-/** 도구 창으로 띄울 수 있는 위젯인지 — floatable 이고 사용 중지가 아니다. */
+/**
+ * 도구 창을 새로 띄울 수 있는 위젯인지(「도구」 메뉴 항목) — 사용 중지가 아니고 배치 해석이 도구 창을 허용한다.
+ * 배치(placement) A·B 는 floatable 과 상관없이 허용, W 는 막고, 배치가 없으면 floatable 을 따른다.
+ */
+export function isDockMenuEntry(
+  entry: WidgetRegistryEntry | undefined
+): entry is WidgetRegistryEntry {
+  return !!entry && !entry.meta.disabled && resolveWidgetPlacement(entry.meta).dock;
+}
+
+/**
+ * 도구 창을 그리고 저장값에 남길 수 있는 위젯인지 — 메뉴 항목이거나, 배치를 W 로 바꾸기 전에 이미 열린 창이다
+ * (저장된 창만 이 함수로 판정되므로 W 는 「새로 못 연다」는 뜻이다. 사용자가 열어 둔 창을 관리자 설정 변경으로 갑자기 없애지 않고,
+ * 닫으면 메뉴에서는 다시 못 연다).
+ */
 export function isDockableEntry(
   entry: WidgetRegistryEntry | undefined
 ): entry is WidgetRegistryEntry {
-  return !!entry && entry.meta.floatable === true && !entry.meta.disabled;
+  return !!entry && !entry.meta.disabled && (resolveWidgetPlacement(entry.meta).dock || entry.meta.placement === "W");
 }
 
-/** 「도구」 메뉴 목록 — 띄울 수 있는 위젯을 제목순(한국어)으로. */
+/** 「도구」 메뉴 목록 — 새로 띄울 수 있는 위젯을 제목순(한국어)으로. */
 export function listDockableEntries(registry: WidgetRegistry): WidgetRegistryEntry[] {
   return Object.values(registry)
-    .filter(isDockableEntry)
+    .filter(isDockMenuEntry)
     .sort(
       (a, b) => a.meta.title.localeCompare(b.meta.title, "ko") || a.meta.id.localeCompare(b.meta.id)
     );

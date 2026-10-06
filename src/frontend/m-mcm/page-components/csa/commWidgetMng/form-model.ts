@@ -143,6 +143,7 @@ export function rowToForm(row: WidgetDefRow): DefForm {
     multipleYn: row.multipleYn ?? (isDef ? "Y" : ""),
     categoryCd: row.categoryCd ?? "",
     privateYn: row.privateYn ?? "N",
+    placeTp: row.placeTp ?? "",
     useYn: row.useYn,
     dataSrc: isDef ? row.dataSrc : null,
     config: isDef ? row.config : null,
@@ -170,6 +171,7 @@ export function codeForm(widgetId: string, row?: WidgetDefRow): DefForm {
     multipleYn: "",
     categoryCd: "",
     privateYn: "N",
+    placeTp: "",
     useYn: "Y",
     dataSrc: null,
     config: null,
@@ -268,6 +270,7 @@ export function formToRow(form: DefForm): WidgetDefRow {
     multipleYn: form.multipleYn === "" ? null : form.multipleYn,
     categoryCd: blank(form.categoryCd),
     privateYn: form.privateYn,
+    placeTp: form.placeTp === "" ? null : form.placeTp,
     useYn: form.useYn,
     // 쿼리 유형의 실행 모듈은 지금 mcm 만 — 값이 비어도 mcm 으로 보낸다(스펙 §5.3).
     dataSrc: isDef && isQueryType(form.typeId) ? form.dataSrc || "mcm" : null,
@@ -291,7 +294,7 @@ const configJsonOf = (config: unknown): string | null =>
 /** commWidgetMng/save params — 신규 정의 위젯은 widgetId 빈 값, configJson 은 화면 전용 키를 뺀 JSON 문자열. */
 export function toSaveParams(form: DefForm): WidgetSaveParams {
   const { config, ...row } = formToRow(form);
-  return { ...row, configJson: configJsonOf(config) };
+  return { ...row, placeTp: row.placeTp ?? null, configJson: configJsonOf(config) };
 }
 
 const SIZE_FIELDS = [

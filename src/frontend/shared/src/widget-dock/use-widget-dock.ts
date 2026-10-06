@@ -16,7 +16,7 @@ import { createBrowserDockStore } from "./browser-dock-store";
 import {
   bringDockWindowToFront,
   closeDockWindow,
-  isDockableEntry,
+  isDockMenuEntry,
   listDockableEntries,
   moveDockWindow,
   openDockWindow,
@@ -178,7 +178,7 @@ export function useWidgetDock({
   const open = useCallback(
     (widgetId: string): OpenDockResult["kind"] | "missing" => {
       const entry = registryRef.current[widgetId];
-      if (!isDockableEntry(entry) || !loadedRef.current || !ownerRef.current) return "missing";
+      if (!isDockMenuEntry(entry) || !loadedRef.current || !ownerRef.current) return "missing";
       const kind = openDockWindow(windowsRef.current, entry, readDockViewport()).kind;
       update((windows) => openDockWindow(windows, entry, readDockViewport()).windows);
       return kind;

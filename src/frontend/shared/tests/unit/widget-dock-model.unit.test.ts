@@ -18,6 +18,7 @@ import {
   dockStackOrder,
   dockWindowSlotId,
   isDockableEntry,
+  isDockMenuEntry,
   listDockableEntries,
   moveDockWindow,
   openDockWindow,
@@ -56,6 +57,41 @@ describe("dock-model — 목록·크기", () => {
     expect(isDockableEntry(entry("a", { floatable: undefined }))).toBe(false);
     expect(isDockableEntry(entry("a", { disabled: true }))).toBe(false);
     expect(isDockableEntry(undefined)).toBe(false);
+  });
+
+  it("배치(placement): A·B 는 floatable 과 상관없이, W 는 새로 띄울 수 없다", () => {
+    expect(isDockMenuEntry(entry("a", { floatable: false, placement: "A" }))).toBe(true);
+    expect(isDockMenuEntry(entry("a", { floatable: undefined, placement: "B" }))).toBe(true);
+    expect(isDockMenuEntry(entry("a", { floatable: true, placement: "W" }))).toBe(false);
+    expect(isDockMenuEntry(entry("a", { floatable: false, placement: "B", disabled: true }))).toBe(false);
+    expect(isDockMenuEntry(entry("a", { floatable: true }))).toBe(true);
+    expect(isDockMenuEntry(entry("a", { floatable: false }))).toBe(false);
+  });
+
+  it("이미 열린 floatable 창은 배치가 W 로 바뀌어도 그리기·저장값에 남는다(새로 열지만 못한다)", () => {
+    const w = entry("a", { floatable: true, placement: "W" });
+    expect(isDockMenuEntry(w)).toBe(false);
+    expect(isDockableEntry(w)).toBe(true);
+    expect(isDockableEntry(entry("a", { floatable: false, placement: "B" }))).toBe(true);
+    // A·B 로 열어 둔 창(유형 floatable 아님)을 관리자가 W 로 바꿔도 열린 창은 남는다.
+    const wNotFloatable = entry("b", { floatable: false, placement: "W" });
+    expect(isDockMenuEntry(wNotFloatable)).toBe(false);
+    expect(isDockableEntry(wNotFloatable)).toBe(true);
+    // 배치가 없고 floatable 도 아니면 예전처럼 창을 지운다.
+    expect(isDockableEntry(entry("c", { floatable: false }))).toBe(false);
+    const registry: WidgetRegistry = { a: w, b: wNotFloatable };
+    const windows = [win("w1", { widgetId: "a" }), win("w2", { widgetId: "b" })];
+    expect(sanitizeDockWindows(windows, registry, "ready")).toBe(windows);
+  });
+
+  it("「도구」 목록은 배치 A·B 를 포함하고 W 를 뺀다", () => {
+    const registry: WidgetRegistry = {
+      a: entry("a", { title: "가", floatable: false, placement: "A" }),
+      b: entry("b", { title: "나", floatable: false, placement: "B" }),
+      w: entry("w", { title: "다", floatable: true, placement: "W" }),
+      n: entry("n", { title: "라", floatable: false }),
+    };
+    expect(listDockableEntries(registry).map((e) => e.meta.id)).toEqual(["a", "b"]);
   });
 
   it("「도구」 목록은 띄울 수 있는 위젯만 제목순(한국어)이다", () => {

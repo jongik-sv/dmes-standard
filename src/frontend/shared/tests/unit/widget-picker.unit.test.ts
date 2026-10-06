@@ -126,6 +126,16 @@ describe("WidgetPicker", () => {
     expect(ids()).toHaveLength(3);
   });
 
+  it("B(업무 화면만) 위젯만 있는 분류는 칩이 생기지 않는다", () => {
+    const reg: WidgetRegistry = {
+      ...REG,
+      "def.tb1": entry({ id: "def.tb1", title: "도구 전용", kind: "def", typeId: "query-table", category: "TOOL", placement: "B" }),
+    };
+    render({ registry: reg, typeTitles: TYPE_TITLES, categoryTitles: { COMMON: "공통", PROD: "생산", TOOL: "도구" } });
+    const chips = [...host.querySelectorAll(".cm-widget-picker__cat")].map((e) => e.textContent);
+    expect(chips).toEqual(["전체", "공통", "생산"]);
+  });
+
   it("categoryTitles 가 없으면 묶음 머리글·칩이 없다(기존 서랍 그대로)", () => {
     render({ typeTitles: TYPE_TITLES });
     expect(host.querySelector(".cm-widget-picker__group")).toBeNull();
@@ -137,6 +147,18 @@ describe("WidgetPicker", () => {
     render({ typeTitles: TYPE_TITLES, onPreview });
     act(() => itemEl("def.k3x9q2ab")!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })));
     expect(onPreview).toHaveBeenCalledWith(REG["def.k3x9q2ab"].meta);
+  });
+
+  it("배치(placement) B(업무 화면만) 위젯은 서랍에서 빠지고 W·A·없음은 남는다", () => {
+    const reg: WidgetRegistry = {
+      "def.pb": entry({ id: "def.pb", title: "업무만", kind: "def", typeId: "query-table", placement: "B" }),
+      "def.pw": entry({ id: "def.pw", title: "위젯만", kind: "def", typeId: "query-table", placement: "W" }),
+      "def.pa": entry({ id: "def.pa", title: "둘 다", kind: "def", typeId: "query-table", placement: "A" }),
+      "def.pn": entry({ id: "def.pn", title: "기본", kind: "def", typeId: "query-table", floatable: true }),
+    };
+    render({ registry: reg, typeTitles: TYPE_TITLES });
+    expect(ids()).not.toContain("def.pb");
+    expect(ids()).toEqual(expect.arrayContaining(["def.pw", "def.pa", "def.pn"]));
   });
 
   it("비공개 위젯은 목록에 없고 부분 검색어로도 안 보인다", () => {
