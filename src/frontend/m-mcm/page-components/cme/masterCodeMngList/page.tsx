@@ -28,6 +28,7 @@ import {
 import { Select } from "@dk-oasis/shared/form";
 import { GridPanel, AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRefetch, useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { searchMaster, searchDetail } from "./api";
 import type {
   MasterCodeMngListCategoryLov,
@@ -92,16 +93,25 @@ const DETAIL_COLUMNS: GridColumn[] = [
 export default function MasterCodeMngListPage() {
   const { showMessage } = useMessage();
 
-  const [filters, setFilters] = useState<MasterCodeMngListFilters>(DEFAULT_FILTERS);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·선택 키는 가볍게, 조회 결과(행·카테고리 LOV)는 bulky 로 옮긴다.
+  const [filters, setFilters] = useCarryState<MasterCodeMngListFilters>("filters", DEFAULT_FILTERS);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [masterRows, setMasterRows] = useState<MasterCodeMngListMasterRow[]>([]);
-  const [selectedMasterKey, setSelectedMasterKey] = useState<string | null>(null);
+  const [masterRows, setMasterRows] = useCarryState<MasterCodeMngListMasterRow[]>("masterRows", [], { bulky: true });
+  const [selectedMasterKey, setSelectedMasterKey] = useCarryState<string | null>("selectedMasterKey", null);
 
-  const [detailRows, setDetailRows] = useState<(MasterCodeMngListDetailRow & { __rowId: string })[]>([]);
-  const [categoryLov, setCategoryLov] = useState<MasterCodeMngListCategoryLov[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+  const [detailRows, setDetailRows] = useCarryState<(MasterCodeMngListDetailRow & { __rowId: string })[]>("detailRows", [], { bulky: true });
+  const [categoryLov, setCategoryLov] = useCarryState<MasterCodeMngListCategoryLov[]>("categoryLov", [], { bulky: true });
+  const [selectedCategoryId, setSelectedCategoryId] = useCarryState<string>("selectedCategoryId", "");
+  // 한 번이라도 조회했는가 — 이 화면은 진입 때 자동 조회하지 않는다(V-702). 분리 창이 행을 못 받았을 때 조회한 적 없는 화면까지
+  // 전체 조회로 채우지 않도록, 자동 재조회는 이 값이 true 일 때만 한다.
+  const [searched, setSearched] = useCarryState<boolean>("searched", false);
+
+  // 이어받은 값으로 시작했고 선택한 Master 의 상세(카테고리 LOV 포함)까지 있으면, 그 선택에 대한 첫 상세 조회를 건너뛴다.
+  // 다시 조회하면 요청이 한 번 더 나가고 이어받은 카테고리 선택이 "" 로 지워진다. 사용자가 다른 행을 고르거나 다시 조회하면 해제한다.
+  const restored = useCarryRestored();
+  const restoredDetailKeyRef = useRef<string | null>(restored && selectedMasterKey != null && categoryLov.length > 0 ? selectedMasterKey : null);
 
   const selectedMaster = useMemo<MasterCodeMngListMasterRow | null>(() => {
     if (!selectedMasterKey) return null;
@@ -123,6 +133,8 @@ export default function MasterCodeMngListPage() {
       try {
         const payload = await searchMaster(f);
         const rows = (payload.ds_GetCodeMasterList ?? []) as MasterCodeMngListMasterRow[];
+        restoredDetailKeyRef.current = null;
+        setSearched(true);
         setMasterRows(rows);
         // V-702 (xfdl:266) — 자동 조회 ✗, 초기 진입 시 자동 선택 ✗.
         // 본 함수 호출 후에는 선택을 재초기화 (As-Is fn_search 의 ds_grdMain.clearData() 와 정합)
@@ -183,6 +195,8 @@ export default function MasterCodeMngListPage() {
   useEffect(() => {
     // Master row 선택 변경 시 Detail 자동 조회 (V-202 / V-203, xfdl:366~376)
     if (selectedMaster) {
+      // 분리 창이 이어받은 상세가 이미 있으면 다시 조회하지 않는다.
+      if (restoredDetailKeyRef.current === getMasterRowId(selectedMaster)) return;
       void loadDetail(selectedMaster);
     } else {
       void loadDetail(null);
@@ -196,9 +210,16 @@ export default function MasterCodeMngListPage() {
 
   const handleSearch = () => void loadMaster(filters);
 
+  // 분리 창이 조회 결과(행)를 못 받았을 때(opener 를 못 쓰는 경우) 이어받은 조회 조건으로 한 번 다시 조회한다.
+  // loadMaster 가 선택·상세를 비우므로 행과 어긋난 선택 키가 남지 않는다.
+  useCarryRefetch(() => {
+    if (searched) handleSearch();
+  });
+
   /** Master 그리드 행 클릭 → Detail 자동 조회 (V-201~V-204). */
   const handleMasterRowClick = useCallback((row: Record<string, unknown>) => {
     const r = row as MasterCodeMngListMasterRow;
+    restoredDetailKeyRef.current = null;
     setSelectedMasterKey(getMasterRowId(r));
   }, []);
 
