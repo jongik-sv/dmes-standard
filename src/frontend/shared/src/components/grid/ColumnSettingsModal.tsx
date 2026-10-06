@@ -81,13 +81,14 @@ function zoneOf(c: Pick<ColumnSettingsColumn, "pinned">): Zone {
   return c.pinned === "left" ? "left" : c.pinned === "right" ? "right" : "center";
 }
 
-function groupIdOf(c: Pick<ColumnSettingsColumn, "group">): string {
-  return c.group?.id ?? "";
-}
-
 /** 그룹 경로(바깥 → 안쪽). `groupPath` 가 없으면 `group` 하나. */
 function pathOf(c: Pick<ColumnSettingsColumn, "group" | "groupPath">): readonly ColumnSettingsGroup[] {
   return c.groupPath ?? (c.group ? [c.group] : []);
+}
+
+/** 가장 가까운 그룹 id — 제목 줄과 같은 경로(pathOf)에서 읽어 `groupPath` 만 넘긴 호출자도 이동이 그룹 안으로 묶인다. */
+function groupIdOf(c: Pick<ColumnSettingsColumn, "group" | "groupPath">): string {
+  return pathOf(c).at(-1)?.id ?? "";
 }
 
 /** 서로 자리를 바꿀 수 있는 이웃인가 — 같은 고정 구역, 같은 그룹. */

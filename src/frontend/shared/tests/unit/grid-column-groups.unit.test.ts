@@ -59,15 +59,27 @@ function allGroups(defs: ReadonlyArray<ColDef | ColGroupDef>): ColGroupDef[] {
 }
 
 describe("(a) buildColumnDefs — marryChildren", () => {
-  it("모든 열 그룹(중첩 포함)에 marryChildren true 를 준다", () => {
-    const groups = allGroups(buildColumnDefs(GROUPED, BASE));
+  it("lockGroups 면 모든 열 그룹(중첩 포함)에 marryChildren, 그룹 아래 잎에만 lockPinned 를 준다", () => {
+    const defs = buildColumnDefs(GROUPED, { ...BASE, lockGroups: true });
+    const groups = allGroups(defs);
     expect(groups.map((g) => g.groupId)).toEqual(["plan", "actual", "sub"]);
     expect(groups.every((g) => g.marryChildren === true)).toBe(true);
+    const leaves = (list: ReadonlyArray<ColDef | ColGroupDef>): ColDef[] =>
+      list.flatMap((d) => (isGroup(d) ? leaves(d.children) : [d as ColDef]));
+    const inGroup = groups.flatMap((g) => g.children.filter((c) => !isGroup(c)) as ColDef[]);
+    expect(inGroup.length).toBeGreaterThan(0);
+    expect(inGroup.every((c) => c.lockPinned === true)).toBe(true);
+    // 그룹 밖 잎(비고 등)은 고정을 막지 않는다
+    expect(leaves(defs).filter((c) => !inGroup.includes(c)).every((c) => c.lockPinned === undefined)).toBe(true);
   });
 
-  it("그룹 없는 그리드의 열 정의에는 marryChildren 이 어디에도 없다", () => {
-    const defs = buildColumnDefs(FLAT, BASE);
-    expect(JSON.stringify(defs)).not.toContain("marryChildren");
+  it("lockGroups 를 주지 않으면 순수 함수 결과가 예전과 같다 — marryChildren·lockPinned 없음", () => {
+    expect(JSON.stringify(buildColumnDefs(GROUPED, BASE))).not.toMatch(/marryChildren|lockPinned/);
+  });
+
+  it("그룹 없는 그리드의 열 정의에는 marryChildren·lockPinned 가 어디에도 없다", () => {
+    const defs = buildColumnDefs(FLAT, { ...BASE, lockGroups: true });
+    expect(JSON.stringify(defs)).not.toMatch(/marryChildren|lockPinned/);
     expect(defs.some(isGroup)).toBe(false);
   });
 
@@ -188,6 +200,15 @@ describe("(b) ColumnSettingsModal — 그룹 제목 줄·같은 그룹 안 이�
     expect(btn("up-sub_b").disabled).toBe(false);
     expect(btn("down-code").disabled).toBe(true); // 그룹 밖 → 그룹 안 금지
     expect(btn("up-note").disabled).toBe(true);
+  });
+
+  it("groupPath 만 넘긴 호출자도 같은 그룹 안으로만 옮겨진다(제목 줄과 같은 경로로 판정)", () => {
+    showModal(MODAL_COLS.map(({ group: _g, ...rest }) => rest));
+    expect(lines().some((l) => l.startsWith("G:"))).toBe(true);
+    expect(btn("up-plan_qty").disabled).toBe(true);
+    expect(btn("down-plan_amt").disabled).toBe(true);
+    expect(btn("down-act_amt").disabled).toBe(true);
+    expect(btn("up-sub_b").disabled).toBe(false);
   });
 
   it("같은 그룹 안에서는 옮겨지고, 적용 상태는 모든 컬럼을 그룹이 붙은 순서로 담는다(내부 컬럼 제자리)", () => {

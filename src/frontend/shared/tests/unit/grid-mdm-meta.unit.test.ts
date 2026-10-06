@@ -28,9 +28,9 @@ const LEAF_KEYS = [
   "sortable", "resizable", "editable", "cellEditor", "cellEditorParams", "cellDataType", "refData", "cellStyle",
   "cellClass", "cellClassRules", "headerClass", "headerTooltip", "headerStyle", "rowDrag", "cellRenderer", "valueFormatter",
 ];
-// 열 그룹 정의에는 marryChildren(그룹 갈라짐 방지, 2026-10-06)이 늘 붙는다. 잎 열 키는 예전과 같다.
+// lockGroups 를 주지 않으면(개인화를 끈 그리드) 열 그룹·잎 열 키는 예전과 같다. 그룹 묶기는 grid-column-groups 시험이 본다.
 const GROUP_KEYS = [
-  "groupId", "marryChildren", "headerName", "headerGroupComponent", "headerGroupComponentParams", "headerTooltip", "headerClass",
+  "groupId", "headerName", "headerGroupComponent", "headerGroupComponentParams", "headerTooltip", "headerClass",
   "headerStyle", "children",
 ];
 
