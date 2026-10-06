@@ -10,6 +10,8 @@
 #   --allow-busy: 작업 중인 세션에도 넣는다(Claude Code 가 작업 중 입력을 다음 차례로 받아 둔다). tui-idle 대기와 `esc to interrupt` 거절
 #          (not-idle·interrupt-visible)을 건너뛴다. stale·bang-in-text·prompt-open·compacting·draft-in-input 판정은 그대로다.
 #          옵션이 없을 때의 동작·출력은 불변. 바쁜 세션의 입력창은 화면이 계속 바뀌므로 draft 판정은 입력창 모양만 본다.
+#          대신 입력창 틀(가로줄·입력줄·가로줄)이 화면 끝(닫는 가로줄 아래 글 줄 6개 이하, `claude --resume` 안내 없음)에
+#          있어야 한다 — 아니면 `REFUSED <h> draft-in-input`(셸로 돌아간 탭에 넣지 않게).
 #   --dry-run: 읽기·판정은 실제로 하고, 보내기 직전에 멈춰 stderr 에 DRY 를 찍고 stdout 에 `DRY SENT <h> -`(보냈다면 나올 줄에 DRY 를 붙임).
 set -uo pipefail
 . "$(dirname "$0")/lib/common.sh"
@@ -71,6 +73,31 @@ input_state() {
 }
 if [ "${TERM_SEND_SAFE_SELFTEST:-}" = 1 ]; then input_state; exit 0; fi
 
+# --allow-busy 전용: 입력창 틀이 화면 끝에 있는지(Claude Code 가 떠 있는지). 입력창을 닫는 가로줄 아래에 글 있는 줄이
+# FRAME_TAIL_MAX 개 이하이고, 그 아래에 Claude Code 를 끝낸 뒤 나오는 안내(`claude --resume`·`Resume this session`)가 없으면 ok.
+# 끝난 세션의 마지막 화면 위에 셸 프롬프트가 이어진 탭(레인 세션이 죽어 셸로 돌아감)에 넣지 않게 한다.
+# 프롬프트 문자(%·$ 등)는 보지 않는다(사용자 상태 줄에 흔히 들어간다).
+FRAME_TAIL_MAX=6
+frame_at_end() {
+  LC_ALL=C sed $'s/\xc2\xa0/ /g' | awk -v max="$FRAME_TAIL_MAX" '
+    function is_rule(x,   t, n) { if (x !~ /^[[:space:]]*─/ || x !~ /─[[:space:]]*$/) return 0; t = x; n = gsub(/─/, "", t); return (n >= 10) }
+    { line[NR] = $0 }
+    END {
+      p = 0
+      for (i = NR; i >= 2; i--) if (is_rule(line[i-1]) && line[i] ~ /^[[:space:]]*(❯|>)/) { p = i; break }
+      if (!p) { print "no"; exit }
+      e = 0
+      for (j = p + 1; j <= NR; j++) if (is_rule(line[j])) { e = j; break }
+      if (!e) { print "no"; exit }
+      n = 0
+      for (j = e + 1; j <= NR; j++) {
+        if (line[j] ~ /claude --resume|Resume this session/) { print "no"; exit }
+        if (line[j] ~ /[^[:space:]]/) n++
+      }
+      print (n <= max) ? "ok" : "no"
+    }'
+}
+
 # 1. handle 존재
 term_list | cut -f1 | grep -qxF "$h" || refuse stale "터미널 목록에 없다: $h"
 
@@ -123,6 +150,10 @@ case "$st" in
   draft) refuse draft-in-input "입력창에 쓰다 만 글이 있다" ;;
   *) refuse draft-in-input "입력창을 찾지 못해 판정이 애매하다(보내지 않음)" ;;
 esac
+# --allow-busy 는 tui-idle 을 보지 않으므로 Claude Code 가 떠 있는지를 입력창 틀 위치로 한 번 더 본다(옵션 없는 동작은 그대로)
+if [ "$busy" = 1 ] && [ "$(printf '%s\n' "$scr" | frame_at_end)" != ok ]; then
+  refuse draft-in-input "입력창 틀이 화면 끝에 없다(세션이 끝나 셸로 돌아갔을 수 있음, 보내지 않음)"
+fi
 
 # 6. 보내기
 if [ "$dry" = 1 ]; then

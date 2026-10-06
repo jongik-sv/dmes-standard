@@ -280,10 +280,10 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 구현은 `scripts/console-poll.sh` 하나이고 조정자(coordinator)와 `/dflow-team` 이 함께 쓴다. LLM 을 부르지 않는다(Claude 토큰 0).
 
 **단위·잠금**: PC 하나 × 신원 하나당 폴러 하나. `~/.dflow/console/poller-<신원>.lock/`(mkdir, 안에 `pid`·`since`)로 단일 실행을 보장한다.
-잠금이 있어도 그 `pid` 가 죽었으면 탈취한다. 신원은 `office.sh` 와 같은 슬러그(`<신원>/<host>` 의 앞 칸)이고 PAT 는 `dflow.sh profiles` 에서 슬러그가 같은 키를 `--as` 로 고른다.
+잠금이 있어도 그 `pid` 가 죽었으면 탈취한다. 신원은 `office.sh` 와 같은 슬러그(`<신원>/<host>` 의 앞 칸)이고 PAT 는 `dflow.sh` 의 기본 토큰이다. 한 신원에 PAT 가 여럿이거나 기본 토큰이 프로젝트 한정이면 서버가 `forbidden_role` 로 거절해 콘솔 전달이 꺼지고 아래 「프로젝트 한정 PAT」 의 안내 문구를 낸다(`dflow.sh profiles` 에서 `--as` 로 고르는 것은 후속).
 `DFLOW_CONFIG_DIR`·cwd 규칙은 위 「D'Flow 설정 로드」 와 같다.
 
-**주기**: 30초(서버 watch 응답의 `console.poll_s` 가 있으면 15~120 으로 잘라 따른다). 한 주기는 아래 세 일을 순서대로 하고, 한 일의 실패가 나머지를 막지 않는다.
+**주기**: 환경 변수 `COORD_CONSOLE_CYCLE_S`(기본 30초)로 정한다. watch 응답의 `console.poll_s` 는 읽지 않는다. 서버가 콘솔을 모르는지는 `dflow.sh console-poll`(또는 `console-screen`)의 exit 7 로 판정하고, 그러면 2·3 을 10분 쉰다. 한 주기는 아래 세 일을 순서대로 하고, 한 일의 실패가 나머지를 막지 않는다.
 
 1. **생존 감시(서버 지원과 무관하게 늘 한다)**: `_session/*.json` 의 `pid` 와 열린 회차 레인의 `session.pid` 를 `kill -0` 으로 확인해 죽은 대상의 오피스 키를 stop 한다(§4 「생존 판정」). 확인할 조정 세션 기록(`_session/*.json`)·살아 있는 세션의 열린 회차·팀장 핸들 기록이 하나도 없으면 폴러는 두 주기 연속 빈 채로 보고 스스로 끝난다.
 2. **프롬프트 전달**(watch 응답에 `console` 칸이 있는 서버에서만): `dflow.sh console-poll --host <host>` → 프롬프트마다 대상 해석 → 안전 입력 → `console-ack`.
@@ -328,9 +328,9 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 `<ref>` = `coord_lane` 이면 레인 이름, 두 팀장(`coord_lead`·`team_lead`)이면 `lead`, `team_worker` 이면 그 슬롯의 주문 `id8`. 형식 `^[A-Za-z0-9._-]{1,40}$` 이어야 하고 아니면 `lead` 로 쓴다.
 Messages 창(`lane-tools` 의 `mail.tsx`)은 사용자 입력의 첫머리에서 정규식 `^\[오피스→([A-Za-z0-9._-]{1,40})\] 프롬프트: ([\s\S]*)$` 를 찾아 peer 「오피스」, via `office` 로 보인다. `cross-session-message` 태그는 흉내 내지 않는다.
 
-**화면 수집·가림**: `term_read_screen <h> 40` 의 결과를 이 순서로 가공한다.
+**화면 수집·가림**: `term_read_screen <h> 41` 의 결과를 이 순서로 가공한다(맨 앞 한 줄은 줄 꺾임으로 이어진 비밀 판정에만 쓰고 올리는 것은 마지막 40줄이다).
 
-1. ANSI 이스케이프(CSI·OSC)와 제어 문자(탭 제외)를 지운다. 줄 끝 공백을 지운다. 한 줄은 400자(코드포인트)로 자른다.
+1. ANSI 이스케이프(CSI·OSC)와 제어 문자(탭 제외)를 지운다. 줄 끝 공백을 지운다. 눈에 안 보이는 문자(제로폭·방향 표식·soft hyphen·결합 문자)를 지운다. **가림 처리 전에** 한 줄을 2000바이트(UTF-8 글자 경계)로 먼저 자르고(자르고 나서 가림 — 경계에 걸린 비밀이 반쯤 남지 않게 잘린 끝 토막이 12자 이상이거나 알려진 접두어로 시작하면 가린다), 가린 뒤 한 줄을 400자(코드포인트)로 자른다.
 2. **비밀 모양 문자열을 `[가림]` 으로 바꾼다.** 한 줄씩 아래 규칙을 모두 적용한다(앞 규칙이 바꾼 자리는 다시 보지 않아도 된다).
 
    | # | 규칙 | 값 |
@@ -342,13 +342,15 @@ Messages 창(`lane-tools` 의 `mail.tsx`)은 사용자 입력의 첫머리에서
    | 5 | Authorization 헤더 | `Authorization:` 뒤 한 줄 전부, 그리고 `Bearer <값>` 의 값 |
    | 6 | 긴 base64·hex | 연속 40자 이상의 `[A-Za-z0-9+/_=-]`. 단 경로·단어 오탐을 줄이기 위해 대문자·소문자·숫자 중 둘 이상을 섞은 것, 또는 `[0-9a-fA-F]{40,}`(hex)만 가린다. 40자 hex(git 전체 SHA)도 가려지는 것을 받아들인다 |
 
+   규칙 1~6 은 최소선이고 구현은 더 넓다(`lib/console-redact.sh`, 시험 `tests/console-redact.sh`): 접두어가 뚜렷한 40자 미만 토큰(`AIza`·`glpat-`·`hf_`·`GOCSPX-`·`sk_live_`·`whsec_`·`xox[abpr]-`·`gh[pousr]_`·`github_pat_`·`npm_`·`sbp_`·`(AKIA|ASIA)…` 등), 이름 목록 확장(`pass`·`pw`·`passphrase`·`cookie`·`session`·`sig`·`*_key`·한글 `키`), 이름과 값이 공백으로 나뉜 CLI 인자(`--token X`·`-p X`·`-u user:pass`·`.netrc`), 구분자·구조 변형(`'DB_PASSWORD', 'x'`·전각 `：`·YAML 블록 값), URL·DB 접속 문자열의 암호(`://u:p@h`·`user/pass@db`), 줄 꺾임·줄 번호·표 테두리로 끊긴 긴 비밀과 PEM 블록 전체. 64KB 가 넘는 줄은 거절하지 않고 먼저 잘라 가린다(65,000바이트 한 줄도 20ms 안에 끝난다). 의도한 오탐과 알려진 한계는 시험 파일 머리에 적혀 있다.
+
    가림 규칙은 `tests/` 의 단위 시험으로 고정한다: 위 여섯 종류 각각의 가려지는 예와, 가려지면 안 되는 예(40자 이하의 평범한 단어·소문자만의 긴 경로 `src/frontend/packages/shared/src/components/AgDataGrid`·7~12자 짧은 SHA·40자 미만 hex)를 둔다. 짧은 SHA(7~12자)는 가리지 않는다는 것을 시험으로 고정한다.
 3. 마지막 40줄을 남기고, 합계 8KB(UTF-8) 를 넘으면 앞쪽 줄부터 버린다. 가림이 끝난 줄들의 sha256(hex)을 `sha` 로 한다.
 
 화면은 **`sha` 가 바뀐 것만** 전체(`lines` 포함)로 올리고, 같으면 touch(`lines` 없음)만 보낸다. 서버가 `need_full` 을 돌려주면 다음 주기에 전체를 올린다. 올리기 전에 가림을 건너뛰는 경로는 없다(가림 함수 실패 시 그 대상은 올리지 않는다).
 
 **기동·정지**: `start` 는 잠금을 잡고 백그라운드로 루프를 띄운다(`CONSOLE_POLLER started|running|skipped`). 부르는 곳:
-조정자 `coord-state.sh init`(회차를 열 때)·`/dflow-team` 시작, 정지는 `coord-state.sh close-run`(이 PC 에 열린 회차·살아 있는 팀장 기록이 모두 없을 때만)·`/dflow-team` 마감이다.
-`start` 는 늘 안전하게 여러 번 부를 수 있다(이미 돌면 `running`). 폴러가 스스로 끝나는 조건은 위 「생존 감시」 의 두 주기 연속 빈 상태다.
+조정자 `coord-state.sh init`(회차를 열 때)·`/dflow-team` 시작. `coord-state.sh close-run` 과 `/dflow-team` 마감은 폴러를 멈추지 않는다(마감은 팀장 핸들 기록만 지운다) — 폴러가 스스로 끝난다. `stop` 은 손으로 멈출 때 쓴다.
+`start` 는 늘 안전하게 여러 번 부를 수 있다(이미 돌면 `running`). 폴러가 스스로 끝나는 조건은 위 「생존 감시」 의 두 주기 연속 빈 상태(이 신원·host 의 `pid` 가 있는 세션 기록, 살아 있음이 확인된 열린 회차, `pid` 가 살아 있는 팀장 기록이 모두 없음 — `pid` 0·빈 값인 기록·회차는 세지 않는다)와 `office.enabled` 가 꺼진 것이다.
 
 **실패 정책**: §4 와 같다 — 어떤 실패도 부른 쪽 동작을 막지 않고, 폴러 안에서는 한 주기의 실패가 다음 주기를 막지 않는다. 비밀값(토큰·claim_token·원문 화면)은 로그에 남기지 않는다. 로그에는 시각·대상·결과·사유만 적는다.

@@ -15,7 +15,9 @@ eq() { if [ "$2" = "$3" ]; then chk ok "$1"; else chk fail "$1" "기대 [$3] 실
 
 repo="$tmp/repo"; mkdir -p "$repo"
 # 조정 세션 식별을 고정한다(Claude Code 안에서 돌려도 실제 세션 id·pid 가 키에 섞이지 않게). <세션8> = s1a2b3c4, pid = 이 셸(살아 있음).
-unset CLAUDE_CODE_SESSION_ID COORD_STATE_ROOT COORD_DRY
+unset CLAUDE_CODE_SESSION_ID COORD_STATE_ROOT COORD_DRY ORCA_TERMINAL_HANDLE DFLOW_CONFIG_DIR
+# 콘솔 폴러(init 이 띄움)는 이 시험에서 띄우지 않는다(tests/console-poll.sh 몫). HOME·콘솔 폴더도 임시로.
+export COORD_CONSOLE_POLL=0 HOME="$tmp/home" DFLOW_CONSOLE_DIR="$tmp/console"; mkdir -p "$HOME"
 export COORD_REPO="$repo" COORD_RUN=t1 FAKE_LOG="$tmp/fake.log" COORD_SESSION_ID="S1A2B3C4-ffff-0000" CLAUDE_PID=$$
 cat > "$tmp/fake-dflow.sh" <<'EOF'
 #!/bin/sh
