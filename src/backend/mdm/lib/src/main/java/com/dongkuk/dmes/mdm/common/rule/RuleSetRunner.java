@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm.common.rule;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
+import com.dongkuk.dmes.mdm.common.rule.definition.RuleVersionPick;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionException;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionLookup;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions;
@@ -118,7 +119,12 @@ public class RuleSetRunner {
      * 그 시각의 RELEASED 버전을 고르므로 결과는 호출마다 새로 실행한 것과 같다. 요청을 넘겨 들고 있지 않는다(원장을 고치는 요청에서 쓰지 않는다).
      */
     public Session session() {
-        return new Session(new StoredDefinitionLookup(queries, stored, rules, setVersions, sets));
+        return session(RuleVersionPick.RELEASED);
+    }
+
+    /** 버전 선택 모드를 정한 실행 묶음(spec 2026-10-06 §4.3) — 디버거·케이스 일괄 실행만 MY_DRAFT 를 넘긴다. 확정 검사·운영은 {@link #session()}. */
+    public Session session(RuleVersionPick pick) {
+        return new Session(new StoredDefinitionLookup(queries, stored, rules, setVersions, sets, pick));
     }
 
     /** {@link #session} 이 돌려주는 실행 묶음 — 정의 조회기·엔진과 흐름 JSON 파싱 결과를 같이 쓴다. */
@@ -130,6 +136,16 @@ public class RuleSetRunner {
         private Session(StoredDefinitionLookup lookup) {
             this.lookup = lookup;
             this.engine = new MdmRuleEngine(evaluator, lookup);
+        }
+
+        /** {@link StoredDefinitionLookup#draftRules()}. */
+        public Map<String, java.math.BigDecimal> draftRules() {
+            return lookup.draftRules();
+        }
+
+        /** {@link StoredDefinitionLookup#draftSets()}. */
+        public Map<String, MdmRuleSetVer> draftSets() {
+            return lookup.draftSets();
         }
 
         /** {@link RuleSetRunner#trace(String, Map, Instant)} 와 같다. */
@@ -154,7 +170,7 @@ public class RuleSetRunner {
         }
 
         /**
-         * 정의를 직접 넘기는 기록 실행(D-144 2단계) — 룰 세트 확정 검사가 DRAFT 버전 흐름으로 테스트 케이스를 돌릴 때 쓴다. 룰은 판정 시각의 RELEASED.
+         * 정의를 직접 넘기는 기록 실행(D-144 2단계) — 룰 세트 확정 검사가 DRAFT 버전 흐름으로 테스트 케이스를 돌릴 때 쓴다. 룰 버전은 세션 모드를 따른다(확정 검사는 {@link #session()} = RELEASED).
          * {@code label} 은 기록의 세트 표시 이름이다.
          */
         public RunTrace traceDefinition(String label, FlowDefinition def, Map<String, Object> record, Instant evalTs) {
