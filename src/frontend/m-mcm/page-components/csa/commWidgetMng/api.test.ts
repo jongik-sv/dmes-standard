@@ -43,6 +43,7 @@ const PARAMS: WidgetSaveParams = {
   multipleYn: "Y",
   categoryCd: null,
   privateYn: "N",
+  placeTp: null,
   useYn: "Y",
   dataSrc: null,
   configJson: '{"markdown":""}',
