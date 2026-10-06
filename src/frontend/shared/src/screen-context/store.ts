@@ -13,6 +13,8 @@ export interface ScreenContextStore {
   clear(key: string, owner: string): boolean;
   /** 소유자와 상관없이 탭의 문맥을 지운다(탭 닫힘). */
   clearTab(key: string): boolean;
+  /** owner 가 지금 그 탭 문맥의 마지막 게시자인가. */
+  owns(key: string, owner: string): boolean;
   get(key: string): ScreenContext | null;
   subscribe(listener: () => void): () => void;
 }
@@ -55,6 +57,7 @@ function createScreenContextStore(): ScreenContextStore {
       emit();
       return true;
     },
+    owns: (key, owner) => entries.get(key)?.owner === owner,
     get: (key) => entries.get(key)?.ctx ?? null,
     subscribe(listener) {
       listeners.add(listener);

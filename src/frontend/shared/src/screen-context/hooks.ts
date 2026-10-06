@@ -21,6 +21,8 @@ export function screenContextKey(tabId: string | undefined, pageId: string): str
 export interface ScreenContextPublisher {
   /** 문맥을 게시한다. 포털 탭 밖(탭 id·pageId 모두 없음)이면 아무것도 하지 않는다. */
   publish(values: Record<string, ScreenContextValue>, source?: ScreenContextSource): void;
+  /** 이 게시자가 지금 이 탭 문맥의 마지막 게시자인가(다른 곳이 이어받았으면 false). 사용자 조작이 아닌 갱신(데이터 새로 고침 등)이 남의 문맥을 빼앗지 않게 거른다. */
+  owned(): boolean;
   /** 이 게시자가 게시한 문맥을 거둔다(다른 게시자가 이어받았으면 남긴다). */
   clear(): void;
 }
@@ -44,6 +46,7 @@ export function useScreenContextPublisher(): ScreenContextPublisher {
     },
     [owner]
   );
+  const owned = useCallback(() => !!ref.current.key && screenContextStore.owns(ref.current.key, owner), [owner]);
   const clear = useCallback(() => {
     if (ref.current.key) screenContextStore.clear(ref.current.key, owner);
   }, [owner]);
@@ -55,7 +58,7 @@ export function useScreenContextPublisher(): ScreenContextPublisher {
     };
   }, [key, owner]);
 
-  return { publish, clear };
+  return { publish, owned, clear };
 }
 
 /**

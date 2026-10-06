@@ -185,6 +185,13 @@ export interface AgDataGridProps {
   /** 클릭 시 선택을 하지 않을 컬럼 key 목록 */
   selectExcludeColumns?: string[];
   /**
+   * 선택 행(없으면 포커스 행)의 colDef field 값을 화면 문맥(`@dk-oasis/shared/screen-context`)으로 자동 게시한다.
+   * 업무 화면 위 도구 창(도크)의 위젯이 이 값을 받아 입력 칸을 채운다. 화면 모양·기존 이벤트 동작은 바뀌지 않는다.
+   * 선택 행이 여럿이면 마지막으로 고른 행, 화면에 그리드가 여럿이면 마지막으로 행을 고른 그리드가 이긴다. 대화 상자 안 그리드는 게시하지 않는다.
+   * 기본 true. `false` 로 끈다.
+   */
+  publishScreenContext?: boolean;
+  /**
    * 행 아무 곳이나 클릭 시 그 행의 체크박스를 토글한다(기본 false). `selectable` 과 함께 사용.
    * 단 클릭 대상이 입력요소(input/select/textarea/button/a·contentEditable)·편집 중 셀·행 선택 체크박스면
    * 토글하지 않는다(이벤트 타깃 검사). `selectExcludeColumns` 도 함께 적용된다.

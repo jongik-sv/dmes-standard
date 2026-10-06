@@ -9,4 +9,5 @@ export {
   normalizeScreenKey,
   screenContextEqual,
   screenKeysMatch,
+  toScreenContextValue,
 } from "./normalize-key";
