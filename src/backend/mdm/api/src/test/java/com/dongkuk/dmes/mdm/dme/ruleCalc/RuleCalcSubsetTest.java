@@ -69,14 +69,13 @@ public class RuleCalcSubsetTest extends RuleCalcTestBase {
     }
 
     @Test
-    void run_하위_세트가_든_세트도_입력이_빠지면_INPUT_MISSING_이다() {
+    void run_하위_세트가_든_세트도_입력이_빠져도_막지_않고_엔진에_넘긴다() {
         parentSet();
 
         RuleCalcRunResult r = service.run(run("SET", "S_PARENT", "2.0", null));
 
-        assertFalse(r.isOk());
-        assertEquals(List.of("INPUT_MISSING"), codes(r.getMessages()));
-        assertTrue(r.getMessages().get(0).getText().contains("COIL_WID"));
+        assertFalse(codes(r.getMessages()).contains("INPUT_MISSING"), r.getMessages().toString());
+        assertFalse(r.getSteps().isEmpty(), "엔진을 불렀다(막지 않았다)");
     }
 
     // ── (b) 엔진 위반 → 메시지 코드 ─────────────────────────────────────────

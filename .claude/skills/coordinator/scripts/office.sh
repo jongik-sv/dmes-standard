@@ -27,7 +27,8 @@
 OFFICE_RC=0
 trap 'exit "${OFFICE_RC:-0}"' EXIT
 set -uo pipefail
-. "$(dirname "$0")/lib/common.sh"
+_SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.   # dirname 대신(프로세스 0개)
+. "$_SD/lib/common.sh"
 coord_default_repo
 
 OFFICE_TIMEOUT_S=5
@@ -59,7 +60,7 @@ SESSD="$ROOT/_session"
 SF=""; RID=""; FINISHED=0
 if [ "$sub" != reap ]; then   # reap 은 현재 회차 없이 돈다
   coord_has_run || exit 0
-  SF="$(coord_state_file)"; RID="$(basename "$(dirname "$SF")")"
+  SF="$(coord_state_file)"; RID="${SF%/*}"; RID="${RID##*/}"
   # 마감(finish)한 회차는 이후 report·hold 훅이 오피스에 다시 등록하지 않게 한다.
   # finish·beat 만 통과한다 — beat 는 마감 뒤에도 .office.sent 에 남은 키(finish 때 stop 이 실패한 것)만 마저 내린다.
   [ "$(jq -r '.office.finished // false' "$SF" 2>/dev/null)" = true ] && FINISHED=1
@@ -111,7 +112,7 @@ on_exit() {  # 폴러의 kill_tree 는 TERM 0.3초 뒤 KILL 하므로 잠금·�
   trap '' TERM INT HUP
   [ -n "$HELD_LOCK" ] && coord_unlock "$HELD_LOCK"
   rm -rf "$TMPD"
-  [ -n "$DFL_WD" ] && { pkill -P "$DFL_WD" 2>/dev/null; kill "$DFL_WD" 2>/dev/null; }
+  [ -n "$DFL_WD" ] && { kill "$DFL_WD" 2>/dev/null; }   # 감시자의 TERM trap 이 자기 sleep 을 죽인다
   if [ -n "$DFL_PID" ]; then for p in $(descendants "$DFL_PID") "$DFL_PID"; do kill -TERM "$p" 2>/dev/null; done; fi
   exit "${OFFICE_RC:-0}"
 }
@@ -132,14 +133,19 @@ kill_tree() {  # kill_tree <pid> — 후손부터 TERM, 잠깐 뒤 남은 것은
 }
 dfl() {
   local pid wd rc
-  : > "$TMPD/out"; : > "$TMPD/err"; rm -f "$TMPD/timeout" "$TMPD/done"
+  : > "$TMPD/out"; : > "$TMPD/err"; [ ! -f "$TMPD/timeout" ] || rm -f "$TMPD/timeout"
   ( cd "$REPO" 2>/dev/null && DFLOW_CONFIG_DIR="$DCD" exec bash "$DFLOW" "$@" ) >"$TMPD/out" 2>"$TMPD/err" </dev/null &
   pid=$!; DFL_PID="$pid"
-  ( sleep "$OFFICE_TIMEOUT_S"; [ -f "$TMPD/done" ] && exit 0; : > "$TMPD/timeout"; kill_tree "$pid" ) >/dev/null 2>&1 &
+  # 감시자는 sleep 의 pid 를 직접 쥐고(TERM trap 으로 그 sleep 만 죽인다) 끝난다 — pkill -P 가 필요 없다. 시간 초과면 표식 파일을 남기고 나무를 거둔다.
+  ( trap 'kill "$sp" 2>/dev/null; exit 0' TERM
+    sleep "$OFFICE_TIMEOUT_S" & sp=$!
+    wait "$sp" 2>/dev/null || exit 0       # sleep 이 중간에 죽었으면(명령이 먼저 끝나 정리됨) 시간 초과가 아니다
+    kill -0 "$pid" 2>/dev/null || exit 0   # 막 끝난 명령(또는 pid 재사용)은 건드리지 않는다
+    trap '' TERM                           # 정리(TERM → 0.3초 → KILL)를 끝까지 한다
+    : > "$TMPD/timeout"; kill_tree "$pid" ) >/dev/null 2>&1 &
   wd=$!; DFL_WD="$wd"
   wait "$pid" 2>/dev/null; rc=$?
-  : > "$TMPD/done"   # 감시자가 sleep 을 잃고 깨어나도 시간 초과로 오인하지 않게
-  pkill -P "$wd" 2>/dev/null; kill "$wd" 2>/dev/null; wait "$wd" 2>/dev/null
+  kill "$wd" 2>/dev/null; wait "$wd" 2>/dev/null
   DFL_PID=""; DFL_WD=""
   [ -f "$TMPD/timeout" ] && rc=124
   return "$rc"
@@ -256,7 +262,12 @@ def run_sum($inp; $now; $qmin; $xr; $xl; $red): . as $r | (input_filename | spli
                     load_adjust: ((.load.hard_ticks // 0) | if type == "number" then floor else 0 end),
                     banned: (((.load.banned // []) | if type == "array" or type == "object" then length else 0 end) > 0)},
          alive: {last_tick_at: (.run.last_tick_at | isotz)}}};'
-sha256() { if command -v shasum >/dev/null 2>&1; then shasum -a 256; else sha256sum; fi | cut -d' ' -f1; }
+sha256() {  # openssl 우선(shasum 은 perl 이라 호출당 5배쯤 든다) → shasum → sha256sum. 소문자 hex 64자 한 줄
+  local h
+  if command -v openssl >/dev/null 2>&1; then h="$(openssl dgst -sha256 -r 2>/dev/null)"; printf '%s\n' "${h%% *}"
+  elif command -v shasum >/dev/null 2>&1; then shasum -a 256 | cut -d' ' -f1
+  else sha256sum | cut -d' ' -f1; fi
+}
 # 레인 입력 요청 기록이 그 회차·그 레인 세션의 것인지: 기록의 run 이 <run-id> 이고 handle 이 그 회차 state 의
 # lanes.<레인>.session.handle 과 같으면(둘 다 비지 않음) 0. 같은 PC 의 다른 조정 세션이 같은 레인 이름을 써도 섞이지 않게 한다.
 # 인자: <기록 파일> <run-id> <레인>. run·handle 이 없는 옛 기록은 쓰지 않는다(폴러가 다음 주기에 다시 쓴다).
@@ -304,6 +315,7 @@ lane_summary() {  # 레인 summary 한 줄(자유 글은 red 로 가린다)
 }
 # 값 기록은 늘 coord-state.sh 로(state.json 은 그 스크립트만 쓴다).
 rec() { bash "$COORD_SCRIPTS_DIR/coord-state.sh" set "$1" "$2" >/dev/null 2>&1 || warn "state 기록 실패: $1"; }
+rec_many() { bash "$COORD_SCRIPTS_DIR/coord-state.sh" set-many "$@" >/dev/null 2>&1 || warn "state 기록 실패: $1"; }   # 여러 칸을 한 번의 잠금·쓰기로
 sent_key() { st --arg l "$1" '.office.sent[$l] // empty'; }
 sent_label() { st --arg l "$1" '.office.label[$l] // empty'; }
 sent_sumhash() { st --arg l "$1" '.office.sumhash[$l] // empty'; }
@@ -392,6 +404,7 @@ sess_rm() {  # sess_rm <세션8>
 }
 # 다른 회차의 state.json 쓰기(늘 coord-state.sh 로).
 rec_run() { COORD_RUN="$1" bash "$COORD_SCRIPTS_DIR/coord-state.sh" set "$2" "$3" >/dev/null 2>&1 || warn "state 기록 실패($1): $2"; }
+rec_run_many() { local r="$1"; shift; COORD_RUN="$r" bash "$COORD_SCRIPTS_DIR/coord-state.sh" set-many "$@" >/dev/null 2>&1 || warn "state 기록 실패($r): $1"; }
 run_sent() { jq -r "$2" "$ROOT/$1/state.json" 2>/dev/null; }   # run_sent <run-id> <jq식>
 
 MY_S8=""; [ -n "$SF" ] && MY_S8="$(coord_sess8 "$SF")"
@@ -485,7 +498,7 @@ lead_info() {
   done <<< "$1"
   # 자유 글(pending_user 첫 건·goal)을 회차마다 미리 가린다(실패하면 빈 글)
   for f in ${files[@]+"${files[@]}"}; do
-    rid="$(basename "$(dirname "$f")")"
+    rid="${f%/*}"; rid="${rid##*/}"
     ft="$(jq -r '(.pending_user | if type == "array" then . else [] end) as $pu
       | if ($pu | length) == 0 then "" else ($pu[0] | if type == "object" then (.text // .title // "") else . end | tostring) end' "$f" 2>/dev/null)"
     gl="$(jq -r '.run.goal // "" | tostring' "$f" 2>/dev/null)"
@@ -524,9 +537,9 @@ stop_lane() {
   local lane="$1" old; old="$(sent_key "$lane")"
   [ -n "$old" ] || return 0
   watch_call "stop $old" --agent "$old" --stop || return 1
-  rec ".office.sent[$(jq -nc --arg l "$lane" '$l')]" null
-  rec ".office.label[$(jq -nc --arg l "$lane" '$l')]" null
-  [ -z "$(sent_sumhash "$lane")" ] || rec ".office.sumhash[$(jq -nc --arg l "$lane" '$l')]" null
+  local q; q="$(jq -nc --arg l "$lane" '$l')"
+  if [ -z "$(sent_sumhash "$lane")" ]; then rec_many ".office.sent[$q]" null ".office.label[$q]" null
+  else rec_many ".office.sent[$q]" null ".office.label[$q]" null ".office.sumhash[$q]" null; fi
 }
 
 # 팀원 한 명 보내기. 인자: <레인> <라벨>. 같은 키·라벨이면 force 가 아닐 때 건너뛴다.
@@ -554,9 +567,8 @@ send_lane() {
   args+=(--input-request-json "$inreq")
   watch_call "팀원 $key" "${args[@]}" || return 1
   local q; q="$(jq -nc --arg l "$lane" '$l')"
-  rec ".office.sent[$q]" "$(jq -nc --arg k "$key" '$k')"
-  rec ".office.label[$q]" "$(jq -nc --arg s "$label" '$s')"
-  rec ".office.sumhash[$q]" "$(jq -nc --arg s "$shash" '$s')"
+  rec_many ".office.sent[$q]" "$(jq -nc --arg k "$key" '$k')" ".office.label[$q]" "$(jq -nc --arg s "$label" '$s')" \
+    ".office.sumhash[$q]" "$(jq -nc --arg s "$shash" '$s')"
 }
 
 valid_label() { case "$1" in "작업 중"|"대기"|"머지 중"|"답 대기"|"끝") return 0 ;; *) return 1 ;; esac; }
@@ -628,7 +640,7 @@ case "$sub" in
         while IFS=$'\t' read -r L k; do
           [ -n "$L" ] || continue
           if watch_call "stop $k" --agent "$k" --stop; then
-            q="$(jq -nc --arg l "$L" '$l')"; rec_run "$rid" ".office.sent[$q]" null; rec_run "$rid" ".office.label[$q]" null
+            q="$(jq -nc --arg l "$L" '$l')"; rec_run_many "$rid" ".office.sent[$q]" null ".office.label[$q]" null
           else ok=0; fi
         done < <(run_sent "$rid" '(.office.sent // {}) | to_entries[] | select(.value != null and .key != "_lead") | "\(.key)\t\(.value)"')
         o="$(run_sent "$rid" '.office.sent._lead // empty')"
@@ -647,7 +659,7 @@ case "$sub" in
         case "$p" in ''|0|null) continue ;; esac
         coord_pid_alive "$p" && continue
         if watch_call "stop $k" --agent "$k" --stop; then
-          q="$(jq -nc --arg l "$L" '$l')"; rec_run "$rid" ".office.sent[$q]" null; rec_run "$rid" ".office.label[$q]" null
+          q="$(jq -nc --arg l "$L" '$l')"; rec_run_many "$rid" ".office.sent[$q]" null ".office.label[$q]" null
         fi
       done < <(run_sent "$rid" '. as $r | (.office.sent // {}) | to_entries[] | select(.value != null and .key != "_lead")
         | "\(.key)\t\(.value)\t\(($r.lanes[.key].session.pid // 0) | tostring)"')

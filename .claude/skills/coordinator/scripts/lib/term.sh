@@ -4,6 +4,12 @@
 # 백엔드는 설정 terminal_backend(orca 기본, tmux 는 뼈대). common.sh 를 먼저 source 해야 한다.
 
 _term_backend() { local b; b="$(coord_cfg .terminal_backend)"; printf '%s' "${b:-orca}"; }
+# 백엔드 이름을 _TB 에 둔다(서브셸 $(…) 없이 — 호출마다 fork 하지 않는다). 설정에 값이 없으면 orca.
+_term_be() {
+  _coord_cfg_ensure
+  if _coord_flat_get .terminal_backend; then _TB="$_CF_RAW"; else _TB="$(coord_cfg .terminal_backend)"; fi
+  [ -n "$_TB" ] || _TB=orca
+}
 
 # ---------- orca ----------
 _orca_json() { orca "$@" --json 2>/dev/null; }
@@ -14,9 +20,10 @@ _orca_term_list() {
     [.handle, (.title // ""), (.worktreePath // ""), (if .lastOutputAt then ((.lastOutputAt/1000)|floor|tostring) else "-" end)] | @tsv'
 }
 _orca_term_read_screen() {
-  local out; out="$(_orca_json terminal read --terminal "$1" --screen --limit "${2:-40}")"
-  if [ "$(printf '%s' "$out" | jq -r '.ok // false')" != "true" ]; then _orca_stale "$out" && return 3; return 4; fi
-  printf '%s' "$out" | jq -r '.result.terminal.tail[]?'
+  local out rc; out="$(_orca_json terminal read --terminal "$1" --screen --limit "${2:-40}")"
+  # ok 확인과 화면 줄 내기를 jq 한 번에(ok 가 아니면 줄을 내지 않고 7 로 끝난다 — 잘못된 JSON 도 0 이 아니므로 같은 길)
+  printf '%s' "$out" | jq -r 'if (.ok // false) == true then .result.terminal.tail[]? else ("" | halt_error(7)) end' 2>/dev/null; rc=$?
+  if [ "$rc" != 0 ]; then _orca_stale "$out" && return 3; return 4; fi
 }
 _orca_term_wait_idle() {
   local out; out="$(_orca_json terminal wait --terminal "$1" --for tui-idle --timeout-ms "$2")"
@@ -94,11 +101,11 @@ _tmux_term_send_keys() {  # 이름 키를 send-keys 한 번에(Esc → Escape)
 }
 
 # ---------- 공개 함수 ----------
-term_list()        { "_$(_term_backend)_term_list" "$@"; }
-term_read_screen() { "_$(_term_backend)_term_read_screen" "$@"; }
-term_wait_idle()   { "_$(_term_backend)_term_wait_idle" "$@"; }
-term_send()        { "_$(_term_backend)_term_send" "$@"; }
-term_close()       { "_$(_term_backend)_term_close" "$@"; }
+term_list()        { _term_be; "_${_TB}_term_list" "$@"; }
+term_read_screen() { _term_be; "_${_TB}_term_read_screen" "$@"; }
+term_wait_idle()   { _term_be; "_${_TB}_term_wait_idle" "$@"; }
+term_send()        { _term_be; "_${_TB}_term_send" "$@"; }
+term_close()       { _term_be; "_${_TB}_term_close" "$@"; }
 # term_send_keys <h> <키 이름…> — 확인·선택 창에 키(Up·Down·Tab·Enter·Esc·1~9)를 한 번에 넣는다(콘솔 키 입력, contract §4.1).
 #   stdout: accepted|submitted|turn_started · stale(넣지 못함이 확실) · `error <사유>`(bad-key 는 아무것도 보내지 않음)
-term_send_keys()   { "_$(_term_backend)_term_send_keys" "$@"; }
+term_send_keys()   { _term_be; "_${_TB}_term_send_keys" "$@"; }

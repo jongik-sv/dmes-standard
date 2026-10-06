@@ -279,6 +279,11 @@ export default function RuleCalcRenderer(props: WidgetProps) {
         </div>
         <Messages messages={io.messages} />
         {io.inputs.length > 0 && (
+          <span className="mcm-rc__fill-note" data-testid="rc-blank-note">
+            값을 넣은 칸만 쓰고 비운 칸은 값 없음으로 계산합니다
+          </span>
+        )}
+        {io.inputs.length > 0 && (
           <div className="mcm-rc__inputs">
             {io.inputs.map((input) => (
               <InputField key={input.name} input={input} value={draft[input.name] ?? ""} error={errors[input.name]} filled={filled.includes(input.name)} onChange={(v) => setValue(input.name, v)} />

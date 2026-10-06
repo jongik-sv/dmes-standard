@@ -30,7 +30,8 @@ now="$(coord_now_epoch)"
 
 status="$(bash "$SD/coord-status.sh" 2>/dev/null)"
 
-# 1. 확인·선택 창(busy·idle 가리지 않고 handle 이 있는 active 레인)
+# 1. 확인·선택 창(busy·idle 가리지 않고 handle 이 있는 active 레인). 감지는 폴러의 화면 캐시가 신선하면 orca 를 부르지 않는다(prompt-watch.sh).
+#    응답 직전 재판정(auto-answer.sh)은 캐시를 쓰지 않고 늘 직접 읽는다.
 for L in $(coord_state '.lanes | to_entries[] | select((.value.state // "active") == "active" and ((.value.session.handle // "") != "")) | .key'); do
   pw="$(bash "$SD/prompt-watch.sh" "$L" 2>/dev/null | head -1)"
   case "$pw" in

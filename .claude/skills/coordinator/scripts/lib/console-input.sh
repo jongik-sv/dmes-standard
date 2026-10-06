@@ -228,10 +228,14 @@ console_excerpt_json() {
   printf '%s\n' "$f" | jq -Rsc "$_CI_EXCERPT_JQ" 2>/dev/null
 }
 console_excerpt() { local j; j="$(console_excerpt_json)" || return $?; printf '%s' "$j" | jq -r '.[]'; }
-_ci_sha256() { if command -v shasum >/dev/null 2>&1; then shasum -a 256 | cut -d' ' -f1
+# openssl 우선(shasum 은 perl 이라 호출당 비용이 5배쯤 든다) → shasum → sha256sum. 출력은 늘 소문자 hex 64자 한 줄(같은 값).
+_ci_sha256() {
+  local h
+  if command -v openssl >/dev/null 2>&1; then h="$(openssl dgst -sha256 -r 2>/dev/null)" || return 1; printf '%s\n' "${h%% *}"
+  elif command -v shasum >/dev/null 2>&1; then shasum -a 256 | cut -d' ' -f1
   elif command -v sha256sum >/dev/null 2>&1; then sha256sum | cut -d' ' -f1
-  elif command -v openssl >/dev/null 2>&1; then openssl dgst -sha256 | sed 's/^.*= *//'
-  else return 1; fi; }
+  else return 1; fi
+}
 console_excerpt_sha() {
   jq -Rsj 'split("\n") | (if length > 0 and .[-1] == "" then .[:-1] else . end) | '"$_CI_SHA_JQ" 2>/dev/null | _ci_sha256
 }
@@ -255,13 +259,15 @@ console_window_json() {
   [ -n "$k" ] || return 1
   printf '%s\n' "$s" | _ci_timed jq -Rsc --arg k "$k" "$_CI_FULL_JQ" 2>/dev/null | grep -m1 '^{' || return 1
 }
+# 소문자 hex 64자 한 줄이면 0(grep -Eq '^[0-9a-f]{64}$' 와 같은 판정을 프로세스 없이 — 여러 줄 글은 거절하므로 오히려 엄격하다)
+_ci_hex64() { case "$1" in ''|*[!0-9a-f]*) return 1 ;; esac; [ "${#1}" -eq 64 ]; }
 # 창 JSON(console_window_json 한 줄) → 지문 sha. 못 만들면 rc 1·빈 출력
 _ci_full_of_win() {
   local t h
   t="$(printf '%s' "${1:-}" | jq -j '.text // empty' 2>/dev/null)" || return 1
   [ -n "$t" ] || return 1
   h="$(printf '%s' "$t" | _ci_sha256)"
-  printf '%s' "$h" | grep -Eq '^[0-9a-f]{64}$' || return 1
+  _ci_hex64 "$h" || return 1
   printf '%s\n' "$h"
 }
 console_full_sha() {
@@ -277,9 +283,9 @@ console_input_snapshot() {
   [ -n "$CI_KIND" ] || return 1
   f="$(console_screen_filter < "$1")" || return 2     # console_excerpt_json 과 같은 가림(한 번만)
   CI_EXC="$(printf '%s\n' "$f" | jq -Rsc "$_CI_EXCERPT_JQ" 2>/dev/null)" || { CI_EXC=""; return 2; }
-  printf '%s' "$CI_EXC" | jq -e 'type == "array"' >/dev/null 2>&1 || { CI_EXC=""; return 2; }
+  case "$CI_EXC" in "["*"]") ;; *) CI_EXC=""; return 2 ;; esac   # jq 가 낸 한 줄이 [ … ] 이면 배열(jq -e type 확인과 같다 — 프로세스 없이)
   CI_SHA="$(printf '%s' "$CI_EXC" | console_excerpt_sha_json)"
-  printf '%s' "$CI_SHA" | grep -Eq '^[0-9a-f]{64}$' || { CI_EXC=""; CI_SHA=""; return 2; }
+  _ci_hex64 "$CI_SHA" || { CI_EXC=""; CI_SHA=""; return 2; }
   # 원문(가리기 전) 창. 못 잡으면 둘 다 빈 값 = 지문 없음. 지문과 창 JSON 은 같은 한 번의 창 판정에서 나온다
   CI_WIN="$(console_window_json < "$1")" || CI_WIN=""
   CI_FULL="$(_ci_full_of_win "$CI_WIN")" || { CI_FULL=""; CI_WIN=""; }
@@ -293,7 +299,7 @@ console_now_ms_iso() {
 }
 console_iso_to_ms() {
   local iso="${1:-}" e fr
-  printf '%s' "$iso" | grep -Eqx '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?(Z|[+-][0-9]{2}:[0-9]{2})' || return 1
+  [[ "$iso" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?(Z|[+-][0-9]{2}:[0-9]{2})$ ]] || return 1   # grep -Eqx 와 같은 꼴(프로세스 없이)
   e="$(coord_iso_to_epoch "$iso")"
   case "$e" in ''|*[!0-9-]*) return 1 ;; esac
   fr=""; case "$iso" in *.*) fr="${iso#*.}"; fr="${fr%%[Z+-]*}" ;; esac
@@ -311,26 +317,26 @@ console_ms_to_iso() {
 _ci_lock_live() {  # <잠금 폴더> — 산 주인이 쥐고 있으면 0
   local d="$1" p ps mt
   [ -d "$d" ] || return 1
-  p="$(cat "$d/pid" 2>/dev/null)"
+  coord_read1 p "$d/pid"
   if [ -z "$p" ]; then   # 막 mkdir 한 직후
     mt="$(coord_file_mtime "$d" 2>/dev/null || echo 0)"
     [ $(( $(date +%s) - ${mt:-0} )) -lt 5 ]; return
   fi
   kill -0 "$p" 2>/dev/null || return 1
-  ps="$(cat "$d/pstart" 2>/dev/null)"
+  coord_read1 ps "$d/pstart"
   [ -z "$ps" ] || ! declare -F coord_pstart >/dev/null 2>&1 || [ "$ps" = "$(coord_pstart "$p")" ]
 }
 _ci_lock_write() { printf '%s\n' "$$" > "$1/pid"; declare -F coord_pstart >/dev/null 2>&1 && coord_pstart "$$" > "$1/pstart" 2>/dev/null; return 0; }
 console_lane_lock() {
-  local lane="${1:-}" wait="${2:-${COORD_CONSOLE_LANE_LOCK_WAIT_S:-10}}" d m st i=0 n
+  local lane="${1:-}" wait="${2:-${COORD_CONSOLE_LANE_LOCK_WAIT_S:-10}}" d m st i=0 n p
   console_input_ref_ok "$lane" || return 1
   case "$wait" in ''|*[!0-9]*) wait=10 ;; esac
   d="$(_ci_dir)/lock/lane-$lane"; m="$d.steal"
-  mkdir -p "$(dirname "$d")" 2>/dev/null
+  coord_mkdirp "${d%/*}"
   n=$(( wait * 5 ))
   while :; do
     if mkdir "$d" 2>/dev/null; then _ci_lock_write "$d"; return 0; fi
-    [ "$(cat "$d/pid" 2>/dev/null)" = "$$" ] && return 0      # 이미 내가 쥐고 있다
+    coord_read1 p "$d/pid"; [ "$p" = "$$" ] && return 0      # 이미 내가 쥐고 있다
     if ! _ci_lock_live "$d" && mkdir "$m" 2>/dev/null; then   # 죽은 주인: 탈취 잠금 아래에서 다시 확인하고 옮긴 뒤 새로 만든다
       if ! _ci_lock_live "$d"; then
         st="$d.stale.$$"; mv "$d" "$st" 2>/dev/null; rm -rf "$st"
@@ -344,15 +350,15 @@ console_lane_lock() {
   done
 }
 console_lane_unlock() {
-  local d; console_input_ref_ok "${1:-}" || return 0
+  local d p; console_input_ref_ok "${1:-}" || return 0
   d="$(_ci_dir)/lock/lane-$1"
-  [ "$(cat "$d/pid" 2>/dev/null)" = "$$" ] && rm -rf "$d"
+  coord_read1 p "$d/pid"; [ "$p" = "$$" ] && rm -rf "$d"
   return 0
 }
 console_lane_mark_sent() {
   local d; console_input_ref_ok "${1:-}" || return 0
-  d="$(_ci_dir)/lock"; mkdir -p "$d" 2>/dev/null
-  printf '%s %s\n' "$(date +%s)" "${2:--}" > "$d/lane-$1.sent.tmp.$$" && mv -f "$d/lane-$1.sent.tmp.$$" "$d/lane-$1.sent"
+  d="$(_ci_dir)/lock"; coord_mkdirp "$d"
+  printf '%s %s\n' "$(coord_now_epoch)" "${2:--}" > "$d/lane-$1.sent.tmp.$$" && mv -f "$d/lane-$1.sent.tmp.$$" "$d/lane-$1.sent"
 }
 console_lane_recent_send() {
   local f t s g="${COORD_CONSOLE_SENT_GRACE_S:-10}"
@@ -361,7 +367,7 @@ console_lane_recent_send() {
   f="$(_ci_dir)/lock/lane-$1.sent"
   read -r t s < "$f" 2>/dev/null || return 1
   case "$t" in ''|*[!0-9]*) return 1 ;; esac
-  [ $(( $(date +%s) - t )) -lt "$g" ] || return 1
+  [ $(( $(coord_now_epoch) - t )) -lt "$g" ] || return 1
   [ "$s" = - ] || [ "${2:--}" = - ] || [ "$s" = "$2" ]
 }
 
@@ -369,17 +375,22 @@ console_lane_recent_send() {
 _ci_consumed_file() { printf '%s/input/consumed/%s.list' "$(_ci_dir)" "$1"; }
 _ci_consumed_full_file() { printf '%s/input/consumed/%s.full' "$(_ci_dir)" "$1"; }
 _ci_list_add() {  # <파일> <since> <값> — 같은 줄이 이미 있으면 그대로, 최근 20줄만
-  ( umask 077; mkdir -p "$(dirname "$1")" || exit 1
-    grep -qxF -- "$2 $3" "$1" 2>/dev/null && exit 0
-    { cat "$1" 2>/dev/null; printf '%s %s\n' "$2" "$3"; } | tail -n 20 > "$1.tmp.$$" && mv -f "$1.tmp.$$" "$1" )
+  ( umask 077; _d="${1%/*}"; { [ -d "$_d" ] || mkdir -p "$_d"; } || exit 1
+    # grep -qxF·cat|tail -n 20 대신 내장으로: 같은 줄이 있으면 그대로, 없으면 (옛 줄 + 새 줄)의 마지막 20줄을 쓴다
+    _new="$2 $3"; _ls=(); _n=0
+    if [ -f "$1" ]; then
+      while IFS= read -r _l || [ -n "$_l" ]; do [ "$_l" = "$_new" ] && exit 0; _ls[$_n]="$_l"; _n=$((_n + 1)); done < "$1"
+    fi
+    _ls[$_n]="$_new"; _n=$((_n + 1)); _i=0; [ "$_n" -le 20 ] || _i=$((_n - 20))
+    while [ "$_i" -lt "$_n" ]; do printf '%s\n' "${_ls[$_i]}"; _i=$((_i + 1)); done > "$1.tmp.$$" && mv -f "$1.tmp.$$" "$1" )
 }
 console_consumed_add() {
   _ci_name_ok "${1:-}" || return 1
-  printf '%s' "${3:-}" | grep -Eq '^[0-9a-f]{64}$' || return 1
+  _ci_hex64 "${3:-}" || return 1
   console_iso_to_ms "${2:-}" >/dev/null || return 1
   _ci_list_add "$(_ci_consumed_file "$1")" "$2" "$3" || return 1
   if [ -n "${4:-}" ]; then
-    printf '%s' "$4" | grep -Eq '^[0-9a-f]{64}$' || return 1
+    _ci_hex64 "$4" || return 1
     _ci_list_add "$(_ci_consumed_full_file "$1")" "$2" "$4" || return 1
   fi
   return 0
@@ -415,7 +426,7 @@ console_consumed_has_since() {
 console_input_file() { printf '%s/input/%s.json' "$(_ci_dir)" "$1"; }
 console_input_rec_lock() {  # 짧게 쥔다(3초 대기). 10초 넘은 잠금은 죽은 것으로 보고 치운다
   local d i=0; _ci_name_ok "${1:-}" || return 1
-  d="$(_ci_dir)/input/.$1.lock"; mkdir -p "$(_ci_dir)/input" 2>/dev/null
+  d="$(_ci_dir)/input/.$1.lock"; coord_mkdirp "${d%/*}"
   until mkdir "$d" 2>/dev/null; do
     if [ $(( $(date +%s) - $(coord_file_mtime "$d" 2>/dev/null || echo 0) )) -ge 10 ]; then rmdir "$d" 2>/dev/null; continue; fi
     i=$((i + 1)); [ "$i" -ge 30 ] && return 1
@@ -439,7 +450,7 @@ console_input_mark_handled() {
   cur="$(cat "$f" 2>/dev/null)"
   if ! printf '%s' "$cur" | jq -e 'type == "object"' >/dev/null 2>&1; then console_input_rec_unlock "$name"; return 1; fi
   full="$(printf '%s' "$cur" | jq -r '.full // empty | tostring' 2>/dev/null)"
-  printf '%s' "$full" | grep -Eq '^[0-9a-f]{64}$' || full=""
+  _ci_hex64 "$full" || full=""
   if [ -n "$want" ] && [ "$full" != "$want" ]; then console_input_rec_unlock "$name"; return 2; fi
   since="$(printf '%s' "$cur" | jq -r '.since // empty | tostring' 2>/dev/null)"
   sha="$(printf '%s' "$cur" | jq -c '.excerpt // []' 2>/dev/null | console_excerpt_sha_json)"
@@ -452,5 +463,5 @@ console_input_mark_handled() {
 }
 console_input_notify() {
   local d; _ci_name_ok "${1:-}" || return 1
-  d="$(_ci_dir)/input/.notify"; mkdir -p "$d" 2>/dev/null && : > "$d/$1"
+  d="$(_ci_dir)/input/.notify"; coord_mkdirp "$d"; [ -d "$d" ] && : > "$d/$1"
 }

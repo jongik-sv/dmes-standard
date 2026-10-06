@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mdm.dme.ruleCalc;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
@@ -146,11 +147,12 @@ class RuleCalcOasisHttpTest {
     }
 
     @Test
-    void 확정_버전이_없거나_입력이_비어도_HTTP_오류가_아니라_messages_다() throws Exception {
+    void 입력을_안_보내도_막지_않고_없는_대상은_HTTP_오류가_아니라_messages_다() throws Exception {
+        // 빈 입력은 null 로 엔진에 넘기므로 INPUT_MISSING 으로 거부하지 않는다(F1) — HTTP 는 정상이고 결과는 본문에 있다.
         JsonNode missing = post("execute", envelope("RULE", "QLTY_GRD_JDG"));
         assertTrue(missing.path("meta").path("success").asBoolean(false), missing.toString());
-        assertFalse(missing.path("data").path("result").path("ok").asBoolean(true));
-        assertEquals("INPUT_MISSING", missing.path("data").path("result").path("messages").path(0).path("code").asText(), missing.toString());
+        assertTrue(missing.path("data").path("result").has("ok"), missing.toString());
+        assertNotEquals("INPUT_MISSING", missing.path("data").path("result").path("messages").path(0).path("code").asText(), missing.toString());
 
         JsonNode notFound = post("view", envelope("SET", "NO_SUCH_SET"));
         assertTrue(notFound.path("meta").path("success").asBoolean(false), notFound.toString());
