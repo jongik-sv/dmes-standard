@@ -291,6 +291,7 @@ export default function CommSyncMngPage() {
               G-6 fix: CHK 컬럼 자체는 GridColumn[] 에서 제거 — selectable 의 내부 체크박스 컬럼이 흡수
             */}
             <AgDataGrid
+              gridId="main"
               columnSizing="fit"
               columns={SYNC_COLUMNS}
               data={mainRows}

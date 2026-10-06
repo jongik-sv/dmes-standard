@@ -406,6 +406,7 @@ export default function MasterCategoryMngPage() {
             loading={isSaving}
           >
             <AgDataGrid
+              gridId="main"
               columnSizing="fit"
               columns={CATEGORY_COLUMNS}
               data={rows}

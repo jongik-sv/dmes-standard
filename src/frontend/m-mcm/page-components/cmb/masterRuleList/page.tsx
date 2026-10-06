@@ -316,6 +316,7 @@ export default function MasterRuleListPage() {
             loading={isSaving}
           >
             <AgDataGrid
+              gridId="main"
               columnSizing="fit"
               columns={RULE_COLUMNS}
               data={rows}
