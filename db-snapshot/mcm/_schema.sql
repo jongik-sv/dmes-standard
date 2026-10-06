@@ -845,7 +845,7 @@ CREATE TABLE TB_MCM_WIDGET_DEF (
         SUBTITLE varchar(100),
         TITLE varchar(100),
         TYPE_ID varchar(40),
-        USE_YN varchar(1) not null, CATEGORY_CD varchar(20), PRIVATE_YN varchar(1),
+        USE_YN varchar(1) not null, CATEGORY_CD varchar(20), PRIVATE_YN varchar(1), PLACE_TP varchar(1),
         primary key (WIDGET_ID)
     );
 CREATE TABLE TB_MCM_WIDGET_DEFAULT_LAYOUT (

@@ -132,6 +132,8 @@ public class CommWidgetMngService {
         String categoryCd = text(request.getCategoryCd(), "분류(categoryCd)", 20, false);
         // 비공개 — Y 면 서랍에 안 보인다(2026-10-05 위젯 개선 §10).
         String privateYn = yn(request.getPrivateYn(), "비공개(privateYn)");
+        // 배치 — W=위젯 화면만 / B=업무 화면만 / A=둘 다 / 비움=유형 floatable (2026-10-06).
+        String placeTp = placeTp(request.getPlaceTp());
         String useYn = yn(request.getUseYn(), "사용(useYn)");
 
         String typeId = null;
@@ -180,6 +182,7 @@ public class CommWidgetMngService {
         row.setMultipleYn(multipleYn);
         row.setCategoryCd(categoryCd);
         row.setPrivateYn(privateYn);
+        row.setPlaceTp(placeTp);
         row.setUseYn(useYn == null ? "Y" : useYn);
         row.setDataSrc(dataSrc);
         row.setConfigJson(configJson);
@@ -275,6 +278,16 @@ public class CommWidgetMngService {
         String v = blankToNull(raw);
         if (v == null) return null;
         if (!"Y".equals(v) && !"N".equals(v)) throw invalid(label + "은(는) Y 또는 N 이어야 합니다.");
+        return v;
+    }
+
+    /** 배치 옵션 — W·B·A 만 받고 비우면 NULL(유형 floatable 을 따른다). */
+    private static String placeTp(String raw) {
+        String v = blankToNull(raw);
+        if (v == null) return null;
+        if (!"W".equals(v) && !"B".equals(v) && !"A".equals(v)) {
+            throw invalid("배치(placeTp)는 W·B·A 중 하나여야 합니다(비우면 유형 기본).");
+        }
         return v;
     }
 

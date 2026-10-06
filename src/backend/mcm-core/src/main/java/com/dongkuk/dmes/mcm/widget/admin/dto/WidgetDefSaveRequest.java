@@ -23,6 +23,7 @@ public class WidgetDefSaveRequest {
     private String multipleYn;
     private String categoryCd;
     private String privateYn;
+    private String placeTp;
     private String useYn;
     private String dataSrc;
     private String configJson;
@@ -63,6 +64,8 @@ public class WidgetDefSaveRequest {
     public void setCategoryCd(String categoryCd) { this.categoryCd = categoryCd; }
     public String getPrivateYn() { return privateYn; }
     public void setPrivateYn(String privateYn) { this.privateYn = privateYn; }
+    public String getPlaceTp() { return placeTp; }
+    public void setPlaceTp(String placeTp) { this.placeTp = placeTp; }
     public String getUseYn() { return useYn; }
     public void setUseYn(String useYn) { this.useYn = useYn; }
     public String getDataSrc() { return dataSrc; }
