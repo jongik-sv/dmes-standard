@@ -457,9 +457,10 @@ export interface AgDataGridProps {
    */
   fieldErrors?: Array<{ rowKey?: string; rowIndex?: number; field: string; message: string }>;
   /**
-   * 표 아래에 「N행」과 [엑셀] 단추 줄(GridExcelFoot)을 붙이고, 누르면 그리드에 지금 보이는 컬럼·행을 엑셀로 내려받는다. 주지 않으면 줄도 단추도 없다.
+   * 표 아래에 「N행」과 [엑셀] 단추 줄(GridExcelFoot)을 붙이고, 누르면 그리드의 컬럼·행을 엑셀로 내려받는다. 주지 않으면 줄도 단추도 없다.
    * 주면 바깥을 세로 flex 상자로 감싸 표가 남은 높이를 채우고 아래 줄이 바닥에 붙는다(`height` 는 이 바깥 상자의 높이).
-   * 컬럼은 보이는 순서·제목, 숨긴 열·행 번호·체크박스는 뺀다(`excludeKeys` 로 render 전용 열도 뺄 수 있다). 행은 정렬·필터 순서, 값은 `render` 가 아니라 행의 원래 값이다.
+   * 컬럼은 모든 데이터 열을 사용자 순서(왼쪽 고정 → 가운데 → 오른쪽 고정)·제목으로 내보내고, 사용자가 숨긴 열은 엑셀에도 숨긴 열로 넣는다.
+   * 화면 정의에서 `hide: true` 인 내부 열·행 번호·체크박스는 뺀다(`excludeKeys` 로 render 전용 열도 뺄 수 있다). 행은 정렬·필터 순서, 값은 `render` 가 아니라 행의 원래 값이다.
    * 객체를 렌더마다 새로 만들면 memo 가 깨지니 상수나 `useMemo` 로 둔다.
    */
   excelExport?: AgDataGridExcelExport;

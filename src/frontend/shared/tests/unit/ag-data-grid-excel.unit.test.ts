@@ -24,7 +24,11 @@ import {
   displayedExcelRows,
   gridExcelColumns,
 } from "../../src/components/grid/AgDataGridExcel";
+import { gridPrefKey, type GridPrefs } from "../../src/components/grid/grid-personalize";
 import { MdmMetaProvider, resetMdmMetaStore } from "../../src/mdm-meta";
+import { clearCurrentUserCache } from "../../src/portal-shell/current-user";
+import { TabPageContext } from "../../src/portal-shell/tab-page-context";
+import { installMemoryLocalStorage, seedCurrentUser } from "./grid-personalize-test-env";
 import { renderWithMantine, rerender, type Rendered } from "./mantine-test-utils";
 import { TITLE, fakeMetaFetch, settle as settleMs } from "./mdm-meta-fixtures";
 
@@ -301,6 +305,44 @@ describe("AgDataGrid excelExport — 실제 그리드의 화면 상태를 따른
       "etc",
       "qty",
     ]);
+  });
+
+  it("개인화로 숨기고 옮긴 열은 그 순서대로 숨긴 열로 나가고, 화면 정의의 숨김 열은 여전히 빠진다", async () => {
+    const ls = installMemoryLocalStorage();
+    // 저장값의 secret.hide=false 는 화면 정의 hide 를 이기지 못한다
+    const prefs: GridPrefs = {
+      v: 1,
+      savedAt: 1,
+      cols: [{ colId: "status" }, { colId: "qty", hide: true }, { colId: "woNo" }, { colId: "secret", hide: false }],
+    };
+    ls.setItem(gridPrefKey("u1", "scr-excel", "main"), JSON.stringify(prefs));
+    await seedCurrentUser("u1");
+    try {
+      r = renderWithMantine(
+        createElement(
+          TabPageContext.Provider,
+          { value: { pageId: "scr-excel", serviceId: "", tabId: "t1" } },
+          createElement(AgDataGrid, { columns, data, rowKey: "woNo", excelExport: {} } as never)
+        )
+      );
+      container = r.host;
+      await settle();
+      await settle();
+      expect(
+        [...container.querySelectorAll(".ag-header-cell[col-id]")].map((el) => el.getAttribute("col-id"))
+      ).toEqual(["status", "woNo"]);
+      await clickExcel();
+    } finally {
+      clearCurrentUserCache();
+    }
+    const cols = h.exportToExcel.mock.calls[0][3] as { key: string; hidden?: boolean }[];
+    expect(cols.map((c) => [c.key, !!c.hidden])).toEqual([
+      ["status", false],
+      ["qty", true],
+      ["woNo", false],
+    ]);
+    // 값은 숨긴 열도 그대로 들어간다(엑셀에서 펼치면 보인다)
+    expect((h.exportToExcel.mock.calls[0][0] as { qty: number }[])[0].qty).toBe(20);
   });
 
   it("excludeKeys 에 든 열은 화면에 보여도 엑셀에서 뺀다", async () => {
