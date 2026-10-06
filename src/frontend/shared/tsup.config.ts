@@ -38,6 +38,7 @@ export default defineConfig((options) => ({
     "notice-body-view": "src/components/notice-body-view/index.ts",
     "html-editor": "src/components/html-editor/index.ts",
     "detail-popover": "src/components/detail-popover/index.ts",
+    "grid-resize-box": "src/components/grid-resize-box/index.ts",
     "json-view": "src/components/json-view/index.ts",
     card: "src/components/card/index.ts",
     "transfer-list": "src/components/transfer-list/index.ts",

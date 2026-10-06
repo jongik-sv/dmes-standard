@@ -43,7 +43,7 @@ GROUPS: list[tuple[str, list[str]]] = [
     ("화면 문맥 — 업무 화면 ↔ 도구 창 위젯 (`@dk-oasis/shared/screen-context`)", ["screen-context"]),
     ("위젯 도크·떠 있는 창·탭 분리 창·분리 상태 이어받기 (`@dk-oasis/shared/portal-shell`)", ["widget-dock", "floating-window", "portal-page-window", "use-carry-state"]),
     ("MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)", ["mdm-meta"]),
-    ("탭·트리·룩업·기타", ["tabs", "closable-tabs", "tree", "lookup", "lookup-multi-modal", "markdown-editor", "html-editor", "notice-body-view", "detail-popover", "json-view", "card", "transfer-list", "matrix-table", "charts", "export-to-excel", "print-element-as-page", "icons"]),
+    ("탭·트리·룩업·기타", ["tabs", "closable-tabs", "tree", "lookup", "lookup-multi-modal", "markdown-editor", "html-editor", "notice-body-view", "detail-popover", "grid-resize-box", "json-view", "card", "transfer-list", "matrix-table", "charts", "export-to-excel", "print-element-as-page", "icons"]),
 ]
 
 # 화면 문서에 싣지 않는 shared export 와 이유. coverage 가 이 목록을 "의도적 제외"로 본다.
@@ -104,6 +104,7 @@ EXPORT_FILES = [
     "components/notice-body-view/index.ts",
     "components/html-editor/index.ts",
     "components/detail-popover/index.ts",
+    "components/grid-resize-box/index.ts",
     "components/json-view/index.ts",
     "components/card/index.ts",
     "components/transfer-list/index.ts",

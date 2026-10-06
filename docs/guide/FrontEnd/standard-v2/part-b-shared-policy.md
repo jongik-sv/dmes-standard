@@ -38,6 +38,7 @@ UI(폼·모달·메시지·탭·트리·레이아웃·portal-shell·로그인 �
 | `@dk-oasis/shared/notice-body-view`           | SHOULD                 | 공지 본문(TEXT·MD·HTML) 읽기 표시    | §18              |
 | `@dk-oasis/shared/html-editor`                | SHOULD                 | HTML 서식 편집(서식·원문 모드, 글 ↔ HTML 변환, 글·HTML 형식 전환 칸 `HtmlFormatField`) | §18              |
 | `@dk-oasis/shared/detail-popover`             | SHOULD                 | 클릭으로 여는 큰 상세 팝오버         | §18              |
+| `@dk-oasis/shared/grid-resize-box`            | SHOULD                 | 24열 격자 단위로 끌어 크기를 바꾸는 틀·칸↔픽셀 계산 | §18              |
 | `@dk-oasis/shared/json-view`                  | SHOULD                 | JSON 값 읽기 전용 트리(접기·복사)    | §18              |
 | `@dk-oasis/shared/card`                       | SHOULD                 | 제목 줄 카드 틀·함께 접는 카드 묶음·흐린 보조 글 | §18              |
 | `@dk-oasis/shared/transfer-list`              | SHOULD                 | 좌(가능)·우(소속) 전송 목록과 집합 함수 | §18              |

@@ -428,6 +428,86 @@ export function canSaveForm(g: SaveGateInput): boolean {
   return g.form.widgetId === "" || isFormDirty(g.baseline, g.form);
 }
 
+/** 미리보기에서 끌어 바꾸는 크기 종류 — 기본·최소·최대. */
+export type SizeTarget = "def" | "min" | "max";
+
+export const SIZE_TARGET_OPTIONS: readonly { value: SizeTarget; label: string }[] = [
+  { value: "def", label: "기본" },
+  { value: "min", label: "최소" },
+  { value: "max", label: "최대" },
+];
+
+const SIZE_TARGET_LABEL: Record<SizeTarget, string> = { def: "기본", min: "최소", max: "최대" };
+
+/** 행 제목 — 고른 대상에 맞춘다. */
+export function previewTitle(target: SizeTarget): string {
+  return `미리보기(${SIZE_TARGET_LABEL[target]} 크기)`;
+}
+
+/** shared WIDGET_DEFAULT_MIN_SIZE 와 같은 값 — 최소 크기를 비우면 쓰이는 값(런타임 import 를 피하려고 따로 둔다). */
+const DEFAULT_MIN_SIZE: WidgetSize = { w: 4, h: 6 };
+
+/** 폼 칸이 비었거나 1 이상 정수가 아니면 fallback(검사는 validateDefForm 몫). */
+const posInt = (text: string, fallback: number): number => {
+  const v = intOrNull(text);
+  return v != null && v >= 1 ? v : fallback;
+};
+
+export interface PreviewSizeBase {
+  defaultSize: WidgetSize;
+  minSize?: WidgetSize;
+  maxSize?: WidgetSize;
+}
+
+export interface PreviewSizes {
+  def: WidgetSize;
+  min: WidgetSize;
+  /** 최대가 한 축도 없으면(제한 없음) null. 한 축만 비어 있으면 그 축은 가로 24·세로는 기본 크기로 둔다. */
+  max: WidgetSize | null;
+}
+
+/**
+ * 폼 값(없으면 코드·유형 값, 최소는 4×6) 으로 미리보기에서 그릴 기본·최소·최대 크기를 구한다. 축마다 따로 대체한다(applyWidgetOverride 와 같다).
+ * 가로는 24 를 넘지 않게 맞춘다 — 잘못된 값은 validateDefForm 이 막는다.
+ */
+export function previewSizes(form: DefForm, base?: PreviewSizeBase): PreviewSizes {
+  const baseDef = base?.defaultSize ?? { w: 1, h: 1 };
+  const baseMin = base?.minSize ?? DEFAULT_MIN_SIZE;
+  const col = (w: number) => Math.min(w, GRID_COLS);
+  const def = { w: col(posInt(form.defW, baseDef.w)), h: posInt(form.defH, baseDef.h) };
+  const min = { w: col(posInt(form.minW, baseMin.w)), h: posInt(form.minH, baseMin.h) };
+  const maxW = posInt(form.maxW, base?.maxSize?.w ?? 0);
+  const maxH = posInt(form.maxH, base?.maxSize?.h ?? 0);
+  const max = maxW === 0 && maxH === 0 ? null : { w: col(maxW || GRID_COLS), h: maxH || def.h };
+  return { def, min, max };
+}
+
+/** 고른 대상의 시작 크기 — 최대가 「제한 없음」이면 기본 크기에서 시작한다. */
+export function targetSize(sizes: PreviewSizes, target: SizeTarget): WidgetSize {
+  if (target === "max") return sizes.max ?? sizes.def;
+  return sizes[target];
+}
+
+/** 미리보기에 점선으로 겹쳐 보일 나머지 크기(최대가 제한 없음이면 뺀다). */
+export function otherSizes(sizes: PreviewSizes, target: SizeTarget): { target: SizeTarget; size: WidgetSize }[] {
+  const out: { target: SizeTarget; size: WidgetSize }[] = [];
+  for (const t of ["def", "min", "max"] as const) {
+    if (t === target) continue;
+    const size = t === "max" ? sizes.max : sizes[t];
+    if (size) out.push({ target: t, size });
+  }
+  return out;
+}
+
+/** 드래그로 확정한 크기를 고른 대상의 가로·세로 입력 칸 값으로 바꾼다. */
+export function sizePatch(target: SizeTarget, size: WidgetSize): Partial<DefForm> {
+  const w = String(size.w);
+  const h = String(size.h);
+  if (target === "def") return { defW: w, defH: h };
+  if (target === "min") return { minW: w, minH: h };
+  return { maxW: w, maxH: h };
+}
+
 /** 미리보기 틀 크기 — 폭 = 미리보기 영역 × w/24, 높이 = h×20 + (h−1)×8 px(보드의 한 칸·간격과 같다). */
 export function previewBox(areaWidth: number, size: WidgetSize): { width: number; height: number } {
   const w = Math.min(Math.max(size.w, 1), GRID_COLS);

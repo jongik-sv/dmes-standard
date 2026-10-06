@@ -154,6 +154,10 @@
       "types": "./dist/types/components/detail-popover/index.d.ts",
       "import": "./dist/detail-popover.js"
     },
+    "./grid-resize-box": {
+      "types": "./dist/types/components/grid-resize-box/index.d.ts",
+      "import": "./dist/grid-resize-box.js"
+    },
     "./json-view": {
       "types": "./dist/types/components/json-view/index.d.ts",
       "import": "./dist/json-view.js"
