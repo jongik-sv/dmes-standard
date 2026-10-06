@@ -9,7 +9,15 @@ import { ErrorBoundary } from "../../components/error-boundary";
 import { MdmMetaProvider, mdmMetaTabProps } from "../../mdm-meta/context";
 import { buildMenuSearchItems } from "../menu-search";
 import type { PortalShellResolvePage } from "../module";
-import { readPopoutSnapshot, takePopoutHandoff, writePopoutSnapshot } from "../popout";
+import { CarryStateProvider, createCarryRegistry, type CarryRestore } from "../carry-state";
+import {
+  readPopoutCarry,
+  readPopoutSnapshot,
+  takePopoutCarryFromOpener,
+  takePopoutHandoff,
+  writePopoutCarry,
+  writePopoutSnapshot,
+} from "../popout";
 import { buildServiceIdByPageId } from "../service-id";
 import { TabPageContext } from "../tab-page-context";
 import type { PortalShellMenuResponse, PortalShellPageComponent } from "../types";
@@ -33,6 +41,52 @@ interface LoadedPage {
   errorMessage: string | null;
 }
 
+interface PopoutInitialState {
+  snapshot: unknown;
+  restore: CarryRestore | null;
+}
+
+// useState 초기화 함수는 StrictMode 에서 두 번 불린다. opener 보관소·handoff 는 한 번만 꺼낼 수 있으므로,
+// 같은 렌더 안의 두 번째 호출은 첫 결과를 그대로 받게 token 별로 잠깐 둔다(다음 microtask 에 지운다 — 메모리를 붙잡지 않는다).
+const initialStateByToken = new Map<string, PopoutInitialState>();
+
+/**
+ * 마운트 때 한 번 정하는 처음 상태.
+ * snapshot: handoff(1회) > 이 창 sessionStorage > null.
+ * 화면 상태(carry): opener 보관소(light+bulky) > handoff.carry(light, bulky 없음) > 이 창 sessionStorage(light, bulky 없음) > null.
+ */
+function resolveInitialState(token: string | null, pageId: string, opener: Window | null | undefined): PopoutInitialState {
+  if (!token) return { snapshot: null, restore: null };
+  const cached = initialStateByToken.get(token);
+  if (cached) return cached;
+  const handoff = takePopoutHandoff(token);
+  const validHandoff = handoff && handoff.pageId === pageId ? handoff : null;
+  let snapshot: unknown = null;
+  if (validHandoff) {
+    writePopoutSnapshot(token, validHandoff.snapshot);
+    snapshot = validHandoff.snapshot;
+  } else {
+    const kept = readPopoutSnapshot(token);
+    snapshot = kept.found ? kept.snapshot : null;
+  }
+
+  let restore: CarryRestore | null = null;
+  const fromOpener = takePopoutCarryFromOpener(token, opener);
+  if (fromOpener) {
+    restore = { light: fromOpener.light, bulky: fromOpener.bulky, hadBulky: Object.keys(fromOpener.bulky).length > 0 };
+  } else {
+    const light = validHandoff?.carry ?? readPopoutCarry(token);
+    if (light) restore = { light: light.light, bulky: null, hadBulky: light.hadBulky };
+  }
+  // 새로고침(F5)에서 이어받을 수 있게 정한 light 를 바로 이 창 sessionStorage 에 둔다.
+  if (restore?.light) writePopoutCarry(token, { light: restore.light, hadBulky: restore.hadBulky });
+
+  const result = { snapshot, restore };
+  initialStateByToken.set(token, result);
+  queueMicrotask(() => initialStateByToken.delete(token));
+  return result;
+}
+
 export function PortalPageWindow({
   pageId,
   menu,
@@ -52,18 +106,26 @@ export function PortalPageWindow({
   const allowed = menuItem != null;
   const title = menuItem?.title ?? null;
 
-  // 처음 snapshot: handoff(1회) > 이 창 sessionStorage > null. 마운트 때 한 번만 정한다.
-  // StrictMode 가 초기화 함수를 두 번 불러도 첫 호출이 handoff 를 sessionStorage 로 옮겨 두므로 두 번째도 같은 값을 읽는다.
-  const [snapshot, setSnapshot] = useState<unknown>(() => {
-    if (!token) return null;
-    const handoff = takePopoutHandoff(token);
-    if (handoff && handoff.pageId === pageId) {
-      writePopoutSnapshot(token, handoff.snapshot);
-      return handoff.snapshot;
-    }
-    const kept = readPopoutSnapshot(token);
-    return kept.found ? kept.snapshot : null;
-  });
+  // 처음 상태(snapshot·이어받은 화면 상태): 마운트 때 한 번만 정한다. 같은 take 결과를 함께 쓴다(resolveInitialState).
+  const [initial] = useState<PopoutInitialState>(() =>
+    resolveInitialState(token, pageId, opener !== undefined ? opener : typeof window === "undefined" ? null : window.opener)
+  );
+  const [snapshot, setSnapshot] = useState<unknown>(initial.snapshot);
+
+  // 화면 상태 등록소 — 화면이 useCarryState 로 올린 값을 pagehide 때 모아 새로고침(F5)용으로 이 창 sessionStorage 에 둔다.
+  const [carryRegistry] = useState(createCarryRegistry);
+  useEffect(() => {
+    if (!token) return undefined;
+    const onPageHide = () => {
+      const collected = carryRegistry.collect();
+      const hadBulky = Object.keys(collected.bulky).length > 0;
+      // 등록이 하나도 없으면(훅을 쓰지 않는 화면) 건드리지 않는다.
+      if (!hadBulky && Object.keys(collected.light).length === 0) return;
+      writePopoutCarry(token, { light: collected.light, hadBulky });
+    };
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, [token, carryRegistry]);
 
   // resolvePage 가 매 렌더 새 함수여도 화면을 다시 불러오지 않게 ref 로 읽는다.
   const resolvePageRef = useRef(resolvePage);
@@ -185,7 +247,9 @@ export function PortalPageWindow({
     // 탭과 같이 경계를 둔다. 화면의 렌더 오류가 창 전체를 하얗게 만들지 않게 한다.
     body = (
       <ErrorBoundary>
-        <PageComponent tabId={tabId} snapshot={snapshot} onSnapshotChange={handleSnapshotChange} />
+        <CarryStateProvider registry={carryRegistry} restore={initial.restore}>
+          <PageComponent tabId={tabId} snapshot={snapshot} onSnapshotChange={handleSnapshotChange} />
+        </CarryStateProvider>
       </ErrorBoundary>
     );
   }

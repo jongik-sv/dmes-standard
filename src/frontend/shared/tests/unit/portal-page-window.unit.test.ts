@@ -8,7 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PortalPageWindow } from "../../src/portal-shell/page-window/PortalPageWindow";
 import { useTabPage } from "../../src/portal-shell/tab-page-context";
 import type { PageProps, PortalShellMenuItem, PortalShellMenuResponse } from "../../src/portal-shell/types";
-import { POPOUT_HANDOFF_PREFIX, POPOUT_SNAPSHOT_PREFIX } from "../../src/portal-shell/popout";
+import { useCarryRefetch, useCarryRestored, useCarryState } from "../../src/portal-shell/carry-state";
+import { POPOUT_CARRY_GLOBAL, POPOUT_CARRY_SESSION_PREFIX, POPOUT_HANDOFF_PREFIX, POPOUT_SNAPSHOT_PREFIX } from "../../src/portal-shell/popout";
 import { readSecureJson, writeSecureJson } from "../../src/secure-storage";
 import { resetMdmMetaStore } from "../../src/mdm-meta";
 import { renderWithMantine, type Rendered } from "./mantine-test-utils";
@@ -206,5 +207,127 @@ describe("PortalPageWindow", () => {
         window.dispatchEvent(new CustomEvent("portal-open-tab", { detail: { pageId: "x:b" } }));
       });
     }).not.toThrow();
+  });
+
+  // ── 화면 상태 이어받기(carry-state) ───────────────────────────────────────────────
+
+  const carry: { refetch: ReturnType<typeof vi.fn>; restored?: boolean; setFilters?: (v: { q: string }) => void } = { refetch: vi.fn() };
+  const CarryPage = () => {
+    const [filters, setFilters] = useCarryState("filters", { q: "" });
+    const [rows] = useCarryState<number[]>("rows", [], { bulky: true });
+    carry.restored = useCarryRestored();
+    carry.setFilters = setFilters;
+    useCarryRefetch(() => carry.refetch());
+    return createElement("div", { "data-testid": "carry", "data-q": filters.q, "data-rows": rows.join(",") });
+  };
+  const resolveCarryPage = vi.fn(async () => CarryPage) as unknown as NonNullable<Parameters<typeof PortalPageWindow>[0]["resolvePage"]>;
+  const shown = () => {
+    const el = document.querySelector('[data-testid="carry"]');
+    return { q: el?.getAttribute("data-q"), rows: el?.getAttribute("data-rows") };
+  };
+  const fakeOpener = (taken: unknown) =>
+    ({ closed: false, [POPOUT_CARRY_GLOBAL]: { take: vi.fn(() => taken) } }) as unknown as Window;
+  const sessionCarry = () => {
+    const raw = sessionStorage.getItem(`${POPOUT_CARRY_SESSION_PREFIX}tok`);
+    return raw ? JSON.parse(raw) : null;
+  };
+
+  beforeEach(() => {
+    carry.refetch = vi.fn();
+    carry.restored = undefined;
+  });
+
+  it("opener 보관소의 값으로 화면 초기값(light·bulky)이 정해지고 재조회하지 않는다", async () => {
+    const take = { light: { filters: { q: "조건" } }, bulky: { rows: [1, 2] } };
+    await mount({ resolvePage: resolveCarryPage, opener: fakeOpener(take) });
+    expect(shown()).toEqual({ q: "조건", rows: "1,2" });
+    expect(carry.restored).toBe(true);
+    expect(carry.refetch).not.toHaveBeenCalled();
+  });
+
+  it("StrictMode 초기화 두 번에도 opener 의 한 번뿐인 값을 받는다", async () => {
+    const opener = fakeOpener({ light: { filters: { q: "조건" } }, bulky: { rows: [7] } });
+    await mount({ resolvePage: resolveCarryPage, opener }, true);
+    expect(shown()).toEqual({ q: "조건", rows: "7" });
+    expect(carry.refetch).not.toHaveBeenCalled();
+    expect(((opener as unknown as Record<string, { take: ReturnType<typeof vi.fn> }>)[POPOUT_CARRY_GLOBAL]).take).toHaveBeenCalledTimes(1);
+  });
+
+  it("opener 보관소의 값은 이 창 sessionStorage 에 light 만 옮겨 두고 hadBulky 를 적는다", async () => {
+    await mount({ resolvePage: resolveCarryPage, opener: fakeOpener({ light: { filters: { q: "조건" } }, bulky: { rows: [1] } }) });
+    expect(sessionCarry()).toEqual({ light: { filters: { q: "조건" } }, hadBulky: true });
+  });
+
+  it("opener 가 없으면 handoff light 로 시작하고 행은 자동 재조회를 한 번 부른다", async () => {
+    writeSecureJson(`${POPOUT_HANDOFF_PREFIX}tok`, {
+      pageId: PAGE_ID,
+      snapshot: null,
+      createdAt: Date.now(),
+      carry: { light: { filters: { q: "조건" } }, hadBulky: true },
+    });
+    await mount({ resolvePage: resolveCarryPage, opener: null });
+    expect(shown()).toEqual({ q: "조건", rows: "" });
+    expect(carry.restored).toBe(true);
+    expect(carry.refetch).toHaveBeenCalledTimes(1);
+    expect(sessionCarry()).toEqual({ light: { filters: { q: "조건" } }, hadBulky: true });
+  });
+
+  it("StrictMode 에서도 handoff light 복원 재조회는 한 번이다", async () => {
+    writeSecureJson(`${POPOUT_HANDOFF_PREFIX}tok`, {
+      pageId: PAGE_ID,
+      snapshot: null,
+      createdAt: Date.now(),
+      carry: { light: { filters: { q: "조건" } }, hadBulky: true },
+    });
+    await mount({ resolvePage: resolveCarryPage, opener: null }, true);
+    expect(shown()).toEqual({ q: "조건", rows: "" });
+    expect(carry.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("opener 보관소가 비었으면(이미 가져감) handoff light 로 물러선다", async () => {
+    writeSecureJson(`${POPOUT_HANDOFF_PREFIX}tok`, {
+      pageId: PAGE_ID,
+      snapshot: null,
+      createdAt: Date.now(),
+      carry: { light: { filters: { q: "조건" } }, hadBulky: false },
+    });
+    await mount({ resolvePage: resolveCarryPage, opener: fakeOpener(null) });
+    expect(shown()).toEqual({ q: "조건", rows: "" });
+    expect(carry.refetch).not.toHaveBeenCalled(); // 원래 행이 없었다
+  });
+
+  it("새로고침(F5) — opener·handoff 가 없으면 이 창 sessionStorage 의 light 로 시작하고 행을 다시 조회한다", async () => {
+    sessionStorage.setItem(`${POPOUT_CARRY_SESSION_PREFIX}tok`, JSON.stringify({ light: { filters: { q: "새로고침" } }, hadBulky: true }));
+    await mount({ resolvePage: resolveCarryPage, opener: null });
+    expect(shown()).toEqual({ q: "새로고침", rows: "" });
+    expect(carry.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("복원값이 없으면 초기값으로 그리고 재조회하지 않으며 sessionStorage 에 아무것도 쓰지 않는다", async () => {
+    await mount({ resolvePage: resolveCarryPage, opener: null });
+    expect(shown()).toEqual({ q: "", rows: "" });
+    expect(carry.restored).toBe(false);
+    expect(carry.refetch).not.toHaveBeenCalled();
+    expect(sessionCarry()).toBeNull();
+  });
+
+  it("pagehide 때 등록소의 light 를 다시 모아 sessionStorage 에 쓴다(hadBulky 는 bulky key 가 있으면 true)", async () => {
+    await mount({ resolvePage: resolveCarryPage, opener: null });
+    await act(async () => {
+      carry.setFilters?.({ q: "바뀐 조건" });
+      await settle(5);
+    });
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    expect(sessionCarry()).toEqual({ light: { filters: { q: "바뀐 조건" } }, hadBulky: true });
+  });
+
+  it("훅을 쓰지 않는 화면은 pagehide 에도 sessionStorage carry 를 쓰지 않는다", async () => {
+    await mount();
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    expect(sessionCarry()).toBeNull();
   });
 });
