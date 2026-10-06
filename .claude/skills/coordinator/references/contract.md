@@ -35,8 +35,10 @@
 | `heavy.measure_quiet` | `0.5` | 측정 창 시작 전 load1/코어 가 이 값 아래로 2분 유지 |
 | `usage.sources` | `[{"kind":"cache","path":"/tmp/claude-usage-cache.json"},{"kind":"coord-dump","path":"~/.coord/ctx"},{"kind":"limits-dir","path":"~/.dflow/limits"}]` | 사용량 출처 읽는 순서 |
 | `usage.max_age_min` | `30` | 이보다 오래된 출처는 버린다 |
-| `usage.bands` | `{"Y":{"five":60,"week":70},"O":{"five":80,"week":85},"R":{"five":95,"week":95}}` | 띠 경계(이상이면 그 띠) |
-| `usage.week_pace` | `true` | 1주 남은 날 보정(설계 §3.f) 사용 |
+| `usage.bands` | `{"Y":{"five":75,"week":85},"O":{"five":90,"week":93},"R":{"five":98,"week":98}}` | 띠 경계(이상이면 그 띠). 2026-10-07 에 한도를 넉넉히 쓰도록 올렸다 |
+| `usage.week_pace` | `false` | 켜면 1주 남은 날 보정(설계 §3.f)으로 1주 사용률이 `week_allow` 를 넘을 때 띠를 한 단계 올린다. 기본은 끈다 |
+| `usage.week_pace_margin` | `20` | `week_pace` 를 켰을 때 `week_allow = 100×(7−남은 일수)/7 + 이 값` 의 여유(%p) |
+| `usage.relaxed` | `false` | 계정 여유 스위치. 켜면(사용자가 다른 계정을 쓸 수 있을 때) `usage-band.sh` 가 Y·O 를 G 로 내려 낸다(R 은 그대로). 꺼 두면 띠가 오를 때 Claude 몫을 opencode·agy 로 옮긴다(`usage.md` §2) |
 | `usage.spawn_week_max` | `95` | 새 레인·새 Pane 을 띄울 수 있는 1주 사용률 상한(%). 이 값 미만이면 띠(Y·O)와 상관없이 띄운다. 5시간 사용량이 높을 때는 모델 등급·동시 agent 수로만 조절한다 |
 | `compact.threshold_pct` | `40` | 기본 임계 % |
 | `compact.threshold_tokens` | `null` | 토큰 임계(둘 다 있으면 먼저 닿는 쪽) |
@@ -52,16 +54,19 @@
 | `idle.stall_max_min` | `90` | 백그라운드 거부가 이보다 길면 정체 의심 |
 | `stall.quiet_min` | `20` | 산출물 무변화 + CPU 정지 판정 분 |
 | `tick.cron` | `"7,27,47 * * * *"` | 감시 틱 cron |
-| `workflow.agents_by_band` | `{"G":2,"Y":2,"O":2,"R":0}` | 레인당 동시 agent 상한. 속도 조정(2026-10-06)으로 R 말고는 띠와 상관없이 2 |
+| `workflow.agents_by_band` | `{"G":4,"Y":3,"O":2,"R":0}` | 레인당 동시 agent 상한(2026-10-07 완화). R 은 새 Workflow 없음 |
 | `workflow.model_table` | 아래 1.3 | 지시 템플릿의 단계·크기별 model·effort(최소 충분 등급) |
 | `workflow.escalation.ladder` | `[sonnet/medium, sonnet/high, opus/high]` | 시험 실패 시 수정 agent 등급 사다리(`references/workflow.md` §7) |
 | `workflow.escalation.allow_xhigh` | `false` | true 면 사다리 끝에 `opus/xhigh` 한 칸을 더한다 |
 | `workflow.escalation.max_attempts` | `3` | 항목당 수정 시도 상한(환경 재실행 제외) |
 | `workflow.escalation.env_retry` | `1` | 환경 실패(시간 초과·부하 연쇄)일 때 같은 등급 재실행 횟수 |
-| `search.mode` | `"tab"` | `tab` 은 새 탭에 대화형 검색 워커를 띄워 사용자가 진행을 보게 한다. `print` 는 화면 없이 단발 실행 |
-| `search.tab_command` | `"agy -i {prompt}"` | 탭 모드 명령 틀 |
-| `search.command` | `"agy -p {prompt} --print-timeout {timeout}s --disable-slash-commands"` | 검색 워커 명령 틀. `{prompt}` 는 인자 하나로, `{timeout}` 은 초로 바뀐다. 빈 값이면 검색 워커 없음 |
-| `search.timeout_s` | `240` | 검색 제한 시간 |
+| `search.mode` | `"tab"` | `tab` 은 새 탭에 검색 워커를 띄워 사용자가 진행을 보게 한다. `print` 는 화면 없이 단발 실행 |
+| `search.workers` | `["agy","opencode"]` | 검색 워커 순서. 앞 워커가 실패(no-command·timeout·error·empty)하면 다음 워커로 내려가고, 모두 실패해야 Claude agent(sonnet/medium)가 대신한다 |
+| `search.tab_command` | `"agy -i {prompt}"` | agy 탭 모드 명령 틀 |
+| `search.command` | `"agy -p {prompt} --print-timeout {timeout}s --disable-slash-commands"` | agy 단발 명령 틀. `{prompt}` 는 인자 하나로, `{timeout}` 은 초로 바뀐다. 빈 값이면 agy 를 건너뛴다 |
+| `search.opencode.command` | `"opencode run --standalone {prompt}"` | opencode 단발 명령 틀. 제한 시간은 `search.timeout_s` 로 `search.sh` 가 직접 건다 |
+| `search.opencode.tab_command` | `"opencode run --standalone {prompt} 2>&1 \| tee {out}"` | opencode 탭 명령 틀. 출력이 탭에 흐르면서 `{out}`(답 파일)에 남고, 끝나면 `{out}.done` 이 생긴다 |
+| `search.timeout_s` | `240` | 워커마다 거는 검색 제한 시간 |
 | `glm.max_sessions` | `1` | 동시 GLM 세션 상한 |
 | `glm.timeout_s` | `10` | 사전 확인 호출 제한 시간 |
 | `approvals.auto_allow` | `["read","status"]` | 사용자가 띄운 세션의 확인 창 자동 승인 범주. 가능한 값: `read`·`status`·`edit-own`·`commit-own`·`heavy-build`. 기본은 가장 좁게 |
@@ -84,7 +89,7 @@
 
 ### 1.3 `workflow.model_table` 기본값
 
-최소 충분 등급 원칙(SKILL.md 「시간·토큰·성능 최적화 원칙」)을 따른다. `model: "search"` 는 Claude agent 가 아니라 검색 워커(`search.sh`, 기본 agy, 읽기 전용)를 쓰라는 뜻이고, 검색이 실패하면 sonnet/medium agent 로 대신한다. 기본은 sonnet, opus 는 판정과 어려운 구현에만, xhigh 는 보안·정합성 판정에만 쓴다. `size` 는 착수 지시 항목 표의 크기(S/M/L)다.
+최소 충분 등급 원칙(SKILL.md 「시간·토큰·성능 최적화 원칙」)을 따른다. `model: "search"` 는 Claude agent 가 아니라 검색 워커(`search.sh`, 기본 agy → 실패 시 opencode, 읽기 전용)를 쓰라는 뜻이고, 두 워커가 모두 실패할 때만 sonnet/medium agent 로 대신한다. 기본은 sonnet, opus 는 판정과 어려운 구현에만, xhigh 는 보안·정합성 판정에만 쓴다. `size` 는 착수 지시 항목 표의 크기(S/M/L)다.
 
 ```json
 [
@@ -190,13 +195,13 @@ macOS(BSD `date`·`stat`) 와 GNU(Git Bash 포함) 양쪽에서 돈다. 기계�
 |---|---|---|
 | `tick.sh` | `[--no-answer] [--dry-run]` | 감시 틱 한 번을 묶어 행동 줄만 낸다: `ANSWER/DENY/ESCALATE … lane=<레인>`(확인 창 자동 응답) · `PROMPT <레인> <kind>`(`--no-answer`) · `IDLE`·`WAIT_USER`·`STALL?`·`GONE`(idle-check) · `STALL`(stall-check) · `CTX_OVER <레인> pct=<n> thr=<n>` · `CTX_OVER_SELF pct=<n> thr=<n>` · `BAND_CHANGED <이전> <지금> five=<n> week=<n>`(state.usage 갱신, 한 번만) · `LOAD_SOFT\|LOAD_HARD\|LOAD_RELEASE per_core=<f>`(두 틱 연속) · `WINDOW_DUE <kind> lane=<레인\|-> until=<iso>` · `UNACKED <instr-id> <레인> <분>m` · `UNLINKED <이름> pid=<pid>`(처음 본 것만) · `STALE_RUN <run-id> session=<id> idle=<분>m`(마감 표식 없는 다른 회차 — 경고만, 팀장 키는 세션 단위라 유령을 만들지 않는다). 하나도 없으면 `TICK quiet` |
 | `ctx-usage.sh` | `<session-id>` \| `--pid <pid>` \| `--lane <레인>` `[--window N]` | `CTX <session-id> tokens=<n> window=<n> pct=<n> src=transcript|dump at=<iso>` 또는 `CTX <id> unknown <사유>` |
-| `usage-band.sh` | 없음 | `BAND <G|Y|O|R|UNKNOWN> five=<n|-> week=<n|-> week_allow=<n|-> src=<kind|-> at=<iso|-> five_reset=<iso|-> week_reset=<iso|->` |
+| `usage-band.sh` | 없음 | `BAND <G|Y|O|R|UNKNOWN> five=<n|-> week=<n|-> week_allow=<n|-> src=<kind|-> at=<iso|-> five_reset=<iso|-> week_reset=<iso|-> raw=<G|Y|O|R|->`. `raw` 는 `usage.relaxed` 로 내리기 전 띠다 |
 | `coord-status.sh` | `[--json]` | 레인마다 `LANE <레인> name=<세션> status=<busy|idle|gone> for=<분>m report=<HH:MM|-> commit=<HH:MM|-> ahead=<n|-> bg=<콤마목록|-> ctx=<n|->% hold=<사유|->`, 이어 `PC load1=<f> cpus=<n> per_core=<f> heavy=<held>/<waiting>/<K> swap_mb=<n|-> five=<n|-> week=<n|-> band=<띠>`, 상태에 없는 Claude 세션마다 `UNLINKED <이름> pid=<pid> cwd=<경로>`, 회차의 창마다 `WINDOW <kind> lane=<레인|-> until=<iso>` |
 | `idle-check.sh` | `[레인…]` (없으면 active 레인 전부) | 레인마다 하나: `IDLE <레인> since=<iso>` · `CANDIDATE <레인>`(첫 관측, 확정 전) · `BUSY <레인> <사유>` · `HOLD <레인> <사유>` · `WAIT_USER <레인> <창 종류>` · `COMPACTING <레인>` · `STALL? <레인> bg=<분>m` · `GONE <레인>` |
 | `stall-check.sh` | `[레인…]` | `STALL <레인> pid=<pid> cpu_delta=<초> quiet=<분>m heavy=<yes|no>` 또는 `OK <레인>` |
 | `merge-gate.sh` | `<레인>` \| `--branch <브랜치>` | 첫 줄 `GATE <ok|wait|conflict> branch=<b> base=<integration> tree=<hash|-> files=<n>`, 이어 사유 줄 `CONFLICT <경로>` · `FORBIDDEN <경로>` · `OUTSIDE <경로>`(소유 밖) · `SHARED_API <경로>` · `RESTART <note>` · `WINDOW <kind> until=<iso>` · `INFLIGHT <레인>` |
 | `prompt-watch.sh` | `<레인>` \| `--handle <h>` \| `--lanes a,b,c` `[--follow <초>] [--every <초>]` | `NONE <h>` 또는 `PROMPT <h> <trust|usage-limit|permission|question|choice>` 다음 줄부터 `---` 로 감싼 화면 발췌. `--follow` 는 감지할 때까지(최대 초) `--every` 간격(기본 `approvals.watch_every_s`=10, 직접 주면 그 값) 반복. `--lanes` 는 한 프로세스에서 레인을 차례로 보며 줄 형식은 같고 줄 앞에 `<레인> ` 이 붙는다(`<레인> PROMPT <h> <kind>`·`<레인> NONE <h>`): 레인마다 창이 새로 뜨거나 종류가 바뀔 때 한 번 블록을 내고 끝나지 않고 계속 보며(`--follow` 시간이 다하면 레인마다 `NONE` 줄), 창이 사라지면 그 레인을 다시 새로 뜨는 것으로 센다. 같은 종류의 창이 사이에 「창 없음」 표본 없이 이어져도(권한 창 A → B) 창 지문(`full`)이 바뀌면 새 창으로 다시 알린다: 알린 창의 식별자는 종류 + 지문이고, 지문은 캐시 json 의 `full` 이며(직접 읽은 화면은 `lib/console-input.sh` 의 `console_full_sha` 로 같은 방식으로 계산) 창 부분의 지문이라 상태줄·사용량 숫자만 바뀐 같은 창은 다시 알리지 않는다. **한계**: 지문이 없는 창(머리를 못 찾음 — §4.1)은 종류로만 비교하므로, 그런 창끼리 사이 표본 없이 이어지면 한 번만 알린다(지문이 한쪽에만 있어도 종류로만 비교). 단일 모드(`<레인>`·`--handle`)는 첫 감지에서 끝나 이 비교가 없고, 응답 뒤 `screen_cache_s` 초 안에는 낡은 캐시가 이미 처리한 창을 다시 `PROMPT` 로 낼 수 있다(무해: `auto-answer.sh` 가 직접 읽어 `NONE`). **화면 캐시**: 폴러가 도는 동안은 `$DFLOW_CONSOLE_DIR/screen/<핸들>.json`(§4.1)의 `read_at_ms` 가 `approvals.screen_cache_s`(기본 20초, 0 이면 끔) 안이면 orca 를 부르지 않고 캐시 화면의 마지막 40줄로 판정한다(출력 형식은 그대로). 없음·낡음·깨짐·폴더·파일이 현재 사용자 소유·권한 700/600 이 아니거나 심볼릭 링크이거나 json 의 kind 가 화면 판정과 다르면 조용히(오류 없이) 직접 읽는다. `permission` 의 120줄 재읽기는 늘 직접 읽고, 그 화면에 권한 창이 없으면(그사이 사라짐) 이미 읽은 40줄(캐시·직접) 화면으로 발췌한다. `--follow` 는 신선한 캐시가 있는 동안 캐시 json 이 바뀐 때만 새로 판정하고(같은 창은 위 seen 규칙대로 다시 알리지 않는다), 캐시가 낡거나 사라지면(폴러가 꺼짐) 그때부터 직접 읽는다. **보안 경계**: 캐시는 「창이 떴는가」 감지와 Monitor 알림 전용이다 — `auto-answer.sh`·`term-send-safe.sh`·폴러 키 행·`console-poll.sh judge-sha` 의 재판정은 캐시를 읽지 않고 늘 터미널을 직접 읽는다(캐시가 최대 `screen_cache_s` 늦거나 틀려도 응답은 직접 읽은 화면대로). **감지 지연 상한**: 폴러가 도는 동안에도 캐시가 `screen_cache_s`(20초)보다 오래되면 직접 읽어 새 창을 잡으므로, 새 창은 최대 `screen_cache_s`(20) + `--every`(10) = 30초 안에 알린다 |
-| `search.sh` | `[--tab\|--print] [--cwd <폴더>] [--timeout <초>] <질의…>` | `SEARCH ok <답 파일> <초>` 또는 `SEARCH fail <no-command|timeout|error|empty> <사유>`. 답은 회차 `searches/` 폴더(회차가 없으면 `$TMPDIR/coord-searches/`)에 쓴다 |
+| `search.sh` | `[--tab\|--print] [--cwd <폴더>] [--timeout <초>] [--worker <agy\|opencode>] <질의…>` | `SEARCH ok <답 파일> <초> worker=<이름>` 또는 `SEARCH fail <no-command|timeout|error|empty> <사유>`. 답은 회차 `searches/` 폴더(회차가 없으면 `$TMPDIR/coord-searches/`)에 쓴다 |
 | `glm-preflight.sh` | 없음 | `ok <host> <model> <초>` 또는 `fail <alias|host|call|model> <사유>` |
 
 ### 3.4 상태 쓰기

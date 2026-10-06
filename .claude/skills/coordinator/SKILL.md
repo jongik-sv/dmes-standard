@@ -20,11 +20,11 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 1. **최소 충분 등급에서 시작한다.** 실패·막힘의 근거(시험 실패, 리뷰 지적 반복, 20분 넘게 막힘)가 생길 때만 한 칸 올린다.
 2. **기본은 sonnet.** opus 는 판정(M/L 리뷰·머지 게이트·원인 진단)과 L·동시성·트랜잭션 구현에만, xhigh 는 보안·정합성 판정에만, 기계적 일은 haiku/low. 표는 `workflow.model_table`.
 3. **실행 수단은 업무 크기로 고른다.** 핵심 수정이 몇 파일·몇 줄인가를 먼저 적고, 영향·범위·단계·시간으로 D0 직접 → D1 검색 워커 → D2 agent 하나 → D3 병렬 agent → D4 Workflow → D5 새 세션 중 낮은 쪽부터 고른다(`references/sizing.md`). 별것 아닌 조사에 Workflow·여러 agent 를 띄우지 않는다.
-4. **검색·조사는 검색 워커가 먼저다.** `scripts/search.sh "<질의>"`(기본 agy 새 탭, Claude 토큰 0, 답은 파일). `SEARCH fail` 이면 grep 이나 sonnet/medium agent.
+4. **검색·조사는 검색 워커가 먼저다.** `scripts/search.sh "<질의>"`(기본 agy 새 탭, 실패하면 opencode 로 내려간다. Claude 토큰 0, 답은 파일). 두 워커가 모두 `SEARCH fail` 일 때만 grep 이나 sonnet/medium agent 를 쓴다. 조사·위치 찾기·사용처 집계는 레인 지시문에도 「agy·opencode 먼저」 로 적는다.
 5. **단순 시험은 빠르게.** 단일 시험 파일·클래스·`tsc`·lint 는 Workflow·heavy 슬롯 없이 바로(측정 창·금지 통지 중만 미룬다). 전체 시험은 머지 요청 직전 한 번.
 6. **시험 실패는 사다리로.** 환경 실패는 같은 등급 한 번 재실행, 코드 실패는 `workflow.escalation.ladder` 를 한 칸씩, 끝 칸에서도 실패하면 blocked 보고(`references/workflow.md` §7).
 7. **조정자는 적게 읽고 적게 말한다.** 틱은 `tick.sh` 한 번이고 `TICK quiet` 면 말 없이 끝낸다. reference 는 그 절차를 탈 때 그 절만 읽는다. 레인에 다시 묻기 전에 state·보고를 본다.
-8. **사용량 띠가 오르면 등급을 낮춘다.** Y: 사다리 끝 opus/high·대기 작업 배정 중단 · O: opus 는 판정만·새 Workflow 금지 · R: 머지·정리만. **새 레인은 1주 사용률 `usage.spawn_week_max`(95%) 미만이면 띠와 상관없이 띄운다.** 동시 agent 상한은 R 말고는 늘 2(`references/usage.md`).
+8. **사용량 띠가 오르면 일을 막지 않고 Claude 몫을 opencode·agy 로 옮긴다.** Y: 제한 없음에 가깝고 조사·문서 정리·쉬운 반복 구현을 opencode·agy 로 · O: 새 Workflow 허용(model·effort 명시)·opus 는 판정·L 구현·동시성에 계속·대기 작업 자동 배정만 중단·일반 구현은 opencode 워커 우선 · R: Claude 세션은 머지·정리만, 남은 일은 opencode·agy 워커로. 설정 `usage.relaxed`(계정 여유 스위치)를 켜면 R 이 아닌 한 띠와 상관없이 Claude 를 쓴다. **새 레인은 1주 사용률 `usage.spawn_week_max`(95%) 미만이면 띠와 상관없이 띄운다.** 동시 agent 상한은 G4·Y3·O2·R0(`references/usage.md`).
 9. **같은 일을 두 번 하지 않는다.** 재개 캐시를 깨는 지시 수정, 도는 Workflow 와 겹치는 지시, 같은 질문 반복을 피한다.
 10. **남의 진단은 직접 재 보고 옮긴다.** 레인·다른 세션의 원인 진단을 확인 없이 사용자에게 전하지 않는다. 화면 한 줄로 결론 내지 않고, 부하는 `ps`·`time` 으로 잰 숫자로 말한다(`stall.md` §5, `heavy.md` §4).
 
@@ -56,7 +56,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 | `DENY …` | 레인에 `확인 창 거부` 통지(`protocol.md`) |
 | `ESCALATE … permission` | `console-poll.sh judge-sha --lane <레인>` 로 화면 sha 기억 → 판단 올리기 → `term-send-safe.sh --lane <레인> --raw --expect-sha <sha>` (`SENT` 면 처리됨·소비는 term-send-safe 가 이미 남기므로 input-handled 를 부르지 않는다 — 키를 다른 경로로 보냈을 때만 `--expect-full <sha>` 와 함께, `approvals.md` §3). 사용자 결정 항목이면 사용자에게 한 줄 |
 | `ESCALATE …`(그 밖) · `WAIT_USER` | 사용자에게 한 줄 알림. 덮어 보내지 않는다 |
-| `IDLE <레인>` | `references/monitor.md` 배정(queue → backlog → 쉬어라). 띠별 범위 |
+| `IDLE <레인>` | `references/monitor.md` 배정(queue → backlog → 쉬어라). 띠별 범위(Y·O 는 opencode 워커 우선 포함) |
 | `STALL?`·`STALL` | `references/stall.md`(원인은 판단 올리기). 프로세스를 직접 죽이지 않는다 |
 | `GONE` | 화면 확인 뒤 레인 상태 정리 또는 재기동 여부를 사용자에게 |
 | `CTX_OVER` | `references/compact.md`(정본 갱신 요청 → `compact-lane.sh`) |
