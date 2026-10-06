@@ -54,6 +54,13 @@ usage() {
                          --clear-merge-conflict 로 해제(출력 MERGE_CONFLICT_SET·CLEARED·ABSENT)
   watch [--agent id] [--slots n] [--busy n] [--until HH:MM] [--project id] [--holder h] [--require-tag t] [--wp W] [--json] [--stop]
                          감시자 존재 신호(좌석표 STANDBY). 기본 agent 는 <신원>/<host>/poll. --json 이면 build_ready·resume_requests 를 그대로
+  console-poll [--host h] [--limit n]
+                         오피스에서 온 프롬프트를 이 PC(host 기본 이 PC)용으로 claim 한다(계약 §2.12). 프롬프트마다 한 줄 JSON
+                         {id,target_kind,target_ref,text,claim_token,expires_at}. 옛 서버(404)는 exit 7
+  console-ack <id> <claim_token> <sent|refused|retry> [--reason r] [--detail d]
+                         전달 결과를 알린다. refused·retry 는 --reason 필수. 출력 ACK <status> (이미 반영된 같은 결과면 ACK <status> already)
+  console-screen [--host h]
+                         stdin 의 JSON(items 배열 또는 {items:[…]}, ≤20)을 화면으로 올린다. 항목마다 SCREEN <kind> <ref> <status> [reason]
   done <ref> <요약> [--auto-links] [--decisions <file>]
                          --decisions: 확인 필요 결정 목록(JSON 배열). 형식 오류는 push 확인·전송 전에 exit 2
   release <ref>
@@ -697,6 +704,79 @@ cmd_watch() {
   else printf '%s' "$_body" | jq -r '.expires_at'; fi
 }
 
+# ---- 에이전트 콘솔(계약 §2.12): 오피스 → 로컬 세션 프롬프트, 로컬 세션 → 오피스 화면 ----------
+console_host() {  # 인자 없으면 이 PC 슬러그. 형식이 틀리면 exit 2
+  _h="${1:-$(slug "$(host_short)")}"
+  case "$_h" in ''|*[!a-z0-9-]*) die 2 "host 는 [a-z0-9-] 슬러그여야 한다: $_h" ;; esac
+  printf '%s' "$_h"
+}
+
+cmd_console_poll() {
+  _host=''; _limit=''
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --host)  _host="${2:-}";  shift 2 || usage ;;
+      --limit) _limit="${2:-}"; shift 2 || usage ;;
+      *) usage ;;
+    esac
+  done
+  _host=$(console_host "$_host") || exit $?
+  case "$_limit" in ''|[1-9]|10) ;; *) die 2 "--limit 은 1~10: $_limit" ;; esac
+  _json=$(jq -nc --arg h "$_host" --arg l "$_limit" '{host:$h} + (if $l != "" then {limit:($l|tonumber)} else {} end)')
+  _body=$(TOKEN="$TOK" api_raw POST /api/v1/agent/console/poll "$_json") || exit $?
+  printf '%s' "$_body" | jq -c '.prompts[]?' || die 6 "poll 응답 파싱 실패"
+}
+
+cmd_console_ack() {
+  [ $# -ge 3 ] || usage
+  _id="$1"; _ctok="$2"; _res="$3"; shift 3
+  _reason=''; _detail=''
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --reason) _reason="${2:-}"; shift 2 || usage ;;
+      --detail) _detail="${2:-}"; shift 2 || usage ;;
+      *) usage ;;
+    esac
+  done
+  case "$_res" in sent|refused|retry) ;; *) die 2 "결과는 sent|refused|retry: $_res" ;; esac
+  case "$_res" in refused|retry) [ -n "$_reason" ] || die 2 "$_res 는 --reason 이 필요하다" ;; esac
+  case "$_id" in ''|*[!0-9a-fA-F-]*) die 2 "id 형식 오류" ;; esac
+  _json=$(jq -nc --arg i "$_id" --arg t "$_ctok" --arg r "$_res" --arg rs "$_reason" --arg d "$_detail" \
+    '{id:$i, claim_token:$t, result:$r} + (if $rs != "" then {reason:$rs} else {} end) + (if $d != "" then {detail:$d} else {} end)')
+  # 404 는 둘이다: 옛 서버(라우트 없음, 본문에 code 가 없다)와 새 라우트의 {code:"not_found"}(토큰·행이 없음). retry 를 다시 부를 때의
+  # 후자는 서버가 이미 claim_token 을 비워 둔 것이므로 반영된 것으로 본다(출력 `ACK pending already`). 본문 code 로 가른다.
+  _errf="$CACHE_DIR/dflow_ack_err.$$"; mkdir -p "$CACHE_DIR"
+  _body=$(TOKEN="$TOK" api_raw POST /api/v1/agent/console/ack "$_json" 2>"$_errf"); _rc=$?
+  if [ "$_rc" != 0 ]; then
+    _errtxt=$(cat "$_errf" 2>/dev/null); rm -f "$_errf"
+    if [ "$_rc" = 7 ] && [ "$_res" = retry ] && [ "$(printf '%s' "$_errtxt" | jq -r '.code // empty' 2>/dev/null)" = not_found ]; then
+      printf 'ACK pending already\n'; return 0
+    fi
+    printf '%s\n' "$_errtxt" >&2; exit "$_rc"
+  fi
+  rm -f "$_errf"
+  printf '%s' "$_body" | jq -r '"ACK \(.status // "-")" + (if .already == true then " already" else "" end)'
+}
+
+cmd_console_screen() {
+  _host=''
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --host) _host="${2:-}"; shift 2 || usage ;;
+      *) usage ;;
+    esac
+  done
+  _host=$(console_host "$_host") || exit $?
+  _in=$(cat) || die 6 "stdin 읽기 실패"
+  _items=$(printf '%s' "$_in" | jq -c 'if type == "array" then . else .items end | select(type == "array")' 2>/dev/null) \
+    || die 2 "stdin 은 JSON 배열 또는 {items:[…]} 여야 한다"
+  [ -n "$_items" ] || die 2 "stdin 은 JSON 배열 또는 {items:[…]} 여야 한다"
+  [ "$(printf '%s' "$_items" | jq 'length')" -le 20 ] || die 2 "항목은 20개 이하"
+  _json=$(jq -nc --arg h "$_host" --argjson i "$_items" '{host:$h, items:$i}')
+  _body=$(TOKEN="$TOK" api_raw POST /api/v1/agent/console/screen "$_json") || exit $?
+  printf '%s' "$_body" | jq -r '.results[]? | "SCREEN \(.target_kind) \(.target_ref) \(.status)" + (if .reason then " \(.reason)" else "" end)'
+}
+
 # ---- 결정 목록(과제 C, 계약 2.6) ------------------------------------------
 # 상한은 src/lib/domain/agentWork.ts 의 AGENT_DECISION* 상수와 같다(tests/skills/dflow-done-decisions.test.ts 가 대조).
 DECISIONS_MAX=20
@@ -957,6 +1037,9 @@ case "$CMD" in
        progress) [ $# -ge 3 ] || usage; cmd_progress "$@" ;;
        heartbeat) [ $# -ge 1 ] || usage; cmd_heartbeat "$@" ;;
        watch) cmd_watch "$@" ;;
+       console-poll) cmd_console_poll "$@" ;;
+       console-ack) cmd_console_ack "$@" ;;
+       console-screen) cmd_console_screen "$@" ;;
        done) [ $# -ge 2 ] || usage; cmd_done "$@" ;;
        release) [ $# -ge 1 ] || usage; cmd_release "$@" ;;
        scaffold) cmd_scaffold "$@" ;;

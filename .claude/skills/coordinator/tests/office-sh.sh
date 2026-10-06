@@ -15,7 +15,9 @@ eq() { if [ "$2" = "$3" ]; then chk ok "$1"; else chk fail "$1" "기대 [$3] 실
 
 repo="$tmp/repo"; mkdir -p "$repo"
 # 조정 세션 식별을 고정한다(Claude Code 안에서 돌려도 실제 세션 id·pid 가 키에 섞이지 않게). <세션8> = s1a2b3c4, pid = 이 셸(살아 있음).
-unset CLAUDE_CODE_SESSION_ID COORD_STATE_ROOT COORD_DRY
+unset CLAUDE_CODE_SESSION_ID COORD_STATE_ROOT COORD_DRY ORCA_TERMINAL_HANDLE DFLOW_CONFIG_DIR
+# 콘솔 폴러(init 이 띄움)는 이 시험에서 띄우지 않는다(tests/console-poll.sh 몫). HOME·콘솔 폴더도 임시로.
+export COORD_CONSOLE_POLL=0 HOME="$tmp/home" DFLOW_CONSOLE_DIR="$tmp/console"; mkdir -p "$HOME"
 export COORD_REPO="$repo" COORD_RUN=t1 FAKE_LOG="$tmp/fake.log" COORD_SESSION_ID="S1A2B3C4-ffff-0000" CLAUDE_PID=$$
 cat > "$tmp/fake-dflow.sh" <<'EOF'
 #!/bin/sh
@@ -78,6 +80,7 @@ $OFF beat
 eq "옛 키: 첫 beat 의 첫 호출이 옛 키 stop" "$(log | head -1 | sed 's/ | cwd=.*//')" "watch --agent $ID/coord:t1 --stop"
 eq "옛 키: 이어 새 키 등록" "$(log | sed -n 2p | cut -d' ' -f1-3)" "watch --agent $LK"
 eq "옛 키: 세션 기록이 새 키" "$(srec .key)" "$LK"
+eq "옛 키: stop 성공하면 회차의 ._lead 를 비운다" "$(sent _lead)" ""
 reset
 $OFF beat
 eq "옛 키: 다음 beat 는 stop 없음" "$(log | grep -c -- '--stop')" 0
@@ -89,6 +92,13 @@ eq "옛 키: 세션 기록의 다른 키와 …/coord 를 모두 stop 한 뒤 �
   "$(log | sed -n 1,2p | grep -c -- '--stop')$(log | sed -n 3p | cut -d' ' -f1-3)" "2watch --agent $LK"
 eq "옛 키: …/coord stop" "$(log | grep -c -- "--agent $ID/coord --stop")" 1
 eq "옛 키: 기록 키 stop" "$(log | grep -c -- "--agent $ID/coord:old-run --stop")" 1
+eq "옛 키: …/coord 도 stop 뒤 ._lead 가 빔" "$(sent _lead)" ""
+# 새 키를 이미 보낸 뒤 옛 ._lead 가 남아 있어도(같은 키·같은 slots/busy 로 일찍 끝나는 길) beat 가 stop 하고 비운다
+$CS set '.office.sent["_lead"]' "\"$ID/coord:leftover\"" >/dev/null
+reset
+$OFF beat
+eq "옛 키: 새 키를 이미 보낸 뒤 남은 ._lead 도 stop" "$(log | grep -c -- "--agent $ID/coord:leftover --stop")" 1
+eq "옛 키: 남았던 ._lead 를 비움" "$(sent _lead)" ""
 $CS set '.office.sent["_lead"]' null >/dev/null
 
 # --- 2. lane-up ---------------------------------------------------------------
