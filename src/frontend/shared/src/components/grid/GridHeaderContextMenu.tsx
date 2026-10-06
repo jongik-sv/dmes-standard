@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 그리드 머리글 우클릭 메뉴(내부 부품) — 마우스 위치에 [컬럼 설정]·[자동 저장]·[초기화] 를 띄운다. AgDataGrid 가 컬럼 개인화가 켜진 그리드에서만 쓴다.
+ * 그리드 머리글 우클릭 메뉴(내부 부품) — 마우스 위치에 [컬럼 설정…]·[자동 설정 저장]·[설정 초기화…] 를 띄운다(이름은 GridPanel 설정 메뉴와 같은 grid-settings-labels). AgDataGrid 가 컬럼 개인화가 켜진 그리드에서만 쓴다.
  *
  * ag-grid community 33 에는 컨텍스트 메뉴가 없어 AgDataGrid 가 `contextmenu` 이벤트를 받아 위치를 넘긴다. Mantine `Menu.ContextMenu` 는 감싼
  * 요소의 모든 우클릭을 가로채고(대상 거름 없음) 글자 선택까지 끄므로 쓰지 않고, 제어형 `Menu` 의 `Menu.Target` 을 마우스 위치에 둔 크기 0 의
@@ -12,16 +12,18 @@ import type { HTMLAttributes, Ref } from "react";
 import { Menu } from "@mantine/core";
 import { IconCheck } from "@tabler/icons-react";
 
+import { GRID_SETTINGS_LABELS } from "./grid-settings-labels";
+
 export interface GridHeaderContextMenuProps {
   /** 마우스 위치(viewport 좌표 — `MouseEvent.clientX/Y`). */
   x: number;
   y: number;
   /** 우클릭마다 바뀌는 번호 — 메뉴가 열린 채 다시 우클릭하면 새 위치에 다시 띄운다. */
   nonce: number;
-  /** 자동 저장 스위치의 지금 값 — 켜져 있으면 항목에 체크 표시를 한다. */
+  /** 자동 설정 저장 스위치의 지금 값 — 켜져 있으면 항목에 체크 표시를 한다. */
   autoSave: boolean;
   onOpenSettings: () => void;
-  /** 자동 저장 스위치를 뒤집는다. */
+  /** 자동 설정 저장 스위치를 뒤집는다. */
   onToggleAutoSave: () => void;
   /** 초기화 요청(확인 창은 부른 쪽이 띄운다). */
   onReset: () => void;
@@ -70,18 +72,18 @@ export function GridHeaderContextMenu({ x, y, nonce, autoSave, onOpenSettings, o
             onOpenSettings();
           }}
         >
-          컬럼 설정
+          {GRID_SETTINGS_LABELS.settings}
         </Menu.Item>
         <Menu.Item
           data-testid="grid-header-menu-autosave"
-          aria-label={autoSave ? "자동 저장 켜짐" : "자동 저장 꺼짐"}
+          aria-label={`${GRID_SETTINGS_LABELS.autoSave} ${autoSave ? "켜짐" : "꺼짐"}`}
           leftSection={autoSave ? <IconCheck size={14} /> : <span style={{ display: "inline-block", width: 14 }} />}
           onClick={() => {
             onClose();
             onToggleAutoSave();
           }}
         >
-          자동 저장
+          {GRID_SETTINGS_LABELS.autoSave}
         </Menu.Item>
         <Menu.Item
           data-testid="grid-header-menu-reset"
@@ -90,7 +92,7 @@ export function GridHeaderContextMenu({ x, y, nonce, autoSave, onOpenSettings, o
             onReset();
           }}
         >
-          초기화
+          {GRID_SETTINGS_LABELS.reset}
         </Menu.Item>
       </Menu.Dropdown>
     </Menu>

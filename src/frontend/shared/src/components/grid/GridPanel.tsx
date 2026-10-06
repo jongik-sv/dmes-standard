@@ -13,10 +13,10 @@
  * - 행삭제: selectedRowKey에 해당하는 행을 제거하고 onDataChange로 전달
  */
 
-import React, { memo, useState, useEffect, useCallback, useMemo, useRef, useSyncExternalStore, type ReactNode, type CSSProperties } from "react";
-import { Switch } from "@mantine/core";
+import { memo, useState, useEffect, useCallback, useMemo, useReducer, useRef, useSyncExternalStore, type ReactNode, type CSSProperties } from "react";
 import type { GridColumn } from "./grid-types";
 import { GridHelpButton, type GridHelpConfig } from "./GridHelpButton";
+import { GridSettingsMenu } from "./GridSettingsMenu";
 import { GridPanelContext, type GridPanelGridControls, type GridPanelRegistry } from "./grid-panel-context";
 
 export interface GridButton {
@@ -143,53 +143,49 @@ function GridPanelComponent({
   const [allowedButtons, setAllowedButtons] = useState<string[]>([]);
   const tempIdCounter = useRef(0);
 
-  // 안쪽 AgDataGrid(컬럼 개인화가 켜진 것)가 올려 둔 명령 — 등록 순서대로 쌓고, 대상은 맨 앞(먼저 등록한 그리드)이다.
-  // 등록·해제는 ref 만 바꾸고 「대상이 있는가」·「대상이 바뀌었는가」가 바뀔 때만 한 번 다시 그린다(그리드가 늘 같은 명령 객체를 내주므로
-  // 렌더마다 갱신하지 않는다). 대상이 바뀌면 번호(gridTargetNo)를 올려 스위치 구독을 새 대상으로 갈아 끼운다.
-  const gridControlsRef = useRef<GridPanelGridControls[]>([]);
-  const gridTargetRef = useRef<GridPanelGridControls | null>(null);
-  const [hasGridControls, setHasGridControls] = useState(false);
-  const [gridTargetNo, setGridTargetNo] = useState(0);
+  // 안쪽 AgDataGrid(컬럼 개인화가 켜졌거나 엑셀 내려받기를 켠 것)가 올려 둔 명령 — 등록 순서대로 쌓고, 대상은 맨 앞(먼저 등록한 그리드)이다.
+  // 등록·해제는 ref 만 바꾸고 「대상이 바뀌었는가」가 바뀔 때만 한 번 다시 그린다(그리드가 늘 같은 명령 객체를 내주므로 렌더마다 갱신하지 않는다).
+  // 대상이 바뀌면 스위치 구독을 새 대상으로 갈아 끼우고, 등록한 그리드마다 「내가 대상인가」를 알려 준다(대상 그리드만 아래 줄 [엑셀] 단추를 숨긴다).
+  const gridEntriesRef = useRef<Array<{ controls: GridPanelGridControls; onTargetChange?: (isTarget: boolean) => void }>>([]);
+  const [gridTarget, setGridTarget] = useState<GridPanelGridControls | null>(null);
+  const [, bumpMenuOpen] = useReducer((n: number) => n + 1, 0);
   const gridRegistry = useMemo<GridPanelRegistry>(() => {
     const syncTarget = () => {
-      const list = gridControlsRef.current;
-      setHasGridControls(list.length > 0);
-      const first = list[0] ?? null;
-      if (first !== gridTargetRef.current) {
-        gridTargetRef.current = first;
-        setGridTargetNo((n) => n + 1);
-      }
+      const list = gridEntriesRef.current;
+      const first = list[0]?.controls ?? null;
+      setGridTarget(first);
+      for (const entry of [...list]) entry.onTargetChange?.(entry.controls === first);
     };
     return {
-      register(controls) {
-        gridControlsRef.current.push(controls);
+      register(controls, onTargetChange) {
+        const entry = { controls, onTargetChange };
+        gridEntriesRef.current.push(entry);
         syncTarget();
         return () => {
-          const list = gridControlsRef.current;
-          const i = list.indexOf(controls);
+          const list = gridEntriesRef.current;
+          const i = list.indexOf(entry);
           if (i >= 0) list.splice(i, 1);
           syncTarget();
         };
       },
     };
   }, []);
-  const openGridSettings = useCallback(() => gridControlsRef.current[0]?.openSettings(), []);
-  const requestGridReset = useCallback(() => gridControlsRef.current[0]?.requestReset(), []);
-  // 자동 저장 스위치 — 대상 그리드의 값을 읽는다. 대상이 바뀌면(gridTargetNo) 구독과 읽기 함수가 새 대상으로 바뀐다.
+  const hasGridControls = gridTarget !== null;
+  const hasGridPersonalize = gridTarget?.openSettings !== undefined;
+  const hasGridExcel = gridTarget?.exportExcel !== undefined;
+  const openGridSettings = useCallback(() => gridTarget?.openSettings?.(), [gridTarget]);
+  const requestGridReset = useCallback(() => gridTarget?.requestReset?.(), [gridTarget]);
+  const exportGridExcel = useCallback(() => gridTarget?.exportExcel?.(), [gridTarget]);
+  // 자동 설정 저장 스위치 — 대상 그리드의 값을 읽는다. 대상이 바뀌면 구독과 읽기 함수가 새 대상으로 바뀐다.
   const subscribeGridAutoSave = useCallback(
-    (onChange: () => void) => gridControlsRef.current[0]?.subscribeAutoSave(onChange) ?? (() => {}),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [gridTargetNo],
+    (onChange: () => void) => gridTarget?.subscribeAutoSave?.(onChange) ?? (() => {}),
+    [gridTarget],
   );
-  const getGridAutoSave = useCallback(
-    () => gridControlsRef.current[0]?.getAutoSave() ?? true,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [gridTargetNo],
-  );
+  const getGridAutoSave = useCallback(() => gridTarget?.getAutoSave?.() ?? true, [gridTarget]);
   const gridAutoSave = useSyncExternalStore(subscribeGridAutoSave, getGridAutoSave, () => true);
-  const toggleGridAutoSave = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    gridControlsRef.current[0]?.setAutoSave(e.currentTarget.checked);
-  }, []);
+  const toggleGridAutoSave = useCallback((next: boolean) => gridTarget?.setAutoSave?.(next), [gridTarget]);
+  // 행이 0 이면 엑셀 항목은 비활성 — 그릴 때와 메뉴를 열 때마다 다시 읽는다.
+  const gridExcelDisabled = !(gridTarget?.canExportExcel?.() ?? true);
 
   useEffect(() => {
     if (!usePermission || !fetchPermissions) return;
@@ -293,42 +289,21 @@ function GridPanelComponent({
                       {btn.label}
                     </button>
                   ))}
-                  {/* 컬럼 설정 — 개인화가 켜진 그리드가 있을 때만. 권한 검사·loading 과 무관하게 늘 활성(그리드 모양 설정이라 데이터를 건드리지 않는다). */}
+                  {/* 그리드 설정 메뉴 — 개인화가 켜졌거나 엑셀을 켠 그리드가 있을 때만. 컬럼 설정·자동 설정 저장·엑셀 내려받기·설정 초기화를 모은다.
+                      권한 검사·loading 과 무관하게 늘 활성(그리드 모양 설정과 보이는 행 내려받기라 데이터를 바꾸지 않는다). */}
                   {hasGridControls ? (
-                    <button
-                      key="btn_grid_columns"
-                      id="btn_grid_columns"
-                      type="button"
-                      className="grid-btn"
-                      data-testid="grid-columns-button"
-                      onClick={openGridSettings}
-                    >
-                      컬럼 설정
-                    </button>
-                  ) : null}
-                  {/* 자동 저장 스위치·초기화 — [컬럼 설정] 과 같은 조건·같은 이유로 권한 검사·loading 과 무관하게 늘 활성. */}
-                  {hasGridControls ? (
-                    <Switch
-                      key="grid_autosave"
-                      size="xs"
-                      label="자동 저장"
-                      data-testid="grid-autosave-switch"
-                      checked={gridAutoSave}
-                      onChange={toggleGridAutoSave}
-                      styles={{ root: { alignSelf: "center", margin: "0 4px" }, label: { paddingInlineStart: 4, whiteSpace: "nowrap" } }}
+                    <GridSettingsMenu
+                      key="grid_settings_menu"
+                      hasPersonalize={hasGridPersonalize}
+                      hasExcel={hasGridExcel}
+                      autoSave={gridAutoSave}
+                      excelDisabled={gridExcelDisabled}
+                      onOpenSettings={openGridSettings}
+                      onToggleAutoSave={toggleGridAutoSave}
+                      onExportExcel={exportGridExcel}
+                      onRequestReset={requestGridReset}
+                      onOpen={bumpMenuOpen}
                     />
-                  ) : null}
-                  {hasGridControls ? (
-                    <button
-                      key="btn_grid_reset"
-                      id="btn_grid_reset"
-                      type="button"
-                      className="grid-btn"
-                      data-testid="grid-reset-button"
-                      onClick={requestGridReset}
-                    >
-                      초기화
-                    </button>
                   ) : null}
                 </div>
               ) : null}

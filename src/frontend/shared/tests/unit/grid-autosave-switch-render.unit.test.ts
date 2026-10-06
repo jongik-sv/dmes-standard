@@ -1,6 +1,6 @@
 /** @vitest-environment happy-dom */
 /**
- * 그리드 개인화 「자동 저장」 스위치·「초기화」 — 실제 ag-grid·MantineProvider 로 그려 확인한다.
+ * 그리드 개인화 「자동 설정 저장」 스위치·「설정 초기화」(GridPanel 「그리드 설정」 메뉴 안) — 실제 ag-grid·MantineProvider 로 그려 확인한다.
  * 그리드 api 는 AgGridReact.render 의 this 로 잡는다(grid-column-settings-render 시험과 같은 방식).
  * 저장 규칙 자체(순수·제어기)는 grid-personalize·grid-personalize-hook 시험이 본다.
  */
@@ -77,6 +77,23 @@ const SEEDED: Omit<GridPrefs, "v" | "savedAt"> = {
 const tid = (id: string) => document.querySelector<HTMLElement>(`[data-testid="${id}"]`);
 const switchInput = () => tid("grid-autosave-switch") as HTMLInputElement | null;
 const click = (el: Element | null) => act(async () => void (el as HTMLElement).click());
+/** 「그리드 설정」 메뉴를 연다(이미 열려 있으면 그대로). 메뉴 항목은 열린 동안에만 DOM 에 있다. */
+async function openMenu() {
+  const target = tid("grid-settings-menu")!;
+  if (target.getAttribute("aria-expanded") !== "true") {
+    await click(target);
+    await wait(60);
+  }
+}
+const switchEl = async () => {
+  await openMenu();
+  return switchInput();
+};
+const switchChecked = async () => (await switchEl())!.checked;
+const menuItem = async (id: string) => {
+  await openMenu();
+  return document.getElementById(id);
+};
 const confirmButton = (text: "확인" | "취소") => Array.from(document.querySelectorAll("button")).find((b) => b.textContent === text) ?? null;
 function rightClick(el: Element) {
   act(() => void el.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 40, clientY: 30 })));
@@ -116,17 +133,37 @@ afterEach(async () => {
 });
 
 describe("GridPanel 의 자동 저장 스위치", () => {
-  it("옛 저장값(옆 키 없음)은 켬으로 읽는다 — 스위치는 [컬럼 설정] 옆에 [초기화] 와 함께 놓인다", async () => {
+  it("옛 저장값(옆 키 없음)은 켬으로 읽는다 — 머리줄 설정 아이콘 메뉴 안에 스위치·[설정 초기화…] 가 함께 놓인다", async () => {
     seed(SEEDED);
     await show(panel([gridEl()]));
-    expect(switchInput()).not.toBeNull();
+    // 머리줄에는 아이콘 하나만 — 예전 [컬럼 설정]·스위치·[초기화] 가 따로 없다
+    const icon = tid("grid-settings-menu")!;
+    expect(icon.getAttribute("aria-label")).toBe("그리드 설정");
+    expect(document.querySelector(".grid-panel-buttons")!.contains(icon)).toBe(true);
+    expect(document.querySelector(".grid-panel-buttons")!.textContent).toBe("");
+    expect(switchInput()).toBeNull();
+    await openMenu();
     expect(switchInput()!.checked).toBe(true);
-    expect(document.querySelector(".grid-panel-buttons")!.textContent).toContain("자동 저장");
-    const reset = document.getElementById("btn_grid_reset") as HTMLButtonElement;
-    expect(reset.textContent).toBe("초기화");
-    expect(reset.className).toBe("grid-btn");
-    expect(reset.disabled).toBe(false);
+    expect(tid("grid-settings-dropdown")!.textContent).toContain("자동 설정 저장");
+    expect(tid("grid-columns-button")!.textContent).toBe("컬럼 설정…");
+    const reset = document.getElementById("btn_grid_reset") as HTMLElement;
+    expect(reset.textContent).toBe("설정 초기화…");
+    expect(reset.hasAttribute("disabled")).toBe(false);
     expect(tid("grid-reset-button")).toBe(reset);
+    // 엑셀을 켜지 않은 그리드에는 엑셀 항목이 없다
+    expect(tid("grid-excel")).toBeNull();
+  });
+
+  it("스위치를 눌러도 메뉴는 닫히지 않고 값만 바뀐다 — 항목 전체가 누름 대상이다", async () => {
+    await show(panel([gridEl()]));
+    await openMenu();
+    await click(tid("grid-settings-dropdown")!.querySelector('[data-testid="grid-autosave-item"]'));
+    await wait(60);
+    expect(tid("grid-settings-dropdown")).not.toBeNull();
+    expect(tid("grid-settings-menu")!.getAttribute("aria-expanded")).toBe("true");
+    expect(switchInput()!.checked).toBe(false);
+    expect(tid("grid-autosave-item")!.getAttribute("aria-label")).toBe("자동 설정 저장 꺼짐");
+    expect(JSON.parse(localStorage.getItem(OPTS)!)).toEqual({ autoSave: false });
   });
 
   it("옆 키가 false 면 꺼진 채 그려지고, 헤더를 옮겨도 debounce 가 지난 뒤 저장 키가 바뀌지 않는다", async () => {
@@ -135,7 +172,7 @@ describe("GridPanel 의 자동 저장 스위치", () => {
     const before = localStorage.getItem(KEY);
     clearSetCalls();
     await show(panel([gridEl()]));
-    expect(switchInput()!.checked).toBe(false);
+    expect(await switchChecked()).toBe(false);
     const a = api();
     expect(order(a)).toEqual(["qty", "code", "name"]);
     await dragMove(a, "name", 0);
@@ -154,33 +191,33 @@ describe("GridPanel 의 자동 저장 스위치", () => {
 
   it("토글하면 옆 키에 저장되고 스위치가 바뀐다 — 다시 마운트해도 값이 남는다", async () => {
     await show(panel([gridEl()]));
-    await click(switchInput());
-    expect(switchInput()!.checked).toBe(false);
+    await click(await switchEl());
+    expect(await switchChecked()).toBe(false);
     expect(JSON.parse(localStorage.getItem(OPTS)!)).toEqual({ autoSave: false });
-    await click(switchInput());
-    expect(switchInput()!.checked).toBe(true);
+    await click(await switchEl());
+    expect(await switchChecked()).toBe(true);
     expect(JSON.parse(localStorage.getItem(OPTS)!)).toEqual({ autoSave: true });
-    await click(switchInput());
+    await click(await switchEl());
     await act(async () => r!.unmount());
     r = null;
     await show(panel([gridEl()]));
-    expect(switchInput()!.checked).toBe(false);
+    expect(await switchChecked()).toBe(false);
   });
 
   it("personalize={{ autoSave: false }} 이고 옆 키가 없으면 꺼짐이다 — 옆 키가 있으면 그 값이 이긴다", async () => {
     await show(panel([gridEl({ personalize: { autoSave: false } })]));
-    expect(switchInput()!.checked).toBe(false);
+    expect(await switchChecked()).toBe(false);
     await act(async () => r!.unmount());
     r = null;
     localStorage.setItem(OPTS, JSON.stringify({ autoSave: true }));
     await show(panel([gridEl({ personalize: { autoSave: false } })]));
-    expect(switchInput()!.checked).toBe(true);
+    expect(await switchChecked()).toBe(true);
   });
 
   it("깨진 옆 키는 개발자 기본값으로 읽는다", async () => {
     localStorage.setItem(OPTS, "not json");
     await show(panel([gridEl()]));
-    expect(switchInput()!.checked).toBe(true);
+    expect(await switchChecked()).toBe(true);
   });
 
   it("끔 → 켬: 끈 동안 바꾼 모습이 있으면 켜는 순간 한 번 저장한다", async () => {
@@ -192,7 +229,7 @@ describe("GridPanel 의 자동 저장 스위치", () => {
     await wait(GRID_PERSONALIZE_SAVE_DEBOUNCE_MS + 150);
     expect(setCount(KEY)).toBe(0);
     expect(saved()!.cols[0].colId).toBe("qty");
-    await click(switchInput());
+    await click(await switchEl());
     expect(saved()!.cols.map((c) => c.colId)).toEqual(["name", "qty", "code"]);
     expect(setCount(KEY)).toBe(1);
   });
@@ -200,7 +237,7 @@ describe("GridPanel 의 자동 저장 스위치", () => {
   it("켬 → 끔: 켜져 있던 동안 대기 중인 변경을 먼저 저장한다", async () => {
     await show(panel([gridEl()]));
     await dragMove(api(), "qty", 0);
-    await click(switchInput());
+    await click(await switchEl());
     expect(saved()!.cols.map((c) => c.colId)).toEqual(["qty", "code", "name"]);
     await wait(GRID_PERSONALIZE_SAVE_DEBOUNCE_MS + 150);
     expect(setCount(KEY)).toBe(1);
@@ -208,6 +245,7 @@ describe("GridPanel 의 자동 저장 스위치", () => {
 
   it("개인화를 끈 그리드에는 스위치·[초기화] 가 없다", async () => {
     await show(panel([gridEl({ personalize: false })]));
+    expect(tid("grid-settings-menu")).toBeNull();
     expect(switchInput()).toBeNull();
     expect(document.getElementById("btn_grid_reset")).toBeNull();
     expect(document.querySelector(".grid-panel-header-actions")).toBeNull();
@@ -217,12 +255,12 @@ describe("GridPanel 의 자동 저장 스위치", () => {
     localStorage.setItem(gridOptsKey("u1", SCREEN, "a"), JSON.stringify({ autoSave: false }));
     localStorage.setItem(gridOptsKey("u1", SCREEN, "b"), JSON.stringify({ autoSave: true }));
     await show(panel([gridEl({ gridId: "a" }, "a"), gridEl({ gridId: "b" }, "b")], "p"));
-    expect(switchInput()!.checked).toBe(false);
+    expect(await switchChecked()).toBe(false);
     await show(panel([gridEl({ gridId: "b" }, "b")], "p"));
-    expect(switchInput()).not.toBeNull();
-    expect(switchInput()!.checked).toBe(true);
+    expect(await switchEl()).not.toBeNull();
+    expect(await switchChecked()).toBe(true);
     // 둘째가 대상이 된 뒤 토글은 둘째 그리드의 옆 키에 간다
-    await click(switchInput());
+    await click(await switchEl());
     expect(JSON.parse(localStorage.getItem(gridOptsKey("u1", SCREEN, "b"))!)).toEqual({ autoSave: false });
     expect(JSON.parse(localStorage.getItem(gridOptsKey("u1", SCREEN, "a"))!)).toEqual({ autoSave: false });
   });
@@ -234,14 +272,14 @@ describe("등록부 이어받기", () => {
     clearSetCalls();
     // 둘 다 gridId 가 같다 — 첫째(a)가 키를 차지하고 둘째(b)는 기다린다
     await show(panel([gridEl({}, "a"), gridEl({}, "b")], "p"));
-    expect(switchInput()!.checked).toBe(true);
-    await click(switchInput());
-    expect(switchInput()!.checked).toBe(false);
+    expect(await switchChecked()).toBe(true);
+    await click(await switchEl());
+    expect(await switchChecked()).toBe(false);
     expect(JSON.parse(localStorage.getItem(OPTS)!)).toEqual({ autoSave: false });
     // 주인이 사라지면 b 가 이어받는다
     await show(panel([gridEl({}, "b")], "p"));
-    expect(switchInput()).not.toBeNull();
-    expect(switchInput()!.checked).toBe(false);
+    expect(await switchEl()).not.toBeNull();
+    expect(await switchChecked()).toBe(false);
     clearSetCalls();
     const b = apis().at(-1)!;
     await dragMove(b, "name", 0);
@@ -257,7 +295,7 @@ describe("[초기화]", () => {
     await show(panel([gridEl()]));
     const a = api();
     expect(order(a)).toEqual(["qty", "code", "name"]);
-    await click(document.getElementById("btn_grid_reset"));
+    await click(await menuItem("btn_grid_reset"));
     const msg = tid("grid-reset-confirm")!;
     expect(msg.textContent).toBe("이 그리드의 컬럼 순서·너비·표시·고정·정렬을 기본값으로 되돌리고 저장한 설정을 지웁니다. 계속할까요?");
     expect(document.body.textContent).toContain("초기화");
@@ -270,14 +308,14 @@ describe("[초기화]", () => {
     expect(localStorage.getItem(KEY)).toBeNull();
     expect(order(a)).toEqual(["code", "name", "qty"]);
     expect(JSON.parse(localStorage.getItem(OPTS)!)).toEqual({ autoSave: true });
-    expect(switchInput()!.checked).toBe(true);
+    expect(await switchChecked()).toBe(true);
   });
 
   it("[취소] 면 아무 일도 없다", async () => {
     seed(SEEDED);
     await show(panel([gridEl()]));
     const before = localStorage.getItem(KEY);
-    await click(document.getElementById("btn_grid_reset"));
+    await click(await menuItem("btn_grid_reset"));
     expect(tid("grid-reset-confirm")).not.toBeNull();
     await click(confirmButton("취소"));
     await wait(50);
@@ -291,41 +329,41 @@ describe("[초기화]", () => {
     localStorage.setItem(OPTS, JSON.stringify({ autoSave: false }));
     await show(panel([gridEl()]));
     await dragMove(api(), "name", 0);
-    await click(document.getElementById("btn_grid_reset"));
+    await click(await menuItem("btn_grid_reset"));
     await click(confirmButton("확인"));
     await wait(50);
     expect(localStorage.getItem(KEY)).toBeNull();
     expect(order(api())).toEqual(["code", "name", "qty"]);
     expect(JSON.parse(localStorage.getItem(OPTS)!)).toEqual({ autoSave: false });
-    expect(switchInput()!.checked).toBe(false);
+    expect(await switchChecked()).toBe(false);
     // 초기화 뒤 켜도 저장할 것이 없다
-    await click(switchInput());
+    await click(await switchEl());
     expect(localStorage.getItem(KEY)).toBeNull();
   });
 });
 
 describe("머리글 우클릭 메뉴", () => {
-  it("[자동 저장] 은 켜져 있으면 체크 표시가 있고, 누르면 토글하고 메뉴를 닫는다", async () => {
+  it("[자동 설정 저장] 은 켜져 있으면 체크 표시가 있고, 누르면 토글하고 메뉴를 닫는다", async () => {
     await show(panel([gridEl()]));
     rightClick(headerCell("name"));
     await wait(50);
     const item = () => tid("grid-header-menu-autosave")!;
-    expect(item().textContent).toBe("자동 저장");
-    expect(item().getAttribute("aria-label")).toBe("자동 저장 켜짐");
+    expect(item().textContent).toBe("자동 설정 저장");
+    expect(item().getAttribute("aria-label")).toBe("자동 설정 저장 켜짐");
     expect(item().querySelector("svg")).not.toBeNull();
     await click(item());
     await wait(400);
     expect(tid("grid-header-menu")).toBeNull();
     expect(JSON.parse(localStorage.getItem(OPTS)!)).toEqual({ autoSave: false });
     // GridPanel 스위치도 따라간다
-    expect(switchInput()!.checked).toBe(false);
+    expect(await switchChecked()).toBe(false);
     rightClick(headerCell("name"));
     await wait(50);
     expect(item().querySelector("svg")).toBeNull();
-    expect(item().getAttribute("aria-label")).toBe("자동 저장 꺼짐");
+    expect(item().getAttribute("aria-label")).toBe("자동 설정 저장 꺼짐");
     await click(item());
     expect(JSON.parse(localStorage.getItem(OPTS)!)).toEqual({ autoSave: true });
-    expect(switchInput()!.checked).toBe(true);
+    expect(await switchChecked()).toBe(true);
   });
 
   it("GridPanel 없이 쓰는 그리드도 메뉴로 토글한다", async () => {
@@ -355,7 +393,7 @@ describe("머리글 우클릭 메뉴", () => {
 describe("설정 창 [지금 상태 저장]", () => {
   it("켜져 있으면 보이지 않는다", async () => {
     await show(panel([gridEl()]));
-    await click(document.getElementById("btn_grid_columns"));
+    await click(await menuItem("btn_grid_columns"));
     expect(tid("column-settings")).not.toBeNull();
     expect(tid("column-settings-save")).toBeNull();
   });
@@ -366,13 +404,13 @@ describe("설정 창 [지금 상태 저장]", () => {
     await show(panel([gridEl()]));
     const a = api();
     // [적용] — 화면에만
-    await click(document.getElementById("btn_grid_columns"));
+    await click(await menuItem("btn_grid_columns"));
     await click(tid("column-settings-up-qty"));
     await click(tid("column-settings-apply"));
     expect(order(a)).toEqual(["code", "qty", "name"]);
     expect(setCount(KEY)).toBe(0);
     // [지금 상태 저장]
-    await click(document.getElementById("btn_grid_columns"));
+    await click(await menuItem("btn_grid_columns"));
     expect(tid("column-settings-save")!.textContent).toBe("지금 상태 저장");
     await click(tid("column-settings-up-qty"));
     await click(tid("column-settings-save"));
