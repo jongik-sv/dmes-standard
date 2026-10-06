@@ -21,7 +21,7 @@
 
 ## 1. 현황 집계 (2026-10-07, dev 09952ba5)
 
-조사 방법: sonnet/medium agent 하나가 `src/frontend/m-*` 를 grep 과 대표 화면 열람으로 훑었다. 줄 번호 근거는 레인 메모의 조사 원문에 있다.
+조사 방법: sonnet/medium agent 하나가 `src/frontend/m-*` 를 grep 과 대표 화면 열람으로 훑었다. 화면별 표는 부록 A 에 있다.
 
 ### 1.1 규모
 
@@ -80,7 +80,7 @@ children 칸 39개의 내역은 다음과 같다.
 - 칸의 `onChange` 는 모두 함수형 갱신이거나 setter 를 그대로 넘긴다. `setX({ ...x, k: v })` 처럼 지난 상태를 복사하는 꼴은 실화면에서 0건이다(grep 확인). 부작용이 있는 `onChange` 도 없다.
 - 마운트 때 자동 조회하는 화면은 12개다: `masterCategoryMng`, `masterCodeMng`, `masterRuleList`, `commMenuMng`, `commObjMng`, `commPermMng`, `commRoleGrpMng`, `commRoleMng`, `commUserMng`, `commUserRoleCopy`, `mdmCacheMng`, `noticeMgmt`.
 - m-mdm 목록 화면들은 「첫 진입 자동 조회 없음」 정책이다(2026-10-02 사용자 요청).
-- 조회 조건 초기화 버튼은 m-mcm 6개 화면에만 있다(`btn_reset`, 본문은 `setFilters(DEFAULT_FILTERS)`): `commMenuMng`, `commObjMng`, `commPermMng`, `commRoleGrpMng`, `commRoleMng`, `commUserMng`.
+- 조회 조건 초기화 버튼은 m-mcm 5개 화면에만 있다(`id: "btn_reset"`, 본문은 `setFilters(DEFAULT_FILTERS)`): `commMenuMng`, `commObjMng`, `commPermMng`, `commRoleGrpMng`, `commRoleMng`. `commUserMng` 은 `handleReset` 함수만 있고 버튼에 연결돼 있지 않다. `btn_reset` id 를 다른 뜻(행 변경 취소 등)으로 쓰는 화면은 없다(grep 확인).
 - 날짜 칸 초기값은 `screenUsageStat` 이 「오늘-30일 ~ 오늘」, `noticeMgmt` 가 빈 값이다.
 - `codeMng`·`dataMng` 는 handoff(다른 화면에서 넘어옴)로 열리면 조건을 비우고 조회한다.
 
@@ -104,7 +104,7 @@ children 칸 39개의 내역은 다음과 같다.
 | D6 | SearchArea 를 안 쓰는 확정 대기 4화면 | A 이번 범위에서 제외 / B SearchArea 로 바꿔 포함 | **A** | §7.4 |
 | D7 | 화면 키 | A `pageId` 그대로(그리드 개인화와 같음) / B `{moduleId}:{OBJECT_ID}` 로 정규화 | **A** | §3.1 |
 
-추천안대로라면 조정자·사용자가 따로 정할 것은 없다. 다만 D1(서버 저장)은 백엔드 레인이 하나 늘어나므로 확인을 받는다.
+사용자에게 확인받을 것: D1~D7 추천안을 한꺼번에 승인하는지, 특히 D1(서버 저장)으로 백엔드 레인이 하나 늘어나는 것을 받아들이는지.
 
 ## 3. 칸 식별
 
@@ -258,7 +258,9 @@ type SearchDefaultRule =
    - `pageId` 나 사용자 ID 가 없다.
 2. 저장소가 `ready` 면 바로, `loading` 이면 준비될 때까지 기다렸다가 넣는다. 기다리는 한도는 1.5초이고, 넘으면 넣지 않고 끝낸다.
 3. SearchArea 의 layout effect(자식 칸들의 등록이 끝난 뒤 같은 커밋)에서 규칙이 있는 칸마다 값을 계산해 `onChange(값)` 을 부른다. 지금 값과 같으면 부르지 않는다.
-4. 다음 커밋에서 칸 값이 계산값과 같은지 확인하고, 다르면 그 칸만 다시 넣는다(최대 3회). 지금 화면은 모두 함수형 갱신이라 1회로 끝나지만, 지난 상태를 복사하는 화면이 새로 생겨도 값이 사라지지 않게 하는 안전장치다.
+4. 다시 넣지 않는다. 다음 커밋에서 칸 값이 계산값과 다르면 개발 모드에서만 경고한다(「조회 칸 onChange 가 함수형 갱신이 아니어서 앞 칸 값이 사라졌을 수 있다」).
+   - 다시 넣기를 하지 않는 이유: handoff·화면 문맥처럼 화면 effect 가 `setKeyword("")` 등으로 직접 정한 값은 SearchField 의 `onChange` 를 거치지 않아 「고친 칸」 으로 표시되지 않는다. 다시 넣기를 하면 그 값을 사용자 기본값으로 덮어 §6.3 의 우선순위가 깨진다.
+   - 여러 칸을 한 번에 넣어도 값이 사라지지 않으려면 `onChange` 가 함수형 갱신이어야 한다. 지금 실화면은 모두 그렇다(§1.4). 이 조건은 가이드 규칙과 스킬의 흔한 실수에 넣는다(§9).
 5. 끝나면 「적용 완료」 로 표시한다. 그 뒤 처음 등록되는 칸(탭 안의 조건부 칸)은 등록할 때 한 번 넣는다.
 
 - 기다리는 동안 사용자가 고친 칸(SearchField 가 감싼 `onChange` 로 판정)은 넣지 않는다.
@@ -293,7 +295,7 @@ carry 복원 > handoff 등 화면의 명시 동작 > 사용자 기본값 > 코�
 
 ### 6.6 초기화 버튼 (D4 추천: 사용자 기본값으로)
 
-- `PageButton` 에 `resetsSearch?: boolean` 을 더한다. 생략하면 `id === "btn_reset"` 일 때 true 로 본다(초기화 버튼 6개가 모두 이 id 다).
+- `PageButton` 에 `resetsSearch?: boolean` 을 더한다. 생략하면 `id === "btn_reset"` 일 때 true 로 본다(초기화 버튼 5개가 모두 이 id 이고 다른 뜻으로 쓰는 곳은 없다).
 - `PageLayout` 은 그 버튼의 `onClick` 을 부른 직후 `emitSearchReset(pageId)` 를 낸다. SearchArea 는 이 이벤트를 받아 §6.2 의 3~4단계를 다시 한다.
 - 같은 클릭 안에서 화면의 `setFilters(DEFAULT)` 와 기본값 넣기가 순서대로 묶여 처리되므로 결과는 「코드 기본값 위에 사용자 기본값」 이다. 화면 수정은 없다.
 - 「마지막 조회값」 규칙인 칸은 초기화 때 넣지 않고 코드 기본값으로 둔다. 초기화는 조건을 비우려는 동작이기 때문이다.
@@ -421,7 +423,10 @@ carry 복원 > handoff 등 화면의 명시 동작 > 사용자 기본값 > 코�
 - 아래쪽 단추는 [이 화면 초기화] [취소] [저장] 이다.
 - [저장]은 `savePage` 를 부르고 거울을 갱신한 뒤 계산값을 지금 칸에 바로 넣는다. 조회는 하지 않는다.
 - 저장 실패는 메시지를 보이고 창을 닫지 않는다.
-- 대화 상자 안의 SearchArea(팝업 조회 영역)에는 아이콘을 두지 않는다. 그리드 설정과 같은 이유로, 모달 위 모달에서 Esc·Tab 이 꼬이는 일을 피한다.
+- 대화 상자(`role="dialog"`) 안의 SearchArea 는 기본값 기능 전체를 끈다. 아이콘도 없고 값도 넣지 않는다.
+  - 팝업은 부모 탭과 같은 `pageId` 를 쓰므로, 켜 두면 부모 화면 칸과 `name` 이 같은 팝업 칸에 부모 규칙이 들어간다. 지금 해당 팝업은 `cmz/masterRuleListPop`, `cmz/masterRuleDataUploadFilePopup` 이다.
+  - 모달 위 모달에서 Esc·Tab 이 꼬이는 일도 피한다(그리드 설정과 같은 이유).
+  - 판정은 GridSettingsOverlay 처럼 마운트 때 DOM 조상으로 한다.
 
 ### 8.4 끄는 방법
 
@@ -432,7 +437,7 @@ carry 복원 > handoff 등 화면의 명시 동작 > 사용자 기본값 > 코�
 
 | 파일 | 바꿀 내용 |
 |---|---|
-| `.claude/skills/mantine-aggrid-ui/references/components/search-area.md` | 「사용자 기본값」 변형 절 추가(동작 개요·대상 판정·`autoSearch`·`defaultKey`·`defaultable`·`defaults={false}`), props 표에 새 prop, 표준 사용 예를 `type="date"` 기간으로 바꿈, 흔한 실수에 「마운트 effect 로 자동 조회」·「children 칸에 value·onChange 를 SearchField 에 안 줌」·「name 없는 칸에 label 로 기대함」 추가, 실제 사용 예 갱신 |
+| `.claude/skills/mantine-aggrid-ui/references/components/search-area.md` | 「사용자 기본값」 변형 절 추가(동작 개요·대상 판정·`autoSearch`·`defaultKey`·`defaultable`·`defaults={false}`), props 표에 새 prop, 표준 사용 예를 `type="date"` 기간으로 바꿈, 흔한 실수에 「마운트 effect 로 자동 조회」·「children 칸에 value·onChange 를 SearchField 에 안 줌」·「name 없는 칸에 label 로 기대함」·「조회 칸 onChange 를 `setFilters({ ...filters, k: v })` 로 씀」 추가, 실제 사용 예 갱신 |
 | `.claude/skills/mantine-aggrid-ui/references/components/search-settings-menu.md` (새 문서) | 내부 부품 설명(그리드 설정 메뉴와 같은 형식) |
 | `.claude/skills/mantine-aggrid-ui/references/components/llms.txt`·`llms-full.txt` | `scripts/ui_docs.py index --write`·`full --write` 로 다시 만든다 |
 | `.claude/skills/mantine-aggrid-ui/SKILL.md` | 조회 영역 규칙 요약에 「자동 조회는 `autoSearch`」·「날짜는 `type="date"`」 한 줄씩 |
@@ -440,7 +445,7 @@ carry 복원 > handoff 등 화면의 명시 동작 > 사용자 기본값 > 코�
 | `.claude/skills/mantine-aggrid-ui/references/examples/*`(list-detail·master-detail·grid-edit) | 예제의 조회 영역·자동 조회를 같은 방식으로 맞춘다 |
 | `docs/guide/FrontEnd/standard-v2/part-b-shared-policy.md` | SearchArea·SearchField 절에 기본값 기능, 키 규칙, 끄는 법 |
 | `docs/guide/FrontEnd/standard-v2/part-c-master-sample.md` | 마스터 샘플의 조회 영역 코드를 새 표준으로 |
-| `docs/guide/FrontEnd/standard-v2/frontend-standard/01-rules-decisions-files.md` | 규칙: 조회 칸에 `name` 또는 `defaultKey` 필수, 마운트 자동 조회는 `autoSearch` 로만 |
+| `docs/guide/FrontEnd/standard-v2/frontend-standard/01-rules-decisions-files.md` | 규칙: 조회 칸에 `name` 또는 `defaultKey` 필수, 마운트 자동 조회는 `autoSearch` 로만, 조회 칸 `onChange` 는 함수형 갱신(`setFilters((p) => ({ ...p, k: v }))`) |
 | `docs/guide/FrontEnd/standard-v2/frontend-standard/04-templates.md` | 화면 템플릿의 조회 영역 |
 | `docs/guide/design/ui-design/01-overview-and-rules.md`(조회 영역 규칙)·`03-template-and-sample.md` | 조회 영역 오른쪽 위 설정 아이콘, 날짜 기간 표기 |
 | `docs/mcm/erd/csa-menu.dbml`·`csa-menu-tables.md` | 새 테이블 등재 |
@@ -464,7 +469,7 @@ carry 복원 > handoff 등 화면의 명시 동작 > 사용자 기본값 > 코�
 ## 11. 시험 계획
 
 - 계산: 1월의 전월 1일·말일, 3월 31일의 1개월 전(평년·윤년), 12월 31일의 익일, `days` 로 해를 넘는 경우, 자정 직전 시각.
-- 넣기 흐름(React Testing Library): 함수형 갱신 화면과 지난 상태를 복사하는 화면 모두에서 모든 칸이 들어가는지, carry 복원이면 넣지 않는지, 저장소가 늦게 준비될 때 고친 칸을 덮지 않는지, 1.5초를 넘으면 포기하는지, `autoSearch` 의 `onSearch` 가 넣은 값으로 정확히 한 번 불리는지, `emitSearch` 를 내지 않는지.
+- 넣기 흐름(React Testing Library): 함수형 갱신 화면에서 모든 칸이 한 번에 들어가는지, 지난 상태를 복사하는 화면에서 개발 모드 경고가 나오는지, handoff 처럼 화면 effect 가 정한 값을 덮지 않는지, carry 복원이면 넣지 않는지, 저장소가 늦게 준비될 때 고친 칸을 덮지 않는지, 1.5초를 넘으면 포기하는지, `autoSearch` 의 `onSearch` 가 넣은 값으로 정확히 한 번 불리는지, `emitSearch` 를 내지 않는지.
 - 초기화: `btn_reset` 클릭 뒤 사용자 기본값이 남는지, 「마지막 조회값」 칸은 코드 기본값으로 가는지.
 - 서버: 다른 사용자 ID 를 본문에 넣어도 인증 사용자로 저장되는지, 잘못된 `ruleJson`·범위 초과를 거절하는지, `savePage` 중간 실패 때 이전 행이 남는지.
 - 회귀: 기존 SearchArea·SearchField 시험과 골든(있으면) 그대로 통과, 등록 칸이 없는 화면의 DOM 이 같은지.
@@ -476,3 +481,67 @@ carry 복원 > handoff 등 화면의 명시 동작 > 사용자 기본값 > 코�
 - 사용자 ID 가 화면 마운트보다 늦게 확인되는 경우(새로 고침 직후 탭 복원)는 §6.2 의 기다림으로 처리한다. 한도 1.5초가 실제로 충분한지 구현 레인이 로컬에서 측정한다.
 - `autoSearch` 를 달지 않은 새 화면이 마운트 조회를 하면 같은 불일치가 생긴다. 가이드 규칙과 스킬의 흔한 실수에 넣고, 구현 레인 1 이 개발 모드 경고(등록 칸에 기본값을 넣었는데 넣기 전에 같은 화면에서 조회 요청이 나갔으면 경고)를 넣을 수 있는지 검토한다.
 - `screenUsageStat` 은 코드 기본값이 이미 「오늘-30일 ~ 오늘」 이다. 사용자 규칙이 없으면 그대로 쓰므로 충돌은 없다.
+
+## 부록 A. 화면별 조회 영역 현황 (2026-10-07, dev 09952ba5)
+
+경로는 m-mcm 이 `src/frontend/m-mcm/page-components/`, m-mdm 이 `src/frontend/m-mdm/pages/`, m-mls 가 `src/frontend/m-mls/pages/` 기준이다. 괄호 안 숫자는 근거 줄이다.
+
+- 상태 패턴: A 는 `useCarryState("filters")` 객체 하나, B 는 칸마다 `useCarryState`, C 는 일반 `useState`.
+- 자동 조회: Y 는 마운트 때 조회, N 은 없음.
+- 형식의 (c) 는 children 칸이다.
+
+### m-mcm
+
+| 화면 | 칸 | 형식 | name / meta | 패턴 | 자동 조회 | 날짜 초기값 |
+|---|---|---|---|---|---|---|
+| cma/masterCategoryMng | 4 | text 4 | 4 / 0 | A (80) | Y (118) | - |
+| cma/masterCodeMng | 2 | text 2 | 2 / 0 | A (251) | Y (372) | - |
+| cmb/masterRuleData | 5 | (c) 원시 input 2·버튼 1·조건 행 1·체크 1 | 2 / 0 | A (81) | N (업무기준 ID 필수, 179) | - |
+| cmb/masterRuleDataList | 4 | (c) 원시 input 2·버튼 1·조건 행 1 | 2 / 0 | A (76) | N (팝업 선택 뒤, 205) | - |
+| cmb/masterRuleFrame | 4 | (c) 원시 input 2·버튼 2 | 2 / 0 | A (114) | N | - |
+| cmb/masterRuleList | 2 | text 2 | 2 / 0 | A (75) | Y (109) | - |
+| cme/masterCodeMngList | 2 | text 2 | 2 / 0 | A (98) | N (196) | - |
+| csa/commMenuMng | 3 | text 2·select 1 | 3 / 0 | A (396) | Y (523) | - |
+| csa/commObjMng | 2 | text 1·select 1 | 2 / 0 | A (215) | Y (304) | - |
+| csa/commPermMng | 3 | text 2·select 1 | 3 / 2 | A (242) | Y (301) | - |
+| csa/commRoleGrpMng | 3 | text 2·select 1 | 3 / 2 | A (302) | Y (423) | - |
+| csa/commRoleMng | 3 | text 2·select 1 | 3 / 0 | A (279) | Y (527) | - |
+| csa/commSyncMng | 2 | text 1·select 1 | 2 / 2(false) | B (101) | N (결과 목록 없음) | - |
+| csa/commUserMng | 3 | text 1·select 2 | 3 / 1 | A (292) | Y (424) | - |
+| csa/commUserRoleCopy | 1 | text 1 | 1 / 1 | B (135) | Y (237) | - |
+| csa/commWidgetMng/WidgetListTab | 3 | text 1·select 2 | 3 / 3(false 1) | C (155) | 미확인(클라이언트 필터, 187) | - |
+| csa/mdmCacheMng | 3 | text 1·select 2 | 3 / 3(false) | A (176) | Y (318) | - |
+| csa/screenUsageStat | 6 | text 4·(c) DatePicker 2 | 4 / 1 | A (47) + `submitted` (49) | N | 오늘-30일 ~ 오늘 (types.ts 132) |
+
+### m-mdm
+
+| 화면 | 칸 | 형식 | name / meta | 패턴 | 자동 조회 | 날짜 초기값 |
+|---|---|---|---|---|---|---|
+| dma/columnMng | 2 | (c) Input 2 | 1 / 1(false) | B (98) | N (169) | - |
+| dma/domainMng | 2 | text 1·select 1 | 2 / 1(false) | A (69) | N (118) | - |
+| dma/termMng | 3 | text 3 | 3 / 1(false) | A (42) | N (94) | - |
+| dma/unitMng | 2 | text 1·select 1 | 1 / 0 | A (59) | N (118) | - |
+| dmb/headerMng | 1 | (c) Input 1 | 1 / 1(false) | B (65) | N (123) | - |
+| dmb/layoutMng | 4 | (c) Input 1·select 3 | 4 / 1(false) | A (106) | N (189) | - |
+| dmc/codeItemEdit | 3 | (c) IdPicker·Select·Checkbox | 0 / 0 | C (108) | N (handoff 로 선택, 198) | - |
+| dmc/codeMng | 2 | (c) Input·Select | 2 / 2(false) | B (95) + `appliedCarry` (101) | N (262) | - |
+| dmd/dataItemMng | 5 | (c) IdPicker·Input 2·Select 2 | 0 / 0 | C (109) | 부분(첫 데이터 선택, 338) | - |
+| dmd/dataMng | 3 | (c) Input 2·Select | 1 / 1(false) | B (79) + `appliedCarry` (86) | N (237) | - |
+| dme/ruleMng | 3 | (c) Input·select 2 | 3 / 2(false) | A (78) + `applied` (79) | N (159) | - |
+| dme/ruleSetMng | 4 | (c) Input 3·Select | 2 / 2(false) | A (49) + `applied` (50) | N (72) | - |
+
+### m-mls
+
+| 화면 | 칸 | 형식 | name / meta | 패턴 | 자동 조회 | 날짜 초기값 |
+|---|---|---|---|---|---|---|
+| lsh/noticeMgmt | 6 | text 1·select 3·(c) DatePicker 2 | 4 / 0 | A (106) | Y (265) | 빈 값 (types.ts 163) |
+
+### SearchArea 를 쓰지 않는 화면
+
+| 화면 | 조회 칸 | 상태 | 자동 조회 |
+|---|---|---|---|
+| m-mdm `codeConfirm`·`ruleConfirm`·`layoutConfirm`·`ruleSetConfirm` | 검색어 `Input` 하나 + 조회 버튼 | `useCarryState("keyword")` | Y |
+
+### m-design-dummy (참고, 고치지 않음)
+
+ChartDashboard, MasterData, MasterDetail, OperationsDashboard, QualityWorkflow, ResizableLayoutCatalog, WorkOrderGantt 7개 화면, 23칸(select 9·radio 4·text 4·children 6). 모두 `name` 이 없고 날짜는 고정 문자열이다.
