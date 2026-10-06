@@ -48,7 +48,12 @@ export interface WidgetMeta {
   floatable?: boolean;
   /** 접힌 도구 창 아이콘(예: tabler 아이콘 컴포넌트). 없으면 제목 첫 글자를 보인다. */
   icon?: WidgetIcon;
+  /** 배치 옵션(2026-10-06). W=위젯 화면만, B=업무 화면(도구 창)만, A=둘 다. 없으면 floatable 을 따른다(resolveWidgetPlacement). */
+  placement?: WidgetPlacement;
 }
+
+/** 위젯 배치 옵션 — W=위젯 화면(보드)만, B=업무 화면(도구 창)만, A=둘 다. */
+export type WidgetPlacement = "W" | "B" | "A";
 
 export interface WidgetProps {
   /** 보드 안 고유 ID — 같은 위젯을 두 번 놓아도 구분한다. */
@@ -130,6 +135,8 @@ export interface WidgetDefRow {
   categoryCd: string | null;
   /** 비공개(PRIVATE_YN). Y 면 서랍에 안 보인다. */
   privateYn: "Y" | "N" | null;
+  /** 배치 옵션(PLACE_TP). null = 유형 floatable 을 따른다. */
+  placeTp?: WidgetPlacement | null;
   useYn: "Y" | "N";
   dataSrc: string | null;
   config: unknown | null;
