@@ -150,6 +150,43 @@ class RuleSetConfirmReportTest {
         assertThat(r.cases()).isEqualTo(new RuleConfirmReport.CaseSummary(3, 2, 0, 2));
     }
 
+    private static Map<String, Object> failedCase() {
+        return new LinkedHashMap<>(Map.of("caseId", 1, "caseName", "c1", "pass", false,
+                RuleSetConfirmReport.HAS_EXPECTED, true, "mismatches", List.of(), "errors", List.of()));
+    }
+
+    private static List<MdmCheckIssue> caseIssues(RuleSetConfirmReport.Report r) {
+        return item(r, MdmRuleSetConfirmCheckItem.TEST_CASES).issues().stream().map(Issue::issue).toList();
+    }
+
+    @Test
+    void 케이스_실패이고_작성자의_룰_DRAFT_가_있으면_실패_문구_뒤에_안내한다() {
+        RuleSetConfirmReport.Report r = RuleSetConfirmReport.report(DRAFT, List.of(), List.of(), List.of(), JUL1,
+                List.of(failedCase()), null, List.of("R1", "R2"));
+        MdmCheckIssue issue = caseIssues(r).get(0);
+        assertThat(issue.code()).isEqualTo(RuleConfirmReport.CASE_FAILED);
+        assertThat(issue.message()).endsWith(RuleSetConfirmReport.draftHint(List.of("R1", "R2")));
+        assertThat(RuleSetConfirmReport.draftHint(List.of("R1", "R2")))
+                .isEqualTo(" — 룰 R1·R2 에 확정하지 않은 DRAFT 가 있다. 확정 검사는 적용 중 버전으로 돌리므로, 그 DRAFT 로 시험해 통과했다면 룰 DRAFT 를 먼저 확정한다");
+    }
+
+    @Test
+    void DRAFT_룰이_없으면_문구와_이슈_수가_그대로다() {
+        RuleSetConfirmReport.Report before = RuleSetConfirmReport.report(DRAFT, List.of(), List.of(), List.of(), JUL1, List.of(failedCase()), null);
+        RuleSetConfirmReport.Report after = RuleSetConfirmReport.report(DRAFT, List.of(), List.of(), List.of(), JUL1, List.of(failedCase()), null,
+                List.of());
+        assertThat(after).isEqualTo(before);
+        assertThat(RuleSetConfirmReport.draftHint(List.of())).isEmpty();
+    }
+
+    @Test
+    void 일괄_실행이_끝나지_못해도_안내한다() {
+        RuleSetConfirmReport.Report r = RuleSetConfirmReport.report(DRAFT, List.of(), List.of(), List.of(), JUL1, List.of(), "boom", List.of("R1"));
+        MdmCheckIssue issue = caseIssues(r).get(0);
+        assertThat(issue.code()).isEqualTo(RuleConfirmReport.CASE_RUN_FAILED);
+        assertThat(issue.message()).endsWith(RuleSetConfirmReport.draftHint(List.of("R1")));
+    }
+
     @Test
     void notReleasedRuleIsAnErrorWithApplyFrom() {
         RuleSetConfirmReport.Report r = RuleSetConfirmReport.report(DRAFT, List.of(), List.of(), List.of("R_B"), JUL1, List.of(), null);

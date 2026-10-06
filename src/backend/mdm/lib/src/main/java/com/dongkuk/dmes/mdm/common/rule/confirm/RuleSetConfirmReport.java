@@ -59,14 +59,32 @@ public final class RuleSetConfirmReport {
     private RuleSetConfirmReport() {
     }
 
+    /** 7인자 형 — 안내할 DRAFT 룰 없음. */
+    public static Report report(VersionRef draft, List<RuleSetCheck> checks, List<FutureChecks> future, List<String> notReleased,
+                                LocalDateTime applyFrom, List<Map<String, Object>> caseResults, String caseRunFailure) {
+        return report(draft, checks, future, notReleased, applyFrom, caseResults, caseRunFailure, List.of());
+    }
+
+    /**
+     * 케이스 실패 안내 문구(spec 2026-10-06 §6) — 비었으면 "". 새 이슈를 만들지 않고 CASE_FAILED·CASE_RUN_FAILED 문구 뒤에 붙인다
+     * (WARNING 을 더하면 확정 서비스가 경고 확인을 요구해 확정 절차가 바뀐다).
+     */
+    public static String draftHint(List<String> ruleIds) {
+        return ruleIds.isEmpty() ? "" : " — 룰 " + String.join("·", ruleIds)
+                + " 에 확정하지 않은 DRAFT 가 있다. 확정 검사는 적용 중 버전으로 돌리므로, 그 DRAFT 로 시험해 통과했다면 룰 DRAFT 를 먼저 확정한다";
+    }
+
     /**
      * @param checks  apply_from 시점 룰 버전으로 돌린 흐름 검사·호출 그래프·연쇄 재검사 — REJECT 와 {@link RuleSetCheck#CALL_CODES}(수준 무관)는 ERROR,
      *                나머지 WARN 은 WARNING
      * @param future  apply_from 뒤 경계 시각마다 돌린 흐름 검사(시각 오름차순, Ruling P2-14). 심각도와 무관하게 WARNING 이고 문구 머리에 시각과
      *                원인 룰 버전을 붙인다. apply_from 시점이나 앞 경계에서 이미 낸 이슈(같은 코드·위치)는 다시 내지 않는다
+     * @param ownerDraftRules 확정 대상 세트 버전 작성자가 DRAFT 를 가진 흐름 룰 ID — 케이스 실패 문구 뒤에 {@link #draftHint} 로 안내한다
      */
     public static Report report(VersionRef draft, List<RuleSetCheck> checks, List<FutureChecks> future, List<String> notReleased,
-                                LocalDateTime applyFrom, List<Map<String, Object>> caseResults, String caseRunFailure) {
+                                LocalDateTime applyFrom, List<Map<String, Object>> caseResults, String caseRunFailure,
+                                List<String> ownerDraftRules) {
+        String hint = draftHint(ownerDraftRules);
         Map<MdmRuleSetConfirmCheckItem, List<Issue>> issues = empty();
         Set<List<String>> seen = new HashSet<>();
         for (RuleSetCheck c : checks) {
@@ -114,11 +132,11 @@ public final class RuleSetConfirmReport {
                 continue;
             }
             failed++;
-            issues.get(tests).add(error(RuleConfirmReport.CASE_FAILED, "케이스 " + c.get("caseId") + " " + c.get("caseName") + ": " + caseDetail(c),
+            issues.get(tests).add(error(RuleConfirmReport.CASE_FAILED, "케이스 " + c.get("caseId") + " " + c.get("caseName") + ": " + caseDetail(c) + hint,
                     tests, "CASE:" + c.get("caseId")));
         }
         if (caseRunFailure != null) {
-            issues.get(tests).add(error(RuleConfirmReport.CASE_RUN_FAILED, "테스트 케이스를 끝내지 못했다: " + caseRunFailure, tests, null));
+            issues.get(tests).add(error(RuleConfirmReport.CASE_RUN_FAILED, "테스트 케이스를 끝내지 못했다: " + caseRunFailure + hint, tests, null));
         }
         return new Report(draft, items(issues), new CaseSummary(caseResults.size(), withExpected, passed, failed));
     }
