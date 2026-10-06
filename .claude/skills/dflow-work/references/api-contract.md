@@ -2,6 +2,130 @@
 
 `contract_version: "2.11"` — v1(전역 시크릿) 계약은 불변 유지, v2는 PAT 축 추가. v2.1은 stage 워크플로 재설계(0082) 반영, v2.2는 그 뒤 버전을 안 올린 채 넓혀온 세 필드를 뒤늦게 반영. v2.3은 단계 전이 원자화(0096)·실적 크레딧·선행 충족 세 축을 반영. v2.4는 `/me` 에 토큰 이름·prefix 를 더했다. v2.5는 팀장 lease 를 더했다. v2.6은 완료 보고의 결정 목록(`decisions`)을 더했다. v2.7은 heartbeat 에 팀장의 머지 충돌 표시를 더했다. v2.8은 강제 진행(간선 면제·스텁 제거 작업)을 더했다. v2.9는 설계 단계 `ds` 와 설계 선행(claim `design_first`·`build-start`)을 더했다. v2.10은 heartbeat phase `wait_review`(설계만 멈춤·사람 검토 대기)를 더했다. v2.11은 설계 상태(설계 방식·설계 검토·구현자동)와 도는 PC 를 더했다.
 
+## §2.12 에이전트 콘솔 (2026-10-06 — 계약 버전 2.11 불변, 감지는 watch 응답의 `console` 칸)
+
+에이전트 오피스(좌석표)에서 세션에 프롬프트를 보내고, 세션의 최근 화면(끝 40줄)을 본다. 서버는 **대기열과 화면 한 장**만 맡고,
+로컬 전달은 PC 마다 도는 폴러(`console-poll.sh`, 30초 주기, Claude 토큰을 쓰지 않는다)가 맡는다. 폴러 쪽 규칙은
+coordinator 스킬 `references/contract.md` §4.1 이 정본이다. 전부 additive 라 `AGENT_CONTRACT_VERSION` 은 올리지 않는다 —
+`contract-ge` 로 가르지 말고 아래 watch 응답의 `console` 칸이 있는지로 지원 여부를 판정한다.
+
+### 대상(target)
+
+좌석 키(agent label)를 서버가 읽어 대상 종류와 참조를 정한다. 클라이언트는 `target_kind`·`target_ref` 를 받지만 **host 는 받지 않는다**
+(서버가 좌석에서 파생한다 — 0099 재개 요청의 선례).
+
+| `target_kind` | 좌석 키 | `target_ref` | 세션 |
+|---|---|---|---|
+| `coord_lead` | `<신원>/<host>/coord:<세션8>` | `<세션8>` | 조정자(coordinator) 팀장 — 조정 **세션**당 하나(회차가 아니다). `<세션8>` 은 조정 세션 id 의 앞 8자 |
+| `coord_lane` | `<신원>/<host>/임시:<레인>·<요약>` | `<레인>` | 조정자 레인 |
+| `team_lead` | `<신원>/<host>/lead` | `lead` | `/dflow-team` 팀장 |
+| `team_worker` | `<신원>/<host>/w<슬롯>` | `w<슬롯>` | `/dflow-team` 팀원 |
+
+- `host` = 좌석 키 가운데 칸(`<host>`, `[a-z0-9-]` 슬러그). `owner` = 그 좌석의 주인 사용자(watcher 행의 user, 팀원은 점유자 `claimed_by_user_id`).
+- `target_ref` 는 `^[A-Za-z0-9._:-]{1,64}$`. 같은 owner·host 안에서 대상을 가른다. 키의 한글 칸(`임시:`)과 요약은 ref 에 넣지 않는다.
+
+### 데이터
+
+`agent_console_prompts`(대기열, 한 행 = 프롬프트 한 건):
+
+| 칸 | 뜻 |
+|---|---|
+| `id` uuid | |
+| `owner` uuid | 보낸 사람 = 세션 주인(같은 신원). 서버 액션이 `actor.userId` 로 채운다 |
+| `host`·`target_kind`·`target_ref` | 위 표. host 는 서버 파생 |
+| `text` | 정리된 본문(≤2000자) |
+| `status` | `pending` `claimed` `sent` `refused` `expired` `unknown` |
+| `claim_token` | claim 때 서버가 만드는 무작위 128비트. 응답에 한 번만 싣고 ack 가 되돌려 준다. 로그·이벤트에 남기지 않는다 |
+| `attempts`·`claimed_at`·`acked_at`·`result_detail`·`reason`·`created_at`·`expires_at` | `expires_at` = 만든 시각 + 10분 |
+
+`agent_console_screens`(화면 한 장): 키 `(owner, host, target_kind, target_ref)` 에 최신 1행. `lines`(문자열 배열 ≤40개) · `sha`(본문 sha256 hex) ·
+`captured_at`(폴러가 읽은 시각) · `updated_at`. 합계 8KB(UTF-8 바이트) 이하. 24시간 갱신이 없으면 지운다.
+
+두 테이블 모두 RLS 를 켜고 정책을 두지 않는다(0095 선례). 읽고 쓰는 길은 서버 코드(서비스 키)뿐이다.
+
+### 상태 전이
+
+```
+pending ──poll(원자적 claim)──▶ claimed ──ack sent───────▶ sent
+   ▲                              │ ├─────ack refused─────▶ refused
+   └──────────ack retry───────────┘ └─claimed_at+120초 무응답▶ unknown
+pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
+```
+
+- `sent`·`refused`·`expired`·`unknown` 은 최종이다. 되살리지 않는다(다시 보내려면 사람이 새 프롬프트를 만든다).
+- **ack 전에 폴러가 죽으면 `unknown`** 이다. 입력창에 들어갔는지 알 수 없으므로 **다시 보내지 않는다**(1회 전달 보장).
+- 만료는 읽는 쪽이 게으르게 처리한다(poll·화면 조회가 `expires_at < now` 인 pending 을 `expired` 로 바꾼다). 별도 크론이 없어도 된다.
+- 최종 상태가 된 행은 7일 뒤 지우길 권한다(구현은 web 레인 재량).
+
+### 엔드포인트 (전부 PAT 전용 · 스코프 `work:claim`)
+
+레거시 호출은 400 `identity_required`, 다른 사람의 행은 404(존재 비구분).
+
+**POST `/api/v1/agent/console/poll`** — 본문 `{host, limit?}`(`host` = 폴러가 도는 PC 슬러그, `limit` 기본 5·최대 10).
+이 PAT 의 사용자가 owner 이고 `host` 가 같은 `pending`(만료 전) 행을 오래된 순으로 `limit` 건 **한 문장(원자적)으로 `claimed` 로 바꾸며**
+`claim_token`·`claimed_at`·`attempts+1` 을 채운다. 같은 행을 두 폴러가 받을 수 없다. 응답:
+```json
+{ "ok": true, "prompts": [ { "id": "<uuid>", "target_kind": "coord_lane", "target_ref": "kit", "text": "…",
+                              "claim_token": "<hex>", "expires_at": "…" } ] }
+```
+`host` 가 슬러그 형식이 아니면 400. 호출할 때마다 `claimed_at` 이 120초 지난 `claimed` 행을 `unknown` 으로 바꾼다.
+
+**POST `/api/v1/agent/console/ack`** — 본문 `{id, claim_token, result, reason?, detail?}`. `result`:
+- `sent` — 입력창에 넣었다. `detail` ∈ `turn_started`·`submitted`·`accepted`. → `sent`
+- `refused` — 최종 거절. `reason` 필수(아래 표). → `refused`
+- `retry` — 지금은 못 넣었으니 다시 시도하게 한다. `reason` 필수. 만료 전이면 `pending`(`claim_token` 비움), 이미 지났으면 `expired`.
+
+응답 200 `{ok, status}`. 토큰 불일치·다른 사람의 행은 404, `claimed` 가 아닌 행에 다른 결과를 ack 하면 409 `conflict`,
+같은 결과를 다시 ack 하면 200 `{ok, status, already:true}`(멱등).
+
+| `reason`(폴러 → 서버, 표시용) | 쓰이는 `result` | 뜻 |
+|---|---|---|
+| `compacting` | `retry` | 대상이 컨텍스트를 압축하는 중 — 만료까지 다시 시도 |
+| `stale` | `refused` | 터미널 핸들이 목록에 없음 |
+| `target-not-found` | `refused` | 대상을 이 PC 에서 찾지 못함(회차 마감·핸들 기록 없음) |
+| `ambiguous` | `refused` | 같은 참조가 둘 이상(예: 두 회차의 같은 레인 이름) |
+| `bang-in-text` | `refused` | 본문에 `!` |
+| `prompt-open` | `refused` | 확인·선택 창이 열려 있음 |
+| `draft-in-input` | `refused` | 입력창에 쓰다 만 글이 있음(찾지 못한 경우 포함) |
+| `error` | `refused` | 그 밖의 보내기 실패 |
+
+서버는 `reason` 을 위 목록으로 검사하고, 어떤 `result`·`reason` 짝을 쓸지는 폴러가 정한다(어느 사유를 재시도로 볼지 폴러 쪽 한 줄로 바꿀 수 있다).
+서버가 `result=retry` 에 허용하는 `reason` 은 `compacting` 과 `not-idle` 뿐이다.
+
+**POST `/api/v1/agent/console/screen`** — 본문 `{host, items:[…]}`, 항목 ≤20개:
+```json
+{ "target_kind": "coord_lane", "target_ref": "kit", "sha": "<hex>", "captured_at": "…", "lines": ["…", "…"] }
+```
+`lines` 가 있으면 저장(덮어쓰기), 없으면 **touch**(`sha` 가 저장된 것과 같을 때 `captured_at` 만 갱신). 응답
+`{ok, results:[{target_kind, target_ref, status:"stored"|"touched"|"need_full"|"rejected", reason?}]}` — touch 인데 sha 가 다르거나 행이 없으면
+`need_full`(폴러가 전체를 다시 보낸다). 검증: `lines` ≤40개, 항목 합계 ≤8KB, 한 줄 ≤400자, 제어 문자(탭 제외) 금지, `sha` 는 64자 hex.
+위반 항목만 `rejected` 로 두고 나머지는 처리한다. 폴러는 이 PC 에서 찾은 대상만 올린다 — 서버는 **owner 의 좌석(watcher·점유 주문)에 없는 대상**을 `rejected`(`unknown_target`)로 거른다.
+화면은 **폴러가 비밀 모양 문자열을 가린 뒤** 올린다(§4.1). 서버는 저장·표시 모두 글자 그대로 다루고(HTML 이스케이프는 화면 몫) 로그에 남기지 않는다.
+
+**watch 응답**(`POST /api/v1/agent/watch`) 에 칸 하나가 는다: `console: {"v":1, "poll_s":30}`. 이 칸이 없는 옛 서버에서는 폴러를 띄우지 않는다.
+`poll_s` 는 서버가 권하는 주기(초)이고 폴러는 15~120 으로 자른다.
+
+### 보내기·보기 권한 (웹 서버 액션 — REST 가 아니다)
+
+| 동작 | 누가 |
+|---|---|
+| 프롬프트 보내기 | **세션 주인 본인만**(`actor.userId === owner`). 프로젝트 관리자·슈퍼유저도 남의 세션에는 못 보낸다(403 `not_owner`). `agentHub.ts` 의 stop·resume 게이트(관리자 허용)를 베끼지 않는다 |
+| 화면 보기 | 본인 + 그 좌석이 속한 프로젝트의 관리자 |
+| 전달 상태·프롬프트 본문 보기 | 본인만 |
+
+서버가 본문을 받을 때 정리한다: 제어 문자(C0·C1·DEL, U+2028·U+2029 포함) 제거 → 줄바꿈·탭은 공백 하나로 → 앞뒤 공백 제거. 정리한 결과가 비면 400 `empty`,
+`!` 가 들어 있으면 400 `bang_in_text`, 2000자(코드포인트)를 넘으면 400 `too_long`. 보내는 사람마다 1분에 5건(429 `rate_limited`),
+한 대상(owner·host·kind·ref)에 `pending`·`claimed` 가 3건이면 409 `queue_full`. 대상이 owner 의 좌석에 없으면 404 `target_unknown`.
+
+폴러는 서버를 믿지 않고 같은 정리를 한 번 더 한다(§4.1).
+
+### CLI (`dflow.sh`)
+
+- `dflow.sh console-poll --host <슬러그> [--limit n]` — poll. stdout: 프롬프트마다 한 줄 JSON(`{id,target_kind,target_ref,text,claim_token,expires_at}`).
+- `dflow.sh console-ack <id> <claim_token> <sent|refused|retry> [--reason r] [--detail d]` — stdout `ACK <status>`(멱등 재호출이면 `ACK <status> already`).
+- `dflow.sh console-screen --host <슬러그>` — stdin 에 `items` 배열 JSON, stdout 은 항목마다 `SCREEN <kind> <ref> <status>`.
+- exit code 는 위 「로컬 클라이언트 계약」 그대로다. 옛 서버(404)는 7.
+
 ## v2.11 변경점 (2026-09-27)
 
 설계 정본: wbs-web 리포 docs/superpowers/specs/2026-09-26-design-state-dev-auto-design.md(12절 우선).
