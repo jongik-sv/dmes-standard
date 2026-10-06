@@ -11,7 +11,7 @@
 
 - 쓴다: PageLayout 상단 "엑셀" 버튼에서 현재 목록(`rows`)을 내려받을 때.
 - 쓰지 않는다: ag-grid Excel Export(`ag-grid-enterprise`) 사용 금지. 서버가 만든 파일 다운로드는 별도 처리다.
-- 카드·위젯 안의 표 아래에 「N행」과 [엑셀] 단추를 두는 자리에서 그리드의 컬럼·행을 그대로 내려받기만 하면 이 함수를 직접 부르지 말고 [AgDataGrid](ag-data-grid.md) 의 `excelExport` 속성을 준다. 그리드가 이 함수를 불러 준다(GridPanel 안이면 머리줄 「그리드 설정」 메뉴의 「엑셀 출력」이 같은 내려받기를 맡고 아래 줄 단추는 빠진다. GridPanel 안은 `excelExport` 를 주지 않아도 이 메뉴 항목이 기본으로 켜져 있다).
+- 카드·위젯 안의 표 아래에 「N행」과 [엑셀] 단추를 두는 자리에서 그리드의 컬럼·행을 그대로 내려받기만 하면 이 함수를 직접 부르지 말고 [AgDataGrid](ag-data-grid.md) 의 `excelExport` 속성을 준다. 그리드가 이 함수를 불러 준다(「그리드 설정」 메뉴의 「엑셀 출력」이 같은 내려받기를 맡고 아래 줄 단추는 빠진다. 메뉴는 GridPanel 안이면 머리줄에, GridPanel 밖(대화 상자 안 포함)이면 그리드 머리글 줄 오른쪽 끝의 작은 아이콘으로 붙는다. 그리드는 `excelExport` 를 주지 않아도 이 메뉴 항목이 기본으로 켜져 있고, `excelExport={false}` 나 `settingsMenu={false}` 로 끈다).
 
 ## 표준 사용
 
