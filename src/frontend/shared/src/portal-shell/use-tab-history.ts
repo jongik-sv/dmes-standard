@@ -26,6 +26,8 @@ export interface TabHistoryTabLike {
 interface PortalHistoryState {
   /** 활성 탭의 pageId (sentinel 엔트리면 없음). */
   portalTab?: string;
+  /** 활성 탭 id — 같은 화면 탭이 여럿일 때 구분한다(없으면 portalTab 으로 찾는다). */
+  portalTabId?: string;
   /** 이탈 방지 보초 엔트리 표식. */
   portalSentinel?: boolean;
   /** 단조 증가 순번 — popstate 의 진행 방향(뒤로/앞으로) 판정용. */
@@ -48,22 +50,25 @@ export interface UseTabHistoryResult {
    * `setActiveTabId` 가 `setTabs` 업데이터 안에 있는 경로에서, push 부수효과만 업데이터
    * 밖으로 빼기 위해 사용.
    */
-  pushTabHistory: (pageId: string) => void;
+  pushTabHistory: (pageId: string, tabId?: string) => void;
 }
 
 const isBrowser = typeof window !== "undefined";
 const useIsomorphicLayoutEffect = isBrowser ? useLayoutEffect : useEffect;
 
 /**
- * popstate 가 가리키는 pageId 에 해당하는 "열려 있는" 탭의 id 를 반환한다.
+ * popstate 가 가리키는 "열려 있는" 탭의 id 를 반환한다. targetTabId 가 열린 탭이면 그것,
+ * 아니면(옛 기록·닫힌 탭) pageId 첫 탭으로 대체한다.
  * 닫힌 탭(목록에 없음)이면 null — 호출부가 "같은 방향으로 한 칸 더 건너뛰기"로 처리한다.
  *
  * <p>순수 함수 — node 환경 vitest 단위 테스트 대상.
  */
 export function resolveTargetTabId(
   tabs: ReadonlyArray<TabHistoryTabLike>,
-  targetPageId: string
+  targetPageId: string,
+  targetTabId?: string
 ): string | null {
+  if (targetTabId && tabs.some((tab) => tab.id === targetTabId)) return targetTabId;
   const target = tabs.find((tab) => tab.pageId === targetPageId);
   return target ? target.id : null;
 }
@@ -88,30 +93,35 @@ export function useTabHistory({
   const baselineSetRef = useRef(false); // baseline 1회 가드
 
   /** 현재 history.state 를 보존하며 새 탭 엔트리를 push. portalSentinel 은 false 로 덮는다. */
-  const pushTabEntry = useCallback((pageId: string) => {
+  const pushTabEntry = useCallback((pageId: string, tabId?: string) => {
     const nextIndex = indexCounterRef.current + 1;
     indexCounterRef.current = nextIndex;
     const prev = (window.history.state ?? {}) as PortalHistoryState;
     window.history.pushState(
-      { ...prev, portalSentinel: false, portalTab: pageId, portalIndex: nextIndex },
+      { ...prev, portalSentinel: false, portalTab: pageId, portalTabId: tabId, portalIndex: nextIndex },
       ""
     );
     lastIndexRef.current = nextIndex;
   }, []);
 
   const pushTabHistory = useCallback(
-    (pageId: string) => {
+    (pageId: string, tabId?: string) => {
       if (!isBrowser || !baselineSetRef.current) return;
-      // 이미 활성 탭과 같은 pageId 면 화면 전환이 없으므로 push skip(같은 탭 재클릭 무한 누적 방지).
-      if (activeTabRef.current?.pageId === pageId) return;
-      pushTabEntry(pageId);
+      // 이미 활성 탭과 같으면 화면 전환이 없으므로 push skip(같은 탭 재클릭 무한 누적 방지).
+      // tabId 가 있으면 탭 id 로 비교한다 — 같은 화면의 다른 탭으로 가는 것은 전환이다.
+      const sameTab =
+        tabId != null
+          ? activeTabRef.current?.id === tabId
+          : activeTabRef.current?.pageId === pageId;
+      if (sameTab) return;
+      pushTabEntry(pageId, tabId);
     },
     [pushTabEntry]
   );
 
   const navigateToTab = useCallback(
     (tabId: string, pageId: string) => {
-      pushTabHistory(pageId);
+      pushTabHistory(pageId, tabId);
       setActiveTabId(tabId);
     },
     [pushTabHistory, setActiveTabId]
@@ -139,7 +149,7 @@ export function useTabHistory({
 
       const targetPageId = st.portalTab;
       const targetTabId = targetPageId
-        ? resolveTargetTabId(tabsRef.current, targetPageId)
+        ? resolveTargetTabId(tabsRef.current, targetPageId, st.portalTabId)
         : null;
       if (targetTabId) {
         setActiveTabIdRef.current(targetTabId); // 정상 복원 (push/replace 안 함)
@@ -162,6 +172,7 @@ export function useTabHistory({
     if (!isBrowser) return;
     if (!isStorageHydrated || baselineSetRef.current) return;
     const pageId = activeTab?.pageId;
+    const tabId = activeTab?.id;
     if (!pageId) return; // 활성 탭 미확정 → 다음 렌더 대기
 
     const st = (window.history.state ?? null) as PortalHistoryState | null;
@@ -173,7 +184,7 @@ export function useTabHistory({
       lastIndexRef.current = idx;
       if (!st.portalSentinel) {
         window.history.replaceState(
-          { ...st, portalSentinel: false, portalTab: pageId, portalIndex: idx },
+          { ...st, portalSentinel: false, portalTab: pageId, portalTabId: tabId, portalIndex: idx },
           ""
         );
       }
@@ -185,10 +196,10 @@ export function useTabHistory({
       );
       indexCounterRef.current = 0;
       lastIndexRef.current = 0;
-      pushTabEntry(pageId); // portalIndex 1 로 첫 탭 push
+      pushTabEntry(pageId, tabId); // portalIndex 1 로 첫 탭 push
     }
     baselineSetRef.current = true;
-  }, [isStorageHydrated, activeTab?.pageId, pushTabEntry]);
+  }, [isStorageHydrated, activeTab?.pageId, activeTab?.id, pushTabEntry]);
 
   return { navigateToTab, pushTabHistory };
 }

@@ -13,6 +13,8 @@ import {
   IconChevronRight,
   IconChevronUp,
   IconClearAll,
+  IconCopy,
+  IconExternalLink,
   IconHome,
   IconHomeOff,
   IconHomeStar,
@@ -88,6 +90,12 @@ export interface TabsBarProps {
    * 해제는 늘 허용.
    */
   canRegisterPage?: (pageId: string) => boolean;
+  /** 탭 우클릭 '새 창으로 분리'. 미지정 시 항목을 숨긴다. 홈 탭에는 보이지 않는다. */
+  onPopoutTab?: (tabId: string) => void;
+  /** '새 창으로 분리' 를 켤 화면인지(메뉴에 있는 화면만). 미지정 시 모두 허용. */
+  canPopoutPage?: (pageId: string) => boolean;
+  /** 탭 우클릭 '새 탭으로 하나 더 열기'. 미지정 시 항목을 숨긴다. 홈 탭에는 보이지 않는다. */
+  onDuplicateTab?: (tabId: string) => void;
 }
 
 /** 탭 우클릭 메뉴의 탭 동작 한 줄(새로고침·캡쳐·즐겨찾기·기본 화면). */
@@ -152,6 +160,9 @@ export function TabsBar({
   startPageIds,
   onToggleStartPage,
   canRegisterPage,
+  onPopoutTab,
+  canPopoutPage,
+  onDuplicateTab,
 }: TabsBarProps) {
   const tabsScrollRef = useRef<HTMLDivElement>(null);
   const [showScrollButtons, setShowScrollButtons] = useState(false);
@@ -374,6 +385,22 @@ export function TabsBar({
   const contextActions: ContextMenuEntry[] = [];
   if (contextTab) {
     const { id: tabId, pageId } = contextTab;
+    // 같은 화면 비교용(2026-10-06 사용자 요청) — 새 창 분리·하나 더 열기를 맨 앞에 둔다. 홈 탭은 닫을 수 없어 둘 다 숨긴다.
+    if (!contextTab.isHome && onPopoutTab)
+      contextActions.push({
+        key: "popout",
+        label: "새 창으로 분리",
+        icon: IconExternalLink,
+        disabled: !!canPopoutPage && !canPopoutPage(pageId),
+        run: () => onPopoutTab(tabId),
+      });
+    if (!contextTab.isHome && onDuplicateTab)
+      contextActions.push({
+        key: "duplicate",
+        label: "새 탭으로 하나 더 열기",
+        icon: IconCopy,
+        run: () => onDuplicateTab(tabId),
+      });
     if (onRefreshTab)
       contextActions.push({
         key: "refresh",

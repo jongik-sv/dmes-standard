@@ -12,6 +12,7 @@ import {
   planStartPageOpen,
   type PortalStartPageRecord,
 } from "./start-pages";
+import { pickTabForPage } from "./tab-duplicates";
 import { useTabHistory } from "./use-tab-history";
 
 /*
@@ -188,15 +189,24 @@ export function usePortalTabs({
           /* swallow — hook 실패가 탭 열림을 막지 않음 */
         }
       }
+      const createdId = createTabId(pageId); // 업데이터 밖에서 만든다(StrictMode 두 번 호출에도 같은 ID)
+      const order = tabOrderRef.current;
+      const byOrder = (list: PortalShellTabState[]) => [
+        ...list.filter((tab) => tab.isHome),
+        ...order.map((id) => list.find((tab) => tab.id === id)).filter((tab): tab is PortalShellTabState => !!tab),
+        ...list.filter((tab) => !tab.isHome && !order.includes(tab.id)),
+      ];
+      const expected = pickTabForPage(byOrder(tabsRef.current), pageId, activeTabIdRef.current);
       setTabs((prev) => {
-        const existing = prev.find((tab) => tab.pageId === pageId);
+        // 같은 화면 탭이 여럿이면 보고 있는 탭이 그 화면일 때 머물고, 아니면 표시 순서상 첫 탭으로 간다.
+        const existing = pickTabForPage(byOrder(prev), pageId, activeTabIdRef.current);
         const displayText = resolveDisplayText(pageId, existing?.title ?? pageId);
         if (existing) {
           setActiveTabId(existing.id);
           if (existing.title === displayText) return prev;
           return prev.map((tab) => (tab.id === existing.id ? { ...tab, title: displayText } : tab));
         }
-        const tabId = createTabId(pageId);
+        const tabId = createdId;
         setActiveTabId(tabId);
         const created: PortalShellTabState = {
           id: tabId,
@@ -215,7 +225,7 @@ export function usePortalTabs({
       });
       // 브라우저 히스토리 push 는 setTabs 업데이터(StrictMode 에서 2회 호출) 밖에서 1회만.
       // 이미 활성 탭과 같은 pageId 면 내부에서 skip 된다.
-      pushTabHistory(pageId);
+      pushTabHistory(pageId, expected?.id ?? createdId);
     },
     // onPageOpen 은 원래부터 deps 에 없다(분리 전과 같게 둔다 — 바꾸면 prop 교체 뒤 부르는 콜백이 달라진다).
     [rememberRecentMenuPage, resolveDisplayText, pushTabHistory]
@@ -243,6 +253,30 @@ export function usePortalTabs({
       });
     },
     [homeTabId]
+  );
+
+  /** 탭 우클릭 '새 탭으로 하나 더 열기' — 같은 화면을 원래 탭 바로 오른쪽에 하나 더 열고 snapshot 을 복사한다. 홈은 안 한다. */
+  const duplicateTab = useCallback(
+    (tabId: string) => {
+      const source = tabsRef.current.find((tab) => tab.id === tabId);
+      if (!source || source.isHome) return;
+      const createdId = createTabId(source.pageId);
+      newTabAnchorRef.current.set(createdId, tabId);
+      const created: PortalShellTabState = {
+        id: createdId,
+        title: source.title,
+        pageId: source.pageId,
+        isHome: false,
+        snapshot: cloneSnapshot(source.snapshot),
+        component: null,
+        isLoading: true,
+        errorMessage: null,
+      };
+      setTabs((prev) => (prev.some((tab) => tab.id === createdId) ? prev : [...prev, created]));
+      pushTabHistory(source.pageId, createdId);
+      setActiveTabId(createdId);
+    },
+    [pushTabHistory]
   );
 
   // 탭마다 마지막으로 요청받은 snapshot — 아래 사전 비교가 아직 렌더되지 않은 변경을 놓치지 않게 한다.
@@ -525,6 +559,7 @@ export function usePortalTabs({
     openPageTab,
     openMenuItem,
     closeTab,
+    duplicateTab,
     onTabSnapshotChange,
     reorderTabs,
     refreshTab,

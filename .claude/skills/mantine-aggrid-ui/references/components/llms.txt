@@ -58,10 +58,11 @@
 
 - [위젯 (WidgetWorkspace · WidgetBoard · WidgetFrame · WidgetTabs · WidgetPicker)](widget.md): 사용자가 위젯(조각 프로그램)을 24칸 격자에서 자유롭게 옮기고 크기를 바꾸며, 탭으로 나눠 서버에 저장하게 하는 홈 화면을 만들 때 쓴다(관리자 정의 위젯·사용 중지·기본 배치 편집 포함). 행 단위 대시보드가 필요하면 [dashboard](dashboard.md), 사용자가 자유 배치·탭·서버 저장을 쓰면 widget 을 고른다.
 
-## 위젯 도크·떠 있는 창 (`@dk-oasis/shared/portal-shell`)
+## 위젯 도크·떠 있는 창·탭 분리 창 (`@dk-oasis/shared/portal-shell`)
 
 - [위젯 도크 (PortalShell widgetDock · WidgetDockLayer · DockToolsMenu · useWidgetDock)](widget-dock.md): 포털 머리 「도구」 버튼으로 `floatable` 위젯(계산기·단위 변환·메모)을 업무 화면 위 떠 있는 창으로 띄울 때 쓴다. 창은 여러 개·이동·크기 조절·접기(아이콘)가 되고, 탭을 바꿔도 남으며 사용자별로 저장한다. 화면(m-*)은 이 부품을 직접 쓰지 않는다 — 포털 호스트가 `PortalShell` 에 `widgetDock` 을 넘기면 셸이 그린다.
 - [FloatingWindow](floating-window.md): 업무 화면 위에 떠 있는 작은 창 하나를 그릴 때 쓴다. 창 막대(끌기 손잡이·제목·접기·닫기)로 옮기고, 오른쪽 아래 손잡이로 크기를 바꾸며, 접으면 같은 자리에 둥근 아이콘만 남는다. 업무 도메인과 무관한 범용 부품이다.
+- [PortalPageWindow](portal-page-window.md): 포털 셸(사이드바·탭 막대) 없이 업무 화면 하나를 포털 탭 안과 같은 조건으로 그리는 단독 창 호스트다. 포털 탭 우클릭 「새 창으로 분리」 가 여는 `/popup/…` 라우트가 쓴다. 권한 확인·화면 불러오기·공통 감싸기·상태 보관·창 제목·화면 사용 통계까지 한 번에 맡는다.
 
 ## MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)
 

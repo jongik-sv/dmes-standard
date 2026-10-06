@@ -13,12 +13,15 @@ import {
   getPortalMenuItemPageId,
   updateRecentMenuPageIds,
 } from "./menu-search";
+import { buildServiceIdByPageId } from "./service-id";
 import { MenuSearchDialog } from "./MenuSearchDialog";
 import { Header } from "./header/Header";
 import { Sidebar, type SidebarNavigationViewMode } from "./sidebar/Sidebar";
 import type { StartPageLeaf } from "./sidebar/StartPagesList";
 import { clearStartPagesOpened, type PortalStartPageRecord } from "./start-pages";
 import { TabsBar } from "./tabs-bar/TabsBar";
+import { clearPopoutHandoffs, openPagePopout } from "./popout";
+import { numberDuplicateTitles } from "./tab-duplicates";
 import { Dashboard } from "./dashboard/Dashboard";
 import { FavoriteFolderPickerModal, type FavoriteFolderChoice } from "./FavoriteFolderPickerModal";
 import { TabPageContext } from "./tab-page-context";
@@ -84,6 +87,16 @@ function flattenMenuLeaves(items: PortalShellMenuItem[]): PortalShellMenuItem[] 
   });
 }
 
+/** 탭 우클릭 '새 창으로 분리' 설정 — 지정하면 분리 항목이 생긴다. */
+export interface PortalShellPopout {
+  /** 분리 창 URL. 호출부(m-mcm)가 라우트 규칙을 안다. */
+  buildUrl: (pageId: string, token: string) => string;
+  /** 팝업이 차단돼 창을 못 열었을 때 — 호출부가 안내한다(셸은 MessageProvider 를 요구하지 않는다). */
+  onBlocked?: () => void;
+  /** 차단이 아닌 이유로 창을 못 열었을 때(예외). 미지정이면 console.error 만 남긴다. */
+  onError?: (error: unknown) => void;
+}
+
 export interface PortalShellProps {
   appName: string;
   menu: PortalShellMenuResponse;
@@ -134,6 +147,10 @@ export interface PortalShellProps {
    * 미지정이면 기존 동작·DOM 그대로다(사용자 확인 요청·리스너도 추가하지 않는다).
    */
   widgetDock?: PortalShellWidgetDock;
+  /** 탭 우클릭 '새 창으로 분리'. 미지정이면 항목을 숨긴다. */
+  popout?: PortalShellPopout;
+  /** 탭 우클릭 '새 탭으로 하나 더 열기' 를 켠다. 미지정이면 항목을 숨긴다. */
+  allowDuplicateTabs?: boolean;
 }
 
 /**
@@ -213,6 +230,8 @@ export function PortalShell({
   onToggleStartPage,
   onUsageSegments,
   widgetDock,
+  popout,
+  allowDuplicateTabs = false,
 }: PortalShellProps) {
   const [navigationViewMode, setNavigationViewMode] = useState<NavigationViewMode>("menu");
   const [isSideNavigationExpanded, setIsSideNavigationExpanded] = useState<boolean>(true);
@@ -278,29 +297,8 @@ export function PortalShell({
     return map;
   }, [menu]);
 
-  /**
-   * pageId → serviceId 매핑. menu tree 에서 page 의 직계 parent (dir 메뉴) 의 menuId.
-   * 권한관리 endpoint 양식 `/api/{module}/{serviceId}/{objId}/{action}` 에서 service segment.
-   * Page 가 menu tree root 직계 (parent 가 dir 이 아닌 경우) 면 빈 문자열.
-   */
-  const serviceIdByPageId = useMemo(() => {
-    const map = new Map<string, string>();
-    function walk(items: PortalShellMenuItem[], parentDirId: string) {
-      for (const item of items) {
-        if (item.type === "page") {
-          const pageId = getPortalMenuItemPageId(item);
-          if (pageId) map.set(pageId, parentDirId);
-        }
-        if (item.items.length > 0) {
-          // dir 메뉴면 자기 자신을 자식의 serviceId 로 전달, 아니면 상위 dir 유지
-          const nextDir = item.type === "dir" ? item.id : parentDirId;
-          walk(item.items, nextDir);
-        }
-      }
-    }
-    walk(menu.items, "");
-    return map;
-  }, [menu]);
+  // pageId → serviceId(상위 dir 메뉴 id). 규칙은 service-id.ts 에 둔다.
+  const serviceIdByPageId = useMemo(() => buildServiceIdByPageId(menu.items), [menu]);
 
   // 탭 훅의 복원 effect deps 에 들어간다 — menuDisplayTextByPageId 가 그대로면 참조가 바뀌지 않아야 한다.
   const resolveDisplayText = useCallback(
@@ -342,6 +340,7 @@ export function PortalShell({
     orderedTabs,
     openPageTab,
     closeTab,
+    duplicateTab,
     onTabSnapshotChange,
     reorderTabs,
     refreshTab,
@@ -363,6 +362,35 @@ export function PortalShell({
     loggingOutRef,
   });
 
+  const popoutRef = useRef(popout);
+  popoutRef.current = popout;
+  // 셸이 연 분리 창 — 로그아웃 때 닫는다.
+  const popoutWindowsRef = useRef<Set<Window>>(new Set());
+  // 탭 우클릭 '새 창으로 분리' — 클릭 처리기에서 동기로 창을 연다(await 금지, 팝업 차단 판정). 열리면 탭을 닫고, 차단이면 탭을 두고 호출부가 안내한다.
+  const handlePopoutTab = useCallback(
+    (tabId: string) => {
+      const current = popoutRef.current;
+      const tab = tabsRef.current.find((t) => t.id === tabId);
+      if (!current || !tab || tab.isHome) return;
+      let opened: Window | null;
+      try {
+        opened = openPagePopout({ pageId: tab.pageId, snapshot: tab.snapshot, buildUrl: current.buildUrl });
+      } catch (err) {
+        // 차단이 아닌 실패(URL 생성·window.open 예외) — 탭은 그대로 두고 호출부가 안내한다.
+        console.error("[PortalShell] popout failed", tab.pageId, err);
+        current.onError?.(err);
+        return;
+      }
+      if (!opened) {
+        current.onBlocked?.();
+        return;
+      }
+      popoutWindowsRef.current.add(opened);
+      closeTab(tabId);
+    },
+    [closeTab, tabsRef]
+  );
+
   const doLogout = useCallback(() => {
     if (loggingOutRef.current) return; // 이미 로그아웃 중 — signOut 을 두 번 내지 않는다
     loggingOutRef.current = true;
@@ -379,6 +407,12 @@ export function PortalShell({
     } finally {
       usageLogoutPendingRef.current = null;
     }
+    // 셸이 연 분리 창을 닫는다(공용 단말에 데이터가 띄워진 창이 남지 않게). 포털 새로고침 전 창은 참조가 없어 못 닫는다.
+    for (const win of popoutWindowsRef.current) {
+      try { win.close(); } catch { /* 이미 닫힘 */ }
+    }
+    popoutWindowsRef.current.clear();
+    clearPopoutHandoffs(); // 새 창이 아직 가져가지 않은 snapshot 이 localStorage 에 남지 않게
     writeSecureJson(storageKey, { tabs: [], activeTabId: null });
     // 공유 사용자·RBAC 캐시를 비운다 — 다음 로그인 사용자에게 남지 않게(K3). signOut 은 전체 이동이지만 실패 대비로도 비운다.
     clearCurrentUserCache();
@@ -474,6 +508,8 @@ export function PortalShell({
     () => new Set((startPageLeaves ?? []).map((leaf) => leaf.pageId)),
     [startPageLeaves]
   );
+  // 같은 화면 탭이 둘 이상이면 표시 제목에만 (2)(3) 번호를 붙인다(저장 제목은 그대로). TabsBar 에만 넘긴다.
+  const numberedTabs = useMemo(() => numberDuplicateTitles(orderedTabs), [orderedTabs]);
   // 메뉴에 있는 화면만 서버가 즐겨찾기·기본 화면으로 받는다(홈 화면은 제외).
   const canRegisterPage = useCallback(
     (pageId: string) => pageId !== resolvedHomePageId && menuSearchItemByPageId.has(pageId),
@@ -699,7 +735,7 @@ export function PortalShell({
           <div className="portal-shell__main">
             <div className="portal-shell__content-wrapper">
               <TabsBar
-                tabs={orderedTabs}
+                tabs={numberedTabs}
                 activeTabId={activeTabId}
                 onTabClick={(tabId) => {
                   const tab = tabs.find((t) => t.id === tabId);
@@ -723,6 +759,9 @@ export function PortalShell({
                 startPageIds={startPageIdSet}
                 onToggleStartPage={startPages ? onToggleStartPage : undefined}
                 canRegisterPage={canRegisterPage}
+                onPopoutTab={popout ? handlePopoutTab : undefined}
+                canPopoutPage={canRegisterPage}
+                onDuplicateTab={allowDuplicateTabs ? duplicateTab : undefined}
               />
               <div className="portal-shell__content-area">
                 {tabs.length === 0 ? (

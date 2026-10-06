@@ -40,7 +40,7 @@ GROUPS: list[tuple[str, list[str]]] = [
     ("팝업·메시지 (`modal`, `message-provider`, `use-api-call`)", ["modal", "message"]),
     ("대시보드 (`@dk-oasis/shared/dashboard`)", ["dashboard"]),
     ("위젯 (`@dk-oasis/shared/widget`)", ["widget"]),
-    ("위젯 도크·떠 있는 창 (`@dk-oasis/shared/portal-shell`)", ["widget-dock", "floating-window"]),
+    ("위젯 도크·떠 있는 창·탭 분리 창 (`@dk-oasis/shared/portal-shell`)", ["widget-dock", "floating-window", "portal-page-window"]),
     ("MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)", ["mdm-meta"]),
     ("탭·트리·룩업·기타", ["tabs", "closable-tabs", "tree", "lookup", "lookup-multi-modal", "markdown-editor", "html-editor", "notice-body-view", "detail-popover", "json-view", "card", "transfer-list", "matrix-table", "charts", "export-to-excel", "print-element-as-page", "icons"]),
 ]

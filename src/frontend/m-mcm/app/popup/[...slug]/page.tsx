@@ -1,92 +1,52 @@
 "use client";
 
 /**
- * window.open(`/popup/{group}/{leaf}?...`) 로 외부 팝업창에서 띄우는 단일 페이지 렌더.
- * portal SPA 와 다른 라우트 — portal 의 탭/사이드바 없이 페이지 컴포넌트만 단독 표시.
- *
+ * 포털 탭 「새 창으로 분리」 가 여는 단독 화면 — `/popup/{moduleId}/{pageName…}?h={token}`.
+ * 포털 탭·사이드바 없이 PortalPageWindow 가 화면 하나만 그린다. 권한·serviceId·창 제목은 내 메뉴(myMenusTree)로 정한다.
+ * 설계: docs/superpowers/specs/2026-10-06-portal-tab-popout-design.md §5.4·§5.6
  */
-
-import { use, useEffect, useState } from "react";
+import { use, useEffect } from "react";
+import { PortalPageWindow, usePortalMenu } from "@dk-oasis/shared/portal-shell";
 import "@dk-oasis/shared/portal-shell.css";
 import "@dk-oasis/shared/grid.css";
 import "@dk-oasis/shared/form.css";
 import "@dk-oasis/shared/modal.css";
-import { ErrorBoundary } from "@dk-oasis/shared/error-boundary";
-import { loadConfiguredModulePage } from "../../portal/module-config";
+import { resolvePortalPage } from "../../portal/registered-modules";
+import { usePortalUsageReporter } from "../../portal/use-portal-usage-reporter";
+import { publishPortalMenu } from "@/lib/portal-menu-store";
+import { popupSlugToPageId } from "../popup-target";
 
-type PageComponent = (props: {
-  tabId: string;
-  snapshot: Record<string, unknown>;
-  onSnapshotChange: (s: Record<string, unknown>) => void;
-}) => React.ReactNode;
+const MENU_ENDPOINT = { endpoint: "/api/mcm/oasis/secUser/myMenusTree" };
 
-/** slug 의 첫 segment 를 group, 마지막을 leaf 로 분리. */
-function findOwnerModule(slug: string[]): { moduleId: string; pageName: string } | null {
-  if (slug.length === 0) return null;
-  return { moduleId: "mpp", pageName: slug.join("/") };
-}
-
-function PopupBody({ slug }: { slug: string[] }) {
-  const [PageComponent, setPageComponent] = useState<PageComponent | null>(null);
-  const [error, setError] = useState<string | null>(null);
+export default function PopupRoute({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string[] }>;
+  searchParams: Promise<{ h?: string | string[] }>;
+}) {
+  const { slug } = use(params);
+  const { h } = use(searchParams);
+  const token = typeof h === "string" ? h : null;
+  const pageId = popupSlugToPageId(slug);
+  const { menu, isLoading, errorMessage } = usePortalMenu(MENU_ENDPOINT);
+  const { onUsageSegments } = usePortalUsageReporter();
 
   useEffect(() => {
-    (async () => {
-      const target = findOwnerModule(slug);
-      if (!target) {
-        setError("잘못된 팝업 경로입니다.");
-        return;
-      }
-      try {
-        const comp = (await loadConfiguredModulePage(target.moduleId, target.pageName)) as
-          | PageComponent
-          | null;
-        if (!comp) {
-          setError(`페이지를 찾을 수 없습니다: ${target.moduleId}/${target.pageName}`);
-          return;
-        }
-        setPageComponent(() => comp);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "페이지 로딩 실패");
-      }
-    })();
-  }, [slug]);
+    publishPortalMenu(menu?.items ?? null);
+  }, [menu]);
 
-  const handleSnapshotChange = (s: Record<string, unknown>) => {
-    if (s.action === "cancel" || s.action === "confirm" || s.action === "save") {
-      window.close();
-    }
-  };
-
-  if (error) {
-    return (
-      <div style={{ padding: 24, color: "#dc3545", fontFamily: "var(--font-family)" }}>
-        {error}
-      </div>
-    );
-  }
-  if (!PageComponent) {
-    return (
-      <div style={{ padding: 24, color: "#666", fontFamily: "var(--font-family)" }}>
-        팝업 로딩 중...
-      </div>
-    );
-  }
-
+  if (!pageId) return <p style={{ padding: 24, color: "#dc3545" }}>잘못된 화면 경로입니다.</p>;
+  if (isLoading) return <p style={{ padding: 24, color: "#666" }}>로딩 중...</p>;
+  if (!menu || errorMessage) return <p style={{ padding: 24, color: "#dc3545" }}>{errorMessage ?? "메뉴를 불러올 수 없습니다."}</p>;
   return (
-    <div style={{ height: "100dvh", display: "flex", flexDirection: "column" }}>
-      <ErrorBoundary>
-        <PageComponent
-          tabId="popup"
-          snapshot={{}}
-          onSnapshotChange={handleSnapshotChange}
-        />
-      </ErrorBoundary>
-    </div>
+    <PortalPageWindow
+      pageId={pageId}
+      menu={menu}
+      resolvePage={resolvePortalPage}
+      handoffToken={token}
+      appName="DMES Portal"
+      onUsageSegments={onUsageSegments}
+    />
   );
-}
-
-export default function PopupRoute({ params }: { params: Promise<{ slug: string[] }> }) {
-  const { slug } = use(params);
-  return <PopupBody slug={slug} />;
 }
