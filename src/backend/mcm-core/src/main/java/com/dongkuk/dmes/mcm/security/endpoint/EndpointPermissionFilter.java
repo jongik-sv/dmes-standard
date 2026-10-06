@@ -94,6 +94,9 @@ public class EndpointPermissionFilter extends OncePerRequestFilter {
             // 미디어 파일 내려받기(REST GET /api/mcm/widgetMedia/file/{fileId})는 4-segment 라 이 목록으로 맞출 수 없다 —
             // 메서드까지 보는 isAuthOnlyMediaFile 이 따로 판정한다.
             "ntfnotification/",        // 포털 알림 (list/unreadCount/markRead/markAllRead) — 본인 데이터
+            // 조업 계산기 위젯(MDM ruleCalc, 2026-10-06) — RELEASED 룰의 입력 정의(view)·계산(execute). 룰 ID 는 위젯 정의 설정이 정한다. BFF proxy.ts 와 동기화.
+            "rulecalc/view",
+            "rulecalc/execute",
             "noticeboard/search",       // 포털 홈 공지 목록(mls) — 서비스가 현재 사용자 역할로 게시 대상을 거른다 (2026-10-02)
             "screenusage/record",       // 포털 화면 사용 구간 기록 — 로그인 사용자 전원, 사용자·부서는 서버가 인증 정보로 채운다 (2026-10-02)
             // MDM 메타 캐시(2026-10-02, spec 2026-10-02-mdm-meta-cache-design §5.5) — cactus /api/{module}/mdmMeta/*. 3-segment 라 권한 데이터로
