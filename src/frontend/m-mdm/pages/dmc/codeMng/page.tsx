@@ -38,6 +38,7 @@ import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { Input, Select } from "@dk-oasis/shared/form";
 import { Modal } from "@dk-oasis/shared/modal";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRefetch, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { MdmPageLayout, VEIL_FRESH, VEIL_STALE, openMdmPage, useMdmPageParams } from "@/shell";
 
 import { registerCode, searchCodes } from "./api";
@@ -89,12 +90,16 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
   const rbac = useUserButtonRbac(true);
 
   // ── 목록(조회조건·그리드) ──
-  const [keyword, setKeyword] = useState("");
-  const [status, setStatus] = useState("");
-  const [rows, setRows] = useState<CodeMngRow[]>([]);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·조회 결과(bulky)·마지막으로 조회에 쓴 조건.
+  // 선택 코드(selectedId)·상세·버전은 이어받지 않는다 — 진입 코드는 handoff(useMdmPageParams)가 정하고, 상세 폼(헤더 입력·버전 선택)은 새 창에서 다시 고른다.
+  const [keyword, setKeyword] = useCarryState("keyword", "");
+  const [status, setStatus] = useCarryState("status", "");
+  const [rows, setRows] = useCarryState<CodeMngRow[]>("rows", [], { bulky: true });
   const [listLoading, setListLoading] = useState(false);
   // 마지막으로 조회에 쓴 조건 — 액션 뒤 목록 재조회는 입력만 하고 [조회] 하지 않은 값이 아니라 이 값을 쓴다.
-  const appliedQuery = useRef({ keyword: "", status: "" });
+  // 분리 창에서도 이 조건으로 재조회하도록 carry 상태(appliedCarry)에 같이 둔다(ref 는 읽기용 사본).
+  const [appliedCarry, setAppliedCarry] = useCarryState("appliedQuery", { keyword: "", status: "" });
+  const appliedQuery = useRef(appliedCarry);
 
   // ── 화면 모드·선택 ──
   const [mode, setMode] = useState<Mode>("none");
@@ -135,6 +140,7 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
 
   const loadList = useCallback(async (kw: string, st: string) => {
     appliedQuery.current = { keyword: kw, status: st };
+    setAppliedCarry(appliedQuery.current);
     setListLoading(true);
     try {
       const result = await searchCodes(kw, st);
@@ -144,7 +150,7 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
     } finally {
       setListLoading(false);
     }
-  }, [fail]);
+  }, [fail, setRows, setAppliedCarry]);
 
   const reloadList = useCallback(
     () => loadList(appliedQuery.current.keyword, appliedQuery.current.status),
@@ -254,6 +260,9 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
   // 첫 진입 자동 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청). 선택 코드·버전은 snapshot 에 담지 않는다(R8, 2026-10-05).
 
   const handleSearch = useCallback(() => void loadList(keyword, status), [loadList, keyword, status]);
+
+  // 분리 창이 조회 결과(행)를 못 받았을 때만 마지막 조회 조건으로 한 번 다시 조회한다(조회 안 한 탭은 재조회하지 않는다).
+  useCarryRefetch(reloadList);
 
   // 상세를 바꾸는 액션(저장·폐기·새 버전·DRAFT 삭제·선점·해제·넘기기) 뒤에는 목록의 상태·현재·미적용 칸도 다시 조회한다.
   // 응답이 올 때 이미 다른 코드를 골랐으면(handoff) 그 view 는 버린다 — 쓰기 자체는 끝났으므로 토스트·목록 재조회는 한다.
