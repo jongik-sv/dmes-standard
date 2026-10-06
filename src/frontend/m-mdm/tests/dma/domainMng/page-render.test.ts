@@ -85,7 +85,8 @@ describe("domainMng page", () => {
     ]);
     await render();
     // 첫 진입은 목록을 자동 조회하지 않는다 — [조회] 를 눌러야 불러온다(cf4fbb05).
-    expect(container.querySelector("[data-testid=domain-mng-empty]")).not.toBeNull();
+    // 빈 상태 문구는 ag-grid 가 비동기로 그린다 — 위 시험처럼 기다린다(앞 시험 뒤 두 번째 마운트에서 20ms 안에 안 그려질 때가 있다).
+    await vi.waitFor(() => expect(container.querySelector("[data-testid=domain-mng-empty]")).not.toBeNull());
     await search();
     expect(container.querySelector("[data-testid=domain-mng-empty]")).toBeNull();
     expect(container.querySelector(".domain-mng__count")?.textContent).toBe("도메인 2건");
