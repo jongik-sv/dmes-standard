@@ -167,6 +167,11 @@ const SelectCellEditor = function SelectCellEditor(props: {
 };
 
 const DEFAULT_FIXED_COLUMN_WIDTH = 120;
+
+/** 요소가 대화 상자(Mantine Modal 등 role="dialog") 안에 있는가. */
+function isInDialog(el: Element): boolean {
+  return el.closest('[role="dialog"]') != null;
+}
 /** 저장 너비 컬럼이 없을 때의 집합(공유 상수 — 렌더마다 새로 만들지 않는다). */
 const EMPTY_SIZED_COLUMNS: ReadonlySet<string> = new Set();
 export { GRID_TOOLTIP_SHOW_DELAY_MS };
@@ -1475,12 +1480,23 @@ function AgDataGridComponent({
   const closeSettings = useCallback(() => setSettingsColumns(null), []);
   const closeHeaderMenu = useCallback(() => setHeaderMenu(null), []);
   const resetPersonalize = useCallback(() => personalizeHandleRef.current.reset(), []);
-  const applyPersonalize = useCallback((state: ColumnState[]) => personalizeHandleRef.current.apply(state), []);
+  // 창에서 숨기거나 다시 켠 뒤에는 복원 때와 같은 갈래로 자동 너비·여백 분배를 다시 돌린다(auto 그리드의 오른쪽 빈 공간·다시 켠 컬럼 너비).
+  // 저장 너비가 있는 컬럼은 sizedColumnsRef 가 지킨다.
+  const rerunAfterApplyRef = useRef(rerunAutoSizeAfterRestore);
+  rerunAfterApplyRef.current = rerunAutoSizeAfterRestore;
+  const applyPersonalize = useCallback((state: ColumnState[]) => {
+    personalizeHandleRef.current.apply(state);
+    rerunAfterApplyRef.current();
+  }, []);
   // GridPanel 에 올리는 명령 — 그리드가 사는 동안 같은 객체(렌더마다 새로 만들지 않는다).
   const gridControls = useMemo<GridPanelGridControls>(() => ({ openSettings, reset: resetPersonalize }), [openSettings, resetPersonalize]);
   const gridPanelRegistry = useGridPanelRegistry();
   useEffect(() => {
     if (!gridPanelRegistry || !personalizeEnabled) return;
+    // React context 는 포털을 넘어 오므로, GridPanel 안에서 띄운 팝업(룩업 등)의 그리드도 여기로 온다. 실제로 그 패널의
+    // 그리드 영역 안에 있고 대화 상자 안이 아닌 그리드만 등록한다 — 개인화가 꺼진 패널에 남의 [컬럼 설정] 단추가 생기지 않게.
+    const el = containerRef.current;
+    if (!el || !el.closest(".grid-panel-content") || isInDialog(el)) return;
     return gridPanelRegistry.register(gridControls);
   }, [gridPanelRegistry, personalizeEnabled, gridControls]);
   // 개인화가 꺼지면(탭 비활성·키 충돌로 대기) 열려 있던 창·메뉴를 닫는다. 처음부터 꺼진 그리드는 아무 상태도 건드리지 않는다.
@@ -1499,6 +1515,8 @@ function AgDataGridComponent({
     const target = e.target;
     if (!(target instanceof Element) || !target.closest(".ag-header")) return;
     if (target.closest("input, textarea, select, [contenteditable]")) return;
+    // 대화 상자(룩업 창 등) 안의 그리드는 설정 창을 겹쳐 띄우지 않는다 — 겹친 창에서는 Esc 한 번에 바깥 창까지 닫히고 Tab 이 갇힌다.
+    if (isInDialog(target)) return;
     e.preventDefault();
     headerMenuNonceRef.current += 1;
     setHeaderMenu({ x: e.clientX, y: e.clientY, nonce: headerMenuNonceRef.current });

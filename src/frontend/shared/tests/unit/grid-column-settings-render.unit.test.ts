@@ -4,6 +4,7 @@
  * 그리드 api 는 AgGridReact.render 의 this 로 잡는다(grid-personalize-render 시험과 같은 방식).
  */
 import { act, createElement, type ReactElement } from "react";
+import { createPortal } from "react-dom";
 import { AgGridReact } from "ag-grid-react";
 import type { GridApi } from "ag-grid-community";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
@@ -229,6 +230,21 @@ describe("GridPanel [컬럼 설정] 단추", () => {
     expect(settingsRows()).toEqual(["bcode", "bname"]);
   });
 
+  it("패널 안에서 포털로 띄운 그리드(룩업 등)는 바깥 패널에 등록되지 않는다 — 개인화를 끈 패널에 단추가 생기지 않는다", async () => {
+    await stubUser("u1");
+    const portaled = createPortal(gridEl({ gridId: "popup" }), document.body);
+    await show(tab(panel(createElement("div", null, gridEl({ personalize: false }), portaled))));
+    expect(apis()).toHaveLength(2);
+    expect(byId("btn_grid_columns")).toBeNull();
+  });
+
+  it("대화 상자 안의 GridPanel·그리드는 등록하지 않는다(설정 창을 겹쳐 띄우지 않는다)", async () => {
+    await stubUser("u1");
+    await show(tab(createElement("div", { role: "dialog" }, panel(gridEl()))));
+    expect(api().getAllGridColumns().length).toBeGreaterThan(0);
+    expect(byId("btn_grid_columns")).toBeNull();
+  });
+
   it("GridPanel 없이 쓰는 그리드는 예전처럼 동작한다(등록할 곳이 없다)", async () => {
     await stubUser("u1");
     await show(tab(gridEl()));
@@ -265,6 +281,14 @@ describe("머리글 우클릭 메뉴", () => {
     expect(anchors()[0].style.left).toBe("200px");
     expect(anchors()[0].style.top).toBe("44px");
     expect(document.querySelectorAll('[data-testid="grid-header-menu"]')).toHaveLength(1);
+  });
+
+  it("대화 상자 안의 그리드는 머리글 우클릭 메뉴를 띄우지 않고 기본 동작을 둔다(룩업 창 위에 설정 창이 겹치지 않게)", async () => {
+    await stubUser("u1");
+    await show(tab(createElement("div", { role: "dialog" }, gridEl())));
+    expect(rightClick(headerCell("name"))).toBe(false);
+    await wait(50);
+    expect(tid("grid-header-menu")).toBeNull();
   });
 
   it("개인화를 끈 그리드는 머리글 우클릭도 예전처럼 둔다", async () => {
@@ -361,6 +385,17 @@ describe("설정 창 적용 → 저장 → 복원", () => {
     expect(order(b).filter((c) => c !== "secret")).toEqual(["qty", "code", "name"]);
     expect(visible(b)).toEqual(["qty", "code"]);
     expect(b.getColumn("qty")!.getActualWidth()).toBe(90);
+  });
+
+  it("auto 그리드는 적용 뒤 자동 너비 맞춤을 다시 돌린다(숨긴 자리 빈 공간·다시 켠 컬럼 너비)", async () => {
+    await stubUser("u1");
+    await show(tab(panel(gridEl({ columnSizing: "auto" }))));
+    const auto = vi.spyOn(api(), "autoSizeAllColumns");
+    await click(byId("btn_grid_columns"));
+    await click(tid("column-settings-check-name")!.querySelector("input"));
+    await click(tid("column-settings-apply"));
+    await wait(120);
+    expect(auto).toHaveBeenCalledTimes(1);
   });
 
   it("선택 체크박스는 맨 앞에 남고 정의에서 숨긴 컬럼은 숨은 채 남는다", async () => {
