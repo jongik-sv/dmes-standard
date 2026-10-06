@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 사용법: compact-lane.sh <레인> [--force-no-memo] [--dry-run]
+# 사용법: compact-lane.sh <레인> [--force-no-memo] [--over-draft] [--dry-run]
 #   레인 세션에 /compact 를 안전하게 넣고 끝날 때까지 확인한다(설계 §3.j-3~5). 정본 출력: references/contract.md §3.5
 #   거부: merge-in-flight(머지 중) · measure-lane(열린 측정 창의 측정 레인) · no-memo(pre_compact 없음, --force-no-memo 로 통과)
 #         · cooldown(compact.cooldown_min 안) · unsupported-kind(opencode·agy 등) · no-handle · term-send-safe 의 거부 사유 그대로.
@@ -13,10 +13,11 @@ set -uo pipefail
 . "$(dirname "$0")/lib/compact-screen.sh"
 SD="$(dirname "$0")"
 
-lane="" force=0 dry=0
+lane="" force=0 dry=0 over=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --force-no-memo) force=1 ;;
+    --over-draft) over=1 ;;   # term-send-safe.sh --over-draft 로 그대로 넘긴다(approvals.md 「입력창 추천 문구」)
     --dry-run) dry=1 ;;
     -h|--help) sed -n '2,8p' "$0"; exit 0 ;;
     -*) coord_die 2 "모르는 옵션: $1" ;;
@@ -24,7 +25,7 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
-[ -n "$lane" ] || coord_die 2 "사용법: compact-lane.sh <레인> [--force-no-memo] [--dry-run]"
+[ -n "$lane" ] || coord_die 2 "사용법: compact-lane.sh <레인> [--force-no-memo] [--over-draft] [--dry-run]"
 [ "$dry" = 1 ] && export COORD_DRY=1
 coord_has_run || coord_die 3 "현재 회차가 없다"
 SF="$(coord_state_file)"
@@ -71,6 +72,7 @@ before="$(ctx_tokens)"
 
 sargs=(--handle "$h" --text "$text" --timeout-ms 300000)
 [ "$dry" = 1 ] && sargs+=(--dry-run)
+[ "$over" = 1 ] && sargs+=(--over-draft)
 sres="$(bash "$SD/term-send-safe.sh" "${sargs[@]}")"; src=$?
 case "$sres" in
   "REFUSED "*) refuse "${sres##* }" ;;
