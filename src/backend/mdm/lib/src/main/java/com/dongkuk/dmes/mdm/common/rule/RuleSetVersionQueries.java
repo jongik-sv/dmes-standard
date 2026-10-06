@@ -2,8 +2,10 @@ package com.dongkuk.dmes.mdm.common.rule;
 
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
+import com.dongkuk.dmes.mdm.entity.MdmRuleSet;
 import com.dongkuk.dmes.mdm.entity.MdmRuleSetVer;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -12,6 +14,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import kr.dongkuk.maru.mdm.engine.flow.FlowParser;
@@ -66,6 +69,32 @@ public class RuleSetVersionQueries {
         return !entityManager.createQuery("SELECT v.maruRuleSetId FROM MdmRuleSetVer v WHERE v.status = 'RELEASED' AND v.callSetIds LIKE :p",
                         String.class)
                 .setParameter("p", "%\"" + setId + "\"%").setMaxResults(1).getResultList().isEmpty();
+    }
+
+    /**
+     * 조업 계산기 세트 찾기 — {@link RuleQueries#searchCallable} 와 같은 규칙(폐기 아님·판정 시각 현재 RELEASED 또는 {@code draftOwner} 의 DRAFT 가 있음,
+     * ID·이름 부분 일치, ID 순 {@code limit} 건)을 룰 세트에 적용한다.
+     */
+    public List<MdmRuleSet> searchCallable(String keyword, String draftOwner, LocalDateTime now, int limit) {
+        StringBuilder jpql = new StringBuilder("SELECT s FROM MdmRuleSet s WHERE s.status <> 'DEPRECATED'");
+        if (keyword != null) {
+            jpql.append(" AND (UPPER(s.maruRuleSetId) LIKE :kw ESCAPE '\\' OR UPPER(s.maruRuleSetName) LIKE :kw ESCAPE '\\')");
+        }
+        jpql.append(" AND (EXISTS (SELECT v.ver FROM MdmRuleSetVer v WHERE v.maruRuleSetId = s.maruRuleSetId AND v.status = 'RELEASED' "
+                + "AND v.applyFrom <= :now AND (v.applyTo IS NULL OR v.applyTo > :now))");
+        if (draftOwner != null) {
+            jpql.append(" OR EXISTS (SELECT v.ver FROM MdmRuleSetVer v WHERE v.maruRuleSetId = s.maruRuleSetId AND v.status = 'DRAFT' "
+                    + "AND v.ownerId = :owner)");
+        }
+        jpql.append(") ORDER BY s.maruRuleSetId");
+        TypedQuery<MdmRuleSet> q = entityManager.createQuery(jpql.toString(), MdmRuleSet.class).setParameter("now", now);
+        if (keyword != null) {
+            q.setParameter("kw", "%" + RuleQueries.escapeLike(keyword.toUpperCase(Locale.ROOT)) + "%");
+        }
+        if (draftOwner != null) {
+            q.setParameter("owner", draftOwner);
+        }
+        return q.setMaxResults(limit).getResultList();
     }
 
     public Optional<MdmRuleSetVer> find(String setId, BigDecimal ver) {

@@ -82,8 +82,8 @@ class EndpointPermissionFilterAuthOnlyTest {
     }
 
     @Test
-    void ruleCalc_view_execute_는_AUTH_ONLY_이고_다른_action_은_아니다() {
-        for (String action : new String[] {"view", "execute"}) {
+    void ruleCalc_view_execute_search_는_AUTH_ONLY_이고_다른_action_은_아니다() {
+        for (String action : new String[] {"view", "execute", "search"}) {
             PermKey k = PermKey.parseUrl("/api/mdm/oasis/ruleCalc/" + action);
             assertThat(k).as(action).isNotNull();
             assertThat(EndpointPermissionFilter.isAuthOnly(k)).as(action).isTrue();

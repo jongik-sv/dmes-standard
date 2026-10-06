@@ -29,6 +29,8 @@ import com.dongkuk.dmes.mdm.dme.ruleCalc.dto.RuleCalcIoResult;
 import com.dongkuk.dmes.mdm.dme.ruleCalc.dto.RuleCalcMessage;
 import com.dongkuk.dmes.mdm.dme.ruleCalc.dto.RuleCalcRequest;
 import com.dongkuk.dmes.mdm.dme.ruleCalc.dto.RuleCalcRunResult;
+import com.dongkuk.dmes.mdm.dme.ruleCalc.dto.RuleCalcSearchRequest;
+import com.dongkuk.dmes.mdm.dme.ruleCalc.dto.RuleCalcSearchResult;
 import com.dongkuk.dmes.mdm.entity.MdmColumn;
 import com.dongkuk.dmes.mdm.entity.MdmDomain;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
@@ -49,6 +51,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -80,8 +83,9 @@ import org.springframework.stereotype.Service;
 
 /**
  * 조업 계산기 서비스({@code ruleCalc}) — 계약 정본 {@code docs/widget-2026-10/rule-calc-api.md}. BPMN {@code services/dme/ruleCalc.bpmn} 의
- * {@code view}(method {@link #io})·{@code execute}(method {@link #run}) 두 분기와 1:1(액션 이름은 RBAC 어휘, 자바 메서드명은 그대로). 룰 또는 룰 세트의 입출력 모양을 알려 주고({@code io}), 그
- * 입력 값으로 계산한다({@code run}). 읽기 전용이다.
+ * {@code view}(method {@link #io})·{@code execute}(method {@link #run})·{@code search}(method {@link #search}) 세 분기와 1:1(액션 이름은 RBAC
+ * 어휘, 자바 메서드명은 그대로). 룰 또는 룰 세트의 입출력 모양을 알려 주고({@code io}), 그 입력 값으로 계산하고({@code run}), 계산할 수 있는 룰·세트 ID 를
+ * 찾아 준다({@code search}). 읽기 전용이다.
  *
  * <p>버전은 RELEASED 만 쓴다(룰·세트마다 판정 시각에 적용되는 RELEASED). {@code preview=true} 일 때만 로그인 사용자({@link MdmCurrentUser})의 내
  * DRAFT 를 먼저 쓴다({@link RuleVersionPick#myDraft}). 사용자 ID 를 요청으로 받지 않는다. 확정 버전이 없거나(NO_RELEASED) 대상이 없거나
@@ -237,6 +241,68 @@ public class RuleCalcService {
             }
         }
         return out;
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // action: search — 룰·세트 찾기(편집기에서 ID 를 고르는 용도)
+    // ────────────────────────────────────────────────────────────────
+
+    static final String ALL = "ALL";
+    static final int DEFAULT_LIMIT = 50;
+    static final int MAX_LIMIT = 200;
+
+    /**
+     * 판정 시각(지금)에 적용 중인 RELEASED 가 있는 룰·세트 가운데 ID·이름에 키워드가 든 것을 ID 순으로 {@code limit} 건 돌려준다. 폐기(DEPRECATED) 룰·세트는
+     * 뺀다. {@code preview=true} 면 내 DRAFT 가 있는 것도 넣고 그 행의 {@code ver}·{@code verStatus} 는 {@code view} 와 같이 그 DRAFT 다. 읽기만 한다.
+     */
+    public RuleCalcSearchResult search(RuleCalcSearchRequest request) {
+        RuleCalcSearchRequest req = request == null ? new RuleCalcSearchRequest() : request;
+        String tp = req.getTargetTp() == null || req.getTargetTp().isBlank() ? ALL : req.getTargetTp().trim().toUpperCase(Locale.ROOT);
+        if (!ALL.equals(tp) && !RULE.equals(tp) && !SET.equals(tp)) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE, "대상 종류(targetTp) 는 RULE·SET·ALL 중 하나여야 합니다: " + req.getTargetTp());
+        }
+        int limit = req.getLimit() == null || req.getLimit() < 1 ? DEFAULT_LIMIT : Math.min(req.getLimit(), MAX_LIMIT);
+        String keyword = req.getKeyword() == null || req.getKeyword().isBlank() ? null : req.getKeyword().trim();
+        RuleVersionPick pick = req.isPreview() ? RuleVersionPick.myDraft(currentUser.userId()) : RuleVersionPick.RELEASED;
+        LocalDateTime at = atKst(now());
+
+        List<RuleCalcSearchResult.Row> rows = new ArrayList<>();
+        if (!SET.equals(tp)) {
+            List<MdmRule> rules = queries.searchCallable(keyword, pick.draftOwner(), at, limit);
+            Map<String, List<MdmRuleVer>> versions = new HashMap<>();
+            queries.versionsOf(rules.stream().map(MdmRule::getMaruRuleId).toList())
+                    .forEach(v -> versions.computeIfAbsent(v.getMaruRuleId(), k -> new ArrayList<>()).add(v));
+            for (MdmRule r : rules) {
+                pick.pick(versions.getOrDefault(r.getMaruRuleId(), List.of()), MdmRuleVer::getOwnerId, at)
+                        .ifPresent(v -> rows.add(row(RULE, r.getMaruRuleId(), r.getMaruRuleName(), v.getVer(), v.getStatus(), r.getDescription())));
+            }
+        }
+        if (!RULE.equals(tp)) {
+            List<MdmRuleSet> sets = setVersions.searchCallable(keyword, pick.draftOwner(), at, limit);
+            Map<String, List<MdmRuleSetVer>> versions = setVersions.versionsOf(sets.stream().map(MdmRuleSet::getMaruRuleSetId).toList());
+            for (MdmRuleSet s : sets) {
+                pick.pick(versions.getOrDefault(s.getMaruRuleSetId(), List.of()), MdmRuleSetVer::getOwnerId, at)
+                        .ifPresent(v -> rows.add(row(SET, s.getMaruRuleSetId(), s.getMaruRuleSetName(), v.getVer(), v.getStatus(), s.getDescription())));
+            }
+        }
+        if (ALL.equals(tp)) { // 룰·세트 두 목록을 합칠 때만 자바에서 다시 정렬한다. 한 종류만이면 DB 의 ID 정렬을 그대로 쓴다.
+            rows.sort(Comparator.comparing(RuleCalcSearchResult.Row::getId).thenComparing(RuleCalcSearchResult.Row::getTp));
+        }
+        RuleCalcSearchResult out = new RuleCalcSearchResult();
+        out.setOk(true);
+        out.getRows().addAll(rows.size() > limit ? rows.subList(0, limit) : rows);
+        return out;
+    }
+
+    private static RuleCalcSearchResult.Row row(String tp, String id, String name, BigDecimal ver, String verStatus, String description) {
+        RuleCalcSearchResult.Row x = new RuleCalcSearchResult.Row();
+        x.setTp(tp);
+        x.setId(id);
+        x.setName(name);
+        x.setVer(VersionNumbers.plain(ver));
+        x.setVerStatus(verStatus);
+        x.setDesc(description == null || description.isBlank() ? null : description);
+        return x;
     }
 
     // ────────────────────────────────────────────────────────────────

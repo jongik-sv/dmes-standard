@@ -88,12 +88,12 @@ class MdmOasisActionVocabularyTest {
         assertEquals(Set.of("search", "view", "save"),actionsFromGateway(path));
     }
 
-    /** 조업 계산기 ruleCalc — 읽기 전용 서비스(인증만, AUTH_ONLY)라 편집 권한 세트는 보지 않는다. action 은 기존 어휘(view·execute)를 쓴다. */
+    /** 조업 계산기 ruleCalc — 읽기 전용 서비스(인증만, AUTH_ONLY)라 편집 권한 세트는 보지 않는다. action 은 기존 어휘(view·execute·search)를 쓴다. */
     @Test
-    void dme_ruleCalc_bpmn_의_액션은_어휘_안의_view_execute_다() throws Exception {
+    void dme_ruleCalc_bpmn_의_액션은_어휘_안의_view_execute_search_다() throws Exception {
         Path path = bpmnPath("dme", "ruleCalc.bpmn");
         assertActionsWithinVocabulary(path);
-        assertEquals(Set.of("view", "execute"), actionsFromGateway(path));
+        assertEquals(Set.of("view", "execute", "search"), actionsFromGateway(path));
     }
 
     /** D-144 2단계 — 룰 세트 확정. confirm 은 CONFIRM 세트에만 있다(ruleConfirm 과 같다). */

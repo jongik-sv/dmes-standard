@@ -29,7 +29,7 @@ import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * {@code ruleCalc} 를 BPMN({@code services/dme/ruleCalc.bpmn})까지 태우는 HTTP 시험 — OASIS 파라미터 바인딩(중첩 {@code values} 객체·JSON 숫자),
- * action 분기 {@code view}·{@code execute}, 응답 키가 {@code data.result} 아래로 나오는지 확인한다. 역할·사용자는 헤더 → {@code ClientKeyFilter} →
+ * action 분기 {@code view}·{@code execute}·{@code search},응답 키가 {@code data.result} 아래로 나오는지 확인한다. 역할·사용자는 헤더 → {@code ClientKeyFilter} →
  * {@code CactusMdmCurrentUser} 실제 경로로 준다({@code DmeOasisHttpTest} 형식).
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
@@ -121,6 +121,28 @@ class RuleCalcOasisHttpTest {
         assertEquals("1.05", result.path("result").path("PRC_FCT").asText(), res.toString());
         assertEquals("2.1", result.path("steps").path(0).path("inputs").path("COIL_THK").asText(), "JSON 소수는 문자열 2.1 로 읽힌다");
         assertTrue(result.path("steps").path(0).path("hit").asBoolean(false));
+    }
+
+    @Test
+    void search_는_BPMN_을_거쳐_data_result_로_룰_목록을_돌려준다() throws Exception {
+        ObjectNode body = json.createObjectNode();
+        body.putObject("meta").put("menuId", "ruleCalc");
+        body.putObject("params").put("targetTp", "ALL").put("keyword", "qlty").put("limit", 10);
+
+        JsonNode res = post("search", body);
+
+        assertTrue(res.path("meta").path("success").asBoolean(false), res.toString());
+        JsonNode result = res.path("data").path("result");
+        assertTrue(result.path("ok").asBoolean(false), res.toString());
+        assertEquals(1, result.path("rows").size(), res.toString());
+        JsonNode row = result.path("rows").path(0);
+        assertEquals("RULE", row.path("tp").asText(), res.toString());
+        assertEquals("QLTY_GRD_JDG", row.path("id").asText());
+        assertEquals("품질 등급 판정", row.path("name").asText());
+        assertEquals("1.000", row.path("ver").asText());
+        assertEquals("RELEASED", row.path("verStatus").asText());
+        assertFalse(row.has("desc"), "설명이 없으면 desc 키가 없다");
+        assertTrue(result.path("messages").isArray());
     }
 
     @Test
