@@ -45,8 +45,8 @@
 ```ts
 /** useState 와 같다. 분리 창에서는 원래 탭의 값으로 시작한다. */
 export function useCarryState<T>(key: string, initial: T | (() => T), opts?: { bulky?: boolean }): [T, Dispatch<SetStateAction<T>>];
-/** bulky 값(행 등)이 빠진 채 복원됐을 때 마운트 뒤 한 번 부른다(자동 재조회). */
-export function useCarryRefetch(refetch: () => void): void;
+/** bulky 값(행 등)이 빠진 채 복원됐을 때 마운트 뒤 한 번 부른다(자동 재조회). Promise 를 돌려주면 끝난 때를 새로고침 저장에 쓴다. */
+export function useCarryRefetch(refetch: () => void | Promise<unknown>): void;
 /** 이번 마운트가 이어받은 값으로 시작했는가 — 마운트 자동 조회를 건너뛸 때 쓴다. */
 export function useCarryRestored(): boolean;
 ```
@@ -58,11 +58,21 @@ const [filters, setFilters] = useCarryState("filters", DEFAULT_FILTERS);
 const [masterRows, setMasterRows] = useCarryState<MasterRow[]>("masterRows", [], { bulky: true });
 const [selectedMasterKey, setSelectedMasterKey] = useCarryState<string | null>("selectedMasterKey", null);
 const [detailRows, setDetailRows] = useCarryState<DetailRow[]>("detailRows", [], { bulky: true });
-useCarryRefetch(handleSearch);
+const [categoryLov, setCategoryLov] = useState<Category[]>([]); // Master 선택 때 받는 목록 — 이어받지 않는다
+useCarryRefetch(() => loadMaster(filters));
 ```
 
+이어받은 Master 선택이 있으면 새 창의 첫 상세 조회는 카테고리 LOV 만 채우고, 이어받은 카테고리 선택은 지우지 않는다(요청은 한 번 더 나간다).
+
+**bulky 규칙**
+
+- 사용자가 조회한 결과 배열(그리드 행 등)만 `bulky: true` 로 둔다. 마운트 때 불러오는 LOV·콤보 목록은 `useState` 로 두고, 새 창이 마운트 때 다시 받는다.
+- 객체형 결과는 배열로 바꿔 둔다. 조회 여부 판정(`hasCarriedBulky`)이 null·undefined·빈 배열을 "조회하지 않음" 으로 세기 때문이다. 조회하지 않은 탭을 분리해 opener 없이 열어도 전체 조회가 나가지 않고, 행이 있었을 때만 자동 재조회한다.
+- 조회·초기화 함수를 `useCallback` 으로 감쌀 때는 `useCarryState` 가 돌려준 setter 를 deps 에 넣는다(`react-hooks/exhaustive-deps` 가 setter 의 안정성을 모른다).
+- 같은 key 는 한 번만 복원한다. 복원값을 쓴 key 는 이후 마운트되는 같은 key 가 일반 초기값으로 시작하고, "썼다" 표시는 등록 effect 에서 하므로 StrictMode 이중 렌더·effect 에서도 첫 마운트가 복원값을 받는다. 큰 값(bulky)의 key 가 모두 쓰이면 등록소가 이어받은 bulky 참조를 놓는다.
+
 - key 는 화면 안에서만 유일하면 된다. 같은 key 를 두 번 등록하면 개발 모드에서 경고한다.
-- 값은 JSON 으로 옮길 수 있어야 한다. 함수·Date·Map 은 옮기지 않는다(Date 는 문자열로 바뀐다고 문서에 적는다).
+- 값은 JSON 으로 옮길 수 있는 것(일반 객체·배열·원시값)만 둔다. 세 경로(opener·handoff·새로고침) 모두 JSON 왕복으로 복제해 값 타입을 같게 한다. 함수·Map·Set 은 사라지고 Date 는 문자열로 바뀐다. 개발 모드에서는 모을 때(`collect`) 값 자체와 배열이면 첫 원소를 보고, 옮길 수 없는 값(Date·Set·Map·함수·클래스 인스턴스)을 key 이름과 함께 `console.warn` 한다.
 - 컨텍스트 밖(포털·분리 창이 아닌 곳, 시험)에서는 `useState` 와 똑같이 동작한다.
 - 화면이 마운트 때 자동 조회를 한다면 `useCarryRestored()` 가 true 일 때 건너뛰어야 재조회가 생기지 않는다. 건너뛰지 않아도 같은 조건으로 다시 조회할 뿐 틀린 화면은 되지 않는다.
 
@@ -71,9 +81,9 @@ useCarryRefetch(handleSearch);
 1. 탭 화면을 그릴 때 탭마다 `CarryStateProvider`(등록소 + 복원값)를 감싼다. 탭을 닫으면 그 탭의 등록소를 지운다.
 2. `handlePopoutTab` 은 `openPagePopout` 직전에 그 탭의 등록소에서 값을 동기로 모은다. 결과는 `{ light, bulky }` 두 묶음이다. `window.open` 을 클릭 처리기 안에서 동기로 부르는 제약은 그대로 지킨다(모으기도 동기이고 await 가 없다).
 3. 모은 값은 두 경로로 넘긴다.
-   - **opener 메모리 보관소(주 경로, 크기 제한 없음)**: 셸 창의 모듈 변수 `Map<token, {light, bulky, createdAt}>` 에 넣는다. 새 창은 마운트 때 `window.opener` 의 보관소에서 token 으로 한 번 꺼내고(꺼내면 지움), 자기 창 안으로 복제(`structuredClone`)한다. 같은 출처(origin)이고 `noopener` 를 쓰지 않으므로 opener 접근이 된다(기존 설계도 `portal-open-tab` 전달에 opener 를 쓴다. m-mcm 설정에 COOP 머리글 없음 확인).
-   - **localStorage handoff(보조 경로)**: 기존 `PortalPopoutHandoff` 에 선택 칸 `carry?: { light, hadBulky }` 를 더한다. light 만 담는다. opener 를 못 쓰는 경우(opener 가 닫힘 등)에도 조건·선택 키는 이어받고, `hadBulky` 가 true 면 새 창이 자동 재조회한다.
-4. 보관소 항목은 10분 TTL 로 지우고, 로그아웃 때(`clearPopoutHandoffs` 옆) 모두 지운다.
+   - **opener 메모리 보관소(주 경로, 크기 제한 없음)**: 셸 창의 모듈 변수 `Map<token, {pageId, light, bulky, createdAt}>` 에 넣는다. 새 창은 마운트 때 `window.opener` 의 보관소에서 token 으로 한 번 꺼내고(꺼내면 지움), 자기 창의 `pageId` 와 다르면 버리며, 자기 창 안으로 JSON 왕복 복제한다(실패하면 — 순환 등 — handoff light 경로로 물러선다). 같은 출처(origin)이고 `noopener` 를 쓰지 않으므로 opener 접근이 된다(기존 설계도 `portal-open-tab` 전달에 opener 를 쓴다. m-mcm 설정에 COOP 머리글 없음 확인).
+   - **localStorage handoff(보조 경로)**: 기존 `PortalPopoutHandoff` 에 선택 칸 `carry?: { light, hadBulky }` 를 더한다. light 만 담는다. opener 를 못 쓰는 경우(opener 가 닫힘 등)에도 조건(light)은 이어받고, `hadBulky` 가 true 면 새 창이 자동 재조회한다. 선택은 화면 흐름에 따라 풀릴 수 있다 — 재조회가 선택을 비우는 화면(예: masterCodeMngList 의 조회 함수)은 이어받은 선택 키도 지운다.
+4. 보관소 항목은 창 열기가 성공하면 그 자리에서 동기로 건 TTL(10분) 타이머로 지우고(새 창이 안 가져가도 남지 않게), 다음 분리 때 sweep 이 한 번 더 지우며, 로그아웃 때(`clearPopoutHandoffs` 옆) 모두 지운다.
 
 ### 4.4 크기 상한과 물러서기
 
@@ -85,13 +95,14 @@ useCarryRefetch(handleSearch);
 
 - `writeSecureJson` 은 base64 로 인코딩하므로 한글은 1글자에 약 4바이트가 된다. localStorage 에는 그리드 개인화·최근 입력값·탭 저장이 이미 있어 행을 담으면 한도를 넘기 쉽다. 그래서 행(bulky)은 localStorage 에 담지 않는다. 판정은 인코딩한 뒤의 길이로 한다.
 - 물러서기 순서: 전부(opener) → light + 자동 재조회(handoff) → 기존 snapshot 만 → 처음 상태.
+- 쿼터 실패: carry 를 담은 handoff 쓰기가 실패하면 carry 를 뺀 기존 형태(snapshot 만)로 한 번 더 쓴다. 그것도 실패하면 경고만 남기고 창은 연다. 이 경우에도 opener 경로는 그대로 간다.
 - 기존 결함 보완: 지금은 handoff 쓰기가 실패해도 창을 열고 원래 탭을 닫아 상태가 모두 사라진다. 새 구조에서는 opener 경로가 localStorage 와 무관하므로 이 경우에도 상태가 넘어간다. 탭을 닫는 동작은 바꾸지 않는다.
 
 ### 4.5 분리 창 쪽 흐름 (PortalPageWindow.tsx)
 
 1. 마운트 때 한 번: opener 보관소 → 없으면 handoff 의 `carry.light` → 없으면 이 창 sessionStorage 의 light 순서로 복원값을 정한다.
 2. `CarryStateProvider` 로 화면에 내려 준다. bulky 가 비어 있고 원래 bulky 가 있었으면 `useCarryRefetch` 가 등록한 함수를 마운트 뒤 한 번 부른다.
-3. `pagehide` 때 등록소에서 light 만 모아 sessionStorage(`oasis.portal.popoutCarry.{token}`)에 쓴다. 분리 창을 새로고침(F5)하면 조건·선택 키를 되살리고 행은 다시 조회한다. 새로고침은 원래 다시 불러오는 동작이므로 재조회가 맞다고 본다.
+3. `pagehide` 때 등록소에서 light 만 모아 sessionStorage(`oasis.portal.popoutCarry.{token}`)에 쓴다. 이때 `hadBulky` 는 지금 조회 결과가 있거나(`hasCarriedBulky`), 이어받은 `hadBulky` 가 true 이고 그 재조회가 아직 끝나지 않았으면 true 다(재조회 중에 새로고침해도 행을 다시 조회). 분리 창을 새로고침(F5)하면 조건·선택 키를 되살리고 행은 다시 조회한다. 새로고침은 원래 다시 불러오는 동작이므로 재조회가 맞다고 본다.
 
 ### 4.6 편집 중인 미저장 값
 
@@ -136,6 +147,8 @@ useCarryRefetch(handleSearch);
 - 훅으로 바꾸지 않은 화면은 지금처럼 처음 상태로 열린다.
 - 2 단계 전에는 그리드 선택 표시·스크롤이 넘어가지 않는다. 1 단계에서는 열린 셀 편집기의 값이 빠질 수 있다.
 - opener 를 못 쓰면 행은 재조회로 채운다.
+- 분리 순간 조회가 진행 중이면 조건과 행이 어긋날 수 있다(응답은 닫힌 탭으로 간다). 모은 값은 그 순간의 조건과 행이다.
+- 새 창 첫 마운트가 처음 상태를 읽어 두는 보관(`initialStateByToken`)은 10초 뒤 지워진다. 10초가 지난 뒤 같은 token 으로 다시 마운트하면(opener 보관소·handoff 는 이미 소비됨) 분리 시점 light(이 창 sessionStorage)와 재조회로 물러선다.
 - 화면 안 다른 부품(모달·탭 안 탭·트리 펼침 등)의 상태는 그 부품이 훅을 쓰지 않으면 넘어가지 않는다.
 
 ## 8. 판단 요청 항목 (조정 세션 경유)
