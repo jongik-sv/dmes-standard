@@ -35,6 +35,7 @@ import { RULE_CALC_CSS, RULE_CALC_STYLE_HREF } from "./rule-calc-styles";
 import { useRuleCalc } from "./use-rule-calc";
 
 const RUN_FAIL_MESSAGE = "계산하지 못했습니다";
+const NEED_ONE_MESSAGE = "값을 하나 이상 넣으세요";
 
 const BOOLEAN_OPTIONS = [
   { value: "true", label: "예" },
@@ -206,7 +207,7 @@ export default function RuleCalcRenderer(props: WidgetProps) {
   const { definition, refreshKey, screenContext } = props;
   const screenApply = readScreenApply(props);
   const cfg = readRuleCalcConfig(definition);
-  const { ioState, draft, errors, runState, setValue, run, available, filled, fillFromScreen } = useRuleCalc(
+  const { ioState, draft, errors, runState, setValue, run, allBlank, available, filled, fillFromScreen } = useRuleCalc(
     cfg.targetTp,
     cfg.targetId,
     refreshKey,
@@ -285,13 +286,18 @@ export default function RuleCalcRenderer(props: WidgetProps) {
           </div>
         )}
         <div className="mcm-rc__actions">
-          <Button type="submit" variant="primary" disabled={running} data-testid="rc-run">
+          <Button type="submit" variant="primary" disabled={running || allBlank} data-testid="rc-run">
             {running ? "계산 중…" : "계산"}
           </Button>
           {cfg.fillMode === "button" && (
             <Button onClick={fillFromScreen} disabled={!available} data-testid="rc-fill">
               화면 값 넣기
             </Button>
+          )}
+          {allBlank && (
+            <span className="mcm-rc__fill-note" role="status" data-testid="rc-need-one">
+              {NEED_ONE_MESSAGE}
+            </span>
           )}
           {filled.length > 0 && (
             <span className="mcm-rc__fill-note" data-testid="rc-fill-note">

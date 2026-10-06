@@ -8,6 +8,7 @@
  *   - 채움 키(화면 문맥에서 입력 칸 이름으로 찾은 값들의 지문): 사용자가 칸을 고칠 때 그 키를 함께 적어 둔다.
  *     지금 채움 키와 같은 때 고친 값만 채움 값보다 앞서고, 새 문맥이 와서 키가 바뀌면 채움 값이 다시 이긴다(계산은 사용자가 누른다).
  *     같은 값이 다시 게시돼도 키가 같아 사용자가 고친 칸을 덮어쓰지 않는다. 문맥에 없는 칸의 값은 그대로 둔다.
+ * 입력 칸이 모두 비면(allBlank) 계산을 막는다. 렌더러가 단추를 잠그고 안내한다.
  * 계산 응답은 요청마다 붙인 번호가 지금 번호와 같을 때만 반영한다. 입력을 고치거나 채움 키가 바뀌면 이전 결과는 보이지 않는다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -130,6 +131,12 @@ export function useRuleCalc(targetTp: RuleCalcTargetTp, targetId: string, refres
     [active, fillNames, current.edited, activeKey]
   );
 
+  /** 입력 칸이 있는데 모두 비었다(공백뿐 포함). 이때는 계산하지 않는다. 입력이 0개인 대상은 막지 않는다. */
+  const allBlank = useMemo(
+    () => (io?.inputs.length ?? 0) > 0 && (io?.inputs ?? []).every((input) => (draft[input.name] ?? "").trim() === ""),
+    [io, draft]
+  );
+
   const setValue = useCallback(
     (name: string, value: string) => {
       setForm((prev) => {
@@ -155,7 +162,7 @@ export function useRuleCalc(targetTp: RuleCalcTargetTp, targetId: string, refres
   }, [available, fillNames, fillKey, targetKey]);
 
   const run = useCallback(() => {
-    if (!io) return;
+    if (!io || allBlank) return;
     const { values, errors } = collectValues(io.inputs, draft);
     if (Object.keys(errors).length > 0) {
       setForm({ ...current, errors });
@@ -169,10 +176,10 @@ export function useRuleCalc(targetTp: RuleCalcTargetTp, targetId: string, refres
       (result) => settle({ status: "done", run: result }),
       (e: unknown) => settle({ status: "error", message: errorText(e, "계산하지 못했습니다.") })
     );
-  }, [io, draft, current, activeKey, targetKey, targetTp, targetId]);
+  }, [io, allBlank, draft, current, activeKey, targetKey, targetTp, targetId]);
 
   // 새 화면 문맥이 와서 채움 키가 바뀌면 이전 값으로 만든 결과는 보이지 않는다.
   const runState: RunState = current.runKey === activeKey ? current.run : { status: "idle" };
 
-  return { ioState, draft, errors: current.errors, runState, setValue, run, available, filled, fillFromScreen };
+  return { ioState, draft, errors: current.errors, runState, setValue, run, allBlank, available, filled, fillFromScreen };
 }

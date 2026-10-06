@@ -254,8 +254,9 @@ describe("렌더러 — 입력 칸 자동 생성과 검사", () => {
     expect(must("rc-root").textContent).toContain("원판 중량");
   });
 
-  it("필수가 비면 칸 아래에 알리고 서버로 보내지 않는다", async () => {
+  it("다른 칸만 채우고 필수가 비면 칸 아래에 알리고 서버로 보내지 않는다", async () => {
     await renderRc({ targetTp: "RULE", targetId: "M47C0001" });
+    await type("rc-input-GRADE", "SPCC");
     await click("rc-run");
     expect(container.querySelector('[data-err-for="rc-input-THK"]')?.textContent).toBe("필수 입력입니다");
     expect(h.run).not.toHaveBeenCalled();
@@ -270,6 +271,63 @@ describe("렌더러 — 입력 칸 자동 생성과 검사", () => {
     await click("rc-run");
     expect(container.querySelector('[data-err-for="rc-input-THK"]')?.textContent).toBe("소수 3자리까지 입력할 수 있습니다");
     expect(h.run).not.toHaveBeenCalled();
+  });
+});
+
+describe("렌더러 — 전부 빈 칸이면 계산을 막는다", () => {
+  beforeEach(() => h.fetchIo.mockResolvedValue(ruleIo()));
+
+  it("모든 입력이 비면 [계산]이 잠기고 안내가 보이며, 제출해도 서버를 부르지 않는다", async () => {
+    await renderRc({ targetTp: "RULE", targetId: "M47C0001" });
+    expect((must("rc-run") as HTMLButtonElement).disabled).toBe(true);
+    expect(must("rc-need-one").textContent).toBe("값을 하나 이상 넣으세요");
+    await act(async () => {
+      must("rc-root").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    expect(h.run).not.toHaveBeenCalled();
+    expect(q("rc-done")).toBeNull();
+  });
+
+  it("공백만 넣은 칸도 빈 칸으로 본다", async () => {
+    await renderRc({ targetTp: "RULE", targetId: "M47C0001" });
+    await type("rc-input-THK", "   ");
+    expect((must("rc-run") as HTMLButtonElement).disabled).toBe(true);
+    expect(q("rc-need-one")).not.toBeNull();
+  });
+
+  it("한 칸이라도 채우면 풀리고, 다시 모두 비우면 막히며 이전 결과도 사라진다", async () => {
+    h.run.mockResolvedValue(normalizeRun({ ok: true, result: { COIL_WT: "3" }, steps: [], messages: [] }));
+    await renderRc({ targetTp: "RULE", targetId: "M47C0001" });
+    await type("rc-input-THK", "1");
+    expect((must("rc-run") as HTMLButtonElement).disabled).toBe(false);
+    expect(q("rc-need-one")).toBeNull();
+    await click("rc-run");
+    await flush();
+    expect(q("rc-results")).not.toBeNull();
+    await type("rc-input-THK", "");
+    expect((must("rc-run") as HTMLButtonElement).disabled).toBe(true);
+    expect(q("rc-results")).toBeNull();
+  });
+
+  it("화면 값으로 채운 칸이 있으면 막지 않는다", async () => {
+    await renderRc({ targetTp: "RULE", targetId: "M47C0001", fillMode: "auto" }, 0, ctx({ THK: 0.5 }));
+    expect((must("rc-input-THK") as HTMLInputElement).value).toBe("0.5");
+    expect((must("rc-run") as HTMLButtonElement).disabled).toBe(false);
+    expect(q("rc-need-one")).toBeNull();
+  });
+
+  it("입력 칸이 0개인 대상은 막지 않는다", async () => {
+    h.fetchIo.mockResolvedValue(
+      normalizeIo({ ok: true, target: { name: "상수" }, inputs: [], outputs: [{ name: "K", label: "상수", dataType: "NUMBER", scale: 1, unit: "" }], steps: [], messages: [] })
+    );
+    h.run.mockResolvedValue(normalizeRun({ ok: true, result: { K: "2" }, steps: [], messages: [] }));
+    await renderRc({ targetTp: "RULE", targetId: "K1" });
+    expect((must("rc-run") as HTMLButtonElement).disabled).toBe(false);
+    expect(q("rc-need-one")).toBeNull();
+    await click("rc-run");
+    await flush();
+    expect(h.run).toHaveBeenCalledWith("RULE", "K1", {});
+    expect(must("rc-result-K").textContent).toBe("2.0");
   });
 });
 
