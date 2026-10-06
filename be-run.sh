@@ -132,9 +132,16 @@ be_module_classpath_file() {
   printf '%s/%s/api/build/be-run/classpath.txt' "$BACKEND_DIR" "$1"
 }
 
-# gradlew 와 같은 규칙으로 java 를 고른다(JAVA_HOME 이 있으면 그것, 없으면 PATH 의 java).
+# 모듈 $1 의 java 를 고른다. 빌드가 남긴 classpath.txt 3행(bootRun 이 쓰던 java launcher 경로)이 있으면 그것,
+# 없으면(빌드 전 드라이런 등) JAVA_HOME 이 있으면 그것, 없으면 PATH 의 java.
 be_java_bin() {
-  if [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+  local launcher=""
+  local file
+  file="$(be_module_classpath_file "$1")"
+  [ -s "$file" ] && launcher="$(sed -n 3p "$file")"
+  if [ -n "$launcher" ] && [ -x "$launcher" ]; then
+    printf '%s' "$launcher"
+  elif [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
     printf '%s' "$JAVA_HOME/bin/java"
   else
     printf 'java'
@@ -145,7 +152,7 @@ be_java_bin() {
 # 그대로 두고, 메모리 상한·GC·스택·코드 캐시를 줄인다. 환경 변수로 얹은 옵션은 뒤에 와서 앞의 기본값을 덮는다.
 # 코드 캐시는 TieredStopAtLevel=1 에서 기본 48MB 이고 실측 사용 최대 약 27MB 라 40MB 로 둔다(예약만 줄어 효과는 작다).
 be_module_jvm_args() {
-  local m="$1" upper var opt
+  local m="$1" upper var opt file
   upper="$(printf '%s' "$m" | tr '[:lower:]' '[:upper:]')"
   var="BE_JAVA_OPTS_$upper"
   BE_JVM_ARGS=(
@@ -160,6 +167,13 @@ be_module_jvm_args() {
     -Duser.variant
     "-Dbe.run.module=$m"
   )
+  # 모듈 build.gradle 의 bootRun.jvmArgs(classpath.txt 4행~, 예: analog 의 stdout 인코딩)는 기본값 뒤·환경 변수 앞에 둔다.
+  file="$(be_module_classpath_file "$m")"
+  if [ -s "$file" ]; then
+    while IFS= read -r opt; do
+      [ -n "$opt" ] && BE_JVM_ARGS+=("$opt")
+    done < <(sed -n '4,$p' "$file")
+  fi
   for opt in ${BE_JAVA_OPTS:-} ${!var:-}; do
     BE_JVM_ARGS+=("$opt")
   done
@@ -326,7 +340,11 @@ be_prebuild_fail() {
     return 0
   fi
   dev_log_error "선빌드가 실패해 백엔드 모듈을 띄우지 않고 종료한다 (exit 1)."
-  dev_log_error "  선빌드 없이 종전처럼 모듈별 bootRun 으로 띄우려면: BE_PREBUILD=0 $0 ${SELECTED_MODULES[*]/#/--}"
+  if be_legacy_mode; then
+    dev_log_error "  선빌드 없이 종전처럼 모듈별 bootRun 으로 띄우려면: BE_PREBUILD=0 $0 ${SELECTED_MODULES[*]/#/--}"
+  else
+    dev_log_error "  종전 bootRun 방식으로 띄우려면: BE_GRADLE_RUN=1 $0 ${SELECTED_MODULES[*]/#/--}"
+  fi
   dev_log_error "  선빌드 실패에도 기동을 이어 가려면: BE_PREBUILD_CONTINUE=1 (.run.env 에 둬도 된다)"
   exit 1
 }
@@ -425,7 +443,7 @@ if [ "$DRY_RUN" = "1" ]; then
       if be_prebuild_continue; then
         dev_log_print "be" "[dry-run]    빌드가 실패해도 classpath.txt 가 만들어진 모듈은 기동한다 (BE_PREBUILD_CONTINUE=1)."
       else
-        dev_log_print "be" "[dry-run]    빌드가 실패하면 아무 모듈도 띄우지 않고 exit 1 (우회: BE_PREBUILD=0 또는 BE_PREBUILD_CONTINUE=1)."
+        dev_log_print "be" "[dry-run]    빌드가 실패하면 아무 모듈도 띄우지 않고 exit 1 (우회: BE_GRADLE_RUN=1 또는 BE_PREBUILD_CONTINUE=1)."
       fi
     else
       dev_log_print "be" "[dry-run] 빌드 생략 (BE_PREBUILD=0) — 직전 빌드가 남긴 classpath.txt 로 기동한다."
@@ -455,7 +473,7 @@ if [ "$DRY_RUN" = "1" ]; then
       dev_log_print "be" "[dry-run]   be-$m :$(be_module_port "$m") — (cd $BACKEND_DIR/$m && $(be_module_gradlew "$m") :api:bootRun --args=\"$(be_module_boot_args "$m")\" --console=plain)"
     else
       be_module_jvm_args "$m"
-      dev_log_print "be" "[dry-run]   be-$m :$(be_module_port "$m") — (cd $BACKEND_DIR/$m && $(be_java_bin) ${BE_JVM_ARGS[*]} -cp <$(be_module_classpath_file "$m") 2행> <같은 파일 1행: main class> $(be_module_boot_args "$m"))"
+      dev_log_print "be" "[dry-run]   be-$m :$(be_module_port "$m") — (cd $BACKEND_DIR/$m && $(be_java_bin "$m") ${BE_JVM_ARGS[*]} -cp <$(be_module_classpath_file "$m") 2행> <같은 파일 1행: main class> $(be_module_boot_args "$m"))"
     fi
   done
   [ "$BUILD_ONLY" = "1" ] && dev_log_print "be" "[dry-run] --build-only: 빌드까지만 하고 기동하지 않는다."
@@ -487,6 +505,11 @@ if [ "$BUILD_ONLY" = "1" ]; then
   fi
   dev_log_print "be" "--build-only: 빌드만 끝내고 기동하지 않는다."
   exit 0
+fi
+
+# 빌드를 건너뛰는데(BE_PREBUILD=0) 직전 빌드의 classpath.txt 가 없으면, 이전 서버를 끄기 전에 알리고 끝낸다.
+if ! be_legacy_mode && ! be_prebuild_enabled; then
+  be_check_classpath_files || exit 1
 fi
 
 # local 프로파일 SQLite 파일 위치 — 모든 모듈의 application.yml 이 ../data/{모듈}.db 를 가리킨다.
@@ -651,7 +674,13 @@ run_with_prefix() {
 
   (
     cd "$dir" || exit 1
-    dev_log_run "$@" 2>&1 &
+    # 직접 기동 방식은 함수(dev_log_run)를 거치지 않는다 — 함수를 백그라운드로 부르면 서브셸이 한 겹 더 생겨
+    # 추적 pid 가 java 가 아니게 되고, 그 서브셸이 먼저 죽으면 java 가 고아로 남아 KILL 단계에서 빠진다.
+    if [ "${BE_RUN_DIRECT:-0}" = "1" ]; then
+      "$@" 2>&1 &
+    else
+      dev_log_run "$@" 2>&1 &
+    fi
     local child_pid="$!"
     printf '%s\n' "$child_pid" > "$pid_file"
     wait "$child_pid" 2>/dev/null || true
@@ -839,11 +868,6 @@ trap 'cleanup TERM' TERM
 trap 'cleanup EXIT' EXIT
 
 # ── 백엔드 실행 ─────────────────────────────────────────────
-# 빌드를 건너뛰었다면(BE_PREBUILD=0) 직전 빌드의 classpath.txt 가 있어야 한다.
-if ! be_legacy_mode && ! be_prebuild_enabled; then
-  be_check_classpath_files || exit 1
-fi
-
 # 앱을 java 로 직접 띄운다. 작업 디렉터리는 bootRun 의 workingDir 과 같은 모듈 폴더(application.yml 의 ../data 가 걸린다).
 be_start_module() {
   local m="$1" file main cp
@@ -855,8 +879,8 @@ be_start_module() {
   { IFS= read -r main; IFS= read -r cp; } < "$file"
   be_module_jvm_args "$m"
   # shellcheck disable=SC2046  # 부트 인자는 공백 없는 --키=값 들이라 단어 분리가 의도다
-  run_with_prefix "be-$m" "$BACKEND_DIR/$m" \
-    "$(be_java_bin)" ${BE_JVM_ARGS[@]+"${BE_JVM_ARGS[@]}"} -cp "$cp" "$main" $(be_module_boot_args "$m")
+  BE_RUN_DIRECT=1 run_with_prefix "be-$m" "$BACKEND_DIR/$m" \
+    "$(be_java_bin "$m")" ${BE_JVM_ARGS[@]+"${BE_JVM_ARGS[@]}"} -cp "$cp" "$main" $(be_module_boot_args "$m")
 }
 
 for m in "${SELECTED_MODULES[@]}"; do
@@ -867,6 +891,11 @@ for m in "${SELECTED_MODULES[@]}"; do
     be_start_module "$m"
   fi
 done
+
+if [ "${#PIDS[@]}" -eq 0 ]; then
+  dev_log_error "띄운 백엔드 모듈이 없다 — 실행 정보(classpath.txt)가 없거나 실행 PID 를 확인하지 못했다."
+  exit 1
+fi
 
 dev_log_print "be" "기동 대상: $(printf '%s ' "${SELECTED_MODULES[@]}")"
 for m in "${SELECTED_MODULES[@]}"; do
