@@ -163,6 +163,8 @@ const SelectCellEditor = function SelectCellEditor(props: {
 };
 
 const DEFAULT_FIXED_COLUMN_WIDTH = 120;
+/** 저장 너비 컬럼이 없을 때의 집합(공유 상수 — 렌더마다 새로 만들지 않는다). */
+const EMPTY_SIZED_COLUMNS: ReadonlySet<string> = new Set();
 export { GRID_TOOLTIP_SHOW_DELAY_MS };
 
 function toColumnWidth(width: number | string | undefined): number | undefined {
@@ -465,7 +467,7 @@ export interface AgDataGridProps {
   /**
    * 사용자별 컬럼 개인화(순서·너비·표시 여부·좌우 고정·정렬을 브라우저에 저장하고 다시 열 때 복원). 기본 켬.
    * `false` 면 끈다. `{ sort: false }` 면 정렬은 저장·복원하지 않는다(서버 페이징 그리드 — 정렬이 서버 조회 조건이라서).
-   * 저장값이 있으면 컬럼 자동 너비 맞춤은 저장된 너비를 덮지 않는다.
+   * 너비는 사용자가 머리글 경계를 끌어 바꾼 컬럼만 저장되고, 그 컬럼만 자동 너비 맞춤에서 빠진다(나머지는 예전처럼 자동).
    */
   personalize?: GridPersonalize;
 }
@@ -1064,10 +1066,10 @@ function AgDataGridComponent({
   const [gridReady, setGridReady] = useState(false);
   const userResizedRef = useRef(false);
   /**
-   * 컬럼 개인화가 저장 너비를 적용했거나 사용자가 이번에 컬럼을 바꿨으면 true — 자동 너비 맞춤(autoSize·여백 분배)이 저장 너비를 덮지 않게
-   * 실행 시점에 막는다. 저장값이 없으면 늘 false 라 자동 너비 흐름은 예전과 같다.
+   * 컬럼 개인화로 너비가 저장된 colId(사용자가 직접 끌어 맞춘 컬럼). 자동 너비는 나머지 컬럼에만, 여백 분배는 이 컬럼 너비를 고정한 채로 한다.
+   * 비어 있으면(저장값 없음·저장 너비 없음) 자동 너비 흐름은 개인화 전과 같은 호출(autoSizeAllColumns·기존 sizeColumnsToFit)이다.
    */
-  const personalizedWidthRef = useRef(false);
+  const sizedColumnsRef = useRef<ReadonlySet<string>>(EMPTY_SIZED_COLUMNS);
   const autoSizeTimerRef = useRef<number | null>(null);
   const sizeChangeTimerRef = useRef<number | null>(null);
   /** 직전 grid size-change 시점의 컨테이너 폭. 0 이하면 숨김/미레이아웃. */
@@ -1350,7 +1352,7 @@ function AgDataGridComponent({
 
   /** 현재 컬럼 폭을 min 으로 잠그고, 그리드가 더 넓을 때만 여백을 분배한다. */
   const fillRemainingColumnSpace = useCallback(() => {
-    if (!gridRef.current?.api || personalizedWidthRef.current) return;
+    if (!gridRef.current?.api) return;
     // fit 은 flex 가 이미 그리드 폭을 채운다. 컨테이너와 ag 루트의 1px 테두리 차이로 여기에 들어오면
     // sizeColumnsToFit 이 flex 가중치(col.width 비율)를 버리고 모든 열을 같은 폭으로 만든다.
     if (columnSizingRef.current === "fit") return;
@@ -1360,12 +1362,15 @@ function AgDataGridComponent({
       const totalWidth = cols.reduce((sum, c) => sum + (c.getActualWidth?.() ?? 0), 0);
       const gridWidth = containerRef.current?.clientWidth ?? 0;
       if (gridWidth > 0 && totalWidth > 0 && totalWidth < gridWidth) {
+        const sized = sizedColumnsRef.current;
         api.sizeColumnsToFit({
           defaultMinWidth: 1,
-          columnLimits: cols.map((c) => ({
-            key: c.getColId(),
-            minWidth: c.getActualWidth(),
-          })),
+          columnLimits: cols.map((c) =>
+            // 저장 너비 컬럼은 늘리지도 줄이지도 않는다(개인화). 없으면 예전과 같은 한계값이다.
+            sized.has(c.getColId())
+              ? { key: c.getColId(), minWidth: c.getActualWidth(), maxWidth: c.getActualWidth() }
+              : { key: c.getColId(), minWidth: c.getActualWidth() }
+          ),
         });
       }
     } catch {
@@ -1374,11 +1379,20 @@ function AgDataGridComponent({
   }, []);
 
   const autoSizeAllColumnsHandler = useCallback(() => {
-    if (!gridRef.current?.api || personalizedWidthRef.current) return;
+    if (!gridRef.current?.api) return;
     // 컨텐츠 기반 자동 폭은 columnSizing="auto" 또는 autoSizeColumns={true}일 때만 사용한다.
     if (!shouldAutoSizeColumns) return;
     try {
-      gridRef.current.api.autoSizeAllColumns(false);
+      const sized = sizedColumnsRef.current;
+      if (sized.size === 0) gridRef.current.api.autoSizeAllColumns(false);
+      else {
+        // 저장 너비 컬럼(사용자가 직접 맞춘 컬럼)은 빼고 나머지만 내용에 맞춘다 — autoSizeAllColumns 와 같은 대상(보이는 컬럼)에서 뺀다.
+        const keys = gridRef.current.api
+          .getAllDisplayedColumns()
+          .map((c) => c.getColId())
+          .filter((id) => !sized.has(id));
+        if (keys.length > 0) gridRef.current.api.autoSizeColumns(keys, false);
+      }
       // 컨텐츠 기준 자동 폭 합계가 그리드보다 좁으면 남는 공간을 분배하여 채움.
       fillRemainingColumnSpace();
       lastGridWidthRef.current = containerRef.current?.clientWidth ?? 0;
@@ -1411,11 +1425,17 @@ function AgDataGridComponent({
   // 컬럼 개인화(gridId·personalize) — 복원·자동 저장·열 정의 재주입 뒤 재적용. 결과(handle)는 컬럼 설정 창(C3)이 쓴다.
   // 기본값 복원 뒤에는 아래 마운트 직후 효과와 같은 갈래로 자동 너비 맞춤을 다시 돌린다.
   const getGridApi = useCallback(() => gridRef.current?.api, []);
-  const rerunAutoSizeAfterReset = useCallback(() => {
-    userResizedRef.current = false;
+  const rerunAutoSize = useCallback(() => {
     if (resolvedColumnSizing === "auto" && shouldAutoSizeColumns) scheduleAutoSizeAllColumns();
     else scheduleFillRemainingColumnSpace();
   }, [resolvedColumnSizing, shouldAutoSizeColumns, scheduleAutoSizeAllColumns, scheduleFillRemainingColumnSpace]);
+  const rerunAutoSizeAfterRestore = useCallback(() => {
+    if (!userResizedRef.current) rerunAutoSize();
+  }, [rerunAutoSize]);
+  const rerunAutoSizeAfterReset = useCallback(() => {
+    userResizedRef.current = false;
+    rerunAutoSize();
+  }, [rerunAutoSize]);
   // personalizeHandle 은 C3 가 GridPanel 설정 창에 잇는다(context 연결은 C3 몫).
   const personalizeHandle = useGridPersonalize({
     getApi: getGridApi,
@@ -1427,7 +1447,8 @@ function AgDataGridComponent({
     selectable,
     rowKey,
     rowDragField,
-    widthLockRef: personalizedWidthRef,
+    sizedColumnsRef,
+    onRestored: rerunAutoSizeAfterRestore,
     onReset: rerunAutoSizeAfterReset,
   });
   void personalizeHandle;

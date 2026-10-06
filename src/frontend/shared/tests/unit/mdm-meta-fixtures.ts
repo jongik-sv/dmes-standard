@@ -82,8 +82,6 @@ export function fakeMetaFetch(meta: FakeMeta) {
   const calls: FakeCall[] = [];
   const fn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
-    // AgDataGrid 컬럼 개인화가 저장 키용 사용자 확인(/api/auth/me)을 부른다 — 메타 요청이 아니므로 calls 에 넣지 않고 미로그인으로 답한다.
-    if (url.endsWith("/api/auth/me")) return new Response(JSON.stringify({ authenticated: false }), { status: 401 });
     const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
     calls.push({ url, body, headers: (init?.headers ?? {}) as Record<string, string> });
     if (meta.status && meta.status !== 200) {

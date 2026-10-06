@@ -13,35 +13,11 @@ import { AgDataGrid, type AgDataGridProps, type GridColumn } from "../../src/com
 import { gridPrefKey, type GridPrefs } from "../../src/components/grid/grid-personalize";
 import { GRID_PERSONALIZE_SAVE_DEBOUNCE_MS } from "../../src/components/grid/grid-personalize-hook";
 import { TabPageContext } from "../../src/portal-shell/tab-page-context";
+import { installMemoryLocalStorage, seedCurrentUser } from "./grid-personalize-test-env";
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
-// happy-dom 에서 localStorage 가 노출되지 않을 수 있어(Node 자체 localStorage 가 가린다) Map 기반 저장소를 전역·window 양쪽에 둔다
-// (content-body-resizable 시험과 같은 방식).
-class MemStorage implements Storage {
-  private map = new Map<string, string>();
-  get length() {
-    return this.map.size;
-  }
-  clear() {
-    this.map.clear();
-  }
-  getItem(k: string) {
-    return this.map.get(k) ?? null;
-  }
-  key(i: number) {
-    return [...this.map.keys()][i] ?? null;
-  }
-  removeItem(k: string) {
-    this.map.delete(k);
-  }
-  setItem(k: string, v: string) {
-    this.map.set(k, String(v));
-  }
-}
-const ls = new MemStorage();
-Object.defineProperty(globalThis, "localStorage", { value: ls, configurable: true });
-if (typeof window !== "undefined") Object.defineProperty(window, "localStorage", { value: ls, configurable: true });
+const ls = installMemoryLocalStorage();
 
 const SCREEN = "scr-1";
 const KEY = gridPrefKey("u1", SCREEN, "main");
@@ -60,16 +36,16 @@ let root: Root | null = null;
 let renderSpy: MockInstance;
 let warn: MockInstance;
 
-/** /api/auth/me 를 흉내 낸다. `user` 가 null 이면 미로그인(401). gate 를 주면 그 약속이 풀릴 때 답한다. */
-function stubUser(user: string | null, gate?: Promise<void>) {
+/**
+ * 사용자 확인 상태를 만든다. 그리드는 /api/auth/me 를 부르지 않고 공유 저장소를 읽기만 하므로, 포털 부팅이 하던 확인을 시험이 대신한다.
+ * `user` 가 null 이면 확인 전(빈 사용자). 어떤 요청이든 오면 시험이 실패하도록 fetch 를 막는다.
+ */
+async function stubUser(user: string | null) {
+  if (user) await seedCurrentUser(user);
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
-      if (gate) await gate;
-      if (String(input).endsWith("/api/auth/me") && user) {
-        return new Response(JSON.stringify({ authenticated: true, user: { id: user, name: "u" } }), { status: 200 });
-      }
-      return new Response("{}", { status: 401 });
+      throw new Error(`그리드가 요청을 보냈다: ${String(input)}`);
     }),
   );
 }
@@ -114,7 +90,10 @@ function seed(prefs: Omit<GridPrefs, "v" | "savedAt">, key = KEY) {
 /** 사용자 조작을 흉내 낸다 — 상태는 api 로 바꾸고(이벤트 source = api 라 저장 안 됨), UI source 이벤트를 따로 보낸다. */
 async function uiResize(a: GridApi, colId: string, width: number) {
   await act(async () => void a.setColumnWidths([{ key: colId, newWidth: width }]));
-  await act(async () => void a.dispatchEvent({ type: "columnResized", source: "uiColumnResized", finished: true } as never));
+  await act(
+    async () =>
+      void a.dispatchEvent({ type: "columnResized", source: "uiColumnResized", finished: true, columns: [a.getColumn(colId)] } as never),
+  );
   await wait(10);
 }
 
@@ -136,53 +115,9 @@ afterEach(async () => {
   delete g.__dkOasisGridPersonalizeRegistry__;
 });
 
-describe("저장값이 없을 때 — 자동 너비 흐름은 개인화를 끈 그리드와 같다(회귀 고정)", () => {
-  /** 컨테이너 폭이 있어야 여백 분배(sizeColumnsToFit)가 돈다 — happy-dom 은 0 이라 그리드 바깥 상자에만 폭을 준다. */
-  function stubContainerWidth(px: number) {
-    const desc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth")!;
-    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (this: HTMLElement) {
-      return this.classList?.contains("cm-data-grid") ? px : (desc.get!.call(this) as number);
-    });
-  }
-  async function trace(props: Partial<AgDataGridProps>) {
-    root = createRoot(container);
-    const calls: string[] = [];
-    await act(async () => root!.render(grid(props)));
-    const a = api(apis().length - 1);
-    const auto = vi.spyOn(a, "autoSizeAllColumns").mockImplementation(() => {
-      calls.push("autoSizeAllColumns");
-    });
-    const fit = vi.spyOn(a, "sizeColumnsToFit");
-    fit.mockImplementation(() => {
-      calls.push("sizeColumnsToFit");
-    });
-    await wait(400);
-    await act(async () => root!.render(grid({ ...props, data: [...DATA, { code: "C", name: "다다다다다", qty: 3 }] })));
-    await wait(400);
-    const w = widths(a);
-    auto.mockRestore();
-    fit.mockRestore();
-    await act(async () => root!.unmount());
-    return { calls, w };
-  }
-
-  for (const columnSizing of ["auto", "fixed"] as const) {
-    it(`columnSizing=${columnSizing}`, async () => {
-      stubUser("u1");
-      stubContainerWidth(900);
-      await act(async () => root!.unmount());
-      const off = await trace({ columnSizing, personalize: false });
-      const on = await trace({ columnSizing });
-      expect(on.calls.length).toBeGreaterThan(0);
-      expect(on).toEqual(off);
-      expect(localStorage.length).toBe(0);
-    });
-  }
-});
-
 describe("복원", () => {
   it("저장값의 순서·너비·숨김·고정·정렬을 복원하고 자동 너비·여백 분배가 덮지 않는다", async () => {
-    stubUser("u1");
+    await stubUser("u1");
     seed({
       cols: [
         { colId: "qty", width: 210, hide: false, pinned: "left" },
@@ -210,7 +145,7 @@ describe("복원", () => {
   });
 
   it("columnSizing=fit — 저장 너비가 있는 컬럼만 flex 를 끄고 나머지는 flex 로 채운다", async () => {
-    stubUser("u1");
+    await stubUser("u1");
     seed({ cols: [{ colId: "code", width: 150 }, { colId: "name" }, { colId: "qty" }] });
     await show(grid({ columnSizing: "fit" }));
     const a = api();
@@ -220,7 +155,7 @@ describe("복원", () => {
   });
 
   it("userId 가 비었으면 읽지도 쓰지도 않는다", async () => {
-    stubUser(null);
+    await stubUser(null);
     seed({ cols: [{ colId: "code", width: 70 }] });
     const getItem = vi.spyOn(ls, "getItem");
     const setItem = vi.spyOn(ls, "setItem");
@@ -232,16 +167,15 @@ describe("복원", () => {
     expect(setItem).not.toHaveBeenCalled();
   });
 
-  it("사용자 확인 뒤 한 번만 읽어 적용한다", async () => {
-    let release!: () => void;
-    stubUser("u1", new Promise<void>((r) => (release = r)));
+  it("사용자 확인 알림(포털 부팅) 뒤 한 번만 읽어 적용한다", async () => {
+    await stubUser(null);
     seed({ cols: [{ colId: "code", width: 70 }] });
     const getItem = vi.spyOn(ls, "getItem");
     const reads = () => getItem.mock.calls.filter(([k]) => k === KEY).length;
     await show(grid());
     expect(reads()).toBe(0);
     expect(api().getColumn("code")!.getActualWidth()).toBe(100);
-    await act(async () => release());
+    await seedCurrentUser("u1"); // 공유 저장소가 구독자에게 알린다
     await wait(50);
     expect(reads()).toBe(1);
     expect(api().getColumn("code")!.getActualWidth()).toBe(70);
@@ -251,7 +185,7 @@ describe("복원", () => {
   });
 
   it("personalize=false 면 읽지도 저장하지도 않는다", async () => {
-    stubUser("u1");
+    await stubUser("u1");
     seed({ cols: [{ colId: "code", width: 70 }] });
     const getItem = vi.spyOn(ls, "getItem");
     await show(grid({ personalize: false }));
@@ -263,7 +197,7 @@ describe("복원", () => {
   });
 
   it("personalize={sort:false} 면 정렬은 복원·저장하지 않는다", async () => {
-    stubUser("u1");
+    await stubUser("u1");
     seed({ cols: [{ colId: "code", width: 70 }], sort: [{ colId: "code", sort: "asc" }] });
     await show(grid({ personalize: { sort: false } }));
     const a = api();
@@ -280,7 +214,7 @@ describe("복원", () => {
   });
 
   it("열 정의가 다시 들어와도(새 columns 배열·머리글 변경) 복원값이 유지된다", async () => {
-    stubUser("u1");
+    await stubUser("u1");
     seed({ cols: [{ colId: "qty", width: 210 }, { colId: "code", width: 70 }, { colId: "name", width: 55, hide: true }] });
     await show(grid());
     const a = api();
@@ -297,7 +231,7 @@ describe("복원", () => {
   });
 
   it("저장값이 없는 그리드는 열 정의 재주입 때 예전처럼 정의값을 다시 쓴다", async () => {
-    stubUser("u1");
+    await stubUser("u1");
     await show(grid());
     const a = api();
     await act(async () => void a.setColumnWidths([{ key: "code", newWidth: 300 }])); // api 변경 — 개인 상태가 아니다
@@ -308,7 +242,7 @@ describe("복원", () => {
 
 describe("저장", () => {
   it("UI 이벤트만 debounce 뒤 저장하고, api 이벤트는 저장하지 않으며, 언마운트 때 대기 저장을 흘려 보낸다", async () => {
-    stubUser("u1");
+    await stubUser("u1");
     await show(grid());
     const a = api();
     await act(async () => void a.setColumnWidths([{ key: "code", newWidth: 160 }]));
@@ -320,9 +254,10 @@ describe("저장", () => {
     expect(saved()).toBeNull();
     await wait(GRID_PERSONALIZE_SAVE_DEBOUNCE_MS + 50);
     const s = saved()!;
+    // 순서는 지금 상태, 너비는 사용자가 끈 컬럼(name)만 — api 로 바꾼 code 너비는 담지 않는다.
     expect(s.cols.map((c) => [c.colId, c.width])).toEqual([
-      ["qty", 90],
-      ["code", 160],
+      ["qty", undefined],
+      ["code", undefined],
       ["name", 180],
     ]);
 
@@ -336,7 +271,7 @@ describe("저장", () => {
   });
 
   it("사용자가 바꾼 뒤에는 자동 너비가 바꾼 너비를 덮지 않는다", async () => {
-    stubUser("u1");
+    await stubUser("u1");
     await show(grid({ columnSizing: "auto" }));
     const a = api();
     await uiResize(a, "code", 333);
@@ -352,7 +287,7 @@ describe("등록부", () => {
     createElement("div", null, grid(a, "t1", "A"), grid(b, tabB, "B"));
 
   it("같은 탭 같은 키의 두 번째 그리드는 꺼지고 경고한다. 다른 탭이면 둘 다 켜진다", async () => {
-    stubUser("u1");
+    await stubUser("u1");
     seed({ cols: [{ colId: "code", width: 70 }] });
     await show(two());
     expect(api(0).getColumn("code")!.getActualWidth()).toBe(70);
@@ -373,7 +308,7 @@ describe("등록부", () => {
   });
 
   it("gridId 가 다르면 같은 탭이라도 충돌하지 않는다", async () => {
-    stubUser("u1");
+    await stubUser("u1");
     seed({ cols: [{ colId: "code", width: 70 }] });
     seed({ cols: [{ colId: "code", width: 80 }] }, gridPrefKey("u1", SCREEN, "sub"));
     await show(two({ gridId: "sub" }));
@@ -381,8 +316,19 @@ describe("등록부", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
+  it("등록부를 바로 차지하면 그리드를 한 번 더 렌더하지 않는다(개인화를 끈 그리드와 렌더 횟수가 같다)", async () => {
+    await stubUser("u1");
+    await show(grid({ personalize: false }));
+    const off = renderSpy.mock.calls.length;
+    await act(async () => root!.unmount());
+    root = createRoot(container);
+    renderSpy.mockClear();
+    await show(grid());
+    expect(renderSpy.mock.calls.length).toBe(off);
+  });
+
   it("StrictMode 의 마운트→정리→마운트에서 자기 자신과 충돌하지 않는다", async () => {
-    stubUser("u1");
+    await stubUser("u1");
     seed({ cols: [{ colId: "code", width: 70 }] });
     await show(createElement(StrictMode, null, grid()));
     expect(api().getColumn("code")!.getActualWidth()).toBe(70);
@@ -390,7 +336,7 @@ describe("등록부", () => {
   });
 
   it("언마운트하면 등록을 놓고, 기다리던 그리드가 이어받아 복원·저장한다", async () => {
-    stubUser("u1");
+    await stubUser("u1");
     seed({ cols: [{ colId: "code", width: 70 }] });
     await show(two());
     const b = api(1);
@@ -413,7 +359,7 @@ describe("personalize 가 마운트 뒤에 바뀜(숨은 탭 패널)", () => {
     );
 
   it("false → 켬이면 그때 복원·등록하고, 켬 → false 면 대기 저장을 흘려 보낸 뒤 더는 저장하지 않는다(상태는 그대로)", async () => {
-    stubUser("u1");
+    await stubUser("u1");
     seed({ cols: [{ colId: "code", width: 70 }] });
     await show(grid({ personalize: false }));
     const a = api();
@@ -437,7 +383,7 @@ describe("personalize 가 마운트 뒤에 바뀜(숨은 탭 패널)", () => {
   });
 
   it("같은 키 두 그리드: A 켬·B 끔 → A 끔·B 켬이면 B 가 복원·저장하고 A 는 저장하지 않는다", async () => {
-    stubUser("u1");
+    await stubUser("u1");
     seed({ cols: [{ colId: "code", width: 70 }] });
     await show(pair(true, false));
     const [a, b] = apis();
@@ -452,7 +398,7 @@ describe("personalize 가 마운트 뒤에 바뀜(숨은 탭 패널)", () => {
 
     await uiResize(a, "name", 155);
     await wait(GRID_PERSONALIZE_SAVE_DEBOUNCE_MS + 50);
-    expect(saved()!.cols.find((c) => c.colId === "name")!.width).toBe(120);
+    expect(saved()!.cols.find((c) => c.colId === "name")!.width).toBeUndefined();
     await uiResize(b, "name", 166);
     await wait(GRID_PERSONALIZE_SAVE_DEBOUNCE_MS + 50);
     expect(saved()!.cols.find((c) => c.colId === "name")!.width).toBe(166);

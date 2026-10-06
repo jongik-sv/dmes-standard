@@ -89,16 +89,18 @@ function setup(ctxOver: Partial<GridPersonalizeContext> = {}) {
     locked: new Set(["a"]),
     ...ctxOver,
   };
-  let locked = false;
+  let sized: ReadonlySet<string> = new Set();
   const onReset = vi.fn();
+  const onRestored = vi.fn();
   let liveApi: GridPersonalizeApi | null = api as unknown as GridPersonalizeApi;
   const c = createGridPersonalizeController({
     getApi: () => liveApi,
     getContext: () => ctx,
-    setWidthLocked: (v) => {
-      locked = v;
+    setSizedColumns: (v) => {
+      sized = v;
     },
     onReset,
+    onRestored,
     storage,
   });
   return {
@@ -108,7 +110,8 @@ function setup(ctxOver: Partial<GridPersonalizeContext> = {}) {
     storage,
     ctx,
     onReset,
-    isLocked: () => locked,
+    onRestored,
+    sized: () => [...sized].sort(),
     dropApi: () => {
       liveApi = null;
     },
@@ -146,7 +149,9 @@ describe("isPersonalizeSaveEvent", () => {
       expect(isPersonalizeSaveEvent({ type: "columnResized", source, finished: true }, true), String(source)).toBe(false);
     }
   });
-  it("크기 바꾸기는 끌기를 마친 이벤트만, 정렬은 정렬 저장이 켜졌을 때만", () => {
+  it("크기 바꾸기·이동은 끌기를 마친 이벤트만, 정렬은 정렬 저장이 켜졌을 때만", () => {
+    expect(isPersonalizeSaveEvent({ type: "columnMoved", source: "uiColumnMoved", finished: false }, true)).toBe(false);
+    expect(isPersonalizeSaveEvent({ type: "columnMoved", source: "uiColumnMoved", finished: true }, true)).toBe(true);
     expect(isPersonalizeSaveEvent({ type: "columnResized", source: "uiColumnResized", finished: false }, true)).toBe(false);
     expect(isPersonalizeSaveEvent({ type: "columnResized", source: "uiColumnResized", finished: true }, true)).toBe(true);
     expect(isPersonalizeSaveEvent({ type: "sortChanged", source: "uiColumnSorted" }, true)).toBe(true);
@@ -192,11 +197,14 @@ describe("등록부", () => {
 });
 
 describe("createGridPersonalizeController", () => {
-  it("restore — 저장값이 있으면 병합해 applyOrder 로 적용하고 너비 가드를 건다(잠긴 컬럼 hide 무시, 저장 너비 컬럼은 flex 끔)", () => {
+  const col = (id: string) => ({ getColId: () => id });
+
+  it("restore — 저장값이 있으면 병합해 applyOrder 로 적용하고 저장 너비 컬럼만 잠근다(잠긴 컬럼 hide 무시, 저장 너비 컬럼은 flex 끔)", () => {
     const t = setup();
     t.storage.map.set(gridPrefKey("u1", "scr", "main"), JSON.stringify(PREFS));
     expect(t.c.restore()).toBe(true);
-    expect(t.isLocked()).toBe(true);
+    expect(t.sized()).toEqual(["a", "b", "c"]);
+    expect(t.onRestored).toHaveBeenCalledTimes(1);
     const p = t.applied[0];
     expect(p.applyOrder).toBe(true);
     expect(p.state!.map((s) => [s.colId, s.width, s.hide, s.pinned, s.sort, s.flex])).toEqual([
@@ -205,11 +213,32 @@ describe("createGridPersonalizeController", () => {
       ["b", 90, true, null, "desc", null],
     ]);
   });
+  it("restore — 저장 너비가 없는 컬럼은 너비를 건드리지 않고 잠그지 않는다(기본 너비로 되돌리지 않음)", () => {
+    const t = setup();
+    t.storage.map.set(
+      gridPrefKey("u1", "scr", "main"),
+      JSON.stringify({ v: 1, savedAt: 1, cols: [{ colId: "b", width: 77 }, { colId: "a" }, { colId: "c", hide: true }] }),
+    );
+    t.c.restore();
+    expect(t.applied[0].state!.map((s) => [s.colId, s.width])).toEqual([
+      ["b", 77],
+      ["a", undefined],
+      ["c", undefined],
+    ]);
+    expect(t.sized()).toEqual(["b"]);
+  });
+  it("restore — 저장 너비가 하나도 없으면(순서·정렬만) 잠그지 않고 자동 너비 재실행도 부르지 않는다", () => {
+    const t = setup();
+    t.storage.map.set(gridPrefKey("u1", "scr", "main"), JSON.stringify({ v: 1, savedAt: 1, cols: [{ colId: "c" }, { colId: "a" }, { colId: "b" }] }));
+    expect(t.c.restore()).toBe(true);
+    expect(t.sized()).toEqual([]);
+    expect(t.onRestored).not.toHaveBeenCalled();
+  });
   it("restore — 저장값이 없거나 사용자 ID·화면 키가 비었거나 꺼져 있으면 읽지도 적용하지도 않는다", () => {
     const t = setup();
     expect(t.c.restore()).toBe(false);
     expect(t.api.applyColumnState).not.toHaveBeenCalled();
-    expect(t.isLocked()).toBe(false);
+    expect(t.sized()).toEqual([]);
     for (const over of [{ userId: "" }, { screenKey: "" }, { active: false }]) {
       const u = setup(over);
       u.storage.map.set(gridPrefKey("u1", "scr", "main"), JSON.stringify(PREFS));
@@ -217,6 +246,16 @@ describe("createGridPersonalizeController", () => {
       expect(u.c.restore()).toBe(false);
       expect(u.storage.gets).toEqual([]);
     }
+  });
+  it("restore — 저장값이 사라졌으면(끈 동안 다른 그리드가 기본값 복원) 잠금을 비운다", () => {
+    const t = setup();
+    t.storage.map.set(gridPrefKey("u1", "scr", "main"), JSON.stringify(PREFS));
+    t.c.restore();
+    expect(t.sized()).toEqual(["a", "b", "c"]);
+    t.storage.map.clear();
+    expect(t.c.restore()).toBe(false);
+    expect(t.sized()).toEqual([]);
+    expect(t.c.current()).toBeNull();
   });
   it("restore — sort 를 끈 그리드는 저장된 정렬을 적용하지 않는다", () => {
     const t = setup({ sort: false });
@@ -228,7 +267,7 @@ describe("createGridPersonalizeController", () => {
     const t = setup({ defaults: [] });
     t.storage.map.set(gridPrefKey("u1", "scr", "main"), JSON.stringify(PREFS));
     expect(t.c.restore()).toBe(false);
-    expect(t.isLocked()).toBe(false);
+    expect(t.sized()).toEqual([]);
     t.ctx.defaults = [{ colId: "a" }, { colId: "b" }, { colId: "c" }];
     expect(t.c.reapply()).toBe(true);
     expect(t.applied[0].state!.map((s) => s.colId)).toEqual(["c", "a", "b"]);
@@ -238,28 +277,59 @@ describe("createGridPersonalizeController", () => {
     expect(t.c.reapply()).toBe(false);
     expect(t.api.applyColumnState).not.toHaveBeenCalled();
   });
-  it("UI 이벤트만 debounce 뒤 저장하고, 끝나기 전 상태는 마지막 것으로 덮는다", () => {
+  it("UI 이벤트만 debounce 뒤 저장하고, 끝나기 전(finished=false) 이벤트는 저장하지 않는다", () => {
     const t = setup();
-    t.c.handleEvent({ type: "columnResized", source: "api", finished: true });
-    t.c.handleEvent({ type: "columnResized", source: "autosizeColumns", finished: true });
-    t.c.handleEvent({ type: "columnResized", source: "uiColumnResized", finished: false });
+    t.c.handleEvent({ type: "columnResized", source: "api", finished: true, columns: [col("a")] });
+    t.c.handleEvent({ type: "columnResized", source: "autosizeColumns", finished: true, columns: [col("a")] });
+    t.c.handleEvent({ type: "columnResized", source: "uiColumnResized", finished: false, columns: [col("a")] });
+    t.c.handleEvent({ type: "columnMoved", source: "uiColumnMoved", finished: false });
     vi.advanceTimersByTime(GRID_PERSONALIZE_SAVE_DEBOUNCE_MS * 2);
     expect(t.storage.sets).toEqual([]);
-    expect(t.isLocked()).toBe(false);
+    expect(t.sized()).toEqual([]);
 
     t.api.set([{ colId: "b", width: 70 }, { colId: "a", width: 100 }, { colId: "c", width: 100 }]);
     t.c.handleEvent({ type: "columnMoved", source: "uiColumnMoved", finished: true });
-    expect(t.isLocked()).toBe(true);
     t.api.set([{ colId: "b", width: 75 }, { colId: "a", width: 100 }, { colId: "c", width: 100 }]);
-    t.c.handleEvent({ type: "columnResized", source: "uiColumnResized", finished: true });
+    t.c.handleEvent({ type: "columnResized", source: "uiColumnResized", finished: true, columns: [col("b")] });
     vi.advanceTimersByTime(GRID_PERSONALIZE_SAVE_DEBOUNCE_MS - 1);
     expect(t.storage.sets).toEqual([]);
     vi.advanceTimersByTime(1);
     expect(t.storage.sets).toHaveLength(1);
     expect(t.saved()!.cols.map((c) => [c.colId, c.width])).toEqual([
       ["b", 75],
-      ["a", 100],
-      ["c", 100],
+      ["a", undefined],
+      ["c", undefined],
+    ]);
+  });
+  it("정렬·이동·숨김·고정은 너비를 새로 담지 않고 잠그지 않는다. 끌어 바꾼 컬럼만 담고, 이미 저장된 너비는 이어 둔다", () => {
+    const t = setup();
+    t.api.set([{ colId: "a", width: 140, sort: "asc", sortIndex: 0 }, { colId: "b", width: 160 }, { colId: "c", width: 90 }]);
+    for (const e of [
+      { type: "sortChanged", source: "uiColumnSorted" },
+      { type: "columnMoved", source: "uiColumnMoved", finished: true },
+      { type: "columnVisible", source: "columnMenu" },
+      { type: "columnPinned", source: "uiColumnDragged" },
+    ]) {
+      t.c.handleEvent(e);
+      t.c.flush();
+      expect(t.saved()!.cols.every((c) => c.width == null), e.type).toBe(true);
+      expect(t.sized(), e.type).toEqual([]);
+    }
+    t.c.handleEvent({ type: "columnResized", source: "uiColumnResized", finished: true, columns: [col("c")] });
+    t.c.flush();
+    expect(t.saved()!.cols.map((c) => [c.colId, c.width])).toEqual([
+      ["a", undefined],
+      ["b", undefined],
+      ["c", 90],
+    ]);
+    expect(t.sized()).toEqual(["c"]);
+    t.api.set([{ colId: "a", width: 141 }, { colId: "b", width: 161 }, { colId: "c", width: 90 }]);
+    t.c.handleEvent({ type: "sortChanged", source: "uiColumnSorted" });
+    t.c.flush();
+    expect(t.saved()!.cols.map((c) => [c.colId, c.width])).toEqual([
+      ["a", undefined],
+      ["b", undefined],
+      ["c", 90],
     ]);
   });
   it("flush — 대기 중인 저장을 바로 쓴다. 그리드 API 가 사라진 뒤에도 잡아 둔 값을 쓴다", () => {
@@ -294,8 +364,8 @@ describe("createGridPersonalizeController", () => {
   it("재주입 뒤 reapply 는 디바운스 중인 최신 사용자 변경을 다시 적용한다", () => {
     const t = setup();
     t.api.set([{ colId: "c", width: 120 }, { colId: "a", width: 100 }, { colId: "b", width: 100 }]);
-    t.c.handleEvent({ type: "columnMoved", source: "uiColumnMoved", finished: true });
-    t.api.set(INITIAL.map((s) => ({ ...s }))); // 열 정의 재주입이 정의값으로 되돌림
+    t.c.handleEvent({ type: "columnResized", source: "uiColumnResized", finished: true, columns: [col("c")] });
+    t.api.set(INITIAL.map((s) => ({ ...s }))); // 열 정의 재주입이 정의값·정의 순서로 되돌림
     expect(t.c.reapply()).toBe(true);
     expect(t.api.getColumnState().map((s) => [s.colId, s.width])).toEqual([
       ["c", 120],
@@ -303,7 +373,7 @@ describe("createGridPersonalizeController", () => {
       ["b", 100],
     ]);
   });
-  it("apply — 설정 창 확인: 잠긴 컬럼 hide 는 버리고, 너비가 있으면 flex 를 끄고 바로 저장한다", () => {
+  it("apply — 설정 창 확인: 잠긴 컬럼 hide 는 버리고, width 를 준 컬럼만 flex 를 끄고 너비를 저장하고 바로 저장한다", () => {
     const t = setup();
     t.c.apply([
       { colId: "b", width: 140 },
@@ -315,10 +385,14 @@ describe("createGridPersonalizeController", () => {
       applyOrder: true,
     });
     expect(t.storage.sets).toHaveLength(1);
-    expect(t.saved()!.cols.map((c) => c.colId)).toEqual(["b", "a", "c"]);
-    expect(t.isLocked()).toBe(true);
+    expect(t.saved()!.cols.map((c) => [c.colId, c.width])).toEqual([
+      ["b", 140],
+      ["a", undefined],
+      ["c", undefined],
+    ]);
+    expect(t.sized()).toEqual(["b"]);
   });
-  it("reset — 저장값·대기 저장을 지우고 정의 기준으로 되돌린 뒤 너비 가드를 풀고 자동 너비를 다시 부른다", () => {
+  it("reset — 저장값·대기 저장을 지우고 정의 기준으로 되돌린 뒤 잠금을 비우고 자동 너비를 다시 부른다", () => {
     const t = setup();
     t.storage.map.set(gridPrefKey("u1", "scr", "main"), JSON.stringify(PREFS));
     t.c.restore();
@@ -327,7 +401,7 @@ describe("createGridPersonalizeController", () => {
     vi.advanceTimersByTime(GRID_PERSONALIZE_SAVE_DEBOUNCE_MS * 2);
     expect(t.storage.map.has(gridPrefKey("u1", "scr", "main"))).toBe(false);
     expect(t.api.resetColumnState).toHaveBeenCalledTimes(1);
-    expect(t.isLocked()).toBe(false);
+    expect(t.sized()).toEqual([]);
     expect(t.onReset).toHaveBeenCalledTimes(1);
     expect(t.c.current()).toBeNull();
     expect(t.c.reapply()).toBe(false);

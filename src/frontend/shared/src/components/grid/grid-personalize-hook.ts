@@ -4,18 +4,19 @@
  * AgDataGrid 컬럼 개인화 — 복원·자동 저장·열 정의 재주입 뒤 재적용·키 충돌 등록부(C2).
  *
  * - 저장·병합 규칙은 `grid-personalize.ts`(순수 유틸)가 정한다. 여기는 그리드 API·React 수명과 잇는다.
- * - 저장 키: `useCurrentUserId()` · 화면(`useTabPage().pageId`, 없으면 `location.pathname`) · gridId(없으면 "main").
- *   사용자 ID 가 비었으면 읽지도 쓰지도 않는다.
+ * - 저장 키: 확인된 사용자 ID(공유 저장소를 읽기만 한다 — `/api/auth/me` 를 부르지 않는다) · 화면(`useTabPage().pageId`, 없으면
+ *   `location.pathname`) · gridId(없으면 "main"). 사용자 ID 가 비었으면 읽지도 쓰지도 않는다.
+ * - 너비: 사용자가 머리글 경계를 끌어 바꾼 컬럼만 저장한다. 그 컬럼만 자동 너비·여백 분배에서 빠지고 나머지는 예전처럼 자동이다.
  * - `personalize` 는 마운트 뒤에 바뀔 수 있다(숨은 탭 패널은 false, 활성 탭만 켬). 켜진 구간마다 등록부에 올리고, 사용자 확인 뒤
  *   한 번 복원한다. 꺼지면 대기 중인 저장을 흘려 보내고 등록부에서 빠진다. 컬럼 상태는 되돌리지 않는다.
  * - 등록부: 같은 탭 안에서 같은 저장 키의 그리드가 이미 켜져 있으면 나중 그리드는 개인화를 끄고(개발 모드 경고) 기다린다.
  *   소유자가 빠지면 기다리던 그리드가 이어받는다(등록부 구독).
  */
-import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type MutableRefObject } from "react";
 import type { ColDef, ColGroupDef, ColumnState, GridApi } from "ag-grid-community";
 
 import { useTabPage } from "../../portal-shell/tab-page-context";
-import { useCurrentUserId } from "../../portal-shell/use-current-user-id";
+import { peekCurrentUser, subscribeCurrentUser } from "../../portal-shell/current-user";
 import type { GridColumn } from "./AgDataGrid";
 import {
   DEFAULT_GRID_ID,
@@ -60,12 +61,14 @@ export interface GridPersonalizeEvent {
   type: string;
   source?: string;
   finished?: boolean;
+  /** columnResized 에서 사용자가 끈 컬럼(events.d.ts ColumnEvent.columns). 이 컬럼만 너비를 저장한다. */
+  columns?: ReadonlyArray<{ getColId(): string }> | null;
 }
 
-/** 이 이벤트가 사용자 변경이라 저장할 것인가. 크기 바꾸기는 끌기를 마친 마지막 이벤트(finished)만 본다. */
+/** 이 이벤트가 사용자 변경이라 저장할 것인가. 크기 바꾸기·이동은 끌기를 마친 마지막 이벤트(finished)만 본다. */
 export function isPersonalizeSaveEvent(e: GridPersonalizeEvent, sortEnabled: boolean): boolean {
   if (!e.source || !GRID_PERSONALIZE_UI_SOURCES.has(e.source)) return false;
-  if (e.type === "columnResized" && e.finished === false) return false;
+  if (e.finished === false) return false;
   if (e.type === "sortChanged" && !sortEnabled) return false;
   return true;
 }
@@ -168,14 +171,20 @@ export interface GridPersonalizeContext {
   gridId: string;
   sort: boolean;
   defaults: GridDefaultColumn[];
+  /** 숨김 잠금 colId. */
   locked: ReadonlySet<string>;
 }
 
 export interface GridPersonalizeControllerOptions {
   getApi: () => GridPersonalizeApi | null | undefined;
   getContext: () => GridPersonalizeContext;
-  /** 저장값을 적용했거나 사용자가 바꿨으면 true — 자동 너비 맞춤이 저장 너비를 덮지 않게 한다. */
-  setWidthLocked: (locked: boolean) => void;
+  /**
+   * 저장 너비가 있는 colId 집합이 바뀔 때 — 자동 너비 맞춤은 이 컬럼만 건드리지 않는다(나머지는 예전처럼 자동).
+   * 빈 집합이면 자동 너비 흐름이 개인화 전과 같다.
+   */
+  setSizedColumns: (colIds: ReadonlySet<string>) => void;
+  /** 저장값을 적용한 뒤(저장 너비가 있을 때) — 나머지 컬럼의 자동 너비·여백 분배를 다시 맞춘다. */
+  onRestored?: () => void;
   /** 기본값 복원 뒤 자동 너비 맞춤 흐름을 다시 살린다. */
   onReset?: () => void;
   debounceMs?: number;
@@ -183,7 +192,7 @@ export interface GridPersonalizeControllerOptions {
 }
 
 export interface GridPersonalizeController {
-  /** 저장값을 읽어 적용한다. 적용했으면 true. */
+  /** 저장값을 읽어 적용한다(켜진 구간마다 한 번). 적용했으면 true. 저장값이 없으면 저장 너비 집합을 비운다. */
   restore(): boolean;
   /** 열 정의가 다시 들어온 뒤(newColumnsLoaded) 지금 개인 상태를 다시 적용한다. 개인 상태가 없으면 아무것도 하지 않는다. */
   reapply(): boolean;
@@ -191,12 +200,19 @@ export interface GridPersonalizeController {
   handleEvent(e: GridPersonalizeEvent): void;
   /** 대기 중인 저장을 바로 쓴다. 그리드 API 없이도 된다(잡아 둔 값을 쓴다). */
   flush(): void;
-  /** 상태를 적용하고 바로 저장한다(설정 창 확인). 잠긴 컬럼의 hide 는 무시한다. */
+  /** 상태를 적용하고 바로 저장한다(설정 창 확인). 잠긴 컬럼의 hide 는 무시한다. `width` 를 준 컬럼만 너비를 저장한다. */
   apply(state: ColumnState[]): void;
   /** 저장값을 지우고 정의 기준 상태로 되돌린 뒤 자동 너비 맞춤을 다시 살린다. */
   reset(): void;
   /** 지금 적용 중인 개인 상태(없으면 null). */
   current(): GridPrefs | null;
+}
+
+const EMPTY_IDS: ReadonlySet<string> = new Set();
+
+/** 저장값에서 너비가 있는 colId. */
+function sizedIdsOf(prefs: GridPrefs | null): Set<string> {
+  return new Set((prefs?.cols ?? []).filter((c) => c.width != null).map((c) => c.colId));
 }
 
 export function createGridPersonalizeController(opts: GridPersonalizeControllerOptions): GridPersonalizeController {
@@ -223,6 +239,13 @@ export function createGridPersonalizeController(opts: GridPersonalizeControllerO
     pending = null;
     if (p) save(p.userId, p.screenKey, p.gridId, p.prefs);
   };
+  /** 저장 너비 집합을 지금 컬럼에 있는 것으로 알린다. */
+  const publishSized = (ids: ReadonlySet<string>) => {
+    const known = new Set(opts.getContext().defaults.map((d) => d.colId));
+    const out = new Set([...ids].filter((id) => known.has(id)));
+    opts.setSizedColumns(out.size > 0 ? out : EMPTY_IDS);
+    return out.size > 0;
+  };
   const applyCurrent = (): boolean => {
     const api = liveApi();
     const ctx = opts.getContext();
@@ -230,18 +253,31 @@ export function createGridPersonalizeController(opts: GridPersonalizeControllerO
     const ids = new Set(ctx.defaults.map((d) => d.colId));
     // 저장값에 지금 컬럼이 하나도 없으면(열 정의 전·모든 컬럼 이름이 바뀜) 적용하지 않는다 — 다음 재주입 때 다시 본다.
     if (!current.cols.some((c) => ids.has(c.colId))) return false;
-    const state = mergeColumnState(ctx.defaults, current, { locked: ctx.locked, sort: ctx.sort });
-    opts.setWidthLocked(true);
+    // 저장 너비가 없는 컬럼의 너비는 건드리지 않는다(기본 컬럼 너비를 빼고 병합) — 자동 너비·여백 분배 결과를 지킨다.
+    const defaults = ctx.defaults.map(({ width: _w, ...rest }) => rest);
+    const state = mergeColumnState(defaults, current, { locked: ctx.locked, sort: ctx.sort });
+    publishSized(sizedIdsOf(current));
     api.applyColumnState({ state, applyOrder: true });
     return true;
   };
-  const capture = (): GridPrefs | null => {
+  /**
+   * 지금 상태를 저장값으로 잡는다. 너비는 `sized`(이미 저장된 너비 + 이번에 사용자가 끌어 바꾼 컬럼)만 담는다 — 정렬·이동·숨김·고정만으로
+   * 다른 컬럼 너비가 굳지 않게.
+   */
+  const capture = (resized: readonly string[]): GridPrefs | null => {
     const api = liveApi();
     const ctx = opts.getContext();
     if (!api || !ctx.active || !ctx.userId || !ctx.screenKey) return null;
+    const sized = sizedIdsOf(current);
+    for (const id of resized) sized.add(id);
     const prefs = toGridPrefs(api.getColumnState(), { sort: ctx.sort });
+    prefs.cols = prefs.cols.map((c) => {
+      if (sized.has(c.colId) || c.width == null) return c;
+      const { width: _w, ...rest } = c;
+      return rest;
+    });
     current = prefs;
-    opts.setWidthLocked(true);
+    publishSized(sizedIdsOf(prefs));
     return prefs;
   };
 
@@ -251,9 +287,15 @@ export function createGridPersonalizeController(opts: GridPersonalizeControllerO
       if (!ctx.active || !ctx.userId || !ctx.screenKey) return false;
       const s = store();
       const prefs = s === undefined ? loadGridPrefs(ctx.userId, ctx.screenKey, ctx.gridId) : loadGridPrefs(ctx.userId, ctx.screenKey, ctx.gridId, s);
-      if (!prefs) return false;
       current = prefs;
-      return applyCurrent();
+      if (!prefs) {
+        // 끈 동안 다른 그리드가 기본값 복원을 했을 수 있다 — 저장값 기준으로 다시 계산한다.
+        opts.setSizedColumns(EMPTY_IDS);
+        return false;
+      }
+      const ok = applyCurrent();
+      if (ok && sizedIdsOf(prefs).size > 0) opts.onRestored?.();
+      return ok;
     },
     reapply() {
       return applyCurrent();
@@ -261,7 +303,8 @@ export function createGridPersonalizeController(opts: GridPersonalizeControllerO
     handleEvent(e) {
       const ctx = opts.getContext();
       if (!isPersonalizeSaveEvent(e, ctx.sort)) return;
-      const prefs = capture();
+      const resized = e.type === "columnResized" ? (e.columns ?? []).map((c) => c.getColId()) : [];
+      const prefs = capture(resized);
       if (!prefs) return;
       pending = { prefs, userId: ctx.userId, screenKey: ctx.screenKey, gridId: ctx.gridId };
       if (timer != null) clearTimeout(timer);
@@ -279,7 +322,7 @@ export function createGridPersonalizeController(opts: GridPersonalizeControllerO
         return out;
       });
       api.applyColumnState({ state: next, applyOrder: true });
-      const prefs = capture();
+      const prefs = capture(state.filter((s) => s.width != null).map((s) => s.colId));
       if (!prefs) return;
       if (timer != null) clearTimeout(timer);
       timer = null;
@@ -306,7 +349,7 @@ export function createGridPersonalizeController(opts: GridPersonalizeControllerO
           api.applyColumnState({ state: keepSort.map((c) => ({ colId: c.colId, sort: c.sort, sortIndex: c.sortIndex })) });
         }
       }
-      opts.setWidthLocked(false);
+      opts.setSizedColumns(EMPTY_IDS);
       opts.onReset?.();
     },
     current: () => current,
@@ -359,10 +402,28 @@ export interface UseGridPersonalizeOptions {
   selectable: boolean;
   rowKey: string;
   rowDragField?: string;
-  /** AgDataGrid 의 자동 너비 맞춤 가드. */
-  widthLockRef: MutableRefObject<boolean>;
+  /** AgDataGrid 의 자동 너비 맞춤 가드 — 저장 너비가 있는 colId. 비면 자동 너비 흐름이 개인화 전과 같다. */
+  sizedColumnsRef: MutableRefObject<ReadonlySet<string>>;
+  /** 저장 너비를 적용한 뒤 나머지 컬럼의 자동 너비·여백 분배를 다시 돌린다. */
+  onRestored: () => void;
   /** 기본값 복원 뒤 자동 너비 맞춤 흐름을 다시 돌린다. */
   onReset: () => void;
+}
+
+const noopUnsubscribe = () => {};
+const emptyUserId = () => "";
+
+/**
+ * 확인된 사용자 ID 를 읽기만 한다 — `/api/auth/me` 를 부르지 않는다. 포털 부팅이 사용자 확인을 하므로 값은 구독 알림으로 온다.
+ * 개인화가 꺼져 있으면 구독도 하지 않는다(useSyncExternalStore 는 조건부로 부를 수 없어 subscribe 가 아무것도 하지 않는다).
+ */
+function useConfirmedUserId(enabled: boolean): string {
+  const subscribe = useCallback(
+    (onChange: () => void) => (enabled ? subscribeCurrentUser(() => onChange()) : noopUnsubscribe),
+    [enabled],
+  );
+  const getSnapshot = useCallback(() => (enabled ? (peekCurrentUser()?.id ?? "") : ""), [enabled]);
+  return useSyncExternalStore(subscribe, getSnapshot, emptyUserId);
 }
 
 // 번들러가 `process.env.NODE_ENV` 글자 그대로를 바꿔 넣으므로 이 모양을 지킨다(error-boundary.tsx 와 같다).
@@ -372,7 +433,7 @@ export function useGridPersonalize(opts: UseGridPersonalizeOptions): GridPersona
   const { gridReady, gridId, personalize, columns, columnDefs, selectable, rowKey, rowDragField } = opts;
   const resolved = resolvePersonalize(personalize);
   const enabled = resolved.enabled;
-  const userId = useCurrentUserId();
+  const userId = useConfirmedUserId(enabled);
   const { pageId, tabId } = useTabPage();
   const screenKey = pageId || (typeof window !== "undefined" ? window.location.pathname : "");
   const gid = gridId || DEFAULT_GRID_ID;
@@ -381,25 +442,38 @@ export function useGridPersonalize(opts: UseGridPersonalizeOptions): GridPersona
   const defaults = useMemo(() => defaultColumnsFromDefs(columnDefs, selectable), [columnDefs, selectable]);
   const locked = useMemo(() => hideLockedColIds(columns, { rowKey, rowDragField }), [columns, rowKey, rowDragField]);
 
-  const [claimed, setClaimed] = useState(false);
-  const active = enabled && claimed;
+  /**
+   * 등록부를 차지했는가. 차지 결과는 ref 에 둔다 — 마운트 직후 바로 차지하면 다시 렌더하지 않는다(효과들은 같은 커밋에서 이 ref 를 읽는다).
+   * 상태(waiting)는 차지에 실패해 기다리는 동안과, 기다리다 이어받을 때만 바꾼다.
+   */
+  const claimedRef = useRef(false);
+  const [waiting, setWaitingState] = useState(false);
+  const waitingRef = useRef(false);
+  const setWaiting = (v: boolean) => {
+    if (waitingRef.current === v) return;
+    waitingRef.current = v;
+    setWaitingState(v);
+  };
 
-  const ctxRef = useRef<GridPersonalizeContext>(null as unknown as GridPersonalizeContext);
-  ctxRef.current = { active, userId, screenKey, gridId: gid, sort: resolved.sort, defaults, locked };
+  const ctxRef = useRef({ enabled, userId, screenKey, gridId: gid, sort: resolved.sort, defaults, locked });
+  ctxRef.current = { enabled, userId, screenKey, gridId: gid, sort: resolved.sort, defaults, locked };
   const getApiRef = useRef(opts.getApi);
   getApiRef.current = opts.getApi;
   const onResetRef = useRef(opts.onReset);
   onResetRef.current = opts.onReset;
-  const widthLockRef = opts.widthLockRef;
+  const onRestoredRef = useRef(opts.onRestored);
+  onRestoredRef.current = opts.onRestored;
+  const sizedColumnsRef = opts.sizedColumnsRef;
 
   const controllerRef = useRef<GridPersonalizeController | null>(null);
   if (!controllerRef.current) {
     controllerRef.current = createGridPersonalizeController({
       getApi: () => getApiRef.current(),
-      getContext: () => ctxRef.current,
-      setWidthLocked: (v) => {
-        widthLockRef.current = v;
+      getContext: () => ({ ...ctxRef.current, active: ctxRef.current.enabled && claimedRef.current }),
+      setSizedColumns: (ids) => {
+        sizedColumnsRef.current = ids;
       },
+      onRestored: () => onRestoredRef.current(),
       onReset: () => onResetRef.current(),
     });
   }
@@ -409,21 +483,20 @@ export function useGridPersonalize(opts: UseGridPersonalizeOptions): GridPersona
   // 꺼지거나 언마운트되면 대기 중인 저장을 흘려 보낸 뒤 키를 놓는다(이어받는 그리드가 최신 값을 읽게).
   const tokenRef = useRef<object>({});
   useEffect(() => {
-    if (!enabled) {
-      setClaimed(false);
-      return;
-    }
+    if (!enabled) return;
     const token = tokenRef.current;
-    let owned = false;
     let warned = false;
-    const tryClaim = () => {
-      if (owned) return;
+    let unsubscribe = noopUnsubscribe;
+    const tryClaim = (initial: boolean) => {
+      if (claimedRef.current) return;
       if (claimGridPersonalizeKey(regKey, token)) {
-        owned = true;
-        setClaimed(true);
+        claimedRef.current = true;
+        unsubscribe();
+        unsubscribe = noopUnsubscribe;
+        setWaiting(false);
         return;
       }
-      setClaimed(false);
+      setWaiting(true);
       if (!warned && isDev()) {
         warned = true;
         console.warn(
@@ -432,33 +505,33 @@ export function useGridPersonalize(opts: UseGridPersonalizeOptions): GridPersona
         );
       }
     };
-    tryClaim();
-    const unsubscribe = owned ? () => {} : subscribeGridPersonalizeRegistry(tryClaim);
+    tryClaim(true);
+    if (!claimedRef.current) unsubscribe = subscribeGridPersonalizeRegistry(() => tryClaim(false));
     return () => {
       unsubscribe();
-      if (owned) {
+      if (claimedRef.current) {
+        claimedRef.current = false;
         controller.flush();
         releaseGridPersonalizeKey(regKey, token);
       }
-      setClaimed(false);
     };
   }, [enabled, regKey, gid, controller]);
 
-  // 복원 — 켜진 구간마다(등록부를 차지한 구간마다) 사용자 확인 뒤 한 번.
-  const restoredRef = useRef(false);
+  // 복원 — 켜진 구간마다(등록부를 차지한 구간마다) 사용자 확인 뒤 한 번. 등록부 효과보다 뒤에 둬야 같은 커밋에서 차지 결과를 읽는다.
+  const restoredKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!active) {
-      restoredRef.current = false;
+    if (!enabled || !claimedRef.current) {
+      restoredKeyRef.current = null;
       return;
     }
-    if (!gridReady || !userId || !screenKey || restoredRef.current) return;
-    restoredRef.current = true;
+    if (!gridReady || !userId || !screenKey || restoredKeyRef.current === regKey) return;
+    restoredKeyRef.current = regKey;
     controller.restore();
-  }, [active, gridReady, userId, screenKey, controller]);
+  }, [enabled, waiting, regKey, gridReady, userId, screenKey, controller]);
 
   // 저장 이벤트·열 정의 재주입 — 켜져 있고 등록부를 차지한 동안만 듣는다.
   useEffect(() => {
-    if (!gridReady || !active) return;
+    if (!gridReady || !enabled || !claimedRef.current) return;
     const api = getApiRef.current();
     if (!api || api.isDestroyed()) return;
     const onSave = (e: GridPersonalizeEvent) => controller.handleEvent(e);
@@ -476,11 +549,12 @@ export function useGridPersonalize(opts: UseGridPersonalizeOptions): GridPersona
       for (const t of GRID_PERSONALIZE_SAVE_EVENTS) api.removeEventListener(t, onSave);
       api.removeEventListener("newColumnsLoaded", onNewColumns);
     };
-  }, [gridReady, active, controller]);
+  }, [gridReady, enabled, waiting, regKey, controller]);
 
   // 언마운트 — 대기 중인 저장을 흘려 보낸다(등록부 정리에서도 하지만 꺼진 그리드에도 남은 것이 없게).
   useEffect(() => () => controller.flush(), [controller]);
 
+  const active = enabled && claimedRef.current && !waiting;
   const handleEnabled = active && !!userId && !!screenKey;
   return useMemo<GridPersonalizeHandle>(
     () => ({
@@ -506,11 +580,11 @@ export function useGridPersonalize(opts: UseGridPersonalizeOptions): GridPersona
         });
       },
       apply(state) {
-        if (!ctxRef.current.active) return;
+        if (!ctxRef.current.enabled || !claimedRef.current) return;
         controller.apply(state);
       },
       reset() {
-        if (!ctxRef.current.active) return;
+        if (!ctxRef.current.enabled || !claimedRef.current) return;
         controller.reset();
       },
     }),
