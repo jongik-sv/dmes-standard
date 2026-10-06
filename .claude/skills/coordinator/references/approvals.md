@@ -47,6 +47,7 @@ bypass permissions 모드인 세션에서도 Workflow 하위 에이전트의 복
   3. `SENT` 뒤에는 따로 부르지 않는다 — `term-send-safe.sh` 가 `SENT` 직후 레인 잠금 안에서 같은 창 기록에만 처리됨(coordinator)·소비·알림 표식을 이미 남긴다. 키를 다른 경로로 보냈을 때만 `scripts/console-poll.sh input-handled --lane <레인> --by coordinator --expect-full <sha>`(`--expect-full` 과 함께).
 - 몇 초 뒤 `prompt-watch.sh` 를 다시 돌려 확인 창이 사라졌는지 확인한다(`NONE`).
 - 입력창에 사용자가 쓰다 만 글이나 타이머가 넣은 글(「계속 진행」 등)이 있으면 지우거나 보내지 않는다. 확인 창에만 응답한다.
+- **입력창의 회색 추천 문구(prompt suggestion)**: 화면 읽기(`orca terminal read --screen`)는 색·dim 이 지워진 평문이라 추천 문구와 쓰다 만 글이 같은 `❯ 글` 로 읽힌다. 그래서 `term-send-safe.sh` 가 `draft-in-input` 으로 거절한 레인이 오래(약 30분) 멈춰 있으면, 조정자가 `terminal read --screen` 으로 그 `❯` 줄을 읽고 **직전 작업 흐름에 이어지는 추천 문구(「계속 진행해」 같은 제안)이고 사용자가 직접 쓴 흔적이 없다고 판단할 때만** `term-send-safe.sh … --over-draft` 로 다시 보낸다(`compact-lane.sh` 도 `--over-draft` 를 받는다). 글과 Enter 를 함께 보내므로 추천 문구는 대체된다(Enter 만 보내면 제출되지 않는다). `--over-draft` 는 `draft-in-input` 중 draft 판정만 건너뛰고, 입력창을 못 찾은 화면·`stale`·`prompt-open`·`compacting`·`bang-in-text` 는 그대로 거절한다. 사용자가 쓰다 만 글일 수 있으면(사용자가 방금 그 세션에 있었던 흔적, 긴 문장·반쯤 쓴 문장) 쓰지 않고 사용자에게 한 줄로 알린다.
 
 ## 4. 예방
 

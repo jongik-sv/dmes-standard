@@ -46,7 +46,7 @@
 1. 임계 초과 레인을 찾으면 조건 4 를 본다. Workflow 가 돌면 `coord-state.sh set '.lanes.<레인>.compact.pending' true` 로 세우고 끝난 뒤 첫 틱에 한다(Workflow 결과를 세션이 처리해 정본을 갱신한 다음이어야 한다).
 2. `protocol.md` 3.8 `정본 갱신 요청` 을 보낸다.
 3. 답 `정본 갱신 완료: 경로 / 남은 일 3줄` 을 받으면 「남은 일 3줄」을 `lanes.<레인>.compact.pre_compact` 에 적는다. **30분 안에 답이 없으면 이번 틱은 넘긴다**(다음 틱에 다시, 최대 2회 뒤 사용자 알림).
-4. `scripts/compact-lane.sh <레인>`(`--dry-run` 가능). 스크립트가 안전 확인 → `/compact <레인> 진행 중. 정본은 <경로>. 조정 세션 <이름>(<주소>). 다음 단계: <한 줄>` 전송 → Compacting 사라짐 대기 → 사용률 재측정을 한다. 출력: `COMPACT_REFUSED <레인> <사유>` · `COMPACT_DONE <레인> before=<n> after=<n|->` · `COMPACT_TIMEOUT <레인>`. 문구에 `!` 를 넣지 않는다. 정본 갱신 확인이 없으면 `--force-no-memo` 없이는 거절된다.
+4. `scripts/compact-lane.sh <레인>`(`--dry-run` 가능). 스크립트가 안전 확인 → `/compact <레인> 진행 중. 정본은 <경로>. 조정 세션 <이름>(<주소>). 다음 단계: <한 줄>` 전송 → Compacting 사라짐 대기 → 사용률 재측정을 한다. 출력: `COMPACT_REFUSED <레인> <사유>` · `COMPACT_DONE <레인> before=<n> after=<n|->` · `COMPACT_TIMEOUT <레인>`. 문구에 `!` 를 넣지 않는다. 정본 갱신 확인이 없으면 `--force-no-memo` 없이는 거절된다. 입력창이 회색 추천 문구 때문에 `draft-in-input` 으로 거절되면 `approvals.md` 의 「입력창의 회색 추천 문구」 조건을 확인하고 `--over-draft` 로 다시 부른다(조건: 조정자가 화면을 읽고 추천 문구라고 판단한 때만).
 
 **Workflow·agent 가 도는 동안 임계를 넘으면 compact 를 미룬다.** 도는 중에 정본 갱신 요청을 보내지 않고 `compact.pending` 만 세운다(위 1). 레인이 머지 요청을 앞두고 있으면 정본 갱신 요청에 「머지 요청 뒤에는 입력 대기로 있어라」 를 함께 지시한다: 머지 직후 세션이 바로 입력 대기가 되어 머지 완료·정리 완료 보고를 받은 그 틱에 compact 할 수 있다(web 레인에서 효과를 봤다). 단 `compact.hard_pct` 를 넘으면 7 의 예외를 따른다.
 
