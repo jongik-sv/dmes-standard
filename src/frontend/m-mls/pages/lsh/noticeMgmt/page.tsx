@@ -599,6 +599,7 @@ export default function NoticeMgmtScreen() {
           >
             <MdmMetaProvider captionPriority="mdm">
               <AgDataGrid
+                gridId="main"
                 rowKey="NOTICE_ID"
                 columns={NOTICE_COLUMNS}
                 // 목록은 읽기 전용이라 지금은 켜 둔 것만으로 검사할 칸이 없다 — 편집 열을 더하면 MDM 연결 칸이 바로 검사된다.

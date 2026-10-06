@@ -567,6 +567,7 @@ export default function CommObjMngPage() {
             loading={isSaving}
           >
             <AgDataGrid
+              gridId="main"
               columnSizing="fit"
               columns={MASTER_COLUMNS}
               data={rows}

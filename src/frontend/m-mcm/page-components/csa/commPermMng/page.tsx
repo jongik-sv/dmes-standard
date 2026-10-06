@@ -623,6 +623,7 @@ export default function CommPermMngPage() {
             loading={isSaving}
           >
             <AgDataGrid
+              gridId="main"
               columnSizing="fit"
               columns={MASTER_COLUMNS}
               data={rows}
