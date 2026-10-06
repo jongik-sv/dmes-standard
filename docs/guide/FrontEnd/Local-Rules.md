@@ -428,3 +428,14 @@ React Flow 12 의 `useReactFlow().fitView()` 는 곧바로 화면을 옮기지 �
 - 길이가 바뀌는 상태 글은 툴바 줄 안에 두지 않고 툴바 아래 메시지 줄(`rsf-toolbar-message`, `set-message` 와 같은 자리)에 그린다. 메시지(`state.message`)와 상태 글이 함께 있으면 둘 다 보이게 한다. `data-testid`·`role="status"`·색 토큰은 그대로 쓴다.
 - 줄에 길이를 고정해 놓고 말줄임으로 버티지 않는다. 그러면 글이 잘려 알아볼 수 없다.
 - 시험은 상태 글이 `.rsf-toolbar-end` 와 툴바 줄 밖에 있는지 고정한다. 예: `m-mdm/tests/dme/ruleSetEdit/auto-save-page.test.ts` 9번.
+
+## 39. AgDataGrid 컬럼 개인화 — gridId·서버 페이징 정렬·hideable 를 화면이 정한다 (2026-10-06)
+
+AgDataGrid 는 사용자별로 컬럼 순서·너비·표시·고정·정렬을 localStorage 에 저장한다. 저장 키는 `dmes:grid:v1:{userId}:{화면 pageId 또는 경로}:{gridId}` 이고, `gridId` 를 주지 않으면 `main` 이다. 같은 키의 그리드가 이미 떠 있으면 나중에 뜬 그리드는 개인화가 꺼지므로, 화면이 다음을 정해 준다.
+
+- **gridId**: 한 화면에 그리드가 둘 이상 뜨면(탭·접이식 포함) 그리드마다 화면 안에서 유일하고 뜻 있는 영문 camelCase 이름을 준다(`master`, `detail`, `roleUser`). 모달·팝업 안 그리드는 호스트 화면과 키가 겹칠 수 있으므로 `modal-` 접두어를 붙인다(`modal-columnPick`). 같은 부품이 여러 곳에서 재사용되면 `gridId` 를 props 로 받게 하고 호출처가 구분 값을 넘긴다. `GridPanel` 로 감싸도 `gridId` 는 안쪽 `AgDataGrid` 에 준다.
+- **세트 탭처럼 같은 편집기가 여러 개 마운트되는 경우**: 모든 편집기에 같은 `gridId` 를 주고 노드·세트 ID 접미어는 붙이지 않는다(노드마다 설정이 쌓이고 매번 기본값에서 시작한다). 보이는(활성) 탭의 편집기만 `personalize={active ? undefined : false}` 로 켠다.
+- **서버 페이징 그리드**: 정렬을 저장하면 현재 페이지만 정렬된 것처럼 보이므로 `personalize={{ sort: false }}` 로 정렬 저장을 끈다. `limit` 행 수 상한만 있는 목록은 서버 페이징이 아니다.
+- **같은 유형이 한 화면에 여러 개 뜨는 그리드**(위젯 렌더러 등): 정적 `gridId` 를 정할 수 없으므로 `personalize={false}` 로 끈다.
+- **hideable**: 편집 가능한 컬럼은 기본적으로 숨길 수 없다(필수 입력이 잠기게 하려는 기본값). 숨겨도 저장 검증·의미에 영향이 없는 선택 입력 컬럼(비고·설명·약칭)만 `hideable: true` 로 푼다. 반대로 편집 불가여도 사용자가 보고 판단해야 하는 컬럼(행 키·상태 배지·검사 오류·행 단위 버튼 컬럼)은 `hideable: false` 로 잠근다. 애매하면 붙이지 않는다.
+- 새 그리드를 만들 때 위 항목을 처음부터 지정한다. 감사 기준은 `grep -rn "<AgDataGrid" src/frontend/m-*` 로 `gridId` 없는 곳을 찾는 것이다.
