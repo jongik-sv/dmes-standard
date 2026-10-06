@@ -14,7 +14,7 @@ import { useCallback, type ReactNode } from "react";
 
 import { today } from "../../utils/libDate";
 import { excelFileName, exportToExcel, toExcelColumns } from "../../utils/libExcel";
-import type { GridColumn } from "./AgDataGrid";
+import type { GridColumn } from "./grid-types";
 import { GridExcelFoot } from "./GridExcelFoot";
 
 export interface AgDataGridExcelExport {

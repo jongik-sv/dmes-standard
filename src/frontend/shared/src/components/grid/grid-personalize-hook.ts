@@ -17,7 +17,7 @@ import type { ColDef, ColGroupDef, Column, ColumnState, GridApi } from "ag-grid-
 
 import { useTabPage } from "../../portal-shell/tab-page-context";
 import { peekCurrentUser, subscribeCurrentUser } from "../../portal-shell/current-user";
-import type { GridColumn } from "./AgDataGrid";
+import type { GridColumn } from "./grid-types";
 import {
   DEFAULT_GRID_ID,
   GRID_SELECTION_COL_ID,
