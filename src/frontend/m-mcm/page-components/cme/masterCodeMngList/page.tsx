@@ -302,6 +302,7 @@ export default function MasterCodeMngListPage() {
                 selectedRowKey={selectedMasterKey}
               >
                 <AgDataGrid
+                  gridId="masterCode"
                   columnSizing="fit"
                   columns={MASTER_COLUMNS}
                   data={masterRows}
@@ -353,6 +354,7 @@ export default function MasterCodeMngListPage() {
                 }
               >
                 <AgDataGrid
+                  gridId="masterDetail"
                   columnSizing="fit"
                   columns={DETAIL_COLUMNS}
                   data={filteredDetailRows}

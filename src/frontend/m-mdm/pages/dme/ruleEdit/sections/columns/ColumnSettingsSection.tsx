@@ -333,7 +333,7 @@ export function ColumnSettingsSection({ view, editable, runWrite, notify, setDir
         <ExprProbe key={k} text={x.text} slot={x.slot} enabled={parseEnabled} candidates={candidates} onParsed={onParsed} />
       ))}
       <div data-testid="col-table" style={{ height: gridHeight, paddingTop: "var(--spacing-xs)" }}>
-        <AgDataGrid
+        <AgDataGrid gridId="columnSettings"
           key={gridKey}
           columns={columns}
           data={data}

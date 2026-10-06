@@ -54,7 +54,7 @@ export function LayoutCheckPanel({ result, busy, canRun, onRun }: LayoutCheckPan
       </div>
       {checks.length > 0 && (
         <div data-testid="layout-check-table" style={{ marginTop: "var(--spacing-sm)" }}>
-          <AgDataGrid
+          <AgDataGrid gridId="checkResults"
             columnSizing="fit"
             columns={COLUMNS}
             data={data}

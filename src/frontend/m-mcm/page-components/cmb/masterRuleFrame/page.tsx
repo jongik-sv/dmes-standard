@@ -355,6 +355,7 @@ export default function MasterRuleFramePage() {
             loading={isSaving}
           >
             <AgDataGrid
+              gridId="frameIn"
               columnSizing="fit"
               columns={FRAME_COLUMNS}
               data={displayIn}
@@ -386,6 +387,7 @@ export default function MasterRuleFramePage() {
             loading={isSaving}
           >
             <AgDataGrid
+              gridId="frameOut"
               columnSizing="fit"
               columns={FRAME_COLUMNS_OUT}
               data={displayOut}

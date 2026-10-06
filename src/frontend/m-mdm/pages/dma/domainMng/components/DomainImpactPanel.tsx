@@ -45,18 +45,20 @@ export interface DomainImpactPanelProps {
   impact: ImpactTable | null | undefined;
   classification: string | undefined;
   diff: DiffRow[];
+  /** 그리드 이름의 바탕 — 영향도 표는 `gridId`, diff 표는 `{gridId}Diff`. 같은 화면에 두 번 뜨면(부모 연결 모달) 구분 값을 넘긴다. */
+  gridId?: string;
 }
 
-export function DomainImpactPanel({ impact, classification, diff }: DomainImpactPanelProps) {
+export function DomainImpactPanel({ impact, classification, diff, gridId = "impact" }: DomainImpactPanelProps) {
   const impactData = useMemo(() => impactRows(impact), [impact]);
   return (
     <div className="domain-mng__impact">
-      <AgDataGrid columnSizing="fit" columns={IMPACT_COLUMNS} data={impactData} rowKey="ID" height={200}
+      <AgDataGrid gridId={gridId} columnSizing="fit" columns={IMPACT_COLUMNS} data={impactData} rowKey="ID" height={200}
         emptyMessage="도메인을 선택하면 영향도가 보입니다" />
       <p style={sectionTitle}>
         변경 분류: <span className="domain-mng__classification">{classificationLabel(classification)}</span>
       </p>
-      <AgDataGrid columnSizing="fit" columns={DIFF_COLUMNS} data={diff as unknown as Record<string, unknown>[]} rowKey="FIELD" height={160}
+      <AgDataGrid gridId={`${gridId}Diff`} columnSizing="fit" columns={DIFF_COLUMNS} data={diff as unknown as Record<string, unknown>[]} rowKey="FIELD" height={160}
         emptyMessage="변경 내역이 없습니다(도메인검증 후 표시)" />
     </div>
   );

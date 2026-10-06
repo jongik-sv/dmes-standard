@@ -224,7 +224,7 @@ export function CategoryTab({ cate, loaded, editable, canEdit, rowVersion, lvlCn
             {/* `cate-list` — 카테고리 그리드 그 자체. 옛 좌측 목록 패널이 그려내던 자리를 이어받는다
                 (행 testid 인 `cate-row-{cateId}` 를 안쪽에서 낸다). */}
             <div data-testid="cate-list" style={{ flex: 1, minHeight: 0 }}>
-            <AgDataGrid
+            <AgDataGrid gridId="categories"
               columns={categoryColumns}
               data={cate.rows as unknown as Record<string, unknown>[]}
               rowKey="cateId"
@@ -260,7 +260,7 @@ export function CategoryTab({ cate, loaded, editable, canEdit, rowVersion, lvlCn
               </span>
             ) : undefined}
           >
-            <AgDataGrid
+            <AgDataGrid gridId="categoryMembers"
               columns={memberColumns}
               data={memberRows as unknown as Record<string, unknown>[]}
               rowKey="code"

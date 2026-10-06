@@ -44,7 +44,7 @@ export function HeaderItemGrid(props: HeaderItemGridProps) {
         <span style={hint}>오프셋은 이 헤더 안에서 0부터 셉니다. 행을 끌어 순서를 바꿉니다.</span>
       </div>
       <div data-testid="header-items">
-        <AgDataGrid
+        <AgDataGrid gridId="headerItems"
           columnSizing="fit"
           columns={cols}
           data={data}

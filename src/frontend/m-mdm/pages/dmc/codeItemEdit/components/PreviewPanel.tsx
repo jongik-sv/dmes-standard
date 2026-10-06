@@ -93,7 +93,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
         {result && mode === "list" && (
           // 목록·근거 모드는 남은 아래 공간 전체를 쓴다(고정 220px 였음). AgDataGrid 는 부모를 채우므로 이 칸만 채운다.
           <div style={{ height: "100%" }}>
-            <AgDataGrid columns={listColumns} data={listRows} rowKey="code" columnSizing="fit"
+            <AgDataGrid gridId="codePreview" columns={listColumns} data={listRows} rowKey="code" columnSizing="fit"
               emptyMessage="이 버전에 코드가 없습니다." />
           </div>
         )}

@@ -52,7 +52,7 @@ export function BodyItemGrid(props: BodyItemGridProps) {
         <span style={hint}>행을 끌어 순서를 바꿉니다. 오프셋·총 길이는 바로 다시 계산됩니다.</span>
       </div>
       <div data-testid="layout-items">
-        <AgDataGrid
+        <AgDataGrid gridId="bodyItems"
           columnSizing="fit"
           columns={columns}
           data={data}

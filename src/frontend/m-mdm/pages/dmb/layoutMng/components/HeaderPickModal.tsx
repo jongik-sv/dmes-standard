@@ -26,7 +26,7 @@ export function HeaderPickModal({ open, options, used, onPick, onClose }: Header
   return (
     <Modal open={open} title="헤더 추가" size="md" onClose={onClose} footer={<Button onClick={onClose}>닫기</Button>}>
       <div data-testid="header-pick-modal">
-        <AgDataGrid
+        <AgDataGrid gridId="modal-headerPick"
           columnSizing="fit"
           columns={COLUMNS}
           data={rows as unknown as Record<string, unknown>[]}

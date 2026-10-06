@@ -13,6 +13,7 @@ export default function UserTab({ data, busy }: StatTabViewProps) {
       <ContentPanel>
         <GridPanel title="사용자별 이용" count={data.users.length}>
           <AgDataGrid
+            gridId="userUsage"
             rowKey="rowKey"
             columns={USER_COLUMNS}
             data={data.users}

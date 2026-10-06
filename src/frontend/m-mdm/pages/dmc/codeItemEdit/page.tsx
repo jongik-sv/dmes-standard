@@ -518,7 +518,7 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
                       <Button data-testid="code-add" size="sm" disabled={busy} onClick={handleAdd}>코드 추가</Button>
                     ) : undefined}
                   >
-                    <AgDataGrid
+                    <AgDataGrid gridId="codeItems"
                       columns={columns}
                       data={visibleRows}
                       rowKey="__key"

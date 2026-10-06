@@ -30,7 +30,7 @@ export function HeaderUsagePanel({ rows }: { rows: UsedByRow[] }) {
         <span style={{ ...hint, fontWeight: "normal" }}> · 헤더 변경은 확정 apply_from 부터 사용 전문에 반영됩니다(전문 버전은 생기지 않음)</span>
       </p>
       <div>
-        <AgDataGrid
+        <AgDataGrid gridId="headerUsage"
           columnSizing="fit"
           columns={COLUMNS}
           data={keyed as unknown as Record<string, unknown>[]}

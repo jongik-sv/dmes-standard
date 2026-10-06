@@ -48,6 +48,7 @@ export default function HistoryTab({ data, busy }: StatTabViewProps) {
           count={data.history.length}
         >
           <AgDataGrid
+            gridId="usageHistory"
             rowKey="usageId"
             columns={HISTORY_COLUMNS}
             data={data.history}

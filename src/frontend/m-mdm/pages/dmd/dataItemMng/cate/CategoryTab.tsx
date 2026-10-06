@@ -176,7 +176,7 @@ export function CategoryTab({ cate, loaded, editable, canSave, onError, errorSho
                 <Button data-testid="cate-add" size="sm" onClick={() => setAddOpen(true)}>카테고리 추가</Button>
               ) : undefined}
             >
-              <AgDataGrid
+              <AgDataGrid gridId="dataCategories"
                 columns={categoryColumns}
                 data={cate.rows as unknown as Record<string, unknown>[]}
                 rowKey="cateId"
@@ -216,7 +216,7 @@ export function CategoryTab({ cate, loaded, editable, canSave, onError, errorSho
               </span>
             ) : undefined}
           >
-            <AgDataGrid
+            <AgDataGrid gridId="categoryMembers"
               columns={memberColumns}
               data={memberRows as unknown as Record<string, unknown>[]}
               rowKey="code"

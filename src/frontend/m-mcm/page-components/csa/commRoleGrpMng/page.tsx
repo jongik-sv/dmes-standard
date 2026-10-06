@@ -782,6 +782,7 @@ export default function CommRoleGrpMngPage() {
                 loading={isSaving}
               >
                 <AgDataGrid
+                  gridId="roleGrpList"
                   columnSizing="fit"
                   columns={ROLEGRP_COLUMNS}
                   data={rows}
@@ -945,6 +946,7 @@ export default function CommRoleGrpMngPage() {
                 columns={ROLEMAP_COLUMNS}
               >
                 <AgDataGrid
+                  gridId="currentRole"
                   columnSizing="fit"
                   columns={ROLEMAP_COLUMNS}
                   data={roleMapRows}
@@ -1007,6 +1009,7 @@ export default function CommRoleGrpMngPage() {
                   </div>
                 </div>
                 <AgDataGrid
+                  gridId="allRole"
                   columnSizing="fit"
                   columns={ROLE_COLUMNS}
                   data={filteredRoleRows}

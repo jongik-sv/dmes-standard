@@ -937,6 +937,7 @@ export default function CommRoleMngPage() {
               loading={isSaving}
             >
               <AgDataGrid
+                gridId="roleList"
                 columnSizing="fit"
                 columns={ROLE_COLUMNS}
                 data={rows}
@@ -1159,6 +1160,7 @@ export default function CommRoleMngPage() {
                 </div>
               </div>
               <AgDataGrid
+                gridId="roleButtonPerm"
                 columnSizing="fit"
                 columns={ROLE_MAP_COLUMNS}
                 data={filteredRoleMapRows}
@@ -1198,6 +1200,7 @@ export default function CommRoleMngPage() {
               columns={OBJECT_COLUMNS}
             >
               <AgDataGrid
+                gridId="grantObject"
                 columnSizing="fit"
                 columns={OBJECT_COLUMNS}
                 data={filteredObjectRows}
@@ -1249,6 +1252,7 @@ export default function CommRoleMngPage() {
               columns={PERM_COLUMNS}
             >
               <AgDataGrid
+                gridId="grantPerm"
                 columnSizing="fit"
                 columns={PERM_COLUMNS}
                 data={filteredPermRows}

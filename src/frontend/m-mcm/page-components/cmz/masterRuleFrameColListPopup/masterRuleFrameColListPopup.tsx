@@ -215,6 +215,7 @@ export function MasterRuleFrameColListPopupModal({ open, ruleId, ruleNm, onSaved
         {/* A-GRID — 9 컬럼 편집 그리드 */}
         <div style={{ flex: 1, minHeight: 0 }}>
           <AgDataGrid
+            gridId="modal-frameColList"
             columnSizing="fit"
             columns={COL_LIST_COLUMNS}
             data={displayRows}

@@ -13,6 +13,7 @@ export default function ScreenTab({ data, busy }: StatTabViewProps) {
       <ContentPanel>
         <GridPanel title="화면별 이용" count={data.screens.length}>
           <AgDataGrid
+            gridId="screenUsage"
             rowKey="pageId"
             columns={SCREEN_COLUMNS}
             data={data.screens}

@@ -227,7 +227,7 @@ export default function TermMngPage() {
               />
             }
           >
-            <AgDataGrid
+            <AgDataGrid gridId="termList"
               columnSizing="fit"
               columns={TERM_COLUMNS}
               data={gridRows}

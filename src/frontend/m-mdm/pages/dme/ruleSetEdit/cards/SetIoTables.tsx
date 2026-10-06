@@ -4,7 +4,8 @@
  * 세트 입출력 표(TSK-08-06 design §6.2·§6.9) — 입력 변수 표와 결과 변수 표. 흐름을 펼친 룰 순서에서 `flowIo` 로 계산하고 저장하지 않는다(I10).
  * 결과 변수는 최종 먼저, 그다음 중간이다. 2단계부터 캔버스 오른쪽 패널(기본 폭 360)에 놓이므로 열 폭을 좁게 잡는다.
  */
-import { useMemo, type CSSProperties, type ReactNode } from "react";
+import { useContext, useMemo, type CSSProperties, type ReactNode } from "react";
+import { EditorActiveContext } from "../tabs-context";
 
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { badgeStyle } from "@/shell";
@@ -113,6 +114,7 @@ const RESULT_COLUMNS: GridColumn[] = uiCols([
 ]);
 
 export function SetIoTables({ io }: { io: SetIo }) {
+  const active = useContext(EditorActiveContext);
   const finals = io.results.filter(isFinalResult);
   const middles = io.results.filter((r) => !isFinalResult(r));
   const inputRows = useMemo(
@@ -148,7 +150,7 @@ export function SetIoTables({ io }: { io: SetIo }) {
 
       <div data-testid="set-io-inputs">
         <Caption>{`입력 변수 ${io.inputs.length}개 · 세트를 부를 때 레코드에 넣어야 하는 값`}</Caption>
-        <AgDataGrid
+        <AgDataGrid gridId="setInputs" personalize={active ? undefined : false}
           columns={INPUT_COLUMNS}
           data={inputRows}
           rowKey="name"
@@ -162,7 +164,7 @@ export function SetIoTables({ io }: { io: SetIo }) {
 
       <div data-testid="set-io-results">
         <Caption>{`결과 변수 ${io.results.length}개 · 최종 ${finals.length}개, 중간 ${middles.length}개`}</Caption>
-        <AgDataGrid
+        <AgDataGrid gridId="setResults" personalize={active ? undefined : false}
           columns={RESULT_COLUMNS}
           data={resultRows}
           rowKey="name"

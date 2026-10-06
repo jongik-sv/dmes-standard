@@ -594,7 +594,7 @@ export default function LayoutMngPage() {
         </ContentPanel>
       </ContentBody>
 
-      <ColumnPickModal open={picker === "column"} onClose={() => setPicker("none")} onPick={addColumn} search={searchColumns}
+      <ColumnPickModal gridId="modal-columnPick" open={picker === "column"} onClose={() => setPicker("none")} onPick={addColumn} search={searchColumns}
         used={body.map((r) => r.COLUMN_PHYS).filter((p): p is string => !!p)} />
       <HeaderPickModal open={picker === "header"} options={catalog ?? []} used={stack.map((h) => h.HEADER_LAYOUT_ID)}
         onClose={() => setPicker("none")}

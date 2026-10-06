@@ -203,7 +203,7 @@ export default function UnitMngPage() {
       <ContentBody root resizable storageKey="mdm.dma.unitMng">
         <ContentPanel>
           <GridPanel title="단위 목록" count={rows.length}>
-            <AgDataGrid
+            <AgDataGrid gridId="unitList"
               columnSizing="fit"
               columns={UNIT_COLUMNS}
               data={gridRows}

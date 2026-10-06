@@ -13,6 +13,7 @@ export default function UnusedTab({ data, busy }: StatTabViewProps) {
       <ContentPanel>
         <GridPanel title="미사용 화면" count={data.unused.length}>
           <AgDataGrid
+            gridId="unusedScreen"
             rowKey="pageId"
             columns={UNUSED_COLUMNS}
             data={data.unused}

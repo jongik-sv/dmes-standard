@@ -431,6 +431,7 @@ export default function CommUserRoleCopyPage() {
         <ContentPanel width={310}>
           <GridPanel title="권한 부여자 (source)" count={copyUser.length} loading={isSearching}>
             <AgDataGrid
+              gridId="copySourceUser"
               columnSizing="fit"
               columns={COPY_USER_COLUMNS}
               data={copyUser as Record<string, unknown>[]}
@@ -440,6 +441,7 @@ export default function CommUserRoleCopyPage() {
           </GridPanel>
           <GridPanel title="부여 권한 (source 보유)" count={copyRolegrp.length}>
             <AgDataGrid
+              gridId="copySourceRoleGrp"
               columnSizing="fit"
               columns={COPY_ROLEGRP_COLUMNS}
               data={copyRolegrp as Record<string, unknown>[]}
@@ -458,6 +460,7 @@ export default function CommUserRoleCopyPage() {
                 옮긴 사용자 전체 = 복사 대상이므로 선택 불필요 (사용자 명시).
                 selectable / multiSelect / onRowSelect 모두 제거 — selectable 기본값 false. */}
             <AgDataGrid
+              gridId="copyTargetUser"
               columnSizing="fit"
               columns={USER_TO_COLUMNS}
               data={userTo as Record<string, unknown>[]}
@@ -534,6 +537,7 @@ export default function CommUserRoleCopyPage() {
             {/* D-2 fix: selectable+multiSelect → 헤더 native 전체선택 + 행 체크박스
                 (As-Is commonLeftButton 의 CHK 전체선택 등가물) */}
             <AgDataGrid
+              gridId="copyTargetList"
               columnSizing="fit"
               columns={USER_FROM_COLUMNS}
               data={filteredUserFrom as Record<string, unknown>[]}

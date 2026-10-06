@@ -369,7 +369,7 @@ export default function DataMngPage({ tabId }: DataMngPageProps) {
                   },
                 ]}
               >
-                <AgDataGrid
+                <AgDataGrid gridId="dataList"
                   columnSizing="fit"
                   columns={columns}
                   data={rows as unknown as Record<string, unknown>[]}

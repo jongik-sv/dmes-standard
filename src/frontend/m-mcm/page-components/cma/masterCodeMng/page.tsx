@@ -897,6 +897,7 @@ export default function MasterCodeMngPage() {
                 loading={isSaving}
               >
                 <AgDataGrid
+                  gridId="masterCode"
                   columnSizing="fit"
                   columns={masterColumns}
                   data={masterRows}
@@ -979,6 +980,7 @@ highlightedRowKey={selectedMasterKey}
                 }
               >
                 <AgDataGrid
+                  gridId="masterDetail"
                   columnSizing="fit"
                   columns={detailColumns}
                   data={filteredDetailRows}

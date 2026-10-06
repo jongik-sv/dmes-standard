@@ -126,7 +126,7 @@ export function ConvertCalculator({ unitOptions, selectedUnitCode, onError }: Co
         </tbody>
       </table>
       {targets.length > 0 && (
-        <AgDataGrid
+        <AgDataGrid gridId="convertResult"
           height="auto"
           columnSizing="fit"
           columns={RESULT_COLUMNS}

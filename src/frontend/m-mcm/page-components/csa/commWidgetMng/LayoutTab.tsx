@@ -336,6 +336,7 @@ export function LayoutTab() {
             buttons={[{ id: "btn_dept_add", label: "부서 추가", onClick: () => setPickerOpen(true) }]}
           >
             <AgDataGrid
+              gridId="layoutList"
               rowKey="layoutKey"
               columns={LIST_COLUMNS}
               data={rows}

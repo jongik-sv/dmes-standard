@@ -468,7 +468,7 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
                   { id: "btn_code_reg", label: "코드 등록", onClick: () => setIsRegOpen(true), disabled: !canReg || busy || listLoading },
                 ]}
               >
-                <AgDataGrid
+                <AgDataGrid gridId="codeList"
                   columnSizing="fit"
                   columns={columns}
                   data={rows as unknown as Record<string, unknown>[]}

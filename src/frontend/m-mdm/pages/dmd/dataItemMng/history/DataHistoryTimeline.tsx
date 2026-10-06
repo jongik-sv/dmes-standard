@@ -35,6 +35,8 @@ import {
 
 export interface DataHistoryTimelineProps {
   result: DataHistoryResult | null;
+  /** 그리드 이름 — 부모가 둘이라 호출처가 구분 값을 넘긴다(기본 항목 이력). */
+  gridId?: string;
 }
 
 const ROW_TONE: Record<HistoryRowState, MdmBadgeTone> = { OPEN: "success", PAST: "neutral", CLOSED: "muted" };
@@ -173,7 +175,7 @@ export function timelineColumns(target: HistoryTarget, header: DataHistoryResult
   return cols;
 }
 
-export function DataHistoryTimeline({ result }: DataHistoryTimelineProps) {
+export function DataHistoryTimeline({ result, gridId = "itemHistory" }: DataHistoryTimelineProps) {
   const target: HistoryTarget = result?.target ?? "ITEM";
   const header = result?.header ?? null;
 
@@ -208,7 +210,7 @@ export function DataHistoryTimeline({ result }: DataHistoryTimelineProps) {
         </span>
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
-        <AgDataGrid
+        <AgDataGrid gridId={gridId}
           columns={columns}
           data={gridRows}
           rowKey="rowId"

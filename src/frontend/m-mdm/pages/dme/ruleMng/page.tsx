@@ -278,7 +278,7 @@ export default function RuleMngPage() {
               },
             ]}
           >
-            <AgDataGrid
+            <AgDataGrid gridId="ruleList" personalize={{ sort: false }}
               columnSizing="fit"
               columns={columns}
               data={gridRows}

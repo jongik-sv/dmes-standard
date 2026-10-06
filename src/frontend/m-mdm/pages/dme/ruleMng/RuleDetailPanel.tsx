@@ -382,7 +382,7 @@ export function RuleDetailPanel({ view, reload, canDo, busy: pageBusy, onError, 
           </Button>
         </div>
         <div data-testid="rule-version-table">
-          <AgDataGrid
+          <AgDataGrid gridId="ruleVersions"
             columns={versionColumns}
             data={versionRows}
             rowKey="ver"

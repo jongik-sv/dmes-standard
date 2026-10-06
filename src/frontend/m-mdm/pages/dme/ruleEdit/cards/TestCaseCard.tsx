@@ -494,7 +494,7 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
         </span>
       }
     >
-      <AgDataGrid
+      <AgDataGrid gridId="testCases"
         columns={columns}
         data={rows as unknown as Record<string, unknown>[]}
         rowKey="caseId"

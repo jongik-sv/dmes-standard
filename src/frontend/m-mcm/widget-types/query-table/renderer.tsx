@@ -41,6 +41,7 @@ export default function QueryTableRenderer({ definition, widgetId, refreshKey, t
       <QueryShell condition={condition}>
         {data && (
           <AgDataGrid
+            personalize={false}
             rowKey={TABLE_ROW_KEY}
             columns={columns}
             data={rows}

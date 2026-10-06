@@ -345,7 +345,7 @@ const SystemFieldsGrid = memo(function SystemFieldsGrid({
           onSelect(null);
         }}
       >
-        <AgDataGrid
+        <AgDataGrid gridId="systemFields"
           columnSizing="fit"
           columns={columns}
           data={rows}

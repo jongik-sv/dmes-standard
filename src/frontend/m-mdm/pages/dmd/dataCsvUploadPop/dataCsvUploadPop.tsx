@@ -189,7 +189,7 @@ export function DataCsvUploadPopModal({
 
         {result && (
           <div data-testid="csv-pop-rows" style={{ height: 260 }}>
-            <AgDataGrid
+            <AgDataGrid gridId="modal-csvUploadResult"
               columnSizing="fit"
               columns={columns}
               data={rows as unknown as Record<string, unknown>[]}

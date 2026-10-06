@@ -416,6 +416,8 @@ export default function MasterRuleDataPage() {
             ]}
           >
             <AgDataGrid
+              gridId="ruleData"
+              personalize={{ sort: false }}
               columnSizing="fit"
               columns={gridColumns}
               data={rows}

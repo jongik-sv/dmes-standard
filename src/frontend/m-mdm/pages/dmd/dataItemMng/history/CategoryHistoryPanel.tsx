@@ -76,7 +76,7 @@ export function CategoryHistoryPanel({ maruDataId, cateId, refreshToken, onError
         <p data-testid="cate-history-loading" style={hint}>이력을 읽는 중...</p>
       ) : (
         <div style={{ flex: 1, minHeight: 0 }}>
-          <DataHistoryTimeline result={result} />
+          <DataHistoryTimeline result={result} gridId="categoryHistory" />
         </div>
       )}
     </div>

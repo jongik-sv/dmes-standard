@@ -240,7 +240,7 @@ export function TermRegPopModal({
       >
         <p style={sectionTitleStyle}>1. 유사어 확인</p>
         <div data-testid="term-pop-similar" style={{ height: 180 }}>
-          <AgDataGrid
+          <AgDataGrid gridId="modal-similarTerms"
             columnSizing="fit"
             columns={similarColumns}
             data={similarRows}

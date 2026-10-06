@@ -429,6 +429,7 @@ export function MasterCodeUploadFilePopupDialog({
 
           {/* As-Is div_main / grd_Upload (xfdl:7-87) — 6 컬럼 미리보기 (디자인 §4.1, 편집 ✗) */}
           <AgDataGrid
+            gridId="modal-uploadPreview"
             columns={GRID_COLS}
             data={gridData}
             rowKey="__idx"

@@ -55,7 +55,7 @@ export function DomainTestCaseGrid({ cases, results, readOnly, showVars, onChang
   ]), [readOnly, showVars, onChange]);
   return (
     <div>
-      <AgDataGrid
+      <AgDataGrid gridId="testCases"
         columnSizing="fit"
         columns={columns}
         data={rows}

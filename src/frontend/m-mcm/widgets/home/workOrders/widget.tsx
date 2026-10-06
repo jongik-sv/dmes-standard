@@ -55,6 +55,7 @@ export default function WorkOrdersWidget({ title }: WidgetProps) {
         <span className="mcm-home-sub">{WORK_ORDER_SUMMARY}</span>
       </WidgetTitleExtra>
       <AgDataGrid
+        personalize={false}
         rowKey="woNo"
         columns={WORK_ORDER_COLUMNS}
         data={WORK_ORDER_DATA}

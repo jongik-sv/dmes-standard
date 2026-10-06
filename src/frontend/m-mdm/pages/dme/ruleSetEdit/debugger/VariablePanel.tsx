@@ -14,7 +14,8 @@
  * - 식 평가: Enter 로 서버 파싱 → 화면 평가(`useExprEval`). `validate` 권한이 없으면 칸이 꺼진다(P-D1).
  * 기록이 없으면 변수 표·식 평가 자리에 "실행하면 커서 시점 값이 보인다". 낡은 기록(P-D9)도 옛 기록 기준으로 보인다(툴바가 배지를 보인다).
  */
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { EditorActiveContext } from "../tabs-context";
 
 import { IconArrowBackUp, IconEraser, IconPin, IconPinFilled, IconPlus, IconX } from "@tabler/icons-react";
 
@@ -152,6 +153,7 @@ function clickedColumn(ev: Event): string | null {
 }
 
 export function VariablePanel({ sim, setId, flow, rules, selectedId, canParse, onOpenRule, onEnterSet, calls = NO_CALLS }: VariablePanelProps) {
+  const active = useContext(EditorActiveContext);
   const last = sim.last;
 
   // ── 조사식 ──
@@ -305,7 +307,7 @@ export function VariablePanel({ sim, setId, flow, rules, selectedId, canParse, o
         {last ? (
           <>
             <div data-testid="var-grid" className="rsf-var-grid">
-              <AgDataGrid
+              <AgDataGrid gridId="debugVariables" personalize={active ? undefined : false}
                 columns={columns}
                 data={rows}
                 rowKey="name"

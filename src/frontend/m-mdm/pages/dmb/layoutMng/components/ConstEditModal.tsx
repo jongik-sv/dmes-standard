@@ -78,7 +78,7 @@ export function ConstEditModal({ header, readOnly, onApply, onClose }: ConstEdit
     >
       <div data-testid="const-edit-modal">
         <p style={hint}>헤더 템플릿이 기본값을 제안하고 이 전문이 상수를 확정합니다. AUTO 는 송신 시점에 채워져 여기 나오지 않습니다.</p>
-        <AgDataGrid
+        <AgDataGrid gridId="modal-constEdit"
           columnSizing="fit"
           columns={columns}
           data={rows}

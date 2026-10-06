@@ -267,6 +267,7 @@ export function MasterRuleDataUploadFilePopupModal({ open, ruleId, ruleNm, onClo
           {/* R-004 grd_Upload — Excel import 미리보기 (동적 컬럼, 읽기 전용) */}
           <div style={{ flex: 1, minHeight: 0 }}>
             <AgDataGrid
+              gridId="modal-uploadPreview"
               columnSizing="fit"
               columns={gridColumns}
               data={rows}

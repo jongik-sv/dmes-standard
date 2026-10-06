@@ -324,7 +324,7 @@ export function CodeVersionCard({
         </p>
       ) : null}
       <div data-testid="version-list" style={{ padding: "0 var(--spacing-md)", height: VERSION_GRID_HEIGHT }}>
-        <AgDataGrid
+        <AgDataGrid gridId="codeVersions"
           columnSizing="fit"
           columns={columns}
           data={view.versions as unknown as Record<string, unknown>[]}

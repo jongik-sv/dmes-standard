@@ -58,7 +58,7 @@ export function VersionPanel({ versions, selectedVersion, onSelectVersion, snaps
     <div>
       <p style={{ ...sectionTitle, padding: "var(--spacing-xs) 0" }}>{`버전 이력 ${versions.length}건`}</p>
       <div data-testid="version-list">
-        <AgDataGrid
+        <AgDataGrid gridId="versionHistory"
           columnSizing="fit"
           columns={COLUMNS}
           data={rows as unknown as Record<string, unknown>[]}
@@ -72,7 +72,7 @@ export function VersionPanel({ versions, selectedVersion, onSelectVersion, snaps
       </div>
       <p style={{ ...sectionTitle, padding: "var(--spacing-xs) 0" }}>변경 분류</p>
       <div data-testid="change-class-table">
-        <AgDataGrid
+        <AgDataGrid gridId="changeClass"
           columnSizing="fit"
           columns={CHANGE_CLASS_COLUMNS}
           data={CHANGE_CLASS_TABLE as unknown as Record<string, unknown>[]}
