@@ -174,6 +174,10 @@
       "types": "./dist/types/widget/index.d.ts",
       "import": "./dist/widget.js"
     },
+    "./screen-context": {
+      "types": "./dist/types/screen-context/index.d.ts",
+      "import": "./dist/screen-context.js"
+    },
     "./oasis": {
       "types": "./dist/types/oasis/index.d.ts",
       "import": "./dist/oasis.js"

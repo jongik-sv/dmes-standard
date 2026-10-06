@@ -43,6 +43,7 @@ export default defineConfig((options) => ({
     "transfer-list": "src/components/transfer-list/index.ts",
     dashboard: "src/components/dashboard/index.ts",
     widget: "src/widget/index.ts",
+    "screen-context": "src/screen-context/index.ts",
     oasis: "src/oasis/index.ts",
     "oasis-proxy": "src/oasis-proxy/index.ts",
     lib: "src/lib/index.ts",

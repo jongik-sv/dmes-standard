@@ -54,10 +54,17 @@ $OFF lane-up a1 >"$tmp/o" 2>"$tmp/e"
 eq "lane-up: 종료 코드 0·무출력" "$(wc -c < "$tmp/o" | tr -d ' ')$(wc -c < "$tmp/e" | tr -d ' ')" "00"
 s="$(lastsum a1)"
 eq "summary 칸 이름" "$(printf '%s' "$s" | jq -r 'keys_unsorted | join(",")')" \
-  "v,lane,state,brief,items_done,items_total,hold,branch,last_report_at,last_instr_at,ctx_pct,compact_pending"
+  "v,lane,state,brief,items_done,items_total,hold,branch,last_report_at,last_instr_at,ctx_pct,compact_pending,lead"
 eq "summary 값(v·lane·state·items·hold·branch)" "$(printf '%s' "$s" | jq -c '[.v,.lane,.state,.items_done,.items_total,.hold,.branch]')" '[1,"a1","active",2,3,null,"feat/a1"]'
 eq "summary brief: 탭·줄바꿈은 공백, 제어 문자는 삭제" "$(printf '%s' "$s" | jq -r .brief)" "요약 탭 줄바꿈벨끝"
 eq "summary 시각: 시간대 있으면 그대로, 없으면 null" "$(printf '%s' "$s" | jq -c '[.last_report_at,.last_instr_at]')" '["2026-10-06T10:00:00+09:00",null]'
+eq "summary lead = 이 회차 조정 팀장 키(coord:<세션8>)의 세션8" "$(printf '%s' "$s" | jq -r .lead)" "$S8"
+sid_old="$($CS get '.run.coordinator.session_id')"
+$CS set '.run.coordinator.session_id' '""' >/dev/null; $CS set '.run.coordinator.pid' 0 >/dev/null; $CS set '.run.id' '""' >/dev/null
+reset; $OFF lane-up a1 >/dev/null 2>&1
+eq "summary lead: 세션 id·pid·회차 id 를 모두 모르면 칸을 뺀다" "$(lastsum a1 | jq -c 'has("lead")')" false
+$CS set '.run.id' '"t1"' >/dev/null; $CS set '.run.coordinator.session_id' "$(jq -nc --arg s "$sid_old" '$s')" >/dev/null
+reset; $OFF lane-up a1 >/dev/null 2>&1
 eq "summary ctx_pct 정수·compact_pending" "$(printf '%s' "$s" | jq -c '[.ctx_pct,.compact_pending]')" '[41,true]'
 eq "summary 에 핸들·pid·세션 id·경로·memo 없음" "$(printf '%s' "$s" | grep -c 'term-handle\|43210\|sess-secret\|/Users\|secret\|memo')" 0
 eq "lane-up: 입력 요청 기록이 없으면 --input-request-json null" "$(pick '임시:a1' | tail -1 | argof --input-request-json)" null
