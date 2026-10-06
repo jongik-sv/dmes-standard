@@ -215,4 +215,77 @@ describe("AgDataGrid 위젯 값 받기(acceptScreenApply)", () => {
     root = createRoot(container);
     expect(screenApplyStore.has("t1")).toBe(false);
   });
+
+  const typedData = [
+    { id: 1, num: null, txt: "가", flag: false, hid: "h", other: "x" },
+    { id: 2, num: 5, txt: "나", flag: true, hid: "h", other: "y" },
+  ];
+  const typedColumns = [
+    { key: "id", header: "ID" },
+    { key: "num", header: "수", editable: true, cellEditor: "number" },
+    { key: "txt", header: "글", editable: true },
+    { key: "flag", header: "여부", editable: true },
+    { key: "hid", header: "숨김", editable: true, hide: true },
+    { key: "other", header: "다름" },
+  ];
+  /** 위젯이 값을 보낸다. ag-grid 가 cellValueChanged 를 비동기로 내므로 act 안에서 기다린 뒤 돌려준다. */
+  async function sendApply(values: Record<string, string | number | null>) {
+    let result: { applied: string[]; skipped: string[] } | null = null;
+    await act(async () => {
+      result = await screenApplyStore.apply("t1", values);
+    });
+    await settle();
+    return result;
+  }
+  const typedProps = { columns: typedColumns, data: typedData, selectable: true, enableRowClickSelect: true, acceptScreenApply: true };
+
+  it("빈 숫자 칸에 숫자 문자열을 숫자로 넣고, 글자 칸에 숫자를 글자로, 여부 칸에 true 문자열을 불리언으로 넣는다", async () => {
+    const changes: Array<[string, unknown]> = [];
+    await render({ ...typedProps, onCellValueChanged: (p: { field: string; newValue: unknown }) => changes.push([p.field, p.newValue]) });
+    await clickRow("1");
+    const result = await sendApply({ NUM: "12", txt: 5, flag: "true" });
+    expect(result).toEqual({ applied: ["NUM", "txt", "flag"], skipped: [] });
+    expect(changes).toEqual([
+      ["num", 12],
+      ["txt", "5"],
+      ["flag", true],
+    ]);
+  });
+
+  it("형이 맞지 않아 칸이 받지 않는 값은 넣었다고 알리지 않는다", async () => {
+    const changes: unknown[] = [];
+    await render({ ...typedProps, onCellValueChanged: (p: unknown) => changes.push(p) });
+    await clickRow("1");
+    const result = await sendApply({ num: "abc", flag: "예" });
+    expect(result).toEqual({ applied: [], skipped: ["num", "flag"] });
+    expect(changes).toEqual([]);
+  });
+
+  it("숨긴 열과 같은 칸을 가리키는 두 번째 키는 넣지 않는다", async () => {
+    const changes: Array<[string, unknown]> = [];
+    await render({ ...typedProps, onCellValueChanged: (p: { field: string; newValue: unknown }) => changes.push([p.field, p.newValue]) });
+    await clickRow("1");
+    const result = await sendApply({ hid: "z", txt: "첫째", TXT: "둘째" });
+    expect(result).toEqual({ applied: ["txt"], skipped: ["hid", "TXT"] });
+    expect(changes).toEqual([["txt", "첫째"]]);
+  });
+
+  it("publishScreenContext 를 도중에 끄면 이미 낸 문맥을 거둔다", async () => {
+    await render({ selectable: true, enableRowClickSelect: true });
+    await clickRow("2");
+    expect(screenContextStore.get("t1")).not.toBeNull();
+    await render({ selectable: true, enableRowClickSelect: true, publishScreenContext: false });
+    expect(screenContextStore.get("t1")).toBeNull();
+  });
+
+  it("행마다 선택 이벤트가 오는 전체 선택은 한 번으로 모아 게시한다", async () => {
+    const many = Array.from({ length: 60 }, (_, i) => ({ id: i + 1, name: `행${i + 1}`, COIL_WIDTH: i, note: null }));
+    await render({ selectable: true, multiSelect: true, data: many, selectedRows: [] });
+    let emits = 0;
+    const off = screenContextStore.subscribe(() => emits++);
+    await render({ selectable: true, multiSelect: true, data: many, selectedRows: many.map((r) => String(r.id)) });
+    off();
+    expect(emits).toBe(1);
+    expect(screenContextStore.get("t1")?.values.name).toBe("행60");
+  });
 });

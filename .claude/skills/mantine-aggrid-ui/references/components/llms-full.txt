@@ -4265,7 +4265,7 @@ useScreenApplyHandler(async (values) => {
 });
 ```
 
-그리드는 prop `acceptScreenApply` 로 켠다(**기본 끔** — 데이터를 바꾸므로). 켜면 선택 행(없으면 포커스 행)의 **편집 가능한 열** 중 field 가 맞는 칸에 값을 넣고, 편집 불가·없는 키는 skipped 다. 사용자가 칸을 고친 것과 같은 경로(행 수정 표시·`onCellValueChanged`)를 탄다. 숫자 칸에 숫자 문자열이 오면 숫자로 바꿔 넣는다.
+그리드는 prop `acceptScreenApply` 로 켠다(**기본 끔** — 데이터를 바꾸므로). 켜면 선택 행(없으면 포커스 행)의 **편집 가능한 열** 중 field 가 맞는 칸에 값을 넣고, 편집 불가·없는 키는 skipped 다. 사용자가 칸을 고친 것과 같은 경로(행 수정 표시·`onCellValueChanged`)를 탄다. 값은 칸의 데이터 형(`cellDataType`, 숫자 편집기 칸은 number)에 맞춰 바꿔 넣고(숫자 문자열→숫자, 숫자→글자, `"true"`·`"false"`→불리언), 바꿀 수 없거나 ag-grid 가 받지 않은 값은 skipped 다. **숨긴 열**·같은 칸을 가리키는 두 번째 키·대화 상자 안 그리드도 skipped 다(게시는 숨긴 열 값도 포함한다). 처리기가 예외를 던지면 저장소가 잡아 모든 키를 skipped 로 돌려준다.
 
 ```tsx
 <AgDataGrid columns={columns} data={rows} selectable acceptScreenApply onCellValueChanged={handleCellValueChanged} />

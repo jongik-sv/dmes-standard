@@ -292,7 +292,9 @@ function AgDataGridComponent({
   const onSelectionChangedWithCtx = useCallback(
     (event: SelectionChangedEvent) => {
       handleSelectionChanged(event);
-      screenCtx.onUserPick();
+      // 새 데이터를 받으며 옛 선택이 사라지는 변경은 사용자 조작이 아니라 데이터 갱신이다(다른 그리드의 문맥을 빼앗지 않는다).
+      if (event.source === "rowDataChanged" || event.source === "gridInitializing") screenCtx.onDataChange();
+      else screenCtx.onUserPick();
     },
     [handleSelectionChanged, screenCtx]
   );

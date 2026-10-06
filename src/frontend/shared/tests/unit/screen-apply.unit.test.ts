@@ -53,6 +53,17 @@ describe("screenApplyStore", () => {
     expect(screenApplyStore.has("t1")).toBe(false);
   });
 
+  it("처리기가 던지면 위젯까지 올리지 않고 모두 skipped 로 돌려준다", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const off = screenApplyStore.register("t1", "o1", () => {
+      throw new Error("boom");
+    });
+    expect(await screenApplyStore.apply("t1", { a: 1, b: 2 })).toEqual({ applied: [], skipped: ["a", "b"] });
+    expect(spy).toHaveBeenCalled();
+    off();
+    spy.mockRestore();
+  });
+
   it("처음 등록·마지막 해제 때만 구독자를 부른다", () => {
     const l = vi.fn();
     const off = screenApplyStore.subscribe(l);

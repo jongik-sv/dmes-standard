@@ -80,15 +80,40 @@ export function usePublishScreenContext(
 ): void {
   const { source = "form", enabled = true } = opts;
   const { publish, clear } = useScreenContextPublisher();
+  const { tabId, pageId } = useTabPage();
   const active = enabled && values != null;
+  // 마지막으로 게시한 내용을 기억해 내용이 바뀔 때만 다시 게시한다. 같은 내용을 렌더마다 다시 게시하면, 그 사이 다른 게시자(그리드의 행 선택)가
+  // 가져간 소유권을 값이 같다는 이유로 되가져와 그리드의 후속 갱신·받기 우선권을 깬다.
+  const lastRef = useRef<{ key: string; source: string; values: Record<string, ScreenContextValue> } | null>(null);
+  const key = screenContextKey(tabId, pageId);
+  // 효과 정리(탭 바뀜·언마운트·StrictMode 의 모의 언마운트)로 저장소 쪽 문맥이 거둬지므로 기억도 함께 지워 다시 게시하게 한다.
+  useEffect(
+    () => () => {
+      lastRef.current = null;
+    },
+    [key]
+  );
   useEffect(() => {
-    if (!active) return;
-    publish(values as Record<string, ScreenContextValue>, source);
-    // values 객체 참조가 아니라 내용으로 비교한다 — 저장소가 같은 값 게시를 걸러낸다.
+    if (!active) {
+      lastRef.current = null;
+      return;
+    }
+    const last = lastRef.current;
+    const v = values as Record<string, ScreenContextValue>;
+    if (last && last.key === key && last.source === source && shallowEqualValues(last.values, v)) return;
+    lastRef.current = { key, source, values: { ...v } };
+    publish(v, source);
   });
   useEffect(() => {
     if (!active) clear();
   }, [active, clear]);
+}
+
+function shallowEqualValues(a: Record<string, ScreenContextValue>, b: Record<string, ScreenContextValue>): boolean {
+  const ak = Object.keys(a);
+  if (ak.length !== Object.keys(b).length) return false;
+  for (const k of ak) if (!Object.prototype.hasOwnProperty.call(b, k) || a[k] !== b[k]) return false;
+  return true;
 }
 
 /**

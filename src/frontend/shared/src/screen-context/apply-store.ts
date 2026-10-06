@@ -47,7 +47,13 @@ function createScreenApplyStore(): ScreenApplyStore {
       if (!byOwner || byOwner.size === 0) return { applied: [], skipped: Object.keys(values) };
       const preferred = screenContextStore.ownerOf(key);
       const handler = (preferred != null ? byOwner.get(preferred) : undefined) ?? Array.from(byOwner.values()).pop()!;
-      return handler(values, opts);
+      // 처리기가 던져도 위젯까지 올리지 않는다(받은 키는 모두 넣지 못한 것으로 돌려준다).
+      try {
+        return await handler(values, opts);
+      } catch (e) {
+        console.error("[screen-context] 받기 처리기 오류", e);
+        return { applied: [], skipped: Object.keys(values) };
+      }
     },
     subscribe(listener) {
       listeners.add(listener);

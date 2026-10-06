@@ -2,7 +2,7 @@
 /**
  * 화면 문맥 D2: 저장소(탭별·소유자별)와 게시·구독 훅.
  */
-import { act, createElement, memo, useRef, type ReactElement } from "react";
+import { act, createElement, memo, StrictMode, useRef, type ReactElement } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { TabPageContext } from "../../src/portal-shell/tab-page-context";
 import {
@@ -169,5 +169,25 @@ describe("usePublishScreenContext · useScreenContext", () => {
       screenContextStore.publish("t1", "x", { source: "grid", tabId: "t1", pageId: "p1", values: { z: 9 } });
     });
     expect((seen as unknown as ScreenContext).values).toEqual({ z: 9 });
+  });
+
+  it("내용이 같으면 다시 게시하지 않아 다른 게시자(그리드)가 가져간 소유권을 되가져오지 않는다", () => {
+    const tree = (v: Record<string, ScreenContextValue>) => page("t1", "p1", createElement(Publisher, { values: v }));
+    rendered = renderWithMantine(tree({ a: 1 }));
+    act(() => {
+      screenContextStore.publish("t1", "grid-owner", { source: "grid", tabId: "t1", pageId: "p1", values: { row: 1 } });
+    });
+    rerender(rendered, tree({ a: 1 }));
+    rerender(rendered, tree({ a: 1 }));
+    expect(screenContextStore.get("t1")?.source).toBe("grid");
+    expect(screenContextStore.owns("t1", "grid-owner")).toBe(true);
+    // 내용이 바뀌면 폼이 다시 게시한다.
+    rerender(rendered, tree({ a: 2 }));
+    expect(screenContextStore.get("t1")?.values).toEqual({ a: 2 });
+  });
+
+  it("StrictMode 의 모의 언마운트 뒤에도 문맥이 남는다", () => {
+    rendered = renderWithMantine(createElement(StrictMode, null, page("t1", "p1", createElement(Publisher, { values: { a: 1 } }))));
+    expect(screenContextStore.get("t1")?.values).toEqual({ a: 1 });
   });
 });
