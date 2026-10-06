@@ -157,6 +157,22 @@ describe("exportToExcel — 시트의 열 순서", () => {
     expect(cols.map((c) => !!c.hidden)).toEqual([false, true, false]);
   });
 
+  it("겹치는 제목은 보이는 컬럼이 먼저 원래 제목을 갖고, 숨긴 컬럼이 번호를 받는다", () => {
+    const cols = toExcelColumns(
+      [
+        { key: "a", header: "값", hidden: true },
+        { key: "b", header: "값" },
+        { key: "c", header: "값" },
+      ],
+      []
+    );
+    expect(cols.map((c) => [c.key, c.header])).toEqual([
+      ["a", "값(3)"],
+      ["b", "값"],
+      ["c", "값(2)"],
+    ]);
+  });
+
   it("실제 xlsx 파일로 써서 다시 읽어도 숨긴 열이 남는다(xlsx 0.18.5 커뮤니티판)", async () => {
     const actual = await vi.importActual<typeof import("xlsx")>("xlsx");
     const ws = actual.utils.json_to_sheet([{ A: 1, B: 2 }], { header: ["A", "B"] });
