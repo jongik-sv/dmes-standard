@@ -137,10 +137,10 @@ const excelColumns = useResolvedGridColumns(COLUMNS); // header 가 그리드와
 
 ### 아래 줄과 엑셀 내려받기: excelExport
 
-카드·위젯 안의 표 바로 아래에 「N행」과 [엑셀] 단추 줄([GridExcelFoot](grid-excel-foot.md))을 붙이고, 누르면 그리드에 **지금 보이는** 컬럼·행을 엑셀로 내려받게 한다. 속성을 주지 않으면 줄도 단추도 없고 모양·동작은 예전과 똑같다.
+카드·위젯 안의 표 바로 아래에 「N행」과 [엑셀] 단추 줄([GridExcelFoot](grid-excel-foot.md))을 붙이고, 누르면 그리드의 컬럼·행을 엑셀로 내려받게 한다. 사용자가 숨긴 컬럼은 엑셀에도 숨긴 열로 들어간다. 속성을 주지 않으면 줄도 단추도 없고 모양·동작은 예전과 똑같다.
 
 - 속성을 주면 그리드를 세로 flex 상자로 감싸 표가 남은 높이를 채우고 아래 줄이 바닥에 붙는다. `height` 는 이 바깥 상자의 높이다(기본 부모 높이 100%). `height="auto"` 일 때는 flex 대신 block 감싸개(`cm-grid-excel--auto`)이고, 표가 행 수만큼 늘어난 바로 뒤에 아래 줄이 온다.
-- 컬럼: 그리드가 보여 주는 데이터 열의 순서·제목을 따른다(사용자가 끌어 바꾼 순서 포함). `hide` 열, 행번호(`rowNumber`)·선택 체크박스 같은 그리드 내부 열은 빠진다. 단추·링크처럼 `render` 로만 그리는 열은 `excludeKeys` 에 key 를 넣어 뺀다(보이는 열이어도 엑셀에는 나가지 않는다). 같은 제목이 겹치면 뒤 열에 「(2)」가 붙는다. 열 폭은 제목과 앞 100행 값의 길이로 어림한다(8~50).
+- 컬럼: 모든 데이터 열을 사용자가 정한 순서(왼쪽 고정 → 가운데 → 오른쪽 고정)로 내보낸다. 사용자가 컬럼 설정에서 숨긴 열도 엑셀에는 숨긴 열(`!cols` 의 `hidden`, 열은 있고 접힌 상태)로 들어가니 엑셀에서 펼쳐 볼 수 있다. 화면 정의에서 `hide: true` 인 내부 열, `field` 가 없는 그리드 내부 열(행번호 `rowNumber`·선택 체크박스)은 빠진다. 단추·링크처럼 `render` 로만 그리는 열은 `excludeKeys` 에 key 를 넣어 뺀다(화면에 보이는 열이어도 엑셀에는 나가지 않는다). 같은 제목이 겹치면 「(2)」가 붙되 보이는 열이 먼저 원래 제목을 갖는다(숨긴 열이 번호를 받는다). 열 폭은 제목과 앞 100행 값의 길이로 어림한다(8~50).
 - 행: 그리드의 정렬·필터 순서. 값은 `render` 결과가 아니라 행의 원래 값이다(숫자는 숫자, 배지 열은 상태 글). 그리드 API 가 아직 없으면 그리드가 화면에 쓰는 행 순서(정렬된 `data`, 추가한 행은 맨 뒤)이고 열은 `columns` 에서 숨긴 열을 뺀 잎 열이다. 「{n}행」과 단추 비활성은 늘 전체 `data` 수로 정한다.
 - 행이 0이면 단추는 비활성이다. 아래 줄의 모양·`data-testid`(줄 `grid-foot`, 글 `grid-foot-note`)는 [GridExcelFoot](grid-excel-foot.md) 과 같다.
 - [엑셀] 단추가 Mantine `Button` 이라 `MantineProvider` 안에서만 그린다(포털에서는 늘 감싸져 있다).
@@ -172,6 +172,33 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 | excludeKeys | `string[]` | - | 엑셀에서 뺄 열 key. `render` 전용 열(단추·링크)에 쓴다. 상수나 `useMemo` 로 둔다 |
 
 화면 전체 목록의 엑셀은 PageLayout 상단 「엑셀」 버튼(`action: "export"`)과 [exportToExcel](export-to-excel.md) 을 쓴다. 엑셀 내용을 직접 정해야 하면(열을 골라 바꾸거나 코드 대신 명칭으로 변환) 이 속성 대신 [GridExcelFoot](grid-excel-foot.md) 에 `onExcel` 을 넘긴다.
+
+### 컬럼 개인화: gridId·personalize(2026-10-06)
+
+사용자가 바꾼 컬럼 순서·너비·표시 여부·좌우 고정·정렬을 저장했다가 같은 화면을 다시 열 때 복원한다. **기본 켬**이라 전 화면에 자동으로 적용되고, 화면은 아무것도 주지 않아도 된다.
+
+- 저장: 브라우저 `localStorage` 에만 둔다(서버에 보내지 않아 PC·브라우저를 바꾸면 공유되지 않는다). 키는 `dmes:grid:v1:{사용자ID}:{화면}:{gridId}` 이고 화면은 포털 탭의 `pageId`(없으면 `location.pathname`)다.
+- 자동 저장: 헤더 조작(컬럼 이동·너비 끌기·고정·정렬)은 바로 저장된다.
+- 컬럼 설정 창: 표시 여부·순서를 한 줄씩 바꾸고 [적용]으로 저장하거나 [기본값 복원]으로 저장값을 지운다. 공통 컴포넌트 [ColumnSettingsModal](column-settings-modal.md)을 AgDataGrid 가 스스로 소유하므로 화면은 아무것도 연결하지 않는다. 여는 길은 둘이다.
+  - 헤더 우클릭 메뉴: 머리글 영역을 우클릭하면 마우스 위치에 「컬럼 설정」·「기본값 복원」 메뉴가 뜬다. 셀·빈 영역 우클릭과 머리글 안 입력 칸(필터 입력 등)은 브라우저 기본 메뉴 그대로다.
+  - [GridPanel](grid-panel.md) 의 「컬럼 설정」 버튼: 그리드를 `GridPanel` 안에 두면 개인화가 켜진 동안 자동으로 붙는다.
+- 헤더를 그리드 밖으로 끌어도 개인화가 켜진 그리드는 컬럼이 숨겨지지 않는다(숨김은 컬럼 설정 창으로만). `personalize={false}` 인 그리드는 ag-grid 기본대로 끌어서 숨겨지고 창·우클릭 메뉴·버튼도 없다.
+- 컬럼 설정 창 규칙: 숨길 수 없는 열(`hideable` 잠금)은 체크가 고정이고 순서만 옮긴다. 선택 체크박스·행번호·화면이 숨긴 열은 창에 나오지 않지만 원래 자리를 지킨다. 고정 열은 구역(왼쪽 고정·일반·오른쪽 고정)별로 모여 같은 구역 안에서만 순서를 옮긴다. [적용]은 너비를 저장하지 않는다(너비는 헤더 경계를 끌 때만).
+- 너비: 사용자가 머리글 경계를 끌어 바꾼 컬럼만 저장되고 그 컬럼은 폭이 고정된다. 나머지 컬럼은 예전처럼 자동 너비 맞춤(`columnSizing`)을 받고, 저장값이 없으면 동작은 예전과 같다.
+- 숨김 잠금: 편집 가능한 열은 기본으로 숨길 수 없다(`GridColumn.hideable: true` 로 푼다). 선택 체크박스·행번호·`rowKey`·행 드래그 열은 늘 잠금이다. 잠긴 열도 순서는 옮길 수 있다.
+- `gridId`: 한 화면(탭)에 그리드가 하나면 생략한다(`"main"`). 둘 이상이면 그리드마다 다른 고정 문자열을 준다. 같은 탭에 같은 키의 그리드가 이미 떠 있으면 나중 그리드는 개인화를 끈다(개발 모드 경고). **모달 안 그리드는 반드시 본 화면과 다른 `gridId`**(예: `"modal-user"`)를 준다. `LookupModal`·`EditableRowList` 는 자기 `gridId` prop 으로 안쪽 그리드에 넘긴다.
+- `personalize`: 생략·`true` 켬, `false` 끔, `{ sort: false }` 는 정렬만 저장하지 않는다. 서버 페이징 그리드는 정렬이 서버 조회 조건이므로 `{ sort: false }` 를 준다.
+- 동작 조건: 포털 안에서 사용자가 확인된 뒤에만 동작한다. 포털 밖이거나 확인 전이면 저장도 복원도 하지 않는다(그리드는 사용자 확인을 요청하지 않고 포털이 확인한 값을 구독만 한다).
+- 엑셀: 사용자가 숨긴 컬럼도 `excelExport` 엑셀에는 숨긴 열로 들어간다(§아래 줄과 엑셀 내려받기).
+
+```tsx
+// 마스터-디테일 — 한 화면에 그리드 둘. 서버 페이징인 마스터는 정렬을 저장하지 않는다.
+<AgDataGrid columns={MASTER_COLUMNS} data={masters} rowKey="woNo" gridId="master" personalize={{ sort: false }} />
+<AgDataGrid columns={DETAIL_COLUMNS} data={details} rowKey="seq" gridId="detail" />
+
+// 편집 열을 사용자가 숨겨도 되는 경우만 hideable 로 푼다.
+{ key: "remark", header: "비고", editable: true, hideable: true }
+```
 
 ## Props
 
@@ -205,7 +232,9 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 | onRowOrderChange | `(orderedKeys) => void` | - | 드래그 후 새 순서의 행 키 목록. 이 prop 이 있어야 드래그가 동작한다 |
 | mdmValidate | `boolean` | `false` | 편집 가능 + MDM 연결 열의 바뀐 값을 MDM 정의로 검사해 `cell-mdm-invalid`·셀 툴팁을 단다(포털 탭 안에서만) |
 | fieldErrors | `Array<{ rowKey?; rowIndex?; field; message }>` | - | 서버 오류 칸 표시(`toFieldErrors` 결과). rowKey → rowIndex(data 자리) 순으로 행을 찾는다 |
-| excelExport | `{ title?; fallbackName?; note?; sheetName?; testId?; excludeKeys? }` | - | 주면 표 아래에 「N행」·[엑셀] 줄을 붙이고 보이는 컬럼·행을 내려받는다. 없으면 줄도 단추도 없다(§아래 줄과 엑셀 내려받기). 상수나 `useMemo` 로 둔다 |
+| excelExport | `{ title?; fallbackName?; note?; sheetName?; testId?; excludeKeys? }` | - | 주면 표 아래에 「N행」·[엑셀] 줄을 붙이고 컬럼·행을 내려받는다(사용자가 숨긴 열은 엑셀에도 숨긴 열). 없으면 줄도 단추도 없다(§아래 줄과 엑셀 내려받기). 상수나 `useMemo` 로 둔다 |
+| gridId | `string` | `"main"` | 한 화면(탭)에 그리드가 여럿일 때 컬럼 개인화 저장을 나누는 이름. 화면 안에서 그리드마다 다른, 렌더마다 바뀌지 않는 고정 문자열로 준다(§컬럼 개인화) |
+| personalize | `boolean \| { sort?: boolean }` | 켬 | 사용자별 컬럼 개인화. `false` 면 끈다. `{ sort: false }` 면 정렬은 저장·복원하지 않는다(서버 페이징 그리드) |
 
 나머지 props.
 
@@ -245,7 +274,8 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 | cellEditorValues · cellEditorValuesGetter | `string[]` · `(row) => string[]` | - | select 정적 옵션 · 행별 옵션 |
 | cellEditorOptionsGetter · cellEditorValueLabels | `(row) => { value, label }[]` · `Record<string, string>` | - | select 행별 값·라벨 옵션 · 값 → 표시 라벨 맵 |
 | selectNativeEditor | `boolean` | - | ag-grid 내장 select 편집기를 쓴다 |
-| hide | `boolean` | - | 열 숨김 |
+| hide | `boolean` | - | 열 숨김. 화면이 숨긴 내부 열은 컬럼 설정 창에 나오지 않고 엑셀에서도 빠진다 |
+| hideable | `boolean` | 편집 열은 `false`, 나머지 `true` | 컬럼 개인화에서 사용자가 이 열을 숨길 수 있는가. 편집 가능한 열(`editable` 이 참 또는 함수)은 기본 잠금이고 `true` 로 풀며, `false` 면 편집 불가 열도 잠근다. 선택 체크박스·행번호·`rowKey`·행 드래그 열은 늘 잠금. 잠긴 열도 순서 이동은 된다 |
 | pinned | `"left" \| "right"` | - | 틀고정 |
 | cellClass | `string \| string[] \| (row) => …` | - | 셀 상시 클래스 |
 | cellClassRules | `Record<string, (row) => boolean>` | - | 조건부 셀 클래스 |
@@ -279,6 +309,12 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 | 표 아래 줄을 직접 만들려고 감싸개 CSS 와 `GridExcelFoot` 을 따로 붙인다 | `excelExport` 를 준다. 감싸개·아래 줄·내려받기를 그리드가 맡는다 |
 | `excelExport={{ … }}` 를 렌더 안에서 인라인으로 넘긴다 | 렌더마다 새 객체라 `memo` 가 깨진다. 모듈 상수 또는 `useMemo` |
 | `excelExport` 를 조건부로 줬다 뺐다 한다 | 루트 요소가 바뀌어 그리드가 다시 마운트된다(정렬·선택·스크롤 초기화). 항상 주거나 항상 뺀다 |
+| 한 화면에 그리드가 여럿인데 `gridId` 를 안 준다 | 모두 `"main"` 이라 먼저 뜬 그리드만 개인화되고 나중 그리드는 개인화가 꺼진다(개발 모드 경고). 그리드마다 다른 고정 `gridId` 를 준다 |
+| 모달 안 그리드에 `gridId` 를 안 준다 | 본 화면 그리드와 저장 키(`"main"`)가 겹쳐 나중에 뜬 모달 그리드의 개인화가 꺼진다(개발 모드 경고). `"modal-user"` 처럼 다른 이름을 준다(`LookupModal`·`EditableRowList` 는 `gridId` prop) |
+| `gridId` 를 렌더마다 바뀌는 값(행 번호·시각)으로 준다 | 저장 키가 계속 바뀌어 복원이 안 된다. 코드에 박은 고정 문자열을 쓴다 |
+| 서버 페이징 그리드에 `personalize={{ sort: false }}` 를 안 준다 | 저장된 정렬이 복원되면서 서버 조회 조건과 어긋난다. 정렬이 서버 조건이면 `{ sort: false }` |
+| 편집 컬럼을 사용자가 숨겨야 하는데 `hideable` 을 안 준다 | 편집 가능한 열은 기본으로 숨길 수 없다. 숨겨도 되는 열만 `hideable: true`. 반대로 편집 불가 열을 못 숨기게 하려면 `hideable: false` |
+| 개인화가 켜진 그리드에서 헤더를 밖으로 끌어 열을 숨기려 한다 | 숨겨지지 않는다. 숨김은 컬럼 설정 창으로만 한다 |
 | `excelExport` 를 쓰는 표의 `height="100%"` 가 감싸개 높이를 정해 줄 거라 본다 | `height` 는 바깥 상자의 높이다. 부모가 높이를 정하는 자리(위젯·패널 본문)에서만 기본값으로 쓴다 |
 
 ## 실제 사용 예

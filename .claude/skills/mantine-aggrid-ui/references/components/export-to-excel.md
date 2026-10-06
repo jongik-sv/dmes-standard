@@ -11,7 +11,7 @@
 
 - 쓴다: PageLayout 상단 "엑셀" 버튼에서 현재 목록(`rows`)을 내려받을 때.
 - 쓰지 않는다: ag-grid Excel Export(`ag-grid-enterprise`) 사용 금지. 서버가 만든 파일 다운로드는 별도 처리다.
-- 카드·위젯 안의 표 아래에 「N행」과 [엑셀] 단추를 두는 자리에서 보이는 컬럼·행을 그대로 내려받기만 하면 이 함수를 직접 부르지 말고 [AgDataGrid](ag-data-grid.md) 의 `excelExport` 속성을 준다. 그리드가 이 함수를 불러 준다.
+- 카드·위젯 안의 표 아래에 「N행」과 [엑셀] 단추를 두는 자리에서 그리드의 컬럼·행을 그대로 내려받기만 하면 이 함수를 직접 부르지 말고 [AgDataGrid](ag-data-grid.md) 의 `excelExport` 속성을 준다. 그리드가 이 함수를 불러 준다.
 
 ## 표준 사용
 
@@ -65,7 +65,7 @@ const EXCEL_COLUMNS: ExcelColumn[] = [
 그리드의 `excelExport` 가 쓰는 순수 함수를 화면도 쓸 수 있다.
 
 - `excelFileName(title, ymd, fallback = EXCEL_DEFAULT_NAME)` → 「{title}_{ymd}.xlsx」. 파일 이름에 못 쓰는 글자(`\ / : * ? " < > |` 와 제어 문자)는 `_` 로 바꾸고 `title` 은 80자로 자른다. `title` 이 없거나 공백뿐이면 `fallback`(기본 `EXCEL_DEFAULT_NAME` = 「목록」)을 쓴다.
-- `toExcelColumns(columns, rows, excludeKeys?)` → `ExcelColumn[]`. `{ key, header? }[]` 에서 제목이 비면 `key` 를 쓰고, 폭은 제목과 앞 100행 값의 길이로 어림한다(한글은 2칸, 8~50). 겹치는 제목은 뒤 열에 「(2)」를 붙여 값이 덮이지 않게 한다(`exportToExcel` 이 제목을 행 객체의 키로 쓰기 때문). `excludeKeys` 에 든 key 의 열은 뺀다.
+- `toExcelColumns(columns, rows, excludeKeys?)` → `ExcelColumn[]`. `{ key, header?, hidden? }[]` 에서 제목이 비면 `key` 를 쓰고, 폭은 제목과 앞 100행 값의 길이로 어림한다(한글은 2칸, 8~50). 겹치는 제목은 「(2)」를 붙여 값이 덮이지 않게 한다(`exportToExcel` 이 제목을 행 객체의 키로 쓰기 때문). 번호는 보이는 열이 먼저 원래 제목을 갖고 숨긴 열(`hidden`)이 받는다. `hidden` 은 결과 `ExcelColumn` 에 그대로 넘어간다. `excludeKeys` 에 든 key 의 열은 뺀다.
 
 ```tsx
 void exportToExcel(rows, excelFileName(title, today(), "검사결과"), "Sheet1", toExcelColumns(columns, rows, ["__rowKey"]));
@@ -86,7 +86,7 @@ void exportToExcel(rows, excelFileName(title, today(), "검사결과"), "Sheet1"
 | sheetName | `string` | `"Sheet1"` | 시트 이름 |
 | columns | `ExcelColumn[]` | - | 내보낼 열과 머리. 주면 이 열만, 이 순서로 나간다 |
 
-`ExcelColumn`: `key: string`(행의 필드 이름), `header: string`(엑셀 머리), `width?: number`(글자 수, 기본 15, `columns` 를 줄 때만 적용).
+`ExcelColumn`: `key: string`(행의 필드 이름), `header: string`(엑셀 머리), `width?: number`(글자 수, 기본 15, `columns` 를 줄 때만 적용), `hidden?: boolean`(참이면 그 열을 엑셀에 넣되 숨긴 열로 둔다 — 시트의 `!cols` 에 `hidden` 이 서서 열은 있고 접힌 상태이며 엑셀에서 펼치면 값이 보인다. 그리드에서 사용자가 숨긴 컬럼을 엑셀에도 숨겨 내보낼 때 쓴다).
 
 ## 표준값: 모든 화면 동일
 

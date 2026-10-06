@@ -73,6 +73,7 @@ MES 화면(`m-mpp`·`m-mqc`·`m-mls`·`m-mcm` 등)을 누가 만들어도, 어�
 - 목록이 상한으로 잘릴 수 있으면 `GridPanel titleExtra` 에 `GridLimitNotice` 를 둔다(§성능 기본 구조).
 - 표준 props: `rowKey` `columns` `data` `columnSizing` `highlightedRowKey` `onRowClick` `loading`. `emptyMessage`·`loadingMessage` 는 주지 않는다(기본 문구로 통일).
 - `columnSizing`: 열 8개 이하 `"fit"`, 9개 이상 `"fixed"`(가로 스크롤). 소스 기본값은 `"auto"` 다.
+- 컬럼 개인화(순서·너비·표시 여부·고정·정렬 저장)는 기본 켬이라 따로 줄 것이 없다. 한 화면(탭)에 그리드가 둘 이상이면(§B 좌우·§D 마스터-디테일·모달 안 그리드 포함) 그리드마다 다른 고정 `gridId`(예: `"master"`·`"detail"`·`"modal-user"`)를 쓴다. 서버 페이징 목록은 `personalize={{ sort: false }}` 를 준다([AgDataGrid](components/ag-data-grid.md) §컬럼 개인화).
 
 | 열 종류 | width | align | 그 밖 |
 |---|---|---|---|

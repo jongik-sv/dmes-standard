@@ -74,6 +74,7 @@ function normalize(field: string, value: unknown): unknown {
 | height | `number` | `200` | 목록 영역 높이(px) |
 | idPrefix | `string` | `"row-list"` | 버튼 id 앞머리(`-add`·`-up`·`-down`·`-remove`) |
 | testId | `string` | - | 바깥 칸의 `data-testid` |
+| gridId | `string` | - | 주면 안쪽 그리드의 컬럼 개인화를 켜고 이 이름([AgDataGrid](ag-data-grid.md) `gridId`)으로 저장한다. 화면 안에서 목록마다 다른 고정 이름을 준다. 주지 않으면 개인화를 끈다(편집기 안 작은 설정 목록이 본 화면 그리드와 저장 키를 겹치지 않게) |
 
 ## 표준값: 모든 화면 동일
 

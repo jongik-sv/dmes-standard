@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import { NativeSelect, TextInput } from "@mantine/core";
 import { Modal } from "../modal";
 import { Button } from "../form";
-import { AgDataGrid, Pagination, type GridColumn } from "../grid";
+import { AgDataGrid, Pagination, type GridColumn, type GridPersonalizeOptions } from "../grid";
 
 export interface LookupRow {
   code: string;
@@ -73,6 +73,11 @@ export interface LookupModalProps {
   filters?: LookupFilter[];
   /** true 면 열리는 즉시 initialKeyword·필터 기본값으로 첫 페이지를 조회한다. 기본은 조회 버튼을 눌러야 조회. */
   searchOnOpen?: boolean;
+  /**
+   * 안쪽 그리드의 컬럼 개인화 저장 이름(AgDataGrid `gridId`). 기본 `"lookup"`. 한 화면에서 룩업을 여럿 쓰면 호출처마다 다른 이름
+   * (예: `"modal-user"`)을 준다. 서버 페이징이라 정렬은 저장하지 않는다.
+   */
+  gridId?: string;
 }
 
 const COLUMNS: GridColumn[] = [
@@ -83,6 +88,7 @@ const COLUMNS: GridColumn[] = [
 const DEFAULT_PAGE_SIZE = 50;
 const PAGE_SIZE_OPTIONS = [50, 100, 200];
 const GRID_HEIGHT = 320;
+const LOOKUP_PERSONALIZE: GridPersonalizeOptions = { sort: false };
 
 const FIELD_WRAP_STYLE: CSSProperties = { display: "flex", flexDirection: "column", gap: 4 };
 const FIELD_LABEL_STYLE: CSSProperties = {
@@ -110,6 +116,7 @@ export function LookupModal({
   initialKeyword = "",
   filters,
   searchOnOpen = false,
+  gridId = "lookup",
 }: LookupModalProps) {
   const [keyword, setKeyword] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>(() =>
@@ -324,6 +331,9 @@ export function LookupModal({
         </div>
         <div className="cm-lookup-grid" style={{ height: GRID_HEIGHT }}>
           <AgDataGrid
+            // 화면 위에 뜨는 모달이라 본 화면 그리드("main")와 저장을 나눈다. 서버 페이징이라 정렬은 저장하지 않는다.
+            gridId={gridId}
+            personalize={LOOKUP_PERSONALIZE}
             columns={COLUMNS}
             data={rows as unknown as Record<string, unknown>[]}
             rowKey="code"

@@ -31,6 +31,11 @@ export interface EditableRowListProps<T extends object> {
   /** 버튼 id 앞머리. 기본 「row-list」 → row-list-add·row-list-up·row-list-down·row-list-remove. */
   idPrefix?: string;
   testId?: string;
+  /**
+   * 주면 안쪽 그리드의 컬럼 개인화를 켜고 이 이름(AgDataGrid `gridId`)으로 저장한다. 화면 안에서 목록마다 다른 고정 이름을 준다.
+   * 주지 않으면 개인화를 끈다(편집기 안 작은 설정 목록의 기본 — 본 화면 그리드와 저장 키가 겹치지 않게).
+   */
+  gridId?: string;
 }
 
 /**
@@ -51,6 +56,7 @@ export function EditableRowList<T extends object>({
   height = 200,
   idPrefix = "row-list",
   testId,
+  gridId,
 }: EditableRowListProps<T>) {
   const [selected, setSelected] = useState<number | null>(null);
   const sel = selected !== null && selected < items.length ? selected : null;
@@ -95,6 +101,9 @@ export function EditableRowList<T extends object>({
     <div style={{ height }} data-testid={testId}>
       <GridPanel title={title} count={items.length} buttons={buttons}>
         <AgDataGrid
+          // gridId 가 없으면 개인화를 끈다 — 편집기 안의 작은 설정 목록이 본 화면 그리드("main")와 저장 키를 겹치지 않게.
+          gridId={gridId}
+          personalize={gridId ? undefined : false}
           rowKey={ROW_KEY}
           columns={columns}
           data={data}
