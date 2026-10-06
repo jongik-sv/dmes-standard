@@ -6,6 +6,9 @@
 import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PortalShell, type PortalShellProps } from "../../src/portal-shell/portal-shell";
+import { PortalPageWindow } from "../../src/portal-shell/page-window/PortalPageWindow";
+import { useCarryRefetch, useCarryState } from "../../src/portal-shell/carry-state";
+import { clearPopoutHandoffs, POPOUT_CARRY_GLOBAL, takePopoutHandoff, type PortalPopoutHandoff } from "../../src/portal-shell/popout";
 import type { PortalShellMenuItem, PortalShellPageComponent } from "../../src/portal-shell/types";
 import { renderWithMantine, type Rendered } from "./mantine-test-utils";
 
@@ -28,6 +31,31 @@ for (const name of ["localStorage", "sessionStorage"] as const) {
 }
 
 vi.mock("next-auth/react", () => ({ signOut: vi.fn(async () => undefined) }));
+
+// 셸의 탭 등록소 지도와 셸 렌더 수를 밖에서 보려고 원래 구현을 감싼다(동작은 그대로).
+const spy = vi.hoisted(() => ({ maps: [] as Array<{ size: number }>, shellRenders: 0 }));
+vi.mock("../../src/portal-shell/carry-state", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("../../src/portal-shell/carry-state")>();
+  return {
+    ...mod,
+    createCarryRegistryMap: () => {
+      const map = mod.createCarryRegistryMap();
+      spy.maps.push(map);
+      return map;
+    },
+  };
+});
+vi.mock("../../src/portal-shell/use-portal-tabs", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("../../src/portal-shell/use-portal-tabs")>();
+  return {
+    ...mod,
+    // PortalShell 은 렌더마다 이 훅을 한 번 부른다 — 호출 수가 셸 렌더 수다.
+    usePortalTabs: ((...args: Parameters<typeof mod.usePortalTabs>) => {
+      spy.shellRenders += 1;
+      return mod.usePortalTabs(...args);
+    }) as typeof mod.usePortalTabs,
+  };
+});
 
 const Page: PortalShellPageComponent = () => createElement("div", null, "page");
 
@@ -136,7 +164,10 @@ describe("PortalShell 탭 분리·하나 더 열기", () => {
 
   beforeEach(() => {
     storageKey = `portal-shell-popout-${Math.random()}`;
+    spy.maps.length = 0;
+    spy.shellRenders = 0;
     localStorage.clear(); // 앞 시험이 분리 성공으로 남긴 handoff 키를 지운다
+    clearPopoutHandoffs(); // opener 메모리 보관소도 비운다
     vi.stubGlobal(
       "fetch",
       vi.fn(
@@ -320,5 +351,210 @@ describe("PortalShell 탭 분리·하나 더 열기", () => {
     expect(logout).toBeDefined();
     await act(async () => logout!.click());
     expect(popoutKeys()).toEqual([]);
+  });
+
+  // ── 화면 상태 이어받기(carry-state) ───────────────────────────────────────────────
+
+  /** t:g/a 는 useCarryState 를 쓰는 화면, t:g/b 는 쓰지 않는 화면이다. */
+  const carryApi: {
+    setFilters?: (v: { q: string }) => void;
+    setRows?: (v: number[]) => void;
+    refetch: ReturnType<typeof vi.fn>;
+  } = { refetch: vi.fn() };
+  const CarryPage: PortalShellPageComponent = () => {
+    const [filters, setFilters] = useCarryState("filters", { q: "" });
+    const [rows, setRows] = useCarryState<number[]>("rows", [], { bulky: true });
+    useCarryRefetch(() => carryApi.refetch());
+    carryApi.setFilters = setFilters;
+    carryApi.setRows = setRows;
+    return createElement("div", { "data-testid": "carry-screen", "data-q": filters.q, "data-rows": rows.join(",") });
+  };
+  const resolveCarry = async (pageId: string) => (pageId === "t:g/a" ? CarryPage : Page);
+  const bridge = () =>
+    (window as unknown as Record<string, { take: (token: string) => { light: unknown; bulky: unknown } | null } | undefined>)[
+      POPOUT_CARRY_GLOBAL
+    ];
+  const tokenOf = (open: { mock: { calls: unknown[][] } }) => String(open.mock.calls[0][1]).replace("dmes-popout-", "");
+  const screenData = () => {
+    const el = document.querySelector('[data-testid="carry-screen"]');
+    return { q: el?.getAttribute("data-q"), rows: el?.getAttribute("data-rows") };
+  };
+
+  async function popoutCarryTab() {
+    const open = vi.spyOn(window, "open").mockReturnValue({ close: vi.fn() } as unknown as Window);
+    rendered = renderWithMantine(shell({ resolvePage: resolveCarry, popout: { buildUrl: (_p, t) => `/popup/x?h=${t}` } }));
+    await flush();
+    await openTab("t:g/a");
+    await act(async () => {
+      carryApi.setFilters?.({ q: "조건" });
+      carryApi.setRows?.([1, 2, 3]);
+    });
+    openContextMenu("A");
+    act(() => contextItem(POPOUT_LABEL)!.click());
+    await flush();
+    return open;
+  }
+
+  it("화면이 useCarryState 를 쓰면 분리 때 값이 모여 opener 보관소(light+bulky)와 handoff(light)로 간다", async () => {
+    const open = await popoutCarryTab();
+    expect(order()).toEqual([]);
+    expect(open).toHaveBeenCalledTimes(1);
+    const token = tokenOf(open);
+    const handoff = takePopoutHandoff(token);
+    expect(handoff?.carry).toEqual({ light: { filters: { q: "조건" } }, hadBulky: true });
+    expect(bridge()!.take(token)).toEqual({ pageId: "t:g/a", light: { filters: { q: "조건" } }, bulky: { rows: [1, 2, 3] } });
+  });
+
+  it("훅을 쓰지 않는 탭은 handoff 에 carry 가 없고 보관소에도 넣지 않는다", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue({ close: vi.fn() } as unknown as Window);
+    rendered = renderWithMantine(shell({ resolvePage: resolveCarry, popout: { buildUrl: (_p, t) => `/popup/x?h=${t}` } }));
+    await flush();
+    await openTab("t:g/b");
+    openContextMenu("B");
+    act(() => contextItem(POPOUT_LABEL)!.click());
+    await flush();
+    const token = tokenOf(open);
+    const handoff = takePopoutHandoff(token) as PortalPopoutHandoff;
+    expect(handoff.pageId).toBe("t:g/b");
+    expect("carry" in handoff).toBe(false);
+    expect(bridge()?.take(token) ?? null).toBeNull();
+  });
+
+  it("팝업이 차단되면 보관소에 값이 남지 않는다", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    rendered = renderWithMantine(shell({ resolvePage: resolveCarry, popout: { buildUrl: (_p, t) => `/popup/x?h=${t}` } }));
+    await flush();
+    await openTab("t:g/a");
+    await act(async () => carryApi.setFilters?.({ q: "조건" }));
+    openContextMenu("A");
+    act(() => contextItem(POPOUT_LABEL)!.click());
+    await flush();
+    expect(order()).toEqual(["A"]);
+    expect(bridge()?.take(tokenOf(open)) ?? null).toBeNull();
+  });
+
+  it("왕복 고정: 셸 탭 화면의 상태 → 분리 → 같은 화면을 PortalPageWindow 로 그리면 초기값이 같고 재조회하지 않는다", async () => {
+    carryApi.refetch.mockClear();
+    const open = await popoutCarryTab();
+    const token = tokenOf(open);
+    const before = { q: "조건", rows: "1,2,3" };
+    // 분리 뒤 셸의 탭은 닫혔으므로 화면 하나만 남는다 — 새 창 쪽을 그려 비교한다.
+    expect(document.querySelector('[data-testid="carry-screen"]')).toBeNull();
+    carryApi.refetch.mockClear();
+    const popupWindow = renderWithMantine(
+      createElement(PortalPageWindow, {
+        pageId: "t:g/a",
+        menu: MENU,
+        appName: "TEST",
+        resolvePage: resolveCarry,
+        handoffToken: token,
+        opener: window, // 같은 문서의 창 전역 보관소를 opener 의 것으로 쓴다
+      })
+    );
+    try {
+      await flush();
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+      expect(screenData()).toEqual(before);
+      expect(carryApi.refetch).not.toHaveBeenCalled();
+    } finally {
+      popupWindow.unmount();
+    }
+  });
+
+  it("보조 경로 왕복: 셸 탭 상태 → 분리 → opener 없는 PortalPageWindow 에서 light 로 복원되고 행은 재조회 1회", async () => {
+    carryApi.refetch.mockClear();
+    const open = await popoutCarryTab();
+    const token = tokenOf(open);
+    carryApi.refetch.mockClear();
+    const popupWindow = renderWithMantine(
+      createElement(PortalPageWindow, {
+        pageId: "t:g/a",
+        menu: MENU,
+        appName: "TEST",
+        resolvePage: resolveCarry,
+        handoffToken: token,
+        opener: null, // opener 를 못 쓰는 경우 — handoff 의 light 만 온다
+      })
+    );
+    try {
+      await flush();
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+      // 조건(light)은 이어받고 행(bulky)은 오지 않았으니 비어 있다. 원래 행이 있었으므로 재조회를 한 번 부른다.
+      expect(screenData()).toEqual({ q: "조건", rows: "" });
+      expect(carryApi.refetch).toHaveBeenCalledTimes(1);
+    } finally {
+      popupWindow.unmount();
+    }
+  });
+
+  it("조회하지 않은 탭(rows 빈 배열)을 분리해 opener 없이 열면 재조회하지 않는다", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue({ close: vi.fn() } as unknown as Window);
+    rendered = renderWithMantine(shell({ resolvePage: resolveCarry, popout: { buildUrl: (_p, t) => `/popup/x?h=${t}` } }));
+    await flush();
+    await openTab("t:g/a");
+    await act(async () => carryApi.setFilters?.({ q: "조건만" })); // rows 는 빈 배열 그대로
+    openContextMenu("A");
+    act(() => contextItem(POPOUT_LABEL)!.click());
+    await flush();
+    const token = tokenOf(open);
+    carryApi.refetch.mockClear();
+    const popupWindow = renderWithMantine(
+      createElement(PortalPageWindow, {
+        pageId: "t:g/a",
+        menu: MENU,
+        appName: "TEST",
+        resolvePage: resolveCarry,
+        handoffToken: token,
+        opener: null,
+      })
+    );
+    try {
+      await flush();
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+      expect(screenData()).toEqual({ q: "조건만", rows: "" });
+      expect(carryApi.refetch).not.toHaveBeenCalled();
+    } finally {
+      popupWindow.unmount();
+    }
+  });
+
+  it("탭을 닫으면 그 탭의 등록소가 지워진다", async () => {
+    rendered = renderWithMantine(shell({ resolvePage: resolveCarry, popout: { buildUrl: (_p, t) => `/popup/x?h=${t}` } }));
+    await flush();
+    const map = spy.maps[spy.maps.length - 1];
+    const baseline = map.size;
+    await openTab("t:g/a");
+    await openTab("t:g/b");
+    expect(map.size).toBe(baseline + 2);
+    openContextMenu("A");
+    await act(async () => contextItem("탭 닫기")!.click());
+    await flush();
+    expect(order()).toEqual(["B"]);
+    expect(map.size).toBe(baseline + 1);
+  });
+
+  it("탭 화면이 useCarryState 로 상태를 바꿔도 셸(PortalShell)의 렌더 수는 늘지 않는다", async () => {
+    rendered = renderWithMantine(shell({ resolvePage: resolveCarry }));
+    await flush();
+    await openTab("t:g/a");
+    await flush();
+    const before = spy.shellRenders;
+    expect(before).toBeGreaterThan(0);
+    await act(async () => {
+      carryApi.setFilters?.({ q: "하나" });
+      carryApi.setRows?.([1, 2, 3]);
+    });
+    await act(async () => {
+      carryApi.setFilters?.({ q: "둘" });
+      carryApi.setRows?.([4]);
+    });
+    expect(screenData()).toEqual({ q: "둘", rows: "4" }); // 화면은 다시 그려졌고
+    expect(spy.shellRenders).toBe(before); // 셸은 그대로다
   });
 });
