@@ -15,6 +15,8 @@ export interface ExcelColumn {
   key: string;
   header: string;
   width?: number;
+  /** 엑셀에서 숨긴 열로 둔다(열은 있고 접혀 있다 — 사용자가 그리드에서 숨긴 열). */
+  hidden?: boolean;
 }
 
 export async function exportToExcel(
@@ -50,7 +52,7 @@ export async function exportToExcel(
   const worksheet = XLSX.utils.json_to_sheet(sheetData, columns ? { header: columns.map((c) => c.header) } : undefined);
 
   if (columns) {
-    worksheet["!cols"] = columns.map((col) => ({ wch: col.width || 15 }));
+    worksheet["!cols"] = columns.map((col) => (col.hidden ? { wch: col.width || 15, hidden: true } : { wch: col.width || 15 }));
   }
 
   const workbook = XLSX.utils.book_new();
@@ -83,11 +85,11 @@ function textWidth(v: unknown): number {
 
 /**
  * 엑셀 컬럼 — 그리드 컬럼 순서·제목 그대로, 폭은 제목과 앞 100행 값의 길이로 어림(8~50).
- * `excludeKeys` 에 든 key 의 컬럼은 뺀다(화면이 그리드용으로만 쓰는 행 키 같은 칸).
+ * `excludeKeys` 에 든 key 의 컬럼은 뺀다(화면이 그리드용으로만 쓰는 행 키 같은 칸). `hidden` 인 컬럼은 숨긴 열로 넘긴다.
  * `exportToExcel` 은 제목을 행 객체의 키로 쓰므로, 겹치는 제목은 뒤 컬럼에 「(2)」처럼 번호를 붙여 값이 덮이지 않게 한다.
  */
 export function toExcelColumns(
-  columns: readonly { key: string; header?: string }[],
+  columns: readonly { key: string; header?: string; hidden?: boolean }[],
   rows: readonly Record<string, unknown>[],
   excludeKeys: readonly string[] = [],
 ): ExcelColumn[] {
@@ -101,7 +103,9 @@ export function toExcelColumns(
       for (let n = 2; used.has(header); n += 1) header = `${base}(${n})`;
       used.add(header);
       const widest = Math.max(textWidth(header), ...sample.map((r) => textWidth(r[c.key])));
-      return { key: c.key, header, width: Math.min(50, Math.max(8, widest + 2)) };
+      const col: ExcelColumn = { key: c.key, header, width: Math.min(50, Math.max(8, widest + 2)) };
+      if (c.hidden) col.hidden = true;
+      return col;
     });
 }
 

@@ -20,8 +20,9 @@ vi.mock("../../src/utils/libDate", async (importOriginal) => ({
 import { AgDataGrid, type GridColumn } from "../../src/components/grid/AgDataGrid";
 import {
   AgDataGridExcelFrame,
-  displayedExcelColumns,
+  definitionHiddenKeys,
   displayedExcelRows,
+  gridExcelColumns,
 } from "../../src/components/grid/AgDataGridExcel";
 import { MdmMetaProvider, resetMdmMetaStore } from "../../src/mdm-meta";
 import { renderWithMantine, rerender, type Rendered } from "./mantine-test-utils";
@@ -177,7 +178,9 @@ describe("AgDataGrid excelExport — [엑셀] 내려받기", () => {
     ];
     expect(fileName).toBe("금일 작업지시 현황_20261003.xlsx");
     expect(sheetName).toBeUndefined(); // 기본 Sheet1 은 exportToExcel 이 채운다
-    // 숨긴 열(secret)은 빠지고, 머리글 순서 그대로다. rowKey 로 쓴 woNo 는 화면에 보이는 열이라 남는다.
+    // 화면 정의에서 숨긴 내부 열(secret)은 빠지고, 머리글 순서 그대로다. rowKey 로 쓴 woNo 는 화면에 보이는 열이라 남는다.
+    // 사용자가 숨긴 열이 없으니 hidden 표시도 없다.
+    expect(cols.some((c) => "hidden" in c)).toBe(false);
     expect(cols.map((c) => [c.key, c.header])).toEqual([
       ["woNo", "작업지시번호"],
       ["qty", "수량(t)"],
@@ -384,17 +387,22 @@ describe("AgDataGridExcelFrame — 그리드 API 가 없을 때의 대체 경로
   });
 });
 
-describe("displayedExcelColumns / displayedExcelRows — 그리드 API 읽기", () => {
-  const col = (field: string | undefined, headerName?: string) => ({
+describe("gridExcelColumns / displayedExcelRows — 그리드 API 읽기", () => {
+  const col = (
+    field: string | undefined,
+    headerName?: string,
+    opts: { visible?: boolean; pinned?: "left" | "right" | null } = {},
+  ) => ({
     getColDef: () => ({ field, headerName }),
+    isVisible: () => opts.visible ?? true,
+    getPinned: () => opts.pinned ?? null,
   });
 
-  it("보이는 열을 API 가 돌려주는 순서대로(사용자가 끌어 바꾼 순서) 읽고, field 없는 열은 뺀다", () => {
+  it("모든 열을 API 가 돌려주는 순서대로(사용자가 끌어 바꾼 순서) 읽고, field 없는 열은 뺀다", () => {
     const api = {
-      getAllDisplayedColumns: () =>
-        [col(undefined, "No"), col("b", "둘째"), col("a", "첫째"), col("c", "")] as never,
+      getAllGridColumns: () => [col(undefined, "No"), col("b", "둘째"), col("a", "첫째"), col("c", "")] as never,
     };
-    expect(displayedExcelColumns(api)).toEqual([
+    expect(gridExcelColumns(api)).toEqual([
       { key: "b", header: "둘째" },
       { key: "a", header: "첫째" },
       { key: "c", header: "" },
@@ -402,9 +410,42 @@ describe("displayedExcelColumns / displayedExcelRows — 그리드 API 읽기", 
   });
 
   it("머리글이 정해지지 않은 열은 field 를 제목으로 쓴다", () => {
-    expect(displayedExcelColumns({ getAllDisplayedColumns: () => [col("x")] as never })).toEqual([
-      { key: "x", header: "x" },
+    expect(gridExcelColumns({ getAllGridColumns: () => [col("x")] as never })).toEqual([{ key: "x", header: "x" }]);
+  });
+
+  it("사용자가 숨긴 열은 hidden 으로 담고, 화면 정의의 내부 열(internalKeys)은 뺀다", () => {
+    const api = {
+      getAllGridColumns: () =>
+        [col("a", "A"), col("userHidden", "숨김", { visible: false }), col("internal", "내부", { visible: false })] as never,
+    };
+    expect(gridExcelColumns(api, new Set(["internal"]))).toEqual([
+      { key: "a", header: "A" },
+      { key: "userHidden", header: "숨김", hidden: true },
     ]);
+  });
+
+  it("고정 열은 화면처럼 왼쪽 고정 → 가운데 → 오른쪽 고정으로 놓고, 구역 안에서는 그리드 순서를 지킨다", () => {
+    const api = {
+      getAllGridColumns: () =>
+        [
+          col("r1", "R1", { pinned: "right" }),
+          col("c1", "C1"),
+          col("l1", "L1", { pinned: "left" }),
+          col("c2", "C2"),
+          col("l2", "L2", { pinned: "left" }),
+        ] as never,
+    };
+    expect(gridExcelColumns(api).map((c) => c.key)).toEqual(["l1", "l2", "c1", "c2", "r1"]);
+  });
+
+  it("definitionHiddenKeys 는 열 그룹 안까지 화면 정의 hide 열을 모은다", () => {
+    expect([
+      ...definitionHiddenKeys([
+        { key: "a", hide: true },
+        { key: "g", children: [{ key: "b", hide: true }, { key: "c" }] },
+        { key: "d" },
+      ]),
+    ]).toEqual(["a", "b"]);
   });
 
   it("행은 정렬·필터 뒤의 순서(forEachNodeAfterFilterAndSort)를 따른다", () => {

@@ -136,4 +136,35 @@ describe("exportToExcel — 시트의 열 순서", () => {
     await exportToExcel([], "a.xlsx", "Sheet1", [{ key: "a", header: "A" }]);
     expect(h.writeFile).not.toHaveBeenCalled();
   });
+
+  it("hidden 컬럼은 값은 그대로 넣고 시트 열 설정(!cols)에서 숨긴 열로 둔다", async () => {
+    const columns = toExcelColumns(
+      [
+        { key: "a", header: "A" },
+        { key: "b", header: "B", hidden: true },
+        { key: "c", header: "C", hidden: false },
+      ],
+      [{ a: 1, b: 2, c: 3 }]
+    );
+    expect(columns.map((c) => c.hidden)).toEqual([undefined, true, undefined]);
+    await exportToExcel([{ a: 1, b: 2, c: 3 }], "a.xlsx", "Sheet1", columns);
+    expect(writtenRows()).toEqual([
+      ["A", "B", "C"],
+      [1, 2, 3],
+    ]);
+    const [workbook] = h.writeFile.mock.calls[0] as [XLSX.WorkBook];
+    const cols = workbook.Sheets[workbook.SheetNames[0]]["!cols"]!;
+    expect(cols.map((c) => !!c.hidden)).toEqual([false, true, false]);
+  });
+
+  it("실제 xlsx 파일로 써서 다시 읽어도 숨긴 열이 남는다(xlsx 0.18.5 커뮤니티판)", async () => {
+    const actual = await vi.importActual<typeof import("xlsx")>("xlsx");
+    const ws = actual.utils.json_to_sheet([{ A: 1, B: 2 }], { header: ["A", "B"] });
+    ws["!cols"] = [{ wch: 10 }, { wch: 10, hidden: true }];
+    const wb = actual.utils.book_new();
+    actual.utils.book_append_sheet(wb, ws, "Sheet1");
+    const buf = actual.write(wb, { type: "buffer", bookType: "xlsx" }) as Uint8Array;
+    const back = actual.read(buf, { type: "buffer", cellStyles: true });
+    expect(back.Sheets.Sheet1["!cols"]!.map((c) => !!c.hidden)).toEqual([false, true]);
+  });
 });

@@ -1,9 +1,11 @@
 "use client";
 
 /**
- * AgDataGrid 의 `excelExport` 속성이 쓰는 부품 — 표 바로 아래에 「N행」과 [엑셀] 단추를 붙이고, 누르면 그리드에 지금 보이는
+ * AgDataGrid 의 `excelExport` 속성이 쓰는 부품 — 표 바로 아래에 「N행」과 [엑셀] 단추를 붙이고, 누르면 그리드의
  * 컬럼·행을 엑셀로 내려받는다. AgDataGrid.tsx 는 이 파일의 틀(AgDataGridExcelFrame)로 그리드를 감쌀 뿐이다.
- * - 컬럼: ag-grid 가 지금 보여 주는 데이터 열의 순서·제목. 숨긴 열과 `field` 가 없는 내부 열(행 번호·선택 체크박스 등)은 뺀다.
+ * - 컬럼: 모든 데이터 열을 사용자가 바꾼 순서(왼쪽 고정 → 가운데 → 오른쪽 고정)·제목으로. 사용자가 숨긴 열(컬럼 개인화)은
+ *   엑셀에도 숨긴 열로 넣는다(열은 있고 접혀 있다). 화면 정의에서 `hide: true` 인 내부 열과 `field` 가 없는 내부 열
+ *   (행 번호·선택 체크박스 등)은 뺀다.
  * - 행: 정렬·필터가 반영된 순서. 값은 `render` 결과가 아니라 행의 원래 값(숫자는 숫자)이다.
  * - 스타일은 컴포넌트가 직접 넣는다(포털이 원격 모듈의 CSS 파일을 싣지 않는다 — Part B §18-3).
  */
@@ -33,20 +35,45 @@ export interface AgDataGridExcelExport {
 interface ExcelColumnSource {
   key: string;
   header: string;
+  /** 사용자가 숨긴 열 — 엑셀에 넣되 숨긴 열로 둔다. */
+  hidden?: boolean;
 }
 
-type ExcelGridApi = Pick<GridApi, "getAllDisplayedColumns" | "forEachNodeAfterFilterAndSort" | "isDestroyed">;
+type ExcelGridApi = Pick<GridApi, "getAllGridColumns" | "forEachNodeAfterFilterAndSort" | "isDestroyed">;
+
+const PIN_RANK = { left: 0, center: 1, right: 2 } as const;
 
 /**
- * 그리드에 지금 보이는 데이터 열 — 사용자가 끌어 바꾼 순서까지 따른다.
- * `field` 가 없는 열(행 번호·선택 체크박스처럼 그리드가 스스로 만든 열)은 데이터가 아니므로 뺀다.
+ * 그리드의 모든 데이터 열 — 사용자가 끌어 바꾼 순서를 따르고, 화면처럼 왼쪽 고정 → 가운데 → 오른쪽 고정으로 놓는다.
+ * 지금 숨겨진 열은 `hidden: true` 로 담는다(사용자가 컬럼 설정에서 숨긴 열).
+ * `field` 가 없는 열(행 번호·선택 체크박스처럼 그리드가 스스로 만든 열)과 `internalKeys`(화면 정의에서 `hide: true` 인 내부 열)는 뺀다.
  */
-export function displayedExcelColumns(api: Pick<GridApi, "getAllDisplayedColumns">): ExcelColumnSource[] {
-  const out: ExcelColumnSource[] = [];
-  for (const col of api.getAllDisplayedColumns()) {
+export function gridExcelColumns(
+  api: Pick<GridApi, "getAllGridColumns">,
+  internalKeys: ReadonlySet<string> = new Set(),
+): ExcelColumnSource[] {
+  const out: Array<ExcelColumnSource & { rank: number }> = [];
+  for (const col of api.getAllGridColumns()) {
     const def = col.getColDef();
-    if (typeof def.field !== "string" || def.field === "") continue;
-    out.push({ key: def.field, header: typeof def.headerName === "string" ? def.headerName : def.field });
+    if (typeof def.field !== "string" || def.field === "" || internalKeys.has(def.field)) continue;
+    const pinned = col.getPinned();
+    const source: ExcelColumnSource & { rank: number } = {
+      key: def.field,
+      header: typeof def.headerName === "string" ? def.headerName : def.field,
+      rank: PIN_RANK[pinned === "left" || pinned === "right" ? pinned : "center"],
+    };
+    if (!col.isVisible()) source.hidden = true;
+    out.push(source);
+  }
+  // Array.prototype.sort 는 안정 정렬이라 같은 고정 구역 안의 순서는 그리드 순서 그대로다.
+  return out.sort((a, b) => a.rank - b.rank).map(({ rank: _rank, ...c }) => c);
+}
+
+/** 화면 정의에서 `hide: true` 인 잎 열 key(열 그룹 안까지) — 엑셀에서 뺄 내부 열. */
+export function definitionHiddenKeys(columns: readonly GridColumn[], out: Set<string> = new Set()): Set<string> {
+  for (const c of columns) {
+    if (c.children && c.children.length > 0) definitionHiddenKeys(c.children, out);
+    else if (c.hide) out.add(c.key);
   }
   return out;
 }
@@ -115,7 +142,8 @@ export function AgDataGridExcelFrame({
     const api = getApi();
     const rows = displayedExcelRows(api, fallbackRows);
     if (rows.length === 0) return;
-    const cols = api && !api.isDestroyed() ? displayedExcelColumns(api) : propsExcelColumns(columns);
+    const cols =
+      api && !api.isDestroyed() ? gridExcelColumns(api, definitionHiddenKeys(columns)) : propsExcelColumns(columns);
     void exportToExcel(
       rows,
       excelFileName(title, today(), fallbackName),
