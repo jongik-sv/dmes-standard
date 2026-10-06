@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 정시 수집 위젯 렌더러(docs/widget-2026-10/spec-widget-data.md §6) — 항목별 최신 값 타일(값·단위·전 회차 대비·수집 시각)과,
+ * 자동 수집 위젯 렌더러(docs/widget-2026-10/spec-widget-data.md §6) — 항목별 최신 값 타일(값·단위·전 회차 대비·수집 시각)과,
  * 타일을 고르면 그 항목의 추이 선 차트. 값이 없으면 「아직 수집된 값이 없습니다」, 최근 수집이 실패했으면 타일 위에 「최근 수집 실패」 한 줄.
  * 데이터는 widgetData/run(useCollectData), 변환은 ./format 의 순수 함수가 맡는다.
  */
@@ -56,7 +56,7 @@ export default function CollectRenderer({ definition, widgetId, refreshKey }: Wi
             </div>
           ) : (
             <>
-              <KpiTileGroup ariaLabel="정시 수집 최신 값" testId="wc-tiles">
+              <KpiTileGroup ariaLabel="자동 수집 최신 값" testId="wc-tiles">
                 {tiles.map((t) => (
                   <KpiTile
                     key={t.key}

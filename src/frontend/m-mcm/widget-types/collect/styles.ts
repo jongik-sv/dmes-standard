@@ -1,5 +1,5 @@
 /**
- * 정시 수집 위젯 전용 스타일 — 로컬 .css 대신 TS 문자열을 `<style href precedence>` 로 넣는다(Local-Rules §17). 색·간격은 의미 토큰만 쓴다.
+ * 자동 수집 위젯 전용 스타일 — 로컬 .css 대신 TS 문자열을 `<style href precedence>` 로 넣는다(Local-Rules §17). 색·간격은 의미 토큰만 쓴다.
  * 입력 칸·표·버튼 모습은 shared 가 정한다. 편집기는 _query/parts 의 .wq-* 규칙도 함께 쓴다(QueryStyle).
  */
 export const COLLECT_STYLE_HREF = "mcm-widget-collect";

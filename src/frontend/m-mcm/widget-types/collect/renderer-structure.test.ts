@@ -1,6 +1,6 @@
 /** @vitest-environment happy-dom */
 /**
- * 정시 수집 렌더러 구조 시험 — shared 의 KpiTile·KpiTileGroup 을 실물로 그려 「다른 KPI 위젯과 똑같이」 쓰는지 본다(감싸기 회귀 방지).
+ * 자동 수집 렌더러 구조 시험 — shared 의 KpiTile·KpiTileGroup 을 실물로 그려 「다른 KPI 위젯과 똑같이」 쓰는지 본다(감싸기 회귀 방지).
  * 서버 호출 훅·차트·본문 크기 훅만 대역이다. 진짜 shared(dist)를 쓴다(_query/editors-mdm-meta.test.ts 와 같은 설정). JSX 없이 createElement 로 쓴다.
  */
 import { act, createElement } from "react";
@@ -53,7 +53,7 @@ async function render() {
   });
 }
 
-describe("정시 수집 — 실제 KpiTile·KpiTileGroup 구조", () => {
+describe("자동 수집 — 실제 KpiTile·KpiTileGroup 구조", () => {
   it("타일 묶음의 자식은 KpiTile(.cm-kpi) 그대로이고 단추로 감싸지 않는다", async () => {
     await render();
     const group = container.querySelector<HTMLElement>('[data-testid="wc-tiles"]')!;

@@ -1,5 +1,5 @@
 /**
- * 정시 수집(collect) 읽기 결과 변환 — 순수 함수. 계약: docs/widget-2026-10/spec-widget-data.md §5.
+ * 자동 수집(collect) 읽기 결과 변환 — 순수 함수. 계약: docs/widget-2026-10/spec-widget-data.md §5.
  * 응답: columns [COLLECTED_AT, ITEM_KEY, VALUE], rows(SLOT 오름차순 → ITEM_KEY 오름차순), truncated, lastRun.
  * 값 서식은 _query/format.ts 의 formatNumber·toNumber 를 쓴다. @dk-oasis/shared 를 import 하지 않는다.
  */

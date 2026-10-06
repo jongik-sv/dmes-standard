@@ -537,11 +537,11 @@ describe("복사해서 만들기", () => {
     expect(copyBlockReason(dForm({ widgetId: "def.x" }), true)).toBeNull();
   });
 
-  it("copyDataNotice — 개인 메모·정시 수집만 안내, 공용 메모·그 밖은 null", () => {
+  it("copyDataNotice — 개인 메모·자동 수집만 안내, 공용 메모·그 밖은 null", () => {
     const memo = (scope: string) => dForm({ widgetId: "def.m", typeId: "memo", config: { scope, format: "text", content: "" } });
     expect(copyDataNotice(memo("personal"))).toMatch(/개인 메모/);
     expect(copyDataNotice(memo("shared"))).toBeNull();
-    expect(copyDataNotice(dForm({ widgetId: "def.c", typeId: "collect", config: {} }))).toMatch(/정시 수집/);
+    expect(copyDataNotice(dForm({ widgetId: "def.c", typeId: "collect", config: {} }))).toMatch(/자동 수집/);
     expect(copyDataNotice(dForm({ widgetId: "def.x" }))).toBeNull();
   });
 });

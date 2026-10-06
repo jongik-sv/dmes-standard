@@ -1,5 +1,5 @@
 /**
- * 정시 수집(collect) 정의 설정(CONFIG_JSON) — 읽기·검사·편집 도우미. 순수 함수.
+ * 자동 수집(collect) 정의 설정(CONFIG_JSON) — 읽기·검사·편집 도우미. 순수 함수.
  * 계약: docs/widget-2026-10/spec-widget-data.md §2(서버 규칙과 같은 한도). 저장 검사는 서버가 정식으로 판정하고, 이 검사는 칸 단위 안내와 저장 막기용이다.
  * 읽기(read*)는 느슨하다 — 값이 없거나 이상하면 초기 설정으로 채우되, 편집 중에 일부러 비운 목록은 그대로 둔다(편집기가 오류를 보이게).
  * @dk-oasis/shared 를 import 하지 않는다(m-mcm vitest 가 shared dist 없이 시험한다).

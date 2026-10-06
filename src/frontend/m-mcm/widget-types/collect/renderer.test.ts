@@ -1,6 +1,6 @@
 /** @vitest-environment happy-dom */
 /**
- * 정시 수집 렌더러 동작 시험 — 타일·선택·추이 차트·값 없음·최근 수집 실패·저장 전 안내.
+ * 자동 수집 렌더러 동작 시험 — 타일·선택·추이 차트·값 없음·최근 수집 실패·저장 전 안내.
  * useCollectData(서버 호출)와 shared 의 차트·타일·본문 크기 훅은 대역이다. 변환·서식(./format)·설정 읽기(./config)는 실물이다.
  * JSX 없이 createElement 로 쓴다(vitest include 가 *.test.ts 만 잡는다).
  */
@@ -90,7 +90,7 @@ async function render(d: CollectData | null, over: { widgetId?: string; definiti
     widgetId: over.widgetId ?? "def.collect12",
     definition: over.definition ?? { show: { unit: "건" } },
     refreshKey: 4,
-    title: "정시 수집",
+    title: "자동 수집",
     size: { w: 8, h: 8 },
     config: null,
   };
@@ -100,7 +100,7 @@ async function render(d: CollectData | null, over: { widgetId?: string; definiti
   return props;
 }
 
-describe("정시 수집 렌더러", () => {
+describe("자동 수집 렌더러", () => {
   it("widgetId·refreshKey 로 useCollectData 를 부른다", async () => {
     await render(sample());
     expect(h.useCollectData).toHaveBeenCalledWith("def.collect12", 4);

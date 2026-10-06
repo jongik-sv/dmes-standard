@@ -712,6 +712,13 @@ describe("편집기", () => {
     expect(must("rc-editor-fill").closest("td")).not.toBeNull();
   });
 
+  it("검색 결과 ComboBox 의 안쪽 입력 묶음이 남은 폭을 쓰고 바깥 상자 테두리는 없앤다(좁은 입력+빈 상자 두 겹 방지)", async () => {
+    const { RULE_CALC_CSS } = await import("./rule-calc-styles");
+    expect(RULE_CALC_CSS).toContain(".mcm-rc-editor .form-combobox > .mantine-Input-wrapper { flex: 1 1 auto; width: 100%; min-width: 0; }");
+    expect(RULE_CALC_CSS).toMatch(/\.mcm-rc-editor \.form-combobox \{[^}]*border: 0/);
+    expect(RULE_CALC_CSS).toMatch(/\.mcm-rc-editor \.form-combobox \.mantine-Select-dropdown \{ min-width:/);
+  });
+
   it("ID 가 비면 검사 오류를 알리고 [입력 칸 확인] 은 잠긴다", async () => {
     const { onValidate } = await renderEditor({ targetTp: "RULE", targetId: "", showSteps: false });
     expect(onValidate).toHaveBeenLastCalledWith(["룰 또는 룰 세트를 지정하세요"]);
