@@ -106,7 +106,7 @@ const confirmDeleteRow = () =>
 | headerExtra | `ReactNode` | - | 버튼 묶음 오른쪽 끝 노드 |
 | help | `GridHelpConfig` | - | `{ title?, summary?, columns: { header, description, values?, note? }[] }`. `title` 기본값은 "그리드 도움말" |
 | loading | `boolean` | `false` | 참이면 행추가·행삭제·행복사·`buttons` 를 비활성화한다(「컬럼 설정」 버튼은 제외) |
-| usePermission | `boolean` | `false` | 참이면 `fetchPermissions` 가 돌려준 버튼 id 만 보인다(「컬럼 설정」 버튼은 제외) |
+| usePermission | `boolean` | `false` | 참이면 `fetchPermissions` 가 돌려준 버튼 id 만 누를 수 있고, 나머지 버튼은 보이되 비활성이다(「컬럼 설정」 버튼은 제외 — 늘 활성) |
 | fetchPermissions | `() => Promise<string[]>` | - | 허용 버튼 id 목록 조회 |
 | className | `string` | `""` | 루트 클래스 |
 | style | `CSSProperties` | - | 루트 스타일 |
