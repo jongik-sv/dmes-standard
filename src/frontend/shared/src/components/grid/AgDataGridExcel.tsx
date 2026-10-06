@@ -2,7 +2,7 @@
 
 /**
  * AgDataGrid 의 `excelExport` 속성이 쓰는 부품 — 표 바로 아래에 「N행」과 [엑셀] 단추를 붙이고, 누르면 그리드의
- * 컬럼·행을 엑셀로 내려받는다. AgDataGrid.tsx 는 이 파일의 틀(AgDataGridExcelFrame)로 그리드를 감쌀 뿐이다.
+ * 컬럼·행을 엑셀로 내려받는다. AgDataGrid.tsx 는 이 파일의 틀(AgDataGridExcelFrame)로 그리드를 감싸고 내려받기(useGridExcelExport)를 부른다.
  * - 컬럼: 모든 데이터 열을 사용자가 바꾼 순서(왼쪽 고정 → 가운데 → 오른쪽 고정)·제목으로. 사용자가 숨긴 열(컬럼 개인화)은
  *   엑셀에도 숨긴 열로 넣는다(열은 있고 접혀 있다). 화면 정의에서 `hide: true` 인 내부 열과 `field` 가 없는 내부 열
  *   (행 번호·선택 체크박스 등)은 뺀다.
@@ -110,35 +110,21 @@ const GRID_EXCEL_FRAME_CSS = `
 .cm-grid-excel--auto .cm-grid-excel__grow { flex: none; }
 `;
 
-interface AgDataGridExcelFrameProps {
-  options: AgDataGridExcelExport;
-  /** 그리드에 넘긴 columns(그리드 API 가 없을 때만 쓴다). */
-  columns: readonly GridColumn[];
-  /** 그리드에 넘긴 data — 「{n}행」과 단추 비활성 판정에 쓴다. */
-  data: readonly Record<string, unknown>[];
-  /** 그리드가 화면에 쓰는 행(정렬이 반영된 `sortedData`) — API 가 없을 때 내보낼 행. 화면 순서와 맞춘다. */
-  fallbackRows: readonly Record<string, unknown>[];
-  /** 바깥 상자 높이(AgDataGrid `height`). 그리드는 이 상자의 남은 높이를 채운다. `"auto"` 는 행 수만큼 늘어난다. */
-  height?: string | number;
-  /** 지금의 ag-grid API(없으면 null). */
-  getApi: () => ExcelGridApi | null | undefined;
-  children: ReactNode;
-}
-
-/** 바깥을 세로 flex 로 감싸 그리드가 남은 높이를 채우고, 아래 줄(GridExcelFoot)이 바닥에 붙게 한다. */
-export function AgDataGridExcelFrame({
-  options,
-  columns,
-  data,
-  fallbackRows,
-  height,
-  getApi,
-  children,
-}: AgDataGridExcelFrameProps) {
-  const { title, fallbackName, note, sheetName, testId, excludeKeys } = options;
-  const isAuto = height === "auto";
-
-  const handleExcel = useCallback(() => {
+/**
+ * 엑셀 내려받기 — 아래 줄 [엑셀] 단추와 GridPanel 「그리드 설정」 메뉴의 [엑셀 내려받기] 가 같이 쓴다(컬럼 순서·숨긴 열·정렬·필터 동일).
+ * 행이 없으면 아무 일도 하지 않는다.
+ */
+export function useGridExcelExport(
+  options: AgDataGridExcelExport | undefined,
+  columns: readonly GridColumn[],
+  fallbackRows: readonly Record<string, unknown>[],
+  getApi: () => ExcelGridApi | null | undefined,
+): () => void {
+  const title = options?.title;
+  const fallbackName = options?.fallbackName;
+  const sheetName = options?.sheetName;
+  const excludeKeys = options?.excludeKeys;
+  return useCallback(() => {
     const api = getApi();
     const rows = displayedExcelRows(api, fallbackRows);
     if (rows.length === 0) return;
@@ -151,6 +137,25 @@ export function AgDataGridExcelFrame({
       toExcelColumns(cols, rows, excludeKeys),
     );
   }, [getApi, fallbackRows, columns, title, fallbackName, sheetName, excludeKeys]);
+}
+
+interface AgDataGridExcelFrameProps {
+  options: AgDataGridExcelExport;
+  /** 그리드에 넘긴 data — 「{n}행」과 단추 비활성 판정에 쓴다. */
+  data: readonly Record<string, unknown>[];
+  /** 엑셀 내려받기(useGridExcelExport 가 돌려준 것). */
+  onExcel: () => void;
+  /** 바깥 상자 높이(AgDataGrid `height`). 그리드는 이 상자의 남은 높이를 채운다. `"auto"` 는 행 수만큼 늘어난다. */
+  height?: string | number;
+  /** 아래 줄 [엑셀] 단추를 뺀다 — GridPanel 설정 메뉴가 대신할 때. */
+  hideButton?: boolean;
+  children: ReactNode;
+}
+
+/** 바깥을 세로 flex 로 감싸 그리드가 남은 높이를 채우고, 아래 줄(GridExcelFoot)이 바닥에 붙게 한다. */
+export function AgDataGridExcelFrame({ options, data, onExcel, height, hideButton, children }: AgDataGridExcelFrameProps) {
+  const { note, testId } = options;
+  const isAuto = height === "auto";
 
   return (
     <>
@@ -165,9 +170,10 @@ export function AgDataGridExcelFrame({
         <div className="cm-grid-excel__grow">{children}</div>
         <GridExcelFoot
           note={note ?? `${data.length.toLocaleString()}행`}
-          onExcel={handleExcel}
+          onExcel={onExcel}
           disabled={data.length === 0}
           testId={testId}
+          hideButton={hideButton}
         />
       </div>
     </>

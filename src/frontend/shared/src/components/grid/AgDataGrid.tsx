@@ -1,7 +1,7 @@
 "use client";
 
 import "./grid.css";
-import React, { useState, useMemo, useRef, useEffect, useCallback, memo } from "react";
+import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback, memo } from "react";
 import { AgGridReact } from "ag-grid-react";
 import { AllCommunityModule, ModuleRegistry } from "ag-grid-community";
 import type {
@@ -16,7 +16,7 @@ import type {
 import { GRID_TEMP_ID_FIELD } from "./GridPanel";
 import { GRID_TOOLTIP_SHOW_DELAY_MS } from "./grid-tooltip";
 import { useGridTooltipOutside } from "./grid-tooltip-parent";
-import { AgDataGridExcelFrame } from "./AgDataGridExcel";
+import { AgDataGridExcelFrame, useGridExcelExport } from "./AgDataGridExcel";
 import type { GridColumn, AgDataGridProps } from "./grid-types";
 import { useGridPersonalize, type GridPersonalizeColumn } from "./grid-personalize-hook";
 import { useGridPanelRegistry, type GridPanelGridControls } from "./grid-panel-context";
@@ -350,31 +350,49 @@ function AgDataGridComponent({
   useEffect(() => {
     for (const fn of [...autoSaveListenersRef.current]) fn();
   }, [autoSave]);
-  // GridPanel 에 올리는 명령 — 그리드가 사는 동안 같은 객체(렌더마다 새로 만들지 않는다).
+  // GridPanel 에 올리는 명령 — 켜짐 상태(개인화·엑셀)가 같은 동안 같은 객체(렌더마다 새로 만들지 않는다). 개인화 명령은 개인화가 켜진 동안만,
+  // 엑셀 명령은 excelExport 를 켠 그리드만 채운다. 엑셀 함수·행 수는 ref 로 읽어 명령 객체가 바뀌지 않게 한다.
+  const hasExcel = !!excelExport;
+  const exportExcelRef = useRef<() => void>(() => {});
+  const rowCountRef = useRef(0);
   const gridControls = useMemo<GridPanelGridControls>(
     () => ({
-      openSettings,
-      requestReset,
-      getAutoSave: () => personalizeHandleRef.current.autoSave,
-      setAutoSave: (next) => personalizeHandleRef.current.setAutoSave(next),
-      subscribeAutoSave: (listener) => {
-        autoSaveListenersRef.current.add(listener);
-        return () => {
-          autoSaveListenersRef.current.delete(listener);
-        };
-      },
+      ...(personalizeEnabled
+        ? {
+            openSettings,
+            requestReset,
+            getAutoSave: () => personalizeHandleRef.current.autoSave,
+            setAutoSave: (next: boolean) => personalizeHandleRef.current.setAutoSave(next),
+            subscribeAutoSave: (listener: () => void) => {
+              autoSaveListenersRef.current.add(listener);
+              return () => {
+                autoSaveListenersRef.current.delete(listener);
+              };
+            },
+          }
+        : {}),
+      ...(hasExcel
+        ? { exportExcel: () => exportExcelRef.current(), canExportExcel: () => rowCountRef.current > 0 }
+        : {}),
     }),
-    [openSettings, requestReset],
+    [personalizeEnabled, hasExcel, openSettings, requestReset],
   );
   const gridPanelRegistry = useGridPanelRegistry();
-  useEffect(() => {
-    if (!gridPanelRegistry || !personalizeEnabled) return;
+  // 이 그리드가 GridPanel 설정 메뉴의 대상이면 아래 줄 [엑셀] 단추를 뺀다(메뉴가 엑셀을 맡는다). 한 패널에 그리드가 여럿이면 대상이 아닌 그리드는 단추를 그대로 둔다.
+  const [isMenuTarget, setIsMenuTarget] = useState(false);
+  // 페인트 전에 등록해야 대상이 된 그리드의 아래 줄 [엑셀] 단추가 첫 프레임에 보였다 사라지지 않는다.
+  useLayoutEffect(() => {
+    if (!gridPanelRegistry || !(personalizeEnabled || hasExcel)) return;
     // React context 는 포털을 넘어 오므로, GridPanel 안에서 띄운 팝업(룩업 등)의 그리드도 여기로 온다. 실제로 그 패널의
-    // 그리드 영역 안에 있고 대화 상자 안이 아닌 그리드만 등록한다 — 개인화가 꺼진 패널에 남의 [컬럼 설정] 단추가 생기지 않게.
+    // 그리드 영역 안에 있고 대화 상자 안이 아닌 그리드만 등록한다 — 개인화가 꺼진 패널에 남의 설정 메뉴가 생기지 않게.
     const el = containerRef.current;
     if (!el || !el.closest(".grid-panel-content") || isInDialog(el)) return;
-    return gridPanelRegistry.register(gridControls);
-  }, [gridPanelRegistry, personalizeEnabled, gridControls]);
+    const unregister = gridPanelRegistry.register(gridControls, setIsMenuTarget);
+    return () => {
+      unregister();
+      setIsMenuTarget(false);
+    };
+  }, [gridPanelRegistry, personalizeEnabled, hasExcel, gridControls]);
   // 개인화가 꺼지면(탭 비활성·키 충돌로 대기) 열려 있던 창·메뉴를 닫는다. 처음부터 꺼진 그리드는 아무 상태도 건드리지 않는다.
   const wasPersonalizeEnabledRef = useRef(false);
   useEffect(() => {
@@ -528,6 +546,9 @@ function AgDataGridComponent({
 
   const isAutoHeight = height === "auto";
   const getExcelApi = useCallback(() => gridRef.current?.api, []);
+  const exportExcel = useGridExcelExport(excelExport, columns, sortedData, getExcelApi);
+  exportExcelRef.current = exportExcel;
+  rowCountRef.current = data.length;
 
   const grid = (
     <div
@@ -614,11 +635,10 @@ function AgDataGridComponent({
   const body = excelExport ? (
     <AgDataGridExcelFrame
       options={excelExport}
-      columns={columns}
       data={data}
-      fallbackRows={sortedData}
+      onExcel={exportExcel}
       height={height}
-      getApi={getExcelApi}
+      hideButton={isMenuTarget}
     >
       {grid}
     </AgDataGridExcelFrame>

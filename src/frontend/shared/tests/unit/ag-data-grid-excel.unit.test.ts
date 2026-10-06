@@ -20,6 +20,7 @@ vi.mock("../../src/utils/libDate", async (importOriginal) => ({
 import { AgDataGrid, type GridColumn } from "../../src/components/grid/AgDataGrid";
 import {
   AgDataGridExcelFrame,
+  useGridExcelExport,
   definitionHiddenKeys,
   displayedExcelRows,
   gridExcelColumns,
@@ -397,24 +398,20 @@ describe("AgDataGrid excelExport — 실제 그리드의 화면 상태를 따른
 describe("AgDataGridExcelFrame — 그리드 API 가 없을 때의 대체 경로", () => {
   it("화면 순서의 대체 행(fallbackRows)과 props 열(숨긴 열 제외, 열 그룹 잎)을 내보내고, 행 수·비활성은 data 로 정한다", async () => {
     const sortedRows = [{ woNo: "W-1", qty: 1 }, { woNo: "W-2", qty: 2 }];
-    r = renderWithMantine(
-      createElement(
-        AgDataGridExcelFrame,
-        {
-          options: { title: "대체", excludeKeys: ["skip"] },
-          columns: [
-            { key: "woNo", header: "번호" },
-            { key: "hidden", header: "숨김", hide: true },
-            { key: "skip", header: "뺌" },
-            { key: "grp", header: "수량", children: [{ key: "qty" }] },
-          ] as GridColumn[],
-          data: [{ woNo: "W-2", qty: 2 }, { woNo: "W-1", qty: 1 }, { woNo: "W-3", qty: 3 }],
-          fallbackRows: sortedRows,
-          getApi: () => null,
-        },
-        createElement("div", { "data-testid": "child" })
-      )
-    );
+    const columns = [
+      { key: "woNo", header: "번호" },
+      { key: "hidden", header: "숨김", hide: true },
+      { key: "skip", header: "뺌" },
+      { key: "grp", header: "수량", children: [{ key: "qty" }] },
+    ] as GridColumn[];
+    const options = { title: "대체", excludeKeys: ["skip"] };
+    const data = [{ woNo: "W-2", qty: 2 }, { woNo: "W-1", qty: 1 }, { woNo: "W-3", qty: 3 }];
+    const getApi = () => null;
+    function Probe() {
+      const onExcel = useGridExcelExport(options, columns, sortedRows, getApi);
+      return createElement(AgDataGridExcelFrame, { options, data, onExcel }, createElement("div", { "data-testid": "child" }));
+    }
+    r = renderWithMantine(createElement(Probe));
     container = r.host;
     expect(q("grid-foot-note")!.textContent).toBe("3행"); // 전체 data 수
     expect(button()!.disabled).toBe(false);

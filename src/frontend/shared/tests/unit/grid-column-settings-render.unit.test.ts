@@ -1,6 +1,6 @@
 /** @vitest-environment happy-dom */
 /**
- * 컬럼 설정 창·헤더 우클릭 메뉴·GridPanel [컬럼 설정] 단추(C3) — 실제 ag-grid·MantineProvider 로 그려 확인한다.
+ * 컬럼 설정 창·헤더 우클릭 메뉴·GridPanel 「그리드 설정」 메뉴의 [컬럼 설정…](C3) — 실제 ag-grid·MantineProvider 로 그려 확인한다.
  * 그리드 api 는 AgGridReact.render 의 this 로 잡는다(grid-personalize-render 시험과 같은 방식).
  */
 import { act, createElement, type ReactElement } from "react";
@@ -94,6 +94,17 @@ function seed(prefs: Omit<GridPrefs, "v" | "savedAt">, key = KEY) {
 
 const byId = (id: string) => document.getElementById(id);
 const tid = (id: string) => document.querySelector<HTMLElement>(`[data-testid="${id}"]`);
+/** GridPanel 「그리드 설정」 메뉴 열기 단추 — 개인화가 켜진 그리드가 있을 때만 있다(예전 [컬럼 설정] 단추의 있고 없음을 대신 본다). */
+const settingsMenuButton = () => tid("grid-settings-menu");
+/** 메뉴를 열고(이미 열려 있으면 그대로) 항목 하나를 돌려준다. 항목은 메뉴가 열린 동안에만 DOM 에 있다. */
+async function menuItem(id: string) {
+  const t = settingsMenuButton()!;
+  if (t.getAttribute("aria-expanded") !== "true") {
+    await act(async () => void t.click());
+    await wait(60);
+  }
+  return byId(id);
+}
 const settingsRows = () =>
   Array.from(document.querySelectorAll('[data-testid^="column-settings-row-"]')).map((e) =>
     e.getAttribute("data-testid")!.replace("column-settings-row-", ""),
@@ -126,15 +137,17 @@ afterEach(async () => {
   delete g.__dkOasisGridPersonalizeRegistry__;
 });
 
-describe("GridPanel [컬럼 설정] 단추", () => {
+describe("GridPanel 「그리드 설정」 메뉴의 [컬럼 설정…]", () => {
   it("개인화가 켜진 그리드가 있으면 보이고, 누르면 컬럼 설정 창이 열린다 — 내부 컬럼은 목록에 없다", async () => {
     await stubUser("u1");
     await show(tab(panel(gridEl())));
-    const b = byId("btn_grid_columns") as HTMLButtonElement;
-    expect(b).not.toBeNull();
-    expect(b.textContent).toBe("컬럼 설정");
-    expect(b.className).toBe("grid-btn");
-    expect(b.closest(".grid-panel-buttons")).not.toBeNull();
+    const icon = settingsMenuButton()!;
+    expect(icon).not.toBeNull();
+    expect(icon.getAttribute("aria-label")).toBe("그리드 설정");
+    expect(icon.closest(".grid-panel-buttons")).not.toBeNull();
+    const b = (await menuItem("btn_grid_columns")) as HTMLButtonElement;
+    expect(b.textContent).toBe("컬럼 설정…");
+    expect(tid("grid-columns-button")).toBe(b);
     expect(tid("column-settings")).toBeNull();
     await click(b);
     expect(tid("column-settings")).not.toBeNull();
@@ -148,13 +161,15 @@ describe("GridPanel [컬럼 설정] 단추", () => {
     const fetchPermissions = vi.fn(async () => [] as string[]);
     await show(tab(panel(gridEl(), { usePermission: true, fetchPermissions, loading: true, buttons: [{ id: "btn_x", label: "저장" }] })));
     expect((byId("btn_x") as HTMLButtonElement).disabled).toBe(true);
-    const b = byId("btn_grid_columns") as HTMLButtonElement;
-    expect(b.disabled).toBe(false);
+    const icon = settingsMenuButton() as HTMLButtonElement;
+    expect(icon.disabled).toBe(false);
+    const b = (await menuItem("btn_grid_columns")) as HTMLButtonElement;
+    expect(b.hasAttribute("disabled")).toBe(false);
     await click(b);
     expect(tid("column-settings")).not.toBeNull();
   });
 
-  it("기본 버튼 묶음 맨 끝(headerExtra 앞)에 놓인다", async () => {
+  it("업무 버튼 묶음 맨 끝에 설정 아이콘 하나만 놓이고 그 뒤에 headerExtra 가 온다", async () => {
     await stubUser("u1");
     await show(
       tab(
@@ -165,8 +180,8 @@ describe("GridPanel [컬럼 설정] 단추", () => {
         }),
       ),
     );
-    const ids = Array.from(document.querySelectorAll(".grid-panel-buttons button")).map((e) => e.id);
-    expect(ids).toEqual(["btn_grid_add", "btn_x", "btn_grid_columns", "btn_grid_reset"]);
+    const ids = Array.from(document.querySelectorAll(".grid-panel-buttons button")).map((e) => e.getAttribute("data-testid") ?? e.id);
+    expect(ids).toEqual(["btn_grid_add", "btn_x", "grid-settings-menu"]);
     const actions = document.querySelector(".grid-panel-header-actions")!;
     expect(Array.from(actions.children).map((e) => e.className)).toEqual(["grid-panel-buttons", "grid-panel-header-extra"]);
   });
@@ -178,30 +193,30 @@ describe("GridPanel [컬럼 설정] 단추", () => {
     const none = headerHtml();
     expect(document.querySelector(".grid-panel-header-actions")).toBeNull();
     await show(tab(panel(gridEl({ personalize: false }))));
-    expect(byId("btn_grid_columns")).toBeNull();
+    expect(settingsMenuButton()).toBeNull();
     expect(headerHtml()).toBe(none);
     // 버튼이 있는 패널도 그리드 켬 → 끔 사이 DOM 이 달라지는 것은 단추 하나뿐
     await show(tab(panel(gridEl({ personalize: false }), { buttons: [{ id: "btn_x", label: "저장" }] })));
     const withBtn = headerHtml();
-    expect(withBtn).not.toContain("btn_grid_columns");
+    expect(withBtn).not.toContain("grid-settings-menu");
   });
 
   it("그리드가 사라지면(언마운트) 단추도 사라진다", async () => {
     await stubUser("u1");
     await show(tab(panel(gridEl())));
-    expect(byId("btn_grid_columns")).not.toBeNull();
+    expect(settingsMenuButton()).not.toBeNull();
     await show(tab(panel(null)));
-    expect(byId("btn_grid_columns")).toBeNull();
+    expect(settingsMenuButton()).toBeNull();
     expect(document.querySelector(".grid-panel-header-actions")).toBeNull();
   });
 
   it("사용자 확인 전에는 없다가 확인되면 나타난다", async () => {
     await stubUser(null);
     await show(tab(panel(gridEl())));
-    expect(byId("btn_grid_columns")).toBeNull();
+    expect(settingsMenuButton()).toBeNull();
     await seedCurrentUser("u1");
     await wait(50);
-    expect(byId("btn_grid_columns")).not.toBeNull();
+    expect(settingsMenuButton()).not.toBeNull();
   });
 
   it("GridPanel 안에 그리드가 여럿이면 처음 등록한 그리드가 대상이고, 그 그리드가 빠지면 다음 그리드가 이어받는다", async () => {
@@ -222,13 +237,13 @@ describe("GridPanel [컬럼 설정] 단추", () => {
         ),
       );
     await show(two(true));
-    await click(byId("btn_grid_columns"));
+    await click(await menuItem("btn_grid_columns"));
     expect(settingsRows()).toEqual(["code", "name", "qty"]);
     await click(tid("column-settings-cancel"));
     expect(tid("column-settings")).toBeNull();
     await show(two(false));
-    expect(byId("btn_grid_columns")).not.toBeNull();
-    await click(byId("btn_grid_columns"));
+    expect(settingsMenuButton()).not.toBeNull();
+    await click(await menuItem("btn_grid_columns"));
     expect(settingsRows()).toEqual(["bcode", "bname"]);
   });
 
@@ -237,20 +252,20 @@ describe("GridPanel [컬럼 설정] 단추", () => {
     const portaled = createPortal(gridEl({ gridId: "popup" }), document.body);
     await show(tab(panel(createElement("div", null, gridEl({ personalize: false }), portaled))));
     expect(apis()).toHaveLength(2);
-    expect(byId("btn_grid_columns")).toBeNull();
+    expect(settingsMenuButton()).toBeNull();
   });
 
   it("대화 상자 안의 GridPanel·그리드는 등록하지 않는다(설정 창을 겹쳐 띄우지 않는다)", async () => {
     await stubUser("u1");
     await show(tab(createElement("div", { role: "dialog" }, panel(gridEl()))));
     expect(api().getAllGridColumns().length).toBeGreaterThan(0);
-    expect(byId("btn_grid_columns")).toBeNull();
+    expect(settingsMenuButton()).toBeNull();
   });
 
   it("GridPanel 없이 쓰는 그리드는 예전처럼 동작한다(등록할 곳이 없다)", async () => {
     await stubUser("u1");
     await show(tab(gridEl()));
-    expect(byId("btn_grid_columns")).toBeNull();
+    expect(settingsMenuButton()).toBeNull();
     expect(api().getAllGridColumns().length).toBeGreaterThan(0);
   });
 });
@@ -264,9 +279,9 @@ describe("머리글 우클릭 메뉴", () => {
     expect(rightClick(headerCell("name"))).toBe(true);
     await wait(50);
     expect(tid("grid-header-menu")).not.toBeNull();
-    expect(tid("grid-header-menu-settings")!.textContent).toBe("컬럼 설정");
-    expect(tid("grid-header-menu-autosave")!.textContent).toBe("자동 저장");
-    expect(tid("grid-header-menu-reset")!.textContent).toBe("초기화");
+    expect(tid("grid-header-menu-settings")!.textContent).toBe("컬럼 설정…");
+    expect(tid("grid-header-menu-autosave")!.textContent).toBe("자동 설정 저장");
+    expect(tid("grid-header-menu-reset")!.textContent).toBe("설정 초기화…");
   });
 
   it("마우스 위치에 띄운다 — 기준 요소가 클릭 좌표의 고정 위치이고 다시 우클릭하면 새 위치로 옮긴다", async () => {
@@ -374,7 +389,7 @@ describe("설정 창 적용 → 저장 → 복원", () => {
     await stubUser("u1");
     await show(tab(panel(gridEl())));
     const a = api();
-    await click(byId("btn_grid_columns"));
+    await click(await menuItem("btn_grid_columns"));
     // 수량을 맨 위로, 이름 숨김
     await click(tid("column-settings-up-qty"));
     await click(tid("column-settings-up-qty"));
@@ -401,7 +416,7 @@ describe("설정 창 적용 → 저장 → 복원", () => {
     await stubUser("u1");
     await show(tab(panel(gridEl({ columnSizing: "auto" }))));
     const auto = vi.spyOn(api(), "autoSizeAllColumns");
-    await click(byId("btn_grid_columns"));
+    await click(await menuItem("btn_grid_columns"));
     await click(tid("column-settings-check-name")!.querySelector("input"));
     await click(tid("column-settings-apply"));
     await wait(120);
@@ -414,7 +429,7 @@ describe("설정 창 적용 → 저장 → 복원", () => {
     const a = api();
     const first = order(a)[0];
     expect(first).toBe("ag-Grid-SelectionColumn");
-    await click(byId("btn_grid_columns"));
+    await click(await menuItem("btn_grid_columns"));
     expect(settingsRows()).toEqual(["code", "name", "qty"]);
     await click(tid("column-settings-down-code"));
     await click(tid("column-settings-down-code"));
@@ -429,7 +444,7 @@ describe("설정 창 적용 → 저장 → 복원", () => {
     await stubUser("u1");
     seed({ cols: [{ colId: "qty", hide: false }, { colId: "code", hide: false }, { colId: "name", hide: true }] });
     await show(tab(panel(gridEl())));
-    await click(byId("btn_grid_columns"));
+    await click(await menuItem("btn_grid_columns"));
     await click(tid("column-settings-reset"));
     await wait(50);
     expect(tid("column-settings")).toBeNull();
@@ -458,7 +473,7 @@ describe("머리글을 그리드 밖으로 끌어도 컬럼이 숨겨지지 않�
   it("자동 저장 대기 시간이 지나도 기본값 복원 뒤 저장값은 없다", async () => {
     await stubUser("u1");
     await show(tab(panel(gridEl())));
-    await click(byId("btn_grid_columns"));
+    await click(await menuItem("btn_grid_columns"));
     await click(tid("column-settings-reset"));
     await wait(GRID_PERSONALIZE_SAVE_DEBOUNCE_MS + 50);
     expect(ls.getItem(KEY)).toBeNull();
