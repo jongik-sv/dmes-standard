@@ -27,8 +27,8 @@ describe("위젯 도움말 문서 번들", () => {
   it.each([
     ["Widget-Authoring-Guide.md", SOURCE],
     ["Widget-Screen-Link-Guide.md", LINK_SOURCE],
-  ])("%s 에 물결표 하나(~)가 없다 — 범위는 하이픈으로 쓴다(GFM 이 취소선으로 그린다)", (_name, path) => {
-    const text = stripCode(readFileSync(path, "utf8")).replace(/~~/g, "");
+  ])("%s 에 이스케이프 안 된 물결표 하나(~)가 없다 — 범위는 하이픈, 인용 문구는 \\~(GFM 이 취소선으로 그린다)", (_name, path) => {
+    const text = stripCode(readFileSync(path, "utf8")).replace(/~~/g, "").replace(/\\~/g, "");
     expect(text.split("\n").filter((l) => l.includes("~"))).toEqual([]);
   });
 });
