@@ -242,16 +242,18 @@ export default function ColumnMngPage() {
     [fail, list, setSelectedColumnId],
   );
 
-  // 분리 창이 이어받은 선택 컬럼이 있으면 상세를 서버에서 다시 읽는다(상세는 컬럼 ID 로 읽는다). `openColumn` 이 도메인 이름을 목록 행에서 찾으므로
-  // 행이 있을 때 부른다 — 행이 함께 왔으면 마운트 직후, 행 없이 복원돼 재조회 중이면 목록이 도착한 뒤 한 번. 포털 탭은 복원값이 없어 아무것도 하지 않는다.
+  // 분리 창이 이어받은 선택 컬럼이 있으면 마운트 직후 한 번 상세를 서버에서 다시 읽는다(상세는 컬럼 ID 로 읽는다). 목록 도착을 기다리지 않는다 —
+  // 기다리면 목록이 0건이거나 재조회가 실패했을 때 대기가 남아, 나중에 사용자가 [조회]·저장한 뒤 이어받은 컬럼이 몰래 열려 작성 중인 폼을 덮는다.
+  // 행이 함께 왔으면 도메인 이름은 목록 행에서, 행 없이 재조회 중이면 `openColumn` 의 물러서는 표시(「도메인 N」)로 둔다.
+  // 포털 탭은 복원값이 없어 아무것도 하지 않는다. 한 번 쓰면 비워 두므로 openColumn 이 바뀌어 effect 가 다시 돌아도(StrictMode 포함) 다시 열지 않는다.
   const restored = useCarryRestored();
   const pendingRestoreId = useRef<number | null>(restored ? selectedColumnId : null);
   useEffect(() => {
     const id = pendingRestoreId.current;
-    if (id == null || list.length === 0) return;
+    if (id == null) return;
     pendingRestoreId.current = null;
     void openColumn(id);
-  }, [list, openColumn]);
+  }, [openColumn]);
 
   // ── 자동 생성 ─────────────────────────────────────────────────────────
   const runCompare = useCallback(
