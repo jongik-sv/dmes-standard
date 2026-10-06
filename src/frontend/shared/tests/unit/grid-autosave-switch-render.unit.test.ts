@@ -140,8 +140,8 @@ describe("GridPanel 의 자동 저장 스위치", () => {
     // 머리줄에는 아이콘 하나만 — 예전 [컬럼 설정]·스위치·[초기화] 가 따로 없다
     const icon = tid("grid-settings-menu")!;
     expect(icon.getAttribute("aria-label")).toBe("그리드 설정");
-    expect(document.querySelector(".grid-panel-buttons")!.contains(icon)).toBe(true);
-    expect(document.querySelector(".grid-panel-buttons")!.textContent).toBe("");
+    expect(document.querySelector(".grid-panel-settings-slot")!.contains(icon)).toBe(true);
+    expect(document.querySelector(".grid-panel-header-actions")!.textContent).toBe("");
     expect(switchInput()).toBeNull();
     await openMenu();
     expect(switchInput()!.checked).toBe(true);

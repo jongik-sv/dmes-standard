@@ -26,6 +26,8 @@ export {
   mergeWidgetRegistry,
   toWidgetDefRow,
 } from "./widget-registry";
+export { normalizeWidgetPlacement, resolveWidgetPlacement } from "./widget-placement";
+export type { WidgetPlacementResolved } from "./widget-placement";
 export { useWidgetVisible } from "./use-widget-visible";
 export { WidgetFrame } from "./WidgetFrame";
 export type { WidgetFrameProps } from "./WidgetFrame";

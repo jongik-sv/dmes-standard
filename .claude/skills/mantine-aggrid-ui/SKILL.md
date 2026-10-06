@@ -63,14 +63,14 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 | 조회조건 | `layout`: `SearchArea`, `SearchField` (`label="~"` 은 앞 필드와 기간 쌍) |
 | 입력·선택·날짜·버튼 | `form`: `Button`, `Input`, `Select`, `ComboBox`, `DatePicker`, `Textarea`, `Checkbox`, `Radio` … |
 | 데이터 그리드(모든 데이터 목록) | `grid`: **`AgDataGrid` 하나만**. 제목·건수·버튼 툴바가 필요하면 `<GridPanel>` 안에 넣는다. 저장형은 `useGridDataManager`. 열은 `GridColumn`, ag-grid `ColDef` 아님 |
-| 엑셀 내보내기 | `utils`: `exportToExcel` (xlsx 기반 — ag-grid Excel Export(Enterprise)가 필요 없다). `GridPanel` 안의 `AgDataGrid` 는 머리줄 「그리드 설정」 메뉴에 「엑셀 출력」 이 기본으로 있어(끄려면 `excelExport={false}`) 보이는 목록을 그대로 내려받는 단추는 따로 만들지 않는다 |
+| 엑셀 내보내기 | `utils`: `exportToExcel` (xlsx 기반 — ag-grid Excel Export(Enterprise)가 필요 없다). `AgDataGrid` 는 「그리드 설정」 메뉴(`GridPanel` 안은 머리줄, 밖은 그리드 머리글 줄 오른쪽 끝의 작은 아이콘, 대화 상자 안은 이 아이콘에 엑셀 항목만)에 「엑셀 출력」 이 기본으로 있어(끄려면 `excelExport={false}`, 메뉴 전체는 `settingsMenu={false}`) 보이는 목록을 그대로 내려받는 단추는 따로 만들지 않는다 |
 | 화면 한 영역을 잘림 없는 PDF 한 장으로(iframe 포함) | `utils`: `printElementAsPage`(브라우저 인쇄 — 인쇄 창에서 「PDF로 저장」, [문서](references/components/print-element-as-page.md)). 홈 위젯 화면은 `WidgetWorkspace` 의 `pdfTarget` |
 | 메시지·토스트 | `message-provider` (Part B §9, UI-Visual-Standard §8) |
 | 모달·트리·탭·룩업 | `modal`, `tree`, `tabs`, `lookup` |
 | 여러 문서를 열어 두고 오가는 닫을 수 있는 탭(숨은 탭 상태·효과 유지) | `closable-tabs`: `ClosableTabs`(탭 머리 제목·● 변경 점·닫기 단추, 모든 패널 마운트 유지, ←/→·Delete, 닫기 확인은 화면이 `onClose` 에서). 닫지 않는 고정 보기 전환이면 `tabs` |
 | 모양이 정해지지 않은 JSON 값 보기(캐시 값·설정·응답 본문) | `json-view`: `JsonView`(읽기 전용 접는 트리, `fill` 로 패널 남은 높이 채움) |
 | 편집 화면에 카드 여러 장 쌓기(제목 줄 카드·함께 접는 묶음·흐린 보조 글) | `card`: `CardFrame`(제목 줄 + 본문), `CardGroup`(접어도 본문을 내리지 않음, `columns` 격자·`testIdPrefix`), `MutedText`. 그리드 툴바면 `GridPanel`, 대시보드면 `dashboard` |
-| 그리드 밖에서 항목의 표시 여부·순서를 고르는 창(그리드 컬럼 설정은 AgDataGrid 가 스스로 연다) | `column-settings-modal`: `ColumnSettingsModal`(제어형 `opened`·`columns`·`onApply`·`onReset`·`onClose`, 잠금·내부 컬럼·고정 구역 규칙, 적용은 `{colId, hide}` 만). AgDataGrid 컬럼 개인화는 화면이 연결할 것이 없다(GridPanel 「그리드 설정」 메뉴의 「컬럼 설정…」·헤더 우클릭) |
+| 그리드 밖에서 항목의 표시 여부·순서를 고르는 창(그리드 컬럼 설정은 AgDataGrid 가 스스로 연다) | `column-settings-modal`: `ColumnSettingsModal`(제어형 `opened`·`columns`·`onApply`·`onReset`·`onClose`, 잠금·내부 컬럼·고정 구역 규칙, 적용은 `{colId, hide}` 만). AgDataGrid 컬럼 개인화는 화면이 연결할 것이 없다(「그리드 설정」 메뉴의 「컬럼 설정…」(GridPanel 머리줄 또는 GridPanel 밖 그리드 머리글 줄 아이콘, 대화 상자 안에는 없음)·헤더 우클릭) |
 | 후보에서 골라 묶음에 넣고 빼기(좌 가능·우 소속 전송 목록) | `transfer-list`: `TransferList`(제어형 `value`·`onChange`, 검색·분류 필터·Shift 범위·`>`/`>>`/`<`/`<<`, 배지·숨김·문구·testId 접두어는 props), 순수 함수 `visibleList`·`diffSets` 등. 한 건 고르기면 `lookup`·`ComboBox` |
 | 서식 있는 설명(HTML) 편집 | `html-editor`: `HtmlEditor`(서식 모드 ↔ [HTML] 원문 모드, 스키마 밖 태그가 있으면 원문으로 열고 서식 손실은 확인, `maxLength` 는 경고만). 글 ↔ HTML 변환 `textToHtml`·`htmlToText`. 한 칸에 글·HTML 을 함께 받으면 `HtmlFormatField`(형식 선택 `글 \| HTML` + 글 Textarea·HTML 편집기, 판별 `detectFormat` 은 화면이 준다). 읽기만 하면 `notice-body-view` |
 | 서식 있는 메모·설명(마크다운) 편집·표시 | `markdown-editor`: `MarkdownEditor`(편집기 — `editable` 로 읽기·편집 전환, 여닫기는 화면이 정함), `MarkdownField`(폼·패널 칸 — 고칠 수 있으면 처음부터 편집기, `fill` 로 남은 높이 채움), `MarkdownView`(읽기 전용), `MarkdownDocViewer`(목차 있는 긴 문서 — 도움말·가이드). 서식 없는 여러 줄 입력은 `form` 의 `Textarea` |
@@ -115,6 +115,7 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 | 메시지를 `useGfnMessage`·`ErrorModal`·`alert` 로 제각각 띄움 | `useMessage().showMessage` + screen-patterns.md §메시지 문구 표 |
 | 기간 조회조건을 `<div style={{display:"flex"}}>` 나 `span-2` 로 직접 묶음 | `SearchField` 두 개, 두 번째 `label="~"` |
 | 패널 안을 flex `div` 로 다시 감싸거나 안내 `<p style>` 추가 | 감싸지 않는다. ContentPanel·GridPanel 이 높이를 맡는다 |
+| `GridPanel headerExtra` 안에서 absolute·fixed 배치를 쓰거나 `order` 로 그리드 설정 아이콘 앞에 서려 함 | 아이콘 칸은 머리줄 맨 끝(DOM 마지막·`order` 최대값)으로 고정이라 `order` 는 통하지 않고 absolute 요소는 아이콘을 가린다. 일반 흐름으로만 둔다 |
 | 행추가·행삭제를 상단 버튼으로 만들고 임시 키를 직접 생성 | `GridPanel showAddButton` + `buttons` 의 확인창 행삭제 + `useGridDataManager` (screen-patterns.md §상단 버튼) |
 | `today()` 값을 `DatePicker` 에 바로 넣음 | `formatDateStr(today())` (`today()` 는 `yyyyMMdd`) |
 | 화면에서 `AgGridReact` 와 `ColDef[]` 로 그리드 조립 | `AgDataGrid` + `GridColumn[]` |

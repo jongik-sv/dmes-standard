@@ -72,7 +72,7 @@ class WidgetDefaultLayoutRepositoryJpaTest {
     }
 
     @Test
-    @DisplayName("목록 요약 조회는 widgetId 순으로 설정(CONFIG_JSON) 열 없이 19개 열만 읽는다")
+    @DisplayName("목록 요약 조회는 widgetId 순으로 설정(CONFIG_JSON) 열 없이 20개 열만 읽는다")
     void summaryOmitsConfigJson() {
         WidgetDef big = new WidgetDef();
         big.setWidgetId("def.b");
@@ -93,9 +93,9 @@ class WidgetDefaultLayoutRepositoryJpaTest {
         List<Object[]> rows = defRepository.findAllSummaryOrderByWidgetIdAsc();
 
         assertThat(rows).extracting(r -> r[0]).containsExactly("def.b", "home.a");
-        assertThat(rows.get(0)).hasSize(19);
+        assertThat(rows.get(0)).hasSize(20);
         assertThat(rows.get(0)).containsExactly("def.b", "D", "markdown", "큰 설정", null, null, 8, null, null, null,
-                null, null, null, null, null, "N", "mcm", null, null);
+                null, null, null, null, null, "N", "mcm", null, null, null);
         assertThat(WidgetDefMaps.toSummaryMap(rows.get(0))).doesNotContainKey("configJson").containsEntry("useYn", "N");
     }
 

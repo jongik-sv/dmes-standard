@@ -285,6 +285,29 @@ class CommWidgetMngServiceTest {
         assertThat(savedBlank).containsEntry("privateYn", null);
     }
 
+    @Test
+    @DisplayName("배치(placeTp)는 W·B·A 만, 비우면 NULL(유형 floatable 을 따름)로 저장된다")
+    void placeTpRules() {
+        WidgetDefSaveRequest bad = defReq("markdown", "{}");
+        bad.setPlaceTp("X");
+        assertRejected(bad, "배치");
+
+        when(defRepository.existsById(anyString())).thenReturn(false);
+        for (String tp : new String[] {"W", "B", "A"}) {
+            WidgetDefSaveRequest r = defReq("markdown", "{}");
+            r.setPlaceTp(" " + tp + " ");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> saved = (Map<String, Object>) service.save(r).get("def");
+            assertThat(saved).containsEntry("placeTp", tp);
+        }
+
+        WidgetDefSaveRequest blank = defReq("markdown", "{}");
+        blank.setPlaceTp(" ");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> savedBlank = (Map<String, Object>) service.save(blank).get("def");
+        assertThat(savedBlank).containsEntry("placeTp", null);
+    }
+
     // ── save: 크기·새로 고침 ─────────────────────────────────────────
 
     @Test
@@ -619,8 +642,8 @@ class CommWidgetMngServiceTest {
     @Test
     @DisplayName("search includeConfig=false 는 요약 조회로 configJson 키 없이 userCount·usage 를 돌려준다")
     void searchWithoutConfig() {
-        Object[] q = {"def.q1", "D", "query-table", "쿼리", null, null, 8, 6, null, null, null, null, null, null, null, null, "mcm", "QUAL", "Y"};
-        Object[] c = {"home.notice", "C", null, null, null, null, null, null, null, null, null, null, null, null, null, "N", null, null, null};
+        Object[] q = {"def.q1", "D", "query-table", "쿼리", null, null, 8, 6, null, null, null, null, null, null, null, null, "mcm", "QUAL", "Y", "A"};
+        Object[] c = {"home.notice", "C", null, null, null, null, null, null, null, null, null, null, null, null, null, "N", null, null, null, null};
         when(defRepository.findAllSummaryOrderByWidgetIdAsc()).thenReturn(List.of(q, c));
         List<Object[]> usageRows = new ArrayList<>();
         usageRows.add(new Object[] {"home.notice", 4L});
@@ -634,7 +657,7 @@ class CommWidgetMngServiceTest {
         List<Map<String, Object>> defs = (List<Map<String, Object>>) result.get("defs");
         assertThat(defs).hasSize(2);
         assertThat(defs.get(0)).doesNotContainKey("configJson").containsEntry("widgetId", "def.q1")
-                .containsEntry("typeId", "query-table").containsEntry("defW", 8).containsEntry("useYn", "Y")
+                .containsEntry("typeId", "query-table").containsEntry("defW", 8).containsEntry("useYn", "Y").containsEntry("placeTp", "A")
                 .containsEntry("privateYn", "Y").containsEntry("userCount", 0L);
         assertThat(defs.get(1)).doesNotContainKey("configJson").containsEntry("useYn", "N").containsEntry("privateYn", null).containsEntry("userCount", 4L);
         assertThat(result.get("usage")).isEqualTo(Map.of("home.notice", 4L));
