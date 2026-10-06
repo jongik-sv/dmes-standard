@@ -23,6 +23,7 @@ import java.sql.SQLException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeAll;
@@ -138,7 +139,7 @@ public class RuleCalcSeedSetTest extends AbstractMdmSharedDbTest {
         assertEquals(8, in.size(), "입력 수: " + in);
         assertTrue(in.containsAll(List.of("PROC_CD", "ORD_USG_CD", "PNT_FLM_THK_FRN_TOT", "PNT_FLM_THK_BAK_TOT",
                 "SHT_LTH", "COIL_WTH", "SHT_CNT", "COIL_LTH")), "입력: " + in);
-        assertTrue(r.getInputs().stream().allMatch(RuleCalcIoResult.Item::isRequired));
+        assertTrue(r.getInputs().stream().noneMatch(RuleCalcIoResult.Item::isRequired), "빈 입력은 null 로 엔진에 넘기므로 필수가 아니다");
 
         assertEquals(List.of("M47C0007", "M47C0006"), r.getSteps().stream().map(RuleCalcIoResult.Step::getRuleId).toList());
         assertEquals(List.of("COIL_COT_WGT"), names(r.getOutputs()), "세트 최종 결과");
@@ -322,5 +323,84 @@ public class RuleCalcSeedSetTest extends AbstractMdmSharedDbTest {
         assertTrue(r.isOk(), text(r));
         assertNum("31400", r.getResult().get("COIL_ORN_PLT_WGT"), "COIL_ORN_PLT_WGT");     // 1×1000×2000×7.85/1000×2
         assertTrue(r.getSteps().get(0).isHit());
+    }
+
+    // ── (4) 빈 입력은 null 로 엔진에 넘긴다 — 레거시 시험 사례 그대로 ──────────────────────────
+
+    /**
+     * M47 룰은 분기 행마다 쓰는 변수가 달라 레거시 시험 사례는 일부 입력만 넣는다(나머지는 키가 없거나 null). 그 사례 그대로 보내면 계산돼야 하고
+     * INPUT_MISSING 으로 막히면 안 된다(F1). 시드의 M47 룰 시험 사례 전부를 돌려 기대값과 같은지 본다.
+     */
+    @Test
+    void run_룰_M47_시험사례_전부는_넣은_입력만으로_기대값과_같다() throws Exception {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT MARU_RULE_ID, CASE_ID, INPUT_JSON, EXPECTED_JSON FROM TB_MDM_RULE_TEST_CASE WHERE MARU_RULE_ID LIKE 'M47C%' ORDER BY MARU_RULE_ID, CASE_ID");
+        assertFalse(rows.isEmpty(), "시드에 M47 시험 사례가 없다");
+        List<String> failures = new java.util.ArrayList<>();
+        int checked = 0;
+        for (Map<String, Object> row : rows) {
+            String ruleId = (String) row.get("MARU_RULE_ID");
+            Object caseId = row.get("CASE_ID");
+            Map<String, Object> input = JSON.readValue((String) row.get("INPUT_JSON"), MAP);
+            Map<String, Object> expected = JSON.readValue((String) row.get("EXPECTED_JSON"), MAP);
+            RuleCalcIoResult io = service.io(req("RULE", ruleId, null));
+            Set<String> inputNames = new java.util.HashSet<>(names(io.getInputs()));
+            Set<String> outputNames = new java.util.HashSet<>(names(io.getOutputs()));
+            // 사례가 다루는 입력 이름만 보낸다(위젯도 io 가 알려 준 입력만 보낸다). 빈 칸은 키 자체를 뺀다.
+            Map<String, Object> values = new LinkedHashMap<>();
+            input.forEach((k, v) -> {
+                if (v != null && inputNames.contains(k)) {
+                    values.put(k, v);
+                }
+            });
+            RuleCalcRunResult r = service.run(req("RULE", ruleId, values));
+            String label = ruleId + " 사례 " + caseId;
+            if (!r.isOk()) {
+                failures.add(label + ": " + text(r) + " (보낸 입력 " + values.keySet() + ")");
+                continue;
+            }
+            for (Map.Entry<String, Object> e : expected.entrySet()) {
+                // 기대값에는 적중 행 번호(hit) 같은 출력이 아닌 칸도 있다 — 룰의 결과 칸만 비교한다.
+                if (e.getValue() == null || !outputNames.contains(e.getKey())) {
+                    continue;
+                }
+                Object actual = r.getResult().get(e.getKey());
+                try {
+                    assertNum(String.valueOf(e.getValue()), actual, label + " " + e.getKey());
+                } catch (NumberFormatException | AssertionError ex) {
+                    if (e.getValue() instanceof Number || actual == null) {
+                        failures.add(label + " " + e.getKey() + ": 기대 " + e.getValue() + " 실제 " + actual);
+                    } else if (!String.valueOf(e.getValue()).equals(String.valueOf(actual))) {
+                        failures.add(label + " " + e.getKey() + ": 기대 " + e.getValue() + " 실제 " + actual);
+                    }
+                }
+            }
+            checked++;
+        }
+        System.out.println("[seed-run] M47 사례 " + rows.size() + "건 중 계산 " + checked + "건, 실패 " + failures.size() + "건");
+        assertTrue(failures.isEmpty(), failures.size() + "건 실패:\n" + String.join("\n", failures));
+    }
+
+    @Test
+    void run_룰_M47C0001_사례1_누락_입력_COIL_THK_등을_빼도_31400() {
+        Map<String, Object> in = new LinkedHashMap<>();
+        in.put("PROC_CD", "75");
+        in.put("OP_GRD", "A");
+        in.put("PASS_BOD_PAK_MTL_TP", "N");
+        in.put("PLTCM_SET_THK_TRV", "1.0");
+        in.put("COIL_WTH", "1000");
+        in.put("COIL_LTH", "2000");
+        in.put("GRA", "7.85");
+        in.put("SLIT_GRP_CNT", "2");
+        RuleCalcRunResult r = service.run(req("RULE", "M47C0001", in));   // COIL_THK·SHT_LTH·SHT_CNT·ORD_UNIT_WGT 는 보내지 않는다
+
+        assertTrue(r.isOk(), text(r));
+        assertNum("31400", r.getResult().get("COIL_ORN_PLT_WGT"), "COIL_ORN_PLT_WGT");
+    }
+
+    @Test
+    void io_입력은_모두_필수가_아니다_빈_칸으로도_계산을_시도한다() {
+        assertTrue(service.io(req("RULE", "M47C0001", null)).getInputs().stream().noneMatch(RuleCalcIoResult.Item::isRequired));
+        assertTrue(service.io(req("SET", "M47_COAT_WT", null)).getInputs().stream().noneMatch(RuleCalcIoResult.Item::isRequired));
     }
 }

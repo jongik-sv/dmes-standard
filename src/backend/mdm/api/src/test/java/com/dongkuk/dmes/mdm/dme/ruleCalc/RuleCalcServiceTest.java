@@ -53,7 +53,7 @@ public class RuleCalcServiceTest extends RuleCalcTestBase {
         assertEquals("NUMBER", thk.getDataType());
         assertEquals(Integer.valueOf(3), thk.getScale());
         assertEquals("MM", thk.getUnit());
-        assertTrue(thk.isRequired());
+        assertFalse(thk.isRequired(), "빈 입력은 null 로 엔진에 넘기므로 필수가 아니다(F1)");
         assertEquals(List.of("PRE_FCT"), names(r.getOutputs()));
         RuleCalcIoResult.Item out = r.getOutputs().get(0);
         assertEquals("NUMBER", out.getDataType());
@@ -314,25 +314,22 @@ public class RuleCalcServiceTest extends RuleCalcTestBase {
     // ── (5) 입력 누락·오류 ──────────────────────────────────────────────────
 
     @Test
-    void 필수_입력이_비면_엔진을_부르지_않고_INPUT_MISSING_이다() {
+    void 빈_입력은_INPUT_MISSING_으로_막지_않고_null_로_엔진에_넘긴다() {
         RuleCalcRunResult none = service.run(run("SET", "S_CALC", "2.0", null));          // COIL_WID 키 없음
-        assertFalse(none.isOk());
-        assertEquals(List.of("INPUT_MISSING"), codes(none.getMessages()));
-        assertTrue(none.getMessages().get(0).getText().contains("COIL_WID"));
-        assertEquals(Map.of(), none.getResult());
-        assertEquals(List.of(), none.getSteps(), "엔진을 부르지 않았다");
+        assertFalse(codes(none.getMessages()).contains("INPUT_MISSING"), none.getMessages().toString());
+        assertFalse(none.getSteps().isEmpty(), "엔진을 불렀다(막지 않았다)");
 
         RuleCalcRequest blank = run("RULE", "R_PRE", "   ", null);                       // 빈 글자
-        assertEquals(List.of("INPUT_MISSING"), codes(service.run(blank).getMessages()));
+        assertFalse(codes(service.run(blank).getMessages()).contains("INPUT_MISSING"));
 
         RuleCalcRequest nulled = req("RULE", "R_PRE", false);                             // null 값
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("COIL_THK", null);
         nulled.setValues(values);
-        assertEquals(List.of("INPUT_MISSING"), codes(service.run(nulled).getMessages()));
+        assertFalse(codes(service.run(nulled).getMessages()).contains("INPUT_MISSING"));
 
         RuleCalcRequest noValues = req("RULE", "R_PRE", false);                           // values 자체가 없음
-        assertEquals(List.of("INPUT_MISSING"), codes(service.run(noValues).getMessages()));
+        assertFalse(codes(service.run(noValues).getMessages()).contains("INPUT_MISSING"));
     }
 
     @Test
