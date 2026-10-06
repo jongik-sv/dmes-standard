@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { readScreenApply } from "./screen-apply";
 import { meta } from "./type.meta";
 import {
   blocksInput,
@@ -13,8 +14,12 @@ import {
   messageTone,
   normalizeIo,
   normalizeRun,
+  normalizeSearch,
+  searchRowLabel,
+  searchRowValue,
   readRuleCalcConfig,
   RULE_CALC_DEFAULT_CONFIG,
+  applyValues,
   displayValue,
   expandExponent,
   stepOutputDataType,
@@ -189,6 +194,51 @@ describe("formatResultValue — scale 로 HALF_UP, 글자 연산", () => {
   });
 });
 
+describe("applyValues", () => {
+  it("원값 글자 그대로(소수·쉼표 서식 없이), 목록은 쉼표로 잇고, 빈 값은 뺀다", () => {
+    expect(applyValues({ result: { A: "12345.675", B: ["1.20", "3"], C: "", D: " " } })).toEqual({ A: "12345.675", B: "1.20, 3" });
+  });
+  it("목록의 빈 원소는 빼고 잇고(모두 비면 키 자체를 뺀다), 글자 출력의 공백은 지키며 숫자는 공백을 뗀다", () => {
+    expect(applyValues({ result: { A: ["1", "", " ", "2"], B: ["", ""], C: "  keep ", N: " 3 " } }, { outputs: [{ name: "N", label: "n", dataType: "NUMBER", scale: null, unit: null }] })).toEqual({
+      A: "1, 2",
+      C: "  keep ",
+      N: "3",
+    });
+  });
+  it("숫자 출력의 과학 표기만 풀고 문자 출력·타입을 모르는 값은 그대로 둔다", () => {
+    const io = { outputs: [{ name: "N", label: "n", dataType: "NUMBER", scale: 2, unit: null }, { name: "S", label: "s", dataType: "STRING", scale: null, unit: null }] };
+    expect(applyValues({ result: { N: "1.25E+3", S: "1E+3", X: "1E+3" } }, io)).toEqual({ N: "1250", S: "1E+3", X: "1E+3" });
+  });
+});
+
+describe("readScreenApply", () => {
+  it("apply 함수가 있고 available=true 일 때만 읽는다", () => {
+    const apply = () => Promise.resolve({ applied: [], skipped: [] });
+    expect(readScreenApply({ screenApply: { available: true, apply } })).not.toBeNull();
+    expect(readScreenApply({ screenApply: { available: false, apply } })).toBeNull();
+    expect(readScreenApply({ screenApply: { available: true } as never })).toBeNull();
+    expect(readScreenApply({ screenApply: null })).toBeNull();
+    expect(readScreenApply({})).toBeNull();
+  });
+});
+
+describe("normalizeSearch", () => {
+  it("rows 또는 배열을 읽고 ID 없는 줄은 버리며 SET 만 세트로 본다", () => {
+    const rows = normalizeSearch({
+      rows: [{ tp: "set", id: "S1", name: "세트", ver: "1.000", verStatus: "RELEASED" }, { tp: "RULE", id: " R1 " }, { name: "ID 없음" }, { tp: "X", id: "R2" }],
+    });
+    expect(rows.map((r) => [r.tp, r.id])).toEqual([["SET", "S1"], ["RULE", "R1"], ["RULE", "R2"]]);
+    expect(normalizeSearch([{ id: "A" }])).toHaveLength(1);
+    expect(normalizeSearch(null)).toEqual([]);
+  });
+  it("목록 글자와 값", () => {
+    expect(searchRowLabel({ tp: "RULE", id: "M47C0001", name: "원판 중량", ver: "", verStatus: "" })).toBe("원판 중량 (M47C0001) · 룰");
+    expect(searchRowLabel({ tp: "SET", id: "S1", name: "", ver: "", verStatus: "" })).toBe("S1 · 룰 세트");
+    expect(searchRowLabel({ tp: "RULE", id: "R1", name: "룰", ver: "1.001", verStatus: "DRAFT" })).toBe("룰 (R1) · 룰 · 작성 중");
+    expect(searchRowValue({ tp: "SET", id: "S1" })).toBe("SET:S1");
+  });
+});
+
 describe("contextFill", () => {
   const find = (values: Record<string, string | number | null>, key: string) => values[key];
   it("찾은 값을 글자로, 없거나 비면 건너뛴다", () => {
@@ -235,6 +285,9 @@ describe("expandExponent", () => {
     expect(expandExponent("12.5e-3")).toBe("0.0125");
     expect(expandExponent("-1.2E+2")).toBe("-120");
     expect(expandExponent("+3E-2")).toBe("0.03");
+  });
+  it("값이 0 이면 자리 0 을 늘어놓지 않는다", () => {
+    for (const t of ["0E+3", "-0E+2", "0.00E+3", "0E-5"]) expect(expandExponent(t)).toBe("0");
   });
   it("지수 표기가 아니면 그대로", () => {
     for (const t of ["12.5", "abc", "", "1e", "E3", ".E3"]) expect(expandExponent(t)).toBe(t);

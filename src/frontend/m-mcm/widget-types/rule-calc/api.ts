@@ -12,12 +12,24 @@
  */
 import { createJsonApiClient } from "@/lib/http/json-api-client";
 
-import { normalizeIo, normalizeRun, type RuleCalcIo, type RuleCalcRun, type RuleCalcTargetTp } from "./rule-calc-model";
+import {
+  normalizeIo,
+  normalizeRun,
+  normalizeSearch,
+  type RuleCalcIo,
+  type RuleCalcRun,
+  type RuleCalcSearchRow,
+  type RuleCalcTargetTp,
+} from "./rule-calc-model";
 
 const api = createJsonApiClient();
 
 export const RULE_CALC_VIEW_URL = "/api/mdm/oasis/ruleCalc/view";
 export const RULE_CALC_EXECUTE_URL = "/api/mdm/oasis/ruleCalc/execute";
+export const RULE_CALC_SEARCH_URL = "/api/mdm/oasis/ruleCalc/search";
+
+/** 검색 결과 건수(서버 기본 50·최대 200). */
+export const RULE_CALC_SEARCH_LIMIT = 50;
 
 interface CactusEnvelope {
   meta?: { success?: boolean; message?: string };
@@ -57,4 +69,16 @@ export async function runRuleCalc(
   values: Readonly<Record<string, string>>
 ): Promise<RuleCalcRun> {
   return normalizeRun(await post(RULE_CALC_EXECUTE_URL, "HOME", { targetTp, targetId, valuesJson: JSON.stringify(values) }));
+}
+
+/**
+ * 편집기 ID 검색 — 이름·ID 에 키워드가 들어간 룰·세트(ALL 이면 둘 다)를 찾는다. 편집기 전용이라 미리보기(내 DRAFT 포함)로 부른다.
+ * 요청 `{targetTp, keyword, preview, limit}` → 응답 `{ok, rows[{tp,id,name,ver,verStatus,desc?}], messages}`(문서 §1.1), ID 오름차순.
+ */
+export async function searchRuleCalcTargets(
+  targetTp: RuleCalcTargetTp | "ALL",
+  keyword: string,
+  limit = RULE_CALC_SEARCH_LIMIT
+): Promise<RuleCalcSearchRow[]> {
+  return normalizeSearch(await post(RULE_CALC_SEARCH_URL, "HOME", { targetTp, keyword, preview: true, limit }));
 }
