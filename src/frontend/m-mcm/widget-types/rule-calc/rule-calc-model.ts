@@ -6,14 +6,25 @@
 
 export type RuleCalcTargetTp = "RULE" | "SET";
 
+/** 업무 화면 값 채우기 방식 — auto: 새 화면 문맥이 올 때마다 채움(계산은 사용자가 누른다), button: 단추를 눌렀을 때만 채움, off: 채우지 않음. */
+export type RuleCalcFillMode = "auto" | "button" | "off";
+
+export const FILL_MODE_LABELS: Readonly<Record<RuleCalcFillMode, string>> = {
+  auto: "자동으로 채움",
+  button: "단추를 눌러 채움",
+  off: "채우지 않음",
+};
+
 export interface RuleCalcConfig {
   targetTp: RuleCalcTargetTp;
   targetId: string;
   /** 룰 세트의 단계별 중간값(앞 룰 결과)을 보일지. 기본 끔. */
   showSteps: boolean;
+  /** 도크에서 업무 화면이 게시한 값(선택 행 등)을 입력 칸에 채우는 방식. 기본 auto. 보드에서는 화면 문맥이 없어 동작하지 않는다. */
+  fillMode: RuleCalcFillMode;
 }
 
-export const RULE_CALC_DEFAULT_CONFIG: Readonly<RuleCalcConfig> = { targetTp: "RULE", targetId: "", showSteps: false };
+export const RULE_CALC_DEFAULT_CONFIG: Readonly<RuleCalcConfig> = { targetTp: "RULE", targetId: "", showSteps: false, fillMode: "auto" };
 
 export const TARGET_TP_LABELS: Readonly<Record<RuleCalcTargetTp, string>> = { RULE: "룰", SET: "룰 세트" };
 
@@ -43,6 +54,7 @@ export function readRuleCalcConfig(raw: unknown): RuleCalcConfig {
     targetTp: r.targetTp === "SET" ? "SET" : "RULE",
     targetId: str(r.targetId).trim(),
     showSteps: r.showSteps === true,
+    fillMode: r.fillMode === "button" || r.fillMode === "off" ? r.fillMode : "auto",
   };
 }
 
@@ -370,4 +382,34 @@ export function stepOutputScale(io: RuleCalcIo | null, ruleId: string, name: str
 export function stepOutputDataType(io: RuleCalcIo | null, ruleId: string, name: string): string {
   const step = io?.steps.find((s) => s.ruleId === ruleId);
   return step?.outputs.find((o) => o.name === name)?.dataType ?? "";
+}
+
+// ───────────────────────── 화면 문맥 채우기 ─────────────────────────
+
+/** 화면 문맥 값 한 칸 — shared screen-context 의 ScreenContextValue 와 같은 모양(런타임 import 를 피해 여기서 다시 적는다). */
+export type ContextValue = string | number | null;
+
+/**
+ * 입력 칸 이름으로 화면 문맥 값을 찾아 채울 글자를 만든다. 찾는 방법(이름 정규화 비교)은 호출자가 find 로 넘긴다
+ * (shared 의 findScreenContextValue). 없거나 비어 있는 값은 건너뛴다 — 비어 있는 값으로 사용자가 넣은 칸을 지우지 않는다.
+ */
+export function contextFill(
+  inputs: readonly RuleCalcInput[],
+  values: Record<string, ContextValue> | null | undefined,
+  find: (values: Record<string, ContextValue>, key: string) => ContextValue | undefined
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!values) return out;
+  for (const input of inputs) {
+    const v = find(values, input.name);
+    if (v == null) continue;
+    const text = String(v).trim();
+    if (text !== "") out[input.name] = text;
+  }
+  return out;
+}
+
+/** 채울 값 묶음의 지문 — 같은 값이 다시 게시돼도 같은 지문이라 사용자가 고친 칸을 다시 덮어쓰지 않는다. */
+export function fillSignature(fill: Readonly<Record<string, string>>): string {
+  return JSON.stringify(Object.keys(fill).sort().map((k) => [k, fill[k]]));
 }

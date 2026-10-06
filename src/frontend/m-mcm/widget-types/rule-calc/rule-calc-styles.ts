@@ -20,6 +20,8 @@ export const RULE_CALC_CSS = `
 .mcm-rc__label > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mcm-rc__req { color: var(--color-danger); }
 .mcm-rc__unit { flex: none; color: var(--color-text-muted); }
+.mcm-rc__filled { flex: none; padding: 0 var(--spacing-xs); border: 1px solid var(--color-primary); border-radius: var(--radius-sm); background: var(--color-primary-soft); font-size: var(--font-size-xs); color: var(--color-primary); }
+.mcm-rc__fill-note { font-size: var(--font-size-xs); color: var(--color-text-muted); }
 .mcm-rc__err { font-size: var(--font-size-xs); color: var(--color-danger); }
 
 .mcm-rc__actions { display: flex; align-items: center; gap: var(--spacing-sm); }

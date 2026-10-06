@@ -66,10 +66,12 @@ interface FieldProps {
   input: RuleCalcInput;
   value: string;
   error?: string;
+  /** 업무 화면 값으로 채운 칸인지(그 뒤 사용자가 고치면 false). */
+  filled?: boolean;
   onChange: (value: string) => void;
 }
 
-function InputField({ input, value, error, onChange }: FieldProps) {
+function InputField({ input, value, error, filled, onChange }: FieldProps) {
   const id = `${useId()}-${input.name}`;
   const common = { id, value, error, onChange, "data-testid": `rc-input-${input.name}` };
   let control;
@@ -92,6 +94,11 @@ function InputField({ input, value, error, onChange }: FieldProps) {
           </span>
         )}
         {input.unit && <span className="mcm-rc__unit">{input.unit}</span>}
+        {filled && (
+          <span className="mcm-rc__filled" data-testid={`rc-filled-${input.name}`} title="업무 화면에서 선택한 값으로 채웠습니다">
+            화면
+          </span>
+        )}
       </label>
       {control}
     </div>
@@ -156,9 +163,14 @@ function Steps({ io, run }: { io: RuleCalcIo; run: RuleCalcRun }) {
   );
 }
 
-export default function RuleCalcRenderer({ definition, refreshKey }: WidgetProps) {
+export default function RuleCalcRenderer({ definition, refreshKey, screenContext }: WidgetProps) {
   const cfg = readRuleCalcConfig(definition);
-  const { ioState, draft, errors, runState, setValue, run } = useRuleCalc(cfg.targetTp, cfg.targetId, refreshKey);
+  const { ioState, draft, errors, runState, setValue, run, available, filled, fillFromScreen } = useRuleCalc(
+    cfg.targetTp,
+    cfg.targetId,
+    refreshKey,
+    { fillMode: cfg.fillMode, screenContext }
+  );
 
   if (!cfg.targetId) {
     return (
@@ -227,7 +239,7 @@ export default function RuleCalcRenderer({ definition, refreshKey }: WidgetProps
         {io.inputs.length > 0 && (
           <div className="mcm-rc__inputs">
             {io.inputs.map((input) => (
-              <InputField key={input.name} input={input} value={draft[input.name] ?? ""} error={errors[input.name]} onChange={(v) => setValue(input.name, v)} />
+              <InputField key={input.name} input={input} value={draft[input.name] ?? ""} error={errors[input.name]} filled={filled.includes(input.name)} onChange={(v) => setValue(input.name, v)} />
             ))}
           </div>
         )}
@@ -235,6 +247,16 @@ export default function RuleCalcRenderer({ definition, refreshKey }: WidgetProps
           <Button type="submit" variant="primary" disabled={running} data-testid="rc-run">
             {running ? "계산 중…" : "계산"}
           </Button>
+          {cfg.fillMode === "button" && (
+            <Button onClick={fillFromScreen} disabled={!available} data-testid="rc-fill">
+              화면 값 넣기
+            </Button>
+          )}
+          {filled.length > 0 && (
+            <span className="mcm-rc__fill-note" data-testid="rc-fill-note">
+              화면 값 {filled.length}개를 채웠습니다
+            </span>
+          )}
         </div>
         {runState.status === "error" && (
           <div className="mcm-rc__msg mcm-rc__msg--error" role="alert" data-testid="rc-run-error">

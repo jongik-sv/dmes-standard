@@ -20,6 +20,19 @@ vi.mock("./api", () => ({
   runRuleCalc: (...a: unknown[]) => h.run(...a),
 }));
 
+// 이름 정규화 비교(대소문자·밑줄·하이픈·공백 무시)는 shared 와 같은 규칙의 대역이다.
+vi.mock("@dk-oasis/shared/screen-context", () => {
+  const norm = (k: string) => k.replace(/[\s_-]+/g, "").toLowerCase();
+  return {
+    findScreenContextValue: (values: Record<string, unknown> | null | undefined, key: string) => {
+      if (!values) return undefined;
+      if (Object.prototype.hasOwnProperty.call(values, key)) return values[key];
+      const k = Object.keys(values).find((x) => norm(x) === norm(key));
+      return k === undefined ? undefined : values[k];
+    },
+  };
+});
+
 vi.mock("@dk-oasis/shared/form", async () => {
   const { createElement: el } = await import("react");
   type P = Record<string, unknown> & { onChange?: (v: never) => void };
@@ -116,12 +129,14 @@ const click = async (testId: string) => {
 
 const baseProps = { instanceId: "i1", widgetId: "def.rc", size: { w: 6, h: 12 }, config: null };
 
-async function renderRc(definition: unknown, refreshKey = 0) {
+async function renderRc(definition: unknown, refreshKey = 0, screenContext: unknown = null) {
   await act(async () => {
-    root.render(createElement(RuleCalcRenderer, { ...baseProps, definition, refreshKey } as never));
+    root.render(createElement(RuleCalcRenderer, { ...baseProps, definition, refreshKey, screenContext } as never));
   });
   await flush();
 }
+
+const ctx = (values: Record<string, string | number | null>, pageId = "p1") => ({ source: "grid", tabId: "t1", pageId, values, at: 1 });
 
 const ruleIo = () =>
   normalizeIo({
@@ -378,11 +393,79 @@ describe("렌더러 — 늦게 온 응답과 상태", () => {
         messages: [],
       })
     );
-    await renderRc({ targetTp: "SET", targetId: "S1", showSteps: true });
+    await renderRc({ targetTp: "SET", targetId: "S1", showSteps: true, fillMode: "auto" });
     await click("rc-run");
     await flush();
     expect(must("rc-result-LST").textContent).toBe("1.23, 2.50");
     expect(must("rc-step-R1").textContent).toContain("00123");
+  });
+});
+
+describe("렌더러 — 업무 화면 값 채우기(screenContext)", () => {
+  beforeEach(() => h.fetchIo.mockResolvedValue(ruleIo()));
+  const def = (fillMode?: string) => ({ targetTp: "RULE", targetId: "M47C0001", fillMode });
+  const value = (name: string) => (must(`rc-input-${name}`) as HTMLInputElement).value;
+
+  it("auto(기본): 이름 정규화 비교로 맞는 칸만 채우고 채운 칸을 표시한다. 계산은 누르지 않으면 하지 않는다", async () => {
+    await renderRc(def(), 0, ctx({ thk: 0.5, OTHER: "x", grade: "SGCC" }));
+    expect(value("THK")).toBe("0.5");
+    expect(value("GRADE")).toBe("SGCC");
+    expect(value("COATED")).toBe("");
+    expect(must("rc-filled-THK")).toBeTruthy();
+    expect(q("rc-filled-COATED")).toBeNull();
+    expect(must("rc-fill-note").textContent).toContain("2개");
+    expect(h.run).not.toHaveBeenCalled();
+  });
+
+  it("새 문맥이 오면 다시 채우고 이전 결과는 감춘다. 문맥에 없는 칸의 값은 그대로 둔다", async () => {
+    h.run.mockResolvedValue(normalizeRun({ ok: true, result: { COIL_WT: "7" }, steps: [], messages: [] }));
+    await renderRc(def(), 0, ctx({ THK: "1" }));
+    await type("rc-input-GRADE", "내가 넣음");
+    await click("rc-run");
+    await flush();
+    expect(q("rc-results")).not.toBeNull();
+    await renderRc(def(), 0, ctx({ THK: "2" }));
+    expect(value("THK")).toBe("2");
+    expect(value("GRADE")).toBe("내가 넣음");
+    expect(q("rc-results")).toBeNull();
+  });
+
+  it("사용자가 고친 칸은 같은 값이 다시 게시돼도 덮어쓰지 않고, 표시도 사라진다", async () => {
+    await renderRc(def(), 0, ctx({ THK: "1" }));
+    await type("rc-input-THK", "9");
+    expect(q("rc-filled-THK")).toBeNull();
+    await renderRc(def(), 0, { ...ctx({ THK: "1" }), at: 99 });
+    expect(value("THK")).toBe("9");
+  });
+
+  it("값이 비어 있거나 null 이면 사용자가 넣은 칸을 지우지 않는다", async () => {
+    await renderRc(def(), 0, ctx({ THK: "1" }));
+    await type("rc-input-GRADE", "keep");
+    await renderRc(def(), 0, ctx({ THK: "2", GRADE: null }));
+    expect(value("GRADE")).toBe("keep");
+  });
+
+  it("button: 단추를 누르기 전에는 채우지 않고, 누르면 채운다(문맥이 없으면 단추가 잠긴다)", async () => {
+    await renderRc(def("button"), 0, null);
+    expect((must("rc-fill") as HTMLButtonElement).disabled).toBe(true);
+    await renderRc(def("button"), 0, ctx({ THK: "3" }));
+    expect(value("THK")).toBe("");
+    expect((must("rc-fill") as HTMLButtonElement).disabled).toBe(false);
+    await click("rc-fill");
+    expect(value("THK")).toBe("3");
+    expect(must("rc-filled-THK")).toBeTruthy();
+  });
+
+  it("off: 문맥이 있어도 채우지 않는다", async () => {
+    await renderRc(def("off"), 0, ctx({ THK: "3" }));
+    expect(value("THK")).toBe("");
+    expect(q("rc-fill")).toBeNull();
+  });
+
+  it("보드(문맥 null)에서는 아무 일도 없다", async () => {
+    await renderRc(def(), 0, null);
+    expect(value("THK")).toBe("");
+    expect(q("rc-fill-note")).toBeNull();
   });
 });
 
@@ -441,16 +524,23 @@ describe("편집기", () => {
   it("종류·ID 를 고치면 설정 전체를 만들어 알린다 — 룰이면 중간값은 끈다", async () => {
     const { onChange } = await renderEditor({ targetTp: "SET", targetId: "M47_COAT_WT", showSteps: true });
     await type("rc-editor-tp", "RULE");
-    expect(onChange).toHaveBeenLastCalledWith({ targetTp: "RULE", targetId: "M47_COAT_WT", showSteps: false });
+    expect(onChange).toHaveBeenLastCalledWith({ targetTp: "RULE", targetId: "M47_COAT_WT", showSteps: false, fillMode: "auto" });
     await type("rc-editor-id", " M47C0001 ");
-    expect(onChange).toHaveBeenLastCalledWith({ targetTp: "SET", targetId: "M47C0001", showSteps: true });
+    expect(onChange).toHaveBeenLastCalledWith({ targetTp: "SET", targetId: "M47C0001", showSteps: true, fillMode: "auto" });
+  });
+
+  it("화면 값 채우기 방식을 고른다(기본 자동)", async () => {
+    const { onChange } = await renderEditor({ targetTp: "RULE", targetId: "R1" });
+    expect((must("rc-editor-fill") as HTMLSelectElement).value).toBe("auto");
+    await type("rc-editor-fill", "button");
+    expect(onChange).toHaveBeenLastCalledWith({ targetTp: "RULE", targetId: "R1", showSteps: false, fillMode: "button" });
   });
 
   it("중간값 옵션은 세트에서만 켠다", async () => {
     const { onChange } = await renderEditor({ targetTp: "SET", targetId: "S1", showSteps: false });
     expect((must("rc-editor-steps") as HTMLInputElement).disabled).toBe(false);
     await act(async () => must("rc-editor-steps").click());
-    expect(onChange).toHaveBeenLastCalledWith({ targetTp: "SET", targetId: "S1", showSteps: true });
+    expect(onChange).toHaveBeenLastCalledWith({ targetTp: "SET", targetId: "S1", showSteps: true, fillMode: "auto" });
     await act(async () => {
       root.render(createElement(RuleCalcEditor, { value: { targetTp: "RULE", targetId: "R1", showSteps: false }, onChange, onValidate: vi.fn() } as never));
     });

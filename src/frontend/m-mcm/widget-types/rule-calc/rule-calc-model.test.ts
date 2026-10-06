@@ -4,6 +4,8 @@ import { meta } from "./type.meta";
 import {
   blocksInput,
   collectValues,
+  contextFill,
+  fillSignature,
   formatResultValue,
   isNumericType,
   isValidNumberText,
@@ -48,12 +50,24 @@ describe("readRuleCalcConfig", () => {
       targetTp: "SET",
       targetId: "M47_COAT_WT",
       showSteps: true,
+      fillMode: "auto",
     });
-    expect(readRuleCalcConfig({ targetTp: "set", targetId: "A", showSteps: "true" })).toEqual({ targetTp: "RULE", targetId: "A", showSteps: false });
+    expect(readRuleCalcConfig({ targetTp: "set", targetId: "A", showSteps: "true" })).toEqual({
+      targetTp: "RULE",
+      targetId: "A",
+      showSteps: false,
+      fillMode: "auto",
+    });
+  });
+  it("fillMode 는 button·off 만 받고 그 밖은 auto", () => {
+    expect(readRuleCalcConfig({ fillMode: "button" }).fillMode).toBe("button");
+    expect(readRuleCalcConfig({ fillMode: "off" }).fillMode).toBe("off");
+    expect(readRuleCalcConfig({ fillMode: "AUTO" }).fillMode).toBe("auto");
+    expect(readRuleCalcConfig({ fillMode: 1 }).fillMode).toBe("auto");
   });
   it("ID 가 비면 검사 오류", () => {
-    expect(validateRuleCalcConfig({ targetTp: "RULE", targetId: "", showSteps: false })).toHaveLength(1);
-    expect(validateRuleCalcConfig({ targetTp: "RULE", targetId: "M47C0001", showSteps: false })).toEqual([]);
+    expect(validateRuleCalcConfig({ targetTp: "RULE", targetId: "", showSteps: false, fillMode: "auto" })).toHaveLength(1);
+    expect(validateRuleCalcConfig({ targetTp: "RULE", targetId: "M47C0001", showSteps: false, fillMode: "auto" })).toEqual([]);
   });
 });
 
@@ -154,6 +168,19 @@ describe("formatResultValue — scale 로 HALF_UP, 글자 연산", () => {
     expect(formatResultValue("ABC", 2)).toBe("ABC");
     expect(formatResultValue("", 2)).toBe("");
     expect(formatResultValue("1.5", 2, "STRING")).toBe("1.5");
+  });
+});
+
+describe("contextFill", () => {
+  const find = (values: Record<string, string | number | null>, key: string) => values[key];
+  it("찾은 값을 글자로, 없거나 비면 건너뛴다", () => {
+    const inputs = [num("A"), num("B"), num("C"), num("D")];
+    expect(contextFill(inputs, { A: 1.5, B: " ", C: null }, find)).toEqual({ A: "1.5" });
+    expect(contextFill(inputs, null, find)).toEqual({});
+  });
+  it("지문은 키 순서와 무관하고 값이 바뀌면 달라진다", () => {
+    expect(fillSignature({ A: "1", B: "2" })).toBe(fillSignature({ B: "2", A: "1" }));
+    expect(fillSignature({ A: "1" })).not.toBe(fillSignature({ A: "2" }));
   });
 });
 

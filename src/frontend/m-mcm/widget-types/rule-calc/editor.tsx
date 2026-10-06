@@ -17,15 +17,19 @@ import {
   messageText,
   messageTone,
   readRuleCalcConfig,
+  FILL_MODE_LABELS,
   TARGET_TP_LABELS,
   validateRuleCalcConfig,
   type RuleCalcConfig,
+  type RuleCalcFillMode,
   type RuleCalcIo,
   type RuleCalcTargetTp,
 } from "./rule-calc-model";
 import { RULE_CALC_CSS, RULE_CALC_STYLE_HREF } from "./rule-calc-styles";
 
 const TARGET_OPTIONS = (Object.keys(TARGET_TP_LABELS) as RuleCalcTargetTp[]).map((value) => ({ value, label: TARGET_TP_LABELS[value] }));
+
+const FILL_OPTIONS = (Object.keys(FILL_MODE_LABELS) as RuleCalcFillMode[]).map((value) => ({ value, label: FILL_MODE_LABELS[value] }));
 
 type PreviewState = { status: "idle" } | { status: "loading" } | { status: "error"; message: string } | { status: "ready"; io: RuleCalcIo };
 
@@ -146,6 +150,18 @@ export default function RuleCalcTypeEditor({ value, onChange, onValidate }: Widg
           aria-label="단계별 중간값 보이기"
         />
       </FormGroup>
+      <FormGroup label="화면 값 채우기">
+        <Select
+          aria-label="업무 화면 값 채우기 방식"
+          value={cfg.fillMode}
+          options={FILL_OPTIONS}
+          onChange={(v) => patch({ fillMode: v === "button" || v === "off" ? v : "auto" })}
+          data-testid="rc-editor-fill"
+        />
+      </FormGroup>
+      <div className="mcm-rc-editor__note">
+        업무 화면의 도구 창에서 쓸 때, 화면에서 고른 행의 값 가운데 입력 변수 이름과 같은 것(대소문자·밑줄 차이는 무시)을 입력 칸에 넣습니다. 계산은 직접 눌러야 하며, 위젯 화면(보드)에서는 동작하지 않습니다.
+      </div>
       <div className="mcm-rc-editor__row">
         <Button onClick={check} disabled={!cfg.targetId || preview.status === "loading"} data-testid="rc-editor-check">
           {preview.status === "loading" ? "확인 중…" : "입력 칸 확인"}
