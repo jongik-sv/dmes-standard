@@ -10,7 +10,7 @@ action=save    -&gt; saveTask    (ruleSetEditService.save)    EDIT — 서버 �
 action=delete  -&gt; deleteTask  (ruleSetEditService.delete)  EDIT — target SET(폐기 INUSE -&gt; DEPRECATED, 부르는 세트가 있으면 거부 MDM024)·VERSION(DRAFT 삭제)·CONFIRM(확정 취소, ADR-0002 D8)
 action=restore -&gt; restoreTask (ruleSetEditService.restore) EDIT — 되살리기(검사 통과 시 DEPRECATED -&gt; INUSE)
 action=validate -&gt; validateTask (ruleSetEditService.condIo)   EDIT — 편집 중 흐름의 IF 갈래 조건식 입력(params.flowJson, 원장에 쓰지 않음) (exprText 면 식 파싱)
-action=execute  -&gt; executeTask  (ruleSetEditService.simulate) EDIT — 저장 전 흐름 기록 실행 = 디버거(params.flowJson·recordJson·evalTs, 엔진 스키마 RunTrace) (runCases 면 케이스 일괄 실행) (editsJson 이면 고친 값을 끼워 처음부터 다시 실행 — 응답 trace.edits)
+action=execute  -&gt; executeTask  (ruleSetEditService.simulate) EDIT — 저장 전 흐름 기록 실행 = 디버거(params.flowJson·recordJson·evalTs, 엔진 스키마 RunTrace) (runCases 면 케이스 일괄 실행) (editsJson 이면 고친 값을 끼워 처음부터 다시 실행 — 응답 trace.edits) ruleVersions(RELEASED|MY_DRAFT, 비면 RELEASED) — 내 DRAFT 우선 시험(D-156).
 action=copy     -&gt; copyTask     (ruleSetEditService.copy)     EDIT — 새 버전(verKind MAJOR·MINOR, 직전 RELEASED 복사, D-144)
 action=lock     -&gt; lockTask     (ruleSetEditService.lock)     EDIT — DRAFT 선점
 action=unlock   -&gt; unlockTask   (ruleSetEditService.unlock)   EDIT — DRAFT 해제(소유자만)

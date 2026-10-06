@@ -49,6 +49,14 @@ public class RuleSetCalledFlows {
 
     /** 기록에서 부른 세트 → 그 세트의 흐름 요약. 없으면 빈 맵. */
     public Map<String, Object> of(RunTrace trace) {
+        return of(trace, Map.of());
+    }
+
+    /**
+     * {@code drafts}(조회기가 DRAFT 로 실행한 세트 → 버전 행, spec 2026-10-06 §4.7)에 있는 세트는 그 행을, 나머지는 판정 시각 RELEASED 를 쓴다.
+     * 노드 제목용 {@code rules} 는 RELEASED 기준({@link RuleIoReader#readAt}) 그대로다(후속 F1).
+     */
+    public Map<String, Object> of(RunTrace trace, Map<String, MdmRuleSetVer> drafts) {
         Set<String> ids = new LinkedHashSet<>();
         collect(trace, ids);
         if (ids.isEmpty()) {
@@ -63,7 +71,8 @@ public class RuleSetCalledFlows {
         Set<String> allRules = new LinkedHashSet<>();
         for (String id : ids) {
             MdmRuleSet parent = parents.get(id);
-            Optional<MdmRuleSetVer> v = RuleVersions.currentReleased(versions.getOrDefault(id, List.of()), at);
+            Optional<MdmRuleSetVer> v = drafts.containsKey(id) ? Optional.of(drafts.get(id))
+                    : RuleVersions.currentReleased(versions.getOrDefault(id, List.of()), at);
             if (parent == null || v.isEmpty()) {
                 continue;
             }

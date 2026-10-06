@@ -29,6 +29,7 @@ import com.dongkuk.dmes.mdm.common.rule.RunTraceJson;
 import com.dongkuk.dmes.mdm.common.rule.RuleStewardCheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
+import com.dongkuk.dmes.mdm.common.rule.definition.RuleVersionPick;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionException;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
@@ -626,8 +627,40 @@ public class RuleSetEditService {
     }
 
     // ────────────────────────────────────────────────────────────────
-    // action: execute(기록 실행 = 디버거) — 저장 전 흐름을 원장의 RELEASED 룰로 기록 실행한다. 원장에 쓰지 않고 담당자 검사를 하지 않는다(P5).
+    // action: execute(기록 실행 = 디버거) — 저장 전 흐름을 원장의 RELEASED 룰(요청 ruleVersions=MY_DRAFT 면 내 DRAFT 우선)로 기록 실행한다. 원장에 쓰지 않고 담당자 검사를 하지 않는다(P5).
     // ────────────────────────────────────────────────────────────────
+
+    static final String RELEASED_MODE = "RELEASED";
+    static final String MY_DRAFT_MODE = "MY_DRAFT";
+
+    /** 요청 룰 버전 모드 → 선택 모드(spec 2026-10-06 §3.1). 비면 RELEASED, 두 값 밖이면 INVALID_VALUE. */
+    private RuleVersionPick pickOf(String mode) {
+        if (mode == null || mode.isBlank() || RELEASED_MODE.equals(mode)) {
+            return RuleVersionPick.RELEASED;
+        }
+        if (!MY_DRAFT_MODE.equals(mode)) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE, "룰 버전은 RELEASED 또는 MY_DRAFT 여야 합니다: " + mode);
+        }
+        return RuleVersionPick.myDraft(currentUser.userId());
+    }
+
+    /** 모드·DRAFT 사용 칸을 응답에 싣는다. MY_DRAFT 를 요청했는데 사용자를 몰라 RELEASED 로 돌렸으면 경고를 맨 앞에. */
+    private static RuleSetSimulateResult withDraftInfo(RuleSetSimulateResult result, String requested, RuleVersionPick pick,
+                                                       RuleSetRunner.Session session) {
+        result.setRuleVersions(pick.draftFirst() ? MY_DRAFT_MODE : RELEASED_MODE);
+        Map<String, Object> rules = new LinkedHashMap<>();
+        session.draftRules().forEach((id, ver) -> rules.put(id, VersionNumbers.plain(ver)));
+        Map<String, Object> sets = new LinkedHashMap<>();
+        session.draftSets().forEach((id, v) -> sets.put(id, VersionNumbers.plain(v.getVer())));
+        result.setDraftVersions(Map.of("rules", rules, "sets", sets));
+        if (MY_DRAFT_MODE.equals(requested) && !pick.draftFirst()) {
+            List<Map<String, Object>> warns = new ArrayList<>();
+            warns.add(RuleSetRunner.warning("DRAFT_USER_UNKNOWN", null, "로그인 사용자를 알 수 없어 적용 중 버전으로 실행했다"));
+            warns.addAll(result.getWarnings() == null ? List.of() : result.getWarnings());
+            result.setWarnings(warns);
+        }
+        return result;
+    }
 
     /**
      * 흐름·판정 오류는 던지지 않고 기록에 담는다(흐름을 읽지 못하면 {@code nodes=[]}·FLOW_INVALID). 저장된 룰 정의가 깨졌으면 MDM026(P-D9).
@@ -637,8 +670,9 @@ public class RuleSetEditService {
      */
     public RuleSetSimulateResult simulate(RuleSetSimulateRequest request) {
         String flowJson = requireFlowJson(request == null ? null : request.getFlowJson());
+        RuleVersionPick pick = pickOf(request.getRuleVersions());
         if (Boolean.TRUE.equals(request.getRunCases())) {
-            return runCases(flowJson, request);
+            return runCases(flowJson, request, pick);
         }
         String recordJson = request.getRecordJson();
         Map<String, Object> record = recordJson == null || recordJson.isBlank() ? Map.of() : RuleCaseJudge.object(recordJson);
@@ -647,7 +681,7 @@ public class RuleSetEditService {
         }
         Instant ts = request.getEvalTs() == null || request.getEvalTs().isBlank() ? null : RuleSetRunner.parseKst(request.getEvalTs());
         List<RunTrace.TraceEdit> edits = edits(request.getEditsJson());
-        RuleSetRunner.Session session = runner.session();
+        RuleSetRunner.Session session = runner.session(pick);
         RunTrace trace;
         try {
             trace = session.trace(flowJson, record, ts, edits);
@@ -656,8 +690,8 @@ public class RuleSetEditService {
                     List.of());
         }
         RuleSetSimulateResult result = new RuleSetSimulateResult(RunTraceJson.toMap(trace), simulateWarnings(session, flowJson, trace));
-        result.setCalledFlows(calledFlows.of(trace));
-        return result;
+        result.setCalledFlows(calledFlows.of(trace, session.draftSets()));
+        return withDraftInfo(result, request.getRuleVersions(), pick, session);
     }
 
     /**
@@ -722,7 +756,7 @@ public class RuleSetEditService {
      * 저장된 케이스를 화면이 보낸 흐름으로 돌린다(P7, P-D12). 거른 케이스가 상한을 넘으면 아무것도 돌리지 않고 MDM021 로 거부한다.
      * 입력이 JSON 객체가 아니면(저장 뒤 손상) 그 케이스만 INVALID_INPUT_JSON 오류로 답한다.
      */
-    private RuleSetSimulateResult runCases(String flowJson, RuleSetSimulateRequest request) {
+    private RuleSetSimulateResult runCases(String flowJson, RuleSetSimulateRequest request, RuleVersionPick pick) {
         String setId = requireSetId(request.getSetId());
         List<Integer> wanted = request.caseIdList();
         List<MdmRuleSetTestCase> picked = caseQueries.cases(setId).stream()
@@ -732,7 +766,7 @@ public class RuleSetEditService {
             throw RuleCaseInputs.limit("한 번에 " + picked.size() + "건을 돌리려 한다. " + RuleSetTestCaseService.MAX_CASES_PER_SET + "건까지 돌린다");
         }
         // 케이스 사이에 룰 정의 조회기를 같이 쓴다 — 판정 시각은 케이스마다 정하고 조회기가 시각마다 버전을 고르므로 결과는 케이스마다 새로 돌린 것과 같다.
-        RuleSetRunner.Session session = runner.session();
+        RuleSetRunner.Session session = runner.session(pick);
         List<Map<String, Object>> out = new ArrayList<>();
         for (MdmRuleSetTestCase c : picked) {
             Map<String, Object> record = RuleCaseJudge.object(c.getInputJson());
@@ -750,7 +784,7 @@ public class RuleSetEditService {
             }
             out.add(RuleSetCaseJudge.judge(c.getCaseId(), c.getCaseName(), c.getExpectedJson(), trace));
         }
-        return new RuleSetSimulateResult(null, List.of(), out);
+        return withDraftInfo(new RuleSetSimulateResult(null, List.of(), out), request.getRuleVersions(), pick, session);
     }
 
     private static Map<String, Object> invalidInputCase(MdmRuleSetTestCase c) {

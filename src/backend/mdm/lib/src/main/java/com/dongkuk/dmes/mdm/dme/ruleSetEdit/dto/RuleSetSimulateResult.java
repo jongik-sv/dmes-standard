@@ -18,6 +18,10 @@ public class RuleSetSimulateResult {
      * 없으면 null), ruleIds, rules(RuleIo 목록)}}. 단건 실행에만 싣고, 부른 세트가 없거나 케이스 일괄 실행이면 빈 맵.
      */
     private Map<String, Object> calledFlows = Map.of();
+    /** 실제로 쓴 룰 버전 모드(spec 2026-10-06 §4.5) — 사용자를 몰라 되돌렸으면 RELEASED. */
+    private String ruleVersions = "RELEASED";
+    /** DRAFT 로 실행한 룰·세트 — {@code {rules: {룰 ID: VER}, sets: {세트 ID: VER}}}, VER 는 scale 3 글자. 키는 늘 있다. 케이스 일괄 실행은 한 묶음. */
+    private Map<String, Object> draftVersions = Map.of("rules", Map.of(), "sets", Map.of());
 
     public RuleSetSimulateResult() {
     }
@@ -45,4 +49,9 @@ public class RuleSetSimulateResult {
 
     public Map<String, Object> getCalledFlows() { return calledFlows; }
     public void setCalledFlows(Map<String, Object> v) { this.calledFlows = v; }
+
+    public String getRuleVersions() { return ruleVersions; }
+    public void setRuleVersions(String v) { this.ruleVersions = v; }
+    public Map<String, Object> getDraftVersions() { return draftVersions; }
+    public void setDraftVersions(Map<String, Object> v) { this.draftVersions = v; }
 }
