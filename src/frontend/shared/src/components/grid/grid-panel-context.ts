@@ -1,6 +1,6 @@
 /**
- * GridPanel ↔ 안쪽 AgDataGrid 연결 — 컬럼 개인화가 켜진 그리드가 「컬럼 설정 열기·기본값 복원」 명령을 GridPanel 에 올려 두면
- * GridPanel 도구 막대의 [컬럼 설정] 단추가 그것을 부른다.
+ * GridPanel ↔ 안쪽 AgDataGrid 연결 — 컬럼 개인화가 켜진 그리드가 「컬럼 설정 열기·초기화 요청·자동 저장 스위치」 명령을 GridPanel 에 올려 두면
+ * GridPanel 도구 막대의 [컬럼 설정]·「자동 저장」 스위치·[초기화] 가 그것을 부른다.
  *
  * - GridPanel 이 등록 함수를 Provider 로 내리고, 개인화가 켜진 AgDataGrid 가 등록·해제한다. Provider 밖(GridPanel 없이 쓰는 그리드)이면 null 이다.
  * - 이 파일은 GridPanel.tsx ↔ AgDataGrid.tsx 순환을 만들지 않으려고 따로 둔다(AgDataGrid 는 이미 GridPanel 에서 GRID_TEMP_ID_FIELD 를 가져온다).
@@ -12,8 +12,14 @@ import { createContext, useContext, type Context } from "react";
 export interface GridPanelGridControls {
   /** 컬럼 설정 창을 연다. */
   openSettings(): void;
-  /** 저장값을 지우고 정의 기준으로 되돌린다. */
-  reset(): void;
+  /** 초기화를 요청한다 — 그리드가 확인 창을 띄우고, 확인하면 저장값을 지우고 정의 기준으로 되돌린다(자동 저장 스위치 값은 그대로). */
+  requestReset(): void;
+  /** 자동 저장 스위치의 지금 값. */
+  getAutoSave(): boolean;
+  /** 자동 저장 스위치를 바꾼다. */
+  setAutoSave(next: boolean): void;
+  /** 스위치 값이 바뀔 때 알린다(`useSyncExternalStore` 의 subscribe). 돌려주는 함수로 해제한다. */
+  subscribeAutoSave(listener: () => void): () => void;
 }
 
 export interface GridPanelRegistry {

@@ -560,6 +560,10 @@ describe("훅 경계를 넘는 ref", () => {
       const reset = document.querySelector<HTMLElement>('[data-testid="grid-header-menu-reset"]')!;
       expect(reset).not.toBeNull();
       await act(async () => void reset.click());
+      await settle(50);
+      // 「초기화」 는 확인 창을 거친다.
+      const confirm = Array.from(document.querySelectorAll("button")).find((b) => b.textContent === "확인")!;
+      await act(async () => void confirm.click());
       await settle(200);
       expect(ls.getItem(KEY)).toBeNull();
       expect(autoCalls()).toBeGreaterThan(0);
