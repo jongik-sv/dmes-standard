@@ -12,7 +12,7 @@
  */
 import type { ColumnState } from "ag-grid-community";
 
-import type { GridColumn } from "./AgDataGrid";
+import type { GridColumn } from "./grid-types";
 
 /** AgDataGrid `personalize` 객체형 — 일부 항목만 끈다. */
 export interface GridPersonalizeOptions {
