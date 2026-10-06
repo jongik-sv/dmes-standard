@@ -1372,6 +1372,7 @@ export default function CommUserMngPage() {
           shared LookupModal {code, name} 표준 사용 → fetchDeptLov 이 DEPT_CD/DEPT_NM 매핑.
           선택 확정 시 handleDeptLovPick 이 selected row 의 DEPT_CD + DEPT_NM 두 컬럼 동시 set. */}
       <LookupModal
+        gridId="modal-deptLookup"
         open={isDeptLovOpen}
         title="부서 검색"
         fetchFn={fetchDeptLov}
