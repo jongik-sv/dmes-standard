@@ -1,5 +1,5 @@
 /** @vitest-environment happy-dom */
-// 새 창 분리 때 AgDataGrid(gridId)의 체크 선택·스크롤·포커스 칸·자체 커서를 이어받는다(설계 2026-10-06-popout-carry-state-design §4.7).
+// 새 창 분리 때 AgDataGrid(gridId)의 체크 선택·스크롤·자체 커서를 이어받는다(설계 2026-10-06-popout-carry-state-design §4.7).
 // 앞쪽은 가짜 ag-grid api 로 useGridCarry 를 직접 보고, 뒤쪽은 실제 ag-grid(AgDataGrid)로 복원·왕복을 본다.
 import { act, createElement, StrictMode, useRef, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -54,7 +54,7 @@ afterEach(async () => {
 });
 
 describe("buildGridInitialState", () => {
-  it("복원값의 체크 선택·스크롤·포커스 칸만 initialState 로 만든다", () => {
+  it("복원값의 체크 선택·스크롤만 initialState 로 만든다(커서는 따로, 포커스 칸은 이어받지 않는다)", () => {
     const value = {
       rowSelection: ["2"],
       scroll: { top: 40, left: 0 },
@@ -64,7 +64,6 @@ describe("buildGridInitialState", () => {
     expect(buildGridInitialState(value, { selectable: true, selectedRowsControlled: false })).toEqual({
       rowSelection: ["2"],
       scroll: { top: 40, left: 0 },
-      focusedCell: { colId: "name", rowIndex: 1, rowPinned: null },
     });
   });
 
@@ -152,7 +151,7 @@ async function mountProbe(props: ProbeProps, registry: CarryRegistry | null, str
 }
 
 describe("useGridCarry — 모으기", () => {
-  it("편집기를 먼저 확정한 뒤 getState 의 체크 선택·스크롤·포커스 칸과 자체 커서만 담는다", async () => {
+  it("편집기를 먼저 확정한 뒤 getState 의 체크 선택·스크롤과 자체 커서만 담는다(포커스 칸은 담지 않는다)", async () => {
     const api = makeApi(
       {
         rowSelection: ["2", "3"],
@@ -171,7 +170,6 @@ describe("useGridCarry — 모으기", () => {
     expect(light["grid:g1"]).toEqual({
       rowSelection: ["2", "3"],
       scroll: { top: 120, left: 8 },
-      focusedCell: { colId: "name", rowIndex: 1, rowPinned: null },
       cursor: "3",
     });
   });
@@ -208,12 +206,18 @@ describe("useGridCarry — 모으기", () => {
     expect(registry.collect().light["grid:g1"]).toEqual({ scroll: { top: 5, left: 0 } });
   });
 
-  it("담을 것이 없으면 null, 그리드가 아직 없으면 null", async () => {
+  it("담을 것이 없거나 그리드가 아직 없으면 collect 결과에 그 key 를 넣지 않는다(빈 carry 를 만들지 않는다)", async () => {
     const registry = createCarryRegistry();
     await mountProbe({ gridId: "g1", api: makeApi({}) }, registry);
-    expect(registry.collect().light["grid:g1"]).toBeNull();
+    expect(registry.collect()).toEqual({ light: {}, bulky: {} });
     await mountProbe({ gridId: "g1" }, registry);
-    expect(registry.collect().light["grid:g1"]).toBeNull();
+    expect(registry.collect()).toEqual({ light: {}, bulky: {} });
+  });
+
+  it("포커스 칸만 있는 그리드는 담지 않는다(ag-grid 는 포커스가 벗어나도 focusedCell 을 지우지 않는다)", async () => {
+    const registry = createCarryRegistry();
+    await mountProbe({ gridId: "g1", api: makeApi({ focusedCell: { colId: "name", rowIndex: 1, rowPinned: undefined } }) }, registry);
+    expect(registry.collect()).toEqual({ light: {}, bulky: {} });
   });
 });
 
@@ -258,7 +262,7 @@ describe("useGridCarry — 복원", () => {
     expect(onRowClick).toHaveBeenCalledWith(data[2], expect.any(MouseEvent));
   });
 
-  it("행이 첫 렌더에 없으면(재조회) initialState 는 넘기지 않고, 커서는 행이 오면 되살린다", async () => {
+  it("행이 첫 렌더에 없으면(재조회) initialState 는 넘기지 않고, 커서는 처음 도착한 목록에 그 행이 있으면 되살린다", async () => {
     const onRowClick = vi.fn();
     const initial = vi.fn();
     const registry = restoreRegistry({ "grid:g1": value });
@@ -312,7 +316,7 @@ describe("useGridCarry — 복원", () => {
     expect(onRowClick).toHaveBeenCalledWith(data[2], expect.any(MouseEvent));
   });
 
-  it("그 행이 없으면 부르지 않고, 한 번 판단한 뒤에는 다시 보지 않는다", async () => {
+  it("첫 렌더 목록에 그 행이 없으면 부르지 않고, 한 번 판단한 뒤에는 다시 보지 않는다", async () => {
     const onRowClick = vi.fn();
     const setOwnCursorKey = vi.fn();
     const registry = restoreRegistry({ "grid:g1": { cursor: "99" } });
@@ -320,6 +324,29 @@ describe("useGridCarry — 복원", () => {
     await mountProbe({ gridId: "g1", onRowClick, setOwnCursorKey, data: [...data, { id: 99, name: "새" }] }, registry);
     expect(onRowClick).not.toHaveBeenCalled();
     expect(setOwnCursorKey).not.toHaveBeenCalled();
+  });
+
+  it("처음 도착한 목록에 그 행이 없으면 버리고, 나중 목록에 생겨도 되살리지 않는다", async () => {
+    const onRowClick = vi.fn();
+    const setOwnCursorKey = vi.fn();
+    const registry = restoreRegistry({ "grid:g1": { cursor: "3" } });
+    await mountProbe({ gridId: "g1", onRowClick, setOwnCursorKey, data: [] }, registry);
+    // 0건 조회 → 이어 다른 조건으로 처음 도착한 목록에는 id 3 이 없다.
+    await mountProbe({ gridId: "g1", onRowClick, setOwnCursorKey, data: [data[0], data[1]] }, registry);
+    expect(onRowClick).not.toHaveBeenCalled();
+    // 그 뒤 [조회] 결과에 id 3 이 있어도 몰래 열지 않는다.
+    await mountProbe({ gridId: "g1", onRowClick, setOwnCursorKey, data }, registry);
+    expect(onRowClick).not.toHaveBeenCalled();
+    expect(setOwnCursorKey).not.toHaveBeenCalled();
+  });
+
+  it("처음 도착한 뒤 목록이 비었다가 다시 오면 되살리지 않는다", async () => {
+    const onRowClick = vi.fn();
+    const registry = restoreRegistry({ "grid:g1": { cursor: "3" } });
+    await mountProbe({ gridId: "g1", onRowClick, gridReady: false }, registry);
+    await mountProbe({ gridId: "g1", onRowClick, gridReady: false, data: [] }, registry);
+    await mountProbe({ gridId: "g1", onRowClick, gridReady: true, data }, registry);
+    expect(onRowClick).not.toHaveBeenCalled();
   });
 
   it("사용자가 먼저 다른 행을 눌렀으면 부르지 않는다", async () => {
@@ -422,14 +449,19 @@ describe("AgDataGrid 이어받기 (실제 ag-grid)", () => {
     expect(onRowClick).not.toHaveBeenCalled();
   });
 
-  it("편집 가능한 그리드는 포커스 칸도 되살린다", async () => {
+  it("포커스 칸은 이어받지 않는다(옛 값이 있어도 칸을 포커스하지 않는다)", async () => {
     const editColumns = [{ key: "name", header: "이름", editable: true }];
     await renderGrid(
       { gridId: "g1", columns: editColumns },
       restoreRegistry({ "grid:g1": { focusedCell: { colId: "name", rowIndex: 1, rowPinned: null } } }),
     );
-    const focused = container.querySelector(".ag-center-cols-container .ag-cell-focus");
-    expect(focused?.closest(".ag-row")?.getAttribute("row-id")).toBe("2");
+    expect(container.querySelector(".ag-center-cols-container .ag-cell-focus")).toBeNull();
+  });
+
+  it("담을 값이 없는 그리드만 있으면 collect 가 비어 분리 때 carry 를 넘기지 않는다", async () => {
+    const tab = createCarryRegistry();
+    await renderGrid({ gridId: "g1" }, tab);
+    expect(tab.collect()).toEqual({ light: {}, bulky: {} });
   });
 
   it("왕복: 포털 탭에서 고른 체크·커서를 모아 분리 창 그리드가 같은 모양으로 시작한다", async () => {

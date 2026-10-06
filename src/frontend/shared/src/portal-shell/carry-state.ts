@@ -32,6 +32,8 @@ export interface CarryEntry {
   get: () => unknown;
   /** true 면 조회 결과 같은 큰 값 — localStorage handoff 에 담지 않는다. */
   bulky: boolean;
+  /** true 면 getter 가 null·undefined 를 돌려줄 때 collect 결과에 그 key 를 넣지 않는다(useCarryValue — 담을 값이 없는 부품이 빈 carry 를 만들지 않게). */
+  omitNullish?: boolean;
 }
 
 export interface CarryCollected {
@@ -132,6 +134,7 @@ export function createCarryRegistry(restore: CarryRestore | null = null): CarryR
       for (const [key, entry] of entries) {
         try {
           const value = entry.get();
+          if (entry.omitNullish && value == null) continue;
           if (dev) warnIfNotJson(key, value);
           (entry.bulky ? bulky : light)[key] = value;
         } catch (err) {
@@ -265,7 +268,8 @@ export function useCarryState<T>(
  * 분리 창에서는 그 key 의 복원값을 돌려준다(없으면 undefined). 복원값은 마운트 때 한 번 읽어 그 컴포넌트가 계속 들고 있다 —
  * useCarryState 와 같은 규칙으로 key 당 한 번만 쓰이고(StrictMode 이중 effect 에서도 첫 마운트가 받는다), 컨텍스트 밖에서는 등록도 복원도 없다.
  * key 가 null 이면 아무것도 하지 않는다. opts.accept 는 마운트 effect 에서 한 번 불러 false 면 등록하지 않는다(DOM 위치로 판정할 때).
- * getter 는 collect 때 불린다 — 렌더 중이 아니고, 던지면 그 key 만 빠진다. 반환값은 JSON 으로 옮길 수 있어야 한다.
+ * getter 는 collect 때 불린다 — 렌더 중이 아니고, 던지면 그 key 만 빠진다. null·undefined 를 돌려주면 그 key 도 collect 결과에 넣지 않는다
+ * (담을 값이 없는 부품만 있는 화면이 분리 때 빈 carry 를 만들지 않게 — useCarryState 는 null 도 값이라 그대로 담는다). 반환값은 JSON 으로 옮길 수 있어야 한다.
  */
 export function useCarryValue<T>(
   key: string | null | undefined,
@@ -282,7 +286,7 @@ export function useCarryValue<T>(
     if (!registry || !key) return undefined;
     if (acceptRef.current && !acceptRef.current()) return undefined;
     registry.markRestoredUsed(key);
-    return registry.register(key, { get: () => getterRef.current(), bulky: false });
+    return registry.register(key, { get: () => getterRef.current(), bulky: false, omitNullish: true });
   }, [registry, key]);
   return (restored?.value ?? undefined) as T | undefined;
 }

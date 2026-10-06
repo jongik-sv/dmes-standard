@@ -9,17 +9,18 @@ import { gridRowIdOf } from "./field-errors";
 import type { AgDataGridProps } from "./grid-types";
 
 /*
- * 「새 창으로 분리」 때 그리드의 체크 선택·스크롤·포커스 칸·자체 관리 행 커서를 이어받는다(설계 2026-10-06-popout-carry-state-design §4.7).
+ * 「새 창으로 분리」 때 그리드의 체크 선택·스크롤·자체 관리 행 커서를 이어받는다(설계 2026-10-06-popout-carry-state-design §4.7).
  *
  * - `gridId` 를 준 그리드만 한다(key `grid:{gridId}`). gridId 가 없거나 carry 컨텍스트(포털 탭·분리 창) 밖이면 등록도 복원도 하지 않아 예전과 같다.
  *   대화 상자 안 그리드(룩업 등)는 하지 않는다.
- * - 모으기: 열린 셀 편집기를 `api.stopEditing()` 으로 확정한 뒤 `api.getState()` 의 rowSelection·scroll·focusedCell 만 담는다. 컬럼 상태(너비·순서·정렬 등)는
+ * - 모으기: 열린 셀 편집기를 `api.stopEditing()` 으로 확정한 뒤 `api.getState()` 의 rowSelection·scroll 만 담는다(focusedCell 은 담지 않는다 — ag-grid 는 포커스가 그리드를 벗어나도 focusedCell 을 지우지 않아 오래된 값으로 포커스를 가져간다). 컬럼 상태(너비·순서·정렬 등)는
  *   담지 않아 그리드 개인화(grid-personalize-hook.ts)의 복원과 겹치지 않는다. 화면이 `highlightedRowKey` 를 넘기면(controlled) 커서는 화면 소유라 담지 않고,
  *   넘기지 않아 그리드가 자체 관리하는 커서 행 키만 담는다.
  * - 복원: ag-grid 33.3.2 에는 `api.setState` 가 없어 `initialState`(그리드 생성 때 한 번만 읽힘)로 넘긴다. 행은 화면 useCarryState 복원으로 첫 렌더부터 들어 있다.
- *   체크 선택·scroll·focusedCell 은 ag-grid 가 행이 들어온 뒤(rowCountReady·firstDataRendered) 적용한다. 행이 첫 렌더에 없었으면(재조회) initialState 를 넘기지 않는다.
+ *   체크 선택·scroll 은 ag-grid 가 행이 들어온 뒤(rowCountReady·firstDataRendered) 적용한다. 행이 첫 렌더에 없었으면(재조회) initialState 를 넘기지 않는다.
  *   화면이 `selectedRows`(제어형 선택)를 넘기면 체크 선택은 건너뛴다.
  * - 자체 관리 커서를 되살린 경우 화면 `onRowClick(row, 합성 click)` 를 그리드가 준비되고 그 행이 있을 때 한 번 부른다(상세 폼 되살리기).
+ *   커서는 첫 렌더에 행이 있을 때, 또는 마운트 뒤 처음 행이 도착한 그 한 번에만 판단한다. 그때 그 키 행이 없으면 버리고 그 뒤 목록에서는 되살리지 않는다.
  */
 
 /** 이어받을 체크 선택 행 수 상한 — 크면 light(handoff 256KB)를 넘겨 조건까지 빠질 수 있어 선택은 뺀다. */
@@ -29,7 +30,6 @@ export const GRID_CARRY_MAX_SELECTION = 2000;
 export interface GridCarryValue {
   rowSelection?: string[];
   scroll?: { top: number; left: number };
-  focusedCell?: { colId: string; rowIndex: number; rowPinned?: "top" | "bottom" | null };
   /** 그리드가 자체 관리하던 커서 행 키 */
   cursor?: string;
 }
@@ -46,13 +46,6 @@ export function buildGridInitialState(
   }
   if (value.scroll && typeof value.scroll.top === "number" && typeof value.scroll.left === "number") {
     state.scroll = { top: value.scroll.top, left: value.scroll.left };
-  }
-  if (value.focusedCell && typeof value.focusedCell.colId === "string" && typeof value.focusedCell.rowIndex === "number") {
-    state.focusedCell = {
-      colId: value.focusedCell.colId,
-      rowIndex: value.focusedCell.rowIndex,
-      rowPinned: value.focusedCell.rowPinned ?? null,
-    };
   }
   return Object.keys(state).length > 0 ? state : undefined;
 }
@@ -103,10 +96,6 @@ export function useGridCarry(opts: UseGridCarryOptions): { initialState: GridSta
         out.rowSelection = selection.map(String);
       }
       if (state.scroll) out.scroll = { top: state.scroll.top, left: state.scroll.left };
-      if (state.focusedCell) {
-        const { colId, rowIndex, rowPinned } = state.focusedCell;
-        out.focusedCell = { colId, rowIndex, rowPinned: rowPinned ?? null };
-      }
       const cursor = highlightedRowKeyRef.current;
       if (!now.cursorControlled && cursor != null && cursor !== "") out.cursor = String(cursor);
       return Object.keys(out).length > 0 ? out : null;
@@ -116,7 +105,7 @@ export function useGridCarry(opts: UseGridCarryOptions): { initialState: GridSta
   );
 
   // 그리드는 만들 때 한 번만 initialState 를 읽는다 — 첫 렌더 값으로 고정한다. 행이 첫 렌더에 없으면(재조회·행을 이어받지 않는 화면) 넘기지 않는다:
-  // 나중에 온 다른 행 목록에 옛 체크 id·스크롤·포커스 칸 번호가 엉뚱하게 적용되지 않게 한다(커서 되살리기는 아래에서 행이 올 때 따로 한다).
+  // 나중에 온 다른 행 목록에 옛 체크 id·스크롤 위치가 엉뚱하게 적용되지 않게 한다(커서 되살리기는 아래에서 행이 올 때 따로 한다).
   const initialRef = useRef<{ value: GridState | undefined } | null>(null);
   if (initialRef.current === null) {
     initialRef.current = {
@@ -127,22 +116,34 @@ export function useGridCarry(opts: UseGridCarryOptions): { initialState: GridSta
     };
   }
 
-  // 자체 관리 커서 되살리기 — 그리드가 준비되고 그 행이 데이터에 있으면 커서를 세우고 화면 onRowClick 을 한 번 부른다.
-  // 행이 비어 있으면(재조회 대기) 행이 오기를 기다리고, 행이 왔는데 없거나 사용자가 먼저 다른 행을 누르거나 화면이 커서를 쥐고 있으면 포기한다.
+  // 자체 관리 커서 되살리기 — 첫 렌더에 행이 있거나 마운트 뒤 처음 행이 도착했을 때 한 번만 판단한다. 그때 그 키 행이 있으면(그리드가 준비되면)
+  // 커서를 세우고 화면 onRowClick 을 한 번 부른다. 그때 없으면 버리고, 이후 목록(재조회·조회 조건 변경)에서는 되살리지 않는다 —
+  // 이어받은 키가 나중에 우연히 들어온 다른 목록의 행을 몰래 열지 않게. 사용자가 먼저 다른 행을 누르거나 화면이 커서를 쥐고 있어도 버린다.
   const pendingCursorRef = useRef<string | null>(restored?.cursor != null && restored.cursor !== "" ? String(restored.cursor) : null);
+  const arrivedRef = useRef(false);
   useEffect(() => {
     const pending = pendingCursorRef.current;
-    if (pending === null || !gridReady) return;
+    if (pending === null) return;
     const now = latest.current;
     const current = highlightedRowKeyRef.current;
     if (now.cursorControlled || (current != null && String(current) !== pending)) {
       pendingCursorRef.current = null;
       return;
     }
-    if (data.length === 0) return;
-    pendingCursorRef.current = null;
+    if (data.length === 0) {
+      // 처음 도착한 뒤 목록이 다시 비면 그 판단은 끝난 것이다.
+      if (arrivedRef.current) pendingCursorRef.current = null;
+      return;
+    }
+    arrivedRef.current = true;
     const row = data.find((r) => !!r && gridRowIdOf(r, now.rowKey) === pending);
-    if (!row) return;
+    if (!row) {
+      pendingCursorRef.current = null;
+      return;
+    }
+    // 처음 도착한 목록에 있다 — 그리드가 준비될 때까지 기다린다(그 사이 목록이 바뀌어 행이 사라지면 위에서 버려진다).
+    if (!gridReady) return;
+    pendingCursorRef.current = null;
     setOwnCursorKey(pending);
     const tempId = row[GRID_TEMP_ID_FIELD];
     const arg = typeof tempId === "string" && tempId ? { ...row, [now.rowKey]: tempId } : row;

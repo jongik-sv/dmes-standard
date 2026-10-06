@@ -1,0 +1,38 @@
+// scripts/lib/be-run-classpath.init.gradle — be-run.sh 가 Gradle 없이 앱을 띄우도록 bootRun 의 실행 정보를 파일로 남긴다.
+//
+// be-run.sh 는 `gradlew -I 이 파일 :<모듈>:api:beRunClasspath` 로 빌드만 하고(--no-daemon, 끝나면 Gradle 프로세스가 남지 않는다),
+// 앱은 이 파일이 쓴 main class·classpath 로 `java` 를 직접 띄운다. 그래서 bootRun 이 모듈마다 Gradle 데몬을 하나씩
+// 붙들고 있던 메모리(데몬 3개 약 1.7GB)가 사라진다.
+//
+// 산출: <모듈>/api/build/be-run/classpath.txt — 1행 main class, 2행 classpath(bootRun 이 쓰는 것과 같은 항목·같은 순서),
+//       3행 java 실행 파일(bootRun 의 java launcher, 없으면 빈 줄), 4행~ bootRun.jvmArgs(한 줄에 하나).
+// 모듈 build.gradle 은 건드리지 않는다. 이 init script 는 -I 로 줄 때만 적용되므로 평소 빌드·시험에는 영향이 없다.
+allprojects {
+    plugins.withId('org.springframework.boot') {
+        // TaskProvider.map 으로 이으면 bootRun 자체가 선행 태스크로 걸려 앱이 실제로 기동된다 — 태스크를 직접 참조한다.
+        def bootRun = tasks.getByName('bootRun')
+        def classpathFile = layout.buildDirectory.file('be-run/classpath.txt')
+        tasks.register('beRunClasspath') {
+            group = 'dmes'
+            description = 'be-run.sh 용: bootRun 과 같은 main class·classpath 를 build/be-run/classpath.txt 에 쓴다(앱은 실행하지 않는다).'
+            // classpath 를 입력으로 걸면 그 안의 classes·resources·jar(includeBuild 산출물 포함)를 만드는 태스크가 선행된다.
+            inputs.files(bootRun.classpath)
+            // bootRun 의 mainClass 는 resolveMainClassName 의 산출물에서 온다.
+            dependsOn(tasks.named('resolveMainClassName'))
+            outputs.file(classpathFile)
+            doLast {
+                def cp = bootRun.classpath.files.collect { it.absolutePath }.join(File.pathSeparator)
+                def out = classpathFile.get().asFile
+                out.parentFile.mkdirs()
+                def java = ''
+                try {
+                    java = bootRun.javaLauncher.getOrNull()?.executablePath?.asFile?.absolutePath ?: ''
+                } catch (Exception ignored) {
+                    // launcher 를 못 구하면 be-run.sh 가 JAVA_HOME·PATH 의 java 를 쓴다.
+                }
+                def jvmArgs = (bootRun.jvmArgs ?: []).collect { it.toString() }
+                out.text = ([bootRun.mainClass.get(), cp, java] + jvmArgs).join('\n') + '\n'
+            }
+        }
+    }
+}
