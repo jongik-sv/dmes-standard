@@ -30,6 +30,8 @@ public final class MdmMenuSeeder extends SeedSupport {
         insertMcmSecObjIfAbsent("mdmCacheMng", "MDM 캐시 관리", "mcm");
         insertMcmSecMenuIfAbsent("mdmCacheMng", "001", "1020190", "MDM 캐시 관리", "csa", "mdmCacheMng");
         insertMcmSecObjIfAbsent("metaFeed", "MDM 메타 제공", "mdm");
+        // 조업 계산기 위젯(2026-10-06) — BFF 권한키 mdm/rulecalc/{view,execute} 용 OBJECT. 인증만(AUTH_ONLY)이라 메뉴·그룹 RBAC 은 없다.
+        insertMcmSecObjIfAbsent("ruleCalc", "조업 계산기", "mdm");
         for (String objId : new String[]{"mdmCacheMng", "metaFeed"}) {
             insertIfAbsentComposite(
                     "TB_MCM_SEC_ROLE_MAPPING",
