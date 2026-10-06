@@ -303,16 +303,18 @@ eq "자름: 화면에서 잘린 꼬리 조각이 남지 않는다" "$(none "$(S 
 eq "총량: 가림 입력 1MB 초과는 실패·출력 없음" "$(rep 'xxxxxxx ' 140000 | console_redact_text | wc -c | tr -d ' '; echo "rc=${PIPESTATUS[1]}")" "$(printf '0\nrc=71')"
 eq "프롬프트: 한 줄 8000바이트 초과는 바로 3" "$(rep xxxxxxxx 1001 | console_clean_prompt; echo "rc=$?")" "rc=3"
 # timed <함수> <입력 파일> — 새 프로세스 그룹에서 lib 의 <함수> 를 돌려 "<pgid> <rc> <ms>" 를 낸다.
-# 5초(perl alarm)를 넘으면 그룹째 끄고 rc 142. 그룹 번호는 PGIDS 에 모아 끝에 남은 프로세스를 확인·정리한다.
+# 5초를 넘으면 그룹째 끄고 rc 142(node 가 새 프로세스 그룹으로 띄우고 시간을 잰다). 그룹 번호는 PGIDS 에 모아 끝에 남은 프로세스를 확인·정리한다.
 timed() {
-  perl -MTime::HiRes=time -e '
-    setpgrp(0, 0); my ($fn, $in, $lib) = @ARGV; my $t0 = time;
-    $SIG{ALRM} = sub { $SIG{TERM} = "IGNORE"; kill "TERM", -$$; printf "%d 142 %d\n", $$, (time - $t0) * 1000; exit 0 };
-    alarm 5;
-    my $pid = fork();
-    if (defined $pid && $pid == 0) { open STDIN, "<", $in; open STDOUT, ">", "/dev/null"; exec "bash", "-c", ". \"\$0\"; \$1", $lib, $fn; exit 127 }
-    waitpid($pid, 0); my $rc = $? >> 8; alarm 0;
-    printf "%d %d %d\n", $$, $rc, (time - $t0) * 1000' "$1" "$2" "$LIB"
+  node -e '
+    const cp = require("child_process"), fs = require("fs");
+    const [fn, inp, lib] = process.argv.slice(1); const t0 = Date.now();
+    const fd = fs.openSync(inp, "r");
+    const c = cp.spawn("bash", ["-c", ". \"$0\"; $1", lib, fn], { detached: true, stdio: [fd, "ignore", "inherit"] });
+    const out = (rc) => { process.stdout.write(c.pid + " " + rc + " " + (Date.now() - t0) + "\n"); };
+    const tm = setTimeout(() => { try { process.kill(-c.pid, "SIGTERM"); } catch (e) {} out(142); process.exit(0); }, 5000);
+    c.on("exit", (code, sig) => { clearTimeout(tm); out(code === null ? 128 + require("os").constants.signals[sig] : code); });
+    c.on("error", () => { clearTimeout(tm); out(127); });
+  ' "$1" "$2" "$LIB"
 }
 for kind in eyJ sk- token= Ab3Cd9 가 'a://'; do
   nb="$(printf '%s' "$kind" | wc -c | tr -d ' ')"

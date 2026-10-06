@@ -28,6 +28,7 @@ trap cleanup EXIT
 fail=0; pass=0
 chk() { if [ "$1" = ok ]; then pass=$((pass + 1)); echo "ok   $2"; else fail=1; echo "FAIL $2${3:+ — $3}"; fi; }
 eq() { if [ "$2" = "$3" ]; then chk ok "$1"; else chk fail "$1" "기대 [$3] 실제 [$2]"; fi; }
+udate() { date -u -d "@$1" "$2" 2>/dev/null || date -u -r "$1" "$2"; }   # <epoch> <+형식> — UTC(GNU -d @ 먼저, BSD 는 -d 를 몰라 rc≠0 → -r)
 
 unset ORCA_TERMINAL_HANDLE CLAUDE_PID COORD_SESSION_ID CLAUDE_CODE_SESSION_ID COORD_RUN DFLOW_CONFIG_DIR COORD_DRY CONSOLE_POLL_IDENT COORD_CONSOLE_POLL
 mkdir -p "$tmp/bin" "$tmp/repo" "$tmp/home"
@@ -245,7 +246,7 @@ eq "감지: 새 창 → 기록(kind)" "$(recf coord_lane_kit .kind)" permission
 eq "감지: since 는 UTC 밀리초 ISO" "$(recf coord_lane_kit .since | grep -cE '^[0-9-]{10}T[0-9:]{8}\.[0-9]{3}Z$')" 1
 eq "감지: handled null·v 1" "$(recf coord_lane_kit '"\(.v) \(.handled)"')" "1 null"
 eq "감지: 발췌는 console_excerpt 와 같다" "$(recf coord_lane_kit '.excerpt[]')" "$(lib console_excerpt < "$FX/prompt-permission.txt")"
-eq "감지: 기록 권한 600" "$(stat -f %Lp "$DFLOW_CONSOLE_DIR/input/coord_lane_kit.json" 2>/dev/null || stat -c %a "$DFLOW_CONSOLE_DIR/input/coord_lane_kit.json")" 600
+eq "감지: 기록 권한 600" "$(stat -c %a "$DFLOW_CONSOLE_DIR/input/coord_lane_kit.json" 2>/dev/null || stat -f %Lp "$DFLOW_CONSOLE_DIR/input/coord_lane_kit.json")" 600
 eq "감지: office.sh lane-state <레인> auto 를 그 회차로" "$(cat "$FAKE_DIR/office.log")" "COORD_RUN=r1 lane-state kit auto"
 eq "감지: 로그·stderr 에 발췌·비밀 없음" "$(cat "$DFLOW_CONSOLE_DIR"/poller-*.log "$tmp/once.err" | grep -cE 'Do you want|AbCdEf|rm -rf')" 0
 since1="$(recf coord_lane_kit .since)"
@@ -365,8 +366,8 @@ printf '%s\n' "조정 중" > "$FAKE_DIR/screens/hL.txt"
 cp "$FX/prompt-permission.txt" "$FAKE_DIR/screens/hk.txt"
 once
 kid() { printf '2222bbbb-0000-0000-0000-%012d' "$1"; }
-FUT="$(date -u -r $(( $(date +%s) + 120 )) +%Y-%m-%dT%H:%M:%S.000Z)"
-PAST="$(date -u -r $(( $(date +%s) - 5 )) +%Y-%m-%dT%H:%M:%S.000Z)"
+FUT="$(udate $(( $(date +%s) + 120 )) +%Y-%m-%dT%H:%M:%S.000Z)"
+PAST="$(udate $(( $(date +%s) - 5 )) +%Y-%m-%dT%H:%M:%S.000Z)"
 mkkey() {  # <n> <ref> <keys JSON> [kind] [since] [sha] [expires] [target_kind]
   jq -nc --arg id "$(kid "$1")" --arg r "$2" --argjson k "$3" --arg ik "${4:-$(recf coord_lane_kit .kind)}" \
     --arg is "${5:-$(recf coord_lane_kit .since)}" --arg sh "${6:-$(sha_of_rec coord_lane_kit)}" --arg ex "${7:-$FUT}" --arg tk "${8:-coord_lane}" \
@@ -422,7 +423,7 @@ eq "키 행: since 가 다른 순간 → prompt_changed" "$(ackof 34)" "tok-KEY-
 eq "키 행: 불일치 네 경우 send 0" "$(sends)" 0
 # 같은 순간을 다른 표기(+09:00)로 → 시각 비교라 통과
 cs="$(recf coord_lane_kit .since)"; csm="$(lib console_iso_to_ms "$cs")"
-kst="$(date -r $(( csm / 1000 + 32400 )) -u +%Y-%m-%dT%H:%M:%S).$(printf '%03d' $(( csm % 1000 )))+09:00"
+kst="$(udate $(( csm / 1000 + 32400 )) +%Y-%m-%dT%H:%M:%S).$(printf '%03d' $(( csm % 1000 )))+09:00"
 mkkey 35 kit '["Enter"]' "" "$kst"; once
 eq "키 행: since 가 같은 순간(다른 시간대 표기)이면 보낸다" "$(ackof 35 | cut -d' ' -f2):$(sends)" "sent:1"
 # 창 없음
@@ -575,7 +576,7 @@ mkkey2() {  # <n> <expires> — 지금 기록의 kind·since·sha 로 [1]
     '{id:$id, target_kind:"coord_lane", target_ref:"kit", claim_token:("tok-KEY-" + ($id | .[-3:])), expires_at:$ex, kind:"keys", keys:["1"],
       input_request:{kind:"permission", since:$is, sha:$sh}}' >> "$FAKE_DIR/queue"
 }
-FUT="$(date -u -r $(( $(date +%s) + 600 )) +%Y-%m-%dT%H:%M:%S.000Z)"
+FUT="$(udate $(( $(date +%s) + 600 )) +%Y-%m-%dT%H:%M:%S.000Z)"
 cp "$tmp/pd.txt" "$FAKE_DIR/screens/hk.txt"     # 발췌는 같고 발췌 밖 줄만 다른 화면
 mkkey2 70 "$FUT"; once
 eq "키 행: 발췌 sha 는 같아도 full 이 다르면 prompt_changed·send 0" "$(ackof 70):$(sends)" "tok-KEY-070 refused --reason prompt_changed:0"
@@ -593,7 +594,10 @@ newenv keysnow
 mksess aaaa1111 $$ hL; mkrun r1 aaaa1111-0000 $$; addlane r1 kit hk
 echo "hk hL" > "$FAKE_DIR/terms"; printf '%s\n' "조정 중" > "$FAKE_DIR/screens/hL.txt"
 cp "$tmp/pe.txt" "$FAKE_DIR/screens/hk.txt"; once
-mkdir -p "$tmp/badbin"; printf '#!/bin/sh\necho garbage\n' > "$tmp/badbin/perl"; chmod +x "$tmp/badbin/perl"
+# 시각 경로를 모두 막는다: date 는 %N·ISO 형식 요청에 garbage(그 밖은 진짜 date), node 는 늘 garbage
+mkdir -p "$tmp/badbin"; REAL_DATE="$(command -v date)"
+printf '#!/bin/sh\nfor a in "$@"; do case "$a" in *%%N*|*T%%H:%%M:%%S*) echo garbage; exit 0 ;; esac; done\nexec "%s" "$@"\n' "$REAL_DATE" > "$tmp/badbin/date"
+printf '#!/bin/sh\necho garbage\n' > "$tmp/badbin/node"; chmod +x "$tmp/badbin/date" "$tmp/badbin/node"
 mkkey2 73 "$FUT"
 PATH="$tmp/badbin:$PATH" once
 eq "키 행: 지금 시각이 숫자가 아니면 refused error·send 0" "$(ackof 73):$(sends)" "tok-KEY-073 refused --reason error:0"
@@ -934,7 +938,7 @@ eq "T2: 머리 밀림 + 본문 들여쓴 가로줄 아래 신뢰 문구 → ESCA
 eq "CH1 준비: kind 는 choice" "$(lib console_input_kind < "$tmp/ch1.txt")" choice
 eq "CH1: 대화 줄 (Recommended) + settings.json 편집 창 → ESCALATE window-shape·키 0" "$(AAK "$tmp/ch1.txt")" "ESCALATE hk choice window-shape:"
 mkbash "$tmp/ch2.txt" "python3 evil.py" "Pick one" "2. Go (Recommended)"
-printf '\nEnter to select\n' >> "$tmp/ch2.txt"; sed -i '' 's/ Do you want to proceed?/ Do you want to run it?/' "$tmp/ch2.txt"
+printf '\nEnter to select\n' >> "$tmp/ch2.txt"; sed 's/ Do you want to proceed?/ Do you want to run it?/' "$tmp/ch2.txt" > "$tmp/ch2.tmp" && mv "$tmp/ch2.tmp" "$tmp/ch2.txt"   # sed -i 는 BSD·GNU 문법이 달라 쓰지 않는다
 eq "CH2 준비: kind 는 question" "$(lib console_input_kind < "$tmp/ch2.txt")" question
 eq "CH2: 본문 속 (Recommended) 선택지가 권한 창 블록에 붙음 → ESCALATE window-shape·키 0" "$(AAK "$tmp/ch2.txt")" "ESCALATE hk question window-shape:"
 # 정상 창은 기존대로
@@ -960,32 +964,52 @@ eq "K4: 기록 cmd 에 위험 줄이 남는다" "$(jq -r '[.approvals[]? | selec
 fresh "$tmp/k10.txt"; AA > /dev/null
 eq "지문 없음 기록 cmd = 화면 아래를 가린 것(비어 있지 않음)" "$(jq -r '[.approvals[]? | select(.why | test("지문"))] | .[-1].cmd | length > 0' "$S/state/r1/state.json")" true
 # 판정 시간 상한: 65,000자 한 줄(보이지 않는 문자·\x01·`─ ` 반복)은 3초 안에 지문 없음
+# 셸 도구: rep_n <글> <횟수> = 글을 횟수만큼 이은 문자열(두 배씩 늘려 느리지 않게) · now_ms = 지금 에포크 ms · tlim <초> <명령…> = 셸 감시로 시간 상한(넘으면 TERM)
+rep_n() { local u="$1" n="$2" r=""; while [ "$n" -gt 0 ]; do [ $((n & 1)) = 1 ] && r="$r$u"; u="$u$u"; n=$((n >> 1)); done; printf '%s' "$r"; }
+now_ms() {
+  local t; t="$(date +%s.%N 2>/dev/null)"
+  if [[ "$t" =~ ^([0-9]+)\.([0-9]{9})$ ]]; then printf '%d' $(( ${BASH_REMATCH[1]} * 1000 + 10#${BASH_REMATCH[2]:0:3} ))
+  else node -e 'process.stdout.write(String(Date.now()))'; fi
+}
+tlim() {
+  local t="$1" p w rc; shift
+  "$@" <&0 &
+  p=$!
+  ( trap 'kill "$sp" 2>/dev/null; exit 0' TERM
+    sleep "$t" & sp=$!
+    wait "$sp" 2>/dev/null || exit 0
+    kill -TERM "$p" 2>/dev/null ) </dev/null >/dev/null 2>&1 &
+  w=$!
+  wait "$p" 2>/dev/null && rc=0 || rc=$?
+  kill "$w" 2>/dev/null; wait "$w" 2>/dev/null
+  return "$rc"
+}
 for kd in zw c1 rule; do
   case "$kd" in
-    zw) long="$(perl -CO -e 'print "\x{200b}" x 65000')" ;;
-    c1) long="$(perl -e 'print "\x01" x 65000')" ;;
-    rule) long="$(perl -CO -e 'print "\x{2500} " x 32500')" ;;
+    zw) long="$(rep_n "$(printf '\xe2\x80\x8b')" 65000)" ;;
+    c1) long="$(rep_n "$(printf '\x01')" 65000)" ;;
+    rule) long="$(rep_n "$(printf '\xe2\x94\x80 ')" 32500)" ;;
   esac
   mkbash "$tmp/long-$kd.txt" "git status $long"
-  t0="$(perl -MTime::HiRes=time -e 'printf "%.3f", time')"
-  r="$(perl -e 'alarm 10; exec @ARGV' bash -c '. "$1/lib/common.sh"; . "$1/lib/console-redact.sh"; . "$1/lib/console-input.sh"; console_full_sha < "$2"; echo "rc=$?"' _ "$SD" "$tmp/long-$kd.txt")"
-  t1="$(perl -MTime::HiRes=time -e 'printf "%.3f", time')"
+  t0="$(now_ms)"
+  r="$(tlim 10 bash -c '. "$1/lib/common.sh"; . "$1/lib/console-redact.sh"; . "$1/lib/console-input.sh"; console_full_sha < "$2"; echo "rc=$?"' _ "$SD" "$tmp/long-$kd.txt")"
+  t1="$(now_ms)"
   eq "65,000자 줄($kd) → 지문 없음" "$r" "rc=1"
-  eq "65,000자 줄($kd) → 3초 안" "$(perl -e "print(($t1 - $t0) < 3 ? 'yes' : 'no')")" yes
+  eq "65,000자 줄($kd) → 3초 안" "$(( t1 - t0 < 3000 ? 1 : 0 ))" 1
 done
 fresh "$tmp/long-rule.txt"
-r="$(perl -e 'alarm 20; exec @ARGV' env TMPDIR="$tmp/tmpd" COORD_RUN=r1 bash "$SD/auto-answer.sh" --lane kit 2>/dev/null < /dev/null | cut -d' ' -f1-4)"
+r="$(tlim 20 env TMPDIR="$tmp/tmpd" COORD_RUN=r1 bash "$SD/auto-answer.sh" --lane kit 2>/dev/null < /dev/null | cut -d' ' -f1-4)"
 eq "65,000자 줄 창 → auto-answer ESCALATE no-fingerprint·키 0" "$r:$(hexes)" "ESCALATE hk permission no-fingerprint:"
 # 시간 상한 자체: jq 가 멈추면(가짜 느린 jq) 상한(1초)에서 끊고 창 없음
 mkdir -p "$tmp/slowjq"; printf '#!/bin/sh\nexec sleep 21.5\n' > "$tmp/slowjq/jq"; chmod +x "$tmp/slowjq/jq"
 mkbash "$tmp/slow.txt" "git status"
-t0="$(perl -MTime::HiRes=time -e 'printf "%.3f", time')"
-r="$(perl -e 'alarm 10; exec @ARGV' env PATH="$tmp/slowjq:$PATH" COORD_CONSOLE_WINDOW_TIMEOUT_S=1 bash -c '. "$1/lib/common.sh"; . "$1/lib/console-input.sh"; console_window_json < "$2"; echo "rc=$?"' _ "$SD" "$tmp/slow.txt")"
-t1="$(perl -MTime::HiRes=time -e 'printf "%.3f", time')"
+t0="$(now_ms)"
+r="$(tlim 10 env PATH="$tmp/slowjq:$PATH" COORD_CONSOLE_WINDOW_TIMEOUT_S=1 bash -c '. "$1/lib/common.sh"; . "$1/lib/console-input.sh"; console_window_json < "$2"; echo "rc=$?"' _ "$SD" "$tmp/slow.txt")"
+t1="$(now_ms)"
 eq "느린 jq → 상한에서 끊고 창 없음(rc 1)" "$r" "rc=1"
-eq "느린 jq → 3초 안(상한 1초)" "$(perl -e "print(($t1 - $t0) < 3 ? 'yes' : 'no')")" yes
+eq "느린 jq → 3초 안(상한 1초)" "$(( t1 - t0 < 3000 ? 1 : 0 ))" 1
 sleep 0.2
-eq "느린 jq 의 sleep 이 남지 않는다(alarm 이 끊음)" "$(pgrep -fx 'sleep 21.5' | grep -c .)" 0
+eq "느린 jq 의 sleep 이 남지 않는다(셸 감시가 끊음)" "$(pgrep -fx 'sleep 21.5' | grep -c .)" 0
 eq "누수: 임시 화면 파일이 남지 않는다(15)" "$(ls -A "$tmp/tmpd" | grep -c .)" 0
 printf '%s\n' "$cfg0" > "$tmp/repo/.coord.local.json"
 

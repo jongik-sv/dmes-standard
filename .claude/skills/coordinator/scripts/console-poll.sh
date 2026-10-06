@@ -267,8 +267,9 @@ _sess_with_pid() {
   local f p
   for f in "$ROOT"/_session/*.json; do
     [ -f "$f" ] || continue
-    _cr_sess_mine "$f" || continue
-    p="$(jq -r '.pid // 0 | tostring' "$f" 2>/dev/null)"
+    _cr_sess_read "$f"                      # 신원·pid 를 jq 한 번으로
+    [ "$_CR_MINE" = 1 ] || continue
+    p="$_CR_PID"
     case "$p" in ''|0|null) continue ;; esac
     return 0
   done
@@ -629,6 +630,18 @@ lane_run_h() {
 }
 # 기록 JSON(stdin)이 「살아 있는」 입력 요청(handled null·usage-limit·trust 아님)이면 y
 rec_active() { jq -r 'if type == "object" and .handled == null and .kind != "usage-limit" and .kind != "trust" then "y" else "n" end' 2>/dev/null; }
+# input_detect 의 기록 읽기(jq -sj 한 번): 값이 정확히 객체 하나가 아니면(깨진·값 여럿) 빈 출력 = 기록 없음으로 보고 새로 쓴다.
+#   객체면 rec_active · kind · since · full · handle · run 을 U+001F 로 잇는다(빈 칸 = 없음·null·false — 예전 `// empty` 와 같은 글).
+#   칸 값에 U+001F 가 있으면 칸이 밀리므로 그 기록도 없는 것으로 본다
+_CP_REC_JQ='if length == 1 and (.[0] | type) == "object" then .[0]
+  | [(if .handled == null and .kind != "usage-limit" and .kind != "trust" then "y" else "n" end),
+     (.kind // "" | tostring), (.since // "" | tostring), (.full // "" | tostring), (.handle // "" | tostring), (.run // "" | tostring)]
+  | if any(.[]; test("\u001f")) then empty else join("\u001f") end
+  else empty end'
+# 새 기록 $a 와 지금 기록 $b(없으면 null) 비교(jq -nj 한 번): 같으면 `same`, 다르면 `diff` · 새 kind · 새 rec_active 를 U+001F 로 잇는다
+_CP_CMP_JQ='if $a == $b then "same" else
+  ["diff", ($a.kind | tostring), (if ($a | type) == "object" and $a.handled == null and $a.kind != "usage-limit" and $a.kind != "trust" then "y" else "n" end)]
+  | join("\u001f") end'
 # 문장 질문(kind 'message'): 레인 state 의 .question = {at, text}. 기록 JSON(없으면 빈 출력). $2 = 지금 기록, $3 = run-id, $4 = 핸들
 message_rec() {
   local sf q at ms since t ex
@@ -655,7 +668,7 @@ message_rec() {
 #   핸들의 기록만 쓴다. full·handle·run 이 바뀌면 같은 kind 여도 새 창으로 본다(since 를 새로). full 이 없는(null) 창은 발췌 sha 가
 #   바뀌어도 새 창으로 본다. 창 밖 줄(상태줄·사용량 %)만 바뀐 화면은 full 이 같아 since 를 유지한다.
 input_detect() {
-  local k="$1" ref="$2" scr="$3" h="${4:-}" name f rc cur ck cs cf ch cr new had=0 now hd run="" ca na
+  local k="$1" ref="$2" scr="$3" h="${4:-}" name f rc cur ck cs cf ch cr new had=0 now hd run="" ca na rd nk
   console_input_ref_ok "$ref" || return 0
   name="${k}_$ref"; f="$(console_input_file "$name")"
   [ "$k" = coord_lane ] && run="$(lane_run_h "$ref" "$h" 2>/dev/null)"
@@ -664,9 +677,12 @@ input_detect() {
   [ "$DRY" = 1 ] && { [ "$rc" = 0 ] && drylog "input $k/$ref $CI_KIND (기록하지 않음)"; return 0; }
   console_input_rec_lock "$name" || { plog "input $k/$ref 기록 잠금 실패 — 다음 주기"; return 0; }
   cur="$(cat "$f" 2>/dev/null)"
-  printf '%s' "$cur" | jq -e 'type == "object"' >/dev/null 2>&1 || cur=""
-  [ -n "$cur" ] && had=1
-  ca="$(printf '%s' "${cur:-null}" | rec_active)"
+  # 기록을 jq 한 번으로 읽는다(객체가 아니면 cur 를 비운다): 살아 있음(rec_active 와 같은 판정)·kind·since·full·handle·run
+  ca=n; ck=""; cs=""; cf=""; ch=""; cr=""
+  if [ -n "$cur" ] && rd="$(printf '%s' "$cur" | jq -sj "$_CP_REC_JQ" 2>/dev/null)" && [ -n "$rd" ]; then
+    IFS=$'\x1f' read -r -d '' ca ck cs cf ch cr <<< "$rd"; cr="${cr%$'\n'}"
+    had=1
+  else cur=""; fi
   new=""
   if [ "$rc" = 1 ]; then
     # 화면 창 없음: 조정 레인이면 문장 질문(state 의 .question), 아니면 기록을 지운다
@@ -680,11 +696,6 @@ input_detect() {
       console_input_rec_unlock "$name"; return 0
     fi
   else
-    ck="$(printf '%s' "$cur" | jq -r '.kind // empty' 2>/dev/null)"
-    cs="$(printf '%s' "$cur" | jq -r '.since // empty' 2>/dev/null)"
-    cf="$(printf '%s' "$cur" | jq -r '.full // empty | tostring' 2>/dev/null)"
-    ch="$(printf '%s' "$cur" | jq -r '.handle // empty | tostring' 2>/dev/null)"
-    cr="$(printf '%s' "$cur" | jq -r '.run // empty | tostring' 2>/dev/null)"
     if [ "$had" = 0 ] || [ "$ck" != "$CI_KIND" ] || [ "$cf" != "$CI_FULL" ] || [ "$ch" != "$h" ] || [ "$cr" != "$run" ] \
        || { [ -z "$CI_FULL" ] && [ "$(printf '%s' "$cur" | jq -c '.excerpt // []' 2>/dev/null | console_excerpt_sha_json)" != "$CI_SHA" ]; } \
        || console_consumed_has_since "$name" "$cs"; then
@@ -699,11 +710,17 @@ input_detect() {
       new="$(printf '%s' "$cur" | jq -c --argjson ex "$CI_EXC" '.excerpt = $ex')"   # 같은 창: since·handled·full 유지, 발췌만
     fi
   fi
-  if [ -n "$new" ] && [ "$(printf '%s' "$new" | jq -cS . 2>/dev/null)" != "$(printf '%s' "$cur" | jq -cS . 2>/dev/null)" ]; then
+  # 새 기록이 지금 기록과 다를 때만 쓴다(jq 한 번: 같음 판정 + 새 기록의 kind·살아 있음). 지금 기록을 JSON 하나로 못 읽으면 다른 것으로 본다
+  rd=""
+  if [ -n "$new" ]; then
+    rd="$(jq -nj --argjson a "$new" --argjson b "${cur:-null}" "$_CP_CMP_JQ" 2>/dev/null)" \
+      || rd="$(jq -nj --argjson a "$new" --argjson b null "$_CP_CMP_JQ" 2>/dev/null)"
+  fi
+  if [ -n "$rd" ] && [ "$rd" != same ]; then
+    IFS=$'\x1f' read -r -d '' _ nk na <<< "$rd"; na="${na%$'\n'}"
     if console_input_write "$name" "$new"; then
-      plog "input $k/$ref $(printf '%s' "$new" | jq -r '.kind') $([ "$had" = 1 ] && echo 갱신 || echo 생성)"
+      plog "input $k/$ref $nk $([ "$had" = 1 ] && echo 갱신 || echo 생성)"
       # team_lead 는 답 대기 전환·복귀(살아 있는 기록 있음↔없음)만 알린다 — 자동 처리 창(usage-limit·trust)은 답 대기가 아니다
-      na="$(printf '%s' "$new" | rec_active)"
       if [ "$k" != team_lead ] || [ "$na" != "$ca" ]; then in_mark "$name"; fi
     fi
   fi
@@ -800,8 +817,11 @@ input_notify() {
 sc_drop_live() { [ "$DRY" = 1 ] || sc_drop "$1"; }   # dry-run 은 화면 캐시도 건드리지 않는다
 # 화면 읽기 구간(run_phase 가 백그라운드로 돌린다 — 전역 값은 파일로만 넘긴다): items.jsonl·pending.tsv 를 만든다
 screens_collect() {
-  local kind ref h sha shaf at lines full=0 touch=0
+  local kind ref h sha shaf at lines full=0 touch=0 osha
   mkdir -p "$CD/screens" 2>/dev/null
+  # 이 구간(백그라운드 서브셸) 안에서는 살아 있는 회차 판정을 한 번만 한다 — 대상 목록·레인 회차(lane_run_h)가 같은 결과를 다시 쓴다.
+  # 키 행 처리(phase_prompts)는 이 구간 밖이라 늘 새로 판정한다
+  cr_memo_begin
   # 한 요청에 같은 대상(kind+ref)을 두 번 넣지 않는다(서버가 앞의 것을 duplicate_target 으로 거절). 둘 이상 나온 대상은
   # 해석이 애매한 것이므로 모두 뺀다.
   console_list_targets 2>/dev/null | awk -F'\t' '{ k = $1 "\t" $2; n[k]++; l[NR] = $0; key[NR] = k } END { for (i = 1; i <= NR; i++) if (n[key[i]] == 1) print l[i] }' > "$TMPD/targets"
@@ -829,15 +849,18 @@ screens_collect() {
     printf '%s_%s\n' "$kind" "$ref" >> "$TMPD/in_seen"
     console_screen_filter < "$TMPD/scr" > "$TMPD/filt" 2>/dev/null || { plog "screen $kind/$ref 가림 실패 — 올리지 않음"; continue; }
     sha="$(console_screen_sha < "$TMPD/filt" 2>/dev/null)"
-    printf '%s' "$sha" | grep -Eq '^[0-9a-f]{64}$' || { plog "screen $kind/$ref sha 실패 — 올리지 않음"; continue; }
+    case "$sha" in *[!0-9a-f]*|'') sha="" ;; esac   # 소문자 hex 64자 한 줄만(grep -Eq '^[0-9a-f]{64}$' 와 같은 판정, 프로세스 없이)
+    [ "${#sha}" -eq 64 ] || { plog "screen $kind/$ref sha 실패 — 올리지 않음"; continue; }
     shaf="$CD/screens/${kind}_${ref}.sha"; at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"   # 화면을 읽은 시각(UTC)
-    if [ -f "$shaf" ] && [ "$(cat "$shaf" 2>/dev/null)" = "$sha" ]; then
+    osha=""; [ -f "$shaf" ] && coord_read1 osha "$shaf"
+    if [ -f "$shaf" ] && [ "$osha" = "$sha" ]; then
       jq -nc --arg k "$kind" --arg r "$ref" --arg s "$sha" --arg a "$at" '{target_kind:$k, target_ref:$r, sha:$s, captured_at:$a}' >> "$TMPD/items.jsonl"
       touch=$((touch + 1))
     else
-      lines="$(jq -Rsc 'split("\n") | if length > 0 and .[-1] == "" then .[:-1] else . end' < "$TMPD/filt")"
-      jq -nc --arg k "$kind" --arg r "$ref" --arg s "$sha" --arg a "$at" --argjson l "$lines" \
-        '{target_kind:$k, target_ref:$r, sha:$s, captured_at:$a, lines:$l}' >> "$TMPD/items.jsonl"
+      # 줄 배열과 항목을 jq 한 번으로(예전 lines → 항목 두 번과 같은 JSON)
+      jq -Rsc --arg k "$kind" --arg r "$ref" --arg s "$sha" --arg a "$at" \
+        '{target_kind:$k, target_ref:$r, sha:$s, captured_at:$a, lines:(split("\n") | if length > 0 and .[-1] == "" then .[:-1] else . end)}' \
+        < "$TMPD/filt" >> "$TMPD/items.jsonl"
       full=$((full + 1))
     fi
     printf '%s\t%s\t%s\n' "$kind" "$ref" "$sha" >> "$TMPD/pending.tsv"
@@ -1038,6 +1061,7 @@ cmd_once() {
   exit 0
 }
 
+_cp_is_windows() { case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) return 0 ;; esac; return 1; }
 cmd_start() {
   local cpid
   [ "$DRY" = 1 ] && { echo "CONSOLE_POLLER skipped dry"; exit 0; }
@@ -1047,13 +1071,21 @@ cmd_start() {
   has_work || { echo "CONSOLE_POLLER skipped idle"; exit 0; }
   lock_take || { echo "CONSOLE_POLLER running pid=$HELD"; exit 0; }
   # 부른 쪽의 stdout·stderr 를 붙잡지 않게 모두 닫고, 가능하면 새 세션으로 떼어 낸다(부른 셸의 프로세스 그룹 정리에 같이 죽지 않게).
-  if command -v perl >/dev/null 2>&1; then
-    CONSOLE_POLL_LOCKED=1 CONSOLE_POLL_IDENT="$IDENT" perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV or exit 127' \
-      bash "$SELF" run </dev/null >/dev/null 2>&1 &
-  else
-    CONSOLE_POLL_LOCKED=1 CONSOLE_POLL_IDENT="$IDENT" nohup bash "$SELF" run </dev/null >/dev/null 2>&1 &
+  # setsid 명령 → node detached spawn(자식 pid 를 stdout 에 찍고 바로 끝난다) → nohup 순. 어느 경로든 cpid 는 실제 폴러 pid 다.
+  cpid=""
+  if command -v setsid >/dev/null 2>&1; then
+    # 백그라운드 & 안에서는 그룹 리더가 아니라서 setsid 가 포크하지 않고 같은 pid 로 exec 한다
+    CONSOLE_POLL_LOCKED=1 CONSOLE_POLL_IDENT="$IDENT" setsid bash "$SELF" run </dev/null >/dev/null 2>&1 &
+    cpid=$!
+  elif command -v node >/dev/null 2>&1 && ! _cp_is_windows; then
+    # 윈도우 node 는 네이티브라 c.pid 가 Windows PID 다(MSYS·Cygwin 셸의 $$ 와 다를 수 있어 잠금 주인 판정이 어긋난다) — 윈도우는 nohup 으로
+    cpid="$(CONSOLE_POLL_LOCKED=1 CONSOLE_POLL_IDENT="$IDENT" node -e 'const c=require("child_process").spawn("bash",[process.argv[1],"run"],{detached:true,stdio:"ignore",env:process.env});c.unref();process.stdout.write(String(c.pid))' "$SELF" 2>/dev/null)"
+    case "$cpid" in ''|*[!0-9]*) cpid="" ;; esac
   fi
-  cpid=$!
+  if [ -z "$cpid" ]; then
+    CONSOLE_POLL_LOCKED=1 CONSOLE_POLL_IDENT="$IDENT" nohup bash "$SELF" run </dev/null >/dev/null 2>&1 &
+    cpid=$!
+  fi
   lock_write "$cpid"
   plog "start → pid=$cpid"
   echo "CONSOLE_POLLER started pid=$cpid"

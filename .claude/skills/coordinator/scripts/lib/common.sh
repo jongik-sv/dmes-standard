@@ -249,7 +249,8 @@ coord_iso_to_epoch() {
 # 파일 첫 줄을 변수에(없거나 못 읽으면 빈 값) — `$(cat 파일)` 대신(프로세스 0개). 서브셸 안에서 부르면 그 안에서만 남는다
 coord_read1() { local _v=""; { IFS= read -r _v < "$2"; } 2>/dev/null || true; printf -v "$1" '%s' "$_v"; }
 coord_mkdirp() { [ -d "$1" ] || mkdir -p "$1" 2>/dev/null; }   # 이미 있으면 프로세스를 부르지 않는다
-coord_file_mtime() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null; }
+# GNU stat -c 먼저(BSD stat 은 -c 를 모르고 rc≠0). GNU stat -f 는 파일시스템 모드라 `?` 를 내고 rc 0 이어서 BSD 를 먼저 쓰면 대안으로 넘어가지 못한다
+coord_file_mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null; }
 
 # mkdir 잠금 `<dir>.lock/`(안에 주인 pid·pstart). 최대 30초 기다리고 못 얻으면 rc 1(로그 한 줄).
 # 주인이 죽었거나(pid 없음·pstart 다름) 잠금이 COORD_LOCK_STALE_S(기본 60초)보다 오래됐으면 탈취한다 — 시간 제한으로 끊긴
@@ -297,7 +298,13 @@ coord_unlock() {
 coord_git() { local g; g="$(coord_cfg .git_bin)"; "${g:-git}" "$@"; }
 
 coord_cpus() { sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 1; }
-coord_load1() { sysctl -n vm.loadavg 2>/dev/null | awk '{print $2}' || awk '{print $1}' /proc/loadavg; }
+# 1분 부하. sysctl(macOS·BSD)이 성공하면 그 값, 아니면 /proc/loadavg(리눅스). 둘 다 없으면(Git Bash 등) 빈 출력·rc 1.
+# (예전 `sysctl | awk || awk /proc` 는 sysctl 이 실패해도 파이프 뒤 awk 가 성공이라 /proc 으로 넘어가지 못했다)
+coord_load1() {
+  local o
+  if o="$(sysctl -n vm.loadavg 2>/dev/null)" && [ -n "$o" ]; then printf '%s\n' "$o" | awk '{print $2}'
+  else awk '{print $1}' /proc/loadavg 2>/dev/null; fi
+}
 
 # 화면 글에서 확인 창·질문 창 종류를 판정(없으면 빈 출력). stdin = 화면.
 coord_screen_prompt_kind() {

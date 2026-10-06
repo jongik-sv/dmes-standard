@@ -36,7 +36,7 @@
 #                             뺀 나머지)·질문 아래 선택지 줄, i·tind·qind 는 들여쓰기 칸 수) 아니면 null, gen 은 그 밖의 kind 창 모양
 #                             (아래 _CI_FULL_JQ 머리 주석). 창을 못 잡으면 rc 1·빈 출력.
 #                             auto-answer 는 지문과 같은 이 창만 보고 명령·질문·선택지를 판정한다(console_input_snapshot 의 CI_WIN)
-#   console_now_ms_iso        지금 UTC 밀리초 ISO(…Z). perl Time::HiRes 가 없으면 초 단위 `.000Z`
+#   console_now_ms_iso        지금 UTC 밀리초 ISO(…Z). date %N → node → 초 단위 `.000Z` 순
 #   console_iso_to_ms <iso>   시간대가 있는 ISO(Z·±hh:mm, 소수초 허용) → 에포크 밀리초. 형식이 틀리면 rc 1·빈 출력
 #   console_ms_to_iso <ms>    에포크 밀리초 → UTC 밀리초 ISO
 #   console_lane_lock <레인> [대기 초]  레인 단위 잠금 $DFLOW_CONSOLE_DIR/lock/lane-<레인>/ (mkdir, 안에 pid·pstart). 죽은 주인이면
@@ -228,12 +228,13 @@ console_excerpt_json() {
   printf '%s\n' "$f" | jq -Rsc "$_CI_EXCERPT_JQ" 2>/dev/null
 }
 console_excerpt() { local j; j="$(console_excerpt_json)" || return $?; printf '%s' "$j" | jq -r '.[]'; }
-# openssl 우선(shasum 은 perl 이라 호출당 비용이 5배쯤 든다) → shasum → sha256sum. 출력은 늘 소문자 hex 64자 한 줄(같은 값).
+# openssl → sha256sum → node crypto 순(shasum 은 perl 기반이라 호출당 비용이 5배쯤 들어 쓰지 않는다). 출력은 늘 소문자 hex 64자 한 줄(같은 값).
 _ci_sha256() {
   local h
   if command -v openssl >/dev/null 2>&1; then h="$(openssl dgst -sha256 -r 2>/dev/null)" || return 1; printf '%s\n' "${h%% *}"
-  elif command -v shasum >/dev/null 2>&1; then shasum -a 256 | cut -d' ' -f1
   elif command -v sha256sum >/dev/null 2>&1; then sha256sum | cut -d' ' -f1
+  elif command -v node >/dev/null 2>&1; then
+    node -e 'const c=require("crypto"),h=c.createHash("sha256");process.stdin.on("data",d=>h.update(d)).on("end",()=>process.stdout.write(h.digest("hex")+"\n"))' 2>/dev/null
   else return 1; fi
 }
 console_excerpt_sha() {
@@ -244,13 +245,26 @@ console_excerpt_sha_json() { jq -j "$_CI_SHA_JQ" 2>/dev/null | _ci_sha256; }
 # 창 지문(위 머리 주석). 폴러 감지·키 행 재판정·judge-sha·term-send-safe --expect-sha·auto-answer 판정과 재확인이 모두
 # console_input_snapshot 을 거쳐 이 함수 하나를 쓴다(입력 줄 수가 달라도 창이 같으면 같은 값).
 # 판정 1회의 시간 상한 COORD_CONSOLE_WINDOW_TIMEOUT_S(기본 3초, 1~30). 넘으면 jq 를 끊고 창 없음(지문 없음)으로 닫는다.
-# macOS 에는 timeout 이 없어 perl alarm 으로 건다(alarm 은 exec 뒤에도 남고 SIGALRM 기본 동작으로 jq 가 끝난다). perl 이 없으면 상한 없이.
+# GNU timeout 이 있으면 그것으로, 없으면(macOS) 셸 감시로 건다: 명령을 백그라운드로 띄우고(stdin 은 `<&0` 으로 명시해 넘긴다 — 비대화형 bash 는
+# 리다이렉트 없는 & 명령의 stdin 을 /dev/null 로 바꾼다) 감시 서브셸이 sleep 뒤 명령 pid 에 TERM 을 보낸다(console-poll.sh run_limited 의 감시자와
+# 같은 방식: sleep pid 를 쥐고 TERM trap 으로 그 sleep 만 죽인다). 감시자는 stdout·stderr 를 /dev/null 로 돌려 파이프를 붙잡지 않는다.
+# 명령이 먼저 끝나면 감시를 끄고 기다려 sleep 이 남지 않는다. 반환 rc 는 명령의 rc(시간 초과면 timeout 은 124, 셸 감시는 TERM 종료 143).
 _ci_timed() {
-  local t="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-3}"
+  local t="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-3}" cp wd rc
   case "$t" in ''|*[!0-9]*) t=3 ;; esac
   [ "$t" -ge 1 ] && [ "$t" -le 30 ] || t=3
-  if command -v perl >/dev/null 2>&1; then perl -e 'alarm shift @ARGV; exec { $ARGV[0] } @ARGV or exit 127' "$t" "$@"
-  else "$@"; fi
+  if command -v timeout >/dev/null 2>&1; then timeout "$t" "$@"; return $?; fi
+  "$@" <&0 &
+  cp=$!
+  ( trap 'kill "$sp" 2>/dev/null; exit 0' TERM
+    sleep "$t" & sp=$!
+    wait "$sp" 2>/dev/null || exit 0       # sleep 이 중간에 죽었으면(명령이 먼저 끝나 감시가 꺼짐) 시간 초과가 아니다
+    kill -0 "$cp" 2>/dev/null || exit 0    # 막 끝난 명령은 건드리지 않는다
+    kill -TERM "$cp" 2>/dev/null ) </dev/null >/dev/null 2>&1 &
+  wd=$!
+  wait "$cp" 2>/dev/null && rc=0 || rc=$?
+  kill "$wd" 2>/dev/null; wait "$wd" 2>/dev/null
+  return "$rc"
 }
 console_window_json() {
   local s k
@@ -293,9 +307,16 @@ console_input_snapshot() {
 }
 
 # ---- 시각 ------------------------------------------------------------------------------------
+# GNU·macOS date 의 %N → node → 초 단위. 앞 둘은 결과가 ms ISO 꼴일 때만 쓴다(마지막은 예전처럼 검증 없이).
 console_now_ms_iso() {
-  perl -MTime::HiRes=time -MPOSIX=strftime -e '$t = time; printf "%s.%03dZ", strftime("%Y-%m-%dT%H:%M:%S", gmtime(int $t)), int(($t - int $t) * 1000)' 2>/dev/null \
-    || date -u +%Y-%m-%dT%H:%M:%S.000Z
+  local d n
+  d="$(date -u +%Y-%m-%dT%H:%M:%S.%N 2>/dev/null)"
+  if [[ "$d" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{9}$ ]]; then printf '%s' "${d:0:23}Z"; return 0; fi
+  if command -v node >/dev/null 2>&1; then
+    n="$(node -e 'process.stdout.write(new Date().toISOString())' 2>/dev/null)"
+    if [[ "$n" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$ ]]; then printf '%s' "$n"; return 0; fi
+  fi
+  date -u +%Y-%m-%dT%H:%M:%S.000Z
 }
 console_iso_to_ms() {
   local iso="${1:-}" e fr
