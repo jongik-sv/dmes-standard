@@ -3,6 +3,7 @@
  * 위젯 하나 = 폴더 하나(widget.meta.ts + widget.tsx). 등록부(WidgetRegistry)는 화면 쪽(m-mcm)이 코드 생성으로 만든다.
  */
 import type { ComponentType, ReactNode } from "react";
+import type { ScreenContext } from "../screen-context/types";
 
 /** 위젯 아이콘 — size·stroke 를 받는 아이콘 컴포넌트(@tabler/icons-react 와 같은 모양). */
 export type WidgetIcon = ComponentType<{ size?: number; stroke?: number }>;
@@ -69,6 +70,11 @@ export interface WidgetProps {
   widgetId: string;
   /** 틀 제목(등록부 meta.title — 덮어쓰기·정의 이름 반영). 내려받기 파일 이름 등에 쓴다. */
   title?: string;
+  /**
+   * 활성 업무 탭이 게시한 화면 문맥(그리드 선택 행 등). 도구 창(도크)에서만 채워지고, 보드(위젯 화면)에서는 null 이거나 없다.
+   * 키 비교는 `findScreenContextValue` 로 한다(대소문자·밑줄 차이 무시).
+   */
+  screenContext?: ScreenContext | null;
 }
 
 export type WidgetComponent = (props: WidgetProps) => ReactNode;
