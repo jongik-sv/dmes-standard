@@ -10,7 +10,7 @@
 
 - 쓴다: 모든 목록의 머리. 제목과 건수만 있어도 쓴다.
 - 쓴다: 행추가·행삭제·행복사 버튼을 그리드 머리에 둘 때(상단 PageLayout 버튼이 아니다).
-- 컬럼 개인화가 켜진 그리드를 안에 두면 「컬럼 설정」 버튼이 자동으로 붙는다(§컬럼 설정 버튼).
+- 컬럼 개인화가 켜진 그리드를 안에 두면 「컬럼 설정」 버튼과 「자동 저장」 스위치·「초기화」 버튼이 자동으로 붙는다(§컬럼 설정 버튼·§자동 저장 스위치·초기화 버튼).
 - 쓰지 않는다: 그리드 없는 일반 카드 제목. 목록 자체는 [AgDataGrid](ag-data-grid.md), 행 상태 관리는 [useGridDataManager](use-grid-data-manager.md).
 
 ## 표준 사용
@@ -63,6 +63,15 @@ const confirmDeleteRow = () =>
 - 한 GridPanel 안에 개인화가 켜진 그리드가 여럿이면 먼저 등록된 그리드가 대상이다(버튼은 하나뿐이다). 그리드마다 따로 쓰게 하려면 그리드마다 GridPanel 을 둔다.
 - GridPanel 없이 쓰는 그리드는 버튼이 없어도 머리글 우클릭 메뉴로 같은 창을 열 수 있다.
 
+### 자동 저장 스위치·초기화 버튼
+
+「컬럼 설정」 버튼 바로 뒤에 Mantine `Switch`(size `xs`, 라벨 「자동 저장」, `data-testid="grid-autosave-switch"`)와 「초기화」 버튼(`id: "btn_grid_reset"`, `data-testid="grid-reset-button"`, class `grid-btn`)이 같은 조건(개인화가 동작 중인 안쪽 그리드가 있을 때)으로 붙는다. 화면이 줄 prop 은 없다.
+
+- 스위치는 대상 그리드(먼저 등록된 그리드)의 값을 보이고 바꾼다. 값은 사용자·화면·그리드별 옆 키에 저장되고, 저장 규칙(끄면 화면에만 적용, 켜면 저장)은 [AgDataGrid](ag-data-grid.md) 「컬럼 개인화」 절의 「자동 저장 스위치·초기화」 항목을 본다.
+- 대상 그리드가 사라져 다음 그리드가 대상이 되면 스위치가 그 그리드의 값으로 바뀐다.
+- 「초기화」는 바로 되돌리지 않고 그리드가 확인 창을 띄운다. [확인]하면 그 그리드의 컬럼 상태를 기본값으로 되돌리고 저장값을 지운다(스위치 값은 그대로).
+- 둘 다 「컬럼 설정」처럼 권한 검사·`loading` 과 무관하게 늘 활성이다.
+
 ### 추가 버튼·도움말·머리 노드
 
 - `buttons`: 내장 버튼 뒤에 붙는 일반 버튼 배열(`GridButton`: `id`, `label`, `onClick`, `className`, `disabled`).
@@ -105,13 +114,13 @@ const confirmDeleteRow = () =>
 | titleExtra | `ReactNode` | - | 제목·건수 오른쪽 노드 |
 | headerExtra | `ReactNode` | - | 버튼 묶음 오른쪽 끝 노드 |
 | help | `GridHelpConfig` | - | `{ title?, summary?, columns: { header, description, values?, note? }[] }`. `title` 기본값은 "그리드 도움말" |
-| loading | `boolean` | `false` | 참이면 행추가·행삭제·행복사·`buttons` 를 비활성화한다(「컬럼 설정」 버튼은 제외) |
-| usePermission | `boolean` | `false` | 참이면 `fetchPermissions` 가 돌려준 버튼 id 만 누를 수 있고, 나머지 버튼은 보이되 비활성이다(「컬럼 설정」 버튼은 제외 — 늘 활성) |
+| loading | `boolean` | `false` | 참이면 행추가·행삭제·행복사·`buttons` 를 비활성화한다(「컬럼 설정」·「자동 저장」·「초기화」 버튼은 제외) |
+| usePermission | `boolean` | `false` | 참이면 `fetchPermissions` 가 돌려준 버튼 id 만 누를 수 있고, 나머지 버튼은 보이되 비활성이다(「컬럼 설정」·「자동 저장」·「초기화」 버튼은 제외 — 늘 활성) |
 | fetchPermissions | `() => Promise<string[]>` | - | 허용 버튼 id 목록 조회 |
 | className | `string` | `""` | 루트 클래스 |
 | style | `CSSProperties` | - | 루트 스타일 |
 
-내장 버튼의 id 는 `btn_grid_add`·`btn_grid_delete`·`btn_grid_copy` 다. 개인화가 켜진 그리드가 있으면 자동으로 붙는 「컬럼 설정」 버튼(`btn_grid_columns`)은 권한·`loading` 과 무관하다(§컬럼 설정 버튼). 같은 모듈에서 `getRowIdentifier(row, rowKey)`·`isTempRow`·`GRID_TEMP_ID_FIELD` 도 export 한다.
+내장 버튼의 id 는 `btn_grid_add`·`btn_grid_delete`·`btn_grid_copy` 다. 개인화가 켜진 그리드가 있으면 자동으로 붙는 「컬럼 설정」 버튼(`btn_grid_columns`)·「초기화」 버튼(`btn_grid_reset`)·「자동 저장」 스위치는 권한·`loading` 과 무관하다(§컬럼 설정 버튼). 같은 모듈에서 `getRowIdentifier(row, rowKey)`·`isTempRow`·`GRID_TEMP_ID_FIELD` 도 export 한다.
 
 ## 표준값: 모든 화면 동일
 

@@ -85,6 +85,7 @@ function setup(ctxOver: Partial<GridPersonalizeContext> = {}) {
     screenKey: "scr",
     gridId: "main",
     sort: true,
+    autoSave: true,
     defaults: [{ colId: "a", width: 100 }, { colId: "b", width: 100 }, { colId: "c", width: 100 }],
     locked: new Set(["a"]),
     ...ctxOver,
@@ -411,5 +412,149 @@ describe("createGridPersonalizeController", () => {
     t.api.set([{ colId: "a", width: 100, sort: "desc", sortIndex: 0 }, { colId: "b", width: 100, sort: null }]);
     t.c.reset();
     expect(t.applied.at(-1)).toEqual({ state: [{ colId: "a", sort: "desc", sortIndex: 0 }] });
+  });
+});
+
+describe("createGridPersonalizeController — 자동 저장 스위치", () => {
+  const move = { type: "columnMoved", source: "uiColumnMoved", finished: true };
+  const reorder = (t: ReturnType<typeof setup>) => t.api.set([{ colId: "b", width: 100 }, { colId: "a", width: 100 }, { colId: "c", width: 100 }]);
+
+  it("끄면 UI 이벤트는 저장 0회이고 current 는 갱신된다 — 이어서 reapply 하면 저장하지 않은 상태가 유지된다", () => {
+    const t = setup({ autoSave: false });
+    reorder(t);
+    t.c.handleEvent(move);
+    vi.advanceTimersByTime(GRID_PERSONALIZE_SAVE_DEBOUNCE_MS * 3);
+    t.c.flush();
+    expect(t.storage.sets).toEqual([]);
+    expect(t.c.current()!.cols.map((c) => c.colId)).toEqual(["b", "a", "c"]);
+    // 열 정의 재주입으로 ag-grid 가 정의 순서로 되돌렸다고 본다
+    t.api.set(INITIAL.map((s) => ({ ...s })));
+    expect(t.c.reapply()).toBe(true);
+    expect(t.applied.at(-1)!.state!.map((s) => s.colId)).toEqual(["b", "a", "c"]);
+  });
+
+  it("끄면 apply(설정 창 적용)도 저장 0회이고 화면에는 적용한다", () => {
+    const t = setup({ autoSave: false });
+    t.c.apply([{ colId: "c", hide: false }, { colId: "b", hide: true }, { colId: "a", hide: false }]);
+    expect(t.api.applyColumnState).toHaveBeenCalled();
+    expect(t.storage.sets).toEqual([]);
+    expect(t.c.current()!.cols.map((c) => c.colId)).toEqual(["c", "b", "a"]);
+  });
+
+  it("saveNow 는 저장 1회이고 대기 중인 저장·저장 안 한 변경 표시를 비운다", () => {
+    const t = setup({ autoSave: false });
+    reorder(t);
+    t.c.handleEvent(move);
+    t.c.saveNow();
+    expect(t.storage.sets).toEqual([gridPrefKey("u1", "scr", "main")]);
+    expect(t.saved()!.cols.map((c) => c.colId)).toEqual(["b", "a", "c"]);
+    // 이제 깨끗하다 — 끔 → 켬 에서 다시 저장하지 않는다
+    t.ctx.autoSave = false;
+    t.c.setAutoSave(true);
+    expect(t.storage.sets).toHaveLength(1);
+  });
+
+  it("saveNow — 개인화가 동작 중이 아니면 아무것도 하지 않는다", () => {
+    const t = setup({ active: false });
+    t.c.saveNow();
+    expect(t.storage.sets).toEqual([]);
+    const noUser = setup({ userId: "" });
+    noUser.c.saveNow();
+    expect(noUser.storage.sets).toEqual([]);
+  });
+
+  it("끔 → 켬 은 저장 안 한 변경이 있을 때만 저장 1회다", () => {
+    const t = setup({ autoSave: false });
+    t.c.setAutoSave(true);
+    expect(t.storage.sets).toEqual([]);
+    t.ctx.autoSave = false;
+    reorder(t);
+    t.c.handleEvent(move);
+    expect(t.storage.sets).toEqual([]);
+    t.c.setAutoSave(true);
+    expect(t.storage.sets).toHaveLength(1);
+    expect(t.saved()!.cols.map((c) => c.colId)).toEqual(["b", "a", "c"]);
+  });
+
+  it("켬 → 끔 은 대기 중인 저장을 먼저 쓴다(켜져 있던 동안의 변경은 저장한다)", () => {
+    const t = setup();
+    reorder(t);
+    t.c.handleEvent(move);
+    expect(t.storage.sets).toEqual([]);
+    t.c.setAutoSave(false);
+    expect(t.storage.sets).toHaveLength(1);
+    expect(t.saved()!.cols.map((c) => c.colId)).toEqual(["b", "a", "c"]);
+    // 대기 시간이 지나도 더 쓰지 않는다
+    vi.advanceTimersByTime(GRID_PERSONALIZE_SAVE_DEBOUNCE_MS * 3);
+    expect(t.storage.sets).toHaveLength(1);
+  });
+
+  it("같은 값으로 바꾸면 아무것도 하지 않는다", () => {
+    const t = setup();
+    reorder(t);
+    t.c.handleEvent(move);
+    t.c.setAutoSave(true);
+    expect(t.storage.sets).toEqual([]);
+  });
+
+  it("reset — 끈 채로도 저장값을 지우고 되돌리며, 저장 안 한 변경 표시도 비운다", () => {
+    const t = setup({ autoSave: false });
+    t.storage.map.set(gridPrefKey("u1", "scr", "main"), JSON.stringify(PREFS));
+    reorder(t);
+    t.c.handleEvent(move);
+    t.c.reset();
+    expect(t.storage.map.has(gridPrefKey("u1", "scr", "main"))).toBe(false);
+    expect(t.api.resetColumnState).toHaveBeenCalledTimes(1);
+    expect(t.c.current()).toBeNull();
+    // 켜도 저장할 것이 없다
+    t.c.setAutoSave(true);
+    expect(t.storage.sets).toEqual([]);
+  });
+
+  it("reset 은 옆 키(스위치 값)를 건드리지 않는다", () => {
+    const t = setup({ autoSave: false });
+    t.storage.map.set("dmes:grid-opts:v1:u1:scr:main", '{"autoSave":false}');
+    t.storage.map.set(gridPrefKey("u1", "scr", "main"), JSON.stringify(PREFS));
+    t.c.reset();
+    expect(t.storage.map.get("dmes:grid-opts:v1:u1:scr:main")).toBe('{"autoSave":false}');
+  });
+
+  it("restore — 다른 키로 바뀐 뒤 되돌아오면 저장 안 한 표시가 남지 않아 남의 배치를 저장하지 않는다", () => {
+    const t = setup({ autoSave: false, gridId: "a" });
+    const keyA = gridPrefKey("u1", "scr", "a");
+    const keyB = gridPrefKey("u1", "scr", "b");
+    const storedA = JSON.stringify({ ...PREFS, savedAt: 5, cols: [{ colId: "a" }, { colId: "b" }, { colId: "c" }], sort: undefined });
+    t.storage.map.set(keyA, storedA);
+    t.storage.map.set(keyB, JSON.stringify(PREFS));
+    t.c.restore();
+    // a 에서 끈 채 바꾼다 → a 가 저장 안 한 변경을 가진다
+    t.api.set([{ colId: "b", width: 100 }, { colId: "a", width: 100 }, { colId: "c", width: 100 }]);
+    t.c.handleEvent({ type: "columnMoved", source: "uiColumnMoved", finished: true });
+    // gridId 가 b 로 바뀌어 복원 → current 는 b 의 저장값
+    t.ctx.gridId = "b";
+    t.c.restore();
+    expect(t.c.current()!.cols.map((c) => c.colId)).toEqual(["c", "a", "b"]);
+    // 다시 a 로 돌아오면 a 의 저장값을 쓴다(b 의 배치가 아니다)
+    t.ctx.gridId = "a";
+    t.c.restore();
+    expect(t.c.current()!.cols.map((c) => c.colId)).toEqual(["a", "b", "c"]);
+    // 켜도 저장할 것이 없다 — a 의 키에 b 배치가 쓰이지 않는다
+    t.c.setAutoSave(true);
+    expect(t.storage.sets).toEqual([]);
+    expect(t.storage.map.get(keyA)).toBe(storedA);
+  });
+  it("restore — 끈 채 바꾼 상태가 있으면(숨은 탭이 꺼졌다 켜질 때) 저장값이 아니라 그 상태를 다시 적용한다", () => {
+    const t = setup({ autoSave: false });
+    t.storage.map.set(gridPrefKey("u1", "scr", "main"), JSON.stringify(PREFS));
+    t.c.restore();
+    reorder(t);
+    t.c.handleEvent(move);
+    expect(t.c.restore()).toBe(true);
+    expect(t.applied.at(-1)!.state!.map((s) => s.colId)).toEqual(["b", "a", "c"]);
+    // 저장하고 나면 다시 저장값을 읽는다
+    t.c.saveNow();
+    t.storage.map.set(gridPrefKey("u1", "scr", "main"), JSON.stringify(PREFS));
+    t.c.restore();
+    expect(t.applied.at(-1)!.state!.map((s) => s.colId)).toEqual(["c", "a", "b"]);
   });
 });

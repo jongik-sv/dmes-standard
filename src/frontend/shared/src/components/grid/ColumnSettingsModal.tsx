@@ -63,6 +63,11 @@ export interface ColumnSettingsModalProps {
   onApply: (state: ColumnSettingsState[]) => void;
   /** [기본값 복원] — 복원을 알리고 창을 닫는다. */
   onReset: () => void;
+  /**
+   * [지금 상태 저장] — 주어지면 바닥에 이 단추가 보인다. 누르면 창의 상태를 `onApply` 와 같은 모양으로 넘기고 창을 닫는다
+   * (자동 저장이 꺼진 그리드가 적용과 저장을 한 번에 하도록). 생략하면 단추가 없다.
+   */
+  onSave?: (state: ColumnSettingsState[]) => void;
   /** 닫기(취소·X·Esc·적용·복원 뒤). */
   onClose: () => void;
   /** 창 제목. 기본 「컬럼 설정」. */
@@ -122,7 +127,7 @@ export function ColumnSettingsModal(props: ColumnSettingsModalProps) {
   return <ColumnSettingsBody {...props} />;
 }
 
-function ColumnSettingsBody({ columns, onApply, onReset, onClose, title = "컬럼 설정", testId = "column-settings" }: ColumnSettingsModalProps) {
+function ColumnSettingsBody({ columns, onApply, onReset, onSave, onClose, title = "컬럼 설정", testId = "column-settings" }: ColumnSettingsModalProps) {
   // 모든 컬럼(내부 컬럼 포함)을 지금 순서로 갖고 있는다. 바뀐 상태를 만들 때 내부 컬럼을 원래 자리에 그대로 두기 위해서다.
   const [rows, setRows] = useState<ColumnSettingsColumn[]>(() => columns.map((c) => ({ ...c })));
 
@@ -172,6 +177,10 @@ function ColumnSettingsBody({ columns, onApply, onReset, onClose, title = "컬�
     onApply(rows.map((r) => ({ colId: r.colId, hide: r.hide })));
     onClose();
   };
+  const handleSave = () => {
+    onSave?.(rows.map((r) => ({ colId: r.colId, hide: r.hide })));
+    onClose();
+  };
   const handleReset = () => {
     onReset();
     onClose();
@@ -194,6 +203,11 @@ function ColumnSettingsBody({ columns, onApply, onReset, onClose, title = "컬�
             <Button className="cm-colset-reset" data-testid={`${testId}-reset`} onClick={handleReset}>
               기본값 복원
             </Button>
+            {onSave ? (
+              <Button data-testid={`${testId}-save`} disabled={!hasVisible} onClick={handleSave}>
+                지금 상태 저장
+              </Button>
+            ) : null}
             <Button data-testid={`${testId}-cancel`} onClick={onClose}>
               취소
             </Button>

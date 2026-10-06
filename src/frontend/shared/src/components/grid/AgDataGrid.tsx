@@ -21,6 +21,7 @@ import type { GridColumn, AgDataGridProps } from "./grid-types";
 import { useGridPersonalize, type GridPersonalizeColumn } from "./grid-personalize-hook";
 import { useGridPanelRegistry, type GridPanelGridControls } from "./grid-panel-context";
 import { ColumnSettingsModal } from "./ColumnSettingsModal";
+import { MessageModal } from "../modal";
 import { GridHeaderContextMenu } from "./GridHeaderContextMenu";
 import { gridRowIdOf } from "./field-errors";
 import { useGridMdm, mdmHeaderLabelSignature } from "./grid-mdm";
@@ -300,6 +301,7 @@ function AgDataGridComponent({
   personalizeHandleRef.current = personalizeHandle;
   const [settingsColumns, setSettingsColumns] = useState<GridPersonalizeColumn[] | null>(null);
   const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number; nonce: number } | null>(null);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const headerMenuNonceRef = useRef(0);
   const openSettings = useCallback(() => {
     const handle = personalizeHandleRef.current;
@@ -312,6 +314,21 @@ function AgDataGridComponent({
   const closeSettings = useCallback(() => setSettingsColumns(null), []);
   const closeHeaderMenu = useCallback(() => setHeaderMenu(null), []);
   const resetPersonalize = useCallback(() => personalizeHandleRef.current.reset(), []);
+  // 초기화 — 바로 되돌리지 않고 확인 창을 거친다(저장한 설정을 지우므로). 설정 창의 [기본값 복원] 은 창 안에서 하는 일이라 확인 없이 resetPersonalize 를 쓴다.
+  const requestReset = useCallback(() => {
+    if (!personalizeHandleRef.current.enabled) return;
+    setHeaderMenu(null);
+    setResetConfirmOpen(true);
+  }, []);
+  const closeResetConfirm = useCallback(() => setResetConfirmOpen(false), []);
+  const confirmReset = useCallback(() => {
+    setResetConfirmOpen(false);
+    personalizeHandleRef.current.reset();
+  }, []);
+  const toggleAutoSave = useCallback(() => {
+    const handle = personalizeHandleRef.current;
+    handle.setAutoSave(!handle.autoSave);
+  }, []);
   // 창에서 숨기거나 다시 켠 뒤에는 복원 때와 같은 갈래로 자동 너비·여백 분배를 다시 돌린다(auto 그리드의 오른쪽 빈 공간·다시 켠 컬럼 너비).
   // 저장 너비가 있는 컬럼은 sizedColumnsRef 가 지킨다.
   const rerunAfterApplyRef = useRef(rerunAutoSizeAfterRestore);
@@ -320,8 +337,34 @@ function AgDataGridComponent({
     personalizeHandleRef.current.apply(state);
     rerunAfterApplyRef.current();
   }, []);
+  // 설정 창 [지금 상태 저장](자동 저장이 꺼진 그리드에만 보인다) — 적용한 뒤 바로 저장한다.
+  const savePersonalize = useCallback((state: ColumnState[]) => {
+    personalizeHandleRef.current.apply(state);
+    personalizeHandleRef.current.saveNow();
+    rerunAfterApplyRef.current();
+  }, []);
+  // GridPanel 의 자동 저장 스위치 구독 — 스위치 값이 바뀐 렌더 뒤에 알린다(읽기 함수는 그 렌더가 갱신한 handle ref 를 읽는다).
+  const autoSaveListenersRef = useRef(new Set<() => void>());
+  const autoSave = personalizeHandle.autoSave;
+  useEffect(() => {
+    for (const fn of [...autoSaveListenersRef.current]) fn();
+  }, [autoSave]);
   // GridPanel 에 올리는 명령 — 그리드가 사는 동안 같은 객체(렌더마다 새로 만들지 않는다).
-  const gridControls = useMemo<GridPanelGridControls>(() => ({ openSettings, reset: resetPersonalize }), [openSettings, resetPersonalize]);
+  const gridControls = useMemo<GridPanelGridControls>(
+    () => ({
+      openSettings,
+      requestReset,
+      getAutoSave: () => personalizeHandleRef.current.autoSave,
+      setAutoSave: (next) => personalizeHandleRef.current.setAutoSave(next),
+      subscribeAutoSave: (listener) => {
+        autoSaveListenersRef.current.add(listener);
+        return () => {
+          autoSaveListenersRef.current.delete(listener);
+        };
+      },
+    }),
+    [openSettings, requestReset],
+  );
   const gridPanelRegistry = useGridPanelRegistry();
   useEffect(() => {
     if (!gridPanelRegistry || !personalizeEnabled) return;
@@ -337,6 +380,7 @@ function AgDataGridComponent({
     if (!personalizeEnabled && wasPersonalizeEnabledRef.current) {
       setSettingsColumns(null);
       setHeaderMenu(null);
+      setResetConfirmOpen(false);
     }
     wasPersonalizeEnabledRef.current = personalizeEnabled;
   }, [personalizeEnabled]);
@@ -572,8 +616,10 @@ function AgDataGridComponent({
           x={headerMenu.x}
           y={headerMenu.y}
           nonce={headerMenu.nonce}
+          autoSave={autoSave}
           onOpenSettings={openSettings}
-          onReset={resetPersonalize}
+          onToggleAutoSave={toggleAutoSave}
+          onReset={requestReset}
           onClose={closeHeaderMenu}
         />
       ) : null}
@@ -583,7 +629,22 @@ function AgDataGridComponent({
           columns={settingsColumns}
           onApply={applyPersonalize}
           onReset={resetPersonalize}
+          onSave={autoSave ? undefined : savePersonalize}
           onClose={closeSettings}
+        />
+      ) : null}
+      {personalizeEnabled && resetConfirmOpen ? (
+        <MessageModal
+          open
+          title="초기화"
+          alertType="confirm"
+          message={
+            <span data-testid="grid-reset-confirm">
+              이 그리드의 컬럼 순서·너비·표시·고정·정렬을 기본값으로 되돌리고 저장한 설정을 지웁니다. 계속할까요?
+            </span>
+          }
+          onClose={closeResetConfirm}
+          onConfirm={confirmReset}
         />
       ) : null}
     </>

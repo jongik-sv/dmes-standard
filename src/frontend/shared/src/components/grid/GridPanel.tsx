@@ -13,7 +13,8 @@
  * - 행삭제: selectedRowKey에 해당하는 행을 제거하고 onDataChange로 전달
  */
 
-import React, { memo, useState, useEffect, useCallback, useMemo, useRef, type ReactNode, type CSSProperties } from "react";
+import React, { memo, useState, useEffect, useCallback, useMemo, useRef, useSyncExternalStore, type ReactNode, type CSSProperties } from "react";
+import { Switch } from "@mantine/core";
 import type { GridColumn } from "./grid-types";
 import { GridHelpButton, type GridHelpConfig } from "./GridHelpButton";
 import { GridPanelContext, type GridPanelGridControls, type GridPanelRegistry } from "./grid-panel-context";
@@ -143,25 +144,52 @@ function GridPanelComponent({
   const tempIdCounter = useRef(0);
 
   // 안쪽 AgDataGrid(컬럼 개인화가 켜진 것)가 올려 둔 명령 — 등록 순서대로 쌓고, 대상은 맨 앞(먼저 등록한 그리드)이다.
-  // 등록·해제는 ref 만 바꾸고 「대상이 있는가」가 바뀔 때만 한 번 다시 그린다(그리드가 늘 같은 명령 객체를 내주므로 렌더마다 갱신하지 않는다).
+  // 등록·해제는 ref 만 바꾸고 「대상이 있는가」·「대상이 바뀌었는가」가 바뀔 때만 한 번 다시 그린다(그리드가 늘 같은 명령 객체를 내주므로
+  // 렌더마다 갱신하지 않는다). 대상이 바뀌면 번호(gridTargetNo)를 올려 스위치 구독을 새 대상으로 갈아 끼운다.
   const gridControlsRef = useRef<GridPanelGridControls[]>([]);
+  const gridTargetRef = useRef<GridPanelGridControls | null>(null);
   const [hasGridControls, setHasGridControls] = useState(false);
-  const gridRegistry = useMemo<GridPanelRegistry>(
-    () => ({
+  const [gridTargetNo, setGridTargetNo] = useState(0);
+  const gridRegistry = useMemo<GridPanelRegistry>(() => {
+    const syncTarget = () => {
+      const list = gridControlsRef.current;
+      setHasGridControls(list.length > 0);
+      const first = list[0] ?? null;
+      if (first !== gridTargetRef.current) {
+        gridTargetRef.current = first;
+        setGridTargetNo((n) => n + 1);
+      }
+    };
+    return {
       register(controls) {
         gridControlsRef.current.push(controls);
-        setHasGridControls(true);
+        syncTarget();
         return () => {
           const list = gridControlsRef.current;
           const i = list.indexOf(controls);
           if (i >= 0) list.splice(i, 1);
-          setHasGridControls(list.length > 0);
+          syncTarget();
         };
       },
-    }),
-    [],
-  );
+    };
+  }, []);
   const openGridSettings = useCallback(() => gridControlsRef.current[0]?.openSettings(), []);
+  const requestGridReset = useCallback(() => gridControlsRef.current[0]?.requestReset(), []);
+  // 자동 저장 스위치 — 대상 그리드의 값을 읽는다. 대상이 바뀌면(gridTargetNo) 구독과 읽기 함수가 새 대상으로 바뀐다.
+  const subscribeGridAutoSave = useCallback(
+    (onChange: () => void) => gridControlsRef.current[0]?.subscribeAutoSave(onChange) ?? (() => {}),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [gridTargetNo],
+  );
+  const getGridAutoSave = useCallback(
+    () => gridControlsRef.current[0]?.getAutoSave() ?? true,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [gridTargetNo],
+  );
+  const gridAutoSave = useSyncExternalStore(subscribeGridAutoSave, getGridAutoSave, () => true);
+  const toggleGridAutoSave = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    gridControlsRef.current[0]?.setAutoSave(e.currentTarget.checked);
+  }, []);
 
   useEffect(() => {
     if (!usePermission || !fetchPermissions) return;
@@ -276,6 +304,30 @@ function GridPanelComponent({
                       onClick={openGridSettings}
                     >
                       컬럼 설정
+                    </button>
+                  ) : null}
+                  {/* 자동 저장 스위치·초기화 — [컬럼 설정] 과 같은 조건·같은 이유로 권한 검사·loading 과 무관하게 늘 활성. */}
+                  {hasGridControls ? (
+                    <Switch
+                      key="grid_autosave"
+                      size="xs"
+                      label="자동 저장"
+                      data-testid="grid-autosave-switch"
+                      checked={gridAutoSave}
+                      onChange={toggleGridAutoSave}
+                      styles={{ root: { alignSelf: "center", margin: "0 4px" }, label: { paddingInlineStart: 4, whiteSpace: "nowrap" } }}
+                    />
+                  ) : null}
+                  {hasGridControls ? (
+                    <button
+                      key="btn_grid_reset"
+                      id="btn_grid_reset"
+                      type="button"
+                      className="grid-btn"
+                      data-testid="grid-reset-button"
+                      onClick={requestGridReset}
+                    >
+                      초기화
                     </button>
                   ) : null}
                 </div>

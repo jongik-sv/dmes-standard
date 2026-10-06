@@ -86,9 +86,10 @@ export function ExportItemPicker({ onChange }: { onChange: (items: ColumnSetting
 | columns | `readonly ColumnSettingsColumn[]` | 필수 | 지금 컬럼 목록(그리드 순서). 열 때마다 이 값으로 시작한다 |
 | onApply | `(state: ColumnSettingsState[]) => void` | 필수 | [적용] 시 모든 컬럼의 `{ colId, hide }` 를 바뀐 순서대로 넘기고 창을 닫는다 |
 | onReset | `() => void` | 필수 | [기본값 복원] 시 호출하고 창을 닫는다. 실제 복원은 받는 쪽이 한다 |
-| onClose | `() => void` | 필수 | 닫기(취소·X·Esc·적용·복원 뒤) |
+| onSave | `(state: ColumnSettingsState[]) => void` | - | 주면 바닥에 [지금 상태 저장](`data-testid` `{testId}-save`)이 보인다. 누르면 `onApply` 와 같은 모양의 상태를 넘기고 창을 닫는다(받는 쪽이 적용한 뒤 저장한다). 자동 저장이 꺼진 AgDataGrid 만 준다 |
+| onClose | `() => void` | 필수 | 닫기(취소·X·Esc·적용·복원·지금 상태 저장 뒤) |
 | title | `string` | `"컬럼 설정"` | 창 제목 |
-| testId | `string` | `"column-settings"` | 바깥 상자의 `data-testid` 접두어(`-reset`·`-cancel`·`-apply`·`-row-{colId}`·`-up-{colId}`·`-down-{colId}` 등이 붙는다) |
+| testId | `string` | `"column-settings"` | 바깥 상자의 `data-testid` 접두어(`-reset`·`-save`·`-cancel`·`-apply`·`-row-{colId}`·`-up-{colId}`·`-down-{colId}` 등이 붙는다) |
 
 `ColumnSettingsColumn`: `colId: string`, `header: string`, `hide: boolean`, `pinned?: "left" | "right" | null`, `locked?: boolean`, `internal?: boolean`, `group?: ColumnSettingsGroup`, `groupPath?: readonly ColumnSettingsGroup[]`.
 `ColumnSettingsGroup`: `id: string`, `header: string`.
@@ -96,7 +97,7 @@ export function ExportItemPicker({ onChange }: { onChange: (items: ColumnSetting
 
 ## 표준값: 모든 화면 동일
 
-- 제목·버튼 문구(「컬럼 설정」·「기본값 복원」·「취소」·「적용」)는 기본값 그대로 쓴다. AgDataGrid·GridPanel·헤더 우클릭 메뉴가 같은 문구를 쓴다.
+- 제목·버튼 문구(「컬럼 설정」·「기본값 복원」·「지금 상태 저장」·「취소」·「적용」)는 기본값 그대로 쓴다. AgDataGrid·GridPanel·헤더 우클릭 메뉴가 같은 문구를 쓴다.
 - `testId` 도 AgDataGrid 가 소유하는 창은 기본값(`column-settings`)이다. 같은 화면에서 직접 쓴 창이 따로 있으면 다른 접두어를 준다.
 
 ## 흔한 실수
@@ -113,4 +114,4 @@ export function ExportItemPicker({ onChange }: { onChange: (items: ColumnSetting
 
 ## 실제 사용 예
 
-- `src/frontend/shared/src/components/grid/AgDataGrid.tsx`(파일 끝 `ColumnSettingsModal` 렌더): 개인화 핸들의 `getColumns()` 결과를 `columns` 로, `apply`·`reset` 을 `onApply`·`onReset` 으로 잇는다. 화면 코드에서 직접 쓰는 곳은 아직 없다.
+- `src/frontend/shared/src/components/grid/AgDataGrid.tsx`(파일 끝 `ColumnSettingsModal` 렌더): 개인화 핸들의 `getColumns()` 결과를 `columns` 로, `apply`·`reset` 을 `onApply`·`onReset` 으로 잇고, 자동 저장이 꺼진 그리드만 `apply` 뒤 `saveNow` 를 `onSave` 로 잇는다. 화면 코드에서 직접 쓰는 곳은 아직 없다.
