@@ -312,6 +312,10 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 | `REFUSED <h> prompt-open` / `draft-in-input` / `bang-in-text` | `refused` + 같은 사유 |
 | 그 밖(종료 코드 비정상 등) | `refused` + `error` |
 
+**한 번에 한 건**: 폴러는 `console-poll --limit 1` 로 한 건만 집고, 그 건의 전달과 ack 를 끝낸 뒤에 다음 건을 집는다(한 주기 안에서 대기열이 빌 때까지, 최대 20건). 여러 건을 한꺼번에 집으면 모두 같은 `claimed_at` 으로 서버의 120초 ack 창을 함께 쓰므로 앞 건이 오래 걸리면 뒤 건이 `unknown` 이 된다.
+
+**프로젝트 한정 PAT**: poll·ack 가 exit 5 + 본문 `code=forbidden_role` 이면 콘솔 전달(poll·ack)만 끄고(폴러를 다시 시작하면 다시 시도) 「프로젝트 한정 PAT 라 오피스 프롬프트 전달 불가. 한정 없는 PAT 필요」 를 로그와 stderr 에 한 번만 낸다. 생존 감시·화면 올리기·답 대기는 계속한다. `console-screen` 은 같은 요청에 같은 대상을 두 번 넣지 않고, `captured_at` 은 ISO 8601 UTC 로 보낸다.
+
 **1회 전달**: poll 이 `claimed` 로 바꾼 뒤에만 보내고, ack 하기 전에 폴러가 죽으면 서버가 120초 뒤 `unknown` 으로 닫는다. 폴러는 다시 시작해도 이전에 claim 한 행을 모르고, 모르는 채로 다시 보내지 않는다. ack 가 네트워크로 실패하면(rc 6) 같은 인자로 세 번까지 다시 부르고 그래도 안 되면 포기한다(서버가 `unknown` 으로 닫는다). **`retry` ack 를 다시 부를 때 404 가 오면 이미 반영된 것으로 본다**(서버가 `retry` 를 받으면 `claim_token` 을 비워 같은 토큰이 더는 통하지 않는다).
 
 **머리글**: 터미널에 넣는 글은 한 줄이다.

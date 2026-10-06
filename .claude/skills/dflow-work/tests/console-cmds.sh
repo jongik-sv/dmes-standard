@@ -70,6 +70,12 @@ eq "ack: 인자 부족 exit 2" "$(run console-ack $ID abcd >/dev/null 2>&1; echo
 eq "ack: id 형식 오류 exit 2" "$(run console-ack 'x;y' abcd sent >/dev/null 2>&1; echo $?)" 2
 eq "ack: 409 conflict → exit 4" "$(FAKE_CODE=409 FAKE_BODY='{"code":"conflict"}' run console-ack $ID abcd sent >/dev/null 2>&1; echo $?)" 4
 eq "ack: 404 → exit 7" "$(FAKE_CODE=404 run console-ack $ID abcd retry --reason compacting >/dev/null 2>&1; echo $?)" 7
+eq "ack retry: 새 라우트의 404 not_found 는 이미 반영됨(exit 0)" "$(FAKE_CODE=404 FAKE_BODY='{"code":"not_found"}' run console-ack $ID abcd retry --reason compacting 2>/dev/null; echo " rc=$?")" "ACK pending already
+ rc=0"
+eq "ack sent: 404 not_found 는 그대로 exit 7" "$(FAKE_CODE=404 FAKE_BODY='{"code":"not_found"}' run console-ack $ID abcd sent >/dev/null 2>&1; echo $?)" 7
+eq "ack retry: code 없는 404(옛 서버)는 exit 7" "$(FAKE_CODE=404 FAKE_BODY='<html>no</html>' run console-ack $ID abcd retry --reason compacting >/dev/null 2>&1; echo $?)" 7
+eq "ack: 403 forbidden_role 은 exit 5 이고 본문이 stderr" "$(FAKE_CODE=403 FAKE_BODY='{"code":"forbidden_role"}' run console-ack $ID abcd sent 2>&1 >/dev/null | grep -c forbidden_role)" 1
+eq "poll: 403 forbidden_role → exit 5" "$(FAKE_CODE=403 FAKE_BODY='{"code":"forbidden_role"}' run console-poll --host mac-1 >/dev/null 2>&1; echo $?)" 5
 
 # ---- console-screen ----
 export FAKE_BODY='{"ok":true,"results":[{"target_kind":"coord_lane","target_ref":"kit","status":"stored"},{"target_kind":"team_lead","target_ref":"lead","status":"rejected","reason":"unknown_target"}]}'

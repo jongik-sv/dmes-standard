@@ -743,7 +743,18 @@ cmd_console_ack() {
   case "$_id" in ''|*[!0-9a-fA-F-]*) die 2 "id 형식 오류" ;; esac
   _json=$(jq -nc --arg i "$_id" --arg t "$_ctok" --arg r "$_res" --arg rs "$_reason" --arg d "$_detail" \
     '{id:$i, claim_token:$t, result:$r} + (if $rs != "" then {reason:$rs} else {} end) + (if $d != "" then {detail:$d} else {} end)')
-  _body=$(TOKEN="$TOK" api_raw POST /api/v1/agent/console/ack "$_json") || exit $?
+  # 404 는 둘이다: 옛 서버(라우트 없음, 본문에 code 가 없다)와 새 라우트의 {code:"not_found"}(토큰·행이 없음). retry 를 다시 부를 때의
+  # 후자는 서버가 이미 claim_token 을 비워 둔 것이므로 반영된 것으로 본다(출력 `ACK pending already`). 본문 code 로 가른다.
+  _errf="$CACHE_DIR/dflow_ack_err.$$"; mkdir -p "$CACHE_DIR"
+  _body=$(TOKEN="$TOK" api_raw POST /api/v1/agent/console/ack "$_json" 2>"$_errf"); _rc=$?
+  if [ "$_rc" != 0 ]; then
+    _errtxt=$(cat "$_errf" 2>/dev/null); rm -f "$_errf"
+    if [ "$_rc" = 7 ] && [ "$_res" = retry ] && [ "$(printf '%s' "$_errtxt" | jq -r '.code // empty' 2>/dev/null)" = not_found ]; then
+      printf 'ACK pending already\n'; return 0
+    fi
+    printf '%s\n' "$_errtxt" >&2; exit "$_rc"
+  fi
+  rm -f "$_errf"
   printf '%s' "$_body" | jq -r '"ACK \(.status // "-")" + (if .already == true then " already" else "" end)'
 }
 
