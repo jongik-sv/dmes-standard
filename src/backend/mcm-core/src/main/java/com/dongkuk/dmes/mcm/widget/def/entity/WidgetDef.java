@@ -78,6 +78,10 @@ public class WidgetDef extends McmAuditEntity {
     @Column(name = "PRIVATE_YN", length = 1)
     private String privateYn;
 
+    /** 배치 옵션 — W=위젯 화면만, B=업무 화면(도구 창)만, A=둘 다. NULL 이면 유형 floatable 을 따른다(2026-10-06). */
+    @Column(name = "PLACE_TP", length = 1)
+    private String placeTp;
+
     @Column(name = "USE_YN", length = 1, nullable = false)
     private String useYn = "Y";
 
@@ -129,6 +133,8 @@ public class WidgetDef extends McmAuditEntity {
     public void setCategoryCd(String categoryCd) { this.categoryCd = categoryCd; }
     public String getPrivateYn() { return privateYn; }
     public void setPrivateYn(String privateYn) { this.privateYn = privateYn; }
+    public String getPlaceTp() { return placeTp; }
+    public void setPlaceTp(String placeTp) { this.placeTp = placeTp; }
     public String getUseYn() { return useYn; }
     public void setUseYn(String useYn) { this.useYn = useYn; }
     public String getDataSrc() { return dataSrc; }
