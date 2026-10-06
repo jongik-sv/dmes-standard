@@ -413,6 +413,21 @@ export function searchRowValue(row: Pick<RuleCalcSearchRow, "tp" | "id">): strin
   return `${row.tp}:${row.id}`;
 }
 
+// ───────────────────────── 화면에 넣기 ─────────────────────────
+
+/**
+ * 계산 결과를 업무 화면에 넣을 값으로 — 이름 → 표시 전 원값 글자(소수 자리·쉼표를 입히지 않는다). 목록 결과는 쉼표로 이어 한 칸에 넣고,
+ * 비어 있는 값은 뺀다(화면 칸을 빈 값으로 지우지 않는다).
+ */
+export function applyValues(run: Pick<RuleCalcRun, "result">): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [name, v] of Object.entries(run.result)) {
+    const text = (Array.isArray(v) ? v.join(", ") : v).trim();
+    if (text !== "") out[name] = text;
+  }
+  return out;
+}
+
 export function stepOutputDataType(io: RuleCalcIo | null, ruleId: string, name: string): string {
   const step = io?.steps.find((s) => s.ruleId === ruleId);
   return step?.outputs.find((o) => o.name === name)?.dataType ?? "";

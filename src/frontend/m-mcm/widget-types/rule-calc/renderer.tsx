@@ -9,11 +9,12 @@
  * - 안내: messages(NO_RELEASED·INPUT_MISSING 등)를 문구로 보인다. 확정 버전이 없거나 대상이 없으면 입력 칸 없이 문구만 보인다.
  * 보드와 도크(업무 화면 도구 창) 양쪽에서 같은 렌더러를 쓰며, 입력 칸이 칸 너비에 맞춰 열 수를 바꾼다.
  */
-import { useId } from "react";
+import { useId, useState } from "react";
 import { Button, Input, Select } from "@dk-oasis/shared/form";
 import type { WidgetProps } from "@dk-oasis/shared/widget";
 
 import {
+  applyValues,
   blocksInput,
   displayValue,
   isNumericType,
@@ -29,6 +30,7 @@ import {
   type RuleCalcMessage,
   type RuleCalcRun,
 } from "./rule-calc-model";
+import { readScreenApply, type ScreenApply, type ScreenApplyResult } from "./screen-apply";
 import { RULE_CALC_CSS, RULE_CALC_STYLE_HREF } from "./rule-calc-styles";
 import { useRuleCalc } from "./use-rule-calc";
 
@@ -122,6 +124,39 @@ function Results({ io, run }: { io: RuleCalcIo; run: RuleCalcRun }) {
   );
 }
 
+/** [화면에 넣기] — 결과 원값을 활성 업무 화면 칸에 넣고 넣은 칸·건너뛴 칸을 짧게 알린다. 결과가 바뀌면(다른 run 객체) 이전 안내는 보이지 않는다. */
+function ApplyBar({ io, run, screenApply, label }: { io: RuleCalcIo; run: RuleCalcRun; screenApply: ScreenApply; label: string }) {
+  const [state, setState] = useState<{ run: RuleCalcRun; pending: boolean; result?: ScreenApplyResult; error?: string } | null>(null);
+  const mine = state && state.run === run ? state : null;
+  const nameOf = (n: string) => io.outputs.find((o) => o.name === n)?.label ?? n;
+  const values = applyValues(run);
+  const onClick = () => {
+    setState({ run, pending: true });
+    screenApply.apply(values, { label }).then(
+      (result) => setState((prev) => (prev && prev.run === run ? { run, pending: false, result } : prev)),
+      (e: unknown) =>
+        setState((prev) =>
+          prev && prev.run === run ? { run, pending: false, error: e instanceof Error && e.message ? e.message : "화면에 넣지 못했습니다." } : prev
+        )
+    );
+  };
+  return (
+    <div className="mcm-rc__apply" data-testid="rc-apply">
+      <Button onClick={onClick} disabled={mine?.pending === true || Object.keys(values).length === 0} data-testid="rc-apply-btn">
+        화면에 넣기
+      </Button>
+      <span aria-live="polite" className="mcm-rc__fill-note" data-testid="rc-apply-note">
+        {mine?.error ??
+          (mine?.result
+            ? `${mine.result.applied.length}칸에 넣었습니다${
+                mine.result.skipped.length > 0 ? ` · 넣지 못함: ${mine.result.skipped.map(nameOf).join(", ")}` : ""
+              }`
+            : "")}
+      </span>
+    </div>
+  );
+}
+
 function ResultRow({ label, unit, text, testId }: { label: string; unit: string | null; text: string; testId: string }) {
   return (
     <>
@@ -163,7 +198,9 @@ function Steps({ io, run }: { io: RuleCalcIo; run: RuleCalcRun }) {
   );
 }
 
-export default function RuleCalcRenderer({ definition, refreshKey, screenContext }: WidgetProps) {
+export default function RuleCalcRenderer(props: WidgetProps) {
+  const { definition, refreshKey, screenContext } = props;
+  const screenApply = readScreenApply(props);
   const cfg = readRuleCalcConfig(definition);
   const { ioState, draft, errors, runState, setValue, run, available, filled, fillFromScreen } = useRuleCalc(
     cfg.targetTp,
@@ -272,6 +309,7 @@ export default function RuleCalcRenderer({ definition, refreshKey, screenContext
               </div>
             )}
             {done.ok && <Results io={io} run={done} />}
+            {done.ok && screenApply && <ApplyBar io={io} run={done} screenApply={screenApply} label={io.target.name || cfg.targetId} />}
             {done.ok && showSteps && <Steps io={io} run={done} />}
           </div>
         )}

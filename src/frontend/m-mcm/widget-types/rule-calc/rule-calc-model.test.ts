@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { readScreenApply } from "./screen-apply";
 import { meta } from "./type.meta";
 import {
   blocksInput,
@@ -18,6 +19,7 @@ import {
   searchRowValue,
   readRuleCalcConfig,
   RULE_CALC_DEFAULT_CONFIG,
+  applyValues,
   displayValue,
   stepOutputDataType,
   stepOutputLabel,
@@ -171,6 +173,23 @@ describe("formatResultValue — scale 로 HALF_UP, 글자 연산", () => {
     expect(formatResultValue("ABC", 2)).toBe("ABC");
     expect(formatResultValue("", 2)).toBe("");
     expect(formatResultValue("1.5", 2, "STRING")).toBe("1.5");
+  });
+});
+
+describe("applyValues", () => {
+  it("원값 글자 그대로(소수·쉼표 서식 없이), 목록은 쉼표로 잇고, 빈 값은 뺀다", () => {
+    expect(applyValues({ result: { A: "12345.675", B: ["1.20", "3"], C: "", D: " " } })).toEqual({ A: "12345.675", B: "1.20, 3" });
+  });
+});
+
+describe("readScreenApply", () => {
+  it("apply 함수가 있고 available=true 일 때만 읽는다", () => {
+    const apply = () => Promise.resolve({ applied: [], skipped: [] });
+    expect(readScreenApply({ screenApply: { available: true, apply } })).not.toBeNull();
+    expect(readScreenApply({ screenApply: { available: false, apply } })).toBeNull();
+    expect(readScreenApply({ screenApply: { available: true } })).toBeNull();
+    expect(readScreenApply({ screenApply: null })).toBeNull();
+    expect(readScreenApply({})).toBeNull();
   });
 });
 

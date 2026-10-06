@@ -147,9 +147,9 @@ const click = async (testId: string) => {
 
 const baseProps = { instanceId: "i1", widgetId: "def.rc", size: { w: 6, h: 12 }, config: null };
 
-async function renderRc(definition: unknown, refreshKey = 0, screenContext: unknown = null) {
+async function renderRc(definition: unknown, refreshKey = 0, screenContext: unknown = null, screenApply: unknown = null) {
   await act(async () => {
-    root.render(createElement(RuleCalcRenderer, { ...baseProps, definition, refreshKey, screenContext } as never));
+    root.render(createElement(RuleCalcRenderer, { ...baseProps, definition, refreshKey, screenContext, screenApply } as never));
   });
   await flush();
 }
@@ -484,6 +484,64 @@ describe("렌더러 — 업무 화면 값 채우기(screenContext)", () => {
     await renderRc(def(), 0, null);
     expect(value("THK")).toBe("");
     expect(q("rc-fill-note")).toBeNull();
+  });
+});
+
+describe("렌더러 — 화면에 넣기(screenApply)", () => {
+  beforeEach(() => {
+    h.fetchIo.mockResolvedValue(ruleIo());
+    h.run.mockResolvedValue(normalizeRun({ ok: true, result: { COIL_WT: "12345.675", NOTE: "" }, steps: [], messages: [] }));
+  });
+  const def = { targetTp: "RULE", targetId: "M47C0001" };
+  const calc = async (screenApply: unknown) => {
+    await renderRc(def, 0, null, screenApply);
+    await type("rc-input-THK", "1");
+    await click("rc-run");
+    await flush();
+  };
+
+  it("없거나 null·available=false 면 단추를 보이지 않는다", async () => {
+    for (const sa of [null, undefined, { available: false, apply: vi.fn() }]) {
+      await calc(sa);
+      expect(q("rc-apply")).toBeNull();
+    }
+  });
+
+  it("계산 결과가 없으면(계산 전) 단추도 없다", async () => {
+    await renderRc(def, 0, null, { available: true, apply: vi.fn() });
+    expect(q("rc-apply")).toBeNull();
+  });
+
+  it("누르면 표시 전 원값 문자열(빈 값 제외)과 라벨을 보내고, 넣은 칸 수·건너뛴 항목을 안내한다", async () => {
+    const apply = vi.fn().mockResolvedValue({ applied: ["COIL_WT"], skipped: ["NOTE"] });
+    await calc({ available: true, apply });
+    await click("rc-apply-btn");
+    await flush();
+    expect(apply).toHaveBeenCalledWith({ COIL_WT: "12345.675" }, { label: "원판 중량" });
+    expect(must("rc-apply-note").textContent).toBe("1칸에 넣었습니다 · 넣지 못함: NOTE");
+  });
+
+  it("넣는 동안 단추가 잠기고 실패하면 오류 문구를 보인다", async () => {
+    let rejectApply!: (e: Error) => void;
+    const apply = vi.fn().mockReturnValue(new Promise((_, rj) => (rejectApply = rj)));
+    await calc({ available: true, apply });
+    await click("rc-apply-btn");
+    expect((must("rc-apply-btn") as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => rejectApply(new Error("화면이 받지 못했습니다.")));
+    expect(must("rc-apply-note").textContent).toBe("화면이 받지 못했습니다.");
+    expect((must("rc-apply-btn") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("다시 계산하면 이전 안내는 사라진다", async () => {
+    const apply = vi.fn().mockResolvedValue({ applied: ["COIL_WT"], skipped: [] });
+    await calc({ available: true, apply });
+    await click("rc-apply-btn");
+    await flush();
+    expect(must("rc-apply-note").textContent).toBe("1칸에 넣었습니다");
+    h.run.mockResolvedValue(normalizeRun({ ok: true, result: { COIL_WT: "3" }, steps: [], messages: [] }));
+    await click("rc-run");
+    await flush();
+    expect(must("rc-apply-note").textContent).toBe("");
   });
 });
 
