@@ -74,7 +74,7 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
 ```
 `host` 가 슬러그 형식이 아니면 400. 호출할 때마다 `claimed_at` 이 120초 지난 `claimed` 행을 `unknown` 으로 바꾼다.
 
-**키 행**(오피스의 「키 입력 답하기」, 마이그레이션 0111) — **기본 꺼짐(`console.keys_enabled=false`), 다음 회차에 훅 기반(구조화된 권한 이벤트)으로 재설계.** 꺼진 폴러는 `accepts` 를 보내지 않고, 키 행을 받아도 키를 보내지 않고 `refused`·`keys_disabled` 로 ack 한다. 켰을 때의 계약은 아래와 같다. 글 행 칸(`id`·`target_kind`·`target_ref`·`claim_token`·`expires_at`)에 `kind:"keys"`·`keys`·`input_request` 가 붙고 `text` 칸은 없다(글 행에는 `kind` 칸이 없다).
+**키 행**(오피스의 「키 입력 답하기」, 마이그레이션 0111) — **기본 꺼짐(`console.keys_enabled=false`), 다음 회차에 훅 기반(구조화된 권한 이벤트)으로 재설계.** 꺼진 폴러는 `accepts` 를 보내지 않고, 키 행을 받아도 키를 보내지 않고 `refused`·reason `error`·detail `keys_disabled` 로 ack 한다(reason 표에 새 값을 더하지 않는다). 켰을 때의 계약은 아래와 같다. 글 행 칸(`id`·`target_kind`·`target_ref`·`claim_token`·`expires_at`)에 `kind:"keys"`·`keys`·`input_request` 가 붙고 `text` 칸은 없다(글 행에는 `kind` 칸이 없다).
 ```json
 { "id": "<uuid>", "target_kind": "coord_lane", "target_ref": "kit", "claim_token": "<hex>", "expires_at": "…",
   "kind": "keys", "keys": ["Down", "Enter"], "input_request": { "kind": "choice", "since": "2026-10-06T01:02:03.004Z", "sha": "<64 hex>" } }
@@ -101,8 +101,7 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
 | `bang-in-text` | `refused` | 본문에 `!` |
 | `prompt-open` | `refused` | 확인·선택 창이 열려 있음 |
 | `draft-in-input` | `refused` | 입력창에 쓰다 만 글이 있음(찾지 못한 경우 포함) |
-| `error` | `refused` | 그 밖의 보내기 실패 |
-| `keys_disabled` | `refused` | 키 행: 폴러의 웹 키 입력이 꺼져 있음(`console.keys_enabled=false`, 기본) — 키를 보내지 않음. 서버는 이 값을 허용 목록에 더해야 한다 |
+| `error` | `refused` | 그 밖의 보내기 실패. 키 행이 폴러의 `console.keys_enabled=false`(기본) 때문에 거절되면 detail 이 `keys_disabled` 이다 |
 | `prompt_changed` | `refused` | 키 행: 보내기 직전 다시 본 창(kind·발췌 sha·since)이 요청과 다르거나 창이 없음·이미 답한 창·다른 쪽이 답하는 중(`refused` 와만 쓴다) |
 
 서버는 `reason` 을 위 목록으로 검사하고, 어떤 `result`·`reason` 짝을 쓸지는 폴러가 정한다(어느 사유를 재시도로 볼지 폴러 쪽 한 줄로 바꿀 수 있다).

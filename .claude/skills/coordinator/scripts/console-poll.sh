@@ -17,7 +17,7 @@
 #   run     루프(내부용). 한 주기(COORD_CONSOLE_CYCLE_S, 기본 30초 — 루프는 직렬이라 주기가 겹치지 않는다):
 #           ① 생존 감시 office.sh reap(늘) ② 프롬프트 전달 ③ 화면 올리기(②③ 은 서버가 console 을 알 때만 — console-poll 이 exit 7 이면 10분 쉼)
 #           ② 는 `console-poll --accepts keys --limit 1` 로 한 건씩 집어 전달·ack 를 끝낸 뒤 다음 건을 집는다(빈 응답까지, 한 주기 최대 20건).
-#             키 입력 답하기는 기본 꺼짐: 꺼져 있으면 --accepts keys 를 보내지 않고, 그래도 받은 키 행은 키를 보내지 않고 refused·keys_disabled 로 ack 한다.
+#             키 입력 답하기는 기본 꺼짐: 꺼져 있으면 --accepts keys 를 보내지 않고, 그래도 받은 키 행은 키를 보내지 않고 refused·reason error·detail keys_disabled 로 ack 한다(서버 reason 목록에 새 값을 더하지 않는다).
 #             키 행(kind:'keys')은 켰을 때 검증(대상·만료·허용 키·화면 재판정·소비·레인 잠금·보내기 직전 재확인) 뒤 term_send_keys 한 번으로 넣는다(§4.1 「키 입력 답하기」).
 #             compacting 의 retry ack 는 그 주기의 poll 이 끝난 뒤 보낸다(retry 행이 바로 다시 나와 맴돌지 않게). 다만 claim(poll 직전) 뒤
 #             120초 ack 창 − 한 건 최대 처리 시간(보내기 60초 + ack 재시도 40초) = 20초가 지나면 다음 poll 전에 먼저 보낸다. 그렇게 돌려보낸
@@ -464,7 +464,7 @@ handle_prompt() {  # handle_prompt <프롬프트 JSON 한 줄> <claim 시각(pol
     '') ;;
     keys)
       # 웹 키 입력은 기본 꺼짐: 꺼져 있으면 화면 재판정·term_send_keys 앞에서 바로 거절한다(키 전송 0)
-      if ! keys_enabled; then plog "prompt id=$id $what 키 입력 꺼짐(console.keys_enabled) — 거절"; ack "$id" "$tok" refused keys_disabled - "$what"; return 0; fi
+      if ! keys_enabled; then plog "prompt id=$id $what 키 입력 꺼짐(console.keys_enabled) — 거절"; ack "$id" "$tok" refused error keys_disabled "$what"; return 0; fi
       handle_keys "$j" "$id" "$tok" "$kind" "$rref"; return 0 ;;
     *) ack "$id" "$tok" refused error - "$what"; plog "prompt id=$id 모르는 행 종류 — 거절"; return 0 ;;
   esac

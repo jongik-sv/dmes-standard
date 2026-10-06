@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 웹 키 입력 답하기 꺼짐(기본 — 설정 console.keys_enabled=false) 시험(contract §4.1 「키 입력 답하기」). 켠 상태의 시험은 tests/console-keys.sh.
-#   키 행을 받아도 키를 보내지 않고 refused·keys_disabled 로 ack 하는지, poll 에 accepts 가 없는지, 설정·환경변수로 켜지는지.
+#   키 행을 받아도 키를 보내지 않고 refused·reason error·detail keys_disabled 로 ack 하는지, poll 에 accepts 가 없는지, 설정·환경변수로 켜지는지.
 # 사용법: bash tests/console-keys-off.sh   (실패가 있으면 종료 코드 1)
 # 실제 서버·~/.coord·~/.dflow·터미널은 쓰지 않는다: HOME·COORD_STATE_ROOT·DFLOW_CONSOLE_DIR·COORD_REPO 를 모두 임시 폴더로 둔다.
 # 가짜(모두 $FAKE_DIR 파일로 움직인다):
@@ -159,7 +159,7 @@ eq "꺼짐 준비: 입력 요청 기록은 만든다(감지는 설정과 무관)
 mkkey 1 '["Down","Enter"]'
 once
 eq "꺼짐: poll 요청에 accepts 가 없다" "$(grep '^console-poll ' "$FAKE_LOG" | sort -u)" "console-poll --host $host --limit 1"
-eq "꺼짐: 받은 키 행은 refused keys_disabled" "$(ackof 1)" "tok-KEY-001 refused --reason keys_disabled"
+eq "꺼짐: 받은 키 행은 refused·reason error·detail keys_disabled" "$(ackof 1)" "tok-KEY-001 refused --reason error --detail keys_disabled"
 eq "꺼짐: 키 전송 0(가짜 orca send 기록 없음)" "$(grep -c . "$FAKE_DIR/send.log")" 0
 eq "꺼짐: 재판정을 위한 orca 읽기·send 호출도 키 행 때문에 늘지 않는다(send 만 확인)" "$(grep -c '^terminal send' "$FAKE_DIR/orca.log" 2>/dev/null | tr -d ' ')" 0
 eq "꺼짐: tmux send-keys 호출 없음" "$(grep -c . "$FAKE_DIR/tmux.log")" 0
