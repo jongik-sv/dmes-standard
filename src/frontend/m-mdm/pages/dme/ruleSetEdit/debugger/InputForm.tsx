@@ -1,14 +1,23 @@
 "use client";
 
 /**
- * 디버그 입력 폼(3단계 계획 §4.1) — 판정 시각(`dbg-evalts`)과 세트 입력 변수 칸(`dbg-fields`, 줄마다 키 보냄 `dbg-send-{name}`·값 `dbg-input-{name}`).
+ * 디버그 입력 폼(3단계 계획 §4.1) — 판정 시각(`dbg-evalts`)·룰 버전(`dbg-rule-versions`)과 세트 입력 변수 칸(`dbg-fields`, 줄마다 키 보냄 `dbg-send-{name}`·값 `dbg-input-{name}`).
  * 칸은 컬럼 사전·프로그램 변수 이름만(2단계 P-D8)이다. 상태는 page 의 `useSimulation` 에 있다.
  */
-import { Checkbox, Input } from "@dk-oasis/shared/form";
+import { Checkbox, Input, Select } from "@dk-oasis/shared/form";
 import { badgeStyle } from "@/shell";
 
 import { SOURCE_LABEL, SOURCE_TONE, typeText } from "../cards/SetIoTables";
+import type { RuleVersionMode } from "../types";
 import type { DebugInput, Simulation } from "./useSimulation";
+
+/** 룰 버전 선택 항목(spec 2026-10-06 §7.1). */
+export const RULE_VERSION_OPTIONS: { value: RuleVersionMode; label: string }[] = [
+  { value: "RELEASED", label: "적용 중(기본)" },
+  { value: "MY_DRAFT", label: "내 DRAFT 우선" },
+];
+/** 내 DRAFT 우선일 때 검사 기준 안내(spec §7.4) — 화면 검사는 이번에 DRAFT 를 읽지 않는다(후속 F1). */
+export const DRAFT_CHECK_NOTE = "검사 결과(거부·경고)는 적용 중 버전 기준이다. 실행만 내 DRAFT 를 쓴다";
 
 /** 값이 모두 글자·null 인 평평한 객체인가 — 폼 줄(글자 칸)로 풀어도 보내는 JSON 이 뜻을 잃지 않는다. */
 function formSafe(recordJson: string): boolean {
@@ -51,6 +60,21 @@ export function InputForm({ sim }: { sim: Simulation }) {
           onChange={sim.setEvalTs}
         />
       </label>
+      <label className="rsf-dbg-evalts">
+        <span className="rsf-dbg-label">룰 버전</span>
+        <Select
+          data-testid="dbg-rule-versions"
+          aria-label="룰 버전"
+          value={sim.ruleVersions}
+          options={RULE_VERSION_OPTIONS}
+          onChange={(v) => sim.setRuleVersions(v === "MY_DRAFT" ? "MY_DRAFT" : "RELEASED")}
+        />
+      </label>
+      {sim.ruleVersions === "MY_DRAFT" && (
+        <p className="rsf-panel-note" data-testid="dbg-draft-check-note" role="status">
+          {DRAFT_CHECK_NOTE}
+        </p>
+      )}
       {jsonActive && sim.fields.length > 0 && (
         <p className="rsf-panel-note" data-testid="dbg-json-active" role="status">
           {JSON_ACTIVE_NOTE}

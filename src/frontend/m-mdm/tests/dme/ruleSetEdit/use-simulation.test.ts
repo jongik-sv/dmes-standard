@@ -103,7 +103,7 @@ describe("useSimulation — 커서와 기록(P-D13)", () => {
     expect(executes()).toHaveLength(1);
     expect(h.current.cursor).toBe(0);
     expect(h.current.last?.trace).toBe(A.trace);
-    expect(h.current.last?.input).toEqual({ recordJson: '{"GT_THK":"12"}', evalTs: "" });
+    expect(h.current.last?.input).toEqual({ recordJson: '{"GT_THK":"12"}', evalTs: "", ruleVersions: "RELEASED" });
     await run((s) => s.next());
     await run((s) => s.next());
     expect(h.current.cursor).toBe(2);
@@ -237,8 +237,8 @@ describe("useSimulation — 낡은 기록·이전 실행(P-D9)", () => {
   });
 
   it("6. 입력 A·B 를 차례로 실행하면 최근 입력이 새 것 먼저 2개, A 를 다시 하면 A 가 맨 앞으로(2개 그대로)", async () => {
-    const inA: DebugInput = { recordJson: '{"GT_THK":"1"}', evalTs: "" };
-    const inB: DebugInput = { recordJson: '{"GT_THK":"2"}', evalTs: "" };
+    const inA: DebugInput = { recordJson: '{"GT_THK":"1"}', evalTs: "", ruleVersions: "RELEASED" };
+    const inB: DebugInput = { recordJson: '{"GT_THK":"2"}', evalTs: "", ruleVersions: "RELEASED" };
     await mount();
     await run((s) => s.loadInput(inA));
     await run((s) => s.next());
@@ -289,7 +289,7 @@ describe("useSimulation — 낡은 기록·이전 실행(P-D9)", () => {
     expect(h.current.cursor).toBe(-1);
     expect([...h.current.breakpoints]).toEqual(["r3"]);
     expect(JSON.parse(globalThis.localStorage.getItem("rsf:bp:S2")!)).toEqual(["r3"]);
-    expect(h.current.recent).toEqual([{ recordJson: '{"GT_THK":"9"}', evalTs: "" }]);
+    expect(h.current.recent).toEqual([{ recordJson: '{"GT_THK":"9"}', evalTs: "", ruleVersions: "RELEASED" }]);
     expect(JSON.parse(globalThis.localStorage.getItem("rsf:bp:S1")!)).toEqual(["r2"]); // 옛 세트 것은 그대로
   });
 
@@ -419,7 +419,7 @@ describe("useSimulation — 입력(P-D9)", () => {
     expect(h.current.fields.find((f) => f.row.key === "GT_THK")?.row.value).toBe("12");
     expect(h.current.evalTs).toBe("2026-06-01 09:00:00");
     expect(h.current.json).toBe("");
-    expect(h.current.currentInput()).toEqual({ recordJson: '{"GT_THK":"12"}', evalTs: "2026-06-01 09:00:00" });
+    expect(h.current.currentInput()).toEqual({ recordJson: '{"GT_THK":"12"}', evalTs: "2026-06-01 09:00:00", ruleVersions: "RELEASED" });
     await run((s) => s.loadInput({ recordJson: "[1]", evalTs: "" }));
     expect(h.current.json).toBe("[1]");
     expect(h.current.jsonError).not.toBeNull();
@@ -714,5 +714,48 @@ describe("useSimulation — 값 고쳐 이어 실행(4단계 E4)", () => {
     expect(h.current.currentInput().evalTs).toBe("");
     expect(h.current.last?.input.evalTs).toBe("");
     expect(h.current.canEditValues).toBe(true); // sameInput 유지 — 다시 고칠 수 있다
+  });
+});
+
+describe("룰 버전 모드(spec 2026-10-06 §7.3)", () => {
+  it("모드가 execute 요청에 실린다", async () => {
+    await mount();
+    act(() => h.current.setRuleVersions("MY_DRAFT"));
+    await act(() => h.current.next());
+    expect((executes()[0][2] as { ruleVersions?: string }).ruleVersions).toBe("MY_DRAFT");
+    expect(localStorage.getItem("rsf:ruleVersions")).toBe(JSON.stringify("MY_DRAFT"));
+  });
+  it("모드를 바꾸면 새로 실행", async () => {
+    await mount();
+    await act(() => h.current.next());
+    act(() => h.current.setRuleVersions("MY_DRAFT"));
+    expect(h.current.canEditValues).toBe(false);
+    await act(() => h.current.next());
+    expect(executes()).toHaveLength(2);
+  });
+  it("RELEASED 는 칸을 보내지 않는다", async () => {
+    await mount();
+    await act(() => h.current.next());
+    expect((executes()[0][2] as Record<string, unknown>).ruleVersions).toBeUndefined();
+  });
+  it("최근 입력을 불러오면 모드도 바뀌고 케이스 입력(모드 없음)은 지금 모드를 둔다", async () => {
+    await mount();
+    act(() => h.current.loadInput({ recordJson: "{}", evalTs: "", ruleVersions: "MY_DRAFT" }));
+    expect(h.current.ruleVersions).toBe("MY_DRAFT");
+    act(() => h.current.loadInput({ recordJson: "{}", evalTs: "" }));
+    expect(h.current.ruleVersions).toBe("MY_DRAFT");
+  });
+  it("응답 draftVersions 가 기록에 남고 없으면 빈 묶음", async () => {
+    replies = [{ ...(A.response as RuleSetSimulateResult), ruleVersions: "MY_DRAFT", draftVersions: { rules: { GT_GRADE: "2.000" }, sets: {} } }];
+    await mount();
+    await act(() => h.current.next());
+    expect(h.current.last?.draftVersions.rules).toEqual({ GT_GRADE: "2.000" });
+    expect(h.current.last?.ruleVersions).toBe("MY_DRAFT");
+  });
+  it("응답에 칸이 없으면 draftVersions 는 빈 묶음, ruleVersions 는 입력 모드", async () => {
+    await mount();
+    await act(() => h.current.next());
+    expect(h.current.last?.draftVersions).toEqual({ rules: {}, sets: {} });
+    expect(h.current.last?.ruleVersions).toBe("RELEASED");
   });
 });

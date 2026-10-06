@@ -5,10 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   loadFlag,
   loadInputs,
+  loadRuleVersions,
   loadStrings,
   pushRecent,
   saveFlag,
   saveInputs,
+  saveRuleVersions,
   saveStrings,
   storeKeys,
 } from "../../../pages/dme/ruleSetEdit/debugger/local-store";
@@ -35,7 +37,7 @@ describe("local-store", () => {
     saveStrings("k1", ["r1", "if1"]);
     expect(loadStrings("k1")).toEqual(["r1", "if1"]);
     saveInputs("k2", [{ recordJson: '{"A":"1"}', evalTs: "" }]);
-    expect(loadInputs("k2")).toEqual([{ recordJson: '{"A":"1"}', evalTs: "" }]);
+    expect(loadInputs("k2")).toEqual([{ recordJson: '{"A":"1"}', evalTs: "", ruleVersions: "RELEASED" }]);
     saveFlag("k3", false);
     expect(loadFlag("k3", true)).toBe(false);
     expect(localStorage.getItem("k3")).toBe("false");
@@ -57,8 +59,8 @@ describe("local-store", () => {
     expect(loadStrings("mixed")).toEqual(["r1", "r2"]);
     localStorage.setItem("inputs", '[{"recordJson":"{}","evalTs":""},{"recordJson":1},null,{"recordJson":"{}","evalTs":"x","extra":true}]');
     expect(loadInputs("inputs")).toEqual([
-      { recordJson: "{}", evalTs: "" },
-      { recordJson: "{}", evalTs: "x" },
+      { recordJson: "{}", evalTs: "", ruleVersions: "RELEASED" },
+      { recordJson: "{}", evalTs: "x", ruleVersions: "RELEASED" },
     ]);
   });
 
@@ -94,5 +96,21 @@ describe("local-store", () => {
     const list = ["x"];
     pushRecent(list, "y", same, 5);
     expect(list).toEqual(["x"]); // 입력을 바꾸지 않는다
+  });
+});
+
+describe("룰 버전 모드 기억(spec 2026-10-06 §7.2)", () => {
+  it("저장한 값을 읽고 잘못된 값은 RELEASED", () => {
+    expect(loadRuleVersions()).toBe("RELEASED");
+    saveRuleVersions("MY_DRAFT");
+    expect(loadRuleVersions()).toBe("MY_DRAFT");
+    localStorage.setItem(storeKeys.ruleVersions, JSON.stringify("DRAFT"));
+    expect(loadRuleVersions()).toBe("RELEASED");
+  });
+  it("최근 입력에 모드를 저장하고 옛 항목(모드 없음)은 RELEASED 로 읽는다", () => {
+    saveInputs("k", [{ recordJson: "{}", evalTs: "", ruleVersions: "MY_DRAFT" }]);
+    expect(loadInputs("k")).toEqual([{ recordJson: "{}", evalTs: "", ruleVersions: "MY_DRAFT" }]);
+    localStorage.setItem("k2", JSON.stringify([{ recordJson: "{}", evalTs: "" }]));
+    expect(loadInputs("k2")).toEqual([{ recordJson: "{}", evalTs: "", ruleVersions: "RELEASED" }]);
   });
 });

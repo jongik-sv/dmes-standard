@@ -1,10 +1,10 @@
 /**
- * 룰 세트 화면 개인 편의 저장소(3단계 계획 P10) — 중단점·조사식·최근 입력·최근 식·미니맵·자동 저장 켜짐·메모 편집 방식. 모든 읽기·쓰기를 try/catch 로 감싸
+ * 룰 세트 화면 개인 편의 저장소(3단계 계획 P10) — 중단점·조사식·최근 입력·최근 식·미니맵·자동 저장 켜짐·메모 편집 방식·룰 버전 모드. 모든 읽기·쓰기를 try/catch 로 감싸
  * 저장소가 없거나(사설 창·미리보기) 던져도 기본값으로 동작한다(스펙 §2). 서버에 저장하지 않는다.
  */
-import type { VarDisplay } from "../types";
+import type { RuleVersionMode, VarDisplay } from "../types";
 
-export interface StoredInput { recordJson: string; evalTs: string }
+export interface StoredInput { recordJson: string; evalTs: string; ruleVersions?: RuleVersionMode }
 
 export const storeKeys = {
   breakpoints: (setId: string) => `rsf:bp:${setId}`,
@@ -15,6 +15,8 @@ export const storeKeys = {
   varDisplay: "rsf:varDisplay",
   /** 편집 모드 [자동 저장] 켜짐(세트와 무관한 보는 사람 설정, 기본 꺼짐). */
   autoSave: "rsf:autoSave",
+  /** 디버거 룰 버전 모드(세트와 무관한 보는 사람 설정, 기본 RELEASED, spec 2026-10-06). */
+  ruleVersions: "rsf:ruleVersions",
   /** 메모 편집 방식(서식 wysiwyg · 원문 markdown) 저장 키 — shared MarkdownEditor·MarkdownField 의 modeStorageKey 로 넘긴다
    *  (읽기·쓰기는 shared 가 한다). 캔버스·패널이 같은 키라 같이 바뀐다. 값을 잃지 않게 키를 바꾸지 않는다. */
   noteEditMode: "rsf:noteEditMode",
@@ -44,6 +46,12 @@ export function loadVarDisplay(): VarDisplay {
 }
 export const saveVarDisplay = (value: VarDisplay) => write(storeKeys.varDisplay, value);
 
+const modeOrReleased = (v: unknown): RuleVersionMode => (v === "MY_DRAFT" ? "MY_DRAFT" : "RELEASED");
+
+/** [룰 버전] 마지막 선택. 두 값이 아니면 RELEASED. */
+export const loadRuleVersions = (): RuleVersionMode => modeOrReleased(read(storeKeys.ruleVersions));
+export const saveRuleVersions = (v: RuleVersionMode) => write(storeKeys.ruleVersions, v);
+
 export function loadStrings(key: string): string[] {
   const v = read(key);
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
@@ -54,7 +62,7 @@ export function loadInputs(key: string): StoredInput[] {
   const v = read(key);
   if (!Array.isArray(v)) return [];
   return v.filter((x): x is StoredInput => !!x && typeof x === "object" && typeof (x as StoredInput).recordJson === "string" && typeof (x as StoredInput).evalTs === "string")
-    .map((x) => ({ recordJson: x.recordJson, evalTs: x.evalTs }));
+    .map((x) => ({ recordJson: x.recordJson, evalTs: x.evalTs, ruleVersions: modeOrReleased(x.ruleVersions) }));
 }
 export const saveInputs = (key: string, list: readonly StoredInput[]) => write(key, list);
 
