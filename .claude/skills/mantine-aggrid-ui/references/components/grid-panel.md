@@ -10,6 +10,7 @@
 
 - 쓴다: 모든 목록의 머리. 제목과 건수만 있어도 쓴다.
 - 쓴다: 행추가·행삭제·행복사 버튼을 그리드 머리에 둘 때(상단 PageLayout 버튼이 아니다).
+- 컬럼 개인화가 켜진 그리드를 안에 두면 「컬럼 설정」 버튼이 자동으로 붙는다(§컬럼 설정 버튼).
 - 쓰지 않는다: 그리드 없는 일반 카드 제목. 목록 자체는 [AgDataGrid](ag-data-grid.md), 행 상태 관리는 [useGridDataManager](use-grid-data-manager.md).
 
 ## 표준 사용
@@ -51,6 +52,16 @@ const confirmDeleteRow = () =>
 ```
 
  행 상태는 `useGridDataManager` 가 받으므로 `onDataChange` 는 훅의 `handleGridDataChange` 로 잇는다. 전체 연결 예제는 [use-grid-data-manager](use-grid-data-manager.md) 를 본다.
+
+### 컬럼 설정 버튼
+
+안쪽 `AgDataGrid` 의 컬럼 개인화가 켜져 있으면(기본 켬) 버튼 묶음 맨 끝(`buttons` 뒤, `headerExtra` 앞)에 「컬럼 설정」 버튼(`id: "btn_grid_columns"`)이 저절로 붙는다. 누르면 그 그리드의 [컬럼 설정 창](column-settings-modal.md)이 열려 컬럼 표시 여부·순서를 바꾸고 기본값으로 되돌릴 수 있다. 화면이 따로 줄 prop 은 없다.
+
+- 보이는 때: 개인화가 동작 중인 안쪽 `AgDataGrid` 가 있을 때만. `personalize={false}` 인 그리드, 포털 밖이나 사용자 확인 전처럼 개인화가 아직 동작하지 않는 그리드, 개인화를 끄는 숨은 탭 패널의 그리드만 있으면 버튼이 없다. 그리드가 개인화를 켜고 끌 때 따라서 나타나고 사라진다.
+- 권한 검사를 거치지 않는다: `usePermission`·`fetchPermissions` 가 허용 id 목록에 `btn_grid_columns` 를 넣지 않아도 보인다. 그리드 모양만 바꾸고 데이터를 건드리지 않기 때문이다.
+- `loading` 이어도 활성이다: 다른 내장 버튼과 달리 `loading` 이 참이어도 비활성이 되지 않는다.
+- 한 GridPanel 안에 개인화가 켜진 그리드가 여럿이면 먼저 등록된 그리드가 대상이다(버튼은 하나뿐이다). 그리드마다 따로 쓰게 하려면 그리드마다 GridPanel 을 둔다.
+- GridPanel 없이 쓰는 그리드는 버튼이 없어도 머리글 우클릭 메뉴로 같은 창을 열 수 있다.
 
 ### 추가 버튼·도움말·머리 노드
 
@@ -94,13 +105,13 @@ const confirmDeleteRow = () =>
 | titleExtra | `ReactNode` | - | 제목·건수 오른쪽 노드 |
 | headerExtra | `ReactNode` | - | 버튼 묶음 오른쪽 끝 노드 |
 | help | `GridHelpConfig` | - | `{ title?, summary?, columns: { header, description, values?, note? }[] }`. `title` 기본값은 "그리드 도움말" |
-| loading | `boolean` | `false` | 참이면 모든 버튼을 비활성화한다 |
-| usePermission | `boolean` | `false` | 참이면 `fetchPermissions` 가 돌려준 버튼 id 만 보인다 |
+| loading | `boolean` | `false` | 참이면 행추가·행삭제·행복사·`buttons` 를 비활성화한다(「컬럼 설정」 버튼은 제외) |
+| usePermission | `boolean` | `false` | 참이면 `fetchPermissions` 가 돌려준 버튼 id 만 보인다(「컬럼 설정」 버튼은 제외) |
 | fetchPermissions | `() => Promise<string[]>` | - | 허용 버튼 id 목록 조회 |
 | className | `string` | `""` | 루트 클래스 |
 | style | `CSSProperties` | - | 루트 스타일 |
 
-내장 버튼의 id 는 `btn_grid_add`·`btn_grid_delete`·`btn_grid_copy` 다. 같은 모듈에서 `getRowIdentifier(row, rowKey)`·`isTempRow`·`GRID_TEMP_ID_FIELD` 도 export 한다.
+내장 버튼의 id 는 `btn_grid_add`·`btn_grid_delete`·`btn_grid_copy` 다. 개인화가 켜진 그리드가 있으면 자동으로 붙는 「컬럼 설정」 버튼(`btn_grid_columns`)은 권한·`loading` 과 무관하다(§컬럼 설정 버튼). 같은 모듈에서 `getRowIdentifier(row, rowKey)`·`isTempRow`·`GRID_TEMP_ID_FIELD` 도 export 한다.
 
 ## 표준값: 모든 화면 동일
 
