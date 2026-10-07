@@ -8,13 +8,13 @@
 - 재개(조정자 지시). Oracle 컨테이너는 17:24 재생성(TZ Asia/Seoul).
 - m1 Oracle 기준선 V1: 완료. opus/high 리뷰 지적(높음 1·중간 3·낮음 8) 중 형·생성기 지적을 고치고, 조정자 지시로 FK 자식 인덱스 28개를 더했다(3faff3bb6). 재생성된 컨테이너에서 verify 통과(heavy.sh 경유, 문장 137개, 표 39·컬럼 746·이름 214 일치, 모든 FK 에 자식 인덱스, `L_MDM_MDMAPUSER` 삭제 확인).
 - 남은 준비: 길이 검사 감사(ORA-12899 대상 칸)를 다시 맡긴다. 검색 워커 질의는 정지로 끊겼다. 대상은 `DECISIONS.md` 의 `TEXT | VARCHAR2(4000 BYTE)` 행 110개와 VARCHAR(n) 칸이다.
-- 머지②·③ 은 같은 창으로 합친다(조정자 통지, b0 에서 cactus-core 마스터 코드 엔티티가 mdm EMF 에 들어온다고 확인).
+- 머지②(mdm)와 ③(mcm 묶음)은 같은 창이 필수가 아니다. 준비된 쪽부터 따로 머지한다(조정자 2026-10-07: m2 에서 MasterCodeJpaAutoConfiguration 을 빼면 mdm 이 mcm-core 표에 기대지 않는다).
 
 ### ora-base b0 validate 결과 (정본: feat/ora-base 의 `docs/oracle-1007/spike.md`, 재개 때 반영)
 
 | # | 불일치 | 처리 방침(초안) |
 |---|---|---|
-| a | `TB_MDM_COLUMN.REQUIRED` V1 `NUMBER(1)` ↔ 엔티티 boolean. Hibernate OracleDialect 는 Oracle 23+ 에서 네이티브 `BOOLEAN` 을 기대한다 | **확정(조정자, 2026-10-07)**: V1 은 `NUMBER(1)` 유지(운영 Oracle 이 23 미만일 수 있다). 앱은 엔티티마다 매핑을 바꾸지 않고 Hibernate 설정 한 곳에서 Oracle boolean 을 NUMBER(1) 로 쓰게 한다(OracleDialect 의 legacy boolean 설정 등, 설치된 Hibernate 버전에서 실제 이름을 확인). m2 에서 적용하고, 다른 레인도 쓰도록 공통 설정으로 ora-base 에 알린다 |
+| a | `TB_MDM_COLUMN.REQUIRED` V1 `NUMBER(1)` ↔ 엔티티 boolean. Hibernate OracleDialect 는 Oracle 23+ 에서 네이티브 `BOOLEAN` 을 기대한다 | **확정(조정자, 2026-10-07)**: V1 은 `NUMBER(1)` 유지(운영 Oracle 이 23 미만일 수 있다). 앱은 엔티티마다 매핑을 바꾸지 않고 Hibernate 설정 한 곳에서 Oracle boolean 을 NUMBER(1) 로 쓰게 한다(OracleDialect 의 legacy boolean 설정 등, 설치된 Hibernate 버전에서 실제 이름을 확인). m2 에서 적용하고, 다른 레인도 쓰도록 공통 설정으로 ora-base 에 알린다. **설정 이름 확인(2026-10-07)**: Spring Boot 4.0.6 이 관리하는 Hibernate 는 7.2.12.Final 이고, 이 버전의 OracleDialect 에는 Oracle 전용 legacy boolean 설정이 없다(`DialectSpecificSettings` 의 oracle 키는 is_autonomous·use_binary_floats·extended_string_size·oson_format_disabled·application_continuity 뿐). 범용 `hibernate.type.preferred_boolean_jdbc_type=BIT` 를 쓴다. Hibernate 가 Oracle 23 미만에서 boolean 을 다루는 방식(BIT → `number(1,0)`)과 같아서 V1 `NUMBER(1)` 과 맞는다. m2 에서 validate 로 확인한다 |
 | b | CLOB 칸(b0 시점 14칸, 지금 21칸)인데 엔티티 String·`@Lob` 없음 | m2 사전 조사 7번: 엔티티 필드에 `@Lob` |
 | c | `TB_MDM_DATA_CATE`·`DATA_CATE_ITEM`·`DATA_ITEM`.VALID_FROM V1 TIMESTAMP ↔ 엔티티 String 으로 인식 | `MdmLocalDateTimeIdUserType` 이 문자 형으로 보고되는 탓으로 보인다. m2 사전 조사 4번(UserType 을 archive 로 옮기고 기본 LocalDateTime 매핑)으로 풀린다 |
 | d | CHG_SEQ V1 `NUMBER(10)` ↔ Long | b0 는 리뷰 전 V1 을 썼다. 23bb68a51 에서 `NUMBER(19)` 로 고쳤다. 재개 때 다시 확인 |
