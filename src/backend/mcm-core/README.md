@@ -65,6 +65,7 @@ Oracle 단일화(oracle-1007, 2026-10-07)부터 mcm 스키마의 정본은 `src/
 | --- | --- | --- |
 | `oracle/mcmapuser/` | MCMAPUSER | mcm 기본 영속성 단위의 MCMAPUSER·접두 없는 엔티티, `TB_MCM_SEC_MENU_FLD`, 마스터코드 조회 사본 3표, `VI_MCM_CODE_ACCESS` |
 | `oracle/mcm_source/` | MCM_SOURCE | 마스터코드 원장 3표(`MasterCode*` 엔티티) + mcm 앱 사용자 권한 |
+| `oracle/mcm_backup/` | MCM_BACKUP | 마스터코드 백업 2표(동기화 화면이 원장에서 `SELECT *` 로 복사 — 열 순서가 원장과 같아야 한다) + 권한 |
 | `oracle/mcaapuser/` | MCAAPUSER | 업무기준 2표(`RuleMaster`·`MasterRuleColList`) + mcm 앱 사용자 권한 |
 
 - DDL 은 스키마 접두 없이 쓴다. 런타임 SQL 의 접두(`MCMAPUSER.` 등)는 그대로 둔다.

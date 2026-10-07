@@ -26,7 +26,7 @@
 | 날짜 | 결정 | 근거 |
 |---|---|---|
 | 10-07 | V1 DDL 은 스키마 접두 없이 쓰고, 스키마 폴더마다 Flyway 하나(defaultSchema=그 스키마). 런타임 SQL 접두는 유지 | 조정 승인 |
-| 10-07 | mcm-core 가 주인인 스키마: MCMAPUSER·MCM_SOURCE·MCAAPUSER(+MCM_BACKUP, 조정 확인 대기). CARAVANUSER·EAIUSER·IFUSER 는 ora-platform(caravan-hub) | 조정 답1 |
+| 10-07 | mcm-core 가 주인인 스키마: MCMAPUSER·MCM_SOURCE·MCAAPUSER·MCM_BACKUP(MCM_BACKUP 은 조정 승인 — 적재기는 비워 둔다). CARAVANUSER·EAIUSER·IFUSER 는 ora-platform(caravan-hub) | 조정 답1 |
 | 10-07 | MCM_SOURCE 는 별도 사용자. MCMAPUSER 에 사본 3표 + `VI_MCM_CODE_ACCESS`(사본 조인) | 조정 답2 |
 | 10-07 | 모든 일시 칸 `timestamp(6)`, 앱 설정 `hibernate.type.preferred_instant_jdbc_type=TIMESTAMP`·`hibernate.jdbc.time_zone=UTC` | 조정 레인 공통 결정 |
 | 10-07 | 다른 스키마 표의 권한 대상은 Flyway 자리표시자 `${app_user}`(로컬·운영 = MCMAPUSER) — ora-mcm-app 이 Flyway 설정에 넣어야 한다 | 레인 판단 |
