@@ -42,9 +42,20 @@ subprojects {
         // 캐시 상한 4·Hikari 풀 2·공유 테스트 DB(AbstractMdmSharedDbTest) 뒤 api 힙 사용 최대 약 0.64GB(1536m 때 1.29GB),
         // 768m 에서도 865건 통과(2026-09-26 perf-audit P10). 테스트가 늘 여유를 두고 1g 로 낮춘다.
         maxHeapSize = '1g'
-        // 테스트 컨텍스트마다 Hikari 풀(기본 10연결)을 쥔다. SQLite 는 쓰기가 직렬이라 2개면 충분하다(perf-audit P2).
-        // 시스템 속성이라 application*.yml 보다 우선한다. DataSegmentLockSqliteTest 의 두 스레드 동시 수정도 2개로 돈다.
+        // 테스트 컨텍스트마다 Hikari 풀을 쥔다. 시험 DB 는 Oracle 시험 PDB 이고 인스턴스를 모든 레인이 나눠 쓰므로(oracle-1007 m3)
+        // 상한 2·쉬는 연결 0·10초(Hikari 하한) 뒤 닫기로 둔다. 상한 2 는 DataSegmentLockSqliteTest 의 두 연결 동시 수정 때문이다.
+        // 시스템 속성이라 application-local.yml(상한 3)과 하니스 env SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE(3)보다 우선한다.
+        // AbstractMdmSharedDbTest 를 상속하는 시험은 같은 값을 @DynamicPropertySource 로도 넣는다(IDE 실행 대비).
         systemProperty 'spring.datasource.hikari.maximum-pool-size', '2'
+        systemProperty 'spring.datasource.hikari.minimum-idle', '0'
+        systemProperty 'spring.datasource.hikari.idle-timeout', '10000'
+        // MdmSharedTestDb 안전장치 — T_ 로 시작하지 않는 PDB(-Pdmes.ora.pdb=<PDB>)를 시험이 지워도 된다는 레인의 명시.
+        // Gradle 의 -D 는 시험 JVM 에 넘어가지 않으므로 -Pdmes.ora.allowReset=true(또는 -Ddmes.ora.allowReset=true)를 여기서 넘긴다.
+        // L_ORA_MDM·FREEPDB1 은 이 값과 상관없이 늘 거부한다.
+        def oraAllowReset = providers.gradleProperty('dmes.ora.allowReset').getOrElse(System.getProperty('dmes.ora.allowReset', ''))
+        if (oraAllowReset) {
+            systemProperty 'dmes.ora.allowReset', oraAllowReset
+        }
     }
 }
 
