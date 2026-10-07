@@ -13,12 +13,13 @@ public class DataProcessor {
         this.basicRepository = basicRepository;
     }
 
-    public void updateFirstName(int userId, String firstName) {
-        basicRepository.changeFirstName(userId, firstName);
+    // Oracle 은 정수 열을 BigDecimal 로 돌려주므로 Number 로 받는다.
+    public void updateFirstName(Number userId, String firstName) {
+        basicRepository.changeFirstName(userId.intValue(), firstName);
     }
 
-    public void updateFirstNameWithException(int userId, String firstName) {
-        basicRepository.changeFirstName(userId, firstName);
+    public void updateFirstNameWithException(Number userId, String firstName) {
+        basicRepository.changeFirstName(userId.intValue(), firstName);
         throw new RuntimeException("error");
     }
 
