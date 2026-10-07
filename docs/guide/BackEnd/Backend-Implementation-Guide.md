@@ -424,7 +424,7 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
   - 글자 칸: `description`(피드, columnMng 목록·중복 행, 룰 변수 설명)과 `usageNote`(columnMng 중복 행·상세, 목록에는 싣지 않는다)는 늘 글자로 그리고 형식 판별에 넣지 않는다. 글자만 뽑은 결과가 HTML 꼴일 수 있기 때문이다(예: 설명 `<p>&lt;img src=x onerror=…&gt;</p>` 의 글자는 `<img src=x onerror=…>`). 카드는 `descriptionHtml ?? description` 에 판별을 걸지 말고, `descriptionHtml` 이 있을 때만 HTML 로 그린다.
   - 담당: 위는 MDM 피드(`metaFeed/view`) 계약이다. cactus 전달(`MdmColumnMeta`·`MdmScreenColumn`·`mdmMeta/columns`)과 화면 카드는 메타 캐시 세션 담당이다. cactus 가 칸을 더하기 전까지 업무 모듈은 모르는 칸을 무시하고 글자만 설명을 받는다.
   - 판별: 알려진 태그(`p div br span b strong i em u s ul ol li a table thead tbody tr th td h1~h6 code pre blockquote img hr`)가 `</?태그` 꼴(대소문자 무시, ASCII 만 접는다)로 글 어디에든 있고, 이름 바로 뒤 글자가 `A-Za-z0-9_` 가 아니며(글 끝이어도 된다) 그 뒤 어딘가에 `>` 가 있으면 HTML 이다. MDM `ColumnDescriptionFormat` 과 m-mdm `descriptionFormat` 이 같은 꼴(`(?![A-Za-z0-9_])` lookahead + 첫 일치 뒤 `>` 확인)을 쓰고, 아래 사례 표를 양쪽 시험이 함께 쓴다. 정규식 `\b` 는 쓰지 않는다: 자바 `\b` 는 단어 글자 뒤의 결합 문자(U+0307 등)를 단어의 일부로 봐 JS 와 판별이 어긋난다. `[^>]*>` 도 쓰지 않는다: 닫는 `>` 가 없는 긴 입력에서 되추적이 O(n²)다.
-  - 소독(컬럼 저장 때, 컬럼 상세(columnMng `view`)·피드 만들 때 한 번 더 — 옛 데이터 방어): jsoup `Safelist.relaxed()` + `hr s del ins mark`. 링크·이미지 주소는 http·https 만 남긴다(mls 공지와 달리 mailto 도 뺀다). `on*`·`style` 속성과 `script`·`iframe`·`svg` 같은 허용 목록 밖 태그는 빠진다. 소독은 결과가 바뀌지 않을 때까지(최대 3회) 돌려 멱등이다. jsoup 은 `<pre>` 바로 뒤 줄바꿈을 직렬화할 때 되살리지 않아 소독마다 줄바꿈이 줄므로, 첫 글이 줄바꿈으로 시작하는 `pre` 에 하나를 앞에 붙여 낸다. 소독 뒤 알려진 태그가 남지 않으면(표 밖의 `<td>` 처럼 파서가 버린 경우) 소독본을 `<p>` 로 감싸 HTML 로 저장한다. 엔티티는 풀지 않으므로 화면에는 글자로 보이고, 글자가 없으면 null 이다(엔티티를 풀면 `<td>&lt;img …&gt;</td>` 가 소독되지 않은 `<img …>` 가 된다). 그래서 저장값이 HTML 이면 늘 소독본이다. 일반 글은 소독하지 않는다(`<`·`&` 가 바뀌지 않게).
+  - 소독(컬럼 저장 때, 컬럼 상세(columnMng `view`)·피드 만들 때 한 번 더 — 옛 데이터 방어): jsoup `Safelist.relaxed()` + `hr s del ins mark`. 링크·이미지 주소는 http·https 만 남긴다(공지 `noticeMgmt` 와 달리 mailto 도 뺀다). `on*`·`style` 속성과 `script`·`iframe`·`svg` 같은 허용 목록 밖 태그는 빠진다. 소독은 결과가 바뀌지 않을 때까지(최대 3회) 돌려 멱등이다. jsoup 은 `<pre>` 바로 뒤 줄바꿈을 직렬화할 때 되살리지 않아 소독마다 줄바꿈이 줄므로, 첫 글이 줄바꿈으로 시작하는 `pre` 에 하나를 앞에 붙여 낸다. 소독 뒤 알려진 태그가 남지 않으면(표 밖의 `<td>` 처럼 파서가 버린 경우) 소독본을 `<p>` 로 감싸 HTML 로 저장한다. 엔티티는 풀지 않으므로 화면에는 글자로 보이고, 글자가 없으면 null 이다(엔티티를 풀면 `<td>&lt;img …&gt;</td>` 가 소독되지 않은 `<img …>` 가 된다). 그래서 저장값이 HTML 이면 늘 소독본이다. 일반 글은 소독하지 않는다(`<`·`&` 가 바뀌지 않게).
   - 상한: 설명·활용처 메모 각 20,000자(소독 전 원문, 코드 포인트). 넘으면 `MDM021` "설명은(는) 20000자 이하여야 합니다" 꼴이다.
 
   | 일반 글(TEXT)로 보는 입력 | HTML 로 보는 입력 |
@@ -515,7 +515,7 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
 ### 11.2 저장 검증(MdmValidator)
 
 업무 서비스 `save()` 가 MDM 컬럼 사전·룰 세트로 입력값을 한 번 더 검사한다(화면 즉시 검증과 같은 정의, 서버가 기준). 설계는
-[spec](../../superpowers/specs/2026-10-03-mdm-screen-meta-validation-design.md) §6, 파일럿은 mls `noticeMgmt` 다. 끼어들기(AOP)는 없다 —
+[spec](../../superpowers/specs/2026-10-03-mdm-screen-meta-validation-design.md) §6, 파일럿은 `noticeMgmt` 다(2026-10-07 mls 에서 mcm 으로 이전). 끼어들기(AOP)는 없다 —
 **서비스가 명시적으로 부르고, 검사할 컬럼·룰 세트를 요청에 적는다.**
 
 - 받기: `MdmValidator` 를 `ObjectProvider<MdmValidator>` 로 주입한다. `cactus.mdm.enabled=false`(MDM 캐시를 끈 모듈·시험)면 빈이 없으므로
@@ -551,13 +551,13 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
   `MDM_UNAVAILABLE`. 서비스가 가진 기존 `ErrorDetail` 의 `rowKey`(예: 공지번호)와 다를 수 있다 — MDM 쪽 `rowKey` 는 행의 `rowKey` 키 값이다.
 - MDM 장애(캐시에 정의가 없고 MDM 도 받을 수 없음): 기본은 저장 거부(`cactus.mdm.validation.on-unavailable: REJECT`), `PASS` 면 WARN 만 남기고 통과.
   받아 둔 정의는 캐시(유휴 60분·최대 24시간)가 지키므로 영향은 오래 안 쓴 정의뿐이다. 마루 데이터 대상 `MASTER` 는 지원하지 않는다(그 컬럼은 검증 불가).
-- 시험: 서비스 시험 기반 클래스(mls `MlsTestDb`)에서 `cactus.mdm.enabled=false` 로 MDM 캐시를 끈다 — 켜 두면 로컬 MDM(8096)의 가동 여부에 따라 저장
+- 시험: 서비스 시험 기반 클래스에서 MDM 캐시를 끈다(공지는 mcm `McmNoticeTestDb` 가 `MdmValidator` 빈을 컨텍스트에 두지 않아 `cactus.mdm.enabled=false` 와 같다) — 켜 두면 로컬 MDM(8096)의 가동 여부에 따라 저장
   결과가 달라진다. 검증기를 끼우는 시험은 `@MockitoBean MdmValidator`(요청 모양·오류 합치기)와, 가짜 `MdmMetaFeed` 위에 진짜 `MdmValidator` 를 만들어
-  `StaticListableBeanFactory` 로 서비스에 넣는 방식(오류 위치·문구, 장애 정책)을 쓴다. 예: mls `NoticeMgmtMdmSaveTest`·`NoticeMgmtMdmRealValidatorTest`.
+  `StaticListableBeanFactory` 로 서비스에 넣는 방식(오류 위치·문구, 장애 정책)을 쓴다. 예: mcm `NoticeMgmtMdmSaveTest`·`NoticeMgmtMdmRealValidatorTest`.
 
-#### 파일럿 — mls noticeMgmt 칸 비교(2026-10-03, 로컬 `mdm.db`)
+#### 파일럿 — noticeMgmt 칸 비교(2026-10-03, 로컬 `mdm.db`, 당시 mls)
 
-| 서비스 키 | DB 칸 (`TB_MLS_NOTICE`) | MDM 정의 | MDM vs DB | 결과 |
+| 서비스 키 | DB 칸 (`TB_MCM_NOTICE`, 당시 `TB_MLS_NOTICE`) | MDM 정의 | MDM vs DB | 결과 |
 |---|---|---|---|---|
 | `TITLE` | VARCHAR(200) NOT NULL | `TITLE` STRING(1000), 선택, 도메인 `DESC`(183) | 길이 1000 ≥ 200, 필수 아님 — MDM 이 느슨 | `columns("TITLE")` 에 넣음 (200자·필수는 `validateRow` 가 계속 본다) |
 | `NOTICE_CATEGORY` | VARCHAR(10) NOT NULL | 같은 물리명 없음 (`CATEGORY` STRING(240) 은 다른 이름) | — | 뺌 (별칭 매칭은 후속, 코드 값은 `validateRow`) |
@@ -567,5 +567,5 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
 | `PIN_YN` | CHAR(1) NOT NULL | 같은 물리명 없음 (`USE_YN` STRING(1) 필수 는 다른 이름) | — | 뺌 |
 | `TARGET_SCOPE`·`NOTICE_ID`·`POST_START_DT`·`POST_END_DT` | VARCHAR(10)·VARCHAR(30)·DATE·DATE | 같은 물리명 없음 | — | 뺌 |
 
-spec §7 이 말한 `CATEGORY`·`USE_YN`·`SORT_SEQ` 는 `TB_MLS_NOTICE` 의 칸이 아니다(공지의 분류 칸은 `NOTICE_CATEGORY`). 그래서 화면 파일럿은 MDM 과 이름이
+spec §7 이 말한 `CATEGORY`·`USE_YN`·`SORT_SEQ` 는 공지 테이블의 칸이 아니다(공지의 분류 칸은 `NOTICE_CATEGORY`). 그래서 화면 파일럿은 MDM 과 이름이
 맞는 칸이 `TITLE` 하나뿐이다.

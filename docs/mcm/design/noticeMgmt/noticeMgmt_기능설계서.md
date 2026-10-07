@@ -1,21 +1,23 @@
 ---
 screenId: noticeMgmt
 asIsId: 해당 없음 (To-Be only 신규 화면)
-moduleId: mls
+moduleId: mcm
 moduleGroup: lsh
 작성일: 2026-09-03
 작성자: Agent
 ---
 
-# mls — 공지사항 관리 기능설계서
+# mcm — 공지사항 관리 기능설계서
+
+> **모듈 이전 (2026-10-07)**: 이 화면과 홈 공지 서비스 `noticeBoard` 는 mls 에서 mcm 으로 옮겼다. 화면 ID·moduleGroup `lsh` 는 그대로이고 모듈·패키지·API 경로·테이블명이 바뀌었다. 근거는 [DEC-001 「재검토 → 이전」](../../../ai-build-log/DEC-001_noticeMgmt-on-mls.md), 설계는 [notice-to-mcm 설계](../../../superpowers/specs/2026-10-07-notice-to-mcm-design.md), 테이블은 [notice-tables.md](../../erd/notice-tables.md) 이다. §11 의 mls 관련 서술은 2026-09-03 결정 당시 기록이라 그대로 두었다.
 
 > **인용 정본 예외 (사용자 결정 2026-09-03)**: 본 화면은 **As-Is 레거시가 없는 To-Be only 신규 화면**이다.
 > 따라서 `분석리포트`(§1~§17)가 존재하지 않으며, 통상의 "모든 표는 분석리포트 인용, 자체 추가 ✗"
 > (`templates/기능설계서.template.md:14`) 제약을 충족할 수 없다. 사용자가 **설계 산출물을 기능설계서 1종으로
 > 축소**하도록 결정하여 본 문서 1개만 작성한다. 근거와 한계는 §11.1 에 GAP 으로 등재한다.
 >
-> **Frontend 개발 연계 값** (§1.2 정본) — mesModule `m-mls` / moduleGroup `lsh` / pageName `noticeMgmt` /
-> pageId `noticeMgmt` / 페이지 유형 `B` / tsup entry key `pages/lsh/noticeMgmt/page`
+> **Frontend 개발 연계 값** (§1.2 정본) — mesModule `m-mcm` / moduleGroup `lsh` / pageName `noticeMgmt` /
+> pageId `noticeMgmt` / 페이지 유형 `B` / 페이지 파일 `page-components/lsh/noticeMgmt/page.tsx`(page-registry 키 `lsh/noticeMgmt`)
 
 ## 1. 화면 개요
 
@@ -25,7 +27,7 @@ moduleGroup: lsh
 |---|---|
 | 화면명 | 공지사항 관리 |
 | 화면 식별자 | `noticeMgmt` |
-| 모듈 | `mls` (물류관리) / moduleGroup `lsh` (공지관리) |
+| 모듈 | `mcm` (공통관리) / moduleGroup `lsh` (공지관리). 2026-10-07 mls 에서 이전 |
 | 화면 목적 | 공지사항 관리는 전사 공지사항의 등록·수정·삭제·게시상태 변경을 수행한다. |
 | 주요 사용자 | 시스템 관리자 (SYSADMIN) |
 | 접근 경로 | 포털 → 공통관리 → 공지관리 → 공지사항 관리 |
@@ -34,26 +36,26 @@ moduleGroup: lsh
 
 | 항목 | 값 | 근거 / 룰 |
 |---|---|---|
-| moduleId | `mls` | 부속서 A.1.1 등재 |
-| moduleGroup | `lsh` | 부속서 A.2.3 등재 (2026-09-03 신설 — 공지관리) |
-| mesModule | `m-mls` | A.4.5 `m-{moduleId}` |
+| moduleId | `mcm` | 부속서 A.1.1 등재 (2026-10-07 mls 에서 이전) |
+| moduleGroup | `lsh` | 부속서 A.2.3 등재 (2026-09-03 mls 아래 신설한 공지관리 그룹이며 2026-10-07 mcm 아래로 이전하면서 `cm?` 접두 규칙 예외로 유지) |
+| mesModule | `m-mcm` | A.4.5 `m-{moduleId}` |
 | 적용 명명 룰 | MES 룰 (단일 토큰 camelCase) | A.3.1 |
 | 화면식별자 (screenId) | `noticeMgmt` | A.3.1 / A.3.2 등재 |
 | pageName | `noticeMgmt` | A.4.2 MES 룰 — screenId 동일값 |
 | pageId | `noticeMgmt` | A.4.3 MES 룰 — screenId 동일값 |
 | serviceId | `noticeMgmt` | A.4.4 — screenId == serviceId |
 | 페이지 유형 | `B` (조회 + 상세) | A-DETAIL 있음, D≥1, L=0, GE=0 |
-| 주요 API path (UI→BFF) | `POST /api/mls/oasis/noticeMgmt/{action}` | A.5-4-1 |
+| 주요 API path (UI→BFF) | `POST /api/mcm/oasis/noticeMgmt/{action}` | A.5-4-1 |
 | 주요 API path (BFF→BE) | `POST /oasis/noticeMgmt/{action}` | A.5-4-1 |
-| Frontend 파일명 | `m-mls/pages/lsh/noticeMgmt/page.tsx` | 호스트 codegen `MODULE_PAGE_PACKAGES` 규약 |
-| tsup entry key | `pages/lsh/noticeMgmt/page` | m-mls `tsup.config.ts` entry |
-| 메뉴 계층 | 공통관리(`mcm`) > 공지관리(`lsh`) > 공지사항 관리(`noticeMgmt`) | mcm `DataInitializer.seedMlsMenus()` 시드 (2026-10-02). **메뉴는 공통관리 아래, 코드는 mls** (OBJECT `SYSTEM_CODE=mls`, componentPath `lsh/noticeMgmt`) |
+| Frontend 파일명 | `m-mcm/page-components/lsh/noticeMgmt/page.tsx` | m-mcm 페이지 규약 (page-registry `lsh/noticeMgmt`) |
+| tsup entry key | 해당 없음 | m-mcm 은 tsup 패키지가 아니라 `page-components/` 파일을 직접 쓴다 (이전 전 m-mls 의 entry 는 `pages/lsh/noticeMgmt/page`) |
+| 메뉴 계층 | 공통관리(`mcm`) > 공지관리(`lsh`) > 공지사항 관리(`noticeMgmt`) | mcm `ModuleMenuSeeder` 시드 (2026-10-02 시드, 2026-10-07 코드도 mcm 으로 이전). OBJECT `SYSTEM_CODE=mcm`, componentPath `lsh/noticeMgmt`, 포털 pageId `mcm:lsh/noticeMgmt` (이전 전 `mls:lsh/noticeMgmt`) |
 
 ### 1.3 기본값 채택 항목 (B.0-4)
 
 | 항목 | 채택값 | 가이드 근거 | 변경 사유 |
 |---|---|---|---|
-| 화면 식별자 명명 | `noticeMgmt` (단일 토큰 camelCase) | A.3.1 + mls 관행 `*Mgmt` | - |
+| 화면 식별자 명명 | `noticeMgmt` (단일 토큰 camelCase) | A.3.1 + mcm·mls 관행 `*Mgmt` | - |
 | As-Is 조회조건/그리드/버튼 전수 반영 | **해당 없음 — To-Be only 화면 (As-Is 없음)** | §A.1-3 Phase 0 | As-Is 부재. §11.1 GAP-001 |
 | As-Is ↔ To-Be 매핑 문서 분리 | **해당 없음 — To-Be only 화면 (As-Is 없음)** | §A.2-4 SHOULD | 매핑 대상 없음 |
 | body 최상위 키 | `master` 단일 | §A.5-4-3 | - |
@@ -61,7 +63,7 @@ moduleGroup: lsh
 | 에러 응답 shape | Level A `meta` + Level B `errors` | §A.5-4-4 | - |
 | 권한 표 축 | 행=기능 / 열=역할 (권한 큰 순) | §A.8-8 | - |
 | API URL 형식 | `POST /api/{moduleId}/oasis/{serviceId}/{action}` | §A.5-4-1 | - |
-| 테이블 명명 | `TB_MLS_NOTICE` (**대문자**) | A.12 `TB_{모듈}_{역할}` 구조 + mls 실자산 관행 | A.12.6 정규식은 lowercase 강제이나 `TB_MLS_SL_LOC` 등 mls 기 등재 자산이 전부 대문자. §11.1 GAP-002 |
+| 테이블 명명 | `TB_MCM_NOTICE` (**대문자**, 이전 전 `TB_MLS_NOTICE`) | A.12 `TB_{모듈}_{역할}` 구조 + mcm 실자산 관행 | A.12.6 정규식은 lowercase 강제이나 `TB_MCM_SEC_*` 등 mcm 기 등재 자산이 전부 대문자. §11.1 GAP-002 |
 | audit 컬럼 | cactus-core `CactusAuditEntity` 9 컬럼 자동 적용 | 02 §A.5-3-1 MUST | 컬럼 표 재기재 ✗ |
 
 ## 2. 화면 영역 정의
@@ -130,7 +132,7 @@ moduleGroup: lsh
 | D-009 | `PIN_YN` | 상단 고정 | CheckBox | N | `N` | `Y` / `N`. 홈 목록 맨 위 고정 (§12) |
 
 | D-010 | `TARGET_SCOPE` | 게시 대상 | Radio | N | `ALL` | LV-004. `ROLE` 이면 D-011 이 하나 이상 있어야 한다 (V-010) |
-| D-011 | `TARGET_ROLES` | 대상 역할 | MultiSelect | 조건부 | (빈 배열) | 역할 ID 목록. 자식 테이블 `TB_MLS_NOTICE_TARGET`(NOTICE_ID, ROLE_ID) 에 저장. 선택 목록은 §12.5 |
+| D-011 | `TARGET_ROLES` | 대상 역할 | MultiSelect | 조건부 | (빈 배열) | 역할 ID 목록. 자식 테이블 `TB_MCM_NOTICE_TARGET`(NOTICE_ID, ROLE_ID) 에 저장. 선택 목록은 §12.5 |
 
 > D-007~D-009 저장 규칙 (서버): 행에 **키가 없으면 저장된 값을 유지**하고, 키가 있는데 값이 비어 있으면 기본값으로 둔다.
 > 세 컬럼을 모르는 이전 화면이 수정 행을 보내도 서식·고정이 풀리지 않게 하려는 것이다. 코드값은 앞뒤 공백을 걷고 대문자로
@@ -221,7 +223,7 @@ moduleGroup: lsh
 ### 6.4 HTML 본문 소독 (서버, 2026-10-02)
 
 `CONTENT_FORMAT='HTML'` 인 행을 저장하면 서버가 본문을 소독한 뒤 저장한다(형식 키 없이 수정해도 저장된 형식이 HTML 이면
-소독한다). 구현은 `mls/lib` 의 `NoticeHtmlSanitizer`(jsoup `Safelist.relaxed()` + `hr`·`s`·`del`·`ins`·`mark`)다.
+소독한다). 구현은 `mcm/lib` 의 `com.dongkuk.dmes.mcm.notice.common.NoticeHtmlSanitizer`(jsoup `Safelist.relaxed()` + `hr`·`s`·`del`·`ins`·`mark`)다.
 허용 목록 방식이라 목록 밖의 것은 모두 빠진다.
 
 | 제거 대상 | 예 |
@@ -290,8 +292,8 @@ STOPPED → (삭제)    rowStatus=D 저장
 
 > RBAC 는 `TB_MCM_SEC_OBJ` / `TB_MCM_SEC_ROLE_MAPPING` 의 `OBJECT_ID='noticeMgmt'` 로 외부 위임한다
 > (mcm-reference "권한 / 접근 제어 (RBAC 외부 위임)"). 본 화면 자체 권한 분기 없음.
-> 시드(2026-10-02, mcm `DataInitializer.seedMlsMenus()`)는 `SYSADMIN × noticeMgmt × PERM_ALL` 한 행이다.
-> 메뉴 위치: **메뉴는 공통관리(`mcm`) 아래 공지관리(`lsh`, MENU_SEQ 600 — cma·csa·cme·cmb·cmz 뒤), 코드는 mls** 다(사용자 요청 2026-10-02).
+> 시드(2026-10-02, mcm `ModuleMenuSeeder`)는 `SYSADMIN × noticeMgmt × PERM_ALL` 한 행이다.
+> 메뉴 위치: **메뉴는 공통관리(`mcm`) 아래 공지관리(`lsh`, MENU_SEQ 600 — cma·csa·cme·cmb·cmz 뒤)** 다(사용자 요청 2026-10-02). 2026-10-07 에 코드도 mcm 으로 옮겨 OBJECT `SYSTEM_CODE` 가 `mcm` 이다(시드와 기존 DB 멱등 보정 `moveNoticeObjectsToMcm()`. 권한키 모듈이 `SYSTEM_CODE` 라 보정이 없으면 `/api/mcm/oasis/noticeMgmt/*` 가 403 이다).
 > 처음 시드한 물류관리(`mls`) 루트 아래 위치는 `relocateNoticeFolderToMcm()` 이 멱등 보정한다.
 > `changeStatus` 는 같은 날 `PERM_ALL` 의 action 목록에 추가했다(그전에는 SYSADMIN 도 게시중지가 403).
 > 위 표의 MANAGER·USER 열은 설계 의도이며, 해당 역할 매핑은 아직 시드하지 않았다.
@@ -316,9 +318,9 @@ STOPPED → (삭제)    rowStatus=D 저장
 | LV-003 `NOTICE_CATEGORY` | `MAINT` | 점검 | 시스템 점검 안내 |
 | LV-003 `NOTICE_CATEGORY` | `URGENT` | 긴급 | 홈 목록에서 고정 다음으로 위에 온다 |
 | LV-004 `TARGET_SCOPE` | `ALL` | 전체 사용자 | 기본값 |
-| LV-004 `TARGET_SCOPE` | `ROLE` | 특정 역할 | `TB_MLS_NOTICE_TARGET` 의 역할을 가진 사용자에게만 홈에 보인다 |
+| LV-004 `TARGET_SCOPE` | `ROLE` | 특정 역할 | `TB_MCM_NOTICE_TARGET` 의 역할을 가진 사용자에게만 홈에 보인다 |
 
-> LV-001~LV-004 는 코드 마스터 테이블에 등재하지 않고 **화면 인라인 상수**로 둔다 (BE 정본: `mls/lib` `NoticeCodes`).
+> LV-001~LV-004 는 코드 마스터 테이블에 등재하지 않고 **화면 인라인 상수**로 둔다 (BE 정본: `mcm/lib` `com.dongkuk.dmes.mcm.notice.common.NoticeCodes`).
 > 근거는 mcm-reference `(cic)` 의 "부문구분 LoV 인라인 유지(마스터 등재 없음)" 선례다. 값이 3개로 고정이고,
 > 같이 쓰는 곳은 홈 공지 목록(noticeBoard, §12)뿐이다.
 
@@ -332,9 +334,9 @@ STOPPED → (삭제)    rowStatus=D 저장
 | ID | 항목 | 영향도 | 후속 조치 | 상태 |
 |---|---|---|---|---|
 | GAP-001 | **설계 가이드에 신규(To-Be only) 화면 규정이 없다.** `agent-directive/07-templates-writing-response.md:180` 은 "As-Is 자료 확인 없이 신규 기능을 창작하지 않는다", `08-prompt-operations-dispatch.md:27` 은 "신규 창작 금지" 를 MUST 로 두고, 분석리포트 §-1 SOP 30 Step / R14 Auto Manifest / §0.1~§0.5 / §4~§6 / 게이트 G1~G9 는 전부 As-Is 파일 grep 을 전제한다. To-Be only 규정은 §17 · §K.5 · analyze-service 면제 3곳뿐이다 | 높음 | 가이드에 "신규 화면 트랙" 절 신설 필요. 현재는 사용자 결정으로 기능설계서 1종만 작성 | open |
-| GAP-002 | **테이블 명명 규칙이 실자산과 충돌한다.** `identifier-dictionary/04-decision-table-dispatch.md:112` 의 검증 정규식이 lowercase 를 100% 강제하는데, 실제 mls 등재 자산은 `TB_MLS_SL_LOC` · `TB_MLS_MOVE_TYPE` 로 전부 대문자다 (A.3.2 비고). mcm 도 `TB_MCM_SEC_*` 대문자이며 `mcm-reference.md:33` 이 대문자 보존을 정본으로 못박는다 | 중간 | 본 화면은 실자산 관행(`TB_MLS_NOTICE`)을 따른다. A.12.6 정규식 개정 필요 | open |
+| GAP-002 | **테이블 명명 규칙이 실자산과 충돌한다.** `identifier-dictionary/04-decision-table-dispatch.md:112` 의 검증 정규식이 lowercase 를 100% 강제하는데, 실제 mls 등재 자산은 `TB_MLS_SL_LOC` · `TB_MLS_MOVE_TYPE` 로 전부 대문자다 (A.3.2 비고). mcm 도 `TB_MCM_SEC_*` 대문자이며 `mcm-reference.md:33` 이 대문자 보존을 정본으로 못박는다 | 중간 | 본 화면은 실자산 관행(작성 당시 `TB_MLS_NOTICE`, 2026-10-07 이전 뒤 `TB_MCM_NOTICE`)을 따른다. A.12.6 정규식 개정 필요 | open |
 | GAP-003 | **`docs/external/KsmErpK/` 가 이 저장소에 없다.** `design/README.md` §3 은 그 경로 확인을 설계 착수 게이트로 두는데 `docs/external/` 에는 `BP` · `SampleErp` 만 있다 | 중간 | 템플릿 저장소의 경로 placeholder 미치환으로 보인다. 실제 고객사 착수 시 치환 필요 | open |
-| GAP-004 | **`mls` 모듈에 OASIS 가 부팅된 적이 없다.** `mls/api/application.yml` 에 `cactus` 설정이 전무해 `CactusWebSecurityAutoConfiguration`(`@ConditionalOnProperty(cactus.jwt.secret)`) 과 `OasisAutoConfiguration` 이 모두 비활성이었다 | 높음 | 본 화면 구현과 함께 `cactus.jwt` / `cactus.security.client-key` / `cactus.oasis` 블록을 추가한다 (mcm · analog 선례) | resolved |
+| GAP-004 | **`mls` 모듈에 OASIS 가 부팅된 적이 없다.** `mls/api/application.yml` 에 `cactus` 설정이 전무해 `CactusWebSecurityAutoConfiguration`(`@ConditionalOnProperty(cactus.jwt.secret)`) 과 `OasisAutoConfiguration` 이 모두 비활성이었다 | 높음 | 본 화면 구현과 함께 `cactus.jwt` / `cactus.security.client-key` / `cactus.oasis` 블록을 추가한다 (mcm · analog 선례). 2026-10-07 이전으로 mls 는 이 화면을 더 이상 호스팅하지 않는다 | resolved |
 | GAP-005 | **`sample` 슬라이스 존치 여부.** `mls/lib` 의 `SampleInventoryItem*` 6종은 `@RestController` · Lombok 기반이라 OASIS 표준 위반이다 | 낮음 | 본 화면과 무관하게 존치. 정리는 별건 | open |
 
 ### 11.2 검토한 대안
@@ -343,7 +345,7 @@ STOPPED → (삭제)    rowStatus=D 저장
 |---|---|---|---|---|
 | `mcm` 모듈에 `cmn` 그룹 신설 | 배관 추가 없음 — 포털 · BFF · 권한 · 시드가 모두 mcm 소유 | 테스트 모듈을 별도로 두려는 사용자 의도와 어긋남 | X | 사용자가 "빈 모듈 mls 재활용" 선택 (2026-09-03) |
 | `mnt` 등 신규 백엔드 모듈 생성 | 완전 격리 | Gradle · 포트 · yml · db · .env · FE앱 · page-registry · 기동 스크립트 전부 신설. 권한 · 메뉴는 여전히 mcm 소유라 mcm 도 수정 필요 | X | 배관이 화면 작업보다 큼 |
-| **`mls` 빈 모듈 재활용** | 포트(8092) · SQLite db · `cactus-core`+`mcm-core` 의존 · FE앱 · `MLS_WAS_URL` BFF 라우팅이 이미 존재 | mls 는 Flyway enabled + `ddl-auto: none` 이라 DDL 을 직접 써야 함. OASIS 최초 부팅 필요(GAP-004) | O | 사용자 결정 2026-09-03 |
+| **`mls` 빈 모듈 재활용** | 포트(8092) · SQLite db · `cactus-core`+`mcm-core` 의존 · FE앱 · `MLS_WAS_URL` BFF 라우팅이 이미 존재 | mls 는 Flyway enabled + `ddl-auto: none` 이라 DDL 을 직접 써야 함. OASIS 최초 부팅 필요(GAP-004) | O | 사용자 결정 2026-09-03. **2026-10-07 mcm 으로 이전**(DEC-001 「재검토 → 이전」) |
 | 게시상태를 코드 마스터(`TB_MCM_CODE_*`)에 등재 | 타 화면 재사용 | 값 3개 고정 + 타 화면 공유 없음. mls → mcm 코드 마스터 교차 조회 배선 추가 필요 | X | §10 인라인 상수로 충분 |
 
 ## 12. 포털 홈 공지 목록 (noticeBoard, 2026-10-02)
@@ -355,10 +357,10 @@ STOPPED → (삭제)    rowStatus=D 저장
 
 | 항목 | 값 |
 |---|---|
-| serviceId / OBJECT_ID | `noticeBoard` (SYSTEM_CODE `mls`) |
-| BPMN | `mls/api/src/main/resources/services/lsh/noticeBoard.bpmn` — action `search` 하나 |
-| Java | `com.dongkuk.dmes.mls.lsh.noticeBoard.service.NoticeBoardService` (빈 `noticeBoardService`) |
-| API (UI→BFF) | `POST /api/mls/oasis/noticeBoard/search` |
+| serviceId / OBJECT_ID | `noticeBoard` (SYSTEM_CODE `mcm`. 시드된 OBJECT 행이 있으면 2026-10-07 멱등 보정으로 `mls` → `mcm`) |
+| BPMN | `mcm/api/src/main/resources/services/lsh/noticeBoard.bpmn` — action `search` 하나 |
+| Java | `com.dongkuk.dmes.mcm.notice.noticeBoard.service.NoticeBoardService` (`mcm/lib`, 빈 `noticeBoardService`) |
+| API (UI→BFF) | `POST /api/mcm/oasis/noticeBoard/search` |
 | API (BFF→BE) | `POST /oasis/noticeBoard/search` |
 | 요청 `params` | 비워도 된다(`{}`). 선택 키 `limit`(1~50, 없거나 범위 밖이면 50), `includeContent`(false 면 목록에 본문 `CONTENT` 키를 싣지 않는다, 기본 true), `noticeId`(값이 있으면 그 공지 1건의 상세만 본문 포함으로 돌려준다. 아래 조회 규칙과 같은 조건이 걸려 보이지 않는 공지는 빈 목록이다) |
 | 권한 | **AUTH_ONLY** — 로그인만 되면 누구나(§12.4). 무엇을 보여 줄지는 서비스가 현재 사용자 역할로 정한다 |
@@ -367,7 +369,7 @@ STOPPED → (삭제)    rowStatus=D 저장
 ### 12.2 조회 규칙
 
 - `NOTICE_STATUS='POSTED'` 이고 오늘이 게시기간 안인 공지. 시작·종료가 비어 있으면 그쪽은 열린 구간으로 본다(경계일 포함).
-- 게시 대상: `TARGET_SCOPE='ALL'` 이거나, `'ROLE'` 이고 현재 사용자의 역할 중 하나가 `TB_MLS_NOTICE_TARGET` 에 있는 공지.
+- 게시 대상: `TARGET_SCOPE='ALL'` 이거나, `'ROLE'` 이고 현재 사용자의 역할 중 하나가 `TB_MCM_NOTICE_TARGET` 에 있는 공지.
   역할이 없거나 사용자 문맥이 없으면 전체 대상 공지만 보인다. `ROLE` 인데 대상 행이 없으면 아무에게도 보이지 않는다.
   SYSADMIN 도 예외 없이 같은 규칙이다(관리 화면 noticeMgmt 에서는 모든 공지를 본다).
 - 상태값·기준일(서버 오늘)·사용자 역할은 서버가 정한다. 요청으로 조회 범위를 넓힐 수 없다.
@@ -381,15 +383,15 @@ STOPPED → (삭제)    rowStatus=D 저장
 `NOTICE_ID`, `TITLE`, `CONTENT`, `CONTENT_FORMAT`, `NOTICE_CATEGORY`, `PIN_YN`, `POST_START_DT`, `POST_END_DT`, `C_USR_ID`, `C_AT`
 — DB 컬럼명 SNAKE_CASE 그대로다(`includeContent:false` 목록에는 `CONTENT` 가 없다). 날짜는 `yyyy-MM-dd`, `C_AT` 는 ISO-8601 UTC 시각 문자열(Java `Instant.toString()`, 예 `2026-10-02T04:35:17.123Z`)이다.
 
-> 작성자 이름(`C_USR_NM`)은 넣지 않았다. 사용자 원장(`TB_MCM_SEC_USER`)은 mcm DB 에 있고 mls DB 와 파일이 달라 조인할 수
-> 없다. 필요하면 FE 가 사용자 ID 로 이름을 붙이거나, mls 에 이름 조회 경로를 따로 둔다.
+> 작성자 이름(`C_USR_NM`)은 넣지 않았다. 이전 전에는 사용자 원장(`TB_MCM_SEC_USER`)이 mcm DB 에 있고 공지는 mls DB 에 있어 파일이 달라 조인할 수
+> 없었다. 필요하면 FE 가 사용자 ID 로 이름을 붙인다.
 
 ### 12.4 권한 — 로그인한 모든 사용자 (AUTH_ONLY)
 
 | 위치 | 등록 값 |
 |---|---|
-| BFF `src/frontend/m-mcm/proxy.ts` `RBAC_POLICY.authOnlyPrefixes` | `/api/mls/oasis/noticeBoard/search` |
-| BE `mcm-core` `EndpointPermissionFilter.AUTH_ONLY_OBJ_ACTION_PREFIXES` | `noticeboard/search` (동기화용 — mls 에는 이 필터가 등록돼 있지 않아 실제 관문은 BFF) |
+| BFF `src/frontend/m-mcm/proxy.ts` `RBAC_POLICY.authOnlyPrefixes` | `/api/mcm/oasis/noticeBoard/search` |
+| BE `mcm-core` `EndpointPermissionFilter.AUTH_ONLY_OBJ_ACTION_PREFIXES` | `noticeboard/search` (BFF 와 동기화용. 이전 전 mls 에는 이 필터가 등록돼 있지 않아 실제 관문이 BFF 였다) |
 
 - secFavorite·secStartPgm 처럼 "본인 기준 데이터" 예외다. 홈 공지는 로그인한 모든 사용자 몫이고, 게시 대상은 서비스가
   `UserContextHolder` 의 역할로 거른다(§12.2·§12.5). 그래서 OBJECT·역할 매핑이 없고, 런타임에 만든 역할이나 역할이 없는
@@ -406,8 +408,8 @@ STOPPED → (삭제)    rowStatus=D 저장
 |---|---|
 | BFF → BE 헤더 | `X-Authenticated-Role` 에 JWT `roles` 클레임을 `ROLE_` 를 떼고 대문자로 바꿔 콤마로 싣는다 (shared `oasis-proxy`, m-mcm `be-proxy.ts`) |
 | JWT `roles` 의 내용 | mcm `McmAuthService.loadUserRoles` — 사용자 → 역할 그룹(`TB_MCM_SEC_USER_MAPPING`) → 역할(`TB_MCM_SEC_ROLEGROUP_MAPPING`)을 펼친 **역할 ID** 목록. 역할 그룹 ID 는 토큰에 없다 |
-| mls 에서 읽는 곳 | cactus `ClientKeyFilter` 가 헤더를 `ROLE_{역할}` 권한으로 사전 인증하고, `JwtAuthenticationFilter` 가 그것을 `UserContextHolder` 의 `UserInfo.roles()` 로 옮긴다 (mdm `CactusMdmCurrentUser` 와 같은 경로) |
-| 역할 그룹을 알려면 | mcm DB 의 `TB_MCM_SEC_USER_MAPPING` 을 읽어야 한다 — mls 는 다른 DB 라 피한다 |
+| 서비스가 읽는 곳 | cactus `ClientKeyFilter` 가 헤더를 `ROLE_{역할}` 권한으로 사전 인증하고, `JwtAuthenticationFilter` 가 그것을 `UserContextHolder` 의 `UserInfo.roles()` 로 옮긴다 (mdm `CactusMdmCurrentUser` 와 같은 경로) |
+| 역할 그룹을 알려면 | mcm DB 의 `TB_MCM_SEC_USER_MAPPING` 을 읽어야 한다. 이전 전 mls 는 다른 DB 라 피했고, 이전 뒤에도 역할 단위 설계를 그대로 유지한다 |
 
 따라서 대상은 **역할 ID** 로 지정한다. "역할 그룹에 게시" 는 그 그룹에 속한 역할들을 고르는 것으로 대신한다.
 역할이 바뀐 사용자는 다시 로그인해야(토큰 재발급) 홈 공지 대상 판정이 바뀐다.

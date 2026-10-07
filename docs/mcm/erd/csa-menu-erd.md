@@ -242,7 +242,7 @@ flowchart LR
 
 ## 6. 신규 화면 등록 시 건드리는 순서
 
-`noticeMgmt` 를 예로 든 등록 순서다. 앞 단계가 없으면 뒤 단계가 성립하지 않는다.
+`noticeMgmt` 를 예로 든 등록 순서다(공지는 2026-10-07 mls 에서 mcm 으로 옮겨 `SYSTEM_CODE` 가 `mcm` 이다). 앞 단계가 없으면 뒤 단계가 성립하지 않는다.
 
 1. **`commObjMng`** → `TB_MCM_SEC_OBJ` 에 화면 등록. `SYSTEM_CODE` 가 FE moduleId 가 되어 BFF 라우팅을 결정한다.
 2. **`commRoleMng`** → `TB_MCM_SEC_ROLE_MAPPING` 에 (역할 × OBJECT × 권한) 추가.
