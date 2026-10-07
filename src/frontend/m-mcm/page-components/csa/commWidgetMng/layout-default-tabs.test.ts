@@ -100,11 +100,11 @@ describe("layout-api — 기본 탭", () => {
 describe("layout-model — 기본 탭", () => {
   const S = (layoutKey: string, deptNm: string, count: number, tabCount?: number): LayoutSummary => ({ layoutKey, deptNm, count, ...(tabCount != null ? { tabCount } : {}) });
 
-  it("목록 이름에 기본 탭 수를 붙이고, 기본 탭만 있는 키는 홈을 코드 기본값·물려받음으로 보인다", () => {
+  it("목록 이름에 기본 탭 수를 붙이고, 기본 탭만 있는 키는 홈을 전사는 코드 기본값·부서는 대표 탭 없음으로 보인다", () => {
     const rows = buildLayoutList([S("*", "전사", 0, 2), S("D100", "생산팀", 0, 1), S("D200", "품질팀", 4)], []);
     expect(rows.map((r) => [r.label, r.saved, r.tabCount])).toEqual([
       ["전사(*) · 코드 기본값 사용 중 · 기본 탭 2개", true, 2],
-      ["생산팀(D100) · 홈 물려받음 · 기본 탭 1개", true, 1],
+      ["생산팀(D100) · 대표 탭 없음 · 기본 탭 1개", true, 1],
       ["품질팀(D200) · 4개", true, 0],
     ]);
   });
@@ -112,7 +112,7 @@ describe("layout-model — 기본 탭", () => {
   it("지우기 확인 문구는 기본 탭이 있을 때만 함께 지워진다고 덧붙인다", () => {
     const rows = buildLayoutList([S("*", "전사", 3, 2), S("D100", "생산팀", 4)], []);
     expect(deleteConfirmMessage("*", rows)).toBe("전사 기본 배치를 삭제하시겠습니까? 삭제하면 코드 기본값이 적용됩니다. 이 배치의 기본 탭 2개도 함께 지워집니다.");
-    expect(deleteConfirmMessage("D100", rows)).toBe("생산팀 기본 배치를 삭제하시겠습니까? 삭제하면 상위 부서 또는 전사 배치가 적용됩니다.");
+    expect(deleteConfirmMessage("D100", rows)).toBe("생산팀 기본 배치를 삭제하시겠습니까? 삭제하면 이 부서의 고정 탭이 사용자에게서 사라집니다.");
   });
 
   it("defaultTabsFromRows 는 배열이 아니거나 tabId 가 빈 줄을 건너뛴다", () => {
@@ -222,14 +222,11 @@ describe("createLayoutStore — 기본 탭", () => {
     expect(api.saveDefaultTab).toHaveBeenLastCalledWith("*", { tabId: "def-21", tabNm: "새 탭", tabSeq: 2 }, [ITEM]);
   });
 
-  it("onHomeSaved 는 「홈」 저장 때만 부른다(리뷰 4)", async () => {
-    const onHomeSaved = vi.fn();
+  it("기본 탭·「홈」 저장 모두 onSaved 를 부른다", async () => {
     const onSaved = vi.fn();
-    const store = createLayoutStore("*", null, { api: fakeApi(), onSaved, onHomeSaved });
+    const store = createLayoutStore("*", null, { api: fakeApi(), onSaved });
     await store.saveTab(tab("def-3", "생산", 1));
-    expect(onHomeSaved).not.toHaveBeenCalled();
     await store.saveTab(tab("home", "홈", 0));
-    expect(onHomeSaved).toHaveBeenCalledWith("*");
     expect(onSaved).toHaveBeenCalledTimes(2);
   });
 

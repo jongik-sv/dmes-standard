@@ -7,6 +7,8 @@
  *   그 밖의 탭(기본 탭, 키당 5개)은 saveDefaultTab·deleteDefaultTab·reorderDefaultTabs. [기본 배치 지우기] 는 deleteLayout(홈과 기본 탭 모두).
  * - 등록부는 코드 등록부 + 유형 등록부 + widgetDef/list 를 mergeWidgetRegistry 로 합친다. 정의 조회 전에는 보드를 마운트하지 않고(정의 위젯이 「없는 위젯」으로
  *   보이는 상태의 저장은 배치에서 지운다 — W-D19), 실패하면 코드 등록부로 마운트하되 registryStatus="error" 로 편집을 막는다.
+ * - 전사 배치(홈·탭)는 모든 사용자에게, 부서 배치는 그 부서와 하위 부서 사용자에게 고정 탭으로 보인다(위젯 고정 탭 2026-10-07).
+ *   부서 키는 위 부서·전사를 물려받지 않고 빈 배치에서 시작하며(loadLayout effective=N), 「홈」 탭 이름은 부서명(대표 탭)으로 보인다.
  * - 보드는 WidgetBoardModeContext("preview")로 감싼다 — 실제 칸을 그리므로 개인 메모 위젯이 관리자 본인 메모를 불러오거나 저장하지 않게 미리보기처럼
  *   다루게 한다(스펙 §17.5). 위젯 본체는 shared WidgetFrame 이 같은 React 트리에서 그리므로 맥락이 닿는다.
  * - 배치를 바꾸면 보드를 key 로 다시 마운트한다(편집 중이던 변경은 사라진다 — WidgetWorkspace 가 편집 상태를 밖으로 알리지 않는다).
@@ -23,6 +25,7 @@ import {
   mergeWidgetRegistry,
   toWidgetDefRow,
   type WidgetDefRow,
+  type WidgetItem,
   type WidgetRegistry,
 } from "@dk-oasis/shared/widget";
 
@@ -36,13 +39,13 @@ import { DeptPicker } from "./DeptPicker";
 import { deleteLayout, fetchWidgetDefRows, loadLayout, searchLayouts } from "./layout-api";
 import {
   COMPANY_LAYOUT_KEY,
-  MAX_DEFAULT_TABS,
   addPendingDept,
   boardTitle,
   buildLayoutList,
   buildTypeTitles,
   deleteConfirmMessage,
-  inheritNotice,
+  homeTabNameOf,
+  layoutHelpText,
   prunePending,
   type LayoutListRow,
   type LayoutSummary,
@@ -63,16 +66,8 @@ const HELP_STYLE = {
   lineHeight: 1.4,
 } as const;
 
-/** 상속 안내 띠 — 긴 문장이 줄바꿈되게 알약이 아닌 블록으로 그린다(색은 의미 토큰만). */
-const NOTICE_STYLE = {
-  padding: "var(--spacing-xs) var(--spacing-sm)",
-  borderRadius: "var(--radius-sm)",
-  background: "var(--color-primary-soft)",
-  color: "var(--color-primary)",
-  fontSize: "var(--font-size-sm)",
-  lineHeight: 1.4,
-  overflowWrap: "anywhere",
-} as const;
+/** 부서 키의 「홈」 시작 배치 — 위 부서·전사를 복사하지 않고 빈 배치로 시작한다(복사하면 전사 탭과 위젯이 겹쳐 보인다). 안정 참조. */
+const EMPTY_HOME_DEFAULT: readonly WidgetItem[] = [];
 
 /**
  * 보드가 편집 모드인가 — WidgetWorkspace 는 편집 상태를 밖으로 알리지 않으므로 편집 모드에만 있는 [취소] 버튼(data-action="cancel-edit")으로 본다.
@@ -104,17 +99,14 @@ interface LayoutBoardProps {
 }
 
 /**
- * 한 키의 보드. 「홈」 배치를 먼저 받아(상속이면 sourceKey 를 알아야 안내 띠를 보인다) store 의 첫 load 에 넘기고,
- * 기본 탭은 store 의 load 가 받는다. 키·재시도가 바뀌면 부모가 key 로 다시 마운트한다.
+ * 한 키의 보드. 「홈」 배치(그 키의 행만, effective=N)를 먼저 받아 store 의 첫 load 에 넘기고, 기본 탭은 store 의 load 가 받는다. 키·재시도가 바뀌면 부모가 key 로 다시 마운트한다.
  */
 function LayoutBoard({ layoutKey, rows, registry, registryStatus, onRetryRegistry, onSaved }: LayoutBoardProps) {
   const [state, setState] = useState<BoardState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
-  // 저장하면 이 키의 배치가 생긴다 — 상속 안내 띠를 거둔다.
-  const [saved, setSaved] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    loadLayout(layoutKey, "Y").then(
+    loadLayout(layoutKey, "N").then(
       (layout) => {
         if (!cancelled) setState({ status: "ready", layout });
       },
@@ -131,11 +123,7 @@ function LayoutBoard({ layoutKey, rows, registry, registryStatus, onRetryRegistr
   const store = useMemo(
     () =>
       state.status === "ready"
-        ? createLayoutStore(layoutKey, state.layout, {
-            onSaved,
-            // 상속 안내 띠는 「홈」을 저장했을 때만 거둔다(기본 탭 저장으로는 이 키의 홈 배치가 생기지 않는다).
-            onHomeSaved: () => setSaved(true),
-          })
+        ? createLayoutStore(layoutKey, state.layout, { onSaved })
         : null,
     [layoutKey, state, onSaved]
   );
@@ -158,22 +146,18 @@ function LayoutBoard({ layoutKey, rows, registry, registryStatus, onRetryRegistr
     );
   }
 
-  const notice = saved ? null : inheritNotice(layoutKey, state.layout.sourceKey, rows);
+  const isCompany = layoutKey === COMPANY_LAYOUT_KEY;
   return (
     <>
-      <p style={HELP_STYLE}>
-        「홈」은 사용자 홈 탭의 기본 배치입니다. (+) 로 더한 탭은 사용자에게 고정으로 보이는 기본 탭이며(최대 {MAX_DEFAULT_TABS}개) 다음 접속 때 생깁니다.
+      <p style={HELP_STYLE} data-testid="widget-layout-help">
+        {layoutHelpText()}
       </p>
-      {notice && (
-        <div style={NOTICE_STYLE} data-testid="widget-layout-inherit-notice">
-          {notice}
-        </div>
-      )}
       <WidgetBoardModeContext.Provider value="preview">
         <WidgetWorkspace
           mode="admin"
           registry={registry}
-          homeDefault={HOME_DEFAULT_LAYOUT}
+          homeDefault={isCompany ? HOME_DEFAULT_LAYOUT : EMPTY_HOME_DEFAULT}
+          homeTabName={homeTabNameOf(layoutKey, rows)}
           store={store}
           typeTitles={TYPE_TITLES}
           registryStatus={registryStatus}
