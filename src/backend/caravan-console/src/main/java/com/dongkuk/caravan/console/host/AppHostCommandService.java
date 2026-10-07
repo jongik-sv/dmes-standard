@@ -46,6 +46,11 @@ public class AppHostCommandService {
             }
             String appHostId = (String) change.get("appHostId");
             String worksCd = (String) change.get("worksCd");
+            if ("C".equals(rowStatus) || "U".equals(rowStatus)) {
+                // APP_HOST_NM·APP_HOST_URL 은 NOT NULL 이다. Oracle 은 빈 문자열을 NULL 로 저장하므로 DB 오류(ORA-01400) 대신 여기서 막는다.
+                requireText(change, "appHostNm");
+                requireText(change, "appHostUrl");
+            }
             switch (rowStatus) {
                 case "C" -> {
                     appHostJpaRepository.save(buildEntity(change));
@@ -71,6 +76,13 @@ public class AppHostCommandService {
             }
         }
         return cnt;
+    }
+
+    private static void requireText(Map<String, Object> change, String key) {
+        Object value = change.get(key);
+        if (!(value instanceof String text) || text.isBlank()) {
+            throw new IllegalArgumentException(key + " is required");
+        }
     }
 
     private AppHostEntity buildEntity(Map<String, Object> change) {

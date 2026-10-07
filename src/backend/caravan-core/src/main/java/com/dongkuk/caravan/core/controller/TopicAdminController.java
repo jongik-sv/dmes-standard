@@ -47,11 +47,13 @@ public class TopicAdminController {
     public Map<String, Object> create(@RequestBody Map<String, String> body) {
         String topicId = required(body, "topicId");
         String bizSystem = required(body, "bizSystem");
+        // GROUP_ID 는 NOT NULL 이다. Oracle 은 빈 문자열을 NULL 로 저장하므로 빈 값은 DB 오류(ORA-01400) 대신 여기서 막는다.
+        String groupId = required(body, "groupId");
 
         TopicInfoEntity entity = TopicInfoEntity.builder()
                 .topicId(topicId)
                 .bizSystem(bizSystem)
-                .groupId(body.get("groupId"))
+                .groupId(groupId)
                 .topicDesc(body.get("topicDesc"))
                 .sendModuleId(body.get("sendModuleId"))
                 .recvModuleId(body.get("recvModuleId"))

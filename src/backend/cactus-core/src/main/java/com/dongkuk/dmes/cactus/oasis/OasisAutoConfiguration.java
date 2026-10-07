@@ -1,8 +1,6 @@
 package com.dongkuk.dmes.cactus.oasis;
 
 import com.dongkuk.dmes.cactus.oasis.aop.OasisAopAnnotationChecker;
-import com.dongkuk.dmes.cactus.oasis.converter.MssqlColumnConverter;
-import com.dongkuk.dmes.cactus.oasis.converter.SqliteColumnConverter;
 import com.dongkuk.dmes.cactus.oasis.loader.HttpServiceDocumentLoader;
 import com.dongkuk.dmes.cactus.oasis.provider.CactusCachingServiceProvider;
 import com.dongkuk.dmes.cactus.oasis.provider.CactusConcurrentCacheService;
@@ -12,7 +10,6 @@ import com.dongkuk.dmes.cactus.tx.CactusTxProperties;
 import com.dongkuk.oasis.context.SpringApplicationContext;
 import com.dongkuk.oasis.executors.SqlRunner;
 import com.dongkuk.oasis.factories.NonTransactionalServiceStarterFactory;
-import com.dongkuk.oasis.jdbc.ColumnConverter;
 import com.dongkuk.oasis.provider.GenericServiceProvider;
 import com.dongkuk.oasis.provider.ServiceProvider;
 import com.dongkuk.oasis.provider.SimpleServiceProvider;
@@ -25,7 +22,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -52,7 +48,6 @@ import java.util.Arrays;
  *   <li>{@code cactus.oasis.transactional} 분기: false → NonTransactional, true → Spring(JpaTxMgr)</li>
  *   <li>{@code cactus.oasis.service-loader-url} 명시 시 HTTP loader 사용 (transactional=true 필수)</li>
  *   <li>{@code cactus.oasis.service-path} 가 ClassPath prefix 로 사용 (디폴트 {@code "/services"})</li>
- *   <li>{@code cactus.oasis.dialect} 분기로 {@link MssqlColumnConverter} / {@link SqliteColumnConverter} 빈 등록</li>
  *   <li>{@link MyBatisSqlRunner} 가 SqlSession 빈 존재 시 자동 등록</li>
  * </ul>
  *
@@ -186,27 +181,6 @@ public class OasisAutoConfiguration {
         boolean classpathLoader = trimToNull(props.getServiceLoaderUrl()) == null;
         return new OasisAopAnnotationChecker(ctx, props.getAopCheck(), props.getServicePath(),
                 classpathLoader, props.isTransactional());
-    }
-
-    /**
-     * MSSQL 컬럼 변환기. {@code cactus.oasis.dialect=mssql} 일 때 등록.
-     */
-    @Bean
-    @ConditionalOnProperty(prefix = "cactus.oasis", name = "dialect", havingValue = "mssql")
-    @ConditionalOnMissingBean(ColumnConverter.class)
-    public ColumnConverter mssqlColumnConverter() {
-        return new MssqlColumnConverter();
-    }
-
-    /**
-     * SQLite 컬럼 변환기. {@code cactus.oasis.dialect=sqlite} 일 때 등록.
-     * 미결 #3 결정: 최소 변환.
-     */
-    @Bean
-    @ConditionalOnProperty(prefix = "cactus.oasis", name = "dialect", havingValue = "sqlite")
-    @ConditionalOnMissingBean(ColumnConverter.class)
-    public ColumnConverter sqliteColumnConverter() {
-        return new SqliteColumnConverter();
     }
 
     /**

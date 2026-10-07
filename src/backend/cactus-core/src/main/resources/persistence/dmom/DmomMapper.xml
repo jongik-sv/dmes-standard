@@ -11,7 +11,7 @@
 <mapper namespace="DmomMapper">
 
     <!-- ① 포맷 레이아웃 조회.
-         MSSQL: Oracle (A,B)=(subquery) tuple 비교 미지원 → JOIN + TOP 1(최신 활성 FORMAT_VER) -->
+         Oracle: (A,B)=(subquery) tuple 비교 대신 JOIN + FETCH FIRST 1 ROWS ONLY(최신 활성 FORMAT_VER). 현재 시각은 세션 시간대(KST)의 CURRENT_TIMESTAMP -->
     <select id="getFormatLayout" resultType="map">
         <!-- resultType=map: mapUnderscoreToCamelCase 는 Map 키를 변환하지 않으므로 명시적 alias 로
              DmomFormatRepository 의 camelCase get() 키와 일치시킨다(ITEM_TP→itemTp 등). -->
@@ -26,15 +26,16 @@
                L.DATA_DECIMAL_PREC AS dataDecimalPrec
         FROM MCMAPUSER.TB_MCM_MOM_FORMAT_LAYOUT L
         INNER JOIN (
-            SELECT TOP 1 F.FORMAT_ID, F.FORMAT_VER
+            SELECT F.FORMAT_ID, F.FORMAT_VER
             FROM MCMAPUSER.TB_MCM_MOM_FORMAT_LIST F
             INNER JOIN MCMAPUSER.TB_MCM_MOM_TC_LIST T ON T.FORMAT_ID = F.FORMAT_ID
             WHERE T.TRANSACTION_CODE = #{transactionCode}
-              AND (T.START_ACTIVE_DATE IS NULL OR T.START_ACTIVE_DATE &lt; GETDATE())
-              AND (T.END_ACTIVE_DATE   IS NULL OR T.END_ACTIVE_DATE   &gt; GETDATE())
-              AND (F.START_ACTIVE_DATE IS NULL OR F.START_ACTIVE_DATE &lt; GETDATE())
-              AND (F.END_ACTIVE_DATE   IS NULL OR F.END_ACTIVE_DATE   &gt; GETDATE())
+              AND (T.START_ACTIVE_DATE IS NULL OR T.START_ACTIVE_DATE &lt; CURRENT_TIMESTAMP)
+              AND (T.END_ACTIVE_DATE   IS NULL OR T.END_ACTIVE_DATE   &gt; CURRENT_TIMESTAMP)
+              AND (F.START_ACTIVE_DATE IS NULL OR F.START_ACTIVE_DATE &lt; CURRENT_TIMESTAMP)
+              AND (F.END_ACTIVE_DATE   IS NULL OR F.END_ACTIVE_DATE   &gt; CURRENT_TIMESTAMP)
             ORDER BY F.FORMAT_VER DESC
+            FETCH FIRST 1 ROWS ONLY
         ) FV ON FV.FORMAT_ID = L.FORMAT_ID AND FV.FORMAT_VER = L.FORMAT_VER
         ORDER BY L.ITEM_SEQ
     </select>
@@ -67,7 +68,7 @@
              ERROR_TYPE, ERROR_CODE, ERROR_MSG, ERROR_STATUS_CODE,
              C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER)
         VALUES
-            (NEXT VALUE FOR MCMAPUSER.SEQ_MCM_MOM_TC_ERROR,
+            (MCMAPUSER.SEQ_MCM_MOM_TC_ERROR.NEXTVAL,
              #{transactionCode}, #{interfaceId}, #{interfaceProtocol}, #{interfaceMsg},
              #{errorType}, #{errorCode}, #{errorMsg}, #{errorStatusCode},
              #{cUsrId}, #{cAt}, #{cSvcId}, #{cPgmId}, #{uUsrId}, #{uAt}, #{uSvcId}, #{uPgmId}, 0)

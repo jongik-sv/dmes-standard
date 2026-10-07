@@ -3,7 +3,7 @@ package com.dongkuk.dmes.cactus.oasis.commitfailure;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * {@link OasisCommitFailureSqliteTest} 의 BPMN({@code oasis-commit-failure/*.bpmn}) 이 빈 이름 {@code txProbeTask} 로 부르는 작업.
+ * {@link OasisCommitFailureOracleTest} 의 BPMN({@code oasis-commit-failure/*.bpmn}) 이 빈 이름 {@code txProbeTask} 로 부르는 작업.
  *
  * <p>업무 Service 처럼 {@code @Transactional} 없이 리포지토리 프록시를 부른다 — 트랜잭션 경계는 OASIS 가 잡는다.
  */

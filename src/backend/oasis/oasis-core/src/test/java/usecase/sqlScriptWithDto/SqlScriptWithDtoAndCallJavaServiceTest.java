@@ -13,9 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+import utils.OracleTestDatabase;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import javax.sql.DataSource;
@@ -29,7 +27,7 @@ import static com.dongkuk.oasis.BpmnServiceLoaderForTest.getServiceStarter;
  * @since 2022-04-20
  */
 public class SqlScriptWithDtoAndCallJavaServiceTest {
-    EmbeddedDatabase database;
+    DataSource database;
     DataSource dataSource1;
     SpringTransactionHandler transactionHandler;
     DefaultApplicationContext applicationContext;
@@ -62,16 +60,8 @@ public class SqlScriptWithDtoAndCallJavaServiceTest {
 
     }
 
-    private EmbeddedDatabase database() {
-        EmbeddedDatabase dataSource;
-        dataSource = new EmbeddedDatabaseBuilder()
-                .generateUniqueName(true)
-                .setType(EmbeddedDatabaseType.H2)
-                .setScriptEncoding("UTF-8")
-                .ignoreFailedDrops(true)
-                .addScript("usecase/sqlScriptWithDto/initData.sql")
-                .build();
-        return dataSource;
+    private DataSource database() {
+        return OracleTestDatabase.create("usecase/sqlScriptWithDto/initData.sql");
     }
 
     private SpringTransactionHandler transactionHandler(TransactionManagerInfoHolder... transactionManagerInfoHolders) {
