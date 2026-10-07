@@ -178,10 +178,32 @@ class MasterRuleDataServiceTest {
         String sql = cap.getAllValues().get(cap.getAllValues().size() - 1);
         assertThat(sql).contains("BASE_DT >= TO_DATE(:v1, 'YYYYMMDDHH24MISS')")
                 .contains("DBMS_LOB.GETLENGTH(CURR_CD) <= 1000 AND UPPER(DBMS_LOB.SUBSTR(CURR_CD, 1000, 1)) = UPPER(:v2)")
-                .contains("TO_CHAR(BASE_DT, 'YYYYMMDDHH24MISS') LIKE :v3");
+                .contains("BASE_DT >= TO_DATE(:v3, 'YYYYMMDDHH24MISS') AND BASE_DT < TO_DATE(:v3e, 'YYYYMMDDHH24MISS')")
+                .doesNotContain("TO_CHAR(BASE_DT");
         verify(tupleQuery).setParameter("v1", "20261003000000");
         verify(tupleQuery).setParameter("v2", "usd");
-        verify(tupleQuery).setParameter("v3", "202610%");
+        verify(tupleQuery).setParameter("v3", "20261001000000");
+        verify(tupleQuery).setParameter("v3e", "20261101000000");
+    }
+
+    @Test
+    @DisplayName("search — DATE LIKE 가 중간 일치(%1003%)면 현행 TO_CHAR LIKE 를 그대로 쓴다")
+    void search_날짜LIKE_중간일치는_현행유지() {
+        mockColDefs();
+        mockSearchForReload();
+        Query tupleQuery = em.createNativeQuery("x", jakarta.persistence.Tuple.class);
+
+        MasterRuleDataSearchRequest r = req("E2ESRC");
+        r.setPWhere1("BASE_DT");
+        r.setPOperator1("LIKE");
+        r.setPVal1("%1003%");
+        service.search(r);
+
+        ArgumentCaptor<String> cap = ArgumentCaptor.forClass(String.class);
+        verify(em, org.mockito.Mockito.atLeastOnce()).createNativeQuery(cap.capture(), eq(jakarta.persistence.Tuple.class));
+        String sql = cap.getAllValues().get(cap.getAllValues().size() - 1);
+        assertThat(sql).contains("TO_CHAR(BASE_DT, 'YYYYMMDDHH24MISS') LIKE :v1");
+        verify(tupleQuery).setParameter("v1", "%1003%");
     }
 
     @Test

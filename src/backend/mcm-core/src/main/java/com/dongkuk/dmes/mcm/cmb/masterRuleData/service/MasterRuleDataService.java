@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mcm.cmb.masterRuleData.service;
 import com.dongkuk.dmes.mcm.cmb.masterRuleData.dto.MasterRuleDataSearchRequest;
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
+import com.dongkuk.dmes.mcm.common.util.DatePrefixRange;
 import com.dongkuk.dmes.mcm.repository.MasterRuleColListRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -23,6 +24,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.strOfTrim;
@@ -169,8 +171,18 @@ public class MasterRuleDataService {
                 }
             } else if ("DATE".equals(type)) {
                 if ("LIKE".equals(op)) {
-                    where.append(" AND TO_CHAR(").append(col).append(", ").append(DATE_FMT).append(") LIKE :").append(bind);
                     val = stripDateSeparators(val);
+                    Optional<DatePrefixRange.Range> range = DatePrefixRange.of(val);
+                    if (range.isPresent()) {
+                        // 숫자 앞 일치(202610%)는 같은 결과의 반열린 범위로 — 칼럼을 원형으로 두어 인덱스를 쓴다
+                        where.append(" AND ").append(col).append(" >= TO_DATE(:").append(bind).append(", ").append(DATE_FMT).append(")")
+                                .append(" AND ").append(col).append(" < TO_DATE(:").append(bind).append("e, ").append(DATE_FMT).append(")");
+                        binds.put(bind + "e", range.get().to());
+                        val = range.get().from();
+                    } else {
+                        // 중간 일치(%1003%)·_ 패턴·달력 단위가 아닌 앞부분은 글자 비교가 필요해 현행 유지(함수 때문에 인덱스는 못 쓴다)
+                        where.append(" AND TO_CHAR(").append(col).append(", ").append(DATE_FMT).append(") LIKE :").append(bind);
+                    }
                 } else {
                     where.append(" AND ").append(col).append(" ").append(op).append(" TO_DATE(:").append(bind).append(", ").append(DATE_FMT).append(")");
                     val = dateText(col, val);
