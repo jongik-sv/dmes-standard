@@ -453,7 +453,7 @@ carry 복원 > handoff 등 화면의 명시 동작 > 사용자 기본값 > 코�
 |---|---|
 | `.claude/skills/mantine-aggrid-ui/references/components/search-area.md` | 「사용자 기본값」 변형 절 추가(동작 개요·대상 판정·`autoSearch`·`defaultKey`·`defaultable`·`defaults={false}`), props 표에 새 prop, 표준 사용 예를 `type="date"` 기간으로 바꿈, 흔한 실수에 「마운트 effect 로 자동 조회」·「children 칸에 value·onChange 를 SearchField 에 안 줌」·「name 없는 칸에 label 로 기대함」·「조회 칸 onChange 를 `setFilters({ ...filters, k: v })` 로 씀」 추가, 실제 사용 예 갱신 |
 | `.claude/skills/mantine-aggrid-ui/references/components/search-settings-menu.md` (새 문서) | 내부 부품 설명(그리드 설정 메뉴와 같은 형식) |
-| `.claude/skills/mantine-aggrid-ui/references/components/llms.txt`·`llms-full.txt` | `scripts/ui_docs.py index --write`·`full --write` 로 다시 만든다 |
+| `.claude/skills/mantine-aggrid-ui/references/components/llms.txt`·`llms-full.txt` | `node scripts/ui_docs.mjs index --write`·`full --write` 로 다시 만든다 |
 | `.claude/skills/mantine-aggrid-ui/SKILL.md` | 조회 영역 규칙 요약에 「자동 조회는 `autoSearch`」·「날짜는 `type="date"`」 한 줄씩 |
 | `.claude/skills/mantine-aggrid-ui/references/screen-patterns.md` | 목록 화면 골격의 조회 영역 예를 새 표준으로 바꾸고 마운트 조회 effect 를 뺀다 |
 | `.claude/skills/mantine-aggrid-ui/references/examples/*`(list-detail·master-detail·grid-edit) | 예제의 조회 영역·자동 조회를 같은 방식으로 맞춘다 |

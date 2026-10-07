@@ -95,6 +95,7 @@ dependencies {
     testImplementation libs.json.path
     testImplementation libs.spring.test
     testImplementation libs.h2
+    testRuntimeOnly libs.ojdbc11
     testCompileOnly libs.lombok.base
     testAnnotationProcessor libs.lombok.base
 }

@@ -2,7 +2,7 @@
 
 > 화면(m-*)은 `@dk-oasis/shared/*` 래퍼만 쓴다. Mantine·ag-grid 를 직접 import 하지 않는다.
 > 화면 전체 모양은 먼저 [화면 표준 골격](../screen-patterns.md)에서 유형을 고르고 예제를 복사한다.
-> 이 파일은 `python3 .claude/skills/mantine-aggrid-ui/scripts/ui_docs.py index --write` 가 생성한다. 직접 고치지 않는다.
+> 이 파일은 `node .claude/skills/mantine-aggrid-ui/scripts/ui_docs.mjs index --write` 가 생성한다. 직접 고치지 않는다.
 
 ## 시작
 

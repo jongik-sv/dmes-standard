@@ -85,6 +85,8 @@ dependencies {
 
     // ── DB Drivers (옵셔널 프로파일별 활성화) ──
     runtimeOnly libs.sqlite.jdbc
+    runtimeOnly libs.ojdbc11
+    runtimeOnly libs.flyway.database.oracle
     providedRuntime libs.mssql.jdbc   // JNDI 전환(2026-07-09): WildFly 모듈 제공, WAR 제외. bootRun(runtimeClasspath)엔 잔존
 
     // WildFly(외장 WAS) 의 서블릿 컨테이너를 사용 → 내장 Tomcat 은 provided 처리.

@@ -31,19 +31,19 @@ description: Mantine 9(@mantine/core · dates · hooks · modals · notification
 
 ## 2. 문서 조회
 
-아래와 본문의 `M <명령>` 은 `python3 $D/mantine_docs.py <명령>`, `A <명령>` 은 `python3 $D/aggrid_docs.py <명령>`, `U <명령>` 은 `python3 $D/ui_docs.py <명령>`(DMES shared 컴포넌트 문서: `index`·`get`·`full`·`coverage`·`check-examples`)을 줄여 쓴 것이다. 두 라이브러리 모두 `llms.txt` 색인 + 페이지별 Markdown 을 제공한다(PrimeReact 와 같은 방식). 조회는 스크립트로 하고, 결과는 `~/.cache/` 에 7일간 캐시한다. **WebFetch 는 쓰지 않는다.** 요약 모델이 Props 표와 예제를 뭉개고, ag-grid.com 은 요청 자체를 403 으로 막는다.
+아래와 본문의 `M <명령>` 은 `node $D/mantine_docs.mjs <명령>`, `A <명령>` 은 `node $D/aggrid_docs.mjs <명령>`, `U <명령>` 은 `node $D/ui_docs.mjs <명령>`(DMES shared 컴포넌트 문서: `index`·`get`·`full`·`coverage`·`check-examples`)을 줄여 쓴 것이다. 두 라이브러리 모두 `llms.txt` 색인 + 페이지별 Markdown 을 제공한다(PrimeReact 와 같은 방식). 조회는 스크립트로 하고, 결과는 `~/.cache/` 에 7일간 캐시한다. **WebFetch 는 쓰지 않는다.** 요약 모델이 Props 표와 예제를 뭉개고, ag-grid.com 은 요청 자체를 403 으로 막는다.
 
 ```bash
 D=.claude/skills/mantine-aggrid-ui/scripts          # 저장소 루트 기준
-python3 $D/mantine_docs.py version ; python3 $D/aggrid_docs.py version
-python3 $D/mantine_docs.py search date input        # mantine.dev/llms.txt 색인
-python3 $D/mantine_docs.py get DatePickerInput --section Props
-python3 $D/mantine_docs.py grep 'rowGap' -C 2       # llms-full.txt(4.5MB) 전문 검색 — 통째로 읽지 않는다
-python3 $D/aggrid_docs.py search row selection      # ag-dev 공식 슬러그 색인
-python3 $D/aggrid_docs.py get row-selection-multi-row   # 설치 버전(archive/33.3.2) 문서를 텍스트로
-python3 $D/aggrid_docs.py get formula --latest      # 최신 문서(도입 버전 확인용)
-python3 $D/aggrid_docs.py types rowSelection        # 설치본 .d.ts 정의와 JSDoc(@agModule)
-python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔한 실수
+node $D/mantine_docs.mjs version ; node $D/aggrid_docs.mjs version
+node $D/mantine_docs.mjs search date input        # mantine.dev/llms.txt 색인
+node $D/mantine_docs.mjs get DatePickerInput --section Props
+node $D/mantine_docs.mjs grep 'rowGap' -C 2       # llms-full.txt(4.5MB) 전문 검색 — 통째로 읽지 않는다
+node $D/aggrid_docs.mjs search row selection      # ag-dev 공식 슬러그 색인
+node $D/aggrid_docs.mjs get row-selection-multi-row   # 설치 버전(archive/33.3.2) 문서를 텍스트로
+node $D/aggrid_docs.mjs get formula --latest      # 최신 문서(도입 버전 확인용)
+node $D/aggrid_docs.mjs types rowSelection        # 설치본 .d.ts 정의와 JSDoc(@agModule)
+node $D/aggrid_docs.mjs recommendations           # 공식 ag-dev 의 LLM 흔한 실수
 ```
 
 - 알려진 컴포넌트·옵션은 `search` 없이 바로 `get` 한다. 한 컴포넌트에 조회 1~2회면 충분하다.
@@ -91,7 +91,7 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 
 ## 4. 검증과 보고
 
-0. shared 에 새 컴포넌트를 등록했다면 `references/components/<이름>.md` 를 [tabs.md](references/components/tabs.md) 형식(import·소스·언제 쓰나·표준 사용·Props·흔한 실수)으로 쓰고, `scripts/ui_docs.py` 의 분류에도 넣는다. 「언제 쓰나」 에는 비슷한 기존 래퍼와 나눠 쓰는 기준을 적는다. 이 스킬의 문서·예제를 고쳤다면 `U check-examples`(예제 타입 검사 + audit)와 `U coverage`(shared export 누락, `llms.txt`·`llms-full.txt` 최신 여부)를 돌린다. 생성물은 `U index --write`·`U full --write` 로 갱신한다.
+0. shared 에 새 컴포넌트를 등록했다면 `references/components/<이름>.md` 를 [tabs.md](references/components/tabs.md) 형식(import·소스·언제 쓰나·표준 사용·Props·흔한 실수)으로 쓰고, `scripts/ui_docs.mjs` 의 분류에도 넣는다. 「언제 쓰나」 에는 비슷한 기존 래퍼와 나눠 쓰는 기준을 적는다. 이 스킬의 문서·예제를 고쳤다면 `U check-examples`(예제 타입 검사 + audit)와 `U coverage`(shared export 누락, `llms.txt`·`llms-full.txt` 최신 여부)를 돌린다. 생성물은 `U index --write`·`U full --write` 로 갱신한다.
 1. `M audit <바꾼 파일·폴더>` 와 `A audit <…>` — 옛 API, deprecated 옵션(설치본 `.d.ts` 에서 자동 추출), 금지 import, 화면(`m-*`) CSS 의 색 값 직접 사용을 잡는다. **바꾼 파일만** 넘긴다(기존 CSS 에는 이미 색 값이 남아 있다). 의심 건은 문서로 확인하고, 오탐이면 이유를 보고에 적는다.
 2. 대상 패키지 lint·build (`pnpm -C src/frontend/<앱> lint`, `build`). shared 를 고쳤다면 shared 를 먼저 build 한다.
 2a. 화면을 새로 만들거나 상세 폼·목록 조회를 바꿨다면 [화면 성능 가이드](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) §7 점검표를 훑고 결과를 보고에 적는다(해당 없는 항목은 생략 가능). 점검표 항목 중 audit 가 잡는 것은 1번의 `A audit` 결과로 확인한다.
