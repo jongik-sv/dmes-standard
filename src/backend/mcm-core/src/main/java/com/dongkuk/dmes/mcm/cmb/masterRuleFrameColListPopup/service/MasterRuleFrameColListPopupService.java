@@ -26,7 +26,8 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.toIntStrict;
  * <p>부모 masterRuleFrame 의 P-002(기초데이터 등록) 팝업. BPMN 2 ServiceTask 진입점:
  * <ul>
  *   <li>{@link #search(MasterRuleFrameColListPopupSearchRequest)} — action=search:
- *       소스 테이블("TB_MCA_"+sRuleId)의 컬럼 메타(INFORMATION_SCHEMA — 분석 §6/§11)를 컬럼 리스트 초기값으로 반환</li>
+ *       소스 테이블("TB_MCA_"+sRuleId)의 컬럼 메타(Oracle ALL_TAB_COLUMNS·ALL_COL_COMMENTS — 분석 §6/§11)를 컬럼 리스트 초기값으로 반환.
+ *       결과가 비면 "칸 없음" 과 "사전 뷰 권한 없음" 을 구분할 수 없다(ALL_* 뷰는 권한 없는 표를 오류 없이 뺀다)</li>
  *   <li>{@link #save(MasterRuleFrameColListPopupSearchRequest, List)} — action=save:
  *       TB_MCA_RULE_COL_LIST 를 RULE_ID 기준 <b>전체 삭제 후 재등록</b> (As-Is SaveMasterRuleBaseColList 1:1,
  *       XV-001 "기존 컬럼정보 모두 삭제" 확인 후 호출됨)</li>
@@ -52,7 +53,7 @@ public class MasterRuleFrameColListPopupService {
     // ────────────────────────────── search ──────────────────────────────
 
     /**
-     * action=search — As-Is GetRuleColList 1:1 (분석 §6, MSSQL 메타 변환 §11.1).
+     * action=search — As-Is GetRuleColList 1:1 (분석 §6, Oracle 사전 뷰 §11.1 — oracle-1007).
      *
      * <p>응답 = {@code { ds_grdRuleCol: [...], cnt }} (As-Is resultKey 보존 — BPMN §8.3).
      * 9 컬럼 camelCase row (ruleVer '1' / ruleId / colId / colNm / colType / colLen / colPrecLen /
@@ -75,10 +76,10 @@ public class MasterRuleFrameColListPopupService {
             row.put("ruleVer", r[0]);          // '1' 고정 (As-Is Mapper:9)
             row.put("ruleId", r[1]);           // 파라미터 상수 (As-Is Mapper:10)
             row.put("colId", r[2]);            // COLUMN_NAME → 영문항목명
-            row.put("colNm", r[3]);            // MS_Description → 한글항목명
-            row.put("colType", r[4]);          // varchar 계열→VARCHAR2 (C-002)
-            row.put("colLen", r[5]);           // CHARACTER_MAXIMUM_LENGTH (C-003)
-            row.put("colPrecLen", r[6]);       // NUMERIC_PRECISION (C-003)
+            row.put("colNm", r[3]);            // ALL_COL_COMMENTS.COMMENTS → 한글항목명
+            row.put("colType", r[4]);          // Oracle DATA_TYPE → VARCHAR2/NUMBER/DATE 도메인 (C-002)
+            row.put("colLen", r[5]);           // CHAR_LENGTH·DATA_PRECISION·DATA_LENGTH 중 첫 값 (C-003)
+            row.put("colPrecLen", r[6]);       // DATA_PRECISION (C-003)
             row.put("ioFlag", r[7]);           // 'OUT' 기본 (As-Is Mapper:16)
             row.put("masterCodeDiv", r[8]);    // 'N' 기본 (As-Is Mapper:17)
             list.add(row);

@@ -112,6 +112,13 @@ public class MasterCodeUploadFilePopupService {
         Set<String> seen = new HashSet<>();
         for (int i = 0; i < rows.size(); i++) {
             Map<String, Object> row = rows.get(i);
+            // PK 빈 값 사전 검증 — Oracle 은 '' 를 NULL 로 받아(oracle-1007) INSERT 가 ORA-01400 으로 실패한다.
+            // null·빈 글자·공백 PK 는 DB 에 보내기 전에 행 번호와 함께 막는다.
+            if (isBlank(row.get("MASTER_CODE")) || isBlank(row.get("CATEGORY_ID")) || isBlank(row.get("CODE_VAL"))) {
+                errors.add(ErrorDetail.ofGrid("master", String.valueOf(row.get("CODE_VAL")), i, "codeVal", "REQ",
+                        "(MASTER_CODE, CATEGORY_ID, CODE_VAL) 는 비울 수 없습니다. row=" + i));
+                continue;
+            }
             String mc = String.valueOf(row.get("MASTER_CODE"));
             String ci = String.valueOf(row.get("CATEGORY_ID"));
             String cv = String.valueOf(row.get("CODE_VAL"));
@@ -123,7 +130,7 @@ public class MasterCodeUploadFilePopupService {
         }
         if (!errors.isEmpty()) {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE,
-                    "Excel 내부 PK 중복이 검출되었습니다.", errors);
+                    "Excel 의 PK 칸이 비었거나 내부 중복이 검출되었습니다.", errors);
         }
 
         // S8 (선삭제) — As-Is java:40-45 1:1 (조건부)

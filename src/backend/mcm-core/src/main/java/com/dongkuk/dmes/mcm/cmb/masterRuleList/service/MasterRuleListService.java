@@ -122,6 +122,11 @@ public class MasterRuleListService {
             if (("C".equals(rowStatus) || "U".equals(rowStatus)) && isBlank(ruleId)) {
                 throw new BusinessException(ErrorCode.REQUIRED_VALUE, "업무기준ID는 필수입니다.");
             }
+            // RULE_NM 필수 (NOT NULL) — null·공백을 함께 거른다. Oracle 은 '' 를 NULL 로 받아 저장 때 ORA-01400 으로
+            // 실패하므로(oracle-1007), DB 오류 대신 업무 메시지로 먼저 막는다. 예전 MSSQL 은 '' 가 그대로 들어갔다.
+            if (("C".equals(rowStatus) || "U".equals(rowStatus)) && isBlank(strOfTrim(row.get("ruleNm")))) {
+                throw new BusinessException(ErrorCode.REQUIRED_VALUE, "[" + ruleId + "] 업무기준명은 필수입니다.");
+            }
 
             if ("C".equals(rowStatus)) {
                 // INSERT — As-Is "inserted" 분기 (java:43~65)

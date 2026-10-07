@@ -31,10 +31,10 @@ import com.dongkuk.dmes.mcm.startpgm.dto.SecStartPgmToggleRequest;
 import com.dongkuk.dmes.mcm.startpgm.entity.SecUserStartPgm;
 import com.dongkuk.dmes.mcm.startpgm.repository.SecUserStartPgmRepository;
 import com.dongkuk.dmes.mcm.startpgm.service.SecStartPgmService;
+import com.dongkuk.dmes.mcm.testdb.McmCoreOraTestDb;
 import jakarta.persistence.EntityManagerFactory;
 import java.time.Clock;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -54,7 +54,6 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.persistenceunit.PersistenceManagedTypes;
@@ -70,7 +69,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 메뉴 카탈로그를 쓰는 호출부 4곳(내 메뉴·즐겨찾기·기본 화면·화면 사용 통계 메뉴 목록)이 실제 DB(H2)에서
+ * 메뉴 카탈로그를 쓰는 호출부 4곳(내 메뉴·즐겨찾기·기본 화면·화면 사용 통계 메뉴 목록)이 실제 DB(Oracle 시험 PDB, 기준선 V1)에서
  * SEC_MENU·SEC_OBJ 를 몇 번 전수 SELECT 하는지 센다 — perf-mcm P3 근거.
  *
  * <p>Hibernate StatementInspector 로 WHERE 없는 {@code FROM MCMAPUSER.TB_MCM_SEC_MENU}·{@code TB_MCM_SEC_OBJ} 문장만 센다.
@@ -358,13 +357,7 @@ class MenuCatalogCallersSelectCountTest {
 
         @Bean
         DataSource dataSource() {
-            DriverManagerDataSource ds = new DriverManagerDataSource();
-            ds.setDriverClassName("org.h2.Driver"); // testRuntimeOnly — 클래스 직접 참조 금지
-            ds.setUrl("jdbc:h2:mem:menucatalog;DB_CLOSE_DELAY=-1;MODE=MSSQLServer;"
-                    + "INIT=CREATE SCHEMA IF NOT EXISTS MCMAPUSER");
-            ds.setUsername("sa");
-            ds.setPassword("");
-            return ds;
+            return McmCoreOraTestDb.appDataSource("menucatalog");
         }
 
         @Bean
@@ -373,10 +366,9 @@ class MenuCatalogCallersSelectCountTest {
             em.setDataSource(dataSource);
             em.setManagedTypes(PersistenceManagedTypes.of(SecMenu.class.getName(), SecObj.class.getName()));
             em.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
-            Map<String, Object> props = new HashMap<>();
-            props.put("hibernate.hbm2ddl.auto", "create-drop");
-            props.put("hibernate.session_factory.statement_inspector", COUNTER);
-            em.setJpaPropertyMap(props);
+            // 앱 EMF 와 같은 Oracle 설정(hbm2ddl none — 표는 기준선이 만든다) + 전수 SELECT 계수기.
+            em.setJpaProperties(McmCoreOraTestDb.jpaProperties(Map.<String, Object>of(
+                    "hibernate.session_factory.statement_inspector", COUNTER)));
             return em;
         }
 

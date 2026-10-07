@@ -12,29 +12,42 @@ public final class WidgetQueryDataSource implements DisposableBean {
 
     private final DataSource dataSource;
     private final boolean dedicated;
+    private final boolean requireDedicated;
     private final AutoCloseable owned;
 
-    private WidgetQueryDataSource(DataSource dataSource, boolean dedicated, AutoCloseable owned) {
+    private WidgetQueryDataSource(DataSource dataSource, boolean dedicated, boolean requireDedicated, AutoCloseable owned) {
         if (dataSource == null) throw new IllegalArgumentException("DataSource 가 없습니다");
         this.dataSource = dataSource;
         this.dedicated = dedicated;
+        this.requireDedicated = requireDedicated;
         this.owned = owned;
     }
 
     /** 앱 기본 DataSource 를 그대로 쓴다(전용 설정 없음). */
     public static WidgetQueryDataSource shared(DataSource dataSource) {
-        return new WidgetQueryDataSource(dataSource, false, null);
+        return shared(dataSource, false);
+    }
+
+    /**
+     * 앱 기본 DataSource 를 그대로 쓴다. {@code requireDedicated}(dmes.widget.query.require-dedicated)가 true 면
+     * 실행기는 이 DataSource 로 실행하지 않고 거절한다.
+     */
+    public static WidgetQueryDataSource shared(DataSource dataSource, boolean requireDedicated) {
+        return new WidgetQueryDataSource(dataSource, false, requireDedicated, null);
     }
 
     /** 실행기 전용 DataSource. {@code owned} 는 종료 때 닫을 풀(JNDI 면 null). */
     public static WidgetQueryDataSource dedicated(DataSource dataSource, AutoCloseable owned) {
-        return new WidgetQueryDataSource(dataSource, true, owned);
+        return new WidgetQueryDataSource(dataSource, true, false, owned);
     }
 
     public DataSource dataSource() { return dataSource; }
 
     /** 전용 DataSource 설정(dmes.widget.query.datasource.*)으로 만든 것인지. */
     public boolean dedicated() { return dedicated; }
+
+    /** 전용 DataSource 를 반드시 쓰라는 설정(dmes.widget.query.require-dedicated)인지. */
+    public boolean requireDedicated() { return requireDedicated; }
 
     @Override
     public void destroy() throws Exception {

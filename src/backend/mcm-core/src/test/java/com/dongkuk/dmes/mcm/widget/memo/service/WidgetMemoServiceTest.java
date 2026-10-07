@@ -28,7 +28,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
 /**
- * {@link WidgetMemoService} — H2 메모(실제 Writer·저장소) + mock(정의 저장소·사용자). 스펙 §17.3:
+ * {@link WidgetMemoService} — Oracle 시험 PDB(실제 Writer·저장소) + mock(정의 저장소·사용자). 스펙 §17.3:
  * 없는 메모 null, 저장·조회 왕복, 사용자 격리, instId 형식, personal memo 정의만, format, 20,000자 경계, 100개 상한(새 instId 만).
  * 제목(2026-10-03): 공백 자르기, 빈 값은 null, 40자(코드 포인트) 경계, 제어 문자 거절, title 키가 없으면 기존 제목 유지.
  */
