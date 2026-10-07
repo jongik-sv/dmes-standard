@@ -1,0 +1,16 @@
+MENU_ID,MENU_SEQ,MENU_NM,PARENT_MENU_ID,BIZ_SYSTEM_CODE,FULL_SEQ,USE_TP,MENU_TP,MENU_VIEW_YN
+analog,00000004,로그 분석,\N,\N,2000000,Y,\N,Y
+anl,00000100,로그 조회,analog,\N,2010000,Y,\N,Y
+cma,00000100,마스터관리(원장),mcm,\N,1010000,\N,\N,\N
+cmb,00000400,업무기준관리(원장),mcm,\N,1040000,\N,\N,\N
+cme,00000300,마스터관리(가동),mcm,\N,1030000,\N,\N,\N
+cmz,00000500,팝업,mcm,\N,1050000,Y,\N,N
+csa,00000200,시스템관리,mcm,\N,1020000,\N,\N,\N
+dma,00000100,용어·도메인,mdm,\N,3010000,Y,\N,Y
+dmb,00000200,레이아웃,mdm,\N,3020000,Y,\N,Y
+dmc,00000300,마스터코드,mdm,\N,3030000,Y,\N,Y
+dmd,00000400,마스터데이터,mdm,\N,3040000,Y,\N,Y
+dme,00000500,업무기준,mdm,\N,3050000,Y,\N,Y
+lsh,00000600,공지관리,mcm,\N,1060000,Y,\N,Y
+mcm,00000002,공통관리,\N,\N,1000000,\N,\N,\N
+mdm,00000005,마루 MDM,\N,\N,3000000,Y,\N,Y

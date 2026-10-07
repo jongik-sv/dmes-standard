@@ -1,0 +1,3 @@
+# CSV 스냅샷은 줄 끝을 LF 로 고정한다(윈도우 autocrlf 가 따옴표 안 줄바꿈을 CRLF 로 바꾸면 값이 달라진다).
+*.csv text eol=lf
+*.json text eol=lf

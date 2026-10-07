@@ -32,7 +32,7 @@
 #
 # 앱 JVM 옵션(메모리 절약 기본값. 종전 서버 1개의 점유는 힙 밖 포함 383~472MB 였다):
 #   기본 -XX:TieredStopAtLevel=1 -Xmx768m -XX:+UseSerialGC -Xss512k -XX:ReservedCodeCacheSize=40m
-#        -Dfile.encoding=UTF-8 -Duser.country=KR -Duser.language=ko -Duser.variant -Dbe.run.module=<모듈>
+#        -Dfile.encoding=UTF-8 -Duser.country=KR -Duser.language=ko -Duser.variant -Duser.timezone=Asia/Seoul -Dbe.run.module=<모듈>
 #   BE_JAVA_XMX(768m)·BE_JAVA_XSS(512k)·BE_JAVA_CODECACHE(40m)  기본값만 바꾼다
 #   BE_JAVA_OPTS="-Xmx1g"        모든 모듈에 덧붙인다(뒤에 오는 옵션이 이긴다 — 위 기본값도 덮는다)
 #   BE_JAVA_OPTS_MDM="-Xmx1g"    모듈 하나에만 덧붙인다(BE_JAVA_OPTS_<모듈 대문자>)
@@ -166,6 +166,7 @@ be_module_jvm_args() {
     -Duser.country=KR
     -Duser.language=ko
     -Duser.variant
+    -Duser.timezone=Asia/Seoul
     "-Dbe.run.module=$m"
   )
   # 모듈 build.gradle 의 bootRun.jvmArgs(classpath.txt 4행~, 예: analog 의 stdout 인코딩)는 기본값 뒤·환경 변수 앞에 둔다.
