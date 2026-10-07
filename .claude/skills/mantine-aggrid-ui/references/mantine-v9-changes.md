@@ -1,6 +1,6 @@
 # Mantine 9 변경점 요약 (8.x → 9.x, 7.x 이전 잔재 포함)
 
-원문: `python3 .claude/skills/mantine-aggrid-ui/scripts/mantine_docs.py get guides-8x-to-9x` (https://mantine.dev/llms/guides-8x-to-9x.md).
+원문: `node .claude/skills/mantine-aggrid-ui/scripts/mantine_docs.mjs get guides-8x-to-9x` (https://mantine.dev/llms/guides-8x-to-9x.md).
 `audit` 서브커맨드가 아래 표의 "자동 점검" 항목을 잡는다.
 
 ## 전제

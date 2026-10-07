@@ -29,8 +29,8 @@ Frontend, portal, shared package, private npm registry 관련 가이드는 이 �
 
 ```bash
 D=.claude/skills/mantine-aggrid-ui/scripts
-python3 $D/mantine_docs.py audit <바꾼 파일·폴더>
-python3 $D/aggrid_docs.py audit <바꾼 파일·폴더>
+node $D/mantine_docs.mjs audit <바꾼 파일·폴더>
+node $D/aggrid_docs.mjs audit <바꾼 파일·폴더>
 ```
 
 | 점검 항목 | 근거 규칙 | 수준 |
@@ -52,7 +52,7 @@ python3 $D/aggrid_docs.py audit <바꾼 파일·폴더>
 | `[P-R8]` 행 클릭·선택 처리 함수(이름 `[handle|on]RowClick*`·`[handle|on]RowSelect*`·`choose*`·`selectRow*`·`selectItem*` 또는 `onRowClicked`·`onRowSelected`·`onSelectionChanged` props)가 `onSnapshotChange` 를 부름(그 함수가 부르는 헬퍼를 거쳐도 잡는다) | [성능 가이드 R8](Screen-Performance-Guide.md) | 오류 |
 | `[P-R16]` `useSyncExternalStore` 의 getSnapshot 이 상태 객체 전체(`() => state`)뿐이고 같은 파일에 필드 단위 getSnapshot(`() => state.field`) 훅이 없음 | [성능 가이드 R16](Screen-Performance-Guide.md) | 경고 |
 
-성능 항목(`[P-…]`)은 `aggrid_docs.py audit` 가 함께 낸다. 오류는 종료 코드 1, 경고는 종료 코드에 영향이 없다(설계상 정상일 수 있으므로 해당 규칙을 읽고 판단한다). 테스트 파일(`tests/`·`*.test.*`)은 성능 점검에서 뺀다.
+성능 항목(`[P-…]`)은 `aggrid_docs.mjs audit` 가 함께 낸다. 오류는 종료 코드 1, 경고는 종료 코드에 영향이 없다(설계상 정상일 수 있으므로 해당 규칙을 읽고 판단한다). 테스트 파일(`tests/`·`*.test.*`)은 성능 점검에서 뺀다.
 
 성능 점검의 한계(정규식 수준이라 확인 절차를 대신하지 않는다):
 - `[P-K]` 는 `fetch(` 에 경로 문자열이 바로 들어간 호출만 잡는다. `apiRequest`·상수 URL 을 거친 호출은 놓친다.
