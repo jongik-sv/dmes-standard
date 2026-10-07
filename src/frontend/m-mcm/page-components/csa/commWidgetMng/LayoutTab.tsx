@@ -59,6 +59,9 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const BOARD_TEST_ID = "widget-layout-board";
 
 /** 보드 위 도움말 — 홈과 기본 탭의 차이(색은 의미 토큰만). */
+/** GridPanel 본문(`.grid-panel-content`)과 같은 상자 — 클래스를 쓰면 안쪽 그리드가 절대 배치로 바뀌므로 인라인으로 둔다. */
+const BOARD_BODY_STYLE = { flex: 1, overflow: "hidden", minHeight: 0, position: "relative" } as const;
+
 const HELP_STYLE = {
   margin: 0,
   color: "var(--color-text-secondary)",
@@ -333,32 +336,46 @@ export function LayoutTab() {
         </ContentPanel>
 
         <ContentPanel minSize={320}>
-          <GridPanel
-            title={boardTitle(selected.layoutKey, rows)}
-            loading={deleting}
-            buttons={[
-              {
-                id: "btn_layout_delete",
-                label: "기본 배치 지우기",
-                onClick: handleDelete,
-                disabled: !selected.saved,
-              },
-            ]}
-          >
-            {defs.status === "loading" ? (
-              <Spinner label="위젯 정의를 불러오는 중..." />
-            ) : (
-              <LayoutBoard
-                key={`${selected.layoutKey}:${boardNonce}`}
-                layoutKey={selected.layoutKey}
-                rows={rows}
-                registry={registry}
-                registryStatus={defs.status}
-                onRetryRegistry={retryDefs}
-                onSaved={handleBoardSaved}
-              />
-            )}
-          </GridPanel>
+          {/*
+            보드는 GridPanel 안에 넣지 않는다 — GridPanel 안의 AgDataGrid 는 `.grid-panel-content .cm-data-grid` 규칙으로 패널 영역을 절대 배치로 덮고
+            설정 메뉴·엑셀 단추를 패널 머리줄로 올려, 보드의 그리드 위젯(쿼리 표 등)이 제목 줄·조건줄·N행·그리드 설정 아이콘을 잃는다.
+            머리줄 모양만 GridPanel 과 같은 클래스를 쓰고 본문은 `grid-panel-content` 없이 같은 상자로 둔다.
+          */}
+          <div className="grid-panel" data-testid="widget-layout-board-panel">
+            <div className="grid-panel-header">
+              <div className="grid-panel-title">
+                <span>{boardTitle(selected.layoutKey, rows)}</span>
+              </div>
+              <div className="grid-panel-header-actions">
+                <div className="grid-panel-buttons">
+                  <button
+                    id="btn_layout_delete"
+                    type="button"
+                    className="grid-btn"
+                    onClick={handleDelete}
+                    disabled={!selected.saved || deleting}
+                  >
+                    기본 배치 지우기
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div style={BOARD_BODY_STYLE}>
+              {defs.status === "loading" ? (
+                <Spinner label="위젯 정의를 불러오는 중..." />
+              ) : (
+                <LayoutBoard
+                  key={`${selected.layoutKey}:${boardNonce}`}
+                  layoutKey={selected.layoutKey}
+                  rows={rows}
+                  registry={registry}
+                  registryStatus={defs.status}
+                  onRetryRegistry={retryDefs}
+                  onSaved={handleBoardSaved}
+                />
+              )}
+            </div>
+          </div>
         </ContentPanel>
       </ContentBody>
 
