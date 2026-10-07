@@ -1,0 +1,1174 @@
+# DataInitializer MSSQL 경로 SQL 기록 — DataInitializerMssqlSqlCharacterizationTest 가 비교한다. 손으로 고치지 않는다.
+# 시나리오: no-profile · 프로필=[] · 고정값=ABSENT · 방언=Microsoft SQL Server
+# 형식: 순번 | 종류 | SQL(이스케이프) 또는 @만든 줄 순번 | 파라미터(이름순) | => 반환
+# 다시 쓰기: MSSQLSQL_UPDATE=true ../gradlew :api:test --tests '*DataInitializerMssqlSqlCharacterizationTest'
+# 기록 호출 수: 1169
+00001 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_USER WHERE USER_ID = :v |  |
+00002 | getSingleResult | @00001 | v=admin | => (Integer)0
+00003 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_USER (USER_ID, USER_NM, USER_EMP_NO, DEPT_CD, USE_TP, IN_OUT_EMP_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('admin', N'관리자', 'E0001', 'IT', 'Y', 'I', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00004 | executeUpdate | @00003 |  | => 0
+00005 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_USER_PWD WHERE USER_ID = :v |  |
+00006 | getSingleResult | @00005 | v=admin | => (Integer)0
+00007 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_USER_PWD (USER_ID, USER_ENC_PWD, LAST_PWD_CHNG_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('admin', '{mssql-sql-stub}fixed-encoded-password', SYSTIMESTAMP, 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00008 | executeUpdate | @00007 |  | => 0
+00009 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_USER_PWD    SET USER_ENC_PWD = :hash, LAST_PWD_CHNG_DATE = SYSTIMESTAMP, U_USR_ID = 'admin', U_AT = SYSTIMESTAMP  WHERE USER_ID = 'admin' |  |
+00010 | executeUpdate | @00009 | hash={mssql-sql-stub}fixed-encoded-password | => 0
+00011 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLEGROUP WHERE ROLE_GROUP_ID = :v |  |
+00012 | getSingleResult | @00011 | v=ROLE_GROUP_SYSADMIN | => (Integer)0
+00013 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLEGROUP (ROLE_GROUP_ID, ROLE_GROUP_NM, ROLE_GROUP_DESC, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('ROLE_GROUP_SYSADMIN', N'시스템관리자 그룹', N'시스템 전체 관리 권한', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00014 | executeUpdate | @00013 |  | => 0
+00015 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_USER_MAPPING WHERE USER_ID = :v0 AND ROLE_GROUP_ID = :v1 |  |
+00016 | getSingleResult | @00015 | v0=admin, v1=ROLE_GROUP_SYSADMIN | => (Integer)0
+00017 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_USER_MAPPING (USER_ID, ROLE_GROUP_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('admin', 'ROLE_GROUP_SYSADMIN', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00018 | executeUpdate | @00017 |  | => 0
+00019 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE WHERE ROLE_ID = :v |  |
+00020 | getSingleResult | @00019 | v=SYSADMIN | => (Integer)0
+00021 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE (ROLE_ID, ROLE_NM, ROLE_DESC, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', N'시스템관리자', N'전체 권한', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00022 | executeUpdate | @00021 |  | => 0
+00023 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE WHERE ROLE_ID = 'SYSADMIN' |  |
+00024 | getSingleResult | @00023 |  | => (Integer)0
+00025 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE WHERE ROLE_ID = 'ROLE_SYSADMIN' |  |
+00026 | getSingleResult | @00025 |  | => (Integer)0
+00027 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLEGROUP_MAPPING WHERE ROLE_GROUP_ID = :v0 AND ROLE_ID = :v1 |  |
+00028 | getSingleResult | @00027 | v0=ROLE_GROUP_SYSADMIN, v1=SYSADMIN | => (Integer)0
+00029 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLEGROUP_MAPPING (ROLE_GROUP_ID, ROLE_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('ROLE_GROUP_SYSADMIN', 'SYSADMIN', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00030 | executeUpdate | @00029 |  | => 0
+00031 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_PERM WHERE PERMISSION_ID = :v |  |
+00032 | getSingleResult | @00031 | v=PERM_ALL | => (Integer)0
+00033 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_PERM (PERMISSION_ID, PERMISSION_NM, PERMISSION_DESC, PERMISSION_COMMON, PERMISSION_ACTION, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('PERM_ALL', N'전체 권한', N'SYSADMIN 전체 접근', 'search,save,delete,import,export', 'search,save,delete,import,export,reg,confirm,cancel,approve,reject,copy,deleteCmUser,reRegCmUser,regCmUser,pwdinit,searchUserRoleGrp,saveUserRoleGrp,searchRoleGrp,saveUserRoleGrpCopy,commonUserDept,commonList,searchObj,searchCmMenu,searchMenuGrp,saveCmMenu,searchCmMenuFld,saveCmMenuFld,searchCmRole,saveCmRole,searchCmRoleMap,saveCmRoleMap,searchCmPerm,lov,searchDetail,saveDetail,searchObjectLov,searchSystemLov,searchDeptLov,searchCmRoleGrp,saveCmRoleGrp,searchCmRoleGrpMap,saveCmRoleGrpMap,searchCmRoleGrpMenu,searchCmUser,saveCmUser,searchCmObj,saveCmObj,searchUserList,execute,validate,analyze,view,activate,deactivate,compare,restore,apply,release,calculate,lock,unlock,handover,changeStatus,overview,byScreen,byDept,byUser,unused,history,previewQuery,searchLayouts,loadLayout,saveLayout,deleteLayout,searchDepts,upload,loadDefaultTabs,saveDefaultTab,deleteDefaultTab,reorderDefaultTabs,reload', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00034 | executeUpdate | @00033 |  | => 0
+00035 | createNativeQuery | SELECT PERMISSION_ACTION FROM MCMAPUSER.TB_MCM_SEC_PERM WHERE PERMISSION_ID = :permissionId |  |
+00036 | getResultList | @00035 | permissionId=PERM_ALL | => []
+00037 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00038 | getSingleResult | @00037 | v=commObjMng | => (Integer)0
+00039 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('commObjMng', N'OBJECT 관리', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00040 | executeUpdate | @00039 |  | => 0
+00041 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00042 | getSingleResult | @00041 | v=commMenuMng | => (Integer)0
+00043 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('commMenuMng', N'MENU 관리', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00044 | executeUpdate | @00043 |  | => 0
+00045 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00046 | getSingleResult | @00045 | v=commRoleMng | => (Integer)0
+00047 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('commRoleMng', N'역할 관리', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00048 | executeUpdate | @00047 |  | => 0
+00049 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00050 | getSingleResult | @00049 | v=commRoleGrpMng | => (Integer)0
+00051 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('commRoleGrpMng', N'역할 그룹 관리', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00052 | executeUpdate | @00051 |  | => 0
+00053 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00054 | getSingleResult | @00053 | v=commUserMng | => (Integer)0
+00055 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('commUserMng', N'사용자 관리', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00056 | executeUpdate | @00055 |  | => 0
+00057 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00058 | getSingleResult | @00057 | v=commPermMng | => (Integer)0
+00059 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('commPermMng', N'PERMISSION 관리', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00060 | executeUpdate | @00059 |  | => 0
+00061 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00062 | getSingleResult | @00061 | v=commUserRoleCopy | => (Integer)0
+00063 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('commUserRoleCopy', N'사용자 권한 일괄 등록', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00064 | executeUpdate | @00063 |  | => 0
+00065 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00066 | getSingleResult | @00065 | v=commSyncMng | => (Integer)0
+00067 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('commSyncMng', N'동기화 관리', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00068 | executeUpdate | @00067 |  | => 0
+00069 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00070 | getSingleResult | @00069 | v=masterCodeMngList | => (Integer)0
+00071 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterCodeMngList', N'Master Code 상세조회', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00072 | executeUpdate | @00071 |  | => 0
+00073 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00074 | getSingleResult | @00073 | v=masterCodeMng | => (Integer)0
+00075 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterCodeMng', N'Master Code 관리', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00076 | executeUpdate | @00075 |  | => 0
+00077 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00078 | getSingleResult | @00077 | v=masterCategoryMng | => (Integer)0
+00079 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterCategoryMng', N'카테고리 관리', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00080 | executeUpdate | @00079 |  | => 0
+00081 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00082 | getSingleResult | @00081 | v=masterCodeSelPop | => (Integer)0
+00083 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterCodeSelPop', N'마스터코드 선택 팝업', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00084 | executeUpdate | @00083 |  | => 0
+00085 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00086 | getSingleResult | @00085 | v=masterCodeUploadFilePopup | => (Integer)0
+00087 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterCodeUploadFilePopup', N'마스터코드 등록(Excel Upload)', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00088 | executeUpdate | @00087 |  | => 0
+00089 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00090 | getSingleResult | @00089 | v=masterRuleList | => (Integer)0
+00091 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterRuleList', N'업무기준 목록조회', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00092 | executeUpdate | @00091 |  | => 0
+00093 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00094 | getSingleResult | @00093 | v=masterRuleData | => (Integer)0
+00095 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterRuleData', N'업무기준 Data관리', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00096 | executeUpdate | @00095 |  | => 0
+00097 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00098 | getSingleResult | @00097 | v=masterRuleDataList | => (Integer)0
+00099 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterRuleDataList', N'업무기준 상세조회', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00100 | executeUpdate | @00099 |  | => 0
+00101 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00102 | getSingleResult | @00101 | v=masterRuleFrame | => (Integer)0
+00103 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterRuleFrame', N'업무기준 구조관리', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00104 | executeUpdate | @00103 |  | => 0
+00105 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00106 | getSingleResult | @00105 | v=masterRuleListPop | => (Integer)0
+00107 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterRuleListPop', N'업무기준 List조회 팝업', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00108 | executeUpdate | @00107 |  | => 0
+00109 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00110 | getSingleResult | @00109 | v=masterRuleFrameColListPopup | => (Integer)0
+00111 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterRuleFrameColListPopup', N'업무기준 컬럼 리스트 등록 팝업', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00112 | executeUpdate | @00111 |  | => 0
+00113 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00114 | getSingleResult | @00113 | v=masterRuleDataUploadFilePopup | => (Integer)0
+00115 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterRuleDataUploadFilePopup', N'일반 업무기준 등록(Excel Upload)', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00116 | executeUpdate | @00115 |  | => 0
+00117 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00118 | getSingleResult | @00117 | v0=SYSADMIN, v1=commObjMng, v2=PERM_ALL | => (Integer)0
+00119 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'commObjMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00120 | executeUpdate | @00119 |  | => 0
+00121 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00122 | getSingleResult | @00121 | v0=SYSADMIN, v1=commMenuMng, v2=PERM_ALL | => (Integer)0
+00123 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'commMenuMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00124 | executeUpdate | @00123 |  | => 0
+00125 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00126 | getSingleResult | @00125 | v0=SYSADMIN, v1=commRoleMng, v2=PERM_ALL | => (Integer)0
+00127 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'commRoleMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00128 | executeUpdate | @00127 |  | => 0
+00129 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00130 | getSingleResult | @00129 | v0=SYSADMIN, v1=commRoleGrpMng, v2=PERM_ALL | => (Integer)0
+00131 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'commRoleGrpMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00132 | executeUpdate | @00131 |  | => 0
+00133 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00134 | getSingleResult | @00133 | v0=SYSADMIN, v1=commUserMng, v2=PERM_ALL | => (Integer)0
+00135 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'commUserMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00136 | executeUpdate | @00135 |  | => 0
+00137 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00138 | getSingleResult | @00137 | v0=SYSADMIN, v1=commPermMng, v2=PERM_ALL | => (Integer)0
+00139 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'commPermMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00140 | executeUpdate | @00139 |  | => 0
+00141 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00142 | getSingleResult | @00141 | v0=SYSADMIN, v1=commUserRoleCopy, v2=PERM_ALL | => (Integer)0
+00143 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'commUserRoleCopy', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00144 | executeUpdate | @00143 |  | => 0
+00145 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00146 | getSingleResult | @00145 | v0=SYSADMIN, v1=commSyncMng, v2=PERM_ALL | => (Integer)0
+00147 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'commSyncMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00148 | executeUpdate | @00147 |  | => 0
+00149 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00150 | getSingleResult | @00149 | v0=SYSADMIN, v1=masterCodeMngList, v2=PERM_ALL | => (Integer)0
+00151 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'masterCodeMngList', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00152 | executeUpdate | @00151 |  | => 0
+00153 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00154 | getSingleResult | @00153 | v0=SYSADMIN, v1=masterCodeMng, v2=PERM_ALL | => (Integer)0
+00155 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'masterCodeMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00156 | executeUpdate | @00155 |  | => 0
+00157 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00158 | getSingleResult | @00157 | v0=SYSADMIN, v1=masterCategoryMng, v2=PERM_ALL | => (Integer)0
+00159 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'masterCategoryMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00160 | executeUpdate | @00159 |  | => 0
+00161 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00162 | getSingleResult | @00161 | v0=SYSADMIN, v1=masterCodeSelPop, v2=PERM_ALL | => (Integer)0
+00163 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'masterCodeSelPop', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00164 | executeUpdate | @00163 |  | => 0
+00165 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00166 | getSingleResult | @00165 | v0=SYSADMIN, v1=masterCodeUploadFilePopup, v2=PERM_ALL | => (Integer)0
+00167 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'masterCodeUploadFilePopup', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00168 | executeUpdate | @00167 |  | => 0
+00169 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00170 | getSingleResult | @00169 | v0=SYSADMIN, v1=masterRuleList, v2=PERM_ALL | => (Integer)0
+00171 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'masterRuleList', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00172 | executeUpdate | @00171 |  | => 0
+00173 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00174 | getSingleResult | @00173 | v0=SYSADMIN, v1=masterRuleData, v2=PERM_ALL | => (Integer)0
+00175 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'masterRuleData', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00176 | executeUpdate | @00175 |  | => 0
+00177 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00178 | getSingleResult | @00177 | v0=SYSADMIN, v1=masterRuleDataList, v2=PERM_ALL | => (Integer)0
+00179 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'masterRuleDataList', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00180 | executeUpdate | @00179 |  | => 0
+00181 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00182 | getSingleResult | @00181 | v0=SYSADMIN, v1=masterRuleFrame, v2=PERM_ALL | => (Integer)0
+00183 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'masterRuleFrame', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00184 | executeUpdate | @00183 |  | => 0
+00185 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00186 | getSingleResult | @00185 | v0=SYSADMIN, v1=masterRuleListPop, v2=PERM_ALL | => (Integer)0
+00187 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'masterRuleListPop', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00188 | executeUpdate | @00187 |  | => 0
+00189 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00190 | getSingleResult | @00189 | v0=SYSADMIN, v1=masterRuleFrameColListPopup, v2=PERM_ALL | => (Integer)0
+00191 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'masterRuleFrameColListPopup', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00192 | executeUpdate | @00191 |  | => 0
+00193 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00194 | getSingleResult | @00193 | v0=SYSADMIN, v1=masterRuleDataUploadFilePopup, v2=PERM_ALL | => (Integer)0
+00195 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'masterRuleDataUploadFilePopup', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00196 | executeUpdate | @00195 |  | => 0
+00197 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET PARENT_MENU_ID = :n WHERE PARENT_MENU_ID = :o |  |
+00198 | executeUpdate | @00197 | n=cma, o=grp-cma | => 0
+00199 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU_FLD SET PARENT_MENU_ID = :n WHERE PARENT_MENU_ID = :o |  |
+00200 | executeUpdate | @00199 | n=cma, o=grp-cma | => 0
+00201 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD WHERE MENU_ID = :n |  |
+00202 | getSingleResult | @00201 | n=cma | => (Integer)0
+00203 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU_FLD SET MENU_ID = :n WHERE MENU_ID = :o |  |
+00204 | executeUpdate | @00203 | n=cma, o=grp-cma | => 0
+00205 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET PARENT_MENU_ID = :n WHERE PARENT_MENU_ID = :o |  |
+00206 | executeUpdate | @00205 | n=csa, o=grp-csa | => 0
+00207 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU_FLD SET PARENT_MENU_ID = :n WHERE PARENT_MENU_ID = :o |  |
+00208 | executeUpdate | @00207 | n=csa, o=grp-csa | => 0
+00209 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD WHERE MENU_ID = :n |  |
+00210 | getSingleResult | @00209 | n=csa | => (Integer)0
+00211 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU_FLD SET MENU_ID = :n WHERE MENU_ID = :o |  |
+00212 | executeUpdate | @00211 | n=csa, o=grp-csa | => 0
+00213 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET PARENT_MENU_ID = :n WHERE PARENT_MENU_ID = :o |  |
+00214 | executeUpdate | @00213 | n=cme, o=grp-cme | => 0
+00215 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU_FLD SET PARENT_MENU_ID = :n WHERE PARENT_MENU_ID = :o |  |
+00216 | executeUpdate | @00215 | n=cme, o=grp-cme | => 0
+00217 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD WHERE MENU_ID = :n |  |
+00218 | getSingleResult | @00217 | n=cme | => (Integer)0
+00219 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU_FLD SET MENU_ID = :n WHERE MENU_ID = :o |  |
+00220 | executeUpdate | @00219 | n=cme, o=grp-cme | => 0
+00221 | createNativeQuery | DELETE FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :m |  |
+00222 | executeUpdate | @00221 | m=mcm | => 0
+00223 | createNativeQuery | DELETE FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :m |  |
+00224 | executeUpdate | @00223 | m=cma | => 0
+00225 | createNativeQuery | DELETE FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :m |  |
+00226 | executeUpdate | @00225 | m=csa | => 0
+00227 | createNativeQuery | DELETE FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :m |  |
+00228 | executeUpdate | @00227 | m=cme | => 0
+00229 | createNativeQuery | DELETE FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :m |  |
+00230 | executeUpdate | @00229 | m=grp-cma | => 0
+00231 | createNativeQuery | DELETE FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :m |  |
+00232 | executeUpdate | @00231 | m=grp-csa | => 0
+00233 | createNativeQuery | DELETE FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :m |  |
+00234 | executeUpdate | @00233 | m=grp-cme | => 0
+00235 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00236 | getSingleResult | @00235 | v=masterCategoryMng | => (Integer)0
+00237 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterCategoryMng', '00000001', '1010100', N'카테고리 관리', 'WEB', 'masterCategoryMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'cma', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00238 | executeUpdate | @00237 |  | => 0
+00239 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00240 | getSingleResult | @00239 | v=masterCodeMng | => (Integer)0
+00241 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterCodeMng', '00000001', '1010110', N'Master Code 관리', 'WEB', 'masterCodeMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'cma', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00242 | executeUpdate | @00241 |  | => 0
+00243 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00244 | getSingleResult | @00243 | v=commObjMng | => (Integer)0
+00245 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('commObjMng', '00000001', '1020100', N'OBJECT 관리', 'WEB', 'commObjMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'csa', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00246 | executeUpdate | @00245 |  | => 0
+00247 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00248 | getSingleResult | @00247 | v=commMenuMng | => (Integer)0
+00249 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('commMenuMng', '00000001', '1020110', N'메뉴 관리', 'WEB', 'commMenuMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'csa', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00250 | executeUpdate | @00249 |  | => 0
+00251 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00252 | getSingleResult | @00251 | v=commRoleMng | => (Integer)0
+00253 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('commRoleMng', '00000001', '1020120', N'역할 관리', 'WEB', 'commRoleMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'csa', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00254 | executeUpdate | @00253 |  | => 0
+00255 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00256 | getSingleResult | @00255 | v=commRoleGrpMng | => (Integer)0
+00257 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('commRoleGrpMng', '00000001', '1020130', N'역할 그룹 관리', 'WEB', 'commRoleGrpMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'csa', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00258 | executeUpdate | @00257 |  | => 0
+00259 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00260 | getSingleResult | @00259 | v=commUserMng | => (Integer)0
+00261 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('commUserMng', '00000001', '1020140', N'사용자 관리', 'WEB', 'commUserMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'csa', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00262 | executeUpdate | @00261 |  | => 0
+00263 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00264 | getSingleResult | @00263 | v=commPermMng | => (Integer)0
+00265 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('commPermMng', '00000001', '1020150', N'PERMISSION 관리', 'WEB', 'commPermMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'csa', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00266 | executeUpdate | @00265 |  | => 0
+00267 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00268 | getSingleResult | @00267 | v=commUserRoleCopy | => (Integer)0
+00269 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('commUserRoleCopy', '00000001', '1020160', N'사용자 권한 일괄 등록', 'WEB', 'commUserRoleCopy', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'csa', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00270 | executeUpdate | @00269 |  | => 0
+00271 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00272 | getSingleResult | @00271 | v=commSyncMng | => (Integer)0
+00273 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('commSyncMng', '00000001', '1020170', N'동기화 관리', 'WEB', 'commSyncMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'csa', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00274 | executeUpdate | @00273 |  | => 0
+00275 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00276 | getSingleResult | @00275 | v=masterCodeMngList | => (Integer)0
+00277 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterCodeMngList', '00000001', '1030100', N'Master Code 상세조회', 'WEB', 'masterCodeMngList', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'cme', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00278 | executeUpdate | @00277 |  | => 0
+00279 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00280 | getSingleResult | @00279 | v=masterRuleList | => (Integer)0
+00281 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterRuleList', '00000001', '1040100', N'업무기준 목록조회', 'WEB', 'masterRuleList', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'cmb', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00282 | executeUpdate | @00281 |  | => 0
+00283 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00284 | getSingleResult | @00283 | v=masterRuleData | => (Integer)0
+00285 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterRuleData', '00000001', '1040110', N'업무기준 Data관리', 'WEB', 'masterRuleData', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'cmb', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00286 | executeUpdate | @00285 |  | => 0
+00287 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00288 | getSingleResult | @00287 | v=masterRuleDataList | => (Integer)0
+00289 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterRuleDataList', '00000001', '1040120', N'업무기준 상세조회', 'WEB', 'masterRuleDataList', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'cmb', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00290 | executeUpdate | @00289 |  | => 0
+00291 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00292 | getSingleResult | @00291 | v=masterRuleFrame | => (Integer)0
+00293 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterRuleFrame', '00000001', '1040130', N'업무기준 구조관리', 'WEB', 'masterRuleFrame', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'cmb', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00294 | executeUpdate | @00293 |  | => 0
+00295 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00296 | getSingleResult | @00295 | v=masterCodeSelPop | => (Integer)0
+00297 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterCodeSelPop', '00000001', '1050100', N'마스터코드 선택 팝업', 'WEB', 'masterCodeSelPop', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'N', 'cmz', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00298 | executeUpdate | @00297 |  | => 0
+00299 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00300 | getSingleResult | @00299 | v=masterCodeUploadFilePopup | => (Integer)0
+00301 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterCodeUploadFilePopup', '00000001', '1050110', N'마스터코드 등록(Excel Upload)', 'WEB', 'masterCodeUploadFilePopup', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'N', 'cmz', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00302 | executeUpdate | @00301 |  | => 0
+00303 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00304 | getSingleResult | @00303 | v=masterRuleListPop | => (Integer)0
+00305 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterRuleListPop', '00000001', '1050120', N'업무기준 List조회 팝업', 'WEB', 'masterRuleListPop', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'N', 'cmz', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00306 | executeUpdate | @00305 |  | => 0
+00307 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00308 | getSingleResult | @00307 | v=masterRuleFrameColListPopup | => (Integer)0
+00309 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterRuleFrameColListPopup', '00000001', '1050130', N'업무기준 컬럼 리스트 등록 팝업', 'WEB', 'masterRuleFrameColListPopup', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'N', 'cmz', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00310 | executeUpdate | @00309 |  | => 0
+00311 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00312 | getSingleResult | @00311 | v=masterRuleDataUploadFilePopup | => (Integer)0
+00313 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('masterRuleDataUploadFilePopup', '00000001', '1050140', N'일반 업무기준 등록(Excel Upload)', 'WEB', 'masterRuleDataUploadFilePopup', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'N', 'cmz', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00314 | executeUpdate | @00313 |  | => 0
+00315 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET PARENT_MENU_ID = :p WHERE MENU_ID = :m AND (PARENT_MENU_ID IS NULL OR PARENT_MENU_ID <> :p) |  |
+00316 | executeUpdate | @00315 | m=masterCodeSelPop, p=cmz | => 0
+00317 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET MENU_VIEW_YN = :v WHERE MENU_ID = :m AND (MENU_VIEW_YN IS NULL OR MENU_VIEW_YN <> :v) |  |
+00318 | executeUpdate | @00317 | m=masterCodeSelPop, v=N | => 0
+00319 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET PARENT_MENU_ID = :p WHERE MENU_ID = :m AND (PARENT_MENU_ID IS NULL OR PARENT_MENU_ID <> :p) |  |
+00320 | executeUpdate | @00319 | m=masterCodeUploadFilePopup, p=cmz | => 0
+00321 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET MENU_VIEW_YN = :v WHERE MENU_ID = :m AND (MENU_VIEW_YN IS NULL OR MENU_VIEW_YN <> :v) |  |
+00322 | executeUpdate | @00321 | m=masterCodeUploadFilePopup, v=N | => 0
+00323 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET PARENT_MENU_ID = :p WHERE MENU_ID = :m AND (PARENT_MENU_ID IS NULL OR PARENT_MENU_ID <> :p) |  |
+00324 | executeUpdate | @00323 | m=masterRuleListPop, p=cmz | => 0
+00325 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET MENU_VIEW_YN = :v WHERE MENU_ID = :m AND (MENU_VIEW_YN IS NULL OR MENU_VIEW_YN <> :v) |  |
+00326 | executeUpdate | @00325 | m=masterRuleListPop, v=N | => 0
+00327 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET PARENT_MENU_ID = :p WHERE MENU_ID = :m AND (PARENT_MENU_ID IS NULL OR PARENT_MENU_ID <> :p) |  |
+00328 | executeUpdate | @00327 | m=masterRuleFrameColListPopup, p=cmz | => 0
+00329 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET MENU_VIEW_YN = :v WHERE MENU_ID = :m AND (MENU_VIEW_YN IS NULL OR MENU_VIEW_YN <> :v) |  |
+00330 | executeUpdate | @00329 | m=masterRuleFrameColListPopup, v=N | => 0
+00331 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET PARENT_MENU_ID = :p WHERE MENU_ID = :m AND (PARENT_MENU_ID IS NULL OR PARENT_MENU_ID <> :p) |  |
+00332 | executeUpdate | @00331 | m=masterRuleDataUploadFilePopup, p=cmz | => 0
+00333 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET MENU_VIEW_YN = :v WHERE MENU_ID = :m AND (MENU_VIEW_YN IS NULL OR MENU_VIEW_YN <> :v) |  |
+00334 | executeUpdate | @00333 | m=masterRuleDataUploadFilePopup, v=N | => 0
+00335 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00336 | executeUpdate | @00335 | f=1010100, m=masterCategoryMng, p=cma | => 0
+00337 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00338 | executeUpdate | @00337 | f=1010110, m=masterCodeMng, p=cma | => 0
+00339 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00340 | executeUpdate | @00339 | f=1020100, m=commObjMng, p=csa | => 0
+00341 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00342 | executeUpdate | @00341 | f=1020110, m=commMenuMng, p=csa | => 0
+00343 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00344 | executeUpdate | @00343 | f=1020120, m=commRoleMng, p=csa | => 0
+00345 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00346 | executeUpdate | @00345 | f=1020130, m=commRoleGrpMng, p=csa | => 0
+00347 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00348 | executeUpdate | @00347 | f=1020140, m=commUserMng, p=csa | => 0
+00349 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00350 | executeUpdate | @00349 | f=1020150, m=commPermMng, p=csa | => 0
+00351 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00352 | executeUpdate | @00351 | f=1020160, m=commUserRoleCopy, p=csa | => 0
+00353 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00354 | executeUpdate | @00353 | f=1020170, m=commSyncMng, p=csa | => 0
+00355 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00356 | executeUpdate | @00355 | f=1020190, m=mdmCacheMng, p=csa | => 0
+00357 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00358 | executeUpdate | @00357 | f=1020210, m=searchDefaultsSample, p=csa | => 0
+00359 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00360 | executeUpdate | @00359 | f=1030100, m=masterCodeMngList, p=cme | => 0
+00361 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00362 | executeUpdate | @00361 | f=1040100, m=masterRuleList, p=cmb | => 0
+00363 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00364 | executeUpdate | @00363 | f=1040110, m=masterRuleData, p=cmb | => 0
+00365 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00366 | executeUpdate | @00365 | f=1040120, m=masterRuleDataList, p=cmb | => 0
+00367 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00368 | executeUpdate | @00367 | f=1040130, m=masterRuleFrame, p=cmb | => 0
+00369 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00370 | executeUpdate | @00369 | f=1050100, m=masterCodeSelPop, p=cmz | => 0
+00371 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00372 | executeUpdate | @00371 | f=1050110, m=masterCodeUploadFilePopup, p=cmz | => 0
+00373 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00374 | executeUpdate | @00373 | f=1050120, m=masterRuleListPop, p=cmz | => 0
+00375 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00376 | executeUpdate | @00375 | f=1050130, m=masterRuleFrameColListPopup, p=cmz | => 0
+00377 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p WHERE MENU_ID = :m |  |
+00378 | executeUpdate | @00377 | f=1050140, m=masterRuleDataUploadFilePopup, p=cmz | => 0
+00379 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_DEPT_INFO WHERE DEPT_CD = :v |  |
+00380 | getSingleResult | @00379 | v=DEPT_001 | => (Integer)0
+00381 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO (DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('DEPT_001', N'경영지원본부', 'Management Support HQ', NULL, 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00382 | executeUpdate | @00381 |  | => 0
+00383 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_DEPT_INFO WHERE DEPT_CD = :v |  |
+00384 | getSingleResult | @00383 | v=DEPT_002 | => (Integer)0
+00385 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO (DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('DEPT_002', N'정보기술팀', 'IT Team', 'DEPT_001', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00386 | executeUpdate | @00385 |  | => 0
+00387 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_DEPT_INFO WHERE DEPT_CD = :v |  |
+00388 | getSingleResult | @00387 | v=DEPT_003 | => (Integer)0
+00389 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO (DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('DEPT_003', N'생산관리팀', 'Production Mgmt Team', 'DEPT_001', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00390 | executeUpdate | @00389 |  | => 0
+00391 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_DEPT_INFO WHERE DEPT_CD = :v |  |
+00392 | getSingleResult | @00391 | v=DEPT_004 | => (Integer)0
+00393 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO (DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('DEPT_004', N'인사팀', 'HR Team', 'DEPT_001', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00394 | executeUpdate | @00393 |  | => 0
+00395 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_DEPT_INFO WHERE DEPT_CD = :v |  |
+00396 | getSingleResult | @00395 | v=DEPT_005 | => (Integer)0
+00397 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO (DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('DEPT_005', N'재무팀', 'Finance Team', 'DEPT_001', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00398 | executeUpdate | @00397 |  | => 0
+00399 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_DEPT_INFO WHERE DEPT_CD = :v |  |
+00400 | getSingleResult | @00399 | v=DEPT_006 | => (Integer)0
+00401 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO (DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('DEPT_006', N'영업1팀', 'Sales Team 1', 'DEPT_001', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00402 | executeUpdate | @00401 |  | => 0
+00403 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_DEPT_INFO WHERE DEPT_CD = :v |  |
+00404 | getSingleResult | @00403 | v=DEPT_007 | => (Integer)0
+00405 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO (DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('DEPT_007', N'품질관리팀', 'Quality Mgmt Team', 'DEPT_001', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00406 | executeUpdate | @00405 |  | => 0
+00407 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD WHERE MENU_ID = :v |  |
+00408 | getSingleResult | @00407 | v=mcm | => (Integer)0
+00409 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID) VALUES ('mcm', '00000002', N'공통관리', NULL) |  |
+00410 | executeUpdate | @00409 |  | => 0
+00411 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD WHERE MENU_ID = :v |  |
+00412 | getSingleResult | @00411 | v=cma | => (Integer)0
+00413 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID) VALUES ('cma', '00000100', N'마스터관리(원장)', 'mcm') |  |
+00414 | executeUpdate | @00413 |  | => 0
+00415 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD WHERE MENU_ID = :v |  |
+00416 | getSingleResult | @00415 | v=csa | => (Integer)0
+00417 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID) VALUES ('csa', '00000200', N'시스템관리', 'mcm') |  |
+00418 | executeUpdate | @00417 |  | => 0
+00419 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD WHERE MENU_ID = :v |  |
+00420 | getSingleResult | @00419 | v=cme | => (Integer)0
+00421 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID) VALUES ('cme', '00000300', N'마스터관리(가동)', 'mcm') |  |
+00422 | executeUpdate | @00421 |  | => 0
+00423 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD WHERE MENU_ID = :v |  |
+00424 | getSingleResult | @00423 | v=cmb | => (Integer)0
+00425 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID) VALUES ('cmb', '00000400', N'업무기준관리(원장)', 'mcm') |  |
+00426 | executeUpdate | @00425 |  | => 0
+00427 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD WHERE MENU_ID = :v |  |
+00428 | getSingleResult | @00427 | v=cmz | => (Integer)0
+00429 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, USE_TP, MENU_VIEW_YN) VALUES ('cmz', '00000500', N'팝업', 'mcm', 1050000, 'Y', 'N') |  |
+00430 | executeUpdate | @00429 |  | => 0
+00431 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU_FLD SET MENU_VIEW_YN = :v WHERE MENU_ID = :m AND (MENU_VIEW_YN IS NULL OR MENU_VIEW_YN <> :v) |  |
+00432 | executeUpdate | @00431 | m=cmz, v=N | => 0
+00433 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET USE_TP = 'Y'  WHERE LTRIM(RTRIM(USE_TP)) IS NULL |  |
+00434 | executeUpdate | @00433 |  | => 0
+00435 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET MENU_VIEW_YN = 'Y'  WHERE LTRIM(RTRIM(MENU_VIEW_YN)) IS NULL |  |
+00436 | executeUpdate | @00435 |  | => 0
+00437 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET MENU_TP = 'WEB'  WHERE LTRIM(RTRIM(MENU_TP)) IS NULL |  |
+00438 | executeUpdate | @00437 |  | => 0
+00439 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD WHERE MENU_ID = :v |  |
+00440 | getSingleResult | @00439 | v=analog | => (Integer)0
+00441 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, USE_TP, MENU_VIEW_YN) VALUES ('analog', '00000004', N'로그 분석', NULL, 4000000, 'Y', 'Y') |  |
+00442 | executeUpdate | @00441 |  | => 0
+00443 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD WHERE MENU_ID = :v |  |
+00444 | getSingleResult | @00443 | v=anl | => (Integer)0
+00445 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, USE_TP, MENU_VIEW_YN) VALUES ('anl', '00000100', N'로그 조회', 'analog', 4010000, 'Y', 'Y') |  |
+00446 | executeUpdate | @00445 |  | => 0
+00447 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00448 | getSingleResult | @00447 | v=logViewer | => (Integer)0
+00449 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('logViewer', N'로그 뷰어', 'analog', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00450 | executeUpdate | @00449 |  | => 0
+00451 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00452 | getSingleResult | @00451 | v=logViewer | => (Integer)0
+00453 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('logViewer', '00000001', '4010100', N'로그 뷰어', 'WEB', 'logViewer', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'anl', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00454 | executeUpdate | @00453 |  | => 0
+00455 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00456 | getSingleResult | @00455 | v0=SYSADMIN, v1=logViewer, v2=PERM_ALL | => (Integer)0
+00457 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'logViewer', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00458 | executeUpdate | @00457 |  | => 0
+00459 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET PARENT_MENU_ID = 'dma' WHERE PARENT_MENU_ID = 'mdt' |  |
+00460 | executeUpdate | @00459 |  | => 0
+00461 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU_FLD SET PARENT_MENU_ID = 'dma' WHERE PARENT_MENU_ID = 'mdt' |  |
+00462 | executeUpdate | @00461 |  | => 0
+00463 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD WHERE MENU_ID = 'dma' |  |
+00464 | getSingleResult | @00463 |  | => (Integer)0
+00465 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU_FLD SET MENU_ID = 'dma', MENU_NM = N'용어·도메인' WHERE MENU_ID = 'mdt' |  |
+00466 | executeUpdate | @00465 |  | => 0
+00467 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_USER_FAVORITE SET FULL_ID = 'dma/mdmSample' WHERE FULL_ID = 'mdt/mdmSample' |  |
+00468 | executeUpdate | @00467 |  | => 0
+00469 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD WHERE MENU_ID = :v |  |
+00470 | getSingleResult | @00469 | v=mdm | => (Integer)0
+00471 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, USE_TP, MENU_VIEW_YN) VALUES ('mdm', '00000005', N'마루 MDM', NULL, 5000000, 'Y', 'Y') |  |
+00472 | executeUpdate | @00471 |  | => 0
+00473 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD WHERE MENU_ID = :v |  |
+00474 | getSingleResult | @00473 | v=dma | => (Integer)0
+00475 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, USE_TP, MENU_VIEW_YN) VALUES ('dma', '00000100', N'용어·도메인', 'mdm', 5010000, 'Y', 'Y') |  |
+00476 | executeUpdate | @00475 |  | => 0
+00477 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD WHERE MENU_ID = :v |  |
+00478 | getSingleResult | @00477 | v=dmb | => (Integer)0
+00479 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, USE_TP, MENU_VIEW_YN) VALUES ('dmb', '00000200', N'레이아웃', 'mdm', 5020000, 'Y', 'Y') |  |
+00480 | executeUpdate | @00479 |  | => 0
+00481 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD WHERE MENU_ID = :v |  |
+00482 | getSingleResult | @00481 | v=dmc | => (Integer)0
+00483 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, USE_TP, MENU_VIEW_YN) VALUES ('dmc', '00000300', N'마스터코드', 'mdm', 5030000, 'Y', 'Y') |  |
+00484 | executeUpdate | @00483 |  | => 0
+00485 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD WHERE MENU_ID = :v |  |
+00486 | getSingleResult | @00485 | v=dmd | => (Integer)0
+00487 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, USE_TP, MENU_VIEW_YN) VALUES ('dmd', '00000400', N'마스터데이터', 'mdm', 5040000, 'Y', 'Y') |  |
+00488 | executeUpdate | @00487 |  | => 0
+00489 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD WHERE MENU_ID = :v |  |
+00490 | getSingleResult | @00489 | v=dme | => (Integer)0
+00491 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, USE_TP, MENU_VIEW_YN) VALUES ('dme', '00000500', N'업무기준', 'mdm', 5050000, 'Y', 'Y') |  |
+00492 | executeUpdate | @00491 |  | => 0
+00493 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00494 | getSingleResult | @00493 | v=mdmSample | => (Integer)0
+00495 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('mdmSample', N'MDM 샘플', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00496 | executeUpdate | @00495 |  | => 0
+00497 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00498 | getSingleResult | @00497 | v=unitMng | => (Integer)0
+00499 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('unitMng', N'단위 마스터', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00500 | executeUpdate | @00499 |  | => 0
+00501 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00502 | getSingleResult | @00501 | v=termMng | => (Integer)0
+00503 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('termMng', N'용어 관리', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00504 | executeUpdate | @00503 |  | => 0
+00505 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00506 | getSingleResult | @00505 | v=mdmSample | => (Integer)0
+00507 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('mdmSample', '00000001', '5010100', N'MDM 샘플', 'WEB', 'mdmSample', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'dma', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00508 | executeUpdate | @00507 |  | => 0
+00509 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00510 | getSingleResult | @00509 | v=unitMng | => (Integer)0
+00511 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('unitMng', '00000002', '5010200', N'단위 마스터', 'WEB', 'unitMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'dma', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00512 | executeUpdate | @00511 |  | => 0
+00513 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00514 | getSingleResult | @00513 | v=termMng | => (Integer)0
+00515 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('termMng', '00000003', '5010300', N'용어 관리', 'WEB', 'termMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'dma', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00516 | executeUpdate | @00515 |  | => 0
+00517 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00518 | getSingleResult | @00517 | v0=SYSADMIN, v1=mdmSample, v2=PERM_ALL | => (Integer)0
+00519 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'mdmSample', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00520 | executeUpdate | @00519 |  | => 0
+00521 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00522 | getSingleResult | @00521 | v0=SYSADMIN, v1=unitMng, v2=PERM_ALL | => (Integer)0
+00523 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'unitMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00524 | executeUpdate | @00523 |  | => 0
+00525 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00526 | getSingleResult | @00525 | v0=SYSADMIN, v1=termMng, v2=PERM_ALL | => (Integer)0
+00527 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'termMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00528 | executeUpdate | @00527 |  | => 0
+00529 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE WHERE ROLE_ID = :v |  |
+00530 | getSingleResult | @00529 | v=MDM_STD_ADMIN | => (Integer)0
+00531 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE (ROLE_ID, ROLE_NM, ROLE_DESC, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', N'표준 관리자', N'용어·도메인·레이아웃 등록·수정(ADR-0003 D5)', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00532 | executeUpdate | @00531 |  | => 0
+00533 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE WHERE ROLE_ID = :v |  |
+00534 | getSingleResult | @00533 | v=MDM_STEWARD | => (Integer)0
+00535 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE (ROLE_ID, ROLE_NM, ROLE_DESC, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', N'담당자', N'마스터코드·마스터데이터·업무기준 편집과 버전 확정(ADR-0003 D5)', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00536 | executeUpdate | @00535 |  | => 0
+00537 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLEGROUP WHERE ROLE_GROUP_ID = :v |  |
+00538 | getSingleResult | @00537 | v=ROLE_GROUP_MDM_STD_ADMIN | => (Integer)0
+00539 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLEGROUP (ROLE_GROUP_ID, ROLE_GROUP_NM, ROLE_GROUP_DESC, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('ROLE_GROUP_MDM_STD_ADMIN', N'MDM 표준 관리자 그룹', N'MDM 표준 관리자 역할 그룹', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00540 | executeUpdate | @00539 |  | => 0
+00541 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLEGROUP WHERE ROLE_GROUP_ID = :v |  |
+00542 | getSingleResult | @00541 | v=ROLE_GROUP_MDM_STEWARD | => (Integer)0
+00543 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLEGROUP (ROLE_GROUP_ID, ROLE_GROUP_NM, ROLE_GROUP_DESC, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('ROLE_GROUP_MDM_STEWARD', N'MDM 담당자 그룹', N'MDM 담당자 역할 그룹', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00544 | executeUpdate | @00543 |  | => 0
+00545 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLEGROUP_MAPPING WHERE ROLE_GROUP_ID = :v0 AND ROLE_ID = :v1 |  |
+00546 | getSingleResult | @00545 | v0=ROLE_GROUP_MDM_STD_ADMIN, v1=MDM_STD_ADMIN | => (Integer)0
+00547 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLEGROUP_MAPPING (ROLE_GROUP_ID, ROLE_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('ROLE_GROUP_MDM_STD_ADMIN', 'MDM_STD_ADMIN', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00548 | executeUpdate | @00547 |  | => 0
+00549 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLEGROUP_MAPPING WHERE ROLE_GROUP_ID = :v0 AND ROLE_ID = :v1 |  |
+00550 | getSingleResult | @00549 | v0=ROLE_GROUP_MDM_STEWARD, v1=MDM_STEWARD | => (Integer)0
+00551 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLEGROUP_MAPPING (ROLE_GROUP_ID, ROLE_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('ROLE_GROUP_MDM_STEWARD', 'MDM_STEWARD', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00552 | executeUpdate | @00551 |  | => 0
+00553 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_PERM WHERE PERMISSION_ID = :v |  |
+00554 | getSingleResult | @00553 | v=PERM_MDM_READ | => (Integer)0
+00555 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_PERM (PERMISSION_ID, PERMISSION_NM, PERMISSION_DESC, PERMISSION_ACTION, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('PERM_MDM_READ', N'MDM 조회', N'MDM 조회 권한(ADR-0003 D5)', 'search,view,export,compare', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00556 | executeUpdate | @00555 |  | => 0
+00557 | createNativeQuery | SELECT PERMISSION_ACTION FROM MCMAPUSER.TB_MCM_SEC_PERM WHERE PERMISSION_ID = :permissionId |  |
+00558 | getResultList | @00557 | permissionId=PERM_MDM_READ | => []
+00559 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_PERM WHERE PERMISSION_ID = :v |  |
+00560 | getSingleResult | @00559 | v=PERM_MDM_EDIT | => (Integer)0
+00561 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_PERM (PERMISSION_ID, PERMISSION_NM, PERMISSION_DESC, PERMISSION_ACTION, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('PERM_MDM_EDIT', N'MDM 편집', N'MDM 조회·편집 권한(ADR-0003 D5)', 'search,view,export,compare,save,delete,reg,import,validate,execute,copy,restore,lock,unlock,handover', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00562 | executeUpdate | @00561 |  | => 0
+00563 | createNativeQuery | SELECT PERMISSION_ACTION FROM MCMAPUSER.TB_MCM_SEC_PERM WHERE PERMISSION_ID = :permissionId |  |
+00564 | getResultList | @00563 | permissionId=PERM_MDM_EDIT | => []
+00565 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_PERM WHERE PERMISSION_ID = :v |  |
+00566 | getSingleResult | @00565 | v=PERM_MDM_CONFIRM | => (Integer)0
+00567 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_PERM (PERMISSION_ID, PERMISSION_NM, PERMISSION_DESC, PERMISSION_ACTION, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('PERM_MDM_CONFIRM', N'MDM 편집·확정', N'MDM 조회·편집·확정 권한(ADR-0003 D5)', 'search,view,export,compare,save,delete,reg,import,validate,execute,copy,restore,lock,unlock,handover,confirm', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00568 | executeUpdate | @00567 |  | => 0
+00569 | createNativeQuery | SELECT PERMISSION_ACTION FROM MCMAPUSER.TB_MCM_SEC_PERM WHERE PERMISSION_ID = :permissionId |  |
+00570 | getResultList | @00569 | permissionId=PERM_MDM_CONFIRM | => []
+00571 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00572 | getSingleResult | @00571 | v0=MDM_STD_ADMIN, v1=mdmSample, v2=PERM_MDM_EDIT | => (Integer)0
+00573 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'mdmSample', 'PERM_MDM_EDIT', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00574 | executeUpdate | @00573 |  | => 0
+00575 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00576 | getSingleResult | @00575 | v0=MDM_STEWARD, v1=mdmSample, v2=PERM_MDM_READ | => (Integer)0
+00577 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'mdmSample', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00578 | executeUpdate | @00577 |  | => 0
+00579 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00580 | getSingleResult | @00579 | v0=MDM_STD_ADMIN, v1=unitMng, v2=PERM_MDM_EDIT | => (Integer)0
+00581 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'unitMng', 'PERM_MDM_EDIT', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00582 | executeUpdate | @00581 |  | => 0
+00583 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00584 | getSingleResult | @00583 | v0=MDM_STEWARD, v1=unitMng, v2=PERM_MDM_READ | => (Integer)0
+00585 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'unitMng', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00586 | executeUpdate | @00585 |  | => 0
+00587 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00588 | getSingleResult | @00587 | v0=MDM_STD_ADMIN, v1=termMng, v2=PERM_MDM_EDIT | => (Integer)0
+00589 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'termMng', 'PERM_MDM_EDIT', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00590 | executeUpdate | @00589 |  | => 0
+00591 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00592 | getSingleResult | @00591 | v0=MDM_STEWARD, v1=termMng, v2=PERM_MDM_READ | => (Integer)0
+00593 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'termMng', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00594 | executeUpdate | @00593 |  | => 0
+00595 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00596 | getSingleResult | @00595 | v=domainMng | => (Integer)0
+00597 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('domainMng', N'도메인 관리', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00598 | executeUpdate | @00597 |  | => 0
+00599 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00600 | getSingleResult | @00599 | v=domainMng | => (Integer)0
+00601 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('domainMng', '00000001', '5010130', N'도메인 관리', 'WEB', 'domainMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'dma', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00602 | executeUpdate | @00601 |  | => 0
+00603 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00604 | getSingleResult | @00603 | v0=SYSADMIN, v1=domainMng, v2=PERM_ALL | => (Integer)0
+00605 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'domainMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00606 | executeUpdate | @00605 |  | => 0
+00607 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00608 | getSingleResult | @00607 | v0=MDM_STD_ADMIN, v1=domainMng, v2=PERM_MDM_EDIT | => (Integer)0
+00609 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'domainMng', 'PERM_MDM_EDIT', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00610 | executeUpdate | @00609 |  | => 0
+00611 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00612 | getSingleResult | @00611 | v0=MDM_STEWARD, v1=domainMng, v2=PERM_MDM_READ | => (Integer)0
+00613 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'domainMng', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00614 | executeUpdate | @00613 |  | => 0
+00615 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00616 | getSingleResult | @00615 | v=codeItemEdit | => (Integer)0
+00617 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('codeItemEdit', N'코드 편집', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00618 | executeUpdate | @00617 |  | => 0
+00619 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00620 | getSingleResult | @00619 | v=codeItemEdit | => (Integer)0
+00621 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('codeItemEdit', '00000003', '5030300', N'코드 편집', 'WEB', 'codeItemEdit', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'dmc', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00622 | executeUpdate | @00621 |  | => 0
+00623 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00624 | getSingleResult | @00623 | v0=SYSADMIN, v1=codeItemEdit, v2=PERM_ALL | => (Integer)0
+00625 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'codeItemEdit', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00626 | executeUpdate | @00625 |  | => 0
+00627 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00628 | getSingleResult | @00627 | v0=MDM_STD_ADMIN, v1=codeItemEdit, v2=PERM_MDM_READ | => (Integer)0
+00629 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'codeItemEdit', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00630 | executeUpdate | @00629 |  | => 0
+00631 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00632 | getSingleResult | @00631 | v0=MDM_STEWARD, v1=codeItemEdit, v2=PERM_MDM_CONFIRM | => (Integer)0
+00633 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'codeItemEdit', 'PERM_MDM_CONFIRM', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00634 | executeUpdate | @00633 |  | => 0
+00635 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00636 | getSingleResult | @00635 | v=codeCateEdit | => (Integer)0
+00637 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('codeCateEdit', N'카테고리 편집', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00638 | executeUpdate | @00637 |  | => 0
+00639 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00640 | getSingleResult | @00639 | v0=SYSADMIN, v1=codeCateEdit, v2=PERM_ALL | => (Integer)0
+00641 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'codeCateEdit', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00642 | executeUpdate | @00641 |  | => 0
+00643 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00644 | getSingleResult | @00643 | v0=MDM_STD_ADMIN, v1=codeCateEdit, v2=PERM_MDM_READ | => (Integer)0
+00645 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'codeCateEdit', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00646 | executeUpdate | @00645 |  | => 0
+00647 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00648 | getSingleResult | @00647 | v0=MDM_STEWARD, v1=codeCateEdit, v2=PERM_MDM_CONFIRM | => (Integer)0
+00649 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'codeCateEdit', 'PERM_MDM_CONFIRM', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00650 | executeUpdate | @00649 |  | => 0
+00651 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00652 | getSingleResult | @00651 | v=codeConfirm | => (Integer)0
+00653 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('codeConfirm', N'버전 확정', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00654 | executeUpdate | @00653 |  | => 0
+00655 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00656 | getSingleResult | @00655 | v=codeConfirm | => (Integer)0
+00657 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('codeConfirm', '00000005', '5030500', N'버전 확정', 'WEB', 'codeConfirm', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'dmc', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00658 | executeUpdate | @00657 |  | => 0
+00659 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00660 | getSingleResult | @00659 | v0=SYSADMIN, v1=codeConfirm, v2=PERM_ALL | => (Integer)0
+00661 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'codeConfirm', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00662 | executeUpdate | @00661 |  | => 0
+00663 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00664 | getSingleResult | @00663 | v0=MDM_STD_ADMIN, v1=codeConfirm, v2=PERM_MDM_READ | => (Integer)0
+00665 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'codeConfirm', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00666 | executeUpdate | @00665 |  | => 0
+00667 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00668 | getSingleResult | @00667 | v0=MDM_STEWARD, v1=codeConfirm, v2=PERM_MDM_CONFIRM | => (Integer)0
+00669 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'codeConfirm', 'PERM_MDM_CONFIRM', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00670 | executeUpdate | @00669 |  | => 0
+00671 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00672 | getSingleResult | @00671 | v=columnMng | => (Integer)0
+00673 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('columnMng', N'컬럼 사전', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00674 | executeUpdate | @00673 |  | => 0
+00675 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00676 | getSingleResult | @00675 | v=termRegPop | => (Integer)0
+00677 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('termRegPop', N'용어 인라인 등록', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00678 | executeUpdate | @00677 |  | => 0
+00679 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00680 | getSingleResult | @00679 | v=columnMng | => (Integer)0
+00681 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('columnMng', '00000004', '5010140', N'컬럼 사전', 'WEB', 'columnMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'dma', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00682 | executeUpdate | @00681 |  | => 0
+00683 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00684 | getSingleResult | @00683 | v0=SYSADMIN, v1=columnMng, v2=PERM_ALL | => (Integer)0
+00685 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'columnMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00686 | executeUpdate | @00685 |  | => 0
+00687 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00688 | getSingleResult | @00687 | v0=MDM_STD_ADMIN, v1=columnMng, v2=PERM_MDM_EDIT | => (Integer)0
+00689 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'columnMng', 'PERM_MDM_EDIT', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00690 | executeUpdate | @00689 |  | => 0
+00691 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00692 | getSingleResult | @00691 | v0=MDM_STEWARD, v1=columnMng, v2=PERM_MDM_READ | => (Integer)0
+00693 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'columnMng', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00694 | executeUpdate | @00693 |  | => 0
+00695 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00696 | getSingleResult | @00695 | v0=SYSADMIN, v1=termRegPop, v2=PERM_ALL | => (Integer)0
+00697 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'termRegPop', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00698 | executeUpdate | @00697 |  | => 0
+00699 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00700 | getSingleResult | @00699 | v0=MDM_STD_ADMIN, v1=termRegPop, v2=PERM_MDM_EDIT | => (Integer)0
+00701 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'termRegPop', 'PERM_MDM_EDIT', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00702 | executeUpdate | @00701 |  | => 0
+00703 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00704 | getSingleResult | @00703 | v0=MDM_STEWARD, v1=termRegPop, v2=PERM_MDM_READ | => (Integer)0
+00705 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'termRegPop', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00706 | executeUpdate | @00705 |  | => 0
+00707 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00708 | getSingleResult | @00707 | v=headerMng | => (Integer)0
+00709 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('headerMng', N'전문 헤더 정의', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00710 | executeUpdate | @00709 |  | => 0
+00711 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00712 | getSingleResult | @00711 | v=layoutMng | => (Integer)0
+00713 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('layoutMng', N'전문 레이아웃', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00714 | executeUpdate | @00713 |  | => 0
+00715 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00716 | getSingleResult | @00715 | v=headerMng | => (Integer)0
+00717 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('headerMng', '00000001', '5020110', N'전문 헤더 정의', 'WEB', 'headerMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'dmb', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00718 | executeUpdate | @00717 |  | => 0
+00719 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00720 | getSingleResult | @00719 | v=layoutMng | => (Integer)0
+00721 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('layoutMng', '00000002', '5020120', N'전문 레이아웃', 'WEB', 'layoutMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'dmb', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00722 | executeUpdate | @00721 |  | => 0
+00723 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00724 | getSingleResult | @00723 | v0=SYSADMIN, v1=headerMng, v2=PERM_ALL | => (Integer)0
+00725 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'headerMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00726 | executeUpdate | @00725 |  | => 0
+00727 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00728 | getSingleResult | @00727 | v0=MDM_STD_ADMIN, v1=headerMng, v2=PERM_MDM_EDIT | => (Integer)0
+00729 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'headerMng', 'PERM_MDM_EDIT', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00730 | executeUpdate | @00729 |  | => 0
+00731 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00732 | getSingleResult | @00731 | v0=MDM_STEWARD, v1=headerMng, v2=PERM_MDM_CONFIRM | => (Integer)0
+00733 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'headerMng', 'PERM_MDM_CONFIRM', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00734 | executeUpdate | @00733 |  | => 0
+00735 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00736 | getSingleResult | @00735 | v0=SYSADMIN, v1=layoutMng, v2=PERM_ALL | => (Integer)0
+00737 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'layoutMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00738 | executeUpdate | @00737 |  | => 0
+00739 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00740 | getSingleResult | @00739 | v0=MDM_STD_ADMIN, v1=layoutMng, v2=PERM_MDM_EDIT | => (Integer)0
+00741 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'layoutMng', 'PERM_MDM_EDIT', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00742 | executeUpdate | @00741 |  | => 0
+00743 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00744 | getSingleResult | @00743 | v0=MDM_STEWARD, v1=layoutMng, v2=PERM_MDM_CONFIRM | => (Integer)0
+00745 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'layoutMng', 'PERM_MDM_CONFIRM', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00746 | executeUpdate | @00745 |  | => 0
+00747 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00748 | getSingleResult | @00747 | v=layoutConfirm | => (Integer)0
+00749 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('layoutConfirm', N'레이아웃 확정', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00750 | executeUpdate | @00749 |  | => 0
+00751 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00752 | getSingleResult | @00751 | v=layoutConfirm | => (Integer)0
+00753 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('layoutConfirm', '00000003', '5020130', N'레이아웃 확정', 'WEB', 'layoutConfirm', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'dmb', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00754 | executeUpdate | @00753 |  | => 0
+00755 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00756 | getSingleResult | @00755 | v0=SYSADMIN, v1=layoutConfirm, v2=PERM_ALL | => (Integer)0
+00757 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'layoutConfirm', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00758 | executeUpdate | @00757 |  | => 0
+00759 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00760 | getSingleResult | @00759 | v0=MDM_STD_ADMIN, v1=layoutConfirm, v2=PERM_MDM_EDIT | => (Integer)0
+00761 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'layoutConfirm', 'PERM_MDM_EDIT', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00762 | executeUpdate | @00761 |  | => 0
+00763 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00764 | getSingleResult | @00763 | v0=MDM_STEWARD, v1=layoutConfirm, v2=PERM_MDM_CONFIRM | => (Integer)0
+00765 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'layoutConfirm', 'PERM_MDM_CONFIRM', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00766 | executeUpdate | @00765 |  | => 0
+00767 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00768 | getSingleResult | @00767 | v0=MDM_STD_ADMIN, v1=headerMng, v2=PERM_MDM_EDIT | => (Integer)0
+00769 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'headerMng', 'PERM_MDM_EDIT', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00770 | executeUpdate | @00769 |  | => 0
+00771 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00772 | getSingleResult | @00771 | v0=MDM_STEWARD, v1=headerMng, v2=PERM_MDM_CONFIRM | => (Integer)0
+00773 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'headerMng', 'PERM_MDM_CONFIRM', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00774 | executeUpdate | @00773 |  | => 0
+00775 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00776 | getSingleResult | @00775 | v0=MDM_STD_ADMIN, v1=layoutMng, v2=PERM_MDM_EDIT | => (Integer)0
+00777 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'layoutMng', 'PERM_MDM_EDIT', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00778 | executeUpdate | @00777 |  | => 0
+00779 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00780 | getSingleResult | @00779 | v0=MDM_STEWARD, v1=layoutMng, v2=PERM_MDM_CONFIRM | => (Integer)0
+00781 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'layoutMng', 'PERM_MDM_CONFIRM', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00782 | executeUpdate | @00781 |  | => 0
+00783 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00784 | getSingleResult | @00783 | v=codeMng | => (Integer)0
+00785 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('codeMng', N'마루 코드', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00786 | executeUpdate | @00785 |  | => 0
+00787 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00788 | getSingleResult | @00787 | v=codeEdit | => (Integer)0
+00789 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('codeEdit', N'마루 코드 수정', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00790 | executeUpdate | @00789 |  | => 0
+00791 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00792 | getSingleResult | @00791 | v=codeMng | => (Integer)0
+00793 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('codeMng', '00000001', '5030100', N'마루 코드', 'WEB', 'codeMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'dmc', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00794 | executeUpdate | @00793 |  | => 0
+00795 | createNativeQuery | DELETE FROM MCMAPUSER.TB_MCM_SEC_USER_FAVORITE WHERE MENU_ID = :m |  |
+00796 | executeUpdate | @00795 | m=codeEdit | => 0
+00797 | createNativeQuery | DELETE FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :m |  |
+00798 | executeUpdate | @00797 | m=codeEdit | => 0
+00799 | createNativeQuery | DELETE FROM MCMAPUSER.TB_MCM_SEC_USER_FAVORITE WHERE MENU_ID = :m |  |
+00800 | executeUpdate | @00799 | m=codeCateEdit | => 0
+00801 | createNativeQuery | DELETE FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :m |  |
+00802 | executeUpdate | @00801 | m=codeCateEdit | => 0
+00803 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00804 | getSingleResult | @00803 | v0=SYSADMIN, v1=codeMng, v2=PERM_ALL | => (Integer)0
+00805 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'codeMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00806 | executeUpdate | @00805 |  | => 0
+00807 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00808 | getSingleResult | @00807 | v0=MDM_STD_ADMIN, v1=codeMng, v2=PERM_MDM_READ | => (Integer)0
+00809 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'codeMng', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00810 | executeUpdate | @00809 |  | => 0
+00811 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00812 | getSingleResult | @00811 | v0=MDM_STEWARD, v1=codeMng, v2=PERM_MDM_CONFIRM | => (Integer)0
+00813 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'codeMng', 'PERM_MDM_CONFIRM', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00814 | executeUpdate | @00813 |  | => 0
+00815 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00816 | getSingleResult | @00815 | v0=SYSADMIN, v1=codeEdit, v2=PERM_ALL | => (Integer)0
+00817 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'codeEdit', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00818 | executeUpdate | @00817 |  | => 0
+00819 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00820 | getSingleResult | @00819 | v0=MDM_STD_ADMIN, v1=codeEdit, v2=PERM_MDM_READ | => (Integer)0
+00821 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'codeEdit', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00822 | executeUpdate | @00821 |  | => 0
+00823 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00824 | getSingleResult | @00823 | v0=MDM_STEWARD, v1=codeEdit, v2=PERM_MDM_CONFIRM | => (Integer)0
+00825 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'codeEdit', 'PERM_MDM_CONFIRM', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00826 | executeUpdate | @00825 |  | => 0
+00827 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00828 | getSingleResult | @00827 | v=dataMng | => (Integer)0
+00829 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('dataMng', N'마루 데이터', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00830 | executeUpdate | @00829 |  | => 0
+00831 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00832 | getSingleResult | @00831 | v=dataEdit | => (Integer)0
+00833 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('dataEdit', N'마루 데이터 수정', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00834 | executeUpdate | @00833 |  | => 0
+00835 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00836 | getSingleResult | @00835 | v=dataCateEdit | => (Integer)0
+00837 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('dataCateEdit', N'카테고리 편집', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00838 | executeUpdate | @00837 |  | => 0
+00839 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00840 | getSingleResult | @00839 | v=dataMng | => (Integer)0
+00841 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('dataMng', '00000001', '5040100', N'마루 데이터', 'WEB', 'dataMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'dmd', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00842 | executeUpdate | @00841 |  | => 0
+00843 | createNativeQuery | DELETE FROM MCMAPUSER.TB_MCM_SEC_USER_FAVORITE WHERE MENU_ID = :m |  |
+00844 | executeUpdate | @00843 | m=dataEdit | => 0
+00845 | createNativeQuery | DELETE FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :m |  |
+00846 | executeUpdate | @00845 | m=dataEdit | => 0
+00847 | createNativeQuery | DELETE FROM MCMAPUSER.TB_MCM_SEC_USER_FAVORITE WHERE MENU_ID = :m |  |
+00848 | executeUpdate | @00847 | m=dataCateEdit | => 0
+00849 | createNativeQuery | DELETE FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :m |  |
+00850 | executeUpdate | @00849 | m=dataCateEdit | => 0
+00851 | createNativeQuery | DELETE FROM MCMAPUSER.TB_MCM_SEC_USER_FAVORITE WHERE MENU_ID = :m |  |
+00852 | executeUpdate | @00851 | m=dataHistory | => 0
+00853 | createNativeQuery | DELETE FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :m |  |
+00854 | executeUpdate | @00853 | m=dataHistory | => 0
+00855 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00856 | getSingleResult | @00855 | v0=SYSADMIN, v1=dataMng, v2=PERM_ALL | => (Integer)0
+00857 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'dataMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00858 | executeUpdate | @00857 |  | => 0
+00859 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00860 | getSingleResult | @00859 | v0=MDM_STD_ADMIN, v1=dataMng, v2=PERM_MDM_READ | => (Integer)0
+00861 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'dataMng', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00862 | executeUpdate | @00861 |  | => 0
+00863 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00864 | getSingleResult | @00863 | v0=MDM_STEWARD, v1=dataMng, v2=PERM_MDM_EDIT | => (Integer)0
+00865 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'dataMng', 'PERM_MDM_EDIT', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00866 | executeUpdate | @00865 |  | => 0
+00867 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00868 | getSingleResult | @00867 | v0=SYSADMIN, v1=dataEdit, v2=PERM_ALL | => (Integer)0
+00869 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'dataEdit', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00870 | executeUpdate | @00869 |  | => 0
+00871 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00872 | getSingleResult | @00871 | v0=MDM_STD_ADMIN, v1=dataEdit, v2=PERM_MDM_READ | => (Integer)0
+00873 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'dataEdit', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00874 | executeUpdate | @00873 |  | => 0
+00875 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00876 | getSingleResult | @00875 | v0=MDM_STEWARD, v1=dataEdit, v2=PERM_MDM_EDIT | => (Integer)0
+00877 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'dataEdit', 'PERM_MDM_EDIT', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00878 | executeUpdate | @00877 |  | => 0
+00879 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00880 | getSingleResult | @00879 | v0=SYSADMIN, v1=dataCateEdit, v2=PERM_ALL | => (Integer)0
+00881 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'dataCateEdit', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00882 | executeUpdate | @00881 |  | => 0
+00883 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00884 | getSingleResult | @00883 | v0=MDM_STD_ADMIN, v1=dataCateEdit, v2=PERM_MDM_READ | => (Integer)0
+00885 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'dataCateEdit', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00886 | executeUpdate | @00885 |  | => 0
+00887 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00888 | getSingleResult | @00887 | v0=MDM_STEWARD, v1=dataCateEdit, v2=PERM_MDM_EDIT | => (Integer)0
+00889 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'dataCateEdit', 'PERM_MDM_EDIT', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00890 | executeUpdate | @00889 |  | => 0
+00891 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00892 | getSingleResult | @00891 | v=dataItemMng | => (Integer)0
+00893 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('dataItemMng', N'항목 관리', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00894 | executeUpdate | @00893 |  | => 0
+00895 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00896 | getSingleResult | @00895 | v=dataHistory | => (Integer)0
+00897 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('dataHistory', N'항목 이력', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00898 | executeUpdate | @00897 |  | => 0
+00899 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00900 | getSingleResult | @00899 | v=dataItemMng | => (Integer)0
+00901 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('dataItemMng', '00000004', '5040400', N'항목 편집', 'WEB', 'dataItemMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'dmd', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00902 | executeUpdate | @00901 |  | => 0
+00903 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET MENU_NM = :nn WHERE MENU_ID = 'dataItemMng' AND MENU_NM = :on |  |
+00904 | executeUpdate | @00903 | nn=항목 편집, on=항목 관리 | => 0
+00905 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00906 | getSingleResult | @00905 | v0=SYSADMIN, v1=dataItemMng, v2=PERM_ALL | => (Integer)0
+00907 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'dataItemMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00908 | executeUpdate | @00907 |  | => 0
+00909 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00910 | getSingleResult | @00909 | v0=MDM_STD_ADMIN, v1=dataItemMng, v2=PERM_MDM_READ | => (Integer)0
+00911 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'dataItemMng', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00912 | executeUpdate | @00911 |  | => 0
+00913 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00914 | getSingleResult | @00913 | v0=MDM_STEWARD, v1=dataItemMng, v2=PERM_MDM_EDIT | => (Integer)0
+00915 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'dataItemMng', 'PERM_MDM_EDIT', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00916 | executeUpdate | @00915 |  | => 0
+00917 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00918 | getSingleResult | @00917 | v0=SYSADMIN, v1=dataHistory, v2=PERM_ALL | => (Integer)0
+00919 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'dataHistory', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00920 | executeUpdate | @00919 |  | => 0
+00921 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00922 | getSingleResult | @00921 | v0=MDM_STD_ADMIN, v1=dataHistory, v2=PERM_MDM_READ | => (Integer)0
+00923 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'dataHistory', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00924 | executeUpdate | @00923 |  | => 0
+00925 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00926 | getSingleResult | @00925 | v0=MDM_STEWARD, v1=dataHistory, v2=PERM_MDM_EDIT | => (Integer)0
+00927 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'dataHistory', 'PERM_MDM_EDIT', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00928 | executeUpdate | @00927 |  | => 0
+00929 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00930 | getSingleResult | @00929 | v=dataCsvUploadPop | => (Integer)0
+00931 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('dataCsvUploadPop', N'CSV 업로드', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00932 | executeUpdate | @00931 |  | => 0
+00933 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00934 | getSingleResult | @00933 | v0=SYSADMIN, v1=dataCsvUploadPop, v2=PERM_ALL | => (Integer)0
+00935 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'dataCsvUploadPop', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00936 | executeUpdate | @00935 |  | => 0
+00937 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00938 | getSingleResult | @00937 | v0=MDM_STD_ADMIN, v1=dataCsvUploadPop, v2=PERM_MDM_READ | => (Integer)0
+00939 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'dataCsvUploadPop', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00940 | executeUpdate | @00939 |  | => 0
+00941 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00942 | getSingleResult | @00941 | v0=MDM_STEWARD, v1=dataCsvUploadPop, v2=PERM_MDM_EDIT | => (Integer)0
+00943 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'dataCsvUploadPop', 'PERM_MDM_EDIT', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00944 | executeUpdate | @00943 |  | => 0
+00945 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00946 | getSingleResult | @00945 | v=ruleMng | => (Integer)0
+00947 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('ruleMng', N'룰', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00948 | executeUpdate | @00947 |  | => 0
+00949 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00950 | getSingleResult | @00949 | v=ruleMng | => (Integer)0
+00951 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('ruleMng', '00000001', '5050100', N'룰', 'WEB', 'ruleMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'dme', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00952 | executeUpdate | @00951 |  | => 0
+00953 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00954 | getSingleResult | @00953 | v0=SYSADMIN, v1=ruleMng, v2=PERM_ALL | => (Integer)0
+00955 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'ruleMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00956 | executeUpdate | @00955 |  | => 0
+00957 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00958 | getSingleResult | @00957 | v0=MDM_STD_ADMIN, v1=ruleMng, v2=PERM_MDM_READ | => (Integer)0
+00959 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'ruleMng', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00960 | executeUpdate | @00959 |  | => 0
+00961 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00962 | getSingleResult | @00961 | v0=MDM_STEWARD, v1=ruleMng, v2=PERM_MDM_CONFIRM | => (Integer)0
+00963 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'ruleMng', 'PERM_MDM_CONFIRM', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00964 | executeUpdate | @00963 |  | => 0
+00965 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00966 | getSingleResult | @00965 | v=ruleEdit | => (Integer)0
+00967 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('ruleEdit', N'룰 화면', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00968 | executeUpdate | @00967 |  | => 0
+00969 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00970 | getSingleResult | @00969 | v=ruleEdit | => (Integer)0
+00971 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('ruleEdit', '00000002', '5050200', N'룰 화면', 'WEB', 'ruleEdit', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'dme', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00972 | executeUpdate | @00971 |  | => 0
+00973 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00974 | getSingleResult | @00973 | v0=SYSADMIN, v1=ruleEdit, v2=PERM_ALL | => (Integer)0
+00975 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'ruleEdit', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00976 | executeUpdate | @00975 |  | => 0
+00977 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00978 | getSingleResult | @00977 | v0=MDM_STD_ADMIN, v1=ruleEdit, v2=PERM_MDM_READ | => (Integer)0
+00979 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'ruleEdit', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00980 | executeUpdate | @00979 |  | => 0
+00981 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00982 | getSingleResult | @00981 | v0=MDM_STEWARD, v1=ruleEdit, v2=PERM_MDM_CONFIRM | => (Integer)0
+00983 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'ruleEdit', 'PERM_MDM_CONFIRM', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00984 | executeUpdate | @00983 |  | => 0
+00985 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+00986 | getSingleResult | @00985 | v=ruleConfirm | => (Integer)0
+00987 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('ruleConfirm', N'버전 확정', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00988 | executeUpdate | @00987 |  | => 0
+00989 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+00990 | getSingleResult | @00989 | v=ruleConfirm | => (Integer)0
+00991 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('ruleConfirm', '00000003', '5050300', N'버전 확정', 'WEB', 'ruleConfirm', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'dme', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00992 | executeUpdate | @00991 |  | => 0
+00993 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00994 | getSingleResult | @00993 | v0=SYSADMIN, v1=ruleConfirm, v2=PERM_ALL | => (Integer)0
+00995 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'ruleConfirm', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+00996 | executeUpdate | @00995 |  | => 0
+00997 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+00998 | getSingleResult | @00997 | v0=MDM_STD_ADMIN, v1=ruleConfirm, v2=PERM_MDM_READ | => (Integer)0
+00999 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'ruleConfirm', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01000 | executeUpdate | @00999 |  | => 0
+01001 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+01002 | getSingleResult | @01001 | v0=MDM_STEWARD, v1=ruleConfirm, v2=PERM_MDM_CONFIRM | => (Integer)0
+01003 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'ruleConfirm', 'PERM_MDM_CONFIRM', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01004 | executeUpdate | @01003 |  | => 0
+01005 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+01006 | getSingleResult | @01005 | v=ruleSetMng | => (Integer)0
+01007 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('ruleSetMng', N'룰 세트', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01008 | executeUpdate | @01007 |  | => 0
+01009 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+01010 | getSingleResult | @01009 | v=ruleSetMng | => (Integer)0
+01011 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('ruleSetMng', '00000004', '5050400', N'룰 세트', 'WEB', 'ruleSetMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'dme', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01012 | executeUpdate | @01011 |  | => 0
+01013 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+01014 | getSingleResult | @01013 | v0=SYSADMIN, v1=ruleSetMng, v2=PERM_ALL | => (Integer)0
+01015 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'ruleSetMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01016 | executeUpdate | @01015 |  | => 0
+01017 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+01018 | getSingleResult | @01017 | v0=MDM_STD_ADMIN, v1=ruleSetMng, v2=PERM_MDM_READ | => (Integer)0
+01019 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'ruleSetMng', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01020 | executeUpdate | @01019 |  | => 0
+01021 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+01022 | getSingleResult | @01021 | v0=MDM_STEWARD, v1=ruleSetMng, v2=PERM_MDM_CONFIRM | => (Integer)0
+01023 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'ruleSetMng', 'PERM_MDM_CONFIRM', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01024 | executeUpdate | @01023 |  | => 0
+01025 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+01026 | getSingleResult | @01025 | v=ruleSetEdit | => (Integer)0
+01027 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('ruleSetEdit', N'룰 세트 편집', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01028 | executeUpdate | @01027 |  | => 0
+01029 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+01030 | getSingleResult | @01029 | v=ruleSetEdit | => (Integer)0
+01031 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('ruleSetEdit', '00000005', '5050500', N'룰 세트 편집', 'WEB', 'ruleSetEdit', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'dme', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01032 | executeUpdate | @01031 |  | => 0
+01033 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+01034 | getSingleResult | @01033 | v0=SYSADMIN, v1=ruleSetEdit, v2=PERM_ALL | => (Integer)0
+01035 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'ruleSetEdit', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01036 | executeUpdate | @01035 |  | => 0
+01037 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+01038 | getSingleResult | @01037 | v0=MDM_STD_ADMIN, v1=ruleSetEdit, v2=PERM_MDM_READ | => (Integer)0
+01039 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'ruleSetEdit', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01040 | executeUpdate | @01039 |  | => 0
+01041 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+01042 | getSingleResult | @01041 | v0=MDM_STEWARD, v1=ruleSetEdit, v2=PERM_MDM_CONFIRM | => (Integer)0
+01043 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'ruleSetEdit', 'PERM_MDM_CONFIRM', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01044 | executeUpdate | @01043 |  | => 0
+01045 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+01046 | getSingleResult | @01045 | v=ruleSetConfirm | => (Integer)0
+01047 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('ruleSetConfirm', N'룰 세트 확정', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01048 | executeUpdate | @01047 |  | => 0
+01049 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+01050 | getSingleResult | @01049 | v=ruleSetConfirm | => (Integer)0
+01051 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('ruleSetConfirm', '00000006', '5050600', N'룰 세트 확정', 'WEB', 'ruleSetConfirm', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'dme', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01052 | executeUpdate | @01051 |  | => 0
+01053 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+01054 | getSingleResult | @01053 | v0=SYSADMIN, v1=ruleSetConfirm, v2=PERM_ALL | => (Integer)0
+01055 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'ruleSetConfirm', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01056 | executeUpdate | @01055 |  | => 0
+01057 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+01058 | getSingleResult | @01057 | v0=MDM_STD_ADMIN, v1=ruleSetConfirm, v2=PERM_MDM_READ | => (Integer)0
+01059 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STD_ADMIN', 'ruleSetConfirm', 'PERM_MDM_READ', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01060 | executeUpdate | @01059 |  | => 0
+01061 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+01062 | getSingleResult | @01061 | v0=MDM_STEWARD, v1=ruleSetConfirm, v2=PERM_MDM_CONFIRM | => (Integer)0
+01063 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('MDM_STEWARD', 'ruleSetConfirm', 'PERM_MDM_CONFIRM', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01064 | executeUpdate | @01063 |  | => 0
+01065 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD WHERE MENU_ID = :v |  |
+01066 | getSingleResult | @01065 | v=lsh | => (Integer)0
+01067 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, USE_TP, MENU_VIEW_YN) VALUES ('lsh', '00000600', N'공지관리', 'mcm', 1060000, 'Y', 'Y') |  |
+01068 | executeUpdate | @01067 |  | => 0
+01069 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU_FLD SET PARENT_MENU_ID = 'mcm', MENU_SEQ = '00000600'  WHERE MENU_ID = 'lsh' AND (PARENT_MENU_ID IS NULL OR PARENT_MENU_ID <> 'mcm') |  |
+01070 | executeUpdate | @01069 |  | => 0
+01071 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+01072 | getSingleResult | @01071 | v=noticeMgmt | => (Integer)0
+01073 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('noticeMgmt', N'공지사항 관리', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01074 | executeUpdate | @01073 |  | => 0
+01075 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_OBJ SET SYSTEM_CODE = 'mcm'  WHERE OBJECT_ID IN ('noticeMgmt', 'noticeBoard') AND LOWER(TRIM(SYSTEM_CODE)) = 'mls' |  |
+01076 | executeUpdate | @01075 |  | => 0
+01077 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+01078 | getSingleResult | @01077 | v=noticeMgmt | => (Integer)0
+01079 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('noticeMgmt', '00000001', '1060100', N'공지사항 관리', 'WEB', 'noticeMgmt', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'lsh', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01080 | executeUpdate | @01079 |  | => 0
+01081 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+01082 | getSingleResult | @01081 | v0=SYSADMIN, v1=noticeMgmt, v2=PERM_ALL | => (Integer)0
+01083 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'noticeMgmt', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01084 | executeUpdate | @01083 |  | => 0
+01085 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+01086 | getSingleResult | @01085 | v=mdmCacheMng | => (Integer)0
+01087 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('mdmCacheMng', N'MDM 캐시 관리', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01088 | executeUpdate | @01087 |  | => 0
+01089 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+01090 | getSingleResult | @01089 | v=mdmCacheMng | => (Integer)0
+01091 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('mdmCacheMng', '00000001', '1020190', N'MDM 캐시 관리', 'WEB', 'mdmCacheMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'csa', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01092 | executeUpdate | @01091 |  | => 0
+01093 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+01094 | getSingleResult | @01093 | v=metaFeed | => (Integer)0
+01095 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('metaFeed', N'MDM 메타 제공', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01096 | executeUpdate | @01095 |  | => 0
+01097 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+01098 | getSingleResult | @01097 | v=ruleCalc | => (Integer)0
+01099 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('ruleCalc', N'조업 계산기', 'mdm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01100 | executeUpdate | @01099 |  | => 0
+01101 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+01102 | getSingleResult | @01101 | v0=SYSADMIN, v1=mdmCacheMng, v2=PERM_ALL | => (Integer)0
+01103 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'mdmCacheMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01104 | executeUpdate | @01103 |  | => 0
+01105 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+01106 | getSingleResult | @01105 | v0=SYSADMIN, v1=metaFeed, v2=PERM_ALL | => (Integer)0
+01107 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'metaFeed', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01108 | executeUpdate | @01107 |  | => 0
+01109 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+01110 | getSingleResult | @01109 | v=screenUsageStat | => (Integer)0
+01111 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('screenUsageStat', N'화면 사용 통계', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01112 | executeUpdate | @01111 |  | => 0
+01113 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+01114 | getSingleResult | @01113 | v=screenUsageStat | => (Integer)0
+01115 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('screenUsageStat', '00000001', '1020180', N'화면 사용 통계', 'WEB', 'screenUsageStat', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'csa', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01116 | executeUpdate | @01115 |  | => 0
+01117 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+01118 | getSingleResult | @01117 | v0=SYSADMIN, v1=screenUsageStat, v2=PERM_ALL | => (Integer)0
+01119 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'screenUsageStat', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01120 | executeUpdate | @01119 |  | => 0
+01121 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
+01122 | getSingleResult | @01121 | v=commWidgetMng | => (Integer)0
+01123 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('commWidgetMng', N'위젯 관리', 'mcm', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01124 | executeUpdate | @01123 |  | => 0
+01125 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
+01126 | getSingleResult | @01125 | v=commWidgetMng | => (Integer)0
+01127 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP,  START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('commWidgetMng', '00000001', '1020190', N'위젯 관리', 'WEB', 'commWidgetMng', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', 'Y', 'csa', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01128 | executeUpdate | @01127 |  | => 0
+01129 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :v0 AND OBJECT_ID = :v1 AND PERMISSION_ID = :v2 |  |
+01130 | getSingleResult | @01129 | v0=SYSADMIN, v1=commWidgetMng, v2=PERM_ALL | => (Integer)0
+01131 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('SYSADMIN', 'commWidgetMng', 'PERM_ALL', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01132 | executeUpdate | @01131 |  | => 0
+01133 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_SEC_CODE_GROUP WHERE GROUP_CD = :v |  |
+01134 | getSingleResult | @01133 | v=WIDGET_CTG | => (Integer)0
+01135 | createNativeQuery | INSERT INTO MCMAPUSER.TB_SEC_CODE_GROUP (GROUP_CD, GROUP_NM, GROUP_DESC, USE_YN, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('WIDGET_CTG', N'위젯 분류', N'위젯 서랍·위젯 관리의 위젯 분류', 'Y', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01136 | executeUpdate | @01135 |  | => 0
+01137 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_SEC_CODE_ITEM WHERE GROUP_CD = :v0 AND ITEM_CD = :v1 |  |
+01138 | getSingleResult | @01137 | v0=WIDGET_CTG, v1=COMMON | => (Integer)0
+01139 | createNativeQuery | INSERT INTO MCMAPUSER.TB_SEC_CODE_ITEM (GROUP_CD, ITEM_CD, ITEM_NM, ITEM_DESC, SORT_ORD, EXTRA_VAL1, USE_YN, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('WIDGET_CTG', 'COMMON', N'공통', N'공통(공지·알림·바로 가기)', 10, '', 'Y', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01140 | executeUpdate | @01139 |  | => 0
+01141 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_SEC_CODE_ITEM WHERE GROUP_CD = :v0 AND ITEM_CD = :v1 |  |
+01142 | getSingleResult | @01141 | v0=WIDGET_CTG, v1=PROD | => (Integer)0
+01143 | createNativeQuery | INSERT INTO MCMAPUSER.TB_SEC_CODE_ITEM (GROUP_CD, ITEM_CD, ITEM_NM, ITEM_DESC, SORT_ORD, EXTRA_VAL1, USE_YN, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('WIDGET_CTG', 'PROD', N'생산', N'생산(작업·설비·실적)', 20, '', 'Y', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01144 | executeUpdate | @01143 |  | => 0
+01145 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_SEC_CODE_ITEM WHERE GROUP_CD = :v0 AND ITEM_CD = :v1 |  |
+01146 | getSingleResult | @01145 | v0=WIDGET_CTG, v1=QUAL | => (Integer)0
+01147 | createNativeQuery | INSERT INTO MCMAPUSER.TB_SEC_CODE_ITEM (GROUP_CD, ITEM_CD, ITEM_NM, ITEM_DESC, SORT_ORD, EXTRA_VAL1, USE_YN, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('WIDGET_CTG', 'QUAL', N'품질', N'품질(불량·검사)', 30, '', 'Y', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01148 | executeUpdate | @01147 |  | => 0
+01149 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_SEC_CODE_ITEM WHERE GROUP_CD = :v0 AND ITEM_CD = :v1 |  |
+01150 | getSingleResult | @01149 | v0=WIDGET_CTG, v1=LOGI | => (Integer)0
+01151 | createNativeQuery | INSERT INTO MCMAPUSER.TB_SEC_CODE_ITEM (GROUP_CD, ITEM_CD, ITEM_NM, ITEM_DESC, SORT_ORD, EXTRA_VAL1, USE_YN, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('WIDGET_CTG', 'LOGI', N'물류', N'물류(출하·재고)', 40, '', 'Y', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01152 | executeUpdate | @01151 |  | => 0
+01153 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_SEC_CODE_ITEM WHERE GROUP_CD = :v0 AND ITEM_CD = :v1 |  |
+01154 | getSingleResult | @01153 | v0=WIDGET_CTG, v1=TOOL | => (Integer)0
+01155 | createNativeQuery | INSERT INTO MCMAPUSER.TB_SEC_CODE_ITEM (GROUP_CD, ITEM_CD, ITEM_NM, ITEM_DESC, SORT_ORD, EXTRA_VAL1, USE_YN, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('WIDGET_CTG', 'TOOL', N'도구', N'도구(계산기·메모·단위)', 50, '', 'Y', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01156 | executeUpdate | @01155 |  | => 0
+01157 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_SEC_CODE_ITEM WHERE GROUP_CD = :v0 AND ITEM_CD = :v1 |  |
+01158 | getSingleResult | @01157 | v0=WIDGET_CTG, v1=INFO | => (Integer)0
+01159 | createNativeQuery | INSERT INTO MCMAPUSER.TB_SEC_CODE_ITEM (GROUP_CD, ITEM_CD, ITEM_NM, ITEM_DESC, SORT_ORD, EXTRA_VAL1, USE_YN, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('WIDGET_CTG', 'INFO', N'외부 정보', N'외부 정보(날씨·환율)', 60, '', 'Y', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0) |  |
+01160 | executeUpdate | @01159 |  | => 0
+01161 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU_FLD SET MENU_SEQ = '00000001' WHERE MENU_ID = 'mpn' AND (MENU_SEQ IS NULL OR MENU_SEQ <> '00000001') |  |
+01162 | executeUpdate | @01161 |  | => 0
+01163 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_MENU_FLD SET MENU_SEQ = '00000002' WHERE MENU_ID = 'mcm' AND (MENU_SEQ IS NULL OR MENU_SEQ <> '00000002') |  |
+01164 | executeUpdate | @01163 |  | => 0
+01165 | flush |  |  |
+01166 | createNativeQuery | SELECT MENU_ID, PARENT_MENU_ID, FULL_SEQ, MENU_SEQ FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD |  |
+01167 | getResultList | @01166 |  | => []
+01168 | createNativeQuery | SELECT MENU_ID, MENU_SEQ, PARENT_MENU_ID, FULL_SEQ FROM MCMAPUSER.TB_MCM_SEC_MENU |  |
+01169 | getResultList | @01168 |  | => []

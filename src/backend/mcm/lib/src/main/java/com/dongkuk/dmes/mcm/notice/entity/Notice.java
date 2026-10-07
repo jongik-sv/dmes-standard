@@ -57,8 +57,9 @@ public class Notice extends CactusAuditEntity {
      * 내용 (D-003). 그리드 미표시.
      *
      * <p>DB 쪽 길이 제한은 없다. 상한(20만 자)은 서비스 검증 V-003 이 맡는다. 긴 본문이라 WidgetDef.CONFIG_JSON 과 같이
-     * {@code LONG32VARCHAR} 로 둔다(SQLite clob 칸, 운영은 CLOB/TEXT). {@code @Lob} 은 SQLite JDBC 가 {@code getClob} 을
-     * 지원하지 않아 쓰지 않는다.
+     * {@code LONG32VARCHAR} 로 둔다(Oracle V1 기준선은 CLOB 칸, OracleDialect 가 LONG32VARCHAR 를 CLOB 으로 다룬다).
+     * {@code @Lob} 은 옛 SQLite JDBC 가 {@code getClob} 을 지원하지 않아 쓰지 않았다. 이 칸에는 JPQL 문자열 함수·LIKE 를 쓰지 않는다
+     * (Hibernate 7.2 는 CLOB 인자에 upper()·lower() 를 거절한다 — 검색이 필요하면 네이티브 SQL 로).
      */
     @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
     @Column(name = "CONTENT")

@@ -1,6 +1,5 @@
 package com.dongkuk.dmes.mcm;
 
-import com.dongkuk.dmes.cactus.local.LocalSqliteDataSource;
 import java.util.Map;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -8,9 +7,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
-import org.springframework.core.env.ConfigurableEnvironment;
-import org.springframework.core.env.MapPropertySource;
-import org.springframework.core.env.Profiles;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 // 스캔 정책 (2026-05-20):
@@ -56,37 +52,12 @@ public class McmApplication {
     public static void main(String[] args) {
         SpringApplication application = new SpringApplication(McmApplication.class);
 
-        // 프로파일 미지정 bootRun/IDE 폴백 → local(SQLite). (2026-07-07 JNDI 전환 설계 §4-2)
+        // 프로파일 미지정 bootRun/IDE 폴백 → local. (2026-07-07 JNDI 전환 설계 §4-2)
         // defaultProperties 는 최저 우선순위 — -Dspring.profiles.active / --spring.profiles.active 지정 시 무시된다.
-        // main() 경로에만 적용되므로 WAR(ServletInitializer) 배포에서 -D 누락 시엔 폴백 없이 fail-fast (SQLite 오기동 방지).
+        // main() 경로에만 적용되므로 WAR(ServletInitializer) 배포에서 -D 누락 시엔 폴백 없이 fail-fast.
+        // 2026-10-07 oracle-1007 — local 은 로컬 Oracle PDB 다(application-local.yml). 옛 SQLite 파일 경로 덮어쓰기
+        //   (LocalSqliteDataSource·cactusExtrasLocalSqlite)는 걷어냈다.
         application.setDefaultProperties(Map.of("spring.profiles.default", "local"));
-        LocalSqliteDataSource.configure(application, "mcm.db");
-
-        // cactus extras DataSource (cmn=mcm.db 공유, if=caravan-if.db, caravan=caravan-console.db) 도
-        // working dir 무관 절대 경로 override.
-        // IDE 가 backend 폴더에서 띄우면 yml 의 상대 경로 `../data/*.db` 가
-        // `src/data/*.db` 로 해석되어 SQLITE_CANTOPEN — 절대 경로로 강제.
-        // (gradlew bootRun 은 mcm/api/build.gradle 의 workingDir=rootProject.projectDir 로 mcm 모듈 기준이라 영향 없음).
-        // ⚠️ local 단독(sqlite) 일 때만. 외부 RDB 직결(local-db)·WildFly JNDI(dev/prod) 활성 시엔
-        //    각 프로파일 yml 값을 사용해야 하므로 addFirst(최고 우선순위) override 를 적용하지 않는다.
-        //    사이트별 직결 프로파일을 추가하면(local-{사이트}) 아래 제외 목록에도 함께 넣는다.
-        application.addInitializers(context -> {
-            ConfigurableEnvironment env = context.getEnvironment();
-            boolean localOnly = env.acceptsProfiles(Profiles.of("local"))
-                    && !env.acceptsProfiles(Profiles.of("local-db", "dev", "prod", "wildfly"));
-            if (localOnly) {
-                java.nio.file.Path dir = LocalSqliteDataSource.resolveBackendDataDir();
-                env.getPropertySources().addFirst(new MapPropertySource(
-                        "cactusExtrasLocalSqlite",
-                        Map.of(
-                                "cactus.datasource.extras.cmn.url",
-                                "jdbc:sqlite:" + dir.resolve("mcm.db"),
-                                "cactus.datasource.extras.if.url",
-                                "jdbc:sqlite:" + dir.resolve("caravan-if.db"),
-                                "cactus.datasource.extras.caravan.url",
-                                "jdbc:sqlite:" + dir.resolve("caravan-console.db"))));
-            }
-        });
 
         application.run(args);
     }

@@ -10,7 +10,7 @@
     - 정렬은 서비스와 같은 ORDER BY CODE_VAL 하나다 — CODE_VAL 이 같은 행끼리의 순서는 두 경로 모두 보장하지 않는다.
     - LIKE 패턴은 bind 로 만든다 — 방언별 문자열 연결을 SQL 에 두지 않고, pValue 가 null 이면 서비스처럼 빈 문자열로 본다.
     - 열 별칭은 큰따옴표 — 따옴표 없는 별칭은 Oracle 이 대문자, PostgreSQL 이 소문자로 바꿔 FE 키가 어긋난다(§5 D2).
-  MCMAPUSER. 접두는 로컬 SQLite 에서 McmSqliteMybatisInterceptor 가 지운다(§5 D6).
+  MCMAPUSER. 접두는 개발·시험·운영 모두 Oracle 에서 그대로 돈다(2026-10-07 oracle-1007 — 옛 SQLite 접두 제거 인터셉터는 뺐다).
 -->
 <mapper namespace="masterCodeSelPop">
 
