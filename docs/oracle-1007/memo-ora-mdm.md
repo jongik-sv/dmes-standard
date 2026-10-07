@@ -74,6 +74,13 @@
 
 길이 검사(ORA-12899) 대상 목록은 검색 워커 결과를 받아 이 절에 더한다(조정자 ①: 앱이 4000바이트·n자를 넘는 값을 받을 수 있는 칸은 m2 에서 저장 전 사용자 오류 메시지로 막는다).
 
+## ora-base 에서 받은 것 (2026-10-07)
+
+- 공통 Hibernate 기본값의 정본은 feat/ora-base `docs/oracle-1007/schema-owners.md` §3.1.1 이다(머지① 뒤 dev). 값은 `hibernate.type.preferred_boolean_jdbc_type=BIT`, `hibernate.type.preferred_instant_jdbc_type=TIMESTAMP` 이고 `hibernate.jdbc.time_zone` 은 넣지 않는다. 각 앱이 자기 yml 에 같은 값을 둔다.
+- 컨테이너 TZ 는 Asia/Seoul 이다. DBTIMEZONE 은 +00:00 이지만 TIMESTAMP WITH LOCAL TIME ZONE 을 쓰지 않으므로 영향이 없다.
+- 시험 PDB 하니스는 `-Pdmes.ora.test=clone` 으로 동작이 확인되었다. 머지① 뒤 m3 에서 쓴다.
+- m2 의 validate 결과는 조정자와 ora-base 둘 다에 알린다.
+
 ## 남은 순서
 
 1. m2(ora-base 머지① 뒤): SQLite 전용 코드 제거, sqlite 폴더 archive, 프로파일, Hibernate Instant 설정, CLOB `@Lob`.
