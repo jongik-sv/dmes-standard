@@ -122,7 +122,7 @@ function useOptionalMessage() {
 /** 「홈」 탭 — fixedHome 이면 관리자 고정 탭(fixed)으로, homeTabName 이 있으면 그 이름으로. */
 function buildHome(items: readonly WidgetItem[], fixedHome: boolean, name?: string): WidgetTab {
   const home = homeTab(items);
-  return { ...home, name: name ?? home.name, ...(fixedHome ? { fixed: true } : {}) };
+  return { ...home, name: name ?? home.name, ...(fixedHome ? { fixed: true, origin: "전사 기본 배치" } : {}) };
 }
 
 const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "요청을 처리하지 못했습니다.");
@@ -935,6 +935,7 @@ export function WidgetWorkspace({
         <div className="cm-widget-ws__board">
           <WidgetBoard
             items={active.items}
+            emptyText={active.fixed ? "관리자가 아직 위젯을 놓지 않은 탭입니다." : undefined}
             registry={registry}
             editing={editing}
             tabLocked={active.locked || active.fixed === true || saving}

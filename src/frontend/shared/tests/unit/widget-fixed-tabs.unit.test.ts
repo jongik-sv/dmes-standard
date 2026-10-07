@@ -223,6 +223,17 @@ describe("WidgetWorkspace — 고정 탭", () => {
     expect($('[data-action="start-edit"]')!.disabled).toBe(false);
   });
 
+  it("빈 고정 탭은 [배치 편집] 안내 대신 관리자 안내를 보이고, 고정 「홈」 풍선에 출처(전사 기본 배치)가 나온다", async () => {
+    await mount(makeStore([...serverTabs(), fixed("def-2", "빈 탭", 101, { items: [] })]), { fixedHome: true });
+    click('[data-tab-id="def-2"]');
+    expect($(".cm-widget-board__empty")!.textContent).toBe("관리자가 아직 위젯을 놓지 않은 탭입니다.");
+    expect((document.querySelector('[data-tab-id="home"]') as HTMLElement).title).toContain("전사 기본 배치");
+    // 새 prop 을 쓰지 않는 기존 사용처는 예전 안내 그대로.
+    act(() => root.render(h(WidgetWorkspace, { registry: REG, homeDefault: [], store: makeStore([]), boardWidth: 1440 })));
+    await flush();
+    expect($(".cm-widget-board__empty")!.textContent).toBe("놓인 위젯이 없습니다. [배치 편집]에서 위젯을 추가하세요.");
+  });
+
   it("편집 중 고정 탭으로 옮기면 서랍이 닫히고, [완료]는 고정 탭을 saveTab 하지 않는다", async () => {
     const store = makeStore(serverTabs());
     await mount(store, { fixedHome: true });
