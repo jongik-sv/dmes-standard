@@ -1,6 +1,6 @@
 # Oasis Multi-Transaction-Manager 상세 설계
 
-> **DB 전제 안내 (2026-10-03)**: 이 문서의 「MSSQL 운영」 서술은 dmes-ksm(MSSQL) 이관 시절 전제이며 이력으로 남긴다. 운영 DB 는 Oracle 또는 PostgreSQL 이고 MSSQL 은 거의 쓰지 않는다. 새 SQL 은 [`dialect-neutral-sql.md`](../../guide/Database/dialect-neutral-sql.md) 를 따른다.
+> **DB 전제 안내 (2026-10-03)**: 이 문서의 「MSSQL 운영」 서술은 dmes-ksm(MSSQL) 이관 시절 전제이며 이력으로 남긴다. 운영 DB 는 Oracle 또는 PostgreSQL 이고 MSSQL 은 거의 쓰지 않는다. 새 SQL 은 [`oracle-sql-rules.md`](../../guide/Database/oracle-sql-rules.md) 를 따른다.
 
 > [oasis-multi-tx-design.md](./oasis-multi-tx-design.md) 의 전략 설계를 구현 단계로 구체화. 코드 작업자가 본 문서를 그대로 보고 클래스/메서드/yml 을 작성할 수 있는 수준의 상세 명세.
 

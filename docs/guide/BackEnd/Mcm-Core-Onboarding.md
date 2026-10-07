@@ -152,15 +152,17 @@ mcm-core 의 default `SpringSecurityIdentity` 가 그대로 동작 — Spring Se
 
 ## Flyway 마이그레이션
 
-자동 적용 (mcm-core 가 `db/migration/sqlite/` 에 V1__init.sql, V2__role_group.sql, V3__audit_log.sql 보유).
-사이트 특이 테이블은 **V100 부터** 새 prefix 로:
+mcm-core 는 스키마마다 기준선 `V1__baseline.sql` 을 가지며(`src/backend/mcm-core/src/main/resources/db/migration/oracle/<스키마>/`: `mcmapuser`·`mcaapuser`·`mcm_source`·`mcm_backup`), 로컬·시험에서는 Flyway 가 스키마 주인 사용자로 자동 적용한다. 운영(WildFly)은 Flyway 를 끄고 DBA 가 같은 `V` 파일을 적용한다. 스키마 소유표는 [schema-owners.md](../../oracle-1007/schema-owners.md) 가 정본이다.
+사이트 특이 테이블은 **V100 부터** 같은 스키마 폴더에 새 prefix 로:
 
 ```
-src/main/resources/db/migration/sqlite/
+src/main/resources/db/migration/oracle/mcmapuser/
 ├── V100__site_user_ext.sql    ← 사이트 특이
 ├── V101__site_seed.sql
 └── ...
 ```
+
+옛 SQLite 마이그레이션(`V1~V18`)은 `src/backend/mcm-core/archive/db-migration/sqlite/` 에 보관만 하며 적용되지 않는다.
 
 ---
 

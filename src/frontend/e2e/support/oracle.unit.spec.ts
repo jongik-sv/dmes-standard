@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import {
+  assertTargetPdb,
   compareFirstColumn,
   connectStringFromEnv,
   detectFixtureUser,
@@ -127,6 +128,22 @@ test.describe("compareFirstColumn — 첫 칸을 줄마다 이어 붙여 비교"
   test("&& 가 든 값도 글자 그대로 비교한다", () => {
     const f = write("c.expected.txt", "a && b\n");
     expect(compareFirstColumn([["a && b"]], f).equal).toBe(true);
+  });
+});
+
+test.describe("assertTargetPdb — 접속 대상 안전장치", () => {
+  test("시험 PDB(T_*)는 통과한다", () => {
+    expect(() => assertTargetPdb("localhost:1521/T_ORA_MDM", undefined)).not.toThrow();
+  });
+  test("L_* 는 DMES_E2E_ALLOW_PDB 와 같을 때만 통과한다", () => {
+    expect(() => assertTargetPdb("localhost:1521/L_ORA_MDM", "l_ora_mdm")).not.toThrow();
+    expect(() => assertTargetPdb("localhost:1521/L_ORA_MDM", undefined)).toThrow(/DMES_E2E_ALLOW_PDB=L_ORA_MDM/);
+    expect(() => assertTargetPdb("localhost:1521/L_ORA_MCM_CORE", "L_ORA_MDM")).toThrow();
+  });
+  test("FREEPDB1·TPL_*·PDB$SEED 는 허용을 적어도 거부한다", () => {
+    for (const svc of ["FREEPDB1", "TPL_EMPTY", "TPL_DATA", "PDB$SEED"]) {
+      expect(() => assertTargetPdb(`localhost:1521/${svc}`, svc)).toThrow(/넣을 수 없는 대상/);
+    }
   });
 });
 

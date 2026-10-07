@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import oracledb from "oracledb";
+import oracledb, { type BindParameters, type Connection } from "oracledb";
 
 /**
  * E2E 픽스처용 Oracle 접속 도우미(oracle-1007). sqlplus·셸에 기대지 않아 윈도우에서도 같다.
@@ -12,6 +12,8 @@ import oracledb from "oracledb";
  *   DMES_ORA_PASSWORD  기본 dmes_password_123
  *   DMES_ORA_USER      schemaUser 인자를 생략할 때의 사용자
  * 사용자(스키마 주인)는 docs/oracle-1007/schema-owners.md 의 이름이다(MDMAPUSER·MCMAPUSER 등).
+ *
+ * 접속 대상 안전: 모든 연결은 접속 PDB 가 `T_*` 이거나 DMES_E2E_ALLOW_PDB 로 허용한 `L_*` 일 때만 열린다(assertTargetPdb).
  *
  * PC 잠금: 픽스처 한 번은 가벼워 기본은 잠금 없이 실행한다. 무거운 일(대량 적재 등)은 withPcLock 으로 감싼다.
  * 하니스·pdb.mjs 가 이미 잠금을 쥔 아래에서 돌면(env DMES_ORA_LOCK_HELD) 다시 잡지 않는다.
@@ -114,9 +116,27 @@ export function splitSqlStatements(text: string): string[] {
   return out;
 }
 
-async function withConnection<T>(user: string | undefined, fn: (c: oracledb.Connection) => Promise<T>): Promise<T> {
+/**
+ * 접속 PDB 가 E2E 픽스처를 넣어도 되는 곳인지 확인한다. 서비스 이름이 `T_*`(시험 PDB 복제본)이면 통과하고, `L_*`(레인 PDB)는
+ * env `DMES_E2E_ALLOW_PDB` 에 같은 이름을 적었을 때만 통과한다(다른 레인의 것일 수 있다). FREEPDB1·TPL_*·PDB$SEED·허용하지 않은 L_* 는 던진다.
+ * E2E 픽스처가 공용 데이터나 템플릿을 덮어쓰지 않게 하는 안전장치이며 모든 연결(runSqlFile·query·execute)에서 기본으로 켜진다.
+ */
+export function assertTargetPdb(connectString: string, allowPdb: string | undefined = process.env.DMES_E2E_ALLOW_PDB): void {
+  const service = connectString.slice(connectString.lastIndexOf("/") + 1).toUpperCase();
+  const allow = (allowPdb ?? "").trim().toUpperCase();
+  const ok = /^T_/.test(service) || (/^L_/.test(service) && service === allow);
+  if (!ok) {
+    throw new Error(
+      `E2E 픽스처를 넣을 수 없는 대상이다: ${connectString} — 시험 PDB(T_*)이거나 내 레인 PDB(L_*, DMES_E2E_ALLOW_PDB=${service} 로 확인)여야 한다. ` +
+        "FREEPDB1·TPL_*·PDB$SEED·남의 L_* 에는 넣지 않는다",
+    );
+  }
+}
+
+async function withConnection<T>(user: string | undefined, fn: (c: Connection) => Promise<T>): Promise<T> {
   const u = user ?? process.env.DMES_ORA_USER;
   if (!u) throw new Error("schemaUser 를 인자로 주거나 DMES_ORA_USER 를 설정한다");
+  assertTargetPdb(connectStringFromEnv());
   const conn = await oracledb.getConnection({
     user: u,
     password: process.env.DMES_ORA_PASSWORD ?? DEFAULT_PASSWORD,
@@ -133,7 +153,7 @@ async function withConnection<T>(user: string | undefined, fn: (c: oracledb.Conn
 export async function query<R = Record<string, unknown>>(
   schemaUser: string | undefined,
   sql: string,
-  binds: oracledb.BindParameters = [],
+  binds: BindParameters = [],
 ): Promise<R[]> {
   return withConnection(schemaUser, async (c) => {
     const r = await c.execute<R>(sql, binds, { outFormat: oracledb.OUT_FORMAT_OBJECT });
@@ -142,7 +162,7 @@ export async function query<R = Record<string, unknown>>(
 }
 
 /** 한 문장을 실행하고 커밋한다(DML·DDL). 영향 행 수를 돌려준다. */
-export async function execute(schemaUser: string | undefined, sql: string, binds: oracledb.BindParameters = []): Promise<number> {
+export async function execute(schemaUser: string | undefined, sql: string, binds: BindParameters = []): Promise<number> {
   return withConnection(schemaUser, async (c) => {
     const r = await c.execute(sql, binds, { autoCommit: true });
     return r.rowsAffected ?? 0;

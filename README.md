@@ -93,13 +93,12 @@ JAVA_HOME=<JDK 21 경로> PATH="$JAVA_HOME/bin:$PATH" ./local-run.sh   # 백엔�
 | `src/backend/data/` 폴더와 모듈별 `*.db` 파일 생성 | `be-run.sh` · SQLite 드라이버 |
 | 테이블 생성과 기본 시드 (mls·mqc·mpp·mpn·aps 의 `V1__init_sample_*` 샘플 행 포함) | 모듈별 Flyway 마이그레이션 (`db/migration/**`) |
 | 관리자 계정·메뉴·권한·OBJECT·마스터 시드 (MDM 메뉴 포함) | mcm `DataInitializer` (멱등) |
-| MDM 화면 확인용 샘플 데이터 (용어·도메인·컬럼·레이아웃·마루 코드·마루 데이터·업무 룰) | mdm `MdmLocalSampleLoader` — **`be-run.sh` 로 띄우고 용어 사전이 빈 DB 일 때만 한 번** 넣는다 |
+| MDM 화면 확인용 데이터 (용어·도메인·컬럼·레이아웃·마루 코드·마루 데이터·업무 룰) | `python3 scripts/db-snapshot/snapshot.py import --pdb <PDB> MDMAPUSER`(db-snapshot CSV) — 기동 때 자동으로 넣지 않는다 |
 
-- MDM 샘플 원본은 텍스트 파일 [`src/backend/mdm/sample/mdm-local-sample.sql`](src/backend/mdm/sample/mdm-local-sample.sql) 이다. 이미 쓰던 `mdm.db` 에는 넣지 않는다.
-  끄려면 `MDM_SAMPLE=0 ./be-run.sh`. 자동 테스트·E2E 는 `be-run.sh` 를 거치지 않으므로 샘플이 섞이지 않는다.
-- 샘플을 손으로 넣을 때(예: Windows, 또는 모듈 폴더에서 `gradlew :api:bootRun` 으로 직접 띄운 경우) — mdm 을 한 번 띄워 `mdm.db` 를 만든 뒤 저장소 루트에서:
+- MDM 데이터 원본은 표별 CSV [`db-snapshot/MDMAPUSER/`](db-snapshot/MDMAPUSER/) 이다. `be-run.sh` 는 더 이상 `--mdm.sample.path` 를 붙이지 않는다(`MDM_SAMPLE` 설정도 없어졌다).
+  레인 PDB 에 한 번 넣는다(데이터만 넣으며 표는 Flyway 가 만든 것이다):
   ```bash
-  sqlite3 src/backend/data/mdm.db < src/backend/mdm/sample/mdm-local-sample.sql
+  python3 scripts/db-snapshot/snapshot.py import --pdb L_<레인> MDMAPUSER      # 초기 행까지 CSV 로 덮으려면 --replace
   ```
 
 ### 4. DB 를 처음 상태로 되돌리기
@@ -210,7 +209,7 @@ be-run.sh 는 Gradle 로 **빌드만 하고 앱은 `java` 로 직접 띄운다.*
 1. **빌드** — `scripts/lib/be-run-classpath.init.gradle` 을 `-I` 로 줘서 `<모듈>/api/build/be-run/classpath.txt`(1행 main class, 2행 classpath)를 만든다.
    값은 bootRun 이 쓰는 것과 같다. 모듈이 2개 이상이면 `src/backend` 루트 composite 에서 한 번(공유 includeBuild 를 Gradle 하나가 빌드해 경합이 없다),
    1개면 그 모듈 폴더에서 한다. 기본은 `--no-daemon` 이라 빌드가 끝나면 Gradle 프로세스가 남지 않는다. 코드를 고친 뒤 다시 띄우면 늘 최신 코드로 빌드된다.
-2. **기동** — 모듈 폴더(`src/backend/<모듈>`)에서 `java <JVM 옵션> -cp <classpath> <main class> --spring.profiles.active=local …`. mdm 은 종전처럼 `--mdm.sample.path` 도 붙는다.
+2. **기동** — 모듈 폴더(`src/backend/<모듈>`)에서 `java <JVM 옵션> -cp <classpath> <main class> --spring.profiles.active=local …`.
 
 - 빌드가 실패하면 **아무 모듈도 띄우지 않고** exit 1 로 끝난다. 이전 빌드의 classpath.txt 는 빌드 직전에 지우므로 낡은 값으로 뜨지 않는다.
   `local-run` 은 be-run 종료를 보고 FE 까지 정리하고, `dmes-up.ps1 -Detach` 는 함께 띄운 FE 를 정리한 뒤 `1` 로 끝난다.
@@ -293,7 +292,7 @@ be-run 은 시작하면서 **같은 체크아웃에서 이미 돌고 있는 be-r
 | 같은 이름이 여러 줄 | 마지막 줄이 이긴다 | 첫 줄이 이긴다 |
 | `BE_PREBUILD` · `BE_PREBUILD_CONTINUE` | `.run.env` 에 있으면 **`.run.env` 가 이긴다**(환경변수를 덮어쓴다). 없을 때만 환경변수 | **환경변수가 이긴다.** 비어 있을 때만 `.run.env` |
 | `BE_RUN_ARGS` · `FE_RUN_ARGS` · `LOCAL_RUN_ARGS` | `.run.env` 가 이기고, 거기 없으면 환경변수도 읽힌다 | `.run.env` 만 읽는다(환경변수는 보지 않는다) |
-| `MDM_SAMPLE` · `DEV_LOG_COLOR` | 위와 같은 순서(`.run.env` → 환경변수) | 해당 기능이 없다 |
+| `DEV_LOG_COLOR` | 위와 같은 순서(`.run.env` → 환경변수) | 해당 기능이 없다 |
 | 포털 포트 | `modules.conf` 값을 `.run.env` 의 `PORTAL_PORT` 가 덮을 수 있다(`fe-run.sh`·`local-run.sh`) | `modules.conf` 값만 쓴다 |
 | `*_RUN_ARGS` 가 붙는 때 | 공통 — 명령줄에 대상 플래그(be: 모듈, fe·local: `--all`·`--mpn`·`--mdm` 등 범위)가 없을 때만 | 같음(ps1 판 `local-run` 의 범위 플래그는 `--all`·`--full`·`--mpn`·`--mpn-only`) |
 

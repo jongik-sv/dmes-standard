@@ -392,6 +392,20 @@ function Start-BackendModule {
     $psi.WorkingDirectory       = $dir
     $psi.UseShellExecute        = $false
     $psi.CreateNoWindow         = $true
+    # 메인 서버 mcm 연결 풀(be-run.sh 와 같은 규칙): DMES_ORA_PDB 가 L_MAIN 이거나 BE_MCM_BIG_POOL=1 일 때 mcm 에만 넘긴다.
+    # BE_MCM_BIG_POOL=0 이면 L_MAIN 이어도 쓰지 않는다. 레인·시험·E2E 는 yml 기본값(3)을 그대로 쓴다.
+    if ($Module -eq 'mcm') {
+        $bigPool = if ($env:BE_MCM_BIG_POOL -eq '0') { $false } elseif ($env:BE_MCM_BIG_POOL -eq '1') { $true } else { $env:DMES_ORA_PDB -eq 'L_MAIN' }
+        if ($bigPool) {
+            $poolMax  = if ($env:BE_MCM_POOL_MAX)          { $env:BE_MCM_POOL_MAX }          else { '8' }
+            $poolMin  = if ($env:BE_MCM_POOL_MIN_IDLE)     { $env:BE_MCM_POOL_MIN_IDLE }     else { '2' }
+            $poolIdle = if ($env:BE_MCM_POOL_IDLE_TIMEOUT) { $env:BE_MCM_POOL_IDLE_TIMEOUT } else { '60000' }
+            $psi.EnvironmentVariables['SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE'] = $poolMax
+            $psi.EnvironmentVariables['SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE']      = $poolMin
+            $psi.EnvironmentVariables['SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT']      = $poolIdle
+            Write-DevLog 'be' "be-mcm 연결 풀: max=$poolMax minIdle=$poolMin idleTimeout=${poolIdle}ms"
+        }
+    }
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError  = $true
 
