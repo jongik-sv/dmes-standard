@@ -158,7 +158,7 @@ podman ps
 
 레인(워크트리)·자동 시험은 PDB 를 복제해 쓴다. 도구·이름 규칙·운용 규칙은 [`scripts/oracle/README.md`](../../../scripts/oracle/README.md), 스키마 소유표·연결 규약은 [`docs/oracle-1007/schema-owners.md`](../../oracle-1007/schema-owners.md) 에 있다.
 
-* 동시에 열린 PDB 수 상한은 환경 변수 `DMES_ORA_MAX_OPEN`(기본 **3** = FREEPDB1 + 템플릿 1 + 작업 1)으로 정한다. 2GB 머신(§8-5)은 기본값을 그대로 쓰고, 4GB 이상·기본 SGA 인 PC 는 메모리 여유만큼 올린다(예: `export DMES_ORA_MAX_OPEN=5`). 2GB 에서 4개를 열면 인스턴스가 내려간다.
+* 동시에 열린 PDB 수 상한은 환경 변수 `DMES_ORA_MAX_OPEN`(기본 **3** = FREEPDB1 + 템플릿 1 + 작업 1)으로 정한다. 기본값을 그대로 쓰고(VM 3GB 기준, §8-5), 2GB 머신은 3 을 넘기지 않으며, 4GB 이상·기본 SGA 인 PC 는 메모리 여유만큼 올린다(예: `export DMES_ORA_MAX_OPEN=5`). 2GB 에서 4개를 열면 인스턴스가 내려간다.
 
 ### 6.4.2. 레인 PDB·시험 PDB 사용법
 
@@ -191,6 +191,7 @@ cd src/backend/mdm && ../gradlew test -Pdmes.ora.pdb=L_ORA_MDM
 
 * `clone`·`open`·`drop`·`template-*` 는 잠금을 잡고, 다른 작업이 쥐고 있으면 끝날 때까지 기다린다(기다리는 한도 `DMES_ORA_LOCK_WAIT_SEC`, 기본 900초).
 * `-Pdmes.ora.test=clone`(또는 `-Pdmes.ora.pdb=…`) 시험 빌드는 복제 직전부터 PDB 를 지울 때까지(시험 JVM 이 도는 구간 포함) 같은 잠금을 쥔다. 기다리는 한도는 `DMES_ORA_HARNESS_LOCK_WAIT_SEC`(기본 7200초)이다. Gradle 이 죽어도 잠금 주인이 스스로 놓는다.
+* Oracle 시험(gradle)은 PC 전역 무거운 명령 슬롯(`heavy.sh`)도 거치며, 슬롯이 차 있으면 기본 90초 뒤 `HEAVY_BUSY`(exit 75)로 끝난다. Oracle 시험은 **`DFLOW_HEAVY_WAIT=1800`** 으로 걸어 차례를 기다린다(예: `DFLOW_HEAVY_WAIT=1800 .claude/skills/dflow-dev/scripts/heavy.sh ../gradlew test -Pdmes.ora.test=clone`).
 * `close` 는 잠금을 잡지 않고 바로 실행한다(열린 PDB 와 메모리를 줄이는 쪽이라 시험과 겹쳐도 안전하다).
 * 명령을 중간에 끊으면(SIGTERM·SIGINT) `pdb.mjs` 가 자식 `podman exec` 를 먼저 끊고 잠금을 놓는다. sqlplus 한 번이 `DMES_ORA_SQL_TIMEOUT_SEC`(기본 1200초)를 넘기면 끊고 실패로 본다.
 * 인스턴스가 느릴 때 상태 확인용 sqlplus 를 계속 보내지 않는다(대기 세션만 쌓인다). 응답이 2분 넘게 없으면 보낸 쪽이 끊는다.
@@ -311,23 +312,30 @@ python3 tools/oracle-free/sqlite_to_oracle.py --sqlite /tmp/ora-mig/mdm.db --sch
 4. **재기동 시 `ORA-01078` / `LRM-00109: could not open parameter file '.../initFREE.ora'` 로 종료될 때:**
    - Podman 머신의 SELinux 가 첫 컨테이너가 볼륨으로 옮긴 spfile 에 그 컨테이너 전용 라벨을 붙여, 다음 컨테이너가 읽지 못하는 경우입니다.
    - 볼륨 매핑 끝에 `:Z` 를 붙입니다(`oracle-data:/opt/oracle/oradata:Z`, §5 표준 설정에 반영됨). 기존 볼륨도 그대로 `podman compose down` → `up -d` 하면 복구됩니다.
-5. **Podman 머신 메모리를 2 GB 로 줄여 쓰고 싶을 때(메모리 16GB 이하 PC):**
-   - 기본값(SGA 1536M + PGA 512M)은 2 GB 머신에서 `ORA-01092` 로 기동에 실패하므로, 먼저 SGA·PGA 를 줄입니다. 2026-10-07 MacBook Air(16GB)에서 SGA 900M·PGA 200M 로 정상 기동을 확인했습니다(머신 여유 약 280MB).
-   - `pga_aggregate_limit` 은 최소값이 2048M 이라 낮추면 `ORA-00093` 이 납니다. 지정하지 않습니다.
+5. **Podman 머신 메모리: 3GB 를 권장합니다(2GB 는 SGA 900M 에서도 스래싱했습니다):**
+   - 기본값(SGA 1536M + PGA 512M)은 2GB 머신에서 `ORA-01092` 로 기동에 실패합니다. 2GB 에서는 SGA 900M·PGA 200M 로 낮춰야 기동하고(머신 여유 약 280MB), 레인·시험이 PDB 를 복제하고 시험 JVM 이 접속을 열면 가용 메모리가 50MB 아래로 떨어져 2026-10-07 에 세 번 스래싱했습니다(§8-7). 그래서 **Podman 머신 메모리는 3GB(cpus 2)로 둡니다.**
+   - 3GB 에서의 설정값(2026-10-07 사용자 결정·실측): SGA `900M`, PGA 목표 `pga_aggregate_target=400M`, `pga_aggregate_limit=2G`, `control_management_pack_access=NONE`, 루트 AWR 스냅숏 간격 0(끔). PGA 목표를 200M 에서 올린 이유는 실측에서 목표 200M 에 할당이 286M 까지 늘고 초과 할당이 50회 났기 때문입니다. SGA 는 문제가 생길 때만 1200M 로 올립니다.
+   - 올리는 절차(컨테이너 데이터는 볼륨에 남습니다):
+     ```bash
+     podman compose down                     # 컨테이너만 내림(-v 를 붙이지 않는다)
+     podman machine stop && podman machine set --memory 3072 --cpus 2 && podman machine start
+     podman compose up -d
+     ```
+   - SGA·PGA 를 바꾸는 절차(2GB 로 줄이거나 값을 고칠 때, 값은 상황에 맞게):
      ```bash
      podman compose down
-     podman machine stop && podman machine set --memory 2048 && podman machine start
      podman run --rm --entrypoint bash -v oracle-free_oracle-data:/opt/oracle/oradata:Z \
        docker.io/gvenzl/oracle-free:slim-faststart -c '
        D=/opt/oracle/oradata/dbconfig/FREE; P=/tmp/initFREE.ora
        ln -sf $D/spfileFREE.ora $ORACLE_HOME/dbs/spfileFREE.ora
        echo "create pfile='\''$P'\'' from spfile;" | sqlplus -s / as sysdba
        sed -i -E "/sga_target|sga_max_size|pga_aggregate_target|pga_aggregate_limit/d" $P
-       printf "*.sga_target=900M\n*.sga_max_size=900M\n*.pga_aggregate_target=200M\n" >> $P
+       printf "*.sga_target=900M\n*.sga_max_size=900M\n*.pga_aggregate_target=400M\n*.pga_aggregate_limit=2G\n" >> $P
        echo "create spfile='\''$D/spfileFREE.ora'\'' from pfile='\''$P'\'';" | sqlplus -s / as sysdba'
      podman compose up -d
      ```
-   - 볼륨을 지우고(`down -v`) 새로 만들면 기본값으로 돌아가므로 위 절차를 다시 실행합니다.
+   - `pga_aggregate_limit` 은 최소값이 2048M 이라 그보다 낮추면 `ORA-00093` 이 납니다(2GB 머신에서는 지정하지 않습니다).
+   - 볼륨을 지우고(`down -v`) 새로 만들면 기본값으로 돌아가므로 위 설정과 `job_queue_processes=0`(자동 작업·통계 수집 정지)을 다시 적용합니다(조정자에게 알립니다).
 6. **IDE나 외부 도구(Testcontainers 등)에서 소켓 인식 실패 시:**
    - Podman Desktop 설정에서 `Docker Socket`이 켜져 있는지 확인하고, 필요 시 실제 소켓 경로를 조회해 환경 변수로 지정합니다(Mac 은 경로가 머신마다 다름):
      ```bash
