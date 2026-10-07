@@ -30,7 +30,7 @@ bypass permissions 모드인 세션에서도 Workflow 하위 에이전트의 복
 | 판단 | 해당하는 명령 | 조정자 행동 |
 |---|---|---|
 | 승인 | 위 범주 중 그 세션에 맞는 허용 목록에 든 것 | Yes 번호를 보낸다 |
-| 거부 | 삭제(`rm -rf`·`git branch -D`·`worktree remove --force`·`reset --hard`·`clean -f`), push·외부 게시, 공용 DB 쓰기(사전 통지 없는 것), 메인 저장소의 실행 중 서버·FE 종료·재기동, 권한·설정 파일 변경, 비밀값을 출력하거나 보내는 명령 | Esc 를 보내고 거부 통지를 보낸다 |
+| 거부(레인 화면의 확인 창 판정이다. 조정자 자신의 push 는 `closing.md` §7 이 정한다) | 삭제(`rm -rf`·`git branch -D`·`worktree remove --force`·`reset --hard`·`clean -f`), push·외부 게시, 공용 DB 쓰기(사전 통지 없는 것), 메인 저장소의 실행 중 서버·FE 종료·재기동, 권한·설정 파일 변경, 비밀값을 출력하거나 보내는 명령 | Esc 를 보내고 거부 통지를 보낸다 |
 | 사용자에게 넘김 | 위 두 칸 어디에도 확실히 들지 않는 것, `auto_allow` 에 없는 범주(편집·커밋·빌드 등), 사용자 결정 항목(삭제·shared props 변경 등)에 닿는 것 | 응답하지 않고 사용자에게 명령 요지와 함께 알린다 |
 
 - **명령이 어느 칸인지 애매하면 직접 판정하지 않고 `opus` / `high` 서브에이전트에 올린다(「판단 올리기」).** 서브에이전트에는 명령 전문과 이 판단표, `auto_allow` 값을 넘기고 `allow|deny|user` 와 근거를 받는다. 서브에이전트가 확신하지 못하면 사용자에게 넘긴다.
@@ -63,7 +63,7 @@ bypass permissions 모드인 세션에서도 Workflow 하위 에이전트의 복
 | `trust` 폴더 신뢰 확인 | `trust the files in this folder` | 리포(메인 체크아웃·그 워크트리) 안이면 Yes. `spawn-lane.sh` 가 기동 대기 중에 자동으로 부른다 | 리포 밖 폴더 |
 | `usage-limit` 한도 선택 창 | `What do you want to do?` + `Wait for limit to reset` 등 | **기다리기** 선택지 번호. 지출 한도 조정·업그레이드·계정 전환은 절대 고르지 않는다. Enter 를 그냥 누르지 않는다(첫 항목이 지출 한도 조정일 수 있다) | 기다리기 선택지가 없을 때 |
 | `permission` 권한 창 | `Do you want to proceed?` | §2 판단표: 거부 칸이면 Esc(`DENY`), 명령 조각이 모두 허용 범주면 Yes. 명령·선택지는 창 지문과 같은 창(머리 가로줄 ~ 선택지) 안에서만 읽고, Yes 는 질문 줄이 정확히 `Do you want to proceed?` 이고 도구 이름 줄이 `… command` 인 창에만 고른다 | 허용 범주 밖이거나 범주를 모르는 조각이 있을 때 · 질문이 proceed 가 아님(`not-proceed` — make this edit 등) · 셸 명령 창 아님(`not-command`) · 질문·본문 들여쓰기가 실제 창 모양과 다름(`window-shape`) · 창 머리를 못 찾음(`no-fingerprint`) |
-| `question`·`choice` 레인 모델의 선택 질문 | `Enter to select`·`↑/↓ to navigate`·`❯ 1.` | `(Recommended)`·`(권장)`·`(추천)` 선택지 | 삭제·push·배포·비밀값 등 사용자 결정에 닿을 때, 권장 선택지가 없을 때 |
+| `question`·`choice` 레인 모델의 선택 질문 | `Enter to select`·`↑/↓ to navigate`·`❯ 1.` | `(Recommended)`·`(권장)`·`(추천)` 선택지 | 삭제·레인 세션의 push·배포·비밀값 등 사용자 결정에 닿을 때(조정자 자신의 push 는 대상이 아니다), 권장 선택지가 없을 때 |
 
 - `ESCALATE` 가 나오면 조정자는 아무것도 보내지 않은 상태다. 권한 창이면 §2 의 판단 올리기(opus/high)로 결론을 받아 `term-send-safe.sh --raw` 로 보내고, 사용자 결정 항목이면 사용자에게 한 줄 알린다. 권한 창은 약 1분 뒤 자동 거부되므로 판단 올리기가 늦으면 거부되는 쪽을 받아들이고 레인에 다시 시도하게 한다.
 - **예방이 먼저다.** 착수 지시 블록(`workflow.md`)에 「사람에게 묻는 선택 창(AskUserQuestion)을 쓰지 말고 조정자에게 `질문:` 메시지로 보낸다」 가 들어 있다. 선택 질문이 자주 뜨는 레인에는 이 규칙을 다시 짚어 준다.

@@ -309,7 +309,7 @@ import ...
 | (위반 사례 2026-05-28) mcm cma 4 화면 (`masterCodeMng` / `masterCategoryMng` / `masterCodeSelPop` / `masterCodeUploadFilePopup`) | ❌ search/save 에 `@Transactional(readOnly=true)` / `@Transactional(rollbackFor=Exception.class)` | 미명시 | `ParameterName must not be null` 발생 → 4 Service @Transactional 일괄 제거 후 해결 |
 
 **6-B-4.** 검증 방법.
-- **정적 검사 (먼저 돌린다)**: `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .`
+- **정적 검사 (먼저 돌린다)**: `node .claude/skills/oasis-contract-check/scripts/check_oasis_contract.mjs --root .`
   — BPMN `camunda:class` 로 진입점을 역산해 `@Transactional` 잔존을 찾는다. 서버 기동 불필요.
   판정은 주석·문자열 리터럴을 제거한 뒤 하므로, 규칙을 서술한 Javadoc 을 위반으로 세지 않는다.
   상세는 [`oasis-contract-check` 스킬](../../../../../.claude/skills/oasis-contract-check/SKILL.md).
@@ -337,7 +337,7 @@ import ...
 - `<bpmn:conditionExpression>` 명시는 OASIS executor 의 정합 동작 안에서 불필요.
 
 **6-C-4.** 검증.
-- **정적 검사 (먼저 돌린다)**: `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .`
+- **정적 검사 (먼저 돌린다)**: `node .claude/skills/oasis-contract-check/scripts/check_oasis_contract.mjs --root .`
   — serviceTask 의 `grid` property 사용(§6-C-1)과 `output` 누락(§6-C-2)을 전수 검사한다.
   §6-C-2 는 예외 없이 성공처럼 보이는 실패라 런타임 확인만으로는 놓치기 쉽다.
 - 아래 런타임 확인은 정적 검사가 통과했는데도 증상이 남을 때 쓴다.

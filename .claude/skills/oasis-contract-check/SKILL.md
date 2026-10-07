@@ -19,7 +19,7 @@ APS Service 의 `@Transactional` 은 정상이므로 위반으로 보고하지 �
 ## 1. 검사 실행
 
 ```bash
-python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .
+node .claude/skills/oasis-contract-check/scripts/check_oasis_contract.mjs --root .
 ```
 
 주요 옵션:
@@ -80,7 +80,7 @@ INFO 는 baseline 이 각각 38 건 / 49 건이라 기본 출력에서 집계로
 "위반 0 건" 이 코드가 깨끗해서인지 검사기가 고장나서인지 구분되어야 한다.
 
 ```bash
-python3 .claude/skills/oasis-contract-check/scripts/selftest.py
+node .claude/skills/oasis-contract-check/scripts/selftest.mjs
 ```
 
 규칙마다 합성 위반을 심은 임시 픽스처로 탐지를 확인한다(RED-first). 실 저장소는
@@ -93,11 +93,11 @@ python3 .claude/skills/oasis-contract-check/scripts/selftest.py
 
 ## 5. 자동 실행 (Claude 한정)
 
-`scripts/hook_post_edit.py` 가 Claude Code 의 PostToolUse(`Edit|Write`) 훅에 물려 있어
+`scripts/hook_post_edit.mjs` 가 Claude Code 의 PostToolUse(`Edit|Write`) 훅에 물려 있어
 OASIS 관련 파일을 편집할 때마다 자동으로 검사한다.
 
 **등록 위치는 `.claude/settings.json` (팀 공유, 저장소에 커밋됨)이다.** 클론하면 바로
-동작하므로 팀원이 따로 설정할 것은 없다. 필요한 것은 `python3` 뿐이다.
+동작하므로 팀원이 따로 설정할 것은 없다. 필요한 것은 `node`(18.17 이상) 뿐이다(윈도우 포함, python 불필요). 훅은 검사기를 같은 프로세스에서 호출한다.
 
 개인적으로 끄려면 `.claude/settings.local.json`(개인 설정, gitignore 대상)에서 덮어쓴다.
 같은 훅을 두 파일에 모두 두면 **중복 실행된다** — 한쪽에만 둘 것.

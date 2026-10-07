@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/skills/oasis-contract-check/scripts/hook_post_edit.py\"",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/skills/oasis-contract-check/scripts/hook_post_edit.mjs\"",
             "timeout": 60,
             "statusMessage": "OASIS 계약 검사 중"
           }

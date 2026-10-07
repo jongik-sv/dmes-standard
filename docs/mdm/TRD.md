@@ -108,7 +108,7 @@
 | Lint / Typecheck | `cd src/frontend && pnpm lint` (m-mdm 은 `tsc --noEmit`) |
 | E2E | `cd src/frontend && pnpm exec playwright test e2e/mdm-*.spec.ts` |
 | E2E 서버 | `./be-run.sh --mcm --mdm` (8100·8096, `--mdm` 은 스캐폴드에서 추가) + `./fe-run.sh --all -q` (5100). `be-run.sh` 는 포그라운드에서 대기하므로 `&&` 로 잇지 않는다. 로그인 `SMOKE_LOGIN_USER=admin` / `SMOKE_LOGIN_PASSWORD=admin123` |
-| 계약 검사 | `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` |
+| 계약 검사 | `node .claude/skills/oasis-contract-check/scripts/check_oasis_contract.mjs --root .` |
 
 주의: `playwright.config.ts` 는 서버를 띄우지 않는다. 테스트 전에 위 서버를 직접 띄운다.
 
