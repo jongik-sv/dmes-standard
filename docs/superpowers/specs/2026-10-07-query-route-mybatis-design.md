@@ -75,6 +75,13 @@
 | S7 | 읽기 전용 연결 | (a) `@Transactional(readOnly=true)`. (b) 위젯 실행기처럼 방언별 읽기 전용 설정(SQLite `PRAGMA query_only`, PostgreSQL·Oracle `SET TRANSACTION READ ONLY`). (c) 운영은 읽기 전용 DB 계정 DataSource. | 1차 방어는 S5. (a)는 sqlite-jdbc 가 연결 뒤 `setReadOnly` 를 거부하므로 시험으로 확인한 뒤에 쓴다. 장기적으로 (c). |
 | S8 | 로그 | 바인딩 값이 INFO 로 남는다(F9). | SQL 본문·queryId·경과 시간은 INFO, 바인딩 값은 DEBUG 로 낮춘다(개인정보). 디버깅할 때는 로거 수준만 올린다. |
 
+### 4-1. route-guard 레인 반영 사항 (2026-10-07)
+
+- 스위치(기본 off): `cactus.inbound.query-routes.enabled`(`/query/{id}`·`/lov/query/{id}`), `cactus.inbound.service-routes.enabled`(`/service`·`/query/service`·`/lov/service`). `/lov/master` 는 늘 켠다.
+- 켰을 때의 공통 검사(cactus-core `QueryStatementGuard`): S2 형식(`{objId}.{action}`, 아니면 400), S5(없는 id 404·`ms.getId()` 정확 일치·SELECT 만·CALLABLE·selectKey 거부), S1(`persistence/query/`·`persistence/lov/`), S4(`cactus.query.max-rows`, 기본 10,000).
+- S2 권한 키 환산과 S3 서버 주입은 아직 없다. 그동안 mcm `EndpointPermissionFilter` 와 BFF 는 `/query/`·`/lov/query/`·`/service/`·`/lov/service/` 를 경로 모양으로 거부한다. 라우터를 켜는 회차에 그 자리를 S2 판정으로 바꾼다.
+- **mdm(8096)에는 `EndpointPermissionFilter` 가 없다**(mcm `SecurityConfig` 만 연결). mdm 에서 라우터를 켜려면 mdm 에도 BE 권한 판정을 먼저 넣어야 한다.
+
 ## 5. 방언 설계
 
 대상: 로컬·시험 SQLite, 운영 Oracle 또는 PostgreSQL. MSSQL 은 대상이 아니다(사용자 메모 2026-10-03).
@@ -86,7 +93,8 @@
 | D3 | 페이지·상위 N | Oracle 12c+ 와 PostgreSQL 은 `OFFSET n ROWS FETCH NEXT m ROWS ONLY` 를 지원하지만 SQLite 는 `LIMIT m OFFSET n` 만 된다. | cactus-core 에 공통 `<sql>` 조각(`cactus.page`)을 두고 그 안에서만 `_databaseId` 로 나눈다. 화면 매퍼는 `<include refid="cactus.page"/>` 만 쓴다. Oracle 버전이 12c 미만이면 다시 정한다. |
 | D4 | 자주 어긋나는 함수 | `NVL`(Oracle 전용) → `COALESCE`, `SYSDATE`·`GETDATE()` → 서버가 넣는 `_now` 값, `DECODE` → `CASE`, `(+)` 외부 조인 → `LEFT JOIN`, `ROWNUM`·`TOP` → D3, 문자열 연결 `||` 는 세 방언 공통이라 허용, LIKE 패턴은 `<bind name="xLike" value="'%' + x + '%'"/>` 로 SQL 밖에서 만든다. | 정적 검사 규칙으로 넣는다. |
 | D5 | SQLite 시험에서 운영 방언 지키기 | (a) 정적 검사(D2·D4 금지 패턴, databaseId 변형이 있으면 세 방언 모두 있는지). (b) 운영 방언 DB 로 시험(도커 금지라 로컬 자동 시험은 불가). (c) 개발계 Oracle·PostgreSQL 에서 매퍼 전체를 `EXPLAIN` 하는 점검 스크립트를 배포 전에 수동으로 돌린다. | **(a) 필수 + (c) 배포 전 점검.** (a)는 매퍼 XML 을 읽는 단위 시험 하나로 구현해 모든 모듈 시험에서 돈다. |
-| D6 | 스키마 접두어 | `MCMAPUSER.TABLE` 형식. SQLite 는 ATTACH 이름, PostgreSQL 은 스키마, Oracle 은 사용자로 같게 맞춰 있다. | 현행 유지. |
+| D6 | 스키마 접두어·SQLite 치환 | 운영 SQL 은 `MCMAPUSER.TABLE` 형식이다(PostgreSQL 스키마, Oracle 사용자). 로컬 SQLite 는 스키마가 없어 mcm `JpaConfig` 가 Hibernate `McmAuditStatementInspector` 로 `MCMAPUSER.` 제거·`SYSDATETIME()`·`ISNULL(`·`N'…'` 를 치환한다. **MyBatis SQL 은 이 검사기를 거치지 않으므로 매퍼 SQL 은 로컬에서 `no such table` 로 실패한다**(기존 `DmomMapper` 도 같다). | 시범에서 mcm-core `McmSqliteMybatisInterceptor`(StatementHandler.prepare, 연결의 DB 제품명이 SQLite 일 때만 같은 치환)를 넣고 mcm `McmMybatisConfig` 가 cactus 가 만든 SqlSessionFactory 마다 붙인다. 운영 DB 에서는 SQL 을 건드리지 않는다. **cactus 공통화 후보:** 치환 규칙(스키마 접두 목록)을 `cactus.mybatis.sqlite-rewrite.schemas` 같은 설정으로 받아 `CactusMultiMybatisAutoConfiguration.build()` 의 인터셉터 목록에 넣으면 업무 모듈(MLSAPUSER 등)도 같은 인터셉터를 쓸 수 있다. 지금 Hibernate 쪽 검사기는 mcm 에만 있다. |
+| D7 | MyBatis 쓰기의 감사 열 | JPA 쓰기는 `McmAuditStatementInspector` 가 감사 9열을 보강한다. MyBatis 쓰기는 cactus `CactusMybatisAuditInterceptor` 가 맡는다. | BPMN 안 매퍼로 쓰기를 할 때 두 인터셉터가 같은 열을 같은 값으로 채우는지 확인한다(후속 확인 항목, 조회 라우터와는 무관). |
 
 ## 6. 매퍼 위치·명명·결과·FE·디버깅
 
@@ -145,8 +153,27 @@ MES·MDM BPMN 65개, action 270개다. 그중 읽기 성격 action(search·view�
 1. 매퍼 `mcm/api/src/main/resources/persistence/query/cma/masterCodeSelPop.xml`(namespace `masterCodeSelPop`, id `search`)에 서비스와 같은 SQL 을 쓴다. 별칭은 지금 FE 키(`"CODE_VAL"` 등)를 큰따옴표로 쓰고, LIKE 는 `<bind>` 로 만든다.
 2. 시험(SQLite, 도커 없음): 같은 입력 조합(조건 없음·pCodeId·pDiv=CODE_VAL·pDiv=CODE_VAL_MEAN·빈 pValue·대소문자 섞임)마다 `MasterCodeSelPopService.search` 결과와 `sqlSession.selectList("masterCodeSelPop.search")` 결과가 행 순서·값까지 같은지 비교한다.
 3. 성능: 같은 시험 안에서 OASIS 경로(`/oasis/masterCodeSelPop/search`)와 라우터 경로(`/query/masterCodeSelPop.search`)를 MockMvc 로 번갈아 각 20회(예열 5회 뒤) 재서 중앙값·p90 을 적는다. 이 PC 는 측정이 흔들리므로 결론은 「차이가 있다/없다」 수준으로만 쓴다.
-4. FE: `api.ts` 의 `searchMasterCodes` 만 `apiQuery` 로 바꾼다(BPMN 은 지우지 않는다). **라우터 보호(route-guard)가 머지되기 전에는 FE 전환을 머지하지 않는다**(보호 없이 화면이 라우터를 쓰면 F6 노출을 쓰는 셈이다).
-5. 워크트리 서버에서 브라우저로 팝업 조회를 확인하고 정리한다.
+4. FE: `api.ts` 의 `searchMasterCodes` 만 `apiQuery` 로 바꾼다(BPMN 은 지우지 않는다). **미룸(조정자 결정 2026-10-07):** 라우터 스위치·S2 권한 판정을 켜는 회차에서 한다. route-guard 이후 BE·BFF 가 `/query/` 를 거부하므로 그 전에는 화면에서 부를 수 없다.
+5. 워크트리 서버에서 브라우저로 팝업 조회를 확인하고 정리한다. **미룸**(4와 함께).
+
+### 10-1. 시범 결과 (2026-10-07, 커밋 3a2281cf3 — 백엔드만, FE 전환은 S2·스위치를 켜는 회차로 미룸)
+
+**동등성** — `mcm/api` 시험 `MasterCodeSelPopQueryRouteParityTest` 15건 통과(`sh ../gradlew -p . :api:test --tests 'com.dongkuk.dmes.mcm.queryroute.*'`, mcm 폴더에서). 같은 SQLite 파일 위에 OASIS 경로(MockMvc `/oasis/masterCodeSelPop/search` → BPMN → 서비스)와 라우터 경로(MockMvc `/query/masterCodeSelPop.search` → QueryController → 매퍼)를 운영과 같은 모양으로 조립했다. 입력 13조합(조건 없음, 코드 ID 일치·대소문자, 빈 코드 ID, 값·의미 LIKE, 한글, 와일드카드 문자 `_`·`%`, 알 수 없는 pDiv, 조합, 일치 없음)에서 행 순서·키·값(NULL 포함)이 같다.
+
+**알려진 차이 1건** — params 에 `"pValue": null` 처럼 값이 null 인 키를 명시하면 OASIS 경로는 서비스에 닿기 전에 S999(「The type cannot be determined because object is null」, oasis 입력 변환)로 실패한다. 라우터는 키가 없을 때와 같은 행을 돌려준다. FE 는 pValue 를 늘 문자열로 보내므로 지금 화면 영향은 없다. 시험이 이 차이를 현재 동작으로 고정한다.
+
+**성능** — `MasterCodeSelPopQueryRoutePerfTest`(`QUERY_ROUTE_PERF=1` 일 때만). 두 경로를 번갈아 부르고, 워밍업 각 5회를 뺀 뒤 각 20회. MockMvc 요청 하나의 왕복(JSON 직렬화 포함) 시간이다. 3회 반복했고 측정 중 부하 평균은 6.6~11 이었다(MacBook Air M5, 다른 세션 작업 중).
+
+| 행 수 | 회차 | OASIS 중앙값 / p90 (ms) | 라우터 중앙값 / p90 (ms) |
+|---|---|---|---|
+| 100 | 1 | 5.68 / 6.22 | 3.30 / 3.92 |
+| 100 | 2 | 3.05 / 3.85 | 1.78 / 2.01 |
+| 100 | 3 | 4.32 / 5.11 | 2.41 / 2.74 |
+| 10,000 | 1 | 53.52 / 59.28 | 57.61 / 61.20 |
+| 10,000 | 2 | 69.58 / 82.06 | 75.97 / 87.87 |
+| 10,000 | 3 | 96.17 / 103.62 | 103.96 / 111.97 |
+
+읽는 법(조심스럽게): 절대값은 회차마다 크게 흔들리지만(10,000행 중앙값 53→96ms), **세 회차 모두 방향은 같다.** 100행에서는 라우터가 1.3~2.4ms 빠르다(약 40%). OASIS 쪽의 BPMN 실행·JPA 트랜잭션 열고 닫기라는 고정 비용이 없기 때문으로 본다. 10,000행에서는 라우터가 4~8ms 느리다(약 6~9%). 행을 Map 으로 만드는 비용(MyBatis 자동 매핑·`callSettersOnNulls`)이 JPA native `Object[]` → `LinkedHashMap` 수동 매핑보다 큰 것으로 추정한다(프로파일로 확인하지 않음). 화면 체감 차이는 둘 다 작다. 한계: SQLite 파일 DB, HTTP·WAS·BFF 없음, 운영 인터셉터(`SqlLoggingInterceptor` INFO 로그·`MasterCodeMybatisInterceptor`)·Hibernate show_sql 없음. 운영 Oracle·PostgreSQL 에서는 네트워크 왕복이 커서 고정 비용 차이의 비중이 더 작아질 수 있다.
 
 ## 11. 결정 필요 항목 (조정자·사용자)
 
