@@ -170,7 +170,24 @@ podman compose down -v
 
 ## 7. 로컬 SQLite 데이터를 Oracle 로 옮기기
 
-[`tools/oracle-free/sqlite_to_oracle.py`](../../../tools/oracle-free/sqlite_to_oracle.py) 는 SQLite 파일 하나를 Oracle 스키마(사용자) 하나로 옮긴다. 데이터 크기 측정·방언 차이 확인용이며, 앱 설정은 바꾸지 않는다.
+### 7.0. 다른 PC 에서는 이 스크립트 한 줄
+
+git 에 올라 있는 `db-snapshot/` 만으로 로컬 Oracle 에 같은 데이터를 넣는다(원본 `src/backend/data/*.db` 가 없어도 된다). Oracle 컨테이너가 떠 있고 `pip install oracledb` 가 되어 있으면 된다.
+
+```bash
+python3 tools/oracle-free/load_snapshot.py                 # db-snapshot/ 아래 전부(mdm mcm) -> 스키마 MDM·MCM
+python3 tools/oracle-free/load_snapshot.py mdm --drop      # 하나만, 스키마가 이미 있으면 지우고 다시 적재
+```
+
+* [`load_snapshot.py`](../../../tools/oracle-free/load_snapshot.py) 는 스냅샷을 임시 SQLite 로 복원(`scripts/db-snapshot/import.sh` 와 같은 순서)한 뒤 아래 `sqlite_to_oracle.py` 로 적재하고, 임시 파일은 지운다. 셸·`sqlite3` 명령 없이 파이썬만 쓰므로 윈도우에서도 같다.
+* 스키마가 이미 있는데 `--drop` 이 없으면 아무것도 하지 않고 멈춘다. 끝에 스키마별 표 수·행수 일치 여부를 요약한다.
+* 스냅샷을 최신으로 바꾸는 쪽은 `scripts/db-snapshot/export.sh`(로컬 SQLite -> `db-snapshot/`)다. 스냅샷에 없는 것은 Oracle 에도 없다.
+* 용어 임베딩(`TB_MDM_TERM.EMBEDDING`)은 스냅샷에서 NULL 이라 Oracle 에서도 NULL 이다. 다시 계산하는 법은 `db-snapshot/README.md` 참고.
+* 비밀번호·키·로그 표(`TB_MCM_SEC_USER_PWD`·`TB_SEC_KEY_STORE`·`TB_SEC_LOGIN_LOG` 등)는 스키마만 있고 비어 있으며, 사용자 표는 `admin` 행만 있다. admin 비밀번호는 mcm 서버를 기동할 때 `admin123` 으로 채워진다.
+
+### 7.0.1. 로컬 SQLite 를 직접 옮길 때
+
+[`tools/oracle-free/sqlite_to_oracle.py`](../../../tools/oracle-free/sqlite_to_oracle.py) 는 SQLite 파일 하나를 Oracle 스키마(사용자) 하나로 옮긴다. 데이터 크기 측정·방언 차이 확인용이며, 앱 설정은 바꾸지 않는다. 스냅샷이 아니라 지금 로컬 DB 전체(사용자·로그 포함)를 옮긴다.
 
 ```bash
 # 1. 원본은 로컬 서버가 쓰고 있을 수 있으므로 사본을 뜬다(원본 직접 지정 금지)
