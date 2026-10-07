@@ -64,6 +64,7 @@
 
 - 쿼리 위젯: 운영(prod·wildfly)은 `dmes.widget.query.require-dedicated: true` 로 둔다 — 전용 DataSource 가 없으면 시험·저장·실행을 거절한다(정책 B, 10d9b67de).
 - 쿼리 위젯 실행기(`dmes.widget.query.datasource.*`)에는 **읽기 권한만 가진 DB 계정**의 전용 DataSource 를 붙이고, 그 계정에는 자율 트랜잭션(`PRAGMA AUTONOMOUS_TRANSACTION`) 함수·프로시저의 EXECUTE 권한과 DB 링크를 주지 않는다 — Oracle 읽기 전용 트랜잭션은 자율 트랜잭션 함수의 쓰기를 막지 못한다(2026-10-07 Oracle 26ai 실측).
+- 쿼리 위젯·자동 수집은 읽기 전용 트랜잭션으로 읽으므로, 표를 만들거나 바꾼(DDL) 직후 몇 초 동안 그 표 조회가 ORA-01466 으로 실패할 수 있다(2026-10-07 실측, 잠시 뒤 다시 하면 된다).
 - 업무기준 동적 표 `MCAAPUSER.TB_MCA_<RULE_ID>` 는 DBA 가 만들고, 만들 때 MCMAPUSER 에 `SELECT, INSERT, UPDATE, DELETE` 를 GRANT 한다(앱은 DDL 을 보내지 않는다).
 - 원장 → 사본 동기화(MCM_SOURCE → MCMAPUSER·MCM_BACKUP)는 동기화 관리 화면이 유일한 경로다(트리거·배치 없음).
 - 시퀀스 `SEQ_MCM_MOM_TC_SEND`·`SEQ_MCM_MOM_TC_ERROR` 는 데이터를 옮긴 뒤 MAX(키)+1 로 다시 맞춘다.

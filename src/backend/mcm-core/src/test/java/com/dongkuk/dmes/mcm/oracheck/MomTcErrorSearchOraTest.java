@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -31,6 +32,7 @@ class MomTcErrorSearchOraTest {
 
     @Autowired MomTcErrorRepository repo;
     @Autowired JdbcTemplate jdbc;
+    @Autowired TransactionTemplate tx;
 
     @BeforeEach
     @AfterEach
@@ -87,16 +89,29 @@ class MomTcErrorSearchOraTest {
         assertThat(rows.get(0).getCreationTimestamp()).isEqualTo("2026-10-02 10:45:30");
     }
 
-    /** c2: 투영 getter(String)로 읽는 NCLOB 칸 INTERFACE_MSG — Clob 계열 값이 글자열로 변환되는지. */
+    /**
+     * c2: 투영 getter(String)로 읽는 NCLOB 칸 INTERFACE_MSG — Clob 계열 값이 글자열로 변환되는지.
+     * c4: 투영은 NCLOB 을 LOB 로 받아 {@code getInterfaceMsg()} 가 글 전체를 읽는다(재전송 팝업이 다시 보내므로 자르지 않는다).
+     * LOB 는 조회한 연결로 읽으므로 운영(OASIS process 트랜잭션)처럼 트랜잭션 안에서 조회·읽기를 한다. 4000 자 넘는 글도 잘리지 않는다.
+     */
     @Test
-    @DisplayName("search — NCLOB 칸 INTERFACE_MSG 가 String 투영으로 읽힌다")
+    @DisplayName("search — NCLOB 칸 INTERFACE_MSG 가 String 투영으로 글 전체가 읽힌다(4000자 넘는 글 포함)")
     void search_nclobInterfaceMsg() {
         fixture();
+        String longMsg = "전".repeat(4500);
+        error(104, "2026-10-02 11:00:00", "TC1", "IF_ALPHA", "E400", "msg-104", longMsg);
 
-        TcErrorRowView r101 = repo.search(null, null, null, null, "TC1").stream()
-                .filter(r -> r.getSqVal() == 101L).findFirst().orElseThrow();
+        List<String> msgs = tx.execute(st -> {
+            List<TcErrorRowView> rows = repo.search(null, null, null, null, "TC1");
+            String m101 = rows.stream().filter(r -> r.getSqVal() == 101L).findFirst().orElseThrow().getInterfaceMsg();
+            String m103 = rows.stream().filter(r -> r.getSqVal() == 103L).findFirst().orElseThrow().getInterfaceMsg();
+            String m104 = rows.stream().filter(r -> r.getSqVal() == 104L).findFirst().orElseThrow().getInterfaceMsg();
+            return java.util.Arrays.asList(m101, m103, m104);
+        });
 
-        assertThat(r101.getInterfaceMsg()).isEqualTo("본문-101");
+        assertThat(msgs.get(0)).isEqualTo("본문-101");
+        assertThat(msgs.get(1)).isNull();
+        assertThat(msgs.get(2)).isEqualTo(longMsg);
     }
 
     /** c2: 날짜 조건이 KST 벽시계 기준 — Instant 인자(UTC)를 KST 로 바꿔 C_AT(저장값 KST) 와 비교한다. 경계는 포함. */

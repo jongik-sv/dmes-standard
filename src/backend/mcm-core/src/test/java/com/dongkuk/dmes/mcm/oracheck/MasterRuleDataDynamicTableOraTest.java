@@ -124,6 +124,18 @@ class MasterRuleDataDynamicTableOraTest {
         return tx.execute(status -> service.save(req(), saveRows));
     }
 
+    /**
+     * 조회도 운영(OASIS process 트랜잭션)처럼 트랜잭션 안에서 부른다 — 응답 행의 CLOB(MEMO)은 조회한 연결로 읽어 글자로 바꾸므로
+     * 트랜잭션 밖(EntityManager 가 조회 직후 닫힘)에서 부르면 운영과 다른 조건이 된다(oracle-1007 c4).
+     */
+    private Map<String, Object> searchTx(MasterRuleDataSearchRequest r) {
+        return tx.execute(status -> service.search(r));
+    }
+
+    private Map<String, Object> exportTx(MasterRuleDataSearchRequest r) {
+        return tx.execute(status -> service.searchExport(r));
+    }
+
     private static Map<String, Object> saveRow(String status, Object... kv) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("rowStatus", status);
@@ -171,7 +183,7 @@ class MasterRuleDataDynamicTableOraTest {
         r.setCountPerPage(2);
         r.setCurrentPage(2);
 
-        Map<String, Object> out = service.search(r);
+        Map<String, Object> out = searchTx(r);
 
         List<Map<String, Object>> list = rows(out, "ds_GetMasterRuleData");
         assertThat(seqs(list)).containsExactly(3L, 4L);
@@ -190,12 +202,12 @@ class MasterRuleDataDynamicTableOraTest {
         MasterRuleDataSearchRequest last = req();
         last.setCountPerPage(2);
         last.setCurrentPage(3);
-        assertThat(seqs(rows(service.search(last), "ds_GetMasterRuleData"))).containsExactly(5L);
+        assertThat(seqs(rows(searchTx(last), "ds_GetMasterRuleData"))).containsExactly(5L);
 
         MasterRuleDataSearchRequest beyond = req();
         beyond.setCountPerPage(2);
         beyond.setCurrentPage(4);
-        Map<String, Object> out = service.search(beyond);
+        Map<String, Object> out = searchTx(beyond);
         assertThat(rows(out, "ds_GetMasterRuleData")).isEmpty();
         assertThat(out.get("totalCount")).isEqualTo(5L);
     }
@@ -206,7 +218,7 @@ class MasterRuleDataDynamicTableOraTest {
     void search_varcharLikeUpper() {
         fiveRows();
 
-        Map<String, Object> out = service.search(cond("CURR_CD", "LIKE", "us%"));
+        Map<String, Object> out = searchTx(cond("CURR_CD", "LIKE", "us%"));
 
         assertThat(seqs(rows(out, "ds_GetMasterRuleData"))).containsExactly(1L, 2L);
         assertThat(out.get("totalCount")).isEqualTo(2L);
@@ -218,8 +230,8 @@ class MasterRuleDataDynamicTableOraTest {
     void search_numberAndEquals() {
         fiveRows();
 
-        assertThat(seqs(rows(service.search(cond("AMT", ">=", "30")), "ds_GetMasterRuleData"))).containsExactly(3L, 4L, 5L);
-        assertThat(seqs(rows(service.search(cond("CURR_CD", "=", "eur")), "ds_GetMasterRuleData"))).containsExactly(3L);
+        assertThat(seqs(rows(searchTx(cond("AMT", ">=", "30")), "ds_GetMasterRuleData"))).containsExactly(3L, 4L, 5L);
+        assertThat(seqs(rows(searchTx(cond("CURR_CD", "=", "eur")), "ds_GetMasterRuleData"))).containsExactly(3L);
     }
 
     /** c2: 전건 조회(searchExport) — {@code SELECT * … ORDER BY RULE_SEQ}. */
@@ -228,7 +240,7 @@ class MasterRuleDataDynamicTableOraTest {
     void searchExport() {
         fiveRows();
 
-        Map<String, Object> out = service.searchExport(req());
+        Map<String, Object> out = exportTx(req());
 
         assertThat(seqs(rows(out, "ds_GetMasterRuleDataExport"))).containsExactly(1L, 2L, 3L, 4L, 5L);
         assertThat(out.get("cnt")).isEqualTo(5);
@@ -307,7 +319,7 @@ class MasterRuleDataDynamicTableOraTest {
     void search_dateCondition_14charString() {
         fiveRows();
 
-        Map<String, Object> out = service.search(cond("BASE_DT", ">=", "20261003000000"));
+        Map<String, Object> out = searchTx(cond("BASE_DT", ">=", "20261003000000"));
 
         assertThat(seqs(rows(out, "ds_GetMasterRuleData"))).containsExactly(3L, 4L, 5L);
     }
@@ -338,7 +350,7 @@ class MasterRuleDataDynamicTableOraTest {
     void search_clobLike() {
         fiveRows();
 
-        Map<String, Object> out = service.search(cond("MEMO", "LIKE", "MEMO-3%"));
+        Map<String, Object> out = searchTx(cond("MEMO", "LIKE", "MEMO-3%"));
 
         assertThat(seqs(rows(out, "ds_GetMasterRuleData"))).containsExactly(3L);
     }
@@ -349,7 +361,7 @@ class MasterRuleDataDynamicTableOraTest {
     void search_clobEquals() {
         fiveRows();
 
-        Map<String, Object> out = service.search(cond("MEMO", "=", "memo-3"));
+        Map<String, Object> out = searchTx(cond("MEMO", "=", "memo-3"));
 
         assertThat(seqs(rows(out, "ds_GetMasterRuleData"))).containsExactly(3L);
     }
@@ -363,8 +375,9 @@ class MasterRuleDataDynamicTableOraTest {
         saveInTx(List.of(saveRow("C", "CURR_CD", "L", "MEMO", longText)));
 
         assertThat(appJdbc.queryForObject("SELECT MEMO FROM " + TABLE + " WHERE RULE_SEQ = 1", String.class)).isEqualTo(longText);
-        Object memo = rows(service.search(req()), "ds_GetMasterRuleData").get(0).get("MEMO");
+        Object memo = rows(searchTx(req()), "ds_GetMasterRuleData").get(0).get("MEMO");
         assertThat(memo).as("응답 MEMO").isNotNull();
         assertThat(memo).as("응답에 java.sql.Clob 같은 비글자 형이 아니라 글자로 실린다").isInstanceOf(String.class);
+        assertThat(memo).as("잘리지 않은 글 전체").isEqualTo(longText);
     }
 }

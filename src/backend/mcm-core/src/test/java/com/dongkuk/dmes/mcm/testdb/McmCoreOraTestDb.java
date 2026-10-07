@@ -95,6 +95,39 @@ public final class McmCoreOraTestDb {
         }
     }
 
+    /**
+     * 방금 만든 표를 읽기 전용 트랜잭션이 읽을 수 있을 때까지 기다린다(최대 20초). Oracle 은 {@code SET TRANSACTION READ ONLY} 의
+     * 스냅샷 시점보다 표 정의(DDL) 시각이 늦으면 ORA-01466 으로 읽기를 거절한다 — SCN·시각 대응이 초 단위라 CREATE 직후 몇 초간 난다
+     * (2026-10-07 Oracle 26ai 실측). 위젯 실행기처럼 읽기 전용 트랜잭션으로 읽는 시험은 표를 만든 뒤 이것을 부른다.
+     */
+    public static void awaitReadOnlyReadable(String user, String... tables) {
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(20);
+        try (Connection c = DriverManager.getConnection(url(), user, password())) {
+            c.setAutoCommit(false);
+            while (true) {
+                try (Statement st = c.createStatement()) {
+                    st.execute("SET TRANSACTION READ ONLY");
+                    for (String table : tables) {
+                        try (ResultSet rs = st.executeQuery("SELECT 1 FROM " + table + " WHERE ROWNUM = 0")) {
+                            rs.next();
+                        }
+                    }
+                    c.rollback();
+                    return;
+                } catch (SQLException e) {
+                    c.rollback();
+                    if (e.getErrorCode() != 1466 || System.nanoTime() > deadline) throw e;
+                    Thread.sleep(300);
+                }
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("읽기 전용 트랜잭션으로 표를 읽지 못했다: " + e.getMessage(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
+    }
+
     /** 스키마 준비({@link #ensureMigrated()}) 뒤 앱 사용자(MCMAPUSER)로 붙는 작은 풀. 닫는 것은 호출자(또는 스프링) 몫이다. */
     public static HikariDataSource appDataSource(String poolName) {
         ensureMigrated();

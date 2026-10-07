@@ -208,7 +208,8 @@ public class CommUserMngQueryService {
         // (방언에 없는 함수가 섞이면 조회가 통째로 실패하고, OASIS 가 이를 HTTP 200 + meta.success=false 로 돌려줘
         //  역할그룹 목록이 조용히 빈 채로 보인다 — 2026-08-07 SQLite 사례)
         String now = "LOCALTIMESTAMP";
-        String endDefault = "COALESCE(A.END_ACTIVE_DATE, LOCALTIMESTAMP + INTERVAL '100' DAY)";
+        // INTERVAL '100' DAY 는 기본 앞자리 정밀도가 2라 ORA-01873 — 세 자리를 쓰려면 DAY(3) 을 적는다(2026-10-07 Oracle 26ai 실측).
+        String endDefault = "COALESCE(A.END_ACTIVE_DATE, LOCALTIMESTAMP + INTERVAL '100' DAY(3))";
         String sql =
                 "SELECT A.ROLE_GROUP_ID, A.ROLE_GROUP_NM " +
                 "  FROM MCMAPUSER.TB_MCM_SEC_ROLEGROUP A " +

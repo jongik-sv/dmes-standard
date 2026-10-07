@@ -187,11 +187,12 @@ class MenuTreeSqlOraTest {
     }
 
     /**
-     * c2: 정렬 키 — LPAD 로 맞춘 8자 MENU_SEQ 순서(예전 TO_CHAR(MENU_SEQ,'00000000') 와 같은 뜻)로 나와야 한다.
-     * SQL 의 ORDER BY·ROW_NUMBER 는 LPAD 별칭이 아니라 가공 전 M.MENU_SEQ(글자열) 를 쓰므로 '10' &lt; '2' 로 정렬될 수 있다 — 결과 원문 확인용.
+     * c2: 정렬 키 — ORDER BY·ROW_NUMBER 는 LPAD 별칭이 아니라 가공 전 M.MENU_SEQ(VARCHAR2 글자열)를 쓴다.
+     * c4 판정: c2 이전 MSSQL 판도 {@code ORDER BY M.MENU_SEQ}(MENU_FLD.MENU_SEQ VARCHAR(30)) 글자 정렬이었으므로 동작 보존 — 길이가
+     * 다른 값은 글자 순서('10' &lt; '2')로 나온다. 운영 자료는 저장 시 8자로 채우므로(CommMenuMngService LPAD 8) 글자 순서 = 숫자 순서다.
      */
     @Test
-    @DisplayName("searchCmRoleGrpMenu — MENU_SEQ 가 '2'·'10' 처럼 길이가 다르면 8자로 맞춘 값 순서(2 가 10 보다 앞)")
+    @DisplayName("searchCmRoleGrpMenu — MENU_SEQ 가 '2'·'10' 처럼 길이가 다르면 가공 전 글자 순서('10' 이 '2' 보다 앞, MSSQL 판과 같음)")
     void searchCmRoleGrpMenu_paddedSeqOrder() {
         fld("F_ROOT", "10", null, 1_000_000);
         fld("F_A", "2", "F_ROOT", 1_020_000);
@@ -200,7 +201,7 @@ class MenuTreeSqlOraTest {
 
         List<Map<String, Object>> rows = roleGrpRepo.searchCmRoleGrpMenu("RG1");
 
-        assertThat(rows).extracting(r -> s(r, "MENU_SEQ")).containsExactly("00000002", "00000003", "00000010");
+        assertThat(rows).extracting(r -> s(r, "MENU_SEQ")).containsExactly("00000010", "00000002", "00000003");
     }
 
     /** c2: 재귀 쪽 {@code T.LEV < 32} 가 순환 자료(F_X↔F_Y)에서도 재귀를 멈춘다(예전 MAXRECURSION 32 대신). */

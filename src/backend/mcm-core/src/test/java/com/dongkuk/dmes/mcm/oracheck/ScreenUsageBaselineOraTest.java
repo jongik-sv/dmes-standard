@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 
@@ -112,11 +113,16 @@ class ScreenUsageBaselineOraTest {
         jdbc.update(INSERT_LOG, "u-1", "dupUser", "dup-seg");
 
         assertThatThrownBy(() -> jdbc.update(INSERT_LOG, "u-2", "dupUser", "dup-seg"))
-                .hasRootCauseInstanceOf(SQLException.class)
+                .isInstanceOf(DuplicateKeyException.class)
                 .satisfies(e -> {
-                    SQLException root = (SQLException) org.springframework.core.NestedExceptionUtils.getRootCause(e);
-                    assertThat(root.getErrorCode()).as("ORA-00001 unique constraint violated").isEqualTo(1);
-                    assertThat(root.getMessage()).contains("UK_SEC_SCREEN_USAGE_LOG_SEG");
+                    // ojdbc 의 가장 깊은 원인은 oracle.jdbc.OracleDatabaseException(SQLException 아님)이라 원인 사슬에서 SQLException 을 찾는다
+                    SQLException sql = null;
+                    for (Throwable t = e; t != null && sql == null; t = t.getCause()) {
+                        if (t instanceof SQLException s) sql = s;
+                    }
+                    assertThat((Object) sql).as("원인 사슬의 SQLException").isNotNull();
+                    assertThat(sql.getErrorCode()).as("ORA-00001 unique constraint violated").isEqualTo(1);
+                    assertThat(sql.getMessage()).contains("UK_SEC_SCREEN_USAGE_LOG_SEG");
                 });
 
         jdbc.update(INSERT_LOG, "u-3", "otherUser", "dup-seg");
