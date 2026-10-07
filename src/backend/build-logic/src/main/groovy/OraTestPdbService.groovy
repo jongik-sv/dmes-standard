@@ -37,6 +37,15 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
     synchronized String acquire() {
         if (pdbName != null) return pdbName
         holdPcLock()
+        try {
+            return acquireLocked()
+        } catch (Exception e) {
+            logVmState('PDB 준비 실패')
+            throw e
+        }
+    }
+
+    String acquireLocked() {
         if (parameters.mode.get() == 'existing') {
             pdbName = parameters.pdb.get().toUpperCase()
             return pdbName
@@ -115,11 +124,54 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
         return p.exitValue()
     }
 
+    /**
+     * VM 상태(free·loadavg)를 한 줄 로그로 남긴다(Oracle 명령이 아니다: podman machine ssh). Oracle 시험·접속이 실패했을 때 VM 크기 축소(2GB)
+     * 때문인지 가리려는 용도다. available 150MB 미만이거나 load 10 이상이면 「VM 의심」 을 붙인다. podman 이 아니거나 읽지 못하면 조용히 건너뛴다.
+     */
+    synchronized void logVmState(String reason) {
+        try {
+            String engine = System.getenv('DMES_ORA_ENGINE') ?: 'podman'
+            if (engine != 'podman') return
+            Process p = new ProcessBuilder([engine, 'machine', 'ssh', '--', 'free -m; cat /proc/loadavg']).redirectErrorStream(true).start()
+            StringBuilder out = new StringBuilder()
+            Thread t = Thread.start { p.inputStream.eachLine { out.append(it).append('\n') } }
+            if (!p.waitFor(20, TimeUnit.SECONDS)) { p.destroyForcibly(); return }
+            t.join(2000)
+            def mem = out.toString().readLines().find { it.startsWith('Mem:') }?.trim()?.split(/\s+/)
+            def load = out.toString().readLines().find { it ==~ /^\d+\.\d+ \d+\.\d+ \d+\.\d+ .*/ }?.trim()?.split(/\s+/)
+            if (mem == null || mem.length < 7 || load == null) return
+            long available = mem[6] as long
+            double load1 = load[0] as double
+            boolean suspect = available < 150 || load1 >= 10
+            System.err.println("[dmes-ora] ${reason}: VM available=${available}MB load=${load[0]} ${load[1]} ${load[2]}" +
+                    (suspect ? ' → VM 의심(재실행 전에 조정자에게 보고: scripts/oracle/README.md 「Oracle 오류 판별」)' : ' (VM 정상 범위)'))
+        } catch (Exception ignored) {
+            // VM 상태를 못 읽어도 시험 결과는 바꾸지 않는다.
+        }
+    }
+
+    /** 시험 PDB 의 세션 수 최대치를 한 줄 로그로 남긴다(sqlplus 한 번, 실패해도 무시). */
+    void logSessions() {
+        try {
+            File script = new File(parameters.repoRoot.get(), 'scripts/oracle/pdb.mjs')
+            ProcessBuilder pb = new ProcessBuilder(['node', script.absolutePath, 'sessions', pdbName]).redirectErrorStream(true)
+            if (lockPid > 0) pb.environment().put('DMES_ORA_LOCK_HELD', String.valueOf(lockPid))
+            Process p = pb.start()
+            String text = p.inputStream.text.trim()
+            if (!p.waitFor(60, TimeUnit.SECONDS)) { p.destroyForcibly(); return }
+            String line = text.readLines().find { it.startsWith('sessions') } ?: text
+            System.err.println("[dmes-ora] 시험 PDB ${pdbName} ${line}")
+        } catch (Exception ignored) {
+            // 세션 수를 못 세도 시험 결과는 바꾸지 않는다.
+        }
+    }
+
     @Override
     void close() {
         // 빌드 종료(성공·실패·취소)에서 불린다. 복제한 PDB 만 지운다.
         try {
             if (cloned && pdbName != null) {
+                logSessions()
                 try {
                     runPdb(['drop', pdbName], 600, true)
                 } catch (Exception ignored) {
