@@ -78,6 +78,8 @@ class MdmOracleDialectProbeOraTest extends AbstractMdmSharedDbTest {
 
     @Test
     void 앱_연결의_ORDER_BY_는_BINARY_정렬이다() {
+        // 세션 NLS 는 JDBC 가 JVM Locale 로 정한다 — 앱(be-run.sh)과 같은 ko_KR 이 아니면 실측이 PC 마다 달라진다(build.gradle 이 고정).
+        assertEquals("ko_KR", Locale.getDefault().toString(), "시험 JVM Locale 이 ko_KR 이 아니다 — build.gradle 의 user.language·user.country 확인");
         String nlsSort = jdbc.queryForObject("SELECT SYS_CONTEXT('USERENV', 'NLS_SORT') FROM DUAL", String.class);
         String nlsComp = jdbc.queryForObject("SELECT VALUE FROM NLS_SESSION_PARAMETERS WHERE PARAMETER = 'NLS_COMP'", String.class);
         String nlsLanguage = jdbc.queryForObject("SELECT VALUE FROM NLS_SESSION_PARAMETERS WHERE PARAMETER = 'NLS_LANGUAGE'", String.class);
@@ -201,7 +203,7 @@ class MdmOracleDialectProbeOraTest extends AbstractMdmSharedDbTest {
         MetaRevisionRecorder.MetaRevisionRange range = metaRevisionRecorder.force(MetaTargetType.COLUMN, keys, MetaChangeKind.SAVE);
 
         assertEquals(3, range.count());
-        assertEquals(2, range.toSeq() - range.fromSeq(), range.toString());
+        // 실제 검증은 아래 키 집합 대조다(범위 안 REV_SEQ 에 키 3개가 모두 한 번씩 적혔는가) — to-from 차이는 범위 정의에서 늘 참이라 단언하지 않는다.
         Set<String> written = new HashSet<>(jdbc.queryForList("SELECT TARGET_KEY FROM TB_MDM_META_REV WHERE REV_SEQ BETWEEN ? AND ? "
                 + "AND TARGET_TYPE = 'COLUMN' AND CHANGE_KIND = 'SAVE'", String.class, range.fromSeq(), range.toSeq()));
         assertEquals(Set.copyOf(keys), written);

@@ -24,7 +24,8 @@ public abstract class AbstractMdmSharedDbTest {
     /**
      * 컨텍스트를 띄우기 전에 돈다 — 여기서 JVM 당 한 번 스키마를 clean+migrate 해 두므로 컨텍스트의 Flyway 는 적용할 버전이 없다.
      * 풀은 작게: 인스턴스를 모든 레인이 나눠 쓴다. 상한 2 는 {@code DataSegmentLockSqliteTest} 의 두 연결 동시 수정 때문이고, 쉬는 연결은
-     * 두지 않고 10초(Hikari 하한) 뒤 닫는다 — 캐시된 컨텍스트(최대 4)가 연결을 쥐고 있지 않게.
+     * 두지 않고 쉬는 연결을 10초(Hikari 하한)로 닫게 한다 — 정리 주기(기본 30초) 때문에 실제로는 최대 약 40초 뒤 닫힌다.
+     * 캐시된 컨텍스트(최대 4)가 연결을 오래 쥐고 있지 않게.
      */
     @DynamicPropertySource
     static void mdmSharedDatasource(DynamicPropertyRegistry registry) {

@@ -42,7 +42,9 @@ import org.springframework.context.ApplicationContext;
  *       SQLite 때 DROP+migrate 가 하던 일이다.</li>
  * </ul>
  *
- * <p>IDENTITY(8칸)는 되돌리지 않는다 — 생성된 ID 값을 숫자로 단언하는 시험이 없다(2026-10-07 grep). 지우기 전에는 늘 대상 PDB 가
+ * <p>IDENTITY(8칸)는 되돌리지 않는다 — 생성된 ID 값을 숫자로 단언하는 시험이 없다(2026-10-07 grep).
+ * Oracle IDENTITY 는 직접 넣은 ID 를 따라가지 않으니(다음 생성 값이 직접 넣은 값과 겹칠 수 있다), 시험이 ID 를 직접 넣을 때는
+ * 900000 이상을 쓴다. 지우기 전에는 늘 대상 PDB 가
  * 시험 PDB 인지 확인한다({@link #checkResettable}).
  */
 public final class MdmSharedTestDb {
@@ -60,8 +62,14 @@ public final class MdmSharedTestDb {
 
     private static final String HISTORY_TABLE = "FLYWAY_SCHEMA_HISTORY";
 
-    /** 어떤 경우에도 지우지 않는 PDB — 레인 개발 PDB·기본 PDB·루트 컨테이너. */
-    private static final Set<String> NEVER_RESET = Set.of("L_ORA_MDM", "FREEPDB1", "CDB$ROOT");
+    /** 어떤 경우에도 지우지 않는 PDB 이름 — 기본 PDB·루트 컨테이너·시드. */
+    private static final Set<String> NEVER_RESET = Set.of("FREEPDB1", "CDB$ROOT", "PDB$SEED");
+
+    /** 어떤 경우에도 지우지 않는 PDB 이름 접두 — 레인 개발 PDB({@code L_<레인>})·템플릿({@code TPL_*}). */
+    private static final List<String> NEVER_RESET_PREFIXES = List.of("L_", "TPL_");
+
+    /** 시험 PDB 접두(복제본). 이 접두는 허용 이름 없이도 지운다. */
+    private static final String TEST_PDB_PREFIX = "T_";
 
     private static final Pattern SERVICE_NAME = Pattern.compile("(?i)SERVICE_NAME\\s*=\\s*([^)\\s]+)");
 
@@ -159,7 +167,12 @@ public final class MdmSharedTestDb {
                 }
                 c.commit();
             } catch (SQLException | RuntimeException e) {
-                c.rollback();
+                try {
+                    c.rollback();
+                } catch (SQLException rollbackFailure) {
+                    // rollback 실패가 원래 예외를 가리지 않게 붙여 둔다.
+                    e.addSuppressed(rollbackFailure);
+                }
                 throw e;
             } finally {
                 c.setAutoCommit(autoCommit);
@@ -246,7 +259,8 @@ public final class MdmSharedTestDb {
         return deleteOrder;
     }
 
-    /** 클래스패스 V1 기준선의 INSERT 문만(주석 줄 건너뜀, 끝 {@code ;} 뺌 — JDBC 는 {@code ;} 가 있으면 ORA-00911). */
+    /** 클래스패스 V1 기준선의 INSERT 문만(주석 줄 건너뜀, 끝 {@code ;} 뺌 — JDBC 는 {@code ;} 가 있으면 ORA-00911).
+     * {@code /*} 블록 주석이나 줄 가운데 {@code ;} 를 만나면 잘못 읽지 않고 바로 실패한다(지금 V1 은 한 줄 INSERT 7개). */
     static synchronized List<String> seedInserts() {
         if (seedInserts != null) {
             return seedInserts;
@@ -267,11 +281,19 @@ public final class MdmSharedTestDb {
             if (trimmed.startsWith("--")) {
                 continue;
             }
+            if (trimmed.contains("/*")) {
+                throw new IllegalStateException(BASELINE + " 에 /* 블록 주석이 있다 — 이 읽기 도우미는 -- 줄 주석만 안다: " + trimmed);
+            }
             if (current == null) {
                 if (!trimmed.regionMatches(true, 0, "INSERT INTO", 0, "INSERT INTO".length())) {
                     continue;
                 }
                 current = new StringBuilder();
+            }
+            int semicolon = trimmed.indexOf(';');
+            if (semicolon >= 0 && semicolon != trimmed.length() - 1) {
+                throw new IllegalStateException(BASELINE + " 의 문장 가운데(줄 끝이 아닌 곳)에 ; 가 있다 — 이 읽기 도우미는 문장 끝 ; 만 안다: "
+                        + trimmed);
             }
             current.append(current.isEmpty() ? "" : "\n").append(line);
             if (trimmed.endsWith(";")) {
@@ -289,9 +311,10 @@ public final class MdmSharedTestDb {
     }
 
     /**
-     * 안전장치 — 이 이름의 PDB 를 지워도 되는가. {@code L_ORA_MDM}·{@code FREEPDB1} 은 늘 거부하고, {@code T_} 로 시작하지 않는 PDB 는
-     * 시스템 속성 {@code dmes.ora.allowReset=true}(레인이 {@code -Pdmes.ora.pdb=} 로 정한 PDB)일 때만 허용한다. 이름이 없으면 넘어간다
-     * (실제 접속 PDB 는 {@link #checkConnection} 이 늘 본다).
+     * 안전장치 — 이 이름의 PDB 를 지워도 되는가. {@code L_}·{@code TPL_} 로 시작하는 PDB(레인 개발 PDB·템플릿)와 {@code FREEPDB1}·
+     * {@code CDB$ROOT}·{@code PDB$SEED} 는 늘 거부한다. {@code T_} 로 시작하지 않는 그 밖의 PDB 는 시스템 속성
+     * {@code dmes.ora.allowReset=<PDB 이름>} 이 이 이름과 대소문자 무시로 같을 때만 허용한다({@code true} 같은 값은 거부).
+     * 이름이 없으면 넘어간다(실제 접속 PDB 는 {@link #checkConnection} 이 늘 본다).
      */
     static void checkResettable(String pdb, String source) {
         if (pdb == null || pdb.isBlank()) {
@@ -299,13 +322,19 @@ public final class MdmSharedTestDb {
         }
         String name = pdb.strip().toUpperCase(Locale.ROOT);
         String head = name.contains(".") ? name.substring(0, name.indexOf('.')) : name;
-        if (NEVER_RESET.contains(head)) {
-            throw new IllegalStateException(source + " 가 " + name + " 이다 — 이 PDB 는 시험이 지우지 않는다. "
+        if (NEVER_RESET.contains(head) || NEVER_RESET_PREFIXES.stream().anyMatch(head::startsWith)) {
+            throw new IllegalStateException(source + " 가 " + name + " 이다 — 이 PDB 는 시험이 지우지 않는다"
+                    + "(L_·TPL_ 로 시작하는 레인 개발 PDB·템플릿, FREEPDB1, CDB$ROOT, PDB$SEED). "
                     + "-Pdmes.ora.test=clone 으로 T_ 시험 PDB 를 복제해 돌린다.");
         }
-        if (!head.startsWith("T_") && !Boolean.getBoolean("dmes.ora.allowReset")) {
+        if (head.startsWith(TEST_PDB_PREFIX)) {
+            return;
+        }
+        String allowed = System.getProperty("dmes.ora.allowReset");
+        if (allowed == null || !allowed.strip().equalsIgnoreCase(head)) {
             throw new IllegalStateException(source + " 가 " + name + " 이다 — T_ 로 시작하는 시험 PDB 만 지운다. "
-                    + "레인이 정한 PDB 를 지워도 되면 -Pdmes.ora.allowReset=true 를 함께 준다.");
+                    + "레인이 정한 이 PDB 를 지워도 되면 -Pdmes.ora.allowReset=" + head + " 처럼 PDB 이름을 준다"
+                    + "(true 는 받지 않는다. 지금 값: " + (allowed == null || allowed.isBlank() ? "없음" : allowed) + ").");
         }
     }
 
