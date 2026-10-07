@@ -51,14 +51,14 @@ function relOf(root, p) {
 }
 
 function adrDir(root, module) {
-  return path.join(root, ...ADR_REL.replaceAll('{module}', module).split('/'));
+  return path.join(root, ...ADR_REL.replaceAll('{module}', () => module).split('/'));
 }
 
 /** {번호: [파일 경로, ...]} — 같은 번호에 부속 문서가 붙는 관행이 있어 배열이다(번호는 파일명 순으로 들어간다). */
 function scan(root, module) {
   const d = adrDir(root, module);
   const result = new Map();
-  if (!fs.existsSync(d)) return result;
+  if (!fs.existsSync(d) || !fs.statSync(d).isDirectory()) return result;
   const names = fs.readdirSync(d).filter((n) => n.endsWith('.md') && !n.startsWith('.')).sort(compareCodePoint);
   for (const name of names) {
     if (name === 'README.md') continue;

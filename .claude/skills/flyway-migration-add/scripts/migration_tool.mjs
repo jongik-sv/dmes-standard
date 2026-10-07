@@ -65,7 +65,7 @@ function hasSql(dir) {
 /** 모듈의 마이그레이션 기준 폴더. `db/migration/{module}/{방언}/` 처럼 한 단 더 들어간 모양도 푼다. */
 function migrationBase(root, module) {
   for (const tpl of ROOT_CANDIDATES) {
-    const base = path.join(root, tpl.replaceAll('{m}', module));
+    const base = path.join(root, tpl.replaceAll('{m}', () => module));
     if (isDir(base)) {
       const inner = path.join(base, module);
       if (
