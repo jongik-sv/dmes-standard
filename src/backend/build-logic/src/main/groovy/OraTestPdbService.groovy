@@ -37,7 +37,6 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
     static final String SHARED_PDB = 'dmes.ora.harness.pdb'
     static final String SHARED_LOCK_PID = 'dmes.ora.harness.lockpid'
     static final String SHARED_KEY = 'dmes.ora.harness.key'         // mode|template|pdb — 주인과 다른 설정을 쓰는 서비스를 가려낸다
-    static final String SHARED_USERS = 'dmes.ora.harness.users'     // PDB 를 쓰기 시작한 서비스 수(주인이 너무 일찍 닫히는지 알리는 용도)
     static final String SHARED_FAILED = 'dmes.ora.harness.failed'   // 이번 빌드에서 준비가 한 번 실패했다는 표시(같은 빌드의 다음 시도는 곧바로 실패)
     /** JVM 하나에 하나인 감시 대상(intern 된 문자열은 클래스로더와 무관하게 같은 객체다). */
     static final Object JVM_MONITOR = 'dmes.ora.harness.monitor'.intern()
@@ -45,7 +44,6 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
     String pdbName
     boolean cloned = false
     boolean ownsLock = false
-    boolean counted = false
     Process lockHolder = null
     long lockPid = 0
 
@@ -73,7 +71,6 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
                     throw new org.gradle.api.GradleException("같은 빌드의 다른 모듈이 다른 Oracle 시험 설정(${key})을 쓰고 있어 ${settingsKey()} 로는 함께 쓸 수 없다. 모듈별로 따로 건다.")
                 }
                 pdbName = shared
-                markUser()
                 System.err.println("[dmes-ora] 같은 빌드의 시험 PDB ${shared} 를 함께 쓴다(잠금·복제는 한 번만)")
                 return pdbName
             }
@@ -84,7 +81,6 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
                 System.setProperty(SHARED_PDB, name)
                 System.setProperty(SHARED_LOCK_PID, String.valueOf(lockPid))
                 System.setProperty(SHARED_KEY, settingsKey())
-                markUser()
                 return name
             } catch (Exception e) {
                 System.setProperty(SHARED_FAILED, String.valueOf(e.message).readLines().find { it } ?: e.class.simpleName)
@@ -93,13 +89,6 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
                 throw e
             }
         }
-    }
-
-    /** 이 서비스를 PDB 사용자로 센다(JVM 공용 문자열 속성, JVM_MONITOR 안에서만 부른다). */
-    void markUser() {
-        if (counted) return
-        counted = true
-        System.setProperty(SHARED_USERS, String.valueOf(((System.getProperty(SHARED_USERS) ?: '0') as int) + 1))
     }
 
     /**
@@ -274,17 +263,10 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
     @Override
     void close() {
         // 빌드 종료(성공·실패·취소)에서 불린다. 모든 시험 태스크가 끝난 뒤에 불린다고 본다(합성 빌드로 확인: tests/run.sh).
-        // 주인만 정리한다: 복제한 PDB 를 지우고 PC 잠금을 놓는다. 다른 서비스는 사용자 수만 줄인다.
+        // 주인만 정리한다: 복제한 PDB 를 지우고 PC 잠금을 놓는다. 서비스들은 빌드 끝에서 차례로 닫히며, 주인이 먼저 닫혀도 그때는 모든 시험이
+        // 끝나 있다(tests/run.sh 가 정리 로그가 마지막 probe 뒤에 나오는지 확인한다).
         synchronized (JVM_MONITOR) {
             System.clearProperty(SHARED_FAILED)
-            if (counted) {
-                int left = ((System.getProperty(SHARED_USERS) ?: '1') as int) - 1
-                if (left > 0) System.setProperty(SHARED_USERS, String.valueOf(left)) else System.clearProperty(SHARED_USERS)
-                counted = false
-                if (ownsLock && left > 0) {
-                    System.err.println("[dmes-ora] 경고: 시험 PDB ${pdbName} 를 쓰는 서비스 ${left}개가 아직 닫히지 않았는데 주인이 먼저 정리한다")
-                }
-            }
         }
         if (!ownsLock) return
         try {
