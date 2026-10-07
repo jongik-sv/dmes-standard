@@ -55,6 +55,7 @@
 방법: `feat/ora-mdm` 의 `V1__baseline.sql`(e58deb7da)을 PDB 의 `MDMAPUSER` 에 적용(39표, 오류 없음, sqlplus 로 35초) → mdm 앱을 `spring.jpa.hibernate.ddl-auto=validate`·`OracleDialect`·`hibernate.type.preferred_instant_jdbc_type=TIMESTAMP`·`hibernate.jdbc.time_zone=UTC` 로 기동. Hibernate 는 첫 불일치에서 멈추므로, 같은 설정으로 엔티티가 기대하는 DDL 을 스크립트로 받아 V1 과 전부 대조했다.
 
 - **Instant 감사 칸 조합은 문제없다.** 두 속성이 함께 적용된 채 `SessionFactory` 가 만들어졌고, 엔티티가 기대하는 `C_AT`·`U_AT` 는 `TIMESTAMP(9)`, V1 은 `TIMESTAMP(6)` 로 같은 종류라 validate 를 통과한다.
+  - 참고: 이 측정은 당시 결정(UTC)대로 `hibernate.jdbc.time_zone=UTC` 를 넣었다. 이후 시각을 KST 로 통일하기로 하여(`schema-owners.md` §3.1) `jdbc.time_zone` 은 넣지 않는다. validate 는 열 종류만 비교하므로 시간대 설정과 무관하다.
 - 불일치 목록(전부 mdm 레인이 정리할 것):
 
 | 구분 | 건수 | 내용 |

@@ -45,14 +45,17 @@
 
 ### 3.1 일시 칸 설정(레인 공통 결정)
 
-감사 칸(`C_AT`·`U_AT`, cactus-core `CactusAuditEntity` 의 `Instant`)은 `TIMESTAMP(6)` 에 **UTC** 로 저장한다. 각 앱 설정에 아래 둘을 함께 둔다(b0 에서 이 조합으로 `OracleDialect` validate 가 통과함을 확인했다).
+모든 시각은 **KST** 로 통일한다. 처음에는 감사 칸을 UTC 로 저장하기로 했으나 철회했다. `hibernate.jdbc.time_zone=UTC` 가 `LocalDateTime` 칸까지 UTC 로 바꿔 저장해 DB 시계를 쓰는 native SQL·레거시 데이터와 섞이기 때문이다(ora-mcm-core 실측).
 
-```yaml
-spring.jpa.properties.hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
-spring.jpa.properties.hibernate.jdbc.time_zone: UTC
-```
+1. `hibernate.jdbc.time_zone` 은 넣지 않는다. JVM 기본 시간대(`Asia/Seoul`)를 쓴다.
+2. 감사 칸(`C_AT`·`U_AT`, cactus-core `CactusAuditEntity` 의 `Instant`)은 `TIMESTAMP(6)` 로 두고 각 앱 설정에 아래 한 줄을 둔다. 값은 KST 로 저장된다.
 
-업무 일시(감사 아닌 것)는 변환하지 않는다.
+   ```yaml
+   spring.jpa.properties.hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
+   ```
+
+3. Oracle 컨테이너 OS 시간대는 `Asia/Seoul` 이다(`tools/oracle-free/docker-compose.yml` 의 `TZ`). `SYSDATE`·`SYSTIMESTAMP` 가 KST 로 나온다.
+4. 적재기(b5)는 epoch 밀리초를 KST 로 변환하고, KST 문자열은 그대로 넣는다. 업무 일시(감사 아닌 것)는 변환하지 않는다.
 
 ### 3.2 운용 규칙(Podman VM 2GB 기준, 사용자 결정)
 
