@@ -435,7 +435,7 @@ coord_path_in_wt() {
   fi
   return 0
 }
-coord_pid_alive() { [ -n "${1:-}" ] && [ "$1" != 0 ] && [ "$1" != null ] && kill -0 "$1" 2>/dev/null; }
+coord_pid_alive() { compat_pid_alive "${1:-}"; }   # Git Bash 는 네이티브 Windows pid(Claude 세션 등)를 kill -0 만으로 못 본다 — compat 가 ps -W 로 한 번 더 본다
 # pid 콤마 목록 → 한 줄에 `<pid>\t<cwd>`(lsof, 없으면 /proc — compat.sh).
 coord_proc_cwds() { compat_proc_cwds "$@"; }
 # 세션 상태 json 경로: <sessions_dir>/<pid>.json 이 있으면 그것(/clear 로 sessionId 가 바뀌어도 pid 가 정본),

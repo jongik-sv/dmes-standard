@@ -25,9 +25,9 @@ _cr_ref_ok() { case "$1" in ''|.*|*[!A-Za-z0-9._-]*) return 1 ;; esac; [ "${#1}"
 _cr_count() { if [ -z "$1" ]; then echo 0; else printf '%s\n' "$1" | grep -c .; fi; }
 
 # _cr_pid_dead <pid> — pid 가 0·빈 값이 아니고 죽었으면 0
-_cr_pid_dead() { case "${1:-}" in ''|0|null) return 1 ;; esac; ! kill -0 "$1" 2>/dev/null; }
+_cr_pid_dead() { case "${1:-}" in ''|0|null) return 1 ;; esac; ! compat_pid_alive "$1"; }
 # _cr_pid_live <pid> — pid 가 0·빈 값이 아니고 살아 있으면 0
-_cr_pid_live() { case "${1:-}" in ''|0|null) return 1 ;; esac; kill -0 "$1" 2>/dev/null; }
+_cr_pid_live() { case "${1:-}" in ''|0|null) return 1 ;; esac; compat_pid_alive "$1"; }
 # _cr_ident_ok — 신원·host 를 알고 있으면 0
 _cr_ident_ok() { [ -n "${CR_IDENT:-}" ] && [ -n "${CR_HOST:-}" ]; }
 # _cr_sess_mine <세션 기록 파일> — 기록의 .user·.host 가 이 신원·host 이면 0

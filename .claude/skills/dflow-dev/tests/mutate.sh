@@ -56,6 +56,10 @@ eq "남은 사본을 먼저 되돌린다" "$(printf '%s\n' "$r" | sed -n 1,2p | 
 eq "복구 뒤 원본이 같다" "$(cmp -s src/a.txt a.orig && echo same)" same
 
 # TERM 으로 끊기면 되돌리고 143 으로 끝난다
+# Git Bash 에서는 MSYS kill -TERM 이 node.exe 를 강제 종료해 신호 핸들러가 돌지 못한다(mutate.sh 머리말 한계) — 건너뛴다
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) echo "건너뜀  TERM 시험(Git Bash 에서는 신호 핸들러가 돌지 않는다)" ;;
+  *)
 mk M7 'sleep 30' 'alpha' 'x'
 bash "$MUT" run muts --ids M7 >/dev/null 2>&1 &
 pid=$!; sleep 1.5
@@ -64,6 +68,8 @@ kill -TERM "$pid"; { wait "$pid"; } 2>/dev/null; rc=$?
 sleep 0.3
 eq "TERM 뒤 원본 복구" "$(cmp -s src/a.txt a.orig && echo same)" same
 eq "TERM 종료 코드 143" "$rc" 143
+    ;;
+esac
 
 echo "통과 $pass · 실패 $fail"
 [ "$fail" = 0 ]

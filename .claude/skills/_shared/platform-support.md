@@ -3,6 +3,8 @@
 coordinator·dflow-* 스킬의 셸 스크립트는 **macOS** 와 **Git for Windows 의 Git Bash(MSYS2, GNU coreutils, bash 5)** 에서 같이 돈다.
 윈도우 사용자도 같은 스킬을 쓰므로, 스크립트를 새로 쓰거나 고칠 때 아래 규칙을 지킨다. (Linux 는 GNU 쪽 경로와 같다.)
 
+윈도우 전제: Claude Code 는 Git for Windows 없이도 PowerShell 도구만으로 돌 수 있다(공식 문서 setup·tools-reference). 그러나 Bash 도구·Monitor 도구와 이 스킬의 `.sh` 는 Git Bash 가 있어야 돈다. 이 리포는 git 으로 작업하므로 Git for Windows(Git Bash 포함)를 전제로 한다. 전체 점검 결과와 python·jq 방침은 `docs/superpowers/specs/2026-10-07-skills-windows-compat.md` 를 본다.
+
 ## 필요 도구
 
 | 도구 | macOS | Git Bash | 비고 |
