@@ -7,6 +7,7 @@
  */
 import { useId, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { Button, DatePicker, Input, Select } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 
 import { PARAM_VALUE_MAX, QUERY_NEED_INPUT, type QueryParam } from "./format";
 import type { QueryCondition } from "./useQueryData";
@@ -46,7 +47,7 @@ function ConditionField({ param, value, inputId, onChange }: { param: QueryParam
   return (
     <div className="wq-cond" data-testid={`wq-cond-${param.name}`}>
       <label className="wq-cond__label" htmlFor={inputId}>
-        {label}
+        <MdmFieldLabel name={param.name} label={label} />
         {param.required && <span className="wq-cond__req">*</span>}
       </label>
       <div className="wq-cond__ctl">{control}</div>

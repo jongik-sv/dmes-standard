@@ -16,6 +16,7 @@ import { exchangeRequest, readExchangeConfig } from "@/widget-types/_ext/config"
 import { latestDateOf, toExchangeRows } from "@/widget-types/_ext/format";
 import { EXT_CSS, EXT_STYLE_HREF } from "@/widget-types/_ext/styles";
 import type { ExchangeResult, ExchangeRow } from "@/widget-types/_ext/types";
+import { widgetGridPersonalize } from "@/widgets/widget-grid";
 
 const LOAD_ERROR = "환율 정보를 불러오지 못했습니다";
 
@@ -74,7 +75,7 @@ const COLUMNS: GridColumn[] = [
   },
 ];
 
-export default function ExchangeWidget({ definition, refreshKey }: WidgetProps) {
+export default function ExchangeWidget({ definition, refreshKey, widgetId, instanceId }: WidgetProps) {
   const setStatus = useWidgetStatus();
   const cfg = useMemo(() => readExchangeConfig(definition), [definition]);
   const req = useMemo(() => exchangeRequest(cfg), [cfg]);
@@ -131,7 +132,7 @@ export default function ExchangeWidget({ definition, refreshKey }: WidgetProps) 
       ) : (
         <>
           <AgDataGrid
-            personalize={false}
+            {...widgetGridPersonalize(widgetId, instanceId)}
             rowKey="cur"
             columns={COLUMNS}
             data={rows}
