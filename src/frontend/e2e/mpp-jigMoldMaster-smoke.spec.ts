@@ -55,7 +55,7 @@ test.describe("mpp jigMoldMaster full-chain smoke", () => {
     await leaf.click();
 
     // ── 5) Page must resolve (registry/import) — 조회 button is part of the page body (2026-07-03 검색→조회) ──
-    const searchBtn = page.getByRole("button", { name: "조회" }).first();
+    const searchBtn = page.getByRole("button", { name: "조회", exact: true }).first();
     await expect(searchBtn).toBeVisible({ timeout: T.SLOW });
 
     const bodyText = (await page.textContent("body")) ?? "";

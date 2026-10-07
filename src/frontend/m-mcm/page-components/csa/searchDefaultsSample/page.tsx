@@ -6,7 +6,8 @@
  * - 서버 조회는 하지 않는다. onSearch 는 아래 「조회 기록」 에 그 순간의 조건 값을 쌓는다 — 자동 조회가 기본값을 넣은 뒤 한 번만 불렸는지 바로 보인다.
  * - 영역 A: 칸 형식 전부(텍스트·select·radio·날짜·기간·children 묶기·키 없는 칸·대상 아님) + autoSearch + 초기화 버튼(btn_reset).
  * - 영역 B: defaultsScope="tab2" — A 와 같은 name 을 써도 저장 키가 섞이지 않는지. 영역 C: defaults={false}.
- * - 규칙 편집: 설정 창(단계 4) 전까지 JSON 으로 거울(브라우저 사본)에 직접 넣는다(setSearchDefaultsLocalForDev). 서버 저장도 시도할 수 있다.
+ * - 규칙 편집: 평소에는 조회 영역 오른쪽 위 설정 아이콘(조회 기본값 설정 창)으로 정한다. 아래 JSON 편집은 설정 창이 나타낼 수 없는 규칙
+ *   (예외 규칙 등)을 서버에 바로 저장해 보는 확인용 도구다.
  * - 「기준일 미리보기」: 상대 날짜 계산을 다른 오늘(월 경계·윤년)로 계산해 본다. 실제 넣기는 늘 오늘 기준이다.
  * - 로컬 메뉴로만 등록한다(운영 메뉴에 넣지 않는다).
  */
@@ -24,7 +25,6 @@ import {
   resetSearchDefaults,
   resolveSearchDefault,
   saveSearchDefaults,
-  setSearchDefaultsLocalForDev,
   subscribeSearch,
   subscribeSearchDefaults,
   type PageRules,
@@ -160,11 +160,6 @@ export default function SearchDefaultsSamplePage() {
       return null;
     }
   };
-  const applyLocal = (rules: PageRules | null) => {
-    if (!rules || !userId || !pageId) return;
-    setSearchDefaultsLocalForDev(userId, pageId, rules);
-    setRuleMessage(`브라우저 사본에 ${Object.keys(rules).length}개 규칙을 넣었다. [영역 다시 열기]나 탭을 다시 열면 적용된다.`);
-  };
   const saveServer = async () => {
     const rules = parseRuleText();
     if (!rules || !userId || !pageId) return;
@@ -174,9 +169,9 @@ export default function SearchDefaultsSamplePage() {
         pageId,
         Object.entries(rules).map(([fieldKey, rule]) => ({ fieldKey, rule })),
       );
-      setRuleMessage("서버에 저장했다.");
+      setRuleMessage("서버에 저장했다. [영역 다시 열기]나 탭을 다시 열면 적용된다.");
     } catch (e) {
-      setRuleMessage(`서버 저장 실패(백엔드 미반영이면 정상): ${(e as Error).message}`);
+      setRuleMessage(`서버 저장 실패: ${(e as Error).message}`);
     }
   };
   const resetServer = async () => {
@@ -185,8 +180,7 @@ export default function SearchDefaultsSamplePage() {
       await resetSearchDefaults(userId, pageId);
       setRuleMessage("서버·사본에서 이 화면 규칙을 지웠다.");
     } catch (e) {
-      setSearchDefaultsLocalForDev(userId, pageId, {});
-      setRuleMessage(`서버 초기화 실패 — 사본만 지웠다: ${(e as Error).message}`);
+      setRuleMessage(`서버 초기화 실패: ${(e as Error).message}`);
     }
   };
 
@@ -291,10 +285,7 @@ export default function SearchDefaultsSamplePage() {
               <Button size="sm" onClick={() => setRuleText(pretty(SAMPLE_EDGE_RULES))}>
                 예외 규칙 채우기
               </Button>
-              <Button size="sm" variant="primary" data-testid="sd-apply-local" onClick={() => applyLocal(parseRuleText())}>
-                사본에 넣기
-              </Button>
-              <Button size="sm" onClick={() => void saveServer()}>
+              <Button size="sm" variant="primary" data-testid="sd-save-server" onClick={() => void saveServer()}>
                 서버 저장
               </Button>
               <Button size="sm" variant="danger" data-testid="sd-reset-rules" onClick={() => void resetServer()}>

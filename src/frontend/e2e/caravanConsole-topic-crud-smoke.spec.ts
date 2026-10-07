@@ -58,7 +58,7 @@ test.describe("토픽 관리 (caravanConsole/topic) CRUD Smoke", () => {
     expect(bodyText).not.toContain("등록된 페이지를 찾을 수 없습니다");
 
     // (2) 상단 조회/저장 + 그리드 CRUD 버튼
-    await expect(page.getByRole("button", { name: "조회" }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "조회", exact: true }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "저장" }).first()).toBeVisible();
     for (const label of ["행추가", "행복사", "행취소", "행삭제"]) {
       await expect(page.getByRole("button", { name: label }).first()).toBeVisible();
@@ -66,7 +66,7 @@ test.describe("토픽 관리 (caravanConsole/topic) CRUD Smoke", () => {
     await expect(page.getByText("토픽 목록", { exact: true })).toBeVisible();
 
     // (3) 조회 — OASIS search 왕복. 서비스 파일/액션 미발견 류 오류 없어야 함
-    await page.getByRole("button", { name: "조회" }).first().click();
+    await page.getByRole("button", { name: "조회", exact: true }).first().click();
     await page.waitForTimeout(2500);
     const afterSearch = (await page.textContent("body")) ?? "";
     expect(afterSearch).not.toContain("Cannot find the service file");

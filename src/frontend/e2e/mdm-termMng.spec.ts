@@ -54,7 +54,7 @@ async function clickSearchAndWait(page: Page) {
       r.status() === 200,
     { timeout: T.UI },
   );
-  await page.getByRole("button", { name: "조회" }).click();
+  await page.getByRole("button", { name: "조회", exact: true }).click();
   await response;
 }
 
@@ -90,7 +90,7 @@ test.describe("mdm dma/termMng smoke", () => {
     await openTermMng(page);
 
     await searchField(page, "검색어").locator("input").fill("");
-    await page.getByRole("button", { name: "조회" }).click();
+    await page.getByRole("button", { name: "조회", exact: true }).click();
 
     // 첫 번째 용어 등록.
     await page.getByRole("button", { name: "등록" }).click();
