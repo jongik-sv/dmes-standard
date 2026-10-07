@@ -66,7 +66,8 @@ public final class CoreServiceStarter implements ServiceStarter {
     @Override
     public ServiceResult start(String serviceId, ServiceContext serviceContext) {
         MapServiceResult result = new MapServiceResult();
-        List<Message> messages = new ArrayList<>();
+        // 병렬 다중 인스턴스에서 여러 스레드가 동시에 메시지 이벤트를 보내므로 동기화한다(ArrayList 는 일부 add 를 잃는다).
+        List<Message> messages = Collections.synchronizedList(new ArrayList<>());
         boolean hasUserException = false;
         ProcessContext processContext = null;
         try {
