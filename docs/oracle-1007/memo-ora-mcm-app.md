@@ -2,7 +2,7 @@
 
 - 레인: ora-mcm-app / 브랜치 `feat/ora-mcm-app` / 워크트리 `/Users/jji/project/dmes-wt/ora-mcm-app`
 - 조정 세션: dmes-standard-d8 (지시 ora-mcm-app-1, 원문 `/Users/jji/.coord/oracle-1007/lanes/ora-mcm-app/brief.md`)
-- 갱신: 2026-10-07 20:30 KST
+- 갱신: 2026-10-07 20:40 KST
 
 ## 지금 상태
 
@@ -17,10 +17,11 @@
 | a3 프로파일 | 완료 | 666812393(wildfly OracleDialect·java:/jdbc/mcm/*·Flyway 끔, prod require-dedicated, local-db archive), d998d2150(리뷰 반영) |
 | a3 리뷰(opus/high) | blocker 0, 범위 밖 major 1(caravan-hub JNDI)·문서 3 은 조정에 전달, 범위 안은 반영 | |
 | 시험 풀 | 상한 2·minimumIdle 0·idleTimeout 10초·@AfterAll 로 닫기(조정 ㉠ 승인) | a92a00b4d |
-| feat/ora-mcm-core 합치기 | 1d612401a 합침(충돌 0, 골든 재생성 불필요, 시험 컴파일 통과) | 7141a7de8 |
-| a4 시험·머지 요청 | **Oracle 재개 대기**. 새 시험 2개(McmMenuSeederNormalizeTest·빈 조회조건)는 아직 Oracle 미실행 | perf 문서 틀(SQLite 3회: 45·45·43초, 173개) 작성, 미커밋 |
+| feat/ora-mcm-core·dev 합치기 | ora-mcm-core 1d612401a(충돌 0)·dev ce378785a 합침. V1 sample_notice.active NUMBER(1) 로 지문 골든 __SCHEMA__ 한 줄 갱신 | 7141a7de8·bb2aebcdc·8373c105e |
+| a4 시험 | **통과**: Oracle(VM 3GB) 3회 모두 166개 중 실패 0·건너뜀 1(성능 시험). 지목된 4개·새 시험 모두 포함 | 1b4d14fde(perf 문서: 벽시계 45 대 78초, 공통 클래스 합 34.2 대 39.3초) |
+| a4 머지 요청 | ora-mcm-core c4 머지 요청 SHA 대기 → 다시 합쳐 4개 시험·V1 체크섬 재확인 뒤 요청 | |
 
-Oracle: 19:25 두 번째 동결(시험 JVM 등 TERM). 재개 뒤 T_ORA_MCM_APP drop 은 잠금 시간 초과(rc 1), close 는 성공(20:2x). VM available 81MB·load 19 로 「VM 의심」 보고. T_ORA_MCM_APP 은 닫힌 채 남아 있다 — 재개 뒤 drop.
+Oracle: 20:20 VM 3GB 재기동 뒤 T_ORA_MCM_APP drop 완료, 측정 뒤 하니스가 시험 PDB 를 지움. 남은 PDB·백그라운드 0. (이전: 19:25 두 번째 동결(시험 JVM 등 TERM). 재개 뒤 T_ORA_MCM_APP drop 은 잠금 시간 초과(rc 1), close 는 성공(20:2x). VM available 81MB·load 19 로 「VM 의심」 보고. T_ORA_MCM_APP 은 닫힌 채 남아 있었다.)
 
 ## a1 에서 한 것
 
@@ -64,11 +65,9 @@ Oracle: 19:25 두 번째 동결(시험 JVM 등 TERM). 재개 뒤 T_ORA_MCM_APP d
 
 ## 남은 순서
 
-1. 「Oracle 재개」 뒤 T_ORA_MCM_APP drop(새 pdb.mjs).
-2. a4: 합친 상태로 `../gradlew :lib:test :api:test -Pdmes.ora.test=clone` 를 heavy.sh `--detach` 로 3회(측정). Oracle 오류는 먼저 `podman machine ssh -- 'free -m; cat /proc/loadavg'` 로 VM 신호를 가려 보고(조정 새 규칙).
-3. perf 문서에 Oracle 값을 채우고 커밋.
-4. ora-mcm-core c4 머지 요청 SHA 가 나오면 다시 합쳐 4개 시험(Characterization·Fingerprint·NoticePermissionFilter·MenuCatalogOasisSave)과 Flyway V1 체크섬만 재확인.
-5. 머지 요청(머지③, mcm-core 바로 뒤): 치환 API·LocalSqliteDataSource grep 0건, caravan-hub JNDI 의존(ora-platform 이 java:/jdbc/mcm/dsCaravan·dsIF 로 맞춰야 함), require-dedicated 는 mcm-core 10d9b67de 뒤 효력, 윈도우 영향 한 줄.
+1. ora-mcm-core 가 c4 머지 요청을 내면 그 SHA 를 합쳐 Characterization·Fingerprint·NoticePermissionFilter·MenuCatalogOasisSave 4개와 Flyway V1 적용(체크섬)만 Oracle 에서 재확인한다.
+2. 머지 요청(머지③, mcm-core 바로 뒤): 치환 API·LocalSqliteDataSource grep 0건, caravan-hub JNDI 의존(ora-platform 이 java:/jdbc/mcm/dsCaravan·dsIF 로 맞춰야 함), require-dedicated 는 mcm-core 10d9b67de 뒤 효력, 윈도우 영향 없음(Java·yml·문서만).
+3. 「머지 허가」 뒤 메인 저장소에서 --no-ff 머지 → 머지 완료 → 워크트리 정리(-d·force 금지) → 정리 완료. backup/ora-mcm-app-pre-split 브랜치 처리는 조정자에게 묻는다.
 
 ## 다음 단계
 
