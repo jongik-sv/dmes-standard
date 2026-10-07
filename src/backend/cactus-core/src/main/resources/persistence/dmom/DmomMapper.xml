@@ -67,7 +67,7 @@
              ERROR_TYPE, ERROR_CODE, ERROR_MSG, ERROR_STATUS_CODE,
              C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER)
         VALUES
-            (NEXT VALUE FOR MCMAPUSER.SEQ_MCM_MOM_TC_ERROR,
+            (MCMAPUSER.SEQ_MCM_MOM_TC_ERROR.NEXTVAL,
              #{transactionCode}, #{interfaceId}, #{interfaceProtocol}, #{interfaceMsg},
              #{errorType}, #{errorCode}, #{errorMsg}, #{errorStatusCode},
              #{cUsrId}, #{cAt}, #{cSvcId}, #{cPgmId}, #{uUsrId}, #{uAt}, #{uSvcId}, #{uPgmId}, 0)
