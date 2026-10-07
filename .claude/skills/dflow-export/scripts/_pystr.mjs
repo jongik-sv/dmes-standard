@@ -11,14 +11,17 @@ export const PY_SPACE_CLASS =
   '\\t\\n\\v\\f\\r\\x1c-\\x1f \\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000';
 
 const LEFT = new RegExp(`^[${PY_SPACE_CLASS}]+`);
-const RIGHT = new RegExp(`[${PY_SPACE_CLASS}]+$`);
+const SPACE = new RegExp(`[${PY_SPACE_CLASS}]`);
 
 export function pyLstrip(s) {
   return s.replace(LEFT, '');
 }
 
+// 끝에서부터 훑는다(`[공백]+$` 정규식은 중간에 긴 공백 덩어리가 있으면 시간이 제곱으로 늘어난다).
 export function pyRstrip(s) {
-  return s.replace(RIGHT, '');
+  let end = s.length;
+  while (end > 0 && SPACE.test(s[end - 1])) end -= 1;
+  return end === s.length ? s : s.slice(0, end);
 }
 
 export function pyStrip(s) {

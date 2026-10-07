@@ -52,6 +52,7 @@ try {
     if (ids.has(c.id)) throw new Error(`케이스 id 중복: ${c.id}`);
     ids.add(c.id);
     const r = runCommand(env.pythonCmd, ['-B', env.script('wbs-parse.py'), ...c.args], {
+      normalizeEol: true,
       cwd: base,
       env: { PYTHONDONTWRITEBYTECODE: '1', PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1', CLAUDE_PLUGIN_ROOT: '', ...(c.env ?? {}) },
     });

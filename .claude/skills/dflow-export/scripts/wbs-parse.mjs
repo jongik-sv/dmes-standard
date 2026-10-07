@@ -24,6 +24,10 @@
 //  - `f"{target_id}"` 에 들어가던 `None`(플래그만 준 모드)은 문자열 "None" 으로 그대로 재현한다.
 //  - 정규식은 python 의 유니코드 의미(`\s`·`\d`)를 `_pystr.mjs` 의 공백 집합과 `\p{Nd}` 로 옮겼다. `re.match` 는 시작 앵커를 지킨다.
 //  - 오프셋(`_wbs_md.mjs`)은 UTF-16 단위지만 같은 문서 안에서만 쓰므로 결과는 같다.
+//  - 알려진 차이(영향이 작아 맞추지 않음): ① 대소문자 무시 정규식에서 python 은 `i`·`İ`(U+0130)·`ı`(U+0131)를 같은 글자로 보지만
+//    JS 의 `iu` 플래그는 그렇지 않다(`--complexity` 키워드·`--dev-config` 제목·표 제목 인식에 영향, `--export` 는 i 플래그를 쓰지 않아 무관).
+//    ② state.json 에 짝 없는 서로게이트(`"\ud800"`)가 있으면 python 은 UnicodeEncodeError(종료 코드 1), node 는 U+FFFD 를 찍고 종료 코드 0.
+//    ③ 상태머신 파일이 기형(`{"states":null}` 등)이면 python 은 AttributeError, node 는 빈 집합으로 진행한다.
 
 import fs from 'node:fs';
 import path from 'node:path';

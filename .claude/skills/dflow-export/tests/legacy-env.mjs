@@ -78,7 +78,7 @@ export function legacyEnv() {
       return runCommand(pythonCmd, ['-B', ...args], {
         input: opts.input,
         cwd: opts.cwd ?? dir,
-        normalizeEol: opts.normalizeEol,
+        normalizeEol: opts.normalizeEol ?? true, // 윈도우 python 은 텍스트 모드 출력이 CRLF 라 기본으로 LF 로 맞춘다
         env: { PYTHONDONTWRITEBYTECODE: '1', PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1', ...(opts.env ?? {}) },
       });
     },

@@ -592,7 +592,7 @@ test('python 원본 단위 시험(legacy)이 아직 통과한다 (골든 기준�
 // ---- 4) python 없이 도는 기대값 비교 ------------------------------------------
 
 test('기대값(python 으로 미리 계산): 합성 케이스 전체를 node 판 결과와 비교', async (t) => {
-  if (!fs.existsSync(EXPECTED)) return t.skip('tests/golden/expected/parse.json 이 없음 — make-expected-parse.mjs 로 만든다');
+  assert.ok(fs.existsSync(EXPECTED), 'tests/golden/expected/parse.json 이 없음 — make-expected-parse.mjs 로 만든다');
   const expected = readJson(EXPECTED);
   const ids = Object.keys(expected);
   assert.equal(ids.length, synth.cases.length, `기대값 ${ids.length}건 ≠ 케이스 ${synth.cases.length}건 — make-expected-parse.mjs 를 다시 돌린다`);
