@@ -201,4 +201,4 @@ KafkaDataSourceConfig
 | Jackson | 2.16.1 |
 | Lombok | 1.18.26 |
 | Spring Boot (optional) | 2.7.18 |
-| Database | Tibero |
+| Database | Oracle (이전에는 Tibero) |

@@ -33,7 +33,7 @@ OUTBOUND: Kafka → SERAI → 외부 시스템   (Kafka에서 메시지를 꺼�
 | **JSch** | 0.1.55 | SFTP 파일 송수신 |
 | **Caffeine** | 2.9.3 | 캐시 라이브러리 |
 | **HikariCP** | (Boot 내장) | DB 커넥션 풀 |
-| **Tibero** | 6 | 데이터베이스 (Tibero/Oracle 호환) |
+| **Oracle** | (환경별) | 데이터베이스 (이전에는 Tibero 6) |
 | **Gradle** | 8.14 | 빌드 도구 |
 | **Lombok** | (Boot 관리) | 보일러플레이트 코드 제거 |
 | **JUnit 5** | (Boot 관리) | 단위 테스트 |
@@ -49,7 +49,7 @@ dependencies {
     implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:2.3.2'
     implementation 'com.jcraft:jsch:0.1.55'
     implementation 'com.github.ben-manes.caffeine:caffeine:2.9.3'
-    runtimeOnly fileTree(dir: 'libs', include: ['*.jar'])  // Tibero JDBC
+    runtimeOnly libs.ojdbc11  // Oracle JDBC (버전 카탈로그)
     compileOnly 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
@@ -61,7 +61,7 @@ dependencies {
   - `KafkaMessageProducer`로 메시지 전송 → `SendResult` (topic, partition, offset) 반환
   - `KafkaInterfaceHandler`를 구현하여 메시지 수신 → `HandleResult` 반환
   - `KafkaMessageContext`로 메시지 컨텍스트 접근 (topic, transactionCode, interfaceId, interfaceMsg, kafkaKeyData, rawMessageMap)
-- **Tibero JDBC**: `libs/tibero6-jdbc.jar`에 직접 배치 (Maven/Gradle 저장소 없음)
+- **Oracle JDBC**: `ojdbc11` (Gradle 의존성이 가져온다. 이전 Tibero 시절의 `libs/tibero6-jdbc.jar` 직접 배치는 필요 없다)
 - **프로젝트 좌표**: `com.dongkuk.dmes:serai:1.0.0-SNAPSHOT`
 - **빌드 산출물**: `build/libs/serai.jar` (bootJar)
 
@@ -199,19 +199,19 @@ serai:
 # 듀얼 DataSource
 spring.datasource:
   mst:                          # 설정 테이블 DB (MST, @Primary)
-    driver-class-name: com.tmax.tibero.jdbc.TbDriver
-    jdbc-url: jdbc:tibero:thin:@10.10.90.156:4010:DEVDMES
-    username: MCMAPUSER
-    password: MCMAPUSER_DEV
+    driver-class-name: oracle.jdbc.OracleDriver
+    jdbc-url: jdbc:oracle:thin:@//호스트:1521/서비스
+    username: CARAVANUSER
+    password: <비밀번호>
     hikari:
       maximum-pool-size: 10     # 최대 커넥션 풀 크기
       minimum-idle: 2           # 최소 유휴 커넥션
       connection-timeout: 30000 # 커넥션 획득 타임아웃 (30초)
   if:                           # 인터페이스 테이블 DB (IF)
-    driver-class-name: com.tmax.tibero.jdbc.TbDriver
-    jdbc-url: jdbc:tibero:thin:@10.10.90.156:4010:DEVDMES
-    username: MCMAPUSER
-    password: MCMAPUSER_DEV
+    driver-class-name: oracle.jdbc.OracleDriver
+    jdbc-url: jdbc:oracle:thin:@//호스트:1521/서비스
+    username: EAIUSER
+    password: <비밀번호>
     hikari:
       maximum-pool-size: 10
       minimum-idle: 2
@@ -631,9 +631,9 @@ POST /kafkaApi/resume {"topicId": "..."}
 
 ### 10.4 DataSource 연결 실패
 
-- `jdbc-url` 형식: `jdbc:tibero:thin:@HOST:PORT:SID`
+- `jdbc-url` 형식: `jdbc:oracle:thin:@//HOST:1521/SERVICE`
 - DB 서버 상태, 방화벽, 계정/비밀번호 확인
-- `libs/` 폴더에 `tibero6-jdbc.jar` 존재 확인
+- 빌드 산출물에 `ojdbc11` 이 들어 있는지 확인 (Gradle 의존성)
 
 ### 10.5 빌드 오류
 
@@ -641,14 +641,14 @@ POST /kafkaApi/resume {"topicId": "..."}
 |------|------|------|
 | `invalid source release: 11` | Gradle이 JDK 8로 실행 | JDK 11 설치 필요 |
 | `UnsupportedClassVersionError: class file version 55.0` | 실행 JDK가 8 | JDK 11로 변경 |
-| Tibero JDBC not found | `libs/tibero6-jdbc.jar` 없음 | 파일 직접 복사 |
+| Oracle JDBC not found | `ojdbc11` 의존성 누락 | `build.gradle` 의 `runtimeOnly libs.ojdbc11` 확인 |
 
 ---
 
 ## 11. 빌드 & 실행
 
 ```bash
-# 빌드 (libs/에 tibero6-jdbc.jar 필요)
+# 빌드 (Oracle JDBC ojdbc11 은 Gradle 의존성이 가져온다)
 gradlew build -x test
 
 # 실행
@@ -767,7 +767,7 @@ java -jar build/libs/serai.jar --serai.inbound.file.enabled=false
 | TC-CFG-005 | DataSource 연결 실패 | 앱 기동 실패 |
 | TC-CFG-006 | Mapper↔DataSource 분리 | @MstMapper→MST, @IfMapper→IF |
 | TC-CFG-007 | MyBatis Configuration | camelCase=false, nulls=true |
-| TC-CFG-008 | Tibero JDBC 드라이버 | libs/ 존재 확인 |
+| TC-CFG-008 | Oracle JDBC 드라이버 | ojdbc11 의존성 확인 |
 | TC-CFG-009 | AutoConfiguration exclude | 수동 설정만 적용 |
 
 ### 12.8 E2E (End-to-End) 테스트 (10건)

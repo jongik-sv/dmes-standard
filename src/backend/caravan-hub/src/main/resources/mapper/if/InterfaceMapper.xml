@@ -16,11 +16,19 @@
 <mapper namespace="com.dongkuk.caravan.hub.mapper.InterfaceMapper">
 
     <!--
+      INTERFACE_MSG 는 Oracle CLOB 이다. resultType=Map 이면 Clob 객체가 담겨 toString() 이 원문 대신 객체 이름을 만들므로
+      이 칸만 String 으로 읽도록 resultMap 을 둔다(나머지 칸은 자동 매핑).
+    -->
+    <resultMap id="pendingMessageMap" type="java.util.HashMap">
+        <result column="INTERFACE_MSG" property="INTERFACE_MSG" javaType="java.lang.String" jdbcType="CLOB"/>
+    </resultMap>
+
+    <!--
       미처리(N/null) + 블록마커(E) 조회. C_AT ASC(FIFO) 로 정렬하며 IF_FLAG 를 함께 반환한다.
       호출측(DbInboundHandler)이 오래된 순으로 훑다가 head 가 'E' 면 큐막기(정지),
       'N'/null 이면 발행한다. (null 은 미처리로 취급 — 외부 insert/운영자 리셋 대응)
     -->
-    <select id="selectPendingMessages" resultType="java.util.Map">
+    <select id="selectPendingMessages" resultMap="pendingMessageMap">
         SELECT
             U_AT,
             TRANSACTION_CODE,

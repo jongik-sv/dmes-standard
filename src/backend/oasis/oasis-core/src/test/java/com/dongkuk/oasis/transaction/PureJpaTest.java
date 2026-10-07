@@ -1,10 +1,9 @@
 package com.dongkuk.oasis.transaction;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+import utils.OracleTestDatabase;
 
+import javax.sql.DataSource;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.EntityTransaction;
@@ -17,16 +16,9 @@ import java.util.Map;
  * @since 2021-05-27
  */
 public class PureJpaTest {
-    private EmbeddedDatabase database() {
-        EmbeddedDatabase dataSource;
-        dataSource = new EmbeddedDatabaseBuilder()
-                .generateUniqueName(true)
-                .setType(EmbeddedDatabaseType.H2)
-                .setScriptEncoding("UTF-8")
-                .ignoreFailedDrops(true)
-//                .addScript("transaction/SpringTransactionHandlerTest/schema.sql")
-                .build();
-        return dataSource;
+    private DataSource database() {
+        // 표는 hibernate.hbm2ddl.auto=create 가 만든다(스크립트 없음)
+        return OracleTestDatabase.create();
     }
 
     @Test

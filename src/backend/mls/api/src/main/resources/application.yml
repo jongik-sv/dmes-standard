@@ -4,21 +4,21 @@ server:
 spring:
   application:
     name: mls
+  # Oracle(oracle-1007) — 접속값은 DMES_ORA_* 로 덮어쓴다(docs/oracle-1007/schema-owners.md §3). 접속 사용자 = 스키마 주인(MLSAPUSER).
   datasource:
-    url: jdbc:sqlite:../data/mls.db
-    driver-class-name: org.sqlite.JDBC
+    url: ${DMES_ORA_URL:jdbc:oracle:thin:@//localhost:1521/FREEPDB1}
+    username: ${DMES_ORA_USER:MLSAPUSER}
+    password: ${DMES_ORA_PASSWORD:dmes_password_123}
+    hikari:
+      maximum-pool-size: 3     # Oracle 인스턴스를 모든 레인이 공유한다
   jpa:
     hibernate:
       ddl-auto: none
     properties:
       hibernate:
-        dialect: org.hibernate.community.dialect.SQLiteDialect
-        # SQLite 커뮤니티 dialect + xerial 드라이버는 LocalDate/LocalDateTime 라운드트립에 결함이 있어
-        # 저장값이 epoch millis(정수)로 새어 시드(ISO text)·조회와 형식이 어긋난다. mcm-core 의 컨버터를
-        # auto-apply 해 문자열로 고정한다. mcm 은 JpaConfig 가 EMF 를 명시 빌드해서 이 프로퍼티가 안 먹지만,
-        # mls 는 Spring Boot 기본 EMF 라 yml 로 등록된다.
-        # ⚠️ MSSQL 로 전환하면 네이티브 date/datetime2 를 쓰도록 본 줄을 제거해야 한다.
-        metadata_builder_contributor: com.dongkuk.dmes.mcm.common.persistence.SqliteTemporalConverterContributor
+        # 감사 칸(Instant)은 TIMESTAMP(6) 로 저장한다. 시각은 KST 통일이라 hibernate.jdbc.time_zone 은 넣지 않는다(JVM Asia/Seoul).
+        type.preferred_instant_jdbc_type: TIMESTAMP
+        type.preferred_boolean_jdbc_type: TINYINT   # boolean 칸은 NUMBER(1,0)+CHECK(0,1) — BIT 는 Oracle 23+ 에서 validate 가 실패한다
   flyway:
     enabled: true
     # ⚠️ locations 는 반드시 자기 아티팩트 폴더로 좁힌다.

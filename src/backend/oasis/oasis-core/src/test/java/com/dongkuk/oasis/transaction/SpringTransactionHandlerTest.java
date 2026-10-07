@@ -12,9 +12,7 @@ import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+import utils.OracleTestDatabase;
 import org.springframework.orm.jpa.EntityManagerFactoryUtils;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
@@ -39,7 +37,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 @Execution(ExecutionMode.SAME_THREAD)
 @SuppressFBWarnings("URF_UNREAD_FIELD")
 class SpringTransactionHandlerTest {
-    EmbeddedDatabase database;
+    DataSource database;
     DataSource dataSource1;
     DataSource dataSource2;
     DataSource dataSource3;
@@ -54,8 +52,6 @@ class SpringTransactionHandlerTest {
     @BeforeEach
     void setup() throws SQLException {
         database = database();
-        //dataSource1 = new SimpleDriverDataSource(new Driver(),"jdbc:h2:tcp://localhost/~/oasis-test", "sa",null);
-        //dataSource2 = new SimpleDriverDataSource(new Driver(),"jdbc:h2:tcp://localhost/~/oasis-test", "sa",null);
         dataSource1 = new SingleConnectionDataSource(database.getConnection(), true);
         dataSource2 = new SingleConnectionDataSource(database.getConnection(), true);
         dataSource3 = new SingleConnectionDataSource(database.getConnection(), true);
@@ -75,16 +71,8 @@ class SpringTransactionHandlerTest {
         jdbcTemplate3 = new JdbcTemplate(dataSource3);
     }
 
-    private EmbeddedDatabase database() {
-        EmbeddedDatabase dataSource;
-        dataSource = new EmbeddedDatabaseBuilder()
-                .generateUniqueName(true)
-                .setType(EmbeddedDatabaseType.H2)
-                .setScriptEncoding("UTF-8")
-                .ignoreFailedDrops(true)
-                .addScript("transaction/SpringTransactionHandlerTest/schema.sql")
-                .build();
-        return dataSource;
+    private DataSource database() {
+        return OracleTestDatabase.create("transaction/SpringTransactionHandlerTest/schema.sql");
     }
 
     public EntityManagerFactory entityManagerFactory(DataSource dataSource) {
@@ -352,6 +340,6 @@ class SpringTransactionHandlerTest {
 
     @AfterEach
     void cleanup() {
-        database.shutdown();
+        OracleTestDatabase.dropTables(database, "Employee");
     }
 }

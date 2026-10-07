@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * {@link CactusMultiDataSourceAutoConfiguration} 특성 테스트 — extras 마다 등록되는 DataSource 빈 정의·alias·검증.
  *
  * <p>Hikari 직결 경로는 빈을 만들면 풀이 바로 접속을 시도하므로 인스턴스는 만들지 않고 빈 정의만 본다.
- * (cactus-core 시험 클래스패스에 SQLite 드라이버가 없다.)
+ * (이 시험은 DB 에 접속하지 않는다.)
  */
 class CactusMultiDataSourceAutoConfigurationTest {
 

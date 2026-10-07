@@ -40,8 +40,8 @@ import javax.sql.DataSource;
  * {@code spring.datasource.{mst,if}.jndi-name} 유무로 분기한다.</p>
  * <ul>
  *   <li>jndi-name 설정 시(WildFly dev/prod) — 컨테이너 관리 풀을 {@code JndiDataSourceLookup} 으로 조회.
- *       mcm 이 등록한 논리 DS 를 재사용: mst → {@code java:/jdbc/mssql/mcm/dsCaravan}(CARAVANUSER),
- *       if → {@code java:/jdbc/mssql/mcm/dsIF}(EAIUSER). 물리 접속/풀은 WildFly 소유(jta=false 필수).</li>
+ *       mcm 이 등록한 논리 DS 를 재사용: mst → {@code java:/jdbc/mcm/dsCaravan}(CARAVANUSER),
+ *       if → {@code java:/jdbc/mcm/dsIF}(EAIUSER). 물리 접속/풀은 WildFly 소유(jta=false 필수).</li>
  *   <li>미설정 시(local/local-ph/local-kp) — 기존 {@code spring.datasource.{mst,if}.*} 바인딩
  *       Hikari 직결(기존 동작 100% 동일).</li>
  * </ul>

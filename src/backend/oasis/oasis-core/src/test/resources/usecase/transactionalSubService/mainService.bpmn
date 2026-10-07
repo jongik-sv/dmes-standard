@@ -135,8 +135,8 @@
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_18kgi8e</bpmn:incoming>
       <bpmn:outgoing>Flow_0med19h</bpmn:outgoing>
-      <bpmn:script>        select 0 user_id, '000' first_name union all
-        select 1 user_id, '111' first_name</bpmn:script>
+      <bpmn:script>        select 0 user_id, '000' first_name from dual union all
+        select 1 user_id, '111' first_name from dual</bpmn:script>
     </bpmn:scriptTask>
     <bpmn:serviceTask id="Activity_1vwbx9z" name="MAIN 데이터 처리" camunda:class="usecase.transactionalSubService.DataProcessor#updateFirstName">
       <bpmn:extensionElements>
@@ -156,8 +156,8 @@
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0zuuiya</bpmn:incoming>
       <bpmn:outgoing>Flow_18of8zo</bpmn:outgoing>
-      <bpmn:script>        select 0 user_id, '000' first_name union all
-        select 1 user_id, '111' first_name</bpmn:script>
+      <bpmn:script>        select 0 user_id, '000' first_name from dual union all
+        select 1 user_id, '111' first_name from dual</bpmn:script>
     </bpmn:scriptTask>
     <bpmn:callActivity id="Activity_1g25rvp" name="서브서비스" calledElement="parameterPassedSubService">
       <bpmn:extensionElements>
@@ -195,8 +195,8 @@
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0buzk6w</bpmn:incoming>
       <bpmn:outgoing>Flow_1h8jd0g</bpmn:outgoing>
-      <bpmn:script>        select 0 user_id, '000' first_name union all
-        select 1 user_id, '111' first_name</bpmn:script>
+      <bpmn:script>        select 0 user_id, '000' first_name from dual union all
+        select 1 user_id, '111' first_name from dual</bpmn:script>
     </bpmn:scriptTask>
     <bpmn:callActivity id="Activity_1o52cy0" name="서브서비스" calledElement="parameterPassedSubService">
       <bpmn:extensionElements>
@@ -233,8 +233,8 @@
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1jm1fia</bpmn:incoming>
       <bpmn:outgoing>Flow_073rfov</bpmn:outgoing>
-      <bpmn:script>        select 0 user_id, '000' first_name union all
-        select 1 user_id, '111' first_name</bpmn:script>
+      <bpmn:script>        select 0 user_id, '000' first_name from dual union all
+        select 1 user_id, '111' first_name from dual</bpmn:script>
     </bpmn:scriptTask>
     <bpmn:callActivity id="Activity_1yo3175" name="서브서비스" calledElement="parameterPassedSubService">
       <bpmn:extensionElements>
