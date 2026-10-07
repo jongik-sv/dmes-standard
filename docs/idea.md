@@ -123,3 +123,13 @@
   - 방법(안): 기준(`refactor-2026-10-base`)과 dev 서버를 번갈아 띄우고 같은 브라우저 자동화 스크립트로 화면별 3회 이상 재 중앙값을 낸다. 지표는 화면 준비 시간, long task 수, API 호출 수·시간.
   - 대상 후보: 포털 로그인 뒤 메뉴 표시, MDM 레이아웃 확정, 용어·컬럼 검색, dmd 카테고리, 사용자 관리.
   - 한계: 로컬 SQLite 데이터 규모라 운영보다 차이가 작게 나올 수 있으니 결과에 적는다.
+### 조회·로그 (2026-10-07 보류)
+
+- 업무 모듈 단순 조회를 MyBatis 조회 라우터로(BPMN 없이) — 검토 문서: [docs/superpowers/specs/2026-10-07-query-router-issues-review.md](superpowers/specs/2026-10-07-query-router-issues-review.md)
+  - 방침(안): mcm·mdm 은 지금처럼 BPMN+JPA, 그 밖 업무 모듈은 단순 조회만 라우터+MyBatis, 등록·수정·삭제는 BPMN+JPA.
+  - 현황: 시범(mcm masterCodeSelPop) 코드는 dev(d9e119e4)에 있고 라우터 스위치(`cactus.inbound.query-routes`)는 꺼져 있다. 보안 수정(9e55954a)으로 /query·/service 직접 경로는 BFF 403·BE 404.
+  - 남은 것: 문서의 문제점 7개·Q2~Q8 답변, 켜는 조건 4가지, BFF 허용 방식, 업무 모듈로 시범 이전, 가이드·ADR. 레인 메모: ~/.coord/notice-fill2/lanes/query-route/memo.md
+  - Oracle 23ai Free 전환(로컬 DB 교체 결정) 뒤면 방언 항목(§2·Q4~Q6)은 실제 Oracle 로 시험할 수 있다.
+- analog 로그에서 조회 호출 빼기 — BPMN 호출의 약 95% 가 조회이고 호출당 약 16줄이라(10-07 mcm 로그 2,108회·33,729줄, Hibernate SQL DEBUG 9,064줄 별도) 업무 처리 로그가 묻힌다.
+  - 방안: A 조회를 MDC(rw=R)로 표시해 별도 파일 · B DEBUG 로 낮추기 · C 조회는 요약 한 줄만 · D analog 화면 필터.
+  - 추천: A+C. 조회 판정은 이름 규칙(search·select 등)과 BPMN 의 읽기 전용 표시를 함께 쓴다.
