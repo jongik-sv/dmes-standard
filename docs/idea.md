@@ -149,3 +149,9 @@
   - 현황: 리포에 SQL 콘솔 기능은 없다(`caravan-console` 은 메시지 허브 관리 콘솔).
   - 대안(당장 필요할 때): 터미널 `usql`(Go 단일 실행 파일, 순수 Go Oracle 드라이버라 클라이언트 불필요) 또는 SQLPro for Oracle(네이티브, 무료판+유료 기능).
   - 결정 대기: 보안 범위, DB 연결 방식, 1단계 범위. 정해지면 브레인스토밍 → 레인.
+
+### DB 규칙 (2026-10-07)
+
+- Oracle 쿼리 작성 양식(들여쓰기·대소문자·줄바꿈·별칭 등) 정하기 — 10-07 SQL 규칙을 「Oracle 전용」 으로 바꿨다(`docs/guide/Database/oracle-sql-rules.md`, oracle-1007 회차 ora-base 개편).
+  - 할 일: 사용자가 쓰는 쿼리 서식을 받아 `oracle-sql-rules.md` 에 「쿼리 서식」 절로 넣고, flyway-migration-add 등 스킬의 SQL 예시도 같은 서식으로 맞춘다.
+  - 현황: 10-08 오전 8~9시경 사용자에게 양식을 요청하기로 했다(조정자 알림).
