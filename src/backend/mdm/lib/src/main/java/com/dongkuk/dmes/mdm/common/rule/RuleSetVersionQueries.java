@@ -66,9 +66,10 @@ public class RuleSetVersionQueries {
      * 양성이 있을 수 있지만 그때는 전체 읽기가 정확히 가린다. false 면 이 세트를 부르는 행(Ruling 25 — 폐기 안 한 부모의 RELEASED 행)은 하나도 없다.
      */
     public boolean mayBeCalled(String setId) {
-        // 대소문자 무시(SQLite LIKE 와 같은 후보 — 걸러내기가 거짓 음성을 내지 않게 넓게 둔다).
-        return !entityManager.createQuery("SELECT v.maruRuleSetId FROM MdmRuleSetVer v WHERE v.status = 'RELEASED' AND UPPER(v.callSetIds) LIKE :p",
-                        String.class)
+        // 대소문자 무시(SQLite LIKE 와 같은 후보 — 걸러내기가 거짓 음성을 내지 않게 넓게 둔다). CALL_SET_IDS 는 CLOB(@Lob)이라
+        // JPQL upper() 가 인자 형(STRING)을 거부한다 — Oracle SQL 의 UPPER(CLOB) LIKE 는 되므로 네이티브로 쓴다.
+        return !entityManager.createNativeQuery("SELECT MARU_RULE_SET_ID FROM TB_MDM_RULE_SET_VER WHERE STATUS = 'RELEASED' "
+                        + "AND UPPER(CALL_SET_IDS) LIKE :p")
                 .setParameter("p", "%\"" + setId.toUpperCase(Locale.ROOT) + "\"%").setMaxResults(1).getResultList().isEmpty();
     }
 
