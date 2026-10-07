@@ -96,6 +96,34 @@ describe("preloadSearchDefaults", () => {
   });
 });
 
+describe("리뷰 지적 회귀(2026-10-07)", () => {
+  it("서버 실패 뒤에는 간격 안에 다시 묻지 않고 loading 으로 되돌아가지 않는다", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const transport = vi.fn(async () => {
+      throw new Error("down");
+    });
+    setSearchDefaultsTransportForTest(transport);
+    preloadSearchDefaults("u1");
+    await flush();
+    preloadSearchDefaults("u1");
+    expect(transport).toHaveBeenCalledTimes(1);
+    expect(getSearchDefaultsStatus("u1")).toBe("ready");
+  });
+
+  it("미리 받기 응답이 저장보다 늦게 와도 저장한 화면 규칙을 덮지 않는다", async () => {
+    let resolveSearch: (v: unknown) => void = () => {};
+    setSearchDefaultsTransportForTest(async (action) => {
+      if (action === "search") return new Promise((r) => (resolveSearch = r));
+      return { meta: { success: true } };
+    });
+    preloadSearchDefaults("u1");
+    await saveSearchDefaults("u1", "p", [{ fieldKey: "k", rule: { kind: "fixed", value: "NEW" } }]);
+    resolveSearch({ data: { result: { rows: [{ pageId: "p", fieldKey: "k", ruleJson: '{"kind":"fixed","value":"OLD"}' }] } } });
+    await flush();
+    expect(getPageSearchDefaults("u1", "p")).toEqual({ k: { kind: "fixed", value: "NEW" } });
+  });
+});
+
 describe("saveSearchDefaults·resetSearchDefaults", () => {
   it("savePage 본문(grids.rows.rows, ruleJson 문자열)을 보내고 성공하면 메모리·거울을 바꾼다", async () => {
     const calls: unknown[] = [];

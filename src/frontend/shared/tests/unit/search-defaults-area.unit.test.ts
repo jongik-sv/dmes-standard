@@ -14,6 +14,7 @@ import { SearchArea, type SearchAreaProps } from "../../src/layout/SearchArea";
 import { SearchField } from "../../src/layout/SearchField";
 import { emitSearch } from "../../src/layout/search-history-bus";
 import { SEARCH_DEFAULTS_WAIT_MS } from "../../src/layout/search-defaults/area";
+import { useState } from "react";
 import { readSearchLastValues } from "../../src/layout/search-defaults/last-values";
 import type { SearchDefaultRule } from "../../src/layout/search-defaults/rule";
 import {
@@ -415,6 +416,76 @@ describe("초기화·조회 이벤트", () => {
     givenRules(rules({ itemCd: { kind: "last" } }));
     await mount(inPage(createElement(Screen)));
     expect(latest.item).toBe("LAST");
+  });
+});
+
+describe("리뷰 지적 회귀(2026-10-07)", () => {
+  it("초기화 — 이미 사용자 기본값이 든(건드리지 않은) 칸도 사용자 기본값으로 남는다", async () => {
+    givenRules(rules({ itemCd: { kind: "fixed", value: "A" } }));
+    const warn = vi.spyOn(console, "warn");
+    await mount(inPage(createElement(Screen, { withReset: true })));
+    expect(latest.item).toBe("A");
+    const resetBtn = [...rendered!.host.querySelectorAll("button")].find((b) => b.textContent === "초기화")!;
+    await act(async () => {
+      resetBtn.click();
+    });
+    expect(latest.item).toBe("A");
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("저장소가 늦으면 그 사이 화면 effect(handoff)가 정한 값을 덮지 않는다", async () => {
+    let resolve: (v: unknown) => void = () => {};
+    setSearchDefaultsTransportForTest(() => new Promise((r) => (resolve = r)));
+    function Handoff() {
+      const [v, setV] = useCarryState("v", "");
+      latest = { ...DEFAULT, item: v };
+      useEffect(() => setV("HANDOFF"), [setV]);
+      return createElement(
+        SearchArea,
+        { onSearch: () => {} },
+        createElement(SearchField, { label: "품번", name: "itemCd", value: v, onChange: setV }),
+      );
+    }
+    await mount(inPage(createElement(Handoff)));
+    expect(latest.item).toBe("HANDOFF");
+    await act(async () => {
+      resolve(serverRows({ [PAGE]: rules({ itemCd: { kind: "fixed", value: "S" } }) }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(latest.item).toBe("HANDOFF");
+  });
+
+  it("선택지가 늦게 오면 보류했다가 선택지가 생길 때 넣는다", async () => {
+    givenRules(rules({ status: { kind: "fixed", value: "SYS1" } }));
+    let load: () => void = () => {};
+    function LateOptions() {
+      const [v, setV] = useCarryState("v", "");
+      const [opts, setOpts] = useState([{ value: "", label: "전체" }]);
+      load = () => setOpts([{ value: "", label: "전체" }, { value: "SYS1", label: "시스템1" }]);
+      latest = { ...DEFAULT, status: v };
+      return createElement(
+        SearchArea,
+        { onSearch: () => {} },
+        createElement(SearchField, { label: "시스템", name: "status", type: "select", options: opts, value: v, onChange: setV }),
+      );
+    }
+    await mount(inPage(createElement(LateOptions)));
+    expect(latest.status).toBe("");
+    await act(async () => load());
+    expect(latest.status).toBe("SYS1");
+  });
+
+  it("사용자 확인에 실패하면 기다리지 않고 바로 autoSearch 한다", async () => {
+    setUser(null);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 401 })));
+    await mount(inPage(createElement(Screen, { area: { autoSearch: true } })));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(searches).toEqual([DEFAULT]);
+    vi.unstubAllGlobals();
   });
 });
 

@@ -32,6 +32,15 @@ import {
 
 /** 저장소가 준비되기를 기다리는 한도(설계 §6.2). */
 export const SEARCH_DEFAULTS_WAIT_MS = 1500;
+/** 선택지를 서버에서 받는 칸 — 고정 값이 선택지에 나타나기를 기다리는 한도. */
+export const SEARCH_DEFAULTS_OPTIONS_WAIT_MS = 10_000;
+
+/** 넣기 방식 — skipLast: 마지막 조회값 규칙 칸은 건너뜀, ignoreTouched: 사용자가 고친 칸도 넣음, onlyIfUnchanged: 기준값에서 바뀐 칸은 건너뜀. */
+interface ApplyMode {
+  skipLast: boolean;
+  ignoreTouched: boolean;
+  onlyIfUnchanged: boolean;
+}
 
 export interface SearchDefaultsFieldInfo {
   /** 칸의 키(`defaultKey ?? name`, 기간 To 는 `{From 키}~to`). scope 접두는 붙지 않은 값이다. */
@@ -123,15 +132,25 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
   const offRef = useRef(false);
   const appliedRef = useRef(new Set<string>());
   const userIdRef = useRef("");
+  /**
+   * 넣기 전(등록 때)의 칸 값. 저장소가 늦어 나중에 넣을 때, 그 사이 화면 effect(handoff)나 사용자가 바꾼 칸은 덮지 않는다(§6.3).
+   * children 칸은 사용자 입력을 touched 로 알 수 없어 이 비교로 막는다.
+   */
+  const baselineRef = useRef(new Map<string, string>());
+  /** 선택지에 아직 없어 보류한 값(서버에서 받는 선택지) — 한도 안에 선택지가 생기고 칸이 그대로면 넣는다. */
+  const awaitingRef = useRef(new Map<string, { value: string; until: number }>());
   const pendingCheckRef = useRef<Map<string, string> | null>(null);
   const pendingAutoSearchRef = useRef(false);
+  /** 초기화 — 화면이 비운 값이 커밋된 다음 layout effect 에서 넣는다(같은 클릭 안에서는 아직 비우기 전 값이 보인다). */
+  const pendingResetRef = useRef(false);
   /**
-   * 렌더 번호. 넣기·autoSearch 를 예약한 뒤의 렌더가 커밋됐을 때만 처리한다 — layout effect 에서 동기 재렌더를 예약하면
+   * 렌더 번호. 넣기·autoSearch·초기화를 예약한 뒤의 렌더가 커밋됐을 때만 처리한다 — layout effect 에서 동기 재렌더를 예약하면
    * React 가 재렌더 전에 앞 커밋의 passive effect 를 먼저 돌리는데, 그때의 onSearch·값은 넣기 전 것이다(설계 §6.4).
    */
   const renderIdRef = useRef(0);
   renderIdRef.current += 1;
   const scheduledAtRef = useRef(0);
+  const resetAtRef = useRef(0);
   const onSearchRef = useRef(onSearch);
   onSearchRef.current = onSearch;
   const optsRef = useRef({ enabled, autoSearch, pageId, scope, restored });
@@ -142,7 +161,7 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
 
   /** 칸들에 규칙을 넣는다. 넣은 값은 다음 커밋에 확인한다. */
   const applyTo = useCallback(
-    (handles: Array<[string, SearchDefaultsFieldHandle]>, mode: { skipLast: boolean; ignoreTouched: boolean }) => {
+    (handles: Array<[string, SearchDefaultsFieldHandle]>, mode: ApplyMode) => {
       const userId = userIdRef.current;
       const { pageId: pid } = optsRef.current;
       if (!userId || !pid) return;
@@ -155,13 +174,20 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
         if (!rule) continue;
         if (mode.skipLast && rule.kind === "last") continue;
         if (!mode.ignoreTouched && h.touched) continue;
-        const v = resolveSearchDefault(rule, {
-          valueType: h.info.valueType,
-          optionValues: h.info.options?.map((o) => o.value),
-          lastValue: last[key],
-          now,
-        });
-        if (v !== undefined) targets.set(key, v);
+        if (mode.onlyIfUnchanged && baselineRef.current.has(key) && h.getValue() !== baselineRef.current.get(key)) continue;
+        const optionValues = h.info.options?.map((o) => o.value);
+        const ctx = { valueType: h.info.valueType, optionValues, lastValue: last[key], now };
+        const v = resolveSearchDefault(rule, ctx);
+        if (v !== undefined) {
+          targets.set(key, v);
+          awaitingRef.current.delete(key);
+          continue;
+        }
+        // 선택지가 아직 없어서 못 넣은 값은 보류한다(선택지를 서버에서 받는 칸).
+        if (optionValues) {
+          const raw = resolveSearchDefault(rule, { ...ctx, optionValues: undefined });
+          if (raw !== undefined) awaitingRef.current.set(key, { value: raw, until: Date.now() + SEARCH_DEFAULTS_OPTIONS_WAIT_MS });
+        }
       }
       // 기간: From 이 To 보다 늦으면 두 칸 모두 넣지 않는다(설계 §4.4).
       for (const [key, h] of handles) {
@@ -205,7 +231,7 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
   }, []);
 
   const applyAll = useCallback(
-    (mode: { skipLast: boolean; ignoreTouched: boolean }) => {
+    (mode: ApplyMode) => {
       applyTo([...handlesRef.current.entries()], mode);
     },
     [applyTo],
@@ -238,7 +264,7 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
       const tryApply = () => {
         if (cancelled || phaseRef.current !== "pending") return;
         if (getSearchDefaultsStatus(userId) !== "ready") return;
-        applyAll({ skipLast: false, ignoreTouched: false });
+        applyAll({ skipLast: false, ignoreTouched: false, onlyIfUnchanged: true });
         finish();
       };
       tryApply();
@@ -251,8 +277,14 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
     } else {
       cleanups.push(subscribeCurrentUser((u) => startWithUser(u?.id ?? "")));
       void getCurrentUser().then(
-        (r) => startWithUser(r.ok ? r.user.id : ""),
-        () => {},
+        (r) => {
+          if (r.ok) startWithUser(r.user.id);
+          // 사용자를 확인하지 못하면 기다리지 않고 끝낸다(넣을 값이 없다).
+          else if (!cancelled) finish();
+        },
+        () => {
+          if (!cancelled) finish();
+        },
       );
     }
     return () => {
@@ -262,6 +294,27 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
     };
     // 마운트 1회 — 함수들은 안정적이고, phase 가 pending 이 아니면 다시 돌아도 바로 끝난다.
   }, [applyAll, finish, rootRef]);
+
+  // 커밋마다: 초기화 넣기(화면이 비운 값이 커밋된 뒤), 보류한 선택지 값 넣기.
+  useIsomorphicLayoutEffect(() => {
+    if (pendingResetRef.current && renderIdRef.current > resetAtRef.current) {
+      pendingResetRef.current = false;
+      applyAll({ skipLast: true, ignoreTouched: true, onlyIfUnchanged: false });
+    }
+    if (awaitingRef.current.size === 0) return;
+    const nowMs = Date.now();
+    const ready: Array<[string, SearchDefaultsFieldHandle]> = [];
+    for (const [key, a] of awaitingRef.current) {
+      const h = handlesRef.current.get(key);
+      const baseline = baselineRef.current.get(key);
+      if (!h || nowMs > a.until || h.touched || (baseline !== undefined && h.getValue() !== baseline)) {
+        awaitingRef.current.delete(key);
+        continue;
+      }
+      if (h.info.options?.some((o) => o.value === a.value)) ready.push([key, h]);
+    }
+    if (ready.length > 0) applyTo(ready, { skipLast: false, ignoreTouched: false, onlyIfUnchanged: true });
+  });
 
   // 넣은 뒤 확인(개발 모드 경고)과 autoSearch 는 커밋 뒤에 한다 — 그 커밋의 onSearch 가 새 상태를 잡고 있다.
   useEffect(() => {
@@ -287,12 +340,13 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
     }
   }, [tick]);
 
-  // 조회(emitSearch) → 마지막 조회값 기록 / 초기화(emitSearchReset) → 사용자 기본값 다시 넣기.
+  // 조회(emitSearch) → 마지막 조회값 기록 / 초기화(emitSearchReset) → 다음 커밋에 사용자 기본값 다시 넣기.
   useEffect(() => {
     if (!pageId) return undefined;
     const offSearch = subscribeSearch(pageId, () => {
       if (!optsRef.current.enabled || offRef.current) return;
-      const userId = userIdRef.current || peekCurrentUser()?.id || "";
+      // 지금 사용자 키로 적는다(같은 화면이 열린 채 사용자가 바뀌었어도 이전 사용자 키에 적지 않게).
+      const userId = peekCurrentUser()?.id || userIdRef.current;
       if (!userId) return;
       const values: Record<string, string> = {};
       for (const [key, h] of handlesRef.current) values[key] = h.getValue();
@@ -300,15 +354,17 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
     });
     const offReset = subscribeSearchReset(pageId, () => {
       if (!optsRef.current.enabled || offRef.current) return;
-      if (!userIdRef.current) userIdRef.current = peekCurrentUser()?.id ?? "";
+      userIdRef.current = peekCurrentUser()?.id || userIdRef.current;
       for (const h of handlesRef.current.values()) h.touched = false;
-      applyAll({ skipLast: true, ignoreTouched: true });
+      pendingResetRef.current = true;
+      resetAtRef.current = renderIdRef.current;
+      setTick((n) => n + 1);
     });
     return () => {
       offSearch();
       offReset();
     };
-  }, [pageId, applyAll]);
+  }, [pageId]);
 
   return useMemo<SearchDefaultsAreaApi>(
     () => ({
@@ -322,9 +378,11 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
           return () => {};
         }
         map.set(key, handle);
+        // 넣기 전이면 지금 값을 기준값으로 적어 둔다(늦게 넣을 때 그 사이 바뀐 칸은 덮지 않는다).
+        if (phaseRef.current === "pending") baselineRef.current.set(key, handle.getValue());
         // 넣기가 끝난 뒤 처음 등록된 칸(조건부 칸)은 등록할 때 한 번 넣는다.
-        if (phaseRef.current === "done" && !appliedRef.current.has(key) && optsRef.current.enabled && !offRef.current && !optsRef.current.restored) {
-          applyTo([[key, handle]], { skipLast: false, ignoreTouched: false });
+        else if (!appliedRef.current.has(key) && optsRef.current.enabled && !offRef.current && !optsRef.current.restored) {
+          applyTo([[key, handle]], { skipLast: false, ignoreTouched: false, onlyIfUnchanged: false });
           appliedRef.current.add(key);
         }
         return () => {
@@ -337,7 +395,7 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
       applyNow() {
         if (!optsRef.current.enabled || offRef.current) return;
         if (!userIdRef.current) userIdRef.current = peekCurrentUser()?.id ?? "";
-        applyAll({ skipLast: false, ignoreTouched: true });
+        applyAll({ skipLast: false, ignoreTouched: true, onlyIfUnchanged: false });
       },
       isDisabled() {
         return !optsRef.current.enabled || offRef.current || !optsRef.current.pageId;

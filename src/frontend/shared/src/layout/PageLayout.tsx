@@ -54,6 +54,8 @@ export interface PageButton {
   /**
    * 조회 조건 초기화 버튼인가. true 면 onClick 직후 조회 기본값 초기화 이벤트를 내어 SearchArea 가 사용자 기본값을 다시 넣는다
    * (설계 2026-10-07-search-defaults §6.6). 생략하면 `id === "btn_reset"` 일 때 true 로 본다.
+   * onClick 은 조회 조건을 동기로 비워야 한다 — 확인 대화 상자 뒤에 비동기로 비우면 사용자 기본값을 넣은 뒤 덮어쓴다.
+   * 그런 화면은 false 로 두고, 비운 뒤 직접 `emitSearchReset(pageId)` 를 부른다.
    */
   resetsSearch?: boolean;
 }

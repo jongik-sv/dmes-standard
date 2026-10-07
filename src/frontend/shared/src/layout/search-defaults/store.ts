@@ -9,6 +9,7 @@
  * - shared 는 tsup entry 별로 나뉘어 빌드되므로(splitting:false) 모듈 상태를 globalThis 에 둬 한 인스턴스를 공유한다.
  * - 모든 저장소 접근은 try/catch — 저장 실패가 조회 기능을 깨지 않게 한다.
  */
+import { subscribeCurrentUser } from "../../portal-shell/current-user";
 import { parseSearchDefaultRule, type SearchDefaultRule } from "./rule";
 
 export type PageRules = Record<string, SearchDefaultRule>;
@@ -19,6 +20,8 @@ export type SearchDefaultsSource = "none" | "mirror" | "server" | "empty";
 
 export const SEARCH_DEFAULTS_MIRROR_PREFIX = "dmes:search-dflt:v1:";
 export const SEARCH_DEFAULTS_ENDPOINT = "/api/mcm/oasis/secSrchDflt";
+/** 서버에서 받지 못했을 때 다시 묻기까지의 간격 — 화면을 열 때마다 요청하지 않게 한다. */
+export const SEARCH_DEFAULTS_RETRY_MS = 60_000;
 
 /** 저장할 때 행 하나(설계 §5.3 savePage). */
 export interface SearchDefaultSaveRow {
@@ -36,12 +39,18 @@ interface UserEntry {
   source: SearchDefaultsSource;
   rules: UserRules;
   promise: Promise<void> | null;
+  /** 마지막으로 서버에 물은 시각(실패 뒤 다시 묻기 간격용). */
+  lastAttemptAt: number;
+  /** 저장·지우기로 메모리를 바꿀 때마다 오른다 — 그 전에 출발한 서버 응답이 저장한 값을 덮지 않게 한다. */
+  gen: number;
 }
 
 interface StoreState {
   users: Map<string, UserEntry>;
   listeners: Set<() => void>;
   transport: SearchDefaultsTransport;
+  /** 사용자 전환 구독을 걸었는가. */
+  watchingUser: boolean;
 }
 
 const GLOBAL_KEY = "__dkOasisSearchDefaultsStore__";
@@ -69,7 +78,7 @@ const defaultTransport: SearchDefaultsTransport = async (action, body) => {
 };
 
 function getState(): StoreState {
-  return (cache[GLOBAL_KEY] ??= { users: new Map(), listeners: new Set(), transport: defaultTransport });
+  return (cache[GLOBAL_KEY] ??= { users: new Map(), listeners: new Set(), transport: defaultTransport, watchingUser: false });
 }
 
 function notify(): void {
@@ -166,7 +175,7 @@ function entryFor(userId: string): UserEntry {
   const st = getState();
   let e = st.users.get(userId);
   if (!e) {
-    e = { status: "idle", source: "none", rules: {}, promise: null };
+    e = { status: "idle", source: "none", rules: {}, promise: null, lastAttemptAt: 0, gen: 0 };
     st.users.set(userId, e);
   }
   return e;
@@ -178,20 +187,34 @@ function entryFor(userId: string): UserEntry {
  */
 export function preloadSearchDefaults(userId: string): void {
   if (!userId) return;
+  watchUserChanges();
   const e = entryFor(userId);
   if (e.promise || e.source === "server") return;
-  const mirror = readMirror(userId);
-  if (mirror) {
-    e.rules = mirror;
-    e.status = "ready";
-    e.source = "mirror";
-  } else {
-    e.status = "loading";
+  // 이미 끝났는데(거울·빈 값) 서버에서 받지 못한 상태 — 간격 안이면 다시 묻지 않고, 넘었으면 상태를 그대로 둔 채 뒤에서 다시 묻는다.
+  if (e.status === "ready" && Date.now() - e.lastAttemptAt < SEARCH_DEFAULTS_RETRY_MS) return;
+  if (e.status === "idle") {
+    const mirror = readMirror(userId);
+    if (mirror) {
+      e.rules = mirror;
+      e.status = "ready";
+      e.source = "mirror";
+    } else {
+      e.status = "loading";
+    }
   }
+  e.lastAttemptAt = Date.now();
+  const startGen = e.gen;
   e.promise = (async () => {
     try {
       const body = await getState().transport("search", { meta: { menuId: "HOME" }, params: {} });
-      e.rules = rowsToUserRules(extractRows(body));
+      const fromServer = rowsToUserRules(extractRows(body));
+      // 요청 중에 저장·지우기가 있었으면 그 화면들은 메모리 값을 그대로 둔다.
+      if (e.gen === startGen) {
+        e.rules = fromServer;
+      } else {
+        const local = e.rules;
+        e.rules = { ...fromServer, ...local };
+      }
       e.source = "server";
       writeMirror(userId, e.rules);
     } catch (err) {
@@ -204,6 +227,18 @@ export function preloadSearchDefaults(userId: string): void {
     }
   })();
   notify();
+}
+
+/** 사용자가 바뀌면(로그아웃·다른 사용자) 다른 사용자의 메모리 항목을 비운다 — 다음 화면부터 새로 받는다. 한 번만 건다. */
+function watchUserChanges(): void {
+  const st = getState();
+  if (st.watchingUser) return;
+  st.watchingUser = true;
+  subscribeCurrentUser((user) => {
+    const keep = user?.id ?? "";
+    for (const id of [...st.users.keys()]) if (id !== keep) st.users.delete(id);
+    notify();
+  });
 }
 
 export function getSearchDefaultsStatus(userId: string): SearchDefaultsStatus {
@@ -232,6 +267,7 @@ export function subscribeSearchDefaults(listener: () => void): () => void {
 
 function setPageLocal(userId: string, pageId: string, rules: PageRules): void {
   const e = entryFor(userId);
+  e.gen += 1;
   const next = { ...e.rules };
   if (Object.keys(rules).length === 0) delete next[pageId];
   else next[pageId] = rules;
