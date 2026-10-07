@@ -3,7 +3,7 @@ spring:
     name: mcm
 
   # ── 프로파일 체계 ──
-  #   local    : SQLite 직결 (bootRun/IDE) — 프로파일 미지정 기동은 McmApplication 의 spring.profiles.default=local 폴백
+  #   local    : 로컬 Oracle PDB 직결 (bootRun/IDE) — 프로파일 미지정 기동은 McmApplication 의 spring.profiles.default=local 폴백
   #   local-db : 외부 RDB(SQL Server) 직결 (bootRun/IDE) — 접속 정보는 전부 환경변수 주입
   #   dev      : 개발계 WildFly — JNDI (아래 group 으로 wildfly 자동 활성)
   #   prod     : 운영계 WildFly — JNDI
@@ -26,15 +26,12 @@ spring:
         session_factory:
           statement_inspector: com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector
 
-  # ── Flyway 비활성 (mcm 스키마 관리 정책) ──
-  # mcm 의 스키마는 Flyway 가 아니라 아래 둘이 관리한다.
-  #   local   : hibernate ddl-auto=update (엔티티 기준 자동 생성) + DataInitializer 의 멱등 DDL/시드
-  #   dev/prod: 사전 관리 스키마(WildFly JNDI 계정) + dmes.init.enabled=false
-  # `mcm-core/src/main/resources/db/migration/sqlite/` 의 V*.sql 은 SEC 테이블 스키마가 어떤 순서로
-  # 만들어졌는지 남긴 **이력 참고용**이며 런타임 적용 대상이 아니다. 켜 두면 그 파일들과
-  # 각 모듈의 sample 마이그레이션이 같은 버전 번호로 충돌해 부팅이 실패한다.
-  # 신규 프로젝트에서 mcm 도 Flyway 로 관리하려면 enabled=true 로 바꾸고 번호를 재채번한다
-  # (`.claude/skills/flyway-migration-add/`).
+  # ── Spring Boot Flyway 자동 구성은 끈다 (oracle-1007, 2026-10-07) ──
+  # mcm 의 스키마 MCMAPUSER·MCM_SOURCE·MCM_BACKUP·MCAAPUSER 는 스키마마다 그 주인으로 접속하는 Flyway 4개가 필요한데,
+  # spring.flyway 는 접속 하나뿐이다. 그래서 여기서는 끄고 McmFlywayConfig(dmes.flyway.enabled)가 스키마별로 돌린다.
+  # V 파일 정본: mcm-core src/main/resources/db/migration/oracle/<스키마 소문자>/ (스키마 소유표 docs/oracle-1007/schema-owners.md).
+  # 켜 두면 기본 locations(classpath:db/migration)를 재귀로 훑어 네 스키마 폴더를 한 이력에 섞는다.
+  # local 은 dmes.flyway.enabled=true(application-local.yml), WildFly(dev/prod)는 false — DBA 가 같은 V 파일을 적용한다.
   flyway:
     enabled: false
 

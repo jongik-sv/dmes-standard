@@ -1,59 +1,87 @@
+# ── local: 로컬 Oracle PDB 직결 (bootRun/IDE, oracle-1007 2026-10-07) ──
+# 접속 규약: docs/oracle-1007/schema-owners.md §3. 데이터소스 4개가 같은 PDB 에 사용자만 달리해 붙는다.
+#   biz·cmn = MCMAPUSER / if = EAIUSER / caravan = CARAVANUSER (운영과 같은 이름)
+# PDB 는 be-run 의 --pdb=<PDB>(DMES_ORA_URL) 로 고른다. 없으면 DMES_ORA_HOST·PORT·PDB 기본값(localhost:1521/FREEPDB1).
+# 비밀번호는 로컬 공통값(DMES_ORA_PASSWORD, 기본 dmes_password_123). Hikari 상한은 3 이하(인스턴스를 모든 레인이 나눠 쓴다).
+dmes-ora:
+  url: ${DMES_ORA_URL:jdbc:oracle:thin:@//${DMES_ORA_HOST:localhost}:${DMES_ORA_PORT:1521}/${DMES_ORA_PDB:FREEPDB1}}
+  password: ${DMES_ORA_PASSWORD:dmes_password_123}
+
 spring:
   datasource:
-    url: jdbc:sqlite:../data/mcm.db
-    driver-class-name: org.sqlite.JDBC
+    url: ${dmes-ora.url}
+    username: ${DMES_ORA_USER:MCMAPUSER}
+    password: ${dmes-ora.password}
+    driver-class-name: oracle.jdbc.OracleDriver
+    hikari:
+      maximum-pool-size: 3     # JpaConfig.dataSource() 가 읽는다(직접 만든 풀)
   jpa:
-    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    database-platform: org.hibernate.dialect.OracleDialect
     hibernate:
-      ddl-auto: update
+      ddl-auto: none           # 스키마는 Flyway(아래 dmes.flyway) — 엔티티로 표를 만들거나 바꾸지 않는다
     show-sql: true
     # 참고: primary EMF 는 com.dongkuk.dmes.mcm.config.JpaConfig 가 명시 빌드하므로
-    # spring.jpa.properties 가 적용되지 않는다. SQLite introspection 전략(individually)은
-    # JpaConfig.entityManagerFactory() 에서 직접 설정 (2026-06-05).
+    # spring.jpa.properties 가 적용되지 않는다. Instant·boolean 공통 설정도 JpaConfig 에 있다.
 
   security:
     enabled: false
 
-# ── Cactus cmn/if/caravan EMF (local — 스키마 분리는 MSSQL 에서만) ──
-# local: cmn(공통)=mcm.db(biz 와 동일 파일 — cmn 엔티티 없음이라 잠금 위험 낮음, 관측 시 mcm-cmn.db 분리)
-#        if(인터페이스)=caravan-if.db / caravan(Kafka 메타)=caravan-console.db (파일 분리 — 단일 JVM 내 SQLite 잠금 회피).
-# 운영: cmn=MCMAPUSER / if=EAIUSER / caravan=CARAVANUSER.
+# ── 스키마별 Flyway (McmFlywayConfig) — MCMAPUSER·MCM_SOURCE·MCM_BACKUP·MCAAPUSER 를 각 주인으로 접속해 V 파일 적용 ──
+# url 은 spring.datasource.url, 비밀번호는 dmes-ora.password(로컬은 모든 사용자가 같다)를 쓴다.
+dmes:
+  flyway:
+    enabled: true
+    password: ${dmes-ora.password}
+
+# ── Cactus cmn/if/caravan EMF (local — 같은 PDB, 사용자만 다르다) ──
 cactus:
   datasource:
     extras:
-      cmn:                     # 표준 3종 통일(2026-07-07) — biz 와 동일 mcm.db 공유
-        url: jdbc:sqlite:../data/mcm.db
-        driver-class-name: org.sqlite.JDBC
-      if:
-        url: jdbc:sqlite:../data/caravan-if.db
-        driver-class-name: org.sqlite.JDBC
-      caravan:
-        url: jdbc:sqlite:../data/caravan-console.db
-        driver-class-name: org.sqlite.JDBC
+      cmn:                     # 표준 3종 통일(2026-07-07) — 물리는 biz 와 같은 MCMAPUSER
+        url: ${dmes-ora.url}
+        username: MCMAPUSER
+        password: ${dmes-ora.password}
+        driver-class-name: oracle.jdbc.OracleDriver
+        maximum-pool-size: 2
+      if:                      # 인터페이스 송수신 — EAIUSER(표 없이 IFUSER 표 권한만 가진 접속 사용자)
+        url: ${dmes-ora.url}
+        username: EAIUSER
+        password: ${dmes-ora.password}
+        driver-class-name: oracle.jdbc.OracleDriver
+        maximum-pool-size: 2
+      caravan:                 # Kafka 메타 — CARAVANUSER(표는 caravan-hub 기준선)
+        url: ${dmes-ora.url}
+        username: CARAVANUSER
+        password: ${dmes-ora.password}
+        driver-class-name: oracle.jdbc.OracleDriver
+        maximum-pool-size: 2
   jpa:
     extras:
       cmn:
         hibernate:
-          dialect: com.dongkuk.dmes.mcm.config.CactusSqliteIfNotExistsDialect
-          ddl-auto: update     # 매핑 엔티티 없음(cactus-cmn 빈 PU) — 실질 no-op
+          dialect: org.hibernate.dialect.OracleDialect
+          ddl-auto: none       # 매핑 엔티티 없음(cactus-cmn 빈 PU)
       if:
         hibernate:
-          # CREATE TABLE IF NOT EXISTS 자동 부착 — caravan EMF 가 이미 만든 동일 테이블의 already exists WARN 회피
-          dialect: com.dongkuk.dmes.mcm.config.CactusSqliteIfNotExistsDialect
-          ddl-auto: update
+          dialect: org.hibernate.dialect.OracleDialect
+          ddl-auto: none
           show-sql: true
           # 2026-05-15 §6-6 후속 — caravan EMF 의 SchemaValidator 가 case-sensitive 매칭 → cactus
           # 의 SnakePhysicalNamingStrategy (lowercase) 와 caravan 의 standard naming (uppercase)
           # 충돌 회피. extras EMF 만 standard 로 override.
           properties:
             hibernate.physical_naming_strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+            hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
+            hibernate.type.preferred_boolean_jdbc_type: TINYINT
       caravan:
         hibernate:
-          dialect: com.dongkuk.dmes.mcm.config.CactusSqliteIfNotExistsDialect
-          ddl-auto: update
+          dialect: org.hibernate.dialect.OracleDialect
+          ddl-auto: none       # 표는 caravan-hub(CARAVANUSER 주인) Flyway 가 만든다
           show-sql: true
           properties:
             hibernate.physical_naming_strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+            hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
+            hibernate.type.preferred_boolean_jdbc_type: TINYINT
 
 # ── 권한 캐시 즉시 무효화 (RoleChangedEventListener → BFF) ──
 # 2026-09-04 — 옛 코드 기본값이 3000 인데 본 저장소의 포털(m-mcm)은 5100 이라 매 권한 변경마다

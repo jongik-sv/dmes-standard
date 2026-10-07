@@ -1,6 +1,5 @@
 package com.dongkuk.dmes.mcm.init.seed;
 
-import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import jakarta.persistence.EntityManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,27 +22,23 @@ public class SeedSupport {
 
     // ── 공통 audit 9 컬럼 fragment (모든 seed INSERT 동일 — McmAuditEntity 정합) ──
     // 사용 패턴: 컬럼 list 에 AUDIT_COLS 추가 + VALUES 에 AUDIT_VALS 추가.
-    // C_USR_ID='admin' / C_AT=SYSDATETIME() / C_SVC_ID='DataInitializer' / C_PGM_ID='DataInitializer' /
-    // U_USR_ID='admin' / U_AT=SYSDATETIME() / U_SVC_ID='DataInitializer' / U_PGM_ID='DataInitializer' / VER=0
+    // C_USR_ID='admin' / C_AT=SYSTIMESTAMP / C_SVC_ID='DataInitializer' / C_PGM_ID='DataInitializer' /
+    // U_USR_ID='admin' / U_AT=SYSTIMESTAMP / U_SVC_ID='DataInitializer' / U_PGM_ID='DataInitializer' / VER=0
     // 분할 전에는 같은 값을 메서드마다 지역 상수로 25번 반복했다.
     protected static final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
-    protected static final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
-                                             + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
+    protected static final String AUDIT_VALS = ", 'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', "
+                                             + "'admin', SYSTIMESTAMP, 'DataInitializer', 'DataInitializer', 0";
 
     // mcm default EMF 의 EntityManager — DataInitializer 가 @PersistenceContext(unitName="default") 로 받은 것.
     protected final EntityManager entityManager;
 
-    // 런타임 DB 방언 — SQLite(개발자 Mac local 단독 부팅) 여부. DataInitializer.run() 초입에서 1회 감지한 값.
-    protected final boolean sqliteDialect;
-
-    public SeedSupport(EntityManager entityManager, boolean sqliteDialect) {
+    public SeedSupport(EntityManager entityManager) {
         this.entityManager = entityManager;
-        this.sqliteDialect = sqliteDialect;
     }
 
     /** 단계 클래스가 같은 문맥을 물려받을 때 쓴다. */
     protected SeedSupport(SeedSupport support) {
-        this(support.entityManager, support.sqliteDialect);
+        this(support.entityManager);
     }
 
     /**
@@ -104,9 +99,9 @@ public class SeedSupport {
      *   <li>MENU_TP = 'WEB'</li>
      *   <li>USE_TP = 'Y'</li>
      *   <li>MENU_VIEW_YN = 'Y' (숨김 leaf 는 7-인자 오버로드로 'N' 지정)</li>
-     *   <li>START_ACTIVE_DATE = SYSDATETIME()</li>
-     *   <li>END_ACTIVE_DATE = '9999-12-31 23:59:59'</li>
-     *   <li>audit 9 컬럼 = 'admin' / SYSDATETIME() / 'DataInitializer' / 'DataInitializer' / ... / 0</li>
+     *   <li>START_ACTIVE_DATE = SYSTIMESTAMP</li>
+     *   <li>END_ACTIVE_DATE = TIMESTAMP '9999-12-31 23:59:59'</li>
+     *   <li>audit 9 컬럼 = 'admin' / SYSTIMESTAMP / 'DataInitializer' / 'DataInitializer' / ... / 0</li>
      * </ul>
      *
      * @param menuId       MENU_ID (PK#1) — VARCHAR(30)
@@ -160,7 +155,7 @@ public class SeedSupport {
                 " START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID" + AUDIT_COLS + ") " +
                 "VALUES ('" + escapeSql(menuId) + "', '" + escapeSql(seq8) + "', '" + escapeSql(fullSeq) + "', " +
                 "N'" + escapeSql(menuNm) + "', 'WEB', " + objectLit + ", 'Y', " +
-                "SYSDATETIME(), '9999-12-31 23:59:59', '" + viewLit + "', " + parentLit + AUDIT_VALS + ")");
+                "SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', '" + viewLit + "', " + parentLit + AUDIT_VALS + ")");
     }
 
     /**
@@ -173,8 +168,6 @@ public class SeedSupport {
      *
      * <p>값이 이미 목표와 같으면 UPDATE 영향 0 (멱등 · 신규 클린 DB 무영향). 사용자가 commMenuMng 에서
      * 표시 여부를 편집할 수 있는 값이므로 <b>대상 menuId 를 명시한 것만</b> 정정한다 — 일괄 정정 금지.
-     *
-     * <p>SQLite 에서는 McmAuditStatementInspector 가 {@code MCMAPUSER.} schema 접두를 제거하므로 동일 SQL 로 동작.
      *
      * @param menuId TB_MCM_SEC_MENU.MENU_ID (leaf). 없는 행이면 0 행 (무해).
      * @param viewYn 목표 MENU_VIEW_YN — 'Y'/'N'. 그 외는 {@link #normalizeViewYn} 이 'Y' 로 폴백.
@@ -211,8 +204,6 @@ public class SeedSupport {
      *
      * <p><b>주의</b> — {@link #applyR3FullSeqEncoding()} 도 자기 배열의 행에 대해 PARENT_MENU_ID 를
      * 무조건 덮어쓴다. 두 곳의 목표 부모가 어긋나면 부팅마다 값이 왕복하므로 반드시 함께 고쳐야 한다.
-     *
-     * <p>SQLite 에서는 McmAuditStatementInspector 가 {@code MCMAPUSER.} schema 접두를 제거하므로 동일 SQL 로 동작.
      *
      * @param menuId       TB_MCM_SEC_MENU.MENU_ID (leaf). 없는 행이면 0 행 (무해).
      * @param parentMenuId 목표 PARENT_MENU_ID — TB_MCM_SEC_MENU_FLD.MENU_ID (그룹 폴더).
@@ -283,7 +274,7 @@ public class SeedSupport {
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ " +
                 "(OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
                 "VALUES ('" + escapeSql(objectId) + "', N'" + escapeSql(objectNm) + "', " +
-                "'" + escapeSql(systemCode) + "', 'web', 'Y', N'내부', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "'" + escapeSql(systemCode) + "', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
     }
 
     /**
@@ -316,7 +307,7 @@ public class SeedSupport {
         if (!normalized.equals(String.valueOf(rows.get(0) == null ? "" : rows.get(0)))) {
             int updated = nq(
                     "UPDATE MCMAPUSER.TB_MCM_SEC_PERM "
-                            + "SET PERMISSION_ACTION = :actions, U_USR_ID = 'admin', U_AT = SYSDATETIME() "
+                            + "SET PERMISSION_ACTION = :actions, U_USR_ID = 'admin', U_AT = SYSTIMESTAMP "
                             + "WHERE PERMISSION_ID = :permissionId")
                     .setParameter("actions", normalized)
                     .setParameter("permissionId", permissionId)
@@ -347,28 +338,10 @@ public class SeedSupport {
     }
 
     /**
-     * SQLite 일 때만 시드 native SQL 의 MSSQL 전용 토큰을 SQLite 호환으로 치환. MSSQL/dev/prod 는 원문 그대로 (no-op).
-     * <ul>
-     *   <li>{@code MCMAPUSER.} schema 접두 제거 — SQLite 는 schema 미지원(ddl-auto 도 schema 무시하고 단일 테이블 생성)</li>
-     *   <li>{@code SYSDATETIME()} → {@code CURRENT_TIMESTAMP}</li>
-     *   <li>{@code N'...'} 유니코드 리터럴 prefix 제거 — SQLite 는 N prefix 미지원.
-     *       {@link McmAuditStatementInspector#stripUnicodeLiteralPrefix} 재사용(2026-08-07).
-     *       구 정규식 {@code replaceAll("(?<![A-Za-z0-9_])N'", "'")} 은 <b>값 {@code 'N'} 자체를
-     *       {@code ''} 로 바꿔버려</b> {@code SET USE_TP = 'N'} 시드가 빈 문자열을 적재했고,
-     *       그 빈 값이 commMenuMng 조회·저장 전체를 죽이는 원인이 됐다.</li>
-     * </ul>
+     * native query 생성 공통 진입점. 2026-10-07 oracle-1007 — 시드 SQL 은 Oracle 문법 원문 그대로 실행한다
+     * (옛 SQLite 치환 sanitize 는 archive 와 함께 걷어냈다).
      */
-    protected String sanitize(String sql) {
-        if (!sqliteDialect) {
-            return sql;
-        }
-        return McmAuditStatementInspector.stripUnicodeLiteralPrefix(
-                sql.replace("MCMAPUSER.", "")
-                   .replace("SYSDATETIME()", "CURRENT_TIMESTAMP"));
-    }
-
-    /** native query 생성 공통 진입점 — SQLite 면 sanitize 후 실행, MSSQL 은 원문(no-op). */
     protected jakarta.persistence.Query nq(String sql) {
-        return entityManager.createNativeQuery(sanitize(sql));
+        return entityManager.createNativeQuery(sql);
     }
 }

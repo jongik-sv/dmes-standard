@@ -32,7 +32,6 @@ public final class MenuFinalizer extends SeedSupport {
      * 건드리지 않는다. 값이 이미 맞으면 UPDATE 영향 0 (멱등 · 신규 클린 DB 무영향). 본 메서드 직후
      * {@code recomputeMenuFullSeq()} 가 정정된 MENU_SEQ 기준으로 FULL_SEQ 를 재부여한다.
      *
-     * <p>SQLite 에서는 McmAuditStatementInspector 가 {@code MCMAPUSER.} schema 접두를 제거하므로 동일 SQL 로 동작.
      */
     public void fixModuleRootMenuSeqOrder() {
         int n = 0;

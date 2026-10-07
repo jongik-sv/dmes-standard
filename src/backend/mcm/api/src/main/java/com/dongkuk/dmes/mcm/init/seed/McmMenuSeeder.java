@@ -396,7 +396,7 @@ public final class McmMenuSeeder extends SeedSupport {
                 "INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO " +
                 "(DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
                 "VALUES ('DEPT_001', N'경영지원본부', 'Management Support HQ', NULL, 'Y', " +
-                "SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
 
         // DEPT_002 — 정보기술팀 (UPPER = DEPT_001)
         insertIfAbsent(
@@ -404,7 +404,7 @@ public final class McmMenuSeeder extends SeedSupport {
                 "INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO " +
                 "(DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
                 "VALUES ('DEPT_002', N'정보기술팀', 'IT Team', 'DEPT_001', 'Y', " +
-                "SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
 
         // DEPT_003 — 생산관리팀 (UPPER = DEPT_001)
         insertIfAbsent(
@@ -412,7 +412,7 @@ public final class McmMenuSeeder extends SeedSupport {
                 "INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO " +
                 "(DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
                 "VALUES ('DEPT_003', N'생산관리팀', 'Production Mgmt Team', 'DEPT_001', 'Y', " +
-                "SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
 
         // 2026-06-04 — 사용자 결정: Detail LoV 모달 확인을 위해 추가 부서 4 row 시드.
         // DEPT_004 ~ DEPT_007 — 인사팀 / 재무팀 / 영업1팀 / 영업2팀 / 품질관리팀.
@@ -424,7 +424,7 @@ public final class McmMenuSeeder extends SeedSupport {
                 "INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO " +
                 "(DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
                 "VALUES ('DEPT_004', N'인사팀', 'HR Team', 'DEPT_001', 'Y', " +
-                "SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
 
         // DEPT_005 — 재무팀
         insertIfAbsent(
@@ -432,7 +432,7 @@ public final class McmMenuSeeder extends SeedSupport {
                 "INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO " +
                 "(DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
                 "VALUES ('DEPT_005', N'재무팀', 'Finance Team', 'DEPT_001', 'Y', " +
-                "SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
 
         // DEPT_006 — 영업1팀
         insertIfAbsent(
@@ -440,7 +440,7 @@ public final class McmMenuSeeder extends SeedSupport {
                 "INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO " +
                 "(DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
                 "VALUES ('DEPT_006', N'영업1팀', 'Sales Team 1', 'DEPT_001', 'Y', " +
-                "SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
 
         // DEPT_007 — 품질관리팀
         insertIfAbsent(
@@ -448,6 +448,6 @@ public final class McmMenuSeeder extends SeedSupport {
                 "INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO " +
                 "(DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
                 "VALUES ('DEPT_007', N'품질관리팀', 'Quality Mgmt Team', 'DEPT_001', 'Y', " +
-                "SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
     }
 }
