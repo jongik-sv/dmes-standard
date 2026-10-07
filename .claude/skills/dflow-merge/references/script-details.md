@@ -9,6 +9,11 @@ SKILL.md 「결정 번호 매김」·「마이그레이션 버전 관문」 의 
 는 D-001 부터 끊김 없는 순번을 요구한다. 번호는 개발 브랜치에 들어가는 순서로만 정해진다. `decision-log.mjs` 의 형식·validate 는
 바꾸지 않는다(`Temp ID`·`Renumbered from` 은 선택 필드로 읽힌다).
 
+- **머리 줄 규칙·잠금**: 항목 머리는 `decision-log.mjs` 와 같게 `## D-<숫자> (<시각>)` 뒤에 공백만 있고 줄이 끝나는 줄뿐이다(스크립트의
+  `HEAD_ERE`). `## D-002 (ts) 비고` 처럼 글이 더 붙은 줄은 머리가 아니라 앞 항목의 본문이다. 두 스크립트가 `decisions.md` 를 읽고 고쳐 쓰는
+  동안에는 `decisions.md.lock` 디렉터리(mkdir 잠금, 15초 안에 못 잡으면 `RENUMBER_FAILED lock`·`DECISIONS_LEFT <파일> lock`,
+  1분 넘게 남은 잠금은 치움)를 잡는다. `decision-log.mjs append` 가 같은 잠금을 쓰므로 동시에 쓰는 항목이 사라지지 않는다.
+
 - **충돌 풀기**(`merge-conflicts`): 결과는 개발 브랜치 쪽 파일 전체 뒤에, 머지 대상이 merge-base 에 없던 블록을 그 순서대로
   붙인 것이다. 머지 대상이 기존 블록을 고쳤거나(추가만 하는 기록의 위반) 한쪽이 파일을 지웠으면 풀지 않고 `DECISIONS_LEFT` 로
   둔다.

@@ -14,7 +14,11 @@
 // Phase 화이트리스트:
 //   design | build | test | refactor | wbs | feat-intake | prd-resolve | dev-team-merge | wbs-resolve
 //
-// 종료 코드: append 성공 0 · 입력 오류(빈 필드) 2 · list 0 · validate ok 0 / 위반 1 · 인자 오류 2.
+// 종료 코드: append 성공 0 · 입력 오류(빈 필드) 2 · 잠금 시간 초과 1 · list 0 · validate ok 0 / 위반 1 · 인자 오류 2.
+//
+// 머리 줄 규칙(정본): `## D-<숫자> (<시각>)` 뒤에 공백만 있고 줄이 끝나는 줄만 항목 머리다(ENTRY_RE).
+//   `## D-002 (ts) 비고` 처럼 뒤에 글이 더 붙은 줄은 머리가 아니다. dflow-merge/scripts/decisions.sh 의 HEAD_ERE 가 같은 규칙을 쓴다
+//   (tests/decision-head-parity.test.mjs 가 두 규칙이 어긋나지 않는지 표로 확인한다).
 //
 // python 판과 같은 점: decisions.md 형식(머리글·`## D-NNN (UTC 시각)` 블록)·출력 JSON·종료 코드를 바이트까지 맞췄다.
 //   python 판이 쓴 파일을 이 판이 읽고, 이 판이 쓴 파일을 python 판이 읽어도 같은 결과다(tests/decision-log.test.mjs 의 교차 시험).
@@ -80,6 +84,73 @@ export function decisions_path_of(target) {
 /** UTF-8 + LF 강제 쓰기. */
 export function _write(file, content) {
   fs.writeFileSync(file, content, 'utf8');
+}
+
+// ---------------------------------------------------------------------------
+// 파일 잠금 — 두 프로세스가 동시에 append 하면 번호가 겹치거나 항목이 사라지므로 읽기~쓰기를 한 번에 잠근다.
+// 잠금 = decisions.md 옆의 `decisions.md.lock` 디렉터리. mkdir 은 POSIX·윈도우(Git Bash 포함) 모두 원자적이다.
+// dflow-merge/scripts/decisions.sh 가 같은 이름의 디렉터리를 같은 방식으로 잡으므로 둘이 서로를 기다린다.
+// 죽은 프로세스가 남긴 잠금은 mtime 이 LOCK_STALE_MS 보다 오래되면 치운다(치우기도 rename 으로 한 프로세스만 성공한다).
+// ---------------------------------------------------------------------------
+
+export const LOCK_STALE_MS = 60_000;
+export const LOCK_TIMEOUT_MS = 15_000;
+const LOCK_BUSY_CODES = new Set(['EEXIST', 'EPERM', 'EBUSY', 'EACCES']); // 윈도우는 지우는 중인 디렉터리에 EPERM 을 낸다
+
+/** 잠금을 제한 시간 안에 잡지 못했다. */
+export class LockError extends Error {}
+
+function sleepMs(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function breakStaleLock(lock_path, stale_ms) {
+  let st;
+  try {
+    st = fs.statSync(lock_path);
+  } catch {
+    return;
+  }
+  if (Date.now() - st.mtimeMs < stale_ms) return;
+  const grave = `${lock_path}.stale.${process.pid}.${Date.now()}`;
+  try {
+    fs.renameSync(lock_path, grave); // 둘이 동시에 치우려 해도 rename 은 하나만 성공한다
+  } catch {
+    return;
+  }
+  try {
+    // 확인과 rename 사이에 다른 프로세스가 새로 잡은 잠금을 가져왔다면 되돌린다
+    if (Date.now() - fs.statSync(grave).mtimeMs < stale_ms) fs.renameSync(grave, lock_path);
+    else fs.rmdirSync(grave);
+  } catch {
+    // 이미 사라졌으면 그대로 둔다
+  }
+}
+
+/** 잠금을 잡고 해제 함수를 돌려준다. 제한 시간을 넘기면 LockError. */
+export function acquire_lock(lock_path, { timeout_ms = LOCK_TIMEOUT_MS, stale_ms = LOCK_STALE_MS } = {}) {
+  const deadline = Date.now() + timeout_ms;
+  let wait = 5;
+  let last = 'EEXIST';
+  for (;;) {
+    try {
+      fs.mkdirSync(lock_path);
+      return () => {
+        try {
+          fs.rmdirSync(lock_path);
+        } catch {
+          // 이미 치워졌으면 그대로 둔다
+        }
+      };
+    } catch (e) {
+      if (!LOCK_BUSY_CODES.has(e.code)) throw e;
+      last = e.code;
+    }
+    breakStaleLock(lock_path, stale_ms);
+    if (Date.now() >= deadline) throw new LockError(`lock busy (${last}): ${lock_path}`);
+    sleepMs(wait);
+    wait = Math.min(wait * 2, 100);
+  }
 }
 
 /** UTC ISO-8601 timestamp, second precision, with trailing 'Z'. */
@@ -216,27 +287,33 @@ export function append_decision(
   const label = scope_label || _scope_label_from_dir(target);
   const ts = timestamp || _utc_iso();
 
-  let next_id;
-  let new_content;
-  if (fs.existsSync(decisions_path)) {
-    let existing = py_read_text(decisions_path);
-    const entries = _parse_entries(existing);
-    next_id = _next_id(entries);
-    const entry_block = _format_entry(next_id, ts, phase, decision_needed, decision_made, rationale, reversible, source);
-    if (!existing.endsWith('\n')) existing += '\n';
-    new_content = `${existing}\n${entry_block}`;
-  } else {
-    next_id = 1;
-    const header =
-      `# Decisions Log — ${label}\n\n` +
-      '> Append-only audit trail of autonomous decisions made during DDTR/feat/wbs cycles.\n' +
-      '> Edit prior entries forbidden — record reversals as new entries instead.\n\n';
-    const entry_block = _format_entry(next_id, ts, phase, decision_needed, decision_made, rationale, reversible, source);
-    new_content = header + entry_block;
-  }
+  // 번호 매기기(읽기)부터 쓰기까지를 잠가야 동시에 실행된 append 가 같은 번호를 고르지 않는다.
+  const release = acquire_lock(`${decisions_path}.lock`);
+  try {
+    let next_id;
+    let new_content;
+    if (fs.existsSync(decisions_path)) {
+      let existing = py_read_text(decisions_path);
+      const entries = _parse_entries(existing);
+      next_id = _next_id(entries);
+      const entry_block = _format_entry(next_id, ts, phase, decision_needed, decision_made, rationale, reversible, source);
+      if (!existing.endsWith('\n')) existing += '\n';
+      new_content = `${existing}\n${entry_block}`;
+    } else {
+      next_id = 1;
+      const header =
+        `# Decisions Log — ${label}\n\n` +
+        '> Append-only audit trail of autonomous decisions made during DDTR/feat/wbs cycles.\n' +
+        '> Edit prior entries forbidden — record reversals as new entries instead.\n\n';
+      const entry_block = _format_entry(next_id, ts, phase, decision_needed, decision_made, rationale, reversible, source);
+      new_content = header + entry_block;
+    }
 
-  _write(decisions_path, new_content);
-  return { id: next_id, timestamp: ts, path: decisions_path };
+    _write(decisions_path, new_content);
+    return { id: next_id, timestamp: ts, path: decisions_path };
+  } finally {
+    release();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -343,6 +420,10 @@ export function main(argv = process.argv.slice(2)) {
         v['scope-label'] ?? null,
       );
     } catch (e) {
+      if (e instanceof LockError) {
+        process.stderr.write(`${pyJsonDumps({ ok: false, error: e.message })}\n`);
+        return VIOLATION;
+      }
       if (!(e instanceof ValueError)) throw e;
       process.stderr.write(`${pyJsonDumps({ ok: false, error: e.message })}\n`);
       return USAGE;

@@ -49,10 +49,35 @@ cd "$dir" 2>/dev/null || { echo "$ERR cd $dir"; exit 1; }
 top=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "$ERR not-a-repo"; exit 1; }
 cd "$top" || exit 1
 tmp=$(mktemp -d 2>/dev/null || mktemp -d -t dflowdec) || { echo "$ERR mktemp"; exit 1; }
-trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+
+# 파일 잠금 — dflow-wbs/scripts/decision-log.mjs append 와 같은 잠금이다(`<decisions.md>.lock` 디렉터리, mkdir 은 원자적이라
+# 윈도우 Git Bash 에서도 된다). 한쪽이 읽고 고쳐 쓰는 사이에 다른 쪽이 append 하면 그 항목이 사라지므로 서로 기다린다.
+# 오래(1분 넘게) 남은 잠금은 죽은 프로세스의 것으로 보고 치운다. 잡은 잠금은 $tmp/locks 에 적어 두었다가 끝날 때 푼다.
+dlock() {
+  l="$1.lock"; n=0
+  while ! mkdir "$l" 2>/dev/null; do
+    if [ -n "$(find "$l" -maxdepth 0 -type d -mmin +1 2>/dev/null)" ]; then
+      g="$l.stale.$$.$n"; mv "$l" "$g" 2>/dev/null && rmdir "$g" 2>/dev/null
+    fi
+    n=$((n + 1)); [ "$n" -le 75 ] || return 1   # 약 15초
+    sleep 0.2 2>/dev/null || sleep 1
+  done
+  printf '%s\n' "$l" >> "$tmp/locks"
+}
+dunlock() { rmdir "$1.lock" 2>/dev/null; return 0; }
+release_locks() {
+  [ -f "$tmp/locks" ] || return 0
+  while IFS= read -r l; do rmdir "$l" 2>/dev/null; done < "$tmp/locks"
+  : > "$tmp/locks"
+}
+trap 'release_locks; rm -rf "$tmp"' EXIT HUP INT TERM
 
 is_decisions() { case "$1" in decisions.md|*/decisions.md) return 0 ;; esac; return 1; }
 TEMP_RE='D-TSK(-[0-9]+)+'
+# 결정 항목 머리 줄의 정본 규칙 — decision-log.mjs 의 ENTRY_RE 와 같다: `## D-<숫자> (<시각>)` 뒤에 공백만 있고 줄이 끝나야 한다.
+# `## D-002 (ts) 비고` 처럼 뒤에 글이 붙은 줄은 머리가 아니다(validate 가 그 줄을 항목으로 세지 않으므로 번호 매김도 세지 않는다).
+# awk 에는 -v HRE="$HEAD_ERE" 로 넘긴다(백슬래시를 쓰지 않아 -v 의 이스케이프 처리에 걸리지 않는다).
+HEAD_ERE='^## D-[0-9]+ [(][^)]+[)][[:space:]]*$'
 
 # ---------------------------------------------------------------------------------------------------------------
 if [ "$cmd" = merge-conflicts ]; then
@@ -95,8 +120,10 @@ if [ "$cmd" = merge-conflicts ]; then
     if [ -s "$tmp/flag" ]; then echo "DECISIONS_LEFT $p edited-existing-block"; rm -f "$tmp/flag"; continue; fi
     [ -f "$tmp/merged" ] || : > "$tmp/merged"
     # 우리 쪽 끝이 줄바꿈이 아니면 하나 붙인 뒤 새 블록을 잇는다
+    dlock "$p" || { echo "DECISIONS_LEFT $p lock"; rm -f "$tmp/merged"; continue; }
     { cat "$tmp/ours"; [ -z "$(tail -c 1 "$tmp/ours")" ] || printf '\n'; cat "$tmp/merged"; } > "$p" \
       && git add -- "$p" && echo "DECISIONS_RESOLVED $p" || echo "DECISIONS_LEFT $p write"
+    dunlock "$p"
     rm -f "$tmp/merged"
   done < "$tmp/u"
   exit 0
@@ -115,6 +142,10 @@ while IFS= read -r p; do
   case "$p" in .claude/*) continue ;; esac   # 스킬 폴더는 결정 기록이 아니다(아래 참조 치환과 같은 제외)
   is_decisions "$p" && [ -f "$p" ] && printf '%s\n' "$p" >> "$tmp/dfiles"
 done < "$tmp/all"
+# 결정 기록은 읽기부터 고쳐 쓰기까지 잠근다(append 와 겹치지 않게). 끝날 때 trap 이 푼다.
+while IFS= read -r p; do
+  dlock "$p" || { echo "RENUMBER_FAILED lock $p"; exit 1; }
+done < "$tmp/dfiles"
 
 # 실패하면 자기가 고친 파일을 HEAD 판으로 되돌리고 끝낸다(시작할 때 트리가 깨끗했으므로 안전하다). 호출자는 머지를
 # 막지 않고 다음 단계로 가므로, 반쯤 고친 파일이 state.json 커밋에 섞이면 안 된다. 0단계(중복 번호)도 이 목록에 싣는다.
@@ -142,9 +173,8 @@ if git rev-parse -q --verify 'HEAD^2' >/dev/null 2>&1; then
   MB=$(git merge-base "$P1" "$P2" 2>/dev/null | head -n 1)
   git diff --name-only "$P1" HEAD > "$tmp/mfiles" 2>/dev/null || :
 fi
-GH_RE='^## D-[0-9]+ \('
 while IFS= read -r p; do
-  awk '/^## D-[0-9]+ \(/ { n = substr($0, 6); sub(/[^0-9].*$/, "", n); c[n + 0]++ }
+  awk -v HRE="$HEAD_ERE" '$0 ~ HRE { n = substr($0, 6); sub(/[^0-9].*$/, "", n); c[n + 0]++ }
        END { for (k in c) if (c[k] > 1) printf "D-%03d\n", k }' "$p" | LC_ALL=C sort > "$tmp/dupn"
   [ -s "$tmp/dupn" ] || continue
   if [ -z "$P2" ] || [ -z "$MB" ]; then
@@ -155,12 +185,12 @@ while IFS= read -r p; do
   git show "$P1:$p" > "$tmp/v1" 2>/dev/null || : > "$tmp/v1"
   git show "$P2:$p" > "$tmp/v2" 2>/dev/null || : > "$tmp/v2"
   git show "$MB:$p" > "$tmp/vb" 2>/dev/null || : > "$tmp/vb"
-  for v in v1 v2 vb; do grep -E "$GH_RE" "$tmp/$v" | LC_ALL=C sort -u > "$tmp/h$v"; done
+  for v in v1 v2 vb; do grep -E "$HEAD_ERE" "$tmp/$v" | LC_ALL=C sort -u > "$tmp/h$v"; done
   LC_ALL=C comm -23 "$tmp/hv2" "$tmp/hvb" | LC_ALL=C comm -23 - "$tmp/hv1" > "$tmp/hin"   # 머지 대상이 더한 머리
   # 두 번 읽는다. 1차: 블록 목록·최대 번호·번호별 개수 → 옮길 블록과 새 번호를 정한다. 2차: 다시 쓴다.
   # 머지 대상 블록(옮긴 것·안 옮긴 것 모두)의 본문 참조는 옮긴 번호로 바꾼다 — 머지 대상은 merge-base 뒤 개발 브랜치가
   # 더한 같은 번호를 알 수 없었으므로 그 블록 속 참조는 자기 쪽 결정이다. 개발 브랜치 블록은 한 바이트도 바꾸지 않는다.
-  awk -v HIN="$tmp/hin" -v F="$p" -v MAP="$tmp/dupmap" -v OUT="$tmp/out" '
+  awk -v HRE="$HEAD_ERE" -v HIN="$tmp/hin" -v F="$p" -v MAP="$tmp/dupmap" -v OUT="$tmp/out" '
     function num(h,   n) { n = substr(h, 6); sub(/[^0-9].*$/, "", n); return n + 0 }
     function tokof(h,   t) { t = substr(h, 4); sub(/ .*$/, "", t); return t }
     function subst(line,   s, out, tok, pre, prev) {
@@ -177,7 +207,7 @@ while IFS= read -r p; do
     FNR == 1 { pass++ }
     pass == 1 {
       if ($0 ~ /^## /) {
-        ns++; hd[ns] = $0; gl[ns] = ($0 ~ /^## D-[0-9]+ \(/)
+        ns++; hd[ns] = $0; gl[ns] = ($0 ~ HRE)
         if (gl[ns]) { n = num($0); if (n > max) max = n; cnt[n]++; if (!($0 in inc)) dev[n]++ }
       }
       next
@@ -238,7 +268,7 @@ if [ -s "$tmp/dupmap" ]; then
   while IFS= read -r f; do
     case "$f" in .claude/*) continue ;; esac
     is_decisions "$f" && [ -f "$f" ] && ! grep -qxF -- "$f" "$tmp/dupf" || continue
-    awk '/^## D-[0-9]+ \(/ { n = substr($0, 6); sub(/[^0-9].*$/, "", n); print n + 0 }' "$f" >> "$tmp/othernums"
+    awk -v HRE="$HEAD_ERE" '$0 ~ HRE { n = substr($0, 6); sub(/[^0-9].*$/, "", n); print n + 0 }' "$f" >> "$tmp/othernums"
   done < "$tmp/bfiles"
   awk -F '\t' -v O="$tmp/othernums" '
     BEGIN { while ((getline l < O) > 0) on[l + 0] = 1 }
@@ -254,13 +284,13 @@ if [ -s "$tmp/dupmap" ]; then
     elif grep -qxF -- "$f" "$tmp/devf"; then why=dev-changed
     fi
     git show "$MB:$f" > "$tmp/fb" 2>/dev/null || : > "$tmp/fb"
-    awk -v TOKS="$tmp/toks" -v BASEF="$tmp/fb" -v WHY="$why" -v F="$f" -v OUT="$tmp/out" -v REP="$tmp/rep" '
+    awk -v HRE="$HEAD_ERE" -v TOKS="$tmp/toks" -v BASEF="$tmp/fb" -v WHY="$why" -v F="$f" -v OUT="$tmp/out" -v REP="$tmp/rep" '
       BEGIN {
         while ((getline l < TOKS) > 0) { split(l, a, "\t"); to[a[1]] = a[2] }
         while ((getline l < BASEF) > 0) { s = l; while (match(s, /D-[0-9]+/)) { t = substr(s, RSTART, RLENGTH); if (t in to) inb[t] = 1; s = substr(s, RSTART + RLENGTH) } }
         o = ""; done = ""
       }
-      /^## D-[0-9]+ \(/ { print > OUT; next }   # 다른 결정 기록의 자기 머리 줄은 참조가 아니다
+      $0 ~ HRE { print > OUT; next }   # 다른 결정 기록의 자기 머리 줄은 참조가 아니다
       {
         s = $0; out = ""
         while (match(s, /D-[0-9]+/)) {
@@ -285,9 +315,9 @@ fi
 # 1) 수집: NEW<TAB>파일<TAB>임시ID (머리 순서대로) · OLD<TAB>임시ID<TAB>D-NNN (이미 매긴 것의 Temp ID 줄) · MAX<TAB>파일<TAB>n
 : > "$tmp/scan"
 while IFS= read -r p; do
-  awk -v F="$p" '
+  awk -v HRE="$HEAD_ERE" -v F="$p" '
     BEGIN { max = 0; cur = "" }
-    /^## D-[0-9]+ \(/ { n = substr($0, 6); sub(/[^0-9].*$/, "", n); n += 0; if (n > max) max = n; cur = sprintf("D-%03d", n); next }
+    $0 ~ HRE { n = substr($0, 6); sub(/[^0-9].*$/, "", n); n += 0; if (n > max) max = n; cur = sprintf("D-%03d", n); next }
     /^## D-TSK(-[0-9]+)+( |$)/ { id = $2; print "NEW\t" F "\t" id; cur = ""; next }
     /^## / { cur = ""; next }
     /^- \*\*Temp ID\*\*:[ ]*D-TSK(-[0-9]+)+[ ]*$/ { if (cur != "") { id = $0; sub(/^- \*\*Temp ID\*\*:[ ]*/, "", id); sub(/[ ]*$/, "", id); print "OLD\t" id "\t" cur } ; next }
@@ -366,7 +396,7 @@ cat "$tmp/mfiles" "$tmp/changed.u" | sort -u > "$tmp/seqf"
 while IFS= read -r p; do
   case "$p" in .claude/*) continue ;; esac
   is_decisions "$p" && [ -f "$p" ] || continue
-  awk -v F="$p" '/^## D-[0-9]+ \(/ { i++; n = substr($0, 6); sub(/[^0-9].*$/, "", n); n += 0
+  awk -v HRE="$HEAD_ERE" -v F="$p" '$0 ~ HRE { i++; n = substr($0, 6); sub(/[^0-9].*$/, "", n); n += 0
       if (n != i) { printf "DECISIONS_SEQ %s at=%d found=D-%03d want=D-%03d\n", F, i, n, i; exit } }' "$p"
 done < "$tmp/seqf"
 
