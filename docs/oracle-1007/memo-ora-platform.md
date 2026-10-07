@@ -3,16 +3,27 @@
 - 레인: ora-platform / 브랜치 `feat/ora-platform` / 워크트리 `/Users/jji/project/dmes-wt/ora-platform` (기준 dev b7c91cd6e)
 - 조정 세션: dmes-standard-d8 (지시 ora-platform-1, 정본 지시문 `/Users/jji/.coord/oracle-1007/lanes/ora-platform/brief.md`)
 
-## 지금 상태 (2026-10-07)
+## 지금 상태 (2026-10-07 18:30, Oracle 동결 중)
 
 | 항목 | 상태 | 비고 |
 |---|---|---|
-| p1 caravan 스키마 기준선 | 초안 작성 | `docs/oracle-1007/draft/caravan/{caravanuser,ifuser}/` |
-| p3 샘플 모듈 | 초안 작성 | `docs/oracle-1007/draft/{mls,mpp,mqc,mpn,aps-core}/V1__baseline.sql` |
-| p2 caravan-hub·console·core 전환 | 대기 | ora-base 머지① 뒤 |
-| p5 H2 시험 전환 | 대기 | ora-base b4 뒤 |
-| p4 cactus-core SQLite 제거 | 대기 | ora-mdm·mcm 머지②·③ 뒤 |
+| p1 caravan 기준선 | 코드 완료·시험 대기 | `caravan-hub/src/main/resources/db/migration/{caravanuser,ifuser}`. CARAVANUSER Flyway 는 시험 PDB 에서 통과, IFUSER V1 주석의 달러 중괄호가 Flyway 자리표시자로 해석되던 결함은 70379f8c5 로 고침(재시험 전) |
+| p3 샘플 모듈 | 코드 완료·시험 대기 | SQL archive 이동·yml·lib build.gradle·MlsTestDb(ed6426fba·67145c31a·fb15b4f95). 컴파일 통과, Oracle 기동 시험 안 함 |
+| p2 caravan-hub·console·core | 코드 완료·시험 대기 | HubFlywayConfig·yml 5종·InterfaceMapper CLOB·TiberoDialectResolver·KafkaJpaConfig(2131f1a40·ed854f285·ea8166ebe), 빈 값 검증(28c47ca1b). `HubOracleBaselineTest` 가 통합 시험 |
+| p5 H2 시험 | 코드 완료·시험 미실행 | caravan-core h2 의존성 제거, oasis-core 시험 16개를 `OracleTestDatabase` 로 전환(f99be8b3b) |
+| p4 cactus-core SQLite 제거 | 대기 | ora-mdm·mcm 머지②·③ 뒤. `DmomMapper.xml` NEXT VALUE FOR 변경 포함 |
 | p6 전체 시험·머지 요청(④) | 대기 | |
+
+### Oracle 동결 처리
+- 조정자 동결(18:24, VM 메모리 고갈): 새 Oracle 명령 금지. hub 시험의 `pdb.mjs clone T_ORA_PLATFORM`(pid 75506)은 끊지 않고 끝나게 두었고, 그 gradle 데몬(34551)은 SIGSTOP 후 복제 종료 즉시 SIGKILL 한다(취소 정리의 drop 방지).
+- 재개 뒤 할 일(순서, 한 번에 하나): ① `T_ORA_PLATFORM` drop ② `HubOracleBaselineTest` 1회(`-Pdmes.ora.test=clone`) ③ oasis-core 시험 1회 ④ mls·mpp·mqc·mpn 기동·Flyway 확인.
+
+### oasis 전환에서 시험 실행 때 볼 것
+- Oracle 은 `int` 칸을 `BigDecimal` 로 돌려준다(H2 는 Integer). `PreStructuredMessageSendTaskServiceTest` 의 `getValue()).isEqualTo(1)` 등 기대값 불일치가 나면 시험 쪽을 맞춘다.
+- 여러 시험이 같은 스키마에서 `Employee`·`users` 표를 만들고 지운다. 시험 PDB 하나에서 병렬 실행하면 충돌하므로 forks=1 을 유지한다.
+- `OracleTestDatabase` 는 `dmes.ora.url` 시스템 속성이 필요해 `cactus-core` 합성 빌드(`-Pdmes.ora.test=clone`)에서만 값이 넘어온다. oasis 단독 빌드에서는 시작하지 못한다.
+- `META-INF/persistence.xml` 의 `local` 단위는 어느 시험도 쓰지 않으며 `jdbc:h2:`·`org.h2.Driver` 속성이 남아 있다(삭제 금지 규칙이라 그대로 둠, 정리는 사용자 승인 뒤).
+- `oasis-core/build.gradle` 은 `libs` 카탈로그를 쓰지 않아 `ojdbc11:23.9.0.25.07` 을 직접 적었다.
 
 ## 결정·가정
 
