@@ -105,3 +105,9 @@ PDB: 남긴 것은 `TPL_EMPTY`(봉인·autotask 꺼짐)와 `L_ORA_BASE`(닫힘, 
 - `pdb.mjs clone` 이 한 번 `SQL 실패(exit 1)` 로 끝났는데(L_SPIKE1, 같은 이름 PDB 는 만들어져 열려 있었다) 오류 본문을 보지 못했다. 다시 시험할 때 sqlplus 출력 전문을 남긴다.
 - 시드에서 템플릿을 만들 때 부하가 크면 `template-create` 가 수 분~십수 분 걸린다(다른 레인이 인스턴스를 쓸 때).
 - 삭제된 PDB 폴더가 빈 채 남는다(`rmdir` 로 치울 수 있고 해롭지 않다).
+
+## 마감(z1) 상태 (2026-10-07 23:4x)
+
+- 머지 완료: ⑤a ea999a602·⑤b fd700775c·⑤c ec40b8a37(dev). 조정자 스킬 5221544fd, dflow 스킬 main 47ab42884 도 반영됨.
+- 마감 SUMMARY: `docs/oracle-1007/SUMMARY.md`(머지 이력·성능 참고값·결정·결정 대기·운영 안내·후속·마감 확인). 전 모듈 Oracle 시험은 빌드 하나(①e 차례, clone)로 5분 16초, Oracle 을 쓰는 모듈은 통과(mdm api 3건은 OASIS 핸드셰이크 지연, 재실행 통과), 실패는 윈도우 로그 경로에 기대는 analog 83건뿐. VM available 최저 700MB.
+- 남은 일: SUMMARY 머지(조정자 허가), 삭제 승인 15항(`b8-approval-list.md`)·PDB 정리(SUMMARY §7.2)는 사용자 승인 뒤. 윈도우에서 `be-run.ps1` mcm 풀 값 확인, E2E 전체는 마감에서 재실행하지 않음.
