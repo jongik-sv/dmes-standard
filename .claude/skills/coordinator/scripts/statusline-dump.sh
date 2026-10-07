@@ -3,6 +3,7 @@
 #   `{at, session_id, context_window, rate_limits}` 를 <state_dir>/ctx/<session_id>.json 에 임시 파일 → mv 로 쓴다.
 #   환경 변수 COORD_STATUSLINE_NEXT 가 있으면 같은 stdin 을 그 명령(bash -c)에 넘겨 출력을 그대로 낸다(없으면 아무것도 안 냄).
 #   statusline 을 깨지 않도록 어떤 실패에도 exit 0. common.sh 는 하위 셸에서만 읽는다(그 안의 exit 가 여기까지 오지 않게).
+case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(CDPATH= cd -P -- "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
 set -uo pipefail
 
 in="$(cat 2>/dev/null)"

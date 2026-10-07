@@ -25,6 +25,7 @@
 #
 # 팀장 세션 PID: --pid, 없으면 CLAUDE_PID, 없으면 이 스크립트를 부른 셸의 부모다. 스크립트 안의 $PPID 는 Bash 도구의
 # 셸이지 팀장 세션이 아니므로 그대로 쓰지 않는다. Windows 는 전제 검사가 CLAUDE_PID 를 필수로 요구한다.
+case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(CDPATH= cd -P -- "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
 set -u
 
 usage() { echo "사용: wake.sh --owner <신원>/<host>/lead --slots <N> --busy <M> --until-label <표시> [--wp <WP 범위>] [--pid <PID>] [--no-events]" >&2; exit 2; }
