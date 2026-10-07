@@ -29,10 +29,10 @@ eq "screen-cache win: 없는 파일은 믿지 않는다" "$(trusted windows "$tm
 re="$(grep -o "grep -qiE '[^']*'" "$SD/auto-answer.sh" | head -1 | sed "s/^grep -qiE '//; s/'\$//")"
 [ -n "$re" ] || chk fail "auto-answer 거부 정규식을 찾지 못했다"
 denies() { if printf '%s' "$1" | grep -qiE "$re"; then echo deny; else echo pass; fi; }
-for c in "del foo.txt" "del /q /s build" "rd /s /q node_modules" "Remove-Item -Recurse x" "taskkill /F /PID 4" "Stop-Process -Id 3" "rm -rf x"; do
+for c in "del foo.txt" "del /q /s build" "rd /s /q node_modules" "Remove-Item -Recurse x" "taskkill /F /PID 4" "Stop-Process -Id 3" "rm -rf x" "Get-Process node | Stop-Process" "cmd /c del x.txt" "echo a; del x"; do
   eq "거부: $c" "$(denies "$c")" deny
 done
-for c in "git status" "cat model.txt" "ls -la" "node build.js" "echo medal" "pnpm test"; do
+for c in "grep -n \"del \" f" "sed s/rd /x/ f" "git commit -m \"RD 정리\"" "ls docs/rd " "git status" "cat model.txt" "ls -la" "node build.js" "echo medal" "pnpm test"; do
   eq "통과: $c" "$(denies "$c")" pass
 done
 
@@ -59,8 +59,18 @@ mkdir -p "$tmp/fb"; top="$(cd "$here" && { /usr/bin/git rev-parse --show-topleve
 printf '#!/bin/sh\ncase "$1 $2" in "worktree list") printf %%s %s ;; *) echo "{\\"ok\\":false}" ;; esac\n' "'{\"ok\":true,\"result\":{\"worktrees\":[{\"path\":\"$top\"}]}}'" > "$tmp/fb/orca"; chmod +x "$tmp/fb/orca"
 sp() { (cd "$here" && PATH="$tmp/fb:$PATH" SKILLS_JQ_EXE="$(command -v jq)" COMPAT_FORCE_OS="$1" bash "$SD/spawn-lane.sh" --name t1 --kind claude --dry-run --worktree "$top" 2>&1 | grep 'DRY term_send'); }
 eq "spawn-lane unix: 탭 명령은 cd … && … 그대로" "$(sp unix | sed "s/^DRY term_send <h> //; s/ --enter.*//")" "'cd $top && claude --dangerously-skip-permissions -n t1'"
-case "$(sp windows)" in "DRY term_send <h> 'bash -lc '\\''cd $top && claude "*) chk ok "spawn-lane win: bash -lc '…' 로 감싼다" ;; *) chk fail "spawn-lane win: bash -lc 로 감싼다" "[$(sp windows)]" ;; esac
+case "$(sp windows)" in "DRY term_send <h> 'bash -l \"<임시 스크립트>\"' --enter"*) chk ok "spawn-lane win(dry-run): bash -l \"<임시 스크립트>\" 한 줄로 보낸다" ;; *) chk fail "spawn-lane win(dry-run)" "[$(sp windows)]" ;; esac
 eq "spawn-lane unix: C:/x 는 절대 경로가 아니라 rc 2" "$(cd "$here" && PATH="$tmp/fb:$PATH" SKILLS_JQ_EXE="$(command -v jq)" COMPAT_FORCE_OS=unix bash "$SD/spawn-lane.sh" --name t1 --kind claude --dry-run --worktree C:/x >/dev/null 2>&1; echo $?)" 2
+
+# tab_line 실제(비 dry-run) 동작: 윈도우는 임시 .sh 에 쓰고 bash -l "<경로>" 한 줄만 낸다 · 그 밖의 OS 는 그대로
+tl="$(awk '/^tab_line\(\) \{/,/^\}/' "$SD/spawn-lane.sh")"
+mkdir -p "$tmp/tl"
+tabl() { COMPAT_FORCE_OS="$1" TMPDIR="$tmp/tl" bash -c ". \"$SD/lib/compat.sh\"; $tl"$'\n''tab_line "$1"' _ "$2"; }
+eq "tab_line unix: 그대로" "$(tabl unix "cd /x && claude -n 'a b'")" "cd /x && claude -n 'a b'"
+o="$(tabl windows "cd /x && claude --model 'opus[1m]'")"
+case "$o" in 'bash -l "'*'/coord-launch.'*'"') chk ok "tab_line win: bash -l \"<경로>\" 한 줄(안쪽 작은따옴표 이스케이프 없음)" ;; *) chk fail "tab_line win 형식" "[$o]" ;; esac
+f="${o#bash -l \"}"; f="${f%\"}"
+eq "tab_line win: 임시 스크립트에 원문이 그대로 든다" "$(cat "$f" 2>/dev/null)" "cd /x && claude --model 'opus[1m]'"
 
 # ---- 5) coord-status: UNLINKED 경로 판정(C:\ ↔ C:/ ↔ /c/) · load 관측 불가는 `-` ------------------------------------------------
 mkdir -p "$tmp/st/repo" "$tmp/st/sess" "$tmp/st/home" "$tmp/nosys"

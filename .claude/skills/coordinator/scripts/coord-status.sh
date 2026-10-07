@@ -123,6 +123,13 @@ wts="$(coord_git -C "$REPO" worktree list --porcelain 2>/dev/null | sed -n 's/^w
 known="$(jq -r '[.run.coordinator, (.lanes[] | .session)] | map(select(. != null) | (.session_id // ""), ((.pid // 0) | tostring))
                 | map(select(. != "" and . != "0")) | .[]' "$SF")"
 sdir="$(coord_expand "$(coord_cfg .sessions_dir)")"
+# Git Bash: 워크트리 목록은 한 번만 같은 꼴(/c/x)로 맞춘다(세션마다 서브셸을 띄우지 않게). macOS 는 그대로.
+if [ "$COMPAT_WIN" = 1 ]; then
+  wts_n=""; while IFS= read -r w; do [ -n "$w" ] && wts_n="$wts_n$(compat_norm_path "${w%/}")"$'\n'; done <<WTS_EOF
+$wts
+WTS_EOF
+  wts="$wts_n"
+fi
 for f in "$sdir"/*.json; do
   [ -f "$f" ] || continue
   row="$(jq -r 'select(.kind == "interactive") | [(.pid // 0 | tostring), (.sessionId // ""), (.cwd // ""), (.name // "")] | join("\u001f")' "$f" 2>/dev/null)"
@@ -135,7 +142,7 @@ EOF
   [ "$COMPAT_WIN" != 1 ] || ucwd_n="$(compat_norm_path "$ucwd_n")"   # Git Bash: C:/x · C:\x · /c/x 를 같은 꼴로
   while IFS= read -r w; do
     [ -n "$w" ] || continue
-    w="${w%/}"; [ "$COMPAT_WIN" != 1 ] || w="$(compat_norm_path "$w")"
+    w="${w%/}"
     case "$ucwd_n/" in "$w/"*) inrepo=1; break ;; esac
   done <<EOF
 $wts

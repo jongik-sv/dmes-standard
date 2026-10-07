@@ -107,6 +107,8 @@ resolve_target() {
     "") CD_PATH="$(cd "${top:-.}" && pwd -P)" ;;   # 탭 위치와 별개로 세션은 조정자의 현재 워크트리에서 시작한다
     ./*|../*|"~"*|.|..) coord_die 2 "--worktree 는 절대경로, path:<경로>, Orca 선택자(name:·branch:·id:·current 등)만 받는다: $sel" ;;
     /*|path:*|[A-Za-z]:[/\\]*)
+      # 드라이브 문자 경로는 윈도우에서만 절대 경로다. macOS 는 예전 문구 그대로 거절한다.
+      case "$sel" in [A-Za-z]:[/\\]*) [ "$COMPAT_WIN" = 1 ] || coord_die 2 "--worktree 는 절대경로, path:<경로>, Orca 선택자(name:·branch:·id:·current 등)만 받는다: $sel" ;; esac
       p="${sel#path:}"
       compat_is_abs_path "$p" || coord_die 2 "--worktree path: 값은 절대경로만 받는다: $sel"
       [ -d "$p" ] || coord_die 2 "--worktree 폴더가 없다: $p"
@@ -126,9 +128,18 @@ wait_shell() {  # 빈 탭의 셸 프롬프트가 찍힐 때까지(최대 20초).
   done
   coord_log "셸 프롬프트가 20초 안에 보이지 않는다 — 그대로 보낸다: $1"
 }
-# 탭 셸에 보낼 한 줄. 윈도우: 새 탭의 기본 셸이 PowerShell·cmd 일 수 있어 `cd … && …` 를 bash -lc 한 줄로 감싼다
-# (바깥을 작은따옴표로 묶는다. 안에 작은따옴표가 든 명령은 PowerShell 에서 깨지므로 실행 명령에 넣지 않는다). 그 밖의 OS 는 그대로.
-tab_line() { if [ "$COMPAT_WIN" = 1 ]; then printf 'bash -lc %s' "$(coord_q "$1")"; else printf '%s' "$1"; fi; }
+# 탭 셸에 보낼 한 줄. 윈도우: 새 탭의 기본 셸이 PowerShell·cmd 일 수 있어 `cd … && …` 를 임시 .sh 파일에 쓰고
+# `bash -l "<C:/…/파일.sh>"` 한 줄만 보낸다(작은따옴표 이스케이프 `'\''` 는 PowerShell·cmd 가 풀지 못한다. 큰따옴표 경로는 둘 다 읽는다).
+# 파일은 TMPDIR 아래 coord-launch.* 로 남는다(몇 줄이라 따로 지우지 않는다). --dry-run 에서는 파일을 만들지 않는다. 그 밖의 OS 는 그대로.
+# bash 가 새 탭의 PATH 에 없으면(Git\cmd 만 PATH 에 든 설치) 이 줄이 실패한다 — 그때는 wait_tui 시간 초과로 SPAWN_FAIL 이 난다.
+tab_line() {
+  local f
+  [ "$COMPAT_WIN" = 1 ] || { printf '%s' "$1"; return 0; }
+  if [ "${COORD_DRY:-0}" = 1 ]; then printf 'bash -l "<임시 스크립트>"'; return 0; fi
+  f="$(mktemp "${TMPDIR:-/tmp}/coord-launch.XXXXXX")" || { printf '%s' "$1"; return 0; }
+  printf '%s\n' "$1" > "$f"
+  printf 'bash -l "%s"' "$(compat_native_path "$f")"
+}
 # 빈 탭을 만들고 "cd <폴더> && <실행 명령>" 을 보낸다. 성공하면 H(handle) 를 채우고 0.
 # 1: 탭 생성 실패, 2: 명령 send 실패(탭은 닫는다). 사유는 LAUNCH_ERR.
 launch_in_tab() {  # launch_in_tab <title> <실행 명령>

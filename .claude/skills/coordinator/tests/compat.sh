@@ -169,13 +169,16 @@ eq "jq.exe 는 줄끝 변환 없이 보존된다(SHA-256)" "$(compat_sha256 < "$
 # ---- 경로 정규화·절대 경로 판정·orca 래퍼 (C1) ---------------------------------------------------------------------------
 wn() { COMPAT_FORCE_OS=windows run "$@"; }
 un() { COMPAT_FORCE_OS=unix run "$@"; }
-eq "norm_path Win: C:\\x\\wt\\ → /c/x/wt" "$(wn 'compat_norm_path "C:\Users\x\wt\\"')" "/c/Users/x/wt"
-eq "norm_path Win: C:/x/ → /c/x" "$(wn 'compat_norm_path C:/Users/x/')" "/c/Users/x"
-eq "norm_path Win: 이미 /c/x 면 그대로" "$(wn 'compat_norm_path /c/Users/x')" "/c/Users/x"
+eq "norm_path Win: C:\\x\\wt\\ → /c/x/wt" "$(wn 'compat_norm_path "C:\Users\x\wt\\"')" "/c/users/x/wt"
+eq "norm_path Win: C:/x/ → /c/x" "$(wn 'compat_norm_path C:/Users/x/')" "/c/users/x"
+eq "norm_path Win: 이미 /c/x 여도 소문자로(NTFS 대소문자 무시)" "$(wn 'compat_norm_path /c/Users/x')" "/c/users/x"
 eq "norm_path Win: 드라이브 문자는 소문자로(D:/y → /d/y)" "$(wn 'compat_norm_path D:/y')" "/d/y"
 eq "norm_path Win: /cygdrive/E/z → /e/z" "$(wn 'compat_norm_path /cygdrive/E/z')" "/e/z"
 eq "norm_path Win: 뿌리 C: → /c" "$(wn 'compat_norm_path C:')" "/c"
-eq "norm_path Win: 세 꼴이 같은 값" "$(wn 'a="$(compat_norm_path "C:\w\r")"; b="$(compat_norm_path C:/w/r)"; c="$(compat_norm_path /c/w/r)"; [ "$a" = "$b" ] && [ "$b" = "$c" ] && echo same')" same
+eq "norm_path Win: 대소문자만 다른 두 꼴이 같은 값" "$(wn 'a="$(compat_norm_path "C:\w\r")"; b="$(compat_norm_path C:/w/r)"; c="$(compat_norm_path /c/w/r)"; [ "$a" = "$b" ] && [ "$b" = "$c" ] && echo same')" same
+eq "norm_path Win: C:\\Users\\X\\wt 와 /c/users/x/wt 가 같은 값" "$(wn 'a="$(compat_norm_path "C:\Users\X\wt")"; b="$(compat_norm_path /c/users/x/wt)"; [ "$a" = "$b" ] && echo same')" same
+eq "norm_path Win(bash 3.2 경로): tr 로도 같은 값" "$(wn '_COMPAT_BASH4=0; compat_norm_path "C:\Users\X"')" "/c/users/x"
+eq "Win: coord_path_in_wt 는 대소문자가 달라도 같은 폴더로 본다" "$(COMPAT_FORCE_OS=windows COORD_REPO="$tmp" bash -c '. "$1/lib/common.sh"; coord_path_in_wt /c/users/x/wt/sub C:/Users/X/WT && echo in || echo out' _ "$here/../scripts")" in
 eq "norm_path Unix: 입력을 그대로(백슬래시·끝 /도)" "$(un 'compat_norm_path "C:\x/"')" 'C:\x/'
 eq "norm_path Unix: POSIX 경로 그대로" "$(un 'compat_norm_path /Users/x/wt/')" "/Users/x/wt/"
 eq "is_abs_path Win: C:/x" "$(wn 'compat_is_abs_path C:/x && echo y || echo n')" y

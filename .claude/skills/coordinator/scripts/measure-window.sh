@@ -47,8 +47,13 @@ stop_job() {
     [ -n "$p" ] || continue
     cur="$(coord_pstart "$p")"
     if [ -z "$cur" ] && [ -z "$ps0" ] && coord_pid_alive "$p"; then
-      # 시작 시각을 얻을 수 없는 환경(Git Bash): pid 재사용을 가릴 수 없어 끝내지 않는다 — 시작 시각 `-`(관측 불가)
-      coord_log "잡 $id 의 ${n:-job }pid $p 시작 시각 - (관측 불가) — pid 재사용을 가릴 수 없어 건너뜀"
+      # 시작 시각을 얻을 수 없는 환경(Git Bash): 시작 시각은 `-`(관측 불가)다. pid 재사용은 명령줄로 가린다 —
+      # 잡 본체(pid)의 명령줄에는 `__job <잡 폴더>` 가 들어 있다. 맞으면 후손(runpid 포함)까지 compat_kill_tree 로 끝낸다.
+      if [ "$COMPAT_WIN" = 1 ] && [ -z "$n" ] && compat_ps_table | awk -v p="$p" -v j="$jd" '$1 == p && index($0, "__job") && index($0, j) { f = 1 } END { exit !f }'; then
+        coord_do compat_kill_tree "$p" && any=1
+      else
+        coord_log "잡 $id 의 ${n:-job }pid $p 시작 시각 - (관측 불가) — 명령줄로 같은 잡임을 확인하지 못해 건너뜀"
+      fi
     elif [ -n "$cur" ] && [ "$cur" = "$ps0" ]; then
       # 윈도우는 TERM 신호가 네이티브 프로세스에 가지 않으므로 후손까지 compat_kill_tree 로 끝낸다(macOS 는 예전처럼 TERM 한 번)
       if [ "$COMPAT_WIN" = 1 ]; then coord_do compat_kill_tree "$p" && any=1; else coord_do kill -TERM "$p" && any=1; fi
