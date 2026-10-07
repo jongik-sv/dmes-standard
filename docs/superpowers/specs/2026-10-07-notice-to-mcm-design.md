@@ -9,7 +9,7 @@
 
 | 항목 | 결정 | 근거 |
 |---|---|---|
-| Java 위치 | **mcm-core** `com.dongkuk.dmes.mcm.notice.*` | 위젯·즐겨찾기·조회 기본값(secSrchDflt) 선례. mcm JpaConfig 가 `com.dongkuk.dmes.mcm` 을 스캔하고, 다른 호스트는 mcm-core 를 스캔하지 않으므로 빈이 퍼지지 않는다(McmCoreAutoConfiguration javadoc) |
+| Java 위치 | **mcm/lib** `com.dongkuk.dmes.mcm.notice.*` (구현 중 변경 — 처음 안은 mcm-core) | 처음에는 위젯·즐겨찾기·조회 기본값 선례대로 mcm-core 로 정했다. 그런데 mcm-core 는 `McmCoreArchitectureTest` 가 cactus 의존을 막고, 공지 코드는 `CactusAuditEntity`·`MdmValidator`·`BusinessException` 을 쓴다. 그래서 cactus 를 허용하는 mcm/lib 에 둔다. mcm JpaConfig 스캔(`com.dongkuk.dmes.mcm`)에 그대로 포함된다 |
 | BPMN 위치 | **mcm/api** `services/lsh/{noticeMgmt,noticeBoard}.bpmn` | mcm-core 리소스에 두면 mcm-core 를 쓰는 모든 호스트가 로드한다. 폴더는 화면 그룹명(`lsh`), serviceId 는 그대로 |
 | 화면 ID·그룹 | **`lsh/noticeMgmt` 유지** (결정 D1) | 메뉴 폴더 `lsh` 가 이미 공통관리(mcm) 아래 있다. componentPath·즐겨찾기 FULL_ID 가 바뀌지 않는다 |
 | pageId | `mls:lsh/noticeMgmt` → `mcm:lsh/noticeMgmt` | pageId 는 `{SYSTEM_CODE}:{componentPath}` 다. 메인 mcm.db 에 `mls:lsh` 를 가진 행 0건(10-07 덤프 확인) → 코드만 바꾼다 |
@@ -22,7 +22,7 @@
 
 ## 2. 옮길 것 (git mv, 이력 보존)
 
-### 백엔드 — mls → mcm-core / mcm-api
+### 백엔드 — mls → mcm/lib · mcm/api (아래 표의 mcm-core 는 구현 때 mcm/lib 로 바뀌었다)
 
 | 옛 위치(mls) | 새 위치 |
 |---|---|
