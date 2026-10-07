@@ -37,7 +37,7 @@ scripts\oracle\pdb.cmd <명령>           # Windows
 ## 운용 규칙(VM 2GB)
 
 - 동시에 열린 PDB 는 **3개 이하**(FREEPDB1 + 템플릿 1 + 작업 1). 도구가 강제하고 넘기면 자리가 날 때까지 기다린다(`DMES_ORA_MAX_OPEN` 로 바꿀 수 있지만 VM 2GB 에서는 올리지 않는다. 4개째에서 인스턴스가 내려갔다: `docs/oracle-1007/spike.md`).
-- 복제·열기·삭제는 PC 전체에서 한 번에 하나(`$TMPDIR/dmes-ora-pdb.lock`).
+- 복제·열기·삭제는 PC 전체에서 한 번에 하나(`$TMPDIR/dmes-ora-pdb.lock`). `close` 는 잠금을 잡지 않고 바로 실행한다(열린 PDB 와 메모리를 줄이는 쪽이라 시험과 겹쳐도 안전하다).
 - Gradle 시험 하니스(`-Pdmes.ora.test=clone` 또는 `-Pdmes.ora.pdb=…`)는 복제 직전부터 빌드가 끝나 PDB 를 지울 때까지(시험 JVM 이 도는 구간 포함) 이 PC 잠금을 `lock-hold` 로 쥔다. 그래서 PC 전체에서 Oracle 을 쓰는 시험 빌드는 한 번에 하나만 돈다. 기다리는 한도는 env `DMES_ORA_HARNESS_LOCK_WAIT_SEC`(기본 7200초).
 - `pdb.mjs` 는 SIGTERM·SIGINT 를 받으면 자식 `podman exec` 를 먼저 끊고 잠금을 놓고 나가며, sqlplus 한 번은 `DMES_ORA_SQL_TIMEOUT_SEC`(기본 1200초)를 넘기면 끊는다.
 - 시험 PDB 는 복제 → 시험 → 즉시 삭제. 레인 개발 PDB 는 쓸 때만 열고 끝나면 `close`.
