@@ -44,7 +44,7 @@ public class LayoutQueries {
             + "WHERE UPPER(c.PHYS_NAME) LIKE :kw OR UPPER(c.COLUMN_NAME) LIKE :kw OR UPPER(COALESCE(c.LABEL_LONG, '')) LIKE :kw "
             + "ORDER BY c.PHYS_NAME";
 
-    /** 물리명 목록으로 컬럼 행 — 빈 목록이면 부르지 않는다(SQLite {@code IN ()} 문법 오류). */
+    /** 물리명 목록으로 컬럼 행 — 빈 목록이면 부르지 않는다(빈 {@code IN ()} 은 문법 오류). */
     public static final String COLUMNS_BY_PHYS_SQL = COLUMN_SELECT + "WHERE c.PHYS_NAME IN (:names) ORDER BY c.PHYS_NAME";
 
     public static final String SYSTEMS_SQL = "SELECT SYSTEM_CODE, SYSTEM_NAME FROM TB_MDM_SYSTEM ORDER BY SYSTEM_CODE";
@@ -224,7 +224,7 @@ public class LayoutQueries {
         return out;
     }
 
-    /** 중복·null 을 뺀 목록을 {@value #IN_CHUNK}개씩 자른다. 비면 빈 목록(SQLite {@code IN ()} 문법 오류를 피한다). */
+    /** 중복·null 을 뺀 목록을 {@value #IN_CHUNK}개씩 자른다. 비면 빈 목록(빈 {@code IN ()} 문법 오류를 피한다, 묶음 크기는 Oracle IN 상한 1,000 보다 작다). */
     public static <T> List<List<T>> chunks(Collection<T> values) {
         List<T> all = new ArrayList<>(new LinkedHashSet<>(values));
         all.remove(null);

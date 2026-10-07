@@ -18,8 +18,8 @@ import org.springframework.data.jpa.domain.Specification;
  * <p><b>필요조건만 건다(MUST).</b> 여기 조건은 Java 비교가 남길 행을 하나도 빼면 안 된다. 남는 행이 더 있어도 Java 가 걸러낸다.
  * 그래서 다음을 지킨다.
  * <ul>
- *   <li>Java 는 {@code toUpperCase(Locale.ROOT)} 뒤 부분 포함으로 비교한다. 이 변환은 SQL {@code UPPER} 와 다르다 — SQLite 는 ASCII 만
- *       접고, Java 는 ß→SS·ſ→S·ı→I·ﬁ→FI 처럼 ASCII 밖 글자를 ASCII 로 바꾸기도 한다. 그래서 대문자 키워드 전체가 아니라, 대문자로 바꿔
+ *   <li>Java 는 {@code toUpperCase(Locale.ROOT)} 뒤 부분 포함으로 비교한다. 이 변환은 SQL {@code UPPER} 와 다르다 — DB 마다 접는 범위가
+ *       다르고(SQLite 는 ASCII 만, Oracle 은 문자 집합 규칙), Java 는 ß→SS·ſ→S·ı→I·ﬁ→FI 처럼 ASCII 밖 글자를 ASCII 로 바꾸기도 한다. 그래서 대문자 키워드 전체가 아니라, 대문자로 바꿔
  *       자기가 되는 원본 글자가 자기 자신과 ASCII 소문자뿐인 글자(이하 "안전 글자")만 이어진 가장 긴 구간을 바늘로 쓴다. 안전 글자 구간이
  *       없으면 그 조건은 DB 에서 거르지 않는다.</li>
  *   <li>JSON 목록 칸(SYNONYMS·ALIASES)은 Java 가 파싱한 원소 값으로 비교한다. 이스케이프({@code \\uXXXX}·{@code \"}·{@code \\})로 저장된
@@ -33,7 +33,7 @@ import org.springframework.data.jpa.domain.Specification;
  */
 final class TermSearchPrefilter {
 
-    /** 정렬 — 예전 {@code findAll()} 이 SQLite 에서 돌려주던 TERM_ID 오름차순을 명시한다. */
+    /** 정렬 — 예전 {@code findAll()} 이 SQLite 에서 돌려주던 TERM_ID 오름차순을 명시한다(Oracle 은 정렬 없이 순서를 보장하지 않는다). */
     static final Sort ORDER = Sort.by(Sort.Direction.ASC, "termId");
 
     static final char ESCAPE = '!';
