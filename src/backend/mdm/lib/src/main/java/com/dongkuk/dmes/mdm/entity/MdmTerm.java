@@ -33,7 +33,8 @@ public class MdmTerm extends CactusAuditEntity {
     @Column(name = "SENSE_NO", nullable = false)
     private int senseNo;
 
-    @Column(name = "DEFINITION", nullable = false)
+    /** NULL 허용(V1) — Oracle 은 빈 문자열을 NULL 로 저장한다. 읽기는 {@link #getDefinition()} 이 빈 문자열로 맞춘다. */
+    @Column(name = "DEFINITION")
     private String definition;
 
     @Column(name = "CONTEXT")
@@ -80,7 +81,8 @@ public class MdmTerm extends CactusAuditEntity {
     public Long getTermId() { return termId; }
     public String getTermName() { return termName; }
     public int getSenseNo() { return senseNo; }
-    public String getDefinition() { return definition; }
+    /** NULL 이면 빈 문자열 — SQLite 시절 빈 정의('', 6,159행)를 읽던 화면·사전 응답과 같게 한다(필드 접근이라 저장값은 그대로다). */
+    public String getDefinition() { return definition == null ? "" : definition; }
     public String getContext() { return context; }
     public String getEngName() { return engName; }
     public String getEngAbbr() { return engAbbr; }
