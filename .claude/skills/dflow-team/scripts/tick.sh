@@ -34,7 +34,7 @@
 #
 # 시험용 환경변수: DFLOW_TICK_SEC(1800) · DFLOW_TICK_POLL(20) · DFLOW_SH(dflow.sh) · DFLOW_SWEEP_CHECK(sweep-check.sh)
 #   · DFLOW_EVENTS(lead-state.sh 가 읽는 events.jsonl)
-case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(cd "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
+case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(CDPATH= cd -P -- "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
 set -u
 
 usage() { echo "사용: tick.sh [--new-tick] [--may-skip] [--until <UNTIL>] [--wp <WP 범위>] --tm <TM> --owner <신원>/<host>/lead --slots <N> --until-label <표시> [--pid <PID>] -- [<경로|해시|pane> …]" >&2; exit 2; }

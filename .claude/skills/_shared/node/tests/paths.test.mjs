@@ -69,3 +69,13 @@ test('toPosix·findUp·repoRootFrom·expandHome', () => {
   assert.equal(expandHome('~/a/b'), path.join(os.homedir(), 'a', 'b'));
   assert.equal(expandHome('/x/~y'), '/x/~y');
 });
+
+test('walkSorted: includeDirs 면 심볼릭 링크 폴더도 목록에 넣되 안으로 들어가지는 않는다(python rglob)', (t) => {
+  const base = path.join(tmp, 'symtree');
+  fs.mkdirSync(path.join(base, 'real'), { recursive: true });
+  fs.writeFileSync(path.join(base, 'real', 'f.md'), '');
+  try { fs.symlinkSync(path.join(base, 'real'), path.join(base, 'link'), 'dir'); } catch { t.skip('심볼릭 링크를 만들 수 없는 환경(윈도우 일반 권한)'); return; }
+  const r = (arr) => arr.map((p) => toPosix(path.relative(base, p)));
+  assert.deepEqual(r(walkSorted(base, { includeDirs: true })), ['link', 'real', 'real/f.md']);
+  assert.deepEqual(r(walkSorted(base)), ['real/f.md']);
+});

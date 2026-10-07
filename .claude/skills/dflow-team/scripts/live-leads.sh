@@ -6,7 +6,7 @@
 # 살아 있음의 기준은 SKILL.md 「1. 시작」 의 SAME_IDENTITY_LEAD 와 같다: 다른 워크트리의 dflow-team.lock 의 owner
 # 첫 칸이 <신원>/<이 PC 의 host>/lead 이고, beat 가 70분 안(beat 가 없으면 잠금 디렉터리 수정 시각이 10분 안)이다.
 # 두 기준이 어긋나면 키 판정이 고른 키를 전제 검사가 거부하거나, 거부될 키를 키 판정이 후보로 낸다.
-case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(cd "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
+case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(CDPATH= cd -P -- "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
 set -u
 MAIN=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "FAIL NOT_GIT" >&2; exit 2; }
 host=$(hostname | cut -d. -f1 | tr 'A-Z' 'a-z' | sed 's/[^a-z0-9-]/-/g')

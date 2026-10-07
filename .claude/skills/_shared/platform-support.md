@@ -12,7 +12,7 @@ coordinator·dflow-* 스킬의 셸 스크립트는 **macOS** 와 **Git for Windo
 | bash(3.2 이상)·sh·awk·sed·grep·cut·sort·tr·wc·date·stat·touch·mktemp·cksum·find·xargs | 기본 | 기본 | macOS 기본 bash 는 3.2 라 연관 배열·`${var,,}`·`$BASHPID`·`mapfile` 을 쓰지 않는다 |
 | git·curl | 기본 | 기본 | |
 | openssl 또는 sha256sum | 기본(openssl) | 기본 | 해시는 `lib/compat.sh` 의 `compat_sha256` 로 |
-| **jq** | 설치 필요(`brew install jq`) | **동봉**(`_shared/bin/jq.exe` 1.7.1, 설치 불필요) | 모든 coordinator·dflow 스크립트가 쓴다. 윈도우에서는 각 스크립트가 `_shared/bin`(래퍼 `jq` → `jq.exe -b`)을 PATH 앞에 둔다. 출처·SHA-256·갱신 방법은 `_shared/bin/README.md` |
+| **jq** | 설치 필요(`brew install jq`) | **동봉**(`_shared/bin/win64/jq.exe` 1.7.1, 설치 불필요) | 모든 coordinator·dflow 스크립트가 쓴다. 윈도우에서는 각 **스크립트가** `_shared/bin`(래퍼 `jq` → `win64/jq.exe -b`)을 PATH 앞에 둔다. 스킬 문서 속 인라인 `… | jq …` 예시를 에이전트가 Bash 도구로 직접 실행할 때는 PATH 가 바뀌지 않으므로 jq 를 찾지 못한다(후속: 인라인 호출을 `bash <_shared>/bin/jq` 로 바꾸거나 PATH 를 세션에 넣는다). `_shared` 를 빼고 dflow-* 만 설치하면 동봉 jq 를 찾지 못하므로 `_shared` 를 함께 배포한다. 출처·SHA-256·갱신 방법은 `_shared/bin/README.md` |
 | node(**18.17 이상**) | 설치 필요 | 설치 필요 | python 에서 옮겨 온 스크립트(`.mjs`)와 `_shared/node/` 공용 헬퍼가 쓴다(`node:test`·`util.parseArgs`·`readdirSync` 재귀). 그 밖에 `mutate.sh`(변이 검증), `free-port.sh` 폴백, 해시 마지막 폴백 |
 | orca CLI | 설치 필요 | 설치 필요 | coordinator 전반(터미널·워크트리 조작) |
 | pnpm·gradle·docker | 프로젝트별 | 프로젝트별 | 스킬이 직접 요구하지 않는다 |

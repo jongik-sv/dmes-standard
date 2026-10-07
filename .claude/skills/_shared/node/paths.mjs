@@ -71,7 +71,11 @@ export function walkSorted(root, { skipDirs = [], extensions = null, followSymli
         let st = null;
         try { st = fs.statSync(full); } catch { /* 끊어진 링크는 건너뜀 */ }
         if (!st) continue;
-        if (st.isDirectory()) { isDir = followSymlinks; if (!followSymlinks) continue; }
+        if (st.isDirectory()) {
+          // python rglob 처럼 심링크 폴더 자체는 목록에 넣되, followSymlinks 가 아니면 안으로 들어가지 않는다
+          if (!followSymlinks) { if (includeDirs && !skip(e.name, full)) out.push({ full, rel: relPath }); continue; }
+          isDir = true;
+        }
         else isFile = st.isFile();
       }
       if (isDir) {

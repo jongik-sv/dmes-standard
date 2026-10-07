@@ -6,6 +6,7 @@
 //  2. 정수형 문자열 키("1", "10", "2")를 가진 일반 객체: JS 가 키를 오름차순 정수 순으로
 //     재배치한다. 삽입 순서가 필요하면 `Map` 을 넘긴다(Map 은 삽입순 그대로 출력).
 //  3. undefined·Set·Date·함수·Symbol 은 python 에 대응이 없어 TypeError 를 던진다.
+//  5. 2^53 을 넘는 정수는 JS number 라 정밀도를 잃는다(python int 는 임의 정밀도). 필요하면 BigInt 를 넘기는 방식을 레인에서 정한다.
 //  4. NaN·Infinity 는 python 기본(allow_nan=True)처럼 `NaN` `Infinity` `-Infinity` 로 출력한다.
 
 import { compareCodePoint } from './pytext.mjs';

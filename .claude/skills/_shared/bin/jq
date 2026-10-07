@@ -2,8 +2,9 @@
 # 윈도우(Git Bash)용 jq 진입점. 동봉한 jq.exe 를 -b(--binary)로 불러 출력 줄끝이 CRLF 로 바뀌지 않게 한다.
 # 스크립트가 `$(jq -r …)` 결과를 `[ = ]`·`case` 로 비교하므로 줄 끝에 \r 이 붙으면 비교가 어긋난다.
 # 윈도우에서만 이 폴더를 PATH 앞에 둔다(각 스크립트 머리말·coordinator 의 lib/compat.sh). macOS·Linux 는 건드리지 않는다.
+# jq.exe 는 win64/ 아래에 둔다 — 같은 폴더에 jq 와 jq.exe 가 함께 있으면 PATHEXT 로 찾는 쪽이 jq.exe 를 직접 집어 -b 를 잃는다.
 # SKILLS_JQ_EXE 로 다른 jq 실행 파일을 지정할 수 있다(시험에서 윈도우를 흉내 낼 때 mac 의 jq 를 가리킨다).
-d=$(cd "$(dirname "$0")" && pwd)
-exe="${SKILLS_JQ_EXE:-$d/jq.exe}"
-[ -x "$exe" ] || { echo "jq 실행 파일을 찾지 못했다: $exe (동봉본은 _shared/bin/jq.exe, 설명은 같은 폴더 README.md)" >&2; exit 127; }
+d=$(CDPATH= cd -P -- "$(dirname "$0")" && pwd)
+exe="${SKILLS_JQ_EXE:-$d/win64/jq.exe}"
+[ -x "$exe" ] || { echo "jq 실행 파일을 찾지 못했다: $exe (동봉본은 _shared/bin/win64/jq.exe, 설명은 같은 폴더 README.md)" >&2; exit 127; }
 exec "$exe" -b "$@"

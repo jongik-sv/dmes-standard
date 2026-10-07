@@ -32,7 +32,7 @@ eq "후손: ps_pidargs 는 pid 와 args 두 열 뒤에 ppid 가 없다" "$(run '
 eq "cwds: 자기 셸 pid" "$(cd "$tmp" && run 'compat_proc_cwds $$,$$' | awk -F'\t' 'NR == 1 { print $2 }')" "$tmp"
 run "compat_touch_ago 7200 '$f'"
 mt="$(run "compat_stat_mtime '$f'")"
-d=$(( now - mt )); [ "$d" -ge 7195 ] && [ "$d" -le 7260 ] && chk ok "touch_ago: 2시간 전(분 단위 반올림 허용)" || chk fail "touch_ago: 2시간 전" "차이 ${d}초"
+d=$(( $(date +%s) - mt )); [ "$d" -ge 7195 ] && [ "$d" -le 7260 ] && chk ok "touch_ago: 2시간 전(분 단위 반올림 허용)" || chk fail "touch_ago: 2시간 전" "차이 ${d}초"
 eq "sha256: abc" "$(printf 'abc' | run 'compat_sha256')" "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
 eq "sha256: 빈 입력도 64자" "$(printf '' | run 'compat_sha256' | grep -cE '^[0-9a-f]{64}$')" 1
 
@@ -117,7 +117,7 @@ eq "GNU: 권한" "$(gnu "compat_stat_mode '$f'")" 640
 eq "GNU: stat_info" "$(gnu "compat_stat_info '$f'" | awk '{ print $2 }')" 640
 eq "GNU: epoch 형식(UTC)" "$(gnu "compat_epoch_fmt 86400 %Y-%m-%dT%H:%M:%S -u")" "1970-01-02T00:00:00"
 gnu "compat_touch_ago 3600 '$f'"
-mt="$(gnu "compat_stat_mtime '$f'")"; d=$(( now - mt ))
+mt="$(gnu "compat_stat_mtime '$f'")"; d=$(( $(date +%s) - mt ))
 [ "$d" -ge 3595 ] && [ "$d" -le 3660 ] && chk ok "GNU: touch_ago" || chk fail "GNU: touch_ago" "차이 ${d}초"
 eq "강제 BSD 로 덮어쓰면 판별이 바뀐다" "$(COMPAT_FORCE_USERLAND=bsd gnu 'echo $COMPAT_GNU')" 0
 
@@ -164,7 +164,7 @@ eq "Win: 이미 PATH 에 있으면 두 번 넣지 않는다" "$(PATH="$SBIN:$PAT
 case "$(COMPAT_FORCE_OS=unix run 'echo "${PATH%%:*}"')" in "$SBIN") chk fail "Unix: PATH 를 건드리지 않는다" ;; *) chk ok "Unix: PATH 를 건드리지 않는다" ;; esac
 eq "래퍼: SKILLS_JQ_EXE 의 jq 를 -b 로 실행한다" "$(echo '{"a":[1,2]}' | SKILLS_JQ_EXE="$(command -v jq)" "$SBIN/jq" -c '.a')" "[1,2]"
 eq "래퍼: 실행 파일이 없으면 rc 127" "$(SKILLS_JQ_EXE="$tmp/없는-jq" "$SBIN/jq" . </dev/null >/dev/null 2>&1; echo $?)" 127
-eq "jq.exe 는 줄끝 변환 없이 보존된다(SHA-256)" "$(compat_sha256 < "$SBIN/jq.exe")" 7451fbbf37feffb9bf262bd97c54f0da558c63f0748e64152dd87b0a07b6d6ab
+eq "jq.exe 는 줄끝 변환 없이 보존된다(SHA-256)" "$(compat_sha256 < "$SBIN/win64/jq.exe")" 7451fbbf37feffb9bf262bd97c54f0da558c63f0748e64152dd87b0a07b6d6ab
 
 echo "통과 $pass · 실패 $fail"
 [ "$fail" = 0 ]

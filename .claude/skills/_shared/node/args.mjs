@@ -3,7 +3,7 @@
 //    `<prog>: 오류: …` 를 쓰고 종료 코드 2.
 //  - process.exit() 를 부르지 않는다. 오류·도움말이면 process.exitCode 를 지정하고 null 을 돌려주므로
 //    호출 쪽은 `const cli = parseCli(argv, spec); if (!cli) return;` 로 끝낸다.
-//  - 한계: argparse 의 긴 옵션 접두 축약(--ver → --verbose), 음수 위치 인자는 지원하지 않는다.
+//  - 한계: argparse 의 긴 옵션 접두 축약(--ver → --verbose), 음수 위치 인자·`--n -5` 처럼 옵션 값이 `-` 로 시작하는 음수는 지원하지 않는다(사용 오류 2. argparse 는 받는다).
 //    결과 키는 옵션 이름 그대로다(`dry-run` 은 `values['dry-run']`, argparse 의 dry_run 과 다름).
 //
 // spec 형태

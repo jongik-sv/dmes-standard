@@ -39,7 +39,7 @@ esac
 # 이미 PATH 에 있으면 다시 넣지 않는다. 폴더가 없으면(킷을 _shared 없이 설치한 경우) 아무것도 하지 않는다.
 if [ "$COMPAT_WIN" = 1 ]; then
   _compat_here="${BASH_SOURCE[0]%/*}"; [ "$_compat_here" != "${BASH_SOURCE[0]}" ] || _compat_here=.
-  _compat_sbin="$(cd "$_compat_here/../../../_shared/bin" 2>/dev/null && pwd)"
+  _compat_sbin="$(CDPATH= cd -P -- "$_compat_here/../../../_shared/bin" 2>/dev/null && pwd)"
   case ":$PATH:" in *":$_compat_sbin:"*) ;; *) [ -z "$_compat_sbin" ] || PATH="$_compat_sbin:$PATH" ;; esac
   unset _compat_here _compat_sbin
 fi

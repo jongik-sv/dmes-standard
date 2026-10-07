@@ -34,7 +34,7 @@
 #   HASH <worktree> <tsk> <hash> <status> id8=<…> slot=<…>   결과 줄 경로(<worktree>/<TASKS>/<tsk>/.result)별 마지막 처리 해시.
 #       SLOT 에 오른 id8 의 것은 모두, 나머지는 최근 처리 순으로 50개까지(워크트리가 남았는지는 이 스크립트가 보지 않는다)
 # jq 가 실패하면 FAIL 을 stderr 에 내고 exit 1 이다(빈 요약으로 위장하지 않는다).
-case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(cd "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
+case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(CDPATH= cd -P -- "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
 set -u -o pipefail
 
 usage() { echo "사용: lead-state.sh [--agent <신원>/<host>/lead] [--repo <MAIN>] [--events <경로>] [--hash <worktree>]" >&2; exit 2; }

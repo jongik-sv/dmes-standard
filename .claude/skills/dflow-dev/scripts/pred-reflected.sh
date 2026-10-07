@@ -16,7 +16,7 @@
 #   <TASKS> 는 선행 Task 폴더의 부모(예 docs/tasks). 이 스크립트는 fetch 하지 않는다 — 한 기상에 여러 번 부르기 때문이다.
 # 출력 첫 낱말: REFLECTED <1|2|3>(exit 0) · NOT_REFLECTED <사유>(exit 1) · UNKNOWN <사유>(exit 2)
 # UNKNOWN 은 판정 불가다. 호출자는 그것을 "반영 안 됨" 으로 단정하지 않는다(팀장은 거르지 않고 워커에 맡긴다).
-case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(cd "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
+case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(CDPATH= cd -P -- "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
 set -u
 
 [ $# -eq 3 ] && [ -n "$1" ] && [ -n "$2" ] && [ -n "$3" ] || { echo "UNKNOWN usage"; exit 2; }

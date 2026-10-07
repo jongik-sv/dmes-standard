@@ -11,7 +11,7 @@ export function normalizeText(text, { eol = true } = {}) {
   return eol ? text.replace(/\r\n?/g, '\n') : text;
 }
 
-/** UTF-8 로 읽고 BOM 을 제거하며 줄끝을 LF 로 통일한다 (python `open(..., encoding='utf-8')` 읽기와 같음). */
+/** UTF-8 로 읽고 BOM 을 제거하며 줄끝을 LF 로 통일한다 (BOM 제거는 python 의 utf-8-sig 와 같다. 일반 utf-8 읽기는 BOM 을 남기므로 이쪽이 의도된 개선이다). */
 export function readText(file) {
   return normalizeText(fs.readFileSync(file, 'utf8'));
 }

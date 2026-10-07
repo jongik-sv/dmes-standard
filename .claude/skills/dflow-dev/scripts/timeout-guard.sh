@@ -26,7 +26,7 @@
 # 편의 장치이지 보안 장치가 아니다: jq 가 없거나 입력을 못 읽으면 그대로 통과한다(fail-open). 변수에 담아 부르는
 # 명령($H ./gradlew …)은 알아보지 못한다.
 
-case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(cd "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
+case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(CDPATH= cd -P -- "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
 command -v jq >/dev/null 2>&1 || { cat >/dev/null 2>&1; exit 0; }
 IN=$(cat 2>/dev/null) || exit 0
 TOOL=$(printf '%s' "$IN" | jq -r '.tool_name // empty' 2>/dev/null) || exit 0
