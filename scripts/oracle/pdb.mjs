@@ -230,13 +230,17 @@ async function ensureUsers(pdb) {
 async function ensureQuiet(pdb) {
   const clients = ["'auto optimizer stats collection'", "'auto space advisor'", "'sql tuning advisor'"];
   const text = [
+    'set serveroutput on',
     `alter session set container = ${pdb};`,
     'begin',
     ...clients.map((c) => `  begin dbms_auto_task_admin.disable(client_name => ${c}, operation => null, window_name => null); exception when others then null; end;`),
     // AWR 자동 스냅숏 간격 0 = 끔. AWR 을 쓸 수 없는 에디션이면 예외를 무시한다.
-    '  begin dbms_workload_repository.modify_snapshot_settings(interval => 0); exception when others then null; end;',
+    // PDB 의 AWR 자동 스냅숏은 awr_pdb_autoflush_enabled(기본 FALSE)가 켜야 일어난다. 켜져 있으면 끈다.
+    "  begin execute immediate 'alter system set awr_pdb_autoflush_enabled=false'; exception when others then null; end;",
+    '  begin dbms_workload_repository.modify_snapshot_settings(interval => 0); exception when others then dbms_output.put_line(\'awr_error=\' || substr(sqlerrm, 1, 120)); end;',
     'end;',
     '/',
+    "select 'awr_autoflush=' || value from v$parameter where name = 'awr_pdb_autoflush_enabled';",
     "select 'autotask ' || client_name || '=' || status from dba_autotask_client order by client_name;",
     "select 'awr_interval=' || (extract(day from snap_interval)*1440 + extract(hour from snap_interval)*60 + extract(minute from snap_interval)) from dba_hist_wr_control;",
   ].join('\n');
@@ -244,9 +248,13 @@ async function ensureQuiet(pdb) {
   if (r.code !== 0) { log(`${pdb} 자동 작업 확인 실패(무시): ${(r.err || r.out).split('\n')[0]}`); return; }
   const lines = r.out.split('\n');
   const enabled = lines.filter((l) => l.startsWith('autotask ') && l.endsWith('=ENABLED'));
-  const awr = (lines.find((l) => l.startsWith('awr_interval=')) || 'awr_interval=?').replace('awr_interval=', '');
+  const pick = (k) => (lines.find((l) => l.startsWith(`${k}=`)) || `${k}=?`).replace(`${k}=`, '');
+  const awr = pick('awr_interval'), flush = pick('awr_autoflush'), awrErr = lines.find((l) => l.startsWith('awr_error='));
   if (enabled.length) log(`경고: ${pdb} 자동 작업이 아직 켜져 있다 — ${enabled.join(', ')}`);
-  else log(`${pdb} 자동 작업 꺼짐 확인(autotask 3종, AWR 간격 ${awr}분 — 0 이면 꺼짐)`);
+  else log(`${pdb} autotask 3종 꺼짐 확인`);
+  // AWR: 자동 플러시가 꺼져 있으면(FALSE) PDB 안 스냅숏은 일어나지 않는다. 간격 값은 참고용이다.
+  log(`${pdb} AWR 자동 플러시 ${flush}, 스냅숏 간격 ${awr}분${awrErr ? ` (${awrErr})` : ''}`);
+  if (flush.toUpperCase() === 'TRUE') log(`경고: ${pdb} AWR 자동 플러시가 켜져 있다`);
 }
 async function doCreate(n) {
   await waitForSlot(1);
