@@ -570,7 +570,7 @@ export default function NoticeMgmtScreen() {
         />
         <SearchField
           label="게시기간"
-          name="postStartDt"
+          defaultKey="postStartDt"
           type="date"
           value={filters.postStartDt}
           onChange={(v) => setFilter("postStartDt", v)}
