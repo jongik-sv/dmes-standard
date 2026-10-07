@@ -1,0 +1,693 @@
+{
+  "generatedWith": "Python 3.9.6",
+  "data": {
+    "groups": [
+      [
+        "화면 골격 (`@dk-oasis/shared/layout`)",
+        [
+          "page-layout",
+          "search-area",
+          "search-settings-menu",
+          "content-body",
+          "detail-form"
+        ]
+      ],
+      [
+        "입력 (`@dk-oasis/shared/form`)",
+        [
+          "button",
+          "input",
+          "select",
+          "combo-box",
+          "multi-select-combo-box",
+          "date-picker",
+          "date-time-picker",
+          "checkbox",
+          "radio",
+          "segmented-control",
+          "textarea",
+          "form-group",
+          "loading",
+          "badge",
+          "select-or-input"
+        ]
+      ],
+      [
+        "목록 (`@dk-oasis/shared/grid`)",
+        [
+          "ag-data-grid",
+          "grid-panel",
+          "use-grid-data-manager",
+          "grid-badge",
+          "pagination",
+          "editable-row-list",
+          "column-settings-modal",
+          "grid-excel-foot",
+          "grid-limit-notice"
+        ]
+      ],
+      [
+        "팝업·메시지 (`modal`, `message-provider`, `use-api-call`)",
+        [
+          "modal",
+          "message"
+        ]
+      ],
+      [
+        "대시보드 (`@dk-oasis/shared/dashboard`)",
+        [
+          "dashboard"
+        ]
+      ],
+      [
+        "위젯 (`@dk-oasis/shared/widget`)",
+        [
+          "widget"
+        ]
+      ],
+      [
+        "화면 문맥 — 업무 화면 ↔ 도구 창 위젯 (`@dk-oasis/shared/screen-context`)",
+        [
+          "screen-context"
+        ]
+      ],
+      [
+        "위젯 도크·떠 있는 창·탭 분리 창·분리 상태 이어받기 (`@dk-oasis/shared/portal-shell`)",
+        [
+          "widget-dock",
+          "floating-window",
+          "portal-page-window",
+          "use-carry-state"
+        ]
+      ],
+      [
+        "MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)",
+        [
+          "mdm-meta"
+        ]
+      ],
+      [
+        "탭·트리·룩업·기타",
+        [
+          "tabs",
+          "closable-tabs",
+          "tree",
+          "lookup",
+          "lookup-multi-modal",
+          "markdown-editor",
+          "html-editor",
+          "notice-body-view",
+          "detail-popover",
+          "grid-resize-box",
+          "json-view",
+          "card",
+          "transfer-list",
+          "matrix-table",
+          "charts",
+          "export-to-excel",
+          "print-element-as-page",
+          "icons"
+        ]
+      ]
+    ],
+    "excluded": [
+      [
+        "WIDGET_CSS",
+        "WidgetStyle 내부용 CSS 문자열"
+      ],
+      [
+        "getDraggingWidget",
+        "WidgetPicker·WidgetBoard 끌기 공유용 내부 함수"
+      ],
+      [
+        "setDraggingWidget",
+        "WidgetPicker·WidgetBoard 끌기 공유용 내부 함수"
+      ],
+      [
+        "FLOATING_WINDOW_CSS",
+        "FloatingWindowStyle 내부용 CSS 문자열"
+      ],
+      [
+        "FloatingWindowStyle",
+        "FloatingWindow 가 스스로 넣는 스타일"
+      ],
+      [
+        "WIDGET_DOCK_CSS",
+        "WidgetDockStyle 내부용 CSS 문자열"
+      ],
+      [
+        "WidgetDockStyle",
+        "WidgetDockLayer·DockToolsMenu 가 스스로 넣는 스타일"
+      ],
+      [
+        "DataGrid",
+        "AgDataGrid 의 별칭. 새 코드는 AgDataGrid"
+      ],
+      [
+        "useRowStateManager",
+        "옛 행 상태 훅(_rowState). 새 화면은 useGridDataManager"
+      ],
+      [
+        "ResizableFormPanel",
+        "Part B §4-3 이 새 화면 사용 금지. ContentBody resizable"
+      ],
+      [
+        "MaxHandle",
+        "ContentBody·GridPanel 내부용"
+      ],
+      [
+        "SearchHistoryInput",
+        "SearchField 내부용(APS 최근검색)"
+      ],
+      [
+        "isSearchHistoryPage",
+        "SearchField 내부용"
+      ],
+      [
+        "clearAllSearchHistory",
+        "포털 셸용"
+      ],
+      [
+        "clearSearchHistory",
+        "포털 셸용"
+      ],
+      [
+        "readSearchHistory",
+        "SearchField 내부용"
+      ],
+      [
+        "emitSearch",
+        "PageLayout·SearchArea 내부용"
+      ],
+      [
+        "subscribeSearchReset",
+        "SearchArea 내부용(초기화 이벤트 구독, 발행은 PageLayout)"
+      ],
+      [
+        "RANGE_PRESETS",
+        "조회 기본값 설정 창 내부용(기간 묶음 선택지)"
+      ],
+      [
+        "RELATIVE_DATE_PRESETS",
+        "조회 기본값 설정 창 내부용(상대 날짜 이름표)"
+      ],
+      [
+        "isValidIsoDate",
+        "조회 기본값 규칙 계산 내부용(search-area 문서의 사용자 기본값 참고)"
+      ],
+      [
+        "parseSearchDefaultRule",
+        "조회 기본값 저장소 내부용"
+      ],
+      [
+        "resolveRelativeDate",
+        "조회 기본값 규칙 계산 내부용"
+      ],
+      [
+        "resolveSearchDefault",
+        "조회 기본값 규칙 계산 내부용"
+      ],
+      [
+        "getPageSearchDefaults",
+        "조회 기본값 저장소 내부용(SearchArea·설정 창이 쓴다)"
+      ],
+      [
+        "getSearchDefaultsSource",
+        "조회 기본값 저장소 내부용"
+      ],
+      [
+        "getSearchDefaultsStatus",
+        "조회 기본값 저장소 내부용"
+      ],
+      [
+        "preloadSearchDefaults",
+        "포털 셸·SearchArea 내부용(조회 기본값 미리 받기)"
+      ],
+      [
+        "resetSearchDefaults",
+        "조회 기본값 저장소 내부용(시험·로그아웃 정리)"
+      ],
+      [
+        "saveSearchDefaults",
+        "조회 기본값 저장소 내부용(설정 창이 저장한다)"
+      ],
+      [
+        "setSearchDefaultsLocalForDev",
+        "개발 모드 확인용(조회 기본값 샘플 화면)"
+      ],
+      [
+        "subscribeSearchDefaults",
+        "조회 기본값 저장소 내부용"
+      ],
+      [
+        "readSearchLastValues",
+        "조회 기본값 설정 창 내부용(마지막 조회값 읽기)"
+      ],
+      [
+        "useSearchDefaultsArea",
+        "SearchArea 내부용(조회 기본값 등록소)"
+      ],
+      [
+        "subscribeSearch",
+        "PageLayout·SearchArea 내부용"
+      ],
+      [
+        "useContentMaximize",
+        "ContentBody 최대화 내부용"
+      ],
+      [
+        "canDoButton",
+        "팝업 내부 버튼 권한 판정용(page-layout 문서 참고)"
+      ],
+      [
+        "useUserButtonRbac",
+        "팝업 내부 버튼 권한 판정용(page-layout 문서 참고)"
+      ],
+      [
+        "INPUT_BASE",
+        "원시 input 스타일. 화면은 form 래퍼"
+      ],
+      [
+        "INPUT_READONLY",
+        "원시 input 스타일. 화면은 form 래퍼"
+      ],
+      [
+        "INPUT_DISABLED",
+        "원시 input 스타일. 화면은 form 래퍼"
+      ],
+      [
+        "GridHelpButton",
+        "GridPanel help prop 으로 쓴다"
+      ],
+      [
+        "GRID_TEMP_ID_FIELD",
+        "GridPanel·useGridDataManager 내부 필드"
+      ],
+      [
+        "MessageProvider",
+        "호스트 root layout 이 감싼다"
+      ],
+      [
+        "MdmGridTooltip",
+        "AgDataGrid 머리글 툴팁 내부 컴포넌트"
+      ],
+      [
+        "requestDomains",
+        "useMdmColumn(s) 내부 요청(mdm-meta 문서 참고)"
+      ],
+      [
+        "peekColumn",
+        "mdm-meta store 동기 조회 — 훅 내부용"
+      ],
+      [
+        "peekDomain",
+        "mdm-meta store 동기 조회 — 훅 내부용"
+      ],
+      [
+        "isModuleDisabled",
+        "mdm-meta store 상태 — 훅 내부용"
+      ],
+      [
+        "resetMdmMetaStore",
+        "시험용"
+      ],
+      [
+        "MDM_META_TTL_MS",
+        "mdm-meta store 상수"
+      ],
+      [
+        "MDM_META_BATCH_MS",
+        "mdm-meta store 상수"
+      ],
+      [
+        "MDM_META_CARD_MAX_CODES",
+        "MdmMetaCard 상수"
+      ],
+      [
+        "mdmCaption",
+        "resolveCaption 내부용"
+      ],
+      [
+        "resolveMdmPhysName",
+        "useMdmColumn 내부용(toPhysName + meta)"
+      ],
+      [
+        "useMdmCaptionPriority",
+        "AgDataGrid·FormGroup 내부용"
+      ],
+      [
+        "useMdmMetaScope",
+        "AgDataGrid·FormGroup 내부용"
+      ],
+      [
+        "formatMdmDataType",
+        "MdmMetaCard 내부용"
+      ]
+    ],
+    "exportFiles": [
+      "layout/index.ts",
+      "components/form/index.ts",
+      "components/grid/index.ts",
+      "components/tabs/index.ts",
+      "components/closable-tabs/index.ts",
+      "components/tree/index.ts",
+      "components/lookup/index.ts",
+      "components/markdown-editor/index.ts",
+      "components/notice-body-view/index.ts",
+      "components/html-editor/index.ts",
+      "components/detail-popover/index.ts",
+      "components/grid-resize-box/index.ts",
+      "components/json-view/index.ts",
+      "components/card/index.ts",
+      "components/transfer-list/index.ts",
+      "components/dashboard/index.ts",
+      "widget/index.ts",
+      "widget-dock/index.ts",
+      "screen-context/index.ts",
+      "mdm-meta/index.ts",
+      "components/matrix-table/index.ts",
+      "components/charts/index.ts",
+      "components/modal.tsx",
+      "components/message-provider.tsx",
+      "hooks/use-api-call.ts"
+    ]
+  },
+  "cases": {
+    "index-stdout": {
+      "status": 0,
+      "stdout": "# DMES 공통 UI 컴포넌트 (MES 화면용)\n\n> 화면(m-*)은 `@dk-oasis/shared/*` 래퍼만 쓴다. Mantine·ag-grid 를 직접 import 하지 않는다.\n> 화면 전체 모양은 먼저 [화면 표준 골격](../screen-patterns.md)에서 유형을 고르고 예제를 복사한다.\n> 이 파일은 `node .claude/skills/mantine-aggrid-ui/scripts/ui_docs.mjs index --write` 가 생성한다. 직접 고치지 않는다.\n\n## 시작\n\n- [화면 표준 골격](../screen-patterns.md): 화면 유형(조회·조회+상세·그리드 편집·마스터-디테일·등록 팝업)을 고르고 고정값과 예제를 확인할 때 쓴다.\n- [Mantine 대응표](../mantine-catalog.md): Mantine 컴포넌트가 어떤 shared 래퍼로 감싸져 있는지, 래퍼가 없으면 무엇을 할지 확인할 때 쓴다.\n\n## 화면 골격 (`@dk-oasis/shared/layout`)\n\n- [PageLayout](page-layout.md): PageLayout 의 한 줄 설명.\n- [SearchArea](search-area.md): SearchArea 의 한 줄 설명.\n- [SearchSettingsMenu](search-settings-menu.md): SearchSettingsMenu 의 한 줄 설명.\n- [ContentBody](content-body.md): ContentBody 의 한 줄 설명.\n- [DetailForm](detail-form.md): DetailForm 의 한 줄 설명.\n\n## 입력 (`@dk-oasis/shared/form`)\n\n- [Button](button.md): 버튼 문서.\n- [Input](input.md): 입력 칸 문서(CRLF).\n- [select](select.md): \n- [Combo Box](combo-box.md): ```\n- [MultiSelectComboBox](multi-select-combo-box.md): MultiSelectComboBox 의 한 줄 설명.\n- [DatePicker](date-picker.md): 요약은 둘째 제목 뒤 첫 줄.\n- [DateTimePicker](date-time-picker.md): DateTimePicker 의 한 줄 설명.\n- [Checkbox](checkbox.md): 공백 줄 뒤 요약\n- [radio](radio.md): \n- [SegmentedControl](segmented-control.md): SegmentedControl 의 한 줄 설명.\n- [Textarea](textarea.md): 앞뒤 공백 요약\n- [FormGroup](form-group.md): \n- [Loading](loading.md): ## 언제 쓰나\n- [Badge](badge.md): Badge 의 한 줄 설명.\n- [SelectOrInput](select-or-input.md): SelectOrInput 의 한 줄 설명.\n\n## 목록 (`@dk-oasis/shared/grid`)\n\n- [AgDataGrid](ag-data-grid.md): AgDataGrid 의 한 줄 설명.\n- [GridPanel](grid-panel.md): GridPanel 의 한 줄 설명.\n- [UseGridDataManager](use-grid-data-manager.md): UseGridDataManager 의 한 줄 설명.\n- [GridBadge](grid-badge.md): GridBadge 의 한 줄 설명.\n- [Pagination](pagination.md): Pagination 의 한 줄 설명.\n- [EditableRowList](editable-row-list.md): EditableRowList 의 한 줄 설명.\n- [ColumnSettingsModal](column-settings-modal.md): ColumnSettingsModal 의 한 줄 설명.\n- [GridExcelFoot](grid-excel-foot.md): GridExcelFoot 의 한 줄 설명.\n- [GridLimitNotice](grid-limit-notice.md): GridLimitNotice 의 한 줄 설명.\n\n## 팝업·메시지 (`modal`, `message-provider`, `use-api-call`)\n\n- [Modal](modal.md): 모달 문서.\n- [Message](message.md): Message 의 한 줄 설명.\n\n## 대시보드 (`@dk-oasis/shared/dashboard`)\n\n- [Dashboard](dashboard.md): Dashboard 의 한 줄 설명.\n\n## 위젯 (`@dk-oasis/shared/widget`)\n\n- [Widget](widget.md): Widget 의 한 줄 설명.\n\n## 화면 문맥 — 업무 화면 ↔ 도구 창 위젯 (`@dk-oasis/shared/screen-context`)\n\n- [ScreenContext](screen-context.md): ScreenContext 의 한 줄 설명.\n\n## 위젯 도크·떠 있는 창·탭 분리 창·분리 상태 이어받기 (`@dk-oasis/shared/portal-shell`)\n\n- [WidgetDock](widget-dock.md): WidgetDock 의 한 줄 설명.\n- [FloatingWindow](floating-window.md): FloatingWindow 의 한 줄 설명.\n- [PortalPageWindow](portal-page-window.md): PortalPageWindow 의 한 줄 설명.\n- [UseCarryState](use-carry-state.md): UseCarryState 의 한 줄 설명.\n\n## MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)\n\n- [MdmMeta](mdm-meta.md): MdmMeta 의 한 줄 설명.\n\n## 탭·트리·룩업·기타\n\n- [탭 모음](tabs.md): 한글 제목의 문서.\n- [ClosableTabs](closable-tabs.md): ClosableTabs 의 한 줄 설명.\n- [Tree](tree.md): 요약 앞부분\n- [Lookup](lookup.md): Lookup 의 한 줄 설명.\n- [LookupMultiModal](lookup-multi-modal.md): LookupMultiModal 의 한 줄 설명.\n- [MarkdownEditor](markdown-editor.md): MarkdownEditor 의 한 줄 설명.\n- [HtmlEditor](html-editor.md): HtmlEditor 의 한 줄 설명.\n- [NoticeBodyView](notice-body-view.md): NoticeBodyView 의 한 줄 설명.\n- [DetailPopover](detail-popover.md): DetailPopover 의 한 줄 설명.\n- [GridResizeBox](grid-resize-box.md): GridResizeBox 의 한 줄 설명.\n- [JsonView](json-view.md): JsonView 의 한 줄 설명.\n- [Card](card.md): Card 의 한 줄 설명.\n- [TransferList](transfer-list.md): TransferList 의 한 줄 설명.\n- [MatrixTable](matrix-table.md): MatrixTable 의 한 줄 설명.\n- [Charts](charts.md): Charts 의 한 줄 설명.\n- [ExportToExcel](export-to-excel.md): ExportToExcel 의 한 줄 설명.\n- [PrintElementAsPage](print-element-as-page.md): PrintElementAsPage 의 한 줄 설명.\n- [Icons](icons.md): Icons 의 한 줄 설명.\n\n## 화면 문서에 싣지 않는 shared export\n\n- `WIDGET_CSS`: WidgetStyle 내부용 CSS 문자열\n- `getDraggingWidget`: WidgetPicker·WidgetBoard 끌기 공유용 내부 함수\n- `setDraggingWidget`: WidgetPicker·WidgetBoard 끌기 공유용 내부 함수\n- `FLOATING_WINDOW_CSS`: FloatingWindowStyle 내부용 CSS 문자열\n- `FloatingWindowStyle`: FloatingWindow 가 스스로 넣는 스타일\n- `WIDGET_DOCK_CSS`: WidgetDockStyle 내부용 CSS 문자열\n- `WidgetDockStyle`: WidgetDockLayer·DockToolsMenu 가 스스로 넣는 스타일\n- `DataGrid`: AgDataGrid 의 별칭. 새 코드는 AgDataGrid\n- `useRowStateManager`: 옛 행 상태 훅(_rowState). 새 화면은 useGridDataManager\n- `ResizableFormPanel`: Part B §4-3 이 새 화면 사용 금지. ContentBody resizable\n- `MaxHandle`: ContentBody·GridPanel 내부용\n- `SearchHistoryInput`: SearchField 내부용(APS 최근검색)\n- `isSearchHistoryPage`: SearchField 내부용\n- `clearAllSearchHistory`: 포털 셸용\n- `clearSearchHistory`: 포털 셸용\n- `readSearchHistory`: SearchField 내부용\n- `emitSearch`: PageLayout·SearchArea 내부용\n- `subscribeSearchReset`: SearchArea 내부용(초기화 이벤트 구독, 발행은 PageLayout)\n- `RANGE_PRESETS`: 조회 기본값 설정 창 내부용(기간 묶음 선택지)\n- `RELATIVE_DATE_PRESETS`: 조회 기본값 설정 창 내부용(상대 날짜 이름표)\n- `isValidIsoDate`: 조회 기본값 규칙 계산 내부용(search-area 문서의 사용자 기본값 참고)\n- `parseSearchDefaultRule`: 조회 기본값 저장소 내부용\n- `resolveRelativeDate`: 조회 기본값 규칙 계산 내부용\n- `resolveSearchDefault`: 조회 기본값 규칙 계산 내부용\n- `getPageSearchDefaults`: 조회 기본값 저장소 내부용(SearchArea·설정 창이 쓴다)\n- `getSearchDefaultsSource`: 조회 기본값 저장소 내부용\n- `getSearchDefaultsStatus`: 조회 기본값 저장소 내부용\n- `preloadSearchDefaults`: 포털 셸·SearchArea 내부용(조회 기본값 미리 받기)\n- `resetSearchDefaults`: 조회 기본값 저장소 내부용(시험·로그아웃 정리)\n- `saveSearchDefaults`: 조회 기본값 저장소 내부용(설정 창이 저장한다)\n- `setSearchDefaultsLocalForDev`: 개발 모드 확인용(조회 기본값 샘플 화면)\n- `subscribeSearchDefaults`: 조회 기본값 저장소 내부용\n- `readSearchLastValues`: 조회 기본값 설정 창 내부용(마지막 조회값 읽기)\n- `useSearchDefaultsArea`: SearchArea 내부용(조회 기본값 등록소)\n- `subscribeSearch`: PageLayout·SearchArea 내부용\n- `useContentMaximize`: ContentBody 최대화 내부용\n- `canDoButton`: 팝업 내부 버튼 권한 판정용(page-layout 문서 참고)\n- `useUserButtonRbac`: 팝업 내부 버튼 권한 판정용(page-layout 문서 참고)\n- `INPUT_BASE`: 원시 input 스타일. 화면은 form 래퍼\n- `INPUT_READONLY`: 원시 input 스타일. 화면은 form 래퍼\n- `INPUT_DISABLED`: 원시 input 스타일. 화면은 form 래퍼\n- `GridHelpButton`: GridPanel help prop 으로 쓴다\n- `GRID_TEMP_ID_FIELD`: GridPanel·useGridDataManager 내부 필드\n- `MessageProvider`: 호스트 root layout 이 감싼다\n- `MdmGridTooltip`: AgDataGrid 머리글 툴팁 내부 컴포넌트\n- `requestDomains`: useMdmColumn(s) 내부 요청(mdm-meta 문서 참고)\n- `peekColumn`: mdm-meta store 동기 조회 — 훅 내부용\n- `peekDomain`: mdm-meta store 동기 조회 — 훅 내부용\n- `isModuleDisabled`: mdm-meta store 상태 — 훅 내부용\n- `resetMdmMetaStore`: 시험용\n- `MDM_META_TTL_MS`: mdm-meta store 상수\n- `MDM_META_BATCH_MS`: mdm-meta store 상수\n- `MDM_META_CARD_MAX_CODES`: MdmMetaCard 상수\n- `mdmCaption`: resolveCaption 내부용\n- `resolveMdmPhysName`: useMdmColumn 내부용(toPhysName + meta)\n- `useMdmCaptionPriority`: AgDataGrid·FormGroup 내부용\n- `useMdmMetaScope`: AgDataGrid·FormGroup 내부용\n- `formatMdmDataType`: MdmMetaCard 내부용\n\n",
+      "stderr": ""
+    },
+    "index-write": {
+      "status": 0,
+      "stdout": "갱신: <TREE>/.claude/skills/mantine-aggrid-ui/references/components/llms.txt\n",
+      "stderr": "",
+      "files": {
+        ".claude/skills/mantine-aggrid-ui/references/components/llms.txt": {
+          "crlf": false,
+          "text": "# DMES 공통 UI 컴포넌트 (MES 화면용)\n\n> 화면(m-*)은 `@dk-oasis/shared/*` 래퍼만 쓴다. Mantine·ag-grid 를 직접 import 하지 않는다.\n> 화면 전체 모양은 먼저 [화면 표준 골격](../screen-patterns.md)에서 유형을 고르고 예제를 복사한다.\n> 이 파일은 `node .claude/skills/mantine-aggrid-ui/scripts/ui_docs.mjs index --write` 가 생성한다. 직접 고치지 않는다.\n\n## 시작\n\n- [화면 표준 골격](../screen-patterns.md): 화면 유형(조회·조회+상세·그리드 편집·마스터-디테일·등록 팝업)을 고르고 고정값과 예제를 확인할 때 쓴다.\n- [Mantine 대응표](../mantine-catalog.md): Mantine 컴포넌트가 어떤 shared 래퍼로 감싸져 있는지, 래퍼가 없으면 무엇을 할지 확인할 때 쓴다.\n\n## 화면 골격 (`@dk-oasis/shared/layout`)\n\n- [PageLayout](page-layout.md): PageLayout 의 한 줄 설명.\n- [SearchArea](search-area.md): SearchArea 의 한 줄 설명.\n- [SearchSettingsMenu](search-settings-menu.md): SearchSettingsMenu 의 한 줄 설명.\n- [ContentBody](content-body.md): ContentBody 의 한 줄 설명.\n- [DetailForm](detail-form.md): DetailForm 의 한 줄 설명.\n\n## 입력 (`@dk-oasis/shared/form`)\n\n- [Button](button.md): 버튼 문서.\n- [Input](input.md): 입력 칸 문서(CRLF).\n- [select](select.md): \n- [Combo Box](combo-box.md): ```\n- [MultiSelectComboBox](multi-select-combo-box.md): MultiSelectComboBox 의 한 줄 설명.\n- [DatePicker](date-picker.md): 요약은 둘째 제목 뒤 첫 줄.\n- [DateTimePicker](date-time-picker.md): DateTimePicker 의 한 줄 설명.\n- [Checkbox](checkbox.md): 공백 줄 뒤 요약\n- [radio](radio.md): \n- [SegmentedControl](segmented-control.md): SegmentedControl 의 한 줄 설명.\n- [Textarea](textarea.md): 앞뒤 공백 요약\n- [FormGroup](form-group.md): \n- [Loading](loading.md): ## 언제 쓰나\n- [Badge](badge.md): Badge 의 한 줄 설명.\n- [SelectOrInput](select-or-input.md): SelectOrInput 의 한 줄 설명.\n\n## 목록 (`@dk-oasis/shared/grid`)\n\n- [AgDataGrid](ag-data-grid.md): AgDataGrid 의 한 줄 설명.\n- [GridPanel](grid-panel.md): GridPanel 의 한 줄 설명.\n- [UseGridDataManager](use-grid-data-manager.md): UseGridDataManager 의 한 줄 설명.\n- [GridBadge](grid-badge.md): GridBadge 의 한 줄 설명.\n- [Pagination](pagination.md): Pagination 의 한 줄 설명.\n- [EditableRowList](editable-row-list.md): EditableRowList 의 한 줄 설명.\n- [ColumnSettingsModal](column-settings-modal.md): ColumnSettingsModal 의 한 줄 설명.\n- [GridExcelFoot](grid-excel-foot.md): GridExcelFoot 의 한 줄 설명.\n- [GridLimitNotice](grid-limit-notice.md): GridLimitNotice 의 한 줄 설명.\n\n## 팝업·메시지 (`modal`, `message-provider`, `use-api-call`)\n\n- [Modal](modal.md): 모달 문서.\n- [Message](message.md): Message 의 한 줄 설명.\n\n## 대시보드 (`@dk-oasis/shared/dashboard`)\n\n- [Dashboard](dashboard.md): Dashboard 의 한 줄 설명.\n\n## 위젯 (`@dk-oasis/shared/widget`)\n\n- [Widget](widget.md): Widget 의 한 줄 설명.\n\n## 화면 문맥 — 업무 화면 ↔ 도구 창 위젯 (`@dk-oasis/shared/screen-context`)\n\n- [ScreenContext](screen-context.md): ScreenContext 의 한 줄 설명.\n\n## 위젯 도크·떠 있는 창·탭 분리 창·분리 상태 이어받기 (`@dk-oasis/shared/portal-shell`)\n\n- [WidgetDock](widget-dock.md): WidgetDock 의 한 줄 설명.\n- [FloatingWindow](floating-window.md): FloatingWindow 의 한 줄 설명.\n- [PortalPageWindow](portal-page-window.md): PortalPageWindow 의 한 줄 설명.\n- [UseCarryState](use-carry-state.md): UseCarryState 의 한 줄 설명.\n\n## MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)\n\n- [MdmMeta](mdm-meta.md): MdmMeta 의 한 줄 설명.\n\n## 탭·트리·룩업·기타\n\n- [탭 모음](tabs.md): 한글 제목의 문서.\n- [ClosableTabs](closable-tabs.md): ClosableTabs 의 한 줄 설명.\n- [Tree](tree.md): 요약 앞부분\n- [Lookup](lookup.md): Lookup 의 한 줄 설명.\n- [LookupMultiModal](lookup-multi-modal.md): LookupMultiModal 의 한 줄 설명.\n- [MarkdownEditor](markdown-editor.md): MarkdownEditor 의 한 줄 설명.\n- [HtmlEditor](html-editor.md): HtmlEditor 의 한 줄 설명.\n- [NoticeBodyView](notice-body-view.md): NoticeBodyView 의 한 줄 설명.\n- [DetailPopover](detail-popover.md): DetailPopover 의 한 줄 설명.\n- [GridResizeBox](grid-resize-box.md): GridResizeBox 의 한 줄 설명.\n- [JsonView](json-view.md): JsonView 의 한 줄 설명.\n- [Card](card.md): Card 의 한 줄 설명.\n- [TransferList](transfer-list.md): TransferList 의 한 줄 설명.\n- [MatrixTable](matrix-table.md): MatrixTable 의 한 줄 설명.\n- [Charts](charts.md): Charts 의 한 줄 설명.\n- [ExportToExcel](export-to-excel.md): ExportToExcel 의 한 줄 설명.\n- [PrintElementAsPage](print-element-as-page.md): PrintElementAsPage 의 한 줄 설명.\n- [Icons](icons.md): Icons 의 한 줄 설명.\n\n## 화면 문서에 싣지 않는 shared export\n\n- `WIDGET_CSS`: WidgetStyle 내부용 CSS 문자열\n- `getDraggingWidget`: WidgetPicker·WidgetBoard 끌기 공유용 내부 함수\n- `setDraggingWidget`: WidgetPicker·WidgetBoard 끌기 공유용 내부 함수\n- `FLOATING_WINDOW_CSS`: FloatingWindowStyle 내부용 CSS 문자열\n- `FloatingWindowStyle`: FloatingWindow 가 스스로 넣는 스타일\n- `WIDGET_DOCK_CSS`: WidgetDockStyle 내부용 CSS 문자열\n- `WidgetDockStyle`: WidgetDockLayer·DockToolsMenu 가 스스로 넣는 스타일\n- `DataGrid`: AgDataGrid 의 별칭. 새 코드는 AgDataGrid\n- `useRowStateManager`: 옛 행 상태 훅(_rowState). 새 화면은 useGridDataManager\n- `ResizableFormPanel`: Part B §4-3 이 새 화면 사용 금지. ContentBody resizable\n- `MaxHandle`: ContentBody·GridPanel 내부용\n- `SearchHistoryInput`: SearchField 내부용(APS 최근검색)\n- `isSearchHistoryPage`: SearchField 내부용\n- `clearAllSearchHistory`: 포털 셸용\n- `clearSearchHistory`: 포털 셸용\n- `readSearchHistory`: SearchField 내부용\n- `emitSearch`: PageLayout·SearchArea 내부용\n- `subscribeSearchReset`: SearchArea 내부용(초기화 이벤트 구독, 발행은 PageLayout)\n- `RANGE_PRESETS`: 조회 기본값 설정 창 내부용(기간 묶음 선택지)\n- `RELATIVE_DATE_PRESETS`: 조회 기본값 설정 창 내부용(상대 날짜 이름표)\n- `isValidIsoDate`: 조회 기본값 규칙 계산 내부용(search-area 문서의 사용자 기본값 참고)\n- `parseSearchDefaultRule`: 조회 기본값 저장소 내부용\n- `resolveRelativeDate`: 조회 기본값 규칙 계산 내부용\n- `resolveSearchDefault`: 조회 기본값 규칙 계산 내부용\n- `getPageSearchDefaults`: 조회 기본값 저장소 내부용(SearchArea·설정 창이 쓴다)\n- `getSearchDefaultsSource`: 조회 기본값 저장소 내부용\n- `getSearchDefaultsStatus`: 조회 기본값 저장소 내부용\n- `preloadSearchDefaults`: 포털 셸·SearchArea 내부용(조회 기본값 미리 받기)\n- `resetSearchDefaults`: 조회 기본값 저장소 내부용(시험·로그아웃 정리)\n- `saveSearchDefaults`: 조회 기본값 저장소 내부용(설정 창이 저장한다)\n- `setSearchDefaultsLocalForDev`: 개발 모드 확인용(조회 기본값 샘플 화면)\n- `subscribeSearchDefaults`: 조회 기본값 저장소 내부용\n- `readSearchLastValues`: 조회 기본값 설정 창 내부용(마지막 조회값 읽기)\n- `useSearchDefaultsArea`: SearchArea 내부용(조회 기본값 등록소)\n- `subscribeSearch`: PageLayout·SearchArea 내부용\n- `useContentMaximize`: ContentBody 최대화 내부용\n- `canDoButton`: 팝업 내부 버튼 권한 판정용(page-layout 문서 참고)\n- `useUserButtonRbac`: 팝업 내부 버튼 권한 판정용(page-layout 문서 참고)\n- `INPUT_BASE`: 원시 input 스타일. 화면은 form 래퍼\n- `INPUT_READONLY`: 원시 input 스타일. 화면은 form 래퍼\n- `INPUT_DISABLED`: 원시 input 스타일. 화면은 form 래퍼\n- `GridHelpButton`: GridPanel help prop 으로 쓴다\n- `GRID_TEMP_ID_FIELD`: GridPanel·useGridDataManager 내부 필드\n- `MessageProvider`: 호스트 root layout 이 감싼다\n- `MdmGridTooltip`: AgDataGrid 머리글 툴팁 내부 컴포넌트\n- `requestDomains`: useMdmColumn(s) 내부 요청(mdm-meta 문서 참고)\n- `peekColumn`: mdm-meta store 동기 조회 — 훅 내부용\n- `peekDomain`: mdm-meta store 동기 조회 — 훅 내부용\n- `isModuleDisabled`: mdm-meta store 상태 — 훅 내부용\n- `resetMdmMetaStore`: 시험용\n- `MDM_META_TTL_MS`: mdm-meta store 상수\n- `MDM_META_BATCH_MS`: mdm-meta store 상수\n- `MDM_META_CARD_MAX_CODES`: MdmMetaCard 상수\n- `mdmCaption`: resolveCaption 내부용\n- `resolveMdmPhysName`: useMdmColumn 내부용(toPhysName + meta)\n- `useMdmCaptionPriority`: AgDataGrid·FormGroup 내부용\n- `useMdmMetaScope`: AgDataGrid·FormGroup 내부용\n- `formatMdmDataType`: MdmMetaCard 내부용\n"
+        }
+      }
+    },
+    "full-stdout": {
+      "status": 0,
+      "stdout": "# DMES 공통 UI 컴포넌트 (MES 화면용)\n\n> 화면(m-*)은 `@dk-oasis/shared/*` 래퍼만 쓴다. Mantine·ag-grid 를 직접 import 하지 않는다.\n> 화면 전체 모양은 먼저 [화면 표준 골격](../screen-patterns.md)에서 유형을 고르고 예제를 복사한다.\n> 이 파일은 `node .claude/skills/mantine-aggrid-ui/scripts/ui_docs.mjs index --write` 가 생성한다. 직접 고치지 않는다.\n\n## 시작\n\n- [화면 표준 골격](../screen-patterns.md): 화면 유형(조회·조회+상세·그리드 편집·마스터-디테일·등록 팝업)을 고르고 고정값과 예제를 확인할 때 쓴다.\n- [Mantine 대응표](../mantine-catalog.md): Mantine 컴포넌트가 어떤 shared 래퍼로 감싸져 있는지, 래퍼가 없으면 무엇을 할지 확인할 때 쓴다.\n\n## 화면 골격 (`@dk-oasis/shared/layout`)\n\n- [PageLayout](page-layout.md): PageLayout 의 한 줄 설명.\n- [SearchArea](search-area.md): SearchArea 의 한 줄 설명.\n- [SearchSettingsMenu](search-settings-menu.md): SearchSettingsMenu 의 한 줄 설명.\n- [ContentBody](content-body.md): ContentBody 의 한 줄 설명.\n- [DetailForm](detail-form.md): DetailForm 의 한 줄 설명.\n\n## 입력 (`@dk-oasis/shared/form`)\n\n- [Button](button.md): 버튼 문서.\n- [Input](input.md): 입력 칸 문서(CRLF).\n- [select](select.md): \n- [Combo Box](combo-box.md): ```\n- [MultiSelectComboBox](multi-select-combo-box.md): MultiSelectComboBox 의 한 줄 설명.\n- [DatePicker](date-picker.md): 요약은 둘째 제목 뒤 첫 줄.\n- [DateTimePicker](date-time-picker.md): DateTimePicker 의 한 줄 설명.\n- [Checkbox](checkbox.md): 공백 줄 뒤 요약\n- [radio](radio.md): \n- [SegmentedControl](segmented-control.md): SegmentedControl 의 한 줄 설명.\n- [Textarea](textarea.md): 앞뒤 공백 요약\n- [FormGroup](form-group.md): \n- [Loading](loading.md): ## 언제 쓰나\n- [Badge](badge.md): Badge 의 한 줄 설명.\n- [SelectOrInput](select-or-input.md): SelectOrInput 의 한 줄 설명.\n\n## 목록 (`@dk-oasis/shared/grid`)\n\n- [AgDataGrid](ag-data-grid.md): AgDataGrid 의 한 줄 설명.\n- [GridPanel](grid-panel.md): GridPanel 의 한 줄 설명.\n- [UseGridDataManager](use-grid-data-manager.md): UseGridDataManager 의 한 줄 설명.\n- [GridBadge](grid-badge.md): GridBadge 의 한 줄 설명.\n- [Pagination](pagination.md): Pagination 의 한 줄 설명.\n- [EditableRowList](editable-row-list.md): EditableRowList 의 한 줄 설명.\n- [ColumnSettingsModal](column-settings-modal.md): ColumnSettingsModal 의 한 줄 설명.\n- [GridExcelFoot](grid-excel-foot.md): GridExcelFoot 의 한 줄 설명.\n- [GridLimitNotice](grid-limit-notice.md): GridLimitNotice 의 한 줄 설명.\n\n## 팝업·메시지 (`modal`, `message-provider`, `use-api-call`)\n\n- [Modal](modal.md): 모달 문서.\n- [Message](message.md): Message 의 한 줄 설명.\n\n## 대시보드 (`@dk-oasis/shared/dashboard`)\n\n- [Dashboard](dashboard.md): Dashboard 의 한 줄 설명.\n\n## 위젯 (`@dk-oasis/shared/widget`)\n\n- [Widget](widget.md): Widget 의 한 줄 설명.\n\n## 화면 문맥 — 업무 화면 ↔ 도구 창 위젯 (`@dk-oasis/shared/screen-context`)\n\n- [ScreenContext](screen-context.md): ScreenContext 의 한 줄 설명.\n\n## 위젯 도크·떠 있는 창·탭 분리 창·분리 상태 이어받기 (`@dk-oasis/shared/portal-shell`)\n\n- [WidgetDock](widget-dock.md): WidgetDock 의 한 줄 설명.\n- [FloatingWindow](floating-window.md): FloatingWindow 의 한 줄 설명.\n- [PortalPageWindow](portal-page-window.md): PortalPageWindow 의 한 줄 설명.\n- [UseCarryState](use-carry-state.md): UseCarryState 의 한 줄 설명.\n\n## MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)\n\n- [MdmMeta](mdm-meta.md): MdmMeta 의 한 줄 설명.\n\n## 탭·트리·룩업·기타\n\n- [탭 모음](tabs.md): 한글 제목의 문서.\n- [ClosableTabs](closable-tabs.md): ClosableTabs 의 한 줄 설명.\n- [Tree](tree.md): 요약 앞부분\n- [Lookup](lookup.md): Lookup 의 한 줄 설명.\n- [LookupMultiModal](lookup-multi-modal.md): LookupMultiModal 의 한 줄 설명.\n- [MarkdownEditor](markdown-editor.md): MarkdownEditor 의 한 줄 설명.\n- [HtmlEditor](html-editor.md): HtmlEditor 의 한 줄 설명.\n- [NoticeBodyView](notice-body-view.md): NoticeBodyView 의 한 줄 설명.\n- [DetailPopover](detail-popover.md): DetailPopover 의 한 줄 설명.\n- [GridResizeBox](grid-resize-box.md): GridResizeBox 의 한 줄 설명.\n- [JsonView](json-view.md): JsonView 의 한 줄 설명.\n- [Card](card.md): Card 의 한 줄 설명.\n- [TransferList](transfer-list.md): TransferList 의 한 줄 설명.\n- [MatrixTable](matrix-table.md): MatrixTable 의 한 줄 설명.\n- [Charts](charts.md): Charts 의 한 줄 설명.\n- [ExportToExcel](export-to-excel.md): ExportToExcel 의 한 줄 설명.\n- [PrintElementAsPage](print-element-as-page.md): PrintElementAsPage 의 한 줄 설명.\n- [Icons](icons.md): Icons 의 한 줄 설명.\n\n## 화면 문서에 싣지 않는 shared export\n\n- `WIDGET_CSS`: WidgetStyle 내부용 CSS 문자열\n- `getDraggingWidget`: WidgetPicker·WidgetBoard 끌기 공유용 내부 함수\n- `setDraggingWidget`: WidgetPicker·WidgetBoard 끌기 공유용 내부 함수\n- `FLOATING_WINDOW_CSS`: FloatingWindowStyle 내부용 CSS 문자열\n- `FloatingWindowStyle`: FloatingWindow 가 스스로 넣는 스타일\n- `WIDGET_DOCK_CSS`: WidgetDockStyle 내부용 CSS 문자열\n- `WidgetDockStyle`: WidgetDockLayer·DockToolsMenu 가 스스로 넣는 스타일\n- `DataGrid`: AgDataGrid 의 별칭. 새 코드는 AgDataGrid\n- `useRowStateManager`: 옛 행 상태 훅(_rowState). 새 화면은 useGridDataManager\n- `ResizableFormPanel`: Part B §4-3 이 새 화면 사용 금지. ContentBody resizable\n- `MaxHandle`: ContentBody·GridPanel 내부용\n- `SearchHistoryInput`: SearchField 내부용(APS 최근검색)\n- `isSearchHistoryPage`: SearchField 내부용\n- `clearAllSearchHistory`: 포털 셸용\n- `clearSearchHistory`: 포털 셸용\n- `readSearchHistory`: SearchField 내부용\n- `emitSearch`: PageLayout·SearchArea 내부용\n- `subscribeSearchReset`: SearchArea 내부용(초기화 이벤트 구독, 발행은 PageLayout)\n- `RANGE_PRESETS`: 조회 기본값 설정 창 내부용(기간 묶음 선택지)\n- `RELATIVE_DATE_PRESETS`: 조회 기본값 설정 창 내부용(상대 날짜 이름표)\n- `isValidIsoDate`: 조회 기본값 규칙 계산 내부용(search-area 문서의 사용자 기본값 참고)\n- `parseSearchDefaultRule`: 조회 기본값 저장소 내부용\n- `resolveRelativeDate`: 조회 기본값 규칙 계산 내부용\n- `resolveSearchDefault`: 조회 기본값 규칙 계산 내부용\n- `getPageSearchDefaults`: 조회 기본값 저장소 내부용(SearchArea·설정 창이 쓴다)\n- `getSearchDefaultsSource`: 조회 기본값 저장소 내부용\n- `getSearchDefaultsStatus`: 조회 기본값 저장소 내부용\n- `preloadSearchDefaults`: 포털 셸·SearchArea 내부용(조회 기본값 미리 받기)\n- `resetSearchDefaults`: 조회 기본값 저장소 내부용(시험·로그아웃 정리)\n- `saveSearchDefaults`: 조회 기본값 저장소 내부용(설정 창이 저장한다)\n- `setSearchDefaultsLocalForDev`: 개발 모드 확인용(조회 기본값 샘플 화면)\n- `subscribeSearchDefaults`: 조회 기본값 저장소 내부용\n- `readSearchLastValues`: 조회 기본값 설정 창 내부용(마지막 조회값 읽기)\n- `useSearchDefaultsArea`: SearchArea 내부용(조회 기본값 등록소)\n- `subscribeSearch`: PageLayout·SearchArea 내부용\n- `useContentMaximize`: ContentBody 최대화 내부용\n- `canDoButton`: 팝업 내부 버튼 권한 판정용(page-layout 문서 참고)\n- `useUserButtonRbac`: 팝업 내부 버튼 권한 판정용(page-layout 문서 참고)\n- `INPUT_BASE`: 원시 input 스타일. 화면은 form 래퍼\n- `INPUT_READONLY`: 원시 input 스타일. 화면은 form 래퍼\n- `INPUT_DISABLED`: 원시 input 스타일. 화면은 form 래퍼\n- `GridHelpButton`: GridPanel help prop 으로 쓴다\n- `GRID_TEMP_ID_FIELD`: GridPanel·useGridDataManager 내부 필드\n- `MessageProvider`: 호스트 root layout 이 감싼다\n- `MdmGridTooltip`: AgDataGrid 머리글 툴팁 내부 컴포넌트\n- `requestDomains`: useMdmColumn(s) 내부 요청(mdm-meta 문서 참고)\n- `peekColumn`: mdm-meta store 동기 조회 — 훅 내부용\n- `peekDomain`: mdm-meta store 동기 조회 — 훅 내부용\n- `isModuleDisabled`: mdm-meta store 상태 — 훅 내부용\n- `resetMdmMetaStore`: 시험용\n- `MDM_META_TTL_MS`: mdm-meta store 상수\n- `MDM_META_BATCH_MS`: mdm-meta store 상수\n- `MDM_META_CARD_MAX_CODES`: MdmMetaCard 상수\n- `mdmCaption`: resolveCaption 내부용\n- `resolveMdmPhysName`: useMdmColumn 내부용(toPhysName + meta)\n- `useMdmCaptionPriority`: AgDataGrid·FormGroup 내부용\n- `useMdmMetaScope`: AgDataGrid·FormGroup 내부용\n- `formatMdmDataType`: MdmMetaCard 내부용\n\n\n<!-- ===== page-layout.md ===== -->\n\n# PageLayout\n\nPageLayout 의 한 줄 설명.\n\n## 언제 쓰나\n\n- page-layout 을 쓸 때\n\n\n<!-- ===== search-area.md ===== -->\n\n# SearchArea\n\nSearchArea 의 한 줄 설명.\n\n## 언제 쓰나\n\n- search-area 을 쓸 때\n\n\n<!-- ===== search-settings-menu.md ===== -->\n\n# SearchSettingsMenu\n\nSearchSettingsMenu 의 한 줄 설명.\n\n## 언제 쓰나\n\n- search-settings-menu 을 쓸 때\n\n\n<!-- ===== content-body.md ===== -->\n\n# ContentBody\n\nContentBody 의 한 줄 설명.\n\n## 언제 쓰나\n\n- content-body 을 쓸 때\n\n\n<!-- ===== detail-form.md ===== -->\n\n# DetailForm\n\nDetailForm 의 한 줄 설명.\n\n## 언제 쓰나\n\n- detail-form 을 쓸 때\n\n\n<!-- ===== button.md ===== -->\n\n# Button\n\n버튼 문서.\n\n```tsx\nimport { PageLayout, SearchArea, InnerAlias, ContentBody, DetailForm, useLayoutThing, loadLayout, LayoutClass, Button, FormInput, 한글이름, WidgetThing, Plain, useGridDataManager } from '@dk-oasis/shared/form';\n// a+b 와 foo.+bar 그리고 한글이름 도 쓴다\n```\n\n## 언제 쓰나\n\n본문에는 InnerHidden 이 있다.\n\n\n<!-- ===== input.md ===== -->\n\n# Input\n\n\n\n입력 칸 문서(CRLF).\n\n\n\n## 언제 쓰나\n\n\n\n본문\n\n\n<!-- ===== select.md ===== -->\n\n요약만 있고 제목이 없는 문서.\n\n## 언제 쓰나\n\n\n<!-- ===== combo-box.md ===== -->\n\n# Combo Box\n\n```\n# 코드 안 제목 같은 줄\n```\n\n실제 요약.\n\n## 언제 쓰나\n\n\n<!-- ===== multi-select-combo-box.md ===== -->\n\n# MultiSelectComboBox\n\nMultiSelectComboBox 의 한 줄 설명.\n\n## 언제 쓰나\n\n- multi-select-combo-box 을 쓸 때\n\n\n<!-- ===== date-picker.md ===== -->\n\n# DatePicker\n\n# 둘째 제목 줄\n\n요약은 둘째 제목 뒤 첫 줄.\n\n## 언제 쓰나\n\n\n<!-- ===== date-time-picker.md ===== -->\n\n# DateTimePicker\n\nDateTimePicker 의 한 줄 설명.\n\n## 언제 쓰나\n\n- date-time-picker 을 쓸 때\n\n\n<!-- ===== checkbox.md ===== -->\n\n# Checkbox\n\n   \n\t \n  공백 줄 뒤 요약  \n\n## 언제 쓰나\n\n\n<!-- ===== radio.md ===== -->\n\n﻿# Radio\n\nBOM 이 앞에 붙은 문서.\n\n## 언제 쓰나\n\n\n<!-- ===== segmented-control.md ===== -->\n\n# SegmentedControl\n\nSegmentedControl 의 한 줄 설명.\n\n## 언제 쓰나\n\n- segmented-control 을 쓸 때\n\n\n<!-- ===== textarea.md ===== -->\n\n# Textarea  \n\n\n  앞뒤 공백 요약 　\n\n## 언제 쓰나\n\n\n\n끝에 빈 줄 많음\n\n\n<!-- ===== form-group.md ===== -->\n\n# FormGroup\n\n\n<!-- ===== loading.md ===== -->\n\n# Loading\n\n## 언제 쓰나\n## 바로 다음 제목이 요약이 된다\n\n\n<!-- ===== badge.md ===== -->\n\n# Badge\n\nBadge 의 한 줄 설명.\n\n## 언제 쓰나\n\n- badge 을 쓸 때\n\n\n<!-- ===== select-or-input.md ===== -->\n\n# SelectOrInput\n\nSelectOrInput 의 한 줄 설명.\n\n## 언제 쓰나\n\n- select-or-input 을 쓸 때\n\n\n<!-- ===== ag-data-grid.md ===== -->\n\n# AgDataGrid\n\nAgDataGrid 의 한 줄 설명.\n\n## 언제 쓰나\n\n- ag-data-grid 을 쓸 때\n\n\n<!-- ===== grid-panel.md ===== -->\n\n# GridPanel\n\nGridPanel 의 한 줄 설명.\n\n## 언제 쓰나\n\n- grid-panel 을 쓸 때\n\n\n<!-- ===== use-grid-data-manager.md ===== -->\n\n# UseGridDataManager\n\nUseGridDataManager 의 한 줄 설명.\n\n## 언제 쓰나\n\n- use-grid-data-manager 을 쓸 때\n\n\n<!-- ===== grid-badge.md ===== -->\n\n# GridBadge\n\nGridBadge 의 한 줄 설명.\n\n## 언제 쓰나\n\n- grid-badge 을 쓸 때\n\n\n<!-- ===== pagination.md ===== -->\n\n# Pagination\n\nPagination 의 한 줄 설명.\n\n## 언제 쓰나\n\n- pagination 을 쓸 때\n\n\n<!-- ===== editable-row-list.md ===== -->\n\n# EditableRowList\n\nEditableRowList 의 한 줄 설명.\n\n## 언제 쓰나\n\n- editable-row-list 을 쓸 때\n\n\n<!-- ===== column-settings-modal.md ===== -->\n\n# ColumnSettingsModal\n\nColumnSettingsModal 의 한 줄 설명.\n\n## 언제 쓰나\n\n- column-settings-modal 을 쓸 때\n\n\n<!-- ===== grid-excel-foot.md ===== -->\n\n# GridExcelFoot\n\nGridExcelFoot 의 한 줄 설명.\n\n## 언제 쓰나\n\n- grid-excel-foot 을 쓸 때\n\n\n<!-- ===== grid-limit-notice.md ===== -->\n\n# GridLimitNotice\n\nGridLimitNotice 의 한 줄 설명.\n\n## 언제 쓰나\n\n- grid-limit-notice 을 쓸 때\n\n\n<!-- ===== modal.md ===== -->\n\n# Modal\n\n모달 문서.\n\n## 언제 쓰나\n\n본문 전체에 export 가 나온다: SearchAreaProps OnlyType loadLayout LayoutClass useApiCall useApiCall2 Dup a1_b Plain\n\n\n<!-- ===== message.md ===== -->\n\n# Message\n\nMessage 의 한 줄 설명.\n\n## 언제 쓰나\n\n- message 을 쓸 때\n\n\n<!-- ===== dashboard.md ===== -->\n\n# Dashboard\n\nDashboard 의 한 줄 설명.\n\n## 언제 쓰나\n\n- dashboard 을 쓸 때\n\n\n<!-- ===== widget.md ===== -->\n\n# Widget\n\nWidget 의 한 줄 설명.\n\n## 언제 쓰나\n\n- widget 을 쓸 때\n\n\n<!-- ===== screen-context.md ===== -->\n\n# ScreenContext\n\nScreenContext 의 한 줄 설명.\n\n## 언제 쓰나\n\n- screen-context 을 쓸 때\n\n\n<!-- ===== widget-dock.md ===== -->\n\n# WidgetDock\n\nWidgetDock 의 한 줄 설명.\n\n## 언제 쓰나\n\n- widget-dock 을 쓸 때\n\n\n<!-- ===== floating-window.md ===== -->\n\n# FloatingWindow\n\nFloatingWindow 의 한 줄 설명.\n\n## 언제 쓰나\n\n- floating-window 을 쓸 때\n\n\n<!-- ===== portal-page-window.md ===== -->\n\n# PortalPageWindow\n\nPortalPageWindow 의 한 줄 설명.\n\n## 언제 쓰나\n\n- portal-page-window 을 쓸 때\n\n\n<!-- ===== use-carry-state.md ===== -->\n\n# UseCarryState\n\nUseCarryState 의 한 줄 설명.\n\n## 언제 쓰나\n\n- use-carry-state 을 쓸 때\n\n\n<!-- ===== mdm-meta.md ===== -->\n\n# MdmMeta\n\nMdmMeta 의 한 줄 설명.\n\n## 언제 쓰나\n\n- mdm-meta 을 쓸 때\n\n\n<!-- ===== tabs.md ===== -->\n\n# 탭 모음\n\n한글 제목의 문서.\n\n## 언제 쓰나\n\n\n<!-- ===== closable-tabs.md ===== -->\n\n# ClosableTabs\n\nClosableTabs 의 한 줄 설명.\n\n## 언제 쓰나\n\n- closable-tabs 을 쓸 때\n\n\n<!-- ===== tree.md ===== -->\n\n# Tree\n\n요약 앞부분 요약 뒷부분\n\n쪽\fform feed 줄\n\u000b수직 탭 줄\nnext line 줄\n\n## 언제 쓰나\n\n\n<!-- ===== lookup.md ===== -->\n\n# Lookup\n\nLookup 의 한 줄 설명.\n\n## 언제 쓰나\n\n- lookup 을 쓸 때\n\n\n<!-- ===== lookup-multi-modal.md ===== -->\n\n# LookupMultiModal\n\nLookupMultiModal 의 한 줄 설명.\n\n## 언제 쓰나\n\n- lookup-multi-modal 을 쓸 때\n\n\n<!-- ===== markdown-editor.md ===== -->\n\n# MarkdownEditor\n\nMarkdownEditor 의 한 줄 설명.\n\n## 언제 쓰나\n\n- markdown-editor 을 쓸 때\n\n\n<!-- ===== html-editor.md ===== -->\n\n# HtmlEditor\n\nHtmlEditor 의 한 줄 설명.\n\n## 언제 쓰나\n\n- html-editor 을 쓸 때\n\n\n<!-- ===== notice-body-view.md ===== -->\n\n# NoticeBodyView\n\nNoticeBodyView 의 한 줄 설명.\n\n## 언제 쓰나\n\n- notice-body-view 을 쓸 때\n\n\n<!-- ===== detail-popover.md ===== -->\n\n# DetailPopover\n\nDetailPopover 의 한 줄 설명.\n\n## 언제 쓰나\n\n- detail-popover 을 쓸 때\n\n\n<!-- ===== grid-resize-box.md ===== -->\n\n# GridResizeBox\n\nGridResizeBox 의 한 줄 설명.\n\n## 언제 쓰나\n\n- grid-resize-box 을 쓸 때\n\n\n<!-- ===== json-view.md ===== -->\n\n# JsonView\n\nJsonView 의 한 줄 설명.\n\n## 언제 쓰나\n\n- json-view 을 쓸 때\n\n\n<!-- ===== card.md ===== -->\n\n# Card\n\nCard 의 한 줄 설명.\n\n## 언제 쓰나\n\n- card 을 쓸 때\n\n\n<!-- ===== transfer-list.md ===== -->\n\n# TransferList\n\nTransferList 의 한 줄 설명.\n\n## 언제 쓰나\n\n- transfer-list 을 쓸 때\n\n\n<!-- ===== matrix-table.md ===== -->\n\n# MatrixTable\n\nMatrixTable 의 한 줄 설명.\n\n## 언제 쓰나\n\n- matrix-table 을 쓸 때\n\n\n<!-- ===== charts.md ===== -->\n\n# Charts\n\nCharts 의 한 줄 설명.\n\n## 언제 쓰나\n\n- charts 을 쓸 때\n\n\n<!-- ===== export-to-excel.md ===== -->\n\n# ExportToExcel\n\nExportToExcel 의 한 줄 설명.\n\n## 언제 쓰나\n\n- export-to-excel 을 쓸 때\n\n\n<!-- ===== print-element-as-page.md ===== -->\n\n# PrintElementAsPage\n\nPrintElementAsPage 의 한 줄 설명.\n\n## 언제 쓰나\n\n- print-element-as-page 을 쓸 때\n\n\n<!-- ===== icons.md ===== -->\n\n# Icons\n\nIcons 의 한 줄 설명.\n\n## 언제 쓰나\n\n- icons 을 쓸 때\n\n",
+      "stderr": ""
+    },
+    "full-write": {
+      "status": 0,
+      "stdout": "갱신: <TREE>/.claude/skills/mantine-aggrid-ui/references/components/llms-full.txt (790줄)\n",
+      "stderr": "",
+      "files": {
+        ".claude/skills/mantine-aggrid-ui/references/components/llms-full.txt": {
+          "crlf": false,
+          "text": "# DMES 공통 UI 컴포넌트 (MES 화면용)\n\n> 화면(m-*)은 `@dk-oasis/shared/*` 래퍼만 쓴다. Mantine·ag-grid 를 직접 import 하지 않는다.\n> 화면 전체 모양은 먼저 [화면 표준 골격](../screen-patterns.md)에서 유형을 고르고 예제를 복사한다.\n> 이 파일은 `node .claude/skills/mantine-aggrid-ui/scripts/ui_docs.mjs index --write` 가 생성한다. 직접 고치지 않는다.\n\n## 시작\n\n- [화면 표준 골격](../screen-patterns.md): 화면 유형(조회·조회+상세·그리드 편집·마스터-디테일·등록 팝업)을 고르고 고정값과 예제를 확인할 때 쓴다.\n- [Mantine 대응표](../mantine-catalog.md): Mantine 컴포넌트가 어떤 shared 래퍼로 감싸져 있는지, 래퍼가 없으면 무엇을 할지 확인할 때 쓴다.\n\n## 화면 골격 (`@dk-oasis/shared/layout`)\n\n- [PageLayout](page-layout.md): PageLayout 의 한 줄 설명.\n- [SearchArea](search-area.md): SearchArea 의 한 줄 설명.\n- [SearchSettingsMenu](search-settings-menu.md): SearchSettingsMenu 의 한 줄 설명.\n- [ContentBody](content-body.md): ContentBody 의 한 줄 설명.\n- [DetailForm](detail-form.md): DetailForm 의 한 줄 설명.\n\n## 입력 (`@dk-oasis/shared/form`)\n\n- [Button](button.md): 버튼 문서.\n- [Input](input.md): 입력 칸 문서(CRLF).\n- [select](select.md): \n- [Combo Box](combo-box.md): ```\n- [MultiSelectComboBox](multi-select-combo-box.md): MultiSelectComboBox 의 한 줄 설명.\n- [DatePicker](date-picker.md): 요약은 둘째 제목 뒤 첫 줄.\n- [DateTimePicker](date-time-picker.md): DateTimePicker 의 한 줄 설명.\n- [Checkbox](checkbox.md): 공백 줄 뒤 요약\n- [radio](radio.md): \n- [SegmentedControl](segmented-control.md): SegmentedControl 의 한 줄 설명.\n- [Textarea](textarea.md): 앞뒤 공백 요약\n- [FormGroup](form-group.md): \n- [Loading](loading.md): ## 언제 쓰나\n- [Badge](badge.md): Badge 의 한 줄 설명.\n- [SelectOrInput](select-or-input.md): SelectOrInput 의 한 줄 설명.\n\n## 목록 (`@dk-oasis/shared/grid`)\n\n- [AgDataGrid](ag-data-grid.md): AgDataGrid 의 한 줄 설명.\n- [GridPanel](grid-panel.md): GridPanel 의 한 줄 설명.\n- [UseGridDataManager](use-grid-data-manager.md): UseGridDataManager 의 한 줄 설명.\n- [GridBadge](grid-badge.md): GridBadge 의 한 줄 설명.\n- [Pagination](pagination.md): Pagination 의 한 줄 설명.\n- [EditableRowList](editable-row-list.md): EditableRowList 의 한 줄 설명.\n- [ColumnSettingsModal](column-settings-modal.md): ColumnSettingsModal 의 한 줄 설명.\n- [GridExcelFoot](grid-excel-foot.md): GridExcelFoot 의 한 줄 설명.\n- [GridLimitNotice](grid-limit-notice.md): GridLimitNotice 의 한 줄 설명.\n\n## 팝업·메시지 (`modal`, `message-provider`, `use-api-call`)\n\n- [Modal](modal.md): 모달 문서.\n- [Message](message.md): Message 의 한 줄 설명.\n\n## 대시보드 (`@dk-oasis/shared/dashboard`)\n\n- [Dashboard](dashboard.md): Dashboard 의 한 줄 설명.\n\n## 위젯 (`@dk-oasis/shared/widget`)\n\n- [Widget](widget.md): Widget 의 한 줄 설명.\n\n## 화면 문맥 — 업무 화면 ↔ 도구 창 위젯 (`@dk-oasis/shared/screen-context`)\n\n- [ScreenContext](screen-context.md): ScreenContext 의 한 줄 설명.\n\n## 위젯 도크·떠 있는 창·탭 분리 창·분리 상태 이어받기 (`@dk-oasis/shared/portal-shell`)\n\n- [WidgetDock](widget-dock.md): WidgetDock 의 한 줄 설명.\n- [FloatingWindow](floating-window.md): FloatingWindow 의 한 줄 설명.\n- [PortalPageWindow](portal-page-window.md): PortalPageWindow 의 한 줄 설명.\n- [UseCarryState](use-carry-state.md): UseCarryState 의 한 줄 설명.\n\n## MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)\n\n- [MdmMeta](mdm-meta.md): MdmMeta 의 한 줄 설명.\n\n## 탭·트리·룩업·기타\n\n- [탭 모음](tabs.md): 한글 제목의 문서.\n- [ClosableTabs](closable-tabs.md): ClosableTabs 의 한 줄 설명.\n- [Tree](tree.md): 요약 앞부분\n- [Lookup](lookup.md): Lookup 의 한 줄 설명.\n- [LookupMultiModal](lookup-multi-modal.md): LookupMultiModal 의 한 줄 설명.\n- [MarkdownEditor](markdown-editor.md): MarkdownEditor 의 한 줄 설명.\n- [HtmlEditor](html-editor.md): HtmlEditor 의 한 줄 설명.\n- [NoticeBodyView](notice-body-view.md): NoticeBodyView 의 한 줄 설명.\n- [DetailPopover](detail-popover.md): DetailPopover 의 한 줄 설명.\n- [GridResizeBox](grid-resize-box.md): GridResizeBox 의 한 줄 설명.\n- [JsonView](json-view.md): JsonView 의 한 줄 설명.\n- [Card](card.md): Card 의 한 줄 설명.\n- [TransferList](transfer-list.md): TransferList 의 한 줄 설명.\n- [MatrixTable](matrix-table.md): MatrixTable 의 한 줄 설명.\n- [Charts](charts.md): Charts 의 한 줄 설명.\n- [ExportToExcel](export-to-excel.md): ExportToExcel 의 한 줄 설명.\n- [PrintElementAsPage](print-element-as-page.md): PrintElementAsPage 의 한 줄 설명.\n- [Icons](icons.md): Icons 의 한 줄 설명.\n\n## 화면 문서에 싣지 않는 shared export\n\n- `WIDGET_CSS`: WidgetStyle 내부용 CSS 문자열\n- `getDraggingWidget`: WidgetPicker·WidgetBoard 끌기 공유용 내부 함수\n- `setDraggingWidget`: WidgetPicker·WidgetBoard 끌기 공유용 내부 함수\n- `FLOATING_WINDOW_CSS`: FloatingWindowStyle 내부용 CSS 문자열\n- `FloatingWindowStyle`: FloatingWindow 가 스스로 넣는 스타일\n- `WIDGET_DOCK_CSS`: WidgetDockStyle 내부용 CSS 문자열\n- `WidgetDockStyle`: WidgetDockLayer·DockToolsMenu 가 스스로 넣는 스타일\n- `DataGrid`: AgDataGrid 의 별칭. 새 코드는 AgDataGrid\n- `useRowStateManager`: 옛 행 상태 훅(_rowState). 새 화면은 useGridDataManager\n- `ResizableFormPanel`: Part B §4-3 이 새 화면 사용 금지. ContentBody resizable\n- `MaxHandle`: ContentBody·GridPanel 내부용\n- `SearchHistoryInput`: SearchField 내부용(APS 최근검색)\n- `isSearchHistoryPage`: SearchField 내부용\n- `clearAllSearchHistory`: 포털 셸용\n- `clearSearchHistory`: 포털 셸용\n- `readSearchHistory`: SearchField 내부용\n- `emitSearch`: PageLayout·SearchArea 내부용\n- `subscribeSearchReset`: SearchArea 내부용(초기화 이벤트 구독, 발행은 PageLayout)\n- `RANGE_PRESETS`: 조회 기본값 설정 창 내부용(기간 묶음 선택지)\n- `RELATIVE_DATE_PRESETS`: 조회 기본값 설정 창 내부용(상대 날짜 이름표)\n- `isValidIsoDate`: 조회 기본값 규칙 계산 내부용(search-area 문서의 사용자 기본값 참고)\n- `parseSearchDefaultRule`: 조회 기본값 저장소 내부용\n- `resolveRelativeDate`: 조회 기본값 규칙 계산 내부용\n- `resolveSearchDefault`: 조회 기본값 규칙 계산 내부용\n- `getPageSearchDefaults`: 조회 기본값 저장소 내부용(SearchArea·설정 창이 쓴다)\n- `getSearchDefaultsSource`: 조회 기본값 저장소 내부용\n- `getSearchDefaultsStatus`: 조회 기본값 저장소 내부용\n- `preloadSearchDefaults`: 포털 셸·SearchArea 내부용(조회 기본값 미리 받기)\n- `resetSearchDefaults`: 조회 기본값 저장소 내부용(시험·로그아웃 정리)\n- `saveSearchDefaults`: 조회 기본값 저장소 내부용(설정 창이 저장한다)\n- `setSearchDefaultsLocalForDev`: 개발 모드 확인용(조회 기본값 샘플 화면)\n- `subscribeSearchDefaults`: 조회 기본값 저장소 내부용\n- `readSearchLastValues`: 조회 기본값 설정 창 내부용(마지막 조회값 읽기)\n- `useSearchDefaultsArea`: SearchArea 내부용(조회 기본값 등록소)\n- `subscribeSearch`: PageLayout·SearchArea 내부용\n- `useContentMaximize`: ContentBody 최대화 내부용\n- `canDoButton`: 팝업 내부 버튼 권한 판정용(page-layout 문서 참고)\n- `useUserButtonRbac`: 팝업 내부 버튼 권한 판정용(page-layout 문서 참고)\n- `INPUT_BASE`: 원시 input 스타일. 화면은 form 래퍼\n- `INPUT_READONLY`: 원시 input 스타일. 화면은 form 래퍼\n- `INPUT_DISABLED`: 원시 input 스타일. 화면은 form 래퍼\n- `GridHelpButton`: GridPanel help prop 으로 쓴다\n- `GRID_TEMP_ID_FIELD`: GridPanel·useGridDataManager 내부 필드\n- `MessageProvider`: 호스트 root layout 이 감싼다\n- `MdmGridTooltip`: AgDataGrid 머리글 툴팁 내부 컴포넌트\n- `requestDomains`: useMdmColumn(s) 내부 요청(mdm-meta 문서 참고)\n- `peekColumn`: mdm-meta store 동기 조회 — 훅 내부용\n- `peekDomain`: mdm-meta store 동기 조회 — 훅 내부용\n- `isModuleDisabled`: mdm-meta store 상태 — 훅 내부용\n- `resetMdmMetaStore`: 시험용\n- `MDM_META_TTL_MS`: mdm-meta store 상수\n- `MDM_META_BATCH_MS`: mdm-meta store 상수\n- `MDM_META_CARD_MAX_CODES`: MdmMetaCard 상수\n- `mdmCaption`: resolveCaption 내부용\n- `resolveMdmPhysName`: useMdmColumn 내부용(toPhysName + meta)\n- `useMdmCaptionPriority`: AgDataGrid·FormGroup 내부용\n- `useMdmMetaScope`: AgDataGrid·FormGroup 내부용\n- `formatMdmDataType`: MdmMetaCard 내부용\n\n\n<!-- ===== page-layout.md ===== -->\n\n# PageLayout\n\nPageLayout 의 한 줄 설명.\n\n## 언제 쓰나\n\n- page-layout 을 쓸 때\n\n\n<!-- ===== search-area.md ===== -->\n\n# SearchArea\n\nSearchArea 의 한 줄 설명.\n\n## 언제 쓰나\n\n- search-area 을 쓸 때\n\n\n<!-- ===== search-settings-menu.md ===== -->\n\n# SearchSettingsMenu\n\nSearchSettingsMenu 의 한 줄 설명.\n\n## 언제 쓰나\n\n- search-settings-menu 을 쓸 때\n\n\n<!-- ===== content-body.md ===== -->\n\n# ContentBody\n\nContentBody 의 한 줄 설명.\n\n## 언제 쓰나\n\n- content-body 을 쓸 때\n\n\n<!-- ===== detail-form.md ===== -->\n\n# DetailForm\n\nDetailForm 의 한 줄 설명.\n\n## 언제 쓰나\n\n- detail-form 을 쓸 때\n\n\n<!-- ===== button.md ===== -->\n\n# Button\n\n버튼 문서.\n\n```tsx\nimport { PageLayout, SearchArea, InnerAlias, ContentBody, DetailForm, useLayoutThing, loadLayout, LayoutClass, Button, FormInput, 한글이름, WidgetThing, Plain, useGridDataManager } from '@dk-oasis/shared/form';\n// a+b 와 foo.+bar 그리고 한글이름 도 쓴다\n```\n\n## 언제 쓰나\n\n본문에는 InnerHidden 이 있다.\n\n\n<!-- ===== input.md ===== -->\n\n# Input\n\n\n\n입력 칸 문서(CRLF).\n\n\n\n## 언제 쓰나\n\n\n\n본문\n\n\n<!-- ===== select.md ===== -->\n\n요약만 있고 제목이 없는 문서.\n\n## 언제 쓰나\n\n\n<!-- ===== combo-box.md ===== -->\n\n# Combo Box\n\n```\n# 코드 안 제목 같은 줄\n```\n\n실제 요약.\n\n## 언제 쓰나\n\n\n<!-- ===== multi-select-combo-box.md ===== -->\n\n# MultiSelectComboBox\n\nMultiSelectComboBox 의 한 줄 설명.\n\n## 언제 쓰나\n\n- multi-select-combo-box 을 쓸 때\n\n\n<!-- ===== date-picker.md ===== -->\n\n# DatePicker\n\n# 둘째 제목 줄\n\n요약은 둘째 제목 뒤 첫 줄.\n\n## 언제 쓰나\n\n\n<!-- ===== date-time-picker.md ===== -->\n\n# DateTimePicker\n\nDateTimePicker 의 한 줄 설명.\n\n## 언제 쓰나\n\n- date-time-picker 을 쓸 때\n\n\n<!-- ===== checkbox.md ===== -->\n\n# Checkbox\n\n   \n\t \n  공백 줄 뒤 요약  \n\n## 언제 쓰나\n\n\n<!-- ===== radio.md ===== -->\n\n﻿# Radio\n\nBOM 이 앞에 붙은 문서.\n\n## 언제 쓰나\n\n\n<!-- ===== segmented-control.md ===== -->\n\n# SegmentedControl\n\nSegmentedControl 의 한 줄 설명.\n\n## 언제 쓰나\n\n- segmented-control 을 쓸 때\n\n\n<!-- ===== textarea.md ===== -->\n\n# Textarea  \n\n\n  앞뒤 공백 요약 　\n\n## 언제 쓰나\n\n\n\n끝에 빈 줄 많음\n\n\n<!-- ===== form-group.md ===== -->\n\n# FormGroup\n\n\n<!-- ===== loading.md ===== -->\n\n# Loading\n\n## 언제 쓰나\n## 바로 다음 제목이 요약이 된다\n\n\n<!-- ===== badge.md ===== -->\n\n# Badge\n\nBadge 의 한 줄 설명.\n\n## 언제 쓰나\n\n- badge 을 쓸 때\n\n\n<!-- ===== select-or-input.md ===== -->\n\n# SelectOrInput\n\nSelectOrInput 의 한 줄 설명.\n\n## 언제 쓰나\n\n- select-or-input 을 쓸 때\n\n\n<!-- ===== ag-data-grid.md ===== -->\n\n# AgDataGrid\n\nAgDataGrid 의 한 줄 설명.\n\n## 언제 쓰나\n\n- ag-data-grid 을 쓸 때\n\n\n<!-- ===== grid-panel.md ===== -->\n\n# GridPanel\n\nGridPanel 의 한 줄 설명.\n\n## 언제 쓰나\n\n- grid-panel 을 쓸 때\n\n\n<!-- ===== use-grid-data-manager.md ===== -->\n\n# UseGridDataManager\n\nUseGridDataManager 의 한 줄 설명.\n\n## 언제 쓰나\n\n- use-grid-data-manager 을 쓸 때\n\n\n<!-- ===== grid-badge.md ===== -->\n\n# GridBadge\n\nGridBadge 의 한 줄 설명.\n\n## 언제 쓰나\n\n- grid-badge 을 쓸 때\n\n\n<!-- ===== pagination.md ===== -->\n\n# Pagination\n\nPagination 의 한 줄 설명.\n\n## 언제 쓰나\n\n- pagination 을 쓸 때\n\n\n<!-- ===== editable-row-list.md ===== -->\n\n# EditableRowList\n\nEditableRowList 의 한 줄 설명.\n\n## 언제 쓰나\n\n- editable-row-list 을 쓸 때\n\n\n<!-- ===== column-settings-modal.md ===== -->\n\n# ColumnSettingsModal\n\nColumnSettingsModal 의 한 줄 설명.\n\n## 언제 쓰나\n\n- column-settings-modal 을 쓸 때\n\n\n<!-- ===== grid-excel-foot.md ===== -->\n\n# GridExcelFoot\n\nGridExcelFoot 의 한 줄 설명.\n\n## 언제 쓰나\n\n- grid-excel-foot 을 쓸 때\n\n\n<!-- ===== grid-limit-notice.md ===== -->\n\n# GridLimitNotice\n\nGridLimitNotice 의 한 줄 설명.\n\n## 언제 쓰나\n\n- grid-limit-notice 을 쓸 때\n\n\n<!-- ===== modal.md ===== -->\n\n# Modal\n\n모달 문서.\n\n## 언제 쓰나\n\n본문 전체에 export 가 나온다: SearchAreaProps OnlyType loadLayout LayoutClass useApiCall useApiCall2 Dup a1_b Plain\n\n\n<!-- ===== message.md ===== -->\n\n# Message\n\nMessage 의 한 줄 설명.\n\n## 언제 쓰나\n\n- message 을 쓸 때\n\n\n<!-- ===== dashboard.md ===== -->\n\n# Dashboard\n\nDashboard 의 한 줄 설명.\n\n## 언제 쓰나\n\n- dashboard 을 쓸 때\n\n\n<!-- ===== widget.md ===== -->\n\n# Widget\n\nWidget 의 한 줄 설명.\n\n## 언제 쓰나\n\n- widget 을 쓸 때\n\n\n<!-- ===== screen-context.md ===== -->\n\n# ScreenContext\n\nScreenContext 의 한 줄 설명.\n\n## 언제 쓰나\n\n- screen-context 을 쓸 때\n\n\n<!-- ===== widget-dock.md ===== -->\n\n# WidgetDock\n\nWidgetDock 의 한 줄 설명.\n\n## 언제 쓰나\n\n- widget-dock 을 쓸 때\n\n\n<!-- ===== floating-window.md ===== -->\n\n# FloatingWindow\n\nFloatingWindow 의 한 줄 설명.\n\n## 언제 쓰나\n\n- floating-window 을 쓸 때\n\n\n<!-- ===== portal-page-window.md ===== -->\n\n# PortalPageWindow\n\nPortalPageWindow 의 한 줄 설명.\n\n## 언제 쓰나\n\n- portal-page-window 을 쓸 때\n\n\n<!-- ===== use-carry-state.md ===== -->\n\n# UseCarryState\n\nUseCarryState 의 한 줄 설명.\n\n## 언제 쓰나\n\n- use-carry-state 을 쓸 때\n\n\n<!-- ===== mdm-meta.md ===== -->\n\n# MdmMeta\n\nMdmMeta 의 한 줄 설명.\n\n## 언제 쓰나\n\n- mdm-meta 을 쓸 때\n\n\n<!-- ===== tabs.md ===== -->\n\n# 탭 모음\n\n한글 제목의 문서.\n\n## 언제 쓰나\n\n\n<!-- ===== closable-tabs.md ===== -->\n\n# ClosableTabs\n\nClosableTabs 의 한 줄 설명.\n\n## 언제 쓰나\n\n- closable-tabs 을 쓸 때\n\n\n<!-- ===== tree.md ===== -->\n\n# Tree\n\n요약 앞부분 요약 뒷부분\n\n쪽\fform feed 줄\n\u000b수직 탭 줄\nnext line 줄\n\n## 언제 쓰나\n\n\n<!-- ===== lookup.md ===== -->\n\n# Lookup\n\nLookup 의 한 줄 설명.\n\n## 언제 쓰나\n\n- lookup 을 쓸 때\n\n\n<!-- ===== lookup-multi-modal.md ===== -->\n\n# LookupMultiModal\n\nLookupMultiModal 의 한 줄 설명.\n\n## 언제 쓰나\n\n- lookup-multi-modal 을 쓸 때\n\n\n<!-- ===== markdown-editor.md ===== -->\n\n# MarkdownEditor\n\nMarkdownEditor 의 한 줄 설명.\n\n## 언제 쓰나\n\n- markdown-editor 을 쓸 때\n\n\n<!-- ===== html-editor.md ===== -->\n\n# HtmlEditor\n\nHtmlEditor 의 한 줄 설명.\n\n## 언제 쓰나\n\n- html-editor 을 쓸 때\n\n\n<!-- ===== notice-body-view.md ===== -->\n\n# NoticeBodyView\n\nNoticeBodyView 의 한 줄 설명.\n\n## 언제 쓰나\n\n- notice-body-view 을 쓸 때\n\n\n<!-- ===== detail-popover.md ===== -->\n\n# DetailPopover\n\nDetailPopover 의 한 줄 설명.\n\n## 언제 쓰나\n\n- detail-popover 을 쓸 때\n\n\n<!-- ===== grid-resize-box.md ===== -->\n\n# GridResizeBox\n\nGridResizeBox 의 한 줄 설명.\n\n## 언제 쓰나\n\n- grid-resize-box 을 쓸 때\n\n\n<!-- ===== json-view.md ===== -->\n\n# JsonView\n\nJsonView 의 한 줄 설명.\n\n## 언제 쓰나\n\n- json-view 을 쓸 때\n\n\n<!-- ===== card.md ===== -->\n\n# Card\n\nCard 의 한 줄 설명.\n\n## 언제 쓰나\n\n- card 을 쓸 때\n\n\n<!-- ===== transfer-list.md ===== -->\n\n# TransferList\n\nTransferList 의 한 줄 설명.\n\n## 언제 쓰나\n\n- transfer-list 을 쓸 때\n\n\n<!-- ===== matrix-table.md ===== -->\n\n# MatrixTable\n\nMatrixTable 의 한 줄 설명.\n\n## 언제 쓰나\n\n- matrix-table 을 쓸 때\n\n\n<!-- ===== charts.md ===== -->\n\n# Charts\n\nCharts 의 한 줄 설명.\n\n## 언제 쓰나\n\n- charts 을 쓸 때\n\n\n<!-- ===== export-to-excel.md ===== -->\n\n# ExportToExcel\n\nExportToExcel 의 한 줄 설명.\n\n## 언제 쓰나\n\n- export-to-excel 을 쓸 때\n\n\n<!-- ===== print-element-as-page.md ===== -->\n\n# PrintElementAsPage\n\nPrintElementAsPage 의 한 줄 설명.\n\n## 언제 쓰나\n\n- print-element-as-page 을 쓸 때\n\n\n<!-- ===== icons.md ===== -->\n\n# Icons\n\nIcons 의 한 줄 설명.\n\n## 언제 쓰나\n\n- icons 을 쓸 때\n"
+        }
+      }
+    },
+    "index-after-hangul-doc": {
+      "status": 0,
+      "stdout": "# DMES 공통 UI 컴포넌트 (MES 화면용)\n\n> 화면(m-*)은 `@dk-oasis/shared/*` 래퍼만 쓴다. Mantine·ag-grid 를 직접 import 하지 않는다.\n> 화면 전체 모양은 먼저 [화면 표준 골격](../screen-patterns.md)에서 유형을 고르고 예제를 복사한다.\n> 이 파일은 `node .claude/skills/mantine-aggrid-ui/scripts/ui_docs.mjs index --write` 가 생성한다. 직접 고치지 않는다.\n\n## 시작\n\n- [화면 표준 골격](../screen-patterns.md): 화면 유형(조회·조회+상세·그리드 편집·마스터-디테일·등록 팝업)을 고르고 고정값과 예제를 확인할 때 쓴다.\n- [Mantine 대응표](../mantine-catalog.md): Mantine 컴포넌트가 어떤 shared 래퍼로 감싸져 있는지, 래퍼가 없으면 무엇을 할지 확인할 때 쓴다.\n\n## 화면 골격 (`@dk-oasis/shared/layout`)\n\n- [PageLayout](page-layout.md): PageLayout 의 한 줄 설명.\n- [SearchArea](search-area.md): SearchArea 의 한 줄 설명.\n- [SearchSettingsMenu](search-settings-menu.md): SearchSettingsMenu 의 한 줄 설명.\n- [ContentBody](content-body.md): ContentBody 의 한 줄 설명.\n- [DetailForm](detail-form.md): DetailForm 의 한 줄 설명.\n\n## 입력 (`@dk-oasis/shared/form`)\n\n- [Button](button.md): 버튼 문서.\n- [Input](input.md): 입력 칸 문서(CRLF).\n- [select](select.md): \n- [Combo Box](combo-box.md): ```\n- [MultiSelectComboBox](multi-select-combo-box.md): MultiSelectComboBox 의 한 줄 설명.\n- [DatePicker](date-picker.md): 요약은 둘째 제목 뒤 첫 줄.\n- [DateTimePicker](date-time-picker.md): DateTimePicker 의 한 줄 설명.\n- [Checkbox](checkbox.md): 공백 줄 뒤 요약\n- [radio](radio.md): \n- [SegmentedControl](segmented-control.md): SegmentedControl 의 한 줄 설명.\n- [Textarea](textarea.md): 앞뒤 공백 요약\n- [FormGroup](form-group.md): \n- [Loading](loading.md): ## 언제 쓰나\n- [배지 　제목](badge.md): 배지 요약\n- [SelectOrInput](select-or-input.md): SelectOrInput 의 한 줄 설명.\n\n## 목록 (`@dk-oasis/shared/grid`)\n\n- [AgDataGrid](ag-data-grid.md): AgDataGrid 의 한 줄 설명.\n- [GridPanel](grid-panel.md): GridPanel 의 한 줄 설명.\n- [UseGridDataManager](use-grid-data-manager.md): UseGridDataManager 의 한 줄 설명.\n- [GridBadge](grid-badge.md): GridBadge 의 한 줄 설명.\n- [Pagination](pagination.md): Pagination 의 한 줄 설명.\n- [EditableRowList](editable-row-list.md): EditableRowList 의 한 줄 설명.\n- [ColumnSettingsModal](column-settings-modal.md): ColumnSettingsModal 의 한 줄 설명.\n- [GridExcelFoot](grid-excel-foot.md): GridExcelFoot 의 한 줄 설명.\n- [GridLimitNotice](grid-limit-notice.md): GridLimitNotice 의 한 줄 설명.\n\n## 팝업·메시지 (`modal`, `message-provider`, `use-api-call`)\n\n- [Modal](modal.md): 모달 문서.\n- [Message](message.md): Message 의 한 줄 설명.\n\n## 대시보드 (`@dk-oasis/shared/dashboard`)\n\n- [Dashboard](dashboard.md): Dashboard 의 한 줄 설명.\n\n## 위젯 (`@dk-oasis/shared/widget`)\n\n- [Widget](widget.md): Widget 의 한 줄 설명.\n\n## 화면 문맥 — 업무 화면 ↔ 도구 창 위젯 (`@dk-oasis/shared/screen-context`)\n\n- [ScreenContext](screen-context.md): ScreenContext 의 한 줄 설명.\n\n## 위젯 도크·떠 있는 창·탭 분리 창·분리 상태 이어받기 (`@dk-oasis/shared/portal-shell`)\n\n- [WidgetDock](widget-dock.md): WidgetDock 의 한 줄 설명.\n- [FloatingWindow](floating-window.md): FloatingWindow 의 한 줄 설명.\n- [PortalPageWindow](portal-page-window.md): PortalPageWindow 의 한 줄 설명.\n- [UseCarryState](use-carry-state.md): UseCarryState 의 한 줄 설명.\n\n## MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)\n\n- [MdmMeta](mdm-meta.md): MdmMeta 의 한 줄 설명.\n\n## 탭·트리·룩업·기타\n\n- [탭 모음](tabs.md): 한글 제목의 문서.\n- [ClosableTabs](closable-tabs.md): ClosableTabs 의 한 줄 설명.\n- [Tree](tree.md): 요약 앞부분\n- [Lookup](lookup.md): Lookup 의 한 줄 설명.\n- [LookupMultiModal](lookup-multi-modal.md): LookupMultiModal 의 한 줄 설명.\n- [MarkdownEditor](markdown-editor.md): MarkdownEditor 의 한 줄 설명.\n- [HtmlEditor](html-editor.md): HtmlEditor 의 한 줄 설명.\n- [NoticeBodyView](notice-body-view.md): NoticeBodyView 의 한 줄 설명.\n- [DetailPopover](detail-popover.md): DetailPopover 의 한 줄 설명.\n- [GridResizeBox](grid-resize-box.md): GridResizeBox 의 한 줄 설명.\n- [JsonView](json-view.md): JsonView 의 한 줄 설명.\n- [Card](card.md): Card 의 한 줄 설명.\n- [TransferList](transfer-list.md): TransferList 의 한 줄 설명.\n- [MatrixTable](matrix-table.md): MatrixTable 의 한 줄 설명.\n- [Charts](charts.md): Charts 의 한 줄 설명.\n- [ExportToExcel](export-to-excel.md): ExportToExcel 의 한 줄 설명.\n- [PrintElementAsPage](print-element-as-page.md): PrintElementAsPage 의 한 줄 설명.\n- [Icons](icons.md): Icons 의 한 줄 설명.\n\n## 화면 문서에 싣지 않는 shared export\n\n- `WIDGET_CSS`: WidgetStyle 내부용 CSS 문자열\n- `getDraggingWidget`: WidgetPicker·WidgetBoard 끌기 공유용 내부 함수\n- `setDraggingWidget`: WidgetPicker·WidgetBoard 끌기 공유용 내부 함수\n- `FLOATING_WINDOW_CSS`: FloatingWindowStyle 내부용 CSS 문자열\n- `FloatingWindowStyle`: FloatingWindow 가 스스로 넣는 스타일\n- `WIDGET_DOCK_CSS`: WidgetDockStyle 내부용 CSS 문자열\n- `WidgetDockStyle`: WidgetDockLayer·DockToolsMenu 가 스스로 넣는 스타일\n- `DataGrid`: AgDataGrid 의 별칭. 새 코드는 AgDataGrid\n- `useRowStateManager`: 옛 행 상태 훅(_rowState). 새 화면은 useGridDataManager\n- `ResizableFormPanel`: Part B §4-3 이 새 화면 사용 금지. ContentBody resizable\n- `MaxHandle`: ContentBody·GridPanel 내부용\n- `SearchHistoryInput`: SearchField 내부용(APS 최근검색)\n- `isSearchHistoryPage`: SearchField 내부용\n- `clearAllSearchHistory`: 포털 셸용\n- `clearSearchHistory`: 포털 셸용\n- `readSearchHistory`: SearchField 내부용\n- `emitSearch`: PageLayout·SearchArea 내부용\n- `subscribeSearchReset`: SearchArea 내부용(초기화 이벤트 구독, 발행은 PageLayout)\n- `RANGE_PRESETS`: 조회 기본값 설정 창 내부용(기간 묶음 선택지)\n- `RELATIVE_DATE_PRESETS`: 조회 기본값 설정 창 내부용(상대 날짜 이름표)\n- `isValidIsoDate`: 조회 기본값 규칙 계산 내부용(search-area 문서의 사용자 기본값 참고)\n- `parseSearchDefaultRule`: 조회 기본값 저장소 내부용\n- `resolveRelativeDate`: 조회 기본값 규칙 계산 내부용\n- `resolveSearchDefault`: 조회 기본값 규칙 계산 내부용\n- `getPageSearchDefaults`: 조회 기본값 저장소 내부용(SearchArea·설정 창이 쓴다)\n- `getSearchDefaultsSource`: 조회 기본값 저장소 내부용\n- `getSearchDefaultsStatus`: 조회 기본값 저장소 내부용\n- `preloadSearchDefaults`: 포털 셸·SearchArea 내부용(조회 기본값 미리 받기)\n- `resetSearchDefaults`: 조회 기본값 저장소 내부용(시험·로그아웃 정리)\n- `saveSearchDefaults`: 조회 기본값 저장소 내부용(설정 창이 저장한다)\n- `setSearchDefaultsLocalForDev`: 개발 모드 확인용(조회 기본값 샘플 화면)\n- `subscribeSearchDefaults`: 조회 기본값 저장소 내부용\n- `readSearchLastValues`: 조회 기본값 설정 창 내부용(마지막 조회값 읽기)\n- `useSearchDefaultsArea`: SearchArea 내부용(조회 기본값 등록소)\n- `subscribeSearch`: PageLayout·SearchArea 내부용\n- `useContentMaximize`: ContentBody 최대화 내부용\n- `canDoButton`: 팝업 내부 버튼 권한 판정용(page-layout 문서 참고)\n- `useUserButtonRbac`: 팝업 내부 버튼 권한 판정용(page-layout 문서 참고)\n- `INPUT_BASE`: 원시 input 스타일. 화면은 form 래퍼\n- `INPUT_READONLY`: 원시 input 스타일. 화면은 form 래퍼\n- `INPUT_DISABLED`: 원시 input 스타일. 화면은 form 래퍼\n- `GridHelpButton`: GridPanel help prop 으로 쓴다\n- `GRID_TEMP_ID_FIELD`: GridPanel·useGridDataManager 내부 필드\n- `MessageProvider`: 호스트 root layout 이 감싼다\n- `MdmGridTooltip`: AgDataGrid 머리글 툴팁 내부 컴포넌트\n- `requestDomains`: useMdmColumn(s) 내부 요청(mdm-meta 문서 참고)\n- `peekColumn`: mdm-meta store 동기 조회 — 훅 내부용\n- `peekDomain`: mdm-meta store 동기 조회 — 훅 내부용\n- `isModuleDisabled`: mdm-meta store 상태 — 훅 내부용\n- `resetMdmMetaStore`: 시험용\n- `MDM_META_TTL_MS`: mdm-meta store 상수\n- `MDM_META_BATCH_MS`: mdm-meta store 상수\n- `MDM_META_CARD_MAX_CODES`: MdmMetaCard 상수\n- `mdmCaption`: resolveCaption 내부용\n- `resolveMdmPhysName`: useMdmColumn 내부용(toPhysName + meta)\n- `useMdmCaptionPriority`: AgDataGrid·FormGroup 내부용\n- `useMdmMetaScope`: AgDataGrid·FormGroup 내부용\n- `formatMdmDataType`: MdmMetaCard 내부용\n\n",
+      "stderr": ""
+    },
+    "full-write-stale-crlf-overwritten": {
+      "status": 0,
+      "stdout": "갱신: <TREE>/.claude/skills/mantine-aggrid-ui/references/components/llms-full.txt (790줄)\n",
+      "stderr": "",
+      "files": {
+        ".claude/skills/mantine-aggrid-ui/references/components/llms-full.txt": {
+          "crlf": false,
+          "text": "# DMES 공통 UI 컴포넌트 (MES 화면용)\n\n> 화면(m-*)은 `@dk-oasis/shared/*` 래퍼만 쓴다. Mantine·ag-grid 를 직접 import 하지 않는다.\n> 화면 전체 모양은 먼저 [화면 표준 골격](../screen-patterns.md)에서 유형을 고르고 예제를 복사한다.\n> 이 파일은 `node .claude/skills/mantine-aggrid-ui/scripts/ui_docs.mjs index --write` 가 생성한다. 직접 고치지 않는다.\n\n## 시작\n\n- [화면 표준 골격](../screen-patterns.md): 화면 유형(조회·조회+상세·그리드 편집·마스터-디테일·등록 팝업)을 고르고 고정값과 예제를 확인할 때 쓴다.\n- [Mantine 대응표](../mantine-catalog.md): Mantine 컴포넌트가 어떤 shared 래퍼로 감싸져 있는지, 래퍼가 없으면 무엇을 할지 확인할 때 쓴다.\n\n## 화면 골격 (`@dk-oasis/shared/layout`)\n\n- [PageLayout](page-layout.md): PageLayout 의 한 줄 설명.\n- [SearchArea](search-area.md): SearchArea 의 한 줄 설명.\n- [SearchSettingsMenu](search-settings-menu.md): SearchSettingsMenu 의 한 줄 설명.\n- [ContentBody](content-body.md): ContentBody 의 한 줄 설명.\n- [DetailForm](detail-form.md): DetailForm 의 한 줄 설명.\n\n## 입력 (`@dk-oasis/shared/form`)\n\n- [Button](button.md): 버튼 문서.\n- [Input](input.md): 입력 칸 문서(CRLF).\n- [select](select.md): \n- [Combo Box](combo-box.md): ```\n- [MultiSelectComboBox](multi-select-combo-box.md): MultiSelectComboBox 의 한 줄 설명.\n- [DatePicker](date-picker.md): 요약은 둘째 제목 뒤 첫 줄.\n- [DateTimePicker](date-time-picker.md): DateTimePicker 의 한 줄 설명.\n- [Checkbox](checkbox.md): 공백 줄 뒤 요약\n- [radio](radio.md): \n- [SegmentedControl](segmented-control.md): SegmentedControl 의 한 줄 설명.\n- [Textarea](textarea.md): 앞뒤 공백 요약\n- [FormGroup](form-group.md): \n- [Loading](loading.md): ## 언제 쓰나\n- [Badge](badge.md): Badge 의 한 줄 설명.\n- [SelectOrInput](select-or-input.md): SelectOrInput 의 한 줄 설명.\n\n## 목록 (`@dk-oasis/shared/grid`)\n\n- [AgDataGrid](ag-data-grid.md): AgDataGrid 의 한 줄 설명.\n- [GridPanel](grid-panel.md): GridPanel 의 한 줄 설명.\n- [UseGridDataManager](use-grid-data-manager.md): UseGridDataManager 의 한 줄 설명.\n- [GridBadge](grid-badge.md): GridBadge 의 한 줄 설명.\n- [Pagination](pagination.md): Pagination 의 한 줄 설명.\n- [EditableRowList](editable-row-list.md): EditableRowList 의 한 줄 설명.\n- [ColumnSettingsModal](column-settings-modal.md): ColumnSettingsModal 의 한 줄 설명.\n- [GridExcelFoot](grid-excel-foot.md): GridExcelFoot 의 한 줄 설명.\n- [GridLimitNotice](grid-limit-notice.md): GridLimitNotice 의 한 줄 설명.\n\n## 팝업·메시지 (`modal`, `message-provider`, `use-api-call`)\n\n- [Modal](modal.md): 모달 문서.\n- [Message](message.md): Message 의 한 줄 설명.\n\n## 대시보드 (`@dk-oasis/shared/dashboard`)\n\n- [Dashboard](dashboard.md): Dashboard 의 한 줄 설명.\n\n## 위젯 (`@dk-oasis/shared/widget`)\n\n- [Widget](widget.md): Widget 의 한 줄 설명.\n\n## 화면 문맥 — 업무 화면 ↔ 도구 창 위젯 (`@dk-oasis/shared/screen-context`)\n\n- [ScreenContext](screen-context.md): ScreenContext 의 한 줄 설명.\n\n## 위젯 도크·떠 있는 창·탭 분리 창·분리 상태 이어받기 (`@dk-oasis/shared/portal-shell`)\n\n- [WidgetDock](widget-dock.md): WidgetDock 의 한 줄 설명.\n- [FloatingWindow](floating-window.md): FloatingWindow 의 한 줄 설명.\n- [PortalPageWindow](portal-page-window.md): PortalPageWindow 의 한 줄 설명.\n- [UseCarryState](use-carry-state.md): UseCarryState 의 한 줄 설명.\n\n## MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)\n\n- [MdmMeta](mdm-meta.md): MdmMeta 의 한 줄 설명.\n\n## 탭·트리·룩업·기타\n\n- [탭 모음](tabs.md): 한글 제목의 문서.\n- [ClosableTabs](closable-tabs.md): ClosableTabs 의 한 줄 설명.\n- [Tree](tree.md): 요약 앞부분\n- [Lookup](lookup.md): Lookup 의 한 줄 설명.\n- [LookupMultiModal](lookup-multi-modal.md): LookupMultiModal 의 한 줄 설명.\n- [MarkdownEditor](markdown-editor.md): MarkdownEditor 의 한 줄 설명.\n- [HtmlEditor](html-editor.md): HtmlEditor 의 한 줄 설명.\n- [NoticeBodyView](notice-body-view.md): NoticeBodyView 의 한 줄 설명.\n- [DetailPopover](detail-popover.md): DetailPopover 의 한 줄 설명.\n- [GridResizeBox](grid-resize-box.md): GridResizeBox 의 한 줄 설명.\n- [JsonView](json-view.md): JsonView 의 한 줄 설명.\n- [Card](card.md): Card 의 한 줄 설명.\n- [TransferList](transfer-list.md): TransferList 의 한 줄 설명.\n- [MatrixTable](matrix-table.md): MatrixTable 의 한 줄 설명.\n- [Charts](charts.md): Charts 의 한 줄 설명.\n- [ExportToExcel](export-to-excel.md): ExportToExcel 의 한 줄 설명.\n- [PrintElementAsPage](print-element-as-page.md): PrintElementAsPage 의 한 줄 설명.\n- [Icons](icons.md): Icons 의 한 줄 설명.\n\n## 화면 문서에 싣지 않는 shared export\n\n- `WIDGET_CSS`: WidgetStyle 내부용 CSS 문자열\n- `getDraggingWidget`: WidgetPicker·WidgetBoard 끌기 공유용 내부 함수\n- `setDraggingWidget`: WidgetPicker·WidgetBoard 끌기 공유용 내부 함수\n- `FLOATING_WINDOW_CSS`: FloatingWindowStyle 내부용 CSS 문자열\n- `FloatingWindowStyle`: FloatingWindow 가 스스로 넣는 스타일\n- `WIDGET_DOCK_CSS`: WidgetDockStyle 내부용 CSS 문자열\n- `WidgetDockStyle`: WidgetDockLayer·DockToolsMenu 가 스스로 넣는 스타일\n- `DataGrid`: AgDataGrid 의 별칭. 새 코드는 AgDataGrid\n- `useRowStateManager`: 옛 행 상태 훅(_rowState). 새 화면은 useGridDataManager\n- `ResizableFormPanel`: Part B §4-3 이 새 화면 사용 금지. ContentBody resizable\n- `MaxHandle`: ContentBody·GridPanel 내부용\n- `SearchHistoryInput`: SearchField 내부용(APS 최근검색)\n- `isSearchHistoryPage`: SearchField 내부용\n- `clearAllSearchHistory`: 포털 셸용\n- `clearSearchHistory`: 포털 셸용\n- `readSearchHistory`: SearchField 내부용\n- `emitSearch`: PageLayout·SearchArea 내부용\n- `subscribeSearchReset`: SearchArea 내부용(초기화 이벤트 구독, 발행은 PageLayout)\n- `RANGE_PRESETS`: 조회 기본값 설정 창 내부용(기간 묶음 선택지)\n- `RELATIVE_DATE_PRESETS`: 조회 기본값 설정 창 내부용(상대 날짜 이름표)\n- `isValidIsoDate`: 조회 기본값 규칙 계산 내부용(search-area 문서의 사용자 기본값 참고)\n- `parseSearchDefaultRule`: 조회 기본값 저장소 내부용\n- `resolveRelativeDate`: 조회 기본값 규칙 계산 내부용\n- `resolveSearchDefault`: 조회 기본값 규칙 계산 내부용\n- `getPageSearchDefaults`: 조회 기본값 저장소 내부용(SearchArea·설정 창이 쓴다)\n- `getSearchDefaultsSource`: 조회 기본값 저장소 내부용\n- `getSearchDefaultsStatus`: 조회 기본값 저장소 내부용\n- `preloadSearchDefaults`: 포털 셸·SearchArea 내부용(조회 기본값 미리 받기)\n- `resetSearchDefaults`: 조회 기본값 저장소 내부용(시험·로그아웃 정리)\n- `saveSearchDefaults`: 조회 기본값 저장소 내부용(설정 창이 저장한다)\n- `setSearchDefaultsLocalForDev`: 개발 모드 확인용(조회 기본값 샘플 화면)\n- `subscribeSearchDefaults`: 조회 기본값 저장소 내부용\n- `readSearchLastValues`: 조회 기본값 설정 창 내부용(마지막 조회값 읽기)\n- `useSearchDefaultsArea`: SearchArea 내부용(조회 기본값 등록소)\n- `subscribeSearch`: PageLayout·SearchArea 내부용\n- `useContentMaximize`: ContentBody 최대화 내부용\n- `canDoButton`: 팝업 내부 버튼 권한 판정용(page-layout 문서 참고)\n- `useUserButtonRbac`: 팝업 내부 버튼 권한 판정용(page-layout 문서 참고)\n- `INPUT_BASE`: 원시 input 스타일. 화면은 form 래퍼\n- `INPUT_READONLY`: 원시 input 스타일. 화면은 form 래퍼\n- `INPUT_DISABLED`: 원시 input 스타일. 화면은 form 래퍼\n- `GridHelpButton`: GridPanel help prop 으로 쓴다\n- `GRID_TEMP_ID_FIELD`: GridPanel·useGridDataManager 내부 필드\n- `MessageProvider`: 호스트 root layout 이 감싼다\n- `MdmGridTooltip`: AgDataGrid 머리글 툴팁 내부 컴포넌트\n- `requestDomains`: useMdmColumn(s) 내부 요청(mdm-meta 문서 참고)\n- `peekColumn`: mdm-meta store 동기 조회 — 훅 내부용\n- `peekDomain`: mdm-meta store 동기 조회 — 훅 내부용\n- `isModuleDisabled`: mdm-meta store 상태 — 훅 내부용\n- `resetMdmMetaStore`: 시험용\n- `MDM_META_TTL_MS`: mdm-meta store 상수\n- `MDM_META_BATCH_MS`: mdm-meta store 상수\n- `MDM_META_CARD_MAX_CODES`: MdmMetaCard 상수\n- `mdmCaption`: resolveCaption 내부용\n- `resolveMdmPhysName`: useMdmColumn 내부용(toPhysName + meta)\n- `useMdmCaptionPriority`: AgDataGrid·FormGroup 내부용\n- `useMdmMetaScope`: AgDataGrid·FormGroup 내부용\n- `formatMdmDataType`: MdmMetaCard 내부용\n\n\n<!-- ===== page-layout.md ===== -->\n\n# PageLayout\n\nPageLayout 의 한 줄 설명.\n\n## 언제 쓰나\n\n- page-layout 을 쓸 때\n\n\n<!-- ===== search-area.md ===== -->\n\n# SearchArea\n\nSearchArea 의 한 줄 설명.\n\n## 언제 쓰나\n\n- search-area 을 쓸 때\n\n\n<!-- ===== search-settings-menu.md ===== -->\n\n# SearchSettingsMenu\n\nSearchSettingsMenu 의 한 줄 설명.\n\n## 언제 쓰나\n\n- search-settings-menu 을 쓸 때\n\n\n<!-- ===== content-body.md ===== -->\n\n# ContentBody\n\nContentBody 의 한 줄 설명.\n\n## 언제 쓰나\n\n- content-body 을 쓸 때\n\n\n<!-- ===== detail-form.md ===== -->\n\n# DetailForm\n\nDetailForm 의 한 줄 설명.\n\n## 언제 쓰나\n\n- detail-form 을 쓸 때\n\n\n<!-- ===== button.md ===== -->\n\n# Button\n\n버튼 문서.\n\n```tsx\nimport { PageLayout, SearchArea, InnerAlias, ContentBody, DetailForm, useLayoutThing, loadLayout, LayoutClass, Button, FormInput, 한글이름, WidgetThing, Plain, useGridDataManager } from '@dk-oasis/shared/form';\n// a+b 와 foo.+bar 그리고 한글이름 도 쓴다\n```\n\n## 언제 쓰나\n\n본문에는 InnerHidden 이 있다.\n\n\n<!-- ===== input.md ===== -->\n\n# Input\n\n\n\n입력 칸 문서(CRLF).\n\n\n\n## 언제 쓰나\n\n\n\n본문\n\n\n<!-- ===== select.md ===== -->\n\n요약만 있고 제목이 없는 문서.\n\n## 언제 쓰나\n\n\n<!-- ===== combo-box.md ===== -->\n\n# Combo Box\n\n```\n# 코드 안 제목 같은 줄\n```\n\n실제 요약.\n\n## 언제 쓰나\n\n\n<!-- ===== multi-select-combo-box.md ===== -->\n\n# MultiSelectComboBox\n\nMultiSelectComboBox 의 한 줄 설명.\n\n## 언제 쓰나\n\n- multi-select-combo-box 을 쓸 때\n\n\n<!-- ===== date-picker.md ===== -->\n\n# DatePicker\n\n# 둘째 제목 줄\n\n요약은 둘째 제목 뒤 첫 줄.\n\n## 언제 쓰나\n\n\n<!-- ===== date-time-picker.md ===== -->\n\n# DateTimePicker\n\nDateTimePicker 의 한 줄 설명.\n\n## 언제 쓰나\n\n- date-time-picker 을 쓸 때\n\n\n<!-- ===== checkbox.md ===== -->\n\n# Checkbox\n\n   \n\t \n  공백 줄 뒤 요약  \n\n## 언제 쓰나\n\n\n<!-- ===== radio.md ===== -->\n\n﻿# Radio\n\nBOM 이 앞에 붙은 문서.\n\n## 언제 쓰나\n\n\n<!-- ===== segmented-control.md ===== -->\n\n# SegmentedControl\n\nSegmentedControl 의 한 줄 설명.\n\n## 언제 쓰나\n\n- segmented-control 을 쓸 때\n\n\n<!-- ===== textarea.md ===== -->\n\n# Textarea  \n\n\n  앞뒤 공백 요약 　\n\n## 언제 쓰나\n\n\n\n끝에 빈 줄 많음\n\n\n<!-- ===== form-group.md ===== -->\n\n# FormGroup\n\n\n<!-- ===== loading.md ===== -->\n\n# Loading\n\n## 언제 쓰나\n## 바로 다음 제목이 요약이 된다\n\n\n<!-- ===== badge.md ===== -->\n\n# Badge\n\nBadge 의 한 줄 설명.\n\n## 언제 쓰나\n\n- badge 을 쓸 때\n\n\n<!-- ===== select-or-input.md ===== -->\n\n# SelectOrInput\n\nSelectOrInput 의 한 줄 설명.\n\n## 언제 쓰나\n\n- select-or-input 을 쓸 때\n\n\n<!-- ===== ag-data-grid.md ===== -->\n\n# AgDataGrid\n\nAgDataGrid 의 한 줄 설명.\n\n## 언제 쓰나\n\n- ag-data-grid 을 쓸 때\n\n\n<!-- ===== grid-panel.md ===== -->\n\n# GridPanel\n\nGridPanel 의 한 줄 설명.\n\n## 언제 쓰나\n\n- grid-panel 을 쓸 때\n\n\n<!-- ===== use-grid-data-manager.md ===== -->\n\n# UseGridDataManager\n\nUseGridDataManager 의 한 줄 설명.\n\n## 언제 쓰나\n\n- use-grid-data-manager 을 쓸 때\n\n\n<!-- ===== grid-badge.md ===== -->\n\n# GridBadge\n\nGridBadge 의 한 줄 설명.\n\n## 언제 쓰나\n\n- grid-badge 을 쓸 때\n\n\n<!-- ===== pagination.md ===== -->\n\n# Pagination\n\nPagination 의 한 줄 설명.\n\n## 언제 쓰나\n\n- pagination 을 쓸 때\n\n\n<!-- ===== editable-row-list.md ===== -->\n\n# EditableRowList\n\nEditableRowList 의 한 줄 설명.\n\n## 언제 쓰나\n\n- editable-row-list 을 쓸 때\n\n\n<!-- ===== column-settings-modal.md ===== -->\n\n# ColumnSettingsModal\n\nColumnSettingsModal 의 한 줄 설명.\n\n## 언제 쓰나\n\n- column-settings-modal 을 쓸 때\n\n\n<!-- ===== grid-excel-foot.md ===== -->\n\n# GridExcelFoot\n\nGridExcelFoot 의 한 줄 설명.\n\n## 언제 쓰나\n\n- grid-excel-foot 을 쓸 때\n\n\n<!-- ===== grid-limit-notice.md ===== -->\n\n# GridLimitNotice\n\nGridLimitNotice 의 한 줄 설명.\n\n## 언제 쓰나\n\n- grid-limit-notice 을 쓸 때\n\n\n<!-- ===== modal.md ===== -->\n\n# Modal\n\n모달 문서.\n\n## 언제 쓰나\n\n본문 전체에 export 가 나온다: SearchAreaProps OnlyType loadLayout LayoutClass useApiCall useApiCall2 Dup a1_b Plain\n\n\n<!-- ===== message.md ===== -->\n\n# Message\n\nMessage 의 한 줄 설명.\n\n## 언제 쓰나\n\n- message 을 쓸 때\n\n\n<!-- ===== dashboard.md ===== -->\n\n# Dashboard\n\nDashboard 의 한 줄 설명.\n\n## 언제 쓰나\n\n- dashboard 을 쓸 때\n\n\n<!-- ===== widget.md ===== -->\n\n# Widget\n\nWidget 의 한 줄 설명.\n\n## 언제 쓰나\n\n- widget 을 쓸 때\n\n\n<!-- ===== screen-context.md ===== -->\n\n# ScreenContext\n\nScreenContext 의 한 줄 설명.\n\n## 언제 쓰나\n\n- screen-context 을 쓸 때\n\n\n<!-- ===== widget-dock.md ===== -->\n\n# WidgetDock\n\nWidgetDock 의 한 줄 설명.\n\n## 언제 쓰나\n\n- widget-dock 을 쓸 때\n\n\n<!-- ===== floating-window.md ===== -->\n\n# FloatingWindow\n\nFloatingWindow 의 한 줄 설명.\n\n## 언제 쓰나\n\n- floating-window 을 쓸 때\n\n\n<!-- ===== portal-page-window.md ===== -->\n\n# PortalPageWindow\n\nPortalPageWindow 의 한 줄 설명.\n\n## 언제 쓰나\n\n- portal-page-window 을 쓸 때\n\n\n<!-- ===== use-carry-state.md ===== -->\n\n# UseCarryState\n\nUseCarryState 의 한 줄 설명.\n\n## 언제 쓰나\n\n- use-carry-state 을 쓸 때\n\n\n<!-- ===== mdm-meta.md ===== -->\n\n# MdmMeta\n\nMdmMeta 의 한 줄 설명.\n\n## 언제 쓰나\n\n- mdm-meta 을 쓸 때\n\n\n<!-- ===== tabs.md ===== -->\n\n# 탭 모음\n\n한글 제목의 문서.\n\n## 언제 쓰나\n\n\n<!-- ===== closable-tabs.md ===== -->\n\n# ClosableTabs\n\nClosableTabs 의 한 줄 설명.\n\n## 언제 쓰나\n\n- closable-tabs 을 쓸 때\n\n\n<!-- ===== tree.md ===== -->\n\n# Tree\n\n요약 앞부분 요약 뒷부분\n\n쪽\fform feed 줄\n\u000b수직 탭 줄\nnext line 줄\n\n## 언제 쓰나\n\n\n<!-- ===== lookup.md ===== -->\n\n# Lookup\n\nLookup 의 한 줄 설명.\n\n## 언제 쓰나\n\n- lookup 을 쓸 때\n\n\n<!-- ===== lookup-multi-modal.md ===== -->\n\n# LookupMultiModal\n\nLookupMultiModal 의 한 줄 설명.\n\n## 언제 쓰나\n\n- lookup-multi-modal 을 쓸 때\n\n\n<!-- ===== markdown-editor.md ===== -->\n\n# MarkdownEditor\n\nMarkdownEditor 의 한 줄 설명.\n\n## 언제 쓰나\n\n- markdown-editor 을 쓸 때\n\n\n<!-- ===== html-editor.md ===== -->\n\n# HtmlEditor\n\nHtmlEditor 의 한 줄 설명.\n\n## 언제 쓰나\n\n- html-editor 을 쓸 때\n\n\n<!-- ===== notice-body-view.md ===== -->\n\n# NoticeBodyView\n\nNoticeBodyView 의 한 줄 설명.\n\n## 언제 쓰나\n\n- notice-body-view 을 쓸 때\n\n\n<!-- ===== detail-popover.md ===== -->\n\n# DetailPopover\n\nDetailPopover 의 한 줄 설명.\n\n## 언제 쓰나\n\n- detail-popover 을 쓸 때\n\n\n<!-- ===== grid-resize-box.md ===== -->\n\n# GridResizeBox\n\nGridResizeBox 의 한 줄 설명.\n\n## 언제 쓰나\n\n- grid-resize-box 을 쓸 때\n\n\n<!-- ===== json-view.md ===== -->\n\n# JsonView\n\nJsonView 의 한 줄 설명.\n\n## 언제 쓰나\n\n- json-view 을 쓸 때\n\n\n<!-- ===== card.md ===== -->\n\n# Card\n\nCard 의 한 줄 설명.\n\n## 언제 쓰나\n\n- card 을 쓸 때\n\n\n<!-- ===== transfer-list.md ===== -->\n\n# TransferList\n\nTransferList 의 한 줄 설명.\n\n## 언제 쓰나\n\n- transfer-list 을 쓸 때\n\n\n<!-- ===== matrix-table.md ===== -->\n\n# MatrixTable\n\nMatrixTable 의 한 줄 설명.\n\n## 언제 쓰나\n\n- matrix-table 을 쓸 때\n\n\n<!-- ===== charts.md ===== -->\n\n# Charts\n\nCharts 의 한 줄 설명.\n\n## 언제 쓰나\n\n- charts 을 쓸 때\n\n\n<!-- ===== export-to-excel.md ===== -->\n\n# ExportToExcel\n\nExportToExcel 의 한 줄 설명.\n\n## 언제 쓰나\n\n- export-to-excel 을 쓸 때\n\n\n<!-- ===== print-element-as-page.md ===== -->\n\n# PrintElementAsPage\n\nPrintElementAsPage 의 한 줄 설명.\n\n## 언제 쓰나\n\n- print-element-as-page 을 쓸 때\n\n\n<!-- ===== icons.md ===== -->\n\n# Icons\n\nIcons 의 한 줄 설명.\n\n## 언제 쓰나\n\n- icons 을 쓸 때\n"
+        }
+      }
+    },
+    "get-filename": {
+      "status": 0,
+      "stdout": "# Button\n\n버튼 문서.\n\n```tsx\nimport { PageLayout, SearchArea, InnerAlias, ContentBody, DetailForm, useLayoutThing, loadLayout, LayoutClass, Button, FormInput, 한글이름, WidgetThing, Plain, useGridDataManager } from '@dk-oasis/shared/form';\n// a+b 와 foo.+bar 그리고 한글이름 도 쓴다\n```\n\n## 언제 쓰나\n\n본문에는 InnerHidden 이 있다.\n\n",
+      "stderr": ""
+    },
+    "get-uppercase-md": {
+      "status": 0,
+      "stdout": "# Button\n\n버튼 문서.\n\n```tsx\nimport { PageLayout, SearchArea, InnerAlias, ContentBody, DetailForm, useLayoutThing, loadLayout, LayoutClass, Button, FormInput, 한글이름, WidgetThing, Plain, useGridDataManager } from '@dk-oasis/shared/form';\n// a+b 와 foo.+bar 그리고 한글이름 도 쓴다\n```\n\n## 언제 쓰나\n\n본문에는 InnerHidden 이 있다.\n\n",
+      "stderr": ""
+    },
+    "get-hyphen-insensitive": {
+      "status": 0,
+      "stdout": "# Combo Box\n\n```\n# 코드 안 제목 같은 줄\n```\n\n실제 요약.\n\n## 언제 쓰나\n\n",
+      "stderr": ""
+    },
+    "get-hyphen-insensitive2": {
+      "status": 0,
+      "stdout": "# MultiSelectComboBox\n\nMultiSelectComboBox 의 한 줄 설명.\n\n## 언제 쓰나\n\n- multi-select-combo-box 을 쓸 때\n\n",
+      "stderr": ""
+    },
+    "get-title-partial": {
+      "status": 0,
+      "stdout": "# Combo Box\n\n```\n# 코드 안 제목 같은 줄\n```\n\n실제 요약.\n\n## 언제 쓰나\n\n",
+      "stderr": ""
+    },
+    "get-title-with-space": {
+      "status": 1,
+      "stdout": "문서 없음: combo box. `ui_docs.mjs index` 로 목록을 본다.\n",
+      "stderr": ""
+    },
+    "get-title-korean": {
+      "status": 0,
+      "stdout": "# 탭 모음\n\n한글 제목의 문서.\n\n## 언제 쓰나\n\n",
+      "stderr": ""
+    },
+    "get-crlf-doc": {
+      "status": 0,
+      "stdout": "# Input\n\n\n\n입력 칸 문서(CRLF).\n\n\n\n## 언제 쓰나\n\n\n\n본문\n\n\n",
+      "stderr": ""
+    },
+    "get-bom-doc": {
+      "status": 0,
+      "stdout": "﻿# Radio\n\nBOM 이 앞에 붙은 문서.\n\n## 언제 쓰나\n\n",
+      "stderr": ""
+    },
+    "get-export-name": {
+      "status": 0,
+      "stdout": "# Button\n\n버튼 문서.\n\n```tsx\nimport { PageLayout, SearchArea, InnerAlias, ContentBody, DetailForm, useLayoutThing, loadLayout, LayoutClass, Button, FormInput, 한글이름, WidgetThing, Plain, useGridDataManager } from '@dk-oasis/shared/form';\n// a+b 와 foo.+bar 그리고 한글이름 도 쓴다\n```\n\n## 언제 쓰나\n\n본문에는 InnerHidden 이 있다.\n\n",
+      "stderr": ""
+    },
+    "get-export-hook": {
+      "status": 0,
+      "stdout": "# Button\n\n버튼 문서.\n\n```tsx\nimport { PageLayout, SearchArea, InnerAlias, ContentBody, DetailForm, useLayoutThing, loadLayout, LayoutClass, Button, FormInput, 한글이름, WidgetThing, Plain, useGridDataManager } from '@dk-oasis/shared/form';\n// a+b 와 foo.+bar 그리고 한글이름 도 쓴다\n```\n\n## 언제 쓰나\n\n본문에는 InnerHidden 이 있다.\n\n",
+      "stderr": ""
+    },
+    "get-export-korean": {
+      "status": 0,
+      "stdout": "# Button\n\n버튼 문서.\n\n```tsx\nimport { PageLayout, SearchArea, InnerAlias, ContentBody, DetailForm, useLayoutThing, loadLayout, LayoutClass, Button, FormInput, 한글이름, WidgetThing, Plain, useGridDataManager } from '@dk-oasis/shared/form';\n// a+b 와 foo.+bar 그리고 한글이름 도 쓴다\n```\n\n## 언제 쓰나\n\n본문에는 InnerHidden 이 있다.\n\n",
+      "stderr": ""
+    },
+    "get-export-metachars": {
+      "status": 0,
+      "stdout": "# Button\n\n버튼 문서.\n\n```tsx\nimport { PageLayout, SearchArea, InnerAlias, ContentBody, DetailForm, useLayoutThing, loadLayout, LayoutClass, Button, FormInput, 한글이름, WidgetThing, Plain, useGridDataManager } from '@dk-oasis/shared/form';\n// a+b 와 foo.+bar 그리고 한글이름 도 쓴다\n```\n\n## 언제 쓰나\n\n본문에는 InnerHidden 이 있다.\n\n",
+      "stderr": ""
+    },
+    "get-export-metachars2": {
+      "status": 0,
+      "stdout": "# Button\n\n버튼 문서.\n\n```tsx\nimport { PageLayout, SearchArea, InnerAlias, ContentBody, DetailForm, useLayoutThing, loadLayout, LayoutClass, Button, FormInput, 한글이름, WidgetThing, Plain, useGridDataManager } from '@dk-oasis/shared/form';\n// a+b 와 foo.+bar 그리고 한글이름 도 쓴다\n```\n\n## 언제 쓰나\n\n본문에는 InnerHidden 이 있다.\n\n",
+      "stderr": ""
+    },
+    "get-export-wrong-case": {
+      "status": 1,
+      "stdout": "문서 없음: innerAlias. `ui_docs.mjs index` 로 목록을 본다.\n",
+      "stderr": ""
+    },
+    "get-export-substring-no-boundary": {
+      "status": 1,
+      "stdout": "문서 없음: Inner. `ui_docs.mjs index` 로 목록을 본다.\n",
+      "stderr": ""
+    },
+    "get-export-below-header-only": {
+      "status": 1,
+      "stdout": "문서 없음: InnerHidden. `ui_docs.mjs index` 로 목록을 본다.\n",
+      "stderr": ""
+    },
+    "get-empty-name": {
+      "status": 0,
+      "stdout": "# PageLayout\n\nPageLayout 의 한 줄 설명.\n\n## 언제 쓰나\n\n- page-layout 을 쓸 때\n\n",
+      "stderr": ""
+    },
+    "get-not-found": {
+      "status": 1,
+      "stdout": "문서 없음: zzz-none. `ui_docs.mjs index` 로 목록을 본다.\n",
+      "stderr": ""
+    },
+    "get-regex-special-not-found": {
+      "status": 1,
+      "stdout": "문서 없음: (unclosed. `ui_docs.mjs index` 로 목록을 본다.\n",
+      "stderr": ""
+    },
+    "get-form-feed-doc": {
+      "status": 0,
+      "stdout": "# Tree\n\n요약 앞부분 요약 뒷부분\n\n쪽\fform feed 줄\n\u000b수직 탭 줄\nnext line 줄\n\n## 언제 쓰나\n\n",
+      "stderr": ""
+    },
+    "coverage-pass": {
+      "status": 0,
+      "stdout": "coverage 통과\n",
+      "stderr": ""
+    },
+    "coverage-no-generated": {
+      "status": 1,
+      "stdout": "생성물 낡음: components/llms.txt → ui_docs.mjs index --write\n생성물 낡음: components/llms-full.txt → ui_docs.mjs full --write\ncoverage 문제 2건\n",
+      "stderr": ""
+    },
+    "coverage-crlf-generated": {
+      "status": 0,
+      "stdout": "coverage 통과\n",
+      "stderr": ""
+    },
+    "coverage-crlf-only-full": {
+      "status": 0,
+      "stdout": "coverage 통과\n",
+      "stderr": ""
+    },
+    "coverage-stale-doc-edit": {
+      "status": 1,
+      "stdout": "생성물 낡음: components/llms-full.txt → ui_docs.mjs full --write\ncoverage 문제 1건\n",
+      "stderr": ""
+    },
+    "coverage-stale-title-edit": {
+      "status": 1,
+      "stdout": "생성물 낡음: components/llms.txt → ui_docs.mjs index --write\n생성물 낡음: components/llms-full.txt → ui_docs.mjs full --write\ncoverage 문제 2건\n",
+      "stderr": ""
+    },
+    "coverage-only-index-missing": {
+      "status": 1,
+      "stdout": "생성물 낡음: components/llms.txt → ui_docs.mjs index --write\ncoverage 문제 1건\n",
+      "stderr": ""
+    },
+    "coverage-missing-export": {
+      "status": 1,
+      "stdout": "미등재 export: Another  (widget/index.ts) → 문서에 쓰거나 ui_docs.mjs EXCLUDED 에 이유와 함께 넣는다\n미등재 export: BrandNewThing  (widget/index.ts) → 문서에 쓰거나 ui_docs.mjs EXCLUDED 에 이유와 함께 넣는다\ncoverage 문제 2건\n",
+      "stderr": ""
+    },
+    "coverage-missing-export-excluded-ok": {
+      "status": 0,
+      "stdout": "coverage 통과\n",
+      "stderr": ""
+    },
+    "coverage-hangul-adjacent": {
+      "status": 1,
+      "stdout": "미등재 export: 한글이름  (components/form/index.ts) → 문서에 쓰거나 ui_docs.mjs EXCLUDED 에 이유와 함께 넣는다\n생성물 낡음: components/llms.txt → ui_docs.mjs index --write\n생성물 낡음: components/llms-full.txt → ui_docs.mjs full --write\ncoverage 문제 3건\n",
+      "stderr": ""
+    },
+    "coverage-word-boundary-substring": {
+      "status": 1,
+      "stdout": "미등재 export: Lay  (layout/index.ts) → 문서에 쓰거나 ui_docs.mjs EXCLUDED 에 이유와 함께 넣는다\n미등재 export: Plai  (layout/index.ts) → 문서에 쓰거나 ui_docs.mjs EXCLUDED 에 이유와 함께 넣는다\ncoverage 문제 2건\n",
+      "stderr": ""
+    },
+    "coverage-comment-inside-export-list": {
+      "status": 1,
+      "stdout": "미등재 export: C  (widget/index.ts) → 문서에 쓰거나 ui_docs.mjs EXCLUDED 에 이유와 함께 넣는다\n미등재 export: Renamed  (widget/index.ts) → 문서에 쓰거나 ui_docs.mjs EXCLUDED 에 이유와 함께 넣는다\ncoverage 문제 2건\n",
+      "stderr": ""
+    },
+    "coverage-missing-doc": {
+      "status": 1,
+      "stdout": "문서 없음: components/tabs.md\ncoverage 문제 1건\n",
+      "stderr": ""
+    },
+    "coverage-two-missing-docs-and-export": {
+      "status": 1,
+      "stdout": "문서 없음: components/tabs.md\n문서 없음: components/tree.md\n미등재 export: BrandNewThing  (widget/index.ts) → 문서에 쓰거나 ui_docs.mjs EXCLUDED 에 이유와 함께 넣는다\ncoverage 문제 3건\n",
+      "stderr": ""
+    },
+    "coverage-doc-with-only-export-in-other-doc": {
+      "status": 1,
+      "stdout": "생성물 낡음: components/llms-full.txt → ui_docs.mjs full --write\ncoverage 문제 1건\n",
+      "stderr": ""
+    },
+    "usage-no-args": {
+      "status": 2
+    },
+    "usage-bad-command": {
+      "status": 2
+    },
+    "usage-get-missing": {
+      "status": 2
+    },
+    "usage-index-bad-option": {
+      "status": 2
+    },
+    "usage-coverage-extra": {
+      "status": 2
+    },
+    "check-ok": {
+      "status": 0,
+      "stdout": "fake-tsc args: --noEmit -p <TREE>/src/frontend/m-mqc/tsconfig.skillcheck.json\ncwd: <TREE>/src/frontend/m-mqc\nskillcheck: empty-dir/,grid-edit/,grid-edit/page.tsx,grid-edit/한글 파일.tsx,master-detail/,master-detail/readme.md\ncfg: { \"extends\": \"./tsconfig.json\", \"compilerOptions\": { \"incremental\": false, \"plugins\": [] }, \"include\": [\".skillcheck/**/*\"] }\ntsc 통과\n\n2개 파일 점검, 의심 0건 — 통과\naggrid-stub audit <TREE>/.claude/skills/mantine-aggrid-ui/references/examples\n",
+      "stderr": "",
+      "files": {
+        "src/frontend/m-mqc/.skillcheck": null,
+        "src/frontend/m-mqc/tsconfig.skillcheck.json": null
+      }
+    },
+    "check-audit-violation": {
+      "status": 1,
+      "stdout": "fake-tsc args: --noEmit -p <TREE>/src/frontend/m-mqc/tsconfig.skillcheck.json\ncwd: <TREE>/src/frontend/m-mqc\nskillcheck: empty-dir/,grid-edit/,grid-edit/page.tsx,grid-edit/한글 파일.tsx,list-detail/,list-detail/bad.tsx,master-detail/,master-detail/readme.md\ncfg: { \"extends\": \"./tsconfig.json\", \"compilerOptions\": { \"incremental\": false, \"plugins\": [] }, \"include\": [\".skillcheck/**/*\"] }\ntsc 통과\n<TREE>/.claude/skills/mantine-aggrid-ui/references/examples/list-detail/bad.tsx:2: Collapse `in` → `expanded`\n\n3개 파일 점검, 의심 1건\naggrid-stub audit <TREE>/.claude/skills/mantine-aggrid-ui/references/examples\n",
+      "stderr": "",
+      "files": {
+        "src/frontend/m-mqc/.skillcheck": null,
+        "src/frontend/m-mqc/tsconfig.skillcheck.json": null
+      }
+    },
+    "check-tsc-fails": {
+      "status": 2,
+      "stdout": "fake-tsc args: --noEmit -p <TREE>/src/frontend/m-mqc/tsconfig.skillcheck.json\ncwd: <TREE>/src/frontend/m-mqc\nskillcheck: empty-dir/,grid-edit/,grid-edit/page.tsx,grid-edit/한글 파일.tsx,master-detail/,master-detail/readme.md\ncfg: { \"extends\": \"./tsconfig.json\", \"compilerOptions\": { \"incremental\": false, \"plugins\": [] }, \"include\": [\".skillcheck/**/*\"] }\ntsc 실패\n\n2개 파일 점검, 의심 0건 — 통과\naggrid-stub audit <TREE>/.claude/skills/mantine-aggrid-ui/references/examples\n",
+      "stderr": "",
+      "files": {
+        "src/frontend/m-mqc/.skillcheck": null,
+        "src/frontend/m-mqc/tsconfig.skillcheck.json": null
+      }
+    },
+    "check-tsc-fails-and-audit": {
+      "status": 3,
+      "stdout": "fake-tsc args: --noEmit -p <TREE>/src/frontend/m-mqc/tsconfig.skillcheck.json\ncwd: <TREE>/src/frontend/m-mqc\nskillcheck: empty-dir/,grid-edit/,grid-edit/page.tsx,grid-edit/한글 파일.tsx,list-detail/,list-detail/bad.tsx,master-detail/,master-detail/readme.md\ncfg: { \"extends\": \"./tsconfig.json\", \"compilerOptions\": { \"incremental\": false, \"plugins\": [] }, \"include\": [\".skillcheck/**/*\"] }\ntsc 실패\n<TREE>/.claude/skills/mantine-aggrid-ui/references/examples/list-detail/bad.tsx:2: Collapse `in` → `expanded`\n\n3개 파일 점검, 의심 1건\naggrid-stub audit <TREE>/.claude/skills/mantine-aggrid-ui/references/examples\n",
+      "stderr": ""
+    },
+    "check-aggrid-fails": {
+      "status": 4,
+      "stdout": "fake-tsc args: --noEmit -p <TREE>/src/frontend/m-mqc/tsconfig.skillcheck.json\ncwd: <TREE>/src/frontend/m-mqc\nskillcheck: empty-dir/,grid-edit/,grid-edit/page.tsx,grid-edit/한글 파일.tsx,master-detail/,master-detail/readme.md\ncfg: { \"extends\": \"./tsconfig.json\", \"compilerOptions\": { \"incremental\": false, \"plugins\": [] }, \"include\": [\".skillcheck/**/*\"] }\ntsc 통과\n\n2개 파일 점검, 의심 0건 — 통과\naggrid-stub audit <TREE>/.claude/skills/mantine-aggrid-ui/references/examples\n",
+      "stderr": ""
+    },
+    "check-no-tsc": {
+      "status": 1,
+      "stdout": "tsc 없음: <TREE>/src/frontend/m-mqc/node_modules/typescript/bin/tsc (pnpm install 필요)\n",
+      "stderr": ""
+    },
+    "check-stale-work-and-cfg": {
+      "status": 0,
+      "stdout": "fake-tsc args: --noEmit -p <TREE>/src/frontend/m-mqc/tsconfig.skillcheck.json\ncwd: <TREE>/src/frontend/m-mqc\nskillcheck: empty-dir/,grid-edit/,grid-edit/page.tsx,grid-edit/한글 파일.tsx,master-detail/,master-detail/readme.md\ncfg: { \"extends\": \"./tsconfig.json\", \"compilerOptions\": { \"incremental\": false, \"plugins\": [] }, \"include\": [\".skillcheck/**/*\"] }\ntsc 통과\n\n2개 파일 점검, 의심 0건 — 통과\naggrid-stub audit <TREE>/.claude/skills/mantine-aggrid-ui/references/examples\n",
+      "stderr": "",
+      "files": {
+        "src/frontend/m-mqc/.skillcheck": null,
+        "src/frontend/m-mqc/tsconfig.skillcheck.json": null
+      }
+    },
+    "check-examples-missing": {
+      "status": 1,
+      "files": {
+        "src/frontend/m-mqc/.skillcheck": null,
+        "src/frontend/m-mqc/tsconfig.skillcheck.json": null
+      }
+    },
+    "check-keeps-other-m-mqc-files": {
+      "status": 0,
+      "stdout": "fake-tsc args: --noEmit -p <TREE>/src/frontend/m-mqc/tsconfig.skillcheck.json\ncwd: <TREE>/src/frontend/m-mqc\nskillcheck: empty-dir/,grid-edit/,grid-edit/page.tsx,grid-edit/한글 파일.tsx,master-detail/,master-detail/readme.md\ncfg: { \"extends\": \"./tsconfig.json\", \"compilerOptions\": { \"incremental\": false, \"plugins\": [] }, \"include\": [\".skillcheck/**/*\"] }\ntsc 통과\n\n2개 파일 점검, 의심 0건 — 통과\naggrid-stub audit <TREE>/.claude/skills/mantine-aggrid-ui/references/examples\n",
+      "stderr": "",
+      "files": {
+        "src/frontend/m-mqc/tsconfig.json": {
+          "crlf": false,
+          "text": "{}\n"
+        },
+        "src/frontend/m-mqc/keep.txt": {
+          "crlf": false,
+          "text": "keep"
+        }
+      }
+    }
+  }
+}

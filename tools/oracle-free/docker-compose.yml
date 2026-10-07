@@ -6,6 +6,8 @@ services:
     ports:
       - "1521:1521"
     environment:
+      # 컨테이너 OS 시간대를 KST 로 둔다(SYSDATE·SYSTIMESTAMP 가 KST). 감사 시각을 KST 로 통일한 결정(oracle-1007)
+      TZ: "Asia/Seoul"
       ORACLE_PASSWORD: "sys_password_123"
       APP_USER: "dmes_user"
       APP_USER_PASSWORD: "dmes_password_123"

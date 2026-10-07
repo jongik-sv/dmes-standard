@@ -27,6 +27,8 @@ dependencies {
     api libs.spring.boot.starter.validation
 
     api libs.sqlite.jdbc
+    api libs.ojdbc11
+    api libs.flyway.database.oracle
     api libs.hibernate.community.dialects.v705
 
     // 샘플 스키마를 Flyway 로 관리한다.

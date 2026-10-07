@@ -232,5 +232,5 @@ B 예제에서 오른쪽 `ContentPanel`·상세 상태·신규/저장/삭제 버
 예제를 고치면 타입 검사와 audit 를 다시 돌린다. 화면을 새로 만들거나 고친 뒤에는 화면 성능 가이드 §7 점검표와 `A audit <바꾼 파일·폴더>` 도 돌린다.
 
 ```bash
-python3 .claude/skills/mantine-aggrid-ui/scripts/ui_docs.py check-examples
+node .claude/skills/mantine-aggrid-ui/scripts/ui_docs.mjs check-examples
 ```

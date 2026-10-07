@@ -709,7 +709,7 @@ cmd_watch() {
        + (if $tg != "" then {require_tag:$tg} else {} end)
        + (if $wp != "" then {wp:$wp} else {} end)')
     # 요약 칸: 값 하나짜리 JSON 객체(input_request 는 null 도)여야 한다. 그대로 본문에 싣는다(형식 검증은 서버 몫).
-    _jok() { printf '%s' "$1" | jq -se "length == 1 and (.[0] | type) as \$t | ($2)" >/dev/null 2>&1; }
+    _jok() { printf '%s' "$1" | jq -se "length == 1 and ((.[0] | type) as \$t | ($2))" >/dev/null 2>&1; }
     [ -z "$_sum" ] || _jok "$_sum" '$t == "object"' || die 2 "--summary-json 은 JSON 객체여야 한다"
     [ -z "$_lsum" ] || _jok "$_lsum" '$t == "object"' || die 2 "--lead-summary-json 은 JSON 객체여야 한다"
     [ -z "$_inreq" ] || _jok "$_inreq" '$t == "object" or $t == "null"' || die 2 "--input-request-json 은 JSON 객체 또는 null 이어야 한다"
