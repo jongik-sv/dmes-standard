@@ -8,22 +8,21 @@
 
 | 항목 | 상태 | 커밋·비고 |
 |---|---|---|
-| b0 스파이크 | **완료** | `docs/oracle-1007/spike.md`(5e42d475a). 동시 열린 PDB 4개에서 인스턴스 종료 → 상한 3 |
-| b1 의존성 | **완료**(추가만) | c9a6254a2. `ojdbc11`·`flyway-database-oracle` 을 카탈로그와 14개 build.gradle 에 추가 |
-| b3 소유표·연결 규약 | **완료**(MCM_BACKUP·EAIUSER·운용 규칙 포함) | 5e42d475a `docs/oracle-1007/schema-owners.md` |
-| b6 be-run | **완료** | b1efdb608. `--pdb=<PDB>`·`BE_ORA_PDB` 일 때만 접속값 전달(.sh·.ps1, .cmd 는 .ps1 을 부른다) |
-| b2 PDB 도구 | 코드 작성·부분 검증 | `scripts/oracle/pdb.mjs`·`pdb.sh`·`pdb.cmd`·`README.md`. 시드→템플릿 생성, 사용자 13명 생성, 봉인, 복제(빈·데이터), 열기·닫기·삭제는 실측 통과. **`template-create` 를 처음부터 끝까지 한 번 더, 그리고 한 번 실패했던 `clone`(원인 미확인) 재현 시험 필요** |
-| b4 시험 하니스 | 코드 작성·**미검증** | `build-logic/.../OraTestPdbService.groovy`·`dmes.test-conventions.gradle`. `-Pdmes.ora.test=clone` 으로 작은 mdm 시험(`SapCsvTest` 등)을 돌려 복제→시험→삭제를 확인해야 한다 |
-| b5 적재기 | 미착수 | ora-mdm m1 기준선 뒤. 요구사항은 아래 |
-| b7·b8·z1 | 미착수 | ora-platform 머지 뒤 / 조정자 지시 때. **b8 에 추가: mcm-core 의 `SqliteTemporalConverterContributor` 제거**(mls yml 이 가리키므로 platform 머지 뒤에 지운다) |
-
-커밋 대기(워킹 트리): b2·b4 파일(미커밋, 정지 시 WIP 커밋으로 남긴다).
+| b0 스파이크 | 완료·머지① | `docs/oracle-1007/spike.md` |
+| b1 의존성·b3 소유표·b6 be-run | 완료·머지①(dev 08978b6ff, push 됨) | boolean 공통 설정은 TINYINT 로 정정(머지 뒤 커밋) |
+| b2 PDB 도구·b4 시험 하니스 | 완료·머지①. 이후 `template-schema`·`template-data` 추가(미머지) | 하니스: mdm `SapCsvTest` 8건 복제→시험→삭제 51초 확인 |
+| b5 적재기 | **핵심 완료(미머지)** `scripts/db-snapshot/snapshot.py` convert·export·import | f9baf7a9b. L_ORA_BASE 에서 mdm 39표 42,870행·mcm 54표 481행·MCM_SOURCE 6행·MCAAPUSER 6행, IDENTITY 8개·시퀀스 재설정, FK 복원, 동적 표 생성+GRANT, PK 빈 행 제외, epoch→KST 확인. `template-schema`(5벌 V1 적용)→`template-data`(CSV 적재 mdm 344초) 끝까지 통과 |
+| b5 후속: 위젯 정의 6개 | CSV 반영 **미커밋** | `db-snapshot/MCMAPUSER/TB_MCM_WIDGET_DEF.csv` 의 6행(`def.fpkt65d4`·`ldj2hpgw`·`lo41tduo`·`qcondsmp`·`spzufhgo`·`ubb8dih0`) CONFIG_JSON.sql 만 Oracle 판으로 교체(원문 `git show feat/ora-mcm-core:docs/oracle-1007/widget-sql-oracle.md`). **남음: 레인 PDB 에서 import 후 SQL 실행 확인 → 커밋 → PDB close** |
+| 템플릿 정리 | 시험 템플릿 `TPL_ZTEST`·`TPL_ZDATA`·`L_ORA_BASE` drop 이 백그라운드로 진행 중이었음 — 남았으면 `node scripts/oracle/pdb.mjs drop <이름>`. 남기는 것: `TPL_EMPTY`(사용자만) | |
+| b7 문서·스킬 | 미착수(ora-platform 머지 뒤) | 항목: 가이드 Database/*·dialect-neutral-sql·Backend-Implementation-Guide·Mes-Guide·flyway-migration-add·dflow-merge migration-check.sh, 워크트리 서버 확인 절차, 옛 경로 문서 3곳(`Mcm-Core-Onboarding.md:155,159`·`csa-sec-erd.md:256`·`erd-widget-meta.md:31`), be-run 의 `mdm.sample.path` 인자 정리·"로컬 MDM 데이터는 `snapshot.py import`" 안내(MdmLocalSampleLoader 가 archive 로 감), e2e-clean-data 를 가리키는 문서·스크립트 정리(스크립트는 dev 에서 이미 삭제됨 — dev 합칠 때 되살리지 않는다). **`Widget-Authoring-Guide.md` §3 은 건드리지 않는다**(ora-mcm-core 소관) |
+| b8 잔재 정리 | 미착수(ora-platform 머지 뒤) | 카탈로그의 sqlite·mssql·h2, scripts/archive, scripts/perf/render, playwright.config.ts, 옛 SQL 스냅샷 `db-snapshot/{mdm,mcm}`(→archive), mcm-core `SqliteTemporalConverterContributor` 제거(mls yml 이 가리키므로 platform 머지 뒤) |
+| z1 마감 | 조정자 지시 때 | 전 모듈 시험·E2E·시험 시간 비교·SUMMARY·PDB 정리 |
 
 ## 남은 순서(재개 뒤)
 
-1. b2·b4 실검증(레인당 Oracle 단계 하나씩, `heavy.sh` 경유). 템플릿 `TPL_EMPTY`(사용자 13명만 있는 빈 템플릿)는 **만들고 봉인했다(닫힌 상태, MOUNTED, 794MB)** — 정지하면서 지우지 않고 CLOSE 만 해 두었다. 상태는 `node scripts/oracle/pdb.mjs list`. 이 템플릿으로 `clone TPL_EMPTY L_ORA_BASE`→ 작은 mdm 시험(`SapCsvTest` 등)을 `-Pdmes.ora.test=clone` 으로 돌려 복제→시험→삭제를 확인한다(템플릿이 이미 있어 `template-create` 의 처음부터 끝까지는 이번 12분 55초 실행으로 확인됨).
-2. 머지①(b1~b4·b6) 요청: 머지 직전 `dev` 최신 합치기, `pdb.mjs`·하니스 검증 결과·be-run dry-run 결과 첨부. 머지②(mdm)와 ③(mcm 묶음)은 같은 창(스파이크 ⑦).
-3. b5 적재기: mdm m1 기준선 뒤. b7·b8: ora-platform 머지 뒤(스킬 파일은 skills-win 레인과 겹칠 수 있어 착수 전 조정자 확인).
+1. 위젯 CSV: 레인 PDB 하나(`clone TPL_EMPTY L_ORA_BASE` 또는 `template-schema`)에서 `snapshot.py import` 후 6개 SQL 을 MCMAPUSER 로 실제 실행(읽기 전용) → 확인 → `git add db-snapshot/MCMAPUSER/TB_MCM_WIDGET_DEF.csv` 커밋(메시지에 변환표 경로 적기, 원본 표 문서는 복사하지 않음) → PDB close → 진행 보고.
+2. 미커밋·미머지 정리: `scripts/oracle` 템플릿 명령·README(커밋됨), b5(커밋됨) 를 머지④ 전에 dev 최신 합쳐 머지 요청(ora-mdm 머지② 와 ③ 같은 창 확인).
+3. ora-platform 머지 뒤 b7·b8, 조정자 지시로 z1. 모듈 V1 이 dev 에 들어오면 `template-schema --rebuild` → `template-data --rebuild`.
 
 ## 결정·전달 사항(조정자)
 
