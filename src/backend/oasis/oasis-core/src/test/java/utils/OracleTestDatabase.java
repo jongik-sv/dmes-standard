@@ -15,10 +15,13 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 
 /**
@@ -89,13 +92,35 @@ public final class OracleTestDatabase {
         }
     }
 
+    /** 이 도우미의 DataSource 가 내준 연결. 시험 클래스가 끝날 때 {@link OracleConnectionCleaner} 가 닫는다. */
+    private static final List<Connection> OPENED = new CopyOnWriteArrayList<>();
+
+    /** 내준 연결을 모두 닫는다(Oracle 세션 누수 방지 — H2 의 shutdown() 이 하던 일). */
+    static void closeOpenedConnections() {
+        for (Connection connection : new ArrayList<>(OPENED)) {
+            try {
+                connection.close();
+            } catch (SQLException ignored) {
+                // 이미 닫힌 연결
+            }
+        }
+        OPENED.clear();
+    }
+
     private static DriverManagerDataSource newDataSource() {
         String url = System.getProperty(URL_PROPERTY);
         if (url == null || url.isBlank()) {
             throw new IllegalStateException(
                     "시험 PDB 접속값(dmes.ora.url)이 없다. -Pdmes.ora.test=clone 으로 실행한다");
         }
-        DriverManagerDataSource dataSource = new DriverManagerDataSource();
+        DriverManagerDataSource dataSource = new DriverManagerDataSource() {
+            @Override
+            protected Connection getConnectionFromDriver(java.util.Properties props) throws SQLException {
+                Connection connection = super.getConnectionFromDriver(props);
+                OPENED.add(connection);
+                return connection;
+            }
+        };
         dataSource.setDriverClassName("oracle.jdbc.OracleDriver");
         dataSource.setUrl(url);
         dataSource.setUsername(System.getProperty(USER_PROPERTY, DEFAULT_USER));

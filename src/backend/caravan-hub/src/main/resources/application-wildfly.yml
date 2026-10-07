@@ -5,11 +5,12 @@
 # 원칙:
 #  - jdbc-url/username/password/driver 전부 없음 — 물리 접속·풀은 각 WildFly(domain.xml 프로파일) 소유.
 #  - mcm 이 등록한 논리 DS 를 재사용 (사용자 결정 2026-07-09):
-#      mst → java:/jdbc/mcm/dsCaravan (CARAVANUSER — Kafka 도메인)
-#      if  → java:/jdbc/mcm/dsIF      (EAIUSER — 인터페이스 IF_*)
+#      mst → java:/jdbc/mssql/mcm/dsCaravan (CARAVANUSER — Kafka 도메인)
+#      if  → java:/jdbc/mssql/mcm/dsIF      (EAIUSER — 인터페이스 IF_*)
 #    caravan-hub 전용 서버그룹이 mcm 과 같은 domain 프로파일을 쓰면 자동으로 존재.
 #  - 반드시 jta="false" 로 정의 (resource-local 트랜잭션 충돌 방지).
 #  - ${PROP:기본값} 형태 — 다른 이름의 DS 를 써야 할 때만 JNDI_DS_MST/JNDI_DS_IF 로 override.
+# ⚠️ JNDI 이름은 mcm 의 application-wildfly.yml 과 같아야 하므로(mcm 의 이름이 중립 이름으로 바뀌는 회차에 함께 바꾼다) 지금은 기존 이름을 유지한다.
 # Kafka 브로커는 여기 두지 않는다 — 환경 차이값이므로 application-dev/prod.yml 소유.
 spring:
   # 스키마는 DBA 가 db/migration/caravanuser 의 V 파일로 사전 생성한다 — 기동 시 Flyway 를 돌리지 않는다.
@@ -17,9 +18,9 @@ spring:
     enabled: false
   datasource:
     mst:
-      jndi-name: "${JNDI_DS_MST:java:/jdbc/mcm/dsCaravan}"
+      jndi-name: "${JNDI_DS_MST:java:/jdbc/mssql/mcm/dsCaravan}"
     if:
-      jndi-name: "${JNDI_DS_IF:java:/jdbc/mcm/dsIF}"
+      jndi-name: "${JNDI_DS_IF:java:/jdbc/mssql/mcm/dsIF}"
 
 # caravan EMF (=@Primary mst = CARAVANUSER) — Oracle(Hibernate 자동 감지). 스키마는 DBA 가 V 파일로 만든다 → none
 caravan:

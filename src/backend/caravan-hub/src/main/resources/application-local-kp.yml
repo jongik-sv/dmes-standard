@@ -17,18 +17,16 @@ spring:
       jdbc-url: ${CARAVAN_HUB_ORA_URL}
       username: CARAVANUSER
       password: ${CARAVAN_HUB_MST_PASSWORD}
-      hikari:
-        maximum-pool-size: 10
-        minimum-idle: 2
-        connection-timeout: 30000
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
     if:
       jdbc-url: ${CARAVAN_HUB_ORA_URL}
       username: EAIUSER
       password: ${CARAVAN_HUB_IF_PASSWORD}
-      hikari:
-        maximum-pool-size: 10
-        minimum-idle: 2
-        connection-timeout: 30000
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
 
 caravan:
   kafka:

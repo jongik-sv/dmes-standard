@@ -98,7 +98,7 @@ dependencies {
     testImplementation('org.mockito:mockito-core:5.15.2')
     testImplementation "org.junit.jupiter:junit-jupiter-api:${rootProject.junit}"
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${rootProject.junit}"
-    testRuntimeOnly "org.junit.platform:junit-platform-launcher:1.11.4"
+    testImplementation "org.junit.platform:junit-platform-launcher:1.11.4"   // OracleConnectionCleaner(TestExecutionListener) 가 컴파일에 쓴다
     testImplementation 'io.github.autoparams:autoparams:8.3.0'
 
     testImplementation "org.springframework:spring-test:${rootProject.springVersion}"

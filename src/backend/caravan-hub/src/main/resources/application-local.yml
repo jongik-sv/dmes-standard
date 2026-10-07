@@ -13,23 +13,22 @@ caravan:
     ddl-auto: none
 
 spring:
+  # DataSourceConfig 가 spring.datasource.{mst,if} 를 HikariDataSource 에 직접 바인딩하므로 풀 설정은 hikari: 아래가 아니라 mst:·if: 바로 아래에 둔다.
   datasource:
     mst:
       jdbc-url: ${DMES_ORA_URL:jdbc:oracle:thin:@//localhost:1521/FREEPDB1}
       username: CARAVANUSER
       password: ${DMES_ORA_PASSWORD:dmes_password_123}
-      hikari:
-        maximum-pool-size: 3     # Oracle 인스턴스를 모든 레인이 공유한다
-        minimum-idle: 1
-        connection-timeout: 30000
+      maximum-pool-size: 3     # Oracle 인스턴스를 모든 레인이 공유한다
+      minimum-idle: 1
+      connection-timeout: 30000
     if:
       jdbc-url: ${DMES_ORA_URL:jdbc:oracle:thin:@//localhost:1521/FREEPDB1}
       username: EAIUSER          # 표 없이 접속만 하는 사용자 — IFUSER 표에 SELECT·INSERT·UPDATE 권한을 받는다
       password: ${DMES_ORA_PASSWORD:dmes_password_123}
-      hikari:
-        maximum-pool-size: 3
-        minimum-idle: 1
-        connection-timeout: 30000
+      maximum-pool-size: 3
+      minimum-idle: 1
+      connection-timeout: 30000
 
 caravan-hub:
   flyway:

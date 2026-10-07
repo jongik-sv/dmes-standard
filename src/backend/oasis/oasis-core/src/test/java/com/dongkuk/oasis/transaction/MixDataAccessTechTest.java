@@ -144,7 +144,7 @@ public class MixDataAccessTechTest {
             entityManager.flush();
 
             List<Map<String, Object>> maps = jdbcTemplate1.queryForList("select max(age) as age from employeeWithAge");
-            Integer integer = (Integer) maps.get(0).get("AGE");
+            Integer integer = ((Number) maps.get(0).get("AGE")).intValue();
             assertThat(integer).isEqualTo(10);
 
             EmployeeWithAge employee_with_age = entityManager.find(EmployeeWithAge.class, 1);
@@ -153,7 +153,7 @@ public class MixDataAccessTechTest {
             entityManager.flush();
 
             List<Map<String, Object>> maps2 = jdbcTemplate1.queryForList("select max(age) as age from employeeWithAge");
-            Integer integer2 = (Integer) maps2.get(0).get("AGE");
+            Integer integer2 = ((Number) maps2.get(0).get("AGE")).intValue();
             assertThat(integer2).isEqualTo(11);
 
             transactionHandler.commitAll();
@@ -171,7 +171,7 @@ public class MixDataAccessTechTest {
             assertThat(insert).isEqualTo(1);
 
             List<Map<String, Object>> maps = jdbcTemplate1.queryForList("select max(age) as age from employeeWithAge");
-            Integer integer = (Integer) maps.get(0).get("AGE");
+            Integer integer = ((Number) maps.get(0).get("AGE")).intValue();
             assertThat(integer).isEqualTo(10);
 
             Map<String, Integer> param2 = new HashMap<>();
@@ -181,7 +181,7 @@ public class MixDataAccessTechTest {
             assertThat(insert1).isEqualTo(1);
 
             List<Map<String, Object>> maps2 = jdbcTemplate1.queryForList("select max(age) as age from employeeWithAge");
-            Integer integer2 = (Integer) maps2.get(0).get("AGE");
+            Integer integer2 = ((Number) maps2.get(0).get("AGE")).intValue();
             assertThat(integer2).isEqualTo(11);
 
             transactionHandler.commitAll();
