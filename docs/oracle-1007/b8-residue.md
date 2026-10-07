@@ -206,10 +206,10 @@ git -c core.quotepath=false grep -I -n -E 'jdbc:sqlite|sqlite-jdbc|org\.sqlite|L
 
 ## 10. 처리 결과 (b8 1차, 2026-10-07)
 
-- **archive 로 옮김(삭제 없음, 커밋 68518854f)**: 옛 SQL 스냅샷 (→ ), , , , . 안내 경로(가이드 §7·README·)를 새 위치로 고쳤고  이 새 경로에서 도는 것을 확인했다. 유지: (SQLite 의존 없음), , , ·(런북이 씀).
-- ** 정리(커밋 8fe663f22)**: ····· 6개와  의 시험 의존 1줄,  의 쓰지 않는  버전을 제거했다. 전 모듈  통과(caravan-hub 는 caravan-core 아티팩트 부재로 이 변경과 무관하게 해석 실패).
-- **옮기지 않고 표시만**: ··(SQLite 사본을 읽는 분석 도구)는 머리에 「SQLite 사본 읽기 도구, Oracle 판은 후속」 한 줄만 넣었다(사용자 분석 도구일 수 있고  는 남긴다). 후속 목록에 올린다.
-- ****: Oracle 컨테이너 하나는 도커 금지의 예외라 유지하고 「Podman compose 용」 주석을 넣었다.
-- **승인 대기**: 최종 삭제 후보 15항은 . z1 마감 보고에 싣는다.
-- **새 발견(남음)**: (보관 배너 있음),  의 옛 SQLite 체인 폴더 건너뛰기 분기(해당 폴더가 모두 archive 로 가면 죽은 코드),  3개의 SQLite 문법 여부(ora-mdm 이 확인),  이름·주석의 옛 SQLite 표현.
-
+- **archive 로 옮김(삭제 없음, 커밋 68518854f)**: 옛 SQL 스냅샷 `db-snapshot/{mdm,mcm}`(→ `archive/oracle-1007/db-snapshot-sql/`), `scripts/db-snapshot/{export,import}.sh`, `tools/oracle-free/{sqlite_to_oracle,load_snapshot}.py`, `scripts/data/notice-mls-to-mcm.*`, `scripts/perf/mcm`. 안내 경로(가이드 §7·README·`snapshot.py`)를 새 위치로 고쳤고 `convert --from-sql` 이 새 경로에서 도는 것을 확인했다. 유지: `scripts/perf/render`(SQLite 의존 없음), `scripts/perf/mdm-backend`, `scripts/archive`, `snapshot.py`·`compare_counts.py`(런북이 씀).
+- **`libs.versions.toml` 정리(커밋 8fe663f22)**: `hibernate-community-dialects-managed`·`-v705`·`sqlite-jdbc`·`mssql-jdbc`·`h2`·`flyway-database-postgresql` 6개와 `aps-core` 의 시험 의존 1줄, `analog` 의 쓰지 않는 `sqlite-jdbc` 버전을 제거했다. 전 모듈 `compileTestJava` 통과(caravan-hub 는 caravan-core 아티팩트 부재로 이 변경과 무관하게 해석 실패).
+- **옮기지 않고 표시만**: `docs/mdm/dict-*/*.py`·`Recompose.java`·`erd/verify/Verify.java`(SQLite 사본을 읽는 분석 도구)는 머리에 「SQLite 사본 읽기 도구, Oracle 판은 후속」 한 줄만 넣었다(사용자 분석 도구일 수 있고 `*.db` 는 남긴다). 후속 목록에 올린다.
+- **`tools/oracle-free/docker-compose.yml`**: Oracle 컨테이너 하나는 도커 금지의 예외라 유지하고 「Podman compose 용」 주석을 넣었다.
+- **적재기 결함 수정(커밋 15233edc7)**: `convert` 가 위젯 정의 SQL 6개를 Oracle 판으로 바꾼다(`widget_sql_oracle.json`, 단위 시험 `test_snapshot.py`).
+- **승인 대기**: 최종 삭제 후보 15항은 `b8-approval-list.md`. z1 마감 보고에 싣는다.
+- **새 발견(남음)**: `docs/guide/Database/DBMS-용어-비교.md`(보관 배너 있음), `pdb.mjs` 의 옛 SQLite 체인 폴더 건너뛰기 분기(해당 폴더가 모두 archive 로 가면 죽은 코드), `e2e/fixtures/mdm-*.sql` 3개의 SQLite 문법 여부(ora-mdm 이 확인), `scripts/perf/mdm-backend` 이름·주석의 옛 SQLite 표현.
