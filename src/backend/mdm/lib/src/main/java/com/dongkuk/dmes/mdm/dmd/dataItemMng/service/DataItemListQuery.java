@@ -115,7 +115,8 @@ public class DataItemListQuery {
             where.append(" AND UPPER(i.CODE) LIKE :code ESCAPE '\\'");
         }
         if (name != null) {
-            where.append(" AND i.NAME LIKE :name ESCAPE '\\'");
+            // 대소문자 무시(SQLite LIKE 의 ASCII 대소문자 무시와 같은 결과) — 양쪽을 대문자로 맞춘다.
+            where.append(" AND UPPER(i.NAME) LIKE :name ESCAPE '\\'");
         }
         if (nodeFilter != null) {
             where.append(" AND (i.CODE = :node OR i.LVL1 = :node OR i.LVL2 = :node OR i.LVL3 = :node "
@@ -177,7 +178,7 @@ public class DataItemListQuery {
             q.setParameter("code", "%" + escapeLike(code.toUpperCase(Locale.ROOT)) + "%", String.class);
         }
         if (name != null) {
-            q.setParameter("name", "%" + escapeLike(name) + "%", String.class);
+            q.setParameter("name", "%" + escapeLike(name.toUpperCase(Locale.ROOT)) + "%", String.class);
         }
         if (nodeFilter != null) {
             q.setParameter("node", nodeFilter, String.class);

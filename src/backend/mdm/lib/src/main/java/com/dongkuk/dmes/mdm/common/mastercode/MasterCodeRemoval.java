@@ -77,7 +77,8 @@ public class MasterCodeRemoval {
             StringBuilder sql = new StringBuilder("SELECT ").append(String.join(", ", src.keys()));
             src.columns().forEach(c -> sql.append(", ").append(c));
             sql.append(" FROM ").append(src.table()).append(" WHERE (");
-            sql.append(String.join(" OR ", src.columns().stream().map(c -> c + " LIKE '%MASTER%'").toList()));
+            // 대소문자 무시(식은 master(…) 로도 쓴다, SQLite LIKE 와 같은 후보) — UPPER 는 CLOB 칼럼에도 된다.
+            sql.append(String.join(" OR ", src.columns().stream().map(c -> "UPPER(" + c + ") LIKE '%MASTER%'").toList()));
             sql.append(")");
             if (src.exclude() != null) {
                 sql.append(" AND ").append(src.exclude()).append(" <> :self");

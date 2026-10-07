@@ -82,8 +82,9 @@ public class DataMngService {
             params.put("id", "%" + escapeLike(id.toUpperCase(Locale.ROOT)) + "%");
         }
         if (name != null) {
-            jpql.append(" AND d.maruDataName LIKE :name ESCAPE '\\'");
-            params.put("name", "%" + escapeLike(name) + "%");
+            // 대소문자 무시(SQLite LIKE 의 ASCII 대소문자 무시와 같은 결과) — 양쪽을 대문자로 맞춘다.
+            jpql.append(" AND UPPER(d.maruDataName) LIKE :name ESCAPE '\\'");
+            params.put("name", "%" + escapeLike(name.toUpperCase(Locale.ROOT)) + "%");
         }
         if (status != null) {
             jpql.append(" AND d.status = :status");
