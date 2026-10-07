@@ -94,6 +94,18 @@ def main():
             for k in d["cons"]:
                 exp_names.add(k["name"])
         exp_names |= {ix["name"] for ix in g.indexes}
+        fk_ix = g.fk_indexes()
+        exp_names |= {fx["name"] for fx in fk_ix}
+        # FK 마다 자식 컬럼으로 시작하는 인덱스(순서 무관)가 있는지 Oracle 사전으로 확인한다.
+        ix_cols = {}
+        for iname, cname, pos in cur.execute("select index_name, column_name, column_position from user_ind_columns"):
+            ix_cols.setdefault(iname, {})[pos] = cname
+        for fk_name, in list(cur.execute("select constraint_name from user_constraints where constraint_type = 'R'")):
+            fcols = [r[0] for r in cur.execute(
+                "select column_name from user_cons_columns where constraint_name = :n order by position", n=fk_name)]
+            n = len(fcols)
+            if not any(set(c.get(i + 1) for i in range(n)) == set(fcols) for c in ix_cols.values()):
+                fails.append("FK 자식 인덱스 없음: %s %s" % (fk_name, fcols))
         ora_names = {r[0] for r in cur.execute(
             "select constraint_name from user_constraints where constraint_name not like 'SYS\\_%' escape '\\' "
             "union select index_name from user_indexes where index_name not like 'SYS\\_%' escape '\\'")}

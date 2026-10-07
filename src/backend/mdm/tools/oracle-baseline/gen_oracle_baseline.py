@@ -434,6 +434,12 @@ class Gen:
                     w("-- %s: 원문 WHERE %s. 조건 밖 행은 키가 모두 NULL 이 되어 인덱스에 들어가지 않는다.\n" % (ix["name"], cond))
                     keys = ["CASE WHEN %s THEN %s END" % (cond, k) for k in keys]
             w("CREATE %sINDEX %s ON %s (%s);\n" % ("UNIQUE " if ix["unique"] else "", ix["name"], ix["table"], ", ".join(keys)))
+        w("\n-- FK 자식 컬럼 인덱스(SQLite 원천에는 없음). Oracle 은 FK 에 인덱스를 자동으로 만들지 않아 부모 삭제 때\n")
+        w("-- 자식 표 전체 읽기·표 잠금이 난다. PK·UNIQUE·기존 인덱스 앞 컬럼이 덮는 FK 는 뺐다.\n")
+        self.fk_ix = self.fk_indexes()
+        for fx in self.fk_ix:
+            cols_quoted = {c["name"] for c in self.tables[fx["table"]]["cols"] if c["quoted"]}
+            w("CREATE INDEX %s ON %s (%s);\n" % (fx["name"], fx["table"], ", ".join(self.ident(c, cols_quoted) for c in fx["cols"])))
         w("\n-- FK. 순환 참조(EAI <-> LAYOUT_VER 등)가 있어 표를 모두 만든 뒤 붙인다.\n")
         for t, k, cols_quoted in sorted(fk_all, key=lambda x: x[1]["name"]):
             pq = {c["name"] for c in self.tables[k["ref_table"]]["cols"] if c["quoted"]}
@@ -468,6 +474,33 @@ class Gen:
         if otype.startswith("TIMESTAMP"):
             return "TIMESTAMP '%s'" % v
         return "'%s'" % v.replace("'", "''")
+
+    def fk_indexes(self):
+        """FK 자식 컬럼 인덱스. Oracle 은 FK 에 인덱스를 자동으로 만들지 않아 부모 삭제·키 변경 때 자식 표를
+        전체 읽고 표 잠금을 건다. PK·UNIQUE·기존 일반 인덱스의 앞 컬럼들(순서 무관)이 FK 컬럼을 덮으면 만들지 않는다.
+        이름은 FK 이름의 FK_ 를 IX_ 로 바꾼다."""
+        covers = []
+        for t, d in self.tables.items():
+            for k in d["cons"]:
+                if k["kind"] in ("PK", "UQ"):
+                    covers.append((t, k["cols"]))
+        for ix in self.indexes:
+            if not ix["where"]:
+                covers.append((ix["table"], ix["cols"]))
+        names = {k["name"] for d in self.tables.values() for k in d["cons"]} | {ix["name"] for ix in self.indexes}
+        out = []
+        for t in sorted(self.tables):
+            for k in sorted((x for x in self.tables[t]["cons"] if x["kind"] == "FK"), key=lambda x: x["name"]):
+                n = len(k["cols"])
+                if any(ct == t and len(cc) >= n and set(cc[:n]) == set(k["cols"]) for ct, cc in covers):
+                    continue
+                name = "IX_" + k["name"][3:]
+                if not k["name"].startswith("FK_") or name in names:
+                    raise ValueError("FK 인덱스 이름을 만들 수 없다: %s -> %s" % (k["name"], name))
+                names.add(name)
+                covers.append((t, k["cols"]))
+                out.append({"name": name, "table": t, "cols": k["cols"], "fk": k["name"]})
+        return out
 
     def check_unique_nulls(self, ix):
         """UNIQUE 키에 NULL 허용 컬럼이 있으면 SQLite(NULL 끼리 다름)와 Oracle(일부 NULL 이면 중복)의 의미가 갈린다."""
@@ -525,7 +558,12 @@ class Gen:
         w("| `NUMERIC(p,s)` | `NUMBER(p,s)` | |\n")
         w("| `CHECK (json_valid(X))` | `CHECK (X %s)` | NULL 은 통과 |\n" % self.ov["json_check"])
         w("| 부분 UNIQUE 인덱스 | 함수 기반 UNIQUE 인덱스 `CASE WHEN 조건 THEN 컬럼 END` | |\n")
-        w("| FK 가 가리키는 고유 인덱스 | 같은 이름의 `UNIQUE` 제약 | ORA-02270 대비 |\n\n")
+        w("| FK 가 가리키는 고유 인덱스 | 같은 이름의 `UNIQUE` 제약 | ORA-02270 대비 |\n")
+        w("| (없음) | FK 자식 컬럼 인덱스 `IX_<FK 이름에서 FK_ 를 뺀 것>` | 부모 삭제 때 표 잠금 방지. PK·UNIQUE·기존 인덱스 앞 컬럼이 덮는 FK 는 뺀다 |\n\n")
+        w("## FK 자식 인덱스 (%d개)\n\n| 인덱스 | 표 | 컬럼 | FK |\n|---|---|---|---|\n" % len(self.fk_ix))
+        for fx in self.fk_ix:
+            w("| %s | %s | %s | %s |\n" % (fx["name"], fx["table"], ", ".join(fx["cols"]), fx["fk"]))
+        w("\n")
         w("## 컬럼별\n\n| 표 | 컬럼 | SQLite | Oracle | NULL | 이유 |\n|---|---|---|---|---|---|\n")
         for t, c, st, ot, nl, why in self.decisions:
             w("| %s | %s | %s | %s | %s | %s |\n" % (t, c, st, ot, nl, why.replace("|", "\\|")))
