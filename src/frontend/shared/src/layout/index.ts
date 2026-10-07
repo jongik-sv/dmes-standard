@@ -15,7 +15,7 @@ export {
   readSearchHistory,
 } from "./search-history-store";
 export { emitSearch, subscribeSearch } from "./search-history-bus";
-export { ContentBody, useContentMaximize, type ContentBodyProps } from "./ContentBody";
+export { ContentBody, LayoutContextBoundary, useContentMaximize, type ContentBodyProps } from "./ContentBody";
 export { ContentPanel, type ContentPanelProps } from "./ContentPanel";
 export { ResizableFormPanel, type ResizableFormPanelProps } from "./ResizableFormPanel";
 export { MaxHandle, type MaxHandleProps } from "./MaxHandle";

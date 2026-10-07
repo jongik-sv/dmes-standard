@@ -57,6 +57,12 @@ export const NOTICE_MGMT_PAGE_ID = "mls:lsh/noticeMgmt";
 /** 공지 카드 목록·본문 분할 크기 저장 키(사용자별). */
 export const NOTICE_SPLIT_STORAGE_KEY = "mcm.home.notice";
 
+/**
+ * 공지 카드가 이 폭(px)보다 좁으면 목록·본문을 위아래로 쌓는다.
+ * 근거: 가로 분할의 두 판 minSize(목록 200 + 본문 240) = 440 + 좌우 여백 20 + 판 사이 간격·끌기 막대 여유 → 480.
+ */
+export const NOTICE_NARROW_WIDTH = 480;
+
 export function noticeFormat(v: string | null | undefined): NoticeFormat {
   return v === "MD" || v === "HTML" ? v : "TEXT";
 }

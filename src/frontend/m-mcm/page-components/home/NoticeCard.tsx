@@ -5,7 +5,7 @@
  * (ContentBody resizable, 크기는 사용자별로 "mcm.home.notice" 에 저장). 목록·본문은 각자 스크롤하므로
  * 고른 공지의 본문 길이가 홈 전체 배치를 움직이지 않는다.
  */
-import { useEffect, useRef, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { ContentBody, ContentPanel } from "@dk-oasis/shared/layout";
 import { Badge, Button } from "@dk-oasis/shared/form";
 import { WidgetHeaderActions, WidgetTitleExtra } from "@dk-oasis/shared/widget";
@@ -17,6 +17,7 @@ import {
   NOTICE_FORMAT_LABEL,
   NOTICE_LOAD_ERROR,
   NOTICE_MGMT_PAGE_ID,
+  NOTICE_NARROW_WIDTH,
   NOTICE_SPLIT_STORAGE_KEY,
   noticeAuthor,
   noticeCategory,
@@ -117,8 +118,26 @@ export function NoticeCard({
 }: NoticeCardProps) {
   const viewerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  // 카드 폭이 좁으면 목록·본문을 위아래로 쌓는다(가로 분할의 두 판 minSize 합이 폭보다 크면 본문이 잘린다).
+  const [narrow, setNarrow] = useState(false);
   const rows = state.status === "ok" ? state.rows : [];
   const selected = rows.find((r) => noticeKey(r) === selectedId) ?? null;
+
+  // 폭 0(아직 배치 전·숨김)은 알 수 없음으로 보고 가로를 유지한다. ResizeObserver 가 없는 환경은 처음 잰 폭만 쓴다.
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const measure = () => {
+      const w = el.clientWidth;
+      if (w > 0) setNarrow(w < NOTICE_NARROW_WIDTH);
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // 다른 공지를 고르면 본문을 맨 위부터 보인다.
   useEffect(() => {
@@ -172,8 +191,13 @@ export function NoticeCard({
     body = <div className="mcm-home-state mcm-home-scroll">게시 중인 공지가 없습니다.</div>;
   } else {
     body = (
-      <ContentBody resizable storageKey={NOTICE_SPLIT_STORAGE_KEY}>
-        <ContentPanel key="list" flex={5} minSize={200}>
+      <ContentBody
+        key={narrow ? "column" : "row"}
+        resizable
+        direction={narrow ? "column" : "row"}
+        storageKey={narrow ? `${NOTICE_SPLIT_STORAGE_KEY}.column` : NOTICE_SPLIT_STORAGE_KEY}
+      >
+        <ContentPanel key="list" flex={5} minSize={narrow ? 80 : 200}>
           <div className="mcm-home-scroll">
             <ul
               ref={listRef}
@@ -212,7 +236,7 @@ export function NoticeCard({
             </ul>
           </div>
         </ContentPanel>
-        <ContentPanel key="viewer" flex={7} minSize={240}>
+        <ContentPanel key="viewer" flex={7} minSize={narrow ? 100 : 240}>
           <div className="mcm-home-scroll" ref={viewerRef} data-testid="home-notice-viewer">
             {selected ? (
               <NoticeViewer row={selected} detail={detail} onRetryDetail={onRetryDetail} />
@@ -226,7 +250,7 @@ export function NoticeCard({
   }
 
   return (
-    <div className="mcm-home-notice" data-testid="home-notice-card">
+    <div className="mcm-home-notice" data-testid="home-notice-card" ref={rootRef}>
       {subtitle && (
         <WidgetTitleExtra>
           <span className="mcm-home-sub">{subtitle}</span>

@@ -50,6 +50,20 @@ interface ParentBodyValue {
 const ParentBodyContext = createContext<ParentBodyValue | null>(null);
 
 /**
+ * 레이아웃 컨텍스트(부모 ContentBody 방향·resizable 크기, 최대화 상태)를 여기서 끊는다.
+ * 위젯 틀(WidgetFrame)처럼 화면 레이아웃과 무관한 독립 영역이 ContentBody 분할 패널 안에 그려질 때, 영역 안 ContentBody 가
+ * 바깥 규격(nested 판정·저장 비율 인라인 flex·min-width)을 받지 않고 최상위처럼 동작하게 한다.
+ */
+export function LayoutContextBoundary({ children }: { children: React.ReactNode }) {
+  return (
+    <ParentBodyContext.Provider value={null}>
+      <MaximizeContext.Provider value={DETACHED_MAXIMIZE}>{children}</MaximizeContext.Provider>
+    </ParentBodyContext.Provider>
+  );
+}
+const DETACHED_MAXIMIZE: MaximizeContextValue = { maximizedId: null, setMaximizedId: () => {} };
+
+/**
  * ContentBody 하위 ContentPanel 들의 최대화/복원 상태에 접근한다.
  * 반환: { maximizedId, setMaximizedId, isMaximized(panelId), toggle(panelId) }
  */
