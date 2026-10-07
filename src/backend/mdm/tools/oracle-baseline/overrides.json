@@ -1,0 +1,32 @@
+{
+  "_comment": "gen_oracle_baseline.py 보정 패치. SQLite 최종 스키마에서 기계적으로 정할 수 없는 컬럼별 Oracle 결정을 이유와 함께 둔다. 키는 '표.컬럼'.",
+  "datetime_text": {
+    "_comment": "TEXT 로 저장하던 업무 일시(KST 'yyyy-MM-dd HH:mm:ss', 규칙표 #16) -> TIMESTAMP(6). 이름 규칙에 맞는 TEXT 컬럼이 대상이고 exclude 는 예외다.",
+    "name_regex": "^(APPLY_FROM|APPLY_TO|VALID_FROM|VALID_TO|[A-Z_]+_AT)$",
+    "exclude": []
+  },
+  "clob": {
+    "TB_MDM_LAYOUT_VER.SNAPSHOT_JSON": "레이아웃 전체 스냅샷 JSON. 실측 최대 5,896바이트로 이미 4000바이트를 넘는다",
+    "TB_MDM_RULE_SET_VER.FLOW_JSON": "흐름도 JSON. 노드 수에 비례해 커진다(실측 2,620바이트)",
+    "TB_MDM_RULE_ROW.CELLS": "룰 행 셀 JSON. 변수 수에 비례해 커진다(실측 1,772바이트)",
+    "TB_MDM_CODE_RECV.BODY": "외부 수신 요청 원문. 크기 상한이 없다",
+    "TB_MDM_DATA_RECV.BODY": "외부 수신 요청 원문. 행 묶음이라 크기 상한이 없다",
+    "TB_MDM_RULE_RECV.BODY": "외부 수신 요청 원문. 크기 상한이 없다",
+    "TB_MDM_DOMAIN.STD_AST": "표준 규칙 AST JSON. 식 길이에 비례해 커진다",
+    "TB_MDM_DOMAIN.BIZ_AST": "업무 규칙 AST JSON. 식 길이에 비례해 커진다",
+    "TB_MDM_DOMAIN.TEST_CASES": "도메인 시험 사례 JSON 배열. 사례 수에 비례해 커진다",
+    "TB_MDM_RULE_VAR.VAR_AST": "변수 식 AST JSON. 식 길이에 비례해 커진다",
+    "TB_MDM_RULE_VAR.GRP_COND_AST": "그룹 조건 AST JSON. 식 길이에 비례해 커진다",
+    "TB_MDM_RULE_TEST_CASE.INPUT_JSON": "시험 입력 JSON. 입력 변수 수에 비례해 커진다",
+    "TB_MDM_RULE_TEST_CASE.EXPECTED_JSON": "시험 기대값 JSON. COLLECT 결과 목록이면 커진다",
+    "TB_MDM_RULE_SET_TEST_CASE.INPUT_JSON": "세트 시험 입력 JSON. 입력 변수 수에 비례해 커진다",
+    "TB_MDM_RULE_SET_TEST_CASE.EXPECTED_JSON": "세트 시험 기대값 JSON. 결과 목록이면 커진다"
+  },
+  "boolean": {
+    "TB_MDM_COLUMN.REQUIRED": "엔티티 boolean, CHECK (REQUIRED IN (0,1))"
+  },
+  "nullable": {
+    "TB_MDM_TERM.DEFINITION": "로컬 DB 실측 8,158행 중 6,159행이 빈 문자열이다. Oracle 은 ''를 NULL 로 저장하므로 NOT NULL 을 풀고 코드의 '' 비교는 NULL 을 함께 본다(README §0.1)"
+  },
+  "json_check": "IS JSON STRICT"
+}
