@@ -55,7 +55,8 @@ def load_sqlite(src):
     con.execute("PRAGMA foreign_keys=ON")
     digest = hashlib.sha256()
     for f in files:
-        raw = open(f, "rb").read()
+        # 윈도우 체크아웃(CRLF)에서도 같은 해시·같은 출력이 나오게 줄바꿈을 LF 로 맞춘다.
+        raw = open(f, "rb").read().replace(b"\r\n", b"\n")
         digest.update(os.path.basename(f).encode("utf-8") + b"\0" + raw + b"\0")
         con.executescript(raw.decode("utf-8"))
     con.commit()
@@ -75,6 +76,8 @@ def strip_comments(sql):
                     break
                 j += 2 if sql[j] == "'" else 1
             out.append(sql[i:j + 1]); i = j + 1
+        elif sql.startswith("/*", i):
+            raise ValueError("블록 주석은 다루지 않는다: %s" % sql[i:i + 60])
         elif sql.startswith("--", i):
             j = sql.find("\n", i)
             i = n if j < 0 else j
@@ -209,7 +212,7 @@ def parse_column(item):
             inner, end = paren_span(rest, p)
             inline.append({"kind": "CK", "name": cname, "expr": inner})
             rest = rest[:mc.start()] + rest[end:]
-    if re.search(r"\bCONSTRAINT\b|\bREFERENCES\b|\bUNIQUE\b|\bPRIMARY\b|\bCHECK\b", rest, re.I):
+    if re.search(r"\bCONSTRAINT\b|\bREFERENCES\b|\bUNIQUE\b|\bPRIMARY\b|\bCHECK\b|\bCOLLATE\b|\bGENERATED\b|\bAS\s*\(", rest, re.I):
         raise ValueError("컬럼 정의에 남은 제약: %s" % item)
     return {"name": name, "quoted": quoted, "sqlite_type": sqlite_type, "autoinc": autoinc}, inline
 
@@ -236,7 +239,8 @@ class Gen:
         self.tables = {}      # name -> dict
         self.indexes = []
         self.decisions = []   # (table, col, sqlite_type, oracle_type, null, reason)
-        self.used = {"clob": set(), "boolean": set(), "nullable": set(), "datetime_exclude": set()}
+        self.used = {"clob": set(), "boolean": set(), "nullable": set(), "datetime_exclude": set(),
+                     "unique_nullable_ok": set()}
 
     def read(self):
         for name, sql in self.con.execute(
@@ -286,6 +290,8 @@ class Gen:
         if m:
             return "NUMBER(%s,%s)" % m.groups(), ""
         if st == "INTEGER":
+            if re.match(self.ov["number19"]["name_regex"], c["name"]):
+                return "NUMBER(19)", "엔티티 long 계수기"
             return "NUMBER(10)", ""
         if st == "BIGINT":
             return "NUMBER(19)", ""
@@ -312,9 +318,9 @@ class Gen:
                         pt = types[(k["ref_table"], pc)][0]
                         ct = types[(t, cc)]
                         if ct[0] != pt:
-                            if not (ct[0].startswith("NUMBER") and pt.startswith("NUMBER")) and ct[0] != pt:
-                                if not (ct[0].startswith("VARCHAR2") and pt.startswith("VARCHAR2")):
-                                    raise ValueError("FK 형 불일치 %s.%s %s -> %s" % (t, cc, ct[0], pt))
+                            # 넓히기만 허용한다: 정수 NUMBER(10) -> NUMBER(19). 그 밖(소수 자릿수·문자 길이 차이)은 멈춘다.
+                            if not (ct[0] == "NUMBER(10)" and pt == "NUMBER(19)"):
+                                raise ValueError("FK 형 불일치 %s.%s %s -> %s" % (t, cc, ct[0], pt))
                             ct[0] = pt
                             ct[1] = (ct[1] + "; " if ct[1] else "") + "FK %s 부모 형" % k["name"]
                             changed = True
@@ -326,8 +332,13 @@ class Gen:
         e = re.sub(r"`([^`]+)`", r'"\1"', e)
         js = self.ov["json_check"]
         e = re.sub(r"json_valid\(\s*(" + IDENT + r")\s*\)", lambda m: "%s %s" % (self.ident(m.group(1), cols_quoted), js), e)
-        if re.search(r"\b(json_|strftime|datetime\(|date\(|ifnull|typeof|glob)\b", e, re.I):
-            raise ValueError("SQLite 전용 함수가 식에 남았다: %s" % expr)
+        if re.search(r"\b(json_?\w*|strftime|datetime|date|time|julianday|ifnull|iif|typeof|glob|length|substr|printf|instr|unicode|hex)\s*\(", e, re.I) \
+                or "==" in e or re.search(r"\bIS\s+'", e, re.I):
+            raise ValueError("SQLite 전용 함수·연산자가 식에 남았다: %s" % expr)
+        # SQLite LIKE 는 ASCII 대소문자를 구분하지 않고 Oracle 은 구분한다. 영문자가 든 패턴은 의미가 갈린다.
+        for lm in re.finditer(r"\bLIKE\s+'((?:[^']|'')*)'", e, re.I):
+            if re.search(r"[A-Za-z]", lm.group(1)):
+                raise ValueError("영문자 LIKE 패턴은 대소문자 의미가 갈린다: %s" % expr)
         return re.sub(r"\s+", " ", e).strip()
 
     def ident(self, raw, cols_quoted=()):
@@ -405,6 +416,8 @@ class Gen:
         w("-- 인덱스. 부분 인덱스(WHERE)는 함수 기반 인덱스로 바꾼다.\n")
         uq_names = {ix["name"] for ix in uq_from_index}
         for ix in sorted(self.indexes, key=lambda x: x["name"]):
+            if ix["unique"]:
+                self.check_unique_nulls(ix)
             if ix["name"] in uq_names:
                 continue
             cols_quoted = {c["name"] for c in self.tables[ix["table"]]["cols"] if c["quoted"]}
@@ -456,6 +469,19 @@ class Gen:
             return "TIMESTAMP '%s'" % v
         return "'%s'" % v.replace("'", "''")
 
+    def check_unique_nulls(self, ix):
+        """UNIQUE 키에 NULL 허용 컬럼이 있으면 SQLite(NULL 끼리 다름)와 Oracle(일부 NULL 이면 중복)의 의미가 갈린다."""
+        cols = {c["name"]: c for c in self.tables[ix["table"]]["cols"]}
+        for cn in ix["cols"]:
+            c = cols[cn]
+            nullable = not (c["notnull"] or c["pk"]) or ("%s.%s" % (ix["table"], cn)) in self.ov["nullable"]
+            key = "%s.%s" % (ix["name"], cn)
+            if not nullable:
+                continue
+            if key not in self.ov["unique_nullable_ok"]:
+                raise ValueError("UNIQUE 키에 NULL 허용 컬럼: %s (근거를 unique_nullable_ok 에 적는다)" % key)
+            self.used["unique_nullable_ok"].add(key)
+
     def fk_unique_indexes(self):
         """PK 가 아닌 컬럼을 가리키는 FK 의 대상 고유 인덱스 -> UNIQUE 제약으로 바꿀 목록."""
         need = []
@@ -478,7 +504,7 @@ class Gen:
         return sorted(need, key=lambda x: x["name"])
 
     def check_overrides_used(self):
-        for kind in ("clob", "boolean", "nullable"):
+        for kind in ("clob", "boolean", "nullable", "unique_nullable_ok"):
             unused = set(k for k in self.ov[kind] if not k.startswith("_")) - self.used[kind]
             if unused:
                 raise ValueError("보정 패치 %s 에 쓰이지 않은 항목: %s" % (kind, sorted(unused)))
@@ -527,7 +553,9 @@ def main():
     g.emit_decisions(dec, files, digest)
     results = [(a.out, v1.getvalue()), (a.decisions, dec.getvalue())]
     if a.check:
-        bad = [p for p, text in results if not os.path.exists(p) or open(p, encoding="utf-8", newline="").read() != text]
+        # 윈도우 체크아웃(CRLF)이어도 내용이 같으면 같다고 본다.
+        bad = [p for p, text in results
+               if not os.path.exists(p) or open(p, encoding="utf-8", newline="").read().replace("\r\n", "\n") != text]
         for p in bad:
             print("다름: %s" % p)
         sys.exit(1 if bad else 0)
