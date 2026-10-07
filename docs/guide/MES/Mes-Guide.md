@@ -82,7 +82,7 @@ MES 개발 요청이어도 5종 설계 산출물이 없거나 분석리포트가
 | 비즈니스 로직 공통 패턴 | [`../BackEnd/Business-Logic-Guide.md`](../BackEnd/Business-Logic-Guide.md) |
 | 식별자 용어 | [`../Common/Identifier-Glossary.md`](../Common/Identifier-Glossary.md) |
 | workspace/package 명칭 | [`../Common/Workspace-Structure.md`](../Common/Workspace-Structure.md) |
-| DB 방언 차이(운영 DB Oracle·PostgreSQL, 로컬 SQLite) | [`../Database/README.md`](../Database/README.md) |
+| DB(로컬·시험·운영 모두 Oracle) SQL 규칙·로컬 환경 | [`../Database/README.md`](../Database/README.md) |
 
 MES OASIS/BPMN 구현에서는 `BackEnd_표준_통합_개발가이드_v2.md` 가 `BackEnd/Backend-Implementation-Guide.md` 보다 우선한다.
 
@@ -93,7 +93,7 @@ MES OASIS/BPMN 구현에서는 `BackEnd_표준_통합_개발가이드_v2.md` 가
 - Frontend 는 `src/frontend/m-{moduleId}` 에 구현하고 portal 은 필요한 재내보내기만 둔다.
 - 일반 MES 업무 모듈은 cactus-core 기본 `SecurityFilterChain` 을 사용한다. 모듈별 보안 예외가 필요하면 근거를 남긴다.
 - BFF 공유키 환경변수는 `BACKEND_CLIENT_KEY` 를 사용한다.
-- DB 스키마 변경 시 SQLite(로컬·테스트) migration 과 운영 DB(Oracle 또는 PostgreSQL) migration 을 함께 작성하고, 테스트/local schema 설정과 sample data 를 갱신한다.
+- DB 스키마 변경 시 Oracle 용 Flyway V 파일 하나를 추가하고(머지된 V 파일은 고치지 않는다, 스킬 `flyway-migration-add`), 템플릿 PDB 와 sample data 를 갱신한다. SQL 은 Oracle 전용이며 규칙은 [`../Database/oracle-sql-rules.md`](../Database/oracle-sql-rules.md) 를 따른다.
 - 사용자 입력값 중 처리에 영향을 주는 값은 backend 에서 DB 권위 값을 재조회해 검증한다.
 
 ## 8. 검증 기준
