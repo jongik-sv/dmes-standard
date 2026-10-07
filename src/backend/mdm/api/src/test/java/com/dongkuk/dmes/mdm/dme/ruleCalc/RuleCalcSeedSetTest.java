@@ -58,7 +58,10 @@ public class RuleCalcSeedSetTest extends AbstractMdmSharedDbTest {
     @Autowired RuleCalcService service;
     @Autowired JdbcTemplate jdbc;
 
-    /** 부모의 {@code @BeforeAll}(공유 DB 초기화) 다음에 돈다. 샘플은 sqlite3 셸용 점 명령·BEGIN/COMMIT 을 빼고 한 트랜잭션으로 올린다. */
+    /**
+     * 부모의 {@code @BeforeAll}(공유 DB 초기화) 다음에 돈다. 샘플은 점 명령·BEGIN/COMMIT 을 빼고 한 트랜잭션으로 올린다.
+     * 지금 샘플은 SQLite 문법이라 Oracle 에서는 돌지 않는다(@Disabled). 켤 때는 Oracle 샘플(스냅샷 CSV 등)로 이 적재를 바꾼다.
+     */
     @BeforeAll
     static void loadSeed(@Autowired DataSource dataSource) throws Exception {
         String sql = Files.readString(SAMPLE.toAbsolutePath().normalize(), StandardCharsets.UTF_8).lines()

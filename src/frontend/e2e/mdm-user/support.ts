@@ -78,7 +78,7 @@ export async function loginUI(page: Page, id: string, pwd: string) {
 
 /**
  * 역할별 로그인 상태로 새 페이지를 연다. 품질 감시(Watcher)와 버튼 누름 기록을 붙여 돌려준다.
- * 로그인은 setup 에서 한 번만 하고 storageState 를 재사용한다(동시 로그인 SQLITE_BUSY 회피).
+ * 로그인은 setup 에서 한 번만 하고 storageState 를 재사용한다(로그인을 매번 반복하지 않아 빠르고, 옛 SQLite 의 동시 로그인 SQLITE_BUSY 도 이 때문에 피했다).
  */
 export async function openAs(browser: Browser, role: Role, testInfo: TestInfo): Promise<{ page: Page; watcher: Watcher }> {
   const file = authFile(role);

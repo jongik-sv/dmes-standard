@@ -1,5 +1,5 @@
 -- =====================================================================================================
--- MDM 로컬 화면 확인용 샘플 데이터 (SQLite, src/backend/data/mdm.db)
+-- MDM 로컬 화면 확인용 샘플 데이터 (SQLite 시절 원본, 옛 src/backend/data/mdm.db)
 -- -----------------------------------------------------------------------------------------------------
 -- 용도   : 로컬에서 MDM 화면(용어·도메인·컬럼·단위·헤더·전문·마루 코드·마루 데이터·업무 룰)을 눈으로 확인하기 위한 샘플.
 --          로컬 화면 확인 전용이다. 운영·개발 서버 DB 와 자동 테스트(단위·통합·E2E)에는 쓰지 않는다.
@@ -10,14 +10,12 @@
 --          값 원천은 2026-10-06 로컬 mdm.db 의 DRAFT 1.000 이고 버전만 RELEASED 로 바꿨다(APPLY_FROM 이행 하한 2000-01-01, 룰 헤더 INUSE,
 --          확정 흐름 casConfirm·markParentInUse 와 같은 칸). 입력·결과 변수의 타입 해석(컬럼 사전·도메인)에 필요한 단위·도메인·컬럼 행을 함께 넣었다.
 -- 전제   : mdm 을 한 번 기동해 Flyway 가 적용된 mdm.db(2026-10-01 V15 기준 확인). TB_MDM_SYSTEM 6행(V2 시드) 외 원장 테이블이 비어 있을 때 넣는다.
--- 자동   : ./be-run.sh(local-run.sh) 로 mdm 을 띄우면 Flyway 뒤 용어 사전(TB_MDM_TERM)이 비어 있을 때만 이 파일을 한 번 넣는다
---          (MdmLocalSampleLoader, mdm.sample.path). 이미 쓰던 DB 는 건드리지 않는다. 끄려면 MDM_SAMPLE=0 ./be-run.sh --mdm.
---          자동 적재는 아래 sqlite3 전용 줄(.bail·.timeout)과 BEGIN/COMMIT 을 빼고 한 트랜잭션으로 넣는다.
---          MdmLocalSampleStrictTest 가 최신 마이그레이션에 OR IGNORE 없이 넣어 보므로, 스키마가 바뀌어 깨지면 테스트가 알린다.
--- 적재   : 수동으로 넣을 때(저장소 루트에서)
---            cp src/backend/data/mdm.db /tmp/mdm.db.bak        # 먼저 백업
---            sqlite3 src/backend/data/mdm.db < src/backend/mdm/sample/mdm-local-sample.sql
---            sqlite3 src/backend/data/mdm.db "PRAGMA foreign_key_check;"   # 빈 결과여야 한다
+-- Oracle : (oracle-1007) 로컬 DB 는 Oracle(스키마 MDMAPUSER)이고 이 파일은 SQLite 문법이라 Oracle 에 그대로 넣을 수 없다.
+--          자동 적재기(MdmLocalSampleLoader)·MdmLocalSampleStrictTest 는 src/backend/mdm/archive 로 옮겼다.
+--          Oracle 에 샘플을 넣을 때는 이 파일 대신 스냅샷 CSV 를 쓴다(저장소 루트에서, Flyway V1 이 적용된 PDB 대상):
+--            python3 scripts/db-snapshot/snapshot.py import --pdb <PDB> MDMAPUSER
+--          아래 설명은 SQLite 시절 기록이다. 값 원천·채번 규칙을 참고할 때만 읽는다.
+-- 적재   : (SQLite 시절) be-run.sh 가 빈 mdm.db 에 자동으로 넣었고, 수동 적재는 sqlite3 셸로 이 파일을 넣었다.
 -- 재실행 : 모든 문장이 INSERT OR IGNORE(명시 키)라 두 번 넣어도 행이 늘지 않는다. DELETE·UPDATE 는 없다.
 --          주의: OR IGNORE 는 UNIQUE·CHECK·NOT NULL 위반도 조용히 건너뛴다. 스키마가 바뀌면 행 수를 확인한다.
 -- 되돌리기: 이 파일은 삭제 문을 두지 않는다. 백업한 mdm.db 로 바꾸거나 mdm.db 를 지우고 다시 기동한다.

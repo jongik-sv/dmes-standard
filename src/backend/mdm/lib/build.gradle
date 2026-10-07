@@ -11,7 +11,7 @@ dependencyManagement {
 
 tasks.named('test') {
     useJUnitPlatform()
-    // 공유 시험 DB 하나를 쓰므로 병렬 fork 하지 않는다(SQLite 시절 파일 락 때문에 둔 값, 시험 PDB 하니스도 forks=1 이다).
+    // 공유 시험 DB(Oracle 시험 PDB 의 MDMAPUSER) 하나를 클래스마다 비우고 다시 채우므로 병렬 fork 하지 않는다(oracle-1007 하니스도 forks=1).
     maxParallelForks = 1
     // RuleSetFlowFuzz — -Dfuzz.write=true 면 퍼즈 파일(rule-set-fuzz.json)을 다시 쓴다
     if (System.getProperty('fuzz.write') != null) {

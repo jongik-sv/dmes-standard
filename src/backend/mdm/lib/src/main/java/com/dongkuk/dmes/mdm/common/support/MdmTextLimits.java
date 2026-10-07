@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
  *   <li>{@code VARCHAR2(n CHAR)} 칸 — 코드 포인트 수로 잰다({@link #overChars}, {@code NamingRules.length} 와 같은 기준).</li>
  * </ul>
  *
- * <p>CLOB 칸(overrides.json 의 21칸)에는 쓰지 않는다.
+ * <p>CLOB 칸(Oracle 기준선 V1 의 21칸, 결정표 {@code tools/oracle-baseline/DECISIONS.md})에는 쓰지 않는다.
  */
 public final class MdmTextLimits {
 

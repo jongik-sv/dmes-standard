@@ -44,7 +44,7 @@ subprojects {
         maxHeapSize = '1g'
         // 테스트 컨텍스트마다 Hikari 풀을 쥔다. 시험 DB 는 Oracle 시험 PDB 이고 인스턴스를 모든 레인이 나눠 쓰므로(oracle-1007 m3)
         // 상한 2·쉬는 연결 0·쉬는 연결 idle-timeout 10초(Hikari 하한)로 둔다 — 정리 주기(기본 30초) 때문에 실제로는 최대 약 40초 뒤 닫힌다.
-        // 상한 2 는 DataSegmentLockSqliteTest 의 두 연결 동시 수정 때문이다.
+        // 상한 2 는 DataSegmentLockSqliteTest(이름만 옛 SQLite 시절 그대로, Oracle 에서 돈다)의 두 연결 동시 수정 때문이다.
         // 시스템 속성이라 application-local.yml(상한 3)과 하니스 env SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE(3)보다 우선한다.
         // AbstractMdmSharedDbTest 를 상속하는 시험은 같은 값을 @DynamicPropertySource 로도 넣는다(IDE 실행 대비).
         systemProperty 'spring.datasource.hikari.maximum-pool-size', '2'
