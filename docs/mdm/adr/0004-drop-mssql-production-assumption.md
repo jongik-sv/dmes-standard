@@ -4,6 +4,7 @@
 - **Date**: 2026-09-26
 - **Decision Date**: 2026-09-26
 - **Context Tags**: MDM, DB, DIALECT
+- **대체 주석 (2026-10-07)**: 이 결정의 「로컬·테스트는 SQLite」 부분은 **oracle-1007 로 대체됐다.** 로컬 앱·자동 테스트·운영 DB 를 Oracle 26ai Free 하나로 통일했고 격리는 레인·시험별 PDB 로 한다([`docs/oracle-1007/README.md`](../../oracle-1007/README.md)). 「운영 DB 를 MSSQL 로 가정하지 않는다」(MSSQL 마이그레이션·`mssqlTest`·방언 대조 테스트를 걷어낸 결정)는 그대로 유효하다. 아래 본문은 당시 결정의 기록이므로 고치지 않는다.
 
 ## 쉬운 설명 (현업용 요약)
 
