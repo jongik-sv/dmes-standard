@@ -131,19 +131,22 @@ function runAppend(target, n) {
   });
 }
 
-test('동시 append: 12개 프로세스가 한꺼번에 써도 항목이 모두 남고 번호가 겹치지 않는다', async () => {
-  const dir = tmp('declog-concurrent-');
-  const N = 12;
-  const results = await Promise.all(Array.from({ length: N }, (_, i) => runAppend(dir, i + 1)));
-  for (const r of results) assert.equal(r.code, 0, r.err);
-  const ids = results.map((r) => JSON.parse(r.out).id).sort((a, b) => a - b);
-  assert.deepEqual(ids, Array.from({ length: N }, (_, i) => i + 1));
-  const v = validate_decisions(dir);
-  assert.deepEqual(v.errors, []);
-  assert.equal(v.entry_count, N);
-  const made = _parse_entries(fs.readFileSync(path.join(dir, 'decisions.md'), 'utf8')).map((e) => e.fields.get('Decision made')).sort();
-  assert.deepEqual(made, Array.from({ length: N }, (_, i) => `a${i + 1}`).sort());
-  assert.equal(fs.existsSync(path.join(dir, 'decisions.md.lock')), false, '잠금이 남았다');
+// 잠금이 없으면 겹침이 확률적으로만 나타나므로(12개 한 번은 통과하기도 했다) 16개씩 5회 돌려 놓치지 않게 한다.
+test('동시 append: 16개 프로세스를 5회 한꺼번에 돌려도 항목이 모두 남고 번호가 겹치지 않는다', async () => {
+  const N = 16;
+  for (let round = 0; round < 5; round++) {
+    const dir = tmp('declog-concurrent-');
+    const results = await Promise.all(Array.from({ length: N }, (_, i) => runAppend(dir, i + 1)));
+    for (const r of results) assert.equal(r.code, 0, r.err);
+    const ids = results.map((r) => JSON.parse(r.out).id).sort((a, b) => a - b);
+    assert.deepEqual(ids, Array.from({ length: N }, (_, i) => i + 1), `${round + 1}회차`);
+    const v = validate_decisions(dir);
+    assert.deepEqual(v.errors, []);
+    assert.equal(v.entry_count, N);
+    const made = _parse_entries(fs.readFileSync(path.join(dir, 'decisions.md'), 'utf8')).map((e) => e.fields.get('Decision made')).sort();
+    assert.deepEqual(made, Array.from({ length: N }, (_, i) => `a${i + 1}`).sort());
+    assert.equal(fs.existsSync(path.join(dir, 'decisions.md.lock')), false, '잠금이 남았다');
+  }
 });
 
 test('잠금: 다른 프로세스가 잡고 있으면 시간 상한 뒤 LockError', () => {
@@ -165,7 +168,7 @@ test('잠금: 오래된(죽은 프로세스의) 잠금은 치우고 진행한다
   const dir = tmp('declog-lock-stale-');
   const lock = path.join(dir, 'decisions.md.lock');
   fs.mkdirSync(lock);
-  const old = new Date(Date.now() - 5 * 60_000);
+  const old = new Date(Date.now() - 20 * 60_000);
   fs.utimesSync(lock, old, old);
   const r = await runAppend(dir, 1);
   assert.equal(r.code, 0, r.err);
@@ -181,10 +184,49 @@ test('잠금: decisions.sh 도 오래된 잠금을 치우고 같은 이름의 �
   git(repo, 'commit', '-q', '-m', 'seed');
   const lock = path.join(repo, 'decisions.md.lock');
   fs.mkdirSync(lock);
-  const old = new Date(Date.now() - 5 * 60_000);
+  const old = new Date(Date.now() - 20 * 60_000);
   fs.utimesSync(lock, old, old);
   const r = spawnSync('sh', [DECISIONS_SH, 'renumber', '-C', repo], { encoding: 'utf8' });
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /NO_TEMP_IDS/);
   assert.equal(fs.existsSync(lock), false);
+});
+
+test('잠금: decisions.sh 는 남이 쥔 잠금이 풀리기를 기다렸다가 진행한다', { skip: !HAVE_SH_TOOLS && 'sh·git·awk 없음' }, async () => {
+  const repo = tmp('declog-sh-wait-');
+  git(repo, 'init', '-q');
+  fs.writeFileSync(path.join(repo, 'decisions.md'), '# Decisions Log — project\n');
+  git(repo, 'add', 'decisions.md');
+  git(repo, 'commit', '-q', '-m', 'seed');
+  const lock = path.join(repo, 'decisions.md.lock');
+  fs.mkdirSync(lock); // 방금 만든 잠금 = 살아 있는 잠금
+  const t0 = Date.now();
+  const child = spawn('sh', [DECISIONS_SH, 'renumber', '-C', repo], { stdio: ['ignore', 'pipe', 'pipe'] });
+  let out = '';
+  child.stdout.on('data', (d) => (out += d));
+  const done = new Promise((resolve) => child.on('close', resolve));
+  await new Promise((r) => setTimeout(r, 800));
+  assert.equal(child.exitCode, null, '잠금이 풀리기 전에 끝났다');
+  fs.rmdirSync(lock);
+  assert.equal(await done, 0, out);
+  assert.ok(Date.now() - t0 >= 700);
+  assert.match(out, /NO_TEMP_IDS/);
+  assert.equal(fs.existsSync(lock), false);
+});
+
+test('잠금: decisions.sh 는 시그널로 끝나도 잠금을 남기지 않는다', { skip: !HAVE_SH_TOOLS && 'sh·git·awk 없음' }, async () => {
+  const repo = tmp('declog-sh-term-');
+  git(repo, 'init', '-q');
+  fs.writeFileSync(path.join(repo, 'decisions.md'), '# Decisions Log — project\n');
+  git(repo, 'add', 'decisions.md');
+  git(repo, 'commit', '-q', '-m', 'seed');
+  const lock = path.join(repo, 'decisions.md.lock');
+  fs.mkdirSync(lock); // 남의 잠금 때문에 sh 가 대기 중일 때 TERM 을 받는 경우
+  const child = spawn('sh', [DECISIONS_SH, 'renumber', '-C', repo], { stdio: 'ignore' });
+  const done = new Promise((resolve) => child.on('close', (code, sig) => resolve({ code, sig })));
+  await new Promise((r) => setTimeout(r, 500));
+  child.kill('SIGTERM');
+  const r = await done;
+  assert.ok(r.code === 130 || r.sig === 'SIGTERM', JSON.stringify(r));
+  assert.equal(fs.existsSync(lock), true, '남의 잠금을 지웠다'); // 못 잡은 잠금은 건드리지 않는다
 });

@@ -52,25 +52,40 @@ tmp=$(mktemp -d 2>/dev/null || mktemp -d -t dflowdec) || { echo "$ERR mktemp"; e
 
 # 파일 잠금 — dflow-wbs/scripts/decision-log.mjs append 와 같은 잠금이다(`<decisions.md>.lock` 디렉터리, mkdir 은 원자적이라
 # 윈도우 Git Bash 에서도 된다). 한쪽이 읽고 고쳐 쓰는 사이에 다른 쪽이 append 하면 그 항목이 사라지므로 서로 기다린다.
-# 오래(1분 넘게) 남은 잠금은 죽은 프로세스의 것으로 보고 치운다. 잡은 잠금은 $tmp/locks 에 적어 두었다가 끝날 때 푼다.
+# 오래(10분 넘게) 남은 잠금은 죽은 프로세스의 것으로 보고 치운다(mjs 의 LOCK_STALE_MS 와 같다. renumber 는 잠금을 스크립트
+# 끝까지 쥐므로 짧게 잡으면 살아 있는 잠금을 빼앗는다). 치운 뒤 mtime 을 다시 보고 새 잠금이었으면 되돌린다. 알려진 한계:
+# 죽은 잠금을 여러 프로세스가 동시에 치우려 할 때 아주 좁은 틈에서 상호 배제가 깨질 수 있다.
+# 잡은 잠금은 $tmp/locks 에 적어 두었다가 끝날 때 푼다. 15초 안에 못 잡거나 잠금을 만들 수 없는 폴더면 실패(1)한다.
 dlock() {
-  l="$1.lock"; n=0
-  while ! mkdir "$l" 2>/dev/null; do
-    if [ -n "$(find "$l" -maxdepth 0 -type d -mmin +1 2>/dev/null)" ]; then
-      g="$l.stale.$$.$n"; mv "$l" "$g" 2>/dev/null && rmdir "$g" 2>/dev/null
+  _dl_l="$1.lock"; _dl_end=$(( $(date +%s) + 15 )); _dl_none=0
+  while ! mkdir "$_dl_l" 2>/dev/null; do
+    if [ ! -e "$_dl_l" ]; then   # 잠금이 없는데 mkdir 이 실패 = 권한·경로 문제(지우는 순간의 틈은 몇 번 넘긴다)
+      _dl_none=$((_dl_none + 1)); [ "$_dl_none" -le 5 ] || return 1
+    elif [ -n "$(find "$_dl_l" -maxdepth 0 -type d -mmin +10 2>/dev/null)" ]; then
+      _dl_g="$_dl_l.stale.$$.$_dl_end"
+      if mv "$_dl_l" "$_dl_g" 2>/dev/null; then
+        if [ -n "$(find "$_dl_g" -maxdepth 0 -type d -mmin +10 2>/dev/null)" ]; then rmdir "$_dl_g" 2>/dev/null
+        else mv "$_dl_g" "$_dl_l" 2>/dev/null; fi
+      fi
     fi
-    n=$((n + 1)); [ "$n" -le 75 ] || return 1   # 약 15초
+    [ "$(date +%s)" -lt "$_dl_end" ] || return 1
     sleep 0.2 2>/dev/null || sleep 1
   done
-  printf '%s\n' "$l" >> "$tmp/locks"
+  printf '%s\n' "$_dl_l" >> "$tmp/locks"
 }
-dunlock() { rmdir "$1.lock" 2>/dev/null; return 0; }
+dunlock() {   # 풀면서 기록에서도 뺀다(종료 때 다시 rmdir 하다가 그 사이 남이 잡은 잠금을 지우지 않게)
+  rmdir "$1.lock" 2>/dev/null
+  grep -vxF -- "$1.lock" "$tmp/locks" > "$tmp/locks.n" 2>/dev/null; cat "$tmp/locks.n" > "$tmp/locks" 2>/dev/null
+  return 0
+}
 release_locks() {
   [ -f "$tmp/locks" ] || return 0
-  while IFS= read -r l; do rmdir "$l" 2>/dev/null; done < "$tmp/locks"
+  while IFS= read -r _dl_r; do rmdir "$_dl_r" 2>/dev/null; done < "$tmp/locks"
   : > "$tmp/locks"
 }
-trap 'release_locks; rm -rf "$tmp"' EXIT HUP INT TERM
+# 신호를 받으면 정리만 하고 계속 도는 일이 없게 exit 로 끝낸다(EXIT trap 이 정리한다)
+trap 'release_locks; rm -rf "$tmp"' EXIT
+trap 'exit 130' HUP INT TERM
 
 is_decisions() { case "$1" in decisions.md|*/decisions.md) return 0 ;; esac; return 1; }
 TEMP_RE='D-TSK(-[0-9]+)+'
@@ -133,9 +148,6 @@ fi
 
 # ---------------------------------------------------------------------------------------------------------------
 # renumber
-git diff --quiet 2>/dev/null && git diff --cached --quiet 2>/dev/null || { echo "RENUMBER_DIRTY"; exit 1; }
-[ -z "$(git ls-files -u | head -n 1)" ] || { echo "RENUMBER_DIRTY"; exit 1; }
-
 git ls-files > "$tmp/all" || { echo "RENUMBER_FAILED ls-files"; exit 1; }
 : > "$tmp/dfiles"
 while IFS= read -r p; do
@@ -143,9 +155,12 @@ while IFS= read -r p; do
   is_decisions "$p" && [ -f "$p" ] && printf '%s\n' "$p" >> "$tmp/dfiles"
 done < "$tmp/all"
 # 결정 기록은 읽기부터 고쳐 쓰기까지 잠근다(append 와 겹치지 않게). 끝날 때 trap 이 푼다.
+# 트리가 깨끗한지는 잠근 뒤에 본다 — 그 사이에 append 가 끼면 아래 fail() 의 되돌리기가 그 항목을 버린다.
 while IFS= read -r p; do
   dlock "$p" || { echo "RENUMBER_FAILED lock $p"; exit 1; }
 done < "$tmp/dfiles"
+git diff --quiet 2>/dev/null && git diff --cached --quiet 2>/dev/null || { echo "RENUMBER_DIRTY"; exit 1; }
+[ -z "$(git ls-files -u | head -n 1)" ] || { echo "RENUMBER_DIRTY"; exit 1; }
 
 # 실패하면 자기가 고친 파일을 HEAD 판으로 되돌리고 끝낸다(시작할 때 트리가 깨끗했으므로 안전하다). 호출자는 머지를
 # 막지 않고 다음 단계로 가므로, 반쯤 고친 파일이 state.json 커밋에 섞이면 안 된다. 0단계(중복 번호)도 이 목록에 싣는다.

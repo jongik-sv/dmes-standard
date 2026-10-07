@@ -19,6 +19,7 @@
 // 머리 줄 규칙(정본): `## D-<숫자> (<시각>)` 뒤에 공백만 있고 줄이 끝나는 줄만 항목 머리다(ENTRY_RE).
 //   `## D-002 (ts) 비고` 처럼 뒤에 글이 더 붙은 줄은 머리가 아니다. dflow-merge/scripts/decisions.sh 의 HEAD_ERE 가 같은 규칙을 쓴다
 //   (tests/decision-head-parity.test.mjs 가 두 규칙이 어긋나지 않는지 표로 확인한다).
+//   알고 둔 차이(실제 기록에 없다): 유니코드 숫자 `D-٣`, 끝 공백으로 쓴 유니코드 공백·NBSP, 시각 칸 안의 개행은 mjs 만 받는다.
 //
 // python 판과 같은 점: decisions.md 형식(머리글·`## D-NNN (UTC 시각)` 블록)·출력 JSON·종료 코드를 바이트까지 맞췄다.
 //   python 판이 쓴 파일을 이 판이 읽고, 이 판이 쓴 파일을 python 판이 읽어도 같은 결과다(tests/decision-log.test.mjs 의 교차 시험).
@@ -91,11 +92,14 @@ export function _write(file, content) {
 // 잠금 = decisions.md 옆의 `decisions.md.lock` 디렉터리. mkdir 은 POSIX·윈도우(Git Bash 포함) 모두 원자적이다.
 // dflow-merge/scripts/decisions.sh 가 같은 이름의 디렉터리를 같은 방식으로 잡으므로 둘이 서로를 기다린다.
 // 죽은 프로세스가 남긴 잠금은 mtime 이 LOCK_STALE_MS 보다 오래되면 치운다(치우기도 rename 으로 한 프로세스만 성공한다).
+// decisions.sh renumber 는 잠금을 스크립트 끝까지 쥐므로 기준을 넉넉히(10분) 잡았다. sh 의 `-mmin +10` 과 맞춘다.
+// 알려진 한계: 죽은 잠금을 여러 프로세스가 동시에 치우려 할 때 아주 좁은 틈에서 상호 배제가 깨질 수 있다(소유자 토큰은 두지 않았다).
 // ---------------------------------------------------------------------------
 
-export const LOCK_STALE_MS = 60_000;
+export const LOCK_STALE_MS = 600_000;
 export const LOCK_TIMEOUT_MS = 15_000;
 const LOCK_BUSY_CODES = new Set(['EEXIST', 'EPERM', 'EBUSY', 'EACCES']); // 윈도우는 지우는 중인 디렉터리에 EPERM 을 낸다
+const LOCK_NOENT_GRACE_MS = 1_000; // 잠금이 없는데 mkdir 이 EPERM·EACCES 면 권한 문제다. 지우는 순간의 틈만 이만큼 넘긴다
 
 /** 잠금을 제한 시간 안에 잡지 못했다. */
 export class LockError extends Error {}
@@ -129,21 +133,28 @@ function breakStaleLock(lock_path, stale_ms) {
 
 /** 잠금을 잡고 해제 함수를 돌려준다. 제한 시간을 넘기면 LockError. */
 export function acquire_lock(lock_path, { timeout_ms = LOCK_TIMEOUT_MS, stale_ms = LOCK_STALE_MS } = {}) {
-  const deadline = Date.now() + timeout_ms;
+  const start = Date.now();
+  const deadline = start + timeout_ms;
   let wait = 5;
   let last = 'EEXIST';
   for (;;) {
     try {
       fs.mkdirSync(lock_path);
       return () => {
-        try {
-          fs.rmdirSync(lock_path);
-        } catch {
-          // 이미 치워졌으면 그대로 둔다
+        // 윈도우는 백신·인덱서가 잠시 쥐면 EPERM·EBUSY 가 난다 — 몇 번 다시 해 본다. 이미 없으면(ENOENT) 끝.
+        for (let i = 0; i < 10; i++) {
+          try {
+            fs.rmdirSync(lock_path);
+            return;
+          } catch (e) {
+            if (e.code === 'ENOENT' || !LOCK_BUSY_CODES.has(e.code)) return;
+            sleepMs(20);
+          }
         }
       };
     } catch (e) {
       if (!LOCK_BUSY_CODES.has(e.code)) throw e;
+      if (e.code !== 'EEXIST' && !fs.existsSync(lock_path) && Date.now() - start > LOCK_NOENT_GRACE_MS) throw e;
       last = e.code;
     }
     breakStaleLock(lock_path, stale_ms);
