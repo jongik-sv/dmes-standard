@@ -8,9 +8,9 @@
 - **명령**: 대상 리포 설정의 `dialect_check` 다(`dflow.sh config dialect_check`). `.dflow`(리포 공통)에 적고, PC 전용
   값(JAVA_HOME 등)이 든 명령은 `.dflow.local` 이 덮는다(export 된 `DFLOW_DIALECT_CHECK` 가 둘 다 덮는다). 키가 없으면 이
   단계는 없다(`DIALECT_NONE`). 값은 임시 워크트리의 최상위에서 `bash -c` 로 돌므로 `cd <폴더> && VAR=값 <명령>` 형태를
-  그대로 받는다. 예: `dialect_check=cd src/backend/<모듈> && ../gradlew :api:postgresqlMigrationTest --no-daemon --console=plain`.
+  그대로 받는다. 예: `dialect_check=cd <폴더> && <DB 마다 다른 검증 시험 명령>`. dmes-standard 는 DB 가 Oracle 하나(oracle-1007)라 이 키를 두지 않는다(`DIALECT_NONE`).
   설정 파일은 값 뒤의 ` #…` 를 주석으로 자르므로 명령에 ` #` 를 쓰지 않는다. 임시 워크트리에는 추적 파일만 있다
-  (`.dflow.local`·`node_modules`·빌드 산출물 없음). 준비가 필요하면 명령 안에 넣는다(예 `npm ci && npm run test:postgres`).
+  (`.dflow.local`·`node_modules`·빌드 산출물 없음). 준비가 필요하면 명령 안에 넣는다(예 `npm ci && npm run test:<DB>`).
 - **돌리는 법**: 호출한 체크아웃의 최상위에서 한 번 부른다(`<스윕 전 sha>` 는 SKILL.md 「방언 검증」 대로 기록해 둔 값).
   ```bash
   .claude/skills/dflow-merge/scripts/dialect-check.sh run --dev <기본브랜치> --sweep-base <스윕 전 sha>; echo "rc=$?"
