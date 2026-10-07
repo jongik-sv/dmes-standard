@@ -1,12 +1,10 @@
 package com.dongkuk.dmes.mcm.csa.commUserMng.service;
 
-import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngDeptRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngSearchDeptLovRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngSearchRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngUserIdRequest;
 import com.dongkuk.dmes.mcm.entity.SecUser;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -217,27 +215,15 @@ class CommUserMngServiceSearchTest extends CommUserMngJpaTestBase {
     }
 
     // ────────────────────────────────────────────────────────────────
-    // searchRoleGrp — 비-SQLite(MSSQL) 분기 SQL 을 H2 MSSQLServer 모드로 실행한다
+    // searchRoleGrp — 네이티브 SQL(LOCALTIMESTAMP·COALESCE·INTERVAL)을 Oracle 에서 실행한다
     // ────────────────────────────────────────────────────────────────
 
     @Nested
-    @DisplayName("searchRoleGrp (MSSQL 분기)")
+    @DisplayName("searchRoleGrp")
     class SearchRoleGrp {
 
-        private boolean sqliteBefore;
-
-        @BeforeEach
-        void forceMssqlBranch() {
-            // 정적 전역 상태 — 다른 테스트가 켜 둔 채 남겼을 경우를 막는다.
-            // SQLite 분기는 CommUserMngServiceSearchRoleGrpSqliteTest 가 실제 SQLite 로 같은 시나리오를 고정한다.
-            sqliteBefore = McmAuditStatementInspector.isSqlite();
-            McmAuditStatementInspector.setSqlite(false);
-        }
-
-        @AfterEach
-        void restore() {
-            McmAuditStatementInspector.setSqlite(sqliteBefore);
-        }
+        // 엔티티 저장소(fx)로 데이터를 넣어 서비스 호출 경로 전체를 본다.
+        // 같은 SQL 을 JDBC 로 넣은 데이터로 따로 고정한 시험은 CommUserMngServiceSearchRoleGrpOraTest 다.
 
         @Test
         @DisplayName("사용중·유효기간 안·미보유 역할그룹만, ROLE_GROUP_ID 순")

@@ -48,7 +48,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 기본 탭 저장소·해석·Writer 채번과 공유 받는 사람 찾기 쿼리 — H2 메모리(design-widget-tabs.md §1~§3).
+ * 기본 탭 저장소·해석·Writer 채번과 공유 받는 사람 찾기 쿼리 — Oracle 시험 PDB(design-widget-tabs.md §1~§3).
  * 기본 탭이 있어도 widgetDef/list 의 「홈」 기본 배치(homeDefault)는 바뀌지 않음을 실제 저장소로 확인한다.
  */
 @SpringJUnitConfig(WidgetTabsJpaTestConfig.class)
