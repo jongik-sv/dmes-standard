@@ -15,6 +15,10 @@
   - Playwright 1.62.1 은 chromium_headless_shell-1234 가 필요한데 캐시에 1243 만 있었다 → `PLAYWRIGHT_SKIP_BROWSER_GC=1 pnpm exec playwright install chromium-headless-shell`.
   - 스펙이 `docs/mdm/tasks/**/screens/*.png` 를 덮어쓴다 — 실행 뒤 `git restore -- docs/mdm/tasks`, 새 파일은 scratchpad 로 옮김(커밋 안 함).
   - E2E 도구(scratchpad/m5): srv.sh·up-wait.sh·down.sh·e2e.sh, 필터 `~/.coord/oracle-1007/lanes/ora-mdm/filter_e2e_snapshot.py`.
+- **머지② 직전 마무리(2026-10-07 22시 후반):** 여정 실패 중 데이터 전제 3건과 DOM-05 를 레인 파일에서 고쳤다(c0241eebf·DOM-05 커밋): COL-02 입력 「곰팡솜뭉」, LAY-07/08 숫자 항목 ELGN(NUMBER(3,1)), SED-05 세트 탭 단추(role=tab)만 허용, DOM-05 검색어로 좁힌 뒤 고르기. dev e3943844f(③c 위젯 풀 교착 수정) 합침(e1421da66).
+  - **풀 3(덮어쓰기 없음) 로그인·홈 통과:** 새 PDB 에서 mdm-00-fixtures + codeConfirm 7/7(예전 T2 실패 건), mcm 로그 `Connection is not available` 0.
+  - **여정 재실행(풀 3, 거른 스냅샷):** dma·dmb·dme 108 통과·5 실패 → DOM-05 고친 뒤 dma 40/40. 2차에서 common·setup·dmc·dmd 는 모두 통과. 남은 실패는 화면 배치 검사 4건(Oracle 무관, m-mdm 화면 결함): dme LAY-99·VER-99·SET-99(ruleEdit 「삭제」 글자 잘림 19>14·ag-root-wrapper 0x0), dmb LAY-99(layoutMng 버전 이력 ag-root-wrapper 0x0 — LAY-07 이 통과하며 새로 드러남).
+  - dev(ce378785a..e3943844f)에 mdm 변경 없음 → V1 그대로. perf 하니스(4caad53c3)는 실행하지 않았다.
 - **진도율 66%(조정자 기준): m1·m2·길이 검사·m3 완료, m4 코드 전환 완료(실행은 머지③ 뒤), m5 준비 중.** dev 는 머지①c `ce378785a` 까지 합쳤다(ed6e282e9).
 - 커밋 흐름: 89685b58a(길이 검사) → 8605df5de(MigrationTest 18개 archive·시험 컴파일) → 9949731c1(픽스처 13개 Oracle) → 601fc9157(mayBeCalled 네이티브) → 4300176b0·18f3b20c9(시험 Oracle 전환) → 0c7802444(엔티티 백틱 칼럼) → 0f9539c67(기반 안전장치·Locale·골든) → 42c8e285f(m4 mdm-e2e.ts·mdm-00-fixtures.spec.ts) → 38d048616(메모).
 - **compact 시점에 돌고 있던 것(재개 때 결과부터 확인):**
