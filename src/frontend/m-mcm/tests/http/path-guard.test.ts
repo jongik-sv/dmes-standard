@@ -33,7 +33,7 @@ vi.mock("@/lib/auth/api-permission-cache", () => ({
 
 import { NextRequest } from "next/server";
 import { proxy } from "@/proxy";
-import { isUnsafeApiPath } from "@/lib/http/path-guard";
+import { isDirectRouteBackendPath, isUnsafeApiPath } from "@/lib/http/path-guard";
 import { forwardToBackend } from "@/lib/http/be-proxy";
 import { GET as restGet } from "@/app/api/[module]/rest/[objId]/[action]/[...path]/route";
 
@@ -216,5 +216,56 @@ describe("forwardToBackend·rest 라우트 — 라우트 조각의 날 점 조�
     );
     expect(res.status).toBe(200);
     expect(fetchMock.mock.calls[0][0]).toBe("http://be.test/api/files/report.v2.xlsx");
+  });
+});
+
+describe("cactus 직접 실행 경로 — proxy·forwardToBackend 두 곳에서 막는다(2026-10-07 보안 지적)", () => {
+  it("proxy — 실제 proxy.ts 설정으로 service·query·lov/query·lov/service 는 권한키가 있어도 403, 권한 캐시도 보지 않는다", async () => {
+    getUserPerms.mockResolvedValue(["*"]);
+    for (const path of [
+      "/api/mdm/service/codeEdit",
+      "/api/mdm/query/service/domainMng",
+      "/api/mdm/lov/service/termMng",
+      "/api/mcm/query/DmomMapper.insertTcError",
+      "/api/mcm/lov/query/a.b",
+      "/api/mdm/%73ervice/codeEdit",
+    ]) {
+      expect(await callProxy(path), path).toEqual({ status: 403, passed: false });
+    }
+    expect(getUserPerms).not.toHaveBeenCalled();
+  });
+
+  it("proxy — LoV master·serviceId 가 query 인 OASIS 는 그대로", async () => {
+    expect(await callProxy("/api/mcm/lov/master/UNIT/KG", "GET")).toEqual({ status: 200, passed: true });
+    getUserPerms.mockResolvedValue(["mdm/query/search"]);
+    expect(await callProxy("/api/mdm/oasis/query/search")).toEqual({ status: 200, passed: true });
+  });
+
+  it("rest 신경로 꼬리로 BE 직접 실행 경로에 닿으면 — proxy 는 화면 권한키로 통과해도 rest 라우트가 403, BE 를 부르지 않는다", async () => {
+    getUserPerms.mockResolvedValue(["mdm/codeedit/save"]);
+    expect(await callProxy("/api/mdm/rest/codeEdit/save/service/codeEdit")).toEqual({ status: 200, passed: true });
+    for (const tail of [
+      ["service", "codeEdit"],
+      ["query", "service", "codeEdit"],
+      ["query", "a.b"],
+      ["lov", "query", "a.b"],
+      ["lov", "service", "codeEdit"],
+    ]) {
+      // params 는 Next 가 디코드한 조각이다 — 브라우저의 `%73ervice` 는 여기서 이미 `service` 로 온다.
+      const res = await restGet(new NextRequest(`${BFF}/api/mdm/rest/codeEdit/save/${tail.join("/")}`), {
+        params: Promise.resolve({ module: "mdm", objId: "codeEdit", action: "save", path: tail }),
+      });
+      expect(res.status, tail.join("/")).toBe(403);
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("isDirectRouteBackendPath — 순수 판정", () => {
+    for (const p of ["/service/x", "/service", "/query/a.b", "/query/service/x", "/lov/query/a.b", "/lov/service/x", "/%73ervice/x", "/service/x?y=1", "/q%ZZ"]) {
+      expect(isDirectRouteBackendPath(p), p).toBe(true);
+    }
+    for (const p of ["/api/mcm/commWidgetMng/upload", "/api/planned-orders", "/lov/master/UNIT", "/services/x", "/api/service/x", "/queryx/a"]) {
+      expect(isDirectRouteBackendPath(p), p).toBe(false);
+    }
   });
 });

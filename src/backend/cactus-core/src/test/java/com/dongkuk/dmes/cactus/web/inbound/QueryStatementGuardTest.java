@@ -172,8 +172,10 @@ class QueryStatementGuardTest {
     }
 
     @Test
-    @DisplayName("다른 namespace 의 같은 짧은 id 로는 찾지 못한다 — 등록된 전체 id 와 같아야 한다")
-    void otherNamespaceSameShortId_isNotFound() {
+    @DisplayName("다른 namespace(x.masterCodeSelPop)의 statement 는 masterCodeSelPop.search 로 찾지 못한다 — 없는 id 404")
+    void otherNamespace_isNotFound() {
+        // StrictMap 의 짧은 키는 마지막 점 뒤(search)라 점 하나 형식의 id 는 짧은 키로 해석되지 않는다.
+        // QueryStatementGuard 의 ms.getId() 같음 검사는 이 형식에서 닿지 않는 방어선이다.
         addSelect("x.masterCodeSelPop.search", QUERY_XML);
 
         QueryStatementGuard guard = new QueryStatementGuard(sqlSession, 100);

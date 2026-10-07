@@ -33,3 +33,29 @@ export function isUnsafeApiPath(pathname: string): boolean {
   if (pathname.includes("\\") || pathname.includes(";")) return true;
   return pathname.split("/").some((segment) => segment === "." || segment === "..");
 }
+
+/**
+ * cactus 직접 실행 경로 — BE `/service`·`/query/service`·`/lov/service`(요청이 고른 BPMN 을 고정 action 으로 실행),
+ * `/query/{id}`·`/lov/query/{id}`(매퍼 statement 실행). 권한키를 만들 수 없어 늘 막는다(2026-10-07 보안 지적).
+ * proxy.ts 의 denyPatterns 는 브라우저 경로(`/api/{m}/service/…`)를 보는데, REST 신경로는 `/api/{m}/rest/{objId}/{action}/` 뒤
+ * 꼬리를 그대로 BE 경로로 보내 `/api/mdm/rest/codeEdit/save/service/codeEdit` 처럼 그 화면 권한 하나로 `/service/codeEdit` 에
+ * 닿을 수 있었다. 그래서 BE 로 보낼 경로(backendPath)를 forwardToBackend 에서 한 번 더 본다. mcm EndpointPermissionFilter.isDirectRoute 와 동기화.
+ */
+const DIRECT_ROUTE_BACKEND_PATH = /^\/(?:service|query|lov\/(?:query|service))(?:\/|$)/;
+
+/** BE 로 보낼 경로(조회 문자열 제외)가 직접 실행 경로면 참. 원 경로와 조각마다 디코드한 경로를 모두 본다(디코드 실패는 참). */
+export function isDirectRouteBackendPath(backendPath: string): boolean {
+  const path = backendPath.split("?")[0];
+  if (DIRECT_ROUTE_BACKEND_PATH.test(path)) return true;
+  if (!path.includes("%")) return false;
+  try {
+    return DIRECT_ROUTE_BACKEND_PATH.test(
+      path
+        .split("/")
+        .map((s) => decodeURIComponent(s))
+        .join("/"),
+    );
+  } catch {
+    return true;
+  }
+}

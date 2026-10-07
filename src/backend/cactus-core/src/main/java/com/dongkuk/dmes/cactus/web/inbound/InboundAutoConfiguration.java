@@ -69,6 +69,11 @@ public class InboundAutoConfiguration {
      * <p>{@code cactus.inbound.query-routes.enabled=true} 일 때만 등록한다(기본 꺼짐, 2026-10-07 보안 지적).
      * 켜도 {@link QueryStatementGuard} 가 {@code persistence/query/**}·{@code persistence/lov/**} 매퍼의 SELECT 만 열고,
      * 행 수는 {@code cactus.query.max-rows}(기본 10,000)로 자른다. 권한 판정은 BFF·권한 필터 몫이다.
+     *
+     * <p>켜기 전 조건(2026-10-07 보안 리뷰): 가드는 statement 메타데이터만 본다. {@code <select>} 본문의 DML·부작용 함수,
+     * <code>${…}</code> 치환, 요청이 사용자 범위 파라미터를 덮어쓰는 것은 막지 못한다. 켜는 회차에 ① 읽기 전용 트랜잭션에서 실행,
+     * ② {@code persistence/query}·{@code persistence/lov} XML 의 <code>${</code> 금지 정적 시험, ③ 사용자 문맥 키를 서버가 덮어쓰기,
+     * ④ BFF·BE 의 권한키 판정({@code /query/{objId}.{action}} → OBJECT 권한)을 함께 넣는다. mdm 처럼 권한 필터가 없는 모듈은 ④ 가 먼저다.
      */
     @Bean
     @ConditionalOnClass(SqlSession.class)
