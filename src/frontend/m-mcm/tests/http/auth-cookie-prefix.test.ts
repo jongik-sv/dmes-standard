@@ -52,15 +52,15 @@ describe("환경 변수가 없으면 기본 이름", () => {
     const { proxy, config, sessionCookieName, forceLogoutCookieNames } = await load(undefined);
     expect(config.sessionTokenCookieName).toBe("oasis-mcm-auth.session-token");
     expect(sessionCookieName()).toBe("oasis-mcm-auth.session-token");
-    expect(forceLogoutCookieNames()).toEqual(
-      expect.arrayContaining([
+    expect([...forceLogoutCookieNames()].sort()).toEqual(
+      [
         "oasis-mcm-auth.session-token",
         "__Secure-oasis-mcm-auth.session-token",
         "oasis-mcm-auth.callback-url",
         "__Secure-oasis-mcm-auth.callback-url",
         "oasis-mcm-auth.csrf-token",
         "__Host-oasis-mcm-auth.csrf-token",
-      ])
+      ].sort()
     );
     const res = await proxy(await page("/portal", "oasis-mcm-auth.session-token"));
     expect(res.headers.get("x-middleware-next")).toBe("1");
@@ -82,6 +82,26 @@ describe("AUTH_COOKIE_PREFIX=other-auth", () => {
       ])
     );
     expect(names.some((name) => name.includes("oasis-mcm-auth"))).toBe(false);
+  });
+
+  it("강제 로그아웃 라우트가 접두 기준 이름을 만료시키고 __Secure-·__Host- 쿠키에는 Secure 를 붙인다", async () => {
+    await load("other-auth");
+    const { POST } = await import("@/app/api/auth/force-logout/route");
+    const setCookies = (await POST()).headers.getSetCookie();
+    expect(setCookies).toHaveLength(6);
+    for (const line of setCookies) {
+      const name = line.split("=")[0];
+      expect(name).toContain("other-auth");
+      expect(line).toMatch(/Expires=Thu, 01 Jan 1970/);
+      expect(/;\s*Secure/i.test(line)).toBe(name.startsWith("__Secure-") || name.startsWith("__Host-"));
+    }
+  });
+
+  it("접두에 대문자·특수문자가 있어도 로그인·proxy·강제 로그아웃이 같은 정규화 이름을 쓴다", async () => {
+    const { config, sessionCookieName, forceLogoutCookieNames } = await load("Other.Auth");
+    expect(config.sessionTokenCookieName).toBe("other-auth.session-token");
+    expect(sessionCookieName()).toBe("other-auth.session-token");
+    expect(forceLogoutCookieNames()).toContain("other-auth.session-token");
   });
 
   it("/portal: 로그인이 심는 이름의 쿠키면 통과, 옛 고정 이름 쿠키면 /login 으로 보낸다", async () => {

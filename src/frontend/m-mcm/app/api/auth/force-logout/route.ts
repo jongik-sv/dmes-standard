@@ -19,6 +19,8 @@ export async function POST() {
       value: "",
       path: "/",
       expires: new Date(0),
+      // `__Secure-`·`__Host-` 쿠키는 Secure 속성이 없는 Set-Cookie 를 브라우저가 무시한다.
+      secure: name.startsWith("__Secure-") || name.startsWith("__Host-"),
     });
   }
 
