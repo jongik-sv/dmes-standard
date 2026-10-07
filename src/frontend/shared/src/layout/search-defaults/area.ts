@@ -11,6 +11,8 @@
  * - 저장소가 아직 준비 중이면 최대 1.5초 기다린다. 그동안 사용자가 고친 칸은 넣지 않는다. 넘으면 넣지 않고 끝낸다.
  * - autoSearch: 넣기가 끝난 다음 커밋의 effect 에서 onSearch 를 한 번 부른다(그 커밋의 onSearch 가 새 상태를 잡고 있다). 이어받은 값으로 시작했으면
  *   부르지 않는다(화면의 useCarryRefetch 가 맡는다). 사용자가 한 조회가 아니므로 emitSearch 를 내지 않는다.
+ *   선택지를 기다리며 보류한 값이 있으면 조회를 최대 1.5초 미룬다 — 넣은 뒤에 조회하고, 넘으면 보류를 버리고 지금 값으로 조회한다
+ *   (먼저 「전체」로 조회한 뒤 칸만 바뀌면 보이는 조건과 조회한 조건이 다르다).
  * - 초기화(emitSearchReset): 사용자 기본값을 다시 넣는다. 「마지막 조회값」 칸은 넣지 않는다(초기화는 조건을 비우려는 동작).
  * - 조회(emitSearch): 등록된 칸의 지금 값을 마지막 조회값으로 적는다.
  */
@@ -143,6 +145,9 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
   const lateRef = useRef(new Set<string>());
   const pendingCheckRef = useRef<Map<string, string> | null>(null);
   const pendingAutoSearchRef = useRef(false);
+  /** 선택지 보류 때문에 미룬 autoSearch — 보류가 비거나 한도가 넘으면 예약한다. */
+  const deferredSearchRef = useRef(false);
+  const deferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** 초기화 — 화면이 비운 값이 커밋된 다음 layout effect 에서 넣는다(같은 클릭 안에서는 아직 비우기 전 값이 보인다). */
   const pendingResetRef = useRef(false);
   /**
@@ -223,16 +228,40 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
     [storageKey],
   );
 
-  /** 넣기를 끝낸다. 이어받은 값으로 시작한 화면이 아니면 autoSearch 를 예약한다. */
+  /** autoSearch 를 예약한다 — 다음 커밋의 passive effect 가 부른다. */
+  const scheduleAutoSearch = useCallback(() => {
+    deferredSearchRef.current = false;
+    if (deferTimerRef.current !== null) {
+      clearTimeout(deferTimerRef.current);
+      deferTimerRef.current = null;
+    }
+    pendingAutoSearchRef.current = true;
+    scheduledAtRef.current = renderIdRef.current;
+    setTick((n) => n + 1);
+  }, []);
+
+  /** 미룬 autoSearch 의 한도 — 넘으면 보류한 값을 버리고 지금 값으로 조회한다. */
+  const armDeferTimer = useCallback(() => {
+    deferTimerRef.current = setTimeout(() => {
+      deferTimerRef.current = null;
+      if (!deferredSearchRef.current) return;
+      awaitingRef.current.clear();
+      scheduleAutoSearch();
+    }, SEARCH_DEFAULTS_WAIT_MS);
+  }, [scheduleAutoSearch]);
+
+  /** 넣기를 끝낸다. 이어받은 값으로 시작한 화면이 아니면 autoSearch 를 예약한다(선택지를 기다리는 값이 있으면 미룬다). */
   const finish = useCallback(() => {
     if (phaseRef.current === "done") return;
     phaseRef.current = "done";
-    if (optsRef.current.autoSearch && !optsRef.current.restored) {
-      pendingAutoSearchRef.current = true;
-      scheduledAtRef.current = renderIdRef.current;
-      setTick((n) => n + 1);
+    if (!optsRef.current.autoSearch || optsRef.current.restored) return;
+    if (awaitingRef.current.size > 0) {
+      deferredSearchRef.current = true;
+      armDeferTimer();
+      return;
     }
-  }, []);
+    scheduleAutoSearch();
+  }, [armDeferTimer, scheduleAutoSearch]);
 
   const applyAll = useCallback(
     (mode: ApplyMode) => {
@@ -301,13 +330,14 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
     // 마운트 1회 — 함수들은 안정적이고, phase 가 pending 이 아니면 다시 돌아도 바로 끝난다.
   }, [applyAll, finish, rootRef]);
 
-  // 커밋마다: 초기화 넣기(화면이 비운 값이 커밋된 뒤), 보류한 선택지 값 넣기.
+  // 커밋마다: 초기화 넣기(화면이 비운 값이 커밋된 뒤), 보류한 선택지 값 넣기, 보류가 비면 미룬 autoSearch 예약.
   useIsomorphicLayoutEffect(() => {
     // 기능이 꺼졌으면(handoff 로 defaults={false}) 보류한 선택지 값도 버린다.
     if (!optsRef.current.enabled || offRef.current) {
       awaitingRef.current.clear();
       lateRef.current.clear();
       pendingResetRef.current = false;
+      if (deferredSearchRef.current) scheduleAutoSearch();
       return;
     }
     if (pendingResetRef.current && renderIdRef.current > resetAtRef.current) {
@@ -321,20 +351,34 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
       lateRef.current.clear();
       if (late.length > 0) applyTo(late.map(([k, h]) => [k, h]), { skipLast: false, ignoreTouched: false, onlyIfUnchanged: false });
     }
-    if (awaitingRef.current.size === 0) return;
-    const nowMs = Date.now();
-    const ready: Array<[string, SearchDefaultsFieldHandle]> = [];
-    for (const [key, a] of awaitingRef.current) {
-      const h = handlesRef.current.get(key);
-      const baseline = baselineRef.current.get(key);
-      if (!h || nowMs > a.until || h.touched || (baseline !== undefined && h.getValue() !== baseline)) {
-        awaitingRef.current.delete(key);
-        continue;
+    if (awaitingRef.current.size > 0) {
+      const nowMs = Date.now();
+      const ready: Array<[string, SearchDefaultsFieldHandle]> = [];
+      for (const [key, a] of awaitingRef.current) {
+        const h = handlesRef.current.get(key);
+        const baseline = baselineRef.current.get(key);
+        if (!h || nowMs > a.until || h.touched || (baseline !== undefined && h.getValue() !== baseline)) {
+          awaitingRef.current.delete(key);
+          continue;
+        }
+        if (h.info.options?.some((o) => o.value === a.value)) ready.push([key, h]);
       }
-      if (h.info.options?.some((o) => o.value === a.value)) ready.push([key, h]);
+      if (ready.length > 0) applyTo(ready, { skipLast: false, ignoreTouched: false, onlyIfUnchanged: true });
     }
-    if (ready.length > 0) applyTo(ready, { skipLast: false, ignoreTouched: false, onlyIfUnchanged: true });
+    // 넣었거나(applyTo 가 보류에서 뺀다) 사용자가 고쳐 보류가 비었으면 미룬 조회를 예약한다 — 넣은 값이 커밋된 뒤에 부른다.
+    if (deferredSearchRef.current && awaitingRef.current.size === 0) scheduleAutoSearch();
   });
+
+  // 미룬 autoSearch 의 한도 타이머 — 언마운트 때 거둔다. StrictMode 의 effect 다시 실행 뒤에는 다시 건다.
+  useEffect(() => {
+    if (deferredSearchRef.current && deferTimerRef.current === null) armDeferTimer();
+    return () => {
+      if (deferTimerRef.current !== null) {
+        clearTimeout(deferTimerRef.current);
+        deferTimerRef.current = null;
+      }
+    };
+  }, [armDeferTimer]);
 
   // 넣은 뒤 확인(개발 모드 경고)과 autoSearch 는 커밋 뒤에 한다 — 그 커밋의 onSearch 가 새 상태를 잡고 있다.
   useEffect(() => {

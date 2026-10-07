@@ -538,6 +538,60 @@ describe("리뷰 지적 회귀(2026-10-07)", () => {
     expect(latest.status).toBe("SYS1");
   });
 
+  /** 선택지를 서버에서 받는 select 하나와 autoSearch — 조회 때의 값을 적는다. */
+  function lateOptionsScreen(searched: string[], setLoad: (fn: () => void) => void) {
+    return function LateOptionsAuto() {
+      const [v, setV] = useCarryState("v", "");
+      const [opts, setOpts] = useState([{ value: "", label: "전체" }]);
+      setLoad(() => setOpts([{ value: "", label: "전체" }, { value: "SYS1", label: "시스템1" }]));
+      latest = { ...DEFAULT, status: v };
+      return createElement(
+        SearchArea,
+        { autoSearch: true, onSearch: () => searched.push(v) },
+        createElement(SearchField, { label: "시스템", name: "status", type: "select", options: opts, value: v, onChange: setV }),
+      );
+    };
+  }
+
+  it("autoSearch 는 선택지를 기다리는 값을 넣은 뒤에 그 값으로 한 번 조회한다", async () => {
+    givenRules(rules({ status: { kind: "fixed", value: "SYS1" } }));
+    const searched: string[] = [];
+    let load: () => void = () => {};
+    await mount(inPage(createElement(lateOptionsScreen(searched, (fn) => (load = fn)))));
+    expect(searched).toEqual([]);
+    await act(async () => load());
+    expect(latest.status).toBe("SYS1");
+    expect(searched).toEqual(["SYS1"]);
+  });
+
+  it("선택지가 한도 안에 오지 않으면 보류를 버리고 지금 값으로 한 번 조회한다", async () => {
+    vi.useFakeTimers();
+    givenRules(rules({ status: { kind: "fixed", value: "SYS1" } }));
+    const searched: string[] = [];
+    let load: () => void = () => {};
+    await mount(inPage(createElement(lateOptionsScreen(searched, (fn) => (load = fn)))));
+    expect(searched).toEqual([]);
+    await act(async () => {
+      vi.advanceTimersByTime(SEARCH_DEFAULTS_WAIT_MS + 10);
+    });
+    expect(searched).toEqual([""]);
+    // 조회한 뒤 늦게 온 선택지로 칸을 바꾸지 않는다(조회한 조건과 칸이 달라지지 않게).
+    await act(async () => load());
+    expect(latest.status).toBe("");
+    expect(searched).toEqual([""]);
+  });
+
+  it("StrictMode(effect 다시 실행)에서도 미룬 조회의 한도 타이머가 살아 있다", async () => {
+    vi.useFakeTimers();
+    givenRules(rules({ status: { kind: "fixed", value: "SYS1" } }));
+    const searched: string[] = [];
+    await mount(createElement(StrictMode, null, inPage(createElement(lateOptionsScreen(searched, () => {})))));
+    await act(async () => {
+      vi.advanceTimersByTime(SEARCH_DEFAULTS_WAIT_MS + 10);
+    });
+    expect(searched).toEqual([""]);
+  });
+
   it("사용자 확인에 실패하면 기다리지 않고 바로 autoSearch 한다", async () => {
     setUser(null);
     vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 401 })));
