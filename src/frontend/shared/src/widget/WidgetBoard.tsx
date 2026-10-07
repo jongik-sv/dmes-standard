@@ -61,6 +61,8 @@ export interface WidgetBoardProps {
   testId?: string;
   /** 놓일 자리를 미리 보이는 스켈레톤(끌기·크기 조절 불가). 편집할 수 있을 때만 그린다. onChange 로 올라가는 배치에는 들어가지 않는다. */
   preview?: WidgetBoardPreview | null;
+  /** 위젯이 없고 편집할 수 없을 때 보일 안내. 없으면 「놓인 위젯이 없습니다. [배치 편집]에서 위젯을 추가하세요.」 */
+  emptyText?: string;
 }
 
 function applyLayout(layout: Layout, items: readonly WidgetItem[]): WidgetItem[] {
@@ -71,7 +73,7 @@ function applyLayout(layout: Layout, items: readonly WidgetItem[]): WidgetItem[]
   });
 }
 
-export function WidgetBoard({ items, registry, editing, tabLocked, onChange, onWideChange, cols: colsOverride, width: fixedWidth, testId, preview }: WidgetBoardProps) {
+export function WidgetBoard({ items, registry, editing, tabLocked, onChange, onWideChange, cols: colsOverride, width: fixedWidth, testId, preview, emptyText }: WidgetBoardProps) {
   const measured = useVisibleContainerWidth({ initialWidth: fixedWidth ?? 1280 });
   const width = fixedWidth ?? measured.width;
   const cols = colsOverride ?? colsForWidth(width);
@@ -137,7 +139,7 @@ export function WidgetBoard({ items, registry, editing, tabLocked, onChange, onW
       <WidgetStyle />
       {shown.length === 0 ? (
         <div className="cm-widget-board__empty">
-          {canEdit ? "오른쪽 [위젯 추가]에서 위젯을 누르거나 끌어 놓으세요." : "놓인 위젯이 없습니다. [배치 편집]에서 위젯을 추가하세요."}
+          {canEdit ? "오른쪽 [위젯 추가]에서 위젯을 누르거나 끌어 놓으세요." : (emptyText ?? "놓인 위젯이 없습니다. [배치 편집]에서 위젯을 추가하세요.")}
         </div>
       ) : null}
       <ReactGridLayout

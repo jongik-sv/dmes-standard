@@ -7,7 +7,8 @@ import {
   buildLayoutList,
   buildTypeTitles,
   deleteConfirmMessage,
-  inheritNotice,
+  homeTabNameOf,
+  layoutHelpText,
   layoutDisplayName,
   layoutItemsFromRows,
   layoutItemsToRows,
@@ -131,23 +132,23 @@ describe("표시 이름·제목·안내 문구", () => {
     expect(boardTitle("D100", rows)).toBe("생산팀 기본 배치");
   });
 
-  it("inheritNotice — 물려받은 배치(sourceKey ≠ layoutKey)일 때만", () => {
-    const withParent = buildLayoutList([S("D10", "생산본부", 8)], []);
-    expect(inheritNotice("D100", "D10", withParent)).toBe(
-      "생산본부 배치를 물려받아 보이는 중입니다. 저장하면 이 부서 배치가 생깁니다"
+  it("homeTabNameOf — 전사는 기본 「홈」(undefined), 부서는 부서명(없으면 코드)", () => {
+    expect(homeTabNameOf("*", rows)).toBeUndefined();
+    expect(homeTabNameOf("D100", rows)).toBe("생산팀");
+    expect(homeTabNameOf("D999", rows)).toBe("D999");
+  });
+
+  it("layoutHelpText — 전사·부서 고정 탭 안내와 키당 기본 탭 한도", () => {
+    expect(layoutHelpText(5)).toBe(
+      "전사 배치(홈·탭)는 모든 사용자에게, 부서 배치는 그 부서와 하위 부서 사용자에게 고정 탭으로 보입니다. 사용자는 고칠 수 없고, 저장하면 다음 조회부터 바로 반영됩니다. (+) 로 더한 탭은 키마다 최대 5개입니다."
     );
-    expect(inheritNotice("D100", COMPANY_LAYOUT_KEY, withParent)).toBe(
-      "전사 배치를 물려받아 보이는 중입니다. 저장하면 이 부서 배치가 생깁니다"
-    );
-    expect(inheritNotice("D100", "D100", withParent)).toBeNull();
-    expect(inheritNotice("D100", null, withParent)).toBeNull();
-    expect(inheritNotice("*", "*", withParent)).toBeNull();
+    expect(layoutHelpText()).toContain("최대 5개");
   });
 
   it("deleteConfirmMessage — 지우면 어떤 배치가 적용되는지 알린다", () => {
     expect(deleteConfirmMessage("*", rows)).toBe("전사 기본 배치를 삭제하시겠습니까? 삭제하면 코드 기본값이 적용됩니다.");
     expect(deleteConfirmMessage("D100", rows)).toBe(
-      "생산팀 기본 배치를 삭제하시겠습니까? 삭제하면 상위 부서 또는 전사 배치가 적용됩니다."
+      "생산팀 기본 배치를 삭제하시겠습니까? 삭제하면 이 부서의 고정 탭이 사용자에게서 사라집니다."
     );
   });
 

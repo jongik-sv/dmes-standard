@@ -54,6 +54,7 @@ export type { WidgetWorkspaceProps } from "./WidgetWorkspace";
 // 기본 탭·공유·탭 파일(widget-tabs 2026-10-05)
 export {
   buildTabExport,
+  countedTabCount,
   fixedTabCount,
   isFixedTab,
   orderTabs,

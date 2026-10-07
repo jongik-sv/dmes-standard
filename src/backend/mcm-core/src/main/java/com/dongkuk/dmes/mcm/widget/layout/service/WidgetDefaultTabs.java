@@ -1,44 +1,26 @@
 package com.dongkuk.dmes.mcm.widget.layout.service;
 
-import com.dongkuk.dmes.mcm.widget.layout.entity.WidgetDefaultLayout;
 import com.dongkuk.dmes.mcm.widget.layout.entity.WidgetDefaultTab;
 import com.dongkuk.dmes.mcm.widget.layout.entity.WidgetDefaultTabItem;
 import com.dongkuk.dmes.mcm.widget.layout.repository.WidgetDefaultTabItemRepository;
 import com.dongkuk.dmes.mcm.widget.layout.repository.WidgetDefaultTabRepository;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
- * 사용자의 기본 탭 집합 해석(design-widget-tabs.md §1) — 부서 사슬(자기 부서 → 상위, 최대 10단) → 전사({@code *}) 중
- * 기본 탭이 하나라도 있는 첫 키의 탭 전체. 사용자 탭 서비스(secWidget)가 쓴다. 읽기만 한다.
+ * 기본 탭({@code def-N}) 읽기 도우미(design-widget-tabs.md §1) — ID 판정과 키별 위젯 조회. 사용자에게 보일 고정 탭 집합은
+ * {@link WidgetFixedTabs} 가 전사·부서 사슬 전부로 만든다(스펙 2026-10-07-widget-fixed-tabs §1). 읽기만 한다.
  */
 @Component
 public class WidgetDefaultTabs {
 
     /** {@code def-N} 형식(N 은 1~6자리). */
     public static final Pattern TAB_ID = Pattern.compile("^def-(\\d{1,6})$");
-
-    /** 해석된 집합 — 탭은 관리자 순서. 기본 탭이 없으면 layoutKey=null·tabs=[]. */
-    public record Resolved(String layoutKey, List<WidgetDefaultTab> tabs) {
-
-        public static final Resolved EMPTY = new Resolved(null, List.of());
-
-        public Optional<WidgetDefaultTab> find(String tabId) {
-            return tabs.stream().filter(t -> t.getTabId().equals(tabId)).findFirst();
-        }
-
-        public int size() {
-            return tabs.size();
-        }
-    }
 
     private final WidgetDefaultTabRepository tabRepository;
     private final WidgetDefaultTabItemRepository itemRepository;
@@ -59,18 +41,6 @@ public class WidgetDefaultTabs {
         if (tabId == null) return -1;
         var m = TAB_ID.matcher(tabId);
         return m.matches() ? Long.parseLong(m.group(1)) : -1;
-    }
-
-    /** deptChain(자기 부서부터 위로) → 전사 순서로 보며 기본 탭이 있는 첫 키의 집합. */
-    public Resolved resolve(List<String> deptChain) {
-        Set<String> keys = new LinkedHashSet<>();
-        if (deptChain != null) keys.addAll(deptChain);
-        keys.add(WidgetDefaultLayout.COMPANY_KEY);
-        for (String key : keys) {
-            List<WidgetDefaultTab> tabs = tabRepository.findByLayoutKeyOrderByTabSeqAscTabIdAsc(key);
-            if (tabs != null && !tabs.isEmpty()) return new Resolved(key, List.copyOf(tabs));
-        }
-        return Resolved.EMPTY;
     }
 
     /** 키의 기본 탭 위젯을 탭 ID 별로(탭 안에서는 위→아래, 왼쪽→오른쪽). */

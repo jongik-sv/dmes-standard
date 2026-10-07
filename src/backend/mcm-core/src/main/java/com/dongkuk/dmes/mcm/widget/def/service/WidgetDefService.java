@@ -1,7 +1,5 @@
 package com.dongkuk.dmes.mcm.widget.def.service;
 
-import com.dongkuk.dmes.mcm.widget.common.WidgetUserContext;
-import com.dongkuk.dmes.mcm.widget.common.WidgetUserContextResolver;
 import com.dongkuk.dmes.mcm.widget.def.dto.WidgetDefListRequest;
 import com.dongkuk.dmes.mcm.widget.def.entity.WidgetDef;
 import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
@@ -10,10 +8,8 @@ import com.dongkuk.dmes.mcm.widget.layout.repository.WidgetDefaultLayoutReposito
 import com.dongkuk.dmes.mcm.widget.layout.service.WidgetDefaultLayouts;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -27,30 +23,23 @@ public class WidgetDefService {
 
     private final WidgetDefRepository defRepository;
     private final WidgetDefaultLayoutRepository layoutRepository;
-    private final WidgetUserContextResolver userContextResolver;
 
     @Autowired
-    public WidgetDefService(WidgetDefRepository defRepository,
-                            WidgetDefaultLayoutRepository layoutRepository,
-                            WidgetUserContextResolver userContextResolver) {
+    public WidgetDefService(WidgetDefRepository defRepository, WidgetDefaultLayoutRepository layoutRepository) {
         this.defRepository = defRepository;
         this.layoutRepository = layoutRepository;
-        this.userContextResolver = userContextResolver;
     }
 
     /**
-     * 정의·덮어쓰기 행 전부(사용 중지 포함)와 사용자 부서 기준 「홈」 기본 배치 —
-     * 자기 부서 → 상위 부서(최대 10단) → 전사(*) 순서로 처음 찾은 배치. 없으면 homeDefault·homeDefaultKey 가 null.
+     * 정의·덮어쓰기 행 전부(사용 중지 포함)와 「홈」 고정 탭의 배치 = 전사({@code *}) 배치. 없으면 homeDefault·homeDefaultKey 가 null
+     * (화면이 코드 상수를 쓴다). 부서 배치는 「홈」을 대신하지 않고 부서 고정 탭으로 따로 보인다(스펙 2026-10-07-widget-fixed-tabs §1).
      */
     public Map<String, Object> list(WidgetDefListRequest request) {
         List<Map<String, Object>> defs = new ArrayList<>();
         for (WidgetDef d : defRepository.findAllByOrderByWidgetIdAsc()) defs.add(WidgetDefMaps.toPublicMap(d));
 
-        WidgetUserContext user = userContextResolver.current();
-        Set<String> keys = new LinkedHashSet<>();
-        if (user.deptChain() != null) keys.addAll(user.deptChain());
-        keys.add(WidgetDefaultLayout.COMPANY_KEY);
-        WidgetDefaultLayouts.Found found = WidgetDefaultLayouts.firstExisting(layoutRepository, List.copyOf(keys));
+        WidgetDefaultLayouts.Found found =
+                WidgetDefaultLayouts.firstExisting(layoutRepository, List.of(WidgetDefaultLayout.COMPANY_KEY));
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("defs", defs);

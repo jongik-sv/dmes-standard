@@ -217,6 +217,8 @@ A 와 같은 방식: 로컬은 `ddl-auto: update`, 개발계·운영계는 `docs
 - **적용 순서**: 사용자 `DEPT_CD` → `TB_MCM_DEPT_INFO.UPPER_DEPT_CD` 를 따라 위로(최대 10단, 순환 방지) → `*` → 없으면 화면 코드 상수 `HOME_DEFAULT_LAYOUT`.
 - 기본 배치는 사용자 「홈」을 저장한 적 없는 사용자와 「기본 배치로 되돌리기」를 누른 사용자에게만 보인다(이미 저장한 사용자는 영향 없음).
 
+> **2026-10-07 개정: 고정 탭** — [2026-10-07-widget-fixed-tabs-design.md](2026-10-07-widget-fixed-tabs-design.md) 참고. 위 「적용 순서」와 「저장한 적 없는 사용자에게만」 줄은 옛 동작이다. 전사 배치는 모든 사용자에게, 부서 배치는 그 부서와 상위로 이어진 하위 부서 사용자에게 **늘 보이는 고정 탭**이고(사용자 저장 여부와 무관), 사용자는 고칠 수 없으며 「기본 배치로 되돌리기」는 없다. 부서 배치는 가까운 부서 하나가 아니라 부서 사슬 전체가 탭으로 쌓인다.
+
 ### 4.3 `TB_MCM_WIDGET_MEDIA` — 미디어 파일 (D)
 
 | 컬럼 | 형 | 설명 |
@@ -463,10 +465,13 @@ interface LlmClient {
 - 전사 배치가 없으면 코드 상수 `HOME_DEFAULT_LAYOUT` 을 보여 주고, 저장하면 그때 `*` 행이 생긴다.
 - [부서 추가]: 부서 고르기 → 그 부서 배치를 새로 만든다. 시작 배치는 그 부서에 지금 적용되는 배치(위 부서 → 전사 → 코드 상수)를 복사한다.
 
+> **2026-10-07 개정: 고정 탭** — [2026-10-07-widget-fixed-tabs-design.md](2026-10-07-widget-fixed-tabs-design.md) 참고. [부서 추가]의 시작 배치는 복사하지 않고 빈 배치다(전사 탭과 위젯이 겹쳐 보이므로). 부서 키의 「홈」 탭은 부서 대표 탭(이름은 부서명)이고, 상속 안내 띠는 없다. 안내 문구는 고정 탭 방식을 설명한다.
+
 ## 11. 홈 화면 변경
 
 - `page.tsx` 는 `widgetDef/list` 를 불러 `mergeWidgetRegistry(WIDGET_REGISTRY, WIDGET_TYPE_REGISTRY, defs)` 로 등록부를 만들어 `WidgetWorkspace` 에 넘긴다. 응답 전에는 코드 등록부로 보이되 [배치 편집]을 막는다(정의 위젯 손실 방지).
 - `homeDefault` 는 응답의 `homeDefault` 가 있으면 그것, 없으면 `HOME_DEFAULT_LAYOUT`.
+> **2026-10-07 개정: 고정 탭** — [2026-10-07-widget-fixed-tabs-design.md](2026-10-07-widget-fixed-tabs-design.md) 참고. `homeDefault` 는 전사(`*`) 배치만 돌려주고, 「홈」은 `fixedHome` 으로 서버 `home` 탭과 무관하게 늘 이 배치로 그린다(고정 탭, 늘 보임·사용자 편집 불가·되돌리기 없음). 부서 배치는 `dept-*`·`def-*` 고정 탭으로 따로 보인다.
 - `widgetDef/list` 응답 전 → `registryStatus="loading"`, 실패 → `registryStatus="error"` (§1.1).
 
 ## 12. 오류 처리

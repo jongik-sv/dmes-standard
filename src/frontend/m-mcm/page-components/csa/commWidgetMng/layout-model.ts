@@ -1,5 +1,6 @@
 /**
- * 위젯관리 「기본 배치」 탭의 순수 로직 — 배치 목록·표시 이름·서버 줄 변환(스펙 2026-10-02-widget-admin-generic §4.2·§10.2).
+ * 위젯관리 「기본 배치」 탭의 순수 로직 — 배치 목록·표시 이름·서버 줄 변환(스펙 2026-10-02-widget-admin-generic §4.2·§10.2,
+ * 위젯 고정 탭 2026-10-07 §5: 전사·부서 배치는 사용자에게 고정 탭으로 늘 보인다).
  * shared 런타임을 import 하지 않는다(타입만) — m-mcm vitest 가 shared dist 없이 시험한다.
  */
 import type { WidgetItem, WidgetTab } from "@dk-oasis/shared/widget";
@@ -10,6 +11,19 @@ export const COMPANY_LAYOUT_NAME = "전사";
 /** 기본 배치는 「홈」 탭 하나만 다룬다(shared HOME_TAB_ID 와 같은 값). */
 export const HOME_TAB_ID = "home";
 export const HOME_TAB_NAME = "홈";
+/** 보드 위 안내 — 전사·부서 배치가 사용자에게 보이는 방식(위젯 고정 탭 설계 §5). */
+export function layoutHelpText(maxDefaultTabs: number = MAX_DEFAULT_TABS): string {
+  return `전사 배치(홈·탭)는 모든 사용자에게, 부서 배치는 그 부서와 하위 부서 사용자에게 고정 탭으로 보입니다. 사용자는 고칠 수 없고, 저장하면 다음 조회부터 바로 반영됩니다. (+) 로 더한 탭은 키마다 최대 ${maxDefaultTabs}개입니다.`;
+}
+
+/**
+ * 키의 「홈」 탭 표시 이름 — 전사(*)는 기본 「홈」(undefined), 부서는 부서명(그 부서의 대표 탭이다).
+ * 위 부서·전사 배치를 물려받지 않으므로(부서 키는 빈 배치에서 시작) 이름으로 구분한다.
+ */
+export function homeTabNameOf(layoutKey: string, rows: readonly LayoutListRow[]): string | undefined {
+  return layoutKey === COMPANY_LAYOUT_KEY ? undefined : layoutDisplayName(layoutKey, rows);
+}
+
 /** 키당 기본 탭 한도(shared MAX_DEFAULT_TABS 와 같은 값 — 이 파일은 shared 런타임을 쓰지 않는다). */
 export const MAX_DEFAULT_TABS = 5;
 
@@ -56,14 +70,14 @@ const deptName = (layoutKey: string, deptNm: string | null | undefined) => deptN
 /** 기본 탭이 있으면 「 · 기본 탭 n개」. */
 const tabsSuffix = (tabCount: number) => (tabCount > 0 ? ` · 기본 탭 ${tabCount}개` : "");
 
-// 기본 탭만 있는 키는 행이 있어도(saved) 「홈」 위젯이 0개다 — 홈은 코드 기본값(전사)·물려받은 배치(부서)를 쓴다.
+// 기본 탭만 있는 키는 행이 있어도(saved) 「홈」 위젯이 0개다 — 전사 홈은 코드 기본값을 쓰고, 부서는 대표 탭이 없다(부서 배치를 물려받지 않는다).
 function companyLabel(saved: boolean, count: number, tabCount = 0): string {
   return `${COMPANY_LAYOUT_NAME}(${COMPANY_LAYOUT_KEY}) · ${saved && count > 0 ? `${count}개` : "코드 기본값 사용 중"}${tabsSuffix(tabCount)}`;
 }
 
 function deptLabel(layoutKey: string, deptNm: string, saved: boolean, count: number, tabCount = 0): string {
   const name = deptNm === layoutKey ? layoutKey : `${deptNm}(${layoutKey})`;
-  return `${name} · ${!saved ? "저장 전" : count > 0 ? `${count}개` : "홈 물려받음"}${tabsSuffix(tabCount)}`;
+  return `${name} · ${!saved ? "저장 전" : count > 0 ? `${count}개` : "대표 탭 없음"}${tabsSuffix(tabCount)}`;
 }
 
 /**
@@ -147,19 +161,13 @@ export function boardTitle(layoutKey: string, rows: readonly LayoutListRow[]): s
   return `${layoutDisplayName(layoutKey, rows)} 기본 배치`;
 }
 
-/** 물려받은 배치를 보고 있을 때의 안내(스펙 §10.2). 자기 배치이거나 아무것도 없으면 null. */
-export function inheritNotice(layoutKey: string, sourceKey: string | null, rows: readonly LayoutListRow[]): string | null {
-  if (!sourceKey || sourceKey === layoutKey) return null;
-  return `${layoutDisplayName(sourceKey, rows)} 배치를 물려받아 보이는 중입니다. 저장하면 이 부서 배치가 생깁니다`;
-}
-
 /** [기본 배치 지우기] 확인 문구 — 지우면 어떤 배치가 적용되는지(스펙 §4.2 적용 순서). */
 export function deleteConfirmMessage(layoutKey: string, rows: readonly LayoutListRow[]): string {
   const name = boardTitle(layoutKey, rows);
   const base =
     layoutKey === COMPANY_LAYOUT_KEY
       ? `${name}를 삭제하시겠습니까? 삭제하면 코드 기본값이 적용됩니다.`
-      : `${name}를 삭제하시겠습니까? 삭제하면 상위 부서 또는 전사 배치가 적용됩니다.`;
+      : `${name}를 삭제하시겠습니까? 삭제하면 이 부서의 고정 탭이 사용자에게서 사라집니다.`;
   // deleteLayout 은 그 키의 기본 탭도 함께 지운다(widget-tabs 설계 §3.2).
   const tabCount = rows.find((r) => r.layoutKey === layoutKey)?.tabCount ?? 0;
   return tabCount > 0 ? `${base} 이 배치의 기본 탭 ${tabCount}개도 함께 지워집니다.` : base;

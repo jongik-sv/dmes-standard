@@ -4,7 +4,8 @@
  * 포털 홈(mcm:home) — 인사말·긴급 공지 띠 + 사용자 위젯 탭(WidgetWorkspace).
  * 위젯은 widgets/home/* (등록부 코드 생성), 배치는 사용자별 서버 저장(secWidget). 스펙 2026-10-02-widget-foundation.
  * 실행 시 등록부 = 코드 등록부 + 유형 등록부 + widgetDef/list 의 DB 정의·덮어쓰기 행(shared mergeWidgetRegistry),
- * 「홈」 기본 배치 = 응답의 부서·전사 기본 배치, 없으면 코드 상수. 스펙 2026-10-02-widget-admin-generic §11.
+ * 「홈」 = 응답의 전사 기본 배치(없으면 코드 상수)로 늘 그리는 관리자 고정 탭(fixedHome), 부서 배치·기본 탭은 서버가 고정 탭으로 준다.
+ * 스펙 2026-10-02-widget-admin-generic §11, 2026-10-07-widget-fixed-tabs-design §5.
  * KPI·차트·표·알림은 sample-data.ts 의 샘플이다(인사말 줄에 표시).
  * [PDF](작업 공간 도구 줄)는 홈 뿌리 .mcm-home 전체(인사말·공지 띠·탭 줄·보드)를 한 장짜리 PDF 로 인쇄한다.
  */
@@ -168,6 +169,7 @@ export default function PortalHomePage(_props: PageProps) {
           registry={registry}
           homeDefault={homeDefault}
           store={secWidgetStore}
+          fixedHome
           userId={user?.id ?? null}
           testId="home-widgets"
           registryStatus={defsState.status}
