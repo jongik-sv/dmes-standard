@@ -22,8 +22,8 @@ import { gridRowById, gridRows } from "./support/grid";
  *   M7 동시 수정 충돌: 다른 세션이 먼저 저장(auditVer 증가) → 화면 저장이 MDM001 모달 → 닫으면 다시 불러온다.
  *
  * 선점·해제·넘기기 버튼은 누르지 않고 활성 여부도 단언하지 않는다 — 권한 시드는 TSK-08-02 몫이라(D-075) 머지 전에는
- * 비활성이고 뒤에는 활성이다. 담당자(e2e_mdm_steward)로 돈다. 전제는 design.md §9(mcm.db·mdm.db,
- * e2e/fixtures/mdm-rbac-users.sql). SUFFIX 로 ID 를 만들어 재실행·스위트 순서에 무관하다.
+ * 비활성이고 뒤에는 활성이다. 담당자(e2e_mdm_steward)로 돈다. 전제는 design.md §9(mcm·mdm 이 보는 Oracle PDB,
+ * mdm-00-fixtures.spec.ts 가 넣는 e2e/fixtures/mdm-rbac-users.sql). SUFFIX 로 ID 를 만들어 재실행·스위트 순서에 무관하다.
  * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다.
  */
 

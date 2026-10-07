@@ -10,9 +10,9 @@ import { loadMdmFixture } from "./support/mdm-e2e";
  * 스모크 넷: M1 메뉴 이동, M2 목록(서버 데이터)·빈 상태, M3 등록 한 번(룰 세트 편집 탭이 그 세트로 열리고 목록에 반영), M4 서버 오류.
  * 고유: M5 세트 ID 물리명 규칙(즉시 안내·저장 비활성), M6 권한(READ 는 등록 비활성).
  *
- * 전제(design.md 「E2E 서버 절차」): 새 mcm.db·mdm.db 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고,
- * mcm 기동 뒤 e2e/fixtures/mdm-rbac-users.sql, beforeAll 이 e2e/fixtures/mdm-ruleSet-data.sql 을 넣는다.
- * 세트를 만들므로 같은 mdm.db 로 다시 돌릴 수 없다(새 DB 로 시작). 등록 시나리오는 SYSADMIN 이 아니라 담당자로 로그인한다.
+ * 전제(design.md 「E2E 서버 절차」): 새 PDB(시험 PDB 복제본)로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고,
+ * mcm 기동 뒤 mdm-00-fixtures.spec.ts 가 e2e/fixtures/mdm-rbac-users.sql 을, beforeAll 이 e2e/fixtures/mdm-ruleSet-data.sql 을 넣는다.
+ * 세트를 만들므로 같은 PDB 로 다시 돌릴 수 없다(새 PDB 로 시작). 등록 시나리오는 SYSADMIN 이 아니라 담당자로 로그인한다.
  * 목록 단언은 세트 키워드 `E2S_` 로 좁혀 다른 픽스처의 세트가 섞여도 흔들리지 않게 한다.
  */
 

@@ -17,7 +17,7 @@ import { LOGIN_USER, T, login, taskScreenshotPath } from "./support/common";
  *
  * 서버는 수동 기동(playwright.config.ts 가 서버를 띄우지 않음). be-run.sh·fe-run.sh 는 쓰지 않는다 —
  * 다른 체크아웃의 서버까지 정리한다(dev-discipline 「서버 프로세스」). 빈 포트로 직접 띄운다:
- *   - 워크트리에 src/backend/data/ 를 먼저 만든다(없으면 mcm 이 메인 체크아웃의 mcm.db 를 잡는다).
+ *   - mcm 이 내 레인의 Oracle PDB 를 보게 DMES_ORA_URL(또는 DMES_ORA_PDB)을 준다(안 주면 다른 PDB 를 잡을 수 있다).
  *   - mcm 백엔드: cd src/backend/mcm && ../gradlew :api:bootRun --no-daemon
  *       --args='--spring.profiles.active=local --server.port=<BE 포트>'
  *   - 포털: pnpm --filter @dk-oasis/m-mdm build 뒤 m-mcm 에서
