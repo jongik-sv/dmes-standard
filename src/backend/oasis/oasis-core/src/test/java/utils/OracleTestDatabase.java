@@ -54,6 +54,8 @@ public final class OracleTestDatabase {
      * @return 시험 PDB 접속 DataSource
      */
     public static DataSource create(String... classpathScripts) {
+        // 이전 시험이 남긴 연결의 미완료 트랜잭션(행 잠금)을 먼저 정리한다. 각 시험은 설정 단계에서 한 번만 create 를 부른다.
+        closeOpenedConnections();
         DriverManagerDataSource dataSource = newDataSource();
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(true);
@@ -82,6 +84,8 @@ public final class OracleTestDatabase {
      * @param tableNames 지울 표 이름
      */
     public static void dropTables(DataSource dataSource, String... tableNames) {
+        // 시험이 쥔 연결의 미완료 트랜잭션이 행 잠금을 잡고 있으면 DROP 이 끝없이 기다리므로 먼저 되돌려 닫는다.
+        closeOpenedConnections();
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(true);
             for (String tableName : tableNames) {
@@ -99,6 +103,10 @@ public final class OracleTestDatabase {
     static void closeOpenedConnections() {
         for (Connection connection : new ArrayList<>(OPENED)) {
             try {
+                // Oracle 은 닫을 때 끝나지 않은 트랜잭션을 커밋하므로 먼저 되돌린다(시험이 남긴 행 잠금도 풀린다).
+                if (!connection.isClosed() && !connection.getAutoCommit()) {
+                    connection.rollback();
+                }
                 connection.close();
             } catch (SQLException ignored) {
                 // 이미 닫힌 연결
@@ -147,6 +155,10 @@ public final class OracleTestDatabase {
 
     /** 접속 사용자 스키마(user_tables)에 있는 표만 지운다. */
     private static void dropIfExists(Connection connection, String tableName) throws SQLException {
+        try (Statement alter = connection.createStatement()) {
+            // 다른 세션이 잠금을 쥐고 있어도 끝없이 기다리지 않고 ORA-00054 로 실패하게 한다.
+            alter.execute("ALTER SESSION SET ddl_lock_timeout = 10");
+        }
         boolean quoted = tableName.startsWith("\"") && tableName.endsWith("\"") && tableName.length() > 1;
         String dictionaryName = quoted
                 ? tableName.substring(1, tableName.length() - 1)
