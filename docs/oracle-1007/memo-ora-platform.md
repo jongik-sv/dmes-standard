@@ -73,6 +73,6 @@ hub 의 `if` 데이터소스 접속 사용자는 EAIUSER 이고, IF_* 표는 IFU
 ## 남은 순서 (다음 단계)
 
 1. **p5**: oasis 시험 3차 실행(위 명령). 실패가 남으면 실패 사다리(sonnet/medium → sonnet/high → opus/high)로 한 건씩 원인 확인. 통과하면 p5 완료.
-2. **p3 기동 확인**: mls·mpp·mqc·mpn 이 시험 PDB 에서 Flyway V1 적용 후 부팅하는지(각 모듈 `:api:test` 또는 `MlsTestDb` 상속 시험 중 하나), hub 앱 부팅(local 프로파일, Flyway 두 개·mst·if 풀) 확인. Oracle 단계는 PC 에서 한 번에 하나(heavy.sh), 하니스 `-Pdmes.ora.test=clone`.
+2. ~~**p3 기동 확인**~~ **완료(10-07 20시대)**: mls·mpp·mqc·mpn·caravan-hub 가 시험 PDB(T_ORA_PLATFORM)에서 각자 Flyway V1 을 적용하고 기동해 `/actuator/health` UP(포트 18092·18094·18093·18095·18200, 끝나면 PDB drop). hub 는 localKafka(9092)를 함께 띄워 확인. 이 과정에서 hub 의 Flyway 빈이 Kafka 부트스트랩보다 늦게 만들어지는 순서 결함을 찾아 `HubFlywayConfig` 의 BeanFactoryPostProcessor 로 EMF·MyBatis 세션 팩터리보다 먼저 돌게 고침(ee380f81c). 확인 도구는 scratchpad 스크립트(classpath.txt + java 직접 기동)이며 `be-run.sh --build-only` 로 classpath 를 만든다.
 3. **p4**(머지②·③ 뒤): cactus-core SQLite 코드 제거(archive 이동 후 빌드에서 제외), 시험 전환, `DmomMapper.xml` NEXTVAL. 이어서 **p6** 전체 시험 1회(heavy.sh) → 머지 요청(④: 세션 이름 `ora-platform` / 원본 `feat/ora-platform` / 대상 dev, 겹칠 수 있는 파일: 각 모듈 `lib/build.gradle`·`application*.yml`, oasis 시험 전체, caravan-hub).
 - 조정 세션: dmes-standard-d8. push 하지 않는다. 머지는 「머지 허가」 뒤에만.
