@@ -159,7 +159,7 @@ WidgetWorkspaceProps
 
 WidgetBoardProps: `items`·`registry`·`editing`·`tabLocked`(필수), `onChange(items)`(필수), `onWideChange?(wide)`(안정된 함수를 넘긴다 — effect 의존성에 들어간다), `cols?: 24 | 12 | 1`(칸 수를 바깥에서 정함, 없으면 보드 자기 폭으로 판정), `width?`(고정 폭), `testId?`, `preview?: { meta, x, y, w, h } | null`(놓일 자리를 미리 보이는 static 스켈레톤 항목 `__preview__`. 편집할 수 있을 때만 그리고 `onChange` 배치에는 섞이지 않는다).
 
-WidgetFrameProps: `item`·`entry`(`undefined` 면 「없는 위젯」 칸, `entry.meta.disabled` 면 사용 중지 칸)·`editing`·`onToggleLock`·`onRemove`(필수), `sizeLabel?`·`onKeyMove?`. 제목 줄(제목·부제·새로 고침·화면 열기·잠금·빼기), 로딩 틀, 오류 경계를 그린다. 관리 화면 미리보기처럼 보드 밖에서 단독으로 그려도 된다.
+WidgetFrameProps: `item`·`entry`(`undefined` 면 「없는 위젯」 칸, `entry.meta.disabled` 면 사용 중지 칸)·`editing`·`onToggleLock`·`onRemove`(필수), `sizeLabel?`·`onKeyMove?`. 제목 줄(제목·부제·새로 고침·화면 열기·잠금·빼기), 로딩 틀, 오류 경계를 그린다. 관리 화면 미리보기처럼 보드 밖에서 단독으로 그려도 된다. 위젯 본문 전체는 `LayoutContextBoundary`([content-body](content-body.md))로 감싸져 있어, 바깥 resizable ContentBody 패널 안에서 그려져도 위젯 안 ContentBody 는 바깥 레이아웃 규격을 받지 않는다.
 
 WidgetTabsProps: `tabs`·`activeTabId`·`editing`·`renamingTabId`·`onSelect`·`onAdd`·`onRenameStart`·`onRenameCommit`(오류 문구를 돌려주면 입력 칸 유지)·`onRenameCancel`·`onToggleLock`·`onMove`·`onDelete`·`onResetHome`, 선택 `menuDisabled`(⋯ 메뉴와 (+) 모두 막음)·`addDisabled`(⋯ 는 두고 (+) 만 막음)·`addTitle`((+) 의 title, 막은 이유를 알릴 때)·`trailing`, 그리고 2026-10-05 추가 `mode`(`"admin"` 이면 잠그기·홈 되돌리기 숨김)·`maxTabs`(기본 10)·`onResetTab`·`onShare`·`onExport`·`onImport(file)`·`importDisabled`·`importTitle` — 핸들러가 없으면 그 항목·단추를 그리지 않는다.
 

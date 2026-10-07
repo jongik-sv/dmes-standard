@@ -17,11 +17,12 @@ export const HOME_CSS = `
 
 /* 공지 위젯 — 본문 높이 채우기. 위젯 본문 → div(height:100%) 백분율 사슬과 .page-layout 전용 ContentBody 규칙에 기대지 않고,
    위젯 본문(cm-widget__body)을 기준으로 가득 펼친 뒤 ContentBody·ContentPanel 을 직접 flex 로 채운다(Local-Rules §42).
-   위젯 관리 미리보기처럼 resizable ContentBody 패널 안에서 그려지면 부모 context 가 위젯 틀을 넘어 내려와 이 ContentBody 에
-   인라인 flex(바깥 패널 비율)·min-width 가 붙으므로, flex·min-width 는 !important 로 고정한다. */
+   위젯 틀(WidgetFrame)이 레이아웃 context 를 끊으므로 위젯 관리 미리보기처럼 바깥 resizable 패널 안에서도 이 ContentBody 는
+   최상위처럼 동작한다(강제 우선순위 불필요). 좁은 폭에서는 NoticeCard 가 content-body--column 으로 목록·본문을 위아래로 쌓는다. */
 .cm-widget__body:has(.mcm-home-notice) { position: relative; overflow: hidden; }
 .mcm-home-notice { position: absolute; inset: 0; display: flex; flex-direction: column; min-height: 0; box-sizing: border-box; }
-.mcm-home-notice.mcm-home-notice > .content-body.content-body { flex: 1 1 0 !important; min-width: 0 !important; display: flex; flex-direction: row; gap: var(--spacing-sm); min-height: 0; height: auto; overflow: hidden; box-sizing: border-box; padding: 0 10px 8px; }
+.mcm-home-notice.mcm-home-notice > .content-body.content-body { flex: 1 1 0; min-width: 0; display: flex; flex-direction: row; gap: var(--spacing-sm); min-height: 0; height: auto; overflow: hidden; box-sizing: border-box; padding: 0 10px 8px; }
+.mcm-home-notice.mcm-home-notice > .content-body.content-body.content-body--column { flex-direction: column; }
 .mcm-home-notice .content-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: auto; align-self: stretch; overflow: hidden; background-color: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm); box-shadow: none; }
 .mcm-home-scroll { flex: 1 1 0; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
 .mcm-home-nlist { list-style: none; margin: 0; padding: 0; }
