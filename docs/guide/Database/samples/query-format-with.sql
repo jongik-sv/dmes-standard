@@ -81,9 +81,10 @@ SELECT A.PROC_CD
 FROM   TB_M47_PRD_ACT_CMN A
 WHERE  A.PDN_PST_DD BETWEEN :fromDd AND :toDd;
 
--- 6) 스칼라 서브쿼리: 한 줄로 끝나는 짧은 서브쿼리는 한 줄로 써도 된다
+-- 6) 짧은 서브쿼리: 들여쓰기 포함 그 줄이 120자 안이면 EXISTS·IN·스칼라 모두 한 줄로 써도 된다
 SELECT A.PROC_CD
      , A.PROC_NM
      , (SELECT MAX(B.PDN_PST_DD) FROM TB_M47_PRD_ACT_CMN B WHERE B.PROC_CD = A.PROC_CD) LAST_DD
 FROM   TB_M47_PROC A
-WHERE  A.USE_YN = 'Y';
+WHERE  A.USE_YN = 'Y'
+AND    EXISTS (SELECT 1 FROM TB_M47_LINE C WHERE C.PROC_CD = A.PROC_CD);
