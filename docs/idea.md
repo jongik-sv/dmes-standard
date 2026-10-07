@@ -140,3 +140,12 @@
 - analog 로그에서 조회 호출 빼기 — BPMN 호출의 약 95% 가 조회이고 호출당 약 16줄이라(10-07 mcm 로그 2,108회·33,729줄, Hibernate SQL DEBUG 9,064줄 별도) 업무 처리 로그가 묻힌다.
   - 방안: A 조회를 MDC(rw=R)로 표시해 별도 파일 · B DEBUG 로 낮추기 · C 조회는 요약 한 줄만 · D analog 화면 필터.
   - 추천: A+C. 조회 판정은 이름 규칙(search·select 등)과 BPMN 의 읽기 전용 표시를 함께 쓴다.
+### 개발 도구 (2026-10-07)
+
+- 로컬 Oracle 데이터 보기를 MCM 웹페이지(SQL 콘솔)로 — DbGate(Electron, 연결 1개에 약 350~600MB 추정)·SQL Developer·SQLcl(JVM)은 16GB PC 에 무겁다. 포털(5100)·MCM 백엔드는 늘 떠 있어 추가 메모리가 거의 없다.
+  - 1단계 범위(안): 테이블 목록(`USER_TABLES`) · 컬럼 정보(`USER_TAB_COLUMNS`, MDM 컬럼 사전 한글명 함께) · SQL 입력 + 결과 그리드(shared `AgDataGrid`, 정렬·필터·엑셀).
+  - 보안 경계(필수): 임의 SQL 실행은 그 자체로 주입 기능이다. `local`·`dev` 프로필에서만 컨트롤러 빈을 등록(운영 빌드에는 빈이 생기지 않게), 관리자 권한 확인, 읽기 전용 트랜잭션 + `SELECT`·`WITH` 만 허용, 행 수 상한(예: 1,000)·쿼리 시간 제한.
+  - DB 연결: 로컬 DB 의 Oracle 23ai Free 전환(podman 컨테이너 `oracle-26ai-free`, `localhost:1521/FREEPDB1`)에 맞춰 Oracle 데이터소스를 쓰거나 콘솔 전용 접속을 둔다. SQLite 도 같은 화면에서 볼지 결정한다.
+  - 현황: 리포에 SQL 콘솔 기능은 없다(`caravan-console` 은 메시지 허브 관리 콘솔).
+  - 대안(당장 필요할 때): 터미널 `usql`(Go 단일 실행 파일, 순수 Go Oracle 드라이버라 클라이언트 불필요) 또는 SQLPro for Oracle(네이티브, 무료판+유료 기능).
+  - 결정 대기: 보안 범위, DB 연결 방식, 1단계 범위. 정해지면 브레인스토밍 → 레인.
