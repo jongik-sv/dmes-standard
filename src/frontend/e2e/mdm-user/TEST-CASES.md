@@ -60,7 +60,7 @@ pnpm test:e2e:mdm-user --project=dmc    # 한 그룹만(setup 이 먼저 돈다)
 | L5 | 버튼·입력 높이 26px(UI-Visual-Standard §4). 화면 머리 버튼은 공통 결함이라 `shared-layout` 주석으로만 남김 |
 | L6 | 요소가 탭 영역 밖으로 삐져나가지 않음 |
 | L7 | 보이는 버튼을 다른 요소가 덮지 않음(누를 수 있음) |
-| `assertAllButtonsPressed` | 화면의 활성 버튼 중 누르지 않은 것이 없음(예외는 이유와 함께 allow) |
+| `assertAllButtonsPressed` | 화면의 활성 버튼 중 누르지 않은 것이 없음(예외는 이유와 함께 allow). shared 개인화 메뉴 `search-settings-menu`·`grid-settings-menu` 는 공통 허용(`COMMON_ALLOW`) |
 | `Watcher` | 콘솔 오류·페이지 예외·5xx 없음. window.confirm 은 "확인"으로 수락(취소 시험은 `dismissNextDialog`) |
 
 ## 테스트 케이스 (2026-10-04 새 DB 최종 실행: 217건 모두 통과 — 실패 0 · 미실행 0 · 건너뜀 0)
