@@ -38,9 +38,11 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
     static final String SHARED_LOCK_PID = 'dmes.ora.harness.lockpid'
     static final String SHARED_KEY = 'dmes.ora.harness.key'         // mode|template|pdb — 주인과 다른 설정을 쓰는 서비스를 가려낸다
     static final String SHARED_FAILED = 'dmes.ora.harness.failed'   // 이번 빌드에서 준비가 한 번 실패했다는 표시(같은 빌드의 다음 시도는 곧바로 실패)
+    static final String TURN_OWNER = 'dmes.ora.harness.turn'        // 지금 Oracle 시험 차례를 쥔 test 태스크(키). 없으면 비어 있다
     /** JVM 하나에 하나인 감시 대상(intern 된 문자열은 클래스로더와 무관하게 같은 객체다). */
     static final Object JVM_MONITOR = 'dmes.ora.harness.monitor'.intern()
 
+    final Set<String> turnsHeld = new LinkedHashSet<>()   // 이 서비스가 건 차례(close 가 못 푼 것을 푼다)
     String pdbName
     boolean cloned = false
     boolean ownsLock = false
@@ -260,6 +262,46 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
         }
     }
 
+    /**
+     * Oracle 을 쓰는 test 태스크의 차례를 받는다. 같은 빌드(같은 JVM)의 모듈들은 시험 PDB 를 공유하므로 한 번에 한 태스크만 돌려야 한다:
+     * 모듈 시험 틀이 클래스 시작 때 스키마를 Flyway clean 하면 다른 모듈이 쓰던 표가 사라진다(2026-10-07 mcm-core·mcm 을 한 빌드에 묶었을 때
+     * oracheck 21건 ORA-00942). --parallel 이어도 included build 사이에 같은 차례를 쓴다. 같은 키로 다시 부르면 그대로 통과한다.
+     * 순서는 늘 차례 → PC 잠금 → 시험 슬롯이다(차례를 쥔 쪽만 잠금·슬롯으로 가므로 서로 기다리며 멈추지 않는다).
+     */
+    void acquireTurn(String key, long waitMs) {
+        long deadline = System.currentTimeMillis() + waitMs
+        boolean announced = false
+        synchronized (JVM_MONITOR) {
+            while (true) {
+                String cur = System.getProperty(TURN_OWNER)
+                if (cur == null || cur == key) break
+                if (!announced) {
+                    System.err.println("[dmes-ora] 같은 빌드의 다른 Oracle 시험이 끝나기를 기다린다: ${key}\n  쥔 쪽: ${cur}")
+                    announced = true
+                }
+                long left = deadline - System.currentTimeMillis()
+                if (left <= 0) {
+                    throw new org.gradle.api.GradleException("Oracle 시험 차례를 ${waitMs / 1000}초 기다려도 받지 못했다(쥔 쪽: ${cur}). 같은 스키마를 쓰는 모듈은 따로 돌린다.")
+                }
+                JVM_MONITOR.wait(Math.min(left, 5000L))
+            }
+            System.setProperty(TURN_OWNER, key)
+        }
+        synchronized (turnsHeld) { turnsHeld.add(key) }
+        if (announced) System.err.println("[dmes-ora] 시험 차례를 받았다: ${key}")
+    }
+
+    /** 차례를 놓는다. 쥐고 있지 않으면 아무것도 하지 않는다(여러 번 불러도 안전). 다른 서비스 인스턴스가 불러도 된다. */
+    void releaseTurn(String key) {
+        synchronized (turnsHeld) { turnsHeld.remove(key) }
+        synchronized (JVM_MONITOR) {
+            if (key == System.getProperty(TURN_OWNER)) {
+                System.clearProperty(TURN_OWNER)
+                JVM_MONITOR.notifyAll()
+            }
+        }
+    }
+
     @Override
     void close() {
         // 빌드 종료(성공·실패·취소)에서 불린다. 모든 시험 태스크가 끝난 뒤에 불린다고 본다(합성 빌드로 확인: tests/run.sh).
@@ -268,6 +310,9 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
         synchronized (JVM_MONITOR) {
             System.clearProperty(SHARED_FAILED)
         }
+        List<String> turns
+        synchronized (turnsHeld) { turns = new ArrayList<>(turnsHeld) }
+        turns.each { releaseTurn(it) }
         if (!ownsLock) return
         try {
             System.clearProperty(SHARED_PDB)
