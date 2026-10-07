@@ -17,6 +17,7 @@ import {
   NOTICE_FORMAT_LABEL,
   NOTICE_LOAD_ERROR,
   NOTICE_MGMT_PAGE_ID,
+  NOTICE_NARROW_HYSTERESIS,
   NOTICE_NARROW_WIDTH,
   NOTICE_SPLIT_STORAGE_KEY,
   noticeAuthor,
@@ -130,7 +131,9 @@ export function NoticeCard({
     if (!el) return;
     const measure = () => {
       const w = el.clientWidth;
-      if (w > 0) setNarrow(w < NOTICE_NARROW_WIDTH);
+      if (w <= 0) return;
+      // 경계 근처에서 방향이 오락가락하지 않게 돌아오는 폭에 여유를 둔다.
+      setNarrow((prev) => (w < NOTICE_NARROW_WIDTH ? true : w >= NOTICE_NARROW_WIDTH + NOTICE_NARROW_HYSTERESIS ? false : prev));
     };
     measure();
     if (typeof ResizeObserver === "undefined") return;

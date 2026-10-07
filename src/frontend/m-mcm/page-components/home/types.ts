@@ -62,6 +62,11 @@ export const NOTICE_SPLIT_STORAGE_KEY = "mcm.home.notice";
  * 근거: 가로 분할의 두 판 minSize(목록 200 + 본문 240) = 440 + 좌우 여백 20 + 판 사이 간격·끌기 막대 여유 → 480.
  */
 export const NOTICE_NARROW_WIDTH = 480;
+/**
+ * 세로로 쌓은 뒤 가로로 돌아오는 폭의 여유(px). 경계 폭에서 스크롤바 등으로 폭이 몇 px 흔들릴 때 방향이 오락가락(떨림)하지 않게
+ * 쌓을 때는 NOTICE_NARROW_WIDTH 미만, 돌아올 때는 NOTICE_NARROW_WIDTH + 이 값 이상이어야 한다.
+ */
+export const NOTICE_NARROW_HYSTERESIS = 24;
 
 export function noticeFormat(v: string | null | undefined): NoticeFormat {
   return v === "MD" || v === "HTML" ? v : "TEXT";

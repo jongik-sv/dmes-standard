@@ -40,7 +40,7 @@ vi.mock("@dk-oasis/shared/notice-body-view", async () => {
 });
 
 import { NoticeCard } from "./NoticeCard";
-import { NOTICE_NARROW_WIDTH, NOTICE_SPLIT_STORAGE_KEY, type NoticeDetailState } from "./types";
+import { NOTICE_NARROW_HYSTERESIS, NOTICE_NARROW_WIDTH, NOTICE_SPLIT_STORAGE_KEY, type NoticeDetailState } from "./types";
 
 const rows = [{ NOTICE_ID: "N1", TITLE: "점검 안내", CONTENT_FORMAT: "MD", NOTICE_CATEGORY: "MAINT", PIN_YN: "N", POST_START_DT: null, POST_END_DT: null, C_USR_ID: "u1", C_AT: null }];
 
@@ -179,6 +179,23 @@ describe("NoticeCard 좁은 폭", () => {
     width = NOTICE_NARROW_WIDTH - 1;
     act(() => observers.forEach((cb) => cb()));
     expect(body()?.getAttribute("data-direction")).toBe("column");
+  });
+
+  it("경계 근처에서는 방향이 오락가락하지 않는다(쌓은 뒤 기준 폭 + 여유 이상이어야 가로로 돌아온다)", () => {
+    width = NOTICE_NARROW_WIDTH - 1;
+    render({ status: "ok", content: "x", format: null });
+    expect(body()?.getAttribute("data-direction")).toBe("column");
+    for (const w of [NOTICE_NARROW_WIDTH, NOTICE_NARROW_WIDTH + NOTICE_NARROW_HYSTERESIS - 1]) {
+      width = w;
+      act(() => observers.forEach((cb) => cb()));
+      expect(body()?.getAttribute("data-direction")).toBe("column");
+    }
+    width = NOTICE_NARROW_WIDTH + NOTICE_NARROW_HYSTERESIS;
+    act(() => observers.forEach((cb) => cb()));
+    expect(body()?.getAttribute("data-direction")).toBe("row");
+    width = NOTICE_NARROW_WIDTH;
+    act(() => observers.forEach((cb) => cb()));
+    expect(body()?.getAttribute("data-direction")).toBe("row");
   });
 
   it("폭이 바뀌면 ResizeObserver 알림으로 방향이 따라 바뀐다", () => {
