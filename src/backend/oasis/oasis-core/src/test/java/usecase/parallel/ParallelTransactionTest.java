@@ -15,9 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+import utils.OracleTestDatabase;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import javax.sql.DataSource;
@@ -36,7 +34,7 @@ import static com.dongkuk.oasis.BpmnServiceLoaderForTest.getServiceStarter;
  */
 @SuppressWarnings("SqlResolve")
 public class ParallelTransactionTest {
-    EmbeddedDatabase database;
+    DataSource database;
     DataSource dataSource1;
     SpringTransactionHandler transactionHandler;
     DefaultApplicationContext applicationContext;
@@ -61,16 +59,8 @@ public class ParallelTransactionTest {
         applicationContext.put("txm", new TypedObject(transactionHandler));
     }
 
-    private EmbeddedDatabase database() {
-        EmbeddedDatabase dataSource;
-        dataSource = new EmbeddedDatabaseBuilder()
-                .generateUniqueName(true)
-                .setType(EmbeddedDatabaseType.H2)
-                .setScriptEncoding("UTF-8")
-                .ignoreFailedDrops(true)
-                .addScript("usecase/parallel/initData.sql")
-                .build();
-        return dataSource;
+    private DataSource database() {
+        return OracleTestDatabase.create("usecase/parallel/initData.sql");
     }
 
     private SpringTransactionHandler transactionHandler(TransactionManagerInfoHolder... transactionManagerInfoHolders) {

@@ -13,9 +13,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+import utils.OracleTestDatabase;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import javax.sql.DataSource;
@@ -31,7 +29,7 @@ import java.util.Map;
 @Execution(ExecutionMode.SAME_THREAD)
 @SuppressFBWarnings("URF_UNREAD_FIELD")
 class CustomCommitForSpringTransactionHandlerTest {
-    EmbeddedDatabase database;
+    DataSource database;
     DataSource dataSource1;
     DataSource dataSource2;
     DataSource dataSource3;
@@ -58,16 +56,8 @@ class CustomCommitForSpringTransactionHandlerTest {
         jdbcTemplate3 = new JdbcTemplate(dataSource3);
     }
 
-    private EmbeddedDatabase database() {
-        EmbeddedDatabase dataSource;
-        dataSource = new EmbeddedDatabaseBuilder()
-                .generateUniqueName(true)
-                .setType(EmbeddedDatabaseType.H2)
-                .setScriptEncoding("UTF-8")
-                .ignoreFailedDrops(true)
-                .addScript("transaction/CustomCommitForSpringTransactionHandlerTest/schema.sql")
-                .build();
-        return dataSource;
+    private DataSource database() {
+        return OracleTestDatabase.create("transaction/CustomCommitForSpringTransactionHandlerTest/schema.sql");
     }
 
     private SpringTransactionHandler transactionHandler(TransactionManagerInfoHolder... transactionManagerInfoHolders) {
@@ -126,6 +116,6 @@ class CustomCommitForSpringTransactionHandlerTest {
 
     @AfterEach
     void cleanup() {
-        database.shutdown();
+        OracleTestDatabase.dropTables(database, "Employee", "AccessLog", "Message");
     }
 }

@@ -5,9 +5,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+import utils.OracleTestDatabase;
+
+import javax.sql.DataSource;
 
 /**
  * @author Jeongjin Kim
@@ -15,17 +15,11 @@ import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
  */
 @SuppressWarnings("SqlResolve")
 class EmbeddedDatabaseRunTest {
-    private EmbeddedDatabase dataSource;
+    private DataSource dataSource;
 
     @BeforeEach
     void createDataSource() {
-        dataSource = new EmbeddedDatabaseBuilder()
-                .generateUniqueName(true)
-                .setType(EmbeddedDatabaseType.H2)
-                .setScriptEncoding("UTF-8")
-                .ignoreFailedDrops(true)
-                .addScript("transaction/EmbeddedDatabaseRunTest/schema.sql")
-                .build();
+        dataSource = OracleTestDatabase.create("transaction/EmbeddedDatabaseRunTest/schema.sql");
     }
 
     @Test
@@ -39,7 +33,7 @@ class EmbeddedDatabaseRunTest {
 
     @AfterEach
     void closeDatabase() {
-        dataSource.shutdown();
+        OracleTestDatabase.dropTables(dataSource, "Employee");
     }
 
 }

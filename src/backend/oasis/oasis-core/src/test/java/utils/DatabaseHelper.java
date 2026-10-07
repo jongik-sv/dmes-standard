@@ -6,9 +6,6 @@ import com.dongkuk.oasis.transaction.SpringTransactionHandler;
 import com.dongkuk.oasis.transaction.TransactionManagerInfoHolder;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
 
@@ -21,13 +18,7 @@ public final class DatabaseHelper {
                                                                        String transactionManagerName,
                                                                        DefaultApplicationContext applicationContext)
             throws SQLException {
-        EmbeddedDatabase database = new EmbeddedDatabaseBuilder()
-                .generateUniqueName(true)
-                .setType(EmbeddedDatabaseType.H2)
-                .setScriptEncoding("UTF-8")
-                .ignoreFailedDrops(true)
-                .addScript(initScriptPath)
-                .build();
+        DataSource database = OracleTestDatabase.create(initScriptPath);
         DataSource dataSource = new SingleConnectionDataSource(database.getConnection(), true);
         TransactionManagerInfoHolder[] transactionManagerInfoHolders
                 = {

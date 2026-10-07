@@ -106,7 +106,9 @@ dependencies {
     testImplementation "org.springframework.data:spring-data-jpa:${rootProject.springDataJpa}"
     testImplementation "com.zaxxer:HikariCP:${rootProject.hikari}"
 
-    testImplementation "com.h2database:h2:2.3.232"
+    // 시험 DB 는 Oracle(OracleTestDatabase 가 -Ddmes.ora.url 로 접속). 이 모듈은 단독(oasis 서브트리)으로도 빌드되고
+    // 버전 카탈로그·Spring Boot BOM 이 없어 libs.ojdbc11(버전 없음) 대신 버전을 직접 적는다(카탈로그 BOM 의 ojdbc11 과 같은 계열).
+    testRuntimeOnly "com.oracle.database.jdbc:ojdbc11:23.9.0.25.07"
     testImplementation "org.hibernate.orm:hibernate-core:${rootProject.hibernate}"
     testImplementation "jakarta.xml.bind:jakarta.xml.bind-api:4.0.2"
     testImplementation "org.mybatis:mybatis-spring:${rootProject.mybatisSpring}"

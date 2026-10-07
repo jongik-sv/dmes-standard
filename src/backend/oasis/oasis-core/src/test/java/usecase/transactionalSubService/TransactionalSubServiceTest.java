@@ -28,13 +28,12 @@ import org.mybatis.spring.SqlSessionTemplate;
 import org.slf4j.MDC;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.transaction.PlatformTransactionManager;
+
+import utils.OracleTestDatabase;
 
 import jakarta.persistence.EntityManagerFactory;
 import javax.sql.DataSource;
@@ -56,7 +55,7 @@ import static com.dongkuk.oasis.BpmnServiceLoaderForTest.getServiceStarter;
 public class TransactionalSubServiceTest {
     private static final String MYBATIS_CONFIG = "usecase/transactionalSubService/mybatis-config.xml";
     private static final String MYBATIS_MAPPER = "usecase/transactionalSubService/mappers/**/*.xml";
-    EmbeddedDatabase database;
+    DataSource database;
     DataSource dataSource1;
     DataSource dataSource2;
     EntityManagerFactory entityManagerFactory1;
@@ -90,16 +89,8 @@ public class TransactionalSubServiceTest {
         );
     }
 
-    private EmbeddedDatabase database() {
-        EmbeddedDatabase dataSource;
-        dataSource = new EmbeddedDatabaseBuilder()
-                .generateUniqueName(true)
-                .setType(EmbeddedDatabaseType.H2)
-                .setScriptEncoding("UTF-8")
-                .ignoreFailedDrops(true)
-                .addScript("usecase/transactionalSubService/initData.sql")
-                .build();
-        return dataSource;
+    private DataSource database() {
+        return OracleTestDatabase.create("usecase/transactionalSubService/initData.sql");
     }
 
     private EntityManagerFactory entityManagerFactory(DataSource dataSource) {

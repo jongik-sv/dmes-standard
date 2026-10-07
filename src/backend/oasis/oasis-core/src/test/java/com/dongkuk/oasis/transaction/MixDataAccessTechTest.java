@@ -16,9 +16,7 @@ import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+import utils.OracleTestDatabase;
 import org.springframework.orm.jpa.EntityManagerFactoryUtils;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
@@ -40,7 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class MixDataAccessTechTest {
     private final static String MYBATIS_CONFIG = "transaction/MixDataAccessTechTest/mybatis-config.xml";
     private final static String MYBATIS_MAPPER = "transaction/MixDataAccessTechTest/mappers/**/*.xml";
-    EmbeddedDatabase database;
+    DataSource database;
     DataSource dataSource1;
     EntityManagerFactory entityManagerFactory1;
     JdbcTemplate jdbcTemplate1;
@@ -92,16 +90,9 @@ public class MixDataAccessTechTest {
         return new SpringTransactionHandler(applicationContext);
     }
 
-    private EmbeddedDatabase database() {
-        EmbeddedDatabase dataSource;
-        dataSource = new EmbeddedDatabaseBuilder()
-                .generateUniqueName(true)
-                .setType(EmbeddedDatabaseType.H2)
-                .setScriptEncoding("UTF-8")
-                .ignoreFailedDrops(true)
-//                .addScript("transaction/MultipleDataAccessTechSupportTest/schema.sql")
-                .build();
-        return dataSource;
+    private DataSource database() {
+        // 표는 hibernate.hbm2ddl.auto=create 가 만든다(스크립트 없음)
+        return OracleTestDatabase.create();
     }
 
     public SqlSessionTemplate sqlSession(DataSource dataSource) throws IOException {
