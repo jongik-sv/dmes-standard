@@ -2,7 +2,7 @@
 
 [mantine.dev/core/package](https://mantine.dev/core/package/) 의 컴포넌트(설치본 `@mantine/core` 9.6.0 의 117개, `@mantine/dates` 9.6.0)를 MES 화면 관점에서 분류한다. **화면(m-*)은 Mantine 을 직접 import 하지 않는다.** 화면 개발자는 ①표에서 shared 래퍼를 찾아 쓰고, 래퍼가 없으면 ③표를 보고 shared 에 래퍼를 새로 등록한다(Part B §18, 새 컴포넌트는 묻지 않고 진행). 이 표는 shared 를 고치는 개발자가 어떤 Mantine 컴포넌트 위에 래퍼를 만들지 정할 때도 쓴다.
 
-Mantine 문서 조회: `python3 .claude/skills/mantine-aggrid-ui/scripts/mantine_docs.py get <이름>`. 목록은 mantine.dev 최신판 기준이므로, 새로 쓰려는 컴포넌트는 설치본 `node_modules/@mantine/core/lib/components/<이름>` 이 있는지 먼저 확인한다(작성 시점에는 목록 전부가 설치본에 있다).
+Mantine 문서 조회: `node .claude/skills/mantine-aggrid-ui/scripts/mantine_docs.mjs get <이름>`. 목록은 mantine.dev 최신판 기준이므로, 새로 쓰려는 컴포넌트는 설치본 `node_modules/@mantine/core/lib/components/<이름>` 이 있는지 먼저 확인한다(작성 시점에는 목록 전부가 설치본에 있다).
 
 ## ① shared 래퍼가 있다 — 화면은 래퍼를 쓴다
 
@@ -84,7 +84,7 @@ Mantine 이 아닌 shared 공통 요소: `AgDataGrid`·`GridPanel`·`useGridData
 | 배치 | `Grid` `SimpleGrid` `Flex` `Group` `Stack` `Center` `Space` `Box` `AspectRatio` `Container` `Paper` `Card` `Divider` | 화면 배치는 `PageLayout`·`ContentBody`·`ContentPanel`·`GridPanel` 이 정한다 |
 | 글자 | `Text` `Title` `Anchor` `Blockquote` `Code` `Highlight` `Mark` `List` `Typography` `Spoiler` | 화면 글자 모양은 래퍼·토큰이 정한다 |
 | 셸 담당 | `Burger` `NavLink` `Breadcrumbs` `Indicator` `Notification` `Affix` | 포털 셸이 그린다(`PageLayout breadcrumb` 은 문자열) |
-| 대체됨 | `Autocomplete` `Combobox` `ComboboxPopover` `Pill` `PillsInput` `Chip` `NumberFormatter` `DataList` `Collapse` `CloseButton` `ThemeIcon` `LoadingOverlay` `CopyButton` | `ComboBox`·`MultiSelectComboBox`·`utils formatNumber`·`DETAIL_*` 표·래퍼가 대신한다. `Combobox` 원시 API 는 shared 래퍼를 만들 때만(`mantine_docs.py official combobox`) |
+| 대체됨 | `Autocomplete` `Combobox` `ComboboxPopover` `Pill` `PillsInput` `Chip` `NumberFormatter` `DataList` `Collapse` `CloseButton` `ThemeIcon` `LoadingOverlay` `CopyButton` | `ComboBox`·`MultiSelectComboBox`·`utils formatNumber`·`DETAIL_*` 표·래퍼가 대신한다. `Combobox` 원시 API 는 shared 래퍼를 만들 때만(`mantine_docs.mjs official combobox`) |
 | 업무에 불필요 | `Avatar` `Image` `BackgroundImage` `Rating` `Slider` `RangeSlider` `AngleSlider` `AlphaSlider` `HueSlider` `ColorInput` `ColorPicker` `ColorSwatch` `JsonInput` `Marquee` `RollingNumber` `TableOfContents` `Menubar` `OverflowList` `Scroller` `FloatingWindow` `FloatingIndicator` `HoverCard` | 산업용 고밀도 화면에 맞지 않거나 쓸 일이 없다 |
 | 로그인 전용 | `PasswordInput` | `auth-login-form` 만 쓴다 |
 | 내부 원시 | `Portal` `FocusTrap` `Transition` `VisuallyHidden` `Dialog` `Overlay` `InputBase` `ModalBase` `UnstyledButton` | 래퍼 구현용 |

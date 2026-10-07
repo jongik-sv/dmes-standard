@@ -154,6 +154,12 @@ podman ps
   - **관리자 계정:** `SYS` (접속 역할: `SYSDBA`, 비밀번호: `sys_password_123`)
   - **일반 계정:** `dmes_user` (비밀번호: `dmes_password_123`)
 
+### 6.4.1. 레인별 PDB 와 동시 OPEN 상한
+
+레인(워크트리)·자동 시험은 PDB 를 복제해 쓴다. 도구·이름 규칙·운용 규칙은 [`scripts/oracle/README.md`](../../../scripts/oracle/README.md), 스키마 소유표·연결 규약은 [`docs/oracle-1007/schema-owners.md`](../../oracle-1007/schema-owners.md) 에 있다.
+
+* 동시에 열린 PDB 수 상한은 환경 변수 `DMES_ORA_MAX_OPEN`(기본 **3** = FREEPDB1 + 템플릿 1 + 작업 1)으로 정한다. 2GB 머신(§8-5)은 기본값을 그대로 쓰고, 4GB 이상·기본 SGA 인 PC 는 메모리 여유만큼 올린다(예: `export DMES_ORA_MAX_OPEN=5`). 2GB 에서 4개를 열면 인스턴스가 내려간다.
+
 ### 6.5. 컨테이너 정지 및 데이터 리셋
 
 ```bash

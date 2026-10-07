@@ -117,5 +117,5 @@ DMES 전 모듈 화면의 색·글꼴·크기·밀도·셸 배치를 정한다. 
 ## 10. 검증
 
 - 시각 변경 후 before/after 스크린샷을 같은 뷰포트로 찍어 비교한다(설계 스펙 §5 방식).
-- 화면 CSS 의 색 값 직접 사용(§3)은 `mantine_docs.py audit` 가 잡는다([FrontEnd 인덱스 §자동 점검](README.md#자동-점검)).
+- 화면 CSS 의 색 값 직접 사용(§3)은 `mantine_docs.mjs audit` 가 잡는다([FrontEnd 인덱스 §자동 점검](README.md#자동-점검)).
 - 브라우저 기반 e2e 는 사용자 승인 후에만 실행한다([Local-Rules §4](Local-Rules.md)). 작업 종료 시 `pnpm lint`·`pnpm build`·단위 테스트를 실행한다([Local-Rules §2](Local-Rules.md)).

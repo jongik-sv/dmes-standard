@@ -68,6 +68,8 @@ dependencies {
     testImplementation libs.spring.boot.starter.validation
     testImplementation libs.spring.security.test
     testRuntimeOnly libs.sqlite.jdbc
+    testRuntimeOnly libs.ojdbc11
+    testRuntimeOnly libs.flyway.database.oracle
     testRuntimeOnly libs.hibernate.community.dialects.v705
     testRuntimeOnly libs.junit.platform.launcher
 }

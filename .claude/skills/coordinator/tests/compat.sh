@@ -164,7 +164,7 @@ eq "Win: 이미 PATH 에 있으면 두 번 넣지 않는다" "$(PATH="$SBIN:$PAT
 case "$(COMPAT_FORCE_OS=unix run 'echo "${PATH%%:*}"')" in "$SBIN") chk fail "Unix: PATH 를 건드리지 않는다" ;; *) chk ok "Unix: PATH 를 건드리지 않는다" ;; esac
 eq "래퍼: SKILLS_JQ_EXE 의 jq 를 -b 로 실행한다" "$(echo '{"a":[1,2]}' | SKILLS_JQ_EXE="$(command -v jq)" "$SBIN/jq" -c '.a')" "[1,2]"
 eq "래퍼: 실행 파일이 없으면 rc 127" "$(SKILLS_JQ_EXE="$tmp/없는-jq" "$SBIN/jq" . </dev/null >/dev/null 2>&1; echo $?)" 127
-eq "jq.exe 는 줄끝 변환 없이 보존된다(SHA-256)" "$(compat_sha256 < "$SBIN/win64/jq.exe")" 7451fbbf37feffb9bf262bd97c54f0da558c63f0748e64152dd87b0a07b6d6ab
+eq "jq.exe 는 줄끝 변환 없이 보존된다(SHA-256)" "$(compat_sha256 < "$SBIN/win64/jq.exe")" a6fc67fedaf9128a3309a1e2ebb8b986aeccf70122ee46d2cb4849e423f0c627
 
 # ---- 경로 정규화·절대 경로 판정·orca 래퍼 (C1) ---------------------------------------------------------------------------
 wn() { COMPAT_FORCE_OS=windows run "$@"; }
