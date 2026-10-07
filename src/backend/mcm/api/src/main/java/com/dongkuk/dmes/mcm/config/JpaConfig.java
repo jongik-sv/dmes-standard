@@ -70,6 +70,15 @@ public class JpaConfig {
         // Oracle 인스턴스를 모든 레인·앱이 나눠 쓴다(oracle-1007 연결 규약: Hikari 상한 3). 이 풀은 직접 만들어
         // spring.datasource.hikari.* 바인딩이 먹지 않으므로 여기서 읽는다 — 시험 하니스의 env SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE 도 이 키다.
         ds.setMaximumPoolSize(env.getProperty("spring.datasource.hikari.maximum-pool-size", Integer.class, 3));
+        // 쉬는 연결·유휴 시간·누수 감지도 같은 접두로 읽는다(oracle-1007 ③d). 값이 없으면 Hikari 기본 그대로다
+        // (쉬는 연결 = 최대치, 유휴 10분, 누수 감지 끔). 시험 하니스가 넘기는 minimum-idle=0·idle-timeout=10000 도 이로써 먹는다.
+        // 메인 로컬 서버는 기동 env 로 최대 8 을 받는다(SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE — 레인 서버·시험은 3 이하 그대로).
+        Integer minimumIdle = env.getProperty("spring.datasource.hikari.minimum-idle", Integer.class);
+        if (minimumIdle != null) ds.setMinimumIdle(minimumIdle);
+        Long idleTimeout = env.getProperty("spring.datasource.hikari.idle-timeout", Long.class);
+        if (idleTimeout != null) ds.setIdleTimeout(idleTimeout);
+        Long leakDetectionThreshold = env.getProperty("spring.datasource.hikari.leak-detection-threshold", Long.class);
+        if (leakDetectionThreshold != null) ds.setLeakDetectionThreshold(leakDetectionThreshold);
         ds.setPoolName("mcm-host-primary");
         return ds;
     }
