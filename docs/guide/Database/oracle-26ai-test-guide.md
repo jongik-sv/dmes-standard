@@ -103,7 +103,7 @@ services:
     volumes:
       # Podman Rootless 권한 에러를 방지하는 네임드 볼륨 (데이터 영구 유지)
       # (gvenzl 이미지의 데이터 경로는 /opt/oracle/oradata)
-      - oracle-data:/opt/oracle/oradata
+      - oracle-data:/opt/oracle/oradata:Z
       # 최초 구동 시 자동 실행할 DDL/DML 초기화 스크립트가 있다면 매핑
       # - ./init-scripts:/container-entrypoint-initdb.d
 
@@ -179,7 +179,10 @@ podman compose down -v
    - Windows: `.wslconfig`의 `memory=6GB` 설정 확인.
 3. **볼륨 마운트 권한 에러 (`Permission Denied`):**
    - 로컬 디렉터리 바인드 마운트(`./data:/opt/oracle/oradata`) 대신 반드시 `volumes:` 섹션에 정의된 **네임드 볼륨(`oracle-data:/opt/oracle/oradata`)**을 사용하십시오 (Podman Rootless 환경 완벽 호환).
-4. **IDE나 외부 도구(Testcontainers 등)에서 소켓 인식 실패 시:**
+4. **재기동 시 `ORA-01078` / `LRM-00109: could not open parameter file '.../initFREE.ora'` 로 종료될 때:**
+   - Podman 머신의 SELinux 가 첫 컨테이너가 볼륨으로 옮긴 spfile 에 그 컨테이너 전용 라벨을 붙여, 다음 컨테이너가 읽지 못하는 경우입니다.
+   - 볼륨 매핑 끝에 `:Z` 를 붙입니다(`oracle-data:/opt/oracle/oradata:Z`, §5 표준 설정에 반영됨). 기존 볼륨도 그대로 `podman compose down` → `up -d` 하면 복구됩니다.
+5. **IDE나 외부 도구(Testcontainers 등)에서 소켓 인식 실패 시:**
    - Podman Desktop 설정에서 `Docker Socket`이 켜져 있는지 확인하고, 필요 시 실제 소켓 경로를 조회해 환경 변수로 지정합니다(Mac 은 경로가 머신마다 다름):
      ```bash
      export DOCKER_HOST="unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"

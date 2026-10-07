@@ -10,7 +10,7 @@ services:
       APP_USER: "dmes_user"
       APP_USER_PASSWORD: "dmes_password_123"
     volumes:
-      - oracle-data:/opt/oracle/oradata
+      - oracle-data:/opt/oracle/oradata:Z
       # - ./init-scripts:/container-entrypoint-initdb.d
 
 volumes:
