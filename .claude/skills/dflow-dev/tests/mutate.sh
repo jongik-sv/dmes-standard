@@ -49,6 +49,25 @@ printf 'rule: r\nfile: src/a.txt\ntest: true\n--- find\nalpha\n' > muts/B1.mut
 eq "replace 표지가 없으면 형식 오류(rc 2)" "$(bash "$MUT" run muts/B1.mut 2>&1 | head -1)" "MUTATION_BAD muts/B1.mut --- replace 표지 없음"
 rm -f muts/B1.mut
 
+# CRLF: 대상 소스가 CRLF 여도, .mut 가 CRLF 여도 변이가 들어가고(치환 결과는 소스의 줄끝에 맞는다) 되돌아온다
+mkdir -p crlf
+printf 'one\r\ntwo\r\nthree\r\n' > src/c.txt; cp src/c.txt c.orig
+printf 'rule: r\nfile: src/c.txt\ntest: cmp -s src/c.txt c.exp\n--- find\ntwo\n--- replace\nTWO\nTWO2\n' > crlf/C1.mut   # LF .mut + CRLF 소스
+printf 'one\r\nTWO\r\nTWO2\r\nthree\r\n' > c.exp
+printf 'rule: r\r\nfile: src/c.txt\r\ntest: cmp -s src/c.txt c.exp\r\n--- find\r\ntwo\r\n--- replace\r\nTWO\r\nTWO2\r\n' > crlf/C2.mut   # CRLF .mut + CRLF 소스
+printf 'rule: r\r\nfile: src/a.txt\r\ntest: grep -q "^ALPHA$" src/a.txt\r\n--- find\r\nalpha\r\n--- replace\r\nALPHA\r\n' > crlf/C3.mut # CRLF .mut + LF 소스
+printf 'rule: r\nfile: src/c.txt\ntest: true\n--- find\none\ntwo\n--- replace\nx\n' > crlf/C4.mut   # 여러 줄 원문(CRLF 소스에서도 한 번)
+printf 'rule: r\nfile: src/c.txt\ntest: true\n--- find\nnothere\n--- replace\nx\n' > crlf/C5.mut   # 원문 없음 → anchor count=0
+r="$(bash "$MUT" run crlf 2>&1)"
+eq "C1 LF .mut → CRLF 소스: 치환 결과가 CRLF (test 가 파일을 비교)" "$(printf '%s\n' "$r" | grep -c '^MUTATION_RESULT C1 survived rc=0 ')" 1
+eq "C2 CRLF .mut → CRLF 소스" "$(printf '%s\n' "$r" | grep -c '^MUTATION_RESULT C2 survived rc=0 ')" 1
+eq "C3 CRLF .mut → LF 소스" "$(printf '%s\n' "$r" | grep -c '^MUTATION_RESULT C3 survived rc=0 ')" 1
+eq "C4 여러 줄 원문이 CRLF 소스에서 한 번 맞는다" "$(printf '%s\n' "$r" | grep -c '^MUTATION_RESULT C4 survived rc=0 ')" 1
+eq "C5 원문 없음 anchor count=0" "$(printf '%s\n' "$r" | grep -c '^MUTATION_RESULT C5 anchor count=0 ')" 1
+eq "CRLF 요약" "$(printf '%s\n' "$r" | tail -1)" "MUTATION_SUMMARY total=5 caught=0 survived=4 anchor=1 busy=0"
+eq "CRLF 소스가 바이트 그대로 되돌아온다" "$(cmp -s src/c.txt c.orig && echo same)" same
+eq "LF 소스가 바이트 그대로 되돌아온다" "$(cmp -s src/a.txt a.orig && echo same)" same
+
 # 중단된 실행의 사본 복구: 사본을 만들어 두고 원본을 망가뜨린 상태에서 시작한다
 mkdir -p .git/dflow-bak/mutate/src; cp a.orig .git/dflow-bak/mutate/src/a.txt; echo broken > src/a.txt
 r="$(bash "$MUT" run muts --ids M2 2>&1)"

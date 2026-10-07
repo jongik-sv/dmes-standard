@@ -23,19 +23,43 @@
 #   2. 대상을 run_in_background: true 로 부르면 거부한다.
 #   3. 대상인데 timeout 이 없거나 300000 미만이면 거부한다.
 #   거부 = stderr 에 이유 + exit 2(Claude Code 가 도구 호출을 막고 이유를 모델에게 보여 준다). 그 밖에는 exit 0.
-# 편의 장치이지 보안 장치가 아니다: jq 가 없거나 입력을 못 읽으면 그대로 통과한다(fail-open). 변수에 담아 부르는
+# 편의 장치이지 보안 장치가 아니다: 입력을 못 읽으면 그대로 통과한다(fail-open). 입력 JSON 은 jq 로 읽고(윈도우는 동봉 jq), jq 가 없으면 node 로 읽는다 —
+# 둘 다 없을 때만 훅이 꺼지며 그때는 stderr 에 한 줄 남긴다. 변수에 담아 부르는
 # 명령($H ./gradlew …)은 알아보지 못한다.
 
 case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(CDPATH= cd -P -- "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
-command -v jq >/dev/null 2>&1 || { cat >/dev/null 2>&1; exit 0; }
+# 입력 JSON 읽기: jq(윈도우는 위에서 동봉본을 PATH 앞에 둔다)가 있으면 jq 로, 없으면 node 로 읽는다. 둘 다 없으면 통과(fail-open)하되
+# stderr 에 한 줄 남긴다(훅이 조용히 꺼진 것을 알 수 있게 — exit 0 이라 도구 호출은 막지 않는다). 두 방법은 같은 네 값을 낸다.
 IN=$(cat 2>/dev/null) || exit 0
-TOOL=$(printf '%s' "$IN" | jq -r '.tool_name // empty' 2>/dev/null) || exit 0
-[ "$TOOL" = Bash ] || exit 0
-CMD=$(printf '%s' "$IN" | jq -r '.tool_input.command // empty' 2>/dev/null) || exit 0
+if command -v jq >/dev/null 2>&1; then
+  TOOL=$(printf '%s' "$IN" | jq -r '.tool_name // empty' 2>/dev/null) || exit 0
+  [ "$TOOL" = Bash ] || exit 0
+  CMD=$(printf '%s' "$IN" | jq -r '.tool_input.command // empty' 2>/dev/null) || exit 0
+  TO=$(printf '%s' "$IN" | jq -r '(.tool_input.timeout // 0) | if type == "number" then floor elif type == "string" then (tonumber? // 0 | floor) else 0 end' 2>/dev/null) || TO=0
+  BG=$(printf '%s' "$IN" | jq -r '.tool_input.run_in_background == true' 2>/dev/null) || BG=false
+elif command -v node >/dev/null 2>&1; then
+  # node 한 번에 네 값을 낸다: 1행 tool_name, 2행 timeout(정수), 3행 run_in_background(true|false), 4행부터 command 원문.
+  # (jq 판과 같은 규칙: timeout 은 수 또는 수 글자만 쓰고 소수는 내림, 그 밖은 0.)
+  OUT=$(printf '%s' "$IN" | node -e '
+    let d; try { d = JSON.parse(require("fs").readFileSync(0, "utf8")); } catch (e) { process.exit(1); }
+    const ti = d && typeof d.tool_input === "object" && d.tool_input !== null ? d.tool_input : {};
+    const str = (v) => (typeof v === "string" ? v : "");
+    let to = ti.timeout, n = 0;
+    if (typeof to === "number") n = to; else if (typeof to === "string" && to.trim() !== "") n = Number(to);
+    n = Number.isFinite(n) ? Math.floor(n) : 0;
+    process.stdout.write(str(d && d.tool_name) + "\n" + n + "\n" + (ti.run_in_background === true) + "\n" + str(ti.command));
+  ' 2>/dev/null) || exit 0
+  TOOL=$(printf '%s\n' "$OUT" | sed -n 1p)
+  [ "$TOOL" = Bash ] || exit 0
+  TO=$(printf '%s\n' "$OUT" | sed -n 2p)
+  BG=$(printf '%s\n' "$OUT" | sed -n 3p)
+  CMD=$(printf '%s\n' "$OUT" | sed '1,3d')
+else
+  echo "timeout-guard: jq·node 가 없어 이 훅이 꺼져 있다(검사하지 않고 통과) — 윈도우는 _shared/bin 의 동봉 jq 나 node 가 PATH 에 있어야 한다" >&2
+  exit 0
+fi
 [ -n "$CMD" ] || exit 0
-TO=$(printf '%s' "$IN" | jq -r '(.tool_input.timeout // 0) | if type == "number" then floor elif type == "string" then (tonumber? // 0 | floor) else 0 end' 2>/dev/null) || TO=0
 case "$TO" in ''|*[!0-9]*) TO=0 ;; esac
-BG=$(printf '%s' "$IN" | jq -r '.tool_input.run_in_background == true' 2>/dev/null) || BG=false
 
 # 명령 문자열을 조각(단순 명령)으로 나눠 대상 조각마다 "<이름>\t<서버 기동 0|1>\t<끝이 & 0|1>" 한 줄을 낸다.
 # 서버 기동 = gradlew·mvn 조각에 bootRun·spring-boot:run 인자가 있을 때뿐이다(nohup 접두는 따지지 않는다).

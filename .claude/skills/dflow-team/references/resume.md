@@ -1,5 +1,7 @@
 # /dflow-team 재개 spawn (SKILL.md 「5-1. 재개 spawn」)
 
+> 윈도우: 아래 `jq` 예시를 Bash 로 직접 칠 때는 같은 호출 맨 앞에 `export PATH="$PWD/.claude/skills/_shared/bin:$PATH";` 를 붙인다(`_shared/platform-support.md` 「문서 속 인라인 jq」).
+
 SKILL.md 「5-1. 재개 spawn」 이 가리킨다. 재개 대상을 띄울 때 Bash `cat` 으로 읽는다. 「5. 팀원 spawn」·「팀장 상태」 등 절
 이름은 SKILL.md 의 것이다.
 

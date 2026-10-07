@@ -102,7 +102,8 @@
 #                        않는다 — 분리 실행 자식(WAIT=3600)이나 baseline.sh(WAIT 몇 초)가 같은 표식을 서로 다르게 보지 않게.
 #   DFLOW_HEAVY_JOBS     분리 실행 잡 폴더. 기본 ~/.dflow/jobs (잠금 폴더 밖·워크트리 밖). 끝난 지 7일 지난 잡은 지운다.
 #   DFLOW_HEAVY_DETACH_WAIT  분리 실행 자식의 슬롯 대기 상한(초). 기본 3600. 넘으면 잡이 rc=75 로 끝난다(다시 --detach).
-#   DFLOW_HEAVY_OWNER    acquire·release·독점 표식의 소유 PID. 기본 CLAUDE_PID, 없으면 PPID.
+#   DFLOW_HEAVY_OWNER    acquire·release·독점 표식의 소유 PID. 기본 CLAUDE_PID, 없으면 PPID. 윈도우(Git Bash)에서 둘 다 없으면 PPID 로 떨어지는
+#                        acquire·release·--exclusive 가 stderr 에 `HEAVY_WARN …CLAUDE_PID…` 한 줄을 낸다(동작은 그대로).
 #   DFLOW_HEAVY_LOAD_MAX 부하 검사의 코어당 상한(소수 가능). 기본 1.5 — 10코어면 1분 부하 15 를 넘을 때 새 일반 슬롯을 미룬다.
 #                        0 이면 검사를 끈다.
 #   DFLOW_HEAVY_LOADAVG · DFLOW_HEAVY_CPUS  시험용 덮어쓰기 — 1분 부하 평균·코어 수를 이 값으로 본다(snapshot 의 PC 줄도).
@@ -236,6 +237,16 @@ alive() {
 }
 field() { sed -n "s/^$2=//p" "$1/owner" 2>/dev/null | head -n 1; }
 owner_pid() { echo "${DFLOW_HEAVY_OWNER:-${CLAUDE_PID:-$PPID}}"; }
+# 윈도우(Git Bash)에서 소유자가 $PPID 로 떨어지는 경로(acquire·release·--exclusive)의 경고 한 줄(stderr). $PPID 는 호출마다 다른 셸이라
+# (윈도우에서는 1 일 수도 있다) acquire 한 슬롯을 release 가 못 찾거나 소유자가 겹칠 수 있다 — 세션 PID 를 CLAUDE_PID 로 넘기라고 알린다.
+# 시험은 COMPAT_FORCE_OS=windows 로 덮어쓴다. 값은 바꾸지 않고 알리기만 한다.
+warn_owner_fallback() {
+  [ -z "${DFLOW_HEAVY_OWNER:-}" ] && [ -z "${CLAUDE_PID:-}" ] || return 0
+  case "${COMPAT_FORCE_OS:-$(uname -s 2>/dev/null)}" in
+    windows|MINGW*|MSYS*|CYGWIN*) echo "HEAVY_WARN 윈도우: CLAUDE_PID(또는 DFLOW_HEAVY_OWNER)가 없어 소유자를 \$PPID($PPID)로 대신한다 — 호출마다 달라질 수 있으니 세션의 PID 를 CLAUDE_PID 로 설정한다(예 export CLAUDE_PID=<claude 의 윈도우 PID>)" >&2 ;;
+  esac
+  return 0
+}
 usage() {
   echo "사용법: heavy.sh [--pool docker | --exclusive] [--detach] <명령> [인자…] | acquire <이름> | release | status | snapshot | wait <id> [--max <초>]" >&2
   exit 2
@@ -761,6 +772,7 @@ take_all() {
 cmd_run_exclusive() {
   local o h why= rc deadline announced=0 i list ahead pos n t0 gh me
   [ $# -ge 1 ] || { echo "사용법: heavy.sh --exclusive <명령> [인자…]" >&2; exit 2; }
+  warn_owner_fallback
   o=$(owner_pid)
   # 슬롯을 쥔 채 K개 전부를 기다리면 자기 슬롯이 풀리지 않아 영원히 못 잡는다(교착) — 거부한다.
   # 분리 실행의 손자(IN_JOB)는 세션의 E2E 풀 hold 는 보지 않는다(일반 풀만 독점하므로 겹치지 않는다 — 잡은 세션과 따로 돈다).
@@ -847,6 +859,7 @@ cmd_run_exclusive() {
 
 cmd_acquire() {
   local o h rc
+  warn_owner_fallback
   # 감싼 실행 안에서 부르면 그 실행의 슬롯을 쓴다 — 쥔 슬롯 위에서 두 번째 슬롯을 기다리지 않는다(교착 불변식).
   # 그 슬롯은 감싼 실행이 끝나면 풀리므로, 서버는 그 실행 안에서 끄고 끝낸다.
   if [ -n "${DFLOW_HEAVY_HELD:-}" ] && [ -d "$DFLOW_HEAVY_HELD" ]; then
@@ -876,6 +889,7 @@ cmd_acquire() {
 
 cmd_release() {
   local o list
+  warn_owner_fallback
   o=$(owner_pid)
   list=$(held_by "$o")
   [ -n "$list" ] || { echo "HEAVY_RELEASED none owner=$o" >&2; exit 0; }
