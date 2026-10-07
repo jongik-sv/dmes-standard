@@ -540,7 +540,7 @@ test.describe("A 룰 등록·편집·확정", () => {
   const NAME = `E2E 품질 판정 ${RUN}`;
   const NAME2 = `E2E 품질 등급 판정 ${RUN}`;
   // 변수 이름 — 고정한다. 실행마다 바꾸면 같은 룰에 다른 이름의 변수가 쌓여 지침·활용처 목록이 늘어난다
-  // (2026-09-28 `uid()` 정리와 같은 이유. `tools/e2e-clean-data.sh` 로 E2E 룰을 통째로 지운다).
+  // (2026-09-28 `uid()` 정리와 같은 이유. E2E 룰은 수동으로 정리한다).
   const THK = "E2E_THK";
   const SURF = "E2E_SURF";
   const GRD = "E2E_GRD";

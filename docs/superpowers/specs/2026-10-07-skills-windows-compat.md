@@ -78,7 +78,7 @@
 위 표의 「영향 파일」과 「윈도우에서」는 조사 당시 기준이다. 현재 상태는 다음과 같다.
 
 - jq: `_shared/bin` 동봉으로 해소되었다(실행불가 → 동작). 줄끝 CRLF 와 `command -v jq` 판정은 실기 확인이 남았다(§8).
-- python3: 스크립트 28개 중 죽은 코드 3개(D3)는 삭제했고, dflow-wbs 구판 3개(D4)는 export 판으로 통합해 삭제했다. 나머지는 mantine-aggrid-ui 3개(L2 진행 중)를 빼고 모두 node 로 옮겼다. 인라인 5곳, `junit-count.sh`, 훅 1개, `.dflow-gates` 는 node 호출로 바뀌었다. `tools/bp-sync*` 만 별도 지시를 기다린다(D5).
+- python3: 스크립트 28개 중 죽은 코드 3개(D3)는 삭제했고, dflow-wbs 구판 3개(D4)는 export 판으로 통합해 삭제했다. 나머지는 mantine-aggrid-ui 3개(L2 진행 중)를 빼고 모두 node 로 옮겼다. 인라인 5곳, `junit-count.sh`, 훅 1개, `.dflow-gates` 는 node 호출로 바뀌었다. `tools/bp-sync*` 는 사용자 결정(2026-10-07, D5)으로 python 을 유지한다(윈도우는 python 설치, `bp-sync-schedule` 은 macOS launchd 전용).
 - ln -s: `deps.sh` 가 링크가 한 건도 안 걸리면 `DEPS_WARN` 한 줄을 내도록 알림을 추가했다(D1). 복사로 바뀌는 동작 자체는 그대로다.
 
 ### 3.2 스킬별 표
@@ -99,7 +99,7 @@
 | flyway-migration-add | python3, Java | `migration_tool.py`, `selftest.py`. SKILL.md 의 sdkman 개인 경로(고침). | 실행불가(채번 도구) | node 이식(L3) | M | 완료(L3, skills-win-l3, 292dd47dc) |
 | adr-write | python3 | `adr_tool.py`, `selftest.py` | 실행불가(린트와 채번) | node 이식(L3) | M | 완료(L3, skills-win-l3, 292dd47dc) |
 | weekly-report | bash, date | `date -v` 는 BSD 전용이었다(고침: BSD/GNU 분기) | 일부 기능 → 해결 | 완료 | S | 완료(skills-win, fc3bf483d) |
-| bp-update-intake, bp-workspace-sync | python3(`tools/bp-sync`) | 확장자 없는 python 스크립트라 윈도우에서 직접 실행 불가. 개인 경로 문구(고침). | 실행불가(미러 동기화 단계) | `tools/bp-sync` 이식은 별도 지시(리포 루트 `tools/`, 이 스킬 범위 밖) | M | 미착수(D5, 별도 지시) |
+| bp-update-intake, bp-workspace-sync | python3(`tools/bp-sync`) | 확장자 없는 python 스크립트라 윈도우에서 직접 실행 불가. 개인 경로 문구(고침). | 실행불가(미러 동기화 단계) | `tools/bp-sync*` 는 python 유지(윈도우는 python 설치), `bp-sync-schedule` 은 macOS 전용 | M | 결정 끝(D5): python 유지, 윈도우는 python 설치, bp-sync-schedule 은 macOS 전용 |
 | classify-by-system | bash | `for … $(ls …)` 예시. Git Bash 에서 돈다. | 문서만 | Glob 도구 사용을 문서에 한 줄 | S | 완료(W, skills-win-w): Git Bash 실행 안내 한 줄을 추가했다 |
 | generate-bpa, bpmn-skill | bpmn-tool(npm), bash | PowerShell `echo` 파이프가 한글 JSON 을 깨뜨릴 수 있음(추정). `install.sh` 와 `install.ps1` 은 둘 다 윈도우에서 돈다. | 문서만 | Git Bash 에서 실행하거나 임시 파일 경유를 문서에 한 줄 | S | 완료(W, skills-win-w): generate-bpa 에 한 줄을 추가했다. bpmn-skill 은 `install.ps1` 이 이미 있어 변경이 없다 |
 | oasis-project-support | 없음 | `rg` 예시(고침) | 문서만 | 완료 | S | 완료(skills-win, fc3bf483d) |
