@@ -218,7 +218,7 @@ python3 scripts/db-snapshot/snapshot.py import --pdb L_ORA_MDM --replace MCMAPUS
 
 # 처음부터 데이터가 든 PDB 가 필요하면 템플릿에서 복제
 node scripts/oracle/pdb.mjs template-schema TPL_SCHEMA   # 전 모듈 V 파일 적용, 데이터 없음
-node scripts/oracle/pdb.mjs template-data TPL_DATA       # 그 위에 CSV 적재(mdm 약 6분)
+node scripts/oracle/pdb.mjs template-data TPL_DATA       # 그 위에 CSV 적재(약 2분, 적재 자체는 mdm 9.5초 — VM 3GB 실측, SUMMARY §2)
 node scripts/oracle/pdb.mjs clone TPL_DATA L_ORA_MDM
 
 # 스냅샷 갱신: 레인 PDB -> CSV
