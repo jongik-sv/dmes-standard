@@ -327,6 +327,20 @@ class WidgetQueryReadOnlyTest {
     @Test
     @DisplayName("기본 DataSource 가 지연 획득 프록시(LazyConnectionDataSourceProxy)로 감싸여 있어도 되돌리지 못한 연결은 끊고 Hikari 풀에서 빠진다")
     void connectionThatCannotBeRestoredIsEvictedThroughLazyProxy() throws Exception {
+        assertEvictedThroughLazyProxy(false);
+    }
+
+    @Test
+    @DisplayName("지연 획득 프록시 — 갈래를 먼저 알아 둔 뒤(resolveDialect) 실행해 방언 보강 문장(createStatement)이 처음 연결을 여는 경로도 끊고 Hikari 풀에서 뺀다")
+    void connectionThatCannotBeRestoredIsEvictedThroughLazyProxyAfterDialectCached() throws Exception {
+        assertEvictedThroughLazyProxy(true);
+    }
+
+    /**
+     * dialectFirst=false: 실행 첫 단계의 메타데이터 읽기(getMetaData)가 실제 연결을 연다. true: 갈래를 미리 알아 두어 readOnly·autoCommit 은
+     * 프록시에 기록만 되고, 방언 보강({@code SET TRANSACTION READ ONLY})의 createStatement 가 처음 실제 연결을 열며 기록한 값을 적용한다.
+     */
+    private void assertEvictedThroughLazyProxy(boolean dialectFirst) throws Exception {
         AtomicBoolean failRestore = new AtomicBoolean(true);
         List<String> calls = new CopyOnWriteArrayList<>();
         HikariDataSource faulty = new HikariDataSource() {
@@ -336,7 +350,7 @@ class WidgetQueryReadOnlyTest {
                 super.evictConnection(connection);
             }
         };
-        faulty.setPoolName("widget-query-test-faulty-lazy");
+        faulty.setPoolName("widget-query-test-faulty-lazy-" + dialectFirst);
         faulty.setMaximumPoolSize(1);
         faulty.setMinimumIdle(0);
         faulty.setDataSource(failingRestoreDataSource(
@@ -349,9 +363,18 @@ class WidgetQueryReadOnlyTest {
         calls.clear();
 
         WidgetReadOnlyJdbc ro = new WidgetReadOnlyJdbc(new LazyConnectionDataSourceProxy(faulty));
-        Integer one = ro.execute(con -> 1);
+        if (dialectFirst) {
+            assertThat(ro.resolveDialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.ORACLE);
+            calls.clear();
+        }
+        List<Boolean> readOnlyInWork = new ArrayList<>();
+        Integer one = ro.execute(con -> {
+            readOnlyInWork.add(((org.springframework.jdbc.datasource.ConnectionProxy) con).getTargetConnection().isReadOnly());
+            return 1;
+        });
         assertThat(one).isEqualTo(1);
 
+        assertThat(readOnlyInWork).as("실제 연결에 readOnly 가 적용된 채 실행했다").containsExactly(true);
         assertThat(calls).contains("abort:physical", "evict:true");
         assertThat(calls.indexOf("abort:physical")).isLessThan(calls.indexOf("evict:true"));
         failRestore.set(false);

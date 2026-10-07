@@ -1,7 +1,7 @@
 # mcm 기본 DataSource 연결 지연 획득(LazyConnectionDataSourceProxy) 설계 메모
 
 - 작성: 2026-10-07, oracle-1007 ③c 후속(브랜치 `feat/ora-mcm-lazy-ds`, dev 1e93e6197 기준)
-- 상태: 시제품 구현·시험 완료. **운영(WildFly) 적용은 사용자 결정 대기**(기본 끔, local 만 켬)
+- 상태: 2026-10-07 사용자 결정 — 「로컬만 켜고 머지」(③f). WildFly(dev·prod)는 끔, 켜는 일은 후속(§4·§8)
 - 관련: ③c 연결 풀 고갈 교착(`SecWidgetService.search`), ③d 기본 풀 설정 읽기·local 누수 감지 30초
 
 ## 1. 문제
@@ -39,12 +39,17 @@ spring-jdbc 7.0.7 `LazyConnectionDataSourceProxy` 를 바이트코드로 확인�
   - 대신 처음 `getConnection()` 을 부를 때 `checkDefaultConnectionProperties()` 가 대상 풀의 실제 연결 하나로 한 번 감지한다. 감지한 연결은 바로 돌려준다.
   - 이 첫 호출은 기동 때 EMF 를 만들면서 일어난다. 그래서 요청 처리 중에 감지 때문에 연결을 기다리는 일은 없다.
   - WildFly 데이터소스에 `transaction-isolation` 이 걸려 있어도 그 값을 그대로 기본값으로 읽는다(DB·컨테이너 설정에 맞춰진다).
+  - **감지 실패.** `checkDefaultConnectionProperties()` 는 연결을 받거나 값을 읽다 나는 `SQLException` 을 debug 로그만 남기고 삼킨다(바이트코드 확인).
+    - 그래서 기동 때 DB 장애로 감지에 실패하면 기본값이 null 로 남고, 그 뒤 `getConnection` 마다 감지를 다시 한다.
+    - 그동안 요청 하나가 연결을 두 번 기다린다(감지 1번, 실제 사용 1번). DB 가 계속 안 되면 connectionTimeout 이 두 배로 걸린다.
+    - 기본값이 null 이면 프록시가 `getAutoCommit`·`getTransactionIsolation` 에 답하지 못해 바로 실제 연결을 받는다. 곧 지연 획득이 사실상 꺼진다.
+    - DB 가 돌아와 감지에 한 번 성공하면 스스로 풀린다(재기동 필요 없음).
 
 ## 3. 영향 범위
 
 | 대상 | 어느 DataSource 를 쓰나 | Lazy 를 켰을 때 |
 |---|---|---|
-| OASIS txBiz(JpaTransactionManager, READ_COMMITTED) | EMF 의 DataSource = 기본 `dataSource` 빈 | 첫 SQL 때 연결을 받는다. SQL 이 있는 서비스는 전과 같다. SQL 없이 끝나면 연결을 받지 않는다. 트랜잭션 의미(autoCommit 끔·격리·롤백)는 같다(시험 확인). |
+| OASIS txBiz(JpaTransactionManager, READ_COMMITTED) | EMF 의 DataSource = 기본 `dataSource` 빈 | 첫 SQL 때 연결을 받는다. SQL 이 있는 서비스는 전과 같다. SQL 없이 끝나면 연결을 받지 않는다. 트랜잭션 의미는 같다. `JpaConfigLazyConnectionTest` 로 다음을 확인했다: autoCommit 끔, 롤백·커밋, 기본(READ_COMMITTED)과 다른 SERIALIZABLE 이 실제 연결에 들어가 동작하는 것(트랜잭션 시작 뒤 다른 연결이 커밋한 행이 보이지 않음), 끝난 뒤 풀의 연결이 READ_COMMITTED 로 되돌아가는 것. |
 | JPA 기본 EMF(`JpaConfig.entityManagerFactory`) | `@Qualifier("dataSource")` | 위와 같다. JpaTransactionManager 는 EMF 에서 DataSource(=Lazy)를 찾아 ConnectionHolder 를 그 키로 묶는다. |
 | MyBatis biz(`cactus CactusMultiMybatisAutoConfiguration.sqlSessionFactoryBiz`) | `@Qualifier("dataSource")` = Lazy | `DataSourceUtils` 로 같은 키의 ConnectionHolder 를 찾아 JPA 트랜잭션 연결에 합류한다(JdbcTemplate 로 같은 경로를 시험에서 확인). |
 | MyBatis if·cmn, cactus extras(cmn·if·caravan) | 각자 풀(local 직결 Hikari·WildFly JNDI) — 기본 DS 와 공유하지 않는다 | 영향 없음(감싸지 않는다). |
@@ -64,14 +69,17 @@ spring-jdbc 7.0.7 `LazyConnectionDataSourceProxy` 를 바이트코드로 확인�
   2. 컨테이너 데이터소스의 `transaction-isolation`·`new-connection-sql` 이 감지한 기본값과 맞는지. 첫 `getConnection` 시점의 감지 로그가 debug 에만 남으므로 필요하면 잠시 debug 로 본다.
   3. dev 는 위젯 쿼리 실행기가 공유 모드다. evict 보강이 컨테이너 연결(Hikari 아님)에서는 빼지 않고 `abort` 만 하는 기존 동작과 같은지.
   4. `pool-prefill`·`min-pool-size` 로 미리 연 연결 수, 그리고 요청당 사용 시간 지표가 바뀌었는지(빌림이 첫 SQL 로 늦춰진다).
+  5. 기동 때 DB 가 늦게 뜨는 경우: 기본값 감지가 실패하면 지연 획득이 꺼진 채 요청마다 연결을 두 번 기다린다(§2 감지 실패). 기동 순서상 DB 가 먼저 떠 있는지, EMF 생성 때 감지가 성공했는지 본다. 잠시 debug 로 `LazyConnectionDataSourceProxy` 로그를 켜면 실패가 보인다.
+  6. 잠금 캐시: 첫 SQL 이 잠금 안에서 나는 경로(§7)를 운영 부하에서 본다.
 
 ## 5. 대안 비교(실측)
 
 - 측정: mcm-core `WidgetChatPoolHoldRawJpaTest`(지연 획득 끔)·`WidgetChatPoolHoldLazyJpaTest`(켬).
   - 시험 구성: clone PDB, 풀 3·쉬는 연결 0·connectionTimeout 4초, OASIS 흉내 바깥 트랜잭션 REQUIRED·READ_COMMITTED.
   - 네 경우 모두 같은 시험 코드(같은 풀·같은 동시 N=3)로 잰다.
-  - 「현재 dev」·「(나)만」은 `WidgetChatService` 를 dev 1e93e6197 판으로 잠시 바꿔 돌렸고, 끝난 뒤 되돌렸다.
-  - 「(가)만」·「(가)+(나)」는 이 브랜치 판(1cac488f1, dev 병합 19d056ddd 뒤)으로 돌렸다.
+  - 「현재 dev」·「(나)만」은 **일회 측정**이다. `WidgetChatService` 를 dev 1e93e6197 판으로 잠시 바꿔 돌렸고, 끝난 뒤 되돌렸다. 커밋된 시험만으로는 재현되지 않는다.
+    - 측정 시각: 2026-10-07 23:08, 시험 코드 1d9c49532 판 기반.
+  - 「(가)만」·「(가)+(나)」는 이 브랜치 판(1cac488f1, dev 병합 19d056ddd 뒤)으로 돌렸다(23:07). 커밋된 `WidgetChatPoolHoldRawJpaTest`·`WidgetChatPoolHoldLazyJpaTest` 가 그대로 재현한다.
   - 2026-10-07 23:07~23:08 에 mcm-core 모듈만 따로 실행했다(ORA 오류 없음).
   - 23:02 경 병합 전 판으로 한 번 더 잰 값도 같은 모양이다. 표의 괄호 안이 그 값이다.
 - 「LLM 대기 중 연결」: 가짜 LLM 이 불릴 때 Hikari activeConnections 를 잰다. 첫 호출은 문맥 읽기 뒤, 둘째 호출은 도구 실행 뒤다.
@@ -119,6 +127,11 @@ spring-jdbc 7.0.7 `LazyConnectionDataSourceProxy` 를 바이트코드로 확인�
   - `application-local.yml`: 같은 키에 기본값 `true`
 - `mcm-core WidgetChatService`: 대화 문맥(`context`)과 도구 실행(`toolBox.run`)을 짧은 읽기 전용 트랜잭션(`readTx`)으로 묶는다.
   - 늘 롤백한다. 안쪽 실패가 rollback-only 를 걸어도 `UnexpectedRollbackException` 이 나지 않는다.
+  - 읽기 전용 정의라, 지연 획득을 끈 구성에서는 `HibernateJpaDialect` 가 시작하자마자 연결을 잡는다.
+  - 트랜잭션 시작·롤백 실패는 도구 실행이면 도구 오류 결과로 바꿔 대화를 이어 간다(`runTool`). 대화 문맥 읽기면 「답을 받지 못했습니다」로 끝난다.
+- 기동 로그: `JpaConfig` 가 지연 획득 여부와 풀 값을 INFO 한 줄로 남긴다(주소·계정·비밀번호는 남기지 않음).
+  - 직결: `[mcmDataSource] 기본 풀 mcm-host-primary 최대=3 쉬는연결=0 유휴=30000ms 누수감지=30000ms 연결 지연 획득=true`
+  - JNDI: `[mcmDataSource] 기본 DataSource JNDI java:/jdbc/mcm/dsBiz 연결 지연 획득=false`
 - `mcm-core WidgetReadOnlyJdbc.evict`: `ConnectionProxy` 면 실제 연결을 꺼내 Hikari 에서 뺀다.
 
 ## 7. 위험과 롤백
@@ -129,9 +142,15 @@ spring-jdbc 7.0.7 `LazyConnectionDataSourceProxy` 를 바이트코드로 확인�
   - 연결 획득 실패가 트랜잭션 시작이 아니라 첫 SQL 에서 난다. 오류의 스택·메시지 위치가 바뀐다(예: `CannotCreateTransactionException` 대신 SQL 실행 시점의 `JDBCConnectionException`). 오류 코드를 매핑하는 곳이 시작 단계 예외에 기대고 있는지 운영 로그로 확인한다.
   - 처음 `getConnection` 때의 기본값 감지 연결 1회.
   - SQL 이 하나도 없는 트랜잭션의 `commit`·`rollback` 은 DB 에 가지 않는다(의도한 동작이다).
+  - **잠금·동기화 구간 안의 첫 SQL.** 트랜잭션은 잠금 밖에서 시작했어도, 물리 연결은 첫 SQL 때 받는다. 그래서 첫 SQL 이 잠금(`synchronized`·`ReentrantLock`·`computeIfAbsent`) 안에 있으면, 연결을 기다리는 시간이 잠금 안으로 들어온다. 풀이 바닥났을 때는 잠금을 쥔 채 connectionTimeout 까지 기다리고, 다른 스레드는 그 잠금을 기다린다.
+    - `MenuCatalog.snapshot` 은 `tryLock` 에 대기 상한이 있어, 상한을 넘으면 직접 읽는다. 그래서 결함은 아니다.
+    - 운영에서 켜기 전에 같은 모양의 잠금 캐시를 점검한다: `UserPermCache`, `WidgetDefaultTabs`, `ExchangeService`, `ScreenUsage*`, `NoticeMgmtService`, cactus `MdmValidator` 등. 무제한 대기 잠금 안에서 처음 SQL 을 내는지가 점검 대상이다.
+  - **기본값 감지 실패**(§2): 기동 때 DB 장애면 지연 획득이 꺼진 채 요청마다 연결을 두 번 기다린다. DB 가 돌아오면 스스로 풀린다.
   - Hikari 지표(active·usage)의 의미가 「트랜잭션 수」에서 「SQL 이 있는 트랜잭션 수」로 바뀐다.
 
-## 8. 사용자 결정
+## 8. 사용자 결정(2026-10-07)
 
-1. 운영(WildFly dev·prod)에 `dmes.datasource.lazy-connection` 을 켤지, 켠다면 언제 어떤 순서로 켤지(dev WildFly 에서 §4 확인 → prod).
-2. (가)의 동작 변경(도구 실행이 짧은 읽기 전용 트랜잭션 안에서 돈다)을 그대로 둘지.
+- (가)+(나)를 「로컬만 켜고 머지」 한다(머지 ③f).
+  - (가)는 늘 켠다. 도구 실행이 짧은 읽기 전용 트랜잭션 안에서 도는 동작 변경을 받아들였다.
+  - (나)는 기본 false, application-local.yml 만 true 다. wildfly·prod 는 끈다.
+- 개발계 WildFly 에서 켜는 일은 후속이다. §4 확인 목록(JTA 데이터소스·CCM·격리 수준·기본값 감지·잠금 캐시)을 본 뒤 사용자가 정한다.

@@ -30,7 +30,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * (docs/oracle-1007/design-mcm-lazy-ds.md).
  * <ul>
  *   <li>트랜잭션이 시작돼도 풀에서 연결을 받지 않고, 첫 SQL 때 받는다. 끝나면 돌려준다.</li>
- *   <li>받은 물리 연결에 트랜잭션 설정(autoCommit 끔·READ_COMMITTED)이 적용돼 롤백·커밋이 그대로 동작한다.</li>
+ *   <li>받은 물리 연결에 트랜잭션 설정(autoCommit 끔·READ_COMMITTED)이 적용돼 롤백·커밋이 그대로 동작한다. 기본과 다른 격리
+ *       수준(SERIALIZABLE)도 실제 연결에 들어가 동작하고, 끝나면 되돌아간다.</li>
  *   <li>MyBatis·JdbcTemplate 처럼 {@link DataSourceUtils} 로 연결을 얻는 쪽도 같은 트랜잭션 연결을 쓴다.</li>
  * </ul>
  */
@@ -50,7 +51,8 @@ class JpaConfigLazyConnectionTest {
         adminPool = McmOraTestDb.appDataSource("lazy-ds-admin");
         admin = new JdbcTemplate(adminPool);
         dropTable();
-        admin.execute("CREATE TABLE " + TBL + " (ID NUMBER(10) PRIMARY KEY)");
+        // 세그먼트를 바로 만든다 — 지연 생성이면 SERIALIZABLE 트랜잭션 도중 다른 연결의 첫 INSERT 가 세그먼트를 만들어 ORA-08176 이 난다.
+        admin.execute("CREATE TABLE " + TBL + " (ID NUMBER(10) PRIMARY KEY) SEGMENT CREATION IMMEDIATE");
 
         MockEnvironment env = new MockEnvironment()
                 .withProperty("spring.datasource.url", McmOraTestDb.url())
@@ -127,6 +129,43 @@ class JpaConfigLazyConnectionTest {
         assertThat(seen).containsExactly(0, 1, false, Connection.TRANSACTION_READ_COMMITTED, 1, 1);
         assertThat(active()).as("끝나면 돌려준다").isZero();
         assertThat(admin.queryForObject("SELECT COUNT(*) FROM " + TBL, Integer.class)).as("롤백됐다").isZero();
+    }
+
+    /**
+     * Oracle 기본 격리가 READ_COMMITTED 라 위 시험의 격리 단언은 기록값이 적용되지 않아도 통과한다. 그래서 기본과 다른 SERIALIZABLE 로
+     * 프록시에 기록한 격리 수준이 첫 SQL 때 실제 연결에 들어가는지(값과 동작 — 트랜잭션 시작 뒤 다른 연결이 커밋한 행이 보이지 않는다),
+     * 끝난 뒤 풀의 연결이 READ_COMMITTED 로 되돌아가는지 본다.
+     */
+    @Test
+    void 기본과_다른_격리_수준도_첫_SQL_때_실제_연결에_적용되고_끝나면_되돌아간다() throws Exception {
+        TransactionTemplate serializable = new TransactionTemplate(txManager);
+        serializable.setIsolationLevel(TransactionDefinition.ISOLATION_SERIALIZABLE);
+        List<Object> seen = new ArrayList<>();
+        serializable.executeWithoutResult(status -> {
+            seen.add(active()); // 시작 직후 — 아직 연결을 받지 않는다
+            EntityManager em = EntityManagerFactoryUtils.getTransactionalEntityManager(emfBean.getObject());
+            seen.add(((Number) em.createNativeQuery("SELECT COUNT(*) FROM " + TBL).getSingleResult()).intValue());
+            Connection con = DataSourceUtils.getConnection(dataSource);
+            try {
+                seen.add(((ConnectionProxy) con).getTargetConnection().getTransactionIsolation());
+            } catch (java.sql.SQLException e) {
+                throw new IllegalStateException(e);
+            } finally {
+                DataSourceUtils.releaseConnection(con, dataSource);
+            }
+            admin.update("INSERT INTO " + TBL + " (ID) VALUES (3)"); // 다른 연결에서 커밋
+            seen.add(((Number) em.createNativeQuery("SELECT COUNT(*) FROM " + TBL).getSingleResult()).intValue());
+        });
+
+        assertThat(seen).as("시작 직후 연결 수, 첫 조회, 실제 연결 격리 수준, 다른 연결 커밋 뒤 조회")
+                .containsExactly(0, 0, Connection.TRANSACTION_SERIALIZABLE, 0);
+        assertThat(active()).isZero();
+        try (Connection c = hikari.getConnection()) {
+            assertThat(c.getTransactionIsolation()).as("풀로 돌아간 연결은 READ_COMMITTED").isEqualTo(Connection.TRANSACTION_READ_COMMITTED);
+        }
+        Integer afterwards = oasis().execute(status -> ((Number) EntityManagerFactoryUtils.getTransactionalEntityManager(emfBean.getObject())
+                .createNativeQuery("SELECT COUNT(*) FROM " + TBL).getSingleResult()).intValue());
+        assertThat(afterwards).as("READ_COMMITTED 트랜잭션에서는 커밋된 행이 보인다").isEqualTo(1);
     }
 
     @Test

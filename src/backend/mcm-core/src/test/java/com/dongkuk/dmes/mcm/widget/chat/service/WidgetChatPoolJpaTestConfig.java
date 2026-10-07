@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mcm.widget.chat.service;
 
 import com.dongkuk.dmes.mcm.testdb.McmCoreOraTestDb;
 import com.dongkuk.dmes.mcm.widget.chat.repository.WidgetChatMessageRepository;
+import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
 import com.zaxxer.hikari.HikariDataSource;
 import jakarta.persistence.EntityManagerFactory;
 import javax.sql.DataSource;
@@ -24,7 +25,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
  */
 @Configuration
 @EnableTransactionManagement
-@EnableJpaRepositories(basePackageClasses = WidgetChatMessageRepository.class)
+@EnableJpaRepositories(basePackageClasses = {WidgetChatMessageRepository.class, WidgetDefRepository.class})
 public class WidgetChatPoolJpaTestConfig {
 
     static final int POOL_SIZE = 3;
@@ -49,7 +50,9 @@ public class WidgetChatPoolJpaTestConfig {
 
     @Bean
     public LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
-        return McmCoreOraTestDb.entityManagerFactory(dataSource, "com.dongkuk.dmes.mcm.widget.chat.entity");
+        // 위젯 정의도 실제 저장소로 읽는다 — 채팅이 정의를 읽는 방식이 바뀌어 범위 EntityManager 가 생기면 시험이 잡는다.
+        return McmCoreOraTestDb.entityManagerFactory(dataSource, "com.dongkuk.dmes.mcm.widget.chat.entity",
+                "com.dongkuk.dmes.mcm.widget.def.entity");
     }
 
     @Bean

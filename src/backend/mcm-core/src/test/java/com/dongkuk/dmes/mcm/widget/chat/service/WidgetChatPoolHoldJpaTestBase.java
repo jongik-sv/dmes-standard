@@ -18,12 +18,12 @@ import com.dongkuk.dmes.mcm.widget.def.entity.WidgetDef;
 import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
 import com.dongkuk.dmes.mcm.widget.query.WidgetQueryRunner;
 import com.zaxxer.hikari.HikariDataSource;
+import jakarta.persistence.EntityManagerFactory;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -35,17 +35,21 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 채팅 send 가 LLM 을 기다리는 동안 앱 기본 풀에서 쥐는 연결 수(oracle-1007 ③c 후속, docs/oracle-1007/design-mcm-lazy-ds.md).
  * OASIS 처럼 바깥 트랜잭션(REQUIRED·READ_COMMITTED — 시작할 때 연결을 잡는다)을 연 채 send 를 부르고, 가짜 LLM 이 불릴 때마다
  * Hikari {@code activeConnections} 를 잰다. 첫 LLM 호출은 대화 문맥을 읽은 뒤, 둘째 호출은 도구(find_screen) 실행 뒤다 — 도구는
- * 운영의 내 메뉴 찾기처럼 트랜잭션 없이 파생 쿼리를 하나 돈다. 하위 클래스가 앱 기본 DataSource 를 그대로 쓰는지(Raw),
+ * 운영의 내 메뉴 찾기처럼 트랜잭션 없이 파생 쿼리를 하나 돈다. 위젯 정의는 실제 저장소로 읽고, 사용자 문맥(사용자·부서 저장소)은 대역이다 —
+ * 대역 뒤에서 생기는 범위 EntityManager 도 놓치지 않게 LLM 을 기다릴 때 범위 EntityManager 가 묶여 있지 않은지 함께 본다. 하위 클래스가 앱 기본 DataSource 를 그대로 쓰는지(Raw),
  * {@code LazyConnectionDataSourceProxy} 로 감싸는지(Lazy)와 그때 기대하는 연결 수를 정한다.
  */
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS) // 시험 풀(최대 3)을 클래스가 끝나면 닫는다
 abstract class WidgetChatPoolHoldJpaTestBase {
 
     static final String DEF_ID = "def.chatpool";
@@ -55,8 +59,9 @@ abstract class WidgetChatPoolHoldJpaTestBase {
     @Autowired WidgetChatMessageRepository repository;
     @Autowired PlatformTransactionManager transactionManager;
     @Autowired HikariDataSource hikari;
+    @Autowired WidgetDefRepository defRepository;
+    @Autowired EntityManagerFactory entityManagerFactory;
 
-    private WidgetDefRepository defRepository;
     private WidgetUserContextResolver userContextResolver;
     private ChatScreenFinder screenFinder;
     private final Map<Thread, String> users = new ConcurrentHashMap<>();
@@ -71,7 +76,7 @@ abstract class WidgetChatPoolHoldJpaTestBase {
     @BeforeEach
     void setUp() {
         repository.deleteAllInBatch();
-        defRepository = mock(WidgetDefRepository.class);
+        defRepository.findById(DEF_ID).ifPresent(defRepository::delete);
         WidgetDef d = new WidgetDef();
         d.setWidgetId(DEF_ID);
         d.setSrcTp(WidgetDef.SRC_DEF);
@@ -79,7 +84,7 @@ abstract class WidgetChatPoolHoldJpaTestBase {
         d.setTitle("도우미");
         d.setUseYn("Y");
         d.setConfigJson(CONFIG);
-        when(defRepository.findById(DEF_ID)).thenReturn(Optional.of(d));
+        defRepository.saveAndFlush(d);
         userContextResolver = mock(WidgetUserContextResolver.class);
         when(userContextResolver.current()).thenAnswer(inv -> new WidgetUserContext(user(), "홍길동", "D100", "생산팀", List.of("D100")));
         securityIdentity = mock(SecurityIdentity.class);
@@ -125,9 +130,12 @@ abstract class WidgetChatPoolHoldJpaTestBase {
     @DisplayName("LLM 을 기다리는 동안(문맥 읽기 뒤·도구 실행 뒤) 앱 기본 풀에서 쥔 연결 수")
     void connectionsHeldWhileWaitingForLlm() {
         List<Integer> heldPerCall = new ArrayList<>();
+        List<Boolean> scopeEmPerCall = new ArrayList<>();
         int[] round = {0};
         LlmClient llm = (system, messages, tools) -> {
             heldPerCall.add(active());
+            // NOT_SUPPORTED 범위에 묶인 EntityManager(트랜잭션 없이 돈 파생 쿼리가 연다)가 남아 있으면 그 연결을 LLM 대기 내내 쥔다.
+            scopeEmPerCall.add(TransactionSynchronizationManager.hasResource(entityManagerFactory));
             return round[0]++ == 0
                     ? LlmReply.ofToolCalls("", List.of(new LlmToolCall("t1", "find_screen", Map.of("keyword", "위젯"))))
                     : LlmReply.ofText("답");
@@ -141,6 +149,7 @@ abstract class WidgetChatPoolHoldJpaTestBase {
         assertThat(result).containsKey("reply");
         assertThat(heldPerCall).as("LLM 호출마다 쥔 연결 수(문맥 읽기 뒤, 도구 실행 뒤)")
                 .containsExactly(expectedHeldDuringLlm(), expectedHeldDuringLlm());
+        assertThat(scopeEmPerCall).as("LLM 을 기다릴 때 범위 EntityManager 가 남지 않는다").containsExactly(false, false);
         assertThat(repository.findByUserIdAndInstIdOrderByMsgSeqAsc("userA", "i1")).hasSize(2);
     }
 

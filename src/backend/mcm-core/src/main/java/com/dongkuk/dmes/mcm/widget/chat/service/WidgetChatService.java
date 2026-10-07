@@ -107,6 +107,8 @@ public class WidgetChatService {
     static final int MAX_QUOTA_USERS = 10_000;
     /** 답 최대 토큰에 걸려 글이 끊겼을 때 답 끝에 붙이는 표시. */
     static final String TRUNCATED_NOTICE = "(답이 길어 중간에 끊겼습니다.)";
+    /** 도구를 실행하지 못했을 때 모델에 돌려주는 도구 오류 결과. */
+    static final String TOOL_FAILED_MESSAGE = "도구를 실행하지 못했습니다.";
     /** 한 차례(질문 하나 → 답 하나, 도구 반복 포함) 시간 제한 기본값(스펙 §9.2 「시간 초과 60초」). */
     static final int DEFAULT_TIMEOUT_SEC = 60;
     /** 답 최대 토큰에 걸려 끊긴 답의 끝난 이유 — Anthropic {@code max_tokens}, OpenAI 호환 {@code length}. */
@@ -300,14 +302,31 @@ public class WidgetChatService {
             }
             messages.add(LlmMessage.assistantReply(reply));
             List<LlmToolResult> results = new ArrayList<>();
-            for (LlmToolCall call : reply.toolCalls()) results.add(read(() -> toolBox.run(call)));
+            for (LlmToolCall call : reply.toolCalls()) results.add(runTool(toolBox, call));
             messages.add(LlmMessage.toolResults(results));
         }
     }
 
     /**
+     * 도구 하나를 짧은 읽기 트랜잭션({@link #read}) 안에서 실행한다. 도구 안의 실패는 {@link ToolBox#run} 이 도구 오류 결과로 바꾸지만,
+     * 트랜잭션 시작(연결 획득)·롤백 실패는 그 바깥에서 나므로 여기서 같은 도구 오류 결과로 바꿔 대화를 이어 간다.
+     */
+    private LlmToolResult runTool(ToolBox toolBox, LlmToolCall call) {
+        try {
+            return read(() -> toolBox.run(call));
+        } catch (RuntimeException e) {
+            log.warn("[widgetChat] 도구 트랜잭션 실패 tool={} cause={}", call.name(), e.getClass().getSimpleName());
+            return new LlmToolResult(call.id(), TOOL_FAILED_MESSAGE, true);
+        }
+    }
+
+    /**
      * 짧은 읽기 트랜잭션({@link #readTx}) 안에서 돌리고 늘 롤백한다 — 끝나면 연결을 돌려준다. 늘 롤백이라 안쪽 저장소 호출이 실패해
-     * rollback-only 가 되어도 커밋 때 UnexpectedRollbackException 이 나지 않는다(도구 실패는 지금처럼 도구 오류 결과로 끝난다).
+     * rollback-only 가 되어도 커밋 때 UnexpectedRollbackException 이 나지 않는다.
+     * <p>연결을 받는 시점은 기본 DataSource 설정에 달렸다 — 읽기 전용 정의라 {@code HibernateJpaDialect} 가 시작하자마자 연결을 잡고,
+     * 지연 획득({@code dmes.datasource.lazy-connection})이 켜져 있으면 첫 SQL 때 실제로 받는다. 시작(연결 획득)·롤백 실패는
+     * {@code work} 바깥에서 그대로 던진다 — 대화 문맥 읽기는 send 가 「답을 받지 못했습니다」로, 도구 실행은 {@link #runTool} 이
+     * 도구 오류 결과로 바꾼다.
      */
     private <T> T read(Supplier<T> work) {
         return readTx.execute(status -> {
@@ -401,7 +420,7 @@ public class WidgetChatService {
                 return error(call, "모르는 도구입니다: " + call.name());
             } catch (RuntimeException e) {
                 log.warn("[widgetChat] 도구 실패 tool={} cause={}", call.name(), e.getClass().getSimpleName());
-                return error(call, "도구를 실행하지 못했습니다.");
+                return error(call, TOOL_FAILED_MESSAGE);
             }
         }
 
