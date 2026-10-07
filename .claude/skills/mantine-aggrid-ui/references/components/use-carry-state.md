@@ -36,11 +36,11 @@ const handleSearch = useCallback(async () => {
 // Promise 를 돌려주면 끝난 때를 알아 분리 창 새로고침 판단에 쓴다.
 useCarryRefetch(handleSearch);
 
-// 마운트 때 자동 조회하는 화면은 useCarryRefetch 를 두지 않고, 이어받은 행이 있을 때만 자동 조회를 건너뛴다.
-// (행 없이 복원됐거나 분리 순간 조회가 진행 중이라 행이 비었으면 자동 조회가 한 번 돈다 — 중복 조회 없음)
+// 마운트 때 자동 조회하는 화면은 useCarryRefetch 를 두지 않는다. 첫 조회는 <SearchArea autoSearch> 가 하고(사용자 기본값을 넣은 뒤),
+// 복원됐는데 행이 비었을 때만 이 effect 가 이어받은 조건으로 조회한다(autoSearch 는 복원이면 부르지 않는다 — 중복 조회 없음).
 const restored = useCarryRestored();
 useEffect(() => {
-  if (!restored || masterRows.length === 0) void handleSearch();
+  if (restored && masterRows.length === 0) void handleSearch();
 }, []);
 ```
 
@@ -50,7 +50,7 @@ useEffect(() => {
 2. 사용자가 [조회]로 받은 결과 배열만 `{ bulky: true }` 로 둔다. 마운트 때 불러오는 LOV·콤보 목록은 `useState` 로 둔다.
 3. 결과가 `{ rows, total }` 같은 객체면 배열과 나머지를 나눠 배열만 bulky 로 둔다(빈 배열 판정 때문). `total` 은 light 로 둔다.
 4. `useCarryRefetch(handleSearch)` 를 둔다. 조회한 적 없으면(빈 배열) 새 창에서 재조회하지 않는다. 그래서 진입 때 자동 조회를 금지한 화면도 따로 막을 필요가 없다. 조회했는데 0건이었던 화면도 재조회하지 않는다(빈 그리드가 같은 결과다). refetch 는 Promise 를 돌려주는 조회 함수를 그대로 넘긴다.
-5. 마운트 때 자동 조회하는 화면은 4번의 `useCarryRefetch` 를 두지 않는다. 대신 자동 조회 조건을 `!useCarryRestored() || 결과 배열.length === 0` 으로 바꾼다. `useCarryRestored()` 만 보면, 분리 순간 조회가 진행 중이라 행이 빈 채 넘어온 경우 자동 조회도 재조회도 돌지 않아 빈 그리드로 남는다. 둘 다 두면 행 없이 복원됐을 때 두 번 조회한다.
+5. 마운트 때 자동 조회하는 화면은 4번의 `useCarryRefetch` 를 두지 않는다. 첫 조회는 `<SearchArea autoSearch>` 가 맡고(마운트 조회 effect 금지 — 사용자 기본값이 들어가기 전 조건으로 조회한다), 화면은 `useCarryRestored() && 결과 배열.length === 0` 일 때만 조회하는 마운트 effect 를 둔다. `autoSearch` 는 복원이면 부르지 않으므로, 분리 순간 조회가 진행 중이라 행이 빈 채 넘어온 경우도 이 effect 가 채운다. `useCarryRefetch` 까지 두면 행 없이 복원됐을 때 두 번 조회한다.
 6. 값은 JSON 으로 옮길 수 있어야 한다. `Date` 는 문자열로 두고, `Set`·`Map`·`dayjs` 같은 값은 쓰지 않는다(개발 모드 경고). 그런 상태는 `useState` 로 둔다.
 7. key 는 화면 안에서 유일해야 한다. 같은 key 를 두 번 쓰면 개발 모드에서 경고한다. 같은 key 의 복원값은 한 번만 쓰인다.
 8. setter 를 `useCallback`·`useEffect` deps 에 넣는다. eslint 가 안정값으로 인식하지 못해 요구하지만 넣어도 무해하다.

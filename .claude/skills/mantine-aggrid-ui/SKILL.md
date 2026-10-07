@@ -60,7 +60,7 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 | 필요 | 쓸 것 |
 |---|---|
 | 화면 골격·상단 버튼 바(조회·저장·초기화) | `layout`: `PageLayout` (`buttons`), `ContentBody`, `ContentPanel`, `LayoutContextBoundary`(독립 영역이 바깥 ContentBody 규격을 받지 않게 끊는 경계. WidgetFrame 이 위젯 본문에 이미 적용). 좌우·상하 분할(`ContentPanel`/중첩 `ContentBody` 2개 이상)은 `resizable`+`storageKey` — Part B §4-3 |
-| 조회조건 | `layout`: `SearchArea`, `SearchField` (`label="~"` 은 앞 필드와 기간 쌍) |
+| 조회조건 | `layout`: `SearchArea`, `SearchField` (`label="~"` 은 앞 필드와 기간 쌍). 날짜는 `type="date"`, 진입 자동 조회는 `autoSearch`(마운트 effect 금지), 조건을 비우는 칸은 `dependsOn` 선언. 사용자 기본값은 화면이 선언만 한다([search-area](references/components/search-area.md) §사용자 기본값) |
 | 입력·선택·날짜·버튼 | `form`: `Button`, `Input`, `Select`, `ComboBox`, `DatePicker`, `Textarea`, `Checkbox`, `Radio` … |
 | 데이터 그리드(모든 데이터 목록) | `grid`: **`AgDataGrid` 하나만**. 제목·건수·버튼 툴바가 필요하면 `<GridPanel>` 안에 넣는다. 저장형은 `useGridDataManager`. 열은 `GridColumn`, ag-grid `ColDef` 아님 |
 | 엑셀 내보내기 | `utils`: `exportToExcel` (xlsx 기반 — ag-grid Excel Export(Enterprise)가 필요 없다). `AgDataGrid` 는 「그리드 설정」 메뉴(`GridPanel` 안은 머리줄, 밖은 그리드 머리글 줄 오른쪽 끝의 작은 아이콘, 대화 상자 안은 이 아이콘에 엑셀 항목만)에 「엑셀 출력」 이 기본으로 있어(끄려면 `excelExport={false}`, 메뉴 전체는 `settingsMenu={false}`) 보이는 목록을 그대로 내려받는 단추는 따로 만들지 않는다 |
@@ -114,7 +114,9 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 | 화면에서 `import { Button, Group } from "@mantine/core"` | `@dk-oasis/shared/form` · `layout` 래퍼 |
 | `PageLayout buttons` 에 `<Button>` JSX 를 넣음 | `PageButton` 객체 배열(`{ id, label, onClick, type, action }`) — [screen-patterns.md](references/screen-patterns.md) §상단 버튼 |
 | 메시지를 `useGfnMessage`·`ErrorModal`·`alert` 로 제각각 띄움 | `useMessage().showMessage` + screen-patterns.md §메시지 문구 표 |
-| 기간 조회조건을 `<div style={{display:"flex"}}>` 나 `span-2` 로 직접 묶음 | `SearchField` 두 개, 두 번째 `label="~"` |
+| 기간 조회조건을 `<div style={{display:"flex"}}>` 나 `span-2` 로 직접 묶음 | `type="date"` `SearchField` 두 개, 두 번째 `label="~"` |
+| 진입 자동 조회를 마운트 `useEffect` 로 함(사용자 기본값이 빠진 조건으로 조회) | `<SearchArea autoSearch>` — [search-area](references/components/search-area.md) |
+| 기준 칸이 바뀔 때 화면이 다른 조회 칸을 직접 비움 / 조회 칸 `onChange` 를 `setFilters({ ...filters, k: v })` 로 씀 | 의존 칸에 `dependsOn="기준 칸 키"` 선언 / 함수형 갱신 `setFilters((p) => ({ ...p, k: v }))` |
 | 패널 안을 flex `div` 로 다시 감싸거나 안내 `<p style>` 추가 | 감싸지 않는다. ContentPanel·GridPanel 이 높이를 맡는다 |
 | `GridPanel headerExtra` 안에서 absolute·fixed 배치를 쓰거나 `order` 로 그리드 설정 아이콘 앞에 서려 함 | 아이콘 칸은 머리줄 맨 끝(DOM 마지막·`order` 최대값)으로 고정이라 `order` 는 통하지 않고 absolute 요소는 아이콘을 가린다. 일반 흐름으로만 둔다 |
 | 행추가·행삭제를 상단 버튼으로 만들고 임시 키를 직접 생성 | `GridPanel showAddButton` + `buttons` 의 확인창 행삭제 + `useGridDataManager` (screen-patterns.md §상단 버튼) |

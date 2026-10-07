@@ -255,6 +255,9 @@ PortalShell 은 활성 탭의 **하단 우측 모서리**에 `pageId` 를 작은
 
 - `PageLayout.buttons` : 페이지 최상단 버튼 바. **별도 A-TOOLBAR 영역을 신설하지 않는다** — 기본 CRUD·업무 특화 버튼 모두 `buttons` 배열로 전달. (MUST)
 - `SearchArea` : 조회조건 묶음. 업무가 복잡하면 `SearchField` 를 여러 행으로 자동 wrap.
+- `SearchArea` 오른쪽 위(조건 칸 뒤)에는 「조회 기본값」 설정 아이콘(⚙)이 자동으로 나온다. 사용자가 조회 칸마다 기본값(고정 값·상대 날짜·마지막 조회값)을 정하는 창을 여는 아이콘이며, 기본값 대상 칸이 하나도 없으면 나오지 않는다. 화면 설계자는 이 아이콘을 따로 설계하지 않고 구조도에 위치(`[⚙]`)만 표기한다. (MUST)
+- 날짜 기간 표기: 기간은 날짜 칸 두 칸을 `~` 로 이어 `[시작일] ~ [종료일]` 로 표기하고, 컴포넌트 트리에는 `type="date"` 두 칸(두 번째 `label="~"`)으로 적는다. 이렇게 두 칸이 한 짝으로 묶이고 기간 기본값(「당월 1일 ~ 당일」 등)을 한 줄에서 정할 수 있다. (MUST)
+- 기본값 동작·키 규칙(`name` 또는 `defaultKey`)·자동 조회(`autoSearch`)·의존 칸(`dependsOn`)은 [Frontend Part B](../../FrontEnd/standard-v2/part-b-shared-policy.md#4-4-조회-칸-사용자-기본값-searchareasearchfield) §4-4 가 정본이다.
 - `ContentBody` / `ContentPanel` : 그리드·폼·분할·다단 구성의 컨테이너. `ContentBody` 안에 `ContentPanel`·중첩 `ContentBody` 를 2개 이상 두면(2단/3단 그리드, 좌우·상하 분할) 리사이즈 가능하게 만든다(MUST). 구현 규칙(`resizable`/`storageKey`/`minSize`)은 [Frontend Part B](../../FrontEnd/standard-v2/part-b-shared-policy.md) §4-3 이 정본이다.
 - import: `import { PageLayout, SearchArea, SearchField, ContentBody, ContentPanel } from "@dk-oasis/shared/layout";` (Frontend §14-2, §4)
 

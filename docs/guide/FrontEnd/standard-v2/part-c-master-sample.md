@@ -70,6 +70,9 @@ export interface ProductRow extends Record<string, unknown> {
 export interface ProductSearchRequest {
   productType?: string;
   useYn?: string;
+  /** 등록일 기간(YYYY-MM-DD). 빈 문자열이면 조건 없음. */
+  regFromDt?: string;
+  regToDt?: string;
 }
 ```
 
@@ -147,7 +150,8 @@ import type { ProductRow, ProductSearchRequest } from "./types";
 import { PRODUCT_COLUMNS, USE_YN_OPTIONS } from "./constants";
 
 const ProductPage: PortalShellPageComponent = () => {
-  const [filter, setFilter] = useState<ProductSearchRequest>({ useYn: "" });
+  // 조회 조건은 객체 하나로 두고, 칸 onChange 는 모두 함수형 갱신으로 쓴다(조회 기본값이 여러 칸에 한 번에 들어가도 값이 사라지지 않는다).
+  const [filter, setFilter] = useState<ProductSearchRequest>({ useYn: "", regFromDt: "", regToDt: "" });
   const apiCall = useApiCall();
 
   const grid = useGridDataManager<ProductRow>({
@@ -189,13 +193,30 @@ const ProductPage: PortalShellPageComponent = () => {
         },
       ]}
     >
-      <SearchArea>
+      {/* 첫 조회는 마운트 effect 가 아니라 autoSearch 로 한다 — 조회 기본값이 칸에 들어간 다음 커밋에서 onSearch 를 한 번 부른다. */}
+      <SearchArea onSearch={() => void handleSearch()} autoSearch>
+        {/* 기본값 대상 칸은 name 또는 defaultKey 가 필요하다. MDM 툴팁이 필요 없는 칸은 defaultKey 를 쓴다. */}
         <SearchField
           label="사용여부"
+          defaultKey="useYn"
           type="select"
           value={filter.useYn ?? ""}
           options={USE_YN_OPTIONS}
           onChange={(v) => setFilter((f) => ({ ...f, useYn: v }))}
+        />
+        {/* 기간은 type="date" 두 칸을 label="~" 로 짝짓는다. To 칸의 기본값 키는 `regFromDt~to` 로 자동 정해진다. */}
+        <SearchField
+          label="등록일"
+          defaultKey="regFromDt"
+          type="date"
+          value={filter.regFromDt ?? ""}
+          onChange={(v) => setFilter((f) => ({ ...f, regFromDt: v }))}
+        />
+        <SearchField
+          label="~"
+          type="date"
+          value={filter.regToDt ?? ""}
+          onChange={(v) => setFilter((f) => ({ ...f, regToDt: v }))}
         />
       </SearchArea>
       <ContentBody root>
@@ -258,7 +279,7 @@ export { default } from "@dk-oasis/m-mpp/pages/master/mstProduct";
 | 3-1 types.ts | §4 명명, §3-2 (유형 C 필수 파일), §9 (행 상태 필드 제외) |
 | 3-2 constants.ts | §4 명명 |
 | 3-3 mstProduct-api.ts | §8 에러 처리, §9-2/§9-3 변환 위치, §10-2~§10-4 body 규칙, §2-2 URL 규칙 |
-| 3-4 MstProductPage.tsx | §1-2 기본 원칙, §7 상태관리, §14-2 템플릿 |
+| 3-4 MstProductPage.tsx | §1-2 기본 원칙, §7 상태관리, §14-2 템플릿, 조회 영역은 Part B §4-4(조회 칸 사용자 기본값) |
 | 3-5 m-mpp 엔트리 (`pages/master/mstProduct.tsx`) | §4 명명 (MES camelCase 단일 토큰), §14-4 |
 | 3-6 tsup.config | §14-5, §13-2 체크 |
 | 3-7 portal 재내보내기 | §14-3 |
