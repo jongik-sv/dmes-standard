@@ -1,3 +1,4 @@
+// SQLite 사본 읽기 도구(로컬 DB 가 Oracle 로 바뀐 뒤에는 SQLite 사본이 있을 때만 동작), Oracle 판은 후속(oracle-1007 b8).
 // TSK-02-03 검증 프로그램 (design.md §3 a~j). JDK 21 단일 파일 실행.
 // 실행: java -cp "$SQLITE_JDBC_JAR:$SLF4J_API_JAR" docs/mdm/erd/verify/Verify.java <check-id|all>
 // 매 체크마다 새 임시 SQLite DB(File.createTempFile)를 만들고 끝나면 지운다. 리포의 실제 data/mdm.db 는 열지 않는다.

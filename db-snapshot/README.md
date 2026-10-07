@@ -104,3 +104,7 @@ python3 scripts/db-snapshot/snapshot.py import --pdb L_MAIN --replace --keep-e2e
 ## 임베딩 처리
 
 `TB_MDM_TERM.EMBEDDING`(BLOB, 8,157행 × 4KB ≈ 33MB, 전체의 대부분)과 `EMBEDDING_MODEL` 은 **NULL 로 내보낸다**(`NULLIFY`). 적재 뒤에는 모든 용어가 재계산 대상이다. 서버에는 일괄 재인코딩 배치/API 가 없고(저장 시점에 건별로만 인코딩), `docs/mdm/dict-std/embed_terms.py` 가 일괄 재계산 수단이다. 이 스크립트는 지금 SQLite 파일(`--db`)을 대상으로 하므로 **Oracle 판은 후속**이다(필요하면 조정자에게 요청). 설계는 `docs/mdm/term-embedding.md` 참고.
+
+## 위젯 SQL 후처리(convert)
+
+`convert` 는 mcm 변환에서 `TB_MCM_WIDGET_DEF.CONFIG_JSON` 의 쿼리 위젯 SQL 6개를 SQLite 문법에서 Oracle 판으로 바꾼다(`scripts/db-snapshot/widget_sql_oracle.json`, 원본이 알려진 문안과 글자까지 같을 때만). 모르는 SQL 은 경고만 남긴다. 단위 시험은 `python3 scripts/db-snapshot/test_snapshot.py`.

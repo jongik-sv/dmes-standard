@@ -1,3 +1,4 @@
+// SQLite 사본 읽기 도구(로컬 DB 가 Oracle 로 바뀐 뒤에는 SQLite 사본이 있을 때만 동작), Oracle 판은 후속(oracle-1007 b8).
 import com.dongkuk.dmes.mdm.dma.naming.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
