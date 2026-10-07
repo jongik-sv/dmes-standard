@@ -76,21 +76,17 @@ public class KafkaJpaConfig {
         properties.put("hibernate.hbm2ddl.auto", ddlAuto);
         properties.put("hibernate.physical_naming_strategy",
             "org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl");
-        // 커스텀 DialectResolver — Tibero 를 OracleDialect 로 매핑. Oracle 은 기본 StandardDialectResolver 가 자동 처리.
-        properties.put("hibernate.dialect_resolvers",
-            "com.dongkuk.caravan.core.config.TiberoDialectResolver");
         // 감사 칸(Instant: C_AT·U_AT)은 TIMESTAMP(6) 로 저장한다. 시각은 KST 통일이라 hibernate.jdbc.time_zone 은 넣지 않는다(oracle-1007).
         // 이 EMF 는 직접 만들어 spring.jpa.properties 가 적용되지 않으므로 여기서 지정한다.
         properties.put("hibernate.type.preferred_instant_jdbc_type", "TIMESTAMP");
         // boolean 칸은 NUMBER(1,0)+CHECK(0,1) 로 두고 TINYINT 로 매핑한다(BIT 는 Oracle 23+ 에서 validate 가 실패한다). 지금 caravan 엔티티에는 boolean 칸이 없다.
         properties.put("hibernate.type.preferred_boolean_jdbc_type", "TINYINT");
-        // 추가 안전망: 명시적 dialect (caravan.hibernate.dialect 또는 spring.jpa.database-platform).
-        // 비어있으면 dialect_resolvers 또는 standard 자동 감지에 위임.
+        // 명시적 dialect (caravan.hibernate.dialect 또는 spring.jpa.database-platform). 비어있으면 Oracle 을 Hibernate 가 자동 감지한다.
         if (dialect != null && !dialect.isBlank()) {
             properties.put("hibernate.dialect", dialect);
             log.info("[CaravanJpa] hibernate.dialect 명시: {}", dialect);
         } else {
-            log.info("[CaravanJpa] hibernate.dialect 미설정 — 자동 감지 (TiberoDialectResolver) 사용");
+            log.info("[CaravanJpa] hibernate.dialect 미설정 — Oracle 자동 감지");
         }
         log.info("[CaravanJpa] hibernate.hbm2ddl.auto = {}", ddlAuto);
         em.setJpaPropertyMap(properties);
