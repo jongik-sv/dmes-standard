@@ -37,14 +37,17 @@ import org.springframework.context.ApplicationContext;
  *   <li>JVM 당 한 번({@link #ensureMigrated}): 스키마를 Flyway clean 후 V1 기준선으로 migrate 한다. 컨텍스트가 뜨기 전
  *       ({@code @DynamicPropertySource})에 돌므로 컨텍스트의 Flyway 는 할 일이 없다(적용할 버전 없음).
  *       {@code -Pdmes.ora.pdb} 로 있는 PDB 를 쓰면 앞 실행의 행이 남아 있을 수 있어 첫 클래스도 늘 이 상태에서 시작한다.</li>
- *   <li>클래스마다({@link #resetForTestClass}): 표를 다시 만들지 않고 행만 지운 뒤 V1 의 초기 행을 다시 넣는다. 외래 키(V1 52개)가 있어
+ *   <li>클래스마다({@link #resetForTestClass}): 표를 다시 만들지 않고 행만 지운 뒤 V1 의 초기 행을 다시 넣는다. 외래 키(V1 53개)가 있어
  *       TRUNCATE 는 ORA-02266 이 나므로 자식 → 부모 순서로 DELETE 한다. 시험이 만든 표·뷰·트리거(기준선에 없던 것)는 먼저 지운다 —
  *       SQLite 때 DROP+migrate 가 하던 일이다.</li>
  * </ul>
  *
  * <p>IDENTITY(8칸)는 되돌리지 않는다 — 생성된 ID 값을 숫자로 단언하는 시험이 없다(2026-10-07 grep).
- * Oracle IDENTITY 는 직접 넣은 ID 를 따라가지 않으니(다음 생성 값이 직접 넣은 값과 겹칠 수 있다), 시험이 ID 를 직접 넣을 때는
- * 900000 이상을 쓴다. 지우기 전에는 늘 대상 PDB 가
+ * Oracle IDENTITY 는 직접 넣은 ID 를 따라가지 않는다(다음 생성 값이 직접 넣은 값과 겹칠 수 있다). 그래서 한 시험 클래스 안에서
+ * 직접 넣은 ID 와 생성 ID 를 섞을 때는 겹치지 않을 만큼 큰 값(예: LAYOUT_ID 9xxxxx)을 쓴다. 직접 ID 만 쓰는 클래스는 작은 값(1~13 등)도
+ * 된다 — 클래스마다 행을 지우고, IDENTITY 는 그 사이 뒤로만 간다. MetaFeedLegacyGoldenTest 는 골든 값(99001) 때문에
+ * DOMAIN IDENTITY 를 START WITH 99002 로 옮긴다(DDL). 같은 JVM 의 뒤 클래스는 그 값부터 생성하므로 그 뒤에 99002 이상을 직접 넣지 않는다.
+ * 지우기 전에는 늘 대상 PDB 가
  * 시험 PDB 인지 확인한다({@link #checkResettable}).
  */
 public final class MdmSharedTestDb {

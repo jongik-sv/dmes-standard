@@ -297,7 +297,8 @@ class SetCallIoReaderSqliteTest extends AbstractMdmSharedDbTest {
 
         set(jdbc, "AXB", "[]", "[]", line(ruleNode("r1", "R_GRD")));
         DmeTestSupport.ruleSetCalls(jdbc, "G", "[\"M\",\"AXB\"]");
-        assertTrue(setVersions.mayBeCalled("A_B"), "LIKE 의 _ 는 거짓 양성일 수 있다 — 정확한 판정은 원장 읽기가 한다");
+        assertFalse(setVersions.mayBeCalled("A_B"), "세트 ID 의 _ 는 ESCAPE 로 글자 그대로 맞춘다 — AXB 를 부르는 행은 A_B 후보가 아니다");
+        assertTrue(setVersions.mayBeCalled("axb"), "대소문자는 무시한다(걸러내기는 넓게 — 정확한 판정은 원장 읽기가 한다)");
         assertEquals(List.of(), callers(reader.callers("A_B", NOW)));
     }
 
