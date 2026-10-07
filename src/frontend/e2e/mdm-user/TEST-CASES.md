@@ -67,7 +67,13 @@ pnpm test:e2e:mdm-user --project=dmc    # 한 그룹만(setup 이 먼저 돈다)
 | `assertAllButtonsPressed` | 화면의 활성 버튼 중 누르지 않은 것이 없음(예외는 이유와 함께 allow). shared 개인화 메뉴 `search-settings-menu`·`grid-settings-menu` 는 공통 허용(`COMMON_ALLOW`) |
 | `Watcher` | 콘솔 오류·페이지 예외·5xx 없음. window.confirm 은 "확인"으로 수락(취소 시험은 `dismissNextDialog`) |
 
-## 테스트 케이스 (2026-10-04 새 DB 최종 실행: 217건 모두 통과 — 실패 0 · 미실행 0 · 건너뜀 0)
+## Oracle 전환 뒤 실행 (2026-10-07, oracle-1007 ora-mdm)
+
+E2E 행을 거른 스냅샷 PDB(L_ORA_MDM), mcm 풀 기본 3(③c 뒤)에서 돌렸다. Oracle 원인 실패는 0(서버 ORA 0)이다.
+- 데이터 전제 차이로 고친 것: dma COL-02~05 입력(곰팡솜뭉), dmb LAY-07/08 숫자 항목(ELGN), dma DOM-05 목록 좁히기(도메인 166건 가상 스크롤), dme SED-05 세트 탭 단추 허용, 공통 개인화 메뉴 허용.
+- 마지막 결과: setup·common·dmc·dmd 모두 통과, dma 40/40, dmb·dme 는 화면 배치 검사 4건만 실패 — dme LAY-99·VER-99·SET-99(ruleEdit 「삭제」 글자 잘림 19>14·ag-root-wrapper 0x0), dmb LAY-99(layoutMng 버전 이력 ag-root-wrapper 0x0). m-mdm 화면 결함으로 조정자 후속이다.
+
+## 테스트 케이스 (2026-10-04 SQLite 새 DB 최종 실행: 217건 모두 통과 — 실패 0 · 미실행 0 · 건너뜀 0)
 
 (이력, 2026-09-28) dmc·dmd 첫 실행은 99건 중 통과 85 / 실패 14 였고, 실패는 모두 아래 "발견한 결함"에 대응하는 앱 결함이었다. D1·D3~D13 을 고쳤고, D2 는 사용자 결정으로 [넘기기]를 꺼 두는 보류로 정해 넘기기 TC 를 "꺼져 있고 이유를 알린다" 확인으로 바꿨다. 전체 실행(4.9분)은 207/5 였고, 그 뒤 D13·D2 조치를 넣어 dme(54건)·dmc+dme(102건)를 다시 돌려 모두 통과했다. 그 뒤 마루 코드 화면 4개가 2개로 합쳐져(D-101·D-102) dmc 스펙을 새 구조로 옮겼고 dmc 50건(코드 삭제·탭 경고 2건 추가)이 연속 두 번 모두 통과했다.
 
