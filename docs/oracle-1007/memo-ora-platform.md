@@ -14,8 +14,8 @@
 | p2 caravan-hub·console·core | 코드 완료·hub 시험 통과 | HubFlywayConfig(CARAVANUSER 항상·IFUSER 로컬 전용), yml 6종, InterfaceMapper CLOB resultMap, TiberoDialectResolver·KafkaJpaConfig, 빈 값 검증(groupId·호스트 이름·URL). hub 앱 실기동(bootRun)은 안 함 |
 | p5 H2 시험 | **oasis 완료**(686건 전부 통과, 1건 skip, 53초) | caravan-core h2 제거(완료). oasis-core 시험을 `OracleTestDatabase` 로 전환. caravan-core·console 시험은 p6 전체 시험에서 확인. 아래 「oasis 시험 진행」 참조 |
 | 리뷰 | p1·p3 초안 opus 리뷰 반영 완료, p2·p3·p5 코드 opus 리뷰 반영 완료 | 반영 안 한 지적 2건은 아래 「결정」 |
-| p4 cactus-core SQLite 제거 | 대기 | ora-mdm·mcm 머지②·③ 뒤. `DialectDetector`·`LocalSqliteDataSource`·`SqliteColumnConverter`·`OasisCommitFailureSqliteTest`·`DialectDetectorTest` 제거 또는 archive, `DmomMapper.xml:65,70` 의 `NEXT VALUE FOR MCMAPUSER.SEQ_MCM_MOM_TC_ERROR` 를 `.NEXTVAL` 로 |
-| p6 전체 시험·머지 요청(④) | 대기 | heavy.sh 경유 한 번, 머지②·③ 뒤 |
+| p4 cactus-core SQLite 제거 | **완료**(머지③ dev 14b09f1af 합침) | `DialectDetector`·변환기·`LocalSqliteDataSource`·관련 시험을 archive 로 이동, `OasisCommitFailureOracleTest` 8건, `DmomMapper` Oracle 문법, 잔재 정리(44ec64636·7abe04654) |
+| p6 전체 시험·머지 요청(④) | **사전 시험 통과**, 머지② 알림 대기 | 모듈별 순차 시험 전부 통과(caravan-core 102·console 59·hub 80·cactus-core 897·aps-core 3·oasis 686·mls smoke 1). 머지② 뒤 dev 를 한 번 더 합치고 바뀐 모듈만 재시험한 다음 머지 요청④. 운영 코드 변경 SHA: oasis `CoreServiceStarter` synchronizedList, hub Flyway 순서 ee380f81c, DmomMapper 035b7f29c. `:mls:api:test` 는 smoke 시험 추가로 해결 |
 
 ### oasis 시험 진행 (p5)
 - 1차(병렬 켜짐): 618건 중 10건 실패 뒤 `SqlScriptProcessTaskTest` 에서 멈춤. 원인: junit-platform.properties 의 병렬 실행으로 같은 스키마 표가 서로 지워짐, `Integer` 캐스트(`MixDataAccessTechTest`·`PreStructuredMessageSendTaskServiceTest`).
