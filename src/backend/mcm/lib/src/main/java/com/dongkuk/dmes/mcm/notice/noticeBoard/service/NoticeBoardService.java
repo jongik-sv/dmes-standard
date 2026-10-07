@@ -3,15 +3,15 @@
  * 작성일: 2026-10-02
  * 내용: noticeBoard (포털 홈 공지 목록) OASIS 서비스 — search 1 action, 모든 로그인 사용자 읽기 전용
  */
-package com.dongkuk.dmes.mls.lsh.noticeBoard.service;
+package com.dongkuk.dmes.mcm.notice.noticeBoard.service;
 
 import com.dongkuk.dmes.cactus.security.context.UserContextHolder;
 import com.dongkuk.dmes.cactus.security.context.UserInfo;
-import com.dongkuk.dmes.mls.entity.Notice;
-import com.dongkuk.dmes.mls.lsh.common.NoticeCodes;
-import com.dongkuk.dmes.mls.lsh.common.NoticeHtmlSanitizer;
-import com.dongkuk.dmes.mls.lsh.noticeBoard.dto.NoticeBoardSearchRequest;
-import com.dongkuk.dmes.mls.repository.NoticeRepository;
+import com.dongkuk.dmes.mcm.notice.entity.Notice;
+import com.dongkuk.dmes.mcm.notice.common.NoticeCodes;
+import com.dongkuk.dmes.mcm.notice.common.NoticeHtmlSanitizer;
+import com.dongkuk.dmes.mcm.notice.noticeBoard.dto.NoticeBoardSearchRequest;
+import com.dongkuk.dmes.mcm.notice.repository.NoticeRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Limit;
@@ -29,12 +29,12 @@ import java.util.TreeSet;
 /**
  * 포털 홈 공지 목록 ({@code noticeBoard}) OASIS 진입 서비스.
  *
- * <p>정본: {@code docs/mls/design/noticeMgmt/noticeMgmt_기능설계서.md} §12 (noticeBoard).
+ * <p>정본: {@code docs/mcm/design/noticeMgmt/noticeMgmt_기능설계서.md} §12 (noticeBoard).
  * BPMN {@code services/lsh/noticeBoard.bpmn} 의 {@code search} 분기와 1:1 이다.
  *
  * <p><b>왜 noticeMgmt 와 따로 두는가</b> — noticeMgmt OBJECT 권한은 관리자 전용이지만 홈 화면은 로그인한 모든 사용자가
  * 본다. 이 서비스의 {@code search} 는 <b>AUTH_ONLY</b>(인증만, 역할 권한 없음) 경로다 — m-mcm {@code proxy.ts}
- * authOnlyPrefixes 의 {@code /api/mls/oasis/noticeBoard/search} 와 mcm-core {@code EndpointPermissionFilter} 의
+ * authOnlyPrefixes 의 {@code /api/mcm/oasis/noticeBoard/search} 와 mcm-core {@code EndpointPermissionFilter} 의
  * {@code noticeboard/search}. 그래서 OBJECT·역할 매핑 시드가 없고, 런타임에 만든 역할이나 역할이 없는 사용자도 막히지 않는다.
  * 대신 무엇을 보여 줄지는 이 서비스가 현재 사용자 역할로 정한다(게시 대상). 쓰기 action 은 이 서비스에 없다.
  *
@@ -148,8 +148,8 @@ public class NoticeBoardService {
      * <p>HTML 본문은 내려보낼 때도 한 번 더 소독한다. 저장 경로(noticeMgmt save)가 이미 소독하지만, DB 에 직접 넣은 행이나
      * 소독 규칙이 바뀌기 전에 저장된 행도 모든 사용자의 홈에 그려지기 때문이다. 50건 이하라 비용은 작다.
      *
-     * <p>작성자 이름({@code C_USR_NM})은 넣지 않는다 — 사용자 원장은 mcm DB(TB_MCM_SEC_USER)에 있고 mls DB 와 파일이
-     * 달라 조인할 수 없다.
+     * <p>작성자 이름({@code C_USR_NM})은 넣지 않는다 — 사용자 원장(TB_MCM_SEC_USER)과 같은 DB 지만 홈 목록에는
+     * 작성자 표시가 없어 조인하지 않는다(2026-10-07 mcm 이전 전에는 DB 파일이 달라 조인할 수 없었다).
      */
     private List<Map<String, Object>> toRows(List<Notice> rows) {
         List<Map<String, Object>> out = new ArrayList<>(rows.size());

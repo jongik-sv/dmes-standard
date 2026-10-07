@@ -1,4 +1,4 @@
-package com.dongkuk.dmes.mls.lsh.common;
+package com.dongkuk.dmes.mcm.notice.common;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

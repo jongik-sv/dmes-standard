@@ -1,16 +1,16 @@
 /*
  * 작성자: Agent
  * 작성일: 2026-10-02
- * 내용: 공지(TB_MLS_NOTICE) 코드값 상수 — noticeMgmt·noticeBoard 공용 (기능설계서 §10 LV-001~LV-003)
+ * 내용: 공지(TB_MCM_NOTICE) 코드값 상수 — noticeMgmt·noticeBoard 공용 (기능설계서 §10 LV-001~LV-003)
  */
-package com.dongkuk.dmes.mls.lsh.common;
+package com.dongkuk.dmes.mcm.notice.common;
 
 import java.util.Set;
 
 /**
  * 공지 코드값 도메인 (기능설계서 §10). 코드 마스터에 등재하지 않은 화면 인라인 상수다.
  *
- * <p>FE 의 콤보·뱃지가 같은 문자열을 쓰므로 값을 바꾸면 FE({@code m-mls/pages/lsh/noticeMgmt/types.ts})와 함께 바꾼다.
+ * <p>FE 의 콤보·뱃지가 같은 문자열을 쓰므로 값을 바꾸면 FE({@code m-mcm/page-components/lsh/noticeMgmt/types.ts})와 함께 바꾼다.
  */
 public final class NoticeCodes {
 

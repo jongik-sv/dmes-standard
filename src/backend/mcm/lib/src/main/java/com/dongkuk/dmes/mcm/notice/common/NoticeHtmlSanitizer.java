@@ -3,7 +3,7 @@
  * 작성일: 2026-10-02
  * 내용: 공지 본문 HTML 소독 — CONTENT_FORMAT='HTML' 저장 시 서버에서 위험 요소 제거 (jsoup Safelist)
  */
-package com.dongkuk.dmes.mls.lsh.common;
+package com.dongkuk.dmes.mcm.notice.common;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;

@@ -3,7 +3,7 @@
  * 작성일: 2026-10-02
  * 내용: noticeBoard action=search 요청 DTO — 포털 홈 공지 목록 (모든 로그인 사용자)
  */
-package com.dongkuk.dmes.mls.lsh.noticeBoard.dto;
+package com.dongkuk.dmes.mcm.notice.noticeBoard.dto;
 
 /**
  * {@code noticeBoard} action={@code search} 요청 DTO.

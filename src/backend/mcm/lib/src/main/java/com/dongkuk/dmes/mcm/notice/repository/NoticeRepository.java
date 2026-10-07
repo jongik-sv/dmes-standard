@@ -1,11 +1,11 @@
 /*
  * 작성자: Agent
  * 작성일: 2026-09-03
- * 내용: Notice (TB_MLS_NOTICE) JPA Repository — noticeMgmt 화면 owner (search + 채번)
+ * 내용: Notice (TB_MCM_NOTICE) JPA Repository — noticeMgmt 화면 owner (search + 채번)
  */
-package com.dongkuk.dmes.mls.repository;
+package com.dongkuk.dmes.mcm.notice.repository;
 
-import com.dongkuk.dmes.mls.entity.Notice;
+import com.dongkuk.dmes.mcm.notice.entity.Notice;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -16,7 +16,7 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * {@code TB_MLS_NOTICE} JPA Repository (noticeMgmt 화면 owner).
+ * {@code TB_MCM_NOTICE} JPA Repository (noticeMgmt 화면 owner).
  *
  * <p>기능설계서 §3 조회조건 S-001~S-006 과 홈 공지 목록(noticeBoard)을 JPQL 로 처리한다.
  * 방언 독립을 위해 native query 를 쓰지 않는다 — local 은 SQLite, 운영 방언은 고객사가 정한다.
@@ -100,7 +100,7 @@ public interface NoticeRepository extends JpaRepository<Notice, String> {
      * 홈 화면 공지 목록 (noticeBoard) — 게시중이고 {@code pToday} 가 게시기간 안인 공지.
      *
      * <p>게시 대상(V4): {@code TARGET_SCOPE='ALL'} 이거나, {@code 'ROLE'} 이고 {@code pRoles}(현재 사용자 역할 ID) 중 하나가
-     * TB_MLS_NOTICE_TARGET 에 있는 공지. {@code pRoles} 는 비우면 안 된다 — 역할이 없는 사용자는 서비스가 결코 일치하지 않는
+     * TB_MCM_NOTICE_TARGET 에 있는 공지. {@code pRoles} 는 비우면 안 된다 — 역할이 없는 사용자는 서비스가 결코 일치하지 않는
      * 값 하나를 넣어 보낸다(빈 IN 목록은 방언마다 문법 오류가 난다).
      *
      * <p>게시기간의 시작·종료가 NULL 이면 그 쪽은 열린 구간으로 본다. 상태값({@code POSTED})과 기준일은 서비스가

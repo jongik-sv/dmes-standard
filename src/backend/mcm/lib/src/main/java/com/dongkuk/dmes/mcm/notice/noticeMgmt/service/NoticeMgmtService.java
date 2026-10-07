@@ -3,24 +3,24 @@
  * 작성일: 2026-09-03
  * 내용: noticeMgmt (공지사항 관리) OASIS 서비스 — search / save / changeStatus 3 action
  * 수정: 2026-10-02 — 본문 형식(CONTENT_FORMAT)·공지 분류(NOTICE_CATEGORY)·상단 고정(PIN_YN) 추가, HTML 소독, 본문 상한 4000자 → 20만 자
- * 수정: 2026-10-02 — 게시 대상(TARGET_SCOPE ALL/ROLE + TB_MLS_NOTICE_TARGET 역할 목록) 추가
+ * 수정: 2026-10-02 — 게시 대상(TARGET_SCOPE ALL/ROLE + TB_MCM_NOTICE_TARGET 역할 목록) 추가
  * 수정: 2026-10-03 — save 에 MDM 저장 검증(MdmValidator.check, TITLE) 연결 — 컬럼 사전 정의로 값을 한 번 더 본다
  */
-package com.dongkuk.dmes.mls.lsh.noticeMgmt.service;
+package com.dongkuk.dmes.mcm.notice.noticeMgmt.service;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.cactus.mdm.MdmValidationRequest;
 import com.dongkuk.dmes.cactus.mdm.MdmValidator;
 import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
-import com.dongkuk.dmes.mls.entity.Notice;
-import com.dongkuk.dmes.mls.entity.NoticeTarget;
-import com.dongkuk.dmes.mls.lsh.common.NoticeCodes;
-import com.dongkuk.dmes.mls.lsh.common.NoticeHtmlSanitizer;
-import com.dongkuk.dmes.mls.lsh.noticeMgmt.dto.NoticeMgmtChangeStatusRequest;
-import com.dongkuk.dmes.mls.lsh.noticeMgmt.dto.NoticeMgmtSearchRequest;
-import com.dongkuk.dmes.mls.repository.NoticeRepository;
-import com.dongkuk.dmes.mls.repository.NoticeTargetRepository;
+import com.dongkuk.dmes.mcm.notice.entity.Notice;
+import com.dongkuk.dmes.mcm.notice.entity.NoticeTarget;
+import com.dongkuk.dmes.mcm.notice.common.NoticeCodes;
+import com.dongkuk.dmes.mcm.notice.common.NoticeHtmlSanitizer;
+import com.dongkuk.dmes.mcm.notice.noticeMgmt.dto.NoticeMgmtChangeStatusRequest;
+import com.dongkuk.dmes.mcm.notice.noticeMgmt.dto.NoticeMgmtSearchRequest;
+import com.dongkuk.dmes.mcm.notice.repository.NoticeRepository;
+import com.dongkuk.dmes.mcm.notice.repository.NoticeTargetRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -44,7 +44,7 @@ import java.util.regex.Pattern;
 /**
  * 공지사항 관리 ({@code noticeMgmt}) OASIS 진입 서비스.
  *
- * <p>정본: {@code docs/mls/design/noticeMgmt/noticeMgmt_기능설계서.md}.
+ * <p>정본: {@code docs/mcm/design/noticeMgmt/noticeMgmt_기능설계서.md}.
  * 본 화면은 <b>As-Is 레거시가 없는 To-Be only 신규 화면</b>이라 분석리포트 인용이 없다
  * (기능설계서 §11.1 GAP-001).
  *
@@ -88,7 +88,7 @@ public class NoticeMgmtService {
     private static final Pattern ROLE_ID_PATTERN = Pattern.compile("^[A-Z0-9_]{1,100}$");
 
     /**
-     * MDM 컬럼 사전으로 검사할 컬럼 — DB 칸(TB_MLS_NOTICE)과 MDM 정의를 견주어 <b>MDM 이 DB 보다 엄격하지 않은 칸만</b> 넣는다
+     * MDM 컬럼 사전으로 검사할 컬럼 — DB 칸(TB_MCM_NOTICE)과 MDM 정의를 견주어 <b>MDM 이 DB 보다 엄격하지 않은 칸만</b> 넣는다
      * (spec 2026-10-03-mdm-screen-meta-validation §7). MDM 이 더 엄격하면 DB 가 받는 값을 저장 단계에서 막게 된다.
      * <ul>
      *   <li>{@code TITLE} — MDM STRING(1000)·선택, DB VARCHAR(200)·NOT NULL. MDM 이 느슨하다 → 넣는다.

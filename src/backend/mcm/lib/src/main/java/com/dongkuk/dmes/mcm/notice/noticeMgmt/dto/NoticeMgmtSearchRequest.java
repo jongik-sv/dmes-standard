@@ -3,7 +3,7 @@
  * 작성일: 2026-09-03
  * 내용: noticeMgmt action=search 요청 DTO — 기능설계서 §3 조회조건 S-001~S-006
  */
-package com.dongkuk.dmes.mls.lsh.noticeMgmt.dto;
+package com.dongkuk.dmes.mcm.notice.noticeMgmt.dto;
 
 /**
  * {@code noticeMgmt} action={@code search} 요청 DTO.

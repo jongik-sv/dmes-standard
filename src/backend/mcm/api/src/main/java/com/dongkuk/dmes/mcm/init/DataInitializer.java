@@ -220,9 +220,9 @@ public class DataInitializer implements ApplicationRunner {
         //   + 메뉴 leaf 1 + SYSADMIN RBAC 1. componentPath=dma/mdmSample. 화면 자체는 API 를 호출하지 않는 빈 화면.
         mdmMenus.seedMdmMenus();
 
-        // 2026-10-02 — 공지사항 관리(lsh/noticeMgmt) 메뉴. 메뉴는 공통관리(mcm) 아래, 코드는 mls. 포털 홈 공지 목록(noticeBoard)은
-        //   AUTH_ONLY 라 시드가 없다(seedMlsMenus javadoc).
-        moduleMenus.seedMlsMenus();
+        // 2026-10-02 — 공지사항 관리(lsh/noticeMgmt) 메뉴. 메뉴는 공통관리(mcm) 아래, 코드도 10-07 부터 mcm. 포털 홈 공지 목록(noticeBoard)은
+        //   AUTH_ONLY 라 시드가 없다(seedNoticeMenus javadoc).
+        moduleMenus.seedNoticeMenus();
 
         // 2026-10-02 — MDM 캐시 관리(csa/mdmCacheMng) 화면과 MDM 메타 제공(mdm metaFeed) 강제 기록 권한. seedMdmCacheMenus javadoc 참고.
         mdmMenus.seedMdmCacheMenus();

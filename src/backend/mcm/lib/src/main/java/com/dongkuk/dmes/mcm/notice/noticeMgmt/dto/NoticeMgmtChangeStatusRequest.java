@@ -3,7 +3,7 @@
  * 작성일: 2026-09-03
  * 내용: noticeMgmt action=changeStatus 요청 DTO — 기능설계서 §5.1 B-005 게시중지
  */
-package com.dongkuk.dmes.mls.lsh.noticeMgmt.dto;
+package com.dongkuk.dmes.mcm.notice.noticeMgmt.dto;
 
 /**
  * {@code noticeMgmt} action={@code changeStatus} 요청 DTO (기능설계서 B-005 게시중지).

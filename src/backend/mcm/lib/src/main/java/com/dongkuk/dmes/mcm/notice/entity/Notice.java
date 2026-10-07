@@ -1,23 +1,26 @@
 /*
  * 작성자: Agent
  * 작성일: 2026-09-03
- * 내용: Notice 엔티티 — TB_MLS_NOTICE (공지사항) 본 컬럼 1:1 정의 (noticeMgmt 화면 owner)
+ * 내용: Notice 엔티티 — TB_MCM_NOTICE (공지사항) 본 컬럼 1:1 정의 (noticeMgmt 화면 owner)
  */
-package com.dongkuk.dmes.mls.entity;
+package com.dongkuk.dmes.mcm.notice.entity;
 
 import com.dongkuk.dmes.cactus.audit.CactusAuditEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
 
 /**
- * 공지사항 — {@code TB_MLS_NOTICE} JPA Entity (noticeMgmt 화면 owner).
+ * 공지사항 — {@code TB_MCM_NOTICE} JPA Entity (noticeMgmt 화면 owner).
  *
  * <p>본 화면은 <b>As-Is 레거시가 없는 To-Be only 신규 화면</b>이다
- * (기능설계서 {@code docs/mls/design/noticeMgmt/noticeMgmt_기능설계서.md} 상단 인용 정본 예외).
+ * (기능설계서 {@code docs/mcm/design/noticeMgmt/noticeMgmt_기능설계서.md} 상단 인용 정본 예외).
  * 따라서 As-Is 컬럼 카탈로그 인용은 존재하지 않고, 기능설계서 §3.2 / §4 의 To-Be 컬럼 정의가 정본이다.
  *
  * <p>본 컬럼 9 (기능설계서 §4 D-001~D-009):
@@ -32,13 +35,13 @@ import java.time.LocalDate;
  * {@code U_AT}/{@code U_SVC_ID}/{@code U_PGM_ID}/{@code VER})은 cactus-core {@link CactusAuditEntity}
  * 상속으로 자동 적용된다 — 본 클래스에 재선언하지 않는다 (설계 가이드 02 §A.5-3-1 MUST).
  *
- * <p><b>스키마 접두 미사용</b> — mcm 은 {@code MCMAPUSER.} 스키마를 명시하지만 mls 는 단일 스키마
- * (local SQLite {@code mls.db}) 이므로 {@code @Table(schema=...)} 를 두지 않는다. 테이블명은 mls 기 등재
- * 자산({@code TB_MLS_SL_LOC} / {@code TB_MLS_MOVE_TYPE})과 동일하게 <b>대문자</b>를 유지한다
- * (기능설계서 §11.1 GAP-002).
+ * <p><b>모듈 이전(2026-10-07)</b> — mls {@code TB_MLS_NOTICE} 에서 mcm 으로 옮겼다(DEC-001 「재검토 → 이전」).
+ * mcm 관례대로 {@code MCMAPUSER} 스키마를 명시하고, 로컬은 ddl-auto update 가 테이블을 만든다. ddl-auto 는 DB DEFAULT 를
+ * 만들지 않으므로 기본값은 필드 초기값이 보장한다. 운영 DDL 은 {@code docs/mcm/erd/notice-tables.md}.
  */
 @Entity
-@Table(name = "TB_MLS_NOTICE")
+@Table(name = "TB_MCM_NOTICE", schema = "MCMAPUSER",
+        indexes = @Index(name = "IX_TB_MCM_NOTICE_STATUS", columnList = "NOTICE_STATUS"))
 public class Notice extends CactusAuditEntity {
 
     /** PK — 공지번호 (기능설계서 G-001 / D-001). 서버 채번 {@code NT + yyyyMMdd + 4자리}. VARCHAR(30). */
@@ -53,10 +56,11 @@ public class Notice extends CactusAuditEntity {
     /**
      * 내용 (D-003). 그리드 미표시.
      *
-     * <p>2026-10-02 V3 — DB 쪽 4000자 제한을 없앴다. 상한(20만 자)은 서비스 검증 V-003 이 맡는다. 엔티티에 길이를 두지 않는 이유: mls 는 {@code ddl-auto=none} 이라
-     * 엔티티 길이는 스키마를 만들지 않고, SQLite 는 V2 의 VARCHAR(4000) 길이를 강제하지 않는다. 운영 방언으로 옮길 때는
-     * CLOB / TEXT 로 선언한다(V3 헤더 주석). {@code @Lob} 은 SQLite JDBC 가 {@code getClob} 을 지원하지 않아 쓰지 않는다.
+     * <p>DB 쪽 길이 제한은 없다. 상한(20만 자)은 서비스 검증 V-003 이 맡는다. 긴 본문이라 WidgetDef.CONFIG_JSON 과 같이
+     * {@code LONG32VARCHAR} 로 둔다(SQLite clob 칸, 운영은 CLOB/TEXT). {@code @Lob} 은 SQLite JDBC 가 {@code getClob} 을
+     * 지원하지 않아 쓰지 않는다.
      */
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
     @Column(name = "CONTENT")
     private String content;
 
@@ -83,7 +87,7 @@ public class Notice extends CactusAuditEntity {
     private String pinYn = "N";
 
     /**
-     * 게시 대상 범위 (D-010 — LV-004, V4 2026-10-02). {@code ALL}(전체 사용자) / {@code ROLE}(TB_MLS_NOTICE_TARGET 의 역할만).
+     * 게시 대상 범위 (D-010 — LV-004, V4 2026-10-02). {@code ALL}(전체 사용자) / {@code ROLE}(TB_MCM_NOTICE_TARGET 의 역할만).
      * VARCHAR(10). 초기값을 두는 이유는 {@link #contentFormat} 과 같다.
      */
     @Column(name = "TARGET_SCOPE", length = 10, nullable = false)
