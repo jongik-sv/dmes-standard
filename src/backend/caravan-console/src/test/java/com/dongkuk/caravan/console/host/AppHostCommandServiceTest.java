@@ -117,6 +117,22 @@ class AppHostCommandServiceTest {
     }
 
     @Test
+    void applyChanges_create_blank_name_or_url_is_rejected_before_save() {
+        var blankName = List.<Map<String, Object>>of(Map.of(
+                "rowStatus", "C", "appHostId", "mqc", "worksCd", "p",
+                "appHostNm", " ", "appHostUrl", "http://localhost:8083"));
+        var missingUrl = List.<Map<String, Object>>of(Map.of(
+                "rowStatus", "U", "appHostId", "mqc", "worksCd", "p",
+                "appHostNm", "품질관리"));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.applyChanges(blankName))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("appHostNm");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.applyChanges(missingUrl))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("appHostUrl");
+        verify(repository, times(0)).save(any());
+    }
+
+    @Test
     void applyChanges_null_no_op() {
         int cnt = service.applyChanges(null);
 
