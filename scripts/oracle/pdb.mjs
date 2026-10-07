@@ -520,15 +520,15 @@ const commands = {
     });
   },
 
+  // close 는 PC 잠금을 잡지 않는다: 열린 PDB 와 메모리를 줄이는 쪽이라 다른 작업(시험·복제)과 겹쳐도 안전하다.
+  // 템플릿을 복제하는 도중에 그 템플릿을 닫지 않도록 호출하는 쪽이 조심한다(시험 PDB T_ 는 하니스가 직접 지운다).
   async close([name]) {
     const n = checkName(name);
-    await withLock(async () => {
-      const p = await find(n);
-      if (!p) die(`없다: ${n}`);
-      if (!isOpen(p)) { log(`${n} 이미 닫혀 있다.`); return; }
-      await sql(`alter pluggable database ${n} close immediate;`);
-      log(`${n} 닫았다(데이터는 그대로).`);
-    });
+    const p = await find(n);
+    if (!p) die(`없다: ${n}`);
+    if (!isOpen(p)) { log(`${n} 이미 닫혀 있다.`); return; }
+    await sql(`alter pluggable database ${n} close immediate;`);
+    log(`${n} 닫았다(데이터는 그대로).`);
   },
 
   async drop([name]) {
