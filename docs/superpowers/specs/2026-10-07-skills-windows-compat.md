@@ -140,6 +140,8 @@ bash 는 Git Bash 를 전제로 하고 다음을 지킨다.
 
 ## 5. 결정이 필요한 항목
 
+> **확정(2026-10-07)**: 사용자가 D1~D6 을 모두 추천안대로 확정했다(D3 삭제 승인 포함). 진행 상태: J(jq 동봉)·L0(node 공용 헬퍼)·D3(삭제)·D6(node 18.17) 는 브랜치 `fix/skills-win-jq` 에서 구현했다. 훅(`.claude/settings.json` 의 PostToolUse)이 부르는 `hook_post_edit.py` 는 검사기 `check_oasis_contract.py` 를 같은 프로세스에서 import 하도록 옮겨야 의미가 있어 L1 레인에서 함께 옮긴다.
+
 | 번호 | 항목 | 선택지 | 추천 |
 |---|---|---|---|
 | D1 | jq 확보 방식 | A 동봉, B node 이식, C 하이브리드 | A+C(§4.1) |
