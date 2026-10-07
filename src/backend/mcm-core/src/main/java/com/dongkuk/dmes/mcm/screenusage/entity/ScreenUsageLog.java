@@ -16,8 +16,8 @@ import java.time.LocalDateTime;
 /**
  * 화면 사용 구간 원본 — {@code TB_SEC_SCREEN_USAGE_LOG} (1년 보관, 설계 4.1).
  *
- * <p>감사 계열({@code TB_SEC_AUDIT_LOG})처럼 schema 접두를 두지 않는다. 운영 MSSQL DDL 정본은
- * {@code com.dongkuk.dmes.mcm.screenusage.schema.ScreenUsageMssqlDdl} 이며 제약·인덱스 이름이 이 매핑과 같다.
+ * <p>감사 계열({@code TB_SEC_AUDIT_LOG})처럼 schema 접두를 두지 않는다. 표 정본은 Oracle Flyway 기준선
+ * {@code db/migration/oracle/mcmapuser/V1__baseline.sql} 이며 제약·인덱스 이름이 이 매핑과 같다.
  * 시각은 Asia/Seoul 벽시계(LocalDateTime) — USAGE_DT 일자 귀속과 SQLite 문자열 변환기 비교를 단순하게 한다.
  *
  * <p>{@link Persistable} — 키(UUID)를 직접 넣으므로 Spring Data 가 merge(선 SELECT)로 가지 않고 바로 INSERT 하게 한다.
