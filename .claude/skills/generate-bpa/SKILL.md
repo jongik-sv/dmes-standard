@@ -476,6 +476,7 @@ class_analysis.md 의 "총 라인 수" 또는 `wc -l` 로 확인. **200줄 이�
    echo '<json>' | bpmn-tool create > docs/external/SampleErp/orgErpReport/{areaId}/{moduleId}/screens/{SCREEN-ID}_{화면명}.bpmn
    ```
    - JSON 은 stdin 으로 전달. 한글이 포함되면 셸 인용 깨짐 방지를 위해 임시 파일(`.cache/{SCREEN-ID}/bpmn_spec.json`) 에 저장 후 `cat ... | bpmn-tool create > ...` 권장.
+   - 윈도우: 위 `echo`·`cat` 파이프는 Git Bash 에서 실행한다. PowerShell 의 `echo` 파이프는 한글 JSON 을 깨뜨릴 수 있으므로, PowerShell 을 쓸 때는 JSON 을 임시 파일에 저장한 뒤 그 파일을 `bpmn-tool create` 의 입력으로 넘긴다.
    - 산출 경로의 `screens/` 디렉토리가 없으면 먼저 생성.
 
 4. **검증**: `bpmn-tool validate <산출 .bpmn>` 실행. 출력 JSON 의 `유효: true` 확인. `오류` 가 0 이 아니면 JSON 스펙 재구성 후 재실행.
