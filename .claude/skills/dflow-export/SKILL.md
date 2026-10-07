@@ -48,21 +48,21 @@ PAT="$(echo "${DFLOW_PATS:-$DFLOW_PAT}" | cut -d',' -f1)"
 ### 1. 검증 게이트 (실패 시 중단)
 
 ```bash
-python3 .claude/skills/dflow-export/scripts/wbs-validate.py validate --wbs docs/{MOD}/wbs.md
+node .claude/skills/dflow-export/scripts/wbs-validate.mjs validate --wbs docs/{MOD}/wbs.md
 ```
 - `ok: true` + `task_count` 가 실제 Task 수와 일치해야 통과. 0 이면 헤딩 형식 문제 — 진행 금지.
 - Task 헤딩 정규식은 `#{3,5}` — **3~5단계 헤딩(`###`~`#####`)을 모두 TSK 로 인식**한다(3단계 WBS 와 4단계 WBS 양쪽 겸용).
 - 참고 검사(선택): Task 목록을 파이프로 넘겨야 의미 있는 결과가 나온다(입력 없이 `--docs-dir` 만 주면 빈 결과).
   ```bash
-  python3 .claude/skills/dflow-export/scripts/wbs-parse.py docs/{MOD}/wbs.md --tasks-all \
-    | python3 .claude/skills/dflow-export/scripts/dep-analysis.py --docs-dir docs/{MOD}
+  node .claude/skills/dflow-export/scripts/wbs-parse.mjs docs/{MOD}/wbs.md --tasks-all \
+    | node .claude/skills/dflow-export/scripts/dep-analysis.mjs --docs-dir docs/{MOD}
   ```
   의존 충족 임계는 상태머신이 정한다(6상태 정의면 `[im]` 이상, 5상태 정의/미지정이면 `[xx]` 만 충족).
 
 ### 2. Export
 
 ```bash
-python3 .claude/skills/dflow-export/scripts/wbs-parse.py docs/{MOD}/wbs.md --export > "$SCRATCHPAD/wbs-export-{MOD}.json"
+node .claude/skills/dflow-export/scripts/wbs-parse.mjs docs/{MOD}/wbs.md --export > "$SCRATCHPAD/wbs-export-{MOD}.json"
 ```
 봉투: `{"schema_version": "2.1", "source": "...", "nodes": [...]}` — 결정적 출력 (재실행 = byte 동일). `$SCRATCHPAD` 는 이 세션의 scratchpad 디렉토리로 치환한다.
 
@@ -106,7 +106,7 @@ curl -sS -X POST "$DFLOW_API_BASE/api/v1/wbs/import" \
 ## 상태의 진실 원천
 
 - import 이후 정본은 **D'Flow DB**. `wbs.md` 는 최초 작성·부트스트랩 전용.
-- 실행 중 Task 는 `docs/tasks/<ID>/state.json` 이 로컬 정본 — export 는 이 값으로 `- status:` 를 자동 덮어씀(`wbs-parse.py` 가 `_wbs_status.py` 경유, 별도 조작 불요). 이 경로 탐색은 스킬 폴더의 `scripts/references/state-machine.json` 을 fallback 으로 참조하므로, 스크립트만 옮기고 이 파일을 빠뜨리면 깨진다.
+- 실행 중 Task 는 `docs/tasks/<ID>/state.json` 이 로컬 정본 — export 는 이 값으로 `- status:` 를 자동 덮어씀(`wbs-parse.mjs` 가 `_wbs_status.mjs` 경유, 별도 조작 불요). 이 경로 탐색은 스킬 폴더의 `scripts/references/state-machine.json` 을 fallback 으로 참조하므로, 스크립트만 옮기고 이 파일을 빠뜨리면 깨진다.
 
 ## 결과 보고
 
@@ -116,5 +116,5 @@ curl -sS -X POST "$DFLOW_API_BASE/api/v1/wbs/import" \
 ## 알려진 제약
 
 - E2E 실사는 대상 D'Flow 서버에 `AGENT_API_ENABLED` 가 켜져 있어야 가능 — 꺼져 있으면 `--push` 는 404.
-- 테스트: `python3 -m pytest .claude/skills/dflow-export/scripts -q` (또는 스크립트 디렉토리에서 `python3 -m pytest -q`) — 통과가 건강 기준선.
-- 동봉 회귀 테스트 3종(export·validate·status). test_wbs_md_consistency 는 merge-wbs-status.py(이 스킬 범위 밖) 의존이라 제외 — 정본은 dev-workflow 리포.
+- 테스트: `node --test .claude/skills/dflow-export/tests/` — 통과가 건강 기준선(약 3분, 1,100여 건). python 3 가 있으면 동결한 원본(`tests/golden/legacy/*.legacy.py`)과 출력을 바이트까지 비교하는 골든 시험이 함께 돌고, 없으면(윈도우) 그 부분만 건너뛰고 미리 계산한 기대값 파일(`tests/golden/expected/`)과 비교한다. 기대값을 다시 만들 때는 `tests/make-expected*.mjs --write`.
+- 동봉 회귀 테스트는 export·validate·status·md·dep-analysis 다. test_wbs_md_consistency 는 merge-wbs-status.py(이 스킬 범위 밖) 의존이라 제외 — 정본은 dev-workflow 리포.

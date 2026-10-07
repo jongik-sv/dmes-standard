@@ -413,7 +413,7 @@ v2.11 목록 셰이프(PAT) — 위 칸에 더해 주문마다 아래가 실린�
 `lead` 도 아니면 claimed 는 종전 뜻(`claimed_by_user_id` 가 호출자와 같음)이다.
 요청 scope에 해당하는 구획만 채운다(`available`이면 `available`만). 정렬은 구획 내 `priority desc, created_at asc`. `limit` 기본 20 최대 100(구획별 적용). 페이지 넘김은 없다 — `dflow.sh` 는 모든 호출에 `limit=100` 을 싣고, 한 구획이 100건으로 차면 `LIST_TRUNCATED` 를 stderr 로 알린다(limit 을 빼 20건에서 잘린 2026-09-24 사고). 미지원 scope → 400 `unsupported_scope`. `item.external_ref`는 import 로 들어온 항목의 `"<module>/<id>"` 다(웹에서 직접 만든 항목은 null). dflow.sh scaffold 가 작업 폴더 이름(TSK)을 여기서 얻는다.
 
-`POST /wbs/import` 요청( `wbs-parse.py --export` 출력 v2 + 2필드) — **계약 v2 확장(결정 E, 두 리포 공통·고정)**:
+`POST /wbs/import` 요청( `wbs-parse.mjs --export` 출력 v2 + 2필드) — **계약 v2 확장(결정 E, 두 리포 공통·고정)**:
 ```json
 { "project_id": "<uuid>", "module": "MES",
   "nodes": [ { "id": "TSK-01-01", "parent_id": "WP-01", "kind": "task|wp|act|phase",
