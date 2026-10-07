@@ -6,6 +6,9 @@
 --   caravan-console 엔티티(AppHostEntity → TB_CARAVAN_APPHOST, 나머지 3종은 같은 표를 공유)
 --   로컬 SQLite caravan-console.db 실제 스키마(hibernate ddl-auto=update 결과)
 -- 규칙: VARCHAR2(n CHAR), TIMESTAMP(6), NUMBER(19). DataInitializer 의 MSSQL 판 길이를 따른다.
+-- HTTP_HEADERS 는 헤더 JSON 이라 짧으므로 CLOB 이 아닌 VARCHAR2(4000 CHAR) 로 둔다. CLOB 이면 MyBatis resultType=Map 이
+-- Clob 객체를 돌려줘 HttpOutboundHandler 의 (String) 캐스트가 깨지고, console 엔티티(길이 지정 없음)와 타입도 어긋난다.
+-- INTERFACE_MSG(CLOB)는 JPA 엔티티(length=65000)만 읽고 쓰므로 CLOB 을 유지한다.
 -- audit 9컬럼(C_USR_ID … VER)은 hub·console 어느 쪽이 쓰든 같은 표를 쓰므로 모든 표에 둔다.
 -- 옛 TC_ERROR 의 CREATED_AT/CREATED_BY/UPDATED_AT/UPDATED_BY 4컬럼은 v4 결정 #13 으로 폐기됐다.
 
@@ -75,7 +78,7 @@ CREATE TABLE TB_CARAVAN_HUB_CONFIG (
     FTP_PASSWORD        VARCHAR2(200 CHAR),
     HTTP_URL            VARCHAR2(500 CHAR),
     HTTP_METHOD         VARCHAR2(10 CHAR),
-    HTTP_HEADERS        CLOB,
+    HTTP_HEADERS        VARCHAR2(4000 CHAR),
     USE_YN              VARCHAR2(1 CHAR),
     C_USR_ID            VARCHAR2(100 CHAR),
     C_AT                TIMESTAMP(6),

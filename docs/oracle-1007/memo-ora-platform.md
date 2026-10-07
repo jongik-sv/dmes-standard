@@ -17,7 +17,9 @@
 ## 결정·가정
 
 - 초안은 classpath 밖(`docs/oracle-1007/draft/`)에 둔다. 머지① 뒤 각 모듈 `db/migration/<모듈>/` 로 옮기고 SQLite 판은 `archive/` 로 `git mv` 한다(삭제 금지).
-- mls 는 SQLite V1~V4 를 Oracle 기준선 V1 하나로 합쳤다(시드 포함). CONTENT 는 CLOB.
+- mls 기준선은 `sample_inventory_item` 하나뿐이다. 공지는 b8c4ccd7a 에서 mcm 으로 옮겨져 `MCMAPUSER.TB_MCM_NOTICE`·`TB_MCM_NOTICE_TARGET` 을 쓰고 mls 코드는 `TB_MLS_NOTICE` 를 쓰지 않는다. 전환 시 SQLite V1~V4 는 `archive/` 로 `git mv`. `TB_MCM_NOTICE` Oracle DDL 은 ora-mcm-app 몫이다.
+- 리뷰(opus/high, 2026-10-07) 반영: HTTP_HEADERS 는 VARCHAR2(4000 CHAR)(CLOB 이면 Map 결과가 Clob 객체가 되어 캐스트 실패), IF 표 C_AT·U_AT 는 DEFAULT SYSTIMESTAMP NOT NULL.
+- p2 에서 할 일(리뷰 지적): ① `InterfaceMapper.xml` 이 INTERFACE_MSG(CLOB)를 String 으로 읽게 resultMap 또는 타입 핸들러 추가 ② `TopicAdminController.create` 에 groupId `required` 검증 ③ `AppHostCommandService.applyChanges` 에 APP_HOST_NM·APP_HOST_URL 빈 값 검증(Oracle `''`=NULL 로 ORA-01400 방지) ④ `TiberoDialectResolver`·`DataInitializer` 의 SQLite·MSSQL 분기 제거.
 - caravan Flyway 주인은 caravan-hub 로 가정한다(`schema-owners.md` 가 나오면 따른다). CARAVANUSER 표 4종(TOPICS·TC_ERROR·HUB_CONFIG·APPHOST).
 - IFUSER 의 IF_* 표는 운영자가 정의하므로 기준선에 넣지 않고 시험용 예시 1개만 둔다.
 
