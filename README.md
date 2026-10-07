@@ -72,33 +72,129 @@ SQLite·H2·MSSQL·PostgreSQL 은 가정하지 않는다. 내 PC 의 옛 SQLite 
 
 | 항목 | 내용 |
 |---|---|
-| JDK 21 | 백엔드 컴파일 대상이 21 이다. 기본 `java` 가 17 이하면 실행할 때 `JAVA_HOME` 을 21 로 준다(아래 2번). Gradle wrapper jar 는 저장소에 들어 있다. |
+| JDK 21 | 백엔드 컴파일 대상이 21 이다. 기본 `java` 가 17 이하면 실행할 때 `JAVA_HOME` 을 21 로 준다(아래 5번). Gradle wrapper jar 는 저장소에 들어 있다. |
 | Node.js · pnpm | 프론트엔드(`src/frontend`, pnpm 모노레포). 처음 실행 때 `fe-run.sh` 가 `pnpm install` 과 화면 라이브러리 build 를 한다. |
-| Podman · Oracle 컨테이너 | Oracle 26ai Free 컨테이너(`tools/oracle-free/docker-compose.yml`)를 Podman 으로 띄운다. 설치·1회 설정(Mac·Windows 공용)은 [`oracle-26ai-test-guide.md`](docs/guide/Database/oracle-26ai-test-guide.md) 를 따른다. |
+| Podman | Oracle 26ai Free 컨테이너(`tools/oracle-free/docker-compose.yml`)를 Podman 으로 띄운다. 설치는 아래 2번. |
 | python3 · `pip install oracledb` | db-snapshot CSV 적재기(`scripts/db-snapshot/snapshot.py`)가 쓴다. |
-
-### 2. 첫 실행
 
 ```bash
 git clone https://github.com/jongik-sv/dmes-standard.git
 cd dmes-standard
-# 앞서 PDB 를 만들어 둔다(아래 3번). 백엔드는 접속할 PDB 를 --pdb 로 지정한다. 개발자는 자기 레인 PDB 를 쓴다.
-JAVA_HOME=<JDK 21 경로> PATH="$JAVA_HOME/bin:$PATH" ./be-run.sh --mcm --mdm --mls --pdb=L_MAIN
 ```
 
-- `--pdb=<PDB>` 가 접속값 `DMES_ORA_PDB`·`DMES_ORA_URL` 을 앱에 넘긴다(env `BE_ORA_PDB` 도 같다). PDB 가 없으면 앱 기동이 바로 실패한다.
-- 프론트까지 띄우려면 [`.run.env.example`](.run.env.example) 을 `.run.env` 로 복사해 `BE_RUN_ARGS` 에 같은 인자(`--mcm --mdm --mls --pdb=L_MAIN`)를 적고 `./local-run.sh` 를 실행한다. 모듈을 줄여 메모리를 아낄 수도 있다.
-- `src/frontend/m-mcm/.env` 가 없으면 `fe-run.sh` 가 `.env.example` 로 만들고 `AUTH_SECRET` 을 발급한다.
-- 브라우저에서 포털 http://localhost:5100 에 **`admin` / `admin123`** 으로 로그인한다.
+### 2. Podman 설치와 머신 만들기 (DB 설치 방법 ①)
 
-### 3. PDB 만들기와 데이터 넣기
+Docker Desktop 은 쓰지 않는다(기업 유료 라이선스). Podman 은 무료이고 Mac·Windows 에서 명령이 같다. 컨테이너를 돌리는 가상 머신(VM)의 메모리가 기준이다.
+
+| VM 메모리 | 쓰는 경우 | 1회 설정 |
+|---|---|---|
+| **4GB 이상**(권장 기본) | 메모리 여유가 있는 PC | 필요 없다(이미지 기본값 SGA 1536M + PGA 512M 으로 기동) |
+| **3GB** | 메모리 16GB 이하 PC(예 MacBook Air) | 필요하다(아래 3번의 「VM 3GB 이하일 때만」) |
+
+2GB 는 쓰지 않는다(여러 작업이 겹치면 스래싱했다).
+
+**Mac (Apple Silicon·Intel)** — sudo 없이 CLI 로 설치한다. `podman compose` 가 `docker-compose` 를 불러 쓰므로 함께 설치한다.
+
+```bash
+brew install podman docker-compose          # GUI 가 필요하면 brew install --cask podman-desktop
+podman machine init --cpus 2 --memory 4096 --disk-size 40   # 메모리 16GB 이하 PC 는 --memory 3072
+podman machine start
+```
+
+- 이미 머신이 있고 메모리만 바꾸려면: `podman machine stop && podman machine set --memory 3072 --cpus 2 && podman machine start`
+- Podman Desktop 첫 실행 안내의 Kind·Minikube(쿠버네티스) 설치는 Skip 한다. 이미 켰다면 Settings ➡️ Extensions 에서 Disable 한다.
+
+**Windows (WSL2 기반)**
+
+1. [podman-desktop.io](https://podman-desktop.io/) 에서 Windows 설치 파일(EXE)을 받아 실행한다(WSL2 가 자동 연동된다).
+2. `C:\Users\<사용자계정>\.wslconfig` 로 WSL 메모리를 정한다(4GB 이상이면 1회 설정이 필요 없다. 16GB 이하 PC 에서 3GB 로 줄이면 3번의 1회 설정이 필요하다).
+   ```ini
+   [wsl2]
+   memory=6GB
+   processors=4
+   autoMemoryReclaim=gradual
+   networkingMode=mirrored
+   ```
+   PowerShell 에서 `wsl --shutdown` 으로 재시작해 적용한다.
+3. 프로젝트는 `/mnt/c/...` 가 아니라 WSL2 리눅스 내부 파일시스템(`\\wsl$\Ubuntu\home\<사용자>\...`)에 두면 I/O 가 5~10배 빠르다.
+
+### 3. Oracle 컨테이너 기동과 확인 (DB 설치 방법 ②)
+
+```bash
+cd tools/oracle-free
+podman compose up -d          # 처음 한 번은 이미지(약 1.5GB)를 내려받는다. 내려받기를 뺀 기동은 10초 안팎
+podman logs -f oracle-26ai-free   # 「DATABASE IS READY TO USE!」 가 나오면 준비 끝(Ctrl+C 로 빠져나온다)
+podman ps                     # oracle-26ai-free 가 떠 있는지 확인
+```
+
+버전 확인(Oracle AI Database 26ai Free Release 23.26.x 가 나오면 정상):
+
+```bash
+podman exec oracle-26ai-free bash -c "echo 'select banner_full from v\$version;' | sqlplus -s dmes_user/dmes_password_123@localhost/FREEPDB1"
+```
+
+접속 정보(DBeaver·IntelliJ·SQLcl 등):
+
+| 항목 | 값 |
+|---|---|
+| Host · Port | `localhost` · `1521` |
+| Service Name | `FREEPDB1` (JDBC `jdbc:oracle:thin:@localhost:1521/FREEPDB1`) |
+| 관리자 | `SYS`(역할 `SYSDBA`)·`SYSTEM`, 비밀번호 `sys_password_123` ([`docker-compose.yml`](tools/oracle-free/docker-compose.yml) 의 `ORACLE_PASSWORD`) |
+| 일반 계정 | `dmes_user` / `dmes_password_123` |
+
+앱은 `FREEPDB1` 이 아니라 다음 4번에서 만드는 PDB(`L_MAIN`)에 접속한다. 컨테이너·볼륨 이름은 compose 가 정한다(컨테이너 `oracle-26ai-free`, 데이터 볼륨 `oracle-free_oracle-data`).
+
+**정지와 초기화**
+
+```bash
+podman compose down       # 컨테이너만 내린다(데이터 유지). 다시 올리려면 up -d
+podman compose down -v    # 데이터 볼륨까지 지운다(처음 상태). 지운 뒤에는 아래 「1회 설정」을 다시 한다
+```
+
+**VM 3GB 이하일 때만: 1회 설정**
+
+VM 이 4GB 이상이면 건너뛴다. 3GB 머신(메모리 16GB 이하 PC)은 컨테이너를 한 번 띄워 볼륨이 생긴 뒤 아래를 **한 번** 적용한다. 값은 SGA `900M`, `pga_aggregate_target` `400M`, `pga_aggregate_limit` `2G`, `control_management_pack_access=NONE`, `job_queue_processes=0`(자동 작업·통계 수집 정지), 루트 AWR 스냅숏 간격 0(끔)이다. 절차 정본은 [`oracle-26ai-test-guide.md`](docs/guide/Database/oracle-26ai-test-guide.md) §8-5 이고 아래는 같은 명령이다.
+
+```bash
+cd tools/oracle-free
+podman compose down                     # -v 를 붙이지 않는다
+# Mac: VM 을 3GB 로 (이미 3GB 면 생략). Windows 는 .wslconfig 로 정한다
+podman machine stop && podman machine set --memory 3072 --cpus 2 && podman machine start
+podman run --rm --entrypoint bash -v oracle-free_oracle-data:/opt/oracle/oradata:Z \
+  docker.io/gvenzl/oracle-free:slim-faststart -c '
+  D=/opt/oracle/oradata/dbconfig/FREE; P=/tmp/initFREE.ora
+  ln -sf $D/spfileFREE.ora $ORACLE_HOME/dbs/spfileFREE.ora
+  echo "create pfile='\''$P'\'' from spfile;" | sqlplus -s / as sysdba
+  sed -i -E "/sga_target|sga_max_size|pga_aggregate_target|pga_aggregate_limit|control_management_pack_access|job_queue_processes/d" $P
+  printf "*.sga_target=900M\n*.sga_max_size=900M\n*.pga_aggregate_target=400M\n*.pga_aggregate_limit=2G\n*.control_management_pack_access=NONE\n*.job_queue_processes=0\n" >> $P
+  echo "create spfile='\''$D/spfileFREE.ora'\'' from pfile='\''$P'\'';" | sqlplus -s / as sysdba'
+podman compose up -d
+podman logs -f oracle-26ai-free         # 「DATABASE IS READY TO USE!」 확인
+podman exec oracle-26ai-free bash -c "echo 'exec dbms_workload_repository.modify_snapshot_settings(interval => 0);' | sqlplus -s / as sysdba"   # 루트 AWR 간격 0
+```
+
+`pga_aggregate_limit` 의 최소값이 2048M 이라 그보다 낮추면 `ORA-00093` 이 난다. 이 설정은 볼륨 안에 저장되므로 `down` 후 `up -d` 에는 유지되고, `down -v` 로 볼륨을 지우면 기본값으로 돌아가 다시 해야 한다.
+
+**자주 막히는 것** (전체 목록은 가이드 §8)
+
+- 머신이 멈추거나 시작되지 않을 때: Mac 은 `podman machine stop` 후 `podman machine start`, Windows 는 PowerShell 에서 `wsl --shutdown` 후 Podman Desktop 을 다시 연다.
+- 컨테이너가 `Exited (137)` 로 죽을 때: VM 메모리 부족이다. 위 2번 표의 3GB 이상으로 올리고, 3GB 면 1회 설정을 했는지 본다.
+- 재기동 때 `ORA-01078`·`LRM-00109`(initFREE.ora): 볼륨 매핑 끝에 `:Z` 가 있어야 한다(저장소의 compose 에는 이미 있다). `podman compose down` 후 `up -d` 하면 복구된다.
+- `docker` 명령을 쓰고 싶으면 Mac 은 `ln -s /opt/homebrew/bin/podman ~/bin/docker`(`~/bin` 이 PATH 에 있어야 한다)로 `docker` CLI 명령만 대신할 수 있다. 소켓에 직접 붙는 도구는 가이드 §8-6.
+
+이미지 비교·리소스 제약(메모리 2GB 상한·CPU 2코어·데이터 12GB)·PDB 운영은 [`oracle-26ai-test-guide.md`](docs/guide/Database/oracle-26ai-test-guide.md) 가 정본이다.
+
+### 4. PDB 만들기와 데이터 넣기
+
+컨테이너가 떠 있어야 한다(위 3번). 소요는 이 PC(VM 3GB)에서 잰 값이다([`SUMMARY.md`](docs/oracle-1007/SUMMARY.md) §2): `template-schema` 약 2분, `template-data` 약 2분(적재 자체는 mdm 9.5초), `clone` 몇 초. 다른 레인이 Oracle 을 쓰고 있으면 PC 잠금 때문에 더 걸릴 수 있다.
 
 ```bash
 node scripts/oracle/pdb.mjs template-schema TPL_SCHEMA            # 전 모듈 Oracle V 파일을 적용한 데이터 없는 템플릿
 node scripts/oracle/pdb.mjs template-data TPL_DATA                # + db-snapshot CSV 적재(python3 + oracledb)
-node scripts/oracle/pdb.mjs clone TPL_DATA L_<레인>               # 개발용 PDB(메인 로컬 서버는 L_MAIN)
+node scripts/oracle/pdb.mjs clone TPL_DATA L_MAIN                 # 개발용 PDB(메인 로컬 서버는 L_MAIN, 레인 개발자는 L_<레인>)
 ```
 
+- 이미 만든 PDB·템플릿이 있으면 그 단계는 건너뛴다(`node scripts/oracle/pdb.mjs list` 로 확인).
 - 데이터 없이 시작하려면 `clone TPL_SCHEMA L_<레인>` 한 뒤 CSV 를 직접 넣는다. 이미 있는 PDB 에는 `python3 scripts/db-snapshot/snapshot.py import --pdb L_<레인> MDMAPUSER` 처럼 스키마별로 넣는다(데이터만 넣으며 표는 Flyway 가 만든 것이다).
   ```bash
   python3 scripts/db-snapshot/snapshot.py import --pdb L_<레인> MDMAPUSER      # 초기 행까지 CSV 로 덮으려면 --replace
@@ -107,7 +203,19 @@ node scripts/oracle/pdb.mjs clone TPL_DATA L_<레인>               # 개발용 
 - 복제·열기·삭제와 Oracle 을 쓰는 시험 빌드는 PC 잠금 아래 한 PC 에서 하나씩 돈다(다른 레인이 쓰고 있으면 차례를 기다린다). 윈도우는 `scripts\oracle\pdb.cmd` 로도 같은 명령을 쓴다.
 - 데이터 원본은 표별 CSV [`db-snapshot/`](db-snapshot/) 이다(MDM 은 [`db-snapshot/MDMAPUSER/`](db-snapshot/MDMAPUSER/)). `be-run.sh` 는 `--mdm.sample.path` 를 붙이지 않으며 `MDM_SAMPLE` 설정도 없다.
 
-### 4. 기동 때 자동으로 되는 일 (DB)
+### 5. 백엔드·프론트 기동
+
+```bash
+# 앞서 PDB 를 만들어 둔다(위 4번). 백엔드는 접속할 PDB 를 --pdb 로 지정한다. 개발자는 자기 레인 PDB 를 쓴다.
+JAVA_HOME=<JDK 21 경로> PATH="$JAVA_HOME/bin:$PATH" ./be-run.sh --mcm --mdm --mls --pdb=L_MAIN
+```
+
+- `--pdb=<PDB>` 가 접속값 `DMES_ORA_PDB`·`DMES_ORA_URL` 을 앱에 넘긴다(env `BE_ORA_PDB` 도 같다). PDB 가 없으면 앱 기동이 바로 실패한다.
+- 프론트까지 띄우려면 [`.run.env.example`](.run.env.example) 을 `.run.env` 로 복사해 `BE_RUN_ARGS` 에 같은 인자(`--mcm --mdm --mls --pdb=L_MAIN`)를 적고 `./local-run.sh` 를 실행한다. 모듈을 줄여 메모리를 아낄 수도 있다.
+- `src/frontend/m-mcm/.env` 가 없으면 `fe-run.sh` 가 `.env.example` 로 만들고 `AUTH_SECRET` 을 발급한다.
+- 브라우저에서 포털 http://localhost:5100 에 **`admin` / `admin123`** 으로 로그인한다.
+
+### 6. 기동 때 자동으로 되는 일 (DB)
 
 | 무엇 | 누가 |
 |---|---|
@@ -115,7 +223,7 @@ node scripts/oracle/pdb.mjs clone TPL_DATA L_<레인>               # 개발용 
 | 관리자 계정·메뉴·권한·OBJECT·마스터 시드 (MDM 메뉴 포함) | mcm `DataInitializer` (멱등) |
 
 - 머지된 `V` 파일은 고치지 않고 `V2` 이상을 새로 추가한다. 번호 채번·스캐폴딩은 [`flyway-migration-add` 스킬](.claude/skills/flyway-migration-add/SKILL.md) 을 쓴다. 스키마 소유·연결 규약은 [`schema-owners.md`](docs/oracle-1007/schema-owners.md) 를 본다.
-- MDM 화면 확인용 데이터(용어·도메인·컬럼·레이아웃·마루 코드·마루 데이터·업무 룰)는 기동 때 자동으로 넣지 않는다. 위 3번의 CSV 적재나 `TPL_DATA` 복제로 넣는다.
+- MDM 화면 확인용 데이터(용어·도메인·컬럼·레이아웃·마루 코드·마루 데이터·업무 룰)는 기동 때 자동으로 넣지 않는다. 위 4번의 CSV 적재나 `TPL_DATA` 복제로 넣는다.
 
 #### DB 를 처음 상태로 되돌리기
 
@@ -126,7 +234,7 @@ node scripts/oracle/pdb.mjs drop L_<레인>
 node scripts/oracle/pdb.mjs clone TPL_DATA L_<레인>
 ```
 
-### 5. (선택) D'Flow 에이전트 스킬
+### 7. (선택) D'Flow 에이전트 스킬
 
 `.claude/skills/dflow-*` 를 쓰려면 개인 설정 파일이 필요하다. 샘플을 복사하고 토큰만 채운다.
 
@@ -137,7 +245,7 @@ cp .dflow.local.example .dflow.local   # pats= 에 D'Flow 웹 /account 「내 �
 
 `.dflow.local` 은 개인 토큰이 들어가므로 커밋하지 않는다(`.gitignore`). 필요한 명령: git · curl · jq · node(18.17 이상) · gh. 윈도우(Git Bash)에서는 jq 를 `.claude/skills/_shared/bin` 에 동봉한 것을 스크립트가 쓰므로 따로 설치하지 않는다. python3 는 dflow 스킬에 필요 없다(mantine-aggrid-ui 의 문서 조회 스크립트 `.py` 만 아직 python3 를 쓰며 node 로 이식 중이다). 자세한 환경은 `.claude/skills/_shared/platform-support.md` 를 본다.
 
-### 6. (필수) Claude Code — 사용 한도 초기화 뒤 자동 계속
+### 8. (필수) Claude Code — 사용 한도 초기화 뒤 자동 계속
 
 Claude Code 세션이 claude.ai 사용 한도(5시간 슬롯)에 걸리면 작업이 멈춘다. 아래 설정을 켜 두면 한도가 초기화될 때
 멈춘 작업을 스스로 이어 간다. 밤새 돌리는 에이전트·팀 작업이 한도 때문에 아침까지 멈춰 있지 않도록 **모두 켠다.**

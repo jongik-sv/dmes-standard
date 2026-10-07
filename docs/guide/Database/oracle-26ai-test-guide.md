@@ -23,7 +23,7 @@ Oracle Database Free 에디션은 엔진 내부적으로 하드웨어 상한선�
 * **메모리(RAM):** 최대 **2 GB** (SGA + PGA 합산, 인스턴스 하드 리밋)
 * **CPU:** 최대 **2 Core / Thread** (포그라운드 프로세스 기준)
 * **사용자 데이터 스토리지:** 최대 **12 GB** (SYSTEM 테이블스페이스 제외)
-* **호스트 권장 할당 메모리:** 최소 **3.5 GB ~ 4 GB 이상** (컨테이너 OS 및 백그라운드 프로세스 감안)
+* **호스트(Podman VM) 권장 할당 메모리:** **4 GB 이상**(이미지 기본값 SGA 1536M + PGA 512M 으로 기동, 1회 설정 불필요). 메모리 16GB 이하 PC(예 MacBook Air)는 **3 GB** 로 두고 §4.3 의 1회 설정을 적용한다. **2 GB 는 쓰지 않는다**(§8-5, §8-7).
 
 ---
 
@@ -49,14 +49,14 @@ Oracle Database Free 에디션은 엔진 내부적으로 하드웨어 상한선�
    ```
 2. **Podman Machine 생성:**
    - Podman Desktop 실행 후 안내에 따라 Machine 생성
-   - **권장 사양:** CPU **2 코어 이상**, Memory **4 GB 이상**
+   - **권장 사양:** CPU **2 코어 이상**, Memory **4 GB 이상**(메모리 16GB 이하 PC 는 **3 GB** 로 두고 §4.3 의 1회 설정을 적용합니다. 2GB 는 쓰지 않습니다)
 3. **Docker 명령어 호환 모드 (선택/권장):**
    - Podman Desktop ➡️ **Settings(설정)** ➡️ **Resources** ➡️ **Podman Machine**
    - **`Enable Docker Socket`** 및 **`docker CLI symlink`** 체크 시 기존 `docker` 명령어 그대로 병행 가능
 4. **CLI 만으로 설치할 때(sudo 권한 없이 가능):** `podman compose` 는 `docker-compose` 를 불러 쓰므로 함께 설치합니다.
    ```bash
    brew install podman docker-compose
-   podman machine init --cpus 2 --memory 4096 --disk-size 40
+   podman machine init --cpus 2 --memory 4096 --disk-size 40   # 3GB 로 두려면 --memory 3072 (§4.3)
    podman machine start
    # (선택) docker 명령 병행: Docker Socket 설정에 sudo 가 필요하면 PATH 의 개인 bin 에 링크
    ln -s /opt/homebrew/bin/podman ~/bin/docker
@@ -76,8 +76,18 @@ Oracle Database Free 에디션은 엔진 내부적으로 하드웨어 상한선�
    networkingMode=mirrored
    ```
    > 설정 후 PowerShell에서 `wsl --shutdown` 실행 후 재시작
+   >
+   > `memory=` 가 4GB 이상이면 1회 설정이 필요 없습니다. 16GB 이하 PC 에서 3GB 로 줄이면 §4.3 의 1회 설정을 적용합니다(2GB 는 쓰지 않습니다).
 3. **프로젝트 작업 디렉터리 권장:**
    - Windows C드라이브(`/mnt/c/...`) 대신 **WSL2 리눅스 내부 파일시스템(`\\wsl$\Ubuntu\home\<사용자>\...`)**에 프로젝트를 두고 작업해야 I/O 속도가 5~10배 빠릅니다.
+
+### 4.3. VM 3GB 이하일 때 1회 설정
+
+* **4GB 이상 머신은 건너뜁니다.** 이미지 기본값(SGA 1536M + PGA 512M)으로 기동하며 1회 설정이 필요 없습니다.
+* **3GB 머신**(메모리 16GB 이하 PC, 예 MacBook Air)은 컨테이너를 한 번 띄워 볼륨이 생긴 뒤 다음 값을 **한 번** 적용합니다: SGA `900M`, `pga_aggregate_target` `400M`, `pga_aggregate_limit` `2G`, `control_management_pack_access=NONE`, `job_queue_processes=0`, 루트 AWR 스냅숏 간격 0(끔).
+* **2GB 는 쓰지 않습니다**(여러 작업이 겹치면 스래싱했습니다, §8-5·§8-7).
+* 절차 본문은 **§8-5 한 곳에만** 있습니다(루트 README 「처음 받은 뒤 셋업」 3번에 따라 하기용 사본이 있고, 정본은 §8-5 입니다).
+* 설정은 데이터 볼륨에 저장되므로 `down` 후 `up -d` 에는 유지됩니다. **볼륨을 지우면(`down -v`) 기본값으로 돌아가므로 1회 설정을 다시 해야 합니다.**
 
 ---
 
@@ -85,6 +95,8 @@ Oracle Database Free 에디션은 엔진 내부적으로 하드웨어 상한선�
 
 Mac과 Windows 개발자가 Git으로 그대로 공유하여 실행할 수 있는 단일 설정입니다. 저장소의 [`tools/oracle-free/docker-compose.yml`](../../../tools/oracle-free/docker-compose.yml) 에 있으므로 그 폴더에서 실행합니다.
 
+> **실제 파일이 정본이고 아래 예시는 사본입니다.** 다르면 `tools/oracle-free/docker-compose.yml` 을 따릅니다.
+>
 > `version:` 항목은 최신 Compose 에서 쓰이지 않아 넣지 않습니다. 이미지 이름은 Podman 이 레지스트리를 묻지 않도록 `docker.io/` 를 붙여 적습니다.
 
 ```yaml
@@ -95,16 +107,13 @@ services:
     ports:
       - "1521:1521"
     environment:
-      # SYS / SYSTEM 관리자 비밀번호
+      # 컨테이너 OS 시간대를 KST 로 둔다(SYSDATE·SYSTIMESTAMP 가 KST). 감사 시각을 KST 로 통일한 결정(oracle-1007)
+      TZ: "Asia/Seoul"
       ORACLE_PASSWORD: "sys_password_123"
-      # 프로젝트용 일반 사용자 자동 생성 (선택 사항)
       APP_USER: "dmes_user"
       APP_USER_PASSWORD: "dmes_password_123"
     volumes:
-      # Podman Rootless 권한 에러를 방지하는 네임드 볼륨 (데이터 영구 유지)
-      # (gvenzl 이미지의 데이터 경로는 /opt/oracle/oradata)
       - oracle-data:/opt/oracle/oradata:Z
-      # 최초 구동 시 자동 실행할 DDL/DML 초기화 스크립트가 있다면 매핑
       # - ./init-scripts:/container-entrypoint-initdb.d
 
 volumes:
@@ -158,7 +167,7 @@ podman ps
 
 레인(워크트리)·자동 시험은 PDB 를 복제해 쓴다. 도구·이름 규칙·운용 규칙은 [`scripts/oracle/README.md`](../../../scripts/oracle/README.md), 스키마 소유표·연결 규약은 [`docs/oracle-1007/schema-owners.md`](../../oracle-1007/schema-owners.md) 에 있다.
 
-* 동시에 열린 PDB 수 상한은 환경 변수 `DMES_ORA_MAX_OPEN`(기본 **3** = FREEPDB1 + 템플릿 1 + 작업 1)으로 정한다. 기본값을 그대로 쓰고(VM 3GB 기준, §8-5), 2GB 머신은 3 을 넘기지 않으며, 4GB 이상·기본 SGA 인 PC 는 메모리 여유만큼 올린다(예: `export DMES_ORA_MAX_OPEN=5`). 2GB 에서 4개를 열면 인스턴스가 내려간다.
+* 동시에 열린 PDB 수 상한은 환경 변수 `DMES_ORA_MAX_OPEN`(기본 **3** = FREEPDB1 + 템플릿 1 + 작업 1)으로 정한다. 기본값 3 은 VM 3GB 기준이라 그대로 쓰고(§4.3, §8-5), 4GB 이상·기본 SGA 인 PC 는 메모리 여유만큼 올릴 수 있다(예: `export DMES_ORA_MAX_OPEN=5`). 2GB 는 쓰지 않는다(2GB 에서 4개를 열자 인스턴스가 내려갔다, §8-7).
 
 ### 6.4.2. 레인 PDB·시험 PDB 사용법
 
@@ -307,23 +316,24 @@ python3 tools/oracle-free/sqlite_to_oracle.py --sqlite /tmp/ora-mig/mdm.db --sch
    - Windows: PowerShell에서 `wsl --shutdown` 후 Podman Desktop 재실행.
 2. **컨테이너가 `Exited (137)` (OOM 메모리 부족 에러)로 비정상 종료될 때:**
    - 호스트/가상머신의 메모리가 부족한 경우입니다.
-   - Mac: Podman Desktop Settings ➡️ Resources에서 Machine Memory를 **4GB 이상**으로 증설.
-   - Windows: `.wslconfig`의 `memory=6GB` 설정 확인.
+   - Mac: Podman Desktop Settings ➡️ Resources에서 Machine Memory를 **4GB 이상**(16GB 이하 PC 는 최소 **3GB** + §4.3 의 1회 설정)으로 증설.
+   - Windows: `.wslconfig`의 `memory=6GB` 설정 확인(3GB 로 줄였다면 §4.3 의 1회 설정 여부 확인).
 3. **볼륨 마운트 권한 에러 (`Permission Denied`):**
    - 로컬 디렉터리 바인드 마운트(`./data:/opt/oracle/oradata`) 대신 반드시 `volumes:` 섹션에 정의된 **네임드 볼륨(`oracle-data:/opt/oracle/oradata`)**을 사용하십시오 (Podman Rootless 환경 완벽 호환).
 4. **재기동 시 `ORA-01078` / `LRM-00109: could not open parameter file '.../initFREE.ora'` 로 종료될 때:**
    - Podman 머신의 SELinux 가 첫 컨테이너가 볼륨으로 옮긴 spfile 에 그 컨테이너 전용 라벨을 붙여, 다음 컨테이너가 읽지 못하는 경우입니다.
    - 볼륨 매핑 끝에 `:Z` 를 붙입니다(`oracle-data:/opt/oracle/oradata:Z`, §5 표준 설정에 반영됨). 기존 볼륨도 그대로 `podman compose down` → `up -d` 하면 복구됩니다.
-5. **Podman 머신 메모리: 3GB 를 권장합니다(2GB 는 SGA 900M 에서도 스래싱했습니다):**
-   - 기본값(SGA 1536M + PGA 512M)은 2GB 머신에서 `ORA-01092` 로 기동에 실패합니다. 2GB 에서는 SGA 900M·PGA 200M 로 낮춰야 기동하고(머신 여유 약 280MB), 레인·시험이 PDB 를 복제하고 시험 JVM 이 접속을 열면 가용 메모리가 50MB 아래로 떨어져 2026-10-07 에 세 번 스래싱했습니다(§8-7). 그래서 **Podman 머신 메모리는 3GB(cpus 2)로 둡니다.**
-   - 3GB 에서의 설정값(2026-10-07 사용자 결정·실측): SGA `900M`, PGA 목표 `pga_aggregate_target=400M`, `pga_aggregate_limit=2G`, `control_management_pack_access=NONE`, 루트 AWR 스냅숏 간격 0(끔). PGA 목표를 200M 에서 올린 이유는 실측에서 목표 200M 에 할당이 286M 까지 늘고 초과 할당이 50회 났기 때문입니다. SGA 는 문제가 생길 때만 1200M 로 올립니다.
-   - 올리는 절차(컨테이너 데이터는 볼륨에 남습니다):
+5. **Podman 머신 메모리: 4GB 이상은 기본값, 3GB 는 1회 설정을 적용합니다(2GB 는 쓰지 않습니다):**
+   - 4GB 이상 머신은 이미지 기본값(SGA 1536M + PGA 512M)으로 기동하며 이 절차가 필요 없습니다. 메모리 16GB 이하 PC(예 MacBook Air)는 **Podman 머신 메모리 3GB(cpus 2)** 로 두고 아래 값을 1회 적용합니다(§4.3).
+   - 2GB 는 쓰지 않습니다. 기본값은 2GB 머신에서 `ORA-01092` 로 기동에 실패하고, SGA 900M·PGA 200M 로 낮춰 기동해도(머신 여유 약 280MB) 레인·시험이 PDB 를 복제하고 시험 JVM 이 접속을 열면 가용 메모리가 50MB 아래로 떨어져 2026-10-07 에 세 번 스래싱했습니다(§8-7).
+   - 3GB 에서의 설정값(2026-10-07 사용자 결정·실측): SGA `900M`, PGA 목표 `pga_aggregate_target=400M`, `pga_aggregate_limit=2G`, `control_management_pack_access=NONE`, `job_queue_processes=0`(자동 작업·통계 수집 정지), 루트 AWR 스냅숏 간격 0(끔). PGA 목표를 200M 에서 올린 이유는 실측에서 목표 200M 에 할당이 286M 까지 늘고 초과 할당이 50회 났기 때문입니다. SGA 는 문제가 생길 때만 1200M 로 올립니다.
+   - 머신 메모리를 3GB 로 올리는 절차(컨테이너 데이터는 볼륨에 남습니다. Windows 는 `.wslconfig` 의 `memory=` 로 정합니다):
      ```bash
      podman compose down                     # 컨테이너만 내림(-v 를 붙이지 않는다)
      podman machine stop && podman machine set --memory 3072 --cpus 2 && podman machine start
      podman compose up -d
      ```
-   - SGA·PGA 를 바꾸는 절차(2GB 로 줄이거나 값을 고칠 때, 값은 상황에 맞게):
+   - 1회 설정 절차(컨테이너를 한 번 띄워 볼륨이 생긴 뒤. 값을 고칠 때도 같은 절차입니다):
      ```bash
      podman compose down
      podman run --rm --entrypoint bash -v oracle-free_oracle-data:/opt/oracle/oradata:Z \
@@ -331,13 +341,15 @@ python3 tools/oracle-free/sqlite_to_oracle.py --sqlite /tmp/ora-mig/mdm.db --sch
        D=/opt/oracle/oradata/dbconfig/FREE; P=/tmp/initFREE.ora
        ln -sf $D/spfileFREE.ora $ORACLE_HOME/dbs/spfileFREE.ora
        echo "create pfile='\''$P'\'' from spfile;" | sqlplus -s / as sysdba
-       sed -i -E "/sga_target|sga_max_size|pga_aggregate_target|pga_aggregate_limit/d" $P
-       printf "*.sga_target=900M\n*.sga_max_size=900M\n*.pga_aggregate_target=400M\n*.pga_aggregate_limit=2G\n" >> $P
+       sed -i -E "/sga_target|sga_max_size|pga_aggregate_target|pga_aggregate_limit|control_management_pack_access|job_queue_processes/d" $P
+       printf "*.sga_target=900M\n*.sga_max_size=900M\n*.pga_aggregate_target=400M\n*.pga_aggregate_limit=2G\n*.control_management_pack_access=NONE\n*.job_queue_processes=0\n" >> $P
        echo "create spfile='\''$D/spfileFREE.ora'\'' from pfile='\''$P'\'';" | sqlplus -s / as sysdba'
      podman compose up -d
+     # 루트 AWR 스냅숏 간격 0(끔). pdb.mjs 의 quiet 도 PDB 안에서 같은 호출을 하고 오류는 무시한다
+     podman exec oracle-26ai-free bash -c "echo 'exec dbms_workload_repository.modify_snapshot_settings(interval => 0);' | sqlplus -s / as sysdba"
      ```
-   - `pga_aggregate_limit` 은 최소값이 2048M 이라 그보다 낮추면 `ORA-00093` 이 납니다(2GB 머신에서는 지정하지 않습니다).
-   - 볼륨을 지우고(`down -v`) 새로 만들면 기본값으로 돌아가므로 위 설정과 `job_queue_processes=0`(자동 작업·통계 수집 정지)을 다시 적용합니다(조정자에게 알립니다).
+   - `pga_aggregate_limit` 은 최소값이 2048M 이라 그보다 낮추면 `ORA-00093` 이 납니다.
+   - 볼륨을 지우고(`down -v`) 새로 만들면 기본값으로 돌아가므로 위 1회 설정(`job_queue_processes=0` 포함)을 다시 적용합니다(조정자에게 알립니다).
 6. **IDE나 외부 도구(Testcontainers 등)에서 소켓 인식 실패 시:**
    - Podman Desktop 설정에서 `Docker Socket`이 켜져 있는지 확인하고, 필요 시 실제 소켓 경로를 조회해 환경 변수로 지정합니다(Mac 은 경로가 머신마다 다름):
      ```bash
