@@ -30,7 +30,6 @@ dependencies {
 
     api libs.ojdbc11
     api libs.flyway.database.oracle
-    api libs.hibernate.community.dialects.v705
 
     // 샘플 스키마를 Flyway 로 관리한다.
     // Spring Boot 4 부터 FlywayAutoConfiguration 이 별도 모듈(spring-boot-flyway)로 빠졌다.
