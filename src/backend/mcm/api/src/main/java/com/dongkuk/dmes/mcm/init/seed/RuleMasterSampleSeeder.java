@@ -32,7 +32,7 @@ public final class RuleMasterSampleSeeder {
      * 업무기준(cmb/masterRuleList) 조회 필터 검증용 샘플 시드 — 개발체크리스트 ITEM-BE-05.
      *
      * <p><b>local/local-ph/local-kp tier 한정</b>(WildFly dev/prod·실운영 제외) — 사용자 결정 2026-06-05:
-     * MSSQL 검증용으로 직결 프로파일에도 허용(구 mssql/dev → 신 local-ph/local-kp, 2026-07-07 개편).
+     * 직결 검증 프로파일에도 허용(구 mssql/dev → 신 local-ph/local-kp, 2026-07-07 개편).
      * <b>idempotent</b> — sentinel PK 'USD' 존재 시 skip (재부팅 누적 방지).
      *
      * <p>6 row 로 고정 필터 2종(분석 §6.1 / 기능 BR-002·BR-003)을 교차 검증:

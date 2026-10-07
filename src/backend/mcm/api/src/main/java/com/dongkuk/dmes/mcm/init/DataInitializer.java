@@ -13,14 +13,10 @@ import com.dongkuk.dmes.mcm.init.seed.MdmMenuSeeder;
 import com.dongkuk.dmes.mcm.init.seed.MenuFinalizer;
 import com.dongkuk.dmes.mcm.init.seed.ModuleMenuSeeder;
 import com.dongkuk.dmes.mcm.init.seed.RuleMasterSampleSeeder;
-import com.dongkuk.dmes.mcm.init.seed.SchemaArtifactsMssql;
-import com.dongkuk.dmes.mcm.init.seed.SchemaArtifactsSqlite;
-import com.dongkuk.dmes.mcm.init.seed.ScreenUsageSchemaArtifacts;
 import com.dongkuk.dmes.mcm.init.seed.SeedSupport;
 import com.dongkuk.dmes.mcm.security.endpoint.UserPermCache;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
-import org.hibernate.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,17 +32,19 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 애플리케이션 시작 시 SQLite에 초기 데이터를 삽입한다.
+ * 애플리케이션 시작 시 초기 데이터(시드)를 넣는다.
  *
- * <p>2026-10-04 분할 — 이 클래스는 단계의 순서만 정하고, DDL·시드 본문은 단계 클래스가 갖는다.
- * {@code com.dongkuk.dmes.mcm.init.seed} 의 SchemaArtifactsMssql·SchemaArtifactsSqlite·CaravanMetaSeeder·
- * RuleMasterSampleSeeder·CoreRbacSeeder·McmMenuSeeder·MdmMenuSeeder·ModuleMenuSeeder·MenuFinalizer·
- * ScreenUsageSchemaArtifacts 다. 단계 클래스는 빈이 아니다. {@link #run} 이 방언을 판정한 뒤 만든
+ * <p>2026-10-04 분할 — 이 클래스는 단계의 순서만 정하고, 시드 본문은 단계 클래스가 갖는다.
+ * {@code com.dongkuk.dmes.mcm.init.seed} 의 CaravanMetaSeeder·RuleMasterSampleSeeder·CoreRbacSeeder·McmMenuSeeder·
+ * MdmMenuSeeder·ModuleMenuSeeder·MenuFinalizer·WidgetCategoryCodeSeeder 다. 단계 클래스는 빈이 아니다. {@link #run} 이 만든
  * {@link SeedSupport} 를 받아 쓰고, 트랜잭션은 {@link #run} 의 {@code @Transactional} 하나다.
  *
+ * <p>2026-10-07 oracle-1007 — 스키마는 Flyway(mcm-core {@code db/migration/oracle/<스키마>} V1, {@code McmFlywayConfig})가
+ * 만든다. 여기 있던 Java DDL 단계(SchemaArtifactsMssql·SchemaArtifactsSqlite·ScreenUsageSchemaArtifacts)와 SQLite 방언
+ * 판정은 {@code src/backend/mcm/archive/} 로 옮겼다. 시드 SQL 은 Oracle 문법이다.
+ *
  * <p>다른 모듈의 소스 대조 시험이 시드 소스를 문자열로 읽는다. PERM_ALL allActions 선언은 CoreRbacSeeder, mdm 메뉴·권한
- * 시드는 MdmMenuSeeder, 화면 사용 통계 DDL 사용은 ScreenUsageSchemaArtifacts 파일에서 찾는다.
- * mcm-core ScreenUsageMssqlDdlTest 는 {@link #run} 의 화면 사용 통계 단계와 SQLite 보강 단계의 호출 순서를 이 파일에서 본다.
+ * 시드는 MdmMenuSeeder 파일에서 찾는다.
  */
 @Component
 public class DataInitializer implements ApplicationRunner {
@@ -72,7 +70,7 @@ public class DataInitializer implements ApplicationRunner {
     @Autowired
     private SecMenuNativeRepository secMenuNativeRepository;
 
-    // 업무기준(cmb/masterRuleList) 샘플 시드용 — primary EMF (mcm.db / MCAAPUSER). local/mssql/dev tier 한정.
+    // 업무기준(cmb/masterRuleList) 샘플 시드용 — primary EMF (MCAAPUSER). local/local-ph/local-kp tier 한정.
     @Autowired(required = false)
     private RuleMasterRepository ruleMasterRepository;
 
@@ -94,11 +92,6 @@ public class DataInitializer implements ApplicationRunner {
     @Value("${dmes.init.enabled:true}")
     private boolean initEnabled;
 
-    // 런타임 DB 방언 — SQLite(개발자 Mac local 단독 부팅) 여부. run() 초입 1회 감지.
-    // true 면 MSSQL 전용 schema artifacts(sys.objects / SELECT INTO / CREATE SCHEMA) skip + 시드 SQL 방언 흡수.
-    // false(MSSQL/dev/prod) 면 기존 동작 그대로 — 동료 환경 무영향.
-    private boolean sqliteDialect;
-
     public DataInitializer(PasswordEncoder passwordEncoder, Environment environment) {
         this.passwordEncoder = passwordEncoder;
         this.environment = environment;
@@ -111,51 +104,21 @@ public class DataInitializer implements ApplicationRunner {
             log.info("[DataInitializer] dmes.init.enabled=false — 초기 시드/스키마 적재 전체 skip (읽기 전용 기동, 데이터 무수정).");
             return;
         }
-        this.sqliteDialect = detectSqliteDialect();
-        if (sqliteDialect) {
-            log.info("[DataInitializer] SQLite(local 단독) 감지 — MSSQL 전용 schema artifacts skip, 시드 SQL 방언 흡수 모드 (동료 MSSQL 무영향).");
-        }
-        // 방언 판정 뒤 시드 문맥을 한 번 만들어 모든 단계에 넘긴다 (단계 클래스는 빈이 아니다 — 트랜잭션은 이 메서드 하나).
-        SeedSupport support = new SeedSupport(entityManager, sqliteDialect);
-        SchemaArtifactsMssql mssqlSchema = new SchemaArtifactsMssql(support);
-        SchemaArtifactsSqlite sqliteSchema = new SchemaArtifactsSqlite(support);
+        // 시드 문맥을 한 번 만들어 모든 단계에 넘긴다 (단계 클래스는 빈이 아니다 — 트랜잭션은 이 메서드 하나).
+        SeedSupport support = new SeedSupport(entityManager);
 
-        // caravan-console 메타 (TB_MCM_APPHOST / TB_MCM_MOM_KAFKA_SERAI_CONFIG) 는 secondary DB (caravan.db / CARAVANUSER).
-        // mcm.db 의 secUser count 와 무관하게 매번 idempotent saveAll 수행 (JpaRepository.save 는 PK 있으면 UPDATE).
+        // caravan-console 메타 (TB_CARAVAN_APPHOST / TB_CARAVAN_HUB_CONFIG) 는 보조 DataSource(CARAVANUSER).
+        // biz 의 secUser count 와 무관하게 매번 idempotent saveAll 수행 (JpaRepository.save 는 PK 있으면 UPDATE).
         // v4 결정 #14 + Phase 4-C (2026-05-13).
         CaravanMetaSeeder caravanMeta = new CaravanMetaSeeder(appHostJpaRepository, consoleCaravanHubConfigJpaRepository);
         caravanMeta.initAppHostData();
         caravanMeta.initCaravanHubConfigData();
 
-        // MCM cma 동기화 schema artifacts — 매번 IF NOT EXISTS 멱등 적재 (2026-05-29 사용자 결정).
-        // 원장 DML 대상 = MCM_SOURCE (Entity @Table schema). MCMAPUSER = 운영 read 동기화본 (빈 테이블 + 뷰).
-        // MCM_BACKUP 은 동기화 화면 사이클 (별도 worker) 위임 — 현 사이클에서 미적재.
-        if (!sqliteDialect) {
-            mssqlSchema.initMcmCmaSyncSchemaArtifacts();
-        } else {
-            // MSSQL 전용 artifacts 는 skip 하지만 VI_MCM_CODE_ACCESS 뷰만은 SQLite 에도 만든다 (2026-08-07).
-            // 이 뷰가 없으면 masterCodeSelPop(코드 선택 팝업) 조회가 "no such table: VI_MCM_CODE_ACCESS" 로
-            // 통째로 실패하고, OASIS 가 HTTP 200 + meta.success=false 로 돌려줘 팝업이 조용히 빈 채로 떴다.
-            sqliteSchema.createMcmCodeAccessViewSqlite();
-        }
+        // MCM cma 동기화 표(MCMAPUSER 사본 3표·MCM_BACKUP 2표)·VI_MCM_CODE_ACCESS 뷰·csa SEC 표·화면 사용 통계 표는
+        // 2026-10-07 부터 Flyway V1(mcm-core db/migration/oracle/<스키마>)이 만든다 — 옛 Java DDL 단계는 archive.
 
-        // 업무기준(cmb/masterRuleList) 조회 필터 검증용 샘플 — local/mssql/dev tier·idempotent (BR-002/003).
+        // 업무기준(cmb/masterRuleList) 조회 필터 검증용 샘플 — local/local-ph/local-kp tier·idempotent (BR-002/003).
         new RuleMasterSampleSeeder(environment, ruleMasterRepository).initRuleMasterSampleData();
-
-        // 2026-06-06 — SQLite(local 단독)에서는 아래 csa W1~W8 native DDL 을 전부 skip한다. SEC 테이블 대부분은
-        // @Entity 가 있어 ddl-auto=update 가 SQLite 에 생성하고, entity 미보유 TB_MCM_SEC_MENU_FLD 만 else 에서 보강.
-        if (!sqliteDialect) {
-            // MCM csa 9 화면 schema artifacts W1~W8 — 호출 순서와 화면별 설명은 SchemaArtifactsMssql#initMcmCsaCommArtifacts.
-            mssqlSchema.initMcmCsaCommArtifacts();
-
-            // 화면 사용 통계(2026-10-02) — TB_SEC_SCREEN_USAGE_LOG / _DAY + 인덱스 멱등 생성.
-            // 감사 계열(TB_SEC_AUDIT_LOG)처럼 schema 접두 없이 접속 계정 기본 스키마에 둔다. SQLite 는 ddl-auto 가 만든다.
-            new ScreenUsageSchemaArtifacts(support).initScreenUsageArtifacts();
-        } else {
-            // SQLite(local 단독) — entity 미보유 TB_MCM_SEC_MENU_FLD 만 보강 생성 (나머지 SEC 테이블은 ddl-auto).
-            sqliteSchema.createSecMenuFldForSqlite();
-            sqliteSchema.createScreenUsageLogSegIndex();
-        }
 
         // Phase R6 (2026-06-01) — 신규 RBAC 시드 (TB_MCM_SEC_*) 멱등 적재.
         // legacy TB_SEC_* 시드 (TB_SEC_USER / TB_SEC_ROLE / TB_SEC_USER_ROLE / TB_SEC_PERM /
@@ -165,7 +128,7 @@ public class DataInitializer implements ApplicationRunner {
 
         seedMcmSecRbac(support);
 
-        log.info("[DataInitializer] 초기 데이터 삽입 완료. MCM SEC RBAC 시드 (admin / SYSADMIN role-group / SYSADMIN role / PERM_ALL / 9 화면 ROLE_MAPPING) + caravan-console 메타 완료.");
+        log.info("[DataInitializer] 초기 데이터 삽입 완료. MCM SEC RBAC 시드 (admin / SYSADMIN role-group / SYSADMIN role / PERM_ALL / 9 화면 ROLE_MAPPING). caravan-console 메타는 CaravanMetaSeeder 로그를 본다(표가 없으면 건너뜀).");
     }
 
     /**
@@ -257,12 +220,11 @@ public class DataInitializer implements ApplicationRunner {
         //   트리 위치 기준으로 일괄 정정. saveCmMenu / saveCmMenuFld 의 저장 시 재계산과 동일 로직 (SoT).
         // 2026-06-11: 모듈 루트 폴더 표시 순서 고정 — 공정계획(mpn) 위 / 공통관리(mcm) 아래.
         //   b1eac364 가 시드 리터럴 MENU_SEQ 를 swap 했으나 seedMcmSecMenuFld/seedMpnMenus 는 insertIfAbsent 라
-        //   이미 시드된 DB(dev MSSQL · 동료 SQLite)엔 옛 값(mcm=00000001, mpn=00000002)이 남아 순서가 안 바뀐다.
+        //   이미 시드된 DB(개발계·다른 개발자 로컬 DB)엔 옛 값(mcm=00000001, mpn=00000002)이 남아 순서가 안 바뀐다.
         //   루트 2행만 멱등 보정(그룹/화면 정렬은 사용자 편집 보존) 후, 아래 recompute 가 FULL_SEQ 를 재부여한다.
         menuFinalizer.fixModuleRootMenuSeqOrder();
 
-        // recomputeMenuFullSeq 는 mcm-core SecMenuNativeRepository 의 native @Query(MCMAPUSER. schema 접두) 이지만,
-        // SQLite 에서는 McmAuditStatementInspector(JpaConfig 가 SQLite 한정 등록)가 schema 접두를 제거하므로 그대로 동작.
+        // recomputeMenuFullSeq 는 mcm-core SecMenuNativeRepository 의 native @Query(MCMAPUSER. schema 접두) 다.
         menuFinalizer.recomputeMenuFullSeq();
 
         // 메뉴 카탈로그 무효화 — 이 메서드의 @Transactional 안이므로 즉시 한 번, 트랜잭션이 끝난 뒤(커밋·롤백) 한 번 더 비운다(MenuCatalog javadoc).
@@ -284,25 +246,6 @@ public class DataInitializer implements ApplicationRunner {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // SQLite(개발자 Mac local 단독 부팅) 호환 레이어 — 2026-06-06
-    //  · detectSqliteDialect       : 런타임 connection product name 으로 방언 1회 감지 (profile 비의존)
-    //  · sanitize / nq             : 시드 native SQL 의 MSSQL 전용 토큰을 SQLite 로 흡수 (MSSQL 무영향) — seed.SeedSupport
-    //  · createSecMenuFldForSqlite : entity 미보유 TB_MCM_SEC_MENU_FLD 보강 (그 외 SEC 테이블은 ddl-auto) — seed.SchemaArtifactsSqlite
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /** 런타임 connection 의 DB product name 으로 SQLite 여부 1회 감지 (profile 이름 비의존 — dialect 실측). */
-    private boolean detectSqliteDialect() {
-        try {
-            String product = entityManager.unwrap(Session.class)
-                    .doReturningWork(conn -> conn.getMetaData().getDatabaseProductName());
-            return product != null && product.toLowerCase().contains("sqlite");
-        } catch (Exception e) {
-            log.warn("[DataInitializer] DB 방언 감지 실패 — MSSQL 로 가정(기존 동작 유지). 원인: {}", e.getMessage());
-            return false;
-        }
-    }
-
     /**
      * local 프로필 부팅 때 admin 의 로그인 잠금을 푼다 — 본문은 {@link CoreRbacSeeder#unlockLocalAdmin()}.
      * 기존 시험(DataInitializerLocalAdminUnlockTest)이 이 진입점을 직접 부른다.
@@ -310,7 +253,7 @@ public class DataInitializer implements ApplicationRunner {
      * @return 되돌린 행 수(0 또는 1)
      */
     int unlockLocalAdmin() {
-        return new CoreRbacSeeder(new SeedSupport(entityManager, sqliteDialect), passwordEncoder, environment)
+        return new CoreRbacSeeder(new SeedSupport(entityManager), passwordEncoder, environment)
                 .unlockLocalAdmin();
     }
 }

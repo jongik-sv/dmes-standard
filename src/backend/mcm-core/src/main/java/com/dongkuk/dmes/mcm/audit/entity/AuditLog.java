@@ -1,6 +1,8 @@
 package com.dongkuk.dmes.mcm.audit.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 
@@ -23,10 +25,13 @@ public class AuditLog {
     @Column(name = "ACTOR_USER_ID", length = 100)
     private String actorUserId;
 
-    @Column(name = "BEFORE_JSON", columnDefinition = "TEXT")
+    // 긴 JSON — LONG32VARCHAR(Oracle CLOB). columnDefinition "TEXT" 는 Oracle 에 없는 형식이다(W-D30, @Lob 금지).
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
+    @Column(name = "BEFORE_JSON")
     private String beforeJson;
 
-    @Column(name = "AFTER_JSON", columnDefinition = "TEXT")
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
+    @Column(name = "AFTER_JSON")
     private String afterJson;
 
     @Column(name = "CLIENT_IP", length = 64)

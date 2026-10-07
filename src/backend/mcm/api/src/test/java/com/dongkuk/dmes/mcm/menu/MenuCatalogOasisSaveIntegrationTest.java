@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mcm.menu;
 
+import com.dongkuk.dmes.mcm.testdb.McmOraTestDb;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
@@ -14,7 +15,6 @@ import com.dongkuk.dmes.cactus.web.request.GridData;
 import com.dongkuk.dmes.cactus.web.request.RequestMeta;
 import com.dongkuk.dmes.cactus.web.response.CactusResponse;
 import com.dongkuk.dmes.mcm.audit.AuditLogger;
-import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import com.dongkuk.dmes.mcm.common.event.MenuChangedEvent;
 import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
@@ -36,10 +36,7 @@ import com.dongkuk.dmes.mcm.security.UserAccountRepository;
 import com.dongkuk.dmes.mcm.security.dto.MyMenusRequest;
 import com.dongkuk.dmes.mcm.security.password.PasswordPolicyEvaluator;
 import com.dongkuk.dmes.mcm.security.service.SecUserService;
-import com.zaxxer.hikari.HikariDataSource;
 import jakarta.persistence.EntityManagerFactory;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -47,12 +44,10 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.sql.DataSource;
-import org.hibernate.jpa.HibernatePersistenceProvider;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,8 +67,6 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
-import org.springframework.orm.jpa.persistenceunit.PersistenceManagedTypes;
-import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.transaction.event.TransactionPhase;
@@ -86,8 +79,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p>운영과 같은 조립: {@link OasisAutoConfiguration#serviceStarter} (transactional + multi-tx, 기본 매니저 {@code txBiz}
  * = JPA) → {@link OasisServiceExecutor} → 실제 {@code services/csa/commMenuMng/commMenuMng.bpmn}·{@code commObjMng.bpmn}
- * → {@code commMenuMngService}·{@code commObjMngService}. DB 는 SQLite 임시 파일이고 Hibernate SQLite 방언 +
- * {@link McmAuditStatementInspector}(SQLite 모드) 로 로컬 실행({@code JpaConfig} SQLite 분기)과 같은 SQL 을 돈다.
+ * → {@code commMenuMngService}·{@code commObjMngService}. DB 는 Oracle 시험 PDB(Flyway 기준선)이고 운영 {@code JpaConfig} 와 같은
+ * Hibernate 설정(OracleDialect)으로 같은 SQL 을 돈다.
  * 메뉴를 읽는 쪽은 {@link SecUserService#getMyMenus}(내 메뉴) — 저장 전에 한 번 불러 캐시를 채운 뒤 시작한다.
  *
  * <p>이 시험이 판정하는 것:
@@ -109,8 +102,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Execution(ExecutionMode.SAME_THREAD)
 class MenuCatalogOasisSaveIntegrationTest {
 
-    private static Path dbFile;
-    private static boolean sqliteBefore;
     private static AnnotationConfigApplicationContext ctx;
     private static OasisServiceExecutor executor;
     private static SecUserService secUserService;
@@ -120,30 +111,19 @@ class MenuCatalogOasisSaveIntegrationTest {
 
     @BeforeAll
     static void startContext() throws Exception {
-        sqliteBefore = McmAuditStatementInspector.isSqlite();
-        McmAuditStatementInspector.setSqlite(true);
-        dbFile = Files.createTempFile("menu-catalog-oasis", ".db");
-        Files.delete(dbFile);
+        // 메뉴 폴더(TB_MCM_SEC_MENU_FLD)를 포함한 스키마는 Flyway 기준선이 만든다(oracle-1007).
+        McmOraTestDb.resetSchemas();
         ctx = new AnnotationConfigApplicationContext(Config.class);
         executor = new OasisServiceExecutor(starter(), ctx, new CactusRequestConverter(), new CactusResponseConverter());
         secUserService = ctx.getBean(SecUserService.class);
         catalog = ctx.getBean(MenuCatalog.class);
         probe = ctx.getBean(Probe.class);
         tx = new TransactionTemplate(ctx.getBean("transactionManager", PlatformTransactionManager.class));
-        JdbcTemplate jdbc = new JdbcTemplate(ctx.getBean(DataSource.class));
-        // 메뉴 폴더 — 엔티티가 없어 로컬 mcm.db 와 같은 모양으로 직접 만든다(감사 9컬럼 포함: inspector 가 UPDATE 에 덧붙인다).
-        jdbc.execute("CREATE TABLE TB_MCM_SEC_MENU_FLD (MENU_ID varchar(30) primary key, MENU_SEQ varchar(30),"
-                + " MENU_NM varchar(100), PARENT_MENU_ID varchar(30), FULL_SEQ numeric(10,0), USE_TP varchar(1),"
-                + " MENU_TP varchar(10), MENU_VIEW_YN varchar(1), BIZ_SYSTEM_CODE varchar(30),"
-                + " C_USR_ID varchar(100), C_AT timestamp, C_SVC_ID varchar(100), C_PGM_ID varchar(100),"
-                + " U_USR_ID varchar(100), U_AT timestamp, U_SVC_ID varchar(100), U_PGM_ID varchar(100), VER bigint)");
     }
 
     @AfterAll
     static void stopContext() throws Exception {
         if (ctx != null) ctx.close();
-        McmAuditStatementInspector.setSqlite(sqliteBefore);
-        Files.deleteIfExists(dbFile);
     }
 
     @BeforeEach
@@ -385,34 +365,16 @@ class MenuCatalogOasisSaveIntegrationTest {
     @Import({SecMenuNativeRepository.class, SecMenuFldLovRepository.class})
     static class Config {
 
-        @Bean
+        @Bean(destroyMethod = "close")
         DataSource dataSource() {
-            HikariDataSource ds = new HikariDataSource();
-            ds.setJdbcUrl("jdbc:sqlite:" + dbFile);
-            ds.setPoolName("menu-catalog-oasis");
-            ds.setMaximumPoolSize(4);
-            return ds;
+            return McmOraTestDb.appDataSource("menu-catalog-oasis");
         }
 
         @Bean
         LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
-            Properties props = new Properties();
-            props.put("hibernate.dialect", "org.hibernate.community.dialect.SQLiteDialect");
-            props.put("hibernate.hbm2ddl.auto", "create");
-            // 로컬 실행(JpaConfig SQLite 분기)과 같다 — MCMAPUSER. 접두 제거·감사 컬럼, 날짜 문자열 변환.
-            props.put("hibernate.session_factory.statement_inspector", McmAuditStatementInspector.class.getName());
-            props.put("hibernate.metadata_builder_contributor",
-                    "com.dongkuk.dmes.mcm.common.persistence.SqliteTemporalConverterContributor");
-
-            LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
-            em.setDataSource(dataSource);
-            em.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
-            em.setJpaProperties(props);
-            em.setPersistenceUnitName("default"); // 네이티브 저장소의 @PersistenceContext(unitName = "default")
-            em.setManagedTypes(PersistenceManagedTypes.of(
-                    SecMenu.class.getName(), SecObj.class.getName(), SecRoleMapping.class.getName()));
-            em.setPersistenceProviderClass(HibernatePersistenceProvider.class);
-            return em;
+            // 운영 JpaConfig 와 같은 구성(OracleDialect·ddl none). 네이티브 저장소의 @PersistenceContext(unitName = "default").
+            return McmOraTestDb.entityManagerFactory(dataSource, "default",
+                    SecMenu.class.getName(), SecObj.class.getName(), SecRoleMapping.class.getName());
         }
 
         /** OASIS 기본 매니저 txBiz = 운영의 primary JPA 매니저({@code transactionManager}) 별칭. */

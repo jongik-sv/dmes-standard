@@ -1,6 +1,8 @@
 package com.dongkuk.dmes.mcm.widget.layout;
 
 import com.dongkuk.dmes.mcm.entity.DeptInfo;
+import com.zaxxer.hikari.HikariDataSource;
+import com.dongkuk.dmes.mcm.testdb.McmCoreOraTestDb;
 import com.dongkuk.dmes.mcm.entity.SecUser;
 import com.dongkuk.dmes.mcm.widget.chat.entity.WidgetChatMessage;
 import com.dongkuk.dmes.mcm.widget.chat.repository.WidgetChatMessageRepository;
@@ -27,22 +29,19 @@ import com.dongkuk.dmes.mcm.widget.service.SecWidgetInstSplitWriter;
 import com.dongkuk.dmes.mcm.widget.service.SecWidgetTabWriter;
 import jakarta.persistence.EntityManagerFactory;
 import java.util.List;
-import java.util.Properties;
 import javax.sql.DataSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.persistenceunit.PersistenceManagedTypes;
-import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 /**
- * 기본 탭·공유·instId 분리 시험용 최소 JPA 구성(H2 메모리, DB 이름 widgettabs) — {@code WidgetJpaTestConfig} 방식.
- * Hibernate SQLite 방언은 mcm-core 시험 클래스패스에 없어 다른 위젯 저장소 시험처럼 H2 를 쓴다.
+ * 기본 탭·공유·instId 분리 시험용 최소 JPA 구성(Oracle 시험 PDB, 기준선 V1 — {@link McmCoreOraTestDb}) — {@code WidgetJpaTestConfig} 방식.
+ * 컨텍스트가 뜰 때 네 스키마의 행을 지운다(빈 표에서 시작).
  * 사용자 찾기 쿼리를 확인하려고 사용자·부서 엔티티 둘만 더 올린다(공통 엔티티 패키지 전체는 올리지 않는다).
  */
 @Configuration
@@ -51,20 +50,22 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
         WidgetMemoRepository.class, WidgetChatMessageRepository.class})
 public class WidgetTabsJpaTestConfig {
 
+    /**
+     * 풀 상한 3. 도우미 기본 풀(2)로는 모자란다 — WidgetDefaultTabJpaTest 의 「바깥 트랜잭션 안에서 search → 옛 배치 이전은 자기 트랜잭션」 시험이
+     * 바깥이 쥔 연결 + 서비스 읽기 + 이전 트랜잭션(REQUIRES_NEW)의 연결을 함께 필요로 한다. 이전(H2 DriverManagerDataSource)에는
+     * 연결 수 제한이 없어 드러나지 않았다. 부족하면 getConnection 이 30초 기다린 뒤 실패하고 이전이 건너뛰어진다.
+     */
     @Bean
     public DataSource dataSource() {
-        DriverManagerDataSource ds = new DriverManagerDataSource();
-        ds.setDriverClassName("org.h2.Driver"); // testRuntimeOnly — 클래스 직접 참조 금지
-        ds.setUrl("jdbc:h2:mem:widgettabs;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS MCMAPUSER");
-        ds.setUsername("sa");
-        ds.setPassword("");
+        HikariDataSource ds = McmCoreOraTestDb.appDataSource("widget-tabs");
+        ds.setMaximumPoolSize(3); // 풀은 첫 getConnection 때 시작하므로 그 전에 바꾼다
         return ds;
     }
 
     @Bean
     public LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
-        LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
-        em.setDataSource(dataSource);
+        // 엔티티는 아래 목록으로만 올린다 — 패키지 스캔은 비워 두고 managedTypes 가 우선한다(공통 엔티티 패키지 전체를 올리지 않는다).
+        LocalContainerEntityManagerFactoryBean em = McmCoreOraTestDb.entityManagerFactory(dataSource);
         em.setManagedTypes(PersistenceManagedTypes.of(List.of(
                 WidgetDefaultLayout.class.getName(),
                 WidgetDefaultTab.class.getName(),
@@ -75,10 +76,6 @@ public class WidgetTabsJpaTestConfig {
                 WidgetChatMessage.class.getName(),
                 SecUser.class.getName(),
                 DeptInfo.class.getName()), List.of()));
-        em.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
-        Properties props = new Properties();
-        props.put("hibernate.hbm2ddl.auto", "create-drop");
-        em.setJpaProperties(props);
         return em;
     }
 

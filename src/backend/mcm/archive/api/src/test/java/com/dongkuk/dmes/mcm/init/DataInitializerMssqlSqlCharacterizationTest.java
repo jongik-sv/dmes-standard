@@ -41,6 +41,12 @@ import org.springframework.test.util.ReflectionTestUtils;
 /**
  * DataInitializer MSSQL 경로 SQL 기록 특성 테스트 — 실제 DB 없이 MSSQL 분기가 내보내는 SQL 을 실행 순서대로 골든으로 고정한다.
  *
+ * <p><b>2026-10-07 oracle-1007</b> — 방언 분기·Java DDL 단계가 없어져 이제 이 시험은 <b>Oracle 시드 SQL</b>(유일한 경로)을 고정한다.
+ * 이름·골든 파일명의 mssql 은 이력 호환으로 남겼다. 골든 재생성 때 옛 골든과 대조해, 새 호출열이 옛 호출열에서
+ * {@code SYSDATETIME()}→{@code SYSTIMESTAMP}·{@code '9999-12-31 23:59:59'}→{@code TIMESTAMP '…'} 두 치환만 한 부분열이며
+ * 빠진 것은 DDL·카탈로그 조회·옛 MSSQL 데이터 보정(MENU_SEQ 8자리·ACCESS_TP·FORM_URL·MENU_FLD FULL_SEQ)뿐임을 확인했다.
+ * 아래 설명의 "MSSQL 분기"·SQLite 지문은 그 이전 상태를 적은 것이다.
+ *
  * <p><b>왜</b> — {@link DataInitializerSeedFingerprintTest}(SQLite 지문)는 SQLite 분기만 지나므로, 약 1,300줄의 MSSQL 전용
  * DDL(sys.objects·OBJECT_ID·ALTER·EXEC CREATE SCHEMA)과 T-SQL 시드(SYSDATETIME()·N'…'·MCMAPUSER. 접두 원문)를 지키지 못한다.
  * DataInitializer 를 도메인별 Seeder 로 나누는 동안 이 경로가 한 글자도 바뀌지 않았는지 이 테스트가 지킨다.

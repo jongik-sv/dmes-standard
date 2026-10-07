@@ -1,6 +1,5 @@
 package com.dongkuk.dmes.mcm.config;
 
-import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import com.zaxxer.hikari.HikariDataSource;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.jpa.HibernatePersistenceProvider;
@@ -8,6 +7,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.datasource.lookup.JndiDataSourceLookup;
@@ -41,14 +41,14 @@ public class JpaConfig {
     public DataSource dataSource(Environment env) {
         // ── JNDI 경로 (2026-07-07 JNDI 전환 설계 — docs/framework/DataSource_JNDI설계.md) ──
         // WildFly 배포(dev/prod): application-wildfly.yml 이 spring.datasource.jndi-name 을 정의
-        // (기본값 java:/jdbc/mssql/mcm/dsBiz, JNDI_DS_BIZ 로 override 가능).
+        // (기본값 java:/jdbc/mcm/dsBiz, JNDI_DS_BIZ 로 override 가능).
         // 물리 접속/풀은 각 WildFly standalone.xml 소유 — 여기선 컨테이너 관리 풀을 조회만 한다.
         String jndiName = env.getProperty("spring.datasource.jndi-name");
         if (jndiName != null && !jndiName.isBlank()) {
             return new JndiDataSourceLookup().getDataSource(jndiName);
         }
 
-        // ── HikariCP 직결 경로 (local=SQLite / local-ph=포항 직결 / local-kp=김포 직결) ──
+        // ── HikariCP 직결 경로 (local = 로컬 Oracle PDB 의 MCMAPUSER) ──
         String url = env.getProperty("spring.datasource.url");
         String driverClassName = env.getProperty("spring.datasource.driver-class-name");
         String username = env.getProperty("spring.datasource.username");
@@ -67,16 +67,20 @@ public class JpaConfig {
         if (password != null) {
             ds.setPassword(password);
         }
+        // Oracle 인스턴스를 모든 레인·앱이 나눠 쓴다(oracle-1007 연결 규약: Hikari 상한 3). 이 풀은 직접 만들어
+        // spring.datasource.hikari.* 바인딩이 먹지 않으므로 여기서 읽는다 — 시험 하니스의 env SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE 도 이 키다.
+        ds.setMaximumPoolSize(env.getProperty("spring.datasource.hikari.maximum-pool-size", Integer.class, 3));
         ds.setPoolName("mcm-host-primary");
         return ds;
     }
 
     @Bean
     @Primary
+    @DependsOn(McmFlywayConfig.MIGRATOR_BEAN)
     public LocalContainerEntityManagerFactoryBean entityManagerFactory(
             @Qualifier("dataSource") DataSource dataSource,
             @Value("${spring.jpa.database-platform:}") String dialect,
-            @Value("${spring.jpa.hibernate.ddl-auto:update}") String ddlAuto,
+            @Value("${spring.jpa.hibernate.ddl-auto:none}") String ddlAuto,
             @Value("${spring.jpa.show-sql:false}") boolean showSql) {
 
         Properties props = new Properties();
@@ -86,27 +90,12 @@ public class JpaConfig {
         props.put("hibernate.hbm2ddl.auto", ddlAuto);
         props.put("hibernate.show_sql", Boolean.toString(showSql));
         props.put("hibernate.format_sql", "true");
-        // SQLite ddl-auto introspection 한계 회피 (2026-06-05): getColumns() 스키마 추출을 단일
-        // compound SELECT(UNION) 대신 테이블 개별 수행. mcm.db 테이블 수 증가 시
-        // "SQLITE_ERROR: too many terms in compound SELECT"(term 한계 ~500) 방지. 타 DB(MSSQL) 무해.
-        props.put("hibernate.hbm2ddl.jdbc_metadata_extraction_strategy", "individually");
-
-        // SQLite(개발자 Mac local 단독) — primary EMF 는 본 JpaConfig 가 명시 빌드해 application.yml 의
-        // spring.jpa.properties(statement_inspector 포함)가 적용되지 않는다. SQLite 일 때만 audit inspector 를
-        // 명시 등록 + SQLite 모드 전환 → 모든 native/JPA SQL 의 MCMAPUSER. schema 접두·SYSDATETIME 등을 SQLite
-        // 호환으로 치환(mcm-core native @Query 66건 일괄). MSSQL/dev/prod 는 미등록 — 동료 환경 무영향.
-        boolean sqlite = dialect != null && dialect.toLowerCase().contains("sqlite");
-        if (sqlite) {
-            props.put("hibernate.session_factory.statement_inspector",
-                    "com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector");
-            McmAuditStatementInspector.setSqlite(true);
-            // SQLite 커뮤니티 dialect + xerial 의 네이티브 temporal 라운드트립 결함 우회 (2026-06-06) —
-            // LocalDate/LocalDateTime 을 ISO text 로 저장/읽는 컨버터를 auto-apply (mpn application-local 패턴 이식).
-            // 미등록 시 화면 저장 datetime 이 epoch millis 로 새어 시드(text)·조회와 형식 불일치. 읽기는 epoch·text 양쪽 호환.
-            // primary EMF 가 명시 빌드라 yml 의 metadata_builder_contributor 미적용 → 여기서 직접 등록. MSSQL/dev/prod 미진입.
-            props.put("hibernate.metadata_builder_contributor",
-                    "com.dongkuk.dmes.mcm.common.persistence.SqliteTemporalConverterContributor");
-        }
+        // 일시·boolean 공통 설정(docs/oracle-1007/schema-owners.md §3.1·§3.1.1). 이 EMF 는 직접 만들어 yml 의
+        // spring.jpa.properties 가 먹지 않으므로 여기에 넣는다. hibernate.jdbc.time_zone 은 넣지 않는다(KST 통일, JVM Asia/Seoul).
+        //  - Instant 감사 칸(C_AT·U_AT)은 TIMESTAMP(6) — KST 벽시계로 저장한다.
+        //  - boolean 칸은 NUMBER(1) — TINYINT 로 둔다(Hibernate 7.2 OracleDialect 는 23 이상에서 BIT 를 BOOLEAN 으로 매핑한다).
+        props.put("hibernate.type.preferred_instant_jdbc_type", "TIMESTAMP");
+        props.put("hibernate.type.preferred_boolean_jdbc_type", "TINYINT");
 
         LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
         em.setDataSource(dataSource);

@@ -47,7 +47,7 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.parseLocalDateTime;
  * OASIS executor {@code SpringTransactionHandler} 가 BPMN process 단위로 자동 wrap.
  *
  * <p>가이드 §6-A-1 (Entity 본 컬럼만) — selectCommMenuMng 의 LEFT JOIN TB_MCM_SEC_OBJ / selectMenuFldList 의
- * CTE WITH RECURSIVE / selectMenuObj / selectMenuObjPop 은 모두 read-only → {@link SecMenuNativeRepository}
+ * 재귀 WITH / selectMenuObj / selectMenuObjPop 은 모두 read-only → {@link SecMenuNativeRepository}
  * native query 어댑터 사용. Entity SecMenu 는 save / delete 트랜잭션에만 사용.
  *
  * <p>audit 9 컬럼 (C_USR_ID / C_AT / C_SVC_ID / C_PGM_ID / U_USR_ID / U_AT / U_SVC_ID / U_PGM_ID / VER) 은
@@ -100,7 +100,7 @@ public class CommMenuMngService {
      * <ol>
      *   <li>{@link SecMenuNativeRepository#searchCmMenu(String, String, String, String)} —
      *       4 파라미터 (To-Be 정책 #1 — cbo_bizSystemCode 폐기)</li>
-     *   <li>{@link SecMenuNativeRepository#searchMenuFld()} — 메뉴 트리 (CTE WITH RECURSIVE)</li>
+     *   <li>{@link SecMenuNativeRepository#searchMenuFld()} — 메뉴 트리 (재귀 WITH)</li>
      *   <li>{@code ds_menuList} + {@code ds_menuTreeList} 2 dataset 반환</li>
      * </ol>
      *

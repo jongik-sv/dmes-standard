@@ -23,4 +23,9 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 for m in a b c; do grep -q "PROBE-$m done" "$out" || fail "probe $m 가 끝나지 않음"; done
 n="$(grep -c 'PROBE-. pdb=T_FIXTURE' "$out")"; [ "$n" -eq 3 ] || fail "PDB 값이 3개가 아님($n)"
 if grep -q '같은 빌드의 시험 PDB' "$out"; then :; else fail "공유 로그가 없음(서비스가 하나뿐이었거나 공유 실패)"; fi
-echo "OK: 서비스가 여러 개여도 잠금·PDB 를 공유했다"
+# 주인 서비스의 정리(잠금 해제)는 모든 probe 가 끝난 뒤여야 한다(included build 서비스가 먼저 닫히지 않는다는 가정을 확인).
+last_done="$(grep -n 'PROBE-. done' "$out" | tail -1 | cut -d: -f1)"
+cleanup="$(grep -n '\[dmes-ora\] 정리:' "$out" | head -1 | cut -d: -f1)"
+[ -n "$cleanup" ] || fail "주인 정리 로그가 없음"
+[ "$cleanup" -gt "$last_done" ] || fail "주인이 probe 보다 먼저 정리했다(정리 $cleanup 줄 < 마지막 done $last_done 줄)"
+echo "OK: 서비스가 여러 개여도 잠금·PDB 를 공유했고 정리는 모든 probe 뒤에 했다"

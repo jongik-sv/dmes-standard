@@ -4,12 +4,10 @@ import com.dongkuk.dmes.mcm.cma.masterCodeSelPop.service.MasterCodeSelPopService
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -22,26 +20,22 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 조회 라우터 시범(설계 §10) — 마스터코드 선택 팝업의 OASIS 경로(masterCodeSelPop.bpmn → MasterCodeSelPopService, JPA native)와
  * 조회 라우터 경로(/query/masterCodeSelPop.search → 매퍼 persistence/query/cma/masterCodeSelPop.xml)가 같은 입력에 같은 행을
- * 같은 순서·같은 키·같은 값(NULL 포함)으로 돌려주는지 본다. SQLite 파일 하나를 두 경로가 함께 쓴다.
+ * 같은 순서·같은 키·같은 값(NULL 포함)으로 돌려주는지 본다. Oracle 시험 PDB 의 MCMAPUSER 를 두 경로가 함께 쓴다.
  *
  * <p>시드는 NULL 인 CODE_VAL_MEAN·CATEGORY_NM, 대소문자 섞인 값, 한글, LIKE 와일드카드 문자(_ %)를 넣고 CODE_VAL 은 모두 달라
- * 정렬(ORDER BY CODE_VAL)이 결정적이다. 매퍼의 MCMAPUSER. 접두는 McmSqliteMybatisInterceptor 가 SQLite 에서 지운다 —
- * 인터셉터가 빠지면 라우터 쪽이 no such table 로 실패해 이 시험이 잡는다.
+ * 정렬(ORDER BY CODE_VAL)이 결정적이다. 행은 운영 뷰 VI_MCM_CODE_ACCESS(Flyway 기준선)의 사본 3표에 넣는다
+ * ({@link QueryRouteHarness#insertCodeRows}). Oracle 은 빈 문자열을 NULL 로 저장하므로 CATEGORY_NM "" 행은 두 경로 모두 NULL 을 본다.
  */
 class MasterCodeSelPopQueryRouteParityTest {
 
     static final String MAPPER = "classpath*:persistence/query/cma/masterCodeSelPop.xml";
 
-    @TempDir
-    static Path tmp;
-
     private static QueryRouteHarness harness;
 
     @BeforeAll
     static void start() throws Exception {
-        harness = new QueryRouteHarness(tmp.resolve("parity.db"), MAPPER,
+        harness = new QueryRouteHarness("query-route-parity", MAPPER,
                 ctx -> ctx.registerBean("masterCodeSelPopService", MasterCodeSelPopService.class));
-        createView(harness);
         List<Object[]> rows = new ArrayList<>();
         rows.add(new Object[]{"B029", "abc", "알파벳 소문자", "C1", "분류1"});
         rows.add(new Object[]{"B029", "ABD", "Alpha Upper", "C1", "분류1"});
@@ -52,21 +46,12 @@ class MasterCodeSelPopQueryRouteParityTest {
         rows.add(new Object[]{"B053", "X1", "Xylophone", "C9", "분류9"});
         rows.add(new Object[]{"B053", "x2", null, "C9", "분류9"});
         rows.add(new Object[]{"B053", "가나", "한글 값", "C9", ""});
-        harness.insertRows(INSERT, rows);
+        harness.insertCodeRows(rows);
     }
 
     @AfterAll
     static void stop() {
         harness.close();
-    }
-
-    static final String INSERT =
-            "INSERT INTO VI_MCM_CODE_ACCESS (CODE_ID, CODE_VAL, CODE_VAL_MEAN, CATEGORY_ID, CATEGORY_NM) VALUES (?, ?, ?, ?, ?)";
-
-    /** 운영 뷰(VI_MCM_CODE_ACCESS)의 시범에 필요한 열만 가진 테이블 — 두 경로가 같은 대상을 읽으면 충분하다. */
-    static void createView(QueryRouteHarness h) throws Exception {
-        h.execute("CREATE TABLE VI_MCM_CODE_ACCESS (CODE_ID TEXT, CODE_VAL TEXT, CODE_VAL_MEAN TEXT, "
-                + "CATEGORY_ID TEXT, CATEGORY_NM TEXT)");
     }
 
     static Stream<Arguments> inputs() {

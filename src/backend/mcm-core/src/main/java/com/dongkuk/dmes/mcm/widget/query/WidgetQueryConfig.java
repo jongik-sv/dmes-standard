@@ -60,9 +60,14 @@ public class WidgetQueryConfig {
             throw new IllegalStateException("dmes.widget.query.datasource 에 계정·드라이버만 있고 url(또는 jndi-name)이 없습니다"
                     + " — 기본 DataSource 로 물러나지 않습니다");
         }
-        log.info("[widgetQuery] 쿼리 위젯 실행기가 앱 기본 DataSource 를 씁니다 — 운영에서는 읽기 계정 전용 DataSource"
-                + "(dmes.widget.query.datasource.*)를 붙이세요");
-        return WidgetQueryDataSource.shared(defaultDataSource.get());
+        if (properties.isRequireDedicated()) {
+            log.warn("[widgetQuery] dmes.widget.query.require-dedicated=true 인데 전용 DataSource(dmes.widget.query.datasource.*)가 없습니다"
+                    + " — 쿼리 위젯 시험·저장·실행을 모두 거절합니다");
+        } else {
+            log.info("[widgetQuery] 쿼리 위젯 실행기가 앱 기본 DataSource 를 씁니다 — 운영에서는 읽기 계정 전용 DataSource"
+                    + "(dmes.widget.query.datasource.*)를 붙이고 require-dedicated 를 켜세요");
+        }
+        return WidgetQueryDataSource.shared(defaultDataSource.get(), properties.isRequireDedicated());
     }
 
     private static boolean hasText(String s) {
