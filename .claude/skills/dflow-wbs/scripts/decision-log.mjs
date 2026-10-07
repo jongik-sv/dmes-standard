@@ -161,7 +161,9 @@ export function _parse_entries(content) {
 
 export function _next_id(entries) {
   if (entries.length === 0) return 1;
-  return Math.max(...entries.map((e) => e.id)) + 1;
+  let max = entries[0].id; // Math.max(...ids) 는 항목이 12만 개를 넘으면 인자 한도로 죽는다
+  for (const e of entries) if (e.id > max) max = e.id;
+  return max + 1;
 }
 
 export function _format_entry(entry_id, timestamp, phase, decision_needed, decision_made, rationale, reversible, source) {

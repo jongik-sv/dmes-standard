@@ -13,6 +13,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import os from 'node:os';
+import { spawnSync } from 'node:child_process';
 import { runNode, makeTempDir } from '../../_shared/node/proc.mjs';
 import { readJson } from '../../_shared/node/io.mjs';
 import {
@@ -58,6 +60,20 @@ test('ALLOWED_PHASES 는 9개 화이트리스트', () => {
 
 test('_utc_iso: UTC 초 단위 + Z', () => {
   assert.match(_utc_iso(), /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+});
+
+// python 이 없는 PC 에서도 시각이 UTC 로 기록되는지 본다(시각을 고정한 래퍼로 append 해 파일 내용을 그대로 비교).
+test('append: 고정 시각 래퍼로 쓴 기록은 UTC 시각 그대로(python 없이)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dl-utc-'));
+  try {
+    const wrapper = path.join(path.dirname(fileURLToPath(import.meta.url)), 'decision-log-fixed-time.mjs');
+    const r = spawnSync(process.execPath, [wrapper, 'append', '--target', dir, '--phase', 'build', '--decision-needed', 'a', '--decision-made', 'b', '--rationale', 'c'], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    const text = fs.readFileSync(path.join(dir, 'decisions.md'), 'utf8');
+    assert.match(text, /^## D-001 \(2026-10-07T00:00:00Z\)$/m);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('ENTRY_RE·FIELD_RE: 줄 시작·끝은 \\n 기준(python re.MULTILINE), \\s 는 python 공백', () => {

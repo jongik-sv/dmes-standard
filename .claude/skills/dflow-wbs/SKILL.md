@@ -5,9 +5,9 @@ description: PRD/TRD 또는 프로그램 리스트(json/yaml/csv/md/xlsx)로 WBS
 
 # /dflow-wbs - PRD/TRD·프로그램 리스트 기반 WBS 생성 (Water-Scrum-Fall)
 
-> **독립 실행 패키지다** — 정본 위치는 wbs-web 리포의 `.claude/skills/dflow-wbs/` 이며(git 추적,
-> 프로젝트 스코프 스킬), 실행에 필요한 스크립트와 템플릿·출력 형식 정본(`references/`)을
-> 리포 안에 갖춘다. PRD 검증·결정 로그 스크립트(`prd-validate`·`decision-log`)는 이 스킬의 `scripts/` 에 있고,
+> **이 리포의 `.claude/skills/` 안에서 동작하는 스킬이다** — 스크립트와 템플릿·출력 형식 정본(`references/`)은 이 폴더에 있지만,
+> node 판 스크립트는 같은 `.claude/skills/` 아래의 `_shared/node/` 와 `dflow-export/scripts/`(`_pystr.mjs`·`wbs-validate.mjs`)를 import 하므로
+> 이 폴더만 따로 복사해서는 돌지 않는다(`_shared` 와 `dflow-export` 를 함께 둔다). PRD 검증·결정 로그 스크립트(`prd-validate`·`decision-log`)는 이 스킬의 `scripts/` 에 있고,
 > WBS 파서·검증·의존 분석(`wbs-parse`·`wbs-validate`·`dep-analysis`)은 **`/dflow-export` 스킬의 node 판**
 > (`.claude/skills/dflow-export/scripts/*.mjs`)을 쓴다 — 별도 복사본을 두지 않는다(2026-10-07 통합).
 > dev 플러그인이 없는 PC 에서도 리포 클론과 node(18.17 이상)만으로 동작한다. 아래 상대 경로들은 리포 루트가 cwd 라는 전제다.
@@ -63,7 +63,7 @@ node .claude/skills/dflow-export/scripts/wbs-validate.mjs validate --wbs {DOCS_D
 >
 > 이 절의 `wbs-parse`·`wbs-validate`·`dep-analysis` 는 `/dflow-export` 스킬의 node 판이다
 > (`.claude/skills/dflow-export/scripts/*.mjs`). 옛 동봉 스냅샷(3단계만 인식·`[xx]` 단독 판정·stdin 불가)은 제거됐고
-> 그 제약은 아래 표에서 「해소됨」으로 표시했다. `merge-wbs-status.py`·`wbs-transition.py` 는 이 리포 밖(dev-workflow) 스크립트라 제약이 그대로다.
+> 그 중 3단계 한정과 stdin 불가는 아래 표에서 「해소됨」, `[xx]` 단독 판정은 「부분 해소」(대상 리포가 6상태 정의를 둘 때만 해소)로 표시했다. `merge-wbs-status.py`·`wbs-transition.py` 는 이 리포 밖(dev-workflow) 스크립트라 제약이 그대로다.
 >
 > | 제약 | 근거 | 생성 시 영향 | 해소 |
 > |---|---|---|---|
@@ -687,7 +687,7 @@ wbs.md 와 xlsx 뿐). 반드시 담는 것: 규모 판정(3/4단계)과 근거 �
 
 | # | 규칙 | 근거 | 어겼을 때 |
 |---|---|---|---|
-| 1 | **명세 블록 헤딩은 TSK 헤딩보다 반드시 한 단계 이상 깊다** — 3단계(`### TSK-`)면 `####`, 4단계(`#### TSK-`)면 `#####` | `wbs-parse.mjs` `extract_task_block` — 헤딩 깊이 `hl >= 2 && hl <= level` 에서 블록이 끝난다 (같거나 얕은 헤딩. 펜스 코드 블록 안의 WP/ACT 헤딩은 무시하지만 Task 헤딩은 항상 닫는다) | **Task 블록이 명세 앞에서 잘려 전 필드가 통째로 유실**된다. 4단계에 `#### PRD 요구사항` 을 쓰는 것이 이 사고의 전형 |
+| 1 | **명세 블록 헤딩은 TSK 헤딩보다 반드시 한 단계 이상 깊다** — 3단계(`### TSK-`)면 `####`, 4단계(`#### TSK-`)면 `#####` | `wbs-parse.mjs` `extract_task_block` — 헤딩 깊이 `hl >= 2 && hl <= level` 에서 블록이 끝난다 (같거나 얕은 헤딩. 펜스 코드 블록 안의 Task 가 아닌 헤딩은 무시하지만 Task 헤딩은 항상 닫는다) | **Task 블록이 명세 앞에서 잘려 전 필드가 통째로 유실**된다. 4단계에 `#### PRD 요구사항` 을 쓰는 것이 이 사고의 전형 |
 | 2 | **필드 줄은 열 0에서 시작한다** — `- requirements:` (앞 공백 금지) | `wbs-parse.mjs` `get_field` — 줄이 `- {field}:` 로 시작해야 한다 (`startsWith`) | 그 필드만 빈 값이 된다 |
 | 3 | **bullet 항목은 정확히 2칸 들여쓴다** — `  - 항목` | `parse_list_field` 의 bullet 형태(`  - ` 2칸 들여쓰기로 시작하는 줄만 항목) | 항목이 안 잡히거나 앞 항목에 붙는다 |
 | 4 | **빈 리스트는 생략하지 말고 `- field: -` 로 명시한다** | 같은 함수의 `-` 처리 | 필드 부재와 "비었음"이 구별되지 않는다 |
