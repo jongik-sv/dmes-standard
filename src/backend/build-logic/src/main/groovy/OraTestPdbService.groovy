@@ -17,6 +17,12 @@ import java.util.concurrent.TimeUnit
  * PC 잠금은 복제 직전부터 빌드가 끝나 PDB 를 지울 때까지(시험 JVM 이 도는 구간 포함) `pdb.mjs lock-hold` 가 쥔다.
  * 그래서 PC 전체에서 Oracle 을 쓰는 시험 빌드는 한 번에 하나만 돈다. 기존 PDB 를 쓰는 existing 모드도 같다.
  * 잠금 주인은 node 프로세스이고 표준 입력이 닫히면(Gradle 이 죽어도) 스스로 놓는다.
+ *
+ * included build 마다 Gradle 이 서비스 인스턴스를 따로 만든다(sharedServices 는 빌드마다 따로다). 그래서 모듈 여러 개를 한 번에 시험하면
+ * 서비스가 여러 개 생기고, 각자 lock-hold 를 잡으면 먼저 잡은 쪽이 빌드가 끝날 때까지 쥐고 있어 나머지가 영원히 기다린다(교착, 2026-10-07 21:12).
+ * 이를 막으려고 같은 JVM(Gradle 데몬) 안에서는 **처음 acquire 한 서비스(주인)가 잠금·PDB 를 하나만 만들고**, 나머지는 시스템 속성
+ * (dmes.ora.harness.pdb·lockpid, 문자열만)으로 그 값을 받아 쓴다. 클래스로더가 달라도 System 속성과 intern 된 문자열은 JVM 하나에 하나다.
+ * 정리(drop·잠금 놓기)는 주인만 하고, 서비스는 모든 시험 태스크가 끝난 뒤에 닫히므로 이른 정리는 일어나지 않는다.
  * 멤버에 private 을 두지 않는다 — Gradle 이 서비스를 하위 클래스로 감싸 클로저에서 private 에 닿지 못한다.
  */
 abstract class OraTestPdbService implements BuildService<Parameters>, AutoCloseable {
@@ -28,21 +34,61 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
         org.gradle.api.provider.Property<String> getPdb()       // existing 일 때 PDB 이름
     }
 
+    static final String SHARED_PDB = 'dmes.ora.harness.pdb'
+    static final String SHARED_LOCK_PID = 'dmes.ora.harness.lockpid'
+    /** JVM 하나에 하나인 감시 대상(intern 된 문자열은 클래스로더와 무관하게 같은 객체다). */
+    static final Object JVM_MONITOR = 'dmes.ora.harness.monitor'.intern()
+
     String pdbName
     boolean cloned = false
+    boolean ownsLock = false
     Process lockHolder = null
     long lockPid = 0
 
-    /** 시험 PDB 이름을 돌려준다. 처음 부를 때 복제한다. */
-    synchronized String acquire() {
+    /**
+     * 시험 PDB 이름을 돌려준다. 같은 JVM 에서 처음 부르는 서비스가 잠금을 잡고 복제한다(주인). 다른 included build 의 서비스는
+     * 주인이 올린 PDB 를 그대로 받는다.
+     */
+    String acquire() {
         if (pdbName != null) return pdbName
-        holdPcLock()
-        try {
-            return acquireLocked()
-        } catch (Exception e) {
-            logVmState('PDB 준비 실패')
-            throw e
+        synchronized (JVM_MONITOR) {
+            if (pdbName != null) return pdbName
+            String shared = liveSharedPdb()
+            if (shared != null) {
+                pdbName = shared
+                System.err.println("[dmes-ora] 같은 빌드의 시험 PDB ${shared} 를 함께 쓴다(잠금·복제는 한 번만)")
+                return pdbName
+            }
+            holdPcLock()
+            try {
+                String name = acquireLocked()
+                ownsLock = true
+                System.setProperty(SHARED_PDB, name)
+                System.setProperty(SHARED_LOCK_PID, String.valueOf(lockPid))
+                return name
+            } catch (Exception e) {
+                logVmState('PDB 준비 실패')
+                releasePcLock()
+                throw e
+            }
         }
+    }
+
+    /** 주인이 올린 PDB 가 아직 유효하면(잠금 쥔 lock-hold 가 살아 있으면) 그 이름, 아니면 null(남은 값은 지운다). */
+    static String liveSharedPdb() {
+        String pdb = System.getProperty(SHARED_PDB)
+        String pid = System.getProperty(SHARED_LOCK_PID)
+        if (pdb == null || pid == null) return null
+        boolean alive = false
+        try {
+            alive = ProcessHandle.of(pid as long).map { it.isAlive() }.orElse(false)
+        } catch (Exception ignored) { }
+        if (!alive) {
+            System.clearProperty(SHARED_PDB)
+            System.clearProperty(SHARED_LOCK_PID)
+            return null
+        }
+        return pdb
     }
 
     String acquireLocked() {
@@ -188,8 +234,11 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
 
     @Override
     void close() {
-        // 빌드 종료(성공·실패·취소)에서 불린다. 복제한 PDB 만 지운다.
+        // 빌드 종료(성공·실패·취소)에서 불린다. 주인만 정리한다: 복제한 PDB 를 지우고 PC 잠금을 놓는다.
+        if (!ownsLock) return
         try {
+            System.clearProperty(SHARED_PDB)
+            System.clearProperty(SHARED_LOCK_PID)
             if (cloned && pdbName != null) {
                 logSessions()
                 try {
