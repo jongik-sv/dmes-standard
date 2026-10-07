@@ -19,8 +19,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
 /**
- * TSK-04-02 design.md §3.2 — I9, I18, I19 + 수용 기준 AC7(용어 1만 건 추천 응답 500ms 이내). 자체
- * temp DB(§3.2 격리 방식), {@code @Transactional} 없이. 서비스의 {@code save()} 경로를 타지 않고 JDBC
+ * TSK-04-02 design.md §3.2 — I9, I18, I19 + 수용 기준 AC7(용어 1만 건 추천 응답 500ms 이내). 공용
+ * 시험 DB(클래스마다 초기화), {@code @Transactional} 없이. 서비스의 {@code save()} 경로를 타지 않고 JDBC
  * 배치 insert 로 10,000건을 커밋한 뒤 {@link TermRecommendationCache#reloadAll()}로 캐시를 채운다.
  * 측정 대상은 {@link TermMngService#recommend(RecommendRequest)} 서비스 메서드 호출 시간 자체다(D4 §"측정
  * 범위 명시" — OASIS 봉투·HTTP·네트워크 왕복은 포함하지 않는다).
@@ -47,7 +47,6 @@ class TermRecommendPerformanceTest extends AbstractMdmSharedDbTest {
         DeterministicHashTermEmbeddingEncoder fixtureEncoder = new DeterministicHashTermEmbeddingEncoder();
         String modelId = encoder.modelId();
 
-        jdbcTemplate.execute("PRAGMA synchronous=OFF"); // 성능 시험 전용 대량 insert 가속(테스트 DB 한정)
         jdbcTemplate.batchUpdate(
                 "INSERT INTO TB_MDM_TERM (TERM_NAME, SENSE_NO, DEFINITION, EMBEDDING, EMBEDDING_MODEL) "
                         + "VALUES (?, 1, ?, ?, ?)",

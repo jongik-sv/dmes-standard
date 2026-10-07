@@ -7,6 +7,7 @@ import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.FakeStewardDirec
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.contract.security.MdmRoles;
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Set;
@@ -31,6 +32,14 @@ public final class DmeTestSupport {
     public static final Set<String> STD_ADMIN = Set.of(MdmRoles.STD_ADMIN);
 
     private DmeTestSupport() {
+    }
+
+    /**
+     * 19자 텍스트({@code yyyy-MM-dd HH:mm:ss}) → TIMESTAMP 바인딩 값(null 은 그대로). Oracle 은 문자열 → TIMESTAMP 암시 변환이 NLS 형식에
+     * 기대어 ORA-01843·01861 이 나므로, 일시 칸에는 늘 이 값을 묶는다.
+     */
+    public static Timestamp ts(String text) {
+        return text == null ? null : Timestamp.valueOf(text);
     }
 
     @TestConfiguration(proxyBeanMethods = false)
@@ -117,7 +126,7 @@ public final class DmeTestSupport {
 
     /**
      * 정수 major 번호 {@code n} 을 업무 버전 {@code n.000} 으로(D-144). 기존 시험은 정수로 부르고, minor 는 {@link BigDecimal} 판을 쓴다.
-     * SQLite NUMERIC 친화도는 {@code n.000} 을 INTEGER, {@code n.001} 을 REAL 로 저장한다.
+     * Oracle VER 칸은 NUMBER(7,3) 이라 {@code n.000} 도 {@code n.001} 도 같은 형으로 저장한다.
      */
     public static BigDecimal v(int major) {
         return BigDecimal.valueOf(major).setScale(3);
@@ -136,7 +145,7 @@ public final class DmeTestSupport {
     /** RELEASED 버전(소수 버전·종류 지정). {@code to} 가 null 이면 열린 끝. */
     public static void released(JdbcTemplate jdbc, String id, BigDecimal ver, String verKind, String hit, String from, String to) {
         jdbc.update("INSERT INTO TB_MDM_RULE_VER (MARU_RULE_ID, VER, VER_KIND, STATUS, HIT_POLICY, APPLY_FROM, APPLY_TO, ROW_VERSION) "
-                + "VALUES (?, ?, ?, 'RELEASED', ?, ?, ?, 0)", id, ver, verKind, hit, from, to == null ? "9999-12-31 00:00:00" : to);
+                + "VALUES (?, ?, ?, 'RELEASED', ?, ?, ?, 0)", id, ver, verKind, hit, ts(from), ts(to == null ? "9999-12-31 00:00:00" : to));
     }
 
     /** 미적용 버전(DRAFT·REQUESTED·APPROVED). DRAFT 가 아니면 CHECK 가 적용 구간을 요구하므로 먼 미래 구간을 넣는다. */
@@ -150,7 +159,7 @@ public final class DmeTestSupport {
         boolean draft = "DRAFT".equals(status);
         jdbc.update("INSERT INTO TB_MDM_RULE_VER (MARU_RULE_ID, VER, VER_KIND, STATUS, OWNER_ID, HIT_POLICY, BASE_VER, APPLY_FROM, APPLY_TO, "
                 + "ROW_VERSION) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)", id, ver, verKind, status, owner, hit, baseVer,
-                draft ? null : "2099-01-01 00:00:00", draft ? null : "9999-12-31 00:00:00");
+                draft ? null : ts("2099-01-01 00:00:00"), draft ? null : ts("9999-12-31 00:00:00"));
     }
 
     public static void var(JdbcTemplate jdbc, String id, int ver, int varId, String kind, String disp, String name, int seq) {
@@ -255,8 +264,8 @@ public final class DmeTestSupport {
     public static void ruleSet(JdbcTemplate jdbc, String id, String name, String ruleIdsJson, String status, long rowVersion) {
         jdbc.update("INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, STATUS, "
                 + "C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) "
-                + "VALUES (?, ?, ?, 'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', "
-                + "'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', 0)", id, name, status);
+                + "VALUES (?, ?, ?, 'fixture', TIMESTAMP '2026-01-01 00:00:00', 'fixture', 'fixture', "
+                + "'fixture', TIMESTAMP '2026-01-01 00:00:00', 'fixture', 'fixture', 0)", id, name, status);
         ruleSetVersion(jdbc, id, "1.000", "MAJOR", "RELEASED", null, ruleIdsJson, "2000-01-01 00:00:00", "9999-12-31 00:00:00", rowVersion);
     }
 
@@ -265,10 +274,10 @@ public final class DmeTestSupport {
                                       String applyFrom, String applyTo, long rowVersion) {
         jdbc.update("INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, VER_KIND, STATUS, OWNER_ID, APPLY_FROM, APPLY_TO, RULE_IDS, "
                 + "RELEASED_AT, ROW_VERSION, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, AUD_VER) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', "
-                + "'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', 0)",
-                id, new BigDecimal(ver).setScale(3), kind, status, owner, applyFrom, applyTo, ruleIdsJson,
-                "RELEASED".equals(status) ? applyFrom : null, rowVersion);
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'fixture', TIMESTAMP '2026-01-01 00:00:00', 'fixture', 'fixture', "
+                + "'fixture', TIMESTAMP '2026-01-01 00:00:00', 'fixture', 'fixture', 0)",
+                id, new BigDecimal(ver).setScale(3), kind, status, owner, ts(applyFrom), ts(applyTo), ruleIdsJson,
+                "RELEASED".equals(status) ? ts(applyFrom) : null, rowVersion);
     }
 
     /** 세트 DRAFT 한 행(MAJOR, 적용 구간 없음). */
@@ -330,7 +339,9 @@ public final class DmeTestSupport {
                 .contains(column)) {
             throw new IllegalArgumentException(column);
         }
-        return jdbc.queryForObject("SELECT CAST(" + column + " AS TEXT) FROM TB_MDM_RULE_SET_VER WHERE MARU_RULE_SET_ID = ? AND VER = ?",
+        // 날짜 칸은 19자 텍스트로, 나머지는 칸 그대로 String 으로 읽는다(CLOB 칸도 JDBC 가 문자열로 읽어 준다).
+        String select = column.startsWith("APPLY_") ? "TO_CHAR(" + column + ", 'YYYY-MM-DD HH24:MI:SS')" : column;
+        return jdbc.queryForObject("SELECT " + select + " FROM TB_MDM_RULE_SET_VER WHERE MARU_RULE_SET_ID = ? AND VER = ?",
                 String.class, setId, new BigDecimal(ver).setScale(3));
     }
 

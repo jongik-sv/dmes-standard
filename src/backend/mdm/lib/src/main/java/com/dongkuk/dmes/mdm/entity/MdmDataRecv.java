@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
@@ -41,14 +42,15 @@ public class MdmDataRecv extends CactusAuditEntity {
     @Column(name = "RECEIVED_AT", nullable = false)
     private LocalDateTime receivedAt;
 
+    @Lob
     @Column(name = "BODY", nullable = false)
     private String body;
 
     @Column(name = "ROW_COUNT", nullable = false)
     private int rowCount;
 
-    /** 예약어 칼럼(naming-dialect-rules §1, TSK-05-01 D1 선례). */
-    @Column(name = "`RESULT`", length = 20)
+    /** 옛 방언의 예약어 칼럼(naming-dialect-rules §1). Oracle 에서는 예약어가 아니라 따옴표 없이 쓴다 — 백틱이면 Spring 이름 전략이 소문자 "result" 로 따옴표를 남겨 V1 의 대문자 칼럼과 어긋난다(ORA-00904). */
+    @Column(name = "RESULT", length = 20)
     private String result;
 
     @Column(name = "RESULT_DETAIL")
@@ -66,7 +68,7 @@ public class MdmDataRecv extends CactusAuditEntity {
 
     public MdmDataRecv(String sourceSystem, LocalDateTime receivedAt, String body) {
         this.sourceSystem = sourceSystem;
-        this.receivedAt = receivedAt;
+        this.receivedAt = MdmEntityTimes.seconds(receivedAt);
         this.body = body;
     }
 
@@ -88,5 +90,5 @@ public class MdmDataRecv extends CactusAuditEntity {
     public void setResult(String v) { this.result = v; }
     public void setResultDetail(String v) { this.resultDetail = v; }
     public void setChgSeq(Long v) { this.chgSeq = v; }
-    public void setProcessedAt(LocalDateTime v) { this.processedAt = v; }
+    public void setProcessedAt(LocalDateTime v) { this.processedAt = MdmEntityTimes.seconds(v); }
 }

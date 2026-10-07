@@ -4,6 +4,8 @@ import static com.dongkuk.dmes.mdm.common.segment.DmdSegmentTestSupport.OPEN;
 import static com.dongkuk.dmes.mdm.common.segment.DmdSegmentTestSupport.insertItemRow;
 import static com.dongkuk.dmes.mdm.common.segment.DmdSegmentTestSupport.insertMaruData;
 import static com.dongkuk.dmes.mdm.common.segment.DmdSegmentTestSupport.text;
+import static com.dongkuk.dmes.mdm.common.segment.DmdSegmentTestSupport.textOf;
+import static com.dongkuk.dmes.mdm.common.segment.DmdSegmentTestSupport.ts;
 import static com.dongkuk.dmes.mdm.common.segment.DmdSegmentTestSupport.value;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -151,7 +153,7 @@ class MasterDataExamplesScenarioTest extends AbstractMdmSharedDbTest {
             assertEquals(List.of(MdmTemporalSegmentAction.INSERT, MdmTemporalSegmentAction.UPDATE,
                     MdmTemporalSegmentAction.NONE, MdmTemporalSegmentAction.UPDATE), x2.get().actions());
             assertEquals("라벨없음", jdbc.queryForObject("SELECT ATTR03 FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = 'CUST' "
-                    + "AND CODE = 'C4' AND VALID_TO = ?", String.class, OPEN), "라벨 없는 attr03 값도 그대로 저장");
+                    + "AND CODE = 'C4' AND VALID_TO = ?", String.class, ts(OPEN)), "라벨 없는 attr03 값도 그대로 저장");
         });
         DynamicTest x4 = DynamicTest.dynamicTest("X4 동기화 — tx2 에 경계가 생긴 ITEM 5행, C3 은 없다", () -> {
             Set<SegRow> rows = boundaryAt("CUST", TX2);
@@ -175,14 +177,14 @@ class MasterDataExamplesScenarioTest extends AbstractMdmSharedDbTest {
 
     /** 그 시각에 경계가 생긴 행(VALID_FROM = at 또는 VALID_TO = at) — 항목·카테고리·소속 세 표. */
     private Set<SegRow> boundaryAt(String md, LocalDateTime at) {
-        String t = text(at);
+        Object t = ts(at);
         return rows(md, "(VALID_FROM = ? OR VALID_TO = ?)", t, t);
     }
 
     /** from < 경계 ≤ to 인 행. */
     private Set<SegRow> boundaryBetween(String md, LocalDateTime from, LocalDateTime to) {
-        String f = text(from);
-        String t = text(to);
+        Object f = ts(from);
+        Object t = ts(to);
         return rows(md, "((VALID_FROM > ? AND VALID_FROM <= ?) OR (VALID_TO > ? AND VALID_TO <= ?))", f, t, f, t);
     }
 
@@ -193,16 +195,16 @@ class MasterDataExamplesScenarioTest extends AbstractMdmSharedDbTest {
         params.addAll(List.of(args));
         for (Map<String, Object> r : jdbc.queryForList("SELECT CODE, VALID_FROM, VALID_TO FROM TB_MDM_DATA_ITEM "
                 + "WHERE MARU_DATA_ID = ? AND " + where, params.toArray())) {
-            out.add(new SegRow("ITEM", (String) r.get("CODE"), (String) r.get("VALID_FROM"), (String) r.get("VALID_TO")));
+            out.add(new SegRow("ITEM", (String) r.get("CODE"), (String) textOf(r.get("VALID_FROM")), (String) textOf(r.get("VALID_TO"))));
         }
         for (Map<String, Object> r : jdbc.queryForList("SELECT CATE_ID, VALID_FROM, VALID_TO FROM TB_MDM_DATA_CATE "
                 + "WHERE MARU_DATA_ID = ? AND " + where, params.toArray())) {
-            out.add(new SegRow("CATE", (String) r.get("CATE_ID"), (String) r.get("VALID_FROM"), (String) r.get("VALID_TO")));
+            out.add(new SegRow("CATE", (String) r.get("CATE_ID"), (String) textOf(r.get("VALID_FROM")), (String) textOf(r.get("VALID_TO"))));
         }
         for (Map<String, Object> r : jdbc.queryForList("SELECT CATE_ID, CODE, VALID_FROM, VALID_TO FROM "
                 + "TB_MDM_DATA_CATE_ITEM WHERE MARU_DATA_ID = ? AND " + where, params.toArray())) {
-            out.add(new SegRow("CATE_ITEM", r.get("CATE_ID") + "/" + r.get("CODE"), (String) r.get("VALID_FROM"),
-                    (String) r.get("VALID_TO")));
+            out.add(new SegRow("CATE_ITEM", r.get("CATE_ID") + "/" + r.get("CODE"), (String) textOf(r.get("VALID_FROM")),
+                    (String) textOf(r.get("VALID_TO"))));
         }
         return out;
     }

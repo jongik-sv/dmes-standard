@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.common.rule.confirm.RuleConfirmCheck;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.version.VersionConfirmCheckSpi;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
@@ -18,12 +19,10 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Path;
 import java.util.List;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
@@ -31,8 +30,6 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-08-05 design §3.2 「RuleConfirmOasisHttpTest」 HT1~HT3 — BPMN {@code services/dme/ruleConfirm.bpmn} 까지 태우는 HTTP 시험
@@ -43,7 +40,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = "cactus.security.client-key=" + RuleConfirmOasisHttpTest.TEST_CLIENT_KEY)
 @ActiveProfiles("local")
-class RuleConfirmOasisHttpTest {
+class RuleConfirmOasisHttpTest extends AbstractMdmSharedDbTest {
 
     static final String TEST_CLIENT_KEY = "mdm-dme-confirm-test-client-key";
     private static final String Q = "QLTY_GRD_JDG";
@@ -51,9 +48,6 @@ class RuleConfirmOasisHttpTest {
     /** Q_ROW1 에서 COIL_THK 범위를 거꾸로 — 저장 시 검사 ERROR(MDM010). */
     private static final String BROKEN_ROW1 = "{\"1\":{\"op\":\"<= 변수 <\",\"left\":\"2.5\",\"right\":\"1.6\"},\"2\":{\"op\":\"GT\",\"left\":\"1000\"},"
             + "\"3\":{\"op\":\"IN\",\"list\":[\"A\"]},\"4\":{\"val\":\"A\"},\"5\":{\"val\":\"1.05\"}}";
-
-    @TempDir
-    static Path tempDir;
 
     @LocalServerPort
     int port;
@@ -66,12 +60,6 @@ class RuleConfirmOasisHttpTest {
     private final HttpClient client = HttpClient.newHttpClient();
     private final ObjectMapper json = new ObjectMapper();
     private JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-rule-confirm-http-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     /** Q — VER 1 RELEASED + VER 2 DRAFT(kim). FIRST_JDG — CREATED, VER 1 DRAFT(kim, 최초 버전). 정의는 둘 다 06 샘플. */
     @BeforeEach
@@ -88,9 +76,9 @@ class RuleConfirmOasisHttpTest {
     }
 
     private String draftState(String id, int ver) {
-        return jdbc.queryForObject("SELECT STATUS || '|' || COALESCE(APPLY_FROM, '-') || '|' || ROW_VERSION FROM TB_MDM_RULE_VER "
+        return jdbc.queryForObject("SELECT STATUS || '|' || COALESCE(TO_CHAR(APPLY_FROM, 'YYYY-MM-DD HH24:MI:SS'), '-') || '|' || ROW_VERSION FROM TB_MDM_RULE_VER "
                 + "WHERE MARU_RULE_ID = ? AND VER = ?", String.class, id, ver)
-                + " / " + jdbc.queryForList("SELECT APPLY_TO FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = ? AND VER < ?", String.class, id, ver);
+                + " / " + jdbc.queryForList("SELECT TO_CHAR(APPLY_TO, 'YYYY-MM-DD HH24:MI:SS') FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = ? AND VER < ?", String.class, id, ver);
     }
 
     @Test

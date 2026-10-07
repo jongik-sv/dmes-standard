@@ -120,7 +120,7 @@ class MeasureP2HeaderImpactTest extends LayoutTestSupport {
         }
     }
 
-    // 아래 도우미는 LayoutHeaderImpactEquivalenceSqliteTest(dev, ea1955c5) 와 같은 INSERT 다.
+    // 아래 도우미는 LayoutHeaderImpactEquivalenceSqliteTest 와 같은 INSERT 다(Oracle 판 — 일시 칸은 Timestamp 로 묶고 예약어 칸은 큰따옴표).
 
     private void layout(long id, String kind, String name) {
         jdbc.update("INSERT INTO TB_MDM_LAYOUT (LAYOUT_ID, LAYOUT_KIND, LAYOUT_NAME, STATUS, VER) VALUES (?, ?, ?, 'INUSE', 0)", id, kind,
@@ -130,7 +130,12 @@ class MeasureP2HeaderImpactTest extends LayoutTestSupport {
     private void ver(long id, String ver, String kind, String status, String from, String to, int own, String eai) {
         jdbc.update("INSERT INTO TB_MDM_LAYOUT_VER (LAYOUT_ID, VER, VER_KIND, STATUS, OWNER_ID, APPLY_FROM, APPLY_TO, OWN_LENGTH, EAI_CODE) "
                 + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", id, new BigDecimal(ver), kind, status, "DRAFT".equals(status) ? "kim" : null,
-                from, to, own, eai);
+                tsOrNull(from), tsOrNull(to), own, eai);
+    }
+
+    /** 일시 칸 바인딩 — Oracle 은 문자열 → TIMESTAMP 암시 변환이 NLS 에 기대므로 Timestamp 로 넘긴다(null 은 그대로). */
+    private static java.sql.Timestamp tsOrNull(String text) {
+        return text == null ? null : ts(text);
     }
 
     private void stack(long id, String ver, int seq, long header) {
@@ -144,7 +149,7 @@ class MeasureP2HeaderImpactTest extends LayoutTestSupport {
     }
 
     private void item(long id, String ver, int seq, String kind, String phys, String dflt, Integer filler, int offset, int length) {
-        jdbc.update("INSERT INTO TB_MDM_LAYOUT_ITEM (LAYOUT_ID, VER, SEQ, FILL_KIND, COLUMN_PHYS, DEFAULT_VALUE, FILLER_LENGTH, `OFFSET`, `LENGTH`) "
+        jdbc.update("INSERT INTO TB_MDM_LAYOUT_ITEM (LAYOUT_ID, VER, SEQ, FILL_KIND, COLUMN_PHYS, DEFAULT_VALUE, FILLER_LENGTH, \"OFFSET\", \"LENGTH\") "
                 + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", id, new BigDecimal(ver), seq, kind, phys, dflt, filler, offset, length);
     }
 }

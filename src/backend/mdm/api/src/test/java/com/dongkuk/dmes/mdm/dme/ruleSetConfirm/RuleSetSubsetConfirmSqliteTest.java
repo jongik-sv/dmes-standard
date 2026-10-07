@@ -169,7 +169,7 @@ class RuleSetSubsetConfirmSqliteTest extends AbstractMdmSharedDbTest {
     @Test
     void 없는_세트를_부르는_CALL_MISSING_경고는_확정에서_거부다() {
         DmeTestSupport.ruleSet(jdbc, "LATE", "늦은 세트", "[\"R_B\"]", "INUSE", 0);
-        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_FROM = '2026-09-01 00:00:00' WHERE MARU_RULE_SET_ID = 'LATE'");
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_FROM = TIMESTAMP '2026-09-01 00:00:00' WHERE MARU_RULE_SET_ID = 'LATE'");
         setWithDraft("A", "[\"R_A\"]", "[\"R_A\"]", line(setNode("s1", "LATE"), ruleNode("r1", "R_A")), "[\"LATE\"]");
 
         List<String> found = issues("A", "FLOW_STRUCTURE");

@@ -150,7 +150,7 @@ class LayoutSampleSqliteTest extends LayoutServiceTestSupport {
         M201 m = m201();
         String counts = "SELECT (SELECT COUNT(*) FROM TB_MDM_LAYOUT) || '/' || (SELECT COUNT(*) FROM TB_MDM_LAYOUT_ITEM) || '/' "
                 + "|| (SELECT COUNT(*) FROM TB_MDM_LAYOUT_VER) || '/' || (SELECT SUM(VER) FROM TB_MDM_LAYOUT) || '/' "
-                + "|| (SELECT SUM(ROW_VERSION) FROM TB_MDM_LAYOUT_VER)";
+                + "|| (SELECT SUM(ROW_VERSION) FROM TB_MDM_LAYOUT_VER) FROM DUAL";
         String before = jdbc.queryForObject(counts, String.class);
         Map<String, Object> row = layoutRow(m.message());
         List<Map<String, Object>> items = itemRows(m.message(), "1");

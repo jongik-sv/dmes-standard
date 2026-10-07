@@ -126,7 +126,7 @@ public class MdmData extends CactusAuditEntity {
     public void setAttr09Name(String v) { this.attr09Name = v; }
     public void setAttr10Name(String v) { this.attr10Name = v; }
     public void setLvlCnt(int v) { this.lvlCnt = v; }
-    public void setClosedAt(LocalDateTime v) { this.closedAt = v; }
+    public void setClosedAt(LocalDateTime v) { this.closedAt = MdmEntityTimes.seconds(v); }
     public void setLastChgSeq(long v) { this.lastChgSeq = v; }
     public void setChgSeq(long v) { this.chgSeq = v; }
 }

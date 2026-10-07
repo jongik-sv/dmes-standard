@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.dmb.layout;
 
+import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.contract.layout.MdmFillKind;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutConstJudge.Judgement;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutFillKinds.Field;
@@ -26,7 +27,40 @@ public final class LayoutRegistrationRules {
     public record Override(long headerLayoutId, int headerSeq, String columnPhys, String value, int length) {
     }
 
+    /** TB_MDM_EAI.EAI_CODE·ENCODING 은 {@code VARCHAR2(20 CHAR)}. */
+    private static final int EAI_CHARS_MAX = 20;
+
     private LayoutRegistrationRules() {
+    }
+
+    /**
+     * 기본 속성 칸 길이(L11, ORA-12899 예방) — 전문·헤더 저장이 쓰기 전에 함께 쓴다. {@code null} 인 값은 건너뛴다(필수·존재 검사는 호출자 몫).
+     * 이름·EAI 이름·패딩은 {@code VARCHAR2(4000 BYTE)}(UTF-8 바이트), EAI 코드·인코딩은 20 글자다.
+     *
+     * @param nameLabel 문구에 쓸 이름 칸 표기(예: "전문 이름", "헤더 이름")
+     */
+    public static List<LayoutIssue> basicLengthIssues(String nameLabel, String layoutName, String eaiCode, String eaiName,
+                                                      String encoding, String padRule) {
+        List<LayoutIssue> issues = new ArrayList<>();
+        overBytes(issues, "LAYOUT_NAME", nameLabel, layoutName);
+        overChars(issues, "EAI_CODE", "EAI 코드", eaiCode);
+        overBytes(issues, "EAI_NAME", "EAI 이름", eaiName);
+        overChars(issues, "ENCODING", "인코딩", encoding);
+        overBytes(issues, "PAD_RULE", "패딩 규칙", padRule);
+        return issues;
+    }
+
+    private static void overBytes(List<LayoutIssue> issues, String field, String label, String value) {
+        if (MdmTextLimits.overBytes(value)) {
+            issues.add(LayoutIssue.of(LayoutIssueCode.L11, null, field,
+                    label + "은(는) " + MdmTextLimits.TEXT_BYTES_MAX + "바이트(한글 약 1,333자)를 넘을 수 없다"));
+        }
+    }
+
+    private static void overChars(List<LayoutIssue> issues, String field, String label, String value) {
+        if (MdmTextLimits.overChars(value, EAI_CHARS_MAX)) {
+            issues.add(LayoutIssue.of(LayoutIssueCode.L11, null, field, label + "은(는) " + EAI_CHARS_MAX + "자를 넘을 수 없다"));
+        }
     }
 
     /**
@@ -109,6 +143,12 @@ public final class LayoutRegistrationRules {
         if (length != null && bytes > length) {
             issues.add(LayoutIssue.of(LayoutIssueCode.L12, seq, field,
                     "CONST 값 " + value + " 은 " + bytes + "바이트로 항목 길이 " + length + " 를 넘는다(" + charset.name() + ")"));
+            return;
+        }
+        // DEFAULT_VALUE·CONST_VALUE 는 VARCHAR2(50 CHAR) — 항목 길이(바이트)와 별개로 칸 길이를 막는다(ORA-12899 예방)
+        if (MdmTextLimits.overChars(value, MdmTextLimits.KEY_CHARS_MAX)) {
+            issues.add(LayoutIssue.of(LayoutIssueCode.L12, seq, field,
+                    "CONST 값 " + value + " 은 " + MdmTextLimits.KEY_CHARS_MAX + "자를 넘을 수 없다"));
             return;
         }
         Judgement j = judge.apply(phys, value);

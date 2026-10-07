@@ -19,7 +19,7 @@ import java.time.temporal.ChronoUnit;
  * <p>업무 칼럼 {@code VER}(버전 번호)과 감사 카운터가 이름이 겹쳐 감사 카운터는 {@code AUD_VER} 로 재매핑한다(D-034,
  * 불변 규칙 11). {@code ROW_VERSION} 은 {@code @Version} 이 아니다 — 증가는 {@code VersionWriteGuard}·{@code VersionRowStore}
  * 몫이다(불변 규칙 13). 업무 일시 세터는 초 단위로 자른다(네이티브 쓰기와 같은 초 단위 값을
- * 갖게 한다, 불변 규칙 22). SQLite 에서는 {@code MdmSqliteTemporalContributor} 가 네이티브와 같은 19자 TEXT 로 쓴다(D7).
+ * 갖게 한다, 불변 규칙 22). 칼럼은 Oracle {@code TIMESTAMP(6)} 이고 Hibernate 기본 LocalDateTime 매핑으로 쓴다.
  *
  * <p>공통 버전 서비스는 이 표를 네이티브 UPDATE 로 바꾸며 관리 엔티티를 갱신하지 않는다 — 엔티티를 들고 있다가 공통
  * 서비스를 부른 뒤에는 다시 읽는다(TSK-01-03 §7).

@@ -39,7 +39,9 @@ class RuleIoReaderTest extends AbstractMdmSharedDbTest {
 
     @BeforeEach
     void seed() {
-        jdbc.execute("DROP TRIGGER IF EXISTS TR_RULE_VER_FAIL");
+        // Oracle 은 23 미만에 DROP TRIGGER IF EXISTS 가 없다 — 없음(ORA-04080)만 무시한다.
+        jdbc.execute("BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TR_RULE_VER_FAIL'; "
+                + "EXCEPTION WHEN OTHERS THEN IF SQLCODE != -4080 THEN RAISE; END IF; END;");
         DmeTestSupport.clear(jdbc);
         DmeTestSupport.clearDictionary(jdbc);
         DmeTestSupport.column(jdbc, "COIL_THK", DmeTestSupport.domain(jdbc, "COIL_THK_D", "QTY", "NUMBER", 2));
@@ -212,13 +214,13 @@ class RuleIoReaderTest extends AbstractMdmSharedDbTest {
         assertEquals(Map.of("STATUS", "DEPRECATED", "U_USR_ID", "fixture", "VER", 0L),
                 jdbc.queryForMap("SELECT STATUS, U_USR_ID, VER FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = 'SET_A'")
                         .entrySet().stream().collect(java.util.stream.Collectors.toMap(e -> e.getKey().toUpperCase(),
-                                e -> e.getValue() instanceof Number n ? (Object) n.longValue() : e.getValue())));
+                                e -> normalized(e.getValue()))));
         assertEquals(Map.of("RULE_IDS", "[\"R_MAIN\",\"R_VER\"]", "STATUS", "RELEASED", "VER_KIND", "MAJOR", "ROW_VERSION", 3L,
                         "APPLY_FROM", "2000-01-01 00:00:00", "U_USR_ID", "fixture", "AUD_VER", 0L),
                 jdbc.queryForMap("SELECT RULE_IDS, STATUS, VER_KIND, ROW_VERSION, APPLY_FROM, U_USR_ID, AUD_VER FROM TB_MDM_RULE_SET_VER "
                                 + "WHERE MARU_RULE_SET_ID = 'SET_A' AND VER = 1")
                         .entrySet().stream().collect(java.util.stream.Collectors.toMap(e -> e.getKey().toUpperCase(),
-                                e -> e.getValue() instanceof Number n ? (Object) n.longValue() : e.getValue())));
+                                e -> normalized(e.getValue()))));
     }
 
     @Test
@@ -241,6 +243,17 @@ class RuleIoReaderTest extends AbstractMdmSharedDbTest {
         assertFalse(io.get("R_OLD").hasDefault(), "행이 없다");
         assertFalse(io.get("R_NOREL").hasDefault(), "RELEASED 가 없다");
         assertFalse(io.get("R_NONE").hasDefault(), "없는 룰");
+    }
+
+    /** 숫자는 long 으로, TIMESTAMP 는 {@code yyyy-MM-dd HH:mm:ss} 문자열로 맞춘다(Oracle 은 NUMBER 를 BigDecimal, TIMESTAMP 를 Timestamp 로 준다). */
+    private static Object normalized(Object value) {
+        if (value instanceof Number n) {
+            return n.longValue();
+        }
+        if (value instanceof java.sql.Timestamp t) {
+            return java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(t.toLocalDateTime());
+        }
+        return value;
     }
 
     private void producer(String id, String status, int ver, String result) {

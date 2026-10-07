@@ -630,11 +630,16 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     watcher.assertClean("layoutMng");
   });
 
+  // LAY-07·08 의 숫자 항목 — NUMBER(3,1) 도메인 컬럼. 표현 자리 2 거부·4 통과·전문 길이 95 가 이 정의에 기댄다.
+  // 예전 COIL_THK 는 샘플 SQL 에서 NUMBER(3,1) 이었으나 스냅샷(oracle-1007 의 로컬 데이터)에서는 NUMBER(5,3) 이라
+  // 스냅샷에서도 NUMBER(3,1) 인 연신율(ELGN, 도메인 「연신율」)을 쓴다.
+  const NUM_COL = "ELGN";
+
   test("TC-DMB-LAY-07 수정(U) — 표현 자리 부족은 검증·저장 모두 거부하고, 고치면 같은 DRAFT 에 저장된다(버전은 늘지 않는다)·다운로드", async () => {
     await tid(page, "layout-tab-edit").click();
     await itemRow(layoutGrid(page), "FILLER").click();
     await tid(page, "item-detail-filler-length").fill("25");
-    await pickColumn(page, "layout-item-add-column", "COIL_THK");
+    await pickColumn(page, "layout-item-add-column", NUM_COL);
     await tid(page, "item-detail-width").fill("2");
     await tid(page, "item-detail-zero").selectOption("Y");
     await tid(page, "item-detail-implied").selectOption("1");
@@ -649,7 +654,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await expectErrorModal(page, /L14.*표현 자리 2/, "dmb-layoutMng-07-reject-save");
 
     await tid(page, "layout-tab-edit").click();
-    await itemRow(layoutGrid(page), "COIL_THK").click();
+    await itemRow(layoutGrid(page), NUM_COL).click();
     await tid(page, "item-detail-width").fill("4");
     await tid(page, "layout-tab-check").click();
     await tid(page, "layout-check-run").click();
@@ -684,7 +689,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
 
   test("TC-DMB-LAY-08 영향 전문 — 컬럼 물리명으로 찾으면 내 전문이 보인다", async () => {
     // 버전 탭에 이미 있다(TC-DMB-LAY-07 에서 이동).
-    await tid(page, "impact-keyword").fill("COIL_THK");
+    await tid(page, "impact-keyword").fill(NUM_COL);
     await tid(page, "impact-search").click();
     const row = gridRows(tid(page, "impact-list")).filter({ hasText: LAYOUT_NAME }).first();
     await expect(row).toBeVisible({ timeout: T.UI });

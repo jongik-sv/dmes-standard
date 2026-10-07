@@ -4,6 +4,7 @@ import static com.dongkuk.dmes.mdm.common.segment.DmdSegmentTestSupport.OPEN;
 import static com.dongkuk.dmes.mdm.common.segment.DmdSegmentTestSupport.T0;
 import static com.dongkuk.dmes.mdm.common.segment.DmdSegmentTestSupport.itemRows;
 import static com.dongkuk.dmes.mdm.common.segment.DmdSegmentTestSupport.text;
+import static com.dongkuk.dmes.mdm.common.segment.DmdSegmentTestSupport.ts;
 import static com.dongkuk.dmes.mdm.common.segment.DmdSegmentTestSupport.value;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -40,7 +41,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * TSK-07-03 design.md §3.2 T-S — 05 「선분과 닫기」 항목 선분 의미(S1~S13)를 local(SQLite) 실제 컨텍스트로 확인한다.
+ * TSK-07-03 design.md §3.2 T-S — 05 「선분과 닫기」 항목 선분 의미(S1~S13)를 Oracle 시험 PDB 실제 컨텍스트로 확인한다.
  *
  * <p>코어는 {@code @Transactional} 없이 {@code TransactionTemplate} 으로 스스로 트랜잭션을 연다(운영 OASIS 트랜잭션과 같은
  * 효과). 단언은 {@link JdbcTemplate} 네이티브 조회로 커밋된 행을 읽는다.
@@ -217,7 +218,7 @@ class DataItemSegmentCoreSqliteTest extends AbstractMdmSharedDbTest {
         assertEquals("KR", rows.get(2).get("ATTR01"));
         assertEquals(3, num(rows.get(2), "ROW_VERSION"), "마지막 행 +1(S3)");
         assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = ? AND CODE = ? "
-                + "AND VALID_FROM <= ? AND VALID_TO > ?", Integer.class, MD, "KRPUS", text(t3), text(t3)),
+                + "AND VALID_FROM <= ? AND VALID_TO > ?", Integer.class, MD, "KRPUS", ts(t3), ts(t3)),
                 "닫혀 있던 구간 [t3,t4) 을 덮는 행이 없다");
 
         tick(5);

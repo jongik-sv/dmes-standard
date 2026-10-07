@@ -78,7 +78,7 @@ export async function loginUI(page: Page, id: string, pwd: string) {
 
 /**
  * 역할별 로그인 상태로 새 페이지를 연다. 품질 감시(Watcher)와 버튼 누름 기록을 붙여 돌려준다.
- * 로그인은 setup 에서 한 번만 하고 storageState 를 재사용한다(동시 로그인 SQLITE_BUSY 회피).
+ * 로그인은 setup 에서 한 번만 하고 storageState 를 재사용한다(로그인을 매번 반복하지 않아 빠르고, 옛 SQLite 의 동시 로그인 SQLITE_BUSY 도 이 때문에 피했다).
  */
 export async function openAs(browser: Browser, role: Role, testInfo: TestInfo): Promise<{ page: Page; watcher: Watcher }> {
   const file = authFile(role);
@@ -513,11 +513,22 @@ export async function resetClicks(page: Page) {
 }
 
 /**
+ * 모든 화면에 붙는 shared 개인화 메뉴 버튼 — 여정은 이 메뉴를 열지 않는다. 메뉴 안 항목(컬럼 설정·엑셀 출력·자동 저장)은
+ * shared 단위 시험이 정본이고, 엑셀 출력을 여정에서 확인해야 하는 화면은 메뉴를 열어 항목을 단언하는 단계를 따로 둔다.
+ * 2026-10-07 grid-personalize 회차가 조회 조건·그리드 머리에 붙였다(dmd·dme 에서 처음 드러났고 모든 여정에 공통 적용).
+ */
+const COMMON_ALLOW: Record<string, string> = {
+  "search-settings-menu": "조회 조건 개인화 메뉴(shared) — 여정은 열지 않는다",
+  "grid-settings-menu": "그리드 개인화 메뉴(shared, 엑셀 출력 포함) — 여정은 열지 않는다",
+};
+
+/**
  * 보이는 화면의 활성 버튼 중 이번 흐름에서 한 번도 누르지 않은 것이 없어야 한다.
- * allow 에는 일부러 누르지 않는 버튼을 이유와 함께 적는다({ "엑셀": "파일 다운로드 — 별도 확인" }).
+ * allow 에는 일부러 누르지 않는 버튼을 이유와 함께 적는다({ "엑셀": "파일 다운로드 — 별도 확인" }). COMMON_ALLOW 는 늘 더해진다.
  * 비활성 버튼은 누를 수 없으므로 목록에서 뺀다(비활성 조건은 각 스펙이 따로 단언한다).
  */
 export async function assertAllButtonsPressed(page: Page, label: string, allow: Record<string, string> = {}) {
+  const allowed = { ...COMMON_ALLOW, ...allow };
   const { visibleKeys, clicked } = await page.evaluate(() => {
     // installClickRecorder 의 키 규칙과 같다.
     const key = (b: Element) =>
@@ -541,7 +552,7 @@ export async function assertAllButtonsPressed(page: Page, label: string, allow: 
     return { visibleKeys: [...new Set(keys)], clicked: (window as unknown as { __mdmClicked?: string[] }).__mdmClicked ?? [] };
   });
   const pressed = new Set(clicked);
-  const missing = visibleKeys.filter((k) => !pressed.has(k) && !(k in allow));
+  const missing = visibleKeys.filter((k) => !pressed.has(k) && !(k in allowed));
   expect(missing, `${label}: 누르지 않은 버튼(allow 에 이유 없이 빠짐)`).toEqual([]);
 }
 

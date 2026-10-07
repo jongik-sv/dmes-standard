@@ -31,8 +31,8 @@ public class MdmDataRecvItem extends CactusAuditEntity {
     @Column(name = "CODE", length = 50)
     private String code;
 
-    /** 예약어 칼럼(naming-dialect-rules §1, TSK-05-01 D1 선례). */
-    @Column(name = "`ACTION`", length = 20)
+    /** 옛 방언의 예약어 칼럼(naming-dialect-rules §1). Oracle 에서는 예약어가 아니라 따옴표 없이 쓴다 — 백틱이면 Spring 이름 전략이 소문자 "result" 로 따옴표를 남겨 V1 의 대문자 칼럼과 어긋난다(ORA-00904). */
+    @Column(name = "ACTION", length = 20)
     private String action;
 
     protected MdmDataRecvItem() {

@@ -19,7 +19,7 @@ import { gridRowById } from "./support/grid";
  *   M5 헤더 저장 1건 → 다시 불러온 값에 반영(옛 dataEdit 3번). M6 잘못된 키 패턴 정규식은 저장을 거부(옛 dataEdit 4번).
  *   M7 [항목 편집 →] → dataItemMng 탭이 그 마루 데이터로 열린다(새 시나리오, D-104).
  *
- * 픽스처: e2e/fixtures/mdm-dataMng.sql(mdm.db). E2E_DM_PORT(카테고리 3·항목 3)는 읽기만, 헤더 저장은 E2E_DM_CUST 로
+ * 픽스처: e2e/fixtures/mdm-dataMng.sql(MDMAPUSER). E2E_DM_PORT(카테고리 3·항목 3)는 읽기만, 헤더 저장은 E2E_DM_CUST 로
  * 한다(카테고리 편집 spec 이 쓰는 E2E_DC_PORT 는 건드리지 않는다). 서버 절차는 design.md 「E2E 서버 절차」.
  * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다(기본값 localhost:5100 은 메인 체크아웃 포털이라 쓰지 않는다, F23).
  */

@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -39,9 +40,10 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * 조업 계산기 {@code ruleCalc} 를 <b>로컬 샘플 시드</b>({@code src/backend/mdm/sample/mdm-local-sample.sql} 의 M47 룰 7건과 세트
- * {@code M47_COAT_WT}, 모두 RELEASED)에 대고 확인한다. 시드 SQL 을 시험 DB(SQLite, 공유 임시 파일)에 JDBC 로 올린 뒤 서비스를 부른다.
+ * {@code M47_COAT_WT}, 모두 RELEASED)에 대고 확인한다. 시드 SQL 을 시험 DB 에 JDBC 로 올린 뒤 서비스를 부른다.
  * 기댓값은 시드의 시험 사례(TB_MDM_RULE_TEST_CASE) 입력·기대값 또는 시드 식으로 손계산한 값이다. 공용 로컬 DB 는 쓰지 않는다.
  */
+@Disabled("Oracle: 로컬 샘플 SQL(mdm-local-sample.sql)이 SQLite 문법(INSERT OR IGNORE·다중 행 VALUES·점 명령)이고 Oracle 샘플·로더가 아직 없다 — Oracle 샘플이 생기면 켠다")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(DmeTestSupport.Config.class)
@@ -56,7 +58,10 @@ public class RuleCalcSeedSetTest extends AbstractMdmSharedDbTest {
     @Autowired RuleCalcService service;
     @Autowired JdbcTemplate jdbc;
 
-    /** 부모의 {@code @BeforeAll}(공유 DB 초기화) 다음에 돈다. 샘플은 sqlite3 셸용 점 명령·BEGIN/COMMIT 을 빼고 한 트랜잭션으로 올린다. */
+    /**
+     * 부모의 {@code @BeforeAll}(공유 DB 초기화) 다음에 돈다. 샘플은 점 명령·BEGIN/COMMIT 을 빼고 한 트랜잭션으로 올린다.
+     * 지금 샘플은 SQLite 문법이라 Oracle 에서는 돌지 않는다(@Disabled). 켤 때는 Oracle 샘플(스냅샷 CSV 등)로 이 적재를 바꾼다.
+     */
     @BeforeAll
     static void loadSeed(@Autowired DataSource dataSource) throws Exception {
         String sql = Files.readString(SAMPLE.toAbsolutePath().normalize(), StandardCharsets.UTF_8).lines()

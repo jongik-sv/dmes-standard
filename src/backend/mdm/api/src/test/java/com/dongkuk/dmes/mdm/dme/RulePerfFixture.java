@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.dme;
 
+import java.util.List;
+import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -52,8 +54,14 @@ public final class RulePerfFixture {
             }
         }
         if (n > 0) {
-            jdbc.update("UPDATE TB_MDM_RULE_ROW SET CELLS = substr(CELLS, 1, length(CELLS) - 1) || ? || '}' WHERE MARU_RULE_ID = ? "
-                    + "AND ROW_KIND = 'NORMAL'", cells.toString(), ID);
+            // CELLS 는 CLOB 이라 SQL 안에서 바인드 문자열(4000자 초과 가능)과 잇지 않고, 읽어서 자바에서 이어 다시 쓴다.
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                    "SELECT VER, ROW_ID, CELLS FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = ? AND ROW_KIND = 'NORMAL'", ID);
+            for (Map<String, Object> row : rows) {
+                String old = (String) row.get("CELLS");
+                jdbc.update("UPDATE TB_MDM_RULE_ROW SET CELLS = ? WHERE MARU_RULE_ID = ? AND VER = ? AND ROW_ID = ?",
+                        old.substring(0, old.length() - 1) + cells + "}", ID, row.get("VER"), row.get("ROW_ID"));
+            }
         }
         // 룰 밖 이름 — 컬럼 XE_COL·다른 룰 결과 PE_RES(값 테스트 BODY 의 식 열이 읽는다)
         DmeTestSupport.column(jdbc, "XE_COL", dom);

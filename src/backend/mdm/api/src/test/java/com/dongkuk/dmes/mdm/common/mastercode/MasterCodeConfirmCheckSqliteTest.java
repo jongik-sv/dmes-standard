@@ -32,7 +32,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * TSK-06-05 design.md §3.2 SP1~SP5 — 운영 확정 검사 SPI 빈({@link MasterCodeConfirmCheck})을 실제 V9 표로 local(SQLite)
+ * TSK-06-05 design.md §3.2 SP1~SP5 — 운영 확정 검사 SPI 빈({@link MasterCodeConfirmCheck})을 실제 V9 표로 Oracle 시험 PDB
  * 컨텍스트에서 돌린다. {@code VersionScenarioTestConfig} 를 import 하지 않는다 — 그 후처리기가 운영 SPI 를 가짜로 바꾼다.
  *
  * <p>기본 시드: 원천 04:1059-1092 PROC_CD 에서 DRAFT v2.000 이 82·83 과 MAJOR 82 를 닫은 모습(시계 2026-09-03).

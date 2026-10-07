@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.common.mastercode;
 
+import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
 import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeConventions;
 import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeItemValues;
@@ -52,12 +53,17 @@ public final class MasterCodeItemChecks {
             issues.add(issue(MasterCodeItemIssueCode.CODE_REQUIRED, code, "code", "코드값을 넣으세요"));
         } else if (FORBIDDEN.matcher(code).find()) {
             issues.add(issue(MasterCodeItemIssueCode.CODE_FORBIDDEN_CHAR, code, "code", "코드값에 콤마·공백을 쓸 수 없다"));
+        } else if (MdmTextLimits.overChars(code, MdmTextLimits.KEY_CHARS_MAX)) {
+            issues.add(issue(MasterCodeItemIssueCode.KEY_TOO_LONG, code, "code", keyTooLong("코드값")));
         }
         for (int i = 0; i < lvls.size(); i++) {
             String v = lvls.get(i);
             if (v != null && FORBIDDEN.matcher(v).find()) {
                 issues.add(issue(MasterCodeItemIssueCode.CODE_FORBIDDEN_CHAR, code, lvlField(i),
                         "계층 칸 값에 콤마·공백을 쓸 수 없다"));
+            } else if (MdmTextLimits.overChars(v, MdmTextLimits.KEY_CHARS_MAX)) {
+                issues.add(issue(MasterCodeItemIssueCode.KEY_TOO_LONG, code, lvlField(i),
+                        keyTooLong("계층 " + (i + 1) + " 칸 값")));
             }
         }
         for (int i = header.lvlCnt(); i < lvls.size(); i++) {
@@ -83,7 +89,38 @@ public final class MasterCodeItemChecks {
                 issues.add(issue(MasterCodeItemIssueCode.ATTR_WITHOUT_LABEL, code, attrField(i),
                         "라벨이 없는 추가 컬럼에는 값을 넣지 않는다"));
             }
+            if (MdmTextLimits.overBytes(attrs.get(i))) {
+                issues.add(issue(MasterCodeItemIssueCode.TEXT_TOO_LONG, code, attrField(i),
+                        textTooLong("추가 컬럼 " + String.format("%02d", i + 1) + " 값")));
+            }
         }
+        MasterCodeItemValues values = row.values();
+        checkText(code, "name", "이름", values.name(), issues);
+        checkText(code, "alterName", "약칭", values.alterName(), issues);
+        checkText(code, "description", "설명", values.description(), issues);
+    }
+
+    private static void checkText(String code, String field, String label, String value, List<MdmCheckIssue> issues) {
+        if (MdmTextLimits.overBytes(value)) {
+            issues.add(issue(MasterCodeItemIssueCode.TEXT_TOO_LONG, code, field, textTooLong(label)));
+        }
+    }
+
+    /** 경미 수정(CodeItemEditService.patch)이 checkRow 를 거치지 않으므로 같은 상한·문구를 이 메서드로 함께 쓴다. */
+    public static List<MdmCheckIssue> checkPatchText(String code, String name, String alterName, String description) {
+        List<MdmCheckIssue> issues = new ArrayList<>();
+        checkText(code, "name", "이름", name, issues);
+        checkText(code, "alterName", "약칭", alterName, issues);
+        checkText(code, "description", "설명", description, issues);
+        return issues;
+    }
+
+    private static String keyTooLong(String label) {
+        return label + "은 " + MdmTextLimits.KEY_CHARS_MAX + "자를 넘을 수 없다";
+    }
+
+    private static String textTooLong(String label) {
+        return label + "은 " + MdmTextLimits.TEXT_BYTES_MAX + "바이트(한글 약 1,333자)를 넘을 수 없다";
     }
 
     /** 값이 있는 칸 앞의 첫 빈 칸(0 기준). 없으면 -1. */

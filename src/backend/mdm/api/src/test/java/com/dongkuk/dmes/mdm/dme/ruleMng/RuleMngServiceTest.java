@@ -46,7 +46,7 @@ class RuleMngServiceTest extends AbstractMdmSharedDbTest {
 
     @BeforeEach
     void seed() {
-        jdbc.execute("DROP TRIGGER IF EXISTS TR_RULE_VER_FAIL");
+        jdbc.execute("BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TR_RULE_VER_FAIL'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -4080 THEN RAISE; END IF; END;");
         DmeTestSupport.clear(jdbc);
         currentUser.set("kim", STEWARD);
         DmeTestSupport.rule(jdbc, "QLTY_GRD_JDG", "품질 등급 판정", "DECISION", "INUSE");
@@ -265,13 +265,13 @@ class RuleMngServiceTest extends AbstractMdmSharedDbTest {
 
     @Test
     void 버전_INSERT_가_실패하면_룰_행도_롤백된다() {
-        jdbc.execute("CREATE TRIGGER TR_RULE_VER_FAIL BEFORE INSERT ON TB_MDM_RULE_VER "
-                + "WHEN NEW.MARU_RULE_ID = 'NEW_FAIL' BEGIN SELECT RAISE(ABORT, 'forced failure'); END");
+        jdbc.execute("CREATE OR REPLACE TRIGGER TR_RULE_VER_FAIL BEFORE INSERT ON TB_MDM_RULE_VER FOR EACH ROW "
+                + "WHEN (NEW.MARU_RULE_ID = 'NEW_FAIL') BEGIN RAISE_APPLICATION_ERROR(-20001, 'forced failure'); END;");
         try {
             assertThrows(RuntimeException.class, () -> service.register(reg("NEW_FAIL", "실패", "DECISION")));
             assertEquals(0, count("SELECT COUNT(*) FROM TB_MDM_RULE WHERE MARU_RULE_ID = 'NEW_FAIL'"));
         } finally {
-            jdbc.execute("DROP TRIGGER IF EXISTS TR_RULE_VER_FAIL");
+            jdbc.execute("BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TR_RULE_VER_FAIL'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -4080 THEN RAISE; END IF; END;");
         }
     }
 

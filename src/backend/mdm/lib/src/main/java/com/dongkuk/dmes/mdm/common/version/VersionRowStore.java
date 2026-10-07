@@ -215,13 +215,14 @@ public class VersionRowStore {
     }
 
     /**
-     * VER 는 문자열로 읽는다. SQLite NUMERIC 친화도는 {@code 1.000} 을 INTEGER, {@code 1.001} 을 REAL 로 저장해 행마다
-     * 저장 형식이 다르고, 결과 타입을 첫 행으로 정하면 뒤 행의 소수부가 잘린다(Build 실측, 규칙표 #17).
+     * VER 는 문자열로 읽는다. 처음 이유는 SQLite NUMERIC 친화도(행마다 INTEGER·REAL 로 저장 형식이 달라 소수부가 잘림, 규칙표 #17)였다.
+     * Oracle 에서는 {@code NUMBER(7,3)} 이 BigDecimal 로 와서 CAST 가 필요 없지만, 호출자가 문자열 VER 를 전제로 하므로 그대로 둔다
+     * (Oracle {@code CAST(1 AS VARCHAR(40))} 은 {@code '1'}, 소수는 {@code '1.5'}·{@code '.5'} 꼴이고 BigDecimal 이 모두 받는다).
      *
      * <p>객체 ID CAST 폭은 ID 상한(NamingRules.CODE_MAX = 50)보다 넓은 64 로 둔다.
      *
-     * <p>객체 ID 도 문자열로 읽는다 — 레이아웃 ID 는 INTEGER 다. 바인딩은 문자열 그대로 둔다: SQLite 는 INTEGER 친화도
-     * 칼럼과 비교할 때 바인딩된 문자열에 수치 친화도를 적용한다(D-144 3단계 실측, {@code VersionRowStoreIntegerIdSqliteTest}).
+     * <p>객체 ID 도 문자열로 읽는다 — 레이아웃 ID 는 NUMBER 다. 바인딩은 문자열 그대로 둔다: Oracle 은 NUMBER 칼럼과 문자열 바인딩을
+     * 비교할 때 문자열을 수로 바꾼다(SQLite 의 수치 친화도와 같은 결과).
      */
     private static String selectColumns(VersionTableSpec spec) {
         return "SELECT CAST(" + spec.objectIdColumn() + " AS VARCHAR(64)), CAST(" + spec.versionColumn() + " AS VARCHAR(40)), "

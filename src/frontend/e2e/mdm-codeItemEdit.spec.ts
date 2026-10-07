@@ -25,10 +25,10 @@ import { gridRowByIndex, gridRows } from "./support/grid";
  *   카테고리는 ade3851f(09-30)에서 왼쪽 세 번째 탭이 아니라 오른쪽 [카테고리 편집] 탭의 표로 옮겨졌다 — 정규식은 표 칸에서
  *   고치고, TABLE 소속은 행의 [편집] 팝업(transfer-list)에서 고친다.
  *
- * 전제(design.md §4.11): 새 mcm.db·mdm.db 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고, mcm 기동 뒤
- * e2e/fixtures/mdm-rbac-users.sql, beforeAll 이 e2e/fixtures/mdm-codeItemEdit.sql 과 e2e/fixtures/mdm-codeCateEdit.sql
- * (E2E_CATE·E2E_CATE_EMPTY) 을 넣는다. 이 spec 은 코드 행·소속을 만들기 때문에 **같은 mdm.db 로 다시 돌릴 수
- * 없다**(새 mdm.db + 픽스처로 다시 시작). dmc 에서 담당자는 CONFIRM 세트라 저장할 수 있고 표준 관리자는 READ 라
+ * 전제(design.md §4.11): 새 PDB(시험 PDB 복제본)로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고, mcm 기동 뒤
+ * mdm-00-fixtures.spec.ts 가 e2e/fixtures/mdm-rbac-users.sql 을, beforeAll 이 e2e/fixtures/mdm-codeItemEdit.sql 과 e2e/fixtures/mdm-codeCateEdit.sql
+ * (E2E_CATE·E2E_CATE_EMPTY) 을 넣는다. 이 spec 은 코드 행·소속을 만들기 때문에 **같은 PDB 로 다시 돌릴 수
+ * 없다**(새 PDB + 픽스처로 다시 시작). dmc 에서 담당자는 CONFIRM 세트라 저장할 수 있고 표준 관리자는 READ 라
  * 저장이 403 이다. SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다(기본값 5100 은 메인 체크아웃 포털 → 거짓 통과).
  */
 

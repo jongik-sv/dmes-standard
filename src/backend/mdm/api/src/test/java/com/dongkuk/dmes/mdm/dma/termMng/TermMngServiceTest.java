@@ -395,4 +395,42 @@ class TermMngServiceTest extends AbstractMdmSharedDbTest {
         List<Long> actualIds = candidates.stream().map(RecommendCandidate::getTermId).toList();
         assertEquals(expectedTop5, actualIds, "동점이면 termId 오름차순이어야 한다");
     }
+
+    // ── 칸 길이(ORA-12899 예방) ──
+
+    @Test
+    void 정의는_4000바이트까지_통과하고_4001바이트와_한글_1334자는_거절한다() {
+        assertNotNull(service.save(req("길이검사1", 1, "a".repeat(4000))).getTermId());
+        BusinessException over = assertThrows(BusinessException.class, () -> service.save(req("길이검사2", 1, "a".repeat(4001))));
+        assertTrue(over.getMessage().contains("정의") && over.getMessage().contains("4000바이트"), over.getMessage());
+        assertNotNull(service.save(req("길이검사3", 1, "가".repeat(1333))).getTermId());
+        assertThrows(BusinessException.class, () -> service.save(req("길이검사4", 1, "가".repeat(1334))));
+    }
+
+    @Test
+    void 표기_맥락_영문명은_4000바이트_영문_약어는_50자를_넘으면_거절한다() {
+        assertNotNull(service.save(req("가".repeat(101), 1, "정의")).getTermId(), "100자 상한은 걸지 않는다");
+        BusinessException name = assertThrows(BusinessException.class, () -> service.save(req("가".repeat(1334), 1, "정의")));
+        assertTrue(name.getMessage().contains("표기"), name.getMessage());
+        TermSaveRequest ctx = req("길이검사8", 1, "정의");
+        ctx.setContext("a".repeat(4001));
+        assertTrue(assertThrows(BusinessException.class, () -> service.save(ctx)).getMessage().contains("맥락"));
+        TermSaveRequest eng = req("길이검사9", 1, "정의");
+        eng.setEngName("a".repeat(4001));
+        assertTrue(assertThrows(BusinessException.class, () -> service.save(eng)).getMessage().contains("영문명"));
+        TermSaveRequest abbr = req("길이검사5", 1, "정의");
+        abbr.setEngAbbr("A".repeat(51));
+        assertTrue(assertThrows(BusinessException.class, () -> service.save(abbr)).getMessage().contains("영문 약어"));
+        assertEquals(1, termRepository.count(), "거절된 저장은 아무것도 쓰지 않는다(위에서 통과한 101자 표기 1건만 있다)");
+    }
+
+    @Test
+    void 동의어는_직렬화한_JSON_바이트가_4000을_넘으면_거절한다() {
+        TermSaveRequest r = req("길이검사6", 1, "정의");
+        r.setSynonyms("a".repeat(3996)); // ["…"] = 4000바이트
+        assertNotNull(service.save(r).getTermId());
+        TermSaveRequest over = req("길이검사7", 1, "정의");
+        over.setSynonyms("a".repeat(3997));
+        assertTrue(assertThrows(BusinessException.class, () -> service.save(over)).getMessage().contains("동의어"));
+    }
 }

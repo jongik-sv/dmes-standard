@@ -9,6 +9,7 @@ import com.dongkuk.dmes.mdm.dmb.headerMng.service.HeaderMngService;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngSaveRequest;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.service.LayoutMngService;
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -18,8 +19,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * TSK-05-02 design.md §3.2 — api 통합 테스트 공용. 도메인·컬럼은 네이티브 SQL({@code INSERT … WHERE NOT EXISTS}·{@code OR
- * IGNORE}), **헤더 L100·L110 은 반드시 {@link HeaderMngService#save} 로 만든다**(SQL 로 넣으면 헤더 오프셋·총 길이 계산을 아무도
+ * TSK-05-02 design.md §3.2 — api 통합 테스트 공용. 도메인·컬럼·단위는 네이티브 SQL({@code INSERT … SELECT … FROM DUAL WHERE NOT EXISTS} —
+ * Oracle 에는 {@code OR IGNORE} 가 없다), **헤더 L100·L110 은 반드시 {@link HeaderMngService#save} 로 만든다**(SQL 로 넣으면 헤더 오프셋·총 길이 계산을 아무도
  * 거치지 않는다). 서비스는 트랜잭션 없이 부른다. 한 클래스가 DB 하나를 쓰므로 EAI 코드·레이아웃 이름은 호출마다 새로 만든다.
  * 행·요청 도우미만 둔다(HTTP 시험도 쓴다) — 서비스로 저장하는 도우미는 {@link LayoutServiceTestSupport}(D-144 3단계).
  */
@@ -36,6 +37,14 @@ public abstract class LayoutTestSupport extends AbstractMdmSharedDbTest {
 
     private static int seq;
 
+    /**
+     * {@code "yyyy-MM-dd HH:mm:ss"} 문자열을 JDBC 바인딩용 {@link Timestamp} 로 — Oracle 은 문자열 → TIMESTAMP 암시 변환이 NLS 형식에 기대어
+     * ORA-01843·01861 이 나므로 일시 칸에는 늘 이것으로 바인딩한다. 읽을 때는 {@code LocalDateTime.class} 로 읽는다.
+     */
+    protected static Timestamp ts(String text) {
+        return Timestamp.valueOf(text);
+    }
+
     protected static synchronized String uniq(String prefix) {
         return prefix + (++seq);
     }
@@ -44,14 +53,15 @@ public abstract class LayoutTestSupport extends AbstractMdmSharedDbTest {
 
     protected long domain(String std, String kind, String type, Integer length, Integer scale, Long parent) {
         jdbc.update("INSERT INTO TB_MDM_DOMAIN (DOMAIN_NAME, STD_NAME, PARENT_DOMAIN_ID, DOMAIN_KIND, DATA_TYPE, LENGTH, SCALE, CHG_SEQ, VER) "
-                + "SELECT ?, ?, ?, ?, ?, ?, ?, 0, 0 WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_DOMAIN WHERE STD_NAME = ?)",
+                + "SELECT ?, ?, ?, ?, ?, ?, ?, 0, 0 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_DOMAIN WHERE STD_NAME = ?)",
                 "도메인 " + std, std, parent, kind, type, length, scale, std);
         return jdbc.queryForObject("SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = ?", Long.class, std);
     }
 
     protected void column(String phys, String name, String label, long domainId) {
-        jdbc.update("INSERT OR IGNORE INTO TB_MDM_COLUMN (COLUMN_NAME, LABEL_LONG, PHYS_NAME, DOMAIN_ID, REQUIRED, CHG_SEQ, VER) "
-                + "VALUES (?, ?, ?, ?, 0, 0, 0)", name, label, phys, domainId);
+        jdbc.update("INSERT INTO TB_MDM_COLUMN (COLUMN_NAME, LABEL_LONG, PHYS_NAME, DOMAIN_ID, REQUIRED, CHG_SEQ, VER) "
+                + "SELECT ?, ?, ?, ?, 0, 0, 0 FROM DUAL "
+                + "WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_COLUMN WHERE PHYS_NAME = ? OR COLUMN_NAME = ?)", name, label, phys, domainId, phys, name);
     }
 
     private long str(int len) {
@@ -64,7 +74,7 @@ public abstract class LayoutTestSupport extends AbstractMdmSharedDbTest {
 
     /** §3.2 헤더 항목 사전 + M201 본문 사전. 몇 번 불러도 같다. */
     protected void dictionary() {
-        jdbc.update("INSERT OR IGNORE INTO TB_MDM_UNIT (UNIT_CODE, DIMENSION, BASE_UNIT, FACTOR, CHG_SEQ) VALUES ('mm','LENGTH','mm',1,0)");
+        unit("mm", "LENGTH", "mm", "1");
         column("TC_CD", "트랜잭션 코드", null, str(8));
         column("SND_FAC_TP", "송신공장구분", null, str(4));
         column("SND_PROC_TP", "송신공정구분", null, str(3));
@@ -92,14 +102,15 @@ public abstract class LayoutTestSupport extends AbstractMdmSharedDbTest {
 
     /** 단위 원장 한 행(몇 번 불러도 같다). 계수 = 차원 기준 단위로의 배수. */
     protected void unit(String code, String dimension, String base, String factor) {
-        jdbc.update("INSERT OR IGNORE INTO TB_MDM_UNIT (UNIT_CODE, DIMENSION, BASE_UNIT, FACTOR, CHG_SEQ) VALUES (?, ?, ?, ?, 0)",
-                code, dimension, base, new BigDecimal(factor));
+        jdbc.update("INSERT INTO TB_MDM_UNIT (UNIT_CODE, DIMENSION, BASE_UNIT, FACTOR, CHG_SEQ) "
+                + "SELECT ?, ?, ?, ?, 0 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_UNIT WHERE UNIT_CODE = ?)",
+                code, dimension, base, new BigDecimal(factor), code);
     }
 
     /** 기준 단위가 있는 도메인 — 단위는 먼저 {@link #unit} 으로 넣는다. */
     protected long domainWithUnit(String std, String type, int length, Integer scale, String unit) {
         jdbc.update("INSERT INTO TB_MDM_DOMAIN (DOMAIN_NAME, STD_NAME, DOMAIN_KIND, DATA_TYPE, LENGTH, SCALE, UNIT_CODE, CHG_SEQ, VER) "
-                + "SELECT ?, ?, 'QTY', ?, ?, ?, ?, 0, 0 WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_DOMAIN WHERE STD_NAME = ?)",
+                + "SELECT ?, ?, 'QTY', ?, ?, ?, ?, 0, 0 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_DOMAIN WHERE STD_NAME = ?)",
                 "도메인 " + std, std, type, length, scale, unit, std);
         return jdbc.queryForObject("SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = ?", Long.class, std);
     }
@@ -107,7 +118,7 @@ public abstract class LayoutTestSupport extends AbstractMdmSharedDbTest {
     /** 유효 표준식이 있는 도메인(F21 — 판정은 STD_RULE 텍스트만으로 된다). */
     protected long ruleDomain(String std, String type, int length, Integer scale, String stdRule) {
         jdbc.update("INSERT INTO TB_MDM_DOMAIN (DOMAIN_NAME, STD_NAME, DOMAIN_KIND, DATA_TYPE, LENGTH, SCALE, STD_RULE, CHG_SEQ, VER) "
-                + "SELECT ?, ?, 'QTY', ?, ?, ?, ?, 0, 0 WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_DOMAIN WHERE STD_NAME = ?)",
+                + "SELECT ?, ?, 'QTY', ?, ?, ?, ?, 0, 0 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_DOMAIN WHERE STD_NAME = ?)",
                 "도메인 " + std, std, type, length, scale, stdRule, std);
         return jdbc.queryForObject("SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = ?", Long.class, std);
     }
@@ -195,11 +206,12 @@ public abstract class LayoutTestSupport extends AbstractMdmSharedDbTest {
      * ({@code TB_MDM_EAI.HEADER_LAYOUT_ID})은 건드리지 않는다 — 운영 확정과 같다(표준 헤더는 시각 T 해석, Ruling P3-15·P3-18).
      */
     protected void release(long layoutId, String ver, String applyFrom) {
+        Timestamp from = ts(applyFrom);
         jdbc.update("UPDATE TB_MDM_LAYOUT_VER SET APPLY_TO = ? WHERE LAYOUT_ID = ? AND STATUS = 'RELEASED' "
-                + "AND APPLY_TO = '9999-12-31 00:00:00'", applyFrom, layoutId);
-        jdbc.update("UPDATE TB_MDM_LAYOUT_VER SET STATUS = 'RELEASED', APPLY_FROM = ?, APPLY_TO = '9999-12-31 00:00:00', "
+                + "AND APPLY_TO = TIMESTAMP '9999-12-31 00:00:00'", from, layoutId);
+        jdbc.update("UPDATE TB_MDM_LAYOUT_VER SET STATUS = 'RELEASED', APPLY_FROM = ?, APPLY_TO = TIMESTAMP '9999-12-31 00:00:00', "
                 + "REQUESTED_BY = ?, REQUESTED_AT = ?, RELEASED_AT = ? WHERE LAYOUT_ID = ? AND VER = ?",
-                applyFrom, RELEASED_BY, applyFrom, applyFrom, layoutId, new BigDecimal(ver));
+                from, RELEASED_BY, from, from, layoutId, new BigDecimal(ver));
         jdbc.update("UPDATE TB_MDM_LAYOUT SET STATUS = 'INUSE' WHERE LAYOUT_ID = ?", layoutId);
     }
 

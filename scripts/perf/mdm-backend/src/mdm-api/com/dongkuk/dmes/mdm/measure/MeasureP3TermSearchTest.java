@@ -22,7 +22,7 @@ import org.springframework.transaction.PlatformTransactionManager;
  * P3 — 용어 검색({@code TermMngService.search}) 1회당 읽는 용어 행 수(엔티티 로드)·SQL 문 수(결정적)와 응답 시간(보조).
  * perf-mdm-backend.md P3. 설정은 {@code TermMngSearchCharacterizationTest}(dev) 와 같다(@SpringBootTest MOCK·local, 가져오는 설정 없음).
  *
- * <p>데이터는 로컬 MDM DB 사본의 용어 전체(8,152행, EMBEDDING 포함)를 원래 ID 로 옮긴다({@link SourceDb}). JSON 파싱 횟수는 재지 않는다 — 기준에는
+ * <p>데이터는 저장소 스냅샷(db-snapshot/MDMAPUSER)의 용어 전체를 원래 ID 로 시험 PDB 에 적재한다(EMBEDDING 은 스냅샷에서 NULL — {@link SourceDb}). JSON 파싱 횟수는 재지 않는다 — 기준에는
  * 파서 호출을 셀 자리({@code MdmJsonLists})가 없고 운영 코드를 고치지 않기로 했다.
  *
  * <p>시나리오(이름은 ASCII): {@code none}=조건 없음, {@code kw-koil}=키워드 '코일', {@code kw-coil}=키워드 'coil', {@code ctx-dogeum}=상황 '도금'만,
@@ -50,7 +50,7 @@ class MeasureP3TermSearchTest extends AbstractMdmSharedDbTest {
         MeasureSupport.assumeEnabled();
         MeasureSupport.env(P);
         Map<String, Integer> counts = SourceDb.load(dataSource, false);
-        MeasureSupport.emit(P, "data", "source", SourceDb.path().getFileName(), "terms", counts.get("TB_MDM_TERM"));
+        MeasureSupport.emit(P, "data", "source", SourceDb.label(), "terms", counts.get("TB_MDM_TERM"));
         StatProbe probe = new StatProbe(tm, em, emf);
         List<String> problems = new ArrayList<>();
 

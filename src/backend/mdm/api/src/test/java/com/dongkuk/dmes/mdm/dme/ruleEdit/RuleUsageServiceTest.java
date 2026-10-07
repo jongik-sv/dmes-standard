@@ -115,7 +115,7 @@ class RuleUsageServiceTest extends AbstractMdmSharedDbTest {
     @Test
     void 최신_RELEASED_만_본다() {
         // POST_JDG 의 새 RELEASED(ver 2)는 QLTY_GRD 를 더는 읽지 않는다.
-        jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = '2026-03-01 00:00:00' WHERE MARU_RULE_ID = 'POST_JDG' AND VER = 1");
+        jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = TIMESTAMP '2026-03-01 00:00:00' WHERE MARU_RULE_ID = 'POST_JDG' AND VER = 1");
         DmeTestSupport.released(jdbc, "POST_JDG", 2, "FIRST", "2026-03-01 00:00:00", null);
         DmeTestSupport.var(jdbc, "POST_JDG", 2, 1, "COND", "1", "COIL_THK", 1, null);
         DmeTestSupport.var(jdbc, "POST_JDG", 2, 2, "RESULT", "Value", "LINE_CD", 1, "STRING");

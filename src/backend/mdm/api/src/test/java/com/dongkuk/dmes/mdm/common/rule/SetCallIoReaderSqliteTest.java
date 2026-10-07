@@ -96,7 +96,7 @@ class SetCallIoReaderSqliteTest extends AbstractMdmSharedDbTest {
 
     /** 1.000 을 T 에 끝내고 T 부터 1.001 을 RELEASED 로 둔다. */
     static void splitAt(JdbcTemplate jdbc, String id, String ruleIds, String callIds, String flow) {
-        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = '2026-07-01 00:00:00' WHERE MARU_RULE_SET_ID = ? AND STATUS = 'RELEASED'", id);
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = TIMESTAMP '2026-07-01 00:00:00' WHERE MARU_RULE_SET_ID = ? AND STATUS = 'RELEASED'", id);
         DmeTestSupport.ruleSetVersion(jdbc, id, "1.001", "MINOR", "RELEASED", "kim", ruleIds, "2026-07-01 00:00:00", "9999-12-31 00:00:00", 0);
         DmeTestSupport.ruleSetFlow(jdbc, id, "1.001", flow);
         DmeTestSupport.ruleSetCalls(jdbc, id, "1.001", callIds);
@@ -131,8 +131,8 @@ class SetCallIoReaderSqliteTest extends AbstractMdmSharedDbTest {
     @Test
     void 없는_세트와_DRAFT_만_있는_세트는_없는_세트이고_빈_ID_중복은_뺀다() {
         jdbc.update("INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, STATUS, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, "
-                + "U_SVC_ID, U_PGM_ID, VER) VALUES ('D', 'D 세트', 'CREATED', 'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', 'fixture', "
-                + "'2026-01-01 00:00:00', 'fixture', 'fixture', 0)");
+                + "U_SVC_ID, U_PGM_ID, VER) VALUES ('D', 'D 세트', 'CREATED', 'fixture', TIMESTAMP '2026-01-01 00:00:00', 'fixture', 'fixture', 'fixture', "
+                + "TIMESTAMP '2026-01-01 00:00:00', 'fixture', 'fixture', 0)");
         DmeTestSupport.ruleSetDraft(jdbc, "D", "1.000", "kim", "[\"R_GRD\"]", 0);
 
         Map<String, SetCallIo> r = reader.read(Arrays.asList("NOPE", "", null, "D", "NOPE"), NOW);

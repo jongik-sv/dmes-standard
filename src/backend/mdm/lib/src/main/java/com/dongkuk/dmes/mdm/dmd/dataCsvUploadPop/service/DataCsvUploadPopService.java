@@ -35,7 +35,7 @@ import org.springframework.stereotype.Service;
 @Service("dataCsvUploadPopService")
 public class DataCsvUploadPopService {
 
-    private static final DateTimeFormatter TEXT = DateTimeFormatter.ofPattern(MdmTemporalBinder.SQLITE_TEXT_PATTERN);
+    private static final DateTimeFormatter TEXT = DateTimeFormatter.ofPattern(MdmTemporalBinder.TEXT_PATTERN);
 
     private final DataItemSaveCore core;
 
