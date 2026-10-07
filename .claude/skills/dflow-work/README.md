@@ -61,6 +61,8 @@ cd dflow-kit && ./install.sh <대상 리포 경로>
 ln -s /path/to/wbs-web/.claude/skills/dflow-work <대상리포>/.claude/skills/dflow-work
 ```
 
+**윈도우(Git Bash)는 심링크 대신 복사 배포를 쓴다.** Git Bash 의 `ln -s` 는 심링크가 아니라 **복사본**을 만든다(진짜 심링크는 윈도우 개발자 모드 + `MSYS=winsymlinks:nativestrict` 가 있어야 한다). 그래서 B(심볼릭 링크) 대신 A(`install.sh` 복사)로 설치하고, 갱신도 같은 명령으로 다시 복사한다. 스킬 폴더만 복사하면 동봉 jq 등 공용 도구가 없으므로 **`.claude/skills/_shared` 를 `dflow-*` 와 함께 배포**해야 한다(각 스크립트가 `../../_shared/bin` 의 jq 래퍼를, 이식된 도구가 `_shared/node` 를 상대 경로로 찾는다. 킷 `install.sh` 가 `_shared` 를 빼면 직접 복사한다). 복사본은 정본이 바뀌어도 따라가지 않으니 정본을 갱신한 뒤에는 다시 복사한다.
+
 ⚠️ 정본은 `wbs-web/.claude/skills/` 뿐이다. `docs/agent/claude-skill/dflow-work/` 아래에
 사본이 있었으나 정본과 갈라진 채 낡아 2026-08-28 에 지웠다(포인터 README 만 남겼다).
 옛 안내를 보고 그 경로를 링크 대상으로 쓰지 않는다.
@@ -261,4 +263,4 @@ dflow.sh show <순번>
 
 ## 지원 환경: macOS · Git Bash(윈도우)
 
-`scripts/dflow.sh` 는 macOS 와 Git for Windows 의 Git Bash 에서 돈다. 필요 도구: bash, curl, jq, git, awk·sed(GNU 또는 BSD). jq 는 Git Bash 에 기본 제공이 아니다(`winget install jqlang.jq` 또는 scoop). 스크립트를 새로 쓸 때는 macOS 전용 명령·perl 을 쓰지 않는다(`stat -f %m` 은 GNU 에서 `?` 라 `stat -c %Y` 를 앞에 둔다). 정본·도구 표·한계: `../_shared/platform-support.md`.
+`scripts/dflow.sh` 는 macOS 와 Git for Windows 의 Git Bash 에서 돈다. 필요 도구: bash, curl, jq, git, awk·sed(GNU 또는 BSD). jq 는 윈도우용을 `_shared/bin/` 에 동봉했고 스크립트가 PATH 에 넣으므로 따로 설치하지 않는다(`_shared` 를 함께 배포해야 한다). 스크립트를 새로 쓸 때는 macOS 전용 명령·perl 을 쓰지 않는다(`stat -f %m` 은 GNU 에서 `?` 라 `stat -c %Y` 를 앞에 둔다). 정본·도구 표·한계: `../_shared/platform-support.md`.

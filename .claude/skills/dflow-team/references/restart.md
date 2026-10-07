@@ -1,5 +1,7 @@
 # /dflow-team 자동 재시작: 멈춘 팀원을 원인별로 다시 띄운다
 
+> 윈도우: 아래 `jq` 예시를 Bash 로 직접 칠 때는 같은 호출 맨 앞에 `export PATH="$PWD/.claude/skills/_shared/bin:$PATH";` 를 붙인다(`_shared/platform-support.md` 「문서 속 인라인 jq」).
+
 스펙 wbs-web docs/superpowers/specs/2026-09-23-worker-auto-restart-design.md(과제 H·G). SKILL.md 「2-3」「3. 결과 처리」
 「5. 팀원 spawn」「5-1. 재개 spawn」「7. 마감」 이 이 문서를 부른다(TICK 판정·결과 줄 없는 `PANE_DEAD`·재투입·rate-limit
 대기·중단 표식 정리 때 Bash `cat` 으로 읽는다). 블록은 events.md 의 기록 명령처럼 **그대로** 쓰고 기억으로 재구성하지

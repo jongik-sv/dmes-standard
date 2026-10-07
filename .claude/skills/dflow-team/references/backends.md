@@ -1,8 +1,12 @@
 # /dflow-team 백엔드: spawn·정리 명령 정본
 
+> **윈도우는 Orca 백엔드 전제**: 윈도우(Git Bash)의 팀장은 **pane(Orca)** 로 돌린다(Orca 안에서 시작). tmux 판은 MSYS2 tmux 가 Git Bash 에서 도는지 검증한 적이 없어(「플랫폼 차이」 절, 검증 전까지는 「돌 수도 있다」) 윈도우 지원 경로로 보지 않고, Orca 도 tmux 도 없으면 `NO_TMUX` 로 시작을 거부한다. 윈도우에서는 `CLAUDE_PID`(팀장 세션 PID)도 설정하는 것이 좋다(없으면 `heavy.sh` 가 `HEAVY_WARN` 을 낸다).
+
 SKILL.md 「0. 환경 감지」 가 백엔드를 고른다. 팀장이 Orca 안에 있으면 **pane(Orca)**, 밖이면 **pane(tmux)** 다. 워커
 프롬프트·`.result` 계약·`/dflow-dev --worker` 는 두 백엔드가 같고, 가르는 것은 아래 차이표뿐이다. 근거·이력은
 `rationale.md` 「백엔드(backends.md)」 에 있다.
+
+> 윈도우: 아래 `jq` 예시를 Bash 로 직접 칠 때는 같은 호출 맨 앞에 `export PATH="$PWD/.claude/skills/_shared/bin:$PATH";` 를 붙인다(`_shared/platform-support.md` 「문서 속 인라인 jq」).
 
 **읽는 법**(필요한 절만 Bash `sed` 로 읽는다): spawn 은 「입장 제어」~「폴더 신뢰 확인」(tmux) 이고 Orca 는 거기에
 「pane(Orca)」 를 더한다. 회수·답·결과 줄 폴백은 「생존·화면·답·회수」「결과 줄과 죽은 pane 폴백」, 정리는 「고아 정리 규칙」 이다.

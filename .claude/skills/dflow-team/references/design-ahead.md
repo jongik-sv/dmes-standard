@@ -1,5 +1,7 @@
 # /dflow-team 선행 대기의 설계 선행 (SKILL.md 「2-3」 4번·「3. 결과 처리」·「팀장 상태」 고아 스캔 0번)
 
+> 윈도우: 아래 `jq` 예시를 Bash 로 직접 칠 때는 같은 호출 맨 앞에 `export PATH="$PWD/.claude/skills/_shared/bin:$PATH";` 를 붙인다(`_shared/platform-support.md` 「문서 속 인라인 jq」).
+
 선행이 구현 중인 작업의 Design 을 빈 슬롯에서 먼저 해 두고, 선행이 끝나면 같은 워크트리로 이어 구현시킨다. 워커 쪽 흐름의
 정본은 `/dflow-dev` `references/orch/design-first.md` 「설계 선행」(계약 2.9)이고, 설계 정본은 wbs-web 리포
 docs/superpowers/specs/2026-09-26-dflow-parallel-token-design.md §6(킷에는 미동봉)이다. 이유는 `rationale.md` 「설계 선행」.

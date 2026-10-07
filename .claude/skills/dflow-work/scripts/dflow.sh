@@ -183,9 +183,12 @@ api_raw() { # $1=METHOD $2=PATH [$3=JSON body] — TOKEN env 필요. 성공 시 
   mkdir -p "$CACHE_DIR"
   _body_tmp="$CACHE_DIR/dflow_body.$$"
   _base=$(base) || exit $?
-  _code=$(curl -sS -o "$_body_tmp" -w '%{http_code}' -X "$1" \
+  # 본문은 명령줄이 아니라 표준입력으로 넘긴다(--data-binary @-). 윈도우 명령줄 한도(약 32,767자)에 큰 본문(done --decisions·
+  # console-screen)이 걸리지 않게 하고, 본문 앞의 @ 를 파일 이름으로 읽는 curl 규칙도 피한다. printf 는 셸 내장이라 인자 한도가 없다.
+  # 본문이 없으면 빈 입력이 들어가고 curl 은 읽지 않는다.
+  _code=$(printf '%s' "${3:-}" | curl -sS -o "$_body_tmp" -w '%{http_code}' -X "$1" \
     -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-    ${3:+--data "$3"} "$_base$2" 2>/dev/null) || { rm -f "$_body_tmp"; die 6 "네트워크 오류"; }
+    ${3:+--data-binary @-} "$_base$2" 2>/dev/null) || { rm -f "$_body_tmp"; die 6 "네트워크 오류"; }
   _body=$(cat "$_body_tmp"; rm -f "$_body_tmp")
   case "$_code" in
     2??) printf '%s' "$_body"; return 0 ;;

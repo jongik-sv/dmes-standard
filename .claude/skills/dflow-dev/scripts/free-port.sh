@@ -10,10 +10,9 @@
 #   ./gradlew :api:bootRun --no-daemon --args="--server.port=$PORT" > /tmp/api.log 2>&1 &
 #
 # 방법(앞에서 되는 것을 쓴다)
-#   1) python3, 2) python — 모든 인터페이스의 포트 0 에 bind 해 받은 번호. Windows 의 python3 가 스토어 안내용 가짜 실행
-#      파일이면 실패하거나 엉뚱한 글을 내므로, 출력이 1024~65535 의 숫자가 아니면 다음 방법으로 넘어간다.
-#   3) node — python 이 없는 Git Bash 에서 쓴다(net.createServer 를 포트 0 에 listen).
-#   4) 폴백 — 20000~59999 에서 무작위로 골라 lsof(없으면 nc)로 리슨 중인지 확인한다. 둘 다 없으면 확인 없이 그 번호를 낸다
+#   1) node — net.createServer 를 포트 0 에 listen 해 받은 번호(윈도우 Git Bash·macOS 공통, python 은 쓰지 않는다). 출력이
+#      1024~65535 의 숫자가 아니면 다음 방법으로 넘어간다.
+#   2) 폴백 — 20000~59999 에서 무작위로 골라 lsof(없으면 nc)로 리슨 중인지 확인한다. 둘 다 없으면 확인 없이 그 번호를 낸다
 #      (stderr 에 FREE_PORT_UNCHECKED 를 적는다).
 # 받은 포트는 곧바로 닫으므로 서버가 bind 하기 전에 남이 가져갈 수 있다(드묾). 서버가 "Address already in use" 로 뜨지 못하면
 # 이 스크립트를 다시 불러 새 포트로 띄운다.
@@ -22,18 +21,6 @@
 set -u
 
 valid() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; [ "$1" -ge 1024 ] && [ "$1" -le 65535 ]; }
-
-PY='import socket
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.bind(("", 0))
-print(s.getsockname()[1])
-s.close()'
-
-for py in python3 python; do
-  command -v "$py" >/dev/null 2>&1 || continue
-  p=$("$py" -c "$PY" 2>/dev/null | tr -d '\r' | head -n 1)
-  if valid "$p"; then echo "$p"; exit 0; fi
-done
 
 if command -v node >/dev/null 2>&1; then
   p=$(node -e 'const s=require("net").createServer();s.listen(0,()=>{console.log(s.address().port);s.close()})' 2>/dev/null | tr -d '\r' | head -n 1)
@@ -59,7 +46,7 @@ while [ "$i" -lt 50 ]; do
   listening "$p"
   case $? in
     1) echo "$p"; exit 0 ;;
-    2) echo "FREE_PORT_UNCHECKED $p — python·lsof·nc 가 없어 비어 있는지 확인하지 못했다" >&2; echo "$p"; exit 0 ;;
+    2) echo "FREE_PORT_UNCHECKED $p — node·lsof·nc 가 없어 비어 있는지 확인하지 못했다" >&2; echo "$p"; exit 0 ;;
   esac
 done
 echo "FREE_PORT_FAIL 빈 포트를 찾지 못했다(50회)" >&2

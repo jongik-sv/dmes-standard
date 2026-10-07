@@ -11,14 +11,15 @@ eq() { if [ "$2" = "$3" ]; then chk ok "$1"; else chk fail "$1" "기대 [$3] 실
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/dflow-watch-sum.XXXXXX")" && tmp="$(cd "$tmp" && pwd -P)"
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/bin" "$tmp/work" "$tmp/cache" "$tmp/home"
-# 가짜 curl: --data 를 한 줄로 기록하고 $FAKE_CODE/$FAKE_BODY 로 응답한다.
+# 가짜 curl: 본문(--data-binary @- 로 표준입력에서 읽는다)을 한 줄로 기록하고 $FAKE_CODE/$FAKE_BODY 로 응답한다.
 cat > "$tmp/bin/curl" <<'FAKE'
 #!/bin/sh
 out=""; data=""; url=""
 while [ $# -gt 0 ]; do
   case "$1" in
     -o) out="$2"; shift 2 ;;
-    --data) data="$2"; shift 2 ;;
+    --data-binary) if [ "$2" = "@-" ]; then data=$(cat); else data="@@unexpected-arg:$2"; fi; shift 2 ;;
+    --data) data="@@command-line-body:$2"; shift 2 ;;   # 본문을 명령줄에 싣는 옛 방식 — 시험이 잡아낸다
     -w|-X|-H) shift 2 ;;
     -sS) shift ;;
     *) url="$1"; shift ;;

@@ -1,5 +1,7 @@
 # /dflow-team 해소 워커 프롬프트 (정본)
 
+> 윈도우: 아래 `jq` 예시를 Bash 로 직접 칠 때는 같은 호출 맨 앞에 `export PATH="$PWD/.claude/skills/_shared/bin:$PATH";` 를 붙인다(`_shared/platform-support.md` 「문서 속 인라인 jq」).
+
 > 설계 정본: wbs-web 리포 docs/superpowers/specs/2026-09-23-parallel-merge-conflict-design.md §5(킷에는 미동봉).
 
 너는 `/dflow-team` 팀장이 띄운 **해소 워커**다. 개발 브랜치와 충돌해 머지되지 못한 작업 한 건을 **개발 브랜치 위의
