@@ -462,15 +462,24 @@ class WidgetQueryParamsTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "SELECT A FROM T@LINK WHERE N = :p",
-            "SELECT A$B, F@LINK FROM T WHERE N = :p",
+            "SELECT A$B FROM T WHERE N = :p",
             "SELECT ID FROM T WHERE TAGS @> ARRAY[1] AND N = :p",
             "SELECT ID FROM T WHERE DOC @@ QUERY AND N = :p",
             "SELECT ID FROM T WHERE N = :p AND X = '\\:userId @x $1'",
             "SELECT CAST(N AS INT)::TEXT FROM T WHERE N = :p"})
-    @DisplayName("SqlGuard: 자리표시자가 아닌 @·$·\\(DB 링크·식별자·연산자·문자열 리터럴 안·캐스트)는 통과한다")
+    @DisplayName("SqlGuard: 자리표시자가 아닌 @·$·\\(식별자·연산자·문자열 리터럴 안·캐스트)는 통과한다")
     void nonPlaceholdersAccepted(String sql) {
         assertThat(SqlGuard.checkDeclared(sql, Set.of("p")).userVariables()).containsExactly("p");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "SELECT A FROM T@LINK WHERE N = :p",
+            "SELECT A$B, F@LINK FROM T WHERE N = :p"})
+    @DisplayName("SqlGuard: Oracle DB 링크(이름@링크)는 자리표시자가 아니지만 원격 실행이라 DB 링크 문구로 거절한다(oracle-1007 c3)")
+    void dbLinksRejected(String sql) {
+        assertThatThrownBy(() -> SqlGuard.checkDeclared(sql, Set.of("p")))
+                .isInstanceOf(BusinessException.class).hasMessage(SqlGuard.MSG_DB_LINK);
     }
 
     @Test

@@ -434,6 +434,47 @@ class WidgetQueryExecutorTest {
     }
 
     @Test
+    @DisplayName("require-dedicated=true 면 Oracle 도 전용 연결이 없을 때 미리보기·저장 검사·실행을 거절한다 — 운영 안내 문구(정책 B)")
+    void requireDedicatedRejectsOracleWithoutDedicatedDataSource() {
+        RecordingDataSource oracle = new RecordingDataSource(productAs("Oracle", dataSource));
+        WidgetQueryExecutor ex = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.shared(oracle, true), clock);
+        def("def.count", "query-number", "SELECT COUNT(*) AS CNT FROM WIDGET_T");
+
+        assertMessage(() -> ex.preview("mcm", "SELECT COUNT(*) AS CNT FROM WIDGET_T", 50), WidgetQueryExecutor.MSG_REQUIRE_DEDICATED);
+        assertMessage(() -> ex.validateSql("SELECT COUNT(*) AS CNT FROM WIDGET_T"), WidgetQueryExecutor.MSG_REQUIRE_DEDICATED);
+        assertMessage(() -> ex.runDefinition("def.count", 500), WidgetQueryExecutor.MSG_REQUIRE_DEDICATED);
+        assertThat(WidgetQueryExecutor.MSG_REQUIRE_DEDICATED).contains("자율 트랜잭션 함수의 EXECUTE 권한과 DB 링크");
+
+        assertThat(ex.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.ORACLE);
+        assertThat(oracle.connections).isEqualTo(1); // 갈래 판정 한 번뿐 — 실행 연결은 빌리지 않는다
+        assertThat(oracle.autoCommitOff).isZero();
+    }
+
+    @Test
+    @DisplayName("require-dedicated=false(기본)면 Oracle 은 전용 연결 없이도 지금처럼 검사를 지난다 — 전용 연결이면 키와 상관없이 지난다")
+    void requireDedicatedOffKeepsOracleSharedBehaviour() {
+        WidgetQueryExecutor shared = new WidgetQueryExecutor(defRepository, resolver,
+                WidgetQueryDataSource.shared(productAs("Oracle", dataSource), false), clock);
+        shared.validateSql("SELECT COUNT(*) AS CNT FROM WIDGET_T");
+        assertThat(shared.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.ORACLE);
+
+        WidgetQueryExecutor dedicated = new WidgetQueryExecutor(defRepository, resolver,
+                WidgetQueryDataSource.dedicated(productAs("Oracle", dataSource), null), clock);
+        dedicated.validateSql("SELECT COUNT(*) AS CNT FROM WIDGET_T");
+    }
+
+    @Test
+    @DisplayName("require-dedicated 설정은 전용 DataSource 가 없을 때만 실린다 — WidgetQueryConfig.create")
+    void requireDedicatedPropertyReachesSharedDataSource() {
+        WidgetQueryProperties props = new WidgetQueryProperties();
+        assertThat(WidgetQueryConfig.create(props, () -> dataSource).requireDedicated()).isFalse();
+        props.setRequireDedicated(true);
+        WidgetQueryDataSource shared = WidgetQueryConfig.create(props, () -> dataSource);
+        assertThat(shared.dedicated()).isFalse();
+        assertThat(shared.requireDedicated()).isTrue();
+    }
+
+    @Test
     @DisplayName("SQL Server 전용 연결이면 실행하되, ; 없이 이어 쓴 SET·USE·WHILE·IF 같은 T-SQL 은 거절한다")
     void sqlServerWithDedicatedDataSourceRunsButRejectsTsql() {
         RecordingDataSource sqlServer = new RecordingDataSource(productAs("Microsoft SQL Server", dataSource));
