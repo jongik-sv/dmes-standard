@@ -6,9 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+import utils.OracleTestDatabase;
 
 import javax.sql.DataSource;
 import java.sql.SQLException;
@@ -21,7 +19,7 @@ import java.util.Map;
  */
 @SuppressWarnings("SqlResolve")
 public class NameSqlBindingTest {
-    EmbeddedDatabase database;
+    DataSource database;
     DataSource dataSource1;
 
     @BeforeEach
@@ -30,16 +28,8 @@ public class NameSqlBindingTest {
         dataSource1 = new SingleConnectionDataSource(database.getConnection(), true);
     }
 
-    private EmbeddedDatabase database() {
-        EmbeddedDatabase dataSource;
-        dataSource = new EmbeddedDatabaseBuilder()
-                .generateUniqueName(true)
-                .setType(EmbeddedDatabaseType.H2)
-                .setScriptEncoding("UTF-8")
-                .ignoreFailedDrops(true)
-                .addScript("learning/initData.sql")
-                .build();
-        return dataSource;
+    private DataSource database() {
+        return OracleTestDatabase.create("learning/initData.sql");
     }
 
     @Test

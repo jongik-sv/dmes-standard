@@ -15,9 +15,7 @@ import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.springframework.jdbc.UncategorizedSQLException;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+import utils.OracleTestDatabase;
 
 import javax.sql.DataSource;
 import java.sql.SQLException;
@@ -34,7 +32,7 @@ import static com.dongkuk.oasis.BpmnServiceLoaderForTest.getService;
  */
 @Execution(ExecutionMode.SAME_THREAD)
 class SqlScriptProcessTaskTest {
-    EmbeddedDatabase database;
+    DataSource database;
     DataSource dataSource1;
     ProcessStarter processStarter = new ProcessStaterAndElementExecutorFactory(
             new NonModifyClassNameResolver()
@@ -46,16 +44,8 @@ class SqlScriptProcessTaskTest {
         dataSource1 = new SingleConnectionDataSource(database.getConnection(), true);
     }
 
-    private EmbeddedDatabase database() {
-        EmbeddedDatabase dataSource;
-        dataSource = new EmbeddedDatabaseBuilder()
-                .generateUniqueName(true)
-                .setType(EmbeddedDatabaseType.H2)
-                .setScriptEncoding("UTF-8")
-                .ignoreFailedDrops(true)
-                .addScript("process/SqlScriptTaskTest/initData.sql")
-                .build();
-        return dataSource;
+    private DataSource database() {
+        return OracleTestDatabase.create("process/SqlScriptTaskTest/initData.sql");
     }
 
     @Test

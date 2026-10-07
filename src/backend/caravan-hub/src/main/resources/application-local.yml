@@ -1,37 +1,42 @@
 # ────────────────────────────────────────────────────────────────────────────
-# 로컬 개발 프로파일
-#  - DB: SQLite 듀얼 DataSource (mst, if)
+# 로컬 개발 프로파일 (oracle-1007)
+#  - DB: 로컬 Oracle PDB 듀얼 DataSource (mst=CARAVANUSER, if=EAIUSER). 접속값은 DMES_ORA_*(docs/oracle-1007/schema-owners.md §3).
+#    PDB 는 `scripts/oracle/pdb.sh` 로 만들고 `be-run.sh --pdb=<PDB>` 로 접속값을 넘긴다. 없으면 FREEPDB1.
+#  - 스키마: HubFlywayConfig 가 CARAVANUSER(db/migration/caravanuser)와 IFUSER(db/migration/ifuser, 로컬 전용)를 적용한다.
 #  - Kafka: 같은 backend 의 localKafka 모듈(임베디드 Kafka, localhost:9092)
-# bootRun.workingDir = caravan-hub 모듈 루트 → ../data/* 는 backend/data/* 로 해석된다.
 # ────────────────────────────────────────────────────────────────────────────
 caravan:
   kafka:
     bootstrap-servers: localhost:9092
   hibernate:
-    # caravan 의 KafkaJpaConfig 가 사용. SQLite 는 자동 감지 잘 안 돼서 명시.
-    dialect: org.hibernate.community.dialect.SQLiteDialect
-    # 2026-05-15 §6-6 후속 — caravan 메타 + caravan-console 메타가 같은 if DS (caravan-hub-if.db) 공유.
-    # caravan-hub 먼저 부팅 → caravan 이 모든 테이블 생성 (caravan entity + caravan-console 공유 entity 동일 schema).
-    # mcm 그 다음 부팅 → cactus EMF 의 CactusSqliteIfNotExistsDialect 가 IF NOT EXISTS 로 안전.
-    # 운영 sequence: caravan-hub → mcm 강제.
-    ddl-auto: update
+    # caravan EMF(=@Primary mst=CARAVANUSER)는 Flyway 가 만든 표를 쓴다. 표를 만들거나 고치지 않는다.
+    ddl-auto: none
 
 spring:
+  # DataSourceConfig 가 spring.datasource.{mst,if} 를 HikariDataSource 에 직접 바인딩하므로 풀 설정은 hikari: 아래가 아니라 mst:·if: 바로 아래에 둔다.
   datasource:
     mst:
-      driver-class-name: org.sqlite.JDBC
-      jdbc-url: jdbc:sqlite:../data/caravan-hub-mst.db
-      hikari:
-        maximum-pool-size: 5
-        minimum-idle: 1
-        connection-timeout: 30000
+      jdbc-url: ${DMES_ORA_URL:jdbc:oracle:thin:@//localhost:1521/FREEPDB1}
+      username: CARAVANUSER
+      password: ${DMES_ORA_PASSWORD:dmes_password_123}
+      maximum-pool-size: 3     # Oracle 인스턴스를 모든 레인이 공유한다
+      minimum-idle: 1
+      connection-timeout: 30000
     if:
-      driver-class-name: org.sqlite.JDBC
-      jdbc-url: jdbc:sqlite:../data/caravan-hub-if.db
-      hikari:
-        maximum-pool-size: 5
-        minimum-idle: 1
-        connection-timeout: 30000
+      jdbc-url: ${DMES_ORA_URL:jdbc:oracle:thin:@//localhost:1521/FREEPDB1}
+      username: EAIUSER          # 표 없이 접속만 하는 사용자 — IFUSER 표에 SELECT·INSERT·UPDATE 권한을 받는다
+      password: ${DMES_ORA_PASSWORD:dmes_password_123}
+      maximum-pool-size: 3
+      minimum-idle: 1
+      connection-timeout: 30000
+
+caravan-hub:
+  flyway:
+    ifuser:
+      enabled: true
+      url: ${DMES_ORA_URL:jdbc:oracle:thin:@//localhost:1521/FREEPDB1}
+      username: IFUSER
+      password: ${DMES_ORA_PASSWORD:dmes_password_123}
 
 logging:
   file:

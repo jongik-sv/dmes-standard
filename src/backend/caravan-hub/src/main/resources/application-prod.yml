@@ -10,10 +10,7 @@ caravan:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
-# ── DataInitializer — 운영은 항상 끔 (스키마는 DBA 사전 생성) ──
-caravan-hub:
-  init:
-    enabled: false
+# ── 스키마 마이그레이션 — 운영은 항상 끔(wildfly 프로파일의 spring.flyway.enabled=false, 스키마는 DBA 가 V 파일로 사전 생성) ──
 
 logging:
   level:

@@ -1,6 +1,6 @@
 # mpn 멀티 DataSource / 멀티 TransactionManager 도입 설계
 
-> **DB 전제 안내 (2026-10-03)**: 이 문서의 「MSSQL 운영」 서술은 dmes-ksm(MSSQL) 이관 시절 전제이며 이력으로 남긴다. 운영 DB 는 Oracle 또는 PostgreSQL 이고 MSSQL 은 거의 쓰지 않는다. 새 SQL 은 [`dialect-neutral-sql.md`](../../guide/Database/dialect-neutral-sql.md) 를 따른다.
+> **DB 전제 안내 (2026-10-03)**: 이 문서의 「MSSQL 운영」 서술은 dmes-ksm(MSSQL) 이관 시절 전제이며 이력으로 남긴다. 운영 DB 는 Oracle 또는 PostgreSQL 이고 MSSQL 은 거의 쓰지 않는다. 새 SQL 은 [`oracle-sql-rules.md`](../../guide/Database/oracle-sql-rules.md) 를 따른다.
 
 > 작성일: 2026-06-20
 > 대상 모듈: `src/backend/mpn`

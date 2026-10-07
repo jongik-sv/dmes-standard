@@ -23,7 +23,7 @@ import java.util.Map;
  *       packages-to-scan:
  *         - com.example.legacy
  *       hibernate:
- *         dialect: org.hibernate.dialect.SQLServerDialect
+ *         dialect: org.hibernate.dialect.OracleDialect
  *         ddl-auto: none
  *         show-sql: false
  * </pre>

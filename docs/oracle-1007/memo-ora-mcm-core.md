@@ -46,7 +46,8 @@
 3. ~~③b~~ 완료·머지(dev daec256d0, 10-07, mcm-app 머지③ dev 14b09f1af 합친 뒤): McmSqliteMybatisInterceptor·ScreenUsageMssqlDdl → `mcm-core/archive/main/{audit,screenusage}/`, McmAuditStatementInspectorSqliteTest → `archive/test/audit/`, McmAuditStatementInspector 의 setSqlite·isSqlite·toSqlite·toSqliteCompatible·stripUnicodeLiteralPrefix 제거. 호출처 0(mcm·mdm·mls grep, mdm 의 isSqlite 는 자기 private). 확인: :mcm-core·:mcm:lib compileTestJava exit 0, clone 전체 117클래스·1227건 실패 0·건너뜀 2(옮긴 SQLite 시험 5건 빠짐).
 4. ③c(머지 dev e3943844f — 조정 지시 10-07 — ora-mdm E2E 실측 mcm 연결 풀 고갈 교착): 원인은 OASIS txBiz 가 시작할 때 물리 연결을 잡고(READ_COMMITTED 지정 → HibernateJpaDialect.beginTransaction), SecWidgetService.search 가 그 연결을 쥔 채 NOT_SUPPORTED 로 내려가 범위 EM·CRUD readOnly 트랜잭션으로 연결을 더 받은 것(요청당 2~3개). 수정: 읽기는 바깥에 합류, 옛 행 이전 쓰기만 NOT_SUPPORTED + 비차단 1개(못 얻으면 건너뜀). 위젯 SQL 공유 모드는 local yml 에 전용 풀(MCMAPUSER, 최대 2·유휴 0·idleTimeout 10초). 채팅은 주석만. 회귀 시험 SecWidgetPoolExhaustionJpaTest(A 조회만 5명·B 이전 2명·C 이전 풀 크기)와 공유 모드 시험. 결정 3건은 조정 답(10-07, 모두 기본안).
 4-1. ③d(사용자 결정 「메인만 8 + 감지 유지」, 10-07): mcm JpaConfig.dataSource() 가 spring.datasource.hikari 의 minimum-idle·idle-timeout·leak-detection-threshold 를 읽는다(없으면 Hikari 기본 — 종전 동작). local yml 은 최대 3 그대로 + 쉬는 연결 0·유휴 30초·누수 감지 30초. 메인 로컬 서버만 기동 env SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=8(ora-base 기동 스크립트). 실측(최대 8): 기동 직후 연결 1, 3초 뒤 1(더 채우지 않음), 6개 쓰고 돌려준 뒤 55초까지 6, 60초에 0(유휴 30초 + Hikari 정리 주기 30초).
-5. 머지④ 뒤: SqliteTemporalConverterContributor·LocalDate(Time)AttributeConverter 정리(조정 지시).
+5. ~~③e~~ 완료(머지④ dev 7b0b18e73 뒤, 10-07): SqliteTemporalConverterContributor·LocalDate(Time)AttributeConverter → `mcm-core/archive/main/persistence/`. 코드·yml 호출처 0(문서 언급만), 변환기는 @Converter 가 없어 자동 적용 대상도 아니었다. 확인: mcm-core·mcm:lib·mcm:api·mdm:api·mls:api 컴파일, clone EntitySchemaValidate 1·oracheck 45(건너뜀 2)·mcm/api Notice·MenuCatalog·config 17 통과.
+6. Lazy 프록시 검토(조정 지시, 브랜치 feat/ora-mcm-lazy-ds — 머지하지 않고 사용자 결정): 설계 메모 docs/oracle-1007/design-mcm-lazy-ds.md(그 브랜치)와 채팅 LLM 대기 중 연결 수 회귀 시험.
 
 ## 결정
 
@@ -122,6 +123,8 @@ c2 로 넘길 것(이 레인):
 - LazyConnectionDataSourceProxy 앱 전역 도입 검토(③c 조정 결정 3): 위젯 채팅 send·reset 은 LLM 응답을 기다리는 동안 OASIS 바깥 txBiz 연결과 NOT_SUPPORTED 범위 EM 연결, 최대 3개를 쥔다. 바깥 연결은 DataSource 층 지연 획득으로만 없앨 수 있다(Hibernate 설정으로는 불가 — OASIS 가 READ_COMMITTED 를 지정). 도입하면 Hikari·JNDI 경로를 모두 감싸고, WidgetReadOnlyJdbc.evict(Hikari 연결 클래스만 내보냄)와 종료 close 위임을 함께 고쳐야 한다.
 
 - mdm·mls 쉬는 연결(③d 조정 지시로 사실만 기록): 두 모듈은 기본 DataSource 를 직접 만들지 않아(HikariDataSource 생성 코드 없음) spring.datasource.hikari.* 가 그대로 먹는다. 다만 local yml 에 minimum-idle 이 없어 Hikari 기본(쉬는 연결 = 최대치)대로 연결을 늘 열어 둔다.
+
+- 시험 하니스 함정(③e 실측): `:mcm-core:test` 와 `:mcm:api:test` 를 한 gradle 실행에 묶으면 두 모듈이 같은 시험 PDB 를 함께 쓰면서 번갈아 돈다. mcm 시험 틀(McmOraTestDb)이 Flyway clean 을 하므로 mcm-core 시험이 ORA-00942 로 깨진다. 모듈마다 따로 돌린다(조정에 보고).
 
 ## 다음 단계
 

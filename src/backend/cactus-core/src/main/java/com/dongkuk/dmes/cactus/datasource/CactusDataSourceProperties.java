@@ -14,20 +14,20 @@ import java.util.Map;
  *     primary-alias: biz                           # 옵션 β (1.0.21) — Spring Boot dataSource 빈을 'biz' alias
  *     extras:                                      # Map<name, DataSourceProps> — N개 보조 DS (1.0.21)
  *       cmn:
- *         url: jdbc:sqlserver://prod-cmn-db/...
+ *         url: jdbc:oracle:thin:@//prod-cmn-db:1521/SERVICE
  *         username: ...
  *         password: ...
- *         driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+ *         driver-class-name: oracle.jdbc.OracleDriver
  *         maximum-pool-size: 10
  *       if:
- *         url: jdbc:sqlserver://localhost:1433;databaseName=CARAVANUSER;...
- *         username: seraiuser
+ *         url: jdbc:oracle:thin:@//localhost:1521/FREEPDB1
+ *         username: EAIUSER
  *         password: ...
- *         driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+ *         driver-class-name: oracle.jdbc.OracleDriver
  *         maximum-pool-size: 5
  *
  *     secondary:                                   # @Deprecated (1.0.20). 1.0.22 에서 제거 — extras 로 이전
- *       url: jdbc:sqlserver://...
+ *       url: jdbc:oracle:thin:@//host:1521/SERVICE
  *       driver-class-name: ...
  *       username: ...
  *       password: ...
@@ -94,7 +94,7 @@ public class CactusDataSourceProperties {
         private Long idleTimeout;
         private Long maxLifetime;
         private String poolName;
-        /** WildFly 등 컨테이너 관리 DataSource 의 JNDI 이름 (예: java:/jdbc/mssql/mcm/dsCmn). 설정 시 JNDI lookup 경로. */
+        /** WildFly 등 컨테이너 관리 DataSource 의 JNDI 이름 (예: java:/jdbc/mcm/dsCmn). 설정 시 JNDI lookup 경로. */
         private String jndiName;
 
         public String getUrl() { return url; }

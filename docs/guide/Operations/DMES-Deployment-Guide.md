@@ -114,12 +114,124 @@ dmes-backend-<releaseId>.zip
 
 dev 자동 DDL은 진단 편의일 뿐 승격 artifact가 아니다. 각 모듈의 schema diff를 versioned DDL/migration으로 만들고 빈 DB, 기존 DB upgrade, 운영유사 clone에서 같은 checksum을 검증한다.
 
-> **주의: WildFly 프로필의 SQL Server 설정**: MCM과 Caravan Hub의 `application-wildfly.yml`은 지금도 SQL Server 방언(`org.hibernate.dialect.SQLServerDialect`)과 `java:/jdbc/mssql/{모듈}/{DS}` 형식의 JNDI 이름을 쓴다. dmes-ksm(MSSQL) 이관 시절 설정이며 운영 대상은 Oracle 또는 PostgreSQL이므로, 운영 전에 방언·JNDI 이름·드라이버 모듈을 운영 DB에 맞게 바꿔야 한다.
+WildFly 프로필의 데이터소스 구성은 [2.5](#25-wildfly-데이터소스oracle)에 따른다.
 
 MPN은 ERP DB를 변경하지 않으며 기존 IF 팀이 제공하는 계약 경계 밖의 `EAIUSER` schema도 MPN migration으로
 소유하지 않는다. MPN 최초 구축 lineage의 대상은 `MPNAPUSER` 업무 schema다. 상세 분류·baseline 예외·전환
 순서는 [ADR-0058](../../aps/design/adr/0058-mpn-database-clean-build-and-if-boundary.md)을 따른다.
 
+
+### 2.5 WildFly 데이터소스(Oracle)
+
+운영 DB는 Oracle 26ai이다(oracle-1007, [docs/oracle-1007/README.md](../../oracle-1007/README.md)). MCM과 Caravan Hub의 `application-wildfly.yml`은 `org.hibernate.dialect.OracleDialect`와 `java:/jdbc/{모듈}/{DS}` 형식의 JNDI 이름만 쓰며 URL·계정·비밀번호·드라이버 클래스는 갖지 않는다. 물리 접속과 풀은 WildFly 설정이 소유한다. 이전 구성(SQL Server 방언, `java:/jdbc/mssql/{모듈}/{DS}` 이름, mssql 드라이버 모듈)은 oracle-1007에서 제거되었다.
+
+#### 2.5.1 ojdbc 모듈 등록
+
+드라이버는 `com.oracle.database.jdbc:ojdbc11`이다. 저장소는 이 라이브러리의 버전을 `libs.versions.toml`에 고정하지 않고 Spring Boot 4.0.6 BOM에 맡긴다(`src/backend/gradle/libs.versions.toml`). 따라서 WildFly에 올릴 jar 버전은 릴리스 빌드에 실제로 해석된 버전(`dependencies` 결과 또는 `release-manifest.json`의 라이브러리 버전)과 맞춘다.
+
+모듈 이름 `com.oracle.jdbc`는 Oracle 드라이버 모듈에 흔히 쓰는 관례이며 저장소나 WildFly가 정한 이름이 아니다. 다른 이름을 써도 되지만 드라이버 등록 명령의 `driver-module-name`과 같아야 한다.
+
+jboss-cli로 등록하는 예시이다(오프라인이면 `--offline`).
+
+```bash
+module add --name=com.oracle.jdbc \
+  --resources=/opt/jdbc/ojdbc11-<해석된 버전>.jar \
+  --dependencies=javax.api,jakarta.transaction.api
+
+/subsystem=datasources/jdbc-driver=oracle:add( \
+  driver-name=oracle, \
+  driver-module-name=com.oracle.jdbc, \
+  driver-class-name=oracle.jdbc.OracleDriver, \
+  driver-xa-datasource-class-name=oracle.jdbc.xa.client.OracleXADataSource)
+```
+
+module.xml을 직접 만들 때는 `modules/system/layers/base/com/oracle/jdbc/main/` 아래에 jar와 함께 둔다.
+
+```xml
+<module xmlns="urn:jboss:module:1.9" name="com.oracle.jdbc">
+  <resources>
+    <resource-root path="ojdbc11-<해석된 버전>.jar"/>
+  </resources>
+  <dependencies>
+    <module name="javax.api"/>
+    <module name="jakarta.transaction.api"/>
+  </dependencies>
+</module>
+```
+
+#### 2.5.2 standalone.xml(또는 domain.xml) 데이터소스
+
+MCM은 JNDI 4개를, Caravan Hub는 그중 `dsCaravan`과 `dsIF`를 MCM과 같은 이름으로 재사용한다. Caravan Hub 전용 서버 그룹이 MCM과 같은 domain 프로파일을 쓰면 별도 정의 없이 이미 존재한다. 근거는 `src/backend/mcm/api/src/main/resources/application-wildfly.yml`과 `src/backend/caravan-hub/src/main/resources/application-wildfly.yml`이다.
+
+| JNDI 이름(기본값) | 스키마 사용자 | 쓰는 앱 | 이름을 덮어쓰는 변수 |
+|---|---|---|---|
+| `java:/jdbc/mcm/dsBiz` | `MCMAPUSER` | MCM 업무 | `JNDI_DS_BIZ` |
+| `java:/jdbc/mcm/dsCmn` | `MCMAPUSER`(biz와 같은 물리 DB) | MCM 공통 | `JNDI_DS_CMN` |
+| `java:/jdbc/mcm/dsIF` | `EAIUSER` | MCM·Caravan Hub 인터페이스 | `JNDI_DS_IF` |
+| `java:/jdbc/mcm/dsCaravan` | `CARAVANUSER` | MCM Kafka 메타·Caravan Hub | `JNDI_DS_CARAVAN`(Caravan Hub의 mst는 `JNDI_DS_MST`로도 가능) |
+
+스키마 사용자와 소유 관계는 [docs/oracle-1007/schema-owners.md](../../oracle-1007/schema-owners.md)를 따른다. 이름 변수는 `-D` 시스템 속성이나 환경변수로 넣는다. 서버마다 이름이 다를 때만 쓰고, 기본값은 모든 WildFly(개발계·운영계)에서 같은 논리 이름이다.
+
+네 데이터소스 모두 반드시 `jta="false"`로 정의한다. resource-local 트랜잭션과 충돌하는 것을 막기 위해서다(Caravan Hub `application-wildfly.yml`의 원칙). `connection-url`은 `jdbc:oracle:thin:@//호스트:1521/서비스` 형식이며 서비스 이름은 운영 DB가 알려 주는 값이다.
+
+```xml
+<subsystem xmlns="urn:jboss:domain:datasources:7.2">
+  <datasources>
+    <datasource jndi-name="java:/jdbc/mcm/dsBiz" pool-name="mcmDsBiz" jta="false" use-java-context="true" enabled="true">
+      <connection-url>jdbc:oracle:thin:@//<호스트>:1521/<서비스></connection-url>
+      <driver>oracle</driver>
+      <security user-name="MCMAPUSER" password="${VAULT::...}"/>
+    </datasource>
+    <datasource jndi-name="java:/jdbc/mcm/dsCmn" pool-name="mcmDsCmn" jta="false" use-java-context="true" enabled="true">
+      <connection-url>jdbc:oracle:thin:@//<호스트>:1521/<서비스></connection-url>
+      <driver>oracle</driver>
+      <security user-name="MCMAPUSER" password="${VAULT::...}"/>
+    </datasource>
+    <datasource jndi-name="java:/jdbc/mcm/dsCaravan" pool-name="mcmDsCaravan" jta="false" use-java-context="true" enabled="true">
+      <connection-url>jdbc:oracle:thin:@//<호스트>:1521/<서비스></connection-url>
+      <driver>oracle</driver>
+      <security user-name="CARAVANUSER" password="${VAULT::...}"/>
+    </datasource>
+    <datasource jndi-name="java:/jdbc/mcm/dsIF" pool-name="mcmDsIF" jta="false" use-java-context="true" enabled="true">
+      <connection-url>jdbc:oracle:thin:@//<호스트>:1521/<서비스></connection-url>
+      <driver>oracle</driver>
+      <security user-name="EAIUSER" password="${VAULT::...}"/>
+    </datasource>
+    <drivers>
+      <driver name="oracle" module="com.oracle.jdbc">
+        <driver-class>oracle.jdbc.OracleDriver</driver-class>
+        <xa-datasource-class>oracle.jdbc.xa.client.OracleXADataSource</xa-datasource-class>
+      </driver>
+    </drivers>
+  </datasources>
+</subsystem>
+```
+
+비밀번호 값은 문서·저장소·설정 파일 평문에 적지 않는다. WildFly vault 또는 credential store 표현식, 혹은 환경변수 표현식(`${env.<변수명>}`)으로 넘긴다. 풀 크기·검증 설정은 운영 환경 매트릭스에서 정한다. 위 xml의 `urn:jboss:domain:datasources` 버전 문자열과 `<driver>` 정의가 WildFly 40의 스키마와 맞는지는 대상 서버의 `jboss-cli`로 `data-source add`를 실행해 생성된 결과로 확정한다.
+
+#### 2.5.3 스키마는 DBA가 사전 적용한다
+
+WildFly 프로필에서는 Flyway를 끈다(`spring.flyway.enabled=false`). MCM은 스키마별 Flyway(`McmFlywayConfig`)도 `dmes.flyway.enabled=false`로 끈다. 운영 계정에 마이그레이션이 도는 사고를 막기 위해서이며, 앱은 기동할 때 DDL을 실행하지 않고 `ddl-auto=none`으로 동작한다.
+
+DBA는 각 모듈 `db/migration`의 `V` 파일을 배포 전에 해당 스키마에 미리 적용한다.
+
+| 모듈 | `V` 파일 위치 |
+|---|---|
+| mcm-core | `src/backend/mcm-core/src/main/resources/db/migration/oracle/<스키마>/`(`mcmapuser`, `mcaapuser`, `mcm_source`, `mcm_backup`) |
+| caravan-hub | `src/backend/caravan-hub/src/main/resources/db/migration/caravanuser/`, `.../ifuser/` |
+
+`EAIUSER`는 표를 갖지 않는 접속 전용 사용자이며 `IFUSER` 표에 대한 GRANT를 caravan-hub 마이그레이션이 부여한다(`schema-owners.md` 참조). 스키마마다 Flyway 주인 앱은 하나이므로 같은 스키마에 다른 모듈의 `V` 파일을 겹쳐 적용하지 않는다.
+
+#### 2.5.4 쿼리 위젯 전용 읽기 계정과 `WIDGET_QUERY_REQUIRE_DEDICATED`
+
+쿼리 위젯은 사용자가 화면에서 만든 SQL을 실행한다. 실행기는 읽기 전용 트랜잭션과 SQL 검사로 쓰기를 막지만, Oracle의 읽기 전용 트랜잭션은 이미 존재하는 자율 트랜잭션 함수(`PRAGMA AUTONOMOUS_TRANSACTION`)의 쓰기와 DB 링크 너머의 실행을 막지 못한다(2026-10-07 Oracle 26ai 실측). 그래서 계정 권한이 근본 방어선이다.
+
+- `WIDGET_QUERY_REQUIRE_DEDICATED`는 `src/backend/mcm/api/src/main/resources/application-prod.yml`에서 `dmes.widget.query.require-dedicated`로 연결되며 기본값은 `true`이다. `true`이면 위젯 전용 DataSource(`dmes.widget.query.datasource.*`)가 없을 때 쿼리 위젯의 시험·저장 검사·실행을 모두 거절하고, 앱 기본 계정으로 도는 일을 막는다. 급히 풀어야 할 때만 환경변수로 `false`를 준다.
+- 이 키는 `wildfly` 프로필이 아니라 `prod` 프로필에만 있다. `wildfly`에 두면 dev도 그룹으로 `wildfly`를 켜므로 dev까지 켜지기 때문이다. 코드 기본값(`WidgetQueryProperties`)은 `false`이므로 `prod` 프로필 없이 띄우면 꺼져 있다.
+- 전용 DataSource에는 읽기 권한만 가진 전용 계정을 쓴다. 개발계와 운영계 WildFly에는 위젯 SQL 전용 JNDI 데이터소스를 따로 만들고(가능하면 읽기 전용 계정, 작은 풀) 환경변수 `WIDGET_QUERY_DS_JNDI`(`dmes.widget.query.datasource.jndi-name`)에 그 JNDI 이름을 넣는다. 컨테이너 풀을 쓰면 이것만 쓴다. 직결이면 `WIDGET_QUERY_DS_URL`·`WIDGET_QUERY_DS_USERNAME`과 환경변수 `WIDGET_QUERY_DS_PASSWORD`로 넣는다.
+- `WIDGET_QUERY_DS_JNDI`를 앱 기본 데이터소스(`java:/jdbc/mcm/dsBiz`·`dsCmn`)로 지정하지 않는다. 위젯 SQL과 업무 요청이 같은 연결 풀을 쓰게 되어, 위젯 쿼리가 오래 걸리거나 몰리면 풀이 고갈되어 교착이 날 수 있다. JNDI 이름은 운영에서 정하며 이 문서가 고정하지 않는다. 이름 예시는 계정 `READ_WIDGET`, JNDI `java:/jdbc/mcm/dsWidgetRead`이며 임의로 정한 값이다.
+- 이 계정에는 SELECT 권한만 준다. 자율 트랜잭션을 쓰는 함수·프로시저의 EXECUTE 권한과 DB 링크 사용 권한은 주지 않는다. 쓰기 계정(`MCMAPUSER` 등)을 재사용하지 않는다.
+- 근거는 `docs/oracle-1007/memo-ora-mcm-core.md`의 「운영 안내」 절, `src/backend/mcm-core/src/main/java/com/dongkuk/dmes/mcm/widget/query/WidgetQueryProperties.java`와 `SqlGuard.java`의 주석이다. 전용 DataSource가 없는 상태에서 `true`이면 위젯 실행이 거절되며 안내 문구도 같은 제한을 알려 준다.
 ---
 
 ## 3. Frontend 배포
@@ -613,7 +725,7 @@ destructive down migration은 DBA 승인 없이 실행하지 않는다.
 
 | ID | 차단사항 | 필요한 조치 |
 |---|---|---|
-| DEP-BE-001 | MPN MSSQL V1 placeholder와 불완전한 최초 구축 계보 | V2~V21·V32 중복까지 정규화한 clean lineage, 빈 DB/clone 검증 |
+| DEP-BE-001 | MPN 이전 SQL Server V1 placeholder와 불완전한 최초 구축 계보(Oracle V1 기준선으로 대체됨, oracle-1007 p3) | V2~V21·V32 중복까지 정규화한 clean lineage, 빈 DB/clone 검증 |
 | DEP-BE-002 | MPN 공유 DB runner/profile 전환 미완 | DBA runner 선적용, application Flyway OFF·자동 baseline 금지·runtime DDL 거부 원자 전환 |
 | DEP-BE-003 | MCM prod multi-datasource 정합 미완 | EAI/CARAVAN datasource·transaction boot test |
 | DEP-BE-004 | MPP/MQC dev DB 기본값이 MCM 계정 | 모듈 전용 계정·환경변수 의무화 |

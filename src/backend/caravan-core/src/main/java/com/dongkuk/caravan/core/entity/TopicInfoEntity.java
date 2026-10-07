@@ -89,7 +89,10 @@ public class TopicInfoEntity extends CaravanAuditBase {
     public void updateMeta(String topicDesc, String groupId, String sendModuleId,
                            String recvModuleId, String useTp) {
         this.topicDesc = topicDesc;
-        this.groupId = groupId;
+        // GROUP_ID 는 NOT NULL 이고 Oracle 은 빈 문자열을 NULL 로 저장하므로, 빈 값이 오면 기존 값을 유지한다.
+        if (groupId != null && !groupId.isBlank()) {
+            this.groupId = groupId;
+        }
         this.sendModuleId = sendModuleId;
         this.recvModuleId = recvModuleId;
         if (useTp != null && !useTp.isBlank()) {

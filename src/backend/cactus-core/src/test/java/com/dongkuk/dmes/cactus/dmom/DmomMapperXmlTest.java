@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       {@code #{...}}/{@code ${...}} 플레이스홀더 구문 검증.</li>
  * </ol>
  *
- * <p><b>한계</b>: MSSQL SQL 의미({@code TOP}/{@code GETDATE()}/{@code NEXT VALUE FOR}/JOIN) 검증은
+ * <p><b>한계</b>: Oracle SQL 의미({@code FETCH FIRST}/{@code CURRENT_TIMESTAMP}/{@code NEXTVAL}/JOIN) 검증은
  * 실DB 필요(Phase 5). MyBatis 는 SQL 본문을 불투명 텍스트로 취급하므로 본 테스트로는 못 잡는다.
  */
 class DmomMapperXmlTest {
