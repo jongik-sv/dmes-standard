@@ -21,9 +21,10 @@ pn="$(command -v node)" && ln -sf "$pn" "$tmp/nojq/node"
 pj="$(command -v jq 2>/dev/null)" && ln -sf "$pj" "$tmp/nonode/jq"
 HAVE_JQ=0; [ -n "$pj" ] && HAVE_JQ=1
 
+# 윈도우에서는 훅이 동봉 jq(_shared/bin)를 PATH 앞에 다시 붙여 "jq 없음" 경로를 시험할 수 없다 — 리눅스로 판별하게 해 머리말을 건너뛴다.
 guard() { # guard <경로 폴더|-> <json>  → rc 와 stderr 를 $tmp/err 로
-  if [ "$1" = - ]; then printf '%s' "$2" | /bin/sh "$GUARD" 2>"$tmp/err" >/dev/null
-  else printf '%s' "$2" | PATH="$1" /bin/sh "$GUARD" 2>"$tmp/err" >/dev/null; fi
+  if [ "$1" = - ]; then printf '%s' "$2" | COMPAT_FORCE_OS=linux /bin/sh "$GUARD" 2>"$tmp/err" >/dev/null
+  else printf '%s' "$2" | COMPAT_FORCE_OS=linux PATH="$1" /bin/sh "$GUARD" 2>"$tmp/err" >/dev/null; fi
   return $?
 }
 B() { # B <command JSON 문자열> [timeout JSON 값] [background]

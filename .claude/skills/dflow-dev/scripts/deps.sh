@@ -231,7 +231,7 @@ if [ -n "$MAIN" ] && [ "$(cd "$MAIN" && pwd -P)" != "$(pwd -P)" ]; then
   if [ "$DEPS_WIN" = 1 ]; then
     LINK_OUT="$(link_ignored_symlinks)"
     [ -z "$LINK_OUT" ] || printf '%s\n' "$LINK_OUT"
-    printf '%s\n' "$LINK_OUT" | grep -q '^DEPS_LINK ' || echo "DEPS_WARN 윈도우(Git Bash): 의존성 링크(gitignore 된 심링크 복제)가 한 건도 걸리지 않았다 — ln -s 는 복사를 만들어 메인의 심링크가 보이지 않는다. 외부 설계 문서 링크 같은 것이 필요하면 직접 복사하거나 개발자 모드 + MSYS=winsymlinks:nativestrict 로 메인에 심링크를 만든 뒤 다시 부른다"
+    printf '%s\n' "$LINK_OUT" | grep -q '^DEPS_LINK ' || echo "DEPS_WARN 윈도우(Git Bash): 의존성 링크(gitignore 된 심링크 복제)가 한 건도 걸리지 않았다(이미 있거나 메인에 원래 없으면 무시해도 된다) — 윈도우는 ln -s 가 복사를 만들어 메인의 심링크가 보이지 않을 수 있다. 외부 설계 문서 링크 같은 것이 필요하면 직접 복사하거나 개발자 모드 + MSYS=winsymlinks:nativestrict 로 메인에 심링크를 만든 뒤 다시 부른다"
   else
     link_ignored_symlinks
   fi

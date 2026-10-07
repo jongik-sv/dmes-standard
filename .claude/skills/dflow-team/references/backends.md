@@ -1,6 +1,6 @@
 # /dflow-team 백엔드: spawn·정리 명령 정본
 
-> **윈도우는 Orca 백엔드 전제**: 윈도우(Git Bash)의 팀장은 **pane(Orca)** 로 돌린다(Orca 안에서 시작). tmux 판은 MSYS2 tmux 가 Git Bash 에서 도는지 검증한 적이 없어(「플랫폼」 절, 검증 전까지는 「돌 수도 있다」) 윈도우 지원 경로로 보지 않고, Orca 도 tmux 도 없으면 `NO_TMUX` 로 시작을 거부한다. 윈도우에서는 `CLAUDE_PID`(팀장 세션 PID)도 필수다.
+> **윈도우는 Orca 백엔드 전제**: 윈도우(Git Bash)의 팀장은 **pane(Orca)** 로 돌린다(Orca 안에서 시작). tmux 판은 MSYS2 tmux 가 Git Bash 에서 도는지 검증한 적이 없어(「플랫폼 차이」 절, 검증 전까지는 「돌 수도 있다」) 윈도우 지원 경로로 보지 않고, Orca 도 tmux 도 없으면 `NO_TMUX` 로 시작을 거부한다. 윈도우에서는 `CLAUDE_PID`(팀장 세션 PID)도 설정하는 것이 좋다(없으면 `heavy.sh` 가 `HEAVY_WARN` 을 낸다).
 
 SKILL.md 「0. 환경 감지」 가 백엔드를 고른다. 팀장이 Orca 안에 있으면 **pane(Orca)**, 밖이면 **pane(tmux)** 다. 워커
 프롬프트·`.result` 계약·`/dflow-dev --worker` 는 두 백엔드가 같고, 가르는 것은 아래 차이표뿐이다. 근거·이력은

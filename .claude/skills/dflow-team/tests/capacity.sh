@@ -70,5 +70,15 @@ case "$(uname -s)" in
   *) has "max: RAM 을 못 읽으면 ram=?GB(기본 k=2)" "$r" "ram=?GB" ;;
 esac
 
+# 가짜가 아닌 진짜 node 로: node_os 의 JS 본문(freemem 비율·범위 검사)이 0~100 정수를 내는지 본다.
+if command -v node >/dev/null 2>&1; then
+  r="$(DFLOW_CAP_OS=windows DFLOW_HEAVY_BIN="$tmp/heavy.sh" bash "$CAP" 2>&1)"
+  case "$r" in
+    CAPACITY_OK\ free=[0-9]*%*|CAPACITY_LOW*free=[0-9]*%*) f="$(printf '%s' "$r" | sed -n 's/.*free=\([0-9]*\)%.*/\1/p')"
+      if [ -n "$f" ] && [ "$f" -ge 0 ] && [ "$f" -le 100 ]; then chk ok "진짜 node: free=${f}% 는 0~100"; else chk fail "진짜 node: free 범위" "$r"; fi ;;
+    *) chk fail "진짜 node: 판정 줄 형식" "$r" ;;
+  esac
+fi
+
 echo "통과 $pass · 실패 $fail"
 [ "$fail" = 0 ]

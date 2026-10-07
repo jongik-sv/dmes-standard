@@ -859,12 +859,12 @@ cmd_run_exclusive() {
 
 cmd_acquire() {
   local o h rc
-  warn_owner_fallback
   # 감싼 실행 안에서 부르면 그 실행의 슬롯을 쓴다 — 쥔 슬롯 위에서 두 번째 슬롯을 기다리지 않는다(교착 불변식).
   # 그 슬롯은 감싼 실행이 끝나면 풀리므로, 서버는 그 실행 안에서 끄고 끝낸다.
   if [ -n "${DFLOW_HEAVY_HELD:-}" ] && [ -d "$DFLOW_HEAVY_HELD" ]; then
     echo "HEAVY_ACQUIRED $(basename "$DFLOW_HEAVY_HELD") (감싼 실행의 슬롯) k=$K" >&2; exit 0
   fi
+  warn_owner_fallback
   o=$(owner_pid)
   h=$(held_by "$o" | head -n 1)
   if [ -n "$h" ]; then excl_drop_gap "$o"; echo "HEAVY_ACQUIRED $(basename "$h") (이미 보유) owner=$o" >&2; exit 0; fi
