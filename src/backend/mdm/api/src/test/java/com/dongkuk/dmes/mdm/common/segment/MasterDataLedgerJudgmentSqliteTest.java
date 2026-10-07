@@ -57,7 +57,7 @@ import org.springframework.test.context.ActiveProfiles;
  *
  * <p>05 마루 데이터 판정(MASTER_AT)은 MDM 서버 자신이 운영 빈으로 켜는 기능이 아니다({@link MasterLookup}, D-077/D5,
  * "04 원장 미구축" D2 — 05 도 같다). {@link MasterDataResolver} 는 이미 "행 공급 함수"를 인자로 받는 일반 구현이라, 이
- * 함수 인자에 이 시험 코드 안에서만 조립한 {@link JdbcTemplate} 조회를 꽂아 원장(SQLite 테스트 DB)을 직접 읽는다 —
+ * 함수 인자에 이 시험 코드 안에서만 조립한 {@link JdbcTemplate} 조회를 꽂아 원장(Oracle 시험 DB)을 직접 읽는다 —
  * 운영 {@code MasterLookup} 빈은 새로 등록하지 않는다(G0).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -274,8 +274,9 @@ class MasterDataLedgerJudgmentSqliteTest extends AbstractMdmSharedDbTest {
             return null;
         }
         String status = (String) hdr.get(0).get("STATUS");
-        String closedAtText = (String) hdr.get(0).get("CLOSED_AT");
-        LocalDateTime closedAt = closedAtText == null ? null : parse(closedAtText);
+        // TIMESTAMP 칸은 Oracle 이 java.sql.Timestamp 로 준다
+        java.sql.Timestamp closedAtRaw = (java.sql.Timestamp) hdr.get(0).get("CLOSED_AT");
+        LocalDateTime closedAt = closedAtRaw == null ? null : closedAtRaw.toLocalDateTime();
 
         List<DataItemRow> items = jdbc.query(
                 "SELECT CODE, NAME, ALTER_NAME, SEQ, LVL1, LVL2, LVL3, LVL4, LVL5, "
@@ -289,27 +290,27 @@ class MasterDataLedgerJudgmentSqliteTest extends AbstractMdmSharedDbTest {
                                 rs.getString("ATTR04"), rs.getString("ATTR05"), rs.getString("ATTR06"),
                                 rs.getString("ATTR07"), rs.getString("ATTR08"), rs.getString("ATTR09"),
                                 rs.getString("ATTR10")),
-                        parse(rs.getString("VALID_FROM")), parse(rs.getString("VALID_TO"))),
+                        ts(rs, "VALID_FROM"), ts(rs, "VALID_TO")),
                 maruDataId);
 
         List<DataCateRow> categories = jdbc.query(
                 "SELECT CATE_ID, DEF_KIND, DEF_EXPR, DEF_TARGET, VALID_FROM, VALID_TO FROM TB_MDM_DATA_CATE "
                         + "WHERE MARU_DATA_ID = ?",
                 (rs, n) -> new DataCateRow(rs.getString("CATE_ID"), rs.getString("DEF_KIND"), rs.getString("DEF_EXPR"),
-                        rs.getString("DEF_TARGET"), parse(rs.getString("VALID_FROM")), parse(rs.getString("VALID_TO"))),
+                        rs.getString("DEF_TARGET"), ts(rs, "VALID_FROM"), ts(rs, "VALID_TO")),
                 maruDataId);
 
         List<DataCateItemRow> cateItems = jdbc.query(
                 "SELECT CATE_ID, CODE, VALID_FROM, VALID_TO FROM TB_MDM_DATA_CATE_ITEM WHERE MARU_DATA_ID = ?",
                 (rs, n) -> new DataCateItemRow(rs.getString("CATE_ID"), rs.getString("CODE"),
-                        parse(rs.getString("VALID_FROM")), parse(rs.getString("VALID_TO"))),
+                        ts(rs, "VALID_FROM"), ts(rs, "VALID_TO")),
                 maruDataId);
 
         return new MasterDataRows(new DataHeader(maruDataId, status, closedAt), items, categories, cateItems);
     }
 
-    private static LocalDateTime parse(String text) {
-        return LocalDateTime.parse(text, TEXT);
+    private static LocalDateTime ts(java.sql.ResultSet rs, String column) throws java.sql.SQLException {
+        return rs.getTimestamp(column).toLocalDateTime();
     }
 
     private static LocalDateTime dt(String iso) {

@@ -34,7 +34,9 @@ import com.dongkuk.dmes.mdm.dmc.codeConfirm.service.CodeConfirmService;
 import com.dongkuk.dmes.mdm.dmc.codeMng.dto.CodeMngRow;
 import com.dongkuk.dmes.mdm.dmc.codeMng.dto.CodeMngSearchRequest;
 import com.dongkuk.dmes.mdm.dmc.codeMng.service.CodeMngService;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -69,6 +71,7 @@ class CodeConfirmServiceSqliteTest extends AbstractMdmSharedDbTest {
 
     private static final long RV = 3L;
     private static final String PREV_FROM = "2026-01-01 00:00:00";
+    private static final DateTimeFormatter TEXT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Autowired
     CodeConfirmService service;
@@ -125,7 +128,8 @@ class CodeConfirmServiceSqliteTest extends AbstractMdmSharedDbTest {
 
     /** VER 표 전체 모습 — "ver|status|applyFrom|applyTo|rowVersion". 거부 뒤 불변 단언(I19). */
     private List<String> verState(String id) {
-        return jdbc.query("SELECT VER, STATUS, APPLY_FROM, APPLY_TO, ROW_VERSION FROM TB_MDM_CODE_VER "
+        return jdbc.query("SELECT VER, STATUS, TO_CHAR(APPLY_FROM, 'YYYY-MM-DD HH24:MI:SS'), "
+                        + "TO_CHAR(APPLY_TO, 'YYYY-MM-DD HH24:MI:SS'), ROW_VERSION FROM TB_MDM_CODE_VER "
                         + "WHERE MARU_CODE_ID = ? ORDER BY VER",
                 (rs, i) -> MasterCodeFixtures.fmt(rs.getBigDecimal(1)) + "|" + rs.getString(2) + "|" + rs.getString(3)
                         + "|" + rs.getString(4) + "|" + rs.getLong(5), id);
@@ -134,7 +138,14 @@ class CodeConfirmServiceSqliteTest extends AbstractMdmSharedDbTest {
     private Map<String, Object> verRow(String id, String ver) {
         return jdbc.queryForList("SELECT * FROM TB_MDM_CODE_VER WHERE MARU_CODE_ID = ?", id).stream()
                 .filter(r -> MasterCodeFixtures.fmt(new java.math.BigDecimal(r.get("VER").toString())).equals(ver))
-                .findFirst().orElseThrow();
+                .findFirst().map(CodeConfirmServiceSqliteTest::timestampsAsText).orElseThrow();
+    }
+
+    /** TIMESTAMP 칸(Timestamp 로 온다)을 19자 텍스트로 바꾼다 — 단언이 {@code yyyy-MM-dd HH:mm:ss} 문자열로 비교한다. */
+    private static Map<String, Object> timestampsAsText(Map<String, Object> row) {
+        Map<String, Object> out = new java.util.LinkedHashMap<>(row);
+        out.replaceAll((k, v) -> v instanceof Timestamp t ? t.toLocalDateTime().format(TEXT) : v);
+        return out;
     }
 
     private String storedStatus(String id) {

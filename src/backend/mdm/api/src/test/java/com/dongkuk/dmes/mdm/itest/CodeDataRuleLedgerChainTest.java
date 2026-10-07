@@ -12,6 +12,7 @@ import com.dongkuk.dmes.mdm.common.rule.definition.SingleRuleDefinitionLookup;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions.Stored;
 import com.dongkuk.dmes.mdm.common.support.MdmTemporalBinder;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,10 +22,11 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Path;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -36,15 +38,12 @@ import kr.dongkuk.maru.mdm.engine.spi.FunctionProvider;
 import kr.dongkuk.maru.mdm.engine.spi.MasterLookup;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-09-03 design.md §3 B3 — CODE 참조 → 코드 확정 → 데이터 등록 → 룰 MASTER 확정 → 원장 기준 판정 일치까지 한 흐름으로
@@ -62,15 +61,12 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = "cactus.security.client-key=" + CodeDataRuleLedgerChainTest.CLIENT_KEY)
 @ActiveProfiles("local")
-class CodeDataRuleLedgerChainTest {
+class CodeDataRuleLedgerChainTest extends AbstractMdmSharedDbTest {
 
     static final String CLIENT_KEY = "mdm-itest-chain-client-key";
     private static final String STEWARD = "MDM_STEWARD";
     private static final String STD_ADMIN = "MDM_STD_ADMIN";
-    private static final DateTimeFormatter SQLITE_TEXT = DateTimeFormatter.ofPattern(MdmTemporalBinder.TEXT_PATTERN);
-
-    @TempDir
-    static Path tempDir;
+    private static final DateTimeFormatter TEXT_FORMAT = DateTimeFormatter.ofPattern(MdmTemporalBinder.TEXT_PATTERN);
 
     @LocalServerPort
     int port;
@@ -85,12 +81,6 @@ class CodeDataRuleLedgerChainTest {
     private final HttpClient client = HttpClient.newHttpClient();
     private final ObjectMapper json = new ObjectMapper();
     private JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-itest-chain.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {
@@ -133,7 +123,7 @@ class CodeDataRuleLedgerChainTest {
         assertTrue(hasW02, "CodeLookup 운영 빈이 없는데도 W02 가 없다(D-077 전제가 바뀌었다): " + domainSaved);
 
         // ── 3) dmc/codeConfirm.confirm — 1번 DRAFT(1.000)를 확정한다(TSK-06-05 확정 경로 재현) ──
-        String pastApplyFrom = SQLITE_TEXT.format(LocalDateTime.now().minusDays(1));
+        String pastApplyFrom = TEXT_FORMAT.format(LocalDateTime.now().minusDays(1));
         JsonNode confirmed = post("codeConfirm", "confirm", STEWARD, envelope("codeConfirm",
                 json.createObjectNode().put("maruCodeId", "CHAIN_CD").put("ver", "1.000").put("rowVersion", codeRowVersionAfterItem)
                         .put("applyFrom", pastApplyFrom).put("warningsAcknowledged", true)));
@@ -217,7 +207,7 @@ class CodeDataRuleLedgerChainTest {
         assertSuccess(tableSaved);
         long ruleRowVersionAfterTable = tableSaved.path("data").path("result").path("rowVersion").asLong();
 
-        String ruleApplyFrom = SQLITE_TEXT.format(LocalDateTime.now().minusDays(1));
+        String ruleApplyFrom = TEXT_FORMAT.format(LocalDateTime.now().minusDays(1));
         JsonNode ruleConfirmed = post("ruleConfirm", "confirm", STEWARD, envelope("ruleConfirm",
                 json.createObjectNode().put("maruRuleId", "CHAIN_JDG").put("ver", 1).put("rowVersion", ruleRowVersionAfterTable)
                         .put("applyFrom", ruleApplyFrom).put("warningsAcknowledged", true)));
@@ -267,7 +257,7 @@ class CodeDataRuleLedgerChainTest {
             if (maruDataId == null || cateId == null || key == null) {
                 return false;
             }
-            String at = SQLITE_TEXT.format(baseDt);
+            Timestamp at = Timestamp.valueOf(baseDt.truncatedTo(ChronoUnit.SECONDS));
             Integer count = jdbc.queryForObject(
                     "SELECT COUNT(*) FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = ? AND CODE = ? AND VALID_FROM <= ? AND VALID_TO > ?",
                     Integer.class, maruDataId, key, at, at);
@@ -279,7 +269,7 @@ class CodeDataRuleLedgerChainTest {
             if (!isValid(maruDataId, cateId, key, baseDt)) {
                 return Optional.empty();
             }
-            String at = SQLITE_TEXT.format(baseDt);
+            Timestamp at = Timestamp.valueOf(baseDt.truncatedTo(ChronoUnit.SECONDS));
             String column = "ATTR" + String.format("%02d", attrNo);
             String value = jdbc.queryForObject("SELECT " + column + " FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = ? AND CODE = ? "
                     + "AND VALID_FROM <= ? AND VALID_TO > ?", String.class, maruDataId, key, at, at);

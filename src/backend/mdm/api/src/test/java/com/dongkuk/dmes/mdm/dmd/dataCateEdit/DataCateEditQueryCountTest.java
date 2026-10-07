@@ -128,7 +128,7 @@ class DataCateEditQueryCountTest extends AbstractMdmSharedDbTest {
         }
         long n = count("count-add600", () -> service.save(save("T0"), add, List.of()));
         assertEquals(30 + 600, (int) jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_DATA_CATE_ITEM WHERE MARU_DATA_ID = 'MD1' "
-                + "AND CATE_ID = 'T0' AND VALID_TO = ?", Integer.class, OPEN));
+                + "AND CATE_ID = 'T0' AND VALID_TO = ?", Integer.class, DmdSegmentTestSupport.ts(OPEN)));
         assertEquals(10 + 600 + 2, n, "두 번째 IN 묶음 — 소속 행·항목 행 SELECT 1문씩");
     }
 

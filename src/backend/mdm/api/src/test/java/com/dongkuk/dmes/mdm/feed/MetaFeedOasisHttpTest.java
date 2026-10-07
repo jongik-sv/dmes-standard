@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.common.metarev.MetaRevTestSupport;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dmc.MasterCodeSeeds;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
@@ -22,22 +23,19 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.math.BigDecimal;
-import java.nio.file.Path;
+import java.sql.Timestamp;
 import java.util.List;
 import javax.sql.DataSource;
 import kr.dongkuk.maru.mdm.engine.expr.AstExporter;
 import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * spec 2026-10-02-mdm-meta-cache-design §3.4·§7 「MDM metaFeed」 — BPMN 까지 태우는 HTTP 파이프(DmeOasisHttpTest 형식). 업무 모듈
@@ -46,12 +44,9 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = "cactus.security.client-key=" + MetaFeedOasisHttpTest.TEST_CLIENT_KEY)
 @ActiveProfiles("local")
-class MetaFeedOasisHttpTest {
+class MetaFeedOasisHttpTest extends AbstractMdmSharedDbTest {
 
     static final String TEST_CLIENT_KEY = "mdm-feed-test-client-key";
-
-    @TempDir
-    static Path tempDir;
 
     @LocalServerPort
     int port;
@@ -68,12 +63,6 @@ class MetaFeedOasisHttpTest {
             .disable(JsonNodeFeature.STRIP_TRAILING_BIGDECIMAL_ZEROES)
             .build();
     private JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-feed-http-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {
@@ -239,9 +228,9 @@ class MetaFeedOasisHttpTest {
 
     @Test
     void view_RULE_은_RELEASED_버전_전체를_ver_순으로_주고_DRAFT_는_빼며_확정이_없으면_빈_배열이다() throws Exception {
-        // 룰 버전은 major/minor 소수(D-144). 1.000(SQLite INTEGER)·1.001(REAL)이 섞이고, 2.000·10.000 은 문자열 정렬이면 순서가 뒤집힌다
+        // 룰 버전은 major/minor 소수(D-144). 1.000·1.001 같은 소수 버전이 섞이고, 2.000·10.000 은 문자열 정렬이면 순서가 뒤집힌다
         DmeTestSupport.sampleRule(jdbc);
-        jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = '2026-07-01 00:00:00' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 1");
+        jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = TIMESTAMP '2026-07-01 00:00:00' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 1");
         DmeTestSupport.released(jdbc, "QLTY_GRD_JDG", new BigDecimal("10.000"), "MAJOR", "FIRST", "2028-01-01 00:00:00", null);
         DmeTestSupport.sampleDefinition(jdbc, "QLTY_GRD_JDG", new BigDecimal("10.000"));
         DmeTestSupport.released(jdbc, "QLTY_GRD_JDG", new BigDecimal("1.001"), "MINOR", "FIRST", "2026-07-01 00:00:00", "2027-01-01 00:00:00");
@@ -295,9 +284,9 @@ class MetaFeedOasisHttpTest {
 
     @Test
     void view_RULE_SET_은_RELEASED_세트_버전_전체를_ver_순으로_주고_DRAFT_는_빼며_흐름이_깨진_세트는_failed_다() throws Exception {
-        // D-144 2단계 — 세트도 버전이 있다. 1.000(SQLite INTEGER)·1.001(REAL) RELEASED 와 2.000 DRAFT. 부모 저장 상태 CREATED 는 버전마다 계산 상태 INUSE 로 간다
+        // D-144 2단계 — 세트도 버전이 있다. 1.000·1.001 RELEASED 와 2.000 DRAFT. 부모 저장 상태 CREATED 는 버전마다 계산 상태 INUSE 로 간다
         DmeTestSupport.ruleSet(jdbc, "FEED_SET", "피드 세트", "[\"QLTY_GRD_JDG\"]", "CREATED", 0);
-        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = '2026-07-01 00:00:00' WHERE MARU_RULE_SET_ID = 'FEED_SET' AND VER = 1");
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = TIMESTAMP '2026-07-01 00:00:00' WHERE MARU_RULE_SET_ID = 'FEED_SET' AND VER = 1");
         DmeTestSupport.ruleSetVersion(jdbc, "FEED_SET", "1.001", "MINOR", "RELEASED", null, "[\"QLTY_GRD_JDG\",\"PROD_WGT_CALC\"]",
                 "2026-07-01 00:00:00", "9999-12-31 00:00:00", 0);
         DmeTestSupport.ruleSetDraft(jdbc, "FEED_SET", "2.000", "kim", "[]", 0);
@@ -358,10 +347,15 @@ class MetaFeedOasisHttpTest {
     @Test
     void view_LAYOUT_은_RELEASED_버전_목록과_헤더_경계로_나눈_합성_구간을_준다() throws Exception {
         clearLayouts();
-        jdbc.update("INSERT INTO TB_MDM_LAYOUT (LAYOUT_ID, LAYOUT_KIND, LAYOUT_NAME, STATUS, VER) VALUES "
-                + "(9790, 'HEADER', '피드 헤더', 'INUSE', 0), (9791, 'HEADER', '초안 헤더', 'CREATED', 0), "
-                + "(9701, 'MESSAGE', '피드 전문', 'INUSE', 0), (9702, 'MESSAGE', '피드 초안 전문', 'CREATED', 0), "
-                + "(9703, 'MESSAGE', '깨진 전문', 'INUSE', 0), (9704, 'MESSAGE', '헤더 없는 전문', 'INUSE', 0)");
+        String layoutCols = "(LAYOUT_ID, LAYOUT_KIND, LAYOUT_NAME, STATUS, VER)";
+        jdbc.update("INSERT ALL "
+                + "INTO TB_MDM_LAYOUT " + layoutCols + " VALUES (9790, 'HEADER', '피드 헤더', 'INUSE', 0) "
+                + "INTO TB_MDM_LAYOUT " + layoutCols + " VALUES (9791, 'HEADER', '초안 헤더', 'CREATED', 0) "
+                + "INTO TB_MDM_LAYOUT " + layoutCols + " VALUES (9701, 'MESSAGE', '피드 전문', 'INUSE', 0) "
+                + "INTO TB_MDM_LAYOUT " + layoutCols + " VALUES (9702, 'MESSAGE', '피드 초안 전문', 'CREATED', 0) "
+                + "INTO TB_MDM_LAYOUT " + layoutCols + " VALUES (9703, 'MESSAGE', '깨진 전문', 'INUSE', 0) "
+                + "INTO TB_MDM_LAYOUT " + layoutCols + " VALUES (9704, 'MESSAGE', '헤더 없는 전문', 'INUSE', 0) "
+                + "SELECT 1 FROM DUAL");
         layoutVer(9790, "1.000", "RELEASED", "2000-01-01 00:00:00", "2026-04-01 00:00:00", 7);
         layoutVer(9790, "2.000", "RELEASED", "2026-04-01 00:00:00", "9999-12-31 00:00:00", 9);
         layoutVer(9791, "1.000", "DRAFT", null, null, 3);
@@ -430,7 +424,12 @@ class MetaFeedOasisHttpTest {
     private void layoutVer(long id, String ver, String status, String from, String to, int own) {
         jdbc.update("INSERT INTO TB_MDM_LAYOUT_VER (LAYOUT_ID, VER, VER_KIND, STATUS, OWNER_ID, APPLY_FROM, APPLY_TO, OWN_LENGTH) "
                 + "VALUES (?, ?, 'MAJOR', ?, ?, ?, ?, ?)", id, new BigDecimal(ver), status, "DRAFT".equals(status) ? "kim" : null,
-                from, to, own);
+                ts(from), ts(to), own);
+    }
+
+    /** TIMESTAMP 칸 바인딩용 — Oracle 은 문자열을 NLS 형식에 기대 TIMESTAMP 로 바꾸므로 값으로 넘긴다. */
+    private static Timestamp ts(String text) {
+        return text == null ? null : Timestamp.valueOf(text);
     }
 
     private void stack(long messageId, String ver, long headerId) {

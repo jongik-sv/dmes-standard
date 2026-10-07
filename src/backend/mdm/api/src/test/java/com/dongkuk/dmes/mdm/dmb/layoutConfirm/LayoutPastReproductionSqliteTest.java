@@ -146,8 +146,8 @@ class LayoutPastReproductionSqliteTest extends LayoutServiceTestSupport {
         String legacy = "{\"eaiCode\":null,\"encoding\":null,\"headers\":[],\"items\":[],\"layoutId\":" + m.message()
                 + ",\"layoutName\":\"M\",\"layoutVersion\":1,\"padRule\":null,\"rcvSystem\":null,\"sndSystem\":null,\"totalLength\":177}";
         jdbc.update("INSERT INTO TB_MDM_LAYOUT_VER (LAYOUT_ID, VER, VER_KIND, STATUS, APPLY_FROM, APPLY_TO, OWN_LENGTH, SNAPSHOT_JSON, "
-                + "LEGACY_SNAPSHOT_YN) VALUES (?, 0.500, 'MAJOR', 'RELEASED', '2025-01-01 00:00:00', ?, 0, ?, 'Y')",
-                m.message(), MESSAGE_FROM, legacy);
+                + "LEGACY_SNAPSHOT_YN) VALUES (?, 0.500, 'MAJOR', 'RELEASED', TIMESTAMP '2025-01-01 00:00:00', ?, 0, ?, 'Y')",
+                m.message(), ts(MESSAGE_FROM), legacy);
         assertThat(resolver.at(m.message(), LocalDateTime.of(2025, 6, 1, 0, 0)).totalLength()).isEqualTo(177);
         assertThat(resolver.at(m.message(), LocalDateTime.of(2026, 3, 1, 0, 0)).totalLength()).isEqualTo(187);
         // 경계: 이행 이력의 끝(= 현 이력 시작 MESSAGE_FROM) 1초 전은 이행 스냅샷, 정각부터 현 이력

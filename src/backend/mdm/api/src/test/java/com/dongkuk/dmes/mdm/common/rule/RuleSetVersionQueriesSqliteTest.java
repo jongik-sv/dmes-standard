@@ -32,7 +32,7 @@ class RuleSetVersionQueriesSqliteTest extends AbstractMdmSharedDbTest {
     void seed() {
         DmeTestSupport.clear(jdbc);
         DmeTestSupport.ruleSet(jdbc, "S_MIX", "혼합", "[\"R1\"]", "INUSE", 0);                     // 1.000 RELEASED 2000-01-01~
-        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = '2026-05-01 00:00:00' WHERE MARU_RULE_SET_ID = 'S_MIX'");
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = TIMESTAMP '2026-05-01 00:00:00' WHERE MARU_RULE_SET_ID = 'S_MIX'");
         DmeTestSupport.ruleSetVersion(jdbc, "S_MIX", "1.001", "MINOR", "RELEASED", "kim", "[\"R1\",\"R2\",\"R1\"]",
                 "2026-05-01 00:00:00", "9999-12-31 00:00:00", 3);
         DmeTestSupport.ruleSetVersion(jdbc, "S_MIX", "2.000", "MAJOR", "DRAFT", "kim", "[\"R3\"]", null, null, 0);

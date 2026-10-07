@@ -64,6 +64,7 @@ class RuleConfirmServiceTest extends AbstractMdmSharedDbTest {
     private static final String BROKEN_ROW1 = "{\"1\":{\"op\":\"<= 변수 <\",\"left\":\"2.5\",\"right\":\"1.6\"},\"2\":{\"op\":\"GT\",\"left\":\"1000\"},"
             + "\"3\":{\"op\":\"IN\",\"list\":[\"A\"]},\"4\":{\"val\":\"A\"},\"5\":{\"val\":\"1.05\"}}";
     private static final String A_INPUT = "{\"COIL_THK\":\"1.8\",\"COIL_WID\":\"1200\",\"SURF_GRD\":\"A\"}";
+    private static final java.time.format.DateTimeFormatter AT_FORMAT = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final String ITEMS = "SAVE_CHECKS,NOT_EMPTY,TEST_CASES,RESULT_VAR_RELEASED";
 
     @Autowired
@@ -190,11 +191,16 @@ class RuleConfirmServiceTest extends AbstractMdmSharedDbTest {
 
     /** DRAFT 의 STATUS·APPLY_FROM·ROW_VERSION 과 직전 RELEASED 의 APPLY_TO(I24). */
     private String draftState(String id, int ver) {
-        String draft = jdbc.queryForObject("SELECT STATUS || '|' || COALESCE(APPLY_FROM, '-') || '|' || ROW_VERSION FROM TB_MDM_RULE_VER "
+        String draft = jdbc.queryForObject("SELECT STATUS || '|' || COALESCE(TO_CHAR(APPLY_FROM, 'YYYY-MM-DD HH24:MI:SS'), '-') || '|' || ROW_VERSION FROM TB_MDM_RULE_VER "
                 + "WHERE MARU_RULE_ID = ? AND VER = ?", String.class, id, ver);
-        List<String> previous = jdbc.queryForList("SELECT APPLY_TO FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = ? AND VER < ? ORDER BY VER",
+        List<String> previous = jdbc.queryForList("SELECT TO_CHAR(APPLY_TO, 'YYYY-MM-DD HH24:MI:SS') FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = ? AND VER < ? ORDER BY VER",
                 String.class, id, ver);
         return draft + " / " + previous;
+    }
+
+    /** SELECT * 로 읽은 TIMESTAMP 칸(java.sql.Timestamp)을 19자 텍스트로. */
+    private static String at(Object timestamp) {
+        return timestamp == null ? null : ((java.sql.Timestamp) timestamp).toLocalDateTime().format(AT_FORMAT);
     }
 
     private String ledger() {
@@ -472,19 +478,20 @@ class RuleConfirmServiceTest extends AbstractMdmSharedDbTest {
 
         Map<String, Object> v2 = jdbc.queryForMap("SELECT * FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = ? AND VER = 2", Q);
         assertEquals("RELEASED", v2.get("STATUS"));
-        assertEquals("2026-03-01 00:00:00", v2.get("APPLY_FROM"));
-        assertEquals("9999-12-31 00:00:00", v2.get("APPLY_TO"));
+        assertEquals("2026-03-01 00:00:00", at(v2.get("APPLY_FROM")));
+        assertEquals("9999-12-31 00:00:00", at(v2.get("APPLY_TO")));
         assertEquals(1L, ((Number) v2.get("ROW_VERSION")).longValue(), "I22·S9 — beginDraftWrite 를 부르지 않아 +1 만");
         assertEquals("kim", v2.get("REQUESTED_BY"));
-        assertEquals("2026-06-15 09:00:00", v2.get("REQUESTED_AT"));
-        assertEquals("2026-06-15 09:00:00", v2.get("RELEASED_AT"));
+        assertEquals("2026-06-15 09:00:00", at(v2.get("REQUESTED_AT")));
+        assertEquals("2026-06-15 09:00:00", at(v2.get("RELEASED_AT")));
         assertNull(v2.get("APPROVED_BY"));
         assertNull(v2.get("APPROVED_AT"));
         assertEquals("N", v2.get("EMERGENCY_YN"), "칼럼 기본값");
         assertNull(v2.get("EMERGENCY_REASON"));
         assertNull(v2.get("REJECT_REASON"));
         assertEquals("2026-03-01 00:00:00",
-                jdbc.queryForObject("SELECT APPLY_TO FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = ? AND VER = 1", String.class, Q));
+                jdbc.queryForObject("SELECT TO_CHAR(APPLY_TO, 'YYYY-MM-DD HH24:MI:SS') FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = ? AND VER = 1",
+                        String.class, Q));
 
         assertEquals(Map.of("ver", "2.000", "rowVersion", 1L), map(r, "confirmed"));
         assertEquals("1.000", r.get("closedPreviousVer"));

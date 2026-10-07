@@ -72,8 +72,8 @@ class LayoutVersionActionSqliteTest extends LayoutServiceTestSupport {
                 m.message())).isEqualTo("B1");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_LAYOUT_HEADER WHERE LAYOUT_ID = ? AND VER = 1.001", Integer.class,
                 m.message())).isEqualTo(2);
-        assertThat(jdbc.queryForObject("SELECT CAST(BASE_VER AS VARCHAR(40)) FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID = ? AND VER = 1.001",
-                String.class, m.message())).isEqualTo("1");
+        assertThat(jdbc.queryForObject("SELECT TO_CHAR(BASE_VER, 'FM9990.000') FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID = ? AND VER = 1.001",
+                String.class, m.message())).isEqualTo("1.000");
         assertThat(jdbc.queryForObject("SELECT OWNER_ID FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID = ? AND VER = 1.001", String.class,
                 m.message())).isEqualTo(KIM);
     }
@@ -104,7 +104,7 @@ class LayoutVersionActionSqliteTest extends LayoutServiceTestSupport {
     void versionInApprovalBlocksNewVersionWithMdm006() {
         M201 m = m201();
         jdbc.update("INSERT INTO TB_MDM_LAYOUT_VER (LAYOUT_ID, VER, VER_KIND, STATUS, OWNER_ID, APPLY_FROM, APPLY_TO, OWN_LENGTH) "
-                + "VALUES (?, ?, 'MAJOR', 'REQUESTED', 'kim', '2026-01-01 00:00:00', '9999-12-31 00:00:00', 0)", m.l110(),
+                + "VALUES (?, ?, 'MAJOR', 'REQUESTED', 'kim', TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '9999-12-31 00:00:00', 0)", m.l110(),
                 new BigDecimal("2.000"));
         BusinessException e = rejected(() -> versions.newVersion(req(m.l110(), null, "MAJOR", null), "HEADER"));
         assertThat(code(e)).isEqualTo("MDM006");
@@ -233,18 +233,18 @@ class LayoutVersionActionSqliteTest extends LayoutServiceTestSupport {
 
     @Test
     void minorBoundaryAt999() {
-        jdbc.update("DELETE FROM TB_MDM_LAYOUT_ITEM WHERE LAYOUT_ID = 9200");
-        jdbc.update("DELETE FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID = 9200");
-        jdbc.update("DELETE FROM TB_MDM_LAYOUT WHERE LAYOUT_ID = 9200");
-        jdbc.update("INSERT INTO TB_MDM_LAYOUT (LAYOUT_ID, LAYOUT_KIND, LAYOUT_NAME, STATUS, VER) VALUES (9200, 'HEADER', 'H999', 'INUSE', 0)");
+        jdbc.update("DELETE FROM TB_MDM_LAYOUT_ITEM WHERE LAYOUT_ID = 900200");
+        jdbc.update("DELETE FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID = 900200");
+        jdbc.update("DELETE FROM TB_MDM_LAYOUT WHERE LAYOUT_ID = 900200");
+        jdbc.update("INSERT INTO TB_MDM_LAYOUT (LAYOUT_ID, LAYOUT_KIND, LAYOUT_NAME, STATUS, VER) VALUES (900200, 'HEADER', 'H999', 'INUSE', 0)");
         jdbc.update("INSERT INTO TB_MDM_LAYOUT_VER (LAYOUT_ID, VER, VER_KIND, STATUS, APPLY_FROM, APPLY_TO, OWN_LENGTH) "
-                + "VALUES (9200, ?, 'MINOR', 'RELEASED', '2026-01-01 00:00:00', '9999-12-31 00:00:00', 5)", new BigDecimal("1.999"));
-        jdbc.update("INSERT INTO TB_MDM_LAYOUT_ITEM (LAYOUT_ID, VER, SEQ, FILL_KIND, FILLER_LENGTH, `OFFSET`, `LENGTH`) "
-                + "VALUES (9200, ?, 1, 'FILLER', 5, 0, 5)", new BigDecimal("1.999"));
-        BusinessException e = rejected(() -> versions.newVersion(req(9200L, null, "MINOR", null), "HEADER"));
+                + "VALUES (900200, ?, 'MINOR', 'RELEASED', TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '9999-12-31 00:00:00', 5)", new BigDecimal("1.999"));
+        jdbc.update("INSERT INTO TB_MDM_LAYOUT_ITEM (LAYOUT_ID, VER, SEQ, FILL_KIND, FILLER_LENGTH, \"OFFSET\", \"LENGTH\") "
+                + "VALUES (900200, ?, 1, 'FILLER', 5, 0, 5)", new BigDecimal("1.999"));
+        BusinessException e = rejected(() -> versions.newVersion(req(900200L, null, "MINOR", null), "HEADER"));
         assertThat(e.getMessage()).contains("major 를 올리십시오");
-        assertThat(versions.newVersion(req(9200L, null, "MAJOR", null), "HEADER").getVer()).isEqualTo("2.000");
-        assertThat(itemRows(9200L, "2")).hasSize(1);
+        assertThat(versions.newVersion(req(900200L, null, "MAJOR", null), "HEADER").getVer()).isEqualTo("2.000");
+        assertThat(itemRows(900200L, "2")).hasSize(1);
     }
 
     // ── Fix round 0 — Ruling P3-11(버전 0개면 빈 1.000)·P3-12(delete target) ──

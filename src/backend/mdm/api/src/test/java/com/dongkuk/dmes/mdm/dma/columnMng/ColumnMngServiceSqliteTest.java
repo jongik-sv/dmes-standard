@@ -48,7 +48,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * TSK-04-04 design.md §3.3 C1~C28 — 컬럼 사전 서비스(검색·상세·분해·저장)를 local(SQLite) 실제 컨텍스트로 돌린다.
+ * TSK-04-04 design.md §3.3 C1~C28 — 컬럼 사전 서비스(검색·상세·분해·저장)를 Oracle 시험 PDB 의 실제 컨텍스트로 돌린다.
  *
  * <p>서비스에는 {@code @Transactional} 이 없다(OASIS 가 프로세스 트랜잭션을 건다, F11). 그래서 이 테스트는 운영 경로와
  * 같게 서비스 호출을 {@link TransactionTemplate} 으로 감싼다. 단언은 {@link JdbcTemplate}(새 연결)로 커밋된 행을 읽는다.
@@ -200,7 +200,7 @@ class ColumnMngServiceSqliteTest extends AbstractMdmSharedDbTest {
         DmaTestSupport.column(columns, "alpha", "ALPHA_L", coilThk.getDomainId());
         DmaTestSupport.column(columns, "Zeta", "ZETA", coilThk.getDomainId());
         DmaTestSupport.column(columns, "Beta", "BETA", coilThk.getDomainId());
-        // DB(SQLite BINARY = UTF-8 바이트)와 Java(String.compareTo = UTF-16) 순서가 갈리는 쌍: DB 는 전각 A(U+FF21)를,
+        // DB(Oracle BINARY 정렬 = AL32UTF8 의 UTF-8 바이트 순서)와 Java(String.compareTo = UTF-16) 순서가 갈리는 쌍: DB 는 전각 A(U+FF21)를,
         // Java 는 이모지(U+1F600, 서로게이트 D83D)를 앞에 둔다
         DmaTestSupport.column(columns, "\uD83D\uDE00", "EMOJI", coilThk.getDomainId());
         DmaTestSupport.column(columns, "\uFF21", "FULL_A", coilThk.getDomainId());
@@ -210,10 +210,10 @@ class ColumnMngServiceSqliteTest extends AbstractMdmSharedDbTest {
         Map<String, Object> result = service.search(q);
 
         List<String> dbOrder = jdbc.queryForList(
-                "SELECT COLUMN_NAME FROM TB_MDM_COLUMN ORDER BY COLUMN_NAME, COLUMN_ID LIMIT 5", String.class);
+                "SELECT COLUMN_NAME FROM TB_MDM_COLUMN ORDER BY COLUMN_NAME, COLUMN_ID FETCH FIRST 5 ROWS ONLY", String.class);
         assertEquals(dbOrder, names(result), "잘리는 경계와 행 순서 모두 DB 정렬을 따른다");
         assertEquals(List.of("Beta", "Zeta", "alpha", "코일", "\uFF21"), names(result),
-                "SQLite BINARY — 대문자가 소문자보다, 영문이 한글보다, 전각 A 가 이모지보다 앞(Java 비교였다면 이모지가 한글 뒤 5번째)");
+                "BINARY 정렬(UTF-8 바이트) — 대문자가 소문자보다, 영문이 한글보다, 전각 A 가 이모지보다 앞(Java 비교였다면 이모지가 한글 뒤 5번째)");
         assertEquals(6, result.get("totalCount"));
         assertEquals(true, result.get("truncated"));
     }

@@ -197,7 +197,7 @@ class RuleSetConfirmServiceSqliteTest extends AbstractMdmSharedDbTest {
 
     @Test
     void applyFromNotAfterPreviousIsRejected() {
-        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_FROM = '2026-06-01 00:00:00' WHERE MARU_RULE_SET_ID = 'S_C' AND VER = 1");
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_FROM = TIMESTAMP '2026-06-01 00:00:00' WHERE MARU_RULE_SET_ID = 'S_C' AND VER = 1");
         RuleSetConfirmValidateRequest val = new RuleSetConfirmValidateRequest();
         val.setSetId("S_C");
         val.setVer("2.000");

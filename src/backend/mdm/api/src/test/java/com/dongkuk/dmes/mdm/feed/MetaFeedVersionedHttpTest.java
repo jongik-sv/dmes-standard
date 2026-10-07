@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.common.metarev.MetaRevTestSupport;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dmc.MasterCodeSeeds;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
@@ -21,19 +22,16 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Path;
+import java.sql.Timestamp;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * D-154 — {@code metaFeed/view} 의 {@code part=TOC|BODY}·{@code at}(스펙 2026-10-03-mdm-meta-cache-per-version §4.1·§4.2). 목차는 RELEASED
@@ -43,13 +41,10 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = "cactus.security.client-key=" + MetaFeedVersionedHttpTest.TEST_CLIENT_KEY)
 @ActiveProfiles("local")
-class MetaFeedVersionedHttpTest {
+class MetaFeedVersionedHttpTest extends AbstractMdmSharedDbTest {
 
     static final String TEST_CLIENT_KEY = "mdm-feed-versioned-test-key";
     private static final String Q = "QLTY_GRD_JDG";
-
-    @TempDir
-    static Path tempDir;
 
     @LocalServerPort
     int port;
@@ -64,12 +59,6 @@ class MetaFeedVersionedHttpTest {
             .build();
     private JdbcTemplate jdbc;
 
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-feed-versioned-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
-
     @BeforeEach
     void seed() {
         jdbc = new JdbcTemplate(dataSource);
@@ -79,10 +68,10 @@ class MetaFeedVersionedHttpTest {
         new MasterCodeSeeds(jdbc).clear();
     }
 
-    /** 룰 세 버전: 1.000(SQLite INTEGER) [2026-01-01, 2026-07-01), 1.001(REAL) [2026-07-01, 2027-01-01), 2.000 DRAFT. */
+    /** 룰 세 버전: 1.000 [2026-01-01, 2026-07-01), 1.001 [2026-07-01, 2027-01-01), 2.000 DRAFT. */
     private void seedRule() {
         DmeTestSupport.sampleRule(jdbc);
-        jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = '2026-07-01 00:00:00' WHERE MARU_RULE_ID = ? AND VER = 1", Q);
+        jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = TIMESTAMP '2026-07-01 00:00:00' WHERE MARU_RULE_ID = ? AND VER = 1", Q);
         DmeTestSupport.released(jdbc, Q, new BigDecimal("1.001"), "MINOR", "FIRST", "2026-07-01 00:00:00", "2027-01-01 00:00:00");
         DmeTestSupport.sampleDefinition(jdbc, Q, new BigDecimal("1.001"));
     }
@@ -162,7 +151,7 @@ class MetaFeedVersionedHttpTest {
     /** 세트 두 버전: 1.000 [2000-01-01, 2026-07-01), 1.001 [2026-07-01, 9999-12-31) — 버전마다 ruleIds 를 달리 해 내용으로 가른다. */
     private void seedSet() {
         DmeTestSupport.ruleSet(jdbc, "VS_SET", "버전 세트", "[\"" + Q + "\"]", "CREATED", 0);
-        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = '2026-07-01 00:00:00' WHERE MARU_RULE_SET_ID = 'VS_SET' AND VER = 1");
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = TIMESTAMP '2026-07-01 00:00:00' WHERE MARU_RULE_SET_ID = 'VS_SET' AND VER = 1");
         DmeTestSupport.ruleSetVersion(jdbc, "VS_SET", "1.001", "MINOR", "RELEASED", null, "[\"" + Q + "\",\"R2\"]",
                 "2026-07-01 00:00:00", "9999-12-31 00:00:00", 0);
         DmeTestSupport.ruleSetDraft(jdbc, "VS_SET", "2.000", "kim", "[\"DRAFT_R\"]", 0);
@@ -230,9 +219,13 @@ class MetaFeedVersionedHttpTest {
         jdbc.update("DELETE FROM TB_MDM_LAYOUT_HEADER WHERE LAYOUT_ID IN (9601, 9603, 9690, 9691)");
         jdbc.update("DELETE FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID IN (9601, 9603, 9690, 9691)");
         jdbc.update("DELETE FROM TB_MDM_LAYOUT WHERE LAYOUT_ID IN (9601, 9603, 9690, 9691)");
-        jdbc.update("INSERT INTO TB_MDM_LAYOUT (LAYOUT_ID, LAYOUT_KIND, LAYOUT_NAME, STATUS, VER) VALUES "
-                + "(9690, 'HEADER', '버전 헤더', 'INUSE', 0), (9691, 'HEADER', '초안 헤더', 'CREATED', 0), "
-                + "(9601, 'MESSAGE', '버전 전문', 'INUSE', 0), (9603, 'MESSAGE', '깨진 전문', 'INUSE', 0)");
+        String layoutCols = "(LAYOUT_ID, LAYOUT_KIND, LAYOUT_NAME, STATUS, VER)";
+        jdbc.update("INSERT ALL "
+                + "INTO TB_MDM_LAYOUT " + layoutCols + " VALUES (9690, 'HEADER', '버전 헤더', 'INUSE', 0) "
+                + "INTO TB_MDM_LAYOUT " + layoutCols + " VALUES (9691, 'HEADER', '초안 헤더', 'CREATED', 0) "
+                + "INTO TB_MDM_LAYOUT " + layoutCols + " VALUES (9601, 'MESSAGE', '버전 전문', 'INUSE', 0) "
+                + "INTO TB_MDM_LAYOUT " + layoutCols + " VALUES (9603, 'MESSAGE', '깨진 전문', 'INUSE', 0) "
+                + "SELECT 1 FROM DUAL");
         layoutVer(9690, "1.000", "RELEASED", "2000-01-01 00:00:00", "9999-12-31 00:00:00", 7);
         layoutVer(9691, "1.000", "DRAFT", null, null, 3);
         layoutVer(9601, "1.000", "RELEASED", "2000-01-01 00:00:00", "2026-07-01 00:00:00", 10);
@@ -280,7 +273,12 @@ class MetaFeedVersionedHttpTest {
     private void layoutVer(long id, String ver, String status, String from, String to, int own) {
         jdbc.update("INSERT INTO TB_MDM_LAYOUT_VER (LAYOUT_ID, VER, VER_KIND, STATUS, OWNER_ID, APPLY_FROM, APPLY_TO, OWN_LENGTH) "
                 + "VALUES (?, ?, 'MAJOR', ?, ?, ?, ?, ?)", id, new BigDecimal(ver), status, "DRAFT".equals(status) ? "kim" : null,
-                from, to, own);
+                ts(from), ts(to), own);
+    }
+
+    /** TIMESTAMP 칸 바인딩용 — Oracle 은 문자열을 NLS 형식에 기대 TIMESTAMP 로 바꾸므로 값으로 넘긴다. */
+    private static Timestamp ts(String text) {
+        return text == null ? null : Timestamp.valueOf(text);
     }
 
     private void stack(long messageId, String ver, long headerId) {

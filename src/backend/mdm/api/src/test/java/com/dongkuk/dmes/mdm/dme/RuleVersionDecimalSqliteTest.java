@@ -48,8 +48,8 @@ import org.springframework.test.context.ActiveProfiles;
 /**
  * D-144 — 룰 버전 1.000·1.001·2.000 혼합에서 최신·현재 RELEASED, 버전 정렬, 정의 조회가 정확한지(Review Focus 1·2).
  *
- * <p>SQLite NUMERIC 친화도는 1.000 을 INTEGER, 1.001 을 REAL 로 저장한다. 정수 번호를 가정한 비교·정렬이 남아 있으면 1.001 이
- * 1.000 이나 1 로 잘리거나, 정렬에서 같은 major 의 minor 를 놓친다. 현재 시각은 {@link DmeTestSupport#NOW}(2026-06-15 09:00 KST).
+ * <p>VER 칸은 NUMBER(7,3) 이다(SQLite 때는 NUMERIC 친화도가 1.000 을 INTEGER, 1.001 을 REAL 로 저장했다). 정수 번호를 가정한 비교·정렬이
+ * 남아 있으면 1.001 이 1.000 이나 1 로 잘리거나, 정렬에서 같은 major 의 minor 를 놓친다. 현재 시각은 {@link DmeTestSupport#NOW}(2026-06-15 09:00 KST).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
@@ -103,10 +103,11 @@ class RuleVersionDecimalSqliteTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void SQLite_는_1_000_을_INTEGER_로_1_001_을_REAL_로_저장한다() {
+    void VER_는_NUMBER_7_3_이라_세_자리_소수까지_그대로_저장한다() {
         mixedRule("R_MIX");
-        assertThat(jdbc.queryForList("SELECT typeof(VER) FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'R_MIX' ORDER BY COALESCE(APPLY_FROM, '9999')",
-                String.class)).containsExactly("integer", "real", "integer");
+        // Oracle 은 SQLite typeof() 가 없고 1.000 도 1.001 도 같은 NUMBER 형이다 — 값이 잘리지 않고 소수 셋째 자리까지 남는지 본다.
+        assertThat(jdbc.queryForList("SELECT VER FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'R_MIX' ORDER BY VER", BigDecimal.class))
+                .usingElementComparator(BigDecimal::compareTo).containsExactly(V1, V1_1, V2);
     }
 
     @Test

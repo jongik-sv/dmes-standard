@@ -457,8 +457,8 @@ class CodeItemEditServiceSqliteTest extends AbstractMdmSharedDbTest {
     // ── helpers ─────────────────────────────────────────────────────────
 
     private String lockedColumns(String code) {
-        return jdbc.queryForObject("SELECT CODE || '|' || FROM_VER || '|' || TO_VER || '|' || IFNULL(LVL1,'') || '|' "
-                + "|| IFNULL(LVL2,'') || '|' || IFNULL(ATTR01,'') FROM TB_MDM_CODE_ITEM WHERE MARU_CODE_ID = 'M' AND CODE = ?",
+        return jdbc.queryForObject("SELECT CODE || '|' || FROM_VER || '|' || TO_VER || '|' || NVL(LVL1, '-') || '|' "
+                + "|| NVL(LVL2, '-') || '|' || NVL(ATTR01, '-') FROM TB_MDM_CODE_ITEM WHERE MARU_CODE_ID = 'M' AND CODE = ?",
                 String.class, code);
     }
 

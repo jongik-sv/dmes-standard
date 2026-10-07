@@ -241,6 +241,6 @@ class DraftOwnershipCrossModuleTest extends AbstractMdmSharedDbTest {
     }
 
     private List<String> columnNames(String table) {
-        return jdbc.query("PRAGMA table_info(" + table + ")", (rs, i) -> rs.getString("name"));
+        return jdbc.queryForList("SELECT COLUMN_NAME FROM USER_TAB_COLUMNS WHERE TABLE_NAME = ?", String.class, table);
     }
 }

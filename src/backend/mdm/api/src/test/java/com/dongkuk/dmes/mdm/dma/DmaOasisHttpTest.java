@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,19 +15,15 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Path;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-04-04 design.md §3.3 P1~P8 — BPMN 까지 태우는 HTTP 파이프 시험(MdmSecurityChainTest 패턴).
@@ -41,14 +38,11 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = "cactus.security.client-key=" + DmaOasisHttpTest.TEST_CLIENT_KEY)
 @ActiveProfiles("local")
-class DmaOasisHttpTest {
+class DmaOasisHttpTest extends AbstractMdmSharedDbTest {
 
     static final String TEST_CLIENT_KEY = "mdm-dma-test-client-key";
     private static final String STD_ADMIN = "MDM_STD_ADMIN";
     private static final String STEWARD = "MDM_STEWARD";
-
-    @TempDir
-    static Path tempDir;
 
     @LocalServerPort
     int port;
@@ -60,12 +54,6 @@ class DmaOasisHttpTest {
     private final ObjectMapper json = new ObjectMapper();
     private JdbcTemplate jdbc;
     private long domainId;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-dma-http-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {
@@ -119,7 +107,9 @@ class DmaOasisHttpTest {
         JsonNode body = post("columnMng", "save", STD_ADMIN, saveBody("원재료 코일 두께", "RMTL_COIL_THK", true, true));
 
         assertTrue(body.path("meta").path("success").asBoolean(false), body.toString());
-        assertEquals("[1,2,3]", jdbc.queryForObject("SELECT TERM_IDS FROM TB_MDM_COLUMN", String.class));
+        // 용어 ID 는 IDENTITY 가 매긴다(Oracle 은 DELETE 뒤에도 번호를 되돌리지 않는다) — 넣은 용어에서 읽는다.
+        assertEquals("[" + termId("원재료") + "," + termId("코일") + "," + termId("두께") + "]",
+                jdbc.queryForObject("SELECT TERM_IDS FROM TB_MDM_COLUMN", String.class));
     }
 
     @Test
@@ -179,8 +169,9 @@ class DmaOasisHttpTest {
     void P8_뒤_단계_실패는_앞_단계_쓰기를_남기지_않는다() throws Exception {
         // 검증은 모두 쓰기 전에 끝나므로(§6.12) 쓰기 뒤 실패는 DB 에서만 난다. 시험 전용 트리거로 매핑 INSERT 를
         // 실패시켜, 먼저 INSERT 된 컬럼 행이 프로세스 트랜잭션과 함께 롤백되는지 실측한다.
-        jdbc.execute("CREATE TRIGGER TR_P8_FAIL BEFORE INSERT ON TB_MDM_COLUMN_SYSTEM "
-                + "WHEN NEW.PHYS_NAME = 'P8_FAIL' BEGIN SELECT RAISE(ABORT, 'P8 forced failure'); END");
+        jdbc.execute("CREATE OR REPLACE TRIGGER TR_P8_FAIL BEFORE INSERT ON TB_MDM_COLUMN_SYSTEM "
+                + "FOR EACH ROW WHEN (NEW.PHYS_NAME = 'P8_FAIL') "
+                + "BEGIN RAISE_APPLICATION_ERROR(-20001, 'P8 forced failure'); END;");
         try {
             ObjectNode body = saveBody("원재료 코일 두께", "RMTL_COIL_THK", true, true);
             ((ArrayNode) body.path("grids").path("systems").path("rows")).addObject()
@@ -192,7 +183,8 @@ class DmaOasisHttpTest {
             assertEquals(0, count("TB_MDM_COLUMN"), "컬럼 INSERT 가 롤백되지 않았다");
             assertEquals(0, count("TB_MDM_COLUMN_SYSTEM"));
         } finally {
-            jdbc.execute("DROP TRIGGER IF EXISTS TR_P8_FAIL");
+            jdbc.execute("BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TR_P8_FAIL'; EXCEPTION WHEN OTHERS THEN "
+                    + "IF SQLCODE != -4080 THEN RAISE; END IF; END;");
         }
     }
 
@@ -269,6 +261,10 @@ class DmaOasisHttpTest {
 
     private int count(String table) {
         return jdbc.queryForObject("SELECT COUNT(*) FROM " + table, Integer.class);
+    }
+
+    private long termId(String name) {
+        return jdbc.queryForObject("SELECT TERM_ID FROM TB_MDM_TERM WHERE TERM_NAME = ? AND SENSE_NO = 1", Long.class, name);
     }
 
     private void insertTerm(String name, String abbr) {

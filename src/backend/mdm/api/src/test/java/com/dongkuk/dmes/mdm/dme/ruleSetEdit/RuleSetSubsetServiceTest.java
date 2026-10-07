@@ -346,7 +346,7 @@ class RuleSetSubsetServiceTest extends AbstractMdmSharedDbTest {
     @Test
     void 멤버_룰의_미래_RELEASED_는_저장_겉모양을_바꾸지_않는다() {
         BigDecimal v2 = new BigDecimal("2.000");
-        jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = '2026-09-01 00:00:00' WHERE MARU_RULE_ID = 'R_C1'");
+        jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = TIMESTAMP '2026-09-01 00:00:00' WHERE MARU_RULE_ID = 'R_C1'");
         DmeTestSupport.released(jdbc, "R_C1", v2, "MAJOR", "FIRST", "2026-09-01 00:00:00", null);
         DmeTestSupport.var(jdbc, "R_C1", v2, 1, "COND", "1", "IN_A", 1, null);
         DmeTestSupport.var(jdbc, "R_C1", v2, 2, "RESULT", "Value", "OUT_Y", 1, "STRING");
@@ -363,7 +363,7 @@ class RuleSetSubsetServiceTest extends AbstractMdmSharedDbTest {
     void 부르는_세트가_있으면_폐기를_거부한다() {
         DmeTestSupport.ruleSet(jdbc, "C", "C 세트", "[\"R_C1\"]", "INUSE", 0);
         parentP("INUSE");
-        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = '2026-09-01 00:00:00' WHERE MARU_RULE_SET_ID = 'P'");
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = TIMESTAMP '2026-09-01 00:00:00' WHERE MARU_RULE_SET_ID = 'P'");
         DmeTestSupport.ruleSetVersion(jdbc, "P", "1.001", "MINOR", "RELEASED", null, "[\"R_P\"]", "2026-09-01 00:00:00", "9999-12-31 00:00:00", 0);
         DmeTestSupport.ruleSetFlow(jdbc, "P", "1.001", line(setNode("s1", "C"), ruleNode("r1", "R_P")));
         DmeTestSupport.ruleSetCalls(jdbc, "P", "1.001", "[\"C\"]");

@@ -25,7 +25,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * 조업 계산기 {@code ruleCalc}(docs/widget-2026-10/rule-calc-api.md) 서비스 시험. 시드(SQLite)는 {@link RuleCalcTestBase} 에 있다.
+ * 조업 계산기 {@code ruleCalc}(docs/widget-2026-10/rule-calc-api.md) 서비스 시험. 시드는 {@link RuleCalcTestBase} 에 있다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")

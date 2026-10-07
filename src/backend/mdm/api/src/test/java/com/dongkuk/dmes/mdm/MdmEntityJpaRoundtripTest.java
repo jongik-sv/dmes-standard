@@ -70,7 +70,7 @@ class MdmEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
         MdmUnit reloaded = unitRepository.findById("KG-RT").orElseThrow();
         assertEquals("MASS", reloaded.getDimension());
         assertEquals("KG", reloaded.getBaseUnit());
-        // FACTOR — SQLite NUMERIC 친화도로 저장 형식이 REAL 로 새어 scale 이 달라질 수 있어 compareTo 로 비교한다.
+        // FACTOR — NUMBER 로 읽는 값의 scale 이 달라질 수 있어 compareTo 로 비교한다.
         assertEquals(0, new BigDecimal("1.5").compareTo(reloaded.getFactor()),
                 "FACTOR 왕복 값: " + reloaded.getFactor());
         assertNotNull(reloaded.getCreatedAt(), "CactusAuditListener 가 C_AT 을 항상 채워야 한다(F14)");
@@ -196,15 +196,12 @@ class MdmEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
     }
 
     /**
-     * #16(naming-dialect-rules.md §3) — {@code CactusAuditEntity.C_AT}(Instant) 가 SQLite 에 실제로
-     * 어떤 형식으로 저장되는지(정수 epoch 인지 ISO 텍스트인지) {@code typeof()} 로 직접 관찰한다.
-     *
-     * <p>mcm {@code SqliteTemporalConverterContributor} 는 {@code LocalDate}/{@code LocalDateTime}
-     * 전용 컨버터만 등록하며 {@code Instant} 는 애초에 그 우회 대상이 아니다(코드 확인) — "같은 결함이
-     * mdm 에도 재현되는지" 가 아니라, {@code Instant} 자체의 SQLite 저장 형식이 무엇인지를 새로 관찰한다.
+     * #16(naming-dialect-rules.md §3) — {@code CactusAuditEntity.C_AT}(Instant) 가 Oracle 에 어떤 형으로 저장되는지 관찰한다.
+     * SQLite 때는 {@code typeof()} 로 정수 epoch 인지 텍스트인지를 봤지만, Oracle 은 칼럼 형이 정해져 있어 {@code C_AT} 는
+     * {@code TIMESTAMP(6)} 이고(V1 기준선 — DECISIONS.md) 값은 시각 형으로 읽힌다. 형은 {@code USER_TAB_COLUMNS} 로 확인한다.
      */
     @Test
-    void C_AT_의_SQLite_저장_형식을_typeof_로_관찰한다() {
+    void C_AT_의_Oracle_저장_형식을_칼럼_형으로_확인한다() {
         MdmUnit unit = new MdmUnit("KG-TYPEOF");
         unit.setDimension("MASS");
         unit.setBaseUnit("KG");
@@ -215,16 +212,13 @@ class MdmEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
 
         // 같은 트랜잭션(같은 커넥션) 안에서 봐야 한다 — dataSource.getConnection() 으로 별도 커넥션을
         // 열면 이 테스트 트랜잭션이 아직 커밋 전이라 그 행을 볼 수 없다(실측: rs.next()==false 로 확인).
-        Object[] row = (Object[]) entityManager.createNativeQuery(
-                        "SELECT typeof(C_AT), C_AT FROM TB_MDM_UNIT WHERE UNIT_CODE = 'KG-TYPEOF'")
+        Object rawValue = entityManager.createNativeQuery(
+                        "SELECT C_AT FROM TB_MDM_UNIT WHERE UNIT_CODE = 'KG-TYPEOF'")
                 .getSingleResult();
-        String sqliteType = String.valueOf(row[0]);
-        Object rawValue = row[1];
         assertNotNull(rawValue, "C_AT 원시 저장값");
-        // 관찰한 사실을 그대로 고정한다(design.md D10, naming-dialect-rules.md #16 참고) — Hibernate
-        // 커뮤니티 dialect 의 Instant 매핑이 SQLite 에 실제로는 INTEGER(epoch millis)로 저장한다
-        // (typeof()=integer). 이 Task 는 이 사실만 기록하고 고치지 않는다 — 네이티브 SQL 로 C_AT 를
-        // ISO-8601 텍스트로 다루는 후속 Task 에 인계한다(§8).
-        assertEquals("integer", sqliteType, "C_AT SQLite 저장 typeof(): " + rawValue);
+        Object columnType = entityManager.createNativeQuery(
+                        "SELECT DATA_TYPE FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'TB_MDM_UNIT' AND COLUMN_NAME = 'C_AT'")
+                .getSingleResult();
+        assertEquals("TIMESTAMP(6)", String.valueOf(columnType), "C_AT Oracle 칼럼 형: " + rawValue);
     }
 }

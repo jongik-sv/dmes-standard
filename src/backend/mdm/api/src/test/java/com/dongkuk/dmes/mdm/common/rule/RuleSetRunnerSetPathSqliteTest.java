@@ -44,7 +44,7 @@ class RuleSetRunnerSetPathSqliteTest extends AbstractMdmSharedDbTest {
         DmeTestSupport.ruleSet(jdbc, "RS_LINE", "한 줄", "[\"QLTY_GRD_JDG\"]", "INUSE", 0);
         // RS_PARENT 1.000(~2026-06-01) 의 s1 label "품질 판정", 2.000(2026-06-01~) 의 s1 label "새 판정". s1 은 RS_MID, RS_MID 의 s2 는 label 없음.
         DmeTestSupport.ruleSet(jdbc, "RS_PARENT", "부모", "[]", "INUSE", 0);
-        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = '2026-06-01 00:00:00' WHERE MARU_RULE_SET_ID = 'RS_PARENT'");
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = TIMESTAMP '2026-06-01 00:00:00' WHERE MARU_RULE_SET_ID = 'RS_PARENT'");
         DmeTestSupport.ruleSetFlow(jdbc, "RS_PARENT", line(labeled("s1", "RS_MID", "품질 판정")));
         DmeTestSupport.ruleSetVersion(jdbc, "RS_PARENT", "2.000", "MAJOR", "RELEASED", null, "[]", "2026-06-01 00:00:00", "9999-12-31 00:00:00", 0);
         DmeTestSupport.ruleSetFlow(jdbc, "RS_PARENT", "2.000", line(labeled("s1", "RS_MID", "새 판정")));

@@ -50,7 +50,10 @@ class RuleVarTypeResolverTest extends AbstractMdmSharedDbTest {
         jdbc.update("DELETE FROM TB_MDM_COLUMN_SYSTEM");
         jdbc.update("DELETE FROM TB_MDM_COLUMN");
         jdbc.update("DELETE FROM TB_MDM_DOMAIN");
-        jdbc.update("INSERT OR IGNORE INTO TB_MDM_CODE (MARU_CODE_ID, MARU_CODE_NAME, SOURCE_KIND) VALUES ('SURF_GRD_CD', '표면등급', 'MDM')");
+        // 없을 때만 넣는다(Oracle 에는 INSERT OR IGNORE 가 없다).
+        jdbc.update("INSERT INTO TB_MDM_CODE (MARU_CODE_ID, MARU_CODE_NAME, SOURCE_KIND) "
+                + "SELECT 'SURF_GRD_CD', '표면등급', 'MDM' FROM DUAL "
+                + "WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_CODE WHERE MARU_CODE_ID = 'SURF_GRD_CD')");
 
         MdmDomain t = new MdmDomain("두께", "두께", "QTY", "NUMBER");
         t.setScale(2);
@@ -97,7 +100,7 @@ class RuleVarTypeResolverTest extends AbstractMdmSharedDbTest {
 
     private void released(String id, int ver, String from, String to) {
         jdbc.update("INSERT INTO TB_MDM_RULE_VER (MARU_RULE_ID, VER, STATUS, HIT_POLICY, APPLY_FROM, APPLY_TO) VALUES (?, ?, 'RELEASED', 'FIRST', ?, ?)",
-                id, ver, from, to);
+                id, ver, java.sql.Timestamp.valueOf(from), java.sql.Timestamp.valueOf(to));
     }
 
     private void resultVar(String id, int ver, int varId, String name, Long domainId, String dataType, String resGrp) {

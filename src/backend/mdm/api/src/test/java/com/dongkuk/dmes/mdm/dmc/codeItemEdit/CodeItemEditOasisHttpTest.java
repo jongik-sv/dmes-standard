@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeFixtures;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeTestConfig;
 import com.dongkuk.dmes.mdm.common.support.MdmClockConfig;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -18,12 +19,10 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Path;
 import java.util.List;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
@@ -34,8 +33,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-06-03 design.md §4.6 O1~O7 — BPMN {@code services/dmc/codeItemEdit.bpmn} 까지 태우는 HTTP 시험(DmaOasisHttpTest 모양).
@@ -48,7 +45,7 @@ import org.springframework.test.context.DynamicPropertySource;
         properties = "cactus.security.client-key=" + CodeItemEditOasisHttpTest.TEST_CLIENT_KEY)
 @ActiveProfiles("local")
 @Import(CodeItemEditOasisHttpTest.ClockOnly.class)
-class CodeItemEditOasisHttpTest {
+class CodeItemEditOasisHttpTest extends AbstractMdmSharedDbTest {
 
     static final String TEST_CLIENT_KEY = "mdm-dmc-test-client-key";
 
@@ -61,9 +58,6 @@ class CodeItemEditOasisHttpTest {
         }
     }
 
-    @TempDir
-    static Path tempDir;
-
     @LocalServerPort
     int port;
 
@@ -74,12 +68,6 @@ class CodeItemEditOasisHttpTest {
     private final ObjectMapper json = new ObjectMapper();
     private JdbcTemplate jdbc;
     private MasterCodeFixtures fx;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-code-item-edit-http-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {
@@ -112,8 +100,8 @@ class CodeItemEditOasisHttpTest {
 
     @Test
     void O3_적용_중_실패는_ROW_VERSION_증가와_앞선_닫기를_함께_되돌린다() throws Exception {
-        jdbc.execute("CREATE TRIGGER TR_O3_BOOM BEFORE INSERT ON TB_MDM_CODE_ITEM "
-                + "WHEN NEW.CODE = 'BOOM' BEGIN SELECT RAISE(ABORT, 'boom'); END");
+        jdbc.execute("CREATE OR REPLACE TRIGGER TR_O3_BOOM BEFORE INSERT ON TB_MDM_CODE_ITEM FOR EACH ROW "
+                + "WHEN (NEW.CODE = 'BOOM') BEGIN RAISE_APPLICATION_ERROR(-20001, 'boom'); END;");
         try {
             ObjectNode del = json.createObjectNode().put("rowStatus", "DELETED").put("code", "KS-9");
             JsonNode body = post("save", saveBody(0, del, row("ADDED", "BOOM", "붐", "KS")));
@@ -122,7 +110,7 @@ class CodeItemEditOasisHttpTest {
             assertEquals(0L, fx.rowVersion("STEEL_STD", "1.001"), "beginDraftWrite 증가분이 롤백되지 않았다");
             assertTrue(fx.itemSegments("STEEL_STD").contains("KS-9@1.000-9999"), "앞선 닫기가 롤백되지 않았다");
         } finally {
-            jdbc.execute("DROP TRIGGER IF EXISTS TR_O3_BOOM");
+            dropTrigger("TR_O3_BOOM");
         }
     }
 
@@ -211,6 +199,12 @@ class CodeItemEditOasisHttpTest {
     }
 
     // ── helpers ─────────────────────────────────────────────────────────
+
+    /** Oracle 23 미만에는 DROP TRIGGER IF EXISTS 가 없다 — 없는 트리거(ORA-04080)는 넘긴다. */
+    private void dropTrigger(String name) {
+        jdbc.execute("BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER " + name + "'; "
+                + "EXCEPTION WHEN OTHERS THEN IF SQLCODE != -4080 THEN RAISE; END IF; END;");
+    }
 
     private ObjectNode row(String status, String code, String name, String... lvls) {
         ObjectNode r = json.createObjectNode().put("rowStatus", status).put("code", code).put("name", name).put("seq", 1);
