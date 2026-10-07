@@ -313,10 +313,10 @@ EOF
 
 - [ ] **Step 1: 채번하고 마이그레이션 파일을 만든다**
 
-Run: `python3 .claude/skills/flyway-migration-add/scripts/migration_tool.py status --module mdm`
+Run: `node .claude/skills/flyway-migration-add/scripts/migration_tool.mjs status --module mdm`
 Expected(작성 당시): `sqlite [방언] 13 개, 최대 V16` · `다음 안전 번호: V17`. dev 병합 뒤 실제 번호는 V18 이다. 다른 번호가 나오면 그 번호를 쓰고 이 태스크의 파일 이름을 모두 바꾼다.
 
-Run: `python3 .claude/skills/flyway-migration-add/scripts/migration_tool.py scaffold --module mdm --slug create_mdm_meta_rev --title "MDM 메타 변경 기록 테이블"`
+Run: `node .claude/skills/flyway-migration-add/scripts/migration_tool.mjs scaffold --module mdm --slug create_mdm_meta_rev --title "MDM 메타 변경 기록 테이블"`
 Expected: `src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V18__create_mdm_meta_rev.sql` 이 생긴다. 생긴 본문을 아래로 통째로 바꾼다:
 
 ```sql
@@ -7002,7 +7002,7 @@ EOF
 
 - [ ] **Step 1: 번호를 확인한다**
 
-mdm ADR 은 `docs/mdm/adr/` 에 손으로 채번한다 — `adr_tool.py` 는 경로를 `docs/{module}/design/adr` 로 고정해 mdm 에서는 `new`·`status`·`index` 를 쓰지 않는다(`docs/mdm/adr/README.md` 「위치·발행 방식 이탈」).
+mdm ADR 은 `docs/mdm/adr/` 에 손으로 채번한다 — `adr_tool.mjs` 는 경로를 `docs/{module}/design/adr` 로 고정해 mdm 에서는 `new`·`status`·`index` 를 쓰지 않는다(`docs/mdm/adr/README.md` 「위치·발행 방식 이탈」).
 
 Run: `ls docs/mdm/adr/`
 Expected(작성 당시): `0001`~`0005` 와 `README.md`. 다음 번호는 `0006`. dev 병합 뒤 실제 번호는 `0007` 이다.
@@ -7088,7 +7088,7 @@ MDM 에는 컬럼 사전·도메인·업무기준(룰)·룰 세트·마스터코
 
 - [ ] **Step 3: 린트**
 
-Run: `python3 .claude/skills/adr-write/scripts/adr_tool.py lint docs/mdm/adr/0007-mdm-meta-hybrid-cache-revision.md`
+Run: `node .claude/skills/adr-write/scripts/adr_tool.mjs lint docs/mdm/adr/0007-mdm-meta-hybrid-cache-revision.md`
 Expected: ERROR 0.
 
 - [ ] **Step 4: 적대적 검토(adr-write §8)**
@@ -7296,7 +7296,7 @@ pnpm -C src/frontend --filter @dk-oasis/shared test:unit
 pnpm -C src/frontend --filter @dk-oasis/mcm test
 python3 .claude/skills/mantine-aggrid-ui/scripts/mantine_docs.py audit src/frontend/m-mcm/page-components/csa/mdmCacheMng
 python3 .claude/skills/mantine-aggrid-ui/scripts/aggrid_docs.py audit src/frontend/m-mcm/page-components/csa/mdmCacheMng
-python3 .claude/skills/adr-write/scripts/adr_tool.py lint docs/mdm/adr/0007-mdm-meta-hybrid-cache-revision.md
+node .claude/skills/adr-write/scripts/adr_tool.mjs lint docs/mdm/adr/0007-mdm-meta-hybrid-cache-revision.md
 ```
 Expected: 모든 시험 PASS, 컴파일 FAIL 줄 없음, 계약 검사 ERROR 0(두 번), audit 0건(두 번), 린트 ERROR 0. mdm `:api:test` 는 오래 걸린다(1000건 이상) — 백그라운드로 돌리고 끝날 때 알림을 받는다.
 
@@ -7321,7 +7321,7 @@ Expected: 모든 시험 PASS, 컴파일 FAIL 줄 없음, 계약 검사 ERROR 0(�
 | S13 | §7 "화면 — Vitest" | m-mcm 에는 Vitest 설정·스크립트·의존이 없다(`src/frontend/m-mcm/package.json:5-18` scripts 에 `test` 가 없고 `:43-56` devDependencies 에 vitest 가 없다) | m-mls 와 같은 버전으로 `vitest`·`happy-dom` devDependency 와 `test` 스크립트를 더한다(lockfile 변경, Task 12) |
 | S14 | §6 버튼 "등록·삭제·재등록" | 표준 골격은 신규(`save`)·삭제(`delete`)·업무 고유 `btn_<동사>` 이고, `objId` 를 주면 action 이 PERM_ALL 에 없는 버튼은 영구 비활성이다(screen-patterns.md §상단 버튼) | 신규(= 등록 팝업, load)·삭제·재등록(`btn_reload`, action `reload` — allActions 에 더함). 라벨 "신규" 는 표준을 따른다(Ruling R11, Task 11·12) |
 | S15 | §1.3 D9 "모듈별 빌드 배선이 필요 없다" | cactus-core 는 업무 모듈의 includeBuild 이고(각 `settings.gradle`) 저장소가 mavenCentral 뿐이라(`cactus-core/build.gradle:9-23`) 엔진을 찾을 빌드가 필요하다 | cactus-core·업무 모듈 다섯 settings.gradle 에 엔진 includeBuild 를 둔다 — 실측 결과와 무관하게 명시(Task 0) |
-| S16 | §8 ADR 을 `adr-write` 로 발행 | `adr_tool.py` 는 경로를 `docs/{module}/design/adr` 로 고정한다(`adr_tool.py:19`). mdm 은 `docs/mdm/adr/` 에 손으로 채번하고 린트만 쓴다(`docs/mdm/adr/README.md` 「위치·발행 방식 이탈」) | 0006 을 손으로 만들고 `lint` 와 적대적 검토만 돌린다(Task 13) |
+| S16 | §8 ADR 을 `adr-write` 로 발행 | `adr_tool.mjs` 는 경로를 `docs/{module}/design/adr` 로 고정한다(`adr_tool.mjs:23`). mdm 은 `docs/mdm/adr/` 에 손으로 채번하고 린트만 쓴다(`docs/mdm/adr/README.md` 「위치·발행 방식 이탈」) | 0006 을 손으로 만들고 `lint` 와 적대적 검토만 돌린다(Task 13) |
 | S17 | §3.2 "각 쓰기 메서드 본문에서 직접 호출 — 같은 트랜잭션에 합류" | 기존 서비스 시험 다수가 서비스를 트랜잭션 없이 부른다(`AT/dmb/LayoutTestSupport.java:22`, `DomainMngApiSupport.java:20`) — 네이티브 INSERT 는 트랜잭션이 없으면 실패한다 | 기록기가 `TransactionTemplate`(REQUIRED)로 감싼다 — 호출자 트랜잭션이 있으면 합류(롤백도 같이), 없으면 스스로 연다(Task 1) |
 | S18 | (스펙에 없음) 기록 SQL 문 수 | SQL 문 수 가드가 헤더 저장의 전문 수당 문 수를 단언한다(`AT/dmb/headerMng/HeaderMngQueryCountTest.java:117-121`) | 기록은 여러 행 VALUES 한 문장(Ruling R1). 가드의 상한만 1 올린다(Task 2) |
 | S19 | §5.4 "같은 오류가 반복되면 30초 건너뛰기" | 반복 횟수 정의가 없다 | 연속 2번(Ruling R6, Task 7) |

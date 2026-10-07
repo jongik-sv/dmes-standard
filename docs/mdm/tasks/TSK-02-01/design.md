@@ -31,7 +31,7 @@
 | F17 | backend-standard 04 는 MES 모듈(mpp/mqc/mls/mas/mcm)에 `@MapperScan`/`SqlSession`(MyBatis) 도입을 사용자 동의 없이 금지한다. mcm-reference 는 "JPA 1순위(Repository + `@Query(nativeQuery=true)`) / 불가 시 MyBatis" 다. TRD §2:28 의 "JPA + MyBatis … mcm-core 관례"는 이와 어긋난다 | `docs/guide/BackEnd/standard-v2/backend-standard/04-cases-checklist-menu.md:80-93`, mcm-reference A절 "영속성 / SQL 표준" |
 | F18 | 권한 action 은 PermKey `{objId}/{action}` 로 판정하고, `DataInitializer.seedMcmSecRbac()` 의 `allActions`(PERM_ALL 의 PERMISSION_ACTION)에 없는 action 은 SYSADMIN 도 403 이다. 현재 목록에 `search, save, delete, import, export, reg, confirm, cancel, approve, reject, copy, execute, validate, analyze, view, activate, deactivate, compare, restore, apply, release, calculate` 등이 있다 | `DataInitializer.java:296-329` |
 | F19 | 예정 screenId 24종(§6.5)은 리포의 Java·TS·SQL·BPMN 어디에도 쓰이지 않는다(OBJECT_ID 전역 PK 충돌 없음). 역할 ID 는 현재 `SYSADMIN` 하나뿐이다 | grep 결과 0건 |
-| F20 | `adr_tool.py` 는 ADR 경로를 `docs/{module}/design/adr` 로 고정한다(`ADR_REL`). `docs/mdm/design` 은 `.gitignore:225` 로 통째 무시되는 외부 링크 자리라 `new --module mdm` 은 커밋되지 않는 곳(메인 체크아웃에서는 외부 mdm 프로젝트)에 파일을 만든다. `lint <파일경로>` 는 경로 무관하게 동작한다. `docs/guide/adr` 도 `new` 로는 만들 수 없다(`docs/guide/design/adr` 을 가리킴) | `.claude/skills/adr-write/scripts/adr_tool.py:20,47,163-222`, `.gitignore:224-225` |
+| F20 | `adr_tool.mjs` 는 ADR 경로를 `docs/{module}/design/adr` 로 고정한다(`ADR_REL`). `docs/mdm/design` 은 `.gitignore:225` 로 통째 무시되는 외부 링크 자리라 `new --module mdm` 은 커밋되지 않는 곳(메인 체크아웃에서는 외부 mdm 프로젝트)에 파일을 만든다. `lint <파일경로>` 는 경로 무관하게 동작한다. `docs/guide/adr` 도 `new` 로는 만들 수 없다(`docs/guide/design/adr` 을 가리킴) | `.claude/skills/adr-write/scripts/adr_tool.mjs:20,47,163-222`, `.gitignore:224-225` |
 | F21 | `03-grep-manifest-citation.md` 의 "enum" 은 PowerShell `Select-String` 명령 7종(C-1~C-7)이다. 모듈 목록이 없어 수정 대상이 아니다 | `03-grep-manifest-citation.md:9-19` |
 | F22 | RULE.md:24 와 Mes-Guide.md:8·22 는 화면 산출물 경로를 `docs/{moduleId}/design/{screenId}/` 로 적는다. mls 의 `docs/mls/screens/` 는 BPA(레거시 분석) 보고서 자리이고 설계 5종은 `docs/mls/design/{screenId}/` 에 있다 | `RULE.md:24`, `docs/guide/MES/Mes-Guide.md:8,22`, `docs/mls/README.md` |
 
@@ -149,7 +149,7 @@ ID=docs/guide/design/identifier-dictionary
 - **V1 ADR 3건 실재·린트**
   ```bash
   ls docs/mdm/adr/000[1-3]-*.md | wc -l                                   # 기대 3
-  python3 .claude/skills/adr-write/scripts/adr_tool.py lint \
+  node .claude/skills/adr-write/scripts/adr_tool.mjs lint \
     docs/mdm/adr/0001-physical-naming-audit-dialect.md \
     docs/mdm/adr/0002-version-confirm-without-approval.md \
     docs/mdm/adr/0003-module-boundary-screens-roles.md                   # 기대 "ERROR 0", exit 0 (WARN 0 권장)
@@ -295,7 +295,7 @@ ID=docs/guide/design/identifier-dictionary
 1. **`src/` 는 한 줄도 바꾸지 않는다.** 인스펙터(`McmAuditStatementInspector`), mcm `application.yml`·`JpaConfig`, `DataInitializer`(`seedMdmMenus` 의 옛 그룹 포함), m-mdm 샘플, mdm V1 베이스라인 모두 그대로다. 샘플 그룹 이동은 TSK-01-03 몫이다.
 2. **decisions.md 의 D-001~D-011 은 수정하지 않는다.** 새 항목은 끝에 D-012 부터 번호를 이어 붙인다. design.md 의 `D1`~`D7`(담당자 확인 필요 결정)과 decisions.md 의 `D-0NN` 을 섞어 쓰지 않는다.
 3. **외부 원천 설계(`/Users/jji/project/mdm/**`)는 수정하지 않는다.** 원천 칼럼 이름은 대소문자만 바뀐다(`maru_code_id` ≡ `MARU_CODE_ID`). 칼럼 추가·삭제·개명은 이 Task 의 결정이 아니다.
-4. **`docs/mdm/design` 을 만들지 않는다.** `adr_tool.py` 의 `new`·`status`·`index` 를 `--module mdm` 으로 실행하지 않는다(외부 링크 자리에 파일이 생김, F20). ADR 은 스킬 절 구조대로 손으로 쓰고 `lint <파일경로>` 로만 검사한다. `docs/guide/adr` 에도 `new` 를 쓰지 않는다.
+4. **`docs/mdm/design` 을 만들지 않는다.** `adr_tool.mjs` 의 `new`·`status`·`index` 를 `--module mdm` 으로 실행하지 않는다(외부 링크 자리에 파일이 생김, F20). ADR 은 스킬 절 구조대로 손으로 쓰고 `lint <파일경로>` 로만 검사한다. `docs/guide/adr` 에도 `new` 를 쓰지 않는다.
 5. **기존 ADR(`docs/guide/adr/*`, `docs/aps/design/adr/*`)은 수정하지 않는다.** 새 ADR 의 Status 는 `PROPOSED` 다(스킬 §8 — ACCEPTED 전환은 적대적 검토와 승인 후).
 6. **다른 모듈의 명명 규칙은 바꾸지 않는다.** A.12 정규식의 소문자 가지 `TB_(mpn|mpp|mls|mqc|mcm)_[a-z][a-z0-9_]*` 는 글자 그대로 남는다. A.12.5 의 `TB_MPP_MOLD_MASTER` ✗ 행, backend-standard 의 "6 모듈"·예시, `04-cases-checklist-menu.md` 의 "위 5 모듈"은 그대로다. `mas` 의 A.1.1 누락도 고치지 않는다.
 7. **식별자 사전의 기존 등재 행(mls·mcm·mpp·master·aps 행, A.3.2 화면 행)은 수정하지 않는다.** 추가만 한다.
@@ -533,7 +533,7 @@ action 과 `allActions`(F18) 대조 — ADR-0003 에 이 표를 그대로 싣는
 
 - **위치 `docs/mdm/adr/`**(스킬 기본 `docs/{module}/design/adr` 에서 이탈). 이유: `docs/mdm/design` 은 gitignore 된 외부 링크라 그 안의 ADR 은 커밋되지 않는다(F20). `docs/guide/adr/`(모듈 횡단용)과 같은 평평한 구조다. 이탈 사실을 `docs/mdm/adr/README.md` 머리에 적는다.
 - **번호**: mdm 모듈 독립 시퀀스 0001 부터(스킬 §1). 채번은 파일 목록으로 손으로 한다.
-- **발행 도구**: `adr_tool.py new/status/index` 를 쓰지 않는다(불변 규칙 4). 스킬 §4 절 구조를 손으로 만든다:
+- **발행 도구**: `adr_tool.mjs new/status/index` 를 쓰지 않는다(불변 규칙 4). 스킬 §4 절 구조를 손으로 만든다:
   ```
   # ADR-NNNN: {제목}
   - **Status**: PROPOSED
@@ -548,7 +548,7 @@ action 과 `allActions`(F18) 대조 — ADR-0003 에 이 표를 그대로 싣는
   ## Trigger (PROPOSED 인 경우만)
   ## References
   ```
-  검사는 `python3 .claude/skills/adr-write/scripts/adr_tool.py lint <파일>` 로만 한다(ERROR 0).
+  검사는 `node .claude/skills/adr-write/scripts/adr_tool.mjs lint <파일>` 로만 한다(ERROR 0).
 - **Status PROPOSED**: 스킬 §8 은 확정 전 적대적 검토를 요구한다. Trigger 문안(3건 공통 골격): "D'Flow 에서 mdm/TSK-02-01 이 승인(approved)되고, `docs/mdm/tasks/TSK-02-01/design.md` 「담당자 확인 필요 결정」 중 이 ADR 이 근거로 삼은 항목(○○)이 반려되지 않으면 ACCEPTED 로 전환한다. 반려된 항목이 있으면 그 결정을 고친 뒤 다시 판정한다." ○○ = ADR-0001: D1·D7, ADR-0002: **D3·D4·D4-1**·D5, ADR-0003: D2·D6. (ADR-0002 의 D4-1 은 2026-09-28 신설분이라 Trigger 에서 빠지지 않게 같이 적는다.)
 - **ADR 을 셋으로 나누는 이유**: 결재·배포를 구현하면 ADR-0002 만 SUPERSEDED 되고 명명(0001)·모듈 경계(0003)는 그대로 남는다. 한 문서에 섞으면 일부만 바꾸기 위해 전체를 대체해야 한다.
 - **ADR 별 내용 요지**:
