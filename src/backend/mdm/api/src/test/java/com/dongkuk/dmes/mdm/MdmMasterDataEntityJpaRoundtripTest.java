@@ -35,10 +35,9 @@ import org.springframework.transaction.annotation.Transactional;
  * 각각 최소 1건 저장→조회 왕복을 수행한다. 리포지토리가 없는 {@code MdmDataSystem}·{@code MdmDataRecv}·
  * {@code MdmDataRecvItem}(F4, D-019)은 {@code EntityManager}로 직접 저장·조회한다.
  *
- * <p>F7·F8 단정(§5 불변 규칙 8) — {@code MdmSqliteTemporalContributor}(dev 머지 뒤 TSK-08-01·06-01 과 한 벌로 합친 컨트리뷰터)가 SQLite 프로파일에
- * 등록돼 있다는 전제로 {@code typeof()}로 저장 형식을 단정한다(관찰이 아니라 단정). {@code VALID_FROM}은
- * {@code MdmDataItem}의 PK 구성 요소({@code @Id})이고 {@code VALID_TO}는 아니다 — JPA 스펙상 컨버터가
- * Id 속성에는 자동 적용되지 않을 수 있어 둘 다 따로 단정한다.
+ * <p>F7·F8 단정(§5 불변 규칙 8) — 업무 일시 칼럼이 Oracle {@code TIMESTAMP(6)} 로 만들어져 있고(SQLite 때는 {@code typeof()}
+ * 가 {@code text}) 값이 초 단위로 저장되는지 단정한다. {@code VALID_FROM}은 {@code MdmDataItem}의 PK 구성 요소({@code @Id})이고
+ * {@code VALID_TO}는 아니므로 둘 다 따로 단정한다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
@@ -96,17 +95,15 @@ class MdmMasterDataEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
         Optional<MdmDataItem> reloaded = dataItemRepository.findById(id);
         assertEquals("왕복항목", reloaded.orElseThrow().getName());
         assertEquals(MdmTemporalSegmentRules.OPEN_END, reloaded.get().getValidTo(),
-                "VALID_TO 기본값은 OPEN_END(F6, §3.2-4) — 방언 텍스트 리터럴 값과 계약 상수가 같아야 한다");
+                "VALID_TO 기본값은 OPEN_END(F6, §3.2-4) — DDL 기본값(TIMESTAMP 리터럴)과 계약 상수가 같아야 한다");
     }
 
     /**
      * F7·F8 단정(가장 중요, §5 불변 규칙 8) — {@code VALID_FROM}(Id 필드)·{@code VALID_TO}(비 Id 필드)
-     * 둘 다 SQLite 저장 typeof 가 {@code 'text'}이고 값이 naming-dialect-rules §3 #16 형식(공백 구분자,
-     * 소수초 없음)과 정확히 같은지 단정한다. 변이: {@code application-local.yml}의 {@code
-     * metadata_builder_contributor} 등록을 빼면 이 테스트가 빨개진다(컨버터 미등록의 직접 증거).
+     * 둘 다 Oracle 칼럼 형이 {@code TIMESTAMP(6)} 이고 값이 초 단위(소수초 없음)로 저장되는지 단정한다.
      */
     @Test
-    void VALID_FROM_과_VALID_TO_가_SQLite_에_naming_dialect_rules_형식_TEXT_로_저장된다() {
+    void VALID_FROM_과_VALID_TO_가_Oracle_TIMESTAMP_로_초_단위_저장된다() {
         saveParentData("RT-DATA-3");
         entityManager.flush();
 
@@ -119,14 +116,17 @@ class MdmMasterDataEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
         entityManager.flush();
 
         Object[] row = (Object[]) entityManager.createNativeQuery(
-                        "SELECT typeof(VALID_FROM), VALID_FROM, typeof(VALID_TO), VALID_TO "
+                        "SELECT (SELECT DATA_TYPE FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'TB_MDM_DATA_ITEM' AND COLUMN_NAME = 'VALID_FROM'), "
+                                + "TO_CHAR(VALID_FROM, 'YYYY-MM-DD HH24:MI:SS'), "
+                                + "(SELECT DATA_TYPE FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'TB_MDM_DATA_ITEM' AND COLUMN_NAME = 'VALID_TO'), "
+                                + "TO_CHAR(VALID_TO, 'YYYY-MM-DD HH24:MI:SS') "
                                 + "FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = 'RT-DATA-3' AND CODE = 'ITEM-1'")
                 .getSingleResult();
 
-        assertEquals("text", String.valueOf(row[0]), "VALID_FROM(Id 필드) typeof(): " + row[1]);
-        assertEquals("2026-09-24 10:00:00", String.valueOf(row[1]), "VALID_FROM 저장 형식");
-        assertEquals("text", String.valueOf(row[2]), "VALID_TO typeof(): " + row[3]);
-        assertEquals("9999-12-31 00:00:00", String.valueOf(row[3]), "VALID_TO 저장 형식");
+        assertEquals("TIMESTAMP(6)", String.valueOf(row[0]), "VALID_FROM(Id 필드) 칼럼 형: " + row[1]);
+        assertEquals("2026-09-24 10:00:00", String.valueOf(row[1]), "VALID_FROM 저장 값");
+        assertEquals("TIMESTAMP(6)", String.valueOf(row[2]), "VALID_TO 칼럼 형: " + row[3]);
+        assertEquals("9999-12-31 00:00:00", String.valueOf(row[3]), "VALID_TO 저장 값");
     }
 
     /**
@@ -136,8 +136,8 @@ class MdmMasterDataEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
      * <p>네이티브 INSERT 로 {@code VALID_TO} 를 생략해야 DB DEFAULT 가 실제로 적용된다 — 위 왕복
      * 테스트들처럼 {@code setValidTo(OPEN_END)} 를 JPA 로 명시하면 Hibernate 가 매핑 칼럼을 전부
      * 명시해서 INSERT 하므로 DB DEFAULT 를 거치지 않는다(advisor 재검토로 발견, Build 이탈). 같은
-     * 트랜잭션 안에서 {@code em.clear()} 뒤 {@code findById()} 로 읽어야 컨버터의 읽기 경로(DDL 기본값
-     * 텍스트 리터럴 파싱)까지 실제로 거친다.
+     * 트랜잭션 안에서 {@code em.clear()} 뒤 {@code findById()} 로 읽어야 읽기 경로(DDL 기본값
+     * TIMESTAMP 값 변환)까지 실제로 거친다.
      */
     @Test
     void VALID_TO_DDL_기본값으로_INSERT_된_행을_JPA_로_읽으면_OPEN_END_와_같다() {
@@ -146,14 +146,14 @@ class MdmMasterDataEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
 
         entityManager.createNativeQuery(
                         "INSERT INTO TB_MDM_DATA_ITEM (MARU_DATA_ID, CODE, VALID_FROM, NAME) "
-                                + "VALUES ('RT-DATA-3B', 'ITEM-1', '2026-09-24 10:00:00', 'DDL기본값확인')")
+                                + "VALUES ('RT-DATA-3B', 'ITEM-1', TIMESTAMP '2026-09-24 10:00:00', 'DDL기본값확인')")
                 .executeUpdate();
         entityManager.clear();
 
         MdmDataItem reloaded = dataItemRepository.findById(
                 new MdmDataItemId("RT-DATA-3B", "ITEM-1", LocalDateTime.of(2026, 9, 24, 10, 0, 0))).orElseThrow();
         assertEquals(MdmTemporalSegmentRules.OPEN_END, reloaded.getValidTo(),
-                "DDL DEFAULT 로 채워진 VALID_TO 를 JPA 로 읽은 값이 OPEN_END 와 같아야 한다(컨버터 읽기 경로 포함)");
+                "DDL DEFAULT 로 채워진 VALID_TO 를 JPA 로 읽은 값이 OPEN_END 와 같아야 한다(읽기 경로 포함)");
     }
 
     @Test

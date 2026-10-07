@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -11,15 +12,11 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-01-03 design.md §3.2 A2 — mdm 신뢰 채널(D6, 불변 규칙 I18).
@@ -34,24 +31,15 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = "cactus.security.client-key=" + MdmSecurityChainTest.TEST_CLIENT_KEY)
 @ActiveProfiles("local")
-class MdmSecurityChainTest {
+class MdmSecurityChainTest extends AbstractMdmSharedDbTest {
 
     static final String TEST_CLIENT_KEY = "mdm-test-client-key";
-
-    @TempDir
-    static Path tempDir;
 
     @LocalServerPort
     int port;
 
     private final HttpClient client = HttpClient.newHttpClient();
     private final ObjectMapper json = new ObjectMapper();
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-security-chain-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @Test
     void 헤더_없는_OASIS_호출은_401_이다() throws IOException, InterruptedException {

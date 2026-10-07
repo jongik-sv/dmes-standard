@@ -406,6 +406,12 @@ public class CodeItemEditService {
                     MasterCodeItemIssueCode.PATCH_KEY_CHANGED_IN_UNAPPLIED.name(), "DRAFT에서 고치세요", "code",
                     request.getCode())));
         }
+        // checkRow 를 거치지 않으므로 4000바이트 상한(ORA-12899 예방)을 여기서 따로 본다 — 쓰기 전.
+        List<MdmCheckIssue> lengthIssues = MasterCodeItemChecks.checkPatchText(request.getCode(),
+                text(request.getName()), text(request.getAlterName()), text(request.getDescription()));
+        if (!lengthIssues.isEmpty()) {
+            throw MasterCodeRejections.patchRejected(lengthIssues);
+        }
         target.setName(text(request.getName()));
         target.setAlterName(text(request.getAlterName()));
         target.setSeq(request.getSeq());

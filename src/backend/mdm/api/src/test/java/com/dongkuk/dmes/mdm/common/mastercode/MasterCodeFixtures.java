@@ -1,6 +1,7 @@
 package com.dongkuk.dmes.mdm.common.mastercode;
 
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -11,7 +12,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  *
  * <p>제약: {@code CK_TB_MDM_CODE_VER_APPLY} 때문에 DRAFT 가 아닌 버전은 APPLY_FROM·APPLY_TO 를 둘 다 채운다.
  * {@code CK_TB_MDM_CODE_SRC_SYS} 때문에 MDM 은 SOURCE_SYSTEM NULL, EXTERNAL 은 {@code 'MES'}(V2 시드). REGEX 카테고리는
- * {@code CK_TB_MDM_CODE_CATE_DEF} 때문에 DEF_TARGET 이 있어야 한다. 업무 일시는 19자 TEXT 다(F16).
+ * {@code CK_TB_MDM_CODE_CATE_DEF} 때문에 DEF_TARGET 이 있어야 한다. 업무 일시는 19자 텍스트로 받아 TIMESTAMP 로 묶는다(Oracle 은 문자열 → TIMESTAMP 암시 변환이 NLS 에 기대어 ORA-01843 이 난다).
  */
 public final class MasterCodeFixtures {
 
@@ -22,6 +23,11 @@ public final class MasterCodeFixtures {
 
     public MasterCodeFixtures(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
+    }
+
+    /** 19자 텍스트 → TIMESTAMP 바인딩 값(null 은 그대로). */
+    private static Timestamp ts(String text) {
+        return text == null ? null : Timestamp.valueOf(text);
     }
 
     /** FK 역순(F16). */
@@ -52,7 +58,7 @@ public final class MasterCodeFixtures {
         String kind = v.stripTrailingZeros().scale() <= 0 ? "MAJOR" : "MINOR";
         jdbc.update("INSERT INTO TB_MDM_CODE_VER (MARU_CODE_ID, VER, VER_KIND, STATUS, OWNER_ID, APPLY_FROM, APPLY_TO, "
                         + "ROW_VERSION, AUD_VER) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)",
-                id, ver, kind, status, ownerId, applyFrom, applyTo, rowVersion);
+                id, ver, kind, status, ownerId, ts(applyFrom), ts(applyTo), rowVersion);
     }
 
     public void seedItem(String id, String code, String from, String to, String name, String alterName, Integer seq,
@@ -139,7 +145,7 @@ public final class MasterCodeFixtures {
         return jdbc.query("SELECT CODE, FROM_VER, TO_VER, NAME, ALTER_NAME, SEQ FROM TB_MDM_CODE_ITEM "
                         + "WHERE MARU_CODE_ID = ?",
                 (rs, i) -> rs.getString(1) + "|" + fmt(rs.getBigDecimal(2)) + "|" + fmt(rs.getBigDecimal(3)) + "|"
-                        + rs.getString(4) + "|" + rs.getString(5) + "|" + rs.getObject(6), id)
+                        + rs.getString(4) + "|" + rs.getString(5) + "|" + number(rs.getObject(6)), id)
                 .stream().sorted().toList();
     }
 
@@ -161,6 +167,11 @@ public final class MasterCodeFixtures {
                         (rs, i) -> new Object[]{rs.getBigDecimal(1), rs.getLong(2)}, id).stream()
                 .filter(r -> ((BigDecimal) r[0]).setScale(3, java.math.RoundingMode.HALF_UP).compareTo(new BigDecimal(ver)) == 0)
                 .map(r -> (Long) r[1]).findFirst().orElseThrow();
+    }
+
+    /** NUMBER 칸은 Oracle 이 BigDecimal 로 준다 — 정수 칸은 long 으로 찍어 "11" 로 맞춘다. */
+    private static Object number(Object v) {
+        return v instanceof Number n ? n.longValue() : v;
     }
 
     public static String fmt(BigDecimal v) {

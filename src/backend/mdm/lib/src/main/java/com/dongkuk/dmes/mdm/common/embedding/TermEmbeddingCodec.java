@@ -4,7 +4,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
- * {@code EMBEDDING} 칼럼(SQLite BLOB, 4,096바이트) ↔ {@code float[1024]} 변환 — 불변 규칙 I9.
+ * {@code EMBEDDING} 칼럼(BLOB, 4,096바이트) ↔ {@code float[1024]} 변환 — 불변 규칙 I9.
  * float32 little-endian 1024개 = 4,096바이트. L2 노름은 1이어야 한다(허용 오차 1e-3).
  */
 public final class TermEmbeddingCodec {

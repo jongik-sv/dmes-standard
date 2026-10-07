@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
+import com.dongkuk.dmes.mdm.dma.DmaTestSupport;
 import com.dongkuk.dmes.mdm.dma.domainMng.dto.DomainDraftRequest;
 import com.dongkuk.dmes.mdm.dma.domainMng.service.DomainMngService;
 import java.util.ArrayList;
@@ -35,8 +36,8 @@ abstract class DomainMngApiSupport extends AbstractMdmSharedDbTest {
     }
 
     protected void fixtures() {
-        jdbc.update("INSERT OR IGNORE INTO TB_MDM_UNIT (UNIT_CODE, DIMENSION, BASE_UNIT, FACTOR, CHG_SEQ) VALUES ('mm','LENGTH','mm',1,0)");
-        jdbc.update("INSERT OR IGNORE INTO TB_MDM_UNIT (UNIT_CODE, DIMENSION, BASE_UNIT, FACTOR, CHG_SEQ) VALUES ('ton','MASS','ton',1,0)");
+        DmaTestSupport.unitIfAbsent(jdbc, "mm", "LENGTH", "mm");
+        DmaTestSupport.unitIfAbsent(jdbc, "ton", "MASS", "ton");
     }
 
     /**
@@ -45,8 +46,9 @@ abstract class DomainMngApiSupport extends AbstractMdmSharedDbTest {
      * {@code CodeLookup} 빈은 없다(코드 원장 유무는 {@code CodeLookup} 빈으로 정해지며 이 행과 무관하다).
      */
     protected void seedCodeHeader(String maruCodeId) {
-        jdbc.update("INSERT OR IGNORE INTO TB_MDM_CODE (MARU_CODE_ID, MARU_CODE_NAME, STATUS, SOURCE_KIND) VALUES (?, ?, 'INUSE', 'MDM')",
-                maruCodeId, maruCodeId);
+        jdbc.update("INSERT INTO TB_MDM_CODE (MARU_CODE_ID, MARU_CODE_NAME, STATUS, SOURCE_KIND) "
+                + "SELECT ?, ?, 'INUSE', 'MDM' FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_CODE WHERE MARU_CODE_ID = ?)",
+                maruCodeId, maruCodeId, maruCodeId);
     }
 
     protected static DomainDraftRequest req(Consumer<DomainDraftRequest> edit) {

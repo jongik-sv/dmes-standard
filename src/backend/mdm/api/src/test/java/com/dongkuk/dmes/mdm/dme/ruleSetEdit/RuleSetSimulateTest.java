@@ -416,7 +416,7 @@ public class RuleSetSimulateTest extends AbstractMdmSharedDbTest {
     }
 
     /**
-     * GT_FAST 의 RELEASED 행 CELLS 를 깨뜨린다. SQLite CHECK({@code json_valid(CELLS)})가 문법이 깨진 JSON 을 막으므로 JSON 으로는 맞지만 셀 코덱이
+     * GT_FAST 의 RELEASED 행 CELLS 를 깨뜨린다. CELLS 의 CHECK({@code IS JSON STRICT})가 문법이 깨진 JSON 을 막으므로 JSON 으로는 맞지만 셀 코덱이
      * 읽지 못하는 모양(var_id 가 아닌 키)을 넣는다 — 코덱이 BusinessException(MDM021)을 던진다.
      */
     private void breakFastCells() {

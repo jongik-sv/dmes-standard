@@ -43,8 +43,10 @@
 2. ~~머지③~~ 완료(dev e8f5ed3d2). 이하 원래 계획: 머지 요청(ora-mcm-app 과 같은 창, mcm-core → mcm 순서) — 직전에 dev 최신(①d 하니스 교착 수정 포함)을 합치고 컴파일·지목 시험 확인.
    - 머지 요청에 적을 것: 대상 SHA, 전체 시험·perf, McmSqliteMybatisInterceptor·ScreenUsageMssqlDdl @Deprecated 유지(③b 정리), 위젯 PostgreSQL 갈래 제거(사용자 확정 3),
      V1 체크섬 변경(MCMAPUSER V1 머리 주석 BIT→TINYINT, 1d612401a — 이미 적용한 PDB 는 clean 또는 repair), 위젯 도움말 sync 는 node 단언(vitest 는 조정 게이트).
-3. ~~③b~~ 완료(10-07, mcm-app 머지③ dev 14b09f1af 합친 뒤): McmSqliteMybatisInterceptor·ScreenUsageMssqlDdl → `mcm-core/archive/main/{audit,screenusage}/`, McmAuditStatementInspectorSqliteTest → `archive/test/audit/`, McmAuditStatementInspector 의 setSqlite·isSqlite·toSqlite·toSqliteCompatible·stripUnicodeLiteralPrefix 제거. 호출처 0(mcm·mdm·mls grep, mdm 의 isSqlite 는 자기 private). 확인: :mcm-core·:mcm:lib compileTestJava exit 0, clone 전체 117클래스·1227건 실패 0·건너뜀 2(옮긴 SQLite 시험 5건 빠짐).
-4. 머지④ 뒤: SqliteTemporalConverterContributor·LocalDate(Time)AttributeConverter 정리(조정 지시).
+3. ~~③b~~ 완료·머지(dev daec256d0, 10-07, mcm-app 머지③ dev 14b09f1af 합친 뒤): McmSqliteMybatisInterceptor·ScreenUsageMssqlDdl → `mcm-core/archive/main/{audit,screenusage}/`, McmAuditStatementInspectorSqliteTest → `archive/test/audit/`, McmAuditStatementInspector 의 setSqlite·isSqlite·toSqlite·toSqliteCompatible·stripUnicodeLiteralPrefix 제거. 호출처 0(mcm·mdm·mls grep, mdm 의 isSqlite 는 자기 private). 확인: :mcm-core·:mcm:lib compileTestJava exit 0, clone 전체 117클래스·1227건 실패 0·건너뜀 2(옮긴 SQLite 시험 5건 빠짐).
+4. ③c(머지 dev e3943844f — 조정 지시 10-07 — ora-mdm E2E 실측 mcm 연결 풀 고갈 교착): 원인은 OASIS txBiz 가 시작할 때 물리 연결을 잡고(READ_COMMITTED 지정 → HibernateJpaDialect.beginTransaction), SecWidgetService.search 가 그 연결을 쥔 채 NOT_SUPPORTED 로 내려가 범위 EM·CRUD readOnly 트랜잭션으로 연결을 더 받은 것(요청당 2~3개). 수정: 읽기는 바깥에 합류, 옛 행 이전 쓰기만 NOT_SUPPORTED + 비차단 1개(못 얻으면 건너뜀). 위젯 SQL 공유 모드는 local yml 에 전용 풀(MCMAPUSER, 최대 2·유휴 0·idleTimeout 10초). 채팅은 주석만. 회귀 시험 SecWidgetPoolExhaustionJpaTest(A 조회만 5명·B 이전 2명·C 이전 풀 크기)와 공유 모드 시험. 결정 3건은 조정 답(10-07, 모두 기본안).
+4-1. ③d(사용자 결정 「메인만 8 + 감지 유지」, 10-07): mcm JpaConfig.dataSource() 가 spring.datasource.hikari 의 minimum-idle·idle-timeout·leak-detection-threshold 를 읽는다(없으면 Hikari 기본 — 종전 동작). local yml 은 최대 3 그대로 + 쉬는 연결 0·유휴 30초·누수 감지 30초. 메인 로컬 서버만 기동 env SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=8(ora-base 기동 스크립트). 실측(최대 8): 기동 직후 연결 1, 3초 뒤 1(더 채우지 않음), 6개 쓰고 돌려준 뒤 55초까지 6, 60초에 0(유휴 30초 + Hikari 정리 주기 30초).
+5. 머지④ 뒤: SqliteTemporalConverterContributor·LocalDate(Time)AttributeConverter 정리(조정 지시).
 
 ## 결정
 
@@ -62,6 +64,7 @@
 ## 운영 안내 (ora-base b7 이 운영 배포 문서로 모은다)
 
 - 쿼리 위젯: 운영(prod·wildfly)은 `dmes.widget.query.require-dedicated: true` 로 둔다 — 전용 DataSource 가 없으면 시험·저장·실행을 거절한다(정책 B, 10d9b67de).
+- 쿼리 위젯 전용 풀: 로컬(local 프로파일)은 전용 풀이 기본이다(같은 URL·MCMAPUSER, 최대 2·유휴 0·idleTimeout 10초, ③c). 공유 모드(전용 DataSource 없음)는 OASIS 바깥 트랜잭션 연결을 쥔 채 같은 풀에서 연결을 하나 더 받아, 동시 실행이 풀 크기에 닿으면 connectionTimeout 까지 멈춘다. 개발계(dev, WildFly JNDI)는 앱 기본 JNDI 와 다른 위젯 전용 JNDI 풀(가능하면 읽기 전용 계정)을 WildFly 에 만들어 `WIDGET_QUERY_DS_JNDI` 로 붙인다(같은 JNDI 를 가리키면 같은 풀이라 효과가 없다. dsCmn 은 쓰기 계정이고 용도가 섞여 쓰지 않는다 — 조정 10-07).
 - 쿼리 위젯 실행기(`dmes.widget.query.datasource.*`)에는 **읽기 권한만 가진 DB 계정**의 전용 DataSource 를 붙이고, 그 계정에는 자율 트랜잭션(`PRAGMA AUTONOMOUS_TRANSACTION`) 함수·프로시저의 EXECUTE 권한과 DB 링크를 주지 않는다 — Oracle 읽기 전용 트랜잭션은 자율 트랜잭션 함수의 쓰기를 막지 못한다(2026-10-07 Oracle 26ai 실측).
 - 쿼리 위젯·자동 수집은 읽기 전용 트랜잭션으로 읽으므로, 표를 만들거나 바꾼(DDL) 직후 몇 초 동안 그 표 조회가 ORA-01466 으로 실패할 수 있다(2026-10-07 실측, 잠시 뒤 다시 하면 된다).
 - 업무기준 동적 표 `MCAAPUSER.TB_MCA_<RULE_ID>` 는 DBA 가 만들고, 만들 때 MCMAPUSER 에 `SELECT, INSERT, UPDATE, DELETE` 를 GRANT 한다(앱은 DDL 을 보내지 않는다).
@@ -113,6 +116,12 @@ c2 로 넘길 것(이 레인):
 - 트리거·배치는 코드에 없다. 사람이 화면에서 돌리는 동기화가 유일한 경로다.
 - `SELECT *` 복사이므로 사본·백업 표의 열 순서가 원장과 같아야 한다 → V1 에서 원장 정의를 그대로 옮겼다.
 - 로컬 적재기(ora-base b5)는 MCM_SOURCE 와 MCMAPUSER 사본 양쪽에 같은 행을 넣어야 코드 선택 팝업이 지금처럼 보인다(SQLite 에서는 한 표였다).
+
+## 후속
+
+- LazyConnectionDataSourceProxy 앱 전역 도입 검토(③c 조정 결정 3): 위젯 채팅 send·reset 은 LLM 응답을 기다리는 동안 OASIS 바깥 txBiz 연결과 NOT_SUPPORTED 범위 EM 연결, 최대 3개를 쥔다. 바깥 연결은 DataSource 층 지연 획득으로만 없앨 수 있다(Hibernate 설정으로는 불가 — OASIS 가 READ_COMMITTED 를 지정). 도입하면 Hikari·JNDI 경로를 모두 감싸고, WidgetReadOnlyJdbc.evict(Hikari 연결 클래스만 내보냄)와 종료 close 위임을 함께 고쳐야 한다.
+
+- mdm·mls 쉬는 연결(③d 조정 지시로 사실만 기록): 두 모듈은 기본 DataSource 를 직접 만들지 않아(HikariDataSource 생성 코드 없음) spring.datasource.hikari.* 가 그대로 먹는다. 다만 local yml 에 minimum-idle 이 없어 Hikari 기본(쉬는 연결 = 최대치)대로 연결을 늘 열어 둔다.
 
 ## 다음 단계
 

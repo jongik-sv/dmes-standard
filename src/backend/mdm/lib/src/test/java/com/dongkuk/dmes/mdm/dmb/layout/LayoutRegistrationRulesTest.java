@@ -194,4 +194,24 @@ class LayoutRegistrationRulesTest {
         assertTrue(check(body, PASS, warnings).isEmpty());
         assertTrue(warnings.isEmpty());
     }
+
+    @Test
+    void 거부_2_CONST_값은_50자_칸을_넘으면_L12() {
+        List<LayoutRegistrationRules.Override> ok = List.of(new LayoutRegistrationRules.Override(100L, 1, "COIL_ID", "a".repeat(50), 200));
+        assertTrue(LayoutRegistrationRules.checkOverrides(ok, DICT, EUC_KR, (c, v) -> new Judgement(Judgement.PASS, null),
+                new ArrayList<>()).isEmpty(), "50자 통과");
+        List<LayoutRegistrationRules.Override> over = List.of(new LayoutRegistrationRules.Override(100L, 1, "COIL_ID", "a".repeat(51), 200));
+        only(LayoutIssueCode.L12, LayoutRegistrationRules.checkOverrides(over, DICT, EUC_KR,
+                (c, v) -> new Judgement(Judgement.PASS, null), new ArrayList<>()));
+    }
+
+    @Test
+    void L11_기본_속성_칸_길이는_바이트_또는_글자_수로_잰다() {
+        assertTrue(LayoutRegistrationRules.basicLengthIssues("전문 이름", "a".repeat(4000), "E".repeat(20), "a".repeat(4000), "U".repeat(20),
+                "a".repeat(4000)).isEmpty(), "경계값 통과");
+        assertTrue(LayoutRegistrationRules.basicLengthIssues("전문 이름", "가".repeat(1333), null, null, null, null).isEmpty(), "한글 1333자 = 3999바이트");
+        List<String> fields = LayoutRegistrationRules.basicLengthIssues("전문 이름", "가".repeat(1334), "E".repeat(21), "a".repeat(4001),
+                "U".repeat(21), "a".repeat(4001)).stream().map(LayoutIssue::field).toList();
+        assertEquals(List.of("LAYOUT_NAME", "EAI_CODE", "EAI_NAME", "ENCODING", "PAD_RULE"), fields);
+    }
 }

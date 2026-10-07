@@ -227,4 +227,62 @@ class LayoutChangeClassifierTest {
         assertEquals(List.of(Kind.INITIAL), c.kinds());
         assertEquals("최초 등록", c.summary());
     }
+
+    @Test
+    void 요약이_4000바이트_안이면_그대로_둔다() {
+        String exact = "a".repeat(4000);
+        assertEquals(exact, LayoutChangeClassifier.fitSummary(exact));
+        assertNull(LayoutChangeClassifier.fitSummary(null));
+    }
+
+    @Test
+    void 요약이_4000바이트를_넘으면_뒤_항목을_외_N건으로_접는다() {
+        StringBuilder sb = new StringBuilder("EAI 표준 헤더 주장 없음 → E1");
+        for (int i = 0; i < 300; i++) {
+            sb.append(", 항목 변경 가나다라마바사 ").append(i);
+        }
+        String fitted = LayoutChangeClassifier.fitSummary(sb.toString());
+        assertTrue(com.dongkuk.dmes.mdm.common.support.MdmTextLimits.bytes(fitted) <= 4000, fitted);
+        assertTrue(fitted.startsWith("EAI 표준 헤더 주장 없음 → E1, 항목 변경 가나다라마바사 0"), "앞 문구는 남는다");
+        assertTrue(fitted.matches("(?s).* …외 \\d+건"), fitted);
+    }
+
+    @Test
+    void 첫_조각_하나가_넘으면_글자_단위로_자른다() {
+        String fitted = LayoutChangeClassifier.fitSummary("가".repeat(1334));
+        assertTrue(com.dongkuk.dmes.mdm.common.support.MdmTextLimits.bytes(fitted) <= 4000, fitted);
+        assertTrue(fitted.endsWith("…"), fitted);
+    }
+
+    @Test
+    void 외_N건의_N_은_접힌_조각_수이고_접두는_한도까지_채운다() {
+        // 조각 하나가 정확히 100바이트 — 접두 k 개는 102k-2 바이트, 접미 " …외 N건" 은 N 이 두 자리면 12바이트
+        List<String> items = new java.util.ArrayList<>();
+        for (int i = 0; i < 60; i++) {
+            items.add(String.format("%02d", i) + "x".repeat(98));
+        }
+        String fitted = LayoutChangeClassifier.fitSummary(String.join(", ", items));
+
+        assertEquals(String.join(", ", items.subList(0, 39)) + " …외 21건", fitted);
+        assertTrue(com.dongkuk.dmes.mdm.common.support.MdmTextLimits.bytes(fitted) <= 4000);
+    }
+
+    @Test
+    void 이모지가_섞인_요약은_서로게이트_쌍을_가르지_않고_4000바이트_이하로_접는다() {
+        // 이모지 4바이트 x 50 = 200바이트 조각 30개 — 접두 19개(3836바이트) + 접미 12바이트
+        String item = "😀".repeat(50);
+        String fitted = LayoutChangeClassifier.fitSummary(String.join(", ", java.util.Collections.nCopies(30, item)));
+
+        assertEquals(String.join(", ", java.util.Collections.nCopies(19, item)) + " …외 11건", fitted);
+        assertTrue(com.dongkuk.dmes.mdm.common.support.MdmTextLimits.bytes(fitted) <= 4000);
+    }
+
+    @Test
+    void 이모지만_있는_첫_조각을_자를_때도_서로게이트_쌍을_가르지_않는다() {
+        // 4004바이트 — 접미 "…"(3바이트) 를 빼면 예산 3997바이트, 이모지 999개(3996바이트)까지
+        String fitted = LayoutChangeClassifier.fitSummary("😀".repeat(1001));
+
+        assertEquals("😀".repeat(999) + "…", fitted);
+        assertTrue(com.dongkuk.dmes.mdm.common.support.MdmTextLimits.bytes(fitted) <= 4000);
+    }
 }

@@ -337,8 +337,8 @@ class DataItemMngServiceSqliteTest extends AbstractMdmSharedDbTest {
     private void seed120() {
         for (int i = 1; i <= 120; i++) {
             jdbc.update("INSERT INTO TB_MDM_DATA_ITEM (MARU_DATA_ID, CODE, VALID_FROM, VALID_TO, NAME, SEQ, ROW_VERSION, "
-                    + "CHG_SEQ, VER) VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0)", MD, String.format("K%03d", i), text(T0), OPEN,
-                    "항목" + i, i % 3 == 0 ? null : i);
+                    + "CHG_SEQ, VER) VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0)", MD, String.format("K%03d", i), DmdSegmentTestSupport.ts(T0),
+                    DmdSegmentTestSupport.ts(OPEN), "항목" + i, i % 3 == 0 ? null : i);
         }
     }
 
@@ -371,8 +371,8 @@ class DataItemMngServiceSqliteTest extends AbstractMdmSharedDbTest {
     private void seedOpenItems(int n) {
         for (int i = 1; i <= n; i++) {
             jdbc.update("INSERT INTO TB_MDM_DATA_ITEM (MARU_DATA_ID, CODE, VALID_FROM, VALID_TO, NAME, ROW_VERSION, "
-                    + "CHG_SEQ, VER) VALUES (?, ?, ?, ?, ?, 0, 0, 0)", MD, String.format("T%05d", i), text(T0), OPEN,
-                    "항목" + i);
+                    + "CHG_SEQ, VER) VALUES (?, ?, ?, ?, ?, 0, 0, 0)", MD, String.format("T%05d", i), DmdSegmentTestSupport.ts(T0),
+                    DmdSegmentTestSupport.ts(OPEN), "항목" + i);
         }
     }
 

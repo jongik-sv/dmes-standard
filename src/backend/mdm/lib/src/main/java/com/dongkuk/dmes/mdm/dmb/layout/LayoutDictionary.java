@@ -36,7 +36,20 @@ public class LayoutDictionary {
 
     /** 물리명 → 사전 행. 사전에 없는 물리명은 맵에 없다(L01 판정). */
     public Map<String, LayoutColumnInfo> byPhysNames(Collection<String> physNames) {
-        return toInfos(queries.columnsByPhys(nonNull(physNames)), reader::load);
+        return toInfos(columnsByPhys(physNames), reader::load);
+    }
+
+    /**
+     * 물리명 목록을 {@link LayoutQueries#chunks} 묶음으로 나눠 읽고 물리명 순으로 합친다. Oracle 은 IN 목록이 1,000개를 넘으면
+     * ORA-01795 로 실패한다(영향 찾기가 도메인 하위 트리의 물리명을 통째로 넘길 수 있다).
+     */
+    private List<Object[]> columnsByPhys(Collection<String> physNames) {
+        List<Object[]> out = new ArrayList<>();
+        for (List<String> chunk : LayoutQueries.chunks(nonNull(physNames))) {
+            out.addAll(queries.columnsByPhys(chunk));
+        }
+        out.sort(Comparator.comparing(r -> (String) r[0]));
+        return out;
     }
 
     /**
@@ -44,7 +57,7 @@ public class LayoutDictionary {
      * 없거나 체인이 깨진 물리명은 맵에 없다.
      */
     public Map<String, EffectiveDomainView> views(Collection<String> physNames) {
-        return toViews(queries.columnsByPhys(nonNull(physNames)), reader::load);
+        return toViews(columnsByPhys(physNames), reader::load);
     }
 
     /** 물리명·논리명·표시명 부분 일치(대소문자 무시), 최대 100행. */

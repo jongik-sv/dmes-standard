@@ -23,15 +23,16 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <p>트랜잭션: {@link TransactionTemplate}(REQUIRED) 로 감싸 호출자 트랜잭션(OASIS action·서비스 TransactionTemplate)에 합류한다 —
  * 원장이 롤백되면 기록도 롤백된다. 호출자 트랜잭션이 없으면(서비스 직접 호출 시험) 스스로 연다. {@code @Transactional} 은 쓰지 않는다.
  *
- * <p>쓰기는 여러 행 VALUES 네이티브 INSERT 한 문장이다({@link #CHUNK} 행씩). 키 수와 무관하게 SQL 문이 하나라 서비스의 SQL 문 수 가드가
- * 키 수만큼 늘지 않는다(Ruling R1). SQLite·PostgreSQL·MSSQL·Oracle 23ai 가 받는 문법이다(운영 DB 미정 — ADR-0004).
+ * <p>쓰기는 {@code INSERT … SELECT … FROM DUAL UNION ALL …} 네이티브 INSERT 한 문장이다({@link #CHUNK} 행씩). 키 수와 무관하게 SQL 문이
+ * 하나라 서비스의 SQL 문 수 가드가 키 수만큼 늘지 않는다(Ruling R1). 여러 행 {@code VALUES (…), (…)} 는 Oracle 23 부터라 운영 Oracle 이
+ * 23 미만이어도 되는 이 문법을 쓴다. 순번 {@code REV_SEQ} 는 IDENTITY 가 행마다 채운다.
  */
 @Component
 public class MetaRevisionRecorder {
 
     static final int CHUNK = 200;
     private static final String INSERT_HEAD = "INSERT INTO TB_MDM_META_REV (TARGET_TYPE, TARGET_KEY, CHANGE_KIND, "
-            + "C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ";
+            + "C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) ";
 
     private final EntityManager entityManager;
     private final DomainImpactQueries domainQueries;
@@ -250,8 +251,8 @@ public class MetaRevisionRecorder {
             List<Key> chunk = all.subList(from, Math.min(all.size(), from + CHUNK));
             StringBuilder sql = new StringBuilder(INSERT_HEAD);
             for (int i = 0; i < chunk.size(); i++) {
-                sql.append(i == 0 ? "" : ", ").append("(:t").append(i).append(", :k").append(i)
-                        .append(", :kind, :usr, :at, :svc, :pgm, :usr, :at, :svc, :pgm, 0)");
+                sql.append(i == 0 ? "" : " UNION ALL ").append("SELECT :t").append(i).append(", :k").append(i)
+                        .append(", :kind, :usr, :at, :svc, :pgm, :usr, :at, :svc, :pgm, 0 FROM DUAL");
             }
             NativeQuery<?> q = entityManager.createNativeQuery(sql.toString()).unwrap(NativeQuery.class);
             for (int i = 0; i < chunk.size(); i++) {

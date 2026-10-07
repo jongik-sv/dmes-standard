@@ -17,7 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * {@code ruleCalc} 서비스 시험의 공통 시드(SQLite) — {@link RuleCalcServiceTest}·{@link RuleCalcSubsetTest} 가 쓴다. 하위 클래스는
+ * {@code ruleCalc} 서비스 시험의 공통 시드 — {@link RuleCalcServiceTest}·{@link RuleCalcSubsetTest} 가 쓴다. 하위 클래스는
  * {@code @SpringBootTest}·{@code @ActiveProfiles}·{@code @Import} 를 직접 붙인다(같은 설정이라 컨텍스트 하나를 나눠 쓴다).
  *
  * <ul>

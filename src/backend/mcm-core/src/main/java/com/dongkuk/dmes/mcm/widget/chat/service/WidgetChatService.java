@@ -65,8 +65,15 @@ import org.springframework.transaction.support.TransactionTemplate;
  *       두지 않는다 — 「홈」을 저장하지 않은 사용자의 부서·코드 기본 배치 칸은 행이 없어 막힌다.</li>
  * </ul>
  * <b>트랜잭션</b>: OASIS({@code cactus.oasis.transactional: true})는 서비스 시작 때 txBiz 를 열고 예외면 통째로 롤백한다.
- * send·reset 은 그 바깥 트랜잭션을 {@code NOT_SUPPORTED} 로 잠시 내려놓고 돈다 — 그래서 ① 공급자가 실패해 바깥이 롤백돼도
- * 사용자 메시지는 남고(스펙 §9.2), ② LLM 을 기다리는 동안 DB 트랜잭션·연결·잠금을 잡지 않는다. 쓰기는 {@link WidgetChatWriter} 가 한 건씩 자기 트랜잭션으로 커밋한다.
+ * send·reset 은 그 바깥 트랜잭션을 {@code NOT_SUPPORTED} 로 잠시 내려놓고 돈다 — 그래서 공급자가 실패해 바깥이 롤백돼도
+ * 사용자 메시지는 남고(스펙 §9.2), LLM 을 기다리는 동안 DB 트랜잭션·잠금을 잡지 않는다. 쓰기는 {@link WidgetChatWriter} 가 한 건씩 자기 트랜잭션으로 커밋한다.
+ * <br><b>연결은 잡는다</b>(oracle-1007 ③c 확인): 바깥 txBiz 는 OASIS 가 READ_COMMITTED 를 지정해 시작할 때 이미 물리 연결을 잡고,
+ * 내려놓아도(suspend) 그 연결을 풀에 돌려주지 않는다. 또 {@code NOT_SUPPORTED} 범위에서도 트랜잭션 동기화가 켜져 있어, 트랜잭션 없이 도는
+ * 파생 쿼리(대화 문맥 {@code findTop20…})가 범위에 묶인 EntityManager 를 열고 그 연결을 범위가 끝날 때까지 쥔다(Hibernate
+ * DELAYED_ACQUISITION_AND_HOLD). 그래서 LLM 을 기다리는 동안 같은 풀의 연결 2개를 쥐고, 그사이 Writer({@code REQUIRES_NEW})·기본 CRUD
+ * 조회(readOnly 트랜잭션)·도구 실행이 하나를 더 받아 최대 3개를 쓴다. 동시 요청이 풀 크기에 닿으면 connectionTimeout 까지 서로 기다릴 수
+ * 있다. 근본 해결(바깥 연결 지연 획득 — mcm 앱 DataSource 를 {@code LazyConnectionDataSourceProxy} 로 감싸기 — 과 범위 안 읽기를 짧은
+ * 트랜잭션으로 묶기)은 후속 검토로 남긴다.
  * 이 클래스에는 {@code @Transactional} 을 붙이지 않는다(BackEnd 표준 §6-B-1) — 경계는 프로그램으로({@link TransactionTemplate}) 잡는다.
  */
 @Service("widgetChatService")

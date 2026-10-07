@@ -23,6 +23,7 @@ import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
 import com.dongkuk.oasis.audit.AuditHolder;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,7 +52,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  *       3·역분해 3컬럼 5매핑). 그 시험은 dev 전용 {@code TermDictionaryLoader} 를 써서 기준에 복사할 수 없어 시나리오만 옮겼다. 커밋 본문의 참고값
  *       (save 용어 3행 11→9 등)과 견줄 값은 {@code stmtsWithTrailingFlush}(= QueryCountProbe 정의)다. 검색의 13·33컬럼 값은 복사해 돌리는
  *       {@code ColumnMngSearchCharacterizationTest} 가 낸다(스크립트가 {@code MEASURE P4 char-…} 로 바꾼다).</li>
- *   <li><b>large-*</b>: 로컬 MDM DB 사본(용어 8,152·도메인 164·컬럼 7,857·매핑, {@link SourceDb})에서. 검색은 조건 없음·검색어 '두께'·도메인 키워드
+ *   <li><b>large-*</b>: 저장소 스냅샷(db-snapshot/MDMAPUSER 의 용어·도메인·컬럼·매핑, {@link SourceDb})을 시험 PDB 에 적재한 데이터에서. 검색은 조건 없음·검색어 '두께'·도메인 키워드
  *       'coil' 을, 컬럼의 TERM_IDS 를 그대로 둔 값(asis) 과 참조 용어 ID 수 k 를 10·500·501·2,000·8,000 으로 바꾼 데이터에서 잰다(컬럼마다
  *       원래 원소 수를 지키고 앞 k 개 용어 ID 를 차례로 돌려 쓴다 — 전체 컬럼의 서로 다른 용어 ID 가 정확히 k). 응답 시간은 1회차 참고값
  *       ({@code ms_ref})이다. 저장(용어 N행·충돌 c개)과 역분해(REVERSE, 매핑 m개)도 같은 데이터에서 잰다.</li>
@@ -146,11 +147,11 @@ class MeasureP4ColumnSearchTest extends AbstractMdmSharedDbTest {
         compare("small-compare-forward", "FORWARD", "원재료 코일 두께", -1);
     }
 
-    // ── large: 로컬 DB 사본 ───────────────────────────────────────────────
+    // ── large: 스냅샷 적재 데이터 ─────────────────────────────────────────
 
     private void large() {
         Map<String, Integer> counts = SourceDb.load(dataSource, true);
-        MeasureSupport.emit(P, "data", "source", SourceDb.path().getFileName(), "terms", counts.get("TB_MDM_TERM"), "domains",
+        MeasureSupport.emit(P, "data", "source", SourceDb.label(), "terms", counts.get("TB_MDM_TERM"), "domains",
                 counts.get("TB_MDM_DOMAIN"), "columns", counts.get("TB_MDM_COLUMN"), "mappings", counts.get("TB_MDM_COLUMN_SYSTEM"));
         int termCount = counts.get("TB_MDM_TERM");
         int columnCount = counts.get("TB_MDM_COLUMN");
@@ -190,7 +191,7 @@ class MeasureP4ColumnSearchTest extends AbstractMdmSharedDbTest {
         // 저장 — 충돌 c개(MES 안에서 대문자 기준 한 컬럼만 쓰는 실제 매핑)
         for (int c : MeasureSupport.dry() ? new int[] {1, 3} : new int[] {1, 3, 30}) {
             List<String> phys = jdbc.queryForList("SELECT MIN(PHYS_NAME) FROM TB_MDM_COLUMN_SYSTEM WHERE SYSTEM_CODE = 'MES' "
-                    + "GROUP BY UPPER(PHYS_NAME) HAVING COUNT(*) = 1 ORDER BY MIN(COLUMN_ID) LIMIT ?", String.class, c);
+                    + "GROUP BY UPPER(PHYS_NAME) HAVING COUNT(*) = 1 ORDER BY MIN(COLUMN_ID) FETCH FIRST ? ROWS ONLY", String.class, c);
             List<Map<String, Object>> rows = new ArrayList<>();
             phys.forEach(p -> rows.add(sys("MES", p)));
             save("large-save-conflict" + phys.size(), domainId, rows, List.of(), MdmErrorCode.SYSTEM_FIELD_ALREADY_MAPPED);
@@ -233,13 +234,16 @@ class MeasureP4ColumnSearchTest extends AbstractMdmSharedDbTest {
         }
     }
 
-    /** 컬럼마다 원래 원소 수를 지키며 앞 k 개 용어 ID 를 차례로 돌려 쓴다(한 트랜잭션, JDBC 배치). */
+    /**
+     * 컬럼마다 원래 원소 수를 지키며 앞 k 개 용어 ID 를 차례로 돌려 쓴다(한 트랜잭션, JDBC 배치).
+     * 원소 수는 TERM_IDS 문자열을 읽어 자바에서 센다(JSON 배열 {@code [1,6]} 의 쉼표 수 + 1, 빈 배열·NULL 은 0 — SQLite json_array_length 와 같다).
+     */
     private void rewriteTermIds(List<Long> pool) {
         List<Object[]> args = new ArrayList<>();
         int[] pos = {0};
-        jdbc.query("SELECT COLUMN_ID, COALESCE(json_array_length(TERM_IDS), 0) FROM TB_MDM_COLUMN ORDER BY COLUMN_ID", rs -> {
+        jdbc.query("SELECT COLUMN_ID, TERM_IDS FROM TB_MDM_COLUMN ORDER BY COLUMN_ID", rs -> {
             long id = rs.getLong(1);
-            int len = rs.getInt(2);
+            int len = arrayLength(rs.getString(2));
             StringJoiner j = new StringJoiner(",", "[", "]");
             for (int t = 0; t < len; t++) {
                 j.add(String.valueOf(pool.get((pos[0] + t) % pool.size())));
@@ -248,7 +252,18 @@ class MeasureP4ColumnSearchTest extends AbstractMdmSharedDbTest {
             args.add(new Object[] {len == 0 ? null : j.toString(), id});
         });
         new TransactionTemplate(tm).executeWithoutResult(st -> jdbc.batchUpdate("UPDATE TB_MDM_COLUMN SET TERM_IDS = ? WHERE COLUMN_ID = ?",
-                args));
+                args, new int[] {Types.VARCHAR, Types.BIGINT}));
+    }
+
+    /** 숫자만 든 JSON 배열 문자열의 원소 수. */
+    private static int arrayLength(String json) {
+        if (json == null) {
+            return 0;
+        }
+        String body = json.strip();
+        body = body.startsWith("[") ? body.substring(1) : body;
+        body = body.endsWith("]") ? body.substring(0, body.length() - 1) : body;
+        return body.isBlank() ? 0 : body.split(",", -1).length;
     }
 
     private int distinctTermIds(List<Map<String, Object>> list) {

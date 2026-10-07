@@ -15,6 +15,7 @@ import com.dongkuk.dmes.mdm.common.rule.RuleSetVersionQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleStewardCheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleVersions;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
+import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.contract.version.VersionKind;
 import com.dongkuk.dmes.mdm.dme.ruleSetMng.dto.RuleSetListRow;
@@ -201,6 +202,11 @@ public class RuleSetMngService {
         }
         if (name.length() > NAME_MAX) {
             throw new BusinessException(ErrorCode.INVALID_VALUE, "세트명은 " + NAME_MAX + "자 이하여야 합니다.");
+        }
+        // DESCRIPTION 은 VARCHAR2(4000 BYTE) 칸 — UTF-8 바이트로 막는다(ORA-12899 예방)
+        if (MdmTextLimits.overBytes(blankToNull(request.getDescription()))) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE,
+                    "설명은 " + MdmTextLimits.TEXT_BYTES_MAX + "바이트(한글 약 1,333자)를 넘을 수 없습니다.");
         }
         stewardCheck.requireSteward();
         if (setRepository.existsById(id)) {

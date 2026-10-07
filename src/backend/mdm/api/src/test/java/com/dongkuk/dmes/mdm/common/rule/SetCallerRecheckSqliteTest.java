@@ -109,7 +109,7 @@ class SetCallerRecheckSqliteTest extends AbstractMdmSharedDbTest {
     @Test
     void 폐기한_부모와_기준_시각_전에_끝난_행은_보지_않는다() {
         jdbc.update("UPDATE TB_MDM_RULE_SET SET STATUS = 'DEPRECATED' WHERE MARU_RULE_SET_ID = 'P'");
-        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = '2026-06-01 00:00:00' WHERE MARU_RULE_SET_ID = 'M'");
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = TIMESTAMP '2026-06-01 00:00:00' WHERE MARU_RULE_SET_ID = 'M'");
 
         SetCallerRecheck.Outcome o = recheck.recheck("C", newC(line(ruleNode("r1", "R_OTH"))), NOW);
 
@@ -120,7 +120,7 @@ class SetCallerRecheckSqliteTest extends AbstractMdmSharedDbTest {
     void 기준_시각에_적용_중인_행이_없는_부모는_검사하되_위로_잇지_않는다() {
         // P 는 미래 RELEASED 만 있다 — H 의 read(NOW) 에서 P 는 없는 세트라 C 가 바뀌어도 H 가 보는 P 는 그대로다.
         jdbc.update("DELETE FROM TB_MDM_RULE_SET_VER WHERE MARU_RULE_SET_ID IN ('M', 'G')");
-        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_FROM = '2027-01-01 00:00:00' WHERE MARU_RULE_SET_ID = 'P'");
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_FROM = TIMESTAMP '2027-01-01 00:00:00' WHERE MARU_RULE_SET_ID = 'P'");
         SetCallIoReaderSqliteTest.set(jdbc, "H", "[\"R_OTH\"]", "[\"P\"]", line(setNode("s1", "P"), ruleNode("r2", "R_OTH")));
 
         SetCallerRecheck.Outcome o = recheck.recheck("C", newC(line(ruleNode("r1", "R_OTH"))), NOW);

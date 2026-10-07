@@ -32,6 +32,7 @@ import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.rule.definition.RuleVersionPick;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionException;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.common.version.VersionRowStore;
 import com.dongkuk.dmes.mdm.common.version.VersionRules;
@@ -406,6 +407,14 @@ public class RuleSetEditService {
                 .toList();
     }
 
+    /** DESCRIPTION 은 VARCHAR2(4000 BYTE) 칸 — UTF-8 바이트로 막는다(ORA-12899 예방). */
+    private static void requireDescriptionFits(String description) {
+        if (MdmTextLimits.overBytes(description)) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE,
+                    "설명은 " + MdmTextLimits.TEXT_BYTES_MAX + "바이트(한글 약 1,333자)를 넘을 수 없습니다.");
+        }
+    }
+
     // ────────────────────────────────────────────────────────────────
     // action: save — 요청 검사(I13) → 담당자 → 서버 재계산 검사(I12) → 내 DRAFT 쓰기(공통 가드 → 조건부 UPDATE)
     // ────────────────────────────────────────────────────────────────
@@ -425,6 +434,7 @@ public class RuleSetEditService {
         BigDecimal ver = VersionRules.requireVer(request.getVer());
         long rv = requireRowVersion(request.getRowVersion());
         String name = validName(request.getSetName());
+        requireDescriptionFits(blankToNull(request.getDescription()));
         List<String> ids;
         List<RuleSetCheck> checks;
         String flowJson;

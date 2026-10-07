@@ -18,6 +18,7 @@ import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.FakeCurrentUser;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.FakeDraftDeletion;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.FakeStewardDirectory;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
 import com.dongkuk.dmes.mdm.contract.security.MdmRoles;
 import com.dongkuk.dmes.mdm.contract.version.ConfirmCheckRequest;
@@ -32,6 +33,7 @@ import com.dongkuk.oasis.audit.AuditHolder;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -45,6 +47,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.SqlParameterValue;
 
 /**
  * TSK-01-03 design.md §3.2 — 버전 상태 서비스 시나리오 키트(S1~S13, S15~S23). 04 「버전 상태와 적용시점」 예시를
@@ -57,7 +60,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * <p>서비스는 자기 트랜잭션을 열고 커밋하므로, 단언은 모두 {@link JdbcTemplate}(새 연결)로 커밋된 행을 읽는다.
  * 기본 행위자 kim, 역할 {MDM_STEWARD}.
  */
-public abstract class AbstractVersionStateScenarioTest {
+public abstract class AbstractVersionStateScenarioTest extends AbstractMdmSharedDbTest {
 
     protected static final String KIM = "kim";
     protected static final String LEE = "lee";
@@ -400,7 +403,7 @@ public abstract class AbstractVersionStateScenarioTest {
     // ── S15~S16 ───────────────────────────────────────────────────────────────────────────
 
     /**
-     * 룰 버전도 마스터 코드와 같은 scale 3 소수(D-144)로 같은 경로로 확정한다. 1.000(SQLite INTEGER) 다음 minor 1.001(REAL)을 확정해
+     * 룰 버전도 마스터 코드와 같은 scale 3 소수(D-144)로 같은 경로로 확정한다. 1.000 다음 minor 1.001 을 확정해
      * 직전 RELEASED 가 잘리지 않고 1.000 으로 닫히는지 본다.
      */
     @Test
@@ -801,7 +804,7 @@ public abstract class AbstractVersionStateScenarioTest {
         VersionTableSpec spec = spec(VersionTarget.MASTER_CODE);
         jdbc.update("UPDATE " + spec.versionTable() + " SET APPLY_TO = ? WHERE " + spec.objectIdColumn() + " = ? AND "
                         + spec.versionColumn() + " = ?",
-                "2026-12-31 23:59:59", "PROC_CD", v1001.ver().setScale(VersionTarget.MASTER_CODE.versionScale()));
+                Timestamp.valueOf("2026-12-31 23:59:59"), "PROC_CD", v1001.ver().setScale(VersionTarget.MASTER_CODE.versionScale()));
 
         assertMdm("MDM001", () -> versionStateService.cancelConfirm(v2000, 1, KIM));
 
@@ -899,8 +902,13 @@ public abstract class AbstractVersionStateScenarioTest {
         jdbc.update("INSERT INTO " + spec.versionTable() + " (" + spec.objectIdColumn() + ", " + spec.versionColumn()
                         + ", STATUS, OWNER_ID, APPLY_FROM, APPLY_TO, ROW_VERSION, " + spec.auditCounterColumn()
                         + ") VALUES (?, ?, ?, ?, ?, ?, ?, 0)",
-                ref.objectId(), ref.ver().setScale(ref.target().versionScale()), status, ownerId, applyFrom, applyTo,
-                rowVersion);
+                ref.objectId(), ref.ver().setScale(ref.target().versionScale()), status, ownerId, timestamp(applyFrom),
+                timestamp(applyTo), rowVersion);
+    }
+
+    /** 시험이 문자열로 넘기는 일시를 TIMESTAMP 칸에 바인딩한다 — 문자열은 NLS 형식에 기대 ORA-01843 이 난다. null 도 형을 붙인다. */
+    private static SqlParameterValue timestamp(String text) {
+        return new SqlParameterValue(Types.TIMESTAMP, text == null ? null : Timestamp.valueOf(text));
     }
 
     protected Map<String, Object> readVersion(VersionRef ref) {
@@ -951,7 +959,7 @@ public abstract class AbstractVersionStateScenarioTest {
     /** 서비스 트랜잭션 안(SPI 호출 중)에서 같은 연결로 STATUS·APPLY_TO 를 읽는다. */
     protected String statusAndApplyToInCurrentTransaction(VersionRef ref) {
         VersionTableSpec spec = spec(ref.target());
-        Object[] row = (Object[]) entityManager.createNativeQuery("SELECT STATUS, CAST(APPLY_TO AS VARCHAR(40)) FROM "
+        Object[] row = (Object[]) entityManager.createNativeQuery("SELECT STATUS, TO_CHAR(APPLY_TO, 'YYYY-MM-DD HH24:MI:SS') FROM "
                         + spec.versionTable() + " WHERE " + spec.objectIdColumn() + " = ?1 AND " + spec.versionColumn() + " = ?2")
                 .setParameter(1, ref.objectId())
                 .setParameter(2, ref.ver().setScale(ref.target().versionScale()))
@@ -959,7 +967,7 @@ public abstract class AbstractVersionStateScenarioTest {
         return row[0] + "|" + row[1];
     }
 
-    /** SQLite TEXT 일시를 같은 문자열로 읽는다. */
+    /** TIMESTAMP 일시를 {@code yyyy-MM-dd HH:mm:ss} 문자열로 읽는다. */
     protected static String text(Object value) {
         if (value == null) {
             return null;

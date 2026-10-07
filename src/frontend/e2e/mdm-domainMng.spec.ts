@@ -12,7 +12,7 @@ import { gridCells, gridRowById } from "./support/grid";
  *   E5 서버 오류 표시(동시 수정 MDM001, 스모크 4)  E6 영향도(수용 기준 6 화면 쪽)   E7 담당자 RBAC
  *   E8 부모 교체·연결 제거 대화상자(D-132 — 경고 확인 뒤 저장, 제거는 상속값 구체화)
  *
- * 전제: 격리 DB 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고 e2e/fixtures/mdm-rbac-users.sql 을 넣는다.
+ * 전제: 새 PDB(시험 PDB 복제본)로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우면 mdm-00-fixtures.spec.ts 가 e2e/fixtures/mdm-rbac-users.sql 을 넣는다.
  * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다(기본값 5100 은 메인 체크아웃 포털 → 거짓 통과).
  * 실행마다 STAMP 로 이름을 만들어 DB 가 비어 있지 않아도 다시 돌릴 수 있다.
  */

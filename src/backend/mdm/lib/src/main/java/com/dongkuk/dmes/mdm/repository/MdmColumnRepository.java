@@ -30,7 +30,7 @@ public interface MdmColumnRepository extends JpaRepository<MdmColumn, Long>, Jpa
 
     /**
      * 컬럼 목록 첫 조회 상한(화면 성능 가이드 R1) — 논리명→ID 순서로 앞쪽 {@code pageable} 크기만큼의 ID 만 DB 가 골라 준다.
-     * 정렬 키(COLUMN_NAME)는 유일 인덱스 {@code UX_TB_MDM_COLUMN_NAME} 이 덮어 인덱스 순서대로 앞쪽만 읽는다(SQLite 실행 계획
+     * 정렬 키(COLUMN_NAME)는 유일 인덱스 {@code UX_TB_MDM_COLUMN_NAME} 이 덮어 인덱스 순서대로 앞쪽만 읽는다(SQLite 시절 실행 계획
      * {@code SCAN ... USING COVERING INDEX}). 순서는 DB 콜레이션을 따르므로 방언마다 한글·영문 대소문자 순서가 다를 수 있다
      * (2026-10-05 사용자 결정 — 받아들인다).
      */

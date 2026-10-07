@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.common.mastercode;
 
+import com.dongkuk.dmes.mdm.common.support.MdmStrings;
 import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
 import java.util.List;
@@ -77,7 +78,8 @@ public class MasterCodeRemoval {
             StringBuilder sql = new StringBuilder("SELECT ").append(String.join(", ", src.keys()));
             src.columns().forEach(c -> sql.append(", ").append(c));
             sql.append(" FROM ").append(src.table()).append(" WHERE (");
-            sql.append(String.join(" OR ", src.columns().stream().map(c -> c + " LIKE '%MASTER%'").toList()));
+            // 대소문자 무시(식은 master(…) 로도 쓴다, SQLite LIKE 와 같은 후보) — UPPER 는 CLOB 칼럼에도 된다.
+            sql.append(String.join(" OR ", src.columns().stream().map(c -> "UPPER(" + c + ") LIKE '%MASTER%'").toList()));
             sql.append(")");
             if (src.exclude() != null) {
                 sql.append(" AND ").append(src.exclude()).append(" <> :self");
@@ -94,11 +96,14 @@ public class MasterCodeRemoval {
                     if (value == null) {
                         continue;
                     }
-                    String s = value.toString();
+                    // STD_AST·BIZ_AST·VAR_AST·GRP_COND_AST·CELLS 는 CLOB 이라 Clob 으로 온다 — toString() 이면 내용이 아니다.
+                    String s = MdmStrings.text(value);
                     if (text.matcher(s).find() || ast.matcher(s).find()) {
                         List<String> key = new ArrayList<>();
                         for (int j = 0; j < k; j++) {
-                            key.add(String.valueOf(r[j]));
+                            // 키 VER 는 NUMBER(7,3) 이라 BigDecimal("1.000")로 온다. SQLite 시절 표시("1"·"1.5")와 같게 끝 0 을 뗀다.
+                            key.add(r[j] instanceof java.math.BigDecimal b
+                                    ? b.stripTrailingZeros().toPlainString() : String.valueOf(r[j]));
                         }
                         out.add(src.label() + " " + String.join("/", key) + " " + src.columns().get(i));
                     }

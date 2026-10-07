@@ -22,8 +22,8 @@ import org.springframework.data.jpa.domain.Specification;
  * <p><b>필요조건만 건다(MUST).</b> 여기 조건은 Java 비교가 남길 컬럼을 하나도 빼면 안 된다. 남는 컬럼이 더 있어도 Java 가 걸러낸다.
  * 그래서 다음을 지킨다.
  * <ul>
- *   <li>Java 는 {@code toLowerCase(Locale.ROOT)} 뒤 부분 포함으로 비교한다. 이 변환은 SQL {@code LOWER} 와 다르다 — SQLite 는 ASCII 만
- *       접고, Java 는 Ä→ä·İ→i̇·K(켈빈)→k 처럼 ASCII 밖 글자도 접는다. 그래서 소문자 조건 전체가 아니라, 소문자로 바꿔 자기가 되는 원본
+ *   <li>Java 는 {@code toLowerCase(Locale.ROOT)} 뒤 부분 포함으로 비교한다. 이 변환은 SQL {@code LOWER} 와 다르다 — DB 마다 접는 범위가
+ *       다르고(SQLite 는 ASCII 만, Oracle 은 문자 집합 규칙), Java 는 Ä→ä·İ→i̇·K(켈빈)→k 처럼 ASCII 밖 글자도 접는다. 그래서 소문자 조건 전체가 아니라, 소문자로 바꿔 자기가 되는 원본
  *       글자가 자기 자신과 ASCII 대문자뿐인 글자(이하 "안전 글자")만 이어진 가장 긴 구간을 바늘로 쓴다. 안전 글자 구간이 없으면 그 조건은
  *       DB 에서 글자로 거르지 않는다. 그리스 어말 시그마(ς)는 글자 하나씩 바꿔서는 나오지 않고 문자열 문맥으로만 나오므로 따로 뺀다.</li>
  *   <li>{@code %}·{@code _}·{@code \} 는 글자 그대로 비교해야 하므로 {@code ESCAPE '!'} 로 {@code !}·{@code %}·{@code _} 를

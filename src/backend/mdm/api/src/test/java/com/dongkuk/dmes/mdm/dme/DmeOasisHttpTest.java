@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.RuleSetSimulateTest;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -15,20 +16,16 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Path;
 import java.util.List;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-08-02 design §3.1 「DmeOasisHttpTest」 — BPMN 까지 태우는 HTTP 파이프(DmaOasisHttpTest 형식). 역할·사용자는 헤더 →
@@ -41,14 +38,11 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = "cactus.security.client-key=" + DmeOasisHttpTest.TEST_CLIENT_KEY)
 @ActiveProfiles("local")
-class DmeOasisHttpTest {
+class DmeOasisHttpTest extends AbstractMdmSharedDbTest {
 
     static final String TEST_CLIENT_KEY = "mdm-dme-test-client-key";
     private static final String STEWARD = "MDM_STEWARD";
     private static final String STD_ADMIN = "MDM_STD_ADMIN";
-
-    @TempDir
-    static Path tempDir;
 
     @LocalServerPort
     int port;
@@ -59,12 +53,6 @@ class DmeOasisHttpTest {
     private final HttpClient client = HttpClient.newHttpClient();
     private final ObjectMapper json = new ObjectMapper();
     private JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-dme-http-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {
@@ -250,8 +238,8 @@ class DmeOasisHttpTest {
     @Test
     void 새_버전은_verKind_MINOR_를_받아_minor_번호로_만든다() throws Exception {
         registerByKim();
-        jdbc.update("UPDATE TB_MDM_RULE_VER SET STATUS = 'RELEASED', APPLY_FROM = '2026-01-01 00:00:00', APPLY_TO = '9999-12-31 00:00:00' "
-                + "WHERE MARU_RULE_ID = 'HTTP_JDG' AND VER = 1");
+        jdbc.update("UPDATE TB_MDM_RULE_VER SET STATUS = 'RELEASED', APPLY_FROM = TIMESTAMP '2026-01-01 00:00:00', "
+                + "APPLY_TO = TIMESTAMP '9999-12-31 00:00:00' WHERE MARU_RULE_ID = 'HTTP_JDG' AND VER = 1");
         ObjectNode body = versionBody(0);
         ((ObjectNode) body.path("params")).put("verKind", "MINOR");
 

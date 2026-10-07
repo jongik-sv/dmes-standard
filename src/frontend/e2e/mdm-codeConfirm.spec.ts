@@ -16,9 +16,9 @@ import { gridRowById } from "./support/grid";
  *   T5 담당자: E2E_CF_RACE 검사 뒤 다른 세션(page.request)이 먼저 확정 → 화면 확정이 서버 문구로 거부된다(스모크 넷 4).
  *   T6 표준 관리자: 메뉴로 열고 E2E_CF_NOCHG 를 골라도 검사·확정 버튼이 비활성(수용 기준 3 의 화면 판).
  *
- * 전제(design.md 「서버·E2E 기동 방법」): 새 mcm.db·mdm.db 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고, mcm 기동
- * 뒤 e2e/fixtures/mdm-rbac-users.sql, beforeAll 이 e2e/fixtures/mdm-codeConfirm.sql 을 넣는다. 이 spec 은 E2E_CF_OK·
- * E2E_CF_RACE 를 확정하므로 **같은 mdm.db 로 다시 돌릴 수 없다**. SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다.
+ * 전제(design.md 「서버·E2E 기동 방법」): 새 PDB(시험 PDB 복제본)로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고, mcm 기동
+ * 뒤 mdm-00-fixtures.spec.ts 가 e2e/fixtures/mdm-rbac-users.sql 을, beforeAll 이 e2e/fixtures/mdm-codeConfirm.sql 을 넣는다. 이 spec 은 E2E_CF_OK·
+ * E2E_CF_RACE 를 확정하므로 **같은 PDB 로 다시 돌릴 수 없다**. SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다.
  */
 
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";

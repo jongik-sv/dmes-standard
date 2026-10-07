@@ -12,8 +12,12 @@ import com.dongkuk.dmes.mdm.repository.MdmColumnRepository;
 import com.dongkuk.dmes.mdm.repository.MdmColumnSystemRepository;
 import com.dongkuk.dmes.mdm.repository.MdmDomainRepository;
 import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.HashSet;
 import java.util.Set;
+import javax.sql.DataSource;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -99,6 +103,36 @@ public final class DmaTestSupport {
         public boolean contains(String maruId) {
             return ids.contains(maruId);
         }
+    }
+
+    /** 단위 원장 한 행을 없을 때만 넣는다 — Oracle 에는 {@code INSERT OR IGNORE} 가 없어 {@code WHERE NOT EXISTS} 로 대신한다. */
+    public static void unitIfAbsent(JdbcTemplate jdbc, String code, String dimension, String baseUnit) {
+        jdbc.update("INSERT INTO TB_MDM_UNIT (UNIT_CODE, DIMENSION, BASE_UNIT, FACTOR, CHG_SEQ) "
+                + "SELECT ?, ?, ?, 1, 0 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_UNIT WHERE UNIT_CODE = ?)",
+                code, dimension, baseUnit, code);
+    }
+
+    /**
+     * 가리키는 부모 행이 없는 "유령 참조" 행을 넣는다. Oracle 에는 SQLite 의 {@code PRAGMA foreign_keys = OFF}(연결 단위)가 없어, 이 제약만
+     * 잠깐 DISABLE 하고 넣은 뒤 ENABLE NOVALIDATE(새 DML 만 검사)로 되돌린다. 시험이 끝나면 유령 행을 지우고 {@link #restoreForeignKey} 로
+     * 완전히 되돌린다 — 그러지 않으면 다음 클래스의 초기화 DELETE 는 되지만 제약이 NOVALIDATE 로 남는다.
+     */
+    public static void insertWithForeignKeyOff(DataSource dataSource, String table, String constraint, String sql)
+            throws SQLException {
+        try (Connection c = dataSource.getConnection(); Statement st = c.createStatement()) {
+            c.setAutoCommit(true);
+            st.execute("ALTER TABLE " + table + " DISABLE CONSTRAINT " + constraint);
+            try {
+                st.execute(sql);
+            } finally {
+                st.execute("ALTER TABLE " + table + " ENABLE NOVALIDATE CONSTRAINT " + constraint);
+            }
+        }
+    }
+
+    /** {@link #insertWithForeignKeyOff} 로 끈 제약을 검증 상태까지 되돌린다 — 유령 행을 먼저 지운 뒤(예: {@link #clear}) 부른다. */
+    public static void restoreForeignKey(JdbcTemplate jdbc, String table, String constraint) {
+        jdbc.execute("ALTER TABLE " + table + " ENABLE VALIDATE CONSTRAINT " + constraint);
     }
 
     public static void clear(JdbcTemplate jdbc) {

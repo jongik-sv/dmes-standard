@@ -3,41 +3,31 @@ package com.dongkuk.dmes.mdm.common.version;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import java.math.BigDecimal;
-import java.nio.file.Path;
+import java.sql.Timestamp;
+import java.sql.Types;
 import java.util.List;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.SqlParameterValue;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * TSK-06-01 design.md §3.7 — TSK-01-03 §7 ③ 인계. 버전 상태 서비스 시나리오 키트를 <b>실제 V9 테이블</b>
- * ({@code TB_MDM_CODE}·{@code TB_MDM_CODE_VER})로 local(SQLite) 컨텍스트에서 돌린다. V9 DDL 이 공통 서비스의 고정 칼럼·이름·
+ * TSK-06-01 design.md §3.7 — TSK-01-03 §7 ③ 인계. 버전 상태 서비스 시나리오 키트를 <b>기준선의 실제 테이블</b>
+ * ({@code TB_MDM_CODE}·{@code TB_MDM_CODE_VER})로 local 컨텍스트(Oracle 시험 PDB)에서 돌린다. V9 DDL 이 공통 서비스의 고정 칼럼·이름·
  * CHECK({@code CK_TB_MDM_CODE_VER_APPLY} 포함)를 만족한다는 유일한 직접 증거다(불변 규칙 31).
  *
  * <p>MASTER_CODE 는 {@link DefaultVersionTableRegistry} 의 실제 명세, BUSINESS_RULE 은 06 표가 아직 없어 픽스처
  * {@link VersionFixtureTables#RULE_SPEC} 을 쓴다. 실제 표의 NOT NULL 칼럼(MARU_CODE_NAME·SOURCE_KIND·VER_KIND)은
- * {@link #seedObject}·{@link #seedVersion} 재정의가 채운다. 방언 전용 시나리오(S14·S24)는 옮기지 않는다.
+ * {@link #seedObject}·{@link #seedVersion} 재정의가 채운다. 저장 형식 시나리오(S14·S24)는 옮기지 않는다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import({VersionScenarioTestConfig.class, MasterCodeVersionStateSqliteTest.RealMasterCodeRegistry.class})
 class MasterCodeVersionStateSqliteTest extends AbstractVersionStateScenarioTest {
-
-    @TempDir
-    static Path tempDir;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-master-code-version-scenario-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @TestConfiguration(proxyBeanMethods = false)
     static class RealMasterCodeRegistry {
@@ -49,7 +39,7 @@ class MasterCodeVersionStateSqliteTest extends AbstractVersionStateScenarioTest 
         }
     }
 
-    /** 픽스처 RULE 두 표만 만든다(MASTER_CODE 는 Flyway V9 표). 트리거 문장은 TC_CODE_VER 를 가리켜 넣지 않는다. */
+    /** 픽스처 RULE 두 표만 만든다(MASTER_CODE 는 기준선 표). 트리거 문장은 TC_CODE_VER 를 가리켜 넣지 않는다. */
     @Override
     protected void createSchema(JdbcTemplate jdbc) {
         List<String> ddl = VersionFixtureTables.sqliteDdl();
@@ -91,13 +81,18 @@ class MasterCodeVersionStateSqliteTest extends AbstractVersionStateScenarioTest 
             super.seedVersion(ref, status, ownerId, applyFrom, applyTo, rowVersion);
             return;
         }
-        jdbc.update("INSERT INTO TB_MDM_CODE (MARU_CODE_ID, MARU_CODE_NAME, SOURCE_KIND) SELECT ?, ?, 'MDM' "
+        jdbc.update("INSERT INTO TB_MDM_CODE (MARU_CODE_ID, MARU_CODE_NAME, SOURCE_KIND) SELECT ?, ?, 'MDM' FROM DUAL "
                 + "WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_CODE WHERE MARU_CODE_ID = ?)", ref.objectId(), ref.objectId(),
                 ref.objectId());
         BigDecimal ver = ref.ver().setScale(ref.target().versionScale());
         String verKind = ver.stripTrailingZeros().scale() <= 0 ? "MAJOR" : "MINOR";
         jdbc.update("INSERT INTO TB_MDM_CODE_VER (MARU_CODE_ID, VER, VER_KIND, STATUS, OWNER_ID, APPLY_FROM, APPLY_TO, "
                         + "ROW_VERSION, AUD_VER) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)",
-                ref.objectId(), ver, verKind, status, ownerId, applyFrom, applyTo, rowVersion);
+                ref.objectId(), ver, verKind, status, ownerId, timestamp(applyFrom), timestamp(applyTo), rowVersion);
+    }
+
+    /** 시험이 문자열로 넘기는 일시를 TIMESTAMP 칸에 바인딩한다 — 문자열은 NLS 형식에 기대 ORA-01843 이 난다. null 도 형을 붙인다. */
+    private static SqlParameterValue timestamp(String text) {
+        return new SqlParameterValue(Types.TIMESTAMP, text == null ? null : Timestamp.valueOf(text));
     }
 }

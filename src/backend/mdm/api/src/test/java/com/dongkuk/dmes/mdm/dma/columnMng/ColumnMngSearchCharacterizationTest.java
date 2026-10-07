@@ -19,9 +19,7 @@ import com.dongkuk.dmes.mdm.repository.MdmDomainRepository;
 import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import java.sql.Connection;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -38,13 +36,13 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 
 /**
- * 항목 4(컬럼 검색 SQL 내리기) 1단계 특성 테스트 — {@code columnMng.search} 의 지금 동작을 실제 SQLite 스키마로 고정한다.
+ * 항목 4(컬럼 검색 SQL 내리기) 1단계 특성 테스트 — {@code columnMng.search} 의 지금 동작을 실제 Oracle 스키마로 고정한다.
  *
  * <p>지금 search 는 도메인·용어·시스템 매핑·컬럼 네 표를 전부 읽고 Java 에서 거른다. 그래서 다음이 성립한다 — SQL 로 내릴 때
  * 갈라지기 쉬운 곳들이다.
  * <ul>
  *   <li>{@code %}·{@code _}·{@code \} 는 글자 그대로다(LIKE 와일드카드가 아니다).</li>
- *   <li>대소문자 무시는 {@code toLowerCase(Locale.ROOT)} 다 — ASCII 밖 라틴 글자({@code Ä}/{@code ä})도 접힌다(SQLite {@code LOWER} 는 ASCII 만 접는다).</li>
+ *   <li>대소문자 무시는 {@code toLowerCase(Locale.ROOT)} 다 — ASCII 밖 라틴 글자({@code Ä}/{@code ä})도 접힌다(SQLite {@code LOWER} 는 ASCII 만 접었다).</li>
  *   <li>검색어 앞뒤 자르기는 {@code String.trim()} 이다 — 전각 공백(U+3000)은 자르지 않는다.</li>
  *   <li>매핑이 여러 개 걸려도 컬럼은 한 번만 나온다(JOIN 으로 바꾸면 중복이 생긴다).</li>
  *   <li>정렬은 Java {@code String.compareTo}(UTF-16 코드 단위) — 숫자 &lt; 대문자 &lt; {@code _} &lt; 소문자 &lt; Ä &lt; 한글. COLUMN_NAME 은 유일 인덱스라
@@ -88,6 +86,8 @@ class ColumnMngSearchCharacterizationTest extends AbstractMdmSharedDbTest {
     EntityManagerFactory emf;
 
     private JdbcTemplate jdbc;
+    private String disabledFkTable;
+    private String disabledFk;
     private QueryCountProbe probe;
     private MdmTerm rmtl;
     private MdmDomain dCoil;
@@ -110,6 +110,11 @@ class ColumnMngSearchCharacterizationTest extends AbstractMdmSharedDbTest {
     @AfterEach
     void tearDown() {
         probe.stop();
+        if (disabledFk != null) {
+            DmaTestSupport.clear(jdbc);
+            DmaTestSupport.restoreForeignKey(jdbc, disabledFkTable, disabledFk);
+            disabledFk = null;
+        }
     }
 
     private void seed() {
@@ -335,7 +340,7 @@ class ColumnMngSearchCharacterizationTest extends AbstractMdmSharedDbTest {
 
     @Test
     void 가리키는_도메인_행이_없는_컬럼은_목록엔_도메인명_없이_나오고_도메인_키워드엔_빠진다() throws SQLException {
-        withForeignKeysOff("INSERT INTO TB_MDM_COLUMN (COLUMN_NAME, PHYS_NAME, DOMAIN_ID, REQUIRED, CHG_SEQ)"
+        withForeignKeyOff("TB_MDM_COLUMN", "FK_TB_MDM_COLUMN_DOMAIN", "INSERT INTO TB_MDM_COLUMN (COLUMN_NAME, PHYS_NAME, DOMAIN_ID, REQUIRED, CHG_SEQ)"
                 + " VALUES ('유령도메인', 'GHOST_DOM', 999999, 0, 0)");
 
         List<Map<String, Object>> list = maps(service.search(new ColumnMngSearchRequest()).get("list"));
@@ -380,17 +385,11 @@ class ColumnMngSearchCharacterizationTest extends AbstractMdmSharedDbTest {
 
     // ── helpers ───────────────────────────────────────────────────────────
 
-    /** 풀 연결은 외래키 강제가 켜져 있다 — 한 autocommit 연결에서만 끄고 넣은 뒤 반드시 다시 켠다. */
-    private void withForeignKeysOff(String sql) throws SQLException {
-        try (Connection c = dataSource.getConnection(); Statement st = c.createStatement()) {
-            c.setAutoCommit(true);
-            st.execute("PRAGMA foreign_keys = OFF");
-            try {
-                st.execute(sql);
-            } finally {
-                st.execute("PRAGMA foreign_keys = ON");
-            }
-        }
+    /** 유령 참조 행을 넣는다 — 끈 제약은 {@link #tearDown} 이 유령 행을 지운 뒤 되돌린다({@link DmaTestSupport#insertWithForeignKeyOff}). */
+    private void withForeignKeyOff(String table, String constraint, String sql) throws SQLException {
+        DmaTestSupport.insertWithForeignKeyOff(dataSource, table, constraint, sql);
+        disabledFkTable = table;
+        disabledFk = constraint;
     }
 
     private static ColumnMngSearchRequest search(String keyword, String domainKeyword) {

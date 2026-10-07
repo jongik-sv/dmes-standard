@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeItemChecks.Header;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
+import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeItemValues;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -181,7 +182,84 @@ class MasterCodeItemChecksTest {
                 "대조군 — touched 로 넣으면 걸린다");
     }
 
+    // ── 길이 상한(ORA-12899 예방) ─────────────────────────────────────────
+
+    @Test
+    void L1_코드값_50자는_통과하고_51자는_KEY_TOO_LONG() {
+        assertEquals(List.of(), checkFlat(entry("K".repeat(50), "k", 1, null)));
+
+        List<MdmCheckIssue> issues = checkFlat(entry("K".repeat(51), "k", 1, null));
+        assertEquals(List.of("KEY_TOO_LONG"), codes(issues));
+        assertEquals("code", issues.get(0).field());
+    }
+
+    @Test
+    void L1_계층_칸_값_50자는_통과하고_51자는_KEY_TOO_LONG() {
+        Header header = new Header(2, labels());
+        assertEquals(List.of(), MasterCodeItemChecks.check(header,
+                List.of(entry("A", "a", 1, null, "G".repeat(50))), Set.of("A")));
+
+        List<MdmCheckIssue> issues = MasterCodeItemChecks.check(header,
+                List.of(entry("A", "a", 1, null, "G", "H".repeat(51))), Set.of("A"));
+        assertEquals(List.of("KEY_TOO_LONG"), codes(issues));
+        assertEquals("lvl2", issues.get(0).field());
+    }
+
+    @Test
+    void L2_이름_4000바이트는_통과하고_4001바이트는_TEXT_TOO_LONG() {
+        assertEquals(List.of(), checkText("a".repeat(4000), null, null));
+
+        List<MdmCheckIssue> issues = checkText("a".repeat(4001), null, null);
+        assertEquals(List.of("TEXT_TOO_LONG"), codes(issues));
+        assertEquals("name", issues.get(0).field());
+    }
+
+    @Test
+    void L2_한글은_1333자까지_통과하고_1334자는_거부() {
+        assertEquals(List.of(), checkText(null, "가".repeat(1333), null));
+
+        List<MdmCheckIssue> issues = checkText(null, "가".repeat(1334), null);
+        assertEquals(List.of("TEXT_TOO_LONG"), codes(issues));
+        assertEquals("alterName", issues.get(0).field());
+    }
+
+    @Test
+    void L2_설명과_추가_컬럼도_4000바이트_상한() {
+        List<MdmCheckIssue> issues = checkText(null, null, "가".repeat(1334));
+        assertEquals(List.of("TEXT_TOO_LONG"), codes(issues));
+        assertEquals("description", issues.get(0).field());
+
+        List<String> attrs = new ArrayList<>(java.util.Collections.nCopies(10, (String) null));
+        attrs.set(9, "b".repeat(4001));
+        MasterCodeItemValues values = new MasterCodeItemValues("n", null, 1, null,
+                new ArrayList<>(java.util.Collections.nCopies(5, (String) null)), attrs);
+        List<String> labelsAll = labels("1", "2", "3", "4", "5", "6", "7", "8", "9", "10");
+        List<MdmCheckIssue> attrIssues = MasterCodeItemChecks.check(new Header(0, labelsAll),
+                List.of(new MasterCodeItemEntry("A", values)), Set.of("A"));
+        assertEquals(List.of("TEXT_TOO_LONG"), codes(attrIssues));
+        assertEquals("attr10", attrIssues.get(0).field());
+    }
+
+    @Test
+    void L3_경미_수정_길이_검사는_이름_약칭_설명_4000바이트() {
+        assertEquals(List.of(), MasterCodeItemChecks.checkPatchText("A", "a".repeat(4000), null, "가".repeat(1333)));
+
+        List<MdmCheckIssue> issues = MasterCodeItemChecks.checkPatchText("A", "a".repeat(4001), "가".repeat(1334),
+                "d".repeat(4001));
+        assertEquals(List.of("TEXT_TOO_LONG", "TEXT_TOO_LONG", "TEXT_TOO_LONG"), codes(issues));
+        assertEquals(List.of("name", "alterName", "description"),
+                issues.stream().map(MdmCheckIssue::field).toList());
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────
+
+    private static List<MdmCheckIssue> checkText(String name, String alterName, String description) {
+        MasterCodeItemValues values = new MasterCodeItemValues(name, alterName, 1, description,
+                new ArrayList<>(java.util.Collections.nCopies(5, (String) null)),
+                new ArrayList<>(java.util.Collections.nCopies(10, (String) null)));
+        return MasterCodeItemChecks.check(new Header(0, labels()), List.of(new MasterCodeItemEntry("A", values)),
+                Set.of("A"));
+    }
 
     private static List<MdmCheckIssue> checkAdded(MasterCodeItemEntry added) {
         List<MasterCodeItemEntry> view = new ArrayList<>(steelStd());

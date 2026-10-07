@@ -117,7 +117,7 @@ class RuleSetVersionOpsSqliteTest extends AbstractMdmSharedDbTest {
 
         // 확정 취소 — 아직 적용되지 않은 내 RELEASED(apply_from 미래)만
         DmeTestSupport.ruleSetVersion(jdbc, "S_O", "3.000", "MAJOR", "RELEASED", "kim", "[]", "2026-07-01 00:00:00", "9999-12-31 00:00:00", 0);
-        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = '2026-07-01 00:00:00' WHERE MARU_RULE_SET_ID = 'S_O' AND VER = 1");
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = TIMESTAMP '2026-07-01 00:00:00' WHERE MARU_RULE_SET_ID = 'S_O' AND VER = 1");
         service.delete(req("3.000", null, 0L, RuleSetVersionRequest.TARGET_CONFIRM));
         assertThat(DmeTestSupport.setVerValue(jdbc, "S_O", "3.000", "STATUS")).isEqualTo("DRAFT");
         assertThat(DmeTestSupport.setVerValue(jdbc, "S_O", "1.000", "APPLY_TO")).isEqualTo("9999-12-31 00:00:00");
@@ -185,7 +185,7 @@ class RuleSetVersionOpsSqliteTest extends AbstractMdmSharedDbTest {
         assertThat(MetaRevTestSupport.rows(jdbc)).isEmpty();
 
         DmeTestSupport.ruleSetVersion(jdbc, "S_O", "3.000", "MAJOR", "RELEASED", "kim", "[]", "2026-07-01 00:00:00", "9999-12-31 00:00:00", 0);
-        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = '2026-07-01 00:00:00' WHERE MARU_RULE_SET_ID = 'S_O' AND VER = 1");
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = TIMESTAMP '2026-07-01 00:00:00' WHERE MARU_RULE_SET_ID = 'S_O' AND VER = 1");
         service.delete(req("3.000", null, 0L, RuleSetVersionRequest.TARGET_CONFIRM));
         assertThat(MetaRevTestSupport.rows(jdbc)).containsExactly("RULE_SET:S_O:SAVE");
     }

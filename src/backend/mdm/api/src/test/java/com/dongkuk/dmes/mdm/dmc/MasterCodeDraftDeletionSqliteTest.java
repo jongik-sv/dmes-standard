@@ -146,12 +146,13 @@ class MasterCodeDraftDeletionSqliteTest extends AbstractMdmSharedDbTest {
         jdbc.update("UPDATE TB_MDM_CODE_CATE SET TO_VER = 1.001 WHERE MARU_CODE_ID = ? AND CATE_ID = 'T'", ID);
         seeds.seedCate(ID, "T", "1.001", OPEN, "TABLE", null, null, "t2");
         List<String> before = seeds.segments(ID);
-        jdbc.execute("CREATE TRIGGER TR_D3_FAIL BEFORE UPDATE ON TB_MDM_CODE_CATE BEGIN SELECT RAISE(ABORT, 'D3 forced'); END");
+        jdbc.execute("CREATE OR REPLACE TRIGGER TR_D3_FAIL BEFORE UPDATE ON TB_MDM_CODE_CATE FOR EACH ROW "
+                + "BEGIN RAISE_APPLICATION_ERROR(-20001, 'D3 forced'); END;");
         try {
             assertThrows(RuntimeException.class,
                     () -> tx.executeWithoutResult(s -> versionState.deleteDraft(ref("1.001"), 0L, "stw1")));
         } finally {
-            jdbc.execute("DROP TRIGGER IF EXISTS TR_D3_FAIL");
+            dropTrigger("TR_D3_FAIL");
         }
         assertEquals(before, seeds.segments(ID), "선분이 그대로다(같은 트랜잭션 롤백)");
         assertEquals(2, seeds.count("TB_MDM_CODE_VER", ID), "VER 1.001 이 남아 있다");
@@ -178,6 +179,12 @@ class MasterCodeDraftDeletionSqliteTest extends AbstractMdmSharedDbTest {
         assertEquals(1, seeds.touching(ID, "FROM_VER", "1.002"), "1.002 의 새 행이 남는다");
         assertEquals(1, seeds.touching(ID, "TO_VER", "1.002"), "1.002 가 닫은 행도 그대로다");
         assertEquals("a1", jdbc.queryForObject("SELECT NAME FROM TB_MDM_CODE_ITEM WHERE CODE = 'A'", String.class));
+    }
+
+    /** Oracle 23 미만에는 DROP TRIGGER IF EXISTS 가 없다 — 없는 트리거(ORA-04080)는 넘긴다. */
+    private void dropTrigger(String name) {
+        jdbc.execute("BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER " + name + "'; "
+                + "EXCEPTION WHEN OTHERS THEN IF SQLCODE != -4080 THEN RAISE; END IF; END;");
     }
 
     private static VersionRef ref(String ver) {

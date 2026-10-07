@@ -18,8 +18,8 @@ import { BASE_URL, LOGIN_USER, T, login, taskScreenshotPath, walkMenuPath } from
  *   3. 등록/수정 1회 — 해당 없음(같은 사유. 버전 전이는 화면 없는 서비스라 백엔드 시나리오 S1~S24 가 본다).
  *   4. 서버 오류 표시 — 해당 없음(화면이 서버를 부르지 않는다). 대신 권한 없는 API 호출 → 403 을 T3 이 본다.
  *
- * 전제(design.md §3.6): 격리 DB 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고, mcm 기동 뒤
- * e2e/fixtures/mdm-rbac-users.sql 을 격리 mcm.db 에 넣는다. be-run.sh·fe-run.sh 는 쓰지 않는다.
+ * 전제(design.md §3.6): 새 PDB(시험 PDB 복제본)로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고, mcm 기동 뒤
+ * mdm-00-fixtures.spec.ts 가 e2e/fixtures/mdm-rbac-users.sql 을 그 PDB 의 MCMAPUSER 에 넣는다. be-run.sh·fe-run.sh 는 쓰지 않는다.
  * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다(기본값 5100 은 메인 체크아웃 포털 → 거짓 통과).
  *
  * 스크린샷(T1·T2·T3): 기본은 시험 산출물 폴더(src/frontend/test-results/…, git 제외)에 남는다. 승인용 화면

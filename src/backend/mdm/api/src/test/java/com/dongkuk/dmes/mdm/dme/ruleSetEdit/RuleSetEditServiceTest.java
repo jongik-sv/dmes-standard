@@ -78,7 +78,9 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
 
     @BeforeEach
     void seed() {
-        jdbc.execute("DROP TRIGGER IF EXISTS TR_RULE_VER_FAIL");
+        // Oracle 23 미만에는 DROP TRIGGER IF EXISTS 가 없다 — 없으면(ORA-04080) 넘어간다.
+        jdbc.execute("BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TR_RULE_VER_FAIL'; EXCEPTION WHEN OTHERS THEN "
+                + "IF SQLCODE != -4080 THEN RAISE; END IF; END;");
         DmeTestSupport.clear(jdbc);
         DmeTestSupport.clearDictionary(jdbc);
         currentUser.set("kim", STEWARD);
@@ -481,8 +483,8 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
         // 상태는 계산 상태(ruleSetMng·ruleSetConfirm 과 같다, Ruling P2-22 M-3) — 저장 CREATED 라도 적용된 RELEASED 가 있으면 INUSE
         DmeTestSupport.ruleSet(jdbc, "S_PICK_APPLIED", "적용 세트", "[]", "CREATED", 0);
         jdbc.update("INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, STATUS, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, "
-                + "U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('S_PICK_NEW', '새 세트', 'CREATED', 'fixture', '2026-01-01 00:00:00', "
-                + "'fixture', 'fixture', 'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', 0)");
+                + "U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('S_PICK_NEW', '새 세트', 'CREATED', 'fixture', TIMESTAMP '2026-01-01 00:00:00', "
+                + "'fixture', 'fixture', 'fixture', TIMESTAMP '2026-01-01 00:00:00', 'fixture', 'fixture', 0)");
         DmeTestSupport.ruleSetDraft(jdbc, "S_PICK_NEW", "1.000", "kim", "[]", 0);
         List<RuleSetPickResult.Pick> picked = ((RuleSetPickResult) search("SET", "S_PICK", null)).getSets();
         assertEquals(List.of("S_PICK_APPLIED", "S_PICK_NEW"), picked.stream().map(RuleSetPickResult.Pick::getSetId).toList());
