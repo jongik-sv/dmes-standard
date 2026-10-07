@@ -13,10 +13,10 @@ coordinator·dflow-* 스킬의 셸 스크립트는 **macOS** 와 **Git for Windo
 | git·curl | 기본 | 기본 | |
 | openssl 또는 sha256sum | 기본(openssl) | 기본 | 해시는 `lib/compat.sh` 의 `compat_sha256` 로 |
 | **jq** | 설치 필요(`brew install jq`) | **동봉**(`_shared/bin/win64/jq.exe` 1.7.1, 설치 불필요) | 모든 coordinator·dflow 스크립트가 쓴다. 윈도우에서는 각 **스크립트가** `_shared/bin`(래퍼 `jq` → `win64/jq.exe -b`)을 PATH 앞에 둔다. 스킬 문서 속 인라인 `… | jq …` 예시를 에이전트가 Bash 도구로 직접 실행할 때는 PATH 가 바뀌지 않으므로, 호출마다 맨 앞에 PATH 를 잡는다(아래 「문서 속 인라인 jq」). `_shared` 를 빼고 dflow-* 만 설치하면 동봉 jq 를 찾지 못하므로 `_shared` 를 함께 배포한다. 출처·SHA-256·갱신 방법은 `_shared/bin/README.md` |
-| node(**18.17 이상**) | 설치 필요 | 설치 필요 | python 에서 옮겨 온 스크립트(`.mjs`)와 `_shared/node/` 공용 헬퍼가 쓴다(`node:test`·`util.parseArgs`·`readdirSync` 재귀). 그 밖에 `mutate.sh`(변이 검증), `free-port.sh`(첫 선택지), `capacity.sh`(윈도우 메모리·CPU 수), `timeout-guard.sh`(jq 없을 때), 해시 마지막 폴백 |
+| node(**18.17 이상**) | 설치 필요 | 설치 필요 | python 에서 옮겨 온 스크립트(`.mjs`)와 `_shared/node/` 공용 헬퍼가 쓴다(`node:test`·`util.parseArgs`·`readdirSync` 재귀). 그 밖에 `mutate.sh`(변이 검증), `free-port.sh`(첫 선택지), `capacity.sh`(윈도우 메모리·CPU 수), `timeout-guard.sh`(jq 없을 때), `junit-count.sh`(XML 합산), 해시 마지막 폴백 |
 | orca CLI | 설치 필요 | 설치 필요 | coordinator 전반(터미널·워크트리 조작) |
 | pnpm·gradle·docker | 프로젝트별 | 프로젝트별 | 스킬이 직접 요구하지 않는다 |
-| python3 | 선택 | 선택 | 스킬 실행 경로에는 필요 없다(`free-port.sh` 는 node → lsof·nc, oasis-contract-check 는 node `.mjs`). 남은 python 스크립트는 후속 레인에서 node 로 옮긴다 |
+| python3 | 선택 | 선택 | 스킬 실행 경로에는 필요 없다(`free-port.sh` 는 node → lsof·nc, oasis-contract-check 는 node `.mjs`). dflow-export·dflow-wbs·dflow-wbs-nlevel·`junit-count.sh` 도 node 로 옮겨졌다. 남은 python 은 mantine-aggrid-ui 문서 조회 스크립트(별도 레인에서 이식 중)뿐이다 |
 
 Git Bash 에 **없는** 명령: `ps -o`·`ps -x`(Cygwin 판 ps 는 `-W`·`-e`·`-f` 만), `pgrep`·`pkill`, `lsof`, `sysctl`, `launchctl`, `caffeinate`, `memory_pressure`, `vm_stat`.
 `perl` 은 Git for Windows 에 들어 있어도 쓰지 않는다.

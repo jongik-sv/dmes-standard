@@ -46,13 +46,8 @@
 # 지우지는 않는다). 기본은 필터링 없음(모두 센다) — UP-TO-DATE 로 건너뛴 모듈의 이전 결과를 빼면 오히려 총수가
 # 부당하게 준다.
 #
-# 파싱은 node 로 한다(같은 폴더의 junit-count.mjs — 외부 의존성 없는 XML 파서를 안에 갖고 있다. python 은 쓰지 않는다. 윈도우 Git Bash
-# 에도 node 는 있다). node 가 없으면 stdout 에 JUNIT_SUMMARY_NONODE 를 내고 exit 2(예전 python 판의 JUNIT_SUMMARY_NOPY 자리).
-# 깨진 XML 은 건너뛰고 stderr 에 JUNIT_SKIP <파일> 을 낸다(합산 계속). 이 파일은 인자 해석·XML 찾기·정렬만 하고 합산은 .mjs 가 한다.
-# 윈도우 Git Bash: find 가 낸 `/c/proj/…`·`/tmp/…` 는 파일 안에 적힌 글이라 MSYS 가 인자처럼 바꿔 주지 않는다. 그대로 node.exe 에 읽히면
-# 모두 못 읽어 전부 JUNIT_SKIP 이 되므로, cygpath 가 있으면 같은 목록을 `C:/…` 꼴로 바꾼 사본을 .mjs 에 함께 넘긴다(읽을 때만 쓰고 출력은
-# 원래 경로 그대로). macOS·Linux 에는 cygpath 가 없어 이 길은 타지 않는다.
-# 이전 python 판은 tests/golden/legacy/junit-count.legacy.sh 에 동결해 두었고 tests/junit-count.sh 가 그 출력과 한 글자씩 비교한다.
+# 파싱은 python3(없으면 python)의 xml.etree 로 한다(install.sh 가 python3 을 필수로 요구한다). 파이썬이 없으면
+# stdout 에 JUNIT_SUMMARY_NOPY 를 내고 exit 2. 깨진 XML 은 건너뛰고 stderr 에 JUNIT_SKIP <파일> 을 낸다(합산 계속).
 # POSIX sh 다(macOS·Linux·Git Bash). 배열·[[·PIPESTATUS 를 쓰지 않는다.
 set -u
 
@@ -90,16 +85,19 @@ if [ -z "$roots" ]; then
 "
 fi
 
-if ! command -v node >/dev/null 2>&1; then
-  echo "JUNIT_SUMMARY_NONODE"
+PY=""
+for cand in python3 python; do
+  if command -v "$cand" >/dev/null 2>&1; then PY="$cand"; break; fi
+done
+if [ -z "$PY" ]; then
+  echo "JUNIT_SUMMARY_NOPY"
   exit 2
 fi
-here=$(cd "$(dirname "$0")" && pwd)
 
 rootsfile=$(mktemp)
 filelist=$(mktemp)
-readlist=""
-cleanup() { rm -f "$rootsfile" "$filelist" ${readlist:+"$readlist"}; }
+pyscript=$(mktemp)
+cleanup() { rm -f "$rootsfile" "$filelist" "$pyscript"; }
 trap cleanup EXIT INT TERM
 
 printf '%s' "$roots" > "$rootsfile"
@@ -124,10 +122,98 @@ if [ ! -s "$filelist" ]; then
   exit 1
 fi
 
-if command -v cygpath >/dev/null 2>&1; then
-  readlist=$(mktemp)
-  cygpath -m -f "$filelist" > "$readlist" 2>/dev/null || { rm -f "$readlist"; readlist=""; }
-fi
+cat > "$pyscript" <<'PYEOF'
+import os
+import sys
+import xml.etree.ElementTree as ET
 
-node "$here/junit-count.mjs" "$filelist" "$FAILED_FILE" "$SINCE" ${readlist:+"$readlist"}
+
+def resolve_since(value):
+    if not value:
+        return None
+    if value.isdigit():
+        return float(value)
+    try:
+        return os.path.getmtime(value)
+    except OSError:
+        sys.stderr.write("JUNIT_SINCE_INVALID %s\n" % value)
+        sys.exit(2)
+
+
+def as_int(elem, attr):
+    v = elem.get(attr)
+    if v is None:
+        return 0
+    try:
+        return int(float(v))
+    except ValueError:
+        return 0
+
+
+def main():
+    file_list_path = sys.argv[1]
+    failed_file = sys.argv[2] if len(sys.argv) > 2 else ""
+    since_arg = sys.argv[3] if len(sys.argv) > 3 else ""
+    since = resolve_since(since_arg)
+
+    with open(file_list_path, "r") as f:
+        paths = [line.rstrip("\n") for line in f if line.strip()]
+
+    total_tests = total_failures = total_errors = total_skipped = 0
+    parsed_files = 0
+    failed_names = set()
+
+    for path in paths:
+        if since is not None:
+            try:
+                mtime = os.path.getmtime(path)
+            except OSError:
+                mtime = None
+            if mtime is not None and mtime < since:
+                sys.stderr.write("JUNIT_STALE %s\n" % path)
+                continue
+
+        try:
+            tree = ET.parse(path)
+        except (ET.ParseError, OSError):
+            sys.stderr.write("JUNIT_SKIP %s\n" % path)
+            continue
+
+        root = tree.getroot()
+        if root.tag == "testsuite":
+            suites = [root]
+        elif root.tag == "testsuites":
+            suites = list(root.findall("testsuite"))
+        else:
+            sys.stderr.write("JUNIT_SKIP %s\n" % path)
+            continue
+
+        for suite in suites:
+            total_tests += as_int(suite, "tests")
+            total_failures += as_int(suite, "failures")
+            total_errors += as_int(suite, "errors")
+            total_skipped += as_int(suite, "skipped")
+            for tc in suite.findall("testcase"):
+                if tc.find("failure") is not None or tc.find("error") is not None:
+                    classname = tc.get("classname", "")
+                    name = tc.get("name", "")
+                    failed_names.add("%s.%s" % (classname, name))
+        parsed_files += 1
+
+    print(
+        "JUNIT_SUMMARY tests=%d failures=%d errors=%d skipped=%d files=%d"
+        % (total_tests, total_failures, total_errors, total_skipped, parsed_files)
+    )
+
+    if failed_file:
+        with open(failed_file, "w") as f:
+            for n in sorted(failed_names):
+                f.write(n + "\n")
+
+
+if __name__ == "__main__":
+    main()
+PYEOF
+
+"$PY" "$pyscript" "$filelist" "$FAILED_FILE" "$SINCE"
 exit $?

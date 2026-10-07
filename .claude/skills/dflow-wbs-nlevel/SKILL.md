@@ -222,11 +222,8 @@ node .claude/skills/dflow-wbs-nlevel/scripts/wbs-nlevel-parse.mjs export \
   --wbs docs/mes/조업/wbs.md --skeleton docs/mes/skel/wbs.md > "$SCRATCHPAD/nlevel-op.json"   # 골격 경로는 프로젝트마다 다름
 
 # 2) 봉투 완성(project_id) 후 전송 — PAT 규칙·바인딩은 dflow-export SKILL.md 준용(값 비출력)
-python3 - <<EOF
-import json; d = json.load(open("$SCRATCHPAD/nlevel-op.json"))
-d["project_id"] = "<UUID>"
-json.dump(d, open("$SCRATCHPAD/nlevel-op-import.json", "w"), ensure_ascii=False)
-EOF
+node .claude/skills/dflow-export/scripts/wbs-envelope.mjs \
+  --in "$SCRATCHPAD/nlevel-op.json" --out "$SCRATCHPAD/nlevel-op-import.json" --set project_id=<UUID>
 PAT="$(echo "${DFLOW_PATS:-$DFLOW_PAT}" | cut -d',' -f1)"
 curl -sS -X POST "$DFLOW_API_BASE/api/v1/wbs/import" \
   -H "Authorization: Bearer $PAT" -H "Content-Type: application/json" \

@@ -70,13 +70,11 @@ node .claude/skills/dflow-export/scripts/wbs-parse.mjs docs/{MOD}/wbs.md --expor
 
 export 봉투에 2필드 추가 = 요청 본문:
 ```bash
-python3 - <<EOF
-import json
-d = json.load(open("$SCRATCHPAD/wbs-export-{MOD}.json"))
-d["project_id"] = "<UUID>"; d["module"] = "<MOD>"
-json.dump(d, open("$SCRATCHPAD/wbs-import-{MOD}.json", "w"), ensure_ascii=False, indent=2)
-EOF
+node .claude/skills/dflow-export/scripts/wbs-envelope.mjs \
+  --in "$SCRATCHPAD/wbs-export-{MOD}.json" --out "$SCRATCHPAD/wbs-import-{MOD}.json" \
+  --set project_id=<UUID> --set module=<MOD> --indent 2
 ```
+입력이 없거나 깨진 JSON 이거나 출력 폴더가 없으면 종료 코드 1 과 한 줄 `ERROR:` 로 끝난다(폴더를 만들지 않는다).
 
 ### 4. 전송 (`--push` 일 때만)
 
@@ -117,4 +115,5 @@ curl -sS -X POST "$DFLOW_API_BASE/api/v1/wbs/import" \
 
 - E2E 실사는 대상 D'Flow 서버에 `AGENT_API_ENABLED` 가 켜져 있어야 가능 — 꺼져 있으면 `--push` 는 404.
 - 테스트: `node --test .claude/skills/dflow-export/tests/` — 통과가 건강 기준선(약 3분, 1,100여 건). python 3 가 있으면 동결한 원본(`tests/golden/legacy/*.legacy.py`)과 출력을 바이트까지 비교하는 골든 시험이 함께 돌고, 없으면(윈도우) 그 부분만 건너뛰고 미리 계산한 기대값 파일(`tests/golden/expected/`)과 비교한다. 기대값을 다시 만들 때는 `tests/make-expected*.mjs --write`.
+- `wbs-envelope.mjs`(import 본문 조립)는 옛 인라인 python 과 바이트까지 같다. 그 python 두 가지는 `.legacy.py` 파일이 아니라 `tests/envelope-cases.mjs` 의 문자열(`PY_V1`·`PY_V2`)로 보관하며, 같은 폴더의 `make-expected-envelope.mjs` 가 기대값을 만든다.
 - 동봉 회귀 테스트는 export·validate·status·md·dep-analysis 다. test_wbs_md_consistency 는 merge-wbs-status.py(이 스킬 범위 밖) 의존이라 제외 — 정본은 dev-workflow 리포.
