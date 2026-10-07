@@ -253,7 +253,9 @@ async function ensureQuiet(pdb) {
   if (enabled.length) log(`경고: ${pdb} 자동 작업이 아직 켜져 있다 — ${enabled.join(', ')}`);
   else log(`${pdb} autotask 3종 꺼짐 확인`);
   // AWR: 자동 플러시가 꺼져 있으면(FALSE) PDB 안 스냅숏은 일어나지 않는다. 간격 값은 참고용이다.
-  log(`${pdb} AWR 자동 플러시 ${flush}, 스냅숏 간격 ${awr}분${awrErr ? ` (${awrErr})` : ''}`);
+  // interval=>0 은 간격을 최대값(약 40,150일 = 57,816,000분)으로 바꾼다. 그 값이면 스냅숏은 사실상 꺼진 것이다.
+  const awrOff = Number(awr) >= 1000000 ? '꺼짐(최대 간격)' : `${awr}분`;
+  log(`${pdb} AWR 자동 플러시 ${flush}, 스냅숏 간격 ${awrOff}${awrErr ? ` (${awrErr})` : ''}`);
   if (flush.toUpperCase() === 'TRUE') log(`경고: ${pdb} AWR 자동 플러시가 켜져 있다`);
 }
 async function doCreate(n) {
@@ -575,15 +577,18 @@ const commands = {
     });
   },
 
-  // 시험 PDB 의 세션 수를 한 줄로 낸다(하니스가 시험 끝에 로그로 남긴다). 최대치는 PDB 안 v$resource_limit 값이다. 잠금 없이 실행한다.
+  // 인스턴스 세션 수와 그 PDB 의 사용자 세션 수를 한 줄로 낸다(하니스가 시험 끝에 로그로 남긴다). v$resource_limit 은 루트에서만 값이 나온다.
+  // 인스턴스 max 는 기동 이후 최대치라 시험 전후 값을 비교해 시험이 늘렸는지 본다. 잠금 없이 실행한다.
   async sessions([name]) {
     const n = checkName(name);
     const p = await find(n);
     if (!p || !isOpen(p)) die(`${n} 이 열려 있지 않다.`);
     const out = await sql(
+      "select 'inst_sessions max=' || max_utilization || ' limit=' || trim(limit_value) || ' cur=' || current_utilization from v$resource_limit where resource_name='sessions';\n" +
       `alter session set container=${n};\n` +
-      "select 'sessions max=' || max_utilization || ' limit=' || limit_value || ' cur=' || current_utilization from v$resource_limit where resource_name='sessions';");
-    process.stdout.write(`${out.split('\n').filter((l) => l.startsWith('sessions')).join('\n') || 'sessions ?'}\n`);
+      "select 'pdb_user_sessions=' || count(*) from v$session where type='USER';");
+    const lines = out.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('inst_sessions') || l.startsWith('pdb_user_sessions'));
+    process.stdout.write(`sessions ${lines.join(' ') || '?'}\n`);
   },
 
   async 'schema-users'() {

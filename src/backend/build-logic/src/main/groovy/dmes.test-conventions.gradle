@@ -53,51 +53,64 @@ if (oraMode == 'clone' || oraExisting) {
     }
 }
 
+// Oracle 시험 PDB 를 준비하는 일(PC 잠금 → 복제 → 접속값 주입). 시험 슬롯(test-slot.gradle)보다 **먼저** 해야 한다: 슬롯을 쥔 채로 PC 잠금을
+// 기다리면, 잠금을 쥔 빌드가 필요로 하는 슬롯을 그 대기자들이 막아 서로 멈춘다(2026-10-07 21:12 교착). 슬롯 스크립트는 ext.dmesPreSlotHook 을
+// 슬롯을 잡기 직전에 부르고, 슬롯을 쓰지 않을 때(DMES_TEST_SLOTS=0·CI)는 아래 doFirst 가 같은 일을 한다. 태스크마다 한 번만 한다.
+def oraPrepare = null
+if (oraService != null) {
+    final def svc = oraService
+    oraPrepare = { Test t ->
+        if (t.extensions.extraProperties.has('dmesOraPrepared')) return
+        t.extensions.extraProperties.set('dmesOraPrepared', true)
+        // 모듈 build.gradle 이 maxParallelForks 를 나중에 대입해도 Oracle 시험은 1 로 고정한다(실행 직전 값이 쓰인다).
+        t.maxParallelForks = 1
+        t.forkEvery = 0
+        String pdb = svc.get().acquire()
+        String password = System.getenv('DMES_ORA_PASSWORD') ?: 'dmes_password_123'
+        String url = OraTestPdbService.jdbcUrl(pdb)
+        t.logger.lifecycle("[dmes-ora] ${t.path} 시험 PDB ${pdb} → ${url}")
+        t.systemProperty 'dmes.ora.pdb', pdb
+        t.systemProperty 'dmes.ora.url', url
+        t.systemProperty 'dmes.ora.password', password
+        t.environment 'DMES_ORA_PDB', pdb
+        t.environment 'DMES_ORA_URL', url
+        t.environment 'DMES_ORA_PASSWORD', password
+        t.environment 'SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE', '2'
+        t.systemProperty 'spring.datasource.hikari.maximum-pool-size', '2'
+        t.systemProperty 'spring.datasource.hikari.minimum-idle', '0'
+        t.systemProperty 'spring.datasource.hikari.idle-timeout', '10000'
+        t.systemProperty 'spring.test.context.cache.maxSize', '2'
+        oraPoolExtras.each { String prefix ->
+            if (prefix.startsWith('cactus.')) {
+                t.systemProperty "${prefix}.maximum-pool-size", '2'
+                t.systemProperty "${prefix}.idle-timeout", '10000'
+            } else {
+                // DataSource 를 HikariDataSource 에 직접 바인딩하는 모듈(caravan-hub)은 prefix.maximum-pool-size, 그렇지 않으면
+                // prefix.hikari.* 이다. 어느 쪽인지 모르므로 둘 다 건다(안 쓰는 쪽은 무시된다).
+                ['', 'hikari.'].each { String sub ->
+                    t.systemProperty "${prefix}.${sub}maximum-pool-size", '2'
+                    t.systemProperty "${prefix}.${sub}minimum-idle", '0'
+                    t.systemProperty "${prefix}.${sub}idle-timeout", '10000'
+                }
+            }
+        }
+    }
+    rootProject.extensions.extraProperties.set('dmesPreSlotHook', oraPrepare)
+}
+
 allprojects {
     if (oraService != null) {
         final def svc = oraService
+        final def prepare = oraPrepare
         tasks.withType(Test).configureEach {
             usesService(svc)
             maxParallelForks = 1
             forkEvery = 0
-            // 시험이 실패하면 VM 상태 한 줄을 남겨 VM 크기(2GB) 때문인지 가리게 한다(scripts/oracle/README.md 「Oracle 오류 판별」).
+            // 시험이 실패하면 VM 상태 한 줄을 남겨 VM 크기(3GB) 때문인지 가리게 한다(scripts/oracle/README.md 「Oracle 오류 판별」).
             afterSuite { desc, result ->
                 if (desc.parent == null && result.resultType.toString() == 'FAILURE') svc.get().logVmState('시험 실패')
             }
-            doFirst {
-                // 모듈 build.gradle 이 maxParallelForks 를 나중에 대입해도 Oracle 시험은 1 로 고정한다(실행 직전 값이 쓰인다).
-                maxParallelForks = 1
-                forkEvery = 0
-                String pdb = svc.get().acquire()
-                String password = System.getenv('DMES_ORA_PASSWORD') ?: 'dmes_password_123'
-                String url = OraTestPdbService.jdbcUrl(pdb)
-                logger.lifecycle("[dmes-ora] ${path} 시험 PDB ${pdb} → ${url}")
-                systemProperty 'dmes.ora.pdb', pdb
-                systemProperty 'dmes.ora.url', url
-                systemProperty 'dmes.ora.password', password
-                environment 'DMES_ORA_PDB', pdb
-                environment 'DMES_ORA_URL', url
-                environment 'DMES_ORA_PASSWORD', password
-                environment 'SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE', '2'
-                systemProperty 'spring.datasource.hikari.maximum-pool-size', '2'
-                systemProperty 'spring.datasource.hikari.minimum-idle', '0'
-                systemProperty 'spring.datasource.hikari.idle-timeout', '10000'
-                systemProperty 'spring.test.context.cache.maxSize', '2'
-                oraPoolExtras.each { String prefix ->
-                    if (prefix.startsWith('cactus.')) {
-                        systemProperty "${prefix}.maximum-pool-size", '2'
-                        systemProperty "${prefix}.idle-timeout", '10000'
-                    } else {
-                        // DataSource 를 HikariDataSource 에 직접 바인딩하는 모듈(caravan-hub)은 prefix.maximum-pool-size, 그렇지 않으면
-                        // prefix.hikari.* 이다. 어느 쪽인지 모르므로 둘 다 건다(안 쓰는 쪽은 무시된다).
-                        ['', 'hikari.'].each { String sub ->
-                            systemProperty "${prefix}.${sub}maximum-pool-size", '2'
-                            systemProperty "${prefix}.${sub}minimum-idle", '0'
-                            systemProperty "${prefix}.${sub}idle-timeout", '10000'
-                        }
-                    }
-                }
-            }
+            doFirst { prepare.call(it) }
         }
     }
     // 모든 시각은 KST 로 통일한다(docs/oracle-1007/schema-owners.md §3.1). 시험 JVM 과 bootRun 이 PC 시간대와 상관없이 Asia/Seoul 을 쓰게
