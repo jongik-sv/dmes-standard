@@ -70,7 +70,7 @@ python 은 `PYTHONDONTWRITEBYTECODE=1`·`PYTHONUTF8=1` 로 실행해 `__pycache_
 **goldentool.mjs** — 파일을 만드는 도구용 골든 비교. `compareToolGolden({legacy, script, setup(root), args, replacePython, statusOnly})` 는
 python 판과 node 판을 **각자 새 임시 저장소**(realpath)에서 같은 인자로 돌려(`--root` 는 자동으로 붙임) stdout·stderr(저장소 경로는 `<ROOT>` 로 치환)·종료 코드와
 **저장소에 남은 파일 전체(바이트)** 를 비교한다. `goldenToolTest(name, spec)` 은 `node:test` 용(python 이 없으면 skip).
-`statusOnly:true` 는 argparse 사용 오류처럼 문구가 다른 경우에 종료 코드만 본다. 사용 예: `flyway-migration-add/tests/golden.test.mjs`.
+`statusOnly:true` 는 argparse 사용 오류처럼 문구가 다른 경우에 종료 코드만 본다. 사용 예: `adr-write/tests/golden.test.mjs`.
 
 ## 이식 체크리스트
 

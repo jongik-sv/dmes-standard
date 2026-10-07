@@ -94,7 +94,7 @@
 | `.claude/skills/dflow-team/references/resolve-prompt.md:208` | ora-base | 마이그레이션 번호 충돌 해결(방언 폴더 언급) | 수정(b7) |
 | `.claude/skills/analyze-*/**`, `_shared/vocabulary-mapping.md`, `git-commit/SKILL.md`, `coordinator/tests/office-summary.sh` | ora-base | 레거시 원천 DBMS 이름·테스트 문자열에 SQLite 가 나옴 | **유지**(우리 DB 안내가 아님) |
 | `README.md`(§3 DB 절 등), `db-snapshot/README.md` | ora-base | 로컬 SQLite 기본·`mdm.db` 안내 | 수정(b7). README 의 MDM 부분은 `5b4640946` 로 이미 고쳤다 |
-| `docs/guide/Database/*`, `docs/guide/BackEnd/Backend-Implementation-Guide.md`, `Mes-Guide`, `dialect-neutral-sql.md` | ora-base | 로컬·시험 DB 안내 | 수정(b7). `oracle-26ai-test-guide.md` 는 완료(`843e265be`) |
+| `docs/guide/Database/*`, `docs/guide/BackEnd/Backend-Implementation-Guide.md`, `Mes-Guide`, `oracle-sql-rules.md`(옛 dialect-neutral-sql.md) | ora-base | 로컬·시험 DB 안내 | 수정(b7). `oracle-26ai-test-guide.md` 는 완료(`843e265be`) |
 | `docs/mdm/adr/0004-drop-mssql-production-assumption.md` | ora-mdm | "MDM 로컬·테스트는 SQLite" | **유지**(결정 기록). 뒤에 Oracle 단일화 ADR 을 새로 쓰는 쪽을 조정자에게 제안 |
 | `docs/cactus/001_*/mpn-multi-ds-tx-adoption-design.md`, `oasis-multi-tx-detailed-design.md`, `test-scenarios.md` | ora-platform | 설계 문서 안의 SQLite 연결 문자열·통합 절차 | 설계 이력이라 **유지**, 머리에 "로컬은 이제 Oracle" 한 줄 주석 추가(수정) |
 | `docs/ai-build-log/DEC-001_noticeMgmt-on-mls.md`, `docs/e2e/` | - | 과거 기록·E2E 설계 | 유지(기록). `docs/e2e/` 는 ora-mdm 의 E2E 전환 뒤 확인 |

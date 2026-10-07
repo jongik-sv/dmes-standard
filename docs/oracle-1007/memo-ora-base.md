@@ -72,7 +72,7 @@ PDB: 남긴 것은 `TPL_EMPTY`(봉인·autotask 꺼짐)와 `L_ORA_BASE`(닫힘, 
 ## b7 문서 항목(조정자 전달)
 
 - 옛 경로 문서 3곳 수정: `docs/guide/BackEnd/Mcm-Core-Onboarding.md:155,159`, `docs/mcm/erd/csa-sec-erd.md:256`, `docs/widget-2026-10/erd-widget-meta.md:31` → **완료**(`5b4640946`).
-- **머지④ 뒤 문서 묶음**(앱이 아직 SQLite 로 뜨는 동안 고치면 사실과 어긋나므로 한 번에): README「처음 받은 뒤 셋업」·`Backend-Implementation-Guide`·`dialect-neutral-sql`·`docs/guide/Database/README`·`Mes-Guide`·`flyway-migration-add` 스킬(`SKILL.md`·`migration_tool.mjs`·골든 시험)·`dflow-merge`(`migration-check.sh`·`script-details.md`)·`dflow-dev/references/dev-dialect.md`·`dflow-team/references/resolve-prompt.md:208`.
+- **머지④ 뒤 문서 묶음**(앱이 아직 SQLite 로 뜨는 동안 고치면 사실과 어긋나므로 한 번에): README「처음 받은 뒤 셋업」·`Backend-Implementation-Guide`·`oracle-sql-rules`·`docs/guide/Database/README`·`Mes-Guide`·`flyway-migration-add` 스킬(`SKILL.md`·`migration_tool.mjs`·골든 시험)·`dflow-merge`(`migration-check.sh`·`script-details.md`)·`dflow-dev/references/dev-dialect.md`·`dflow-team/references/resolve-prompt.md:208`.
 - **b7 범위 조정(조정자 10-07)**: `DMES-Deployment-Guide.md` 의 WildFly 데이터소스 절과 `docs/framework/DataSource_JNDI설계.md` 는 **ora-platform 이 맡는다(④ 와 함께 머지)** — 내 목록에서 뺐다(겹치는 초안 없음). ADR-0004 대체 주석과 `notice-tables.md`(:23·55·157)는 **완료**(`be13c0f55`).
 - (참고, 위 조정 전 항목) mcm wildfly 는 이제 `OracleDialect`·`java:/jdbc/mcm/*` JNDI(ora-mcm-app 666812393). 낡은 설명 수정: `docs/guide/Operations/DMES-Deployment-Guide.md:117`, `docs/framework/DataSource_JNDI설계.md` 머리 안내. `docs/mdm/adr/0004-drop-mssql-production-assumption.md:93` 은 **본문을 고치지 않고** 「2026-10-07 oracle-1007 로 대체됨」 주석과 링크만 단다.
 - 위젯 가이드 `Widget-Authoring-Guide.md:505` 의 `widget-rule-calc-defs.sql` 예시 문장은 ora-mcm-core 소관이다(§3 도 건드리지 않는다).

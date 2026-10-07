@@ -15,7 +15,7 @@
 >
 > 분류 기준: **A** = mcm 전 화면 적용(cross-cutting 정책 #1·#2·#4·#6 + 인프라/오딧/권한/패키지 표준), **B** = 동일 moduleGroup(csa/cma/cmb/cme/cia/cib/cic) 내 공통, **C** = 타 화면 재사용 가능성 있는 화면 고유 결정, **D** = 미결(open) cross-cutting.
 
-> **DB 전제 안내 (2026-10-03)**: 아래 표의 MSSQL 전제 행(ksm_dmes 통합, 단일 MSSQL, PUBLIC SYNONYM 미지원 등)은 dmes-ksm 이관 당시 결정이다. 2026-10-03 부터 운영 DB 는 Oracle 또는 PostgreSQL 이고 MSSQL 은 거의 쓰지 않으므로, 새 작업은 [`../Database/dialect-neutral-sql.md`](../Database/dialect-neutral-sql.md) 를 따른다.
+> **DB 전제 안내 (2026-10-03)**: 아래 표의 MSSQL 전제 행(ksm_dmes 통합, 단일 MSSQL, PUBLIC SYNONYM 미지원 등)은 dmes-ksm 이관 당시 결정이다. 2026-10-03 부터 운영 DB 는 Oracle 또는 PostgreSQL 이고 MSSQL 은 거의 쓰지 않으므로, 새 작업은 [`../Database/oracle-sql-rules.md`](../Database/oracle-sql-rules.md) 를 따른다.
 
 ## A. 모듈 공통 결정 (모든 mcm 화면 적용)
 
