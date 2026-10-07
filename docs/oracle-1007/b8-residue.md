@@ -82,7 +82,7 @@
 | `be-run.sh`·`be-run.ps1`·`local-run.sh` 주석·안내 | ora-base | `src/backend/data/<모듈>.db` 위치 안내가 남은 곳 | 수정(b7 로 진행 중) |
 | `scripts/perf/mdm-backend/README.md`, `scripts/perf/mcm/MyMenusLatencyPerfTest.java`, `scripts/perf/render/run-measure.sh` | ora-base | perf 하니스가 SQLite 사본으로 서버를 띄움 | `scripts/perf/render` 는 메모의 b8 항목(archive). mdm-backend·mcm 은 Oracle PDB 로 수정하거나 archive(조정자 판단) |
 | `scripts/archive/` | ora-base | 옛 `restart-all.sh` 등 이미 보관된 것 | 메모의 b8 항목: 재확인 후 정리 |
-| `src/frontend/playwright.config.ts`, `src/frontend/e2e/support/mdm-e2e.ts`, `e2e/fixtures/mdm-*.sql` | ora-base(playwright)·ora-mdm(e2e) | SQLITE_BUSY 회피 `workers: 1`, `SMOKE_MDM_DB`, `sqlite3` CLI 로 fixture 적재 | 메모의 b8 항목(playwright.config.ts). e2e 지원 코드는 ora-mdm 의 E2E 전환과 맞춰 수정 |
+| `src/frontend/playwright.config.ts`, `src/frontend/e2e/support/mdm-e2e.ts`, `e2e/fixtures/mdm-*.sql` | ora-base(playwright)·ora-mdm(e2e) | SQLITE_BUSY 회피 `workers: 1`(`playwright.config.ts:9` 의 「mcm SQLite 가 SQLITE_BUSY 로 500」 주석 포함), `SMOKE_MDM_DB`, `sqlite3` CLI 로 fixture 적재 | 메모의 b8 항목(playwright.config.ts: 주석을 Oracle 기준으로 고치고 `workers: 1` 유지 여부 판단 — Oracle 에서 동시 로그인이 괜찮으면 병렬 허용). e2e 지원 코드는 ora-mdm 의 E2E 전환과 맞춰 수정 |
 
 ## 6. 스킬·가이드 문서 (b7 문서 정비, ora-base 소유)
 
