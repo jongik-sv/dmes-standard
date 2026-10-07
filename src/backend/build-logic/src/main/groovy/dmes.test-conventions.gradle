@@ -52,6 +52,7 @@ allprojects {
                 String pdb = svc.get().acquire()
                 String password = System.getenv('DMES_ORA_PASSWORD') ?: 'dmes_password_123'
                 String url = OraTestPdbService.jdbcUrl(pdb)
+                logger.lifecycle("[dmes-ora] ${path} 시험 PDB ${pdb} → ${url}")
                 systemProperty 'dmes.ora.pdb', pdb
                 systemProperty 'dmes.ora.url', url
                 systemProperty 'dmes.ora.password', password

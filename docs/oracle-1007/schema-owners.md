@@ -55,6 +55,7 @@
    ```
 
 3. Oracle 컨테이너 OS 시간대는 `Asia/Seoul` 이다(`tools/oracle-free/docker-compose.yml` 의 `TZ`). `SYSDATE`·`SYSTIMESTAMP` 가 KST 로 나온다.
+   `DBTIMEZONE` 은 `+00:00` 으로 남는다. `TIMESTAMP WITH LOCAL TIME ZONE` 을 쓰지 않으므로 영향이 없다(쓰지 않는다).
 4. 적재기(b5)는 epoch 밀리초를 KST 로 변환하고, KST 문자열은 그대로 넣는다. 업무 일시(감사 아닌 것)는 변환하지 않는다.
 
 ### 3.2 운용 규칙(Podman VM 2GB 기준, 사용자 결정)

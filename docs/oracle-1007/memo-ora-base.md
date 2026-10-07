@@ -15,7 +15,7 @@
 | b2 PDB 도구 | 코드 작성·부분 검증 | `scripts/oracle/pdb.mjs`·`pdb.sh`·`pdb.cmd`·`README.md`. 시드→템플릿 생성, 사용자 13명 생성, 봉인, 복제(빈·데이터), 열기·닫기·삭제는 실측 통과. **`template-create` 를 처음부터 끝까지 한 번 더, 그리고 한 번 실패했던 `clone`(원인 미확인) 재현 시험 필요** |
 | b4 시험 하니스 | 코드 작성·**미검증** | `build-logic/.../OraTestPdbService.groovy`·`dmes.test-conventions.gradle`. `-Pdmes.ora.test=clone` 으로 작은 mdm 시험(`SapCsvTest` 등)을 돌려 복제→시험→삭제를 확인해야 한다 |
 | b5 적재기 | 미착수 | ora-mdm m1 기준선 뒤. 요구사항은 아래 |
-| b7·b8·z1 | 미착수 | ora-platform 머지 뒤 / 조정자 지시 때 |
+| b7·b8·z1 | 미착수 | ora-platform 머지 뒤 / 조정자 지시 때. **b8 에 추가: mcm-core 의 `SqliteTemporalConverterContributor` 제거**(mls yml 이 가리키므로 platform 머지 뒤에 지운다) |
 
 커밋 대기(워킹 트리): b2·b4 파일(미커밋, 정지 시 WIP 커밋으로 남긴다).
 
