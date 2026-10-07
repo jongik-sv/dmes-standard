@@ -6,7 +6,7 @@
 // 사용법은 `node scripts/oracle/pdb.mjs help` 또는 scripts/oracle/README.md 참고.
 
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,6 +25,8 @@ const CFG = {
   // 동시에 열려 있는 PDB 상한(FREEPDB1·시드 제외한 것까지 센다 — 시드는 세지 않는다). VM 2GB 에서는 3 이 한계다.
   maxOpen: Number(process.env.DMES_ORA_MAX_OPEN || 3),
   lockWaitSec: Number(process.env.DMES_ORA_LOCK_WAIT_SEC || 900),
+  // sqlplus 한 번이 이 시간을 넘으면 자식(podman exec)을 끊고 실패로 본다. 인스턴스가 멈췄을 때 고아 세션이 남지 않게 한다.
+  sqlTimeoutSec: Number(process.env.DMES_ORA_SQL_TIMEOUT_SEC || 1200),
 };
 
 // 운영과 같은 이름의 스키마 사용자(docs/oracle-1007/schema-owners.md). 모든 레인 PDB 에 만든다.
@@ -56,17 +58,40 @@ function checkName(name, { needManaged = true } = {}) {
 }
 
 // ── sqlplus 실행 ───────────────────────────────────────────────────
-function sqlplus(sql, { service = 'FREE', user = 'sys', password = CFG.sysPassword, asSysdba = true } = {}) {
+// 살아 있는 자식(podman exec). 신호를 받으면 모두 끊고 나간다(고아 세션이 VM 안에 남지 않게).
+const children = new Set();
+let ownsLock = false;
+function killChildren() {
+  for (const c of children) { try { c.kill('SIGTERM'); } catch { /* 이미 끝남 */ } }
+}
+for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
+  process.on(sig, () => {
+    killChildren();
+    if (ownsLock) { try { rmSync(LOCK_DIR, { recursive: true, force: true }); } catch { /* 무시 */ } }
+    process.exit(128 + (sig === 'SIGINT' ? 2 : sig === 'SIGHUP' ? 1 : 15));
+  });
+}
+
+function sqlplus(sql, { service = 'FREE', user = 'sys', password = CFG.sysPassword, asSysdba = true, timeoutSec = CFG.sqlTimeoutSec } = {}) {
   const conn = `${user}/${password}@localhost/${service}${asSysdba ? ' as sysdba' : ''}`;
   const script = `whenever sqlerror exit failure\nset pagesize 0 feedback off heading off linesize 500 trimspool on verify off echo off\n${sql}\nexit\n`;
   return new Promise((resolve) => {
     const p = spawn(CFG.engine, ['exec', '-i', CFG.container, 'sqlplus', '-s', conn], { stdio: ['pipe', 'pipe', 'pipe'] });
+    children.add(p);
     let out = '';
     let err = '';
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; try { p.kill('SIGTERM'); } catch { /* 무시 */ } }, timeoutSec * 1000);
     p.stdout.on('data', (d) => { out += d; });
     p.stderr.on('data', (d) => { err += d; });
-    p.on('error', (e) => resolve({ code: 127, out, err: String(e) }));
-    p.on('close', (code) => resolve({ code, out: out.trim(), err: err.trim() }));
+    p.on('error', (e) => { clearTimeout(timer); children.delete(p); resolve({ code: 127, out, err: String(e) }); });
+    p.on('close', (code) => {
+      clearTimeout(timer);
+      children.delete(p);
+      resolve(timedOut
+        ? { code: 124, out: out.trim(), err: `sqlplus 가 ${timeoutSec}초 안에 끝나지 않아 끊었다(인스턴스가 바쁘거나 멈췄을 수 있다)` }
+        : { code, out: out.trim(), err: err.trim() });
+    });
     p.stdin.end(script);
   });
 }
@@ -82,11 +107,26 @@ const sqlTry = (text, opts) => sqlplus(text, opts);
 
 // ── PC 전체 잠금(복제·열기·삭제는 한 번에 하나) ─────────────────────
 const LOCK_DIR = join(tmpdir(), 'dmes-ora-pdb.lock');
-async function withLock(fn) {
-  const deadline = Date.now() + CFG.lockWaitSec * 1000;
+// 시험 하니스(Gradle)가 clone→시험→drop 전 구간 동안 `lock-hold` 로 잠금을 쥐고, 그 아래에서 부르는 명령에
+// DMES_ORA_LOCK_HELD=<잠금 주인 pid> 를 넘긴다. 주인 pid 가 owner 파일과 같고 살아 있을 때만 잠금을 다시 잡지 않는다.
+function lockHeldByParent() {
+  const held = Number(process.env.DMES_ORA_LOCK_HELD || 0);
+  if (!held) return false;
+  try {
+    const pid = Number(readFileSync(join(LOCK_DIR, 'owner'), 'utf8').split(' ')[0]);
+    if (pid !== held) return false;
+    process.kill(held, 0);
+    return true;
+  } catch { return false; }
+}
+
+// 잠금을 잡고 owner 를 적는다. 이미 누가 쥐고 있으면 deadlineMs 까지 기다린다.
+async function acquireLock(waitSec) {
+  const deadline = Date.now() + waitSec * 1000;
   for (;;) {
     try {
       mkdirSync(LOCK_DIR);
+      ownsLock = true;
       writeFileSync(join(LOCK_DIR, 'owner'), `${process.pid} ${process.cwd()}\n`);
       break;
     } catch (e) {
@@ -99,13 +139,23 @@ async function withLock(fn) {
         let alive = true;
         try { process.kill(pid, 0); } catch { alive = false; }
         stale = !alive || age > 30 * 60 * 1000;
-      } catch { stale = true; }
+      } catch {
+        // mkdir 직후 owner 를 쓰기 전 찰나일 수 있으니 10초 안이면 기다린다.
+        try { stale = Date.now() - statSync(LOCK_DIR).mtimeMs > 10 * 1000; } catch { stale = true; }
+      }
       if (stale) { rmSync(LOCK_DIR, { recursive: true, force: true }); continue; }
       if (Date.now() > deadline) die(`다른 PDB 작업이 끝나지 않는다(잠금 ${LOCK_DIR})`);
       await new Promise((r) => setTimeout(r, 1500));
     }
   }
-  try { return await fn(); } finally { rmSync(LOCK_DIR, { recursive: true, force: true }); }
+}
+
+const releaseLock = () => { ownsLock = false; rmSync(LOCK_DIR, { recursive: true, force: true }); };
+
+async function withLock(fn) {
+  if (lockHeldByParent()) return await fn();
+  await acquireLock(CFG.lockWaitSec);
+  try { return await fn(); } finally { releaseLock(); }
 }
 
 // ── PDB 조회 ───────────────────────────────────────────────────────
@@ -465,6 +515,23 @@ const commands = {
     });
   },
 
+  // 시험 하니스용: 잠금을 잡고 "LOCKED <pid>" 한 줄을 낸 뒤, 표준 입력이 닫히거나 신호를 받을 때까지 쥐고 있다.
+  // 쥐는 동안 1분마다 잠금 폴더 시각을 갱신해 30분 넘은 잠금으로 오인돼 치워지지 않게 한다.
+  async 'lock-hold'(args) {
+    const i = args.indexOf('--wait-sec');
+    const waitSec = i >= 0 ? Number(args[i + 1]) : CFG.lockWaitSec;
+    await acquireLock(waitSec);
+    const beat = setInterval(() => { try { utimesSync(LOCK_DIR, new Date(), new Date()); } catch { /* 무시 */ } }, 60 * 1000);
+    const done = () => { clearInterval(beat); releaseLock(); process.exit(0); };
+    process.on('SIGTERM', done);
+    process.on('SIGINT', done);
+    process.on('SIGHUP', done);
+    process.stdin.on('end', done);
+    process.stdin.on('close', done);
+    process.stdin.resume();
+    process.stdout.write(`LOCKED ${process.pid}\n`);
+  },
+
   async 'schema-users'() {
     process.stdout.write(`${SCHEMA_USERS.join('\n')}\n`);
   },
@@ -484,6 +551,7 @@ const commands = {
   drop <PDB>                    닫고 데이터 파일까지 삭제
   users <PDB>                   운영 이름 사용자 (재)생성
   schema-users                  만드는 사용자 목록
+  lock-hold [--wait-sec N]      PC 잠금을 쥐고 LOCKED <pid> 를 낸 뒤 표준 입력이 닫힐 때까지 유지(시험 하니스용)
 
 환경 변수: DMES_ORA_ENGINE·DMES_ORA_CONTAINER·DMES_ORA_SYS_PASSWORD·DMES_ORA_PASSWORD·DMES_ORA_HOST·DMES_ORA_PORT·DMES_ORA_MAX_OPEN
 `);

@@ -54,9 +54,10 @@
    spring.jpa.properties.hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
    ```
 
-3. Oracle 컨테이너 OS 시간대는 `Asia/Seoul` 이다(`tools/oracle-free/docker-compose.yml` 의 `TZ`). `SYSDATE`·`SYSTIMESTAMP` 가 KST 로 나온다.
+3. JVM 시간대는 `-Duser.timezone=Asia/Seoul` 로 고정한다(KST 통일의 전제다). 로컬에서는 build-logic(`dmes.test-conventions`)이 시험 JVM(`Test`)과 `bootRun` 에 시스템 속성으로 넣고, `be-run.sh` 는 java 직접 기동 옵션에 넣는다(`be-run.cmd`·`be-run.ps1` 은 `bootRun` 을 쓰므로 build-logic 이 적용된다). 운영 WildFly 는 `standalone.conf` 의 `JAVA_OPTS` 에 `-Duser.timezone=Asia/Seoul` 을 추가한다(Windows 는 `standalone.conf.bat`).
+4. Oracle 컨테이너 OS 시간대는 `Asia/Seoul` 이다(`tools/oracle-free/docker-compose.yml` 의 `TZ`). `SYSDATE`·`SYSTIMESTAMP` 가 KST 로 나온다.
    `DBTIMEZONE` 은 `+00:00` 으로 남는다. `TIMESTAMP WITH LOCAL TIME ZONE` 을 쓰지 않으므로 영향이 없다(쓰지 않는다).
-4. 적재기(b5)는 epoch 밀리초를 KST 로 변환하고, KST 문자열은 그대로 넣는다. 업무 일시(감사 아닌 것)는 변환하지 않는다.
+5. 적재기(b5)는 epoch 밀리초를 KST 로 변환하고, KST 문자열은 그대로 넣는다. 업무 일시(감사 아닌 것)는 변환하지 않는다.
 
 ### 3.1.1 공통 Hibernate 설정(앱마다 자기 yml 에 둔다)
 
