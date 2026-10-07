@@ -73,7 +73,7 @@ python3 .claude/skills/dflow-wbs/scripts/wbs-validate.py validate --wbs {DOCS_DI
 > `wbs-parse.py --tasks-all` 로 Task 건수·필드를 직접 확인하고(파서는 `#{3,4}` 를 읽는다),
 > **생성 리포트에 "4단계 — wbs-validate·merge-wbs-status 무력화(DEV-03 대기)" 를 한 줄 출력한다.**
 > 단, **DEV-02·DEV-03 해소판 스크립트는 `/dflow-export` 스킬에 동봉돼 있다**
-> (`.claude/skills/dflow-export/scripts/` — `wbs-validate.py` 4단계 지원, `wbs-parse.py --export`).
+> (`.claude/skills/dflow-export/scripts/` — `wbs-validate.mjs` 4단계 지원, `wbs-parse.mjs --export`, 모두 `node` 로 실행).
 > 위 제약 표는 이 스킬의 동봉 스냅샷(`dflow-wbs/scripts/`) 기준으로 여전히 유효하다.
 > 이 경고는 생성 리포트에만 남기고 wbs.md 본문에는 넣지 않는다 — wbs.md 는 작업 정본이지 툴 상태 기록부가 아니다.
 
@@ -463,7 +463,7 @@ C1·C4 는 강제 진행 설계(`2026-09-23-force-progress-design.md`) §3.4 1�
    - 3단계: `TSK-03-03` → `WP-03` (ACT 행 없음)
    - 유도한 부모 ID 가 3단계에서 읽은 헤딩 목록에 없으면 **그 Task 를 버리지 않고** 부모 없이 쓰고 리포트에 나열한다.
 
-⚠️ `status` 는 어떤 경우에도 wbs.md 텍스트에서 읽지 않는다 — 1·2단계의 파서 출력만 쓴다. DEV-02(`--export`)는 `/dflow-export` 스킬에 구현돼 있으나(`.claude/skills/dflow-export/scripts/wbs-parse.py`), **이 스킬의 동봉 스냅샷(`dflow-wbs/scripts/`)은 구판이라 위 N회 호출 절차를 유지한다** — 스냅샷을 신판으로 교체할 때 이 절차를 한 번의 `--export` 호출로 대체한다.
+⚠️ `status` 는 어떤 경우에도 wbs.md 텍스트에서 읽지 않는다 — 1·2단계의 파서 출력만 쓴다. DEV-02(`--export`)는 `/dflow-export` 스킬에 구현돼 있으나(`.claude/skills/dflow-export/scripts/wbs-parse.mjs`), **이 스킬의 동봉 스냅샷(`dflow-wbs/scripts/`)은 구판이라 위 N회 호출 절차를 유지한다** — 스냅샷을 신판으로 교체할 때 이 절차를 한 번의 `--export` 호출로 대체한다.
 
 ### 컬럼
 

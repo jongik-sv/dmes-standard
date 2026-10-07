@@ -1,0 +1,298 @@
+[
+  {
+    "tsk_id": "TSK-01-01",
+    "title": "모듈 스캐폴드 (mdm·maru-mdm-engine) + DB 연결 + CI",
+    "status": "[ ]",
+    "depends": "-",
+    "domain": "infra",
+    "category": "infra"
+  },
+  {
+    "tsk_id": "TSK-01-02",
+    "title": "전사 공유 계약 — 공통·버전 상태 (계약 전용)",
+    "status": "[ ]",
+    "depends": "TSK-02-01",
+    "domain": "database",
+    "category": "infra"
+  },
+  {
+    "tsk_id": "TSK-01-03",
+    "title": "권한 가드·공통 셸 + 버전 상태 서비스(담당자 확정)",
+    "status": "[ ]",
+    "depends": "TSK-01-02",
+    "domain": "fullstack",
+    "category": "infra"
+  },
+  {
+    "tsk_id": "TSK-01-04",
+    "title": "[보류] 배포 코어·수신 API 골격 + 수신 스텁",
+    "status": "[ ]",
+    "depends": "TSK-01-02",
+    "domain": "backend",
+    "category": "infra"
+  },
+  {
+    "tsk_id": "TSK-02-01",
+    "title": "전사 아키텍처·버전 확정 규칙 설계",
+    "status": "[ ]",
+    "depends": "TSK-01-01",
+    "domain": "infra",
+    "category": "design"
+  },
+  {
+    "tsk_id": "TSK-02-02",
+    "title": "평가 엔진 설계 + 임베딩 방식 조사",
+    "status": "[ ]",
+    "depends": "TSK-02-01",
+    "domain": "infra",
+    "category": "design"
+  },
+  {
+    "tsk_id": "TSK-02-03",
+    "title": "영역별 DB(ERD) 설계 (02·03·04·05·06)",
+    "status": "[ ]",
+    "depends": "TSK-02-01",
+    "domain": "database",
+    "category": "design"
+  },
+  {
+    "tsk_id": "TSK-03-01",
+    "title": "엔진 공유 계약 (계약 전용)",
+    "status": "[ ]",
+    "depends": "TSK-02-02, TSK-01-01",
+    "domain": "backend",
+    "category": "infra"
+  },
+  {
+    "tsk_id": "TSK-03-02",
+    "title": "식 평가 코어 — EvalEx 설정·MASTER 계열·카테고리 해석·도메인 검증기",
+    "status": "[ ]",
+    "depends": "TSK-03-01",
+    "domain": "backend",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-03-03",
+    "title": "룰 판정 엔진 — 의사결정표·op-code 생성·룰 세트",
+    "status": "[ ]",
+    "depends": "TSK-03-01",
+    "domain": "backend",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-03-04",
+    "title": "겹침·빈틈 분석·입력 계약 + 화면 JS 평가기·정합성 코퍼스",
+    "status": "[ ]",
+    "depends": "TSK-03-01",
+    "domain": "fullstack",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-04-01",
+    "title": "용어·도메인·컬럼 공유 계약 (계약 전용)",
+    "status": "[ ]",
+    "depends": "TSK-02-03, TSK-01-02",
+    "domain": "database",
+    "category": "infra"
+  },
+  {
+    "tsk_id": "TSK-04-02",
+    "title": "용어·단위 관리 (유사어 추천 포함)",
+    "status": "[ ]",
+    "depends": "TSK-04-01, TSK-01-03, TSK-02-02",
+    "domain": "fullstack",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-04-03",
+    "title": "도메인 관리 — 상속·검증식·테스트 케이스·영향도",
+    "status": "[ ]",
+    "depends": "TSK-04-01, TSK-01-03, TSK-03-02, TSK-03-04",
+    "domain": "fullstack",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-04-04",
+    "title": "컬럼 사전 — 자동 생성·역분해·시스템 매핑",
+    "status": "[ ]",
+    "depends": "TSK-04-01, TSK-01-03",
+    "domain": "fullstack",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-04-05",
+    "title": "초기 적재 — SAP 데이터 엘리먼트 후보 추출",
+    "status": "[ ]",
+    "depends": "TSK-04-01",
+    "domain": "backend",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-05-01",
+    "title": "인터페이스 레이아웃 공유 계약 (계약 전용)",
+    "status": "[ ]",
+    "depends": "TSK-02-03, TSK-01-02, TSK-04-01",
+    "domain": "database",
+    "category": "infra"
+  },
+  {
+    "tsk_id": "TSK-05-02",
+    "title": "전문 헤더·레이아웃 편집",
+    "status": "[ ]",
+    "depends": "TSK-05-01, TSK-01-03",
+    "domain": "fullstack",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-05-03",
+    "title": "직렬화기·등록 검증·버전·스냅샷 출력",
+    "status": "[ ]",
+    "depends": "TSK-05-01, TSK-01-03, TSK-03-02",
+    "domain": "fullstack",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-06-01",
+    "title": "마스터코드 공유 계약 (계약 전용)",
+    "status": "[ ]",
+    "depends": "TSK-02-03, TSK-01-02",
+    "domain": "database",
+    "category": "infra"
+  },
+  {
+    "tsk_id": "TSK-06-02",
+    "title": "마루 코드 조회·등록·수정·버전",
+    "status": "[ ]",
+    "depends": "TSK-06-01, TSK-01-03",
+    "domain": "fullstack",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-06-03",
+    "title": "코드 편집 — 그리드·트리·경미 수정",
+    "status": "[ ]",
+    "depends": "TSK-06-01, TSK-01-03, TSK-03-02",
+    "domain": "fullstack",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-06-04",
+    "title": "카테고리 편집 — REGEX·TABLE",
+    "status": "[ ]",
+    "depends": "TSK-06-01, TSK-01-03, TSK-03-02",
+    "domain": "fullstack",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-06-05",
+    "title": "마루 코드 버전 확정 — 검사 8항·적용시점·diff",
+    "status": "[ ]",
+    "depends": "TSK-06-01, TSK-01-03",
+    "domain": "fullstack",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-07-01",
+    "title": "마스터데이터 공유 계약 (계약 전용)",
+    "status": "[ ]",
+    "depends": "TSK-02-03, TSK-01-02",
+    "domain": "database",
+    "category": "infra"
+  },
+  {
+    "tsk_id": "TSK-07-02",
+    "title": "마루 데이터 조회·등록·수정·카테고리",
+    "status": "[ ]",
+    "depends": "TSK-07-01, TSK-01-03, TSK-03-02",
+    "domain": "fullstack",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-07-03",
+    "title": "항목 관리 — 저장 코어·목록·이력",
+    "status": "[ ]",
+    "depends": "TSK-07-01, TSK-01-03",
+    "domain": "fullstack",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-07-04",
+    "title": "항목 트리·CSV 업로드",
+    "status": "[ ]",
+    "depends": "TSK-07-01, TSK-01-03, TSK-07-03",
+    "domain": "fullstack",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-08-01",
+    "title": "업무기준 공유 계약 (계약 전용)",
+    "status": "[ ]",
+    "depends": "TSK-02-03, TSK-01-02, TSK-03-01, TSK-04-01",
+    "domain": "database",
+    "category": "infra"
+  },
+  {
+    "tsk_id": "TSK-08-02",
+    "title": "룰 조회·등록·룰 화면 골격·의사결정표 그리드",
+    "status": "[ ]",
+    "depends": "TSK-08-01, TSK-01-03, TSK-03-04",
+    "domain": "fullstack",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-08-03",
+    "title": "열 설정·피벗·결과 열 그룹·산출 룰·입력 계약",
+    "status": "[ ]",
+    "depends": "TSK-08-01, TSK-01-03, TSK-03-02, TSK-03-04",
+    "domain": "fullstack",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-08-04",
+    "title": "룰 저장 시 검사·값 테스트",
+    "status": "[ ]",
+    "depends": "TSK-08-01, TSK-03-03, TSK-03-04, TSK-01-03",
+    "domain": "fullstack",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-08-05",
+    "title": "룰 버전 확정 — 확정 검사·적용시점·diff",
+    "status": "[ ]",
+    "depends": "TSK-08-01, TSK-01-03, TSK-03-03, TSK-08-04",
+    "domain": "fullstack",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-08-06",
+    "title": "룰 세트 조회·등록·편집",
+    "status": "[ ]",
+    "depends": "TSK-08-01, TSK-01-03, TSK-03-03",
+    "domain": "fullstack",
+    "category": "dev"
+  },
+  {
+    "tsk_id": "TSK-09-01",
+    "title": "영역 통합 — 평가 엔진·용어 사전·레이아웃",
+    "status": "[ ]",
+    "depends": "TSK-03-02, TSK-03-03, TSK-03-04, TSK-04-02, TSK-04-03, TSK-04-04, TSK-04-05, TSK-05-02, TSK-05-03",
+    "domain": "test",
+    "category": "itest"
+  },
+  {
+    "tsk_id": "TSK-09-02",
+    "title": "영역 통합 — 마스터코드·마스터데이터·업무기준",
+    "status": "[ ]",
+    "depends": "TSK-06-02, TSK-06-03, TSK-06-04, TSK-06-05, TSK-07-02, TSK-07-03, TSK-07-04, TSK-08-02, TSK-08-03, TSK-08-04, TSK-08-05, TSK-08-06",
+    "domain": "test",
+    "category": "itest"
+  },
+  {
+    "tsk_id": "TSK-09-03",
+    "title": "모듈 관통·권한 교차·성능",
+    "status": "[ ]",
+    "depends": "TSK-04-03, TSK-06-05, TSK-07-04, TSK-08-05, TSK-01-03, TSK-08-04, TSK-07-03",
+    "domain": "test",
+    "category": "itest"
+  }
+]
