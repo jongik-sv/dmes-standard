@@ -45,7 +45,7 @@ test.describe("mpp ppd 4개 화면 full-chain smoke", () => {
       await openScreen(page, title);
 
       // 페이지 resolve — 조회 버튼이 body 에 존재 (레지스트리/동적 import 성공, 2026-07-03 개편: 검색→조회)
-      const searchBtn = page.getByRole("button", { name: "조회" }).first();
+      const searchBtn = page.getByRole("button", { name: "조회", exact: true }).first();
       await expect(searchBtn).toBeVisible({ timeout: T.SLOW });
 
       const bodyText = (await page.textContent("body")) ?? "";

@@ -69,7 +69,7 @@ const SCREENS: TargetScreen[] = [
       await expect(page.locator(".ag-root").first()).toBeVisible({ timeout: 15_000 });
       // 데이터 로드를 위해 [조회] 실행
       try {
-        await page.getByRole("button", { name: "조회" }).first().click();
+        await page.getByRole("button", { name: "조회", exact: true }).first().click();
         await page.waitForTimeout(3_000);
       } catch {
         /* 조회 버튼 없으면 자동조회 화면 */

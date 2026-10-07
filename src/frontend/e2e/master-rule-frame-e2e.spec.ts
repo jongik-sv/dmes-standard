@@ -41,7 +41,7 @@ test("masterRuleFrame E2E — 메뉴 진입/P-001/조회/행추가/저장/재조
   await expect(pop.getByText("7건 조회 되었습니다.")).toBeVisible({ timeout: T.UI });
   await popRuleIdInput.fill("usd");
   await expect(popRuleIdInput).toHaveValue("USD");   // BR-007 — 대문자 자동 변환
-  await pop.getByRole("button", { name: "조회" }).click();
+  await pop.getByRole("button", { name: "조회", exact: true }).click();
   await expect(pop.getByText("3건 조회 되었습니다.")).toBeVisible({ timeout: T.UI });   // USD/USDFWD/USDOFF (BR-001·002)
   await pop.getByText("USDFWD", { exact: true }).click();     // 행 선택 (rowposition)
   await pop.getByRole("button", { name: "확인" }).click();    // B-002 — 선택 행 반환
@@ -57,7 +57,7 @@ test("masterRuleFrame E2E — 메뉴 진입/P-001/조회/행추가/저장/재조
   await expect(popRuleNmInput).toHaveValue("USD 선물환 적용기준");   // sRuleNm 초기값도 반영 (As-Is gfn_Data_Return 계약)
   await popRuleIdInput.fill("");
   await popRuleNmInput.fill("");
-  await pop.getByRole("button", { name: "조회" }).click();
+  await pop.getByRole("button", { name: "조회", exact: true }).click();
   await expect(pop.getByText("7건 조회 되었습니다.")).toBeVisible({ timeout: T.UI });
   await page.screenshot({ path: `${SHOT}/e2e-2a-pop-opened.png` });
   await pop.getByText("USD 미국 달러 환율 적용기준").first().dblclick();
@@ -138,7 +138,7 @@ test("masterRuleFrame E2E — 메뉴 진입/P-001/조회/행추가/저장/재조
   await expect(pop.getByText(/건 조회 되었습니다/)).toBeVisible({ timeout: T.UI });
   await popRuleIdInput.fill("");
   await pop.locator('label:text-is("업무기준명") + input').fill("");
-  await pop.getByRole("button", { name: "조회" }).click();
+  await pop.getByRole("button", { name: "조회", exact: true }).click();
   await expect(pop.getByText("7건 조회 되었습니다.")).toBeVisible({ timeout: T.UI });
   await pop.getByText("E2E 컬럼등록 검증기준").first().dblclick();
   await expect(page.getByRole("dialog")).toBeHidden();

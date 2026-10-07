@@ -10,6 +10,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import { openMdmPage, takeMdmPageParams } from "@/shell";
 import DataItemMngPage from "../../../pages/dmd/dataItemMng/page";
+import {
+  SEARCH_DEFAULTS_USER,
+  clearSearchDefaultsUser,
+  givenSearchDefaults,
+  inTabPage,
+  setSearchDefaultsUser,
+} from "../../helpers/search-defaults";
 
 const RBAC_STORE_KEY = "__dkOasisButtonRbacStore__";
 const CONFLICT = "다른 사용자가 수정했습니다. 다시 불러오세요";
@@ -29,6 +36,9 @@ function jsonResponse(body: unknown, status = 200) {
 
 const ok = (result: unknown) => jsonResponse({ data: { result }, meta: { success: true } });
 
+/** 설정하면 마루 데이터별 카테고리(BASE 말고)를 header 에 넣는다 — 조회조건 카테고리 선택지가 데이터마다 다른 경우. */
+let headerCats: Record<string, string[]> | null = null;
+
 function header(id: string) {
   const external = id === "CUST";
   return {
@@ -40,7 +50,10 @@ function header(id: string) {
     lvlCnt: 1,
     attrLabels: [{ field: "attr01", label: external ? "사업자번호" : "국가" }],
     editable: !external,
-    categories: [{ cateId: "BASE", cateName: "전체", defKind: "REGEX" }],
+    categories: [
+      { cateId: "BASE", cateName: "전체", defKind: "REGEX" },
+      ...(headerCats?.[id] ?? []).map((c) => ({ cateId: c, cateName: c, defKind: "TABLE" })),
+    ],
   };
 }
 
@@ -673,5 +686,93 @@ describe("DataItemMngPage", () => {
     const treeCalls = calls.filter((c) => c.action === "search" && c.params.withTree === true);
     expect(treeCalls).toHaveLength(treeCallsBefore + 1);
     expect(treeCalls.at(-1)?.params.maruDataId).toBe("PORT");
+  });
+
+  describe("조회 칸 사용자 기본값(dependsOn)", () => {
+    const PAGE_ID = "mdm:dmd/dataItemMng";
+    const listSearches = () => calls.filter((c) => c.action === "search" && c.params.withTree !== true);
+
+    async function renderInTab() {
+      container = document.createElement("div");
+      document.body.appendChild(container);
+      root = createRoot(container);
+      await act(async () => {
+        root!.render(createElement(DmesUiProvider, null, inTabPage(PAGE_ID, createElement(DataItemMngPage))));
+      });
+      await flush();
+    }
+
+    afterEach(() => {
+      clearSearchDefaultsUser();
+      delete (globalThis as Record<string, unknown>).__dkOasisSearchDefaultsStore__;
+      headerCats = null;
+    });
+
+    it("카테고리 「마지막 조회값」 은 그 데이터의 선택지로 판정한다 — 다른 데이터로 바꾸면 옛 카테고리로 조회하지 않는다", async () => {
+      headerCats = { PORT: ["PK1"], CUST: ["CK1"] };
+      givenSearchDefaults(PAGE_ID, { cateId: { kind: "last" } });
+      localStorage.setItem(`dmes:search-last:v1:${SEARCH_DEFAULTS_USER}:${PAGE_ID}`, JSON.stringify({ cateId: "PK1" }));
+      await renderInTab();
+      // 진입: 첫 항목(PORT)의 선택지가 온 뒤 넣고, 그 값으로 조회한다.
+      expect((testId("item-search-cate") as HTMLSelectElement | null)?.value ?? "").toBe("PK1");
+      expect(listSearches().at(-1)?.params).toMatchObject({ maruDataId: "PORT", cateId: "PK1" });
+      await chooseMaru("CUST");
+      expect(listSearches().at(-1)?.params.maruDataId).toBe("CUST");
+      expect(listSearches().at(-1)?.params.cateId ?? "").toBe("");
+    });
+
+    it("카테고리 고정 값은 그 값이 있는 데이터를 고를 때 넣어 조회한다", async () => {
+      headerCats = { PORT: ["PK1"], CUST: ["CK1"] };
+      givenSearchDefaults(PAGE_ID, { cateId: { kind: "fixed", value: "CK1" } });
+      await renderInTab();
+      expect(listSearches().at(-1)?.params.maruDataId).toBe("PORT");
+      expect(listSearches().at(-1)?.params.cateId ?? "").toBe("");
+      await chooseMaru("CUST");
+      expect(listSearches().at(-1)?.params).toMatchObject({ maruDataId: "CUST", cateId: "CK1" });
+    });
+
+    it("마루 데이터 기본값이 목록에 없으면(지워짐) 첫 항목으로 간다", async () => {
+      givenSearchDefaults(PAGE_ID, { maruDataId: { kind: "fixed", value: "GONE" } });
+      await renderInTab();
+      expect(currentMaru()).toContain("PORT");
+      expect(listSearches().at(-1)?.params.maruDataId).toBe("PORT");
+    });
+
+    it("규칙이 없으면 마루 데이터를 바꿀 때 고친 키 칸을 비우고 빈 조건으로 조회한다(이전 동작과 같다)", async () => {
+      setSearchDefaultsUser(SEARCH_DEFAULTS_USER);
+      await renderInTab();
+      // 조회 요청은 빈 조건을 보내지 않는다.
+      expect(listSearches().at(-1)?.params.maruDataId).toBe("PORT");
+      expect(listSearches().at(-1)?.params.code ?? "").toBe("");
+      await type(testId("item-search-code"), "KR");
+      await chooseMaru("CUST");
+      expect((testId("item-search-code") as HTMLInputElement).value).toBe("");
+      expect(listSearches().at(-1)?.params.maruDataId).toBe("CUST");
+      expect(listSearches().at(-1)?.params.code ?? "").toBe("");
+    });
+
+    it("마루 데이터 기본값이 snapshot·첫 항목보다 앞서고, 바꿀 때마다 의존 칸 기본값을 다시 채워 조회한다", async () => {
+      givenSearchDefaults(PAGE_ID, {
+        maruDataId: { kind: "fixed", value: "CUST" },
+        code: { kind: "fixed", value: "C0" },
+        showClosed: { kind: "fixed", value: "Y" },
+      });
+      await renderInTab();
+      expect(currentMaru()).toContain("CUST");
+      expect(listSearches().map((c) => c.params.maruDataId)).not.toContain("PORT");
+      expect(listSearches().at(-1)?.params).toMatchObject({ maruDataId: "CUST", code: "C0", showClosed: true });
+      await type(testId("item-search-code"), "ZZ");
+      await chooseMaru("PORT");
+      expect((testId("item-search-code") as HTMLInputElement).value).toBe("C0");
+      expect(listSearches().at(-1)?.params).toMatchObject({ maruDataId: "PORT", code: "C0", showClosed: true });
+    });
+
+    it("handoff 로 넘겨받은 마루 데이터가 사용자 기본값보다 앞선다", async () => {
+      givenSearchDefaults(PAGE_ID, { maruDataId: { kind: "fixed", value: "CUST" } });
+      openMdmPage("dmd/dataItemMng", { maruDataId: "PORT" });
+      await renderInTab();
+      expect(currentMaru()).toContain("PORT");
+      expect(listSearches().at(-1)?.params.maruDataId).toBe("PORT");
+    });
   });
 });

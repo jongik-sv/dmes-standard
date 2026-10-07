@@ -9,6 +9,7 @@ import {
   SearchFieldPairContext,
   useSearchDefaultsController,
 } from "./search-defaults/area";
+import { SearchSettings } from "./search-defaults/SearchSettings";
 
 export interface SearchAreaProps {
   children: React.ReactNode;
@@ -94,6 +95,8 @@ export function SearchArea({ children, onSearch, autoSearch = false, defaults = 
       <SearchDefaultsAreaContext.Provider value={defaultsApi}>
         <Paper ref={rootRef as React.RefObject<HTMLFormElement>} component="form" withBorder p="xs" className="search-area" onSubmit={handleSubmit} role="search">
           <div className="search-area__conditions">{paired}</div>
+          {/* 조회 기본값 설정 아이콘 — 조건 칸 뒤에 두어 칸 등록(자식 layout effect)이 먼저 끝나게 한다(설계 §8.1). */}
+          <SearchSettings api={defaultsApi} enabled={defaults} />
           {/*
             Enter 키 implicit submission 안정화용 hidden submit 버튼.
             입력 필드가 2 개 이상이면 명시적 submit 버튼이 없을 때 일부 브라우저가
@@ -108,6 +111,7 @@ export function SearchArea({ children, onSearch, autoSearch = false, defaults = 
     <SearchDefaultsAreaContext.Provider value={defaultsApi}>
       <Paper ref={rootRef as React.RefObject<HTMLDivElement>} withBorder p="xs" className="search-area">
         <div className="search-area__conditions">{paired}</div>
+        <SearchSettings api={defaultsApi} enabled={defaults} />
       </Paper>
     </SearchDefaultsAreaContext.Provider>
   );

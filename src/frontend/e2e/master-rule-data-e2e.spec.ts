@@ -29,7 +29,7 @@ test("masterRuleData E2E — 메뉴/P-001/lov+search 연쇄/동적그리드/행�
   await expect(popRuleIdInput).toHaveValue("");   // Q-002 재결정(2026-07-09) — USD 프리셋 제거 검증
   await popRuleIdInput.fill("");
   await pop.locator('label:text-is("업무기준명") + input').fill("");
-  await pop.getByRole("button", { name: "조회" }).click();
+  await pop.getByRole("button", { name: "조회", exact: true }).click();
   await expect(pop.getByText("7건 조회 되었습니다.")).toBeVisible({ timeout: T.UI });
   await pop.getByText("E2E 컬럼등록 검증기준").first().dblclick();
   await expect(page.getByRole("dialog")).toBeHidden();
