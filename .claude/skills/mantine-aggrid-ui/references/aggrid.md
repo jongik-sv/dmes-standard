@@ -1,6 +1,6 @@
 # ag-grid-community 참고 (DMES: v33.3.2, React)
 
-도구: `python3 .claude/skills/mantine-aggrid-ui/scripts/aggrid_docs.py <명령>` (아래에서는 `$A` 로 줄여 쓴다. zsh 에서는 변수에 명령을 넣지 말고 전체 경로로 실행한다)
+도구: `node .claude/skills/mantine-aggrid-ui/scripts/aggrid_docs.mjs <명령>` (아래에서는 `$A` 로 줄여 쓴다. zsh 에서는 변수에 명령을 넣지 말고 전체 경로로 실행한다)
 
 ## 1. 문서가 버전을 따라가지 않는다
 
