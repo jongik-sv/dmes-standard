@@ -1,7 +1,6 @@
 package com.dongkuk.dmes.mcm.csa.commUserMng.service;
 
 import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
-import com.dongkuk.dmes.mcm.common.persistence.LocalDateTimeAttributeConverter;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngUserIdRequest;
 import com.dongkuk.dmes.mcm.repository.DeptInfoRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleGroupMappingRepository;
@@ -10,6 +9,7 @@ import com.dongkuk.dmes.mcm.repository.SecUserMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserPwdRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserRollHisRepository;
+import com.dongkuk.dmes.mcm.testdb.McmCoreOraTestDb;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.jpa.HibernatePersistenceProvider;
 import org.junit.jupiter.api.AfterEach;
@@ -22,7 +22,6 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.persistenceunit.PersistenceManagedTypes;
@@ -33,84 +32,75 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
-import java.io.File;
-import java.io.IOException;
+import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 /**
- * {@link CommUserMngService#searchRoleGrp} SQLite 분기 특성 테스트 — 실제 SQLite 파일에서 네이티브 SQL 을 돌린다.
+ * {@link CommUserMngService#searchRoleGrp} 네이티브 SQL 특성 테스트 — Oracle 시험 PDB 에서 실제로 돌린다(oracle-1007 c4).
  *
- * <p>로컬 개발·테스트 DB 는 SQLite 이므로 실제로 실행되는 분기는
- * {@code CURRENT_TIMESTAMP BETWEEN START_ACTIVE_DATE AND IFNULL(END_ACTIVE_DATE, DATETIME(CURRENT_TIMESTAMP, '+100 day'))} 이다.
- * MSSQL 분기는 {@link CommUserMngServiceSearchTest}(H2 MSSQLServer 모드)가 같은 시나리오로 고정한다.
+ * <p>실행되는 SQL 은 {@code LOCALTIMESTAMP BETWEEN START_ACTIVE_DATE AND COALESCE(END_ACTIVE_DATE, LOCALTIMESTAMP + INTERVAL '100' DAY)}
+ * 이다. 예전에는 로컬 SQLite 분기({@code DATETIME(CURRENT_TIMESTAMP, '+100 day')})를 SQLite 파일로 돌렸지만 방언 분기가 없어졌고,
+ * 같은 시나리오를 H2 로 돌리던 {@link CommUserMngServiceSearchTest} 의 {@code SearchRoleGrp} 묶음과 이 시험이 모두 Oracle 에서 돈다.
  *
- * <p>구성 — 로컬 실행(mcm {@code JpaConfig} 의 SQLite 분기)과 같게 {@link McmAuditStatementInspector} 를
- * statement inspector 로 걸어 {@code MCMAPUSER.} 접두를 지운다. 단 다음 두 가지는 다르다.
- * <ul>
- *   <li>Hibernate SQLite 방언({@code hibernate-community-dialects})은 mcm-core 시험 클래스패스에 없다(mcm/lib 에만 있다).
- *       그래서 hibernate-core 의 H2 방언을 걸고 엔티티는 올리지 않는다. 이 테스트가 타는 길은 네이티브 SQL 하나라
- *       방언이 SQL 을 바꾸지 않는다.</li>
- *   <li>테이블은 로컬 {@code mcm.db} 의 실제 스키마(날짜 컬럼이 {@code varchar(255)} 문자열)를 JDBC 로 만들고,
- *       데이터도 JDBC 로 넣는다. 날짜 문자열은 로컬 실행이 쓰는 {@link LocalDateTimeAttributeConverter} 형식 그대로다.</li>
- * </ul>
+ * <p>구성 — 앱 EMF 와 같은 Hibernate 설정({@link McmCoreOraTestDb#jpaProperties})에 {@link McmAuditStatementInspector} 를
+ * statement inspector 로 건다(감사 칸 보강. {@code setSqlite} 는 켜지 않는다 — SELECT 라 SQL 이 바뀌지 않는다).
+ * 엔티티는 올리지 않는다(이 경로는 네이티브 SQL 하나). 표는 기준선 V1(MCMAPUSER)을 쓰고, 데이터는 JDBC 로 넣는다 —
+ * 일시 칸은 TIMESTAMP(6) 이므로 문자열이 아니라 {@link Timestamp} 로 넣는다.
  *
  * <p>서비스는 {@code csa.commUserMng} 패키지를 컴포넌트 스캔해 빈으로 둔다(시험 지원 패키지 제외). 이 경로에서 쓰지 않는
- * 저장소는 대역(mock)이다. SQLite 모드 정적 플래그는 매 테스트 앞에서 켜고 뒤에서 이전 값으로 되돌린다.
+ * 저장소는 대역(mock)이다. JDBC 로 넣은 행은 자동 커밋이라 시험 앞·뒤에서 두 표를 지운다.
  *
- * <p>날짜 여유는 모두 하루 단위다 — SQLite {@code CURRENT_TIMESTAMP} 는 UTC 이고 저장값은 로컬 시각 문자열이라
- * 몇 시간 어긋날 수 있다(결함 기록 대상, 이 테스트는 고정하지 않는다).
+ * <p>날짜 여유는 모두 하루 단위다 — 비교 기준 {@code LOCALTIMESTAMP} 는 세션 시간대(JDBC 가 JVM 시간대 Asia/Seoul 로 맞춘다)
+ * 이고 저장값도 JVM 로컬 시각이라 어긋나지 않지만, 시각 경계에 기대지 않게 하루 단위를 유지한다.
  */
-@SpringJUnitConfig(CommUserMngServiceSearchRoleGrpSqliteTest.SqliteConfig.class)
-class CommUserMngServiceSearchRoleGrpSqliteTest {
+@SpringJUnitConfig(CommUserMngServiceSearchRoleGrpOraTest.OraConfig.class)
+class CommUserMngServiceSearchRoleGrpOraTest {
 
     @Autowired CommUserMngService service;
     @Autowired DataSource dataSource;
     @Autowired TransactionTemplate tx;
 
     JdbcTemplate jdbc;
-    private boolean sqliteBefore;
-
-    static final LocalDateTimeAttributeConverter DATE_TEXT = new LocalDateTimeAttributeConverter();
 
     @BeforeEach
     void setUp() {
-        sqliteBefore = McmAuditStatementInspector.isSqlite();
-        McmAuditStatementInspector.setSqlite(true);
         jdbc = new JdbcTemplate(dataSource);
-        // 로컬 mcm.db 스키마 그대로(감사 컬럼 포함). 컨텍스트가 캐시되므로 IF NOT EXISTS + 비우기.
-        jdbc.execute("CREATE TABLE IF NOT EXISTS TB_MCM_SEC_ROLEGROUP ("
-                + " ROLE_GROUP_ID varchar(30) not null, C_AT timestamp, C_USR_ID varchar(100), C_PGM_ID varchar(100),"
-                + " C_SVC_ID varchar(100), U_AT timestamp, U_USR_ID varchar(100), U_PGM_ID varchar(100), U_SVC_ID varchar(100),"
-                + " VER bigint, END_ACTIVE_DATE varchar(255), ROLE_GROUP_DESC varchar(300), ROLE_GROUP_NM varchar(100),"
-                + " START_ACTIVE_DATE varchar(255), USE_TP varchar(1), primary key (ROLE_GROUP_ID))");
-        jdbc.execute("CREATE TABLE IF NOT EXISTS TB_MCM_SEC_USER_MAPPING ("
-                + " ROLE_GROUP_ID varchar(30) not null, USER_ID varchar(100) not null, C_AT timestamp, C_USR_ID varchar(100),"
-                + " C_PGM_ID varchar(100), C_SVC_ID varchar(100), U_AT timestamp, U_USR_ID varchar(100), U_PGM_ID varchar(100),"
-                + " U_SVC_ID varchar(100), VER bigint, primary key (ROLE_GROUP_ID, USER_ID))");
-        jdbc.update("DELETE FROM TB_MCM_SEC_USER_MAPPING");
-        jdbc.update("DELETE FROM TB_MCM_SEC_ROLEGROUP");
+        clearTables();
     }
 
     @AfterEach
-    void restore() {
-        McmAuditStatementInspector.setSqlite(sqliteBefore);
+    void tearDown() {
+        clearTables();
+    }
+
+    private void clearTables() {
+        jdbc.update("DELETE FROM MCMAPUSER.TB_MCM_SEC_USER_MAPPING");
+        jdbc.update("DELETE FROM MCMAPUSER.TB_MCM_SEC_ROLEGROUP");
+    }
+
+    private static Timestamp ts(LocalDateTime t) {
+        return t == null ? null : Timestamp.valueOf(t);
     }
 
     void roleGroup(String id, String nm, String useTp, LocalDateTime start, LocalDateTime end) {
-        jdbc.update("INSERT INTO TB_MCM_SEC_ROLEGROUP (ROLE_GROUP_ID, ROLE_GROUP_NM, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE)"
+        roleGroupRaw(id, nm, useTp, ts(start), ts(end));
+    }
+
+    private void roleGroupRaw(String id, String nm, String useTp, Timestamp start, Timestamp end) {
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLEGROUP (ROLE_GROUP_ID, ROLE_GROUP_NM, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE)"
                         + " VALUES (?, ?, ?, ?, ?)",
-                id, nm, useTp, DATE_TEXT.convertToDatabaseColumn(start), DATE_TEXT.convertToDatabaseColumn(end));
+                new Object[]{id, nm, useTp, start, end},
+                new int[]{Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.TIMESTAMP, Types.TIMESTAMP});
     }
 
     void mapping(String userId, String roleGroupId) {
-        jdbc.update("INSERT INTO TB_MCM_SEC_USER_MAPPING (USER_ID, ROLE_GROUP_ID) VALUES (?, ?)", userId, roleGroupId);
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_SEC_USER_MAPPING (USER_ID, ROLE_GROUP_ID) VALUES (?, ?)", userId, roleGroupId);
     }
 
     static CommUserMngUserIdRequest userIdReq(String userId) {
@@ -169,17 +159,12 @@ class CommUserMngServiceSearchRoleGrpSqliteTest {
     }
 
     @Test
-    @DisplayName("로컬 시드 형식(밀리초 없는 'yyyy-MM-dd HH:mm:ss') 날짜도 같은 결과")
-    void seedDateFormat() {
-        // 로컬 mcm.db 시드 행은 '2026-09-23 05:21:19' / '9999-12-31 23:59:59' 형식이다(컨버터는 .SSS 를 붙인다).
+    @DisplayName("시드 행의 종료일 센티널(9999-12-31 23:59:59)도 유효기간 안으로 본다 — 지난 종료일은 제외")
+    void sentinelEndDate() {
+        // 시드 데이터는 무기한을 '9999-12-31 23:59:59' 로 둔다. TIMESTAMP 칸이라 문자열 형식이 아니라 값 자체가 비교된다.
         LocalDateTime now = LocalDateTime.now();
-        DateTimeFormatter seed = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-        jdbc.update("INSERT INTO TB_MCM_SEC_ROLEGROUP (ROLE_GROUP_ID, ROLE_GROUP_NM, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE)"
-                        + " VALUES (?, ?, 'Y', ?, ?)",
-                "RG_SEED", "시드", now.minusDays(3).format(seed), "9999-12-31 23:59:59");
-        jdbc.update("INSERT INTO TB_MCM_SEC_ROLEGROUP (ROLE_GROUP_ID, ROLE_GROUP_NM, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE)"
-                        + " VALUES (?, ?, 'Y', ?, ?)",
-                "RG_OLD", "지난", now.minusDays(30).format(seed), now.minusDays(2).format(seed));
+        roleGroup("RG_SEED", "시드", "Y", now.minusDays(3), LocalDateTime.of(9999, 12, 31, 23, 59, 59));
+        roleGroup("RG_OLD", "지난", "Y", now.minusDays(30), now.minusDays(2));
 
         assertThat(col(grid(call(userIdReq("u9"))), "ROLE_GROUP_ID")).containsExactly("RG_SEED");
     }
@@ -192,31 +177,20 @@ class CommUserMngServiceSearchRoleGrpSqliteTest {
                     @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = Configuration.class),
                     @ComponentScan.Filter(type = FilterType.REGEX, pattern = "com\\.dongkuk\\.dmes\\.mcm\\.csa\\.commUserMng\\.support\\..*")
             })
-    static class SqliteConfig {
+    static class OraConfig {
 
         @Bean
-        DataSource dataSource() throws IOException {
-            File db = File.createTempFile("commusermng-sqlite", ".db");
-            db.deleteOnExit();
-            DriverManagerDataSource ds = new DriverManagerDataSource();
-            ds.setDriverClassName("org.sqlite.JDBC"); // testRuntimeOnly — 클래스 직접 참조 금지
-            ds.setUrl("jdbc:sqlite:" + db.getAbsolutePath());
-            return ds;
+        DataSource dataSource() {
+            return McmCoreOraTestDb.appDataSource("commusermng-rolegrp");
         }
 
         @Bean
         LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
-            Properties props = new Properties();
-            // SQLite 방언이 시험 클래스패스에 없어 hibernate-core 방언을 건다 — 네이티브 SQL 만 타므로 SQL 은 바뀌지 않는다.
-            props.put("hibernate.dialect", "org.hibernate.dialect.H2Dialect");
-            props.put("hibernate.boot.allow_jdbc_metadata_access", "false");
-            props.put("hibernate.hbm2ddl.auto", "none");
-            props.put("hibernate.session_factory.statement_inspector", McmAuditStatementInspector.class.getName());
-
             LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
             em.setDataSource(dataSource);
             em.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
-            em.setJpaProperties(props);
+            em.setJpaProperties(McmCoreOraTestDb.jpaProperties(Map.<String, Object>of(
+                    "hibernate.session_factory.statement_inspector", McmAuditStatementInspector.class.getName())));
             em.setPersistenceUnitName("default"); // 서비스의 @PersistenceContext(unitName = "default")
             em.setManagedTypes(PersistenceManagedTypes.of());
             em.setPersistenceProviderClass(HibernatePersistenceProvider.class);

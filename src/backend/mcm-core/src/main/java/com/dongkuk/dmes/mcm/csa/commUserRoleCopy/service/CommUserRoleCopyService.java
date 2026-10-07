@@ -6,7 +6,6 @@
  */
 package com.dongkuk.dmes.mcm.csa.commUserRoleCopy.service;
 
-import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
 import com.dongkuk.dmes.mcm.csa.commUserRoleCopy.dto.CommUserRoleCopySaveRequest;
 import com.dongkuk.dmes.mcm.csa.commUserRoleCopy.dto.CommUserRoleCopySearchRequest;
@@ -123,7 +122,7 @@ public class CommUserRoleCopyService {
      *   FROM MCMAPUSER.TB_MCM_SEC_USER S
      *   LEFT JOIN MCMAPUSER.TB_MCM_DEPT_INFO D
      *     ON D.DEPT_CD = S.DEPT_CD AND D.USE_TP = 'Y'
-     *  WHERE S.END_ACTIVE_DATE > GETDATE() AND S.USE_TP = 'Y'
+     *  WHERE S.END_ACTIVE_DATE > CURRENT_TIMESTAMP AND S.USE_TP = 'Y'
      *    AND (:pUserIdCopy IS NULL OR (S.USER_ID <> :pUserIdCopy AND S.USER_EMP_NO <> :pUserIdCopy))
      *  ORDER BY D.DEPT_NM, S.USER_NM ASC
      * }</pre>
@@ -143,12 +142,8 @@ public class CommUserRoleCopyService {
                 .append("  FROM MCMAPUSER.TB_MCM_SEC_USER S ")
                 .append("  LEFT JOIN MCMAPUSER.TB_MCM_DEPT_INFO D ")
                 .append("    ON D.DEPT_CD = S.DEPT_CD AND D.USE_TP = 'Y' ")
-                // GETDATE() 는 MSSQL 전용 — 로컬 SQLite 개발계에서는 CURRENT_TIMESTAMP 로 분기한다.
-                // (미분기 시 "no such function: GETDATE" 로 조회가 통째로 실패하고, OASIS 가 이를
-                //  HTTP 200 + meta.success=false 로 돌려줘 화면에는 빈 목록으로만 보였다. 2026-08-07)
-                .append(" WHERE S.END_ACTIVE_DATE > ")
-                .append(McmAuditStatementInspector.isSqlite() ? "CURRENT_TIMESTAMP" : "GETDATE()")
-                .append(" AND S.USE_TP = 'Y' ");
+                // Oracle 단일화(oracle-1007) — 방언 분기 없이 ANSI CURRENT_TIMESTAMP 를 쓴다.
+                .append(" WHERE S.END_ACTIVE_DATE > CURRENT_TIMESTAMP AND S.USE_TP = 'Y' ");
         if (excludeSelf) {
             // 2026-06-04 fix (a) — Copy 대상(본인) 제외
             // 2026-09-04 fix — USER_EMP_NO 가 NULL 인 사용자까지 함께 사라지던 3값 논리 결함 수정.

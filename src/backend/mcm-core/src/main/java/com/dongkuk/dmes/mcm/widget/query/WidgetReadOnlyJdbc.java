@@ -1,7 +1,6 @@
 package com.dongkuk.dmes.mcm.widget.query;
 
 import java.sql.Connection;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Locale;
@@ -16,23 +15,22 @@ import org.slf4j.LoggerFactory;
  *   <li>연결은 {@link DataSource#getConnection()} 으로 따로 빌린다 — 스레드에 묶인 업무 트랜잭션(OASIS txBiz) 연결을 쓰지 않는다.</li>
  *   <li>{@code setReadOnly(true)} → {@code setAutoCommit(false)} → 방언별 보강(아래). 보강이 실패하면 SQL 을 실행하지 않는다(실패 닫힘).</li>
  *   <li>끝나면 성공·실패와 관계없이 <b>롤백</b>한다. 커밋은 하지 않는다.</li>
- *   <li>풀에 돌려주기 전에 빌릴 때 상태로 되돌린다. 순서는 <b>롤백 → autoCommit → SQLite {@code query_only} → readOnly</b> —
+ *   <li>풀에 돌려주기 전에 빌릴 때 상태로 되돌린다. 순서는 <b>롤백 → autoCommit → readOnly</b> —
  *       autoCommit 을 먼저 켜 트랜잭션 밖에서 나머지를 바꾼다(JDBC 규약·pgjdbc: 트랜잭션 중 {@code setReadOnly} 는 예외, 트랜잭션 중
  *       autoCommit 을 켜면 커밋). 롤백이 실패하면 autoCommit 을 켜지 않는다(열린 트랜잭션이 커밋되지 않게).</li>
  *   <li>롤백·되돌리기에 실패한 연결은 <b>먼저 끊고</b>({@code abort}) 그다음 풀에서 뺀다(Hikari {@code evictConnection}) — 읽기 전용으로
  *       남은 연결이 업무 쓰기를 막지 않게, 그리고 풀이 반납·축출 처리에서 autoCommit 을 되돌리거나 물리 연결을 닫으며 커밋하지 못하게.</li>
  * </ol>
- * 실 PostgreSQL 18 + pgjdbc 42.7.8 + Hikari 7 실측(2026-10-03): 서버 로그가 {@code BEGIN READ ONLY → SET TRANSACTION READ ONLY →
- * SHOW transaction_read_only → SELECT → ROLLBACK} 이고 {@code COMMIT} 은 없다. 풀(1개)의 같은 물리 연결(백엔드 PID 동일)이 다음 실행과
- * 업무 쓰기에 다시 쓰인다(pgjdbc {@code readOnlyMode} transaction·always·ignore 모두).
  * 방언별 보강(방언은 연결 메타데이터의 제품 이름으로 판정한다):
  * <ul>
- *   <li>SQLite — {@code setReadOnly} 는 연결 뒤 바꿀 수 없어 드라이버가 거절한다. 대신 {@code PRAGMA query_only = 1} 을 걸고 다시 읽어
- *       확인한다. 이 값은 트랜잭션이 아니라 연결에 남으므로 돌려주기 전에 원래 값으로 되돌리고 다시 읽어 확인한다.</li>
- *   <li>PostgreSQL·Oracle — {@code SET TRANSACTION READ ONLY}(Spring {@code DataSourceTransactionManager#setEnforceReadOnly} 와 같은 문장).
- *       PostgreSQL 은 {@code SHOW transaction_read_only} 가 {@code on} 인지 확인한다. Oracle 은 문장이 성공하면 걸린 것으로 본다.</li>
- *   <li>SQL Server·그 밖 — 읽기 전용 트랜잭션이 없다. {@code setReadOnly} 힌트와 늘 롤백뿐이라 읽기 계정 전용 DataSource 가 필요하다
- *       (처음 실행 때 한 번 경고 로그). 그래서 {@link WidgetQueryExecutor} 는 이 갈래({@link #enforcesReadOnly} 가 false)에서 전용
+ *   <li>Oracle — {@code SET TRANSACTION READ ONLY}(Spring {@code DataSourceTransactionManager#setEnforceReadOnly} 와 같은 문장).
+ *       문장이 성공하면 걸린 것으로 본다
+ *       (읽기 전용 상태를 일반 계정이 조회할 길이 없다). 실 Oracle 26ai + ojdbc11 23.9 + Hikari 7(풀 1개) 실측(2026-10-07):
+ *       {@code setReadOnly(true)} 뒤의 {@code SET TRANSACTION READ ONLY} 가 충돌 없이 걸리고, INSERT·UPDATE·MERGE·{@code FOR UPDATE} 가
+ *       ORA-01456 으로 거절되며, 되돌린 같은 물리 연결(같은 SID)에서 업무 쓰기·커밋이 정상이다. 막지 못하는 것 — 시퀀스 {@code NEXTVAL}
+ *       소모, DDL(암묵 커밋 뒤 실행), 자율 트랜잭션 함수의 쓰기 — 은 {@link SqlGuard} 가 막거나(앞의 둘) 운영 읽기 계정 권한으로 막는다.</li>
+ *   <li>그 밖(OTHER, Oracle 이 아닌 모든 DB — PostgreSQL·SQL Server·SQLite 포함) — 읽기 전용 트랜잭션을 걸 수 없는 갈래로 본다. {@code setReadOnly} 힌트와 늘 롤백뿐이라
+ *       읽기 계정 전용 DataSource 가 필요하다(처음 실행 때 한 번 경고 로그). 그래서 {@link WidgetQueryExecutor} 는 이 갈래({@link #enforcesReadOnly} 가 false)에서 전용
  *       DataSource 가 없으면 실행·미리보기·저장 검사를 거절한다(실패 닫힘). 이 클래스 자체는 갈래를 판정해 알려 줄 뿐 거절하지 않는다.</li>
  * </ul>
  * 이 클래스는 Spring 에 기대지 않는다(로그만) — 다른 모듈이 자기 DataSource 로 그대로 쓸 수 있다.
@@ -48,8 +46,11 @@ public final class WidgetReadOnlyJdbc {
         T run(Connection connection) throws SQLException;
     }
 
-    /** 읽기 전용을 거는 방법이 다른 DB 갈래. */
-    public enum Dialect { SQLITE, POSTGRESQL, ORACLE, SQLSERVER, OTHER }
+    /**
+     * 읽기 전용을 거는 방법이 다른 DB 갈래. 실행 DB 는 Oracle 하나로 정했다(oracle-1007, 사용자 확정 3 — MSSQL·PostgreSQL·H2 설정은
+     * 없앤다). 그 밖은 모두 OTHER(전용 DataSource 가 없으면 실패 닫힘)다.
+     */
+    public enum Dialect { ORACLE, OTHER }
 
     private final DataSource dataSource;
     private volatile Dialect dialect;
@@ -60,13 +61,10 @@ public final class WidgetReadOnlyJdbc {
         this.dataSource = dataSource;
     }
 
-    /** 제품 이름(DatabaseMetaData#getDatabaseProductName) → 갈래. H2 등은 OTHER. */
+    /** 제품 이름(DatabaseMetaData#getDatabaseProductName) → 갈래. Oracle 이 아니면 모두 OTHER(실패 닫힘 갈래). */
     public static Dialect dialectOf(String productName) {
         String p = productName == null ? "" : productName.toLowerCase(Locale.ROOT);
-        if (p.contains("sqlite")) return Dialect.SQLITE;
-        if (p.contains("postgresql")) return Dialect.POSTGRESQL;
         if (p.contains("oracle")) return Dialect.ORACLE;
-        if (p.contains("sql server")) return Dialect.SQLSERVER;
         return Dialect.OTHER;
     }
 
@@ -87,9 +85,9 @@ public final class WidgetReadOnlyJdbc {
         }
     }
 
-    /** 이 갈래에서 읽기 전용 트랜잭션(또는 SQLite query_only)을 걸 수 있는가. false 면 늘 롤백·readOnly 힌트뿐이다. */
+    /** 이 갈래에서 읽기 전용 트랜잭션을 걸 수 있는가. false 면 늘 롤백·readOnly 힌트뿐이다. */
     public static boolean enforcesReadOnly(Dialect d) {
-        return d == Dialect.SQLITE || d == Dialect.POSTGRESQL || d == Dialect.ORACLE;
+        return d == Dialect.ORACLE;
     }
 
     /**
@@ -102,13 +100,11 @@ public final class WidgetReadOnlyJdbc {
         boolean origReadOnly = false;
         boolean readOnlyChanged = false;
         boolean autoCommitChanged = false;
-        Boolean origQueryOnly = null;
         Dialect d = null;
         try {
             d = dialect(con);
             origAutoCommit = con.getAutoCommit();
             origReadOnly = con.isReadOnly();
-            if (d == Dialect.SQLITE) origQueryOnly = queryOnly(con);
             if (!origReadOnly) readOnlyChanged = trySetReadOnly(con);
             if (origAutoCommit) {
                 con.setAutoCommit(false);
@@ -120,7 +116,7 @@ public final class WidgetReadOnlyJdbc {
             return work.run(con);
         } finally {
             // work 가 실패해도(쓰기 거절 등) 되돌리기에 성공하면 연결은 멀쩡하다 — 풀에 돌려줄지는 되돌리기 결과로만 정한다.
-            release(con, restore(con, d, origAutoCommit, autoCommitChanged, origReadOnly, readOnlyChanged, origQueryOnly));
+            release(con, restore(con, origAutoCommit, autoCommitChanged, origReadOnly, readOnlyChanged));
         }
     }
 
@@ -139,7 +135,7 @@ public final class WidgetReadOnlyJdbc {
         return d;
     }
 
-    /** JDBC readOnly 힌트. SQLite 처럼 연결 뒤 바꿀 수 없는 드라이버는 거절하므로 실패는 무시하고 방언 보강에 맡긴다. */
+    /** JDBC readOnly 힌트. 드라이버가 받지 않으면 실패는 무시하고 방언 보강(읽기 전용 트랜잭션)·늘 롤백에 맡긴다. */
     private static boolean trySetReadOnly(Connection con) {
         try {
             con.setReadOnly(true);
@@ -152,20 +148,9 @@ public final class WidgetReadOnlyJdbc {
 
     private static void enforce(Connection con, Dialect d) throws SQLException {
         switch (d) {
-            case SQLITE -> {
-                setQueryOnly(con, true);
-                if (!queryOnly(con)) throw new SQLException("SQLite query_only 를 걸지 못했습니다");
-            }
-            case POSTGRESQL -> {
-                exec(con, "SET TRANSACTION READ ONLY");
-                String state = singleString(con, "SHOW transaction_read_only");
-                if (!"on".equalsIgnoreCase(state == null ? "" : state.trim())) {
-                    throw new SQLException("PostgreSQL 읽기 전용 트랜잭션을 걸지 못했습니다(transaction_read_only=" + state + ")");
-                }
-            }
             case ORACLE -> exec(con, "SET TRANSACTION READ ONLY");
             default -> {
-                // SQL Server·그 밖: 읽기 전용 트랜잭션 없음 — readOnly 힌트 + 늘 롤백(클래스 설명)
+                // 그 밖(OTHER): 읽기 전용 트랜잭션 없음 — readOnly 힌트 + 늘 롤백(클래스 설명)
             }
         }
     }
@@ -174,11 +159,11 @@ public final class WidgetReadOnlyJdbc {
 
     /**
      * 롤백하고 빌릴 때 상태로 되돌린다. 하나라도 실패하면 false(그 연결은 풀에 돌려보내지 않는다).
-     * 순서: 롤백 → autoCommit → SQLite query_only → readOnly(클래스 설명). 롤백이 실패하면 나머지를 하지 않는다 —
+     * 순서: 롤백 → autoCommit → readOnly(클래스 설명). 롤백이 실패하면 나머지를 하지 않는다 —
      * autoCommit 을 켜면 드라이버가 열린 트랜잭션을 커밋한다(JDBC {@code setAutoCommit} 규약).
      */
-    private static boolean restore(Connection con, Dialect d, boolean origAutoCommit, boolean autoCommitChanged,
-                                   boolean origReadOnly, boolean readOnlyChanged, Boolean origQueryOnly) {
+    private static boolean restore(Connection con, boolean origAutoCommit, boolean autoCommitChanged,
+                                   boolean origReadOnly, boolean readOnlyChanged) {
         try {
             if (!con.getAutoCommit()) con.rollback();
         } catch (SQLException | RuntimeException e) {
@@ -193,18 +178,6 @@ public final class WidgetReadOnlyJdbc {
             } catch (SQLException | RuntimeException e) {
                 ok = false;
                 log.warn("[widgetQuery] autoCommit 되돌리기 실패: {}", e.getMessage());
-            }
-        }
-        if (d == Dialect.SQLITE && origQueryOnly != null) {
-            try {
-                setQueryOnly(con, origQueryOnly);
-                if (queryOnly(con) != origQueryOnly) {
-                    ok = false;
-                    log.warn("[widgetQuery] SQLite query_only 를 되돌리지 못했습니다");
-                }
-            } catch (SQLException | RuntimeException e) {
-                ok = false;
-                log.warn("[widgetQuery] SQLite query_only 되돌리기 실패: {}", e.getMessage());
             }
         }
         if (readOnlyChanged) {
@@ -251,24 +224,9 @@ public final class WidgetReadOnlyJdbc {
 
     // ── 도우미 ──────────────────────────────────────────────────────────
 
-    private static boolean queryOnly(Connection con) throws SQLException {
-        String v = singleString(con, "PRAGMA query_only");
-        return v != null && !"0".equals(v.trim());
-    }
-
-    private static void setQueryOnly(Connection con, boolean on) throws SQLException {
-        exec(con, on ? "PRAGMA query_only = 1" : "PRAGMA query_only = 0");
-    }
-
     private static void exec(Connection con, String sql) throws SQLException {
         try (Statement st = con.createStatement()) {
             st.execute(sql);
-        }
-    }
-
-    private static String singleString(Connection con, String sql) throws SQLException {
-        try (Statement st = con.createStatement(); ResultSet rs = st.executeQuery(sql)) {
-            return rs.next() ? rs.getString(1) : null;
         }
     }
 

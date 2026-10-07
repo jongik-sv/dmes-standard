@@ -4,11 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.dongkuk.dmes.cactus.security.auth.PasswordEncoder;
 import com.dongkuk.dmes.mcm.common.event.MenuChangedEvent;
-import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
 import com.dongkuk.dmes.mcm.common.audit.SecurityIdentityHolder;
 import com.dongkuk.dmes.mcm.repository.RuleMasterRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
+import com.dongkuk.dmes.mcm.db.McmSchemaMigrator;
+import com.dongkuk.dmes.mcm.testdb.McmOraTestDb;
 import com.zaxxer.hikari.HikariDataSource;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
@@ -25,12 +26,10 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
-import org.hibernate.jpa.HibernatePersistenceProvider;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -42,7 +41,6 @@ import org.springframework.mock.env.MockEnvironment;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.SharedEntityManagerCreator;
-import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -52,9 +50,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * DataInitializer 시드 결과 지문(fingerprint) 특성 테스트 — 클래스 분할 전후로 시드 결과가 한 글자도 바뀌지 않았는지 고정한다.
  *
- * <p><b>구성</b> — 빈 SQLite 임시 파일 DB 에 local 프로필로 {@link DataInitializer#run} 을 실제 트랜잭션 경계(TransactionTemplate)
- * 안에서 한 번 돌린다. EMF 스캔 범위·하이버네이트 속성은 {@code JpaConfig} 의 SQLite 분기와 같다(hbm2ddl update, SQLiteDialect,
- * metadata individually, {@link McmAuditStatementInspector}, SqliteTemporalConverterContributor).
+ * <p><b>구성</b> — Oracle 시험 PDB 의 네 스키마를 비우고 Flyway 기준선으로 다시 만든 뒤({@link McmOraTestDb#resetSchemas()}),
+ * local 프로필로 {@link DataInitializer#run} 을 실제 트랜잭션 경계(TransactionTemplate) 안에서 한 번 돌린다. EMF 스캔 범위·하이버네이트
+ * 속성은 {@code JpaConfig} 와 같다(OracleDialect, hbm2ddl none, Instant=TIMESTAMP·boolean=TINYINT).
+ * 2026-10-07 oracle-1007 — SQLite(ddl-auto update) 에서 Oracle 로 옮기며 골든을 다시 만들었다. 옛 SQLite 골든과는 표별 행 수가 같다
+ * (스키마 접두가 생긴 키·Oracle 에만 있는 표 제외 — docs/oracle-1007/memo-ora-mcm-app.md).
  * <ul>
  *   <li>PasswordEncoder — BCrypt 는 솔트가 랜덤이라 고정값을 돌려주는 스텁. USER_ENC_PWD 는 그래서 해시에 포함한다.</li>
  *   <li>RuleMasterRepository — {@link JpaRepositoryFactory} 로 같은 공유 EntityManager 위에 실제 저장소를 만든다(규칙 샘플 6행 포함).</li>
@@ -62,11 +62,11 @@ import org.springframework.transaction.support.TransactionTemplate;
  *   <li>initEnabled — 필드 기본값이 false 라 true 로 넣는다(@Value 기본 true 와 같게).</li>
  * </ul>
  *
- * <p><b>지문</b> — sqlite_master 의 테이블을 이름순으로 나열하고 테이블마다 {@code 테이블=행수:SHA-256} 한 줄을 만든다.
- * 행은 PRAGMA table_info 순서의 {@code 컬럼명=quote(값)} 직렬화(NULL 은 quote 의 맨 글자 NULL — 문자열 'NULL' 과 구별)를
- * 정렬해 해시한다. rowid 는 쓰지 않는다. 실행 시각이 들어가는 {@link #TIME_COLUMNS} 는 직렬화 전에 뺀다(정렬이 시각에 끌려가지
- * 않게). VER 은 남긴다 — UPDATE 실행 횟수, 곧 시드 순서 회귀를 잡는다. 테이블·뷰·인덱스 정의(sqlite_master.sql)는
- * {@code __SCHEMA__} 줄 하나로 따로 해시한다.
+ * <p><b>지문</b> — mcm 스키마 4개(ALL_TABLES, Flyway 이력 표 제외)의 표를 {@code 스키마.표} 이름순으로 나열하고 표마다
+ * {@code 스키마.표=행수:SHA-256} 한 줄을 만든다. 행은 ALL_TAB_COLUMNS(COLUMN_ID 순) 의 {@code 컬럼명=값} 직렬화(NULL 은 맨 글자
+ * NULL, 값은 작은따옴표로 감싼다 — 문자열 'NULL' 과 구별)를 정렬해 해시한다. 실행 시각이 들어가는 {@link #TIME_COLUMNS} 는 직렬화
+ * 전에 뺀다(정렬이 시각에 끌려가지 않게). VER 은 남긴다 — UPDATE 실행 횟수, 곧 시드 순서 회귀를 잡는다. 객체·칸 정의
+ * (ALL_OBJECTS·ALL_TAB_COLUMNS)는 {@code __SCHEMA__} 줄 하나로 따로 해시한다.
  *
  * <p><b>골든 갱신</b> — {@code -Dfingerprint.update=true} 또는 환경 변수 {@code FINGERPRINT_UPDATE=true} 면
  * 비교하지 않고 골든을 새로 쓴다. 갱신을 요청하지 않았는데 골든 파일이 없으면 실패한다(다른 작업 디렉터리에서 돌려 골든을 못 찾고
@@ -79,16 +79,17 @@ class DataInitializerSeedFingerprintTest {
 
     private static final Path GOLDEN = Path.of("src/test/resources/init/data-initializer-fingerprint.golden.txt");
 
-    /** 실행 시각이 들어가는 컬럼 — 해시에서 뺀다(SYSDATETIME()→CURRENT_TIMESTAMP, McmAuditListener Instant.now()). */
+    /** 실행 시각이 들어가는 컬럼 — 해시에서 뺀다(시드의 SYSTIMESTAMP, McmAuditListener Instant.now()). */
     static final Set<String> TIME_COLUMNS = Set.of("C_AT", "U_AT", "START_ACTIVE_DATE", "LAST_PWD_CHNG_DATE");
 
     private static final String SCHEMA_KEY = "__SCHEMA__";
     private static final String FIXED_ENC_PWD = "{fingerprint-stub}fixed-encoded-password";
 
-    private static Path dbFile;
+    /** 지문에서 뺄 표 — 스키마마다 있는 Flyway 이력(적용 시각·실행 시간이 들어간다). */
+    private static final String FLYWAY_HISTORY = "flyway_schema_history";
+
     private static HikariDataSource dataSource;
     private static LocalContainerEntityManagerFactoryBean emfBean;
-    private static boolean prevInspectorSqlite;
     private static SecurityIdentity prevIdentity;
     private static SecurityContext prevSecurityContext;
     private static long seedStartMillis;
@@ -98,8 +99,7 @@ class DataInitializerSeedFingerprintTest {
     private static final List<Boolean> publishedInTx = new ArrayList<>();
 
     @BeforeAll
-    static void seedEmptySqlite() throws Exception {
-        prevInspectorSqlite = McmAuditStatementInspector.isSqlite();
+    static void seedEmptySchemas() throws Exception {
         prevIdentity = SecurityIdentityHolder.get();
         prevSecurityContext = SecurityContextHolder.getContext();
         // 인증 없는 부팅과 같게 — inspector·listener 의 사용자 ID 가 결정적 폴백("system"·null)을 쓰도록 비운다.
@@ -108,34 +108,20 @@ class DataInitializerSeedFingerprintTest {
         SecurityIdentityHolder.set(null);
         SecurityContextHolder.clearContext();
 
-        dbFile = Files.createTempFile("mcm-seed-fingerprint", ".db");
-        Files.delete(dbFile);
-        dataSource = new HikariDataSource();
-        dataSource.setJdbcUrl("jdbc:sqlite:" + dbFile);
+        McmOraTestDb.resetSchemas();
+        dataSource = McmOraTestDb.appDataSource("mcm-seed-fingerprint");
 
-        // JpaConfig#entityManagerFactory 의 SQLite 분기와 같은 구성(ddl-auto 는 application-local.yml 의 update).
-        Properties props = new Properties();
-        props.put("hibernate.dialect", "org.hibernate.community.dialect.SQLiteDialect");
-        props.put("hibernate.hbm2ddl.auto", "update");
-        props.put("hibernate.show_sql", "false");
-        props.put("hibernate.format_sql", "true");
-        props.put("hibernate.hbm2ddl.jdbc_metadata_extraction_strategy", "individually");
-        props.put("hibernate.session_factory.statement_inspector",
-                "com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector");
-        McmAuditStatementInspector.setSqlite(true);
-        props.put("hibernate.metadata_builder_contributor",
-                "com.dongkuk.dmes.mcm.common.persistence.SqliteTemporalConverterContributor");
-
+        // JpaConfig#entityManagerFactory 와 같은 구성(OracleDialect·ddl none·Instant/boolean 공통 설정).
         emfBean = new LocalContainerEntityManagerFactoryBean();
         emfBean.setDataSource(dataSource);
-        emfBean.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
-        emfBean.setJpaProperties(props);
+        emfBean.setJpaVendorAdapter(new org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter());
+        emfBean.setJpaProperties(McmOraTestDb.jpaProperties(Map.of("hibernate.show_sql", "false")));
         emfBean.setPersistenceUnitName("default");
         emfBean.setPackagesToScan(
                 "com.dongkuk.dmes.cactus.security.auth",
                 "com.dongkuk.dmes.cactus.mastercode",
                 "com.dongkuk.dmes.mcm");
-        emfBean.setPersistenceProviderClass(HibernatePersistenceProvider.class);
+        emfBean.setPersistenceProviderClass(org.hibernate.jpa.HibernatePersistenceProvider.class);
         emfBean.afterPropertiesSet();
         EntityManagerFactory emf = emfBean.getObject();
         EntityManager sharedEm = SharedEntityManagerCreator.createSharedEntityManager(emf);
@@ -166,16 +152,14 @@ class DataInitializerSeedFingerprintTest {
 
     @AfterAll
     static void tearDown() throws Exception {
-        McmAuditStatementInspector.setSqlite(prevInspectorSqlite);
         SecurityIdentityHolder.set(prevIdentity);
         SecurityContextHolder.setContext(prevSecurityContext);
         if (emfBean != null) emfBean.destroy();
         if (dataSource != null) dataSource.close();
-        if (dbFile != null) Files.deleteIfExists(dbFile);
     }
 
     @Test
-    @DisplayName("빈 SQLite 에 local 시드를 돌린 결과(테이블별 행 수·정규화 해시·스키마 정의)가 골든과 같다")
+    @DisplayName("빈 Oracle 스키마(Flyway 기준선)에 local 시드를 돌린 결과(표별 행 수·정규화 해시·스키마 정의)가 골든과 같다")
     void seedFingerprintMatchesGolden() throws Exception {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         Map<String, String> actual = new TreeMap<>();
@@ -243,16 +227,14 @@ class DataInitializerSeedFingerprintTest {
         for (String table : tables(jdbc)) {
             List<String> cols = hashedColumns(jdbc, table);
             if (cols.isEmpty()) continue;
-            String select = cols.stream().map(c -> "quote(" + ident(c) + ")").collect(Collectors.joining(", "));
-            jdbc.query("SELECT " + select + " FROM " + ident(table), rs -> {
+            jdbc.query(selectValues(table, cols), rs -> {
                 for (int i = 0; i < cols.size(); i++) {
                     String v = rs.getString(i + 1);
                     if (v == null) continue;
                     boolean hit = dates.stream().anyMatch(v::contains);
-                    String bare = v.startsWith("'") ? v.substring(1, v.length() - 1) : v;
-                    if (!hit && bare.matches("\\d{10,13}(\\.\\d+)?")) {
-                        long n = (long) Double.parseDouble(bare);
-                        long ms = bare.length() >= 13 ? n : n * 1000L;
+                    if (!hit && v.matches("\\d{10,13}(\\.\\d+)?")) {
+                        long n = (long) Double.parseDouble(v);
+                        long ms = v.length() >= 13 ? n : n * 1000L;
                         hit = ms >= lo && ms <= hi;
                     }
                     if (hit) hits.add(table + "." + cols.get(i) + "=" + v);
@@ -264,22 +246,22 @@ class DataInitializerSeedFingerprintTest {
 
     // ─────────────────────────────────────────────────────────────────────
 
-    /** 테이블 이름순 {@code 테이블 → 행수:해시} + {@code __SCHEMA__ → 정의수:해시}. */
+    /** 표 이름순 {@code 스키마.표 → 행수:해시} + {@code __SCHEMA__ → 정의수:해시}. */
     static Map<String, String> fingerprint(JdbcTemplate jdbc) throws Exception {
         Map<String, String> out = new TreeMap<>();
         for (String table : tables(jdbc)) {
             List<String> cols = hashedColumns(jdbc, table);
             List<String> rows = new ArrayList<>();
             if (cols.isEmpty()) {
-                Integer n = jdbc.queryForObject("SELECT COUNT(*) FROM " + ident(table), Integer.class);
+                Integer n = jdbc.queryForObject("SELECT COUNT(*) FROM " + table, Integer.class);
                 for (int i = 0; i < (n == null ? 0 : n); i++) rows.add("");
             } else {
-                String select = cols.stream().map(c -> "quote(" + ident(c) + ")").collect(Collectors.joining(", "));
-                jdbc.query("SELECT " + select + " FROM " + ident(table), rs -> {
+                jdbc.query(selectValues(table, cols), rs -> {
                     StringBuilder sb = new StringBuilder();
                     for (int i = 0; i < cols.size(); i++) {
                         if (i > 0) sb.append('\u001F');
-                        sb.append(cols.get(i)).append('=').append(rs.getString(i + 1));
+                        String v = rs.getString(i + 1);
+                        sb.append(cols.get(i)).append('=').append(v == null ? "NULL" : "'" + v.replace("'", "''") + "'");
                     }
                     rows.add(sb.toString());
                 });
@@ -288,25 +270,50 @@ class DataInitializerSeedFingerprintTest {
             String header = "cols=" + String.join(",", cols);
             out.put(table, rows.size() + ":" + sha256(header + "\n" + String.join("\n", rows)));
         }
-        List<String> defs = jdbc.query(
-                "SELECT type || '|' || name || '|' || tbl_name || '|' || sql FROM sqlite_master WHERE sql IS NOT NULL",
-                (rs, i) -> rs.getString(1));
+        List<String> defs = new ArrayList<>(jdbc.query(
+                "SELECT OWNER || '|' || OBJECT_TYPE || '|' || OBJECT_NAME FROM ALL_OBJECTS"
+                        + " WHERE OWNER IN (" + ownerList() + ") AND OBJECT_NAME NOT LIKE 'SYS\\_%' ESCAPE '\\'"
+                        + " AND OBJECT_NAME NOT LIKE 'ISEQ$$%' AND OBJECT_NAME NOT LIKE 'BIN$%'"
+                        + " AND OBJECT_NAME NOT LIKE '" + FLYWAY_HISTORY + "%'",
+                (rs, i) -> rs.getString(1)));
+        defs.addAll(jdbc.query(
+                "SELECT OWNER || '|' || TABLE_NAME || '|' || COLUMN_NAME || '|' || DATA_TYPE || '|' || DATA_LENGTH || '|'"
+                        + " || DATA_PRECISION || '|' || DATA_SCALE || '|' || NULLABLE FROM ALL_TAB_COLUMNS"
+                        + " WHERE OWNER IN (" + ownerList() + ") AND TABLE_NAME NOT LIKE '" + FLYWAY_HISTORY + "%'",
+                (rs, i) -> rs.getString(1)));
         defs.sort(null);
         out.put(SCHEMA_KEY, defs.size() + ":" + sha256(String.join("\n", defs)));
         return out;
     }
 
+    /** mcm 스키마 4개의 표({@code 스키마."표"}) — Flyway 이력 표 제외. 앱 사용자는 다른 스키마 표를 GRANT 로 본다. */
     private static List<String> tables(JdbcTemplate jdbc) {
-        return jdbc.queryForList(
-                "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
-                String.class);
+        return jdbc.query(
+                "SELECT OWNER, TABLE_NAME FROM ALL_TABLES WHERE OWNER IN (" + ownerList() + ")"
+                        + " AND TABLE_NAME <> '" + FLYWAY_HISTORY + "' ORDER BY OWNER, TABLE_NAME",
+                (rs, i) -> rs.getString(1) + "." + ident(rs.getString(2)));
     }
 
-    /** PRAGMA table_info(cid 순) 컬럼 중 시각 컬럼을 뺀 목록. */
+    /** ALL_TAB_COLUMNS(COLUMN_ID 순) 컬럼 중 시각 컬럼을 뺀 목록. {@code table} 은 {@link #tables} 의 {@code 스키마."표"}. */
     private static List<String> hashedColumns(JdbcTemplate jdbc, String table) {
-        return jdbc.query("PRAGMA table_info(" + ident(table) + ")", (rs, i) -> rs.getString("name")).stream()
+        int dot = table.indexOf('.');
+        String owner = table.substring(0, dot);
+        String name = table.substring(dot + 2, table.length() - 1).replace("\"\"", "\"");
+        return jdbc.queryForList(
+                        "SELECT COLUMN_NAME FROM ALL_TAB_COLUMNS WHERE OWNER = ? AND TABLE_NAME = ? ORDER BY COLUMN_ID",
+                        String.class, owner, name).stream()
                 .filter(c -> !TIME_COLUMNS.contains(c.toUpperCase()))
                 .toList();
+    }
+
+    /** 값 SELECT — 값은 호출자가 getString 으로 읽는다(일시는 ojdbc 가 NLS 와 무관한 고정 형식으로 낸다). */
+    private static String selectValues(String table, List<String> cols) {
+        return "SELECT " + cols.stream().map(DataInitializerSeedFingerprintTest::ident).collect(Collectors.joining(", "))
+                + " FROM " + table;
+    }
+
+    private static String ownerList() {
+        return McmSchemaMigrator.SCHEMAS.stream().map(o -> "'" + o + "'").collect(Collectors.joining(", "));
     }
 
     private static String ident(String name) {
@@ -320,7 +327,7 @@ class DataInitializerSeedFingerprintTest {
     private static void writeGolden(Map<String, String> fp) throws Exception {
         List<String> lines = new ArrayList<>();
         lines.add("# DataInitializer 시드 지문 — DataInitializerSeedFingerprintTest 가 비교한다. 손으로 고치지 않는다.");
-        lines.add("# 형식: 테이블=행수:SHA-256(정렬한 행, 시각 컬럼 제외). " + SCHEMA_KEY + " = sqlite_master.sql 정의 수:해시.");
+        lines.add("# 형식: 스키마.\"표\"=행수:SHA-256(정렬한 행, 시각 컬럼 제외). " + SCHEMA_KEY + " = ALL_OBJECTS·ALL_TAB_COLUMNS 정의 수:해시.");
         lines.add("# 해시에서 뺀 컬럼: " + new TreeSet<>(TIME_COLUMNS));
         lines.add("# 다시 쓰기: FINGERPRINT_UPDATE=true ../gradlew :api:test --tests '*DataInitializerSeedFingerprintTest'");
         fp.forEach((k, v) -> lines.add(k + "=" + v));

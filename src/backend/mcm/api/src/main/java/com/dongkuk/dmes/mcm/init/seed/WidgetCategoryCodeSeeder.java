@@ -6,8 +6,8 @@ package com.dongkuk.dmes.mcm.init.seed;
  * <p>위젯 서랍·위젯 관리의 분류가 가리키는 코드그룹. 그룹 1 + 항목 6(COMMON/PROD/QUAL/LOGI/TOOL/INFO)을
  * 없을 때만 넣는다(멱등 — 재기동해도 중복 행이 생기지 않는다).
  *
- * <p>SQLite Flyway {@code V18__insert_widget_category_code} 와 같은 값이다. 로컬 부팅에서는 둘 중 먼저
- * 닿는 쪽이 넣고 다른 쪽은 건너뛴다. 운영·개발계(MSSQL)는 마스터코드 관리 화면에서 등록·수정한다(V13 시드와 같은 원칙).
+ * <p>옛 SQLite Flyway {@code V18__insert_widget_category_code} 와 같은 값이다(Oracle V1 기준선은 이 행을 넣지 않는다 —
+ * 로컬 부팅 때 이 시더가 넣는다). 운영·개발계는 마스터코드 관리 화면에서 등록·수정한다(V13 시드와 같은 원칙).
  */
 public final class WidgetCategoryCodeSeeder extends SeedSupport {
 

@@ -17,7 +17,9 @@ import org.hibernate.boot.spi.MetadataBuilderContributor;
  *
  * @see LocalDateAttributeConverter
  * @see LocalDateTimeAttributeConverter
+ * @deprecated Oracle 단일화(oracle-1007). mcm 모듈 호출을 ora-mcm-app 이 없앤 뒤 ora-base b8 에서 지운다.
  */
+@Deprecated
 public class SqliteTemporalConverterContributor implements MetadataBuilderContributor {
 
     @Override

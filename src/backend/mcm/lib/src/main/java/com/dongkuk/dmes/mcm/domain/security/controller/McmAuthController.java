@@ -14,7 +14,6 @@ import com.dongkuk.dmes.mcm.audit.entity.RevokedToken;
 import com.dongkuk.dmes.mcm.audit.repository.LoginLogRepository;
 import com.dongkuk.dmes.mcm.audit.repository.RevokedTokenRepository;
 import com.dongkuk.dmes.mcm.domain.security.service.McmSecUserRepository;
-import com.dongkuk.dmes.mcm.domain.security.service.SqliteBusyRetry;
 import com.dongkuk.dmes.mcm.security.endpoint.UserPermCache;
 import com.dongkuk.dmes.mcm.security.password.PasswordPolicyEvaluator;
 import io.jsonwebtoken.Claims;
@@ -78,8 +77,8 @@ public class McmAuthController {
     public ApiResponse<?> login(@RequestBody LoginRequest request, HttpServletRequest httpRequest) {
         try {
             // 가변 복사본 — permKeys / passwordExpired 등 응답 메타를 단일 map 에 누적.
-            // 로컬 SQLite 의 잠금 승격 교착(SQLITE_BUSY)은 트랜잭션을 통째로 다시 시도한다 — SqliteBusyRetry 주석.
-            Map<String, Object> result = new LinkedHashMap<>(SqliteBusyRetry.call(() -> authService.login(request)));
+            // 2026-10-07 oracle-1007 — 로컬 SQLite 잠금 교착 재시도(SqliteBusyRetry)는 Oracle 전환으로 archive 했다.
+            Map<String, Object> result = new LinkedHashMap<>(authService.login(request));
             recordLoginEvent(request.userId(), "LOGIN_SUCCESS", httpRequest);
 
             // RBAC-PATH-CONVENTION §5.2 — 로그인 직후 PermKey 캐시 빌드 (eager).
