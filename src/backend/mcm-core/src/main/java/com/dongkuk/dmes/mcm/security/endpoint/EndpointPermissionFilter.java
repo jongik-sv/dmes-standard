@@ -12,8 +12,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.UriUtils;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -41,7 +43,8 @@ import java.util.regex.Pattern;
  *   <li>SYSADMIN 도 PermKey 멤버십으로 판정 (2026-07-30 순수 RBAC 전환). 브레이크글라스
  *       {@code mcm.security.sysadmin-freepass=true} 시에만 舊 전면 통과.</li>
  *   <li>PermKey 추출 가능 URL — cache 에 있으면 통과, 없으면 403.</li>
- *   <li>PermKey 추출 불가 URL — 통과 (RBAC 대상 ✗).</li>
+ *   <li>PermKey 추출 불가 URL — 통과 (RBAC 대상 ✗). 단 cactus 직접 실행 경로({@code /service}·{@code /query}·{@code /lov/query}·
+ *       {@code /lov/service})는 인증·브레이크글라스보다 먼저 403 (2026-10-07, {@link #isDirectRoute(String)}).</li>
  * </ul>
  */
 @Component
@@ -129,6 +132,35 @@ public class EndpointPermissionFilter extends OncePerRequestFilter {
                 && AUTH_ONLY_MEDIA_FILE_URI.matcher(uri).matches();
     }
 
+    /**
+     * cactus 직접 실행 경로 — {@code /service/{serviceId}}·{@code /query/service/{serviceId}}·{@code /lov/service/{serviceId}}
+     * (요청이 고른 BPMN 을 고정 action 으로 실행)와 {@code /query/{queryId}}·{@code /lov/query/{queryId}}(매퍼 statement 실행).
+     * 앞에 운영 게이트웨이 모듈 접두({@code /{module}})가 붙을 수 있다. {@code /oasis/...} 는 serviceId 가 query·service 여도 제외.
+     *
+     * <p>PermKey 를 뽑지 못해 예전엔 "RBAC 대상 아님" 으로 통과했다(2026-10-07 보안 지적 — 로그인만 한 사용자가
+     * {@code POST /service/codeEdit} 로 화면 권한 없이 execute). cactus-core 는 이 컨트롤러들을 기본으로 끄고
+     * ({@code cactus.inbound.service-routes}·{@code query-routes}), 이 필터는 켜진 경우에도 권한·브레이크글라스와 무관하게 403.
+     * 경로를 켜는 회차에서 이 자리를 권한키 판정으로 바꾼다(query-route 설계 §4 S2 — {@code /query/{objId}.{action}} →
+     * {@code PermKey(module, "oasis", objId, action)}). BFF {@code proxy.ts} 의 denyPatterns 와 동기화.
+     */
+    private static final Pattern DIRECT_ROUTE_URI =
+            Pattern.compile("^(?:/(?!oasis/)[^/]+)?/(?:service|query|lov/query|lov/service)(?:/.*)?$");
+
+    /**
+     * 원 경로와 디코드한 경로 중 하나라도 직접 실행 경로면 true. Spring MVC 는 조각을 디코드해 매핑하므로
+     * {@code /%73ervice/codeEdit} 도 {@code /service/{serviceId}} 로 간다. 디코드할 수 없는 경로도 true(fail-closed).
+     */
+    static boolean isDirectRoute(String path) {
+        if (path == null) return false;
+        if (DIRECT_ROUTE_URI.matcher(path).matches()) return true;
+        if (path.indexOf('%') < 0) return false;
+        try {
+            return DIRECT_ROUTE_URI.matcher(UriUtils.decode(path, StandardCharsets.UTF_8)).matches();
+        } catch (IllegalArgumentException e) {
+            return true;
+        }
+    }
+
     /** {@link UserPermCache} 가 만드는 권한키의 serviceId. */
     private static final String OASIS_SERVICE_ID = "oasis";
 
@@ -177,6 +209,14 @@ public class EndpointPermissionFilter extends OncePerRequestFilter {
             return;
         }
         request.setAttribute(ATTR_GUARD, Boolean.TRUE);
+
+        // cactus 직접 실행 경로 — 인증·브레이크글라스·AUTH_ONLY 보다 먼저 거부(PermKey 로 판정할 수 없는 경로라 기본 거부).
+        String path = request.getRequestURI().substring(request.getContextPath().length());
+        if (isDirectRoute(path)) {
+            log.info("[EndpointPermissionFilter] denied direct route uri={}", request.getRequestURI());
+            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Endpoint permission denied");
+            return;
+        }
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         boolean authenticated = auth != null && auth.isAuthenticated()
