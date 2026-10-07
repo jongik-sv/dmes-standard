@@ -110,11 +110,11 @@ test('CLI: --indent 생략 = 들여쓰기 없음(python 기본 구분자), 0 은
   assert.equal(runCli(['--in', path.join(d, 'in.json'), '--out', a, '--set', 'project_id=P']).status, 0);
   assert.equal(fs.readFileSync(a, 'utf8'), '{"a": [1, 2], "b": {"c": null}, "project_id": "P"}');
   const z = path.join(d, 'z.json');
-  assert.equal(runCli(['--in', path.join(d, 'in.json'), '--out', z, '--indent', '0']).status, 0);
-  assert.equal(fs.readFileSync(z, 'utf8'), '{\n"a": [\n1,\n2\n],\n"b": {\n"c": null\n}\n}');
+  assert.equal(runCli(['--in', path.join(d, 'in.json'), '--out', z, '--set', 'project_id=P', '--indent', '0']).status, 0);
+  assert.equal(fs.readFileSync(z, 'utf8'), '{\n"a": [\n1,\n2\n],\n"b": {\n"c": null\n},\n"project_id": "P"\n}');
   const f = path.join(d, 'f.json');
-  assert.equal(runCli(['--in', path.join(d, 'in.json'), '--out', f, '--indent', '4']).status, 0);
-  assert.equal(fs.readFileSync(f, 'utf8'), JSON.stringify({ a: [1, 2], b: { c: null } }, null, 4));
+  assert.equal(runCli(['--in', path.join(d, 'in.json'), '--out', f, '--set', 'project_id=P', '--indent', '4']).status, 0);
+  assert.equal(fs.readFileSync(f, 'utf8'), JSON.stringify({ a: [1, 2], b: { c: null }, project_id: 'P' }, null, 4));
 });
 
 test('CLI: 같은 파일을 입출력으로 줘도 읽은 뒤 덮어쓴다', () => {
@@ -146,6 +146,22 @@ test('CLI: 사용 오류는 종료 코드 2', () => {
     assert.match(r.stderr, /오류/);
     assert.equal(fs.existsSync(outf), false, `${JSON.stringify(args)}: 출력 파일을 만들지 않음`);
   }
+});
+
+test('CLI: --set 이 하나도 없으면 종료 코드 2 + 한 줄 stderr, 출력 파일을 만들지 않는다', () => {
+  const d = newDir();
+  const inf = path.join(d, 'in.json');
+  fs.writeFileSync(inf, '{"a":1}');
+  const outf = path.join(d, 'out.json');
+  for (const extra of [[], ['--indent', '2']]) {
+    const r = runCli(['--in', inf, '--out', outf, ...extra]);
+    assert.equal(r.status, 2, JSON.stringify(extra));
+    assert.equal(r.stdout, '');
+    assert.match(r.stderr, /^wbs-envelope: 오류: --set [^\n]*\n$/, '한 줄 stderr');
+    assert.equal(fs.existsSync(outf), false);
+  }
+  // 입력 파일이 없어도 인자 검사가 먼저다(사용 오류가 입력 오류보다 앞선다)
+  assert.equal(runCli(['--in', path.join(d, 'nope.json'), '--out', outf]).status, 2);
 });
 
 test('CLI: 입력이 없거나 깨지면 종료 코드 1 + 한 줄 ERROR, 출력 파일 없음', () => {

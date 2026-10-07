@@ -12,7 +12,8 @@
 //               <파일목록>의 경로 그대로 낸다. 윈도우 Git Bash 에서 find 가 낸 `/c/…` 를 cygpath 로 `C:/…` 로 바꾼 목록을 받는 자리다.
 //               줄 수가 다르거나 읽을 수 없으면 무시한다.
 // stdout: `JUNIT_SUMMARY tests=<N> failures=<F> errors=<E> skipped=<S> files=<K>` 정확히 한 줄.
-// stderr: JUNIT_SKIP <파일>(깨진 XML 이거나 루트가 testsuite·testsuites 가 아님), JUNIT_STALE <파일>, JUNIT_SINCE_INVALID <값>(exit 2).
+// stderr: JUNIT_SKIP <파일>(깨진 XML 이거나 루트가 testsuite·testsuites 가 아님), JUNIT_STALE <파일>, JUNIT_SINCE_INVALID <값>(exit 2),
+//         JUNIT_ABORT <파일> <사유>(자원 한계·지원 못 하는 인코딩 — 아래 「전체 실패」, exit 1, stdout 없음).
 //
 // 합산 규칙(python 판과 같다): 루트가 <testsuite> 면 그것 하나, <testsuites> 면 그 직계 <testsuite> 자식들의 tests·failures·errors·
 // skipped 속성을 더한다(없거나 숫자가 아니면 0, `int(float(v))` 규칙: 공백·부호·지수·밑줄·소수 허용, 소수는 0 쪽으로 버림, nan 은 0,
@@ -24,17 +25,41 @@
 // (UTF-8·UTF-16·ISO-8859-1·US-ASCII·그 밖의 한 바이트 인코딩)·태그 짝 검사를 처리하고, expat 이 오류로 보는 입력(태그 불일치, 닫히지
 // 않은 속성, 중복 속성, 루트 여러 개·없음, 빈 파일, 정의되지 않은 엔티티, 제어 문자, 잘못된 이름 …)은 파싱 오류로 보아 JUNIT_SKIP 이다.
 // 이름 문자표는 expat 2.2.8 이 실제로 받아들이는 BMP 문자를 열거해 만들었다(XML 1.0 4판 계열, BMP 밖 문자는 이름에 못 쓴다).
-// 시간은 입력 길이에 선형이고(정규식 역추적 없음) 파일은 한 번에 읽는다(수백 MB 까지는 문제없고 그 이상은 V8 문자열 한도에 걸린다).
+// 시간은 입력 길이에 선형이다(정규식 역추적 없음). 파일은 한 번에 읽어 문자열로 바꾼다.
 //
-// python 판과 달라진 점(의도·알려진 한계)
-//  ① 선언 인코딩을 못 쓰는 파일(알 수 없는 이름·다중 바이트 인코딩)을 python 은 LookupError·ValueError 로 죽었지만 여기서는 깨진
-//     XML 로 보고 JUNIT_SKIP 한다.
+// 전체 실패(JUNIT_ABORT): 어떤 파일을 읽지 못한 까닭이 "그 파일의 내용"이 아니라 "이 도구의 한계"이면 그 파일만 건너뛰지 않는다. 건너뛰면
+// 합계가 조용히 줄어 총수 미감소 판정을 잘못 통과시키기 때문이다. 이때 stdout 에는 아무것도 내지 않고(합계 줄도 없다), stderr 에
+// `JUNIT_ABORT <파일> <사유>` 한 줄을 쓰고 exit 1 로 끝나며 --failed-file 도 쓰지 않는다. 해당하는 경우는 둘이다.
+//  (a) 자원 한계: V8 문자열 한도(약 512MiB 글자, ERR_STRING_TOO_LONG·`Invalid string length`), 파일 크기 한도(2GiB 이상, ERR_FS_FILE_TOO_LARGE),
+//      버퍼·메모리 할당 실패(ERR_BUFFER_TOO_LARGE·ENOMEM 등). 에러 코드·RangeError 문구로 가르며, 잘못된 UTF-8 같은 디코딩 실패는 여전히 JUNIT_SKIP 이다.
+//  (b) 이 도구가 못 푸는 인코딩 선언: 이름은 올바르지만 node 의 TextDecoder 가 모르는 것(예: MS949·cp949·cp437·cp850), UTF-32·UCS-2 계열.
+//      선언이 올바른 이름이 아니면(예: `encoding="a b"`) 깨진 XML 이므로 JUNIT_SKIP 이다.
+//  시험용 내부 옵션: 환경 변수 JUNIT_MAX_BYTES=<양의 정수> 가 있으면 그 바이트 수보다 큰 XML 을 자원 한계로 본다(수백 MB 파일을 실제로 만들지 않고
+//  전체 실패 경로를 시험하려는 용도 — tests/junit-count.sh. 일반 사용에서는 설정하지 않는다).
+//
+// python 판과 달라진 점(의도·알려진 한계). 환경: python 3.9.6, pyexpat expat 2.2.8, node 의 TextDecoder(full-icu) 로 2026-10-07 에 직접 돌려 확인했다.
+//  ① 선언 인코딩(8 비트 문서). python 은 선언 이름을 python 코덱으로 찾아 한 바이트씩 변환표를 만들고, 여기서는 node 의 TextDecoder(WHATWG 표)를 쓴다.
+//     - 알 수 없는 이름(bogus·ucs-2·windows-949 등)·다중 바이트 코덱(euc-kr·cp949·gbk·big5·shift_jis·utf-32): python 은 LookupError·
+//       ValueError("multi-byte encodings are not supported") 로 죽는다. 여기서는 TextDecoder 가 WHATWG 라벨로 아는 다중 바이트 인코딩(euc-kr 과 그
+//       별칭 korean·ks_c_5601-1987·windows-949, gbk, big5, shift_jis …)은 읽어서 센다. WHATWG 라벨이 아닌 MS949·cp949 와 utf-32·ucs-2·utf16 은 전체 실패다.
+//     - python 이 읽는 단일 바이트 코덱 중 node 가 모르는 것(cp437·cp850·cp852 …): python 은 센다. 여기서는 전체 실패다(예전에는 SKIP 이었다 —
+//       합계가 조용히 줄어드는 것보다 멈추는 편이 안전해 바꿨다).
+//     - 둘 다 아는 단일 바이트 코덱의 글자표 차이: iso-8859-9·iso-8859-11·tis-620 은 0x80~0x9F 를 node 가 windows-1254·874 글자(€ 등)로 읽고
+//       python 은 U+0080~U+009F 제어 문자로 읽는다. koi8-u 의 0xAE·0xBE 가 다르다. windows-874·1250·1251·1253~1255·1257·1258 의 정의 안 된
+//       바이트(0x81 등)를 node 는 U+0081 같은 제어 문자로 읽고 python 은 파싱 오류(JUNIT_SKIP)로 본다. iso-8859-3 처럼 둘 다 정의하지 않은 바이트는 둘 다
+//       SKIP 이다. 글자 차이는 --failed-file 의 이름에만 보이고 합계에는 영향이 없다.
 //  ② 내부 서브셋의 매개변수 엔티티(%name;)는 참조만 받아들이고(expat 처럼 그 뒤 선언은 기록하지 않는다) 대체 텍스트를 끼워 읽지는 않는다.
 //  ③ --since 가 `②`·`¹` 처럼 isdigit 이지만 float 로 못 바꾸는 문자뿐이면 python 은 죽지만 여기서는 파일 이름으로 본다(JUNIT_SINCE_INVALID).
 //  ④ UTF-8 로 깨진 바이트가 요소·속성 이름 한가운데에 있으면 expat 은 일부를 그냥 받아들이지만 여기서는 깨진 XML 로 본다.
 //  ⑤ 속성이 inf 라 python 이 죽는 자리: python 은 traceback, 여기서는 `OverflowError: …` 한 줄(둘 다 exit 1, stdout 없음).
 //  ⑥ --failed-file 은 줄끝 LF 로 쓴다(윈도우 python 은 CRLF 로 썼다).
-// 검증: tests/junit-count.sh 의 골든 비교(python 판 그대로)와, 변형 입력 약 80만 건을 python xml.etree 와 대조한 결과(차이는 ④ 뿐)다.
+//  ⑦ XML 선언이 standalone="yes" 이고 외부 DTD(SYSTEM)나 내부 서브셋의 %참조가 있을 때 정의되지 않은 일반 엔티티(&e;)를 쓰면
+//     python(expat)은 undefined entity 로 파싱 오류(JUNIT_SKIP)이고, 여기서는 standalone 을 따지지 않아 그냥 받아들여 센다(속성 안의 &e; 는 빈 문자열).
+//     standalone 이 없거나 "no" 이면 둘 다 같다(받아들인다). 즉 DTD 의 외부 참조·매개변수 엔티티는 standalone="yes" 일 때만 node 가 더 너그럽다.
+//  ⑧ 자원 한계(위 「전체 실패」(a)): python 은 파일을 조각으로 먹여 파싱하지만 여기는 한 번에 문자열로 바꾸므로 약 512MiB 글자(UTF-16 은 256MiB 부터,
+//     TextDecoder 가 멀쩡한 입력도 거부한다) 이상이면 멈춘다.
+// 검증: tests/junit-count.sh 의 골든 비교(python 판 그대로)와, 변형 입력 약 80만 건을 python xml.etree 와 대조한 결과다. 그 대조에서 나온 차이는 ④ 뿐이었지만
+// 대조 범위(요소·속성 구조) 밖인 인코딩 선언·standalone·자원 한계에는 위 ①·⑦·⑧ 처럼 따로 확인한 차이가 있다.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -54,6 +79,28 @@ class PyExit extends Error {
 }
 // python 판이 처리하지 않은 예외로 죽던 자리(traceback + exit 1)
 class PyCrash extends Error {}
+// 합계를 믿을 수 없게 되는 자원 한계·못 푸는 인코딩(머리 주석 「전체 실패」). 파일 하나만 건너뛰지 않고 전체를 exit 1 로 끝낸다.
+class AbortError extends Error {}
+
+const RESOURCE_CODES = new Set(['ERR_STRING_TOO_LONG', 'ERR_FS_FILE_TOO_LARGE', 'ERR_BUFFER_TOO_LARGE', 'ERR_MEMORY_ALLOCATION_FAILED', 'ENOMEM']);
+const RESOURCE_MESSAGE = /Invalid string length|Cannot create a string longer|Array buffer allocation failed|Invalid typed array length|Cannot allocate memory/i;
+const oneLine = (m) => String(m).replace(/\s+/g, ' ').trim();
+// 자원 한계 때문에 난 예외면 AbortError 로, 아니면 null(디코딩 실패·스택 초과 같은 RangeError 는 해당 없음).
+export function resourceOf(e) {
+  if (e instanceof AbortError) return e;
+  if (e === null || typeof e !== 'object') return null;
+  const byCode = typeof e.code === 'string' && RESOURCE_CODES.has(e.code);
+  if (byCode || (e instanceof RangeError && RESOURCE_MESSAGE.test(e.message))) {
+    return new AbortError(`resource limit (${byCode ? e.code : e.name}): ${oneLine(e.message)}`);
+  }
+  return null;
+}
+// 시험용 내부 옵션(머리 주석): JUNIT_MAX_BYTES 보다 큰 파일은 자원 한계로 본다.
+function checkMaxBytes(size) {
+  const raw = process.env.JUNIT_MAX_BYTES;
+  if (raw === undefined || !/^[1-9][0-9]*$/.test(raw)) return;
+  if (size > Number(raw)) throw new AbortError(`resource limit (JUNIT_MAX_BYTES): file is ${size} bytes, limit ${raw}`);
+}
 
 // ---------------------------------------------------------------- python float()/int(float()) 흉내
 // python float() 가 앞뒤에서 벗기는 공백(ASCII \t\n\v\f\r·space, U+0085, U+00A0, U+1680, U+2000~200A, U+2028, U+2029, U+202F, U+205F, U+3000)
@@ -210,7 +257,21 @@ const UTF8_ALIASES = new Set(['utf_8', 'utf', 'utf8', 'u8', 'utf8_ucs2', 'utf8_u
 const ASCII_ALIASES = new Set(['ascii', 'us_ascii', '646', 'ansi_x3.4_1968', 'ansi_x3_4_1968', 'ansi_x3.4_1986', 'cp367', 'csascii', 'ibm367', 'iso646_us', 'iso_646.irv_1991', 'iso_ir_6', 'us']);
 const LATIN1_ALIASES = new Set(['latin_1', 'latin1', 'iso_8859_1', 'iso8859_1', '8859', 'cp819', 'latin', 'l1', 'iso_ir_100', 'ibm819', 'iso_8859_1_1987', '819']);
 
-// 입력 바이트 → 문자열. 못 읽는 인코딩이면 XmlError.
+// node 의 TextDecoder 는 입력이 아주 크면 멀쩡한 데이터도 "잘못된 데이터"(ERR_ENCODING_INVALID_ENCODED_DATA)로 거부한다 — 실측: UTF-16 은 256MiB 부터,
+// euc-kr 같은 다중 바이트 인코딩은 글자 수가 문자열 한도를 넘을 때. 이 크기부터는 그 거부가 진짜 잘못된 바이트인지 한도인지 가를 수 없다.
+const AMBIGUOUS_DECODE_BYTES = 1 << 28;
+
+// 디코더가 던진 예외를 가른다: 자원 한계면 AbortError(전체 실패), 그 밖(잘못된 바이트)이면 XmlError(JUNIT_SKIP).
+export function decodeFail(e, msg, len) {
+  const r = resourceOf(e);
+  if (r) throw r;
+  if (e && e.code === 'ERR_ENCODING_INVALID_ENCODED_DATA' && len >= AMBIGUOUS_DECODE_BYTES) {
+    throw new AbortError(`resource limit (decoder): ${len} bytes rejected as invalid, cannot tell bad data from the size limit`);
+  }
+  bad(msg);
+}
+
+// 입력 바이트 → 문자열. 바이트가 선언과 안 맞으면 XmlError, 자원 한계·못 푸는 인코딩이면 AbortError.
 function decodeBytes(buf) {
   const len = buf.length;
   let enc = null; // 'utf-8' | 'utf-16le' | 'utf-16be' | 'single:<label>'
@@ -225,7 +286,7 @@ function decodeBytes(buf) {
     let b = Buffer.from(buf.subarray(skip));
     if (enc === 'utf-16be') b = b.swap16();
     let text;
-    try { text = new TextDecoder('utf-16le', { fatal: true, ignoreBOM: true }).decode(b); } catch { bad('bad utf-16'); }
+    try { text = new TextDecoder('utf-16le', { fatal: true, ignoreBOM: true }).decode(b); } catch (e) { decodeFail(e, 'bad utf-16', len); }
     return { text, utf16: true };
   }
   // 8 비트: 선언의 encoding 을 엿본다
@@ -242,7 +303,7 @@ function decodeBytes(buf) {
   const asciiOnly = () => { for (let k = 0; k < body.length; k++) if (body[k] > 127) bad('non-ascii byte'); return { text: body.toString('latin1'), utf16: false }; };
   // expat 이 이름으로 직접 아는 인코딩(대소문자 무시)
   if (lower === 'utf-8') {
-    try { return { text: new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(body), utf16: false }; } catch { bad('bad utf-8'); }
+    try { return { text: new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(body), utf16: false }; } catch (e) { decodeFail(e, 'bad utf-8', len); }
   }
   if (lower === 'us-ascii') return asciiOnly();
   if (lower === 'iso-8859-1') return { text: body.toString('latin1'), utf16: false };
@@ -258,8 +319,12 @@ function decodeBytes(buf) {
     for (let k = 0; k < body.length; k++) { const c = body[k]; if (c === 0x81 || c === 0x8d || c === 0x8f || c === 0x90 || c === 0x9d) bad('undefined cp1252'); }
     return { text: new TextDecoder('windows-1252').decode(body), utf16: false };
   }
-  if (/^(utf_?16|utf_?32|ucs_?[24]|u16|u32)/.test(norm)) bad('multi-byte encoding');
-  try { return { text: new TextDecoder(lower, { fatal: true }).decode(body), utf16: false }; } catch { bad('unknown encoding'); }
+  // 여기부터는 선언이 올바른 이름인데 이 도구가 못 푸는 인코딩이면 건너뛰지 않고 전체 실패로 본다(머리 주석 (b)).
+  if (!ENC_NAME.test(lower)) bad('bad encoding name');
+  if (/^(utf_?16|utf_?32|ucs_?[24]|u16|u32)/.test(norm)) throw new AbortError(`unsupported encoding "${label}"`);
+  let decoder;
+  try { decoder = new TextDecoder(lower, { fatal: true }); } catch { throw new AbortError(`unsupported encoding "${label}"`); }
+  try { return { text: decoder.decode(body), utf16: false }; } catch (e) { decodeFail(e, 'bad bytes for declared encoding', len); }
   return null;
 }
 
@@ -952,6 +1017,8 @@ export function parse_junit_xml(buf) {
     tables();
     parseDocument(text.indexOf('\r') === -1 ? text : text.replace(/\r\n?/g, '\n'), utf16, handler);
   } catch (e) {
+    const a = resourceOf(e);
+    if (a) throw a;
     if (e instanceof XmlError || e instanceof RangeError) return null;
     throw e;
   }
@@ -968,6 +1035,8 @@ export function xml_wellformed(buf) {
     parseDocument(text.indexOf('\r') === -1 ? text : text.replace(/\r\n?/g, '\n'), utf16, { start() {}, end() {} });
     return true;
   } catch (e) {
+    const a = resourceOf(e);
+    if (a) throw a;
     if (e instanceof XmlError || e instanceof RangeError) return false;
     throw e;
   }
@@ -1044,9 +1113,24 @@ export function main(argv) {
           continue;
         }
       }
-      let buf;
-      try { buf = fs.readFileSync(rp); } catch { err(`JUNIT_SKIP ${p}\n`); continue; }
-      const r = parse_junit_xml(buf);
+      let r;
+      try {
+        let buf;
+        // 읽기 실패 중 용량 때문인 것(2GiB 초과 등)은 건너뛰지 않고 전체 실패, 그 밖(없음·권한 …)은 JUNIT_SKIP
+        try {
+          if (process.env.JUNIT_MAX_BYTES !== undefined) checkMaxBytes(fs.statSync(rp).size);
+          buf = fs.readFileSync(rp);
+        } catch (e) {
+          const a = resourceOf(e);
+          if (a) throw a;
+          err(`JUNIT_SKIP ${p}\n`);
+          continue;
+        }
+        r = parse_junit_xml(buf);
+      } catch (e) {
+        if (e instanceof AbortError) { err(`JUNIT_ABORT ${p} ${e.message}\n`); return 1; }
+        throw e;
+      }
       if (r === null) { err(`JUNIT_SKIP ${p}\n`); continue; }
       for (const [t, f, e, s] of r.suites) {
         totalTests += as_int(t);

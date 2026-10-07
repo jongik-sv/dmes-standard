@@ -72,9 +72,9 @@ export 봉투에 2필드 추가 = 요청 본문:
 ```bash
 node .claude/skills/dflow-export/scripts/wbs-envelope.mjs \
   --in "$SCRATCHPAD/wbs-export-{MOD}.json" --out "$SCRATCHPAD/wbs-import-{MOD}.json" \
-  --set project_id=<UUID> --set module=<MOD> --indent 2
+  --set "project_id=<UUID>" --set "module=<MOD>" --indent 2
 ```
-입력이 없거나 깨진 JSON 이거나 출력 폴더가 없으면 종료 코드 1 과 한 줄 `ERROR:` 로 끝난다(폴더를 만들지 않는다).
+입력이 없거나 깨진 JSON 이거나 출력 폴더가 없으면 종료 코드 1 과 한 줄 `ERROR:` 로 끝난다(폴더를 만들지 않는다). `--set` 이 하나도 없거나 `KEY=VALUE` 형식이 아니면 사용 오류로 종료 코드 2 와 한 줄 stderr 로 끝난다. `--set` 값은 `<`·`>` 가 셸 리다이렉션으로 해석되지 않도록 `"project_id=<UUID>"` 처럼 따옴표로 감싼다. 이 명령이 비 0 으로 끝나면 4번(전송)으로 넘어가지 않는다.
 
 ### 4. 전송 (`--push` 일 때만)
 

@@ -16,6 +16,8 @@
 //   글자까지 같게 만들고 같은 순서로 쓴다. 문자열은 python `html.escape`(& < > " ' → &amp; &lt; &gt; &quot; &#x27;)를 거친다.
 // python 판과 다른 점(알고 둔 것): zip 컨테이너 바이트는 다르다(파일 시각을 1980-01-01 로 고정해 같은 입력이면 같은 파일이 나온다. python 은 현재 시각).
 //   27열 이상 오류. 행이 배열이 아니면 오류(python 은 문자열 행을 글자로 쪼갠다). 부모 폴더가 없으면 만든다.
+//   XML 에 쓸 수 없는 문자(제어 문자·U+FFFE·U+FFFF·짝 없는 서로게이트)는 XLSX 관례의 `_xHHHH_` 로 인코딩하고(원문의 `_x0041_` 같은 글자는 `_x005F_x0041_`),
+//   xlsx-read.mjs 가 되돌린다. python 판은 이 문자를 그대로 써서 엑셀이 열지 못하는 파일을 냈다. 이 문자가 없는 입력은 python 판과 파트가 글자까지 같다.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -30,6 +32,23 @@ export const MAX_COLUMNS = 26;
 
 const M = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+
+// XML 1.0 이 문자로 허용하지 않는 것: 제어 문자(0x00~0x08, 0x0B, 0x0C, 0x0E~0x1F), U+FFFE·U+FFFF, 짝 없는 서로게이트.
+const XML_FORBIDDEN_CHAR = '[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\uFFFE\\uFFFF]|[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]';
+const XML_FORBIDDEN_RE = new RegExp(XML_FORBIDDEN_CHAR, 'g');
+// 밑줄 뒤에 `x` + 16진 4자리가 오고 그 뒤가 `_` 이거나 곧 `_xHHHH_` 로 바뀔 금지 문자이면, 그 밑줄은 이스케이프 표기의 시작으로 읽힌다.
+const XSTRING_LOOKALIKE_RE = new RegExp(`_(?=x[0-9A-Fa-f]{4}(?:_|${XML_FORBIDDEN_CHAR}))`, 'g');
+
+/**
+ * XLSX 문자열 이스케이프(ISO 29500 ST_Xstring). XML 에 쓸 수 없는 문자는 `_xHHHH_`(대문자 16진 4자리, UTF-16 코드 단위)로 바꾸고,
+ * 원문에 이미 있는 `_xHHHH_` 모양의 글자는 앞 밑줄을 `_x005F_` 로 바꿔 되돌릴 때 같은 글자로 돌아오게 한다. python 원본은 이 처리가 없어
+ * 제어 문자가 그대로 XML 에 들어가 엑셀이 파일을 열지 못했다. xlsx-read.mjs 의 `decode_xstring` 이 이 변환을 되돌린다.
+ */
+export function xstring_escape(s) {
+  return s
+    .replace(XSTRING_LOOKALIKE_RE, '_x005F_')
+    .replace(XML_FORBIDDEN_RE, (ch) => `_x${ch.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}_`);
+}
 
 /** python `html.escape(s)` (quote=True). `&` 를 먼저 바꾼다. */
 export function html_escape(s) {
@@ -115,7 +134,7 @@ export function build_xlsx_parts(rows) {
     });
     body.push(`<row r="${r}">${cs.join('')}</row>`);
   });
-  const sst = ss.map((s) => `<si><t>${html_escape(s)}</t></si>`).join('');
+  const sst = ss.map((s) => `<si><t>${html_escape(xstring_escape(s))}</t></si>`).join('');
   return [
     {
       name: '[Content_Types].xml',

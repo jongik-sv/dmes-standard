@@ -11,8 +11,10 @@
 //
 // 사용
 //   node .claude/skills/dflow-export/scripts/wbs-envelope.mjs --in <봉투.json> --out <import.json> \
-//        --set project_id=<UUID> [--set module=<MOD>] [--indent 2]
+//        --set "project_id=<UUID>" [--set "module=<MOD>"] [--indent 2]
 //   --indent 를 생략하면 python 기본(들여쓰기 없음). --set 은 여러 번 줄 수 있고 값은 항상 문자열이다.
+//   --set 은 하나 이상 필요하다(없으면 덧붙일 것이 없어 사용 오류). 셸에서는 `--set "project_id=<UUID>"` 처럼 따옴표로 감싼다
+//   (`<`·`>` 가 리다이렉션으로 해석되지 않게).
 //
 // 출력 계약: python `json.load`/`json.dump(ensure_ascii=False)` 와 바이트까지 같다.
 //  - 기존 키는 제자리에서 값만 바뀌고 새 키는 뒤에 붙는다(Map 삽입순. 정수형 문자열 키도 재배치되지 않는다).
@@ -22,7 +24,7 @@
 // 오류(종료 코드 1, 한 줄 stderr — python 판은 traceback 으로 비정상 종료하던 자리다)
 //  - 입력 파일이 없거나 읽을 수 없음, 잘못된 UTF-8, BOM, JSON 구문 오류, 최상위가 객체가 아님(python 은 TypeError)
 //  - 출력 폴더가 없음(python 처럼 만들지 않는다), 출력 경로가 폴더이거나 쓸 수 없음
-//  - 인자 오류는 종료 코드 2(사용 오류).
+//  - 인자 오류는 종료 코드 2(사용 오류): `--set` 이 하나도 없음, `--set` 이 KEY=VALUE 가 아님, `--indent` 음수 등. 한 줄 stderr.
 //
 // python 판과 다른 점(영향이 작아 맞추지 않음): 짝 없는 서로게이트(`"\ud800"`)가 있으면 python 은 쓰기 도중
 //  UnicodeEncodeError 로 끝나면서 출력 파일을 만들어 두지만, node 는 아무 것도 쓰지 않고 종료 코드 1 로 끝난다.
@@ -84,6 +86,10 @@ export function main(args = process.argv.slice(2)) {
   const cli = parseCli(args, SPEC);
   if (!cli) return process.exitCode ?? 0;
   const { in: inFile, out: outFile, set: rawSets, indent } = cli.values;
+  if (!rawSets || rawSets.length === 0) {
+    process.stderr.write(`${PROG}: 오류: --set KEY=VALUE 가 하나 이상 필요함 (사용: ${USAGE_LINE})\n`);
+    return finish(2);
+  }
   const sets = [];
   for (const a of rawSets) {
     const kv = splitSet(a);

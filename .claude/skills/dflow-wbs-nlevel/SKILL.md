@@ -223,13 +223,14 @@ node .claude/skills/dflow-wbs-nlevel/scripts/wbs-nlevel-parse.mjs export \
 
 # 2) 봉투 완성(project_id) 후 전송 — PAT 규칙·바인딩은 dflow-export SKILL.md 준용(값 비출력)
 node .claude/skills/dflow-export/scripts/wbs-envelope.mjs \
-  --in "$SCRATCHPAD/nlevel-op.json" --out "$SCRATCHPAD/nlevel-op-import.json" --set project_id=<UUID>
+  --in "$SCRATCHPAD/nlevel-op.json" --out "$SCRATCHPAD/nlevel-op-import.json" --set "project_id=<UUID>"
 PAT="$(echo "${DFLOW_PATS:-$DFLOW_PAT}" | cut -d',' -f1)"
 curl -sS -X POST "$DFLOW_API_BASE/api/v1/wbs/import" \
   -H "Authorization: Bearer $PAT" -H "Content-Type: application/json" \
   -d @"$SCRATCHPAD/nlevel-op-import.json"
 ```
 
+- **봉투 완성(2)이 실패하면 업로드하지 않는다**: `wbs-envelope.mjs` 가 비 0 으로 끝나면(1 입력·출력 오류, 2 사용 오류 — `--set` 없음 등) 그 상태에서 `curl` 을 실행하지 않는다. 앞 실행이 남긴 `nlevel-op-import.json` 이 있어도 옛 파일이므로 보내지 않는다. 셸에서는 두 명령을 `&&` 로 잇거나 종료 코드를 확인한 뒤에만 전송한다. `--set` 값은 `<`·`>` 때문에 반드시 따옴표로 감싼다.
 - **골격 먼저**: 골격 파일은 attach 없이 export(levels 가 project_settings 시드), PL 파일은
   attach_ref 필수 — 골격 미업로드면 서버가 400 `attach_not_found` 로 거부(fail-closed).
 - PL 파일 levels 가 서버 정본과 다르면 400 `levels_mismatch` — 골격의 levels 를 다시 복사.

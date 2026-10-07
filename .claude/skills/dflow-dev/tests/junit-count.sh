@@ -11,6 +11,7 @@
 # 모드 strict 는 rc·stdout·stderr·실패 파일을 모두, loose 는 rc·stdout 만 본다(python 이 traceback 으로 죽는 자리처럼 stderr 문구가
 # 임시 경로를 품는 경우). 임시 폴더는 mktemp -d 로 만들고 끝에 이 시험이 만든 것만 지운다.
 set -uo pipefail
+export LC_ALL=C   # sort(스크립트 안의 sort -u 와 python 원본 포함)의 순서를 PC 로케일과 무관하게 고정한다
 here="$(cd "$(dirname "$0")" && pwd)"
 NEW="$here/../scripts/junit-count.sh"
 LEG="$here/golden/legacy/junit-count.legacy.sh"
@@ -27,6 +28,7 @@ HAVE_PY=0
 for cand in python3 python; do
   if command -v "$cand" >/dev/null 2>&1 && "$cand" -c 'import xml.etree.ElementTree' >/dev/null 2>&1; then HAVE_PY=1; break; fi
 done
+case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) HAVE_PY=0 ;; esac   # 윈도우 python.exe 는 /tmp 경로를 못 열고 --failed-file 도 CRLF 로 쓴다
 [ "${DMES_NO_PYTHON:-}" = 1 ] && HAVE_PY=0   # python 이 없는 PC 를 흉내낸다(다른 시험과 같은 환경 변수)
 MAKE="${JUNIT_MAKE_EXPECTED:-0}"
 if [ "$MAKE" = 1 ] && [ "$HAVE_PY" = 0 ]; then echo "기대값을 만들려면 python 이 필요하다" >&2; exit 2; fi
@@ -577,9 +579,9 @@ cd "$tmp/div" || exit 2
 printf '<?xml version="1.0" encoding="bogus"?><testsuite tests="5"/>' > build/test-results/test/TEST-bogus-enc.xml
 printf '%s' "$JU_OK" > build/test-results/test/TEST-ok.xml
 out="$(sh "$NEW" 2>"$tmp/div-err")"; rc=$?
-eq "① 알 수 없는 인코딩: 합계(python 은 LookupError 로 죽었다)" "$out" "JUNIT_SUMMARY tests=2 failures=0 errors=0 skipped=0 files=1"
-eq "① 알 수 없는 인코딩: rc 0" "$rc" 0
-eq "① 알 수 없는 인코딩: stderr" "$(cat "$tmp/div-err")" "JUNIT_SKIP ./build/test-results/test/TEST-bogus-enc.xml"
+eq "① 알 수 없는 인코딩은 전체 실패: stdout 없음(python 은 LookupError 로 죽었다)" "$out" ""
+eq "① 알 수 없는 인코딩: rc 1" "$rc" 1
+eq "① 알 수 없는 인코딩: stderr" "$(cat "$tmp/div-err")" 'JUNIT_ABORT ./build/test-results/test/TEST-bogus-enc.xml unsupported encoding "bogus"'
 out="$(sh "$NEW" --since '²' 2>"$tmp/div-err")"; rc=$?
 eq "③ isdigit 이지만 float 가 아닌 --since: stdout 없음" "$out" ""
 eq "③ rc 2" "$rc" 2
@@ -595,6 +597,126 @@ eq "④ 이름 안의 깨진 UTF-8 바이트는 깨진 XML 로 본다" "$(cat "$
 printf '<testsuite tests="1"><testcase classname="c" name="n"><failure/></testcase></testsuite>' > build/test-results/test/TEST-bogus-enc.xml
 sh "$NEW" --failed-file "$tmp/div-failed" >/dev/null 2>&1
 eq "⑥ --failed-file 은 LF 줄끝(CR 없음)" "$(od -An -c "$tmp/div-failed" | tr -d ' \n')" 'c.n\n'
+
+# ---- 인코딩 선언(머리 주석 ①): 8 비트 문서의 선언 이름을 node TextDecoder 로 푼다. 못 푸는 이름은 SKIP 이 아니라 전체 실패다.
+mkdir -p "$tmp/enc/build/test-results/test"
+cd "$tmp/enc" || exit 2
+encf="build/test-results/test/TEST-enc.xml"
+encrun() { # encrun <선언 인코딩> <본문에 넣을 printf 형식 바이트> — encout·encerr·encrc 에 결과를 둔다
+  printf '<?xml version="1.0" encoding="%s"?><testsuite tests="1"><testcase classname="c" name="n' "$1" > "$encf"
+  printf "$2" >> "$encf"
+  printf '"><failure/></testcase></testsuite>' >> "$encf"
+  rm -f "$tmp/enc-failed"
+  encout="$(sh "$NEW" --failed-file "$tmp/enc-failed" 2>"$tmp/enc-err")"; encrc=$?
+  encerr="$(cat "$tmp/enc-err")"
+}
+ENC1="JUNIT_SUMMARY tests=1 failures=0 errors=0 skipped=0 files=1"
+ENCNONE="JUNIT_SUMMARY tests=0 failures=0 errors=0 skipped=0 files=0"
+encrun euc-kr '\307\321\261\333'
+eq "① euc-kr 은 읽어서 센다(python 은 ValueError 로 죽었다): 합계" "$encout" "$ENC1"
+eq "① euc-kr: 실패 이름" "$(cat "$tmp/enc-failed")" "c.n한글"
+encrun windows-949 '\307\321\261\333'
+eq "① windows-949(WHATWG 라벨)도 읽는다(python 은 LookupError)" "$encout" "$ENC1"
+encrun MS949 '\307\321\261\333'
+eq "① MS949 는 전체 실패: stdout 없음" "$encout" ""
+eq "① MS949: rc 1" "$encrc" 1
+eq "① MS949: stderr" "$encerr" 'JUNIT_ABORT ./build/test-results/test/TEST-enc.xml unsupported encoding "MS949"'
+eq "① MS949: --failed-file 을 쓰지 않는다" "$([ -e "$tmp/enc-failed" ] && echo written || echo none)" none
+encrun cp437 '\202'
+eq "① cp437(python 은 센다)은 전체 실패: stdout 없음" "$encout" ""
+eq "① cp437: rc 1" "$encrc" 1
+eq "① cp437: stderr" "$encerr" 'JUNIT_ABORT ./build/test-results/test/TEST-enc.xml unsupported encoding "cp437"'
+encrun utf-32 'abc'
+eq "① utf-32 는 전체 실패(rc)" "$encrc" 1
+eq "① utf-32: stderr" "$encerr" 'JUNIT_ABORT ./build/test-results/test/TEST-enc.xml unsupported encoding "utf-32"'
+encrun 'a b' 'abc'
+eq "① 올바른 이름이 아닌 선언은 깨진 XML 이라 SKIP: 합계" "$encout" "$ENCNONE"
+eq "① 올바른 이름이 아닌 선언: stderr" "$encerr" "JUNIT_SKIP ./build/test-results/test/TEST-enc.xml"
+encrun iso-8859-3 '\245'
+eq "① 선언 인코딩에 없는 바이트는 SKIP(python 도 파싱 오류)" "$encerr" "JUNIT_SKIP ./build/test-results/test/TEST-enc.xml"
+eq "① 선언 인코딩에 없는 바이트: rc 0" "$encrc" 0
+encrun iso-8859-9 '\200'
+eq "① iso-8859-9 0x80 은 node 가 € 로 읽는다(python 은 U+0080)" "$(cat "$tmp/enc-failed")" "c.n€"
+encrun windows-1250 '\201'
+eq "① windows-1250 0x81 은 node 가 읽는다(python 은 파싱 오류로 SKIP)" "$encout" "$ENC1"
+printf '<?xml version="1.0" standalone="yes"?><!DOCTYPE testsuite SYSTEM "x.dtd"><testsuite tests="3"><testcase classname="a&e;b" name="n"><failure/></testcase></testsuite>' > "$encf"
+out="$(sh "$NEW" --failed-file "$tmp/enc-failed" 2>/dev/null)"
+eq "⑦ standalone=yes 인 외부 DTD 의 정의 안 된 엔티티를 받아들여 센다(python 은 undefined entity 로 SKIP)" "$out" "JUNIT_SUMMARY tests=3 failures=0 errors=0 skipped=0 files=1"
+eq "⑦ 그 실패 이름" "$(cat "$tmp/enc-failed")" "ab.n"
+
+# ---- 자원 한계(머리 주석 ⑧): JUNIT_MAX_BYTES 로 한계를 낮춰 SKIP 이 아니라 전체 실패인지 본다(큰 파일을 실제로 만들지 않는다)
+mkdir -p "$tmp/lim/build/test-results/test"
+cd "$tmp/lim" || exit 2
+printf '%s' "$JU_OK" > build/test-results/test/TEST-ok.xml
+{ printf '%s' "$JU_BASIC"; printf '<!-- %s -->\n' "$(awk 'BEGIN{for(i=0;i<80;i++) printf "0123456789"}')"; } > build/test-results/test/TEST-big.xml
+okbytes="$(wc -c < build/test-results/test/TEST-ok.xml | tr -d ' ')"
+bigbytes="$(wc -c < build/test-results/test/TEST-big.xml | tr -d ' ')"
+chk "$([ "$okbytes" -lt 500 ] && [ "$bigbytes" -gt 500 ] && echo ok || echo fail)" "한계 시험 픽스처 크기(ok ${okbytes}B < 500B < big ${bigbytes}B)"
+rm -f "$tmp/lim-failed"
+out="$(JUNIT_MAX_BYTES=500 sh "$NEW" --failed-file "$tmp/lim-failed" 2>"$tmp/lim-err")"; rc=$?
+eq "자원 한계: 합계 줄이 없다(stdout 비어 있음)" "$out" ""
+eq "자원 한계: rc 1" "$rc" 1
+eq "자원 한계: stderr 는 JUNIT_ABORT 한 줄(파일·사유)" "$(cat "$tmp/lim-err")" "JUNIT_ABORT ./build/test-results/test/TEST-big.xml resource limit (JUNIT_MAX_BYTES): file is $bigbytes bytes, limit 500"
+eq "자원 한계: --failed-file 을 쓰지 않는다" "$([ -e "$tmp/lim-failed" ] && echo written || echo none)" none
+out="$(sh "$NEW" 2>/dev/null)"; rc=$?
+eq "자원 한계: 옵션이 없으면 둘 다 센다" "$out" "JUNIT_SUMMARY tests=5 failures=1 errors=0 skipped=1 files=2"
+eq "자원 한계: 옵션이 없으면 rc 0" "$rc" 0
+out="$(JUNIT_MAX_BYTES=abc sh "$NEW" 2>/dev/null)"
+eq "자원 한계: 숫자가 아닌 값은 무시한다" "$out" "JUNIT_SUMMARY tests=5 failures=1 errors=0 skipped=1 files=2"
+out="$(JUNIT_MAX_BYTES=0 sh "$NEW" 2>/dev/null)"
+eq "자원 한계: 0 은 무시한다" "$out" "JUNIT_SUMMARY tests=5 failures=1 errors=0 skipped=1 files=2"
+out="$(JUNIT_MAX_BYTES="$bigbytes" sh "$NEW" 2>/dev/null)"
+eq "자원 한계: 크기가 한계와 같으면 넘은 것이 아니다" "$out" "JUNIT_SUMMARY tests=5 failures=1 errors=0 skipped=1 files=2"
+mkdir -p "$tmp/lim2/build/test-results/test"
+printf '%s' "$JU_OK" > "$tmp/lim2/build/test-results/test/TEST-ok.xml"
+printf '<testsuite' > "$tmp/lim2/build/test-results/test/TEST-broken.xml"
+out="$(cd "$tmp/lim2" && JUNIT_MAX_BYTES=500 sh "$NEW" 2>"$tmp/lim-err")"; rc=$?
+eq "자원 한계 옵션이 있어도 한계 아래의 깨진 XML 은 SKIP" "$out" "JUNIT_SUMMARY tests=2 failures=0 errors=0 skipped=0 files=1"
+eq "자원 한계 옵션이 있어도 한계 아래의 깨진 XML: stderr" "$(cat "$tmp/lim-err")" "JUNIT_SKIP ./build/test-results/test/TEST-broken.xml"
+
+# 디코더·읽기가 던지는 예외를 가르는 함수(큰 파일 없이 에러 코드·문구로 분류만 시험한다)
+cd "$tmp" || exit 2
+cat > "$tmp/classify.mjs" <<'CLS'
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+const { resourceOf, decodeFail } = await import(pathToFileURL(path.resolve(process.argv[2])).href);
+const mk = (E, code, msg) => { const e = new E(msg); if (code) e.code = code; return e; };
+const kind = (e) => (resourceOf(e) ? 'abort' : 'other');
+const thrown = (e, len) => { try { decodeFail(e, 'x', len); } catch (t) { return t.constructor.name; } return 'none'; };
+const rows = [
+  ['ERR_STRING_TOO_LONG', kind(mk(Error, 'ERR_STRING_TOO_LONG', 'Cannot create a string longer than 0x1fffffe8 characters'))],
+  ['ERR_FS_FILE_TOO_LARGE', kind(mk(RangeError, 'ERR_FS_FILE_TOO_LARGE', 'File size (3221225472) is greater than 2 GiB'))],
+  ['ERR_BUFFER_TOO_LARGE', kind(mk(RangeError, 'ERR_BUFFER_TOO_LARGE', 'Cannot create a Buffer larger than 4 GiB'))],
+  ['ENOMEM', kind(mk(Error, 'ENOMEM', 'ENOMEM: not enough memory, read'))],
+  ['RangeError Invalid string length', kind(mk(RangeError, '', 'Invalid string length'))],
+  ['RangeError Array buffer allocation failed', kind(mk(RangeError, '', 'Array buffer allocation failed'))],
+  ['잘못된 인코딩 데이터', kind(mk(TypeError, 'ERR_ENCODING_INVALID_ENCODED_DATA', 'The encoded data was not valid for encoding utf-8'))],
+  ['스택 초과 RangeError', kind(mk(RangeError, '', 'Maximum call stack size exceeded'))],
+  ['ENOENT', kind(mk(Error, 'ENOENT', 'ENOENT: no such file or directory'))],
+  ['EACCES', kind(mk(Error, 'EACCES', 'EACCES: permission denied'))],
+  ['null', kind(null)],
+  ['decodeFail 작은 입력의 잘못된 데이터', thrown(mk(TypeError, 'ERR_ENCODING_INVALID_ENCODED_DATA', 'x'), 1000)],
+  ['decodeFail 256MiB 이상의 잘못된 데이터', thrown(mk(TypeError, 'ERR_ENCODING_INVALID_ENCODED_DATA', 'x'), 1 << 28)],
+  ['decodeFail 문자열 한도', thrown(mk(Error, 'ERR_STRING_TOO_LONG', 'x'), 1000)],
+];
+for (const [k, v] of rows) console.log(`${k}=${v}`);
+CLS
+cls="$(node "$tmp/classify.mjs" "$here/../scripts/junit-count.mjs" 2>&1)"
+clsget() { printf '%s\n' "$cls" | sed -n "s/^$1=//p"; }
+eq "분류: ERR_STRING_TOO_LONG 는 전체 실패" "$(clsget ERR_STRING_TOO_LONG)" abort
+eq "분류: ERR_FS_FILE_TOO_LARGE 는 전체 실패" "$(clsget ERR_FS_FILE_TOO_LARGE)" abort
+eq "분류: ERR_BUFFER_TOO_LARGE 는 전체 실패" "$(clsget ERR_BUFFER_TOO_LARGE)" abort
+eq "분류: ENOMEM 은 전체 실패" "$(clsget ENOMEM)" abort
+eq "분류: RangeError Invalid string length 는 전체 실패" "$(clsget 'RangeError Invalid string length')" abort
+eq "분류: RangeError Array buffer allocation failed 는 전체 실패" "$(clsget 'RangeError Array buffer allocation failed')" abort
+eq "분류: 잘못된 인코딩 데이터는 자원 한계가 아니다(SKIP 쪽)" "$(clsget '잘못된 인코딩 데이터')" other
+eq "분류: 스택 초과 RangeError 는 자원 한계가 아니다(SKIP 쪽)" "$(clsget '스택 초과 RangeError')" other
+eq "분류: ENOENT 는 자원 한계가 아니다(SKIP 쪽)" "$(clsget ENOENT)" other
+eq "분류: EACCES 는 자원 한계가 아니다(SKIP 쪽)" "$(clsget EACCES)" other
+eq "분류: null 은 자원 한계가 아니다" "$(clsget null)" other
+eq "decodeFail: 작은 입력의 잘못된 데이터는 XmlError(SKIP)" "$(clsget 'decodeFail 작은 입력의 잘못된 데이터')" XmlError
+eq "decodeFail: 256MiB 이상의 잘못된 데이터는 판별 불가라 AbortError" "$(clsget 'decodeFail 256MiB 이상의 잘못된 데이터')" AbortError
+eq "decodeFail: 문자열 한도는 AbortError" "$(clsget 'decodeFail 문자열 한도')" AbortError
 
 # ============================================================ 윈도우 Git Bash 흉내: cygpath 가 있으면 읽기 경로를 따로 쓴다
 # 가짜 cygpath(-m -f 목록) 가 vroot/ 를 realroot/ 로 바꿔 준다. 읽는 쪽은 realroot, 출력은 find 가 낸 vroot 그대로여야 한다.

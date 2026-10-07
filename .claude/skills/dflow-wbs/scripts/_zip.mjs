@@ -1,7 +1,7 @@
 // _zip.mjs — xlsx-read.mjs·xlsx-write.mjs 가 함께 쓰는 zip 읽기·쓰기 도우미 (외부 의존성 0, node 18.17 이상).
 //
 // 읽기: 끝 레코드(EOCD)에서 중앙 디렉터리를 파싱해 `{name → 항목}` 을 만든다. 압축 방식은 stored(0)·deflate(8)만 지원하고
-//   ZIP64·암호화는 명확한 오류로 끝낸다. CRC32·크기는 python zipfile 처럼 읽을 때 검증한다.
+//   ZIP64(끝 레코드 값이 0xFFFF·0xFFFFFFFF 인 경우)·암호화는 명확한 오류로 끝낸다. CRC32·크기는 python zipfile 처럼 읽을 때 검증한다.
 // 쓰기: 항목마다 deflate(zlib.deflateRawSync)로 압축해 로컬 헤더·중앙 디렉터리·끝 레코드를 직접 쓴다.
 //   파일 시각은 1980-01-01 00:00:00 으로 고정해 같은 입력이면 같은 바이트가 나온다(결정적 출력).
 //   CRC32 는 표를 직접 구현한다(zlib.crc32 는 node 22.2 이상이라 18.17 에서 쓸 수 없다).
@@ -59,11 +59,15 @@ export function readZip(buf) {
     }
   }
   if (eocd < 0) throw new ZipError('zip 파일이 아니거나 깨졌습니다(끝 레코드 없음)');
-  if (eocd >= 20 && buf.readUInt32LE(eocd - 20) === SIG_EOCD64_LOC) throw new ZipError('ZIP64 는 지원하지 않습니다');
   const total = buf.readUInt16LE(eocd + 10);
   const cenSize = buf.readUInt32LE(eocd + 12);
   const cenOffset = buf.readUInt32LE(eocd + 16);
-  if (total === 0xffff || cenSize === 0xffffffff || cenOffset === 0xffffffff) throw new ZipError('ZIP64 는 지원하지 않습니다');
+  // 끝 레코드 값이 0xFFFF·0xFFFFFFFF 일 때만 ZIP64 를 따라가야 한다. ZIP64 끝 위치 표지(locator)가 있어도 값이 정상 범위면
+  // 일반 끝 레코드 값이 맞다(ZIP 명세는 필드가 가득 찰 때만 ZIP64 레코드를 쓰게 한다).
+  if (total === 0xffff || cenSize === 0xffffffff || cenOffset === 0xffffffff) {
+    if (eocd >= 20 && buf.readUInt32LE(eocd - 20) === SIG_EOCD64_LOC) throw new ZipError('ZIP64 는 지원하지 않습니다');
+    throw new ZipError('zip 파일이 깨졌습니다(끝 레코드 값이 ZIP64 표시인데 ZIP64 끝 레코드가 없음)');
+  }
   if (cenOffset + cenSize > eocd) throw new ZipError('zip 파일이 깨졌습니다(중앙 디렉터리 범위)');
 
   const entries = [];

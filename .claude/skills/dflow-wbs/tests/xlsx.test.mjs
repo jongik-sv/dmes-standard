@@ -17,9 +17,9 @@ import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
 import { findPython, makeTempDir, runNode } from '../../_shared/node/proc.mjs';
 import { crc32, readZip, writeZip, ZipError } from '../scripts/_zip.mjs';
-import { read_xlsx, read_xlsx_json } from '../scripts/xlsx-read.mjs';
+import { decode_xstring, read_xlsx, read_xlsx_json } from '../scripts/xlsx-read.mjs';
 import {
-  build_xlsx, build_xlsx_parts, html_escape, parse_rows_json, py_number_str, py_str,
+  build_xlsx, build_xlsx_parts, html_escape, parse_rows_json, py_number_str, py_str, xstring_escape,
 } from '../scripts/xlsx-write.mjs';
 import { BAD_ZIP_CASES, READ_CASES, WRITE_CASES, WRITE_ERROR_CASES, buildFixtureZip } from './xlsx-cases.mjs';
 import { pyTools } from './xlsx-pyrun.mjs';
@@ -27,6 +27,7 @@ import { pyTools } from './xlsx-pyrun.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const READ = path.join(HERE, '..', 'scripts', 'xlsx-read.mjs');
 const WRITE = path.join(HERE, '..', 'scripts', 'xlsx-write.mjs');
+const PY_ZIPS = path.join(HERE, 'golden', 'py-zips');
 const EXPECTED = JSON.parse(fs.readFileSync(path.join(HERE, 'golden', 'expected', 'xlsx.json'), 'utf8'));
 
 const py = findPython();
@@ -502,6 +503,225 @@ describe('_zip.mjs', () => {
     const z = readZip(writeZip([{ name: 'a', data: 'first' }, { name: 'a', data: 'second' }]));
     assert.deepEqual(z.names, ['a', 'a']);
     assert.equal(z.read('a').toString(), 'second');
+  });
+});
+
+// ------------------------------------------------------------------ (f) ZIP64 표지가 있어도 값이 정상이면 읽는다
+describe('_zip.mjs: ZIP64 locator 와 끝 레코드 값', () => {
+  const good = () => writeZip([{ name: 'a.txt', data: 'hello world hello world' }, { name: 'b.txt', data: 'stored', store: true }]);
+  /** 끝 레코드 바로 앞에 ZIP64 locator(서명 0x07064b50 + 0 으로 채운 16바이트)를 끼운다. 중앙 디렉터리 값은 그대로(정상 범위). */
+  const withLocator = (buf) => {
+    const loc = Buffer.alloc(20);
+    loc.writeUInt32LE(0x07064b50, 0);
+    return Buffer.concat([buf.subarray(0, buf.length - 22), loc, buf.subarray(buf.length - 22)]);
+  };
+
+  it('locator 가 있어도 끝 레코드 값이 정상 범위면 일반 끝 레코드 값으로 읽는다', () => {
+    const z = readZip(withLocator(good()));
+    assert.deepEqual(z.names, ['a.txt', 'b.txt']);
+    assert.equal(z.read('a.txt').toString(), 'hello world hello world');
+    assert.equal(z.read('b.txt').toString(), 'stored');
+  });
+
+  it('locator 가 있고 끝 레코드 값이 0xFFFF·0xFFFFFFFF 이면 ZIP64 미지원 오류', () => {
+    for (const [off, size, v] of [[10, 2, 0xffff], [12, 4, 0xffffffff], [16, 4, 0xffffffff]]) {
+      const b = withLocator(good());
+      if (size === 2) b.writeUInt16LE(v, b.length - 22 + off);
+      else b.writeUInt32LE(v, b.length - 22 + off);
+      assert.throws(() => readZip(b), /ZIP64 는 지원하지 않습니다/, `offset ${off}`);
+    }
+  });
+
+  it('값이 0xFFFF·0xFFFFFFFF 인데 ZIP64 끝 레코드(locator)가 없으면 깨진 zip 오류', () => {
+    for (const [off, size, v] of [[10, 2, 0xffff], [12, 4, 0xffffffff], [16, 4, 0xffffffff]]) {
+      const b = Buffer.from(good());
+      if (size === 2) b.writeUInt16LE(v, b.length - 22 + off);
+      else b.writeUInt32LE(v, b.length - 22 + off);
+      assert.throws(() => readZip(b), (e) => e instanceof ZipError && /ZIP64 끝 레코드가 없음/.test(e.message) && /깨졌습니다/.test(e.message), `offset ${off}`);
+    }
+  });
+});
+
+// ------------------------------------------------------------------ (g) python zipfile 이 만든 zip 픽스처(커밋된 바이너리, python 없이 읽는다)
+describe('python zipfile 이 만든 xlsx 픽스처', () => {
+  const FX = (name) => fs.readFileSync(path.join(PY_ZIPS, name));
+  const TABLE = [
+    { 번호: '1', 이름: '한글 & <b>', 수량: '12', 비고: '비고' },
+    { 번호: '2', 이름: 'ascii', 수량: '1.5E-3', 비고: '줄1\n줄2' },
+  ];
+  const objs = (buf) => read_xlsx(buf).map((m) => Object.fromEntries(m));
+  /** 중앙 디렉터리의 (이름, 플래그, 방식) — 픽스처가 정말 데이터 디스크립터를 쓰는지 확인하려고 직접 읽는다 */
+  function central(buf) {
+    const eocd = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+    const n = buf.readUInt16LE(eocd + 10);
+    let p = buf.readUInt32LE(eocd + 16);
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const nameLen = buf.readUInt16LE(p + 28);
+      out.push({
+        name: buf.subarray(p + 46, p + 46 + nameLen).toString('utf8'),
+        flags: buf.readUInt16LE(p + 8),
+        method: buf.readUInt16LE(p + 10),
+        extraLen: buf.readUInt16LE(p + 30),
+        local: buf.readUInt32LE(p + 42),
+      });
+      p += 46 + nameLen + buf.readUInt16LE(p + 30) + buf.readUInt16LE(p + 32);
+    }
+    return out;
+  }
+
+  it('픽스처 파일이 있고 python 이 만든 모양이다(데이터 디스크립터·방식 혼합)', () => {
+    const b = FX('py-datadesc-mixed.xlsx');
+    const ents = central(b);
+    assert.deepEqual(ents.map((e) => e.name), ['[Content_Types].xml', '_rels/.rels', 'xl/workbook.xml', 'xl/sharedStrings.xml', 'xl/worksheets/sheet1.xml']);
+    assert.ok(ents.every((e) => (e.flags & 0x8) !== 0), '모든 항목이 데이터 디스크립터 플래그');
+    assert.deepEqual(new Set(ents.map((e) => e.method)), new Set([0, 8]), 'stored 와 deflate 가 섞임');
+    for (const e of ents) assert.equal(b.readUInt32LE(e.local + 14), 0, `${e.name}: 로컬 헤더 crc 는 0(디스크립터에 있음)`);
+  });
+
+  it('py-datadesc-mixed: 데이터 디스크립터 + stored/deflate 혼합을 읽는다', () => {
+    assert.deepEqual(objs(FX('py-datadesc-mixed.xlsx')), TABLE);
+  });
+
+  it('py-extra-fields: 확장 필드·주석·비 ASCII 이름이 있어도 읽는다', () => {
+    const b = FX('py-extra-fields.xlsx');
+    const ents = central(b);
+    assert.ok(ents.some((e) => e.extraLen > 0), '확장 필드 있음');
+    assert.ok(ents.some((e) => (e.flags & 0x800) !== 0), 'UTF-8 이름 플래그');
+    assert.ok(b.readUInt16LE(b.length - 2) > 0 || b.includes(Buffer.from('archive comment')), '전체 zip 주석');
+    assert.deepEqual(readZip(b).names.slice(-1), ['docProps/한글설명.txt']);
+    assert.deepEqual(objs(b), TABLE);
+  });
+
+  it('py-multi-sheet: 첫 시트는 파트 이름 정렬 순(sheet1 < sheet10 < sheet2)', () => {
+    const b = FX('py-multi-sheet.xlsx');
+    assert.deepEqual(readZip(b).names.filter((n) => n.startsWith('xl/worksheets/')), ['xl/worksheets/sheet2.xml', 'xl/worksheets/sheet10.xml', 'xl/worksheets/sheet1.xml']);
+    assert.deepEqual(objs(b).map((o) => o['번호']), ['11', '21']);
+  });
+
+  it('CLI 로도 같은 JSON 을 낸다', () => {
+    const r = runNode(READ, [path.join(PY_ZIPS, 'py-datadesc-mixed.xlsx')]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(JSON.parse(r.stdout), TABLE);
+    assert.ok(r.stdout.endsWith('\n') && r.stdout.split('\n').length === 2, '한 줄 JSON');
+  });
+
+  for (const f of ['py-datadesc-mixed.xlsx', 'py-extra-fields.xlsx', 'py-multi-sheet.xlsx']) {
+    it(`${f}: python 읽기 블록과 stdout 이 같다`, { skip: SKIP_PY }, () => {
+      const p = tools.read(path.join(PY_ZIPS, f));
+      const n = runNode(READ, [path.join(PY_ZIPS, f)]);
+      assert.equal(n.status, p.status);
+      assert.ok(n.stdout === p.stdout, `${f}: stdout 이 다름`);
+    });
+  }
+
+  it('픽스처는 줄끝 변환을 받지 않는다(.gitattributes 가 binary 로 둠)', () => {
+    const r = spawnSync('git', ['check-attr', 'text', '--', path.join(PY_ZIPS, 'py-multi-sheet.xlsx')], { encoding: 'utf8', cwd: PY_ZIPS });
+    if (r.status !== 0) return; // git 이 없거나 리포 밖이면 건너뛴다
+    assert.match(r.stdout, /: text: unset\s*$/);
+  });
+});
+
+// ------------------------------------------------------------------ (h) 제어 문자·XML 에 쓸 수 없는 문자: _xHHHH_ 인코딩
+describe('XML 에 쓸 수 없는 문자(_xHHHH_)', () => {
+  const sstOf = (rows) => readZip(build_xlsx(rows)).read('xl/sharedStrings.xml').toString('utf8');
+  const BAD = /[\x00-\x08\x0B\x0C\x0E-\x1F￾￿]/;
+
+  it('xstring_escape: 제어 문자·U+FFFE·U+FFFF 는 _xHHHH_ 대문자 4자리', () => {
+    assert.equal(xstring_escape('a\u0000b'), 'a_x0000_b');
+    assert.equal(xstring_escape('\u0001\u0008\u000B\u000C\u000E\u001F'), '_x0001__x0008__x000B__x000C__x000E__x001F_');
+    assert.equal(xstring_escape('￾￿'), '_xFFFE__xFFFF_');
+    assert.equal(xstring_escape('\ud800'), '_xD800_');
+    assert.equal(xstring_escape('\ude00x'), '_xDE00_x');
+  });
+
+  it('xstring_escape: 허용 문자(탭·줄바꿈·CR·U+FFFD·짝 있는 서로게이트)는 그대로', () => {
+    const ok = 'a\tb\nc\rd \u007F\u0080�\u{1F600}한글';
+    assert.equal(xstring_escape(ok), ok);
+  });
+
+  it('xstring_escape: 원문의 _xHHHH_ 모양은 앞 밑줄을 _x005F_ 로 바꾼다', () => {
+    assert.equal(xstring_escape('_x0041_'), '_x005F_x0041_');
+    assert.equal(xstring_escape('a_x00ff_b_xABCD_'), 'a_x005F_x00ff_b_x005F_xABCD_');
+    assert.equal(xstring_escape('_x005F_'), '_x005F_x005F_');
+    assert.equal(xstring_escape('__x0041_'), '__x005F_x0041_');
+  });
+
+  it('xstring_escape: 모양이 아닌 밑줄은 그대로(짧거나 16진이 아니거나 닫는 밑줄 없음)', () => {
+    for (const t of ['_x41_', '_xZZZZ_', '_x0041', 'snake_case_x', '_', '__', 'x0041_', '_x00410_']) assert.equal(xstring_escape(t), t, t);
+  });
+
+  it('xstring_escape: 인코딩 결과가 새로 _xHHHH_ 모양을 만드는 경우도 막는다(_x0041 뒤에 제어 문자)', () => {
+    assert.equal(xstring_escape('_x0041\u0001'), '_x005F_x0041_x0001_');
+    assert.equal(decode_xstring('_x005F_x0041_x0001_'), '_x0041\u0001');
+  });
+
+  it('decode_xstring: 대소문자 무관, 겹치지 않게 왼쪽부터 한 번만', () => {
+    assert.equal(decode_xstring('_x000a_'), '\n');
+    assert.equal(decode_xstring('_x000D_'), '\r');
+    assert.equal(decode_xstring('_x005F_x0041_'), '_x0041_');
+    assert.equal(decode_xstring('_x0041_'), 'A');
+    assert.equal(decode_xstring('_x00_41_'), '_x00_41_');
+    assert.equal(decode_xstring('plain'), 'plain');
+  });
+
+  const NASTY = [
+    '\u0000', 'a\u0001b', '\u0008\u000B\u000C\u000E\u001F', '￾', '￿', 'x￾y￿z', '\ud800', '\ude00', 'a\ud800b',
+    '_x0041_', '_x005F_', '__x0041_', '_x0041\u0001', '\u0001_x0001_', '_x', '_x00', 'ok\ttab\nnl\rcr', '혼합 \u0002 한글 & <b> "q" \'s\' _x0041_ 😀',
+  ];
+
+  it('왕복: 쓰기 → 읽기가 원문 그대로(\\r 은 XML 정규화로 \\n 이 되는 것만 예외)', () => {
+    for (const t of NASTY) {
+      const want = t.replace(/\r\n?/g, '\n');
+      const [obj] = read_xlsx(build_xlsx([[t], [t]])); // 헤더 칸과 데이터 칸이 모두 같은 문자열
+      assert.deepEqual([...obj.entries()], [[want, want]], JSON.stringify(t));
+    }
+  });
+
+  it('파트 XML 에 금지 문자가 없다(파일이 깨지지 않는다)', () => {
+    const rows = [NASTY, NASTY];
+    const z = readZip(build_xlsx(rows));
+    for (const n of z.names) assert.doesNotMatch(z.read(n).toString('utf8'), BAD, n);
+    const sst = sstOf(rows);
+    assert.match(sst, /<t>_x0000_<\/t>/);
+    assert.match(sst, /<t>_xFFFE_<\/t>/);
+    assert.match(sst, /<t>_x005F_x0041_<\/t>/);
+    // 짝 없는 서로게이트도 UTF-8 로 쓸 수 있는 문자로 바뀌었다(U+FFFD 로 깨지지 않음)
+    assert.ok(!z.read('xl/sharedStrings.xml').toString('utf8').includes('�'));
+  });
+
+  it('엑셀이 만든 모양(inlineStr·sharedStrings 의 _xHHHH_, 소문자 16진, t="str")을 읽는다', () => {
+    const MAINNS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+    const zip = writeZip([
+      { name: 'xl/sharedStrings.xml', data: `<sst xmlns="${MAINNS}"><si><t>h_x000d_</t></si><si><r><t>a_x00</t></r><r><t>01_b</t></r></si></sst>` },
+      {
+        name: 'xl/worksheets/sheet1.xml',
+        data: `<worksheet xmlns="${MAINNS}"><sheetData>`
+          + '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="inlineStr"><is><t>i_x000a_</t></is></c><c r="C1" t="str"><v>s_x0001_</v></c><c r="D1"><v>_x0041_</v></c></row>'
+          + '<row r="2"><c r="A2" t="s"><v>1</v></c><c r="B2" t="inlineStr"><is><t>_x005F_x0041_</t></is></c><c r="C2" t="str"><v/></c><c r="D2"><v>1</v></c></row>'
+          + '</sheetData></worksheet>',
+      },
+    ]);
+    const [o] = read_xlsx(zip);
+    assert.deepEqual([...o.entries()], [['h\r', 'a\u0001b'], ['i\n', '_x0041_'], ['s\u0001', null], ['_x0041_', '1']]);
+  });
+
+  it('CLI 쓰기·읽기도 같다(제어 문자가 들어 있어도 종료 코드 0)', () => {
+    const out = tmpFile('ctl.xlsx');
+    const w = runNode(WRITE, ['--out', out], { input: JSON.stringify([['제목', 'x'], ['a\u0001b', '_x0041_']]) });
+    assert.equal(w.status, 0, w.stderr);
+    const r = runNode(READ, [out]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(JSON.parse(r.stdout), [{ 제목: 'a\u0001b', x: '_x0041_' }]);
+    assert.doesNotMatch(readZip(fs.readFileSync(out)).read('xl/sharedStrings.xml').toString('utf8'), BAD);
+  });
+
+  it('python 이 있으면 python XML 해석기도 파일을 연다', { skip: SKIP_PY }, () => {
+    const out = tmpFile('ctl2.xlsx');
+    fs.writeFileSync(out, build_xlsx([[...NASTY.slice(0, 8)], ['a']]));
+    const f = tmpFile('xml_ok.py');
+    fs.writeFileSync(f, 'import sys, zipfile, xml.etree.ElementTree as ET\nz = zipfile.ZipFile(sys.argv[1])\nfor n in z.namelist():\n    ET.fromstring(z.read(n))\nprint("ok")\n');
+    assert.equal(spawnPy(py, f, out), 'ok');
   });
 });
 

@@ -15,6 +15,8 @@
 //   - 오류 문구: python 은 예외 역추적, 이 판은 stderr 한 줄(종료 코드는 둘 다 1).
 //   - XML 해석기는 직접 구현했다(요소·속성·네임스페이스 접두어·CDATA·문자 참조·기본 5 엔티티). DTD 로 정의한 엔티티는 지원하지 않는다(오류).
 //     UTF-8·UTF-16(BOM)과 선언된 단일 바이트 인코딩을 읽는다. 문서 안 줄바꿈(\r\n·\r)은 python(expat)처럼 \n 으로 정규화한다.
+//   - XLSX 문자열 이스케이프 `_xHHHH_`(엑셀이 제어 문자 등에 씀)를 되돌린다(공유 문자열·inlineStr·`t="str"` 셀). python 블록은 되돌리지 않고 글자 그대로 냈다.
+//     `_x005F_x0041_` 은 글자 그대로의 `_x0041_` 이 된다.
 //   - `<v/>` 처럼 값이 빈 비문자열 셀은 python 이 null 을 내고 이 판도 null 을 낸다(같음). 헤더가 null 이면 키는 "null".
 
 import fs from 'node:fs';
@@ -284,11 +286,20 @@ export function find(el, tag) {
 
 // ---- python 블록 이식 ----
 
+/**
+ * XLSX 문자열 이스케이프(ISO 29500 ST_Xstring) 되돌리기: `_xHHHH_`(16진 4자리, 대소문자 무관)는 해당 UTF-16 코드 단위 한 글자로 바꾼다.
+ * 엑셀·xlsx-write.mjs 가 XML 에 쓸 수 없는 문자(제어 문자 등)와 원문의 `_x005F_x0041_`(= 글자 그대로 `_x0041_`)에 쓴다. 왼쪽부터 겹치지 않게 한 번만 바꾼다.
+ */
+export function decode_xstring(s) {
+  if (!s.includes('_x')) return s;
+  return s.replace(/_x([0-9A-Fa-f]{4})_/g, (all, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
 function all_t_text(el) {
-  // ''.join(t.text or '' for t in el.iter(NS + 't'))
+  // ''.join(t.text or '' for t in el.iter(NS + 't')) — 이어 붙인 뒤에 `_xHHHH_` 를 되돌린다(조각 경계에 걸친 표기도 읽는다).
   let out = '';
   for (const t of iter(el, `${NS}t`)) out += t.text;
-  return out;
+  return decode_xstring(out);
 }
 
 /** python `int(str)` 의 십진 해석(공백·부호·밑줄 구분 허용). 실패하면 null. */
@@ -329,6 +340,8 @@ export function read_xlsx(buf) {
         txt = ss[at];
       } else if (t === 'inlineStr') {
         txt = all_t_text(c);
+      } else if (t === 'str' && txt !== null) {
+        txt = decode_xstring(txt); // 수식 결과 문자열 셀(`<v>`)도 같은 이스케이프를 쓴다
       }
       vals.set(col, txt);
     }
