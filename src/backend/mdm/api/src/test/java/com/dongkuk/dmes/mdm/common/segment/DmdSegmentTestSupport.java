@@ -3,10 +3,12 @@ package com.dongkuk.dmes.mdm.common.segment;
 import com.dongkuk.dmes.mdm.common.support.MdmClockConfig;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.dma.DmaTestSupport;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -45,6 +47,33 @@ public final class DmdSegmentTestSupport {
         return TEXT.format(at);
     }
 
+    /** TIMESTAMP 칸에 묶는 값 — Oracle 은 문자열 → TIMESTAMP 암시 변환이 NLS 형식에 기대어 ORA-01843 이 난다. */
+    public static Timestamp ts(String text) {
+        return text == null ? null : Timestamp.valueOf(text);
+    }
+
+    public static Timestamp ts(LocalDateTime at) {
+        return Timestamp.valueOf(at);
+    }
+
+    /** 읽은 TIMESTAMP 값을 19자 텍스트로 — 단언이 {@link #text(LocalDateTime)} 와 글자로 비교하게 한다. */
+    public static Object textOf(Object value) {
+        if (value instanceof Timestamp t) {
+            return TEXT.format(t.toLocalDateTime());
+        }
+        if (value instanceof LocalDateTime t) {
+            return TEXT.format(t);
+        }
+        return value;
+    }
+
+    /** 한 행의 TIMESTAMP 값을 모두 19자 텍스트로 바꾼 사본. */
+    public static Map<String, Object> textRow(Map<String, Object> row) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        row.forEach((k, v) -> out.put(k, textOf(v)));
+        return out;
+    }
+
     public static void clear(JdbcTemplate jdbc) {
         jdbc.update("DELETE FROM TB_MDM_DATA_CATE_ITEM");
         jdbc.update("DELETE FROM TB_MDM_DATA_CATE");
@@ -78,7 +107,7 @@ public final class DmdSegmentTestSupport {
     /** 선분 행 직접 삽입(픽스처). lvl·attr 는 앞에서부터. */
     public static void insertItemRow(JdbcTemplate jdbc, String md, String code, String name, LocalDateTime from,
                                      String to, int rowVersion, List<String> lvl, List<String> attr) {
-        List<Object> args = new ArrayList<>(Arrays.asList(md, code, text(from), to, name, rowVersion));
+        List<Object> args = new ArrayList<>(Arrays.asList(md, code, ts(from), ts(to), name, rowVersion));
         for (int i = 0; i < 5; i++) {
             args.add(lvl != null && i < lvl.size() ? lvl.get(i) : null);
         }
@@ -94,13 +123,13 @@ public final class DmdSegmentTestSupport {
                                      String defTarget, LocalDateTime from, String to) {
         jdbc.update("INSERT INTO TB_MDM_DATA_CATE (MARU_DATA_ID, CATE_ID, VALID_FROM, VALID_TO, CATE_NAME, DEF_KIND, "
                 + "DEF_EXPR, DEF_TARGET, CHG_SEQ, VER) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0)",
-                md, cateId, text(from), to, cateId + " 이름", defKind, defExpr, defTarget);
+                md, cateId, ts(from), ts(to), cateId + " 이름", defKind, defExpr, defTarget);
     }
 
     public static void insertMemberRow(JdbcTemplate jdbc, String md, String cateId, String code, LocalDateTime from,
                                        String to) {
         jdbc.update("INSERT INTO TB_MDM_DATA_CATE_ITEM (MARU_DATA_ID, CATE_ID, CODE, VALID_FROM, VALID_TO, CHG_SEQ, VER) "
-                + "VALUES (?, ?, ?, ?, ?, 0, 0)", md, cateId, code, text(from), to);
+                + "VALUES (?, ?, ?, ?, ?, 0, 0)", md, cateId, code, ts(from), ts(to));
     }
 
     /** 한 키의 선분이 서로 겹치는 쌍의 수(방언 중립 질의, design.md §3.3). */
@@ -113,14 +142,14 @@ public final class DmdSegmentTestSupport {
     /** 키당 열린 행 수의 최댓값(없으면 0). */
     public static int maxOpenRowsPerKey(JdbcTemplate jdbc, String md) {
         Integer max = jdbc.queryForObject("SELECT MAX(c) FROM (SELECT COUNT(*) c FROM TB_MDM_DATA_ITEM "
-                + "WHERE MARU_DATA_ID = ? AND VALID_TO = ? GROUP BY CODE) t", Integer.class, md, OPEN);
+                + "WHERE MARU_DATA_ID = ? AND VALID_TO = ? GROUP BY CODE) t", Integer.class, md, ts(OPEN));
         return max == null ? 0 : max;
     }
 
-    /** 한 키의 항목 행(모든 칼럼), VALID_FROM 오름차순. */
+    /** 한 키의 항목 행(모든 칼럼), VALID_FROM 오름차순. TIMESTAMP 칸은 19자 텍스트로 돌려준다(Oracle 은 Timestamp 로 읽힌다). */
     public static List<Map<String, Object>> itemRows(JdbcTemplate jdbc, String md, String code) {
         return jdbc.queryForList("SELECT * FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = ? AND CODE = ? ORDER BY VALID_FROM",
-                md, code);
+                md, code).stream().map(DmdSegmentTestSupport::textRow).toList();
     }
 
     public static int count(JdbcTemplate jdbc, String table) {

@@ -16,7 +16,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * {@link TermSearchPrefilter} 를 실제 SQLite 로 돌려 DB 1차 거르기가 행을 실제로 줄이는지 본다. 최종 결과가 같은지는
+ * {@link TermSearchPrefilter} 를 실제 Oracle 로 돌려 DB 1차 거르기가 행을 실제로 줄이는지 본다. 최종 결과가 같은지는
  * {@code TermMngSearchCharacterizationTest} 가 고정하므로, 여기서는 거르기가 아무것도 안 하는(조건 누락) 회귀를 막는다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)

@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm.dme;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -11,20 +12,16 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Path;
 import java.util.List;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-09-02 design.md §3(B3-2) — {@code BASE_SPD_LKP}·{@code SPD_EXC}·{@code SPD_JOIN}이 실제 화면 경로(ruleMng.reg →
@@ -44,7 +41,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = "cactus.security.client-key=" + RuleSetLifecycleOasisFlowTest.CLIENT_KEY)
 @ActiveProfiles("local")
-class RuleSetLifecycleOasisFlowTest {
+class RuleSetLifecycleOasisFlowTest extends AbstractMdmSharedDbTest {
 
     static final String CLIENT_KEY = "mdm-dme-set-lifecycle-test-client-key";
     private static final String STEWARD = "MDM_STEWARD";
@@ -85,9 +82,6 @@ class RuleSetLifecycleOasisFlowTest {
         {"GENERAL", null},
     };
 
-    @TempDir
-    static Path tempDir;
-
     @LocalServerPort
     int port;
 
@@ -97,12 +91,6 @@ class RuleSetLifecycleOasisFlowTest {
     private final HttpClient client = HttpClient.newHttpClient();
     private final ObjectMapper json = new ObjectMapper();
     private JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-rule-set-lifecycle-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {

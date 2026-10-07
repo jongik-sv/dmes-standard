@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.common.dictionary.DomainTreeSnapshot;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
+import com.dongkuk.dmes.mdm.dma.DmaTestSupport;
 import com.dongkuk.dmes.mdm.dma.domainMng.DomainMngTestConfig.RecordingDomainTreeReader;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,21 +17,17 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * design.md §4.3 — 실제 BPMN({@code services/dma/domainMng.bpmn}) + {@code SpringTransactionHandler} 를 HTTP 로 태운다.
@@ -40,12 +38,9 @@ import org.springframework.test.context.DynamicPropertySource;
 @ActiveProfiles("local")
 @Import({DomainMngTestConfig.Functions.class, DomainMngTestConfig.RecordingReader.class})
 @Timeout(value = 60, unit = TimeUnit.SECONDS)
-class DomainMngOasisFlowTest {
+class DomainMngOasisFlowTest extends AbstractMdmSharedDbTest {
 
     static final String CLIENT_KEY = "mdm-test-client-key";
-
-    @TempDir
-    static Path tempDir;
 
     @LocalServerPort
     int port;
@@ -58,15 +53,9 @@ class DomainMngOasisFlowTest {
     private final ObjectMapper json = new ObjectMapper();
     private static int seq;
 
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        Path db = tempDir.resolve("domain-oasis-flow.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + db);
-    }
-
     @BeforeEach
     void setUp() {
-        jdbc.update("INSERT OR IGNORE INTO TB_MDM_UNIT (UNIT_CODE, DIMENSION, BASE_UNIT, FACTOR, CHG_SEQ) VALUES ('mm','LENGTH','mm',1,0)");
+        DmaTestSupport.unitIfAbsent(jdbc, "mm", "LENGTH", "mm");
         reader.loads.clear();
     }
 
@@ -330,10 +319,11 @@ class DomainMngOasisFlowTest {
 
     @Test
     void B6_서버_미리보기는_평가만_하고_쓰지_않는다() throws Exception {
-        jdbc.update("INSERT OR IGNORE INTO TB_MDM_UNIT (UNIT_CODE, DIMENSION, BASE_UNIT, FACTOR, CHG_SEQ) VALUES ('ton','MASS','ton',1,0)");
+        DmaTestSupport.unitIfAbsent(jdbc, "ton", "MASS", "ton");
         long owner = saveOk(draft(uniq("W"), "QTY", "NUMBER").put("unitCode", "ton"), grids());
-        jdbc.update("INSERT OR IGNORE INTO TB_MDM_COLUMN (COLUMN_NAME, PHYS_NAME, DOMAIN_ID, REQUIRED, CHG_SEQ) "
-                + "VALUES ('코일 순중량', 'COIL_NET_WGT', ?, 0, 0)", owner);
+        jdbc.update("INSERT INTO TB_MDM_COLUMN (COLUMN_NAME, PHYS_NAME, DOMAIN_ID, REQUIRED, CHG_SEQ) "
+                + "SELECT '코일 순중량', 'COIL_NET_WGT', ?, 0, 0 FROM DUAL WHERE NOT EXISTS "
+                + "(SELECT 1 FROM TB_MDM_COLUMN WHERE PHYS_NAME = 'COIL_NET_WGT' OR COLUMN_NAME = '코일 순중량')", owner);
         String fingerprint = "SELECT DOMAIN_ID, VER, U_AT, DESCRIPTION, STD_RULE FROM TB_MDM_DOMAIN ORDER BY DOMAIN_ID";
         java.util.List<Map<String, Object>> before = jdbc.queryForList(fingerprint);
 

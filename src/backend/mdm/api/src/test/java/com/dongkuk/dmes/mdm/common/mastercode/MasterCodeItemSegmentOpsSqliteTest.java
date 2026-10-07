@@ -38,7 +38,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * TSK-06-03 design.md §4.3 G1~G20 — 선분 조작({@link MasterCodeSegmentService} 의 06-03 몫)을 실제 V9 표로 local(SQLite)
+ * TSK-06-03 design.md §4.3 G1~G20 — 선분 조작({@link MasterCodeSegmentService} 의 06-03 몫)을 실제 V9 표로 Oracle 시험 PDB
  * 컨텍스트에서 돌린다. 서비스는 계약 인터페이스 타입으로 주입해 부르고(계약 경유 증명), 트랜잭션 없이 부른다 — 쓰기는
  * 리포지토리 save·delete 를 명시적으로 불러야 반영된다(§6.2). 단언은 JdbcTemplate(새 연결)으로 표를 직접 읽는다.
  *

@@ -6,9 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+import utils.OracleTestDatabase;
 import org.springframework.orm.jpa.EntityManagerFactoryUtils;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
@@ -31,7 +29,7 @@ import java.sql.SQLException;
 @Execution(ExecutionMode.SAME_THREAD)
 public class SpringEntityManagerTransactionTest {
     DataSource dataSource1;
-    EmbeddedDatabase database;
+    DataSource database;
     EntityManagerFactory entityManagerFactory1;
 
     @BeforeEach
@@ -78,16 +76,8 @@ public class SpringEntityManagerTransactionTest {
         entityManagerFactory1.close();
     }
 
-    private EmbeddedDatabase database() {
-        EmbeddedDatabase dataSource;
-        dataSource = new EmbeddedDatabaseBuilder()
-                .generateUniqueName(true)
-                .setType(EmbeddedDatabaseType.H2)
-                .setScriptEncoding("UTF-8")
-                .ignoreFailedDrops(true)
-                .addScript("transaction/SpringTransactionHandlerTest/schema.sql")
-                .build();
-        return dataSource;
+    private DataSource database() {
+        return OracleTestDatabase.create("transaction/SpringTransactionHandlerTest/schema.sql");
     }
 
     public EntityManagerFactory entityManagerFactory(DataSource dataSource) {

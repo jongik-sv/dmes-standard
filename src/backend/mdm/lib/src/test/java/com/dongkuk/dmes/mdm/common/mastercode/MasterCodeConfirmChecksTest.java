@@ -322,7 +322,9 @@ class MasterCodeConfirmChecksTest {
                 MasterCodeItemIssueCode.LVL_GAP, MasterCodeConfirmCheckItem.LVL_HIERARCHY,
                 MasterCodeItemIssueCode.LVL_PARENT_MISMATCH, MasterCodeConfirmCheckItem.LVL_HIERARCHY,
                 MasterCodeItemIssueCode.ATTR_WITHOUT_LABEL, MasterCodeConfirmCheckItem.ATTR_WITHOUT_LABEL,
-                MasterCodeItemIssueCode.LVL_BEYOND_CNT, MasterCodeConfirmCheckItem.LVL_BEYOND_CNT);
+                MasterCodeItemIssueCode.LVL_BEYOND_CNT, MasterCodeConfirmCheckItem.LVL_BEYOND_CNT,
+                MasterCodeItemIssueCode.KEY_TOO_LONG, MasterCodeConfirmCheckItem.CODE_VALUE_CHARS,
+                MasterCodeItemIssueCode.TEXT_TOO_LONG, MasterCodeConfirmCheckItem.CODE_VALUE_CHARS);
         for (MasterCodeItemIssueCode code : MasterCodeItemIssueCode.values()) {
             if (expected.containsKey(code)) {
                 assertEquals(expected.get(code), MasterCodeConfirmChecks.itemOf(code), code.name());
@@ -330,6 +332,18 @@ class MasterCodeConfirmChecksTest {
                 assertThrows(IllegalStateException.class, () -> MasterCodeConfirmChecks.itemOf(code), code.name());
             }
         }
+    }
+
+    @Test
+    void CK6_길이_초과_행은_던지지_않고_1항에서_거부한다() {
+        MasterCodeVersionView view = view(List.of(item("K".repeat(51), values("에이", 1, null)),
+                item("B", values("a".repeat(4001), 1, null))), List.of(BASE), List.of());
+
+        MasterCodeConfirmCheckReport report = report(false, FLAT, view, SOME_DIFF);
+
+        assertEquals(MasterCodeCheckStatus.REJECTED, status(report, "1"));
+        List<MdmCheckIssue> issues = MasterCodeConfirmChecks.flatten(report).errors();
+        assertEquals(List.of("CODE_VALUE_CHARS", "CODE_VALUE_CHARS"), issues.stream().map(MdmCheckIssue::code).toList());
     }
 
     // ── CK7 2항 거부 카테고리는 2-2 를 내지 않는다 ──────────────────────

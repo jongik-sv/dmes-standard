@@ -253,7 +253,7 @@ erDiagram
 
 ## 6. 같은 저장소에 있는 다른 SEC 스키마
 
-`mcm-core/db/migration/sqlite/V1~V17` 의 `TB_SEC_*`(ROLE / PERM / ROLE_PERM / PERM_BUTTON / USER_ROLE …) 는 이력 참고용이며 런타임에 적용되지 않는다.
+`mcm-core/archive/db-migration/sqlite/V1~V17` 의 `TB_SEC_*`(ROLE / PERM / ROLE_PERM / PERM_BUTTON / USER_ROLE …) 는 이력 참고용이며 런타임에 적용되지 않는다.
 `application.yml` 이 Flyway 를 끄고 hibernate ddl-auto 와 DataInitializer 로 위 `TB_MCM_SEC_*` 만 만든다.
 다만 `PermKey.java` 주석은 아직 `TB_SEC_*` 이름을 쓰고 있다.
 

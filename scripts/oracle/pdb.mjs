@@ -318,6 +318,7 @@ function* walk(dir) {
 function findMigrations() {
   const found = [];
   const unknown = [];
+  const legacyDirs = new Map();
   if (!existsSync(BACKEND_DIR)) return { found, unknown };
   for (const path of walk(BACKEND_DIR)) {
     const rel = relative(BACKEND_DIR, path).split(sep);
@@ -325,9 +326,26 @@ function findMigrations() {
     const mi = rel.indexOf('migration');
     if (mi < 1 || rel[mi - 1] !== 'db') continue;
     const oi = rel.indexOf('oracle', mi);
-    if (oi < 0) continue;
-    const dirName = rel[rel.length - 2].toUpperCase();
-    const schema = SCHEMA_USERS.includes(dirName) ? dirName : MODULE_SCHEMA[rel[0]];
+    const parent = rel[rel.length - 2];
+    const dirName = parent.toUpperCase();
+    // 스키마를 정하는 위치는 세 가지다(모두 Oracle 용이다. sqlite·mssql 등 다른 방언 폴더는 어디에도 해당하지 않아 건너뛴다):
+    //   ① db/migration/**/oracle/**        — 폴더 이름이 스키마(mcm-core oracle/mcmapuser/) 또는 모듈(mdm oracle/ → MDMAPUSER)
+    //   ② db/migration/<스키마 사용자>/    — caravan-hub 의 caravanuser/·ifuser/
+    //   ③ db/migration/<모듈>/             — aps-core·mls·mpn·mpp·mqc 처럼 방언 폴더 없이 모듈 이름 폴더(MODULE_SCHEMA)
+    let schema;
+    if (oi >= 0) schema = SCHEMA_USERS.includes(dirName) ? dirName : MODULE_SCHEMA[rel[0]];
+    else if (SCHEMA_USERS.includes(dirName)) schema = dirName;
+    else if (rel[mi + 1] === parent && rel.length === mi + 3 && MODULE_SCHEMA[parent]) {
+      // 아직 archive 로 옮기지 않은 옛 SQLite 평평한 폴더(mls V1~V4 등)를 Oracle 로 잘못 적용하지 않게, 폴더에 SQLite 낱말이 든 파일이
+      // 하나라도 있으면 그 폴더 전체를 옛 체인으로 보고 건너뛴다(V2~V4 만 Oracle 로 적용되는 일을 막는다).
+      const dir = dirname(path);
+      if (!legacyDirs.has(dir)) {
+        legacyDirs.set(dir, readdirSync(dir).filter((f) => /^V\d.*\.sql$/.test(f))
+          .some((f) => /\b(AUTOINCREMENT|PRAGMA)\b/i.test(readFileSync(join(dir, f), 'utf8'))));
+      }
+      if (legacyDirs.get(dir)) { unknown.push(rel.join('/') + ' (옛 SQLite 체인 폴더 — 건너뜀)'); continue; }
+      schema = MODULE_SCHEMA[parent];
+    } else continue;
     const m = /^V([0-9][0-9_.]*)__(.+)\.sql$/.exec(rel[rel.length - 1]);
     if (!schema) { unknown.push(rel.join('/')); continue; }
     found.push({
@@ -591,6 +609,14 @@ const commands = {
     process.stdout.write(`sessions ${lines.join(' ') || '?'}\n`);
   },
 
+  // 적용하지 않고 어떤 V 파일을 어느 스키마에 적용할지만 보여 준다(Oracle 불필요, 위치 규칙 확인용).
+  async migrations() {
+    const { found, unknown } = findMigrations();
+    for (const m of found) process.stdout.write(`${m.schema.padEnd(11)} V${m.version.padEnd(4)} ${relative(BACKEND_DIR, m.path).split(sep).join('/')}\n`);
+    for (const u of unknown) process.stdout.write(`건너뜀: ${u}\n`);
+    process.stdout.write(`${found.length}개\n`);
+  },
+
   async 'schema-users'() {
     process.stdout.write(`${SCHEMA_USERS.join('\n')}\n`);
   },
@@ -609,6 +635,7 @@ const commands = {
   open|close <PDB>              열기·닫기(쓰지 않을 때는 닫아 메모리를 비운다)
   drop <PDB>                    닫고 데이터 파일까지 삭제
   users <PDB>                   운영 이름 사용자 (재)생성
+  migrations                    적용 없이 V 파일 탐색 결과(스키마·경로)만 출력
   schema-users                  만드는 사용자 목록
   quiet <PDB>                   열린 PDB 의 autotask·AWR 자동 스냅숏을 끄고 확인(create·clone 은 자동으로 거친다)
   sessions <PDB>                열린 PDB 의 세션 수(max·limit·cur) 한 줄

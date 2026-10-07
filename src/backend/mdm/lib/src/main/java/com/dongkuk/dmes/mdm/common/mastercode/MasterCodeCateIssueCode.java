@@ -10,6 +10,10 @@ public enum MasterCodeCateIssueCode {
     CATE_ID_REQUIRED,
     /** cate_id 에 점·콤마·공백이 있다({@code MaruIdRules.FORBIDDEN_CHAR_PATTERN}). */
     CATE_ID_FORBIDDEN_CHAR,
+    /** cate_id 가 50자를 넘는다(VARCHAR2(50 CHAR) — ORA-12899 예방). */
+    CATE_ID_TOO_LONG,
+    /** cate_name·defExpr·description 이 4000바이트를 넘는다(VARCHAR2(4000 BYTE) — ORA-12899 예방). */
+    TEXT_TOO_LONG,
     /** cate_name 이 비었다. */
     CATE_NAME_REQUIRED,
     /** REGEX defExpr 이 {@code Pattern.compile} 에 실패한다. */

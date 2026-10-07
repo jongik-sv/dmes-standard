@@ -19,9 +19,9 @@ import { gridRowById, gridRows } from "./support/grid";
  * E19 하위 세트(도구 상자 [룰 세트] → 검색 팝업으로 SET 노드 넣기·겉모양으로 검사 바뀜·저장 → 링크로 하위 세트 탭 → 하위 세트를 고쳐 저장하면 부모 탭이 겉모양을
  * 다시 묻고 확정된 부모(E2S_SUBP)의 경고가 메시지 링크로 와 그 탭을 연다).
  *
- * 전제(design.md 「E2E 서버 절차」): 새 mcm.db·mdm.db 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고,
- * mcm 기동 뒤 e2e/fixtures/mdm-rbac-users.sql, beforeAll 이 e2e/fixtures/mdm-ruleSet-data.sql 을 넣는다.
- * 세트를 고치므로 같은 mdm.db 로 다시 돌릴 수 없다(새 DB 로 시작). 편집 세트마다 담당자 소유 DRAFT 2.000 이 있다(fixtures/mdm-ruleSet-data.sql). mdm-ruleSetConfirm.spec.ts 는 전용 세트 E2S_CONFIRM 을 확정하므로 이 스펙의 세트를 건드리지 않는다. 편집 시나리오는 SYSADMIN 이 아니라 담당자로 로그인한다.
+ * 전제(design.md 「E2E 서버 절차」): 새 PDB(시험 PDB 복제본)로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고,
+ * mcm 기동 뒤 mdm-00-fixtures.spec.ts 가 e2e/fixtures/mdm-rbac-users.sql 을, beforeAll 이 e2e/fixtures/mdm-ruleSet-data.sql 을 넣는다.
+ * 세트를 고치므로 같은 PDB 로 다시 돌릴 수 없다(새 PDB 로 시작). 편집 세트마다 담당자 소유 DRAFT 2.000 이 있다(fixtures/mdm-ruleSet-data.sql). mdm-ruleSetConfirm.spec.ts 는 전용 세트 E2S_CONFIRM 을 확정하므로 이 스펙의 세트를 건드리지 않는다. 편집 시나리오는 SYSADMIN 이 아니라 담당자로 로그인한다.
  * mdm-ruleSetMng.spec.ts 와 서로의 데이터에 기대지 않는다(각자 픽스처의 다른 세트를 쓴다).
  *
  * 화면 구조: 세트를 열면 보기 모드다. 고치려면 [편집](flow-mode-edit)을 누른다. 캔버스 노드는 `flow-node-{nodeId}`,

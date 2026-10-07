@@ -696,6 +696,10 @@ test.describe("C 도메인 관리", () => {
   });
 
   test("TC-DMA-DOM-05 하위 도메인 등록 — 부모와 정의가 같으면 경고 확인이 뜨고, [취소]는 아무것도 바꾸지 않는다", async () => {
+    // DOM-04 끝은 조건 없는 전체 목록이다. 스냅샷 데이터(도메인 160여 건)에서는 D1 행이 가상 스크롤 밖이라 그려지지 않으므로
+    // 검색어로 좁혀 고른다(DOM-04 와 같은 조회 방식).
+    await searchField(page, "검색어").fill(DOM1_NAME);
+    await button(page, "조회").click();
     await domainRow(page, DOM1_NAME).click();
     await scrollGridLeft(panelByTitle(page, "도메인 목록"));
     await expect(screen(page).getByLabel("도메인명", { exact: true })).toHaveValue(DOM1_NAME, { timeout: T.UI });
@@ -797,7 +801,12 @@ test.describe("D 컬럼 사전", () => {
     await page?.context().close();
   });
 
-  const COL_INPUT = kw("판정값"); // 공백 없는 한 덩어리 → 토큰 1개, 사전에 없어 UNKNOWN.
+  // 공백 없는 한 덩어리 → 토큰 1개, 사전에 없어 UNKNOWN. 분해는 사전 키를 왼쪽부터 가장 길게 맞추므로(ColumnNameComposer)
+  // 사전의 어떤 키(용어·동의어·별칭)도 입력 안에 들어 있지 않은 한글만 쓴다. 스냅샷 사전(8천여 개)에는 「판정」「값」과 1글자 용어
+  // 「E」「X」가 있어 예전 값 kw("판정값")=판정값E2EX 가 여러 토큰으로 쪼개졌다(oracle-1007 스냅샷 적재 뒤).
+  // 이 장이 이 용어를 등록하므로 같은 PDB 로 다시 돌리면 MATCHED 가 되어 실패한다 — 새 PDB 로 돌린다(정의가 「E2E …」 로 시작해
+  // snapshot.py import 의 E2E 거르기에 걸린다).
+  const COL_INPUT = "곰팡솜뭉";
   const COL_ABBR = `T${RUN}`;
   /** COL-00 이 domainMng 화면에서 만들어 이 장의 컬럼이 참조한다. */
   let DOM_NAME: string;

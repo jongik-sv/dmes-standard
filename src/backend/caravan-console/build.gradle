@@ -33,7 +33,7 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.named('test') {
     useJUnitPlatform()
-    // sqlite test DB 단일 파일 락 모델 — 병렬 fork 시 SQLITE_BUSY 회피 (aps-core 와 동일 정책)
+    // Oracle 시험 PDB 하나를 공유하므로 병렬 fork 하지 않는다(oracle-1007)
     maxParallelForks = 1
     forkEvery = 0
 }
@@ -67,10 +67,8 @@ dependencies {
     testImplementation libs.spring.boot.starter.security
     testImplementation libs.spring.boot.starter.validation
     testImplementation libs.spring.security.test
-    testRuntimeOnly libs.sqlite.jdbc
     testRuntimeOnly libs.ojdbc11
     testRuntimeOnly libs.flyway.database.oracle
-    testRuntimeOnly libs.hibernate.community.dialects.v705
     testRuntimeOnly libs.junit.platform.launcher
 }
 

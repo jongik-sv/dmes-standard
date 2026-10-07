@@ -59,12 +59,12 @@ public class MdmLayoutItem extends CactusAuditEntity {
     @Column(name = "FILLER_LENGTH")
     private Integer fillerLength;
 
-    /** 예약어 칼럼(D1, 불변 규칙 7). */
-    @Column(name = "`OFFSET`", nullable = false)
+    /** 옛 방언의 예약어 칼럼(D1, 불변 규칙 7). Oracle 에서는 예약어가 아니라 따옴표 없이 쓴다 — 백틱이면 Spring 이름 전략이 소문자 "offset" 로 따옴표를 남겨 V1 의 대문자 칼럼과 어긋난다(ORA-00904). */
+    @Column(name = "OFFSET", nullable = false)
     private int offset;
 
-    /** 예약어 칼럼(D1, 불변 규칙 7). */
-    @Column(name = "`LENGTH`", nullable = false)
+    /** 옛 방언의 예약어 칼럼(D1, 불변 규칙 7). Oracle 에서는 예약어가 아니라 따옴표 없이 쓴다 — 백틱이면 Spring 이름 전략이 소문자 "offset" 로 따옴표를 남겨 V1 의 대문자 칼럼과 어긋난다(ORA-00904). */
+    @Column(name = "LENGTH", nullable = false)
     private int length;
 
     /*

@@ -95,9 +95,9 @@ Unable to obtain JDBC Connection
 
 ### 확인
 
-- `application.yml`의 `jdbc-url` 형식: `jdbc:tibero:thin:@HOST:PORT:SID`
+- `application.yml`의 `jdbc-url` 형식: `jdbc:oracle:thin:@//HOST:1521/SERVICE`
 - DB 서버 상태, 방화벽, 계정/비밀번호 확인
-- `libs/` 폴더에 `tibero6-jdbc.jar`가 있는지 확인
+- 빌드 산출물에 `ojdbc11` 이 들어 있는지 확인 (Gradle 의존성)
 
 ---
 
@@ -111,6 +111,6 @@ Gradle이 JDK 8로 실행되고 있다. `build.gradle`에 Java 11 toolchain이 �
 
 실행 JDK가 8이다. IntelliJ **실행 구성** 또는 **프로젝트 구조**에서 JDK를 11로 변경.
 
-### Tibero JDBC not found
+### Oracle JDBC not found
 
-`libs/tibero6-jdbc.jar` 파일이 없다. 직접 복사해 넣어야 한다.
+`ojdbc11` 의존성이 빠졌다. `build.gradle` 의 `runtimeOnly libs.ojdbc11` 을 확인한다. 이전 Tibero 시절에는 `libs/tibero6-jdbc.jar` 를 직접 복사해 넣었다.

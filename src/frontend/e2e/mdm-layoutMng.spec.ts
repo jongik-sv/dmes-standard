@@ -15,14 +15,14 @@ import { gridCells, gridRowByIndex, gridRows } from "./support/grid";
  *   L6 저장 → 목록 187, 재정의는 이 전문에만(스모크 3)   L7 서버 오류 표시(동시 수정 MDM001, 스모크 4)
  *   L8 드래그 순서 → 즉시 재계산(serial 에서 불안정할 수 있어 맨 뒤)
  *
- * 전제·실행은 mdm-headerMng.spec.ts 와 같다(design.md §3.7). beforeAll 이 SMOKE_MDM_DB 에 M201 픽스처를 넣는다(멱등).
+ * 전제·실행은 mdm-headerMng.spec.ts 와 같다(design.md §3.7). beforeAll 이 서버가 보는 Oracle PDB 에 M201 픽스처를 넣는다(멱등).
  * TSK-05-03 design.md §3.6 — L9 등록 검증 7종·인코딩 바이트 샘플 한 줄, L10 표현 자리 부족 거부(검증 표·저장), L11 스냅샷 JSON·엑셀 내려받기,
  * L12 영향 전문 목록. 스크린샷은 docs/mdm/tasks/TSK-05-03/screens.
  *
  * D-144 3단계(레이아웃 버전 관리) — 저장은 버전을 만들지 않고 내 DRAFT 를 덮어쓴다(신규는 v1.000 DRAFT). 확정된 전문(픽스처 1.000 RELEASED)은
  * 읽기 전용이라 [새 버전(minor)] 으로 DRAFT 를 만들어야 고친다(L10). 확정은 [확정] → dmb/layoutConfirm 에서 한다 — DMB 확정 권한은 담당자
  * (e2e_mdm_steward)만 있고 표준 관리자(e2e_mdm_stdadmin)는 편집까지다. 버전은 문자열(`1.000`)이고 버전 선택 칸(layout-ver-select)의 값이다.
- * mdm-headerMng·mdm-layoutConfirm·mdm-layoutMng 세 스펙은 새 mdm.db 로 한 벌씩만 돈다(같은 DB 로 다시 돌리면 L110 의 1.001·M201 의 1.001 DRAFT 가 남아 새 버전 단언이 어긋난다).
+ * mdm-headerMng·mdm-layoutConfirm·mdm-layoutMng 세 스펙은 새 PDB 로 한 벌씩만 돈다(같은 PDB 로 다시 돌리면 L110 의 1.001·M201 의 1.001 DRAFT 가 남아 새 버전 단언이 어긋난다).
  * 파일 이름 순으로 mdm-layoutConfirm.spec.ts(헤더 L110 minor 확정)가 먼저 돈다 — 그 확정은 먼 미래(apply_from)라 이 스펙의 지금 시각 단언(총 길이 187)은 그대로다.
  */
 

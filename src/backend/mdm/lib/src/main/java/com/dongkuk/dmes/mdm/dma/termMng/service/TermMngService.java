@@ -8,6 +8,7 @@ import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingCodec;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingEncoder;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingRepository;
 import com.dongkuk.dmes.mdm.common.support.MdmJsonLists;
+import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.dma.termMng.TermRecommendationCache;
 import com.dongkuk.dmes.mdm.dma.termMng.TermRecommendationCache.CachedTerm;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendCandidate;
@@ -185,6 +186,22 @@ public class TermMngService {
             }
         }
 
+        // ORA-12899 예방 — 기존 검사가 모두 끝난 뒤 엔티티에 값을 넣기 전에 칸 상한만 검사한다(동작을 바꾸는 상한은 걸지 않는다).
+        String context = trimToNull(request.getContext());
+        String stdBasis = trimToNull(request.getStdBasis());
+        String synonymsJson = MdmJsonLists.writeStrings(parseCommaList(request.getSynonyms()));
+        String aliasesJson = MdmJsonLists.writeStrings(parseCommaList(request.getAliases()));
+        String systemsJson = MdmJsonLists.writeStrings(parseCommaList(request.getSystems()));
+        maxBytes(termName, "표기");
+        maxBytes(context, "맥락");
+        maxBytes(engName, "영문명");
+        maxChars(engAbbr, MdmTextLimits.KEY_CHARS_MAX, "영문 약어"); // ENG_ABBR 만 VARCHAR2(50 CHAR)
+        maxBytes(definition, "정의");
+        maxBytes(stdBasis, "표준 근거");
+        maxBytes(synonymsJson, "동의어");
+        maxBytes(aliasesJson, "별칭");
+        maxBytes(systemsJson, "사용 시스템");
+
         boolean isNew = existing == null;
         // I12 — 인코딩 입력을 구성하는 세 필드(term_name/definition/eng_name) 중 하나라도 바뀌면 재인코딩 대상.
         boolean inputChanged = isNew
@@ -196,13 +213,13 @@ public class TermMngService {
         entity.setTermName(termName);
         entity.setSenseNo(senseNo);
         entity.setDefinition(definition);
-        entity.setContext(trimToNull(request.getContext()));
+        entity.setContext(context);
         entity.setEngName(engName);
         entity.setEngAbbr(engAbbr);
-        entity.setSynonyms(MdmJsonLists.writeStrings(parseCommaList(request.getSynonyms())));
-        entity.setAliases(MdmJsonLists.writeStrings(parseCommaList(request.getAliases())));
-        entity.setSystems(MdmJsonLists.writeStrings(parseCommaList(request.getSystems())));
-        entity.setStdBasis(trimToNull(request.getStdBasis()));
+        entity.setSynonyms(synonymsJson);
+        entity.setAliases(aliasesJson);
+        entity.setSystems(systemsJson);
+        entity.setStdBasis(stdBasis);
 
         // advisor 지적 — JPA insert 가 아직 flush 되지 않으면 뒤이은 네이티브 UPDATE(EMBEDDING)가 0건이 된다.
         MdmTerm saved = termRepository.saveAndFlush(entity);
@@ -512,6 +529,21 @@ public class TermMngService {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .toList();
+    }
+
+    /** {@code VARCHAR2(n CHAR)} 칸 검사 — 코드 포인트 수 기준. */
+    private static void maxChars(String value, int max, String label) {
+        if (MdmTextLimits.overChars(value, max)) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE, label + "은(는) " + max + "자 이하여야 합니다.");
+        }
+    }
+
+    /** {@code VARCHAR2(4000 BYTE)} 칸 검사 — UTF-8 바이트 수 기준. */
+    private static void maxBytes(String value, String label) {
+        if (MdmTextLimits.overBytes(value)) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE,
+                    label + "은(는) " + MdmTextLimits.TEXT_BYTES_MAX + "바이트(한글 약 1,333자)를 넘을 수 없습니다.");
+        }
     }
 
     private static List<String> readStrings(String json) {

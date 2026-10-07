@@ -20,7 +20,7 @@
 - 코드 위치: Java 는 `mcm/lib` 의 `com.dongkuk.dmes.mcm.notice.{entity,repository,common,noticeMgmt,noticeBoard}`, BPMN 은 `mcm/api` 의 `src/main/resources/services/lsh/{noticeMgmt,noticeBoard}.bpmn` 이다.
 - 두 테이블 모두 FK 제약이 없다(JPA 연관관계 금지). 역할을 지워도 공지 저장이 막히지 않아야 해서 `ROLE_ID` 도 논리 참조만 둔다.
 - audit 9 컬럼(`C_USR_ID`·`C_AT`·`C_SVC_ID`·`C_PGM_ID`·`U_USR_ID`·`U_AT`·`U_SVC_ID`·`U_PGM_ID`·`VER`)은 `CactusAuditEntity` 가 소유하며 아래 칸 표에서 뺐다. 운영 DDL 에는 반드시 넣는다.
-- 로컬(SQLite `mcm.db`)은 `ddl-auto: update` 가 테이블을 만든다. ddl-auto 는 DB DEFAULT 를 만들지 않으므로 기본값은 엔티티 필드 초기값이 보장한다.
+- 표는 Flyway 가 만든다(oracle-1007). 로컬·시험·운영 모두 Oracle 이고 DDL 정본은 mcm-core 의 `db/migration/oracle/mcmapuser/V1__baseline.sql` 이며 `ddl-auto` 는 `none` 이다. DB DEFAULT 에 기대지 않고 기본값은 엔티티 필드 초기값이 보장한다. (옛 로컬 SQLite 의 `ddl-auto: update` 는 없어졌다.)
 
 ## 1. `TB_MCM_NOTICE` 칸
 
@@ -52,7 +52,7 @@
 
 ## 3. 운영 DDL
 
-개발계·운영계는 `ddl-auto` 가 `none` 이므로 앱 배포 전에 아래 DDL 을 미리 실행한다. 이 문서는 DDL 을 보관만 하고 자동 실행하지 않는다.
+`ddl-auto` 는 모든 환경에서 `none` 이다. 로컬·시험은 Flyway(mcm 앱 기동 또는 `pdb.mjs template-schema`)가 위 V1 을 적용하고, 개발계·운영계(WildFly)는 Flyway 를 끄므로 DBA 가 같은 V 파일을 앱 배포 전에 적용한다. 아래 DDL 은 칸 정의를 읽기 위한 참고 사본이고 자동 실행하지 않는다(정본은 V1).
 
 - Oracle 문자열 칸은 `VARCHAR2(n CHAR)` 로 만든다. 서비스가 길이를 글자 수로 검사하므로 BYTE 단위면 한글 제목 등 `VARCHAR2` 칸이 ORA-12899 로 500 오류가 난다(`CONTENT` 는 CLOB 이라 해당 없음).
 - Oracle 은 `DEFAULT` 를 `NOT NULL` 앞에 둔다.
@@ -154,8 +154,8 @@ PostgreSQL 은 따옴표 없는 식별자를 소문자로 접으므로 위 DDL �
 
 ## 4. 운영 데이터 이전 SQL 예시
 
-로컬(SQLite)은 `node scripts/data/notice-mls-to-mcm.mjs --mls <mls.db> --mcm <mcm.db> [--apply]` 가 옮긴다(미리 보기가 기본이고 `INSERT OR IGNORE` 를 쓰며 원본을 지우지 않는다. mcm 을 새 코드로 한 번 띄운 뒤 실행한다).
-운영(Oracle·PostgreSQL)에서 mls 스키마에 쌓인 공지가 있으면 아래처럼 `INSERT … SELECT … WHERE NOT EXISTS` 로 옮긴다. 이미 mcm 에 같은 `NOTICE_ID` 가 있으면 건너뛰고, mls 쪽 행은 지우지 않는다.
+로컬도 Oracle PDB 하나에 `MLSAPUSER`·`MCMAPUSER` 가 함께 있으므로 운영과 같은 SQL 로 옮긴다(`{MLS_SCHEMA}` = `MLSAPUSER`; 옛 SQLite 이관 스크립트 `scripts/data/notice-mls-to-mcm.mjs` 는 더 쓰지 않는다).
+mls 스키마에 쌓인 공지가 있으면 아래처럼 `INSERT … SELECT … WHERE NOT EXISTS` 로 옮긴다. 이미 mcm 에 같은 `NOTICE_ID` 가 있으면 건너뛰고, mls 쪽 행은 지우지 않는다.
 
 - `{MLS_SCHEMA}` 는 mls 의 `TB_MLS_NOTICE`·`TB_MLS_NOTICE_TARGET` 이 있는 스키마 이름으로 바꾼다.
 - 같은 `NOTICE_ID` 가 mcm 에 먼저 있으면(채번 충돌) 그 공지의 본체는 건너뛰지만 2) 의 대상 역할은 붙을 수 있다. 실행 전에 아래 겹침 조회가 0건인지 확인하고, 있으면 사람이 판단한다.

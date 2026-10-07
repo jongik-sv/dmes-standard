@@ -28,6 +28,7 @@ import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetVersionQueries;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionLookup;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSnapshot;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutComposer;
 import com.dongkuk.dmes.mdm.dmc.MasterCodeSeeds;
@@ -44,7 +45,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Path;
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -73,15 +74,12 @@ import kr.dongkuk.maru.mdm.engine.spi.FunctionProvider;
 import kr.dongkuk.maru.mdm.engine.spi.MasterLookup;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -92,13 +90,10 @@ import org.springframework.web.client.RestClient;
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = "cactus.security.client-key=" + MdmMetaFeedContractHttpTest.TEST_CLIENT_KEY)
 @ActiveProfiles("local")
-class MdmMetaFeedContractHttpTest {
+class MdmMetaFeedContractHttpTest extends AbstractMdmSharedDbTest {
 
     static final String TEST_CLIENT_KEY = "mdm-feed-contract-test-key";
     private static final String Q = "QLTY_GRD_JDG";
-
-    @TempDir
-    static Path tempDir;
 
     @LocalServerPort
     int port;
@@ -128,12 +123,6 @@ class MdmMetaFeedContractHttpTest {
     private MdmDefinitionLookup lookup;
     private DomainValidator validator;
 
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-feed-contract-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
-
     @BeforeEach
     void setUp() {
         jdbc = new JdbcTemplate(dataSource);
@@ -153,11 +142,11 @@ class MdmMetaFeedContractHttpTest {
 
         // 사전: sampleRule 의 COIL_THK(QTY NUMBER scale 2)에 표준식을 단다. 세 버전 룰(D-144 major/minor 소수):
         // 1.000 [2026-01-01, 2026-07-01), 1.001 MINOR [2026-07-01, 2027-01-01), 2.000 MAJOR [2027-01-01, 열린 끝).
-        // SQLite NUMERIC 은 1.000·2.000 을 INTEGER, 1.001 을 REAL 로 저장한다 — 두 저장 형태가 모두 HTTP 를 지난다.
+        // 버전 칸은 NUMBER(7,3) 이라 1.000·1.001·2.000 모두 자리수 3 으로 HTTP 를 지난다.
         DmeTestSupport.sampleRule(jdbc);
         jdbc.update("UPDATE TB_MDM_DOMAIN SET STD_RULE = 'value >= 0', STD_AST = ? WHERE STD_NAME = 'COIL_THK_D'", ast("value >= 0"));
         jdbc.update("UPDATE TB_MDM_COLUMN SET REQUIRED = 1 WHERE PHYS_NAME = 'COIL_THK'");
-        jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = '2026-07-01 00:00:00' WHERE MARU_RULE_ID = ? AND VER = 1", Q);
+        jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = TIMESTAMP '2026-07-01 00:00:00' WHERE MARU_RULE_ID = ? AND VER = 1", Q);
         DmeTestSupport.released(jdbc, Q, new BigDecimal("1.001"), "MINOR", "FIRST", "2026-07-01 00:00:00", "2027-01-01 00:00:00");
         DmeTestSupport.sampleDefinition(jdbc, Q, new BigDecimal("1.001"));
         DmeTestSupport.released(jdbc, Q, new BigDecimal("2.000"), "MAJOR", "FIRST", "2027-01-01 00:00:00", null);
@@ -165,7 +154,7 @@ class MdmMetaFeedContractHttpTest {
         // 세 버전 세트(D-144 2단계): 1.000 [2000-01-01, 2026-07-01), 1.001 MINOR [2026-07-01, 2027-01-01), 2.000 MAJOR [2027-01-01, 9999-12-31).
         // 세트 정의에는 판정 결과가 없으므로 버전마다 ruleIds 를 달리 해 고른 버전을 내용으로도 가른다. 부모 CREATED → 계산 상태 INUSE.
         DmeTestSupport.ruleSet(jdbc, "CT_SET", "계약 세트", "[\"" + Q + "\"]", "CREATED", 0);
-        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = '2026-07-01 00:00:00' WHERE MARU_RULE_SET_ID = 'CT_SET' AND VER = 1");
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = TIMESTAMP '2026-07-01 00:00:00' WHERE MARU_RULE_SET_ID = 'CT_SET' AND VER = 1");
         DmeTestSupport.ruleSetVersion(jdbc, "CT_SET", "1.001", "MINOR", "RELEASED", null, "[\"" + Q + "\",\"CT_R2\"]",
                 "2026-07-01 00:00:00", "2027-01-01 00:00:00", 0);
         DmeTestSupport.ruleSetVersion(jdbc, "CT_SET", "2.000", "MAJOR", "RELEASED", null, "[\"CT_R3\"]", "2027-01-01 00:00:00",
@@ -705,8 +694,11 @@ class MdmMetaFeedContractHttpTest {
         jdbc.update("DELETE FROM TB_MDM_LAYOUT_ITEM WHERE LAYOUT_ID IN " + ids);
         jdbc.update("DELETE FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID IN " + ids);
         jdbc.update("DELETE FROM TB_MDM_LAYOUT WHERE LAYOUT_ID IN " + ids);
-        jdbc.update("INSERT INTO TB_MDM_LAYOUT (LAYOUT_ID, LAYOUT_KIND, LAYOUT_NAME, STATUS, VER) VALUES "
-                + "(9890, 'HEADER', '계약 헤더', 'INUSE', 0), (9801, 'MESSAGE', '계약 전문', 'INUSE', 0)");
+        String layoutCols = "(LAYOUT_ID, LAYOUT_KIND, LAYOUT_NAME, STATUS, VER)";
+        jdbc.update("INSERT ALL "
+                + "INTO TB_MDM_LAYOUT " + layoutCols + " VALUES (9890, 'HEADER', '계약 헤더', 'INUSE', 0) "
+                + "INTO TB_MDM_LAYOUT " + layoutCols + " VALUES (9801, 'MESSAGE', '계약 전문', 'INUSE', 0) "
+                + "SELECT 1 FROM DUAL");
         layoutVer(9890, "1.000", "RELEASED", "2000-01-01 00:00:00", "2026-04-01 00:00:00", 7);
         layoutVer(9890, "2.000", "RELEASED", "2026-04-01 00:00:00", "9999-12-31 00:00:00", 9);
         layoutVer(9801, "1.000", "RELEASED", "2026-01-01 00:00:00", "2026-07-01 00:00:00", 10);
@@ -723,11 +715,16 @@ class MdmMetaFeedContractHttpTest {
     private void layoutVer(long id, String ver, String status, String from, String to, int own) {
         jdbc.update("INSERT INTO TB_MDM_LAYOUT_VER (LAYOUT_ID, VER, VER_KIND, STATUS, OWNER_ID, APPLY_FROM, APPLY_TO, OWN_LENGTH) "
                 + "VALUES (?, ?, 'MAJOR', ?, ?, ?, ?, ?)", id, new BigDecimal(ver), status, "DRAFT".equals(status) ? "kim" : null,
-                from, to, own);
+                ts(from), ts(to), own);
+    }
+
+    /** TIMESTAMP 칸 바인딩용 — Oracle 은 문자열을 NLS 형식에 기대 TIMESTAMP 로 바꾸므로 값으로 넘긴다. */
+    private static Timestamp ts(String text) {
+        return text == null ? null : Timestamp.valueOf(text);
     }
 
     private void filler(long id, String ver, int length) {
-        jdbc.update("INSERT INTO TB_MDM_LAYOUT_ITEM (LAYOUT_ID, VER, SEQ, FILL_KIND, FILLER_LENGTH, `OFFSET`, `LENGTH`) "
+        jdbc.update("INSERT INTO TB_MDM_LAYOUT_ITEM (LAYOUT_ID, VER, SEQ, FILL_KIND, FILLER_LENGTH, \"OFFSET\", \"LENGTH\") "
                 + "VALUES (?, ?, 1, 'FILLER', ?, 0, ?)", id, new BigDecimal(ver), length, length);
     }
 

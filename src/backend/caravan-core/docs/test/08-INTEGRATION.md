@@ -137,7 +137,7 @@
 
 | 항목 | 내용 |
 |------|------|
-| **사전** | H2 DB에 TB_MCM_MOM_KAFKA_TOPICS 레코드 2건 삽입 |
+| **사전** | 시험 DB(Oracle)에 TB_MCM_MOM_KAFKA_TOPICS 레코드 2건 삽입 |
 | **검증** | `registry.getListenerContainerIds()` 에 `"listener-T1"`, `"listener-T1.dlt"`, `"listener-T2"`, `"listener-T2.dlt"` 포함 |
 
 ### TC-INT-012: consumer.enabled=false → Listener 미등록
@@ -149,13 +149,7 @@
 
 ---
 
-## 참고: H2 DB 테스트 제약
+## 참고: 시험 DB
 
-TB_MCM_MOM_TC_ERROR INSERT의 시퀀스 구문 `SQ_MCM_MOM_TC_ERROR.NEXTVAL`은 Tibero 전용이다. H2에서 테스트하려면:
-
-```sql
--- H2용 시퀀스 생성
-CREATE SEQUENCE SQ_MCM_MOM_TC_ERROR START WITH 1 INCREMENT BY 1;
-```
-
-또는 테스트용 KafkaMapper.xml을 별도로 작성하여 H2 호환 SQL을 사용한다.
+이 모듈의 시험은 Oracle 시험 PDB(`-Pdmes.ora.test=clone`)를 쓴다. H2 는 oracle-1007 에서 의존성과 함께 제거했다.
+TB_MCM_MOM_TC_ERROR INSERT 의 시퀀스 구문 `SQ_MCM_MOM_TC_ERROR.NEXTVAL` 은 Oracle 문법이며 그대로 쓴다.

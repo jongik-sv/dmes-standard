@@ -11,7 +11,7 @@ dependencyManagement {
 
 tasks.named('test') {
     useJUnitPlatform()
-    // SQLite 는 DB 파일 단위 락이라 병렬 fork 시 테스트가 서로 막힌다(mqc/lib/build.gradle 과 동일 이유).
+    // 공유 시험 DB(Oracle 시험 PDB 의 MDMAPUSER) 하나를 클래스마다 비우고 다시 채우므로 병렬 fork 하지 않는다(oracle-1007 하니스도 forks=1).
     maxParallelForks = 1
     // RuleSetFlowFuzz — -Dfuzz.write=true 면 퍼즈 파일(rule-set-fuzz.json)을 다시 쓴다
     if (System.getProperty('fuzz.write') != null) {
@@ -31,11 +31,9 @@ dependencies {
     api libs.spring.boot.starter.web
     api libs.spring.boot.starter.validation
 
-    // local·테스트(SQLite). 운영 DB 는 미정이라 다른 DB 드라이버는 두지 않는다(운영 DB 확정 때 더한다).
-    api libs.sqlite.jdbc
+    // local·테스트·운영 모두 Oracle 하나다(oracle-1007). 방언은 Hibernate 기본 OracleDialect 를 자동 판정으로 쓴다.
     api libs.ojdbc11
     api libs.flyway.database.oracle
-    api libs.hibernate.community.dialects.v705
 
     // Flyway — Spring Boot 4 부터 FlywayAutoConfiguration 이 별도 모듈로 빠졌다(mqc 주석 그대로).
     api libs.flyway.core

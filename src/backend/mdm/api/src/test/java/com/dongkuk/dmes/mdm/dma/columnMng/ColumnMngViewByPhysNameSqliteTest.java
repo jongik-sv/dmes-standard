@@ -43,7 +43,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 컬럼 정보 팝오버용 {@code columnMng.view} 물리명 조회 — 표준 물리명으로 찾고, 상속 체인으로 조립한 도메인 상세(이름·표준명·타입·길이·
- * 소수·단위)를 싣는다. columnId 조회는 기존 응답 모양 그대로(도메인 상세 없음)다. local(SQLite) 실제 컨텍스트로 돌린다.
+ * 소수·단위)를 싣는다. columnId 조회는 기존 응답 모양 그대로(도메인 상세 없음)다. Oracle 시험 PDB 의 실제 컨텍스트로 돌린다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")

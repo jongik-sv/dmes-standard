@@ -179,12 +179,12 @@ class DataCategorySegmentCoreSqliteTest extends AbstractMdmSharedDbTest {
 
     private List<Map<String, Object>> cateRows(String cateId) {
         return jdbc.queryForList("SELECT * FROM TB_MDM_DATA_CATE WHERE MARU_DATA_ID = ? AND CATE_ID = ? ORDER BY VALID_FROM",
-                MD, cateId);
+                MD, cateId).stream().map(DmdSegmentTestSupport::textRow).toList();
     }
 
     private List<Map<String, Object>> memberRows(String cateId, String code) {
         return jdbc.queryForList("SELECT * FROM TB_MDM_DATA_CATE_ITEM WHERE MARU_DATA_ID = ? AND CATE_ID = ? AND CODE = ? "
-                + "ORDER BY VALID_FROM", MD, cateId, code);
+                + "ORDER BY VALID_FROM", MD, cateId, code).stream().map(DmdSegmentTestSupport::textRow).toList();
     }
 
     private static void assertReserved(Executable call) {

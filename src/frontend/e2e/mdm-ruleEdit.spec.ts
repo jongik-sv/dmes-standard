@@ -18,8 +18,8 @@ import { gridRowById, gridRows } from "./support/grid";
  *       V5 요청 상한 서버 오류, V6 UNIQUE 겹침 저장 거부(design.md §3.4). S5·S6 은 저장 시 검사가 ERROR 를 거부하도록 바뀌어(08-02 D3 뒤집기,
  *       §3.5) 거부를 확인하는 흐름으로 고쳤다.
  *
- * 전제는 mdm-ruleMng.spec.ts 와 같다(새 mcm.db·mdm.db + mdm-rbac-users.sql·mdm-ruleEdit-users.sql·mdm-ruleEdit-data.sql).
- * 시나리오가 이어지므로(버전 2 를 만들어 고치고 지운다) serial 이고 같은 DB 로 다시 돌릴 수 없다.
+ * 전제는 mdm-ruleMng.spec.ts 와 같다(새 PDB + mdm-00-fixtures.spec.ts 가 넣는 mdm-rbac-users.sql·mdm-ruleEdit-users.sql + mdm-ruleEdit-data.sql).
+ * 시나리오가 이어지므로(버전 2 를 만들어 고치고 지운다) serial 이고 같은 PDB 로 다시 돌릴 수 없다.
  * 기대 검사 결과는 픽스처 룰에 같은 편집을 한 정의를 TS 분석기로 돌려 얻었다(design Build 이탈 B9).
  */
 

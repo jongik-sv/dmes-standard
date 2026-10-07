@@ -54,7 +54,7 @@ class RuleSetMngServiceTest extends AbstractMdmSharedDbTest {
 
     @BeforeEach
     void seed() {
-        jdbc.execute("DROP TRIGGER IF EXISTS TR_RULE_VER_FAIL");
+        jdbc.execute("BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TR_RULE_VER_FAIL'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -4080 THEN RAISE; END IF; END;");
         DmeTestSupport.clear(jdbc);
         DmeTestSupport.clearDictionary(jdbc);
         currentUser.set("kim", STEWARD);

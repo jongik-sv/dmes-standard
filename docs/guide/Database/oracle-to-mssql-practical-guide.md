@@ -1,6 +1,6 @@
 # Oracle 사용자가 SQL Server를 쓸 때 반드시 알아야 할 차이와 실무 가이드
 
-> **보관 자료 (2026-10-03)**: 운영 DB 는 Oracle 또는 PostgreSQL(현장마다 하나)이고 MSSQL 은 거의 쓰지 않는다. 이 문서는 dmes-ksm(MSSQL) 이관 시절 자료로 남겨 두며, MSSQL 현장을 맡을 때만 참고한다. 새 작업의 SQL 은 [`dialect-neutral-sql.md`](dialect-neutral-sql.md) 를 따른다.
+> **보관 자료 (2026-10-07)**: 로컬·시험·운영 DB 는 모두 Oracle 하나이고(oracle-1007) MSSQL 은 쓰지 않는다. 이 문서는 dmes-ksm(MSSQL) 이관 시절 자료로 남겨 두며, MSSQL 현장을 다시 맡을 때만 참고한다. 새 작업의 SQL 은 [`oracle-sql-rules.md`](oracle-sql-rules.md) 를 따른다.
 
 ## Executive Summary
 

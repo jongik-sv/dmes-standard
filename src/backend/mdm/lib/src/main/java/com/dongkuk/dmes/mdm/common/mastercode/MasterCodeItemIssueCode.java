@@ -18,6 +18,10 @@ public enum MasterCodeItemIssueCode {
     LVL_PARENT_MISMATCH,
     /** 라벨이 없는 번호의 추가 컬럼에 값이 있다(04:164). */
     ATTR_WITHOUT_LABEL,
+    /** 코드값·계층 칸 값이 50자를 넘는다(VARCHAR2(50 CHAR) — ORA-12899 예방). */
+    KEY_TOO_LONG,
+    /** 이름·약칭·설명·추가 컬럼 값이 4000바이트를 넘는다(VARCHAR2(4000 BYTE) — ORA-12899 예방). */
+    TEXT_TOO_LONG,
     /** 같은 코드의 구간이 겹친다(04:418). */
     SEGMENT_OVERLAP,
     /** 수정·삭제·되돌리기 대상 코드가 버전 V 에 없다. */

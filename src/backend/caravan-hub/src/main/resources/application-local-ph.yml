@@ -1,38 +1,35 @@
 # ────────────────────────────────────────────────────────────────────────────
-# local-ph: 포항 개발 DB 직결 (bootRun/IDE 전용, Hikari) — 구 application-mssql.yml 이관 (2026-07-09)
-#  듀얼 DataSource (단일 DB ksm_dmes, USER=스키마 분리)
-#  - mst (@Primary): CARAVANUSER — Kafka 도메인. TB_CARAVAN_HUB_CONFIG(라우팅) +
-#                    caravan 메타(TB_MCM_MOM_KAFKA_TOPICS / TB_MCM_MOM_TC_ERROR).
-#  - if : EAIUSER    — 인터페이스 IF_* 테이블.
-#  - Kafka: 포항 개발 브로커. (구 local,mssql 조합에선 local 이 localhost 를 공급했으나 단독 활성화로 명시)
+# local-ph: 포항 개발 Oracle 직결 (bootRun/IDE 전용, Hikari) — oracle-1007 에서 MSSQL 에서 Oracle 로 전환
+#  듀얼 DataSource (USER=스키마 분리). 접속값은 환경 변수로 받고 저장소에는 두지 않는다(필수, 기본값 없음).
+#  - mst (@Primary): CARAVANUSER — Kafka 도메인. TB_CARAVAN_HUB_CONFIG(라우팅) + caravan 메타(TB_CARAVAN_TOPICS / TB_CARAVAN_TC_ERROR).
+#  - if : EAIUSER    — 인터페이스 IF_* 테이블(IFUSER 소유) 접속 전용.
+#  - 스키마는 DBA 가 db/migration/caravanuser·ifuser 의 V 파일로 만든다(spring.flyway.enabled=false).
+#  - Kafka: 포항 개발 브로커.
+#  환경 변수: CARAVAN_HUB_ORA_URL(jdbc:oracle:thin:@//호스트:포트/서비스) · CARAVAN_HUB_MST_PASSWORD · CARAVAN_HUB_IF_PASSWORD
 #  사용: -Dspring.profiles.active=local-ph (단독)
 # ────────────────────────────────────────────────────────────────────────────
 spring:
+  flyway:
+    enabled: false
   datasource:
     mst:
-      driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
-      jdbc-url: jdbc:sqlserver://10.10.80.241:1433;databaseName=ksm_dmes;encrypt=false;trustServerCertificate=true
+      jdbc-url: ${CARAVAN_HUB_ORA_URL}
       username: CARAVANUSER
-      password: CARAVANUSER_DEV
-      hikari:
-        maximum-pool-size: 10
-        minimum-idle: 2
-        connection-timeout: 30000
+      password: ${CARAVAN_HUB_MST_PASSWORD}
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
     if:
-      driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
-      jdbc-url: jdbc:sqlserver://10.10.80.241:1433;databaseName=ksm_dmes;encrypt=false;trustServerCertificate=true
+      jdbc-url: ${CARAVAN_HUB_ORA_URL}
       username: EAIUSER
-      password: EAIUSER_DEV
-      hikari:
-        maximum-pool-size: 10
-        minimum-idle: 2
-        connection-timeout: 30000
+      password: ${CARAVAN_HUB_IF_PASSWORD}
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
 
-# caravan EMF (=@Primary mst = CARAVANUSER) — MSSQL dialect
 caravan:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:10.10.80.48:9092,10.10.80.48:9094,10.10.80.48:9096}   # 포항 개발 브로커
     replication-factor: 3       # 3브로커 클러스터(10.10.80.48) 토픽 RF=3 — caravan-hub.war 재빌드본 필요
   hibernate:
-    dialect: org.hibernate.dialect.SQLServerDialect
-    ddl-auto: none       # 스키마 안정화됨 — 부팅 시 ALTER 시도 안 함(PK/인덱스 종속 컬럼 alter 실패 WARN 제거). 신규 테이블 필요 시 일시 update
+    ddl-auto: none       # 스키마는 Flyway V 파일(DBA 적용) 기준 — 부팅 시 표를 만들거나 고치지 않는다

@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 
 /**
@@ -41,6 +42,7 @@ public class MdmColumn extends CactusAuditEntity {
     @Column(name = "PHYS_NAME", length = 50, nullable = false)
     private String physName;
 
+    @Lob
     @Column(name = "DESCRIPTION")
     private String description;
 
@@ -66,6 +68,7 @@ public class MdmColumn extends CactusAuditEntity {
     @Column(name = "TERM_IDS")
     private String termIds;
 
+    @Lob
     @Column(name = "USAGE_NOTE")
     private String usageNote;
 

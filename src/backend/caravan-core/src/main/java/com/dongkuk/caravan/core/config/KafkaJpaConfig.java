@@ -25,10 +25,10 @@ import java.util.Map;
  * 다중 사이트 모듈에서 caravan 메타 테이블만 별도 스키마(예: CARAVANAPUSER) 로 분리할 때
  * host 측이 {@code @Bean("caravanDataSource")} 를 정의하면 됩니다.</p>
  *
- * <p>DDL: {@code caravan.hibernate.ddl-auto} 로 host 가 제어 (기본 {@code none}). 로컬 개발 시
- * {@code update} 로 자동 테이블 생성, 운영 시 그대로 두고 DBA 가 수동 DDL.</p>
+ * <p>DDL: {@code caravan.hibernate.ddl-auto} 로 host 가 제어 (기본 {@code none}). 표는 Flyway(caravan-hub 의
+ * {@code db/migration/caravanuser})와 DBA 가 만든다.</p>
  *
- * <p>Hibernate Dialect 자동 감지로 DB 벤더 독립적 동작을 지원합니다.</p>
+ * <p>Hibernate Dialect 는 Oracle 을 자동 감지한다.</p>
  */
 @Slf4j
 @Configuration
@@ -72,21 +72,21 @@ public class KafkaJpaConfig {
         em.setJpaVendorAdapter(vendorAdapter);
 
         Map<String, Object> properties = new HashMap<>();
-        // host 가 caravan.hibernate.ddl-auto 로 제어. 로컬: update / 운영: none(기본, DBA 수동).
+        // host 가 caravan.hibernate.ddl-auto 로 제어. 기본 none — 스키마는 Flyway(caravan-hub)·DBA 가 만든다.
         properties.put("hibernate.hbm2ddl.auto", ddlAuto);
         properties.put("hibernate.physical_naming_strategy",
             "org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl");
-        // 커스텀 DialectResolver — Tibero/SQLite/MSSQL 자동 매핑.
-        // Oracle/PostgreSQL/MySQL/H2 등은 기본 StandardDialectResolver 가 자동 처리.
-        properties.put("hibernate.dialect_resolvers",
-            "com.dongkuk.caravan.core.config.TiberoDialectResolver");
-        // 추가 안전망: 명시적 dialect (caravan.hibernate.dialect 또는 spring.jpa.database-platform).
-        // 비어있으면 dialect_resolvers 또는 standard 자동 감지에 위임.
+        // 감사 칸(Instant: C_AT·U_AT)은 TIMESTAMP(6) 로 저장한다. 시각은 KST 통일이라 hibernate.jdbc.time_zone 은 넣지 않는다(oracle-1007).
+        // 이 EMF 는 직접 만들어 spring.jpa.properties 가 적용되지 않으므로 여기서 지정한다.
+        properties.put("hibernate.type.preferred_instant_jdbc_type", "TIMESTAMP");
+        // boolean 칸은 NUMBER(1,0)+CHECK(0,1) 로 두고 TINYINT 로 매핑한다(BIT 는 Oracle 23+ 에서 validate 가 실패한다). 지금 caravan 엔티티에는 boolean 칸이 없다.
+        properties.put("hibernate.type.preferred_boolean_jdbc_type", "TINYINT");
+        // 명시적 dialect (caravan.hibernate.dialect 또는 spring.jpa.database-platform). 비어있으면 Oracle 을 Hibernate 가 자동 감지한다.
         if (dialect != null && !dialect.isBlank()) {
             properties.put("hibernate.dialect", dialect);
             log.info("[CaravanJpa] hibernate.dialect 명시: {}", dialect);
         } else {
-            log.info("[CaravanJpa] hibernate.dialect 미설정 — 자동 감지 (TiberoDialectResolver) 사용");
+            log.info("[CaravanJpa] hibernate.dialect 미설정 — Oracle 자동 감지");
         }
         log.info("[CaravanJpa] hibernate.hbm2ddl.auto = {}", ddlAuto);
         em.setJpaPropertyMap(properties);

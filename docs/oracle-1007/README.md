@@ -19,7 +19,7 @@
 2. SQLite 를 완전히 걷어낸다: 프로파일·`db/migration/**/sqlite`·SQLite 치환기·sqlite-jdbc. 기존 `src/backend/data/*.db` 파일은 지우지 않는다.
 3. 운영(WildFly)·caravan-hub 사이트 프로파일(kp·ph)도 Oracle. MSSQL·PostgreSQL·H2 설정은 없앤다.
 4. **SQL 의 스키마 접두를 유지한다**(`MCMAPUSER.`·`MCAAPUSER.`·`EAIUSER.`·`IFUSER.`·`CARAVANUSER.`). 로컬 Oracle 에도 운영과 같은 이름의 사용자를 만든다. SQL 은 개발·테스트·운영이 글자 그대로 같아야 한다. 접두를 지우는 치환기를 새로 만들지 않는다.
-5. 격리는 **레인(워크트리)별 PDB** 로 한다. 컨테이너·인스턴스는 PC 에 하나(`oracle-26ai-free`, Podman VM 2GB·SGA 900M·cpu 2·processes 200)이고 PDB 는 최대 16개다.
+5. 격리는 **레인(워크트리)별 PDB** 로 한다. 컨테이너·인스턴스는 PC 에 하나(`oracle-26ai-free`, Podman VM 3GB(처음 2GB 에서 10-07 스래싱 3회로 올림)·SGA 900M·PGA 목표 400M·cpu 2·processes 200)이고 PDB 는 최대 16개다.
 6. Flyway 방언 폴더는 Oracle 하나다. 모듈별 Oracle 기준선 V1 을 새로 만든다.
 
 ## 0.1 조정자가 권장안으로 정한 것 (사용자가 바꾸면 따른다)

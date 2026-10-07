@@ -24,9 +24,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+import utils.OracleTestDatabase;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import javax.sql.DataSource;
@@ -42,7 +40,7 @@ import static org.mockito.Mockito.mock;
  * @since 2021-06-15
  */
 class SqlScriptTaskTest {
-    EmbeddedDatabase database;
+    DataSource database;
     DataSource dataSource1;
     SpringTransactionHandler transactionHandler;
     DefaultApplicationContext applicationContext;
@@ -66,16 +64,8 @@ class SqlScriptTaskTest {
         elementExecutor = new ProcessStaterAndElementExecutorFactory(new NonModifyClassNameResolver()).generateElementExecutor();
     }
 
-    private EmbeddedDatabase database() {
-        EmbeddedDatabase dataSource;
-        dataSource = new EmbeddedDatabaseBuilder()
-                .generateUniqueName(true)
-                .setType(EmbeddedDatabaseType.H2)
-                .setScriptEncoding("UTF-8")
-                .ignoreFailedDrops(true)
-                .addScript("task/SqlScriptTaskTest/initData.sql")
-                .build();
-        return dataSource;
+    private DataSource database() {
+        return OracleTestDatabase.create("task/SqlScriptTaskTest/initData.sql");
     }
 
     private SpringTransactionHandler transactionHandler(TransactionManagerInfoHolder... transactionManagerInfoHolders) {

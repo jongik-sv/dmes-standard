@@ -7,14 +7,15 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 
 /**
  * 룰 행 — {@code TB_MDM_RULE_ROW}(TSK-08-01 design.md §6.0 ⑤·§6.2). 복합 PK 는 {@link MdmRuleRowId}.
  *
- * <p>감사 카운터는 {@code AUD_VER}(D-034, 불변 규칙 2). {@code CELLS} 는 셀 JSON(키 = var_id 문자열)이고 일반
- * {@code String} 으로 매핑한다. DEFAULT 행은 {@code SEQ = 0} 이다.
+ * <p>감사 카운터는 {@code AUD_VER}(D-034, 불변 규칙 2). {@code CELLS} 는 셀 JSON(키 = var_id 문자열)이고
+ * {@code String} 으로 매핑한다(칼럼이 CLOB 이라 {@code @Lob}). DEFAULT 행은 {@code SEQ = 0} 이다.
  */
 @Entity
 @Table(name = "TB_MDM_RULE_ROW")
@@ -40,6 +41,7 @@ public class MdmRuleRow extends CactusAuditEntity {
     @Column(name = "ROW_KIND", length = 20, nullable = false)
     private String rowKind;
 
+    @Lob
     @Column(name = "CELLS", nullable = false)
     private String cells;
 

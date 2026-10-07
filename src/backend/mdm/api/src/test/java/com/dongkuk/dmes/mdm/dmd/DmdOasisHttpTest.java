@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.common.segment.DataItemMessages;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,19 +15,15 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Path;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-07-03 design.md §3.2 T-A(A2·A4) — BPMN 까지 태우는 HTTP 왕복(DmaOasisHttpTest 패턴).
@@ -37,13 +34,10 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = "cactus.security.client-key=" + DmdOasisHttpTest.TEST_CLIENT_KEY)
 @ActiveProfiles("local")
-class DmdOasisHttpTest {
+class DmdOasisHttpTest extends AbstractMdmSharedDbTest {
 
     static final String TEST_CLIENT_KEY = "mdm-dmd-test-client-key";
     private static final String STEWARD = "MDM_STEWARD";
-
-    @TempDir
-    static Path tempDir;
 
     @LocalServerPort
     int port;
@@ -55,11 +49,6 @@ class DmdOasisHttpTest {
     private final ObjectMapper json = new ObjectMapper();
     private JdbcTemplate jdbc;
 
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + tempDir.resolve("mdm-dmd-http-test.db"));
-    }
-
     @BeforeEach
     void seed() {
         jdbc = new JdbcTemplate(dataSource);
@@ -70,7 +59,7 @@ class DmdOasisHttpTest {
         jdbc.update("INSERT INTO TB_MDM_DATA (MARU_DATA_ID, MARU_DATA_NAME, STATUS, SOURCE_KIND, CODE_PATTERN, ATTR01_NAME, "
                 + "LVL_CNT, LAST_CHG_SEQ, CHG_SEQ, VER) VALUES ('PORT', '항구', 'INUSE', 'MDM', '^[0-9A-Z]{1,20}$', '국가', 1, 0, 0, 0)");
         jdbc.update("INSERT INTO TB_MDM_DATA_CATE (MARU_DATA_ID, CATE_ID, VALID_FROM, VALID_TO, CATE_NAME, DEF_KIND, DEF_EXPR, "
-                + "DEF_TARGET, CHG_SEQ, VER) VALUES ('PORT', 'BASE', '2026-01-01 00:00:00', '9999-12-31 00:00:00', '전체', "
+                + "DEF_TARGET, CHG_SEQ, VER) VALUES ('PORT', 'BASE', TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '9999-12-31 00:00:00', '전체', "
                 + "'REGEX', '.*', 'KEY', 0, 0)");
     }
 

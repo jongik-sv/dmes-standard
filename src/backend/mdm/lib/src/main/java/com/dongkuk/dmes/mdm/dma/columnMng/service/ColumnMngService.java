@@ -8,6 +8,7 @@ import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.common.security.MdmStdAdminGuard;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.common.support.MdmJsonLists;
+import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.contract.category.MaruIdKind;
 import com.dongkuk.dmes.mdm.contract.category.MaruIdNamespace;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
@@ -368,6 +369,10 @@ public class ColumnMngService {
 
         // 4. 형식·길이·존재
         validateFields(req, columnName, physName);
+        // TERM_IDS 는 VARCHAR2(4000 BYTE) 칸이라 직렬화한 JSON 바이트로 잰다(ORA-12899 예방)
+        if (MdmTextLimits.overBytes(termIdsJson(termIds))) {
+            throw invalid("용어 목록이 너무 깁니다. 직렬화한 값이 " + MdmTextLimits.TEXT_BYTES_MAX + "바이트를 넘을 수 없습니다");
+        }
 
         // 5. 컬럼 유일성
         Long selfId = req.getColumnId();
@@ -406,7 +411,7 @@ public class ColumnMngService {
         column.setRefKind(trimToNull(req.getRefKind()));
         column.setRefTarget(trimToNull(req.getRefTarget()));
         column.setRefCateId(trimToNull(req.getRefCateId()));
-        column.setTermIds(termIds.stream().map(String::valueOf).collect(Collectors.joining(",", "[", "]")));
+        column.setTermIds(termIdsJson(termIds));
         column.setUsageNote(richText(req.getUsageNote()));
         column = columnRepository.save(column);
         Long columnId = column.getColumnId();
@@ -474,6 +479,11 @@ public class ColumnMngService {
             throw MdmErrors.of(MdmErrorCode.NAME_PLACEHOLDER_REMAINS, String.join(", ", missing), List.of());
         }
         return ids;
+    }
+
+    /** TERM_IDS 칸에 쓰는 JSON 숫자 배열 문자열. */
+    private static String termIdsJson(List<Long> termIds) {
+        return termIds.stream().map(String::valueOf).collect(Collectors.joining(",", "[", "]"));
     }
 
     private void validateFields(ColumnMngSaveRequest req, String columnName, String physName) {
@@ -544,7 +554,11 @@ public class ColumnMngService {
             }
             MdmColumnSystem want = new MdmColumnSystem(selfId, system, phys);
             want.setTransform(transform);
-            want.setNote(trimToNull(trimToEmpty(row.get("note"))));
+            String note = trimToNull(trimToEmpty(row.get("note")));
+            if (MdmTextLimits.overBytes(note)) {
+                throw invalid("시스템 메모는 " + MdmTextLimits.TEXT_BYTES_MAX + "바이트(한글 약 1,333자)를 넘을 수 없습니다");
+            }
+            want.setNote(note);
             requested.add(want);
         }
         if (!repeated.isEmpty()) {

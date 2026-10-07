@@ -45,7 +45,7 @@ class VersionRowStoreIntegerIdSqliteTest extends AbstractMdmSharedDbTest {
         tx = new TransactionTemplate(txm);
         jdbc.update("INSERT INTO TB_MDM_TC_LAYOUT (LAYOUT_ID, STATUS, VER) VALUES (7, 'CREATED', 0)");
         jdbc.update("INSERT INTO TB_MDM_TC_LAYOUT_VER (LAYOUT_ID, VER, STATUS, OWNER_ID, APPLY_FROM, APPLY_TO, ROW_VERSION) "
-                + "VALUES (7, 1.000, 'RELEASED', NULL, '2026-01-01 00:00:00', '9999-12-31 00:00:00', 0)");
+                + "VALUES (7, 1.000, 'RELEASED', NULL, TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '9999-12-31 00:00:00', 0)");
         jdbc.update("INSERT INTO TB_MDM_TC_LAYOUT_VER (LAYOUT_ID, VER, STATUS, OWNER_ID, ROW_VERSION) "
                 + "VALUES (7, 1.001, 'DRAFT', 'kim', 0)");
     }
@@ -76,7 +76,7 @@ class VersionRowStoreIntegerIdSqliteTest extends AbstractMdmSharedDbTest {
         assertThat(tx.<Integer>execute(s -> store.casDeleteDraft(ref("1.001"), 4))).isEqualTo(1);
         assertThat(tx.<Integer>execute(s -> store.markParentInUse(VersionTarget.LAYOUT, "7", STAMP))).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT STATUS FROM TB_MDM_TC_LAYOUT WHERE LAYOUT_ID = 7", String.class)).isEqualTo("INUSE");
-        assertThat(jdbc.queryForObject("SELECT APPLY_TO FROM TB_MDM_TC_LAYOUT_VER WHERE LAYOUT_ID = 7 AND VER = 1.000", String.class))
-                .isEqualTo("9999-12-31 00:00:00");
+        assertThat(jdbc.queryForObject("SELECT APPLY_TO FROM TB_MDM_TC_LAYOUT_VER WHERE LAYOUT_ID = 7 AND VER = 1.000", LocalDateTime.class))
+                .isEqualTo(LocalDateTime.of(9999, 12, 31, 0, 0, 0));
     }
 }

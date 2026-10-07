@@ -259,7 +259,7 @@ HTTP 상태:
 
 ## 8. DB 마이그레이션과 Seed
 
-DB 전제: 로컬 개발과 자동 테스트는 **SQLite** 로 고정한다. 운영 DB 는 **Oracle 또는 PostgreSQL**(현장마다 하나)이며, 현장에서 어느 쪽인지 확정하기 전에는 한쪽만 가정하지 않는다. MSSQL 은 거의 쓰지 않으며 쓰게 되면 그 현장에서 방언을 더한다(MDM 선례: [ADR-0004](../../mdm/adr/0004-drop-mssql-production-assumption.md)). 방언 중립 SQL 작성 규칙은 [`../Database/dialect-neutral-sql.md`](../Database/dialect-neutral-sql.md) 를 따른다.
+DB 전제: 로컬 개발과 자동 테스트는 **SQLite** 로 고정한다. 운영 DB 는 **Oracle 또는 PostgreSQL**(현장마다 하나)이며, 현장에서 어느 쪽인지 확정하기 전에는 한쪽만 가정하지 않는다. MSSQL 은 거의 쓰지 않으며 쓰게 되면 그 현장에서 방언을 더한다(MDM 선례: [ADR-0004](../../mdm/adr/0004-drop-mssql-production-assumption.md)). 방언 중립 SQL 작성 규칙은 [`../Database/oracle-sql-rules.md`](../Database/oracle-sql-rules.md) 를 따른다.
 
 마이그레이션 원칙:
 

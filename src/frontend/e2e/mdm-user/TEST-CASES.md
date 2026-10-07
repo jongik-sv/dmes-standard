@@ -11,25 +11,27 @@ pnpm test:e2e:mdm-user --project=dmc    # 한 그룹만(setup 이 먼저 돈다)
 ```
 
 - 전제: 포털(`SMOKE_MCM_BASE_URL`, 기본 `http://localhost:5100` — `NEXTAUTH_URL` 과 같아야 로그인 쿠키가 유지된다)·mcm·mdm 백엔드가 떠 있다.
-- 전제 DB(2026-10-03 결정): 사용자가 평소 로컬에서 쓰는 주 DB, 곧 **마루 MDM 로컬 샘플이 든 mdm.db** 다. `./be-run.sh` 로 mdm 을 띄우면
-  빈 mdm.db 에 `src/backend/mdm/sample/mdm-local-sample.sql` 이 한 번 들어간다(`MdmLocalSampleLoader`). 새 DB 로 따로 띄울 때는 mdm 을
-  같은 인자로 띄운다. mcm 은 기동 시드만 있으면 되고 시험 사용자는 setup 이 화면에서 만든다. SQL 픽스처는 넣지 않는다.
+- 전제 DB(Oracle 전환 — 이 절은 `feat/ora-mdm` 기준): 시험 PDB 복제(`TPL_EMPTY`) → mcm·mdm 서버를 그 PDB 로 띄워 Flyway V1 →
+  `scripts/db-snapshot/snapshot.py import` 로 MDMAPUSER·MCMAPUSER 스냅샷(마루 MDM 로컬 샘플에 해당하는 값)을 적재 → 여정. `TPL_DATA` 가 생기면 그 복제로 바꾼다.
+  스냅샷에는 옛 로컬 DB 에서 돈 여정의 잔여 행(값이 대문자 `E2E` 로 시작, 413행·19표)이 있어 그대로 넣으면 「등록」 단계가 「같은 ID」로 거부된다.
+  snapshot.py import 는 이 행을 걸러 넣는다(ora-base 4bee77201, `--keep-e2e` 로 끔). 그 커밋이 없는 브랜치에서는 E2E 행을 뺀 CSV 사본을
+  `DMES_SNAPSHOT_DIR` 로 준다. 화면 스펙(e2e/mdm-*.spec.ts)은 스냅샷 없는 새 PDB 에서 돌린다(support/mdm-e2e.ts 머리말).
+  dma COL-02(미등록 토큰)·dmb LAY-07/08(숫자 항목 ELGN, NUMBER(3,1))은 스냅샷 사전·도메인 값에 맞춰 골랐다.
+  mcm 은 기동 시드와 스냅샷만 있으면 되고 시험 사용자는 setup 이 화면에서 만든다. SQL 픽스처(`e2e/fixtures`)는 넣지 않는다.
+  서버는 둘 다 같은 PDB 를 보게 `DMES_ORA_URL`(예: `jdbc:oracle:thin:@//localhost:1521/T_<레인>`)로 띄운다. 포트는 비어 있는 것으로 바꿔 쓴다.
+  나머지(포털 환경변수·정리)는 docs/mdm/tasks/TSK-05-02/design.md §3.7 과 같다. 옛 SQLite 의 `be-run.sh` 샘플 로더(`MdmLocalSampleLoader`)·`--mdm.sample.path` 는 쓰지 않는다.
   ```bash
-  # 새 DB 격리 실행 — src/backend/data 의 mcm·mdm·caravan-*.db(-wal·-shm 포함)를 옮긴 뒤. 포트는 비어 있는 것으로 바꿔 쓴다.
-  # 나머지(포털 환경변수·정리)는 docs/mdm/tasks/TSK-05-02/design.md §3.7 과 같다. 다른 점은 mdm 의 --mdm.sample.path 와 픽스처를 넣지 않는 것이다.
   cd src/backend/mcm && ../gradlew :api:bootRun --no-daemon --console=plain --args="--spring.profiles.active=local --server.port=18521 …"
-  cd src/backend/mdm && ../gradlew :api:bootRun --no-daemon --console=plain \
-    --args="--spring.profiles.active=local --server.port=18596 --mdm.sample.path=sample/mdm-local-sample.sql"
+  cd src/backend/mdm && ../gradlew :api:bootRun --no-daemon --console=plain --args="--spring.profiles.active=local --server.port=18596 …"
   ```
 - 샘플 의존: dmb 여정은 샘플의 표준 컬럼(TC_CD·SND_FAC_TP·SND_SYS·LINE_CODE·SEQUENCE_NO·COIL_ID·PROD_DT·COIL_THK)의 길이·이름과
   EAI `GLUE`, 이미 전문에 쌓인 헤더를 단언에 쓴다. dme TC-DME-RO-01 은 세트에 샘플의 확정 룰 `WID_CHK` 를 담는다(세트에는
-  확정된 룰만 담을 수 있다 — D-144). 샘플 SQL 을 바꾸면 이 단언이 깨질 수 있다.
-- 새 mcm 을 띄운 뒤 첫 만료 토큰 정리(`RevokedTokenPurger`, 기동 60초 뒤)가 지나간 다음에 시작하기를 권한다(필수 아님). 0f9fa18b 부터
-  로그인은 SQLITE_BUSY 를 받으면 다시 시도하지만, 다른 mcm 쓰기(사용자 저장 등)가 그 정리와 겹치면 여전히 잠금이 날 수 있다.
-  be-mcm 로그에 `scheduling-1` 의 `TB_SEC_REVOKED_TOKEN` 삭제가 찍히면 지나간 것이다.
+  확정된 룰만 담을 수 있다 — D-144). 샘플 SQL·적재 스냅샷을 바꾸면 이 단언이 깨질 수 있다.
+- 새 mcm 을 띄운 뒤 첫 만료 토큰 정리(`RevokedTokenPurger`, 기동 60초 뒤)가 지나간 다음에 시작하기를 권한다(필수 아님). 정리와 로그인·다른 mcm 쓰기가 겹치면
+  행 잠금 대기로 느려질 수 있다(옛 SQLite 의 SQLITE_BUSY 500 은 Oracle 에 없다). be-mcm 로그에 `scheduling-1` 의 `TB_SEC_REVOKED_TOKEN` 삭제가 찍히면 지나간 것이다.
 - 로그인 상태(`.out/auth/*.json`)가 이미 있으면 `--project=dme --no-deps` 처럼 setup 을 건너뛸 수 있다. dme 는 장별로 `-g "A 룰 등록"`·`"B 새 버전"`·`"C 룰 세트"`·`"D 화면 연결"` 로 나눠 돌릴 수 있다.
 - 결과물: `e2e/mdm-user/.out/` (git 제외) — `screens/`(사람이 보는 스크린샷), `results/`(실패 스크린샷·trace), `report/`(HTML 보고서).
-- 동시 로그인·쓰기에서 SQLite 가 SQLITE_BUSY 를 내므로 한 줄(workers 1)로 돈다. 다른 세션이 m-mdm 코드를 고치는 중이면 개발 서버 Fast Refresh 로 화면이 다시 적재되어 실패할 수 있다.
+- 공유 PDB 한 벌에 로그인·쓰기가 겹치지 않고 setup 이 만든 사용자·로그인 상태를 쓰도록 한 줄(workers 1)로 돈다. 다른 세션이 m-mdm 코드를 고치는 중이면 개발 서버 Fast Refresh 로 화면이 다시 적재되어 실패할 수 있다.
 
 ## 시험 데이터 정리지기
 
@@ -62,7 +64,7 @@ pnpm test:e2e:mdm-user --project=dmc    # 한 그룹만(setup 이 먼저 돈다)
 | L5 | 버튼·입력 높이 26px(UI-Visual-Standard §4). 화면 머리 버튼은 공통 결함이라 `shared-layout` 주석으로만 남김 |
 | L6 | 요소가 탭 영역 밖으로 삐져나가지 않음 |
 | L7 | 보이는 버튼을 다른 요소가 덮지 않음(누를 수 있음) |
-| `assertAllButtonsPressed` | 화면의 활성 버튼 중 누르지 않은 것이 없음(예외는 이유와 함께 allow) |
+| `assertAllButtonsPressed` | 화면의 활성 버튼 중 누르지 않은 것이 없음(예외는 이유와 함께 allow). shared 개인화 메뉴 `search-settings-menu`·`grid-settings-menu` 는 공통 허용(`COMMON_ALLOW`) |
 | `Watcher` | 콘솔 오류·페이지 예외·5xx 없음. window.confirm 은 "확인"으로 수락(취소 시험은 `dismissNextDialog`) |
 
 ## 테스트 케이스 (2026-10-04 새 DB 최종 실행: 217건 모두 통과 — 실패 0 · 미실행 0 · 건너뜀 0)
@@ -373,7 +375,7 @@ DateTimePicker 높이 28px(e38b7073), ruleMng 상세 다시 읽기·카테고리
 
 
 2026-10-03 수리 중 관찰(실패로 두지 않음 — 뒤 괄호는 dev 수정):
-- 새 mcm 을 띄운 뒤 첫 만료 토큰 정리(RevokedTokenPurger, 기동 60초 뒤)와 로그인이 겹치면 SQLite 잠금(SQLITE_BUSY)으로 로그인이 500 이 된다(mcm SQLite busy_timeout 없음 — 0f9fa18b 로그인 SQLITE_BUSY 재시도).
+- (당시 SQLite 기준 — Oracle 에는 해당 없음) 새 mcm 을 띄운 뒤 첫 만료 토큰 정리(RevokedTokenPurger, 기동 60초 뒤)와 로그인이 겹치면 SQLite 잠금(SQLITE_BUSY)으로 로그인이 500 이 된다(mcm SQLite busy_timeout 없음 — 0f9fa18b 로그인 SQLITE_BUSY 재시도).
 - ruleMng 상세는 같은 행을 다시 누르거나 다시 조회해도 다시 읽지 않는다(page.tsx selectedId 가 바뀔 때만 loadDetail). codeMng·dataMng 는 누를 때마다 읽는다(0828a082 — 같은 행 재클릭·[조회] 때 다시 읽는다).
 - dmd 카테고리 추가 팝업은 서버가 거부해도 닫히고 입력이 지워진다(CategoryAddModal submit). 룰·마루 코드 등록 팝업은 입력을 남긴다(dfb2b5d2 — 거부되면 입력을 남긴 채 열려 있다).
 - dma 컬럼 사전 토큰 표는 열 폭 합(640px)이 표 폭(565px)보다 넓어 가로로 넘치고, 처음 그릴 때 드러나는 겹침 가로 막대가 마지막 행 버튼을 덮는다(macOS 겹침 스크롤 막대 — 15864467 열 최소 폭 합을 표 폭 안으로).

@@ -14,9 +14,9 @@ import { gridRowById } from "./support/grid";
  * D-105 — 이 화면이 ① 헤더·② 버전(목록 + 상세)까지 맡는다. H 계열은 옮겨 온 시험이다:
  * 헤더 저장(낙관적 잠금 auditVer)·폐기·적중 정책 표시(D-133 — 고치는 곳은 ruleEdit)·새 버전·DRAFT 삭제·선점·해제·넘기기·확정취소·확정.
  *
- * 전제(design.md 「E2E 서버 절차」): 새 mcm.db·mdm.db 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고,
- * mcm 기동 뒤 e2e/fixtures/mdm-rbac-users.sql·mdm-ruleEdit-users.sql, beforeAll 이 e2e/fixtures/mdm-ruleEdit-data.sql 을 넣는다.
- * 룰을 만들므로 같은 mdm.db 로 다시 돌릴 수 없다(새 DB 로 시작). 편집 시나리오는 SYSADMIN 이 아니라 담당자로 로그인한다.
+ * 전제(design.md 「E2E 서버 절차」): 새 PDB(시험 PDB 복제본)로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고,
+ * mcm 기동 뒤 mdm-00-fixtures.spec.ts 가 e2e/fixtures/mdm-rbac-users.sql·mdm-ruleEdit-users.sql 을, beforeAll 이 e2e/fixtures/mdm-ruleEdit-data.sql 을 넣는다.
+ * 룰을 만들므로 같은 PDB 로 다시 돌릴 수 없다(새 PDB 로 시작). 편집 시나리오는 SYSADMIN 이 아니라 담당자로 로그인한다.
  */
 
 /** 헤더·버전 시나리오(H 계열) 전용 픽스처 룰 — mdm-ruleEdit-data.sql 끝. */

@@ -13,13 +13,13 @@ create table users
 
 insert into users
 (id, firstName, lastName, create_dt, enrolled_dt, account_year, account_month, account_date)
-values (0, 'jeongjin', 'kim', now(), PARSEDATETIME('2021-01-01 23:01:11', 'yyyy-MM-dd HH:mm:ss'), '2021', 1,
-        PARSEDATETIME('2021-12-01', 'yyyy-MM-dd'));
+values (0, 'jeongjin', 'kim', current_timestamp, TO_TIMESTAMP('2021-01-01 23:01:11', 'YYYY-MM-DD HH24:MI:SS'), 2021, 1,
+        TO_DATE('2021-12-01', 'YYYY-MM-DD'));
 insert into users
 (id, firstName, lastName, create_dt, enrolled_dt, account_year, account_month, account_date)
-values (1, 'yuna', 'kim', now(), now(), '2021', 1,
-        PARSEDATETIME('2021-12-01', 'yyyy-MM-dd'));
+values (1, 'yuna', 'kim', current_timestamp, current_timestamp, 2021, 1,
+        TO_DATE('2021-12-01', 'YYYY-MM-DD'));
 insert into users
 (id, firstName, lastName, create_dt, enrolled_dt, account_year, account_month, account_date)
-values (2, 'sun', 'lee', now(), PARSEDATETIME('2021-01-01 23:01:11', 'yyyy-MM-dd HH:mm:ss'), '2021', 1,
-        PARSEDATETIME('2021-12-01', 'yyyy-MM-dd'));
+values (2, 'sun', 'lee', current_timestamp, TO_TIMESTAMP('2021-01-01 23:01:11', 'YYYY-MM-DD HH24:MI:SS'), 2021, 1,
+        TO_DATE('2021-12-01', 'YYYY-MM-DD'));

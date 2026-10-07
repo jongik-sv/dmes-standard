@@ -29,24 +29,29 @@ public final class VersionFixtureTables {
         return target == VersionTarget.MASTER_CODE ? CODE_SPEC : RULE_SPEC;
     }
 
-    /** SQLite 문안. 업무 일시는 TEXT(규칙표 #16), 04 VER 는 NUMERIC(7,3), 06 VER 도 NUMERIC(7,3)(V17). */
+    /**
+     * Oracle 문안(메서드 이름은 이력 추적용으로 그대로 둔다). 업무 일시는 TIMESTAMP(6)(규칙표 #16), 04 VER 는 NUMBER(7,3), 06 VER 도
+     * NUMBER(7,3)(V17). 시나리오 시험이 {@code @BeforeEach} 마다 부르므로 {@code IF NOT EXISTS}(Oracle 23ai 이상)로 만든다.
+     * 시험이 만든 표·트리거는 공용 기반({@code AbstractMdmSharedDbTest})이 클래스마다 지운다.
+     */
     public static List<String> sqliteDdl() {
         return List.of(
-                parent("TB_MDM_TC_CODE", "MARU_CODE_ID", "VARCHAR(50)", "TEXT"),
-                version("TB_MDM_TC_CODE_VER", "MARU_CODE_ID", "VARCHAR(50)", "NUMERIC(7,3)", "TEXT"),
-                parent("TB_MDM_TC_RULE", "MARU_RULE_ID", "VARCHAR(50)", "TEXT"),
-                version("TB_MDM_TC_RULE_VER", "MARU_RULE_ID", "VARCHAR(50)", "NUMERIC(7,3)", "TEXT"),
+                parent("TB_MDM_TC_CODE", "MARU_CODE_ID", "VARCHAR2(50 CHAR)"),
+                version("TB_MDM_TC_CODE_VER", "MARU_CODE_ID", "VARCHAR2(50 CHAR)", "NUMBER(7,3)"),
+                parent("TB_MDM_TC_RULE", "MARU_RULE_ID", "VARCHAR2(50 CHAR)"),
+                version("TB_MDM_TC_RULE_VER", "MARU_RULE_ID", "VARCHAR2(50 CHAR)", "NUMBER(7,3)"),
                 // S14 원자성: ATOMIC_FAIL 의 RELEASED 행 APPLY_TO 변경을 막아 확정 7단계를 실패시킨다.
-                "CREATE TRIGGER IF NOT EXISTS TR_TB_MDM_TC_CODE_VER_ATOMIC BEFORE UPDATE OF APPLY_TO ON TB_MDM_TC_CODE_VER "
-                        + "WHEN OLD.MARU_CODE_ID = 'ATOMIC_FAIL' AND OLD.STATUS = 'RELEASED' "
-                        + "BEGIN SELECT RAISE(ABORT, 'TSK-01-03 S14 atomic failure'); END");
+                // PL/SQL 블록이라 END; 까지가 한 문장이다(JDBC 에는 끝에 / 를 붙이지 않는다).
+                "CREATE OR REPLACE TRIGGER TR_TB_MDM_TC_CODE_VER_ATOMIC BEFORE UPDATE OF APPLY_TO ON TB_MDM_TC_CODE_VER "
+                        + "FOR EACH ROW WHEN (OLD.MARU_CODE_ID = 'ATOMIC_FAIL' AND OLD.STATUS = 'RELEASED') "
+                        + "BEGIN RAISE_APPLICATION_ERROR(-20001, 'TSK-01-03 S14 atomic failure'); END;");
     }
 
-    /** INTEGER 객체 ID 픽스처 두 표(SQLite). {@link #sqliteDdl()} 과 따로 둔다 — 기존 키트 상속 시험의 스키마를 바꾸지 않는다. */
+    /** INTEGER 객체 ID 픽스처 두 표(Oracle). {@link #sqliteDdl()} 과 따로 둔다 — 기존 키트 상속 시험의 스키마를 바꾸지 않는다. */
     public static List<String> integerIdSqliteDdl() {
         return List.of(
-                parent("TB_MDM_TC_LAYOUT", "LAYOUT_ID", "INTEGER", "TEXT"),
-                version("TB_MDM_TC_LAYOUT_VER", "LAYOUT_ID", "INTEGER", "NUMERIC(7,3)", "TEXT"));
+                parent("TB_MDM_TC_LAYOUT", "LAYOUT_ID", "NUMBER(10)"),
+                version("TB_MDM_TC_LAYOUT_VER", "LAYOUT_ID", "NUMBER(10)", "NUMBER(7,3)"));
     }
 
     public static void clearIntegerId(JdbcTemplate jdbc) {
@@ -61,27 +66,27 @@ public final class VersionFixtureTables {
         jdbc.update("DELETE FROM TB_MDM_TC_RULE");
     }
 
-    private static String parent(String table, String idColumn, String idType, String timeType) {
-        return "CREATE TABLE " + (timeType.equals("TEXT") ? "IF NOT EXISTS " : "") + table + " ("
+    private static String parent(String table, String idColumn, String idType) {
+        return "CREATE TABLE IF NOT EXISTS " + table + " ("
                 + idColumn + " " + idType + " NOT NULL PRIMARY KEY, "
-                + "STATUS VARCHAR(20) NOT NULL, "
-                + "U_USR_ID VARCHAR(50), U_AT " + timeType + ", U_SVC_ID VARCHAR(100), U_PGM_ID VARCHAR(100), "
-                + "VER BIGINT)";
+                + "STATUS VARCHAR2(20 CHAR) NOT NULL, "
+                + "U_USR_ID VARCHAR2(50 CHAR), U_AT TIMESTAMP(6), U_SVC_ID VARCHAR2(100 CHAR), U_PGM_ID VARCHAR2(100 CHAR), "
+                + "VER NUMBER(19))";
     }
 
-    private static String version(String table, String idColumn, String idType, String verType, String timeType) {
-        return "CREATE TABLE " + (timeType.equals("TEXT") ? "IF NOT EXISTS " : "") + table + " ("
+    private static String version(String table, String idColumn, String idType, String verType) {
+        return "CREATE TABLE IF NOT EXISTS " + table + " ("
                 + idColumn + " " + idType + " NOT NULL, "
                 + "VER " + verType + " NOT NULL, "
-                + "STATUS VARCHAR(20) NOT NULL, "
-                + "OWNER_ID VARCHAR(50), "
-                + "APPLY_FROM " + timeType + ", APPLY_TO " + timeType + ", "
-                + "REQUESTED_BY VARCHAR(50), REQUESTED_AT " + timeType + ", "
-                + "APPROVED_BY VARCHAR(50), APPROVED_AT " + timeType + ", "
-                + "RELEASED_AT " + timeType + ", "
-                + "ROW_VERSION BIGINT NOT NULL DEFAULT 0, "
-                + "U_USR_ID VARCHAR(50), U_AT " + timeType + ", U_SVC_ID VARCHAR(100), U_PGM_ID VARCHAR(100), "
-                + "AUD_VER BIGINT, "
+                + "STATUS VARCHAR2(20 CHAR) NOT NULL, "
+                + "OWNER_ID VARCHAR2(50 CHAR), "
+                + "APPLY_FROM TIMESTAMP(6), APPLY_TO TIMESTAMP(6), "
+                + "REQUESTED_BY VARCHAR2(50 CHAR), REQUESTED_AT TIMESTAMP(6), "
+                + "APPROVED_BY VARCHAR2(50 CHAR), APPROVED_AT TIMESTAMP(6), "
+                + "RELEASED_AT TIMESTAMP(6), "
+                + "ROW_VERSION NUMBER(19) DEFAULT 0 NOT NULL, "
+                + "U_USR_ID VARCHAR2(50 CHAR), U_AT TIMESTAMP(6), U_SVC_ID VARCHAR2(100 CHAR), U_PGM_ID VARCHAR2(100 CHAR), "
+                + "AUD_VER NUMBER(19), "
                 + "PRIMARY KEY (" + idColumn + ", VER))";
     }
 }

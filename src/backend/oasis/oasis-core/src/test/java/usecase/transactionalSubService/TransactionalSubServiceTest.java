@@ -19,6 +19,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
@@ -28,13 +29,12 @@ import org.mybatis.spring.SqlSessionTemplate;
 import org.slf4j.MDC;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.transaction.PlatformTransactionManager;
+
+import utils.OracleTestDatabase;
 
 import jakarta.persistence.EntityManagerFactory;
 import javax.sql.DataSource;
@@ -56,7 +56,7 @@ import static com.dongkuk.oasis.BpmnServiceLoaderForTest.getServiceStarter;
 public class TransactionalSubServiceTest {
     private static final String MYBATIS_CONFIG = "usecase/transactionalSubService/mybatis-config.xml";
     private static final String MYBATIS_MAPPER = "usecase/transactionalSubService/mappers/**/*.xml";
-    EmbeddedDatabase database;
+    DataSource database;
     DataSource dataSource1;
     DataSource dataSource2;
     EntityManagerFactory entityManagerFactory1;
@@ -74,6 +74,9 @@ public class TransactionalSubServiceTest {
         // dataSource2
         HikariConfig hikariConfig = new HikariConfig();
         hikariConfig.setDataSource(database);
+        // Oracle 인스턴스를 모든 레인이 공유하므로 풀은 필요한 만큼만 연다(기본값은 최대 10·유휴 10 개를 미리 연다).
+        hikariConfig.setMaximumPoolSize(3);
+        hikariConfig.setMinimumIdle(0);
         dataSource1 = new HikariDataSource(hikariConfig);
 //        dataSource1 = new SingleConnectionDataSource(database.getConnection(), true);
 
@@ -90,16 +93,14 @@ public class TransactionalSubServiceTest {
         );
     }
 
-    private EmbeddedDatabase database() {
-        EmbeddedDatabase dataSource;
-        dataSource = new EmbeddedDatabaseBuilder()
-                .generateUniqueName(true)
-                .setType(EmbeddedDatabaseType.H2)
-                .setScriptEncoding("UTF-8")
-                .ignoreFailedDrops(true)
-                .addScript("usecase/transactionalSubService/initData.sql")
-                .build();
-        return dataSource;
+    @AfterEach
+    void closePools() {
+        ((HikariDataSource) dataSource1).close();
+        ((HikariDataSource) dataSource2).close();
+    }
+
+    private DataSource database() {
+        return OracleTestDatabase.create("usecase/transactionalSubService/initData.sql");
     }
 
     private EntityManagerFactory entityManagerFactory(DataSource dataSource) {

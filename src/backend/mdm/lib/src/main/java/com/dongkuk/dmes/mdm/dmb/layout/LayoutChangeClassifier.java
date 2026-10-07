@@ -1,10 +1,12 @@
 package com.dongkuk.dmes.mdm.dmb.layout;
 
+import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.contract.layout.MdmFillKind;
 import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutHeaderRef;
 import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutItemSnapshot;
 import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSnapshot;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
@@ -40,7 +42,57 @@ public final class LayoutChangeClassifier {
     public record Change(String switchMode, List<Kind> kinds, String summary) {
     }
 
+    /** 요약 조각을 잇는 {@code ", "} 의 UTF-8 바이트 수. */
+    private static final int SEPARATOR_BYTES = 2;
+
     private LayoutChangeClassifier() {
+    }
+
+    /**
+     * 변경 요약을 CHANGE_SUMMARY({@code VARCHAR2(4000 BYTE)}) 에 들어가게 맞춘다 — 넘으면 오류 없이 뒤 항목을 {@code …외 N건} 으로
+     * 접는다(분류 결과·경고 문구는 그대로 두고 DB 에 쓰는 문자열만 줄인다). 항목은 {@code ", "} 로 이어 붙은 조각이며, 앞에 붙은 EAI 변경
+     * 문구도 한 조각이다. 첫 조각 하나가 혼자 넘으면 그 조각을 글자 단위로 자른다.
+     */
+    public static String fitSummary(String summary) {
+        if (!MdmTextLimits.overBytes(summary)) {
+            return summary;
+        }
+        // 항목 안에 ", " 가 있으면 조각 수가 실제 항목 수와 달라 "…외 N건" 의 N 이 어긋날 수 있다(길이 상한은 그대로 지킨다)
+        String[] parts = summary.split(", ");
+        // 앞에서부터 접두 바이트를 누적하며 한 번 훑는다 — 들어가는 가장 긴 접두(keep 조각)를 기억한다
+        int best = 0;
+        int prefixBytes = 0;
+        for (int keep = 1; keep < parts.length; keep++) {
+            prefixBytes += MdmTextLimits.bytes(parts[keep - 1]) + (keep > 1 ? SEPARATOR_BYTES : 0);
+            if (prefixBytes > MdmTextLimits.TEXT_BYTES_MAX) {
+                break;
+            }
+            if (prefixBytes + MdmTextLimits.bytes(foldedSuffix(parts.length - keep)) <= MdmTextLimits.TEXT_BYTES_MAX) {
+                best = keep;
+            }
+        }
+        if (best > 0) {
+            return String.join(", ", Arrays.copyOf(parts, best)) + foldedSuffix(parts.length - best);
+        }
+        String suffix = parts.length > 1 ? foldedSuffix(parts.length - 1) : "…";
+        int budget = MdmTextLimits.TEXT_BYTES_MAX - MdmTextLimits.bytes(suffix);
+        StringBuilder cut = new StringBuilder();
+        int used = 0;
+        for (int i = 0; i < parts[0].length(); ) {
+            int cp = parts[0].codePointAt(i);
+            String ch = new String(Character.toChars(cp));
+            used += MdmTextLimits.bytes(ch);
+            if (used > budget) {
+                break;
+            }
+            cut.append(ch);
+            i += ch.length();
+        }
+        return cut + suffix;
+    }
+
+    private static String foldedSuffix(int folded) {
+        return " …외 " + folded + "건";
     }
 
     public static Change classify(MdmLayoutSnapshot prev, MdmLayoutSnapshot next, Function<String, String> displayName) {

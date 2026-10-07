@@ -4,6 +4,7 @@
 > 최종 수정일: 2026-02-04 (Spring Boot 2.7.x 기준으로 변경)
 > 프로젝트: DMES SERAI (Kafka Integration Service)
 > 목표: cactus-dmesfw → caravan + Spring Boot 2.7.x 전환
+> 2026-10 갱신: DB 는 Oracle 전용으로 정했다(이전에는 Tibero). 아래 JDBC 의존성·DataSource 예시는 Oracle(ojdbc11) 기준으로 고쳤다.
 
 ---
 
@@ -57,7 +58,7 @@
 
 | 의존성 | 이유 |
 |--------|------|
-| Tibero JDBC | DB 연결 필수 |
+| Oracle JDBC (ojdbc11) | DB 연결 필수 (이전에는 Tibero JDBC) |
 | JSch | SFTP 필수 |
 | Jackson | Spring Boot 2.7 내장 (HTTP 요청/응답 처리용 — Kafka JSON은 caravan이 처리) |
 
@@ -192,7 +193,7 @@ dependencies {
 
     // ========== Database ==========
     implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:2.3.2'
-    runtimeOnly 'com.tmax.tibero:tibero6-jdbc:1.0'
+    runtimeOnly 'com.oracle.database.jdbc:ojdbc11'
 
     // ========== SFTP ==========
     implementation 'com.jcraft:jsch:0.1.55'
@@ -301,10 +302,10 @@ serai:
 serai-datasource:
   # MST DataSource (설정 테이블)
   mst:
-    url: ${DB_MST_URL:jdbc:tibero:thin:@localhost:8629:tibero}
-    username: ${DB_MST_USER:MCMAPUSER}
+    url: ${DB_MST_URL:jdbc:oracle:thin:@//localhost:1521/FREEPDB1}
+    username: ${DB_MST_USER:CARAVANUSER}
     password: ${DB_MST_PASS:password}
-    driver-class-name: com.tmax.tibero.jdbc.TbDriver
+    driver-class-name: oracle.jdbc.OracleDriver
     hikari:
       pool-name: serai-mst-pool
       minimum-idle: 2
@@ -312,10 +313,10 @@ serai-datasource:
 
   # IF DataSource (인터페이스 테이블)
   if:
-    url: ${DB_IF_URL:jdbc:tibero:thin:@localhost:8629:tibero}
+    url: ${DB_IF_URL:jdbc:oracle:thin:@//localhost:1521/FREEPDB1}
     username: ${DB_IF_USER:EAIUSER}
     password: ${DB_IF_PASS:password}
-    driver-class-name: com.tmax.tibero.jdbc.TbDriver
+    driver-class-name: oracle.jdbc.OracleDriver
     hikari:
       pool-name: serai-if-pool
       minimum-idle: 2
@@ -1380,7 +1381,7 @@ public class DataSourceConfig {
 
 ### 준비 단계
 - [ ] caravan 라이브러리 Nexus 배포 완료 확인
-- [ ] Tibero JDBC 드라이버 준비
+- [ ] Oracle JDBC 드라이버(ojdbc11) 의존성 확인 (Gradle 이 가져온다)
 - [ ] 개발/테스트 환경 Kafka 클러스터 준비
 - [ ] TB_MCM_MOM_KAFKA_TOPICS에 OUTBOUND 토픽 등록 (BIZ_SYSTEM = 'SERAI')
 - [ ] TB_MCM_MOM_TC_ERROR 테이블 + SQ_MCM_MOM_TC_ERROR 시퀀스 존재 확인
