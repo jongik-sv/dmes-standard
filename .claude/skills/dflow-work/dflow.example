@@ -17,9 +17,9 @@ release_branch=main
 # no_docker=1
 
 # 방언 검증 명령. 승인 스윕(/dflow-merge)이 머지를 마친 뒤 스윕마다 한 번, 개발 브랜치 끝 커밋의 깨끗한 임시 워크트리
-# 최상위에서 bash -c 로 돌린다(PC 전역 도커 슬롯 안에서). 비우면 이 단계는 없다. PC 전용 값(JAVA_HOME 등)이 든 명령은
+# 최상위에서 bash -c 로 돌린다(PC 전역 도커 슬롯 안에서). 비우면 이 단계는 없다(dmes-standard 는 DB 가 Oracle 하나라 비워 둔다. 시험은 Oracle PDB 하니스가 돈다). PC 전용 값(JAVA_HOME 등)이 든 명령은
 # .dflow.local 에 둔다(.dflow.local 이 이긴다). 정본: .claude/skills/dflow-merge/SKILL.md 「방언 검증」.
-# dialect_check=cd src/backend/<모듈> && ../gradlew :api:postgresqlMigrationTest --no-daemon --console=plain
+# dialect_check=cd <폴더> && <DB 마다 다른 검증 시험 명령>   (DB 를 둘 이상 지원하는 리포에서만)
 
 # 게이트 범위 대응표는 이 파일이 아니라 리포 최상위의 별도 파일 .dflow-gates 에 둔다(여러 줄 표라 key=value 한 줄에 맞지
 # 않는다). 있으면 /dflow-dev 의 Build 게이트·변이 검증이 바꾼 모듈의 테스트만 돌고 전체는 Verify 에서 한 번 돈다. 없으면

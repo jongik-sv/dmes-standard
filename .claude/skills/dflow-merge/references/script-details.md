@@ -53,7 +53,7 @@ SKILL.md 「결정 번호 매김」·「마이그레이션 버전 관문」 의 
 - **역순 도착**: 이 브랜치가 추가한 버전이 그 폴더의 개발 브랜치 최대 버전보다 작다(`MIGRATION_ORDER`, 같으면 중복). Flyway
   기본값 `outOfOrder=false` 에서는 이미 더 높은 버전을 적용한 개발 DB 가 그 파일을 거부한다.
 - 버전 비교는 Flyway 규칙이다(`_` 는 `.` 과 같고 부분마다 숫자로, 앞의 0 과 끝의 0 부분은 무시 — `V04`·`V4_0`·`V4.0` 은 `V4`).
-  폴더 단위로 묶는다 — 방언별 폴더(`…/mdm/sqlite`·`…/mdm/oracle`)가 같은 버전을 나란히 두는 것이 정상이다. `R__`(반복)·`U`
+  폴더 단위로 묶는다 — Flyway 이력은 폴더(location)마다 독립이라 다른 폴더가 같은 버전을 두는 것은 정상이다(dmes-standard 는 Oracle 하나라 `oracle/mcmapuser`·`oracle/mcaapuser` 같은 스키마별 폴더). `R__`(반복)·`U`
   (undo) 파일은 보지 않는다.
 - exit 0 은 `MIGRATION_OK`, exit 1 은 버전 중복·역순 도착이고 걸린 파일(이 브랜치가 추가한 것)은 `MIGRATION_FILES` 로 나온다.
   exit 2 는 `MIGRATION_CHECK_FAILED <사유>` 다(판정 불가 — 머지하지 않는다).
