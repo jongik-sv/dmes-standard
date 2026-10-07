@@ -33,6 +33,7 @@
 # 셋째 인자가 있으면 <접두>.mcp.json·<접두>.chrome 을 먼저 지우고(지난 실행의 것), 필요할 때만 다시 만든다.
 # 출력(stdout): 부르는 쪽이 종전 설정 위에 덮어 합칠 조각 JSON 한 줄. 늘 exit 0. 무엇이 실패하든 {} 를 내 종전 동작으로
 # 떨어진다. worker_keep_plugins 가 있으면 enabledPlugins 를 켜 둘 것을 뺀 맵으로 통째로 바꿔 낸다(빈 맵일 수 있다).
+case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(cd "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
 set -u
 MAIN=${1:-.}
 P=${2:-'{}'}

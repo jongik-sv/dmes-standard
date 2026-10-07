@@ -19,6 +19,7 @@
 #   DOCKER=ban show-failed         조회 실패 — 모르면 금지(fail-closed). 옛 포인터 값을 옮겨 쓰지 않는다
 # spawn·재개·재시작·해소 포인터를 쓸 때마다 부른다. 사람이 그사이 태그를 바꿨을 수 있고, 옛 팀장이 인원 기준으로 적은
 # NO_DOCKER=0 이 옛 포인터에 남아 있을 수 있기 때문이다.
+case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(cd "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
 set -u
 
 usage() { echo "사용법: docker-allow.sh <id8|order> [--reuse-dir <dir>] | --json" >&2; exit 2; }

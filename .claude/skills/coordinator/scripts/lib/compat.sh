@@ -35,6 +35,14 @@ case "${COMPAT_FORCE_OS:-}" in
   unix) COMPAT_WIN=0 ;;
   *) case "${OSTYPE:-}" in msys*|cygwin*|mingw*) COMPAT_WIN=1 ;; *) COMPAT_WIN=0 ;; esac ;;
 esac
+# 윈도우(Git Bash)에는 jq 가 없으므로 동봉본(_shared/bin: jq 래퍼 → jq.exe -b)을 PATH 앞에 둔다. macOS·Linux 는 PATH 를 건드리지 않는다.
+# 이미 PATH 에 있으면 다시 넣지 않는다. 폴더가 없으면(킷을 _shared 없이 설치한 경우) 아무것도 하지 않는다.
+if [ "$COMPAT_WIN" = 1 ]; then
+  _compat_here="${BASH_SOURCE[0]%/*}"; [ "$_compat_here" != "${BASH_SOURCE[0]}" ] || _compat_here=.
+  _compat_sbin="$(cd "$_compat_here/../../../_shared/bin" 2>/dev/null && pwd)"
+  case ":$PATH:" in *":$_compat_sbin:"*) ;; *) [ -z "$_compat_sbin" ] || PATH="$_compat_sbin:$PATH" ;; esac
+  unset _compat_here _compat_sbin
+fi
 # GNU 판별은 stat -c 가 되는지 한 번만 본다(BSD stat 은 `illegal option` 으로 rc 1). GNU 의 `stat -f` 는 파일시스템 모드라
 # `stat -f %m 파일` 이 `?` 를 내고 rc 0 으로 끝나므로, BSD 형을 먼저 시도하는 `||` 사슬은 GNU 에서 대안으로 넘어가지 못한다.
 case "${COMPAT_FORCE_USERLAND:-}" in

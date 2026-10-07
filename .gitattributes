@@ -13,3 +13,5 @@ src/backend/analog/api/src/test/resources/fixture-logs/** -text
 
 # dflow-kit — 스킬 스크립트 줄끝 고정
 .claude/skills/** text eol=lf
+# 동봉 바이너리는 줄끝 변환·diff 대상이 아니다(위 text 규칙보다 뒤에 둬야 이긴다)
+.claude/skills/_shared/bin/*.exe binary

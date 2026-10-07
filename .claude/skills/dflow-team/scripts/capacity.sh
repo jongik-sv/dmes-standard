@@ -50,6 +50,7 @@
 #   swap     = 스왑 사용량 ÷ 물리 RAM × 100. **극단 안전망**으로만 둔다(150% 이상이면 막는다). macOS 스왑은 압박이
 #              풀린 뒤에도 몇 시간씩 남아(실측: 압박 normal·스왑 12GB=76% 에서도 여유는 충분했다) 평상시 기준으로 쓸 수
 #              없다. 압박은 pressure·free 가 본다.
+case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(cd "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
 MIN_FREE_PCT="${DFLOW_CAP_MIN_FREE_PCT:-30}"            # free 가 이보다 작으면 막는다
 MAX_LOAD_PER_CPU="${DFLOW_CAP_MAX_LOAD_PER_CPU:-2.0}"   # load 가 이보다 크면 막는다
 MAX_SWAP_PCT="${DFLOW_CAP_MAX_SWAP_PCT:-150}"           # swap 이 이 이상이면 막는다(극단 안전망)

@@ -25,6 +25,7 @@
 # 판정 줄 앞에 올 수 있는 줄:
 #   SWEEP_DIALECT_PENDING <sha12|unknown> 방언 검증(dialect_check)이 개발 브랜치 끝 커밋을 아직 판정하지 않았다(보류·BUSY·
 #                                        오류 포함, 문서뿐 이월 docs_only 제외). SWEEP_NONE 이어도 호출자가 dialect-check.sh 를 직접 한 번 부른다.
+case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(cd "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
 set -u
 
 usage() { echo "사용법: sweep-check.sh [--dev <개발 브랜치>]" >&2; echo "SWEEP_UNKNOWN usage"; exit 2; }

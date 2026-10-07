@@ -156,5 +156,15 @@ eq "Win: 끝 줄바꿈이 없는 ppid 도 읽는다" "$(win "compat_pgrep_f MARK
 eq "Win: descendants 에 600 포함(끝 줄바꿈 없는 ppid)" "$(win 'compat_descendants 100' | grep -c '^600$')" 1
 eq "신호 가드: 0·1·-1·빈 값은 거른다" "$(run 'for x in 0 1 -1 "" abc 2 4242; do _compat_pid_ok "$x" && printf "%s " "$x"; done')" "2 4242 "
 
+# ---- 동봉 jq(_shared/bin) — 윈도우에서만 PATH 앞에 둔다 -------------------------------------------------------------
+SBIN="$(cd "$here/../../_shared/bin" && pwd)"
+eq "Win: PATH 맨 앞이 _shared/bin" "$(COMPAT_FORCE_OS=windows run 'echo "${PATH%%:*}"')" "$SBIN"
+eq "Win: jq 는 동봉 래퍼를 먼저 찾는다" "$(COMPAT_FORCE_OS=windows run 'command -v jq')" "$SBIN/jq"
+eq "Win: 이미 PATH 에 있으면 두 번 넣지 않는다" "$(PATH="$SBIN:$PATH" COMPAT_FORCE_OS=windows run 'echo "$PATH" | tr ":" "\n" | grep -cxF "'"$SBIN"'"')" 1
+case "$(COMPAT_FORCE_OS=unix run 'echo "${PATH%%:*}"')" in "$SBIN") chk fail "Unix: PATH 를 건드리지 않는다" ;; *) chk ok "Unix: PATH 를 건드리지 않는다" ;; esac
+eq "래퍼: SKILLS_JQ_EXE 의 jq 를 -b 로 실행한다" "$(echo '{"a":[1,2]}' | SKILLS_JQ_EXE="$(command -v jq)" "$SBIN/jq" -c '.a')" "[1,2]"
+eq "래퍼: 실행 파일이 없으면 rc 127" "$(SKILLS_JQ_EXE="$tmp/없는-jq" "$SBIN/jq" . </dev/null >/dev/null 2>&1; echo $?)" 127
+eq "jq.exe 는 줄끝 변환 없이 보존된다(SHA-256)" "$(compat_sha256 < "$SBIN/jq.exe")" 7451fbbf37feffb9bf262bd97c54f0da558c63f0748e64152dd87b0a07b6d6ab
+
 echo "통과 $pass · 실패 $fail"
 [ "$fail" = 0 ]

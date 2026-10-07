@@ -50,6 +50,7 @@
 #   BASELINE_BUSY exit=75 <사유>                            재지 못했다 — 같은 명령을 다시 호출한다(실패가 아니다)
 # 그 밖: BASELINE_WAITING(다른 측정을 기다린다) · BASELINE_LOCK_STALE · BASELINE_SUMMARY
 # note 는 파싱한 총수·실패 목록을 결과에 더한다. 재사용하는 쪽은 BASELINE_SUMMARY 줄과 json 으로 같은 수를 얻는다.
+case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(cd "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
 set -u
 
 MAX_AGE="${DFLOW_BASELINE_MAX_AGE:-21600}"
