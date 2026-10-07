@@ -16,7 +16,11 @@
  * - 초기화(emitSearchReset): 사용자 기본값을 다시 넣는다. 「마지막 조회값」 칸은 넣지 않는다(초기화는 조건을 비우려는 동작).
  * - 조회(emitSearch): 등록된 칸의 지금 값을 마지막 조회값으로 적는다.
  * - 의존 칸(SearchField `dependsOn`): 기준 칸 값이 바뀐 커밋 뒤에 의존 칸을 처음 등록 때 값(코드 기본값)으로 비우고 칸 규칙으로 다시 채운다.
- *   같은 커밋에서 화면이 직접 바꾼 의존 칸은 두고, 새 선택지에 없는 값은 넣지 않는다(보류하지 않는다). 기본값 기능이 꺼진 영역도 비우기는 한다.
+ *   같은 커밋에서 화면이 직접 바꾼 의존 칸은 두고, 선택지에 없는 값은 넣지 않는다(보류하지 않는다). 기본값 기능이 꺼진 영역도 비우기는 한다.
+ *   선택지가 기준 칸을 따라 바뀌는 칸(서버에서 받는 선택지)은 그 뒤 한도 안에 선택지 내용이 바뀌면 새 선택지로 다시 판정한다 —
+ *   옛 선택지로 넣은 값은 고치고, 새 선택지에만 있는 값은 그때 넣는다(사용자가 그 칸을 고치면 그만둔다).
+ *   분리 창(이어받은 값으로 시작)은 처음 값을 모르므로 빈 값으로 비운다(빈 값이 선택지에 없는 select 는 두고 규칙만 넣는다).
+ *   넣기 전(저장소 대기)에 바뀐 기준 칸은 넣기가 끝난 뒤 처리한다. 초기화 커밋과 그 바로 뒤 커밋에서는 마지막 조회값을 넣지 않는다.
  *   화면은 선언만 하고 조건을 비우는 코드를 두지 않는다(설계 §13).
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Context, type RefObject } from "react";
@@ -124,6 +128,16 @@ export function useSearchDefaultsArea(): SearchDefaultsAreaApi | null {
 
 const isDev = () => process.env.NODE_ENV !== "production";
 
+/** 선택지 내용의 서명 — 화면이 렌더마다 새 배열을 만들어도 내용이 같으면 같다. */
+const optionsSig = (h: SearchDefaultsFieldHandle) => (h.info.options ?? []).map((o) => o.value).join("\u0001");
+
+/** 처음 값을 모르는 칸(분리 창)의 빈 값 — 빈 값이 선택지에 없는 select 는 비우지 않는다(undefined). */
+function emptyValueOf(h: SearchDefaultsFieldHandle): string | undefined {
+  const opts = h.info.options;
+  if (opts && !opts.some((o) => o.value === "")) return undefined;
+  return "";
+}
+
 export interface UseSearchDefaultsControllerOptions {
   /** false 면 넣지 않는다(SearchArea `defaults`). */
   enabled: boolean;
@@ -160,6 +174,15 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
   const initialRef = useRef(new Map<string, string>());
   /** 지난 커밋의 칸 값 — 기준 칸이 바뀐 커밋을 알아낸다(의존 칸). */
   const lastSeenRef = useRef(new Map<string, string>());
+  /**
+   * 기준 칸이 바뀐 뒤 선택지를 지켜보는 의존 칸 — 선택지 내용이 바뀌면 새 선택지로 다시 판정한다. expected 는 마지막으로 넣은(또는 둔) 값으로,
+   * 칸 값이 이와 달라지면(사용자·화면이 고침) 그만둔다.
+   */
+  const depWatchRef = useRef(new Map<string, { sig: string; until: number; expected: string; skipLast: boolean }>());
+  /** 넣기 전(저장소 대기)에 값이 바뀐 칸 — 넣기가 끝난 뒤 첫 커밋에서 기준 칸 변경으로 본다. */
+  const changedWhilePendingRef = useRef(new Set<string>());
+  /** 초기화가 넣은 값이 커밋되는 다음 커밋 — 그 커밋의 의존 칸 다시 채우기도 마지막 조회값을 넣지 않는다(§6.6). */
+  const afterResetRef = useRef(false);
   /** 선택지에 아직 없어 보류한 값(서버에서 받는 선택지) — 한도 안에 선택지가 생기고 칸이 그대로면 넣는다. */
   const awaitingRef = useRef(new Map<string, { value: string; until: number }>());
   /** 넣기가 끝난 뒤 처음 등록된 칸 — 같은 커밋의 layout effect 에서 한꺼번에 넣는다. */
@@ -187,22 +210,22 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
 
   const storageKey = useCallback((fieldKey: string) => (scope ? `${scope}.${fieldKey}` : fieldKey), [scope]);
 
-  /** 칸들에 규칙을 넣는다. 넣은 값은 다음 커밋에 확인한다. */
+  /** 칸들에 규칙을 넣는다. 넣은 값은 다음 커밋에 확인한다. 넣을(되돌릴) 값을 칸 키별로 돌려준다. */
   const applyTo = useCallback(
-    (handles: Array<[string, SearchDefaultsFieldHandle]>, mode: ApplyMode) => {
+    (handles: Array<[string, SearchDefaultsFieldHandle]>, mode: ApplyMode): Map<string, string> => {
       const userId = userIdRef.current;
       const { pageId: pid } = optsRef.current;
       const useRules = !mode.rulesOff && !!userId && !!pid;
-      if (!useRules && !mode.clearToInitial) return;
+      const targets = new Map<string, string>();
+      if (!useRules && !mode.clearToInitial) return targets;
       const rules = useRules ? getPageSearchDefaults(userId, pid) : {};
       const last = useRules ? readSearchLastValues(userId, pid) : {};
       const now = new Date();
-      const targets = new Map<string, string>();
       for (const [key, h] of handles) {
         // 판정한 칸은 넣지 않기로 했어도 「처리함」 — StrictMode 다시 등록 때 한 칸씩 다시 넣으면 기간 짝 검사를 건너뛴다.
         appliedRef.current.add(key);
-        // 넣을 값이 없으면 코드 기본값으로 비운다(초기화·의존 칸).
-        const initial = mode.clearToInitial ? initialRef.current.get(key) : undefined;
+        // 넣을 값이 없으면 코드 기본값으로 비운다(의존 칸). 분리 창처럼 처음 값을 모르면 빈 값으로 비운다.
+        const initial = mode.clearToInitial ? (initialRef.current.get(key) ?? emptyValueOf(h)) : undefined;
         const clear = () => {
           if (initial !== undefined) targets.set(key, initial);
         };
@@ -242,7 +265,7 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
           targets.delete(toKey);
         }
       }
-      if (targets.size === 0) return;
+      if (targets.size === 0) return targets;
       const check = pendingCheckRef.current ?? new Map<string, string>();
       for (const [key, v] of targets) {
         const h = handlesRef.current.get(key);
@@ -254,6 +277,7 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
       pendingCheckRef.current = check;
       scheduledAtRef.current = renderIdRef.current;
       setTick((n) => n + 1);
+      return targets;
     },
     [storageKey],
   );
@@ -284,6 +308,8 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
   const finish = useCallback(() => {
     if (phaseRef.current === "done") return;
     phaseRef.current = "done";
+    // 기다리는 동안 바뀐 칸이 있으면 한 번 더 그린다 — 다음 커밋이 기준 칸 변경을 보고 의존 칸을 비운다.
+    if (changedWhilePendingRef.current.size > 0) setTick((n) => n + 1);
     if (!optsRef.current.autoSearch || optsRef.current.restored) return;
     if (awaitingRef.current.size > 0) {
       deferredSearchRef.current = true;
@@ -363,34 +389,75 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
   // 커밋마다: 의존 칸 다시 채우기, 초기화 넣기(화면이 비운 값이 커밋된 뒤), 보류한 선택지 값 넣기, 보류가 비면 미룬 autoSearch 예약.
   useIsomorphicLayoutEffect(() => {
     const rulesOn = optsRef.current.enabled && !offRef.current;
+    const done = phaseRef.current === "done";
+    const resetting = pendingResetRef.current && renderIdRef.current > resetAtRef.current;
+    const afterReset = afterResetRef.current;
+    afterResetRef.current = false;
+    // 선택지를 지켜보는 의존 칸 — 선택지 내용이 바뀌었으면 새 선택지로 다시 판정한다(아래에서 이번 커밋에 새로 건 것은 다음 커밋부터 본다).
+    if (depWatchRef.current.size > 0) {
+      const nowMs = Date.now();
+      for (const [key, w] of depWatchRef.current) {
+        const h = handlesRef.current.get(key);
+        if (!h || !rulesOn || nowMs > w.until || h.getValue() !== w.expected) {
+          depWatchRef.current.delete(key);
+          continue;
+        }
+        const sig = optionsSig(h);
+        if (sig === w.sig) continue;
+        w.sig = sig;
+        const set = applyTo([[key, h]], { skipLast: w.skipLast, ignoreTouched: true, onlyIfUnchanged: false, clearToInitial: true, noAwait: true });
+        w.expected = set.get(key) ?? h.getValue();
+      }
+    }
     // 의존 칸 — 기준 칸 값이 지난 커밋과 다르면 의존 칸을 비우고 다시 채운다(같은 커밋에 화면이 직접 바꾼 의존 칸은 둔다).
     const seen = lastSeenRef.current;
     const changed = new Set<string>();
+    // 넣기 전(저장소 대기)에 바뀐 칸은 모아 두었다가 넣기가 끝난 뒤 첫 커밋에서 바뀐 기준 칸으로 본다 — 그 사이 바뀐 기준 칸도 의존 칸을 비운다.
+    // (같은 커밋에 화면이 바꾼 의존 칸을 두는 판정에는 이번 커밋 변경만 쓴다.)
+    const baseChanged = new Set<string>();
+    if (done && changedWhilePendingRef.current.size > 0) {
+      for (const key of changedWhilePendingRef.current) baseChanged.add(key);
+      changedWhilePendingRef.current.clear();
+    }
     for (const [key, h] of handlesRef.current) {
       const prev = seen.get(key);
       const v = h.getValue();
-      if (prev !== undefined && prev !== v) changed.add(key);
       seen.set(key, v);
+      if (prev === undefined || prev === v) continue;
+      if (done) {
+        changed.add(key);
+        baseChanged.add(key);
+      } else changedWhilePendingRef.current.add(key);
     }
     for (const key of [...seen.keys()]) if (!handlesRef.current.has(key)) seen.delete(key);
-    if (changed.size > 0 && phaseRef.current === "done" && !optsRef.current.restored) {
+    if (baseChanged.size > 0 && done) {
       const deps: Array<[string, SearchDefaultsFieldHandle]> = [];
       for (const [key, h] of handlesRef.current) {
         const base = h.info.dependsOn;
-        if (base && changed.has(storageKey(base)) && !changed.has(key)) {
+        if (base && baseChanged.has(storageKey(base)) && !changed.has(key)) {
           h.touched = false;
           awaitingRef.current.delete(key);
+          depWatchRef.current.delete(key);
           deps.push([key, h]);
         }
       }
       if (deps.length > 0) {
         if (!userIdRef.current) userIdRef.current = peekCurrentUser()?.id ?? "";
-        applyTo(deps, { skipLast: false, ignoreTouched: true, onlyIfUnchanged: false, clearToInitial: true, noAwait: true, rulesOff: !rulesOn });
+        // 초기화 커밋·초기화가 넣은 기준 칸 값 때문이면 마지막 조회값을 넣지 않는다(§6.6).
+        const skipLast = resetting || afterReset;
+        const set = applyTo(deps, { skipLast, ignoreTouched: true, onlyIfUnchanged: false, clearToInitial: true, noAwait: true, rulesOff: !rulesOn });
+        if (rulesOn) {
+          const until = Date.now() + SEARCH_DEFAULTS_OPTIONS_WAIT_MS;
+          for (const [key, h] of deps) {
+            if (h.info.options) depWatchRef.current.set(key, { sig: optionsSig(h), until, expected: set.get(key) ?? h.getValue(), skipLast });
+          }
+        }
       }
     }
     // 기능이 꺼졌으면(handoff 로 defaults={false}) 보류한 선택지 값도 버린다.
     if (!rulesOn) {
       awaitingRef.current.clear();
+      depWatchRef.current.clear();
       lateRef.current.clear();
       pendingResetRef.current = false;
       if (deferredSearchRef.current) scheduleAutoSearch();
@@ -400,6 +467,7 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
       pendingResetRef.current = false;
       // 비우기는 화면 초기화(onClick)가 이미 했다 — 처음 등록 값으로 되돌리지 않는다(분리 창은 처음 값이 이어받은 값이라 화면의 초기값과 다르다).
       applyAll({ skipLast: true, ignoreTouched: true, onlyIfUnchanged: false });
+      afterResetRef.current = true;
     }
     if (lateRef.current.size > 0) {
       const late = [...lateRef.current]
@@ -499,7 +567,7 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
           return () => {};
         }
         map.set(key, handle);
-        // 분리 창이 이어받은 값으로 시작했으면 그 값은 코드 기본값이 아니므로 적지 않는다(의존 칸을 비우지 못하고 그대로 둔다).
+        // 분리 창이 이어받은 값으로 시작했으면 그 값은 코드 기본값이 아니므로 적지 않는다(의존 칸은 빈 값으로 비운다).
         if (!initialRef.current.has(key) && !optsRef.current.restored) initialRef.current.set(key, handle.getValue());
         // 넣기 전이면 지금 값을 기준값으로 적어 둔다(늦게 넣을 때 그 사이 바뀐 칸은 덮지 않는다).
         if (phaseRef.current === "pending") baselineRef.current.set(key, handle.getValue());

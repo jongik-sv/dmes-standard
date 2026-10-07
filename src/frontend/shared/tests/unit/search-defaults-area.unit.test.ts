@@ -672,15 +672,25 @@ describe("의존 칸(dependsOn)", () => {
   let dep: DepFilters = DEP_DEFAULT;
   let setMd: (v: string) => void = () => {};
   let setMdAndCode: (md: string, code: string) => void = () => {};
+  /** 카테고리 선택지(서버에서 받는 선택지 흉내) — dynamicCats 일 때만 쓴다. */
+  let setCats: (v: string[]) => void = () => {};
 
-  function DepScreen(props: { area?: Partial<SearchAreaProps> }) {
+  function DepScreen(props: { area?: Partial<SearchAreaProps>; dynamicCats?: boolean; withReset?: boolean }) {
     const [f, setF] = useState<DepFilters>(DEP_DEFAULT);
+    const [cats, setCatsState] = useState<string[]>([]);
+    setCats = setCatsState;
     dep = f;
+    const cateOptions = props.dynamicCats
+      ? [{ value: "", label: "전체" }, ...cats.map((c) => ({ value: c, label: c }))]
+      : [
+          { value: "", label: "전체" },
+          { value: "C1", label: "C1" },
+        ];
     // 화면이 기준 칸을 SearchField 밖(고르기 단추·handoff 등)에서 바꾸는 경우를 흉내 낸다.
     setMd = (v) => setF((p) => ({ ...p, md: v }));
     setMdAndCode = (md, code) => setF((p) => ({ ...p, md, code }));
     const set = (k: keyof DepFilters) => (v: string) => setF((p) => ({ ...p, [k]: v }));
-    return createElement(
+    const area = createElement(
       SearchArea,
       { onSearch: () => {}, ...props.area },
       createElement(SearchField, { label: "데이터", defaultKey: "md", value: f.md, onChange: set("md") }),
@@ -692,10 +702,7 @@ describe("의존 칸(dependsOn)", () => {
         type: "select",
         value: f.cate,
         onChange: set("cate"),
-        options: [
-          { value: "", label: "전체" },
-          { value: "C1", label: "C1" },
-        ],
+        options: cateOptions,
       }),
       createElement(SearchField, {
         label: "닫힌 항목",
@@ -710,6 +717,8 @@ describe("의존 칸(dependsOn)", () => {
         ],
       }),
     );
+    if (!props.withReset) return area;
+    return createElement(PageLayout, { title: "의존", buttons: [{ id: "btn_reset", label: "초기화", onClick: () => setF(DEP_DEFAULT) }] }, area);
   }
 
   const typeTo = async (label: string, v: string) => {
@@ -747,5 +756,76 @@ describe("의존 칸(dependsOn)", () => {
     expect(dep.code).toBe("");
     await act(async () => setMdAndCode("D2", "HANDOFF"));
     expect(dep).toEqual({ md: "D2", code: "HANDOFF", cate: "", closed: "N" });
+  });
+
+  it("선택지가 기준 칸을 따라 바뀌면 새 선택지로 다시 판정한다 — 옛 선택지로 넣은 마지막 조회값은 고친다", async () => {
+    givenRules(rules({ cate: { kind: "last" } }));
+    localStorage.setItem(`dmes:search-last:v1:${USER}:${PAGE}`, JSON.stringify({ cate: "A1" }));
+    await mount(inPage(createElement(DepScreen, { dynamicCats: true })));
+    await act(async () => setMd("A"));
+    await act(async () => setCats(["A1", "A2"]));
+    expect(dep.cate).toBe("A1");
+    // B 로 바꾸면 옛 선택지(A1 있음)로는 A1 이 들어가지만, B 의 선택지가 오면 A1 이 없으므로 비운다.
+    await act(async () => setMd("B"));
+    await act(async () => setCats(["B1"]));
+    expect(dep.cate).toBe("");
+  });
+
+  it("새 선택지에만 있는 고정 값은 선택지가 온 뒤 넣는다(마운트 때 보류한 값도)", async () => {
+    givenRules(rules({ cate: { kind: "fixed", value: "B1" } }));
+    await mount(inPage(createElement(DepScreen, { dynamicCats: true })));
+    expect(dep.cate).toBe("");
+    // 첫 항목이 정해진 뒤 선택지가 온다(진입 흐름).
+    await act(async () => setMd("B"));
+    await act(async () => setCats(["B1"]));
+    expect(dep.cate).toBe("B1");
+    // 다른 데이터로 바꾸면 그 선택지에 없어서 비우고, 사용자가 고친 뒤에는 선택지가 바뀌어도 다시 넣지 않는다.
+    await act(async () => setMd("A"));
+    await act(async () => setCats(["A1"]));
+    expect(dep.cate).toBe("");
+    await act(async () => setMd("B"));
+    await act(async () => setCats(["A1", "B1"]));
+    expect(dep.cate).toBe("B1");
+  });
+
+  it("분리 창(이어받은 값으로 시작)에서도 기준 칸이 바뀌면 의존 칸을 빈 값으로 비운다", async () => {
+    const carry = createCarryRegistry({ light: { other: 1 }, bulky: null, hadBulky: false });
+    await mount(inPage(createElement(DepScreen), carry));
+    await act(async () => setMd("D1"));
+    await typeTo("키", "K1");
+    await act(async () => setMd("D2"));
+    // 빈 값이 선택지에 없는 select(닫힌 항목)는 두고, 빈 값을 고를 수 있는 칸만 비운다.
+    expect(dep).toEqual({ md: "D2", code: "", cate: "", closed: "N" });
+  });
+
+  it("초기화가 기준 칸을 바꿔도 마지막 조회값 의존 칸은 넣지 않는다(§6.6)", async () => {
+    givenRules(rules({ md: { kind: "fixed", value: "D1" }, code: { kind: "last" } }));
+    localStorage.setItem(`dmes:search-last:v1:${USER}:${PAGE}`, JSON.stringify({ code: "LASTK" }));
+    await mount(inPage(createElement(DepScreen, { withReset: true })));
+    expect(dep.md).toBe("D1");
+    expect(dep.code).toBe("LASTK");
+    const resetBtn = [...rendered!.host.querySelectorAll("button")].find((b) => b.textContent === "초기화")!;
+    await act(async () => {
+      resetBtn.click();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(dep).toEqual({ md: "D1", code: "", cate: "", closed: "N" });
+  });
+
+  it("저장소를 기다리는 동안 바뀐 기준 칸도 넣기가 끝난 뒤 의존 칸을 비운다", async () => {
+    let resolve: (v: unknown) => void = () => {};
+    setSearchDefaultsTransportForTest(() => new Promise((r) => (resolve = r)));
+    await mount(inPage(createElement(DepScreen)));
+    await typeTo("키", "K1");
+    await act(async () => setMd("D1"));
+    expect(dep.code).toBe("K1");
+    await act(async () => {
+      resolve(serverRows({}));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(dep.code).toBe("");
   });
 });

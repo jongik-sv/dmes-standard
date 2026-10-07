@@ -45,6 +45,8 @@ interface UserEntry {
   dirtyPages: Set<string>;
   /** 서버 행의 칸 메타·이름(화면 → 칸 키). 설정 창이 다른 칸 행을 다시 저장할 때 잃지 않게 이어 붙인다. 거울에는 두지 않는다. */
   fieldInfo: Record<string, Record<string, SearchDefaultFieldInfo>>;
+  /** 다른 창이 규칙을 바꿨다 — 칸 메타·이름을 모르므로 서버에서 다시 받아야 저장을 허용한다(요청 중이면 끝난 뒤 다시 묻는다). */
+  refetch: boolean;
 }
 
 /** 서버 행의 칸 메타(FIELD_META)·이름(FIELD_LABEL). */
@@ -195,7 +197,7 @@ function entryFor(userId: string): UserEntry {
   const st = getState();
   let e = st.users.get(userId);
   if (!e) {
-    e = { status: "idle", source: "none", rules: {}, promise: null, lastAttemptAt: 0, dirtyPages: new Set(), fieldInfo: {} };
+    e = { status: "idle", source: "none", rules: {}, promise: null, lastAttemptAt: 0, dirtyPages: new Set(), fieldInfo: {}, refetch: false };
     st.users.set(userId, e);
   }
   return e;
@@ -249,6 +251,7 @@ export function preloadSearchDefaults(userId: string): void {
     } finally {
       e.status = "ready";
       e.promise = null;
+      if (e.refetch) requestRefetch(userId, e);
       notify();
     }
   })();
@@ -277,10 +280,16 @@ function watchUserChanges(): void {
       } catch {
         return;
       }
+      const changedPages = Object.keys({ ...e.rules, ...next }).filter((pageId) => !samePageRules(e.rules[pageId], next[pageId]));
+      if (changedPages.length === 0) return;
       // 서버 요청이 진행 중이면 다른 창이 바꾼 화면들은 늦게 온 응답이 덮지 않게 표시한다.
-      if (e.promise) for (const pageId of Object.keys({ ...e.rules, ...next })) e.dirtyPages.add(pageId);
+      if (e.promise) for (const pageId of changedPages) e.dirtyPages.add(pageId);
       e.rules = next;
       if (e.status !== "ready") e.status = "ready";
+      // 바뀐 화면의 칸 메타·이름은 모른다 — 그대로 저장하면 다른 창이 넣은 행의 메타가 빠지므로 서버에서 다시 받기 전까지 저장을 막는다.
+      for (const pageId of changedPages) delete e.fieldInfo[pageId];
+      e.refetch = true;
+      if (!e.promise) requestRefetch(userId, e);
       notify();
     });
   }
@@ -290,6 +299,22 @@ function watchUserChanges(): void {
     for (const id of [...st.users.keys()]) if (id !== user.id) st.users.delete(id);
     notify();
   });
+}
+
+/** 서버에서 다시 받는다 — 받기 전까지 source 를 거울로 낮춰 설정 창 저장을 막는다. */
+function requestRefetch(userId: string, e: UserEntry): void {
+  e.refetch = false;
+  if (e.source === "server") e.source = "mirror";
+  e.lastAttemptAt = 0;
+  preloadSearchDefaults(userId);
+}
+
+/** 두 화면 규칙이 같은가(칸 순서는 보지 않는다). */
+function samePageRules(a: Record<string, unknown> | undefined, b: Record<string, unknown> | undefined): boolean {
+  const ka = Object.keys(a ?? {});
+  const kb = Object.keys(b ?? {});
+  if (ka.length !== kb.length) return false;
+  return ka.every((k) => JSON.stringify((a ?? {})[k]) === JSON.stringify((b ?? {})[k]));
 }
 
 export function getSearchDefaultsStatus(userId: string): SearchDefaultsStatus {

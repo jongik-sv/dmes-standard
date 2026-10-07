@@ -216,13 +216,16 @@ function SearchDefaultsDialog({ api, userId, onClose }: DialogProps) {
   const [current] = useState(() => api.readValues());
   const [rows, setRows] = useState<SettingsRow[]>(() => buildSettingsRows(fields, getPageSearchDefaults(userId, api.pageId), api.scope));
   const ready = useServerReady(userId);
-  /** 사용자가 줄을 고쳤는가 — 고치기 전에 서버 값이 오면 줄을 다시 만든다. */
-  const [dirty, setDirty] = useState(false);
+  /** 사용자가 고친 줄(순서 번호) — 서버 값이 오면 고치지 않은 줄만 받은 규칙으로 바꾼다. */
+  const [edited, setEdited] = useState<ReadonlySet<number>>(() => new Set());
   const [shownReady, setShownReady] = useState(ready);
   if (ready !== shownReady) {
-    // 창을 연 뒤 서버 값이 왔다 — 아직 고치지 않았으면 받은 규칙으로 줄을 다시 만든다(렌더 중 상태 맞추기).
+    // 창을 연 뒤 서버 값이 왔다 — 고치지 않은 줄은 받은 규칙으로 다시 만든다(렌더 중 상태 맞추기). 거울 값이 낡았어도 그대로 저장하지 않게.
     setShownReady(ready);
-    if (ready && !dirty) setRows(buildSettingsRows(fields, getPageSearchDefaults(userId, api.pageId), api.scope));
+    if (ready) {
+      const fresh = buildSettingsRows(fields, getPageSearchDefaults(userId, api.pageId), api.scope);
+      setRows((rs) => fresh.map((r, i) => (edited.has(i) && rs[i] ? rs[i] : r)));
+    }
   }
   useEffect(() => {
     if (!ready) preloadSearchDefaults(userId);
@@ -234,11 +237,12 @@ function SearchDefaultsDialog({ api, userId, onClose }: DialogProps) {
   const checks = rows.map((r) => checkRow(r, lastValues, now));
   const hasError = checks.some((c) => c.error);
 
-  const edit = (fn: (rs: SettingsRow[]) => SettingsRow[]) => {
-    setDirty(true);
+  /** 줄 고치기 — 고친 줄 번호를 적는다(일괄·초기화는 모든 줄). */
+  const edit = (fn: (rs: SettingsRow[]) => SettingsRow[], only?: number) => {
+    setEdited((prev) => new Set(only === undefined ? rows.map((_, i) => i) : [...prev, only]));
     setRows(fn);
   };
-  const update = (i: number, next: SettingsRow) => edit((rs) => rs.map((r, j) => (j === i ? next : r)));
+  const update = (i: number, next: SettingsRow) => edit((rs) => rs.map((r, j) => (j === i ? next : r)), i);
 
   const handleSave = async () => {
     if (hasError || saving || !ready) return;

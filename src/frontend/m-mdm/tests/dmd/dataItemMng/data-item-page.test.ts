@@ -36,6 +36,9 @@ function jsonResponse(body: unknown, status = 200) {
 
 const ok = (result: unknown) => jsonResponse({ data: { result }, meta: { success: true } });
 
+/** 설정하면 마루 데이터별 카테고리(BASE 말고)를 header 에 넣는다 — 조회조건 카테고리 선택지가 데이터마다 다른 경우. */
+let headerCats: Record<string, string[]> | null = null;
+
 function header(id: string) {
   const external = id === "CUST";
   return {
@@ -47,7 +50,10 @@ function header(id: string) {
     lvlCnt: 1,
     attrLabels: [{ field: "attr01", label: external ? "사업자번호" : "국가" }],
     editable: !external,
-    categories: [{ cateId: "BASE", cateName: "전체", defKind: "REGEX" }],
+    categories: [
+      { cateId: "BASE", cateName: "전체", defKind: "REGEX" },
+      ...(headerCats?.[id] ?? []).map((c) => ({ cateId: c, cateName: c, defKind: "TABLE" })),
+    ],
   };
 }
 
@@ -699,6 +705,37 @@ describe("DataItemMngPage", () => {
     afterEach(() => {
       clearSearchDefaultsUser();
       delete (globalThis as Record<string, unknown>).__dkOasisSearchDefaultsStore__;
+      headerCats = null;
+    });
+
+    it("카테고리 「마지막 조회값」 은 그 데이터의 선택지로 판정한다 — 다른 데이터로 바꾸면 옛 카테고리로 조회하지 않는다", async () => {
+      headerCats = { PORT: ["PK1"], CUST: ["CK1"] };
+      givenSearchDefaults(PAGE_ID, { cateId: { kind: "last" } });
+      localStorage.setItem(`dmes:search-last:v1:${SEARCH_DEFAULTS_USER}:${PAGE_ID}`, JSON.stringify({ cateId: "PK1" }));
+      await renderInTab();
+      // 진입: 첫 항목(PORT)의 선택지가 온 뒤 넣고, 그 값으로 조회한다.
+      expect((testId("item-search-cate") as HTMLSelectElement | null)?.value ?? "").toBe("PK1");
+      expect(listSearches().at(-1)?.params).toMatchObject({ maruDataId: "PORT", cateId: "PK1" });
+      await chooseMaru("CUST");
+      expect(listSearches().at(-1)?.params.maruDataId).toBe("CUST");
+      expect(listSearches().at(-1)?.params.cateId ?? "").toBe("");
+    });
+
+    it("카테고리 고정 값은 그 값이 있는 데이터를 고를 때 넣어 조회한다", async () => {
+      headerCats = { PORT: ["PK1"], CUST: ["CK1"] };
+      givenSearchDefaults(PAGE_ID, { cateId: { kind: "fixed", value: "CK1" } });
+      await renderInTab();
+      expect(listSearches().at(-1)?.params.maruDataId).toBe("PORT");
+      expect(listSearches().at(-1)?.params.cateId ?? "").toBe("");
+      await chooseMaru("CUST");
+      expect(listSearches().at(-1)?.params).toMatchObject({ maruDataId: "CUST", cateId: "CK1" });
+    });
+
+    it("마루 데이터 기본값이 목록에 없으면(지워짐) 첫 항목으로 간다", async () => {
+      givenSearchDefaults(PAGE_ID, { maruDataId: { kind: "fixed", value: "GONE" } });
+      await renderInTab();
+      expect(currentMaru()).toContain("PORT");
+      expect(listSearches().at(-1)?.params.maruDataId).toBe("PORT");
     });
 
     it("규칙이 없으면 마루 데이터를 바꿀 때 고친 키 칸을 비우고 빈 조건으로 조회한다(이전 동작과 같다)", async () => {

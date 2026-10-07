@@ -350,4 +350,43 @@ describe("메뉴", () => {
     expect(calls.some(([a]) => a === "resetPage")).toBe(false);
     expect(getPageSearchDefaults(USER, PAGE)).toEqual({ "tab2.itemCd": { kind: "fixed", value: "T2" } });
   });
+
+  it("창을 연 뒤 서버 값이 오면 고치지 않은 줄만 서버 규칙으로 바꾼다(낡은 거울 값으로 다른 칸 규칙을 덮지 않게)", async () => {
+    // 거울: 품번 OLD·사용 Y. 서버(다른 PC 에서 저장): 품번 NEW·사용 Y.
+    setSearchDefaultsLocalForDev(USER, PAGE, { itemCd: { kind: "fixed", value: "OLD" }, useTp: { kind: "fixed", value: "Y" } });
+    let resolveSearch: (v: unknown) => void = () => {};
+    setSearchDefaultsTransportForTest((action, body) => {
+      calls.push([action, body]);
+      if (action === "search") return new Promise((r) => (resolveSearch = r));
+      return Promise.resolve({ meta: { success: true } });
+    });
+    await mount(inPage(createElement(Screen)));
+    await openMenuItem("search-settings-open");
+    expect(byTestId("search-defaults-dialog-not-ready")).not.toBeNull();
+    await changeSelect("sd-fixed-useTp", "N");
+    await act(async () => {
+      resolveSearch({
+        meta: { success: true },
+        data: {
+          result: {
+            rows: [
+              { pageId: PAGE, fieldKey: "itemCd", ruleJson: JSON.stringify({ kind: "fixed", value: "NEW" }) },
+              { pageId: PAGE, fieldKey: "useTp", ruleJson: JSON.stringify({ kind: "fixed", value: "Y" }) },
+            ],
+          },
+        },
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(byTestId("search-defaults-dialog-not-ready")).toBeNull();
+    await click(byTestId("search-defaults-dialog-save"));
+    await flush();
+    const save = calls.find(([a]) => a === "savePage")!;
+    const sent = (save[1] as { grids: { rows: { rows: Array<{ fieldKey: string; ruleJson: string }> } } }).grids.rows.rows;
+    expect(Object.fromEntries(sent.map((r) => [r.fieldKey, JSON.parse(r.ruleJson)]))).toEqual({
+      itemCd: { kind: "fixed", value: "NEW" },
+      useTp: { kind: "fixed", value: "N" },
+    });
+  });
 });

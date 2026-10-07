@@ -24,6 +24,7 @@
  * 설계 2026-10-07-search-defaults §13) — 이 화면은 조건을 직접 비우지 않는다.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 import {
   ContentBody,
@@ -326,8 +327,12 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
         // view 는 마루 데이터를 줘도 선택 목록을 늘 함께 준다 — 이미 열린 탭이 handoff 로 방금 등록된 데이터를 받거나
         // 이름이 바뀐 뒤에도 조회조건의 고르기(`IdPicker`)가 그 데이터를 제 이름으로 찾게 목록을 새로 채운다.
         optionsFromSelect.current = true;
-        setOptions(view.maruDataOptions ?? []);
-        setHeader(view.header ?? null);
+        // 바로 커밋한다 — 카테고리 선택지가 새 데이터 것으로 바뀌면 SearchArea 가 의존 칸을 새 선택지로 다시 채우고(dependsOn),
+        // 아래 조회가 filtersRef 로 그 값을 읽는다(커밋 전이면 옛 선택지로 판정한 값으로 조회한다).
+        flushSync(() => {
+          setOptions(view.maruDataOptions ?? []);
+          setHeader(view.header ?? null);
+        });
       } catch (e) {
         if (seq === selectSeq.current) setError(errorMessage(e));
         return;
@@ -355,7 +360,9 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
         // handoff 선택이 먼저 끝나 더 새 목록을 채웠으면 덮지 않는다.
         if (!optionsFromSelect.current) setOptions(list);
         // handoff 나 사용자 조회 기본값(SearchArea 가 마루 데이터 칸에 넣음)으로 이미 골랐으면 snapshot·첫 항목으로 덮지 않는다.
-        if (handedOff.current || selectSeq.current > 0) return;
+        // 다만 기본값으로 고른 데이터가 목록에 없으면(지워짐) 첫 항목으로 간다.
+        if (handedOff.current) return;
+        if (selectSeq.current > 0 && list.some((o) => o.maruDataId === filtersRef.current.maruDataId)) return;
         const fromSnapshot = snapshotMaruDataId(snapshotRef.current);
         const first = fromSnapshot && list.some((o) => o.maruDataId === fromSnapshot) ? fromSnapshot : list[0]?.maruDataId;
         if (first) await selectMaruData(first);
