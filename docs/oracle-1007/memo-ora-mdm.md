@@ -3,11 +3,19 @@
 - 레인: ora-mdm / 브랜치 `feat/ora-mdm` / 워크트리 `/Users/jji/project/dmes-wt/ora-mdm` / 조정 세션: dmes-standard-d8
 - 지시: ora-mdm-1 (`/Users/jji/.coord/oracle-1007/lanes/ora-mdm/brief.md`)
 
-## 지금 상태 (2026-10-07 재개 뒤)
+## 지금 상태 (2026-10-07 19시 무렵, compact 전 정본)
 
-- 재개(조정자 지시). Oracle 컨테이너는 17:24 재생성(TZ Asia/Seoul).
+- **진도율 40%(m1·m2 완료, 2/5).** HEAD = e8181f72e. 작업 트리 깨끗함, 백그라운드·agent 0, Oracle 접속 0.
+- m2: 구현(opus/high) → 리뷰(opus/high, 중간 3·낮음 5) → 지적 수정 커밋 e8181f72e. main 컴파일 rc=0. 리뷰에서 ClassCastException 위험은 clean(네이티브 숫자는 모두 `(Number)`, 일시는 `fromDb`, CLOB 은 `MdmStrings.text`).
+- **다음 단계(재개 즉시):**
+  1. Oracle 작업 전에 dev(머지①b `fb253556d` 이상: 하니스 PC 잠금·pdb.mjs 자식 정리·sqlplus 시간 상한·JVM Asia/Seoul)를 이 브랜치에 합친다.
+  2. 길이 검사(ORA-12899) 커밋. 대상·자리는 `src/backend/mdm/tools/oracle-baseline/LENGTH-AUDIT.md` §3. 공용 바이트 검사 도구(`getBytes(UTF_8).length ≤ 4000`, DB 문자셋 AL32UTF8 확인함)와 CHAR 칸은 `NamingRules.length()` 로 공유 검사 클래스 10곳에 넣는다. `CHANGE_SUMMARY` 는 오류 대신 "…외 N건" 으로 자른다. `UnitMngService.parseFactor` 정수부 9자리 초과 거절. 확인 못함: DATA_ITEM API 저장 경로가 내용 검사를 건너뜀(호출자 미확인).
+  3. m3 시험 하니스 전환(아래 「m2 결과」의 깨짐 목록). Oracle 무거운 작업은 PC 전체에서 한 번에 하나(`-Pdmes.ora.test=clone`, 잠금이 줄 세운다), 상태 확인용 sqlplus·pdb list 반복 금지, 끊을 때는 자식 podman exec 까지.
+- m3 에서 실측할 것(리뷰 인계): ① `SELECT SYS_CONTEXT('USERENV','NLS_SORT') FROM DUAL` — 앱 JVM 이 `-Duser.language=ko -Duser.country=KR` 이라 thin 드라이버가 NLS_SORT 를 KOREAN_M 로 둘 수 있다. BINARY 가 아니면 Hikari `connection-init-sql: ALTER SESSION SET NLS_SORT=BINARY`(WildFly 는 new-connection-sql)로 SQLite 와 같은 정렬을 맞춘다. ② JPQL `UPPER(v.callSetIds) LIKE :p`(@Lob, `RuleSetVersionQueries:70`) 실행. ③ CLOB 4000바이트 초과 네이티브 UPDATE 4곳. ④ validate(엔티티 ↔ V1, TINYINT·TIMESTAMP 설정). ⑤ boolean `REQUIRED` 저장·읽기 왕복. ⑥ `MetaRevisionRecorder` 의 SELECT … UNION ALL INSERT.
+- m4 에 넘길 것(리뷰 인계): `src/frontend/playwright.mdm-user.config.ts:11-12` 가 E2E 전제를 「MdmLocalSampleLoader 가 빈 DB 에 샘플을 넣는다」로 둔다. Oracle 에서는 들어오지 않으니 b5 적재기나 픽스처로 바꾼다. `be-run.sh:114-121` 의 `--mdm.sample.path` 는 받는 빈이 없는 죽은 인자이고 `README.md:96-103` 의 샘플 안내도 낡았다(둘 다 ora-base 소유, 조정자에게 알림).
+- Oracle 컨테이너는 17:24 재생성(TZ Asia/Seoul).
 - m1 Oracle 기준선 V1: 완료. opus/high 리뷰 지적(높음 1·중간 3·낮음 8) 중 형·생성기 지적을 고치고, 조정자 지시로 FK 자식 인덱스 28개를 더했다(3faff3bb6). 재생성된 컨테이너에서 verify 통과(heavy.sh 경유, 문장 137개, 표 39·컬럼 746·이름 214 일치, 모든 FK 에 자식 인덱스, `L_MDM_MDMAPUSER` 삭제 확인).
-- 남은 준비: 길이 검사 감사(ORA-12899 대상 칸)를 다시 맡긴다. 검색 워커 질의는 정지로 끊겼다. 대상은 `DECISIONS.md` 의 `TEXT | VARCHAR2(4000 BYTE)` 행 110개와 VARCHAR(n) 칸이다.
+- 길이 검사 감사: 완료(`LENGTH-AUDIT.md`, sonnet/medium 조사 agent. 검색 워커는 agy 시간 초과·opencode 제공자 오류로 실패).
 - 머지②(mdm)와 ③(mcm 묶음)은 같은 창이 필수가 아니다. 준비된 쪽부터 따로 머지한다(조정자 2026-10-07: m2 에서 MasterCodeJpaAutoConfiguration 을 빼면 mdm 이 mcm-core 표에 기대지 않는다).
 
 ### ora-base b0 validate 결과 (정본: feat/ora-base 의 `docs/oracle-1007/spike.md`, 재개 때 반영)
@@ -49,7 +57,7 @@
 
 ## 후속(기준선 밖)
 
-- FK 자식 컬럼 인덱스: Oracle 은 FK 에 인덱스를 자동으로 만들지 않아 부모 삭제 때 자식 표 전체 읽기·표 잠금이 난다(COLUMN.DOMAIN_ID, RULE_VAR.DOMAIN_ID, LAYOUT_ITEM.COLUMN_PHYS·TRANS_UNIT·UNIT_CODE, DOMAIN.MARU_CODE_ID·UNIT_CODE, LAYOUT_VER.EAI_CODE 등). SQLite 에도 없던 것이라 동작 보존 범위 밖이며, 성능 후속 V2 로 조정자에게 올린다.
+- (해결) FK 자식 컬럼 인덱스는 조정자 지시로 V2 로 미루지 않고 V1 에 넣었다(3faff3bb6, 28개).
 
 ## m2 사전 조사 (2026-10-07, 검색 워커 + grep 확인)
 
@@ -91,9 +99,11 @@
 - m3 에 넘길 것(시험 컴파일 깨짐): lib `MdmSqliteLocalDateTimeConverterTest`·`MdmTemporalBinderTest`·`VersionRowStoreNameGuardTest`(생성자)·`CommonContractTest:152`(MdmDialect), api `MdmBusinessRuleEntityJpaRoundtripTest:9,441`·`VersionStateServiceSqliteTest`·`MdmLocalSampleLoaderTest`·`MdmLocalSampleStrictTest`·`CodeDataRuleLedgerChainTest:70`(SQLITE_TEXT_PATTERN). 루트 `mdm/build.gradle` 의 시험 Hikari 2 주석도 SQLite 기준이다. 컴파일은 되지만 문자열로 SQLite 를 가리키는 시험이 49개 파일이다(`jdbc:sqlite`·`org.sqlite`·`db/migration/mdm/sqlite`·옮긴 클래스 이름, 공용 `common/testdb/MdmSharedTestDb` 포함). lib 의존성에서 sqlite-jdbc 를 뺐으므로 이 시험들은 실행 단계에서 모두 실패한다.
 - m3 에서 큰 값으로 확인할 것: 네이티브 UPDATE 가 4000바이트를 넘는 문자열을 CLOB 칸에 바인딩하는 곳(`LayoutVersionStore:91` SNAPSHOT_JSON 실측 5,896바이트, `RuleSetWrites:37`, `RuleTestCaseWrites:40`, `RuleSetTestCaseWrites:40`). validate(엔티티 ↔ V1)도 m3 에서 돈다.
 - 확인 못 한 위험(실행은 m3): Oracle 은 `''` 를 NULL 로 저장하므로 NOT NULL VARCHAR2 칸에 빈 문자열을 쓰는 경로가 있으면 ORA-01400 이 난다. 길이 검사(ORA-12899)는 다음 커밋.
+- 리뷰 지적 수정(e8181f72e): LIKE 이스케이프에서 `[` 제거(Oracle ORA-01424, `DataItemListQuery`·`MasterCodeLedgerQueries`), 물리명 IN 목록 묶음 나누기(ORA-01795, `LayoutDictionary.byPhysNames·views`·`DomainImpactQueries.columnNamesByPhysName`), 마스터 코드 참조 거부 문구의 VER 키를 끝 0 없이(`MasterCodeRemoval`), `VersionRowStore` CAST 주석. boolean 설정은 공통 규약 변경대로 TINYINT(3cf8c3882).
 
 ## 남은 순서
 
-1. m2(ora-base 머지① 뒤): SQLite 전용 코드 제거, sqlite 폴더 archive, 프로파일, Hibernate Instant 설정, CLOB `@Lob`.
-2. m3 시험 하니스 → m4 E2E 지원 → m5 전체 시험·머지 요청(머지②, b5 뒤).
-3. 머지 직전 dev 최신 합치고 `gen_oracle_baseline.py` 재생성·`--check` 대조(notice-fill2 의 새 SQLite 마이그레이션 반영).
+1. dev(`fb253556d` 이상) 합치기 → 길이 검사 커밋(구현 → 리뷰 → 수정).
+2. m3 시험 하니스 전환: 깨진 시험 컴파일 9파일·SQLite 문자열 49파일을 `-Pdmes.ora.test=clone` 하니스로. `*MigrationTest` 약 15개는 Oracle 기준선 검증 하나로 대체(파일은 archive, 삭제는 사용자 승인 대기). 위 「m3 에서 실측할 것」 6가지.
+3. m4 E2E 지원 전환(`e2e/support/mdm-e2e.ts`·`fixtures/mdm-*.sql`·`e2e/mdm-user/**`·`scripts/perf/mdm-backend/**` 를 node-oracledb thin 으로, 샘플 적재 전제 교체).
+4. m5 mdm 전체 시험(heavy.sh, 약 2,734개)·mdm E2E 통과, 시험 시간 비교 `docs/oracle-1007/perf-ora-mdm.md`(반복 측정), 머지 직전 dev 최신 합치고 `gen_oracle_baseline.py` 재생성·`--check` 대조(notice-fill2 의 새 SQLite 마이그레이션 반영) → 머지 요청(머지②, b5 뒤. 머지③ 과 같은 창 필수 아님).
