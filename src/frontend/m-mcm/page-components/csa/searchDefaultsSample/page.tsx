@@ -274,7 +274,7 @@ export default function SearchDefaultsSamplePage() {
         <section data-testid="sd-area-c">
           <h4 style={{ margin: "4px 0" }}>영역 C — defaults=false</h4>
           <SearchArea key={`c-${areaKey}`} defaults={false} onSearch={() => log("C", "Enter", c)}>
-            <SearchField label="품번" name="itemCd" value={c.itemCd} onChange={(v) => setC({ itemCd: v })} />
+            <SearchField label="품번" name="itemCd" value={c.itemCd} onChange={(v) => setC((p) => ({ ...p, itemCd: v }))} />
           </SearchArea>
         </section>
 

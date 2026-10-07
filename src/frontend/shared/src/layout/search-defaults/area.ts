@@ -139,6 +139,8 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
   const baselineRef = useRef(new Map<string, string>());
   /** 선택지에 아직 없어 보류한 값(서버에서 받는 선택지) — 한도 안에 선택지가 생기고 칸이 그대로면 넣는다. */
   const awaitingRef = useRef(new Map<string, { value: string; until: number }>());
+  /** 넣기가 끝난 뒤 처음 등록된 칸 — 같은 커밋의 layout effect 에서 한꺼번에 넣는다. */
+  const lateRef = useRef(new Set<string>());
   const pendingCheckRef = useRef<Map<string, string> | null>(null);
   const pendingAutoSearchRef = useRef(false);
   /** 초기화 — 화면이 비운 값이 커밋된 다음 layout effect 에서 넣는다(같은 클릭 안에서는 아직 비우기 전 값이 보인다). */
@@ -304,12 +306,20 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
     // 기능이 꺼졌으면(handoff 로 defaults={false}) 보류한 선택지 값도 버린다.
     if (!optsRef.current.enabled || offRef.current) {
       awaitingRef.current.clear();
+      lateRef.current.clear();
       pendingResetRef.current = false;
       return;
     }
     if (pendingResetRef.current && renderIdRef.current > resetAtRef.current) {
       pendingResetRef.current = false;
       applyAll({ skipLast: true, ignoreTouched: true, onlyIfUnchanged: false });
+    }
+    if (lateRef.current.size > 0) {
+      const late = [...lateRef.current]
+        .map((k) => [k, handlesRef.current.get(k)] as const)
+        .filter((e): e is readonly [string, SearchDefaultsFieldHandle] => !!e[1] && !appliedRef.current.has(e[0]));
+      lateRef.current.clear();
+      if (late.length > 0) applyTo(late.map(([k, h]) => [k, h]), { skipLast: false, ignoreTouched: false, onlyIfUnchanged: false });
     }
     if (awaitingRef.current.size === 0) return;
     const nowMs = Date.now();
@@ -390,10 +400,10 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
         map.set(key, handle);
         // 넣기 전이면 지금 값을 기준값으로 적어 둔다(늦게 넣을 때 그 사이 바뀐 칸은 덮지 않는다).
         if (phaseRef.current === "pending") baselineRef.current.set(key, handle.getValue());
-        // 넣기가 끝난 뒤 처음 등록된 칸(조건부 칸)은 등록할 때 한 번 넣는다.
+        // 넣기가 끝난 뒤 처음 등록된 칸(조건부 칸)은 모아 두었다가 같은 커밋의 layout effect 에서 한꺼번에 넣는다 —
+        // 함께 나타난 기간 짝을 같이 검사하려고(칸마다 넣으면 상대 칸이 아직 없어 시작>끝 검사를 건너뛴다).
         else if (!appliedRef.current.has(key) && optsRef.current.enabled && !offRef.current && !optsRef.current.restored) {
-          applyTo([[key, handle]], { skipLast: false, ignoreTouched: false, onlyIfUnchanged: false });
-          appliedRef.current.add(key);
+          lateRef.current.add(key);
         }
         return () => {
           if (map.get(key) === handle) map.delete(key);

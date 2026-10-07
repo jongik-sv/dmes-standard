@@ -495,6 +495,29 @@ describe("리뷰 지적 회귀(2026-10-07)", () => {
     expect(latest.to).toBe("");
   });
 
+  it("넣기가 끝난 뒤 함께 나타난 기간 짝도 시작이 끝보다 늦으면 넣지 않는다", async () => {
+    givenRules(rules({ lf: { kind: "relative", base: "today", days: 1 }, "lf~to": { kind: "relative", base: "today" } }));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    let show: (v: boolean) => void = () => {};
+    const vals = { from: "", to: "" };
+    function LatePair() {
+      const [visible, setVisible] = useState(false);
+      const [f, setF] = useState({ from: "", to: "" });
+      show = setVisible;
+      Object.assign(vals, f);
+      return createElement(
+        SearchArea,
+        { onSearch: () => {} },
+        createElement(SearchField, { label: "a", name: "a", value: "", onChange: () => {} }),
+        visible ? createElement(SearchField, { key: "lf", label: "기간", name: "lf", type: "date", value: f.from, onChange: (v: string) => setF((p) => ({ ...p, from: v })) }) : null,
+        visible ? createElement(SearchField, { key: "lt", label: "~", type: "date", value: f.to, onChange: (v: string) => setF((p) => ({ ...p, to: v })) }) : null,
+      );
+    }
+    await mount(inPage(createElement(LatePair)));
+    await act(async () => show(true));
+    expect(vals).toEqual({ from: "", to: "" });
+  });
+
   it("선택지가 늦게 오면 보류했다가 선택지가 생길 때 넣는다", async () => {
     givenRules(rules({ status: { kind: "fixed", value: "SYS1" } }));
     let load: () => void = () => {};
