@@ -31,7 +31,10 @@
   - mcm 영향(ora-mcm-app 몫): 어댑터 5개는 setSqlite(true) 여도 Oracle 형을 보낸다 — mcm 의 SQLite 시험(DataInitializerMssqlSqlCharacterizationTest·DataInitializerSeedFingerprintTest·NoticePermissionFilterTest·MenuCatalogOasisSaveIntegrationTest)이 이 SQL 을 타면 깨진다.
   - **c4 Oracle 확인 목록**: ① 재귀 WITH 3개(SecMenuNativeRepository searchCmMenu·searchMenuFld, SecRoleGroupMappingNativeRepository.searchCmRoleGrpMenu — H2 시험이 타지 않음) ② searchMenuObjPop 상관 서브쿼리 FETCH FIRST ③ MomTcErrorRepository 따옴표 별칭·TO_CHAR·Instant 바인드 시간대 ④ MasterRuleColListRepository 사전 뷰(MCAAPUSER GRANT 없으면 조용히 0건) ⑤ CommSyncMngService 'FM999999990.0'·INSERT…SELECT * 칸 순서(원장·사본·백업 V1 일치) ⑥ CommUserMngQueryService LOCALTIMESTAMP·INTERVAL ⑦ masterRuleData 동적 CTE 페이징·DATE 칸에 14자 글자 바인드(NLS)·CLOB 칸 = 비교 ⑧ 화면 사용 표 색인·유일 제약·엔티티 왕복(archive 한 MSSQL DDL 시험 대체).
   - ScreenUsageMssqlDdlTest → archive/test/screenusage(4e63da218), build.gradle test 입력에서 ScreenUsageSchemaArtifacts·DataInitializer 뺌. ScreenUsageMssqlDdl 은 @Deprecated. **c4 할 일: 화면 사용 표 색인·유일 제약·엔티티 왕복을 Oracle 시험으로 대체**.
-- c4: c2 다음. 시험은 `-Pdmes.ora.test=clone` 하니스(scripts/oracle/README.md). PC 전체 Oracle 무거운 작업은 한 번에 하나(잠금이 줄 세움).
+- **c4 시험 Oracle 전환 — 진행 중(10-07)**. 틀 1d612401a(McmCoreOraTestDb·EntitySchemaValidateOraTest — 레인 PDB validate 1/1·WidgetDefaultLayout 4/4). 병렬 4묶음(조정 지시, sonnet/high): A 위젯 쿼리 4·B 위젯 기타 8·C 사용자·메뉴·검색 기본값·화면 사용 5(+SearchRoleGrpSqliteTest → SearchRoleGrpOraTest)·D c2 확인 새 시험 oracheck/ 8파일 → WIP 8306615a9, 컴파일 오류 0, 남은 jdbc:h2·sqlite 0. 시험 자원 application.yml(H2, 읽는 Boot 시험 없음) → archive/test/resources.
+  - 전체 Oracle 실행은 Oracle 동결(VM 3GB 로 늘림)로 시작 직후 TERM — 재개 뒤 `-Pdmes.ora.pdb=L_ORA_MCM_CORE` 로 다시. 실패 나면 VM 값(available·load) 먼저 재고 VM 신호면 재실행 말고 조정에 「VM 의심」.
+  - D 가 짚은 main 의심(Oracle 결과로 판정): masterRuleData DATE 칸 14자 바인드·CLOB = 비교·CLOB 응답, searchCmRoleGrpMenu 정렬(MENU_SEQ 글자 정렬)·앵커(MENU_FLD.MENU_ID IN 화면 MENU_ID), MomTcError NCLOB 투영·null Instant 바인드, 재귀 순환 ORA-32044. A 의 DDL 시험은 「SqlGuard 가 DDL 거절」 로 의도 바뀜(Oracle DDL 암묵 커밋 — 정책 B 로 대응).
+  - 시험은 `-Pdmes.ora.test=clone`(빌드마다 복제·삭제) 또는 `-Pdmes.ora.pdb=<PDB>`. PC 전체 Oracle 무거운 작업은 한 번에 하나(잠금).
 - c2 주의(조정 지시 10-07): `SqliteTemporalConverterContributor` 는 지우지 말고 `@Deprecated` 만 단다 — mls application.yml 이 가리킨다. 제거는 ora-platform 이 mls yml 을 고친 뒤 ora-base b8.
 
 ## 남은 순서
