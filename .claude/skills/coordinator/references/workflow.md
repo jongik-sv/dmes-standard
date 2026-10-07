@@ -6,20 +6,20 @@
 
 ## 1. 지시 블록 원문
 
-`{…}` 는 조정자가 채우는 자리 표시다. 표 줄은 `workflow.model_table` 의 항목마다 `- {stage} [{size}]: {model} / {effort}` 로 반복한다. 띠가 Y 이상이면 SKILL.md 「시간·토큰·성능 최적화 원칙」 6번대로 상한을 낮춘 값으로 채운다.
+`{…}` 는 조정자가 채우는 자리 표시다. 표 줄은 `workflow.model_table` 의 항목마다 `- {stage} [{size}]: {model} / {effort}` 로 반복한다. 동시 agent 수와 새 Workflow 허용 여부는 현재 띠(`usage.md` §2)대로 채운다.
 
 ```text
 [작업 방식] 시간·토큰·성능이 최적이 되게 진행한다. 모든 일은 최소 충분 등급에서 시작하고, 실패·막힘 근거가 있을 때만 한 칸 올린다.
 지시를 시작하기 전에 핵심 수정이 몇 파일·몇 줄인가를 먼저 적고, 모든 단계를 그 크기에 비례시킨다. 항목마다 실행 수단을 업무 크기로 고른다(영향·범위·단계·시간 → D0 직접 · D1 검색 워커 · D2 agent 하나 · D3 병렬 agent · D4 Workflow, 기준표 {sizing_doc}). 낮은 단계부터 맞춰 보고 부족하다는 근거가 나올 때만 올린다. 진행 보고에 고른 단계를 적는다(예: 실행: D2).
 Workflow(D4)는 구현 → 리뷰 → 수정이 필요한 M/L 항목이나 같은 흐름을 여러 항목에 반복할 때만 쓴다(먼저 workflow-authoring 스킬을 읽는다). 단순 시험·조회·한 파일 수정은 Workflow 없이 직접 한다.
 모든 agent() 에 model 과 effort 를 적는다(크기 S/M/L 은 착수 지시의 항목 표 기준):
-{workflow.model_table 의 각 항목을 한 줄씩: - {stage} [{size}]: {model} / {effort}. model 이 search 면 「검색 워커({search_cmd}), 실패 시 sonnet/medium」 으로 적는다}
+{workflow.model_table 의 각 항목을 한 줄씩: - {stage} [{size}]: {model} / {effort}. model 이 search 면 「검색 워커({search_cmd}: agy, 실패 시 opencode) → 두 워커가 모두 실패하면 sonnet/medium」 으로 적는다}
 시험이 실패하면 실패 사다리를 탄다: {workflow.escalation.ladder 를 「model/effort → …」 로}. 시간 초과·부하 연쇄 실패는 load 를 확인한 뒤 같은 등급으로 한 번만 다시 돌린다. 같은 원인으로 두 번 연속 실패하면 한 칸 건너뛴다. 사다리 끝에서도 실패하면(항목당 수정 시도 최대 {workflow.escalation.max_attempts}회) 멈추고 blocked 로 보고한다.
-조사는 영향에 비례해서 한다. 값 하나 확인·위치 찾기 같은 작은 조사는 Workflow·agent 없이 {search_cmd} 한 번이나 grep 한 번으로 끝낸다. 검색·조사 질의는 {search_cmd} 를 먼저 쓰고, 실패하면 grep 이나 sonnet/medium agent 로 대신한다.
+조사는 영향에 비례해서 한다. 값 하나 확인·위치 찾기 같은 작은 조사는 Workflow·agent 없이 {search_cmd} 한 번이나 grep 한 번으로 끝낸다. 조사·위치 찾기·사용처 집계는 agy·opencode 를 먼저 쓴다. 검색·조사 질의는 {search_cmd} 로 보내고(agy 가 실패하면 opencode 로 자동으로 내려간다), 두 워커가 모두 실패했을 때만 grep 이나 sonnet/medium agent 로 대신한다.
 단순 시험(단일 시험 파일·클래스, tsc, lint)은 heavy.sh 없이 바로 돌리고, 바뀐 모듈 시험부터 돌린다. 전체 시험은 머지 요청 직전에 한 번만 heavy.sh 를 거쳐 돌린다. 무거운 작업 금지 통지 중에는 단순 시험도 미룬다.
 **속도 규칙**: 중간 단계는 해당 모듈 tsc 와 바뀐 파일 시험만 돌리고, 전체 시험은 머지 요청 직전 한 번만 돌린다. 리뷰 지적을 고친 뒤에는 전체 재리뷰를 하지 않고 수정분만 확인한다(보안 리뷰 지적의 수정분 확인만 opus 로 한 번). 무거운 시험은 PC 전체에서 한 번에 하나만 돈다. 파일을 하나씩 옮기는 단계(리팩토링)에서는 해당 폴더 시험과 tsc 만 돌린다. 띄운 백그라운드(시험 입력·성능 측정·로컬 DB·감시)는 반드시 정리하고, 진행 보고와 정리 완료 보고에 「남은 백그라운드 0」 을 적는다. 성능을 재는 시험에는 시간 상한을 붙인다.
 항목마다 구현 → 리뷰 → 지적 수정. 리뷰가 clean 이 아니면 다음 항목으로 넘어가지 않는다.
-동시 agent 는 {N}개까지(기본 2 — 조정자가 부하 띠로 정한다). 무거운 명령은 {heavy_env} 로 heavy.sh 를 거친다.
+동시 agent 는 {N}개까지(현재 띠의 상한: G 4·Y 3·O 2 — 조정자가 사용량·부하 띠로 정한다). 무거운 명령은 {heavy_env} 로 heavy.sh 를 거친다.
 셸 명령은 짧게 나눈다. heredoc·sh -c·변수·$(…) 를 섞은 복합 명령을 피하고, 파일 수정은 Edit·Write 도구로 한다. 확인 창이 뜨면 Workflow 가 멈춘다.
 사람에게 묻는 선택 창(AskUserQuestion)을 쓰지 않는다. 물어야 할 것은 조정자에게 「질문: 배경 / 선택지 / 기본안」 메시지로 보내고, 기본안으로 계속할 수 있으면 계속한다.
 무거운 단계마다 시간 상한(모듈당 15분, 전체 빌드 40분 등)을 두고, 로그가 5분 넘게 늘지 않으면서 CPU 0% 이면 자기 트리만 TERM 으로 끝내고 blocked 로 보고한다. 긴 gradle 실행에는 --info 를 쓰지 않고 출력을 파일로 보낸다.
@@ -27,7 +27,7 @@ Workflow(D4)는 구현 → 리뷰 → 수정이 필요한 M/L 항목이나 같�
 ```
 
 - `{sizing_doc}` 는 `<스킬 경로>/references/sizing.md` 다. 레인이 읽을 수 있게 절대 경로로 채운다.
-- `{search_cmd}` 는 `<스킬 경로>/scripts/search.sh "<질의>"` 다. 설정 `search.command` 가 비어 있으면 그 문장을 「검색은 grep 이나 sonnet/medium agent 로 한다」 로 바꾼다.
+- `{search_cmd}` 는 `<스킬 경로>/scripts/search.sh "<질의>"` 다. 설정 `search.command` 와 `search.opencode.command` 가 모두 비어 있으면 그 문장을 「검색은 grep 이나 sonnet/medium agent 로 한다」 로 바꾼다.
 - `{heavy_env}` 는 state `lanes.<레인>.heavy_env` 다. 전용 칸이 없으면 「무거운 명령은 heavy.sh 를 거친다」 만 쓴다. `heavy.script` 가 `null` 이면 그 문장을 빼고 「무거운 명령은 레인당 한 번에 하나」 로 바꾼다.
 - 보고에 「지금 동시 agent 수」 를 넣게 하는 이유는 상한을 강제할 수단이 지시문뿐이기 때문이다.
 - 이 블록은 `templates/brief.md` 의 해당 자리에 들어간다.
@@ -42,15 +42,15 @@ Workflow 를 띄우는 비용(스크립트 작성, agent 기동, 컨텍스트 �
 
 | 띠 | 레인당 동시 agent |
 |---|---|
-| G | 2 |
-| Y | 2 |
+| G | 4 |
+| Y | 3 |
 | O | 2 |
 | R | 0(새 Workflow 없음) |
 
 - 세션 밖에서 Workflow 의 동시 agent 수를 강제할 수단은 없다. 상한은 **지시문으로만** 준다. 띠가 바뀌면 `사용량 조정` 메시지로 새 상한을 알리고, 이미 도는 Workflow 는 끝까지 두고 다음 Workflow 부터 적용하게 한다.
 - 「무거운 작업 금지」 상태인 레인은 시험 단계 agent 를 띄우지 않는다(조사·문서 agent 만).
 - Workflow 안 무거운 단계(시험 실행)는 레인 안에서 한 번에 하나, heavy.sh 를 거친다. 레인 공용 잠금이 필요하면 레인 scratchpad 의 mkdir 잠금도 허용한다.
-- PC 전체 동시 agent 합은 `레인 수 × 레인 상한` 이다. O 띠에서 레인 수 자체를 줄이는 것은 `usage.md`.
+- PC 전체 동시 agent 합은 `레인 수 × 레인 상한` 이다. 레인 수는 `usage.md` 「새 레인 상한」 만 본다(띠가 올라도 레인을 줄이지 않는다).
 
 ## 4. idle·compact 와의 관계
 
@@ -89,7 +89,7 @@ opencode·agy·codex 워커에는 위 블록을 넣지 않는다. 「한 과제,
 4. 수정 agent 에는 실패 시험 이름, 오류 요지, 이전 시도에서 바꾼 것과 그 결과를 넘긴다(같은 시도를 반복하지 않게). 고친 뒤 **실패했던 시험만** 다시 돌리고, 통과하면 바뀐 모듈 시험을 한 번 더 돌린다.
 5. 다시 실패하면 한 칸 올린다. 같은 시험이 같은 원인으로 두 번 연속 실패하면 한 칸을 건너뛴다.
 6. **끝 칸에서도 실패**하거나 `max_attempts` 에 닿으면 더 돌리지 않는다. 바뀐 것을 커밋하지 않은 채 두고 조정자에게 `질문: 배경(실패 시험·시도 이력) / 선택지 / 기본안` 으로 blocked 를 보고한다. 조정자는 원인 판정을 「판단 올리기」(opus/high 서브에이전트)에 맡긴다.
-7. 사용량 띠가 Y 이상이면 사다리 끝 칸을 낮춘다(Y: `opus/high`, xhigh 금지 · O: `sonnet/high` 까지 · R: 재시도 없이 blocked).
+7. 사다리 끝 칸은 G·Y·O 모두 `opus/high` 까지 허용한다(xhigh 는 `allow_xhigh` 가 켜졌을 때만). R 띠의 Claude 레인은 재시도 없이 blocked 로 보고한다(2026-10-07 완화).
 
 **Workflow 스크립트 본보기**
 

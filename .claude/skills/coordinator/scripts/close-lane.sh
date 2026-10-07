@@ -60,7 +60,7 @@ HEAVY_RE='GradleWrapperMain|gradlew|vitest|playwright (test|show-report)|/tsc( |
 bg=()
 ps_all="$(compat_ps_table)"   # pid ppid args(Git Bash 는 /proc)
 # (가) 세션 pid 의 자손 중 무거운 명령(mcp 서버는 뺀다)
-if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+if [ -n "$pid" ] && compat_pid_alive "$pid"; then
   desc="$(printf '%s\n' "$ps_all" | awk -v root="$pid" '
     { p[NR] = $1; pp[NR] = $2; $1 = ""; $2 = ""; c[NR] = $0 }
     END {

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="secSrchDfltDefinitions"
+                  targetNamespace="http://dongkuk.com/dmes/mcm">
+  <!-- 조회 칸 사용자 기본값 저장 — 스펙 2026-10-07-search-defaults-design §5.3. 본인 데이터라 AUTH_ONLY(EndpointPermissionFilter 'secsrchdflt/'). -->
+  <bpmn:process id="secSrchDflt" name="조회 칸 사용자 기본값 서비스" isExecutable="true">
+    <bpmn:startEvent id="start"><bpmn:outgoing>flow_to_gw</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_savePage</bpmn:outgoing>
+      <bpmn:outgoing>flow_resetPage</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:serviceTask id="searchTask" name="내 조회 기본값 전체 조회" camunda:class="secSrchDfltService">
+      <bpmn:extensionElements><camunda:properties>
+        <camunda:property name="method" value="search" />
+        <camunda:property name="output" value="result" />
+        <camunda:property name="dto" value="com.dongkuk.dmes.mcm.searchdefaults.dto.SecSrchDfltSearchRequest" />
+      </camunda:properties></bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:endEvent id="endSearch"><bpmn:incoming>flow_search_end</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_savePage" name="savePage" sourceRef="actionGateway" targetRef="savePageTask" />
+    <bpmn:serviceTask id="savePageTask" name="화면 기본값 저장(통째로 교체)" camunda:class="secSrchDfltService">
+      <bpmn:extensionElements><camunda:properties>
+        <camunda:property name="method" value="savePage" />
+        <camunda:property name="output" value="result" />
+        <camunda:property name="dto" value="com.dongkuk.dmes.mcm.searchdefaults.dto.SecSrchDfltPageRequest" />
+      </camunda:properties></bpmn:extensionElements>
+      <bpmn:incoming>flow_savePage</bpmn:incoming>
+      <bpmn:outgoing>flow_savePage_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_savePage_end" sourceRef="savePageTask" targetRef="endSavePage" />
+    <bpmn:endEvent id="endSavePage"><bpmn:incoming>flow_savePage_end</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_resetPage" name="resetPage" sourceRef="actionGateway" targetRef="resetPageTask" />
+    <bpmn:serviceTask id="resetPageTask" name="화면 기본값 지우기" camunda:class="secSrchDfltService">
+      <bpmn:extensionElements><camunda:properties>
+        <camunda:property name="method" value="resetPage" />
+        <camunda:property name="output" value="result" />
+        <camunda:property name="dto" value="com.dongkuk.dmes.mcm.searchdefaults.dto.SecSrchDfltPageRequest" />
+      </camunda:properties></bpmn:extensionElements>
+      <bpmn:incoming>flow_resetPage</bpmn:incoming>
+      <bpmn:outgoing>flow_resetPage_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_resetPage_end" sourceRef="resetPageTask" targetRef="endResetPage" />
+    <bpmn:endEvent id="endResetPage"><bpmn:incoming>flow_resetPage_end</bpmn:incoming></bpmn:endEvent>
+  </bpmn:process>
+</bpmn:definitions>

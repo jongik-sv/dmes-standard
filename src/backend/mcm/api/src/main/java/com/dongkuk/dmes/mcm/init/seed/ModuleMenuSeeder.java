@@ -87,6 +87,26 @@ public final class ModuleMenuSeeder extends SeedSupport {
     }
 
     /**
+     * 조회 기본값 샘플(csa/searchDefaultsSample) 메뉴 시드 (2026-10-07, 스펙 2026-10-07-search-defaults-design §7.5) —
+     * OBJECT 1 + 메뉴 leaf 1 + SYSADMIN × PERM_ALL 1. 기본값 동작을 눈과 e2e 로 확인하는 샘플 화면의 포털 진입점이다.
+     * <b>local 프로필에서만</b> 부른다(호출하는 DataInitializer 가 판정 — 운영 메뉴에는 넣지 않는다). componentPath={@code csa/searchDefaultsSample}
+     * 은 m-mcm 페이지 레지스트리 키와 같다. FULL_SEQ 1020210 은 csa 의 MDM 캐시 관리(1020190) 다음이다.
+     * 모두 insert-if-absent 라 재기동해도 중복 행이 생기지 않는다.
+     */
+    public void seedSearchDefaultsSampleMenu() {
+        final String objId = "searchDefaultsSample";
+        insertMcmSecObjIfAbsent(objId, "조회 기본값 샘플", "mcm");
+        insertMcmSecMenuIfAbsent(objId, "001", "1020210", "조회 기본값 샘플", "csa", objId);
+        insertIfAbsentComposite(
+                "TB_MCM_SEC_ROLE_MAPPING",
+                new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                new String[]{"SYSADMIN", objId,       "PERM_ALL"},
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                "VALUES ('SYSADMIN', '" + objId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+        log.info("[DataInitializer] 조회 기본값 샘플 메뉴 시드 — OBJECT 1(searchDefaultsSample) + 메뉴 leaf 1(csa/searchDefaultsSample) + RBAC(SYSADMIN 1)");
+    }
+
+    /**
      * 공지사항 관리(noticeMgmt) 메뉴·OBJECT·RBAC 시드 — 2026-10-02. <b>메뉴는 공통관리(mcm) 아래, 코드는 mls</b> 다.
      *
      * <ul>

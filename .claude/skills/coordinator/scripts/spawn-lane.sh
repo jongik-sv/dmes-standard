@@ -58,7 +58,7 @@ live_session_pids() {
   for f in "$SESS_DIR"/*.json; do
     [ -f "$f" ] || continue
     p="$(jq -r --arg n "$name" 'select(.name == $n) | .pid // empty' "$f" 2>/dev/null)"
-    [ -n "$p" ] && kill -0 "$p" 2>/dev/null && printf '%s ' "$p"
+    [ -n "$p" ] && compat_pid_alive "$p" && printf '%s ' "$p"
   done
 }
 # 생성 전 목록(pre)에 없던 새 세션을 최대 30초 기다린다 → "pid\tsessionId\tsocket"

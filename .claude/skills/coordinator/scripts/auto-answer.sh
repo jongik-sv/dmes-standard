@@ -223,7 +223,7 @@ case "$kind" in
         case "$a" in -*) continue ;; esac
         case "$a" in
           /private/tmp/*|/tmp/*|"${TMPDIR:-/nonexistent}"*) ;;
-          /*|~*|..*|*/../*) [ -n "$wt_abs" ] && case "$a" in "$wt_abs"/*) ;; *) return 1 ;; esac || return 1 ;;
+          /*|~*|..*|*/../*|[A-Za-z]:*|*\\*) [ -n "$wt_abs" ] && case "$a" in "$wt_abs"/*) ;; *) return 1 ;; esac || return 1 ;;
           *) [ -n "$wt_abs" ] || return 1 ;;  # 상대 경로는 레인 워크트리를 알 때만
         esac
       done

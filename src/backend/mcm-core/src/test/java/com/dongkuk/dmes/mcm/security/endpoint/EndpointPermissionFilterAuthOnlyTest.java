@@ -96,6 +96,17 @@ class EndpointPermissionFilterAuthOnlyTest {
     }
 
     @Test
+    void secSrchDflt_세_action_은_AUTH_ONLY_이고_비슷한_이름은_아니다() {
+        for (String action : new String[] {"search", "savePage", "resetPage"}) {
+            PermKey k = PermKey.parseUrl("/api/mcm/oasis/secSrchDflt/" + action);
+            assertThat(k).as(action).isNotNull();
+            assertThat(EndpointPermissionFilter.isAuthOnly(k)).as(action).isTrue();
+        }
+        assertThat(EndpointPermissionFilter.isAuthOnly(PermKey.parseUrl("/api/mcm/oasis/secSrchDfltAdmin/search"))).isFalse();
+        assertThat(EndpointPermissionFilter.isAuthOnly(PermKey.parseUrl("/api/mcm/oasis/secSrch/search"))).isFalse();
+    }
+
+    @Test
     void mdmMeta_는_AUTH_ONLY_다() {
         for (String action : new String[] {"columns", "domains", "status", "entries", "load"}) {
             PermKey k = PermKey.parseUrl("/api/mcm/mdmMeta/" + action);

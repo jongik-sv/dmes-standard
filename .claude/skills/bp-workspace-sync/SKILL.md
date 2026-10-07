@@ -61,7 +61,7 @@ bp --version            # 0.4.2 이상인지 확인
   `"sync 를 지원하는 최신 bp CLI 가 필요합니다 … npm install -g @cothe/bp@latest 로 업데이트한 뒤 다시 실행하세요."`
   를 출력한다. 이 메시지를 보면 위 2)를 실행한다.
 - 설치 후 **BP 로그인 상태**여야 pull 이 성공한다: `bp auth status -q` 로 확인하고, 비어 있으면 사용자에게 `bp login` 을 요청한다(대화형 로그인이라 에이전트가 대신 못 한다 → `! bp login …` 안내).
-- ⚠️ 개발 머신 주의: 이 저장소 소유자의 `bp` 는 CLI 소스(`~/projects/dkowork/cli`)에 **npm link** 된 심볼릭 링크일 수 있다. 이 경우 `npm install -g @cothe/bp@latest` 는 링크를 끊고 배포판으로 교체한다. CLI 자체를 개발 중이라면 대신 CLI 저장소에서 `npm run build`(tsup) 로 로컬 반영한다. 일반 사용자는 `npm install -g` 가 정답.
+- ⚠️ 개발 머신 주의: CLI 개발자의 `bp` 는 CLI 소스 저장소에 **npm link** 된 심볼릭 링크일 수 있다. 이 경우 `npm install -g @cothe/bp@latest` 는 링크를 끊고 배포판으로 교체한다. CLI 자체를 개발 중이라면 대신 CLI 저장소에서 `npm run build`(tsup) 로 로컬 반영한다. 일반 사용자는 `npm install -g` 가 정답.
 
 ### 1. 미러 최신화
 

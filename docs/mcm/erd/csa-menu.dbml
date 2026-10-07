@@ -406,6 +406,25 @@ Table TB_MCM_SEC_USER_START_PGM {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// 조회 칸 사용자 기본값 — 화면(PAGE_ID)의 조회 칸(FIELD_KEY)마다 규칙 한 줄. 2026-10-07 신설
+// ────────────────────────────────────────────────────────────────────────────
+
+Table TB_MCM_SEC_USER_SRCH_DFLT {
+  USER_ID     varchar(30)   [note: '→ TB_MCM_SEC_USER (인증 컨텍스트 사용자)']
+  PAGE_ID     varchar(200)  [note: '포털 화면 키 pageId ({moduleId}:{componentPath})']
+  FIELD_KEY   varchar(100)  [note: '조회 칸 키(defaultKey ?? name), 같은 화면에 SearchArea 가 여럿이면 {defaultsScope}.{키}']
+  RULE_JSON   varchar(1000) [not null, note: '규칙 JSON — {"kind":"fixed","value":..} | {"kind":"relative","base":"today|monthStart|monthEnd","months":N,"days":N} | {"kind":"last"}']
+  FIELD_META  varchar(50)   [note: 'MDM 표준 용어(없으면 NULL) — 나중에 관리자 배포 기본값이 칸을 찾는 속성']
+  FIELD_LABEL varchar(100)  [note: '저장할 때의 라벨(사람이 알아보는 용도)']
+
+  indexes {
+    (USER_ID, PAGE_ID, FIELD_KEY) [pk]
+  }
+
+  Note: '조회 칸 사용자 기본값(스펙 2026-10-07-search-defaults-design §5.2). 감사 컬럼 9개(McmAuditEntity). 서비스 secSrchDflt(search·savePage·resetPage, AUTH_ONLY)가 화면 단위로 지우고 다시 넣는다(화면당 50행 이하). Flyway 없음 — local 은 ddl-auto update, 개발계·운영계(Oracle·PostgreSQL)는 DDL 사전 생성 필요(RULE_JSON 은 LOB 이 아니라 문자열). 서비스가 길이를 글자 수로 검사하므로 Oracle 은 VARCHAR2(n CHAR) 로 만든다(BYTE 면 한글 값이 ORA-12899).'
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // 이력 (메뉴와 직접 관계 없음 — 참고용)
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -483,6 +502,9 @@ Ref: TB_MCM_SEC_USER_WIDGET_MEMO.DEF_ID  > TB_MCM_WIDGET_DEF.WIDGET_ID
 Ref: TB_MCM_SEC_USER_START_PGM.USER_ID     > TB_MCM_SEC_USER.USER_ID
 Ref: TB_MCM_SEC_USER_START_PGM.MENU_ID     > TB_MCM_SEC_MENU.MENU_ID
 
+// 조회 칸 기본값 (PAGE_ID 는 메뉴 FK 가 아니라 포털 화면 키라 논리 참조는 사용자만)
+Ref: TB_MCM_SEC_USER_SRCH_DFLT.USER_ID > TB_MCM_SEC_USER.USER_ID
+
 // 이력
 Ref: TB_MCM_SEC_USER_HIS.USER_ID            > TB_MCM_SEC_USER.USER_ID
 Ref: TB_MCM_SEC_USER_ROLL_HIS.USER_ID       > TB_MCM_SEC_USER.USER_ID
@@ -518,6 +540,7 @@ TableGroup "즐겨찾기_이력" {
   TB_MCM_SEC_USER_WIDGET_TAB
   TB_MCM_SEC_USER_WIDGET
   TB_MCM_SEC_USER_START_PGM
+  TB_MCM_SEC_USER_SRCH_DFLT
   TB_MCM_SEC_USER_HIS
   TB_MCM_SEC_USER_ROLL_HIS
 }

@@ -38,19 +38,21 @@
     "max_age_min": 30,
     "bands": {
       "Y": {
-        "five": 60,
-        "week": 70
-      },
-      "O": {
-        "five": 80,
+        "five": 75,
         "week": 85
       },
+      "O": {
+        "five": 90,
+        "week": 93
+      },
       "R": {
-        "five": 95,
-        "week": 95
+        "five": 98,
+        "week": 98
       }
     },
-    "week_pace": true,
+    "week_pace": false,
+    "week_pace_margin": 20,
+    "relaxed": false,
     "spawn_week_max": 95
   },
   "compact": {
@@ -84,8 +86,8 @@
   },
   "workflow": {
     "agents_by_band": {
-      "G": 2,
-      "Y": 2,
+      "G": 4,
+      "Y": 3,
       "O": 2,
       "R": 0
     },
@@ -165,8 +167,16 @@
   },
   "search": {
     "mode": "tab",
+    "workers": [
+      "agy",
+      "opencode"
+    ],
     "command": "agy -p {prompt} --print-timeout {timeout}s --disable-slash-commands",
     "tab_command": "agy -i {prompt}",
+    "opencode": {
+      "command": "opencode run --standalone {prompt}",
+      "tab_command": "opencode run --standalone {prompt} 2>&1 | tee {out}"
+    },
     "timeout_s": 240
   },
   "approvals": {

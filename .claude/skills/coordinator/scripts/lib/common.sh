@@ -19,15 +19,15 @@ COORD_DEFAULTS='{
                         {"kind": "coord-dump", "path": "~/.coord/ctx"},
                         {"kind": "limits-dir", "path": "~/.dflow/limits"}],
             "max_age_min": 30,
-            "bands": {"Y": {"five": 60, "week": 70}, "O": {"five": 80, "week": 85}, "R": {"five": 95, "week": 95}},
-            "week_pace": true, "spawn_week_max": 95},
+            "bands": {"Y": {"five": 75, "week": 85}, "O": {"five": 90, "week": 93}, "R": {"five": 98, "week": 98}},
+            "week_pace": false, "week_pace_margin": 20, "relaxed": false, "spawn_week_max": 95},
   "compact": {"threshold_pct": 40, "threshold_tokens": null,
               "by_window": {"1000000": {"pct": 40}, "200000": {"pct": 70}},
               "hard_pct": 70, "cooldown_min": 30, "default_window": 200000, "wait_max_min": 10},
   "idle": {"idle_min": 5, "cooldown_min": 15, "confirm_gap_min": 2, "bg_recent_min": 10, "stall_max_min": 90},
   "stall": {"quiet_min": 20},
   "tick": {"cron": "7,27,47 * * * *"},
-  "workflow": {"agents_by_band": {"G": 2, "Y": 2, "O": 2, "R": 0},
+  "workflow": {"agents_by_band": {"G": 4, "Y": 3, "O": 2, "R": 0},
                "model_table": [
                  {"stage": "단순 시험 실행·결과 확인·기계적 치환", "size": "*", "model": "haiku", "effort": "low"},
                  {"stage": "조사·위치 찾기·영향 범위·사용처 목록", "size": "*", "model": "search", "effort": "-"},
@@ -42,8 +42,12 @@ COORD_DEFAULTS='{
                                          {"model": "opus", "effort": "high"}],
                               "allow_xhigh": false, "max_attempts": 3, "env_retry": 1}},
   "glm": {"max_sessions": 1, "timeout_s": 10},
-  "search": {"mode": "tab", "command": "agy -p {prompt} --print-timeout {timeout}s --disable-slash-commands",
-             "tab_command": "agy -i {prompt}", "timeout_s": 240},
+  "search": {"mode": "tab", "workers": ["agy", "opencode"],
+             "command": "agy -p {prompt} --print-timeout {timeout}s --disable-slash-commands",
+             "tab_command": "agy -i {prompt}",
+             "opencode": {"command": "opencode run --standalone {prompt}",
+                          "tab_command": "opencode run --standalone {prompt} 2>&1 | tee {out}"},
+             "timeout_s": 240},
   "approvals": {"auto_allow": ["read", "status"],
                 "auto_allow_spawned": ["read", "status", "edit-own", "commit-own", "heavy-build"],
                 "watch_every_s": 10, "screen_cache_s": 20},
@@ -431,7 +435,7 @@ coord_path_in_wt() {
   fi
   return 0
 }
-coord_pid_alive() { [ -n "${1:-}" ] && [ "$1" != 0 ] && [ "$1" != null ] && kill -0 "$1" 2>/dev/null; }
+coord_pid_alive() { compat_pid_alive "${1:-}"; }   # Git Bash 는 네이티브 Windows pid(Claude 세션 등)를 kill -0 만으로 못 본다 — compat 가 ps -W 로 한 번 더 본다
 # pid 콤마 목록 → 한 줄에 `<pid>\t<cwd>`(lsof, 없으면 /proc — compat.sh).
 coord_proc_cwds() { compat_proc_cwds "$@"; }
 # 세션 상태 json 경로: <sessions_dir>/<pid>.json 이 있으면 그것(/clear 로 sessionId 가 바뀌어도 pid 가 정본),

@@ -36,12 +36,17 @@ git 커밋 이력을 바탕으로, 지정한 **모듈**과 **기간**의 작업�
 ```bash
 today_dow=$(date +%u)                       # 1=월 … 7=일, 수=3
 back=$(( (today_dow - 3 + 7) % 7 ))         # 오늘 포함 가장 가까운 과거 수요일까지의 일수
-start=$(date -v-${back}d -v-6d +%Y-%m-%d)   # 시작: 그 전주 목요일
-end=$(date -v-${back}d +%Y-%m-%d)           # 종료: 금주 수요일
+if date -v-1d +%Y-%m-%d >/dev/null 2>&1; then   # BSD date(macOS)
+  start=$(date -v-${back}d -v-6d +%Y-%m-%d)     # 시작: 그 전주 목요일
+  end=$(date -v-${back}d +%Y-%m-%d)             # 종료: 금주 수요일
+else                                            # GNU date(Git Bash·Linux)
+  start=$(date -d "-$((back + 6)) days" +%Y-%m-%d)
+  end=$(date -d "-${back} days" +%Y-%m-%d)
+fi
 echo "보고기간: $start (목) ~ $end (수)"
 ```
 
-> macOS(BSD date) 기준이다. GNU date 환경이면 `date -d "..."` 문법으로 바꾼다.
+> BSD date(macOS)와 GNU date(Git Bash·Linux)를 모두 처리한다. 윈도우에서는 Git Bash 로 실행한다.
 > 계산된 기간은 보고서 머리말에 **명시**한다 (예: `2026-06-11(목) ~ 2026-06-17(수)`).
 
 ### 3. 커밋 추출

@@ -72,9 +72,13 @@
 | 띠 | 배정 |
 |---|---|
 | G | 1·2 모두 |
-| Y | 1 만(대기 작업 자동 배정 중단) |
-| O | 1 중 머지 임박·측정 항목만 |
-| R | 배정 없음 |
+| Y | 1·2 모두. 조사·문서 정리·쉬운 반복 구현 항목은 opencode·agy 워커에 우선 배정한다 |
+| O | 1 만(대기 작업 2 의 자동 배정만 중단). 일반 구현 항목도 opencode 워커 우선이고, Claude 레인에는 판정·리뷰·어려운 구현만 준다 |
+| R | Claude 레인에는 배정 없음(머지·정리만). opencode·agy 워커의 queue 항목은 계속 배정한다 |
+
+O·R 에서 띠 때문에 2 를 건너뛴 레인에는 3 의 「쉬어라」 를 보내지 않고 `coord-state.sh hold <레인> usage-band` 만 건다.
+
+설정 `usage.relaxed` 가 켜져 있으면 `usage-band.sh` 가 Y·O 를 G 로 내려 주므로 위 표의 G 행을 그대로 쓴다. 약한 워커(opencode)가 막히면 그 단계만 Claude 세션으로 넘긴다(`spawn.md`).
 
 띠 때문에 일을 안 준 레인은 `coord-state.sh hold <레인> usage-band` 로 표시해 다음 틱에 같은 판단을 반복하지 않는다. load 때문에 보류한 착수 지시(`heavy.load_soft` 초과)도 같다(`heavy.md`).
 
