@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * 행 수 두 단계(100·10,000), 워밍업 각 경로 5회 제외 뒤 각 20회, 중앙값·p90(ms).
  *
  * <p>평소 시험에서는 돌지 않는다 — {@code -DqueryRoute.perf=true} 또는 환경 변수 {@code QUERY_ROUTE_PERF=1} 일 때만 돈다(시간이 들고 결과가 PC 부하에 흔들린다).
- * 결과는 표준 출력의 {@code PERF} 줄로 남는다. 한계: SQLite 파일 DB·MockMvc(HTTP 없음)·로깅 인터셉터 없음이라 운영 DB·WAS 와
+ * 결과는 표준 출력의 {@code PERF} 줄로 남는다. 한계: 공유 Oracle 시험 PDB·MockMvc(HTTP 없음)·로깅 인터셉터 없음이라 운영 DB·WAS 와
  * 절대값이 다르다. OASIS 경로는 transactional=true 라 JPA 트랜잭션(txBiz)을 열고 닫고, 라우터는 트랜잭션 없이 자동 커밋으로 돈다.
  */
 class MasterCodeSelPopQueryRoutePerfTest {

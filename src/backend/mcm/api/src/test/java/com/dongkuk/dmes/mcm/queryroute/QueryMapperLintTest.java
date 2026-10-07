@@ -13,10 +13,10 @@ import java.util.regex.Pattern;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 조회 라우터 매퍼 정적 검사(설계 §5 D2·D4·D5(a), §4 S3) — SQLite 시험은 통과해도 운영 방언에서만 어긋나는 것을 미리 막는다.
+ * 조회 라우터 매퍼 정적 검사(설계 §5 D2·D4·D5(a), §4 S3) — 한 DB 시험은 통과해도 다른 운영 방언(PostgreSQL 등)에서만 어긋나는 것을 미리 막는다.
  * <ul>
  *   <li>select 목록의 모든 열에 큰따옴표 별칭({@code AS "키"}) — 따옴표 없는 별칭은 Oracle 이 대문자, PostgreSQL 이 소문자로 바꾼다.
- *       SQLite 는 쓴 그대로 돌려주므로 동등성 시험으로는 잡히지 않는다.</li>
+ *       Oracle 한 DB 로 도는 동등성 시험으로는 PostgreSQL 쪽 어긋남이 잡히지 않는다.</li>
  *   <li>{@code SELECT *} 금지 — 키가 DB 열 이름 대소문자에 묶인다.</li>
  *   <li>{@code ${}} 문자열 치환 금지 — 요청값이 SQL 문자열이 된다.</li>
  *   <li>방언 전용 함수 금지({@code NVL}·{@code SYSDATE}·{@code GETDATE}·{@code ISNULL}·{@code DECODE}·{@code ROWNUM}·{@code TOP}·{@code (+)}).</li>

@@ -113,7 +113,7 @@ public final class McmMenuSeeder extends SeedSupport {
         insertMcmSecMenuIfAbsent("masterRuleListPop",             "001", "1050120", "업무기준 List조회 팝업",           "cmz", "masterRuleListPop",             "N");
         insertMcmSecMenuIfAbsent("masterRuleFrameColListPopup",   "001", "1050130", "업무기준 컬럼 리스트 등록 팝업",   "cmz", "masterRuleFrameColListPopup",   "N");
         insertMcmSecMenuIfAbsent("masterRuleDataUploadFilePopup", "001", "1050140", "일반 업무기준 등록(Excel Upload)", "cmz", "masterRuleDataUploadFilePopup", "N");
-        // 이미 적재된 DB(개발 MSSQL·동료 SQLite) 백필 — INSERT 헬퍼는 기존 행을 갱신하지 않으므로,
+        // 이미 적재된 DB(개발계·다른 개발자 로컬 DB) 백필 — INSERT 헬퍼는 기존 행을 갱신하지 않으므로,
         //   시드 리터럴만 cmz 로 바꿔서는 기존 DB 의 부모가 영원히 cma/cmb 로 남는다.
         for (String popupId : new String[]{
                 "masterCodeSelPop", "masterCodeUploadFilePopup",
@@ -342,7 +342,7 @@ public final class McmMenuSeeder extends SeedSupport {
         //   시드 리터럴은 체계만 맞으면 되고, 부팅 말미 recomputeMenuFullSeq() 가 트리 위치 기준으로
         //   실제 값을 재부여한다(현 DB 실값은 모듈 순번이 2 라 20xxxxx 대다).
         insertMpnFld("cmz", "00000500", "팝업", "mcm", 1050000L, "N");
-        // 이미 적재된 DB(개발 MSSQL·동료 SQLite) 백필 — insertMpnFld 는 기존 행을 갱신하지 않는다.
+        // 이미 적재된 DB(개발계·다른 개발자 로컬 DB) 백필 — insertMpnFld 는 기존 행을 갱신하지 않는다.
         ensureMenuFldViewYn("cmz", "N");
     }
 

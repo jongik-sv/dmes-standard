@@ -242,7 +242,7 @@ class McmLoginLockoutDbTest {
                 @Override
                 public void incrementTryCnt(String userId) {
                     super.incrementTryCnt(userId);
-                    if (BUSY_USER.equals(userId)) throw new CannotAcquireLockException("SQLITE_BUSY");
+                    if (BUSY_USER.equals(userId)) throw new CannotAcquireLockException("시험용 잠금 획득 실패");
                 }
             };
         }

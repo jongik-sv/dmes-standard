@@ -26,7 +26,7 @@ public final class MenuFinalizer extends SeedSupport {
      *
      * <p>폴더 정렬은 MENU_SEQ asc 기준(2026-06-10, {@code recomputeMenuFullSeq}). 그러나 seedMcmSecMenuFld /
      * seedMpnMenus 는 {@code insertIfAbsent} 라 기존 행의 MENU_SEQ 를 갱신하지 않아, 시드 리터럴 변경
-     * (b1eac364: mpn 2→1, mcm 1→2)이 이미 시드된 DB(dev MSSQL · 동료 SQLite)에는 반영되지 않는다.
+     * (b1eac364: mpn 2→1, mcm 1→2)이 이미 시드된 DB(개발계·다른 개발자 로컬 DB)에는 반영되지 않는다.
      *
      * <p>모듈 루트 순서는 제품 고정 정책이므로 루트 2행만 강제 정정한다. 그룹/화면 순서(사용자 편집)는
      * 건드리지 않는다. 값이 이미 맞으면 UPDATE 영향 0 (멱등 · 신규 클린 DB 무영향). 본 메서드 직후

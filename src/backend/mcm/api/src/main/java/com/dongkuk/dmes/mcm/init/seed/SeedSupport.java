@@ -163,7 +163,7 @@ public class SeedSupport {
      *
      * <p><b>왜 필요한가</b> — {@link #insertIfAbsent}/{@link #insertMcmSecMenuIfAbsent} 는 대상 행이
      * 이미 있으면 skip 하고 <b>갱신하지 않는다</b>. 그래서 시드 리터럴만 'N' 으로 바꿔봐야 이미 시드된
-     * 개발 MSSQL·동료 SQLite 에서는 값이 영원히 'Y' 로 남는다({@link #fixModuleRootMenuSeqOrder} ·
+     * 개발계·다른 개발자 로컬 DB 에서는 값이 영원히 'Y' 로 남는다({@link #fixModuleRootMenuSeqOrder} ·
      * {@link #ensurePermAllActions} 와 같은 계열의 백필 보정).
      *
      * <p>값이 이미 목표와 같으면 UPDATE 영향 0 (멱등 · 신규 클린 DB 무영향). 사용자가 commMenuMng 에서
@@ -194,7 +194,7 @@ public class SeedSupport {
      *
      * <p><b>왜 필요한가</b> — {@link #ensureMenuViewYn(String, String)} 과 같은 계열의 백필이다.
      * {@link #insertMcmSecMenuIfAbsent}는 대상 행이 이미 있으면 skip 하고 <b>갱신하지 않는다</b>. 그래서
-     * 화면/팝업의 소속 그룹을 바꿔도 시드 리터럴만 고쳐서는 이미 시드된 개발 MSSQL·동료 SQLite 에서
+     * 화면/팝업의 소속 그룹을 바꿔도 시드 리터럴만 고쳐서는 이미 시드된 개발계·다른 개발자 로컬 DB 에서
      * 부모가 옛 그룹으로 영원히 남는다. 최초 사용처 = mcm 팝업 5종의 {@code cma}/{@code cmb} → {@code cmz}
      * (팝업 전용 그룹) 이관.
      *

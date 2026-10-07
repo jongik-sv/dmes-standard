@@ -20,7 +20,7 @@ import java.util.Map;
  * <ul>
  *   <li>접속 사용자 = 그 스키마의 주인. V1 끝의 {@code GRANT … TO ${app_user}} 는 표 주인만 줄 수 있어, 앱 사용자(MCMAPUSER)로
  *       돌리면 ORA-01749 로 실패한다.</li>
- *   <li>{@code locations} 는 스키마 폴더 하나로 좁힌다 — 다른 폴더(옛 SQLite 샘플 등)가 같은 이력에 섞이지 않게 한다.</li>
+ *   <li>{@code locations} 는 스키마 폴더 하나로 좁힌다 — 다른 스키마 폴더가 같은 이력에 섞이지 않게 한다.</li>
  *   <li>자리표시자 {@code app_user} = 앱 접속 사용자(로컬·운영 MCMAPUSER).</li>
  *   <li>이력 표는 각 스키마의 {@code flyway_schema_history} 다. 스키마(사용자)는 PDB 도구·DBA 가 미리 만든다(만들지 않는다).</li>
  * </ul>

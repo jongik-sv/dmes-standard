@@ -70,7 +70,7 @@ public class DataInitializer implements ApplicationRunner {
     @Autowired
     private SecMenuNativeRepository secMenuNativeRepository;
 
-    // 업무기준(cmb/masterRuleList) 샘플 시드용 — primary EMF (mcm.db / MCAAPUSER). local/mssql/dev tier 한정.
+    // 업무기준(cmb/masterRuleList) 샘플 시드용 — primary EMF (MCAAPUSER). local/local-ph/local-kp tier 한정.
     @Autowired(required = false)
     private RuleMasterRepository ruleMasterRepository;
 
@@ -117,7 +117,7 @@ public class DataInitializer implements ApplicationRunner {
         // MCM cma 동기화 표(MCMAPUSER 사본 3표·MCM_BACKUP 2표)·VI_MCM_CODE_ACCESS 뷰·csa SEC 표·화면 사용 통계 표는
         // 2026-10-07 부터 Flyway V1(mcm-core db/migration/oracle/<스키마>)이 만든다 — 옛 Java DDL 단계는 archive.
 
-        // 업무기준(cmb/masterRuleList) 조회 필터 검증용 샘플 — local/mssql/dev tier·idempotent (BR-002/003).
+        // 업무기준(cmb/masterRuleList) 조회 필터 검증용 샘플 — local/local-ph/local-kp tier·idempotent (BR-002/003).
         new RuleMasterSampleSeeder(environment, ruleMasterRepository).initRuleMasterSampleData();
 
         // Phase R6 (2026-06-01) — 신규 RBAC 시드 (TB_MCM_SEC_*) 멱등 적재.
@@ -220,7 +220,7 @@ public class DataInitializer implements ApplicationRunner {
         //   트리 위치 기준으로 일괄 정정. saveCmMenu / saveCmMenuFld 의 저장 시 재계산과 동일 로직 (SoT).
         // 2026-06-11: 모듈 루트 폴더 표시 순서 고정 — 공정계획(mpn) 위 / 공통관리(mcm) 아래.
         //   b1eac364 가 시드 리터럴 MENU_SEQ 를 swap 했으나 seedMcmSecMenuFld/seedMpnMenus 는 insertIfAbsent 라
-        //   이미 시드된 DB(dev MSSQL · 동료 SQLite)엔 옛 값(mcm=00000001, mpn=00000002)이 남아 순서가 안 바뀐다.
+        //   이미 시드된 DB(개발계·다른 개발자 로컬 DB)엔 옛 값(mcm=00000001, mpn=00000002)이 남아 순서가 안 바뀐다.
         //   루트 2행만 멱등 보정(그룹/화면 정렬은 사용자 편집 보존) 후, 아래 recompute 가 FULL_SEQ 를 재부여한다.
         menuFinalizer.fixModuleRootMenuSeqOrder();
 

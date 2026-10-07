@@ -165,7 +165,7 @@ dmes:
     media-dir: ./data/widget-media
     # 쿼리 위젯 실행기(§7) 전용 DataSource — 선택. 모두 비우면 앱 기본 DataSource 를 쓴다.
     # 운영에서는 여기에 **읽기 권한만 가진 DB 계정**을 붙인다(근본 대책). 실행기는 어느 DataSource 든 실행마다 읽기 전용
-    # (연결 readOnly·늘 롤백·SQLite query_only·PostgreSQL/Oracle SET TRANSACTION READ ONLY)을 걸지만 보조 방어선일 뿐이다 —
+    # (연결 readOnly·늘 롤백·PostgreSQL/Oracle SET TRANSACTION READ ONLY)을 걸지만 보조 방어선일 뿐이다 —
     # SQL Server 는 읽기 전용 트랜잭션이 없고, Oracle 은 자율 트랜잭션 함수가 롤백을 벗어난다.
     # jndi-name(WildFly 컨테이너 풀)이 있으면 그것, 없고 url 이 있으면 직결 풀(widget-query). url 없이 계정만 넣으면 기동이 멈춘다
     # (기본 DataSource 로 물러나지 않는다). 비밀번호는 환경변수로만 넣는다 — 주소·계정·비밀번호는 로그에 남기지 않는다.

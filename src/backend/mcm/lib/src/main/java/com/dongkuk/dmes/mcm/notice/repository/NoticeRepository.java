@@ -180,7 +180,7 @@ public interface NoticeRepository extends JpaRepository<Notice, String> {
      *
      * <p>{@code MAX()} 집계 대신 {@code ORDER BY DESC} + {@link Limit} 을 쓰는 이유는
      * {@code SecRoleRepository.findRoleGroupIdsByRoleId} 와 동일하다 — Hibernate 가 방언별
-     * {@code TOP} / {@code LIMIT} 을 생성해 주므로 SQLite·MSSQL 양쪽에서 그대로 동작한다.
+     * 행 수 제한({@code FETCH FIRST} 등)을 생성해 주므로 방언과 무관하게 그대로 동작한다.
      */
     @Query("SELECT n.noticeId FROM Notice n WHERE n.noticeId LIKE CONCAT(:prefix, '%') ORDER BY n.noticeId DESC")
     List<String> findNoticeIdsByPrefix(@Param("prefix") String prefix, Limit limit);
