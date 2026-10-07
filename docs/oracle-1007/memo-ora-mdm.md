@@ -3,12 +3,29 @@
 - 레인: ora-mdm / 브랜치 `feat/ora-mdm` / 워크트리 `/Users/jji/project/dmes-wt/ora-mdm` / 조정 세션: dmes-standard-d8
 - 지시: ora-mdm-1 (`/Users/jji/.coord/oracle-1007/lanes/ora-mdm/brief.md`)
 
-## 지금 상태 (2026-10-07)
+## 지금 상태 (2026-10-07 저녁, 일시 정지)
 
-- m1 Oracle 기준선 V1: 완료. opus/high 리뷰 지적(높음 1·중간 3·낮음 8) 중 형·생성기 지적을 고치고 Oracle 재검증 통과.
+- **일시 정지**(조정자 지시, 사용자 퇴근): 다음 지시까지 대기. 백그라운드·Oracle 접속 0.
+- 재개 때 첫 일:
+  1. 조정자가 Oracle 재개를 알리면 `L_MDM_MDMAPUSER` 가 남았는지 보고 지운다(16:46 verify 가 도중에 끊김).
+  2. `verify_oracle_baseline.py` 를 한 번 다시 돌려 FK 인덱스 반영분(3faff3bb6)을 확인한다.
+  3. 길이 검사 감사(ORA-12899 대상 칸)를 다시 맡긴다. 검색 워커 질의는 정지로 끊겼다. 대상 목록은 `DECISIONS.md` 에서 `TEXT | VARCHAR2(4000 BYTE)` 행 110개와 VARCHAR(n) 칸이다.
+- 머지②·③ 은 같은 창으로 합친다(조정자 통지, b0 에서 mcm-core 엔티티가 mdm EMF 에 들어온다고 확인).
+- m1 Oracle 기준선 V1: 완료. opus/high 리뷰 지적(높음 1·중간 3·낮음 8) 중 형·생성기 지적을 고치고 Oracle 재검증 통과. 이어서 조정자 지시로 FK 자식 인덱스 28개를 더했다(3faff3bb6, `--check` 통과, Oracle verify 는 재개 때).
+
+### ora-base b0 validate 결과 (정본: feat/ora-base 의 `docs/oracle-1007/spike.md`, 재개 때 반영)
+
+| # | 불일치 | 처리 방침(초안) |
+|---|---|---|
+| a | `TB_MDM_COLUMN.REQUIRED` V1 `NUMBER(1)` ↔ 엔티티 boolean. Hibernate OracleDialect 는 Oracle 23+ 에서 네이티브 `BOOLEAN` 을 기대한다 | V1 을 Oracle 23ai `BOOLEAN` 으로 바꿀지, 엔티티에 `@JdbcTypeCode(SqlTypes.TINYINT/INTEGER)`·변환기로 NUMBER(1) 을 유지할지 조정자에게 묻는다. 운영 Oracle 버전이 23 미만일 수 있으면 NUMBER(1) 유지가 안전하다 |
+| b | CLOB 칸(b0 시점 14칸, 지금 21칸)인데 엔티티 String·`@Lob` 없음 | m2 사전 조사 7번: 엔티티 필드에 `@Lob` |
+| c | `TB_MDM_DATA_CATE`·`DATA_CATE_ITEM`·`DATA_ITEM`.VALID_FROM V1 TIMESTAMP ↔ 엔티티 String 으로 인식 | `MdmLocalDateTimeIdUserType` 이 문자 형으로 보고되는 탓으로 보인다. m2 사전 조사 4번(UserType 을 archive 로 옮기고 기본 LocalDateTime 매핑)으로 풀린다 |
+| d | CHG_SEQ V1 `NUMBER(10)` ↔ Long | b0 는 리뷰 전 V1 을 썼다. 23bb68a51 에서 `NUMBER(19)` 로 고쳤다. 재개 때 다시 확인 |
+| e | `TB_MDM_TERM.DEFINITION` 엔티티 `nullable = false` ↔ V1 NULL 허용 | m2 에서 엔티티를 nullable 로 바꾸고, 읽는 쪽 null 처리를 확인한다(m2 사전 조사 8번) |
+| f | `TB_SEC_CODE_GROUP`·`TB_SEC_CODE_ITEM` 표 없음 — mcm-core 엔티티가 mdm EMF 에 들어온다 | mdm EMF 의 엔티티 스캔 범위를 mdm 패키지로 좁히거나, 그 표의 주인 스키마를 따른다. ora-mcm-core 와 같은 창에서 정한다(머지②·③ 합침) |
   - 생성기 `src/backend/mdm/tools/oracle-baseline/gen_oracle_baseline.py`(표준 라이브러리만, `--check` 로 재생성 대조)
   - 보정 패치 `overrides.json`(CLOB·NULL 허용·BOOLEAN·업무 일시·JSON CHECK), 결정표 `DECISIONS.md`(자동 생성)
-  - 결과 `src/backend/mdm/api/src/main/resources/db/migration/mdm/oracle/V1__baseline.sql`(표 39·인덱스 12·FK 52·초기 행 7)
+  - 결과 `src/backend/mdm/api/src/main/resources/db/migration/mdm/oracle/V1__baseline.sql`(표 39·인덱스 12+FK 자식 인덱스 28·FK 52·초기 행 7)
   - 검증 `verify_oracle_baseline.py`: FREEPDB1 안 `L_MDM_MDMAPUSER` 에 적용 → SQLite 최종 스키마와 표·컬럼·NULL·제약·인덱스 이름 대조 → 부분 UNIQUE·JSON CHECK·IDENTITY·CASCADE·일시 기본값 점검 → 사용자 삭제.
 
 ## 결정
@@ -36,6 +53,29 @@
 ## 후속(기준선 밖)
 
 - FK 자식 컬럼 인덱스: Oracle 은 FK 에 인덱스를 자동으로 만들지 않아 부모 삭제 때 자식 표 전체 읽기·표 잠금이 난다(COLUMN.DOMAIN_ID, RULE_VAR.DOMAIN_ID, LAYOUT_ITEM.COLUMN_PHYS·TRANS_UNIT·UNIT_CODE, DOMAIN.MARU_CODE_ID·UNIT_CODE, LAYOUT_VER.EAI_CODE 등). SQLite 에도 없던 것이라 동작 보존 범위 밖이며, 성능 후속 V2 로 조정자에게 올린다.
+
+## m2 사전 조사 (2026-10-07, 검색 워커 + grep 확인)
+
+경로 약어 `L/` = `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/`, `R/` = `src/backend/mdm/api/src/main/resources/`.
+
+| # | 대상 | 지금 | 바꿀 설계 |
+|---|---|---|---|
+| 1 | 방언 이음매 `L/contract/common/MdmDialect`·`MdmDialectResolver`·`L/common/support/DefaultMdmDialectResolver` | `SQLITE` 하나, 그 밖 DB 는 기동 예외(`:36`) | Oracle 하나라 이음매 자체를 걷는다. 세 파일은 `src/backend/mdm/archive/` 로 git mv, 쓰는 두 곳(아래 2·3)은 분기 없이 Oracle 문장만 |
+| 2 | `L/common/support/MdmTemporalBinder`(14개 클래스·45곳에서 `toDb`/`fromDb`) | LocalDateTime ↔ `'yyyy-MM-dd HH:mm:ss'` 문자 | 공개 API 는 그대로 두고 구현만: `toDb` = 초 절삭한 `LocalDateTime`(TIMESTAMP 바인딩), `fromDb` = `Timestamp`/`LocalDateTime` 을 읽는다. 초 절삭은 반드시 유지(PK VALID_FROM). `SQLITE_TEXT_PATTERN` 을 화면 형식으로 쓰는 `DataCsvUploadPopService:38`·`DataItemRows:16` 은 이름만 중립으로(`TEXT_PATTERN`) |
+| 3 | `L/common/rule/DefaultMdmRuleIdIssuer:65` | `UPDATE … RETURNING`(SQLite 3.35+) | 같은 트랜잭션에서 `UPDATE … SET c = c + 1` 뒤 `SELECT c`(갱신한 행은 잠겨 있어 동시성 같음) |
+| 4 | `L/common/support/MdmSqliteLocalDateTimeConverter`·`MdmSqliteTemporalContributor`, `L/persistence/MdmLocalDateTimeIdUserType`(DataCate·DataItem·DataCateItem 의 `@Id` VALID_FROM) | SQLite 문자 일시 변환 | archive 로 옮기고 Hibernate 기본 LocalDateTime 매핑을 쓴다. 엔티티 세터의 초 절삭은 남긴다 |
+| 5 | `L/dme/ruleSetEdit/service/RuleSetTestCaseService:148` | 오류 문구 `SQLITE_CONSTRAINT_PRIMARYKEY` 로 PK 충돌 판정 | `ORA-00001` + 제약 이름 `PK_TB_MDM_RULE_SET_TEST_CASE` 로 판정 |
+| 6 | 대소문자 LIKE: `L/dmd/dataMng/service/DataMngService:85`, `L/dmd/dataItemMng/service/DataItemListQuery:118`, `L/common/mastercode/MasterCodeRemoval:80`(`LIKE '%MASTER%'`) | SQLite LIKE 는 ASCII 대소문자 무시 | 동작 보존: 양쪽 `UPPER(…)`. 나머지 LIKE 는 이미 `UPPER`·`lower` |
+| 7 | CLOB 21칸 | TEXT | 엔티티 필드에 `@Lob`(또는 `@JdbcTypeCode(SqlTypes.CLOB)`). 네이티브로 CLOB 을 읽어 `(String)` 으로 바꾸는 곳은 `Clob` 이 돌아와 깨질 수 있다: `L/dme/ruleConfirm/service/RuleConfirmService:366`(CELLS 값 맵), `L/common/mastercode/MasterCodeRemoval:38-42`(STD_AST·BIZ_AST·VAR_AST·GRP_COND_AST·CELLS 동적 SQL) 부터 확인. JPQL `callSetIds LIKE`(`RuleSetVersionQueries:69`)는 CLOB 에서도 동작 |
+| 8 | `TB_MDM_TERM.DEFINITION` NULL 허용 | `''` 6,159행 | 읽는 쪽이 null 을 `""` 와 같게 다루는지 확인(`getDefinition()` 사용처) |
+| 9 | `R/application-local.yml` | sqlite URL·`org.sqlite.JDBC`·`foreign_keys`·SQLiteDialect·Contributor·`db/migration/mdm/sqlite` | Oracle 접속값은 ora-base b3 연결 규약(env)·Hikari 3, 방언 자동 판정, Flyway `db/migration/mdm/oracle`, `hibernate.type.preferred_instant_jdbc_type=TIMESTAMP`·`hibernate.jdbc.time_zone=UTC` |
+| 10 | `R/application-wildfly.yml` | JNDI `${JNDI_DS_BIZ:java:/jdbc/mdm/dsBiz}`(이미 중립), Flyway 끔 | Instant 두 설정만 더한다 |
+| 11 | `R/db/migration/mdm/sqlite/` 19파일 | Flyway 원천 | `src/backend/mdm/archive/db-migration-sqlite/` 로 git mv(생성기는 이 경로도 찾는다) |
+| 12 | 엔티티 백틱 컬럼(`MdmDataRecv` RESULT, `MdmDataRecvItem` ACTION, `MdmLayoutItem` OFFSET·LENGTH) | Hibernate 따옴표 | Oracle 예약어 아님. 대문자라 그대로 둔다 |
+| 13 | `@Query(nativeQuery=true)` | 없음(JPQL 4건). 네이티브는 `createNativeQuery` 19파일 39건, SQLite 전용 문법은 3번 한 곳 | `CAST(x AS VARCHAR(40))`(`MasterCodeLedgerQueries:219`) 등은 Oracle 에서도 된다. 실제 실행은 m3 시험으로 확인 |
+| 14 | 의존성 `sqlite-jdbc`·`hibernate-community-dialects` | mdm `lib/build.gradle` | ora-base 머지① 뒤 이 레인이 뺀다(그 전에는 ora-base 소유) |
+
+길이 검사(ORA-12899) 대상 목록은 검색 워커 결과를 받아 이 절에 더한다(조정자 ①: 앱이 4000바이트·n자를 넘는 값을 받을 수 있는 칸은 m2 에서 저장 전 사용자 오류 메시지로 막는다).
 
 ## 남은 순서
 
