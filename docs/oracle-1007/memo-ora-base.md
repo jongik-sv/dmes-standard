@@ -2,7 +2,7 @@
 
 - 레인: ora-base / 브랜치 `feat/ora-base` / 워크트리 `/Users/jji/project/dmes-wt/ora-base` / 조정 세션 `dmes-standard-d8`
 - 지시: ora-base-1 (정본 `/Users/jji/.coord/oracle-1007/lanes/ora-base/brief.md`)
-- 마지막 갱신: 2026-10-07 밤 KST. 머지①b(fb253556d)·①c(ce378785a) 완료·dev push 됨. **다음 base 머지 묶음(머지②·③ 뒤 요청)** 준비 완료, 대기 중. Oracle 재개됨(VM 3GB).
+- 마지막 갱신: 2026-10-07 밤 KST(컨텍스트 42% 갱신 요청 처리, compact 대기). 머지①b(fb253556d)·①c(ce378785a) 완료·dev push 됨. **다음 base 머지 묶음(머지②·③ 뒤 요청)** 준비 완료, 대기 중. Oracle 재개됨(VM 3GB).
 
 ## 지금 상태
 
@@ -12,7 +12,7 @@
 | b5 적재기 + template 명령 + PC 잠금 + KST 고정 | **머지①b 완료**(fb253556d) | `lock-hold`·SIGTERM 정리·sqlplus 시간 상한, build-logic 시간대 |
 | 하니스 접속 상한·VM 상태 로그·e2e Oracle 도우미 | **머지①c 완료**(ce378785a) | 시험 JVM Hikari 2·유휴 0·cache.maxSize 2·forks 1, close·seal 무잠금, autotask·AWR 끄기, `pdb.mjs sessions`·`quiet`, e2e `oracle.ts`(oracledb thin)·단위 시험 16건 |
 | 하니스 실행 확인 | **완료** | `:lib:test --tests *SapCsvTest -Pdmes.ora.test=clone` 39초 성공, T_ORA_BASE 자동 삭제, 로그 줄 확인 |
-| b5 후속·b7 일부·b8 준비(미머지, **다음 base 묶음**) | 커밋됨, `feat/ora-base`(dev 대비 13커밋) | 아래 목록 |
+| b5 후속·b7 일부·b8 준비(미머지, **다음 base 묶음**) | 커밋됨, `feat/ora-base`(dev 대비 약 15커밋) | 아래 목록 |
 | b7 나머지 | **머지④(ora-platform) 뒤 한 번에** | 아래 「b7 문서 항목」 |
 | b8 | 머지④ 뒤 착수(조정자 확인 후) | `docs/oracle-1007/b8-residue.md`(고친 것 없음, 머지 뒤 재검색으로 대조) |
 | z1 마감 | 조정자 지시 때 | 전 모듈 시험·E2E·시험 시간 비교·SUMMARY·PDB 정리 |
@@ -26,6 +26,7 @@
 - `843e265be`·`dae50a0ed`·`eee9855d9`·`dfdf809f8` Oracle 테스트 가이드(§6.4.2~6.4.4 PDB·PC 잠금·snapshot import, §8-5 VM 3GB 개정, §8-7 스래싱, §8-8 판별표, §8-9 CLOB JPQL), schema-owners(V1 불변 규칙·CLOB 주의·VM 3GB), `docs/oracle-1007/README.md`
 - `b845cbd8d`·`3247557aa` b8 잔재 목록·db-snapshot README(CSV 기준)
 - `85e0feb3d` 이 메모, `79e9a2f6c`(+merge 134a72c97) 세션 수 로그·clone 의 자동 작업 확인 줄 후속 fix
+- `554be35d7` e2e `oracle.ts` 보완: `oracledb.d.ts`(최소 타입 선언, tsc --strict 통과)·`assertTargetPdb`(T_* 또는 DMES_E2E_ALLOW_PDB 로 허용한 L_* 만 연결, 기본 켬)·단위 시험 19건. ora-mdm 은 머지 뒤 자체 guardTarget 을 지워도 된다. 머지①d 는 필요 없다(mdm E2E 실행이 머지③ 뒤라 다음 base 묶음으로 충분).
 머지 요청 때는 dev 최신을 합치고 Oracle 없이 되는 확인(build-logic `:lib:help`, `snapshot.py convert` 두 번 결과 동일)을 돌린다. 위젯 CSV 는 `convert` 를 다시 돌린 뒤 `git checkout -- db-snapshot/MCMAPUSER/TB_MCM_WIDGET_DEF.csv` 로 되돌린다.
 
 PDB: 남긴 것은 `TPL_EMPTY`(봉인·autotask 꺼짐)와 `L_ORA_BASE`(닫힘, 옛 mcm V1 이 적용돼 있어 머지③ 뒤 `template-schema` 로 다시 복제). 시험 템플릿 `TPL_ZDATA`·`TPL_ZTEST` 는 지웠다.
