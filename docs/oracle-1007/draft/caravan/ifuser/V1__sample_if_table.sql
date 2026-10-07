@@ -32,3 +32,7 @@ CREATE TABLE IF_MMPPMMCMTT01 (
 
 -- 폴링이 IF_FLAG 가 N/E/NULL 인 행을 C_AT 순으로 훑는다.
 CREATE INDEX IX_IF_MMPPMMCMTT01_FLAG ON IF_MMPPMMCMTT01 (IF_FLAG, C_AT);
+
+-- EAIUSER 는 표 없이 접속만 하는 사용자이고 hub 의 if 데이터소스가 쓴다(schema-owners.md). INBOUND 로 읽고 IF_FLAG 를 갱신하며
+-- OUTBOUND 로 쓰므로 SELECT·INSERT·UPDATE 를 준다(DELETE 는 쓰지 않는다). 운영은 DBA 가 IF 표마다 같은 권한을 준다.
+GRANT SELECT, INSERT, UPDATE ON IF_MMPPMMCMTT01 TO EAIUSER;
