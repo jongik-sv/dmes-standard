@@ -38,7 +38,7 @@ lease_pid_alive() {
   esac
 }
 # 상태 파일 → [{project_id, generation}]
-lease_refs_json() { jq -Rnc '[inputs | select(. != "") | split(" ") | {project_id: .[0], generation: (.[1] | tonumber)}]' < "$1"; }
+lease_refs_json() { jq -Rnc '[inputs | gsub("^\\s+|\\s+$"; "") | select(. != "") | split(" ") | {project_id: .[0], generation: (.[1] | tonumber)}]' < "$1"; }
 
 lease_acquire() {
   _take=false
