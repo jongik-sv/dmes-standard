@@ -696,6 +696,10 @@ test.describe("C 도메인 관리", () => {
   });
 
   test("TC-DMA-DOM-05 하위 도메인 등록 — 부모와 정의가 같으면 경고 확인이 뜨고, [취소]는 아무것도 바꾸지 않는다", async () => {
+    // DOM-04 끝은 조건 없는 전체 목록이다. 스냅샷 데이터(도메인 160여 건)에서는 D1 행이 가상 스크롤 밖이라 그려지지 않으므로
+    // 검색어로 좁혀 고른다(DOM-04 와 같은 조회 방식).
+    await searchField(page, "검색어").fill(DOM1_NAME);
+    await button(page, "조회").click();
     await domainRow(page, DOM1_NAME).click();
     await scrollGridLeft(panelByTitle(page, "도메인 목록"));
     await expect(screen(page).getByLabel("도메인명", { exact: true })).toHaveValue(DOM1_NAME, { timeout: T.UI });
