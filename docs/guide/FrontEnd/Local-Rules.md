@@ -476,3 +476,7 @@ AgDataGrid 는 사용자별로 컬럼 순서·너비·표시·고정·정렬을 
 ## 44. 저장을 막는 검사 오류는 칸 옆에도 보인다 (2026-10-07)
 
 긴 상세 폼은 「저장을 막는 오류」 줄이 맨 아래라 화면 밖에 있어, 저장 버튼이 꺼진 이유를 사용자가 못 찾는다(위젯 관리: 옛 새로 고침 120초가 600초 최소 규칙에 걸려 크기를 바꿔도 저장이 안 됨). 이미 저장된 값이 새 규칙에 걸릴 수 있는 칸은 `Input error` 로 그 칸 옆에도 문구와 지금 값을 보인다(`refreshSecFieldError`).
+
+## 45. GridPanel 안에 위젯 보드·다른 그리드를 품지 않는다 (2026-10-08)
+
+`GridPanel` 본문(`.grid-panel-content`) 안의 모든 `AgDataGrid` 는 공통 CSS 규칙으로 패널 영역을 절대 배치로 덮고, 설정 메뉴·엑셀 단추를 패널 머리줄로 올린다. 위젯 보드(`WidgetWorkspace`)를 GridPanel 안에 두면 쿼리 표 같은 그리드 위젯이 제목 줄·조건줄·「N행」·그리드 설정 아이콘을 잃고 그리드만 위젯 틀 전체를 덮는다(위젯 관리 기본 배치 탭, 미리보기는 GridPanel 밖이라 정상이어서 늦게 발견). 보드·상세 폼처럼 그리드가 아닌 내용을 담는 우측 패널은 `grid-panel` / `grid-panel-header` 클래스로 머리줄만 같게 그리고 본문은 `grid-panel-content` 없는 상자로 둔다(`LayoutTab.tsx` `BOARD_BODY_STYLE`). 확인: 보드에 쿼리 표 위젯을 놓고 `.cm-data-grid` 의 computed position 이 static 인지, 제목 줄·조건줄이 그리드 위에 있는지 본다.
