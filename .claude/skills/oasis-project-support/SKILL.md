@@ -9,7 +9,7 @@ description: "Support OASIS-based service repositories that model business flows
 
 1. Reproduce the issue or define the target flow.
 - Find the relevant `.bpmn`, failing test, service ID, Java task class, and context objects before suggesting changes.
-- Start with fast search commands such as `rg --files -g '*.bpmn'`, `rg -n "serviceId|task class|result\\(|messages\\(|path\\("`, and `rg -n "UserException|setClassToObjectMap|SpringTransactionHandler"`.
+- Start with fast search commands such as `rg --files -g '*.bpmn'` (use `grep -rn` or the Glob/Grep tools where `rg` is not installed), `rg -n "serviceId|task class|result\\(|messages\\(|path\\("`, and `rg -n "UserException|setClassToObjectMap|SpringTransactionHandler"`.
 
 2. Pick the closest OASIS core analogue.
 - Open `references/pattern-map.md` and choose the nearest sample family before reasoning from scratch.

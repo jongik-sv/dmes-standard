@@ -604,7 +604,9 @@ describe("PortalShell 인증 사용자 표시 (특성)", () => {
     vi.stubGlobal("fetch", fetchMock);
     rendered = renderWithMantine(shell());
     await flush();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // 사용자 확인은 한 번만 — 그 뒤 조회 칸 기본값 미리 받기(secSrchDflt/search, 2026-10-07)가 같은 확인 결과를 쓴다.
+    const authCalls = fetchMock.mock.calls.filter((c) => String((c as unknown[])[0]).includes("/api/auth/me"));
+    expect(authCalls).toHaveLength(1);
     expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toContain("/api/auth/me");
     expect(rendered.host.textContent).toContain("홍길동 님");
     await openUserMenu();

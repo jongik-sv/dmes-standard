@@ -53,8 +53,8 @@ python3 .claude/skills/dflow-wbs/scripts/prd-validate.py validate --target {DOCS
 ### 출력 검증 (wbs.md 생성 직후)
 
 ```bash
-python3 .claude/skills/dflow-wbs/scripts/wbs-parse.py {DOCS_DIR}/wbs.md - --dev-config > /tmp/dev-config.json
-python3 .claude/skills/dflow-wbs/scripts/wbs-validate.py validate --wbs {DOCS_DIR}/wbs.md --dev-config-json "$(cat /tmp/dev-config.json)"
+python3 .claude/skills/dflow-wbs/scripts/wbs-parse.py {DOCS_DIR}/wbs.md - --dev-config > {scratchpad}/dev-config.json
+python3 .claude/skills/dflow-wbs/scripts/wbs-validate.py validate --wbs {DOCS_DIR}/wbs.md --dev-config-json "$(cat {scratchpad}/dev-config.json)"
 ```
 
 > ⚠️ **툴체인 제약 — 실측 기준. 검증 결과를 곧이곧대로 믿지 말 것.**

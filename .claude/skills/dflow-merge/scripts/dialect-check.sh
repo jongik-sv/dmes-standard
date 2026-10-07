@@ -190,7 +190,7 @@ fi
 ex=$(git rev-parse --git-path info/exclude); mkdir -p "$(dirname "$ex")"; touch "$ex"
 grep -qxF '**/.claude/worktrees/' "$ex" || printf '%s\n' '**/.claude/worktrees/' >> "$ex"
 W="$ROOT/.claude/worktrees/dflow-dialect-$$"
-git worktree add -q --detach "$W" "$SHA" >/dev/null 2>&1 || { W=''; err "임시 워크트리를 만들지 못했다"; }
+git -c core.longpaths=true worktree add -q --detach "$W" "$SHA" >/dev/null 2>&1 || { W=''; err "임시 워크트리를 만들지 못했다"; }
 
 if [ -x "$HEAVY" ]; then
   (cd "$W" && "$HEAVY" --pool docker bash -c "$CMD") > "$LOG" 2>&1

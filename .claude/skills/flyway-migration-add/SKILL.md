@@ -110,8 +110,8 @@ python3 .../migration_tool.py scaffold --module aps-core --slug seq_fix --dialec
 모듈의 마이그레이션 테스트를 돌린다. Gradle 경로는 모듈 구조에 따라 다르다.
 
 ```bash
-# aps-core·mcm-core 처럼 모듈 자체가 Gradle 프로젝트인 경우
-JAVA_HOME=~/.sdkman/candidates/java/21.0.10-sapmchn ../gradlew :aps-core:test
+# aps-core·mcm-core 처럼 모듈 자체가 Gradle 프로젝트인 경우 (JDK 21 이 JAVA_HOME 으로 잡혀 있어야 한다)
+../gradlew :aps-core:test
 # mdm 처럼 api/ 하위 프로젝트인 경우 (src/backend/mdm 에서) — 실재 테스트: Mdm*MigrationTest
 ../gradlew :api:test --tests '*MigrationTest'
 ```

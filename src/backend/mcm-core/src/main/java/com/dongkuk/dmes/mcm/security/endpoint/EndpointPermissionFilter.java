@@ -85,6 +85,7 @@ public class EndpointPermissionFilter extends OncePerRequestFilter {
             "secstartpgm/search",       // 포털 기본 화면 조회
             "secstartpgm/toggle",       // 탭 우클릭 기본 화면 등록/해제
             "secwidget/",               // 포털 홈 위젯 탭·배치(search/saveTab/deleteTab/reorderTabs/resetHome) — 본인 데이터 (2026-10-02)
+            "secsrchdflt/",             // 조회 칸 사용자 기본값(search/savePage/resetPage) — 본인 데이터 (2026-10-07). BFF proxy.ts 와 동기화
             // 위젯 B·C·D 사용자용(스펙 2026-10-02-widget-admin-generic §5.1) — 관리자용 commWidgetMng 은 RBAC.
             "widgetdef/list",           // 위젯 정의 목록 + 부서 기준 「홈」 기본 배치
             "widgetdata/run",           // 쿼리 위젯 실행 — defId 만 받는다(요청 SQL 실행 금지)

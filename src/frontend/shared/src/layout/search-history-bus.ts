@@ -50,8 +50,12 @@ export function subscribeSearch(pageId: string, listener: SearchListener): () =>
 
 /** 해당 pageId 채널 구독자 전원에게 "조회 발생" 을 알린다. */
 export function emitSearch(pageId: string): void {
+  emitOn(channels, pageId);
+}
+
+function emitOn(map: Map<string, Set<SearchListener>>, pageId: string): void {
   if (!pageId) return;
-  const set = channels.get(pageId);
+  const set = map.get(pageId);
   if (!set) return;
   // 구독 콜백 중 하나가 throw 해도 나머지 구독자에게 전파되지 않게 격리한다.
   set.forEach((listener) => {
@@ -61,4 +65,42 @@ export function emitSearch(pageId: string): void {
       /* no-op */
     }
   });
+}
+
+/*
+ * "조회 조건 초기화" 이벤트 (설계 2026-10-07-search-defaults-design §6.6).
+ * PageLayout 이 초기화 버튼(`resetsSearch`, 생략하면 id 가 btn_reset)의 onClick 직후에 발행하고,
+ * SearchArea 가 받아 사용자 기본값을 다시 넣는다. 같은 클릭 안에서 화면의 상태 초기화와 묶여 처리된다.
+ */
+const RESET_GLOBAL_KEY = "__dkOasisSearchResetBus__";
+
+interface ResetBusCache {
+  [RESET_GLOBAL_KEY]?: Map<string, Set<SearchListener>>;
+}
+
+const resetCache = globalThis as unknown as ResetBusCache;
+
+const resetChannels: Map<string, Set<SearchListener>> =
+  resetCache[RESET_GLOBAL_KEY] ?? (resetCache[RESET_GLOBAL_KEY] = new Map());
+
+/** pageId 의 "조회 조건 초기화" 를 구독한다. 반환 함수로 해제한다. */
+export function subscribeSearchReset(pageId: string, listener: SearchListener): () => void {
+  if (!pageId) return () => {};
+  let set = resetChannels.get(pageId);
+  if (!set) {
+    set = new Set();
+    resetChannels.set(pageId, set);
+  }
+  set.add(listener);
+  return () => {
+    const s = resetChannels.get(pageId);
+    if (!s) return;
+    s.delete(listener);
+    if (s.size === 0) resetChannels.delete(pageId);
+  };
+}
+
+/** pageId 구독자 전원에게 "조회 조건 초기화" 를 알린다. */
+export function emitSearchReset(pageId: string): void {
+  emitOn(resetChannels, pageId);
 }
