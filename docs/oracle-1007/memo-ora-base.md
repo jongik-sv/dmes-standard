@@ -39,6 +39,8 @@
 - `5db35a868` pdb.mjs V 파일 탐색 규칙 확장 + `migrations` 명령
 - `ad0d80cfa` oracle-sql-rules.md·flyway-migration-add 스킬·Oracle 전용 반영
 - `554be35d7` e2e `oracle.ts` 보완: `oracledb.d.ts`(최소 타입 선언, tsc --strict 통과)·`assertTargetPdb`(T_* 또는 DMES_E2E_ALLOW_PDB 로 허용한 L_* 만 연결, 기본 켬)·단위 시험 19건. ora-mdm 은 머지 뒤 자체 guardTarget 을 지워도 된다. 머지①d 는 필요 없다(mdm E2E 실행이 머지③ 뒤라 다음 base 묶음으로 충분).
+- `e6ba8cfb1` be-run.sh·be-run.ps1: `DMES_ORA_PDB=L_MAIN`(또는 `BE_MCM_BIG_POOL=1`, `=0` 이면 끔)일 때 mcm 에만 `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=8`·`MINIMUM_IDLE=2`·`IDLE_TIMEOUT=60000`(값은 `BE_MCM_POOL_*` 로 변경), 런북 §5 에 이유 기재(사용자 결정, 판별 기준 조정자 승인). 윈도우 실행 확인은 마감 보고 「윈도우에서 한 번 확인」 항목
+- `ee8d28968` dflow 스킬 b7 일부: migration-check.sh 주석·script-details·resolve-prompt R9·dev-discipline 의 방언 짝 서술을 「번호는 폴더마다 독립」으로, dflow.example·dialect.md 의 postgresql 예시를 자리표시자로(dialect_check 장치는 킷 공용이라 남김)
 머지 요청 때는 dev 최신을 합치고 Oracle 없이 되는 확인(build-logic `:lib:help`, `snapshot.py convert` 두 번 결과 동일)을 돌린다. 위젯 CSV 는 `convert` 를 다시 돌린 뒤 `git checkout -- db-snapshot/MCMAPUSER/TB_MCM_WIDGET_DEF.csv` 로 되돌린다.
 
 PDB: 남긴 것은 `TPL_EMPTY`(봉인·autotask 꺼짐)와 `L_ORA_BASE`(닫힘, 옛 mcm V1 이 적용돼 있어 머지③ 뒤 `template-schema` 로 다시 복제). 시험 템플릿 `TPL_ZDATA`·`TPL_ZTEST` 는 지웠다.
@@ -49,7 +51,7 @@ PDB: 남긴 것은 `TPL_EMPTY`(봉인·autotask 꺼짐)와 `L_ORA_BASE`(닫힘, 
 
 1. **머지② 알림 뒤**: dev 합침 → Oracle 없이 되는 확인 → 「다음 base 머지 묶음」 머지 요청(위 커밋 목록, 허가 뒤 메인 저장소에서 `--no-ff`). 템플릿 rebuild 는 ②(mdm)·④ 뒤 **한 번에**: `template-schema TPL_SCHEMA --rebuild` → `template-data TPL_DATA --rebuild`(**E2E 거름 로그 확인**, 이 경로가 실제 Oracle 에서 처음 도는 것) → `L_ORA_BASE` 재복제. 모두 PC 잠금 아래 하나씩, 끝나면 레인 PDB 는 close.
 2. **전환 준비(런북 §0)**: ④ 뒤 TPL_SCHEMA·TPL_DATA → `L_MAIN` 복제 → mcm·mdm·mls·caravan-console 이관(`convert --full` → `import --replace --keep-e2e`)·`compare_counts.py` 대조 → 서버 기동은 조정자. mdm·mls 적재 시간은 이때 재서 런북 §0·§7 갱신.
-3. **머지④ 뒤 b7 나머지**: README「처음 받은 뒤 셋업」·`Backend-Implementation-Guide`(DB 전제 문단 262행이 아직 SQLite 서술)·`Mes-Guide`, 스킬 `dflow-merge`(`migration-check.sh`·`dialect-check.sh`·`dialect.md`·`script-details`)·`dflow-dev`(dev-dialect·dev-discipline)·`dflow-team` resolve-prompt:208·`dflow-work` 의 `dflow.example` `dialect_check` — 초안 A·B 를 실제 상태와 대조해 적용(Oracle 하나·방언 검사 폐지 기준). `DMES-Deployment-Guide`·`DataSource_JNDI설계` 는 ora-platform 몫(제외).
+3. **머지④ 뒤 b7 나머지**: README「처음 받은 뒤 셋업」·`Backend-Implementation-Guide`(DB 전제 문단 262행이 아직 SQLite 서술)·`Mes-Guide`, (스킬 dflow-* 의 방언 서술은 `ee8d28968` 로 **완료**) — 초안 A(README·Backend-Implementation-Guide·Mes-Guide)를 실제 상태와 대조해 적용. `DMES-Deployment-Guide`·`DataSource_JNDI설계` 는 ora-platform 몫(제외).
 4. b8: `b8-residue.md` §9 대로 ora-base 몫(libs.versions.toml 의 sqlite-jdbc·mssql-jdbc·h2·hibernate-community-dialects·flyway-database-postgresql 는 레인이 사용처를 걷은 **뒤 마지막**, be-run `../data` 준비, `.gitignore`, `playwright.config.ts:8-9`, 옛 SQL 스냅샷·`export.sh`·`import.sh`·`sqlite_to_oracle.py`·`notice-mls-to-mcm.*`·perf 하니스 archive) 처리. 삭제는 사용자 승인 뒤. 레인별 잔재 요약은 조정자에게 전달함.
 5. z1: 조정자 지시 때(전 모듈 시험·E2E·시험 시간 비교·SUMMARY·PDB 정리).
 6. 알릴 것(레인 후속): mdm 소스 주석 2곳(`MdmLayoutItemPinMigrationTest.java:38`, 옛 sqlite V22 주석)이 옛 파일명 `dialect-neutral-sql.md` 를 가리킴.
