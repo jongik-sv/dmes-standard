@@ -12,6 +12,10 @@ import com.dongkuk.dmes.mcm.widget.layout.repository.WidgetDefaultTabItemReposit
 import com.dongkuk.dmes.mcm.widget.layout.repository.WidgetDefaultTabRepository;
 import com.dongkuk.dmes.mcm.widget.layout.service.WidgetDefaultTabWriter;
 import com.dongkuk.dmes.mcm.widget.layout.service.WidgetDefaultTabs;
+import com.dongkuk.dmes.mcm.widget.layout.service.WidgetFixedTabs;
+import com.dongkuk.dmes.mcm.repository.DeptInfoRepository;
+import java.util.Optional;
+import org.mockito.Mockito;
 import com.dongkuk.dmes.mcm.widget.repository.SecUserWidgetRepository;
 import com.dongkuk.dmes.mcm.widget.repository.SecUserWidgetTabRepository;
 import com.dongkuk.dmes.mcm.widget.repository.WidgetUserLookupRepository;
@@ -74,6 +78,19 @@ public class WidgetTabsJpaTestConfig {
     public WidgetDefaultTabs widgetDefaultTabs(WidgetDefaultTabRepository tabRepository,
                                                WidgetDefaultTabItemRepository itemRepository) {
         return new WidgetDefaultTabs(tabRepository, itemRepository);
+    }
+
+    /** 고정 탭 해석 — 부서 저장소는 시험 패키지 밖이라 이름만 돌려주는 대역을 쓴다(D100 = 생산1팀, 그 밖은 없음). */
+    @Bean
+    public WidgetFixedTabs widgetFixedTabs(WidgetDefaultTabRepository tabRepository, WidgetDefaultTabs defaultTabs,
+                                           WidgetDefaultLayoutRepository layoutRepository) {
+        DeptInfoRepository depts = Mockito.mock(DeptInfoRepository.class);
+        DeptInfo d100 = new DeptInfo();
+        d100.setDeptCd("D100");
+        d100.setDeptNm("생산1팀");
+        Mockito.when(depts.findById(Mockito.anyString()))
+                .thenAnswer(inv -> "D100".equals(inv.getArgument(0)) ? Optional.of(d100) : Optional.empty());
+        return new WidgetFixedTabs(tabRepository, defaultTabs, layoutRepository, depts);
     }
 
     /** 탭 단위 지우고 다시 넣기·채번 트랜잭션 — @Transactional 프록시가 걸리도록 빈으로 등록한다. */

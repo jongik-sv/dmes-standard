@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   /** 마지막으로 WidgetWorkspace 에 넘어간 props. */
-  ws: { current: null as null | { pdfTarget?: RefObject<HTMLElement | null>; testId?: string } },
+  ws: { current: null as null | { pdfTarget?: RefObject<HTMLElement | null>; testId?: string; fixedHome?: boolean; mode?: string } },
 }));
 
 vi.mock("@dk-oasis/shared/widget", async () => {
@@ -20,7 +20,7 @@ vi.mock("@dk-oasis/shared/widget", async () => {
   return {
     mergeWidgetRegistry: () => ({}),
     toWidgetDefRow: () => null,
-    WidgetWorkspace: (p: { pdfTarget?: RefObject<HTMLElement | null>; testId?: string }) => {
+    WidgetWorkspace: (p: { pdfTarget?: RefObject<HTMLElement | null>; testId?: string; fixedHome?: boolean; mode?: string }) => {
       h.ws.current = p;
       return el("div", { "data-testid": p.testId });
     },
@@ -88,5 +88,13 @@ describe("홈 [PDF] 인쇄 대상", () => {
     // 인사말과 작업 공간이 모두 대상 안에 있다.
     expect(target!.querySelector('[data-testid="home-greeting"]')).not.toBeNull();
     expect(target!.querySelector('[data-testid="home-widgets"]')).not.toBeNull();
+  });
+});
+
+describe("홈 고정 탭", () => {
+  it("작업 공간에 fixedHome 을 켠다(「홈」은 늘 전사 기본 배치로 그리는 고정 탭, 사용자 모드)", () => {
+    act(() => root.render(createElement(PortalHomePage, {} as never)));
+    expect(h.ws.current?.fixedHome).toBe(true);
+    expect(h.ws.current?.mode).toBeUndefined();
   });
 });

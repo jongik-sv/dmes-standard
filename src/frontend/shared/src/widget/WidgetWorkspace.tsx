@@ -12,6 +12,9 @@
  *   인쇄 창을 열지 못하면(print() 예외) 알림을 보인다. 잠금·불러오기 실패·좁은 화면에서도 켜져 있다(보기 기능이라 편집 가능 여부와 무관).
  * - 고정 탭(widget-tabs 설계 §4): 「홈」과 기본 탭(defaultTab)은 탭 줄 앞에 고정이고 지우기·이름 바꾸기·옮기기를 막는다. 기본 탭 편집은
  *   일반 탭처럼 [배치 편집]→[완료] 로 saveTab 하고, 「기본으로 되돌리기」(store.resetTab)는 조용히 다시 불러온다.
+ * - 관리자 고정 탭(WidgetTab.fixed, 위젯 고정 탭 설계 2026-10-07): 전사·부서 배치가 사용자에게 늘 보이는 탭이다. 고정 탭이 활성이면 [배치 편집]이
+ *   막히고(「관리자가 정한 탭입니다. 내 탭에서 편집하세요.」), 편집 중 고정 탭으로 옮겨도 보드가 움직이지 않으며 서랍이 열리지 않고, 저장 대상에서도 빠진다.
+ *   (+)·가져오기 한도는 고정 탭을 뺀 탭 수로 센다. fixedHome 이면 「홈」은 서버 home 을 무시하고 늘 homeDefault 로 그리는 고정 탭이다.
  * - 공유(store.shareTab+searchUsers)·내보내기(JSON 파일)·가져오기(JSON 파일 → 새 탭 바로 저장)는 user 모드에서만 보인다.
  * - mode="admin"(관리자 기본 탭 편집)은 잠그기·홈 되돌리기·공유·내보내기·가져오기를 숨기고, 탭 한도는 홈 + MAX_DEFAULT_TABS 다.
  */
@@ -22,7 +25,7 @@ import { useVisibleContainerWidth } from "./use-visible-container-width";
 import { useMessage } from "../components/message-provider";
 import { today } from "../utils/libDate";
 import { printElementAsPage } from "../utils/libPrint";
-import { HOME_TAB_ID, MAX_DEFAULT_TABS, MAX_TABS, WIDGET_COLS } from "./constants";
+import { HOME_TAB_ID, HOME_TAB_NAME, MAX_DEFAULT_TABS, MAX_TABS, WIDGET_COLS } from "./constants";
 import { WidgetBoard, type WidgetBoardPreview } from "./WidgetBoard";
 import { WidgetPicker } from "./WidgetPicker";
 import { WidgetShareDialog } from "./WidgetShareDialog";
@@ -35,6 +38,7 @@ import {
   buildTabExport,
   canAddWidget,
   colsForWidth,
+  countedTabCount,
   firstFreeSpot,
   fixedTabCount,
   homeTab,
@@ -92,6 +96,13 @@ export interface WidgetWorkspaceProps {
    * 탭 이름 바꾸기·옮기기·지우기는 「홈」 외 탭에 된다. 기본 "user".
    */
   mode?: "user" | "admin";
+  /**
+   * true 면 「홈」은 서버가 home 탭을 주더라도 무시하고 늘 homeDefault(관리자 전사 배치)로 그리는 관리자 고정 탭이다(fixed: true).
+   * registry·homeDefault 가 바뀌면 다시 그린다. 기본 false(기존 동작 — 사용자 저장 「홈」이 있으면 그것). 마운트 때 정한 값으로 쓴다.
+   */
+  fixedHome?: boolean;
+  /** 「홈」 탭 표시 이름(관리자 부서 키의 대표 탭 이름용). 기본 「홈」. */
+  homeTabName?: string;
 }
 
 type LoadStatus = "loading" | "ready" | "error";
@@ -106,6 +117,12 @@ function useOptionalMessage() {
   } catch {
     return null;
   }
+}
+
+/** 「홈」 탭 — fixedHome 이면 관리자 고정 탭(fixed)으로, homeTabName 이 있으면 그 이름으로. */
+function buildHome(items: readonly WidgetItem[], fixedHome: boolean, name?: string): WidgetTab {
+  const home = homeTab(items);
+  return { ...home, name: name ?? home.name, ...(fixedHome ? { fixed: true, origin: "전사 기본 배치" } : {}) };
 }
 
 const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "요청을 처리하지 못했습니다.");
@@ -157,6 +174,8 @@ export function WidgetWorkspace({
   singleTab,
   pdfTarget,
   mode = "user",
+  fixedHome = false,
+  homeTabName,
 }: WidgetWorkspaceProps) {
   const message = useOptionalMessage();
   const admin = mode === "admin";
@@ -205,7 +224,21 @@ export function WidgetWorkspace({
     }
   }, [registry]);
 
-  const defaultHome = useCallback(() => homeTab(sanitizeLayout(homeDefault, registry)), [homeDefault, registry]);
+  const homeName = homeTabName ?? HOME_TAB_NAME;
+  const homeNameRef = useRef(homeName);
+  homeNameRef.current = homeName;
+  const fixedHomeRef = useRef(fixedHome);
+  fixedHomeRef.current = fixedHome;
+
+  const defaultHome = useCallback(
+    () => buildHome(sanitizeLayout(homeDefault, registry), fixedHome, homeName),
+    [homeDefault, registry, fixedHome, homeName]
+  );
+
+  // 「홈」 표시 이름이 바뀌면(관리자 부서 키 전환) 이미 그린 탭의 이름만 바꾼다 — 다시 불러오지 않는다.
+  useEffect(() => {
+    setTabs((prev) => (prev.some((t) => t.tabId === HOME_TAB_ID && t.name !== homeName) ? prev.map((t) => (t.tabId === HOME_TAB_ID ? { ...t, name: homeName } : t)) : prev));
+  }, [homeName]);
 
   // 불러오기(store.load)는 마운트·배치 출처(store·사용자·단일 탭)가 바뀔 때만 한다. 등록부·기본 배치·사용자 확인이 늦게 도착해도
   // 다시 조회하지 않고 이미 가진 탭을 새 등록부로 다시 정리한다 — 진입 한 번에 조회 3회·보드 2회 재구성(스켈레톤 되돌림)을 막는다
@@ -259,12 +292,16 @@ export function WidgetWorkspace({
         if (seq !== loadSeq.current) return;
         const reg = registryRef.current;
         const cleaned = loaded.map((t) => ({ ...t, items: sanitizeLayout(t.items, reg) }));
-        const home = cleaned.find((t) => t.tabId === HOME_TAB_ID);
+        // fixedHome 이면 서버 home 은 무시한다 — 「홈」은 늘 관리자 기본 배치(homeDefault)다.
+        const home = fixedHomeRef.current ? undefined : cleaned.find((t) => t.tabId === HOME_TAB_ID);
         homeIsDefault.current = !home;
         // 단일 탭이면 「홈」만 다룬다 — 다른 탭은 상태에 두지 않으므로 저장되지도 않는다.
         // 기본 탭(서버 tabSeq 100+)이 일반 탭보다 앞에 오게 고정 탭 순서로 정렬한다.
         const others = single ? [] : orderTabs(cleaned.filter((t) => t.tabId !== HOME_TAB_ID));
-        const next = [home ? { ...home, name: homeTab([]).name, seq: 0 } : homeTab(sanitizeLayout(homeDefaultRef.current, reg)), ...others];
+        const next = [
+          home ? { ...home, name: homeNameRef.current, seq: 0 } : buildHome(sanitizeLayout(homeDefaultRef.current, reg), fixedHomeRef.current, homeNameRef.current),
+          ...others,
+        ];
         const final = reuseTabs(tabsRef.current, next);
         sourceItems.current = new Map(
           loaded.flatMap((t) => {
@@ -282,7 +319,7 @@ export function WidgetWorkspace({
         if (seq !== loadSeq.current) return;
         homeIsDefault.current = true;
         sourceItems.current = new Map();
-        setTabs([homeTab(sanitizeLayout(homeDefaultRef.current, registryRef.current))]);
+        setTabs([buildHome(sanitizeLayout(homeDefaultRef.current, registryRef.current), fixedHomeRef.current, homeNameRef.current)]);
         setActiveTabId(HOME_TAB_ID);
         setStatus("error");
       } finally {
@@ -337,7 +374,9 @@ export function WidgetWorkspace({
     if (statusRef.current !== "ready") return;
     const cur = tabsRef.current;
     const next = cur.map((t) => {
-      if (t.tabId === HOME_TAB_ID && homeIsDefault.current) return { ...homeTab(sanitizeLayout(homeDefault, registry)), locked: t.locked };
+      if (t.tabId === HOME_TAB_ID && homeIsDefault.current) {
+        return { ...buildHome(sanitizeLayout(homeDefault, registry), fixedHomeRef.current, homeNameRef.current), locked: t.locked };
+      }
       const src = sourceItems.current.get(t.tabId);
       // 내용으로 비교한다 — [배치 편집]→[취소]는 같은 내용의 사본으로 되돌리므로 참조가 달라도 손대지 않은 탭이다.
       return { ...t, items: sanitizeLayout(src && sameItemsExact(src.cleaned, t.items) ? src.raw : t.items, registry) };
@@ -375,6 +414,8 @@ export function WidgetWorkspace({
     tab: WidgetTab,
     batch?: { pending: readonly string[]; known: readonly string[] }
   ): Promise<{ id: string; aside?: { from: string; to: string } }> => {
+    // 관리자 고정 탭은 서버가 거절하는 탭이다 — 화면 흐름이 실수로 보내지 않게 여기서도 막는다.
+    if (tab.fixed) throw new Error("관리자가 정한 탭은 바꿀 수 없습니다.");
     const res = (await store.saveTab(tab)) as { tabId?: string } | undefined;
     const savedId = typeof res?.tabId === "string" && res.tabId ? res.tabId : tab.tabId;
     const moved = savedId !== tab.tabId;
@@ -417,7 +458,7 @@ export function WidgetWorkspace({
 
   const active = tabs.find((t) => t.tabId === activeTabId) ?? tabs[0];
   const activeItems = active?.items;
-  const pickerOpen = editing && !saving && wide && active != null && !active.locked;
+  const pickerOpen = editing && !saving && wide && active != null && !active.locked && !active.fixed;
 
   // 서랍이 사라지거나(편집 종료·취소·저장 중·좁은 화면·잠긴 탭) 탭이 바뀌면 마우스 이탈 이벤트가 오지 않으므로 미리 보기를 비운다.
   const activeTabKey = active?.tabId;
@@ -449,7 +490,9 @@ export function WidgetWorkspace({
   };
   const changedTabs = useMemo(() => {
     if (!snapshot) return [];
+    // 관리자 고정 탭은 저장 대상이 아니다(편집 중 고정 탭으로 옮겨도 바뀐 것이 없다).
     return tabs.filter((t) => {
+      if (t.fixed) return false;
       const before = snapshot.find((s) => s.tabId === t.tabId);
       return !before || !tabsEqual(before, t);
     });
@@ -525,7 +568,7 @@ export function WidgetWorkspace({
   /* ── 탭 작업 ── */
   // (+) 새 탭도 편집 모드로 들어가는 길이다 — 정의 목록이 준비되지 않았으면 [배치 편집]처럼 막는다(W-D19).
   const addTab = () => {
-    if (saving || tabs.length >= maxTabs || !registryReady) return;
+    if (saving || countedTabCount(tabs) >= maxTabs || !registryReady) return;
     const tabId = nextTabId(tabs);
     let name = "새 탭";
     for (let n = 2; tabs.some((t) => t.name === name); n += 1) name = `새 탭 ${n}`;
@@ -574,6 +617,7 @@ export function WidgetWorkspace({
   };
 
   const toggleTabLock = (tabId: string) => {
+    if (tabs.find((t) => t.tabId === tabId)?.fixed) return;
     const next = tabs.map((t) => (t.tabId === tabId ? { ...t, locked: !t.locked } : t));
     const tab = next.find((t) => t.tabId === tabId)!;
     void saveNow(next, () => persistTab({ ...tab, seq: next.indexOf(tab) }));
@@ -751,11 +795,13 @@ export function WidgetWorkspace({
         ? "위젯 목록을 불러오는 중입니다"
         : registryStatus === "error"
           ? "위젯 정의를 불러오지 못했습니다"
-          : !wide
-            ? "넓은 화면에서 편집할 수 있습니다"
-            : active.locked
-              ? "잠긴 탭입니다. 탭 메뉴에서 잠금을 풀어 주세요."
-              : null;
+          : active.fixed
+            ? "관리자가 정한 탭입니다. 내 탭에서 편집하세요."
+            : !wide
+              ? "넓은 화면에서 편집할 수 있습니다"
+              : active.locked
+                ? "잠긴 탭입니다. 탭 메뉴에서 잠금을 풀어 주세요."
+                : null;
 
   const printPdf = () => {
     const el = pdfTarget?.current ?? outer.containerRef.current;
@@ -889,9 +935,10 @@ export function WidgetWorkspace({
         <div className="cm-widget-ws__board">
           <WidgetBoard
             items={active.items}
+            emptyText={active.fixed ? "관리자가 아직 위젯을 놓지 않은 탭입니다." : undefined}
             registry={registry}
             editing={editing}
-            tabLocked={active.locked || saving}
+            tabLocked={active.locked || active.fixed === true || saving}
             onChange={setActiveItems}
             cols={cols}
             width={boardWidth}

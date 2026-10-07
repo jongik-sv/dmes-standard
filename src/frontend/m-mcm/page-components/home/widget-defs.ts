@@ -13,7 +13,7 @@ const api = createJsonApiClient();
 
 const LIST_URL = "/api/mcm/oasis/widgetDef/list";
 
-/** widgetDef/list 의 두 갈래 결과. rawDefs 는 서버 줄 그대로(configJson 문자열 포함). homeDefault 가 null 이면 부서·전사 기본 배치가 없다. */
+/** widgetDef/list 의 두 갈래 결과. rawDefs 는 서버 줄 그대로(configJson 문자열 포함). homeDefault 가 null 이면 전사 기본 배치가 없다(화면 코드 상수를 쓴다). */
 export interface WidgetDefsResult {
   rawDefs: Record<string, unknown>[];
   homeDefault: WidgetItem[] | null;
@@ -79,7 +79,7 @@ export function homeItemsFromRows(rows: readonly unknown[]): WidgetItem[] {
   return out;
 }
 
-/** 위젯 정의·부서 기본 배치를 불러온다. 실패(네트워크·HTTP·meta.success=false)는 Error 로 던진다. */
+/** 위젯 정의·전사 기본 배치를 불러온다. 실패(네트워크·HTTP·meta.success=false)는 Error 로 던진다. */
 export async function fetchWidgetDefs(): Promise<WidgetDefsResult> {
   const res = await api.request<unknown>(LIST_URL, {
     method: "POST",

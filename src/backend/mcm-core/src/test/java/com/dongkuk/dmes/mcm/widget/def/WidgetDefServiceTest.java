@@ -4,8 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
-import com.dongkuk.dmes.mcm.widget.common.WidgetUserContext;
-import com.dongkuk.dmes.mcm.widget.common.WidgetUserContextResolver;
 import com.dongkuk.dmes.mcm.widget.def.dto.WidgetDefListRequest;
 import com.dongkuk.dmes.mcm.widget.def.entity.WidgetDef;
 import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
@@ -23,7 +21,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/** {@link WidgetDefService} — 사용자용 목록의 서버 전용 키 제거(Review Focus 3)와 부서 → 상위 부서 → 전사 기본 배치(§4.2). */
+/** {@link WidgetDefService} — 사용자용 목록의 서버 전용 키 제거(Review Focus 3)와 「홈」 = 전사 배치만(스펙 2026-10-07-widget-fixed-tabs §5). */
 @ExtendWith(MockitoExtension.class)
 class WidgetDefServiceTest {
 
@@ -31,7 +29,6 @@ class WidgetDefServiceTest {
 
     @Mock WidgetDefRepository defRepository;
     @Mock WidgetDefaultLayoutRepository layoutRepository;
-    @Mock WidgetUserContextResolver userContextResolver;
 
     @InjectMocks WidgetDefService service;
 
@@ -68,12 +65,6 @@ class WidgetDefServiceTest {
                 .thenAnswer(inv -> byKey.getOrDefault(inv.getArgument(0, String.class), List.of()));
     }
 
-    private void userInDepts(String... chain) {
-        String deptCd = chain.length == 0 ? null : chain[0];
-        when(userContextResolver.current())
-                .thenReturn(new WidgetUserContext("userA", "사용자A", deptCd, null, List.of(chain)));
-    }
-
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> defs(Map<String, Object> result) {
         return (List<Map<String, Object>>) result.get("defs");
@@ -98,7 +89,6 @@ class WidgetDefServiceTest {
                 def("def.q1", "D", "query-table", "{\"sql\":\"select * from t\",\"columns\":[{\"field\":\"A\"}]}"),
                 def("def.q2", "D", "query-number", "{\"sql\":\"select 1 v\",\"valueField\":\"V\"}"),
                 def("home.notice", "C", null, null)));
-        userInDepts();
 
         Map<String, Object> result = service.list(new WidgetDefListRequest());
 
@@ -127,54 +117,26 @@ class WidgetDefServiceTest {
     }
 
     @Test
-    @DisplayName("자기 부서 D100 배치가 있으면 그것을 돌려준다")
-    void ownDeptLayout() {
+    @DisplayName("부서·상위 부서 배치가 있어도 「홈」은 전사(*) 배치만 돌려준다 — 부서 배치는 부서 고정 탭으로 따로 보인다")
+    void companyLayoutOnly() {
         when(defRepository.findAllByOrderByWidgetIdAsc()).thenReturn(List.of());
-        userInDepts("D100", "D10");
         layouts(Map.of("D100", List.of(layout("D100", "w1", "home.notice")),
                 "*", List.of(layout("*", "c1", "home.todo"))));
 
         Map<String, Object> result = service.list(new WidgetDefListRequest());
 
-        assertThat(result.get("homeDefaultKey")).isEqualTo("D100");
+        assertThat(result.get("homeDefaultKey")).isEqualTo("*");
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("homeDefault");
-        assertThat(items).containsExactly(Map.of("instId", "w1", "widgetId", "home.notice", "posX", 0, "posY", 0,
+        assertThat(items).containsExactly(Map.of("instId", "c1", "widgetId", "home.todo", "posX", 0, "posY", 0,
                 "sizeW", 12, "sizeH", 6, "lockYn", "Y"));
     }
 
     @Test
-    @DisplayName("자기 부서 배치가 없고 상위 부서 D10 배치가 있으면 D10")
-    void upperDeptLayout() {
+    @DisplayName("전사 배치가 없으면 부서 배치가 있어도 homeDefault·homeDefaultKey 가 null(화면이 코드 상수를 쓴다)")
+    void noCompanyLayout() {
         when(defRepository.findAllByOrderByWidgetIdAsc()).thenReturn(List.of());
-        userInDepts("D100", "D10");
-        layouts(Map.of("D10", List.of(layout("D10", "w1", "home.notice"), layout("D10", "w2", "home.todo")),
-                "*", List.of(layout("*", "c1", "home.todo"))));
-
-        Map<String, Object> result = service.list(new WidgetDefListRequest());
-
-        assertThat(result.get("homeDefaultKey")).isEqualTo("D10");
-        assertThat((List<?>) result.get("homeDefault")).hasSize(2);
-    }
-
-    @Test
-    @DisplayName("부서·상위 부서 배치가 없으면 전사(*) 배치")
-    void companyLayout() {
-        when(defRepository.findAllByOrderByWidgetIdAsc()).thenReturn(List.of());
-        userInDepts("D100", "D10");
-        layouts(Map.of("*", List.of(layout("*", "w1", "home.notice"))));
-
-        Map<String, Object> result = service.list(new WidgetDefListRequest());
-
-        assertThat(result.get("homeDefaultKey")).isEqualTo("*");
-        assertThat((List<?>) result.get("homeDefault")).hasSize(1);
-    }
-
-    @Test
-    @DisplayName("부서가 없는 사용자도 전사 배치를 보고, 아무 배치도 없으면 homeDefault·homeDefaultKey 가 null")
-    void noLayout() {
-        when(defRepository.findAllByOrderByWidgetIdAsc()).thenReturn(List.of());
-        userInDepts("D100");
+        layouts(Map.of("D100", List.of(layout("D100", "w1", "home.notice"))));
 
         Map<String, Object> result = service.list(new WidgetDefListRequest());
 

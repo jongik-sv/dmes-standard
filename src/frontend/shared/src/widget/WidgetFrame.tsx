@@ -21,6 +21,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { LayoutContextBoundary } from "../layout/ContentBody";
 import { MIN_REFRESH_SEC } from "./constants";
 import { openPortalPage, WidgetFrameContext, type WidgetFrameApi, type WidgetRenameHandler, type WidgetStatus } from "./frame-context";
 import { WidgetStyle } from "./styles";
@@ -338,6 +339,7 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
         aria-busy={status.kind === "loading" ? "true" : undefined}
       >
         <WidgetFrameContext.Provider value={api}>
+          <LayoutContextBoundary>
           <WidgetErrorBoundary key={attempt} onRetry={retryLoad}>
             <Suspense fallback={<div className="cm-widget__skeleton"><i style={{ width: "60%" }} /><i /><i style={{ width: "80%" }} /></div>}>
               {status.kind === "error" ? (
@@ -355,6 +357,7 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
               </div>
             </Suspense>
           </WidgetErrorBoundary>
+          </LayoutContextBoundary>
         </WidgetFrameContext.Provider>
       </div>
       {sizeLabel && <span className="cm-widget__size">{sizeLabel}</span>}

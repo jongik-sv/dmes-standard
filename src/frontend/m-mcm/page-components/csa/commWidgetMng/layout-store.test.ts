@@ -20,7 +20,7 @@ describe("createLayoutStore.load", () => {
     const api = fakeApi({ layoutKey: "*", sourceKey: "*", items: [ITEM] });
     const store = createLayoutStore("*", null, { api });
     expect(await store.load()).toEqual([{ tabId: "home", name: "홈", seq: 0, locked: false, items: [ITEM] }]);
-    expect(api.loadLayout).toHaveBeenCalledWith("*", "Y");
+    expect(api.loadLayout).toHaveBeenCalledWith("*", "N");
   });
 
   it("항목이 없으면 빈 배열 — WidgetWorkspace 가 코드 기본 배치(HOME_DEFAULT_LAYOUT)를 쓴다", async () => {
@@ -33,7 +33,7 @@ describe("createLayoutStore.load", () => {
     const tabs = await createLayoutStore("D100", undefined, { api }).load();
     expect(tabs).toHaveLength(1);
     expect(tabs[0].items).toEqual([ITEM]);
-    expect(api.loadLayout).toHaveBeenCalledWith("D100", "Y");
+    expect(api.loadLayout).toHaveBeenCalledWith("D100", "N");
   });
 
   it("미리 받아 둔 배치(initial)가 있으면 첫 load 는 요청 없이 그것을 쓰고, 다시 부르면 서버에서 새로 받는다", async () => {

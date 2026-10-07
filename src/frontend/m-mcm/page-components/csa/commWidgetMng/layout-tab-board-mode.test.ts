@@ -32,7 +32,13 @@ vi.mock("@dk-oasis/shared/form", async () => {
 vi.mock("@dk-oasis/shared/grid", async () => {
   const { createElement: el } = await import("react");
   return {
-    AgDataGrid: () => el("div", { "data-testid": "list-grid" }),
+    // 행마다 버튼을 그려 시험이 배치(키)를 고를 수 있게 한다.
+    AgDataGrid: (p: { data?: { layoutKey: string }[]; onRowClick?: (row: unknown) => void }) =>
+      el(
+        "div",
+        { "data-testid": "list-grid" },
+        (p.data ?? []).map((r) => el("button", { key: r.layoutKey, type: "button", "data-row": r.layoutKey, onClick: () => p.onRowClick?.(r) }))
+      ),
     GridPanel: (p: { title?: string; children?: unknown }) => el("section", { "data-panel": p.title }, p.children as never),
   };
 });
@@ -48,9 +54,16 @@ vi.mock("@dk-oasis/shared/widget", async () => {
   const { WidgetBoardModeContext } = await import("@/lib/widget-board-mode");
   return {
     // 이 자리의 맥락 값을 그대로 드러낸다 — 실제 위젯 본체(WidgetFrame → 개인 메모)가 읽는 값과 같다.
-    WidgetWorkspace: function WorkspaceDouble(p: { testId?: string; mode?: string; singleTab?: unknown }) {
+    WidgetWorkspace: function WorkspaceDouble(p: { testId?: string; mode?: string; singleTab?: unknown; homeDefault?: unknown[]; homeTabName?: string }) {
       const mode = useContext(WidgetBoardModeContext);
-      return el("div", { "data-testid": p.testId, "data-board-mode": mode, "data-mode": p.mode, "data-single": p.singleTab ? "Y" : "N" });
+      return el("div", {
+        "data-testid": p.testId,
+        "data-board-mode": mode,
+        "data-mode": p.mode,
+        "data-single": p.singleTab ? "Y" : "N",
+        "data-home-default-count": String(p.homeDefault?.length ?? -1),
+        "data-home-name": p.homeTabName ?? "",
+      });
     },
     mergeWidgetRegistry: () => ({}),
     toWidgetDefRow: (r: unknown) => r,
@@ -59,7 +72,7 @@ vi.mock("@dk-oasis/shared/widget", async () => {
 
 vi.mock("@/lib/generated/widget-registry", () => ({ WIDGET_REGISTRY: {} }));
 vi.mock("@/lib/generated/widget-type-registry", () => ({ WIDGET_TYPE_REGISTRY: {} }));
-vi.mock("@/page-components/home/home-layout", () => ({ HOME_DEFAULT_LAYOUT: [] }));
+vi.mock("@/page-components/home/home-layout", () => ({ HOME_DEFAULT_LAYOUT: [{ instId: "code-const" }] }));
 vi.mock("./DeptPicker", () => ({ DeptPicker: () => null }));
 vi.mock("./layout-api", () => ({
   searchLayouts: h.searchLayouts,
@@ -119,5 +132,36 @@ describe("LayoutTab — 기본 배치 보드의 보드 맥락", () => {
     const board = container.querySelector<HTMLElement>('[data-testid="widget-layout-board"]');
     expect(board!.getAttribute("data-mode")).toBe("admin");
     expect(board!.getAttribute("data-single")).toBe("N");
+  });
+
+  it("안내 문구는 전사·부서 고정 탭 방식이고 상속 안내 띠는 없다", async () => {
+    await act(async () => {
+      root.render(createElement(LayoutTab));
+    });
+    await flush();
+    const help = container.querySelector<HTMLElement>('[data-testid="widget-layout-help"]');
+    expect(help!.textContent).toContain("고정 탭으로 보입니다");
+    expect(help!.textContent).toContain("저장하면 다음 조회부터 바로 반영됩니다");
+    expect(container.querySelector('[data-testid="widget-layout-inherit-notice"]')).toBeNull();
+  });
+
+  it("전사(*)는 loadLayout effective=N·코드 상수 시작 배치·기본 「홈」 이름이고, 부서 키는 빈 시작 배치·부서명 「홈」 탭이다", async () => {
+    h.searchLayouts.mockResolvedValue([{ layoutKey: "D100", deptNm: "정보기술팀", count: 0, tabCount: 1 }]);
+    await act(async () => {
+      root.render(createElement(LayoutTab));
+    });
+    await flush();
+    const board = () => container.querySelector<HTMLElement>('[data-testid="widget-layout-board"]')!;
+    expect(h.loadLayout).toHaveBeenLastCalledWith("*", "N");
+    expect(board().getAttribute("data-home-default-count")).toBe("1");
+    expect(board().getAttribute("data-home-name")).toBe("");
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-row="D100"]')!.click();
+    });
+    await flush();
+    expect(h.loadLayout).toHaveBeenLastCalledWith("D100", "N");
+    expect(board().getAttribute("data-home-default-count")).toBe("0");
+    expect(board().getAttribute("data-home-name")).toBe("정보기술팀");
   });
 });

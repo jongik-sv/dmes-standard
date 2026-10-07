@@ -5,6 +5,8 @@
  * 탭 메뉴(⋯): 이름 바꾸기·잠금·왼쪽/오른쪽·지우기, 「홈」은 잠금·기본 배치로 되돌리기만. 편집 모드에서는 이름 바꾸기만.
  * 기본 탭(defaultTab, widget-tabs)은 「홈」처럼 고정 탭이다 — 잠금·기본으로 되돌리기(onResetTab, customized 일 때만)만.
  * 일반 탭은 고정 탭 앞으로 옮길 수 없다. 공유(onShare)·내보내기(onExport)·가져오기(onImport, (+) 옆)는 핸들러가 있을 때만 그린다.
+ * 관리자 고정 탭(fixed)은 공유·내보내기만 있고(잠그기·되돌리기·이름 바꾸기·옮기기·지우기 없음) 풍선에 「관리자가 정한 탭입니다」와 출처(origin)를 보인다.
+ * (+)·가져오기 한도는 고정 탭을 뺀 탭 수로 센다.
  * mode="admin"(관리자 기본 탭 편집)이면 잠그기·홈 되돌리기를 숨기고, 메뉴가 빈 「홈」에는 ⋯ 를 그리지 않는다.
  * 메뉴는 Mantine 없이 그린다(바깥 누름·Escape 로 닫힘).
  * 탭 메뉴·⋯ 단추·(+)·가져오기는 data-print-hide 를 달아 화면 PDF(printElementAsPage)에 찍히지 않게 한다. 메뉴를 연 채 [PDF] 를 눌러도
@@ -15,7 +17,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { HOME_TAB_ID, MAX_TABS, TAB_NAME_MAX } from "./constants";
 import { WidgetStyle } from "./styles";
 import type { WidgetTab } from "./types";
-import { fixedTabCount } from "./widget-layout";
+import { countedTabCount, fixedTabCount } from "./widget-layout";
 
 export interface WidgetTabsProps {
   tabs: readonly WidgetTab[];
@@ -102,10 +104,12 @@ export function WidgetTabs(props: WidgetTabsProps) {
   const admin = props.mode === "admin";
   const maxTabs = props.maxTabs ?? MAX_TABS;
   const fixedCount = fixedTabCount(tabs);
+  const counted = countedTabCount(tabs);
   const [menu, setMenu] = useState<{ tabId: string; left: number; top: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   // 관리자 화면의 「홈」은 메뉴 항목이 하나도 없다(잠그기·되돌리기 숨김, 이름·지우기 불가).
-  const hasMenu = (t: WidgetTab) => !(admin && t.tabId === HOME_TAB_ID);
+  // 관리자 고정 탭은 공유·내보내기만 있으므로 그 핸들러가 없으면 메뉴도 없다.
+  const hasMenu = (t: WidgetTab) => !(admin && t.tabId === HOME_TAB_ID) && !(t.fixed && (admin || (!props.onShare && !props.onExport)));
 
   useEffect(() => {
     if (!menu) return;
@@ -136,7 +140,7 @@ export function WidgetTabs(props: WidgetTabsProps) {
   const shareItems = (t: WidgetTab) =>
     admin || (!props.onShare && !props.onExport) ? null : (
       <>
-        <hr />
+        {!t.fixed && <hr />}
         {props.onShare && (
           <button type="button" role="menuitem" data-menu="share" disabled={editing} onClick={run(() => props.onShare!(t.tabId))}>
             공유…
@@ -162,7 +166,14 @@ export function WidgetTabs(props: WidgetTabsProps) {
           className="cm-widget-tab"
           data-tab-id={t.tabId}
           data-default-tab={t.defaultTab ? "" : undefined}
-          title={t.defaultTab ? "관리자가 제공하는 기본 탭입니다(이름·순서는 바꿀 수 없습니다)" : undefined}
+          data-fixed-tab={t.fixed ? "" : undefined}
+          title={
+            t.fixed
+              ? `관리자가 정한 탭입니다(바꿀 수 없습니다)${t.origin ? `\n출처: ${t.origin}` : ""}`
+              : t.defaultTab
+                ? "관리자가 제공하는 기본 탭입니다(이름·순서는 바꿀 수 없습니다)"
+                : undefined
+          }
           onClick={() => props.onSelect(t.tabId)}
           onKeyDown={(e) => e.target === e.currentTarget && (e.key === "Enter" || e.key === " ") && props.onSelect(t.tabId)}
         >
@@ -198,7 +209,7 @@ export function WidgetTabs(props: WidgetTabsProps) {
         data-print-hide=""
         title={props.addTitle ?? `새 탭 (최대 ${maxTabs}개)`}
         aria-label="새 탭"
-        disabled={menuDisabled || props.addDisabled || tabs.length >= maxTabs}
+        disabled={menuDisabled || props.addDisabled || counted >= maxTabs}
         onClick={props.onAdd}
       >
         +
@@ -210,8 +221,8 @@ export function WidgetTabs(props: WidgetTabsProps) {
             className="cm-widget-tabs__import"
             data-action="import-tab"
             data-print-hide=""
-            title={tabs.length >= maxTabs ? `탭은 최대 ${maxTabs}개까지 둘 수 있습니다` : (props.importTitle ?? "탭 가져오기(JSON 파일)")}
-            disabled={menuDisabled || props.importDisabled || tabs.length >= maxTabs}
+            title={counted >= maxTabs ? `탭은 최대 ${maxTabs}개까지 둘 수 있습니다` : (props.importTitle ?? "탭 가져오기(JSON 파일)")}
+            disabled={menuDisabled || props.importDisabled || counted >= maxTabs}
             onClick={() => fileRef.current?.click()}
           >
             가져오기
@@ -235,7 +246,9 @@ export function WidgetTabs(props: WidgetTabsProps) {
       <div className="cm-widget-tabs__trailing">{trailing}</div>
       {menu && menuTab && (
         <div className="cm-widget-menu" role="menu" data-print-hide="" style={{ position: "fixed", left: menu.left, top: menu.top }} onClick={(e) => e.stopPropagation()}>
-          {menuTab.tabId === HOME_TAB_ID ? (
+          {menuTab.fixed ? (
+            shareItems(menuTab)
+          ) : menuTab.tabId === HOME_TAB_ID ? (
             <>
               {lockItem(menuTab)}
               {!admin && (

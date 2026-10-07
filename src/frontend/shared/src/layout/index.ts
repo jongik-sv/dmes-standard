@@ -46,7 +46,7 @@ export {
   type SearchDefaultsAreaApi,
   type SearchDefaultsFieldInfo,
 } from "./search-defaults/area";
-export { ContentBody, useContentMaximize, type ContentBodyProps } from "./ContentBody";
+export { ContentBody, LayoutContextBoundary, useContentMaximize, type ContentBodyProps } from "./ContentBody";
 export { ContentPanel, type ContentPanelProps } from "./ContentPanel";
 export { ResizableFormPanel, type ResizableFormPanelProps } from "./ResizableFormPanel";
 export { MaxHandle, type MaxHandleProps } from "./MaxHandle";

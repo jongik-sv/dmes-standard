@@ -274,6 +274,9 @@ function sameTabExact(a: WidgetTab, b: WidgetTab): boolean {
     // 기본 탭 표시·개인화 여부도 본다 — 되돌리기 뒤 조용한 재조회에서 옛 객체(customized)가 남지 않게.
     Boolean(a.defaultTab) === Boolean(b.defaultTab) &&
     Boolean(a.customized) === Boolean(b.customized) &&
+    // 관리자 고정 탭 표시·출처 글도 본다 — 고정이 풀리거나 출처가 바뀌면 옛 객체가 남지 않게.
+    Boolean(a.fixed) === Boolean(b.fixed) &&
+    (a.origin ?? "") === (b.origin ?? "") &&
     sameItemsExact(a.items, b.items)
   );
 }
@@ -316,15 +319,20 @@ export function homeTab(items: readonly WidgetItem[]): WidgetTab {
 
 /* ── 고정 탭·내보내기·가져오기·공유 결과(widget-tabs 2026-10-05, 설계 design-widget-tabs §4) ── */
 
-/** 「홈」과 기본 탭(defaultTab)은 고정 탭이다 — 지우기·이름 바꾸기·옮기기 불가, 탭 줄 앞쪽에 고정. */
-export function isFixedTab(tab: Pick<WidgetTab, "tabId" | "defaultTab">): boolean {
-  return tab.tabId === HOME_TAB_ID || tab.defaultTab === true;
+/** 「홈」과 기본 탭(defaultTab)·관리자 고정 탭(fixed)은 고정 탭이다 — 지우기·이름 바꾸기·옮기기 불가, 탭 줄 앞쪽에 고정. */
+export function isFixedTab(tab: Pick<WidgetTab, "tabId" | "defaultTab" | "fixed">): boolean {
+  return tab.tabId === HOME_TAB_ID || tab.defaultTab === true || tab.fixed === true;
 }
 
-const tabRank = (t: WidgetTab) => (t.tabId === HOME_TAB_ID ? 0 : t.defaultTab ? 1 : 2);
+/** 개인 탭 한도에 세는 탭 수 — 관리자 고정 탭(fixed)은 뺀다. fixed 탭이 없으면 tabs.length 와 같다. */
+export function countedTabCount(tabs: readonly Pick<WidgetTab, "fixed">[]): number {
+  return tabs.filter((t) => t.fixed !== true).length;
+}
+
+const tabRank = (t: WidgetTab) => (t.tabId === HOME_TAB_ID ? 0 : t.defaultTab || t.fixed ? 1 : 2);
 
 /**
- * 탭 줄 순서 — 「홈」, 기본 탭(seq 순), 일반 탭(seq 순). 같은 자리·seq 면 입력 순서를 지킨다.
+ * 탭 줄 순서 — 「홈」, 기본 탭·관리자 고정 탭(seq 순), 일반 탭(seq 순). 같은 자리·seq 면 입력 순서를 지킨다.
  * 서버는 기본 탭 tabSeq 를 100+관리자 순서로 주므로 seq 만으로 정렬하면 기본 탭이 일반 탭 뒤로 간다.
  */
 export function orderTabs(tabs: readonly WidgetTab[]): WidgetTab[] {
@@ -399,7 +407,7 @@ const ownEntry = (registry: WidgetRegistry, id: string) => (Object.prototype.has
  */
 export function parseTabImport(text: string, ctx: TabImportContext): TabImportResult {
   const maxTabs = ctx.maxTabs ?? MAX_TABS;
-  if (ctx.tabs.length >= maxTabs) return { ok: false, error: `탭은 최대 ${maxTabs}개까지 둘 수 있습니다. 탭을 지운 뒤 가져와 주세요.` };
+  if (countedTabCount(ctx.tabs) >= maxTabs) return { ok: false, error: `탭은 최대 ${maxTabs}개까지 둘 수 있습니다. 탭을 지운 뒤 가져와 주세요.` };
   let data: unknown;
   try {
     data = JSON.parse(text);
