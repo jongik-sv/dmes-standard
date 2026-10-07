@@ -74,6 +74,14 @@ node scripts/oracle/pdb.mjs clone TPL_EMPTY L_ORA_MDM    # 레인 PDB
 
 `-Pdmes.ora.test=clone`(또는 env `DMES_ORA_TEST=clone`)이면 빌드 한 번에 한 번 `-Pdmes.ora.template`(기본 `TPL_EMPTY`)에서 `T_<레인>` PDB 를 복제하고 빌드가 끝나면 지운다. 있는 PDB 를 그대로 쓰려면 `-Pdmes.ora.pdb=L_ORA_MDM`. 켜면 Test 는 forks=1 이고 접속 수를 줄이는 기본값(`spring.datasource.hikari.maximum-pool-size=2`·`minimum-idle=0`·`idle-timeout=10000`·`spring.test.context.cache.maxSize=2`, 다중 데이터소스 모듈은 `cactus.datasource.extras.<cmn|if|caravan>`·`spring.datasource.<mst|if>` 접두 키도 같은 값)이 시스템 속성으로 들어가며(끄려면 `-Pdmes.ora.poolExtras=none`), 시험이 끝나면 시험 PDB 의 세션 수를 `[dmes-ora] … sessions max=…` 한 줄로 남긴다. 접속값은 시스템 속성 `dmes.ora.url`·`dmes.ora.password`·`dmes.ora.pdb` 와 env `DMES_ORA_URL`·`DMES_ORA_PASSWORD`·`DMES_ORA_PDB`·`SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=3` 이 넘어간다. 기본(꺼짐)은 종전 동작 그대로다(구현: `src/backend/build-logic`).
 
+### 여러 모듈을 한 빌드에서 시험할 때(교착 수정, 2026-10-07)
+
+`src/backend` 루트에서 여러 모듈의 `test` 를 한 번에 걸면(`--continue` 포함) 모듈마다 included build 라 Gradle 이 하니스 서비스를 따로 만든다. 예전 하니스는 서비스마다 `lock-hold` 를 잡아, 먼저 잡은 쪽이 빌드가 끝날 때까지 쥐고 나머지가 7200초 기다리는 교착이 났다(시험 슬롯 2칸도 함께 묶임, 21:12 사례). 지금은 같은 Gradle JVM 안에서 **처음 부른 서비스가 잠금·PDB 를 하나만 만들고 나머지는 같은 값을 쓴다**(로그에 「같은 빌드의 시험 PDB … 를 함께 쓴다」). 또 PC Oracle 잠금을 시험 슬롯보다 먼저 잡는다(슬롯을 쥔 채 잠금을 기다리지 않게).
+
+- 이 수정(①d)이 들어오기 전 브랜치에서는 **여러 모듈의 Oracle 시험을 모듈별로 따로 건다**(모듈 폴더에서 한 번에 하나). 수정 전 판과 수정 후 판이 같은 PC 에서 동시에 돌면 슬롯·잠금 순서가 달라 서로 붙잡을 수 있으니(슬롯 대기 한도 30분 뒤 풀림) dev 를 합쳐 판을 맞춘다. 이 규칙은 ①d 이전 브랜치에만 해당한다.
+- 한 빌드 안에서 준비가 한 번 실패하면(복제 실패·lock-hold 가 도중에 끝남 등) 같은 빌드의 나머지 모듈도 곧바로 실패한다(모듈마다 복제를 되풀이하지 않게). 모든 모듈이 같은 `-Pdmes.ora.*` 설정을 써야 PDB 를 함께 쓴다.
+- 회귀 시험(Oracle 접속 없음): `bash src/backend/build-logic/tests/run.sh` — included build 3개가 서비스를 따로 만들어도 잠금·PDB 를 하나만 쓰는지 본다. `.claude/skills/dflow-dev/scripts/heavy.sh` 를 거쳐 돌린다.
+
 ### 시험 코드에서 직접 만드는 풀
 
 하니스의 접속 수 기본값은 **Spring 이 만드는 풀에만** 듣는다. 시험 코드가 `new HikariDataSource()` 나 `HikariConfig` 로 직접 만드는 풀은 기본값(최대 10·유휴 10)이라 시험마다 새로 열고 닫지 않으면 VM 안 접속이 수십 개로 늘어 인스턴스가 스래싱한다(oracle-1007 19:52 사례).

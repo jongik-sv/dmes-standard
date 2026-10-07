@@ -49,7 +49,7 @@ import static org.mockito.Mockito.mock;
  * 같은 시나리오를 H2 로 돌리던 {@link CommUserMngServiceSearchTest} 의 {@code SearchRoleGrp} 묶음과 이 시험이 모두 Oracle 에서 돈다.
  *
  * <p>구성 — 앱 EMF 와 같은 Hibernate 설정({@link McmCoreOraTestDb#jpaProperties})에 {@link McmAuditStatementInspector} 를
- * statement inspector 로 건다(감사 칸 보강. {@code setSqlite} 는 켜지 않는다 — SELECT 라 SQL 이 바뀌지 않는다).
+ * statement inspector 로 건다(감사 칸 보강 — SELECT 라 SQL 이 바뀌지 않는다).
  * 엔티티는 올리지 않는다(이 경로는 네이티브 SQL 하나). 표는 기준선 V1(MCMAPUSER)을 쓰고, 데이터는 JDBC 로 넣는다 —
  * 일시 칸은 TIMESTAMP(6) 이므로 문자열이 아니라 {@link Timestamp} 로 넣는다.
  *

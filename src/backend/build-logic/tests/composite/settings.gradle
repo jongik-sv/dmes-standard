@@ -1,0 +1,5 @@
+// 하니스 교착 재현·회귀 시험용 합성 빌드(Oracle 접속 없음). 실행: ../run.sh
+rootProject.name = 'composite'
+includeBuild('a')
+includeBuild('b')
+includeBuild('c')

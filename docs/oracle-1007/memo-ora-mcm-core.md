@@ -40,10 +40,10 @@
 ## 남은 순서
 
 1. ~~c1·c3·c2·c4~~ 완료(10-07)
-2. 머지 요청(ora-mcm-app 과 같은 창, mcm-core → mcm 순서) — 직전에 dev 최신(①d 하니스 교착 수정 포함)을 합치고 컴파일·지목 시험 확인.
+2. ~~머지③~~ 완료(dev e8f5ed3d2). 이하 원래 계획: 머지 요청(ora-mcm-app 과 같은 창, mcm-core → mcm 순서) — 직전에 dev 최신(①d 하니스 교착 수정 포함)을 합치고 컴파일·지목 시험 확인.
    - 머지 요청에 적을 것: 대상 SHA, 전체 시험·perf, McmSqliteMybatisInterceptor·ScreenUsageMssqlDdl @Deprecated 유지(③b 정리), 위젯 PostgreSQL 갈래 제거(사용자 확정 3),
      V1 체크섬 변경(MCMAPUSER V1 머리 주석 BIT→TINYINT, 1d612401a — 이미 적용한 PDB 는 clean 또는 repair), 위젯 도움말 sync 는 node 단언(vitest 는 조정 게이트).
-3. ③b(머지③ 직후, 조정이 맡김): McmSqliteMybatisInterceptor·McmAuditStatementInspectorSqliteTest·ScreenUsageMssqlDdl → archive, McmAuditStatementInspector SQLite 분기 제거.
+3. ~~③b~~ 완료(10-07, mcm-app 머지③ dev 14b09f1af 합친 뒤): McmSqliteMybatisInterceptor·ScreenUsageMssqlDdl → `mcm-core/archive/main/{audit,screenusage}/`, McmAuditStatementInspectorSqliteTest → `archive/test/audit/`, McmAuditStatementInspector 의 setSqlite·isSqlite·toSqlite·toSqliteCompatible·stripUnicodeLiteralPrefix 제거. 호출처 0(mcm·mdm·mls grep, mdm 의 isSqlite 는 자기 private). 확인: :mcm-core·:mcm:lib compileTestJava exit 0, clone 전체 117클래스·1227건 실패 0·건너뜀 2(옮긴 SQLite 시험 5건 빠짐).
 4. 머지④ 뒤: SqliteTemporalConverterContributor·LocalDate(Time)AttributeConverter 정리(조정 지시).
 
 ## 결정
