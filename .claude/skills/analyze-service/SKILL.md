@@ -90,7 +90,7 @@ glob: docs/external/SampleErp/orgErpSource/KsmK Project/Tasks/**/{SCREEN-ID}*/{S
 
 > **자동 스킵**: Phase 1~4 출력 JSON 이 이미 존재하면 자동 스킵한다. `--force` 플래그 추가 시 중간 JSON 을 무시하고 전체 Phase 를 재실행한다.
 
-> **MVP 단계의 분석 방식**: Phase 1~4 는 LLM 이 references/phase{N}.md 의 알고리즘대로 Read/Glob 도구를 직접 사용하여 산출 JSON 을 작성한다 (부산용 phase1-analyzer.js / phase2-generator.py / phase3-generator.py 는 GLUE/Oracle 전용으로 SampleErp 입력에 호환되지 않으므로 호출하지 않는다). 후속 단계에서 SampleErp 용 자동화 스크립트로 대체될 수 있다.
+> **MVP 단계의 분석 방식**: Phase 1~4 는 LLM 이 references/phase{N}.md 의 알고리즘대로 Read/Glob 도구를 직접 사용하여 산출 JSON 을 작성한다 (부산용 phase1-analyzer.js 는 GLUE/Oracle 전용으로 SampleErp 입력에 호환되지 않으므로 호출하지 않는다. 같은 이유로 쓰이지 않던 phase2-generator.py·phase3-generator.py 와 analyze-queries 의 orchestrator.py 는 2026-10-07 에 삭제했다). 후속 단계에서 SampleErp 용 자동화 스크립트로 대체될 수 있다.
 
 ### 시간 추적
 

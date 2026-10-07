@@ -197,7 +197,7 @@ detectedCalls.forEach(call => {
   detectedObjects.push({
     objectName: isPackageCall ? call.qualifier : call.name,   // 분석 단위 = 패키지
     procedureName: isPackageCall ? call.name : null,
-    callType: isPackageCall ? 'PACKAGE_MEMBER' : 'STANDALONE',   // phase3-generator.py 와 같은 값
+    callType: isPackageCall ? 'PACKAGE_MEMBER' : 'STANDALONE',   // 삭제된 부산용 phase3-generator.py 와 같은 값
     fullCall: call.text
   });
 });
