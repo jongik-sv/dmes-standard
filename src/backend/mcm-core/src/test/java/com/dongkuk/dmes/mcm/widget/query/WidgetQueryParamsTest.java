@@ -336,7 +336,7 @@ class WidgetQueryParamsTest {
     void previewUsesDefaults() {
         String defs = "[{\"name\":\"plant\",\"type\":\"text\",\"default\":\"P2\"},{\"name\":\"min\",\"type\":\"number\",\"default\":\"12\"}]";
         WidgetQueryResult r = executor.preview("mcm", "SELECT ID FROM T_C4_WIDGET_P WHERE PLANT = :plant AND AMT > :min ORDER BY ID", 50, defs);
-        assertThat(r.rows()).extracting(row -> row.get("ID")).containsExactly(10);
+        assertThat(r.rows()).extracting(row -> ((Number) row.get("ID")).intValue()).containsExactly(10); // Oracle NUMBER → BigDecimal
     }
 
     @Test

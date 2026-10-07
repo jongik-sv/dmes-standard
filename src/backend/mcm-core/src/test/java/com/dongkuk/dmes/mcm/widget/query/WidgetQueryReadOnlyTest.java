@@ -384,36 +384,18 @@ class WidgetQueryReadOnlyTest {
         st.execute("BEGIN EXECUTE IMMEDIATE 'DROP TABLE " + table + " PURGE'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;");
     }
 
-    // ── PostgreSQL·Oracle 문장 순서(대본 연결) ──────────────────────────
+    // ── Oracle 문장 순서(대본 연결) ──────────────────────────
 
     @Test
-    @DisplayName("PostgreSQL — readOnly·자동 커밋 끔 뒤 SET TRANSACTION READ ONLY, transaction_read_only=on 확인 뒤 실행, 끝나면 롤백·되돌리기")
-    void postgresqlSequence() throws Exception {
-        Script script = new Script("PostgreSQL");
-        script.showReadOnly = "on";
-        Integer one = new WidgetReadOnlyJdbc(script.dataSource()).execute(con -> {
-            script.calls.add("WORK");
-            return 1;
-        });
-        assertThat(one).isEqualTo(1);
-        assertThat(script.calls).containsSubsequence("setReadOnly(true)", "setAutoCommit(false)",
-                "execute:SET TRANSACTION READ ONLY", "query:SHOW transaction_read_only", "WORK", "rollback",
-                "setAutoCommit(true)", "setReadOnly(false)", "close");
-        assertThat(script.calls).doesNotContain("commit", "abort");
-        assertThat(script.autoCommit).isTrue();
-        assertThat(script.readOnly).isFalse();
-    }
-
-    @Test
-    @DisplayName("PostgreSQL — 실행 중 실패해도 롤백 뒤 autoCommit·readOnly 를 되돌려 돌려준다(커밋·끊기 없음)")
-    void postgresqlRestoresAfterWorkFailure() {
-        Script script = new Script("PostgreSQL");
+    @DisplayName("Oracle — 실행 중 실패해도 롤백 뒤 autoCommit·readOnly 를 되돌려 돌려준다(커밋·끊기 없음)")
+    void restoresAfterWorkFailure() {
+        Script script = new Script("Oracle");
         assertThatThrownBy(() -> new WidgetReadOnlyJdbc(script.dataSource()).execute(con -> {
             try (Statement st = con.createStatement()) {
                 st.execute("SELECT broken");
             }
-            throw new SQLException("relation does not exist");
-        })).isInstanceOf(SQLException.class).hasMessageContaining("relation");
+            throw new SQLException("ORA-00942: table or view does not exist");
+        })).isInstanceOf(SQLException.class).hasMessageContaining("ORA-00942");
         assertThat(script.calls).containsSubsequence("execute:SELECT broken", "rollback", "setAutoCommit(true)", "setReadOnly(false)", "close");
         assertThat(script.calls).doesNotContain("commit", "abort");
     }
@@ -421,26 +403,13 @@ class WidgetQueryReadOnlyTest {
     @Test
     @DisplayName("롤백이 실패하면 autoCommit 을 켜지 않고(열린 트랜잭션 커밋 방지) readOnly 도 그대로 둔 채 연결을 끊는다")
     void rollbackFailureDiscardsWithoutCommit() throws Exception {
-        Script script = new Script("PostgreSQL");
+        Script script = new Script("Oracle");
         script.failOn = "rollback";
         Integer one = new WidgetReadOnlyJdbc(script.dataSource()).execute(con -> 1);
         assertThat(one).isEqualTo(1);
         assertThat(script.calls).contains("rollback", "abort", "close")
                 .doesNotContain("setAutoCommit(true)", "setReadOnly(false)", "commit");
         assertThat(script.calls.indexOf("abort")).isLessThan(script.calls.indexOf("close")); // 반납 처리 전에 끊는다
-    }
-
-    @Test
-    @DisplayName("PostgreSQL — transaction_read_only 가 on 이 아니면 SQL 을 실행하지 않는다(실패 닫힘), 연결은 되돌려 돌려준다")
-    void postgresqlFailsClosedWhenNotReadOnly() {
-        Script script = new Script("PostgreSQL");
-        script.showReadOnly = "off";
-        assertThatThrownBy(() -> new WidgetReadOnlyJdbc(script.dataSource()).execute(con -> {
-            script.calls.add("WORK");
-            return 1;
-        })).isInstanceOf(SQLException.class).hasMessageContaining("읽기 전용");
-        assertThat(script.calls).doesNotContain("WORK", "commit", "abort")
-                .containsSubsequence("rollback", "setAutoCommit(true)", "setReadOnly(false)", "close");
     }
 
     @Test
@@ -468,9 +437,9 @@ class WidgetQueryReadOnlyTest {
     @Test
     @DisplayName("제품 이름 → 갈래")
     void dialectOfProductName() {
-        assertThat(WidgetReadOnlyJdbc.dialectOf("PostgreSQL")).isEqualTo(WidgetReadOnlyJdbc.Dialect.POSTGRESQL);
         assertThat(WidgetReadOnlyJdbc.dialectOf("Oracle")).isEqualTo(WidgetReadOnlyJdbc.Dialect.ORACLE);
-        // SQLite·SQL Server 갈래는 걷어냈다(oracle-1007) — 읽기 전용 트랜잭션을 걸 수 없는 OTHER(실패 닫힘)로 본다
+        // PostgreSQL·SQLite·SQL Server 갈래는 걷어냈다(oracle-1007, 사용자 확정 3) — 읽기 전용 트랜잭션을 걸 수 없는 OTHER(실패 닫힘)로 본다
+        assertThat(WidgetReadOnlyJdbc.dialectOf("PostgreSQL")).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER);
         assertThat(WidgetReadOnlyJdbc.dialectOf("SQLite")).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER);
         assertThat(WidgetReadOnlyJdbc.dialectOf("Microsoft SQL Server")).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER);
         assertThat(WidgetReadOnlyJdbc.dialectOf("MariaDB")).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER);

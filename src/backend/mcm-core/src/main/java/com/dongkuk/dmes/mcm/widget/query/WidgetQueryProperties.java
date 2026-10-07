@@ -19,7 +19,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *         maximum-pool-size: 5
  * }</pre>
  * 운영에서는 여기에 <b>읽기 권한만 가진 DB 계정</b>을 붙인다 — 실행기의 읽기 전용 강제(연결 readOnly·늘 롤백·방언별 보강)는
- * 보조 방어선이고, 읽기 전용 트랜잭션을 걸 수 없는 DB(Oracle·PostgreSQL 이 아닌 갈래)는 계정 권한이 유일한 막이다.
+ * 보조 방어선이고, 읽기 전용 트랜잭션을 걸 수 없는 DB(Oracle 이 아닌 갈래)는 계정 권한이 유일한 막이다.
  * Oracle 은 읽기 전용 트랜잭션이 있어도 이미 있는 자율 트랜잭션 함수의 쓰기와 DB 링크 너머의 실행을 막지 못한다(2026-10-07 실측) —
  * 운영에서는 {@code require-dedicated: true} 로 전용 DataSource 없이 실행하지 않게 한다(oracle-1007 c3 정책 B).
  * 비밀번호는 환경변수로만 넣고, {@link #toString()} 은 비밀번호·주소를 보이지 않는다(로그 유출 방지 — 주소에도 비밀번호가 들어갈 수 있다).

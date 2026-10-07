@@ -517,13 +517,16 @@ class WidgetQueryExecutorTest {
     }
 
     @Test
-    @DisplayName("PostgreSQL 갈래(전용 아님)는 읽기 전용 트랜잭션을 거는 갈래라 저장 검사를 지난다 — SET()·IF() 함수 이름도 막지 않는다")
-    void postgresqlSharedPassesValidation() {
+    @DisplayName("PostgreSQL 연결(전용 아님)은 갈래를 걷어내 OTHER 로 보고 거절한다(사용자 확정 3) — Oracle 연결은 SET()·IF() 함수 이름을 막지 않는다")
+    void postgresqlSharedFailsClosedAndOracleAllowsSetIfNames() {
         WidgetQueryExecutor pg = new WidgetQueryExecutor(defRepository, resolver,
                 WidgetQueryDataSource.shared(productAs("PostgreSQL", dataSource)), clock);
-        // 실제로는 Oracle 연결이라 실행 결과는 보지 않는다 — 저장 검사(갈래 판정·실패 닫힘)를 지나는지만 본다
-        pg.validateSql("SELECT SET(TAGS) AS S, IF(AMT > 0, 1, 0) AS F FROM T_C4_WIDGET_T");
-        assertThat(pg.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.POSTGRESQL);
+        assertMessage(() -> pg.validateSql("SELECT 1 AS A FROM DUAL"), WidgetQueryExecutor.MSG_OTHER_NEEDS_DEDICATED);
+        assertThat(pg.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER);
+
+        WidgetQueryExecutor ora = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.shared(dataSource), clock);
+        ora.validateSql("SELECT SET(TAGS) AS S, IF(AMT > 0, 1, 0) AS F FROM T_C4_WIDGET_T"); // 저장 검사만 — 실행하지 않는다
+        assertThat(ora.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.ORACLE);
     }
 
     @Test

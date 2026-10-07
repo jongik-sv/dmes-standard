@@ -71,7 +71,7 @@ import org.springframework.stereotype.Component;
  *       정의 저장 이벤트가 오면 그 defId 캐시를 비운다. 키가 끝없이 늘어도(조건 값 조합·사용자별 :userId) 정의 하나가 캐시 전체를 채우지 못하게 정의별 상한을 둔다.</li>
  *   <li>DB 오류: 사용자에게는 고정 문구, 서버 로그에는 defId·원인. 관리자 미리보기만 DB 메시지를 보여 준다.</li>
  * </ul>
- * <b>운영 주의</b>: 읽기 전용 트랜잭션을 걸 수 없는 DB(Oracle·PostgreSQL 이 아닌 갈래 OTHER — {@code readOnly} 는 힌트일 뿐)에서는
+ * <b>운영 주의</b>: 읽기 전용 트랜잭션을 걸 수 없는 DB(Oracle 이 아닌 갈래 OTHER — {@code readOnly} 는 힌트일 뿐)에서는
  * 전용 DataSource({@code dmes.widget.query.datasource.*})가 없으면 <b>실행·미리보기·저장 검사를 모두 거절한다</b>(실패 닫힘, {@link #validate}).
  * Oracle 은 자율 트랜잭션 함수·DDL 의 암묵 커밋이 읽기 전용 트랜잭션과 롤백을 벗어난다.
  * 그래서 운영 DB 에서는 어느 DB 든 <b>읽기 권한만 가진 DB 계정의 DataSource</b> 를 붙이는 것이 근본 대책이다.
@@ -417,7 +417,7 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
      * 실행·미리보기·저장 검사가 함께 쓰는 판정(§7.1 + 실패 닫힘). 순서:
      * <ol>
      *   <li>어느 DB 에나 적용하는 검사 — 여기서 걸리면 연결을 빌리지 않는다.</li>
-     *   <li>실행 DB 갈래 판정(처음 한 번 연결을 빌려 메타데이터만 읽는다). 읽기 전용 트랜잭션을 걸 수 없는 갈래(OTHER — Oracle·PostgreSQL 이
+     *   <li>실행 DB 갈래 판정(처음 한 번 연결을 빌려 메타데이터만 읽는다). 읽기 전용 트랜잭션을 걸 수 없는 갈래(OTHER — Oracle 이
      *       아닌 DB)인데 전용 DataSource 가 없으면 거절한다 — 그 DB 고유의 세션·흐름 문장을 낱말 목록이 다 막는다고 기대할 수 없고,
      *       앱 기본 DataSource 는 쓰기 계정이다. {@code require-dedicated} 가 켜져 있으면 갈래와 상관없이 전용 DataSource 를 요구한다.</li>
      *   <li>사후 검사 — Spring 이 이름 붙은 변수를 바꾼 뒤 남은 DB 고유 자리표시자.</li>

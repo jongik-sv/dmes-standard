@@ -1,7 +1,6 @@
 package com.dongkuk.dmes.mcm.widget.query;
 
 import java.sql.Connection;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Locale;
@@ -22,18 +21,15 @@ import org.slf4j.LoggerFactory;
  *   <li>롤백·되돌리기에 실패한 연결은 <b>먼저 끊고</b>({@code abort}) 그다음 풀에서 뺀다(Hikari {@code evictConnection}) — 읽기 전용으로
  *       남은 연결이 업무 쓰기를 막지 않게, 그리고 풀이 반납·축출 처리에서 autoCommit 을 되돌리거나 물리 연결을 닫으며 커밋하지 못하게.</li>
  * </ol>
- * 실 PostgreSQL 18 + pgjdbc 42.7.8 + Hikari 7 실측(2026-10-03): 서버 로그가 {@code BEGIN READ ONLY → SET TRANSACTION READ ONLY →
- * SHOW transaction_read_only → SELECT → ROLLBACK} 이고 {@code COMMIT} 은 없다. 풀(1개)의 같은 물리 연결(백엔드 PID 동일)이 다음 실행과
- * 업무 쓰기에 다시 쓰인다(pgjdbc {@code readOnlyMode} transaction·always·ignore 모두).
  * 방언별 보강(방언은 연결 메타데이터의 제품 이름으로 판정한다):
  * <ul>
- *   <li>PostgreSQL·Oracle — {@code SET TRANSACTION READ ONLY}(Spring {@code DataSourceTransactionManager#setEnforceReadOnly} 와 같은 문장).
- *       PostgreSQL 은 {@code SHOW transaction_read_only} 가 {@code on} 인지 확인한다. Oracle 은 문장이 성공하면 걸린 것으로 본다
+ *   <li>Oracle — {@code SET TRANSACTION READ ONLY}(Spring {@code DataSourceTransactionManager#setEnforceReadOnly} 와 같은 문장).
+ *       문장이 성공하면 걸린 것으로 본다
  *       (읽기 전용 상태를 일반 계정이 조회할 길이 없다). 실 Oracle 26ai + ojdbc11 23.9 + Hikari 7(풀 1개) 실측(2026-10-07):
  *       {@code setReadOnly(true)} 뒤의 {@code SET TRANSACTION READ ONLY} 가 충돌 없이 걸리고, INSERT·UPDATE·MERGE·{@code FOR UPDATE} 가
  *       ORA-01456 으로 거절되며, 되돌린 같은 물리 연결(같은 SID)에서 업무 쓰기·커밋이 정상이다. 막지 못하는 것 — 시퀀스 {@code NEXTVAL}
  *       소모, DDL(암묵 커밋 뒤 실행), 자율 트랜잭션 함수의 쓰기 — 은 {@link SqlGuard} 가 막거나(앞의 둘) 운영 읽기 계정 권한으로 막는다.</li>
- *   <li>그 밖(OTHER, Oracle·PostgreSQL 이 아닌 모든 DB) — 읽기 전용 트랜잭션을 걸 수 없는 갈래로 본다. {@code setReadOnly} 힌트와 늘 롤백뿐이라
+ *   <li>그 밖(OTHER, Oracle 이 아닌 모든 DB — PostgreSQL·SQL Server·SQLite 포함) — 읽기 전용 트랜잭션을 걸 수 없는 갈래로 본다. {@code setReadOnly} 힌트와 늘 롤백뿐이라
  *       읽기 계정 전용 DataSource 가 필요하다(처음 실행 때 한 번 경고 로그). 그래서 {@link WidgetQueryExecutor} 는 이 갈래({@link #enforcesReadOnly} 가 false)에서 전용
  *       DataSource 가 없으면 실행·미리보기·저장 검사를 거절한다(실패 닫힘). 이 클래스 자체는 갈래를 판정해 알려 줄 뿐 거절하지 않는다.</li>
  * </ul>
@@ -51,10 +47,10 @@ public final class WidgetReadOnlyJdbc {
     }
 
     /**
-     * 읽기 전용을 거는 방법이 다른 DB 갈래. 실행 DB 는 Oracle 하나로 정했고(oracle-1007), PostgreSQL 은 운영 후보 문서
-     * (mdm ADR-0004 보완·공지 표 운영 DDL)가 남아 있어 갈래를 둔다. 그 밖은 모두 OTHER(실패 닫힘)다.
+     * 읽기 전용을 거는 방법이 다른 DB 갈래. 실행 DB 는 Oracle 하나로 정했다(oracle-1007, 사용자 확정 3 — MSSQL·PostgreSQL·H2 설정은
+     * 없앤다). 그 밖은 모두 OTHER(전용 DataSource 가 없으면 실패 닫힘)다.
      */
-    public enum Dialect { POSTGRESQL, ORACLE, OTHER }
+    public enum Dialect { ORACLE, OTHER }
 
     private final DataSource dataSource;
     private volatile Dialect dialect;
@@ -65,10 +61,9 @@ public final class WidgetReadOnlyJdbc {
         this.dataSource = dataSource;
     }
 
-    /** 제품 이름(DatabaseMetaData#getDatabaseProductName) → 갈래. Oracle·PostgreSQL 이 아니면 모두 OTHER(실패 닫힘 갈래). */
+    /** 제품 이름(DatabaseMetaData#getDatabaseProductName) → 갈래. Oracle 이 아니면 모두 OTHER(실패 닫힘 갈래). */
     public static Dialect dialectOf(String productName) {
         String p = productName == null ? "" : productName.toLowerCase(Locale.ROOT);
-        if (p.contains("postgresql")) return Dialect.POSTGRESQL;
         if (p.contains("oracle")) return Dialect.ORACLE;
         return Dialect.OTHER;
     }
@@ -92,7 +87,7 @@ public final class WidgetReadOnlyJdbc {
 
     /** 이 갈래에서 읽기 전용 트랜잭션을 걸 수 있는가. false 면 늘 롤백·readOnly 힌트뿐이다. */
     public static boolean enforcesReadOnly(Dialect d) {
-        return d == Dialect.POSTGRESQL || d == Dialect.ORACLE;
+        return d == Dialect.ORACLE;
     }
 
     /**
@@ -153,13 +148,6 @@ public final class WidgetReadOnlyJdbc {
 
     private static void enforce(Connection con, Dialect d) throws SQLException {
         switch (d) {
-            case POSTGRESQL -> {
-                exec(con, "SET TRANSACTION READ ONLY");
-                String state = singleString(con, "SHOW transaction_read_only");
-                if (!"on".equalsIgnoreCase(state == null ? "" : state.trim())) {
-                    throw new SQLException("PostgreSQL 읽기 전용 트랜잭션을 걸지 못했습니다(transaction_read_only=" + state + ")");
-                }
-            }
             case ORACLE -> exec(con, "SET TRANSACTION READ ONLY");
             default -> {
                 // 그 밖(OTHER): 읽기 전용 트랜잭션 없음 — readOnly 힌트 + 늘 롤백(클래스 설명)
@@ -239,12 +227,6 @@ public final class WidgetReadOnlyJdbc {
     private static void exec(Connection con, String sql) throws SQLException {
         try (Statement st = con.createStatement()) {
             st.execute(sql);
-        }
-    }
-
-    private static String singleString(Connection con, String sql) throws SQLException {
-        try (Statement st = con.createStatement(); ResultSet rs = st.executeQuery(sql)) {
-            return rs.next() ? rs.getString(1) : null;
         }
     }
 

@@ -160,10 +160,10 @@ flowchart TB
 | 특수 표기 | `E'...'`, `q'...'`, `$$...$$`, 백틱, `U&"..."` 와 DB 고유 자리표시자(`\:이름`, `@이름`, `$이름`, `$숫자`) 불가. 조건은 `:이름` 으로만 씀 | |
 
 - 실행 한도: 위젯 최대 500행(넘으면 「상위 500행만 표시합니다」), [쿼리 시험] 최대 50행, 실행 시간 10초. 결과 값은 JSON 으로 바뀌며 긴 글(CLOB)은 4000자까지 옵니다.
-- 연결: 읽기 전용으로 열고 항상 롤백합니다. 운영에서는 읽기 권한만 가진 DB 계정의 전용 연결(`dmes.widget.query.datasource.*`)을 서버에 설정하는 것이 원칙입니다. Oracle 은 읽기 전용 트랜잭션이 INSERT, UPDATE, MERGE, `FOR UPDATE` 를 막지만, DB 에 이미 있는 자율 트랜잭션 함수를 부르면 그 함수가 쓴 값은 롤백되지 않고 남습니다. Oracle·PostgreSQL 이 아니어서 읽기 전용 트랜잭션을 걸 수 없는 DB 는 전용 연결이 없으면 시험, 저장, 실행이 모두 거절됩니다.
+- 연결: 읽기 전용으로 열고 항상 롤백합니다. 운영에서는 읽기 권한만 가진 DB 계정의 전용 연결(`dmes.widget.query.datasource.*`)을 서버에 설정하는 것이 원칙입니다. Oracle 은 읽기 전용 트랜잭션이 INSERT, UPDATE, MERGE, `FOR UPDATE` 를 막지만, DB 에 이미 있는 자율 트랜잭션 함수를 부르면 그 함수가 쓴 값은 롤백되지 않고 남습니다. Oracle 이 아니어서 읽기 전용 트랜잭션을 걸 수 없는 DB 는 전용 연결이 없으면 시험, 저장, 실행이 모두 거절됩니다.
 - 결과 보관: 같은 위젯, 시스템 변수 값, 조회 조건 값(`:userId`, `:deptCd` 를 쓰면 사용자별)의 결과를 30초 보관하고 저장하면 지웁니다. 사용자가 [새로 고침] 을 자주 눌러도 DB 부하가 크게 늘지 않지만 새 데이터가 30초쯤 늦게 보일 수 있고, 위젯당 50개까지 보관하며 가득 차면 보관 없이 매번 DB 에서 읽습니다.
 
-> **방언 주의:** 로컬 개발 DB 와 운영 DB 는 Oracle 입니다(PostgreSQL 로 운영하는 곳은 그 DB 문법에 맞게 고칩니다). 이 문서의 예시 SQL 은 Oracle 문법(`TRUNC(SYSDATE)`, `TO_CHAR`, `INSTR`, `FETCH FIRST n ROWS ONLY`, `||`)입니다. Oracle 에서 자주 틀리는 점은 아래와 같습니다.
+> **방언 주의:** 로컬 개발 DB 와 운영 DB 는 Oracle 입니다. 이 문서의 예시 SQL 은 Oracle 문법(`TRUNC(SYSDATE)`, `TO_CHAR`, `INSTR`, `FETCH FIRST n ROWS ONLY`, `||`)입니다. Oracle 에서 자주 틀리는 점은 아래와 같습니다.
 >
 > - 일시 열(`STARTED_AT` 등)은 TIMESTAMP 이므로 `SUBSTR` 로 자르지 말고 `TO_CHAR(STARTED_AT, 'YYYY-MM-DD HH24:MI')` 로 글자를 만듭니다. 오늘 0시는 `TRUNC(SYSDATE)`, 6일 전 0시는 `TRUNC(SYSDATE) - 6` 입니다(DB 시간대는 서울 시간).
 > - 행 수 제한은 `LIMIT n` 이 아니라 `FETCH FIRST n ROWS ONLY` 입니다.
