@@ -193,6 +193,8 @@ public final class SqlGuard {
      * Oracle DB 링크 {@code 이름@링크}(공백을 끼워도 같다). 원격 DB 에서 도는 질의·함수는 이 연결의 읽기 전용 트랜잭션이 막지 못한다.
      * 앞이 이름 글자가 아닌 {@code @이름} 은 {@link #DB_PLACEHOLDER} 가, 따옴표 식별자 뒤의 {@code "T"@링크} 는 가린 사본에서 따옴표가 공백이
      * 되어 역시 {@link #DB_PLACEHOLDER} 가 막는다. 뒤가 이름 글자가 아닌 {@code @}(PostgreSQL {@code @>}·{@code @@})는 링크가 아니다.
+     * 링크 이름을 따옴표로 감싼 {@code T@"LINK"}·{@code "T"@"LINK"} 는 가린 사본에서 {@code @} 양쪽이 공백이 되어 보이지 않으므로,
+     * 6단계처럼 식별자 글자를 드러낸 사본에서도 한 번 더 본다({@link #rejectRevealedOracle}).
      */
     private static final Pattern DB_LINK = Pattern.compile(WORD_CHAR + "[\\s\\p{Z}\\p{Cc}\\p{Cf}]*@[\\s\\p{Z}\\p{Cc}\\p{Cf}]*" + WORD_CHAR);
 
@@ -204,6 +206,13 @@ public final class SqlGuard {
     private static final Pattern INLINE_PLSQL = Pattern.compile(
             "(?<!" + WORD_CHAR + ")WITH\\s+(FUNCTION|PROCEDURE)\\s+(?!AS(?!" + WORD_CHAR + "))" + WORD_CHAR,
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+
+    /**
+     * 따옴표로 감싼 시퀀스 의사열 {@code seq."NEXTVAL"} — 가린 사본에서는 공백이라 4단계 금지 낱말을 지난다. 드러낸 사본에서 점 바로 뒤의
+     * NEXTVAL 만 본다(따옴표로 감싼 같은 이름의 열 {@code "NEXTVAL"} 을 점 없이 쓰는 것은 막지 않는다).
+     */
+    private static final Pattern QUALIFIED_NEXTVAL = Pattern.compile(
+            "\\.[\\s\\p{Z}\\p{Cc}\\p{Cf}]*NEXTVAL(?!" + WORD_CHAR + ")", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     /** PostgreSQL 달러 따옴표 시작($$ 또는 $tag$). */
     private static final Pattern DOLLAR_QUOTE = Pattern.compile("\\$(?:[A-Za-z_][A-Za-z0-9_]*)?\\$");
@@ -264,6 +273,9 @@ public final class SqlGuard {
         // 6. 함수 거절 목록 — 따옴표·대괄호 식별자 안 글자도 드러낸 사본(대괄호 두 해석 모두)으로 본다.
         rejectForbiddenFunction(mask(sql, false, true));
         rejectForbiddenFunction(mask(sql, true, true));
+        // 6-2. 따옴표 식별자로 가린 사본을 지나는 Oracle 경로(DB 링크 T@"LINK", seq."NEXTVAL")도 드러낸 사본으로 본다.
+        rejectRevealedOracle(mask(sql, false, true));
+        rejectRevealedOracle(mask(sql, true, true));
 
         // 가린 사본과 원문은 글자 위치가 같다 — 원문에서 그 자리의 ; 만 지운다.
         int semicolon = asExpression.semicolon();
@@ -336,6 +348,12 @@ public final class SqlGuard {
      */
     static String forbiddenWord(String word) {
         return MSG_FORBIDDEN + word + " — 열·표 이름이면 큰따옴표로 감싸세요(예: \"" + word + "\", 따옴표 안은 대소문자를 구분합니다)";
+    }
+
+    /** 6-2단계 — 식별자 글자를 드러낸 사본에서 DB 링크와 점으로 한정한 NEXTVAL 을 찾는다(문자열 리터럴·주석은 여전히 가려져 있다). */
+    private static void rejectRevealedOracle(String revealed) {
+        if (DB_LINK.matcher(revealed).find()) throw invalid(MSG_DB_LINK);
+        if (QUALIFIED_NEXTVAL.matcher(revealed).find()) throw invalid(MSG_FORBIDDEN + "NEXTVAL");
     }
 
     /** 6단계 — 식별자 글자를 드러낸 사본에서 거절 목록 함수를 부르는 곳(과 위험 저장 프로시저 이름)을 찾는다. */

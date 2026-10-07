@@ -163,7 +163,13 @@ class SqlGuardTest {
                 arguments("SELECT * FROM TB_X @ remote.link.com", SqlGuard.MSG_DB_LINK),
                 arguments("SELECT a.c FROM MCMAPUSER.TB_X@LNK a", SqlGuard.MSG_DB_LINK),
                 arguments("SELECT BFILENAME@remote_link('D', 'f') FROM dual", SqlGuard.MSG_DB_LINK),
-                arguments("SELECT * FROM \"TB_X\"@remote_link", SqlGuard.MSG_DB_PLACEHOLDER));
+                arguments("SELECT * FROM \"TB_X\"@remote_link", SqlGuard.MSG_DB_PLACEHOLDER),
+                // 링크 이름을 따옴표로 감싸면 가린 사본에서 @ 양쪽이 공백이 된다 — 드러낸 사본에서 다시 본다(보안 리뷰 10-07)
+                arguments("SELECT * FROM \"T\"@\"LINK\"", SqlGuard.MSG_DB_LINK),
+                arguments("SELECT * FROM T@\"LINK\"", SqlGuard.MSG_DB_LINK),
+                arguments("SELECT pkg.f@\"LNK\"(1) FROM dual", SqlGuard.MSG_DB_LINK),
+                arguments("SELECT seq.\"NEXTVAL\" FROM dual", SqlGuard.MSG_FORBIDDEN + "NEXTVAL"),
+                arguments("SELECT \"SEQ\" . \"nextval\" FROM dual", SqlGuard.MSG_FORBIDDEN + "NEXTVAL"));
     }
 
     @ParameterizedTest(name = "[{index}] {0}")
@@ -360,6 +366,7 @@ class SqlGuardTest {
                 arguments("WITH function AS (SELECT 1 a FROM dual) SELECT a FROM function"),
                 arguments("WITH procedure (a) AS (SELECT 1 FROM dual) SELECT a FROM procedure"),
                 arguments("SELECT ctx_cd, xdb_yn, mdsys_cnt, nextval_dt FROM t"),
+                arguments("SELECT \"NEXTVAL\" AS n, t.\"NEXTVAL_DT\" FROM t"),
                 arguments("SELECT 'a@b.com', 'x @ y' FROM dual"),
                 arguments("SELECT 1 FROM t WHERE tags @> ARRAY[1] AND ARRAY[2] <@ tags AND tsv @@ q"),
                 // 이름 일부만 같은 식별자·리터럴 안 이름·비트 연산 & 뒤 따옴표 식별자는 통과
