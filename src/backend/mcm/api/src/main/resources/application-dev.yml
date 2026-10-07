@@ -1,7 +1,7 @@
 # ── dev: 개발계 WildFly (JNDI) — 환경 차이값만 ──
 # 본 파일은 WildFly WAR 배포 전용 — datasource 는 wildfly 프로파일(application-wildfly.yml, group 자동 활성)이 정의.
 # 개발계 서버가 여럿이어도 이 프로파일 하나를 공유한다 — 서버별 물리 DB 차이는 각 WildFly standalone.xml 의 JNDI 매핑이 흡수.
-# bootRun/IDE 직결은 local(SQLite) 또는 local-db(외부 RDB) 를 쓴다.
+# bootRun/IDE 직결은 local(로컬 Oracle PDB) 을 쓴다. DB 는 Oracle(OracleDialect·JNDI 이름은 wildfly 프로파일), 스키마는 DBA 가 적용한다.
 # 기동: WildFly JAVA_OPTS 에 -Dspring.profiles.active=dev
 spring:
   jpa:

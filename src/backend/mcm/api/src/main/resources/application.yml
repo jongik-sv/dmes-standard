@@ -4,11 +4,10 @@ spring:
 
   # ── 프로파일 체계 ──
   #   local    : 로컬 Oracle PDB 직결 (bootRun/IDE) — 프로파일 미지정 기동은 McmApplication 의 spring.profiles.default=local 폴백
-  #   local-db : 외부 RDB(SQL Server) 직결 (bootRun/IDE) — 접속 정보는 전부 환경변수 주입
   #   dev      : 개발계 WildFly — JNDI (아래 group 으로 wildfly 자동 활성)
   #   prod     : 운영계 WildFly — JNDI
-  # local 계열(직결)과 dev/prod(JNDI)는 상호배타 — 반드시 하나만 활성.
-  # 사이트가 여럿이면 local-db 를 복제해 사이트별 프로파일(local-{사이트})을 만든다.
+  # local(직결)과 dev/prod(JNDI)는 상호배타 — 반드시 하나만 활성.
+  # 옛 local-db(SQL Server 직결)는 oracle-1007(2026-10-07)에 archive 했다(src/backend/mcm/archive/api/src/main/resources/).
   profiles:
     group:
       dev: [wildfly]

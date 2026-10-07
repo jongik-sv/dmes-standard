@@ -18,6 +18,12 @@ cactus:
 dmes:
   init:
     enabled: false
+  # ── 쿼리 위젯은 전용 읽기 DataSource 에서만 실행 (oracle-1007, mcm-core c3 정책 B) ──
+  # dmes.widget.query.datasource(jndi-name·url)가 없으면 위젯 SQL 실행을 거절한다 — 앱 기본 계정으로 도는 일을 막는다.
+  # wildfly 프로파일에 두지 않은 까닭: dev 도 그룹으로 wildfly 를 켜고, 그룹 멤버가 dev 를 덮으므로 dev 까지 켜진다.
+  widget:
+    query:
+      require-dedicated: ${WIDGET_QUERY_REQUIRE_DEDICATED:true}   # 운영에서 급히 끌 때 env 로 false
 
 logging:
   level:

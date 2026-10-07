@@ -4,40 +4,52 @@
 # 원칙:
 #  - url/username/password/driver-class-name 전부 없음 — 물리 접속·풀은 각 WildFly standalone.xml 소유.
 #  - JNDI 논리명은 모든 WildFly(개발계/운영계) 공통. 같은 이름이 서버마다 다른 물리 DB 를 가리킨다.
-#  - 이름 규약: java:/jdbc/mssql/{모듈명}/{DS명} (§2-1). WildFly 는 java:/ 또는 java:jboss/ 접두어 필수(WFLYJCA0117).
+#  - 이름 규약: java:/jdbc/{모듈명}/{DS명} — DB 종류를 이름에 넣지 않는다(oracle-1007, 2026-10-07: 옛 java:/jdbc/mssql/mcm/* 에서 바꿈).
+#    WildFly 는 java:/ 또는 java:jboss/ 접두어 필수(WFLYJCA0117).
 #  - ${PROP:기본값} 형태 — 기본값만으로 동작하며, 특정 서버가 다른 이름을 쓸 때만
 #    JNDI_DS_BIZ/JNDI_DS_CMN/JNDI_DS_IF/JNDI_DS_CARAVAN 를 -D 또는 환경변수로 override.
+#  - DB 는 Oracle 이다(docs/oracle-1007/README.md). 스키마는 DBA 가 mcm-core 의 같은 V 파일로 적용한다 — 앱은 DDL·Flyway 를 돌리지 않는다.
 spring:
   datasource:
-    jndi-name: "${JNDI_DS_BIZ:java:/jdbc/mssql/mcm/dsBiz}"           # biz (MCMAPUSER)
+    jndi-name: "${JNDI_DS_BIZ:java:/jdbc/mcm/dsBiz}"                 # biz (MCMAPUSER)
   jpa:
-    database-platform: org.hibernate.dialect.SQLServerDialect
+    database-platform: org.hibernate.dialect.OracleDialect
     hibernate:
       ddl-auto: none                                                 # 개발계/운영계 모두 스키마 사전 관리
+  flyway:
+    enabled: false                                                   # Spring Boot 자동 구성도 끈 채로 둔다(application.yml 과 같음)
 
 cactus:
   datasource:
     extras:
       cmn:
-        jndi-name: "${JNDI_DS_CMN:java:/jdbc/mssql/mcm/dsCmn}"       # 공통 (MCM 은 MCMAPUSER — biz 와 동일 물리)
+        jndi-name: "${JNDI_DS_CMN:java:/jdbc/mcm/dsCmn}"             # 공통 (MCM 은 MCMAPUSER — biz 와 동일 물리)
       if:
-        jndi-name: "${JNDI_DS_IF:java:/jdbc/mssql/mcm/dsIF}"         # 인터페이스 송수신 (EAIUSER)
+        jndi-name: "${JNDI_DS_IF:java:/jdbc/mcm/dsIF}"               # 인터페이스 송수신 (EAIUSER)
       caravan:
-        jndi-name: "${JNDI_DS_CARAVAN:java:/jdbc/mssql/mcm/dsCaravan}"  # Kafka 메타 (CARAVANUSER)
+        jndi-name: "${JNDI_DS_CARAVAN:java:/jdbc/mcm/dsCaravan}"     # Kafka 메타 (CARAVANUSER)
   jpa:
     extras:
       cmn:
         hibernate:
-          dialect: org.hibernate.dialect.SQLServerDialect
+          dialect: org.hibernate.dialect.OracleDialect
           ddl-auto: none
       if:
         hibernate:
-          dialect: org.hibernate.dialect.SQLServerDialect
+          dialect: org.hibernate.dialect.OracleDialect
           ddl-auto: none
+          properties:                                                # local 과 같은 매핑 — Instant·boolean 은 공통 규약(schema-owners.md §3.1)
+            hibernate.physical_naming_strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+            hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
+            hibernate.type.preferred_boolean_jdbc_type: TINYINT
       caravan:
         hibernate:
-          dialect: org.hibernate.dialect.SQLServerDialect
+          dialect: org.hibernate.dialect.OracleDialect
           ddl-auto: none
+          properties:                                                # local 과 같은 매핑 — Instant·boolean 은 공통 규약(schema-owners.md §3.1)
+            hibernate.physical_naming_strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+            hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
+            hibernate.type.preferred_boolean_jdbc_type: TINYINT
 
   # ── 포털알림 발행 클라이언트 (설계 §9 — pilotCaravanSend sendNotify 파일럿 루프백) ──
   # WildFly 는 컨텍스트 루트 /mcm 이 붙는다 — 자기 자신 루프백 기본값(localhost:8080/mcm).
@@ -45,3 +57,11 @@ cactus:
   notify:
     publish-url: "${NOTIFY_PUBLISH_URL:http://localhost:8080/mcm/notify/publish}"
     source: "${NOTIFY_SOURCE:mcm}"
+
+# dmes.widget.query.require-dedicated(전용 읽기 DataSource 강제)는 여기 두지 않고 prod 에만 켠다 — 여기 두면 dev 도 켜진다.
+
+# ── 스키마별 Flyway(McmFlywayConfig) 끔 — 운영 계정에 마이그레이션이 도는 사고를 막는다 ──
+# 기본값도 false 지만 명시한다. 스키마는 DBA 가 mcm-core db/migration/oracle/<스키마>/ 의 V 파일을 적용한다.
+dmes:
+  flyway:
+    enabled: false

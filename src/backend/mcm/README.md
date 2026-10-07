@@ -18,18 +18,19 @@ OASIS BPMN 서비스로 노출한다. Spring Boot **`lib` + `api` 2 서브프로
 
 | 클래스 | 역할 |
 | --- | --- |
-| `McmApplication` | 컴포넌트/엔티티/리포지토리 스캔 범위, 프로파일 폴백(local), local SQLite 절대경로 override |
+| `McmApplication` | 컴포넌트/엔티티/리포지토리 스캔 범위, 프로파일 폴백(local) |
 | `config/SecurityConfig` | 필터 사슬 txId → requestId → clientKey → jwt → revokedToken → endpointPerm. `McmSecurityDefaults` 로 기본 URL 매처 적용 |
 | `config/JpaConfig` | primary EMF 명시 빌드 (cactus 의 secondary EMF 와 책임 분리) |
 | `config/RevokedTokenFilter` | 로그아웃/강제 로그아웃된 JWT `jti` 블랙리스트 검사 |
-| `init/DataInitializer` | **멱등** 스키마 artifacts + RBAC/메뉴/부서 시드. `dmes.init.enabled=false` 로 전체 skip |
+| `init/DataInitializer` | **멱등** RBAC/메뉴/부서 시드. `dmes.init.enabled=false` 로 전체 skip |
+| `config/McmFlywayConfig` | 스키마별 Flyway(MCMAPUSER·MCM_SOURCE·MCM_BACKUP·MCAAPUSER, 각 주인 접속). `dmes.flyway.enabled`(local 만 true) |
 | `listener/RoleChangedEventListener` | 역할 변경 시 BFF 권한 캐시 무효화 통지 |
 
 ### DataInitializer 가 만드는 것
 
-부팅 때마다 **존재하면 skip** 하는 멱등 적재다. 새 프로젝트는 빈 DB 로 시작해도 관리자 계정과 메뉴가 선다.
+부팅 때마다 **존재하면 skip** 하는 멱등 적재다. 표는 만들지 않는다 — 스키마는 mcm-core `db/migration/oracle/<스키마>/` 의 V 파일이 정본이고,
+local 은 `McmFlywayConfig` 가, WildFly(dev/prod)는 DBA 가 적용한다. Flyway 로 표가 선 빈 DB 에서도 관리자 계정과 메뉴가 선다.
 
-- SEC_* 테이블 DDL (MSSQL 계열 한정 — SQLite 는 `ddl-auto=update` 가 담당). 이 MSSQL 경로는 dmes-ksm 이관 시절 것이고, 운영 대상인 Oracle·PostgreSQL 용 DDL 은 아직 없다.
 - RBAC 시드: `admin` 사용자 / `ROLE_GROUP_SYSADMIN` / `SYSADMIN` 역할 / `PERM_ALL`
 - 메뉴 트리: 공통관리(mcm) 루트 + `cma`(마스터관리 원장) · `csa`(시스템관리) · `cme`(마스터관리 가동) ·
   `cmb`(업무기준관리 원장) · `cmz`(팝업 전용, 사이드바 숨김) · `lsh`(공지관리, 2026-10-07 mls 에서 이전), 그리고 로그 분석(analog) 루트 + `anl` 그룹
@@ -61,11 +62,11 @@ BPMN 을 추가·수정한 뒤에는 커밋 전에 `oasis-contract-check` 스킬
 
 | 프로파일 | 용도 |
 | --- | --- |
-| `local` (기본) | SQLite 직결. 프로파일 미지정 기동 시 폴백 |
-| `local-db` | 외부 RDB(SQL Server) 직결(이관 시절 프로파일이며 운영 대상인 Oracle·PostgreSQL 용 프로파일은 아직 없다). 접속 정보는 **전부 환경변수** 주입 — 기본값 없음 |
+| `local` (기본) | 로컬 Oracle PDB 직결(기본 `L_ORA_MCM_APP`, `dmes.ora.*` 또는 env `DMES_ORA_*` 로 바꿈). 프로파일 미지정 기동 시 폴백. 스키마별 Flyway 켬 |
 | `dev` / `prod` | WildFly WAR 배포. datasource 는 `wildfly` 프로파일의 JNDI 논리명이 담당 |
 
-`wildfly` 프로파일(`application-wildfly.yml`)도 지금은 SQL Server 방언(`SQLServerDialect`)과 `java:/jdbc/mssql/mcm/...` JNDI 이름을 쓴다. 이관 시절 설정이므로 운영 대상인 Oracle·PostgreSQL 로 바꿔야 한다.
+`wildfly` 프로파일(`application-wildfly.yml`)은 `OracleDialect` 와 중립 JNDI 이름 `java:/jdbc/mcm/{dsBiz,dsCmn,dsIF,dsCaravan}` 을 쓴다
+(`JNDI_DS_BIZ` 등 env·-D 로 바꿈). Flyway 는 끈다 — DBA 가 같은 V 파일을 적용한다. 옛 `local-db`(SQL Server 직결)는 `archive/` 로 옮겼다.
 
 `dev`/`prod` 는 `dmes.init.enabled=false` 로 `DataInitializer` 를 끈다 — 운영 계정에 DDL/시드가 도는 사고를 막기
 위해서다. 개발계에 시드가 필요하면 `-Ddmes.init.enabled=true` 로 한 번 띄우고 원복한다.
@@ -76,8 +77,7 @@ BPMN 을 추가·수정한 뒤에는 커밋 전에 `oasis-contract-check` 스킬
 ../gradlew :api:bootRun
 ```
 
-`bootRun` 의 작업 디렉터리는 모듈 루트로 고정돼 있고, `application.yml` 의 SQLite 경로
-`../data/mcm.db` 는 `src/backend/data/` 를 가리킨다. 최초 실행 전에 해당 디렉터리가 있어야 한다.
+로컬 Oracle 컨테이너와 PDB 준비는 `scripts/oracle/README.md` 를 따른다. 첫 기동 때 `McmFlywayConfig` 가 네 스키마를 마이그레이션한다.
 
 기동 후 초기 계정은 `admin` 이다. **운영 전에 반드시 비밀번호와 `cactus.jwt.secret` 을 바꾼다.**
 `application.yml` 의 비밀번호 정책(만료·이력·길이·복잡도)은 템플릿 기본값이 전부 꺼져 있으니 함께 켠다.
