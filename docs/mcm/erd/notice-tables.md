@@ -54,7 +54,7 @@
 
 개발계·운영계는 `ddl-auto` 가 `none` 이므로 앱 배포 전에 아래 DDL 을 미리 실행한다. 이 문서는 DDL 을 보관만 하고 자동 실행하지 않는다.
 
-- Oracle 문자열 칸은 `VARCHAR2(n CHAR)` 로 만든다. 서비스가 길이를 글자 수로 검사하므로 BYTE 단위면 한글 제목·본문이 ORA-12899 로 500 오류가 난다.
+- Oracle 문자열 칸은 `VARCHAR2(n CHAR)` 로 만든다. 서비스가 길이를 글자 수로 검사하므로 BYTE 단위면 한글 제목 등 `VARCHAR2` 칸이 ORA-12899 로 500 오류가 난다(`CONTENT` 는 CLOB 이라 해당 없음).
 - Oracle 은 `DEFAULT` 를 `NOT NULL` 앞에 둔다.
 - 스키마 이름은 환경에 맞게 바꾼다(아래는 mcm 관례인 `MCMAPUSER`).
 
