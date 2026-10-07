@@ -41,6 +41,13 @@ hub 의 `if` 데이터소스 접속 사용자는 EAIUSER 이고, IF_* 표는 IFU
 사용자 퇴근으로 조정 세션이 멈추라고 지시했다. 진행 중 편집 없음(전부 커밋), 백그라운드·Workflow·Oracle 접속 없음, 임시 사용자 `L_PLT_*` 는 모두 삭제했다. 다음 지시까지 새 작업을 시작하지 않는다.
 재개 때 확인할 것: ora-base 스파이크에서 mdm 이 mcm-core 를 포함해 mcm-core 엔티티가 mdm EMF 에 들어온다고 확인됐다. mls 도 같은 구조인지(mls EMF 에 mcm-core 엔티티가 들어오는지, `metadata_builder_contributor` 와 `TB_MLS_*`·`TB_MCM_*` 매핑) 확인해 이 메모에 적는다. 이어서 ora-base 머지① 알림을 받으면 p3 실제 전환부터 한다.
 
+## 재개 확인 결과 (2026-10-07)
+
+- mls 는 mcm-core 엔티티를 EMF 에 넣지 않는다. `lib/build.gradle` 이 `api libs.mcm.core` 로 의존은 하지만, `MlsApplication` 이 `@EntityScan("com.dongkuk.dmes.mls")`·`@EnableJpaRepositories("com.dongkuk.dmes.mls")`·`@SpringBootApplication`(기본 스캔) 모두 `com.dongkuk.dmes.mls` 로 한정되어 있고, `McmCoreAutoConfiguration` 은 엔티티 스캔을 하지 않는다(설정·스케줄링만). mls EMF 의 엔티티는 `SampleInventoryItem` 뿐이다. mdm 과 달리 mls 는 mcm-core 의 52개 엔티티가 EMF 에 들어오지 않으므로 MLSAPUSER 에 mcm-core 표가 필요 없다.
+- 단, mls `application.yml` 의 `metadata_builder_contributor: com.dongkuk.dmes.mcm.common.persistence.SqliteTemporalConverterContributor` 가 mcm-core 의 SQLite 전용 클래스를 가리킨다. mcm-core 에서 이 클래스를 걷어내면(③) mls 기동이 깨지므로 p3 yml 전환에서 이 줄을 반드시 제거한다.
+- 시각 결정(조정, 2026-10-07 변경): UTC 철회, KST 통일. `hibernate.jdbc.time_zone` 은 넣지 않고(JVM Asia/Seoul) `hibernate.type.preferred_instant_jdbc_type=TIMESTAMP` 만 yml 에 둔다. Oracle 컨테이너는 OS 시간대 Asia/Seoul 로 조정자가 재생성한다(재생성 알림 뒤에 Oracle 단계 재개).
+- p4 추가: cactus `DmomMapper.xml:65,70` 의 `NEXT VALUE FOR MCMAPUSER.SEQ_MCM_MOM_TC_ERROR` 를 `MCMAPUSER.SEQ_MCM_MOM_TC_ERROR.NEXTVAL` 로 바꾼다.
+
 ## 남은 순서
 
 1. 초안 Oracle 검증(FREEPDB1 `L_PLT_*` 사용자) → 리뷰 → 커밋
