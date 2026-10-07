@@ -18,6 +18,7 @@ spring:
       hibernate:
         # 감사 칸(Instant)은 TIMESTAMP(6) 로 저장한다. 시각은 KST 통일이라 hibernate.jdbc.time_zone 은 넣지 않는다(JVM Asia/Seoul).
         type.preferred_instant_jdbc_type: TIMESTAMP
+        type.preferred_boolean_jdbc_type: TINYINT   # boolean 칸은 NUMBER(1,0)+CHECK(0,1) — BIT 는 Oracle 23+ 에서 validate 가 실패한다
   flyway:
     enabled: true
     # ⚠️ locations 는 반드시 자기 아티팩트 폴더로 좁힌다.

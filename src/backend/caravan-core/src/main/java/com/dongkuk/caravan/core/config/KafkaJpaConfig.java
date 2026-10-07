@@ -82,6 +82,8 @@ public class KafkaJpaConfig {
         // 감사 칸(Instant: C_AT·U_AT)은 TIMESTAMP(6) 로 저장한다. 시각은 KST 통일이라 hibernate.jdbc.time_zone 은 넣지 않는다(oracle-1007).
         // 이 EMF 는 직접 만들어 spring.jpa.properties 가 적용되지 않으므로 여기서 지정한다.
         properties.put("hibernate.type.preferred_instant_jdbc_type", "TIMESTAMP");
+        // boolean 칸은 NUMBER(1,0)+CHECK(0,1) 로 두고 TINYINT 로 매핑한다(BIT 는 Oracle 23+ 에서 validate 가 실패한다). 지금 caravan 엔티티에는 boolean 칸이 없다.
+        properties.put("hibernate.type.preferred_boolean_jdbc_type", "TINYINT");
         // 추가 안전망: 명시적 dialect (caravan.hibernate.dialect 또는 spring.jpa.database-platform).
         // 비어있으면 dialect_resolvers 또는 standard 자동 감지에 위임.
         if (dialect != null && !dialect.isBlank()) {
