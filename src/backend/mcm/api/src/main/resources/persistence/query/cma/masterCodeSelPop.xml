@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  마스터코드 선택 팝업 — 조회 라우터 시범 매퍼 (설계 docs/superpowers/specs/2026-10-07-query-route-mybatis-design.md §10).
+  queryId = masterCodeSelPop.search → POST /query/masterCodeSelPop.search (persistence/query/** 아래라 라우터 노출 대상, §4 S1).
+
+  MasterCodeSelPopService#search(OASIS services/cma/masterCodeSelPop.bpmn) 와 같은 행을 돌려준다(동등성 시험
+  MasterCodeSelPopQueryRouteParityTest). As-Is 매퍼(GetCodeDetailList)와 다른 점:
+    - pDiv 비교를 null 에 안전하게('CODE_VAL'.equals(pDiv)) — As-Is pDiv.equals(...) 는 pDiv 가 없으면 OGNL 오류.
+    - 정렬은 서비스와 같은 ORDER BY CODE_VAL 하나다 — CODE_VAL 이 같은 행끼리의 순서는 두 경로 모두 보장하지 않는다.
+    - LIKE 패턴은 bind 로 만든다 — 방언별 문자열 연결을 SQL 에 두지 않고, pValue 가 null 이면 서비스처럼 빈 문자열로 본다.
+    - 열 별칭은 큰따옴표 — 따옴표 없는 별칭은 Oracle 이 대문자, PostgreSQL 이 소문자로 바꿔 FE 키가 어긋난다(§5 D2).
+  MCMAPUSER. 접두는 로컬 SQLite 에서 McmSqliteMybatisInterceptor 가 지운다(§5 D6).
+-->
+<mapper namespace="masterCodeSelPop">
+
+    <select id="search" resultType="map">
+        SELECT CODE_VAL      AS "CODE_VAL",
+               CODE_VAL_MEAN AS "CODE_VAL_MEAN",
+               CATEGORY_ID   AS "CATEGORY_ID",
+               CATEGORY_NM   AS "CATEGORY_NM"
+          FROM MCMAPUSER.VI_MCM_CODE_ACCESS
+        <where>
+            <!-- 비교는 문자열 메서드로 — OGNL == 는 숫자 입력을 숫자로 바꿔 비교해 0 이 '' 와 같아지거나 오류가 난다 -->
+            <if test="pCodeId != null and pCodeId.toString().length() > 0">
+                AND UPPER(CODE_ID) = UPPER(#{pCodeId})
+            </if>
+            <if test="'CODE_VAL'.equals(pDiv)">
+                <bind name="pValueLike" value="'%' + (pValue == null ? '' : pValue) + '%'"/>
+                AND UPPER(CODE_VAL) LIKE UPPER(#{pValueLike})
+            </if>
+            <if test="'CODE_VAL_MEAN'.equals(pDiv)">
+                <bind name="pValueLike" value="'%' + (pValue == null ? '' : pValue) + '%'"/>
+                AND UPPER(CODE_VAL_MEAN) LIKE UPPER(#{pValueLike})
+            </if>
+        </where>
+         ORDER BY CODE_VAL
+    </select>
+
+</mapper>
