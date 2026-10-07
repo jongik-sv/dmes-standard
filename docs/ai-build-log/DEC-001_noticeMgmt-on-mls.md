@@ -145,3 +145,18 @@ INSERT 검증이 `HTTP 500 / S999` 로 실패했는데 원인은 코드가 아�
 `meta.code` 가 `BusinessException` 에 실어 보낸 `ErrorCode`(E001/E010)가 아니라 **`S001` 로 고정** 되어
 내려온다. 메시지는 그대로 전달되므로 화면 동작에는 영향이 없으나, FE 가 코드로 오류를 분기하려면
 `OasisServiceExecutor` 의 BusinessException 분기를 봐야 한다. 본 화면은 메시지만 쓰므로 손대지 않았다.
+
+## 재검토 → 이전 (2026-10-07)
+
+- **계기**: 10-02 부터 포털 홈 공지 위젯·긴급 공지 띠가 `noticeBoard` 를 부른다. 10-07 에 MLS(8092) 없이 백엔드가 다시 떠서
+  홈에 「공지사항을 불러오지 못했습니다」가 떴다. 공지가 포털 공통 기능이 되어 재검토 조건(「실제 업무로 승격」)을 채웠다.
+- **사용자 결정**: 「옮기자. 임시 조치(.run.env 에 --mls)는 필요 없다.」
+- **옮긴 곳**: Java 는 mcm-core `com.dongkuk.dmes.mcm.notice.*`(위젯·즐겨찾기·조회 기본값 선례), BPMN 은 mcm/api `services/lsh/`,
+  화면은 m-mcm `page-components/lsh/noticeMgmt`. 테이블은 `TB_MCM_NOTICE`·`TB_MCM_NOTICE_TARGET`(mcm.db, ddl-auto).
+- **유지한 것**: 화면 ID `lsh/noticeMgmt`·메뉴 폴더 `lsh`(componentPath·즐겨찾기 보존). 위 결정 1 의 「screenId 그대로, moduleGroup 변경」
+  예상과 달리 그룹도 유지했다 — mcm 아래 `lsh` 는 식별자 사전 A.2.1 의 `cm?` 접두 규칙 예외다(사전 A.2.3 에 기록).
+  mls Flyway V2~V4 와 mls.db 의 `TB_MLS_*` 행도 그대로 둔다(이력이 빠지면 mls 기동 validate 실패, 행 삭제 금지).
+- **바뀐 것**: pageId `mls:lsh/noticeMgmt` → `mcm:lsh/noticeMgmt`, 홈 호출 `/api/mls/...` → `/api/mcm/oasis/noticeBoard/search`,
+  OBJECT `SYSTEM_CODE` mls → mcm(시드 + 기존 DB 멱등 보정 — 권한키 모듈이 SYSTEM_CODE 라 보정 없으면 403).
+- **데이터**: `scripts/data/notice-mls-to-mcm.mjs` 로 mls.db → mcm.db 1회 복사(dry-run 기본, INSERT OR IGNORE, 원본 삭제 없음).
+- 정본 설계: [`docs/superpowers/specs/2026-10-07-notice-to-mcm-design.md`](../superpowers/specs/2026-10-07-notice-to-mcm-design.md)
