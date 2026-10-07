@@ -80,11 +80,11 @@ Oracle 단일화(oracle-1007, 2026-10-07)부터 mcm 스키마의 정본은 `src/
   `oracle/<스키마>/` 한 단 아래 폴더를 보지 못해 늘 V1 을 권한다(2026-10-07 확인).
 
 옛 `db/migration/sqlite/`(V1~V18, 실행되지 않던 이력)·`db/migration/mcm-core/`(샘플 플레이스홀더)·`db/seed/oasis/`
-(옛 `TB_SEC_OBJ` 대상 시드)는 `archive/` 로 옮겼다. 빌드·시험 대상이 아니다.
+(옛 `TB_SEC_OBJ` 대상 시드)와 SQLite 치환기 `McmSqliteMybatisInterceptor`(`archive/main/audit/`)는 `archive/` 로 옮겼다. 빌드·시험 대상이 아니다.
 
 화면 사용 통계 테이블(`TB_SEC_SCREEN_USAGE_LOG`·`TB_SEC_SCREEN_USAGE_DAY`)은 감사 계열처럼 schema 접두가 없다.
-Oracle DDL 은 `oracle/mcmapuser/V1__baseline.sql` 에 있다. MSSQL 판 `screenusage/schema/ScreenUsageMssqlDdl` 은
-dmes-ksm 이관 시절 것이며 Oracle 전환(c2 이후)에서 정리한다.
+Oracle DDL 은 `oracle/mcmapuser/V1__baseline.sql` 에 있다. dmes-ksm 이관 시절의 MSSQL 판 `ScreenUsageMssqlDdl` 은
+`archive/main/screenusage/` 로 옮겼다(oracle-1007 ③b).
 
 ## 새 도메인을 추가할 때
 
