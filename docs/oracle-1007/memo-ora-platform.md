@@ -23,6 +23,8 @@
 - 수정(57ede574d, **재시험 전**): `OracleTestDatabase.create`·`dropTables` 가 먼저 열린 연결을 롤백해 닫고, DDL 에 `ddl_lock_timeout=10`, `OracleConnectionCleaner`(TestExecutionListener)가 시험 클래스가 끝날 때마다 연결 정리.
 - 남은 확인: 3차 실행(`cd src/backend/cactus-core && DMES_ORA_TEST=clone sh ../gradlew :oasis-core:test --offline --console=plain > 파일`, 출력은 파일로 받고 `grep ' FAILED$'` 로만 읽는다). 시험은 `dmes.ora.url` 이 필요해 cactus-core 합성 빌드에서만 돈다(oasis 단독 빌드는 시작 불가, 의도).
 - `PreStructuredMessageSendTaskServiceTest` 143행 실패는 `sendTaskWithSqlScript.bpmn` 의 SQL 별칭(`firstName as name`) 결과 칸 이름 대소문자나 `initData.sql` 변환(`TO_TIMESTAMP`)과 관련 가능성. 3차에서도 실패하면 결과 맵 키를 출력해 확인한다.
+- 3차(10-07 오후, 중단): 143행 실패가 같은 모습으로 남았고 이후 잠금 대기로 멈춰 조정자 요청으로 TERM(시험 JVM 이 34분간 CPU 0). 수정(1502badba, **재시험 전·컴파일 전**): `TransactionalSubServiceTest`·`ParallelTransactionTest` 의 Hikari 풀(기본 최대 10·유휴 10)을 최대 3·유휴 0 으로 줄이고 `@AfterEach` 에서 닫음, `OracleTestDatabase` 연결 8개 상한과 `oracle.jdbc.ReadTimeout` 60초, `junit.jupiter.execution.timeout.default=120s`, `spring.test.context.cache.maxSize=2`, `maxParallelForks=1`. 143행은 `current_timestamp`(TIMESTAMP WITH TIME ZONE)가 `ColumnConverter` 의 `Timestamp` 판정을 빠져나가는 것으로 보고 `cast(... as timestamp)` 로 고침(미검증). 접속 25개가 스래싱 원인이라는 진단은 조정자가 확정 아님으로 정정했다. **조정자의 「Oracle 재개」 전에는 Oracle 시험을 돌리지 않는다.** 시험 PDB `T_ORA_PLATFORM` 이 남았을 수 있어 재개 때 먼저 확인한다.
+- hub WildFly JNDI 는 mcm 과 같은 `java:/jdbc/mcm/dsCaravan`·`dsIF`(207465138), `JNDI_DS_CARAVAN` 도 받는다.
 
 ### 이번 세션에서 확인한 운용 교훈
 - 로그를 raw 로 `tail` 하지 않는다(gradle 진행바가 컨텍스트를 채운다). `--console=plain` 과 파일 출력, `grep -a` 필터를 쓴다.
