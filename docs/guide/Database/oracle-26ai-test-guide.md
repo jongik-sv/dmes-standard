@@ -182,7 +182,24 @@ podman compose down -v
 4. **재기동 시 `ORA-01078` / `LRM-00109: could not open parameter file '.../initFREE.ora'` 로 종료될 때:**
    - Podman 머신의 SELinux 가 첫 컨테이너가 볼륨으로 옮긴 spfile 에 그 컨테이너 전용 라벨을 붙여, 다음 컨테이너가 읽지 못하는 경우입니다.
    - 볼륨 매핑 끝에 `:Z` 를 붙입니다(`oracle-data:/opt/oracle/oradata:Z`, §5 표준 설정에 반영됨). 기존 볼륨도 그대로 `podman compose down` → `up -d` 하면 복구됩니다.
-5. **IDE나 외부 도구(Testcontainers 등)에서 소켓 인식 실패 시:**
+5. **Podman 머신 메모리를 2 GB 로 줄여 쓰고 싶을 때(메모리 16GB 이하 PC):**
+   - 기본값(SGA 1536M + PGA 512M)은 2 GB 머신에서 `ORA-01092` 로 기동에 실패하므로, 먼저 SGA·PGA 를 줄입니다. 2026-10-07 MacBook Air(16GB)에서 SGA 900M·PGA 200M 로 정상 기동을 확인했습니다(머신 여유 약 280MB).
+   - `pga_aggregate_limit` 은 최소값이 2048M 이라 낮추면 `ORA-00093` 이 납니다. 지정하지 않습니다.
+     ```bash
+     podman compose down
+     podman machine stop && podman machine set --memory 2048 && podman machine start
+     podman run --rm --entrypoint bash -v oracle-free_oracle-data:/opt/oracle/oradata:Z \
+       docker.io/gvenzl/oracle-free:slim-faststart -c '
+       D=/opt/oracle/oradata/dbconfig/FREE; P=/tmp/initFREE.ora
+       ln -sf $D/spfileFREE.ora $ORACLE_HOME/dbs/spfileFREE.ora
+       echo "create pfile='\''$P'\'' from spfile;" | sqlplus -s / as sysdba
+       sed -i -E "/sga_target|sga_max_size|pga_aggregate_target|pga_aggregate_limit/d" $P
+       printf "*.sga_target=900M\n*.sga_max_size=900M\n*.pga_aggregate_target=200M\n" >> $P
+       echo "create spfile='\''$D/spfileFREE.ora'\'' from pfile='\''$P'\'';" | sqlplus -s / as sysdba'
+     podman compose up -d
+     ```
+   - 볼륨을 지우고(`down -v`) 새로 만들면 기본값으로 돌아가므로 위 절차를 다시 실행합니다.
+6. **IDE나 외부 도구(Testcontainers 등)에서 소켓 인식 실패 시:**
    - Podman Desktop 설정에서 `Docker Socket`이 켜져 있는지 확인하고, 필요 시 실제 소켓 경로를 조회해 환경 변수로 지정합니다(Mac 은 경로가 머신마다 다름):
      ```bash
      export DOCKER_HOST="unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
