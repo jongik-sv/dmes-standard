@@ -1,5 +1,7 @@
 # @dk-oasis/m-mls
 
+> 공지사항 화면(`lsh/noticeMgmt`)은 2026-10-07 m-mcm 으로 옮겼다([DEC-001](../../../docs/ai-build-log/DEC-001_noticeMgmt-on-mls.md)). 이 패키지에는 샘플만 남았다.
+
 물류·재고 도메인의 **화면 라이브러리** 패키지다. 단독 실행되는 Next.js 앱이 아니라,
 tsup 으로 빌드한 페이지 컴포넌트를 서브패스로 내보내고 포털 호스트인 `@dk-oasis/mcm` (m-mcm) 이
 이를 마이크로 프론트엔드 모듈로 조합해 렌더링한다.

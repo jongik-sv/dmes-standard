@@ -4,7 +4,7 @@
  * <p>proxy 는 권한을 원래 경로의 접두로 판정하는데, 라우트는 경로 조각을 디코드해 BE URL 을 만든다. 그래서 인코딩된 구분자가
  * 섞이면 둘이 보는 경로가 갈라진다(2026-10-03 보안 지적):
  * <ul>
- *   <li>`/api/mls/oasis/noticeBoard/search%2F..%2F..%2FnoticeMgmt%2Fsave` — proxy 는 로그인만 보는 noticeBoard/search 로 보고,
+ *   <li>`/api/mcm/oasis/noticeBoard/search%2F..%2F..%2FnoticeMgmt%2Fsave` — proxy 는 로그인만 보는 noticeBoard/search 로 보고,
  *       라우트는 action=`search/../../noticeMgmt/save` 를 붙여 fetch 가 `/oasis/noticeMgmt/save` 로 정리했다.</li>
  *   <li>`%5C`(역슬래시)도 같다 — fetch 는 http URL 의 `\` 를 `/` 로 바꾼다.</li>
  *   <li>`/…/search/..;/..;/…` — `..;` 는 WHATWG 기준 점 조각이 아니라 proxy 를 그대로 지나 BE 까지 가는데,

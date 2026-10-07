@@ -22,7 +22,7 @@ MES 화면(`m-mpp`·`m-mqc`·`m-mls`·`m-mcm` 등)을 누가 만들어도, 어�
 
 ### 파일과 import
 
-- 화면 코드는 `page.tsx`(화면) + `api.ts`(호출·body 변환) + `types.ts`(타입·옵션 상수) 셋으로 나누고, 팝업은 같은 폴더의 `<이름>Modal.tsx` 로 둔다(MES 실례: `m-mls/pages/lsh/noticeMgmt/`). 파일 위치·tsup 엔트리·포털 등록은 UI 규칙이 아니므로 [Frontend 표준 01](../../../../docs/guide/FrontEnd/standard-v2/frontend-standard/01-rules-decisions-files.md) §2-3 과 RULE.md 를 따른다.
+- 화면 코드는 `page.tsx`(화면) + `api.ts`(호출·body 변환) + `types.ts`(타입·옵션 상수) 셋으로 나누고, 팝업은 같은 폴더의 `<이름>Modal.tsx` 로 둔다(MES 실례: `m-mcm/page-components/lsh/noticeMgmt/`). 파일 위치·tsup 엔트리·포털 등록은 UI 규칙이 아니므로 [Frontend 표준 01](../../../../docs/guide/FrontEnd/standard-v2/frontend-standard/01-rules-decisions-files.md) §2-3 과 RULE.md 를 따른다.
 - import 순서: `react` → `@dk-oasis/shared/layout` → `grid` → `form` → `modal` → `message-provider` → `utils` → `./api` → `./types`. 화면은 `@mantine/*`·`ag-grid-*` 를 import 하지 않는다.
 - `export default function <ScreenId>Page()`. 맨 위에 `"use client";` 와 한 줄 설명 주석.
 - `const SCREEN_ID = "<screenId>";` 를 두고 `PageLayout` 의 `screenId`·`objId` 에 같은 값을 준다.
@@ -74,7 +74,7 @@ MES 화면(`m-mpp`·`m-mqc`·`m-mls`·`m-mcm` 등)을 누가 만들어도, 어�
 | 좌우 (B) | `<ContentBody root resizable storageKey=…>` + `<ContentPanel>`(목록) + `<ContentPanel width={460}>`(상세 폼) |
 | 상하 (D) | `<ContentBody root direction="column" resizable storageKey=…>` + `<ContentPanel>`(마스터) + `<ContentPanel height="40%">`(디테일) |
 
-- `storageKey` 는 `<모듈코드>.<그룹 폴더>.<screenId>` 다(예: `m-mls/pages/lsh/noticeMgmt` → `mls.lsh.noticeMgmt`).
+- `storageKey` 는 `<모듈코드>.<그룹 폴더>.<screenId>` 다(예: `m-mdm/pages/dme/ruleMng` → `mdm.dme.ruleMng`).
 - 오른쪽 상세 패널의 첫 자식은 바로 상세 표다. 제목·머리를 따로 만들지 않는다.
 - 패널 안을 `<div style={{ display: "flex", … }}>` 로 다시 감싸지 않는다. 높이와 스크롤은 `ContentPanel`·`GridPanel` 이 맡는다.
 
@@ -97,7 +97,7 @@ MES 화면(`m-mpp`·`m-mqc`·`m-mls`·`m-mcm` 등)을 누가 만들어도, 어�
 | 비고·제목(남는 폭) | 큰 가중치(예: `100`) + `minWidth`(예: `180`) | left | 남는 폭. **폭을 생략하지 않는다** |
 
 - `"fit"` 에서 `width` 는 픽셀이 아니라 **비율 가중치**다(위 표의 값은 그 비율). 폭을 생략하면 가중치 1 이 되어 최소 50px 까지 줄어, 남는 폭을 가져가기는커녕 가장 좁아진다. 남는 폭을 줄 열은 큰 가중치와 `minWidth` 를 함께 준다.
-- 목록이 좁은 배치(좌우 분할의 왼쪽 목록 등)에서는 짧은 열에 가중치 `1` + 내용 폭만큼의 `minWidth`(배지 2자 ≈ 52, 4자 ≈ 74, 칸 좌우 여백 8px 포함)를 주어 그 폭에 머물게 하고, 남는 폭 열 하나만 큰 가중치를 준다. `minWidth` 합이 목록 폭을 넘으면 가로 스크롤이 생기므로, 기본 배치의 목록 폭 안에 들도록 열을 줄인다(예: `m-mls/pages/lsh/noticeMgmt` — `minWidth` 합 574. 목록·상세 50:50 이라 1300px 포털에서는 목록이 약 520px 로 조금 가로 스크롤한다).
+- 목록이 좁은 배치(좌우 분할의 왼쪽 목록 등)에서는 짧은 열에 가중치 `1` + 내용 폭만큼의 `minWidth`(배지 2자 ≈ 52, 4자 ≈ 74, 칸 좌우 여백 8px 포함)를 주어 그 폭에 머물게 하고, 남는 폭 열 하나만 큰 가중치를 준다. `minWidth` 합이 목록 폭을 넘으면 가로 스크롤이 생기므로, 기본 배치의 목록 폭 안에 들도록 열을 줄인다(예: `m-mcm/page-components/lsh/noticeMgmt` — `minWidth` 합 574. 목록·상세 50:50 이라 1300px 포털에서는 목록이 약 520px 로 조금 가로 스크롤한다).
 
 ### 배지 색 (`GridBadge`)
 

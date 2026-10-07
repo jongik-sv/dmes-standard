@@ -40,7 +40,7 @@ export interface WidgetMeta {
   maxSize?: WidgetSize;
   /** 자동 새로 고침 주기(초). 30 미만이면 30. 없으면 자동 새로 고침 없음. */
   refreshSec?: number;
-  /** 제목 줄 「화면 열기」가 여는 포털 pageId(예: "mls:lsh/noticeMgmt"). */
+  /** 제목 줄 「화면 열기」가 여는 포털 pageId(예: "mcm:lsh/noticeMgmt"). */
   linkPageId?: string;
   /** 한 탭에 여러 번 놓을 수 있는지(기본 true). */
   multiple?: boolean;

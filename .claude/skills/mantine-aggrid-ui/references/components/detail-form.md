@@ -106,5 +106,5 @@ import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:302` 목록 옆 상세 폼 전체(Input·Select·DatePicker·Textarea, 읽기전용 공지번호, 필수 " *", `!form` 비활성). 제목 줄은 `NoticeTitleRow.tsx`(`MdmFieldLabel`).
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:302` 목록 옆 상세 폼 전체(Input·Select·DatePicker·Textarea, 읽기전용 공지번호, 필수 " *", `!form` 비활성). 제목 줄은 `NoticeTitleRow.tsx`(`MdmFieldLabel`).
 - `src/frontend/m-mdm/pages/dma/unitMng/page.tsx:262` ComboBox·읽기전용 Input 이 섞인 상세 폼. m-mdm 화면이므로 `MdmPageLayout` 아래에 있다.

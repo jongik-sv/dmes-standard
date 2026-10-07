@@ -103,7 +103,7 @@ MaxHandleProps: `panelId: string`(필수), `style?: React.CSSProperties`, `class
 
 ## 표준값: 모든 화면 동일
 
-- storageKey 는 `<모듈코드>.<pages 아래 그룹 폴더>.<screenId>` 이다. `m-mls/pages/lsh/noticeMgmt` 는 `mls.lsh.noticeMgmt` 다. 화면마다 고유해야 한다.
+- storageKey 는 `<모듈코드>.<pages 아래 그룹 폴더>.<screenId>` 이다. `m-mdm/pages/dme/ruleMng` 는 `mdm.dme.ruleMng` 다. 화면마다 고유해야 한다. (공지 관리 `mls.lsh.noticeMgmt` 는 2026-10-07 m-mcm 으로 옮긴 뒤에도 사용자 저장값을 지키려고 옛 키를 그대로 쓰는 예외다.)
 - 좌우 분할의 상세 폼 폭은 `width={460}` 이고 그 패널의 첫 자식이 곧바로 상세 표다(머리·제목을 따로 두지 않는다).
 - 패널 안을 `display: flex` 인 `div` 로 다시 감싸지 않는다. ContentPanel·GridPanel 이 높이와 스크롤을 처리한다.
 - `root` 는 화면당 하나다.
@@ -121,7 +121,7 @@ MaxHandleProps: `panelId: string`(필수), `style?: React.CSSProperties`, `class
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx` `root resizable storageKey="mls.lsh.noticeMgmt"` + `ContentPanel minSize={320}`(목록) + `ContentPanel minSize={420}`(상세). 사용자 요청으로 상세 폭을 고정하지 않고 목록·상세를 50:50 으로 나눈다(표준 460 의 예외). 상세 패널 안은 세로 flex 스크롤 영역 하나이고, 본문 편집기가 남은 높이를 채운다(Local-Rules §23). 홈 표시 미리보기는 팝업이다.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx` `root resizable storageKey="mls.lsh.noticeMgmt"` + `ContentPanel minSize={320}`(목록) + `ContentPanel minSize={420}`(상세). 사용자 요청으로 상세 폭을 고정하지 않고 목록·상세를 50:50 으로 나눈다(표준 460 의 예외). 상세 패널 안은 세로 flex 스크롤 영역 하나이고, 본문 편집기가 남은 높이를 채운다(Local-Rules §23). 홈 표시 미리보기는 팝업이다.
 - `src/frontend/m-mdm/pages/dme/ruleMng/page.tsx:225` `root resizable storageKey="mdm.dme.ruleMng"`.
 - `src/frontend/m-mdm/pages/dme/ruleSetEdit/page.tsx:664` column 분할 + 중첩 ContentBody(`flex`, `minSize`).
 - `src/frontend/m-mcm/page-components/cmb/masterRuleFrame/page.tsx:344` `panelId`. `MaxHandle` 연결 예는 `src/frontend/m-design-dummy/src/screens/ResizableLayoutCatalogScreen.tsx:194`(디자인 더미 화면).
