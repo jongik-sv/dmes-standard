@@ -10,6 +10,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -89,6 +90,7 @@ public class MdmLayoutVer extends CactusAuditEntity {
     private String changeSummary;
 
     /** 확정 때 남기는 본문 스냅샷(LayoutBodySnapshot) 또는 이행 전 합성 스냅샷(LEGACY). */
+    @Lob
     @Column(name = "SNAPSHOT_JSON", updatable = false)
     private String snapshotJson;
 

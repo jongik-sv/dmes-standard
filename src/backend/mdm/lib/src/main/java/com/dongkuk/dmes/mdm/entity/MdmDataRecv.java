@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
@@ -41,6 +42,7 @@ public class MdmDataRecv extends CactusAuditEntity {
     @Column(name = "RECEIVED_AT", nullable = false)
     private LocalDateTime receivedAt;
 
+    @Lob
     @Column(name = "BODY", nullable = false)
     private String body;
 

@@ -11,6 +11,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -55,13 +56,16 @@ public class MdmRuleSetVer extends CactusAuditEntity implements VersionedRow {
     @Column(name = "APPLY_TO", updatable = false)
     private LocalDateTime applyTo;
 
+    @Lob
     @Column(name = "RULE_IDS", nullable = false, updatable = false)
     private String ruleIds;
 
+    @Lob
     @Column(name = "FLOW_JSON", updatable = false)
     private String flowJson;
 
     /** 흐름의 SET 노드를 깊이 우선으로 펼친 중복 없는 세트 ID JSON 배열(하위 세트 spec §1.1, V23). 서버가 DRAFT 저장 때 계산한다. */
+    @Lob
     @Column(name = "CALL_SET_IDS", nullable = false, updatable = false)
     private String callSetIds = "[]";
 

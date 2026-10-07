@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.common.mastercode;
 
+import com.dongkuk.dmes.mdm.common.support.MdmStrings;
 import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
 import java.util.List;
@@ -95,7 +96,8 @@ public class MasterCodeRemoval {
                     if (value == null) {
                         continue;
                     }
-                    String s = value.toString();
+                    // STD_AST·BIZ_AST·VAR_AST·GRP_COND_AST·CELLS 는 CLOB 이라 Clob 으로 온다 — toString() 이면 내용이 아니다.
+                    String s = MdmStrings.text(value);
                     if (text.matcher(s).find() || ast.matcher(s).find()) {
                         List<String> key = new ArrayList<>();
                         for (int j = 0; j < k; j++) {
