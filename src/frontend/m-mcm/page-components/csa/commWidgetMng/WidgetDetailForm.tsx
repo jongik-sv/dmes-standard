@@ -23,7 +23,7 @@ import {
 
 import { WIDGET_TYPE_REGISTRY } from "@/lib/generated/widget-type-registry";
 
-import { REFRESH_MIN_SEC } from "./form-model";
+import { REFRESH_MIN_SEC, refreshSecFieldError } from "./form-model";
 import { MULTIPLE_OPTIONS, PLACE_OPTIONS, USE_YN_OPTIONS, type DefForm } from "./types";
 
 function lazyEditor(type: WidgetTypeRegistryEntry): LazyExoticComponent<WidgetTypeEditorComponent> {
@@ -227,6 +227,7 @@ export function WidgetDetailForm({
               value={text("refreshSec")}
               placeholder={ph.refreshSec}
               disabled={off}
+              error={refreshSecFieldError(text("refreshSec")) ?? undefined}
               onChange={set("refreshSec")}
             />
             <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
