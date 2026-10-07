@@ -81,6 +81,16 @@
 - 시험 PDB 하니스는 `-Pdmes.ora.test=clone` 으로 동작이 확인되었다. 머지① 뒤 m3 에서 쓴다.
 - m2 의 validate 결과는 조정자와 ora-base 둘 다에 알린다.
 
+## m2 결과 (2026-10-07, main 컴파일 통과)
+
+- 커밋: ed9c28be2(컷오버) · 28b450555(PK 충돌 ORA-00001) · caa76b256(LIKE UPPER) · 4bd19647c(CLOB @Lob·Clob 읽기) · 36e4b757a(TERM.DEFINITION NULL) · 454edcb7a(메타 기록 INSERT 문법) · 72c7ea71d(주석).
+- archive 로 옮긴 main 클래스(`src/backend/mdm/archive/java/…`): `MdmDialect`·`MdmDialectResolver`·`DefaultMdmDialectResolver`·`MdmSqliteLocalDateTimeConverter`·`MdmSqliteTemporalContributor`·`MdmLocalDateTimeIdUserType`·`MdmLocalSampleLoader`(샘플 SQL 이 SQLite 문법 `INSERT OR IGNORE` 라 Oracle 에서 기동을 깨뜨린다. 로컬 데이터는 b5 적재기 몫). SQLite 마이그레이션 → `archive/db-migration-sqlite`(`gen_oracle_baseline.py --check` rc=0).
+- `MdmTemporalBinder` 는 생성자 인자가 없어졌다(`new MdmTemporalBinder()`). 상수 `SQLITE_TEXT_PATTERN` → `TEXT_PATTERN`.
+- 엔티티 업무 일시는 생성자·세터·`@IdClass` 생성자에서 초 절삭(`entity/MdmEntityTimes`).
+- 추가로 고친 것: `MetaRevisionRecorder` 의 여러 행 `VALUES (…),(…)`(Oracle 23+ 전용) → `INSERT … SELECT … FROM DUAL UNION ALL`. `RuleSetVersionQueries.mayBeCalled` 의 CLOB LIKE 에도 UPPER.
+- m3 에 넘길 것(시험 컴파일 깨짐): lib `MdmSqliteLocalDateTimeConverterTest`·`MdmTemporalBinderTest`·`VersionRowStoreNameGuardTest`(생성자)·`CommonContractTest:152`(MdmDialect), api `MdmBusinessRuleEntityJpaRoundtripTest:9,441`·`VersionStateServiceSqliteTest`·`MdmLocalSampleLoaderTest`·`MdmLocalSampleStrictTest`·`CodeDataRuleLedgerChainTest:70`(SQLITE_TEXT_PATTERN). 루트 `mdm/build.gradle` 의 시험 Hikari 2 주석도 SQLite 기준이다.
+- 확인 못 한 위험(실행은 m3): Oracle 은 `''` 를 NULL 로 저장하므로 NOT NULL VARCHAR2 칸에 빈 문자열을 쓰는 경로가 있으면 ORA-01400 이 난다. 길이 검사(ORA-12899)는 다음 커밋.
+
 ## 남은 순서
 
 1. m2(ora-base 머지① 뒤): SQLite 전용 코드 제거, sqlite 폴더 archive, 프로파일, Hibernate Instant 설정, CLOB `@Lob`.
