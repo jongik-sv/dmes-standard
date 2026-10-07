@@ -150,6 +150,21 @@ describe("재검토 회귀(2026-10-07)", () => {
   });
 });
 
+describe("창 사이 동기화", () => {
+  it("다른 창이 거울을 바꾸면(storage 이벤트) 이 창의 메모리도 바뀐다", async () => {
+    setSearchDefaultsTransportForTest(async () => ({
+      data: { result: { rows: [{ pageId: "p", fieldKey: "k", ruleJson: '{"kind":"fixed","value":"A"}' }] } },
+    }));
+    preloadSearchDefaults("u1");
+    await flush();
+    expect(getPageSearchDefaults("u1", "p")).toEqual({ k: { kind: "fixed", value: "A" } });
+    window.dispatchEvent(
+      new StorageEvent("storage", { key: `${SEARCH_DEFAULTS_MIRROR_PREFIX}u1`, newValue: JSON.stringify({}) }),
+    );
+    expect(getPageSearchDefaults("u1", "p")).toEqual({});
+  });
+});
+
 describe("saveSearchDefaults·resetSearchDefaults", () => {
   it("savePage 본문(grids.rows.rows, ruleJson 문자열)을 보내고 성공하면 메모리·거울을 바꾼다", async () => {
     const calls: unknown[] = [];

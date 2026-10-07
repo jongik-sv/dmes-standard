@@ -482,6 +482,19 @@ describe("리뷰 지적 회귀(2026-10-07)", () => {
     expect(latest.item).toBe("");
   });
 
+  it("StrictMode 에서도 시작이 끝보다 늦은 기간은 두 칸 모두 넣지 않는다(다시 등록 때 한 칸씩 넣지 않음)", async () => {
+    givenRules(
+      rules({
+        fromDt: { kind: "relative", base: "today", days: 1 },
+        "fromDt~to": { kind: "relative", base: "today" },
+      }),
+    );
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    await mount(createElement(StrictMode, null, inPage(createElement(Screen))));
+    expect(latest.from).toBe("");
+    expect(latest.to).toBe("");
+  });
+
   it("선택지가 늦게 오면 보류했다가 선택지가 생길 때 넣는다", async () => {
     givenRules(rules({ status: { kind: "fixed", value: "SYS1" } }));
     let load: () => void = () => {};

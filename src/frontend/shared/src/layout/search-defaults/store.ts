@@ -230,11 +230,35 @@ export function preloadSearchDefaults(userId: string): void {
   notify();
 }
 
-/** 사용자가 바뀌면(로그아웃·다른 사용자) 다른 사용자의 메모리 항목을 비운다 — 다음 화면부터 새로 받는다. 한 번만 건다. */
+/**
+ * 한 번만 건다.
+ * - 사용자가 바뀌면(로그아웃·다른 사용자) 다른 사용자의 메모리 항목을 비운다 — 다음 화면부터 새로 받는다.
+ * - 다른 창(분리 창·다른 포털 탭)이 거울을 바꾸면(storage 이벤트) 이 창의 메모리도 그 값으로 바꾼다 — 분리 창에서 저장·초기화한 규칙이
+ *   원래 창에서 옛 값으로 남지 않게 한다.
+ */
 function watchUserChanges(): void {
   const st = getState();
   if (st.watchingUser) return;
   st.watchingUser = true;
+  if (typeof window !== "undefined") {
+    window.addEventListener("storage", (ev) => {
+      if (!ev.key || !ev.key.startsWith(SEARCH_DEFAULTS_MIRROR_PREFIX)) return;
+      const userId = ev.key.slice(SEARCH_DEFAULTS_MIRROR_PREFIX.length);
+      const e = st.users.get(userId);
+      if (!e) return;
+      let next: UserRules = {};
+      try {
+        next = ev.newValue ? sanitizeUserRules(JSON.parse(ev.newValue)) : {};
+      } catch {
+        return;
+      }
+      // 서버 요청이 진행 중이면 다른 창이 바꾼 화면들은 늦게 온 응답이 덮지 않게 표시한다.
+      if (e.promise) for (const pageId of Object.keys({ ...e.rules, ...next })) e.dirtyPages.add(pageId);
+      e.rules = next;
+      if (e.status !== "ready") e.status = "ready";
+      notify();
+    });
+  }
   subscribeCurrentUser((user) => {
     // 캐시 비우기(null 통지)는 다시 확인하는 중이라는 뜻이라 지우지 않는다 — 다른 사용자가 확인됐을 때만 정리한다.
     if (!user) return;

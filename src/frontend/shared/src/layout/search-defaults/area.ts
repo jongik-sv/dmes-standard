@@ -170,6 +170,8 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
       const now = new Date();
       const targets = new Map<string, string>();
       for (const [key, h] of handles) {
+        // 판정한 칸은 넣지 않기로 했어도 「처리함」 — StrictMode 다시 등록 때 한 칸씩 다시 넣으면 기간 짝 검사를 건너뛴다.
+        appliedRef.current.add(key);
         const rule = rules[key];
         if (!rule) continue;
         if (mode.skipLast && rule.kind === "last") continue;
@@ -299,6 +301,12 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
 
   // 커밋마다: 초기화 넣기(화면이 비운 값이 커밋된 뒤), 보류한 선택지 값 넣기.
   useIsomorphicLayoutEffect(() => {
+    // 기능이 꺼졌으면(handoff 로 defaults={false}) 보류한 선택지 값도 버린다.
+    if (!optsRef.current.enabled || offRef.current) {
+      awaitingRef.current.clear();
+      pendingResetRef.current = false;
+      return;
+    }
     if (pendingResetRef.current && renderIdRef.current > resetAtRef.current) {
       pendingResetRef.current = false;
       applyAll({ skipLast: true, ignoreTouched: true, onlyIfUnchanged: false });
