@@ -19,6 +19,7 @@ import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckReport;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveRejections;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveTarget;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveValidator;
+import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdIssuer;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdKind;
@@ -76,6 +77,9 @@ public class RuleColumnsService implements RuleEditSavePart {
     private static final Pattern VAR_NAME = Pattern.compile("[A-Za-z][A-Za-z0-9_]*");
     private static final Set<String> COND_DISPS = Set.of("Equal", "1", "2", "Expression");
     private static final Set<String> RESULT_DISPS = Set.of("Value", "Expression");
+    /** TB_MDM_RULE_VAR.COLLECT_AGG·DATA_TYPE 은 {@code VARCHAR2(20 CHAR)}. */
+    private static final int COLLECT_AGG_CHARS_MAX = 20;
+    private static final int DATA_TYPE_CHARS_MAX = 20;
 
     private final RuleScreenSupport support;
     private final RuleQueries queries;
@@ -250,6 +254,7 @@ public class RuleColumnsService implements RuleEditSavePart {
             if (cond && !exprColumn && !ExpressionChecker.checkVariableName(req.varName()).isEmpty()) {
                 throw reject("쓸 수 없는 변수명입니다(EvalEx 상수·예약어): " + name);
             }
+            checkLengths(req, name);
         }
 
         List<Line> kept = lines.stream().filter(Line::kept).toList();
@@ -257,6 +262,34 @@ public class RuleColumnsService implements RuleEditSavePart {
         checkResultNames(kept);
         checkGroups(id, ver, hit, kept);
         checkDeriveExprs(id, ver, derive, kept);
+    }
+
+    /** ORA-12899 예방 — VAR_NAME·LABEL·DESCRIPTION·GRP_COND·PRIO_LIST 는 4000 BYTE, RES_GRP 50·COLLECT_AGG·DATA_TYPE 20 CHAR 칸이다. */
+    private static void checkLengths(RuleColumnsSaveRequest req, String fullName) {
+        // 표시명이 열 이름을 대신하는 Expression 열은 이 값이 길 수 있어 문구에는 앞부분만 싣는다
+        String name = fullName.length() > MdmTextLimits.KEY_CHARS_MAX ? fullName.substring(0, MdmTextLimits.KEY_CHARS_MAX) + "…" : fullName;
+        maxBytes(req.varName(), "변수명", name);
+        maxBytes(req.label(), "표시명", name);
+        maxBytes(req.description(), "설명", name);
+        maxBytes(req.grpCond(), "열 조건", name);
+        if (req.prioList() != null && !req.prioList().isEmpty()) {
+            maxBytes(DomainJson.write(req.prioList()), "순위", name);
+        }
+        maxChars(req.resGrp(), MdmTextLimits.KEY_CHARS_MAX, "그룹 이름", name);
+        maxChars(req.collectAgg(), COLLECT_AGG_CHARS_MAX, "집계", name);
+        maxChars(req.dataType(), DATA_TYPE_CHARS_MAX, "값 타입", name);
+    }
+
+    private static void maxBytes(String value, String label, String name) {
+        if (MdmTextLimits.overBytes(value)) {
+            throw reject(label + "은(는) " + MdmTextLimits.TEXT_BYTES_MAX + "바이트(한글 약 1,333자)를 넘을 수 없습니다: " + name);
+        }
+    }
+
+    private static void maxChars(String value, int max, String label, String name) {
+        if (MdmTextLimits.overChars(value, max)) {
+            throw reject(label + "은(는) " + max + "자를 넘을 수 없습니다: " + name);
+        }
     }
 
     /** 식 파싱(불변 9)·타입 해석 — Line.resolved 를 채운다. 타입 판정은 RuleVarTypeResolver 를 그대로(I16). */

@@ -5,6 +5,7 @@ import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
 
 import com.dongkuk.dmes.mdm.common.security.MdmStdAdminGuard;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dma.naming.AbbrSuggester;
 import com.dongkuk.dmes.mdm.dma.naming.AbbrSuggestion;
@@ -99,6 +100,9 @@ public class TermRegPopService {
         }
         if (definition.isEmpty()) {
             throw invalid("정의는 필수입니다");
+        }
+        if (MdmTextLimits.overBytes(definition)) {
+            throw invalid("정의는 " + MdmTextLimits.TEXT_BYTES_MAX + "바이트(한글 약 1,333자)를 넘을 수 없습니다");
         }
         maxLength(context, NamingRules.CONTEXT_MAX, "맥락");
         maxLength(engName, NamingRules.ENG_NAME_MAX, "영문명");

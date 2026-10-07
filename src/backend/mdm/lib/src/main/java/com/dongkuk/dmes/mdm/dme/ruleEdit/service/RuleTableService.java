@@ -25,6 +25,7 @@ import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveIssueCode;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveRejections;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveTarget;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveValidator;
+import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdIssuer;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdKind;
@@ -341,7 +342,12 @@ public class RuleTableService implements RuleEditSavePart {
             Map<Integer, Map<String, Object>> parsed = RuleCellsCodec.parse(cells);
             RuleCellsCodec.validateShape(parsed, varIds, label + "(row_id " + rowId + ")");
             Object note = raw.get("note");
-            rows.add(new RequestedRow(rowId, kind, cells, parsed, note == null ? null : note.toString()));
+            String noteText = note == null ? null : note.toString();
+            // NOTE 는 VARCHAR2(4000 BYTE) 칸 — UTF-8 바이트로 막는다(ORA-12899 예방)
+            if (MdmTextLimits.overBytes(noteText)) {
+                throw invalid(label + ": 비고는 " + MdmTextLimits.TEXT_BYTES_MAX + "바이트(한글 약 1,333자)를 넘을 수 없습니다");
+            }
+            rows.add(new RequestedRow(rowId, kind, cells, parsed, noteText));
         }
         return rows;
     }

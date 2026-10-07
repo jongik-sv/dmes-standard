@@ -178,4 +178,50 @@ class UnitMngServiceTest extends AbstractMdmSharedDbTest {
         assertEquals(7L, unitRepository.findById("KG8").orElseThrow().getChgSeq(),
                 "수정 시 CHG_SEQ 를 건드리면 안 된다(I16)");
     }
+
+    @Test
+    void 환산_계수의_정수부가_9자리를_넘으면_거절한다() {
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.save(req("BIG1", "MASSBIG", "BIG1", "1000000000")));
+        assertTrue(ex.getMessage().contains("환산 계수의 정수부는 9자리를 넘을 수 없습니다."), ex.getMessage());
+        assertThrows(BusinessException.class, () -> service.save(req("BIG2", "MASSBIG", "BIG2", "1E+10")));
+        assertThrows(BusinessException.class, () -> service.save(req("BIG3", "MASSBIG", "BIG3", "999999999.9999999996")),
+                "9자리 반올림이 올림으로 10자리가 되는 경계");
+        assertThrows(BusinessException.class, () -> service.save(req("BIG4", "MASSBIG", "BIG4", "999999999.9999999995")),
+                "경계값 자체도 반올림하면 10자리가 된다");
+    }
+
+    @Test
+    void 환산_계수가_9자리_정수부_경계_안이면_통과한다() {
+        service.save(req("KGB", "MASSB", "KGB", "1"));
+
+        assertEquals(0, new java.math.BigDecimal("999999999").compareTo(
+                service.save(req("BIGOK1", "MASSB", "KGB", "999999999")).getFactor()));
+        assertEquals(0, new java.math.BigDecimal("999999999.9999999994").compareTo(
+                service.save(req("BIGOK2", "MASSB", "KGB", "999999999.9999999994")).getFactor()));
+    }
+
+    @Test
+    void 환산_계수가_NUMBER_18_9_에서_0이_되는_작은_값이면_거절한다() {
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.save(req("TINY1", "MASSTINY", "TINY1", "1E-12")));
+        assertTrue(ex.getMessage().contains("0 이 되는"), ex.getMessage());
+        assertThrows(BusinessException.class, () -> service.save(req("TINY2", "MASSTINY", "TINY2", "0.0000000004999")));
+    }
+
+    @Test
+    void 환산_계수가_가장_작은_저장_가능_값이면_통과한다() {
+        service.save(req("KGT", "MASST", "KGT", "1"));
+
+        assertEquals(0, new java.math.BigDecimal("0.0000000005").compareTo(
+                service.save(req("TINYOK", "MASST", "KGT", "0.0000000005")).getFactor()));
+    }
+
+    @Test
+    void 환산_계수가_극단_지수여도_예외_없이_사용자_오류로_거절한다() {
+        for (String factor : new String[] {"1E-100000000", "1E2147483647", "1E-2147483647"}) {
+            BusinessException ex = assertThrows(BusinessException.class,
+                    () -> service.save(req("EXP1", "MASSEXP", "EXP1", factor)), factor);
+            assertTrue(ex.getMessage().contains("환산 계수"), factor + " — " + ex.getMessage());
+        }
+    }
 }

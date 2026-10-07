@@ -314,4 +314,39 @@ class DomainRuleCheckerTest {
         }));
         assertTrue(c.containsAll(Set.of("S06", "R04", "R05", "S03")), c.toString());
     }
+
+    private List<String> fieldsOf(DomainDraft d, DomainIssueCode code) {
+        return checker.check(d, tree(), facts).stream().filter(i -> i.code() == code).map(DomainIssue::field).toList();
+    }
+
+    @Test
+    void S06_4000_바이트_칸은_UTF8_바이트로_잰다() {
+        assertFalse(fieldsOf(draft(r -> r.setDescription("a".repeat(4000))), DomainIssueCode.S06).contains("DESCRIPTION"), "4000바이트 통과");
+        assertTrue(fieldsOf(draft(r -> r.setDescription("a".repeat(4001))), DomainIssueCode.S06).contains("DESCRIPTION"), "4001바이트 거절");
+        assertFalse(fieldsOf(draft(r -> r.setDomainName("가".repeat(1333))), DomainIssueCode.S06).contains("DOMAIN_NAME"), "한글 1333자 = 3999바이트");
+        assertTrue(fieldsOf(draft(r -> r.setDomainName("가".repeat(1334))), DomainIssueCode.S06).contains("DOMAIN_NAME"), "한글 1334자 = 4002바이트");
+    }
+
+    @Test
+    void S06_예시는_직렬화한_JSON_바이트로_잰다() {
+        // ["…"] — 값 앞뒤 따옴표·대괄호 4바이트가 더해진다
+        assertFalse(fieldsOf(DomainDraft.from(DomainDrafts.request(r -> { }), List.of(), DomainDrafts.examples("a".repeat(3996))),
+                DomainIssueCode.S06).contains("EXAMPLES"));
+        assertTrue(fieldsOf(DomainDraft.from(DomainDrafts.request(r -> { }), List.of(), DomainDrafts.examples("a".repeat(3997))),
+                DomainIssueCode.S06).contains("EXAMPLES"));
+    }
+
+    @Test
+    void S06_코드_참조_ID_는_50자까지() {
+        assertTrue(fieldsOf(draft(r -> {
+            r.setDomainKind("CODE");
+            r.setMaruCodeId("C".repeat(51));
+            r.setCateId("K".repeat(51));
+        }), DomainIssueCode.S06).containsAll(List.of("MARU_CODE_ID", "CATE_ID")));
+        assertFalse(fieldsOf(draft(r -> {
+            r.setDomainKind("CODE");
+            r.setMaruCodeId("C".repeat(50));
+            r.setCateId("K".repeat(50));
+        }), DomainIssueCode.S06).contains("MARU_CODE_ID"));
+    }
 }

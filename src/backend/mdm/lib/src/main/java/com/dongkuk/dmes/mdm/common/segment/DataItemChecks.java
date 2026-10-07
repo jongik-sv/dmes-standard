@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mdm.common.segment;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.contract.category.CategoryDefTarget;
 import com.dongkuk.dmes.mdm.contract.category.CategoryOwner;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
@@ -20,15 +21,22 @@ import org.springframework.stereotype.Component;
  * 05 「저장 경로와 검증」 검사 순서 1~7(C0~C7). 식 엔진을 쓰지 않는다(01 8절).
  *
  * <ul>
- *   <li>C0 경로별 집합 — SCREEN·CSV 는 1·2·3·4·5·5-1·5-2(·6·7), API 는 1·2 만({@link #contentIssues} 가 API 면 빈 목록).</li>
+ *   <li>C0 경로별 집합 — SCREEN·CSV 는 1·2·3·4·5·5-1·5-2(·6·7), API 는 1·2 와 길이 검사({@link #lengthIssues})만
+ *       ({@link #contentIssues} 가 API 면 길이 이슈만 돌려준다).</li>
  *   <li>1·2 는 즉시 거부한다({@link #requireActive}·{@link #requireSourcePath} 가 던진다).</li>
  *   <li>3~6 은 이슈를 모아 한 번에 거부한다({@link #rejected}). 이슈 코드는 {@code CHK3}~{@code CHK7}, {@code CHK5-1},
  *       {@code CHK5-2} 다.</li>
  * </ul>
+ * <p>길이 검사(이슈 코드 {@code LEN})는 ORA-12899 예방이다 — 키·계층 칸은 50자(VARCHAR2(50 CHAR)), 이름·약칭·설명·추가 컬럼·
+ * 카테고리 이름·식은 4000바이트(VARCHAR2(4000 BYTE))를 {@link MdmTextLimits} 로 잰다.
+ *
  * 판정 값은 모두 잠금 뒤 네이티브로 읽은 값이다(L1).
  */
 @Component
 public class DataItemChecks {
+
+    /** 길이 상한 위반 이슈 코드(검사 번호가 없는 별도 검사). */
+    private static final String LEN = "LEN";
 
     private static final Pattern LVL_BAD_CHAR = Pattern.compile("[,\\s]");
 
@@ -58,18 +66,18 @@ public class DataItemChecks {
         }
     }
 
-    /** C0 — 경로별 행 내용 검사(3·4·5·5-1·5-2). API 는 행 내용을 검사하지 않는다. */
+    /** C0 — 경로별 행 내용 검사(3·4·5·5-1·5-2). API 는 행 내용은 검사하지 않고 칸 길이(ORA-12899 예방)만 검사한다. */
     public List<MdmCheckIssue> contentIssues(DataSavePath path, LockedMaruData data, String code, DataItemValue value,
                                              boolean isNew, HierarchyIndex index) {
         if (path == DataSavePath.API) {
-            return List.of();
+            return lengthIssues(code, value, isNew);
         }
         List<MdmCheckIssue> issues = new ArrayList<>(rowIssues(data, code, value, isNew));
         issues.addAll(hierarchyIssues(index, code, value));
         return issues;
     }
 
-    /** 검사 3·4·5, 5-1 의 형식(중간 칸·콤마·공백), 5-2. */
+    /** 검사 3·4·5, 5-1 의 형식(중간 칸·콤마·공백), 5-2, 그리고 길이 검사({@link #lengthIssues}). */
     public List<MdmCheckIssue> rowIssues(LockedMaruData data, String code, DataItemValue value, boolean isNew) {
         List<MdmCheckIssue> issues = new ArrayList<>();
         if (isNew && LockedMaruData.MDM.equals(data.sourceKind())) {
@@ -108,6 +116,31 @@ public class DataItemChecks {
                 break;
             }
         }
+        issues.addAll(lengthIssues(code, value, isNew));
+        return issues;
+    }
+
+    /**
+     * 칸 길이 검사(이슈 코드 {@code LEN}, ORA-12899 예방) — 경로와 원천에 상관없이 DB 에 쓰는 값이면 SCREEN·CSV·API 모두 돌린다.
+     * 키는 신규일 때만(수정은 저장된 키를 그대로 쓴다). {@link #rowIssues} 가 이 결과를 이미 포함하므로 SCREEN·CSV 에서 따로 더하지 않는다.
+     */
+    public List<MdmCheckIssue> lengthIssues(String code, DataItemValue value, boolean isNew) {
+        List<MdmCheckIssue> issues = new ArrayList<>();
+        if (isNew && MdmTextLimits.overChars(code, MdmTextLimits.KEY_CHARS_MAX)) {
+            issues.add(keyTooLong("키 값", "code", code));
+        }
+        addTextIssue(issues, "이름", "name", value.name(), code);
+        addTextIssue(issues, "약칭", "alterName", value.alterName(), code);
+        addTextIssue(issues, "설명", "description", value.description(), code);
+        for (int i = 1; i <= DataItemValue.ATTR_COUNT; i++) {
+            String field = String.format("attr%02d", i);
+            addTextIssue(issues, "추가 컬럼 " + String.format("%02d", i) + " 값", field, value.attr(i), code);
+        }
+        for (int i = 1; i <= DataItemValue.LVL_COUNT; i++) {
+            if (MdmTextLimits.overChars(value.lvl(i), MdmTextLimits.KEY_CHARS_MAX)) {
+                issues.add(keyTooLong("계층 " + i + " 칸 값", "lvl" + i, code));
+            }
+        }
         return issues;
     }
 
@@ -141,7 +174,12 @@ public class DataItemChecks {
         List<MdmCheckIssue> issues = new ArrayList<>();
         if (cateId == null || cateId.isBlank()) {
             issues.add(issue("CHK3", DataItemMessages.KEY_REQUIRED, "cateId", cateId));
+        } else if (MdmTextLimits.overChars(cateId, MdmTextLimits.KEY_CHARS_MAX)) {
+            issues.add(keyTooLong("카테고리 ID 값", "cateId", cateId));
         }
+        addTextIssue(issues, "카테고리 이름", "cateName", value.cateName(), cateId);
+        addTextIssue(issues, "정의 식", "defExpr", value.defExpr(), cateId);
+        addTextIssue(issues, "설명", "description", value.description(), cateId);
         String kind = value.defKind();
         if (DataCateValue.REGEX.equals(kind)) {
             if (value.defExpr() == null || value.defTarget() == null) {
@@ -174,6 +212,19 @@ public class DataItemChecks {
     public static BusinessException rejected(List<MdmCheckIssue> issues) {
         String detail = issues.stream().map(MdmCheckIssue::message).collect(Collectors.joining("; "));
         return MdmErrors.of(MdmErrorCode.INVALID_INPUT, detail, issues);
+    }
+
+    /** 4000바이트를 넘으면 이슈를 더한다. */
+    private static void addTextIssue(List<MdmCheckIssue> issues, String label, String field, String value,
+                                     String itemKey) {
+        if (MdmTextLimits.overBytes(value)) {
+            issues.add(issue(LEN, label + "은 " + MdmTextLimits.TEXT_BYTES_MAX + "바이트(한글 약 1,333자)를 넘을 수 없습니다",
+                    field, itemKey));
+        }
+    }
+
+    private static MdmCheckIssue keyTooLong(String label, String field, String itemKey) {
+        return issue(LEN, label + "은 " + MdmTextLimits.KEY_CHARS_MAX + "자를 넘을 수 없습니다", field, itemKey);
     }
 
     static MdmCheckIssue issue(String code, String message, String field, String itemKey) {

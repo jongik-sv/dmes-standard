@@ -12,6 +12,7 @@ import com.dongkuk.dmes.mdm.common.rule.RuleSetTestCaseWrites;
 import com.dongkuk.dmes.mdm.common.rule.RuleStewardCheck;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleLimits;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetSaveRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetSaveResult;
@@ -77,6 +78,12 @@ public class RuleSetTestCaseService {
         }
         if (name.length() > RuleLimits.MAX_CASE_NAME_CHARS) {
             throw RuleCaseInputs.limit("케이스 이름이 " + name.length() + "자다. " + RuleLimits.MAX_CASE_NAME_CHARS + "자까지 받는다");
+        }
+        // DESCRIPTION 은 VARCHAR2(4000 BYTE) 칸 — UTF-8 바이트로 막는다(ORA-12899 예방)
+        String descriptionText = blankToNull(request.getDescription());
+        if (MdmTextLimits.overBytes(descriptionText)) {
+            throw RuleCaseInputs.limit("케이스 설명이 " + MdmTextLimits.bytes(descriptionText) + "바이트다. " + MdmTextLimits.TEXT_BYTES_MAX
+                    + "바이트(한글 약 1,333자)까지 받는다");
         }
         String input = request.getInputJson();
         if (input == null || input.isBlank()) {

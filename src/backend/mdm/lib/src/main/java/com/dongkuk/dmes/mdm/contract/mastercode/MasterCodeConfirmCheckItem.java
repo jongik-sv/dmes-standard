@@ -11,7 +11,7 @@ import static com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeCheckSeverity.W
  * {@code inScope} 가 false 면 보류(5항 배포 대상 — 배포 대상 지정 화면이 보류라 {@code DEFERRED}, D9).
  */
 public enum MasterCodeConfirmCheckItem {
-    /** 코드값 문자(콤마·공백 금지, 04:197). */
+    /** 코드값 문자(콤마·공백 금지, 04:197)와 행 값 길이(Oracle 칸 상한, KEY_TOO_LONG·TEXT_TOO_LONG). */
     CODE_VALUE_CHARS("1", REJECT, false, false, true),
     /** 카테고리 해석(REGEX 컴파일·대상 칸). */
     CATEGORY_RESOLVE("2", REJECT, false, false, true),
