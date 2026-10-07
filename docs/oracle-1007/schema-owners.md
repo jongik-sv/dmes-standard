@@ -41,7 +41,7 @@
 | 사용자·비밀번호 | `DMES_ORA_USER`·`DMES_ORA_PASSWORD`. 값이 없으면 앱 모듈의 기본 스키마 사용자와 로컬 비밀번호 |
 | Spring 속성 | `SPRING_DATASOURCE_URL`·`SPRING_DATASOURCE_USERNAME`·`SPRING_DATASOURCE_PASSWORD` 로도 덮어쓸 수 있다 |
 | 시험 시스템 속성 | `-Ddmes.ora.url=…`·`-Ddmes.ora.user=…`·`-Ddmes.ora.password=…`(시험 하니스가 전달한다) |
-| 커넥션 풀 | Hikari `maximum-pool-size` **3 이하**(인스턴스를 모든 레인이 공유한다) |
+| 커넥션 풀 | Hikari `maximum-pool-size` **3 이하**(인스턴스를 모든 레인이 공유한다). 시험 하니스는 Spring 풀에 최대 2·유휴 0·idle-timeout 10초와 `spring.test.context.cache.maxSize=2` 를 넣는다. 시험 코드가 직접 만드는 풀은 최대 3·유휴 0 으로 두고 `@AfterEach` 에서 닫는다(`scripts/oracle/README.md`) |
 | 운영 JNDI | `java:/jdbc/<모듈>/dsBiz` 같은 중립 이름을 기본값으로 두고 env 로 덮어쓴다 |
 
 ### 3.1 일시 칸 설정(레인 공통 결정)

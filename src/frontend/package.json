@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
+    "oracledb": "^7.0.1",
     "tailwindcss": "^4.2.1",
     "verdaccio": "^6.3.2"
   },
