@@ -49,9 +49,12 @@ const die = (msg, code = 1) => { process.stderr.write(`[pdb] 오류: ${msg}\n`);
 const log = (msg) => process.stderr.write(`[pdb] ${msg}\n`);
 const upper = (s) => String(s || '').toUpperCase();
 
-function checkName(name, { needManaged = true } = {}) {
+// openCloseOnly: open·close 명령만 FREEPDB1(조정자 데이터가 든 옛 PDB)을 열고 닫을 수 있다(메인 서버 전환 때 슬롯을 비우는 용도). 만들기·지우기·복제 등은
+// 여전히 보호 PDB 라 거부한다. PDB$SEED·CDB$ROOT·FREE 는 어느 경우에도 거부한다.
+function checkName(name, { needManaged = true, openCloseOnly = false } = {}) {
   const n = upper(name);
   if (!/^[A-Z][A-Z0-9_$]{0,29}$/.test(n)) die(`PDB 이름이 올바르지 않다: ${name}`);
+  if (openCloseOnly && n === 'FREEPDB1') return n;
   if (PROTECTED.has(n)) die(`보호된 PDB 라 건드리지 않는다: ${n}`);
   if (needManaged && !MANAGED.test(n)) die(`이 도구는 TPL_·L_·T_ 접두 PDB 만 다룬다: ${n}`);
   return n;
@@ -528,7 +531,7 @@ const commands = {
   },
 
   async open([name]) {
-    const n = checkName(name);
+    const n = checkName(name, { openCloseOnly: true });
     await withLock(async () => {
       const p = await find(n);
       if (!p) die(`없다: ${n}`);
@@ -542,7 +545,7 @@ const commands = {
   // close 는 PC 잠금을 잡지 않는다: 열린 PDB 와 메모리를 줄이는 쪽이라 다른 작업(시험·복제)과 겹쳐도 안전하다.
   // 템플릿을 복제하는 도중에 그 템플릿을 닫지 않도록 호출하는 쪽이 조심한다(시험 PDB T_ 는 하니스가 직접 지운다).
   async close([name]) {
-    const n = checkName(name);
+    const n = checkName(name, { openCloseOnly: true });
     const p = await find(n);
     if (!p) die(`없다: ${n}`);
     if (!isOpen(p)) { log(`${n} 이미 닫혀 있다.`); return; }
@@ -632,7 +635,7 @@ const commands = {
   template-schema [TPL_SCHEMA] [--rebuild]   전 모듈 Oracle V 파일(dev 에 있는 것)을 적용한 데이터 없는 템플릿
   template-data [TPL_DATA] [--from TPL_SCHEMA] [--rebuild]   그 위에 db-snapshot CSV 를 적재한 템플릿
   clone <TPL_이름> <PDB>        템플릿에서 복제하고 연다(L_<레인> 개발용·T_<레인> 시험용)
-  open|close <PDB>              열기·닫기(쓰지 않을 때는 닫아 메모리를 비운다)
+  open|close <PDB>              열기·닫기(쓰지 않을 때는 닫아 메모리를 비운다). FREEPDB1 도 열고 닫기만 된다(만들기·지우기는 거부)
   drop <PDB>                    닫고 데이터 파일까지 삭제
   users <PDB>                   운영 이름 사용자 (재)생성
   migrations                    적용 없이 V 파일 탐색 결과(스키마·경로)만 출력

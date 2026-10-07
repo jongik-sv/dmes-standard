@@ -63,8 +63,10 @@
 
 ## 처음 받은 뒤 셋업
 
-DB 를 따로 설치하거나 만들 필요가 없다. local 프로파일은 모듈마다 SQLite 파일(`src/backend/data/{모듈}.db`)을 쓰고,
-서버를 처음 띄울 때 파일 생성·스키마·기본 데이터가 자동으로 채워진다.
+로컬 앱 기동·백엔드 자동 시험·운영 DB 는 모두 **Oracle 26ai Free 하나**다(oracle-1007). 로컬은 Podman 으로 띄운 Oracle 컨테이너 하나를 쓰고,
+격리는 PDB 로 한다(템플릿 `TPL_EMPTY`·`TPL_SCHEMA`·`TPL_DATA`, 레인 개발용 `L_<레인>`, 자동 시험용 `T_*`). 메인 로컬 서버는 전용 PDB `L_MAIN` 을 쓰고 `FREEPDB1` 은 close 만 한다.
+스키마는 Flyway 로 만들고(스키마별 위치 독립), SQL 은 Oracle 전용으로 쓴다(규칙: [`oracle-sql-rules.md`](docs/guide/Database/oracle-sql-rules.md)).
+SQLite·H2·MSSQL·PostgreSQL 은 가정하지 않는다. 내 PC 의 옛 SQLite `.db` 를 옮기려면 [`docs/oracle-1007/local-cutover.md`](docs/oracle-1007/local-cutover.md) 를 따른다.
 
 ### 1. 준비물
 
@@ -72,39 +74,57 @@ DB 를 따로 설치하거나 만들 필요가 없다. local 프로파일은 모
 |---|---|
 | JDK 21 | 백엔드 컴파일 대상이 21 이다. 기본 `java` 가 17 이하면 실행할 때 `JAVA_HOME` 을 21 로 준다(아래 2번). Gradle wrapper jar 는 저장소에 들어 있다. |
 | Node.js · pnpm | 프론트엔드(`src/frontend`, pnpm 모노레포). 처음 실행 때 `fe-run.sh` 가 `pnpm install` 과 화면 라이브러리 build 를 한다. |
-| sqlite3 (선택) | DB 내용을 직접 보거나 MDM 샘플을 손으로 넣을 때만 쓴다. |
+| Podman · Oracle 컨테이너 | Oracle 26ai Free 컨테이너(`tools/oracle-free/docker-compose.yml`)를 Podman 으로 띄운다. 설치·1회 설정(Mac·Windows 공용)은 [`oracle-26ai-test-guide.md`](docs/guide/Database/oracle-26ai-test-guide.md) 를 따른다. |
+| python3 · `pip install oracledb` | db-snapshot CSV 적재기(`scripts/db-snapshot/snapshot.py`)가 쓴다. |
 
 ### 2. 첫 실행
 
 ```bash
 git clone https://github.com/jongik-sv/dmes-standard.git
 cd dmes-standard
-JAVA_HOME=<JDK 21 경로> PATH="$JAVA_HOME/bin:$PATH" ./local-run.sh   # 백엔드 + 프론트 (기본 --all)
+# 앞서 PDB 를 만들어 둔다(아래 3번). 백엔드는 접속할 PDB 를 --pdb 로 지정한다. 개발자는 자기 레인 PDB 를 쓴다.
+JAVA_HOME=<JDK 21 경로> PATH="$JAVA_HOME/bin:$PATH" ./be-run.sh --mcm --mdm --mls --pdb=L_MAIN
 ```
 
-- 설정 파일 없이도 뜬다. 띄울 모듈을 줄이려면 [`.run.env.example`](.run.env.example) 을 `.run.env` 로 복사해 `BE_RUN_ARGS` 등을 고친다.
+- `--pdb=<PDB>` 가 접속값 `DMES_ORA_PDB`·`DMES_ORA_URL` 을 앱에 넘긴다(env `BE_ORA_PDB` 도 같다). PDB 가 없으면 앱 기동이 바로 실패한다.
+- 프론트까지 띄우려면 [`.run.env.example`](.run.env.example) 을 `.run.env` 로 복사해 `BE_RUN_ARGS` 에 같은 인자(`--mcm --mdm --mls --pdb=L_MAIN`)를 적고 `./local-run.sh` 를 실행한다. 모듈을 줄여 메모리를 아낄 수도 있다.
 - `src/frontend/m-mcm/.env` 가 없으면 `fe-run.sh` 가 `.env.example` 로 만들고 `AUTH_SECRET` 을 발급한다.
 - 브라우저에서 포털 http://localhost:5100 에 **`admin` / `admin123`** 으로 로그인한다.
 
-### 3. 첫 기동 때 자동으로 되는 일 (DB)
+### 3. PDB 만들기와 데이터 넣기
 
-| 무엇 | 누가 |
-|---|---|
-| `src/backend/data/` 폴더와 모듈별 `*.db` 파일 생성 | `be-run.sh` · SQLite 드라이버 |
-| 테이블 생성과 기본 시드 (mls·mqc·mpp·mpn·aps 의 `V1__init_sample_*` 샘플 행 포함) | 모듈별 Flyway 마이그레이션 (`db/migration/**`) |
-| 관리자 계정·메뉴·권한·OBJECT·마스터 시드 (MDM 메뉴 포함) | mcm `DataInitializer` (멱등) |
-| MDM 화면 확인용 데이터 (용어·도메인·컬럼·레이아웃·마루 코드·마루 데이터·업무 룰) | `python3 scripts/db-snapshot/snapshot.py import --pdb <PDB> MDMAPUSER`(db-snapshot CSV) — 기동 때 자동으로 넣지 않는다 |
+```bash
+node scripts/oracle/pdb.mjs template-schema TPL_SCHEMA            # 전 모듈 Oracle V 파일을 적용한 데이터 없는 템플릿
+node scripts/oracle/pdb.mjs template-data TPL_DATA                # + db-snapshot CSV 적재(python3 + oracledb)
+node scripts/oracle/pdb.mjs clone TPL_DATA L_<레인>               # 개발용 PDB(메인 로컬 서버는 L_MAIN)
+```
 
-- MDM 데이터 원본은 표별 CSV [`db-snapshot/MDMAPUSER/`](db-snapshot/MDMAPUSER/) 이다. `be-run.sh` 는 더 이상 `--mdm.sample.path` 를 붙이지 않는다(`MDM_SAMPLE` 설정도 없어졌다).
-  레인 PDB 에 한 번 넣는다(데이터만 넣으며 표는 Flyway 가 만든 것이다):
+- 데이터 없이 시작하려면 `clone TPL_SCHEMA L_<레인>` 한 뒤 CSV 를 직접 넣는다. 이미 있는 PDB 에는 `python3 scripts/db-snapshot/snapshot.py import --pdb L_<레인> MDMAPUSER` 처럼 스키마별로 넣는다(데이터만 넣으며 표는 Flyway 가 만든 것이다).
   ```bash
   python3 scripts/db-snapshot/snapshot.py import --pdb L_<레인> MDMAPUSER      # 초기 행까지 CSV 로 덮으려면 --replace
   ```
+- `pdb.mjs` 명령 전체와 PDB 이름 규칙·잠금·열린 PDB 상한(3개)은 [`scripts/oracle/README.md`](scripts/oracle/README.md) 에 있다. 레인 PDB 는 쓰는 동안만 `open` 하고 끝나면 `close` 한다.
+- 복제·열기·삭제와 Oracle 을 쓰는 시험 빌드는 PC 잠금 아래 한 PC 에서 하나씩 돈다(다른 레인이 쓰고 있으면 차례를 기다린다). 윈도우는 `scripts\oracle\pdb.cmd` 로도 같은 명령을 쓴다.
+- 데이터 원본은 표별 CSV [`db-snapshot/`](db-snapshot/) 이다(MDM 은 [`db-snapshot/MDMAPUSER/`](db-snapshot/MDMAPUSER/)). `be-run.sh` 는 `--mdm.sample.path` 를 붙이지 않으며 `MDM_SAMPLE` 설정도 없다.
 
-### 4. DB 를 처음 상태로 되돌리기
+### 4. 기동 때 자동으로 되는 일 (DB)
 
-서버를 끄고 `src/backend/data/*.db` 를 지운 뒤(필요하면 먼저 백업) 다시 띄우면 3번이 처음부터 다시 된다.
-모듈 하나만 되돌리려면 그 모듈의 `{모듈}.db` 만 지운다. `*.db` 는 `.gitignore` 대상이라 커밋되지 않는다.
+| 무엇 | 누가 |
+|---|---|
+| 스키마 이력 확인과 V2 이상 적용 (템플릿에서 복제했으면 V1 은 이미 적용돼 체크섬만 확인한다) | 모듈별 Flyway 마이그레이션 (`db/migration/**`) |
+| 관리자 계정·메뉴·권한·OBJECT·마스터 시드 (MDM 메뉴 포함) | mcm `DataInitializer` (멱등) |
+
+- 머지된 `V` 파일은 고치지 않고 `V2` 이상을 새로 추가한다. 번호 채번·스캐폴딩은 [`flyway-migration-add` 스킬](.claude/skills/flyway-migration-add/SKILL.md) 을 쓴다. 스키마 소유·연결 규약은 [`schema-owners.md`](docs/oracle-1007/schema-owners.md) 를 본다.
+- MDM 화면 확인용 데이터(용어·도메인·컬럼·레이아웃·마루 코드·마루 데이터·업무 룰)는 기동 때 자동으로 넣지 않는다. 위 3번의 CSV 적재나 `TPL_DATA` 복제로 넣는다.
+
+#### DB 를 처음 상태로 되돌리기
+
+서버를 끄고 그 PDB 를 지운 뒤 템플릿에서 다시 복제한다. 지울 PDB 는 `L_` 로 시작하는 내 레인용이어야 한다(도구는 `TPL_`·`L_`·`T_` 접두만 만들고 지우며 `FREEPDB1` 은 건드리지 않는다).
+
+```bash
+node scripts/oracle/pdb.mjs drop L_<레인>
+node scripts/oracle/pdb.mjs clone TPL_DATA L_<레인>
+```
 
 ### 5. (선택) D'Flow 에이전트 스킬
 
@@ -189,7 +209,7 @@ Windows 에서 확인할 항목은 [docs/refactor-2026-10/windows-ps1-checklist.
 FE 는 `m-mcm/.env` 의 `{모듈}_WAS_URL` 로 각 백엔드를 찾는다. 이 파일이 없으면 `fe-run.sh` 가
 `.env.example` 에서 만들고 `AUTH_SECRET` 을 자동 발급한다 (로컬 전용 — 실 프로젝트에서 반드시 교체).
 
-**초기 계정은 `admin` / `admin123`.** local 프로파일은 SQLite(`src/backend/data/*.db`)를 쓰고,
+**초기 계정은 `admin` / `admin123`.** local 프로파일은 `--pdb` 로 지정한 Oracle PDB 에 접속하고,
 빈 DB 로 시작해도 `DataInitializer` 가 메뉴·권한·마스터 시드를 멱등 적재한다(자세한 내용은 §"처음 받은 뒤 셋업").
 
 개별 모듈만 다룰 때:
