@@ -12,7 +12,7 @@ category 는 7종 약어(`dev`/`defect`/`infra`/`feat`/`design`/`research`/`ites
 | **단일행 스칼라** | category, domain, model, status, priority, assignee, schedule, tags, depends, blocked-by, note, entry-point, prd-ref | `- field: value` |
 | **리스트** (CSV 또는 bullet) | requirements, acceptance, constraints, test-criteria, tech-spec, api-spec, data-model, ui-spec | `- field: v1, v2` 또는 다음 줄에 `  - item` |
 
-- **리스트 필드 파싱 규칙** (`wbs-parse.py parse_list_field`):
+- **리스트 필드 파싱 규칙** (`wbs-parse.mjs` 의 `parse_list_field`):
   - `- field: -` → 빈 리스트
   - `- field: a, b, c` → 인라인 CSV, `["a", "b", "c"]`
   - `- field:` + 다음 줄의 `  - item` 라인들 → bullet 리스트 (다음 `- name:` 필드나 빈 줄에서 종료)

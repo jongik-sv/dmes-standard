@@ -442,7 +442,7 @@ Build 단위는 build-log.md `## 실행 모델` 의 `advisor` 칸, Verify 는 st
 ## 공용 결정 기록(decisions.md)의 번호
 
 대상 리포가 모듈·프로젝트 단위의 결정 기록(예: `docs/<모듈>/decisions.md`)을 쓰는 경우의 규칙이다. 그 파일은
-`## D-NNN (<UTC 타임스탬프>)` 블록을 추가만 하는 결정 감사 기록이며, 형식은 dflow-wbs 의 `decision-log.py` 가 정하고
+`## D-NNN (<UTC 타임스탬프>)` 블록을 추가만 하는 결정 감사 기록이며, 형식은 dflow-wbs 의 `decision-log.mjs` 가 정하고
 그 `validate` 는 D-001 부터 끊김 없는 순번을 요구한다. 번호는 개발 브랜치에 들어가는 순서로만 정해지므로 머지하는 쪽이 매긴다.
 
 - agent 브랜치에서는 공용 decisions.md 에 **전역 번호 D-NNN 을 새로 매기지 않는다.** 대신 Task 범위 임시 ID
@@ -454,7 +454,7 @@ Build 단위는 build-log.md `## 실행 모델` 의 `advisor` 칸, Verify 는 st
   적는다(`D-TSK-02-02-1~D-TSK-02-02-3`. `D-TSK-02-02-1~3` 같은 약식은 머지 때 바뀌지 않는다).
 - 선행 Task 의 결정을 가리킬 때는 그 블록에 지금 적힌 ID 를 그대로 쓴다(이미 머지돼 번호를 받았으면 `D-NNN`, 아직이면
   그 임시 ID).
-- 기존 블록은 고치지 않는다(추가만). 공용 파일에 `decision-log.py append` 를 쓰지 않는다 — 그 명령은 다음 전역 번호를
+- 기존 블록은 고치지 않는다(추가만). 공용 파일에 `decision-log.mjs append` 를 쓰지 않는다 — 그 명령은 다음 전역 번호를
   매긴다. 이 Task 폴더 안의 결정 기록(`<TASKS>/<TSK>/decisions.md`)은 이 Task 만 쓰므로 전역 번호를 써도 된다.
 - 전역 번호는 `/dflow-merge` 가 머지 직후 매긴다(「결정 번호 매김」): 개발 브랜치의 다음 번호로 머리를 바꾸고 바로 아래
   `- **Temp ID**: <임시 ID>` 줄을 남기며, 리포 전체의 같은 임시 ID 참조를 함께 바꾼다. 머지하며 decisions.md 가
