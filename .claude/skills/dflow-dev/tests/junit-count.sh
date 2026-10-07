@@ -68,7 +68,7 @@ cap() {
       echo "--- failed"
       if [ -e "$ff" ]; then cat "$ff"; else echo "(none)"; fi
     fi
-  } | sed "s|$tmp|<T>|g" > "$tmp/res/$CUR.$impl.blk"
+  } | sed "s|$tmp|<T>|g" | tr '\r' '\001' > "$tmp/res/$CUR.$impl.blk"   # 줄끝 CR 은 .gitattributes(eol=lf)가 지우므로 \001 로 바꿔 기대값 파일에 남긴다
 }
 
 docase() { # docase <strict|loose> <인자…>  (현재 폴더가 픽스처)

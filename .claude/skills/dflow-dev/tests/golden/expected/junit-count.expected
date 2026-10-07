@@ -210,7 +210,7 @@ e.E.lit-nl-in-attr second tab
 e.E.lt < gt > amp & q " a ' AB😀
 e.E.single-quoted
 e.E.tab	nl
-cr
+cr
 === attr_whitespace_crlf
 rc=0
 --- stdout
