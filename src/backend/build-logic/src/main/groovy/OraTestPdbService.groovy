@@ -115,11 +115,28 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
         return p.exitValue()
     }
 
+    /** 시험 PDB 의 세션 수 최대치를 한 줄 로그로 남긴다(sqlplus 한 번, 실패해도 무시). */
+    void logSessions() {
+        try {
+            File script = new File(parameters.repoRoot.get(), 'scripts/oracle/pdb.mjs')
+            ProcessBuilder pb = new ProcessBuilder(['node', script.absolutePath, 'sessions', pdbName]).redirectErrorStream(true)
+            if (lockPid > 0) pb.environment().put('DMES_ORA_LOCK_HELD', String.valueOf(lockPid))
+            Process p = pb.start()
+            String text = p.inputStream.text.trim()
+            if (!p.waitFor(60, TimeUnit.SECONDS)) { p.destroyForcibly(); return }
+            String line = text.readLines().find { it.startsWith('sessions') } ?: text
+            System.err.println("[dmes-ora] 시험 PDB ${pdbName} ${line}")
+        } catch (Exception ignored) {
+            // 세션 수를 못 세도 시험 결과는 바꾸지 않는다.
+        }
+    }
+
     @Override
     void close() {
         // 빌드 종료(성공·실패·취소)에서 불린다. 복제한 PDB 만 지운다.
         try {
             if (cloned && pdbName != null) {
+                logSessions()
                 try {
                     runPdb(['drop', pdbName], 600, true)
                 } catch (Exception ignored) {

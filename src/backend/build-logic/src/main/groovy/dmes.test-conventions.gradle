@@ -20,10 +20,22 @@ if (project != rootProject) {
 // T_<레인> PDB 를 복제하고 빌드가 끝나면 지운다. -Pdmes.ora.pdb=<PDB>(DMES_ORA_PDB)면 있는 PDB 를 그대로 쓴다.
 // 켜면 Test 는 forks=1 이고 접속값이 시스템 속성 dmes.ora.url·dmes.ora.password·dmes.ora.pdb 와 환경 변수 DMES_ORA_URL·
 // DMES_ORA_PASSWORD·DMES_ORA_PDB 로 넘어간다(사용자 이름은 시험이 스키마별로 고른다). 인스턴스를 모든 레인이 나눠 쓰므로
-// Hikari 상한도 3 으로 건다(SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE).
+// 시험 JVM 의 접속 수를 줄이는 기본값을 시스템 속성으로 건다(Spring 컨텍스트마다 Hikari 풀이 열려 VM 안 접속이 25개까지 늘어 스래싱했다):
+//   spring.datasource.hikari.maximum-pool-size=2 · minimum-idle=0 · idle-timeout=10000 · spring.test.context.cache.maxSize=2
+// 다중 데이터소스 모듈은 접두 키도 같은 값으로 건다(아래 oraPoolExtras). 끄려면 -Pdmes.ora.poolExtras=none.
+// 주의: cactus.datasource.extras.<이름> 키는 이름이 yml 에 정의돼 있을 때만 안전하다(없는 이름이면 url 없는 항목이 생겨 기동이 실패한다).
 def oraProp = { String key, String env -> providers.gradleProperty(key).orElse(providers.environmentVariable(env)).getOrNull() }
 def oraMode = oraProp('dmes.ora.test', 'DMES_ORA_TEST')
 def oraExisting = oraProp('dmes.ora.pdb', 'DMES_ORA_PDB')
+// 다중 데이터소스의 접두(모듈 루트 프로젝트 이름 기준 기본값). 쉼표로 구분하고 -Pdmes.ora.poolExtras=<접두,접두>(none 이면 끔)로 바꾼다.
+//   cactus.datasource.extras.<이름>  → 키 maximum-pool-size·idle-timeout (cactus 방식)
+//   spring.datasource.<이름>         → 키 hikari.maximum-pool-size·minimum-idle·idle-timeout (Spring 방식)
+def oraPoolExtrasDefault = [
+    'mcm'        : 'cactus.datasource.extras.cmn,cactus.datasource.extras.if,cactus.datasource.extras.caravan',
+    'caravan-hub': 'spring.datasource.mst,spring.datasource.if',
+]
+def oraPoolExtras = (oraProp('dmes.ora.poolExtras', 'DMES_ORA_POOL_EXTRAS') ?: oraPoolExtrasDefault.get(rootProject.name) ?: '')
+        .split(',').collect { it.trim() }.findAll { it && it != 'none' }
 def oraService = null
 if (oraMode == 'clone' || oraExisting) {
     File repoRoot = rootProject.projectDir
@@ -49,6 +61,9 @@ allprojects {
             maxParallelForks = 1
             forkEvery = 0
             doFirst {
+                // 모듈 build.gradle 이 maxParallelForks 를 나중에 대입해도 Oracle 시험은 1 로 고정한다(실행 직전 값이 쓰인다).
+                maxParallelForks = 1
+                forkEvery = 0
                 String pdb = svc.get().acquire()
                 String password = System.getenv('DMES_ORA_PASSWORD') ?: 'dmes_password_123'
                 String url = OraTestPdbService.jdbcUrl(pdb)
@@ -59,7 +74,21 @@ allprojects {
                 environment 'DMES_ORA_PDB', pdb
                 environment 'DMES_ORA_URL', url
                 environment 'DMES_ORA_PASSWORD', password
-                environment 'SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE', '3'
+                environment 'SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE', '2'
+                systemProperty 'spring.datasource.hikari.maximum-pool-size', '2'
+                systemProperty 'spring.datasource.hikari.minimum-idle', '0'
+                systemProperty 'spring.datasource.hikari.idle-timeout', '10000'
+                systemProperty 'spring.test.context.cache.maxSize', '2'
+                oraPoolExtras.each { String prefix ->
+                    if (prefix.startsWith('cactus.')) {
+                        systemProperty "${prefix}.maximum-pool-size", '2'
+                        systemProperty "${prefix}.idle-timeout", '10000'
+                    } else {
+                        systemProperty "${prefix}.hikari.maximum-pool-size", '2'
+                        systemProperty "${prefix}.hikari.minimum-idle", '0'
+                        systemProperty "${prefix}.hikari.idle-timeout", '10000'
+                    }
+                }
             }
         }
     }
