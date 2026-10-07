@@ -20,7 +20,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { hasAnyRole } from "@dk-oasis/shared/auth-rbac-policy";
 import { sessionCookieName } from "@/lib/auth/session-cookie";
 import { forwardedForHeader } from "./forwarded-for";
-import { isDirectRouteBackendPath, isUnsafeApiPath } from "./path-guard";
+import { isBlockedBackendPath, isUnsafeApiPath } from "./path-guard";
 
 const BACKEND_API_URL = process.env.BACKEND_API_URL ?? "http://localhost:8080";
 const BACKEND_CLIENT_KEY = process.env.BACKEND_CLIENT_KEY;
@@ -227,9 +227,10 @@ export async function forwardToBackend(
     );
   }
 
-  // cactus 직접 실행 경로(/service·/query·/lov/query·/lov/service) — 어느 라우트로 왔든 BE 로 보내지 않는다(2026-10-07).
-  // REST 신경로 꼬리(`/api/{m}/rest/{objId}/{action}/service/x`)는 proxy.ts denyPatterns 에 걸리지 않아 여기서 막는다.
-  if (isDirectRouteBackendPath(backendPath)) {
+  // cactus 직접 실행 경로(/service·/query·/lov/query·/lov/service)·OASIS 실행 경로(/…/oasis/…) — 어느 라우트로 왔든 BE 로
+  // 보내지 않는다(2026-10-07). REST 신경로 꼬리(`/api/{m}/rest/{objId}/{action}/service/x`·`…/oasis/{svc}/{act}`)는 proxy.ts 가
+  // 화면 권한키 하나로 통과시키므로 여기서 막는다. OASIS 전용 라우트는 forwardToBackend 를 거치지 않는다.
+  if (isBlockedBackendPath(backendPath)) {
     console.warn(`[BFF] 403 막힌 BE 경로 — module=${moduleId} ${req.method} ${backendPath}`);
     return NextResponse.json(
       { success: false, error: { code: "FORBIDDEN", message: "허용되지 않는 경로입니다." } },

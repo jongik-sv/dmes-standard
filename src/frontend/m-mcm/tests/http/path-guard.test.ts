@@ -33,7 +33,7 @@ vi.mock("@/lib/auth/api-permission-cache", () => ({
 
 import { NextRequest } from "next/server";
 import { proxy } from "@/proxy";
-import { isDirectRouteBackendPath, isUnsafeApiPath } from "@/lib/http/path-guard";
+import { isBlockedBackendPath, isUnsafeApiPath } from "@/lib/http/path-guard";
 import { forwardToBackend } from "@/lib/http/be-proxy";
 import { GET as restGet } from "@/app/api/[module]/rest/[objId]/[action]/[...path]/route";
 
@@ -260,12 +260,41 @@ describe("cactus 직접 실행 경로 — proxy·forwardToBackend 두 곳에서 
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("isDirectRouteBackendPath — 순수 판정", () => {
-    for (const p of ["/service/x", "/service", "/query/a.b", "/query/service/x", "/lov/query/a.b", "/lov/service/x", "/%73ervice/x", "/service/x?y=1", "/q%ZZ"]) {
-      expect(isDirectRouteBackendPath(p), p).toBe(true);
+  it("rest 신경로 꼬리로 OASIS 실행 경로(/oasis·/{m}/oasis·/api/{m}/oasis)에 닿아도 403 — 한 화면 권한으로 다른 BPMN 실행 금지", async () => {
+    for (const tail of [
+      ["oasis", "termMng", "save"],
+      ["mdm", "oasis", "termMng", "save"],
+      ["api", "mdm", "oasis", "termMng", "save"],
+      ["", "service", "codeEdit"], // 빈 조각 — Tomcat 은 // 를 합쳐 /service/codeEdit 로 읽는다
+    ]) {
+      const res = await restGet(new NextRequest(`${BFF}/api/mdm/rest/domainMng/search/x`), {
+        params: Promise.resolve({ module: "mdm", objId: "domainMng", action: "search", path: tail }),
+      });
+      expect(res.status, tail.join("/")).toBe(403);
     }
-    for (const p of ["/api/mcm/commWidgetMng/upload", "/api/planned-orders", "/lov/master/UNIT", "/services/x", "/api/service/x", "/queryx/a"]) {
-      expect(isDirectRouteBackendPath(p), p).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("정상 BE 경로는 그대로 보낸다 — LoV master·rest 꼬리 /api/…", async () => {
+    beOk();
+    const res = await forwardToBackend(new NextRequest(`${BFF}/api/mcm/lov/master/UNIT/KG`), "mcm", "/lov/master/UNIT/KG");
+    expect(res.status).toBe(200);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://be.test/lov/master/UNIT/KG");
+  });
+
+  it("isBlockedBackendPath — 순수 판정", () => {
+    for (const p of [
+      "/service/x", "/service", "/query/a.b", "/query/service/x", "/lov/query/a.b", "/lov/service/x",
+      "/%73ervice/x", "/service/x?y=1", "/q%ZZ", "//service/x", "/%2F/service/x",
+      "/oasis/termMng/save", "/mdm/oasis/termMng/save", "/api/mdm/oasis/termMng/save", "/oasis",
+    ]) {
+      expect(isBlockedBackendPath(p), p).toBe(true);
+    }
+    for (const p of [
+      "/api/mcm/commWidgetMng/upload", "/api/planned-orders", "/lov/master/UNIT", "/services/x", "/api/service/x",
+      "/queryx/a", "/Service/x", "/%2573ervice/x", "/api/mcm/mdmMeta/columns", "/api/mcm/oasisx/a/b", "/api/mpn/x/oasis/a/b",
+    ]) {
+      expect(isBlockedBackendPath(p), p).toBe(false);
     }
   });
 });
