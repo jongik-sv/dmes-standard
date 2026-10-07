@@ -224,12 +224,45 @@ async function ensureUsers(pdb) {
 }
 
 // ── 잠금 없는 내부 동작(withLock 은 재진입이 안 되므로 명령이 한 번 잠그고 이 함수들을 조합한다) ──
+// 2GB VM 에서 인스턴스를 가만히 두어도 스래싱하지 않도록 PDB 안 자동 작업(autotask: 통계 수집·공간·SQL 튜닝 어드바이저)과
+// AWR 자동 스냅숏을 끈다. autotask 는 컨테이너마다 따로라서 root 에서 끈 것이 PDB 에 적용되지 않을 수 있다. 템플릿을 만들 때와
+// 복제본을 연 뒤에 이 단계를 거치고, 켜져 있으면 끄고 상태를 한 줄로 남긴다. 멱등이다(AWR 이 없거나 권한이 없으면 건너뛴다).
+async function ensureQuiet(pdb) {
+  const clients = ["'auto optimizer stats collection'", "'auto space advisor'", "'sql tuning advisor'"];
+  const text = [
+    'set serveroutput on',
+    `alter session set container = ${pdb};`,
+    'begin',
+    ...clients.map((c) => `  begin dbms_auto_task_admin.disable(client_name => ${c}, operation => null, window_name => null); exception when others then null; end;`),
+    // AWR 자동 스냅숏 간격 0 = 끔. AWR 을 쓸 수 없는 에디션이면 예외를 무시한다.
+    // PDB 의 AWR 자동 스냅숏은 awr_pdb_autoflush_enabled(기본 FALSE)가 켜야 일어난다. 켜져 있으면 끈다.
+    "  begin execute immediate 'alter system set awr_pdb_autoflush_enabled=false'; exception when others then null; end;",
+    '  begin dbms_workload_repository.modify_snapshot_settings(interval => 0); exception when others then dbms_output.put_line(\'awr_error=\' || substr(sqlerrm, 1, 120)); end;',
+    'end;',
+    '/',
+    "select 'awr_autoflush=' || value from v$parameter where name = 'awr_pdb_autoflush_enabled';",
+    "select 'autotask ' || client_name || '=' || status from dba_autotask_client order by client_name;",
+    "select 'awr_interval=' || (extract(day from snap_interval)*1440 + extract(hour from snap_interval)*60 + extract(minute from snap_interval)) from dba_hist_wr_control;",
+  ].join('\n');
+  const r = await sqlplus(text);
+  if (r.code !== 0) { log(`${pdb} 자동 작업 확인 실패(무시): ${(r.err || r.out).split('\n')[0]}`); return; }
+  const lines = r.out.split('\n');
+  const enabled = lines.filter((l) => l.startsWith('autotask ') && l.endsWith('=ENABLED'));
+  const pick = (k) => (lines.find((l) => l.startsWith(`${k}=`)) || `${k}=?`).replace(`${k}=`, '');
+  const awr = pick('awr_interval'), flush = pick('awr_autoflush'), awrErr = lines.find((l) => l.startsWith('awr_error='));
+  if (enabled.length) log(`경고: ${pdb} 자동 작업이 아직 켜져 있다 — ${enabled.join(', ')}`);
+  else log(`${pdb} autotask 3종 꺼짐 확인`);
+  // AWR: 자동 플러시가 꺼져 있으면(FALSE) PDB 안 스냅숏은 일어나지 않는다. 간격 값은 참고용이다.
+  log(`${pdb} AWR 자동 플러시 ${flush}, 스냅숏 간격 ${awr}분${awrErr ? ` (${awrErr})` : ''}`);
+  if (flush.toUpperCase() === 'TRUE') log(`경고: ${pdb} AWR 자동 플러시가 켜져 있다`);
+}
 async function doCreate(n) {
   await waitForSlot(1);
   log(`시드에서 ${n} 생성(약 30초)...`);
   await sql(`create pluggable database ${n} admin user pdbadm identified by "${CFG.appPassword}" file_name_convert = ('/pdbseed/', '/${n}/');`);
   await sql(`alter pluggable database ${n} open;`);
   await ensureUsers(n);
+  await ensureQuiet(n);
 }
 
 async function doSeal(n) {
@@ -250,6 +283,7 @@ async function doClone(t, n) {
     await sqlTry(`alter pluggable database ${t} close immediate;`);
   }
   await sql(`alter pluggable database ${n} open;`);
+  await ensureQuiet(n);
   log(`${n} 복제·열기 ${Math.round((Date.now() - t0) / 1000)}초`);
 }
 
@@ -398,13 +432,12 @@ const commands = {
   },
 
   // 복제 원본으로 쓰려면 READ ONLY 로 봉인한다. 봉인 뒤에는 닫아 두고, 복제 때만 잠깐 연다.
+  // seal 도 close 처럼 PC 잠금을 잡지 않는다: 결과가 닫힌 PDB 라 메모리를 줄이는 쪽이다(READ WRITE 로 열려 있던 템플릿을 닫는다).
   async 'template-seal'([name]) {
     const n = checkName(name);
-    await withLock(async () => {
-      if (!(await find(n))) die(`없다: ${n}`);
-      await doSeal(n);
-      log(`${n} 봉인(닫힌 상태, 복제 때 READ ONLY 로 잠깐 연다).`);
-    });
+    if (!(await find(n))) die(`없다: ${n}`);
+    await doSeal(n);
+    log(`${n} 봉인(닫힌 상태, 복제 때 READ ONLY 로 잠깐 연다).`);
   },
 
   async 'template-unseal'([name]) {
@@ -486,15 +519,15 @@ const commands = {
     });
   },
 
+  // close 는 PC 잠금을 잡지 않는다: 열린 PDB 와 메모리를 줄이는 쪽이라 다른 작업(시험·복제)과 겹쳐도 안전하다.
+  // 템플릿을 복제하는 도중에 그 템플릿을 닫지 않도록 호출하는 쪽이 조심한다(시험 PDB T_ 는 하니스가 직접 지운다).
   async close([name]) {
     const n = checkName(name);
-    await withLock(async () => {
-      const p = await find(n);
-      if (!p) die(`없다: ${n}`);
-      if (!isOpen(p)) { log(`${n} 이미 닫혀 있다.`); return; }
-      await sql(`alter pluggable database ${n} close immediate;`);
-      log(`${n} 닫았다(데이터는 그대로).`);
-    });
+    const p = await find(n);
+    if (!p) die(`없다: ${n}`);
+    if (!isOpen(p)) { log(`${n} 이미 닫혀 있다.`); return; }
+    await sql(`alter pluggable database ${n} close immediate;`);
+    log(`${n} 닫았다(데이터는 그대로).`);
   },
 
   async drop([name]) {
@@ -532,6 +565,27 @@ const commands = {
     process.stdout.write(`LOCKED ${process.pid}\n`);
   },
 
+  // 열린 PDB 의 자동 작업(autotask·AWR 스냅숏)을 끄고 상태를 확인한다. 이미 만든 PDB 에도 쓸 수 있다.
+  async quiet([name]) {
+    const n = checkName(name);
+    await withLock(async () => {
+      const p = await find(n);
+      if (!p || !isOpen(p)) die(`${n} 이 열려 있지 않다. open 먼저.`);
+      await ensureQuiet(n);
+    });
+  },
+
+  // 시험 PDB 의 세션 수를 한 줄로 낸다(하니스가 시험 끝에 로그로 남긴다). 최대치는 PDB 안 v$resource_limit 값이다. 잠금 없이 실행한다.
+  async sessions([name]) {
+    const n = checkName(name);
+    const p = await find(n);
+    if (!p || !isOpen(p)) die(`${n} 이 열려 있지 않다.`);
+    const out = await sql(
+      `alter session set container=${n};\n` +
+      "select 'sessions max=' || max_utilization || ' limit=' || limit_value || ' cur=' || current_utilization from v$resource_limit where resource_name='sessions';");
+    process.stdout.write(`${out.split('\n').filter((l) => l.startsWith('sessions')).join('\n') || 'sessions ?'}\n`);
+  },
+
   async 'schema-users'() {
     process.stdout.write(`${SCHEMA_USERS.join('\n')}\n`);
   },
@@ -551,6 +605,8 @@ const commands = {
   drop <PDB>                    닫고 데이터 파일까지 삭제
   users <PDB>                   운영 이름 사용자 (재)생성
   schema-users                  만드는 사용자 목록
+  quiet <PDB>                   열린 PDB 의 autotask·AWR 자동 스냅숏을 끄고 확인(create·clone 은 자동으로 거친다)
+  sessions <PDB>                열린 PDB 의 세션 수(max·limit·cur) 한 줄
   lock-hold [--wait-sec N]      PC 잠금을 쥐고 LOCKED <pid> 를 낸 뒤 표준 입력이 닫힐 때까지 유지(시험 하니스용)
 
 환경 변수: DMES_ORA_ENGINE·DMES_ORA_CONTAINER·DMES_ORA_SYS_PASSWORD·DMES_ORA_PASSWORD·DMES_ORA_HOST·DMES_ORA_PORT·DMES_ORA_MAX_OPEN
