@@ -61,7 +61,7 @@ Oracle Database Free 에디션은 엔진 내부적으로 하드웨어 상한선�
    # (선택) docker 명령 병행: Docker Socket 설정에 sudo 가 필요하면 PATH 의 개인 bin 에 링크
    ln -s /opt/homebrew/bin/podman ~/bin/docker
    ```
-   > 링크 방식은 `docker` CLI 명령만 대체합니다. 소켓에 직접 붙는 도구는 §7-4 를 따릅니다.
+   > 링크 방식은 `docker` CLI 명령만 대체합니다. 소켓에 직접 붙는 도구는 §8-6 을 따릅니다.
 5. **쿠버네티스는 켜지 않습니다:** Podman Desktop 첫 실행 안내의 Kind·Minikube 설치는 Skip 하고, 이미 켰다면 Settings ➡️ Extensions 에서 Disable 합니다.
 
 ### 4.2. Windows 환경 (WSL2 기반)
@@ -168,7 +168,53 @@ podman compose down -v
 
 ---
 
-## 7. 주요 트러블슈팅
+## 7. 로컬 SQLite 데이터를 Oracle 로 옮기기
+
+[`tools/oracle-free/sqlite_to_oracle.py`](../../../tools/oracle-free/sqlite_to_oracle.py) 는 SQLite 파일 하나를 Oracle 스키마(사용자) 하나로 옮긴다. 데이터 크기 측정·방언 차이 확인용이며, 앱 설정은 바꾸지 않는다.
+
+```bash
+# 1. 원본은 로컬 서버가 쓰고 있을 수 있으므로 사본을 뜬다(원본 직접 지정 금지)
+mkdir -p /tmp/ora-mig
+for d in mdm mcm mls mpn mpp mqc caravan-console; do
+  sqlite3 src/backend/data/$d.db ".backup /tmp/ora-mig/$d.db"
+done
+
+# 2. DB 하나 = 스키마 하나. 여러 개를 동시에 돌려도 된다
+python3 tools/oracle-free/sqlite_to_oracle.py --sqlite /tmp/ora-mig/mdm.db --schema MDM --drop --report /tmp/ora-mig/mdm.json
+```
+
+* **필요 조건:** `python3` + `oracledb` 패키지(thin 모드, `pip install oracledb`).
+* **스키마:** SYSTEM 으로 만들고 비밀번호는 `dmes_password_123` 이다. `--drop` 은 MDM·MCM·MLS·MPN·MPP·MQC·CARAVAN_CONSOLE 과 `TMP_` 접두 스키마만 지우고 다시 만든다(`dmes_user` 등 다른 사용자는 건드리지 않음).
+* **선택 인자:** `--batch`(기본 1000행), `--epoch-tz`(기본 UTC), `--tables`(일부 테이블만), `--report`(요약 JSON), `--dsn`·`--system-password`(환경변수 `ORA_DSN`·`ORA_SYSTEM_PASSWORD`).
+* **결과 출력:** 테이블별 SQLite·Oracle 행수 대조, 건너뛴 항목, 스키마 크기(`dba_segments`, 테이블·인덱스·LOB 별 MB).
+
+### 7.1. 변환 규칙과 한계
+
+| 항목 | 처리 |
+| :--- | :--- |
+| 문자열 | `VARCHAR2(n CHAR)`. 실제 값이 4000바이트를 넘으면 `CLOB` |
+| 정수·실수·BOOLEAN | `NUMBER(19)` · `BINARY_DOUBLE` · `NUMBER(1)` |
+| 시각 | `TIMESTAMP(6)`. epoch 밀리초 숫자는 UTC 기준 변환, 문자열 값은 원문 그대로 |
+| 빈 문자열 | Oracle 은 NULL 로 저장하므로, 빈 문자열이 있는 NOT NULL 컬럼은 NOT NULL 을 푼다 |
+| 옮기지 않음(보고만) | 부분 인덱스(WHERE)·식 인덱스, CHECK·FK, 뷰·트리거, 함수식 DEFAULT, AUTOINCREMENT(IDENTITY 미적용) |
+
+> 위 한계 때문에 이관 결과는 크기 측정·조회 시험용이다. 앱을 Oracle 에 연결하려면 IDENTITY·부분 인덱스 대체·뷰를 따로 보완해야 한다.
+
+### 7.2. 실측 (2026-10-07, MacBook Air M5 · Podman VM 2GB · SGA 900M)
+
+| 스키마 | 테이블 | 행수 | Oracle 크기 |
+| :--- | ---: | ---: | ---: |
+| MDM | 40 | 42,889 | 98.9 MB (LOB 73.6) |
+| MCM | 58 | 1,704 | 5.9 MB |
+| 그 밖 5개 | 2~4 | 1~10 | 각 0.2~0.4 MB |
+
+* 모든 테이블의 행수가 일치했고, MDM 은 약 40초 걸렸다.
+* MDM LOB 72MB 는 용어 임베딩(`TB_MDM_TERM.EMBEDDING`, 행당 4096바이트)이다. 값이 행 안 저장 한도(약 4000바이트)를 넘어 행마다 별도 8KB 청크를 쓰므로 원래 크기(32MB)의 두 배가 넘는다.
+* 업무 데이터는 약 34MB 라 버퍼 캐시(552MB)에 모두 올라간다.
+
+---
+
+## 8. 주요 트러블슈팅
 
 1. **Podman 머신이 멈추거나 시작되지 않을 때:**
    - Mac: 터미널에서 `podman machine stop` 후 `podman machine start`로 재시작합니다.
