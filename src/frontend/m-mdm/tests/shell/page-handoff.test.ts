@@ -5,7 +5,7 @@ import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { afterEach, describe, expect, it } from "vitest";
-import { openMdmPage, takeMdmPageParams, useMdmPageParams, type MdmPageParams } from "@/shell";
+import { openMdmPage, peekMdmPageParams, takeMdmPageParams, useMdmPageParams, type MdmPageParams } from "@/shell";
 
 let root: Root | null = null;
 let container: HTMLDivElement | null = null;
@@ -20,6 +20,15 @@ afterEach(() => {
 });
 
 describe("page-handoff", () => {
+  it("peekMdmPageParams 는 값을 지우지 않고 보여 준다(첫 렌더에서 handoff 시작 여부를 알 때 쓴다)", () => {
+    expect(peekMdmPageParams("dmc/codeMng")).toBeNull();
+    openMdmPage("dmc/codeMng", { maruCodeId: "X" });
+    expect(peekMdmPageParams("dmc/codeMng")).toEqual({ maruCodeId: "X" });
+    expect(peekMdmPageParams("dmc/codeMng")).toEqual({ maruCodeId: "X" });
+    expect(takeMdmPageParams("dmc/codeMng")).toEqual({ maruCodeId: "X" });
+    expect(peekMdmPageParams("dmc/codeMng")).toBeNull();
+  });
+
   it("openMdmPage 는 mdm: 접두 pageId 로 portal-open-tab 을 낸다", () => {
     const seen: unknown[] = [];
     const listener = (e: Event) => seen.push((e as CustomEvent).detail);

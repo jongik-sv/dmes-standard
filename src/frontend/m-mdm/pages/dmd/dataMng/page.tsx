@@ -35,7 +35,7 @@ import { Input, Select } from "@dk-oasis/shared/form";
 import { Modal } from "@dk-oasis/shared/modal";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { useCarryRefetch, useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
-import { MdmPageLayout, VEIL_FRESH, VEIL_STALE, openMdmPage, useMdmPageParams } from "@/shell";
+import { MdmPageLayout, VEIL_FRESH, VEIL_STALE, openMdmPage, peekMdmPageParams, useMdmPageParams } from "@/shell";
 
 import { registerDataMng, searchDataMng } from "./api";
 import { buildDataMngColumns } from "./columns";
@@ -223,6 +223,8 @@ export default function DataMngPage({ tabId }: DataMngPageProps) {
   // 진입 값: handoff(마운트 때·자기 탭 재활성화 때마다). handoff 는 목록도 함께 조회한다 — 이미 열린 탭이
   // 다시 handoff 를 받을 때 방금 등록된 데이터가 목록에 보이도록.
   const handedOff = useRef(false);
+  // 이번 마운트가 handoff 로 시작했는가 — 첫 렌더부터 알 수 있게 소비 전(effect 앞)에 들여다본다. true 면 사용자 기본값을 넣지 않는다.
+  const [handoffActive] = useState(() => !!peekMdmPageParams(COMPONENT_PATH)?.maruDataId);
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
     if (params.maruDataId) {
       handedOff.current = true;
@@ -344,8 +346,8 @@ export default function DataMngPage({ tabId }: DataMngPageProps) {
         { id: "btn_search", label: "조회", onClick: handleSearch, type: "primary" as const, disabled: listLoading, action: "search" },
       ]}
     >
-      <SearchArea onSearch={handleSearch}>
-        <SearchField label="ID">
+      <SearchArea onSearch={handleSearch} defaults={!handoffActive}>
+        <SearchField label="ID" defaultKey="dataId" type="text" value={id} onChange={setId}>
           <Input
             data-testid="data-mng-search-id"
             value={id}
@@ -355,7 +357,7 @@ export default function DataMngPage({ tabId }: DataMngPageProps) {
             }}
           />
         </SearchField>
-        <SearchField label="이름">
+        <SearchField label="이름" defaultKey="dataName" type="text" value={name} onChange={setName}>
           <Input
             data-testid="data-mng-search-name"
             value={name}
@@ -365,7 +367,7 @@ export default function DataMngPage({ tabId }: DataMngPageProps) {
             }}
           />
         </SearchField>
-        <SearchField label="상태" name="status" meta={false}>
+        <SearchField label="상태" name="status" meta={false} type="select" value={status} options={STATUS_OPTIONS} onChange={setStatus}>
           <Select data-testid="data-mng-search-status" value={status} options={STATUS_OPTIONS} onChange={setStatus} />
         </SearchField>
       </SearchArea>

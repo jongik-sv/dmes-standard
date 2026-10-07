@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearToasts } from "../../helpers/toasts";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import { openMdmPage, takeMdmPageParams } from "@/shell";
+import { clearSearchDefaultsUser, givenSearchDefaults, inTabPage, withLateServerRules } from "../../helpers/search-defaults";
 import DataMngPage from "../../../pages/dmd/dataMng/page";
 
 const RBAC_STORE_KEY = "__dkOasisButtonRbacStore__";
@@ -75,16 +76,14 @@ async function flush() {
 }
 
 /** entry 는 화면을 그 값으로 여는 handoff 다 — 선택 행은 snapshot 으로 복원하지 않는다(R8). */
-async function render({ entry, ...props }: Record<string, unknown> = {}) {
+async function render({ entry, pageId, ...props }: Record<string, unknown> = {}) {
   if (entry) openMdmPage("dmd/dataMng", entry as Record<string, string>);
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
   await act(async () => {
-    root!.render(
-      createElement(DmesUiProvider, null,
-        createElement(DataMngPage, { tabId: "t1", snapshot: null, onSnapshotChange: () => {}, ...props })),
-    );
+    const page = createElement(DataMngPage, { tabId: "t1", snapshot: null, onSnapshotChange: () => {}, ...props });
+    root!.render(createElement(DmesUiProvider, null, pageId ? inTabPage(String(pageId), page) : page));
   });
   await flush();
   await flush();
@@ -198,6 +197,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
     vi.unstubAllGlobals();
     delete (globalThis as Record<string, unknown>)[RBAC_STORE_KEY];
     document.body.innerHTML = "";
+    clearSearchDefaultsUser();
     // 성공 알림이 전역 알림 저장소(limit 3)에 쌓여 뒤 시험의 알림을 밀어내지 않게 한다.
     clearToasts();
   });
@@ -565,5 +565,54 @@ describe("DataMngPage(dataEdit 통합)", () => {
     await flush();
     await clickListRow("SHIP");
     expect(actions("dataEdit", "view").map((c) => c.params.maruDataId)).toEqual(["PORT", "SHIP"]);
+  });
+  // 조회 조건 사용자 기본값(설계 2026-10-07-search-defaults §6.3·§7.3) — handoff 로 시작하면 넣지 않는다.
+  describe("조회 조건 사용자 기본값", () => {
+    const PAGE = "mdm:dmd/dataMng";
+    const RULES = {
+      dataId: { kind: "fixed", value: "PO" },
+      dataName: { kind: "fixed", value: "항" },
+      status: { kind: "fixed", value: "INUSE" },
+    } as const;
+    const valueOf = (testId: string) => (byTestId(testId) as HTMLInputElement).value;
+    const settle = (ms: number) => act(async () => { await new Promise((r) => setTimeout(r, ms)); });
+
+    it("handoff 없이 열면 사용자 기본값을 칸에 넣는다(키 없던 ID·이름 칸은 defaultKey)", async () => {
+      givenSearchDefaults(PAGE, { ...RULES });
+      await render({ pageId: PAGE });
+      expect(valueOf("data-mng-search-id")).toBe("PO");
+      expect(valueOf("data-mng-search-name")).toBe("항");
+      expect(valueOf("data-mng-search-status")).toBe("INUSE");
+    });
+
+    it("handoff 로 시작하면 사용자 기본값을 넣지 않고, 조건을 비운 채 조회한다(저장소가 이미 준비된 경우)", async () => {
+      givenSearchDefaults(PAGE, { ...RULES });
+      await render({ pageId: PAGE, entry: { maruDataId: "PORT" } });
+      expect(valueOf("data-mng-search-id")).toBe("");
+      expect(valueOf("data-mng-search-name")).toBe("");
+      expect(valueOf("data-mng-search-status")).toBe("");
+      const search = actions("dataMng", "search");
+      expect(search).toHaveLength(1);
+      expect(JSON.stringify(search[0].params)).not.toMatch(/"PO"|"항"|INUSE/);
+    });
+
+    it("서버 응답이 늦어 기본값이 handoff 보다 늦게 와도 넣지 않는다", async () => {
+      globalThis.fetch = withLateServerRules("late-data-handoff", PAGE, { ...RULES }, globalThis.fetch);
+      await render({ pageId: PAGE, entry: { maruDataId: "PORT" } });
+      await settle(700);
+      expect(valueOf("data-mng-search-id")).toBe("");
+      expect(valueOf("data-mng-search-name")).toBe("");
+      expect(valueOf("data-mng-search-status")).toBe("");
+    });
+
+    it("대조: handoff 없이 서버 응답이 늦게 오면 늦게라도 기본값을 넣는다", async () => {
+      globalThis.fetch = withLateServerRules("late-data-plain", PAGE, { ...RULES }, globalThis.fetch);
+      await render({ pageId: PAGE });
+      expect(valueOf("data-mng-search-id")).toBe("");
+      await settle(700);
+      expect(valueOf("data-mng-search-id")).toBe("PO");
+      expect(valueOf("data-mng-search-name")).toBe("항");
+      expect(valueOf("data-mng-search-status")).toBe("INUSE");
+    });
   });
 });

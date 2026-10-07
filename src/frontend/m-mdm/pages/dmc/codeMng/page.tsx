@@ -39,7 +39,7 @@ import { Input, Select } from "@dk-oasis/shared/form";
 import { Modal } from "@dk-oasis/shared/modal";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { useCarryRefetch, useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
-import { MdmPageLayout, VEIL_FRESH, VEIL_STALE, openMdmPage, useMdmPageParams } from "@/shell";
+import { MdmPageLayout, VEIL_FRESH, VEIL_STALE, openMdmPage, peekMdmPageParams, useMdmPageParams } from "@/shell";
 
 import { registerCode, searchCodes } from "./api";
 import { versionButtons } from "./buttons";
@@ -249,6 +249,8 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
   // 진입 값: handoff(마운트 때·자기 탭 재활성화 때마다). handoff 는 목록도 함께 조회한다(§9) — 이미 열린
   // 탭이 다시 handoff 를 받을 때(재활성화) 목록이 그 코드로 안 좁혀도 최소한 최신 상태를 보이게.
   const handedOff = useRef(false);
+  // 이번 마운트가 handoff 로 시작했는가 — 첫 렌더부터 알 수 있게 소비 전(effect 앞)에 들여다본다. true 면 사용자 기본값을 넣지 않는다.
+  const [handoffActive] = useState(() => !!peekMdmPageParams(COMPONENT_PATH)?.maruCodeId);
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
     if (params.maruCodeId) {
       handedOff.current = true;
@@ -457,8 +459,8 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
         { id: "btn_search", label: "조회", onClick: handleSearch, type: "primary" as const, disabled: listLoading, action: "search" },
       ]}
     >
-      <SearchArea onSearch={handleSearch}>
-        <SearchField label="마루 코드" name="keyword" meta={false}>
+      <SearchArea onSearch={handleSearch} defaults={!handoffActive}>
+        <SearchField label="마루 코드" name="keyword" meta={false} type="text" value={keyword} onChange={setKeyword}>
           <Input
             data-testid="code-search-keyword"
             value={keyword}
@@ -469,7 +471,7 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
             }}
           />
         </SearchField>
-        <SearchField label="상태" name="status" meta={false}>
+        <SearchField label="상태" name="status" meta={false} type="select" value={status} options={STATUS_OPTIONS} onChange={setStatus}>
           <Select data-testid="code-search-status" value={status} options={STATUS_OPTIONS} onChange={setStatus} />
         </SearchField>
       </SearchArea>

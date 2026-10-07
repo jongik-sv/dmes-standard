@@ -533,10 +533,10 @@ export default function CommMenuMngPage() {
         setError(e instanceof Error ? e.message : "메뉴 트리 조회 실패");
       }
     })();
-    // 메인 그리드 자동 조회 — 트리 미선택 상태로 DEFAULT_FILTERS 기준 전체 조회.
-    // 새 창이 이어받은 행이 있으면 건너뛴다(행 없이 복원됐으면 이어받은 조건·트리 선택으로 조회). 복원값이 없으면 DEFAULT_FILTERS·트리 미선택 그대로다.
+    // 메인 그리드 자동 조회 — 복원 아닌 첫 조회(트리 미선택·조회 조건 기준 전체)는 SearchArea autoSearch 가 한다(설계 2026-10-07-search-defaults §6.4).
+    // 복원됐는데 행이 없으면 이어받은 조건·트리 선택으로 여기서 조회한다.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (!restored || rows.length === 0) void loadList(filters, selectedTreeMenuId || undefined);
+    if (restored && rows.length === 0) void loadList(filters, selectedTreeMenuId || undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1022,7 +1022,7 @@ export default function CommMenuMngPage() {
         },
       ]}
     >
-      <SearchArea onSearch={handleSearch}>
+      <SearchArea onSearch={handleSearch} autoSearch>
         <SearchField
           label="메뉴 ID"
           name="MENU_ID"
