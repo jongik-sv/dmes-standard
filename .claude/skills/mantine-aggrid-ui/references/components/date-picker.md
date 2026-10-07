@@ -83,6 +83,6 @@ import { DatePicker } from "@dk-oasis/shared/form";
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:336` 상세 폼의 DatePicker(`disabled={!form || isBusy}`).
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:270` 조회조건 기간. 단, 한 SearchField 안에 `div`·`span "~"` 로 묶여 있어 표준과 다르다.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:336` 상세 폼의 DatePicker(`disabled={!form || isBusy}`).
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:270` 조회조건 기간. 단, 한 SearchField 안에 `div`·`span "~"` 로 묶여 있어 표준과 다르다.
 - `min`·`max` 는 아직 사용처 없음.

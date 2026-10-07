@@ -412,6 +412,9 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
 // HTTP method:
 //   - apiLovMaster 만 GET (마스터 코드 조회)
 //   - 나머지는 POST + JSON body (params/payload 모두 body 로 직렬화)
+//
+// 2026-10-07 보안 지적: apiLovMaster 를 뺀 5종은 BFF(proxy.ts denyPatterns)가 403 으로 막고 BE 컨트롤러도 기본으로 꺼져 있다
+// (cactus.inbound.service-routes·query-routes). 화면은 `/api/{module}/oasis/{serviceId}/{action}` 을 쓴다.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** module / serviceId 등 path segment 를 안전하게 인코딩 */

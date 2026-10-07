@@ -55,7 +55,7 @@ export const PAGE_REGISTRY: Record<string, () => Promise<{ default: unknown }>> 
   "dme/ruleSetEdit": () => import("@dk-oasis/m-mdm/pages/dme/ruleSetEdit/page"),
   "dme/ruleSetMng": () => import("@dk-oasis/m-mdm/pages/dme/ruleSetMng/page"),
   "home": () => import("@/page-components/home/page"),
-  "lsh/noticeMgmt": () => import("@dk-oasis/m-mls/pages/lsh/noticeMgmt/page"),
+  "lsh/noticeMgmt": () => import("@/page-components/lsh/noticeMgmt/page"),
   "operations-queue": () => import("@/page-components/operations-queue/page"),
 };
 

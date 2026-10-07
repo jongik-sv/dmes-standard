@@ -1,7 +1,7 @@
 /**
  * BFF 경로 이동 차단(2026-10-03 보안 지적) — proxy 는 원래 경로 접두로 권한을 보고 라우트는 디코드한 조각으로 BE URL 을 만들어,
  * 인코딩된 구분자가 섞이면 권한 없는 사용자가 다른 BE 서비스를 부를 수 있었다. 리뷰어 재현:
- *   POST /api/mls/oasis/noticeBoard/search%2F..%2F..%2FnoticeMgmt%2Fsave   → BE /oasis/noticeMgmt/save
+ *   POST /api/mcm/oasis/noticeBoard/search%2F..%2F..%2FnoticeMgmt%2Fsave   → BE /oasis/noticeMgmt/save
  *   POST /api/mcm/oasis/widgetMemo/..%2F..%2Foasis%2FsecUser%2Fdelete     → BE /oasis/secUser/delete
  * next dev(5199) + 가짜 BE(5198)로 확인하다 같은 결과를 낸 변형도 넣는다:
  *   %5C(역슬래시 — fetch 가 `/` 로 바꾼다), %252F(이중 인코딩), `..;`(Tomcat 이 `;…` 를 떼고 `..` 로 정리 — 그대로 BE 까지 갔다).
@@ -33,7 +33,7 @@ vi.mock("@/lib/auth/api-permission-cache", () => ({
 
 import { NextRequest } from "next/server";
 import { proxy } from "@/proxy";
-import { isUnsafeApiPath } from "@/lib/http/path-guard";
+import { isBlockedBackendPath, isUnsafeApiPath } from "@/lib/http/path-guard";
 import { forwardToBackend } from "@/lib/http/be-proxy";
 import { GET as restGet } from "@/app/api/[module]/rest/[objId]/[action]/[...path]/route";
 
@@ -69,19 +69,19 @@ function beOk(): void {
 
 /** 리뷰어 재현 경로 — 둘 다 로그인만 보는 접두(noticeBoard/search, widgetMemo/) 아래라 옛 proxy 는 통과시켰다. */
 const REVIEWER_PATHS = [
-  "/api/mls/oasis/noticeBoard/search%2F..%2F..%2FnoticeMgmt%2Fsave",
+  "/api/mcm/oasis/noticeBoard/search%2F..%2F..%2FnoticeMgmt%2Fsave",
   "/api/mcm/oasis/widgetMemo/..%2F..%2Foasis%2FsecUser%2Fdelete",
 ];
 /** 확인 중 같은 결과를 낸 변형. */
 const VARIANT_PATHS = [
-  "/api/mls/oasis/noticeBoard/search%5C..%5C..%5CnoticeMgmt%5Csave",
-  "/api/mls/oasis/noticeBoard/search%5c..%5c..%5cnoticeMgmt%5csave",
-  "/api/mls/oasis/noticeBoard/search%2f..%2f..%2fnoticeMgmt%2fsave",
-  "/api/mls/oasis/noticeBoard/search%252F..%252F..%252FnoticeMgmt%252Fsave",
-  "/api/mls/oasis/noticeBoard/search%25252F..%25252FnoticeMgmt",
-  "/api/mls/oasis/noticeBoard/search/..;/..;/..;/..;/..;/oasis/noticeMgmt/save",
-  "/api/mls/oasis/noticeBoard/search/..%3B/..%3b/x",
-  "/api/mls/oasis/noticeBoard/search%2E%2E",
+  "/api/mcm/oasis/noticeBoard/search%5C..%5C..%5CnoticeMgmt%5Csave",
+  "/api/mcm/oasis/noticeBoard/search%5c..%5c..%5cnoticeMgmt%5csave",
+  "/api/mcm/oasis/noticeBoard/search%2f..%2f..%2fnoticeMgmt%2fsave",
+  "/api/mcm/oasis/noticeBoard/search%252F..%252F..%252FnoticeMgmt%252Fsave",
+  "/api/mcm/oasis/noticeBoard/search%25252F..%25252FnoticeMgmt",
+  "/api/mcm/oasis/noticeBoard/search/..;/..;/..;/..;/..;/oasis/noticeMgmt/save",
+  "/api/mcm/oasis/noticeBoard/search/..%3B/..%3b/x",
+  "/api/mcm/oasis/noticeBoard/search%2E%2E",
   "/api/mcm/oasis/widgetMemo/%2e%2e%2fx",
 ];
 
@@ -110,7 +110,7 @@ describe("isUnsafeApiPath — 순수 판정", () => {
 
   it("정상 호출부 경로는 거짓 — 파일 이름의 점·한글 인코딩·퍼센트 글자 자체·숫자 16진 파일 id", () => {
     for (const path of [
-      "/api/mls/oasis/noticeBoard/search",
+      "/api/mcm/oasis/noticeBoard/search",
       "/api/mcm/oasis/secUser/myMenus",
       `/api/mcm/rest/widgetMedia/file/api/mcm/widgetMedia/file/${FILE_ID}`, // widget-types/media/media.ts
       "/api/mcm/rest/commWidgetMng/upload/api/mcm/commWidgetMng/upload", // widget-types/media/upload.ts
@@ -153,7 +153,7 @@ describe("proxy — 경로 모양 검사는 권한 판정보다 먼저", () => {
   });
 
   it("정상 경로는 그대로 — 로그인만 보는 경로 통과, 파일 이름 점·조회 문자열의 ; 는 RBAC 결과대로", async () => {
-    expect(await callProxy("/api/mls/oasis/noticeBoard/search")).toEqual({ status: 200, passed: true });
+    expect(await callProxy("/api/mcm/oasis/noticeBoard/search")).toEqual({ status: 200, passed: true });
     expect(await callProxy("/api/mcm/oasis/widgetMemo/save")).toEqual({ status: 200, passed: true });
     expect(
       await callProxy(`/api/mcm/rest/widgetMedia/file/api/mcm/widgetMedia/file/${FILE_ID}`, "GET")
@@ -171,8 +171,8 @@ describe("proxy — 경로 모양 검사는 권한 판정보다 먼저", () => {
   it("날 `..`·`%2e%2e` 조각은 Next 가 proxy 앞에서 정리한다 — 정리된 경로(noticeMgmt/save)의 RBAC 로 403", async () => {
     // NextRequest(=WHATWG URL)가 정리하므로 proxy 는 `..` 를 보지 못한다. 실제 서버(next dev)도 같았다.
     for (const path of [
-      "/api/mls/oasis/noticeBoard/search/../../noticeMgmt/save",
-      "/api/mls/oasis/noticeBoard/search/%2e%2e/%2e%2e/noticeMgmt/save",
+      "/api/mcm/oasis/noticeBoard/search/../../noticeMgmt/save",
+      "/api/mcm/oasis/noticeBoard/search/%2e%2e/%2e%2e/noticeMgmt/save",
     ]) {
       expect(await callProxy(path), path).toEqual({ status: 403, passed: false });
     }
@@ -216,5 +216,100 @@ describe("forwardToBackend·rest 라우트 — 라우트 조각의 날 점 조�
     );
     expect(res.status).toBe(200);
     expect(fetchMock.mock.calls[0][0]).toBe("http://be.test/api/files/report.v2.xlsx");
+  });
+});
+
+describe("cactus 직접 실행 경로 — proxy·forwardToBackend 두 곳에서 막는다(2026-10-07 보안 지적)", () => {
+  it("proxy — 실제 proxy.ts 설정으로 service·query·lov/query·lov/service 는 권한키가 있어도 403, 권한 캐시도 보지 않는다", async () => {
+    getUserPerms.mockResolvedValue(["*"]);
+    for (const path of [
+      "/api/mdm/service/codeEdit",
+      "/api/mdm/query/service/domainMng",
+      "/api/mdm/lov/service/termMng",
+      "/api/mcm/query/DmomMapper.insertTcError",
+      "/api/mcm/lov/query/a.b",
+      "/api/mdm/%73ervice/codeEdit",
+    ]) {
+      expect(await callProxy(path), path).toEqual({ status: 403, passed: false });
+    }
+    expect(getUserPerms).not.toHaveBeenCalled();
+  });
+
+  it("proxy — LoV master·serviceId 가 query 인 OASIS 는 그대로", async () => {
+    expect(await callProxy("/api/mcm/lov/master/UNIT/KG", "GET")).toEqual({ status: 200, passed: true });
+    getUserPerms.mockResolvedValue(["mdm/query/search"]);
+    expect(await callProxy("/api/mdm/oasis/query/search")).toEqual({ status: 200, passed: true });
+  });
+
+  it("rest 신경로 꼬리로 BE 직접 실행 경로에 닿으면 — proxy 는 화면 권한키로 통과해도 rest 라우트가 403, BE 를 부르지 않는다", async () => {
+    getUserPerms.mockResolvedValue(["mdm/codeedit/save"]);
+    expect(await callProxy("/api/mdm/rest/codeEdit/save/service/codeEdit")).toEqual({ status: 200, passed: true });
+    for (const tail of [
+      ["service", "codeEdit"],
+      ["query", "service", "codeEdit"],
+      ["query", "a.b"],
+      ["lov", "query", "a.b"],
+      ["lov", "service", "codeEdit"],
+    ]) {
+      // params 는 Next 가 디코드한 조각이다 — 브라우저의 `%73ervice` 는 여기서 이미 `service` 로 온다.
+      const res = await restGet(new NextRequest(`${BFF}/api/mdm/rest/codeEdit/save/${tail.join("/")}`), {
+        params: Promise.resolve({ module: "mdm", objId: "codeEdit", action: "save", path: tail }),
+      });
+      expect(res.status, tail.join("/")).toBe(403);
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rest 신경로 꼬리로 OASIS 실행 경로(/oasis·/{m}/oasis·/api/{m}/oasis)에 닿아도 403 — 한 화면 권한으로 다른 BPMN 실행 금지", async () => {
+    for (const tail of [
+      ["oasis", "termMng", "save"],
+      ["mdm", "oasis", "termMng", "save"],
+      ["api", "mdm", "oasis", "termMng", "save"],
+      ["", "service", "codeEdit"], // 빈 조각 — Tomcat 은 // 를 합쳐 /service/codeEdit 로 읽는다
+    ]) {
+      const res = await restGet(new NextRequest(`${BFF}/api/mdm/rest/domainMng/search/x`), {
+        params: Promise.resolve({ module: "mdm", objId: "domainMng", action: "search", path: tail }),
+      });
+      expect(res.status, tail.join("/")).toBe(403);
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("정상 BE 경로는 그대로 보낸다 — LoV master·rest 꼬리 /api/…", async () => {
+    beOk();
+    const res = await forwardToBackend(new NextRequest(`${BFF}/api/mcm/lov/master/UNIT/KG`), "mcm", "/lov/master/UNIT/KG");
+    expect(res.status).toBe(200);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://be.test/lov/master/UNIT/KG");
+
+    const rest = await restGet(new NextRequest(`${BFF}/api/mcm/rest/x/search/api/planned-orders`), {
+      params: Promise.resolve({ module: "mcm", objId: "x", action: "search", path: ["api", "planned-orders"] }),
+    });
+    expect(rest.status).toBe(200);
+    expect(fetchMock.mock.calls[1][0]).toBe("http://be.test/api/planned-orders");
+
+    const catchAll = await forwardToBackend(
+      new NextRequest(`${BFF}/api/mcm/mdmMeta/columns`),
+      "mcm",
+      "/api/mcm/mdmMeta/columns",
+    );
+    expect(catchAll.status).toBe(200);
+    expect(fetchMock.mock.calls[2][0]).toBe("http://be.test/api/mcm/mdmMeta/columns");
+  });
+
+  it("isBlockedBackendPath — 순수 판정", () => {
+    for (const p of [
+      "/service/x", "/service", "/query/a.b", "/query/service/x", "/lov/query/a.b", "/lov/service/x",
+      "/%73ervice/x", "/service/x?y=1", "/q%ZZ", "//service/x", "/%2F/service/x",
+      "/oasis/termMng/save", "/mdm/oasis/termMng/save", "/api/mdm/oasis/termMng/save", "/oasis",
+      "/api//mdm//oasis/a/b", "/%6Fasis/a/b", "/api/mdm/%6Fasis/a/b",
+    ]) {
+      expect(isBlockedBackendPath(p), p).toBe(true);
+    }
+    for (const p of [
+      "/api/mcm/commWidgetMng/upload", "/api/planned-orders", "/lov/master/UNIT", "/services/x", "/api/service/x",
+      "/queryx/a", "/Service/x", "/%2573ervice/x", "/api/mcm/mdmMeta/columns", "/api/mcm/oasisx/a/b", "/api/mpn/x/oasis/a/b",
+    ]) {
+      expect(isBlockedBackendPath(p), p).toBe(false);
+    }
   });
 });

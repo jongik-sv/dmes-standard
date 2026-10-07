@@ -28,5 +28,13 @@
 
 - [`design/sample-screen-design.md`](./design/sample-screen-design.md) — 최소 형식 예시 (빈 프로젝트용)
 
+## erd/ — 테이블 구조 문서
+
+| 파일 | 내용 |
+| --- | --- |
+| [`erd/csa-menu-erd.md`](./erd/csa-menu-erd.md) · [`erd/csa-menu-tables.md`](./erd/csa-menu-tables.md) · [`erd/csa-menu.dbml`](./erd/csa-menu.dbml) | 시스템관리 `csa` 의 메뉴·권한·위젯 스키마 (관계도 · 테이블별 역할 · dbdiagram.io 입력) |
+| [`erd/csa-sec-erd.md`](./erd/csa-sec-erd.md) | 역할·역할그룹·사용자·Permission·Menu·Object ERD |
+| [`erd/notice-tables.md`](./erd/notice-tables.md) · [`erd/notice.dbml`](./erd/notice.dbml) | 공지사항 `TB_MCM_NOTICE`·`TB_MCM_NOTICE_TARGET` (칸 표 · 운영 DDL Oracle·PostgreSQL · mls 에서 옮기는 이전 SQL). 2026-10-07 mls 에서 이전 |
+
 > 화면 설계 방법론의 정본은 [`docs/guide/design/`](../guide/design/) 의 00~04 가이드와
 > `templates/기능설계서.template.md` 이다. 실제 설계서는 그 템플릿을 그대로 채워 쓴다.

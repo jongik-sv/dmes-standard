@@ -121,6 +121,6 @@ if (rows) setRows(rows);
 
 - `src/frontend/m-mdm/pages/dmb/headerMng/page.tsx:157-161`: confirm 의 `onConfirm` 형태(`title: "확인"`). 표준과 같다.
 - `src/frontend/m-mdm/pages/dmb/headerMng/page.tsx:138-142`, `src/frontend/m-mdm/pages/dme/ruleConfirm/page.tsx:275`: 성공 토스트. 단, `alertType: "info"` 이고 문구가 "저장했습니다."·"확정했습니다"라 표준("저장되었습니다.", `success`)과 다름.
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:58`, `:89`: `ErrorModal` 용 `errorMessage` 상태를 쓴다. 단, 새 화면 표준(`showMessage`)과 다름.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:58`, `:89`: `ErrorModal` 용 `errorMessage` 상태를 쓴다. 단, 새 화면 표준(`showMessage`)과 다름.
 - `src/frontend/m-mcm/page-components/cmz/masterCodeUploadFilePopup/masterCodeUploadFilePopup.tsx:168`: `useGfnMessage` 사용(기존 화면).
 - `useApiCall`·`MessageModal` 직접 사용은 아직 사용처 없음.

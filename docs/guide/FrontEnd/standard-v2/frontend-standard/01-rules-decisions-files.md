@@ -142,7 +142,8 @@ OASIS / REST 외에 mybatis 쿼리·트랜잭션 service·LoV 호출용 path 가
 
 - MUST: BFF 는 `/api/{module}/` 만 제거하고 `${module_url}/...` 로 그대로 전달한다 (rest 와 동일하게 prefix 만 떼는 정책).
 - MUST: 인증 헤더 4종(`Authorization`, `X-Client-Key`, `X-Authenticated-User`, `X-Authenticated-Role`) 과 환경변수 우선순위(`${MODULE}_WAS_URL` → `BACKEND_API_URL`) 정책은 기존 rest 프록시와 동일.
-- SHOULD: FE 호출은 수동 path 조립을 지양하고 Part B §2 의 `apiQuery / apiQueryService / apiService / apiLovMaster / apiLovQuery / apiLovService` 헬퍼를 사용한다.
+- SHOULD: FE 호출은 수동 path 조립을 지양하고 Part B §2 의 헬퍼를 사용한다. 지금 쓸 수 있는 것은 `apiLovMaster` 하나다(아래 경고).
+- **MUST NOT (2026-10-07 보안)**: `apiLovMaster` 를 뺀 5종(`query`·`query/service`·`service`·`lov/query`·`lov/service`)은 쓰지 않는다. 요청이 고른 BPMN·매퍼 statement 를 화면 권한 없이 실행할 수 있어 BFF(`proxy.ts` denyPatterns)가 403 으로 막고, BE 컨트롤러도 기본으로 꺼져 있다(`cactus.inbound.service-routes`·`query-routes`). 화면은 OASIS 패턴을 쓴다. `/query` 조회 라우터는 query-route 설계(2026-10-07-query-route-mybatis-design)가 권한 키 판정과 함께 다시 연다.
 - 본 Phase 7 컨벤션은 `oasis` / `rest` 와 병행한다 (대체 아님).
 
 ##### 2-2-1-A. 모듈별 Phase 7 사용 가능 조건 (MUST)

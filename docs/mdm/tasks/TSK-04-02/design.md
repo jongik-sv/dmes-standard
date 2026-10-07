@@ -574,7 +574,7 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다.
     아무것도 안 만듦)"라는 D10 의 관찰은 그대로 유효하며, 이번에 처음으로 그 관례에 기능설계서 1종을
     더한다.
   - 산출물: `docs/mdm/screens/unitMng/unitMng_기능설계서.md`, `docs/mdm/screens/termMng/termMng_기능설계서.md`
-    (`docs/mls/design/noticeMgmt/noticeMgmt_기능설계서.md` 형식·`docs/guide/design/templates/기능설계서.template.md`
+    (`docs/mcm/design/noticeMgmt/noticeMgmt_기능설계서.md` 형식·`docs/guide/design/templates/기능설계서.template.md`
     구조 준수, 표 근거 칸에 `docs/mdm/design/basic/02-term-domain-column.md`·HTML 시안·본 design.md
     파일/행 번호를 인용).
   - 반려되면: 5종 전부를 만들거나(분석리포트의 As-Is 부재를 어떻게 채울지 별도 결정 필요), 또는 D10

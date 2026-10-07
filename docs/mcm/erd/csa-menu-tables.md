@@ -3,6 +3,7 @@
 - 작성일: 2026-09-04
 - 짝 문서: [`csa-menu-erd.md`](./csa-menu-erd.md) (관계도) · [`csa-menu.dbml`](./csa-menu.dbml) (dbdiagram.io 입력)
 - 근거: `src/backend/data/mcm.db` 실측 + `mcm-core` 엔티티 + `SecUserService` / `DataInitializer`
+- 공지사항 테이블(`TB_MCM_NOTICE`·`TB_MCM_NOTICE_TARGET`, 2026-10-07 mls 에서 이전)은 [`notice-tables.md`](./notice-tables.md) 에 따로 둔다.
 
 이 문서는 **"이 테이블이 왜 있는가"** 만 다룬다. 컬럼 목록은 위 두 문서에 있다.
 

@@ -135,7 +135,7 @@ const PORTAL_MODULE_CONFIG: PortalModuleConfigEntry[] = [
     loadPage: analogPackagePageLoader,
   },
   {
-    // 2026-09-04 — mls(물류) 모듈 포털 등재. 1호 화면 lsh/noticeMgmt.
+    // 2026-09-04 — mls(물류) 모듈 포털 등재. 1호 화면 lsh/noticeMgmt(2026-10-07 m-mcm 으로 옮김 — DEC-001, 지금 m-mls 화면 없음).
     //   화면 코드는 m-mls 패키지의 pages/{group}/{leaf}/page.tsx 에 있고, codegen
     //   (generate-page-registry.mjs 의 MODULE_PAGE_PACKAGES) 이 PAGE_REGISTRY 에 정적 import 로 등재한다.
     //   따라서 analog 처럼 전용 로더가 필요 없고 sharedPortalPageLoader 로 충분하다.

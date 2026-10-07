@@ -50,4 +50,17 @@ class ServiceControllerTest {
         assertThat(actual).isSameAs(expected);
         verify(executor).execute("svc-q", "query", request);
     }
+
+    @Test
+    @DisplayName("/lov/service/{serviceId} 는 action='lov' 로 호출")
+    void lovService_executesWithLovAction() {
+        OasisServiceExecutor executor = mock(OasisServiceExecutor.class);
+        CactusResponse expected = mock(CactusResponse.class);
+        when(executor.execute(eq("svc-lov"), eq("lov"), any())).thenReturn(expected);
+
+        ServiceController controller = new ServiceController(executor);
+        CactusResponse actual = controller.lovService("svc-lov", new CactusRequest());
+
+        assertThat(actual).isSameAs(expected);
+    }
 }

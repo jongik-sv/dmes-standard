@@ -1,5 +1,7 @@
 # mls
 
+> 공지사항(`noticeMgmt`·`noticeBoard`)은 2026-10-07 mcm 으로 옮겼다([DEC-001](../../../docs/ai-build-log/DEC-001_noticeMgmt-on-mls.md)). 이 모듈에는 샘플만 남았다. Flyway V2~V4 와 `mls.db` 의 `TB_MLS_NOTICE*` 행은 이력 검증 때문에 그대로 둔다.
+
 원본 프로젝트의 Spring Boot **`lib` + `api` 2 서브프로젝트** 패턴을 그대로 옮긴 골격 모듈이다.
 Gradle composite build 로 구성되며, 루트 `settings.gradle` 에서 `includeBuild` 로 물린다.
 

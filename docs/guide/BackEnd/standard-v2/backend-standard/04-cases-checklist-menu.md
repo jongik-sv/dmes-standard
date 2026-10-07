@@ -76,6 +76,8 @@
 
 cactus-core 의 `InboundAutoConfiguration` 은 `QueryController` (`/query/{queryId}` + `/query/service/{serviceId}` + `/service/{serviceId}`) 를 `@ConditionalOnBean(SqlSession.class)`, `LovController` (`/lov/master/{code}/{group?}` + `/lov/query/{queryId}` + `/lov/service/{serviceId}`) 를 `@ConditionalOnBean({SqlSession.class, OasisServiceExecutor.class})` 조건으로 등록한다. **MyBatis `SqlSession` 빈을 등록하지 않은 모듈에서는 두 컨트롤러 자체가 빈으로 등록되지 않아 해당 path 호출은 runtime 404** 가 된다.
 
+> **2026-10-07 보안 변경 (위 설명보다 우선)**: `/lov/master` 를 뺀 5종은 SqlSession 이 있어도 기본으로 꺼진다. `ServiceController`(`/service`·`/query/service`·`/lov/service`)는 `cactus.inbound.service-routes.enabled=true`, `QueryController`(`/query/{queryId}`·`/lov/query/{queryId}`)는 `cactus.inbound.query-routes.enabled=true` 일 때만 등록된다. 요청이 고른 BPMN·매퍼 statement(insert 포함)를 화면 권한 없이 실행할 수 있었기 때문이다. BFF 도 이 경로를 403 으로 막는다. query-routes 를 켜면 `QueryStatementGuard` 가 `persistence/query/**`(LoV 는 `persistence/lov/**`) 매퍼의 `{objId}.{action}` SELECT 만 열고 `cactus.query.max-rows`(기본 10,000)로 자른다. 켜는 일은 권한 키 판정과 함께 한다(query-route 설계 2026-10-07-query-route-mybatis-design §4).
+
 | 모듈 | SqlSession 등록 | Phase 7 6 종 라우트 사용 | 명명 룰 |
 |---|---|---|---|
 | `aps` | ✓ (`@MapperScan` + `*Mapper.java` 다수) | **허용** | APS 별도 규약 (§3-1 / §5 APS 예외) |

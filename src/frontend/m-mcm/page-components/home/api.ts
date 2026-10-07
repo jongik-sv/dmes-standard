@@ -1,15 +1,15 @@
 /**
  * 포털 홈 호출 래퍼.
- *   - 공지 목록: `POST /api/mls/oasis/noticeBoard/search` — 모든 로그인 사용자 읽기 전용(조회 범위는 서버가 고정).
+ *   - 공지 목록: `POST /api/mcm/oasis/noticeBoard/search` — 모든 로그인 사용자 읽기 전용(조회 범위는 서버가 고정).
  *   - 로그인 사용자: 공유 사용자 확인(`getCurrentUser` — `GET /api/auth/me` 세션 캐시) — 인사말 이름.
- * 요청 봉투·응답 해제는 m-mls `noticeMgmt/api.ts` 와 같은 방식이다(모듈 간 import 를 피하려고 여기에 둔다).
+ * 요청 봉투·응답 해제는 `page-components/lsh/noticeMgmt/api.ts` 와 같은 방식이다(화면 간 import 를 피하려고 여기에 둔다).
  */
 import { apiRequest } from "@dk-oasis/shared/http";
 import { getCurrentUser } from "@dk-oasis/shared/portal-shell";
 
 import type { NoticeBoardRow } from "./types";
 
-const NOTICE_BOARD_URL = "/api/mls/oasis/noticeBoard/search";
+const NOTICE_BOARD_URL = "/api/mcm/oasis/noticeBoard/search";
 
 interface CactusEnvelope {
   meta?: { success?: boolean; message?: string };
