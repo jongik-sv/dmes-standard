@@ -3,15 +3,15 @@
 - 레인: ora-mdm / 브랜치 `feat/ora-mdm` / 워크트리 `/Users/jji/project/dmes-wt/ora-mdm` / 조정 세션: dmes-standard-d8
 - 지시: ora-mdm-1 (`/Users/jji/.coord/oracle-1007/lanes/ora-mdm/brief.md`)
 
-## 지금 상태 (2026-10-07 19시 무렵, compact 전 정본)
+## 지금 상태 (2026-10-07 21시 무렵, 두 번째 compact 전 정본)
 
-- **진도율 45%(m1·m2·길이 검사 완료).** 길이 검사 89685b58a. 다음은 m3(아래 「남은 순서」 2).
-- (compact 전 기록) HEAD = e8181f72e. 작업 트리 깨끗함, 백그라운드·agent 0, Oracle 접속 0.
+- **진도율 66%(조정자 기준): m1·m2·길이 검사·m3 완료, m4 코드 전환 완료(실행은 머지③ 뒤), m5 준비 중.** dev 는 머지①c `ce378785a` 까지 합쳤다(ed6e282e9).
+- 커밋 흐름: 89685b58a(길이 검사) → 8605df5de(MigrationTest 18개 archive·시험 컴파일) → 9949731c1(픽스처 13개 Oracle) → 601fc9157(mayBeCalled 네이티브) → 4300176b0·18f3b20c9(시험 Oracle 전환) → 0c7802444(엔티티 백틱 칼럼) → 0f9539c67(기반 안전장치·Locale·골든) → 42c8e285f(m4 mdm-e2e.ts·mdm-00-fixtures.spec.ts) → 38d048616(메모).
+- **compact 시점에 돌고 있던 것(재개 때 결과부터 확인):**
+  - SQLite 기준 시험 시간 측정(백그라운드 셸): 임시 워크트리 `/private/tmp/claude-501/-Users-jji-project-dmes-wt-ora-mdm/3b5088a0-7068-461e-b17f-6487027d975a/scratchpad/mdm-sqlite-base`(dev ce378785a, detached). 로그 `scratchpad/m3/sqlite-compile.log`·`sqlite-test.log`, 끝 줄에 `test-rc=… elapsed=…s`(백그라운드 출력 `tasks/bojjxfjab.output`). 끝나면 값만 `docs/oracle-1007/perf-ora-mdm.md` 에 「참고값, 반복 측정 아님」으로 적고 `git worktree remove <경로>` 로 정리(--force 금지). Oracle 값: api 4분 36초(1853건, 두 번째 실행), lib 은 첫 실행에 포함(전체 6분 31초).
+  - `scripts/perf/mdm-backend/**` Oracle 전환 agent(sonnet/high, 실행 금지·커밋 금지). 결과가 오면 리뷰 → 커밋. agent 가 사라졌으면 `git status scripts/perf/mdm-backend` 로 남은 편집을 보고 이어서 한다.
+- **m5 지시(조정자):** perf 기준값은 임시 워크트리에서 한 번만 잰다 → 기준선 `--check`(완료, rc=0, dev SQLite 마이그레이션 = archive) → 머지③ 알림 대기 → dev 합치기 → 바뀐 모듈 재시험 → E2E(아래 「m4 실행 결정」) → 머지 요청(머지②).
 - m2: 구현(opus/high) → 리뷰(opus/high, 중간 3·낮음 5) → 지적 수정 커밋 e8181f72e. main 컴파일 rc=0. 리뷰에서 ClassCastException 위험은 clean(네이티브 숫자는 모두 `(Number)`, 일시는 `fromDb`, CLOB 은 `MdmStrings.text`).
-- **다음 단계(재개 즉시):**
-  1. Oracle 작업 전에 dev(머지①b `fb253556d` 이상: 하니스 PC 잠금·pdb.mjs 자식 정리·sqlplus 시간 상한·JVM Asia/Seoul)를 이 브랜치에 합친다.
-  2. 길이 검사(ORA-12899) 커밋. 대상·자리는 `src/backend/mdm/tools/oracle-baseline/LENGTH-AUDIT.md` §3. 공용 바이트 검사 도구(`getBytes(UTF_8).length ≤ 4000`, DB 문자셋 AL32UTF8 확인함)와 CHAR 칸은 `NamingRules.length()` 로 공유 검사 클래스 10곳에 넣는다. `CHANGE_SUMMARY` 는 오류 대신 "…외 N건" 으로 자른다. `UnitMngService.parseFactor` 정수부 9자리 초과 거절. 확인 못함: DATA_ITEM API 저장 경로가 내용 검사를 건너뜀(호출자 미확인).
-  3. m3 시험 하니스 전환(아래 「m2 결과」의 깨짐 목록). Oracle 무거운 작업은 PC 전체에서 한 번에 하나(`-Pdmes.ora.test=clone`, 잠금이 줄 세운다), 상태 확인용 sqlplus·pdb list 반복 금지, 끊을 때는 자식 podman exec 까지.
 - m3 에서 실측할 것(리뷰 인계): ① `SELECT SYS_CONTEXT('USERENV','NLS_SORT') FROM DUAL` — 앱 JVM 이 `-Duser.language=ko -Duser.country=KR` 이라 thin 드라이버가 NLS_SORT 를 KOREAN_M 로 둘 수 있다. BINARY 가 아니면 Hikari `connection-init-sql: ALTER SESSION SET NLS_SORT=BINARY`(WildFly 는 new-connection-sql)로 SQLite 와 같은 정렬을 맞춘다. ② JPQL `UPPER(v.callSetIds) LIKE :p`(@Lob, `RuleSetVersionQueries:70`) 실행. ③ CLOB 4000바이트 초과 네이티브 UPDATE 4곳. ④ validate(엔티티 ↔ V1, TINYINT·TIMESTAMP 설정). ⑤ boolean `REQUIRED` 저장·읽기 왕복. ⑥ `MetaRevisionRecorder` 의 SELECT … UNION ALL INSERT.
 - **m3 실측 결과(2026-10-07 20시대, T_ORA_MDM, 13건 중 12 통과):** ① NLS_SORT=BINARY·NLS_COMP=BINARY(JVM ko_KR, NLS_LANGUAGE=KOREAN) → connection-init-sql 불필요. ② JPQL `UPPER(@Lob)` 는 Hibernate 가 거부(FunctionArgumentException) → `RuleSetVersionQueries.mayBeCalled` 를 네이티브 `UPPER(CALL_SET_IDS) LIKE` 로 고침(재확인 대기). ③ CLOB 4000바이트 초과 UPDATE 4곳 통과. ④ validate 통과. ⑤ boolean 왕복 통과. ⑥ UNION ALL INSERT 통과. 시험 명령: `DFLOW_HEAVY_WAIT=1800 heavy.sh ../gradlew -Pdmes.ora.test=clone :api:test --tests …`(EXIT 75 는 슬롯 대기 초과, 재시도 대상).
 - **m3 전체 시험(2026-10-07 21시 무렵):** lib 2071/2071, api 1853 중 1852 + 남은 골든 1건 수정 뒤 통과, skip 13(RuleCalcSeedSetTest 등 Oracle 샘플 없음). api 실행 4분 36초. 실패 217건의 원인은 엔티티 백틱 칼럼(`OFFSET`·`LENGTH`·`RESULT`·`ACTION`)을 Spring 이름 전략이 소문자 따옴표("offset")로 내보낸 것이었다(validate 는 대소문자 무시라 통과) → 백틱 제거(0c7802444). 골든 도메인 ID 는 Oracle IDENTITY 가 명시 ID 를 따라가지 않아 시험에서 START WITH 로 맞춤(0f9539c67). 커밋: 4300176b0·18f3b20c9·0c7802444·0f9539c67.
