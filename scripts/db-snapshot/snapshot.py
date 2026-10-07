@@ -191,6 +191,29 @@ def sqlite_oracle_type(decl, max_bytes, has_blob):
     return "CLOB" if max_bytes > 4000 else "VARCHAR2(4000 CHAR)"
 
 
+def apply_mcm_corrections(con):
+    """SQLite mcm.db 가 거친 적 없는 데이터 보정을 사본에 한 번 적용한다(멱등, 행 삭제 없음).
+
+    출처: src/backend/mcm/api/.../init/seed/SchemaArtifactsMssql.java 의 MSSQL 기동 보정 중
+    - normalizeTbMcmSecObjFormUrlValues: SEC_MENU 와 JOIN 되는 OBJ 의 FORM_URL 을 `PARENT_MENU_ID/OBJECT_ID` 로
+    - 폴더 mcm·cma·csa·cme 의 USE_TP·MENU_VIEW_YN 을 COALESCE 'Y'
+    ACCESS_TP 정규화와 MENU_SEQ 8자리 LPAD 는 이 DB 에서 이미 맞아 있어 넣지 않는다. cmb 폴더·MENU_TP 는 옛 로직 밖이라 건드리지 않는다.
+    """
+    have = {r[0].upper() for r in con.execute("select name from sqlite_master where type='table'")}
+    if {"TB_MCM_SEC_OBJ", "TB_MCM_SEC_MENU"} <= have:
+        parent = ("select m.PARENT_MENU_ID || '/' || TB_MCM_SEC_OBJ.OBJECT_ID from TB_MCM_SEC_MENU m "
+                  "where m.OBJECT_ID = TB_MCM_SEC_OBJ.OBJECT_ID and m.PARENT_MENU_ID is not null order by m.MENU_ID limit 1")
+        con.execute(
+            "update TB_MCM_SEC_OBJ set FORM_URL = (%s) where exists (select 1 from TB_MCM_SEC_MENU m "
+            "where m.OBJECT_ID = TB_MCM_SEC_OBJ.OBJECT_ID and m.PARENT_MENU_ID is not null) "
+            "and (FORM_URL is null or FORM_URL = '' or FORM_URL like '%%.xfdl' or FORM_URL = OBJECT_ID)" % parent)
+    if "TB_MCM_SEC_MENU_FLD" in have:
+        con.execute(
+            "update TB_MCM_SEC_MENU_FLD set USE_TP = coalesce(USE_TP, 'Y'), MENU_VIEW_YN = coalesce(MENU_VIEW_YN, 'Y') "
+            "where MENU_ID in ('mcm', 'cma', 'csa', 'cme')")
+    con.commit()
+
+
 def cmd_convert(args):
     cfg = SOURCES.get(args.name)
     if cfg is None:
@@ -211,6 +234,8 @@ def cmd_convert(args):
                 die("옛 SQL 스냅샷이 아니다: %s" % args.from_sql)
             restore_sql_snapshot(args.from_sql, copy)
         con = sqlite3.connect(copy)
+        if args.name == "mcm":
+            apply_mcm_corrections(con)
         tables = [r[0] for r in con.execute(
             "select name from sqlite_master where type='table' and name not like 'sqlite_%' order by name")]
         summary = {}
