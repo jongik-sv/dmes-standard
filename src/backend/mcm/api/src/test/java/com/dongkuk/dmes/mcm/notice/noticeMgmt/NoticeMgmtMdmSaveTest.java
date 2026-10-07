@@ -1,4 +1,4 @@
-package com.dongkuk.dmes.mls.lsh.noticeMgmt;
+package com.dongkuk.dmes.mcm.notice.noticeMgmt;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -13,10 +13,10 @@ import com.dongkuk.dmes.cactus.mdm.MdmValidationRequest;
 import com.dongkuk.dmes.cactus.mdm.MdmValidationResult;
 import com.dongkuk.dmes.cactus.mdm.MdmValidator;
 import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
-import com.dongkuk.dmes.mls.lsh.noticeMgmt.service.NoticeMgmtService;
-import com.dongkuk.dmes.mls.repository.NoticeRepository;
-import com.dongkuk.dmes.mls.repository.NoticeTargetRepository;
-import com.dongkuk.dmes.mls.testdb.MlsTestDb;
+import com.dongkuk.dmes.mcm.notice.noticeMgmt.service.NoticeMgmtService;
+import com.dongkuk.dmes.mcm.notice.repository.NoticeRepository;
+import com.dongkuk.dmes.mcm.notice.repository.NoticeTargetRepository;
+import com.dongkuk.dmes.mcm.notice.McmNoticeTestDb;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -28,7 +28,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,9 +36,8 @@ import org.springframework.transaction.annotation.Transactional;
  * 검증기는 가짜({@link MockitoBean})다. 실제 검증기 동작(길이·소수·룰 세트·검증 불가 정책)은 cactus-core {@code MdmValidatorTest} 몫이고,
  * 여기서는 서비스가 무엇을 어떻게 넘기고 결과를 어떻게 다루는지만 본다.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @Transactional
-class NoticeMgmtMdmSaveTest extends MlsTestDb {
+class NoticeMgmtMdmSaveTest extends McmNoticeTestDb {
 
     @Autowired
     NoticeMgmtService service;

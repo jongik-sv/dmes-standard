@@ -1,12 +1,12 @@
-package com.dongkuk.dmes.mls.lsh;
+package com.dongkuk.dmes.mcm.notice;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.dongkuk.dmes.mls.lsh.noticeBoard.service.NoticeBoardService;
-import com.dongkuk.dmes.mls.lsh.noticeMgmt.service.NoticeMgmtService;
+import com.dongkuk.dmes.mcm.notice.noticeBoard.service.NoticeBoardService;
+import com.dongkuk.dmes.mcm.notice.noticeMgmt.service.NoticeMgmtService;
 import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -46,7 +46,7 @@ class NoticeBpmnActionTest {
         Map<String, Element> byAction = tasksByAction(doc);
         assertEquals(List.of("changeStatus", "save", "search"), List.copyOf(byAction.keySet()));
         assertServiceTasks(doc, "noticeMgmtService", NoticeMgmtService.class, byAction);
-        assertEquals("com.dongkuk.dmes.mls.lsh.noticeMgmt.dto.NoticeMgmtSearchRequest",
+        assertEquals("com.dongkuk.dmes.mcm.notice.noticeMgmt.dto.NoticeMgmtSearchRequest",
                 properties(byAction.get("search")).get("dto"));
         // save 는 dto 없이 grids.master.rows 를 파라미터 이름 master 로 받는다(§6-E-3).
         assertFalse(properties(byAction.get("save")).containsKey("dto"));
@@ -61,7 +61,7 @@ class NoticeBpmnActionTest {
         Map<String, Element> byAction = tasksByAction(doc);
         assertEquals(List.of("search"), List.copyOf(byAction.keySet()), "모든 역할이 부르는 서비스 — 조회 하나만 둔다");
         assertServiceTasks(doc, "noticeBoardService", NoticeBoardService.class, byAction);
-        assertEquals("com.dongkuk.dmes.mls.lsh.noticeBoard.dto.NoticeBoardSearchRequest",
+        assertEquals("com.dongkuk.dmes.mcm.notice.noticeBoard.dto.NoticeBoardSearchRequest",
                 properties(byAction.get("search")).get("dto"));
         long publicMethods = Arrays.stream(NoticeBoardService.class.getDeclaredMethods())
                 .filter(m -> java.lang.reflect.Modifier.isPublic(m.getModifiers())).count();

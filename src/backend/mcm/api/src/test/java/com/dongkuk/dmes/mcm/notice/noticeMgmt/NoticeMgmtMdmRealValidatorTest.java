@@ -1,4 +1,4 @@
-package com.dongkuk.dmes.mls.lsh.noticeMgmt;
+package com.dongkuk.dmes.mcm.notice.noticeMgmt;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -15,10 +15,10 @@ import com.dongkuk.dmes.cactus.mdm.MdmTargetType;
 import com.dongkuk.dmes.cactus.mdm.MdmUnavailableException;
 import com.dongkuk.dmes.cactus.mdm.MdmValidator;
 import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
-import com.dongkuk.dmes.mls.lsh.noticeMgmt.service.NoticeMgmtService;
-import com.dongkuk.dmes.mls.repository.NoticeRepository;
-import com.dongkuk.dmes.mls.repository.NoticeTargetRepository;
-import com.dongkuk.dmes.mls.testdb.MlsTestDb;
+import com.dongkuk.dmes.mcm.notice.noticeMgmt.service.NoticeMgmtService;
+import com.dongkuk.dmes.mcm.notice.repository.NoticeRepository;
+import com.dongkuk.dmes.mcm.notice.repository.NoticeTargetRepository;
+import com.dongkuk.dmes.mcm.notice.McmNoticeTestDb;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Collection;
@@ -31,16 +31,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * noticeMgmt save 에 진짜 {@link MdmValidator}(엔진 + 가짜 MDM 피드)를 끼운 시험 — TITLE 정의는 로컬 mdm.db 와 같다(STRING 1000·선택).
  * 가짜 검증기 시험({@link NoticeMgmtMdmSaveTest})이 못 보는 것: 요청 모양(grid·columns·행 자리)이 진짜 검증기에서 오류 위치·문구로 이어지는지.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @Transactional
-class NoticeMgmtMdmRealValidatorTest extends MlsTestDb {
+class NoticeMgmtMdmRealValidatorTest extends McmNoticeTestDb {
 
     @Autowired
     NoticeRepository repository;

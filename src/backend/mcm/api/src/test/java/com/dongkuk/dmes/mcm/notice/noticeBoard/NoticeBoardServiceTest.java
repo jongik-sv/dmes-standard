@@ -1,16 +1,16 @@
-package com.dongkuk.dmes.mls.lsh.noticeBoard;
+package com.dongkuk.dmes.mcm.notice.noticeBoard;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.dongkuk.dmes.cactus.security.context.UserContextHolder;
 import com.dongkuk.dmes.cactus.security.context.UserInfo;
-import com.dongkuk.dmes.mls.entity.Notice;
-import com.dongkuk.dmes.mls.entity.NoticeTarget;
-import com.dongkuk.dmes.mls.lsh.noticeBoard.dto.NoticeBoardSearchRequest;
-import com.dongkuk.dmes.mls.lsh.noticeBoard.service.NoticeBoardService;
-import com.dongkuk.dmes.mls.repository.NoticeRepository;
-import com.dongkuk.dmes.mls.repository.NoticeTargetRepository;
-import com.dongkuk.dmes.mls.testdb.MlsTestDb;
+import com.dongkuk.dmes.mcm.notice.entity.Notice;
+import com.dongkuk.dmes.mcm.notice.entity.NoticeTarget;
+import com.dongkuk.dmes.mcm.notice.noticeBoard.dto.NoticeBoardSearchRequest;
+import com.dongkuk.dmes.mcm.notice.noticeBoard.service.NoticeBoardService;
+import com.dongkuk.dmes.mcm.notice.repository.NoticeRepository;
+import com.dongkuk.dmes.mcm.notice.repository.NoticeTargetRepository;
+import com.dongkuk.dmes.mcm.notice.McmNoticeTestDb;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
 import java.util.List;
@@ -21,7 +21,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,9 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
  * noticeBoard(포털 홈 공지 목록) — 게시중이고 오늘이 게시기간 안인 공지만, 상단 고정 → 긴급 → 등록 최신순, 최대 50건.
  * 날짜는 시드의 절대 날짜에 기대지 않고 오늘 기준 상대 날짜로 만든다. 시험마다 표를 비우고 트랜잭션 롤백으로 되돌린다.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @Transactional
-class NoticeBoardServiceTest extends MlsTestDb {
+class NoticeBoardServiceTest extends McmNoticeTestDb {
 
     @Autowired
     NoticeBoardService service;
@@ -148,7 +146,7 @@ class NoticeBoardServiceTest extends MlsTestDb {
     void nullCreatedAtGoesLast() {
         posted("오래됨");
         Notice newer = posted("시각 없음");
-        new JdbcTemplate(dataSource).update("UPDATE TB_MLS_NOTICE SET C_AT = NULL WHERE NOTICE_ID = ?", newer.getNoticeId());
+        new JdbcTemplate(dataSource).update("UPDATE TB_MCM_NOTICE SET C_AT = NULL WHERE NOTICE_ID = ?", newer.getNoticeId());
 
         // 공지번호로는 "시각 없음" 이 더 최신이지만, 등록 시각이 없으면 시각이 있는 행 뒤로 간다.
         assertThat(titles(null)).containsExactly("오래됨", "시각 없음");
@@ -196,7 +194,7 @@ class NoticeBoardServiceTest extends MlsTestDb {
     void htmlSanitizedOnRead() {
         Notice n = posted("직접 넣은 HTML");
         new JdbcTemplate(dataSource).update(
-                "UPDATE TB_MLS_NOTICE SET CONTENT_FORMAT = 'HTML', CONTENT = ? WHERE NOTICE_ID = ?",
+                "UPDATE TB_MCM_NOTICE SET CONTENT_FORMAT = 'HTML', CONTENT = ? WHERE NOTICE_ID = ?",
                 "<p onclick=\"x()\">안내</p><script>alert(1)</script>", n.getNoticeId());
 
         assertThat(board(null).get(0).get("CONTENT")).isEqualTo("<p>안내</p>");
@@ -253,7 +251,7 @@ class NoticeBoardServiceTest extends MlsTestDb {
     void detailHasContent() {
         Notice n = posted("상세");
         new JdbcTemplate(dataSource).update(
-                "UPDATE TB_MLS_NOTICE SET CONTENT_FORMAT = 'HTML', CONTENT = ? WHERE NOTICE_ID = ?",
+                "UPDATE TB_MCM_NOTICE SET CONTENT_FORMAT = 'HTML', CONTENT = ? WHERE NOTICE_ID = ?",
                 "<p onclick=\"x()\">안내</p><script>alert(1)</script>", n.getNoticeId());
 
         List<Map<String, Object>> rows = detail(n.getNoticeId());

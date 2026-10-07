@@ -1,16 +1,16 @@
-package com.dongkuk.dmes.mls.lsh.noticeMgmt;
+package com.dongkuk.dmes.mcm.notice.noticeMgmt;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
-import com.dongkuk.dmes.mls.entity.Notice;
-import com.dongkuk.dmes.mls.lsh.noticeMgmt.dto.NoticeMgmtSearchRequest;
-import com.dongkuk.dmes.mls.lsh.noticeMgmt.service.NoticeMgmtService;
-import com.dongkuk.dmes.mls.repository.NoticeRepository;
-import com.dongkuk.dmes.mls.repository.NoticeTargetRepository;
-import com.dongkuk.dmes.mls.testdb.MlsTestDb;
+import com.dongkuk.dmes.mcm.notice.entity.Notice;
+import com.dongkuk.dmes.mcm.notice.noticeMgmt.dto.NoticeMgmtSearchRequest;
+import com.dongkuk.dmes.mcm.notice.noticeMgmt.service.NoticeMgmtService;
+import com.dongkuk.dmes.mcm.notice.repository.NoticeRepository;
+import com.dongkuk.dmes.mcm.notice.repository.NoticeTargetRepository;
+import com.dongkuk.dmes.mcm.notice.McmNoticeTestDb;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -19,16 +19,14 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * noticeMgmt V3 확장 — 본문 형식(CONTENT_FORMAT)·공지 분류(NOTICE_CATEGORY)·상단 고정(PIN_YN), HTML 소독, 4000자 제한 해제.
- * 실제 SQLite 파일에 Flyway V1~V3 를 적용한 컨텍스트에서 서비스를 직접 부른다. 각 시험은 트랜잭션 롤백으로 격리한다.
+ * 임시 SQLite 파일에 ddl-auto 로 공지 테이블을 만든 컨텍스트({@link McmNoticeTestDb})에서 서비스를 직접 부른다. 각 시험은 트랜잭션 롤백으로 격리한다.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @Transactional
-class NoticeMgmtServiceTest extends MlsTestDb {
+class NoticeMgmtServiceTest extends McmNoticeTestDb {
 
     @Autowired
     NoticeMgmtService service;
@@ -80,23 +78,25 @@ class NoticeMgmtServiceTest extends MlsTestDb {
         return (List<Map<String, Object>>) out.get("list");
     }
 
-    // ── V3 마이그레이션 ─────────────────────────────────────────────
+    // ── 엔티티 기본값 (mls 의 V3 마이그레이션 기본값 시험을 대체) ─────────────────────
 
+    /**
+     * mls 에서는 Flyway V3 가 기존 시드 행에 기본값(TEXT·NORMAL·N)을 채우고 점검 시드 1건을 마크다운 예시로 바꿨다. mcm 은 Flyway 가 없고
+     * 공지 시드 행도 없으며(ddl-auto 가 빈 테이블만 만든다), ddl-auto 는 DB DEFAULT 를 만들지 않는다. 그래서 같은 기본값 계약을 엔티티
+     * 필드 초기값과, 값 없이 저장한 행의 실제 저장값으로 확인한다.
+     */
     @Test
-    @DisplayName("V3 — 기존 시드는 기본값(TEXT·NORMAL·N)을 받고, 점검 시드 1건은 마크다운 예시로 바뀐다")
-    void migrationDefaultsAndMdSeed() {
-        Notice maint = repository.findById("NT202609030001").orElseThrow();
-        assertThat(maint.getContentFormat()).isEqualTo("MD");
-        assertThat(maint.getNoticeCategory()).isEqualTo("MAINT");
-        assertThat(maint.getPinYn()).isEqualTo("Y");
-        assertThat(maint.getContent()).startsWith("## 정기 점검 안내").contains("**첫째 주 토요일 02:00~04:00**");
+    @DisplayName("기본값 — 엔티티 초기값과 값 없이 저장한 행이 TEXT·NORMAL·N 이다(mcm 은 마이그레이션·시드가 없다)")
+    void entityDefaults() {
+        Notice blank = new Notice("NTDEFAULT0001");
+        assertThat(blank.getContentFormat()).isEqualTo("TEXT");
+        assertThat(blank.getNoticeCategory()).isEqualTo("NORMAL");
+        assertThat(blank.getPinYn()).isEqualTo("N");
 
-        for (String id : List.of("NT202609030002", "NT202609030003")) {
-            Notice n = repository.findById(id).orElseThrow();
-            assertThat(n.getContentFormat()).as(id).isEqualTo("TEXT");
-            assertThat(n.getNoticeCategory()).as(id).isEqualTo("NORMAL");
-            assertThat(n.getPinYn()).as(id).isEqualTo("N");
-        }
+        Notice stored = create(newRow("기본값 저장"));
+        assertThat(stored.getContentFormat()).isEqualTo("TEXT");
+        assertThat(stored.getNoticeCategory()).isEqualTo("NORMAL");
+        assertThat(stored.getPinYn()).isEqualTo("N");
     }
 
     // ── save — 새 컬럼 ─────────────────────────────────────────────
@@ -328,13 +328,13 @@ class NoticeMgmtServiceTest extends MlsTestDb {
 
     private List<String> storedRoles(String noticeId) {
         return targetRepository.findByNoticeIds(List.of(noticeId)).stream()
-                .map(com.dongkuk.dmes.mls.entity.NoticeTarget::getRoleId).toList();
+                .map(com.dongkuk.dmes.mcm.notice.entity.NoticeTarget::getRoleId).toList();
     }
 
     @Test
-    @DisplayName("V4 — 기존 시드와 키 없는 신규 행은 전체 대상(ALL)이고 대상 역할이 없다")
+    @DisplayName("V4 — 엔티티 초기값과 키 없는 신규 행은 전체 대상(ALL)이고 대상 역할이 없다")
     void targetDefaultsAll() {
-        assertThat(repository.findById("NT202609030001").orElseThrow().getTargetScope()).isEqualTo("ALL");
+        assertThat(new Notice("NTDEFAULT0001").getTargetScope()).isEqualTo("ALL");
         Notice n = create(newRow("대상 기본"));
         assertThat(n.getTargetScope()).isEqualTo("ALL");
         assertThat(storedRoles(n.getNoticeId())).isEmpty();

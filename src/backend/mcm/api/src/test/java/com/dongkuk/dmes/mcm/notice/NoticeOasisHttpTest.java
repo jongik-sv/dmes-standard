@@ -1,73 +1,94 @@
-package com.dongkuk.dmes.mls.lsh;
+package com.dongkuk.dmes.mcm.notice;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.dongkuk.dmes.cactus.oasis.CactusRequestConverter;
+import com.dongkuk.dmes.cactus.oasis.CactusResponseConverter;
+import com.dongkuk.dmes.cactus.oasis.OasisAutoConfiguration;
+import com.dongkuk.dmes.cactus.oasis.OasisProperties;
+import com.dongkuk.dmes.cactus.oasis.OasisServiceExecutor;
+import com.dongkuk.dmes.cactus.security.context.UserContextHolder;
+import com.dongkuk.dmes.cactus.security.context.UserInfo;
+import com.dongkuk.dmes.cactus.tx.CactusTxProperties;
+import com.dongkuk.dmes.cactus.web.request.CactusRequest;
+import com.dongkuk.dmes.cactus.web.request.GridData;
+import com.dongkuk.dmes.cactus.web.request.RequestMeta;
+import com.dongkuk.dmes.cactus.web.response.CactusResponse;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import javax.sql.DataSource;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * BPMN 까지 태우는 HTTP 시험 — BFF 가 부르는 {@code POST /oasis/{serviceId}/{action}} 경로로 응답 봉투 모양을 확인한다
- * (mdm {@code RuleConfirmOasisHttpTest} 골격). 서비스 시험이 못 잡는 것: DTO 바인딩(빈 params), {@code output="result"} →
- * {@code data.result.list}, {@code grids.master.rows} → save 파라미터 바인딩, 서비스 오류 → {@code meta.success=false}.
+ * BPMN 까지 태우는 OASIS 시험 — BFF 가 부르는 {@code POST /oasis/{serviceId}/{action}} 가 실행기에 넘기는 요청 봉투
+ * ({@code meta·params·grids})를 그대로 만들어 {@link OasisServiceExecutor} 로 돌리고, 응답을 JSON 봉투로 바꿔 모양을 확인한다.
+ * 서비스 시험이 못 잡는 것: DTO 바인딩(빈 params), {@code output="result"} → {@code data.result.list},
+ * {@code grids.master.rows} → save 파라미터 바인딩, 서비스 오류 → {@code meta.success=false}·{@code meta.code}.
+ *
+ * <p><b>mls 의 HTTP 시험과 다른 점</b>: mls 는 로그인을 호스팅하지 않아 {@code X-Client-Key} 신뢰 채널로 실제 서버를 띄웠다. mcm 은
+ * 로그인을 호스팅하고 cactus 인증이 켜져 있어 같은 방식이면 JWT 를 발급받아야 하고, {@code McmApplication} 이 {@code com.dongkuk.dmes.mcm}
+ * 전체를 스캔해 시험 클래스의 중첩 {@code @Configuration} 과 충돌하므로 앱 전체를 띄울 수 없다({@link McmNoticeTestDb}).
+ * 그래서 mcm 의 선례({@code MenuCatalogOasisSaveIntegrationTest})처럼 운영과 같은 조립({@link OasisAutoConfiguration#serviceStarter})의
+ * 실행기를 직접 부른다. 웹 계층(컨트롤러·필터)은 지나지 않는다:
+ * <ul>
+ *   <li>{@code X-Authenticated-Role} 헤더 → 사용자 문맥 변환(필터 몫)은 {@link UserContextHolder} 를 직접 채워 대신한다. 필터가 실제로
+ *       {@code ROLE_} 접두를 붙여 채우는 값과 같은 모양이다. 헤더 없음·빈 값은 역할 없는 사용자 문맥이다.</li>
+ *   <li>HTTP 상태(200)·{@code Content-Type} 단언은 웹 계층 몫이라 뺀다. 업무 오류는 실행기 응답의 {@code meta.success=false} 로 같게 본다.</li>
+ * </ul>
  */
-@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
-        properties = {"cactus.security.client-key=" + NoticeOasisHttpTest.TEST_CLIENT_KEY,
-                "cactus.mdm.enabled=false"}) // MDM 캐시·저장 검증은 로컬 MDM 서버에 기대지 않게 끈다
-class NoticeOasisHttpTest {
-
-    static final String TEST_CLIENT_KEY = "mls-notice-http-test-client-key";
-
-    @TempDir
-    static Path tempDir;
-
-    @LocalServerPort
-    int port;
+class NoticeOasisHttpTest extends McmNoticeTestDb {
 
     @Autowired
     DataSource dataSource;
+    @Autowired
+    ApplicationContext context;
 
-    private final HttpClient client = HttpClient.newHttpClient();
-    private final ObjectMapper json = new ObjectMapper();
+    private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
     private JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + tempDir.resolve("mls-notice-http-test.db"));
-    }
+    private OasisServiceExecutor executor;
 
     @BeforeEach
     void clean() {
         jdbc = new JdbcTemplate(dataSource);
-        jdbc.update("DELETE FROM TB_MLS_NOTICE_TARGET WHERE NOTICE_ID LIKE 'NTHTTP%'");
-        jdbc.update("DELETE FROM TB_MLS_NOTICE WHERE NOTICE_ID LIKE 'NTHTTP%'");
+        jdbc.update("DELETE FROM TB_MCM_NOTICE_TARGET WHERE NOTICE_ID LIKE 'NTHTTP%'");
+        jdbc.update("DELETE FROM TB_MCM_NOTICE WHERE NOTICE_ID LIKE 'NTHTTP%'");
+        executor = new OasisServiceExecutor(starter(), context, new CactusRequestConverter(), new CactusResponseConverter());
+    }
+
+    @AfterEach
+    void clearUser() {
+        UserContextHolder.clear();
+    }
+
+    /** 운영과 같은 조립 — {@link OasisAutoConfiguration#serviceStarter} 의 transactional + multi-tx 분기. */
+    private com.dongkuk.oasis.service.ServiceStarter starter() {
+        OasisProperties props = new OasisProperties();
+        props.setTransactional(true);
+        props.setServicePath("/services");
+        CactusTxProperties txProps = new CactusTxProperties();
+        txProps.getManagers().put("txBiz", new CactusTxProperties.TxMgrConfig());
+        txProps.setDefaultManager("txBiz");
+        return new OasisAutoConfiguration().serviceStarter(props, txProps, context);
     }
 
     private void insert(String id, String title, String status, String category, String pinYn, String format, String content) {
-        jdbc.update("INSERT INTO TB_MLS_NOTICE (NOTICE_ID, TITLE, CONTENT, NOTICE_STATUS, POST_START_DT, POST_END_DT, "
-                        + "CONTENT_FORMAT, NOTICE_CATEGORY, PIN_YN) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        jdbc.update("INSERT INTO TB_MCM_NOTICE (NOTICE_ID, TITLE, CONTENT, NOTICE_STATUS, POST_START_DT, POST_END_DT, "
+                        + "CONTENT_FORMAT, NOTICE_CATEGORY, PIN_YN, TARGET_SCOPE) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ALL')",
                 id, title, content, status, LocalDate.now().minusDays(1).toString(), LocalDate.now().plusDays(1).toString(),
                 format, category, pinYn);
     }
@@ -143,12 +164,12 @@ class NoticeOasisHttpTest {
         // savedIds — 신규 행의 서버 채번 NOTICE_ID 를 돌려준다(화면이 제목으로 추정하지 않아도 된다).
         JsonNode savedIds = res.path("data").path("result").path("savedIds");
         assertEquals(1, savedIds.size(), res.toString());
-        assertEquals(jdbc.queryForObject("SELECT NOTICE_ID FROM TB_MLS_NOTICE WHERE TITLE = 'HTTP 저장 HTML'", String.class),
+        assertEquals(jdbc.queryForObject("SELECT NOTICE_ID FROM TB_MCM_NOTICE WHERE TITLE = 'HTTP 저장 HTML'", String.class),
                 savedIds.get(0).asText());
         String stored = jdbc.queryForObject("SELECT CONTENT || '|' || CONTENT_FORMAT || '|' || NOTICE_CATEGORY || '|' || PIN_YN "
-                + "FROM TB_MLS_NOTICE WHERE TITLE = 'HTTP 저장 HTML'", String.class);
+                + "FROM TB_MCM_NOTICE WHERE TITLE = 'HTTP 저장 HTML'", String.class);
         assertEquals("<p>안내</p>|HTML|URGENT|Y", stored);
-        jdbc.update("DELETE FROM TB_MLS_NOTICE WHERE TITLE = 'HTTP 저장 HTML'");
+        jdbc.update("DELETE FROM TB_MCM_NOTICE WHERE TITLE = 'HTTP 저장 HTML'");
     }
 
     @Test
@@ -156,9 +177,9 @@ class NoticeOasisHttpTest {
         insert("NTHTTP0001", "HTTP 전체", "POSTED", "NORMAL", "N", "TEXT", "본문");
         insert("NTHTTP0002", "HTTP 담당자용", "POSTED", "NORMAL", "N", "TEXT", "본문");
         insert("NTHTTP0003", "HTTP 관리자용", "POSTED", "NORMAL", "N", "TEXT", "본문");
-        jdbc.update("UPDATE TB_MLS_NOTICE SET TARGET_SCOPE = 'ROLE' WHERE NOTICE_ID IN ('NTHTTP0002', 'NTHTTP0003')");
-        jdbc.update("INSERT INTO TB_MLS_NOTICE_TARGET (NOTICE_ID, ROLE_ID) VALUES ('NTHTTP0002', 'MDM_STEWARD')");
-        jdbc.update("INSERT INTO TB_MLS_NOTICE_TARGET (NOTICE_ID, ROLE_ID) VALUES ('NTHTTP0003', 'SYSADMIN')");
+        jdbc.update("UPDATE TB_MCM_NOTICE SET TARGET_SCOPE = 'ROLE' WHERE NOTICE_ID IN ('NTHTTP0002', 'NTHTTP0003')");
+        jdbc.update("INSERT INTO TB_MCM_NOTICE_TARGET (NOTICE_ID, ROLE_ID) VALUES ('NTHTTP0002', 'MDM_STEWARD')");
+        jdbc.update("INSERT INTO TB_MCM_NOTICE_TARGET (NOTICE_ID, ROLE_ID) VALUES ('NTHTTP0003', 'SYSADMIN')");
 
         assertThat(httpIds("MDM_STEWARD")).containsExactlyInAnyOrder("NTHTTP0001", "NTHTTP0002");
         assertThat(httpIds("SYSADMIN,MDM_STD_ADMIN")).containsExactlyInAnyOrder("NTHTTP0001", "NTHTTP0003");
@@ -173,8 +194,8 @@ class NoticeOasisHttpTest {
     void noticeBoard_search_는_역할이_없는_사용자에게_전체_공지만_돌려준다() throws Exception {
         insert("NTHTTP0001", "HTTP 전체", "POSTED", "NORMAL", "N", "TEXT", "본문");
         insert("NTHTTP0002", "HTTP 담당자용", "POSTED", "URGENT", "Y", "TEXT", "본문");
-        jdbc.update("UPDATE TB_MLS_NOTICE SET TARGET_SCOPE = 'ROLE' WHERE NOTICE_ID = 'NTHTTP0002'");
-        jdbc.update("INSERT INTO TB_MLS_NOTICE_TARGET (NOTICE_ID, ROLE_ID) VALUES ('NTHTTP0002', 'MDM_STEWARD')");
+        jdbc.update("UPDATE TB_MCM_NOTICE SET TARGET_SCOPE = 'ROLE' WHERE NOTICE_ID = 'NTHTTP0002'");
+        jdbc.update("INSERT INTO TB_MCM_NOTICE_TARGET (NOTICE_ID, ROLE_ID) VALUES ('NTHTTP0002', 'MDM_STEWARD')");
 
         assertThat(httpIds(null)).as("역할 헤더 없음").containsExactly("NTHTTP0001");
         assertThat(httpIds("")).as("역할 헤더 빈 값").containsExactly("NTHTTP0001");
@@ -207,8 +228,8 @@ class NoticeOasisHttpTest {
         assertEquals("ROLE", saved.path("TARGET_SCOPE").asText());
         assertEquals("[\"MDM_STEWARD\",\"SYSADMIN\"]", saved.path("TARGET_ROLES").toString());
         String id = saved.path("NOTICE_ID").asText();
-        jdbc.update("DELETE FROM TB_MLS_NOTICE_TARGET WHERE NOTICE_ID = ?", id);
-        jdbc.update("DELETE FROM TB_MLS_NOTICE WHERE NOTICE_ID = ?", id);
+        jdbc.update("DELETE FROM TB_MCM_NOTICE_TARGET WHERE NOTICE_ID = ?", id);
+        jdbc.update("DELETE FROM TB_MCM_NOTICE WHERE NOTICE_ID = ?", id);
     }
 
     /**
@@ -251,29 +272,26 @@ class NoticeOasisHttpTest {
         return body;
     }
 
-    private JsonNode post(String serviceId, String action, ObjectNode body) throws IOException, InterruptedException {
+    private JsonNode post(String serviceId, String action, ObjectNode body) {
         return post(serviceId, action, body, "MDM_STEWARD");
     }
 
-    private JsonNode post(String serviceId, String action, ObjectNode body, String roleHeader)
-            throws IOException, InterruptedException {
-        HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create("http://127.0.0.1:" + port + "/oasis/" + serviceId + "/" + action))
-                .header("Content-Type", "application/json")
-                .header("X-Client-Key", effectiveClientKey())
-                .header("X-Authenticated-User", "user01")
-                .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body)));
-        if (roleHeader != null) {
-            builder.header("X-Authenticated-Role", roleHeader);
-        }
-        HttpRequest request = builder.build();
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, response.statusCode(), response.body());
-        return json.readTree(response.body());
-    }
+    /** BFF 가 보내는 봉투를 실행기 요청으로 바꿔 돌리고, 응답을 HTTP 본문과 같은 JSON 봉투로 돌려준다. */
+    private JsonNode post(String serviceId, String action, ObjectNode body, String roleHeader) {
+        List<String> roles = roleHeader == null || roleHeader.isBlank() ? List.of()
+                : Arrays.stream(roleHeader.split(",")).map(String::trim).map(r -> "ROLE_" + r).toList();
+        UserContextHolder.set(new UserInfo("user01", "사용자", null, roles));
 
-    private static String effectiveClientKey() {
-        String env = System.getenv("BACKEND_CLIENT_KEY");
-        return (env != null && !env.isBlank()) ? env : TEST_CLIENT_KEY;
+        Map<String, Object> params = json.convertValue(body.path("params"), new TypeReference<HashMap<String, Object>>() { });
+        Map<String, GridData> grids = new HashMap<>();
+        JsonNode master = body.path("grids").path("master").path("rows");
+        if (master.isArray()) {
+            grids.put("master", new GridData(json.convertValue(master, new TypeReference<List<Map<String, Object>>>() { })));
+        }
+        CactusRequest request = new CactusRequest(
+                new RequestMeta("user01", body.path("meta").path("menuId").asText()), params, grids);
+
+        CactusResponse response = executor.execute(serviceId, action, request);
+        return json.valueToTree(response);
     }
 }
