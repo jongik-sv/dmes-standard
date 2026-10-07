@@ -3,7 +3,14 @@
 - 레인: ora-mdm / 브랜치 `feat/ora-mdm` / 워크트리 `/Users/jji/project/dmes-wt/ora-mdm` / 조정 세션: dmes-standard-d8
 - 지시: ora-mdm-1 (`/Users/jji/.coord/oracle-1007/lanes/ora-mdm/brief.md`)
 
-## 지금 상태 (2026-10-07 밤, 두 번째 compact 뒤 정본)
+## 지금 상태 (2026-10-07 23시 무렵, 머지② 뒤 정본)
+
+- **머지② 완료:** feat/ora-mdm b8ca32069 → dev 9966e9812(--no-ff, 트리 0df6a01b…, 304파일). 머지 뒤 메인 dev 에서 :lib·:api compileTestJava rc=0. 워크트리는 남긴다(조정자). 진도율은 머지②로 m1~m5 완료.
+- **②b 후속(진행 중):** 방언 판정 코드(MdmDialect·MdmDialectResolver·DefaultMdmDialectResolver)는 m2 에서 이미 archive 로 옮겨 운영 코드에 판정 분기가 없다(git grep 확인). MdmLayoutItemPinMigrationTest 도 archive 안이라 그 안의 옛 링크만 oracle-sql-rules.md §3 「계층·재귀」로 고쳤다. ora-base 교차 리뷰 1차 후속: 낡은 주석(spring.properties 「SQLite 핸들」·MdmSharedTestDb BASELINE·MdmDataRecv/Item 「방언-중립 백틱」·ACTION 필드 "result" 오기)과 archive 생성기·검증기 안내 경로를 고쳤다.
+  - V1 머리 주석(2~3행)의 생성기 경로는 옛 `tools/oracle-baseline/` 이다. 실제는 `src/backend/mdm/archive/oracle-baseline/`(결정표 DECISIONS.md·LENGTH-AUDIT.md 는 tools 에 남김). V1 은 체크섬 때문에 고치지 않는다.
+  - `src/backend/mdm/sample/mdm-local-sample.sql` 은 머리말만 Oracle 안내로 바꿨고 본문은 SQLite 문법 그대로다(RuleCalcSeedSetTest @Disabled·m-mdm evalex-sample-rule-parity.test.ts·api/build.gradle:72 가 참조). Oracle 샘플이 생길 때 같이 정리한다.
+  - MasterCodeJpaAutoConfiguration exclude(m2): mdm 은 TB_SEC_CODE_* 를 쓰지 않는다(코드·화면 참조 0, 기대는 빈은 모두 @ConditionalOnBean·ObjectProvider — 아래 b0 표 f). 운영(WildFly)에서도 같은 근거로 맞다고 본다. mcm-core 쪽 확인은 ora-base 가 제안한 대로 조정자 후속에 둔다.
+  - *SqliteTest 72개 이름 변경은 이번 회차에 하지 않는다(조정자).
 
 - **compact 뒤 처리 끝(머지③ 알림 대기):** 임시 워크트리 mdm-sqlite-base 정리(`git worktree remove`, rc=0). 잔재 정리 1~4 커밋 a8152aaf3(샘플 SQL 머리말 → snapshot.py 안내, 파일은 README·be-run.sh·RuleCalcSeedSetTest 가 참조해 그대로 둠; gen_oracle_baseline.py·overrides.json·verify_oracle_baseline.py(gen 을 import) → `src/backend/mdm/archive/oracle-baseline/`, DECISIONS.md·LENGTH-AUDIT.md 는 tools 에 남김; build.gradle·lib/build.gradle·RuleCalcSeedSetTest·playwright.mdm-user.config.ts·dme.user.ts·support.ts 주석). 5번(*SqliteTest 이름)은 안 함. perf 하니스 전환 커밋 4caad53c3(리뷰 sonnet/high 3회 → clean: 도메인 바깥 FK 2개를 적재 동안 끄고 NOVALIDATE 복원, SESSION_USER 검사, allowReset 을 -P 로, extra-base archive 이동 포함). 실행은 아직 안 함.
 - (끝남) 다음: 머지③ 알림 → dev 합치기 → mdm 재시험(lib·api 스위트 시간 합 집계) → perf-ora-mdm.md → E2E → 머지② 요청.
