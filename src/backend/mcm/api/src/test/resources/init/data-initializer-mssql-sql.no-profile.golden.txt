@@ -1224,7 +1224,7 @@
 01219 | getSingleResult | @01218 | v=noticeMgmt | => (Integer)0
 01220 | createNativeQuery | INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('noticeMgmt', N'공지사항 관리', 'mcm', 'web', 'Y', N'내부', SYSDATETIME(), '9999-12-31 23:59:59', 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0) |  |
 01221 | executeUpdate | @01220 |  | => 0
-01222 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_OBJ SET SYSTEM_CODE = 'mcm'  WHERE OBJECT_ID IN ('noticeMgmt', 'noticeBoard') AND SYSTEM_CODE = 'mls' |  |
+01222 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_OBJ SET SYSTEM_CODE = 'mcm'  WHERE OBJECT_ID IN ('noticeMgmt', 'noticeBoard') AND LOWER(TRIM(SYSTEM_CODE)) = 'mls' |  |
 01223 | executeUpdate | @01222 |  | => 0
 01224 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
 01225 | getSingleResult | @01224 | v=noticeMgmt | => (Integer)0

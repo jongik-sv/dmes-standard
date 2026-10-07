@@ -17,6 +17,7 @@ import com.dongkuk.dmes.mcm.init.seed.SchemaArtifactsMssql;
 import com.dongkuk.dmes.mcm.init.seed.SchemaArtifactsSqlite;
 import com.dongkuk.dmes.mcm.init.seed.ScreenUsageSchemaArtifacts;
 import com.dongkuk.dmes.mcm.init.seed.SeedSupport;
+import com.dongkuk.dmes.mcm.security.endpoint.UserPermCache;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.hibernate.Session;
@@ -25,6 +26,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.env.Environment;
@@ -78,6 +81,11 @@ public class DataInitializer implements ApplicationRunner {
     //   는 생성자로 만드는 기존 시험(지문·특성화·admin 잠금 해제)이 그대로 돌게 하기 위해서다(null 이면 내지 않는다).
     @Autowired(required = false)
     private ApplicationEventPublisher eventPublisher;
+
+    // 2026-10-07 — 시드 끝에 권한 캐시(UserPermCache, TTL 10분)도 비운다. 시드가 OBJECT SYSTEM_CODE 를 바꾸면(공지 mls → mcm) 권한키의
+    //   모듈이 바뀌는데, 시드 커밋 전에 들어온 권한 요청이 옛 키를 TTL 동안 남길 수 있다. required=false 인 이유는 eventPublisher 와 같다.
+    @Autowired(required = false)
+    private UserPermCache userPermCache;
 
     private final Environment environment;
 
@@ -260,6 +268,19 @@ public class DataInitializer implements ApplicationRunner {
         // 메뉴 카탈로그 무효화 — 이 메서드의 @Transactional 안이므로 즉시 한 번, 트랜잭션이 끝난 뒤(커밋·롤백) 한 번 더 비운다(MenuCatalog javadoc).
         if (eventPublisher != null) {
             eventPublisher.publishEvent(new MenuChangedEvent(MenuChangedEvent.SEED));
+        }
+
+        // 권한 캐시 무효화 — 메뉴 카탈로그와 같이 지금 한 번, 트랜잭션이 끝난 뒤 한 번 더 비운다(시드 커밋 전 요청이 옛 키를 다시 채운 경우).
+        if (userPermCache != null) {
+            userPermCache.invalidateAll();
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCompletion(int status) {
+                        userPermCache.invalidateAll();
+                    }
+                });
+            }
         }
     }
 

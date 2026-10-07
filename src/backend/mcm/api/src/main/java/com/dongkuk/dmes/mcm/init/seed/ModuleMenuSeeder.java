@@ -156,11 +156,12 @@ public final class ModuleMenuSeeder extends SeedSupport {
      * <p>공지 코드가 mls 에서 mcm 으로 옮겨졌다. 권한키의 모듈은 OBJECT SYSTEM_CODE 에서 나오므로({@code UserPermCache}),
      * 이미 {@code 'mls'} 로 시드된 DB 를 그대로 두면 {@code /api/mcm/oasis/noticeMgmt/*} 가 403 이 되고 화면 pageId 도
      * {@code mls:lsh/noticeMgmt} 로 남아 m-mls 로더를 찾는다. 10-02 에 잠시 시드했던 noticeBoard OBJECT 도 같이 맞춘다.
-     * 값이 정확히 {@code 'mls'} 인 행만 바꾼다 — 메뉴 관리 화면에서 다른 값으로 바꾼 행과 이미 mcm 인 행은 건드리지 않는다. 행은 지우지 않는다.
+     * 값이 {@code mls} 인 행만 바꾼다 — 권한 캐시처럼 앞뒤 공백·대소문자는 무시한다({@code 'MLS'}, {@code ' mls'} 도 대상). 메뉴 관리 화면에서
+     * 다른 값으로 바꾼 행과 이미 mcm 인 행은 건드리지 않는다. 행은 지우지 않는다.
      */
     private void moveNoticeObjectsToMcm() {
         int n = nq("UPDATE MCMAPUSER.TB_MCM_SEC_OBJ SET SYSTEM_CODE = 'mcm' "
-                 + " WHERE OBJECT_ID IN ('noticeMgmt', 'noticeBoard') AND SYSTEM_CODE = 'mls'").executeUpdate();
+                 + " WHERE OBJECT_ID IN ('noticeMgmt', 'noticeBoard') AND LOWER(TRIM(SYSTEM_CODE)) = 'mls'").executeUpdate();
         if (n > 0) {
             log.info("[DataInitializer] 공지 OBJECT SYSTEM_CODE 를 mls → mcm 으로 옮김 — rows={}", n);
         }

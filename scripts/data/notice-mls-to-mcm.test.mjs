@@ -119,3 +119,44 @@ test("mcm 테이블이 없으면 쓰지 않고 코드 3 으로 알린다", () =>
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("필수 칸 제약에 걸리는 행이 있으면 아무것도 쓰지 않고 되돌린다(조용히 버리지 않는다)", () => {
+  const { dir, mls, mcm } = makeDbs();
+  try {
+    // 원본에서 필수 칸을 비울 수 없으므로 원본 테이블을 느슨하게 다시 만든다.
+    const s = new DatabaseSync(mls);
+    s.exec("ALTER TABLE TB_MLS_NOTICE RENAME TO OLD_NOTICE");
+    s.exec(`CREATE TABLE TB_MLS_NOTICE AS SELECT * FROM OLD_NOTICE`);
+    s.prepare("UPDATE TB_MLS_NOTICE SET NOTICE_STATUS = NULL WHERE NOTICE_ID = ?").run("NT202609030002");
+    s.close();
+    const r = run(DatabaseSync, { mls, mcm, apply: true });
+    assert.equal(r.code, 1);
+    assert.match(r.error, /되돌렸습니다/);
+    assert.equal(count(mcm, "TB_MCM_NOTICE"), 0);
+    assert.equal(count(mcm, "TB_MCM_NOTICE_TARGET"), 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("대상에만 있는 필수 칸이 있으면 쓰기 전에 코드 3 으로 멈춘다", () => {
+  const { dir, mls, mcm } = makeDbs();
+  try {
+    const d = new DatabaseSync(mcm);
+    d.exec("ALTER TABLE TB_MCM_NOTICE ADD COLUMN NEW_REQUIRED varchar(10) not null default 'X'");
+    d.close();
+    // 기본값이 있으면 통과한다.
+    assert.equal(run(DatabaseSync, { mls, mcm, apply: false }).code, undefined);
+    const d2 = new DatabaseSync(mcm);
+    d2.exec("CREATE TABLE T2 AS SELECT * FROM TB_MCM_NOTICE_TARGET");
+    d2.exec("DROP TABLE TB_MCM_NOTICE_TARGET");
+    d2.exec("CREATE TABLE TB_MCM_NOTICE_TARGET (NOTICE_ID varchar(30) not null, ROLE_ID varchar(100) not null, ROLE_KIND varchar(10) not null, primary key (NOTICE_ID, ROLE_ID))");
+    d2.close();
+    const r = run(DatabaseSync, { mls, mcm, apply: true });
+    assert.equal(r.code, 3);
+    assert.match(r.error, /ROLE_KIND/);
+    assert.equal(count(mcm, "TB_MCM_NOTICE"), 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

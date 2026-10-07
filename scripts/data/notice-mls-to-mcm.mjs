@@ -7,7 +7,8 @@
  *   node scripts/data/notice-mls-to-mcm.mjs --mls <mls.db 경로> --mcm <mcm.db 경로> --apply   # 복사
  *
  * 규칙
- * - mls.db 는 읽기 전용으로 연다. 어느 쪽 행도 지우거나 덮어쓰지 않는다(INSERT OR IGNORE).
+ * - mls.db 는 읽기 전용으로 연다. 어느 쪽 행도 지우거나 덮어쓰지 않는다(이미 있는 ID 는 넣지 않는다).
+ * - 쓰기는 한 트랜잭션이다. 제약(PK·NOT NULL)에 걸리는 행이 하나라도 있으면 전부 되돌리고 코드 1 로 끝낸다.
  * - 같은 NOTICE_ID 가 mcm 에 이미 있으면 건너뛰고 그 ID 를 보고한다(mcm 에서 먼저 만든 공지와 채번이 겹친 경우 사람이 판단).
  *   건너뛴 공지의 게시 대상 행도 옮기지 않는다 — 다른 공지에 대상이 붙지 않게.
  * - 칸은 두 테이블에 모두 있는 칸만 옮긴다. 날짜 형식은 두 DB 가 같다(날짜 'YYYY-MM-DD', 시각 epoch 밀리초).
@@ -15,11 +16,11 @@
  * - 다시 돌려도 결과가 같다(멱등). 서버가 떠 있어도 되지만 잠금이 길면 5초 기다린 뒤 실패한다.
  *
  * 필요: Node 22.13 이상(내장 node:sqlite). 외부 패키지 없음 — 윈도우도 같은 명령이다.
- * 종료 코드: 0 성공 · 2 인자 오류 · 3 테이블 없음 · 4 node:sqlite 없음 · 1 그 밖의 오류.
+ * 종료 코드: 0 성공 · 2 인자 오류 · 3 테이블·필수 칸 없음 · 4 node:sqlite 없음 · 1 복사 실패(되돌림) 등 그 밖의 오류.
  */
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import process from "node:process";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 const SRC = { notice: "TB_MLS_NOTICE", target: "TB_MLS_NOTICE_TARGET" };
 const DST = { notice: "TB_MCM_NOTICE", target: "TB_MCM_NOTICE_TARGET" };
@@ -49,6 +50,11 @@ function columns(db, table) {
   return db.prepare(`PRAGMA table_info("${table}")`).all().map((r) => r.name);
 }
 
+/** 기본값 없는 NOT NULL 칸(PK 제외는 하지 않는다 — PK 도 원본에서 와야 한다). */
+function notNullWithoutDefault(db, table) {
+  return db.prepare(`PRAGMA table_info("${table}")`).all().filter((r) => r.notnull && r.dflt_value == null).map((r) => r.name);
+}
+
 function hasTable(db, table) {
   return !!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
 }
@@ -73,39 +79,60 @@ export function run(DatabaseSync, { mls, mcm, apply }) {
 
     const noticeCols = columns(src, SRC.notice).filter((c) => columns(dst, DST.notice).includes(c));
     const targetCols = columns(src, SRC.target).filter((c) => columns(dst, DST.target).includes(c));
+    // 대상에만 있는 NOT NULL 칸(기본값 없음)이 있으면 값을 채울 수 없으므로 쓰기 전에 멈춘다.
+    for (const [table, cols] of [[DST.notice, noticeCols], [DST.target, targetCols]]) {
+      const missing = notNullWithoutDefault(dst, table).filter((c) => !cols.includes(c));
+      if (missing.length) return { error: `mcm.db ${table} 의 필수 칸 ${missing.join(", ")} 이 mls 쪽에 없습니다`, code: 3 };
+    }
     const srcNotices = src.prepare(`SELECT ${noticeCols.map((c) => `"${c}"`).join(", ")} FROM "${SRC.notice}" ORDER BY "NOTICE_ID"`).all();
     const srcTargets = src.prepare(`SELECT ${targetCols.map((c) => `"${c}"`).join(", ")} FROM "${SRC.target}" ORDER BY "NOTICE_ID", "ROLE_ID"`).all();
-    const existing = new Set(dst.prepare(`SELECT "NOTICE_ID" FROM "${DST.notice}"`).all().map((r) => r.NOTICE_ID));
 
-    const toInsert = srcNotices.filter((r) => !existing.has(r.NOTICE_ID));
-    const skipped = srcNotices.filter((r) => existing.has(r.NOTICE_ID)).map((r) => r.NOTICE_ID);
-    const insertIds = new Set(toInsert.map((r) => r.NOTICE_ID));
-    const targetsToInsert = srcTargets.filter((r) => insertIds.has(r.NOTICE_ID));
-
+    const planFor = () => {
+      const existing = new Set(dst.prepare(`SELECT "NOTICE_ID" FROM "${DST.notice}"`).all().map((r) => r.NOTICE_ID));
+      const toInsert = srcNotices.filter((r) => !existing.has(r.NOTICE_ID));
+      const insertIds = new Set(toInsert.map((r) => r.NOTICE_ID));
+      return {
+        toInsert,
+        skipped: srcNotices.filter((r) => existing.has(r.NOTICE_ID)).map((r) => r.NOTICE_ID),
+        targetsToInsert: srcTargets.filter((r) => insertIds.has(r.NOTICE_ID)),
+      };
+    };
     const result = {
       apply,
       source: { notices: srcNotices.length, targets: srcTargets.length },
-      skippedNoticeIds: skipped,
-      planned: { notices: toInsert.length, targets: targetsToInsert.length },
+      skippedNoticeIds: [],
+      planned: { notices: 0, targets: 0 },
       inserted: { notices: 0, targets: 0 },
       noticeColumns: noticeCols,
     };
-    if (!apply) return result;
+    const fill = (p) => {
+      result.skippedNoticeIds = p.skipped;
+      result.planned = { notices: p.toInsert.length, targets: p.targetsToInsert.length };
+    };
+    if (!apply) {
+      fill(planFor());
+      return result;
+    }
 
+    // 일반 INSERT — 중복은 아래 계획에서 이미 걸렀으므로, 그래도 제약(PK·NOT NULL)에 걸리면 조용히 버리지 않고 전체를 되돌린다.
     const insNotice = dst.prepare(
-      `INSERT OR IGNORE INTO "${DST.notice}" (${noticeCols.map((c) => `"${c}"`).join(", ")}) VALUES (${noticeCols.map(() => "?").join(", ")})`,
+      `INSERT INTO "${DST.notice}" (${noticeCols.map((c) => `"${c}"`).join(", ")}) VALUES (${noticeCols.map(() => "?").join(", ")})`,
     );
     const insTarget = dst.prepare(
-      `INSERT OR IGNORE INTO "${DST.target}" (${targetCols.map((c) => `"${c}"`).join(", ")}) VALUES (${targetCols.map(() => "?").join(", ")})`,
+      `INSERT INTO "${DST.target}" (${targetCols.map((c) => `"${c}"`).join(", ")}) VALUES (${targetCols.map(() => "?").join(", ")})`,
     );
     dst.exec("BEGIN IMMEDIATE");
     try {
-      for (const r of toInsert) result.inserted.notices += Number(insNotice.run(...noticeCols.map((c) => r[c])).changes);
-      for (const r of targetsToInsert) result.inserted.targets += Number(insTarget.run(...targetCols.map((c) => r[c])).changes);
+      // 이미 있는 ID 는 쓰기 잠금을 잡은 뒤에 읽는다 — 그 사이 서버가 같은 ID 를 넣는 경우를 막는다.
+      const p = planFor();
+      fill(p);
+      for (const r of p.toInsert) result.inserted.notices += Number(insNotice.run(...noticeCols.map((c) => r[c])).changes);
+      for (const r of p.targetsToInsert) result.inserted.targets += Number(insTarget.run(...targetCols.map((c) => r[c])).changes);
       dst.exec("COMMIT");
     } catch (e) {
       dst.exec("ROLLBACK");
-      throw e;
+      result.inserted = { notices: 0, targets: 0 };
+      return { error: `복사 중 오류로 아무것도 쓰지 않고 되돌렸습니다 — ${e?.message ?? e}`, code: 1 };
     }
     return result;
   } finally {
@@ -143,7 +170,18 @@ async function main() {
   if (r.apply) console.log(`  실제로 넣음    공지 ${r.inserted.notices}건 · 게시 대상 ${r.inserted.targets}건`);
 }
 
-const isMain = !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+// 직접 실행 판정 — 심링크·드라이브 문자 대소문자(윈도우)가 달라도 같은 파일이면 실행한다.
+function isMainModule() {
+  if (!process.argv[1]) return false;
+  try {
+    const a = realpathSync(process.argv[1]);
+    const b = realpathSync(fileURLToPath(import.meta.url));
+    return process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
+  } catch {
+    return false;
+  }
+}
+const isMain = isMainModule();
 if (isMain) {
   main().catch((e) => {
     console.error(`오류: ${e?.message ?? e}`);

@@ -1045,7 +1045,7 @@
 01040 | executeUpdate | @01039 |  | => 0
 01041 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :v |  |
 01042 | getSingleResult | @01041 | v=noticeMgmt | => (Integer)1
-01043 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_OBJ SET SYSTEM_CODE = 'mcm'  WHERE OBJECT_ID IN ('noticeMgmt', 'noticeBoard') AND SYSTEM_CODE = 'mls' |  |
+01043 | createNativeQuery | UPDATE MCMAPUSER.TB_MCM_SEC_OBJ SET SYSTEM_CODE = 'mcm'  WHERE OBJECT_ID IN ('noticeMgmt', 'noticeBoard') AND LOWER(TRIM(SYSTEM_CODE)) = 'mls' |  |
 01044 | executeUpdate | @01043 |  | => 0
 01045 | createNativeQuery | SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :v |  |
 01046 | getSingleResult | @01045 | v=noticeMgmt | => (Integer)1

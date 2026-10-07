@@ -192,4 +192,20 @@ mls 쪽 Flyway V2~V4 와 `TB_MLS_*` 행은 그대로 둔다. 이력이 빠지면
 ## 5. 함께 옮긴 설정
 
 - OBJECT `noticeMgmt`·`noticeBoard` 의 `SYSTEM_CODE` 는 `mcm` 이다(시드와 기존 DB 멱등 보정). 권한 키의 모듈이 `SYSTEM_CODE` 라서 보정이 없으면 403 이 난다.
+- **개발·운영은 시드가 돌지 않는다**(`application-dev.yml`·`application-prod.yml` 의 `dmes.init.enabled=false`). 그래서 기동 시 보정도 돌지 않으므로 아래 UPDATE 를 직접 실행한다. 행은 지우지 않는다.
+
+```sql
+UPDATE MCMAPUSER.TB_MCM_SEC_OBJ
+   SET SYSTEM_CODE = 'mcm'
+ WHERE OBJECT_ID IN ('noticeMgmt', 'noticeBoard')
+   AND LOWER(TRIM(SYSTEM_CODE)) = 'mls';
+```
+
+### 5.1 개발·운영 배포 순서
+
+1. §3 DDL 로 `TB_MCM_NOTICE`·`TB_MCM_NOTICE_TARGET` 과 인덱스를 만든다. 앱이 먼저 나가면 기동은 되지만 홈 공지(`noticeBoard`)가 테이블이 없어 실패하고 「공지사항을 불러오지 못했습니다」가 뜬다.
+2. 위 `SYSTEM_CODE` UPDATE 를 실행한다.
+3. mcm 앱과 포털(BFF)을 배포한다. 권한 캐시는 BE 10분·BFF 60초 안에 새 키로 바뀌고, 재기동하면 바로 비워진다.
+4. §4 이전 SQL 로 공지 행을 옮긴다(먼저 NOTICE_ID 겹침 조회가 0건인지 본다).
+5. 홈 공지 위젯·긴급 공지 띠, 메뉴 「공통관리 > 공지관리 > 공지사항 관리」 진입을 확인한다.
 - 식별자 사전 A.2.3: mcm 아래 그룹 `lsh`(공지관리)는 A.2.1 의 `cm?` 접두 규칙 예외로 유지한다([식별자 사전](../../guide/design/identifier-dictionary/01-modules-and-screens.md)).
