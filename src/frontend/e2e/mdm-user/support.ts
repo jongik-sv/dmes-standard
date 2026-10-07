@@ -52,7 +52,7 @@ export const authFile = (role: Role) => path.join(AUTH_DIR, `${role}.json`);
  *
  * 지금은 태그 하나 = ID 하나다. 재실행하면 같은 ID 를 다시 쓰므로 화면·DB 에 늘 한 벌만 남고,
  * 이전 실행치가 새 실행에 덮여써진다. 시험 데이터가 주 DB 에 남는 것 자체는 `E2E_` 접두로
- * 언제든 식별된다 — `tools/e2e-clean-data.sh` 가 그 접두로 한 번에 지운다.
+ * 언제든 식별된다 — 정리는 그 접두 기준으로 수동으로 한다.
  */
 export const uid = (tag: string) => `E2E_USR_${tag}`;
 
