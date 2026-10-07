@@ -36,6 +36,8 @@
 
 ## 결정
 
+- **Oracle 오류 보고 규칙(조정자 2026-10-07, 사용자 지시):** 시험·접속 실패·시간 초과가 나면 다시 돌리기 전에 `podman machine ssh -- 'free -m; cat /proc/loadavg'` 를 한 번 재고, 보고에 오류 번호와 available MB·load 를 함께 적는다. available 150MB 미만, load 10 이상, ORA-04031·04030·00020·00018·12516·12519·12520·3136·609·12751·00800·01092·00822, JDBC 접속·읽기 시간 초과면 재실행하지 말고 「VM 의심」 으로 조정자에게 보고한다. ORA-00942·00904·00001·01400·12899·00933 같은 SQL·제약 오류는 레인이 고친다. Oracle 실행은 레인 세션 하나만 하고, agent 에게 Oracle 실행을 맡길 때는 이 규칙을 지시에 넣는다.
+
 - 시각은 **KST 통일**(조정자 2026-10-07 저녁, 앞서 정한 UTC 결정은 철회). 감사 `C_AT`·`U_AT` 는 `TIMESTAMP(6)` 에 KST 로 저장한다. 앱 설정은 `hibernate.type.preferred_instant_jdbc_type=TIMESTAMP` 만 둔다(m2, mdm yml). `hibernate.jdbc.time_zone` 은 넣지 않는다(JVM Asia/Seoul). Oracle 컨테이너 OS 시간대도 Asia/Seoul 이다.
 - 업무 일시 TEXT(`APPLY_FROM`·`APPLY_TO`·`VALID_FROM`·`VALID_TO`·`*_AT`) → `TIMESTAMP(6)`. 열린 끝 기본값 `TIMESTAMP '9999-12-31 00:00:00'`.
 - `TEXT` → `VARCHAR2(4000 BYTE)`, 4000바이트를 넘을 수 있는 21개만 `CLOB`(목록·근거는 overrides.json): JSON·요청 원문 15개 + 리뷰 지적으로 더한 COLUMN.DESCRIPTION·USAGE_NOTE(HTML, 코드 상한 20,000자), RULE.DESCRIPTION·USAGE_NOTE(길이 검사 없음), RULE_SET_VER.RULE_IDS·CALL_SET_IDS(노드 200개면 약 10KB).
