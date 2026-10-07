@@ -107,10 +107,10 @@ cactus:
       cmn:                     # 공통 DS — 표준 3종 통일(2026-07-07). MCM 은 물리적으로 biz 와 동일 MCMAPUSER
         packages-to-scan: []   # 현재 cmn EMF 에 매핑할 엔티티 없음 (mpn 과 동일 패턴)
         persistence-unit-name: cactus-cmn
-      if:                      # 인터페이스 송수신 DS — EAIUSER (운영) / caravan-if.db (local)
+      if:                      # 인터페이스 송수신 DS — EAIUSER (운영·로컬 Oracle PDB)
         packages-to-scan: []   # pilot 제거(2026-06-05) — 현재 if EMF 에 매핑할 엔티티 없음
         persistence-unit-name: cactus-if
-      caravan:                 # Kafka 메타 DS — CARAVANUSER (운영) / caravan-if.db (local). caravan-console 메타 entity 3종
+      caravan:                 # Kafka 메타 DS — CARAVANUSER (운영·로컬 Oracle PDB). caravan-console 메타 entity 3종
         packages-to-scan:
           - com.dongkuk.caravan.console.host        # AppHostEntity (TB_MCM_APPHOST)
           - com.dongkuk.caravan.console.caravanhubconfig # ConsoleCaravanHubConfigEntity (TB_MCM_MOM_KAFKA_SERAI_CONFIG)

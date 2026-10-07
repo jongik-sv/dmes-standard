@@ -23,7 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * noticeMgmt V3 확장 — 본문 형식(CONTENT_FORMAT)·공지 분류(NOTICE_CATEGORY)·상단 고정(PIN_YN), HTML 소독, 4000자 제한 해제.
- * 임시 SQLite 파일에 ddl-auto 로 공지 테이블을 만든 컨텍스트({@link McmNoticeTestDb})에서 서비스를 직접 부른다. 각 시험은 트랜잭션 롤백으로 격리한다.
+ * Oracle 시험 PDB 의 Flyway 기준선 공지 표를 쓰는 컨텍스트({@link McmNoticeTestDb})에서 서비스를 직접 부른다. 각 시험은 트랜잭션 롤백으로 격리한다.
  */
 @Transactional
 class NoticeMgmtServiceTest extends McmNoticeTestDb {

@@ -5,7 +5,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.dongkuk.dmes.cactus.security.auth.PasswordEncoder;
-import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import com.dongkuk.dmes.mcm.common.audit.SecurityIdentityHolder;
 import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
@@ -20,15 +19,12 @@ import com.dongkuk.dmes.mcm.repository.SecUserMappingRepository;
 import com.dongkuk.dmes.mcm.security.endpoint.EndpointPermissionFilter;
 import com.dongkuk.dmes.mcm.security.endpoint.PermKey;
 import com.dongkuk.dmes.mcm.security.endpoint.UserPermCache;
+import com.dongkuk.dmes.mcm.testdb.McmOraTestDb;
 import com.zaxxer.hikari.HikariDataSource;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
-import java.util.Properties;
 import java.util.Set;
-import org.hibernate.jpa.HibernatePersistenceProvider;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -46,7 +42,6 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.SharedEntityManagerCreator;
-import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -54,11 +49,11 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 공지 화면(noticeMgmt·noticeBoard)의 권한 판정 시험 — 실제 SQLite 시드 + 실제 {@link UserPermCache} + 실제
+ * 공지 화면(noticeMgmt·noticeBoard)의 권한 판정 시험 — 실제 Oracle 시드 + 실제 {@link UserPermCache} + 실제
  * {@link EndpointPermissionFilter} 를 묶어 확인한다(2026-10-07 notice-perm-test, notice-to-mcm 후속 LOW 9).
  *
  * <p>기존 필터 시험({@code EndpointPermissionFilter*Test})은 권한 캐시를 가짜로 끼워서 시드·캐시·필터가 이어지는 구간을 보지 못한다.
- * 여기서는 {@link DataInitializer} 가 빈 SQLite 에 시드한 OBJECT(noticeMgmt, SYSTEM_CODE=mcm)·{@code PERM_ALL} 위에
+ * 여기서는 {@link DataInitializer} 가 빈 Oracle 스키마(Flyway 기준선)에 시드한 OBJECT(noticeMgmt, SYSTEM_CODE=mcm)·{@code PERM_ALL} 위에
  * 역할 매핑 행을 직접 넣고 빼면서 판정이 바뀌는지 본다.
  * <ul>
  *   <li>noticeMgmt 의 search·save·delete — 권한 있는 사용자는 통과, 권한 없는 사용자는 403</li>
@@ -66,60 +61,45 @@ import org.springframework.transaction.support.TransactionTemplate;
  *   <li>권한 부여·회수 — 캐시를 비워야 판정이 바뀐다(TTL 10분 동안은 이전 판정이 남는다)</li>
  *   <li>SYSTEM_CODE 가 mls 로 남은 옛 OBJECT 행 — 시드 보정 전에는 403, 보정(시드 재실행, 끝에서 캐시 무효화) 뒤에는 통과</li>
  * </ul>
- * 공용 로컬 DB·실서버를 건드리지 않도록 임시 SQLite 파일을 쓴다(DataInitializerSeedFingerprintTest 와 같은 구성).
+ * 공용 로컬 DB·실서버를 건드리지 않도록 시험 PDB 의 스키마를 비우고 다시 만든다(DataInitializerSeedFingerprintTest 와 같은 구성).
  */
 class NoticePermissionFilterTest {
 
     private static final String GRANTED = "notice-op";
     private static final String PLAIN = "notice-plain";
 
-    private static Path dbFile;
     private static HikariDataSource dataSource;
     private static LocalContainerEntityManagerFactoryBean emfBean;
     private static EntityManagerFactory emf;
     private static DataInitializer initializer;
     private static JdbcTemplate jdbc;
     private static UserPermCache permCache;
-    private static boolean prevInspectorSqlite;
     private static SecurityContext prevSecurityContext;
     private static SecurityIdentity prevIdentity;
 
     private final SecurityIdentity securityIdentity = mock(SecurityIdentity.class);
 
     @BeforeAll
-    static void seedEmptySqlite() throws Exception {
-        prevInspectorSqlite = McmAuditStatementInspector.isSqlite();
+    static void seedEmptySchemas() throws Exception {
         prevIdentity = SecurityIdentityHolder.get();
         prevSecurityContext = SecurityContextHolder.getContext();
         SecurityIdentityHolder.set(null);
         SecurityContextHolder.clearContext();
 
-        dbFile = Files.createTempFile("mcm-notice-perm", ".db");
-        Files.delete(dbFile);
-        dataSource = new HikariDataSource();
-        dataSource.setJdbcUrl("jdbc:sqlite:" + dbFile);
-        dataSource.setMaximumPoolSize(2);
+        McmOraTestDb.resetSchemas();
+        dataSource = McmOraTestDb.appDataSource("mcm-notice-perm");
 
-        // JpaConfig#entityManagerFactory 의 SQLite 분기와 같은 구성(DataInitializerSeedFingerprintTest 와 동일).
-        Properties props = new Properties();
-        props.put("hibernate.dialect", "org.hibernate.community.dialect.SQLiteDialect");
-        props.put("hibernate.hbm2ddl.auto", "update");
-        props.put("hibernate.hbm2ddl.jdbc_metadata_extraction_strategy", "individually");
-        props.put("hibernate.session_factory.statement_inspector", McmAuditStatementInspector.class.getName());
-        McmAuditStatementInspector.setSqlite(true);
-        props.put("hibernate.metadata_builder_contributor",
-                "com.dongkuk.dmes.mcm.common.persistence.SqliteTemporalConverterContributor");
-
+        // JpaConfig#entityManagerFactory 와 같은 구성(DataInitializerSeedFingerprintTest 와 동일).
         emfBean = new LocalContainerEntityManagerFactoryBean();
         emfBean.setDataSource(dataSource);
-        emfBean.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
-        emfBean.setJpaProperties(props);
+        emfBean.setJpaVendorAdapter(new org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter());
+        emfBean.setJpaProperties(McmOraTestDb.jpaProperties(java.util.Map.of()));
         emfBean.setPersistenceUnitName("default");
         emfBean.setPackagesToScan(
                 "com.dongkuk.dmes.cactus.security.auth",
                 "com.dongkuk.dmes.cactus.mastercode",
                 "com.dongkuk.dmes.mcm");
-        emfBean.setPersistenceProviderClass(HibernatePersistenceProvider.class);
+        emfBean.setPersistenceProviderClass(org.hibernate.jpa.HibernatePersistenceProvider.class);
         emfBean.afterPropertiesSet();
         emf = emfBean.getObject();
         EntityManager sharedEm = SharedEntityManagerCreator.createSharedEntityManager(emf);
@@ -150,12 +130,10 @@ class NoticePermissionFilterTest {
 
     @AfterAll
     static void tearDown() throws Exception {
-        McmAuditStatementInspector.setSqlite(prevInspectorSqlite);
         SecurityIdentityHolder.set(prevIdentity);
         SecurityContextHolder.setContext(prevSecurityContext);
         if (emfBean != null) emfBean.destroy();
         if (dataSource != null) dataSource.close();
-        if (dbFile != null) Files.deleteIfExists(dbFile);
     }
 
     private static void runSeed() {

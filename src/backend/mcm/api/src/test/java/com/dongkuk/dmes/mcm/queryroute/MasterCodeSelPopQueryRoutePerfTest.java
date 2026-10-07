@@ -2,9 +2,7 @@ package com.dongkuk.dmes.mcm.queryroute;
 
 import com.dongkuk.dmes.mcm.cma.masterCodeSelPop.service.MasterCodeSelPopService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -27,9 +25,6 @@ class MasterCodeSelPopQueryRoutePerfTest {
     private static final int WARMUP = 5;
     private static final int RUNS = 20;
 
-    @TempDir
-    Path tmp;
-
     @Test
     void 경로별_왕복_시간() throws Exception {
         assumeTrue(Boolean.getBoolean("queryRoute.perf") || "1".equals(System.getenv("QUERY_ROUTE_PERF")),
@@ -40,10 +35,9 @@ class MasterCodeSelPopQueryRoutePerfTest {
     }
 
     private void measure(int size) throws Exception {
-        try (QueryRouteHarness h = new QueryRouteHarness(tmp.resolve("perf-" + size + ".db"),
+        try (QueryRouteHarness h = new QueryRouteHarness("query-route-perf-" + size,
                 MasterCodeSelPopQueryRouteParityTest.MAPPER,
                 ctx -> ctx.registerBean("masterCodeSelPopService", MasterCodeSelPopService.class))) {
-            MasterCodeSelPopQueryRouteParityTest.createView(h);
             List<Object[]> rows = new ArrayList<>(size + 10);
             for (int i = 0; i < size; i++) {
                 rows.add(new Object[]{"PERF", String.format("V%06d", i), "의미 " + i, "C" + (i % 10), "분류" + (i % 10)});
@@ -51,7 +45,7 @@ class MasterCodeSelPopQueryRoutePerfTest {
             for (int i = 0; i < 10; i++) {
                 rows.add(new Object[]{"OTHER", String.format("W%06d", i), "다른 코드", "C0", "분류0"});
             }
-            h.insertRows(MasterCodeSelPopQueryRouteParityTest.INSERT, rows);
+            h.insertCodeRows(rows);
 
             Map<String, Object> params = Map.of("pCodeId", "PERF");
             assertThat(h.oasis("masterCodeSelPop", "search", "items", params)).hasSize(size);

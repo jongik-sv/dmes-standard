@@ -1,17 +1,19 @@
 # ── local: 로컬 Oracle PDB 직결 (bootRun/IDE, oracle-1007 2026-10-07) ──
 # 접속 규약: docs/oracle-1007/schema-owners.md §3. 데이터소스 4개가 같은 PDB 에 사용자만 달리해 붙는다.
 #   biz·cmn = MCMAPUSER / if = EAIUSER / caravan = CARAVANUSER (운영과 같은 이름)
-# PDB 는 be-run 의 --pdb=<PDB>(DMES_ORA_URL) 로 고른다. 없으면 DMES_ORA_HOST·PORT·PDB 기본값(localhost:1521/FREEPDB1).
-# 비밀번호는 로컬 공통값(DMES_ORA_PASSWORD, 기본 dmes_password_123). Hikari 상한은 3 이하(인스턴스를 모든 레인이 나눠 쓴다).
-dmes-ora:
-  url: ${DMES_ORA_URL:jdbc:oracle:thin:@//${DMES_ORA_HOST:localhost}:${DMES_ORA_PORT:1521}/${DMES_ORA_PDB:FREEPDB1}}
-  password: ${DMES_ORA_PASSWORD:dmes_password_123}
+# PDB 는 be-run 의 --pdb=<PDB>(env DMES_ORA_URL) 또는 -Ddmes.ora.url 로 고른다. 없으면 dmes.ora.host·port·pdb 기본값
+# (localhost:1521/L_ORA_MCM_APP — 공용 FREEPDB1 에 Flyway 가 돌지 않게 레인 PDB 를 기본으로 둔다. 없는 PDB 면 기동이 바로 실패한다).
+# 비밀번호는 로컬 공통값(dmes.ora.password·env DMES_ORA_PASSWORD, 기본 dmes_password_123). Hikari 상한은 3 이하.
+# 아래 mcm-local-ora 는 이 파일 안에서만 쓰는 줄임 키다.
+mcm-local-ora:
+  url: ${dmes.ora.url:jdbc:oracle:thin:@//${dmes.ora.host:localhost}:${dmes.ora.port:1521}/${dmes.ora.pdb:L_ORA_MCM_APP}}
+  password: ${dmes.ora.password:dmes_password_123}
 
 spring:
   datasource:
-    url: ${dmes-ora.url}
-    username: ${DMES_ORA_USER:MCMAPUSER}
-    password: ${dmes-ora.password}
+    url: ${mcm-local-ora.url}
+    username: ${dmes.ora.user:MCMAPUSER}
+    password: ${mcm-local-ora.password}
     driver-class-name: oracle.jdbc.OracleDriver
     hikari:
       maximum-pool-size: 3     # JpaConfig.dataSource() 가 읽는다(직접 만든 풀)
@@ -27,32 +29,32 @@ spring:
     enabled: false
 
 # ── 스키마별 Flyway (McmFlywayConfig) — MCMAPUSER·MCM_SOURCE·MCM_BACKUP·MCAAPUSER 를 각 주인으로 접속해 V 파일 적용 ──
-# url 은 spring.datasource.url, 비밀번호는 dmes-ora.password(로컬은 모든 사용자가 같다)를 쓴다.
+# url 은 spring.datasource.url, 비밀번호는 mcm-local-ora.password(로컬은 모든 사용자가 같다)를 쓴다.
 dmes:
   flyway:
     enabled: true
-    password: ${dmes-ora.password}
+    password: ${mcm-local-ora.password}
 
 # ── Cactus cmn/if/caravan EMF (local — 같은 PDB, 사용자만 다르다) ──
 cactus:
   datasource:
     extras:
       cmn:                     # 표준 3종 통일(2026-07-07) — 물리는 biz 와 같은 MCMAPUSER
-        url: ${dmes-ora.url}
+        url: ${mcm-local-ora.url}
         username: MCMAPUSER
-        password: ${dmes-ora.password}
+        password: ${mcm-local-ora.password}
         driver-class-name: oracle.jdbc.OracleDriver
         maximum-pool-size: 2
       if:                      # 인터페이스 송수신 — EAIUSER(표 없이 IFUSER 표 권한만 가진 접속 사용자)
-        url: ${dmes-ora.url}
+        url: ${mcm-local-ora.url}
         username: EAIUSER
-        password: ${dmes-ora.password}
+        password: ${mcm-local-ora.password}
         driver-class-name: oracle.jdbc.OracleDriver
         maximum-pool-size: 2
       caravan:                 # Kafka 메타 — CARAVANUSER(표는 caravan-hub 기준선)
-        url: ${dmes-ora.url}
+        url: ${mcm-local-ora.url}
         username: CARAVANUSER
-        password: ${dmes-ora.password}
+        password: ${mcm-local-ora.password}
         driver-class-name: oracle.jdbc.OracleDriver
         maximum-pool-size: 2
   jpa:

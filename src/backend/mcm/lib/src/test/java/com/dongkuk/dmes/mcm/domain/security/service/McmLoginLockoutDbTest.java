@@ -14,25 +14,20 @@ import com.dongkuk.dmes.cactus.security.auth.AuthService;
 import com.dongkuk.dmes.cactus.security.auth.LoginRequest;
 import com.dongkuk.dmes.cactus.security.auth.PasswordEncoder;
 import com.dongkuk.dmes.cactus.security.jwt.JwtTokenProvider;
-import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
+import com.dongkuk.dmes.mcm.testdb.McmOraTestDb;
 import com.dongkuk.dmes.mcm.entity.SecUser;
 import com.dongkuk.dmes.mcm.entity.SecUserPwd;
 import com.dongkuk.dmes.mcm.repository.SecRoleGroupMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserPwdRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserRepository;
-import com.zaxxer.hikari.HikariDataSource;
 import jakarta.persistence.EntityManagerFactory;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import javax.sql.DataSource;
-import org.hibernate.jpa.HibernatePersistenceProvider;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -47,16 +42,14 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
-import org.springframework.orm.jpa.persistenceunit.PersistenceManagedTypes;
-import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 로그인 실패 횟수·계정 잠금이 실제 DB 에 남는지 — 실제 SQLite 파일 + Hibernate + Spring 트랜잭션 프록시로 확인한다.
+ * 로그인 실패 횟수·계정 잠금이 실제 DB 에 남는지 — Oracle 시험 PDB(Flyway 기준선) + Hibernate + Spring 트랜잭션 프록시로 확인한다.
  *
- * <p>로컬 실행(JpaConfig SQLite 분기)과 같게 {@link McmAuditStatementInspector} 로 {@code MCMAPUSER.} 접두를 지우고,
+ * <p>운영 JpaConfig 와 같은 Hibernate 설정({@link McmOraTestDb#jpaProperties})으로 {@code MCMAPUSER.} 접두 SQL 을 그대로 돌리고,
  * 운영 빈과 같은 {@link McmAuthService}({@code @Transactional login}) → {@link McmSecUserRepository}(REQUIRED 합류) 경로를 탄다.
  * {@code AuthServiceTest} 는 저장소를 mock 해 호출 여부만 보므로, 트랜잭션 롤백으로 쓰기가 사라지는 것은 여기서만 잡힌다.
  */
@@ -65,7 +58,6 @@ class McmLoginLockoutDbTest {
     private static final String RAW_PWD = "right-pwd";
     private static final int MAX = 5;
 
-    private static Path dbFile;
     private static AnnotationConfigApplicationContext ctx;
     private static AuthService authService;
     private static JdbcTemplate admin;
@@ -73,8 +65,7 @@ class McmLoginLockoutDbTest {
 
     @BeforeAll
     static void startContext() throws Exception {
-        dbFile = Files.createTempFile("mcm-login-lockout", ".db");
-        Files.delete(dbFile);
+        McmOraTestDb.resetSchemas();
         ctx = new AnnotationConfigApplicationContext(Config.class);
         authService = ctx.getBean(AuthService.class);
         admin = new JdbcTemplate(ctx.getBean(DataSource.class));
@@ -84,9 +75,7 @@ class McmLoginLockoutDbTest {
 
     @AfterAll
     static void stopContext() throws Exception {
-        McmAuditStatementInspector.setSqlite(false);
         if (ctx != null) ctx.close();
-        Files.deleteIfExists(dbFile);
     }
 
     @Test
@@ -230,33 +219,15 @@ class McmLoginLockoutDbTest {
         static final PasswordEncoder ENCODER = new PasswordEncoder();
         static final String BUSY_USER = "u_busy";
 
-        @Bean
+        @Bean(destroyMethod = "close")
         DataSource dataSource() {
-            HikariDataSource ds = new HikariDataSource();
-            ds.setJdbcUrl("jdbc:sqlite:" + dbFile);
-            ds.setPoolName("login-lockout-test");
-            return ds;
+            return McmOraTestDb.appDataSource("login-lockout-test");
         }
 
         @Bean
         LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
-            // JpaConfig 의 SQLite 분기와 같은 구성(접두 제거 inspector·temporal 컨버터).
-            Properties props = new Properties();
-            props.put("hibernate.dialect", "org.hibernate.community.dialect.SQLiteDialect");
-            props.put("hibernate.hbm2ddl.auto", "create");
-            props.put("hibernate.session_factory.statement_inspector", McmAuditStatementInspector.class.getName());
-            props.put("hibernate.metadata_builder_contributor",
-                    "com.dongkuk.dmes.mcm.common.persistence.SqliteTemporalConverterContributor");
-            McmAuditStatementInspector.setSqlite(true);
-
-            LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
-            em.setDataSource(dataSource);
-            em.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
-            em.setJpaProperties(props);
-            em.setPersistenceUnitName("default");
-            em.setManagedTypes(PersistenceManagedTypes.of(SecUser.class.getName(), SecUserPwd.class.getName()));
-            em.setPersistenceProviderClass(HibernatePersistenceProvider.class);
-            return em;
+            return McmOraTestDb.entityManagerFactory(dataSource, "default",
+                    SecUser.class.getName(), SecUserPwd.class.getName());
         }
 
         @Bean
@@ -266,7 +237,7 @@ class McmLoginLockoutDbTest {
 
         @Bean
         McmSecUserRepository cactusSecUserRepoMcmAdapter(SecUserPwdRepository secUserPwdRepository) {
-            // u_busy 만 횟수를 쓴 직후 SQLITE_BUSY 를 흉내 낸다(로그인 통째 재시도 시 이중 집계 확인용).
+            // u_busy 만 횟수를 쓴 직후 DB 잠금 실패(CannotAcquireLockException)를 흉내 낸다(로그인 통째 재시도 시 이중 집계 확인용).
             return new McmSecUserRepository(secUserPwdRepository) {
                 @Override
                 public void incrementTryCnt(String userId) {
