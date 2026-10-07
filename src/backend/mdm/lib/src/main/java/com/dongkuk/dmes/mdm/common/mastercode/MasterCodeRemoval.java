@@ -101,7 +101,9 @@ public class MasterCodeRemoval {
                     if (text.matcher(s).find() || ast.matcher(s).find()) {
                         List<String> key = new ArrayList<>();
                         for (int j = 0; j < k; j++) {
-                            key.add(String.valueOf(r[j]));
+                            // 키 VER 는 NUMBER(7,3) 이라 BigDecimal("1.000")로 온다. SQLite 시절 표시("1"·"1.5")와 같게 끝 0 을 뗀다.
+                            key.add(r[j] instanceof java.math.BigDecimal b
+                                    ? b.stripTrailingZeros().toPlainString() : String.valueOf(r[j]));
                         }
                         out.add(src.label() + " " + String.join("/", key) + " " + src.columns().get(i));
                     }

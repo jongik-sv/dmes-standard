@@ -197,8 +197,9 @@ public class DataItemListQuery {
         return out;
     }
 
+    /** LIKE 패턴 문자({@code % _ \})를 {@code \} 로 가린다. Oracle 은 ESCAPE 뒤에 %·_·자기 자신만 받아 {@code \[} 는 ORA-01424 다. */
     static String escapeLike(String value) {
-        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_").replace("[", "\\[");
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     private static String prefixed() {

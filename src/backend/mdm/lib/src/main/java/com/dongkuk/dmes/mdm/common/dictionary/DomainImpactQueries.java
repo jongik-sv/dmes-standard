@@ -89,8 +89,12 @@ public class DomainImpactQueries {
         if (upper.isEmpty()) {
             return out;
         }
-        for (Object[] r : rows(entityManager.createNativeQuery(COLUMNS_BY_PHYS_SQL).setParameter("names", upper).getResultList())) {
-            out.put(((String) r[0]).toUpperCase(Locale.ROOT), (String) r[1]);
+        // Oracle IN 목록 상한(1,000, ORA-01795) 아래로 {@value #IN_CHUNK}개씩 나눠 읽는다.
+        for (int from = 0; from < upper.size(); from += IN_CHUNK) {
+            List<String> chunk = upper.subList(from, Math.min(upper.size(), from + IN_CHUNK));
+            for (Object[] r : rows(entityManager.createNativeQuery(COLUMNS_BY_PHYS_SQL).setParameter("names", chunk).getResultList())) {
+                out.put(((String) r[0]).toUpperCase(Locale.ROOT), (String) r[1]);
+            }
         }
         return out;
     }
