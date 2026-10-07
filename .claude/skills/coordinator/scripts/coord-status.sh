@@ -89,7 +89,8 @@ done
 
 # ---------- PC ----------
 load1="$(coord_load1)"; cpus="$(coord_cpus)"
-per_core="$(awk -v l="$load1" -v c="$cpus" 'BEGIN { printf "%.2f", (c > 0 ? l / c : 0) }')"
+# load1 을 못 얻으면(Git Bash 등) 0 으로 두지 않고 `-` 로 낸다 — 0 이면 한가한 PC 로 읽혀 측정 창·부하 조절이 오판한다
+if [ -n "$load1" ]; then per_core="$(awk -v l="$load1" -v c="$cpus" 'BEGIN { printf "%.2f", (c > 0 ? l / c : 0) }')"; else load1="-"; per_core="-"; fi
 heavy="-/-/-"
 if [ -n "$HEAVY_ON" ]; then
   pcl="$(printf '%s\n' "$SNAP" | awk -F'\t' '$1 == "PC" { print $3 "/" $4 "/" $2; exit }')"
@@ -130,10 +131,12 @@ for f in "$sdir"/*.json; do
 $row
 EOF
   coord_pid_alive "$upid" || continue
-  inrepo=""
+  inrepo=""; ucwd_n="${ucwd%/}"
+  [ "$COMPAT_WIN" != 1 ] || ucwd_n="$(compat_norm_path "$ucwd_n")"   # Git Bash: C:/x · C:\x · /c/x 를 같은 꼴로
   while IFS= read -r w; do
     [ -n "$w" ] || continue
-    case "${ucwd%/}/" in "${w%/}/"*) inrepo=1; break ;; esac
+    w="${w%/}"; [ "$COMPAT_WIN" != 1 ] || w="$(compat_norm_path "$w")"
+    case "$ucwd_n/" in "$w/"*) inrepo=1; break ;; esac
   done <<EOF
 $wts
 EOF

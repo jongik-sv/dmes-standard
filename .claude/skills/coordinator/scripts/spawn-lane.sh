@@ -83,7 +83,13 @@ orca_create() {  # orca_create <title> [command] → handle
   printf '%s' "$out" | jq -r '[.. | objects | .handle? | strings | select(startswith("term_"))][0] // empty'
 }
 orca_known_path() {  # Orca 가 아는 워크트리 폴더인가
-  orca worktree list --json 2>/dev/null | jq -r '.result.worktrees[]?.path' | grep -qxF "$1"
+  if [ "$COMPAT_WIN" != 1 ]; then
+    orca worktree list --json 2>/dev/null | jq -r '.result.worktrees[]?.path' | grep -qxF "$1"; return
+  fi
+  # Git Bash: Orca 는 C:\x 꼴, 이쪽은 /c/x 꼴일 수 있어 같은 꼴로 맞춰 비교한다
+  local w n; n="$(compat_norm_path "$1")"
+  while IFS= read -r w; do [ "$(compat_norm_path "$w")" = "$n" ] && return 0; done < <(orca worktree list --json 2>/dev/null | jq -r '.result.worktrees[]?.path')
+  return 1
 }
 # 탭을 만들 워크트리(TAB_SEL)와 세션이 일할 폴더(CD_PATH, 비면 탭 워크트리 폴더)를 정한다.
 # 기본 탭 위치: 조정자의 현재 폴더(또는 그 메인 체크아웃) 중 Orca 가 아는 쪽. 둘 다 모르면 active.
@@ -94,19 +100,19 @@ resolve_target() {
   top="$(git rev-parse --show-toplevel 2>/dev/null)"
   main="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"; main="${main%/.git}"
   for p in "$top" "$main"; do
-    [ -n "$p" ] && orca_known_path "$p" && { TAB_SEL="path:$p"; break; }
+    [ -n "$p" ] && orca_known_path "$p" && { TAB_SEL="path:$(compat_native_path "$p")"; break; }
   done
   [ -n "$TAB_SEL" ] || TAB_SEL=active
   case "$sel" in
     "") CD_PATH="$(cd "${top:-.}" && pwd -P)" ;;   # 탭 위치와 별개로 세션은 조정자의 현재 워크트리에서 시작한다
     ./*|../*|"~"*|.|..) coord_die 2 "--worktree 는 절대경로, path:<경로>, Orca 선택자(name:·branch:·id:·current 등)만 받는다: $sel" ;;
-    /*|path:*)
+    /*|path:*|[A-Za-z]:[/\\]*)
       p="${sel#path:}"
-      case "$p" in /*) ;; *) coord_die 2 "--worktree path: 값은 절대경로만 받는다: $sel" ;; esac
+      compat_is_abs_path "$p" || coord_die 2 "--worktree path: 값은 절대경로만 받는다: $sel"
       [ -d "$p" ] || coord_die 2 "--worktree 폴더가 없다: $p"
       p="$(cd "$p" && pwd -P)"
       CD_PATH="$p"
-      orca_known_path "$p" && TAB_SEL="path:$p" ;;
+      orca_known_path "$p" && TAB_SEL="path:$(compat_native_path "$p")" ;;
     current|active|name:*|branch:*|id:*|identity:*|issue:*) TAB_SEL="$sel" ;;
     *) coord_die 2 "--worktree 는 절대경로, path:<경로>, Orca 선택자(name:·branch:·id:·current 등)만 받는다: $sel" ;;
   esac
@@ -120,14 +126,18 @@ wait_shell() {  # 빈 탭의 셸 프롬프트가 찍힐 때까지(최대 20초).
   done
   coord_log "셸 프롬프트가 20초 안에 보이지 않는다 — 그대로 보낸다: $1"
 }
+# 탭 셸에 보낼 한 줄. 윈도우: 새 탭의 기본 셸이 PowerShell·cmd 일 수 있어 `cd … && …` 를 bash -lc 한 줄로 감싼다
+# (바깥을 작은따옴표로 묶는다. 안에 작은따옴표가 든 명령은 PowerShell 에서 깨지므로 실행 명령에 넣지 않는다). 그 밖의 OS 는 그대로.
+tab_line() { if [ "$COMPAT_WIN" = 1 ]; then printf 'bash -lc %s' "$(coord_q "$1")"; else printf '%s' "$1"; fi; }
 # 빈 탭을 만들고 "cd <폴더> && <실행 명령>" 을 보낸다. 성공하면 H(handle) 를 채우고 0.
 # 1: 탭 생성 실패, 2: 명령 send 실패(탭은 닫는다). 사유는 LAUNCH_ERR.
 launch_in_tab() {  # launch_in_tab <title> <실행 명령>
-  local r dir
+  local r dir cmdline
   H="$(orca_create "$1")" && [ -n "$H" ] || { LAUNCH_ERR="terminal create 결과에서 handle 을 찾지 못했다"; return 1; }
   wait_shell "$H"
   dir="$CD_PATH"; [ -n "$dir" ] || dir="$(worktree_of "$H")"
-  r="$(term_send "$H" "cd $(coord_q "${dir:-.}") && $2" --enter)"
+  cmdline="$(tab_line "cd $(coord_q "${dir:-.}") && $2")"
+  r="$(term_send "$H" "$cmdline" --enter)"
   case "$r" in
     stale|error*) LAUNCH_ERR="실행 명령 send 실패: $r handle=$H"; term_close "$H" >/dev/null; return 2 ;;
   esac
@@ -183,7 +193,7 @@ claude)
   [ -n "$pre" ] && coord_log "같은 이름의 세션이 이미 떠 있다(pid $pre) — 새 pid 만 인정한다"
   if [ "$dry" = 1 ]; then
     coord_log "DRY $(coord_q orca terminal create --worktree "$TAB_SEL" --title "$name" --json)"
-    coord_log "DRY term_send <h> $(coord_q "cd $(dry_cd) && $cmd") --enter (셸 프롬프트가 보인 뒤)"
+    coord_log "DRY term_send <h> $(coord_q "$(tab_line "cd $(dry_cd) && $cmd")") --enter (셸 프롬프트가 보인 뒤)"
     coord_log "DRY orca terminal wait --terminal <h> --for tui-idle --timeout-ms 60000 (아니면 120000)"
     coord_log "DRY $SESS_DIR/*.json 에서 name==$name 인 새 pid 확인(최대 30초)"
     [ -n "$pfile" ] && coord_log "DRY term-send-safe.sh --handle <h> --text '지시 파일을 읽고 진행해 달라: $pfile'"
@@ -215,7 +225,7 @@ glm)
   pre="$(live_session_pids)"
   if [ "$dry" = 1 ]; then
     coord_log "DRY $(coord_q orca terminal create --worktree "$TAB_SEL" --title "$name" --json)"
-    coord_log "DRY term_send <h> $(coord_q "cd $(dry_cd) && $launch -n $name") --enter (셸 프롬프트가 보인 뒤)"
+    coord_log "DRY term_send <h> $(coord_q "$(tab_line "cd $(dry_cd) && $launch -n $name")") --enter (셸 프롬프트가 보인 뒤)"
     coord_log "DRY tui-idle 대기 → 화면에 glm-5·API Usage Billing 확인(Claude Max 면 닫고 SPAWN_FAIL screen anthropic-account) → 세션 확인"
     [ -n "$pfile" ] && coord_log "DRY term-send-safe.sh --handle <h> --text '지시 파일을 읽고 진행해 달라: $pfile'"
     coord_state_call lane-add "$name" "{\"session\":{\"kind\":\"glm\",\"spawned_by\":\"coordinator\"},\"state\":\"active\"}"
@@ -249,7 +259,7 @@ opencode)
   [ -n "$pfile" ] && coord_log "주의: opencode 는 --prompt-file 을 보내지 않는다 — worker-start --spec 으로 넣을 것"
   if [ "$dry" = 1 ]; then
     coord_log "DRY $(coord_q orca terminal create --worktree "$TAB_SEL" --title "$name" --json)"
-    coord_log "DRY term_send <h> $(coord_q "cd $(dry_cd) && $cmd") --enter (셸 프롬프트가 보인 뒤)"
+    coord_log "DRY term_send <h> $(coord_q "$(tab_line "cd $(dry_cd) && $cmd")") --enter (셸 프롬프트가 보인 뒤)"
     coord_log "DRY tui-idle 대기 → 화면이 비어 있지 않은지 확인"
     coord_state_call lane-add "$name" "{\"session\":{\"kind\":\"opencode\",\"spawned_by\":\"coordinator\"},\"state\":\"active\"}"
     echo "DRY SPAWNED $name handle=- pid=- session_id=-"; exit 0
