@@ -358,15 +358,18 @@ public final class McmMenuSeeder extends SeedSupport {
      *
      * <p>{@code ''} 는 Y/N·WEB 같은 코드값이 들어가야 할 자리에 잘못 들어간 값이므로 기본값으로 승격한다.
      * 유입 경로(구 시드·수동 저장 등)와 무관하게 매 부팅 멱등 보정한다.
+     *
+     * <p>2026-10-07 oracle-1007 — Oracle 은 {@code ''} 를 NULL 로 다뤄 {@code LTRIM(RTRIM(c)) = ''} 가 늘 거짓이다. 공백만 든
+     * 값({@code ' '})을 놓치지 않게 {@code LTRIM(RTRIM(c)) IS NULL} 하나로 NULL·빈 값·공백을 함께 본다.
      */
     public void normalizeSecMenuCharColumns() {
         int n = 0;
         n += nq("UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET USE_TP = 'Y' "
-              + " WHERE USE_TP IS NULL OR LTRIM(RTRIM(USE_TP)) = ''").executeUpdate();
+              + " WHERE LTRIM(RTRIM(USE_TP)) IS NULL").executeUpdate();
         n += nq("UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET MENU_VIEW_YN = 'Y' "
-              + " WHERE MENU_VIEW_YN IS NULL OR LTRIM(RTRIM(MENU_VIEW_YN)) = ''").executeUpdate();
+              + " WHERE LTRIM(RTRIM(MENU_VIEW_YN)) IS NULL").executeUpdate();
         n += nq("UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET MENU_TP = 'WEB' "
-              + " WHERE MENU_TP IS NULL OR LTRIM(RTRIM(MENU_TP)) = ''").executeUpdate();
+              + " WHERE LTRIM(RTRIM(MENU_TP)) IS NULL").executeUpdate();
         if (n > 0) {
             log.info("[DataInitializer] SEC_MENU 코드컬럼 빈 문자열 정규화 — {} 행 보정 (Character 변환 오류 예방)", n);
         }
