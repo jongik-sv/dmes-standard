@@ -8,6 +8,7 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import { openMdmPage, takeMdmPageParams } from "@/shell";
+import { clearSearchDefaultsUser, givenSearchDefaults, inTabPage, withLateServerRules } from "../../helpers/search-defaults";
 import CodeMngPage from "../../../pages/dmc/codeMng/page";
 
 const RBAC_STORE_KEY = "__dkOasisButtonRbacStore__";
@@ -56,12 +57,13 @@ function visibleText(el: Element): string {
   return out;
 }
 
-async function render(props: Record<string, unknown> = {}) {
+async function render(props: Record<string, unknown> = {}, pageId?: string) {
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
   await act(async () => {
-    root!.render(createElement(DmesUiProvider, null, createElement(CodeMngPage, props)));
+    const page = createElement(CodeMngPage, props);
+    root!.render(createElement(DmesUiProvider, null, pageId ? inTabPage(pageId, page) : page));
   });
   await act(async () => {
     await new Promise((r) => setTimeout(r, 0));
@@ -177,6 +179,7 @@ describe("CodeMngPage", () => {
     vi.unstubAllGlobals();
     delete (globalThis as Record<string, unknown>)[RBAC_STORE_KEY];
     document.body.innerHTML = "";
+    clearSearchDefaultsUser();
   });
 
   it("서버 목록을 조회해 건수를 보이고, 아무것도 고르지 않으면 안내만 보인다", async () => {
@@ -298,5 +301,54 @@ describe("CodeMngPage", () => {
     expect(calls.some((c) => c.url.includes("/oasis/codeMng/search"))).toBe(true);
     expect(calls.some((c) => c.url.includes("/oasis/codeEdit/view") && c.body.params?.maruCodeId === "PROC_CD")).toBe(true);
     expect((container.querySelector('[data-testid="header-name"]') as HTMLInputElement)?.value).toBe("공정 코드");
+  });
+  // 조회 조건 사용자 기본값(설계 2026-10-07-search-defaults §6.3·§7.3) — handoff 로 시작하면 넣지 않는다.
+  describe("조회 조건 사용자 기본값", () => {
+    const PAGE = "mdm:dmc/codeMng";
+    const RULES = { keyword: { kind: "fixed", value: "PROC" }, status: { kind: "fixed", value: "INUSE" } } as const;
+    const valueOf = (testId: string) => (document.querySelector(`[data-testid="${testId}"]`) as HTMLInputElement).value;
+    const settle = (ms: number) => act(async () => { await new Promise((r) => setTimeout(r, ms)); });
+    const handoffRows = [
+      { maruCodeId: "PROC_CD", maruCodeName: "공정 코드", sourceKind: "MDM", status: "CREATED", storedStatus: "CREATED",
+        currentVer: null, currentVerLabel: "미확정", pending: true, unappliedLabel: "v1.000 DRAFT", unappliedCount: 1 },
+    ];
+
+    it("handoff 없이 열면 사용자 기본값을 칸에 넣는다", async () => {
+      givenSearchDefaults(PAGE, { ...RULES });
+      await render({}, PAGE);
+      expect(valueOf("code-search-keyword")).toBe("PROC");
+      expect(valueOf("code-search-status")).toBe("INUSE");
+    });
+
+    it("handoff 로 시작하면 사용자 기본값을 넣지 않고, 조건을 비운 채 조회한다(저장소가 이미 준비된 경우)", async () => {
+      givenSearchDefaults(PAGE, { ...RULES });
+      searchRows = handoffRows;
+      openMdmPage("dmc/codeMng", { maruCodeId: "PROC_CD" });
+      await render({}, PAGE);
+      expect(valueOf("code-search-keyword")).toBe("");
+      expect(valueOf("code-search-status")).toBe("");
+      const search = calls.filter((c) => c.url.includes("/oasis/codeMng/search"));
+      expect(search).toHaveLength(1);
+      expect(JSON.stringify(search[0].body)).not.toMatch(/"PROC"|INUSE/);
+    });
+
+    it("서버 응답이 늦어 기본값이 handoff 보다 늦게 와도 넣지 않는다", async () => {
+      globalThis.fetch = withLateServerRules("late-code-handoff", PAGE, { ...RULES }, globalThis.fetch);
+      searchRows = handoffRows;
+      openMdmPage("dmc/codeMng", { maruCodeId: "PROC_CD" });
+      await render({}, PAGE);
+      await settle(700);
+      expect(valueOf("code-search-keyword")).toBe("");
+      expect(valueOf("code-search-status")).toBe("");
+    });
+
+    it("대조: handoff 없이 서버 응답이 늦게 오면 늦게라도 기본값을 넣는다", async () => {
+      globalThis.fetch = withLateServerRules("late-code-plain", PAGE, { ...RULES }, globalThis.fetch);
+      await render({}, PAGE);
+      expect(valueOf("code-search-keyword")).toBe("");
+      await settle(700);
+      expect(valueOf("code-search-keyword")).toBe("PROC");
+      expect(valueOf("code-search-status")).toBe("INUSE");
+    });
   });
 });

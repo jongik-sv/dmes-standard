@@ -248,7 +248,8 @@ export default function RuleMngPage() {
       ]}
     >
       <SearchArea onSearch={handleSearch}>
-        <SearchField label="룰 ID·명" name="keyword" meta={false}>
+        <SearchField label="룰 ID·명" name="keyword" meta={false} type="text" value={filters.keyword}
+          onChange={(v) => setFilters((p) => ({ ...p, keyword: v }))}>
           <Input
             data-testid="rule-search-keyword"
             value={filters.keyword}

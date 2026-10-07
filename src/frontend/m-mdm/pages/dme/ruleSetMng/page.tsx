@@ -90,7 +90,8 @@ export default function RuleSetMngPage() {
       ]}
     >
       <SearchArea onSearch={handleSearch}>
-        <SearchField label="세트" name="keyword" meta={false}>
+        <SearchField label="세트" name="keyword" meta={false} type="text" value={filters.keyword}
+          onChange={(v) => setFilters((p) => ({ ...p, keyword: v }))}>
           <Input
             data-testid="set-search-keyword"
             value={filters.keyword}
@@ -101,7 +102,8 @@ export default function RuleSetMngPage() {
             }}
           />
         </SearchField>
-        <SearchField label="담은 룰">
+        <SearchField label="담은 룰" defaultKey="ruleId" type="text" value={filters.ruleId}
+          onChange={(v) => setFilters((p) => ({ ...p, ruleId: v }))}>
           <Input
             data-testid="set-search-rule"
             value={filters.ruleId}
@@ -112,7 +114,8 @@ export default function RuleSetMngPage() {
             }}
           />
         </SearchField>
-        <SearchField label="결과 변수">
+        <SearchField label="결과 변수" defaultKey="resultVar" type="text" value={filters.resultVar}
+          onChange={(v) => setFilters((p) => ({ ...p, resultVar: v }))}>
           <Input
             data-testid="set-search-var"
             value={filters.resultVar}
@@ -123,7 +126,8 @@ export default function RuleSetMngPage() {
             }}
           />
         </SearchField>
-        <SearchField label="상태" name="status" meta={false}>
+        <SearchField label="상태" name="status" meta={false} type="select" value={filters.status} options={STATUS_FILTER_OPTIONS}
+          onChange={(v) => setFilters((p) => ({ ...p, status: v }))}>
           <Select
             data-testid="set-search-status"
             value={filters.status}

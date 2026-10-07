@@ -215,7 +215,7 @@ export default function UnitMngPage() {
       ]}
     >
       <SearchArea onSearch={() => void handleSearch()}>
-        <SearchField label="검색어" value={filters.unitCode} onChange={(v) => handleFilterChange("unitCode", v)} />
+        <SearchField label="검색어" defaultKey="unitCode" value={filters.unitCode} onChange={(v) => handleFilterChange("unitCode", v)} />
         <SearchField
           label="차원"
           name="dimension"

@@ -149,10 +149,11 @@ export default function ScreenUsageStatPage() {
       ]}
     >
       <SearchArea onSearch={handleSearch}>
-        <SearchField label="조회 기간">
+        {/* 기간 두 칸을 기본값 대상으로 묶는다(설계 2026-10-07-search-defaults §7.3). To 칸 키는 label="~" 짝이라 `fromDt~to` 로 자동 정해진다. */}
+        <SearchField label="조회 기간" defaultKey="fromDt" type="date" value={filters.fromDt} onChange={(v) => setFilter("fromDt", v)}>
           <DatePicker value={filters.fromDt} onChange={(v) => setFilter("fromDt", v)} />
         </SearchField>
-        <SearchField label="~">
+        <SearchField label="~" type="date" value={filters.toDt} onChange={(v) => setFilter("toDt", v)}>
           <DatePicker value={filters.toDt} onChange={(v) => setFilter("toDt", v)} />
         </SearchField>
         <SearchField
