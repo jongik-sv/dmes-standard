@@ -3,27 +3,31 @@
 - 레인: ora-platform / 브랜치 `feat/ora-platform` / 워크트리 `/Users/jji/project/dmes-wt/ora-platform` (기준 dev b7c91cd6e)
 - 조정 세션: dmes-standard-d8 (지시 ora-platform-1, 정본 지시문 `/Users/jji/.coord/oracle-1007/lanes/ora-platform/brief.md`)
 
-## 지금 상태 (2026-10-07 18:30, Oracle 동결 중)
+## 지금 상태 (2026-10-07 19:20, 조정 compact 직전)
+
+브랜치 HEAD `57ede574d`(dev 머지①b fb253556d 포함). 작업 트리 깨끗, 남은 백그라운드 0, Oracle 에 남긴 PDB 없음(시험 PDB `T_ORA_PLATFORM` 은 하니스가 삭제).
 
 | 항목 | 상태 | 비고 |
 |---|---|---|
-| p1 caravan 기준선 | 코드 완료·시험 대기 | `caravan-hub/src/main/resources/db/migration/{caravanuser,ifuser}`. CARAVANUSER Flyway 는 시험 PDB 에서 통과, IFUSER V1 주석의 달러 중괄호가 Flyway 자리표시자로 해석되던 결함은 70379f8c5 로 고침(재시험 전) |
-| p3 샘플 모듈 | 코드 완료·시험 대기 | SQL archive 이동·yml·lib build.gradle·MlsTestDb(ed6426fba·67145c31a·fb15b4f95). 컴파일 통과, Oracle 기동 시험 안 함 |
-| p2 caravan-hub·console·core | 코드 완료·시험 대기 | HubFlywayConfig·yml 5종·InterfaceMapper CLOB·TiberoDialectResolver·KafkaJpaConfig(2131f1a40·ed854f285·ea8166ebe), 빈 값 검증(28c47ca1b). `HubOracleBaselineTest` 가 통합 시험 |
-| p5 H2 시험 | 코드 완료·시험 미실행 | caravan-core h2 의존성 제거, oasis-core 시험 16개를 `OracleTestDatabase` 로 전환(f99be8b3b) |
-| p4 cactus-core SQLite 제거 | 대기 | ora-mdm·mcm 머지②·③ 뒤. `DmomMapper.xml` NEXT VALUE FOR 변경 포함 |
-| p6 전체 시험·머지 요청(④) | 대기 | |
+| p1 caravan 기준선 | **완료·시험 통과** | `caravan-hub/src/main/resources/db/migration/{caravanuser,ifuser}`. `HubOracleBaselineTest` 2건 통과(Flyway 적용·표 5개, 4000자 초과 CLOB 을 String 으로 읽기, 읽은 U_AT 로 낙관락 갱신 1행) |
+| p3 샘플 모듈 | 코드 완료·**기동 시험 미실행** | SQL archive 이동, yml(DMES_ORA_*·Hikari 3·Instant TIMESTAMP·boolean TINYINT), lib build.gradle(sqlite·community dialects 제거), MlsTestDb. 컴파일 통과. mls·mpp·mqc·mpn Spring 기동·Flyway 확인은 아직 안 함 |
+| p2 caravan-hub·console·core | 코드 완료·hub 시험 통과 | HubFlywayConfig(CARAVANUSER 항상·IFUSER 로컬 전용), yml 6종, InterfaceMapper CLOB resultMap, TiberoDialectResolver·KafkaJpaConfig, 빈 값 검증(groupId·호스트 이름·URL). hub 앱 실기동(bootRun)은 안 함 |
+| p5 H2 시험 | **진행 중: 시험 통과 못 함** | caravan-core h2 제거(완료). oasis-core 시험 16개를 `OracleTestDatabase` 로 전환. 아래 「oasis 시험 진행」 참조 |
+| 리뷰 | p1·p3 초안 opus 리뷰 반영 완료, p2·p3·p5 코드 opus 리뷰 반영 완료 | 반영 안 한 지적 2건은 아래 「결정」 |
+| p4 cactus-core SQLite 제거 | 대기 | ora-mdm·mcm 머지②·③ 뒤. `DialectDetector`·`LocalSqliteDataSource`·`SqliteColumnConverter`·`OasisCommitFailureSqliteTest`·`DialectDetectorTest` 제거 또는 archive, `DmomMapper.xml:65,70` 의 `NEXT VALUE FOR MCMAPUSER.SEQ_MCM_MOM_TC_ERROR` 를 `.NEXTVAL` 로 |
+| p6 전체 시험·머지 요청(④) | 대기 | heavy.sh 경유 한 번, 머지②·③ 뒤 |
 
-### Oracle 동결 처리
-- 조정자 동결(18:24, VM 메모리 고갈): 새 Oracle 명령 금지. hub 시험의 `pdb.mjs clone T_ORA_PLATFORM`(pid 75506)은 끊지 않고 끝나게 두었고, 그 gradle 데몬(34551)은 SIGSTOP 후 복제 종료 즉시 SIGKILL 한다(취소 정리의 drop 방지).
-- 재개 뒤 할 일(순서, 한 번에 하나): ① `T_ORA_PLATFORM` drop ② `HubOracleBaselineTest` 1회(`-Pdmes.ora.test=clone`) ③ oasis-core 시험 1회 ④ mls·mpp·mqc·mpn 기동·Flyway 확인.
+### oasis 시험 진행 (p5)
+- 1차(병렬 켜짐): 618건 중 10건 실패 뒤 `SqlScriptProcessTaskTest` 에서 멈춤. 원인: junit-platform.properties 의 병렬 실행으로 같은 스키마 표가 서로 지워짐, `Integer` 캐스트(`MixDataAccessTechTest`·`PreStructuredMessageSendTaskServiceTest`).
+- 2차(병렬 끔·캐스트 수정·연결 정리 리스너): 실패 1건(`PreStructuredMessageSendTaskServiceTest.service_having_SendTask_with_sql_task_result_binding_values_returns_bind_message`, 143행 `preStructuredMessageElements()).hasSize(count)`)과 `SpringTransactionHandlerTest.cleanup` 의 `DROP TABLE` 무한 대기(시험 JVM 이 같은 시험의 미완료 트랜잭션 행 잠금을 기다림)로 20분 정체 → 내 트리 TERM.
+- 수정(57ede574d, **재시험 전**): `OracleTestDatabase.create`·`dropTables` 가 먼저 열린 연결을 롤백해 닫고, DDL 에 `ddl_lock_timeout=10`, `OracleConnectionCleaner`(TestExecutionListener)가 시험 클래스가 끝날 때마다 연결 정리.
+- 남은 확인: 3차 실행(`cd src/backend/cactus-core && DMES_ORA_TEST=clone sh ../gradlew :oasis-core:test --offline --console=plain > 파일`, 출력은 파일로 받고 `grep ' FAILED$'` 로만 읽는다). 시험은 `dmes.ora.url` 이 필요해 cactus-core 합성 빌드에서만 돈다(oasis 단독 빌드는 시작 불가, 의도).
+- `PreStructuredMessageSendTaskServiceTest` 143행 실패는 `sendTaskWithSqlScript.bpmn` 의 SQL 별칭(`firstName as name`) 결과 칸 이름 대소문자나 `initData.sql` 변환(`TO_TIMESTAMP`)과 관련 가능성. 3차에서도 실패하면 결과 맵 키를 출력해 확인한다.
 
-### oasis 전환에서 시험 실행 때 볼 것
-- Oracle 은 `int` 칸을 `BigDecimal` 로 돌려준다(H2 는 Integer). `PreStructuredMessageSendTaskServiceTest` 의 `getValue()).isEqualTo(1)` 등 기대값 불일치가 나면 시험 쪽을 맞춘다.
-- 여러 시험이 같은 스키마에서 `Employee`·`users` 표를 만들고 지운다. 시험 PDB 하나에서 병렬 실행하면 충돌하므로 forks=1 을 유지한다.
-- `OracleTestDatabase` 는 `dmes.ora.url` 시스템 속성이 필요해 `cactus-core` 합성 빌드(`-Pdmes.ora.test=clone`)에서만 값이 넘어온다. oasis 단독 빌드에서는 시작하지 못한다.
-- `META-INF/persistence.xml` 의 `local` 단위는 어느 시험도 쓰지 않으며 `jdbc:h2:`·`org.h2.Driver` 속성이 남아 있다(삭제 금지 규칙이라 그대로 둠, 정리는 사용자 승인 뒤).
-- `oasis-core/build.gradle` 은 `libs` 카탈로그를 쓰지 않아 `ojdbc11:23.9.0.25.07` 을 직접 적었다.
+### 이번 세션에서 확인한 운용 교훈
+- 로그를 raw 로 `tail` 하지 않는다(gradle 진행바가 컨텍스트를 채운다). `--console=plain` 과 파일 출력, `grep -a` 필터를 쓴다.
+- 시험 JVM 이 멈추면 `jstack <pid>` 로 멈춘 프레임(`dropTables` 등)을 먼저 본다.
+- PDB 도구가 PC 잠금 대기열에 있을 때 `pdb.mjs` 를 TERM 하면 자식 `podman exec sqlplus` 가 고아로 남는다(dev fb253556d 이후 도구가 정리하지만 직접 끊지 않는다).
 
 ## 결정·가정
 
@@ -59,12 +63,13 @@ hub 의 `if` 데이터소스 접속 사용자는 EAIUSER 이고, IF_* 표는 IFU
 - 시각 결정(조정, 2026-10-07 변경): UTC 철회, KST 통일. `hibernate.jdbc.time_zone` 은 넣지 않고(JVM Asia/Seoul) `hibernate.type.preferred_instant_jdbc_type=TIMESTAMP` 만 yml 에 둔다. Oracle 컨테이너는 OS 시간대 Asia/Seoul 로 조정자가 재생성한다(재생성 알림 뒤에 Oracle 단계 재개).
 - p4 추가: cactus `DmomMapper.xml:65,70` 의 `NEXT VALUE FOR MCMAPUSER.SEQ_MCM_MOM_TC_ERROR` 를 `MCMAPUSER.SEQ_MCM_MOM_TC_ERROR.NEXTVAL` 로 바꾼다.
 
-## 남은 순서
+- 리뷰 지적 중 반영하지 않은 것: ① `OracleTestDatabase` 가 `dmes.ora.url` 이 없으면 예외로 실패하는 것(조용한 건너뜀은 전체 통과로 오해시키므로 의도적으로 유지) ② `local` persistence-unit 의 `jdbc:h2:` 속성(삭제 금지 규칙, 사용자 승인 뒤 정리).
+- WildFly JNDI 기본 이름은 mcm 의 `java:/jdbc/mssql/mcm/dsIF`·`dsCaravan` 과 같아야 해서 그대로 둔다. mcm 이 중립 이름으로 바꾸는 회차에 hub 도 함께 바꾼다(조정자 확인 필요).
+- hub 풀 설정은 `DataSourceConfig` 가 `spring.datasource.{mst,if}` 를 HikariDataSource 에 직접 바인딩하므로 `hikari:` 아래가 아니라 `mst:`·`if:` 바로 아래에 둔다.
 
-1. 초안 Oracle 검증(FREEPDB1 `L_PLT_*` 사용자) → 리뷰 → 커밋
-2. ora-base 머지① 알림 뒤 p3 실제 전환(yml·`lib/build.gradle` sqlite-jdbc 제거) → p2 → p5
-3. 머지②·③ 뒤 p4 → p6
+## 남은 순서 (다음 단계)
 
-## 검증용 임시 사용자 (FREEPDB1)
-
-`L_PLT_MLSAPUSER`·`L_PLT_MPPAPUSER`·`L_PLT_MQCAPUSER`·`L_PLT_MPNAPUSER`·`L_PLT_APSAPUSER`·`L_PLT_CARAVANUSER`·`L_PLT_IFUSER` — DDL 검증 후 삭제한다.
+1. **p5**: oasis 시험 3차 실행(위 명령). 실패가 남으면 실패 사다리(sonnet/medium → sonnet/high → opus/high)로 한 건씩 원인 확인. 통과하면 p5 완료.
+2. **p3 기동 확인**: mls·mpp·mqc·mpn 이 시험 PDB 에서 Flyway V1 적용 후 부팅하는지(각 모듈 `:api:test` 또는 `MlsTestDb` 상속 시험 중 하나), hub 앱 부팅(local 프로파일, Flyway 두 개·mst·if 풀) 확인. Oracle 단계는 PC 에서 한 번에 하나(heavy.sh), 하니스 `-Pdmes.ora.test=clone`.
+3. **p4**(머지②·③ 뒤): cactus-core SQLite 코드 제거(archive 이동 후 빌드에서 제외), 시험 전환, `DmomMapper.xml` NEXTVAL. 이어서 **p6** 전체 시험 1회(heavy.sh) → 머지 요청(④: 세션 이름 `ora-platform` / 원본 `feat/ora-platform` / 대상 dev, 겹칠 수 있는 파일: 각 모듈 `lib/build.gradle`·`application*.yml`, oasis 시험 전체, caravan-hub).
+- 조정 세션: dmes-standard-d8. push 하지 않는다. 머지는 「머지 허가」 뒤에만.
