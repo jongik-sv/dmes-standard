@@ -11,6 +11,14 @@ spring:
       prod: [wildfly]
   flyway:
     enabled: true
+  autoconfigure:
+    # mdm 은 TB_SEC_CODE_*(mcm-core 소유 마스터 코드 표)를 쓰지 않는다. 그 표에 기대는 빈은 모두 @ConditionalOnBean 이라 함께 물러난다.
+    exclude: com.dongkuk.dmes.cactus.mastercode.MasterCodeJpaAutoConfiguration
+  jpa:
+    properties:
+      # 공통 Hibernate 설정(docs/oracle-1007/schema-owners.md §3.1.1) — local·wildfly 공통. hibernate.jdbc.time_zone 은 넣지 않는다(JVM Asia/Seoul).
+      hibernate.type.preferred_boolean_jdbc_type: BIT       # boolean 칸을 NUMBER(1) 로 유지(운영 Oracle 이 23 미만일 수 있다)
+      hibernate.type.preferred_instant_jdbc_type: TIMESTAMP # Instant 감사 칸(C_AT·U_AT)을 TIMESTAMP(6) 에 KST 로 저장
 
 cactus:
   # TSK-01-03 D6: BFF 신뢰 채널을 켜서 요청 역할(X-Authenticated-Role)을 서비스가 받게 한다. mls application.yml:41-66 선례.

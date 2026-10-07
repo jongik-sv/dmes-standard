@@ -66,7 +66,7 @@ public class MdmDataRecv extends CactusAuditEntity {
 
     public MdmDataRecv(String sourceSystem, LocalDateTime receivedAt, String body) {
         this.sourceSystem = sourceSystem;
-        this.receivedAt = receivedAt;
+        this.receivedAt = MdmEntityTimes.seconds(receivedAt);
         this.body = body;
     }
 
@@ -88,5 +88,5 @@ public class MdmDataRecv extends CactusAuditEntity {
     public void setResult(String v) { this.result = v; }
     public void setResultDetail(String v) { this.resultDetail = v; }
     public void setChgSeq(Long v) { this.chgSeq = v; }
-    public void setProcessedAt(LocalDateTime v) { this.processedAt = v; }
+    public void setProcessedAt(LocalDateTime v) { this.processedAt = MdmEntityTimes.seconds(v); }
 }

@@ -1,15 +1,12 @@
 package com.dongkuk.dmes.mdm.entity;
 
 import com.dongkuk.dmes.cactus.audit.CactusAuditEntity;
-import com.dongkuk.dmes.mdm.persistence.MdmLocalDateTimeIdUserType;
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
-import org.hibernate.annotations.Type;
 
 /**
  * 마스터데이터 카테고리 — {@code TB_MDM_DATA_CATE}(TSK-07-01 design.md §2·§6.0, ERD {@code
@@ -31,11 +28,9 @@ public class MdmDataCate extends CactusAuditEntity {
     @Column(name = "CATE_ID", length = 50)
     private String cateId;
 
-    /** PK 구성 요소라 {@code AttributeConverter}(auto-apply 포함)를 쓸 수 없다(Hibernate 7 제약, D3). */
+    /** PK 구성 요소 — Hibernate 기본 LocalDateTime(TIMESTAMP) 매핑, 값은 생성자에서 초 단위로 자른다. */
     @Id
     @Column(name = "VALID_FROM")
-    @Convert(disableConversion = true)
-    @Type(MdmLocalDateTimeIdUserType.class)
     private LocalDateTime validFrom;
 
     @Column(name = "CATE_NAME")
@@ -66,7 +61,7 @@ public class MdmDataCate extends CactusAuditEntity {
     public MdmDataCate(String maruDataId, String cateId, LocalDateTime validFrom, String defKind) {
         this.maruDataId = maruDataId;
         this.cateId = cateId;
-        this.validFrom = validFrom;
+        this.validFrom = MdmEntityTimes.seconds(validFrom);
         this.defKind = defKind;
     }
 
@@ -85,6 +80,6 @@ public class MdmDataCate extends CactusAuditEntity {
     public void setDefExpr(String v) { this.defExpr = v; }
     public void setDefTarget(String v) { this.defTarget = v; }
     public void setDescription(String v) { this.description = v; }
-    public void setValidTo(LocalDateTime v) { this.validTo = v; }
+    public void setValidTo(LocalDateTime v) { this.validTo = MdmEntityTimes.seconds(v); }
     public void setChgSeq(long v) { this.chgSeq = v; }
 }

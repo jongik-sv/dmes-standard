@@ -108,11 +108,11 @@ public class MdmRuleSetVer extends CactusAuditEntity implements VersionedRow {
     /** 아래 setter 는 INSERT 때만 반영된다(updatable=false). 저장된 행은 공통 엔진·RuleSetWrites 가 네이티브로 바꾼다. */
     public void setStatus(String v) { this.status = v; }
     public void setBaseVer(BigDecimal v) { this.baseVer = VersionNumbers.scaled(v); }
-    public void setApplyFrom(LocalDateTime v) { this.applyFrom = v; }
-    public void setApplyTo(LocalDateTime v) { this.applyTo = v; }
+    public void setApplyFrom(LocalDateTime v) { this.applyFrom = MdmEntityTimes.seconds(v); }
+    public void setApplyTo(LocalDateTime v) { this.applyTo = MdmEntityTimes.seconds(v); }
     public void setFlowJson(String v) { this.flowJson = v; }
     public void setCallSetIds(String v) { this.callSetIds = v; }
     public void setRequestedBy(String v) { this.requestedBy = v; }
-    public void setReleasedAt(LocalDateTime v) { this.releasedAt = v; }
+    public void setReleasedAt(LocalDateTime v) { this.releasedAt = MdmEntityTimes.seconds(v); }
     public void setRowVersion(long v) { this.rowVersion = v; }
 }

@@ -137,6 +137,6 @@ public class MdmLayoutVer extends CactusAuditEntity {
 
     /** 시험 준비 전용 — INSERT 때만 반영된다(updatable = false). 운영 경로는 공통 엔진이 바꾼다. */
     public void setStatus(String v) { this.status = v; }
-    public void setApplyFrom(LocalDateTime v) { this.applyFrom = v; }
-    public void setApplyTo(LocalDateTime v) { this.applyTo = v; }
+    public void setApplyFrom(LocalDateTime v) { this.applyFrom = MdmEntityTimes.seconds(v); }
+    public void setApplyTo(LocalDateTime v) { this.applyTo = MdmEntityTimes.seconds(v); }
 }
