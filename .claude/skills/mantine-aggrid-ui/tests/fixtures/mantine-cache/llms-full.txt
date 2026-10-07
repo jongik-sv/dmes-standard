@@ -1,0 +1,2490 @@
+# Mantine UI Library - Complete Documentation
+
+This file contains comprehensive documentation for the Mantine UI library including:
+- Complete component documentation with all usage examples
+- Full demo code for every example shown in the documentation
+- Complete props tables with types and descriptions for all components
+- Styles API documentation showing all available selectors
+- FAQ and troubleshooting guides
+
+All code examples use production npm package imports (e.g., @mantine/core, @mantine/hooks)
+
+================================================================================
+
+## CORE COMPONENTS AND FEATURES
+Primary Package: @mantine/core
+
+### Accordion
+Package: @mantine/core
+Import: import { Accordion } from '@mantine/core';
+Description: Divide content into collapsible sections
+
+## Usage
+
+Accordion allows users to expand and collapse sections of content.
+It helps manage large amounts of information in a limited space
+by showing only section headers initially and revealing content upon interaction.
+
+Accordion is commonly used for:
+
+* FAQ sections: displaying questions as headers with answers revealed when clicked
+* Forms: organizing long forms into sections, for example, personal info, shipping, and payment
+* Menus: nested navigation in sidebars or mobile views
+
+```tsx
+// Demo.tsx
+import { Accordion } from '@mantine/core';
+import { data } from './data';
+
+function Demo() {
+  const items = data.map((item) => (
+    <Accordion.Item key={item.value} value={item.value}>
+      <Accordion.Control icon={item.emoji}>{item.value}</Accordion.Control>
+      <Accordion.Panel>{item.description}</Accordion.Panel>
+    </Accordion.Item>
+  ));
+
+  return (
+    <Accordion variant="default" radius="md" chevronPosition="right" chevronIconSize={16} disableChevronRotation={false} order={3} defaultValue="Apples">
+      {items}
+    </Accordion>
+  );
+}
+
+// data.ts
+export const data = [
+  {
+    emoji: '🍎',
+    value: 'Apples',
+    description:
+      'Crisp and refreshing fruit. Apples are known for their versatility and nutritional benefits. They come in a variety of flavors and are great for snacking, baking, or adding to salads.',
+  },
+  {
+    emoji: '🍌',
+    value: 'Bananas',
+    description:
+      'Naturally sweet and potassium-rich fruit. Bananas are a popular choice for their energy-boosting properties and can be enjoyed as a quick snack, added to smoothies, or used in baking.',
+  },
+  {
+    emoji: '🥦',
+    value: 'Broccoli',
+    description:
+      'Nutrient-packed green vegetable. Broccoli is packed with vitamins, minerals, and fiber. It has a distinct flavor and can be enjoyed steamed, roasted, or added to stir-fries.',
+  },
+];
+```
+
+
+## order prop
+
+The `order` prop (used in all demos on this page) sets the heading level for the `Accordion.Control` root element.
+According to [WAI-ARIA recommendations](https://www.w3.org/WAI/ARIA/apg/patterns/accordion/),
+it is required to use `h2`-`h6` heading levels to fit correctly within the outline of the page.
+
+All examples on this page use `order={3}`, which means that all `button` elements of
+`Accordion.Control` are wrapped with an `h3` tag (`h2` tags are used for the documentation sections).
+
+The `order` prop is not enforced by the library but is required if your application
+must meet accessibility standards.
+
+## Change chevron
+
+Use the `chevron` prop to change the chevron icon. When `chevron` is set,
+the `chevronIconSize` prop is ignored. To remove the chevron icon, use `chevron={null}`.
+
+To customize chevron styles, use [Styles API](https://mantine.dev/llms/styles-styles-api.md) with the
+[data-rotate](https://mantine.dev/llms/styles-data-attributes.md) attribute. This attribute is set when the item
+is opened if the `disableChevronRotation` prop is not set.
+
+Example of a custom chevron icon with rotation styles:
+
+```tsx
+// Demo.module.css
+.chevron {
+  &[data-rotate] {
+    transform: rotate(45deg);
+  }
+}
+
+.icon {
+  width: 16px;
+  height: 16px;
+}
+
+// data.ts
+export const data = [
+  {
+    emoji: '🍎',
+    value: 'Apples',
+    description:
+      'Crisp and refreshing fruit. Apples are known for their versatility and nutritional benefits. They come in a variety of flavors and are great for snacking, baking, or adding to salads.',
+  },
+  {
+    emoji: '🍌',
+    value: 'Bananas',
+    description:
+      'Naturally sweet and potassium-rich fruit. Bananas are a popular choice for their energy-boosting properties and can be enjoyed as a quick snack, added to smoothies, or used in baking.',
+  },
+  {
+    emoji: '🥦',
+    value: 'Broccoli',
+    description:
+      'Nutrient-packed green vegetable. Broccoli is packed with vitamins, minerals, and fiber. It has a distinct flavor and can be enjoyed steamed, roasted, or added to stir-fries.',
+  },
+];
+```
+
+
+## Custom control label
+
+You can use any React node as a label for `Accordion.Control` component.
+When you use nested elements in `Accordion.Control`, it is recommended to
+set `aria-label` attribute to make the control accessible for screen readers.
+
+```tsx
+import { Flex, Avatar, Text, Accordion } from '@mantine/core';
+
+const charactersList = [
+  {
+    id: 'bender',
+    image: 'https://img.icons8.com/clouds/256/000000/futurama-bender.png',
+    label: 'Bender Bending Rodríguez',
+    description: 'Fascinated with cooking, though has no sense of taste',
+    content: "Bender Bending Rodríguez, (born September 4, 2996), designated Bending Unit 22, and commonly known as Bender, is a bending unit created by a division of MomCorp in Tijuana, Mexico, and his serial number is 2716057. His mugshot id number is 01473. He is Fry's best friend.",
+  },
+
+  {
+    id: 'carol',
+    image: 'https://img.icons8.com/clouds/256/000000/futurama-mom.png',
+    label: 'Carol Miller',
+    description: 'One of the richest people on Earth',
+    content: "Carol Miller (born January 30, 2880), better known as Mom, is the evil chief executive officer and shareholder of 99.7% of Momcorp, one of the largest industrial conglomerates in the universe and the source of most of Earth's robots. She is also one of the main antagonists of the Futurama series.",
+  },
+
+  {
+    id: 'homer',
+    image: 'https://img.icons8.com/clouds/256/000000/homer-simpson.png',
+    label: 'Homer Simpson',
+    description: 'Overweight, lazy, and often ignorant',
+    content: 'Homer Jay Simpson (born May 12) is the main protagonist and one of the five main characters of The Simpsons series(or show). He is the spouse of Marge Simpson and father of Bart, Lisa and Maggie Simpson.',
+  },
+];
+
+interface AccordionLabelProps {
+  label: string;
+  image: string;
+  description: string;
+}
+
+function AccordionLabel({ label, image, description }: AccordionLabelProps) {
+  return (
+    <Flex component="span" gap="md" align="center" wrap="nowrap">
+      <Avatar src={image} radius="xl" size="lg" alt={label} />
+      <div>
+        <Text span>{label}</Text>
+        <Text span display="block" size="sm" c="dimmed" fw={400}>
+          {description}
+        </Text>
+      </div>
+    </Flex>
+  );
+}
+
+function Demo() {
+  const items = charactersList.map((item) => (
+    <Accordion.Item value={item.id} key={item.label}>
+      <Accordion.Control aria-label={item.label}>
+        <AccordionLabel {...item} />
+      </Accordion.Control>
+      <Accordion.Panel>
+        <Text size="sm">{item.content}</Text>
+      </Accordion.Panel>
+    </Accordion.Item>
+  ));
+
+  return (
+    <Accordion chevronPosition="right" variant="contained">
+      {items}
+    </Accordion>
+  );
+}
+```
+
+
+## With icons
+
+Use the `icon` prop to display any element in the left section of the `Accordion.Control`:
+
+```tsx
+import { ImageIcon, PrinterIcon, CameraIcon } from '@phosphor-icons/react';
+import { Accordion } from '@mantine/core';
+
+function Demo() {
+  return (
+    <Accordion variant="filled" defaultValue="photos" order={3}>
+      <Accordion.Item value="photos">
+        <Accordion.Control
+          icon={<ImageIcon size={22} color="var(--mantine-color-dimmed)" />}
+        >
+          Recent photos
+        </Accordion.Control>
+        <Accordion.Panel>Content</Accordion.Panel>
+      </Accordion.Item>
+
+      <Accordion.Item value="print">
+        <Accordion.Control
+          icon={<PrinterIcon size={22} color="var(--mantine-color-dimmed)" />}
+        >
+          Print photos
+        </Accordion.Control>
+        <Accordion.Panel>Content</Accordion.Panel>
+      </Accordion.Item>
+
+      <Accordion.Item value="camera">
+        <Accordion.Control
+          icon={<CameraIcon size={22} color="var(--mantine-color-dimmed)" />}
+        >
+          CameraIcon settings
+        </Accordion.Control>
+        <Accordion.Panel>Content</Accordion.Panel>
+      </Accordion.Item>
+    </Accordion>
+  );
+}
+```
+
+
+## Change transition
+
+To change transition duration, set `transitionDuration` prop:
+
+
+
+To disable transitions, set `transitionDuration` to 0:
+
+
+
+## Default opened items
+
+For `multiple={false}`, set `defaultValue` as string:
+
+```tsx
+import { Accordion } from '@mantine/core';
+
+function Demo() {
+  // Second item will be opened by default
+  return (
+    <Accordion defaultValue="item-2">
+      <Accordion.Item value="item-1">{/* item-1 */}</Accordion.Item>
+      <Accordion.Item value="item-2">{/* item-2 */}</Accordion.Item>
+    </Accordion>
+  );
+}
+```
+
+For `multiple={true}`, set `defaultValue` as an array of strings:
+
+```tsx
+import { Accordion } from '@mantine/core';
+
+function Demo() {
+  // Both items are opened by default
+  return (
+    <Accordion multiple defaultValue={['item-1', 'item-2']}>
+      <Accordion.Item value="item-1">{/* item-1 */}</Accordion.Item>
+      <Accordion.Item value="item-2">{/* item-2 */}</Accordion.Item>
+    </Accordion>
+  );
+}
+```
+
+## Control opened state
+
+For `multiple={false}`, set `value` as string:
+
+```tsx
+import { useState } from 'react';
+import { Accordion } from '@mantine/core';
+
+function Demo() {
+  const [value, setValue] = useState<string | null>(null);
+
+  return (
+    <Accordion value={value} onChange={setValue}>
+      <Accordion.Item value="item-1">{/* item-1 */}</Accordion.Item>
+      <Accordion.Item value="item-2">{/* item-2 */}</Accordion.Item>
+    </Accordion>
+  );
+}
+```
+
+For `multiple={true}`, set `value` as an array of strings:
+
+```tsx
+import { useState } from 'react';
+import { Accordion } from '@mantine/core';
+
+function Demo() {
+  const [value, setValue] = useState<string[]>([]);
+
+  return (
+    <Accordion multiple value={value} onChange={setValue}>
+      <Accordion.Item value="item-1">{/* item-1 */}</Accordion.Item>
+      <Accordion.Item value="item-2">{/* item-2 */}</Accordion.Item>
+    </Accordion>
+  );
+}
+```
+
+## Disable collapse
+
+By default, in single mode (`multiple={false}`) the open item can always be toggled closed,
+which leaves the Accordion fully collapsed. Set the `disableCollapse` prop to prevent this:
+once an item is open, clicking its control again is a no-op, and the only way to change state
+is to open a different item. This is useful for settings panels, stepper-style flows and FAQ
+pages where one section should always stay visible.
+
+`disableCollapse` only prevents collapsing an already-open item – it does not force an item
+open on mount. To guarantee that one item is open from the start, pair it with `defaultValue`
+(uncontrolled) or `value` (controlled).
+
+The prop has no effect when `multiple` is set, as multiple mode already allows any combination
+of opened and closed items.
+
+```tsx
+// Demo.tsx
+import { Accordion } from '@mantine/core';
+import { data } from './data';
+
+function Demo() {
+  const items = data.map((item) => (
+    <Accordion.Item key={item.value} value={item.value}>
+      <Accordion.Control icon={item.emoji}>{item.value}</Accordion.Control>
+      <Accordion.Panel>{item.description}</Accordion.Panel>
+    </Accordion.Item>
+  ));
+
+  return (
+    <Accordion defaultValue="Apples" disableCollapse order={3}>
+      {items}
+    </Accordion>
+  );
+}
+
+// data.ts
+export const data = [
+  {
+    emoji: '🍎',
+    value: 'Apples',
+    description:
+      'Crisp and refreshing fruit. Apples are known for their versatility and nutritional benefits. They come in a variety of flavors and are great for snacking, baking, or adding to salads.',
+  },
+  {
+    emoji: '🍌',
+    value: 'Bananas',
+    description:
+      'Naturally sweet and potassium-rich fruit. Bananas are a popular choice for their energy-boosting properties and can be enjoyed as a quick snack, added to smoothies, or used in baking.',
+  },
+  {
+    emoji: '🥦',
+    value: 'Broccoli',
+    description:
+      'Nutrient-packed green vegetable. Broccoli is packed with vitamins, minerals, and fiber. It has a distinct flavor and can be enjoyed steamed, roasted, or added to stir-fries.',
+  },
+];
+```
+
+
+## Compose controls
+
+Putting a button or link inside `Accordion.Control` is a common mistake when
+using Accordion. The `Accordion.Control` root element is a `button`. Putting interactive
+elements inside other interactive elements is forbidden – you will receive a DOM
+validation error from React if you try to implement the following component:
+
+```tsx
+import { Accordion } from '@mantine/core';
+
+// ❌ Incorrect usage: do not do this
+function Demo() {
+  return (
+    <Accordion.Item value="item-1">
+      <Accordion.Control>
+        <Group>
+          <span>Control 1</span>
+          <button>My action</button>
+        </Group>
+      </Accordion.Control>
+      <Accordion.Panel>Panel 1</Accordion.Panel>
+    </Accordion.Item>
+  );
+}
+```
+
+Instead of putting interactive elements inside the `Accordion.Control`, render them
+next to it. For example, you can add an [ActionIcon](https://mantine.dev/llms/core-action-icon.md) or [Menu](https://mantine.dev/llms/core-menu.md)
+to the right side of the original control. If you need to display an interactive element
+over the `Accordion.Control`, use `position: absolute` instead.
+
+```tsx
+import { Accordion, ActionIcon, AccordionControlProps, Center } from '@mantine/core';
+import { DotsThreeIcon } from '@phosphor-icons/react';
+
+function AccordionControl(props: AccordionControlProps) {
+  return (
+    <Center>
+      <Accordion.Control {...props} />
+      <ActionIcon size="lg" variant="subtle" color="gray" aria-label="More options">
+        <DotsThreeIcon size={20} />
+      </ActionIcon>
+    </Center>
+  );
+}
+
+function Demo() {
+  return (
+    <Accordion chevronPosition="left" order={3}>
+      <Accordion.Item value="item-1">
+        <AccordionControl>Control 1</AccordionControl>
+        <Accordion.Panel>Panel 1</Accordion.Panel>
+      </Accordion.Item>
+
+      <Accordion.Item value="item-2">
+        <AccordionControl>Control 2</AccordionControl>
+        <Accordion.Panel>Panel 2</Accordion.Panel>
+      </Accordion.Item>
+
+      <Accordion.Item value="item-3">
+        <AccordionControl>Control 3</AccordionControl>
+        <Accordion.Panel>Panel 3</Accordion.Panel>
+      </Accordion.Item>
+    </Accordion>
+  );
+}
+```
+
+
+## Disabled items
+
+Set the `disabled` prop on the `Accordion.Control` component to disable it.
+When you disable items, users cannot activate them with the mouse or keyboard,
+and arrow key navigation will skip them:
+
+```tsx
+// Demo.tsx
+import { Accordion } from '@mantine/core';
+import { data } from './data';
+
+function Demo() {
+  const items = data.map((item) => (
+    <Accordion.Item key={item.value} value={item.value}>
+      <Accordion.Control icon={item.emoji} disabled={item.value === 'Bananas'}>
+        {item.value}
+      </Accordion.Control>
+      <Accordion.Panel>{item.description}</Accordion.Panel>
+    </Accordion.Item>
+  ));
+
+  return (
+    <Accordion defaultValue="Apples" order={3}>
+      {items}
+    </Accordion>
+  );
+}
+
+// data.ts
+export const data = [
+  {
+    emoji: '🍎',
+    value: 'Apples',
+    description:
+      'Crisp and refreshing fruit. Apples are known for their versatility and nutritional benefits. They come in a variety of flavors and are great for snacking, baking, or adding to salads.',
+  },
+  {
+    emoji: '🍌',
+    value: 'Bananas',
+    description:
+      'Naturally sweet and potassium-rich fruit. Bananas are a popular choice for their energy-boosting properties and can be enjoyed as a quick snack, added to smoothies, or used in baking.',
+  },
+  {
+    emoji: '🥦',
+    value: 'Broccoli',
+    description:
+      'Nutrient-packed green vegetable. Broccoli is packed with vitamins, minerals, and fiber. It has a distinct flavor and can be enjoyed steamed, roasted, or added to stir-fries.',
+  },
+];
+```
+
+
+## TypeScript
+
+The `AccordionProps` type exported from `@mantine/core` is a generic that accepts a boolean type
+describing the `multiple` state:
+
+```tsx
+import type { AccordionProps } from '@mantine/core';
+
+type MultipleAccordionProps = AccordionProps<true>;
+type DefaultAccordionProps = AccordionProps<false>;
+```
+
+## Accessibility
+
+The Accordion component implements the [WAI-ARIA accessibility pattern](https://www.w3.org/WAI/ARIA/apg/patterns/accordion/).
+
+## Keyboard interactions
+
+
+#### Props
+
+**Accordion props**
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| chevron | React.ReactNode | - | Custom chevron icon |
+| chevronIconSize | string \| number | - | Size of the default chevron icon. Ignored when `chevron` prop is set. Use `chevronSize` instead when using custom chevron. |
+| chevronPosition | "left" \| "right" | - | Position of the chevron relative to the item label |
+| chevronSize | string \| number | - | Size of the chevron icon container |
+| defaultValue | string \| string[] \| null | - | Uncontrolled component default value |
+| disableChevronRotation | boolean | - | If set, chevron rotation is disabled |
+| disableCollapse | boolean | - | If set, the open item cannot be collapsed by clicking it again, so one item always stays open. Only applies when `multiple` is `false`. |
+| keepMounted | boolean | - | If set to `false`, panels are unmounted when collapsed. By default, panels stay mounted when collapsed. |
+| keepMountedMode | "activity" \| "display-none" | - | Controls how inactive panels content is hidden when `keepMounted` is `true`, `'activity'` – hidden with `Activity` component, `'display-none'` – hidden with `display: none` styles |
+| loop | boolean | - | If set, arrow keys loop through items (first to last and last to first) |
+| multiple | boolean | - | If set, multiple items can be opened at the same time |
+| onChange | (value: AccordionValue<Multiple>) => void | - | Called when value changes, payload type depends on `multiple` prop |
+| order | 2 \| 3 \| 4 \| 5 \| 6 | - | Sets heading level (h2-h6) for `Accordion.Control` elements. Wraps each control in the corresponding heading tag, recommended to meet WAI-ARIA accessibility requirements. Has no visual effect. |
+| radius | MantineRadius \| number | - | Key of `theme.radius` or any valid CSS value to set border-radius. Numbers are converted to rem. |
+| transitionDuration | number | - | Transition duration in ms |
+| value | string \| string[] \| null | - | Controlled component value |
+
+**Accordion.Item props**
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| value | string | required | Value that is used to manage the accordion state |
+
+**Accordion.Control props**
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| chevron | React.ReactNode | - | Custom chevron icon |
+| children | React.ReactNode | - | Control label |
+| disabled | boolean | - | Sets `disabled` attribute, prevents interactions |
+| icon | React.ReactNode | - | Icon displayed next to the label |
+
+
+#### Styles API
+
+Accordion component supports Styles API. With Styles API, you can customize styles of any inner element. Follow the documentation to learn how to use CSS modules, CSS variables and inline styles to get full control over component styles.
+
+**Accordion selectors**
+
+| Selector | Static selector | Description |
+|----------|----------------|-------------|
+| root | .mantine-Accordion-root | Root element |
+| item | .mantine-Accordion-item | `Accordion.Item` root element |
+| control | .mantine-Accordion-control | `Accordion.Control` root element |
+| chevron | .mantine-Accordion-chevron | `Accordion.Control` chevron container element |
+| label | .mantine-Accordion-label | `Accordion.Control` label |
+| icon | .mantine-Accordion-icon | `Accordion.Control` icon |
+| itemTitle | .mantine-Accordion-itemTitle | `Accordion.Control` title (h2-h6) tag |
+| panel | .mantine-Accordion-panel | `Accordion.Panel` root element |
+| content | .mantine-Accordion-content | Wrapper element of `Accordion.Panel` `children` |
+
+**Accordion CSS variables**
+
+| Selector | Variable | Description |
+|----------|----------|-------------|
+| root | --accordion-chevron-size | Controls chevron container element `width` and `min-width` |
+| root | --accordion-radius | Controls `border-radius` in various elements, depending on variant |
+| root | --accordion-transition-duration | Controls all animations `transition-duration` |
+
+
+--------------------------------------------------------------------------------
+
+### ActionBar
+Package: @mantine/core
+Import: import { ActionBar } from '@mantine/core';
+Description: A fixed-position bottom bar for bulk selection actions
+
+## Usage
+
+`ActionBar` is a fixed-position bottom bar that appears when items are selected,
+providing contextual bulk actions. It is built using [Affix](https://mantine.dev/llms/core-affix.md), [Transition](https://mantine.dev/llms/core-transition.md)
+and [Paper](https://mantine.dev/llms/core-paper.md) components.
+
+`ActionBar` content can be any React node. Use `ActionBar.Divider` to
+add a vertical divider and `ActionBar.CloseButton` to add a close button that
+calls `onClose`.
+
+`ActionBar` root has `role="group"`. Set `aria-label` to describe what the actions apply to.
+
+```tsx
+import { useState } from 'react';
+import { ActionBar, Button, Checkbox, Table, Text } from '@mantine/core';
+
+const elements = [
+  { position: 6, mass: 12.011, symbol: 'C', name: 'Carbon' },
+  { position: 7, mass: 14.007, symbol: 'N', name: 'Nitrogen' },
+  { position: 39, mass: 88.906, symbol: 'Y', name: 'Yttrium' },
+  { position: 56, mass: 137.33, symbol: 'Ba', name: 'Barium' },
+  { position: 58, mass: 140.12, symbol: 'Ce', name: 'Cerium' },
+];
+
+function Demo() {
+  const [selection, setSelection] = useState<number[]>([]);
+
+  const toggleRow = (position: number) =>
+    setSelection((current) =>
+      current.includes(position)
+        ? current.filter((item) => item !== position)
+        : [...current, position]
+    );
+
+  const toggleAll = () =>
+    setSelection((current) =>
+      current.length === elements.length ? [] : elements.map((element) => element.position)
+    );
+
+  const rows = elements.map((element) => (
+    <Table.Tr
+      key={element.position}
+      bg={selection.includes(element.position) ? 'var(--mantine-color-blue-light)' : undefined}
+    >
+      <Table.Td>
+        <Checkbox
+          aria-label="Select row"
+          checked={selection.includes(element.position)}
+          onChange={() => toggleRow(element.position)}
+        />
+      </Table.Td>
+      <Table.Td>{element.position}</Table.Td>
+      <Table.Td>{element.name}</Table.Td>
+      <Table.Td>{element.symbol}</Table.Td>
+      <Table.Td>{element.mass}</Table.Td>
+    </Table.Tr>
+  ));
+
+  return (
+    <>
+      <Table>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>
+              <Checkbox
+                aria-label="Select all"
+                checked={selection.length === elements.length}
+                indeterminate={selection.length > 0 && selection.length !== elements.length}
+                onChange={toggleAll}
+              />
+            </Table.Th>
+            <Table.Th>Element position</Table.Th>
+            <Table.Th>Element name</Table.Th>
+            <Table.Th>Symbol</Table.Th>
+            <Table.Th>Atomic mass</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>{rows}</Table.Tbody>
+      </Table>
+
+      <ActionBar opened={selection.length > 0} onClose={() => setSelection([])} shadow="md">
+        <Text size="sm">{selection.length} selected</Text>
+        <ActionBar.Divider />
+        <Button variant="default" size="compact-sm">
+          Delete
+        </Button>
+        <Button variant="default" size="compact-sm">
+          Move
+        </Button>
+        <Button variant="default" size="compact-sm">
+          Archive
+        </Button>
+        <ActionBar.CloseButton />
+      </ActionBar>
+    </>
+  );
+}
+```
+
+
+## With ActionIcon buttons
+
+```tsx
+import { useState } from 'react';
+import { ArchiveIcon, FolderIcon, TrashIcon } from '@phosphor-icons/react';
+import { ActionBar, ActionIcon, Checkbox, Group, Table, Text, Tooltip } from '@mantine/core';
+
+const elements = [
+  { position: 6, mass: 12.011, symbol: 'C', name: 'Carbon' },
+  { position: 7, mass: 14.007, symbol: 'N', name: 'Nitrogen' },
+  { position: 39, mass: 88.906, symbol: 'Y', name: 'Yttrium' },
+  { position: 56, mass: 137.33, symbol: 'Ba', name: 'Barium' },
+  { position: 58, mass: 140.12, symbol: 'Ce', name: 'Cerium' },
+];
+
+function Demo() {
+  const [selection, setSelection] = useState<number[]>([]);
+
+  const toggleRow = (position: number) =>
+    setSelection((current) =>
+      current.includes(position)
+        ? current.filter((item) => item !== position)
+        : [...current, position]
+    );
+
+  const toggleAll = () =>
+    setSelection((current) =>
+      current.length === elements.length ? [] : elements.map((element) => element.position)
+    );
+
+  const rows = elements.map((element) => (
+    <Table.Tr
+      key={element.position}
+      bg={selection.includes(element.position) ? 'var(--mantine-color-blue-light)' : undefined}
+    >
+      <Table.Td>
+        <Checkbox
+          aria-label="Select row"
+          checked={selection.includes(element.position)}
+          onChange={() => toggleRow(element.position)}
+        />
+      </Table.Td>
+      <Table.Td>{element.position}</Table.Td>
+      <Table.Td>{element.name}</Table.Td>
+      <Table.Td>{element.symbol}</Table.Td>
+      <Table.Td>{element.mass}</Table.Td>
+    </Table.Tr>
+  ));
+
+  return (
+    <>
+      <Table>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>
+              <Checkbox
+                aria-label="Select all"
+                checked={selection.length === elements.length}
+                indeterminate={selection.length > 0 && selection.length !== elements.length}
+                onChange={toggleAll}
+              />
+            </Table.Th>
+            <Table.Th>Element position</Table.Th>
+            <Table.Th>Element name</Table.Th>
+            <Table.Th>Symbol</Table.Th>
+            <Table.Th>Atomic mass</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>{rows}</Table.Tbody>
+      </Table>
+
+      <ActionBar opened={selection.length > 0} onClose={() => setSelection([])}>
+        <Text size="sm" fw={500}>{selection.length} rows selected</Text>
+        <ActionBar.Divider />
+        <Tooltip.Group openDelay={300} closeDelay={100}>
+          <Group gap="xs">
+            <Tooltip label="Delete">
+              <ActionIcon variant="default" color="red" size="lg">
+                <TrashIcon size={16} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Move to folder">
+              <ActionIcon variant="default" size="lg">
+                <FolderIcon size={16} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Archive">
+              <ActionIcon variant="default" size="lg">
+                <ArchiveIcon size={16} />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
+        </Tooltip.Group>
+        <ActionBar.Divider />
+        <ActionBar.CloseButton />
+      </ActionBar>
+    </>
+  );
+}
+```
+
+
+## Placement
+
+By default, `ActionBar` is centered at the bottom of the screen. You can change
+the position with the `position` prop. When using non-centered positions, set
+`styles={{ root: { marginInline: 0 } }}` to remove the auto centering.
+
+```tsx
+import { useDisclosure } from '@mantine/hooks';
+import { ActionBar, Button, Group, Text } from '@mantine/core';
+
+function Demo() {
+  const [center, centerHandlers] = useDisclosure(false);
+  const [left, leftHandlers] = useDisclosure(false);
+  const [right, rightHandlers] = useDisclosure(false);
+
+  return (
+    <>
+      <Group justify="center">
+        <Button onClick={centerHandlers.toggle}>Center (default)</Button>
+        <Button onClick={leftHandlers.toggle}>Left</Button>
+        <Button onClick={rightHandlers.toggle}>Right</Button>
+      </Group>
+
+      <ActionBar opened={center} onClose={centerHandlers.close}>
+        <Text size="sm">Center position (default)</Text>
+        <ActionBar.CloseButton />
+      </ActionBar>
+
+      <ActionBar
+        opened={left}
+        onClose={leftHandlers.close}
+        position={{ bottom: 30, left: 30 }}
+        styles={{ root: { marginInline: 0 } }}
+      >
+        <Text size="sm">Left position</Text>
+        <ActionBar.CloseButton />
+      </ActionBar>
+
+      <ActionBar
+        opened={right}
+        onClose={rightHandlers.close}
+        position={{ bottom: 30, right: 30 }}
+        styles={{ root: { marginInline: 0 } }}
+      >
+        <Text size="sm">Right position</Text>
+        <ActionBar.CloseButton />
+      </ActionBar>
+    </>
+  );
+}
+```
+
+
+## Close on Escape
+
+By default, `ActionBar` does not close when `Escape` key is pressed. Set `closeOnEscape`
+to enable this behavior:
+
+```tsx
+import { useDisclosure } from '@mantine/hooks';
+import { ActionBar, Button, Group, Text } from '@mantine/core';
+
+function Demo() {
+  const [opened, { toggle, close }] = useDisclosure(false);
+
+  return (
+    <>
+      <Group justify="center">
+        <Button onClick={toggle}>Toggle action bar</Button>
+      </Group>
+
+      <ActionBar opened={opened} onClose={close} closeOnEscape>
+        <Text size="sm">Press Escape to close this bar</Text>
+        <ActionBar.Divider />
+        <Button variant="default" size="compact-sm" onClick={close}>
+          Close
+        </Button>
+      </ActionBar>
+    </>
+  );
+}
+```
+
+
+## Transitions
+
+`ActionBar` is animated with the [Transition](https://mantine.dev/llms/core-transition.md) component,
+`{ transition: 'pop', duration: 200 }` by default. Use `transitionProps` to change
+the transition, its duration and timing function:
+
+```tsx
+import { ActionBar, Button } from '@mantine/core';
+
+function Demo() {
+  return (
+    <ActionBar opened transitionProps={{ transition: 'slide-up', duration: 300 }}>
+      <Button>Delete</Button>
+    </ActionBar>
+  );
+}
+```
+
+## keepMounted
+
+By default, the action bar is removed from the DOM when it is closed. Set `keepMounted`
+to keep it mounted, for example to preserve form state inside the bar. The hidden bar is wrapped
+in React `Activity`. To hide it with `display: none` instead, set `transitionProps={{ keepMountedMode: 'display-none' }}`:
+
+```tsx
+import { ActionBar, Button } from '@mantine/core';
+
+function Demo() {
+  return (
+    <ActionBar opened={false} keepMounted>
+      <Button>Delete</Button>
+    </ActionBar>
+  );
+}
+```
+
+
+#### Props
+
+**ActionBar props**
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| aria-label | string | - | `aria-label` of the actions group, `'Actions'` by default |
+| closeOnEscape | boolean | - | Determines whether the action bar should be closed when `Escape` key is pressed, `false` by default |
+| keepMounted | boolean | - | If set, the action bar is kept in the DOM when closed. React `Activity` is used to preserve its state while it is hidden, `false` by default |
+| onClose | () => void | - | Called when close button is clicked or Escape is pressed |
+| opened | boolean | required | Controls visibility |
+| portalProps | BasePortalProps | - | Props passed down to the `Portal` component. Ignored when `withinPortal` is `false`. |
+| position | AffixPosition | - | Affix position on screen |
+| radius | MantineRadius \| number | - | Key of `theme.radius` or any valid CSS value to set `border-radius` |
+| shadow | MantineShadow | - | Key of `theme.shadows` or any valid CSS `box-shadow` value |
+| transitionProps | TransitionProps | - | Props passed down to the `Transition` component, `{ transition: 'pop', duration: 200 }` by default |
+| withBorder | boolean | - | Adds border to the root element |
+| withinPortal | boolean | - | Determines whether the component is rendered within `Portal` |
+| zIndex | React.CSSProperties["zIndex"] | - | Root element `z-index` property |
+
+
+#### Styles API
+
+ActionBar component supports Styles API. With Styles API, you can customize styles of any inner element. Follow the documentation to learn how to use CSS modules, CSS variables and inline styles to get full control over component styles.
+
+**ActionBar selectors**
+
+| Selector | Static selector | Description |
+|----------|----------------|-------------|
+| root | .mantine-ActionBar-root | Root element (Paper) |
+| divider | .mantine-ActionBar-divider | ActionBar.Divider element |
+| closeButton | .mantine-ActionBar-closeButton | ActionBar.CloseButton element |
+
+
+--------------------------------------------------------------------------------
+
+### ActionIcon
+Package: @mantine/core
+Import: import { ActionIcon } from '@mantine/core';
+Description: Icon button
+
+## Usage
+
+```tsx
+import { ActionIcon } from '@mantine/core';
+import { SlidersHorizontalIcon } from '@phosphor-icons/react';
+
+function Demo() {
+  return (
+    <ActionIcon variant="filled" color="blue" size="md" radius="md" aria-label="Settings">
+      <SlidersHorizontalIcon style={{ width: '70%', height: '70%' }} />
+    </ActionIcon>
+  );
+}
+```
+
+
+```tsx
+import { ActionIcon } from '@mantine/core';
+import { HeartIcon } from '@phosphor-icons/react';
+
+function Demo() {
+  return (
+    <ActionIcon
+      variant="gradient"
+      size="xl"
+      aria-label="Gradient action icon"
+      gradient={{ from: 'blue', to: 'cyan', deg: 90 }}
+    >
+      <HeartIcon />
+    </ActionIcon>
+  );
+}
+```
+
+
+## Size
+
+You can use any valid CSS value in the `size` prop, which is used to set the `width`, `min-width`, `min-height` and `height`
+properties. Note that the `size` prop does not control the child [icon](https://mantine.dev/llms/guides-icons.md) size – you need to
+set it manually on the icon component. When `size` is a number, the value is treated as `px` units and
+converted to [rem](https://mantine.dev/llms/styles-rem.md) units.
+
+```tsx
+import { ActionIcon } from '@mantine/core';
+import { HeartIcon } from '@phosphor-icons/react';
+
+function Demo() {
+  return (
+    <ActionIcon size={42} variant="default" aria-label="ActionIcon with size as a number">
+      <HeartIcon size={24} />
+    </ActionIcon>
+  );
+}
+```
+
+
+If you want `ActionIcon` to have the same size as Mantine inputs, use the `size="input-sm"` prop:
+
+```tsx
+import { ActionIcon, Group, TextInput } from '@mantine/core';
+
+function Demo() {
+  return (
+    <Group>
+      <TextInput placeholder="sm size input" size="sm" />
+      <ActionIcon size="input-sm" variant="default" aria-label="ActionIcon the same size as inputs">
+        SM
+      </ActionIcon>
+    </Group>
+  );
+}
+```
+
+
+## Disabled state
+
+To make `ActionIcon` disabled, set the `disabled` prop. This will prevent any interactions with the button
+and add disabled styles. If you want the button to just look disabled but still be interactive,
+set the `data-disabled` prop instead. Note that disabled styles are the same for all variants.
+
+```tsx
+import { ActionIcon, Group } from '@mantine/core';
+import { HeartIcon } from '@phosphor-icons/react';
+
+function Demo() {
+  return (
+    <Group justify="center">
+      <ActionIcon size="xl" disabled aria-label="Disabled and not interactive">
+        <HeartIcon />
+      </ActionIcon>
+
+      <ActionIcon size="xl" data-disabled aria-label="Has disabled styles but still interactive">
+        <HeartIcon />
+      </ActionIcon>
+    </Group>
+  );
+}
+```
+
+
+## Disabled state when ActionIcon is link
+
+The `<a />` element does not support the `disabled` attribute. To make `ActionIcon` disabled when it is
+rendered as a link, set the `data-disabled` attribute instead and prevent default behavior in the
+`onClick` event handler.
+
+```tsx
+import { ActionIcon } from '@mantine/core';
+import { ArrowSquareOutIcon } from '@phosphor-icons/react';
+
+function Demo() {
+  return (
+    <ActionIcon
+      component="a"
+      href="https://mantine.dev"
+      data-disabled
+      size="xl"
+      aria-label="Open in a new tab"
+      onClick={(event) => event.preventDefault()}
+    >
+      <ArrowSquareOutIcon />
+    </ActionIcon>
+  );
+}
+```
+
+
+## Customize disabled styles
+
+To customize disabled styles, it is recommended to use both `&:disabled` and `&[data-disabled]`
+selectors:
+
+* `&:disabled` is used to style the button when the `disabled` prop is set and
+  also when the button is disabled by the parent component (for example, when the `disabled` prop is set on a
+  `<fieldset />` element which contains `ActionIcon`).
+* `&[data-disabled]` is used to style the button when it is not actually disabled but should look like
+  it is (for example, `data-disabled` should be used if you need to use [Tooltip](https://mantine.dev/llms/core-tooltip.md) with a disabled `ActionIcon`
+  or when `ActionIcon` is used as a link)
+
+```tsx
+// Demo.module.css
+.button {
+  &:disabled,
+  &[data-disabled] {
+    border-color: light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+    background-color: transparent;
+  }
+}
+
+// Demo.tsx
+import { ActionIcon } from '@mantine/core';
+import { HeartIcon } from '@phosphor-icons/react';
+import classes from './Demo.module.css';
+
+function Demo() {
+  return (
+    <ActionIcon size="xl" className={classes.button} disabled aria-label="Disabled with styles">
+      <HeartIcon />
+    </ActionIcon>
+  );
+}
+```
+
+
+## Disabled button with Tooltip
+
+The `onMouseLeave` event [is not triggered](https://github.com/facebook/react/issues/18753) when `ActionIcon` is disabled, so if you need to use
+[Tooltip](https://mantine.dev/llms/core-tooltip.md) with a disabled `ActionIcon`, you need to set the `data-disabled` prop on `ActionIcon`
+instead of `disabled`. Note that it is also required to change the `onClick` event handler to
+`(event) => event.preventDefault()` as `ActionIcon` is not actually disabled and will still trigger
+the `onClick` event.
+
+```tsx
+import { ActionIcon, Tooltip } from '@mantine/core';
+import { HeartIcon } from '@phosphor-icons/react';
+
+function Demo() {
+  return (
+    <Tooltip label="Tooltip for disabled button">
+      <ActionIcon
+        aria-label="Hover to see tooltip"
+        size="xl"
+        data-disabled
+        onClick={(event) => event.preventDefault()}
+      >
+        <HeartIcon />
+      </ActionIcon>
+    </Tooltip>
+  );
+}
+```
+
+
+## Loading state
+
+When the `loading` prop is set, `ActionIcon` will be disabled and a [Loader](https://mantine.dev/llms/core-loader.md) with overlay will be rendered
+in the center of the button. The [Loader](https://mantine.dev/llms/core-loader.md) color depends on the `ActionIcon` variant.
+
+```tsx
+import { ActionIcon, Group, Switch } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
+import { HeartIcon } from '@phosphor-icons/react';
+
+function Demo() {
+  const [loading, { toggle }] = useDisclosure();
+  return (
+    <>
+      <Group>
+        <ActionIcon loading={loading} aria-label="Like">
+          <HeartIcon size={18} />
+        </ActionIcon>
+        <ActionIcon variant="light" loading={loading} aria-label="Like">
+          <HeartIcon size={18} />
+        </ActionIcon>
+        <ActionIcon variant="outline" loading={loading} aria-label="Like">
+          <HeartIcon size={18} />
+        </ActionIcon>
+      </Group>
+
+      <Switch checked={loading} onChange={toggle} label="Loading state" mt="md" />
+    </>
+  );
+}
+```
+
+
+## Loader props
+
+You can customize the [Loader](https://mantine.dev/llms/core-loader.md) with the `loaderProps` prop, which accepts all props that the
+[Loader](https://mantine.dev/llms/core-loader.md) component has:
+
+```tsx
+import { ActionIcon } from '@mantine/core';
+
+function Demo() {
+  return <ActionIcon size="xl" loading loaderProps={{ type: 'dots' }} aria-label="Loading..." />;
+}
+```
+
+
+## Add custom variants
+
+To add new `ActionIcon` variants, use the [data-variant](https://mantine.dev/llms/styles-variants-sizes.md) attribute.
+Usually new variants are added to the [theme](https://mantine.dev/llms/theming-theme-object.md). This way they are
+available in all `ActionIcon` components in your application.
+
+```tsx
+// Demo.tsx
+import { Group, ActionIcon, MantineProvider, createTheme } from '@mantine/core';
+import { HeartIcon } from '@phosphor-icons/react';
+import classes from './Demo.module.css';
+
+const theme = createTheme({
+  components: {
+    ActionIcon: ActionIcon.extend({
+      classNames: classes,
+    }),
+  },
+});
+
+function Demo() {
+  return (
+    <MantineProvider theme={theme}>
+      <Group justify="center">
+        <ActionIcon size="xl" variant="danger" aria-label="Danger variant">
+          <HeartIcon />
+        </ActionIcon>
+        <ActionIcon size="xl" variant="primary" aria-label="Primary variant">
+          <HeartIcon />
+        </ActionIcon>
+      </Group>
+    </MantineProvider>
+  );
+}
+
+// Demo.module.css
+.root {
+  &[data-variant='danger'] {
+    background-color: var(--mantine-color-red-9);
+    color: var(--mantine-color-red-0);
+  }
+
+  &[data-variant='primary'] {
+    background: linear-gradient(45deg, #4b6cb7 10%, #253b67 90%);
+    color: var(--mantine-color-white);
+  }
+}
+```
+
+
+## Customize variants colors
+
+You can customize colors for `ActionIcon` and other components variants by adding
+[variantColorResolver](https://mantine.dev/llms/theming-colors.md#colors-variant-resolver) to your theme.
+
+```tsx
+import { ImageIcon, FingerprintIcon, WarningIcon } from '@phosphor-icons/react';
+import {
+  ActionIcon,
+  Group,
+  MantineProvider,
+  defaultVariantColorsResolver,
+  VariantColorsResolver,
+  parseThemeColor,
+  rgba,
+  darken,
+} from '@mantine/core';
+
+const variantColorResolver: VariantColorsResolver = (input) => {
+  const defaultResolvedColors = defaultVariantColorsResolver(input);
+  const parsedColor = parseThemeColor({
+    color: input.color || input.theme.primaryColor,
+    theme: input.theme,
+  });
+
+  // Override some properties for variant
+  if (parsedColor.isThemeColor && parsedColor.color === 'lime' && input.variant === 'filled') {
+    return {
+      ...defaultResolvedColors,
+      color: 'var(--mantine-color-black)',
+      hoverColor: 'var(--mantine-color-black)',
+    };
+  }
+
+  // Completely override variant
+  if (input.variant === 'light') {
+    return {
+      background: rgba(parsedColor.value, 0.1),
+      hover: rgba(parsedColor.value, 0.15),
+      border: `1px solid ${parsedColor.value}`,
+      color: darken(parsedColor.value, 0.1),
+    };
+  }
+
+  // Add new variants support
+  if (input.variant === 'danger') {
+    return {
+      background: 'var(--mantine-color-red-9)',
+      hover: 'var(--mantine-color-red-8)',
+      color: 'var(--mantine-color-white)',
+      border: 'none',
+    };
+  }
+
+  return defaultResolvedColors;
+};
+
+function Demo() {
+  return (
+    <MantineProvider theme={{ variantColorResolver }}>
+      <Group>
+        <ActionIcon color="lime.4" variant="filled" size="lg" aria-label="Photo">
+          <ImageIcon size={20} />
+        </ActionIcon>
+
+        <ActionIcon color="orange" variant="light" size="lg" aria-label="FingerprintIcon">
+          <FingerprintIcon size={20} />
+        </ActionIcon>
+
+        <ActionIcon variant="danger" size="lg" aria-label="Error 404">
+          <WarningIcon size={20} />
+        </ActionIcon>
+      </Group>
+    </MantineProvider>
+  );
+}
+```
+
+
+```tsx
+import { FingerprintIcon } from '@phosphor-icons/react';
+import { ActionIcon, Group } from '@mantine/core';
+
+function Demo() {
+  return (
+    <Group>
+      <ActionIcon aria-label="default action icon" size="lg" color="lime.4">
+        <FingerprintIcon size={20} />
+      </ActionIcon>
+      <ActionIcon autoContrast aria-label="autoContrast action icon" size="lg" color="lime.4">
+        <FingerprintIcon size={20} />
+      </ActionIcon>
+    </Group>
+  );
+}
+```
+
+
+## Add custom sizes
+
+`ActionIcon` sizes are defined by `--ai-size-{x}` CSS variables. The easiest way to add new sizes is to
+define additional `--ai-size-{x}` variables on the `root` element:
+
+```tsx
+// Demo.tsx
+import { ActionIcon, createTheme, Group, MantineThemeProvider } from '@mantine/core';
+import { HeartIcon } from '@phosphor-icons/react';
+import classes from './Demo.module.css';
+
+const theme = createTheme({
+  components: {
+    ActionIcon: ActionIcon.extend({
+      classNames: classes,
+    }),
+  },
+});
+
+function Demo() {
+  return (
+    <MantineThemeProvider theme={theme}>
+      <Group justify="center">
+        <ActionIcon size="xxs" aria-label="Custom xxs size">
+          <HeartIcon size={10} />
+        </ActionIcon>
+
+        <ActionIcon size="xxl" aria-label="Custom xxl size">
+          <HeartIcon size={32} />
+        </ActionIcon>
+      </Group>
+    </MantineThemeProvider>
+  );
+}
+
+// Demo.module.css
+.root {
+  --ai-size-xxs: 16px;
+  --ai-size-xxl: 50px;
+}
+```
+
+
+## ActionIcon.Group
+
+```tsx
+import { ActionIcon } from '@mantine/core';
+import { ImageIcon, GearSixIcon, HeartIcon } from '@phosphor-icons/react';
+
+function Demo() {
+  return (
+    <ActionIcon.Group orientation="horizontal">
+      <ActionIcon variant="default" size="lg" aria-label="Gallery">
+        <ImageIcon size={20} />
+      </ActionIcon>
+
+      <ActionIcon variant="default" size="lg" aria-label="Settings">
+        <GearSixIcon size={20} />
+      </ActionIcon>
+
+      <ActionIcon variant="default" size="lg" aria-label="Likes">
+        <HeartIcon size={20} />
+      </ActionIcon>
+    </ActionIcon.Group>
+  );
+}
+```
+
+
+`ActionIcon.Group` renders with `role="group"`. When the group represents a meaningful set of actions, give it an accessible name with `aria-label` (or `aria-labelledby`) so screen readers can announce its purpose:
+
+```tsx
+import { ActionIcon } from '@mantine/core';
+
+function Demo() {
+  return (
+    <ActionIcon.Group aria-label="Text formatting">
+      {/* ...ActionIcon components */}
+    </ActionIcon.Group>
+  );
+}
+```
+
+Note that you must not wrap child `ActionIcon` components with any additional elements:
+
+```tsx
+import { ActionIcon } from '@mantine/core';
+
+// Will not work correctly
+function Demo() {
+  return (
+    <ActionIcon.Group>
+      <div>
+        <ActionIcon>This will not work</ActionIcon>
+      </div>
+      <ActionIcon>ActionIcons will have incorrect borders</ActionIcon>
+    </ActionIcon.Group>
+  );
+}
+```
+
+## ActionIcon.GroupSection
+
+Use the `ActionIcon.GroupSection` component to render sections that are not `ActionIcon` inside `ActionIcon.Group`:
+
+```tsx
+import { CaretDownIcon, CaretUpIcon } from '@phosphor-icons/react';
+import { ActionIcon } from '@mantine/core';
+import { useCounter } from '@mantine/hooks';
+
+function Demo() {
+  const [value, { increment, decrement }] = useCounter(135, { min: 0 });
+
+  return (
+    <ActionIcon.Group>
+      <ActionIcon
+        variant="default"
+        size="lg"
+        onClick={decrement}
+        aria-label="Decrement value"
+      >
+        <CaretDownIcon color="var(--mantine-color-red-text)" />
+      </ActionIcon>
+      <ActionIcon.GroupSection variant="default" size="lg" bg="var(--mantine-color-body)" miw={60}>
+        {value}
+      </ActionIcon.GroupSection>
+      <ActionIcon
+        variant="default"
+        size="lg"
+        onClick={increment}
+        aria-label="Increment value"
+      >
+        <CaretUpIcon color="var(--mantine-color-teal-text)" />
+      </ActionIcon>
+    </ActionIcon.Group>
+  );
+}
+```
+
+**Code selectors**
+
+| Selector | Static selector | Description |
+|----------|----------------|-------------|
+| root | .mantine-Code-root | Root element |
+
+**Code CSS variables**
+
+| Selector | Variable | Description |
+|----------|----------|-------------|
+| root | --code-bg | Controls `background-color` |
+
+**Code data attributes**
+
+| Selector | Attribute | Condition | Value |
+|----------|-----------|-----------|-------|
+| root | data-block | `block` prop is set | - |
+
+**Codehighlight selectors**
+
+| Selector | Static selector | Description |
+|----------|----------------|-------------|
+| codeHighlight | .mantine-Codehighlight-codeHighlight | Root element |
+| showCodeButton | .mantine-Codehighlight-showCodeButton | Button that reveals full code when it is collapsed |
+| pre | .mantine-Codehighlight-pre | Pre element, contains code element |
+| code | .mantine-Codehighlight-code | Code element |
+| control | .mantine-Codehighlight-control | Control button, copy/collapse, custom controls |
+| controlTooltip | .mantine-Codehighlight-controlTooltip | Root element of control tooltip |
+| controls | .mantine-Codehighlight-controls | A wrapper around controls |
+| scrollarea | .mantine-Codehighlight-scrollarea | Scroll area, contains code |
+| lineNumbers | .mantine-Codehighlight-lineNumbers | Line numbers column |
+| codeWrapper | .mantine-Codehighlight-codeWrapper | Wrapper element around line numbers and scroll area |
+
+**Codehighlight CSS variables**
+
+| Selector | Variable | Description |
+|----------|----------|-------------|
+| codeHighlight | --ch-background | Background color |
+| codeHighlight | --ch-max-height | Max height of code block in collapsed state |
+| codeHighlight | --ch-radius | Border radius |
+
+**Codehighlighttabs selectors**
+
+| Selector | Static selector | Description |
+|----------|----------------|-------------|
+| codeHighlight | .mantine-Codehighlighttabs-codeHighlight | Root element of inner CodeHighlight component |
+| showCodeButton | .mantine-Codehighlighttabs-showCodeButton | Button that reveals full code when it is collapsed |
+| pre | .mantine-Codehighlighttabs-pre | Pre element, contains code element |
+| code | .mantine-Codehighlighttabs-code | Code element |
+| control | .mantine-Codehighlighttabs-control | Control button, copy/collapse, custom controls |
+| controlTooltip | .mantine-Codehighlighttabs-controlTooltip | Root element of control tooltip |
+| controls | .mantine-Codehighlighttabs-controls | A wrapper around controls |
+| scrollarea | .mantine-Codehighlighttabs-scrollarea | Scroll area, contains code |
+| lineNumbers | .mantine-Codehighlighttabs-lineNumbers | Line numbers column |
+| codeWrapper | .mantine-Codehighlighttabs-codeWrapper | Wrapper element around line numbers and scroll area |
+| root | .mantine-Codehighlighttabs-root | Root element |
+| filesScrollarea | .mantine-Codehighlighttabs-filesScrollarea | Scrollarea with files list |
+| files | .mantine-Codehighlighttabs-files | Files names list |
+| file | .mantine-Codehighlighttabs-file | File name |
+| fileIcon | .mantine-Codehighlighttabs-fileIcon | File icon |
+
+
+--------------------------------------------------------------------------------
+
+### Collapse
+Package: @mantine/core
+Import: import { Collapse } from '@mantine/core';
+Description: Animate presence with slide down/up transition
+
+## Usage
+
+```tsx
+import { Button, Group, Text, Collapse, Box } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
+
+function Demo() {
+  const [expanded, { toggle }] = useDisclosure(false);
+
+  return (
+    <Box maw={400} mx="auto">
+      <Group justify="center" mb={5}>
+        <Button onClick={toggle}>Toggle content</Button>
+      </Group>
+
+      <Collapse expanded={expanded}>
+        <Text>{/* ... content */}</Text>
+      </Collapse>
+    </Box>
+  );
+}
+```
+
+
+## Horizontal orientation
+
+```tsx
+import { Button, Collapse, Stack, Typography } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
+
+function Demo() {
+  const [expanded, handlers] = useDisclosure(false);
+
+  return (
+    <Stack h={240} align="flex-start">
+      <Button onClick={handlers.toggle} w="fit-content">
+        {expanded ? 'Collapse' : 'Expand'}
+      </Button>
+
+      <Collapse expanded={expanded} orientation="horizontal">
+        <Typography bg="var(--mantine-color-blue-light)" p="xs" bdrs="md" w={200}>
+          Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt
+          ut labore et dolore magna aliqua.
+        </Typography>
+      </Collapse>
+    </Stack>
+  );
+}
+```
+
+
+## Change transition
+
+Set the following props to control the transition:
+
+* `transitionDuration` – duration in ms
+* `transitionTimingFunction` – timing function (ease, linear, etc.), defaults to `ease`
+* `onTransitionEnd` – called when transition ends (both open and close)
+
+```tsx
+import { useDisclosure } from '@mantine/hooks';
+import { Button, Group, Text, Collapse, Box } from '@mantine/core';
+
+function Demo() {
+  const [expanded, { toggle }] = useDisclosure(false);
+
+  return (
+    <Box maw={400} mx="auto">
+      <Group justify="center" mb={5}>
+        <Button onClick={toggle}>Toggle with linear transition</Button>
+      </Group>
+
+      <Collapse expanded={expanded} transitionDuration={1000} transitionTimingFunction="linear">
+        <Text>{/* ...content */}</Text>
+      </Collapse>
+    </Box>
+  );
+}
+```
+
+
+## Example: nested Collapse components
+
+```tsx
+function Demo() {
+  return (
+    <CollapsedDemo buttonProps={{ children: 'Root collapse' }}>
+      <Text mt="md" size="lg" fw={700}>
+        This collapse contains another collapse
+      </Text>
+      <Text mt="xs">{lorem}</Text>
+      <CollapsedDemo buttonProps={{ variant: 'outline', children: 'Inner collapse' }}>
+        <Text mt="md" size="lg" fw={700}>
+          This collapse is inside another collapse
+        </Text>
+        <Text mt="xs">{lorem}</Text>
+      </CollapsedDemo>
+    </CollapsedDemo>
+  );
+}
+```
+
+
+## use-collapse hook
+
+[use-collapse](https://mantine.dev/llms/hooks-use-collapse.md) is the hook version of the `Collapse` component.
+It allows more flexible usage and control over the collapse behavior.
+
+```tsx
+import { Button, Typography } from '@mantine/core';
+import { useCollapse, useDisclosure } from '@mantine/hooks';
+
+function Demo() {
+  const [expanded, handlers] = useDisclosure(false);
+  const { getCollapseProps } = useCollapse({ expanded });
+
+  return (
+    <>
+      <Button onClick={handlers.toggle} mb="md">
+        {expanded ? 'Collapse' : 'Expand'}
+      </Button>
+
+      <div {...getCollapseProps()}>
+        <Typography bg="var(--mantine-color-blue-light)" p="xs" bdrs="md">
+          Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt
+          ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation
+          ullamco laboris nisi ut aliquip ex ea commodo consequat.
+        </Typography>
+      </div>
+    </>
+  );
+}
+
+# Mantine hooks
+
+[![npm](https://img.shields.io/npm/dm/@mantine/hooks)](https://www.npmjs.com/package/@mantine/hooks)
+
+The [@mantine/hooks](https://www.npmjs.com/package/@mantine/hooks) package
+provides more than 70 hooks to build custom components. The `@mantine/hooks`
+package is used internally in most other `@mantine/*` packages –
+it is required to be installed in your project to use Mantine components.
+
+## Installation
+
+```bash
+yarn add @mantine/hooks
+```
+
+```bash
+npm install @mantine/hooks
+```
+
+## Usage
+
+The `@mantine/hooks` package can be used in any web React application, and state
+management hooks (like [use-pagination](https://mantine.dev/llms/hooks-use-pagination.md) or [use-queue](https://mantine.dev/llms/hooks-use-queue.md))
+are also compatible with React Native. The package can be used even if you
+do not use Mantine components or other Mantine libraries – it is standalone
+and has no dependencies except React.
+
+Example of using [use-move](https://mantine.dev/llms/hooks-use-move.md) hook to create a custom slider:
+
+```tsx
+// Demo.tsx
+import { useState } from 'react';
+import { DotsSixVerticalIcon } from '@phosphor-icons/react';
+import { clamp, useMove } from '@mantine/hooks';
+import classes from './Demo.module.css';
+
+function Demo() {
+  const [value, setValue] = useState(0.3);
+  const { ref } = useMove(({ x }) => setValue(clamp(x, 0.1, 0.9)));
+  const labelFloating = value < 0.2 || value > 0.8;
+
+  return (
+    <div className={classes.root}>
+      <div className={classes.track} ref={ref}>
+        <div
+          className={classes.filled}
+          style={{
+            width: `calc(${value * 100}% - var(--thumb-width) / 2 - var(--thumb-offset) / 2)`,
+          }}
+        >
+          <span className={classes.label} data-floating={labelFloating || undefined} data-filled>
+            {(value * 100).toFixed(0)}
+          </span>
+        </div>
+
+        <div
+          className={classes.empty}
+          style={{
+            width: `calc(${(1 - value) * 100}% - var(--thumb-width) / 2 - var(--thumb-offset) / 2)`,
+          }}
+        >
+          <span className={classes.label} data-floating={labelFloating || undefined}>
+            {((1 - value) * 100).toFixed(0)}
+          </span>
+        </div>
+
+        <div
+          className={classes.thumb}
+          style={{ left: `calc(${value * 100}% - var(--thumb-width) / 2)` }}
+        >
+          <DotsSixVerticalIcon />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Demo.module.css
+.root {
+  padding-top: 20px;
+}
+
+.track {
+  --thumb-width: 20px;
+  --thumb-offset: 10px;
+
+  position: relative;
+  height: 60px;
+  display: flex;
+}
+
+.filled {
+  height: 100%;
+  margin-right: calc(var(--thumb-offset) / 2 + var(--thumb-width) / 2);
+  border-radius: var(--mantine-radius-md);
+  background-color: var(--mantine-color-blue-filled);
+  display: flex;
+  align-items: center;
+  padding-inline: 10px;
+}
+
+.empty {
+  height: 100%;
+  margin-left: calc(var(--thumb-offset) / 2 + var(--thumb-width) / 2);
+  border-radius: var(--mantine-radius-md);
+  background-color: var(--mantine-color-gray-1);
+  display: flex;
+  align-items: center;
+  padding-inline: 10px;
+  justify-content: flex-end;
+
+  @mixin dark {
+    background-color: var(--mantine-color-dark-6);
+  }
+}
+
+.thumb {
+  position: absolute;
+  background-color: var(--mantine-color-white);
+  border: 1px solid var(--mantine-color-gray-2);
+  border-radius: var(--mantine-radius-md);
+  height: 100%;
+  width: var(--thumb-width);
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mantine-color-gray-5);
+
+  @mixin dark {
+    background-color: var(--mantine-color-dark-6);
+    border-color: var(--mantine-color-dark-4);
+    color: var(--mantine-color-dark-0);
+  }
+}
+
+.label {
+  font-size: var(--mantine-font-size-xl);
+  font-weight: 700;
+  transition:
+    transform 100ms ease,
+    color 100ms ease;
+
+  &[data-filled] {
+    color: var(--mantine-color-white);
+  }
+
+  &[data-floating] {
+    transform: translateY(-44px) translateX(-10px);
+    color: var(--mantine-color-black);
+
+    &:not([data-filled]) {
+      transform: translateY(-44px) translateX(10px);
+    }
+
+    @mixin dark {
+      color: var(--mantine-color-white);
+    }
+  }
+}
+```
+
+
+## License
+
+MIT
+
+
+--------------------------------------------------------------------------------
+
+### useClickOutside
+Package: @mantine/hooks
+Import: import { useClickOutside } from '@mantine/hooks';
+
+## Usage
+
+```tsx
+import { useState } from 'react';
+import { Paper, Button } from '@mantine/core';
+import { useClickOutside } from '@mantine/hooks';
+
+function Demo() {
+  const [opened, setOpened] = useState(false);
+  const ref = useClickOutside(() => setOpened(false));
+
+  return (
+    <>
+      <Button onClick={() => setOpened(true)}>Open dropdown</Button>
+
+      {opened && (
+        <Paper ref={ref} shadow="sm">
+          <span>Click outside to close</span>
+        </Paper>
+      )}
+    </>
+  );
+}
+```
+
+
+## API
+
+The `use-click-outside` hook accepts 5 arguments:
+
+* `handler` – function that is called when clicking outside
+* `events` – optional list of events that trigger outside click, `['mousedown', 'touchstart']` by default
+* `nodes` - optional list of nodes that should not trigger outside click event
+* `enabled` - optional boolean to dynamically enable/disable the listener, `true` by default
+* `capture` - optional boolean to register listeners in the capture phase, `false` by default
+
+The hook returns a `ref` object that must be passed to the element
+based on which outside clicks should be captured.
+
+```tsx
+import { useClickOutside } from '@mantine/hooks';
+
+function Example() {
+  const handleClickOutside = () =>
+    console.log('Clicked outside of div');
+  const ref = useClickOutside(handleClickOutside);
+  return <div ref={ref} />;
+}
+```
+
+## Change events
+
+By default, `use-click-outside` listens to `mousedown` and `touchstart` events,
+you can change these events by passing an array of events as second argument:
+
+```tsx
+import { useState } from 'react';
+import { Paper, Button } from '@mantine/core';
+import { useClickOutside } from '@mantine/hooks';
+
+function Demo() {
+  const [opened, setOpened] = useState(false);
+  const ref = useClickOutside(() => setOpened(false), ['mouseup', 'touchend']);
+
+  return (
+    <>
+      <Button onClick={() => setOpened(true)}>Open dropdown</Button>
+
+      {opened && (
+        <Paper ref={ref} shadow="sm">
+          <span>Click outside to close</span>
+        </Paper>
+      )}
+    </>
+  );
+}
+```
+
+
+## Multiple nodes
+
+```tsx
+// Will work only with useState, not useRef
+import { useState } from 'react';
+import { Portal } from '@mantine/core';
+import { useClickOutside } from '@mantine/hooks';
+
+function Demo() {
+  const [dropdown, setDropdown] = useState<HTMLDivElement | null>(
+    null
+  );
+  const [control, setControl] = useState<HTMLDivElement | null>(null);
+
+  useClickOutside(() => console.log('outside'), null, [
+    control,
+    dropdown,
+  ]);
+
+  return (
+    // We cannot use root element ref as it does not contain dropdown
+    <div>
+      <div ref={setControl}>Control</div>
+      <Portal>
+        <div ref={setDropdown}>Dropdown</div>
+      </Portal>
+    </div>
+  );
+}
+```
+
+## Capture phase
+
+By default, `use-click-outside` listens to events in the bubble phase. If an element
+calls `event.stopPropagation()`, the event never reaches the document and the handler
+is not called. Pass `true` as the fifth argument to listen in the capture phase instead,
+so the handler is called before any other element can stop the event:
+
+```tsx
+import { useClickOutside } from '@mantine/hooks';
+
+function Demo() {
+  const ref = useClickOutside(
+    () => console.log('Clicked outside'),
+    null,
+    undefined,
+    true,
+    true
+  );
+
+  return <div ref={ref} />;
+}
+```
+
+## Set ref type
+
+```tsx
+import { useClickOutside } from '@mantine/hooks';
+
+const ref = useClickOutside<HTMLDivElement>(() =>
+  console.log('Click outside')
+);
+```
+
+## Definition
+
+```tsx
+function useClickOutside<T extends HTMLElement = any>(
+  handler: (event: MouseEvent | TouchEvent) => void,
+  events?: string[] | null,
+  nodes?: (HTMLElement | null)[],
+  enabled?: boolean,
+  capture?: boolean
+): React.RefObject<T>;
+```
+
+
+--------------------------------------------------------------------------------
+
+### useClipboard
+Package: @mantine/hooks
+Import: import { useClipboard } from '@mantine/hooks';
+
+## Usage
+
+The `use-clipboard` hook provides a simple way to copy text to the clipboard,
+track the copied state, handle errors, and reset the state after a given timeout.
+It uses the [navigator.clipboard.writeText](https://caniuse.com/mdn-api_clipboard_writetext) API under the hood.
+
+```tsx
+import { Button } from '@mantine/core';
+import { useClipboard } from '@mantine/hooks';
+
+function Demo() {
+  const clipboard = useClipboard({ timeout: 500 });
+
+  return (
+    <Button
+      color={clipboard.copied ? 'teal' : 'blue'}
+      onClick={() => clipboard.copy('Hello, world!')}
+    >
+      {clipboard.copied ? 'Copied' : 'Copy'}
+    </Button>
+  );
+}
+```
+
+
+## Limitations
+
+Due to security reasons, the `use-clipboard` hook will not work in iframes and may not work with local files opened with the `file://` protocol
+(the hook will work fine with local websites that are using the `http://` protocol). You can learn more about `navigator.clipboard` [here](https://web.dev/async-clipboard/).
+
+## Definition
+
+```tsx
+interface UseClipboardOptions {
+  /** Time in ms after which the copied state will reset, `2000` by default */
+  timeout?: number;
+}
+
+interface UseClipboardReturnValue {
+  /** Function to copy value to clipboard */
+  copy: (value: any) => void;
+
+  /** Function to reset copied state and error */
+  reset: () => void;
+
+  /** Error if copying failed */
+  error: Error | null;
+
+  /** Boolean indicating if the value was copied successfully */
+  copied: boolean;
+}
+
+function useClipboard(options?: UseClipboardOptions): UseClipboardReturnValue
+```
+
+## Exported types
+
+The `UseClipboardOptions` and `UseClipboardReturnValue` types are exported from the `@mantine/hooks` package;
+you can import them in your application:
+
+```tsx
+import type { UseClipboardOptions, UseClipboardReturnValue } from '@mantine/hooks';
+```
+
+
+--------------------------------------------------------------------------------
+
+### useCollapse
+Package: @mantine/hooks
+Import: import { useCollapse } from '@mantine/hooks';
+
+## Usage
+
+`use-collapse` is the hook version of [Collapse](https://mantine.dev/llms/core-collapse.md) component.
+It allows animation of height from `0` to `auto` and vice versa.
+
+```tsx
+import { Button, Typography } from '@mantine/core';
+import { useCollapse, useDisclosure } from '@mantine/hooks';
+
+function Demo() {
+  const [expanded, handlers] = useDisclosure(false);
+  const { getCollapseProps } = useCollapse({ expanded });
+
+  return (
+    <>
+      <Button onClick={handlers.toggle} mb="md">
+        {expanded ? 'Collapse' : 'Expand'}
+      </Button>
+
+      <div {...getCollapseProps()}>
+        <Typography bg="var(--mantine-color-blue-light)" p="xs" bdrs="md">
+          Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt
+          ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation
+          ullamco laboris nisi ut aliquip ex ea commodo consequat.
+        </Typography>
+      </div>
+    </>
+  );
+}
+```
+
+
+## Horizontal collapse
+
+`use-horizontal-collapse` works the same way as `use-collapse` but animates width instead of height:
+
+```tsx
+import { Button, Stack, Typography } from '@mantine/core';
+import { useDisclosure, useHorizontalCollapse } from '@mantine/hooks';
+
+function Demo() {
+  const [expanded, handlers] = useDisclosure(false);
+  const { getCollapseProps } = useHorizontalCollapse({ expanded });
+
+  return (
+    <Stack h={240}>
+      <Button onClick={handlers.toggle} w="fit-content">
+        {expanded ? 'Collapse' : 'Expand'}
+      </Button>
+
+      <div {...getCollapseProps({ style: { width: 200 } })}>
+        <Typography bg="var(--mantine-color-blue-light)" p="xs" bdrs="md" w={200}>
+          Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt
+          ut labore et dolore magna aliqua.
+        </Typography>
+      </div>
+    </Stack>
+  );
+}
+```
+
+
+## ref prop
+
+`getCollapseProps` return value includes `ref` prop. It must be passed to the collapsible element
+to make the hook work correctly.
+
+## Definition
+
+```tsx
+interface UseCollapseInput {
+  /** Expanded state  */
+  expanded: boolean;
+
+  /** Transition duration in milliseconds, by default calculated based on content height */
+  transitionDuration?: number;
+
+  /** Transition timing function, `ease` by default */
+  transitionTimingFunction?: string;
+
+  /** Called when transition ends */
+  onTransitionEnd?: () => void;
+
+# 6.x → 7.x migration guide
+
+This guide will help you migrate your project styles from 6.x to 7.x.
+It's not intended to be a comprehensive guide covering all changes in 7.x.
+For a complete overview, please see the [7.0.0 changelog](https://mantine.dev/llms/changelog-7-0-0.md).
+
+## Migration to @mantine/emotion
+
+The `@mantine/emotion` package has been available since version 7.9. If you don't want
+to use CSS modules, have many styles created with `createStyles`, `sx` and `styles`
+props, or simply prefer CSS-in-JS syntax, you can migrate to `@mantine/emotion`. To view
+the full documentation for the `@mantine/emotion` package, visit [this page](https://mantine.dev/llms/styles-emotion.md).
+
+### createStyles and Global component
+
+The `createStyles` function and `Global` component are no longer available in the `@mantine/core` package. Change imports
+to `@mantine/emotion`:
+
+```tsx
+// 6.x
+import { createStyles, Global } from '@mantine/core';
+
+// 7.x
+import { createStyles, Global } from '@mantine/emotion';
+```
+
+### sx and styles props
+
+`sx` and `styles` props are available in 7.x the same way as in 6.x after [setup](https://mantine.dev/llms/styles-emotion.md):
+
+```tsx
+// 6.x and 7.x, no changes
+import { Box, Button } from '@mantine/core';
+
+function Demo() {
+  return (
+    <>
+      <Box
+        sx={(theme) => ({ backgroundColor: theme.colors.red[5] })}
+      />
+      <Button styles={{ root: { height: 50 } }} />
+    </>
+  );
+}
+```
+
+### theme.colorScheme
+
+In v7, the color scheme value is managed by [MantineProvider](https://mantine.dev/llms/theming-mantine-provider.md),
+and the [theme object](https://mantine.dev/llms/theming-theme-object.md) no longer includes the `colorScheme` property.
+Although it's still possible to access the color scheme value in components with the
+[useMantineColorScheme](https://mantine.dev/llms/theming-color-schemes.md#use-mantine-color-scheme-hook) hook,
+it's not recommended to base your styles on its value. Instead, use the `light`/`dark`
+[utilities](https://mantine.dev/llms/styles-emotion.md#utilities).
+
+Example of 6.x `createStyles` with `theme.colorScheme` migration to 7.0:
+
+```tsx
+// 6.x
+import { createStyles } from '@mantine/core';
+
+const useStyles = createStyles((theme) => ({
+  root: {
+    backgroundColor:
+      theme.colorScheme === 'dark'
+        ? theme.colors.dark[6]
+        : theme.colors.gray[0],
+    color: theme.colorScheme === 'dark' ? theme.white : theme.black,
+  },
+}));
+```
+
+```tsx
+// 7.x
+import { createStyles } from '@mantine/emotion';
+
+const useStyles = createStyles((theme, _, u) => ({
+  root: {
+    [u.dark] {
+      backgroundColor: theme.colors.dark[6];
+      color: theme.white;
+    },
+
+    [u.light]: {
+      backgroundColor: theme.colors.gray[0];
+      color: theme.black;
+    },
+  },
+}));
+```
+
+## Migration to CSS modules
+
+Before getting started, we recommend going through the [styles](https://mantine.dev/llms/styles-css-modules.md) documentation.
+The most notable sections are:
+
+* [CSS Modules](https://mantine.dev/llms/styles-css-modules.md)
+* [Mantine PostCSS preset](https://mantine.dev/llms/styles-postcss-preset.md)
+* [CSS variables](https://mantine.dev/llms/styles-css-variables.md)
+* [data-\* attributes](https://mantine.dev/llms/styles-data-attributes.md)
+* [Styles API](https://mantine.dev/llms/styles-styles-api.md)
+* [Responsive styles](https://mantine.dev/llms/styles-responsive.md)
+
+Note that this guide assumes you have [postcss-preset-mantine](https://mantine.dev/llms/styles-postcss-preset.md) installed and configured
+in your project.
+
+### createStyles
+
+The `createStyles` function is no longer available in 7.0. Use [CSS Modules](https://mantine.dev/llms/styles-css-modules.md) instead.
+
+```tsx
+// 6.x
+import { createStyles } from '@mantine/core';
+
+const useStyles = createStyles((theme) => ({
+  root: {
+    backgroundColor: theme.colors.red[5],
+  },
+}));
+```
+
+```scss
+/* 7.0 */
+.root {
+  background-color: var(--mantine-color-red-5);
+}
+```
+
+### sx prop
+
+The `sx` prop is no longer available in 7.0. Use `className` or the [style prop](https://mantine.dev/llms/styles-style.md) instead.
+
+```tsx
+// 6.x
+import { Box } from '@mantine/core';
+
+function Demo() {
+  return (
+    <Box sx={(theme) => ({ backgroundColor: theme.colors.red[5] })} />
+  );
+}
+```
+
+```tsx
+// 7.0
+import { Box } from '@mantine/core';
+
+function Demo() {
+  return (
+    <Box style={{ backgroundColor: 'var(--mantine-color-red-5)' }} />
+  );
+}
+```
+
+Nested selectors are not supported in the [style prop](https://mantine.dev/llms/styles-style.md); use `className` instead:
+
+```tsx
+// 6.x
+import { Box } from '@mantine/core';
+
+function Demo() {
+  return <Box sx={{ '&:hover': { background: 'red' } }} />;
+}
+```
+
+```scss
+.box {
+  &:hover {
+    background: red;
+  }
+}
+```
+
+### styles prop
+
+The `styles` prop no longer supports nested selectors. Use
+`classNames` instead to apply styles to nested elements.
+
+```tsx
+// 6.x – nested selectors
+import { TextInput } from '@mantine/core';
+
+function Demo() {
+  return (
+    <TextInput
+      styles={{
+        input: {
+          '&:focus': {
+            color: 'red',
+          },
+        },
+      }}
+    />
+  );
+}
+```
+
+```scss
+/* 7.0 */
+.input {
+  &:focus {
+    color: red;
+  }
+}
+```
+
+Regular selectors are still supported:
+
+```tsx
+// Works both in 6.x and 7.x
+import { TextInput } from '@mantine/core';
+
+function Demo() {
+  return (
+    <TextInput
+      styles={{
+        input: {
+          color: 'red',
+        },
+      }}
+    />
+  );
+}
+```
+
+### Global styles
+
+The `Global` component and global styles on the theme are not available in 7.0. Instead,
+create a global stylesheet (`.css` file) and import it at your application entry point.
+
+```tsx
+// 6.x
+import { Global } from '@mantine/core';
+
+function Demo() {
+
+`@mantine/hooks` types were renamed for consistency; rename them in your codebase:
+
+* `UseScrollSpyReturnType` → `UseScrollSpyReturnValue`
+* `StateHistory` → `UseStateHistoryValue`
+* `OS` → `UseOSReturnValue`
+
+## Collapse in -> expanded
+
+The [Collapse](https://mantine.dev/llms/core-collapse.md) component now uses the `expanded` prop instead of `in`:
+
+```tsx
+import { Collapse } from '@mantine/core';
+
+// ❌ No longer works
+function Demo() {
+  return (
+    <Collapse in={false}>
+      {/* ... */}
+    </Collapse>
+  );
+}
+
+// ✅ Use the expanded prop
+function Demo() {
+  return (
+    <Collapse expanded={false}>
+      {/* ... */}
+    </Collapse>
+  );
+}
+```
+
+## Spoiler initialState -> defaultExpanded
+
+The [Spoiler](https://mantine.dev/llms/core-spoiler.md) component's `initialState` prop was renamed to `defaultExpanded` for consistency with other Mantine components:
+
+```tsx
+import { Spoiler } from '@mantine/core';
+
+// ❌ No longer works
+function Demo() {
+  return (
+    <Spoiler initialState={false} showLabel="Show" hideLabel="Hide">
+      {/* ... */}
+    </Spoiler>
+  );
+}
+
+// ✅ Use the defaultExpanded prop
+function Demo() {
+  return (
+    <Spoiler defaultExpanded={false} showLabel="Show" hideLabel="Hide">
+      {/* ... */}
+    </Spoiler>
+  );
+}
+```
+
+## Grid gutter -> gap
+
+The [Grid](https://mantine.dev/llms/core-grid.md) component `gutter` prop was renamed to `gap` for consistency with other layout components

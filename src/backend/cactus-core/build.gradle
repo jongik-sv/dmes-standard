@@ -135,6 +135,8 @@ dependencies {
     // 트랜잭션 재현 시험이 cactus-core 에서 SQLite 를 쓴다. 시험 소스는 org.sqlite 를 컴파일 단계에서
     // 참조하지 않으므로 실행 범위로 둔다(다른 모듈과 같은 범위, 버전은 mcm/lib 등과 동일)
     testRuntimeOnly libs.sqlite.jdbc
+    testRuntimeOnly libs.ojdbc11
+    testRuntimeOnly libs.flyway.database.oracle
     // 같은 시험이 hibernate.dialect 를 org.hibernate.community.dialect.SQLiteDialect 문자열로만 지정한다(import 없음)
     // 버전은 BOM 이 관리한다
     testRuntimeOnly libs.hibernate.community.dialects.managed

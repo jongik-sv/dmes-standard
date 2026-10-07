@@ -259,7 +259,7 @@ cmd_instr() {
   local f dir id now
   f="$(state_file_checked)"; dir="${f%/*}"; now="$(coord_now_iso)"
   st_lock "$dir"
-  id="$(jq -r --arg l "$1" '$l + "-" + ((([.instrs[]? | select(.lane == $l) | .id | ltrimstr($l + "-") | tonumber?] | max) // 0) + 1 | tostring)' "$f")"
+  id="$(jq -r --arg l "$1" '$l + "-" + ((([.instrs[]? | select(.lane == $l) | .id | tostring | ltrimstr($l + "-") | tonumber?] | max) // 0) + 1 | tostring)' "$f")"
   if ! st_apply "$f" --arg id "$id" --arg l "$1" --arg k "$2" --arg now "$now" \
       '.instrs += [{id: $id, lane: $l, kind: $k, sent_at: $now, ack_at: null, nudges: 0}] | .lanes[$l].last_instr_at = $now'; then
     st_unlock "$dir"; exit 4

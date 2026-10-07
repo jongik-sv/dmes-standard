@@ -33,6 +33,8 @@ dependencies {
 
     // local·테스트(SQLite). 운영 DB 는 미정이라 다른 DB 드라이버는 두지 않는다(운영 DB 확정 때 더한다).
     api libs.sqlite.jdbc
+    api libs.ojdbc11
+    api libs.flyway.database.oracle
     api libs.hibernate.community.dialects.v705
 
     // Flyway — Spring Boot 4 부터 FlywayAutoConfiguration 이 별도 모듈로 빠졌다(mqc 주석 그대로).
