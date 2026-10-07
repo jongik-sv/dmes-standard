@@ -79,6 +79,14 @@ public class McmAuditStatementInspector implements StatementInspector {
      * </ul>
      */
     private static String toSqlite(String sql) {
+        return toSqliteCompatible(sql);
+    }
+
+    /**
+     * {@link #toSqlite} 와 같은 SQLite 치환을 정적 플래그와 무관하게 적용한다 — MyBatis SQL 은 Hibernate inspector 를
+     * 거치지 않으므로 {@link McmSqliteMybatisInterceptor} 가 연결이 SQLite 일 때 이 메서드를 부른다(audit 보강은 하지 않는다).
+     */
+    public static String toSqliteCompatible(String sql) {
         return stripUnicodeLiteralPrefix(
                 sql.replace("MCMAPUSER.", "")
                    .replace("SYSDATETIME()", "CURRENT_TIMESTAMP")
