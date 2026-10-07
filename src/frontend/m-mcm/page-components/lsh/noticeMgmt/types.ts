@@ -1,8 +1,8 @@
 /**
  * noticeMgmt (공지사항 관리) 화면 타입·코드 상수.
  *
- * 정본: docs/mls/design/noticeMgmt/noticeMgmt_기능설계서.md §3 / §3.2 / §4 / §10
- * 코드값 정본: mls lib `NoticeCodes.java` (LV-001~LV-004 는 코드 마스터가 아닌 화면 인라인 상수 — §10).
+ * 정본: docs/mcm/design/noticeMgmt/noticeMgmt_기능설계서.md §3 / §3.2 / §4 / §10
+ * 코드값 정본: mcm lib `NoticeCodes.java` (LV-001~LV-004 는 코드 마스터가 아닌 화면 인라인 상수 — §10).
  *
  * DB 컬럼은 SNAKE_CASE 대문자, 조회조건 DTO 키는 camelCase 다(식별자 사전 A.4).
  * 그리드 행은 BE 가 DB 컬럼명 그대로 내려주므로 행 타입만 SNAKE_CASE 를 유지한다.
@@ -14,10 +14,10 @@ export const SCREEN_ID = "noticeMgmt";
 /** 조건 없는 [조회] 의 첫 조회 행 수 상한 — 화면 성능 가이드 R1. 잘리면 GridLimitNotice 의 [전체 보기] 로 상한 없이 다시 받는다. */
 export const FIRST_SEARCH_LIMIT = 1000;
 
-/** 좌우 분할 크기 저장 키(`<모듈>.<그룹>.<screenId>`). */
+/** 좌우 분할 크기 저장 키(`<모듈>.<그룹>.<screenId>`). 2026-10-07 mcm 이전 뒤에도 사용자가 맞춘 값을 잃지 않게 옛 mls 키를 그대로 쓴다. */
 export const SPLIT_STORAGE_KEY = "mls.lsh.noticeMgmt";
 
-/** 마크다운 편집 방식(서식·MD) 기억 키 — 이 화면의 편집기는 모두 같은 키를 쓴다. */
+/** 마크다운 편집 방식(서식·MD) 기억 키 — 이 화면의 편집기는 모두 같은 키를 쓴다. mcm 이전 뒤에도 옛 키를 유지한다(위와 같은 이유). */
 export const MD_MODE_STORAGE_KEY = "mls:noticeBodyEditMode";
 
 /** 제목 최대 길이(V-002). */

@@ -27,7 +27,7 @@ if (!("ResizeObserver" in window)) {
 }
 
 /**
- * 업무 BE POST /api/mls/mdmMeta/columns 응답의 TITLE 한 칸 — 실제(STRING 1000·선택)보다 엄격하게 5자·필수로 둔다.
+ * 업무 BE POST /api/mcm/mdmMeta/columns 응답의 TITLE 한 칸 — 실제(STRING 1000·선택)보다 엄격하게 5자·필수로 둔다.
  * 실제 정의는 입력 칸의 200자 제한에 먼저 걸려 화면 검사가 보일 일이 없어서다.
  */
 export const STRICT_TITLE = {

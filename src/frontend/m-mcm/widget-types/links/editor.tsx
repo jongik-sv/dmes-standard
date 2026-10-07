@@ -109,7 +109,7 @@ export default function LinksTypeEditor({ value, onChange, onValidate }: WidgetT
                     <Input
                       value={item.pageId ?? ""}
                       onChange={(pageId) => set(updateLinkItem(items, i, { pageId }))}
-                      placeholder="화면 ID(예: mls:lsh/noticeMgmt)"
+                      placeholder="화면 ID(예: mcm:lsh/noticeMgmt)"
                       spellCheck={false}
                       aria-label={`${n}번째 링크 화면 ID`}
                     />

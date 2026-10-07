@@ -14,10 +14,10 @@ import { MdmMetaProvider, resetMdmMetaStore } from "@dk-oasis/shared/mdm-meta";
 import { TabPageContext } from "@dk-oasis/shared/portal-shell";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 
-import NoticeMgmtPage from "../../../pages/lsh/noticeMgmt/page";
+import NoticeMgmtPage from "../../../page-components/lsh/noticeMgmt/page";
 import { json, settle } from "./mdm-test-env";
 
-const PAGE_ID = "mls:lsh/noticeMgmt";
+const PAGE_ID = "mcm:lsh/noticeMgmt";
 const USER = "tester";
 
 function fakeServer() {
@@ -101,7 +101,7 @@ async function showPage(server: ReturnType<typeof fakeServer>) {
         createElement(
           DmesUiProvider,
           null,
-          createElement(MessageProvider, null, createElement(MdmMetaProvider, { module: "mls" }, createElement(NoticeMgmtPage))),
+          createElement(MessageProvider, null, createElement(MdmMetaProvider, { module: "mcm", children: createElement(NoticeMgmtPage) })),
         ),
       ),
     ),

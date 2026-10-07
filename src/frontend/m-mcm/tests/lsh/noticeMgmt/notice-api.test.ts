@@ -14,7 +14,7 @@ vi.mock("@dk-oasis/shared/http", async (importOriginal) => {
   return { ...(await importOriginal<object>()), apiRequest: (...args: unknown[]) => apiRequest(...args), HttpError };
 });
 
-const api = await import("../../../pages/lsh/noticeMgmt/api");
+const api = await import("../../../page-components/lsh/noticeMgmt/api");
 const { HttpError } = (await import("@dk-oasis/shared/http")) as unknown as {
   HttpError: new (status: number, message: string) => Error;
 };
@@ -40,7 +40,7 @@ describe("noticeMgmt api", () => {
     });
     expect(out.list).toEqual([{ NOTICE_ID: "N1" }]);
     expect(apiRequest.mock.calls[0][0]).toBe(
-      "/api/mls/oasis/noticeMgmt/search",
+      "/api/mcm/oasis/noticeMgmt/search",
     );
     expect(bodyOf(apiRequest.mock.calls[0]).params).toMatchObject({
       noticeCategory: "URGENT",
@@ -222,7 +222,7 @@ describe("noticeMgmt api — OASIS 호출 특성(현재 동작 고정)", () => {
       title: "", noticeStatus: "  ", postStartDt: "", postEndDt: "", noticeCategory: "", contentFormat: "",
     });
     const [url, init] = apiRequest.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("/api/mls/oasis/noticeMgmt/changeStatus");
+    expect(url).toBe("/api/mcm/oasis/noticeMgmt/changeStatus");
     expect(init.method).toBe("POST");
     expect(Object.keys(init).sort()).toEqual(["body", "method"]);
     const body = bodyOf(apiRequest.mock.calls[0]);

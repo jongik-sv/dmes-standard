@@ -41,9 +41,8 @@ export default defineConfig([
       // package.json 의 exports "./pages/*" 가 dist/pages/* 를 그대로 노출하므로
       // 별도 exports 수정 없이 서브패스 import 가 가능하다.
       "pages/sample": "pages/sample/index.tsx",
-      // noticeMgmt (공지사항 관리) — 호스트 codegen 이 `{pkg}/pages/{group}/{leaf}/page` 로 import 하므로
-      // entry key 도 `page` 로 끝나야 dist/pages/lsh/noticeMgmt/page.js 가 나온다.
-      "pages/lsh/noticeMgmt/page": "pages/lsh/noticeMgmt/page.tsx",
+      // 새 화면은 호스트 codegen 이 `{pkg}/pages/{group}/{leaf}/page` 로 import 하므로 entry key 도 `page` 로 끝나야 한다.
+      // (공지사항 관리 lsh/noticeMgmt 는 2026-10-07 m-mcm page-components 로 옮겼다 — DEC-001.)
     },
   },
 ]);

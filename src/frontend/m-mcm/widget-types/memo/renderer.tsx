@@ -6,7 +6,7 @@
  * - 개인 메모(scope=personal): 마운트 때 load → 보기 모드(+[편집]). 편집 모드는 형식 선택·입력칸·글자 수·[저장]·[취소].
  *   저장이 실패하면 아래 [저장]·[취소] 줄의 왼쪽에 오류 문구를 보이고 쓰던 글은 그대로 둔다(입력칸 위에 두면 md 편집기가 하한 높이
  *   때문에 줄지 못해 [저장] 줄이 스크롤 밖으로 밀린다).
- * - 입력칸은 공지 작성 화면(m-mls NoticeBodyEditor)과 같다: md = shared MarkdownField(서식·MD 두 방식, 도구 막대 inline),
+ * - 입력칸은 공지 작성 화면(lsh/noticeMgmt NoticeBodyEditor)과 같다: md = shared MarkdownField(서식·MD 두 방식, 도구 막대 inline),
  *   text·html = shared Textarea(html 은 고정폭). 형식을 바꿔도 쓰던 글은 그대로다(편집기만 바뀐다).
  *   MarkdownField 는 인스턴스마다 key(instanceId)로 새로 그린다(되돌리기 기록이 다른 글로 넘어가지 않게). 새 편집을 시작할 때 새로
  *   그려지는 것은 key 때문이 아니라 보기·편집이 서로 다른 가지라 [편집]마다 편집 가지가 새로 마운트되기 때문이다.

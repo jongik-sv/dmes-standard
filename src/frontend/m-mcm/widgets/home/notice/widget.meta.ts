@@ -7,6 +7,6 @@ export const meta: WidgetMeta = {
   category: "COMMON",
   defaultSize: { w: 10, h: 16 },
   minSize: { w: 6, h: 10 },
-  linkPageId: "mls:lsh/noticeMgmt",
+  linkPageId: "mcm:lsh/noticeMgmt",
   multiple: false,
 };

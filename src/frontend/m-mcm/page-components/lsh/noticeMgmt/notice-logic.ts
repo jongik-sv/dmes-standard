@@ -1,6 +1,6 @@
 /**
  * noticeMgmt 화면의 순수 로직 — 코드 정규화, 폼 ↔ 행 변환, 검증, 표시 문자열.
- * React 와 shared 컴포넌트에 기대지 않아 단위 테스트(m-mls/tests/lsh/noticeMgmt)가 바로 부른다.
+ * React 와 shared 컴포넌트에 기대지 않아 단위 테스트(m-mcm/tests/lsh/noticeMgmt)가 바로 부른다.
  */
 import {
   CONTENT_MAX,

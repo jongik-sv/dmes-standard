@@ -4,7 +4,7 @@
  * noticeMgmt — 공지사항 관리. 화면 유형 B(조회 + 상세): 왼쪽 목록 / 오른쪽 상세(폼 · 본문 편집), 기본 50:50.
  * 본문 편집기는 상세에서 입력표를 뺀 남은 높이를 채우고, 홈 표시 미리보기는 [미리보기] 팝업으로 본다.
  *
- * 정본: docs/mls/design/noticeMgmt/noticeMgmt_기능설계서.md · 골격: mantine-aggrid-ui screen-patterns.md §B
+ * 정본: docs/mcm/design/noticeMgmt/noticeMgmt_기능설계서.md · 골격: mantine-aggrid-ui screen-patterns.md §B
  * 좌우 경계는 끌어서 크기를 바꾸고 사용자별로 기억한다(ContentBody resizable, SPLIT_STORAGE_KEY).
  * SIDEBAR / HEADER / TabsBar 는 포털 PortalShell 이 그린다. 이 화면은 PageLayout 안쪽만 맡는다.
  */

@@ -13,7 +13,7 @@ import { MessageProvider } from "@dk-oasis/shared/message-provider";
 import { MdmMetaProvider, resetMdmMetaStore } from "@dk-oasis/shared/mdm-meta";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 
-import NoticeMgmtPage from "../../../pages/lsh/noticeMgmt/page";
+import NoticeMgmtPage from "../../../page-components/lsh/noticeMgmt/page";
 import { STRICT_TITLE, json, settle } from "./mdm-test-env";
 
 const SERVER_MESSAGE = "제목은(는) 최대 1000자입니다";
@@ -127,8 +127,7 @@ async function showPage(server: ReturnType<typeof fakeServer>) {
           null,
           createElement(
             MdmMetaProvider,
-            { module: "mls" },
-            createElement(NoticeMgmtPage),
+            { module: "mcm", children: createElement(NoticeMgmtPage) },
           ),
         ),
       ),

@@ -16,8 +16,8 @@ import { MdmMetaProvider, resetMdmMetaStore } from "@dk-oasis/shared/mdm-meta";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 
 import { STRICT_TITLE, settle } from "./mdm-test-env";
-import { NOTICE_COLUMNS } from "../../../pages/lsh/noticeMgmt/notice-columns";
-import { NoticeTitleRow } from "../../../pages/lsh/noticeMgmt/NoticeTitleRow";
+import { NOTICE_COLUMNS } from "../../../page-components/lsh/noticeMgmt/notice-columns";
+import { NoticeTitleRow } from "../../../page-components/lsh/noticeMgmt/NoticeTitleRow";
 
 function fakeMdmFetch({ knowsTitle = true }: { knowsTitle?: boolean } = {}) {
   const calls: string[] = [];
@@ -65,11 +65,11 @@ async function show(el: ReturnType<typeof createElement>) {
 }
 
 const inPortalTab = (child: ReturnType<typeof createElement>) =>
-  createElement(MdmMetaProvider, { module: "mls" }, child);
+  createElement(MdmMetaProvider, { module: "mcm", children: child });
 
 /** 포털 탭 공급자 안에 noticeMgmt 화면이 두는 captionPriority="mdm" 공급자(module 은 바깥을 따른다)까지 — page.tsx 의 default export 와 같은 모양. */
 const inNoticeScreen = (child: ReturnType<typeof createElement>) =>
-  inPortalTab(createElement(MdmMetaProvider, { captionPriority: "mdm" }, child));
+  inPortalTab(createElement(MdmMetaProvider, { captionPriority: "mdm", children: child }));
 
 const grid = () =>
   createElement(AgDataGrid, {
@@ -107,7 +107,7 @@ describe("목록 그리드 — MDM 캡션", () => {
     await show(inNoticeScreen(grid()));
     expect(headers()[2]).toBe("제목단"); // TITLE 은 세 번째 열
     expect(headers()[0]).toBe("분류");
-    expect(f.calls.some((u) => u.endsWith("/api/mls/mdmMeta/columns"))).toBe(
+    expect(f.calls.some((u) => u.endsWith("/api/mcm/mdmMeta/columns"))).toBe(
       true,
     );
   });
@@ -269,7 +269,7 @@ describe("상세 표 제목 줄", () => {
         await show(inPortalTab(titleRow({ value })));
       }
       expect(
-        calls.filter((u) => u.endsWith("/api/mls/mdmMeta/columns")),
+        calls.filter((u) => u.endsWith("/api/mcm/mdmMeta/columns")),
       ).toHaveLength(1);
       expect(label()).toBe("제목 *");
       expect(errorText()).toBeUndefined();

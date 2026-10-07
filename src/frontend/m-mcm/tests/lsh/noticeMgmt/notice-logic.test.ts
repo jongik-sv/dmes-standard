@@ -15,12 +15,12 @@ import {
   toLocalDate,
   toLocalDateTime,
   validateNotice,
-} from "../../../pages/lsh/noticeMgmt/notice-logic";
+} from "../../../page-components/lsh/noticeMgmt/notice-logic";
 import {
   CONTENT_MAX,
   type NoticeForm,
   type NoticeRow,
-} from "../../../pages/lsh/noticeMgmt/types";
+} from "../../../page-components/lsh/noticeMgmt/types";
 
 const form = (patch: Partial<NoticeForm> = {}): NoticeForm => ({
   ...emptyNoticeForm(),
@@ -262,12 +262,12 @@ describe("MDM 칸 오류 — toFormFieldErrors", () => {
   });
 
   it("서버 오류의 field 를 폼 칸에 붙인다 — 저장은 한 행이라 rowIndex(0)는 보지 않는다", () => {
-    expect(
-      toFormFieldErrors([
-        { rowIndex: 0, field: "TITLE", message: "제목은(는) 최대 1000자입니다" },
-        { rowIndex: 0, field: "PIN_YN", message: "상단 고정 값이 올바르지 않습니다" },
-      ]),
-    ).toEqual({
+    // 서버 ErrorDetail 은 rowIndex 를 싣는다 — 타입에 없는 칸이 와도 무시하는지 보려고 변수로 받아 그대로 넘긴다.
+    const serverErrors = [
+      { rowIndex: 0, field: "TITLE", message: "제목은(는) 최대 1000자입니다" },
+      { rowIndex: 0, field: "PIN_YN", message: "상단 고정 값이 올바르지 않습니다" },
+    ];
+    expect(toFormFieldErrors(serverErrors)).toEqual({
       TITLE: "제목은(는) 최대 1000자입니다",
       PIN_YN: "상단 고정 값이 올바르지 않습니다",
     });

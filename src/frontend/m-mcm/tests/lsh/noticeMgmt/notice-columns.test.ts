@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { NOTICE_COLUMNS } from "../../../pages/lsh/noticeMgmt/notice-columns";
+import { NOTICE_COLUMNS } from "../../../page-components/lsh/noticeMgmt/notice-columns";
 
 describe("noticeMgmt 목록 열 × MDM 캡션", () => {
   const col = (key: string) => NOTICE_COLUMNS.find((c) => c.key === key);

@@ -1,7 +1,7 @@
 /**
  * noticeMgmt 화면의 OASIS BFF 호출 래퍼.
  *
- * 호출 패턴: `POST /api/mls/oasis/noticeMgmt/{action}` (기능설계서 §1.2)
+ * 호출 패턴: `POST /api/mcm/oasis/noticeMgmt/{action}` (기능설계서 §1.2)
  *   - search       — 목록 조회 (§3)
  *   - save         — 일괄 저장 C/U/D (§5.1 B-003 / B-004)
  *   - changeStatus — 게시상태 변경 (§5.1 B-005)
@@ -28,7 +28,7 @@ import {
   type RoleOption,
 } from "./types";
 
-const OASIS_BASE = "/api/mls/oasis/noticeMgmt";
+const OASIS_BASE = "/api/mcm/oasis/noticeMgmt";
 const ROLE_SEARCH_URL = "/api/mcm/oasis/commRoleMng/search";
 
 /** 서버 오류 상세 한 건 — `toFieldErrors`(@dk-oasis/shared/http)가 읽는 cactus `ErrorDetail` 모양. */

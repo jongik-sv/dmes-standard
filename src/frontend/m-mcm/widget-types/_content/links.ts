@@ -11,7 +11,7 @@ export type LinkKind = "page" | "url";
 export interface LinkItem {
   label: string;
   kind: LinkKind;
-  /** kind="page" — 포털 pageId(예: "mls:lsh/noticeMgmt"). */
+  /** kind="page" — 포털 pageId(예: "mcm:lsh/noticeMgmt"). */
   pageId?: string;
   /** kind="url" — http(s) 절대 주소. */
   url?: string;

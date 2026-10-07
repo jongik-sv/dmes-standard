@@ -7,7 +7,7 @@ import type { BadgeTone } from "@dk-oasis/shared/form";
 export type NoticeFormat = "TEXT" | "MD" | "HTML";
 export type NoticeCategory = "NORMAL" | "MAINT" | "URGENT";
 
-/** POST /api/mls/oasis/noticeBoard/search 응답 `list` 의 한 행. 서버가 고정 → 긴급 → 최신순으로 정렬해 준다. */
+/** POST /api/mcm/oasis/noticeBoard/search 응답 `list` 의 한 행. 서버가 고정 → 긴급 → 최신순으로 정렬해 준다. */
 export interface NoticeBoardRow {
   NOTICE_ID: string | number;
   TITLE: string;
@@ -52,7 +52,7 @@ export const NOTICE_FORMAT_LABEL: Record<NoticeFormat, string> = {
 export const NOTICE_LOAD_ERROR = "공지사항을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
 
 /** 공지 관리 화면 — 홈 카드의 "공지 관리 ›" 가 탭으로 연다. */
-export const NOTICE_MGMT_PAGE_ID = "mls:lsh/noticeMgmt";
+export const NOTICE_MGMT_PAGE_ID = "mcm:lsh/noticeMgmt";
 
 /** 공지 카드 목록·본문 분할 크기 저장 키(사용자별). */
 export const NOTICE_SPLIT_STORAGE_KEY = "mcm.home.notice";
