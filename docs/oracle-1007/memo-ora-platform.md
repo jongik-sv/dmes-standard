@@ -3,19 +3,19 @@
 - 레인: ora-platform / 브랜치 `feat/ora-platform` / 워크트리 `/Users/jji/project/dmes-wt/ora-platform` (기준 dev b7c91cd6e)
 - 조정 세션: dmes-standard-d8 (지시 ora-platform-1, 정본 지시문 `/Users/jji/.coord/oracle-1007/lanes/ora-platform/brief.md`)
 
-## 지금 상태 (2026-10-07 19:20, 조정 compact 직전)
+## 최종 상태 (2026-10-07 23시, 머지④ 완료)
 
-브랜치 HEAD `57ede574d`(dev 머지①b fb253556d 포함). 작업 트리 깨끗, 남은 백그라운드 0, Oracle 에 남긴 PDB 없음(시험 PDB `T_ORA_PLATFORM` 은 하니스가 삭제).
+머지④ 완료: dev `7b0b18e73`(feat/ora-platform 580730200 을 --no-ff 로 합침, 트리 99908050 일치, push 안 함). 작업 트리 깨끗, 남은 백그라운드 0, Oracle 에 남긴 PDB 없음. 아래 표의 옛 단계 표기는 이력이며, 모든 항목(p1~p6)이 완료다.
 
 | 항목 | 상태 | 비고 |
 |---|---|---|
 | p1 caravan 기준선 | **완료·시험 통과** | `caravan-hub/src/main/resources/db/migration/{caravanuser,ifuser}`. `HubOracleBaselineTest` 2건 통과(Flyway 적용·표 5개, 4000자 초과 CLOB 을 String 으로 읽기, 읽은 U_AT 로 낙관락 갱신 1행) |
-| p3 샘플 모듈 | 코드 완료·**기동 시험 미실행** | SQL archive 이동, yml(DMES_ORA_*·Hikari 3·Instant TIMESTAMP·boolean TINYINT), lib build.gradle(sqlite·community dialects 제거), MlsTestDb. 컴파일 통과. mls·mpp·mqc·mpn Spring 기동·Flyway 확인은 아직 안 함 |
+| p3 샘플 모듈 | **완료** | mls·mpp·mqc·mpn·aps-core Oracle V1·yml·lib build.gradle, mls smoke 시험(aca534704). 앱 기동 확인(시험 PDB, Flyway V1 적용, health UP) 완료 |
 | p2 caravan-hub·console·core | 코드 완료·hub 시험 통과 | HubFlywayConfig(CARAVANUSER 항상·IFUSER 로컬 전용), yml 6종, InterfaceMapper CLOB resultMap, TiberoDialectResolver·KafkaJpaConfig, 빈 값 검증(groupId·호스트 이름·URL). hub 앱 실기동(bootRun)은 안 함 |
 | p5 H2 시험 | **oasis 완료**(686건 전부 통과, 1건 skip, 53초) | caravan-core h2 제거(완료). oasis-core 시험을 `OracleTestDatabase` 로 전환. caravan-core·console 시험은 p6 전체 시험에서 확인. 아래 「oasis 시험 진행」 참조 |
 | 리뷰 | p1·p3 초안 opus 리뷰 반영 완료, p2·p3·p5 코드 opus 리뷰 반영 완료 | 반영 안 한 지적 2건은 아래 「결정」 |
 | p4 cactus-core SQLite 제거 | **완료**(머지③ dev 14b09f1af 합침) | `DialectDetector`·변환기·`LocalSqliteDataSource`·관련 시험을 archive 로 이동, `OasisCommitFailureOracleTest` 8건, `DmomMapper` Oracle 문법, 잔재 정리(44ec64636·7abe04654) |
-| p6 전체 시험·머지 요청(④) | **사전 시험 통과**, 머지② 알림 대기 | 모듈별 순차 시험 전부 통과(caravan-core 102·console 59·hub 80·cactus-core 897·aps-core 3·oasis 686·mls smoke 1). 머지② 뒤 dev 를 한 번 더 합치고 바뀐 모듈만 재시험한 다음 머지 요청④. 운영 코드 변경 SHA: oasis `CoreServiceStarter` synchronizedList, hub Flyway 순서 ee380f81c, DmomMapper 035b7f29c. `:mls:api:test` 는 smoke 시험 추가로 해결 |
+| p6 전체 시험·머지 요청(④) | **완료** | dev 73c7d445d 합친 뒤 clone 하니스 빌드 하나(36초)로 전부 통과: caravan-core 102·console 59·hub 80·cactus-core 897·oasis 686·aps-core 3·mls 1. 머지④ dev `7b0b18e73`. 운영 코드 변경 SHA: oasis `9cde973a5`, hub Flyway 순서 `ee380f81c`, DmomMapper `035b7f29c`·`653027991` |
 
 ### oasis 시험 진행 (p5)
 - 1차(병렬 켜짐): 618건 중 10건 실패 뒤 `SqlScriptProcessTaskTest` 에서 멈춤. 원인: junit-platform.properties 의 병렬 실행으로 같은 스키마 표가 서로 지워짐, `Integer` 캐스트(`MixDataAccessTechTest`·`PreStructuredMessageSendTaskServiceTest`).
@@ -78,9 +78,10 @@ hub 의 `if` 데이터소스 접속 사용자는 EAIUSER 이고, IF_* 표는 IFU
 - WildFly JNDI 기본 이름은 mcm 과 같은 `java:/jdbc/mcm/dsIF`·`dsCaravan` 이다(조정자 확정, mcm 666812393·d998d2150 기준). env 는 JNDI_DS_IF 가 공통이고, mst 는 JNDI_DS_MST 또는 JNDI_DS_CARAVAN 을 받는다. p6 머지 요청에 「mcm JNDI 와 일치」를 적는다.
 - hub 풀 설정은 `DataSourceConfig` 가 `spring.datasource.{mst,if}` 를 HikariDataSource 에 직접 바인딩하므로 `hikari:` 아래가 아니라 `mst:`·`if:` 바로 아래에 둔다.
 
-## 남은 순서 (다음 단계)
+## 남은 후속 (이 레인 밖)
 
-1. **p5**: oasis 시험 3차 실행(위 명령). 실패가 남으면 실패 사다리(sonnet/medium → sonnet/high → opus/high)로 한 건씩 원인 확인. 통과하면 p5 완료.
-2. ~~**p3 기동 확인**~~ **완료(10-07 20시대)**: mls·mpp·mqc·mpn·caravan-hub 가 시험 PDB(T_ORA_PLATFORM)에서 각자 Flyway V1 을 적용하고 기동해 `/actuator/health` UP(포트 18092·18094·18093·18095·18200, 끝나면 PDB drop). hub 는 localKafka(9092)를 함께 띄워 확인. 이 과정에서 hub 의 Flyway 빈이 Kafka 부트스트랩보다 늦게 만들어지는 순서 결함을 찾아 `HubFlywayConfig` 의 BeanFactoryPostProcessor 로 EMF·MyBatis 세션 팩터리보다 먼저 돌게 고침(ee380f81c). 확인 도구는 scratchpad 스크립트(classpath.txt + java 직접 기동)이며 `be-run.sh --build-only` 로 classpath 를 만든다.
-3. **p4**(머지②·③ 뒤): cactus-core SQLite 코드 제거(archive 이동 후 빌드에서 제외), 시험 전환, `DmomMapper.xml` NEXTVAL. 이어서 **p6** 전체 시험 1회(heavy.sh) → 머지 요청(④: 세션 이름 `ora-platform` / 원본 `feat/ora-platform` / 대상 dev, 겹칠 수 있는 파일: 각 모듈 `lib/build.gradle`·`application*.yml`, oasis 시험 전체, caravan-hub).
-- 조정 세션: dmes-standard-d8. push 하지 않는다. 머지는 「머지 허가」 뒤에만.
+- mcm·mdm·localKafka·maru-mdm-engine 의 `gradle.properties` SQLite 주석, mcm 의 SQLServerDialect·MSSQL 문법 흔적은 각 레인 소유다.
+- 배포 문서의 자리표시자: ojdbc11 실제 버전, WildFly 40 의 javax.api 모듈 유무와 datasources 스키마 버전, 포항·김포·운영 Oracle 호스트·서비스명·풀 크기. 위젯 전용 계정(`READ_WIDGET`)·JNDI(`dsWidgetRead`)는 임의 예시다. `WIDGET_QUERY_DS_JNDI` 키는 ③c 머지 뒤 바뀌면 재대조한다.
+- 변경 후보(이번에 안 고침): `caravan-hub` `selectPendingMessages` 가 전건 조회라 큐가 쌓이면 부하(`DbInboundHandler` 가 자바에서 batchSize 로 끊음), `TopicInfoJpaRepository` 의 row-value IN 우회 finder.
+- 하니스 한 빌드에 시험 태스크가 둘이면 교착하던 문제는 ora-base ①d 가 고쳤다. 같은 빌드에서 여러 모듈을 걸 수 있다.
+- 확인 도구: 앱 기동 확인은 `be-run.sh --build-only` 로 classpath 를 만든 뒤 java 를 직접 띄우는 방식이었다(hub 는 `-I scripts/lib/be-run-classpath.init.gradle :caravan-hub:beRunClasspath`, localKafka 동반).
