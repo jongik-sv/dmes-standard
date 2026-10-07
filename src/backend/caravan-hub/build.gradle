@@ -44,7 +44,7 @@ repositories {
 }
 
 bootRun {
-    // local SQLite 경로 ../data/caravan-*.db 의 기준을 caravan-hub 모듈 루트로 통일한다.
+    // 상대 경로(로그 ./app.log 등)의 기준을 caravan-hub 모듈 루트로 통일한다.
     workingDir = rootProject.projectDir
 }
 
