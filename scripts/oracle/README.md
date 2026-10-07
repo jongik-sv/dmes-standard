@@ -59,7 +59,7 @@ node scripts/oracle/pdb.mjs template-data TPL_DATA             # + db-snapshot C
 node scripts/oracle/pdb.mjs clone TPL_DATA L_ORA_MDM           # 레인 PDB
 ```
 
-모듈 V1 이 새로 머지되면 `--rebuild` 로 다시 만든다. V 파일 위치는 `src/backend/**/db/migration/**/oracle/**/V*.sql` 이고 스키마는 폴더 이름(`mcmapuser` 등) 또는 모듈(mdm→`MDMAPUSER`)로 정한다. 마이그레이션 자리표시자 `${app_user}` 는 `MCMAPUSER` 로 치환한다.
+모듈 V1 이 새로 머지되면 `--rebuild` 로 다시 만든다. V 파일 위치는 `src/backend/**/db/migration/**/oracle/**/V*.sql` 이고 스키마는 폴더 이름(`mcmapuser` 등) 또는 모듈(mdm→`MDMAPUSER`)로 정한다(스키마가 하나뿐인 모듈은 하위 폴더 없이 `db/migration/mdm/oracle/V1__baseline.sql` 처럼 둔다). 마이그레이션 자리표시자 `${app_user}` 는 `MCMAPUSER` 로 치환한다.
 
 ### 사용자만 있는 빈 템플릿(처음 한 번)
 
