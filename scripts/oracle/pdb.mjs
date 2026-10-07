@@ -432,13 +432,12 @@ const commands = {
   },
 
   // 복제 원본으로 쓰려면 READ ONLY 로 봉인한다. 봉인 뒤에는 닫아 두고, 복제 때만 잠깐 연다.
+  // seal 도 close 처럼 PC 잠금을 잡지 않는다: 결과가 닫힌 PDB 라 메모리를 줄이는 쪽이다(READ WRITE 로 열려 있던 템플릿을 닫는다).
   async 'template-seal'([name]) {
     const n = checkName(name);
-    await withLock(async () => {
-      if (!(await find(n))) die(`없다: ${n}`);
-      await doSeal(n);
-      log(`${n} 봉인(닫힌 상태, 복제 때 READ ONLY 로 잠깐 연다).`);
-    });
+    if (!(await find(n))) die(`없다: ${n}`);
+    await doSeal(n);
+    log(`${n} 봉인(닫힌 상태, 복제 때 READ ONLY 로 잠깐 연다).`);
   },
 
   async 'template-unseal'([name]) {
