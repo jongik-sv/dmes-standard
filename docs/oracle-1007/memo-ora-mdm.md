@@ -14,7 +14,7 @@
 
 | # | 불일치 | 처리 방침(초안) |
 |---|---|---|
-| a | `TB_MDM_COLUMN.REQUIRED` V1 `NUMBER(1)` ↔ 엔티티 boolean. Hibernate OracleDialect 는 Oracle 23+ 에서 네이티브 `BOOLEAN` 을 기대한다 | **확정(조정자, 2026-10-07)**: V1 은 `NUMBER(1)` 유지(운영 Oracle 이 23 미만일 수 있다). 앱은 엔티티마다 매핑을 바꾸지 않고 Hibernate 설정 한 곳에서 Oracle boolean 을 NUMBER(1) 로 쓰게 한다(OracleDialect 의 legacy boolean 설정 등, 설치된 Hibernate 버전에서 실제 이름을 확인). m2 에서 적용하고, 다른 레인도 쓰도록 공통 설정으로 ora-base 에 알린다. **설정 이름 확인(2026-10-07)**: Spring Boot 4.0.6 이 관리하는 Hibernate 는 7.2.12.Final 이고, 이 버전의 OracleDialect 에는 Oracle 전용 legacy boolean 설정이 없다(`DialectSpecificSettings` 의 oracle 키는 is_autonomous·use_binary_floats·extended_string_size·oson_format_disabled·application_continuity 뿐). 범용 `hibernate.type.preferred_boolean_jdbc_type=BIT` 를 쓴다. Hibernate 가 Oracle 23 미만에서 boolean 을 다루는 방식(BIT → `number(1,0)`)과 같아서 V1 `NUMBER(1)` 과 맞는다. m2 에서 validate 로 확인한다 |
+| a | `TB_MDM_COLUMN.REQUIRED` V1 `NUMBER(1)` ↔ 엔티티 boolean. Hibernate OracleDialect 는 Oracle 23+ 에서 네이티브 `BOOLEAN` 을 기대한다 | **확정(조정자, 2026-10-07)**: V1 은 `NUMBER(1)` 유지(운영 Oracle 이 23 미만일 수 있다). 앱은 엔티티마다 매핑을 바꾸지 않고 Hibernate 설정 한 곳에서 Oracle boolean 을 NUMBER(1) 로 쓰게 한다(OracleDialect 의 legacy boolean 설정 등, 설치된 Hibernate 버전에서 실제 이름을 확인). m2 에서 적용하고, 다른 레인도 쓰도록 공통 설정으로 ora-base 에 알린다. **설정 이름 확인(2026-10-07)**: Spring Boot 4.0.6 이 관리하는 Hibernate 는 7.2.12.Final 이고, 이 버전의 OracleDialect 에는 Oracle 전용 legacy boolean 설정이 없다(`DialectSpecificSettings` 의 oracle 키는 is_autonomous·use_binary_floats·extended_string_size·oson_format_disabled·application_continuity 뿐). 범용 `hibernate.type.preferred_boolean_jdbc_type=TINYINT` 를 쓴다(조정자 공통 규약 변경: 처음 정한 BIT 는 Hibernate 7.2.12 가 DB 23 이상에서 BOOLEAN 으로 매핑해 NUMBER(1) validate 가 실패한다는 ora-mcm-core 실측으로 바뀌었다). m3 에서 저장·읽기 왕복을 확인한다 |
 | b | CLOB 칸(b0 시점 14칸, 지금 21칸)인데 엔티티 String·`@Lob` 없음 | m2 사전 조사 7번: 엔티티 필드에 `@Lob` |
 | c | `TB_MDM_DATA_CATE`·`DATA_CATE_ITEM`·`DATA_ITEM`.VALID_FROM V1 TIMESTAMP ↔ 엔티티 String 으로 인식 | `MdmLocalDateTimeIdUserType` 이 문자 형으로 보고되는 탓으로 보인다. m2 사전 조사 4번(UserType 을 archive 로 옮기고 기본 LocalDateTime 매핑)으로 풀린다 |
 | d | CHG_SEQ V1 `NUMBER(10)` ↔ Long | b0 는 리뷰 전 V1 을 썼다. 23bb68a51 에서 `NUMBER(19)` 로 고쳤다. 재개 때 다시 확인 |
@@ -76,7 +76,7 @@
 
 ## ora-base 에서 받은 것 (2026-10-07)
 
-- 공통 Hibernate 기본값의 정본은 feat/ora-base `docs/oracle-1007/schema-owners.md` §3.1.1 이다(머지① 뒤 dev). 값은 `hibernate.type.preferred_boolean_jdbc_type=BIT`, `hibernate.type.preferred_instant_jdbc_type=TIMESTAMP` 이고 `hibernate.jdbc.time_zone` 은 넣지 않는다. 각 앱이 자기 yml 에 같은 값을 둔다.
+- 공통 Hibernate 기본값의 정본은 feat/ora-base `docs/oracle-1007/schema-owners.md` §3.1.1 이다(머지① 뒤 dev). 값은 `hibernate.type.preferred_boolean_jdbc_type=TINYINT`(처음 BIT 였다가 바뀜), `hibernate.type.preferred_instant_jdbc_type=TIMESTAMP` 이고 `hibernate.jdbc.time_zone` 은 넣지 않는다. 각 앱이 자기 yml 에 같은 값을 둔다.
 - 컨테이너 TZ 는 Asia/Seoul 이다. DBTIMEZONE 은 +00:00 이지만 TIMESTAMP WITH LOCAL TIME ZONE 을 쓰지 않으므로 영향이 없다.
 - 시험 PDB 하니스는 `-Pdmes.ora.test=clone` 으로 동작이 확인되었다. 머지① 뒤 m3 에서 쓴다.
 - m2 의 validate 결과는 조정자와 ora-base 둘 다에 알린다.

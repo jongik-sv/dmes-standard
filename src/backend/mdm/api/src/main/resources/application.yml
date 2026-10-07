@@ -17,7 +17,9 @@ spring:
   jpa:
     properties:
       # 공통 Hibernate 설정(docs/oracle-1007/schema-owners.md §3.1.1) — local·wildfly 공통. hibernate.jdbc.time_zone 은 넣지 않는다(JVM Asia/Seoul).
-      hibernate.type.preferred_boolean_jdbc_type: BIT       # boolean 칸을 NUMBER(1) 로 유지(운영 Oracle 이 23 미만일 수 있다)
+      # boolean 칸을 NUMBER(1) 로 유지(운영 Oracle 이 23 미만일 수 있다). BIT 가 아니라 TINYINT: Hibernate 7.2.12 OracleDialect 는
+      # DB 23 이상에서 BIT 를 BOOLEAN 으로 매핑해 NUMBER(1) validate 가 실패하고, TINYINT 는 오류가 없다(ora-mcm-core 실측, 레인 공통).
+      hibernate.type.preferred_boolean_jdbc_type: TINYINT
       hibernate.type.preferred_instant_jdbc_type: TIMESTAMP # Instant 감사 칸(C_AT·U_AT)을 TIMESTAMP(6) 에 KST 로 저장
 
 cactus:
