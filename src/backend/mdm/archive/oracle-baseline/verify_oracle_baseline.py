@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Oracle 기준선 V1 을 임시 사용자에 적용하고 SQLite 최종 스키마와 대조한 뒤 동작을 점검한다.
+(archive, oracle-1007) V1 확정 뒤 tools/oracle-baseline 에서 옮겼다 — 더는 실행하지 않는다. 아래 사용 예·V1 머리 주석의 경로는 옛 tools/ 기준이고,
+결정표 DECISIONS.md 는 tools/oracle-baseline 에 남아 있다(이 위치에서 돌리면 archive 쪽에 새로 쓴다).
 
 사용 예
   python3 src/backend/mdm/tools/oracle-baseline/verify_oracle_baseline.py [--user L_MDM_MDMAPUSER] [--keep]

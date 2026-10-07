@@ -16,8 +16,8 @@ import java.time.LocalDateTime;
  * (D-019 원칙, 수신 처리 로직은 이 Task 밖). {@code RECV_ID} 는 IDENTITY 채번({@code ID_AI} 토큰).
  *
  * <p>{@code MARU_DATA_ID}({@code TB_MDM_DATA})·{@code SOURCE_SYSTEM}({@code TB_MDM_SYSTEM}) 모두 FK
- * 이지만 연관관계 매핑을 쓰지 않는다(불변 규칙 9). 예약어 칼럼 {@code RESULT} 는 방언-중립 백틱 인용으로
- * 매핑한다(naming-dialect-rules §1, TSK-05-01 D1 선례).
+ * 이지만 연관관계 매핑을 쓰지 않는다(불변 규칙 9). 칼럼 {@code RESULT} 는 옛 방언의 예약어라 백틱으로
+ * 인용했으나 Oracle 에서는 예약어가 아니어서 따옴표 없이 매핑한다(아래 필드 주석, oracle-1007).
  */
 @Entity
 @Table(name = "TB_MDM_DATA_RECV")

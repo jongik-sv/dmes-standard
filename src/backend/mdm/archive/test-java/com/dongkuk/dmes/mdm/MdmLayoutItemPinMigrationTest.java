@@ -35,7 +35,7 @@ class MdmLayoutItemPinMigrationTest {
     }
 
     /**
-     * 검토 Minor — 채움 SQL 은 저장소 재귀 CTE 기본형(RECURSIVE 키워드 없이 칼럼 목록을 붙인 WITH, dialect-neutral-sql.md §3 ·
+     * 검토 Minor — 채움 SQL 은 저장소 재귀 CTE 기본형(RECURSIVE 키워드 없이 칼럼 목록을 붙인 WITH, docs/guide/Database/oracle-sql-rules.md §3 「계층·재귀」 ·
      * DomainImpactQueries 선례)이고, 행 수 제한(LIMIT) 대신 MIN(DEPTH) 조인으로 처음 만나는 값을 고른다 — 운영 방언으로 옮길 때 다시 쓸 곳을
      * 줄인다. 주석은 보지 않는다.
      */

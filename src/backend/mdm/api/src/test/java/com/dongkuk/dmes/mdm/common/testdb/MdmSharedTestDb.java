@@ -57,7 +57,7 @@ public final class MdmSharedTestDb {
     /** Flyway 위치 — application-local.yml 의 spring.flyway.locations 와 같다. */
     static final String LOCATION = "classpath:db/migration/mdm/oracle";
 
-    /** 초기 행을 다시 읽을 기준선(클래스패스). 생성기가 다시 만들 수 있으므로 행을 손으로 옮겨 적지 않는다. */
+    /** 초기 행을 다시 읽을 기준선(클래스패스). V1 의 INSERT 를 그대로 다시 실행하므로 행을 손으로 옮겨 적지 않는다(V1 이 바뀌면 따라간다). */
     static final String BASELINE = "db/migration/mdm/oracle/V1__baseline.sql";
 
     private static final String HISTORY_TABLE = "FLYWAY_SCHEMA_HISTORY";
