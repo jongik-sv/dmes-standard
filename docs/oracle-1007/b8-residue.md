@@ -17,7 +17,7 @@
 | `src/backend/gradle/libs.versions.toml:81` | ora-base | `sqlite-jdbc` 3.45.3.0 | 모든 모듈의 sqlite 의존이 빠진 뒤 항목 삭제(수정). 마지막에 한다 |
 | `src/backend/gradle/libs.versions.toml:77-78` | ora-base | `hibernate-community-dialects`(SQLiteDialect 용) | 위와 같은 조건으로 수정 |
 | `src/backend/gradle/libs.versions.toml` | ora-base | `mssql-jdbc`·`h2` 항목 | 사용처(caravan-hub·oasis-core·mcm-core 시험)가 빠진 뒤 수정 |
-| `src/backend/analog/gradle/libs.versions.toml:5` | ora-base | `sqlite-jdbc` 3.47.2.0 | **확인 필요**: analog 가 DB 를 쓰지 않으면 제외(조정자 지시), 쓰면 수정 |
+| `src/backend/analog/gradle/libs.versions.toml:5` | ora-base | `sqlite-jdbc` 3.47.2.0 | 확인함: analog 의 java·yml·build.gradle 어디에도 SQLite 를 여는 코드가 없고 이 카탈로그 줄만 남았다(`build.gradle:70` 의 `../data SQLite` 는 주석). analog 는 DB 를 쓰지 않는 별도 빌드라 **이번 회차 범위 밖으로 남긴다**(안 쓰는 카탈로그 줄이라 나중에 정리 가능) |
 | `src/backend/*/build.gradle`(sqlite-jdbc `runtimeOnly`) | 각 모듈 레인 | 모듈 api·lib 의 sqlite 런타임 의존 | 각 레인이 자기 모듈에서 제거(확인만) |
 | `src/backend/caravan-hub/build.gradle:90` | ora-platform | `providedRuntime libs.mssql.jdbc` | ora-platform 이 Oracle 로 교체(확인) |
 | `src/backend/oasis/oasis-core/build.gradle` | ora-platform | H2 시험 의존 | ora-platform 이 Oracle 시험으로 전환(확인) |
@@ -36,7 +36,7 @@
 | `src/backend/mcm/api/.../init/seed/SchemaArtifactsSqlite.java`, `SchemaArtifactsMssql.java` | ora-mcm-app | Java DDL 단계(Flyway 로 대체) | archive(ora-mcm-app). `SchemaArtifactsMssql` 의 보정 로직은 snapshot convert 로 옮겼다(`c5b8d2142`) |
 | `src/backend/mcm/api/.../McmApplication.java:63,83-87` | ora-mcm-app | `LocalSqliteDataSource.configure()` 호출 | 수정(ora-mcm-app) |
 | `src/backend/mcm/api/src/main/resources/application-local.yml` | ora-mcm-app | `jdbc:sqlite`·SQLiteDialect·caravan-if.db·caravan-console.db | 수정(ora-mcm-app) |
-| `src/backend/mcm/api/src/main/resources/application-local-db.yml` | ora-mcm-app | `jdbc:sqlserver` 설정 | 파일 용도 확인 후 archive 또는 Oracle 로 수정(조정자 판단) |
+| `src/backend/mcm/api/src/main/resources/application-local-db.yml` | ora-mcm-app | `jdbc:sqlserver` 설정 | **처리됨**: ora-mcm-app a3(666812393)에서 `src/backend/mcm/archive/api/…/application-local-db.yml` 로 archive 했다(머지 뒤 이 줄은 확인만) |
 | `src/backend/mcm/api/src/main/resources/application-wildfly.yml` | ora-mcm-app | JNDI 이름이 `java:/jdbc/mssql/mcm/*` | 중립 이름 `java:/jdbc/<모듈>/dsBiz` 로 수정(ora-mcm-app, README §0.1) |
 | `src/backend/mcm/lib/.../security/service/SqliteBusyRetry.java` | ora-mcm-app | SQLITE_BUSY 재시도 | archive(ora-mcm-app) |
 | `src/backend/cactus-core/.../local/LocalSqliteDataSource.java` | ora-platform | 로컬 SQLite 데이터소스 | archive(ora-platform) |
@@ -51,9 +51,10 @@
 |---|---|---|---|
 | `src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/`(확인: V 파일 19개) | ora-mdm | SQLite 마이그레이션 | archive(ora-mdm). 새 기준선은 `db/migration/oracle/mdmapuser/V1` |
 | `src/backend/mcm-core/src/main/resources/db/migration/sqlite/`(확인: 16개) | ora-mcm-core | SQLite 마이그레이션 V1~V18 | ora-mcm-core 가 `archive/db-migration/sqlite/` 로 옮긴다(이미 브랜치에 있음) |
-| `src/backend/mcm-core/src/main/resources/db/migration/mcm-core/V1__init_sample_master_code.sql`, `src/backend/mcm/api/src/main/resources/db/migration/mcm/V1__init_sample_notice.sql` | ora-mcm-core·ora-mcm-app | 샘플 시드 SQL(방언 중립 여부 보고만) | **확인 필요**: Oracle 기준선과 겹치면 archive |
+| `src/backend/mcm/api/src/main/resources/db/migration/mcm/V1__init_sample_notice.sql` | ora-mcm-app | `sample_notice` 샘플 표(SQLite `AUTOINCREMENT`) | **처리됨**: ora-mcm-app 이 `src/backend/mcm/archive/api/…/V1__init_sample_notice.sql` 로 archive 했다 |
+| `src/backend/mcm-core/src/main/resources/db/migration/mcm-core/V1__init_sample_master_code.sql` | ora-mcm-core | `sample_master_code` 템플릿 자리표시 표(16줄, 방언 안내 주석 포함). 위 notice 샘플과 **내용이 다른 별개 파일**이다(중복 아님). 엔티티 `SampleMasterCode` 가 이 표를 가리킨다 | ora-mcm-core 가 Oracle 기준선(`oracle/*/V1`)에 이 표가 필요한지 정한다. 불필요하면 엔티티와 함께 archive 후보 |
 | `src/backend/mdm/sample/mdm-local-sample.sql` | ora-mdm | `MdmLocalSampleLoader` 가 읽던 샘플. be-run 은 이미 인자를 뺐다 | archive(ora-mdm, 로더 제거와 함께) |
-| `src/backend/mcm/sample/widget-rule-calc-defs.sql` | ora-mcm-app | 위젯 룰 계산기 정의 SQL | 확인 필요: Oracle 문법인지, CSV 에 이미 들어갔는지 |
+| `src/backend/mcm/sample/widget-rule-calc-defs.sql` | ora-mcm-app | 조업 계산기 위젯 정의 5건을 SQLite(`mcm.db`)에 넣는 로컬 확인용 SQL | 확인함: 같은 5건(M47C0001·0005·0006·0014·0025)이 `db-snapshot/MCMAPUSER/TB_MCM_WIDGET_DEF.csv` 에 이미 들어 있다 → **archive**. `docs/guide/FrontEnd/Widget-Authoring-Guide.md:505` 가 이 파일을 예시로 가리키므로 그 문장도 CSV 기준으로 수정(ora-mcm-core 소관) |
 | `db-snapshot/{mdm,mcm}/`(확인: `_schema.sql` 있는 옛 SQL 스냅샷 폴더, 표별 SQL 약 101개) | ora-base | `convert --from-sql` 의 원본. CSV 가 이미 들어갔다 | archive(ora-base). 다시 `convert` 하려면 SQLite DB 가 필요하므로 보관 |
 | `docs/mdm/erd/0{2..6}-*.sqlite.sql`(5개, 보고) | ora-mdm | ERD 용 SQLite DDL | archive 또는 `oracle` 판으로 교체(ora-mdm 판단) |
 | `docs/mdm/dict-candidates/candidates.sqlite` | ora-mdm | 용어 후보 데이터 파일(커밋됨, 보고) | **유지**(참고 데이터, 앱 DB 아님) — 삭제 승인 대상 아님 |
@@ -98,13 +99,13 @@
 | `docs/cactus/001_*/mpn-multi-ds-tx-adoption-design.md`, `oasis-multi-tx-detailed-design.md`, `test-scenarios.md` | ora-platform | 설계 문서 안의 SQLite 연결 문자열·통합 절차 | 설계 이력이라 **유지**, 머리에 "로컬은 이제 Oracle" 한 줄 주석 추가(수정) |
 | `docs/ai-build-log/DEC-001_noticeMgmt-on-mls.md`, `docs/e2e/` | - | 과거 기록·E2E 설계 | 유지(기록). `docs/e2e/` 는 ora-mdm 의 E2E 전환 뒤 확인 |
 
-## 7. 알려 둔 「확인 필요」 항목(조정자 판단)
+## 7. 확인 필요 항목의 결과(조정자 답과 직접 확인)
 
-1. analog 의 `sqlite-jdbc`(analog 가 DB 를 쓰는지).
-2. `scripts/data/notice-mls-to-mcm.mjs` 를 더 쓰는지(공지 이관은 끝난 일회성 도구로 보인다).
-3. perf 하니스(`scripts/perf/mdm-backend`·`mcm`)를 Oracle 로 고칠지 보관할지.
-4. 샘플 SQL 2건(`mcm-core/.../mcm-core/V1__init_sample_master_code.sql`, `mcm/api/.../mcm/V1__init_sample_notice.sql`)이 새 기준선과 겹치는지.
-5. `application-local-db.yml`(sqlserver)의 용도.
+1. analog `sqlite-jdbc`: 코드가 SQLite 를 열지 않는다(위 표). 범위 밖(별도 빌드)으로 남긴다.
+2. `scripts/data/notice-mls-to-mcm.mjs`·perf 하니스(`scripts/perf/mdm-backend`·`mcm`)의 SQLite 경로: 사용자 삭제 승인 대기 목록에 이미 있다. 승인 전까지 archive 처리를 유지한다.
+3. 샘플 SQL 2건: 내용이 서로 다르다(중복 아님). `sample_notice` 는 ora-mcm-app 이 이미 archive 했고, `sample_master_code` 는 ora-mcm-core 가 필요 여부를 정한다.
+4. `application-local-db.yml`(sqlserver): ora-mcm-app 이 archive 했다.
+5. `widget-rule-calc-defs.sql`: 내용이 CSV 에 이미 있어 archive 후보로 올렸다.
 
 ## 8. 삭제 승인 후보(최종 삭제는 사용자 승인 뒤, 그 전에는 archive 만)
 
