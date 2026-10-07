@@ -185,7 +185,7 @@ cd src/backend/mdm && ../gradlew test -Pdmes.ora.pdb=T_MY_TEST
 
 레인 개발 PDB(`L_*`)·템플릿(`TPL_*`)·`FREEPDB1` 에는 시험을 걸지 않는다. 시험은 클래스마다 표를 비우므로 내 개발 데이터가 지워진다. mdm 시험 가드(`MdmSharedTestDb.checkResettable`)는 `-Pdmes.ora.pdb=L_ORA_MDM` 처럼 `L_`·`TPL_` PDB 를 지정하면 시험을 바로 실패시킨다. 시험은 늘 `-Pdmes.ora.test=clone` 으로 `T_*` 복제본에서 돌린다.
 
-시험 JVM 은 `-Duser.timezone=Asia/Seoul` 이고 Hikari 풀은 3 으로 제한된다. 접속 규약·스키마 소유표는 [`schema-owners.md`](../../oracle-1007/schema-owners.md) 가 정본이다.
+시험 JVM 은 `-Duser.timezone=Asia/Seoul` 이고 Hikari 풀은 2 로 제한된다(시험 PDB 하니스 기본값). 접속 규약·스키마 소유표는 [`schema-owners.md`](../../oracle-1007/schema-owners.md) 가 정본이다.
 
 ### 6.4.3. PC 잠금 규칙
 
