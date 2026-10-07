@@ -19,6 +19,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
@@ -73,6 +74,9 @@ public class TransactionalSubServiceTest {
         // dataSource2
         HikariConfig hikariConfig = new HikariConfig();
         hikariConfig.setDataSource(database);
+        // Oracle 인스턴스를 모든 레인이 공유하므로 풀은 필요한 만큼만 연다(기본값은 최대 10·유휴 10 개를 미리 연다).
+        hikariConfig.setMaximumPoolSize(3);
+        hikariConfig.setMinimumIdle(0);
         dataSource1 = new HikariDataSource(hikariConfig);
 //        dataSource1 = new SingleConnectionDataSource(database.getConnection(), true);
 
@@ -87,6 +91,12 @@ public class TransactionalSubServiceTest {
         transactionHandler = transactionHandler(
                 new TransactionManagerInfoHolder("tm1", dataSource1, entityManagerFactory1)
         );
+    }
+
+    @AfterEach
+    void closePools() {
+        ((HikariDataSource) dataSource1).close();
+        ((HikariDataSource) dataSource2).close();
     }
 
     private DataSource database() {

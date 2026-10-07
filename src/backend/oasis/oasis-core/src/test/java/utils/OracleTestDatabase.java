@@ -115,6 +115,20 @@ public final class OracleTestDatabase {
         OPENED.clear();
     }
 
+    private static boolean isClosed(Connection connection) {
+        try {
+            return connection.isClosed();
+        } catch (SQLException e) {
+            return true;
+        }
+    }
+
+    /**
+     * 시험 JVM 이 동시에 열어 둘 수 있는 연결의 상한. 시험은 한 번에 하나씩 순서대로 돌고(병렬 없음), 한 시험이 쓰는 연결은
+     * Hikari 풀 최대 3 개 × 2 개와 준비용 연결 하나 정도다. Oracle 인스턴스를 모든 레인이 공유하므로 이 선을 넘으면 실패시킨다.
+     */
+    private static final int MAX_LIVE_CONNECTIONS = 8;
+
     private static DriverManagerDataSource newDataSource() {
         String url = System.getProperty(URL_PROPERTY);
         if (url == null || url.isBlank()) {
@@ -124,11 +138,20 @@ public final class OracleTestDatabase {
         DriverManagerDataSource dataSource = new DriverManagerDataSource() {
             @Override
             protected Connection getConnectionFromDriver(java.util.Properties props) throws SQLException {
+                OPENED.removeIf(OracleTestDatabase::isClosed);
+                if (OPENED.size() >= MAX_LIVE_CONNECTIONS) {
+                    throw new SQLException("시험 JVM 의 열린 Oracle 연결이 상한(" + MAX_LIVE_CONNECTIONS
+                            + ")에 닿았다. 풀·연결을 닫지 않는 시험이 있다");
+                }
                 Connection connection = super.getConnectionFromDriver(props);
                 OPENED.add(connection);
                 return connection;
             }
         };
+        // 다른 연결이 쥔 행 잠금 때문에 시험이 끝없이 멈추지 않도록 응답 대기에 상한을 둔다(시험 SQL 은 모두 수 초 안에 끝난다).
+        java.util.Properties connectionProperties = new java.util.Properties();
+        connectionProperties.setProperty("oracle.jdbc.ReadTimeout", "60000");
+        dataSource.setConnectionProperties(connectionProperties);
         dataSource.setDriverClassName("oracle.jdbc.OracleDriver");
         dataSource.setUrl(url);
         dataSource.setUsername(System.getProperty(USER_PROPERTY, DEFAULT_USER));

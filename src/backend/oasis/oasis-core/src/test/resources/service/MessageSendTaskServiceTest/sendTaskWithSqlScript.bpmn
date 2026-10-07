@@ -34,7 +34,7 @@ account_year,
 account_month,
 account_date,
 backup_data,
-current_timestamp as join_date
+cast(current_timestamp as timestamp) as join_date
  from users 
 where id = 1</bpmn:script>
     </bpmn:scriptTask>
