@@ -370,10 +370,11 @@ export default function MasterCodeMngPage() {
 
   // 초기 로드 + Master 선택 시 Detail 로드
   useEffect(() => {
-    // 새 창이 이어받은 Master 행이 있으면 자동 조회를 건너뛴다(행 없이 복원됐으면 이어받은 조건으로 조회). 복원값이 없으면 DEFAULT_FILTERS 다.
+    // 첫 진입 조회는 SearchArea autoSearch 가 사용자 기본값을 넣은 뒤 한다(설계 2026-10-07-search-defaults §6.4, handleAreaSearch).
+    // 여기서는 새 창이 Master 행 없이 복원됐을 때만 이어받은 조건으로 조회한다(autoSearch 는 복원이면 조회하지 않는다).
     // 조회 결과를 상태에 담는 비동기 호출이라 effect 안 setState 규칙에 걸린다.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (!restored || masterRows.length === 0) void loadMaster(filters);
+    if (restored && masterRows.length === 0) void loadMaster(filters);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -412,6 +413,21 @@ export default function MasterCodeMngPage() {
       return;
     }
     void loadMaster(filters);
+  };
+
+  /**
+   * 조회 영역의 조회(Enter·autoSearch). 첫 호출은 진입 자동 조회(autoSearch)라 지금처럼 가드 없이 loadMaster 를 부른다 —
+   *   autoSearch 는 사용자 확인 직후 한 번만 부르므로 그때 권한 확인이 끝나지 않았으면 가드가 첫 조회를 버린다.
+   *   복원으로 시작하면 autoSearch 가 부르지 않으므로 처음부터 가드를 탄다.
+   */
+  const autoSearchPendingRef = useRef(!restored);
+  const handleAreaSearch = () => {
+    if (autoSearchPendingRef.current) {
+      autoSearchPendingRef.current = false;
+      void loadMaster(filters);
+      return;
+    }
+    handleSearch();
   };
 
   /** Master 그리드 행 클릭 → Detail 자동 조회 (V-701~V-704). */
@@ -844,7 +860,7 @@ export default function MasterCodeMngPage() {
         },
       ]}
     >
-      <SearchArea onSearch={handleSearch}>
+      <SearchArea onSearch={handleAreaSearch} autoSearch>
         <SearchField
           label="코드ID"
           name="codeId"

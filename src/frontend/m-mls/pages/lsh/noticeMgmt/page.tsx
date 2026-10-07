@@ -258,12 +258,12 @@ export default function NoticeMgmtScreen() {
     [bindDetail, loadDetail, showMessage, setRows, setRowsTotal, setShowAllCarry],
   );
 
-  // 진입 시 1회 자동 조회 + 역할 선택 목록. 역할 목록 실패는 치명적이지 않다(ID 로 보인다).
-  // 분리 창이 이어받은 목록이 있으면 자동 조회를 건너뛴다(행 없이 복원됐거나 비었으면 이어받은 조건으로 한 번 조회한다).
-  // 처음 진입(복원값 없음)에서는 filters 가 빈 조건·showAllCarry 가 false 라 이전과 같다.
+  // 진입 시 1회 자동 조회는 SearchArea autoSearch 가 사용자 기본값을 넣은 뒤 한다(설계 2026-10-07-search-defaults §6.4).
+  // 여기서는 분리 창이 행 없이 복원됐을 때만 이어받은 조건으로 한 번 조회한다(autoSearch 는 복원이면 조회하지 않는다). + 역할 선택 목록.
+  // 역할 목록 실패는 치명적이지 않다(ID 로 보인다).
   const restored = useCarryRestored();
   useEffect(() => {
-    if (!restored || rows.length === 0) void runSearch(filters, undefined, showAllCarry);
+    if (restored && rows.length === 0) void runSearch(filters, undefined, showAllCarry);
     let alive = true;
     searchRoles()
       .then((list) => alive && setRoles(list))
@@ -537,7 +537,7 @@ export default function NoticeMgmtScreen() {
         {NOTICE_MGMT_CSS}
       </style>
 
-      <SearchArea onSearch={handleSearch}>
+      <SearchArea onSearch={handleSearch} autoSearch>
         <SearchField
           label="제목"
           name="title"
@@ -568,13 +568,24 @@ export default function NoticeMgmtScreen() {
           value={filters.contentFormat}
           onChange={(v) => setFilter("contentFormat", v)}
         />
-        <SearchField label="게시기간">
+        <SearchField
+          label="게시기간"
+          defaultKey="postStartDt"
+          type="date"
+          value={filters.postStartDt}
+          onChange={(v) => setFilter("postStartDt", v)}
+        >
           <DatePicker
             value={filters.postStartDt}
             onChange={(v) => setFilter("postStartDt", v)}
           />
         </SearchField>
-        <SearchField label="~">
+        <SearchField
+          label="~"
+          type="date"
+          value={filters.postEndDt}
+          onChange={(v) => setFilter("postEndDt", v)}
+        >
           <DatePicker
             value={filters.postEndDt}
             onChange={(v) => setFilter("postEndDt", v)}

@@ -316,10 +316,10 @@ export default function MdmCacheMngPage() {
   }, [cancelForceWait, closeDetail, filters, loadEntries, refreshDetail, selectedModule, showMessage, setEntries, setLatestSeq, setModules, setSelectedKeys, setSelectedModule]);
 
   useEffect(() => {
-    // 첫 진입 때 한 번 조회한다(조회 결과를 상태에 담는 비동기 호출이라 effect 안 setState 규칙에 걸린다).
-    // 새 창이 이어받은 모듈 상태가 있으면 건너뛴다(없이 복원됐으면 이어받은 조건·선택 모듈로 조회).
+    // 복원됐는데 모듈 상태가 없으면 이어받은 조건·선택 모듈로 조회한다(조회 결과를 상태에 담는 비동기 호출이라 effect 안 setState 규칙에 걸린다).
+    // 복원 아닌 첫 조회는 SearchArea autoSearch 가 한다(설계 2026-10-07-search-defaults §6.4).
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (!restored || modules.length === 0) void handleSearch();
+    if (restored && modules.length === 0) void handleSearch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -454,7 +454,7 @@ export default function MdmCacheMngPage() {
         { id: "btn_reload", label: "재등록", onClick: () => confirmForce("RELOAD"), disabled: isBusy || selectedEntries.length === 0, action: "reload" },
       ]}
     >
-      <SearchArea onSearch={() => void handleSearch()}>
+      <SearchArea onSearch={() => void handleSearch()} autoSearch>
         <SearchField label="대상 종류" name="type" meta={false} type="select" options={TARGET_TYPE_OPTIONS} value={filters.type} onChange={(v) => setFilter("type", v)} />
         <SearchField label="키" name="q" meta={false} value={filters.q} onChange={(v) => setFilter("q", v)} />
         <SearchField label="정렬" name="sort" meta={false} type="select" options={ENTRY_SORT_OPTIONS} value={filters.sort} onChange={(v) => setFilter("sort", v)} />

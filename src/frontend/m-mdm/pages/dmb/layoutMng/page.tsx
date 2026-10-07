@@ -471,7 +471,8 @@ export default function LayoutMngPage() {
       ]}
     >
       <SearchArea onSearch={() => void runSearch(filters)}>
-        <SearchField label="검색어" name="keyword" meta={false}>
+        <SearchField label="검색어" name="keyword" meta={false} type="text" value={filters.keyword}
+          onChange={(v) => setFilters((f) => ({ ...f, keyword: v }))}>
           <Input data-testid="layout-search-keyword" aria-label="검색어" placeholder="전문 이름" value={filters.keyword}
             onChange={(v) => setFilters((f) => ({ ...f, keyword: v }))}
             onKeyDown={(e) => {

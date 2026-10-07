@@ -520,7 +520,7 @@ export default function ColumnMngPage() {
       ]}
     >
       <SearchArea onSearch={() => void loadList(keyword, domainFilter)}>
-        <SearchField label="검색어" name="keyword" meta={false}>
+        <SearchField label="검색어" name="keyword" meta={false} type="text" value={keyword} onChange={setKeyword}>
           <Input
             data-testid="column-search-keyword"
             value={keyword}
@@ -531,7 +531,7 @@ export default function ColumnMngPage() {
             }}
           />
         </SearchField>
-        <SearchField label="도메인">
+        <SearchField label="도메인" defaultKey="domainFilter" type="text" value={domainFilter} onChange={setDomainFilter}>
           <Input
             data-testid="column-search-domain"
             value={domainFilter}

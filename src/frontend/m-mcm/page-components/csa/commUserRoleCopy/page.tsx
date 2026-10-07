@@ -441,6 +441,8 @@ export default function CommUserRoleCopyPage() {
           value={filterUserId}
           onChange={(v: string) => setFilterUserId(v)}
           placeholder="USER_ID 또는 사번"
+          // 진입 조회는 이 칸과 무관한 전체 사용자 목록이라 기본값을 넣어도 조회에 반영되지 않는다 — 대상에서 뺀다(설계 2026-10-07-search-defaults §7.3).
+          defaultable={false}
         />
       </SearchArea>
 

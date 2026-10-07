@@ -39,6 +39,11 @@ export function takeMdmPageParams(componentPath: string): MdmPageParams | null {
   return params;
 }
 
+/** 넘겨받은 값을 지우지 않고 본다. 첫 렌더부터 「이번 마운트가 handoff 로 시작하는가」 를 알 때 쓴다(소비는 useMdmPageParams 의 effect). */
+export function peekMdmPageParams(componentPath: string): MdmPageParams | null {
+  return store()[pageIdOf(componentPath)] ?? null;
+}
+
 /** 마운트 때, 그리고 자기 탭(tabId)이 활성화될 때 넘겨받은 값을 소비한다. */
 export function useMdmPageParams(
   componentPath: string,

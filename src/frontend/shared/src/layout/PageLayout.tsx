@@ -5,7 +5,7 @@ import { Button, Group, Title } from "@mantine/core";
 import "./page-layout.css";
 import { canDoButton, useUserButtonRbac } from "../portal-shell/use-user-button-rbac";
 import { useTabPage } from "../portal-shell/tab-page-context";
-import { emitSearch } from "./search-history-bus";
+import { emitSearch, emitSearchReset } from "./search-history-bus";
 
 /**
  * 표준 버튼 액션 코드 (소문자) — 권한관리 화면의 STANDARD_ACTIONS 와 동기화.
@@ -51,6 +51,13 @@ export interface PageButton {
    * 액션 코드가 교정되면(searchMtrl 등) 조회 버튼인데도 발행이 조용히 멈추므로 명시 플래그로 고정한다.
    */
   emitSearch?: boolean;
+  /**
+   * 조회 조건 초기화 버튼인가. true 면 onClick 직후 조회 기본값 초기화 이벤트를 내어 SearchArea 가 사용자 기본값을 다시 넣는다
+   * (설계 2026-10-07-search-defaults §6.6). 생략하면 `id === "btn_reset"` 일 때 true 로 본다.
+   * onClick 은 조회 조건을 동기로 비워야 한다 — 확인 대화 상자 뒤에 비동기로 비우면 사용자 기본값을 넣은 뒤 덮어쓴다.
+   * 그런 화면은 false 로 두고, 비운 뒤 직접 `emitSearchReset(pageId)` 를 부른다.
+   */
+  resetsSearch?: boolean;
 }
 
 export interface PageLayoutProps {
@@ -123,12 +130,16 @@ export function PageLayout({
         // 명시 플래그 우선 + 미지정 시 기존 action==="search" 동작 유지 (하위호환).
         // startsWith("search") 류의 접두 매칭은 금지 — 팝업 오픈 버튼(searchItemPopup 등)이 오발화한다.
         const shouldEmitSearch = btn.emitSearch ?? btn.action === "search";
-        const onClick = shouldEmitSearch
-          ? () => {
-              emitSearch(contextPageId);
-              btn.onClick();
-            }
-          : btn.onClick;
+        // 조회 조건 초기화 버튼 — 화면의 초기화(onClick) 뒤에 사용자 기본값을 다시 넣게 한다. 같은 클릭 안이라 함께 묶여 처리된다.
+        const shouldEmitReset = btn.resetsSearch ?? btn.id === "btn_reset";
+        const onClick =
+          shouldEmitSearch || shouldEmitReset
+            ? () => {
+                if (shouldEmitSearch) emitSearch(contextPageId);
+                btn.onClick();
+                if (shouldEmitReset) emitSearchReset(contextPageId);
+              }
+            : btn.onClick;
         return { ...btn, onClick, disabled: btn.disabled || !hasAccess, hasAccess };
       }),
     [buttons, objId, rbacState, contextPageId]

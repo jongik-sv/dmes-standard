@@ -107,10 +107,10 @@ export default function MasterRuleListPage() {
   );
 
   useEffect(() => {
-    // 마운트 자동 조회 — 새 창이 이어받은 행이 있으면 건너뛴다(행 없이 복원됐으면 이어받은 조건으로 조회).
+    // 복원됐는데 행이 없으면 이어받은 조건으로 조회한다. 복원 아닌 첫 조회는 SearchArea autoSearch 가 한다(설계 2026-10-07-search-defaults §6.4).
     // 조회 결과를 상태에 담는 비동기 호출이라 effect 안 setState 규칙에 걸린다.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (!restored || rows.length === 0) void loadRules(filters);
+    if (restored && rows.length === 0) void loadRules(filters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -250,7 +250,7 @@ export default function MasterRuleListPage() {
         },
       ]}
     >
-      <SearchArea onSearch={handleSearch}>
+      <SearchArea onSearch={handleSearch} autoSearch>
         <SearchField
           label="업무기준 ID"
           name="ruleId"

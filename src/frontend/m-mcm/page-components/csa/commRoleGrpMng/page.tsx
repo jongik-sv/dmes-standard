@@ -421,10 +421,10 @@ export default function CommRoleGrpMngPage() {
 
   // W5 F — csa 그룹 화면 진입 시 자동조회 (AsIs gfn_formOnLoad(obj,true) 정합).
   useEffect(() => {
-    // 새 창이 이어받은 행이 있으면 자동 조회를 건너뛴다(행 없이 복원됐으면 이어받은 조건으로 조회). 복원값이 없으면 DEFAULT_FILTERS 다.
-    // 행 없이 복원됐으면 이어받은 선택 키를 먼저 비운다 — 조회 뒤 같은 키가 다시 잡혀도 하위 그리드 effect(selectedKey 변경)가 돌게 한다.
-    if (!restored || rows.length === 0) {
-      if (restored) setSelectedKey(null);
+    // 복원됐는데 행이 없으면 이어받은 조건으로 조회한다. 복원 아닌 첫 조회는 SearchArea autoSearch 가 한다(설계 2026-10-07-search-defaults §6.4).
+    // 이어받은 선택 키를 먼저 비운다 — 조회 뒤 같은 키가 다시 잡혀도 하위 그리드 effect(selectedKey 변경)가 돌게 한다.
+    if (restored && rows.length === 0) {
+      setSelectedKey(null);
       // 조회 결과를 상태에 담는 비동기 호출이라 effect 안 setState 규칙에 걸린다.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       void loadList(filters);
@@ -723,7 +723,7 @@ export default function CommRoleGrpMngPage() {
         },
       ]}
     >
-      <SearchArea onSearch={handleSearch}>
+      <SearchArea onSearch={handleSearch} autoSearch>
         {/* S-001 BIZ SYSTEM 콤보 폐기 (정책 #1) */}
         <SearchField
           label="역할 그룹 ID"

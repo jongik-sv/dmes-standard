@@ -254,7 +254,7 @@ export default function HeaderMngPage() {
       ]}
     >
       <SearchArea onSearch={() => void runSearch(keyword)}>
-        <SearchField label="검색어" name="keyword" meta={false}>
+        <SearchField label="검색어" name="keyword" meta={false} type="text" value={keyword} onChange={setKeyword}>
           <Input data-testid="header-search-keyword" aria-label="검색어" placeholder="헤더 이름" value={keyword} onChange={setKeyword}
             onKeyDown={(e) => {
               if (e.key === "Enter") void runSearch(keyword);
