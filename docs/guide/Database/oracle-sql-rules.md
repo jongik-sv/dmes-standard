@@ -39,15 +39,20 @@
 
    ```sql
    -- 금지: 칼럼에 함수·연산
-   WHERE TO_CHAR(l.STARTED_AT, 'YYYYMMDD') >= :fromDt
-   WHERE TRUNC(l.STARTED_AT) = TO_DATE(:d, 'YYYYMMDD')
-   WHERE l.DUR_SEC * 1000 >= :ms          AND  l.SEQ_NO + 1 = :x
-   WHERE UPPER(i.ITEM_CD) = :v            AND  SUBSTR(i.ITEM_CD, 1, 4) = :y
+   WHERE  TO_CHAR(A.STARTED_AT, 'YYYYMMDD') >= :fromDt
+   WHERE  TRUNC(A.STARTED_AT) = TO_DATE(:d, 'YYYYMMDD')
+   WHERE  A.DUR_SEC * 1000 >= :ms
+   AND    A.SEQ_NO + 1 = :x
+   WHERE  UPPER(A.ITEM_CD) = :v
+   AND    SUBSTR(A.ITEM_CD, 1, 4) = :y
    -- 권장: 칼럼은 원형, 변환은 바인드 쪽
-   WHERE l.STARTED_AT >= TO_DATE(:fromDt, 'YYYYMMDD')
-   WHERE l.STARTED_AT >= TO_DATE(:d, 'YYYYMMDD') AND l.STARTED_AT < TO_DATE(:d, 'YYYYMMDD') + 1
-   WHERE l.DUR_SEC >= :ms / 1000          AND  l.SEQ_NO = :x - 1
-   WHERE i.ITEM_CD = UPPER(:v)            AND  i.ITEM_CD LIKE :y || '%'
+   WHERE  A.STARTED_AT >= TO_DATE(:fromDt, 'YYYYMMDD')
+   WHERE  A.STARTED_AT >= TO_DATE(:d, 'YYYYMMDD')
+   AND    A.STARTED_AT <  TO_DATE(:d, 'YYYYMMDD') + 1
+   WHERE  A.DUR_SEC >= :ms / 1000
+   AND    A.SEQ_NO = :x - 1
+   WHERE  A.ITEM_CD = UPPER(:v)
+   AND    A.ITEM_CD LIKE :y || '%'
    ```
 
    `UPPER(칼럼) = :v` 처럼 대소문자를 무시하고 찾아야 하는 요구는 값을 저장할 때 대문자로 통일하거나, 정말 필요하면 **함수 기반 인덱스**를 DBA 와 합의해 만든다(V 파일로 추가). 이때도 SQL 의 식은 인덱스 정의와 글자 그대로 같아야 쓰인다.
@@ -56,18 +61,19 @@
 
    ```sql
    -- 금지
-   WHERE l.STARTED_AT BETWEEN TO_DATE(:f, 'YYYYMMDD') AND TO_DATE(:t || '235959', 'YYYYMMDDHH24MISS')
+   WHERE  A.STARTED_AT BETWEEN TO_DATE(:f, 'YYYYMMDD') AND TO_DATE(:t || '235959', 'YYYYMMDDHH24MISS')
    -- 권장 (끝 날짜 하루를 포함하려면 끝 + 1 을 미포함으로)
-   WHERE l.STARTED_AT >= TO_DATE(:f, 'YYYYMMDD') AND l.STARTED_AT < TO_DATE(:t, 'YYYYMMDD') + 1
+   WHERE  A.STARTED_AT >= TO_DATE(:f, 'YYYYMMDD')
+   AND    A.STARTED_AT <  TO_DATE(:t, 'YYYYMMDD') + 1
    ```
 
 3. **암묵 형변환을 만들지 않는다.** 칼럼과 바인드·리터럴의 형이 다르면 Oracle 이 한쪽을 몰래 바꾼다. 문자 칼럼에 숫자 바인드를 비교하면 칼럼 쪽에 `TO_NUMBER` 가 숨어 인덱스를 못 타고, 숫자가 아닌 값이 한 행이라도 있으면 `ORA-01722` 가 난다. 날짜 칼럼에 글자를 바로 비교하면 세션 `NLS_DATE_FORMAT` 에 기대게 된다. 바인드의 형을 **칼럼의 형에 맞추고**, 글자를 날짜·숫자로 바꿀 때는 `TO_DATE`·`TO_NUMBER` 를 바인드 쪽에 명시한다.
 
    ```sql
    -- 금지: LOT_NO 는 VARCHAR2 인데 숫자 바인드 → TO_NUMBER("LOT_NO") = :n
-   WHERE t.LOT_NO = :lotNoAsNumber
+   WHERE  A.LOT_NO = :lotNoAsNumber
    -- 권장: 글자 바인드(자바에서 String 으로 넘긴다)
-   WHERE t.LOT_NO = :lotNo
+   WHERE  A.LOT_NO = :lotNo
    ```
 
 4. **`LIKE` 는 앞 일치만 인덱스를 쓴다.** `col LIKE :v || '%'` 는 범위 탐색이 되지만 `col LIKE '%' || :v || '%'` 는 전체를 읽는다. 중간 일치가 꼭 필요하면 그 사실을 알고 쓰고, 건수 상한(`FETCH FIRST n ROWS ONLY`)과 다른 조건(기간·상태 등)을 같이 건다. 사용자 입력을 패턴에 넣을 때는 `ESCAPE` 를 쓴다(아래 「LIKE」).
@@ -76,10 +82,12 @@
 
    ```sql
    -- 금지
-   WHERE NVL(m.USE_YN, 'Y') = :useYn      AND  m.GRP_CD || m.ITEM_CD = :key
+   WHERE  NVL(A.USE_YN, 'Y') = :useYn
+   WHERE  A.GRP_CD || A.ITEM_CD = :key
    -- 권장
-   WHERE (m.USE_YN = :useYn OR (m.USE_YN IS NULL AND :useYn = 'Y'))
-   WHERE m.GRP_CD = :grpCd AND m.ITEM_CD = :itemCd
+   WHERE  (A.USE_YN = :useYn OR (A.USE_YN IS NULL AND :useYn = 'Y'))
+   WHERE  A.GRP_CD = :grpCd
+   AND    A.ITEM_CD = :itemCd
    ```
 
 6. **선택 조건 `(:p IS NULL OR col = :p)` 는 허용한다.** 칼럼 쪽을 원형으로 두기만 하면 된다(`(:p IS NULL OR UPPER(col) = :p)` 처럼 칼럼에 함수를 씌우면 금지). 다만 선택 조건이 여러 개이고 표가 크면 이 패턴은 계획이 한 가지로 굳어 느려지기 쉽다. 그런 곳은 MyBatis `<if>` 같은 동적 SQL 로 값이 있는 조건만 SQL 에 넣는 편이 계획이 좋다. 정적 SQL 만 쓰는 위젯 쿼리는 이 패턴을 쓰되 기간 조건과 행 상한을 함께 둔다.
@@ -87,10 +95,10 @@
 7. **위젯 쿼리의 날짜 조회 조건은 `yyyyMMdd` 글자로 들어온다**(시스템 변수 `:today` 와 같은 형, 화면 안내는 `src/frontend/m-mcm/widget-types/_query/ParamsEditor.tsx` 의 힌트). 날짜·시각 칼럼과는 `TO_DATE(:이름, 'YYYYMMDD')` 로 바꿔 비교한다. 칼럼 쪽 `TO_CHAR` 로 맞추지 않는다. 보기 좋게 만드는 변환은 `SELECT` 목록에만 쓴다.
 
    ```sql
-   SELECT TO_CHAR(l.STARTED_AT, 'YYYY-MM-DD HH24:MI') AS STARTED_TXT   -- 표시용 변환은 괜찮다
-     FROM SOME_LOG l
-    WHERE (:fromDt IS NULL OR l.STARTED_AT >= TO_DATE(:fromDt, 'YYYYMMDD'))
-      AND (:toDt   IS NULL OR l.STARTED_AT <  TO_DATE(:toDt,   'YYYYMMDD') + 1)
+   SELECT TO_CHAR(A.STARTED_AT, 'YYYY-MM-DD HH24:MI') STARTED_TXT   -- 표시용 변환은 괜찮다
+   FROM   SOME_LOG A
+   WHERE  (:fromDt IS NULL OR A.STARTED_AT >= TO_DATE(:fromDt, 'YYYYMMDD'))
+   AND    (:toDt   IS NULL OR A.STARTED_AT <  TO_DATE(:toDt,   'YYYYMMDD') + 1)
    ```
 
 **표시용 변환은 괜찮다**: `SELECT` 목록(결과 칼럼)의 `TO_CHAR`·`NVL`·`||` 는 인덱스 탐색과 무관하므로 그대로 써도 된다. 문제가 되는 것은 `WHERE`·`JOIN ... ON`·(드물게) `ORDER BY`·`GROUP BY` 에서 칼럼을 감싸는 경우다.
@@ -100,7 +108,8 @@
 ```sql
 EXPLAIN PLAN FOR
 SELECT ... FROM ... WHERE ... ;   -- 바인드는 :이름 그대로 두거나 실제 값으로 바꿔서
-SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY(NULL, NULL, 'BASIC +PREDICATE'));
+SELECT *
+FROM   TABLE(DBMS_XPLAN.DISPLAY(NULL, NULL, 'BASIC +PREDICATE'));
 ```
 
 `Predicate Information` 에서 칼럼이 함수 없이 `access("L"."STARTED_AT">=TO_DATE(...))` 또는 `filter("L"."STARTED_AT">=TO_DATE(...))` 로 나오면 정상이다. `filter(TO_CHAR(INTERNAL_FUNCTION("L"."STARTED_AT"),'YYYYMMDD')>=:FROMDT)`·`filter(TO_NUMBER("LOT_NO")=:N)` 처럼 **칼럼을 함수가 감싸고 있으면** 위반이다. 작은 표(수백 행)는 전체 읽기(`TABLE ACCESS FULL`)가 오히려 정상일 수 있으니 계획의 모양(INDEX 인가)보다 **Predicate 에서 함수가 칼럼을 감쌌는지**를 본다.
@@ -134,4 +143,198 @@ SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY(NULL, NULL, 'BASIC +PREDICATE'));
 
 ### 조인
 
-- 외부 조인은 ANSI `LEFT JOIN` 으로 쓴다. 옛 `(+)` 문법은 쓰지 않는다.
+- 조인은 Oracle **쉼표 조인**(FROM 에 표를 나열하고 조인 조건은 `WHERE` 에)으로 쓰고 외부 조인은 `(+)` 로 쓴다. ANSI `JOIN` 은 `(+)` 로 표현할 수 없는 경우에만 허용한다. 서식과 `(+)` 규칙은 아래 「4. 쿼리 서식」 의 「조인」 을 본다.
+
+## 4. 쿼리 서식
+
+SQL 을 쓰는 모양을 하나로 맞춘다(사용자 확정, 2026-10-08). 키워드를 왼쪽 끝에 세우고 본문을 7번째 열에 맞추면 절이 한눈에 보이고, 항목을 앞 쉼표로 이으면 줄을 지우거나 끼워 넣어도 쉼표를 고칠 일이 없다.
+
+**적용 범위**: 가이드·스킬의 예시와 앞으로 새로 쓰거나 고치는 SQL(매퍼 XML·위젯 쿼리·V 파일의 조회문·Java 텍스트 블록 포함)이다. **기존 SQL 은 손댈 때만** 이 서식으로 바꾼다. 서식만 바꾸려고 일괄로 고치지 않는다(diff 가 커지고 SQL 의 변경 이력이 묻힌다).
+
+모든 규칙을 한 번에 보여 주는 샘플 파일이 [`samples/`](samples/) 에 있다: [`query-format-basic.sql`](samples/query-format-basic.sql)(기본 SELECT·쉼표 조인·`(+)`·GROUP BY·ORDER BY·바인드), [`query-format-with.sql`](samples/query-format-with.sql)(WITH·인라인 뷰·EXISTS/IN·CASE·스칼라 서브쿼리), [`query-format-mybatis.xml`](samples/query-format-mybatis.xml)(`<if>`·`<foreach>`), [`query-format-analysis.sql`](samples/query-format-analysis.sql)(한글 별칭 분석용, 기준 예시 원문). 표·칼럼 이름은 예시이며 실재하지 않아도 된다.
+
+### 4.1 기본 규칙
+
+- **대문자**: 키워드·함수·표·칼럼·별칭은 대문자로 쓴다. 바인드 변수(`:fromDd`, `#{pValue}`)는 원래 이름 그대로 둔다. 문자열 리터럴도 값 그대로다.
+- **절 키워드는 맨 앞 열**: `SELECT`·`FROM`·`WHERE`·`AND`·`OR`·`GROUP BY`·`HAVING`·`ORDER BY`·`UNION ALL`·`FETCH FIRST` 는 줄 맨 앞에 쓴다.
+- **본문은 7번째 열**(0부터 세어 7): `SELECT`·`FROM`·`WHERE`·`AND`·`OR`·`HAVING` 은 뒤를 공백으로 채워 본문이 7번째 열에서 시작하게 한다. `GROUP BY`·`ORDER BY` 는 키워드 뒤 공백 한 칸 뒤에 첫 항목을 쓴다.
+
+  | 키워드 | 쓰는 모양 (`·` 는 공백) |
+  |---|---|
+  | `SELECT` | `SELECT·` + 본문 |
+  | `FROM` | `FROM···` + 본문 |
+  | `WHERE` | `WHERE··` + 본문 |
+  | `AND` | `AND····` + 본문 |
+  | `OR` | `OR·····` + 본문 |
+  | `HAVING` | `HAVING·` + 본문 |
+  | `GROUP BY`·`ORDER BY` | `GROUP·BY·` + 첫 항목 (이후 줄은 아래 앞 쉼표) |
+
+- **다음 줄로 넘기는 항목은 앞 쉼표**: 공백 5칸 + `, ` 로 시작해 항목이 7번째 열에 오게 한다. `SELECT` 목록·`FROM` 표 목록·`GROUP BY`·`ORDER BY` 모두 같다.
+- **한 줄에 둘 항목 수는 자유**다. 한 줄이 120자 안이면 여러 항목을 한 줄에 둬도 된다(`ORDER BY` 처럼 짧은 목록은 한 줄 나열이 보기 좋다). 길어지거나 식이 복잡하면 한 줄에 항목 하나씩 쓴다.
+- 줄 끝 `;` 는 앱이 실행하는 SQL(MyBatis·네이티브 쿼리·위젯 SQL)에는 붙이지 않는다. 스크립트·콘솔에서 돌리는 SQL 에만 붙인다.
+
+### 4.2 별칭
+
+- **칼럼 별칭의 `AS` 는 써도 되고 안 써도 된다**(선택). 한 SQL 안에서는 한쪽으로 맞추는 편이 읽기 좋다.
+- **표 별칭에는 `AS` 를 쓸 수 없다**(Oracle 문법상 `FROM TB_X AS A` 는 `ORA-00933`). 항상 `FROM TB_X A` 로 쓴다.
+- **표 별칭은 대문자 한 글자** `A`·`B`·`C`… 를 `FROM` 에 나온 순서대로 붙인다. 모든 칼럼 앞에 표 별칭을 붙인다(표가 하나여도).
+- **별칭의 언어**
+  - 화면·매퍼·위젯처럼 **앱이 읽는 SQL 은 영문 대문자 별칭**을 쓴다. 그리드 `field`·MDM 메타 키와 같은 이름으로 맞춘다(`STARTED_AT`, `SCREEN_NM`, `CNT`).
+  - **한글 별칭은 분석·임시 조회 SQL 에만** 쓴다. 공백·괄호 같은 특수문자가 있으면 큰따옴표로 감싼다(`"중량(T)"`, `"년월"`).
+
+### 4.3 기준 예시
+
+아래는 사용자가 정한 서식의 **기준 예시**다. 한글 별칭이 있으므로 **분석용 SQL 예**이다(앱 SQL 이 아니다).
+
+```sql
+SELECT A.PROC_CD
+     , SUBSTR(A.PDN_PST_DD, 1, 6) "년월", A.PRD_NM_CD 품명
+     , SUBSTR(MTL_CD, 7,1) SPANGLE
+     , SUBSTR(MTL_CD, 9,2) 후처리
+     , SUM(COIL_WGT) / 1000 "중량(T)"
+     , SUM(COIL_WTH * COIL_LTH) / 1000 "면적(M2)"
+     , SUM(COIL_WK_TIM) "작업시간(분)"
+FROM   TB_M47_PRD_ACT_CMN A
+WHERE  A.PDN_PST_DD BETWEEN '20250101' AND '20250102'
+AND    A.PROC_CD IN ('1P', '33', '51', '82', '83', '84', '85')
+GROUP BY A.PROC_CD
+     , SUBSTR(A.PDN_PST_DD, 1, 6)
+     , A.PRD_NM_CD
+     , SUBSTR(MTL_CD, 7,1)
+     , SUBSTR(MTL_CD, 9,2)
+ORDER BY A.PROC_CD, SUBSTR(A.PDN_PST_DD, 1, 6), A.PRD_NM_CD, SUBSTR(MTL_CD, 7,1), SUBSTR(MTL_CD, 9,2)
+```
+
+같은 SQL 을 **앱용**으로 고친 모양이다(영문 대문자 별칭, 항목은 한 줄에 하나, 기간은 바인드). 의미는 같다.
+
+```sql
+SELECT A.PROC_CD
+     , SUBSTR(A.PDN_PST_DD, 1, 6) YM
+     , A.PRD_NM_CD
+     , SUBSTR(A.MTL_CD, 7, 1) SPANGLE
+     , SUBSTR(A.MTL_CD, 9, 2) POST_PRC
+     , SUM(A.COIL_WGT) / 1000 WGT_T
+     , SUM(A.COIL_WTH * A.COIL_LTH) / 1000 AREA_M2
+     , SUM(A.COIL_WK_TIM) WK_MIN
+FROM   TB_M47_PRD_ACT_CMN A
+WHERE  A.PDN_PST_DD BETWEEN :fromDd AND :toDd
+AND    A.PROC_CD IN ('1P', '33', '51', '82', '83', '84', '85')
+GROUP BY A.PROC_CD
+     , SUBSTR(A.PDN_PST_DD, 1, 6)
+     , A.PRD_NM_CD
+     , SUBSTR(A.MTL_CD, 7, 1)
+     , SUBSTR(A.MTL_CD, 9, 2)
+ORDER BY A.PROC_CD, SUBSTR(A.PDN_PST_DD, 1, 6), A.PRD_NM_CD, SUBSTR(A.MTL_CD, 7, 1), SUBSTR(A.MTL_CD, 9, 2)
+```
+
+### 4.4 조인
+
+조인은 Oracle **쉼표 조인**으로 쓴다. `FROM` 에 표를 앞 쉼표로 나열하고 조인 조건은 `WHERE` 에 두며, 외부 조인은 `(+)` 로 쓴다.
+
+```sql
+SELECT A.PROC_CD
+     , B.PROC_NM
+FROM   TB_M47_PRD_ACT_CMN A
+     , TB_M47_PROC B
+     , TB_M47_LINE C
+WHERE  B.PROC_CD = A.PROC_CD
+AND    C.LINE_CD(+) = A.LINE_CD
+AND    C.USE_YN(+)  = 'Y'
+AND    A.PDN_PST_DD BETWEEN :fromDd AND :toDd
+```
+
+- **`WHERE` 에는 조인 조건을 먼저, 그 뒤에 필터 조건**을 쓴다.
+- **조인 조건은 새로 붙는 표의 칼럼을 왼쪽에** 쓴다(`B.PROC_CD = A.PROC_CD`, `C.LINE_CD(+) = A.LINE_CD`).
+- **외부 조인 쪽 표의 모든 조건에 `(+)` 를 붙인다. 상수 비교도 포함한다**(`C.USE_YN(+) = 'Y'`). 하나라도 빠지면 그 조건이 조인 뒤에 걸러 내는 필터가 되어 외부 조인이 **내부 조인으로 바뀌고** 행이 사라진다. 위 예에서 `C.USE_YN = 'Y'` 로 쓰면 `C` 에 짝이 없는 행이 모두 빠진다.
+- 조인 뒤의 결과를 일부러 거르는 조건(외부 조인 쪽 칼럼을 `COALESCE` 로 감싼 비교 등)은 `(+)` 를 붙이지 않는다. 의도를 알 수 있게 주석을 한 줄 남긴다.
+- **ANSI `JOIN` 은 `(+)` 로 표현할 수 없을 때만 허용한다**: `FULL OUTER JOIN`, 한 표를 두 표에 외부 조인(`ORA-01417`), 외부 조인 조건에 `OR`·`IN (목록)` 이 필요한 경우(`ORA-01719`) 등. 이때도 `ON` 조건은 `JOIN` 줄 아래에 7번째 열로 맞춘다.
+
+### 4.5 WITH·서브쿼리·인라인 뷰·CASE
+
+여러 줄이 되는 묶음은 C 의 블록(Allman) 모양으로 쓴다: **여는 괄호 `(` 와 닫는 괄호 `)` 가 각각 혼자 한 줄**을 차지하고, 안쪽은 4칸 들여 쓴다. 안쪽에서도 4.1 의 규칙(키워드 맞춤·앞 쉼표)을 그대로 적용하며, 기준 열만 4칸 옮겨 간다.
+
+**WITH**: `WITH 이름 AS` 다음 줄에 `(` 를 혼자 쓰고, 안쪽 SQL 은 4칸 들여 쓰고, `)` 도 혼자 한 줄로 쓴다. 다음 CTE 는 `, 이름 AS` 로 맨 앞 열에서 시작한다.
+
+```sql
+WITH T_ACT AS
+(
+    SELECT A.PROC_CD
+         , SUM(A.COIL_WGT) WGT
+    FROM   TB_M47_PRD_ACT_CMN A
+    WHERE  A.PDN_PST_DD >= :fromDd
+    GROUP BY A.PROC_CD
+)
+, T_PROC AS
+(
+    SELECT B.PROC_CD
+         , B.PROC_NM
+    FROM   TB_M47_PROC B
+)
+SELECT X.PROC_CD
+     , Y.PROC_NM
+     , X.WGT
+FROM   T_ACT X
+     , T_PROC Y
+WHERE  Y.PROC_CD(+) = X.PROC_CD
+```
+
+**여러 줄 서브쿼리·인라인 뷰·`EXISTS`/`IN` 서브쿼리**도 같은 블록 규칙이다.
+
+- 키워드가 있는 줄(`FROM`·`WHERE  EXISTS`·`AND    A.X IN`)은 괄호 앞에서 끝낸다.
+- 여는 괄호 `(` 는 **그 항목이 시작할 열**에 혼자 한 줄로 쓴다: 키워드 뒤 7번째 열, 앞 쉼표 항목이면 쉼표 줄을 따로 두고 그 다음 줄의 7번째 열.
+- 안쪽은 여는 괄호 열 + 4칸에서 시작한다. 닫는 괄호는 여는 괄호와 **같은 열**에 혼자 둔다. 인라인 뷰면 `) V` 처럼 닫는 괄호 뒤에 별칭을 붙인다.
+- 인라인 뷰가 `FROM` 의 첫 항목이면 `FROM` 만 쓴 줄 다음 줄의 7번째 열에 `(` 를 쓴다.
+- 한 줄로 끝나는 **짧은 서브쿼리**(스칼라 서브쿼리 등)는 한 줄로 써도 된다.
+- 서브쿼리 안의 표 별칭은 바깥에서 쓴 글자 다음 글자를 이어 쓴다(바깥 `A` 면 안쪽은 `B`, 그다음 `C`). 인라인 뷰 별칭은 `V`(여럿이면 `V1`·`V2`)로 쓴다.
+
+```sql
+SELECT A.PROC_CD
+     , V.WGT
+FROM   TB_M47_PROC A
+     , (
+           SELECT B.PROC_CD
+                , SUM(B.COIL_WGT) WGT
+           FROM   TB_M47_PRD_ACT_CMN B
+           GROUP BY B.PROC_CD
+       ) V
+WHERE  V.PROC_CD(+) = A.PROC_CD
+AND    EXISTS
+       (
+           SELECT 1
+           FROM   TB_M47_LINE C
+           WHERE  C.PROC_CD = A.PROC_CD
+       )
+```
+
+**CASE** 는 짧으면 한 줄로 쓴다. 길면 `WHEN`·`ELSE` 를 `CASE` 열 + 5 칸에 한 줄씩 쓰고, `END` 는 `CASE` 와 같은 열에 두고 그 뒤에 별칭을 붙인다.
+
+```sql
+SELECT A.PROC_CD
+     , CASE WHEN A.USE_YN = 'Y' THEN '사용' ELSE '미사용' END USE_NM
+     , CASE WHEN A.COIL_WGT >= 20000 THEN 'H'
+            WHEN A.COIL_WGT >= 10000 THEN 'M'
+            ELSE 'L'
+       END WGT_GRADE
+FROM   TB_M47_PRD_ACT_CMN A
+```
+
+### 4.6 MyBatis XML
+
+같은 서식을 태그 안에서 그대로 유지한다. `<if>`·`<foreach>` 같은 태그는 SQL 본문보다 들여 쓰지 않아도 된다. `<if>` 안의 조건은 `AND    ` 로 시작한다. `<` 가 든 비교는 `<![CDATA[ … ]]>` 로 감싼다.
+
+```xml
+<select id="selectProcList" resultType="map">
+    SELECT A.PROC_CD
+         , B.PROC_NM
+    FROM   TB_M47_PRD_ACT_CMN A
+         , TB_M47_PROC B
+    WHERE  B.PROC_CD = A.PROC_CD
+    AND    A.PDN_PST_DD BETWEEN #{fromDd} AND #{toDd}
+    <if test="procCd != null and procCd != ''">
+    AND    A.PROC_CD = #{procCd}
+    </if>
+    ORDER BY A.PROC_CD
+</select>
+```
+
+`<where>` 를 쓰면 MyBatis 가 맨 앞 `AND` 를 떼므로 첫 조건이 `<if>` 안에 있어도 된다. 그때도 안쪽 조건은 `AND    ` 로 시작한다(`<where>` 태그가 `WHERE` 를 만들기 때문에 소스에서는 `WHERE` 열 맞춤이 보이지 않아도 된다).

@@ -138,6 +138,4 @@
 
 ### DB 규칙 (2026-10-07)
 
-- Oracle 쿼리 작성 양식(들여쓰기·대소문자·줄바꿈·별칭 등) 정하기 — 10-07 SQL 규칙을 「Oracle 전용」 으로 바꿨다(`docs/guide/Database/oracle-sql-rules.md`, oracle-1007 회차 ora-base 개편).
-  - 할 일: 사용자가 쓰는 쿼리 서식을 받아 `oracle-sql-rules.md` 에 「쿼리 서식」 절로 넣고, flyway-migration-add 등 스킬의 SQL 예시도 같은 서식으로 맞춘다.
-  - 현황: 10-08 오전 8~9시경 사용자에게 양식을 요청하기로 했다(조정자 알림).
+- Oracle 쿼리 작성 양식(들여쓰기·대소문자·줄바꿈·별칭 등) — **반영됨**(`docs/guide/Database/oracle-sql-rules.md` 4장 「쿼리 서식」, 샘플 `docs/guide/Database/samples/query-format-*`). 10-08 사용자 확정: 키워드 맨 앞 열·본문 7번째 열·앞 쉼표·쉼표 조인과 `(+)`·WITH/서브쿼리 블록 모양. 기존 SQL 은 손댈 때만 바꾼다.

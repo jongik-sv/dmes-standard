@@ -244,14 +244,13 @@ public interface {Module}Mapper {
 <mapper namespace="{base-package}.domain.{module}.{Module}Mapper">
 
     <select id="selectList" parameterType="map" resultType="map">
-        SELECT {COL1} AS {alias1}
-             , {COL2} AS {alias2}
-          FROM {TABLE_NAME}
-        <where>
-            <if test="{cond} != null and {cond} != ''">
-                AND {COL1} = #{ {cond} }
-            </if>
-        </where>
+        SELECT A.{COL1} {ALIAS1}
+             , A.{COL2} {ALIAS2}
+        FROM   {TABLE_NAME} A
+        WHERE  1 = 1
+        <if test="{cond} != null and {cond} != ''">
+        AND    A.{COL1} = #{ {cond} }
+        </if>
     </select>
 
     <!-- INSERT: 감사 컬럼 8개 + VER=0 바인딩 필수 -->

@@ -37,8 +37,9 @@
              , R.SEQ AS LANE_SEQ
              , S.ORDER_ID
           FROM TB_STEP_ROUTE S
-          JOIN TB_LANE_ROUTE R ON S.LANE_ROUTE_ID = R.LANE_ROUTE_ID
-         WHERE S.ORDER_ID = #{orderId}
+             , TB_LANE_ROUTE R
+         WHERE R.LANE_ROUTE_ID = S.LANE_ROUTE_ID
+           AND S.ORDER_ID = #{orderId}
            AND R.PRI = #{pri}
            AND S.USED_YN = 'Y'
          ORDER BY S.SEQ, STEP_SEQ
@@ -94,8 +95,9 @@
              , S.STEP_ROUTE_ID
              , S.LANE_ROUTE_ID
           FROM TB_STEP_ROUTE S
-          JOIN TB_LANE_ROUTE R ON S.LANE_ROUTE_ID = R.LANE_ROUTE_ID
-         WHERE S.ORDER_ID = #{orderId}
+             , TB_LANE_ROUTE R
+         WHERE R.LANE_ROUTE_ID = S.LANE_ROUTE_ID
+           AND S.ORDER_ID = #{orderId}
            AND R.PRI = #{pri}
            AND S.USED_YN = 'Y'
          ORDER BY S.SEQ
@@ -105,8 +107,9 @@
         <![CDATA[
         SELECT COUNT(DISTINCT S.STEP_CODE) AS cnt
           FROM TB_STEP_ROUTE S
-          JOIN TB_LANE_ROUTE R ON S.LANE_ROUTE_ID = R.LANE_ROUTE_ID
-         WHERE S.ORDER_ID = #{orderId}
+             , TB_LANE_ROUTE R
+         WHERE R.LANE_ROUTE_ID = S.LANE_ROUTE_ID
+           AND S.ORDER_ID = #{orderId}
            AND R.PRI = #{pri}
         ]]>
     </select>

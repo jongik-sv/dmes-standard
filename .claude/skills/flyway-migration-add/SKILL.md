@@ -56,6 +56,7 @@ node .claude/skills/flyway-migration-add/scripts/migration_tool.mjs scaffold --m
 - **DDL 은 자동 커밋**: 파일 하나가 중간에 실패하면 앞부분만 적용된 채 남는다. 파일을 작게 나누고 재실행에 안전하게 쓴다.
 - 운영 Oracle 은 23 미만일 수 있다: `BOOLEAN` 열, `IF [NOT] EXISTS` DDL 같은 23ai 전용 구문을 쓰지 않는다.
 - V 파일의 뷰·인덱스 정의와 앱 SQL 의 조건은 **칼럼 쪽에 함수·형변환을 씌우지 않는다**(`TO_CHAR(칼럼,…) >= :d` 금지 → `칼럼 >= TO_DATE(:d,…)`). 함수 기반 인덱스가 정말 필요하면 DBA 와 합의한다. 규칙은 [Oracle SQL 작성 규칙의 「인덱스를 살리는 조건(sargable)」](../../../docs/guide/Database/oracle-sql-rules.md#인덱스를-살리는-조건sargable).
+- V 파일에 조회문(뷰 정의·시드 SELECT 등)을 쓸 때와 이 스킬의 SQL 예시는 [쿼리 서식](../../../docs/guide/Database/oracle-sql-rules.md#4-쿼리-서식)을 따른다(대문자, 절 키워드 맨 앞 열·본문 7번째 열, 항목은 앞 쉼표, 조인은 쉼표 조인과 `(+)`, 칼럼 별칭 `AS` 는 선택·표 별칭은 `AS` 불가). 기존 V 파일은 서식 때문에 고치지 않는다(체크섬).
 - 자리표시자 `${app_user}`(= `MCMAPUSER`)는 `pdb.mjs template-schema` 와 앱 Flyway 가 풀어 준다. 새 자리표시자를 쓰면 양쪽에 같이 등록한다.
 
 ## 5. 작성 후 검증

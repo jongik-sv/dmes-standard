@@ -140,11 +140,16 @@ public record PermKey(String moduleId, String objId, String action) {
 2. TB_SEC_USER_ROLE → roleIds 조회
 3. TB_SEC_ROLE_PERM 조인 → permIds 조회
 4. TB_SEC_PERM ⨝ TB_SEC_OBJ ⨝ TB_SEC_PERM_BUTTON 조인:
-     SELECT o.SYS_CD, o.OBJ_ID, b.ACTION
-     FROM TB_SEC_PERM p
-     JOIN TB_SEC_OBJ o ON p.OBJ_ID = o.OBJ_ID
-     JOIN TB_SEC_PERM_BUTTON b ON b.PERM_ID = p.PERM_ID
-     WHERE p.PERM_ID IN (:permIds) AND b.USE_YN = 'Y'
+     SELECT B.SYS_CD
+          , B.OBJ_ID
+          , C.ACTION
+     FROM   TB_SEC_PERM A
+          , TB_SEC_OBJ B
+          , TB_SEC_PERM_BUTTON C
+     WHERE  B.OBJ_ID = A.OBJ_ID
+     AND    C.PERM_ID = A.PERM_ID
+     AND    A.PERM_ID IN (:permIds)
+     AND    C.USE_YN = 'Y'
 5. Set<PermKey> 로 묶음
 6. UserPermCache.put(userId, permKeySet, ttl=10분)
 ```

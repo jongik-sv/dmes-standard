@@ -163,6 +163,8 @@ flowchart TB
 - 연결: 읽기 전용으로 열고 항상 롤백합니다. 운영에서는 읽기 권한만 가진 DB 계정의 전용 연결(`dmes.widget.query.datasource.*`)을 서버에 설정하는 것이 원칙입니다. Oracle 은 읽기 전용 트랜잭션이 INSERT, UPDATE, MERGE, `FOR UPDATE` 를 막지만, DB 에 이미 있는 자율 트랜잭션 함수를 부르면 그 함수가 쓴 값은 롤백되지 않고 남습니다. Oracle 이 아니어서 읽기 전용 트랜잭션을 걸 수 없는 DB 는 전용 연결이 없으면 시험, 저장, 실행이 모두 거절됩니다.
 - 결과 보관: 같은 위젯, 시스템 변수 값, 조회 조건 값(`:userId`, `:deptCd` 를 쓰면 사용자별)의 결과를 30초 보관하고 저장하면 지웁니다. 사용자가 [새로 고침] 을 자주 눌러도 DB 부하가 크게 늘지 않지만 새 데이터가 30초쯤 늦게 보일 수 있고, 위젯당 50개까지 보관하며 가득 차면 보관 없이 매번 DB 에서 읽습니다.
 
+> **SQL 서식:** 위젯 SQL 은 앱이 읽으므로 결과 컬럼 별칭을 영문 대문자로 쓰고(그리드 `field` 와 같게), 절 키워드를 맨 앞 열에 세우고 본문을 7번째 열에 맞추며 항목은 앞 쉼표로 잇습니다. 표 별칭은 `A`·`B`, 조인은 쉼표 조인과 `(+)` 입니다. 이 문서의 예시가 그 모양이며 규칙 전체는 저장소 문서 `docs/guide/Database/oracle-sql-rules.md` 의 「쿼리 서식」 을 봅니다.
+
 > **방언 주의:** 로컬 개발 DB 와 운영 DB 는 Oracle 입니다. 이 문서의 예시 SQL 은 Oracle 문법(`TRUNC(SYSDATE)`, `TO_CHAR`, `INSTR`, `FETCH FIRST n ROWS ONLY`, `||`)입니다. Oracle 에서 자주 틀리는 점은 아래와 같습니다.
 >
 > - 일시 열(`STARTED_AT` 등)은 TIMESTAMP 이므로 `SUBSTR` 로 자르지 말고 `TO_CHAR(STARTED_AT, 'YYYY-MM-DD HH24:MI')` 로 글자를 만듭니다. 오늘 0시는 `TRUNC(SYSDATE)`, 6일 전 0시는 `TRUNC(SYSDATE) - 6` 입니다(DB 시간대는 서울 시간).
@@ -728,19 +730,19 @@ flowchart TB
 SQL:
 
 ```
-SELECT TO_CHAR(l.STARTED_AT, 'YYYY-MM-DD HH24:MI') AS STARTED,
-       COALESCE(o.OBJECT_NM, l.PAGE_ID) AS SCREEN_NM,
-       l.USER_ID AS USER_ID,
-       ROUND(l.DURATION_MS / 1000) AS SEC
-  FROM TB_SEC_SCREEN_USAGE_LOG l
-  LEFT JOIN TB_MCM_SEC_OBJ o
-    ON o.OBJECT_ID = SUBSTR(l.PAGE_ID, INSTR(l.PAGE_ID, '/') + 1)
- WHERE (:scope = 'ALL' OR l.USER_ID = :userId)
-   AND (:screenNm IS NULL OR COALESCE(o.OBJECT_NM, l.PAGE_ID) LIKE '%' || :screenNm || '%')
-   AND (:fromDt IS NULL OR l.STARTED_AT >= TO_DATE(:fromDt, 'YYYYMMDD'))
-   AND (:minSec IS NULL OR l.DURATION_MS >= :minSec * 1000)
- ORDER BY l.STARTED_AT DESC
- FETCH FIRST 100 ROWS ONLY
+SELECT TO_CHAR(A.STARTED_AT, 'YYYY-MM-DD HH24:MI') STARTED
+     , COALESCE(B.OBJECT_NM, A.PAGE_ID) SCREEN_NM
+     , A.USER_ID
+     , ROUND(A.DURATION_MS / 1000) SEC
+FROM   TB_SEC_SCREEN_USAGE_LOG A
+     , TB_MCM_SEC_OBJ B
+WHERE  B.OBJECT_ID(+) = SUBSTR(A.PAGE_ID, INSTR(A.PAGE_ID, '/') + 1)
+AND    (:scope = 'ALL' OR A.USER_ID = :userId)
+AND    (:screenNm IS NULL OR COALESCE(B.OBJECT_NM, A.PAGE_ID) LIKE '%' || :screenNm || '%')
+AND    (:fromDt IS NULL OR A.STARTED_AT >= TO_DATE(:fromDt, 'YYYYMMDD'))
+AND    (:minSec IS NULL OR A.DURATION_MS >= :minSec * 1000)
+ORDER BY A.STARTED_AT DESC
+FETCH FIRST 100 ROWS ONLY
 ```
 
 조회 조건 선언(`params`):
@@ -775,15 +777,15 @@ SELECT TO_CHAR(l.STARTED_AT, 'YYYY-MM-DD HH24:MI') AS STARTED,
 `def.ldj2hpgw`: 조회 조건이 없는 가장 단순한 쿼리 표(로컬 DB 정의 행의 값을 Oracle 문법으로 바꾼 것)입니다.
 
 ```
-SELECT TO_CHAR(l.STARTED_AT, 'YYYY-MM-DD HH24:MI') AS STARTED,
-       COALESCE(o.OBJECT_NM, l.PAGE_ID) AS SCREEN_NM,
-       ROUND(l.DURATION_MS / 1000) AS SEC
-  FROM TB_SEC_SCREEN_USAGE_LOG l
-  LEFT JOIN TB_MCM_SEC_OBJ o
-    ON o.OBJECT_ID = SUBSTR(l.PAGE_ID, INSTR(l.PAGE_ID, '/') + 1)
- WHERE l.USER_ID = :userId
- ORDER BY l.STARTED_AT DESC
- FETCH FIRST 20 ROWS ONLY
+SELECT TO_CHAR(A.STARTED_AT, 'YYYY-MM-DD HH24:MI') STARTED
+     , COALESCE(B.OBJECT_NM, A.PAGE_ID) SCREEN_NM
+     , ROUND(A.DURATION_MS / 1000) SEC
+FROM   TB_SEC_SCREEN_USAGE_LOG A
+     , TB_MCM_SEC_OBJ B
+WHERE  B.OBJECT_ID(+) = SUBSTR(A.PAGE_ID, INSTR(A.PAGE_ID, '/') + 1)
+AND    A.USER_ID = :userId
+ORDER BY A.STARTED_AT DESC
+FETCH FIRST 20 ROWS ONLY
 ```
 
 표시 컬럼은 `STARTED`(시작, 폭 130), `SCREEN_NM`(화면, 폭 160), `SEC`(사용(초), 폭 80, 형식 숫자) 입니다.
@@ -799,10 +801,10 @@ SELECT TO_CHAR(l.STARTED_AT, 'YYYY-MM-DD HH24:MI') AS STARTED,
 설정: 「새 위젯」 에서 「자동 수집」, 이름 「오늘 화면 열람 횟수」, 일정 「주기마다」 30분, 원천 「SQL」 에 아래 SQL(수집 SQL 은 `:today` 같은 시스템 변수만 가능), [쿼리 시험] 으로 `CNT` 를 확인해 값 컬럼에 고르고 항목 컬럼은 비움(비우면 첫 행의 값이 `VALUE` 항목), 표시 기간 7·단위 「회」 로 [저장] 합니다.
 
 ```
-SELECT COUNT(*) AS CNT
-  FROM TB_SEC_SCREEN_USAGE_LOG
- WHERE STARTED_AT >= TO_DATE(:today, 'YYYYMMDD')
-   AND STARTED_AT <  TO_DATE(:today, 'YYYYMMDD') + 1
+SELECT COUNT(*) CNT
+FROM   TB_SEC_SCREEN_USAGE_LOG A
+WHERE  A.STARTED_AT >= TO_DATE(:today, 'YYYYMMDD')
+AND    A.STARTED_AT <  TO_DATE(:today, 'YYYYMMDD') + 1
 ```
 
 저장되는 JSON:

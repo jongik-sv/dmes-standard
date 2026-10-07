@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  서식 정본: oracle-sql-rules.md 쿼리 서식 절 (docs/guide/Database/oracle-sql-rules.md 4장)
+  이 파일의 표·칼럼(TB_M47_*)은 서식을 보여 주려는 예시 이름이며 실재하지 않아도 된다.
+  보여 주는 것: MyBatis 안에서도 같은 서식 유지, 동적 <if>, <foreach> IN 목록, CDATA.
+  규칙: 태그는 SQL 본문보다 들여 쓰지 않아도 된다. <if> 안의 조건은 "AND    " 로 시작한다.
+        '<' 가 든 비교는 <![CDATA[ ... ]]> 로 감싼다.
+-->
+<mapper namespace="sample.queryFormat">
+
+    <!-- 동적 조건: 값이 있는 조건만 SQL 에 넣는다(선택 조건 여러 개는 (:p IS NULL OR ...) 보다 계획이 좋다) -->
+    <select id="selectProcList" parameterType="map" resultType="map">
+        SELECT A.PROC_CD
+             , B.PROC_NM
+             , C.LINE_NM
+             , A.COIL_WGT
+        FROM   TB_M47_PRD_ACT_CMN A
+             , TB_M47_PROC B
+             , TB_M47_LINE C
+        WHERE  B.PROC_CD = A.PROC_CD
+        AND    C.LINE_CD(+) = A.LINE_CD
+        AND    C.USE_YN(+)  = 'Y'
+        AND    A.PDN_PST_DD BETWEEN #{fromDd} AND #{toDd}
+        <if test="procCd != null and procCd != ''">
+        AND    A.PROC_CD = #{procCd}
+        </if>
+        <if test="lotNo != null and lotNo != ''">
+        AND    A.LOT_NO LIKE #{lotNo} || '%'
+        </if>
+        ORDER BY A.PDN_PST_DD DESC, A.PROC_CD
+    </select>
+
+    <!-- foreach IN 목록: 한 IN 목록은 1000개까지(ORA-01795) -->
+    <select id="selectByProcCds" parameterType="map" resultType="map">
+        SELECT A.PROC_CD
+             , A.PRD_NM_CD
+             , SUM(A.COIL_WGT) WGT
+        FROM   TB_M47_PRD_ACT_CMN A
+        WHERE  A.PDN_PST_DD BETWEEN #{fromDd} AND #{toDd}
+        <if test="procCds != null and procCds.size() > 0">
+        AND    A.PROC_CD IN
+        <foreach collection="procCds" item="procCd" open="(" separator=", " close=")">
+               #{procCd}
+        </foreach>
+        </if>
+        GROUP BY A.PROC_CD
+             , A.PRD_NM_CD
+        ORDER BY A.PROC_CD, A.PRD_NM_CD
+    </select>
+
+    <!-- '<' 비교는 CDATA 로 감싼다. 칼럼에 함수를 씌우지 않고 반열린 구간으로 비교한다 -->
+    <select id="selectActLog" parameterType="map" resultType="map">
+        <![CDATA[
+        SELECT A.PROC_CD
+             , A.ACT_STR_DTM
+        FROM   TB_M47_PRD_ACT_LOG A
+        WHERE  A.ACT_STR_DTM >= TO_DATE(#{fromDd}, 'YYYYMMDD')
+        AND    A.ACT_STR_DTM <  TO_DATE(#{toDd}, 'YYYYMMDD') + 1
+        ORDER BY A.ACT_STR_DTM DESC
+        FETCH FIRST 100 ROWS ONLY
+        ]]>
+    </select>
+
+</mapper>
