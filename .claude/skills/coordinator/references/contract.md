@@ -74,6 +74,8 @@
 | `approvals.screen_cache_s` | `20` | 폴러가 남긴 레인 화면 캐시(§4.1 「레인 화면 캐시」)를 `prompt-watch.sh` 가 믿는 시간(초). 이 안에 읽은 신선한 캐시가 있으면 orca 를 부르지 않고 그 화면으로 「창이 떴는가」 를 판정한다. `0` 이면 캐시를 쓰지도 읽지도 않고 늘 직접 읽는다. 자동 응답 재판정은 이 값과 무관하게 늘 직접 읽는다 |
 | `approvals.auto_allow_spawned` | `["read","status","edit-own","commit-own","heavy-build"]` | 조정자가 띄운 세션(`spawned_by=coordinator`)의 자동 승인 범주. 거부 칸은 여기에 넣어도 늘 거부 |
 | `restart_rules` | `[]` | `[{"glob":"src/backend/**","note":"세 서버 내린 뒤 jar 빌드·재기동"}]` |
+| `merge.auto_build` | `true` | 조정자가 머지 뒤 반영 빌드를 묻지 않고 한다(`closing.md` §7). false 면 건너뛰고 마감 보고에 남긴다. 스크립트가 읽지 않고 조정자가 설정을 보고 따르는 문서 규칙이다 |
+| `merge.auto_push` | `true` | 조정자가 통합 브랜치 push·릴리스 반영을 묻지 않고 한다(`closing.md` §7, 강제 push 금지). false 면 건너뛰고 마감 보고에 남긴다. 문서 규칙이다 |
 | `office.enabled` | `true` | 에이전트 오피스 표시(§4). false 면 `office.sh` 는 아무것도 하지 않는다 |
 | `office.project_id` | `null` | 오피스에 표시할 D'Flow 프로젝트 UUID. 있으면 `watch --project` 로 넘기고, 비면 생략(`dflow.sh` 가 `.dflow` 의 기본값을 쓴다) |
 | `office.label_max` | `40` | 팀원 키에 넣는 지시 요약의 최대 글자 수(키 전체는 늘 120자 이내) |

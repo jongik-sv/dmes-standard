@@ -8,7 +8,7 @@
 #     ESCALATE <h> <kind> <사유>                  조정자 판단 필요(판단 올리기 또는 사용자에게). 아무것도 보내지 않음
 #   kind: trust · usage-limit · permission · question · choice
 #   권한 창 범주는 조정자가 띄운 세션(spawned_by=coordinator)이면 approvals.auto_allow_spawned, 아니면 approvals.auto_allow.
-#   거부 칸(삭제·push·공용 DB 쓰기·서버 종료·권한 설정·비밀값)은 늘 거부한다. 판정은 approvals 기록과 이벤트에 남긴다.
+#   거부 칸(삭제·레인 세션의 push·공용 DB 쓰기·서버 종료·권한 설정·비밀값)은 늘 거부한다. 판정은 approvals 기록과 이벤트에 남긴다.
 #   판정에 쓴 화면(80줄 원문)의 창 지문(console_full_sha — 폴러·judge-sha 의 41줄과 같은 창이면 같은 값)을 기억했다가 레인 잠금을 얻은 뒤
 #   다시 읽은 화면(보내기 바로 앞)과 비교해 다르면(같은 kind 의 다른 창 포함) 아무것도 보내지 않고 `NONE <h>` 로 끝낸다. 지문을 만들지
 #   못하면(창 머리가 읽은 화면 위로 밀림 등) `ESCALATE <h> <kind> no-fingerprint`. 보낸 직후 잠금 안에서 입력 요청 기록이 판정한 창(같은
