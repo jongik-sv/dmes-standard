@@ -26,7 +26,7 @@
 - 정의 조회 빈 금지: `MdmBusinessRuleMigrationTest.계약_전용_06_확정_검사와_정의_조회_빈이_없다` 가 `DefinitionLookup` 빈 0개를 요구한다. 운영 조회기는 빈이 아니고 `RuleSetRunner` 가 호출마다 만든다.
 - 판정 시각 → 룰 버전: `LocalDateTime.ofInstant(evalTs, MdmClockConfig.KST)` 로 바꾼 뒤 `RuleVersions.currentReleased(versions, now)` 를 쓴다. `RuleQueries.latestReleasedVers` 는 적용 기간을 보지 않으므로 판정용으로 쓰지 않는다.
 - mdm Flyway 는 SQLite 한 방언이고 `flyway-migration-add` 스킬 스크립트가 mdm 을 지원하지 않는다. 번호는 손으로 `V14` 를 쓰고 스킬 문서의 작성 규칙(재생성 시 `SELECT *` 금지 등)만 따른다.
-- mdm ADR 은 `docs/mdm/adr/` 에 둔다(번호 손 채번, 다음 0005). 검사: `python3 .claude/skills/adr-write/scripts/adr_tool.py lint docs/mdm/adr/0005-*.md`. README 표를 손으로 갱신한다.
+- mdm ADR 은 `docs/mdm/adr/` 에 둔다(번호 손 채번, 다음 0005). 검사: `node .claude/skills/adr-write/scripts/adr_tool.mjs lint docs/mdm/adr/0005-*.md`. README 표를 손으로 갱신한다.
 - `docs/mdm/decisions.md` 는 append-only 이고 다음 번호는 D-106 다. 서식: `## D-NNN (ISO8601Z)` + `Phase / Decision needed / Decision made / Rationale / Reversible / Source` 불릿.
 - OASIS BPMN 을 바꾸거나 더한 뒤에는 `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` 가 ERROR 0 이어야 한다. 단 이 검사기는 MES 모듈(`MES_MODULES`)만 보고 mdm 은 보지 않는다. mdm BPMN 은 `DmeBpmnActionTest`·`MdmOasisActionVocabularyTest`·`DmeOasisHttpTest` 로 검증한다.
 - DB 검증은 SQLite 만 쓴다. 도커를 쓰지 않는다.
@@ -702,7 +702,7 @@ Expected: ADR 파일은 `0001`~`0004` 와 `README.md` 뿐이고, 마지막 결�
 
 - [ ] **Step 3: ADR 린트**
 
-Run: `python3 .claude/skills/adr-write/scripts/adr_tool.py lint docs/mdm/adr/0005-rule-set-runs-in-engine.md`
+Run: `node .claude/skills/adr-write/scripts/adr_tool.mjs lint docs/mdm/adr/0005-rule-set-runs-in-engine.md`
 Expected: ERROR 0. WARN 이 나오면 문구를 확인해 규약(쉬운 설명에 클래스명 금지 등)에 맞게 고친다. 쉬운 설명 절에는 클래스명이 없어야 한다.
 
 - [ ] **Step 4: README 인덱스 표에 한 줄 추가**

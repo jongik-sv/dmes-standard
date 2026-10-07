@@ -8,6 +8,7 @@
 #       / 6 네트워크·일시 오류 연속 한도 초과 / 8 종료 시각 도달 / 9 승인 감지(머지 대상)
 # 토큰은 env 확장으로만 다룬다 — echo·파일 기록·명령 문자열 보간 금지.
 # DFLOW_WATCH=0 이면 좌석표 watch 신호를 보내지 않는다(팀장 /dflow-team 아래 실행용).
+case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(CDPATH= cd -P -- "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
 set -u
 
 INTERVAL=300

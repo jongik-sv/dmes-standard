@@ -8,6 +8,7 @@
 # 출력: RESOLVE <다음 시도 번호>(exit 0) · HUMAN <사유>(exit 1) · UNKNOWN <사유>(exit 2) · RUNNING(exit 3)
 # 카운터 = spawn_kind "resolve" 인 team.spawn 개수. 초기화하지 않는다(재개 카운터와 다르다 — 해소 워커는 시도마다
 # .result 를 쓰므로 team.result 로 되돌리면 상한에 영영 닿지 않는다). 워커 자동 재시작(H)의 카운터와도 나눈다.
+case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(CDPATH= cd -P -- "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
 set -u
 MAX=3
 [ $# -eq 5 ] && [ -n "$4" ] && [ -n "$5" ] || { echo "UNKNOWN usage"; exit 2; }
