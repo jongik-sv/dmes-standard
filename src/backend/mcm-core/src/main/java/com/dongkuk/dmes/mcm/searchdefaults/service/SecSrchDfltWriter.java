@@ -2,6 +2,8 @@ package com.dongkuk.dmes.mcm.searchdefaults.service;
 
 import com.dongkuk.dmes.mcm.searchdefaults.entity.SecUserSrchDflt;
 import com.dongkuk.dmes.mcm.searchdefaults.repository.SecUserSrchDfltRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -20,6 +22,10 @@ public class SecSrchDfltWriter {
 
     private final SecUserSrchDfltRepository repository;
 
+    /** 행은 merge(upsert)가 아니라 persist 로 넣어 동시 저장의 PK 충돌을 오류로 드러낸다(조용히 합쳐지지 않는다). */
+    @PersistenceContext(unitName = "default")
+    private EntityManager em;
+
     @Autowired
     public SecSrchDfltWriter(SecUserSrchDfltRepository repository) {
         this.repository = repository;
@@ -30,7 +36,7 @@ public class SecSrchDfltWriter {
     public void replacePage(String userId, String pageId, List<RowValues> rows) {
         repository.deleteByUserIdAndPageId(userId, pageId);
         repository.flush();
-        repository.saveAll(rows.stream().map(r -> {
+        for (RowValues r : rows) {
             SecUserSrchDflt e = new SecUserSrchDflt();
             e.setUserId(userId);
             e.setPageId(pageId);
@@ -38,8 +44,9 @@ public class SecSrchDfltWriter {
             e.setRuleJson(r.ruleJson());
             e.setFieldMeta(r.fieldMeta());
             e.setFieldLabel(r.fieldLabel());
-            return e;
-        }).toList());
+            em.persist(e);
+        }
+        em.flush();
     }
 
     /** 그 화면의 행을 지운다. 없으면 아무것도 하지 않는다. */

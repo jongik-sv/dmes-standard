@@ -421,7 +421,7 @@ Table TB_MCM_SEC_USER_SRCH_DFLT {
     (USER_ID, PAGE_ID, FIELD_KEY) [pk]
   }
 
-  Note: '조회 칸 사용자 기본값(스펙 2026-10-07-search-defaults-design §5.2). 감사 컬럼 9개(McmAuditEntity). 서비스 secSrchDflt(search·savePage·resetPage, AUTH_ONLY)가 화면 단위로 지우고 다시 넣는다(화면당 50행 이하). Flyway 없음 — local 은 ddl-auto update, 개발계·운영계(Oracle·PostgreSQL)는 DDL 사전 생성 필요(RULE_JSON 은 LOB 이 아니라 문자열).'
+  Note: '조회 칸 사용자 기본값(스펙 2026-10-07-search-defaults-design §5.2). 감사 컬럼 9개(McmAuditEntity). 서비스 secSrchDflt(search·savePage·resetPage, AUTH_ONLY)가 화면 단위로 지우고 다시 넣는다(화면당 50행 이하). Flyway 없음 — local 은 ddl-auto update, 개발계·운영계(Oracle·PostgreSQL)는 DDL 사전 생성 필요(RULE_JSON 은 LOB 이 아니라 문자열). 서비스가 길이를 글자 수로 검사하므로 Oracle 은 VARCHAR2(n CHAR) 로 만든다(BYTE 면 한글 값이 ORA-12899).'
 }
 
 // ────────────────────────────────────────────────────────────────────────────

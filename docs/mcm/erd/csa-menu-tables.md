@@ -197,7 +197,7 @@
 
 - 사용자가 조회 칸마다 정한 기본값 규칙이다. PK = (`USER_ID`, `PAGE_ID`, `FIELD_KEY`). `PAGE_ID` 는 포털 화면 키(`{moduleId}:{componentPath}`, 그리드 개인화의 화면 키와 같다)이고 `FIELD_KEY` 는 칸 식별자(`defaultKey ?? name`)다.
 - `RULE_JSON`(VARCHAR 1000) 은 `{"kind":"fixed","value":…}`·`{"kind":"relative","base":"today|monthStart|monthEnd","months":N,"days":N}`·`{"kind":"last"}` 중 하나다. 서버가 검사한 정규형으로 저장한다(`months` ±120, `days` ±3660, 화면당 50행 이하). `FIELD_META`·`FIELD_LABEL` 은 나중에 관리자 배포 기본값이 칸을 찾고 사람이 알아보기 위한 속성이며 NULL 을 허용한다.
-- 서비스는 `secSrchDflt`(search·savePage·resetPage, `SecSrchDfltService`, AUTH_ONLY)다. 사용자는 늘 인증 컨텍스트 값이고 `savePage` 는 그 화면의 행을 한 트랜잭션(`SecSrchDfltWriter`)으로 지우고 다시 넣는다. Flyway 파일이 없으므로 개발계·운영계(Oracle·PostgreSQL)는 앱 배포 전에 DDL 을 미리 만든다(`csa-menu.dbml` 참고).
+- 서비스는 `secSrchDflt`(search·savePage·resetPage, `SecSrchDfltService`, AUTH_ONLY)다. 사용자는 늘 인증 컨텍스트 값이고 `savePage` 는 그 화면의 행을 한 트랜잭션(`SecSrchDfltWriter`)으로 지우고 다시 넣는다. Flyway 파일이 없으므로 개발계·운영계(Oracle·PostgreSQL)는 앱 배포 전에 DDL 을 미리 만든다(`csa-menu.dbml` 참고). 서비스가 길이를 글자 수로 검사하므로 Oracle 문자열 열은 `VARCHAR2(n CHAR)` 로 만든다(BYTE 단위면 한글 고정값·라벨이 ORA-12899 로 500 오류가 난다).
 
 ### 위젯 B·C·D — 테이블 6개 (2026-10-02 신설·10-03 메모 추가, 스펙 `docs/superpowers/specs/2026-10-02-widget-admin-generic-design.md` §4·§17)
 

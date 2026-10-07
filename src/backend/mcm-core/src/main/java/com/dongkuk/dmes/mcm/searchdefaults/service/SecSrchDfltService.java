@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 
 /**
@@ -91,7 +93,12 @@ public class SecSrchDfltService {
             }
             values.add(v);
         }
-        writer.replacePage(userId, pageId, values);
+        try {
+            writer.replacePage(userId, pageId, values);
+        } catch (DataIntegrityViolationException | ObjectOptimisticLockingFailureException e) {
+            // 같은 사용자가 같은 화면을 동시에 저장한 경우 — 한쪽은 롤백되고 이전 행이 남는다.
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "같은 화면의 기본값을 동시에 저장하고 있습니다. 잠시 뒤 다시 저장해 주세요.");
+        }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("pageId", pageId);
         result.put("savedCount", values.size());
@@ -204,7 +211,8 @@ public class SecSrchDfltService {
     private static void putBounded(JsonNode in, ObjectNode out, String name, int limit, String fieldKey) {
         JsonNode v = in.get(name);
         if (v == null || v.isNull()) return;
-        if (!v.isIntegralNumber() || !v.canConvertToInt() || Math.abs(v.asInt()) > limit) {
+        // Math.abs(Integer.MIN_VALUE) 는 음수라 양쪽을 따로 비교한다.
+        if (!v.isIntegralNumber() || !v.canConvertToInt() || v.asInt() < -limit || v.asInt() > limit) {
             throw invalid(name + " 는 ±" + limit + " 이내 정수여야 합니다", fieldKey);
         }
         out.put(name, v.asInt());

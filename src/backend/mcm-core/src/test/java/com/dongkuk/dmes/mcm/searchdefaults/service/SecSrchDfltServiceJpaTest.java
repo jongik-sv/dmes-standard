@@ -208,6 +208,9 @@ class SecSrchDfltServiceJpaTest {
         assertRejected("{\"kind\":\"relative\",\"base\":\"today\",\"days\":1.5}");
         assertRejected("{\"kind\":\"relative\",\"base\":\"today\",\"days\":\"3\"}");
         assertRejected("{\"kind\":\"relative\",\"base\":\"today\",\"days\":99999999999}");
+        assertRejected("{\"kind\":\"relative\",\"base\":\"today\",\"days\":-2147483648}");
+        assertRejected("{\"kind\":\"relative\",\"base\":\"today\",\"months\":-2147483648}");
+        assertRejected("{\"kind\":\"relative\",\"base\":\"today\",\"days\":2147483647}");
 
         service.savePage(page(PAGE), List.of(row("a", "{\"kind\":\"relative\",\"base\":\"today\",\"months\":-120,\"days\":3660}")));
         assertThat(repository.findAll()).hasSize(1);
