@@ -376,7 +376,7 @@ public class SecWidgetService {
     /**
      * 옛 「홈」 행과 지금 고정 탭 집합에 있는 기본 탭 재정의 행 중 위젯이 1개 이상인 것을 개인 탭으로 옮긴다. 옮길 것이 있었으면 true(다시 읽는다).
      * 새 탭 번호가 그사이 차면 writer 가 다음 빈 번호를 고른다. 위젯 0개인 옛 행은 그대로 두고 숨긴다(지우지 않는다).
-     * 실패하면(DB 잠금 등) 경고만 남기고 false — 옛 행은 숨긴 채 응답하고 다음 조회에 다시 옮긴다.
+     * 실패하면(DB 잠금 등) 경고만 남기고 다시 읽은 행으로 응답한다 — 못 옮긴 옛 행은 숨기고 다음 조회에 다시 옮긴다.
      */
     private boolean migrateLegacy(String userId, List<SecUserWidgetTab> rows, List<SecUserWidget> widgets,
                                   List<WidgetFixedTabs.FixedTab> fixed) {
@@ -387,7 +387,7 @@ public class SecWidgetService {
             return true;
         } catch (RuntimeException e) {
             log.warn("위젯 옛 배치 이전 실패 — 다음 조회에 다시 시도한다. userId={}, moves={}", userId, moves, e);
-            return false;
+            return true; // 동시 조회가 먼저 옮겼을 수 있으니 다시 읽어 응답한다(못 옮긴 옛 행은 숨긴다)
         }
     }
 
