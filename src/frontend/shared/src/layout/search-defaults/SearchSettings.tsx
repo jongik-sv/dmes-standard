@@ -29,6 +29,7 @@ import { SEARCH_SETTINGS_LABELS as L } from "./search-settings-labels";
 import {
   N_LIMITS,
   SETTINGS_RELATIVE_OPTIONS,
+  applyBulkMode,
   buildSettingsRows,
   checkRow,
   currentValueRules,
@@ -67,6 +68,7 @@ const SEARCH_SETTINGS_CSS = `
 .cm-sd-warning { color: var(--color-warning, #b45309); display: block; }
 .cm-sd-save-error { color: var(--color-danger, #dc2626); margin-top: 8px; }
 .cm-sd-empty { color: var(--color-text-secondary, #6b7280); }
+.cm-sd-bulk { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 12px; }
 `;
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -218,8 +220,7 @@ function SearchDefaultsDialog({ api, userId, onClose }: DialogProps) {
     }
   };
 
-  const handleResetAll = () =>
-    setRows((rs) => rs.map((r) => (r.kind === "single" ? { ...r, mode: "none" as SingleMode } : { ...r, mode: "none" as PairMode })));
+  const handleResetAll = () => setRows((rs) => applyBulkMode(rs, "none"));
 
   return (
     <>
@@ -246,6 +247,15 @@ function SearchDefaultsDialog({ api, userId, onClose }: DialogProps) {
         }
       >
         <div data-testid="search-defaults-dialog">
+          <div className="cm-sd-bulk">
+            <span>{L.bulk}</span>
+            <Button size="sm" data-testid="search-defaults-bulk-none" onClick={() => setRows((rs) => applyBulkMode(rs, "none"))} disabled={saving}>
+              {L.modes.none}
+            </Button>
+            <Button size="sm" data-testid="search-defaults-bulk-last" onClick={() => setRows((rs) => applyBulkMode(rs, "last"))} disabled={saving}>
+              {L.modes.last}
+            </Button>
+          </div>
           <table className="cm-sd-table">
             <thead>
               <tr>

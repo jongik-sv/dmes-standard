@@ -660,3 +660,92 @@ describe("영역 키", () => {
     expect(memo).toBe("LATE");
   });
 });
+
+describe("의존 칸(dependsOn)", () => {
+  interface DepFilters {
+    md: string;
+    code: string;
+    cate: string;
+    closed: string;
+  }
+  const DEP_DEFAULT: DepFilters = { md: "", code: "", cate: "", closed: "N" };
+  let dep: DepFilters = DEP_DEFAULT;
+  let setMd: (v: string) => void = () => {};
+  let setMdAndCode: (md: string, code: string) => void = () => {};
+
+  function DepScreen(props: { area?: Partial<SearchAreaProps> }) {
+    const [f, setF] = useState<DepFilters>(DEP_DEFAULT);
+    dep = f;
+    // 화면이 기준 칸을 SearchField 밖(고르기 단추·handoff 등)에서 바꾸는 경우를 흉내 낸다.
+    setMd = (v) => setF((p) => ({ ...p, md: v }));
+    setMdAndCode = (md, code) => setF((p) => ({ ...p, md, code }));
+    const set = (k: keyof DepFilters) => (v: string) => setF((p) => ({ ...p, [k]: v }));
+    return createElement(
+      SearchArea,
+      { onSearch: () => {}, ...props.area },
+      createElement(SearchField, { label: "데이터", defaultKey: "md", value: f.md, onChange: set("md") }),
+      createElement(SearchField, { label: "키", defaultKey: "code", dependsOn: "md", value: f.code, onChange: set("code") }),
+      createElement(SearchField, {
+        label: "카테고리",
+        defaultKey: "cate",
+        dependsOn: "md",
+        type: "select",
+        value: f.cate,
+        onChange: set("cate"),
+        options: [
+          { value: "", label: "전체" },
+          { value: "C1", label: "C1" },
+        ],
+      }),
+      createElement(SearchField, {
+        label: "닫힌 항목",
+        defaultKey: "closed",
+        dependsOn: "md",
+        type: "select",
+        value: f.closed,
+        onChange: set("closed"),
+        options: [
+          { value: "N", label: "숨김" },
+          { value: "Y", label: "보기" },
+        ],
+      }),
+    );
+  }
+
+  const typeTo = async (label: string, v: string) => {
+    const input = [...document.querySelectorAll("input")].find((i) => i.getAttribute("aria-label") === label || i.closest(".search-field")?.textContent?.includes(label)) as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, v);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  };
+
+  it("기준 칸이 바뀌면 규칙 없는 의존 칸을 코드 기본값으로 비운다", async () => {
+    await mount(inPage(createElement(DepScreen)));
+    await act(async () => setMd("D1"));
+    // 사용자가 의존 칸을 고친 뒤 기준 칸이 다시 바뀐다.
+    await typeTo("키", "K9");
+    expect(dep.code).toBe("K9");
+    await act(async () => setMd("D2"));
+    expect(dep).toEqual({ md: "D2", code: "", cate: "", closed: "N" });
+  });
+
+  it("규칙이 있으면 비운 뒤 설정 값·마지막 조회값으로 다시 채우고, 선택지에 없는 값은 넣지 않는다", async () => {
+    givenRules(rules({ code: { kind: "last" }, closed: { kind: "fixed", value: "Y" }, cate: { kind: "fixed", value: "C9" } }));
+    localStorage.setItem(`dmes:search-last:v1:${USER}:${PAGE}`, JSON.stringify({ code: "LASTK" }));
+    await mount(inPage(createElement(DepScreen)));
+    expect(dep).toEqual({ md: "", code: "LASTK", cate: "", closed: "Y" });
+    await typeTo("키", "K9");
+    await act(async () => setMd("D1"));
+    expect(dep).toEqual({ md: "D1", code: "LASTK", cate: "", closed: "Y" });
+  });
+
+  it("같은 커밋에서 화면이 직접 바꾼 의존 칸은 두고, defaults=false 여도 비우기는 한다", async () => {
+    await mount(inPage(createElement(DepScreen, { area: { defaults: false } })));
+    await typeTo("키", "K1");
+    await act(async () => setMd("D1"));
+    expect(dep.code).toBe("");
+    await act(async () => setMdAndCode("D2", "HANDOFF"));
+    expect(dep).toEqual({ md: "D2", code: "HANDOFF", cate: "", closed: "N" });
+  });
+});

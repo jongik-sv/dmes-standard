@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import type { SearchDefaultRule } from "../../src/layout/search-defaults/rule";
 import {
+  applyBulkMode,
   buildSettingsRows,
   checkRow,
   currentValueRules,
@@ -190,5 +191,19 @@ describe("영역 합치기·지금 조건", () => {
       ["useTp", { kind: "fixed", value: "" }],
       ["memo", { kind: "fixed", value: "A" }],
     ]);
+  });
+});
+
+describe("일괄 옵션", () => {
+  it("모든 줄(기간 짝 포함)을 마지막 조회값·사용 안 함으로 채우고, 저장은 칸별 규칙 행이다", () => {
+    const rows = buildSettingsRows([text("item"), ...periodFields(), select("useTp")], { item: { kind: "fixed", value: "A" } }, "");
+    const last = applyBulkMode(rows, "last");
+    expect(last.flatMap(rowRules)).toEqual([
+      ["item", { kind: "last" }],
+      ["fromDt", { kind: "last" }],
+      ["fromDt~to", { kind: "last" }],
+      ["useTp", { kind: "last" }],
+    ]);
+    expect(applyBulkMode(last, "none").flatMap(rowRules).every(([, r]) => r === null)).toBe(true);
   });
 });

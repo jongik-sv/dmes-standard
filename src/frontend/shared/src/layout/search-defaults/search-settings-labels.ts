@@ -20,4 +20,6 @@ export const SEARCH_SETTINGS_LABELS = {
     custom: "사용자 지정(그대로 둠)",
   },
   columns: { field: "칸", mode: "방식", value: "값", preview: "오늘 기준" },
+  /** 설정 창 머리의 일괄 옵션 — 고정 값·상대 날짜는 칸마다 직접 고른다. */
+  bulk: "이 화면 모든 칸:",
 } as const;

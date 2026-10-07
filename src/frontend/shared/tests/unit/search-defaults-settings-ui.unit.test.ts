@@ -210,6 +210,22 @@ describe("설정 창", () => {
     expect(searches).toBe(0);
   });
 
+  it("일괄 옵션 「마지막 조회값」 은 모든 칸 줄을 채우고, 저장은 칸별 규칙 행이다", async () => {
+    await mount(inPage(createElement(Screen)));
+    await openMenuItem("search-settings-open");
+    await click(byTestId("search-defaults-bulk-last"));
+    expect(byTestId<HTMLSelectElement>("sd-mode-itemCd")!.value).toBe("last");
+    expect(byTestId<HTMLSelectElement>("sd-mode-fromDt")!.value).toBe("last");
+    await click(byTestId("search-defaults-dialog-save"));
+    await flush();
+    expect(getPageSearchDefaults(USER, PAGE)).toEqual({
+      itemCd: { kind: "last" },
+      useTp: { kind: "last" },
+      fromDt: { kind: "last" },
+      "fromDt~to": { kind: "last" },
+    });
+  });
+
   it("다시 열면 저장한 묶음이 그대로 보인다", async () => {
     given({ fromDt: { kind: "relative", base: "today", days: -6 }, "fromDt~to": { kind: "relative", base: "today" } });
     await mount(inPage(createElement(Screen)));

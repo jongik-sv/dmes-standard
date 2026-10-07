@@ -15,6 +15,9 @@
  *   (먼저 「전체」로 조회한 뒤 칸만 바뀌면 보이는 조건과 조회한 조건이 다르다).
  * - 초기화(emitSearchReset): 사용자 기본값을 다시 넣는다. 「마지막 조회값」 칸은 넣지 않는다(초기화는 조건을 비우려는 동작).
  * - 조회(emitSearch): 등록된 칸의 지금 값을 마지막 조회값으로 적는다.
+ * - 의존 칸(SearchField `dependsOn`): 기준 칸 값이 바뀐 커밋 뒤에 의존 칸을 처음 등록 때 값(코드 기본값)으로 비우고 칸 규칙으로 다시 채운다.
+ *   같은 커밋에서 화면이 직접 바꾼 의존 칸은 두고, 새 선택지에 없는 값은 넣지 않는다(보류하지 않는다). 기본값 기능이 꺼진 영역도 비우기는 한다.
+ *   화면은 선언만 하고 조건을 비우는 코드를 두지 않는다(설계 §13).
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Context, type RefObject } from "react";
 
@@ -37,11 +40,18 @@ export const SEARCH_DEFAULTS_WAIT_MS = 1500;
 /** 선택지를 서버에서 받는 칸 — 고정 값이 선택지에 나타나기를 기다리는 한도. */
 export const SEARCH_DEFAULTS_OPTIONS_WAIT_MS = 10_000;
 
-/** 넣기 방식 — skipLast: 마지막 조회값 규칙 칸은 건너뜀, ignoreTouched: 사용자가 고친 칸도 넣음, onlyIfUnchanged: 기준값에서 바뀐 칸은 건너뜀. */
+/**
+ * 넣기 방식 — skipLast: 마지막 조회값 규칙 칸은 건너뜀, ignoreTouched: 사용자가 고친 칸도 넣음, onlyIfUnchanged: 기준값에서 바뀐 칸은 건너뜀,
+ * clearToInitial: 넣을 값이 없는 칸은 처음 등록 때 값(코드 기본값)으로 비움, noAwait: 선택지에 없는 값을 보류하지 않음,
+ * rulesOff: 규칙을 쓰지 않음(기본값 기능이 꺼진 영역의 의존 칸 비우기).
+ */
 interface ApplyMode {
   skipLast: boolean;
   ignoreTouched: boolean;
   onlyIfUnchanged: boolean;
+  clearToInitial?: boolean;
+  noAwait?: boolean;
+  rulesOff?: boolean;
 }
 
 export interface SearchDefaultsFieldInfo {
@@ -53,6 +63,8 @@ export interface SearchDefaultsFieldInfo {
   options?: readonly { value: string; label: string }[];
   /** 기간 짝(label="~") — 역할과 상대 칸의 키. */
   pair?: { role: "from" | "to"; partnerKey: string | null };
+  /** 기준 칸 키(scope 접두 없음) — 그 칸 값이 바뀌면 이 칸을 비우고 기본값으로 다시 채운다. */
+  dependsOn?: string;
 }
 
 /** SearchField 가 등록하는 칸 하나. info·getValue·setValue 는 렌더마다 최신으로 바뀐다. */
@@ -141,6 +153,10 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
    * children 칸은 사용자 입력을 touched 로 알 수 없어 이 비교로 막는다.
    */
   const baselineRef = useRef(new Map<string, string>());
+  /** 처음 등록 때 값(코드 기본값) — 초기화·의존 칸 비우기가 넣을 값이 없는 칸을 이 값으로 되돌린다. */
+  const initialRef = useRef(new Map<string, string>());
+  /** 지난 커밋의 칸 값 — 기준 칸이 바뀐 커밋을 알아낸다(의존 칸). */
+  const lastSeenRef = useRef(new Map<string, string>());
   /** 선택지에 아직 없어 보류한 값(서버에서 받는 선택지) — 한도 안에 선택지가 생기고 칸이 그대로면 넣는다. */
   const awaitingRef = useRef(new Map<string, { value: string; until: number }>());
   /** 넣기가 끝난 뒤 처음 등록된 칸 — 같은 커밋의 layout effect 에서 한꺼번에 넣는다. */
@@ -173,17 +189,25 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
     (handles: Array<[string, SearchDefaultsFieldHandle]>, mode: ApplyMode) => {
       const userId = userIdRef.current;
       const { pageId: pid } = optsRef.current;
-      if (!userId || !pid) return;
-      const rules = getPageSearchDefaults(userId, pid);
-      const last = readSearchLastValues(userId, pid);
+      const useRules = !mode.rulesOff && !!userId && !!pid;
+      if (!useRules && !mode.clearToInitial) return;
+      const rules = useRules ? getPageSearchDefaults(userId, pid) : {};
+      const last = useRules ? readSearchLastValues(userId, pid) : {};
       const now = new Date();
       const targets = new Map<string, string>();
       for (const [key, h] of handles) {
         // 판정한 칸은 넣지 않기로 했어도 「처리함」 — StrictMode 다시 등록 때 한 칸씩 다시 넣으면 기간 짝 검사를 건너뛴다.
         appliedRef.current.add(key);
+        // 넣을 값이 없으면 코드 기본값으로 비운다(초기화·의존 칸).
+        const initial = mode.clearToInitial ? initialRef.current.get(key) : undefined;
+        const clear = () => {
+          if (initial !== undefined) targets.set(key, initial);
+        };
         const rule = rules[key];
-        if (!rule) continue;
-        if (mode.skipLast && rule.kind === "last") continue;
+        if (!rule || (mode.skipLast && rule.kind === "last")) {
+          clear();
+          continue;
+        }
         if (!mode.ignoreTouched && h.touched) continue;
         if (mode.onlyIfUnchanged && baselineRef.current.has(key) && h.getValue() !== baselineRef.current.get(key)) continue;
         const optionValues = h.info.options?.map((o) => o.value);
@@ -194,8 +218,9 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
           awaitingRef.current.delete(key);
           continue;
         }
+        clear();
         // 선택지가 아직 없어서 못 넣은 값은 보류한다(선택지를 서버에서 받는 칸).
-        if (optionValues) {
+        if (optionValues && !mode.noAwait) {
           const raw = resolveSearchDefault(rule, { ...ctx, optionValues: undefined });
           if (raw !== undefined) awaitingRef.current.set(key, { value: raw, until: Date.now() + SEARCH_DEFAULTS_OPTIONS_WAIT_MS });
         }
@@ -332,10 +357,36 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
     // 마운트 1회 — 함수들은 안정적이고, phase 가 pending 이 아니면 다시 돌아도 바로 끝난다.
   }, [applyAll, finish, rootRef]);
 
-  // 커밋마다: 초기화 넣기(화면이 비운 값이 커밋된 뒤), 보류한 선택지 값 넣기, 보류가 비면 미룬 autoSearch 예약.
+  // 커밋마다: 의존 칸 다시 채우기, 초기화 넣기(화면이 비운 값이 커밋된 뒤), 보류한 선택지 값 넣기, 보류가 비면 미룬 autoSearch 예약.
   useIsomorphicLayoutEffect(() => {
+    const rulesOn = optsRef.current.enabled && !offRef.current;
+    // 의존 칸 — 기준 칸 값이 지난 커밋과 다르면 의존 칸을 비우고 다시 채운다(같은 커밋에 화면이 직접 바꾼 의존 칸은 둔다).
+    const seen = lastSeenRef.current;
+    const changed = new Set<string>();
+    for (const [key, h] of handlesRef.current) {
+      const prev = seen.get(key);
+      const v = h.getValue();
+      if (prev !== undefined && prev !== v) changed.add(key);
+      seen.set(key, v);
+    }
+    for (const key of [...seen.keys()]) if (!handlesRef.current.has(key)) seen.delete(key);
+    if (changed.size > 0 && phaseRef.current === "done" && !optsRef.current.restored) {
+      const deps: Array<[string, SearchDefaultsFieldHandle]> = [];
+      for (const [key, h] of handlesRef.current) {
+        const base = h.info.dependsOn;
+        if (base && changed.has(storageKey(base)) && !changed.has(key)) {
+          h.touched = false;
+          awaitingRef.current.delete(key);
+          deps.push([key, h]);
+        }
+      }
+      if (deps.length > 0) {
+        if (!userIdRef.current) userIdRef.current = peekCurrentUser()?.id ?? "";
+        applyTo(deps, { skipLast: false, ignoreTouched: true, onlyIfUnchanged: false, clearToInitial: true, noAwait: true, rulesOff: !rulesOn });
+      }
+    }
     // 기능이 꺼졌으면(handoff 로 defaults={false}) 보류한 선택지 값도 버린다.
-    if (!optsRef.current.enabled || offRef.current) {
+    if (!rulesOn) {
       awaitingRef.current.clear();
       lateRef.current.clear();
       pendingResetRef.current = false;
@@ -344,6 +395,7 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
     }
     if (pendingResetRef.current && renderIdRef.current > resetAtRef.current) {
       pendingResetRef.current = false;
+      // 비우기는 화면 초기화(onClick)가 이미 했다 — 처음 등록 값으로 되돌리지 않는다(분리 창은 처음 값이 이어받은 값이라 화면의 초기값과 다르다).
       applyAll({ skipLast: true, ignoreTouched: true, onlyIfUnchanged: false });
     }
     if (lateRef.current.size > 0) {
@@ -444,6 +496,8 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
           return () => {};
         }
         map.set(key, handle);
+        // 분리 창이 이어받은 값으로 시작했으면 그 값은 코드 기본값이 아니므로 적지 않는다(의존 칸을 비우지 못하고 그대로 둔다).
+        if (!initialRef.current.has(key) && !optsRef.current.restored) initialRef.current.set(key, handle.getValue());
         // 넣기 전이면 지금 값을 기준값으로 적어 둔다(늦게 넣을 때 그 사이 바뀐 칸은 덮지 않는다).
         if (phaseRef.current === "pending") baselineRef.current.set(key, handle.getValue());
         // 넣기가 끝난 뒤 처음 등록된 칸(조건부 칸)은 모아 두었다가 같은 커밋의 layout effect 에서 한꺼번에 넣는다 —

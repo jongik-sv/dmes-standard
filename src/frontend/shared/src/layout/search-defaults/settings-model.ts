@@ -320,3 +320,8 @@ export async function saveAreaRules(
   if (rows.length === 0) await resetSearchDefaults(userId, pageId);
   else await saveSearchDefaults(userId, pageId, rows);
 }
+
+/** 설정 창 일괄 옵션 — 모든 줄(기간 짝 포함)을 「사용 안 함」 이나 「마지막 조회값」 으로 채운다. 저장 모양(칸별 규칙)은 그대로다. */
+export function applyBulkMode(rows: SettingsRow[], mode: "none" | "last"): SettingsRow[] {
+  return rows.map((r) => (r.kind === "single" ? { ...r, mode } : { ...r, mode }));
+}
