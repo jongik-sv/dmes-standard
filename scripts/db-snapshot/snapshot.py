@@ -51,6 +51,9 @@ KST = dt.timezone(dt.timedelta(hours=9))
 # SQLite DB 이름 -> 대상 스키마(기본) / 접두 경로 / 여러 스키마에 같이 넣을 표
 SOURCES = {
     "mdm": {"schema": "MDMAPUSER", "route": [], "copy_to": {}},
+    # 로컬 서버 전환용(--full 로 내 PC 의 .db 를 옮길 때). 데이터가 적은 모듈이라 리포 스냅샷에는 넣지 않는다.
+    "mls": {"schema": "MLSAPUSER", "route": [], "copy_to": {}},
+    "caravan-console": {"schema": "CARAVANUSER", "route": [], "copy_to": {}},
     "mcm": {
         "schema": "MCMAPUSER",
         # 업무기준(룰) 표와 동적 표는 MCAAPUSER 에 있다.
@@ -81,6 +84,10 @@ DYNAMIC_PREFIX = "TB_MCA_"
 STATIC_MCA = {"TB_MCA_RULE_MASTER", "TB_MCA_RULE_COL_LIST"}
 DYNAMIC_GRANTEE = "MCMAPUSER"
 # 적재하지 않는 표: Flyway 이력, SQLite 가 시퀀스 흉내로 쓰던 표(Oracle 은 실제 SEQUENCE 라 적재 뒤 MAX(키)+1 로 맞춘다)
+# E2E 시험이 옛 로컬 DB 에 남긴 행(E2E_USR_* 등)은 리포 스냅샷에서 지우지 않고 적재할 때 거른다(데이터 삭제는 사용자 승인 사항).
+# 규칙: 해당 스키마 행에서 어느 칸이든 값이 대문자 E2E 로 시작하면 뺀다(ora-mdm 확인: 413행, 고아 행 없음). --keep-e2e 로 끈다.
+E2E_FILTER_SCHEMAS = {"MDMAPUSER"}
+E2E_PREFIX = "E2E"
 SKIP_TABLES = {"FLYWAY_SCHEMA_HISTORY", "SEQ_MCM_MOM_TC_SEND", "SEQ_MCM_MOM_TC_ERROR"}
 NULL = "\\N"
 BATCH = 1000
@@ -252,16 +259,16 @@ def cmd_convert(args):
             cols = [r[1] for r in info]
             pk = [r[1] for r in sorted((r for r in info if r[5] > 0), key=lambda r: r[5])]
             where = ""
-            if tu in ROW_FILTER:
+            if tu in ROW_FILTER and not args.full:
                 where = " where " + ROW_FILTER[tu]
             order = ", ".join('"%s"' % c for c in pk) if pk else "rowid"
             targets = [schema] + [s for s, tbls in cfg["copy_to"].items() if tu in tbls]
-            if tu in DATA_EXCLUDE:
+            if tu in DATA_EXCLUDE and not args.full:
                 rows_iter = []
             else:
                 sel = ", ".join('"%s"' % c for c in cols)
                 rows_iter = con.execute('select %s from "%s"%s order by %s' % (sel, t, where, order))
-                nullify = [i for i, c in enumerate(cols) if ("%s.%s" % (tu, c.upper())) in NULLIFY]
+                nullify = [] if args.full else [i for i, c in enumerate(cols) if ("%s.%s" % (tu, c.upper())) in NULLIFY]
                 if nullify:
                     def mask(rows, idx=nullify):
                         for r in rows:
@@ -540,6 +547,8 @@ def import_schema(schema, pdb, args):
     for t, c in fks:
         cur.execute('alter table "%s" disable constraint "%s"' % (t, c))
     rep = []
+    drop_e2e = schema in E2E_FILTER_SCHEMAS and not args.keep_e2e
+    e2e_total = 0
     try:
         for fn in files:
             t = fn[:-4]
@@ -587,7 +596,7 @@ def import_schema(schema, pdb, args):
             for cv in convs:
                 lob_sizes.append(oracledb.DB_TYPE_CLOB if cv.kind == "clob" else
                                  oracledb.DB_TYPE_BLOB if cv.kind == "blob" else None)
-            n_in = n_skip = 0
+            n_in = n_skip = n_e2e = 0
             batch = []
             lob_table = any(s is not None for s in lob_sizes)
             size = 100 if lob_table else BATCH
@@ -599,6 +608,9 @@ def import_schema(schema, pdb, args):
                 cur.executemany(sql, batch)
                 batch.clear()
             for rown, row in enumerate(rows, 2):
+                if drop_e2e and any(v is not None and v.startswith(E2E_PREFIX) for v in row):
+                    n_e2e += 1   # 어느 칸이든 대문자 E2E 로 시작하면 E2E 시험이 남긴 행이다(자식 행의 감사 칸 포함)
+                    continue
                 vals = [convs[i](row[idx[i]] if idx[i] < len(row) else None, rown) for i in range(len(use))]
                 if pk_idx and any(vals[i] is None for i in pk_idx):
                     n_skip += 1
@@ -613,6 +625,9 @@ def import_schema(schema, pdb, args):
             bad = sum(c.fail for c in convs)
             eps = sum(c.epoch for c in convs)
             line = "  %-34s CSV %6d 건너뜀 %d 적재 %s Oracle %6d" % (t, n_in + n_skip, n_skip, mode, n_out)
+            if n_e2e:
+                line += " (E2E 행 %d 거름)" % n_e2e
+                e2e_total += n_e2e
             if eps:
                 line += " (epoch→KST %d)" % eps
             if bad:
@@ -660,7 +675,8 @@ def import_schema(schema, pdb, args):
                 ok = False
         con.commit()
         con.close()
-    out("import %-12s 표 %d개 행 %d / %.1f초" % (schema, len(rep), sum(r[3] for r in rep), time.time() - t0))
+    out("import %-12s 표 %d개 행 %d / %.1f초%s" % (schema, len(rep), sum(r[3] for r in rep), time.time() - t0,
+                                                 (" — E2E 잔여 행 %d 개를 거르고 적재(--keep-e2e 로 그대로 적재)" % e2e_total) if drop_e2e else ""))
     return ok
 
 
@@ -685,6 +701,8 @@ def main():
     g.add_argument("--from-db", help="SQLite 파일(읽기 전용 사본으로 연다)")
     g.add_argument("--from-sql", help="옛 SQL 스냅샷 폴더(db-snapshot/mdm 등)")
     c.add_argument("--name", required=True, choices=sorted(SOURCES), help="원본 DB 이름")
+    c.add_argument("--full", action="store_true",
+                   help="공유용 걸러내기(제외 표·admin 행만·임베딩 NULL)를 끄고 모든 행을 옮긴다. 내 PC 로컬 서버를 Oracle 로 바꿀 때 DMES_SNAPSHOT_DIR 을 리포 밖으로 두고 쓴다")
     c.set_defaults(fn=cmd_convert)
     e = sub.add_parser("export", help="Oracle -> CSV")
     e.add_argument("--pdb", required=True)
@@ -693,6 +711,8 @@ def main():
     i = sub.add_parser("import", help="CSV -> Oracle(데이터만)")
     i.add_argument("--pdb", required=True)
     i.add_argument("--replace", action="store_true", help="적재 전에 그 표의 행을 모두 지운다(초기 행도 CSV 로 덮는다)")
+    i.add_argument("--keep-e2e", action="store_true",
+                   help="MDMAPUSER 의 E2E 잔여 행(어느 칸이든 대문자 E2E 로 시작)을 거르지 않고 적재한다(내 PC 의 로컬 데이터를 그대로 옮길 때)")
     i.add_argument("schemas", nargs="*")
     i.set_defaults(fn=cmd_import)
     args = ap.parse_args()

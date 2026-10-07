@@ -65,6 +65,20 @@ python3 scripts/db-snapshot/snapshot.py convert --from-sql db-snapshot/mcm --nam
 - 위젯 정의 `TB_MCM_WIDGET_DEF` 6행의 `CONFIG_JSON.sql` 은 Oracle 문법으로 고쳐 CSV 에 직접 넣었다. `convert` 를 다시 돌리면 이 6행이 SQLite 문법으로 되돌아가므로, 돌린 뒤 `git checkout -- db-snapshot/MCMAPUSER/TB_MCM_WIDGET_DEF.csv` 로 복원한다.
 - 옛 표별 SQL 스냅샷 폴더 `db-snapshot/mdm`·`db-snapshot/mcm`(`_schema.sql` 이 있다)은 b8 에서 `archive/` 로 옮긴다.
 
+### 내 PC 의 .db 를 거르지 않고 옮기기(`--full`)
+
+리포 스냅샷은 공유용이라 위 「데이터를 뺀 표」·admin 행 필터·임베딩 NULL 이 걸려 있다. 내 PC 의 로컬 서버를 Oracle 로 바꿀 때처럼 **내 데이터를 그대로** 옮기려면 `convert --full`(걸러내기 끔)을 쓰고, 리포가 더럽혀지지 않게 `DMES_SNAPSHOT_DIR` 을 리포 밖으로 둔다. 지원 이름: `mcm`·`mdm`·`mls`·`caravan-console`. 절차는 `docs/oracle-1007/local-cutover.md`.
+
+```bash
+export DMES_SNAPSHOT_DIR=$HOME/dmes-main-snapshot
+python3 scripts/db-snapshot/snapshot.py convert --from-db src/backend/data/mcm.db --name mcm --full
+python3 scripts/db-snapshot/snapshot.py import --pdb L_MAIN --replace --keep-e2e
+```
+
+### E2E 잔여 행은 적재할 때 거른다
+
+옛 로컬 DB 에는 E2E 시험이 남긴 행(`E2E_USR_*` 등)이 있어 `db-snapshot/MDMAPUSER` 에도 413행(19개 표)이 들어 있다. 리포의 CSV 는 지우지 않고(데이터 삭제는 사용자 승인 사항), `import` 가 MDMAPUSER 에서 **어느 칸이든 값이 대문자 `E2E` 로 시작하는 행**을 빼고 적재한다(ora-mdm 확인: 자식 표의 감사 칸 `C_USR_ID` 등에만 E2E 가 든 행도 E2E 레이아웃의 자식이라 같이 빼야 고아가 안 남는다). 거른 행 수는 표마다 `(E2E 행 N 거름)` 으로, 스키마 끝줄에 합계로 나온다. 그대로 넣으려면 `--keep-e2e`.
+
 ## 데이터를 뺀 표 (스키마만 남김)
 
 | 표 | 이유 |
