@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
  * <ul>
  *   <li>INSERT 는 single-row {@code VALUES (...)} 만 처리. multi-row batch insert 는 보수적으로 skip.</li>
  *   <li>괄호는 depth counting 으로 분리 — VALUES 절 안 함수 호출 안전.</li>
- *   <li>보강 SQL 은 ANSI 형({@code CURRENT_TIMESTAMP}·{@code COALESCE})만 쓴다 — Oracle·H2·SQLite 공통. Oracle 의
+ *   <li>보강 SQL 은 ANSI 형({@code CURRENT_TIMESTAMP}·{@code COALESCE})만 쓴다. Oracle 의
  *       {@code CURRENT_TIMESTAMP} 는 세션 시간대(JDBC 가 JVM 시간대 Asia/Seoul 로 맞춘다) 기준이라 KST 로 들어간다.</li>
  *   <li>UPDATE 는 마지막 등장 {@code WHERE} 기준 분리 — SET 절 안 {@code CASE WHEN ... THEN ... END} 안전.</li>
  *   <li>SELECT / DELETE 는 통과 (audit 컬럼 변경 ✗).</li>
@@ -44,120 +44,9 @@ public class McmAuditStatementInspector implements StatementInspector {
     private static final String AUDIT_COL_NAMES =
             "C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
 
-    // SQLite(개발자 Mac local 단독) 여부 — true 면 inspect 결과의 MSSQL 전용 토큰을 SQLite 로 치환.
-    // JpaConfig 가 SQLite primary EMF 빌드 시 setSqlite(true) 1회 주입. 기본 false(MSSQL/dev/prod 무영향).
-    private static volatile boolean sqlite = false;
-
-    /**
-     * SQLite 환경에서만 1회 주입 (JpaConfig). 그 밖(Oracle 등)은 호출 안 됨 → false 유지 → toSqlite 미적용.
-     *
-     * @deprecated Oracle 단일화(oracle-1007). mcm 모듈 호출을 ora-mcm-app 이 없앤 뒤 ora-base b8 에서 지운다.
-     *             동작은 그대로 둔다 — {@code setSqlite(true)} 를 명시했을 때만 SQLite 치환이 돈다(mcm 모듈 SQLite 시험이 기댄다).
-     */
-    @Deprecated
-    public static void setSqlite(boolean value) {
-        sqlite = value;
-    }
-
-    /**
-     * SQLite 모드 여부 — commMenuMng/commObjMng/commRoleMng 등 csa 화면의 native 어댑터
-     * (SecMenuNativeRepository / SecMenuFldLovRepository / SecRoleMappingNativeRepository)가 MSSQL 전용
-     * 함수(CONCAT / RIGHT / subquery TOP)를 SQLite 호환 구문({@code ||} / SUBSTR / LIMIT)으로 분기할 때 참조한다.
-     * schema 접두({@code MCMAPUSER.}) 제거는 본 inspector 의 {@link #toSqlite}가 담당하므로 어댑터 분기는 함수 토큰만 다룬다.
-     * 로그인 SQLITE_BUSY 재시도({@code SqliteBusyRetry}, mcm/lib)도 이 값으로 로컬 SQLite 에서만 다시 시도한다.
-     *
-     * <p>oracle-1007 c2 — mcm-core 자기 native 어댑터의 SQLite 갈래는 Oracle·H2 공통형 하나로 합쳐 더는 이 값을 보지 않는다.
-     *
-     * @deprecated Oracle 단일화(oracle-1007). mcm 모듈 호출을 ora-mcm-app 이 없앤 뒤 ora-base b8 에서 지운다.
-     */
-    @Deprecated
-    public static boolean isSqlite() {
-        return sqlite;
-    }
-
     @Override
     public String inspect(String sql) {
-        String result = inspectInner(sql);
-        return (sqlite && result != null) ? toSqlite(result) : result;
-    }
-
-    /**
-     * SQLite 전용 토큰 치환 — 모든 JPA/native SQL 공통. mcm-core native @Query 의 {@code MCMAPUSER.} schema
-     * 접두(66건) + audit 보강이 넣는 {@code SYSDATETIME()}/{@code ISNULL} 포함. MSSQL 은 setSqlite 미호출이라 미실행.
-     * <ul>
-     *   <li>{@code MCMAPUSER.} schema 접두 제거 — SQLite 는 schema 미지원(entity 도 schema 없이 단일 테이블 생성)</li>
-     *   <li>{@code SYSDATETIME()} → {@code CURRENT_TIMESTAMP}</li>
-     *   <li>{@code ISNULL(} → {@code IFNULL(} — audit UPDATE 의 VER 증가식</li>
-     *   <li>{@code N'...'} 유니코드 리터럴 prefix 제거 — {@link #stripUnicodeLiteralPrefix}</li>
-     * </ul>
-     */
-    private static String toSqlite(String sql) {
-        return toSqliteCompatible(sql);
-    }
-
-    /**
-     * {@link #toSqlite} 와 같은 SQLite 치환을 정적 플래그와 무관하게 적용한다 — MyBatis SQL 은 Hibernate inspector 를
-     * 거치지 않으므로 {@link McmSqliteMybatisInterceptor} 가 연결이 SQLite 일 때 이 메서드를 부른다(audit 보강은 하지 않는다).
-     *
-     * @deprecated Oracle 단일화(oracle-1007). mcm 모듈 호출을 ora-mcm-app 이 없앤 뒤 ora-base b8 에서 지운다.
-     */
-    @Deprecated
-    public static String toSqliteCompatible(String sql) {
-        return stripUnicodeLiteralPrefix(
-                sql.replace("MCMAPUSER.", "")
-                   .replace("SYSDATETIME()", "CURRENT_TIMESTAMP")
-                   .replaceAll("\\bISNULL\\(", "IFNULL("));
-    }
-
-    /**
-     * MSSQL 유니코드 리터럴 접두 {@code N'...'} 만 골라 제거한다 (문자열 리터럴 내부는 건드리지 않는다).
-     *
-     * <p><b>왜 정규식이 아니라 스캐너인가</b> (2026-08-07) — 이전 구현
-     * {@code replaceAll("(?<![A-Za-z0-9_])N'", "'")} 은 <b>값 {@code 'N'} 자체를 {@code ''} 로 망가뜨렸다.</b>
-     * {@code 'N'} 의 닫는 따옴표 앞 {@code N} 은 여는 따옴표(식별자 문자 아님) 뒤에 오므로 lookbehind 를 통과해
-     * {@code '} + {@code '} = 빈 문자열이 된다. 그 결과
-     * {@code UPDATE ... SET USE_TP = 'N'} 이 {@code SET USE_TP = ''} 로 실행돼
-     * SEC_MENU 에 빈 문자열 14 행이 적재됐고, 이것이 Hibernate 의 {@code Character} 추론과 맞물려
-     * commMenuMng 조회·저장 전체를 죽이는 {@code CoercionException} 으로 이어졌다.
-     * {@code WHERE 컬럼 = 'N'} 같은 비교도 조용히 빈 문자열 비교로 바뀌므로 오염 범위가 넓다.
-     *
-     * <p>따라서 문자열 리터럴 안/밖을 추적하며, <b>리터럴 밖에서 여는 따옴표 바로 앞에 붙은</b>
-     * {@code N} 만 제거한다. {@code ''} 이스케이프도 리터럴 내부로 올바르게 처리한다.
-     *
-     * @deprecated Oracle 단일화(oracle-1007). mcm 모듈 호출을 ora-mcm-app 이 없앤 뒤 ora-base b8 에서 지운다.
-     */
-    @Deprecated
-    public static String stripUnicodeLiteralPrefix(String sql) {
-        StringBuilder out = new StringBuilder(sql.length());
-        boolean inStr = false;
-        for (int i = 0; i < sql.length(); i++) {
-            char c = sql.charAt(i);
-            if (inStr) {
-                out.append(c);
-                if (c == '\'') {
-                    if (i + 1 < sql.length() && sql.charAt(i + 1) == '\'') {
-                        out.append('\'');   // '' 이스케이프 — 리터럴 계속
-                        i++;
-                    } else {
-                        inStr = false;
-                    }
-                }
-                continue;
-            }
-            // 리터럴 밖: 여는 따옴표 직전의 N 이면서 앞이 식별자 문자가 아닐 때만 접두로 본다
-            // (컬럼명 끝의 N — 예: MENU_VIEW_YN — 은 앞 글자가 식별자 문자라 걸리지 않는다).
-            if (c == 'N' && i + 1 < sql.length() && sql.charAt(i + 1) == '\''
-                    && (i == 0 || !isWordCharStatic(sql.charAt(i - 1)))) {
-                continue;   // N 만 버리고, 다음 루프에서 여는 따옴표를 처리
-            }
-            out.append(c);
-            if (c == '\'') inStr = true;
-        }
-        return out.toString();
-    }
-
-    private static boolean isWordCharStatic(char c) {
-        return Character.isLetterOrDigit(c) || c == '_';
+        return inspectInner(sql);
     }
 
     private String inspectInner(String sql) {
