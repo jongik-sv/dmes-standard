@@ -154,7 +154,7 @@ class MasterRuleDataServiceTest {
     // ──────────────────────────────── Oracle 형 처리 (oracle-1007 c4) ────────────────────────────────
 
     @Test
-    @DisplayName("search — DATE 칸 >= 는 TO_DATE(14자 정규화), DATE LIKE 는 TO_CHAR, 실제 CLOB 칸 = 는 DBMS_LOB 앞부분 비교")
+    @DisplayName("search — DATE 칸 >= 는 TO_DATE(14자 정규화), DATE LIKE 숫자 앞 일치는 반열린 범위, 실제 CLOB 칸 = 는 DBMS_LOB 앞부분 비교")
     void search_oracle형처리() {
         mockColDefs();
         mockSearchForReload();

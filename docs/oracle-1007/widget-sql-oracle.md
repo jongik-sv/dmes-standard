@@ -14,7 +14,7 @@
 | `DATE('now', 'localtime', '-6 day')` | `TRUNC(SYSDATE) - 6` |
 | `SUBSTR(STARTED_AT, 1, 16)`(일시 문자열 자르기) | `TO_CHAR(STARTED_AT, 'YYYY-MM-DD HH24:MI')` |
 | `SUBSTR(STARTED_AT, 6, 5)` / `GROUP BY SUBSTR(STARTED_AT, 1, 10)` | `TO_CHAR(TRUNC(STARTED_AT), 'MM-DD')` / `GROUP BY TRUNC(STARTED_AT)` |
-| `REPLACE(SUBSTR(STARTED_AT, 1, 10), '-', '') >= :fromDt` | `TO_CHAR(STARTED_AT, 'YYYYMMDD') >= :fromDt` |
+| `REPLACE(SUBSTR(STARTED_AT, 1, 10), '-', '') >= :fromDt` | `STARTED_AT >= TO_DATE(:fromDt, 'YYYYMMDD')`(칼럼 쪽에 TO_CHAR 를 씌우면 인덱스를 못 탄다 — sargable-1008) |
 | `LIMIT n` | `FETCH FIRST n ROWS ONLY` |
 | `GROUP BY 1`(위치 번호) | 식을 그대로 다시 씀(Oracle 은 GROUP BY 위치 번호를 받지 않는다. ORDER BY 위치 번호는 된다) |
 | `/ 60000.0` | `/ 60000`(Oracle NUMBER 나눗셈은 정수 버림이 없다) |

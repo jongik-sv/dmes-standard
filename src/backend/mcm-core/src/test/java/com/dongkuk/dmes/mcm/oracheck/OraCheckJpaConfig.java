@@ -31,7 +31,7 @@ import javax.sql.DataSource;
  * 네 스키마의 행이 지워진다 — 이 구성을 같이 쓰는 {@code *OraTest} 는 컨텍스트가 캐시되어 한 번만 지워지므로
  * 각 시험 클래스가 자기가 넣은 행을 스스로 지운다.
  *
- * <p>저장소는 쓰는 것(MomTcErrorRepository·MasterRuleColListRepository)만 올리고, {@code @PersistenceContext} 를 쓰는
+ * <p>저장소는 쓰는 것(MomTcErrorRepository·MasterRuleColListRepository·RuleMasterRepository·SecUserRepository)만 올리고, {@code @PersistenceContext} 를 쓰는
  * 서비스·네이티브 저장소는 빈으로 직접 만든다. 쓰기 경로(save·동기화)는 운영의 OASIS 가 프로세스 하나를 트랜잭션 하나로
  * 감싸는 것과 같게 {@link TransactionTemplate} 으로 감싸 부른다.
  */

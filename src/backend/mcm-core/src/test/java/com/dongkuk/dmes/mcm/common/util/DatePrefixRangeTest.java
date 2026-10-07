@@ -38,6 +38,8 @@ class DatePrefixRangeTest {
         assertThat(DatePrefixRange.of("202613%")).isEmpty();        // 13월
         assertThat(DatePrefixRange.of("20260231%")).isEmpty();      // 2월 31일
         assertThat(DatePrefixRange.of("2026100325%")).isEmpty();    // 25시
+        assertThat(DatePrefixRange.of("2026100324%")).isEmpty();    // 24시 — 파서가 다음 날 0시로 보정하므로 되돌림 확인이 거른다
+        assertThat(DatePrefixRange.of("2026100312%")).isPresent();
         assertThat(DatePrefixRange.of("0000%")).isEmpty();          // Oracle 은 0000 년을 받지 않는다
         assertThat(DatePrefixRange.of("9999%")).isEmpty();          // 다음 해가 10000 년
         assertThat(DatePrefixRange.of("2026%%")).isEmpty();

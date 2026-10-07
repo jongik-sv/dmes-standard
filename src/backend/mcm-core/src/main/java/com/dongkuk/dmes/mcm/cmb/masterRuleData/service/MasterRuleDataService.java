@@ -62,7 +62,8 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNull;
  * <ul>
  *   <li>DATE 칸(COL_TYPE 'DATE' — 사전 뷰가 DATE·TIMESTAMP 를 묶은 값)의 글자 값은 {@link #dateText} 로
  *       {@code yyyyMMddHHmmss} 14자로 맞춘 뒤 {@code TO_DATE(:v, 'YYYYMMDDHH24MISS')} 로 감싼다 — 글자를 그대로 바인드하면
- *       세션 NLS_DATE_FORMAT 으로 바뀌어 ORA-01861 이 난다. 조건 LIKE 는 {@code TO_CHAR(col, 'YYYYMMDDHH24MISS') LIKE :v}.</li>
+ *       세션 NLS_DATE_FORMAT 으로 바뀌어 ORA-01861 이 난다. 조건 LIKE 는 숫자 앞 일치(연·월·일·시·분·초 단위, 예 {@code 202610%})면 {@link DatePrefixRange} 의 반열린 범위
+ *       {@code col >= TO_DATE(:vN) AND col < TO_DATE(:vNe)} 로, 그 밖의 패턴은 {@code TO_CHAR(col, 'YYYYMMDDHH24MISS') LIKE :v} 로 건다.</li>
  *   <li>CLOB·NCLOB 칸은 COL_TYPE 이 'VARCHAR2' 로 묶여 구분되지 않으므로 {@code =}·{@code <=}·{@code >=} 조건이 있을 때만
  *       사전(ALL_TAB_COLUMNS)에서 실제 형을 읽어 LOB 비교식으로 바꾼다(ORA-22848 회피). LIKE 는 LOB 에도 되므로 그대로.</li>
  *   <li>응답 행의 Clob·NClob 은 글 전체를, CHAR(1) 의 Character 는 String 으로 바꿔 싣는다.</li>

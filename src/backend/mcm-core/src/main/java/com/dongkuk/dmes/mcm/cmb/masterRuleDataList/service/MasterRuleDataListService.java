@@ -52,7 +52,7 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNull;
  * <p>가이드 §6-B-1: {@code @Transactional} 미사용 — OASIS process wrap (전 액션 읽기 전용).
  *
  * <p><b>Oracle 형 처리 (oracle-1007 c4 — 형제 masterRuleData 와 같은 규칙)</b>: DATE 칸 조건은
- * {@code col op TO_DATE(:v, 'YYYYMMDDHH24MISS')}(값은 14자로 정규화, LIKE 는 {@code TO_CHAR(col, …) LIKE :v}),
+ * {@code col op TO_DATE(:v, 'YYYYMMDDHH24MISS')}(값은 14자로 정규화, LIKE 는 숫자 앞 일치면 {@link DatePrefixRange} 의 반열린 범위, 그 밖의 패턴은 {@code TO_CHAR(col, …) LIKE :v}),
  * CLOB·NCLOB 칸의 {@code =}·{@code <=}·{@code >=} 는 사전에서 실제 형을 읽어 앞 1000 자 글자 비교로 바꾼다(ORA-22848 회피).
  * 응답 행의 Clob·NClob 은 글 전체 String, CHAR(1) 의 Character 는 String 으로 싣는다.
  */

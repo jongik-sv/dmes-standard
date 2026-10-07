@@ -52,7 +52,8 @@ public final class DatePrefixRange {
                 default -> from.plusSeconds(1);
             };
             if (to.getYear() > 9999) return Optional.empty();
-            // 파싱은 2월 31일 같은 날을 말일로 보정하지 않고 거부한다(STRICT 가 아니어도 DateTimeParseException).
+            // 기본(SMART) 해석은 2월 31일을 2월 28일로, 24시를 다음 날 0시로 고쳐 받아들인다. 되돌려 쓴 값이 입력과 같은지
+            // 확인해 보정된 날짜를 걸러낸다(없는 날짜는 현행 LIKE 가 0건이므로 현행 경로로 돌려보낸다). 이 확인을 지우지 않는다.
             if (!from.format(FMT).equals(full)) return Optional.empty();
             return Optional.of(new Range(from.format(FMT), to.format(FMT)));
         } catch (DateTimeException e) {
