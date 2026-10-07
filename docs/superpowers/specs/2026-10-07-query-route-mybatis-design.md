@@ -175,6 +175,21 @@ MES·MDM BPMN 65개, action 270개다. 그중 읽기 성격 action(search·view�
 
 읽는 법(조심스럽게): 절대값은 회차마다 크게 흔들리지만(10,000행 중앙값 53→96ms), **세 회차 모두 방향은 같다.** 100행에서는 라우터가 1.3~2.4ms 빠르다(약 40%). OASIS 쪽의 BPMN 실행·JPA 트랜잭션 열고 닫기라는 고정 비용이 없기 때문으로 본다. 10,000행에서는 라우터가 4~8ms 느리다(약 6~9%). 행을 Map 으로 만드는 비용(MyBatis 자동 매핑·`callSettersOnNulls`)이 JPA native `Object[]` → `LinkedHashMap` 수동 매핑보다 큰 것으로 추정한다(프로파일로 확인하지 않음). 화면 체감 차이는 둘 다 작다. 한계: SQLite 파일 DB, HTTP·WAS·BFF 없음, 운영 인터셉터(`SqlLoggingInterceptor` INFO 로그·`MasterCodeMybatisInterceptor`)·Hibernate show_sql 없음. 운영 Oracle·PostgreSQL 에서는 네트워크 왕복이 커서 고정 비용 차이의 비중이 더 작아질 수 있다.
 
+### 10-2. 리뷰(opus/high 1회) 반영과 남은 항목
+
+반영:
+- 하네스 연결에 `PRAGMA case_sensitive_like = ON` — SQLite LIKE 기본(ASCII 대소문자 무시) 때문에 `UPPER` 가 빠져도 통과하던 것을 운영처럼 구분하게 했다.
+- `QueryMapperLintTest` — `persistence/query/**`·`persistence/lov/**` 매퍼의 select 열마다 큰따옴표 별칭, `SELECT *`·`${}`·방언 전용 함수 금지(§5 D5(a) 첫 구현). SQLite 동등성 시험으로는 잡히지 않는 D2 를 막는다.
+- `McmMybatisConfigWiringTest` — 운영 조립 경로(cactus 자동 설정 + `McmMybatisConfig`)에서 sqlSessionFactoryBiz 에 SQLite 인터셉터가 한 번 붙고, 기본 매퍼 위치 전체(DmomMapper 포함)를 읽어도 namespace 가 부딪히지 않고, 매퍼가 SQLite 에서 도는지 본다.
+- 매퍼 조건을 `'CODE_VAL'.equals(pDiv)`·`pCodeId.toString().length() > 0` 로 — OGNL `==` 의 숫자 변환(숫자 0 이 `''` 와 같아짐, 숫자 pDiv 로 500)을 피한다.
+
+남은 항목(후속, 이번 범위 밖):
+- 머지 순서: 이 매퍼는 route-guard(스위치 기본 off·SELECT 검사) 뒤에 dev 에 들어가야 한다. 그 전에는 로그인 사용자가 보호 없는 `/query/masterCodeSelPop.search` 로 뷰 전체를 읽을 수 있다(읽기 전용).
+- `ORDER BY CODE_VAL` 하나라 값이 같은 행끼리의 순서는 서비스·매퍼 모두 운영 DB 에서 보장되지 않는다. 2차 키를 넣으려면 서비스(기존 화면 동작)도 같이 바꿔야 해서 기록만 한다.
+- `McmSqliteMybatisInterceptor` 는 운영에서도 prepare 마다 `getMetaData().getURL()` 을 부른다(왕복 없음). cactus 공통화할 때 팩토리 생성 시 한 번 판정해 SQLite 일 때만 붙이는 방식으로 바꾼다.
+- `toSqliteCompatible` 의 `MCMAPUSER.` 제거는 문자열 리터럴 안까지 바꾼다(기존 JPA 검사기와 같은 동작, SQLite 에서만). 리터럴 밖만 고치는 스캐너로 바꾸는 것은 검사기 소유 쪽 후속이다.
+- `InboundAutoConfiguration` 이 `CactusMultiMybatisAutoConfiguration` 뒤에 처리된다는 순서 지정이 없어 `/query` 등록이 이름 순서에 기댄다(추정) — route-guard 레인에 전달.
+
 ## 11. 결정 필요 항목 (조정자·사용자)
 
 | # | 질문 | 추천 |

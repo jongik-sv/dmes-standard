@@ -80,6 +80,8 @@ final class QueryRouteHarness implements AutoCloseable {
         dataSource.setJdbcUrl("jdbc:sqlite:" + db);
         dataSource.setPoolName("query-route-harness");
         dataSource.setMaximumPoolSize(2);
+        // SQLite LIKE 는 기본이 ASCII 대소문자 무시라 UPPER 가 빠져도 시험이 통과한다. 운영(Oracle·PostgreSQL)처럼 구분하게 한다.
+        dataSource.setConnectionInitSql("PRAGMA case_sensitive_like = ON");
 
         ctx = new AnnotationConfigApplicationContext();
         ctx.registerBean("dataSource", DataSource.class, () -> dataSource);
