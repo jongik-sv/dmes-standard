@@ -1,6 +1,6 @@
 -- IFUSER 샘플 인터페이스 표 (초안, 2026-10-07 oracle-1007 ora-platform p1).
 -- caravan-hub 는 IF_* 표를 만들지 않는다. 운영자·배포가 정의하고, hub 는 TB_CARAVAN_HUB_CONFIG 의
--- DB_SCHEMA·DB_TABLE_NAME 으로 찾아 `${DB_SCHEMA}.${DB_TABLE_NAME}` 로 읽고 쓴다(InterfaceMapper.xml).
+-- DB_SCHEMA·DB_TABLE_NAME 으로 찾아 스키마.표 이름으로 이어 읽고 쓴다(InterfaceMapper.xml 의 TABLE_NAME). 이 파일에 달러 중괄호 표기를 쓰지 않는다: Flyway 가 자리표시자로 해석해 마이그레이션이 실패한다.
 -- 이 파일은 개발·시험용 고정 예시(docs/test 와 hub 단위 시험이 쓰는 IFUSER.IF_MMPPMMCMTT01)이고 운영에는 적용하지 않는다.
 -- 컬럼은 InterfaceMapper.xml 이 쓰는 것만 둔다: IF_SEQ(자동 채번), IF_FLAG(N/Y/E), IF_DATE·IF_TIME(처리 일시), KEY_DATA1~3, audit 9컬럼.
 -- ⚠ 읽는 쪽(DbInboundHandler)은 `U_AT = #{U_AT}` 를 키로 갱신하므로 U_AT 는 밀리초까지 같은 값이 와야 한다 → TIMESTAMP(6).
