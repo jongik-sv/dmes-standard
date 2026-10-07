@@ -12,6 +12,7 @@ import com.dongkuk.dmes.mdm.common.segment.DataSegmentRowStore;
 import com.dongkuk.dmes.mdm.common.segment.ItemSegmentRow;
 import com.dongkuk.dmes.mdm.common.segment.LockedMaruData;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dmd.dataEdit.dto.CategorySummaryRow;
 import com.dongkuk.dmes.mdm.dmd.dataEdit.dto.DataEditDeprecateRequest;
@@ -94,9 +95,15 @@ public class DataEditService {
             if (name == null || name.length() > NAME_MAX) {
                 throw invalid("이름은 1~" + NAME_MAX + "자여야 합니다");
             }
+            if (MdmTextLimits.overBytes(trimToNull(request.getDescription()))) {
+                throw invalid("설명은 4000바이트(한글 약 1,333자)를 넘을 수 없습니다");
+            }
             String codePattern = trimToNull(request.getCodePattern());
             if (codePattern == null) {
                 throw invalid("키 패턴을 입력하세요");
+            }
+            if (MdmTextLimits.overBytes(codePattern)) {
+                throw invalid("키 패턴은 4000바이트(한글 약 1,333자)를 넘을 수 없습니다");
             }
             try {
                 Pattern.compile(codePattern);

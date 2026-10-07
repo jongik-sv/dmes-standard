@@ -49,6 +49,11 @@ public class UnitMngService {
     private static final Pattern CODE_20 = Pattern.compile("^[A-Za-z0-9_]{1,20}$");
     private static final Pattern DIMENSION_50 = Pattern.compile("^[A-Za-z0-9_]{1,50}$");
 
+    /** TB_MDM_UNIT.FACTOR 는 NUMBER(18,9) — 이 값 이상이면 9자리로 반올림할 때 정수부가 10자리가 된다(ORA-01438). */
+    private static final BigDecimal FACTOR_UPPER_LIMIT = new BigDecimal("999999999.9999999995");
+    /** NUMBER(18,9) 에 저장하면 0 으로 반올림되는 경계 — 이보다 작으면 0 이 된다. */
+    private static final BigDecimal FACTOR_LOWER_LIMIT = new BigDecimal("0.0000000005");
+
     private final MdmUnitRepository unitRepository;
     private final MdmDomainRepository domainRepository;
     private final ObjectProvider<MdmUnitReferenceSpi> unitReferences;
@@ -256,6 +261,14 @@ public class UnitMngService {
         }
         if (factor.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessException(ErrorCode.INVALID_VALUE, "환산 계수는 0보다 큰 숫자여야 합니다."); // V-004
+        }
+        // FACTOR 는 NUMBER(18,9). compareTo 만 쓰므로 1E2147483647 같은 극단 지수에서도 큰 수 연산이 일어나지 않는다.
+        if (factor.compareTo(FACTOR_UPPER_LIMIT) >= 0) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE, "환산 계수의 정수부는 9자리를 넘을 수 없습니다.");
+        }
+        if (factor.compareTo(FACTOR_LOWER_LIMIT) < 0) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE,
+                    "환산 계수가 너무 작습니다. NUMBER(18,9) 에 저장하면 0 이 되는 값입니다.");
         }
         return factor;
     }

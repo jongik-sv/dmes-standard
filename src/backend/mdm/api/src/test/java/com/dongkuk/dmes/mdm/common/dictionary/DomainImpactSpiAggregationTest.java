@@ -2,34 +2,28 @@ package com.dongkuk.dmes.mdm.common.dictionary;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainImpact;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainImpactLookup;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainReference;
 import com.dongkuk.dmes.mdm.dma.domainMng.DomainMngTestConfig;
 import com.dongkuk.dmes.mdm.dma.domainMng.DomainMngTestConfig.RecordingSpi;
 import com.dongkuk.dmes.mdm.dma.domainMng.service.DomainMngService;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /** design.md §4.2 대조군 — 스텁 SPI 두 개(03 LAYOUT_ITEM·06 RULE_VAR)를 켜면 영향도에 합쳐지고 SPI 는 자기+하위 id·물리명을 받는다. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(DomainMngTestConfig.ReferenceSpis.class)
-class DomainImpactSpiAggregationTest {
-
-    @TempDir
-    static Path tempDir;
+class DomainImpactSpiAggregationTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     MdmDomainImpactLookup lookup;
@@ -39,12 +33,6 @@ class DomainImpactSpiAggregationTest {
     JdbcTemplate jdbc;
     @Autowired
     List<RecordingSpi> spis;
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        Path db = tempDir.resolve("domain-impact-spi.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + db);
-    }
 
     @Test
     @SuppressWarnings("unchecked")

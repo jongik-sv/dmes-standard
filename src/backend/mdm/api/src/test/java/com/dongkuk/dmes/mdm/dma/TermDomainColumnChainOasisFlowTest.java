@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,19 +14,15 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Path;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-09-01 design.md §0.2·§3(B3) — 용어 → 도메인(상속·표준식) → 컬럼(자동 생성·매핑)이 한 흐름으로 등록·검증되는지
@@ -39,13 +36,10 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = "cactus.security.client-key=" + TermDomainColumnChainOasisFlowTest.CLIENT_KEY)
 @ActiveProfiles("local")
-class TermDomainColumnChainOasisFlowTest {
+class TermDomainColumnChainOasisFlowTest extends AbstractMdmSharedDbTest {
 
     static final String CLIENT_KEY = "mdm-dma-chain-test-client-key";
     private static final String STD_ADMIN_ROLE = "MDM_STD_ADMIN";
-
-    @TempDir
-    static Path tempDir;
 
     @LocalServerPort
     int port;
@@ -57,18 +51,11 @@ class TermDomainColumnChainOasisFlowTest {
     private final ObjectMapper json = new ObjectMapper();
     private JdbcTemplate jdbc;
 
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-dma-chain-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
-
     @BeforeEach
     void seed() {
         jdbc = new JdbcTemplate(dataSource);
         // QTY/NUMBER 도메인이 unitCode 를 요구한다(DomainMngOasisFlowTest 와 같은 시드).
-        jdbc.update("INSERT OR IGNORE INTO TB_MDM_UNIT (UNIT_CODE, DIMENSION, BASE_UNIT, FACTOR, CHG_SEQ) "
-                + "VALUES ('mm', 'LENGTH', 'mm', 1, 0)");
+        DmaTestSupport.unitIfAbsent(jdbc, "mm", "LENGTH", "mm");
     }
 
     @Test

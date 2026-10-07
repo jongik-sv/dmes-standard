@@ -61,7 +61,7 @@ class RuleSetCalledFlowsSqliteTest extends AbstractMdmSharedDbTest {
         DmeTestSupport.ruleSetCalls(jdbc, "RS_CHILD", "[\"RS_GRAND\"]");
         DmeTestSupport.ruleSet(jdbc, "RS_GRAND", "손주", "[\"QLTY_GRD_JDG\"]", "INUSE", 0);
         DmeTestSupport.ruleSet(jdbc, "RS_LATER", "나중", "[\"QLTY_GRD_JDG\"]", "INUSE", 0);
-        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_FROM = '2026-09-01 00:00:00' WHERE MARU_RULE_SET_ID = 'RS_LATER'");
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_FROM = TIMESTAMP '2026-09-01 00:00:00' WHERE MARU_RULE_SET_ID = 'RS_LATER'");
     }
 
     private static NodeTrace set(int seq, String nodeId, RunTrace sub) {

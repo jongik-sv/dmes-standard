@@ -6,7 +6,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.dongkuk.dmes.mdm.common.support.MdmTemporalBinder;
 import com.dongkuk.dmes.mdm.contract.common.AuditStamp;
-import com.dongkuk.dmes.mdm.contract.common.MdmDialect;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import jakarta.persistence.EntityManager;
@@ -56,6 +55,6 @@ class VersionRowStoreNameGuardTest {
     }
 
     private static VersionRowStore store(EntityManager em, VersionTableSpec spec) {
-        return new VersionRowStore(em, target -> spec, new MdmTemporalBinder(() -> MdmDialect.SQLITE));
+        return new VersionRowStore(em, target -> spec, new MdmTemporalBinder());
     }
 }

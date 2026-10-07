@@ -20,7 +20,7 @@ import org.springframework.context.annotation.Primary;
 
 /**
  * TSK-01-03 design.md §3.2 — 시나리오 테스트용 @Primary 가짜 빈. {@link VersionTableRegistry} 는 넣지 않는다:
- * 픽스처 명세(SQLite) 또는 실제 테이블 명세(TSK-06-01·08-01)를 상속 클래스가 준다.
+ * 픽스처 명세(Oracle) 또는 실제 테이블 명세(TSK-06-01·08-01)를 상속 클래스가 준다.
  *
  * <p>BUSINESS_RULE DRAFT 삭제 훅도 가짜로 둔다 — main 의 실물 {@code RuleDraftDeletionHook}(TSK-08-02) 정의는 아래 후처리기가
  * 이 설정의 컨텍스트에서만 지운다(TSK-08-02 design §7.2). 실물 훅의 CASCADE 는 이 설정을 import 하지 않는 운영 컨텍스트 테스트가 본다.

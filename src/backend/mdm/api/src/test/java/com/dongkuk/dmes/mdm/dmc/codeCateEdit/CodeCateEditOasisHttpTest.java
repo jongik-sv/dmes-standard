@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeFixtures;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeTestConfig;
 import com.dongkuk.dmes.mdm.common.support.MdmClockConfig;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeSegmentService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -18,12 +19,10 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Path;
 import java.util.List;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
@@ -35,8 +34,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-06-04 design.md §3·§5 불변 규칙 16 — BPMN {@code services/dmc/codeCateEdit.bpmn} 까지 태우는 HTTP 시험
@@ -46,7 +43,7 @@ import org.springframework.test.context.DynamicPropertySource;
         properties = "cactus.security.client-key=" + CodeCateEditOasisHttpTest.TEST_CLIENT_KEY)
 @ActiveProfiles("local")
 @Import(CodeCateEditOasisHttpTest.ClockOnly.class)
-class CodeCateEditOasisHttpTest {
+class CodeCateEditOasisHttpTest extends AbstractMdmSharedDbTest {
 
     static final String TEST_CLIENT_KEY = "mdm-dmc-cate-test-client-key";
 
@@ -58,9 +55,6 @@ class CodeCateEditOasisHttpTest {
             return new MutableClock(MdmClockConfig.KST, MasterCodeTestConfig.SAMPLE_DAY);
         }
     }
-
-    @TempDir
-    static Path tempDir;
 
     @LocalServerPort
     int port;
@@ -74,12 +68,6 @@ class CodeCateEditOasisHttpTest {
     private final ObjectMapper json = new ObjectMapper();
     private JdbcTemplate jdbc;
     private MasterCodeFixtures fx;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-code-cate-edit-http-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {

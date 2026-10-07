@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 
 /**
@@ -65,12 +66,14 @@ public class MdmDomain extends CactusAuditEntity {
     @Column(name = "STD_RULE")
     private String stdRule;
 
+    @Lob
     @Column(name = "STD_AST")
     private String stdAst;
 
     @Column(name = "BIZ_RULE")
     private String bizRule;
 
+    @Lob
     @Column(name = "BIZ_AST")
     private String bizAst;
 
@@ -80,6 +83,7 @@ public class MdmDomain extends CactusAuditEntity {
     @Column(name = "EXAMPLES")
     private String examples;
 
+    @Lob
     @Column(name = "TEST_CASES")
     private String testCases;
 

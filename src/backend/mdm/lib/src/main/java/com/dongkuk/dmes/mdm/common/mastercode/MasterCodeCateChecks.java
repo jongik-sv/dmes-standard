@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.common.mastercode;
 
+import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.contract.category.CategoryDefinition;
 import com.dongkuk.dmes.mdm.contract.category.CategoryKind;
 import com.dongkuk.dmes.mdm.contract.category.CategoryOwner;
@@ -34,9 +35,14 @@ public final class MasterCodeCateChecks {
         } else if (FORBIDDEN.matcher(cateId).find()) {
             issues.add(issue(MasterCodeCateIssueCode.CATE_ID_FORBIDDEN_CHAR, cateId, "cateId",
                     "카테고리 ID에 점·콤마·공백을 쓸 수 없다"));
+        } else if (MdmTextLimits.overChars(cateId, MdmTextLimits.KEY_CHARS_MAX)) {
+            issues.add(issue(MasterCodeCateIssueCode.CATE_ID_TOO_LONG, cateId, "cateId",
+                    "카테고리 ID는 " + MdmTextLimits.KEY_CHARS_MAX + "자를 넘을 수 없다"));
         }
         if (def.cateName() == null || def.cateName().isEmpty()) {
             issues.add(issue(MasterCodeCateIssueCode.CATE_NAME_REQUIRED, cateId, "cateName", "카테고리 이름을 넣으세요"));
+        } else if (MdmTextLimits.overBytes(def.cateName())) {
+            issues.add(textTooLong(cateId, "cateName", "카테고리 이름"));
         }
         if (def.defKind() == CategoryKind.REGEX) {
             if (def.defTarget() == null || !CategoryOwner.MASTER_CODE.allowedDefTargets().contains(def.defTarget())) {
@@ -48,7 +54,18 @@ public final class MasterCodeCateChecks {
                         "정규식 문법이 올바르지 않다: " + def.defExpr()));
             }
         }
+        if (MdmTextLimits.overBytes(def.defExpr())) {
+            issues.add(textTooLong(cateId, "defExpr", "정의 식"));
+        }
+        if (MdmTextLimits.overBytes(def.description())) {
+            issues.add(textTooLong(cateId, "description", "설명"));
+        }
         return issues;
+    }
+
+    private static MdmCheckIssue textTooLong(String cateId, String field, String label) {
+        return issue(MasterCodeCateIssueCode.TEXT_TOO_LONG, cateId, field,
+                label + "은 " + MdmTextLimits.TEXT_BYTES_MAX + "바이트(한글 약 1,333자)를 넘을 수 없다");
     }
 
     /** {@link MasterCodeCategoryResolver} 와 같은 기준(불변 규칙 4·6) — null·컴파일 실패는 false. */

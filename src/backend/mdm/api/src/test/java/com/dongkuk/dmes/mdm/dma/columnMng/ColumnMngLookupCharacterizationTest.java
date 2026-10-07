@@ -34,9 +34,7 @@ import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
 import com.dongkuk.oasis.audit.AuditHolder;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import java.sql.Connection;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -55,7 +53,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 항목 4(컬럼 검색·조회 정리) 1단계 특성 테스트 — 반복문 안 단건 조회 세 곳과 용어 사전 읽기 사본 둘의 지금 동작을 실제 SQLite 스키마로 고정한다.
+ * 항목 4(컬럼 검색·조회 정리) 1단계 특성 테스트 — 반복문 안 단건 조회 세 곳과 용어 사전 읽기 사본 둘의 지금 동작을 실제 Oracle 스키마로 고정한다.
  *
  * <ul>
  *   <li>{@code save} 의 {@code resolveTermIds} — terms 그리드 행마다 {@code existsById}.</li>
@@ -99,6 +97,8 @@ class ColumnMngLookupCharacterizationTest extends AbstractMdmSharedDbTest {
     EntityManagerFactory emf;
 
     private JdbcTemplate jdbc;
+    private String disabledFkTable;
+    private String disabledFk;
     private TransactionTemplate tx;
     private QueryCountProbe probe;
     private MdmTerm rmtl;
@@ -125,6 +125,11 @@ class ColumnMngLookupCharacterizationTest extends AbstractMdmSharedDbTest {
     @AfterEach
     void tearDown() {
         probe.stop();
+        if (disabledFk != null) {
+            DmaTestSupport.clear(jdbc);
+            DmaTestSupport.restoreForeignKey(jdbc, disabledFkTable, disabledFk);
+            disabledFk = null;
+        }
         AuditHolder.remove();
         UserContextHolder.clear();
     }
@@ -258,7 +263,7 @@ class ColumnMngLookupCharacterizationTest extends AbstractMdmSharedDbTest {
 
     @Test
     void 가리키는_컬럼_행이_없는_매핑과_충돌하면_컬럼_ID_숫자를_이름_자리에_적는다() throws SQLException {
-        withForeignKeysOff("INSERT INTO TB_MDM_COLUMN_SYSTEM (COLUMN_ID, SYSTEM_CODE, PHYS_NAME) VALUES (999999, 'ERP', 'ORPHAN')");
+        withForeignKeyOff("TB_MDM_COLUMN_SYSTEM", "FK_TB_MDM_COLUMN_SYSTEM_COLUMN", "INSERT INTO TB_MDM_COLUMN_SYSTEM (COLUMN_ID, SYSTEM_CODE, PHYS_NAME) VALUES (999999, 'ERP', 'ORPHAN')");
 
         BusinessException e = assertThrows(BusinessException.class,
                 () -> save(valid(), List.of(sys("ERP", "orphan")), List.of()));
@@ -328,7 +333,7 @@ class ColumnMngLookupCharacterizationTest extends AbstractMdmSharedDbTest {
     void 역분해_중복은_가리키는_컬럼_행이_없는_매핑을_조용히_건너뛴다() throws SQLException {
         MdmColumn x = DmaTestSupport.column(columns, "엑스", "X_COL", null);
         DmaTestSupport.mapping(mappings, x.getColumnId(), "MES", "GHOST", null);
-        withForeignKeysOff("INSERT INTO TB_MDM_COLUMN_SYSTEM (COLUMN_ID, SYSTEM_CODE, PHYS_NAME) VALUES (999999, 'ERP', 'GHOST')");
+        withForeignKeyOff("TB_MDM_COLUMN_SYSTEM", "FK_TB_MDM_COLUMN_SYSTEM_COLUMN", "INSERT INTO TB_MDM_COLUMN_SYSTEM (COLUMN_ID, SYSTEM_CODE, PHYS_NAME) VALUES (999999, 'ERP', 'GHOST')");
 
         List<Map<String, Object>> dups = maps(service.compare(compare("REVERSE", "ghost")).get("duplicates"));
 
@@ -439,7 +444,7 @@ class ColumnMngLookupCharacterizationTest extends AbstractMdmSharedDbTest {
 
     // ── helpers ───────────────────────────────────────────────────────────
 
-    /** 동의어·별칭 JSON 모양(문자열+괄호, name, term, 숫자, 다른 키, 배열 아닌 JSON — 깨진 JSON 은 표의 json_valid 검사로 못 넣는다)·같은 약어·대소문자 섞인 약어·약어 없음. */
+    /** 동의어·별칭 JSON 모양(문자열+괄호, name, term, 숫자, 다른 키, 배열 아닌 JSON — 깨진 JSON 은 표의 IS JSON 검사로 못 넣는다)·같은 약어·대소문자 섞인 약어·약어 없음. */
     private void seedDictionaryVariants() {
         rmtl.setSynonyms("[\"원자재(ERP)\", {\"name\":\"원료\"}, {\"term\":\"소재\"}, 3, {\"x\":1}, \"  \"]");
         terms.save(rmtl);
@@ -505,17 +510,11 @@ class ColumnMngLookupCharacterizationTest extends AbstractMdmSharedDbTest {
         return jdbc.queryForObject("SELECT TERM_IDS FROM TB_MDM_COLUMN WHERE PHYS_NAME = ?", String.class, physName);
     }
 
-    /** 풀 연결은 외래키 강제가 켜져 있다 — 한 autocommit 연결에서만 끄고 넣은 뒤 반드시 다시 켠다. */
-    private void withForeignKeysOff(String sql) throws SQLException {
-        try (Connection c = dataSource.getConnection(); Statement st = c.createStatement()) {
-            c.setAutoCommit(true);
-            st.execute("PRAGMA foreign_keys = OFF");
-            try {
-                st.execute(sql);
-            } finally {
-                st.execute("PRAGMA foreign_keys = ON");
-            }
-        }
+    /** 유령 참조 행을 넣는다 — 끈 제약은 {@link #tearDown} 이 유령 행을 지운 뒤 되돌린다({@link DmaTestSupport#insertWithForeignKeyOff}). */
+    private void withForeignKeyOff(String table, String constraint, String sql) throws SQLException {
+        DmaTestSupport.insertWithForeignKeyOff(dataSource, table, constraint, sql);
+        disabledFkTable = table;
+        disabledFk = constraint;
     }
 
     private static List<String> codes(BusinessException e) {

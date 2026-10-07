@@ -145,7 +145,7 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
 
     @Test
     void 현재_RELEASED_가_없으면_가장_큰_버전을_연다() {
-        jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = '2026-02-01 00:00:00' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'");
+        jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = TIMESTAMP '2026-02-01 00:00:00' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'");
         DmeTestSupport.released(jdbc, "QLTY_GRD_JDG", 3, "FIRST", "2026-07-01 00:00:00", null);
         assertEquals("3.000", view("QLTY_GRD_JDG", null).getSelectedVer());
     }
@@ -160,7 +160,7 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
      */
     @Test
     void 예정_확정_버전이_현재_RELEASED_보다_먼저다() {
-        jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = '2026-12-31 00:00:00' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'");
+        jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = TIMESTAMP '2026-12-31 00:00:00' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'");
         DmeTestSupport.released(jdbc, "QLTY_GRD_JDG", 2, "FIRST", "2026-12-31 00:00:00", null);
         jdbc.update("UPDATE TB_MDM_RULE_VER SET OWNER_ID = 'kim' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2");
 

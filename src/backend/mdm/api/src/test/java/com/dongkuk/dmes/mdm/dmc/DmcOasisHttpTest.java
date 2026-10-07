@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,19 +14,15 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Path;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-06-02 design.md §3.2 H1~H4 — BPMN 까지 태우는 HTTP 파이프 시험(DmaOasisHttpTest 골격).
@@ -36,14 +33,11 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = "cactus.security.client-key=" + DmcOasisHttpTest.TEST_CLIENT_KEY)
 @ActiveProfiles("local")
-class DmcOasisHttpTest {
+class DmcOasisHttpTest extends AbstractMdmSharedDbTest {
 
     static final String TEST_CLIENT_KEY = "mdm-dmc-test-client-key";
     private static final String STD_ADMIN = "MDM_STD_ADMIN";
     private static final String STEWARD = "MDM_STEWARD";
-
-    @TempDir
-    static Path tempDir;
 
     @LocalServerPort
     int port;
@@ -55,12 +49,6 @@ class DmcOasisHttpTest {
     private final ObjectMapper json = new ObjectMapper();
     private JdbcTemplate jdbc;
     private MasterCodeSeeds seeds;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-dmc-http-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {
@@ -88,7 +76,8 @@ class DmcOasisHttpTest {
 
     @Test
     void H2_BASE_INSERT_가_실패하면_코드와_VER_도_남지_않는다() throws Exception {
-        jdbc.execute("CREATE TRIGGER TR_H2_FAIL BEFORE INSERT ON TB_MDM_CODE_CATE BEGIN SELECT RAISE(ABORT, 'H2 forced'); END");
+        jdbc.execute("CREATE OR REPLACE TRIGGER TR_H2_FAIL BEFORE INSERT ON TB_MDM_CODE_CATE FOR EACH ROW "
+                + "BEGIN RAISE_APPLICATION_ERROR(-20001, 'H2 forced'); END;");
         try {
             JsonNode body = post("codeMng", "reg", STEWARD, envelope("codeMng", regParams("PROC_CD")));
 
@@ -97,7 +86,7 @@ class DmcOasisHttpTest {
             assertEquals(0, seeds.count("TB_MDM_CODE_VER"), "VER INSERT 가 롤백되지 않았다");
             assertEquals(0, seeds.count("TB_MDM_CODE_CATE"));
         } finally {
-            jdbc.execute("DROP TRIGGER IF EXISTS TR_H2_FAIL");
+            dropTrigger("TR_H2_FAIL");
         }
     }
 
@@ -185,6 +174,12 @@ class DmcOasisHttpTest {
                 MdmErrorCode.TRANSITION_NOT_ALLOWED.defaultMessage()), body.toString());
         assertEquals(1, seeds.count("TB_MDM_CODE"));
         assertEquals(2, seeds.count("TB_MDM_CODE_VER"));
+    }
+
+    /** Oracle 23 미만에는 DROP TRIGGER IF EXISTS 가 없다 — 없는 트리거(ORA-04080)는 넘긴다. */
+    private void dropTrigger(String name) {
+        jdbc.execute("BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER " + name + "'; "
+                + "EXCEPTION WHEN OTHERS THEN IF SQLCODE != -4080 THEN RAISE; END IF; END;");
     }
 
     private ObjectNode draftParams(int rowVersion) {

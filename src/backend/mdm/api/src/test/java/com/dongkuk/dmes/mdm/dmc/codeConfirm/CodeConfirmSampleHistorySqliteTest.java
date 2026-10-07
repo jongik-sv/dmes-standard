@@ -154,7 +154,8 @@ class CodeConfirmSampleHistorySqliteTest extends AbstractMdmSharedDbTest {
 
     @Test
     void H1_VER_표가_원천과_같다() {
-        List<String> vers = jdbc.query("SELECT VER, STATUS, APPLY_FROM, APPLY_TO, VER_KIND, REQUESTED_BY, APPROVED_BY "
+        List<String> vers = jdbc.query("SELECT VER, STATUS, TO_CHAR(APPLY_FROM, 'YYYY-MM-DD HH24:MI:SS'), "
+                        + "TO_CHAR(APPLY_TO, 'YYYY-MM-DD HH24:MI:SS'), VER_KIND, REQUESTED_BY, APPROVED_BY "
                         + "FROM TB_MDM_CODE_VER WHERE MARU_CODE_ID = ? ORDER BY VER",
                 (rs, i) -> MasterCodeFixtures.fmt(rs.getBigDecimal(1)) + "|" + rs.getString(2) + "|" + rs.getString(3)
                         + "|" + rs.getString(4) + "|" + rs.getString(5) + "|" + rs.getString(6) + "|" + rs.getString(7), ID);

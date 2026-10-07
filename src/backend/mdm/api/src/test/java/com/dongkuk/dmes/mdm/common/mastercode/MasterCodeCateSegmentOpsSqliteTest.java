@@ -33,7 +33,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * TSK-06-04 design.md §5 불변 규칙 1·2·3·5·7·9·10·11·12·13·14 — 카테고리·TABLE 소속 선분 조작({@link MasterCodeCateSegmentOps},
- * {@link MasterCodeSegmentService} 의 06-04 몫)을 실제 V9 표로 local(SQLite) 컨텍스트에서 돌린다.
+ * {@link MasterCodeSegmentService} 의 06-04 몫)을 실제 V9 표로 Oracle 시험 PDB 컨텍스트에서 돌린다.
  * {@link MasterCodeItemSegmentOpsSqliteTest} 자매 — 계약 인터페이스로 주입해 부르고(계약 경유 증명), 트랜잭션 없이 부른다.
  *
  * <p>기본 시드: 마루 코드 {@code M}(lvl_cnt 2), 1.000 RELEASED(행 A·B·C), 1.001 DRAFT(소유자 kim, row_version 5).

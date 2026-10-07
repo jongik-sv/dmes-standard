@@ -7,6 +7,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 
@@ -14,7 +15,7 @@ import java.math.BigDecimal;
  * 룰 변수(열) — {@code TB_MDM_RULE_VAR}(TSK-08-01 design.md §6.0 ④·§6.2). 복합 PK 는 {@link MdmRuleVarId}.
  *
  * <p>감사 카운터는 {@code AUD_VER}(D-034, 불변 규칙 2). JSON 칼럼({@code VAR_AST}·{@code PRIO_LIST}·{@code GRP_COND_AST})은
- * 일반 {@code String} 으로 매핑한다(V3 {@code MdmTerm.synonyms} 관례). {@code DISP_TYPE} 은 06 표기
+ * {@code String} 으로 매핑한다(V3 {@code MdmTerm.synonyms} 관례). CLOB 칼럼인 {@code VAR_AST}·{@code GRP_COND_AST} 는 {@code @Lob} 이다. {@code DISP_TYPE} 은 06 표기
  * ({@code Equal}·{@code 1}·{@code 2}·{@code Expression}·{@code Value})로 저장한다(D4). {@code DOMAIN_ID} 는 원시 필드다.
  *
  * <p>JPA 는 모든 칼럼을 INSERT 에 넣으므로 {@code collectAgg} 가 null 이면 DB 기본값 {@code 'LIST'} 가 아니라 NULL 이
@@ -48,6 +49,7 @@ public class MdmRuleVar extends CactusAuditEntity {
     @Column(name = "VAR_NAME", length = 1000)
     private String varName;
 
+    @Lob
     @Column(name = "VAR_AST")
     private String varAst;
 
@@ -70,6 +72,7 @@ public class MdmRuleVar extends CactusAuditEntity {
     @Column(name = "GRP_COND")
     private String grpCond;
 
+    @Lob
     @Column(name = "GRP_COND_AST")
     private String grpCondAst;
 

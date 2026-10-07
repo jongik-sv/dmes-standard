@@ -3,19 +3,23 @@
 #   run-measure.sh <base|dev|ab> <P1|P2|P3|P4|P5|all> [회차 수] [--dry-run] [--keep-rounds] [--exclusive]
 # 측정 시험 소스(이 폴더 src/)는 실행할 때만 각 측정 워크트리 test 폴더에 복사하고, gradle 이 끝나면 지운다
 # (측정 워크트리 git status 가 깨끗해야 한다). 이 저장소의 빌드·시험 대상에는 들어가지 않는다.
-# gradle 은 한 번에 1개(측정 잠금), --max-workers=2, JDK 21. 도커 없음, SQLite 만. 커밋하지 않는다.
-# --exclusive(정식 측정): 측정 잠금을 잡은 뒤 이 스크립트 자신을 heavy.sh --exclusive 로 한 번 다시 실행한다 — 모든 회차가
+# DB 는 Oracle 시험 PDB 의 MDMAPUSER 다(P1~P4). gradle 은 build-logic 의 시험 하니스(-Pdmes.ora.*)로 돌린다 — 기본은 빌드마다
+#   T_<레인> PDB 를 복제했다 지우고, MEASURE_ORA_PDB 를 주면 있는 PDB 를 그대로 쓴다. 이 스크립트는 Oracle 에 직접 접속하지 않는다
+#   (PC 잠금은 하니스가 빌드 전 구간에서 쥔다). P5(엔진 단위 시험)는 DB 가 없어 하니스를 켜지 않는다.
+# 모든 gradle 은 heavy.sh 슬롯(PC 전역 세마포어) 아래에서 한 번에 하나씩 돈다. 커밋하지 않는다. JDK 21, --max-workers=2.
+# --exclusive(정식 측정): 이 스크립트 자신을 heavy.sh --exclusive 로 한 번 다시 실행한다 — 모든 회차가
 #   PC 전역 일반 슬롯 K개를 쥔 한 번의 독점 안에서 돈다(회차 사이에 독점을 풀었다 잡지 않는다). --dry-run 과 함께 쓰지 않는다.
 #
 # 환경변수(자세한 표는 README §3):
-#   JAVA_HOME              필수. JDK 21 홈
-#   MEASURE_BASE_WT        기준 워크트리 경로(base·ab 에 필수)
-#   MEASURE_DEV_WT         변경 워크트리 경로(dev·ab 에 필수)
-#   MDM_MEASURE_SOURCE_DB  P3·P4 에 필수. 로컬 MDM SQLite DB 사본
-#   MEASURE_BASE_REV       기준 HEAD 기대값(기본 b557ccbd = 태그 refactor-2026-10-base)
-#   MEASURE_DEV_REV        변경 HEAD 기대값(기본 923aa9a0)
-#   MEASURE_RESULTS_DIR    결과 폴더(기본 ${TMPDIR}/mdm-backend-perf)
-#   MEASURE_LOCK           잠금 디렉터리(기본 ${TMPDIR}/mdm-backend-perf.lock)
+#   JAVA_HOME                JDK 21 홈(필수)
+#   MEASURE_BASE_WT          기준 워크트리 경로(base·ab 에 필수) — Oracle 시험 기반이 있는 커밋이어야 한다
+#   MEASURE_DEV_WT           변경 워크트리 경로(dev·ab 에 필수)
+#   MDM_MEASURE_SNAPSHOT_DIR P3·P4 데이터 폴더(기본 <저장소>/db-snapshot/MDMAPUSER). 두 쪽 모두 이 한 폴더를 쓴다
+#   MEASURE_ORA_PDB          있는 시험 PDB 이름(T_*). 없으면 빌드마다 T_<레인> 을 복제했다 지운다
+#   MEASURE_ORA_ALLOW        T_ 가 아닌 PDB 를 쓸 때 그 이름을 그대로 적는다(FREEPDB1·TPL_*·L_* 는 어떤 값으로도 거부)
+#   MEASURE_ORA_TEMPLATE     복제 원본 템플릿(기본은 하니스 기본값 TPL_EMPTY)
+#   MEASURE_BASE_REV·MEASURE_DEV_REV  HEAD 기대값(선택). 주면 다를 때 결과 파일에 경고 줄
+#   MEASURE_RESULTS_DIR      결과 폴더(기본 ${TMPDIR}/mdm-backend-perf)
 
 HARNESS=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$HARNESS/../../.." && pwd)
@@ -23,12 +27,12 @@ HEAVY=$REPO_ROOT/.claude/skills/dflow-dev/scripts/heavy.sh
 GIT=/usr/bin/git
 TMP_ROOT=${TMPDIR:-/tmp}
 TMP_ROOT=${TMP_ROOT%/}
-BASE_REV_EXPECTED=${MEASURE_BASE_REV:-b557ccbd}   # 태그 refactor-2026-10-base
-DEV_REV_EXPECTED=${MEASURE_DEV_REV:-923aa9a0}
+BASE_REV_EXPECTED=${MEASURE_BASE_REV:-}   # 선택
+DEV_REV_EXPECTED=${MEASURE_DEV_REV:-}
 
 usage() {
   echo "사용법: $0 <base|dev|ab> <P1|P2|P3|P4|P5|all> [회차 수(기본 3)] [--dry-run] [--keep-rounds] [--exclusive]" >&2
-  echo "환경변수: JAVA_HOME(필수) MEASURE_BASE_WT·MEASURE_DEV_WT(쓰는 쪽 필수) MDM_MEASURE_SOURCE_DB(P3·P4 필수) — README.md" >&2
+  echo "환경변수: JAVA_HOME(필수) MEASURE_BASE_WT·MEASURE_DEV_WT(쓰는 쪽 필수) MEASURE_ORA_PDB(선택) — README.md" >&2
   exit 2
 }
 
@@ -42,6 +46,17 @@ abs_path() {
 # abs_new <경로> — 아직 없을 수 있는 경로를 절대경로로(상대경로면 현재 위치 기준).
 abs_new() {
   case "$1" in /*) echo "$1" ;; *) echo "$PWD/$1" ;; esac
+}
+
+# wt_of_early <base|dev> — 환경 점검용(워크트리 변수가 정해진 뒤 쓴다).
+wt_of_early() { if [ "$1" = base ]; then echo "$BASE_WT"; else echo "$DEV_WT"; fi; }
+
+# tracked_tests <P> — 그 P 가 측정 시험과 같이 돌리는, 워크트리에 이미 추적되는 시험 클래스(FQCN).
+tracked_tests() {
+  case "$1" in
+    P2) echo "com.dongkuk.dmes.mdm.dmb.layoutConfirm.LayoutHeaderImpactEquivalenceSqliteTest" ;;
+    P4) echo "com.dongkuk.dmes.mdm.dma.columnMng.ColumnMngSearchCharacterizationTest" ;;
+  esac
 }
 
 # ── 인자 ─────────────────────────────────────────────────────────────
@@ -88,45 +103,94 @@ done
 [ -n "$BASE_WT" ] && export MEASURE_BASE_WT=$BASE_WT
 [ -n "$DEV_WT" ] && export MEASURE_DEV_WT=$DEV_WT
 
-need_source=0
-for p in "${PS[@]}"; do case "$p" in P3|P4) need_source=1 ;; esac; done
-SOURCE_DB=
-if [ -n "${MDM_MEASURE_SOURCE_DB:-}" ]; then
-  SOURCE_DB=$(abs_path "$MDM_MEASURE_SOURCE_DB")
-  [ -n "$SOURCE_DB" ] || SOURCE_DB=$MDM_MEASURE_SOURCE_DB
+need_source=0   # P3·P4: 스냅샷 CSV 필요
+need_ora=0      # P1~P4: Oracle 시험 PDB 필요(P5 는 엔진 단위 시험이라 DB 없음)
+for p in "${PS[@]}"; do
+  case "$p" in P3|P4) need_source=1 ;; esac
+  case "$p" in P1|P2|P3|P4) need_ora=1 ;; esac
+done
+SNAPSHOT_DIR=$(abs_path "${MDM_MEASURE_SNAPSHOT_DIR:-$REPO_ROOT/db-snapshot/MDMAPUSER}")
+if [ "$need_source" = 1 ]; then
+  for t in TB_MDM_TERM TB_MDM_DOMAIN TB_MDM_COLUMN TB_MDM_COLUMN_SYSTEM; do
+    if [ -z "$SNAPSHOT_DIR" ] || [ ! -f "$SNAPSHOT_DIR/$t.csv" ]; then
+      echo "P3·P4 데이터 스냅샷 CSV 가 없다: ${SNAPSHOT_DIR:-${MDM_MEASURE_SNAPSHOT_DIR:-$REPO_ROOT/db-snapshot/MDMAPUSER}}/$t.csv" >&2
+      echo "  db-snapshot/MDMAPUSER 를 두거나 MDM_MEASURE_SNAPSHOT_DIR 로 폴더를 준다 — README §2.2" >&2
+      exit 2
+    fi
+  done
 fi
-if [ "$need_source" = 1 ] && { [ -z "$SOURCE_DB" ] || [ ! -f "$SOURCE_DB" ]; }; then
-  echo "P3·P4 데이터 원본(로컬 MDM DB 사본)이 없다: ${MDM_MEASURE_SOURCE_DB:-(MDM_MEASURE_SOURCE_DB 없음)}" >&2
-  echo "  MDM_MEASURE_SOURCE_DB 로 사본 경로를 준다 — 만드는 법은 README §2" >&2
-  exit 2
-fi
-[ -n "$SOURCE_DB" ] && export MDM_MEASURE_SOURCE_DB=$SOURCE_DB
+[ -n "$SNAPSHOT_DIR" ] && export MDM_MEASURE_SNAPSHOT_DIR=$SNAPSHOT_DIR
 
-LOCK=$(abs_new "${MEASURE_LOCK:-$TMP_ROOT/mdm-backend-perf.lock}")
+# Oracle 시험 PDB — 있는 PDB(MEASURE_ORA_PDB)를 쓰거나(비우면 빌드마다 T_<레인> 복제·삭제) 이름 규칙을 지킨다.
+# FREEPDB1·CDB$ROOT·PDB$SEED·TPL_*·L_*(레인 개발 PDB·템플릿)는 어떤 값으로도 거부한다. T_ 가 아니면 MEASURE_ORA_ALLOW 에 같은 이름을 적어야 한다.
+# (시험 쪽 MdmSharedTestDb·SourceDb 가 실제 접속 PDB 로 한 번 더 막는다.)
+ORA_PDB=${MEASURE_ORA_PDB:-}
+ORA_ALLOW_OPT=
+if [ "$need_ora" = 1 ] && [ -n "$ORA_PDB" ]; then
+  case "$ORA_PDB" in *[!A-Za-z0-9_\$]*) echo "MEASURE_ORA_PDB 이름이 올바르지 않다: $ORA_PDB" >&2; exit 2 ;; esac
+  up=$(printf '%s' "$ORA_PDB" | tr '[:lower:]' '[:upper:]')
+  allow=$(printf '%s' "${MEASURE_ORA_ALLOW:-}" | tr '[:lower:]' '[:upper:]')
+  case "$up" in
+    FREEPDB1|'CDB$ROOT'|'PDB$SEED'|TPL_*|L_*)
+      echo "MEASURE_ORA_PDB=$ORA_PDB — 이 PDB 는 측정이 지우지 않는다(FREEPDB1·CDB\$ROOT·PDB\$SEED·TPL_*·L_*). T_ 시험 PDB 를 쓴다" >&2
+      exit 2 ;;
+    T_*) ;;
+    *)
+      if [ "$allow" != "$up" ]; then
+        echo "MEASURE_ORA_PDB=$ORA_PDB — T_ 로 시작하는 시험 PDB 만 쓴다. 레인이 정한 이 PDB 를 써도 되면 MEASURE_ORA_ALLOW=$ORA_PDB 로 같은 이름을 적는다" >&2
+        exit 2
+      fi
+      ORA_ALLOW_OPT="-Pdmes.ora.allowReset=$ORA_PDB" ;;
+  esac
+fi
+
 RESULTS_BASE=$(abs_new "${MEASURE_RESULTS_DIR:-$TMP_ROOT/mdm-backend-perf}")
-export MEASURE_LOCK=$LOCK MEASURE_RESULTS_DIR=$RESULTS_BASE
+export MEASURE_RESULTS_DIR=$RESULTS_BASE
+
+# 이 하니스는 Oracle 시험 기반(MdmSharedTestDb 의 dmes.ora.url)이 있는 커밋에서만 돈다 — SQLite 시절 커밋에는 돌지 않는다.
+# P2·P4 가 같이 돌리는 추적 시험(동치·특성)도 그 워크트리에 이미 있어야 한다(예전처럼 사본을 복사해 주지 않는다).
+if [ "$need_ora" = 1 ]; then
+  for side in "${SIDES[@]}"; do
+    wt=$(wt_of_early "$side")
+    mdb=$wt/src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/common/testdb/MdmSharedTestDb.java
+    if [ ! -f "$wt/scripts/oracle/pdb.mjs" ] || ! grep -q 'dmes.ora.url' "$mdb" 2>/dev/null; then
+      echo "$side 워크트리에 Oracle 시험 기반이 없다(scripts/oracle/pdb.mjs·MdmSharedTestDb 의 dmes.ora.url): $wt" >&2
+      echo "  이 하니스는 SQLite 시절 커밋(예: b557ccbd·923aa9a0)에서는 돌지 않는다 — Oracle 전환 이후 두 커밋을 쓴다" >&2
+      exit 2
+    fi
+    # T_ 가 아닌 PDB 허용(-Pdmes.ora.allowReset)은 mdm/build.gradle 이 시험 JVM 으로 옮겨야 효과가 있다(0f9539c67 이후 커밋).
+    if [ -n "$ORA_ALLOW_OPT" ] && ! grep -q 'dmes.ora.allowReset' "$wt/src/backend/mdm/build.gradle" 2>/dev/null; then
+      echo "$side 워크트리의 mdm/build.gradle 이 dmes.ora.allowReset 을 시험 JVM 으로 넘기지 않는다 — T_ 시험 PDB 를 쓰거나 더 새 커밋을 쓴다: $wt" >&2
+      exit 2
+    fi
+    for p in "${PS[@]}"; do
+      for t in $(tracked_tests "$p"); do
+        if [ ! -f "$wt/src/backend/mdm/api/src/test/java/$(echo "$t" | tr . /).java" ]; then
+          echo "$side 워크트리에 $p 가 같이 돌리는 추적 시험이 없다: $t" >&2
+          exit 2
+        fi
+      done
+    done
+  done
+fi
+# heavy.sh 슬롯 아래에서만 돈다(Oracle 쓰는 gradle 은 PC 전체에서 한 번에 하나).
+[ -x "$HEAVY" ] || { echo "heavy.sh 가 없다(저장소 .claude/skills/dflow-dev/scripts/heavy.sh): $HEAVY" >&2; exit 2; }
 
 # ── 독점 실행 구분 ───────────────────────────────────────────────────
-# 바깥(EXCL=1): 측정 잠금을 잡고 heavy.sh --exclusive 로 자기 자신을 자식으로 다시 부른다(exec 아님 — 잠금·신호를 바깥이 맡는다).
-# 안쪽(MDM_PERF_EXCL_INNER=1): heavy.sh 가 일반 슬롯 K개를 모두 잡은 뒤 부른 실행. 잠금은 바깥 것이므로 잡지도 지우지도 않는다.
-# 훅은 Bash 도구의 맨 위 명령 줄만 보고 스크립트 안의 ../gradlew 는 감싸지 않는다. 독점 안에서는 heavy.sh 가 DFLOW_HEAVY_HELD 를
-# export 하므로 안쪽에서 혹시 heavy.sh 를 또 불러도 슬롯을 새로 기다리지 않는다(이중으로 잡지 않는다).
+# 바깥(EXCL=1): heavy.sh --exclusive 로 자기 자신을 자식으로 다시 부른다(exec 아님 — 신호를 바깥이 맡는다).
+# 안쪽(MDM_PERF_EXCL_INNER=1): heavy.sh 가 일반 슬롯 K개를 모두 잡은 뒤 부른 실행. 이 안에서는 gradle 을 heavy.sh 로 다시 감싸지 않는다
+# (DFLOW_HEAVY_HELD 가 있으면 슬롯을 이미 쥔 것이다).
 INNER=0
 EXCL_SLOT=-
 if [ "${MDM_PERF_EXCL_INNER:-}" = 1 ]; then
   INNER=1
-  LOCK_OWNER=${MDM_PERF_LOCK_OWNER:-}
-  unset MDM_PERF_EXCL_INNER MDM_PERF_LOCK_OWNER
+  unset MDM_PERF_EXCL_INNER
   # heavy.sh 가 슬롯 폴더를 못 만들면(HEAVY_UNLOCKED) 슬롯 없이 그냥 부른다 — 독점이 아닌 측정을 정식 값으로 남기지 않는다.
   if [ -z "${DFLOW_HEAVY_HELD:-}" ] || [ ! -d "$DFLOW_HEAVY_HELD" ]; then
     echo "독점 슬롯이 확인되지 않는다(DFLOW_HEAVY_HELD 없음 — HEAVY_UNLOCKED?) — 측정하지 않는다" >&2
     exit 2
   fi
   EXCL_SLOT=$(basename "$DFLOW_HEAVY_HELD")
-  if [ -z "$LOCK_OWNER" ] || [ "$(cat "$LOCK/pid" 2>/dev/null)" != "$LOCK_OWNER" ]; then
-    echo "측정 잠금 보유자가 바깥 실행($LOCK_OWNER)이 아니다 — 측정하지 않는다" >&2
-    exit 2
-  fi
 elif [ "$EXCL" = 1 ]; then
   if [ "$DRY" = 1 ]; then
     echo "--exclusive 는 --dry-run 과 함께 쓰지 않는다(독점은 정식 측정에만)" >&2
@@ -144,10 +208,9 @@ fi
 
 wt_of() { if [ "$1" = base ]; then echo "$BASE_WT"; else echo "$DEV_WT"; fi; }
 
-# ── 정리(한 함수 — 잠금과 이 실행이 복사한 파일만 지운다) ───────────────────
+# ── 정리(한 함수 — 이 실행이 복사한 파일·만든 디렉터리만 지운다) ───────────────────
 COPIED=()      # 이 실행이 복사한 파일(절대경로)
 MADE_DIRS=()   # 이 실행이 만든 디렉터리(만든 순서 — 지울 때는 거꾸로)
-HAVE_LOCK=0
 HCHILD=        # 독점 바깥 실행이 띄운 heavy.sh 자식 pid
 remove_copies() {
   local f i
@@ -158,11 +221,10 @@ remove_copies() {
 }
 cleanup() {
   remove_copies
-  if [ "$HAVE_LOCK" = 1 ]; then rm -rf "$LOCK"; HAVE_LOCK=0; fi
 }
 trap cleanup EXIT
 # 독점 바깥 실행은 heavy.sh 를 & 로 띄우므로 그 자식(과 손자인 안쪽 실행)은 SIGINT 를 무시한다 — TERM 으로 넘기고, 자식이
-# 복사본을 지우고 끝날 때까지 기다린 뒤에야(EXIT trap 에서) 측정 잠금을 푼다.
+# 복사본을 지우고 끝날 때까지 기다린 뒤 끝낸다.
 on_signal() {
   if [ -n "$HCHILD" ]; then
     kill -TERM "$HCHILD" 2>/dev/null
@@ -185,29 +247,13 @@ for side in "${SIDES[@]}"; do
   fi
 done
 
-# ── 잠금 ─────────────────────────────────────────────────────────────
-# 측정용 gradle 은 동시에 1개만 돈다. mkdir 원자성으로 잠근다(죽은 보유 pid 면 지우고 다시, 60초마다 대기 알림).
-# 측정은 이 스크립트 전체(모든 회차) 동안 잠금을 쥔다 — 회차 사이에 다른 측정 gradle 이 끼어 부하가 바뀌지 않게.
-# 독점 실행은 측정 잠금을 먼저 잡고 PC 독점을 기다린다 — 거꾸로 하면 일반 슬롯 K개를 쥔 채 측정 잠금을 기다릴 수 있다.
-if [ "$INNER" = 0 ]; then
-  mkdir -p "$(dirname "$LOCK")" || exit 2
-  waited=0
-  until mkdir "$LOCK" 2>/dev/null; do
-    owner=$(cat "$LOCK/pid" 2>/dev/null)
-    if [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null; then rm -rf "$LOCK"; continue; fi
-    [ $((waited % 60)) -eq 0 ] && echo "MEASURE_LOCK 대기 ${waited}s (보유 pid=${owner:-?} $(cat "$LOCK/wt" 2>/dev/null)) — $LOCK" >&2
-    sleep 5; waited=$((waited+5))
-  done
-  HAVE_LOCK=1
-  echo $$ > "$LOCK/pid"; echo "mdm-backend-perf $MODE $WHAT$([ "$EXCL" = 1 ] && echo ' exclusive')" > "$LOCK/wt"
-fi
-
 # ── 독점 바깥 실행: heavy.sh --exclusive 로 자기 자신을 한 번 다시 부르고 그 rc 로 끝난다 ─────────
 # 독점 대기 상한은 heavy.sh 의 DFLOW_HEAVY_WAIT(기본 90초)를 그대로 따른다(환경변수로 넘기면 된다).
-# 위에서 절대경로로 바꾼 MEASURE_*·MDM_MEASURE_SOURCE_DB·JAVA_HOME 은 export 돼 안쪽 실행에 그대로 넘어간다.
+# 위에서 절대경로로 바꾼 MEASURE_*·MDM_MEASURE_SNAPSHOT_DIR·JAVA_HOME 은 export 돼 안쪽 실행에 그대로 넘어간다.
+# 측정 중복 방지는 heavy.sh 독점(일반 슬롯 K개 전부)과 하니스의 Oracle PC 잠금이 맡는다(이 스크립트는 따로 잠금을 두지 않는다).
 if [ "$EXCL" = 1 ] && [ "$INNER" = 0 ]; then
   echo ">> heavy.sh --exclusive 로 측정 전체를 한 번에 돈다(인자: ${INNER_ARGS[*]})" >&2
-  MDM_PERF_EXCL_INNER=1 MDM_PERF_LOCK_OWNER=$$ \
+  MDM_PERF_EXCL_INNER=1 \
     "$HEAVY" --exclusive /bin/bash "$HARNESS/run-measure.sh" "${INNER_ARGS[@]}" &
   HCHILD=$!
   wait "$HCHILD"; rc=$?
@@ -220,14 +266,10 @@ if [ "$EXCL" = 1 ] && [ "$INNER" = 0 ]; then
 fi
 
 # ── 복사 ─────────────────────────────────────────────────────────────
-# copy_one <원본> <대상> <extra 여부> <워크트리> — 대상이 이미 있으면: extra(변경 쪽에 추적되는 특성·동치 시험)이고 추적 파일이면
-# 그대로 쓰고, 아니면 중단.
+# copy_one <원본> <대상> — 대상이 이미 있으면 추적되지 않는 잔여물이므로 중단한다.
 copy_one() {
-  local src=$1 dst=$2 extra=$3 wt=$4 d missing=()
+  local src=$1 dst=$2 d missing=()
   if [ -e "$dst" ]; then
-    if [ "$extra" = 1 ] && $GIT -C "$wt" ls-files --error-unmatch "$dst" >/dev/null 2>&1; then
-      return 0
-    fi
     echo "대상이 이미 있다(추적되지 않는 잔여물?): $dst" >&2
     return 1
   fi
@@ -238,50 +280,51 @@ copy_one() {
   COPIED+=("$dst")
 }
 
-# install <side> <P> — 그 P 에 필요한 시험 소스를 복사한다.
+# install <side> <P> — 그 P 에 필요한 시험 소스를 복사한다(P2·P4 가 같이 돌리는 동치·특성 시험은 워크트리에 이미 추적돼 있다 — 사전 점검).
 install() {
-  local side=$1 p=$2 wt f rel
+  local side=$1 p=$2 wt f
   wt=$(wt_of "$side")
   if [ "$p" = P5 ]; then
     copy_one "$HARNESS/src/maru-mdm-engine/kr/dongkuk/maru/mdm/engine/rule/MeasureP5RuleSetBenchTest.java" \
-      "$wt/src/backend/maru-mdm-engine/src/test/java/kr/dongkuk/maru/mdm/engine/rule/MeasureP5RuleSetBenchTest.java" 0 "$wt" || return 1
+      "$wt/src/backend/maru-mdm-engine/src/test/java/kr/dongkuk/maru/mdm/engine/rule/MeasureP5RuleSetBenchTest.java" || return 1
     return 0
   fi
   local troot=$wt/src/backend/mdm/api/src/test/java
   for f in "$HARNESS"/src/mdm-api/com/dongkuk/dmes/mdm/measure/*.java; do
-    copy_one "$f" "$troot/com/dongkuk/dmes/mdm/measure/$(basename "$f")" 0 "$wt" || return 1
+    copy_one "$f" "$troot/com/dongkuk/dmes/mdm/measure/$(basename "$f")" || return 1
   done
-  case "$p" in
-    P2) rel=com/dongkuk/dmes/mdm/dmb/layoutConfirm/LayoutHeaderImpactEquivalenceSqliteTest.java ;;
-    P4) rel=com/dongkuk/dmes/mdm/dma/columnMng/ColumnMngSearchCharacterizationTest.java ;;
-    *) rel= ;;
-  esac
-  if [ -n "$rel" ]; then
-    copy_one "$HARNESS/src/extra-base/$rel" "$troot/$rel" 1 "$wt" || return 1
-  fi
 }
 
 # ── gradle ───────────────────────────────────────────────────────────
 filters() {
   case "$1" in
     P1) echo "com.dongkuk.dmes.mdm.measure.MeasureP1MasterCodeFlushTest" ;;
-    P2) echo "com.dongkuk.dmes.mdm.measure.MeasureP2HeaderImpactTest com.dongkuk.dmes.mdm.dmb.layoutConfirm.LayoutHeaderImpactEquivalenceSqliteTest" ;;
+    P2) echo "com.dongkuk.dmes.mdm.measure.MeasureP2HeaderImpactTest $(tracked_tests P2)" ;;
     P3) echo "com.dongkuk.dmes.mdm.measure.MeasureP3TermSearchTest" ;;
-    P4) echo "com.dongkuk.dmes.mdm.measure.MeasureP4ColumnSearchTest com.dongkuk.dmes.mdm.dma.columnMng.ColumnMngSearchCharacterizationTest" ;;
+    P4) echo "com.dongkuk.dmes.mdm.measure.MeasureP4ColumnSearchTest $(tracked_tests P4)" ;;
     P5) echo "kr.dongkuk.maru.mdm.engine.rule.MeasureP5RuleSetBenchTest" ;;
   esac
 }
 
+# run_gradle <side> <P> <로그> — heavy.sh 슬롯 아래에서 gradle 한 번. 독점 안쪽이면(DFLOW_HEAVY_HELD) 이미 슬롯을 쥔 것이라 다시 감싸지 않는다.
+# mdm(P1~P4)은 Oracle 시험 하니스를 켠다: MEASURE_ORA_PDB 가 있으면 -Pdmes.ora.pdb(있는 PDB), 없으면 -Pdmes.ora.test=clone(T_<레인> 복제·삭제).
+# 환경에 남은 DMES_ORA_PDB·DMES_ORA_URL·DMES_ORA_TEST 는 치운다 — 하니스는 DMES_ORA_PDB 가 있으면 clone 대신 그 PDB 를 쓴다.
 run_gradle() {
-  local side=$1 p=$2 log=$3 wt t targs=()
+  local side=$1 p=$2 log=$3 wt t targs=() runner=() ora=()
   wt=$(wt_of "$side")
   for t in $(filters "$p"); do targs+=(--tests "$t"); done
-  local envs=(MDM_MEASURE=1 MDM_MEASURE_SOURCE_DB="$SOURCE_DB")
+  local envs=(MDM_MEASURE=1)
   [ "$DRY" = 1 ] && envs+=(MDM_MEASURE_DRY=1)
+  [ -z "${DFLOW_HEAVY_HELD:-}" ] && runner=("$HEAVY")
   if [ "$p" = P5 ]; then
-    (cd "$wt/src/backend/maru-mdm-engine" && env "${envs[@]}" ../gradlew test --rerun --console=plain -i --max-workers=2 "${targs[@]}") >"$log" 2>&1
+    (cd "$wt/src/backend/maru-mdm-engine" && env "${envs[@]}" "${runner[@]}" ../gradlew test --rerun --console=plain -i --max-workers=2 "${targs[@]}") >"$log" 2>&1
   else
-    (cd "$wt/src/backend/mdm" && env "${envs[@]}" ../gradlew :api:test --rerun --console=plain -i --max-workers=2 "${targs[@]}") >"$log" 2>&1
+    if [ -n "$ORA_PDB" ]; then ora=("-Pdmes.ora.pdb=$ORA_PDB"); else ora=("-Pdmes.ora.test=clone"); fi
+    [ -n "${MEASURE_ORA_TEMPLATE:-}" ] && ora+=("-Pdmes.ora.template=$MEASURE_ORA_TEMPLATE")
+    # mdm/build.gradle 이 -Pdmes.ora.allowReset 을 시험 JVM 의 시스템 속성으로 넘긴다(0f9539c67 이후 커밋).
+    [ -n "$ORA_ALLOW_OPT" ] && ora+=("$ORA_ALLOW_OPT")
+    (cd "$wt/src/backend/mdm" && env -u DMES_ORA_PDB -u DMES_ORA_URL -u DMES_ORA_TEST "${envs[@]}" "${runner[@]}" \
+      ../gradlew :api:test --rerun --console=plain -i --max-workers=2 "${ora[@]}" "${targs[@]}") >"$log" 2>&1
   fi
 }
 
@@ -300,8 +343,13 @@ collect() {
 RESULTS=$RESULTS_BASE
 [ "$DRY" = 1 ] && RESULTS=$RESULTS_BASE/dry
 mkdir -p "$RESULTS/raw" || exit 2
-SOURCE_SHA=-
-if [ -n "$SOURCE_DB" ] && [ -f "$SOURCE_DB" ]; then SOURCE_SHA=$(shasum -a 1 "$SOURCE_DB" | cut -d' ' -f1); fi
+# 스냅샷 출처: 네 CSV 의 git blob 해시 앞 8자(두 쪽이 같은 폴더를 쓰므로 한 번만). 시험 쪽이 SHA-1 요약을 `MEASURE P3|P4 data source=…` 로도 남긴다.
+SNAPSHOT_IDS=-
+if [ "$need_source" = 1 ]; then
+  SNAPSHOT_IDS=$(for t in TB_MDM_TERM TB_MDM_DOMAIN TB_MDM_COLUMN TB_MDM_COLUMN_SYSTEM; do $GIT hash-object "$SNAPSHOT_DIR/$t.csv" 2>/dev/null | cut -c1-8; done | tr '\n' ',')
+  SNAPSHOT_IDS=${SNAPSHOT_IDS%,}
+fi
+uptime_line() { if command -v uptime >/dev/null 2>&1; then uptime; else echo -; fi; }
 
 FAILS=()
 # one_run <side> <P> <회차> <총회차>
@@ -313,13 +361,14 @@ one_run() {
   log=$RESULTS/raw/$ts-$side-$p.log
   rev=$($GIT -C "$wt" rev-parse --short=8 HEAD)
   if [ "$side" = base ]; then expected=$BASE_REV_EXPECTED; else expected=$DEV_REV_EXPECTED; fi
+  expected=${expected:0:8}
   {
-    echo "# side=$side wt=$wt head=$rev expected=$expected P=$p round=$r/$n dry=$DRY exclusive=$INNER heavy_slot=$EXCL_SLOT"
-    echo "# source_db=${SOURCE_DB:--} sha1=$SOURCE_SHA"
+    echo "# side=$side wt=$wt head=$rev expected=${expected:--} P=$p round=$r/$n dry=$DRY exclusive=$INNER heavy_slot=$EXCL_SLOT"
+    echo "# ora=$([ "$p" = P5 ] && echo none || echo "${ORA_PDB:-clone}") snapshot_dir=${SNAPSHOT_DIR:--} snapshot_blobs=$SNAPSHOT_IDS"
     echo "# started=$(date '+%Y-%m-%d %H:%M:%S')"
-    echo "# uptime_before: $(uptime)"
+    echo "# uptime_before: $(uptime_line)"
   } >"$out"
-  [ "$rev" = "$expected" ] || echo "# 경고: HEAD 가 기대값과 다르다" >>"$out"
+  if [ -n "$expected" ] && [ "$rev" != "$expected" ]; then echo "# 경고: HEAD 가 기대값과 다르다" >>"$out"; fi
   echo ">> $side $p 회차 $r/$n → $out" >&2
   if ! install "$side" "$p"; then
     remove_copies
@@ -329,12 +378,19 @@ one_run() {
   run_gradle "$side" "$p" "$log"
   rc=$?
   remove_copies
+  if [ "$rc" -eq 75 ]; then
+    rm -f "$out"
+    echo "heavy.sh 슬롯을 못 잡았다(HEAVY_BUSY, 종료 75) — 측정하지 않았다. 같은 명령을 다시 부른다(DFLOW_HEAVY_WAIT 로 대기 상한을 늘릴 수 있다) — $log" >&2
+    exit 75
+  fi
   collect "$log" >>"$out"
   lines=$(grep -c '^MEASURE ' "$out")
   {
-    echo "# uptime_after: $(uptime)"
+    echo "# uptime_after: $(uptime_line)"
     echo "# finished=$(date '+%Y-%m-%d %H:%M:%S') gradle_exit=$rc measure_lines=$lines"
     grep -a -E ' (FAILED|SKIPPED)$|tests completed|BUILD (SUCCESSFUL|FAILED) in' "$log" | sed -E 's/^[[:space:]]*/# gradle: /'
+    # 하니스가 남기는 PDB·세션·VM 한 줄(복제·삭제한 PDB 이름, sessions max, 실패 때의 VM available·load)
+    grep -a -E '\[dmes-ora\]' "$log" | sed -E 's/^[[:space:]]*/# ora: /'
   } >>"$out"
   if [ -n "$($GIT -C "$wt" status --porcelain)" ]; then
     echo "워크트리가 정리 뒤에도 깨끗하지 않다: $wt" >&2

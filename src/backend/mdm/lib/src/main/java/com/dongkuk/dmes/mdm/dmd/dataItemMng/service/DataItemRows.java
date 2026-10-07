@@ -13,7 +13,7 @@ import java.util.Arrays;
 /** 항목 DTO 변환 — 일시는 서버가 {@code yyyy-MM-dd HH:mm:ss} 문자열로 준다(화면은 그대로 보인다, F19). */
 public final class DataItemRows {
 
-    private static final DateTimeFormatter TEXT = DateTimeFormatter.ofPattern(MdmTemporalBinder.SQLITE_TEXT_PATTERN);
+    private static final DateTimeFormatter TEXT = DateTimeFormatter.ofPattern(MdmTemporalBinder.TEXT_PATTERN);
 
     private DataItemRows() {
     }

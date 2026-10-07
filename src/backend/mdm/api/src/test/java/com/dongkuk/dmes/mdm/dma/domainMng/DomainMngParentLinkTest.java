@@ -18,7 +18,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * D-132 — 수정 중 부모 연결·교체·제거. 화면은 저장된 행 그대로의 초안에 부모만 바꿔 {@code validate}(경고 미리보기) →
- * {@code save}(확인 후 쓰기)로 보낸다. 실제 SQLite(Flyway 적용), 서비스 빈 직접 호출(트랜잭션 없음 — 저장 뒤 하위 재검사
+ * {@code save}(확인 후 쓰기)로 보낸다. 실제 Oracle(Flyway 적용), 서비스 빈 직접 호출(트랜잭션 없음 — 저장 뒤 하위 재검사
  * 롤백은 {@link DomainMngOasisFlowTest} 가 HTTP 로 본다).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)

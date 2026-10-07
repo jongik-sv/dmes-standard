@@ -10,7 +10,7 @@ import { fillDateTime, loadMdmFixture } from "./support/mdm-e2e";
  *   S2 담당자: E2S_CONFIRM 2.000 을 골라 적용 시작(지금보다 1분 뒤) → [검사] → 네 항목 PASSED → [확정] → 대화상자 확인 →
  *      RELEASED 안내(rsc-released)와 "직전 버전 v1.000 의 적용을 닫았습니다"(rsc-closed-previous).
  *
- * 전제: mdm-ruleEdit·ruleSetEdit 스펙과 같은 방식으로 새 mcm.db·mdm.db 로 백엔드·포털을 띄우고, mcm 기동 뒤 e2e/fixtures/mdm-rbac-users.sql,
+ * 전제: mdm-ruleEdit·ruleSetEdit 스펙과 같은 방식으로 새 PDB 로 백엔드·포털을 띄우고, mcm 기동 뒤 mdm-00-fixtures.spec.ts 가 e2e/fixtures/mdm-rbac-users.sql 을 넣고,
  * beforeAll 이 e2e/fixtures/mdm-ruleSet-data.sql 을 넣는다. 이 spec 은 전용 세트 E2S_CONFIRM(E2S_CHAIN 과 같은
  * 사슬)의 2.000 을 확정한다 — 편집(mdm-ruleSetEdit)·목록(mdm-ruleSetMng) 스펙이 쓰는 E2S_CHAIN 은 건드리지 않아 한 DB 로 이어 돌 수 있다. 서버가 화면에 보이는 시각을 KST 로 쓰므로 적용 시작은 브라우저 시계 + 1분을 KST 로 맞춰 넣는다.
  * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다.

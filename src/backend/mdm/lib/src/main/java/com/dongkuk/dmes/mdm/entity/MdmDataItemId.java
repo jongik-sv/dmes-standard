@@ -24,7 +24,7 @@ public class MdmDataItemId implements Serializable {
     public MdmDataItemId(String maruDataId, String code, LocalDateTime validFrom) {
         this.maruDataId = maruDataId;
         this.code = code;
-        this.validFrom = validFrom;
+        this.validFrom = MdmEntityTimes.seconds(validFrom);
     }
 
     public String getMaruDataId() { return maruDataId; }

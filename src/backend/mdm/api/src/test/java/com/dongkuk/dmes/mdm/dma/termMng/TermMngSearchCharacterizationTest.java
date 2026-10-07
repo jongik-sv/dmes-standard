@@ -26,9 +26,9 @@ import org.springframework.test.context.ActiveProfiles;
  *   <li>비교는 Java {@code toUpperCase(Locale.ROOT)} 뒤 부분 포함이다. 그래서 ASCII 밖 문자(라틴 확장·키릴·전각·ß)도 대소문자를
  *       무시한다. {@code %}·{@code _}·{@code \} 는 글자 그대로다.</li>
  *   <li>JSON 목록 칸은 파싱한 원소 값으로 비교한다 — {@code \\uXXXX} 이스케이프로 저장돼도 찾히고, 배열이 아닌 JSON 은 원문에 키워드가 있어도
- *       안 찾힌다. 깨진 JSON 은 SQLite 스키마의 json_valid CHECK 가 막아 DB 에 없다.</li>
+ *       안 찾힌다. 깨진 JSON 은 Oracle 스키마의 IS JSON CHECK 가 막아 DB 에 없다.</li>
  *   <li>시스템 조건은 원소 전체 일치(대소문자 무시), 상황 조건은 부분 포함(대소문자 무시)이다. 세 조건은 AND 다.</li>
- *   <li>정렬은 쿼리에 ORDER BY 가 없는 {@code findAll()} 순서 — SQLite 에서 TERM_ID 오름차순이다.</li>
+ *   <li>정렬은 쿼리에 ORDER BY 가 없는 {@code findAll()} 순서 — 서비스가 TERM_ID 오름차순 정렬을 준다({@code TermSearchPrefilter.ORDER}).</li>
  * </ul>
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -272,7 +272,7 @@ class TermMngSearchCharacterizationTest extends AbstractMdmSharedDbTest {
 
     @Test
     void JSON_칸은_원문이_아니라_원소_값으로_비교한다() {
-        // SQLite 스키마가 깨진 JSON 을 거부하므로(json_valid CHECK) DB 경로의 "깨진 JSON" 은 없다. 대신 JSON 이지만 문자열 배열이
+        // Oracle 스키마가 깨진 JSON 을 거부하므로(IS JSON CHECK) DB 경로의 "깨진 JSON" 은 없다. 대신 JSON 이지만 문자열 배열이
         // 아닌 값(객체·숫자 원소 배열)은 원문에 키워드가 있어도 원소 값 비교에서 빠지거나(객체) 문자열로 바뀌어 비교된다(숫자).
         seed("객체행", t -> t.setSynonyms("{\"배치\":1}"));
         seed("객체원소행", t -> t.setSynonyms("[{\"name\":\"배치\"}]"));

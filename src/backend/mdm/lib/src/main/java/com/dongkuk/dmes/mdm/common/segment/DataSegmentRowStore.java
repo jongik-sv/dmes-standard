@@ -39,7 +39,7 @@ public class DataSegmentRowStore {
             + "DEF_TARGET, DESCRIPTION, CHG_SEQ";
     static final String CATE_ITEM_COLUMNS = "MARU_DATA_ID, CATE_ID, CODE, VALID_FROM, VALID_TO, CHG_SEQ";
 
-    /** IN 목록 한 번에 묶는 값 수 — SQLite 옛 바인딩 한도(999)·다른 방언 한도(2100 등)보다 작게 둔다. */
+    /** IN 목록 한 번에 묶는 값 수 — Oracle IN 목록 상한(1,000, ORA-01795)보다 작게 둔다. */
     static final int IN_CHUNK = 500;
 
     private static final String AUDIT_SET = ", U_USR_ID = :uUsrId, U_AT = :uAt, U_SVC_ID = :uSvcId, U_PGM_ID = :uPgmId, "

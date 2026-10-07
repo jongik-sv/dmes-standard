@@ -124,10 +124,10 @@ class RuleVersionServiceTest extends AbstractMdmSharedDbTest {
     @Test
     void 새_버전_번호는_모든_버전의_최대값_더하기_1이고_원본은_RELEASED_중_최대다() {
         DmeTestSupport.released(jdbc, "QLTY_GRD_JDG", 2, "UNIQUE", "2026-02-01 00:00:00", null);
-        jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = '2026-02-01 00:00:00' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 1");
+        jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = TIMESTAMP '2026-02-01 00:00:00' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 1");
         DmeTestSupport.sampleDefinition(jdbc, "QLTY_GRD_JDG", 2);
         jdbc.update("INSERT INTO TB_MDM_RULE_VER (MARU_RULE_ID, VER, STATUS, APPLY_FROM, APPLY_TO) VALUES ('QLTY_GRD_JDG', 3, 'CANCELLED', "
-                + "'2026-03-01 00:00:00', '9999-12-31 00:00:00')");
+                + "TIMESTAMP '2026-03-01 00:00:00', TIMESTAMP '9999-12-31 00:00:00')");
 
         RuleVersionResult r = service.newVersion(req("QLTY_GRD_JDG", null, null));
 
@@ -140,7 +140,7 @@ class RuleVersionServiceTest extends AbstractMdmSharedDbTest {
     @Test
     void 번호에_빈_곳이_있어도_새_번호는_최대값_더하기_1이다() {
         jdbc.update("INSERT INTO TB_MDM_RULE_VER (MARU_RULE_ID, VER, STATUS, APPLY_FROM, APPLY_TO) VALUES ('QLTY_GRD_JDG', 5, 'CANCELLED', "
-                + "'2026-03-01 00:00:00', '9999-12-31 00:00:00')");
+                + "TIMESTAMP '2026-03-01 00:00:00', TIMESTAMP '9999-12-31 00:00:00')");
         assertEquals("6.000", service.newVersion(req("QLTY_GRD_JDG", null, null)).getVer());
     }
 
@@ -196,7 +196,7 @@ class RuleVersionServiceTest extends AbstractMdmSharedDbTest {
     void RELEASED_가_없는데_다른_버전이_있으면_거부한다() {
         DmeTestSupport.rule(jdbc, "CANCEL_JDG", "취소만", "DECISION", "CREATED");
         jdbc.update("INSERT INTO TB_MDM_RULE_VER (MARU_RULE_ID, VER, STATUS, APPLY_FROM, APPLY_TO) VALUES ('CANCEL_JDG', 1, 'CANCELLED', "
-                + "'2026-03-01 00:00:00', '9999-12-31 00:00:00')");
+                + "TIMESTAMP '2026-03-01 00:00:00', TIMESTAMP '9999-12-31 00:00:00')");
         assertEquals("BUSINESS_ERROR", mdm(() -> service.newVersion(req("CANCEL_JDG", null, null))));
     }
 

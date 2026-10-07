@@ -142,22 +142,22 @@ public class MdmRuleVer extends CactusAuditEntity implements VersionedRow {
     public void setOwnerId(String v) { this.ownerId = v; }
     public void setHitPolicy(String v) { this.hitPolicy = v; }
     /** INSERT 때만 반영된다. 저장된 행의 값은 공통 버전 서비스가 네이티브 SQL 로 바꾼다(D7). */
-    public void setApplyFrom(LocalDateTime v) { this.applyFrom = v; }
+    public void setApplyFrom(LocalDateTime v) { this.applyFrom = MdmEntityTimes.seconds(v); }
     /** INSERT 때만 반영된다. 저장된 행의 값은 공통 버전 서비스가 네이티브 SQL 로 바꾼다(D7). */
-    public void setApplyTo(LocalDateTime v) { this.applyTo = v; }
+    public void setApplyTo(LocalDateTime v) { this.applyTo = MdmEntityTimes.seconds(v); }
     public void setDescription(String v) { this.description = v; }
     /** INSERT 때만 반영된다. 저장된 행의 값은 공통 버전 서비스가 네이티브 SQL 로 바꾼다(D7). */
     public void setRequestedBy(String v) { this.requestedBy = v; }
     /** INSERT 때만 반영된다. 저장된 행의 값은 공통 버전 서비스가 네이티브 SQL 로 바꾼다(D7). */
-    public void setRequestedAt(LocalDateTime v) { this.requestedAt = v; }
+    public void setRequestedAt(LocalDateTime v) { this.requestedAt = MdmEntityTimes.seconds(v); }
     public void setEmergencyYn(String v) { this.emergencyYn = v; }
     public void setEmergencyReason(String v) { this.emergencyReason = v; }
     public void setApprovedBy(String v) { this.approvedBy = v; }
-    public void setApprovedAt(LocalDateTime v) { this.approvedAt = v; }
+    public void setApprovedAt(LocalDateTime v) { this.approvedAt = MdmEntityTimes.seconds(v); }
     public void setRejectReason(String v) { this.rejectReason = v; }
     /** INSERT 때만 반영된다. 저장된 행의 값은 공통 버전 서비스가 네이티브 SQL 로 바꾼다(D7). */
-    public void setReleasedAt(LocalDateTime v) { this.releasedAt = v; }
-    public void setCancelledAt(LocalDateTime v) { this.cancelledAt = v; }
+    public void setReleasedAt(LocalDateTime v) { this.releasedAt = MdmEntityTimes.seconds(v); }
+    public void setCancelledAt(LocalDateTime v) { this.cancelledAt = MdmEntityTimes.seconds(v); }
     public void setCancelReason(String v) { this.cancelReason = v; }
     /** INSERT 때만 반영된다. 저장된 행의 값은 공통 버전 서비스가 조건부 네이티브 UPDATE 로 올린다(D7). */
     public void setRowVersion(long v) { this.rowVersion = v; }

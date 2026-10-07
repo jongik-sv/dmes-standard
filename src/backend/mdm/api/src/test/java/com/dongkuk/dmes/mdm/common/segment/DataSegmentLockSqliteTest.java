@@ -15,16 +15,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.security.context.UserContextHolder;
 import com.dongkuk.dmes.mdm.common.support.MdmTemporalBinder;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.Events;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.oasis.audit.AuditHolder;
 import jakarta.persistence.EntityManager;
-import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -32,7 +31,6 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -41,27 +39,22 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * TSK-07-03 design.md §3.2 T-L — 행 잠금(L1~L3·S12) 중 SQLite 로 잡을 수 있는 부분.
+ * TSK-07-03 design.md §3.2 T-L — 행 잠금(L1~L3·S12).
  *
- * <p>SQLite 는 쓰기 잠금이 DB 전체 단위라 "잠금을 빼면 동시 저장이 겹친다"는 드러낼 수 없다(F10). 대신 호출 순서 기록,
- * 다른 연결의 {@code BEGIN IMMEDIATE} 탐침, 값 불변, 잠금 뒤 재조회를 본다. 행 잠금 DB 에서의 실제 동시 직렬화
- * 검증은 운영 DB 가 정해지면 그 방언으로 더한다(ADR-0004).
+ * <p>잠금 문은 자기 대입 UPDATE 라 Oracle 에서는 그 행에 커밋까지 쓰기 잠금을 쥔다. 호출 순서 기록, 다른 연결의
+ * {@code SELECT … FOR UPDATE NOWAIT} 탐침(ORA-00054), 값 불변, 잠금 뒤 재조회를 본다. 예전 SQLite 는 DB 전체 잠금이라
+ * 행 단위 직렬화를 드러낼 수 없었다(F10) — Oracle 에서는 같은 행을 건드리는 다른 연결이 커밋까지 기다리므로 탐침은 NOWAIT 로 건다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import({DmdSegmentTestSupport.Config.class, DataSegmentLockSqliteTest.RecordingConfig.class})
-class DataSegmentLockSqliteTest {
+class DataSegmentLockSqliteTest extends AbstractMdmSharedDbTest {
 
     private static final String MD = "PORT";
-
-    @TempDir
-    static Path tempDir;
 
     @Autowired
     DataItemSaveCore core;
@@ -82,15 +75,6 @@ class DataSegmentLockSqliteTest {
 
     private JdbcTemplate jdbc;
     private TransactionTemplate tx;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile());
-    }
-
-    private static Path dbFile() {
-        return tempDir.resolve("mdm-dmd-segment-lock.db");
-    }
 
     @TestConfiguration(proxyBeanMethods = false)
     static class RecordingConfig {
@@ -220,7 +204,7 @@ class DataSegmentLockSqliteTest {
     }
 
     @Test
-    void L2_잠금은_쓰기_잠금이라_다른_연결의_BEGIN_IMMEDIATE_가_막힌다() throws Exception {
+    void L2_잠금은_행_쓰기_잠금이라_다른_연결의_FOR_UPDATE_NOWAIT_가_막힌다() throws Exception {
         tx.executeWithoutResult(status -> {
             lock.lock(MD);
             assertTrue(probeBusy(), "잠금 문이 쓰기 잠금을 쥐지 않았다(SELECT 로 바뀐 변이)");
@@ -306,20 +290,26 @@ class DataSegmentLockSqliteTest {
                 MD);
     }
 
-    /** 같은 DB 파일을 스프링 풀 밖의 새 연결로 열어 쓰기 잠금을 시도한다. busy 면 true. */
-    private static boolean probeBusy() {
-        try (Connection c = DriverManager.getConnection("jdbc:sqlite:" + dbFile()); Statement s = c.createStatement()) {
-            s.execute("PRAGMA busy_timeout = 0");
-            try {
-                s.execute("BEGIN IMMEDIATE");
+    /**
+     * 스프링 풀의 다른 연결로 그 마루 데이터 행에 {@code FOR UPDATE NOWAIT} 를 건다(풀 상한 2 — 잠금을 쥔 트랜잭션 연결 하나 + 이 탐침
+     * 하나). 행 잠금이 걸려 있으면 ORA-00054 라 true, 잡히면 곧바로 되돌리고 false.
+     */
+    private boolean probeBusy() {
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
+            try (PreparedStatement ps = c.prepareStatement(
+                    "SELECT MARU_DATA_ID FROM TB_MDM_DATA WHERE MARU_DATA_ID = ? FOR UPDATE NOWAIT")) {
+                ps.setString(1, MD);
+                ps.executeQuery().close();
+                return false;
             } catch (SQLException e) {
-                if (String.valueOf(e.getMessage()).contains("SQLITE_BUSY")) {
+                if (e.getErrorCode() == 54) {
                     return true;
                 }
                 throw e;
+            } finally {
+                c.rollback();
             }
-            s.execute("ROLLBACK");
-            return false;
         } catch (SQLException e) {
             throw new IllegalStateException(e);
         }

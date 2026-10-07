@@ -144,7 +144,7 @@ class StoredDefinitionLookupTest extends AbstractMdmSharedDbTest {
     @Test
     void 세트는_판정_시각에_적용되는_RELEASED_버전을_고르고_DRAFT_는_고르지_않는다() {
         DmeTestSupport.ruleSet(jdbc, "S_V", "버전 세트", "[\"R_TS\"]", "INUSE", 0);           // 1.000 [2000-01-01, …)
-        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = '2026-05-01 00:00:00' WHERE MARU_RULE_SET_ID = 'S_V'");
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = TIMESTAMP '2026-05-01 00:00:00' WHERE MARU_RULE_SET_ID = 'S_V'");
         DmeTestSupport.ruleSetVersion(jdbc, "S_V", "1.001", "MINOR", "RELEASED", "kim", "[\"R_TS\",\"R_OTHER\"]",
                 "2026-05-01 00:00:00", "9999-12-31 00:00:00", 0);
         DmeTestSupport.ruleSetVersion(jdbc, "S_V", "2.000", "MAJOR", "DRAFT", "kim", "[\"R_DRAFT\"]", null, null, 0);

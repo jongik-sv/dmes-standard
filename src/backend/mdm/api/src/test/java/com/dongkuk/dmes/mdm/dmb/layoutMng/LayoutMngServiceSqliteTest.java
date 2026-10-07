@@ -266,8 +266,9 @@ class LayoutMngServiceSqliteTest extends LayoutServiceTestSupport {
     @SuppressWarnings("unchecked")
     void D141_도메인_없는_컬럼도_컬럼_검색에_나오고_파생값은_비어_있다() {
         // 도메인은 컬럼 사전의 필수가 아니다(D-141). 사전에 있는 컬럼이므로 L01(사전 밖)로 빠지면 안 된다.
-        jdbc.update("INSERT OR IGNORE INTO TB_MDM_COLUMN (COLUMN_NAME, PHYS_NAME, REQUIRED, CHG_SEQ, VER) "
-                + "VALUES ('도메인 없는 칸', 'NO_DOMAIN_FLD', 0, 0, 0)");
+        jdbc.update("INSERT INTO TB_MDM_COLUMN (COLUMN_NAME, PHYS_NAME, REQUIRED, CHG_SEQ, VER) "
+                + "SELECT '도메인 없는 칸', 'NO_DOMAIN_FLD', 0, 0, 0 FROM DUAL "
+                + "WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_COLUMN WHERE PHYS_NAME = 'NO_DOMAIN_FLD' OR COLUMN_NAME = '도메인 없는 칸')");
         LayoutMngSearchRequest cols = new LayoutMngSearchRequest();
         cols.setTarget("COLUMN");
         cols.setKeyword("NO_DOMAIN_FLD");
@@ -445,7 +446,7 @@ class LayoutMngServiceSqliteTest extends LayoutServiceTestSupport {
     void 쌓인_헤더에_판정_시각의_확정_버전이_없으면_목록과_view_의_길이와_본문_OFFSET_이_null_이다() {
         M201 m = m201();
         // L110 의 확정을 미래로 옮긴다 — 지금(2026-06-15)과 asOf 이전 시각에는 L110 확정 버전이 없다
-        jdbc.update("UPDATE TB_MDM_LAYOUT_VER SET APPLY_FROM = '2026-12-01 00:00:00' WHERE LAYOUT_ID = ?", m.l110());
+        jdbc.update("UPDATE TB_MDM_LAYOUT_VER SET APPLY_FROM = TIMESTAMP '2026-12-01 00:00:00' WHERE LAYOUT_ID = ?", m.l110());
 
         LayoutMngSearchRequest search = new LayoutMngSearchRequest();
         Map<String, Object> row = ((List<Map<String, Object>>) layoutService.search(search).get("layouts")).stream()

@@ -65,8 +65,8 @@ class TermJsonListCharacterizationTest extends AbstractMdmSharedDbTest {
     }
 
     /**
-     * DB 에 넣을 수 있는 입력만 — SQLite 스키마(V3)의 {@code CHECK (칸 IS NULL OR json_valid(칸))} 가 깨진 JSON·빈 문자열·공백을
-     * 거부한다(아래 시험이 고정). 그런 입력은 lib 의 {@code TermJsonListParserCharacterizationTest} 가 가짜 저장소로 고정한다.
+     * DB 에 넣을 수 있는 입력만 — Oracle 스키마의 {@code CHECK (칸 IS NULL OR 칸 IS JSON STRICT)} 가 깨진 JSON·공백을 거부한다(아래 시험이
+     * 고정). 빈 문자열은 Oracle 이 NULL 로 저장하므로 거부되지 않고 null 입력과 같다. 그런 입력은 lib 의 {@code TermJsonListParserCharacterizationTest} 가 가짜 저장소로 고정한다.
      */
     private static final List<Case> MATRIX = List.of(
             new Case(null, List.of()),
@@ -136,8 +136,9 @@ class TermJsonListCharacterizationTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void SQLite_스키마는_JSON이_아닌_값을_세_칸_모두_거부한다() {
-        for (String raw : List.of("", "   ", "[\"a\"", "[\"a\",]", "[\"a\"] x", "abc", "배치")) {
+    void Oracle_스키마는_JSON이_아닌_값을_세_칸_모두_거부한다() {
+        // 빈 문자열("")은 Oracle 이 NULL 로 저장해 CHECK 에 안 걸린다 — 목록에서 뺐다(null 입력과 같아 위 MATRIX 의 null 행이 덮는다).
+        for (String raw : List.of("   ", "[\"a\"", "[\"a\",]", "[\"a\"] x", "abc", "배치")) {
             assertThrows(DataAccessException.class, () -> seedRaw(raw), "입력=" + raw);
         }
         for (String column : List.of("SYNONYMS", "ALIASES", "SYSTEMS")) {

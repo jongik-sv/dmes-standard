@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.security.context.UserContextHolder;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dma.DmaTestSupport;
 import com.dongkuk.dmes.mdm.dma.DmaTestSupport.MutableCurrentUser;
@@ -22,21 +23,18 @@ import com.dongkuk.dmes.mdm.dmc.codeEdit.dto.CodeEditView;
 import com.dongkuk.dmes.mdm.dmc.codeEdit.dto.CodeEditViewRequest;
 import com.dongkuk.dmes.mdm.dmc.codeEdit.service.CodeEditService;
 import com.dongkuk.oasis.audit.AuditHolder;
-import java.nio.file.Path;
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -46,18 +44,15 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 담당자·원천·다른 사용자 DRAFT·auditVer·도메인·수신 로그·MASTER 식 참조를 다시 본다. target 이 없으면 기존 DRAFT 삭제다.
  *
  * <p>TB_MDM_DOMAIN·TB_MDM_CODE_SYSTEM·TB_MDM_CODE_RECV 는 {@link MasterCodeSeeds#clear()} 가 비우지 않고 TB_MDM_CODE 를
- * FK 로 가리키므로, 이 시험이 넣은 행을 먼저 지운다(임시 DB 파일).
+ * FK 로 가리키므로, 이 시험이 넣은 행을 먼저 지운다(공유 시험 DB 는 클래스마다 초기화되지만 메서드 사이에는 남는다).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(DmaTestSupport.Config.class)
-class CodeEditDeleteCodeSqliteTest {
+class CodeEditDeleteCodeSqliteTest extends AbstractMdmSharedDbTest {
 
     private static final String ID = "DEL_CD";
     private static final String TEST_DOMAIN = "DELT_%";
-
-    @TempDir
-    static Path tempDir;
 
     @Autowired
     CodeEditService service;
@@ -71,12 +66,6 @@ class CodeEditDeleteCodeSqliteTest {
     private JdbcTemplate jdbc;
     private TransactionTemplate tx;
     private MasterCodeSeeds seeds;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-code-edit-delete-code-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void setUp() {
@@ -248,7 +237,7 @@ class CodeEditDeleteCodeSqliteTest {
     void R4_수신_로그가_있으면_거부한다() {
         registeredWithRows();
         jdbc.update("INSERT INTO TB_MDM_CODE_RECV (MARU_CODE_ID, SOURCE_SYSTEM, REQ_KIND, RECEIVED_AT, BODY)"
-                + " VALUES (?, 'ERP', 'VERSION', '2026-09-01 00:00:00', '{}')", ID);
+                + " VALUES (?, 'ERP', 'VERSION', ?, '{}')", ID, Timestamp.valueOf("2026-09-01 00:00:00"));
 
         BusinessException e = assertCode(MdmErrorCode.TRANSITION_NOT_ALLOWED, () -> deleteCode(0L));
 

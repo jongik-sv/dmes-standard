@@ -193,7 +193,7 @@ class DataCateEditServiceSqliteTest extends AbstractMdmSharedDbTest {
         // R4 — 소속 행은 카테고리를 닫아도 "열린 채" 그대로 남는다(연쇄 닫힘이 없다). COUNT(*) 만으로는 연쇄 닫힘
         // (행은 남지만 VALID_TO 가 바뀌는 변이)을 잡지 못하므로 VALID_TO = OPEN_END 로 필터해 확인한다.
         assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_DATA_CATE_ITEM WHERE MARU_DATA_ID='MD1' "
-                + "AND CATE_ID='GRP' AND VALID_TO = '" + DmdSegmentTestSupport.OPEN + "'", Integer.class));
+                + "AND CATE_ID='GRP' AND VALID_TO = ?", Integer.class, DmdSegmentTestSupport.ts(DmdSegmentTestSupport.OPEN)));
         assertEquals(0, service.view(req).getCate().getMatchCount());
 
         service.reopen(req);
@@ -267,9 +267,10 @@ class DataCateEditServiceSqliteTest extends AbstractMdmSharedDbTest {
         DmdSegmentTestSupport.insertItemRow(jdbc, "MD1", "B", "Bravo", DmdSegmentTestSupport.T0,
                 DmdSegmentTestSupport.OPEN, 0, null, null);
         // 검사는 모두 통과한다 — 두 번째 코드(B)의 소속 INSERT 만 DB 가 거부해, 첫 코드(A)의 INSERT 가 이미 나간 뒤 실패한다.
-        jdbc.execute("DROP TRIGGER IF EXISTS TR_CATE_ITEM_FAIL");
-        jdbc.execute("CREATE TRIGGER TR_CATE_ITEM_FAIL BEFORE INSERT ON TB_MDM_DATA_CATE_ITEM "
-                + "WHEN NEW.CODE = 'B' BEGIN SELECT RAISE(ABORT, 'forced failure'); END");
+        dropFailTrigger();
+        jdbc.execute("CREATE OR REPLACE TRIGGER TR_CATE_ITEM_FAIL BEFORE INSERT ON TB_MDM_DATA_CATE_ITEM "
+                + "FOR EACH ROW WHEN (NEW.CODE = 'B') "
+                + "BEGIN RAISE_APPLICATION_ERROR(-20001, 'forced failure'); END;");
         try {
             CateSaveRequest req = new CateSaveRequest();
             req.setMaruDataId("MD1");
@@ -280,7 +281,7 @@ class DataCateEditServiceSqliteTest extends AbstractMdmSharedDbTest {
             assertEquals(0, jdbc.queryForObject(
                     "SELECT COUNT(*) FROM TB_MDM_DATA_CATE_ITEM WHERE MARU_DATA_ID='MD1' AND CATE_ID='GRP'", Integer.class));
         } finally {
-            jdbc.execute("DROP TRIGGER IF EXISTS TR_CATE_ITEM_FAIL");
+            dropFailTrigger();
         }
     }
 
@@ -393,6 +394,12 @@ class DataCateEditServiceSqliteTest extends AbstractMdmSharedDbTest {
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────
+
+    /** 트리거가 없어도 오류 없이 지운다(Oracle 은 DROP TRIGGER IF EXISTS 가 없다 — 없음 ORA-04080 만 무시). */
+    private void dropFailTrigger() {
+        jdbc.execute("BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TR_CATE_ITEM_FAIL'; "
+                + "EXCEPTION WHEN OTHERS THEN IF SQLCODE != -4080 THEN RAISE; END IF; END;");
+    }
 
     private DataCateEditService withSpyLock(DataSegmentLock spyLock) {
         DataCategorySegmentCore core = new DataCategorySegmentCore(transactionManager, spyLock, rowStore, cateStore,
