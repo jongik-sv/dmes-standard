@@ -26,12 +26,11 @@ FROM   T_ACT X
      , T_PROC Y
 WHERE  Y.PROC_CD(+) = X.PROC_CD;
 
--- 2) 인라인 뷰(앞 쉼표 항목) + EXISTS 서브쿼리
+-- 2) 인라인 뷰(앞 쉼표 항목, 여는 괄호는 쉼표와 같은 줄) + EXISTS 서브쿼리(키워드 줄 뒤 다음 줄에 괄호)
 SELECT A.PROC_CD
      , V.WGT
 FROM   TB_M47_PROC A
-     ,
-       (
+     , (
            SELECT B.PROC_CD
                 , SUM(B.COIL_WGT) WGT
            FROM   TB_M47_PRD_ACT_CMN B
@@ -45,12 +44,11 @@ AND    EXISTS
            WHERE  C.PROC_CD = A.PROC_CD
        );
 
--- 3) 인라인 뷰가 FROM 첫 항목이면 FROM 만 쓴 줄 다음 줄의 7번째 열에 ( 를 쓴다
+-- 3) 인라인 뷰가 FROM 첫 항목이면 FROM 과 같은 줄 7번째 열에 ( 를 쓴다
 SELECT V.PROC_CD
      , V.WGT
      , A.PROC_NM
-FROM
-       (
+FROM   (
            SELECT B.PROC_CD
                 , SUM(B.COIL_WGT) WGT
            FROM   TB_M47_PRD_ACT_CMN B
