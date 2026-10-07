@@ -56,7 +56,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 | `DENY …` | 레인에 `확인 창 거부` 통지(`protocol.md`) |
 | `ESCALATE … permission` | `console-poll.sh judge-sha --lane <레인>` 로 화면 sha 기억 → 판단 올리기 → `term-send-safe.sh --lane <레인> --raw --expect-sha <sha>` (`SENT` 면 처리됨·소비는 term-send-safe 가 이미 남기므로 input-handled 를 부르지 않는다 — 키를 다른 경로로 보냈을 때만 `--expect-full <sha>` 와 함께, `approvals.md` §3). 사용자 결정 항목이면 사용자에게 한 줄 |
 | `ESCALATE …`(그 밖) · `WAIT_USER` | 사용자에게 한 줄 알림. 덮어 보내지 않는다 |
-| `IDLE <레인>` | `references/monitor.md` 배정(queue → backlog → 병목 대기 레인 (a)~(e) → 쉬어라). 띠별 범위(Y·O 는 opencode 워커 우선 포함). 병목으로 기다리는 레인은 IDLE 확정 전에도 같은 규칙으로 일을 준다 |
+| `IDLE <레인>` | `references/monitor.md` 배정(queue → backlog → 병목 대기 레인 (a)~(e) → 쉬어라). 띠별 범위(Y·O 는 opencode 워커 우선 포함). 병목으로 기다리는 레인의 보고는 `진행 보고` 행 참조 |
 | `STALL?`·`STALL` | `references/stall.md`(원인은 판단 올리기). 프로세스를 직접 죽이지 않는다 |
 | `GONE` | 화면 확인 뒤 레인 상태 정리 또는 재기동 여부를 사용자에게 |
 | `CTX_OVER` | `references/compact.md`(정본 갱신 요청 → `compact-lane.sh`) |
@@ -79,7 +79,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 | 종류 | 처리 |
 |---|---|
 | `신원` | `coord-state.sh set '.lanes.<레인>.session' …`(`spawn.md` 신원 연결) |
-| `진행 보고` | `item-done` → `progress`(`monitor.md` 진도율). 보고에 「대기」「기다린다」가 있으면(다른 레인 머지·의존물·Oracle·heavy 슬롯·사용자 결정) 무작정 대기시키지 말고 **같은 답장에** 병목과 무관한 일을 함께 준다(`monitor.md` 「병목 대기 레인」 (a)~(e), 없을 때만 대기 유지) |
+| `진행 보고` | `item-done` → `progress`(`monitor.md` 진도율). 보고에 「대기」「기다린다」가 있고 원인이 다른 레인 머지·의존물·Oracle·heavy 슬롯·사용자 결정이면 IDLE 확정을 기다리지 않고 무작정 대기시키지 말고 **같은 답장에** 병목과 무관한 일을 함께 준다(`monitor.md` 「병목 대기 레인」 (a)~(e), 없을 때만 대기 유지) |
 | `질문` | `coord-state.sh report <레인> "<요약>" --question "<첫 줄>"` 로 적고 근거 확인 뒤 직접 답한다 → `report <레인> --answered`(화면 창에 `term-send-safe.sh --lane … --raw` 로 답했으면 처리됨은 이미 남았다 — 다른 경로로 답했을 때만 `console-poll.sh input-handled --lane <레인> --by coordinator --expect-full <judge-sha 의 지문>`). 삭제·shared 기존 API 변경·사용자 결정이면 `pending_user` 에 올려 사용자에게 |
 | `머지 요청` | `merge-gate.md`(`merge-gate.sh`). 한 번에 하나만 허가, 허가에 「머지 뒤 다음 일」 |
 | `머지 완료`·`정리 완료` | 트리 대조 → `merge.history`, 다음 허가. 남긴 브랜치는 `pending_user` |
