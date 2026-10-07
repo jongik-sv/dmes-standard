@@ -12,8 +12,8 @@ import java.util.List;
 /**
  * caravan-console 메타(TB_MCM_APPHOST / TB_MCM_MOM_KAFKA_SERAI_CONFIG) 시드 (2026-10-04 DataInitializer 분할).
  *
- * <p>두 저장소는 cactus secondary EMF(caravan.db / CARAVANUSER) 소속이라 {@code DataInitializer.run()} 의 트랜잭션과
- * 별개 경계로 저장된다. 저장소 빈이 없으면(secondary EMF 비활성) skip 한다.
+ * <p>두 저장소는 cactus secondary EMF(CARAVANUSER) 소속이라 {@code DataInitializer.run()} 의 트랜잭션과
+ * 별개 경계로 저장된다. 저장소 빈이 없으면(secondary EMF 비활성) skip 하고, 표가 아직 없으면(caravan-hub 기준선 적용 전) 경고 뒤 skip 한다.
  */
 public final class CaravanMetaSeeder {
 
@@ -63,7 +63,9 @@ public final class CaravanMetaSeeder {
                         .appHostUrl("http://localhost:8200")
                         .build()
         );
-        appHostJpaRepository.saveAll(hosts);
+        if (saveIfTableExists("TB_MCM_APPHOST", () -> appHostJpaRepository.saveAll(hosts))) {
+            log.info("[DataInitializer] TB_MCM_APPHOST 시드 완료 — {} row", hosts.size());
+        }
     }
 
     /**
@@ -112,7 +114,40 @@ public final class CaravanMetaSeeder {
                         .useYn("Y")
                         .build()
         );
-        consoleCaravanHubConfigJpaRepository.saveAll(configs);
-        log.info("[DataInitializer] SERAI_CONFIG 시드 완료 — {} row (PoC)", configs.size());
+        if (saveIfTableExists("TB_MCM_MOM_KAFKA_SERAI_CONFIG", () -> consoleCaravanHubConfigJpaRepository.saveAll(configs))) {
+            log.info("[DataInitializer] SERAI_CONFIG 시드 완료 — {} row (PoC)", configs.size());
+        }
+    }
+
+    /**
+     * 표가 없으면(ORA-00942) 경고만 남기고 건너뛴다 (oracle-1007, 2026-10-07).
+     *
+     * <p>CARAVANUSER 의 표는 caravan-hub(ora-platform) 기준선 Flyway 가 만든다. mcm 은 그 스키마의 주인이 아니므로 표를 만들지 않고,
+     * caravan-hub 기준선이 아직 적용되지 않은 PDB 에서는 mcm 기동이 이 시드 때문에 멈추지 않게 한다. 그 밖의 오류는 그대로 던진다.
+     * 저장은 caravan 보조 EMF 의 트랜잭션이라 {@code DataInitializer.run()} 의 기본 트랜잭션과 별개다.
+     *
+     * @return 저장했으면 true
+     */
+    private static boolean saveIfTableExists(String table, Runnable save) {
+        try {
+            save.run();
+            return true;
+        } catch (RuntimeException e) {
+            if (!isTableMissing(e)) {
+                throw e;
+            }
+            log.warn("[DataInitializer] CARAVANUSER.{} 표가 없다(ORA-00942) — caravan-hub 기준선 적용 전이라 시드를 건너뛴다.", table);
+            return false;
+        }
+    }
+
+    /** 원인 사슬에 Oracle ORA-00942(표 또는 뷰가 없음)가 있는지. */
+    private static boolean isTableMissing(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof java.sql.SQLException sql && sql.getErrorCode() == 942) {
+                return true;
+            }
+        }
+        return false;
     }
 }
