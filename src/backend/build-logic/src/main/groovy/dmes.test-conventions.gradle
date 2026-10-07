@@ -29,7 +29,7 @@ def oraMode = oraProp('dmes.ora.test', 'DMES_ORA_TEST')
 def oraExisting = oraProp('dmes.ora.pdb', 'DMES_ORA_PDB')
 // 다중 데이터소스의 접두(모듈 루트 프로젝트 이름 기준 기본값). 쉼표로 구분하고 -Pdmes.ora.poolExtras=<접두,접두>(none 이면 끔)로 바꾼다.
 //   cactus.datasource.extras.<이름>  → 키 maximum-pool-size·idle-timeout (cactus 방식)
-//   spring.datasource.<이름>         → 키 hikari.maximum-pool-size·minimum-idle·idle-timeout (Spring 방식)
+//   spring.datasource.<이름>         → 키 (hikari.)maximum-pool-size·minimum-idle·idle-timeout (Spring 방식, 직접 바인딩 모듈은 hikari. 없이)
 def oraPoolExtrasDefault = [
     'mcm'        : 'cactus.datasource.extras.cmn,cactus.datasource.extras.if,cactus.datasource.extras.caravan',
     'caravan-hub': 'spring.datasource.mst,spring.datasource.if',
@@ -84,9 +84,13 @@ allprojects {
                         systemProperty "${prefix}.maximum-pool-size", '2'
                         systemProperty "${prefix}.idle-timeout", '10000'
                     } else {
-                        systemProperty "${prefix}.hikari.maximum-pool-size", '2'
-                        systemProperty "${prefix}.hikari.minimum-idle", '0'
-                        systemProperty "${prefix}.hikari.idle-timeout", '10000'
+                        // DataSource 를 HikariDataSource 에 직접 바인딩하는 모듈(caravan-hub)은 prefix.maximum-pool-size, 그렇지 않으면
+                        // prefix.hikari.* 이다. 어느 쪽인지 모르므로 둘 다 건다(안 쓰는 쪽은 무시된다).
+                        ['', 'hikari.'].each { String sub ->
+                            systemProperty "${prefix}.${sub}maximum-pool-size", '2'
+                            systemProperty "${prefix}.${sub}minimum-idle", '0'
+                            systemProperty "${prefix}.${sub}idle-timeout", '10000'
+                        }
                     }
                 }
             }
