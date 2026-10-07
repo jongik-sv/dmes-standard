@@ -2,7 +2,7 @@
 
 - 레인: ora-mcm-app / 브랜치 `feat/ora-mcm-app` / 워크트리 `/Users/jji/project/dmes-wt/ora-mcm-app`
 - 조정 세션: dmes-standard-d8 (지시 ora-mcm-app-1, 원문 `/Users/jji/.coord/oracle-1007/lanes/ora-mcm-app/brief.md`)
-- 갱신: 2026-10-07 21:15 KST
+- 갱신: 2026-10-07 21:30 KST
 
 ## 지금 상태
 
@@ -20,7 +20,8 @@
 | feat/ora-mcm-core·dev 합치기 | ora-mcm-core 1d612401a(충돌 0)·dev ce378785a 합침. V1 sample_notice.active NUMBER(1) 로 지문 골든 __SCHEMA__ 한 줄 갱신 | 7141a7de8·bb2aebcdc·8373c105e |
 | a4 시험 | **통과**: Oracle(VM 3GB) 3회 모두 166개 중 실패 0·건너뜀 1(성능 시험). 지목된 4개·새 시험 모두 포함 | 1b4d14fde(perf 문서: 벽시계 45 대 78초, 공통 클래스 합 34.2 대 39.3초) |
 | b8 잔재 정리(§9.3) | 완료: sqlite-jdbc 제거, 특성화 시험·골든 4 archive, 주석·샘플 SQL Oracle 판. mcm 시험 162개 실패 0·건너뜀 1(Oracle 1회) | 4d0d11a59·05770d32f |
-| a4 머지 요청 | ora-mcm-core c4 머지 요청 SHA 대기 → 다시 합쳐 4개 시험·V1 체크섬 재확인 뒤 요청 | |
+| community dialects 의존 제거 | 완료(참조 0, Spring 컨텍스트 시험 6개 클래스 63개 통과) | a5b369142 |
+| a4 머지 요청 | **요청함**: dev e8f5ed3d2(mcm-core 머지③) 합침 → 지목 3개 시험 27개 통과, V1 4개는 a4 측정 판과 같음, 레인 PDB(L_ORA_MCM_APP) 없음 | 7c64ba01e(dev 합치기) |
 
 Oracle: 20:20 VM 3GB 재기동 뒤 T_ORA_MCM_APP drop 완료, 측정 뒤 하니스가 시험 PDB 를 지움. 남은 PDB·백그라운드 0. (이전: 19:25 두 번째 동결(시험 JVM 등 TERM). 재개 뒤 T_ORA_MCM_APP drop 은 잠금 시간 초과(rc 1), close 는 성공(20:2x). VM available 81MB·load 19 로 「VM 의심」 보고. T_ORA_MCM_APP 은 닫힌 채 남아 있었다.)
 
