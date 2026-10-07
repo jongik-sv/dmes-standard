@@ -2,7 +2,7 @@
 
 - 레인: ora-base / 브랜치 `feat/ora-base` / 워크트리 `/Users/jji/project/dmes-wt/ora-base` / 조정 세션 `dmes-standard-d8`
 - 지시: ora-base-1 (정본 `/Users/jji/.coord/oracle-1007/lanes/ora-base/brief.md`)
-- 마지막 갱신: 2026-10-07 밤 KST(컨텍스트 42% 갱신 요청 처리, compact 대기). 머지①b(fb253556d)·①c(ce378785a) 완료·dev push 됨. **다음 base 머지 묶음(머지②·③ 뒤 요청)** 준비 완료, 대기 중. Oracle 재개됨(VM 3GB).
+- 마지막 갱신: 2026-10-07 밤 KST(컨텍스트 45% 갱신 요청 처리, compact 대기). 머지①b(fb253556d)·①c(ce378785a)·①d(5f84f28da, 하니스 교착 수정) 완료·dev push 됨. 머지③(14b09f1af)·③b(daec256d0)는 dev 에 들어옴, **머지②(ora-mdm)·④(ora-platform) 대기 중**. **다음 base 머지 묶음** 준비 완료. Oracle 재개됨(VM 3GB).
 
 ## 지금 상태
 
@@ -12,7 +12,11 @@
 | b5 적재기 + template 명령 + PC 잠금 + KST 고정 | **머지①b 완료**(fb253556d) | `lock-hold`·SIGTERM 정리·sqlplus 시간 상한, build-logic 시간대 |
 | 하니스 접속 상한·VM 상태 로그·e2e Oracle 도우미 | **머지①c 완료**(ce378785a) | 시험 JVM Hikari 2·유휴 0·cache.maxSize 2·forks 1, close·seal 무잠금, autotask·AWR 끄기, `pdb.mjs sessions`·`quiet`, e2e `oracle.ts`(oracledb thin)·단위 시험 16건 |
 | 하니스 실행 확인 | **완료** | `:lib:test --tests *SapCsvTest -Pdmes.ora.test=clone` 39초 성공, T_ORA_BASE 자동 삭제, 로그 줄 확인 |
-| b5 후속·b7 일부·b8 준비(미머지, **다음 base 묶음**) | 커밋됨, `feat/ora-base`(dev 대비 23커밋, 머지 커밋 포함) | 아래 목록 |
+| 하니스 교착 수정(①d) | **머지①d 완료**(dev 5f84f28da) | included build 마다 서비스·lock-hold 가 생겨 멈추던 것을 JVM 안 주인 1개로 공유, PC 잠금→슬롯 순서, `build-logic/tests/run.sh` 회귀 시험. 실제 Oracle clone 모드 실측 통과(T_WT_1D 복제 4초·공유·drop) |
+| 메인 로컬 서버 Oracle 전환 런북 + mcm 리허설 | **완료**(`docs/oracle-1007/local-cutover.md`) | 전용 `L_MAIN`, FREEPDB1 은 close 만, 전환 순서·소요 확정(§0). mcm 리허설 1,706행 불일치 0. mdm·mls 이관·대조는 ②·④ 뒤 |
+| `template-schema` V 파일 탐색 수정 | **완료**(`5db35a868`, 다음 묶음) | oracle 폴더 없는 위치(caravanuser·ifuser·`<모듈>/`)도 찾음, 옛 SQLite 평평한 체인 폴더는 건너뜀, `pdb.mjs migrations` 명령. ora-platform 트리에서 11개 확인 |
+| Oracle 전용 규칙·스킬 | **완료**(`ad0d80cfa`, 다음 묶음) | `dialect-neutral-sql.md`→`oracle-sql-rules.md`, flyway-migration-add 스킬·`migration_tool.mjs`(위치별 채번)·새 selftest, 링크 일괄 수정, 보관 표시 3건, RULE.md 문구 |
+| b5 후속·b7 일부·b8 준비(미머지, **다음 base 묶음**) | 커밋됨, `feat/ora-base`(dev 대비 33커밋, 머지 커밋 포함; ①d 로 들어간 것과 같은 내용의 `264aade4d`·`79e9a2f6c` 포함) | 아래 목록 |
 | b7 나머지 | **머지④(ora-platform) 뒤 한 번에** | 아래 「b7 문서 항목」 |
 | b8 | 머지④ 뒤 착수(조정자 확인 후) | `docs/oracle-1007/b8-residue.md`(고친 것 없음, 머지 뒤 재검색으로 대조) |
 | z1 마감 | 조정자 지시 때 | 전 모듈 시험·E2E·시험 시간 비교·SUMMARY·PDB 정리 |
@@ -28,7 +32,12 @@
 - `85e0feb3d` 이 메모, `79e9a2f6c`(+merge 134a72c97) 세션 수 로그·clone 의 자동 작업 확인 줄 후속 fix
 - `8c7ad1cd0` 가이드 §8-10(백틱 칼럼 ORA-00904)·§8-11(IDENTITY 혼용), b8 playwright 행 보강
 - `6a689af35`·`6b92df4bf` b8 §9 「머지 전 잔재 예측」(레인 4개 가상 병합 기준, 레인별 요약은 조정자에게 전달함, 재확인 명령 §9.6)
-- `264aade4d` 하니스 교착 수정: included build 마다 서비스·lock-hold 가 따로 생겨 멈추던 것을 JVM 안 주인 1개로 공유, PC 잠금→슬롯 순서(test-slot 선행 훅), 회귀 시험 `src/backend/build-logic/tests/run.sh`(Oracle 불필요), README 임시 규칙. **급하면 ①d 로 먼저 머지 요청 대상**
+- (①d 로 이미 dev 에 들어감) `264aade4d` 하니스 교착 수정: included build 마다 서비스·lock-hold 가 따로 생겨 멈추던 것을 JVM 안 주인 1개로 공유, PC 잠금→슬롯 순서(test-slot 선행 훅), 회귀 시험 `src/backend/build-logic/tests/run.sh`(Oracle 불필요), README 임시 규칙. **급하면 ①d 로 먼저 머지 요청 대상**
+- `4bee77201` snapshot.py: `convert --full`(내 PC .db 를 걸러내기 없이)·mls·caravan-console 변환·`import` 의 E2E 잔여 행 거르기(MDMAPUSER 에서 어느 칸이든 대문자 E2E 로 시작하는 행, 413행·19표, 로그로 거른 수 출력, `--keep-e2e` 로 끔), `scripts/db-snapshot/compare_counts.py`(표별 행 수 대조)
+- `c7cc00b19`·`acf5ff5e5` 런북 `docs/oracle-1007/local-cutover.md`(§0 순서·소요, §1 PDB·슬롯 결정, §4 이관, §6 롤백 = 재적재)
+- `be13c0f55` `notice-tables.md`(Flyway V1 정본·DBA 적용)·ADR-0004 대체 주석
+- `5db35a868` pdb.mjs V 파일 탐색 규칙 확장 + `migrations` 명령
+- `ad0d80cfa` oracle-sql-rules.md·flyway-migration-add 스킬·Oracle 전용 반영
 - `554be35d7` e2e `oracle.ts` 보완: `oracledb.d.ts`(최소 타입 선언, tsc --strict 통과)·`assertTargetPdb`(T_* 또는 DMES_E2E_ALLOW_PDB 로 허용한 L_* 만 연결, 기본 켬)·단위 시험 19건. ora-mdm 은 머지 뒤 자체 guardTarget 을 지워도 된다. 머지①d 는 필요 없다(mdm E2E 실행이 머지③ 뒤라 다음 base 묶음으로 충분).
 머지 요청 때는 dev 최신을 합치고 Oracle 없이 되는 확인(build-logic `:lib:help`, `snapshot.py convert` 두 번 결과 동일)을 돌린다. 위젯 CSV 는 `convert` 를 다시 돌린 뒤 `git checkout -- db-snapshot/MCMAPUSER/TB_MCM_WIDGET_DEF.csv` 로 되돌린다.
 
@@ -36,11 +45,14 @@ PDB: 남긴 것은 `TPL_EMPTY`(봉인·autotask 꺼짐)와 `L_ORA_BASE`(닫힘, 
 
 ## 남은 순서
 
-(scratchpad 에 보관: b7 초안 A·B 와 `INDEX.md`(적용 순서), z1 SUMMARY 뼈대 `z1-summary-skeleton.md`. 재개 때 경로는 세션 scratchpad 를 확인하고 없으면 b7·z1 은 이 메모 항목대로 다시 만든다.)
+(scratchpad 에 보관: b7 초안 A·B 와 `INDEX.md`(적용 순서), z1 SUMMARY 뼈대 `z1-summary-skeleton.md`. 재개 때 경로는 세션 scratchpad 를 확인하고 없으면 이 메모 항목대로 다시 만든다.)
 
-1. 머지②(ora-mdm)·③(mcm 묶음) 뒤: dev 최신 합침 → Oracle 없이 되는 확인 → 「다음 base 머지 묶음」 머지 요청(위 커밋 목록).
-2. 모듈 V1 이 dev 에 들어오면 `template-schema --rebuild` → `template-data --rebuild` 로 템플릿을 만들고 `L_ORA_BASE` 를 다시 복제한다(PC 잠금 아래, Oracle 시험은 `DFLOW_HEAVY_WAIT=1800`).
-3. 머지④(ora-platform) 뒤: b7 나머지 → b8 → 조정자 지시로 z1.
+1. **머지② 알림 뒤**: dev 합침 → Oracle 없이 되는 확인 → 「다음 base 머지 묶음」 머지 요청(위 커밋 목록, 허가 뒤 메인 저장소에서 `--no-ff`). 템플릿 rebuild 는 ②(mdm)·④ 뒤 **한 번에**: `template-schema TPL_SCHEMA --rebuild` → `template-data TPL_DATA --rebuild`(**E2E 거름 로그 확인**, 이 경로가 실제 Oracle 에서 처음 도는 것) → `L_ORA_BASE` 재복제. 모두 PC 잠금 아래 하나씩, 끝나면 레인 PDB 는 close.
+2. **전환 준비(런북 §0)**: ④ 뒤 TPL_SCHEMA·TPL_DATA → `L_MAIN` 복제 → mcm·mdm·mls·caravan-console 이관(`convert --full` → `import --replace --keep-e2e`)·`compare_counts.py` 대조 → 서버 기동은 조정자. mdm·mls 적재 시간은 이때 재서 런북 §0·§7 갱신.
+3. **머지④ 뒤 b7 나머지**: README「처음 받은 뒤 셋업」·`Backend-Implementation-Guide`(DB 전제 문단 262행이 아직 SQLite 서술)·`Mes-Guide`, 스킬 `dflow-merge`(`migration-check.sh`·`dialect-check.sh`·`dialect.md`·`script-details`)·`dflow-dev`(dev-dialect·dev-discipline)·`dflow-team` resolve-prompt:208·`dflow-work` 의 `dflow.example` `dialect_check` — 초안 A·B 를 실제 상태와 대조해 적용(Oracle 하나·방언 검사 폐지 기준). `DMES-Deployment-Guide`·`DataSource_JNDI설계` 는 ora-platform 몫(제외).
+4. b8: `b8-residue.md` §9 대로 ora-base 몫(libs.versions.toml 의 sqlite-jdbc·mssql-jdbc·h2·hibernate-community-dialects·flyway-database-postgresql 는 레인이 사용처를 걷은 **뒤 마지막**, be-run `../data` 준비, `.gitignore`, `playwright.config.ts:8-9`, 옛 SQL 스냅샷·`export.sh`·`import.sh`·`sqlite_to_oracle.py`·`notice-mls-to-mcm.*`·perf 하니스 archive) 처리. 삭제는 사용자 승인 뒤. 레인별 잔재 요약은 조정자에게 전달함.
+5. z1: 조정자 지시 때(전 모듈 시험·E2E·시험 시간 비교·SUMMARY·PDB 정리).
+6. 알릴 것(레인 후속): mdm 소스 주석 2곳(`MdmLayoutItemPinMigrationTest.java:38`, 옛 sqlite V22 주석)이 옛 파일명 `dialect-neutral-sql.md` 를 가리킴.
 
 ## 결정·전달 사항(조정자)
 
