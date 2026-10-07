@@ -69,8 +69,6 @@ dependencies {
     // ── JPA (Hibernate) ──
     api libs.spring.data.jpa
     api libs.hibernate.core
-    // 비표준 dialect (SQLite 등) 자동 감지용. mcm/lib 와 동일 컨벤션.
-    api libs.hibernate.community.dialects.managed
     api libs.spring.orm
 
     // ── Spring Boot AutoConfiguration (compileOnly) ──
