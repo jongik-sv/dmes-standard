@@ -1,6 +1,7 @@
 # ora-mcm-core 정본 메모
 
-- 레인: ora-mcm-core / 브랜치 `feat/ora-mcm-core` / 워크트리 `/Users/jji/project/dmes-wt/ora-mcm-core`
+- 레인: ora-mcm-core / 브랜치 `feat/ora-mcm-core`·`feat/ora-mcm-lazy-ds`(둘 다 머지 뒤 정리) / 워크트리 `/Users/jji/project/dmes-wt/ora-mcm-core`(정리)
+- **상태: 마감(2026-10-07)** — 머지 ③·③b·③c·③d·③e·③f 모두 dev, ③g 는 L_MAIN 데이터 보정(DML). 남은 일은 아래 「후속」 절뿐이다.
 - 조정 세션: dmes-standard-d8 (지시 ora-mcm-core-1)
 - 갱신: 2026-10-07
 
@@ -44,10 +45,11 @@
    - 머지 요청에 적을 것: 대상 SHA, 전체 시험·perf, McmSqliteMybatisInterceptor·ScreenUsageMssqlDdl @Deprecated 유지(③b 정리), 위젯 PostgreSQL 갈래 제거(사용자 확정 3),
      V1 체크섬 변경(MCMAPUSER V1 머리 주석 BIT→TINYINT, 1d612401a — 이미 적용한 PDB 는 clean 또는 repair), 위젯 도움말 sync 는 node 단언(vitest 는 조정 게이트).
 3. ~~③b~~ 완료·머지(dev daec256d0, 10-07, mcm-app 머지③ dev 14b09f1af 합친 뒤): McmSqliteMybatisInterceptor·ScreenUsageMssqlDdl → `mcm-core/archive/main/{audit,screenusage}/`, McmAuditStatementInspectorSqliteTest → `archive/test/audit/`, McmAuditStatementInspector 의 setSqlite·isSqlite·toSqlite·toSqliteCompatible·stripUnicodeLiteralPrefix 제거. 호출처 0(mcm·mdm·mls grep, mdm 의 isSqlite 는 자기 private). 확인: :mcm-core·:mcm:lib compileTestJava exit 0, clone 전체 117클래스·1227건 실패 0·건너뜀 2(옮긴 SQLite 시험 5건 빠짐).
-4. ③c(머지 dev e3943844f — 조정 지시 10-07 — ora-mdm E2E 실측 mcm 연결 풀 고갈 교착): 원인은 OASIS txBiz 가 시작할 때 물리 연결을 잡고(READ_COMMITTED 지정 → HibernateJpaDialect.beginTransaction), SecWidgetService.search 가 그 연결을 쥔 채 NOT_SUPPORTED 로 내려가 범위 EM·CRUD readOnly 트랜잭션으로 연결을 더 받은 것(요청당 2~3개). 수정: 읽기는 바깥에 합류, 옛 행 이전 쓰기만 NOT_SUPPORTED + 비차단 1개(못 얻으면 건너뜀). 위젯 SQL 공유 모드는 local yml 에 전용 풀(MCMAPUSER, 최대 2·유휴 0·idleTimeout 10초). 채팅은 주석만. 회귀 시험 SecWidgetPoolExhaustionJpaTest(A 조회만 5명·B 이전 2명·C 이전 풀 크기)와 공유 모드 시험. 결정 3건은 조정 답(10-07, 모두 기본안).
-4-1. ③d(사용자 결정 「메인만 8 + 감지 유지」, 10-07): mcm JpaConfig.dataSource() 가 spring.datasource.hikari 의 minimum-idle·idle-timeout·leak-detection-threshold 를 읽는다(없으면 Hikari 기본 — 종전 동작). local yml 은 최대 3 그대로 + 쉬는 연결 0·유휴 30초·누수 감지 30초. 메인 로컬 서버만 기동 env SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=8(ora-base 기동 스크립트). 실측(최대 8): 기동 직후 연결 1, 3초 뒤 1(더 채우지 않음), 6개 쓰고 돌려준 뒤 55초까지 6, 60초에 0(유휴 30초 + Hikari 정리 주기 30초).
-5. ~~③e~~ 완료(머지④ dev 7b0b18e73 뒤, 10-07): SqliteTemporalConverterContributor·LocalDate(Time)AttributeConverter → `mcm-core/archive/main/persistence/`. 코드·yml 호출처 0(문서 언급만), 변환기는 @Converter 가 없어 자동 적용 대상도 아니었다. 확인: mcm-core·mcm:lib·mcm:api·mdm:api·mls:api 컴파일, clone EntitySchemaValidate 1·oracheck 45(건너뜀 2)·mcm/api Notice·MenuCatalog·config 17 통과.
-6. ③f Lazy 프록시(브랜치 feat/ora-mcm-lazy-ds, 사용자 결정 10-07 「로컬만 켜고 머지」): 설계 메모 docs/oracle-1007/design-mcm-lazy-ds.md, 채팅 LLM 대기 중 연결 수 회귀 시험(WidgetChatPoolHold{Raw,Lazy}JpaTest), JpaConfigLazyConnectionTest. WildFly 적용은 후속(「후속」 절).
+4. ~~③c~~ 완료(머지 dev e3943844f — 조정 지시 10-07 — ora-mdm E2E 실측 mcm 연결 풀 고갈 교착): 원인은 OASIS txBiz 가 시작할 때 물리 연결을 잡고(READ_COMMITTED 지정 → HibernateJpaDialect.beginTransaction), SecWidgetService.search 가 그 연결을 쥔 채 NOT_SUPPORTED 로 내려가 범위 EM·CRUD readOnly 트랜잭션으로 연결을 더 받은 것(요청당 2~3개). 수정: 읽기는 바깥에 합류, 옛 행 이전 쓰기만 NOT_SUPPORTED + 비차단 1개(못 얻으면 건너뜀). 위젯 SQL 공유 모드는 local yml 에 전용 풀(MCMAPUSER, 최대 2·유휴 0·idleTimeout 10초). 채팅은 주석만. 회귀 시험 SecWidgetPoolExhaustionJpaTest(A 조회만 5명·B 이전 2명·C 이전 풀 크기)와 공유 모드 시험. 결정 3건은 조정 답(10-07, 모두 기본안).
+4-1. ~~③d~~ 완료(머지 dev 1e93e6197, 사용자 결정 「메인만 8 + 감지 유지」, 10-07): mcm JpaConfig.dataSource() 가 spring.datasource.hikari 의 minimum-idle·idle-timeout·leak-detection-threshold 를 읽는다(없으면 Hikari 기본 — 종전 동작). local yml 은 최대 3 그대로 + 쉬는 연결 0·유휴 30초·누수 감지 30초. 메인 로컬 서버만 기동 env SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=8(ora-base 기동 스크립트). 실측(최대 8): 기동 직후 연결 1, 3초 뒤 1(더 채우지 않음), 6개 쓰고 돌려준 뒤 55초까지 6, 60초에 0(유휴 30초 + Hikari 정리 주기 30초).
+5. ~~③e~~ 완료(머지 dev ef64b9bc7, 머지④ 7b0b18e73 뒤, 10-07): SqliteTemporalConverterContributor·LocalDate(Time)AttributeConverter → `mcm-core/archive/main/persistence/`. 코드·yml 호출처 0(문서 언급만), 변환기는 @Converter 가 없어 자동 적용 대상도 아니었다. 확인: mcm-core·mcm:lib·mcm:api·mdm:api·mls:api 컴파일, clone EntitySchemaValidate 1·oracheck 45(건너뜀 2)·mcm/api Notice·MenuCatalog·config 17 통과.
+6. ~~③f~~ 완료(머지 dev b73b4f185) Lazy 프록시(브랜치 feat/ora-mcm-lazy-ds, 사용자 결정 10-07 「로컬만 켜고 머지」): 설계 메모 docs/oracle-1007/design-mcm-lazy-ds.md, 채팅 LLM 대기 중 연결 수 회귀 시험(WidgetChatPoolHold{Raw,Lazy}JpaTest), JpaConfigLazyConnectionTest. WildFly 적용은 후속(「후속」 절).
+7. ~~③g~~ 완료(10-07, 조정 지시): L_MAIN MCMAPUSER.TB_MCM_WIDGET_DEF 쿼리 위젯 6개(25행 중 SQL 보유 전부)가 SQLite 문법이라 실패(ORA-00936·03049) → CONFIG_JSON.sql 만 변환표(widget-sql-oracle.md) 판으로 UPDATE 6건·커밋(원본 일치할 때만, DDL 없음). 조정이 브라우저로 홈 위젯 정상 확인. 스크립트·원본 JSON: `~/.coord/oracle-1007/lanes/ora-mcm-core/c3g/`. 저장소 CSV(db-snapshot/MCMAPUSER)는 이미 5a3416987 로 같은 SQL — L_MAIN 은 그 이전 자료로 적재됐다. 적재기 변환 후처리는 ora-base 몫.
 
 ## 결정
 
@@ -74,6 +76,7 @@
 - mcm 기본 DataSource 연결 지연 획득(`dmes.datasource.lazy-connection`, design-mcm-lazy-ds.md, 사용자 결정 10-07 「로컬만 켜고 머지」): 기본 false, local 만 true 다. wildfly·prod 는 끈다.
   - 켜면 트랜잭션이 시작돼도 첫 SQL 때 풀에서 연결을 받는다. 그래서 위젯 채팅이 LLM 을 기다리는 동안 연결을 쥐지 않는다.
   - 기동 로그 한 줄로 확인한다: `[mcmDataSource] 기본 풀 mcm-host-primary 최대=… 쉬는연결=… 유휴=…ms 누수감지=…ms 연결 지연 획득=true|false`(JNDI 면 `[mcmDataSource] 기본 DataSource JNDI <이름> 연결 지연 획득=…`).
+  - 메인 로컬 서버(be-run.sh 가 env 로 최대 8·쉬는 연결 2·유휴 60000 을 준다 — env 가 yml 을 이긴다) 기대 값: `최대=8 쉬는연결=2 유휴=60000ms 누수감지=30000ms 연결 지연 획득=true`. env 가 없으면 local yml 값 `최대=3 쉬는연결=0 유휴=30000ms`.
   - 롤백: env `DMES_DATASOURCE_LAZY_CONNECTION=false` 로 두고 재기동하면 전과 같다.
   - 켠 동안의 위험: 연결 획득 실패가 트랜잭션 시작이 아니라 첫 SQL 에서 난다(예외 종류·위치가 바뀜). 첫 SQL 이 잠금 안에 있으면 연결을 기다리는 시간이 잠금 안으로 들어온다(UserPermCache 등 잠금 캐시 점검). 기동 때 DB 장애로 기본값 감지가 실패하면 지연 획득이 꺼진 채 요청마다 연결을 두 번 기다린다(DB 가 돌아오면 스스로 풀림). Hikari active 의 뜻이 「SQL 을 낸 트랜잭션 수」로 바뀐다.
 
@@ -143,6 +146,6 @@ c2 로 넘길 것(이 레인):
 
 ## 다음 단계
 
-- 머지 요청 → 허가 → 메인에서 --no-ff 머지 → 완료 보고 → 워크트리 정리(-d·force 금지) → 정리 보고. 그 뒤 ③b.
-- 기준선을 다시 만들 일이 생기면: 엔티티 validate 는 이제 `EntitySchemaValidateOraTest`(clone 하니스)로 본다. 내보내기는 scratch SchemaTool 방식(mcm/api runtimeClasspath + ojdbc11·flyway-database-oracle, OracleDialect, preferred_instant TIMESTAMP·boolean TINYINT) — scratch 가 사라졌으면 다시 만든다.
-- 머지②·③ 은 같은 창(mcm-core 엔티티가 mdm 런타임 EMF 에도 들어온다 — 조정 10-07).
+- 레인 마감. 새 일은 「후속」 절에서 조정이 다시 배정한다.
+- 기준선을 다시 만들 일이 생기면: 엔티티 validate 는 `EntitySchemaValidateOraTest`(clone 하니스)로 본다. 스키마 변경은 새 V 파일로(flyway-migration-add 스킬).
+- Oracle 시험은 모듈별로 따로 돌린다(③e 에서 찾은 같은 빌드 PDB 공유 함정 — ora-base ①e·⑤b 로 하니스가 모듈 차례를 갖췄다).
