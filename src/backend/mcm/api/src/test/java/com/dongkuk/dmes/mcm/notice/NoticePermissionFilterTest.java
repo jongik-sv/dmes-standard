@@ -172,6 +172,7 @@ class NoticePermissionFilterTest {
         jdbc.update("INSERT INTO TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP) "
                 + "VALUES ('noticeBoard', '공지 목록', 'mcm', 'web', 'Y', '내부')");
         jdbc.update("UPDATE TB_MCM_SEC_OBJ SET SYSTEM_CODE = 'mcm' WHERE OBJECT_ID = 'noticeMgmt'");
+        jdbc.update("DELETE FROM TB_MCM_SEC_PERM WHERE PERMISSION_ID = 'PERM_NOTICE_SEARCH'");
         jdbc.update("DELETE FROM TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = 'NOTICE_OP'");
         jdbc.update("DELETE FROM TB_MCM_SEC_ROLEGROUP_MAPPING WHERE ROLE_GROUP_ID = 'RG_NOTICE_OP'");
         jdbc.update("DELETE FROM TB_MCM_SEC_USER_MAPPING WHERE USER_ID IN (?, ?)", GRANTED, PLAIN);
@@ -220,12 +221,14 @@ class NoticePermissionFilterTest {
         assertThat(passes(GRANTED, "/api/mcm/oasis/noticeMgmt/" + action)).isTrue();
         assertThat(passes(GRANTED, "/oasis/noticeMgmt/" + action)).isTrue();
         assertThat(passes(GRANTED, "/mcm/oasis/noticeMgmt/" + action)).isTrue();
+        assertThat(passes(GRANTED, "/api/mcm/noticeMgmt/" + action)).isTrue(); // 3-segment 컨벤션 URL
     }
 
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {"search", "save", "delete", "changeStatus"})
     @DisplayName("noticeMgmt — 권한 행이 없는 로그인 사용자는 403")
     void noticeMgmtDeniedForPlain(String action) throws Exception {
+        assertThat(passes(PLAIN, "/api/mcm/noticeMgmt/" + action)).isFalse(); // 3-segment 컨벤션 URL
         assertThat(passes(PLAIN, "/api/mcm/oasis/noticeMgmt/" + action)).isFalse();
         assertThat(passes(PLAIN, "/oasis/noticeMgmt/" + action)).isFalse();
         assertThat(passes(PLAIN, "/mcm/oasis/noticeMgmt/" + action)).isFalse();
@@ -239,8 +242,24 @@ class NoticePermissionFilterTest {
         jdbc.update("INSERT INTO TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID) VALUES ('NOTICE_OP', 'commObjMng', 'PERM_ALL')");
         permCache.invalidateAll();
 
-        assertThat(passes(PLAIN,"/api/mcm/oasis/commObjMng/search")).isTrue();
+        assertThat(passes(PLAIN, "/api/mcm/oasis/commObjMng/search")).isTrue();
         assertThat(passes(PLAIN, "/api/mcm/oasis/noticeMgmt/search")).isFalse();
+    }
+
+    @Test
+    @DisplayName("noticeMgmt — action 단위로 판정한다: search 만 가진 사용자는 search 통과, save·delete 는 403")
+    void noticeMgmtDecidedPerAction() throws Exception {
+        jdbc.update("INSERT INTO TB_MCM_SEC_PERM (PERMISSION_ID, PERMISSION_NM, PERMISSION_ACTION, USE_TP) "
+                + "VALUES ('PERM_NOTICE_SEARCH', '공지 조회만', 'search', 'Y')");
+        jdbc.update("UPDATE TB_MCM_SEC_ROLE_MAPPING SET PERMISSION_ID = 'PERM_NOTICE_SEARCH' "
+                + "WHERE ROLE_ID = 'NOTICE_OP' AND OBJECT_ID = 'noticeMgmt'");
+        permCache.invalidateAll();
+
+        assertThat(passes(GRANTED, "/api/mcm/oasis/noticeMgmt/search")).isTrue();
+        assertThat(passes(GRANTED, "/api/mcm/noticeMgmt/search")).isTrue();
+        assertThat(passes(GRANTED, "/api/mcm/oasis/noticeMgmt/save")).isFalse();
+        assertThat(passes(GRANTED, "/api/mcm/oasis/noticeMgmt/delete")).isFalse();
+        assertThat(passes(GRANTED, "/oasis/noticeMgmt/changeStatus")).isFalse();
     }
 
     @Test
@@ -266,8 +285,12 @@ class NoticePermissionFilterTest {
     @Test
     @DisplayName("noticeBoard — AUTH_ONLY 는 search 하나뿐이다. 다른 action 은 권한이 없으면 403")
     void noticeBoardOtherActionsNotAuthOnly() throws Exception {
-        assertThat(passes(PLAIN, "/api/mcm/oasis/noticeBoard/save")).isFalse();
-        assertThat(passes(PLAIN, "/api/mcm/oasis/noticeBoard/delete")).isFalse();
+        for (String action : List.of("save", "delete")) {
+            assertThat(passes(PLAIN, "/api/mcm/oasis/noticeBoard/" + action)).isFalse();
+            assertThat(passes(PLAIN, "/api/mcm/noticeBoard/" + action)).isFalse();
+            assertThat(passes(PLAIN, "/oasis/noticeBoard/" + action)).isFalse();
+            assertThat(passes(PLAIN, "/mcm/oasis/noticeBoard/" + action)).isFalse();
+        }
     }
 
     // ── (c) 권한 부여·회수와 캐시 비우기 ───────────────────────────────────
@@ -335,8 +358,6 @@ class NoticePermissionFilterTest {
                 .doesNotContain(new PermKey("mcm", "oasis", "noticemgmt", "search"));
         assertThat(passes(GRANTED, "/api/mcm/oasis/noticeMgmt/search")).as("보정 전").isFalse();
         assertThat(passes(GRANTED, "/oasis/noticeMgmt/search")).as("보정 전, BFF→BE").isFalse();
-        // 포털 홈 공지 목록은 OBJECT 행과 무관한 AUTH_ONLY 라 옛 행이 있어도 영향이 없다.
-        assertThat(passes(PLAIN, "/api/mcm/oasis/noticeBoard/search")).isTrue();
 
         runSeed(); // 멱등 보정 + 끝에서 UserPermCache.invalidateAll()
 
