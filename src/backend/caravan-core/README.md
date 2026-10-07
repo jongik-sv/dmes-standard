@@ -79,8 +79,8 @@ Caravan은 Kafka 메시지의 `TRANSACTION_CODE` 필드를 기반으로 적절�
 - **Spring Kafka**: 2.9.x
 - **Apache Kafka**: 3.x
 - **Spring Data JPA**: 2.7.x (Hibernate 5.6.x)
-- **Database**: Tibero/Oracle/PostgreSQL/MySQL (TB_MCM_MOM_KAFKA_TOPICS, TB_MCM_MOM_TC_ERROR 테이블 필요)
-  - Tibero → TiberoDialectResolver로 OracleDialect 자동 매핑
+- **Database**: Oracle (TB_MCM_MOM_KAFKA_TOPICS, TB_MCM_MOM_TC_ERROR 테이블 필요)
+  - Hibernate 가 Oracle 방언을 자동 감지한다. 이전 Tibero 시절의 TiberoDialectResolver 는 `archive/oracle-1007/java/caravan-core/` 로 옮겼다
 
 ---
 

@@ -27,6 +27,14 @@
 - 5~9차(VM 3GB 재기동 뒤, dev ce378785a 병합): 5차 686건 중 4건 실패 → `mainService.bpmn` 대상 조회 SQL 에 `from dual` 추가, `DataProcessor` 가 Oracle BigDecimal 정수를 `Number` 로 받음. 전체 재실행에서 `CoreServiceStarter` 의 `messages`(ArrayList)가 병렬 인스턴스에서 add 를 잃어 1건 흔들림(path 는 이미 동기화) → `synchronizedList` 로 고침(운영 코드 변경 1건). 마지막 전체 실행 통과. 143행 실패는 `cast(current_timestamp as timestamp)` 로 해결.
 - hub WildFly JNDI 는 mcm 과 같은 `java:/jdbc/mcm/dsCaravan`·`dsIF`(207465138), `JNDI_DS_CARAVAN` 도 받는다.
 
+### caravan 매퍼·JPA 의 타 DB 배려 구문 목록 (이번에 고치지 않음, 사용자 결정 「SQL 은 Oracle 전용」 후속)
+조사 결과 SQL 본문의 방언 우회는 없고, Oracle 에서 문제가 있는 것도 없다. 동작 변경 위험이 있는 것은 1건뿐이다.
+- `caravan-core TopicInfoJpaRepository.java:26-30`: 「row-value IN 이 MSSQL 에서 거부」 주석과 `findById` 대신 쓰는 별도 finder `findByTopicIdAndBizSystem`. Oracle 은 허용하므로 우회가 불필요하지만 finder 는 정상 동작한다.
+- `caravan-hub InterfaceMapper.xml:58·74` `COALESCE(VER, 0)+1`, `CaravanHubConfigMapper.xml:13·34` `COALESCE(...)`, 같은 파일 ANSI `INNER JOIN`: 표준 문법이라 Oracle 에서 그대로 쓴다(NVL 로 바꿀 필요 없음).
+- `caravan-hub CaravanHubProperties.java:67` javadoc 이 `FETCH FIRST N ROWS ONLY` 라고 적지만 실제 `selectPendingMessages` 는 전건 조회이고 `DbInboundHandler.java:73-92` 가 자바에서 batchSize 로 끊는다. 큐가 쌓이면 부하 위험(변경 후보, 이번엔 안 고침).
+- **동작 변경 위험**: `caravan-core KafkaJpaConfig` 의 `caravan.hibernate.dialect`/`spring.jpa.database-platform` 명시 분기. 값을 지정한 환경이 있으면 그 방언이 우선하므로 지우지 않았다.
+- 주석만 남은 곳: caravanuser V1 머리 주석(체크섬 때문에 수정 금지), ifuser V1·HubFlywayConfig·application-local-* 주석, caravan-core docs/SQL 의 Tibero DDL 원본(문서, 실행 안 됨).
+
 ### 이번 세션에서 확인한 운용 교훈
 - 로그를 raw 로 `tail` 하지 않는다(gradle 진행바가 컨텍스트를 채운다). `--console=plain` 과 파일 출력, `grep -a` 필터를 쓴다.
 - 시험 JVM 이 멈추면 `jstack <pid>` 로 멈춘 프레임(`dropTables` 등)을 먼저 본다.

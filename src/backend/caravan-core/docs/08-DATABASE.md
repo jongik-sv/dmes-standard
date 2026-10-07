@@ -128,7 +128,7 @@ INSERT INTO TB_MCM_MOM_TC_ERROR (
 )
 ```
 
-- PK: `SQ_MCM_MOM_TC_ERROR.NEXTVAL` (Tibero 시퀀스)
+- PK: `SQ_MCM_MOM_TC_ERROR.NEXTVAL` (Oracle 시퀀스. 이전에는 Tibero)
 - `ERROR_STATUS_CODE`: 항상 `'N'` (미처리)
 - `CREATED_OBJECT_TYPE` / `LAST_UPDATED_OBJECT_TYPE`: 항상 `'B'` (Batch)
 
