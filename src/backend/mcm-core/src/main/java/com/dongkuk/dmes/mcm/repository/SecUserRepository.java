@@ -54,19 +54,38 @@ public interface SecUserRepository extends JpaRepository<SecUser, String> {
      * <p>DEPT_NM 은 Service 가 DeptInfoRepository.findById(deptCd).deptNm 으로 별도 조회 후 row 에 부착
      * (As-Is EAI scalar subquery → To-Be DEPT_INFO LEFT JOIN 등가 / 정책 #2 / T-008).
      */
+    default List<SecUser> searchByFilter(String pUserKey, String pUseTp, String pInOutEmpTp) {
+        // 검색어가 있으면 가드(:k IS NULL OR …) 없는 쿼리를 쓴다 — 가드가 있으면 옵티마이저가 OR 의 세 UPPER 칼럼에
+        // 함수 기반 인덱스(IX_TB_MCM_SEC_USER_UP_*)를 못 쓰고 표 전체를 읽는다(sargable-1008 s5).
+        if (pUserKey == null || pUserKey.isEmpty()) {
+            return searchAllByFilter(pUseTp, pInOutEmpTp);
+        }
+        return searchByKeyAndFilter(pUserKey, pUseTp, pInOutEmpTp);
+    }
+
+    /** 검색어 없음 — USE_TP·IN_OUT_EMP_TP 조건만. */
     @Query("""
             SELECT u FROM McmSecUser u
-            WHERE (:pUserKey IS NULL OR :pUserKey = ''
-                   OR UPPER(u.userId)    LIKE UPPER(CONCAT(:pUserKey, '%'))
+            WHERE (:pUseTp IS NULL OR :pUseTp = '' OR u.useTp = :pUseTp)
+              AND (:pInOutEmpTp IS NULL OR :pInOutEmpTp = '' OR u.inOutEmpTp = :pInOutEmpTp)
+            ORDER BY u.startActiveDate, u.userId
+            """)
+    List<SecUser> searchAllByFilter(@Param("pUseTp") String pUseTp,
+                                    @Param("pInOutEmpTp") String pInOutEmpTp);
+
+    /** 검색어 있음 — UPPER(칼럼) 앞 일치 3칸 OR(함수 기반 인덱스 대상) + 나머지 조건. */
+    @Query("""
+            SELECT u FROM McmSecUser u
+            WHERE (UPPER(u.userId)    LIKE UPPER(CONCAT(:pUserKey, '%'))
                    OR UPPER(u.userEmpNo) LIKE UPPER(CONCAT(:pUserKey, '%'))
                    OR UPPER(u.userNm)    LIKE UPPER(CONCAT(:pUserKey, '%')))
               AND (:pUseTp IS NULL OR :pUseTp = '' OR u.useTp = :pUseTp)
               AND (:pInOutEmpTp IS NULL OR :pInOutEmpTp = '' OR u.inOutEmpTp = :pInOutEmpTp)
             ORDER BY u.startActiveDate, u.userId
             """)
-    List<SecUser> searchByFilter(@Param("pUserKey") String pUserKey,
-                                 @Param("pUseTp") String pUseTp,
-                                 @Param("pInOutEmpTp") String pInOutEmpTp);
+    List<SecUser> searchByKeyAndFilter(@Param("pUserKey") String pUserKey,
+                                       @Param("pUseTp") String pUseTp,
+                                       @Param("pInOutEmpTp") String pInOutEmpTp);
 
     /**
      * As-Is {@code selectCommUserAll} (xml:42~46) — Task_0970821 (searchCmUser 후속) 의 ds_mainAll 적재용.

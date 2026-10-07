@@ -29,7 +29,7 @@ public interface RuleMasterRepository extends JpaRepository<RuleMaster, String> 
      * <p>고정 필터 2 (As-Is 보존):
      * <ul>
      *   <li>BR-002 이력행 제외 — {@code RULE_ID != COALESCE(OLD_RULE_ID,'ZZZZ0000')}</li>
-     *   <li>BR-003 활성만 — {@code COALESCE(USE_TP,'N') != 'N'}</li>
+     *   <li>BR-003 활성만 — {@code USE_TP != 'N'} (USE_TP 가 NULL 이면 비교가 알 수 없음이라 제외된다 — As-Is 의 NULL→'N' 치환과 결과가 같고 칼럼에 함수가 없다)</li>
      * </ul>
      * 동적 필터 2 (UPPER 양변 contains — Q-012 유지):
      * pRuleId / pRuleNm (공란 시 제외).
@@ -43,7 +43,7 @@ public interface RuleMasterRepository extends JpaRepository<RuleMaster, String> 
                    e.createdAt, e.updatedBy, e.updatedAt
               FROM RuleMaster e
              WHERE e.ruleId <> COALESCE(e.oldRuleId, 'ZZZZ0000')
-               AND COALESCE(e.useTp, 'N') <> 'N'
+               AND e.useTp <> 'N'
                AND (:pRuleId IS NULL OR :pRuleId = '' OR UPPER(e.ruleId) LIKE UPPER(CONCAT('%', :pRuleId, '%')))
                AND (:pRuleNm IS NULL OR :pRuleNm = '' OR UPPER(e.ruleNm) LIKE UPPER(CONCAT('%', :pRuleNm, '%')))
              ORDER BY e.ruleId

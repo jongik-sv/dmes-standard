@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mcm.cmb.masterRuleDataList.service;
 import com.dongkuk.dmes.mcm.cmb.masterRuleDataList.dto.MasterRuleDataListSearchRequest;
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
+import com.dongkuk.dmes.mcm.common.util.DatePrefixRange;
 import com.dongkuk.dmes.mcm.repository.MasterRuleColListRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -18,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.strOfTrim;
@@ -50,7 +52,7 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNull;
  * <p>가이드 §6-B-1: {@code @Transactional} 미사용 — OASIS process wrap (전 액션 읽기 전용).
  *
  * <p><b>Oracle 형 처리 (oracle-1007 c4 — 형제 masterRuleData 와 같은 규칙)</b>: DATE 칸 조건은
- * {@code col op TO_DATE(:v, 'YYYYMMDDHH24MISS')}(값은 14자로 정규화, LIKE 는 {@code TO_CHAR(col, …) LIKE :v}),
+ * {@code col op TO_DATE(:v, 'YYYYMMDDHH24MISS')}(값은 14자로 정규화, LIKE 는 숫자 앞 일치면 {@link DatePrefixRange} 의 반열린 범위, 그 밖의 패턴은 {@code TO_CHAR(col, …) LIKE :v}),
  * CLOB·NCLOB 칸의 {@code =}·{@code <=}·{@code >=} 는 사전에서 실제 형을 읽어 앞 1000 자 글자 비교로 바꾼다(ORA-22848 회피).
  * 응답 행의 Clob·NClob 은 글 전체 String, CHAR(1) 의 Character 는 String 으로 싣는다.
  */
@@ -152,8 +154,18 @@ public class MasterRuleDataListService {
                 }
             } else if ("DATE".equals(type)) {
                 if ("LIKE".equals(op)) {
-                    where.append(" AND TO_CHAR(").append(col).append(", ").append(DATE_FMT).append(") LIKE :").append(bind);
                     val = stripDateSeparators(val);
+                    Optional<DatePrefixRange.Range> range = DatePrefixRange.of(val);
+                    if (range.isPresent()) {
+                        // 숫자 앞 일치(202610%)는 같은 결과의 반열린 범위로 — 칼럼을 원형으로 두어 인덱스를 쓴다
+                        where.append(" AND ").append(col).append(" >= TO_DATE(:").append(bind).append(", ").append(DATE_FMT).append(")")
+                                .append(" AND ").append(col).append(" < TO_DATE(:").append(bind).append("e, ").append(DATE_FMT).append(")");
+                        binds.put(bind + "e", range.get().to());
+                        val = range.get().from();
+                    } else {
+                        // 중간 일치(%1003%)·_ 패턴·달력 단위가 아닌 앞부분은 글자 비교가 필요해 현행 유지(함수 때문에 인덱스는 못 쓴다)
+                        where.append(" AND TO_CHAR(").append(col).append(", ").append(DATE_FMT).append(") LIKE :").append(bind);
+                    }
                 } else {
                     where.append(" AND ").append(col).append(" ").append(op).append(" TO_DATE(:").append(bind).append(", ").append(DATE_FMT).append(")");
                     val = dateText(col, val);

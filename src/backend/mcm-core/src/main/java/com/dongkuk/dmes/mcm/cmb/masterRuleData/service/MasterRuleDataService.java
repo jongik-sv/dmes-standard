@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mcm.cmb.masterRuleData.service;
 import com.dongkuk.dmes.mcm.cmb.masterRuleData.dto.MasterRuleDataSearchRequest;
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
+import com.dongkuk.dmes.mcm.common.util.DatePrefixRange;
 import com.dongkuk.dmes.mcm.repository.MasterRuleColListRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -23,6 +24,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.strOfTrim;
@@ -60,7 +62,8 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNull;
  * <ul>
  *   <li>DATE 칸(COL_TYPE 'DATE' — 사전 뷰가 DATE·TIMESTAMP 를 묶은 값)의 글자 값은 {@link #dateText} 로
  *       {@code yyyyMMddHHmmss} 14자로 맞춘 뒤 {@code TO_DATE(:v, 'YYYYMMDDHH24MISS')} 로 감싼다 — 글자를 그대로 바인드하면
- *       세션 NLS_DATE_FORMAT 으로 바뀌어 ORA-01861 이 난다. 조건 LIKE 는 {@code TO_CHAR(col, 'YYYYMMDDHH24MISS') LIKE :v}.</li>
+ *       세션 NLS_DATE_FORMAT 으로 바뀌어 ORA-01861 이 난다. 조건 LIKE 는 숫자 앞 일치(연·월·일·시·분·초 단위, 예 {@code 202610%})면 {@link DatePrefixRange} 의 반열린 범위
+ *       {@code col >= TO_DATE(:vN) AND col < TO_DATE(:vNe)} 로, 그 밖의 패턴은 {@code TO_CHAR(col, 'YYYYMMDDHH24MISS') LIKE :v} 로 건다.</li>
  *   <li>CLOB·NCLOB 칸은 COL_TYPE 이 'VARCHAR2' 로 묶여 구분되지 않으므로 {@code =}·{@code <=}·{@code >=} 조건이 있을 때만
  *       사전(ALL_TAB_COLUMNS)에서 실제 형을 읽어 LOB 비교식으로 바꾼다(ORA-22848 회피). LIKE 는 LOB 에도 되므로 그대로.</li>
  *   <li>응답 행의 Clob·NClob 은 글 전체를, CHAR(1) 의 Character 는 String 으로 바꿔 싣는다.</li>
@@ -169,8 +172,18 @@ public class MasterRuleDataService {
                 }
             } else if ("DATE".equals(type)) {
                 if ("LIKE".equals(op)) {
-                    where.append(" AND TO_CHAR(").append(col).append(", ").append(DATE_FMT).append(") LIKE :").append(bind);
                     val = stripDateSeparators(val);
+                    Optional<DatePrefixRange.Range> range = DatePrefixRange.of(val);
+                    if (range.isPresent()) {
+                        // 숫자 앞 일치(202610%)는 같은 결과의 반열린 범위로 — 칼럼을 원형으로 두어 인덱스를 쓴다
+                        where.append(" AND ").append(col).append(" >= TO_DATE(:").append(bind).append(", ").append(DATE_FMT).append(")")
+                                .append(" AND ").append(col).append(" < TO_DATE(:").append(bind).append("e, ").append(DATE_FMT).append(")");
+                        binds.put(bind + "e", range.get().to());
+                        val = range.get().from();
+                    } else {
+                        // 중간 일치(%1003%)·_ 패턴·달력 단위가 아닌 앞부분은 글자 비교가 필요해 현행 유지(함수 때문에 인덱스는 못 쓴다)
+                        where.append(" AND TO_CHAR(").append(col).append(", ").append(DATE_FMT).append(") LIKE :").append(bind);
+                    }
                 } else {
                     where.append(" AND ").append(col).append(" ").append(op).append(" TO_DATE(:").append(bind).append(", ").append(DATE_FMT).append(")");
                     val = dateText(col, val);

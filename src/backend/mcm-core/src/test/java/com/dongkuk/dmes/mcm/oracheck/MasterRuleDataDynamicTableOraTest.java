@@ -224,6 +224,23 @@ class MasterRuleDataDynamicTableOraTest {
         assertThat(out.get("totalCount")).isEqualTo(2L);
     }
 
+    /** sargable-1008 s2: DATE 칸 LIKE 숫자 앞 일치는 반열린 범위로, 그 밖의 패턴은 TO_CHAR LIKE 로 — 결과가 같다. */
+    @Test
+    @DisplayName("search — DATE 칸 LIKE: 숫자 앞 일치(연·월·일·시, 구분자 포함)는 범위, %1003%·없는 날짜는 현행 경로")
+    void search_dateLikePrefix() {
+        fiveRows();   // 날짜 10-01..10-05 12:00
+
+        assertThat(seqs(rows(searchTx(cond("BASE_DT", "LIKE", "2026%")), "ds_GetMasterRuleData"))).containsExactly(1L, 2L, 3L, 4L, 5L);
+        assertThat(seqs(rows(searchTx(cond("BASE_DT", "LIKE", "202610%")), "ds_GetMasterRuleData"))).containsExactly(1L, 2L, 3L, 4L, 5L);
+        assertThat(seqs(rows(searchTx(cond("BASE_DT", "LIKE", "202611%")), "ds_GetMasterRuleData"))).isEmpty();
+        assertThat(seqs(rows(searchTx(cond("BASE_DT", "LIKE", "20261003%")), "ds_GetMasterRuleData"))).containsExactly(3L);
+        assertThat(seqs(rows(searchTx(cond("BASE_DT", "LIKE", "2026-10-03 12%")), "ds_GetMasterRuleData"))).containsExactly(3L);
+        assertThat(seqs(rows(searchTx(cond("BASE_DT", "LIKE", "2026100313%")), "ds_GetMasterRuleData"))).isEmpty();
+        assertThat(seqs(rows(searchTx(cond("BASE_DT", "LIKE", "%1003%")), "ds_GetMasterRuleData"))).containsExactly(3L);
+        assertThat(seqs(rows(searchTx(cond("BASE_DT", "LIKE", "20260231%")), "ds_GetMasterRuleData"))).isEmpty();
+        assertThat(seqs(rows(searchTx(cond("BASE_DT", "LIKE", "2026100324%")), "ds_GetMasterRuleData"))).isEmpty();
+    }
+
     /** c2: 숫자 칸 조건 — 문자열 값이 NUMBER 칸과 비교되고(>=) 문자 칸 = 도 대소문자 무시. */
     @Test
     @DisplayName("search — 숫자 칸 AMT >= '30'(문자열 바인드) → seq 3..5, 문자 칸 CURR_CD = 'eur' → seq 3")
