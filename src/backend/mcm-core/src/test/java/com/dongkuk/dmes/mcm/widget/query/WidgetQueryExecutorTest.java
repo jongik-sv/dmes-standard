@@ -7,7 +7,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.testdb.McmCoreOraTestDb;
@@ -40,6 +39,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DelegatingDataSource;
 
@@ -48,7 +49,7 @@ import org.springframework.jdbc.datasource.DelegatingDataSource;
  * 실제 JDBC 로 확인한다(스펙 2026-10-02-widget-admin-generic §7). 행 상한·잘림, 컬럼 순서, 시스템 변수 바인딩(Asia/Seoul),
  * 30초 캐시·이벤트 비우기, 거절 메시지, DB 오류 메시지, 늘 롤백. Oracle 은 숫자를 BigDecimal 로 돌려주므로 숫자 단언은 {@code Number} 로 비교한다.
  * 연결 단위 확인(커밋 0·롤백·readOnly 걸기·닫을 때 상태)은 {@link RecordingDataSource} 로 센다.
- * 실제 DB 가 없는 갈래(SQL Server·PostgreSQL·방언을 모르는 DB)는 같은 Oracle 연결의 제품 이름만 바꾸는 {@link #productAs} 로 갈래 로직만 본다.
+ * 실제 DB 가 없는 갈래(PostgreSQL·OTHER — 옛 SQL Server·SQLite 제품 이름 포함)는 같은 Oracle 연결의 제품 이름만 바꾸는 {@link #productAs} 로 갈래 로직만 본다.
  * Oracle 읽기 전용 트랜잭션의 쓰기 거절(ORA-01456)·풀 연결 복원은 {@link WidgetQueryReadOnlyTest}.
  */
 class WidgetQueryExecutorTest {
@@ -76,6 +77,7 @@ class WidgetQueryExecutorTest {
         dropTable(ddl, TABLE);
         ddl.execute("CREATE TABLE " + TABLE + " (ID NUMBER(10) PRIMARY KEY, NM VARCHAR2(20), AMT NUMBER(10,2), DT TIMESTAMP, D DATE,"
                 + " MEMO CLOB, BIN RAW(10), OWNER_ID VARCHAR2(30), DEPT_CD VARCHAR2(30))");
+        McmCoreOraTestDb.awaitReadOnlyReadable(McmCoreOraTestDb.APP_USER, TABLE); // ORA-01466 — 만든 직후 읽기 전용 스냅샷
     }
 
     @AfterAll
@@ -297,6 +299,7 @@ class WidgetQueryExecutorTest {
         def("def.late", "query-number", "SELECT COUNT(*) AS CNT FROM T_C4_WIDGET_LATE_T");
         assertThatThrownBy(() -> executor.runDefinition("def.late", 500)).isInstanceOf(BusinessException.class);
         jdbc.execute("CREATE TABLE " + LATE_TABLE + " (ID NUMBER(10))");
+        McmCoreOraTestDb.awaitReadOnlyReadable(McmCoreOraTestDb.APP_USER, LATE_TABLE);
         assertThat(count("def.late")).isEqualTo(0L);
     }
 
@@ -375,24 +378,6 @@ class WidgetQueryExecutorTest {
         assertMessage(() -> executor.preview("mcm", "select * into x from T_C4_WIDGET_T", 50), SqlGuard.forbiddenWord("INTO"));
     }
 
-    // ── 로컬 SQLite(옛 경로) ──────────────────────────────────────────
-
-    @Test
-    @DisplayName("로컬 SQLite 모드면 MCMAPUSER. 접두·N'' 접두를 지우고 실행한다(운영 DB 는 원문 그대로) — 치환 함수만 본다(DB 불필요)")
-    void adaptsSchemaPrefixOnLocalSqliteOnly() {
-        String sql = "SELECT COUNT(*) AS CNT FROM mcmapuser.T_C4_WIDGET_T WHERE NM = N'N1'";
-        boolean before = McmAuditStatementInspector.isSqlite();
-        try {
-            McmAuditStatementInspector.setSqlite(false);
-            assertThat(WidgetQueryExecutor.adaptForLocalSqlite(sql)).isEqualTo(sql);
-
-            McmAuditStatementInspector.setSqlite(true);
-            assertThat(WidgetQueryExecutor.adaptForLocalSqlite(sql)).isEqualTo("SELECT COUNT(*) AS CNT FROM T_C4_WIDGET_T WHERE NM = 'N1'");
-        } finally {
-            McmAuditStatementInspector.setSqlite(before);
-        }
-    }
-
     // ── 트랜잭션 ─────────────────────────────────────────────────────
 
     @Test
@@ -418,10 +403,10 @@ class WidgetQueryExecutorTest {
     }
 
     @Test
-    @DisplayName("readOnly 가 힌트뿐인 갈래(SQL Server 로 보이게 한 연결)에서도 검사를 거치지 않은 쓰기는 롤백되어 남지 않는다")
+    @DisplayName("readOnly 가 힌트뿐인 갈래(OTHER 로 보이게 한 연결)에서도 검사를 거치지 않은 쓰기는 롤백되어 남지 않는다")
     void writesBelowGuardAreRolledBackWhereReadOnlyIsAHint() throws Exception {
-        // 같은 Oracle 연결의 제품 이름만 SQL Server 로 바꾼다 — 읽기 전용 트랜잭션을 걸지 않아 쓰기가 실행되고, 늘 롤백이 막는다.
-        RecordingDataSource hintOnly = new RecordingDataSource(productAs("Microsoft SQL Server", dataSource));
+        // 같은 Oracle 연결의 제품 이름만 OTHER 갈래로 바꾼다 — 읽기 전용 트랜잭션을 걸지 않아 쓰기가 실행되고, 늘 롤백이 막는다.
+        RecordingDataSource hintOnly = new RecordingDataSource(productAs("MariaDB", dataSource));
         WidgetQueryExecutor ex = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.dedicated(hintOnly, null), clock);
         int changed = ex.readOnlyJdbc().execute(con -> {
             try (Statement st = con.createStatement()) {
@@ -429,7 +414,7 @@ class WidgetQueryExecutorTest {
             }
         });
         assertThat(changed).isEqualTo(10); // 이 갈래는 readOnly 를 강제하지 않는다 — 그래서 늘 롤백이 막는다
-        assertThat(ex.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.SQLSERVER);
+        assertThat(ex.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM T_C4_WIDGET_T WHERE NM = 'x'", Long.class)).isZero();
         assertThat(hintOnly.commits).isZero();
         assertThat(hintOnly.dirtyCloses).isZero();
@@ -437,23 +422,24 @@ class WidgetQueryExecutorTest {
 
     // ── 읽기 전용 트랜잭션이 없는 DB — 전용 연결 없으면 실패 닫힘 ─────────────────
 
-    @Test
-    @DisplayName("SQL Server 는 전용 연결이 없으면 미리보기·저장 검사·실행을 모두 거절한다 — SQL 은 DB 에 닿지 않는다(갈래 판정만)")
-    void sqlServerWithoutDedicatedDataSourceFailsClosed() {
-        RecordingDataSource sqlServer = new RecordingDataSource(productAs("Microsoft SQL Server", dataSource));
-        WidgetQueryExecutor ex = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.shared(sqlServer), clock);
+    @ParameterizedTest(name = "[{index}] {0}")
+    @ValueSource(strings = {"Microsoft SQL Server", "SQLite"})
+    @DisplayName("SQL Server·SQLite 연결은 OTHER 로 보고, 전용 연결이 없으면 미리보기·저장 검사·실행을 모두 거절한다(실패 닫힘) — SQL 은 DB 에 닿지 않는다")
+    void sqlServerAndSqliteAreOtherAndFailClosedWithoutDedicatedDataSource(String product) {
+        RecordingDataSource legacy = new RecordingDataSource(productAs(product, dataSource));
+        WidgetQueryExecutor ex = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.shared(legacy), clock);
         def("def.count", "query-number", "SELECT COUNT(*) AS CNT FROM T_C4_WIDGET_T");
 
         assertThatThrownBy(() -> ex.preview("mcm", "SELECT COUNT(*) AS CNT FROM T_C4_WIDGET_T", 50))
-                .isInstanceOf(BusinessException.class).hasMessage(WidgetQueryExecutor.MSG_SQLSERVER_NEEDS_DEDICATED)
+                .isInstanceOf(BusinessException.class).hasMessage(WidgetQueryExecutor.MSG_OTHER_NEEDS_DEDICATED)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR));
-        assertMessage(() -> ex.validateSql("SELECT COUNT(*) AS CNT FROM T_C4_WIDGET_T"), WidgetQueryExecutor.MSG_SQLSERVER_NEEDS_DEDICATED);
-        assertMessage(() -> ex.runDefinition("def.count", 500), WidgetQueryExecutor.MSG_SQLSERVER_NEEDS_DEDICATED);
+        assertMessage(() -> ex.validateSql("SELECT COUNT(*) AS CNT FROM T_C4_WIDGET_T"), WidgetQueryExecutor.MSG_OTHER_NEEDS_DEDICATED);
+        assertMessage(() -> ex.runDefinition("def.count", 500), WidgetQueryExecutor.MSG_OTHER_NEEDS_DEDICATED);
 
-        assertThat(ex.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.SQLSERVER);
-        assertThat(sqlServer.connections).isEqualTo(1); // 갈래 판정 한 번뿐 — 실행 연결은 빌리지 않는다
-        assertThat(sqlServer.autoCommitOff).isZero();
-        assertThat(sqlServer.rollbacks).isZero();
+        assertThat(ex.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER);
+        assertThat(legacy.connections).isEqualTo(1); // 갈래 판정 한 번뿐 — 실행 연결은 빌리지 않는다
+        assertThat(legacy.autoCommitOff).isZero();
+        assertThat(legacy.rollbacks).isZero();
 
         // 어느 DB 에나 적용하는 검사에서 걸리는 SQL 은 갈래 판정 전에 그 문구로 거절된다
         assertMessage(() -> ex.validateSql("UPDATE T_C4_WIDGET_T SET NM = 'x'"), "SELECT 또는 WITH 로 시작하는 조회문만 쓸 수 있습니다");
@@ -513,32 +499,29 @@ class WidgetQueryExecutorTest {
     }
 
     @Test
-    @DisplayName("SQL Server 전용 연결이면 실행하되, ; 없이 이어 쓴 SET·USE·WHILE·IF 같은 T-SQL 은 거절한다")
-    void sqlServerWithDedicatedDataSourceRunsButRejectsTsql() {
-        RecordingDataSource sqlServer = new RecordingDataSource(productAs("Microsoft SQL Server", dataSource));
-        WidgetQueryExecutor ex = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.dedicated(sqlServer, null), clock);
+    @DisplayName("OTHER 갈래라도 전용 연결이면 실행하되, ; 없이 이어 쓴 USE·WHILE 같은 문장은 일반 검사(금지 낱말)가 거절한다")
+    void otherWithDedicatedDataSourceRunsButGeneralGuardStillRejects() {
+        RecordingDataSource other = new RecordingDataSource(productAs("Microsoft SQL Server", dataSource));
+        WidgetQueryExecutor ex = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.dedicated(other, null), clock);
 
         assertThat(num(ex.preview("mcm", "SELECT COUNT(*) AS CNT FROM T_C4_WIDGET_T", 50).rows().get(0).get("CNT"))).isEqualTo(600L);
-        ex.validateSql("SELECT ID, \"SET\", [IF] FROM T_C4_WIDGET_T"); // 같은 이름의 열은 감싸면 통과
+        assertThat(ex.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER);
 
         String base = "SELECT COUNT(*) AS CNT FROM T_C4_WIDGET_T ";
-        assertMessage(() -> ex.preview("mcm", base + "SET IMPLICIT_TRANSACTIONS OFF", 50), SqlGuard.forbiddenWord("SET"));
-        assertMessage(() -> ex.validateSql(base + "set language us_english"), SqlGuard.forbiddenWord("SET"));
-        assertMessage(() -> ex.validateSql(base + "SET ANSI_WARNINGS OFF"), SqlGuard.forbiddenWord("SET"));
-        assertMessage(() -> ex.validateSql(base + "USE master"), SqlGuard.forbiddenWord("USE"));
+        assertMessage(() -> ex.preview("mcm", base + "USE master", 50), SqlGuard.forbiddenWord("USE"));
         assertMessage(() -> ex.validateSql(base + "WHILE 1=1 BEGIN SELECT 1 END"), SqlGuard.forbiddenWord("WHILE"));
-        assertMessage(() -> ex.validateSql(base + "IF 1=1 SELECT 1"), SqlGuard.forbiddenWord("IF"));
-        def("def.tsql", "query-number", base + "SET IMPLICIT_TRANSACTIONS OFF");
-        assertMessage(() -> ex.runDefinition("def.tsql", 500), SqlGuard.forbiddenWord("SET"));
-        assertThat(sqlServer.commits).isZero();
+        assertMessage(() -> ex.validateSql(base + "WAITFOR DELAY '00:00:10'"), SqlGuard.forbiddenWord("WAITFOR"));
+        def("def.use", "query-number", base + "USE master");
+        assertMessage(() -> ex.runDefinition("def.use", 500), SqlGuard.forbiddenWord("USE"));
+        assertThat(other.commits).isZero();
     }
 
     @Test
-    @DisplayName("SET·IF 는 SQL Server 갈래에서만 막는다 — PostgreSQL 연결(전용 아님)은 같은 SQL 을 갈래 검사에서 거절하지 않는다")
-    void setAndIfAreSqlServerOnly() {
+    @DisplayName("PostgreSQL 갈래(전용 아님)는 읽기 전용 트랜잭션을 거는 갈래라 저장 검사를 지난다 — SET()·IF() 함수 이름도 막지 않는다")
+    void postgresqlSharedPassesValidation() {
         WidgetQueryExecutor pg = new WidgetQueryExecutor(defRepository, resolver,
                 WidgetQueryDataSource.shared(productAs("PostgreSQL", dataSource)), clock);
-        // 실제로는 Oracle 연결이라 실행 결과는 보지 않는다 — 저장 검사(갈래 판정·실패 닫힘·갈래별 검사)를 지나는지만 본다
+        // 실제로는 Oracle 연결이라 실행 결과는 보지 않는다 — 저장 검사(갈래 판정·실패 닫힘)를 지나는지만 본다
         pg.validateSql("SELECT SET(TAGS) AS S, IF(AMT > 0, 1, 0) AS F FROM T_C4_WIDGET_T");
         assertThat(pg.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.POSTGRESQL);
     }

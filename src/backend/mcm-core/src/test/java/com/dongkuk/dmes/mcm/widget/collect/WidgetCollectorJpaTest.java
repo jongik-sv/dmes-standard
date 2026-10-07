@@ -409,25 +409,24 @@ class WidgetCollectorJpaTest {
     // ── 회차 잡기 ────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("tryStart: 바로 insert 해 PK 위반이면 false, 잠금 충돌 같은 DB 오류는 짧게 두 번 다시 해 보고 그래도 안 되면 false(건너뜀)")
-    void tryStartInsertsFirstAndRetriesBriefly() {
+    @DisplayName("tryStart: 바로 insert 해 PK 위반이면 false, 잠금 충돌 같은 다른 DB 오류는 다시 해 보지 않고 false(건너뜀 — 다음 분에 다시 잡는다)")
+    void tryStartInsertsFirstAndSkipsOnDbError() {
         assertThat(writer.tryStart("def.a0000001", SLOT0, T0)).isTrue();
         assertThat(writer.tryStart("def.a0000001", SLOT0, T0)).isFalse();
         assertThat(runs.count()).isEqualTo(1);
 
         WidgetCollectRunRepository mockRuns = mock(WidgetCollectRunRepository.class);
         WidgetCollectWriter w = new WidgetCollectWriter(mockRuns, data);
-        when(mockRuns.saveAndFlush(any(WidgetCollectRun.class)))
-                .thenThrow(new org.springframework.dao.CannotAcquireLockException("database is locked"))
-                .thenAnswer(inv -> inv.getArgument(0));
+        when(mockRuns.saveAndFlush(any(WidgetCollectRun.class))).thenAnswer(inv -> inv.getArgument(0));
         assertThat(w.tryStart("def.b0000001", SLOT0, T0)).isTrue();
-        verify(mockRuns, times(2)).saveAndFlush(any(WidgetCollectRun.class));
+        verify(mockRuns, times(1)).saveAndFlush(any(WidgetCollectRun.class));
         verify(mockRuns, never()).existsById(any()); // 먼저 읽고 넣지 않는다
 
         WidgetCollectRunRepository locked = mock(WidgetCollectRunRepository.class);
-        when(locked.saveAndFlush(any(WidgetCollectRun.class))).thenThrow(new org.springframework.dao.CannotAcquireLockException("database is locked"));
+        when(locked.saveAndFlush(any(WidgetCollectRun.class))).thenThrow(new org.springframework.dao.CannotAcquireLockException("lock"));
         assertThat(new WidgetCollectWriter(locked, data).tryStart("def.c0000001", SLOT0, T0)).isFalse();
-        verify(locked, times(1 + WidgetCollectWriter.START_RETRIES)).saveAndFlush(any(WidgetCollectRun.class));
+        verify(locked, times(1)).saveAndFlush(any(WidgetCollectRun.class)); // 다시 해 보지 않는다
+        verify(locked, never()).existsById(any());
 
         WidgetCollectRunRepository dup = mock(WidgetCollectRunRepository.class);
         when(dup.saveAndFlush(any(WidgetCollectRun.class))).thenThrow(new DataIntegrityViolationException("pk"));

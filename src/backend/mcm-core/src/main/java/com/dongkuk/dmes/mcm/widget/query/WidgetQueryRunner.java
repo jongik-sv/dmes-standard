@@ -47,7 +47,7 @@ public interface WidgetQueryRunner {
     /**
      * 저장 전 검사(§7.1) — 한 문장 SELECT·WITH, 금지 낱말 없음, 알려진 시스템 변수만. 어기면 {@code BusinessException}
      * (ErrorCode.INVALID_VALUE, 사람이 읽을 메시지). 위젯관리 save 가 쿼리 유형 정의를 저장할 때 부른다.
-     * 실행·미리보기와 같은 판정이라, 읽기 전용 트랜잭션을 걸 수 없는 DB(SQL Server 등)에서 전용 연결이 없으면 저장도 거절한다(BUSINESS_ERROR).
+     * 실행·미리보기와 같은 판정이라, 읽기 전용 트랜잭션을 걸 수 없는 DB(Oracle·PostgreSQL 이 아닌 갈래)에서 전용 연결이 없으면 저장도 거절한다(BUSINESS_ERROR).
      */
     void validateSql(String sql);
 

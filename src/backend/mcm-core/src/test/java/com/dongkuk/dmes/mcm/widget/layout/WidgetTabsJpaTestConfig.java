@@ -1,6 +1,7 @@
 package com.dongkuk.dmes.mcm.widget.layout;
 
 import com.dongkuk.dmes.mcm.entity.DeptInfo;
+import com.zaxxer.hikari.HikariDataSource;
 import com.dongkuk.dmes.mcm.testdb.McmCoreOraTestDb;
 import com.dongkuk.dmes.mcm.entity.SecUser;
 import com.dongkuk.dmes.mcm.widget.chat.entity.WidgetChatMessage;
@@ -49,9 +50,16 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
         WidgetMemoRepository.class, WidgetChatMessageRepository.class})
 public class WidgetTabsJpaTestConfig {
 
+    /**
+     * 풀 상한 3. 도우미 기본 풀(2)로는 모자란다 — WidgetDefaultTabJpaTest 의 「바깥 트랜잭션 안에서 search → 옛 배치 이전은 자기 트랜잭션」 시험이
+     * 바깥이 쥔 연결 + 서비스 읽기 + 이전 트랜잭션(REQUIRES_NEW)의 연결을 함께 필요로 한다. 이전(H2 DriverManagerDataSource)에는
+     * 연결 수 제한이 없어 드러나지 않았다. 부족하면 getConnection 이 30초 기다린 뒤 실패하고 이전이 건너뛰어진다.
+     */
     @Bean
     public DataSource dataSource() {
-        return McmCoreOraTestDb.appDataSource("widget-tabs");
+        HikariDataSource ds = McmCoreOraTestDb.appDataSource("widget-tabs");
+        ds.setMaximumPoolSize(3); // 풀은 첫 getConnection 때 시작하므로 그 전에 바꾼다
+        return ds;
     }
 
     @Bean

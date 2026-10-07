@@ -61,6 +61,7 @@ class WidgetQueryParamsTest {
         JdbcTemplate ddl = new JdbcTemplate(pool);
         dropTable(ddl);
         ddl.execute("CREATE TABLE " + TABLE + " (ID NUMBER(10) PRIMARY KEY, NM VARCHAR2(250), AMT NUMBER(10,2), DT VARCHAR2(8), PLANT VARCHAR2(10))");
+        McmCoreOraTestDb.awaitReadOnlyReadable(McmCoreOraTestDb.APP_USER, TABLE); // ORA-01466 — 만든 직후 읽기 전용 스냅샷
     }
 
     @AfterAll

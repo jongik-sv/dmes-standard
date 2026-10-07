@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mcm.widget.chat;
 import com.dongkuk.dmes.mcm.testdb.McmCoreOraTestDb;
 import com.dongkuk.dmes.mcm.widget.chat.repository.WidgetChatMessageRepository;
 import com.dongkuk.dmes.mcm.widget.chat.service.WidgetChatWriter;
+import com.zaxxer.hikari.HikariDataSource;
 import jakarta.persistence.EntityManagerFactory;
 import javax.sql.DataSource;
 import org.springframework.context.annotation.Bean;
@@ -23,9 +24,16 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 @EnableJpaRepositories(basePackageClasses = WidgetChatMessageRepository.class)
 public class WidgetChatJpaTestConfig {
 
+    /**
+     * 풀 상한 3. 도우미 기본 풀(2)로는 모자란다 — WidgetChatServiceTest 의 「바깥 트랜잭션(연결 1 을 쥔 채 보류) + LLM 호출 중
+     * 확인용 REQUIRES_NEW 트랜잭션」 이 동시에 연결을 쥐고, 이전(H2 DriverManagerDataSource)에는 연결 수 제한이 없어서 드러나지 않았다.
+     * 풀이 부족하면 getConnection 이 30초 기다린 뒤 CannotCreateTransactionException 으로 끝난다.
+     */
     @Bean
     public DataSource dataSource() {
-        return McmCoreOraTestDb.appDataSource("widget-chat");
+        HikariDataSource ds = McmCoreOraTestDb.appDataSource("widget-chat");
+        ds.setMaximumPoolSize(3); // 풀은 첫 getConnection 때 시작하므로 그 전에 바꾼다
+        return ds;
     }
 
     @Bean

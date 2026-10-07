@@ -484,45 +484,18 @@ class SqlGuardTest {
         assertThat(SqlGuard.check(sql).sql()).isEqualTo(sql.strip().replaceAll(";$", ""));
     }
 
-    /** SQL Server 에서만 막는 SET·IF — 같은 SQL 이 다른 갈래에서는 통과한다(Oracle SET()·SQLite if() 함수와 겹친다). */
-    static Stream<Arguments> sqlServerOnlyWords() {
-        return Stream.of(
-                arguments("SELECT 1 SET IMPLICIT_TRANSACTIONS OFF", "SET"),
-                arguments("SELECT 1 FROM t set language us_english", "SET"),
-                arguments("SELECT a FROM t SET ANSI_WARNINGS OFF", "SET"),
-                arguments("SELECT 1 IF 1=1 SELECT 2", "IF"),
-                arguments("SELECT SET(tags) FROM t", "SET"),
-                arguments("SELECT if(a > 0, 'Y', 'N') FROM t", "IF"));
-    }
-
+    /**
+     * SET·IF 는 금지 낱말이 아니다 — Oracle {@code SET()} 같은 함수·같은 이름의 열을 막지 않는다(SQL Server 전용 SET·IF 거절은 Oracle
+     * 단일화로 걷어냈다, oracle-1007). 일반 검사가 이 낱말을 지나치게 막지 않는지 본다.
+     */
     @ParameterizedTest(name = "[{index}] {0}")
-    @MethodSource("sqlServerOnlyWords")
-    @DisplayName("SET·IF 는 실행 DB 가 SQL Server 일 때만 거절하고, 다른 갈래·갈래 모름에서는 통과한다")
-    void rejectsSetAndIfOnlyOnSqlServer(String sql, String word) {
-        assertThatThrownBy(() -> SqlGuard.check(sql, WidgetReadOnlyJdbc.Dialect.SQLSERVER))
-                .isInstanceOf(BusinessException.class).hasMessage(SqlGuard.forbiddenWord(word));
-        for (WidgetReadOnlyJdbc.Dialect d : WidgetReadOnlyJdbc.Dialect.values()) {
-            if (d == WidgetReadOnlyJdbc.Dialect.SQLSERVER) continue;
-            assertThat(SqlGuard.check(sql, d).sql()).as(d.name()).isEqualTo(sql);
-        }
-        assertThat(SqlGuard.check(sql, null).sql()).isEqualTo(sql);
+    @ValueSource(strings = {
+            "SELECT SET(tags) FROM t",
+            "SELECT if(a > 0, 'Y', 'N') FROM t",
+            "SELECT [SET], \"IF\", SET_CD, IF_YN, IIF(a > 0, 1, 0) AS F FROM t"})
+    @DisplayName("SET·IF 는 일반 검사에서 막지 않는다 — Oracle SET() 함수·SET_CD·IF_YN·따옴표 열은 통과한다")
+    void allowsSetAndIfAsFunctionsAndNames(String sql) {
         assertThat(SqlGuard.check(sql).sql()).isEqualTo(sql);
-    }
-
-    @Test
-    @DisplayName("SQL Server 는 대괄호를 식별자로 읽는다 — [SET]·\"IF\" 열과 SET_CD·IF_YN 같은 열은 통과한다")
-    void allowsSetAndIfAsQuotedNamesOnSqlServer() {
-        String sql = "SELECT [SET], \"IF\", SET_CD, IF_YN, IIF(a > 0, 1, 0) AS F FROM t";
-        assertThat(SqlGuard.check(sql, WidgetReadOnlyJdbc.Dialect.SQLSERVER).sql()).isEqualTo(sql);
-    }
-
-    @ParameterizedTest(name = "[{index}]")
-    @MethodSource("realWidgetQueries")
-    @DisplayName("화면 사용 통계 같은 실제 집계 SQL 은 어느 실행 DB 갈래에서도 통과한다(SQL Server 의 SET·IF 포함)")
-    void allowsRealWidgetQueriesOnEveryDialect(String sql) {
-        for (WidgetReadOnlyJdbc.Dialect d : WidgetReadOnlyJdbc.Dialect.values()) {
-            assertThat(SqlGuard.check(sql, d).sql()).as(d.name()).isEqualTo(sql.strip().replaceAll(";$", ""));
-        }
     }
 
     @ParameterizedTest(name = "[{index}] {0}")

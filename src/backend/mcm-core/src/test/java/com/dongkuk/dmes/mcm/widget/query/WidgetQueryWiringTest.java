@@ -30,7 +30,7 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
  * 빈 연결 확인 — mcm 런처처럼 {@code widget.query} 패키지를 스캔해 실행기·{@link WidgetQueryConfig}·설정 바인딩이 함께 뜨는지,
  * 전용 설정이 없으면 앱 기본(@Primary) DataSource, 있으면 전용 풀을 쓰는지 본다. 전용 DataSource 는 DataSource 형 빈이 아니다.
  * 앱 기본 DataSource 는 Oracle 시험 PDB 의 MCMAPUSER 풀({@link McmCoreOraTestDb})이다. Oracle 은 읽기 전용 트랜잭션을 거는 갈래라
- * 전용 설정이 없어도 실행하고, 읽기 전용 트랜잭션을 걸 수 없는 갈래(OTHER·SQL Server)의 실패 닫힘 거절은 {@link WidgetQueryExecutorTest} 가
+ * 전용 설정이 없어도 실행하고, 읽기 전용 트랜잭션을 걸 수 없는 갈래(OTHER — SQL Server·SQLite 제품 이름 포함)의 실패 닫힘 거절은 {@link WidgetQueryExecutorTest} 가
  * 가짜 제품 이름으로 본다. 전용 설정은 다른 스키마 계정(MCM_SOURCE)으로 붙여 앱 기본 계정과 구별한다.
  */
 class WidgetQueryWiringTest {
@@ -124,6 +124,7 @@ class WidgetQueryWiringTest {
                  Statement st = owner.createStatement()) {
                 dropTable(st, DEDICATED_TABLE);
                 st.execute("CREATE TABLE " + DEDICATED_TABLE + " (ID NUMBER)");
+                McmCoreOraTestDb.awaitReadOnlyReadable(DEDICATED_USER, DEDICATED_TABLE);
                 try {
                     st.execute("INSERT INTO " + DEDICATED_TABLE + " (ID) VALUES (7)");
                     WidgetQueryResult result = runner.preview("mcm", "SELECT COUNT(*) AS CNT FROM " + DEDICATED_TABLE, 50);

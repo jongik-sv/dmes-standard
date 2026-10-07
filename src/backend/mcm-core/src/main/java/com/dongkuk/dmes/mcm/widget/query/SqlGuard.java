@@ -19,9 +19,9 @@ import java.util.regex.Pattern;
  *   <li>첫 낱말이 SELECT 또는 WITH 여야 한다.</li>
  *   <li>끝의 {@code ;} 하나만 허용(여러 문장 금지).</li>
  *   <li>쓰기·DDL·권한·트랜잭션 낱말은 단어 경계·대소문자 무시로 거절({@code SELECT … INTO}, {@code FOR UPDATE} 포함).
- *       SQL Server 가 {@code ;} 없이 이어 쓸 수 있는 서버 문장({@code WAITFOR}·{@code KILL}·{@code SHUTDOWN} 등)과 T-SQL 흐름·세션 문장
- *       ({@code USE}·{@code DECLARE}·{@code WHILE}·{@code BEGIN} 등)도 여기서 막는다. {@code SET}·{@code IF} 는 Oracle {@code SET()}·SQLite
- *       {@code if()} 함수와 겹쳐 실행 DB 가 SQL Server 일 때만 막는다({@link #check(String, WidgetReadOnlyJdbc.Dialect)}).</li>
+ *       {@code ;} 없이 이어 쓸 수 있는 서버 문장({@code WAITFOR}·{@code KILL}·{@code SHUTDOWN} 등)과 흐름·세션 문장
+ *       ({@code USE}·{@code DECLARE}·{@code WHILE}·{@code BEGIN} 등)도 실행 DB 와 관계없이 여기서 막는다(방어가 겹쳐도 Oracle 조회를 막지 않는다).
+ *       {@code SET}·{@code IF} 는 Oracle {@code SET()} 같은 함수와 겹쳐 막지 않는다.</li>
  *   <li>이름 붙은 변수({@code :name}·{@code &name}, PostgreSQL {@code ::} 캐스트 제외)는 §7.2 시스템 변수만. 단 호출자가 정의에 선언한
  *       사용자 입력 조건 이름(declaredNames, 스펙 2026-10-02-widget-admin-generic 입력 조건)은 <b>정확히 일치할 때만</b> 사용자 바인드로 통과시킨다
  *       ({@code :plant.x} 같은 덩어리 이름은 선언과 달라 걸린다). 시스템 변수 이름은 선언 여부와 관계없이 늘 시스템 변수다.
@@ -87,10 +87,11 @@ public final class SqlGuard {
             Pattern.compile("^(SELECT|WITH)(?!" + WORD_CHAR + ")", Pattern.CASE_INSENSITIVE);
 
     /**
-     * 4단계 금지 낱말. 둘째 줄부터는 SQL Server 가 {@code ;} 없이 한 배치에 이어 쓸 수 있는 문장 중 읽기 전용 강제가 없는 그 DB 에서
-     * 서버 자원을 붙잡거나 서버를 바꾸는 것(대기·세션 종료·종료·DBCC·설정 반영·백업·복원·권한 거부)과, 연결을 풀에 돌려준 뒤에도 남거나
-     * 잠금을 붙잡는 T-SQL 흐름·세션 문장(DB 바꾸기·변수·반복·블록·이동·텍스트 쓰기·체크포인트·사용자 바꾸기·오류 로그)이다 —
-     * 어느 DB 의 SELECT 문법에도 쓰이지 않는다(같은 이름의 열은 큰따옴표로 감싼다, {@link #forbiddenWord}).
+     * 4단계 금지 낱말 — 실행 DB 와 관계없이 늘 적용한다. 둘째 줄부터는 {@code ;} 없이 한 배치에 이어 쓸 수 있는 서버 문장
+     * (대기·세션 종료·종료·DBCC·설정 반영·백업·복원·권한 거부)과, 연결을 풀에 돌려준 뒤에도 남거나 잠금을 붙잡는 흐름·세션 문장
+     * (DB 바꾸기·변수·반복·블록·이동·텍스트 쓰기·체크포인트·사용자 바꾸기·오류 로그)이다. 처음에는 SQL Server 때문에 넣었지만
+     * 어느 DB 의 SELECT 문법에도 쓰이지 않아 Oracle 조회를 막지 않고, 방어가 겹쳐도 해롭지 않아 그대로 둔다
+     * (같은 이름의 열은 큰따옴표로 감싼다, {@link #forbiddenWord}).
      * {@code NEXTVAL} 은 Oracle 읽기 전용 트랜잭션에서도 시퀀스를 소모한다(2026-10-07 Oracle 26ai 실측 — 롤백해도 되돌아가지 않는다).
      */
     private static final Pattern FORBIDDEN = Pattern.compile(
@@ -98,15 +99,6 @@ public final class SqlGuard {
                     + "|COMMIT|ROLLBACK|INTO|PRAGMA|ATTACH|DETACH|NEXTVAL"
                     + "|DENY|WAITFOR|KILL|SHUTDOWN|DBCC|RECONFIGURE|BACKUP|RESTORE"
                     + "|USE|DECLARE|WHILE|BEGIN|GOTO|WRITETEXT|UPDATETEXT|READTEXT|CHECKPOINT|SETUSER|RAISERROR|REVERT)(?!" + WORD_CHAR + ")",
-            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
-
-    /**
-     * 4단계 중 실행 DB 가 SQL Server 일 때만 더 막는 낱말 — {@code SET}(세션 설정: {@code SET IMPLICIT_TRANSACTIONS OFF} 는 mssql-jdbc 가
-     * autoCommit=false 를 구현하는 방식을 꺼 뒤이은 쓰기를 자동 커밋하게 하고, {@code SET LANGUAGE}·{@code SET ANSI_WARNINGS OFF} 는 풀에
-     * 돌려준 연결에 남는다)·{@code IF}. 다른 DB 에서는 함수 이름(Oracle {@code SET()}, SQLite·MySQL {@code if()})이라 막지 않는다.
-     */
-    private static final Pattern SQLSERVER_FORBIDDEN = Pattern.compile(
-            "(?<!" + WORD_CHAR + ")(SET|IF)(?!" + WORD_CHAR + ")",
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     /**
@@ -232,24 +224,6 @@ public final class SqlGuard {
     }
 
     private SqlGuard() {}
-
-    /**
-     * §7.1 검사 + 실행 DB 갈래에만 해당하는 규칙(지금은 SQL Server 의 {@code SET}·{@code IF}). 갈래를 모르면(null)
-     * {@link #check(String)} 와 같다. SQL Server 는 대괄호를 식별자로 읽으므로 대괄호 식별자를 가린 사본으로 본다({@code [SET]} 열은 통과).
-     */
-    public static Validated check(String sql, WidgetReadOnlyJdbc.Dialect dialect) {
-        return check(sql, dialect, Set.of());
-    }
-
-    /** {@link #check(String, WidgetReadOnlyJdbc.Dialect)} + 선언된 사용자 입력 조건 이름을 사용자 바인드로 통과시킨다. */
-    public static Validated check(String sql, WidgetReadOnlyJdbc.Dialect dialect, Set<String> declaredNames) {
-        Validated validated = checkDeclared(sql, declaredNames);
-        if (dialect == WidgetReadOnlyJdbc.Dialect.SQLSERVER) {
-            Matcher m = SQLSERVER_FORBIDDEN.matcher(mask(sql, true));
-            if (m.find()) throw invalid(forbiddenWord(m.group(1).toUpperCase(Locale.ROOT)));
-        }
-        return validated;
-    }
 
     /** §7.1 검사(어느 DB 에나 적용하는 규칙). 어기면 {@code BusinessException(INVALID_VALUE, 사람이 읽을 메시지)}. */
     public static Validated check(String sql) {

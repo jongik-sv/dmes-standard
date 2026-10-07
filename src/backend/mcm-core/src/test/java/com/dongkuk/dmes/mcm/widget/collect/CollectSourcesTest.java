@@ -74,6 +74,7 @@ class CollectSourcesTest {
             jdbc = new JdbcTemplate(dataSource);
             dropTable();
             jdbc.execute("CREATE TABLE T_C4_MACHINE (LINE VARCHAR2(20), CNT NUMBER(10), AMT NUMBER(12,3), STATE VARCHAR2(10), D DATE)");
+            McmCoreOraTestDb.awaitReadOnlyReadable(McmCoreOraTestDb.APP_USER, "T_C4_MACHINE"); // ORA-01466 — 만든 직후 읽기 전용 스냅샷
             jdbc.update("INSERT INTO T_C4_MACHINE VALUES ('L1', 5, 1.500, 'RUN', DATE '2026-10-05')");
             jdbc.update("INSERT INTO T_C4_MACHINE VALUES ('L2', 7, 2.250, 'STOP', DATE '2026-10-05')");
             jdbc.update("INSERT INTO T_C4_MACHINE VALUES ('L3', NULL, NULL, NULL, NULL)");

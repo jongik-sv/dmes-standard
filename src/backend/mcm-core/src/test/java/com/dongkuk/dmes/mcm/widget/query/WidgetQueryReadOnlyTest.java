@@ -89,6 +89,7 @@ class WidgetQueryReadOnlyTest {
         dropTable(ddl, TBL_EVIL);
         ddl.execute("CREATE TABLE " + TBL_T + " (ID NUMBER(10) PRIMARY KEY, NM VARCHAR2(50))");
         ddl.execute("CREATE TABLE " + TBL_P + " (ID NUMBER(10) PRIMARY KEY, NM VARCHAR2(50), QTY NUMBER, OWNER_ID VARCHAR2(20))");
+        McmCoreOraTestDb.awaitReadOnlyReadable(McmCoreOraTestDb.APP_USER, TBL_T, TBL_P); // ORA-01466 — 만든 직후 읽기 전용 스냅샷
     }
 
     @AfterAll
@@ -325,7 +326,7 @@ class WidgetQueryReadOnlyTest {
     @Test
     @DisplayName("풀이 Hikari 가 아니면 되돌리지 못한 연결을 abort 로 끊는다")
     void nonHikariConnectionThatCannotBeRestoredIsAborted() throws Exception {
-        Script script = new Script("Microsoft SQL Server");
+        Script script = new Script("MariaDB"); // OTHER — 방언 보강 문장 없이 되돌리기 실패만 본다
         script.failOn = "setAutoCommit(true)";
         String ok = new WidgetReadOnlyJdbc(script.dataSource()).execute(con -> "ok");
         assertThat(ok).isEqualTo("ok");
@@ -341,6 +342,7 @@ class WidgetQueryReadOnlyTest {
              Statement st = owner.createStatement()) {
             dropTable(st, TBL_ONLY_B);
             st.execute("CREATE TABLE " + TBL_ONLY_B + " (ID NUMBER(10))");
+            McmCoreOraTestDb.awaitReadOnlyReadable(OTHER_USER, TBL_ONLY_B);
             try {
                 st.execute("INSERT INTO " + TBL_ONLY_B + " (ID) VALUES (7)");
 
@@ -466,10 +468,11 @@ class WidgetQueryReadOnlyTest {
     @Test
     @DisplayName("제품 이름 → 갈래")
     void dialectOfProductName() {
-        assertThat(WidgetReadOnlyJdbc.dialectOf("SQLite")).isEqualTo(WidgetReadOnlyJdbc.Dialect.SQLITE);
         assertThat(WidgetReadOnlyJdbc.dialectOf("PostgreSQL")).isEqualTo(WidgetReadOnlyJdbc.Dialect.POSTGRESQL);
         assertThat(WidgetReadOnlyJdbc.dialectOf("Oracle")).isEqualTo(WidgetReadOnlyJdbc.Dialect.ORACLE);
-        assertThat(WidgetReadOnlyJdbc.dialectOf("Microsoft SQL Server")).isEqualTo(WidgetReadOnlyJdbc.Dialect.SQLSERVER);
+        // SQLite·SQL Server 갈래는 걷어냈다(oracle-1007) — 읽기 전용 트랜잭션을 걸 수 없는 OTHER(실패 닫힘)로 본다
+        assertThat(WidgetReadOnlyJdbc.dialectOf("SQLite")).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER);
+        assertThat(WidgetReadOnlyJdbc.dialectOf("Microsoft SQL Server")).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER);
         assertThat(WidgetReadOnlyJdbc.dialectOf("MariaDB")).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER);
         assertThat(WidgetReadOnlyJdbc.dialectOf(null)).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER);
     }
