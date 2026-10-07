@@ -12,7 +12,7 @@
 | b5 적재기 + template 명령 + PC 잠금 + KST 고정 | **머지①b 완료**(fb253556d) | `lock-hold`·SIGTERM 정리·sqlplus 시간 상한, build-logic 시간대 |
 | 하니스 접속 상한·VM 상태 로그·e2e Oracle 도우미 | **머지①c 완료**(ce378785a) | 시험 JVM Hikari 2·유휴 0·cache.maxSize 2·forks 1, close·seal 무잠금, autotask·AWR 끄기, `pdb.mjs sessions`·`quiet`, e2e `oracle.ts`(oracledb thin)·단위 시험 16건 |
 | 하니스 실행 확인 | **완료** | `:lib:test --tests *SapCsvTest -Pdmes.ora.test=clone` 39초 성공, T_ORA_BASE 자동 삭제, 로그 줄 확인 |
-| b5 후속·b7 일부·b8 준비(미머지, **다음 base 묶음**) | 커밋됨, `feat/ora-base`(dev 대비 약 15커밋) | 아래 목록 |
+| b5 후속·b7 일부·b8 준비(미머지, **다음 base 묶음**) | 커밋됨, `feat/ora-base`(dev 대비 17커밋, 머지 커밋 포함) | 아래 목록 |
 | b7 나머지 | **머지④(ora-platform) 뒤 한 번에** | 아래 「b7 문서 항목」 |
 | b8 | 머지④ 뒤 착수(조정자 확인 후) | `docs/oracle-1007/b8-residue.md`(고친 것 없음, 머지 뒤 재검색으로 대조) |
 | z1 마감 | 조정자 지시 때 | 전 모듈 시험·E2E·시험 시간 비교·SUMMARY·PDB 정리 |
