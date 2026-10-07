@@ -16,7 +16,7 @@ coordinator·dflow-* 스킬의 셸 스크립트는 **macOS** 와 **Git for Windo
 | node(**18.17 이상**) | 설치 필요 | 설치 필요 | python 에서 옮겨 온 스크립트(`.mjs`)와 `_shared/node/` 공용 헬퍼가 쓴다(`node:test`·`util.parseArgs`·`readdirSync` 재귀). 그 밖에 `mutate.sh`(변이 검증), `free-port.sh` 폴백, 해시 마지막 폴백 |
 | orca CLI | 설치 필요 | 설치 필요 | coordinator 전반(터미널·워크트리 조작) |
 | pnpm·gradle·docker | 프로젝트별 | 프로젝트별 | 스킬이 직접 요구하지 않는다 |
-| python3 | 선택 | 선택 | `free-port.sh` 의 첫 선택지(없으면 node → lsof·nc) |
+| python3 | 선택 | 선택 | `free-port.sh` 의 첫 선택지(없으면 node → lsof·nc). oasis-contract-check(훅·게이트·selftest)는 node(`.mjs`)로 옮겨져 python 이 필요 없다 |
 
 Git Bash 에 **없는** 명령: `ps -o`·`ps -x`(Cygwin 판 ps 는 `-W`·`-e`·`-f` 만), `pgrep`·`pkill`, `lsof`, `sysctl`, `launchctl`, `caffeinate`, `memory_pressure`, `vm_stat`.
 `perl` 은 Git for Windows 에 들어 있어도 쓰지 않는다.
