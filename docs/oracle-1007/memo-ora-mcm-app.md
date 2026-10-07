@@ -32,9 +32,11 @@ Oracle: 18:24 인스턴스 스래싱으로 조정자 동결 → 이 레인 프�
 ## 리뷰 지적(a1, opus/high, 9건)
 
 1. blocker — 지문 골든을 Oracle 에서 다시 만들어야 함 — **반영**. 시험 PDB 에서 `FINGERPRINT_UPDATE=true` 로 재생성했다. 옛 SQLite 골든과 대조:
-   - 겹치는 표 57개의 행 수가 모두 같다(시드가 있는 표 15개: TB_MCA_RULE_MASTER 6, TB_MCM_DEPT_INFO 7, TB_MCM_SEC_MENU 45, TB_MCM_SEC_MENU_FLD 15, TB_MCM_SEC_OBJ 54, TB_MCM_SEC_PERM 4, TB_MCM_SEC_ROLE 3, TB_MCM_SEC_ROLEGROUP 3, TB_MCM_SEC_ROLEGROUP_MAPPING 3, TB_MCM_SEC_ROLE_MAPPING 105, TB_MCM_SEC_USER 1, TB_MCM_SEC_USER_MAPPING 1, TB_MCM_SEC_USER_PWD 1, TB_SEC_CODE_GROUP 1, TB_SEC_CODE_ITEM 6).
+   - 겹치는 표 56개의 행 수가 모두 같다(옛 골든은 표 58개 + __SCHEMA__ 1줄. 시드가 있는 표 15개: TB_MCA_RULE_MASTER 6, TB_MCM_DEPT_INFO 7, TB_MCM_SEC_MENU 45, TB_MCM_SEC_MENU_FLD 15, TB_MCM_SEC_OBJ 54, TB_MCM_SEC_PERM 4, TB_MCM_SEC_ROLE 3, TB_MCM_SEC_ROLEGROUP 3, TB_MCM_SEC_ROLEGROUP_MAPPING 3, TB_MCM_SEC_ROLE_MAPPING 105, TB_MCM_SEC_USER 1, TB_MCM_SEC_USER_MAPPING 1, TB_MCM_SEC_USER_PWD 1, TB_SEC_CODE_GROUP 1, TB_SEC_CODE_ITEM 6).
    - 빠진 2줄: HTE_TB_MCM_MOM_TC_SEND(Hibernate 임시 표, 0행)·SEQ_MCM_MOM_TC_SEND(시퀀스 흉내 표, 1행) — V1 이 임시 표를 빼고 실제 SEQUENCE 로 바꿨다(V1 머리 주석).
-   - 해시는 모두 다르다: 값 표기(숫자·시각·NULL)가 SQLite 와 달라서다. __SCHEMA__ 는 셈 기준이 바뀌었다(SQLite 67 → Oracle ALL_OBJECTS·ALL_TAB_COLUMNS 1106).
+   - 새로 생긴 5줄: MCM_BACKUP 표 2개·MCM_SOURCE 표 3개(모두 0행) — 옛 SQLite 골든에는 스키마 구분이 없어 이 사본 표들이 따로 잡히지 않았다.
+   - 해시는 모두 다르다. 행이 0인 표도 다르므로 값 표기만이 아니라 해시에 넣는 열 목록·직렬화가 DB 마다 다르다. 그래서 **대조로 확인한 것은 행 수뿐이고, 시드가 든 15개 표의 내용 동일성은 직접 확인하지 않았다.** 간접 근거: 특성화 골든에서 새 호출열이 옛 호출열의 부분열이고 차이는 SQL 치환 두 가지(SYSTIMESTAMP·TIMESTAMP 리터럴)뿐이라, 넣는 값은 같다.
+   - __SCHEMA__ 는 셈 기준이 바뀌었다(SQLite 67 → Oracle ALL_OBJECTS·ALL_TAB_COLUMNS 1106).
 2. CaravanMetaSeeder 가 caravan 표 없으면 기동 실패 → 가드(사용자 확인 대기)
 3. local 기본 PDB FREEPDB1 → L_ORA_MCM_APP, dmes.ora.* 속성 — 반영
 4. Instant 왕복 시험 — 반영(NoticeInstantRoundTripTest). 첫 실행 실패는 시험 버그: id 를 직접 넣는 엔티티라 save 가 merge 로 가서 @PrePersist 는 반환된 사본에 C_AT 를 채운다 → 반환값을 쓰게 고침. JVM TZ 고정은 ora-base 몫 → fb253556d 에서 고정됨

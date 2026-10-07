@@ -29,7 +29,7 @@ class CaravanMetaSeederTableMissingTest {
     void skipsWhenTableMissing() {
         AppHostJpaRepository hosts = mock(AppHostJpaRepository.class);
         ConsoleCaravanHubConfigJpaRepository configs = mock(ConsoleCaravanHubConfigJpaRepository.class);
-        when(hosts.saveAll(anyIterable())).thenThrow(oracleError(942, "ORA-00942: table or view \"CARAVANUSER\".\"TB_MCM_APPHOST\" does not exist"));
+        when(hosts.saveAll(anyIterable())).thenThrow(oracleError(942, "ORA-00942: table or view \"CARAVANUSER\".\"TB_CARAVAN_APPHOST\" does not exist"));
         when(configs.saveAll(anyIterable())).thenThrow(oracleError(942, "ORA-00942: table or view does not exist"));
         CaravanMetaSeeder seeder = new CaravanMetaSeeder(hosts, configs);
 

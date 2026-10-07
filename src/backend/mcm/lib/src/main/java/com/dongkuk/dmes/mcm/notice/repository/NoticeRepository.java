@@ -19,7 +19,7 @@ import java.util.List;
  * {@code TB_MCM_NOTICE} JPA Repository (noticeMgmt 화면 owner).
  *
  * <p>기능설계서 §3 조회조건 S-001~S-006 과 홈 공지 목록(noticeBoard)을 JPQL 로 처리한다.
- * 방언 독립을 위해 native query 를 쓰지 않는다.
+ * native query 는 쓰지 않는다. 다만 아래 null-guard 는 Oracle 의 빈 문자열 = NULL 동작에 기댄다(대상 DB 는 Oracle).
  *
  * <p><b>null-guard 관용구</b>: {@code (:p IS NULL OR ...)}. FE 는 미입력 조건을 빈 문자열로 보내오는데, Oracle 은 빈 문자열
  * 바인드를 NULL 로 다루므로 {@code IS NULL} 하나로 미입력(null·빈 문자열)을 함께 거른다(2026-10-07 oracle-1007 — 옛

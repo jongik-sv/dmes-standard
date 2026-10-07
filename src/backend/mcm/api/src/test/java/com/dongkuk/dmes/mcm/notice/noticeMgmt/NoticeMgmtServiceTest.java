@@ -299,6 +299,23 @@ class NoticeMgmtServiceTest extends McmNoticeTestDb {
         assertThat(titles(service.search(q))).hasSize(3);
     }
 
+    /**
+     * 제목·게시상태는 서비스가 빈 문자열을 null 로 바꾸지 않고 저장소에 그대로 넘긴다. 저장소 JPQL 은 {@code :p IS NULL} 하나로
+     * 미입력을 거르는데, Oracle 이 빈 문자열 바인드를 NULL 로 다루는 데 기댄다(2026-10-07 oracle-1007 — {@code OR :p = ''} 제거).
+     */
+    @Test
+    @DisplayName("제목·게시상태가 빈 문자열이면 조건 없음으로 보고 전체를 돌려준다(Oracle '' = NULL)")
+    void searchTreatsEmptyTitleAndStatusAsNoFilter() {
+        service.save(List.of(newRow("빈조건-가"), newRow("빈조건-나")));
+
+        NoticeMgmtSearchRequest q = new NoticeMgmtSearchRequest();
+        q.setTitle("");
+        q.setNoticeStatus("");
+        int all = list(service.search(null)).size();
+        assertThat(all).isGreaterThanOrEqualTo(2);
+        assertThat(list(service.search(q))).hasSize(all);
+    }
+
     @Test
     @DisplayName("조회조건의 분류·형식이 허용 코드 밖이면 0건이 아니라 오류로 알린다")
     void searchRejectsUnknownCodes() {

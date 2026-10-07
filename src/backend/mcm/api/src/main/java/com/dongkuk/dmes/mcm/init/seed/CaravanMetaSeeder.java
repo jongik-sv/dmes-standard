@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 
 /**
- * caravan-console 메타(TB_MCM_APPHOST / TB_MCM_MOM_KAFKA_SERAI_CONFIG) 시드 (2026-10-04 DataInitializer 분할).
+ * caravan-console 메타(TB_CARAVAN_APPHOST / TB_CARAVAN_HUB_CONFIG) 시드 (2026-10-04 DataInitializer 분할).
  *
  * <p>두 저장소는 cactus secondary EMF(CARAVANUSER) 소속이라 {@code DataInitializer.run()} 의 트랜잭션과
  * 별개 경계로 저장된다. 저장소 빈이 없으면(secondary EMF 비활성) skip 하고, 표가 아직 없으면(caravan-hub 기준선 적용 전) 경고 뒤 skip 한다.
@@ -30,7 +30,7 @@ public final class CaravanMetaSeeder {
     }
 
     /**
-     * v4 Phase 4-B (2026-05-13) — TB_MCM_APPHOST 시드 단순화.
+     * v4 Phase 4-B (2026-05-13) — TB_CARAVAN_APPHOST 시드 단순화.
      *
      * <p>v3: 모듈별 5 row (mcm/mls/mpn/mpp/mqc) — caravan-console 가 모듈 WAS 직접 호출하던 패턴.
      * <p>v4: <b>caravan-hub 인스턴스 row 만</b> — caravan-console 는 caravan-hub VIP 한 곳만 호출 (v4 §3 정본). 모듈은 caravan-hub 통한
@@ -39,14 +39,14 @@ public final class CaravanMetaSeeder {
      *
      * <p>local: 단일 'hub1' row (LB VIP 또는 단일 인스턴스). 운영: hub1/hub2/hub3 멀티 인스턴스 가능.
      *
-     * <p>v4 결정 #14 (2026-05-13) — AppHostEntity 가 cactus secondary EMF (caravan.db / CARAVANUSER) 매핑이라
+     * <p>v4 결정 #14 (2026-05-13) — AppHostEntity 가 cactus secondary EMF (CARAVANUSER) 매핑이라
      * {@link AppHostJpaRepository} 사용. Repository 는 {@code ConsoleSecondaryJpaConfig} 가 secondary EMF 로 wiring.
      *
      * <p>secondary EMF 비활성 환경 (Repository 빈 미등록) 에서는 skip.
      */
     public void initAppHostData() {
         if (appHostJpaRepository == null) {
-            log.info("[DataInitializer] AppHostJpaRepository 미활성 — TB_MCM_APPHOST 시드 skip (secondary EMF 비활성 환경)");
+            log.info("[DataInitializer] AppHostJpaRepository 미활성 — TB_CARAVAN_APPHOST 시드 skip (secondary EMF 비활성 환경)");
             return;
         }
         // v4 §8-1 — caravan-hub 인스턴스 row 만. WORKS_CD='p' (caravan-console caravan-console.works-code yml property 와 정합).
@@ -63,8 +63,8 @@ public final class CaravanMetaSeeder {
                         .appHostUrl("http://localhost:8200")
                         .build()
         );
-        if (saveIfTableExists("TB_MCM_APPHOST", () -> appHostJpaRepository.saveAll(hosts))) {
-            log.info("[DataInitializer] TB_MCM_APPHOST 시드 완료 — {} row", hosts.size());
+        if (saveIfTableExists("TB_CARAVAN_APPHOST", () -> appHostJpaRepository.saveAll(hosts))) {
+            log.info("[DataInitializer] TB_CARAVAN_APPHOST 시드 완료 — {} row", hosts.size());
         }
     }
 
@@ -85,7 +85,7 @@ public final class CaravanMetaSeeder {
      */
     public void initCaravanHubConfigData() {
         if (consoleCaravanHubConfigJpaRepository == null) {
-            log.info("[DataInitializer] ConsoleCaravanHubConfigJpaRepository 미활성 — SERAI_CONFIG 시드 skip");
+            log.info("[DataInitializer] ConsoleCaravanHubConfigJpaRepository 미활성 — TB_CARAVAN_HUB_CONFIG 시드 skip");
             return;
         }
         List<ConsoleCaravanHubConfigEntity> configs = List.of(
@@ -114,13 +114,16 @@ public final class CaravanMetaSeeder {
                         .useYn("Y")
                         .build()
         );
-        if (saveIfTableExists("TB_MCM_MOM_KAFKA_SERAI_CONFIG", () -> consoleCaravanHubConfigJpaRepository.saveAll(configs))) {
-            log.info("[DataInitializer] SERAI_CONFIG 시드 완료 — {} row (PoC)", configs.size());
+        if (saveIfTableExists("TB_CARAVAN_HUB_CONFIG", () -> consoleCaravanHubConfigJpaRepository.saveAll(configs))) {
+            log.info("[DataInitializer] TB_CARAVAN_HUB_CONFIG 시드 완료 — {} row (PoC)", configs.size());
         }
     }
 
     /**
      * 표가 없으면(ORA-00942) 경고만 남기고 건너뛴다 (oracle-1007, 2026-10-07).
+     *
+     * <p>Oracle 은 다른 스키마 표에 권한이 전혀 없을 때도 ORA-01031 이 아니라 ORA-00942 를 돌려준다 — 그래서 경고 문구는
+     * 「표가 없거나 권한이 없다」로 두 원인을 함께 적는다.
      *
      * <p>CARAVANUSER 의 표는 caravan-hub(ora-platform) 기준선 Flyway 가 만든다. mcm 은 그 스키마의 주인이 아니므로 표를 만들지 않고,
      * caravan-hub 기준선이 아직 적용되지 않은 PDB 에서는 mcm 기동이 이 시드 때문에 멈추지 않게 한다. 그 밖의 오류는 그대로 던진다.
@@ -136,7 +139,8 @@ public final class CaravanMetaSeeder {
             if (!isTableMissing(e)) {
                 throw e;
             }
-            log.warn("[DataInitializer] CARAVANUSER.{} 표가 없다(ORA-00942) — caravan-hub 기준선 적용 전이라 시드를 건너뛴다.", table);
+            log.warn("[DataInitializer] {} 표가 없거나 접근 권한이 없다(ORA-00942) — 시드를 건너뛴다. caravan-hub 기준선이 적용됐는지, "
+                    + "caravan DataSource 사용자가 표 주인(CARAVANUSER)이거나 권한을 받았는지 확인한다.", table);
             return false;
         }
     }

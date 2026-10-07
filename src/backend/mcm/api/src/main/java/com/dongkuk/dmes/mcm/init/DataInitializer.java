@@ -128,7 +128,7 @@ public class DataInitializer implements ApplicationRunner {
 
         seedMcmSecRbac(support);
 
-        log.info("[DataInitializer] 초기 데이터 삽입 완료. MCM SEC RBAC 시드 (admin / SYSADMIN role-group / SYSADMIN role / PERM_ALL / 9 화면 ROLE_MAPPING) + caravan-console 메타 완료.");
+        log.info("[DataInitializer] 초기 데이터 삽입 완료. MCM SEC RBAC 시드 (admin / SYSADMIN role-group / SYSADMIN role / PERM_ALL / 9 화면 ROLE_MAPPING). caravan-console 메타는 CaravanMetaSeeder 로그를 본다(표가 없으면 건너뜀).");
     }
 
     /**
