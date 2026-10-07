@@ -23,9 +23,13 @@
   - 도움말: 원본 Widget-Authoring-Guide.md §3.3·§3.4·§3.6·§3.7·§9 를 Oracle 판으로(60976f8c6), 사본 재생성. dev(fb253556d) 머지 뒤 dev 자체 사본 어긋남도 재생성(da68e2034). sync 확인은 워크트리에 node_modules 를 깔지 않고(조정 지시) 같은 단언 3개를 node 로 돌렸다 — 실제 vitest 는 조정자가 머지 게이트에서 돌린다(머지 요청에 적을 것).
   - Oracle 값 변환(L_ORA_MCM_CORE 실측): TIMESTAMP·TIMESTAMPTZ·TIMESTAMPLTZ·DATE → ISO 글자(KST), CLOB·NCLOB → 글자, NUMBER → BigDecimal, BINARY_DOUBLE NaN → 글자, ROWID·INTERVAL → 글자, RAW → null, '' → null, BOOLEAN → true. 코드 수정 없음.
   - opus/xhigh 보안 리뷰: major 1(T@"LINK"·"T"@"LINK" 따옴표 링크가 가린 사본을 지남)·nit 1(seq."NEXTVAL") → 드러낸 사본에서도 DB 링크·점 한정 NEXTVAL 검사(6-2단계), SqlGuardTest 283/283(c1276e6aa). WidgetReadOnlyJdbc Oracle 갈래 정리·예외 경로는 이상 없음. 리뷰어 권고: 운영 Oracle 에서 전용 읽기 DataSource 가 없으면 실행 거절(B). 조정 기준(PL/SQL 을 만드는 길)은 해당 없음 → A 유지, 판단은 조정에 올림.
-- **c2 방언 전환 — 진행 중(10-07)**. dev fb253556d(머지①b) 합침(35c7be3c2).
+- **c2 방언 전환 — 코드 완료(10-07, 0fc581c9b)**, Oracle 실행 확인은 c4. dev fb253556d(머지①b) 합침(35c7be3c2).
   - 조정 결정 A: SQLite 치환 API(setSqlite·isSqlite·toSqliteCompatible·stripUnicodeLiteralPrefix·McmSqliteMybatisInterceptor·SqliteTemporalConverterContributor)는 @Deprecated 로 남기고 동작 유지(setSqlite(true) 때만). mcm 호출(main 4·시험 약 15)은 조정이 ora-mcm-app a2·a3 조건으로 넘김, 삭제는 ora-base b8.
-  - 감사 보강 SQL → CURRENT_TIMESTAMP·COALESCE(VER,0)+1(작업 트리). mcm-core 자기 isSqlite 갈래는 Oracle·H2 공통형 하나로(구현 agent 진행 중).
+  - 감사 보강 SQL → CURRENT_TIMESTAMP·COALESCE(VER,0)+1. isSqlite 갈래 5곳을 Oracle·H2 공통형 하나로(LPAD·||·FETCH FIRST·LOCALTIMESTAMP+INTERVAL·재귀 WITH 칸 목록). INFORMATION_SCHEMA → ALL_*. RULE_NM·코드 PK 빈 값 검사. adaptForLocalSqlite 는 @Deprecated(결정 A).
+  - 정책 B(조정 결정): `dmes.widget.query.require-dedicated`(기본 false) — true 면 전용 DataSource 없을 때 거절(10d9b67de). yml 은 ora-mcm-app a3.
+  - H2 시험: SQLite 전용 CommUserMngServiceSearchRoleGrpSqliteTest 3건 실패(INTERVAL) → c4 에서 Oracle 로.
+  - mcm 영향(ora-mcm-app 몫): 어댑터 5개는 setSqlite(true) 여도 Oracle 형을 보낸다 — mcm 의 SQLite 시험(DataInitializerMssqlSqlCharacterizationTest·DataInitializerSeedFingerprintTest·NoticePermissionFilterTest·MenuCatalogOasisSaveIntegrationTest)이 이 SQL 을 타면 깨진다.
+  - **c4 Oracle 확인 목록**: ① 재귀 WITH 3개(SecMenuNativeRepository searchCmMenu·searchMenuFld, SecRoleGroupMappingNativeRepository.searchCmRoleGrpMenu — H2 시험이 타지 않음) ② searchMenuObjPop 상관 서브쿼리 FETCH FIRST ③ MomTcErrorRepository 따옴표 별칭·TO_CHAR·Instant 바인드 시간대 ④ MasterRuleColListRepository 사전 뷰(MCAAPUSER GRANT 없으면 조용히 0건) ⑤ CommSyncMngService 'FM999999990.0'·INSERT…SELECT * 칸 순서(원장·사본·백업 V1 일치) ⑥ CommUserMngQueryService LOCALTIMESTAMP·INTERVAL ⑦ masterRuleData 동적 CTE 페이징·DATE 칸에 14자 글자 바인드(NLS)·CLOB 칸 = 비교 ⑧ 화면 사용 표 색인·유일 제약·엔티티 왕복(archive 한 MSSQL DDL 시험 대체).
   - ScreenUsageMssqlDdlTest → archive/test/screenusage(4e63da218), build.gradle test 입력에서 ScreenUsageSchemaArtifacts·DataInitializer 뺌. ScreenUsageMssqlDdl 은 @Deprecated. **c4 할 일: 화면 사용 표 색인·유일 제약·엔티티 왕복을 Oracle 시험으로 대체**.
 - c4: c2 다음. 시험은 `-Pdmes.ora.test=clone` 하니스(scripts/oracle/README.md). PC 전체 Oracle 무거운 작업은 한 번에 하나(잠금이 줄 세움).
 - c2 주의(조정 지시 10-07): `SqliteTemporalConverterContributor` 는 지우지 말고 `@Deprecated` 만 단다 — mls application.yml 이 가리킨다. 제거는 ora-platform 이 mls yml 을 고친 뒤 ora-base b8.
@@ -55,6 +59,7 @@
 
 ## 운영 안내 (ora-base b7 이 운영 배포 문서로 모은다)
 
+- 쿼리 위젯: 운영(prod·wildfly)은 `dmes.widget.query.require-dedicated: true` 로 둔다 — 전용 DataSource 가 없으면 시험·저장·실행을 거절한다(정책 B, 10d9b67de).
 - 쿼리 위젯 실행기(`dmes.widget.query.datasource.*`)에는 **읽기 권한만 가진 DB 계정**의 전용 DataSource 를 붙이고, 그 계정에는 자율 트랜잭션(`PRAGMA AUTONOMOUS_TRANSACTION`) 함수·프로시저의 EXECUTE 권한과 DB 링크를 주지 않는다 — Oracle 읽기 전용 트랜잭션은 자율 트랜잭션 함수의 쓰기를 막지 못한다(2026-10-07 Oracle 26ai 실측).
 - 업무기준 동적 표 `MCAAPUSER.TB_MCA_<RULE_ID>` 는 DBA 가 만들고, 만들 때 MCMAPUSER 에 `SELECT, INSERT, UPDATE, DELETE` 를 GRANT 한다(앱은 DDL 을 보내지 않는다).
 - 원장 → 사본 동기화(MCM_SOURCE → MCMAPUSER·MCM_BACKUP)는 동기화 관리 화면이 유일한 경로다(트리거·배치 없음).
