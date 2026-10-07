@@ -134,6 +134,7 @@ pnpm dev
 LoV service가 아직 없을 때는 화면에서 임의 Phase 7 LoV 라우트를 호출하지 않는다. 모듈별 Phase 7 허용 조건은 [standard-v2/frontend-standard/01-rules-decisions-files.md](standard-v2/frontend-standard/01-rules-decisions-files.md) §2-2-1-A가 정본이다.
 
 - `mpp`, `mqc`, `mls`, `mcm`처럼 SqlSession 미등록 모듈에서는 `apiLovMaster`, `apiLovQuery`, `apiLovService` 호출을 금지한다.
+- `apiLovQuery`, `apiLovService`(그리고 `apiQuery`·`apiQueryService`·`apiService`)는 모든 모듈에서 금지한다. 2026-10-07 부터 BFF 가 403 으로 막고 BE 컨트롤러도 기본으로 꺼져 있다.
 - LoV가 업무상 필요하면 별도 OASIS BPMN service를 신설하고 `/api/{moduleId}/oasis/{lovServiceId}/{action}` 형태로 호출한다.
 - service 미구축 상태에서 화면 진행이 필요하면 정적 옵션, 비활성 상태, 빈 결과 stub 중 하나로 명시 처리하고, Decision Log나 설계서 이슈에 후속 작업을 남긴다.
 

@@ -30,10 +30,14 @@ const CFG: RbacPolicyConfig = {
   authOnlyPatterns: [/^\/api\/[^/]+\/mdmMeta\//],
   // m-mcm proxy.ts 와 같은 값 — 미디어 위젯 파일 내려받기(2026-10-03). GET·HEAD 이고 경로 전체가 맞을 때만.
   authOnlyReadPatterns: [/^\/api\/mcm\/rest\/widgetMedia\/file\/api\/mcm\/widgetMedia\/file\/[0-9a-f]{32}$/],
-  lovPattern: /^\/api\/[^/]+\/lov\//,
+  // m-mcm proxy.ts 와 같은 값 — cactus 직접 실행 경로는 늘 거부(2026-10-07 보안 지적).
+  denyPatterns: [/^\/api\/[^/]+\/(?:service|query|lov\/(?:query|service))(?:\/|$)/],
+  lovPattern: /^\/api\/[^/]+\/lov\/master\//,
   unmatchedDeny: false,
 };
 const DENY: RbacPolicyConfig = { ...CFG, unmatchedDeny: true };
+/** 2026-10-07 수정 전 proxy.ts 값 — 재현 기록용(denyPatterns 없음, LoV 접두가 lov/query·lov/service 까지 열었다). */
+const BEFORE_FIX: RbacPolicyConfig = { ...CFG, denyPatterns: undefined, lovPattern: /^\/api\/[^/]+\/lov\// };
 
 // 방식 C — perms 는 토큰이 아니라 로더로 주입 (RBAC 2패턴 단계에서만 호출).
 const VIEWER_PERMS = ["mcm/tcerrorlist/search", "mpn/plant/search"];
@@ -114,20 +118,21 @@ describe("evaluateApiPolicy 매트릭스 (방식 C — perms 는 로더로 lazy 
   it("T3 AUTH_ONLY(myMenusTree) → pass (loader 미호출=lazy)", async () => {
     expect(await evaluateApiPolicy("/api/mcm/oasis/secUser/myMenusTree", viewer, CFG, loadThrow)).toBe("pass");
   });
-  it("T4 LoV(master/query/service) → pass (loader 미호출)", async () => {
-    expect(await evaluateApiPolicy("/api/mpn/lov/service/foo", viewer, CFG, loadThrow)).toBe("pass");
+  it("T4 LoV master → pass (loader 미호출) / lov/query·lov/service → forbidden-route (2026-10-07)", async () => {
     expect(await evaluateApiPolicy("/api/mcm/lov/master/B029", viewer, CFG, loadThrow)).toBe("pass");
-    expect(await evaluateApiPolicy("/api/mpn/lov/query/q1", viewer, CFG, loadThrow)).toBe("pass");
+    expect(await evaluateApiPolicy("/api/mcm/lov/master/UNIT/KG", viewer, CFG, loadThrow)).toBe("pass");
+    expect(await evaluateApiPolicy("/api/mpn/lov/service/foo", viewer, CFG, loadThrow)).toBe("forbidden-route");
+    expect(await evaluateApiPolicy("/api/mpn/lov/query/q1", viewer, CFG, loadThrow)).toBe("forbidden-route");
   });
   it("T5 REST 신경로 — 권한 보유 pass / 미보유(구 통과형 오인 키 포함) forbidden-perm (2026-07-28)", async () => {
     expect(await evaluateApiPolicy("/api/mpn/rest/plant/search/api/plants", viewer, CFG, loadViewer)).toBe("pass");
     expect(await evaluateApiPolicy("/api/mpn/rest/api/items", viewer, CFG, loadViewer)).toBe("forbidden-perm");
   });
-  it("T6 mpn/query(예약어 3-seg) → pass (오검사 금지, loader 미호출)", async () => {
-    expect(await evaluateApiPolicy("/api/mpn/query/qX", viewer, CFG, loadThrow)).toBe("pass");
+  it("T6 mpn/query(예약어 3-seg) → forbidden-route (권한키 오검사 없이 거부, loader 미호출, 2026-10-07)", async () => {
+    expect(await evaluateApiPolicy("/api/mpn/query/qX", viewer, CFG, loadThrow)).toBe("forbidden-route");
   });
-  it("T7 미매칭(비-rest 4-seg 예약어) → pass (loader 미호출 유지)", async () => {
-    expect(await evaluateApiPolicy("/api/mpn/query/qX/extra", viewer, CFG, loadThrow)).toBe("pass");
+  it("T7 미매칭(비-rest 5-seg) → pass (loader 미호출 유지)", async () => {
+    expect(await evaluateApiPolicy("/api/mpn/foo/bar/baz/qux", viewer, CFG, loadThrow)).toBe("pass");
   });
   it("T8 SYSADMIN 롤 토큰도 멤버십 판정 — 프리패스 제거 (2026-07-30)", async () => {
     const loadAdmin: PermsLoader = () => ["mcm/commusermng/delete"];
@@ -142,8 +147,8 @@ describe("evaluateApiPolicy 매트릭스 (방식 C — perms 는 로더로 lazy 
     expect(await evaluateApiPolicy("/api/mpn/plant/search", viewer, CFG, loadViewer)).toBe("pass");
   });
   it("T11 미매칭 DENY=true → 롤 무관 forbidden-unmatched (SYSADMIN 포함 — 프리패스 제거)", async () => {
-    expect(await evaluateApiPolicy("/api/mpn/query/qX/extra", viewer, DENY, loadThrow)).toBe("forbidden-unmatched");
-    expect(await evaluateApiPolicy("/api/mpn/query/qX/extra", sysadmin, DENY, loadThrow)).toBe("forbidden-unmatched");
+    expect(await evaluateApiPolicy("/api/mpn/foo/bar/baz/qux", viewer, DENY, loadThrow)).toBe("forbidden-unmatched");
+    expect(await evaluateApiPolicy("/api/mpn/foo/bar/baz/qux", sysadmin, DENY, loadThrow)).toBe("forbidden-unmatched");
   });
   it('T12 perms "*" 와일드카드 → 임의 RBAC 키 pass (BE 브레이크글라스 통로)', async () => {
     const loadWildcard: PermsLoader = () => ["*"];
@@ -287,5 +292,49 @@ describe("evaluateApiPolicy 매트릭스 (방식 C — perms 는 로더로 lazy 
     const loadMdm: PermsLoader = () => ["mdm/domainmng/save"];
     expect(await evaluateApiPolicy("/api/mdm/oasis/domainMng/save", viewer, CFG, loadMdm)).toBe("pass");
     expect(await evaluateApiPolicy("/api/mdm/oasis/domainMng/save", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
+  });
+});
+
+describe("cactus 직접 실행 경로 거부 (2026-10-07 보안 지적, notice-fill2 route-guard)", () => {
+  const DIRECT = [
+    "/api/mdm/service/codeEdit", // codeEdit execute = 마루 코드 폐기
+    "/api/mdm/query/service/domainMng",
+    "/api/mdm/lov/service/termMng",
+    "/api/mcm/query/DmomMapper.insertTcError",
+    "/api/mcm/query/masterCodeSelPop.search",
+    "/api/mcm/lov/query/plantLov.list",
+    "/api/mdm/service",
+    "/api/mdm/service/codeEdit?x=1",
+  ];
+
+  it.each(DIRECT)("재현 — 수정 전 설정에서는 로그인만으로 pass: %s", async (path) => {
+    expect(await evaluateApiPolicy(path, viewer, BEFORE_FIX, loadEmpty)).toBe("pass");
+  });
+
+  it.each(DIRECT)("수정 뒤 — forbidden-route, 권한키 로더도 부르지 않는다: %s", async (path) => {
+    expect(await evaluateApiPolicy(path, viewer, CFG, loadThrow)).toBe("forbidden-route");
+  });
+
+  it("브레이크글라스 와일드카드(*)·SYSADMIN 롤이어도 거부", async () => {
+    const loadWildcard: PermsLoader = () => ["*"];
+    expect(await evaluateApiPolicy("/api/mdm/service/codeEdit", sysadmin, CFG, loadWildcard)).toBe("forbidden-route");
+  });
+
+  it("조각을 인코딩해도 거부 — Next 라우트는 디코드한 조각으로 service/[serviceId] 에 간다", async () => {
+    expect(await evaluateApiPolicy("/api/mdm/%73ervice/codeEdit", viewer, CFG, loadThrow)).toBe("forbidden-route");
+    expect(await evaluateApiPolicy("/api/mcm/lov/%71uery/a.b", viewer, CFG, loadThrow)).toBe("forbidden-route");
+  });
+
+  it("미로그인은 거부 패턴보다 먼저 unauthorized", async () => {
+    expect(await evaluateApiPolicy("/api/mdm/service/codeEdit", null, CFG, loadThrow)).toBe("unauthorized");
+  });
+
+  it("기존 경로는 그대로 — OASIS·컨벤션·rest·mdmMeta·serviceId 가 query 인 OASIS", async () => {
+    const load: PermsLoader = () => ["mdm/codeedit/save", "mdm/query/search", "mpn/plant/search"];
+    expect(await evaluateApiPolicy("/api/mdm/oasis/codeEdit/save", viewer, CFG, load)).toBe("pass");
+    expect(await evaluateApiPolicy("/api/mdm/oasis/query/search", viewer, CFG, load)).toBe("pass");
+    expect(await evaluateApiPolicy("/api/mpn/plant/search", viewer, CFG, load)).toBe("pass");
+    expect(await evaluateApiPolicy("/api/mpn/rest/plant/search/api/plants", viewer, CFG, load)).toBe("pass");
+    expect(await evaluateApiPolicy("/api/mls/mdmMeta/columns", viewer, CFG, loadThrow)).toBe("pass");
   });
 });

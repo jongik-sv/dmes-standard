@@ -33,3 +33,36 @@ export function isUnsafeApiPath(pathname: string): boolean {
   if (pathname.includes("\\") || pathname.includes(";")) return true;
   return pathname.split("/").some((segment) => segment === "." || segment === "..");
 }
+
+/**
+ * BFF 가 BE 로 보내면 안 되는 경로 — forwardToBackend 가 BE 로 보낼 경로(backendPath)를 본다(2026-10-07 보안 지적).
+ * <ul>
+ *   <li>cactus 직접 실행 경로 `/service`·`/query/service`·`/lov/service`(요청이 고른 BPMN 을 고정 action 으로 실행),
+ *       `/query/{id}`·`/lov/query/{id}`(매퍼 statement 실행) — 권한키를 만들 수 없어 늘 막는다.
+ *       mcm EndpointPermissionFilter.isDirectRoute 와 동기화.</li>
+ *   <li>OASIS 실행 경로 `/oasis/…`·`/{m}/oasis/…`·`/api/{m}/oasis/…`(cactus OasisController) — OASIS 는 전용 라우트
+ *       (`/api/{m}/oasis/{svc}/{act}`, 권한키 `{m}/{svc}/{act}`)로만 간다.</li>
+ * </ul>
+ * proxy.ts 는 브라우저 경로로 권한을 보는데, REST 신경로는 `/api/{m}/rest/{objId}/{action}/` 뒤 꼬리를 그대로 BE 경로로 보내
+ * `/api/mdm/rest/codeEdit/save/service/codeEdit`·`…/save/oasis/termMng/save` 처럼 한 화면 권한으로 다른 BPMN 에 닿을 수 있었다.
+ * 빈 조각(`//`)은 Tomcat 이 합쳐 읽으므로 합친 뒤 판정하고, 조각마다 디코드한 경로도 본다(디코드 실패는 막는다).
+ */
+const BLOCKED_BACKEND_PATH =
+  /^\/(?:service|query|lov\/(?:query|service)|(?:api\/[^/]+\/|[^/]+\/)?oasis)(?:\/|$)/;
+
+/** BE 로 보낼 경로(조회 문자열 제외)가 BFF 가 보내면 안 되는 경로면 참. */
+export function isBlockedBackendPath(backendPath: string): boolean {
+  const path = backendPath.split("?")[0].replace(/\/{2,}/g, "/");
+  if (BLOCKED_BACKEND_PATH.test(path)) return true;
+  if (!path.includes("%")) return false;
+  try {
+    const decoded = path
+      .split("/")
+      .map((s) => decodeURIComponent(s))
+      .join("/")
+      .replace(/\/{2,}/g, "/");
+    return BLOCKED_BACKEND_PATH.test(decoded);
+  } catch {
+    return true;
+  }
+}

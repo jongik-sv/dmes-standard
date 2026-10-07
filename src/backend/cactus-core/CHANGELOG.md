@@ -4,6 +4,17 @@
 
 **Major — multi-DS MyBatis 통합 + audit/mastercode 핵심 fix.** 정본 설계: [`docs/cactus/cactus-mybatis-multi-ds-design.md`](../../docs/cactus/cactus-mybatis-multi-ds-design.md) v3.5+, [`docs/cactus/test-scenarios.md`](../../docs/cactus/test-scenarios.md).
 
+### Security — 직접 실행 경로 기본 끔 (2026-10-07, notice-fill2 route-guard)
+
+**web/inbound/**
+- `InboundAutoConfiguration` — `ServiceController`(`/service`·`/query/service`·`/lov/service`)는 `cactus.inbound.service-routes.enabled=true`, `QueryController`(`/query/{queryId}`·`/lov/query/{queryId}`)는 `cactus.inbound.query-routes.enabled=true` 일 때만 등록한다(둘 다 기본 false). `/oasis/{serviceId}/{action}`·`/lov/master` 는 그대로.
+- `LovController` — `/lov/master` 만 남겼다. `/lov/query` 는 `QueryController`, `/lov/service` 는 `ServiceController` 로 옮겨 각자의 스위치를 따른다.
+- `QueryStatementGuard` (신규) — query-routes 를 켰을 때 실행할 statement 를 거른다: `{objId}.{action}` 형식(아니면 400), `persistence/query/**`(LoV 는 `persistence/lov/**`) 매퍼의 `SELECT`·비 `CALLABLE` 만(그 밖·없는 id 404), `cactus.query.max-rows`(기본 10,000) 초과 400. 규칙은 query-route 설계(2026-10-07-query-route-mybatis-design §4)와 같다.
+
+**동작 변경 (호스트 확인 필요)**
+- ★ 이 경로들은 아무 BPMN 을 고정 action 으로, 또는 아무 매퍼 statement(insert 포함)를 실행하는데 BFF·BE 권한 판정이 권한키를 만들지 못해 로그인만 한 사용자에게 열려 있었다. 화면 사용처는 0건(`apiLovMaster` 만 사용)이라 기본으로 끈다. 꺼진 경로는 404.
+- service-routes 를 켜기 전에 권한 판정이 그 경로의 OBJECT 권한키를 보도록 해야 한다 — mdm 등 `EndpointPermissionFilter` 가 없는 모듈은 이 스위치가 BE 의 유일한 방어다.
+
 ### Changed — OASIS 서비스 캐시 교체 (2026-10-04, 리팩토링 항목 2)
 
 **oasis/provider/**

@@ -86,6 +86,8 @@ import {
 - 동작: 토큰 자동 주입(localStorage `oasis_access_token`), 401 에러 메시지 throw, BE `error.message` 추출 후 throw.
 
 > **모듈 제약** (Part A §2-2-1-A): Phase 7 6 종 헬퍼 (`apiQuery` / `apiQueryService` / `apiService` / `apiLovMaster` / `apiLovQuery` / `apiLovService`) 는 BE 측 MyBatis `SqlSession` 빈을 등록한 모듈 (**aps / mpn 만 허용**) 에서만 사용 가능하다. **mpp / mqc / mls / mcm** 화면은 무조건 `apiRequest` + OASIS path (`/api/{module}/oasis/{serviceId}/{action}`) 를 사용한다. 위반 시 runtime 404 + 정합체크서 §K ✗.
+>
+> **2026-10-07 보안 변경 (위 제약보다 우선)**: `apiLovMaster` 를 뺀 5종은 모든 모듈에서 쓰지 않는다. BFF(`proxy.ts` denyPatterns)가 403 으로 막고 BE 컨트롤러도 기본으로 꺼져 있다. 정본은 Part A §2-2-1 의 MUST NOT.
 
 ### 2-1. BFF 프록시 계약 (참고)
 

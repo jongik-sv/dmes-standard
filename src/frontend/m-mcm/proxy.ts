@@ -11,7 +11,8 @@
  *   2) PUBLIC           → 완전 공개 (로그인 등)
  *   3) 세션 없음        → 401
  *   4) AUTH_ONLY        → 인증만 (내 메뉴/즐겨찾기)
- *   5) LoV              → 인증만 (콤보/필터)
+ *   4-0) 직접 실행 경로  → 늘 403 (/api/{m}/service·query·lov/query·lov/service — 권한키를 만들 수 없는 BPMN·매퍼 실행, 2026-10-07)
+ *   5) LoV              → 인증만 (마스터 코드 콤보 /api/{m}/lov/master/* 만)
  *   6) RBAC 3패턴       → 서버캐시 권한키 멤버십 검증 (미보유 403) — SYSADMIN 프리패스 제거
  *                         (2026-07-30, 롤 무관 멤버십. BE 브레이크글라스 시 perm-keys=["*"] 로 전면 통과)
  *   7) 미매칭           → RBAC_DEFAULT_DENY=true 면 403, 아니면 통과 (aps/mpn/kmc rest 등)
@@ -48,8 +49,13 @@ const AUTH_SECRET = process.env.AUTH_SECRET;
  * mcm BFF RBAC 정책.
  *  - PUBLIC: NextAuth/로그인 진입점.
  *  - AUTH_ONLY: 내 메뉴/권한/버튼엔드포인트/즐겨찾기/기본 화면 — 로그인만 되면 누구나(서비스 레이어가 본인 데이터 필터).
- *  - LoV: 모듈 무관 `/lov/*` (master/query/service) — cross-domain 콤보/필터 옵션.
- *  - unmatchedDeny: 지금 false(query·service 통과 — rest 는 신경로 규약 `/rest/{objId}/{action}/**` 로 RBAC 편입, 2026-07-28). 마이그레이션 후 `RBAC_DEFAULT_DENY=true` 로 전면차단.
+ *  - denyPatterns: cactus 직접 실행 경로 `/api/{m}/service/*`·`/query/*`(query/service 포함)·`/lov/query/*`·`/lov/service/*` — 늘 403.
+ *    요청이 고른 BPMN 을 고정 action(execute·query·lov)으로, 또는 매퍼 statement 를 그대로 실행하는데 권한키를 만들 수 없어
+ *    로그인만 한 사용자에게 열려 있었다(2026-10-07 보안 지적 — POST /api/mdm/service/codeEdit 로 마루 코드 폐기). 화면 사용처 0건.
+ *    BE 는 cactus.inbound.service-routes·query-routes(기본 꺼짐)와 mcm EndpointPermissionFilter.isDirectRoute 가 같은 경로를 막는다.
+ *    경로를 켜는 회차에서 이 자리를 권한키 판정으로 바꾼다(query-route 설계 §4 S2: /query/{objId}.{action} → module/objId/action).
+ *  - LoV: 모듈 무관 `/lov/master/*` — cross-domain 마스터 코드 콤보 옵션(인증만).
+ *  - unmatchedDeny: 지금 false(rest 는 신경로 규약 `/rest/{objId}/{action}/**` 로 RBAC 편입, 2026-07-28). 마이그레이션 후 `RBAC_DEFAULT_DENY=true` 로 전면차단.
  */
 const RBAC_POLICY: RbacPolicyConfig = {
   publicPrefixes: ["/api/auth/", "/api/mcm/auth/"],
@@ -97,7 +103,8 @@ const RBAC_POLICY: RbacPolicyConfig = {
   // 접두로 열면 로그인만 한 사용자가 `…/widgetMedia/file/<다른 BE 경로>` 로 메뉴 RBAC 를 건너뛴다(2026-10-03 보안 지적).
   // 그 밖 메서드·모양은 RBAC(권한키 mcm/widgetmedia/file — 아무에게도 없다)로 403. BE EndpointPermissionFilter 와 동기화.
   authOnlyReadPatterns: [/^\/api\/mcm\/rest\/widgetMedia\/file\/api\/mcm\/widgetMedia\/file\/[0-9a-f]{32}$/],
-  lovPattern: /^\/api\/[^/]+\/lov\//,
+  denyPatterns: [/^\/api\/[^/]+\/(?:service|query|lov\/(?:query|service))(?:\/|$)/],
+  lovPattern: /^\/api\/[^/]+\/lov\/master\//,
   unmatchedDeny: process.env.RBAC_DEFAULT_DENY === "true",
 };
 
@@ -198,9 +205,15 @@ export async function guardApiRequest(req: NextRequest): Promise<NextResponse | 
     case "forbidden-unmatched":
       console.warn(`[RBAC] 403 미등록경로 — user=${userId} ${req.method} ${path}`);
       return jsonError("FORBIDDEN", "등록되지 않은 경로입니다.", 403);
+    case "forbidden-route":
+      console.warn(`[RBAC] 403 막힌 경로 — user=${userId} ${req.method} ${path}`);
+      return jsonError("FORBIDDEN", "허용되지 않는 경로입니다.", 403);
     case "pass":
-    default:
       return null;
+    default:
+      // 모르는 판정은 막는다(fail-closed) — 판정 종류를 더하고 여기를 빠뜨려도 통과하지 않게.
+      console.warn(`[RBAC] 403 알 수 없는 판정(${String(verdict)}) — user=${userId} ${req.method} ${path}`);
+      return jsonError("FORBIDDEN", "접근 권한이 없습니다.", 403);
   }
 }
 

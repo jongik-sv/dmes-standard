@@ -121,6 +121,8 @@ dependencies {
     // ── Test ──
     testImplementation libs.spring.boot.starter.test
     testImplementation libs.spring.webmvc
+    // InboundRouteSwitchTest — InboundAutoConfiguration 의 WebMvcRegistrations 빈을 ApplicationContextRunner 로 올린다.
+    testImplementation libs.spring.boot.webmvc
     testImplementation libs.mybatis.base
     testImplementation libs.spring.boot.starter.data.jpa
     testImplementation libs.spring.security.core
