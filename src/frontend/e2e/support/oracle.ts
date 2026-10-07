@@ -149,26 +149,92 @@ export async function execute(schemaUser: string | undefined, sql: string, binds
   });
 }
 
+/** 스키마 사용자 이름으로 쓰이는 낱말(픽스처 머리 주석의 대상 표기를 읽을 때 쓴다). docs/oracle-1007/schema-owners.md. */
+const SCHEMA_USER_RE = /\b(MCMAPUSER|MCAAPUSER|MCM_SOURCE|MCM_BACKUP|CARAVANUSER|EAIUSER|IFUSER|MDMAPUSER|MLSAPUSER|MPPAPUSER|MQCAPUSER|MPNAPUSER|APSAPUSER)\b/i;
+
+/** 픽스처 맨 앞 주석 블록에 적힌 대상 스키마 사용자를 돌려준다(없으면 undefined). `--` 줄 주석과 블록 주석의 첫 덩어리만 본다. */
+export function detectFixtureUser(sql: string): string | undefined {
+  const head: string[] = [];
+  let inBlock = false;
+  for (const raw of sql.replace(/\r\n?/g, "\n").split("\n")) {
+    const t = raw.trim();
+    if (inBlock) { head.push(t); if (t.includes("*/")) inBlock = false; continue; }
+    if (!t) { if (head.length) break; continue; }
+    if (t.startsWith("--")) { head.push(t); continue; }
+    if (t.startsWith("/*")) { head.push(t); if (!t.includes("*/")) inBlock = true; continue; }
+    break;
+  }
+  return SCHEMA_USER_RE.exec(head.join("\n"))?.[1]?.toUpperCase();
+}
+
+/** 문장이 조회(SELECT·WITH)인지. */
+export const isSelect = (st: string): boolean => /^(select|with)\b/i.test(st.trimStart());
+
+/** 실행에 필요한 연결 모양(시험에서 가짜로 바꿀 수 있게 최소만 둔다). */
+export interface SqlConn {
+  execute(sql: string, binds?: unknown, opts?: unknown): Promise<{ rows?: unknown[]; rowsAffected?: number }>;
+  commit(): Promise<void>;
+  rollback(): Promise<void>;
+}
+
+export interface RunResult {
+  /** 실행한 문장 수 */
+  statements: number;
+  /** SELECT 문마다 결과 행(배열의 배열, 칸 순서 그대로). SELECT 가 없으면 빈 배열 */
+  selects: unknown[][][];
+}
+
 /**
- * SQL 파일을 `schemaUser` 로 접속해 실행한다. 한 연결·한 트랜잭션이고 첫 오류에서 멈추며(롤백) 끝에 커밋한다.
- * 파일 형식은 splitSqlStatements 를 따른다. 실행한 문장 수를 돌려준다.
+ * 문장들을 **한 트랜잭션**으로 실행한다(autoCommit 끔). 첫 오류에서 멈추고 롤백하며, 모두 성공하면 끝에서 한 번 커밋한다
+ * (옛 sqlite3 CLI -bail + BEGIN/COMMIT 과 같은 동작). SELECT 문은 결과 행을 모아 돌려준다.
  */
-export async function runSqlFile(schemaUser: string | undefined, file: string): Promise<number> {
-  const statements = splitSqlStatements(readFileSync(file, "utf8"));
-  return withConnection(schemaUser, async (c) => {
-    let n = 0;
-    try {
-      for (const st of statements) {
-        await c.execute(st);
-        n++;
-      }
-      await c.commit();
-    } catch (e) {
-      await c.rollback();
-      throw new Error(`${path.basename(file)} 의 ${n + 1}번째 문장에서 실패: ${(e as Error).message}\n${statements[n]?.slice(0, 200) ?? ""}`);
+export async function runStatements(conn: SqlConn, statements: string[], label = "SQL"): Promise<RunResult> {
+  const selects: unknown[][][] = [];
+  let n = 0;
+  try {
+    for (const st of statements) {
+      const r = await conn.execute(st, [], { autoCommit: false, outFormat: oracledb.OUT_FORMAT_ARRAY });
+      if (isSelect(st)) selects.push((r.rows ?? []) as unknown[][]);
+      n++;
     }
-    return n;
-  });
+    await conn.commit();
+  } catch (e) {
+    await conn.rollback();
+    throw new Error(`${label} 의 ${n + 1}번째 문장에서 실패: ${(e as Error).message}\n${statements[n]?.slice(0, 200) ?? ""}`);
+  }
+  return { statements: n, selects };
+}
+
+export interface RunSqlFileOptions {
+  /** true 면 파일 머리 주석에 적힌 대상 스키마 사용자와 schemaUser 가 다를 때 실행하지 않고 던진다. 주석에 대상이 없으면 통과한다. */
+  checkTarget?: boolean;
+}
+
+/**
+ * SQL 파일을 `schemaUser` 로 접속해 실행한다(한 연결·한 트랜잭션). 결과는 SELECT 문별 행이다. 파일 형식은 splitSqlStatements 를 따른다.
+ * 문자열 안의 `&&`·`&` 는 그대로 들어간다(node-oracledb 는 sqlplus 와 달리 치환하지 않는다).
+ */
+export async function runSqlFile(schemaUser: string | undefined, file: string, opts: RunSqlFileOptions = {}): Promise<RunResult> {
+  const text = readFileSync(file, "utf8");
+  if (opts.checkTarget) {
+    const target = detectFixtureUser(text);
+    const user = (schemaUser ?? process.env.DMES_ORA_USER ?? "").toUpperCase();
+    if (target && user && target !== user) {
+      throw new Error(`${path.basename(file)} 의 대상은 ${target} 인데 ${user} 로 실행하려 한다`);
+    }
+  }
+  const statements = splitSqlStatements(text);
+  return withConnection(schemaUser, (c) => runStatements(c as unknown as SqlConn, statements, path.basename(file)));
+}
+
+/**
+ * SELECT 결과 행의 첫 칸을 줄마다 이어 붙여 기대 파일(.expected.txt)과 글자 그대로 비교한다(끝의 줄바꿈 차이는 무시).
+ * NULL 은 빈 문자열, Date 는 ISO 문자열이 아니라 String() 값이므로 필요하면 SQL 에서 TO_CHAR 로 만든다.
+ */
+export function compareFirstColumn(rows: unknown[][], expectedFile: string): { equal: boolean; actual: string; expected: string } {
+  const actual = rows.map((r) => (r[0] == null ? "" : String(r[0]))).join("\n");
+  const expected = readFileSync(expectedFile, "utf8").replace(/\r\n?/g, "\n").replace(/\n+$/, "");
+  return { equal: actual === expected, actual, expected };
 }
 
 /** 저장소 루트의 scripts/oracle/pdb.mjs 를 찾는다. */
