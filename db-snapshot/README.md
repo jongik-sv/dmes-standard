@@ -1,37 +1,69 @@
-# DB 스냅샷 (mdm · mcm)
+# DB 스냅샷 (표별 CSV)
 
-로컬 SQLite DB(`src/backend/data/mdm.db` 51MB, `mcm.db` 780KB)는 `.gitignore`(`src/backend/data/`, `*.db`)로 git 에서 빠져 있다. 이 폴더는 그 내용을 **표별 SQL 텍스트**로 올려 두어, 다른 PC·브랜치에서 DB 를 복원하고 변경을 diff 로 볼 수 있게 한 것이다. `.gitignore` 규칙은 그대로다.
+로컬 Oracle 에 넣을 기준 데이터를 **스키마별·표별 CSV** 로 git 에 올려 둔 폴더다(oracle-1007). 다른 PC·레인 PDB 에 같은 데이터를 넣고, 변경을 diff 로 볼 수 있다. 적재·내보내기·변환은 모두 `scripts/db-snapshot/snapshot.py`(`python3` + `pip install oracledb`)가 한다.
 
 ## 구성
 
 ```
-db-snapshot/<db이름>/
-  _schema.sql        스키마(표·인덱스·트리거·뷰, sqlite3 .schema)
-  <표이름>.sql       표 데이터. 한 줄 = INSERT 한 문, PK(없으면 rowid) 순
-  sqlite_sequence.sql  AUTOINCREMENT 시퀀스 값
+db-snapshot/<Oracle 스키마>/
+  <표이름>.csv     한 줄 = 한 행, 첫 줄은 칸 이름, PK 순
+  _dynamic.json    (MCAAPUSER 만) 동적 표 TB_MCA_* 의 칸 종류. import 가 표를 만들 때 쓴다
 ```
 
-`flyway_schema_history` 도 들어 있어, 복원한 DB 로 앱을 띄워도 마이그레이션이 다시 돌지 않는다.
+| 스키마 | 내용 |
+|---|---|
+| `MDMAPUSER` | mdm 39표(약 4만 3천 행) |
+| `MCMAPUSER` | mcm 표(`TB_MCM_*`·`TB_SEC_*` 등 54표) |
+| `MCM_SOURCE` | 코드 원장 3표(`TB_MCM_CODE_MASTER`·`CATEGORY`·`DETAIL`). `MCMAPUSER` 에도 같은 3표가 들어간다 |
+| `MCAAPUSER` | 동적 표 `TB_MCA_*`(적재기가 만든다) |
 
-## 내보내기
+`MCM_BACKUP` 은 비워 둔다(동기화 관리 화면이 채운다). `flyway_schema_history`·SQLite 시퀀스 흉내 표는 CSV 에 넣지 않는다. 표는 Flyway(또는 `pdb.mjs template-schema`)가 만든 것이어야 하고, 적재기는 **데이터만** 넣는다.
+
+### CSV 형식
+
+UTF-8·LF(`.gitattributes` 로 `eol=lf` 고정), 쉼표 구분·큰따옴표 인용, PK 순, NULL 은 `\N`, BLOB 은 `b64:` 접두 base64 다. 한 파일은 50MB 를 넘기지 않아야 한다.
+
+## 넣기(import)
 
 ```bash
-scripts/db-snapshot/export.sh            # mdm mcm 둘 다
-scripts/db-snapshot/export.sh mdm        # 하나만
+python3 scripts/db-snapshot/snapshot.py import --pdb L_ORA_MDM            # 모든 스키마
+python3 scripts/db-snapshot/snapshot.py import --pdb L_ORA_MDM MDMAPUSER   # 스키마 하나
+python3 scripts/db-snapshot/snapshot.py import --pdb L_ORA_MDM --replace MCMAPUSER   # 적재 전에 그 표의 행을 모두 지우고(초기 행도 CSV 로 덮음)
 ```
 
-어느 폴더에서 실행해도 된다. 서버가 DB 를 쓰는 중이어도 `sqlite3 .backup` 으로 임시 사본을 떠서 그 사본에서 읽고, 끝나면 지운다. 실행할 때마다 `db-snapshot/<db>/` 를 비우고 다시 쓴다. 제외 목록·NULL 처리 칸은 스크립트 맨 위 배열(`DATA_EXCLUDE`, `NULLIFY`)이다.
+PDB 는 `node scripts/oracle/pdb.mjs` 로 만들고 열어 둔다(`docs/guide/Database/oracle-26ai-test-guide.md` §6.4.2). 처음부터 데이터가 든 PDB 가 필요하면 `pdb.mjs template-data` 로 만든 템플릿에서 복제한다.
 
-## 복원
+적재기가 하는 일:
+
+- 초기 행(마이그레이션이 넣은 것)은 MERGE 로 CSV 값에 맞추고, IDENTITY 칸은 `start with limit value` 로, 시퀀스 `SEQ_MCM_MOM_TC_SEND`·`SEQ_MCM_MOM_TC_ERROR` 는 `MAX+1` 로 다시 맞춘다.
+- FK 를 끄고 적재한 뒤 켠다. PK 칸이 비어 있는 행은 건너뛴다.
+- 동적 표 `TB_MCA_*` 를 만들고 `MCMAPUSER` 에 DML 권한을 준다.
+- epoch(초·밀리초) 시각은 **KST** 로 바꾸고, 빈 문자열은 NULL 로 바꾼다. 업무 일시는 값 그대로 둔다.
+
+## 내보내기(export)
+
+레인 PDB 의 내용을 CSV 로 다시 뽑는다.
 
 ```bash
-scripts/db-snapshot/import.sh mdm                      # src/backend/data/mdm.db 로
-scripts/db-snapshot/import.sh mcm /경로/mcm.db         # 대상 경로 지정
+python3 scripts/db-snapshot/snapshot.py export --pdb L_ORA_MDM            # 모든 스키마
+python3 scripts/db-snapshot/snapshot.py export --pdb L_ORA_MDM MDMAPUSER
 ```
 
-- 대상 파일이 이미 있으면 지우지 않고 `<파일>.bak-<YYYYMMDD-HHMMSS>` 로 옮긴다. 복원이 실패하면 옮긴 파일을 되돌린다.
-- `_schema.sql` 을 먼저 넣고, 표 파일을 한 트랜잭션으로 넣는다. 외래 키 순서 문제가 없게 `PRAGMA foreign_keys=OFF` 로 넣는다.
-- 복원 전에 서버를 끄고, 복원 뒤에 켠다.
+내보낸 뒤 `git diff --stat db-snapshot/` 로 바뀐 표를 확인하고 커밋한다. 같은 데이터면 diff 가 비어야 한다(결과가 안정적이다).
+
+## SQLite 에서 변환(convert, 한 번)
+
+SQLite 원본이 있을 때만 쓴다. 로컬 DB 를 Oracle 로 바꾸기 전 데이터를 CSV 로 만든 도구다.
+
+```bash
+python3 scripts/db-snapshot/snapshot.py convert --from-db src/backend/data/mdm.db --name mdm
+python3 scripts/db-snapshot/snapshot.py convert --from-sql db-snapshot/mcm --name mcm   # 옛 표별 SQL 스냅샷에서
+```
+
+- 서버가 DB 를 쓰는 중이어도 읽기 전용 사본을 떠서 읽는다. 같은 입력이면 결과 CSV 가 같다.
+- `--name mcm` 은 SQLite 가 거친 적 없는 MCM 데이터 보정을 사본에 적용한다: `TB_MCM_SEC_OBJ.FORM_URL`(SEC_MENU 와 연결되는 행을 `PARENT_MENU_ID/OBJECT_ID` 로), 폴더 `mcm·cma·csa·cme` 의 `USE_TP`·`MENU_VIEW_YN`(COALESCE 'Y'). 출처는 `SchemaArtifactsMssql.java` 이다(원본 DB 는 바꾸지 않고 멱등이다).
+- 위젯 정의 `TB_MCM_WIDGET_DEF` 6행의 `CONFIG_JSON.sql` 은 Oracle 문법으로 고쳐 CSV 에 직접 넣었다. `convert` 를 다시 돌리면 이 6행이 SQLite 문법으로 되돌아가므로, 돌린 뒤 `git checkout -- db-snapshot/MCMAPUSER/TB_MCM_WIDGET_DEF.csv` 로 복원한다.
+- 옛 표별 SQL 스냅샷 폴더 `db-snapshot/mdm`·`db-snapshot/mcm`(`_schema.sql` 이 있다)은 b8 에서 `archive/` 로 옮긴다.
 
 ## 데이터를 뺀 표 (스키마만 남김)
 
@@ -45,33 +77,16 @@ scripts/db-snapshot/import.sh mcm /경로/mcm.db         # 대상 경로 지정
 | mcm `TB_SEC_LOGIN_LOG` | 로그인 기록(IP·UA), 계속 쌓여 diff 가 흔들림 |
 | mcm `TB_SEC_AUDIT_LOG` | 감사 로그 |
 
+제외 목록·NULL 처리 칸·사용자 행 필터는 `snapshot.py` 맨 위의 `DATA_EXCLUDE`·`NULLIFY`·`ROW_FILTER` 에 있다.
+
 ## 사용자 관련 표는 admin 행만 내보낸다
 
-사용자별 표는 `USER_ID='admin'` 행만 내보낸다(스크립트 맨 위 `ROW_FILTER` 배열). 대상은 mcm 의 `TB_MCM_SEC_USER`, `_USER_MAPPING`, `_USER_FAVORITE`, `_USER_FAVORITE_FOLD`, `_USER_START_PGM`, `_USER_WIDGET`, `_USER_WIDGET_TAB`, `_USER_WIDGET_CHAT`, `_USER_WIDGET_MEMO`, `TB_SEC_SCREEN_USAGE_DAY`, `TB_SEC_SCREEN_USAGE_LOG` 이다. 그래서 다른 사용자의 이름·이메일·전화는 스냅샷에 남지 않는다. C_USR_ID·U_USR_ID 같은 작성자 감사 칸과 `OWNER_ID`·`*_OWNER_EMP_NO`(소유자 사번 속성) 는 거르지 않는다.
+사용자별 표는 `USER_ID='admin'` 행만 내보낸다(`ROW_FILTER`). 대상은 mcm 의 `TB_MCM_SEC_USER`, `_USER_MAPPING`, `_USER_FAVORITE`, `_USER_FAVORITE_FOLD`, `_USER_START_PGM`, `_USER_WIDGET`, `_USER_WIDGET_TAB`, `_USER_WIDGET_CHAT`, `_USER_WIDGET_MEMO`, `TB_SEC_SCREEN_USAGE_DAY`, `TB_SEC_SCREEN_USAGE_LOG` 이다. 그래서 다른 사용자의 이름·이메일·전화는 스냅샷에 남지 않는다. C_USR_ID·U_USR_ID 같은 작성자 감사 칸과 `OWNER_ID`·`*_OWNER_EMP_NO`(소유자 사번 속성)는 거르지 않는다.
 
-## 복원 뒤 admin 비밀번호
+## 적재 뒤 admin 비밀번호
 
-`TB_MCM_SEC_USER_PWD` 가 비어 있다. mcm 서버를 기동하면 `DataInitializer` 의 `CoreRbacSeeder`(`src/backend/mcm/api/.../init/seed/CoreRbacSeeder.java`)가 admin 비밀번호 행을 넣고, 매 부팅 때 `admin123` 으로 강제 재설정한다(주석: 2026-06-05 결정, 운영 프로파일 차단은 후속 검토). 따라서 복원 뒤 mcm 을 한 번 기동하면 `admin` / `admin123` 으로 로그인된다. 비밀번호 칸 사용은 로컬 개발용이다.
+`TB_MCM_SEC_USER_PWD` 가 비어 있다. mcm 서버를 기동하면 `DataInitializer` 의 `CoreRbacSeeder`(`src/backend/mcm/api/.../init/seed/CoreRbacSeeder.java`)가 admin 비밀번호 행을 넣고, 매 부팅 때 `admin123` 으로 강제 재설정한다(2026-06-05 결정, 운영 프로파일 차단은 후속 검토). 적재 뒤 mcm 을 한 번 기동하면 `admin` / `admin123` 으로 로그인된다. 비밀번호 칸 사용은 로컬 개발용이다.
 
 ## 임베딩 처리
 
-`TB_MDM_TERM.EMBEDDING`(BLOB, 8,157행 × 4KB ≈ 33MB, 전체의 대부분)과 `EMBEDDING_MODEL` 은 **NULL 로 내보낸다**. 복원 뒤에는 모든 용어가 재계산 대상이다. 서버에는 일괄 재인코딩 배치/API 가 없고(저장 시점에 건별로만 인코딩), 아래 스크립트가 일괄 재계산 수단이다.
-
-```bash
-# 1) KURE-v1 INT8 모델(model.onnx sha256 1808718e…)을 ~/.cache/kure-v1-onnx-int8 에 준비
-cd docs/mdm/dict-std
-uv venv .venv && uv pip install numpy onnxruntime tokenizers
-MODEL_DIR=~/.cache/kure-v1-onnx-int8 .venv/bin/python embed_terms.py --db ../../../src/backend/data/mdm.db
-```
-
-`EMBEDDING` 이 NULL 이거나 모델 값이 다른 행만 채운다(8천 건, 맥 CPU 약 8분 30초). 끝난 뒤 mdm 서버를 재기동하면 캐시가 새로 읽힌다. 설계는 `docs/mdm/term-embedding.md` 참고.
-
-## 운영 절차
-
-DB 를 바꾼 뒤(마이그레이션·데이터 적재 등) 공유하려면:
-
-1. `scripts/db-snapshot/export.sh` 실행
-2. `git diff --stat db-snapshot/` 로 바뀐 표 확인
-3. `git add db-snapshot/` 후 커밋
-
-변경이 없으면 diff 가 비어야 한다(결과가 안정적). 한 파일은 50MB 를 넘기지 않아야 하며, 표가 커지면 제외 목록 추가를 검토한다.
+`TB_MDM_TERM.EMBEDDING`(BLOB, 8,157행 × 4KB ≈ 33MB, 전체의 대부분)과 `EMBEDDING_MODEL` 은 **NULL 로 내보낸다**(`NULLIFY`). 적재 뒤에는 모든 용어가 재계산 대상이다. 서버에는 일괄 재인코딩 배치/API 가 없고(저장 시점에 건별로만 인코딩), `docs/mdm/dict-std/embed_terms.py` 가 일괄 재계산 수단이다. 이 스크립트는 지금 SQLite 파일(`--db`)을 대상으로 하므로 **Oracle 판은 후속**이다(필요하면 조정자에게 요청). 설계는 `docs/mdm/term-embedding.md` 참고.
