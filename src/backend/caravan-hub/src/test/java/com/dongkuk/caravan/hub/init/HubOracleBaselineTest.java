@@ -74,6 +74,7 @@ class HubOracleBaselineTest {
 
     @Test
     void flyway_creates_caravanuser_and_ifuser_tables() throws Exception {
+        // Flyway 는 Oracle 에서 이력 표를 소문자(flyway_schema_history)로 만들므로 대소문자를 무시하고 비교한다.
         assertThat(tables("CARAVANUSER")).containsExactlyInAnyOrder(
                 "TB_CARAVAN_APPHOST", "TB_CARAVAN_HUB_CONFIG", "TB_CARAVAN_TC_ERROR", "TB_CARAVAN_TOPICS", "FLYWAY_SCHEMA_HISTORY");
         assertThat(tables("IFUSER")).contains("IF_MMPPMMCMTT01");
@@ -105,7 +106,7 @@ class HubOracleBaselineTest {
              Statement s = c.createStatement();
              ResultSet rs = s.executeQuery("SELECT table_name FROM user_tables")) {
             while (rs.next()) {
-                names.add(rs.getString(1));
+                names.add(rs.getString(1).toUpperCase());
             }
         }
         return names;
