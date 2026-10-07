@@ -1,5 +1,7 @@
 # python 스크립트 → node 이식 조사표 (읽기 전용 조사)
 
+> 현재 상태(2026-10-07): 이 조사표는 조사 당시 기록이다. 이식 완료(L1 `04b6c524a`, L3 `292dd47dc`, L4 `961bc7057`, L5 `6984c55ce`, L6 `b78edcd7e`): oasis-contract-check·flyway-migration-add·adr-write·dflow-export·dflow-wbs·dflow-wbs-nlevel 의 python 스크립트, 인라인 python 5곳, `junit-count.sh` 는 모두 node(`.mjs`)로 옮겼고 python 원본은 `tests/golden/legacy/` 의 골든 비교용 동결 사본으로만 남았다. 죽은 코드 3개(D3)와 dflow-wbs 구판 3개(D4)는 삭제했다. 남은 것은 mantine-aggrid-ui 3개(L2 진행 중)와 `tools/bp-sync*`(D5, 별도 지시)뿐이다. 계획서 §7 의 「진행 현황」을 본다.
+
 - 조사 대상: `/Users/jji/project/dmes-wt/skills-win/.claude/skills` 아래 `*.py` (`find` 결과 **28개**, 합계 10,707줄. 요청서의 「29개」는 실제로는 28개다 — 스킬별 2+1+2+8+2+5+2+3+3).
 - 조사 시점 브랜치 `fix/skills-win-audit`. 파일은 수정하지 않았다.
 - 표기: 근거 없는 판단은 「추정」. 크기 S ≤150줄 / M ≤400줄 / L 그 이상 또는 복잡. 이식 후 줄 수는 python 줄 수의 1.0~1.3배로 가정(추정).

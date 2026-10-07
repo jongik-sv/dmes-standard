@@ -3,12 +3,16 @@
 - 작성: 2026-10-07, 레인 skills-win(지시 skills-win-1, 회차 notice-fill2), 브랜치 `fix/skills-win-audit`
 - 범위: `.claude/skills` 아래 리포에 커밋된 스킬 34개(스크립트 107개). 이 문서는 1단계(조사와 계획)의 결과이며, 큰 수정은 하지 않았다.
 - 사용자 지시: 모든 스킬이 윈도우에서 호환되는지 확인한다. 특히 스크립트가 윈도우에서 실행되어야 한다. 윈도우에는 node 가 기본으로 설치되어 있다.
+- 갱신(2026-10-07, 문서 정리 레인 W): 이 문서는 계획서이므로 조사 당시의 서술은 그대로 두고, 이후 레인의 결과는 「현재」로 시작하는 줄과 §3.2 의 「현재 상태」 열, §7 의 「진행 현황」, §8 의 정리(§8.1·§8.2)로 덧붙였다. 표기가 「조사 당시」인 곳과 「현재」인 곳이 다르면 「현재」가 맞다.
 
 ## 0. 요약
 
 1. **막히는 곳은 두 가지다.** jq 가 없으면 bash 스크립트 약 20개가 실행되지 않고, python 이 없으면 python 스크립트 28개(10,707줄)가 모두 실행되지 않는다.
+   - 현재(2026-10-07): 두 가지 모두 해소되었다. jq 는 `_shared/bin` 에 동봉했고(J, `4396d7e98`), python 스크립트는 mantine-aggrid-ui 의 문서 조회 스크립트 3개(L2 진행 중)를 제외하고 모두 node 로 옮겼다(§7 의 「진행 현황」).
 2. **jq 는 스크립트에서 약 415줄(coordinator 약 265줄, dflow 약 150줄), 시험과 문서 예시까지 합치면 약 700곳이고 복잡한 필터(`reduce`, `capture`, `@tsv`, `def` 등)가 많다.** node 로 옮기면 사실상 재작성이라, 단일 실행 파일인 jq.exe 를 킷에 동봉하는 안을 권한다(결정 필요 D1).
+   - 현재: D1 이 확정되어 jq 1.7.1 윈도우 빌드를 동봉했다(`_shared/bin/win64/jq.exe` 와 `-b` 를 붙여 부르는 래퍼 `_shared/bin/jq`). 스킬 문서의 인라인 jq 예시에는 `_shared/bin` 을 PATH 앞에 두라는 안내 줄을 넣었다(D1 레인, `5f6b62211`).
 3. **python 은 node 로 이식한다(약 6,000줄과 시험 약 1,500줄).** 훅과 게이트에 걸린 oasis-contract-check 를 가장 먼저 옮긴다.
+   - 현재: L1(oasis-contract-check)·L3(flyway-migration-add, adr-write)·L4(dflow-export)·L5(dflow-wbs, dflow-wbs-nlevel)·L6(인라인 python 5곳, `junit-count.sh`)가 dev 에 머지되었다. python 원본은 `tests/golden/legacy/` 로 옮겨 골든 비교용으로만 남겼고 호출은 모두 node 판이다. 남은 것은 L2(mantine-aggrid-ui)와 별도 지시인 `tools/bp-sync*` 뿐이다.
 4. **Git Bash 는 Claude Code 의 필수 조건이 아니다.** 공식 문서상 Git for Windows 가 없으면 PowerShell 도구만 돈다. 이 스킬의 `.sh` 는 Git Bash 가 있어야 돌므로, 이 리포는 git 작업이 전제라 Git for Windows 설치를 전제로 한다(§1).
 5. **이미 처리된 것이 많다.** 줄끝은 `.gitattributes` 의 `.claude/skills/** text eol=lf` 로 고정되어 있고, 프로세스·stat·date 차이는 `coordinator/scripts/lib/compat.sh` 가 흡수한다. perl 은 mutate.mjs 를 포함해 스크립트에서 이미 걷혔다.
 6. **가장 큰 새 결함은 네이티브 Windows pid 에 `kill -0` 을 직접 쓰는 것이었다.** `compat_pid_alive` 는 있었지만 호출처가 0건이어서 idle-check 가 모든 레인을 GONE 으로 보고, office reap 이 살아 있는 조정 세션을 내리고, spawn-lane 이 새 세션을 못 찾는 문제가 있었다. 이번에 고쳤다(§6).
@@ -54,6 +58,8 @@
 | `dflow-dev/scripts/free-port.sh` | 포트 출력, rc 0 | 가능 |
 | `dflow-dev/scripts/deps.sh --help`, `dflow-dev/scripts/baseline.sh --help`, `dflow-team/scripts/tick.sh --help`, `dflow-merge/scripts/sweep-check.sh --help`, `dflow-poll/scripts/poll.sh --help` | 사용법 출력 | 인자 처리까지만 확인(본 기능은 jq 필요) |
 
+위 표는 조사 당시(2026-10-07 오전)의 결과다. 현재는 jq 부재 항목(`usage-band.sh`, `coord-status.sh`, `dflow.sh help`)이 동봉 jq 로 해소되었고(`4396d7e98`), `junit-count.sh` 의 `JUNIT_SUMMARY_NOPY` 는 node 이식(L6, `b78edcd7e`)으로 사라졌고, node 가 없을 때만 `JUNIT_SUMMARY_NONODE`(rc 2)가 나온다. `junit-count.sh` 는 python 없이 node 만으로 돌며, 알 수 없는 입력은 `JUNIT_SKIP`·한 줄 오류로 알린다. `capacity.sh` 는 윈도우에서 node `os` 로 여유 메모리와 CPU 수를 얻는다(D1, `5f6b62211`).
+
 ## 3. 조사 표
 
 파일별 세부 표는 같은 폴더의 `2026-10-07-skills-windows-compat-audit/` 에 있다(`coordinator.md`, `dflow.md`, `python.md`, `others.md`). 이 표는 소스 읽기 결과이며 실기 실행 결과가 아니다. 여기에는 스킬 단위로 요약한다. 심각도는 「실행불가」(기능이 윈도우에서 못 돈다), 「일부 기능」, 「문서만」이다. 크기는 S(몇 줄), M(한 파일에서 수십 줄), L(여러 파일이나 이식)이다.
@@ -69,30 +75,36 @@
 | ln -s | deps.sh, lead-worktree.sh, 시험 몇 개 | 복사로 바뀌어 기능이 조용히 빠짐 |
 | tmux | dflow-team 의 tmux 백엔드 | 윈도우는 Orca 백엔드 전제(문서 보강 필요) |
 
+위 표의 「영향 파일」과 「윈도우에서」는 조사 당시 기준이다. 현재 상태는 다음과 같다.
+
+- jq: `_shared/bin` 동봉으로 해소되었다(실행불가 → 동작). 줄끝 CRLF 와 `command -v jq` 판정은 실기 확인이 남았다(§8).
+- python3: 스크립트 28개 중 죽은 코드 3개(D3)는 삭제했고, dflow-wbs 구판 3개(D4)는 export 판으로 통합해 삭제했다. 나머지는 mantine-aggrid-ui 3개(L2 진행 중)를 빼고 모두 node 로 옮겼다. 인라인 5곳, `junit-count.sh`, 훅 1개, `.dflow-gates` 는 node 호출로 바뀌었다. `tools/bp-sync*` 만 별도 지시를 기다린다(D5).
+- ln -s: `deps.sh` 가 링크가 한 건도 안 걸리면 `DEPS_WARN` 한 줄을 내도록 알림을 추가했다(D1). 복사로 바뀌는 동작 자체는 그대로다.
+
 ### 3.2 스킬별 표
 
-| 스킬 | 필요 런타임 | 깨지는 지점 | 심각도 | 수정 방향 | 크기 |
-|---|---|---|---|---|---|
-| coordinator | bash, jq, orca, node(선택) | jq 필수(`lib/common.sh:75` 에서 종료). 네이티브 pid 에 `kill -0`(고침). 경로 형식 혼용(`C:/x`, `/c/x`, `C:\x`). auto-answer 의 `path_ok` 가 드라이브 문자 경로를 상대 경로로 봄(고침). load·프로세스 시작 시각을 얻지 못하는데 0 이나 빈 값으로 처리해 `QUIET yes` 가 나올 수 있음. 탭 모드가 bash 문법을 Orca 터미널로 보냄(추정). term.sh 의 `--text "/compact …"` 가 MSYS 경로 변환될 수 있음(추정). screen-cache 의 700/600 모드 검사가 NTFS 에서 항상 불신(추정). | 실행불가(jq), 나머지 일부 기능 | jq 방침(D1) 과 §6.2 수정 묶음 C1 | M |
-| dflow-work | bash, curl, jq, git | `dflow.sh` 가 시작 시 `need jq`(1046줄)로 종료. `dflow-lease.sh` 도 jq. `curl --data "$3"` 로 본문 전체를 명령줄에 넘김(윈도우 한도 약 32,767자, 추정). | 실행불가 | D1, 큰 본문은 `--data-binary @-` | M |
-| dflow-dev | bash, jq, python3, node | `baseline.sh` jq 12곳. `junit-count.sh` python 필수. `timeout-guard.sh` 훅이 jq 없으면 조용히 꺼짐. `pred-reflected.sh` 가 jq 없으면 `UNKNOWN`. `deps.sh` 의존성 링크가 복사로 바뀌어 한 건도 안 걸림. `mutate.mjs` 가 CRLF 소스면 변이가 전부 `anchor count=0`(추정). `heavy.sh` 의 owner pid 가 `$PPID` 폴백. | 실행불가(baseline, junit-count), 나머지 일부 기능 | D1, junit-count 를 node 로(L6), mutate.mjs 줄끝 처리(§6.2 D1) | M |
-| dflow-team | bash, jq, git, tmux 또는 orca | `lead-state.sh` 의 jq 필터 90줄(실행불가). `worker-trim.sh` 가 jq 없으면 건너뜀. `docker-allow.sh` 는 항상 금지. `capacity.sh` 는 윈도우에서 `CAPACITY_UNKNOWN`(인원 조절 꺼짐). `lead-worktree.sh` 의 `ln -s` 가 복사. | 실행불가(lead-state), 나머지 일부 기능 | D1, capacity.sh 에 node `os` 분기(M) | M |
-| dflow-merge | bash, git, jq | `sweep-check.sh` 가 jq 없으면 `SWEEP_UNKNOWN`(스윕을 그냥 돌림). `dialect-check.sh` 의 깊은 경로 워크트리(고침). | 일부 기능 | D1 | S |
-| dflow-poll | bash, jq | 승인 감지가 jq 에 의존 | 실행불가 | D1 | - |
-| dflow-export | python3, curl | `wbs-validate`, `wbs-parse --export`, `dep-analysis`, 봉투 조립이 모두 python. 서버 계약(import v2.1, byte 동일)이 걸림. | 실행불가(업로드 경로 차단) | node 이식(L4) | L |
-| dflow-wbs | python3 | 구판 스냅샷 3개(`wbs-parse`, `wbs-validate`, `dep-analysis`)와 `decision-log`, `prd-validate`. 인라인 yaml·xlsx 5곳. `/tmp` 하드코딩(고침). | 일부 기능(생성은 가능, 검증과 입출력 불가) | export 판으로 통합, 나머지 이식(L5) | M~L |
-| dflow-wbs-nlevel | python3 | `wbs-nlevel-parse` validate·export(import v2.2) | 일부 기능(업로드 게이트 불가) | node 이식(L5) | M~L |
-| oasis-contract-check | python3 | `.claude/settings.json` 의 PostToolUse 훅이 모든 편집에서 `hook_post_edit.py` 를 실행하고, `.dflow-gates` 의 검사 줄 약 14곳도 python3 직접 호출 | 실행불가(훅이 편집마다 오류, 게이트 통과 불가) | node 이식(L1), 가장 먼저 | M |
-| mantine-aggrid-ui | python3, node | `aggrid_docs`, `mantine_docs`, `ui_docs` 가 모두 python. FE 검수 `audit` 와 공통 컴포넌트 `coverage` 가 필수 단계. ts 파일 6개는 예제 코드라 실행 대상이 아니다. | 일부 기능(문서 열람은 가능, 검수 자동화 불가) | node 이식(L2) | L |
-| flyway-migration-add | python3, Java | `migration_tool.py`, `selftest.py`. SKILL.md 의 sdkman 개인 경로(고침). | 실행불가(채번 도구) | node 이식(L3) | M |
-| adr-write | python3 | `adr_tool.py`, `selftest.py` | 실행불가(린트와 채번) | node 이식(L3) | M |
-| weekly-report | bash, date | `date -v` 는 BSD 전용이었다(고침: BSD/GNU 분기) | 일부 기능 → 해결 | 완료 | S |
-| bp-update-intake, bp-workspace-sync | python3(`tools/bp-sync`) | 확장자 없는 python 스크립트라 윈도우에서 직접 실행 불가. 개인 경로 문구(고침). | 실행불가(미러 동기화 단계) | `tools/bp-sync` 이식은 별도 지시(리포 루트 `tools/`, 이 스킬 범위 밖) | M |
-| classify-by-system | bash | `for … $(ls …)` 예시. Git Bash 에서 돈다. | 문서만 | Glob 도구 사용을 문서에 한 줄 | S |
-| generate-bpa, bpmn-skill | bpmn-tool(npm), bash | PowerShell `echo` 파이프가 한글 JSON 을 깨뜨릴 수 있음(추정). `install.sh` 와 `install.ps1` 은 둘 다 윈도우에서 돈다. | 문서만 | Git Bash 에서 실행하거나 임시 파일 경유를 문서에 한 줄 | S |
-| oasis-project-support | 없음 | `rg` 예시(고침) | 문서만 | 완료 | S |
-| analyze-queries, analyze-service | 없음(죽은 코드) | `orchestrator.py` 는 리포에 없는 `query_cache` 를 import 해 지금도 즉시 실패한다. `phase2·3-generator.py` 는 SKILL.md:93 이 호출하지 않는다고 명시한다. `phase1-analyzer.js` 는 `path.join` 만 쓰는 사문이라 윈도우에서도 돈다. | 문제 없음(사문) | 이식 제외, 삭제 여부는 결정 필요 D3 | - |
-| 그 밖의 스킬 | 없음 | analyze-custom-class, analyze-plsql, analyze-table-schema, analyze-trigger, analyze-view, define-process-groups, generate-legacy, generate-process-group, git-commit, issue-brief, meeting-minutes, `_shared` 에서 셸 의존을 찾지 못했다. | 문제 없음 | - | - |
+| 스킬 | 필요 런타임 | 깨지는 지점 | 심각도 | 수정 방향 | 크기 | 현재 상태(2026-10-07) |
+|---|---|---|---|---|---|---|
+| coordinator | bash, jq, orca, node(선택) | jq 필수(`lib/common.sh:75` 에서 종료). 네이티브 pid 에 `kill -0`(고침). 경로 형식 혼용(`C:/x`, `/c/x`, `C:\x`). auto-answer 의 `path_ok` 가 드라이브 문자 경로를 상대 경로로 봄(고침). load·프로세스 시작 시각을 얻지 못하는데 0 이나 빈 값으로 처리해 `QUIET yes` 가 나올 수 있음. 탭 모드가 bash 문법을 Orca 터미널로 보냄(추정). term.sh 의 `--text "/compact …"` 가 MSYS 경로 변환될 수 있음(추정). screen-cache 의 700/600 모드 검사가 NTFS 에서 항상 불신(추정). | 실행불가(jq), 나머지 일부 기능 | jq 방침(D1) 과 §6.2 수정 묶음 C1 | M | 완료: jq 동봉(J, skills-win, 4396d7e98), pid·경로 판정(skills-win, fc3bf483d), C1(skills-win-c1, 384eebb34). 실기 확인 항목은 §8 |
+| dflow-work | bash, curl, jq, git | `dflow.sh` 가 시작 시 `need jq`(1046줄)로 종료. `dflow-lease.sh` 도 jq. `curl --data "$3"` 로 본문 전체를 명령줄에 넘김(윈도우 한도 약 32,767자, 추정). | 실행불가 | D1, 큰 본문은 `--data-binary @-` | M | 완료: jq 동봉(4396d7e98), `--data-binary @-`(D1, skills-win-4, 5f6b62211) |
+| dflow-dev | bash, jq, python3, node | `baseline.sh` jq 12곳. `junit-count.sh` python 필수. `timeout-guard.sh` 훅이 jq 없으면 조용히 꺼짐. `pred-reflected.sh` 가 jq 없으면 `UNKNOWN`. `deps.sh` 의존성 링크가 복사로 바뀌어 한 건도 안 걸림. `mutate.mjs` 가 CRLF 소스면 변이가 전부 `anchor count=0`(추정). `heavy.sh` 의 owner pid 가 `$PPID` 폴백. | 실행불가(baseline, junit-count), 나머지 일부 기능 | D1, junit-count 를 node 로(L6), mutate.mjs 줄끝 처리(§6.2 D1) | M | 완료: jq 동봉(4396d7e98), D1(skills-win-4, 5f6b62211: mutate CRLF·deps `DEPS_WARN`·heavy 경고·timeout-guard node), junit-count 는 node(L6, skills-win-7, b78edcd7e) |
+| dflow-team | bash, jq, git, tmux 또는 orca | `lead-state.sh` 의 jq 필터 90줄(실행불가). `worker-trim.sh` 가 jq 없으면 건너뜀. `docker-allow.sh` 는 항상 금지. `capacity.sh` 는 윈도우에서 `CAPACITY_UNKNOWN`(인원 조절 꺼짐). `lead-worktree.sh` 의 `ln -s` 가 복사. | 실행불가(lead-state), 나머지 일부 기능 | D1, capacity.sh 에 node `os` 분기(M) | M | 완료: jq 동봉(4396d7e98), capacity.sh 윈도우 갈래(D1, 5f6b62211). `lead-worktree.sh` 의 `ln -s` 복사는 실기 확인(§8) |
+| dflow-merge | bash, git, jq | `sweep-check.sh` 가 jq 없으면 `SWEEP_UNKNOWN`(스윕을 그냥 돌림). `dialect-check.sh` 의 깊은 경로 워크트리(고침). | 일부 기능 | D1 | S | 완료: jq 동봉(4396d7e98), dialect-check `core.longpaths`(skills-win, fc3bf483d) |
+| dflow-poll | bash, jq | 승인 감지가 jq 에 의존 | 실행불가 | D1 | - | 완료: jq 동봉(4396d7e98) |
+| dflow-export | python3, curl | `wbs-validate`, `wbs-parse --export`, `dep-analysis`, 봉투 조립이 모두 python. 서버 계약(import v2.1, byte 동일)이 걸림. | 실행불가(업로드 경로 차단) | node 이식(L4) | L | 완료(L4, skills-win-5, 961bc7057). 업로드 봉투 조립은 L6(skills-win-7, b78edcd7e) |
+| dflow-wbs | python3 | 구판 스냅샷 3개(`wbs-parse`, `wbs-validate`, `dep-analysis`)와 `decision-log`, `prd-validate`. 인라인 yaml·xlsx 5곳. `/tmp` 하드코딩(고침). | 일부 기능(생성은 가능, 검증과 입출력 불가) | export 판으로 통합, 나머지 이식(L5) | M~L | 완료(L5, skills-win-6, 6984c55ce): 구판 3개는 D4 에 따라 export 판으로 통합하고 삭제했다. 인라인 xlsx 는 L6(skills-win-7, b78edcd7e)에서 `xlsx-read`·`xlsx-write` 로, yaml 은 직접 읽기 안내로 바꿨다 |
+| dflow-wbs-nlevel | python3 | `wbs-nlevel-parse` validate·export(import v2.2) | 일부 기능(업로드 게이트 불가) | node 이식(L5) | M~L | 완료(L5, skills-win-6, 6984c55ce). 업로드 봉투 조립은 L6(skills-win-7, b78edcd7e) |
+| oasis-contract-check | python3 | `.claude/settings.json` 의 PostToolUse 훅이 모든 편집에서 `hook_post_edit.py` 를 실행하고, `.dflow-gates` 의 검사 줄 약 14곳도 python3 직접 호출 | 실행불가(훅이 편집마다 오류, 게이트 통과 불가) | node 이식(L1), 가장 먼저 | M | 완료(L1, skills-win-3, 04b6c524a) |
+| mantine-aggrid-ui | python3, node | `aggrid_docs`, `mantine_docs`, `ui_docs` 가 모두 python. FE 검수 `audit` 와 공통 컴포넌트 `coverage` 가 필수 단계. ts 파일 6개는 예제 코드라 실행 대상이 아니다. | 일부 기능(문서 열람은 가능, 검수 자동화 불가) | node 이식(L2) | L | 진행 중(L2, 별도 레인 skills-win-l2, 아직 dev 에 머지되지 않았다) |
+| flyway-migration-add | python3, Java | `migration_tool.py`, `selftest.py`. SKILL.md 의 sdkman 개인 경로(고침). | 실행불가(채번 도구) | node 이식(L3) | M | 완료(L3, skills-win-l3, 292dd47dc) |
+| adr-write | python3 | `adr_tool.py`, `selftest.py` | 실행불가(린트와 채번) | node 이식(L3) | M | 완료(L3, skills-win-l3, 292dd47dc) |
+| weekly-report | bash, date | `date -v` 는 BSD 전용이었다(고침: BSD/GNU 분기) | 일부 기능 → 해결 | 완료 | S | 완료(skills-win, fc3bf483d) |
+| bp-update-intake, bp-workspace-sync | python3(`tools/bp-sync`) | 확장자 없는 python 스크립트라 윈도우에서 직접 실행 불가. 개인 경로 문구(고침). | 실행불가(미러 동기화 단계) | `tools/bp-sync` 이식은 별도 지시(리포 루트 `tools/`, 이 스킬 범위 밖) | M | 미착수(D5, 별도 지시) |
+| classify-by-system | bash | `for … $(ls …)` 예시. Git Bash 에서 돈다. | 문서만 | Glob 도구 사용을 문서에 한 줄 | S | 완료(W, skills-win-w): Git Bash 실행 안내 한 줄을 추가했다 |
+| generate-bpa, bpmn-skill | bpmn-tool(npm), bash | PowerShell `echo` 파이프가 한글 JSON 을 깨뜨릴 수 있음(추정). `install.sh` 와 `install.ps1` 은 둘 다 윈도우에서 돈다. | 문서만 | Git Bash 에서 실행하거나 임시 파일 경유를 문서에 한 줄 | S | 완료(W, skills-win-w): generate-bpa 에 한 줄을 추가했다. bpmn-skill 은 `install.ps1` 이 이미 있어 변경이 없다 |
+| oasis-project-support | 없음 | `rg` 예시(고침) | 문서만 | 완료 | S | 완료(skills-win, fc3bf483d) |
+| analyze-queries, analyze-service | 없음(죽은 코드) | `orchestrator.py` 는 리포에 없는 `query_cache` 를 import 해 지금도 즉시 실패한다. `phase2·3-generator.py` 는 SKILL.md:93 이 호출하지 않는다고 명시한다. `phase1-analyzer.js` 는 `path.join` 만 쓰는 사문이라 윈도우에서도 돈다. | 문제 없음(사문) | 이식 제외, 삭제 여부는 결정 필요 D3 | - | 완료(D3 삭제, skills-win-2, 4396d7e98) |
+| 그 밖의 스킬 | 없음 | analyze-custom-class, analyze-plsql, analyze-table-schema, analyze-trigger, analyze-view, define-process-groups, generate-legacy, generate-process-group, git-commit, issue-brief, meeting-minutes, `_shared` 에서 셸 의존을 찾지 못했다. | 문제 없음 | - | - | - |
 
 심링크로 다른 리포를 가리키는 스킬은 없다(`find .claude/skills -type l` 결과 0건). 따라서 정본 리포를 따로 적을 대상이 없다.
 
@@ -117,6 +129,8 @@
 
 기존 `_shared/platform-support.md` 는 jq 를 「설치 필요(`winget install jqlang.jq`)」로 적고 있는데, 이 안을 택하면 「동봉」으로 고친다. 회사 PC 에서 winget 이 막혀 있을 가능성이 있어 동봉이 더 안전하다(추정).
 
+현재: 동봉안(A)으로 확정되어 `platform-support.md` 의 jq 행을 「동봉」으로 고쳤다. 줄끝은 래퍼 `_shared/bin/jq` 가 `-b` 를 붙여 부르는 방식으로 대비했다(실기 확인 항목은 §8). 하이브리드(C)로는 `timeout-guard.sh` 가 jq 가 없을 때 node 로 입력을 파싱한다(D1). jq 1.7.1 을 1.8.x 로 올리는 일은 후속 과제다.
+
 ### 4.2 python (결정 필요 D2)
 
 사용자 전제는 「node 만 보장」이므로 **python 스크립트는 node 로 이식한다.** 세부 원칙은 다음과 같다.
@@ -127,6 +141,8 @@
 - 공용 헬퍼(L0): `readText`(BOM 제거, CRLF 를 LF 로 정규화), `writeText`(LF), 종료 코드 규약(사용 오류 2, 위반 1)을 가진 인자 파서, 이진 힙, 코드포인트 순 정렬 walk.
 - 주의할 python 전용 동작: 인라인 `(?i)` 와 `\Z` 정규식, `re.match` 의 암묵 앵커, 유니코드 `\w`, `str.splitlines` 의 분할 문자, 읽을 때 CRLF 자동 정규화(가장 큰 윈도우 함정), 윈도우 python 이 `write_text` 에서 CRLF 로 쓰는 점, `ui_docs` 의 `node_modules/.bin/tsc` 가 윈도우에서 `tsc.cmd` 라는 점.
 - 인라인 python 5곳(yaml 읽기, xlsx 읽기, xlsx 쓰기, 봉투 조립 2곳)과 `junit-count.sh` 도 대상이다. xlsx 는 node 에 zip 표준 API 가 없어 `zlib` 로 직접 구현해야 한다(의존성 0 유지). yaml 은 소형 파서를 쓰거나 JSON 변환을 요구하는 방식으로 문서화한다.
+
+현재: 위 원칙대로 이식했다. 공용 헬퍼는 `_shared/node/`(L0), node 하한은 18.17(D6)이다. 인라인 5곳은 L6 에서 처리했다: 봉투 조립은 `dflow-export/scripts/wbs-envelope.mjs`, xlsx 는 직접 구현한 zip(`_zip.mjs`)과 `xlsx-read.mjs`·`xlsx-write.mjs`, yaml 은 스크립트 없이 에이전트가 직접 읽도록 SKILL.md 를 고쳤다. python 판은 즉시 지우지 않고 `tests/golden/legacy/` 로 옮겨 골든 대조용으로 남겼다(L1 은 조정자의 답에 따라 L3 와 같은 방식으로, 별도 승인 없이 이 이동을 했다).
 
 ### 4.3 bash 스크립트
 
@@ -141,6 +157,8 @@ bash 는 Git Bash 를 전제로 하고 다음을 지킨다.
 ## 5. 결정이 필요한 항목
 
 > **확정(2026-10-07)**: 사용자가 D1~D6 을 모두 추천안대로 확정했다(D3 삭제 승인 포함). 진행 상태: J(jq 동봉)·L0(node 공용 헬퍼)·D3(삭제)·D6(node 18.17) 는 브랜치 `fix/skills-win-jq` 에서 구현했다. 훅(`.claude/settings.json` 의 PostToolUse)이 부르는 `hook_post_edit.py` 는 검사기 `check_oasis_contract.py` 를 같은 프로세스에서 import 하도록 옮겨야 의미가 있어 L1 레인에서 함께 옮긴다.
+>
+> **현재(2026-10-07)**: J·L0·D3·D6 는 `4396d7e98` 로 dev 에 머지되었고, L1 이 훅을 포함해 옮겼다(`04b6c524a`). D4 는 L5 에서 이행했다(`6984c55ce`: dflow-wbs 구판 3개를 삭제하고 SKILL.md 호출을 export 판으로 통합). D5(`tools/bp-sync*`)는 별도 지시를 기다린다.
 
 | 번호 | 항목 | 선택지 | 추천 |
 |---|---|---|---|
@@ -184,6 +202,8 @@ bash 는 Git Bash 를 전제로 하고 다음을 지킨다.
 | **T 시험 정비** | 윈도우에서 의미 없는 시험(`deps-sh-no-main-write.sh`)은 건너뛰기, `ln -s` 와 `chmod` 케이스는 윈도우 분기, `kill -0` 직접 사용 금지 린트 시험 | S~M |
 | **W 문서** | classify-by-system, generate-bpa 의 「Git Bash 에서 실행」 한 줄, `platform-support.md` 의 python·jq 표 갱신, README 의 필요 명령 갱신 | S |
 
+현재 상태: 위 묶음 중 C1(`384eebb34`)·D1(`5f6b62211`)·J(`4396d7e98`)·P(L1~L6, L2 제외)는 dev 에 머지되었다. D1 의 `phase-verify.md:38` 은 `aggrid_docs.mjs` 가 아직 없어(L2 몫) node 판을 우선하고 python 판을 폴백으로 두는 문구로 고쳤다. W 는 이 문서 정리 레인(skills-win-w)에서 처리했다. T 는 L2 머지 뒤 착수 여부를 정한다.
+
 ## 7. 레인 분할 제안과 순서
 
 사용자 영향이 큰 순서(훅, FE 게이트, 번호 채번, 업로드, 부가)로 한다. python 이식 레인은 공용 헬퍼(L0)에 의존한다.
@@ -203,11 +223,77 @@ bash 는 Git Bash 를 전제로 하고 다음을 지킨다.
 | 후순위 | T 시험 정비, W 문서, compat-lite | | S~M | | |
 | 제외 | 죽은 코드 3개(D3), `tools/bp-sync*`(D5) | | | | 사용자 결정 |
 
+### 진행 현황(2026-10-07 기준, dev `b78edcd7e`)
+
+위 표는 계획 당시의 순서다. 실제 진행 상태는 다음과 같다. 지시 이름은 조정 세션이 붙인 이름이다.
+
+| 레인 | 지시 | 상태 | 머지 커밋 | 비고 |
+|---|---|---|---|---|
+| 조사와 계획 | skills-win-1 | 완료 | `fc3bf483d` | 이 문서와 조사 원본, §6.1 의 pid·경로 판정 수정 |
+| J jq 동봉, L0 공용 헬퍼, D3 삭제, D6 node 18.17 | skills-win-2 | 완료 | `4396d7e98` | |
+| L3 flyway-migration-add, adr-write | skills-win-l3 | 완료 | `292dd47dc` | |
+| L1 oasis-contract-check, 훅 | skills-win-3 | 완료 | `04b6c524a` | 훅 표기는 `node "${CLAUDE_PROJECT_DIR}/…"` |
+| C1 coordinator 윈도우 보강 | skills-win-c1 | 완료 | `384eebb34` | |
+| D1 dflow 보강, 인라인 jq 안내 | skills-win-4 | 완료 | `5f6b62211` | |
+| L4 dflow-export 계열 | skills-win-5 | 완료 | `961bc7057` | 서버 계약 v2.1 출력이 python 판과 같다 |
+| L5 dflow-wbs 잔여, nlevel | skills-win-6 | 완료 | `6984c55ce` | D4 이행(구판 3개 삭제) |
+| L6 인라인 python 5곳, junit-count | skills-win-7 | 완료 | `b78edcd7e` | xlsx zip 직접 구현 |
+| L2 mantine-aggrid-ui | skills-win-l2(별도 레인) | 진행 중 | - | 끝나면 `phase-verify.md` 의 python 폴백 문구를 지운다 |
+| T 시험 정비 | - | 대기 | - | L2 머지 뒤 착수 여부를 정한다 |
+| W 문서 | skills-win-w | 이 정리로 완료 | - | 조정자가 커밋한다 |
+| `tools/bp-sync*`(D5) | - | 별도 지시 대기 | - | |
+
 동시 레인은 J 와 L0 를 먼저 띄우고, 그 뒤 L1, L3, C1 을 병렬로 돌리는 것이 효율적이다. L4 는 한 레인이 맡되 내부에서 3분할한다.
 
 머지 때 윈도우 영향은 한 줄로 적는다. 이번 머지의 윈도우 영향은 §6.1 의 표와 같다(macOS 동작 변화 없음, 윈도우에서 pid 생존 판정과 경로 안전 판정이 올바르게 판정된다).
 
 ## 8. 실기 확인이 필요한 「추정」 목록
+
+현재(2026-10-07) 정리: 조사 당시 목록(§8.3)을 이후 레인(C1·D1·L1~L6)에서 나온 항목까지 합쳐 두 갈래로 나누었다. §8.1 은 공식 문서나 macOS 에서의 흉내 실행으로 이미 확인되어 실기가 필요 없는 항목이고, §8.2 는 윈도우 PC 에서 한 번 확인해야 하는 항목을 한 표로 모은 것이다. §8.3 은 조사 당시 목록의 원문이다.
+
+### 8.1 이미 확인된 항목(실기 불필요)
+
+| 항목 | 확인 방법 | 근거 |
+|---|---|---|
+| Git for Windows 는 Claude Code 의 필수 조건이 아니며, Bash 도구와 Monitor 도구와 이 스킬의 `.sh` 는 Git Bash 가 있어야 돈다 | 공식 문서 | §1 |
+| 훅 command 는 Git Bash 가 있으면 Git Bash 로, 없으면 PowerShell 로 실행되고 `shell` 필드로 고를 수 있다 | 공식 hooks 문서 | 조사 당시 §8-7 의 앞부분 |
+| PostToolUse 훅의 비정상 종료(1·2·127)는 편집을 막지 않고 비차단 오류로 알려진다 | 공식 hooks 문서 | 조사 당시 §8-7 의 뒷부분 |
+| 훅 stdin 의 `file_path` 는 윈도우에서 역슬래시로 오므로 훅이 `\` 를 `/` 로 바꿔야 한다 | 공식 문서와 node 판 훅 시험(역슬래시 stdin 케이스) | L1(`04b6c524a`) |
+| 맨 `$CLAUDE_PROJECT_DIR` 는 PowerShell 에서 null 이 되므로 중괄호 표기 `${CLAUDE_PROJECT_DIR}` 가 양쪽 셸에서 안전하다 | 공식 문서(표기를 고른 근거) | L1. 실제 해석은 §8.2 의 7번 |
+| 줄끝: `.claude/skills` 아래 텍스트 408개가 모두 `i/lf w/lf` 이고 `.gitattributes` 가 `.claude/skills/** text eol=lf` 를 강제한다 | `git ls-files --eol` | §2 |
+| 실행 권한 비트가 없어도 shebang 과 `bash <경로>` 호출에는 영향이 없다 | 소스 읽기 | §2 |
+| 동봉 jq.exe 가 공식 릴리스 그대로다(1.7.1, SHA-256 `7451fbbf…d6ab`) | 릴리스의 `sha256sum.txt` 와 대조 | `_shared/bin/README.md` |
+| coordinator 의 GNU 경로와 Git Bash 경로(`stat -f` 함정, `ps -o` 없는 ps, 가짜 `/proc`, `COMPAT_FORCE_OS=windows`)의 논리 | 흉내 시험 `coordinator/tests/compat.sh`(83건), `coordinator/tests/windows-c1.sh`(29건) | C1(`384eebb34`) |
+| 윈도우에서 jq 를 못 찾을 때의 PATH 머리말과 `-b` 래퍼 동작의 논리 | `bash .claude/skills/_shared/tests/jq-prelude.sh`(`COMPAT_FORCE_OS=windows`, `SKILLS_JQ_EXE`) | J(`4396d7e98`) |
+| node 이식본이 python 판과 같은 출력을 낸다(서버 계약 v2.1·v2.2, 검사기 `--json`, decision-log, junit-count, xlsx 왕복 등) | macOS 에서 python 3.9 동결 원본(`tests/golden/legacy/`)과 같은 입력으로 바이트 비교 | L1~L6 |
+| 윈도우에서 `mutate.mjs` 가 CRLF `.mut` 를 받는다(논리) | CRLF 입력 흉내 시험 | D1(`5f6b62211`) |
+
+### 8.2 실기가 필요한 항목(윈도우 PC 에서 한 번 확인)
+
+번호는 새로 매겼다. 「원」은 조사 당시 §8.3 의 번호다. 정본 메모의 후속 기록 4번과 L1·D1·L5·L6 절에서 나온 항목을 모두 합쳤다.
+
+| 번호 | 확인할 것 | 확인 방법 | 지금의 대비책 | 원 | 출처 |
+|---|---|---|---|---|---|
+| 1 | 동봉 도구가 실제로 잡히는지 | `bash -lc 'command -v node gawk jq'` 를 돌려 `jq` 가 `_shared/bin/jq` 래퍼를 가리키는지 본다. perl·python3 는 없어도 된다 | 스크립트가 PATH 앞에 `_shared/bin` 을 둔다 | 1 | 후속 기록 4 |
+| 2 | jq.exe 출력 줄끝에 `\r` 이 붙지 않는지 | 래퍼 경유로 `printf a \| jq -r . \| od -c` | 래퍼가 `-b` 를 붙여 부른다 | 2 | 후속 기록 4 |
+| 3 | `compat_pid_alive` 가 네이티브 pid(Claude 세션)를 찾는지 | `ps -W` 의 WINPID 열 대조 | `compat_pid_alive` 가 WINPID 를 대조한다 | 3 | 후속 기록 4 |
+| 4 | `orca … --text "/compact …"` 처럼 `/` 로 시작하는 인자가 MSYS 경로 변환되지 않는지 | `term.sh` 로 실제 전송 | C1 이 `MSYS2_ARG_CONV_EXCL` 을 적용했다 | 4 | 후속 기록 4, C1 |
+| 5 | Orca 터미널의 기본 셸이 bash 인지 PowerShell 인지, 탭 모드가 보내는 bash 문법이 통하는지 | `spawn-lane`·`search` 의 탭 모드 실행 | C1 이 탭 명령을 `bash -lc` 로 감쌌다 | 5 | 후속 기록 4, C1 |
+| 6 | gawk 에서 `LC_ALL=C` 가 바이트 모드로 동작하는지 | `console-redact.sh` 가 시작 시 확인한다 | 바이트 모드가 아니면 실행을 거부한다(fail-closed) | 6 | 조사 당시 목록 |
+| 7 | 훅 command `node "${CLAUDE_PROJECT_DIR}/.claude/skills/oasis-contract-check/scripts/hook_post_edit.mjs"` 가 Git Bash 형태와 PowerShell 형태 양쪽에서 풀리고, 편집 뒤 실제로 도는지 | 윈도우에서 `.java`·`.bpmn` 을 편집해 훅 출력 확인, 셸을 바꿔 한 번 더 | 중괄호 표기와 큰따옴표. 훅 비정상 종료는 비차단(§8.1) | 7 | L1 후속 |
+| 8 | `ln -s` 복사 때문에 `deps.sh` 의 `[ -L ]` 판정이 어떻게 보이는지, `MSYS=winsymlinks:nativestrict` 설정에 따라 달라지는지, `lead-worktree.sh` 의 동작 | 링크가 한 건도 안 걸릴 때 `DEPS_WARN` 이 뜨는지 | D1 이 `DEPS_WARN` 한 줄을 추가했다 | 8 | D1 |
+| 9 | 네이티브 프로세스 손자의 종료(`compat_kill_tree`)가 `heavy.sh` 시간 상한에서 충분한지 | 시간 상한 시험 | 후손 목록은 `/proc` 기준이라 네이티브 손자는 빠질 수 있음(알려진 한계) | 9 | 조사 당시 목록 |
+| 10 | `compat_pid_alive` 의 `ps -W` WINPID 대조가 pid 재사용 때 무관한 프로세스와 맞는지(오래된 세션 기록이 살아 있는 것으로 보이는지), TTL 정리와 함께 | 오래된 세션 기록으로 `coord-status` 확인 | 없음(추정) | 10 | 조사 당시 목록 |
+| 11 | `capacity.sh` 의 node `os.freemem()` 값이 윈도우에서 실제 여유 메모리를 반영하는지와 `DFLOW_CAP_MIN_FREE_PCT`(기본 30)로 인원 조절이 현실적으로 판정되는지, CPU 수 | `capacity.sh` 출력과 작업 관리자 값 대조 | 못 얻으면 `CAPACITY_UNKNOWN` 으로 막지 않는다 | - | D1 |
+| 12 | 실제 CRLF 체크아웃(`core.autocrlf=true`)의 `.mut` 파일에 `mutate.mjs` 가 변이를 적용하는지 | 윈도우에서 `bash .claude/skills/dflow-dev/tests/mutate.sh` | 마커 `\r?\n` 허용과 대상 소스 줄끝 맞춤(흉내 시험 통과) | - | D1 |
+| 13 | `heavy.sh` 의 소유자 pid 가 윈도우에서 `$PPID`·`CLAUDE_PID` 로 acquire 와 release 사이에 이어지는지, `HEAVY_WARN` 이 뜨는지 | `heavy.sh acquire` 와 `release` 를 따로 호출 | `CLAUDE_PID` 가 없고 `$PPID` 로 떨어지면 stderr 에 경고 | - | D1 |
+| 14 | `timeout-guard.sh` 의 `node -e` 가 Git Bash 에서 stdin(훅 JSON)을 읽는지 | 훅 JSON 을 파이프로 넣어 실행(jq 를 PATH 에서 뺀 경우 포함) | jq 우선, 없으면 node | - | D1 |
+| 15 | Git Bash 의 curl.exe 에서 `--data-binary @-` 로 큰 본문(약 32,767자 초과, `done --decisions` 등)이 stdin 으로 넘어가는지 | `dflow.sh` 로 큰 본문 전송(스테이징 서버) | 본문을 명령줄이 아니라 stdin 으로 넘긴다 | - | D1 |
+| 16 | `junit-count.sh` 가 윈도우에서 도는지, 시험 `tests/junit-count.sh` 의 MINGW 분기(python 이 없다고 보기, `sort` 에 `LC_ALL=C`)가 통과하는지, `--failed-file` 이 LF 인지 | 두 스크립트를 Git Bash 에서 실행 | python 없이 node 로 돈다. 시험 스크립트는 MSYS 에서 `HAVE_PY=0` | - | L6 |
+| 17 | `xlsx-read.mjs`·`xlsx-write.mjs` 가 윈도우 node 에서 도는지, 만든 `.xlsx` 가 Excel 에서 열리는지(한글 시트 이름·셀 포함) | 임의 xlsx 읽기와 쓰기, Excel 로 열기 | 직접 구현한 zip(`_zip.mjs`, node 18.17 에 없는 `zlib.crc32` 를 쓰지 않음)과 시험 192건 | - | L6 |
+| 18 | python 이 없는 윈도우에서 `node --test` 가 통과하는지(골든 비교를 건너뛰고 기대값 파일과 비교하는 경로) | `node --test .claude/skills/_shared/node/tests/` 와 각 스킬 `tests/` | `DMES_NO_PYTHON=1` 로 macOS 에서 같은 경로를 흉내 낼 수 있다 | - | L1~L6 |
+
+### 8.3 조사 당시 목록(원문)
 
 Git Bash 가 있는 윈도우 PC 에서 한 번 확인해야 하는 항목이다.
 
@@ -228,3 +314,4 @@ Git Bash 가 있는 윈도우 PC 에서 한 번 확인해야 하는 항목이다
 - analyze-service 의 js 는 `phase1-analyzer.js` 하나이고 호출처가 없다.
 - 스크립트 합계는 sh 외에 `bpmn-skill/install.ps1` 1개를 포함해 107개이다.
 - `_shared/platform-support.md` 는 python3 를 「선택」으로 적었지만 `README.md:119`, `oasis-contract-check/SKILL.md:100`, `junit-count.sh` 는 필수로 취급한다. 이식이 끝나면 표를 정리한다.
+  - 현재: 해소되었다. L1(`04b6c524a`)·L6(`b78edcd7e`)로 `oasis-contract-check/SKILL.md`·`junit-count.sh` 가 node 기준이 되었고, 이 레인(W)에서 `README.md` 의 필요 명령과 `platform-support.md` 의 python3·node 행을 현재 사실에 맞췄다. 지금은 `platform-support.md`·`README.md`·`oasis-contract-check/SKILL.md`·`junit-count.sh` 가 모두 「python3 는 스킬 실행에 필요 없다」(남은 예외는 mantine-aggrid-ui 의 문서 조회 스크립트)로 일치한다.

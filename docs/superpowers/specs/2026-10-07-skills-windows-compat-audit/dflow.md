@@ -1,5 +1,7 @@
 # dflow-dev·team·merge·work·poll 윈도우(Git Bash) 호환 점검
 
+> 현재 상태(2026-10-07): 이 점검표는 조사 당시 기록이다. jq 의존은 동봉 jq 로 해소했고(J `4396d7e98`), D1(`5f6b62211`)이 mutate CRLF·`deps.sh` 경고·`heavy.sh` 경고·`capacity.sh` 윈도우 갈래·`free-port.sh` python 삭제·`dflow.sh` `--data-binary @-`·`timeout-guard.sh` node 파싱·인라인 jq 안내를 처리했다. 이식 완료(L6, `b78edcd7e`): `junit-count.sh` 의 python 필수 서술은 node 이식으로 해소되었다(이 표의 `JUNIT_SUMMARY_NOPY` 는 `JUNIT_SUMMARY_NONODE` 로 바뀌었다).
+
 점검 대상: `.claude/skills/{dflow-dev,dflow-team,dflow-merge,dflow-work,dflow-poll}` 의 scripts/*, tests/*, SKILL.md, references/* (읽기만 했고 수정 없음).
 전제: 대상 윈도우에는 node + Git for Windows(bash·sed·grep·gawk·find·sort·tr·cut·date·stat·mktemp·curl·base64·xargs·openssl)만 있다. python·perl·jq·lsof·pgrep·pkill·flock 와 macOS 명령은 없다.
 표기: 줄 번호는 현재 파일 기준. 실행해 확인한 것이 아니라 소스 읽기 결과이며, 근거가 약한 것은 「추정」으로 적었다. 윈도우 실기 시험은 하지 못했다.

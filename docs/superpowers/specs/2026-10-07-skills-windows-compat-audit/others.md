@@ -1,5 +1,7 @@
 # 윈도우 호환 점검 (스크립트 없는 스킬·설치·시험) — audit-others
 
+> 현재 상태(2026-10-07): 이 점검표는 조사 당시 기록이다. 이식 완료: adr-write·flyway-migration-add(L3 `292dd47dc`), dflow-export(L4 `961bc7057`), dflow-wbs·dflow-wbs-nlevel(L5 `6984c55ce`, 인라인 python 은 L6 `b78edcd7e`)의 python 호출은 모두 node 호출로 바뀌었다. analyze-queries·analyze-service 의 죽은 python 은 삭제했다(D3). mantine-aggrid-ui(L2 진행 중)와 `tools/bp-sync*`(D5)의 python 서술만 아직 유효하다.
+
 기준일 2026-10-07 · 대상 리포 `/Users/jji/project/dmes-wt/skills-win/.claude/skills` · 읽기만 함(수정 없음).
 전제: 대상 PC 에는 node + Git Bash(bash·sed·grep·gawk·find·sort·tr·cut·date·stat·mktemp·curl·base64·xargs·openssl)만 있다. python·perl·jq·lsof·pgrep·pkill·flock·macOS 명령은 없다.
 python 파일 내부는 읽지 않았다. 호출 위치(SKILL.md 줄)만 적었다. 근거 없는 판단은 「추정」으로 표시했다.

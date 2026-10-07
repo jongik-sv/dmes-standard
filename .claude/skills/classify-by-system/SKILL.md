@@ -55,6 +55,8 @@ docs/external/SampleErp/orgErpReport/{areaId}/{areaId}_MES_ERP_분류_분석서.
 ls docs/external/SampleErp/orgErpReport/{areaId}/
 ```
 
+> 윈도우: 이 단계와 Step 3 의 `ls`·`for` 예시는 Git Bash 에서 실행하거나, 같은 목록을 Glob 도구로 구한다(PowerShell 에서는 문법이 다르다).
+
 폴더만 추출 (md / pptx / xlsx 파일 제외). 결과:
 - 물류: 18 모듈 (SFA · SFB · SOA · SOB · ITR · ICA · INV · MIM · STA · STB · STC · STD · MCC · IZA · IPA · IBA · BPG · BPM)
 - 품질: 11 모듈 (QMA · QSA · QCA · QIA · QRG · QGA · QNA · QBA · QRA · RMA · GIA)

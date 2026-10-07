@@ -619,7 +619,7 @@ Task 브랜치는 기점에서 만든 뒤 **개발 브랜치를 다시 머지하
 
 ## 지원 환경: macOS · Git Bash(윈도우)
 
-이 스킬의 스크립트(`scripts/*.sh`)는 macOS 와 Git for Windows 의 Git Bash 에서 같이 돈다. 필요 도구: bash, git, jq, awk·sed·grep(GNU 또는 BSD), node(변이 검증 `mutate.sh` 의 본체 `mutate.mjs`, `free-port.sh` 폴백), python3(선택). Git Bash 에는 `ps -o`·`pgrep`·`pkill`·`lsof`·`sysctl` 이 없다 — `heavy.sh` 는 `ps -W`(WINPID)·`/proc` 로 대신하고 판정할 수 없는 값(시작 시각·부하)은 생략한다. `deps.sh` 의 의존성 링크는 윈도우에서 심링크가 복사로 만들어지는 점에 주의한다. 스크립트를 새로 쓸 때는 macOS 전용 명령·perl 을 쓰지 않는다. 정본·도구 표·한계: `../../_shared/platform-support.md`.
+이 스킬의 스크립트(`scripts/*.sh`)는 macOS 와 Git for Windows 의 Git Bash 에서 같이 돈다. 필요 도구: bash, git, jq(윈도우는 `_shared/bin` 동봉판을 스크립트가 PATH 에 넣는다), awk·sed·grep(GNU 또는 BSD), node(변이 검증 `mutate.sh` 의 본체 `mutate.mjs`, `free-port.sh` 첫 선택지, `junit-count.sh` 의 XML 합산, jq 가 없을 때의 `timeout-guard.sh`). python 은 필요 없다. Git Bash 에는 `ps -o`·`pgrep`·`pkill`·`lsof`·`sysctl` 이 없다 — `heavy.sh` 는 `ps -W`(WINPID)·`/proc` 로 대신하고 판정할 수 없는 값(시작 시각·부하)은 생략한다. `deps.sh` 의 의존성 링크는 윈도우에서 심링크가 복사로 만들어지는 점에 주의한다. 스크립트를 새로 쓸 때는 macOS 전용 명령·perl 을 쓰지 않는다. 정본·도구 표·한계: `../../_shared/platform-support.md`.
 
 ## 공통 금지
 

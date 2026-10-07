@@ -1,5 +1,7 @@
 # coordinator 스킬 윈도우(Git Bash) 호환 점검
 
+> 현재 상태(2026-10-07): 이 점검표는 조사 당시 기록이다. jq 의존은 동봉 jq 로 해소했고(`4396d7e98`), 표의 수정 항목 대부분은 C1(`384eebb34`)에서 처리했다. `references/contract.md` 의 「python3(선택)」 문구도 C1 에서 정리되어 지금은 python 을 언급하지 않는다.
+
 - 대상: `.claude/skills/coordinator/` 의 `scripts/*.sh`, `scripts/lib/*.sh`, `SKILL.md`, `references/*.md`(읽기만 함, 수정 없음)
 - 전제: node·Git Bash(bash/sed/grep/gawk/find/sort/tr/cut/date/stat/mktemp/curl/base64/xargs/openssl)만 있고 jq 는 없다. `tests/`·`templates/` 는 범위 밖.
 - 기준: `scripts/lib/compat.sh` 를 먼저 읽고(stat·date·프로세스 표·후손·kill_tree·pgrep·cwd·sha256·posix_path·pid_alive 를 한 곳에 모음), 그걸 거치지 않은 직접 호출과 새 결함을 찾았다.

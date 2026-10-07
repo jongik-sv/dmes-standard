@@ -123,7 +123,7 @@ description: D'Flow 할당 작업 폴링 루프 — 백그라운드 스크립트
 
 ## 지원 환경: macOS · Git Bash(윈도우)
 
-`scripts/poll.sh` 는 macOS 와 Git for Windows 의 Git Bash 에서 돈다. 필요 도구: bash, git, jq, curl. 종료 시각 해석은 BSD `date -j` 먼저, 없으면 GNU `date -d`. 스크립트를 새로 쓸 때는 macOS 전용 명령·perl 을 쓰지 않는다(정본: `../_shared/platform-support.md`).
+`scripts/poll.sh` 는 macOS 와 Git for Windows 의 Git Bash 에서 돈다. 필요 도구: bash, git, jq(윈도우는 `_shared/bin` 동봉판), curl. 종료 시각 해석은 BSD `date -j` 먼저, 없으면 GNU `date -d`. 스크립트를 새로 쓸 때는 macOS 전용 명령·perl 을 쓰지 않는다(정본: `../_shared/platform-support.md`).
 
 ## 종료 조건 요약
 
