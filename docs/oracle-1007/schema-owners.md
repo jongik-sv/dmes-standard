@@ -54,21 +54,22 @@
    spring.jpa.properties.hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
    ```
 
-3. Oracle 컨테이너 OS 시간대는 `Asia/Seoul` 이다(`tools/oracle-free/docker-compose.yml` 의 `TZ`). `SYSDATE`·`SYSTIMESTAMP` 가 KST 로 나온다.
+3. JVM 시간대는 `-Duser.timezone=Asia/Seoul` 로 고정한다(KST 통일의 전제다). 로컬에서는 build-logic(`dmes.test-conventions`)이 시험 JVM(`Test`)과 `bootRun` 에 시스템 속성으로 넣고, `be-run.sh` 는 java 직접 기동 옵션에 넣는다(`be-run.cmd`·`be-run.ps1` 은 `bootRun` 을 쓰므로 build-logic 이 적용된다). 운영 WildFly 는 `standalone.conf` 의 `JAVA_OPTS` 에 `-Duser.timezone=Asia/Seoul` 을 추가한다(Windows 는 `standalone.conf.bat`).
+4. Oracle 컨테이너 OS 시간대는 `Asia/Seoul` 이다(`tools/oracle-free/docker-compose.yml` 의 `TZ`). `SYSDATE`·`SYSTIMESTAMP` 가 KST 로 나온다.
    `DBTIMEZONE` 은 `+00:00` 으로 남는다. `TIMESTAMP WITH LOCAL TIME ZONE` 을 쓰지 않으므로 영향이 없다(쓰지 않는다).
-4. 적재기(b5)는 epoch 밀리초를 KST 로 변환하고, KST 문자열은 그대로 넣는다. 업무 일시(감사 아닌 것)는 변환하지 않는다.
+5. 적재기(b5)는 epoch 밀리초를 KST 로 변환하고, KST 문자열은 그대로 넣는다. 업무 일시(감사 아닌 것)는 변환하지 않는다.
 
 ### 3.1.1 공통 Hibernate 설정(앱마다 자기 yml 에 둔다)
 
 이 문서가 공통 기본값의 정본이다. 앱은 엔티티마다 매핑을 바꾸지 않고 설정에서 맞춘다.
 
 ```yaml
-spring.jpa.properties.hibernate.type.preferred_boolean_jdbc_type: BIT       # boolean 칸을 NUMBER(1) 로 유지
+spring.jpa.properties.hibernate.type.preferred_boolean_jdbc_type: TINYINT   # boolean 칸을 NUMBER(1,0) 로 유지
 spring.jpa.properties.hibernate.type.preferred_instant_jdbc_type: TIMESTAMP # Instant 감사 칸(KST 로 저장)
 # hibernate.jdbc.time_zone 은 넣지 않는다(JVM 기본 Asia/Seoul)
 ```
 
-- `preferred_boolean_jdbc_type=BIT`: 운영 Oracle 이 23 미만일 수 있어 기준선의 boolean 칸은 `NUMBER(1)` 로 둔다. Spring Boot 4.0.6 이 관리하는 Hibernate 7.2.12 의 `OracleDialect` 는 Oracle 전용 legacy boolean 설정이 없어, 이 값이 없으면 23 이상에서 `BOOLEAN` 을 기대해 validate 가 실패한다(b0 에서 `TB_MDM_COLUMN.REQUIRED` 로 확인). 설정은 ora-mdm 이 정했고 mdm m2 에서 validate 로 확인한다.
+- `preferred_boolean_jdbc_type=TINYINT`: 운영 Oracle 이 23 미만일 수 있어 기준선의 boolean 칸은 `NUMBER(1,0)` + `CHECK (0,1)` 로 둔다. Spring Boot 4.0.6 이 관리하는 Hibernate 7.2.12 의 `OracleDialect` 는 Oracle 전용 legacy boolean 설정이 없어, 이 값이 없으면 23 이상에서 `BOOLEAN` 을 기대해 validate 가 실패한다(b0 에서 `TB_MDM_COLUMN.REQUIRED` 로 확인). 처음에는 `BIT` 로 정했으나 철회했다. 23 이상에서 `BIT` 는 boolean 으로 매핑돼 `NUMBER(1)` 칸 validate 가 실패한다(ora-mcm-core 실측, Hibernate 7.2.12·DB 23 계열). `TINYINT`(·`SMALLINT`·`INTEGER`·`NUMERIC`)는 오류가 0 이라 **23 미만·이상 모두 통하는 값**이다. 이 설정은 ora-mdm·ora-mcm-core 가 각 앱에서 validate 로 확인한다.
 
 ### 3.2 운용 규칙(Podman VM 2GB 기준, 사용자 결정)
 

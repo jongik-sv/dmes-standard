@@ -51,7 +51,7 @@ import { revealGridColumn } from "../support/mdm-e2e";
  *
  * ID 규약(2026-09-28) — `uid()` 는 실행 번호를 붙이지 않고 태그 하나를 ID 하나로 쓴다. 또 `RUN` 은
  * 고정값(`E2EX`)이다 — 유일성 제약이 있는 칸(용어 표기·영문 약어)에만 쓰이는 접미라 실행마다 달라야 할
- * 이유가 없다. 주 DB 에 남은 시험 데이터는 `tools/e2e-clean-data.sh --apply` 로 접두 `E2E` 기준 한 번에 지운다.
+ * 이유가 없다. 주 DB 에 남은 시험 데이터는 접두 `E2E` 기준으로 수동 정리한다.
  *
  * domainMng 의 6개 하위 컴포넌트는 data-testid 가 전혀 없다(관찰 — 보고에 기록). aria-label 은 모두 붙어 있어
  * getByLabel 로 찾는다. unitMng·termMng 상세 폼도 data-testid 가 거의 없어(일부만) <tr><th>라벨</th>… 구조를

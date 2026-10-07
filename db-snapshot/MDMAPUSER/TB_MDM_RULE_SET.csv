@@ -1,0 +1,13 @@
+MARU_RULE_SET_ID,MARU_RULE_SET_NAME,DESCRIPTION,STATUS,C_USR_ID,C_AT,C_SVC_ID,C_PGM_ID,U_USR_ID,U_AT,U_SVC_ID,U_PGM_ID,VER
+BR2_FLOW_CHECK,흐름도 2단계 브라우저 확인,\N,INUSE,41000132,1790746498041,ruleSetMng,ruleSetMng,41000132,2026-10-01 12:53:42,ruleSetEdit,ruleSetEdit,5
+CHK_SET1,CHK_세트1,\N,CREATED,CHK_STW,1791086547310,ruleSetMng,ruleSetMng,CHK_STW,1791086547310,ruleSetMng,ruleSetMng,0
+DESIGN_KEY,설계키,설계키 룰세트,INUSE,41000132,1790826576774,ruleSetMng,ruleSetMng,41000132,2026-10-06 08:47:35,ruleSetEdit,ruleSetEdit,109
+LINE_WIDTH_SHRINKAGE,라인별 폭 수축량,\N,INUSE,41000132,1790837251959,ruleSetMng,ruleSetMng,41000132,2026-10-01 16:08:26,ruleSetEdit,ruleSetEdit,4
+LS_A3,3CCL 라인스피드,workrule 3-1,INUSE,kim,2026-08-26 10:00:00,\N,mdm-local-sample,41000132,2026-10-06 08:23:30,ruleSetEdit,ruleSetEdit,8
+M47_COAT_WT,코일코팅중량 계산,도장부착량(M47C0007) 결과 GOT_ATT_AMT 를 코일코팅중량(M47C0006) 입력으로 넘겨 코팅중량(kg)을 구한다,INUSE,kim,2026-10-06 16:00:00,\N,mdm-local-sample,kim,2026-10-06 16:00:00,\N,mdm-local-sample,0
+PACK_TYPE_SET,포장 방식 판정,산출(단위폭중량) → 판정(포장 방식),INUSE,kim,2026-09-28 10:00:00,\N,mdm-local-sample,kim,2026-09-28 10:00:00,\N,mdm-local-sample,0
+PKG_WGT,제품 출하 중량,판정(형태별 중량 공식) → 산출(포장·총중량·차량 대수),INUSE,kim,2026-09-27 10:00:00,\N,mdm-local-sample,kim,2026-09-27 10:00:00,\N,mdm-local-sample,0
+QG_A1,품질 등급과 할증,\N,INUSE,kim,2026-08-26 10:00:00,\N,mdm-local-sample,kim,2026-08-26 10:00:00,\N,mdm-local-sample,0
+WID_OLD,광폭 판정(구),LS_A3로 옮김,DEPRECATED,kim,2026-08-10 10:00:00,\N,mdm-local-sample,kim,2026-08-10 10:00:00,\N,mdm-local-sample,0
+ZZ_BROWSER_CHECK_1,ZZ 브라우저 확인 2,\N,INUSE,41000132,1790772878779,ruleSetMng,ruleSetMng,41000132,2026-10-02 08:06:20,ruleSetEdit,ruleSetEdit,5
+ZZ_CATCH_CHECK_1,ZZ CATCH 확인 1,\N,INUSE,41000132,1790866916507,ruleSetMng,ruleSetMng,41000132,2026-10-02 01:28:29,ruleSetEdit,ruleSetEdit,36

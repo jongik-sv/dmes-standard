@@ -1,0 +1,62 @@
+MARU_DATA_ID,CATE_ID,VALID_FROM,CATE_NAME,DEF_KIND,DEF_EXPR,DEF_TARGET,DESCRIPTION,VALID_TO,CHG_SEQ,C_USR_ID,C_AT,C_SVC_ID,C_PGM_ID,U_USR_ID,U_AT,U_SVC_ID,U_PGM_ID,VER
+CHK_DT1,BASE,2026-10-04 12:26:47,전체,REGEX,.*,KEY,\N,9999-12-31 00:00:00,0,CHK_STW,2026-10-04 12:26:47,dataMng,dataMng,CHK_STW,2026-10-04 12:26:47,dataMng,dataMng,0
+CHK_DT1,CHK_CATE1,2026-10-04 12:28:26,CHK_카테고리1,TABLE,\N,\N,\N,2026-10-04 12:29:49,0,CHK_STW,2026-10-04 12:28:26,dataCateEdit,dataCateEdit,CHK_STW,2026-10-04 12:29:49,dataCateEdit,dataCateEdit,1
+CHK_DT1,CHK_CATE1,2026-10-04 12:30:16,CHK_카테고리1,TABLE,\N,\N,\N,9999-12-31 00:00:00,0,CHK_STW,2026-10-04 12:30:16,dataCateEdit,dataCateEdit,CHK_STW,2026-10-04 12:30:16,dataCateEdit,dataCateEdit,0
+CUST,BASE,2026-09-04 09:00:00,전체,REGEX,.*,KEY,\N,9999-12-31 00:00:00,1,kim,2026-09-04 09:00:00,\N,mdm-local-sample,kim,2026-09-04 09:00:00,\N,mdm-local-sample,0
+CUST,SUPPLIER,2026-09-05 11:00:00,공급사,REGEX,^(S|B)$,ATTR02,\N,9999-12-31 00:00:00,4,kim,2026-09-05 11:00:00,\N,mdm-local-sample,kim,2026-09-05 11:00:00,\N,mdm-local-sample,0
+CUS_CD,APPAK0,2026-09-30 08:48:02,포장재 분류 고객사,TABLE,\N,\N,GlueMaster 포장재 분류 고객사,9999-12-31 00:00:00,0,admin,2026-09-30 08:48:02,dataCateEdit,dataCateEdit,admin,2026-09-30 08:48:02,dataCateEdit,dataCateEdit,0
+CUS_CD,APPAS0,2026-09-30 08:48:02,통판재 분류 고객사,TABLE,\N,\N,GlueMaster 통판재 분류 고객사,9999-12-31 00:00:00,0,admin,2026-09-30 08:48:02,dataCateEdit,dataCateEdit,admin,2026-09-30 08:48:02,dataCateEdit,dataCateEdit,0
+CUS_CD,BASE,2026-09-30 08:47:38,전체,REGEX,.*,KEY,\N,9999-12-31 00:00:00,0,admin,2026-09-30 08:47:38,dataMng,dataMng,admin,2026-09-30 08:47:38,dataMng,dataMng,0
+CUS_CD,SZ0000,2026-09-30 08:48:02,공통,REGEX,.*,KEY,GlueMaster 공통 카테고리 — 전 항목 포함,9999-12-31 00:00:00,0,admin,2026-09-30 08:48:02,dataCateEdit,dataCateEdit,admin,2026-09-30 08:48:02,dataCateEdit,dataCateEdit,0
+CUS_CD,SZ6001,2026-09-30 08:48:02,화산물류자차고객,TABLE,\N,\N,GlueMaster 분류 고객사,9999-12-31 00:00:00,0,admin,2026-09-30 08:48:02,dataCateEdit,dataCateEdit,admin,2026-09-30 08:48:02,dataCateEdit,dataCateEdit,0
+E2E_DC_PORT,BASE,2026-08-20 09:00:00,전체,REGEX,.*,KEY,\N,9999-12-31 00:00:00,0,e2e-fixture,\N,\N,mdm-dataMng.sql,\N,\N,\N,\N,0
+E2E_DC_PORT,DCMUM9UNAQ,2026-09-29 15:05:03,E2E 등록 테스트,REGEX,^.*$,KEY,\N,2026-09-29 15:05:04,0,e2e_mdm_steward,2026-09-29 15:05:03,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 15:05:03,dataCateEdit,dataCateEdit,1
+E2E_DC_PORT,DCMUM9UNAQ,2026-09-29 15:05:04,E2E 등록 테스트,REGEX,^DCKR.*,KEY,\N,9999-12-31 00:00:00,0,e2e_mdm_steward,2026-09-29 15:05:03,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 15:05:03,dataCateEdit,dataCateEdit,0
+E2E_DC_PORT,DCMUMA8CSW,2026-09-29 15:15:44,E2E 등록 테스트,REGEX,^.*$,KEY,\N,2026-09-29 15:15:45,0,e2e_mdm_steward,2026-09-29 15:15:44,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 15:15:44,dataCateEdit,dataCateEdit,1
+E2E_DC_PORT,DCMUMA8CSW,2026-09-29 15:15:45,E2E 등록 테스트,REGEX,^DCKR.*,KEY,\N,9999-12-31 00:00:00,0,e2e_mdm_steward,2026-09-29 15:15:44,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 15:15:44,dataCateEdit,dataCateEdit,0
+E2E_DC_PORT,DCMUMABH3R,2026-09-29 15:18:08,E2E 등록 테스트,REGEX,^.*$,KEY,\N,2026-09-29 15:18:09,0,e2e_mdm_steward,2026-09-29 15:18:08,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 15:18:08,dataCateEdit,dataCateEdit,1
+E2E_DC_PORT,DCMUMABH3R,2026-09-29 15:18:09,E2E 등록 테스트,REGEX,^DCKR.*,KEY,\N,9999-12-31 00:00:00,0,e2e_mdm_steward,2026-09-29 15:18:08,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 15:18:08,dataCateEdit,dataCateEdit,0
+E2E_DC_PORT,DCMUMAOXT6,2026-09-29 15:28:33,E2E 등록 테스트,REGEX,^.*$,KEY,\N,2026-09-29 15:28:34,0,e2e_mdm_steward,2026-09-29 15:28:33,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 15:28:33,dataCateEdit,dataCateEdit,1
+E2E_DC_PORT,DCMUMAOXT6,2026-09-29 15:28:34,E2E 등록 테스트,REGEX,^DCKR.*,KEY,\N,9999-12-31 00:00:00,0,e2e_mdm_steward,2026-09-29 15:28:33,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 15:28:33,dataCateEdit,dataCateEdit,0
+E2E_DC_PORT,DCMUMAVLAU,2026-09-29 15:33:43,E2E 등록 테스트,REGEX,^.*$,KEY,\N,2026-09-29 15:33:44,0,e2e_mdm_steward,2026-09-29 15:33:43,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 15:33:43,dataCateEdit,dataCateEdit,1
+E2E_DC_PORT,DCMUMAVLAU,2026-09-29 15:33:44,E2E 등록 테스트,REGEX,^DCKR.*,KEY,\N,9999-12-31 00:00:00,0,e2e_mdm_steward,2026-09-29 15:33:43,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 15:33:43,dataCateEdit,dataCateEdit,0
+E2E_DC_PORT,DCMUMBCV5I,2026-09-29 15:47:30,E2E 등록 테스트,REGEX,^.*$,KEY,\N,2026-09-29 15:47:31,0,e2e_mdm_steward,2026-09-29 15:47:30,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 15:47:30,dataCateEdit,dataCateEdit,1
+E2E_DC_PORT,DCMUMBCV5I,2026-09-29 15:47:31,E2E 등록 테스트,REGEX,^DCKR.*,KEY,\N,9999-12-31 00:00:00,0,e2e_mdm_steward,2026-09-29 15:47:30,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 15:47:30,dataCateEdit,dataCateEdit,0
+E2E_DC_PORT,DCMUMBLDAG,2026-09-29 15:54:29,E2E 등록 테스트,REGEX,^.*$,KEY,\N,2026-09-29 15:54:30,0,e2e_mdm_steward,2026-09-29 15:54:29,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 15:54:30,dataCateEdit,dataCateEdit,1
+E2E_DC_PORT,DCMUMBLDAG,2026-09-29 15:54:30,E2E 등록 테스트,REGEX,^DCKR.*,KEY,\N,9999-12-31 00:00:00,0,e2e_mdm_steward,2026-09-29 15:54:30,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 15:54:30,dataCateEdit,dataCateEdit,0
+E2E_DC_PORT,DCMUMBPH6O,2026-09-29 15:58:10,E2E 등록 테스트,REGEX,^.*$,KEY,\N,2026-09-29 15:58:11,0,e2e_mdm_steward,2026-09-29 15:58:10,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 15:58:11,dataCateEdit,dataCateEdit,1
+E2E_DC_PORT,DCMUMBPH6O,2026-09-29 15:58:11,E2E 등록 테스트,REGEX,^DCKR.*,KEY,\N,9999-12-31 00:00:00,0,e2e_mdm_steward,2026-09-29 15:58:11,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 15:58:11,dataCateEdit,dataCateEdit,0
+E2E_DC_PORT,DCMUMBSKZR,2026-09-29 16:00:06,E2E 등록 테스트,REGEX,^.*$,KEY,\N,2026-09-29 16:00:07,0,e2e_mdm_steward,2026-09-29 16:00:06,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 16:00:07,dataCateEdit,dataCateEdit,1
+E2E_DC_PORT,DCMUMBSKZR,2026-09-29 16:00:07,E2E 등록 테스트,REGEX,^DCKR.*,KEY,\N,9999-12-31 00:00:00,0,e2e_mdm_steward,2026-09-29 16:00:07,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 16:00:07,dataCateEdit,dataCateEdit,0
+E2E_DC_PORT,DCMUMBYEJ3,2026-09-29 16:03:44,E2E 등록 테스트,REGEX,^.*$,KEY,\N,2026-09-29 16:03:45,0,e2e_mdm_steward,2026-09-29 16:03:44,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 16:03:44,dataCateEdit,dataCateEdit,1
+E2E_DC_PORT,DCMUMBYEJ3,2026-09-29 16:03:45,E2E 등록 테스트,REGEX,^DCKR.*,KEY,\N,9999-12-31 00:00:00,0,e2e_mdm_steward,2026-09-29 16:03:44,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 16:03:44,dataCateEdit,dataCateEdit,0
+E2E_DC_PORT,DCMUMBZAVM,2026-09-29 16:05:03,E2E 등록 테스트,REGEX,^.*$,KEY,\N,2026-09-29 16:05:04,0,e2e_mdm_steward,2026-09-29 16:05:03,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 16:05:04,dataCateEdit,dataCateEdit,1
+E2E_DC_PORT,DCMUMBZAVM,2026-09-29 16:05:04,E2E 등록 테스트,REGEX,^DCKR.*,KEY,\N,9999-12-31 00:00:00,0,e2e_mdm_steward,2026-09-29 16:05:04,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 16:05:04,dataCateEdit,dataCateEdit,0
+E2E_DC_PORT,DCMUMC5494,2026-09-29 16:09:12,E2E 등록 테스트,REGEX,^.*$,KEY,\N,2026-09-29 16:09:13,0,e2e_mdm_steward,2026-09-29 16:09:12,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 16:09:12,dataCateEdit,dataCateEdit,1
+E2E_DC_PORT,DCMUMC5494,2026-09-29 16:09:13,E2E 등록 테스트,REGEX,^DCKR.*,KEY,\N,9999-12-31 00:00:00,0,e2e_mdm_steward,2026-09-29 16:09:12,dataCateEdit,dataCateEdit,e2e_mdm_steward,2026-09-29 16:09:12,dataCateEdit,dataCateEdit,0
+E2E_DC_PORT,DC_GROUP,2026-08-20 09:00:00,주요 그룹,TABLE,\N,\N,\N,9999-12-31 00:00:00,0,e2e-fixture,\N,\N,mdm-dataMng.sql,\N,\N,\N,\N,0
+E2E_DI_CSV,BASE,2026-08-20 09:00:00,전체,REGEX,.*,KEY,\N,9999-12-31 00:00:00,0,e2e-fixture,\N,\N,mdm-dataItem.sql,\N,\N,\N,\N,0
+E2E_DI_CUST,BASE,2026-08-20 09:00:00,전체,REGEX,.*,KEY,\N,9999-12-31 00:00:00,0,e2e-fixture,\N,\N,mdm-dataItem.sql,\N,\N,\N,\N,0
+E2E_DI_EMPTY,BASE,2026-08-20 09:00:00,전체,REGEX,.*,KEY,\N,9999-12-31 00:00:00,0,e2e-fixture,\N,\N,mdm-dataItem.sql,\N,\N,\N,\N,0
+E2E_DI_PORT,BASE,2026-08-20 09:00:00,전체,REGEX,.*,KEY,\N,9999-12-31 00:00:00,0,e2e-fixture,\N,\N,mdm-dataItem.sql,\N,\N,\N,\N,0
+E2E_DI_PORT,KR,2026-08-20 09:00:00,한국 항구,REGEX,^KR$,ATTR01,\N,9999-12-31 00:00:00,0,e2e-fixture,\N,\N,mdm-dataItem.sql,\N,\N,\N,\N,0
+E2E_DI_PORT,MAJOR,2026-08-20 09:00:00,주요 항구,TABLE,\N,\N,\N,9999-12-31 00:00:00,0,e2e-fixture,\N,\N,mdm-dataItem.sql,\N,\N,\N,\N,0
+E2E_DM_CUST,BASE,2026-08-20 09:00:00,전체,REGEX,.*,KEY,\N,9999-12-31 00:00:00,0,e2e-fixture,\N,\N,mdm-dataMng.sql,\N,\N,\N,\N,0
+E2E_DM_PORT,BASE,2026-08-20 09:00:00,전체,REGEX,.*,KEY,\N,9999-12-31 00:00:00,0,e2e-fixture,\N,\N,mdm-dataMng.sql,\N,\N,\N,\N,0
+E2E_DM_PORT,KR,2026-08-20 09:00:00,한국 항구,REGEX,^KR$,LVL1,\N,9999-12-31 00:00:00,0,e2e-fixture,\N,\N,mdm-dataMng.sql,\N,\N,\N,\N,0
+E2E_DM_PORT,MAJOR,2026-08-20 09:00:00,주요 항구,TABLE,\N,\N,\N,9999-12-31 00:00:00,0,e2e-fixture,\N,\N,mdm-dataMng.sql,\N,\N,\N,\N,0
+E2E_USR_DMA_MUT6ES4Y,BASE,2026-10-04 11:02:51,전체,REGEX,.*,KEY,\N,9999-12-31 00:00:00,0,E2E_USR_STW,2026-10-04 11:02:51,dataMng,dataMng,E2E_USR_STW,2026-10-04 11:02:51,dataMng,dataMng,0
+E2E_USR_DMB_MUT6ES4Y,BASE,2026-10-04 11:03:08,전체,REGEX,.*,KEY,\N,9999-12-31 00:00:00,0,E2E_USR_STW,2026-10-04 11:03:08,dataMng,dataMng,E2E_USR_STW,2026-10-04 11:03:08,dataMng,dataMng,0
+E2E_USR_DMC_MUT6ES4Y,BASE,2026-10-04 11:03:42,전체,REGEX,.*,KEY,\N,9999-12-31 00:00:00,0,E2E_USR_STW,2026-10-04 11:03:42,dataMng,dataMng,E2E_USR_STW,2026-10-04 11:03:42,dataMng,dataMng,0
+E2E_USR_DMC_MUT6ES4Y,KRONLY,2026-10-04 11:03:48,한국 항구,REGEX,^.*$,KEY,\N,2026-10-04 11:03:51,0,E2E_USR_STW,2026-10-04 11:03:48,dataCateEdit,dataCateEdit,E2E_USR_STW,2026-10-04 11:03:51,dataCateEdit,dataCateEdit,1
+E2E_USR_DMC_MUT6ES4Y,KRONLY,2026-10-04 11:03:51,한국 항구(계층),REGEX,^KR$,LVL1,1차가 KR 인 항목,9999-12-31 00:00:00,0,E2E_USR_STW,2026-10-04 11:03:51,dataCateEdit,dataCateEdit,E2E_USR_STW,2026-10-04 11:03:51,dataCateEdit,dataCateEdit,0
+E2E_USR_DMC_MUT6ES4Y,MAJOR,2026-10-04 11:03:53,주요 항구,TABLE,\N,\N,\N,2026-10-04 11:03:54,0,E2E_USR_STW,2026-10-04 11:03:53,dataCateEdit,dataCateEdit,E2E_USR_STW,2026-10-04 11:03:54,dataCateEdit,dataCateEdit,1
+E2E_USR_DMC_MUT6ES4Y,MAJOR,2026-10-04 11:03:56,주요 항구,TABLE,\N,\N,\N,9999-12-31 00:00:00,0,E2E_USR_STW,2026-10-04 11:03:56,dataCateEdit,dataCateEdit,E2E_USR_STW,2026-10-04 11:03:56,dataCateEdit,dataCateEdit,0
+E2E_USR_DMD_MUT6ES4Y,BASE,2026-10-04 11:04:09,전체,REGEX,.*,KEY,\N,9999-12-31 00:00:00,0,E2E_USR_STW,2026-10-04 11:04:09,dataMng,dataMng,E2E_USR_STW,2026-10-04 11:04:09,dataMng,dataMng,0
+E2E_USR_DME_MUT6ES4Y,BASE,2026-10-04 11:04:18,전체,REGEX,.*,KEY,\N,9999-12-31 00:00:00,0,E2E_USR_STW,2026-10-04 11:04:18,dataMng,dataMng,E2E_USR_STW,2026-10-04 11:04:18,dataMng,dataMng,0
+E2E_USR_DME_MUT6ES4Y,MAJOR,2026-10-04 11:04:20,주요 항구,TABLE,\N,\N,\N,9999-12-31 00:00:00,0,E2E_USR_STW,2026-10-04 11:04:20,dataCateEdit,dataCateEdit,E2E_USR_STW,2026-10-04 11:04:20,dataCateEdit,dataCateEdit,0
+E2E_USR_DMP_MUT6ES4Y,BASE,2026-10-04 11:03:34,전체,REGEX,.*,KEY,\N,9999-12-31 00:00:00,0,E2E_USR_STW,2026-10-04 11:03:34,dataMng,dataMng,E2E_USR_STW,2026-10-04 11:03:34,dataMng,dataMng,0
+ORG,BASE,2026-09-09 09:00:00,전체,REGEX,.*,KEY,\N,9999-12-31 00:00:00,1,kim,2026-09-09 09:00:00,\N,mdm-local-sample,kim,2026-09-09 09:00:00,\N,mdm-local-sample,0
+PORT,BASE,2026-08-19 09:00:00,전체,REGEX,.*,KEY,\N,9999-12-31 00:00:00,1,kim,2026-08-19 09:00:00,\N,mdm-local-sample,kim,2026-08-19 09:00:00,\N,mdm-local-sample,0
+PORT,KR,2026-08-21 09:00:00,한국 항구,REGEX,^KR$,ATTR01,\N,9999-12-31 00:00:00,4,kim,2026-08-21 09:00:00,\N,mdm-local-sample,kim,2026-08-21 09:00:00,\N,mdm-local-sample,0
+PORT,MAJOR,2026-09-02 09:00:00,주요 항구,TABLE,\N,\N,\N,9999-12-31 00:00:00,7,kim,2026-09-02 09:00:00,\N,mdm-local-sample,kim,2026-09-02 09:00:00,\N,mdm-local-sample,0

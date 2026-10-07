@@ -63,6 +63,14 @@ allprojects {
             }
         }
     }
+    // 모든 시각은 KST 로 통일한다(docs/oracle-1007/schema-owners.md §3.1). 시험 JVM 과 bootRun 이 PC 시간대와 상관없이 Asia/Seoul 을 쓰게
+    // 고정한다. systemProperty 는 모듈이 bootRun 의 jvmArgs 를 대입으로 덮어도 남는다. 이미 정해 둔 값이 있으면 건드리지 않는다.
+    tasks.withType(Test).configureEach {
+        if (!systemProperties.containsKey('user.timezone')) systemProperty 'user.timezone', 'Asia/Seoul'
+    }
+    tasks.withType(JavaExec).configureEach {
+        if (!systemProperties.containsKey('user.timezone')) systemProperty 'user.timezone', 'Asia/Seoul'
+    }
     tasks.withType(Test).configureEach {
         outputs.doNotCacheIf('선언되지 않은 외부 입력(작업 트리 밖 파일·../data SQLite·환경 변수)에 기대는 테스트') { true }
         // C1 만 쓰면 JVM 이 코드 캐시 기본값을 240MB → 48MB 로 줄인다. mdm/api 1060건에서 "Out of space in CodeCache for
