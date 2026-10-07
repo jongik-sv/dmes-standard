@@ -4,9 +4,11 @@ import com.dongkuk.dmes.cactus.mastercode.MasterCodeItemRepository;
 import com.dongkuk.dmes.cactus.oasis.OasisServiceExecutor;
 import org.apache.ibatis.session.SqlSession;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.webmvc.autoconfigure.WebMvcRegistrations;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,6 +22,13 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
  *   <li>{@link OasisController}, {@link ServiceController}, {@link LovController} (OASIS 부분): {@link OasisServiceExecutor} 빈 존재 시</li>
  *   <li>{@link QueryController}, {@link LovController} (mybatis 부분): {@link SqlSession} 빈 존재 시</li>
  * </ul>
+ *
+ * <p>요청이 고른 BPMN·매퍼 statement 를 실행하는 직접 경로는 스위치로 켠다(기본 꺼짐, 2026-10-07):
+ * <ul>
+ *   <li>{@code cactus.inbound.service-routes.enabled} — {@code /service}, {@code /query/service}, {@code /lov/service}</li>
+ *   <li>{@code cactus.inbound.query-routes.enabled} — {@code /query/{queryId}}, {@code /lov/query/{queryId}}</li>
+ * </ul>
+ * {@code /oasis/{serviceId}/{action}} 과 {@code /lov/master} 는 스위치와 무관하게 등록된다.
  *
  * <p>cactus-core 자체는 mybatis/oasis-core 를 compileOnly 로 의존하므로, 두 의존이 모두 있을 때만
  * 등록된다. 소비 모듈이 SqlSession 만 가지고 있으면 QueryController 만, OASIS 만 있으면
@@ -55,35 +64,43 @@ public class InboundAutoConfiguration {
     }
 
     /**
-     * MyBatis 쿼리 진입 컨트롤러.
+     * MyBatis 쿼리 진입 컨트롤러 ({@code /query/{queryId}}, {@code /lov/query/{queryId}}).
+     *
+     * <p>{@code cactus.inbound.query-routes.enabled=true} 일 때만 등록한다(기본 꺼짐, 2026-10-07 보안 지적).
+     * 켜도 {@link QueryStatementGuard} 가 {@code persistence/query/**}·{@code persistence/lov/**} 매퍼의 SELECT 만 열고,
+     * 행 수는 {@code cactus.query.max-rows}(기본 10,000)로 자른다. 권한 판정은 BFF·권한 필터 몫이다.
      */
     @Bean
     @ConditionalOnClass(SqlSession.class)
     @ConditionalOnBean(SqlSession.class)
-    public QueryController cactusQueryController(SqlSession sqlSession) {
-        return new QueryController(sqlSession);
+    @ConditionalOnProperty(prefix = "cactus.inbound.query-routes", name = "enabled", havingValue = "true")
+    public QueryController cactusQueryController(SqlSession sqlSession,
+                                                 @Value("${cactus.query.max-rows:10000}") int maxRows) {
+        return new QueryController(new QueryStatementGuard(sqlSession, maxRows));
     }
 
     /**
-     * OASIS service 진입 컨트롤러 (no-action).
+     * OASIS service 진입 컨트롤러 (no-action, {@code /service}·{@code /query/service}·{@code /lov/service}).
+     *
+     * <p>{@code cactus.inbound.service-routes.enabled=true} 일 때만 등록한다(기본 꺼짐, 2026-10-07 보안 지적).
+     * 아무 BPMN 이나 고정 action 으로 실행하는 경로라, 켜기 전에 권한 판정이 이 경로의 OBJECT 권한 키를 보도록 해야 한다.
      */
     @Bean
     @ConditionalOnBean(OasisServiceExecutor.class)
+    @ConditionalOnProperty(prefix = "cactus.inbound.service-routes", name = "enabled", havingValue = "true")
     public ServiceController cactusServiceController(OasisServiceExecutor executor) {
         return new ServiceController(executor);
     }
 
     /**
-     * LoV 통합 컨트롤러. SqlSession 과 OasisServiceExecutor 가 모두 있어야 등록.
-     * (둘 중 하나만 있어도 부분 동작이 가능하나, 단일 컨트롤러 분기 단순화를 위해 둘 다 요구)
+     * 마스터 코드 LoV 컨트롤러 ({@code /lov/master}). 등록 조건은 옛 통합 LoV 컨트롤러와 같다
+     * (SqlSession 과 OasisServiceExecutor 가 모두 있는 업무 모듈).
      */
     @Bean
     @ConditionalOnClass(SqlSession.class)
     @ConditionalOnBean({SqlSession.class, OasisServiceExecutor.class})
-    public LovController cactusLovController(SqlSession sqlSession,
-                                             OasisServiceExecutor executor,
-                                             ObjectProvider<MasterCodeProvider> masterCodeProvider) {
-        return new LovController(sqlSession, executor, masterCodeProvider);
+    public LovController cactusLovController(ObjectProvider<MasterCodeProvider> masterCodeProvider) {
+        return new LovController(masterCodeProvider);
     }
 
     /**
