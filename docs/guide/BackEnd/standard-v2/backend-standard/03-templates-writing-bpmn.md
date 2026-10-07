@@ -243,14 +243,14 @@ public interface {Module}Mapper {
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="{base-package}.domain.{module}.{Module}Mapper">
 
+    <!-- 정적 SQL: 동적 태그(<if> 등)·${} 를 쓰지 않는다. 선택 조건은 WHERE 에서 (#{p} IS NULL OR ...) 로 처리한다 -->
     <select id="selectList" parameterType="map" resultType="map">
+        <![CDATA[
         SELECT A.{COL1} {ALIAS1}
              , A.{COL2} {ALIAS2}
         FROM   {TABLE_NAME} A
-        WHERE  1 = 1
-        <if test="{cond} != null and {cond} != ''">
-        AND    A.{COL1} = #{ {cond} }
-        </if>
+        WHERE  (#{ {cond} } IS NULL OR A.{COL1} = #{ {cond} })
+        ]]>
     </select>
 
     <!-- INSERT: 감사 컬럼 8개 + VER=0 바인딩 필수 -->
@@ -281,6 +281,8 @@ public interface {Module}Mapper {
 </mapper>
 ```
 
+- MUST: SQL 은 정적으로 쓴다. MyBatis `<if>`·`<choose>`·`<where>`·`<trim>`·`<set>`·`<foreach>`·`${}` 로 SQL 글자를 바꾸지 않고 선택 조건·칼럼 선택·`IN` 목록·정렬 선택은 `WHERE`/`ORDER BY` 조건으로 처리한다. 본문은 `<![CDATA[ … ]]>` 로 감싼다. 규칙·예시는 [`oracle-sql-rules.md` 4.7](../../../Database/oracle-sql-rules.md#47-정적-sql하드-파싱-줄이기).
+- (why?) 값에 따라 SQL 글자가 바뀌면 글자마다 하드 파싱·커서가 따로 생기고, XML 태그가 낀 SQL 은 복사해 SQL Developer 에서 그대로 돌릴 수 없다.
 - MUST: INSERT/UPDATE 시 감사 컬럼 바인딩(`#{cUsrId}`, `#{uAt}` 등) 을 직접 작성한다.
 - MUST: INSERT 는 `VER = 0`, UPDATE 는 `VER = VER + 1` 을 포함한다.
 - (why?) `CactusMybatisAuditInterceptor` 가 파라미터 Map 에 값을 자동 주입하지만, SQL 자체는 수정하지 않기 때문이다.

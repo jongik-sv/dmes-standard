@@ -10,6 +10,7 @@
 - **단순한 CRUD 는 JPQL·Spring Data**: 엔티티 저장·조회·페이징은 Hibernate 가 `OracleDialect` 로 만들게 두고, 계층 조회·`MERGE`·대량 갱신처럼 Oracle 기능이 필요한 곳만 네이티브 SQL 로 쓴다.
 - **운영 Oracle 버전은 23 미만일 수 있다**: 23ai 에서만 되는 기능(`BOOLEAN` 열, `CREATE TABLE IF NOT EXISTS` 같은 `IF [NOT] EXISTS`, `FROM` 없는 `SELECT`)은 쓰지 않는다. 19c·21c 에서 도는 구문으로 쓴다.
 - **로컬에서 먼저 확인**: 로컬·시험이 운영과 같은 Oracle 이므로 SQL 오류(`ORA-00904`·`ORA-12899` 등)는 로컬 시험에서 드러난다. 시험을 돌리지 않고 운영 반영을 기다리지 않는다.
+- **쿼리 하나의 SQL 글자는 늘 같아야 한다(정적 SQL)**: MyBatis `<if>`·`<foreach>`·`${}`·자바 문자열 조립으로 SQL 글자를 바꾸지 않고 선택 조건은 `WHERE` 에서 처리한다. 하드 파싱을 줄이고, 매퍼에서 SQL 을 그대로 복사해 디버깅하기 위해서다. 상세는 [4.7](#47-정적-sql하드-파싱-줄이기).
 - **마이그레이션은 Flyway V 파일**: 스키마 변경은 `db/migration/**` 의 새 `V<n>` 파일로만 한다. 이미 머지된 V 파일(특히 V1 baseline)은 고치지 않는다 — 머리 주석 한 줄도 체크섬을 바꾼다. 절차는 [`flyway-migration-add` 스킬](../../../.claude/skills/flyway-migration-add/SKILL.md).
 
 ## 2. Oracle 에서 실수하기 쉬운 점
@@ -24,7 +25,7 @@
 | 시각 | 감사 칸(`C_AT`·`U_AT`)과 `Instant` 는 `TIMESTAMP(6)` 로 두고 `preferred_instant_jdbc_type: TIMESTAMP`, `hibernate.jdbc.time_zone` 은 넣지 않는다. JVM 은 `-Duser.timezone=Asia/Seoul` 이라 값은 KST 로 저장된다. `DATE` 는 시각까지 든다(날짜 비교는 `TRUNC`). 현재 시각은 DB 함수보다 앱이 만든 값을 바인딩하고 바인딩 전에 초 단위로 절삭한다(MDM 관례) | 시각이 9시간 어긋남, 비교 불일치 |
 | CLOB | `@Lob`(CLOB) 칸에 JPQL `UPPER`·`LOWER`·`LIKE` 를 쓰면 `FunctionArgumentException` 이 난다. 네이티브 SQL(`DBMS_LOB`·`TO_CHAR`)로 바꾸거나 4000바이트 이하면 `VARCHAR2(4000 CHAR)` 로 둔다 | 기동은 되고 그 조회에서 예외 |
 | 정렬 NULL | `ASC` 는 NULL 이 뒤, `DESC` 는 NULL 이 앞이다. 순서가 중요하면 `NULLS FIRST/LAST` 를 쓴다 | 화면 순서가 흔들림 |
-| IN 목록 | 한 `IN` 목록은 1000개까지다. 넘으면 나누거나 임시 키 표·서브쿼리로 바꾼다 | `ORA-01795` |
+| IN 목록 | 한 `IN` 목록은 1000개까지다. 넘으면 나누거나 임시 키 표·서브쿼리로 바꾼다. 목록 길이가 가변이면 `JSON_TABLE` 로 바인드 하나에 담는다([4.7](#47-정적-sql하드-파싱-줄이기)) | `ORA-01795` |
 | DDL 자동 커밋 | DDL 은 문장마다 커밋된다. V 파일 하나가 중간에 실패하면 앞부분만 적용된 채 남으므로 파일을 작게 나누고 재실행에 안전하게 쓴다 | 반쯤 적용된 스키마 |
 | DDL 직후 읽기 | `READ ONLY`·`SERIALIZABLE` 트랜잭션이 열려 있는 동안 다른 곳에서 표 정의를 바꾸면 그 트랜잭션의 읽기가 `ORA-01466`(표 정의가 바뀜)이 난다. DDL 뒤에는 새 트랜잭션·새 연결로 읽는다(시험에서 표를 만든 직후 같은 연결로 읽을 때 주의) | `ORA-01466` |
 | 숫자 정렬 | 숫자를 문자 칸에 넣으면 문자 순서로 정렬된다. 정렬 키는 숫자 칸으로 둔다 | 1, 10, 2 순서 |
@@ -90,7 +91,7 @@
    AND    A.ITEM_CD = :itemCd
    ```
 
-6. **선택 조건 `(:p IS NULL OR col = :p)` 는 허용한다.** 칼럼 쪽을 원형으로 두기만 하면 된다(`(:p IS NULL OR UPPER(col) = :p)` 처럼 칼럼에 함수를 씌우면 금지). 다만 선택 조건이 여러 개이고 표가 크면 이 패턴은 계획이 한 가지로 굳어 느려지기 쉽다. 그런 곳은 MyBatis `<if>` 같은 동적 SQL 로 값이 있는 조건만 SQL 에 넣는 편이 계획이 좋다. 정적 SQL 만 쓰는 위젯 쿼리는 이 패턴을 쓰되 기간 조건과 행 상한을 함께 둔다.
+6. **선택 조건 `(:p IS NULL OR col = :p)` 는 정적 SQL 의 기본 방법이다**([4.7](#47-정적-sql하드-파싱-줄이기)). 칼럼 쪽을 원형으로 두기만 하면 된다(`(:p IS NULL OR UPPER(col) = :p)` 처럼 칼럼에 함수를 씌우면 금지). 선택 조건이 여러 개인 큰 표에서 이 가드 때문에 인덱스를 못 쓰면(실행 계획으로 확인) **SQL 글자를 조건에 따라 바꾸지 말고**(MyBatis `<if>`·자바 문자열 조립 금지) **고정된 몇 개의 정적 쿼리**로 나눠 코드에서 고른다. 쿼리 개수만큼만 하드 파싱된다. 선례: mcm-core `SecUserRepository.searchByFilter`(검색어 없음/있음 두 쿼리, sargable-1008). 위젯 쿼리처럼 가드를 쓰는 쿼리는 기간 조건과 행 상한을 함께 둔다.
 
 7. **위젯 쿼리의 날짜 조회 조건은 `yyyyMMdd` 글자로 들어온다**(시스템 변수 `:today` 와 같은 형, 화면 안내는 `src/frontend/m-mcm/widget-types/_query/ParamsEditor.tsx` 의 힌트). 날짜·시각 칼럼과는 `TO_DATE(:이름, 'YYYYMMDD')` 로 바꿔 비교한다. 칼럼 쪽 `TO_CHAR` 로 맞추지 않는다. 보기 좋게 만드는 변환은 `SELECT` 목록에만 쓴다.
 
@@ -151,7 +152,7 @@ SQL 을 쓰는 모양을 하나로 맞춘다(사용자 확정, 2026-10-08). 키�
 
 **적용 범위**: 가이드·스킬의 예시와 앞으로 새로 쓰거나 고치는 SQL(매퍼 XML·위젯 쿼리·V 파일의 조회문·Java 텍스트 블록 포함)이다. **기존 SQL 은 손댈 때만** 이 서식으로 바꾼다. 서식만 바꾸려고 일괄로 고치지 않는다(diff 가 커지고 SQL 의 변경 이력이 묻힌다).
 
-모든 규칙을 한 번에 보여 주는 샘플 파일이 [`samples/`](samples/) 에 있다: [`query-format-basic.sql`](samples/query-format-basic.sql)(기본 SELECT·쉼표 조인·`(+)`·GROUP BY·ORDER BY·바인드), [`query-format-with.sql`](samples/query-format-with.sql)(WITH·인라인 뷰·EXISTS/IN·CASE·스칼라 서브쿼리), [`query-format-mybatis.xml`](samples/query-format-mybatis.xml)(`<if>`·`<foreach>`), [`query-format-analysis.sql`](samples/query-format-analysis.sql)(한글 별칭 분석용, 기준 예시 원문). 표·칼럼 이름은 예시이며 실재하지 않아도 된다.
+모든 규칙을 한 번에 보여 주는 샘플 파일이 [`samples/`](samples/) 에 있다: [`query-format-basic.sql`](samples/query-format-basic.sql)(기본 SELECT·쉼표 조인·`(+)`·GROUP BY·ORDER BY·바인드), [`query-format-with.sql`](samples/query-format-with.sql)(WITH·인라인 뷰·EXISTS/IN·CASE·스칼라 서브쿼리), [`query-format-mybatis.xml`](samples/query-format-mybatis.xml)(정적 SQL: `<![CDATA[ ]]>` 본문·`WHERE` 선택 조건·칼럼 선택·`JSON_TABLE` IN 목록·정렬 선택), [`query-format-analysis.sql`](samples/query-format-analysis.sql)(한글 별칭 분석용, 기준 예시 원문). 표·칼럼 이름은 예시이며 실재하지 않아도 된다.
 
 ### 4.1 기본 규칙
 
@@ -325,21 +326,114 @@ FROM   TB_M47_PRD_ACT_CMN A
 
 ### 4.6 MyBatis XML
 
-같은 서식을 태그 안에서 그대로 유지한다. `<if>`·`<foreach>` 같은 태그는 SQL 본문보다 들여 쓰지 않아도 된다. `<if>` 안의 조건은 `AND    ` 로 시작한다. `<` 가 든 비교는 `<![CDATA[ … ]]>` 로 감싼다.
+같은 서식을 매퍼에서도 그대로 유지하되, **SQL 은 정적으로 쓴다**(4.7). 동적 태그(`<if>`·`<choose>`·`<where>`·`<trim>`·`<set>`·`<foreach>`)와 `${}` 는 쓰지 않는다.
+
+- **본문은 `<select>`·`<insert>`·`<update>`·`<delete>` 바로 안을 `<![CDATA[ … ]]>` 하나로 감싼다**(기본). 본문에 XML 태그가 끼지 않으므로 SQL 을 통째로 복사해 SQL Developer·sqlplus 에서 그대로 돌릴 수 있고(바인드 `#{이름}` 만 `:이름` 으로 바꾼다), `<`·`>` 비교도 이스케이프 없이 쓴다. `]]>` 라는 글자가 SQL 안에 들어가지 않게만 한다.
+- **CDATA 안의 SQL 은 4칸 들여 쓴다**: `<![CDATA[` 와 `]]>` 는 `<select>` 보다 4칸 안쪽의 같은 열에 혼자 한 줄로 쓰고, SQL 은 같은 열에서 시작한다. SQL 안은 4.1~4.5 규칙 그대로다.
+- **선택 조건은 `WHERE` 에서 `(#{p} IS NULL OR 칼럼 = #{p})` 로 쓴다.** Oracle 은 `''` 를 NULL 로 보므로 빈 문자열도 「조건 없음」 이다. `NULL` 바인드는 공통 설정 `jdbcTypeForNull=NULL`(`cactus-core` 의 `cactus-mybatis-config.xml`)이 처리한다. 이 설정을 쓰지 않는 `SqlSessionFactory` 면 `#{p, jdbcType=VARCHAR}` 처럼 타입을 적는다.
+- 정적 SQL 은 MyBatis 가 기동 때 한 번만 해석한다(동적 태그가 있으면 호출마다 해석한다).
 
 ```xml
 <select id="selectProcList" resultType="map">
+    <![CDATA[
     SELECT A.PROC_CD
          , B.PROC_NM
+         , A.COIL_WGT
     FROM   TB_M47_PRD_ACT_CMN A
          , TB_M47_PROC B
     WHERE  B.PROC_CD = A.PROC_CD
     AND    A.PDN_PST_DD BETWEEN #{fromDd} AND #{toDd}
-    <if test="procCd != null and procCd != ''">
-    AND    A.PROC_CD = #{procCd}
-    </if>
-    ORDER BY A.PROC_CD
+    AND    (#{procCd} IS NULL OR A.PROC_CD = #{procCd})
+    AND    (#{lotNo} IS NULL OR A.LOT_NO LIKE #{lotNo} || '%')
+    ORDER BY A.PDN_PST_DD DESC, A.PROC_CD
+    ]]>
 </select>
 ```
 
-`<where>` 를 쓰면 MyBatis 가 맨 앞 `AND` 를 떼므로 첫 조건이 `<if>` 안에 있어도 된다. 그때도 안쪽 조건은 `AND    ` 로 시작한다(`<where>` 태그가 `WHERE` 를 만들기 때문에 소스에서는 `WHERE` 열 맞춤이 보이지 않아도 된다).
+값에 따라 비교 칼럼이 바뀌면 그 분기를 조건으로 쓴다. 가변 `IN` 목록은 JSON 배열 문자열 하나를 바인드해 `JSON_TABLE` 로 푼다. 정렬 칼럼·방향도 `ORDER BY CASE` 로 고른다.
+
+```xml
+<select id="selectCodeList" resultType="map">
+    <![CDATA[
+    SELECT A.PROC_CD
+         , A.CODE_VAL
+         , A.CODE_VAL_MEAN
+    FROM   TB_M47_CODE A
+    WHERE  A.USE_YN = 'Y'
+    AND    (
+               #{procCdsJson} IS NULL
+            OR A.PROC_CD IN (SELECT J.V FROM JSON_TABLE(#{procCdsJson}, '$[*]' COLUMNS (V VARCHAR2(20) PATH '$')) J)
+           )
+    AND    (
+               #{pDiv} IS NULL
+            OR (#{pDiv} = 'CODE_VAL' AND A.CODE_VAL LIKE #{pValue} || '%')
+            OR (#{pDiv} = 'CODE_VAL_MEAN' AND A.CODE_VAL_MEAN LIKE #{pValue} || '%')
+           )
+    ORDER BY CASE WHEN #{sortCol} = 'CODE_VAL' AND #{sortDir} = 'DESC' THEN A.CODE_VAL END DESC
+         , CASE WHEN #{sortCol} = 'CODE_VAL' THEN A.CODE_VAL END
+         , A.PROC_CD
+    ]]>
+</select>
+```
+
+`procCdsJson` 은 서비스가 `["1P","33","51"]` 같은 문자열로 만들어 넘긴다(목록이 비면 `null`). 전체 모양은 [`samples/query-format-mybatis.xml`](samples/query-format-mybatis.xml) 에 있다.
+
+### 4.7 정적 SQL(하드 파싱 줄이기)
+
+사용자 결정(2026-10-08): 「MyBatis 안에 `<if>` 구문 등 하나의 쿼리를 여러 번 하드 파싱 할 수 있는 경우를 만들고 싶지 않다. 필요한 경우 WHERE 절 조건절에서 처리하는 것이 좋겠다.」 「쿼리 안에 XML 태그를 쓰면 나중에 쿼리를 가지고 디버깅하기도 힘들다.」
+
+**규칙: 쿼리 하나(매퍼 statement id, 리포지토리 메서드 하나)는 SQL 글자가 늘 같아야 한다.** 바인드 값이 무엇이든 DB 에 나가는 SQL 글자가 같으면 한 번 파싱한 커서를 계속 쓴다.
+
+**이유**
+
+- **하드 파싱·커서**: Oracle 은 SQL 글자가 한 글자라도 다르면 별개 문장으로 보고 따로 하드 파싱하고 공유 풀에 커서를 따로 둔다. 값에 따라 글자가 바뀌는 쿼리(`<if>` 조합 N개면 최대 2^N 가지)는 조합마다 파싱 비용과 풀 메모리를 쓰고, 풀이 차면 다른 쿼리까지 밀려난다. `${}` 는 값까지 글자에 들어가 값마다 새 문장이 되고 SQL 주입 통로도 된다.
+- **디버깅**: 정적 SQL 은 매퍼(또는 리포지토리)에서 그대로 복사해 SQL Developer·sqlplus 에 붙이고 바인드 값만 넣어 실행할 수 있다. 어떤 SQL 이 실제로 나갔는지 추측할 필요가 없다. 동적 태그가 있으면 어느 조합이 실행됐는지 로그를 보고 다시 맞춰야 하고, 본문에 XML 태그가 끼면 복사해서 돌릴 수도 없다. 그래서 매퍼 본문은 4.6 처럼 `<![CDATA[ … ]]>` 하나로 감싼다.
+
+**금지**
+
+- MyBatis `<if>`·`<choose>`/`<when>`/`<otherwise>`·`<where>`·`<trim>`·`<set>`·`<foreach>` 로 SQL 글자를 바꾸는 것(`<bind>` 로 만든 값을 `#{}` 로만 쓰는 경우는 글자가 바뀌지 않으므로 허용하지만 가급적 서비스에서 계산해 넘긴다).
+- `${}` 문자열 치환(표·칼럼 이름이든 정렬이든 쓰지 않는다).
+- 자바에서 SQL·JPQL 문자열을 조건에 따라 이어 붙이는 것(`StringBuilder`·`+`·`String.format` 으로 `WHERE`/`AND`/`ORDER BY` 조립).
+- `Specification`·`CriteriaBuilder` 로 조건 개수가 바뀌는 쿼리.
+
+**선택 조건은 `WHERE` 에서 처리한다**
+
+```sql
+AND    (#{procCd} IS NULL OR A.PROC_CD = #{procCd})
+```
+
+Oracle 은 `''` 를 NULL 로 보므로 빈 문자열도 「조건 없음」 이 된다. `NULL` 바인드는 MyBatis 의 `jdbcTypeForNull=NULL`(공통 설정)이 처리한다. 이 설정을 쓰지 않는 `SqlSessionFactory` 면 `#{procCd, jdbcType=VARCHAR}` 로 쓴다. 칼럼 쪽에는 함수를 씌우지 않는다(3장 sargable).
+
+**값에 따라 비교 칼럼이 바뀌는 경우**(예: `pDiv` 가 `CODE_VAL` 이면 `CODE_VAL`, `CODE_VAL_MEAN` 이면 그 칼럼): 분기를 조건으로 쓴다.
+
+```sql
+AND    (
+           (#{pDiv} = 'CODE_VAL' AND A.CODE_VAL LIKE #{pValue} || '%')
+        OR (#{pDiv} = 'CODE_VAL_MEAN' AND A.CODE_VAL_MEAN LIKE #{pValue} || '%')
+       )
+```
+
+**가변 `IN` 목록**: JSON 배열 문자열 하나를 바인드해 `JSON_TABLE` 로 푼다. 목록 길이가 달라도 SQL 글자가 같고 `ORA-01795`(1000개) 한도도 없다.
+
+```sql
+AND    A.PROC_CD IN (SELECT J.V FROM JSON_TABLE(#{procCdsJson}, '$[*]' COLUMNS (V VARCHAR2(20) PATH '$')) J)
+```
+
+목록이 비면 「조건 없음」 으로 다루려면 `(#{procCdsJson} IS NULL OR …)` 로 감싼다(4.6 예시). 이 줄이 120자를 넘으면 위 4.5 블록 모양으로 펼친다. 바인드 문자열은 4000바이트 안이어야 한다. 더 길면 `CLOB` 으로 바인드하거나 임시 키 표를 쓴다. `JSON_TABLE` 은 행 수를 고정값으로 추정하므로 항목이 몇 개 안 될 때 계획이 기대와 다르면 실행 계획을 확인한다.
+
+**정렬**: 정렬 칼럼·방향 선택은 `ORDER BY CASE` 로 쓴다. 칼럼마다, 방향마다 `CASE` 를 하나씩 두고 마지막에 유일한 키를 둔다(4.6 예시).
+
+```sql
+ORDER BY CASE WHEN #{sortCol} = 'PROC_NM' AND #{sortDir} = 'DESC' THEN B.PROC_NM END DESC
+     , CASE WHEN #{sortCol} = 'PROC_NM' THEN B.PROC_NM END
+     , A.PROC_CD
+```
+
+**JPA·JdbcTemplate 에도 같다**
+
+- `@Query`·메서드 이름 쿼리의 JPQL 도 `(:procCd IS NULL OR e.procCd = :procCd)` 로 쓴다. Hibernate 가 null 바인드의 타입을 추론하지 못하면 `cast(:procCd as string)` 이나 네이티브 쿼리로 바꾼다.
+- JPA `in :list`·`IN (:ids)` 는 목록 길이마다 SQL 글자(`?` 개수)가 달라진다. 길이가 가변이면 위 `JSON_TABLE` 방식의 네이티브 쿼리를 쓰거나, Hibernate `hibernate.query.in_clause_parameter_padding=true`(`spring.jpa.properties` 아래)로 목록을 2의 거듭제곱 개로 맞춰 글자 종류를 줄인다(이 저장소는 아직 켜지 않았다). `NamedParameterJdbcTemplate` 의 `IN (:list)` 도 같은 문제다.
+- `JdbcTemplate`·`NamedParameterJdbcTemplate`·네이티브 쿼리의 SQL 은 상수 문자열(`static final` 또는 텍스트 블록) 하나로 두고, 조건에 따라 이어 붙이지 않는다.
+- 조건 개수가 바뀌는 검색 화면을 `Specification`/`CriteriaBuilder` 로 만들지 않는다. 위 `WHERE` 가드 방식의 JPQL·네이티브 쿼리로 쓴다.
+
+**성능 예외**: 선택 조건 가드 때문에 큰 표에서 인덱스를 못 쓰면(실행 계획으로 확인, 3장 규칙 6) 조건 조합을 동적으로 만들지 않고 **고정된 몇 개의 정적 쿼리**로 나눠 코드에서 고른다(예: 검색어 없음/있음 두 쿼리). 쿼리 개수만큼만 하드 파싱된다. 선례: mcm-core `SecUserRepository.searchByFilter`(sargable-1008).
