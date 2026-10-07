@@ -3,6 +3,8 @@ package com.dongkuk.dmes.mcm.config;
 import com.zaxxer.hikari.HikariDataSource;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.jpa.HibernatePersistenceProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -36,6 +38,11 @@ import java.util.Properties;
 @Configuration
 public class JpaConfig {
 
+    private static final Logger log = LoggerFactory.getLogger(JpaConfig.class);
+
+    /** 기본 DataSource 연결 지연 획득 스위치({@link #lazyConnection}). */
+    static final String LAZY_CONNECTION_KEY = "dmes.datasource.lazy-connection";
+
     @Bean
     @Primary
     public DataSource dataSource(Environment env) {
@@ -45,7 +52,10 @@ public class JpaConfig {
         // 물리 접속/풀은 각 WildFly standalone.xml 소유 — 여기선 컨테이너 관리 풀을 조회만 한다.
         String jndiName = env.getProperty("spring.datasource.jndi-name");
         if (jndiName != null && !jndiName.isBlank()) {
-            return new JndiDataSourceLookup().getDataSource(jndiName);
+            DataSource jndi = new JndiDataSourceLookup().getDataSource(jndiName);
+            boolean lazy = lazyConnection(env);
+            log.info("[mcmDataSource] 기본 DataSource JNDI {} 연결 지연 획득={}", jndiName, lazy); // 풀 값은 컨테이너(standalone.xml) 소유
+            return lazy ? new LazyPrimaryDataSource(jndi, null) : jndi; // 컨테이너 풀은 닫지 않는다
         }
 
         // ── HikariCP 직결 경로 (local = 로컬 Oracle PDB 의 MCMAPUSER) ──
@@ -80,7 +90,20 @@ public class JpaConfig {
         Long leakDetectionThreshold = env.getProperty("spring.datasource.hikari.leak-detection-threshold", Long.class);
         if (leakDetectionThreshold != null) ds.setLeakDetectionThreshold(leakDetectionThreshold);
         ds.setPoolName("mcm-host-primary");
-        return ds;
+        boolean lazy = lazyConnection(env);
+        // 기동 확인용 한 줄 — 주소·계정·비밀번호는 남기지 않는다. 쉬는 연결 -1 은 설정 안 함(Hikari 가 최대치로 맞춘다), 누수 감지 0 은 끔.
+        log.info("[mcmDataSource] 기본 풀 {} 최대={} 쉬는연결={} 유휴={}ms 누수감지={}ms 연결 지연 획득={}", ds.getPoolName(),
+                ds.getMaximumPoolSize(), ds.getMinimumIdle(), ds.getIdleTimeout(), ds.getLeakDetectionThreshold(), lazy);
+        return lazy ? new LazyPrimaryDataSource(ds, ds) : ds;
+    }
+
+    /**
+     * 기본 DataSource 연결 지연 획득 스위치 {@code dmes.datasource.lazy-connection}(기본 false) — 켜면 {@link LazyPrimaryDataSource} 로
+     * 감싸 트랜잭션이 시작돼도 첫 SQL 때 풀에서 연결을 받는다(docs/oracle-1007/design-mcm-lazy-ds.md). OASIS txBiz 를 SQL 없이 내려놓고
+     * LLM 을 기다리는 위젯 채팅이 그동안 연결을 쥐지 않게 된다. 끄면 전과 같다(설정 한 줄로 되돌린다).
+     */
+    static boolean lazyConnection(Environment env) {
+        return env.getProperty(LAZY_CONNECTION_KEY, Boolean.class, false);
     }
 
     @Bean

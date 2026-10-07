@@ -47,7 +47,7 @@
 4. ③c(머지 dev e3943844f — 조정 지시 10-07 — ora-mdm E2E 실측 mcm 연결 풀 고갈 교착): 원인은 OASIS txBiz 가 시작할 때 물리 연결을 잡고(READ_COMMITTED 지정 → HibernateJpaDialect.beginTransaction), SecWidgetService.search 가 그 연결을 쥔 채 NOT_SUPPORTED 로 내려가 범위 EM·CRUD readOnly 트랜잭션으로 연결을 더 받은 것(요청당 2~3개). 수정: 읽기는 바깥에 합류, 옛 행 이전 쓰기만 NOT_SUPPORTED + 비차단 1개(못 얻으면 건너뜀). 위젯 SQL 공유 모드는 local yml 에 전용 풀(MCMAPUSER, 최대 2·유휴 0·idleTimeout 10초). 채팅은 주석만. 회귀 시험 SecWidgetPoolExhaustionJpaTest(A 조회만 5명·B 이전 2명·C 이전 풀 크기)와 공유 모드 시험. 결정 3건은 조정 답(10-07, 모두 기본안).
 4-1. ③d(사용자 결정 「메인만 8 + 감지 유지」, 10-07): mcm JpaConfig.dataSource() 가 spring.datasource.hikari 의 minimum-idle·idle-timeout·leak-detection-threshold 를 읽는다(없으면 Hikari 기본 — 종전 동작). local yml 은 최대 3 그대로 + 쉬는 연결 0·유휴 30초·누수 감지 30초. 메인 로컬 서버만 기동 env SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=8(ora-base 기동 스크립트). 실측(최대 8): 기동 직후 연결 1, 3초 뒤 1(더 채우지 않음), 6개 쓰고 돌려준 뒤 55초까지 6, 60초에 0(유휴 30초 + Hikari 정리 주기 30초).
 5. ~~③e~~ 완료(머지④ dev 7b0b18e73 뒤, 10-07): SqliteTemporalConverterContributor·LocalDate(Time)AttributeConverter → `mcm-core/archive/main/persistence/`. 코드·yml 호출처 0(문서 언급만), 변환기는 @Converter 가 없어 자동 적용 대상도 아니었다. 확인: mcm-core·mcm:lib·mcm:api·mdm:api·mls:api 컴파일, clone EntitySchemaValidate 1·oracheck 45(건너뜀 2)·mcm/api Notice·MenuCatalog·config 17 통과.
-6. Lazy 프록시 검토(조정 지시, 브랜치 feat/ora-mcm-lazy-ds — 머지하지 않고 사용자 결정): 설계 메모 docs/oracle-1007/design-mcm-lazy-ds.md(그 브랜치)와 채팅 LLM 대기 중 연결 수 회귀 시험.
+6. ③f Lazy 프록시(브랜치 feat/ora-mcm-lazy-ds, 사용자 결정 10-07 「로컬만 켜고 머지」): 설계 메모 docs/oracle-1007/design-mcm-lazy-ds.md, 채팅 LLM 대기 중 연결 수 회귀 시험(WidgetChatPoolHold{Raw,Lazy}JpaTest), JpaConfigLazyConnectionTest. WildFly 적용은 후속(「후속」 절).
 
 ## 결정
 
@@ -71,6 +71,11 @@
 - 업무기준 동적 표 `MCAAPUSER.TB_MCA_<RULE_ID>` 는 DBA 가 만들고, 만들 때 MCMAPUSER 에 `SELECT, INSERT, UPDATE, DELETE` 를 GRANT 한다(앱은 DDL 을 보내지 않는다).
 - 원장 → 사본 동기화(MCM_SOURCE → MCMAPUSER·MCM_BACKUP)는 동기화 관리 화면이 유일한 경로다(트리거·배치 없음).
 - 시퀀스 `SEQ_MCM_MOM_TC_SEND`·`SEQ_MCM_MOM_TC_ERROR` 는 데이터를 옮긴 뒤 MAX(키)+1 로 다시 맞춘다.
+- mcm 기본 DataSource 연결 지연 획득(`dmes.datasource.lazy-connection`, design-mcm-lazy-ds.md, 사용자 결정 10-07 「로컬만 켜고 머지」): 기본 false, local 만 true 다. wildfly·prod 는 끈다.
+  - 켜면 트랜잭션이 시작돼도 첫 SQL 때 풀에서 연결을 받는다. 그래서 위젯 채팅이 LLM 을 기다리는 동안 연결을 쥐지 않는다.
+  - 기동 로그 한 줄로 확인한다: `[mcmDataSource] 기본 풀 mcm-host-primary 최대=… 쉬는연결=… 유휴=…ms 누수감지=…ms 연결 지연 획득=true|false`(JNDI 면 `[mcmDataSource] 기본 DataSource JNDI <이름> 연결 지연 획득=…`).
+  - 롤백: env `DMES_DATASOURCE_LAZY_CONNECTION=false` 로 두고 재기동하면 전과 같다.
+  - 켠 동안의 위험: 연결 획득 실패가 트랜잭션 시작이 아니라 첫 SQL 에서 난다(예외 종류·위치가 바뀜). 첫 SQL 이 잠금 안에 있으면 연결을 기다리는 시간이 잠금 안으로 들어온다(UserPermCache 등 잠금 캐시 점검). 기동 때 DB 장애로 기본값 감지가 실패하면 지연 획득이 꺼진 채 요청마다 연결을 두 번 기다린다(DB 가 돌아오면 스스로 풀림). Hikari active 의 뜻이 「SQL 을 낸 트랜잭션 수」로 바뀐다.
 
 ## 기준선 근거
 
@@ -120,7 +125,17 @@ c2 로 넘길 것(이 레인):
 
 ## 후속
 
-- LazyConnectionDataSourceProxy 앱 전역 도입 검토(③c 조정 결정 3): 위젯 채팅 send·reset 은 LLM 응답을 기다리는 동안 OASIS 바깥 txBiz 연결과 NOT_SUPPORTED 범위 EM 연결, 최대 3개를 쥔다. 바깥 연결은 DataSource 층 지연 획득으로만 없앨 수 있다(Hibernate 설정으로는 불가 — OASIS 가 READ_COMMITTED 를 지정). 도입하면 Hikari·JNDI 경로를 모두 감싸고, WidgetReadOnlyJdbc.evict(Hikari 연결 클래스만 내보냄)와 종료 close 위임을 함께 고쳐야 한다.
+- LazyConnectionDataSourceProxy: **로컬 적용 완료, WildFly 는 후속**(③f, design-mcm-lazy-ds.md).
+  - 채팅 읽기 짧은 트랜잭션은 늘 켠다. 지연 획득 스위치는 local 만 켠다. evict·종료 close 보강도 함께 들어갔다.
+  - 채팅 LLM 대기 중 연결: dev 2개 → 0개(로컬).
+  - WildFly(dev → prod)에서 켜기 전에 볼 것(설계 메모 §4):
+    1. jta=true 데이터소스를 resource-local 로 쓸 때 CCM 「닫지 않은 연결」 경고
+    2. 컨테이너 transaction-isolation·new-connection-sql 과 감지한 기본값이 맞는지
+    3. 위젯 SQL 공유 모드에서 evict 가 abort 만 하는지
+    4. min-pool-size·prefill 과 사용 시간 지표의 변화
+    5. 기동 때 DB 장애로 기본값 감지가 실패하는 경우
+    6. 잠금 캐시(UserPermCache 등) 안에서 처음 SQL 을 내는지
+  - 사용자가 위 확인 뒤 정한다.
 
 - mdm·mls 쉬는 연결(③d 조정 지시로 사실만 기록): 두 모듈은 기본 DataSource 를 직접 만들지 않아(HikariDataSource 생성 코드 없음) spring.datasource.hikari.* 가 그대로 먹는다. 다만 local yml 에 minimum-idle 이 없어 Hikari 기본(쉬는 연결 = 최대치)대로 연결을 늘 열어 둔다.
 
