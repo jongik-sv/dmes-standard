@@ -17,7 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>모든 쓰기는 {@code REQUIRES_NEW} — 부르는 쪽에 트랜잭션이 있어도 합류하지 않고 호출마다 바로 커밋한다. OASIS 는 서비스
  * 전체를 txBiz 하나로 감싸고 예외면 롤백하므로, 합류하면 공급자 실패 때 사용자 메시지까지 사라진다(스펙 §9.2 위반).
  * LLM 을 기다리는 동안 트랜잭션을 잡지 않는 것은 서비스가 바깥 트랜잭션을 내려놓고(NOT_SUPPORTED) 부르기 때문이다 — 바깥
- * 트랜잭션 안에서 부르지 않아 기다리는 동안 연결·잠금을 쥐지 않는다.
+ * 트랜잭션 안에서 부르지 않아 기다리는 동안 DB 잠금을 쥐지 않는다. 연결은 쥔다 — 내려놓은 바깥 txBiz 의 연결과 범위 EntityManager 의
+ * 연결이 풀로 돌아가지 않고, 여기 {@code REQUIRES_NEW} 는 그 위에 연결을 하나 더 받는다({@link WidgetChatService} 트랜잭션 설명, oracle-1007 ③c).
  * <p><b>사용자별 상한</b>({@code dmes.widget.llm.user-history-limit}, 기본 300): 인스턴스 ID 를 바꿔 가며 쌓아도 한 사용자의 기록은
  * 모든 인스턴스 합계로 상한까지만 남는다 — 넘으면 인스턴스당 100개와 같은 방식으로 그 사용자의 가장 오래된 기록(C_AT 순)부터 지운다.
  * 잠금 없이 세므로 같은 사용자의 동시 쓰기에서는 잠시 한두 개 넘거나 더 지울 수 있는 근사 상한이다(저장 공간 남용 방지용).

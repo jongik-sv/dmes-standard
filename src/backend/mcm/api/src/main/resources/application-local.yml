@@ -34,6 +34,18 @@ dmes:
   flyway:
     enabled: true
     password: ${mcm-local-ora.password}
+  # ── 쿼리 위젯 실행기 전용 풀 (oracle-1007 ③c) ──
+  # 비우면 앱 기본 풀(3개)을 함께 쓰는데, OASIS 바깥 트랜잭션이 연결 하나를 쥔 채 실행기가 같은 풀에서 하나 더 받아
+  # 홈 쿼리 위젯이 동시에 오면 풀이 바닥나 connectionTimeout 까지 멈춘다. 로컬은 같은 PDB 에 따로 붙는 작은 풀을 둔다.
+  widget:
+    query:
+      datasource:
+        url: ${WIDGET_QUERY_DS_URL:${mcm-local-ora.url}}
+        username: MCMAPUSER
+        password: ${mcm-local-ora.password}
+        driver-class-name: oracle.jdbc.OracleDriver
+        maximum-pool-size: 2
+        idle-timeout: 10000      # ms — 쓰지 않는 연결을 빨리 돌려준다(Hikari 최솟값)
 
 # ── Cactus cmn/if/caravan EMF (local — 같은 PDB, 사용자만 다르다) ──
 cactus:

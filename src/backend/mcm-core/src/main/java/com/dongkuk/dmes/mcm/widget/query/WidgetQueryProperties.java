@@ -17,6 +17,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *         password: ${WIDGET_QUERY_DS_PASSWORD:}
  *         driver-class-name: ""
  *         maximum-pool-size: 5
+ *         idle-timeout: 600000       # 직결 풀에서 쉬는 연결을 닫기까지(ms, Hikari 기본값·최솟값 10000)
  * }</pre>
  * 운영에서는 여기에 <b>읽기 권한만 가진 DB 계정</b>을 붙인다 — 실행기의 읽기 전용 강제(연결 readOnly·늘 롤백·방언별 보강)는
  * 보조 방어선이고, 읽기 전용 트랜잭션을 걸 수 없는 DB(Oracle 이 아닌 갈래)는 계정 권한이 유일한 막이다.
@@ -43,6 +44,9 @@ public class WidgetQueryProperties {
     /** 실행기 전용 DataSource. jndi-name 이 있으면 그것, 없고 url 이 있으면 직결 풀, 둘 다 없으면 앱 기본 DataSource. */
     public static class Datasource {
 
+        /** Hikari {@code idleTimeout} 기본값(10분). */
+        static final long DEFAULT_IDLE_TIMEOUT_MS = 600_000L;
+
         private String jndiName = "";
         private String url = "";
         private String username = "";
@@ -50,6 +54,8 @@ public class WidgetQueryProperties {
         private String driverClassName = "";
         /** 직결 풀 최대 연결 수(기본 5). 0 이하면 기본값. */
         private int maximumPoolSize = 5;
+        /** 직결 풀에서 쉬는 연결을 닫기까지 걸리는 시간(ms). 기본은 Hikari 기본과 같은 600000, 0 이하면 기본값. Hikari 는 10000 미만을 10000 으로 올린다. */
+        private long idleTimeout = DEFAULT_IDLE_TIMEOUT_MS;
 
         public String getJndiName() { return jndiName; }
         public void setJndiName(String jndiName) { this.jndiName = jndiName; }
@@ -63,6 +69,8 @@ public class WidgetQueryProperties {
         public void setDriverClassName(String driverClassName) { this.driverClassName = driverClassName; }
         public int getMaximumPoolSize() { return maximumPoolSize; }
         public void setMaximumPoolSize(int maximumPoolSize) { this.maximumPoolSize = maximumPoolSize; }
+        public long getIdleTimeout() { return idleTimeout; }
+        public void setIdleTimeout(long idleTimeout) { this.idleTimeout = idleTimeout; }
 
         @Override
         public String toString() {
@@ -70,7 +78,8 @@ public class WidgetQueryProperties {
                     + ", url=" + (blank(url) ? "(없음)" : "(설정됨)")
                     + ", username=" + (blank(username) ? "(없음)" : "(설정됨)")
                     + ", password=" + (blank(password) ? "(없음)" : "(설정됨)")
-                    + ", driverClassName=" + driverClassName + ", maximumPoolSize=" + maximumPoolSize + "}";
+                    + ", driverClassName=" + driverClassName + ", maximumPoolSize=" + maximumPoolSize
+                    + ", idleTimeout=" + idleTimeout + "}";
         }
 
         private static boolean blank(String s) {
