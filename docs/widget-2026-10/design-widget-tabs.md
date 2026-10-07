@@ -5,6 +5,9 @@
 
 ## 1. 결정 사항 (사용자 §0 + 레인 기본안)
 
+> **2026-10-07 개정: 고정 탭** — [2026-10-07-widget-fixed-tabs-design.md](../superpowers/specs/2026-10-07-widget-fixed-tabs-design.md) 참고. 기본 탭은 이제 사용자 개인화·재정의 행·「기본으로 되돌리기」 없이 **늘 보이고 사용자가 편집할 수 없는 고정 탭**이다(되돌리기 없음). 부서 사슬은 첫 키 하나가 아니라 전체가 탭으로 쌓이고, 한도는 개인 탭(`tab-N`)만 세어 10개다. 아래 옛 문장은 지우지 않고 둔다.
+
+
 - 기본 탭 = 관리자가 전사(`*`)·부서 키에 두는 탭 여러 개. 「홈」 기본 배치(`TB_MCM_WIDGET_DEFAULT_LAYOUT`)는 **건드리지 않는다**(widgetDef/list 의 homeDefault 불변). 홈 외 기본 탭은 새 테이블 2개에 둔다.
 - 기본 탭 ID 는 `def-N`(전역 유일, 최대 30자). 사용자 탭 `tab-N`·`home` 과 구분된다.
 - 사용자의 기본 탭 집합 = 부서 사슬(자기 부서 → 상위, 최대 10단) → 전사(`*`) 중 기본 탭이 하나라도 있는 첫 키의 집합 전체.
@@ -25,6 +28,9 @@
 
 ### 3.1 사용자 secWidget (AUTH_ONLY, 모두 `requireUser()` 로 본인 기준)
 
+> **2026-10-07 개정: 고정 탭** — [2026-10-07-widget-fixed-tabs-design.md](../superpowers/specs/2026-10-07-widget-fixed-tabs-design.md) 참고. `search` 는 고정 탭 줄(`fixedYn=Y`·`origin`)을 돌려주고, `saveTab`·`deleteTab` 은 `home`·`def-*`·`dept-*` 를 거절하며, `resetHome`·`resetTab` 은 행을 지우지 않고 거절한다(되돌리기 없음). 개인 탭 한도는 `tab-N` 만 센다. `shareTab` 원본은 관리자 배치다.
+
+
 - `search` 응답 `tabs[]` 줄에 `defaultYn`("Y"|"N"), `customYn`("Y"|"N", 기본 탭의 사용자 재정의 행이 있으면 Y) 추가. 사용자 탭 목록 = 홈(기존 로직) + 해석된 기본 탭(재정의 행 있으면 그것의 배치·잠금, 없으면 기본 배치, 이름·순서는 항상 관리자 값, tabSeq 는 100+관리자 순서) + 일반 사용자 탭. `widgets[]` 는 기존 필드 그대로이며 기본 탭 줄의 `tabId` 가 `def-N` 이다. 해석 집합에 없는 `def-*` 재정의 행은 숨긴다.
 - `saveTab` 이 `def-N` 을 받으면: 사용자의 해석 집합에 있는 ID 일 때만 허용(없으면 BusinessException), tabNm 은 관리자 이름으로 덮어쓴다(요청 이름 무시), seq 는 쓰지 않는다. `deleteTab` 이 `def-*` 를 받으면 거절.
 - `reorderTabs` 는 `def-*` 를 건너뛴다(순서 고정).
@@ -44,6 +50,9 @@
 - `deleteLayout` 은 그 키의 홈 기본 배치와 기본 탭을 모두 지운다.
 
 ## 4. 화면
+
+> **2026-10-07 개정: 고정 탭** — [2026-10-07-widget-fixed-tabs-design.md](../superpowers/specs/2026-10-07-widget-fixed-tabs-design.md) 참고. shared `WidgetTab` 에 `fixed?`·`origin?`, `WidgetWorkspace` 에 `fixedHome?`·`homeTabName?`, `WidgetBoard` 에 `emptyText?` 가 더해졌다. 고정 탭은 [배치 편집]이 막히고 메뉴에는 공유·내보내기만 있으며, 기본 탭 개인화·「기본으로 되돌리기」·「홈 기본 배치로 되돌리기」는 `fixedHome` 을 쓰지 않는 사용처 호환용으로만 남는다.
+
 
 - shared `WidgetTab` 에 `defaultTab?: boolean`, `customized?: boolean` 추가. `WidgetStore` 에 선택 메서드 `resetTab?(tabId)`, `shareTab?(tabId, userIds)`, `searchUsers?(keyword)` 추가(없으면 해당 메뉴 안 보임). 기존 시그니처 변경 없음.
 - `WidgetWorkspace` 에 `mode?: "user" | "admin"`(기본 user) 추가. admin 에서는 탭 잠그기·홈 되돌리기·공유·내보내기·가져오기 메뉴를 숨긴다. 탭 이름 바꾸기·옮기기·지우기는 홈 외 탭에 허용.
