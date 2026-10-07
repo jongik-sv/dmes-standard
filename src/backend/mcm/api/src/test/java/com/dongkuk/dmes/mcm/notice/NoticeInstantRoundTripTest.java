@@ -53,10 +53,11 @@ class NoticeInstantRoundTripTest extends McmNoticeTestDb {
         n.setNoticeCategory("GENERAL");
         n.setPinYn("N");
         n.setTargetScope("ALL");
-        notices.saveAndFlush(n);
-        assertThat(n.getCreatedAt()).isNotNull();
+        // id 를 직접 넣는 엔티티라 save 는 merge 로 가고, @PrePersist 는 merge 가 만든 관리 사본에 C_AT 를 채운다 — 반환값을 쓴다.
+        Notice persisted = notices.saveAndFlush(n);
+        assertThat(persisted.getCreatedAt()).isNotNull();
         // TIMESTAMP(6) 은 마이크로초까지 담는다 — Instant.now() 의 남는 자리는 잘라 비교한다.
-        Instant saved = n.getCreatedAt().truncatedTo(ChronoUnit.MICROS);
+        Instant saved = persisted.getCreatedAt().truncatedTo(ChronoUnit.MICROS);
 
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         // 같은 트랜잭션 연결로 읽는다(@Transactional 이 JDBC 연결도 묶는다).

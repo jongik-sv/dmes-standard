@@ -2,14 +2,14 @@
 
 - 레인: ora-mcm-app / 브랜치 `feat/ora-mcm-app` / 워크트리 `/Users/jji/project/dmes-wt/ora-mcm-app`
 - 조정 세션: dmes-standard-d8 (지시 ora-mcm-app-1, 원문 `/Users/jji/.coord/oracle-1007/lanes/ora-mcm-app/brief.md`)
-- 갱신: 2026-10-07 18:50 KST
+- 갱신: 2026-10-07 19:00 KST
 
 ## 지금 상태
 
 | 항목 | 상태 | 커밋·비고 |
 |---|---|---|
-| a1 Flyway·Java DDL 제거 | 코드 완료, **Oracle 시험 미통과(한 번도 끝까지 못 돎)** | dd985b781(본체), ced723336(시험 전환), efa57059c(dev 합치기, fb253556d 포함) |
-| a1 리뷰(opus/high) | 지적 9건 중 7건 반영·전달, **blocker 1건 남음**(지문 골든) | 아래 「리뷰 지적」 |
+| a1 Flyway·Java DDL 제거 | Oracle 시험 끝까지 돎(18:35~18:53, 162개 중 실패 1·건너뜀 1). 실패 1건은 시험 버그(아래)라 고쳐 단독 재실행 | dd985b781(본체), ced723336(시험 전환), efa57059c(dev 합치기, fb253556d 포함) |
+| a1 리뷰(opus/high) | 지적 9건 반영·전달 끝(blocker 지문 골든 재생성·대조 완료) | 아래 「리뷰 지적」 |
 | SQLite 치환 API 호출 제거 | **완료** — mcm main·시험에서 setSqlite·isSqlite·toSqliteCompatible·stripUnicodeLiteralPrefix·McmSqliteMybatisInterceptor·SqliteTemporalConverterContributor 호출 0건(grep) | 남은 것은 application.yml 의 `statement_inspector` 설정 1줄(JpaConfig 가 직접 만든 EMF 에는 적용되지 않는 옛 감사 inspector 설정, 치환 API 아님) |
 | CaravanMetaSeeder 가드 | **사용자 확인 대기** | 조정자 승인(표가 없으면 ORA-00942 만 경고 뒤 건너뜀). 사용자가 명령을 거절해 되돌렸다. 패치는 세션 scratchpad `caravan-guard.patch` |
 | a2 `''` 비교 | 작업 트리에 수정 2건(미커밋) | McmMenuSeeder.normalizeSecMenuCharColumns(`LTRIM(RTRIM(c)) IS NULL` — fix), NoticeRepository(`OR :p = ''` 제거 — refactor). 커밋 때 특성화 골든 4개 재생성 필요 |
@@ -31,10 +31,13 @@ Oracle: 18:24 인스턴스 스래싱으로 조정자 동결 → 이 레인 프�
 
 ## 리뷰 지적(a1, opus/high, 9건)
 
-1. blocker — 지문 골든을 Oracle 에서 다시 만들어야 함: 시험 PDB 에서 `FINGERPRINT_UPDATE=true` 로 재생성하고 옛 SQLite 골든과 표별 행 수 대조 결과를 이 메모에 남긴다. **남음**
+1. blocker — 지문 골든을 Oracle 에서 다시 만들어야 함 — **반영**. 시험 PDB 에서 `FINGERPRINT_UPDATE=true` 로 재생성했다. 옛 SQLite 골든과 대조:
+   - 겹치는 표 57개의 행 수가 모두 같다(시드가 있는 표 15개: TB_MCA_RULE_MASTER 6, TB_MCM_DEPT_INFO 7, TB_MCM_SEC_MENU 45, TB_MCM_SEC_MENU_FLD 15, TB_MCM_SEC_OBJ 54, TB_MCM_SEC_PERM 4, TB_MCM_SEC_ROLE 3, TB_MCM_SEC_ROLEGROUP 3, TB_MCM_SEC_ROLEGROUP_MAPPING 3, TB_MCM_SEC_ROLE_MAPPING 105, TB_MCM_SEC_USER 1, TB_MCM_SEC_USER_MAPPING 1, TB_MCM_SEC_USER_PWD 1, TB_SEC_CODE_GROUP 1, TB_SEC_CODE_ITEM 6).
+   - 빠진 2줄: HTE_TB_MCM_MOM_TC_SEND(Hibernate 임시 표, 0행)·SEQ_MCM_MOM_TC_SEND(시퀀스 흉내 표, 1행) — V1 이 임시 표를 빼고 실제 SEQUENCE 로 바꿨다(V1 머리 주석).
+   - 해시는 모두 다르다: 값 표기(숫자·시각·NULL)가 SQLite 와 달라서다. __SCHEMA__ 는 셈 기준이 바뀌었다(SQLite 67 → Oracle ALL_OBJECTS·ALL_TAB_COLUMNS 1106).
 2. CaravanMetaSeeder 가 caravan 표 없으면 기동 실패 → 가드(사용자 확인 대기)
 3. local 기본 PDB FREEPDB1 → L_ORA_MCM_APP, dmes.ora.* 속성 — 반영
-4. Instant 왕복 시험 — 반영(NoticeInstantRoundTripTest, 미실행). JVM TZ 고정은 ora-base 몫 → fb253556d 에서 고정됨
+4. Instant 왕복 시험 — 반영(NoticeInstantRoundTripTest). 첫 실행 실패는 시험 버그: id 를 직접 넣는 엔티티라 save 가 merge 로 가서 @PrePersist 는 반환된 사본에 C_AT 를 채운다 → 반환값을 쓰게 고침. JVM TZ 고정은 ora-base 몫 → fb253556d 에서 고정됨
 5. McmMenuSeeder `= ''` — a2 로 수정(미커밋)
 6. sample_notice.active boolean — ora-mcm-core 에 전달(조정 승인)
 7. 옛 MSSQL 데이터 보정 소실 — 적재기(ora-base) 확인 항목으로 전달
