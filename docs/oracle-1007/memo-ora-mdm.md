@@ -88,7 +88,8 @@
 - `MdmTemporalBinder` 는 생성자 인자가 없어졌다(`new MdmTemporalBinder()`). 상수 `SQLITE_TEXT_PATTERN` → `TEXT_PATTERN`.
 - 엔티티 업무 일시는 생성자·세터·`@IdClass` 생성자에서 초 절삭(`entity/MdmEntityTimes`).
 - 추가로 고친 것: `MetaRevisionRecorder` 의 여러 행 `VALUES (…),(…)`(Oracle 23+ 전용) → `INSERT … SELECT … FROM DUAL UNION ALL`. `RuleSetVersionQueries.mayBeCalled` 의 CLOB LIKE 에도 UPPER.
-- m3 에 넘길 것(시험 컴파일 깨짐): lib `MdmSqliteLocalDateTimeConverterTest`·`MdmTemporalBinderTest`·`VersionRowStoreNameGuardTest`(생성자)·`CommonContractTest:152`(MdmDialect), api `MdmBusinessRuleEntityJpaRoundtripTest:9,441`·`VersionStateServiceSqliteTest`·`MdmLocalSampleLoaderTest`·`MdmLocalSampleStrictTest`·`CodeDataRuleLedgerChainTest:70`(SQLITE_TEXT_PATTERN). 루트 `mdm/build.gradle` 의 시험 Hikari 2 주석도 SQLite 기준이다.
+- m3 에 넘길 것(시험 컴파일 깨짐): lib `MdmSqliteLocalDateTimeConverterTest`·`MdmTemporalBinderTest`·`VersionRowStoreNameGuardTest`(생성자)·`CommonContractTest:152`(MdmDialect), api `MdmBusinessRuleEntityJpaRoundtripTest:9,441`·`VersionStateServiceSqliteTest`·`MdmLocalSampleLoaderTest`·`MdmLocalSampleStrictTest`·`CodeDataRuleLedgerChainTest:70`(SQLITE_TEXT_PATTERN). 루트 `mdm/build.gradle` 의 시험 Hikari 2 주석도 SQLite 기준이다. 컴파일은 되지만 문자열로 SQLite 를 가리키는 시험이 49개 파일이다(`jdbc:sqlite`·`org.sqlite`·`db/migration/mdm/sqlite`·옮긴 클래스 이름, 공용 `common/testdb/MdmSharedTestDb` 포함). lib 의존성에서 sqlite-jdbc 를 뺐으므로 이 시험들은 실행 단계에서 모두 실패한다.
+- m3 에서 큰 값으로 확인할 것: 네이티브 UPDATE 가 4000바이트를 넘는 문자열을 CLOB 칸에 바인딩하는 곳(`LayoutVersionStore:91` SNAPSHOT_JSON 실측 5,896바이트, `RuleSetWrites:37`, `RuleTestCaseWrites:40`, `RuleSetTestCaseWrites:40`). validate(엔티티 ↔ V1)도 m3 에서 돈다.
 - 확인 못 한 위험(실행은 m3): Oracle 은 `''` 를 NULL 로 저장하므로 NOT NULL VARCHAR2 칸에 빈 문자열을 쓰는 경로가 있으면 ORA-01400 이 난다. 길이 검사(ORA-12899)는 다음 커밋.
 
 ## 남은 순서
