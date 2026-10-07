@@ -2,7 +2,7 @@
 
 - 레인: ora-base / 브랜치 `feat/ora-base` / 워크트리 `/Users/jji/project/dmes-wt/ora-base` / 조정 세션 `dmes-standard-d8`
 - 지시: ora-base-1 (정본 `/Users/jji/.coord/oracle-1007/lanes/ora-base/brief.md`)
-- 마지막 갱신: 2026-10-07 17:00 KST, **조정자 지시로 일시 정지 중**(사용자 퇴근). 다음 지시 전까지 새 작업 없음.
+- 마지막 갱신: 2026-10-07 17:15 KST, **조정자 지시로 일시 정지 중**(사용자 퇴근). 다음 지시 전까지 새 작업 없음.
 
 ## 지금 상태
 
@@ -21,7 +21,7 @@
 
 ## 남은 순서(재개 뒤)
 
-1. b2·b4 실검증(레인당 Oracle 단계 하나씩, `heavy.sh` 경유). 템플릿 `TPL_EMPTY`(사용자만 있는 빈 템플릿)는 만들어 두었거나 만드는 중이다 — 상태는 `node scripts/oracle/pdb.mjs list`.
+1. b2·b4 실검증(레인당 Oracle 단계 하나씩, `heavy.sh` 경유). 템플릿 `TPL_EMPTY`(사용자 13명만 있는 빈 템플릿)는 **만들고 봉인했다(닫힌 상태, MOUNTED, 794MB)** — 정지하면서 지우지 않고 CLOSE 만 해 두었다. 상태는 `node scripts/oracle/pdb.mjs list`. 이 템플릿으로 `clone TPL_EMPTY L_ORA_BASE`→ 작은 mdm 시험(`SapCsvTest` 등)을 `-Pdmes.ora.test=clone` 으로 돌려 복제→시험→삭제를 확인한다(템플릿이 이미 있어 `template-create` 의 처음부터 끝까지는 이번 12분 55초 실행으로 확인됨).
 2. 머지①(b1~b4·b6) 요청: 머지 직전 `dev` 최신 합치기, `pdb.mjs`·하니스 검증 결과·be-run dry-run 결과 첨부. 머지②(mdm)와 ③(mcm 묶음)은 같은 창(스파이크 ⑦).
 3. b5 적재기: mdm m1 기준선 뒤. b7·b8: ora-platform 머지 뒤(스킬 파일은 skills-win 레인과 겹칠 수 있어 착수 전 조정자 확인).
 
