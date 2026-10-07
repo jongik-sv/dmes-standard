@@ -28,7 +28,7 @@ test("masterRuleDataList E2E — 메뉴/P-001 연쇄/읽기전용 동적그리�
   await expect(popRuleIdInput).toHaveValue("");   // Q-002 재결정(2026-07-09) — USD 프리셋 제거 검증
   await popRuleIdInput.fill("");
   await pop.locator('label:text-is("업무기준명") + input').fill("");
-  await pop.getByRole("button", { name: "조회" }).click();
+  await pop.getByRole("button", { name: "조회", exact: true }).click();
   await expect(pop.getByText("7건 조회 되었습니다.")).toBeVisible({ timeout: T.UI });
   await pop.getByText("E2E 컬럼등록 검증기준").first().dblclick();
   await expect(page.getByRole("dialog")).toBeHidden();
@@ -63,7 +63,7 @@ test("masterRuleDataList E2E — 메뉴/P-001 연쇄/읽기전용 동적그리�
 
   // 6. 팝업 내 재조회 — 검색어 클리어(LIKE '%%' 전체 — V-003 As-Is) → CURR_CD 그룹 4건
   await codePop.locator("input:not([readonly])").first().fill("");
-  await codePop.getByRole("button", { name: "조회" }).click();
+  await codePop.getByRole("button", { name: "조회", exact: true }).click();
   await expect(codePop.getByText("4건 조회 되었습니다.")).toBeVisible({ timeout: T.UI });
   await expect(codePop.getByText("유로", { exact: true })).toBeVisible();
 

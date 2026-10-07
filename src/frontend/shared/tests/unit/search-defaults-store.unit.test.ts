@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   SEARCH_DEFAULTS_MIRROR_PREFIX,
+  getPageSearchDefaultFieldInfo,
   getPageSearchDefaults,
   getSearchDefaultsSource,
   getSearchDefaultsStatus,
@@ -162,6 +163,32 @@ describe("창 사이 동기화", () => {
       new StorageEvent("storage", { key: `${SEARCH_DEFAULTS_MIRROR_PREFIX}u1`, newValue: JSON.stringify({}) }),
     );
     expect(getPageSearchDefaults("u1", "p")).toEqual({});
+  });
+
+  it("다른 창이 규칙을 바꾸면 서버에서 다시 받기 전까지 저장을 막고(source 거울), 다시 받은 칸 메타를 쓴다", async () => {
+    let n = 0;
+    let resolveSecond: (v: unknown) => void = () => {};
+    const row = (fieldKey: string, label: string) => ({ pageId: "p", fieldKey, ruleJson: '{"kind":"fixed","value":"A"}', fieldLabel: label });
+    setSearchDefaultsTransportForTest(() => {
+      n += 1;
+      if (n === 1) return Promise.resolve({ data: { result: { rows: [row("k", "L1")] } } });
+      return new Promise((r) => (resolveSecond = r));
+    });
+    preloadSearchDefaults("u1");
+    await flush();
+    expect(getSearchDefaultsSource("u1")).toBe("server");
+    const both = { p: { k: { kind: "fixed", value: "A" }, k2: { kind: "fixed", value: "A" } } };
+    window.dispatchEvent(new StorageEvent("storage", { key: `${SEARCH_DEFAULTS_MIRROR_PREFIX}u1`, newValue: JSON.stringify(both) }));
+    expect(getSearchDefaultsSource("u1")).toBe("mirror");
+    expect(n).toBe(2);
+    resolveSecond({ data: { result: { rows: [row("k", "L1"), row("k2", "L2")] } } });
+    await flush();
+    expect(getSearchDefaultsSource("u1")).toBe("server");
+    expect(getPageSearchDefaultFieldInfo("u1", "p").k2).toEqual({ fieldMeta: null, fieldLabel: "L2" });
+    // 내용이 같은 거울 갱신(다시 받은 값을 다른 창이 적음)은 다시 묻지 않는다.
+    window.dispatchEvent(new StorageEvent("storage", { key: `${SEARCH_DEFAULTS_MIRROR_PREFIX}u1`, newValue: JSON.stringify(both) }));
+    expect(n).toBe(2);
+    expect(getSearchDefaultsSource("u1")).toBe("server");
   });
 });
 

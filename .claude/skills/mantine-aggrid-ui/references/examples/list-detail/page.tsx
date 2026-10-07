@@ -6,11 +6,10 @@
  * 성능 구조(화면 성능 가이드 R1·R12): 상세 폼 state 는 EquipDetailPane 에만 있고 루트는 ref 핸들로 대화한다.
  * 첫 조회는 상한(FIRST_SEARCH_LIMIT)을 걸고, 잘리면 GridLimitNotice 로 [전체 보기] 를 보인다.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { ContentBody, ContentPanel, PageLayout, SearchArea, SearchField } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridBadge, GridLimitNotice, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
-import { DatePicker } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 
 import { deleteEquip, saveEquip, searchEquips } from "./api";
@@ -86,11 +85,6 @@ export default function EquipMngPage() {
     },
     [filters, showMessage],
   );
-
-  useEffect(() => {
-    void handleSearch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const handleRowClick = useCallback((row: Record<string, unknown>) => {
     const r = row as EquipRow;
@@ -169,15 +163,12 @@ export default function EquipMngPage() {
         { id: "btn_delete", label: "삭제", onClick: handleDelete, disabled: disabledAll || !selectedCd, action: "delete" },
       ]}
     >
-      <SearchArea onSearch={() => void handleSearch()}>
-        <SearchField label="라인" type="select" options={LINE_OPTIONS} value={filters.lineCd} onChange={(v) => setFilter("lineCd", v)} />
-        <SearchField label="검색어" value={filters.keyword} onChange={(v) => setFilter("keyword", v)} />
-        <SearchField label="설치일자">
-          <DatePicker value={filters.fromDt} onChange={(v) => setFilter("fromDt", v)} />
-        </SearchField>
-        <SearchField label="~">
-          <DatePicker value={filters.toDt} onChange={(v) => setFilter("toDt", v)} />
-        </SearchField>
+      {/* autoSearch: 진입 조회는 마운트 effect 가 아니라 SearchArea 가 사용자 기본값을 넣은 뒤 한 번 부른다. 칸마다 name 또는 defaultKey 가 있어야 기본값 대상이다. */}
+      <SearchArea onSearch={() => void handleSearch()} autoSearch>
+        <SearchField label="라인" defaultKey="lineCd" type="select" options={LINE_OPTIONS} value={filters.lineCd} onChange={(v) => setFilter("lineCd", v)} />
+        <SearchField label="검색어" defaultKey="keyword" value={filters.keyword} onChange={(v) => setFilter("keyword", v)} />
+        <SearchField label="설치일자" defaultKey="fromDt" type="date" value={filters.fromDt} onChange={(v) => setFilter("fromDt", v)} />
+        <SearchField label="~" type="date" value={filters.toDt} onChange={(v) => setFilter("toDt", v)} />
       </SearchArea>
 
       <ContentBody root resizable storageKey="mpp.pem.equipMng">
