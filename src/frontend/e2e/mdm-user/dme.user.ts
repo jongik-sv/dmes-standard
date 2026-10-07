@@ -2074,6 +2074,14 @@ test.describe("C 룰 세트", () => {
     await tid(page, "dbg-stop").click();
     await expect(tid(page, "dbg-stop")).toBeDisabled({ timeout: T.UI });
     // 디버그 모드에서도 보이는 활성 단추를 다시 확인한다. 케이스 고르기·불러오기·수정·삭제·디버그로 열기는 케이스 줄을 고르기 전에는 꺼져 있어 목록에서 빠진다.
+    // 세트 편집 탭 줄(D-135 하위 세트 탭)의 탭 단추만 — 이 시나리오는 지금 연 세트 탭 하나뿐이라 누르면 같은 화면이다.
+    // 탭 전환은 m-mdm 단위 시험(debug-subset·set-node-page)이 확인한다. 닫기(set-tab-close-*) 등 다른 단추는 면제하지 않는다.
+    const setTabAllow = async () =>
+      Object.fromEntries(
+        (await page.locator('[data-testid^="set-tab-"][role="tab"]:visible').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid") ?? "")))
+          .filter(Boolean)
+          .map((k) => [k, "세트 편집 탭 단추 — 지금 연 세트 탭 하나뿐이라 누르면 같은 화면이다(탭 전환은 m-mdm 단위 시험)"]),
+      );
     const dynamicAllow = async (prefix: string, why: string) =>
       Object.fromEntries(
         (await page.locator(`[data-testid^="${prefix}"]:visible`).evaluateAll((els) => els.map((e) => e.getAttribute("data-testid") ?? "")))
@@ -2086,6 +2094,7 @@ test.describe("C 룰 세트", () => {
       ...(await dynamicAllow("flow-bp-", "노드마다 있는 중단점 점 — 하나(SA)는 위에서 켰다 껐다. 나머지는 같은 동작이다")),
       ...(await dynamicAllow("flow-rule-open-", "룰 박스 링크 아이콘은 다음 TC-DME-SED-06 에서 누른다(누르면 룰 화면으로 옮겨 간다)")),
       ...(await dynamicAllow("flow-section-", "오른쪽 섹션 머리 — 펴고 접기는 flow-section-rules-head 로 확인했고 나머지는 같은 동작이다")),
+      ...(await setTabAllow()),
       "sim-detail-open-rule": "노드 상세의 [룰 편집 열기] 는 누르면 룰 화면으로 옮겨 가 다음 TC-DME-SED-06 흐름이 깨진다",
       "set-ver-unlock": "버전 줄 [해제]·[선점]은 이 시험 끝(보기 모드)에서 누른다",
       "set-ver-delete": "버전 줄 [삭제]는 이 시험 끝에서 v1.001·v2.000 DRAFT 를 지우며 누른다",
@@ -2124,6 +2133,7 @@ test.describe("C 룰 세트", () => {
     );
     await assertAllButtonsPressed(page, "ruleSetEdit", {
       ...ruleOpenAllow,
+      ...(await setTabAllow()),
       ...(await dynamicAllow("flow-section-", "오른쪽 섹션 머리 — 펴고 접기는 flow-section-rules-head 로 확인했고 나머지는 같은 동작이다")),
       [`set-var-link-${GRD}`]: "결과 변수 링크는 다음 TC-DME-SED-06 에서 누른다(누르면 룰 화면으로 옮겨 간다)",
       [`set-var-link-${FCT}`]: "결과 변수 링크는 다음 TC-DME-SED-06 에서 누른다(누르면 룰 화면으로 옮겨 간다)",

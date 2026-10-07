@@ -17,6 +17,10 @@ import { compareFirstColumn, connectStringFromEnv, detectFixtureUser, query, run
  * 스키마 사용자는 env 로 주지 않는다 — 픽스처 파일 머리 주석의 대상(MDMAPUSER·MCMAPUSER)을 읽어 그 사용자로 접속한다.
  * 옛 SMOKE_MDM_DB(mdm.db 파일 경로)와 sqlite3 CLI 는 쓰지 않는다. 서버(mcm·mdm)도 같은 PDB 를 바라보게 띄운다.
  *
+ * 대상 PDB 는 **스냅샷을 넣지 않은 새 PDB** 다(TPL_EMPTY 복제 → mcm·mdm 기동으로 Flyway·기동 시드 → mdm-00-fixtures → 스펙).
+ * SQLite 때도 「새 DB」 전제였다(TSK-05-02 design §3.7). db-snapshot 을 먼저 넣으면 샘플 룰(QLTY_GRD_JDG)·컬럼(SET_THK) 등과
+ * 픽스처가 ORA-00001 로 부딪힌다. 스냅샷 적재 PDB 는 사용자 여정(e2e/mdm-user, TEST-CASES.md) 전용이다.
+ *
  * 접속 대상 안전 — DMES_E2E_ALLOW_PDB 와 같은 `T_*`·`L_*` 가 아니면 픽스처를 넣지 않는다(guardTarget). FREEPDB1·TPL_*·PDB$SEED·CDB$ROOT 는
  * 지정해도 거부하고, 남의 `T_*`·`L_*` 는 지정하지 않으니 막힌다. 파일 머리 주석의 대상 사용자와 접속 사용자가 다를 때 oracle.ts 의 checkTarget 이 막는 것은
  * 사용자를 고정해 부르는 verifyMdmRbacSeed(MCMAPUSER)뿐이다 — loadMdmFixture 는 접속 사용자를 같은 파일에서 뽑으므로 늘 같다.

@@ -13,6 +13,10 @@ pnpm test:e2e:mdm-user --project=dmc    # 한 그룹만(setup 이 먼저 돈다)
 - 전제: 포털(`SMOKE_MCM_BASE_URL`, 기본 `http://localhost:5100` — `NEXTAUTH_URL` 과 같아야 로그인 쿠키가 유지된다)·mcm·mdm 백엔드가 떠 있다.
 - 전제 DB(Oracle 전환 — 이 절은 `feat/ora-mdm` 기준): 시험 PDB 복제(`TPL_EMPTY`) → mcm·mdm 서버를 그 PDB 로 띄워 Flyway V1 →
   `scripts/db-snapshot/snapshot.py import` 로 MDMAPUSER·MCMAPUSER 스냅샷(마루 MDM 로컬 샘플에 해당하는 값)을 적재 → 여정. `TPL_DATA` 가 생기면 그 복제로 바꾼다.
+  스냅샷에는 옛 로컬 DB 에서 돈 여정의 잔여 행(값이 대문자 `E2E` 로 시작, 413행·19표)이 있어 그대로 넣으면 「등록」 단계가 「같은 ID」로 거부된다.
+  snapshot.py import 는 이 행을 걸러 넣는다(ora-base 4bee77201, `--keep-e2e` 로 끔). 그 커밋이 없는 브랜치에서는 E2E 행을 뺀 CSV 사본을
+  `DMES_SNAPSHOT_DIR` 로 준다. 화면 스펙(e2e/mdm-*.spec.ts)은 스냅샷 없는 새 PDB 에서 돌린다(support/mdm-e2e.ts 머리말).
+  dma COL-02(미등록 토큰)·dmb LAY-07/08(숫자 항목 ELGN, NUMBER(3,1))은 스냅샷 사전·도메인 값에 맞춰 골랐다.
   mcm 은 기동 시드와 스냅샷만 있으면 되고 시험 사용자는 setup 이 화면에서 만든다. SQL 픽스처(`e2e/fixtures`)는 넣지 않는다.
   서버는 둘 다 같은 PDB 를 보게 `DMES_ORA_URL`(예: `jdbc:oracle:thin:@//localhost:1521/T_<레인>`)로 띄운다. 포트는 비어 있는 것으로 바꿔 쓴다.
   나머지(포털 환경변수·정리)는 docs/mdm/tasks/TSK-05-02/design.md §3.7 과 같다. 옛 SQLite 의 `be-run.sh` 샘플 로더(`MdmLocalSampleLoader`)·`--mdm.sample.path` 는 쓰지 않는다.
