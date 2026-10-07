@@ -70,6 +70,8 @@ export interface SearchDefaultsAreaApi {
   register: (handle: SearchDefaultsFieldHandle) => () => void;
   /** 등록된 칸 정보(저장 키는 scope 접두 포함). 설정 창이 쓴다. */
   listFields: () => Array<SearchDefaultsFieldInfo & { storageKey: string }>;
+  /** 등록된 칸의 지금 값(저장 키별). 「지금 조건을 기본값으로」 가 쓴다. */
+  readValues: () => Record<string, string>;
   /** 지금 저장된 규칙을 다시 넣는다(설정 저장 직후). 조회는 하지 않는다. */
   applyNow: () => void;
   /** 기능이 꺼진 영역인가(설정 아이콘을 그리지 않는다). 마운트 판정 뒤에 정해진다. */
@@ -455,6 +457,11 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
       },
       listFields() {
         return [...handlesRef.current.entries()].map(([storageKey, h]) => ({ ...h.info, storageKey }));
+      },
+      readValues() {
+        const out: Record<string, string> = {};
+        for (const [key, h] of handlesRef.current) out[key] = h.getValue();
+        return out;
       },
       applyNow() {
         if (!optsRef.current.enabled || offRef.current) return;
