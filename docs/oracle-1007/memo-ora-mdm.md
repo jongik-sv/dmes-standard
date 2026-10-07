@@ -6,7 +6,15 @@
 ## 지금 상태 (2026-10-07 밤, 두 번째 compact 뒤 정본)
 
 - **compact 뒤 처리 끝(머지③ 알림 대기):** 임시 워크트리 mdm-sqlite-base 정리(`git worktree remove`, rc=0). 잔재 정리 1~4 커밋 a8152aaf3(샘플 SQL 머리말 → snapshot.py 안내, 파일은 README·be-run.sh·RuleCalcSeedSetTest 가 참조해 그대로 둠; gen_oracle_baseline.py·overrides.json·verify_oracle_baseline.py(gen 을 import) → `src/backend/mdm/archive/oracle-baseline/`, DECISIONS.md·LENGTH-AUDIT.md 는 tools 에 남김; build.gradle·lib/build.gradle·RuleCalcSeedSetTest·playwright.mdm-user.config.ts·dme.user.ts·support.ts 주석). 5번(*SqliteTest 이름)은 안 함. perf 하니스 전환 커밋 4caad53c3(리뷰 sonnet/high 3회 → clean: 도메인 바깥 FK 2개를 적재 동안 끄고 NOVALIDATE 복원, SESSION_USER 검사, allowReset 을 -P 로, extra-base archive 이동 포함). 실행은 아직 안 함.
-- **다음:** 머지③ 알림 → dev 합치기 → mdm 재시험(lib·api 스위트 시간 합 집계) → perf-ora-mdm.md → E2E → 머지② 요청.
+- (끝남) 다음: 머지③ 알림 → dev 합치기 → mdm 재시험(lib·api 스위트 시간 합 집계) → perf-ora-mdm.md → E2E → 머지② 요청.
+- **머지③ 뒤 m5(2026-10-07 밤):** dev 14b09f1af 합침(cb84b651d) → mdm 재시험 lib 2071/2071·api 1853 실패 0·skip 13(스위트 합 6.4초·267.3초) → perf 문서 f4751f034 → E2E → dev 5f84f28da(①d) 합침(32952db05), `:lib:test` MdmErrorsTest clone 확인 rc=0.
+- **E2E 결과(L_ORA_MDM, mcm 18100·mdm 18096·포털 5110, 끝나고 서버·포털 내리고 PDB 삭제):**
+  - mdm 화면 스펙 22개: **새 PDB(Flyway + 스펙 픽스처, 스냅샷 없음)** 에서 143건 중 142 통과, 남은 1건(dataCsvUploadPop C3 팝업 늦게 열림)은 재실행 4/4 통과(간헐). 서버 ORA 0. 이 스펙들은 SQLite 때도 「새 DB」 전제였다(TSK-05-02 §3.7) — 스냅샷을 먼저 넣으면 샘플 룰 QLTY_GRD_JDG·컬럼 SET_THK 와 픽스처가 ORA-00001 로 부딪힌다.
+  - 사용자 여정(mdm-user) 217건: 스냅샷 적재 PDB 에서 1차 27 실패 → 원인 (a) 스냅샷에 옛 로컬 DB 의 E2E 잔여 413행(19표) — scratchpad 사본에서 빼고 `DMES_SNAPSHOT_DIR` 로 적재(필터 규칙은 ora-base 가 snapshot.py import 에 반영 4bee77201), (b) grid-personalize 공통 버튼 `search-settings-menu`·`grid-settings-menu` — support.ts COMMON_ALLOW. 2차: **199 통과·5 실패·13 미실행, Oracle 원인 0(서버 ORA 0)**. 남은 5건: COL-02(스냅샷 사전에 「판정」「값」이 있어 UNKNOWN 토큰이 안 나옴 — 데이터), LAY-07(스냅샷 COIL_THK 도메인 LENGTH 5·SCALE 3, 샘플은 3·1 — 데이터), dme LAY-99·VER-99(ruleEdit 「삭제」 글자 잘림 19>14·그리드 0x0 — 화면), SED-05(ruleSetEdit 새 탭 버튼 set-tab-t1 — 화면 변경). 모두 10-04(새 DB 217/217) 뒤 데이터·화면 변화라 후속으로 넘긴다.
+  - mcm 은 조정자 결정 A 로 이번 E2E 동안만 `--spring.datasource.hikari.maximum-pool-size=8`. 위젯 조회(SecWidgetService.search → outsideTx → WidgetFixedTabs.deptName)가 연결 2개를 쥐어 풀 3 에서 교착 — 덤프 `~/.coord/oracle-1007/lanes/ora-mdm/mcm-threads-2139-pool3.txt`, ora-mcm-core 에 넘김.
+  - Playwright 1.62.1 은 chromium_headless_shell-1234 가 필요한데 캐시에 1243 만 있었다 → `PLAYWRIGHT_SKIP_BROWSER_GC=1 pnpm exec playwright install chromium-headless-shell`.
+  - 스펙이 `docs/mdm/tasks/**/screens/*.png` 를 덮어쓴다 — 실행 뒤 `git restore -- docs/mdm/tasks`, 새 파일은 scratchpad 로 옮김(커밋 안 함).
+  - E2E 도구(scratchpad/m5): srv.sh·up-wait.sh·down.sh·e2e.sh, 필터 `~/.coord/oracle-1007/lanes/ora-mdm/filter_e2e_snapshot.py`.
 - **진도율 66%(조정자 기준): m1·m2·길이 검사·m3 완료, m4 코드 전환 완료(실행은 머지③ 뒤), m5 준비 중.** dev 는 머지①c `ce378785a` 까지 합쳤다(ed6e282e9).
 - 커밋 흐름: 89685b58a(길이 검사) → 8605df5de(MigrationTest 18개 archive·시험 컴파일) → 9949731c1(픽스처 13개 Oracle) → 601fc9157(mayBeCalled 네이티브) → 4300176b0·18f3b20c9(시험 Oracle 전환) → 0c7802444(엔티티 백틱 칼럼) → 0f9539c67(기반 안전장치·Locale·골든) → 42c8e285f(m4 mdm-e2e.ts·mdm-00-fixtures.spec.ts) → 38d048616(메모).
 - **compact 시점에 돌고 있던 것(재개 때 결과부터 확인):**
