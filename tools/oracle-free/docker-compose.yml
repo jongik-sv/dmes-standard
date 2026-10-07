@@ -1,4 +1,5 @@
 # 로컬 Oracle 26ai Free — docs/guide/Database/oracle-26ai-test-guide.md §5
+# Podman compose 용(이 PC 의 실행 방식은 Podman VM). Oracle 컨테이너 하나만 도커 금지 규칙의 예외이고 그 밖의 도커 사용은 막혀 있다.
 services:
   oracle-db:
     image: docker.io/gvenzl/oracle-free:slim-faststart

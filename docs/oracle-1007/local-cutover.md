@@ -69,6 +69,8 @@ python3 scripts/db-snapshot/snapshot.py import --pdb L_MAIN --replace --keep-e2e
 - `mpn.db`·`mpp.db`·`mqc.db`·`caravan-if.db` 는 샘플 표뿐이고 행이 0 이라 옮기지 않는다.
 - `TB_MDM_TERM.EMBEDDING`(BLOB)은 `--full` 에서 그대로 옮긴다. mdm.db(약 51MB)의 CSV 는 약 56MB 이고 변환은 1초 안팎이다. 적재 시간은 mdm V1 이 dev 에 들어온 뒤 재서 §7 에 적는다.
 - 변환이 mcm 에 적용하는 보정(`TB_MCM_SEC_OBJ.FORM_URL`, 폴더 `USE_TP`·`MENU_VIEW_YN`)은 SQLite 를 거친 데이터에만 필요한 것이라 `--full` 에서도 적용된다.
+- **위젯 SQL 후처리**: 변환은 `TB_MCM_WIDGET_DEF.CONFIG_JSON` 의 쿼리 위젯 SQL 6개(`def.fpkt65d4`·`ldj2hpgw`·`lo41tduo`·`qcondsmp`·`spzufhgo`·`ubb8dih0`)를 SQLite 문법(`DATE('now','localtime')`·`LIMIT`)에서 Oracle 판(`widget-sql-oracle.md` 의 문안, 매핑은 `scripts/db-snapshot/widget_sql_oracle.json`)으로 바꾼다. 변환 전 원본이 알려진 문안과 **글자까지 같을 때만** 바꾸고(`sql` 만, 다른 키·공백은 그대로), 알려지지 않은 SQL 에 SQLite 구문이 보이면 `경고: 위젯 … 알려진 문안이 아니라 그대로 둔다` 만 남긴다(그런 위젯은 Oracle 에서 `ORA-00936`·`ORA-03049` 로 실패하니 `widget-sql-oracle.md` 규칙대로 고친다). 변환 로그의 `위젯 SQL 6개를 Oracle 판으로 바꿨다` 로 확인한다. 이 후처리가 없던 첫 전환(2026-10-07)에서는 홈 위젯 6개가 실패해 `L_MAIN` 에 UPDATE 로 고쳤다. 단위 시험: `python3 scripts/db-snapshot/test_snapshot.py`. **적재 뒤 확인**: 홈에서 쿼리 위젯 6개(`widgetData` 호출)가 오류 없이 값을 내는지 본다.
+
 - 로컬 DB 에 E2E 시험이 남긴 행이 있다(`E2E_USR_*` 등, MDMAPUSER 413행). 사용자 데이터는 그대로 옮기는 방침이라 위 절차는 `--keep-e2e` 로 남긴다. 거르려면 `--keep-e2e` 를 뺀다.
 
 ### 행 수 대조

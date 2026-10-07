@@ -1,3 +1,4 @@
+# SQLite 사본 읽기 도구(로컬 DB 가 Oracle 로 바뀐 뒤에는 SQLite 사본이 있을 때만 동작), Oracle 판은 후속(oracle-1007 b8).
 """mdm.db 용어·컬럼을 KURE-v1 INT8 로 인코딩한다(term-embedding.md §2 와 같은 모델·풀링·입력 형식).
 
 - 모델: thkmon/KURE-v1-onnx-int8 rev 118dcc12…, model.onnx sha256 1808718e…  (MODEL_DIR)

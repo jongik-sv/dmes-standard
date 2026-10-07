@@ -7,7 +7,7 @@ macOS·Linux·Windows 공용이며 python3 + oracledb(pip install oracledb, thin
 
 사용법
   python3 scripts/db-snapshot/snapshot.py convert --from-db src/backend/data/mdm.db --name mdm
-  python3 scripts/db-snapshot/snapshot.py convert --from-sql db-snapshot/mcm --name mcm      # 옛 SQL 스냅샷
+  python3 scripts/db-snapshot/snapshot.py convert --from-sql archive/oracle-1007/db-snapshot-sql/mcm --name mcm      # 옛 SQL 스냅샷(b8 에서 archive 로 옮김)
   python3 scripts/db-snapshot/snapshot.py import --pdb L_ORA_MDM [MDMAPUSER MCMAPUSER ...]
   python3 scripts/db-snapshot/snapshot.py export --pdb L_ORA_MDM [MDMAPUSER ...]
 
@@ -198,6 +198,55 @@ def sqlite_oracle_type(decl, max_bytes, has_blob):
     return "CLOB" if max_bytes > 4000 else "VARCHAR2(4000 CHAR)"
 
 
+WIDGET_SQL_MAP = os.path.join(os.path.dirname(os.path.abspath(__file__)), "widget_sql_oracle.json")
+SQLITE_ONLY_SQL = re.compile(r"DATE\s*\(\s*'now'|\bLIMIT\s+\d|STRFTIME\s*\(|DATETIME\s*\(\s*'now'", re.I)
+
+
+def widget_sql_replace(config_text, known):
+    """CONFIG_JSON 문자열의 \"sql\" 이 알려진 SQLite 문안과 글자까지 같으면 Oracle 판으로 바꾼 문자열을 돌려준다.
+    알려진 문안이 아니면 None(SQLite 구문이 보이면 경고 로그만 남긴다). 다른 키·공백은 건드리지 않는다(문자열 치환, 안 되면 다시 직렬화)."""
+    try:
+        cfg = json.loads(config_text)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(cfg, dict) or not isinstance(cfg.get("sql"), str):
+        return None
+    sql = cfg["sql"]
+    entry = known.get(sql)
+    if entry is None:
+        return ("warn", sql) if SQLITE_ONLY_SQL.search(sql) else None
+    for ascii_only in (False, True):
+        old_enc = json.dumps(sql, ensure_ascii=ascii_only)
+        if config_text.count(old_enc) == 1:
+            return ("fix", config_text.replace(old_enc, json.dumps(entry, ensure_ascii=ascii_only), 1))
+    cfg["sql"] = entry
+    return ("fix", json.dumps(cfg, ensure_ascii=False, separators=(",", ":")))
+
+
+def fix_widget_sql(con):
+    """TB_MCM_WIDGET_DEF.CONFIG_JSON 의 쿼리 위젯 SQL 을 Oracle 판으로 바꾼다(SQLite 문법 DATE('now','localtime')·LIMIT 등은 Oracle 에서 ORA-00936·ORA-03049).
+    알려진 위젯 6개의 SQLite 문안과 글자까지 같을 때만 바꾸고, 모르는 SQL 은 경고만 남긴다. 멱등(이미 Oracle 문안이면 그대로)."""
+    if not os.path.isfile(WIDGET_SQL_MAP):
+        print("경고: %s 가 없어 위젯 SQL 후처리를 건너뛴다" % WIDGET_SQL_MAP, file=sys.stderr)
+        return
+    with open(WIDGET_SQL_MAP, encoding="utf-8") as f:
+        widgets = json.load(f)["widgets"]
+    known = {w["sqlite"]: w["oracle"] for w in widgets.values()}
+    fixed = 0
+    for wid, text in con.execute("select WIDGET_ID, CONFIG_JSON from TB_MCM_WIDGET_DEF where CONFIG_JSON is not null").fetchall():
+        res = widget_sql_replace(text, known)
+        if res is None:
+            continue
+        if res[0] == "fix":
+            con.execute("update TB_MCM_WIDGET_DEF set CONFIG_JSON = ? where WIDGET_ID = ?", (res[1], wid))
+            fixed += 1
+        else:
+            print("경고: 위젯 %s 의 SQL 이 SQLite 문법으로 보이지만 알려진 문안이 아니라 그대로 둔다(Oracle 에서 실행 실패 가능): %s"
+                  % (wid, res[1].replace("\n", " ")[:80]), file=sys.stderr)
+    if fixed:
+        print("위젯 SQL %d개를 Oracle 판으로 바꿨다(widget_sql_oracle.json)" % fixed, file=sys.stderr)
+
+
 def apply_mcm_corrections(con):
     """SQLite mcm.db 가 거친 적 없는 데이터 보정을 사본에 한 번 적용한다(멱등, 행 삭제 없음).
 
@@ -214,6 +263,8 @@ def apply_mcm_corrections(con):
             "update TB_MCM_SEC_OBJ set FORM_URL = (%s) where exists (select 1 from TB_MCM_SEC_MENU m "
             "where m.OBJECT_ID = TB_MCM_SEC_OBJ.OBJECT_ID and m.PARENT_MENU_ID is not null) "
             "and (FORM_URL is null or FORM_URL = '' or FORM_URL like '%%.xfdl' or FORM_URL = OBJECT_ID)" % parent)
+    if "TB_MCM_WIDGET_DEF" in have:
+        fix_widget_sql(con)
     if "TB_MCM_SEC_MENU_FLD" in have:
         con.execute(
             "update TB_MCM_SEC_MENU_FLD set USE_TP = coalesce(USE_TP, 'Y'), MENU_VIEW_YN = coalesce(MENU_VIEW_YN, 'Y') "

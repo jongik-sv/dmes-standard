@@ -60,7 +60,6 @@ dependencies {
     testImplementation libs.spring.boot.starter.validation
     testRuntimeOnly libs.ojdbc11
     testRuntimeOnly libs.flyway.database.oracle
-    testImplementation libs.hibernate.community.dialects.v705
     testImplementation libs.flyway.core
     testRuntimeOnly libs.junit.platform.launcher
 }

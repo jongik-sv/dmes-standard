@@ -80,5 +80,5 @@
 ## 6. 참고
 
 - 로컬 Oracle 가이드: `docs/guide/Database/oracle-26ai-test-guide.md`
-- 이관 도구: `tools/oracle-free/sqlite_to_oracle.py`·`load_snapshot.py`
+- 이관 도구: `archive/oracle-1007/tools/oracle-free/sqlite_to_oracle.py`·`load_snapshot.py`(b8 에서 archive 로 옮김, 현행 이관은 `scripts/db-snapshot/snapshot.py`)
 - 조사 결과 요지: mdm main 38파일·mcm 18·mcm-core 25 파일에 SQLite 전용 코드, JPA nativeQuery 14건, `''` 비교 55건, `@GeneratedValue` IDENTITY/SEQUENCE 19곳, mcm 은 Flyway 꺼짐·`ddl-auto update`·Java DDL(`SchemaArtifacts*`), 평평한 폴더(mls V1~V4·mpp·mqc·mpn·aps-core·mcm V1) 마이그레이션도 SQLite 문법.
