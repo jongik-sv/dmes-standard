@@ -20,6 +20,21 @@ export function authCookiePrefix(): string {
   return process.env.AUTH_COOKIE_PREFIX ?? DEFAULT_AUTH_COOKIE_PREFIX;
 }
 
+/** 강제 로그아웃이 지울 인증 쿠키 이름 — 접두는 AUTH_COOKIE_PREFIX, http·https 변형을 모두 담는다. */
+export function forceLogoutCookieNames(): string[] {
+  const names = new Set<string>();
+  for (const nextAuthUrl of ["http://x", "https://x"]) {
+    const { sessionToken, callbackUrl, csrfToken } = resolveAuthCookieNames({
+      cookiePrefix: authCookiePrefix(),
+      nextAuthUrl,
+    });
+    names.add(sessionToken);
+    names.add(callbackUrl);
+    names.add(csrfToken);
+  }
+  return [...names];
+}
+
 /** 세션 토큰 쿠키 이름 — NEXTAUTH_URL 이 https 면 `__Secure-` 접두가 붙는다. */
 export function sessionCookieName(): string {
   return resolveAuthCookieNames({
