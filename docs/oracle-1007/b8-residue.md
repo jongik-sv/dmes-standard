@@ -192,8 +192,14 @@ archive 로 옮긴 뒤 승인되면 삭제할 수 있는 묶음이다.
 ### 9.6 다시 확인하는 명령(읽기 전용)
 
 ```bash
-V=$(git merge-tree --write-tree --no-messages dev feat/ora-base >/dev/null; echo dev)   # 필요하면 위 방법대로 레인을 차례로 합쳐 commit-tree 로 만든다
-git -c core.quotepath=false grep -I -n -E 'jdbc:sqlite|sqlite-jdbc|org\.sqlite|LocalSqliteDataSource|SQLiteDialect|H2Dialect|jdbc:h2|mssql-jdbc|jdbc:sqlserver|SQLServerDialect|sqlite3' <합친 커밋> -- . ':(exclude)**/archive/**' ':(exclude)docs' ':(exclude)*.md' ':(exclude)poc'
+# 1) dev 에 레인을 차례로 합친 가상 커밋을 만든다(브랜치·워킹트리는 건드리지 않는다)
+cur=$(git rev-parse dev)
+for b in feat/ora-base feat/ora-mdm feat/ora-mcm-core feat/ora-mcm-app feat/ora-platform; do
+  tree=$(git merge-tree --write-tree --no-messages $cur $b | head -1)
+  cur=$(git commit-tree $tree -p $cur -p $(git rev-parse $b) -m "virtual $b")
+done
+# 2) 강한 신호만 찾는다
+git -c core.quotepath=false grep -I -n -E 'jdbc:sqlite|sqlite-jdbc|org\.sqlite|LocalSqliteDataSource|SQLiteDialect|H2Dialect|jdbc:h2|mssql-jdbc|jdbc:sqlserver|SQLServerDialect|sqlite3' $cur -- . ':(exclude)**/archive/**' ':(exclude)docs' ':(exclude)*.md' ':(exclude)poc'
 ```
 
-강한 신호(드라이버·방언·URL·식별자) 74줄이 0 이 되는 것이 머지 전 기준이다. 약한 신호(주석·이름)는 위 표에 적은 만큼만 정리한다.
+강한 신호(드라이버·방언·URL·식별자)가 레인 소관은 0 이 되는 것이 머지 전 기준이다(남은 것은 §9.5 의 base 몫과 이름만 남은 시험). 약한 신호(주석·이름)는 위 표에 적은 만큼만 정리한다. 이번 예측의 강한 신호는 74줄이었다.
