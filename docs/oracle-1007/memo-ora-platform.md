@@ -64,7 +64,7 @@ hub 의 `if` 데이터소스 접속 사용자는 EAIUSER 이고, IF_* 표는 IFU
 - p4 추가: cactus `DmomMapper.xml:65,70` 의 `NEXT VALUE FOR MCMAPUSER.SEQ_MCM_MOM_TC_ERROR` 를 `MCMAPUSER.SEQ_MCM_MOM_TC_ERROR.NEXTVAL` 로 바꾼다.
 
 - 리뷰 지적 중 반영하지 않은 것: ① `OracleTestDatabase` 가 `dmes.ora.url` 이 없으면 예외로 실패하는 것(조용한 건너뜀은 전체 통과로 오해시키므로 의도적으로 유지) ② `local` persistence-unit 의 `jdbc:h2:` 속성(삭제 금지 규칙, 사용자 승인 뒤 정리).
-- WildFly JNDI 기본 이름은 mcm 의 `java:/jdbc/mssql/mcm/dsIF`·`dsCaravan` 과 같아야 해서 그대로 둔다. mcm 이 중립 이름으로 바꾸는 회차에 hub 도 함께 바꾼다(조정자 확인 필요).
+- WildFly JNDI 기본 이름은 mcm 과 같은 `java:/jdbc/mcm/dsIF`·`dsCaravan` 이다(조정자 확정, mcm 666812393·d998d2150 기준). env 는 JNDI_DS_IF 가 공통이고, mst 는 JNDI_DS_MST 또는 JNDI_DS_CARAVAN 을 받는다. p6 머지 요청에 「mcm JNDI 와 일치」를 적는다.
 - hub 풀 설정은 `DataSourceConfig` 가 `spring.datasource.{mst,if}` 를 HikariDataSource 에 직접 바인딩하므로 `hikari:` 아래가 아니라 `mst:`·`if:` 바로 아래에 둔다.
 
 ## 남은 순서 (다음 단계)

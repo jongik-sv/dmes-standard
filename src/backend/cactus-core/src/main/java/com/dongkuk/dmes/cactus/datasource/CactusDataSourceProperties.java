@@ -94,7 +94,7 @@ public class CactusDataSourceProperties {
         private Long idleTimeout;
         private Long maxLifetime;
         private String poolName;
-        /** WildFly 등 컨테이너 관리 DataSource 의 JNDI 이름 (예: java:/jdbc/mssql/mcm/dsCmn). 설정 시 JNDI lookup 경로. */
+        /** WildFly 등 컨테이너 관리 DataSource 의 JNDI 이름 (예: java:/jdbc/mcm/dsCmn). 설정 시 JNDI lookup 경로. */
         private String jndiName;
 
         public String getUrl() { return url; }
