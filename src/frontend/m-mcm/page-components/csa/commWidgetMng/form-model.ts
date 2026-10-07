@@ -23,6 +23,23 @@ export const UNKNOWN_TYPE_TITLE = "알 수 없는 유형";
 /** 새로 고침 주기 범위(초) — 서버 CommWidgetMngService REFRESH_MIN·REFRESH_MAX, shared MIN_REFRESH_SEC 와 같다. */
 export const REFRESH_MIN_SEC = 600;
 export const REFRESH_MAX_SEC = 86400;
+export const REFRESH_RANGE_MESSAGE = `새로 고침 주기는 ${REFRESH_MIN_SEC}~${REFRESH_MAX_SEC}초여야 합니다.`;
+
+/** 새로 고침 칸 값이 범위 안인가(빈 칸은 「새로 고침 없음」이라 맞다). */
+export function isRefreshSecValid(text: string): boolean {
+  const t = text.trim();
+  return t === "" || (/^\d+$/.test(t) && Number(t) >= REFRESH_MIN_SEC && Number(t) <= REFRESH_MAX_SEC);
+}
+
+/**
+ * 새로 고침 칸 옆에 보일 오류(없으면 null). 최소 600초 규칙 이전에 저장된 옛 값(120 등)은 열자마자 걸려 [저장] 이 켜지지 않으므로,
+ * 표 맨 아래 줄까지 내려가지 않아도 이유와 지금 값을 칸에서 바로 알린다.
+ */
+export function refreshSecFieldError(text: string): string | null {
+  if (isRefreshSecValid(text)) return null;
+  const t = text.trim();
+  return /^\d+$/.test(t) ? `${REFRESH_RANGE_MESSAGE} (지금 ${t}초)` : REFRESH_RANGE_MESSAGE;
+}
 
 /** CONFIG_JSON 상한(스펙 §5.3 — 200KB). */
 const CONFIG_MAX_BYTES = 200 * 1024;
@@ -359,10 +376,7 @@ export function validateDefForm(form: DefForm): string[] {
     if (min != null && max != null && min > max) errors.push(`최소 ${name}는 최대 ${name} 이하여야 합니다.`);
   }
 
-  const refresh = form.refreshSec.trim();
-  if (refresh !== "" && (!/^\d+$/.test(refresh) || Number(refresh) < REFRESH_MIN_SEC || Number(refresh) > REFRESH_MAX_SEC)) {
-    errors.push(`새로 고침 주기는 ${REFRESH_MIN_SEC}~${REFRESH_MAX_SEC}초여야 합니다.`);
-  }
+  if (!isRefreshSecValid(form.refreshSec)) errors.push(REFRESH_RANGE_MESSAGE);
 
   if (isDef) {
     const json = configJsonOf(form.config);

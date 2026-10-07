@@ -11,6 +11,7 @@
  */
 import { useId, useState } from "react";
 import { Button, Input, Select } from "@dk-oasis/shared/form";
+import { MdmFieldLabel, MdmMetaProvider, useMdmMetaScope } from "@dk-oasis/shared/mdm-meta";
 import type { WidgetProps } from "@dk-oasis/shared/widget";
 
 import {
@@ -90,7 +91,7 @@ function InputField({ input, value, error, filled, onChange }: FieldProps) {
   return (
     <div className="mcm-rc__field">
       <label className="mcm-rc__label" htmlFor={id}>
-        <span title={input.label}>{input.label}</span>
+        <MdmFieldLabel name={input.name} meta={input.name} label={input.label} />
         {input.required && (
           <span className="mcm-rc__req" aria-label="필수">
             *
@@ -119,7 +120,7 @@ function Results({ io, run }: { io: RuleCalcIo; run: RuleCalcRun }) {
   return (
     <dl className="mcm-rc__results" data-testid="rc-results">
       {rows.map((r) => (
-        <ResultRow key={r.name} label={r.label} unit={r.unit} testId={`rc-result-${r.name}`} text={displayValue(run.result[r.name], r.scale, r.dataType)} />
+        <ResultRow key={r.name} name={r.name} label={r.label} unit={r.unit} testId={`rc-result-${r.name}`} text={displayValue(run.result[r.name], r.scale, r.dataType)} />
       ))}
     </dl>
   );
@@ -162,10 +163,12 @@ function ApplyBar({ io, run, screenApply, label }: { io: RuleCalcIo; run: RuleCa
   );
 }
 
-function ResultRow({ label, unit, text, testId }: { label: string; unit: string | null; text: string; testId: string }) {
+function ResultRow({ name, label, unit, text, testId }: { name: string; label: string; unit: string | null; text: string; testId: string }) {
   return (
     <>
-      <dt title={label}>{label}</dt>
+      <dt>
+        <MdmFieldLabel name={name} meta={name} label={label} />
+      </dt>
       <dd data-testid={testId}>
         <span>{text === "" ? "-" : text}</span>
         {unit && text !== "" && <span className="mcm-rc__unit">{unit}</span>}
@@ -203,7 +206,17 @@ function Steps({ io, run }: { io: RuleCalcIo; run: RuleCalcRun }) {
   );
 }
 
+/** 도크(업무 화면 도구 창)는 포털 탭 밖이라 공급자가 없다 — 바깥 공급자가 있으면 그 범위(모듈·꺼짐)를 따르고, 없으면 mcm 사전으로 받는다. */
 export default function RuleCalcRenderer(props: WidgetProps) {
+  const scope = useMdmMetaScope();
+  return (
+    <MdmMetaProvider module={scope?.module ?? "mcm"}>
+      <RuleCalcBody {...props} />
+    </MdmMetaProvider>
+  );
+}
+
+function RuleCalcBody(props: WidgetProps) {
   const { definition, refreshKey, screenContext } = props;
   const screenApply = readScreenApply(props);
   const cfg = readRuleCalcConfig(definition);

@@ -5,6 +5,7 @@ import { AgDataGrid } from "@dk-oasis/shared/grid";
 import type { WidgetProps } from "@dk-oasis/shared/widget";
 
 import { QUERY_EMPTY, TABLE_ROW_KEY, tableConfigOf, toColumnDefs, toGridRows, truncatedNote } from "../_query/format";
+import { widgetGridPersonalize } from "../../widgets/widget-grid";
 import { QueryShell } from "../_query/ConditionBar";
 import { QueryStyle } from "../_query/parts";
 import { useQueryData } from "../_query/useQueryData";
@@ -17,7 +18,7 @@ const QUERY_TABLE_EXCEL_FALLBACK = "쿼리표";
  * columns 설정이 없으면 결과 컬럼 전부. 아래 줄(행 수, 잘렸으면 「상위 500행만 표시합니다」)과 [엑셀] 은 그리드의 `excelExport` 가 맡는다 —
  * 보이는 행·컬럼 그대로 「{위젯 제목}_{yyyyMMdd}.xlsx」 로 내려받는다.
  */
-export default function QueryTableRenderer({ definition, widgetId, refreshKey, title }: WidgetProps) {
+export default function QueryTableRenderer({ definition, widgetId, instanceId, refreshKey, title }: WidgetProps) {
   const { data, condition } = useQueryData(definition, widgetId, refreshKey);
   const cfg = useMemo(() => tableConfigOf(definition), [definition]);
   const columns = useMemo(() => (data ? toColumnDefs(data.columns, cfg, data.rows) : []), [data, cfg]);
@@ -41,7 +42,7 @@ export default function QueryTableRenderer({ definition, widgetId, refreshKey, t
       <QueryShell condition={condition}>
         {data && (
           <AgDataGrid
-            personalize={false}
+            {...widgetGridPersonalize(widgetId, instanceId)}
             rowKey={TABLE_ROW_KEY}
             columns={columns}
             data={rows}
