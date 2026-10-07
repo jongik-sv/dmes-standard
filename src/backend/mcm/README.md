@@ -46,7 +46,7 @@ local 은 `McmFlywayConfig` 가, WildFly(dev/prod)는 DBA 가 적용한다. Flyw
 
 `cma` 4 · `cmb` 7 · `cme` 1 · `csa` 8 · `code` 2 · `security`(secUser — 내 메뉴/권한) · `roleManagement`(secFavorite — 즐겨찾기 · secStartPgm — 포털 기본 화면) · `audit`(감사 로그) · `lsh`(noticeMgmt 공지사항 관리 · noticeBoard 포털 홈 공지 목록)
 
-공지사항(`noticeMgmt`·`noticeBoard`)은 2026-10-07 에 mls 에서 이 모듈로 옮겼다. Java 는 `lib` 의 `com.dongkuk.dmes.mcm.notice.*`, 테이블은 `TB_MCM_NOTICE`·`TB_MCM_NOTICE_TARGET`(로컬은 `ddl-auto` 가 생성, 운영 DDL 은 [notice-tables.md](../../../docs/mcm/erd/notice-tables.md))이다. 근거는 [DEC-001](../../../docs/ai-build-log/DEC-001_noticeMgmt-on-mls.md) 이다.
+공지사항(`noticeMgmt`·`noticeBoard`)은 2026-10-07 에 mls 에서 이 모듈로 옮겼다. Java 는 `lib` 의 `com.dongkuk.dmes.mcm.notice.*`, 테이블은 `TB_MCM_NOTICE`·`TB_MCM_NOTICE_TARGET`(로컬은 `McmFlywayConfig` 가 mcm-core V 파일로 생성, 운영은 DBA 가 같은 V 파일을 적용. 표 설명은 [notice-tables.md](../../../docs/mcm/erd/notice-tables.md))이다. 근거는 [DEC-001](../../../docs/ai-build-log/DEC-001_noticeMgmt-on-mls.md) 이다.
 
 BPMN 을 추가·수정한 뒤에는 커밋 전에 `oasis-contract-check` 스킬을 돌린다.
 
@@ -68,7 +68,7 @@ BPMN 을 추가·수정한 뒤에는 커밋 전에 `oasis-contract-check` 스킬
 `wildfly` 프로파일(`application-wildfly.yml`)은 `OracleDialect` 와 중립 JNDI 이름 `java:/jdbc/mcm/{dsBiz,dsCmn,dsIF,dsCaravan}` 을 쓴다
 (`JNDI_DS_BIZ` 등 env·-D 로 바꿈). Flyway 는 끈다 — DBA 가 같은 V 파일을 적용한다. 옛 `local-db`(SQL Server 직결)는 `archive/` 로 옮겼다.
 
-`dev`/`prod` 는 `dmes.init.enabled=false` 로 `DataInitializer` 를 끈다 — 운영 계정에 DDL/시드가 도는 사고를 막기
+`dev`/`prod` 는 `dmes.init.enabled=false` 로 `DataInitializer` 를 끈다 — 운영 계정에 시드가 도는 사고를 막기
 위해서다. 개발계에 시드가 필요하면 `-Ddmes.init.enabled=true` 로 한 번 띄우고 원복한다.
 
 ## 실행

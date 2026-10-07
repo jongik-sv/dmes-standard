@@ -20,6 +20,7 @@ dmes:
     enabled: false
   # ── 쿼리 위젯은 전용 읽기 DataSource 에서만 실행 (oracle-1007, mcm-core c3 정책 B) ──
   # dmes.widget.query.datasource(jndi-name·url)가 없으면 위젯 SQL 실행을 거절한다 — 앱 기본 계정으로 도는 일을 막는다.
+  # 이 키를 읽는 코드는 mcm-core(ora-mcm-core c3, 10d9b67de)에 있다 — 그 커밋이 들어가기 전에는 무시된다.
   # wildfly 프로파일에 두지 않은 까닭: dev 도 그룹으로 wildfly 를 켜고, 그룹 멤버가 dev 를 덮으므로 dev 까지 켜진다.
   widget:
     query:

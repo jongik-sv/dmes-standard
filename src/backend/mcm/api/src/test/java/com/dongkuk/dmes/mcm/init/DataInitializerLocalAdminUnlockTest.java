@@ -92,6 +92,7 @@ class DataInitializerLocalAdminUnlockTest {
     }
 
     @ParameterizedTest
+    // "local-db"(2026-10-07 archive 한 옛 프로필) 는 이름이 local 로 시작해도 local 로 보지 않는지 함께 본다.
     @ValueSource(strings = {"local-db", "dev", "prod", "wildfly"})
     @DisplayName("local 이 아닌 프로필 — 잠긴 admin 을 그대로 둔다")
     void nonLocalProfileKeepsAdminLocked(String profile) {

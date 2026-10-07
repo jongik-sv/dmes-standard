@@ -41,7 +41,7 @@ public class JpaConfig {
     public DataSource dataSource(Environment env) {
         // ── JNDI 경로 (2026-07-07 JNDI 전환 설계 — docs/framework/DataSource_JNDI설계.md) ──
         // WildFly 배포(dev/prod): application-wildfly.yml 이 spring.datasource.jndi-name 을 정의
-        // (기본값 java:/jdbc/mssql/mcm/dsBiz, JNDI_DS_BIZ 로 override 가능).
+        // (기본값 java:/jdbc/mcm/dsBiz, JNDI_DS_BIZ 로 override 가능).
         // 물리 접속/풀은 각 WildFly standalone.xml 소유 — 여기선 컨테이너 관리 풀을 조회만 한다.
         String jndiName = env.getProperty("spring.datasource.jndi-name");
         if (jndiName != null && !jndiName.isBlank()) {

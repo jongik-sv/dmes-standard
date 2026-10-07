@@ -14,8 +14,8 @@ cactus:
     client-key: ${BACKEND_CLIENT_KEY:dmes-bff-local-client-key-2026}
 
 # ── DataInitializer — WildFly 계열은 명시적으로 끔 (영향도 분석 2026-07-07) ──
-# 미명시 시 기본 true 로 WildFly JNDI 계정에 DDL/ALTER/시드가 실행되는 사고 위험.
-# 개발계에 시드/스키마 적재가 필요한 시점에만 -Ddmes.init.enabled=true 로 일시 전환 후 원복한다.
+# 미명시 시 기본 true 로 WildFly JNDI 계정에 시드가 실행되는 사고 위험(스키마는 DBA 가 V 파일로 적용 — DataInitializer 는 DDL 을 돌리지 않는다).
+# 개발계에 시드가 필요한 시점에만 -Ddmes.init.enabled=true 로 일시 전환 후 원복한다.
 dmes:
   init:
     enabled: false
