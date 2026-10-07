@@ -1,151 +1,84 @@
 ---
 name: flyway-migration-add
-description: "Flyway 마이그레이션을 추가할 때 방언(Oracle·PostgreSQL·SQLite 등) 간 안전한 버전 번호를 채번하고 파일을 스캐폴딩합니다. aps-core/mcm-core 등 모듈의 스키마를 바꿀 때(엔티티·컬럼·인덱스·제약 추가/변경) 사용합니다. 방언별로 번호를 따로 고르면 같은 번호가 서로 다른 변경을 가리키는 드리프트가 생깁니다."
+description: "Flyway 마이그레이션(Oracle 하나)을 추가할 때 스키마(위치) 폴더별 다음 번호를 채번하고 V 파일을 스캐폴딩합니다. aps-core·mcm-core·mdm·mls 등 모듈의 스키마를 바꿀 때(엔티티·컬럼·인덱스·제약 추가/변경) 사용합니다. 이미 머지된 V 파일은 주석 한 줄도 고치면 체크섬이 바뀌므로 변경은 항상 새 번호로 추가합니다."
 ---
 
-# Flyway 마이그레이션 추가 (dmes-standard)
+# Flyway 마이그레이션 추가 (dmes-standard, Oracle)
 
-정본 규칙: 이 문서. 모듈의 `db/migration/README.md` 에 결번 대장이 있으면 그것도 정본이다.
+정본 규칙: 이 문서. DB 는 **Oracle 하나**(로컬·시험·운영, oracle-1007)라 방언 폴더 짝과 방언 간 번호 일치는 없다. SQL 작성 규칙은 [Oracle SQL 작성 규칙](../../../docs/guide/Database/oracle-sql-rules.md), 스키마 소유·연결 규약은 [`schema-owners.md`](../../../docs/oracle-1007/schema-owners.md).
 
-핵심 불변식:
+핵심 규칙 세 가지:
 
-> **동일한 버전 번호는 모든 방언 폴더에서 동일한 논리 변경을 가리켜야 한다.**
+1. **Flyway 이력은 스키마(위치)마다 독립이다.** 번호는 그 위치(폴더) 최대 번호 + 1 이다. 다른 위치의 번호와 맞출 필요가 없다.
+2. **이미 머지된 V 파일은 고치지 않는다.** V1 baseline 도 같다. 머리 주석 한 줄, 공백 하나도 Flyway 체크섬을 바꿔 이미 적용한 DB 에서 검증 실패(`Migration checksum mismatch`)가 난다. 변경은 V2 이상을 새로 추가한다. 머지 전(아직 어느 DB 에도 적용 안 된) 파일만 고칠 수 있다.
+3. **스키마마다 주인 앱이 하나다.** 그 스키마의 V 파일은 그 앱(모듈)이 소유한다(`docs/oracle-1007/schema-owners.md`). 다른 모듈의 스키마 V 파일을 고치지 않는다.
 
-Flyway 는 location 별로 이력을 독립 관리하므로 번호가 어긋나도 부팅은 성공한다.
-그래서 드리프트가 조용히 쌓인다 — 문서·ADR·커밋에서 "V61" 을 인용하는 순간 어느
-DDL 인지 모호해진다.
+## 1. 위치 구성
 
-## 0. 방언 폴더 구성
+스키마 하나가 폴더 하나다. 실제 모양은 모듈마다 조금 다르다.
 
-DB 구성은 **로컬·자동 테스트 = SQLite, 운영 = Oracle 또는 PostgreSQL(현장마다 하나)** 이고 MSSQL 은
-거의 쓰지 않는다(2026-10-03 결정). 운영 방언을 아직 더하지 않은 모듈은 SQLite 한 벌만
-둔다(예: mdm — [ADR-0004](../../../docs/mdm/adr/0004-drop-mssql-production-assumption.md)).
-
-| 폴더 | 역할 | 비고 |
-|---|---|---|
-| `sqlite/` | 로컬·자동 테스트 | 거의 모든 모듈에 있다 |
-| `oracle/` · `postgresql/` | 운영 방언 | 고객사 확정 시 추가 |
-| `mssql/` (또는 `sqlserver/`) | 운영 방언(드묾) | 거의 없음. MSSQL 현장일 때만 |
-| `{모듈명}/` · `common/` | 공통(방언 무관) 위치 | 템플릿의 샘플 모듈이 이 모양이다 |
-
-Spring Boot 의 `spring.flyway.locations=classpath:db/migration/{vendor}` 자리표시자를 쓰면 폴더 이름은
-`oracle`·`postgresql`·`sqlite`·`sqlserver` 가 된다. 이 경우 MSSQL 폴더는 `mssql` 이 아니라 `sqlserver` 다.
-
-## 1. 이 스킬이 하는 일과 하지 않는 일
-
-**한다** — 작성 시점의 채번·스캐폴딩. 잘못된 번호를 고르는 것 자체를 막는다.
-
-**하지 않는다** — 검사. 방언이 둘 이상인 고객사 프로젝트는 아래 테스트를 갖춘다(템플릿에는 없다).
-이 도구로 그 검사를 대신하지 말 것:
-
-| 테스트(예시 이름) | 검사 대상 |
+| 모양 | 예 |
 |---|---|
-| `MigrationVersionIntegrityTest` | 방언 내 중복 번호 + sqlite 체인 실제 실행 |
-| `CrossDialectVersionSyncTest` | 모든 방언의 버전 집합 일치 (결번 대장 `KNOWN_GAP_LEDGER` 제외) |
-| `CleanLineageIntegrityTest` | 결번 재유입·placeholder 회귀 |
+| `db/migration/oracle/<스키마>/` | mcm-core: `oracle/mcmapuser/`·`mcaapuser/`·`mcm_source/`·`mcm_backup/` |
+| `db/migration/<모듈>/oracle/` | mdm |
+| `db/migration/<스키마 사용자>/` | caravan-hub: `caravanuser/`·`ifuser/` |
+| `db/migration/<모듈>/` | aps-core·mls·mpn·mpp·mqc(방언 폴더 없이 모듈 이름 폴더) |
+
+도구는 `sqlite`·`mssql`·`postgresql`·`h2` 같은 옛 방언 폴더와 SQLite 문법(`AUTOINCREMENT`·`PRAGMA`)이 든 체인 폴더를 **무시**하고 경고만 한다(`archive/` 로 옮길 대상). `archive/` 아래도 보지 않는다.
 
 ## 2. 채번
 
 ```bash
-node .claude/skills/flyway-migration-add/scripts/migration_tool.mjs status --module aps-core
+node .claude/skills/flyway-migration-add/scripts/migration_tool.mjs status --module mcm-core
 ```
 
-`--module` 은 `src/backend/{모듈}/…/db/migration` 또는 `src/backend/{모듈}/api/…/db/migration` 을
-찾는다(`mdm` 처럼 `db/migration/mdm/sqlite/` 로 한 단 더 들어간 모양도 푼다).
-
-번호는 **모든 방언 폴더와 공통 폴더를 함께 본 뒤 어디에도 없는 번호**로 정한다.
-방언별로 "다음 빈 번호" 를 따로 고르면 안 된다 — 이것이 V61/V62 드리프트의 원인이었다.
-
-예: oracle 최대 V90, sqlite 최대 V88 이면 sqlite 만 보고 V89 를 고르게 되는데, 그 번호는 이미
-oracle 의 방언 보정이 쓰고 있을 수 있다. `status` 가 이 충돌을 경고하고, 방언별로 빠진 번호를 보여 준다.
+`--module` 은 `src/backend/{모듈}/…/db/migration` 또는 `src/backend/{모듈}/api/…/db/migration` 을 찾는다. 출력은 위치마다 스키마·파일 수·최대 번호·**다음 번호**다. 번호는 위치별로 따로 센다(예: `mcmapuser` 가 V3 까지 있어도 `mcaapuser` 의 다음은 V2).
 
 ## 3. 스캐폴딩
 
-모든 방언 공통 변경 (대부분의 경우):
-
 ```bash
-node .../migration_tool.mjs scaffold --module aps-core --slug add_foo_column --title "foo 컬럼 추가"
+node .claude/skills/flyway-migration-add/scripts/migration_tool.mjs scaffold --module mcm-core --location mcmapuser --slug add_foo_column --title "foo 컬럼 추가"
 ```
 
-방언 폴더가 있으면 그 전부에, 없으면 공통 폴더에 같은 번호로 만든다. 공통 폴더와 방언 폴더가
-함께 있는 모듈(예: `mcm-core` — 공통 폴더는 다른 모듈 위치와 함께 로드되고 `sqlite/` 는 이력 참고용)은
-도구가 대상을 고르지 않고 멈춘다. 모듈 `application.yml` 의 `spring.flyway.locations` 와 주석에서 런타임
-체인을 확인한 뒤 `--dialect <폴더>` 로 명시한다. 방언마다 DDL 이 달라지는
-부분(자료형·자동 증가·upsert 등)은 [방언 중립 SQL 규칙](../../../docs/guide/Database/dialect-neutral-sql.md)을
-따라 각 파일에서 고쳐 쓴다.
+- 위치가 하나뿐이면 `--location` 을 생략한다. 여러 개면 위치 폴더 이름(`mcmapuser`) 또는 경로 끝(`oracle/mcmapuser`)을 준다. 모르면 `status` 로 확인한다.
+- 만들어지는 파일 `V<다음번호>__<slug>.sql` 의 머리에는 대상 스키마, 위치, Oracle 규약 체크 목록, V1 불변 안내가 들어간다. 배경을 채우고 체크 목록은 지운다.
+- `--dialect` 는 호환용이다. 방언은 Oracle 하나라 `oracle` 만 받는다.
+- 새 스키마·모듈을 시작할 때의 V1 baseline 은 이 도구가 만들지 않는다. 스키마 소유표에 먼저 등재하고 위 위치 모양 중 하나로 `V1__baseline.sql` 을 직접 쓴다(`pdb.mjs template-schema` 가 찾을 수 있는 위치여야 한다: `node scripts/oracle/pdb.mjs migrations`).
 
-일부 방언에만 필요한 보정:
+## 4. Oracle 로 쓸 때의 규약과 함정
 
-```bash
-node .../migration_tool.mjs scaffold --module aps-core --slug fk_parity --dialect oracle
-node .../migration_tool.mjs scaffold --module aps-core --slug seq_fix --dialect oracle,postgresql
-```
+[Oracle SQL 작성 규칙](../../../docs/guide/Database/oracle-sql-rules.md) §2 가 정본이다. V 파일에서 특히 자주 틀리는 것:
 
-`--dialect` 에서 빠진 방언의 번호는 **결번으로 남긴다.** 채우기 위한 no-op 파일을 만들지 않는다.
+- **식별자는 따옴표·백틱 없이 대문자**. 엔티티 `@Column(name = "`OFFSET`")` 처럼 백틱을 쓰면 Hibernate 가 소문자 따옴표로 내보내 `ORA-00904` 가 나고 `ddl-auto=validate` 로는 잡히지 않는다. 예약어가 아니면 백틱을 뺀다.
+- **`''` 는 NULL** 이다: `NOT NULL DEFAULT ''` 를 쓰지 않는다. 문자열은 `VARCHAR2(n CHAR)`.
+- **boolean 은 `NUMBER(1,0)` + `CHECK (… IN (0,1))`**(앱은 `preferred_boolean_jdbc_type: TINYINT`). 시각은 `TIMESTAMP(6)`(KST 로 저장, 앱 JVM 은 `Asia/Seoul`).
+- **IDENTITY `BY DEFAULT ON NULL` 은 명시한 ID 를 따라가지 않는다**: 시험·골든에서 명시 ID 와 자동 ID 를 섞으면 번호가 어긋나거나 `ORA-00001`.
+- **DDL 은 자동 커밋**: 파일 하나가 중간에 실패하면 앞부분만 적용된 채 남는다. 파일을 작게 나누고 재실행에 안전하게 쓴다.
+- 운영 Oracle 은 23 미만일 수 있다: `BOOLEAN` 열, `IF [NOT] EXISTS` DDL 같은 23ai 전용 구문을 쓰지 않는다.
+- V 파일의 뷰·인덱스 정의와 앱 SQL 의 조건은 **칼럼 쪽에 함수·형변환을 씌우지 않는다**(`TO_CHAR(칼럼,…) >= :d` 금지 → `칼럼 >= TO_DATE(:d,…)`). 함수 기반 인덱스가 정말 필요하면 DBA 와 합의한다. 규칙은 [Oracle SQL 작성 규칙의 「인덱스를 살리는 조건(sargable)」](../../../docs/guide/Database/oracle-sql-rules.md#인덱스를-살리는-조건sargable).
+- V 파일에 조회문(뷰 정의·시드 SELECT 등)을 쓸 때와 이 스킬의 SQL 예시는 [쿼리 서식](../../../docs/guide/Database/oracle-sql-rules.md#4-쿼리-서식)을 따른다(대문자, 절 키워드 맨 앞 열·본문 7번째 열, 항목은 앞 쉼표, 조인은 쉼표 조인과 `(+)`, 칼럼 별칭 `AS` 는 선택·표 별칭은 `AS` 불가). 기존 V 파일은 서식 때문에 고치지 않는다(체크섬).
+- 자리표시자 `${app_user}`(= `MCMAPUSER`)는 `pdb.mjs template-schema` 와 앱 Flyway 가 풀어 준다. 새 자리표시자를 쓰면 양쪽에 같이 등록한다.
 
-새 운영 방언을 추가할 때는 먼저 `db/migration/{방언}/` 폴더를 만들고, 기존 sqlite 체인과 같은 번호
-체계로 baseline 을 작성한다(기존 번호 중 그 방언에 불필요한 것은 결번 대장에 등재).
+## 5. 작성 후 검증
 
-## 4. 결번을 남길 때 — 3 곳을 함께 갱신한다
-
-일부 방언 마이그레이션은 등재가 따라온다. 하나라도 빠지면 버전 일치 테스트가 실패한다.
-
-1. 빠진 방언 각 폴더의 **다음 번호 파일 헤더 주석**에 사유
-2. 모듈 `db/migration/README.md` 의 **"결번 대장" 표**에 행 추가 (없으면 만든다)
-3. 버전 일치 테스트를 둔 프로젝트는 `CrossDialectVersionSyncTest.KNOWN_GAP_LEDGER` 에 등재
-
-2 와 3 이 어긋나면 테스트가 실패한다 — 어느 한쪽만 고치지 말고 함께 유지한다.
-
-결번 사유에는 **빠진 방언이 이미 목표 상태에 도달한 근거**(어느 버전에서 도달했는지)를
-반드시 적는다. 예: "sqlite head 는 V50/V69/V83 에서 이미 동일 상태".
-
-## 5. 영구 결번 — 재유입 금지
-
-통합 baseline(`V1__init.sql`)이 여러 번호의 논리 효과를 흡수했다면, 그 번호들은 **모든 방언에서 영구 결번**이다.
-결번 대장에 "영구" 로 적고 다시 채우지 않는다 — 채우면 baseline 과 논리 효과가 중복 실행된다.
-채번을 항상 합집합 max+1 로 하므로 정상 경로에서는 저촉되지 않는다.
-
-## 6. 작성 후 검증
-
-모듈의 마이그레이션 테스트를 돌린다. Gradle 경로는 모듈 구조에 따라 다르다.
+모듈의 시험을 Oracle 하니스로 돌린다(PC 전체에서 하나씩, 무거운 작업은 `heavy.sh` 를 거친다).
 
 ```bash
-# aps-core·mcm-core 처럼 모듈 자체가 Gradle 프로젝트인 경우 (JDK 21 이 JAVA_HOME 으로 잡혀 있어야 한다)
-../gradlew :aps-core:test
-# mdm 처럼 api/ 하위 프로젝트인 경우 (src/backend/mdm 에서) — 실재 테스트: Mdm*MigrationTest
-../gradlew :api:test --tests '*MigrationTest'
+# 모듈 폴더(src/backend/<모듈>)에서. JDK 21 이 JAVA_HOME 으로 잡혀 있어야 한다. 시험 PDB 는 하니스가 템플릿에서 복제·삭제한다.
+# Gradle 경로는 모듈 구조에 따라 :api:test(mdm·mls 등) 또는 :test(mcm-core·aps-core) 다.
+DFLOW_HEAVY_WAIT=1800 ../../../.claude/skills/dflow-dev/scripts/heavy.sh ../gradlew :api:test -Pdmes.ora.test=clone
 ```
 
-`--tests` 필터에 맞는 테스트가 없으면 Gradle 이 "No tests found" 로 실패한다. 템플릿의 aps-core·mcm-core 에는
-마이그레이션 테스트가 없으므로 필터 없이 돌리고, `*CrossDialect*` 필터는 버전 일치 테스트를 둔 프로젝트만 쓴다.
-aps-core 는 JDK 21 로 빌드한다. 운영 방언(Oracle·PostgreSQL) 실측은 컨테이너가 필요하므로
-워커가 아니라 팀장의 방언 검증(`.dflow` 의 `dialect_check`)이나 사람이 돌린다.
-sqlite 에서 Flyway 를 켜는 런타임은 `spring.flyway.mixed=true` 가 필수다 — 테이블 재생성 마이그가
-PRAGMA(비트랜잭션)와 DDL 을 한 파일에 섞기 때문이다.
+- 템플릿(`TPL_SCHEMA`)은 dev 의 모든 모듈 V 파일을 적용한 것이다. 새 V 파일이 템플릿에 들어가려면 dev 에 머지된 뒤 `node scripts/oracle/pdb.mjs template-schema --rebuild` 가 필요하다. 머지 전에는 레인 PDB 에서 앱을 기동해(앱 Flyway 가 새 V 파일을 적용한다) 확인한다.
+- 사용법·PC 잠금·오류 판별(VM 때문인지 코드 때문인지)은 [`scripts/oracle/README.md`](../../../scripts/oracle/README.md) 와 [`oracle-26ai-test-guide.md`](../../../docs/guide/Database/oracle-26ai-test-guide.md).
+- 운영·개발계(WildFly)는 앱 Flyway 가 꺼져 있다. DBA 가 같은 V 파일을 순서대로 적용한다.
 
-## 7. 방언별 함정
-
-- **SQLite 테이블 재생성은 이름 기반 컬럼 매핑**: SQLite 는 `ALTER COLUMN` 이 없어 NOT NULL 부여 등에
-  테이블 재생성이 필요하다. 이때 **`INSERT INTO new SELECT * FROM old` 를 쓰지 말 것** — 컬럼 순서에 의존해
-  데이터가 엉뚱한 컬럼으로 들어간다. 반드시 컬럼명을 명시한다. (V78 에서 이 결함으로 실제 데이터 유실이
-  발생했다. local 환경은 Flyway 가 꺼져 있고 `ddl-auto` 가 만든 컬럼 순서가 마이그레이션 기준과 달라서,
-  운영에서만 드러나는 종류다.)
-- **Oracle DDL 은 자동 커밋**: Oracle 은 DDL 마다 암묵 커밋하므로 한 파일 안에서 실패하면 앞부분만 적용된
-  상태로 남는다. 파일을 작게 나누고, 재실행에 안전하게 쓴다. 빈 문자열 `''` 은 NULL 로 저장되므로
-  `NOT NULL DEFAULT ''` 는 쓰지 않는다. 식별자는 따옴표 없이 대문자로 저장된다.
-- **PostgreSQL DDL 은 트랜잭션 안에서 롤백된다**: 대신 `CREATE INDEX CONCURRENTLY` 처럼 트랜잭션 밖에서만
-  되는 문장은 다른 DDL 과 섞지 말고 별도 파일로 둔다. 따옴표 없는 식별자는 소문자로 저장된다.
-- **MSSQL**(MSSQL 을 쓸 때만): `CREATE PROCEDURE`·`CREATE TRIGGER` 처럼 배치의 첫 문장이어야 하는 구문은 앞뒤를 `GO` 로 끊는다.
-
-## 8. 도구 자체 검증
+## 6. 도구 자체 검증
 
 ```bash
 node .claude/skills/flyway-migration-add/scripts/selftest.mjs
 ```
 
-채번 로직을 고쳤으면 반드시 다시 돌린다. 임시 픽스처에 oracle·postgresql·sqlite 3 방언의 비대칭을 심어
-합집합 채번이 실제로 충돌을 피하는지 확인한다.
+도구를 고쳤으면 반드시 다시 돌린다. 임시 픽스처로 mcm-core(스키마 폴더 4개)·mdm(`oracle/` + 옛 sqlite)·caravan-hub(스키마 폴더)·aps-core(모듈 이름 폴더)·SQLite 체인 폴더 모양을 만들어 채번과 무시 규칙을 확인한다. 실 저장소는 건드리지 않는다.
 
-도구는 node 18.17 이상만 있으면 윈도우·macOS 어디서든 돈다(python 불필요). 생성 파일의 줄끝은 항상 LF 다.
-python 원본과의 동등성은 python 이 있는 PC 에서 `node --test .claude/skills/flyway-migration-add/tests/` 로 확인한다
-(`tests/golden/legacy/` 의 동결 사본과 같은 입력으로 비교하고, python 이 없으면 건너뛴다).
+도구는 node 18.17 이상만 있으면 윈도우·macOS 어디서든 돈다(python 불필요). 생성 파일의 줄끝은 항상 LF 다. 방언 여럿 시절의 python 동등성 시험(골든)은 `archive/` 로 옮겼고 더 쓰지 않는다.

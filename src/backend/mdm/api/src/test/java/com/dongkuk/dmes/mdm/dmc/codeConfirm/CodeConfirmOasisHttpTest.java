@@ -11,6 +11,7 @@ import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeConfirmCheck;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeFixtures;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeTestConfig;
 import com.dongkuk.dmes.mdm.common.support.MdmClockConfig;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.version.VersionConfirmCheckSpi;
@@ -23,12 +24,10 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Path;
 import java.util.List;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
@@ -40,8 +39,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-06-05 design.md §3.2 HT1~HT3 — BPMN {@code services/dmc/codeConfirm.bpmn} 까지 태우는 HTTP 시험
@@ -53,7 +50,7 @@ import org.springframework.test.context.DynamicPropertySource;
         properties = "cactus.security.client-key=" + CodeConfirmOasisHttpTest.TEST_CLIENT_KEY)
 @ActiveProfiles("local")
 @Import(CodeConfirmOasisHttpTest.ClockOnly.class)
-class CodeConfirmOasisHttpTest {
+class CodeConfirmOasisHttpTest extends AbstractMdmSharedDbTest {
 
     static final String TEST_CLIENT_KEY = "mdm-dmc-confirm-test-client-key";
 
@@ -66,9 +63,6 @@ class CodeConfirmOasisHttpTest {
         }
     }
 
-    @TempDir
-    static Path tempDir;
-
     @LocalServerPort
     int port;
 
@@ -80,12 +74,6 @@ class CodeConfirmOasisHttpTest {
     private final HttpClient client = HttpClient.newHttpClient();
     private final ObjectMapper json = new ObjectMapper();
     private JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-code-confirm-http-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     /** W — 1.001 DRAFT 에 B 추가 + 빈 카테고리 EMPTYC(2-2 경고). N — 1.001 DRAFT 에 바뀐 행 없음(4항 거부). */
     @BeforeEach
@@ -105,9 +93,10 @@ class CodeConfirmOasisHttpTest {
     }
 
     private String draftState(String id) {
-        return jdbc.queryForObject("SELECT STATUS || '|' || COALESCE(APPLY_FROM, '-') || '|' || ROW_VERSION "
+        return jdbc.queryForObject("SELECT STATUS || '|' || NVL(TO_CHAR(APPLY_FROM, 'YYYY-MM-DD HH24:MI:SS'), '-') || '|' || ROW_VERSION "
                 + "FROM TB_MDM_CODE_VER WHERE MARU_CODE_ID = ? AND VER > 1.0005", String.class, id)
-                + " / " + jdbc.queryForObject("SELECT APPLY_TO FROM TB_MDM_CODE_VER WHERE MARU_CODE_ID = ? AND VER < 1.0005",
+                + " / " + jdbc.queryForObject("SELECT TO_CHAR(APPLY_TO, 'YYYY-MM-DD HH24:MI:SS') FROM TB_MDM_CODE_VER "
+                + "WHERE MARU_CODE_ID = ? AND VER < 1.0005",
                 String.class, id);
     }
 

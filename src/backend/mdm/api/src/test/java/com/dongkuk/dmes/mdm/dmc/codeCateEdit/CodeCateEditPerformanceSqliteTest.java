@@ -68,10 +68,10 @@ class CodeCateEditPerformanceSqliteTest extends AbstractMdmSharedDbTest {
         }
         allCodes = new LinkedHashSet<>(codes);
 
-        jdbc.execute("PRAGMA synchronous=OFF"); // 성능 시험 전용 대량 insert 가속(테스트 DB 한정)
+        // 성능 시험 전용 대량 insert — JDBC 배치 한 번으로 넣는다(SQLite 때 쓰던 PRAGMA 가속은 Oracle 에 없다).
         jdbc.batchUpdate(
                 "INSERT INTO TB_MDM_CODE_ITEM (MARU_CODE_ID, CODE, FROM_VER, TO_VER, SEQ, VER) "
-                        + "VALUES ('M', ?, '1.000', '9999', ?, 0)",
+                        + "VALUES ('M', ?, 1.000, 9999, ?, 0)",
                 new BatchPreparedStatementSetter() {
                     @Override
                     public void setValues(PreparedStatement ps, int i) throws SQLException {

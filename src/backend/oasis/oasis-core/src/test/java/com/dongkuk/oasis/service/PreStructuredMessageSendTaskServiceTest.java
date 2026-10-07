@@ -144,7 +144,7 @@ class PreStructuredMessageSendTaskServiceTest {
         PreStructuredMessage message = (PreStructuredMessage) preStructuredMessages.get(0);
         Assertions.assertThat(message.preStructuredMessageElements()).hasSize(count);
 
-        Assertions.assertThat(message.preStructuredMessageElements().get(0).getValue()).isEqualTo(1);
+        Assertions.assertThat(((Number) message.preStructuredMessageElements().get(0).getValue()).intValue()).isEqualTo(1);
         Assertions.assertThat(message.preStructuredMessageElements().get(0).topicStructureElementType())
                 .isEqualTo(TopicStructureElementType.NUMBER);
     }

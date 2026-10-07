@@ -1,42 +1,69 @@
--- TSK-07-03 E2E 전용 mdm.db 픽스처(design.md §3.1). 워크트리 격리 mdm.db 에만 적용한다. 운영·공유 DB 금지.
+-- Oracle(MDMAPUSER) 대상. 문장 끝은 세미콜론으로 구분한다. 트랜잭션은 실행 도우미가 잡는다.
+-- TSK-07-03 E2E 전용 mdm 픽스처(design.md §3.1). 워크트리 격리 DB 에만 적용한다. 운영·공유 DB 금지.
 -- 운영 Flyway 시드가 아니다. 마루 데이터 생성·라벨 지정은 TSK-07-02 몫이라 e2e 가 쓸 행을 여기서 만든다.
--- mdm 기동(Flyway V10 적용) 뒤에만 넣는다. INSERT OR IGNORE 만 쓴다(재실행 안전). ID 는 E2E_DI_ 로 시작한다.
+-- mdm 기동(Flyway 적용) 뒤에만 넣는다. 행마다 PK 기준 NOT EXISTS 를 건다(재실행 안전). ID 는 E2E_DI_ 로 시작한다.
 -- e2e 는 이 행들을 고치지 않고 읽기 확인에만 쓴다. 쓰기는 실행마다 새 키로 한다.
--- 일시는 '2026-08-20 09:00:00', 열린 끝은 '9999-12-31 00:00:00'. EXTERNAL 원천 ERP 는 V2 가 시드한다.
+-- 일시는 TIMESTAMP 2026-08-20 09:00:00, 열린 끝은 TIMESTAMP 9999-12-31 00:00:00. EXTERNAL 원천 ERP 는 V1 기준선(TB_MDM_SYSTEM)이 시드한다.
 
-INSERT OR IGNORE INTO TB_MDM_DATA (MARU_DATA_ID, MARU_DATA_NAME, STATUS, SOURCE_KIND, SOURCE_SYSTEM, CODE_PATTERN,
-    ATTR01_NAME, ATTR03_NAME, LVL_CNT, LAST_CHG_SEQ, CHG_SEQ, C_USR_ID, C_PGM_ID, VER) VALUES
-    ('E2E_DI_PORT', '항구', 'INUSE', 'MDM', NULL, '^[0-9A-Z]{1,20}$', '국가', '비고', 1, 0, 0, 'e2e-fixture', 'mdm-dataItem.sql', 0);
-INSERT OR IGNORE INTO TB_MDM_DATA (MARU_DATA_ID, MARU_DATA_NAME, STATUS, SOURCE_KIND, SOURCE_SYSTEM, CODE_PATTERN,
-    ATTR01_NAME, LVL_CNT, LAST_CHG_SEQ, CHG_SEQ, C_USR_ID, C_PGM_ID, VER) VALUES
-    ('E2E_DI_CUST', '거래처', 'INUSE', 'EXTERNAL', 'ERP', '^[0-9A-Z]{1,20}$', '사업자번호', 0, 0, 0, 'e2e-fixture', 'mdm-dataItem.sql', 0);
+INSERT INTO TB_MDM_DATA (MARU_DATA_ID, MARU_DATA_NAME, STATUS, SOURCE_KIND, SOURCE_SYSTEM, CODE_PATTERN,
+    ATTR01_NAME, ATTR03_NAME, LVL_CNT, LAST_CHG_SEQ, CHG_SEQ, C_USR_ID, C_PGM_ID, VER)
+SELECT 'E2E_DI_PORT', '항구', 'INUSE', 'MDM', NULL, '^[0-9A-Z]{1,20}$', '국가', '비고', 1, 0, 0, 'e2e-fixture', 'mdm-dataItem.sql', 0 FROM DUAL
+ WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_DATA WHERE MARU_DATA_ID = 'E2E_DI_PORT');
+INSERT INTO TB_MDM_DATA (MARU_DATA_ID, MARU_DATA_NAME, STATUS, SOURCE_KIND, SOURCE_SYSTEM, CODE_PATTERN,
+    ATTR01_NAME, LVL_CNT, LAST_CHG_SEQ, CHG_SEQ, C_USR_ID, C_PGM_ID, VER)
+SELECT 'E2E_DI_CUST', '거래처', 'INUSE', 'EXTERNAL', 'ERP', '^[0-9A-Z]{1,20}$', '사업자번호', 0, 0, 0, 'e2e-fixture', 'mdm-dataItem.sql', 0 FROM DUAL
+ WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_DATA WHERE MARU_DATA_ID = 'E2E_DI_CUST');
 
 -- CK_TB_MDM_DATA_CATE_DEF: REGEX 는 DEF_EXPR·DEF_TARGET 둘 다 값, TABLE 은 둘 다 NULL.
-INSERT OR IGNORE INTO TB_MDM_DATA_CATE (MARU_DATA_ID, CATE_ID, VALID_FROM, VALID_TO, CATE_NAME, DEF_KIND, DEF_EXPR, DEF_TARGET,
-    CHG_SEQ, C_USR_ID, C_PGM_ID, VER) VALUES
-    ('E2E_DI_PORT', 'BASE', '2026-08-20 09:00:00', '9999-12-31 00:00:00', '전체', 'REGEX', '.*', 'KEY', 0, 'e2e-fixture', 'mdm-dataItem.sql', 0),
-    ('E2E_DI_PORT', 'KR', '2026-08-20 09:00:00', '9999-12-31 00:00:00', '한국 항구', 'REGEX', '^KR$', 'ATTR01', 0, 'e2e-fixture', 'mdm-dataItem.sql', 0),
-    ('E2E_DI_PORT', 'MAJOR', '2026-08-20 09:00:00', '9999-12-31 00:00:00', '주요 항구', 'TABLE', NULL, NULL, 0, 'e2e-fixture', 'mdm-dataItem.sql', 0),
-    ('E2E_DI_CUST', 'BASE', '2026-08-20 09:00:00', '9999-12-31 00:00:00', '전체', 'REGEX', '.*', 'KEY', 0, 'e2e-fixture', 'mdm-dataItem.sql', 0);
+INSERT INTO TB_MDM_DATA_CATE (MARU_DATA_ID, CATE_ID, VALID_FROM, VALID_TO, CATE_NAME, DEF_KIND, DEF_EXPR, DEF_TARGET,
+    CHG_SEQ, C_USR_ID, C_PGM_ID, VER)
+SELECT v.DID, v.CID, TIMESTAMP '2026-08-20 09:00:00', TIMESTAMP '9999-12-31 00:00:00', v.CNAME, v.KIND, v.EXPR, v.TGT,
+       0, 'e2e-fixture', 'mdm-dataItem.sql', 0
+  FROM (SELECT 'E2E_DI_PORT' AS DID, 'BASE' AS CID, '전체' AS CNAME, 'REGEX' AS KIND, '.*' AS EXPR, 'KEY' AS TGT FROM DUAL
+        UNION ALL
+        SELECT 'E2E_DI_PORT', 'KR', '한국 항구', 'REGEX', '^KR$', 'ATTR01' FROM DUAL
+        UNION ALL
+        SELECT 'E2E_DI_PORT', 'MAJOR', '주요 항구', 'TABLE', NULL, NULL FROM DUAL
+        UNION ALL
+        SELECT 'E2E_DI_CUST', 'BASE', '전체', 'REGEX', '.*', 'KEY' FROM DUAL) v
+ WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_DATA_CATE t
+                    WHERE t.MARU_DATA_ID = v.DID AND t.CATE_ID = v.CID AND t.VALID_FROM = TIMESTAMP '2026-08-20 09:00:00');
 
-INSERT OR IGNORE INTO TB_MDM_DATA_ITEM (MARU_DATA_ID, CODE, VALID_FROM, VALID_TO, NAME, SEQ, ROW_VERSION, CHG_SEQ, LVL1, ATTR01,
-    C_USR_ID, C_PGM_ID, VER) VALUES
-    ('E2E_DI_PORT', 'KRPUS', '2026-08-20 09:00:00', '9999-12-31 00:00:00', '부산', 1, 0, 0, 'KR', 'KR', 'e2e-fixture', 'mdm-dataItem.sql', 0),
-    ('E2E_DI_PORT', 'KRINC', '2026-08-20 09:00:00', '9999-12-31 00:00:00', '인천', 2, 0, 0, 'KR', 'KR', 'e2e-fixture', 'mdm-dataItem.sql', 0),
-    ('E2E_DI_PORT', 'CNSHA', '2026-08-20 09:00:00', '9999-12-31 00:00:00', '상하이', 3, 0, 0, 'CN', 'CN', 'e2e-fixture', 'mdm-dataItem.sql', 0),
-    ('E2E_DI_CUST', 'C0001', '2026-08-20 09:00:00', '9999-12-31 00:00:00', '동국철강', NULL, 0, 0, NULL, '1234567890', 'e2e-fixture', 'mdm-dataItem.sql', 0);
+INSERT INTO TB_MDM_DATA_ITEM (MARU_DATA_ID, CODE, VALID_FROM, VALID_TO, NAME, SEQ, ROW_VERSION, CHG_SEQ, LVL1, ATTR01,
+    C_USR_ID, C_PGM_ID, VER)
+SELECT v.DID, v.CODE, TIMESTAMP '2026-08-20 09:00:00', TIMESTAMP '9999-12-31 00:00:00', v.NM, v.SQ, 0, 0, v.L1, v.A1,
+       'e2e-fixture', 'mdm-dataItem.sql', 0
+  FROM (SELECT 'E2E_DI_PORT' AS DID, 'KRPUS' AS CODE, '부산' AS NM, 1 AS SQ, 'KR' AS L1, 'KR' AS A1 FROM DUAL
+        UNION ALL
+        SELECT 'E2E_DI_PORT', 'KRINC', '인천', 2, 'KR', 'KR' FROM DUAL
+        UNION ALL
+        SELECT 'E2E_DI_PORT', 'CNSHA', '상하이', 3, 'CN', 'CN' FROM DUAL
+        UNION ALL
+        SELECT 'E2E_DI_CUST', 'C0001', '동국철강', NULL, NULL, '1234567890' FROM DUAL) v
+ WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_DATA_ITEM t
+                    WHERE t.MARU_DATA_ID = v.DID AND t.CODE = v.CODE AND t.VALID_FROM = TIMESTAMP '2026-08-20 09:00:00');
 
-INSERT OR IGNORE INTO TB_MDM_DATA_CATE_ITEM (MARU_DATA_ID, CATE_ID, CODE, VALID_FROM, VALID_TO, CHG_SEQ, C_USR_ID, C_PGM_ID, VER) VALUES
-    ('E2E_DI_PORT', 'MAJOR', 'KRPUS', '2026-08-20 09:00:00', '9999-12-31 00:00:00', 0, 'e2e-fixture', 'mdm-dataItem.sql', 0);
+INSERT INTO TB_MDM_DATA_CATE_ITEM (MARU_DATA_ID, CATE_ID, CODE, VALID_FROM, VALID_TO, CHG_SEQ, C_USR_ID, C_PGM_ID, VER)
+SELECT 'E2E_DI_PORT', 'MAJOR', 'KRPUS', TIMESTAMP '2026-08-20 09:00:00', TIMESTAMP '9999-12-31 00:00:00', 0, 'e2e-fixture', 'mdm-dataItem.sql', 0 FROM DUAL
+ WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_DATA_CATE_ITEM
+                    WHERE MARU_DATA_ID = 'E2E_DI_PORT' AND CATE_ID = 'MAJOR' AND CODE = 'KRPUS' AND VALID_FROM = TIMESTAMP '2026-08-20 09:00:00');
 
 -- TSK-07-04 추가 — 트리 빈 상태·CSV 업로드 대상. 둘 다 항목 행을 두지 않는다(빈 마루는 항상 빈 상태, CSV 대상은
 -- KRPUS·KRINC·CNSHA 를 건드리지 않고 e2e 가 새 키만 더한다 — mdm-dataHistory.spec.ts 가 KRPUS 행 수를 그대로 기대한다).
-INSERT OR IGNORE INTO TB_MDM_DATA (MARU_DATA_ID, MARU_DATA_NAME, STATUS, SOURCE_KIND, SOURCE_SYSTEM, CODE_PATTERN,
-    ATTR01_NAME, LVL_CNT, LAST_CHG_SEQ, CHG_SEQ, C_USR_ID, C_PGM_ID, VER) VALUES
-    ('E2E_DI_EMPTY', '빈 항구', 'INUSE', 'MDM', NULL, '^[0-9A-Z]{1,20}$', '국가', 1, 0, 0, 'e2e-fixture', 'mdm-dataItem.sql', 0),
-    ('E2E_DI_CSV', 'CSV 항구', 'INUSE', 'MDM', NULL, '^[0-9A-Z]{1,20}$', '국가', 1, 0, 0, 'e2e-fixture', 'mdm-dataItem.sql', 0);
+INSERT INTO TB_MDM_DATA (MARU_DATA_ID, MARU_DATA_NAME, STATUS, SOURCE_KIND, SOURCE_SYSTEM, CODE_PATTERN,
+    ATTR01_NAME, LVL_CNT, LAST_CHG_SEQ, CHG_SEQ, C_USR_ID, C_PGM_ID, VER)
+SELECT v.DID, v.DNAME, 'INUSE', 'MDM', NULL, '^[0-9A-Z]{1,20}$', '국가', 1, 0, 0, 'e2e-fixture', 'mdm-dataItem.sql', 0
+  FROM (SELECT 'E2E_DI_EMPTY' AS DID, '빈 항구' AS DNAME FROM DUAL
+        UNION ALL
+        SELECT 'E2E_DI_CSV', 'CSV 항구' FROM DUAL) v
+ WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_DATA t WHERE t.MARU_DATA_ID = v.DID);
 
-INSERT OR IGNORE INTO TB_MDM_DATA_CATE (MARU_DATA_ID, CATE_ID, VALID_FROM, VALID_TO, CATE_NAME, DEF_KIND, DEF_EXPR, DEF_TARGET,
-    CHG_SEQ, C_USR_ID, C_PGM_ID, VER) VALUES
-    ('E2E_DI_EMPTY', 'BASE', '2026-08-20 09:00:00', '9999-12-31 00:00:00', '전체', 'REGEX', '.*', 'KEY', 0, 'e2e-fixture', 'mdm-dataItem.sql', 0),
-    ('E2E_DI_CSV', 'BASE', '2026-08-20 09:00:00', '9999-12-31 00:00:00', '전체', 'REGEX', '.*', 'KEY', 0, 'e2e-fixture', 'mdm-dataItem.sql', 0);
+INSERT INTO TB_MDM_DATA_CATE (MARU_DATA_ID, CATE_ID, VALID_FROM, VALID_TO, CATE_NAME, DEF_KIND, DEF_EXPR, DEF_TARGET,
+    CHG_SEQ, C_USR_ID, C_PGM_ID, VER)
+SELECT v.DID, 'BASE', TIMESTAMP '2026-08-20 09:00:00', TIMESTAMP '9999-12-31 00:00:00', '전체', 'REGEX', '.*', 'KEY',
+       0, 'e2e-fixture', 'mdm-dataItem.sql', 0
+  FROM (SELECT 'E2E_DI_EMPTY' AS DID FROM DUAL
+        UNION ALL
+        SELECT 'E2E_DI_CSV' FROM DUAL) v
+ WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_DATA_CATE t
+                    WHERE t.MARU_DATA_ID = v.DID AND t.CATE_ID = 'BASE' AND t.VALID_FROM = TIMESTAMP '2026-08-20 09:00:00');

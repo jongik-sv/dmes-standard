@@ -19,7 +19,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * design.md §4.2 — 저장 거부 조건 R01~R10(02:177) 각 1개 + 보충 S01~S06 + 경고 W01. 실제 SQLite(Flyway 적용),
+ * design.md §4.2 — 저장 거부 조건 R01~R10(02:177) 각 1개 + 보충 S01~S06 + 경고 W01. 실제 Oracle(Flyway 적용),
  * 서비스 빈 직접 호출. 이 컨텍스트에는 메모리 {@code CodeLookup}(R10)과 비즈니스 함수 {@code THK_OK} 가 있다.
  * 코드 원장이 없는 컨텍스트(W02·수용 기준 2 양성 대조)는 {@link DomainMngWithoutCodeLedgerTest}.
  */
@@ -75,8 +75,9 @@ class DomainMngRejectConditionTest extends DomainMngApiSupport {
             r.setDataType("NUMBER");
             r.setUnitCode("ton");
         }));
-        jdbc.update("INSERT OR IGNORE INTO TB_MDM_COLUMN (COLUMN_NAME, PHYS_NAME, DOMAIN_ID, REQUIRED, CHG_SEQ) "
-                + "VALUES ('코일 순중량', 'COIL_NET_WGT', ?, 0, 0)", owner);
+        jdbc.update("INSERT INTO TB_MDM_COLUMN (COLUMN_NAME, PHYS_NAME, DOMAIN_ID, REQUIRED, CHG_SEQ) "
+                + "SELECT '코일 순중량', 'COIL_NET_WGT', ?, 0, 0 FROM DUAL WHERE NOT EXISTS "
+                + "(SELECT 1 FROM TB_MDM_COLUMN WHERE PHYS_NAME = 'COIL_NET_WGT' OR COLUMN_NAME = '코일 순중량')", owner);
         assertFalse(issueCodes(service.validate(req(r -> r.setBizRule("value >= COIL_NET_WGT")), List.of(), List.of()))
                 .contains("R05"));
     }

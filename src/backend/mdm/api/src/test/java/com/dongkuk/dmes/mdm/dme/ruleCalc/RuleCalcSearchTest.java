@@ -68,8 +68,8 @@ public class RuleCalcSearchTest extends RuleCalcTestBase {
     private void draftOnlySet(String id, String name, String owner) {
         jdbc.update("INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, STATUS, "
                 + "C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) "
-                + "VALUES (?, ?, 'CREATED', 'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', "
-                + "'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', 0)", id, name);
+                + "VALUES (?, ?, 'CREATED', 'fixture', TIMESTAMP '2026-01-01 00:00:00', 'fixture', 'fixture', "
+                + "'fixture', TIMESTAMP '2026-01-01 00:00:00', 'fixture', 'fixture', 0)", id, name);
         DmeTestSupport.ruleSetDraft(jdbc, id, "1.000", owner, "[\"R_PRE\"]", 0);
     }
 
@@ -275,8 +275,8 @@ public class RuleCalcSearchTest extends RuleCalcTestBase {
     private void setHeader(String id, String name, String status) {
         jdbc.update("INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, STATUS, "
                 + "C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) "
-                + "VALUES (?, ?, ?, 'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', "
-                + "'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', 0)", id, name, status);
+                + "VALUES (?, ?, ?, 'fixture', TIMESTAMP '2026-01-01 00:00:00', 'fixture', 'fixture', "
+                + "'fixture', TIMESTAMP '2026-01-01 00:00:00', 'fixture', 'fixture', 0)", id, name, status);
     }
 
     /**

@@ -1,3 +1,4 @@
+# SQLite 사본 읽기 도구(로컬 DB 가 Oracle 로 바뀐 뒤에는 SQLite 사본이 있을 때만 동작), Oracle 판은 후속(oracle-1007 b8).
 """MDM 자체 테이블(TB_MDM_*) 컬럼 → 앱 DB(mdm.db) 용어·도메인·컬럼 사전과 MDM 시스템별 필드 등록.
 
 !! 경고 (2026-10-05): mcm 이 MDM 별칭(시스템 코드 MES,MDM)도 찾아 캐시한다. 이 스크립트는 SQL 로 별칭·컬럼을 직접 넣고

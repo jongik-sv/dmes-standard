@@ -1,5 +1,8 @@
 package com.dongkuk.dmes.mdm.common.support;
 
+import java.sql.Clob;
+import java.sql.SQLException;
+
 /**
  * 서비스들이 따로 두던 문자열 보조 메서드의 공용 정본.
  *
@@ -28,5 +31,27 @@ public final class MdmStrings {
     /** null 이면 null, 아니면 {@code toString()}. */
     public static String str(Object value) {
         return value == null ? null : value.toString();
+    }
+
+    /**
+     * 네이티브 SQL 결과 칸 → 문자열. Oracle CLOB 칸은 {@link Clob} 으로 올 수 있어 {@code toString()}·{@code (String)} 캐스트로는 내용을
+     * 얻지 못한다(앞은 객체 표시 문자열, 뒤는 ClassCastException). null 이면 null, 문자열이면 그대로, Clob 이면 전체 내용이다.
+     */
+    public static String text(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String s) {
+            return s;
+        }
+        if (value instanceof Clob clob) {
+            try {
+                long length = clob.length();
+                return length == 0 ? "" : clob.getSubString(1, Math.toIntExact(length));
+            } catch (SQLException e) {
+                throw new IllegalStateException("CLOB 값을 읽지 못했습니다", e);
+            }
+        }
+        return value.toString();
     }
 }

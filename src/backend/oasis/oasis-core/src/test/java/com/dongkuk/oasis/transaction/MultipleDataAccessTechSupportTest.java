@@ -17,9 +17,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+import utils.OracleTestDatabase;
 import org.springframework.orm.jpa.EntityManagerFactoryUtils;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
@@ -48,7 +46,7 @@ public class MultipleDataAccessTechSupportTest {
     private final String MYBATIS_CONFIG = "transaction/MultipleDataAccessTechSupportTest/mybatis-config.xml";
     private final String MYBATIS_MAPPER = "transaction/MultipleDataAccessTechSupportTest/mappers/**/*.xml";
 
-    EmbeddedDatabase database;
+    DataSource database;
 
     DataSource dataSource1;
     EntityManagerFactory entityManagerFactory1;
@@ -112,16 +110,8 @@ public class MultipleDataAccessTechSupportTest {
         return new SpringTransactionHandler(applicationContext);
     }
 
-    private EmbeddedDatabase database() {
-        EmbeddedDatabase dataSource;
-        dataSource = new EmbeddedDatabaseBuilder()
-                .generateUniqueName(true)
-                .setType(EmbeddedDatabaseType.H2)
-                .setScriptEncoding("UTF-8")
-                .ignoreFailedDrops(true)
-                .addScript("transaction/MultipleDataAccessTechSupportTest/schema.sql")
-                .build();
-        return dataSource;
+    private DataSource database() {
+        return OracleTestDatabase.create("transaction/MultipleDataAccessTechSupportTest/schema.sql");
     }
 
     @Test

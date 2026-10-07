@@ -252,7 +252,7 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
     void MASTER_대상_카테고리_attr_라벨이_원장에_없으면_거부한다() {
         new MasterCodeFixtures(jdbc).seedProcCdBeforeDraftEdits();
         jdbc.update("INSERT INTO TB_MDM_DATA (MARU_DATA_ID, MARU_DATA_NAME, SOURCE_KIND, ATTR01_NAME) VALUES ('COIL_DATA', '코일', 'MDM', '두께')");
-        jdbc.update("INSERT INTO TB_MDM_DATA_CATE (MARU_DATA_ID, CATE_ID, VALID_FROM, DEF_KIND) VALUES ('COIL_DATA', 'HOT', '2026-01-01 00:00:00', 'TABLE')");
+        jdbc.update("INSERT INTO TB_MDM_DATA_CATE (MARU_DATA_ID, CATE_ID, VALID_FROM, DEF_KIND) VALUES ('COIL_DATA', 'HOT', TIMESTAMP '2026-01-01 00:00:00', 'TABLE')");
         v2ResultAsExpression(4);
 
         Map<String, String> cases = new LinkedHashMap<>();
@@ -344,7 +344,7 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
     private void versionedSets(boolean v2Wrong) {
         otherRule("R_WID", "X_IN", "COIL_WID");
         ruleSet("S_VER", "INUSE", "QLTY_GRD_JDG", "R_WID");
-        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = '2026-07-01 00:00:00' WHERE MARU_RULE_SET_ID = 'S_VER'");
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = TIMESTAMP '2026-07-01 00:00:00' WHERE MARU_RULE_SET_ID = 'S_VER'");
         DmeTestSupport.ruleSetVersion(jdbc, "S_VER", "2.000", "MAJOR", "RELEASED", "kim",
                 v2Wrong ? "[\"QLTY_GRD_JDG\",\"R_WID\"]" : "[\"R_WID\",\"QLTY_GRD_JDG\"]", "2026-07-01 00:00:00", "9999-12-31 00:00:00", 0);
         DmeTestSupport.ruleSetVersion(jdbc, "S_VER", "3.000", "MAJOR", "DRAFT", "kim", "[\"QLTY_GRD_JDG\",\"R_WID\"]", null, null, 0);
@@ -734,7 +734,7 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
         return root.path("cases");
     }
 
-    /** 코퍼스 전부와 퍼즈 앞 {@link #FUZZ_LIMIT}개를 읽어, 뺄 사례를 세고 나머지를 SQLite 에 시드해 두 검사를 돌린다. */
+    /** 코퍼스 전부와 퍼즈 앞 {@link #FUZZ_LIMIT}개를 읽어, 뺄 사례를 세고 나머지를 시험 DB 에 시드해 두 검사를 돌린다. */
     private Tally compareCases() throws IOException {
         List<Map.Entry<JsonNode, String>> all = new ArrayList<>();
         cases("rule-set-corpus.json").forEach(c -> all.add(Map.entry(c, "corpus")));

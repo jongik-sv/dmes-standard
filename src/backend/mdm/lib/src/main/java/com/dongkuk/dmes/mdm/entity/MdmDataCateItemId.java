@@ -23,7 +23,7 @@ public class MdmDataCateItemId implements Serializable {
         this.maruDataId = maruDataId;
         this.cateId = cateId;
         this.code = code;
-        this.validFrom = validFrom;
+        this.validFrom = MdmEntityTimes.seconds(validFrom);
     }
 
     public String getMaruDataId() { return maruDataId; }

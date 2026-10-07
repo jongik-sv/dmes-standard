@@ -22,6 +22,7 @@
 
 - 운영(WildFly)에서는 Flyway 를 계속 끄고 DBA 가 같은 `V` 파일을 적용한다.
 - 마이그레이션 `V1` 은 접두 없이 쓰고, 스키마 폴더별 Flyway `defaultSchema`(또는 접속 사용자)로 적용한다.
+- **dev 에 머지된 뒤에는 `V1` 을 고치지 않는다.** 머리 주석 한 줄만 바뀌어도 Flyway 체크섬이 달라져 이미 적용한 PDB 에서 validate 가 실패한다. 바꿀 일은 `V2` 이상으로 새로 추가한다. 이미 옛 `V1` 이 적용된 레인 PDB 는 clean 후 다시 적용하거나 템플릿에서 다시 복제한다.
 - 로컬 PDB 의 사용자 목록은 이 표의 스키마 전부이며, `scripts/oracle/pdb.sh` 가 만든다.
 
 ## 2. 접속 사용자와 권한
@@ -40,7 +41,7 @@
 | 사용자·비밀번호 | `DMES_ORA_USER`·`DMES_ORA_PASSWORD`. 값이 없으면 앱 모듈의 기본 스키마 사용자와 로컬 비밀번호 |
 | Spring 속성 | `SPRING_DATASOURCE_URL`·`SPRING_DATASOURCE_USERNAME`·`SPRING_DATASOURCE_PASSWORD` 로도 덮어쓸 수 있다 |
 | 시험 시스템 속성 | `-Ddmes.ora.url=…`·`-Ddmes.ora.user=…`·`-Ddmes.ora.password=…`(시험 하니스가 전달한다) |
-| 커넥션 풀 | Hikari `maximum-pool-size` **3 이하**(인스턴스를 모든 레인이 공유한다) |
+| 커넥션 풀 | Hikari `maximum-pool-size` **3 이하**(인스턴스를 모든 레인이 공유한다). 시험 하니스는 Spring 풀에 최대 2·유휴 0·idle-timeout 10초와 `spring.test.context.cache.maxSize=2` 를 넣는다. 시험 코드가 직접 만드는 풀은 최대 3·유휴 0 으로 두고 `@AfterEach` 에서 닫는다(`scripts/oracle/README.md`) |
 | 운영 JNDI | `java:/jdbc/<모듈>/dsBiz` 같은 중립 이름을 기본값으로 두고 env 로 덮어쓴다 |
 
 ### 3.1 일시 칸 설정(레인 공통 결정)
@@ -54,25 +55,33 @@
    spring.jpa.properties.hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
    ```
 
-3. Oracle 컨테이너 OS 시간대는 `Asia/Seoul` 이다(`tools/oracle-free/docker-compose.yml` 의 `TZ`). `SYSDATE`·`SYSTIMESTAMP` 가 KST 로 나온다.
+3. JVM 시간대는 `-Duser.timezone=Asia/Seoul` 로 고정한다(KST 통일의 전제다). 로컬에서는 build-logic(`dmes.test-conventions`)이 시험 JVM(`Test`)과 `bootRun` 에 시스템 속성으로 넣고, `be-run.sh` 는 java 직접 기동 옵션에 넣는다(`be-run.cmd`·`be-run.ps1` 은 `bootRun` 을 쓰므로 build-logic 이 적용된다). 운영 WildFly 는 `standalone.conf` 의 `JAVA_OPTS` 에 `-Duser.timezone=Asia/Seoul` 을 추가한다(Windows 는 `standalone.conf.bat`).
+4. Oracle 컨테이너 OS 시간대는 `Asia/Seoul` 이다(`tools/oracle-free/docker-compose.yml` 의 `TZ`). `SYSDATE`·`SYSTIMESTAMP` 가 KST 로 나온다.
    `DBTIMEZONE` 은 `+00:00` 으로 남는다. `TIMESTAMP WITH LOCAL TIME ZONE` 을 쓰지 않으므로 영향이 없다(쓰지 않는다).
-4. 적재기(b5)는 epoch 밀리초를 KST 로 변환하고, KST 문자열은 그대로 넣는다. 업무 일시(감사 아닌 것)는 변환하지 않는다.
+5. 적재기(b5)는 epoch 밀리초를 KST 로 변환하고, KST 문자열은 그대로 넣는다. 업무 일시(감사 아닌 것)는 변환하지 않는다.
 
 ### 3.1.1 공통 Hibernate 설정(앱마다 자기 yml 에 둔다)
 
 이 문서가 공통 기본값의 정본이다. 앱은 엔티티마다 매핑을 바꾸지 않고 설정에서 맞춘다.
 
 ```yaml
-spring.jpa.properties.hibernate.type.preferred_boolean_jdbc_type: BIT       # boolean 칸을 NUMBER(1) 로 유지
+spring.jpa.properties.hibernate.type.preferred_boolean_jdbc_type: TINYINT   # boolean 칸을 NUMBER(1,0) 로 유지
 spring.jpa.properties.hibernate.type.preferred_instant_jdbc_type: TIMESTAMP # Instant 감사 칸(KST 로 저장)
 # hibernate.jdbc.time_zone 은 넣지 않는다(JVM 기본 Asia/Seoul)
 ```
 
-- `preferred_boolean_jdbc_type=BIT`: 운영 Oracle 이 23 미만일 수 있어 기준선의 boolean 칸은 `NUMBER(1)` 로 둔다. Spring Boot 4.0.6 이 관리하는 Hibernate 7.2.12 의 `OracleDialect` 는 Oracle 전용 legacy boolean 설정이 없어, 이 값이 없으면 23 이상에서 `BOOLEAN` 을 기대해 validate 가 실패한다(b0 에서 `TB_MDM_COLUMN.REQUIRED` 로 확인). 설정은 ora-mdm 이 정했고 mdm m2 에서 validate 로 확인한다.
+- `preferred_boolean_jdbc_type=TINYINT`: 운영 Oracle 이 23 미만일 수 있어 기준선의 boolean 칸은 `NUMBER(1,0)` + `CHECK (0,1)` 로 둔다. Spring Boot 4.0.6 이 관리하는 Hibernate 7.2.12 의 `OracleDialect` 는 Oracle 전용 legacy boolean 설정이 없어, 이 값이 없으면 23 이상에서 `BOOLEAN` 을 기대해 validate 가 실패한다(b0 에서 `TB_MDM_COLUMN.REQUIRED` 로 확인). 처음에는 `BIT` 로 정했으나 철회했다. 23 이상에서 `BIT` 는 boolean 으로 매핑돼 `NUMBER(1)` 칸 validate 가 실패한다(ora-mcm-core 실측, Hibernate 7.2.12·DB 23 계열). `TINYINT`(·`SMALLINT`·`INTEGER`·`NUMERIC`)는 오류가 0 이라 **23 미만·이상 모두 통하는 값**이다. 이 설정은 ora-mdm·ora-mcm-core 가 각 앱에서 validate 로 확인한다.
 
-### 3.2 운용 규칙(Podman VM 2GB 기준, 사용자 결정)
+#### 확인된 동작과 주의(ora-mdm m3 실측, Hibernate 7.2.12·Oracle 26ai)
 
-Podman VM 은 2GB 그대로 쓴다. b0 실측에서 **동시에 열린 PDB 가 4개가 되자 인스턴스가 종료**됐다(`docs/oracle-1007/spike.md` §0). 그래서 아래를 지킨다.
+- `ddl-auto=validate` 로 mdm 엔티티 전체와 `V1` 이 맞았다(위 `TINYINT`·`TIMESTAMP` 규약 그대로).
+- 세션 `NLS_SORT`·`NLS_COMP` 가 `BINARY` 라 `connection-init-sql` 로 따로 맞출 필요가 없다.
+- CLOB 4000바이트 초과 네이티브 UPDATE, boolean 왕복, `INSERT … SELECT … FROM DUAL UNION ALL` 은 통과했다.
+- **주의: JPQL 에서 `@Lob`(CLOB) 칸에 `UPPER`·`LOWER`·`LIKE` 를 쓰면 `FunctionArgumentException` 이 난다.** 해결은 네이티브 SQL 로 바꾸거나 칸을 `VARCHAR2` 로 두는 것이다(길이가 4000바이트를 넘지 않는 칸이면 `VARCHAR2(4000 CHAR)`). CLOB 칸에 대한 검색 조건을 새로 쓸 때 먼저 확인한다.
+
+### 3.2 운용 규칙(Podman VM 3GB 기준, 사용자 결정)
+
+Podman VM 은 처음 2GB 로 시작했으나 10-07 에 세 번 스래싱해 **3GB(cpus 2)로 올렸다**(사용자 결정). 설정값은 SGA 900M·PGA 목표 400M·`pga_aggregate_limit` 2G 이다(`oracle-26ai-test-guide.md` §8-5). b0 실측(2GB)에서 **동시에 열린 PDB 가 4개가 되자 인스턴스가 종료**됐다(`docs/oracle-1007/spike.md` §0). 3GB 에서도 아래를 지킨다.
 
 1. 동시에 열린 PDB 는 **3개 이하**(FREEPDB1 + 템플릿 1 + 작업 1)다. `scripts/oracle/pdb.mjs` 가 강제하며, 넘기면 자리가 날 때까지 기다린다.
 2. **시험 PDB 는 복제 → 시험 → 즉시 삭제**한다. PC 전체에서 동시에 하나만 돈다(도구의 PC 잠금 + `heavy.sh`). Gradle 은 `-Pdmes.ora.test=clone` 으로 이를 자동화한다(빌드 한 번에 한 번 복제, 끝나면 삭제).

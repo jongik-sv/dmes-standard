@@ -17,9 +17,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+import utils.OracleTestDatabase;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import javax.sql.DataSource;
@@ -38,7 +36,7 @@ import static com.dongkuk.oasis.BpmnServiceLoaderForTest.getServiceStarter;
 @SuppressFBWarnings("URF_UNREAD_FIELD")
 @Execution(ExecutionMode.SAME_THREAD)
 public class TransactionScriptTaskTest {
-    EmbeddedDatabase database;
+    DataSource database;
     DataSource dataSource1;
     DataSource dataSource2;
     NamedParameterJdbcTemplate jdbcTemplate1;
@@ -62,16 +60,8 @@ public class TransactionScriptTaskTest {
         );
     }
 
-    private EmbeddedDatabase database() {
-        EmbeddedDatabase dataSource;
-        dataSource = new EmbeddedDatabaseBuilder()
-                .generateUniqueName(true)
-                .setType(EmbeddedDatabaseType.H2)
-                .setScriptEncoding("UTF-8")
-                .ignoreFailedDrops(true)
-                .addScript("usecase/commitInProgress/initData.sql")
-                .build();
-        return dataSource;
+    private DataSource database() {
+        return OracleTestDatabase.create("usecase/commitInProgress/initData.sql");
     }
 
     private SpringTransactionHandler transactionHandler(TransactionManagerInfoHolder... transactionManagerInfoHolders) {

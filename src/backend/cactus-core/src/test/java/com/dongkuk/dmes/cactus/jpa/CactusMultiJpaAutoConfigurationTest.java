@@ -75,7 +75,7 @@ class CactusMultiJpaAutoConfigurationTest {
         DefaultListableBeanFactory registry = process(
                 "cactus.jpa.table-prefix=tb_cmn_",
                 "cactus.jpa.implicit-naming.enabled=true",
-                "cactus.jpa.extras.cmn.hibernate.dialect=org.hibernate.dialect.H2Dialect",
+                "cactus.jpa.extras.cmn.hibernate.dialect=org.hibernate.dialect.OracleDialect",
                 "cactus.jpa.extras.cmn.hibernate.show-sql=true",
                 "cactus.jpa.extras.cmn.hibernate.properties.[hibernate.boot.allow_jdbc_metadata_access]=false");
         registry.registerSingleton("cmn", unreachableDataSource());
@@ -83,7 +83,7 @@ class CactusMultiJpaAutoConfigurationTest {
         EntityManagerFactory emf = registry.getBean("cactusEntityManagerFactoryCmn", EntityManagerFactory.class);
         try {
             assertThat(emf.getProperties())
-                    .containsEntry("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
+                    .containsEntry("hibernate.dialect", "org.hibernate.dialect.OracleDialect")
                     .containsEntry("hibernate.hbm2ddl.auto", "none")
                     .containsEntry("hibernate.show_sql", "true")
                     .containsEntry("hibernate.boot.allow_jdbc_metadata_access", "false");
@@ -106,7 +106,7 @@ class CactusMultiJpaAutoConfigurationTest {
     void prefix가_없으면_Snake_전략을_넣고_snake를_끄면_넣지_않는다() throws Exception {
         DefaultListableBeanFactory snake = process(
                 "cactus.jpa.extras.cmn.persistence-unit-name=myUnit",
-                "cactus.jpa.extras.cmn.hibernate.dialect=org.hibernate.dialect.H2Dialect",
+                "cactus.jpa.extras.cmn.hibernate.dialect=org.hibernate.dialect.OracleDialect",
                 "cactus.jpa.extras.cmn.hibernate.properties.[hibernate.boot.allow_jdbc_metadata_access]=false");
         snake.registerSingleton("cmn", unreachableDataSource());
         EntityManagerFactory emf = snake.getBean("cactusEntityManagerFactoryCmn", EntityManagerFactory.class);
@@ -122,7 +122,7 @@ class CactusMultiJpaAutoConfigurationTest {
 
         DefaultListableBeanFactory off = process(
                 "cactus.jpa.snake-naming.enabled=false",
-                "cactus.jpa.extras.cmn.hibernate.dialect=org.hibernate.dialect.H2Dialect",
+                "cactus.jpa.extras.cmn.hibernate.dialect=org.hibernate.dialect.OracleDialect",
                 "cactus.jpa.extras.cmn.hibernate.properties.[hibernate.boot.allow_jdbc_metadata_access]=false");
         off.registerSingleton("cmn", unreachableDataSource());
         EntityManagerFactory emfOff = off.getBean("cactusEntityManagerFactoryCmn", EntityManagerFactory.class);

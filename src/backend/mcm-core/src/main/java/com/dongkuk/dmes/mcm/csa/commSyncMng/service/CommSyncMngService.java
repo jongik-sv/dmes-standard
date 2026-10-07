@@ -47,7 +47,7 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
  *       TB_MCM_CODE_CATEGORY). 나머지 13 테이블 (RULE / RULE_JUDGE / INTERFACE / FORMAT / OBJECT 5 그룹)
  *       은 후속 도메인 화면 책임 위임. 본 Service 는 5 enum 분기 진입 시 NotImplementedException 없이
  *       cnt=0 으로 No-op 반환 (As-Is 분기 구조 보존).</li>
- *   <li>Q-002 — Oracle DB Link 3종 폐기 (단일 MSSQL 단일 업무 DB). DB Link 변수는 빈문자열 고정.</li>
+ *   <li>Q-002 — Oracle DB Link 3종 폐기 (단일 업무 DB — 현재 Oracle). DB Link 변수는 빈문자열 고정.</li>
  *   <li>Q-003 — VI_MCM_CODE_ACCESS = cma 4 화면 정본 재사용 (MCMAPUSER.VI_MCM_CODE_ACCESS schema 명시).
  *       본 Service 의 selectMasterCodeData 인천 RULE 차단도 동일 schema 명시. 단 본 화면 책임은 MASTER 만
  *       이므로 RULE / RULE_JUDGE 미호출.</li>
@@ -56,9 +56,9 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
  *   <li>Q-007 — package = com.dongkuk.dmes.mcm.csa.commSyncMng.service / dto = ...dto.
  *       Entity = cma 4 화면 재사용 (자체 작성 ✗ — 정책 #6 (A)).</li>
  *   <li>Q-008 — (b) 안 — INSERT INTO ... SELECT * 직후 별도 UPDATE 로
- *       U_USR_ID / U_AT = GETDATE() / U_SVC_ID="commSyncMng" / U_PGM_ID="commSyncMng" 덮어쓰기.
+ *       U_USR_ID / U_AT = CURRENT_TIMESTAMP / U_SVC_ID="commSyncMng" / U_PGM_ID="commSyncMng" 덮어쓰기.
  *       C_USR_ID / C_AT 는 SOURCE 원작자/원작시각 보존.</li>
- *   <li>Q-010 — 화면 존속 (단일 MSSQL 환경에서 schema 간 MCM_SOURCE ↔ MCMAPUSER ↔ MCM_BACKUP 동기화 시나리오).</li>
+ *   <li>Q-010 — 화면 존속 (단일 업무 DB 환경에서 schema 간 MCM_SOURCE ↔ MCMAPUSER ↔ MCM_BACKUP 동기화 시나리오).</li>
  * </ul>
  *
  * <p>가이드 §6-A-1 (Entity 본 컬럼만) — 본 화면은 동기화 메타 화면이므로 자체 Entity ✗.
@@ -201,7 +201,7 @@ public class CommSyncMngService {
      *   <li>DELETE FROM target.table WHERE MASTER_CODE = :object → INSERT INTO target.table SELECT * FROM
      *       MCM_SOURCE.table WHERE MASTER_CODE = :object → UPDATE target.table SET U_USR_ID/U_AT/U_SVC_ID/U_PGM_ID
      *       WHERE MASTER_CODE = :object (Q-008 b 안 audit 덮어쓰기)</li>
-     *   <li>SOURCE (MCM_SOURCE) 의 CODE_VER 도 NVL(MAX(CODE_VER)+0.1, 1) → ISNULL 변환 (MSSQL) 으로 UP</li>
+     *   <li>SOURCE (MCM_SOURCE) 의 CODE_VER 도 NVL(MAX(CODE_VER)+0.1, 1) → COALESCE·TO_CHAR 변환으로 UP</li>
      * </ol>
      *
      * @return 성공 행 수 (DELETE + INSERT rowcount 합)
@@ -223,7 +223,7 @@ public class CommSyncMngService {
                 continue;
             }
 
-            // (1) SOURCE CODE_VER UP (MCM_SOURCE.TB_MCM_CODE_MASTER + DETAIL) — getCodeVer (MSSQL ISNULL)
+            // (1) SOURCE CODE_VER UP (MCM_SOURCE.TB_MCM_CODE_MASTER + DETAIL) — getCodeVer (COALESCE)
             String nextVer = selectNextCodeVer(object);
             updateSourceCodeVer("TB_MCM_CODE_MASTER", object, nextVer);
             updateSourceCodeVer("TB_MCM_CODE_DETAIL", object, nextVer);
@@ -296,7 +296,7 @@ public class CommSyncMngService {
         //     C_USR_ID / C_AT 는 SOURCE 원작자/원작시각 보존 (덮어쓰기 ✗).
         em.createNativeQuery(
                 "UPDATE " + toSchema + "." + table +
-                " SET U_USR_ID = :userId, U_AT = GETDATE(), " +
+                " SET U_USR_ID = :userId, U_AT = CURRENT_TIMESTAMP, " +
                 "     U_SVC_ID = :svcId, U_PGM_ID = :pgmId " +
                 " WHERE " + whereColumn + " = :v")
                 .setParameter("userId", currentUserId())
@@ -313,14 +313,15 @@ public class CommSyncMngService {
 
     /**
      * As-Is {@code getCodeVer} (xml:13~17) — Oracle {@code NVL(MAX(CODE_VER)+0.1, 1)} →
-     * MSSQL {@code ISNULL(MAX(CAST(CODE_VER AS DECIMAL(10,1)))+0.1, 1)} (Q-002 변환).
+     * {@code TO_CHAR(COALESCE(MAX(CAST(CODE_VER AS DECIMAL(10,1))) + 0.1, 1), 'FM999999990.0')} (Q-002 변환, oracle-1007).
      *
-     * <p>CODE_VER 는 entity 상 VARCHAR(50) 이나 As-Is Oracle 에서는 NUMBER 산술이 동작. To-Be MSSQL 은
-     * CAST 명시 후 산술 결과를 NVARCHAR 로 다시 반환.
+     * <p>CODE_VER 는 entity 상 VARCHAR(50) 이라 CAST 로 숫자로 바꿔 더한 뒤 글자로 돌려준다. 그냥 글자로 바꾸면
+     * Oracle 은 {@code .0} 과 앞자리 0 을 버린다(2.0 → '2', 0.5 → '.5'). 예전 MSSQL 결과('1.0', '2.3')와 같도록
+     * 소수 한 자리·앞자리 0 을 고정하는 형식 {@code FM999999990.0} 을 쓴다.
      */
     private String selectNextCodeVer(String masterCode) {
         Query q = em.createNativeQuery(
-                "SELECT CAST(ISNULL(MAX(CAST(CODE_VER AS DECIMAL(10,1))) + 0.1, 1) AS NVARCHAR(50)) " +
+                "SELECT TO_CHAR(COALESCE(MAX(CAST(CODE_VER AS DECIMAL(10,1))) + 0.1, 1), 'FM999999990.0') " +
                 "  FROM MCM_SOURCE.TB_MCM_CODE_MASTER " +
                 " WHERE MASTER_CODE = :masterCode");
         q.setParameter("masterCode", masterCode);

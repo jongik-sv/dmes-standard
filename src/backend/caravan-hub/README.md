@@ -9,9 +9,9 @@ Kafka 기반 시스템 간 인터페이스 통합 서비스. Caravan 라이브�
 | Java | 11 |
 | Spring Boot | 2.7.18 |
 | Caravan | 1.0.0-SNAPSHOT |
-| MyBatis | 2.3.2 (ANSI SQL) |
+| MyBatis | 2.3.2 (Oracle SQL) |
 | JSch (SFTP) | 0.1.55 |
-| DB | Tibero / Oracle / PostgreSQL / MySQL |
+| DB | Oracle (이전에는 Tibero) |
 
 ## 프로젝트 구조
 
@@ -93,8 +93,10 @@ serai.outbound.http.connect-timeout: 10000
 serai.outbound.http.read-timeout: 30000
 
 # DataSource (MST: 설정 테이블, IF: 인터페이스 테이블)
-spring.datasource.mst.jdbc-url: jdbc:tibero:thin:@host:port:sid
-spring.datasource.if.jdbc-url: jdbc:tibero:thin:@host:port:sid
+spring.datasource.mst.jdbc-url: jdbc:oracle:thin:@//호스트:1521/서비스
+spring.datasource.mst.username: CARAVANUSER
+spring.datasource.if.jdbc-url: jdbc:oracle:thin:@//호스트:1521/서비스
+spring.datasource.if.username: EAIUSER
 ```
 
 ### DB 테이블
@@ -114,7 +116,7 @@ spring.datasource.if.jdbc-url: jdbc:tibero:thin:@host:port:sid
 ## 빌드 & 실행
 
 ```bash
-# 빌드 (libs/ 에 tibero6-jdbc.jar 필요)
+# 빌드 (Oracle JDBC ojdbc11 은 Gradle 의존성이 가져온다)
 gradlew build -x test
 
 # 실행
@@ -163,4 +165,4 @@ POST /kafkaApi/skipOffset {"topicId": "...", "groupId": "...", "count": 1}  # �
 ## 의존성
 
 - **Caravan**: Nexus에 publish 되어 있어야 함 (`com.dongkuk.caravan:caravan:1.0.0-SNAPSHOT`)
-- **Tibero JDBC**: `libs/tibero6-jdbc.jar` 에 직접 배치
+- **Oracle JDBC**: `ojdbc11` (Gradle 의존성이 가져온다. 이전 Tibero 시절의 `libs/tibero6-jdbc.jar` 직접 배치는 필요 없다)

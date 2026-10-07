@@ -375,7 +375,7 @@ public class CommRoleGrpMngService {
      * <p>응답: {@code ds_menuTreeList} (As-Is dataset 이름 보존 / 분석 §3.8 DS-004).
      * 8 컬럼: MENU_ID / MENU_SEQ / MENU_NM / LEV / PARENT_MENU_ID / ROW_SEQ / OBJECT_ID / MENU_VIEW_YN.
      *
-     * <p>Oracle CTE + CONNECT BY → MSSQL WITH RECURSIVE 변환 ({@link SecRoleGroupMappingNativeRepository#searchCmRoleGrpMenu}).
+     * <p>Oracle CTE + CONNECT BY → ANSI 재귀 WITH 변환 ({@link SecRoleGroupMappingNativeRepository#searchCmRoleGrpMenu}).
      */
     public Map<String, Object> searchCmRoleGrpMenu(CommRoleGrpMngSearchMapRequest request) {
         String roleGroupId = request != null ? request.getROLE_GROUP_ID() : null;

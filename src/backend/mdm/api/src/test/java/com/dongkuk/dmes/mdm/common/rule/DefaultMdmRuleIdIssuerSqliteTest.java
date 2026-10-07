@@ -8,11 +8,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.dongkuk.dmes.cactus.audit.CactusAudit;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdIssuer;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdKind;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdRange;
 import com.dongkuk.oasis.audit.AuditHolder;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -21,7 +21,6 @@ import org.hibernate.resource.jdbc.spi.StatementInspector;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -30,19 +29,16 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * TSK-08-02 design §3.1 「DefaultMdmRuleIdIssuerSqliteTest」·I11 — 발급은 결과 집합을 돌려주는 단일 UPDATE 한 문이다.
+ * TSK-08-02 design §3.1 「DefaultMdmRuleIdIssuerSqliteTest」·I11 — 발급은 한 트랜잭션 안의 UPDATE(카운터 증가) 뒤 SELECT(올린 값 읽기) 두 문이다.
  *
- * <p>실측(규칙표 #1, SQLite 3.45 / sqlite-jdbc 3.45.3 / Hibernate 7.0): {@code UPDATE … RETURNING} 을 JPA 네이티브
- * {@code getResultList()} 로 부르면 Hibernate 가 {@code executeQuery} 로 실행해 한 행 한 칸(카운터 이후 값, {@code Integer})을
- * 돌려준다. 트랜잭션 없이 부르면 자동 커밋으로 끝나므로 구현은 {@code TransactionTemplate}(REQUIRED)으로 감싼다.
- * 한 문인지는 Hibernate {@link StatementInspector} 로 발급 한 번에 나간 SQL 을 세어 확인한다.
+ * <p>SQLite 시절에는 {@code UPDATE … RETURNING} 한 문이었다(규칙표 #1). Oracle 은 {@code RETURNING} 이 {@code INTO} 를 요구해
+ * JPA 네이티브로 결과 집합을 받을 수 없으므로 UPDATE 가 그 행에 쓰기 잠금을 잡은 뒤 같은 트랜잭션에서 읽는다. 호출자 트랜잭션이 없으면
+ * 구현이 {@code TransactionTemplate}(REQUIRED)으로 감싼다. 어떤 문이 나갔는지는 Hibernate {@link StatementInspector} 로
+ * 발급 한 번에 나간 SQL 을 세어 확인한다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
-class DefaultMdmRuleIdIssuerSqliteTest {
-
-    @TempDir
-    static Path tempDir;
+class DefaultMdmRuleIdIssuerSqliteTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     MdmRuleIdIssuer issuer;
@@ -60,10 +56,9 @@ class DefaultMdmRuleIdIssuerSqliteTest {
         }
     }
 
+    /** DB 접속은 공용 기반이 넣는다 — 여기서는 발급이 내보내는 SQL 을 세는 검사기만 건다. */
     @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-rule-id-issuer-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
+    static void inspectorProperty(DynamicPropertyRegistry registry) {
         registry.add("spring.jpa.properties.hibernate.session_factory.statement_inspector", RecordingInspector.class::getName);
     }
 
@@ -117,12 +112,14 @@ class DefaultMdmRuleIdIssuerSqliteTest {
     }
 
     @Test
-    void 발급은_결과를_돌려주는_UPDATE_한_문이다() {
+    void 발급은_UPDATE_뒤_SELECT_두_문이다() {
         issuer.issue("QLTY_GRD_JDG", MdmRuleIdKind.ROW, 2);
         List<String> touching = RecordingInspector.SQL.stream().filter(s -> s.toUpperCase().contains("TB_MDM_RULE")).toList();
-        assertEquals(1, touching.size(), touching.toString());
-        String sql = touching.get(0).toUpperCase();
-        assertTrue(sql.startsWith("UPDATE TB_MDM_RULE ") && sql.contains("RETURNING LAST_ROW_ID"), sql);
+        assertEquals(2, touching.size(), touching.toString());
+        String update = touching.get(0).toUpperCase();
+        assertTrue(update.startsWith("UPDATE TB_MDM_RULE ") && !update.contains("RETURNING"), update);
+        String select = touching.get(1).toUpperCase();
+        assertTrue(select.startsWith("SELECT LAST_ROW_ID FROM TB_MDM_RULE "), select);
     }
 
     @Test

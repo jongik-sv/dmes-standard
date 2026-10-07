@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// migration_tool.mjs 자체 검증.
+// migration_tool.mjs 자체 검증 (Oracle 하나 기준).
 //
-// 임시 픽스처에 방언 비대칭(일부 방언에만 있는 번호)을 심어 채번이 실제로 충돌을
-// 피하는지 확인한다. 방언은 oracle·postgresql·sqlite 3개로 둔다. 실 저장소는 건드리지 않는다.
+// 임시 픽스처로 저장소에 실제 있는 위치 모양을 흉내 낸다: mcm-core(oracle/<스키마>/), mdm(<모듈>/oracle/ + 옛 sqlite),
+// caravan-hub(<스키마>/), aps-core(모듈 이름 폴더 + 옛 sqlite 체인). 실 저장소는 건드리지 않는다.
 //
 // 사용: node selftest.mjs
 
@@ -14,16 +14,17 @@ import { runNode, makeTempDir } from '../../_shared/node/proc.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const TOOL = path.join(HERE, 'migration_tool.mjs');
-const REL = 'src/backend/aps-core/src/main/resources/db/migration';
+const MIG = (module, api = false) => `src/backend/${module}/${api ? 'api/' : ''}src/main/resources/db/migration`;
 
-// 실 저장소에서 있었던 모양: 한 방언이 90 까지, sqlite 는 88 까지
-const ASYM = { oracle: [1, 22, 88, 89, 90], postgresql: [1, 22, 88, 90], sqlite: [1, 22, 61, 88] };
-
-function buildFixture(root, layout, rel = REL) {
-  for (const [d, versions] of Object.entries(layout)) {
-    const p = path.join(root, rel, d);
+/** layout: {폴더 상대 경로: [버전 | {name, text}]} */
+function build(root, rel, layout) {
+  for (const [dir, items] of Object.entries(layout)) {
+    const p = path.join(root, rel, dir);
     fs.mkdirSync(p, { recursive: true });
-    for (const v of versions) fs.writeFileSync(path.join(p, `V${v}__fixture_${v}.sql`), '-- fixture\n', 'utf8');
+    for (const it of items) {
+      const f = typeof it === 'number' ? { name: `V${it}__fixture_${it}.sql`, text: '-- fixture\n' } : it;
+      fs.writeFileSync(path.join(p, f.name), f.text, 'utf8');
+    }
   }
   fs.mkdirSync(path.join(root, '.git'), { recursive: true });
 }
@@ -51,78 +52,70 @@ function main() {
     else failures.push(fail);
   };
 
-  // --- 1) 채번: 방언별 max 가 다를 때 합집합 기준이어야 한다 ---
+  // --- 1) mcm-core 모양: 스키마 폴더 4개. 위치가 여러 개면 --location 을 요구하고, 번호는 그 위치 안에서만 센다 ---
   withTemp((root) => {
-    buildFixture(root, ASYM);
-    const [out] = run(root, 'status');
-    check(out.includes('다음 안전 번호: V91'), '채번  3 방언 합집합 max+1 = V91 (sqlite max+1=89 함정 회피)', `채번 오류: V91 이 아님\n${out}`);
-    check(out.includes('충돌한다'), '경고  방언별 채번 시 충돌 경고 노출', '방언별 채번 충돌 경고가 없다');
-    check(out.includes('V61') && out.includes('V89'), '결번  방언별 빠진 번호 목록 노출', `빠진 번호 목록이 없다\n${out}`);
-  });
-
-  // --- 2) scaffold all: 같은 번호로 모든 방언 생성 ---
-  withTemp((root) => {
-    buildFixture(root, ASYM);
-    const [out] = run(root, 'scaffold', '--slug', 'add_foo_column');
-    const paths = Object.fromEntries(Object.keys(ASYM).map((d) => [d, path.join(root, REL, d, 'V91__add_foo_column.sql')]));
-    check(Object.values(paths).every((p) => fs.existsSync(p)), '전체생성  V91 이 3 방언 모두에 생성', `scaffold all 이 전부 만들지 않았다\n${out}`);
-    if (fs.existsSync(paths.oracle)) {
-      const txt = fs.readFileSync(paths.oracle, 'utf8');
-      check(txt.includes('postgresql/V91') && txt.includes('sqlite/V91'), '헤더    나머지 방언 대응 명시', '헤더에 나머지 방언 참조가 없다');
+    const rel = MIG('mcm-core');
+    build(root, rel, { 'oracle/mcmapuser': [1, 2, 3], 'oracle/mcaapuser': [1], 'oracle/mcm_source': [1], 'oracle/mcm_backup': [1] });
+    const [st] = run(root, 'status', '--module', 'mcm-core');
+    check(st.includes('최대 V3, 다음 V4') && st.includes('[MCMAPUSER]') && st.includes('[MCAAPUSER]'), '상태    스키마별 최대·다음 번호와 스키마 이름 표시', `status 표시 오류\n${st}`);
+    let [out, code] = run(root, 'scaffold', '--module', 'mcm-core', '--slug', 'add_col');
+    check(code !== 0 && out.includes('--location'), '위치    여러 위치면 --location 요구', `위치를 임의로 골랐다\n${out}`);
+    [out, code] = run(root, 'scaffold', '--module', 'mcm-core', '--slug', 'add_col', '--location', 'mcaapuser');
+    check(exists(root, rel, 'oracle/mcaapuser', 'V2__add_col.sql') && !exists(root, rel, 'oracle/mcmapuser', 'V4__add_col.sql'),
+      '채번    위치별 번호(mcaapuser V2, 다른 위치의 V4 가 아님)', `위치별 채번 실패\n${out}`);
+    if (exists(root, rel, 'oracle/mcaapuser', 'V2__add_col.sql')) {
+      const txt = fs.readFileSync(path.join(root, rel, 'oracle/mcaapuser', 'V2__add_col.sql'), 'utf8');
+      check(txt.includes('MCAAPUSER') && txt.includes('ORA-00904') && txt.includes('체크섬'), '헤더    스키마·Oracle 규약·V1 불변 안내', `헤더 내용 누락\n${txt}`);
       check(!txt.includes('\r'), '줄끝    LF 로만 기록', '생성 파일에 CR 이 섞였다');
     }
+    [out, code] = run(root, 'scaffold', '--module', 'mcm-core', '--slug', 'x', '--location', 'nosuch');
+    check(code !== 0 && out.includes('nosuch'), '검증    없는 위치 거부', `없는 위치를 받아들였다\n${out}`);
   });
 
-  // --- 3) scaffold 일부 방언: 결번 3 곳 등재 안내가 떠야 한다 ---
+  // --- 2) mdm 모양: <모듈>/oracle/ 하나 + 옛 sqlite 체인(무시). 위치가 하나면 --location 생략 ---
   withTemp((root) => {
-    buildFixture(root, ASYM);
-    const [out] = run(root, 'scaffold', '--slug', 'oracle_pg_fix', '--dialect', 'oracle,postgresql');
-    const made = Object.keys(ASYM).filter((d) => exists(root, REL, d, 'V91__oracle_pg_fix.sql'));
-    check(made.join(',') === 'oracle,postgresql', '일부    지정한 방언(oracle,postgresql)에만 생성', `생성 위치 오류: ${made}\n${out}`);
-    const tokens = ['결번 대장', 'KNOWN_GAP_LEDGER', 'no-op', 'sqlite 의 V91'];
-    check(tokens.every((t) => out.includes(t)), '안내    결번 3 곳 등재 + no-op 금지 안내 노출', `일부 방언 안내 누락\n${out}`);
+    const rel = MIG('mdm', true);
+    build(root, rel, { 'mdm/oracle': [1], 'mdm/sqlite': [1, 2, 23] });
+    const [st] = run(root, 'status', '--module', 'mdm');
+    check(st.includes('다음 V2') && st.includes('옛 방언 폴더'), '상태    옛 sqlite 폴더는 무시하고 경고만(채번에 쓰지 않음)', `옛 방언 처리 오류\n${st}`);
+    const [out] = run(root, 'scaffold', '--module', 'mdm', '--slug', 'add_idx');
+    check(exists(root, rel, 'mdm/oracle', 'V2__add_idx.sql') && !exists(root, rel, 'mdm/sqlite', 'V24__add_idx.sql'), '채번    mdm/oracle 에 V2(sqlite V24 가 아님)', `mdm 채번 실패\n${out}`);
   });
 
-  // --- 4) 기존 번호 덮어쓰기 거부 ---
+  // --- 3) caravan-hub 모양: 방언 폴더 없이 스키마 사용자 폴더 둘 ---
   withTemp((root) => {
-    buildFixture(root, { oracle: [1, 91], sqlite: [1, 91] });
-    const [out] = run(root, 'scaffold', '--slug', 'collide');
-    check(exists(root, REL, 'oracle', 'V92__collide.sql'), '회피    기존 번호를 건너뛰고 V92 채번', `기존 V91 을 피해 V92 로 가지 않았다\n${out}`);
+    const rel = MIG('caravan-hub');
+    build(root, rel, { caravanuser: [1], ifuser: [1, 2] });
+    let [, code] = run(root, 'scaffold', '--module', 'caravan-hub', '--slug', 'a');
+    check(code !== 0, '위치    스키마 폴더 둘이면 --location 요구', 'caravan 위치를 임의로 골랐다');
+    const [out] = run(root, 'scaffold', '--module', 'caravan-hub', '--slug', 'a', '--location', 'ifuser');
+    check(exists(root, rel, 'ifuser', 'V3__a.sql'), '채번    ifuser 위치의 다음 번호 V3', `ifuser 채번 실패\n${out}`);
   });
 
-  // --- 5) 잘못된 slug·없는 방언 거부 ---
+  // --- 4) aps-core 모양: 모듈 이름 폴더 + 옛 SQLite 체인 폴더 ---
   withTemp((root) => {
-    buildFixture(root, { oracle: [1], sqlite: [1] });
+    const rel = MIG('aps-core');
+    build(root, rel, { 'aps-core': [1], sqlite: [1, 2, 3] });
+    const [out] = run(root, 'scaffold', '--module', 'aps-core', '--slug', 'add_bar', '--dialect', 'oracle');
+    check(exists(root, rel, 'aps-core', 'V2__add_bar.sql'), '채번    모듈 이름 폴더에 V2, --dialect oracle 은 받는다', `모듈 이름 폴더 채번 실패\n${out}`);
+  });
+  withTemp((root) => {
+    const rel = MIG('mls', true);
+    build(root, rel, { mls: [{ name: 'V1__init.sql', text: 'create table T (id integer primary key autoincrement);\n' }, 2, 3] });
+    const [out, code] = run(root, 'scaffold', '--module', 'mls', '--slug', 'x');
+    check(code !== 0 && !exists(root, rel, 'mls', 'V4__x.sql'), '무시    SQLite 문법 체인 폴더(AUTOINCREMENT)는 Oracle 위치가 아니다', `옛 SQLite 체인을 Oracle 위치로 봤다\n${out}`);
+  });
+
+  // --- 5) 입력 검증 ---
+  withTemp((root) => {
+    build(root, MIG('aps-core'), { 'aps-core': [1] });
     let [, code] = run(root, 'scaffold', '--slug', 'Bad-Slug');
     check(code !== 0, '검증    잘못된 slug 거부', '잘못된 slug 를 받아들였다');
     let out;
-    [out, code] = run(root, 'scaffold', '--slug', 'x', '--dialect', 'postgresql');
-    check(code !== 0 && out.includes('새 방언이면'), '검증    없는 방언 폴더 거부 + 생성 안내', `없는 방언을 받아들였다\n${out}`);
-  });
-
-  // --- 6) 공통 폴더만 있는 모듈: 공통 폴더에 생성 ---
-  withTemp((root) => {
-    buildFixture(root, { 'aps-core': [1] });
-    const [out] = run(root, 'scaffold', '--slug', 'add_bar');
-    check(exists(root, REL, 'aps-core', 'V2__add_bar.sql'), '공통    방언 폴더가 없으면 공통 폴더에 생성', `공통 폴더 생성 실패\n${out}`);
-  });
-
-  // --- 6b) 공통 + 방언 혼합(mcm-core 모양): all 은 거부, 명시하면 그 폴더에만 ---
-  withTemp((root) => {
-    buildFixture(root, { 'aps-core': [1], sqlite: [1, 2, 17] });
-    let [out, code] = run(root, 'scaffold', '--slug', 'mixed');
-    const made = ['aps-core', 'sqlite'].filter((d) => exists(root, REL, d, 'V18__mixed.sql'));
-    check(code !== 0 && made.length === 0 && out.includes('--dialect'), '혼합    공통+방언 혼합이면 all 거부·명시 요구', `혼합 배치를 임의로 골랐다\n${out}`);
-    [out, code] = run(root, 'scaffold', '--slug', 'mixed', '--dialect', 'aps-core');
-    check(exists(root, REL, 'aps-core', 'V18__mixed.sql'), '혼합    명시한 공통 폴더에 합집합 번호 V18 생성', `명시 생성 실패\n${out}`);
-  });
-
-  // --- 7) api 하위 + 모듈 이름 한 단 더 (db/migration/mdm/sqlite) 해석 ---
-  withTemp((root) => {
-    const rel = 'src/backend/mdm/api/src/main/resources/db/migration/mdm';
-    buildFixture(root, { sqlite: [1, 2, 5], oracle: [1, 2] }, rel);
-    const [out] = run(root, 'status', '--module', 'mdm');
-    check(out.includes('다음 안전 번호: V6') && out.includes('oracle'), '경로    api/ 하위·중첩 모듈 폴더 해석', `중첩 경로 해석 실패\n${out}`);
+    [out, code] = run(root, 'scaffold', '--slug', 'x', '--dialect', 'sqlite');
+    check(code !== 0 && out.includes('Oracle 하나'), '검증    oracle 이외 방언 거부', `다른 방언을 받아들였다\n${out}`);
+    [out, code] = run(root, 'status', '--module', 'nosuch');
+    check(code !== 0, '검증    없는 모듈은 사용 오류', '없는 모듈을 받아들였다');
   });
 
   console.log();

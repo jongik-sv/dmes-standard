@@ -28,5 +28,5 @@
 ## 공통코드 그룹 WIDGET_CTG (cactus LoV TB_SEC_CODE_*)
 
 - 그룹 `WIDGET_CTG`(위젯 분류), 항목 시드: `COMMON`(공통)·`PROD`(생산)·`QUAL`(품질)·`LOGI`(물류)·`TOOL`(도구)·`INFO`(외부 정보).
-- SQLite 시드: `mcm-core/src/main/resources/db/migration/sqlite/V18__insert_widget_category_code.sql`(V13 시드 원칙 — 운영은 마스터코드 관리 화면에서 등록).
+- 시드: `mcm/api` 의 `WidgetCategoryCodeSeeder`(옛 SQLite `V18__insert_widget_category_code.sql` 은 `mcm-core/archive/db-migration/sqlite/` 에 보관 — 운영은 마스터코드 관리 화면에서 등록).
 - 조회: `GET /api/mcm/lov/master/WIDGET_CTG`(LovController → MasterCodeProvider).

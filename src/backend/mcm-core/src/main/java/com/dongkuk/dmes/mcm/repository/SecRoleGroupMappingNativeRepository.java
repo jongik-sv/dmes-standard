@@ -3,7 +3,7 @@
  * 작성일: 2026-06-01
  * 내용: SecRoleGroupMapping (commRoleGrpMng 화면) native query 어댑터 —
  *       selectCommRoleGrpMap (2-table JOIN) / selectCommRole (NOT EXISTS) /
- *       selectMenuObjTree (5-table CTE + MSSQL 재귀 변환)
+ *       selectMenuObjTree (5-table CTE + ANSI 재귀 WITH 변환)
  */
 package com.dongkuk.dmes.mcm.repository;
 
@@ -33,7 +33,7 @@ import java.util.Map;
  *       응답 7 컬럼: ROLE_ID / ROLE_NM / MENU_ID / USE_TP / START_ACTIVE_DATE / END_ACTIVE_DATE /
  *       <b>PARENT_ROLE_ID</b> (To-Be SELECT 추가 — Q-010 해소 / 분석 §12).</li>
  *   <li>{@link #searchCmRoleGrpMenu(String)} — As-Is {@code selectMenuObjTree} (xml:145~249) —
- *       Oracle CTE + CONNECT BY 계층 쿼리 → MSSQL WITH RECURSIVE CTE 변환 (정합 §F #7/#9).
+ *       Oracle CTE + CONNECT BY 계층 쿼리 → ANSI 재귀 WITH 변환 (정합 §F #7/#9).
  *       응답 8 컬럼: MENU_ID / MENU_SEQ / MENU_NM / LEV / PARENT_MENU_ID / ROW_SEQ / OBJECT_ID / MENU_VIEW_YN.</li>
  * </ul>
  *
@@ -46,7 +46,7 @@ public class SecRoleGroupMappingNativeRepository {
     private EntityManager entityManager;
 
     /**
-     * As-Is {@code selectCommRoleGrpMap} (xml:85~98) MSSQL 변환.
+     * As-Is {@code selectCommRoleGrpMap} (xml:85~98) 변환.
      *
      * <p>As-Is SQL (Oracle implicit join):
      * <pre>
@@ -93,7 +93,7 @@ public class SecRoleGroupMappingNativeRepository {
     }
 
     /**
-     * As-Is {@code selectCommRole} (xml:128~143) MSSQL 변환.
+     * As-Is {@code selectCommRole} (xml:128~143) 변환.
      *
      * <p>As-Is SQL:
      * <pre>
@@ -140,7 +140,7 @@ public class SecRoleGroupMappingNativeRepository {
     }
 
     /**
-     * As-Is {@code selectMenuObjTree} (xml:145~249) Oracle CTE + CONNECT BY → MSSQL WITH RECURSIVE 변환.
+     * As-Is {@code selectMenuObjTree} (xml:145~249) Oracle CTE + CONNECT BY → ANSI 재귀 WITH 변환.
      *
      * <p>As-Is 구조 (3 CTE):
      * <ol>
@@ -151,12 +151,13 @@ public class SecRoleGroupMappingNativeRepository {
      *   <li>{@code MENU1 AS} — 계층 LEVEL / SYS_CONNECT_BY_PATH / CONNECT_BY_ISLEAF 계산</li>
      * </ol>
      *
-     * <p>MSSQL 변환 (정합 §F #6~11):
+     * <p>ANSI 변환 (정합 §F #6~11 — oracle-1007 로 Oracle·H2 공통형):
      * <ul>
-     *   <li>{@code WITH RECURSIVE} CTE 로 부모 메뉴 traversal (CONNECT BY 등가)</li>
+     *   <li>재귀 WITH(칸 이름 목록 필수 — Oracle ORA-32039) 로 부모 메뉴 traversal (CONNECT BY 등가).
+     *       예전 MSSQL {@code OPTION (MAXRECURSION 32)} 는 재귀 쪽 {@code T.LEV < 32} 로 옮겨 순환 자료에서도 멈춘다.</li>
      *   <li>{@code SYS_CONNECT_BY_PATH} → CTE 의 누적 path 컬럼</li>
      *   <li>{@code CONNECT_BY_ISLEAF} → 외부 EXISTS (child) 로 대체</li>
-     *   <li>{@code TO_CHAR(MENU_SEQ, '00000000')} → MSSQL {@code RIGHT('00000000' + CAST(MENU_SEQ AS VARCHAR), 8)}</li>
+     *   <li>{@code TO_CHAR(MENU_SEQ, '00000000')} → {@code LPAD(COALESCE(MENU_SEQ, '0'), 8, '0')} (MENU_SEQ 는 VARCHAR2)</li>
      *   <li>{@code (+)} outer-join → {@code LEFT JOIN ... ON}</li>
      *   <li>{@code ROWNUM} → {@code ROW_NUMBER() OVER (ORDER BY ...)}</li>
      *   <li>implicit JOIN → ANSI JOIN</li>
@@ -182,7 +183,7 @@ public class SecRoleGroupMappingNativeRepository {
                 "       AND R.USE_TP = 'Y' " +
                 "       AND MNU.USE_TP = 'Y' " +
                 "       AND MNU.MENU_TP = 'WEB' " +
-                "), MENU_TREE AS ( " +
+                "), MENU_TREE (MENU_ID, MENU_NM, PARENT_MENU_ID, MENU_SEQ, MENU_VIEW_YN, LEV) AS ( " +
                 "    SELECT F.MENU_ID, F.MENU_NM, F.PARENT_MENU_ID, F.MENU_SEQ, F.MENU_VIEW_YN, 0 AS LEV " +
                 "      FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD F " +
                 "     WHERE F.MENU_ID IN (SELECT MENU_ID FROM MROLE) " +
@@ -190,9 +191,10 @@ public class SecRoleGroupMappingNativeRepository {
                 "    SELECT P.MENU_ID, P.MENU_NM, P.PARENT_MENU_ID, P.MENU_SEQ, P.MENU_VIEW_YN, T.LEV + 1 " +
                 "      FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD P " +
                 "      JOIN MENU_TREE T ON T.PARENT_MENU_ID = P.MENU_ID " +
+                "     WHERE T.LEV < 32 " +
                 ") " +
                 "SELECT M.MENU_ID, " +
-                "       RIGHT('00000000' + CAST(ISNULL(M.MENU_SEQ, '0') AS VARCHAR(8)), 8) AS MENU_SEQ, " +
+                "       LPAD(COALESCE(CAST(M.MENU_SEQ AS VARCHAR(30)), '0'), 8, '0') AS MENU_SEQ, " +
                 "       M.MENU_NM, " +
                 "       M.LEV, " +
                 "       M.PARENT_MENU_ID, " +
@@ -201,8 +203,7 @@ public class SecRoleGroupMappingNativeRepository {
                 "       CAST(M.MENU_VIEW_YN AS VARCHAR(20)) " +
                 "  FROM (SELECT DISTINCT MENU_ID, MENU_NM, PARENT_MENU_ID, MENU_SEQ, MENU_VIEW_YN, LEV FROM MENU_TREE) M " +
                 "  LEFT JOIN MCMAPUSER.TB_MCM_SEC_OBJ O ON O.OBJECT_ID = M.MENU_ID " +
-                " ORDER BY M.MENU_SEQ " +
-                "OPTION (MAXRECURSION 32)";
+                " ORDER BY M.MENU_SEQ";
         List<Object[]> rows = entityManager.createNativeQuery(sql)
                 .setParameter("roleGroupId", roleGroupId == null ? "" : roleGroupId)
                 .getResultList();

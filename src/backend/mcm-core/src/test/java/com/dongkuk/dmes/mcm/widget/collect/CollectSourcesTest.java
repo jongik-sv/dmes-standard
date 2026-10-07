@@ -9,6 +9,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
+import com.dongkuk.dmes.mcm.testdb.McmCoreOraTestDb;
 import com.dongkuk.dmes.mcm.widget.collect.CollectConfig.ExchangeSource;
 import com.dongkuk.dmes.mcm.widget.collect.CollectConfig.HttpSource;
 import com.dongkuk.dmes.mcm.widget.collect.CollectConfig.SqlSource;
@@ -21,6 +22,7 @@ import com.dongkuk.dmes.mcm.widget.ext.WidgetExtProperties;
 import com.dongkuk.dmes.mcm.widget.query.WidgetQueryDataSource;
 import com.dongkuk.dmes.mcm.widget.query.WidgetQueryExecutor;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zaxxer.hikari.HikariDataSource;
 import java.math.BigDecimal;
 import java.net.InetAddress;
 import java.net.URI;
@@ -30,7 +32,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.junit.jupiter.api.AfterEach;
@@ -42,12 +43,11 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 /**
- * 정시 수집 원천 3종 — 스펙 2026-10-05 정시 수집 §2·§4. SQL 은 H2 와 실제 읽기 전용 실행기, HTTP 는 {@link MockRestServiceServer}, 환율은 가짜
+ * 정시 수집 원천 3종 — 스펙 2026-10-05 정시 수집 §2·§4. SQL 은 Oracle 시험 PDB(MCMAPUSER 의 시험 전용 표 T_C4_MACHINE)와 실제 읽기 전용 실행기, HTTP 는 {@link MockRestServiceServer}, 환율은 가짜
  * 제공자를 쓴다(실제 네트워크 금지).
  */
 class CollectSourcesTest {
@@ -60,18 +60,24 @@ class CollectSourcesTest {
     @Nested
     class Sql {
 
-        private DriverManagerDataSource dataSource;
+        /** 시험 전용 표 — 기준선에 없어 접두 T_C4_ 로 MCMAPUSER 에 만들고 끝에서 지운다. */
+        private static final String TABLE = "T_C4_MACHINE";
+
+        private HikariDataSource dataSource;
         private JdbcTemplate jdbc;
         private SqlCollectSource source;
         private WidgetQueryExecutor executor;
 
         @BeforeEach
         void setUp() {
-            dataSource = new DriverManagerDataSource("jdbc:h2:mem:collectsql" + UUID.randomUUID().toString().replace("-", "") + ";DB_CLOSE_DELAY=-1");
+            dataSource = McmCoreOraTestDb.dataSource(McmCoreOraTestDb.APP_USER, "collect-sql"); // 작은 풀(최대 2) — tearDown 에서 닫는다
             jdbc = new JdbcTemplate(dataSource);
-            jdbc.execute("CREATE TABLE MACHINE_T (LINE VARCHAR(20), CNT INT, AMT DECIMAL(12,3), STATE VARCHAR(10), D DATE)");
-            jdbc.update("INSERT INTO MACHINE_T VALUES ('L1', 5, 1.500, 'RUN', DATE '2026-10-05'), ('L2', 7, 2.250, 'STOP', DATE '2026-10-05'),"
-                    + " ('L3', NULL, NULL, NULL, NULL)");
+            dropTable();
+            jdbc.execute("CREATE TABLE T_C4_MACHINE (LINE VARCHAR2(20), CNT NUMBER(10), AMT NUMBER(12,3), STATE VARCHAR2(10), D DATE)");
+            McmCoreOraTestDb.awaitReadOnlyReadable(McmCoreOraTestDb.APP_USER, "T_C4_MACHINE"); // ORA-01466 — 만든 직후 읽기 전용 스냅샷
+            jdbc.update("INSERT INTO T_C4_MACHINE VALUES ('L1', 5, 1.500, 'RUN', DATE '2026-10-05')");
+            jdbc.update("INSERT INTO T_C4_MACHINE VALUES ('L2', 7, 2.250, 'STOP', DATE '2026-10-05')");
+            jdbc.update("INSERT INTO T_C4_MACHINE VALUES ('L3', NULL, NULL, NULL, NULL)");
             executor = new WidgetQueryExecutor(mock(WidgetDefRepository.class), mock(WidgetUserContextResolver.class),
                     WidgetQueryDataSource.dedicated(dataSource, null));
             source = new SqlCollectSource(executor);
@@ -79,18 +85,27 @@ class CollectSourcesTest {
 
         @AfterEach
         void tearDown() {
-            jdbc.execute("SHUTDOWN");
+            try {
+                dropTable();
+            } finally {
+                dataSource.close();
+            }
+        }
+
+        /** 만들기 전·끝에서 시험 전용 표를 지운다(없으면 ORA-00942 만 무시). */
+        private void dropTable() {
+            jdbc.execute("BEGIN EXECUTE IMMEDIATE 'DROP TABLE " + TABLE + " PURGE'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;");
         }
 
         @Test
         @DisplayName("keyField 가 있으면 행마다 항목 하나(키=그 열 값) — 숫자는 숫자, 글자는 글자, 값이 null 인 행은 건너뛴다")
         void keyedRows() {
-            List<CollectItem> items = source.collect(new SqlSource("SELECT LINE, CNT FROM MACHINE_T ORDER BY LINE", "CNT", "LINE"), TODAY);
+            List<CollectItem> items = source.collect(new SqlSource("SELECT LINE, CNT FROM T_C4_MACHINE ORDER BY LINE", "CNT", "LINE"), TODAY);
             assertThat(items).extracting(CollectItem::key).containsExactly("L1", "L2");
             assertThat(items.get(0).num()).isEqualByComparingTo("5");
             assertThat(items.get(1).num()).isEqualByComparingTo("7");
 
-            List<CollectItem> text = source.collect(new SqlSource("SELECT LINE, STATE FROM MACHINE_T ORDER BY LINE", "STATE", "LINE"), TODAY);
+            List<CollectItem> text = source.collect(new SqlSource("SELECT LINE, STATE FROM T_C4_MACHINE ORDER BY LINE", "STATE", "LINE"), TODAY);
             assertThat(text).extracting(CollectItem::key, CollectItem::txt, CollectItem::num).containsExactly(
                     org.assertj.core.groups.Tuple.tuple("L1", "RUN", null), org.assertj.core.groups.Tuple.tuple("L2", "STOP", null));
         }
@@ -98,37 +113,37 @@ class CollectSourcesTest {
         @Test
         @DisplayName("keyField 가 없으면 첫 행의 valueField 값 하나를 키 VALUE 로 — 결과 열 이름은 대소문자 무시로 찾는다")
         void singleValue() {
-            List<CollectItem> items = source.collect(new SqlSource("SELECT SUM(CNT) AS TOTAL FROM MACHINE_T", "total", null), TODAY);
+            List<CollectItem> items = source.collect(new SqlSource("SELECT SUM(CNT) AS TOTAL FROM T_C4_MACHINE", "total", null), TODAY);
             assertThat(items).hasSize(1);
             assertThat(items.get(0).key()).isEqualTo("VALUE");
             assertThat(items.get(0).num()).isEqualByComparingTo("12");
-            assertThat(source.collect(new SqlSource("SELECT CNT FROM MACHINE_T WHERE 1 = 0", "CNT", null), TODAY)).isEmpty();
+            assertThat(source.collect(new SqlSource("SELECT CNT FROM T_C4_MACHINE WHERE 1 = 0", "CNT", null), TODAY)).isEmpty();
         }
 
         @Test
         @DisplayName("한 회차 항목은 50개까지만 저장한다")
         void atMost50Items() {
-            jdbc.execute("INSERT INTO MACHINE_T (LINE, CNT) SELECT CONCAT('M', X), X FROM SYSTEM_RANGE(1, 80)");
-            List<CollectItem> items = source.collect(new SqlSource("SELECT LINE, CNT FROM MACHINE_T WHERE CNT IS NOT NULL ORDER BY LINE", "CNT", "LINE"), TODAY);
+            jdbc.execute("INSERT INTO T_C4_MACHINE (LINE, CNT) SELECT 'M' || LEVEL, LEVEL FROM DUAL CONNECT BY LEVEL <= 80");
+            List<CollectItem> items = source.collect(new SqlSource("SELECT LINE, CNT FROM T_C4_MACHINE WHERE CNT IS NOT NULL ORDER BY LINE", "CNT", "LINE"), TODAY);
             assertThat(items).hasSize(50);
         }
 
         @Test
         @DisplayName("열이 없으면 실패, :userId·:deptCd 는 거절, :today·:now 등 날짜 변수는 허용한다")
         void columnsAndVariables() {
-            assertThatThrownBy(() -> source.collect(new SqlSource("SELECT CNT FROM MACHINE_T", "NOPE", null), TODAY))
+            assertThatThrownBy(() -> source.collect(new SqlSource("SELECT CNT FROM T_C4_MACHINE", "NOPE", null), TODAY))
                     .isInstanceOf(CollectException.class).hasMessageContaining("값 열");
-            assertThatThrownBy(() -> source.collect(new SqlSource("SELECT LINE, CNT FROM MACHINE_T", "CNT", "NOPE"), TODAY))
+            assertThatThrownBy(() -> source.collect(new SqlSource("SELECT LINE, CNT FROM T_C4_MACHINE", "CNT", "NOPE"), TODAY))
                     .isInstanceOf(CollectException.class).hasMessageContaining("항목 열");
-            assertThatThrownBy(() -> source.collect(new SqlSource("SELECT CNT FROM MACHINE_T WHERE LINE = :userId", "CNT", null), TODAY))
+            assertThatThrownBy(() -> source.collect(new SqlSource("SELECT CNT FROM T_C4_MACHINE WHERE LINE = :userId", "CNT", null), TODAY))
                     .isInstanceOf(CollectException.class).hasMessageContaining("사용자 변수");
-            assertThatThrownBy(() -> source.collect(new SqlSource("SELECT CNT FROM MACHINE_T WHERE LINE = :deptCd", "CNT", null), TODAY))
+            assertThatThrownBy(() -> source.collect(new SqlSource("SELECT CNT FROM T_C4_MACHINE WHERE LINE = :deptCd", "CNT", null), TODAY))
                     .isInstanceOf(CollectException.class).hasMessageContaining("사용자 변수");
-            assertThatThrownBy(() -> executor.validateCollectSql("SELECT CNT FROM MACHINE_T WHERE LINE = :userId")).isInstanceOf(BusinessException.class);
-            executor.validateCollectSql("SELECT CNT FROM MACHINE_T WHERE D = CAST(:today AS DATE) AND :now IS NOT NULL");
+            assertThatThrownBy(() -> executor.validateCollectSql("SELECT CNT FROM T_C4_MACHINE WHERE LINE = :userId")).isInstanceOf(BusinessException.class);
+            executor.validateCollectSql("SELECT CNT FROM T_C4_MACHINE WHERE D = TO_DATE(:today, 'YYYYMMDD') AND :now IS NOT NULL");
 
-            List<CollectItem> items = source.collect(new SqlSource("SELECT LINE, CNT FROM MACHINE_T WHERE CAST(:today AS VARCHAR(8)) IS NOT NULL"
-                    + " AND CAST(:yesterday AS VARCHAR(8)) IS NOT NULL AND CAST(:monthStart AS VARCHAR(8)) IS NOT NULL"
+            List<CollectItem> items = source.collect(new SqlSource("SELECT LINE, CNT FROM T_C4_MACHINE WHERE CAST(:today AS VARCHAR2(8)) IS NOT NULL"
+                    + " AND CAST(:yesterday AS VARCHAR2(8)) IS NOT NULL AND CAST(:monthStart AS VARCHAR2(8)) IS NOT NULL"
                     + " AND CAST(:now AS TIMESTAMP) IS NOT NULL AND CNT IS NOT NULL ORDER BY LINE", "CNT", "LINE"), TODAY);
             assertThat(items).extracting(CollectItem::key).containsExactly("L1", "L2");
         }
@@ -136,13 +151,13 @@ class CollectSourcesTest {
         @Test
         @DisplayName("검사에 걸리는 SQL(쓰기·사용자 입력 조건)·DB 오류는 DB 메시지 없이 고정 문구로 실패한다")
         void guardAndDbErrors() {
-            assertThatThrownBy(() -> source.collect(new SqlSource("DELETE FROM MACHINE_T", "CNT", null), TODAY)).isInstanceOf(CollectException.class);
-            assertThatThrownBy(() -> source.collect(new SqlSource("SELECT CNT FROM MACHINE_T WHERE LINE = :line", "CNT", null), TODAY))
+            assertThatThrownBy(() -> source.collect(new SqlSource("DELETE FROM T_C4_MACHINE", "CNT", null), TODAY)).isInstanceOf(CollectException.class);
+            assertThatThrownBy(() -> source.collect(new SqlSource("SELECT CNT FROM T_C4_MACHINE WHERE LINE = :line", "CNT", null), TODAY))
                     .isInstanceOf(CollectException.class).hasMessageContaining("알 수 없는 변수");
             assertThatThrownBy(() -> source.collect(new SqlSource("SELECT CNT FROM NO_SUCH_TABLE", "CNT", null), TODAY))
                     .isInstanceOf(CollectException.class).hasMessage("위젯 데이터를 불러오지 못했습니다")
                     .satisfies(e -> assertThat(e.getMessage()).doesNotContain("NO_SUCH_TABLE"));
-            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM MACHINE_T", Long.class)).isEqualTo(3L);
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM T_C4_MACHINE", Long.class)).isEqualTo(3L);
         }
     }
 

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -14,8 +15,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * TSK-06-02 design.md §2 — 마루 코드 원장 <b>seed 전용</b> 헬퍼. 생성 API 가 없는 상태(RELEASED 버전·코드 행·카테고리·
- * EXTERNAL 코드·TB_MDM_DATA)를 JdbcTemplate 원시 INSERT 로 만든다(Backend 가이드 §10). 일시는 SQLite 저장 형식
- * {@code 'yyyy-MM-dd HH:mm:ss'} 문자열, 버전 번호는 문자열("1.001")로 넘겨 NUMERIC 친화도에 맡긴다(운영 쓰기와 같은 저장 형식).
+ * EXTERNAL 코드·TB_MDM_DATA)를 JdbcTemplate 원시 INSERT 로 만든다(Backend 가이드 §10). 일시는
+ * {@code 'yyyy-MM-dd HH:mm:ss'} 문자열로 받아 TIMESTAMP 로 묶고(Oracle 은 문자열 → TIMESTAMP 암시 변환이 NLS 에 기대어 ORA-01843 이 난다),
+ * 버전 번호는 문자열("1.001")로 받아 BigDecimal 로 묶는다(NUMBER(7,3)).
  */
 public final class MasterCodeSeeds {
 
@@ -66,7 +68,7 @@ public final class MasterCodeSeeds {
     public void seedVer(String id, String ver, String kind, String status, String applyFrom, String applyTo, String owner) {
         jdbc.update("INSERT INTO TB_MDM_CODE_VER (MARU_CODE_ID, VER, VER_KIND, STATUS, OWNER_ID, APPLY_FROM, APPLY_TO,"
                         + " RELEASED_AT, ROW_VERSION, AUD_VER) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0)",
-                id, num(ver), kind, status, owner, applyFrom, applyTo, "RELEASED".equals(status) ? applyFrom : null);
+                id, num(ver), kind, status, owner, ts(applyFrom), ts(applyTo), "RELEASED".equals(status) ? ts(applyFrom) : null);
     }
 
     /** RELEASED(과거 적용, 열린 끝). */
@@ -120,7 +122,7 @@ public final class MasterCodeSeeds {
     }
 
     /**
-     * 세 선분 표의 업무 칼럼 스냅숏(감사 칼럼 제외). 버전 번호는 scale 3 문자열로 맞춘다(SQLite 1.000 → 1 저장 대응).
+     * 세 선분 표의 업무 칼럼 스냅숏(감사 칼럼 제외). 버전 번호는 scale 3 문자열로 맞춘다(Oracle NUMBER 는 1.000 을 1 로 읽는다).
      * 행 집합 비교용으로 정렬한 목록을 돌려준다.
      */
     public List<String> segments(String id) {
@@ -161,11 +163,16 @@ public final class MasterCodeSeeds {
         return n;
     }
 
+    /** 19자 텍스트 → TIMESTAMP 바인딩 값(null 은 그대로). */
+    private static Timestamp ts(String text) {
+        return text == null ? null : Timestamp.valueOf(text);
+    }
+
     private static String v(String s) {
         return s == null ? null : new java.math.BigDecimal(s).setScale(3).toPlainString();
     }
 
-    /** "1.000" → 1.0 등 수 값으로 바인딩(NUMERIC 친화도가 운영 쓰기와 같은 형식으로 저장). */
+    /** "1.000" → 1.0 등 수 값으로 바인딩(NUMBER(7,3) 칸). */
     private static Object num(String ver) {
         return ver == null ? null : new java.math.BigDecimal(ver);
     }

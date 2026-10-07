@@ -139,7 +139,7 @@ class MasterRuleDataUploadFilePopupServiceTest {
     // ──────────────────────────────── save ────────────────────────────────
 
     @Test
-    @DisplayName("save regFlag=true — 전건 선삭제(R-107) 후 채번 base 조회(Q-103 본 화면 일원화 — ISNULL) + INSERT")
+    @DisplayName("save regFlag=true — 전건 선삭제(R-107) 후 채번 base 조회(Q-103 본 화면 일원화 — COALESCE) + INSERT")
     void save_삭제등록() {
         mockColDefs();
         when(query.getSingleResult()).thenReturn(5L);   // MAX(RULE_SEQ)=5
@@ -152,7 +152,7 @@ class MasterRuleDataUploadFilePopupServiceTest {
         verify(em, org.mockito.Mockito.atLeast(3)).createNativeQuery(cap.capture());
         List<String> sqls = cap.getAllValues();
         assertThat(sqls.stream().anyMatch(s -> s.equals("DELETE FROM MCAAPUSER.TB_MCA_E2ESRC"))).isTrue();   // R-107 전건
-        assertThat(sqls.stream().anyMatch(s -> s.contains("ISNULL(MAX(RULE_SEQ), 0)"))).isTrue();            // Q-103/C-002
+        assertThat(sqls.stream().anyMatch(s -> s.contains("COALESCE(MAX(RULE_SEQ), 0)"))).isTrue();            // Q-103/C-002
         verify(query, org.mockito.Mockito.atLeastOnce()).setParameter(eq("ruleSeq"), eq(6L));                 // 채번 5+1 (R-109)
         verify(query, org.mockito.Mockito.atLeastOnce()).setParameter(eq("ruleVer"), eq("1"));                // R-109
         assertThat(out.get("cnt_import")).isEqualTo(1);
@@ -176,8 +176,9 @@ class MasterRuleDataUploadFilePopupServiceTest {
         assertThat(insertSql).contains("RULE_VER, RULE_SEQ")
                 .contains("C_USR_ID").contains("U_PGM_ID");                          // Q-105 audit 8
         assertThat(insertSql).doesNotContain("EVIL_COL");
-        verify(query, org.mockito.Mockito.atLeastOnce()).setParameter(eq("c0"), eq("20260709"));   // R-110 '-' 제거
-        verify(query, org.mockito.Mockito.atLeastOnce()).setParameter(eq("ruleSeq"), eq(1L));       // ISNULL 0 + 1
+        verify(query, org.mockito.Mockito.atLeastOnce()).setParameter(eq("c0"), eq("20260709000000"));   // R-110 '-' 제거 + 8자 → 0시 채움(oracle-1007 c4)
+        assertThat(insertSql).contains("TO_DATE(:c0, 'YYYYMMDDHH24MISS')");                                 // DATE 칸 글자 값은 TO_DATE 로 (ORA-01861 회피)
+        verify(query, org.mockito.Mockito.atLeastOnce()).setParameter(eq("ruleSeq"), eq(1L));       // COALESCE 0 + 1
         assertThat(out.get("cnt_import")).isEqualTo(1);
     }
 

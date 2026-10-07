@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
+import com.dongkuk.dmes.mcm.testdb.McmCoreOraTestDb;
 import com.dongkuk.dmes.mcm.widget.common.WidgetUserContextResolver;
 import com.dongkuk.dmes.mcm.widget.def.entity.WidgetDef;
 import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
@@ -13,9 +14,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariDataSource;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
-import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -27,53 +28,92 @@ import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.sql.DataSource;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 쿼리 위젯 실행기 읽기 전용 강제 — 실제 SQLite 파일 + Hikari 풀(로컬 실행과 같은 구성)로 확인한다(스펙 §7.3, 도커 없음).
+ * 쿼리 위젯 실행기 읽기 전용 강제 — 실제 Oracle 시험 PDB({@link McmCoreOraTestDb}, MCMAPUSER) + Hikari 풀(운영과 같은 구성)로 확인한다(스펙 §7.3).
+ * 시험 전용 표는 {@code T_C4_RO_*} 접두다.
  * <ul>
- *   <li>검사(SqlGuard)를 거치지 않고 실행 경로 아래층에 쓰기 문장을 넣어도 {@code SQLITE_READONLY} 로 거절되고 DB 는 그대로다.</li>
- *   <li>실행 뒤 같은 풀의 <b>같은 물리 연결</b>이 query_only·readOnly·autoCommit 이 되돌려진 채 업무 쓰기를 한다(성공·실패 모두).</li>
+ *   <li>검사(SqlGuard)를 거치지 않고 실행 경로 아래층에 쓰기 문장을 넣어도 읽기 전용 트랜잭션({@code SET TRANSACTION READ ONLY})이
+ *       INSERT·UPDATE·DELETE·MERGE·{@code FOR UPDATE} 를 ORA-01456 으로 거절하고 DB 는 그대로다.
+ *       막지 못하는 것 — 시퀀스 {@code NEXTVAL}·DDL(암묵 커밋)·자율 트랜잭션 함수 — 은 {@link SqlGuard} 와 운영 읽기 계정 권한 몫이다(2026-10-07 실측).</li>
+ *   <li>실행 뒤 같은 풀의 <b>같은 물리 연결</b>이 readOnly·autoCommit 이 되돌려진 채 업무 쓰기를 한다(성공·실패 모두 —
+ *       읽기 전용 트랜잭션이 새지 않는다).</li>
  *   <li>바깥 업무 트랜잭션(같은 DataSource)의 연결을 쓰지도, 읽기 전용으로 만들지도 않는다.</li>
- *   <li>되돌리지 못한 연결은 풀에서 빠진다. 전용 DataSource 설정이 있으면 그것을 쓴다.</li>
- *   <li>PostgreSQL·Oracle 은 실제 DB 없이 대본 연결로 확인한다(읽기 전용을 걸지 못하면 SQL 을 실행하지 않는다). 대본 연결은 JDBC 규약과
- *       pgjdbc 실제 제약을 흉내 낸다 — 트랜잭션 중 {@code setReadOnly} 는 예외, 트랜잭션 중 autoCommit 을 켜면 커밋(기록에 {@code commit}),
- *       autoCommit 에서 롤백은 예외. 실 PostgreSQL 확인은 스펙 §7.3(2026-10-03 실측).</li>
+ *   <li>되돌리지 못한 연결은 풀에서 빠진다. 전용 DataSource 설정이 있으면 그것(다른 스키마 계정 MCM_SOURCE)을 쓴다.</li>
+ *   <li>PostgreSQL·Oracle 문장 순서와 실패 닫힘은 실제 DB 없이 대본 연결로 확인한다(읽기 전용을 걸지 못하면 SQL 을 실행하지 않는다).
+ *       대본 연결은 JDBC 규약과 pgjdbc 실제 제약을 흉내 낸다 — 트랜잭션 중 {@code setReadOnly} 는 예외, 트랜잭션 중 autoCommit 을 켜면
+ *       커밋(기록에 {@code commit}), autoCommit 에서 롤백은 예외. 실 PostgreSQL 확인은 스펙 §7.3(2026-10-03 실측).</li>
  * </ul>
  */
 class WidgetQueryReadOnlyTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    @TempDir
-    Path dir;
+    private static final String TBL_T = "T_C4_RO_T";
+    private static final String TBL_P = "T_C4_RO_P";
+    private static final String TBL_EVIL = "T_C4_RO_EVIL";
+    private static final String TBL_ONLY_B = "T_C4_RO_ONLYB";
+    /** 전용 DataSource 시험의 읽기 계정 — 앱 기본(MCMAPUSER)과 다른 스키마라 서로의 표가 보이지 않는다. */
+    private static final String OTHER_USER = McmCoreOraTestDb.SCHEMAS.get(1);
 
-    private String url;
+    /** 확인용 풀 — 시험 대상 풀과 따로 두어 다른 연결에서 본 값(커밋된 것)만 확인한다. */
+    private static HikariDataSource adminPool;
+
     private JdbcTemplate admin;
     private HikariDataSource pool;
     private WidgetDefRepository defRepository;
     private WidgetUserContextResolver resolver;
     private WidgetQueryExecutor executor;
     private final List<HikariDataSource> extraPools = new ArrayList<>();
+    private int bizId = 1000;
+
+    @BeforeAll
+    static void createTables() {
+        adminPool = McmCoreOraTestDb.appDataSource("widget-query-ro-admin");
+        JdbcTemplate ddl = new JdbcTemplate(adminPool);
+        dropTable(ddl, TBL_T);
+        dropTable(ddl, TBL_P);
+        dropTable(ddl, TBL_EVIL);
+        ddl.execute("CREATE TABLE " + TBL_T + " (ID NUMBER(10) PRIMARY KEY, NM VARCHAR2(50))");
+        ddl.execute("CREATE TABLE " + TBL_P + " (ID NUMBER(10) PRIMARY KEY, NM VARCHAR2(50), QTY NUMBER, OWNER_ID VARCHAR2(20))");
+        McmCoreOraTestDb.awaitReadOnlyReadable(McmCoreOraTestDb.APP_USER, TBL_T, TBL_P); // ORA-01466 — 만든 직후 읽기 전용 스냅샷
+    }
+
+    @AfterAll
+    static void dropTablesAndClosePool() {
+        try {
+            JdbcTemplate ddl = new JdbcTemplate(adminPool);
+            dropTable(ddl, TBL_T);
+            dropTable(ddl, TBL_P);
+            dropTable(ddl, TBL_EVIL);
+        } finally {
+            adminPool.close();
+        }
+    }
 
     @BeforeEach
     void setUp() {
-        url = "jdbc:sqlite:" + dir.resolve("widget.db");
-        admin = new JdbcTemplate(new DriverManagerDataSource(url)); // 확인용 — 호출마다 새 연결
-        admin.execute("CREATE TABLE T (ID INTEGER PRIMARY KEY, NM TEXT)");
-        admin.update("INSERT INTO T (ID, NM) VALUES (1, 'a'), (2, 'b'), (3, 'c')");
-        pool = hikari(url, 1);
+        admin = new JdbcTemplate(adminPool); // 확인용 — 시험 대상 풀과 다른 연결
+        admin.update("DELETE FROM " + TBL_T);
+        admin.update("DELETE FROM " + TBL_P);
+        admin.update("INSERT INTO " + TBL_T + " (ID, NM) VALUES (1, 'a')");
+        admin.update("INSERT INTO " + TBL_T + " (ID, NM) VALUES (2, 'b')");
+        admin.update("INSERT INTO " + TBL_T + " (ID, NM) VALUES (3, 'c')");
+        pool = hikari(1);
         defRepository = mock(WidgetDefRepository.class);
         resolver = mock(WidgetUserContextResolver.class);
         executor = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.shared(pool), Clock.systemUTC());
@@ -85,57 +125,66 @@ class WidgetQueryReadOnlyTest {
         extraPools.forEach(HikariDataSource::close);
     }
 
+    /** 표가 있으면 지운다(ORA-00942 만 무시). */
+    private static void dropTable(JdbcTemplate jdbc, String table) {
+        jdbc.execute("BEGIN EXECUTE IMMEDIATE 'DROP TABLE " + table + " PURGE'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;");
+    }
+
     // ── 쓰기 거절 ────────────────────────────────────────────────────
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "INSERT INTO T (ID, NM) VALUES (99, 'x')",
-            "UPDATE T SET NM = 'x'",
-            "DELETE FROM T",
-            "CREATE TABLE EVIL (ID INTEGER)"})
-    @DisplayName("읽기 전용 연결 범위 안에서 쓰기 문장을 직접 실행하면 SQLITE_READONLY 로 거절되고 DB 는 바뀌지 않는다")
+            "INSERT INTO " + TBL_T + " (ID, NM) VALUES (99, 'x')",
+            "UPDATE " + TBL_T + " SET NM = 'x'",
+            "DELETE FROM " + TBL_T,
+            "MERGE INTO " + TBL_T + " t USING DUAL ON (t.ID = 1) WHEN MATCHED THEN UPDATE SET t.NM = 'x'",
+            "SELECT ID FROM " + TBL_T + " FOR UPDATE"})
+    @DisplayName("읽기 전용 연결 범위 안에서 쓰기·잠금 문장을 직접 실행하면 ORA-01456 으로 거절되고 DB 는 바뀌지 않는다")
     void writesInsideReadOnlyScopeAreRejected(String sql) {
         assertThatThrownBy(() -> executor.readOnlyJdbc().execute(con -> {
             try (Statement st = con.createStatement()) {
                 return st.execute(sql);
             }
-        })).isInstanceOf(SQLException.class).hasMessageContaining("SQLITE_READONLY");
-        assertThat(executor.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.SQLITE);
+        })).isInstanceOf(SQLException.class).hasMessageContaining("ORA-01456");
+        assertThat(executor.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.ORACLE);
         assertUnchanged();
         assertPooledConnectionRestoredAndWritable();
     }
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "INSERT INTO T (ID, NM) VALUES (99, 'x') RETURNING ID",
-            "UPDATE T SET NM = 'x' RETURNING ID",
-            "DELETE FROM T RETURNING ID"})
-    @DisplayName("SqlGuard 를 거치지 않은 쓰기 문장을 실행 경로(execute)에 넣어도 SQLITE_READONLY 로 거절된다 — RETURNING 이라 실제로 실행된다")
+            "INSERT INTO " + TBL_T + " (ID, NM) VALUES (99, 'x')",
+            "UPDATE " + TBL_T + " SET NM = 'x'",
+            "DELETE FROM " + TBL_T})
+    @DisplayName("SqlGuard 를 거치지 않은 쓰기 문장을 실행 경로(execute)에 넣어도 ORA-01456 으로 거절된다")
     void writesBelowGuardOnExecutePathAreRejected(String sql) {
         assertThatThrownBy(() -> SqlGuard.check(sql)).isInstanceOf(BusinessException.class); // 1차 방어선이 막는 문장을 아래층에 직접 넣는다
         assertThatThrownBy(() -> executor.execute(sql, Map.of(), 50))
-                .satisfies(e -> assertThat(rootMessage(e)).contains("SQLITE_READONLY"));
+                .satisfies(e -> assertThat(rootMessage(e)).contains("ORA-01456"));
         assertUnchanged();
         assertPooledConnectionRestoredAndWritable();
     }
 
     @Test
-    @DisplayName("결과 없는 CREATE TABLE … AS SELECT 도 실행 경로에서 실패하고 표가 생기지 않는다")
-    void createTableOnExecutePathLeavesNoTable() {
-        assertThatThrownBy(() -> executor.execute("CREATE TABLE EVIL AS SELECT * FROM T", Map.of(), 50))
-                .isInstanceOf(RuntimeException.class);
+    @DisplayName("DDL 은 Oracle 읽기 전용 트랜잭션이 막지 못한다(암묵 커밋) — 1차 방어선 SqlGuard 가 거절하고 표가 생기지 않는다")
+    void createTableIsRejectedByGuardBeforeReachingTheDatabase() {
+        String ddl = "CREATE TABLE " + TBL_EVIL + " AS SELECT * FROM " + TBL_T;
+        assertThatThrownBy(() -> SqlGuard.check(ddl)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> executor.preview("mcm", ddl, 50)).isInstanceOf(BusinessException.class);
         assertUnchanged();
         assertPooledConnectionRestoredAndWritable();
     }
 
-    // ── 사용자 입력 조건(SQLite) ─────────────────────────────────────
+    // ── 사용자 입력 조건(Oracle) ─────────────────────────────────────
 
     @Test
     @DisplayName("입력 조건: 값 없는 선택 조건은 (:x IS NULL OR COL = :x) 로 전체를 돌려주고, 값이 있으면(text·number) 거르며, 인젝션 문자열은 값일 뿐이다")
-    void userParamsOnSqlite() {
-        admin.execute("CREATE TABLE P (ID INTEGER PRIMARY KEY, NM TEXT, QTY NUMERIC)");
-        admin.update("INSERT INTO P (ID, NM, QTY) VALUES (1, 'a', 5), (2, 'b', 10.5), (3, 'c', 20), (4, ?, 1)", "' OR 1=1 --");
-        def("def.opt", "SELECT ID FROM P WHERE (:nm IS NULL OR NM = :nm) AND (:min IS NULL OR QTY >= :min) ORDER BY ID",
+    void userParamsOnOracle() {
+        insertP(1, "a", "5", null);
+        insertP(2, "b", "10.5", null);
+        insertP(3, "c", "20", null);
+        admin.update("INSERT INTO " + TBL_P + " (ID, NM, QTY) VALUES (4, ?, 1)", "' OR 1=1 --");
+        def("def.opt", "SELECT ID FROM " + TBL_P + " WHERE (:nm IS NULL OR NM = :nm) AND (:min IS NULL OR QTY >= :min) ORDER BY ID",
                 "[{\"name\":\"nm\",\"type\":\"text\"},{\"name\":\"min\",\"type\":\"number\"}]");
 
         assertThat(ids("def.opt", Map.of())).containsExactly(1, 2, 3, 4);
@@ -144,25 +193,30 @@ class WidgetQueryReadOnlyTest {
         assertThat(ids("def.opt", Map.of("min", "10.5"))).containsExactly(2, 3);
         assertThat(ids("def.opt", Map.of("nm", "' OR 1=1 --"))).containsExactly(4);
         assertThat(ids("def.opt", Map.of("nm", "x' OR '1'='1"))).isEmpty();
-        assertThat(admin.queryForObject("SELECT COUNT(*) FROM P", Long.class)).isEqualTo(4L);
+        assertThat(admin.queryForObject("SELECT COUNT(*) FROM " + TBL_P, Long.class)).isEqualTo(4L);
         assertPooledConnectionRestoredAndWritable();
     }
 
     @Test
-    @DisplayName("입력 조건(SQLite): \\:userId·@x·$x·$1 자리 밀기 SQL 은 거절하고, 10·1E+1·10.0 은 같은 값으로 같은 결과를 낸다")
-    void userParamsPlaceholderShiftAndNumberNormalizationOnSqlite() {
-        admin.execute("CREATE TABLE P (ID INTEGER PRIMARY KEY, QTY NUMERIC, OWNER TEXT)");
-        admin.update("INSERT INTO P (ID, QTY, OWNER) VALUES (1, 5, 'u1'), (2, 10, 'u2'), (3, 20, 'u3')");
+    @DisplayName("입력 조건(Oracle): \\:userId·@x·$x·$1 자리 밀기 SQL 은 거절하고, 10·1E+1·10.0 은 같은 값으로 같은 결과를 낸다")
+    void userParamsPlaceholderShiftAndNumberNormalizationOnOracle() {
+        insertP(1, "a", "5", "u1");
+        insertP(2, "b", "10", "u2");
+        insertP(3, "c", "20", "u3");
         for (String leak : List.of("\\:userId", "@userId", "$userId", "$1")) {
-            def("def.leak", "SELECT ID FROM P WHERE OWNER = " + leak + " OR QTY = :p", "[{\"name\":\"p\",\"type\":\"number\"}]");
+            def("def.leak", "SELECT ID FROM " + TBL_P + " WHERE OWNER_ID = " + leak + " OR QTY = :p", "[{\"name\":\"p\",\"type\":\"number\"}]");
             assertThatThrownBy(() -> executor.runDefinition("def.leak", 500, Map.of("p", "10")))
                     .as(leak).isInstanceOf(BusinessException.class).hasMessage(SqlGuard.MSG_DB_PLACEHOLDER);
         }
-        def("def.norm", "SELECT ID FROM P WHERE QTY >= :min ORDER BY ID", "[{\"name\":\"min\",\"type\":\"number\"}]");
+        def("def.norm", "SELECT ID FROM " + TBL_P + " WHERE QTY >= :min ORDER BY ID", "[{\"name\":\"min\",\"type\":\"number\"}]");
         for (String text : List.of("10", "1E+1", "10.0", "1e1", "100E-1")) {
             assertThat(ids("def.norm", Map.of("min", text))).as(text).containsExactly(2, 3);
         }
         assertThat(executor.cacheSize()).isEqualTo(1);
+    }
+
+    private void insertP(int id, String nm, String qty, String ownerId) {
+        admin.update("INSERT INTO " + TBL_P + " (ID, NM, QTY, OWNER_ID) VALUES (?, ?, ?, ?)", id, nm, new java.math.BigDecimal(qty), ownerId);
     }
 
     private List<Integer> ids(String defId, Map<String, String> values) {
@@ -172,14 +226,14 @@ class WidgetQueryReadOnlyTest {
     // ── 풀 연결 복원 ─────────────────────────────────────────────────
 
     @Test
-    @DisplayName("성공·실패 실행 뒤 풀(1개)의 같은 물리 연결이 query_only=0·readOnly=false·autoCommit=true 로 업무 쓰기를 한다")
+    @DisplayName("성공·실패 실행 뒤 풀(1개)의 같은 물리 연결이 readOnly=false·autoCommit=true 로 업무 쓰기를 한다 — 읽기 전용 트랜잭션이 새지 않는다")
     void pooledConnectionIsRestoredAfterSuccessAndFailure() throws Exception {
         Connection physical = physicalConnection();
-        def("def.count", "SELECT COUNT(*) AS CNT FROM T");
+        def("def.count", "SELECT COUNT(*) AS CNT FROM " + TBL_T);
         assertThat(((Number) executor.runDefinition("def.count", 500).rows().get(0).get("CNT")).longValue()).isEqualTo(3L);
         assertPooledConnectionRestoredAndWritable();
 
-        assertThatThrownBy(() -> executor.execute("DELETE FROM T RETURNING ID", Map.of(), 50)).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> executor.execute("DELETE FROM " + TBL_T, Map.of(), 50)).isInstanceOf(RuntimeException.class);
         assertPooledConnectionRestoredAndWritable();
 
         assertThatThrownBy(() -> executor.preview("mcm", "SELECT * FROM NO_SUCH_TABLE", 50)).isInstanceOf(BusinessException.class);
@@ -187,35 +241,43 @@ class WidgetQueryReadOnlyTest {
 
         assertThat(physicalConnection()).isSameAs(physical); // 빼고 새로 만든 연결이 아니라 되돌린 그 연결이다
         assertThat(pool.getHikariPoolMXBean().getTotalConnections()).isEqualTo(1);
+
+        // 같은 연결로 이어지는 업무 트랜잭션(autoCommit 끔 → 쓰기 → 커밋)도 정상 — 읽기 전용 상태가 남았다면 ORA-01456
+        try (Connection c = pool.getConnection(); Statement st = c.createStatement()) {
+            c.setAutoCommit(false);
+            st.executeUpdate("INSERT INTO " + TBL_T + " (ID, NM) VALUES (" + (bizId++) + ", 'tx')");
+            c.commit();
+        }
+        assertThat(admin.queryForObject("SELECT COUNT(*) FROM " + TBL_T + " WHERE NM = 'tx'", Long.class)).isEqualTo(1L);
     }
 
     @Test
     @DisplayName("바깥 업무 트랜잭션(같은 DataSource) 안에서 불러도 그 연결을 쓰지 않고, 바깥 연결은 계속 쓸 수 있다")
     void doesNotUseOrLockOuterBusinessTransaction() {
-        HikariDataSource pool2 = hikari(url, 2);
+        HikariDataSource pool2 = hikari(2);
         WidgetQueryExecutor ex2 = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.shared(pool2), Clock.systemUTC());
-        def("def.count", "SELECT COUNT(*) AS CNT FROM T");
+        def("def.count", "SELECT COUNT(*) AS CNT FROM " + TBL_T);
         JdbcTemplate biz = new JdbcTemplate(pool2);
 
         new TransactionTemplate(new DataSourceTransactionManager(pool2)).executeWithoutResult(status -> {
-            biz.update("INSERT INTO T (ID, NM) VALUES (100, 'outer1')"); // 바깥 연결에서 아직 커밋 전
+            biz.update("INSERT INTO " + TBL_T + " (ID, NM) VALUES (100, 'outer1')"); // 바깥 연결에서 아직 커밋 전
             Object cnt = ex2.runDefinition("def.count", 500).rows().get(0).get("CNT");
             assertThat(((Number) cnt).longValue()).isEqualTo(3L); // 다른 연결에서 돌았다 — 커밋 전 바깥 쓰기가 안 보인다
             try {
                 Connection outer = DataSourceUtils.getConnection(pool2);
                 assertThat(outer.isReadOnly()).isFalse();
-                assertThat(pragmaQueryOnly(outer)).isEqualTo("0");
+                assertThat(outer.getAutoCommit()).isFalse(); // 바깥 트랜잭션은 그대로 열려 있다
             } catch (SQLException e) {
                 throw new IllegalStateException(e);
             }
-            biz.update("INSERT INTO T (ID, NM) VALUES (101, 'outer2')"); // 바깥은 여전히 쓸 수 있다
+            biz.update("INSERT INTO " + TBL_T + " (ID, NM) VALUES (101, 'outer2')"); // 바깥은 여전히 쓸 수 있다
         });
 
-        assertThat(admin.queryForObject("SELECT COUNT(*) FROM T WHERE NM LIKE 'outer%'", Long.class)).isEqualTo(2L);
+        assertThat(admin.queryForObject("SELECT COUNT(*) FROM " + TBL_T + " WHERE NM LIKE 'outer%'", Long.class)).isEqualTo(2L);
     }
 
     @Test
-    @DisplayName("query_only 를 되돌리지 못한 연결은 먼저 끊고(abort) 그다음 풀에서 빠진다 — 다음에 빌리는 연결은 새 물리 연결이고 업무 쓰기를 한다")
+    @DisplayName("연결 상태를 되돌리지 못한 연결은 먼저 끊고(abort) 그다음 풀에서 빠진다 — 다음에 빌리는 연결은 새 물리 연결이고 업무 쓰기를 한다")
     void connectionThatCannotBeRestoredIsEvicted() throws Exception {
         AtomicBoolean failRestore = new AtomicBoolean(true);
         List<String> calls = new CopyOnWriteArrayList<>(); // 물리 연결 abort·close 는 Hikari 닫기 스레드에서도 적힌다
@@ -228,7 +290,9 @@ class WidgetQueryReadOnlyTest {
         };
         faulty.setPoolName("widget-query-test-faulty");
         faulty.setMaximumPoolSize(1);
-        faulty.setDataSource(failingRestoreDataSource(new DriverManagerDataSource(url), failRestore, calls));
+        faulty.setMinimumIdle(0);
+        faulty.setDataSource(failingRestoreDataSource(
+                new DriverManagerDataSource(McmCoreOraTestDb.url(), McmCoreOraTestDb.APP_USER, McmCoreOraTestDb.password()), failRestore, calls));
         extraPools.add(faulty);
         Connection before;
         try (Connection c = faulty.getConnection()) {
@@ -252,18 +316,77 @@ class WidgetQueryReadOnlyTest {
         failRestore.set(false);
         try (Connection c = faulty.getConnection()) {
             assertThat(c.unwrap(Connection.class)).isNotSameAs(before);
-            assertThat(pragmaQueryOnly(c)).isEqualTo("0");
+            assertThat(c.isReadOnly()).isFalse();
             try (Statement st = c.createStatement()) {
-                st.executeUpdate("INSERT INTO T (ID, NM) VALUES (200, 'after-evict')");
+                st.executeUpdate("INSERT INTO " + TBL_T + " (ID, NM) VALUES (200, 'after-evict')");
             }
         }
-        assertThat(admin.queryForObject("SELECT COUNT(*) FROM T WHERE ID = 200", Long.class)).isEqualTo(1L);
+        assertThat(admin.queryForObject("SELECT COUNT(*) FROM " + TBL_T + " WHERE ID = 200", Long.class)).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("기본 DataSource 가 지연 획득 프록시(LazyConnectionDataSourceProxy)로 감싸여 있어도 되돌리지 못한 연결은 끊고 Hikari 풀에서 빠진다")
+    void connectionThatCannotBeRestoredIsEvictedThroughLazyProxy() throws Exception {
+        assertEvictedThroughLazyProxy(false);
+    }
+
+    @Test
+    @DisplayName("지연 획득 프록시 — 갈래를 먼저 알아 둔 뒤(resolveDialect) 실행해 방언 보강 문장(createStatement)이 처음 연결을 여는 경로도 끊고 Hikari 풀에서 뺀다")
+    void connectionThatCannotBeRestoredIsEvictedThroughLazyProxyAfterDialectCached() throws Exception {
+        assertEvictedThroughLazyProxy(true);
+    }
+
+    /**
+     * dialectFirst=false: 실행 첫 단계의 메타데이터 읽기(getMetaData)가 실제 연결을 연다. true: 갈래를 미리 알아 두어 readOnly·autoCommit 은
+     * 프록시에 기록만 되고, 방언 보강({@code SET TRANSACTION READ ONLY})의 createStatement 가 처음 실제 연결을 열며 기록한 값을 적용한다.
+     */
+    private void assertEvictedThroughLazyProxy(boolean dialectFirst) throws Exception {
+        AtomicBoolean failRestore = new AtomicBoolean(true);
+        List<String> calls = new CopyOnWriteArrayList<>();
+        HikariDataSource faulty = new HikariDataSource() {
+            @Override
+            public void evictConnection(Connection connection) {
+                calls.add("evict:" + connection.getClass().getName().startsWith("com.zaxxer.hikari."));
+                super.evictConnection(connection);
+            }
+        };
+        faulty.setPoolName("widget-query-test-faulty-lazy-" + dialectFirst);
+        faulty.setMaximumPoolSize(1);
+        faulty.setMinimumIdle(0);
+        faulty.setDataSource(failingRestoreDataSource(
+                new DriverManagerDataSource(McmCoreOraTestDb.url(), McmCoreOraTestDb.APP_USER, McmCoreOraTestDb.password()), failRestore, calls));
+        extraPools.add(faulty);
+        Connection before;
+        try (Connection c = faulty.getConnection()) {
+            before = c.unwrap(Connection.class);
+        }
+        calls.clear();
+
+        WidgetReadOnlyJdbc ro = new WidgetReadOnlyJdbc(new LazyConnectionDataSourceProxy(faulty));
+        if (dialectFirst) {
+            assertThat(ro.resolveDialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.ORACLE);
+            calls.clear();
+        }
+        List<Boolean> readOnlyInWork = new ArrayList<>();
+        Integer one = ro.execute(con -> {
+            readOnlyInWork.add(((org.springframework.jdbc.datasource.ConnectionProxy) con).getTargetConnection().isReadOnly());
+            return 1;
+        });
+        assertThat(one).isEqualTo(1);
+
+        assertThat(readOnlyInWork).as("실제 연결에 readOnly 가 적용된 채 실행했다").containsExactly(true);
+        assertThat(calls).contains("abort:physical", "evict:true");
+        assertThat(calls.indexOf("abort:physical")).isLessThan(calls.indexOf("evict:true"));
+        failRestore.set(false);
+        try (Connection c = faulty.getConnection()) {
+            assertThat(c.unwrap(Connection.class)).as("빠진 뒤에는 새 물리 연결").isNotSameAs(before);
+        }
     }
 
     @Test
     @DisplayName("풀이 Hikari 가 아니면 되돌리지 못한 연결을 abort 로 끊는다")
     void nonHikariConnectionThatCannotBeRestoredIsAborted() throws Exception {
-        Script script = new Script("H2");
+        Script script = new Script("MariaDB"); // OTHER — 방언 보강 문장 없이 되돌리기 실패만 본다
         script.failOn = "setAutoCommit(true)";
         String ok = new WidgetReadOnlyJdbc(script.dataSource()).execute(con -> "ok");
         assertThat(ok).isEqualTo("ok");
@@ -273,31 +396,40 @@ class WidgetQueryReadOnlyTest {
     // ── 전용 DataSource ──────────────────────────────────────────────
 
     @Test
-    @DisplayName("dmes.widget.query.datasource.url 이 있으면 전용 풀을 쓰고, 없으면 기본 DataSource, url 없이 계정만 있으면 기동을 막는다")
+    @DisplayName("dmes.widget.query.datasource.url 이 있으면 전용 풀(다른 스키마 계정)을 쓰고, 없으면 기본 DataSource, url 없이 계정만 있으면 기동을 막는다")
     void usesDedicatedDataSourceWhenConfigured() throws Exception {
-        String urlB = "jdbc:sqlite:" + dir.resolve("readonly-account.db");
-        JdbcTemplate b = new JdbcTemplate(new DriverManagerDataSource(urlB));
-        b.execute("CREATE TABLE ONLY_B (ID INTEGER)");
-        b.update("INSERT INTO ONLY_B (ID) VALUES (7)");
+        try (Connection owner = DriverManager.getConnection(McmCoreOraTestDb.url(), OTHER_USER, McmCoreOraTestDb.password());
+             Statement st = owner.createStatement()) {
+            dropTable(st, TBL_ONLY_B);
+            st.execute("CREATE TABLE " + TBL_ONLY_B + " (ID NUMBER(10))");
+            McmCoreOraTestDb.awaitReadOnlyReadable(OTHER_USER, TBL_ONLY_B);
+            try {
+                st.execute("INSERT INTO " + TBL_ONLY_B + " (ID) VALUES (7)");
 
-        WidgetQueryProperties props = new WidgetQueryProperties();
-        props.getDatasource().setUrl(urlB);
-        props.getDatasource().setDriverClassName("org.sqlite.JDBC");
-        props.getDatasource().setPassword("secret-pw");
-        WidgetQueryDataSource dedicated = WidgetQueryConfig.create(props, () -> pool);
-        try {
-            assertThat(dedicated.dedicated()).isTrue();
-            assertThat(dedicated.dataSource()).isNotSameAs(pool);
-            assertThat(props.toString()).doesNotContain("secret-pw").doesNotContain(urlB);
-            WidgetQueryExecutor ex = new WidgetQueryExecutor(defRepository, resolver, dedicated);
-            Object cnt = ex.preview("mcm", "SELECT COUNT(*) AS CNT FROM ONLY_B", 50).rows().get(0).get("CNT");
-            assertThat(((Number) cnt).longValue()).isEqualTo(1L);
-            assertThatThrownBy(() -> ex.preview("mcm", "SELECT COUNT(*) AS CNT FROM T", 50))
-                    .isInstanceOf(BusinessException.class).hasMessageContaining("no such table");
-        } finally {
-            dedicated.destroy();
+                WidgetQueryProperties props = new WidgetQueryProperties();
+                props.getDatasource().setUrl(McmCoreOraTestDb.url());
+                props.getDatasource().setDriverClassName("oracle.jdbc.OracleDriver");
+                props.getDatasource().setUsername(OTHER_USER);
+                props.getDatasource().setPassword(McmCoreOraTestDb.password());
+                WidgetQueryDataSource dedicated = WidgetQueryConfig.create(props, () -> pool);
+                try {
+                    assertThat(dedicated.dedicated()).isTrue();
+                    assertThat(dedicated.dataSource()).isNotSameAs(pool);
+                    assertThat(props.toString()).doesNotContain(McmCoreOraTestDb.password()).doesNotContain(McmCoreOraTestDb.url());
+                    WidgetQueryExecutor ex = new WidgetQueryExecutor(defRepository, resolver, dedicated);
+                    Object cnt = ex.preview("mcm", "SELECT COUNT(*) AS CNT FROM " + TBL_ONLY_B, 50).rows().get(0).get("CNT");
+                    assertThat(((Number) cnt).longValue()).isEqualTo(1L);
+                    // 앱 기본 계정의 표는 전용 계정에서 보이지 않는다 — 전용 풀로 실행했다는 증거
+                    assertThatThrownBy(() -> ex.preview("mcm", "SELECT COUNT(*) AS CNT FROM " + TBL_T, 50))
+                            .isInstanceOf(BusinessException.class).hasMessageContaining("ORA-00942");
+                } finally {
+                    dedicated.destroy();
+                }
+                assertThat(((HikariDataSource) dedicated.dataSource()).isClosed()).isTrue();
+            } finally {
+                dropTable(st, TBL_ONLY_B);
+            }
         }
-        assertThat(((HikariDataSource) dedicated.dataSource()).isClosed()).isTrue();
 
         WidgetQueryDataSource shared = WidgetQueryConfig.create(new WidgetQueryProperties(), () -> pool);
         assertThat(shared.dedicated()).isFalse();
@@ -308,36 +440,22 @@ class WidgetQueryReadOnlyTest {
         assertThatThrownBy(() -> WidgetQueryConfig.create(bad, () -> pool)).isInstanceOf(IllegalStateException.class);
     }
 
-    // ── PostgreSQL·Oracle 문장 순서(대본 연결) ──────────────────────────
-
-    @Test
-    @DisplayName("PostgreSQL — readOnly·자동 커밋 끔 뒤 SET TRANSACTION READ ONLY, transaction_read_only=on 확인 뒤 실행, 끝나면 롤백·되돌리기")
-    void postgresqlSequence() throws Exception {
-        Script script = new Script("PostgreSQL");
-        script.showReadOnly = "on";
-        Integer one = new WidgetReadOnlyJdbc(script.dataSource()).execute(con -> {
-            script.calls.add("WORK");
-            return 1;
-        });
-        assertThat(one).isEqualTo(1);
-        assertThat(script.calls).containsSubsequence("setReadOnly(true)", "setAutoCommit(false)",
-                "execute:SET TRANSACTION READ ONLY", "query:SHOW transaction_read_only", "WORK", "rollback",
-                "setAutoCommit(true)", "setReadOnly(false)", "close");
-        assertThat(script.calls).doesNotContain("commit", "abort");
-        assertThat(script.autoCommit).isTrue();
-        assertThat(script.readOnly).isFalse();
+    private static void dropTable(Statement st, String table) throws SQLException {
+        st.execute("BEGIN EXECUTE IMMEDIATE 'DROP TABLE " + table + " PURGE'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;");
     }
 
+    // ── Oracle 문장 순서(대본 연결) ──────────────────────────
+
     @Test
-    @DisplayName("PostgreSQL — 실행 중 실패해도 롤백 뒤 autoCommit·readOnly 를 되돌려 돌려준다(커밋·끊기 없음)")
-    void postgresqlRestoresAfterWorkFailure() {
-        Script script = new Script("PostgreSQL");
+    @DisplayName("Oracle — 실행 중 실패해도 롤백 뒤 autoCommit·readOnly 를 되돌려 돌려준다(커밋·끊기 없음)")
+    void restoresAfterWorkFailure() {
+        Script script = new Script("Oracle");
         assertThatThrownBy(() -> new WidgetReadOnlyJdbc(script.dataSource()).execute(con -> {
             try (Statement st = con.createStatement()) {
                 st.execute("SELECT broken");
             }
-            throw new SQLException("relation does not exist");
-        })).isInstanceOf(SQLException.class).hasMessageContaining("relation");
+            throw new SQLException("ORA-00942: table or view does not exist");
+        })).isInstanceOf(SQLException.class).hasMessageContaining("ORA-00942");
         assertThat(script.calls).containsSubsequence("execute:SELECT broken", "rollback", "setAutoCommit(true)", "setReadOnly(false)", "close");
         assertThat(script.calls).doesNotContain("commit", "abort");
     }
@@ -345,26 +463,13 @@ class WidgetQueryReadOnlyTest {
     @Test
     @DisplayName("롤백이 실패하면 autoCommit 을 켜지 않고(열린 트랜잭션 커밋 방지) readOnly 도 그대로 둔 채 연결을 끊는다")
     void rollbackFailureDiscardsWithoutCommit() throws Exception {
-        Script script = new Script("PostgreSQL");
+        Script script = new Script("Oracle");
         script.failOn = "rollback";
         Integer one = new WidgetReadOnlyJdbc(script.dataSource()).execute(con -> 1);
         assertThat(one).isEqualTo(1);
         assertThat(script.calls).contains("rollback", "abort", "close")
                 .doesNotContain("setAutoCommit(true)", "setReadOnly(false)", "commit");
         assertThat(script.calls.indexOf("abort")).isLessThan(script.calls.indexOf("close")); // 반납 처리 전에 끊는다
-    }
-
-    @Test
-    @DisplayName("PostgreSQL — transaction_read_only 가 on 이 아니면 SQL 을 실행하지 않는다(실패 닫힘), 연결은 되돌려 돌려준다")
-    void postgresqlFailsClosedWhenNotReadOnly() {
-        Script script = new Script("PostgreSQL");
-        script.showReadOnly = "off";
-        assertThatThrownBy(() -> new WidgetReadOnlyJdbc(script.dataSource()).execute(con -> {
-            script.calls.add("WORK");
-            return 1;
-        })).isInstanceOf(SQLException.class).hasMessageContaining("읽기 전용");
-        assertThat(script.calls).doesNotContain("WORK", "commit", "abort")
-                .containsSubsequence("rollback", "setAutoCommit(true)", "setReadOnly(false)", "close");
     }
 
     @Test
@@ -392,20 +497,20 @@ class WidgetQueryReadOnlyTest {
     @Test
     @DisplayName("제품 이름 → 갈래")
     void dialectOfProductName() {
-        assertThat(WidgetReadOnlyJdbc.dialectOf("SQLite")).isEqualTo(WidgetReadOnlyJdbc.Dialect.SQLITE);
-        assertThat(WidgetReadOnlyJdbc.dialectOf("PostgreSQL")).isEqualTo(WidgetReadOnlyJdbc.Dialect.POSTGRESQL);
         assertThat(WidgetReadOnlyJdbc.dialectOf("Oracle")).isEqualTo(WidgetReadOnlyJdbc.Dialect.ORACLE);
-        assertThat(WidgetReadOnlyJdbc.dialectOf("Microsoft SQL Server")).isEqualTo(WidgetReadOnlyJdbc.Dialect.SQLSERVER);
-        assertThat(WidgetReadOnlyJdbc.dialectOf("H2")).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER);
+        // PostgreSQL·SQLite·SQL Server 갈래는 걷어냈다(oracle-1007, 사용자 확정 3) — 읽기 전용 트랜잭션을 걸 수 없는 OTHER(실패 닫힘)로 본다
+        assertThat(WidgetReadOnlyJdbc.dialectOf("PostgreSQL")).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER);
+        assertThat(WidgetReadOnlyJdbc.dialectOf("SQLite")).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER);
+        assertThat(WidgetReadOnlyJdbc.dialectOf("Microsoft SQL Server")).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER);
+        assertThat(WidgetReadOnlyJdbc.dialectOf("MariaDB")).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER);
         assertThat(WidgetReadOnlyJdbc.dialectOf(null)).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER);
     }
 
     // ── helpers ─────────────────────────────────────────────────────
 
-    private HikariDataSource hikari(String jdbcUrl, int size) {
-        HikariDataSource ds = new HikariDataSource();
-        ds.setPoolName("widget-query-test-" + size);
-        ds.setJdbcUrl(jdbcUrl);
+    /** 앱 계정(MCMAPUSER) 풀 — 최대 {@code size}·쉬는 연결 0. 닫는 것은 시험(풀 1개는 tearDown, 그 밖은 extraPools). */
+    private HikariDataSource hikari(int size) {
+        HikariDataSource ds = McmCoreOraTestDb.dataSource(McmCoreOraTestDb.APP_USER, "widget-query-test-" + size);
         ds.setMaximumPoolSize(size);
         if (size != 1) extraPools.add(ds);
         return ds;
@@ -418,32 +523,25 @@ class WidgetQueryReadOnlyTest {
     }
 
     private void assertUnchanged() {
-        assertThat(admin.queryForList("SELECT ID, NM FROM T WHERE ID <= 3 ORDER BY ID"))
+        assertThat(admin.queryForList("SELECT ID, NM FROM " + TBL_T + " WHERE ID <= 3 ORDER BY ID"))
                 .extracting(r -> r.get("NM")).containsExactly("a", "b", "c");
-        assertThat(admin.queryForObject("SELECT COUNT(*) FROM T WHERE ID = 99 OR NM = 'x'", Long.class)).isZero();
-        assertThat(admin.queryForObject("SELECT COUNT(*) FROM sqlite_master WHERE name = 'EVIL'", Long.class)).isZero();
+        assertThat(admin.queryForObject("SELECT COUNT(*) FROM " + TBL_T + " WHERE ID = 99 OR NM = 'x'", Long.class)).isZero();
+        assertThat(admin.queryForObject("SELECT COUNT(*) FROM USER_TABLES WHERE TABLE_NAME = '" + TBL_EVIL + "'", Long.class)).isZero();
     }
 
-    /** 풀(1개)에서 다시 빌린 연결 = 실행기가 쓴 그 연결. 상태가 되돌려졌고 업무 쓰기가 다른 연결에서 보인다. */
+    /** 풀(1개)에서 다시 빌린 연결 = 실행기가 쓴 그 연결. 상태가 되돌려졌고 업무 쓰기가 다른 연결에서 보인다(읽기 전용이었다면 ORA-01456). */
     private void assertPooledConnectionRestoredAndWritable() {
-        long before = admin.queryForObject("SELECT COUNT(*) FROM T WHERE NM = 'biz'", Long.class);
+        long before = admin.queryForObject("SELECT COUNT(*) FROM " + TBL_T + " WHERE NM = 'biz'", Long.class);
         try (Connection c = pool.getConnection()) {
             assertThat(c.getAutoCommit()).isTrue();
             assertThat(c.isReadOnly()).isFalse();
-            assertThat(pragmaQueryOnly(c)).isEqualTo("0");
             try (Statement st = c.createStatement()) {
-                st.executeUpdate("INSERT INTO T (NM) VALUES ('biz')");
+                st.executeUpdate("INSERT INTO " + TBL_T + " (ID, NM) VALUES (" + (bizId++) + ", 'biz')");
             }
         } catch (SQLException e) {
             throw new AssertionError("풀 연결로 업무 쓰기를 하지 못했습니다: " + e.getMessage(), e);
         }
-        assertThat(admin.queryForObject("SELECT COUNT(*) FROM T WHERE NM = 'biz'", Long.class)).isEqualTo(before + 1);
-    }
-
-    private static String pragmaQueryOnly(Connection c) throws SQLException {
-        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery("PRAGMA query_only")) {
-            return rs.next() ? rs.getString(1) : null;
-        }
+        assertThat(admin.queryForObject("SELECT COUNT(*) FROM " + TBL_T + " WHERE NM = 'biz'", Long.class)).isEqualTo(before + 1);
     }
 
     private void def(String id, String sql) {
@@ -475,7 +573,7 @@ class WidgetQueryReadOnlyTest {
     }
 
     /**
-     * 실제 SQLite 연결이지만 {@code PRAGMA query_only = 0}(되돌리기)을 실패시키는 DataSource — failRestore 가 켜진 동안만.
+     * 실제 Oracle 연결이지만 상태 되돌리기({@code setAutoCommit(true)})를 실패시키는 DataSource — failRestore 가 켜진 동안만.
      * 물리 연결의 abort·close 를 calls 에 {@code abort:physical}·{@code close:physical} 로 적는다.
      */
     private static DataSource failingRestoreDataSource(DataSource target, AtomicBoolean failRestore, List<String> calls) {
@@ -487,16 +585,10 @@ class WidgetQueryReadOnlyTest {
                     return Proxy.newProxyInstance(WidgetQueryReadOnlyTest.class.getClassLoader(), new Class<?>[] {Connection.class},
                             (cp, cm, ca) -> {
                                 if ("abort".equals(cm.getName()) || "close".equals(cm.getName())) calls.add(cm.getName() + ":physical");
-                                if (!"createStatement".equals(cm.getName())) return invoke(cm, real, ca);
-                                Statement st = (Statement) invoke(cm, real, ca);
-                                return Proxy.newProxyInstance(WidgetQueryReadOnlyTest.class.getClassLoader(),
-                                        new Class<?>[] {Statement.class}, (sp, sm, sa) -> {
-                                            if ("execute".equals(sm.getName()) && failRestore.get()
-                                                    && String.valueOf(sa[0]).contains("query_only = 0")) {
-                                                throw new SQLException("되돌리기 실패(시험)");
-                                            }
-                                            return invoke(sm, st, sa);
-                                        });
+                                if ("setAutoCommit".equals(cm.getName()) && failRestore.get() && Boolean.TRUE.equals(ca[0])) {
+                                    throw new SQLException("되돌리기 실패(시험)");
+                                }
+                                return invoke(cm, real, ca);
                             });
                 });
     }

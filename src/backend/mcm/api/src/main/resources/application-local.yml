@@ -1,59 +1,112 @@
+# ── local: 로컬 Oracle PDB 직결 (bootRun/IDE, oracle-1007 2026-10-07) ──
+# 접속 규약: docs/oracle-1007/schema-owners.md §3. 데이터소스 4개가 같은 PDB 에 사용자만 달리해 붙는다.
+#   biz·cmn = MCMAPUSER / if = EAIUSER / caravan = CARAVANUSER (운영과 같은 이름)
+# PDB 는 be-run 의 --pdb=<PDB>(env DMES_ORA_URL) 또는 -Ddmes.ora.url 로 고른다. 없으면 dmes.ora.host·port·pdb 기본값
+# (localhost:1521/L_ORA_MCM_APP — 공용 FREEPDB1 에 Flyway 가 돌지 않게 레인 PDB 를 기본으로 둔다. 없는 PDB 면 기동이 바로 실패한다).
+# 비밀번호는 로컬 공통값(dmes.ora.password·env DMES_ORA_PASSWORD, 기본 dmes_password_123). Hikari 상한은 3 이하.
+# 아래 mcm-local-ora 는 이 파일 안에서만 쓰는 줄임 키다.
+mcm-local-ora:
+  url: ${dmes.ora.url:jdbc:oracle:thin:@//${dmes.ora.host:localhost}:${dmes.ora.port:1521}/${dmes.ora.pdb:L_ORA_MCM_APP}}
+  password: ${dmes.ora.password:dmes_password_123}
+
 spring:
   datasource:
-    url: jdbc:sqlite:../data/mcm.db
-    driver-class-name: org.sqlite.JDBC
+    url: ${mcm-local-ora.url}
+    username: ${dmes.ora.user:MCMAPUSER}
+    password: ${mcm-local-ora.password}
+    driver-class-name: oracle.jdbc.OracleDriver
+    hikari:
+      maximum-pool-size: 3     # JpaConfig.dataSource() 가 읽는다(직접 만든 풀)
+      # 아래 셋도 JpaConfig.dataSource() 가 읽는다(oracle-1007 ③d). 최대치는 3 그대로 두고, 메인 로컬 서버만 기동 env
+      # SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=8 로 늘린다(레인 서버·시험 하니스는 3 이하).
+      minimum-idle: 0          # 쉬는 연결을 잡아 두지 않는다 — 최대치를 늘려도 평소 Oracle 세션이 늘지 않는다
+      idle-timeout: 30000      # ms — 다 쓴 연결은 30초 뒤 닫는다
+      # 연결을 30초 넘게 쥐면 그 스택을 WARN(ProxyLeakTask)으로 남긴다 — 풀 고갈 교착(③c)을 일찍 찾으려는 감지 장치다.
+      # 위젯 채팅 send·reset 은 LLM 응답을 기다리는 동안 연결을 쥐므로 응답이 30초를 넘으면 여기 걸린다(누수가 아니라 알려진 점유,
+      # 후속 LazyConnectionDataSourceProxy 검토). 연결은 돌려받으면 「Previously reported leaked connection … returned」 로 다시 남는다.
+      leak-detection-threshold: 30000
   jpa:
-    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    database-platform: org.hibernate.dialect.OracleDialect
     hibernate:
-      ddl-auto: update
+      ddl-auto: none           # 스키마는 Flyway(아래 dmes.flyway) — 엔티티로 표를 만들거나 바꾸지 않는다
     show-sql: true
     # 참고: primary EMF 는 com.dongkuk.dmes.mcm.config.JpaConfig 가 명시 빌드하므로
-    # spring.jpa.properties 가 적용되지 않는다. SQLite introspection 전략(individually)은
-    # JpaConfig.entityManagerFactory() 에서 직접 설정 (2026-06-05).
+    # spring.jpa.properties 가 적용되지 않는다. Instant·boolean 공통 설정도 JpaConfig 에 있다.
 
   security:
     enabled: false
 
-# ── Cactus cmn/if/caravan EMF (local — 스키마 분리는 MSSQL 에서만) ──
-# local: cmn(공통)=mcm.db(biz 와 동일 파일 — cmn 엔티티 없음이라 잠금 위험 낮음, 관측 시 mcm-cmn.db 분리)
-#        if(인터페이스)=caravan-if.db / caravan(Kafka 메타)=caravan-console.db (파일 분리 — 단일 JVM 내 SQLite 잠금 회피).
-# 운영: cmn=MCMAPUSER / if=EAIUSER / caravan=CARAVANUSER.
+# ── 스키마별 Flyway (McmFlywayConfig) — MCMAPUSER·MCM_SOURCE·MCM_BACKUP·MCAAPUSER 를 각 주인으로 접속해 V 파일 적용 ──
+# url 은 spring.datasource.url, 비밀번호는 mcm-local-ora.password(로컬은 모든 사용자가 같다)를 쓴다.
+dmes:
+  flyway:
+    enabled: true
+    password: ${mcm-local-ora.password}
+  # ── 기본 DataSource 연결 지연 획득 (docs/oracle-1007/design-mcm-lazy-ds.md) — local 은 켠다(끄려면 false) ──
+  datasource:
+    lazy-connection: ${DMES_DATASOURCE_LAZY_CONNECTION:true}
+  # ── 쿼리 위젯 실행기 전용 풀 (oracle-1007 ③c) ──
+  # 비우면 앱 기본 풀(3개)을 함께 쓰는데, OASIS 바깥 트랜잭션이 연결 하나를 쥔 채 실행기가 같은 풀에서 하나 더 받아
+  # 홈 쿼리 위젯이 동시에 오면 풀이 바닥나 connectionTimeout 까지 멈춘다. 로컬은 같은 PDB 에 따로 붙는 작은 풀을 둔다.
+  widget:
+    query:
+      datasource:
+        url: ${WIDGET_QUERY_DS_URL:${mcm-local-ora.url}}
+        username: MCMAPUSER
+        password: ${mcm-local-ora.password}
+        driver-class-name: oracle.jdbc.OracleDriver
+        maximum-pool-size: 2
+        idle-timeout: 10000      # ms — 쓰지 않는 연결을 빨리 돌려준다(Hikari 최솟값)
+
+# ── Cactus cmn/if/caravan EMF (local — 같은 PDB, 사용자만 다르다) ──
 cactus:
   datasource:
     extras:
-      cmn:                     # 표준 3종 통일(2026-07-07) — biz 와 동일 mcm.db 공유
-        url: jdbc:sqlite:../data/mcm.db
-        driver-class-name: org.sqlite.JDBC
-      if:
-        url: jdbc:sqlite:../data/caravan-if.db
-        driver-class-name: org.sqlite.JDBC
-      caravan:
-        url: jdbc:sqlite:../data/caravan-console.db
-        driver-class-name: org.sqlite.JDBC
+      cmn:                     # 표준 3종 통일(2026-07-07) — 물리는 biz 와 같은 MCMAPUSER
+        url: ${mcm-local-ora.url}
+        username: MCMAPUSER
+        password: ${mcm-local-ora.password}
+        driver-class-name: oracle.jdbc.OracleDriver
+        maximum-pool-size: 2
+      if:                      # 인터페이스 송수신 — EAIUSER(표 없이 IFUSER 표 권한만 가진 접속 사용자)
+        url: ${mcm-local-ora.url}
+        username: EAIUSER
+        password: ${mcm-local-ora.password}
+        driver-class-name: oracle.jdbc.OracleDriver
+        maximum-pool-size: 2
+      caravan:                 # Kafka 메타 — CARAVANUSER(표는 caravan-hub 기준선)
+        url: ${mcm-local-ora.url}
+        username: CARAVANUSER
+        password: ${mcm-local-ora.password}
+        driver-class-name: oracle.jdbc.OracleDriver
+        maximum-pool-size: 2
   jpa:
     extras:
       cmn:
         hibernate:
-          dialect: com.dongkuk.dmes.mcm.config.CactusSqliteIfNotExistsDialect
-          ddl-auto: update     # 매핑 엔티티 없음(cactus-cmn 빈 PU) — 실질 no-op
+          dialect: org.hibernate.dialect.OracleDialect
+          ddl-auto: none       # 매핑 엔티티 없음(cactus-cmn 빈 PU)
       if:
         hibernate:
-          # CREATE TABLE IF NOT EXISTS 자동 부착 — caravan EMF 가 이미 만든 동일 테이블의 already exists WARN 회피
-          dialect: com.dongkuk.dmes.mcm.config.CactusSqliteIfNotExistsDialect
-          ddl-auto: update
+          dialect: org.hibernate.dialect.OracleDialect
+          ddl-auto: none
           show-sql: true
           # 2026-05-15 §6-6 후속 — caravan EMF 의 SchemaValidator 가 case-sensitive 매칭 → cactus
           # 의 SnakePhysicalNamingStrategy (lowercase) 와 caravan 의 standard naming (uppercase)
           # 충돌 회피. extras EMF 만 standard 로 override.
           properties:
             hibernate.physical_naming_strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+            hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
+            hibernate.type.preferred_boolean_jdbc_type: TINYINT
       caravan:
         hibernate:
-          dialect: com.dongkuk.dmes.mcm.config.CactusSqliteIfNotExistsDialect
-          ddl-auto: update
+          dialect: org.hibernate.dialect.OracleDialect
+          ddl-auto: none       # 표는 caravan-hub(CARAVANUSER 주인) Flyway 가 만든다
           show-sql: true
           properties:
             hibernate.physical_naming_strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+            hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
+            hibernate.type.preferred_boolean_jdbc_type: TINYINT
 
 # ── 권한 캐시 즉시 무효화 (RoleChangedEventListener → BFF) ──
 # 2026-09-04 — 옛 코드 기본값이 3000 인데 본 저장소의 포털(m-mcm)은 5100 이라 매 권한 변경마다

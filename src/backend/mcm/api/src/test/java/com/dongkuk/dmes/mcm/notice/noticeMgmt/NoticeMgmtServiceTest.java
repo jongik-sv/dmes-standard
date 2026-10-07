@@ -23,7 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * noticeMgmt V3 확장 — 본문 형식(CONTENT_FORMAT)·공지 분류(NOTICE_CATEGORY)·상단 고정(PIN_YN), HTML 소독, 4000자 제한 해제.
- * 임시 SQLite 파일에 ddl-auto 로 공지 테이블을 만든 컨텍스트({@link McmNoticeTestDb})에서 서비스를 직접 부른다. 각 시험은 트랜잭션 롤백으로 격리한다.
+ * Oracle 시험 PDB 의 Flyway 기준선 공지 표를 쓰는 컨텍스트({@link McmNoticeTestDb})에서 서비스를 직접 부른다. 각 시험은 트랜잭션 롤백으로 격리한다.
  */
 @Transactional
 class NoticeMgmtServiceTest extends McmNoticeTestDb {
@@ -81,8 +81,8 @@ class NoticeMgmtServiceTest extends McmNoticeTestDb {
     // ── 엔티티 기본값 (mls 의 V3 마이그레이션 기본값 시험을 대체) ─────────────────────
 
     /**
-     * mls 에서는 Flyway V3 가 기존 시드 행에 기본값(TEXT·NORMAL·N)을 채우고 점검 시드 1건을 마크다운 예시로 바꿨다. mcm 은 Flyway 가 없고
-     * 공지 시드 행도 없으며(ddl-auto 가 빈 테이블만 만든다), ddl-auto 는 DB DEFAULT 를 만들지 않는다. 그래서 같은 기본값 계약을 엔티티
+     * mls 에서는 Flyway V3 가 기존 시드 행에 기본값(TEXT·NORMAL·N)을 채우고 점검 시드 1건을 마크다운 예시로 바꿨다. mcm 은 공지 시드 행이
+     * 없고, Flyway 기준선(mcm-core V1)의 TB_MCM_NOTICE 는 이 세 칸에 DB DEFAULT 가 없다(NOT NULL 만). 그래서 같은 기본값 계약을 엔티티
      * 필드 초기값과, 값 없이 저장한 행의 실제 저장값으로 확인한다.
      */
     @Test
@@ -297,6 +297,23 @@ class NoticeMgmtServiceTest extends McmNoticeTestDb {
 
         q.setContentFormat(null);
         assertThat(titles(service.search(q))).hasSize(3);
+    }
+
+    /**
+     * 제목·게시상태는 서비스가 빈 문자열을 null 로 바꾸지 않고 저장소에 그대로 넘긴다. 저장소 JPQL 은 {@code :p IS NULL} 하나로
+     * 미입력을 거르는데, Oracle 이 빈 문자열 바인드를 NULL 로 다루는 데 기댄다(2026-10-07 oracle-1007 — {@code OR :p = ''} 제거).
+     */
+    @Test
+    @DisplayName("제목·게시상태가 빈 문자열이면 조건 없음으로 보고 전체를 돌려준다(Oracle '' = NULL)")
+    void searchTreatsEmptyTitleAndStatusAsNoFilter() {
+        service.save(List.of(newRow("빈조건-가"), newRow("빈조건-나")));
+
+        NoticeMgmtSearchRequest q = new NoticeMgmtSearchRequest();
+        q.setTitle("");
+        q.setNoticeStatus("");
+        int all = list(service.search(null)).size();
+        assertThat(all).isGreaterThanOrEqualTo(2);
+        assertThat(list(service.search(q))).hasSize(all);
     }
 
     @Test

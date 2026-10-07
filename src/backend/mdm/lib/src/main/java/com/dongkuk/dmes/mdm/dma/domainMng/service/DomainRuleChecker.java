@@ -4,6 +4,7 @@ import com.dongkuk.dmes.mdm.common.dictionary.DomainChainAssembler;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainNode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainTreeSnapshot;
 import com.dongkuk.dmes.mdm.common.dictionary.EffectiveDomainView;
+import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmDataType;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainKind;
 import java.util.ArrayList;
@@ -144,6 +145,14 @@ public class DomainRuleChecker {
         if (d.domainName() == null) {
             out.add(DomainIssue.of(DomainIssueCode.S06, "DOMAIN_NAME", "도메인명 필수"));
         }
+        // ORA-12899 예방 — VARCHAR2(4000 BYTE) 칸은 UTF-8 바이트, 50 CHAR 칸은 글자 수로 잰다.
+        overBytes(out, "DOMAIN_NAME", "도메인명", d.domainName());
+        overBytes(out, "DESCRIPTION", "설명", d.description());
+        overBytes(out, "STD_RULE", "표준식", d.stdRule());
+        overBytes(out, "BIZ_RULE", "비즈니스식", d.bizRule());
+        overBytes(out, "EXAMPLES", "예시", DomainTestCases.examplesToJson(d.examples()));
+        overChars(out, "MARU_CODE_ID", "마루 코드 ID", d.maruCodeId());
+        overChars(out, "CATE_ID", "카테고리 ID", d.cateId());
         if (d.stdName() == null) {
             out.add(DomainIssue.of(DomainIssueCode.S06, "STD_NAME", "표준명 필수"));
         } else if (!STD_NAME.matcher(d.stdName()).matches() || d.stdName().length() > 50) {
@@ -181,6 +190,20 @@ public class DomainRuleChecker {
                     && c.vars().keySet().stream().anyMatch(k -> k.equalsIgnoreCase(d.stdName()))) {
                 out.add(DomainIssue.of(DomainIssueCode.S06, "TEST_CASES", String.valueOf(i), "변수 이름이 표준명과 같다"));
             }
+        }
+    }
+
+    private static void overBytes(List<DomainIssue> out, String field, String label, String value) {
+        if (MdmTextLimits.overBytes(value)) {
+            out.add(DomainIssue.of(DomainIssueCode.S06, field, label + "은(는) " + MdmTextLimits.TEXT_BYTES_MAX
+                    + "바이트(한글 약 1,333자)를 넘을 수 없다"));
+        }
+    }
+
+    private static void overChars(List<DomainIssue> out, String field, String label, String value) {
+        if (MdmTextLimits.overChars(value, MdmTextLimits.KEY_CHARS_MAX)) {
+            out.add(DomainIssue.of(DomainIssueCode.S06, field, label + "은(는) " + MdmTextLimits.KEY_CHARS_MAX
+                    + "자 이내여야 한다"));
         }
     }
 

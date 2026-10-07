@@ -6,7 +6,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * {@link OasisCommitFailureSqliteTest} 전용 엔티티. CODE 에 유일 제약을 걸어 같은 코드를 두 번 넣으면 flush 에서 실패한다.
+ * {@link OasisCommitFailureOracleTest} 전용 엔티티. CODE 에 유일 제약을 걸어 같은 코드를 두 번 넣으면 flush 에서 실패한다.
  */
 @Entity
 @Table(name = "TB_TEST_TX_PROBE")

@@ -33,7 +33,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.orm.jpa.JpaSystemException;
+import org.springframework.dao.DataAccessException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -42,15 +42,15 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 특성 테스트 — {@link MasterCodeItemSegmentOps}·{@link MasterCodeCateSegmentOps} 의 반복문 안 쓰기(행마다
  * {@code saveAndFlush})를 {@code save} + 메서드 끝 flush 한 번으로 바꾸기 전에 지금 동작을 고정한다(리팩토링 항목1 flush).
  *
- * <p>실제 V9 표(SQLite, Flyway)에서 돈다. 운영처럼 트랜잭션 안에서 부르는 것이 기본이고(OASIS 트랜잭션), 배치 하나는 트랜잭션
+ * <p>실제 V9 표(Oracle 시험 PDB, Flyway)에서 돈다. 운영처럼 트랜잭션 안에서 부르는 것이 기본이고(OASIS 트랜잭션), 배치 하나는 트랜잭션
  * 밖(detached)에서도 같은 결과인지 고정한다. 고정하는 것:
  * <ul>
  *   <li>DB 에 남은 행 — from·to 와 감사 칼럼 VER(@PreUpdate 가 flush 마다 1 올린다) — 와 돌려주는 값.</li>
  *   <li>public 메서드가 돌아올 때 영속성 컨텍스트에 쓰지 않은 변경이 없다(세션 dirty 아님) — DB 오류가 커밋 때가 아니라 그
  *       메서드 안에서 나야 OASIS 가 실패로 싣는다(클래스 설명 ③).</li>
  *   <li>같은 PK 를 지운 뒤 다시 넣는 경우(클래스 설명 ②)가 같은 트랜잭션에서 성공한다.</li>
- *   <li>DB 제약 위반이 그 public 메서드 안에서 스프링이 번역한 예외로 던져진다 — SQLite 방언은 CHECK 위반을 {@link JpaSystemException}
- *       으로 번역한다(리포지토리 프록시를 거친 flush 여야 번역된다).</li>
+ *   <li>DB 제약 위반이 그 public 메서드 안에서 스프링이 번역한 예외로 던져진다 — Oracle(ORA-02290)은 CHECK 위반을
+ *       {@link DataAccessException} 하위(DataIntegrityViolationException)로 번역한다(리포지토리 프록시를 거친 flush 여야 번역된다).</li>
  * </ul>
  * 단언은 트랜잭션이 끝난 뒤 JdbcTemplate(새 연결)으로 표를 직접 읽는다.
  *
@@ -228,7 +228,7 @@ class MasterCodeSegmentFlushSqliteTest extends AbstractMdmSharedDbTest {
         List<String> cateItemsBefore = cateItems();
 
         tx.executeWithoutResult(status -> {
-            assertThrows(JpaSystemException.class, () -> itemOps.applyItems(DRAFT, List.of(
+            assertThrows(DataAccessException.class, () -> itemOps.applyItems(DRAFT, List.of(
                     new Change(RowStatus.DELETED, "B", null),
                     new Change(RowStatus.CHANGED, "A", values("새 에이", 1, "G")),
                     new Change(RowStatus.ADDED, "X Y", values("공백 코드", 9, "G")))),

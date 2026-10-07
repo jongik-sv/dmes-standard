@@ -14,8 +14,8 @@ import { gridRows } from "./support/grid";
  *   C3 확정하면 헤더 화면 버전 선택에 v1.001 이 적용 대기(RELEASED, 적용 시작 전)로 보인다
  *
  * 전제·실행은 mdm-headerMng.spec.ts 와 같다 — 격리 DB 로 mcm·mdm 백엔드와 포털을 빈 포트에 띄우고(SMOKE_MCM_BASE_URL 로 자기 포털을 가리킨다),
- * mdm-rbac-users.sql 을 넣고, beforeAll 이 SMOKE_MDM_DB 에 mdm-layout-m201.sql 을 넣는다(멱등). 새 DB 로 시작해야 한다 — 이 스펙은 L110 에
- * 1.001 을 확정하므로 같은 DB 로 다시 돌리면 "미적용 버전이 있다" 로 새 버전이 막힌다.
+ * mdm-rbac-users.sql 을 넣고, beforeAll 이 같은 PDB 에 mdm-layout-m201.sql 을 넣는다(멱등). 새 PDB 로 시작해야 한다 — 이 스펙은 L110 에
+ * 1.001 을 확정하므로 같은 PDB 로 다시 돌리면 "미적용 버전이 있다" 로 새 버전이 막힌다.
  * DMB 의 확정 권한은 담당자(e2e_mdm_steward)만 있고 DRAFT 는 소유자만 확정하므로 이 스펙은 담당자로 처음부터 끝까지 한다.
  * 적용 시작을 먼 미래로 두는 까닭: 파일 이름 순으로 이 스펙 뒤에 도는 mdm-layoutMng.spec.ts 가 "지금" 의 총 길이 187·헤더 길이 30 을 그대로 본다.
  */

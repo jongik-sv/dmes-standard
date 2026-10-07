@@ -25,6 +25,7 @@ import {
   targetSize,
   toSaveParams,
   validateDefForm,
+  refreshSecFieldError,
 } from "./form-model";
 import type { DefForm } from "./types";
 
@@ -606,6 +607,44 @@ describe("isFormDirty", () => {
     expect(isFormDirty(base, tried)).toBe(false);
     expect(isFormDirty(tried, base)).toBe(false);
     expect(isFormDirty(base, { ...tried, config: { ...tried.config, sql: "select 2" } })).toBe(true);
+  });
+});
+
+describe("옛 새로 고침 값(600 미만)이 든 폼 — 저장이 막히는 이유가 칸 옆에 보인다", () => {
+  const gate = { loaded: true, busy: false, canSave: true, unknownType: false, editorReady: true };
+  const legacyRow = (refreshSec: number | null): WidgetDefRow =>
+    defRow({ widgetId: "def.q1", srcTp: "D", typeId: "query-table", title: "표", defW: 14, defH: 12, refreshSec, useYn: "Y", dataSrc: "mcm", config: { sql: "select 1" } });
+  const msg = "새로 고침 주기는 600~86400초여야 합니다.";
+
+  it("120·300 으로 저장된 행은 열자마자 검사에 걸리고 크기를 바꿔도 저장이 막힌다", () => {
+    for (const legacy of [60, 120, 300, 599]) {
+      const base = rowToForm(legacyRow(legacy));
+      expect(base.refreshSec).toBe(String(legacy));
+      expect(validateDefForm(base)).toEqual([msg]);
+      const next = { ...base, minW: "6" };
+      expect(isFormDirty(base, next)).toBe(true);
+      expect(validateDefForm(next)).toEqual([msg]);
+      expect(canSaveForm({ ...gate, form: next, baseline: base, errorCount: validateDefForm(next).length })).toBe(false);
+    }
+  });
+
+  it("값을 600 이상으로 고치거나 비우면 오류가 사라지고 저장할 수 있다", () => {
+    const base = rowToForm(legacyRow(120));
+    for (const fixed of ["600", "3600", ""]) {
+      const next = { ...base, refreshSec: fixed };
+      expect(validateDefForm(next)).toEqual([]);
+      expect(canSaveForm({ ...gate, form: next, baseline: base, errorCount: 0 })).toBe(true);
+    }
+  });
+
+  it("칸 옆 오류 — 숫자가 범위 밖이면 문구에 지금 값을 붙이고, 범위 안·빈 칸은 오류가 없다", () => {
+    expect(refreshSecFieldError("120")).toBe(`${msg} (지금 120초)`);
+    expect(refreshSecFieldError("86401")).toBe(`${msg} (지금 86401초)`);
+    expect(refreshSecFieldError("1e3")).toBe(msg);
+    expect(refreshSecFieldError("600")).toBeNull();
+    expect(refreshSecFieldError("86400")).toBeNull();
+    expect(refreshSecFieldError("")).toBeNull();
+    expect(refreshSecFieldError("  ")).toBeNull();
   });
 });
 

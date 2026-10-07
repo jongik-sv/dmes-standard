@@ -62,13 +62,15 @@ public class RuleSetVersionQueries {
 
     /**
      * 이 세트를 부르는 RELEASED 행이 있을 수 있는가 — CALL_SET_IDS(서버가 쓰는 JSON 배열)에 따옴표로 감싼 세트 ID 가 든 행이 하나라도 있으면 true. 부르는 쪽
-     * 원장 전체 읽기({@link SetCallIoReader#snapshot})를 건너뛸지 정하는 값싼 걸러내기다(한 문장, 한 행만). LIKE 의 {@code _} 는 다른 글자와도 맞아 거짓
-     * 양성이 있을 수 있지만 그때는 전체 읽기가 정확히 가린다. false 면 이 세트를 부르는 행(Ruling 25 — 폐기 안 한 부모의 RELEASED 행)은 하나도 없다.
+     * 원장 전체 읽기({@link SetCallIoReader#snapshot})를 건너뛸지 정하는 값싼 걸러내기다(한 문장, 한 행만). 세트 ID 의 {@code _}·{@code %} 는
+     * ESCAPE 로 글자 그대로 맞춘다. 대소문자를 무시하므로 거짓 양성은 있을 수 있지만 그때는 전체 읽기가 정확히 가린다. false 면 이 세트를 부르는 행(Ruling 25 — 폐기 안 한 부모의 RELEASED 행)은 하나도 없다.
      */
     public boolean mayBeCalled(String setId) {
-        return !entityManager.createQuery("SELECT v.maruRuleSetId FROM MdmRuleSetVer v WHERE v.status = 'RELEASED' AND v.callSetIds LIKE :p",
-                        String.class)
-                .setParameter("p", "%\"" + setId + "\"%").setMaxResults(1).getResultList().isEmpty();
+        // 대소문자 무시(옛 SQLite LIKE 와 같은 후보 — 걸러내기가 거짓 음성을 내지 않게 넓게 둔다). CALL_SET_IDS 는 CLOB(@Lob)이라
+        // JPQL upper() 가 인자 형(STRING)을 거부한다 — Oracle SQL 의 UPPER(CLOB) LIKE 는 되므로 네이티브로 쓴다.
+        return !entityManager.createNativeQuery("SELECT MARU_RULE_SET_ID FROM TB_MDM_RULE_SET_VER WHERE STATUS = 'RELEASED' "
+                        + "AND UPPER(CALL_SET_IDS) LIKE :p ESCAPE '\\'")
+                .setParameter("p", "%\"" + RuleQueries.escapeLike(setId.toUpperCase(Locale.ROOT)) + "\"%").setMaxResults(1).getResultList().isEmpty();
     }
 
     /**

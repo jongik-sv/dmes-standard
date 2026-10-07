@@ -119,7 +119,7 @@ public class SecWidgetTabWriter {
      * 옛 고정 탭 행(home·def-*)을 개인 탭으로 옮긴다 — 한 트랜잭션, 행 삭제 없이 TAB_ID·이름·순서만 바꾼다(감사 칸 U_AT·U_USR_ID 갱신).
      * 원래 행이 없으면(다른 요청이 먼저 옮김) 건너뛴다. 옮길 ID 는 이 트랜잭션 안에서 탭 행·위젯 행이 모두 없는 첫 {@code tab-N} 으로
      * 고른다(동시에 생긴 공유 사본·탭 행 없는 위젯과 겹치지 않게). 부르는 쪽은 OASIS 바깥 트랜잭션을 내려놓고 부른다(합류하면
-     * 여기 예외가 바깥을 rollback-only 로 만들고, 로컬 SQLite 는 바깥이 읽기만 해도 이 커밋이 SQLITE_BUSY 로 막힌다).
+     * 여기 예외가 바깥을 rollback-only 로 만든다).
      * @return 실제로 옮긴 탭 수
      */
     @Transactional

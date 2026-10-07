@@ -58,16 +58,33 @@ com.dongkuk.dmes.mcm
 
 ## 스키마 관리
 
-mcm 의 스키마는 **Flyway 가 아니라** hibernate `ddl-auto`(local) 와 `mcm/api` 의 `DataInitializer`(멱등 DDL·시드)
-가 관리한다. `mcm/api/src/main/resources/application.yml` 에서 `spring.flyway.enabled=false` 로 명시했다.
+Oracle 단일화(oracle-1007, 2026-10-07)부터 mcm 스키마의 정본은 `src/main/resources/db/migration/oracle/` 의
+스키마별 기준선이다. 스키마 폴더마다 Flyway 하나가 그 스키마를 `defaultSchema` 로 두고 돈다.
 
-`src/main/resources/db/migration/sqlite/` 의 `V*.sql` 은 SEC 테이블이 어떤 순서로 만들어졌는지 남긴
-**이력 참고용**이며 런타임 적용 대상이 아니다. 신규 프로젝트에서 mcm 도 Flyway 로 관리하기로 하면
-`enabled=true` 로 바꾸고 번호를 재채번한다 — 버전 채번은 방언 간 드리프트를 막기 위해
-`/flyway-migration-add` 스킬을 쓴다.
+| 폴더 | 스키마 | 내용 |
+| --- | --- | --- |
+| `oracle/mcmapuser/` | MCMAPUSER | mcm 기본 영속성 단위의 MCMAPUSER·접두 없는 엔티티, `TB_MCM_SEC_MENU_FLD`, 마스터코드 조회 사본 3표, `VI_MCM_CODE_ACCESS` |
+| `oracle/mcm_source/` | MCM_SOURCE | 마스터코드 원장 3표(`MasterCode*` 엔티티) + mcm 앱 사용자 권한 |
+| `oracle/mcm_backup/` | MCM_BACKUP | 마스터코드 백업 2표(동기화 화면이 원장에서 `SELECT *` 로 복사 — 열 순서가 원장과 같아야 한다) + 권한 |
+| `oracle/mcaapuser/` | MCAAPUSER | 업무기준 2표(`RuleMaster`·`MasterRuleColList`) + mcm 앱 사용자 권한 |
+
+- DDL 은 스키마 접두 없이 쓴다. 런타임 SQL 의 접두(`MCMAPUSER.` 등)는 그대로 둔다.
+- `${app_user}` 는 Flyway 자리표시자다. mcm 앱이 접속하는 사용자(로컬·운영 모두 MCMAPUSER)로 넣는다.
+- 스키마 폴더마다 Flyway 는 **그 스키마의 주인으로 접속**한다(GRANT 는 표 주인만 줄 수 있다). `locations` 는 그 폴더 하나로
+  좁힌다 — `classpath:db/migration/oracle` 처럼 넓히면 V1 네 벌이 한 이력에 섞여 부팅이 실패한다.
+- 전제는 Oracle 12.2 이상이다(30자 넘는 제약 이름, IDENTITY). boolean 칸은 `NUMBER(1)` 이고 앱 설정에
+  `hibernate.type.preferred_boolean_jdbc_type=BIT` 가 있어야 validate 가 맞는다(`docs/oracle-1007/schema-owners.md` §3.1.1).
+- CARAVANUSER·EAIUSER·IFUSER 기준선은 caravan-hub 가 갖는다(mcm-core 에 두지 않는다).
+- 운영(WildFly)은 Flyway 를 끄고 DBA 가 같은 파일을 적용한다.
+- 다음 번호는 **바꾸려는 스키마 폴더의 최대 V + 1** 로 직접 정한다. `/flyway-migration-add` 스킬의 `status` 는 아직
+  `oracle/<스키마>/` 한 단 아래 폴더를 보지 못해 늘 V1 을 권한다(2026-10-07 확인).
+
+옛 `db/migration/sqlite/`(V1~V18, 실행되지 않던 이력)·`db/migration/mcm-core/`(샘플 플레이스홀더)·`db/seed/oasis/`
+(옛 `TB_SEC_OBJ` 대상 시드), SQLite 치환기 `McmSqliteMybatisInterceptor`(`archive/main/audit/`), SQLite 날짜 변환기 `SqliteTemporalConverterContributor`·`LocalDate(Time)AttributeConverter`(`archive/main/persistence/`, ③e)는 `archive/` 로 옮겼다. 빌드·시험 대상이 아니다.
 
 화면 사용 통계 테이블(`TB_SEC_SCREEN_USAGE_LOG`·`TB_SEC_SCREEN_USAGE_DAY`)은 감사 계열처럼 schema 접두가 없다.
-MSSQL DDL 정본은 `screenusage/schema/ScreenUsageMssqlDdl` 이며 `DataInitializer` 와 운영 DBA 전달본이 같은 문장을 쓴다. 이 MSSQL 경로(SEC DDL 포함)는 dmes-ksm 이관 시절 것이고, 운영 대상인 Oracle·PostgreSQL 용 DDL 은 아직 없다.
+Oracle DDL 은 `oracle/mcmapuser/V1__baseline.sql` 에 있다. dmes-ksm 이관 시절의 MSSQL 판 `ScreenUsageMssqlDdl` 은
+`archive/main/screenusage/` 로 옮겼다(oracle-1007 ③b).
 
 ## 새 도메인을 추가할 때
 

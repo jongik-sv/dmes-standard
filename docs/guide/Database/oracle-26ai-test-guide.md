@@ -158,7 +158,68 @@ podman ps
 
 레인(워크트리)·자동 시험은 PDB 를 복제해 쓴다. 도구·이름 규칙·운용 규칙은 [`scripts/oracle/README.md`](../../../scripts/oracle/README.md), 스키마 소유표·연결 규약은 [`docs/oracle-1007/schema-owners.md`](../../oracle-1007/schema-owners.md) 에 있다.
 
-* 동시에 열린 PDB 수 상한은 환경 변수 `DMES_ORA_MAX_OPEN`(기본 **3** = FREEPDB1 + 템플릿 1 + 작업 1)으로 정한다. 2GB 머신(§8-5)은 기본값을 그대로 쓰고, 4GB 이상·기본 SGA 인 PC 는 메모리 여유만큼 올린다(예: `export DMES_ORA_MAX_OPEN=5`). 2GB 에서 4개를 열면 인스턴스가 내려간다.
+* 동시에 열린 PDB 수 상한은 환경 변수 `DMES_ORA_MAX_OPEN`(기본 **3** = FREEPDB1 + 템플릿 1 + 작업 1)으로 정한다. 기본값을 그대로 쓰고(VM 3GB 기준, §8-5), 2GB 머신은 3 을 넘기지 않으며, 4GB 이상·기본 SGA 인 PC 는 메모리 여유만큼 올린다(예: `export DMES_ORA_MAX_OPEN=5`). 2GB 에서 4개를 열면 인스턴스가 내려간다.
+
+### 6.4.2. 레인 PDB·시험 PDB 사용법
+
+PDB 이름은 접두로 용도를 나눈다. 도구는 이 세 접두의 PDB 만 만들고 지운다(`FREEPDB1` 과 조정자 데이터는 건드리지 않는다).
+
+| 접두 | 용도 | 수명 |
+| :--- | :--- | :--- |
+| `TPL_<태그>` | 복제 원본 템플릿(`TPL_EMPTY` 사용자만, `TPL_SCHEMA` 표만, `TPL_DATA` 표와 데이터) | 닫아 두고 복제 때만 읽기 전용으로 잠깐 연다 |
+| `L_<레인>` | 레인 개발·E2E·로컬 서버 확인용 | 쓰는 동안만 `open`, 끝나면 `close`(데이터는 남는다) |
+| `T_<레인>` | 자동 시험용 | Gradle 이 복제 → 시험 → 삭제를 한 번에 한다 |
+
+```bash
+node scripts/oracle/pdb.mjs clone TPL_EMPTY L_ORA_MDM     # 레인 PDB 만들기(없을 때 한 번)
+node scripts/oracle/pdb.mjs open L_ORA_MDM                # 서버를 띄우거나 시험하기 전에 연다
+node scripts/oracle/pdb.mjs url L_ORA_MDM                 # JDBC URL 확인
+./be-run.sh --mdm --pdb=L_ORA_MDM                         # 그 PDB 로 로컬 서버 기동(--pdb 가 없으면 종전 동작)
+node scripts/oracle/pdb.mjs close L_ORA_MDM               # 다 쓰면 닫는다(drop 은 데이터까지 지운다)
+
+# 자동 시험: 빌드 한 번에 T_<레인> 복제 → 시험 → 삭제
+cd src/backend/mdm && ../gradlew test -Pdmes.ora.test=clone
+# 이미 있는 PDB 로 시험하려면(복제·삭제 없음). 시험이 표를 비우므로 일회용 T_* PDB 만 쓴다
+cd src/backend/mdm && ../gradlew test -Pdmes.ora.pdb=T_MY_TEST
+```
+
+레인 개발 PDB(`L_*`)·템플릿(`TPL_*`)·`FREEPDB1` 에는 시험을 걸지 않는다. 시험은 클래스마다 표를 비우므로 내 개발 데이터가 지워진다. mdm 시험 가드(`MdmSharedTestDb.checkResettable`)는 `-Pdmes.ora.pdb=L_ORA_MDM` 처럼 `L_`·`TPL_` PDB 를 지정하면 시험을 바로 실패시킨다. 시험은 늘 `-Pdmes.ora.test=clone` 으로 `T_*` 복제본에서 돌린다.
+
+시험 JVM 은 `-Duser.timezone=Asia/Seoul` 이고 Hikari 풀은 2 로 제한된다(시험 PDB 하니스 기본값). 접속 규약·스키마 소유표는 [`schema-owners.md`](../../oracle-1007/schema-owners.md) 가 정본이다.
+
+### 6.4.3. PC 잠금 규칙
+
+인스턴스 하나를 PC 의 모든 레인·시험이 나눠 쓰므로 무거운 작업은 PC 전체에서 한 번에 하나만 돈다(잠금 폴더 `$TMPDIR/dmes-ora-pdb.lock`).
+
+* `clone`·`open`·`drop`·`template-*` 는 잠금을 잡고, 다른 작업이 쥐고 있으면 끝날 때까지 기다린다(기다리는 한도 `DMES_ORA_LOCK_WAIT_SEC`, 기본 900초).
+* `-Pdmes.ora.test=clone`(또는 `-Pdmes.ora.pdb=…`) 시험 빌드는 복제 직전부터 PDB 를 지울 때까지(시험 JVM 이 도는 구간 포함) 같은 잠금을 쥔다. 기다리는 한도는 `DMES_ORA_HARNESS_LOCK_WAIT_SEC`(기본 7200초)이다. Gradle 이 죽어도 잠금 주인이 스스로 놓는다.
+* Oracle 시험(gradle)은 PC 전역 무거운 명령 슬롯(`heavy.sh`)도 거치며, 슬롯이 차 있으면 기본 90초 뒤 `HEAVY_BUSY`(exit 75)로 끝난다. Oracle 시험은 **`DFLOW_HEAVY_WAIT=1800`** 으로 걸어 차례를 기다린다(예: `DFLOW_HEAVY_WAIT=1800 .claude/skills/dflow-dev/scripts/heavy.sh ../gradlew test -Pdmes.ora.test=clone`).
+* `close` 는 잠금을 잡지 않고 바로 실행한다(열린 PDB 와 메모리를 줄이는 쪽이라 시험과 겹쳐도 안전하다).
+* 명령을 중간에 끊으면(SIGTERM·SIGINT) `pdb.mjs` 가 자식 `podman exec` 를 먼저 끊고 잠금을 놓는다. sqlplus 한 번이 `DMES_ORA_SQL_TIMEOUT_SEC`(기본 1200초)를 넘기면 끊고 실패로 본다.
+* 인스턴스가 느릴 때 상태 확인용 sqlplus 를 계속 보내지 않는다(대기 세션만 쌓인다). 응답이 2분 넘게 없으면 보낸 쪽이 끊는다.
+
+### 6.4.4. 로컬 데이터 넣기(snapshot import)
+
+데이터 원본은 git 에 올라 있는 표별 CSV(`db-snapshot/<스키마>/*.csv`, UTF-8·LF·PK 순·NULL 은 `\N`·BLOB 은 `b64:`)이고, 적재기는 `scripts/db-snapshot/snapshot.py`(`python3` + `pip install oracledb`)다. 데이터만 넣으므로 표는 Flyway(또는 `template-schema`)가 먼저 만든 것이어야 한다.
+
+```bash
+# 레인 PDB 에 넣기(스키마를 생략하면 db-snapshot 아래 전부)
+python3 scripts/db-snapshot/snapshot.py import --pdb L_ORA_MDM MDMAPUSER
+python3 scripts/db-snapshot/snapshot.py import --pdb L_ORA_MDM --replace MCMAPUSER   # 초기 행까지 CSV 로 덮기
+
+# 처음부터 데이터가 든 PDB 가 필요하면 템플릿에서 복제
+node scripts/oracle/pdb.mjs template-schema TPL_SCHEMA   # 전 모듈 V 파일 적용, 데이터 없음
+node scripts/oracle/pdb.mjs template-data TPL_DATA       # 그 위에 CSV 적재(mdm 약 6분)
+node scripts/oracle/pdb.mjs clone TPL_DATA L_ORA_MDM
+
+# 스냅샷 갱신: 레인 PDB -> CSV
+python3 scripts/db-snapshot/snapshot.py export --pdb L_ORA_MDM
+```
+
+* 값 변환: epoch(초·밀리초) 시각은 KST 로, 빈 문자열은 NULL 로 바꾼다. 용어 임베딩(`TB_MDM_TERM.EMBEDDING`)과 비밀번호·키·로그 표는 비어 있거나 제외된다.
+* 코드 원장 3표는 `MCM_SOURCE` 와 `MCMAPUSER` 양쪽에 들어가고, `MCM_BACKUP` 은 비워 둔다. `TB_MCA_*` 동적 표는 적재기가 만든다.
+* 마이그레이션 `V1` 은 dev 에 머지된 뒤 고치지 않는다(체크섬이 달라진다). 바꿀 일은 `V2` 이상으로 추가한다. 옛 `V1` 이 적용된 레인 PDB 는 `template-schema --rebuild` 로 템플릿을 다시 만들고 레인 PDB 를 다시 복제한다.
+* 데이터 보정(`FORM_URL`·폴더 `USE_TP`)은 SQLite 에서 CSV 로 바꾸는 `convert` 단계에서 한 번 한다.
 
 ### 6.5. 컨테이너 정지 및 데이터 리셋
 
@@ -174,11 +235,13 @@ podman compose down -v
 
 ---
 
-## 7. 로컬 SQLite 데이터를 Oracle 로 옮기기
+## 7. (참고) 옛 SQLite 데이터를 Oracle 로 옮기기
 
-### 7.0. 다른 PC 에서는 이 스크립트 한 줄
+> 로컬 DB 가 Oracle 로 바뀌면서 이 절은 이관 크기 측정·방언 비교용 참고 자료가 되었다. 로컬 데이터는 §6.4.4 의 `snapshot.py import` 로 넣는다. 아래 도구(`sqlite_to_oracle.py`·`load_snapshot.py`·`export.sh`·`import.sh`)는 b8 에서 `archive/oracle-1007/` 아래로 옮겼다(`archive/oracle-1007/tools/oracle-free/`·`archive/oracle-1007/scripts/db-snapshot/`). 삭제하지 않았고 SQLite 원본이 있을 때만 쓴다. 아래 명령의 경로는 옮기기 전 기준이니 앞에 `archive/oracle-1007/` 를 붙여 읽는다.
 
-git 에 올라 있는 `db-snapshot/` 만으로 로컬 Oracle 에 같은 데이터를 넣는다(원본 `src/backend/data/*.db` 가 없어도 된다). Oracle 컨테이너가 떠 있고 `pip install oracledb` 가 되어 있으면 된다.
+### 7.0. 옛 스냅샷에서 적재하기(참고)
+
+(옛 SQL 스냅샷 `db-snapshot/{mdm,mcm}` 도 `archive/oracle-1007/db-snapshot-sql/` 로 옮겼다. 지금 스냅샷은 표별 CSV `db-snapshot/<스키마>/` 다.) git 에 올라 있던 옛 `db-snapshot/` 만으로 로컬 Oracle 에 같은 데이터를 넣는다(원본 `src/backend/data/*.db` 가 없어도 된다). Oracle 컨테이너가 떠 있고 `pip install oracledb` 가 되어 있으면 된다.
 
 ```bash
 python3 tools/oracle-free/load_snapshot.py                 # db-snapshot/ 아래 전부(mdm mcm) -> 스키마 MDM·MCM
@@ -251,25 +314,55 @@ python3 tools/oracle-free/sqlite_to_oracle.py --sqlite /tmp/ora-mig/mdm.db --sch
 4. **재기동 시 `ORA-01078` / `LRM-00109: could not open parameter file '.../initFREE.ora'` 로 종료될 때:**
    - Podman 머신의 SELinux 가 첫 컨테이너가 볼륨으로 옮긴 spfile 에 그 컨테이너 전용 라벨을 붙여, 다음 컨테이너가 읽지 못하는 경우입니다.
    - 볼륨 매핑 끝에 `:Z` 를 붙입니다(`oracle-data:/opt/oracle/oradata:Z`, §5 표준 설정에 반영됨). 기존 볼륨도 그대로 `podman compose down` → `up -d` 하면 복구됩니다.
-5. **Podman 머신 메모리를 2 GB 로 줄여 쓰고 싶을 때(메모리 16GB 이하 PC):**
-   - 기본값(SGA 1536M + PGA 512M)은 2 GB 머신에서 `ORA-01092` 로 기동에 실패하므로, 먼저 SGA·PGA 를 줄입니다. 2026-10-07 MacBook Air(16GB)에서 SGA 900M·PGA 200M 로 정상 기동을 확인했습니다(머신 여유 약 280MB).
-   - `pga_aggregate_limit` 은 최소값이 2048M 이라 낮추면 `ORA-00093` 이 납니다. 지정하지 않습니다.
+5. **Podman 머신 메모리: 3GB 를 권장합니다(2GB 는 SGA 900M 에서도 스래싱했습니다):**
+   - 기본값(SGA 1536M + PGA 512M)은 2GB 머신에서 `ORA-01092` 로 기동에 실패합니다. 2GB 에서는 SGA 900M·PGA 200M 로 낮춰야 기동하고(머신 여유 약 280MB), 레인·시험이 PDB 를 복제하고 시험 JVM 이 접속을 열면 가용 메모리가 50MB 아래로 떨어져 2026-10-07 에 세 번 스래싱했습니다(§8-7). 그래서 **Podman 머신 메모리는 3GB(cpus 2)로 둡니다.**
+   - 3GB 에서의 설정값(2026-10-07 사용자 결정·실측): SGA `900M`, PGA 목표 `pga_aggregate_target=400M`, `pga_aggregate_limit=2G`, `control_management_pack_access=NONE`, 루트 AWR 스냅숏 간격 0(끔). PGA 목표를 200M 에서 올린 이유는 실측에서 목표 200M 에 할당이 286M 까지 늘고 초과 할당이 50회 났기 때문입니다. SGA 는 문제가 생길 때만 1200M 로 올립니다.
+   - 올리는 절차(컨테이너 데이터는 볼륨에 남습니다):
+     ```bash
+     podman compose down                     # 컨테이너만 내림(-v 를 붙이지 않는다)
+     podman machine stop && podman machine set --memory 3072 --cpus 2 && podman machine start
+     podman compose up -d
+     ```
+   - SGA·PGA 를 바꾸는 절차(2GB 로 줄이거나 값을 고칠 때, 값은 상황에 맞게):
      ```bash
      podman compose down
-     podman machine stop && podman machine set --memory 2048 && podman machine start
      podman run --rm --entrypoint bash -v oracle-free_oracle-data:/opt/oracle/oradata:Z \
        docker.io/gvenzl/oracle-free:slim-faststart -c '
        D=/opt/oracle/oradata/dbconfig/FREE; P=/tmp/initFREE.ora
        ln -sf $D/spfileFREE.ora $ORACLE_HOME/dbs/spfileFREE.ora
        echo "create pfile='\''$P'\'' from spfile;" | sqlplus -s / as sysdba
        sed -i -E "/sga_target|sga_max_size|pga_aggregate_target|pga_aggregate_limit/d" $P
-       printf "*.sga_target=900M\n*.sga_max_size=900M\n*.pga_aggregate_target=200M\n" >> $P
+       printf "*.sga_target=900M\n*.sga_max_size=900M\n*.pga_aggregate_target=400M\n*.pga_aggregate_limit=2G\n" >> $P
        echo "create spfile='\''$D/spfileFREE.ora'\'' from pfile='\''$P'\'';" | sqlplus -s / as sysdba'
      podman compose up -d
      ```
-   - 볼륨을 지우고(`down -v`) 새로 만들면 기본값으로 돌아가므로 위 절차를 다시 실행합니다.
+   - `pga_aggregate_limit` 은 최소값이 2048M 이라 그보다 낮추면 `ORA-00093` 이 납니다(2GB 머신에서는 지정하지 않습니다).
+   - 볼륨을 지우고(`down -v`) 새로 만들면 기본값으로 돌아가므로 위 설정과 `job_queue_processes=0`(자동 작업·통계 수집 정지)을 다시 적용합니다(조정자에게 알립니다).
 6. **IDE나 외부 도구(Testcontainers 등)에서 소켓 인식 실패 시:**
    - Podman Desktop 설정에서 `Docker Socket`이 켜져 있는지 확인하고, 필요 시 실제 소켓 경로를 조회해 환경 변수로 지정합니다(Mac 은 경로가 머신마다 다름):
      ```bash
      export DOCKER_HOST="unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
      ```
+7. **2GB VM 에서는 무거운 작업을 한 번에 하나만(스래싱 사례):**
+   - 2026-10-07 18:24 여러 레인이 동시에 PDB 를 복제·삭제하고 시험 JVM 을 돌리자 VM 의 가용 메모리가 48MB, `kswapd` 38%, load 42 까지 올라 인스턴스가 스래싱했고 `sqlplus` 응답이 수 분씩 밀렸다. 같은 날 먼저 PDB 4개를 동시에 열었을 때는 서버 프로세스가 `ORA-03113` 으로 죽었다(`docs/oracle-1007/spike.md`).
+   - 증상: `pdb.mjs list` 나 sqlplus 가 2분 넘게 응답이 없고 `podman exec` 세션이 쌓입니다. 이때 상태 확인을 더 보내지 않습니다(대기만 늘어납니다).
+   - 원칙: ① 동시에 열린 PDB 는 3개 이하(`DMES_ORA_MAX_OPEN`) ② `clone`·`drop`·`open`·`template-*`·Oracle 시험 빌드는 PC 전체에서 하나(§6.4.3 의 PC 잠금) ③ 레인 PDB 는 쓸 때만 열고 `close` ④ 시험 PDB 는 복제 직후 시험하고 바로 삭제 ⑤ 인스턴스 부하를 줄이려고 `job_queue_processes=0`(자동 작업·통계 수집 정지)을 쓴다.
+   - 복구: 조정자가 동결을 알리면 새 Oracle 명령을 멈추고, 진행 중인 `drop` 등 변경 작업은 끝나게 둡니다. 확인용으로 띄운 sqlplus 와 고아 `podman exec` 는 종료합니다. 인스턴스가 응답하면 재개합니다.
+8. **Oracle 오류가 났을 때: VM 때문인지 코드 때문인지 먼저 가립니다:**
+   - Oracle 시험 실패·접속 실패·시간 초과가 나면 **다시 돌리기 전에** VM 상태를 한 번 잽니다(Oracle 명령이 아닙니다): `podman machine ssh -- 'free -m; cat /proc/loadavg'`. 시험 하니스는 시험이 실패하거나 PDB 준비가 실패했을 때 같은 값을 `[dmes-ora] … VM available=…MB load=…` 한 줄로 남기고 VM 신호면 「VM 의심」 을 붙입니다.
+   - 보고에는 오류 번호와 VM 값(available MB·load)을 함께 적습니다.
+
+     | 구분 | 신호 | 처리 |
+     | :--- | :--- | :--- |
+     | VM 의심 | available 150MB 미만, load 10 이상, ORA-04031·04030·00020·00018·12516·12519·12520·3136·609·12751·00800·01092·00822, JDBC 접속·읽기 시간 초과 | 재실행하지 않고 조정자에게 「VM 의심」 으로 보고 |
+     | 코드 | ORA-00942·00904·00001·01400·12899·00933 같은 SQL·제약 오류 | 평소대로 레인이 고침 |
+   - 경고 로그에 `Time drifted`·ORA-3136·ORA-609·ORA-12751·ORA-00800 이 쌓였으면 그 시각은 스래싱 구간입니다. 같은 표는 `scripts/oracle/README.md` 「Oracle 오류 판별」 에도 있습니다.
+9. **JPQL 에서 CLOB 칸에 `UPPER`·`LOWER`·`LIKE` 를 쓸 때 `FunctionArgumentException`:**
+   - Hibernate 7.2.12 + Oracle 26ai 에서 `@Lob`(CLOB) 칸에 JPQL 문자열 함수·`LIKE` 를 쓰면 이 예외가 납니다(ora-mdm 실측).
+   - 해결: 그 조회를 네이티브 SQL 로 바꾸거나(CLOB 은 `DBMS_LOB`·`TO_CHAR` 로 다룸), 값이 4000바이트를 넘지 않는 칸이면 `VARCHAR2(4000 CHAR)` 로 둡니다. 정본은 `docs/oracle-1007/schema-owners.md` §3.1.1 입니다.
+10. **`@Column(name = "`OFFSET`")` 처럼 백틱을 쓴 칼럼은 `ORA-00904` 가 납니다(validate 로는 잡히지 않음):**
+    - Hibernate 가 백틱 칼럼을 소문자 따옴표 식별자(`"offset"`)로 내보내는데, 표는 대문자(`OFFSET`)로 만들어져 있어 조회·저장 시점에 `ORA-00904: invalid identifier` 가 납니다. `ddl-auto=validate` 는 이 어긋남을 잡지 못하므로 실제 쿼리를 한 번 실행해 봐야 알 수 있습니다.
+    - 해결: 예약어가 아니면 백틱을 뺍니다(`@Column(name = "OFFSET")`). Oracle 예약어(`LEVEL`·`COMMENT` 등)라서 따옴표가 꼭 필요하면 표의 DDL 도 같은 대소문자로 따옴표를 붙여 만들어야 합니다. 예약어 여부는 `select keyword from v$reserved_words where reserved = 'Y'` 로 확인합니다.
+11. **`IDENTITY BY DEFAULT ON NULL` 은 명시한 ID 를 따라가지 않습니다:**
+    - `GENERATED BY DEFAULT ON NULL AS IDENTITY` 칸에 ID 를 직접 넣어도 내부 시퀀스는 올라가지 않습니다. 그래서 명시 ID 와 자동 ID 를 섞어 쓰는 시험·골든은 번호가 어긋나거나, 자동 번호가 이미 넣은 값과 겹쳐 `ORA-00001`(PK 중복)이 납니다.
+    - 해결: 시험·픽스처에서는 한쪽만 씁니다(전부 명시 또는 전부 자동). 섞어야 하면 넣은 뒤에 `alter table <표> modify <칼럼> generated by default on null as identity (start with limit value)` 로 시퀀스를 다시 맞춥니다(snapshot 적재기가 하는 것과 같은 방식). 골든 파일에 자동 번호를 기록하는 시험은 번호에 기대지 않게 고칩니다.

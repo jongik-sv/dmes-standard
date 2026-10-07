@@ -71,10 +71,10 @@ MST DataSource가 spring.datasource.mst 설정으로 정상 연결되는지 확�
 spring:
   datasource:
     mst:
-      jdbc-url: jdbc:tibero:thin:@HOST:PORT:SID
-      username: user
+      jdbc-url: jdbc:oracle:thin:@//HOST:1521/SERVICE
+      username: CARAVANUSER
       password: pass
-      driver-class-name: com.tmax.tibero.jdbc.TbDriver
+      driver-class-name: oracle.jdbc.OracleDriver
 ```
 
 ### 검증 항목
@@ -94,10 +94,10 @@ IF DataSource가 spring.datasource.if 설정으로 정상 연결되는지 확인
 spring:
   datasource:
     if:
-      jdbc-url: jdbc:tibero:thin:@HOST:PORT:SID
-      username: ifuser
+      jdbc-url: jdbc:oracle:thin:@//HOST:1521/SERVICE
+      username: EAIUSER
       password: ifpass
-      driver-class-name: com.tmax.tibero.jdbc.TbDriver
+      driver-class-name: oracle.jdbc.OracleDriver
 ```
 
 ### 검증 항목
@@ -153,15 +153,15 @@ MyBatis Configuration 설정이 정상 적용되는지 확인한다.
 
 ---
 
-## TC-CFG-008: Tibero JDBC 드라이버 존재 확인
+## TC-CFG-008: Oracle JDBC 드라이버 존재 확인
 
 ### 목적
-libs/ 폴더에 Tibero JDBC 드라이버가 존재하는지 확인한다.
+Oracle JDBC 드라이버(ojdbc11)가 Gradle 의존성으로 들어와 있는지 확인한다. 이전 Tibero 시절에는 libs/ 폴더의 jar 를 확인했다.
 
 ### 검증 항목
-- [ ] `libs/tibero6-jdbc.jar` 파일 존재
-- [ ] build.gradle의 `fileTree` 의존성으로 로드됨
-- [ ] 드라이버 클래스 `com.tmax.tibero.jdbc.TbDriver` 로드 가능
+- [ ] `ojdbc11` 이 `runtimeOnly` 의존성에 포함
+- [ ] 런타임 클래스패스에 ojdbc11 jar 존재
+- [ ] 드라이버 클래스 `oracle.jdbc.OracleDriver` 로드 가능
 
 ---
 

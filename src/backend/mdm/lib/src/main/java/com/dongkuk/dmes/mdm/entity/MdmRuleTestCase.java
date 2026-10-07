@@ -5,12 +5,13 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 
 /**
  * 룰 테스트 케이스 — {@code TB_MDM_RULE_TEST_CASE}(TSK-08-01 design.md §6.0 ⑥·§6.2). 복합 PK 는 {@link MdmRuleTestCaseId}.
  *
- * <p>버전과 무관하게 룰에 붙는다. {@code INPUT_JSON}·{@code EXPECTED_JSON} 은 일반 {@code String} 이다.
+ * <p>버전과 무관하게 룰에 붙는다. {@code INPUT_JSON}·{@code EXPECTED_JSON} 은 {@code String} 이고 칼럼이 CLOB 이라 {@code @Lob} 이다.
  * {@code ROW_VERSION} 은 조건부 네이티브 UPDATE 로만 오르고 {@code @Version} 이 아니다(D7).
  */
 @Entity
@@ -29,9 +30,11 @@ public class MdmRuleTestCase extends CactusAuditEntity {
     @Column(name = "CASE_NAME")
     private String caseName;
 
+    @Lob
     @Column(name = "INPUT_JSON", nullable = false)
     private String inputJson;
 
+    @Lob
     @Column(name = "EXPECTED_JSON")
     private String expectedJson;
 

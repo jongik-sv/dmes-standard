@@ -25,7 +25,7 @@ import java.util.function.Supplier;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * {@link CommUserMngService} 특성 테스트 공통 기반 — H2(MSSQLServer 모드) 실제 저장소 + 컴포넌트 스캔한 서비스 빈.
+ * {@link CommUserMngService} 특성 테스트 공통 기반 — Oracle 시험 PDB 의 실제 저장소 + 컴포넌트 스캔한 서비스 빈.
  *
  * <p>테스트는 공개 메서드 시그니처·반환 Map 의 키·값·순서·DB 에 남은 결과만 본다. private 구현과
  * 저장소 호출 횟수(예: 부서 findById, 매핑 deleteById, 행별 updateSsoPwd)는 다음 단계에서 바뀔 것이므로 보지 않는다.

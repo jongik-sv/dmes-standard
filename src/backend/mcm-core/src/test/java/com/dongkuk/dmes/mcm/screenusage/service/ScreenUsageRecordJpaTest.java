@@ -22,7 +22,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-/** 기록 서비스 + 실제 고유 제약(H2) — Review Focus 2·5. */
+/** 기록 서비스 + 실제 고유 제약(Oracle) — Review Focus 2·5. */
 @SpringJUnitConfig(ScreenUsageJpaTestConfig.class)
 class ScreenUsageRecordJpaTest {
 

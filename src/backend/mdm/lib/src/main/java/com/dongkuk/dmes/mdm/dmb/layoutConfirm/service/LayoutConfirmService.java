@@ -253,8 +253,11 @@ public class LayoutConfirmService {
         columnPins.pin(id, ver);
         LayoutChangeClassifier.Change change = checks.classify(id, ver, applyFrom);
         String kinds = change.kinds().stream().map(Enum::name).collect(Collectors.joining(","));
-        int n = store.recordConfirm(id, ver, change.switchMode(), kinds, change.summary(), checks.bodySnapshotJson(id, ver),
-                audit.currentStamp());
+        // EAI 변경 문구까지 붙은 최종 문자열 — DB 에 쓰는 CHANGE_SUMMARY 만 칸(4000 BYTE)에 맞춰 접는다(ORA-12899 예방). 응답은 원문 그대로
+        // (의도: 확정 직후 화면은 원문을 보이고, 나중에 DB 값을 읽는 버전 이력은 4000 바이트를 넘는 요약을 「…외 N건」 으로 접어 보인다)
+        String summary = change.summary();
+        int n = store.recordConfirm(id, ver, change.switchMode(), kinds, LayoutChangeClassifier.fitSummary(summary),
+                checks.bodySnapshotJson(id, ver), audit.currentStamp());
         if (n != 1) {
             throw new IllegalStateException("확정 기록 갱신 행 수가 1이 아닙니다: " + n + " " + ref);
         }
@@ -268,7 +271,7 @@ public class LayoutConfirmService {
         out.put("closedPreviousVer", r.closedPrevious() == null ? null : VersionNumbers.plain(r.closedPrevious().ver()));
         out.put("switchMode", change.switchMode());
         out.put("changeKinds", kinds);
-        out.put("changeSummary", change.summary());
+        out.put("changeSummary", summary);
         return out;
     }
 

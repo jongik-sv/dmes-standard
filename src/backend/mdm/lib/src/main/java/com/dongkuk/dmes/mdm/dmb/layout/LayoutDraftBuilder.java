@@ -92,6 +92,7 @@ public class LayoutDraftBuilder {
         if (name == null) {
             issues.add(LayoutIssue.of(LayoutIssueCode.L11, null, "LAYOUT_NAME", "전문 이름이 비었다"));
         }
+        issues.addAll(LayoutRegistrationRules.basicLengthIssues("전문 이름", name, null, null, null, null));
         Set<Object> systems = queries.systems().stream().map(r -> r[0]).collect(Collectors.toSet());
         if (snd == null || !systems.contains(snd)) {
             issues.add(LayoutIssue.of(LayoutIssueCode.L11, null, "SND_SYSTEM", "송신 시스템이 없다: " + snd));

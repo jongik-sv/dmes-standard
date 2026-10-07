@@ -7,6 +7,7 @@ import com.dongkuk.dmes.mdm.common.segment.DataCategorySegmentCore;
 import com.dongkuk.dmes.mdm.common.segment.DataCateValue;
 import com.dongkuk.dmes.mdm.common.segment.LockedMaruData;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.contract.category.CategoryConventions;
 import com.dongkuk.dmes.mdm.contract.category.CategoryOwner;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
@@ -82,8 +83,9 @@ public class DataMngService {
             params.put("id", "%" + escapeLike(id.toUpperCase(Locale.ROOT)) + "%");
         }
         if (name != null) {
-            jpql.append(" AND d.maruDataName LIKE :name ESCAPE '\\'");
-            params.put("name", "%" + escapeLike(name) + "%");
+            // 대소문자 무시(SQLite LIKE 의 ASCII 대소문자 무시와 같은 결과) — 양쪽을 대문자로 맞춘다.
+            jpql.append(" AND UPPER(d.maruDataName) LIKE :name ESCAPE '\\'");
+            params.put("name", "%" + escapeLike(name.toUpperCase(Locale.ROOT)) + "%");
         }
         if (status != null) {
             jpql.append(" AND d.status = :status");
@@ -113,9 +115,15 @@ public class DataMngService {
         if (name == null || name.length() > NAME_MAX) {
             throw invalid("이름은 1~" + NAME_MAX + "자여야 합니다");
         }
+        if (MdmTextLimits.overBytes(trimToNull(request.getDescription()))) {
+            throw invalid("설명은 4000바이트(한글 약 1,333자)를 넘을 수 없습니다");
+        }
         String codePattern = trimToNull(request.getCodePattern());
         if (codePattern == null) {
             throw invalid("키 패턴을 입력하세요");
+        }
+        if (MdmTextLimits.overBytes(codePattern)) {
+            throw invalid("키 패턴은 4000바이트(한글 약 1,333자)를 넘을 수 없습니다");
         }
         int lvlCnt = request.getLvlCnt() == null ? 0 : request.getLvlCnt();
         if (lvlCnt < 0 || lvlCnt > 5) {

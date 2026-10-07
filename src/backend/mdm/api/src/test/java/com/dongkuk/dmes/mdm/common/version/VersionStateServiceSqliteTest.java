@@ -3,15 +3,11 @@ package com.dongkuk.dmes.mdm.common.version;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.dongkuk.dmes.mdm.contract.common.MdmDialect;
-import com.dongkuk.dmes.mdm.contract.common.MdmDialectResolver;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
-import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -19,30 +15,16 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * TSK-01-03 design.md §3.2 — 버전 상태 서비스 시나리오를 local(SQLite) 프로파일의 실제 컨텍스트로 돌린다.
- * 테이블은 실제 이름과 겹치지 않는 픽스처(TB_MDM_TC_*)다. SQLite 전용 시나리오 S14(원자성)·S24(저장 형식)와
- * A1(방언 판정)을 더한다.
+ * TSK-01-03 design.md §3.2 — 버전 상태 서비스 시나리오를 local 프로파일의 실제 컨텍스트(Oracle 시험 PDB)로 돌린다.
+ * 테이블은 실제 이름과 겹치지 않는 픽스처(TB_MDM_TC_*)다. 시나리오 S14(원자성)·S24(저장 형식)를 더한다.
+ * DB 접속은 키트({@link AbstractVersionStateScenarioTest})가 공용 기반으로 받는다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import({VersionScenarioTestConfig.class, VersionStateServiceSqliteTest.FixtureRegistry.class})
 class VersionStateServiceSqliteTest extends AbstractVersionStateScenarioTest {
-
-    @TempDir
-    static Path tempDir;
-
-    @Autowired
-    MdmDialectResolver dialectResolver;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-version-scenario-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @TestConfiguration(proxyBeanMethods = false)
     static class FixtureRegistry {
@@ -64,11 +46,6 @@ class VersionStateServiceSqliteTest extends AbstractVersionStateScenarioTest {
     }
 
     @Test
-    void A1_local_프로파일의_방언은_SQLITE_다() {
-        assertEquals(MdmDialect.SQLITE, dialectResolver.current());
-    }
-
-    @Test
     void S14_직전_닫기가_실패하면_이미_실행한_DRAFT_확정_UPDATE_까지_롤백된다() {
         seedObject(VersionTarget.MASTER_CODE, "ATOMIC_FAIL", "CREATED");
         VersionRef v1 = code("ATOMIC_FAIL", "1.000");
@@ -84,7 +61,7 @@ class VersionStateServiceSqliteTest extends AbstractVersionStateScenarioTest {
     }
 
     @Test
-    void S24_SQLite_네이티브_쓰기는_KST_초_단위_TEXT_로_저장한다() {
+    void S24_네이티브_쓰기는_KST_초_단위_TIMESTAMP_로_저장한다() {
         at("2026-06-20 09:08:07");
         seedObject(VersionTarget.MASTER_CODE, "PROC_CD", "INUSE");
         VersionRef v1 = code("PROC_CD", "1.000");
@@ -92,12 +69,14 @@ class VersionStateServiceSqliteTest extends AbstractVersionStateScenarioTest {
 
         confirm(v1, 0, "2026-07-01 00:00:00");
 
-        Map<String, Object> stored = jdbc.queryForMap("SELECT typeof(APPLY_FROM) AS F_TYPE, APPLY_FROM, "
-                + "typeof(APPLY_TO) AS T_TYPE, APPLY_TO, typeof(U_AT) AS U_TYPE, U_AT, typeof(RELEASED_AT) AS R_TYPE "
+        // 칸 형은 TIMESTAMP(6) — 문자열이 아니라 일시로 저장된다(SQLite 때는 TEXT 였다)
+        List<String> types = jdbc.queryForList("SELECT DATA_TYPE FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'TB_MDM_TC_CODE_VER' "
+                + "AND COLUMN_NAME IN ('APPLY_FROM', 'APPLY_TO', 'U_AT', 'RELEASED_AT')", String.class);
+        assertEquals(List.of("TIMESTAMP(6)", "TIMESTAMP(6)", "TIMESTAMP(6)", "TIMESTAMP(6)"), types);
+        Map<String, Object> stored = jdbc.queryForMap("SELECT APPLY_FROM, APPLY_TO, U_AT, RELEASED_AT "
                 + "FROM TB_MDM_TC_CODE_VER WHERE MARU_CODE_ID = 'PROC_CD'");
-        assertEquals("text|2026-07-01 00:00:00|text|9999-12-31 00:00:00",
-                stored.get("F_TYPE") + "|" + stored.get("APPLY_FROM") + "|" + stored.get("T_TYPE") + "|" + stored.get("APPLY_TO"));
-        assertEquals("text|2026-06-20 09:08:07", stored.get("U_TYPE") + "|" + stored.get("U_AT"));
-        assertEquals("text", stored.get("R_TYPE"));
+        assertEquals("2026-07-01 00:00:00|9999-12-31 00:00:00", text(stored.get("APPLY_FROM")) + "|" + text(stored.get("APPLY_TO")));
+        assertEquals("2026-06-20 09:08:07", text(stored.get("U_AT")));
+        assertEquals("2026-06-20 09:08:07", text(stored.get("RELEASED_AT")));
     }
 }

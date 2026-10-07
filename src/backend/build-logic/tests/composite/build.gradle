@@ -1,0 +1,9 @@
+// 세 included build 의 probe 를 동시에 돌린다. 각 build 가 따로 서비스를 만들어도 잠금·PDB 는 하나여야 한다.
+tasks.register('probeAll') {
+    dependsOn gradle.includedBuilds.collect { it.task(':probe') }
+}
+
+// Test 태스크 배선 확인용(--dry-run 으로만 쓴다): 구성이 통과하고 a 의 test 에 차례 마무리 태스크가 붙는지 tests/run.sh 가 본다.
+tasks.register('wiring') {
+    dependsOn gradle.includedBuilds.find { it.name == 'a' }.task(':test')
+}

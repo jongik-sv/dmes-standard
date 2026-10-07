@@ -53,6 +53,7 @@ public class WidgetQueryConfig {
             if (d.getPassword() != null && !d.getPassword().isEmpty()) ds.setPassword(d.getPassword());
             ds.setMaximumPoolSize(d.getMaximumPoolSize() > 0 ? d.getMaximumPoolSize() : DEFAULT_POOL_SIZE);
             ds.setMinimumIdle(0); // 쓰지 않을 때 연결을 잡아 두지 않는다
+            ds.setIdleTimeout(d.getIdleTimeout() > 0 ? d.getIdleTimeout() : WidgetQueryProperties.Datasource.DEFAULT_IDLE_TIMEOUT_MS);
             log.info("[widgetQuery] 쿼리 위젯 실행기 전용 DataSource 를 씁니다(직결, 풀 {} 최대 {}개)", POOL_NAME, ds.getMaximumPoolSize());
             return WidgetQueryDataSource.dedicated(ds, ds);
         }
@@ -60,9 +61,14 @@ public class WidgetQueryConfig {
             throw new IllegalStateException("dmes.widget.query.datasource 에 계정·드라이버만 있고 url(또는 jndi-name)이 없습니다"
                     + " — 기본 DataSource 로 물러나지 않습니다");
         }
-        log.info("[widgetQuery] 쿼리 위젯 실행기가 앱 기본 DataSource 를 씁니다 — 운영에서는 읽기 계정 전용 DataSource"
-                + "(dmes.widget.query.datasource.*)를 붙이세요");
-        return WidgetQueryDataSource.shared(defaultDataSource.get());
+        if (properties.isRequireDedicated()) {
+            log.warn("[widgetQuery] dmes.widget.query.require-dedicated=true 인데 전용 DataSource(dmes.widget.query.datasource.*)가 없습니다"
+                    + " — 쿼리 위젯 시험·저장·실행을 모두 거절합니다");
+        } else {
+            log.info("[widgetQuery] 쿼리 위젯 실행기가 앱 기본 DataSource 를 씁니다 — 운영에서는 읽기 계정 전용 DataSource"
+                    + "(dmes.widget.query.datasource.*)를 붙이고 require-dedicated 를 켜세요");
+        }
+        return WidgetQueryDataSource.shared(defaultDataSource.get(), properties.isRequireDedicated());
     }
 
     private static boolean hasText(String s) {

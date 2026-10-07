@@ -11,11 +11,8 @@ caravan:
     # 기본값 = 포항 개발 브로커. 김포 WildFly 는 -DKAFKA_BOOTSTRAP_SERVERS=<김포 브로커> 로 override.
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:10.10.80.241:9092}
 
-# ── DataInitializer — WildFly 계열은 명시적으로 끔 (2026-07-09 게이트 신설) ──
-# 스키마는 사전 생성분 사용. 신규 테이블 적재가 필요할 때만 -Dcaravan-hub.init.enabled=true 로 일시 전환.
-caravan-hub:
-  init:
-    enabled: false
+# ── 스키마 마이그레이션 — WildFly 계열은 끈다(wildfly 프로파일의 spring.flyway.enabled=false) ──
+# 스키마는 DBA 가 db/migration/caravanuser 의 V 파일로 사전 생성한다.
 
 logging:
   level:

@@ -151,6 +151,87 @@ class MasterRuleDataServiceTest {
         verify(em, never()).createNativeQuery(anyString(), eq(jakarta.persistence.Tuple.class));
     }
 
+    // ──────────────────────────────── Oracle 형 처리 (oracle-1007 c4) ────────────────────────────────
+
+    @Test
+    @DisplayName("search — DATE 칸 >= 는 TO_DATE(14자 정규화), DATE LIKE 숫자 앞 일치는 반열린 범위, 실제 CLOB 칸 = 는 DBMS_LOB 앞부분 비교")
+    void search_oracle형처리() {
+        mockColDefs();
+        mockSearchForReload();
+        when(query.getResultList()).thenReturn(List.of("CURR_CD"));   // 사전: CURR_CD 가 실제 CLOB 이라고 가정
+        Query tupleQuery = em.createNativeQuery("x", jakarta.persistence.Tuple.class);
+
+        MasterRuleDataSearchRequest r = req("E2ESRC");
+        r.setPWhere1("BASE_DT");
+        r.setPOperator1(">=");
+        r.setPVal1("2026-10-03");
+        r.setPWhere2("CURR_CD");
+        r.setPOperator2("=");
+        r.setPVal2("usd");
+        r.setPWhere3("BASE_DT");
+        r.setPOperator3("LIKE");
+        r.setPVal3("202610%");
+        service.search(r);
+
+        ArgumentCaptor<String> cap = ArgumentCaptor.forClass(String.class);
+        verify(em, org.mockito.Mockito.atLeastOnce()).createNativeQuery(cap.capture(), eq(jakarta.persistence.Tuple.class));
+        String sql = cap.getAllValues().get(cap.getAllValues().size() - 1);
+        assertThat(sql).contains("BASE_DT >= TO_DATE(:v1, 'YYYYMMDDHH24MISS')")
+                .contains("DBMS_LOB.GETLENGTH(CURR_CD) <= 1000 AND UPPER(DBMS_LOB.SUBSTR(CURR_CD, 1000, 1)) = UPPER(:v2)")
+                .contains("BASE_DT >= TO_DATE(:v3, 'YYYYMMDDHH24MISS') AND BASE_DT < TO_DATE(:v3e, 'YYYYMMDDHH24MISS')")
+                .doesNotContain("TO_CHAR(BASE_DT");
+        verify(tupleQuery).setParameter("v1", "20261003000000");
+        verify(tupleQuery).setParameter("v2", "usd");
+        verify(tupleQuery).setParameter("v3", "20261001000000");
+        verify(tupleQuery).setParameter("v3e", "20261101000000");
+    }
+
+    @Test
+    @DisplayName("search — DATE LIKE 가 중간 일치(%1003%)면 현행 TO_CHAR LIKE 를 그대로 쓴다")
+    void search_날짜LIKE_중간일치는_현행유지() {
+        mockColDefs();
+        mockSearchForReload();
+        Query tupleQuery = em.createNativeQuery("x", jakarta.persistence.Tuple.class);
+
+        MasterRuleDataSearchRequest r = req("E2ESRC");
+        r.setPWhere1("BASE_DT");
+        r.setPOperator1("LIKE");
+        r.setPVal1("%1003%");
+        service.search(r);
+
+        ArgumentCaptor<String> cap = ArgumentCaptor.forClass(String.class);
+        verify(em, org.mockito.Mockito.atLeastOnce()).createNativeQuery(cap.capture(), eq(jakarta.persistence.Tuple.class));
+        String sql = cap.getAllValues().get(cap.getAllValues().size() - 1);
+        assertThat(sql).contains("TO_CHAR(BASE_DT, 'YYYYMMDDHH24MISS') LIKE :v1");
+        verify(tupleQuery).setParameter("v1", "%1003%");
+    }
+
+    @Test
+    @DisplayName("dateText — 구분자 제거·8자는 0시 채움·14자 절단, ISO(T/Z/+)·8자 미만은 INVALID_VALUE")
+    void dateText_정규화() {
+        assertThat(MasterRuleDataService.dateText("D", "20261007")).isEqualTo("20261007000000");
+        assertThat(MasterRuleDataService.dateText("D", "2026-10-07 12:34:56")).isEqualTo("20261007123456");
+        assertThat(MasterRuleDataService.dateText("D", "20261007123456789")).isEqualTo("20261007123456");
+        assertThat(MasterRuleDataService.dateText("D", " ")).isEmpty();
+        assertThatThrownBy(() -> MasterRuleDataService.dateText("D", "2026-10-07T03:00:00.000+00:00"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.INVALID_VALUE));
+        assertThatThrownBy(() -> MasterRuleDataService.dateText("D", "2026"))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("lov — Oracle CHAR(1) 로 오는 PK_YN(Character)은 String 으로 싣는다")
+    void lov_character는_String() {
+        when(colListRepository.searchRuleColDefsWithPk("E2ESRC")).thenReturn(List.<Object[]>of(
+                new Object[]{"E2ESRC", 1, "CURR_CD", "통화코드", 3, null, null, "Y", 'N', "VARCHAR2", "OUT"}));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> list = (List<Map<String, Object>>) service.lov(req("E2ESRC")).get("ds_GetRuleColList");
+
+        assertThat(list.get(0).get("PK_YN")).isEqualTo("N");
+    }
+
     // ──────────────────────────────── save ────────────────────────────────
 
     @Test
@@ -172,9 +253,10 @@ class MasterRuleDataServiceTest {
         String updateSql = sqlCap.getAllValues().stream().filter(s -> s.startsWith("UPDATE")).findFirst().orElseThrow();
         assertThat(updateSql).contains("MCAAPUSER.TB_MCA_E2ESRC")
                 .contains("WHERE RULE_SEQ = :seq")
-                .contains("U_USR_ID").contains("U_AT = SYSDATETIME()");
+                .contains("U_USR_ID").contains("U_AT = CURRENT_TIMESTAMP");
         assertThat(updateSql).doesNotContain("EVIL_COL");
         verify(query, org.mockito.Mockito.atLeastOnce()).setParameter(eq("c0"), eq("20260708123456"));   // 절단 확인
+        assertThat(updateSql).contains("BASE_DT = TO_DATE(:c0, 'YYYYMMDDHH24MISS')");                   // DATE 칸 글자 값 (oracle-1007 c4)
         assertThat(out.get("cnt_save")).isEqualTo(1);
         assertThat(out).containsKey("ds_GetMasterRuleData");   // 재조회 동봉
     }

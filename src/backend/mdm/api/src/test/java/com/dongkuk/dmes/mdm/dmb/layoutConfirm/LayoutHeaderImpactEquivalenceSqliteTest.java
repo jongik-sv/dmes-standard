@@ -33,14 +33,14 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 /**
  * 헤더 확정 영향도({@link LayoutHeaderImpact#evaluate}) 합성 결과 고정 — 묶음 조회 리팩토링(전문·헤더 버전·항목을 한 번에 읽기) 전후로
- * {@link LayoutHeaderImpact.Result} 전체(영향 행·오류·경고·EAI)가 같아야 한다. 행은 JDBC 로 직접 넣는다(실제 SQLite 스키마).
+ * {@link LayoutHeaderImpact.Result} 전체(영향 행·오류·경고·EAI)가 같아야 한다. 행은 JDBC 로 직접 넣는다(실제 Oracle 스키마).
  *
  * <p>정렬 — 영향 행은 (LAYOUT_ID, VER) 순, 오류·경고는 itemKey 순(같은 itemKey 안의 순서는 그대로)으로 맞춰 비교한다. 지금 행 순서는
  * {@code stacksUsing} 의 {@code ORDER BY h.layoutId} 만 보장하고 같은 전문의 버전 순서는 SQL 이 정하지 않기 때문이다.
  *
  * <p>고정한 경우 — 전문 여러 개(대상 헤더가 1번째·2번째 적층), 헤더 여러 개, 헤더 버전 경계(다른 쌓인 헤더의 apply_from 과 판정 시각이
  * 같음·1초 전), 전문 버전 거르기(apply_to == apply_from 제외·1초 뒤 포함·미래 RELEASED 는 자기 apply_from·DRAFT 포함·LEGACY 제외),
- * minor 버전(SQLite REAL), 항목 추가·삭제·변경(L16·L12 새로 생김=오류·이미 있음=경고, ORPHAN_OVERRIDE), "전" 합성 실패(첫 확정),
+ * minor 버전(NUMBER(7,3) 소수 버전), 항목 추가·삭제·변경(L16·L12 새로 생김=오류·이미 있음=경고, ORPHAN_OVERRIDE), "전" 합성 실패(첫 확정),
  * "후" 합성 실패(HEADER_UNRESOLVED), 영향 없음, EAI 표준 헤더 전환, 같은 트랜잭션 안에서 flush 전 JPA 변경이 결과에 보이는 경우.
  *
  * <p>쿼리 수는 운영(OASIS 트랜잭션)처럼 트랜잭션 안에서 재어 {@code [query-count] headerImpact …} 로 찍기만 한다 — 줄일 값이라 단언하지 않는다.
@@ -103,7 +103,8 @@ class LayoutHeaderImpactEquivalenceSqliteTest extends LayoutTestSupport {
         jdbc.update("DELETE FROM TB_MDM_LAYOUT_VER" + range);
         jdbc.update("DELETE FROM TB_MDM_EAI WHERE EAI_CODE IN ('HIX1', 'HIX2')");
         jdbc.update("DELETE FROM TB_MDM_LAYOUT" + range);
-        jdbc.update("INSERT INTO TB_MDM_EAI (EAI_CODE, EAI_NAME, ENCODING) VALUES ('HIX1', '영향 EAI 1', 'UTF-8'), ('HIX2', '영향 EAI 2', 'UTF-8')");
+        jdbc.update("INSERT INTO TB_MDM_EAI (EAI_CODE, EAI_NAME, ENCODING) VALUES ('HIX1', '영향 EAI 1', 'UTF-8')");
+        jdbc.update("INSERT INTO TB_MDM_EAI (EAI_CODE, EAI_NAME, ENCODING) VALUES ('HIX2', '영향 EAI 2', 'UTF-8')");
 
         layout(H, "HEADER", "HA");
         layout(G, "HEADER", "HB");
@@ -166,7 +167,7 @@ class LayoutHeaderImpactEquivalenceSqliteTest extends LayoutTestSupport {
         konst(M7, "1.000", H, "SND_FAC_TP", "TOOLONG");
         // M8 — LEGACY 스냅샷 버전(적층 행이 있어도 제외)
         jdbc.update("INSERT INTO TB_MDM_LAYOUT_VER (LAYOUT_ID, VER, VER_KIND, STATUS, APPLY_FROM, APPLY_TO, OWN_LENGTH, SNAPSHOT_JSON, "
-                + "LEGACY_SNAPSHOT_YN) VALUES (?, 0.500, 'MAJOR', 'RELEASED', '2025-01-01 00:00:00', ?, 0, '{}', 'Y')", M8, OPEN);
+                + "LEGACY_SNAPSHOT_YN) VALUES (?, 0.500, 'MAJOR', 'RELEASED', TIMESTAMP '2025-01-01 00:00:00', ?, 0, '{}', 'Y')", M8, ts(OPEN));
         stack(M8, "0.500", 1, H);
         // M9 — F 를 쌓은 DRAFT 전문
         message(M9, "1.000", "MAJOR", "DRAFT", null, null, 8, F);
@@ -441,7 +442,12 @@ class LayoutHeaderImpactEquivalenceSqliteTest extends LayoutTestSupport {
     private void ver(long id, String ver, String kind, String status, String from, String to, int own, String eai) {
         jdbc.update("INSERT INTO TB_MDM_LAYOUT_VER (LAYOUT_ID, VER, VER_KIND, STATUS, OWNER_ID, APPLY_FROM, APPLY_TO, OWN_LENGTH, EAI_CODE) "
                 + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", id, new BigDecimal(ver), kind, status, "DRAFT".equals(status) ? "kim" : null,
-                from, to, own, eai);
+                tsOrNull(from), tsOrNull(to), own, eai);
+    }
+
+    /** 일시 칸 바인딩 — Oracle 은 문자열 → TIMESTAMP 암시 변환이 NLS 에 기대므로 Timestamp 로 넘긴다(null 은 그대로). */
+    private static java.sql.Timestamp tsOrNull(String text) {
+        return text == null ? null : ts(text);
     }
 
     /** 전문 버전 — 본문은 여분 하나(own), 헤더는 주어진 순서로 쌓는다. */
@@ -464,7 +470,7 @@ class LayoutHeaderImpactEquivalenceSqliteTest extends LayoutTestSupport {
     }
 
     private void item(long id, String ver, int seq, String kind, String phys, String dflt, Integer filler, int offset, int length) {
-        jdbc.update("INSERT INTO TB_MDM_LAYOUT_ITEM (LAYOUT_ID, VER, SEQ, FILL_KIND, COLUMN_PHYS, DEFAULT_VALUE, FILLER_LENGTH, `OFFSET`, `LENGTH`) "
+        jdbc.update("INSERT INTO TB_MDM_LAYOUT_ITEM (LAYOUT_ID, VER, SEQ, FILL_KIND, COLUMN_PHYS, DEFAULT_VALUE, FILLER_LENGTH, \"OFFSET\", \"LENGTH\") "
                 + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", id, new BigDecimal(ver), seq, kind, phys, dflt, filler, offset, length);
     }
 }

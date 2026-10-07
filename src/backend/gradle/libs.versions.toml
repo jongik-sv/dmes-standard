@@ -74,15 +74,9 @@ json-schema-validator = { module = "com.networknt:json-schema-validator", versio
 
 # ── DB·ORM·마이그레이션 ──
 hibernate-core = { module = "org.hibernate.orm:hibernate-core" }
-hibernate-community-dialects-managed = { module = "org.hibernate.orm:hibernate-community-dialects" }
-hibernate-community-dialects-v705 = { module = "org.hibernate.orm:hibernate-community-dialects", version = "7.0.5.Final" }
 mybatis-base = { module = "org.mybatis:mybatis", version = "3.5.16" }
 mybatis-spring-boot-starter = { module = "org.mybatis.spring.boot:mybatis-spring-boot-starter", version = "3.0.5" }
-sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version = "3.45.3.0" }
-mssql-jdbc = { module = "com.microsoft.sqlserver:mssql-jdbc", version = "12.8.1.jre11" }
-h2 = { module = "com.h2database:h2" }
 flyway-core = { module = "org.flywaydb:flyway-core" }
-flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql" }
 # Oracle(oracle-1007): 버전은 Spring Boot BOM 이 관리한다.
 ojdbc11 = { module = "com.oracle.database.jdbc:ojdbc11" }
 flyway-database-oracle = { module = "org.flywaydb:flyway-database-oracle" }

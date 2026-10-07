@@ -20,12 +20,12 @@ import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckReport;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleLimits;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveCheck;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveRejections;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleTableService;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -43,8 +43,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-08-04 design §3.1 「RuleTableSaveCheckTest」 — 표 저장이 쓰기 전에 저장 시 검사를 돌린다(D10). ERROR 면 MDM021 거부이고 행·적중
@@ -55,7 +53,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import({DmeTestSupport.Config.class, RuleTableSaveCheckTest.ProbeConfig.class})
-class RuleTableSaveCheckTest {
+class RuleTableSaveCheckTest extends AbstractMdmSharedDbTest {
 
     /** 검사 빈 가짜의 심각도. null 이면 아무 이슈도 내지 않는다. 새 행(음수 번호)마다 PROBE 이슈 하나. */
     static volatile String probeSeverity;
@@ -73,21 +71,12 @@ class RuleTableSaveCheckTest {
 
     private static final Set<String> ANALYSIS_CODES = Arrays.stream(RuleIssueCode.values()).map(Enum::name).collect(Collectors.toSet());
 
-    @org.junit.jupiter.api.io.TempDir
-    static Path tempDir;
-
     @Autowired
     RuleTableService service;
     @Autowired
     MutableCurrentUser currentUser;
     @Autowired
     JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-rule-table-check-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {

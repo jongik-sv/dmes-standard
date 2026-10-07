@@ -15,7 +15,6 @@ import com.dongkuk.dmes.mdm.entity.MdmRuleVerId;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleVerRepository;
 import java.math.BigDecimal;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -23,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -32,14 +30,12 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-08-01 design.md §3.5 — TSK-01-03 인계 ③: 시나리오 키트를 실제 06 테이블로 상속한다.
  *
  * <p>명세는 혼합이다: MASTER_CODE 는 픽스처({@link VersionFixtureTables#CODE_SPEC}, 04 실제 테이블은 dev 에 아직 없다),
- * BUSINESS_RULE 은 실제 명세({@link DefaultVersionTableRegistry}, Flyway V8 의 {@code TB_MDM_RULE_VER}). 키트 S15 가
+ * BUSINESS_RULE 은 실제 명세({@link DefaultVersionTableRegistry}, V1 기준선의 {@code TB_MDM_RULE_VER}). 키트 S15 가
  * 실제 테이블에서 돌고, 06 전용 시나리오 R1~R4 를 더한다. 가짜 확정 검사(BUSINESS_RULE)는
  * {@link VersionScenarioTestConfig} 에 이미 있으므로 여기서 다시 등록하지 않는다(같은 대상 둘이면 기동 실패). DRAFT 삭제 훅은
  * main 의 실물(TSK-08-02 RuleDraftDeletionHook)을 쓴다.
@@ -49,19 +45,10 @@ import org.springframework.test.context.DynamicPropertySource;
 @Import({VersionScenarioTestConfig.class, BusinessRuleVersionScenarioSqliteTest.MixedRegistry.class})
 class BusinessRuleVersionScenarioSqliteTest extends AbstractVersionStateScenarioTest {
 
-    @TempDir
-    static Path tempDir;
-
     @Autowired
     MdmRuleRepository ruleRepository;
     @Autowired
     MdmRuleVerRepository verRepository;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-business-rule-scenario-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @TestConfiguration(proxyBeanMethods = false)
     static class MixedRegistry {
@@ -75,7 +62,7 @@ class BusinessRuleVersionScenarioSqliteTest extends AbstractVersionStateScenario
 
     @Override
     protected void createSchema(JdbcTemplate jdbc) {
-        // 쓰이지 않는 룰 픽스처(TB_MDM_TC_RULE*)도 함께 생기지만 무해하다. 실제 06 테이블은 Flyway V8 이 이미 만들었다.
+        // 쓰이지 않는 룰 픽스처(TB_MDM_TC_RULE*)도 함께 생기지만 무해하다. 실제 06 테이블은 V1 기준선이 이미 만들었다.
         VersionFixtureTables.sqliteDdl().forEach(jdbc::execute);
     }
 
@@ -133,11 +120,11 @@ class BusinessRuleVersionScenarioSqliteTest extends AbstractVersionStateScenario
         assertEquals(1L, v2.getVersion(), "감사 카운터(AUD_VER)가 네이티브 확정으로 1 올랐다");
         assertEquals("INUSE", ruleRepository.findById("QLTY_GRD_JDG").orElseThrow().getStatus());
 
-        // D6 — 감사 U_AT 형식 혼재(JPA 정수 / 네이티브 KST 텍스트). 읽기가 예외 없이 끝나는지만 단언하고 차이는 기록한다.
+        // D6 — 감사 U_AT 값 비교(JPA 쓰기 / 네이티브 KST 쓰기, 둘 다 TIMESTAMP). 읽기가 예외 없이 끝나는지만 단언하고 차이는 기록한다.
         Instant updatedAt = v2.getUpdatedAt();
         assertNotNull(updatedAt);
         Instant clockInstant = LocalDateTime.of(2026, 6, 20, 9, 8, 7).atZone(MdmClockConfig.KST).toInstant();
-        Map<String, Object> raw = jdbc.queryForMap("SELECT typeof(U_AT) AS U_TYPE, U_AT, typeof(C_AT) AS C_TYPE FROM "
+        Map<String, Object> raw = jdbc.queryForMap("SELECT U_AT, C_AT FROM "
                 + "TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2");
         System.out.println("[TSK-08-01 D6 실측] U_AT raw=" + raw + ", entity updatedAt=" + updatedAt
                 + ", clock(KST)=" + clockInstant + ", 차이(시간)=" + Duration.between(clockInstant, updatedAt).toMinutes() / 60.0);
@@ -168,7 +155,7 @@ class BusinessRuleVersionScenarioSqliteTest extends AbstractVersionStateScenario
     // ── R3: 실제 테이블의 네이티브 쓰기 형식(S24 의 실제 테이블판) ──
 
     @Test
-    void R3_실제_TB_MDM_RULE_VER_에_네이티브_확정이_KST_초_단위_TEXT_로_쓴다() {
+    void R3_실제_TB_MDM_RULE_VER_에_네이티브_확정이_KST_초_단위_TIMESTAMP_로_쓴다() {
         at("2026-06-20 09:08:07");
         seedObject(VersionTarget.BUSINESS_RULE, "TEXT_RULE", "INUSE");
         VersionRef v1 = rule("TEXT_RULE", "1.000");
@@ -176,11 +163,14 @@ class BusinessRuleVersionScenarioSqliteTest extends AbstractVersionStateScenario
 
         confirm(v1, 0, "2026-07-01 00:00:00");
 
-        Map<String, Object> stored = jdbc.queryForMap("SELECT typeof(APPLY_FROM) AS F_TYPE, APPLY_FROM, typeof(APPLY_TO) AS T_TYPE, "
-                + "APPLY_TO, typeof(RELEASED_AT) AS R_TYPE, RELEASED_AT FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'TEXT_RULE'");
-        assertEquals("text|2026-07-01 00:00:00|text|9999-12-31 00:00:00|text|2026-06-20 09:08:07",
-                stored.get("F_TYPE") + "|" + stored.get("APPLY_FROM") + "|" + stored.get("T_TYPE") + "|" + stored.get("APPLY_TO")
-                        + "|" + stored.get("R_TYPE") + "|" + stored.get("RELEASED_AT"));
+        // 칸 형은 TIMESTAMP(6) 이고 값은 KST 초 단위다(SQLite 때는 TEXT)
+        List<String> types = jdbc.queryForList("SELECT DATA_TYPE FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'TB_MDM_RULE_VER' "
+                + "AND COLUMN_NAME IN ('APPLY_FROM', 'APPLY_TO', 'RELEASED_AT')", String.class);
+        assertEquals(List.of("TIMESTAMP(6)", "TIMESTAMP(6)", "TIMESTAMP(6)"), types);
+        Map<String, Object> stored = jdbc.queryForMap("SELECT APPLY_FROM, APPLY_TO, RELEASED_AT "
+                + "FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'TEXT_RULE'");
+        assertEquals("2026-07-01 00:00:00|9999-12-31 00:00:00|2026-06-20 09:08:07",
+                text(stored.get("APPLY_FROM")) + "|" + text(stored.get("APPLY_TO")) + "|" + text(stored.get("RELEASED_AT")));
     }
 
     // ── R4: 소유권 전이가 실제 테이블에서 돈다 ──

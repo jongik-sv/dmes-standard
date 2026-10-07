@@ -168,6 +168,30 @@ class MasterRuleDataListServiceTest {
     }
 
     @Test
+    @DisplayName("search — DATE 칸 LIKE 숫자 앞 일치는 반열린 범위(vN·vNe), 중간 일치는 현행 TO_CHAR LIKE")
+    void search_날짜LIKE() {
+        mockColDefs();
+        MasterRuleDataListSearchRequest r = req("E2ESRC");
+        r.setPWhere1("BASE_DT");
+        r.setPOperator1("LIKE");
+        r.setPVal1("2026-10%");
+        r.setPWhere2("BASE_DT");
+        r.setPOperator2("LIKE");
+        r.setPVal2("%1003%");
+
+        service.search(r);
+
+        ArgumentCaptor<String> cap = ArgumentCaptor.forClass(String.class);
+        verify(em).createNativeQuery(cap.capture(), eq(Tuple.class));
+        assertThat(cap.getValue())
+                .contains("BASE_DT >= TO_DATE(:v1, 'YYYYMMDDHH24MISS') AND BASE_DT < TO_DATE(:v1e, 'YYYYMMDDHH24MISS')")
+                .contains("TO_CHAR(BASE_DT, 'YYYYMMDDHH24MISS') LIKE :v2");
+        verify(query).setParameter("v1", "20261001000000");
+        verify(query).setParameter("v1e", "20261101000000");
+        verify(query).setParameter("v2", "%1003%");
+    }
+
+    @Test
     @DisplayName("searchExport — 전건 ORDER BY RULE_SEQ (As-Is Mapper #3) + ds_GetMasterRuleDataListExport 응답키")
     void searchExport_정상() {
         mockColDefs();

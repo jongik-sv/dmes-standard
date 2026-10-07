@@ -26,13 +26,12 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.transaction.PlatformTransactionManager;
+
+import utils.OracleTestDatabase;
 
 import jakarta.persistence.EntityManagerFactory;
 import javax.sql.DataSource;
@@ -54,7 +53,7 @@ import static com.dongkuk.oasis.BpmnServiceLoaderForTest.getServiceStarter;
 public class MultiDataSourceTest {
     private static final String MYBATIS_CONFIG = "usecase/multiSource/mybatis-config.xml";
     private static final String MYBATIS_MAPPER = "usecase/multiSource/mappers/**/*.xml";
-    EmbeddedDatabase database;
+    DataSource database;
     DataSource dataSource1;
     DataSource dataSource2;
     EntityManagerFactory entityManagerFactory2;
@@ -79,16 +78,8 @@ public class MultiDataSourceTest {
         );
     }
 
-    private EmbeddedDatabase database() {
-        EmbeddedDatabase dataSource;
-        dataSource = new EmbeddedDatabaseBuilder()
-                .generateUniqueName(true)
-                .setType(EmbeddedDatabaseType.H2)
-                .setScriptEncoding("UTF-8")
-                .ignoreFailedDrops(true)
-                .addScript("usecase/multiSource/initData.sql")
-                .build();
-        return dataSource;
+    private DataSource database() {
+        return OracleTestDatabase.create("usecase/multiSource/initData.sql");
     }
 
     public EntityManagerFactory entityManagerFactory(DataSource dataSource) {

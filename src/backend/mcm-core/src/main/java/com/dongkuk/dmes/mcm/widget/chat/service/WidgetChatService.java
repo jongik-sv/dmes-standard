@@ -38,6 +38,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,9 +66,15 @@ import org.springframework.transaction.support.TransactionTemplate;
  *       두지 않는다 — 「홈」을 저장하지 않은 사용자의 부서·코드 기본 배치 칸은 행이 없어 막힌다.</li>
  * </ul>
  * <b>트랜잭션</b>: OASIS({@code cactus.oasis.transactional: true})는 서비스 시작 때 txBiz 를 열고 예외면 통째로 롤백한다.
- * send·reset 은 그 바깥 트랜잭션을 {@code NOT_SUPPORTED} 로 잠시 내려놓고 돈다 — 그래서 ① 공급자가 실패해 바깥이 롤백돼도
- * 사용자 메시지는 남고(스펙 §9.2), ② LLM 을 기다리는 동안 DB 트랜잭션·잠금을 잡지 않는다(로컬 SQLite 는 바깥이 한 번 읽기만 해도
- * 다른 연결의 커밋이 SQLITE_BUSY 로 막힌다). 쓰기는 {@link WidgetChatWriter} 가 한 건씩 자기 트랜잭션으로 커밋한다.
+ * send·reset 은 그 바깥 트랜잭션을 {@code NOT_SUPPORTED} 로 잠시 내려놓고 돈다 — 그래서 공급자가 실패해 바깥이 롤백돼도
+ * 사용자 메시지는 남고(스펙 §9.2), LLM 을 기다리는 동안 DB 트랜잭션·잠금을 잡지 않는다. 쓰기는 {@link WidgetChatWriter} 가 한 건씩 자기 트랜잭션으로 커밋한다.
+ * <br><b>연결</b>(oracle-1007 ③c 후속, docs/oracle-1007/design-mcm-lazy-ds.md): {@code NOT_SUPPORTED} 범위에서도 트랜잭션 동기화가
+ * 켜져 있어, 트랜잭션 없이 도는 파생 쿼리가 범위에 묶인 EntityManager 를 열고 그 연결을 범위가 끝날 때까지(LLM 대기 내내) 쥔다(Hibernate
+ * DELAYED_ACQUISITION_AND_HOLD). 그래서 범위 안의 읽기 — 대화 문맥과 도구 실행 — 는 짧은 읽기 트랜잭션({@link #readTx})으로 묶어 끝나면
+ * 연결을 돌려준다. 남는 것은 바깥 txBiz 의 연결이다 — OASIS 가 READ_COMMITTED 를 지정해 시작할 때 물리 연결을 잡고, 내려놓아도(suspend)
+ * 돌려주지 않는다. mcm 앱이 기본 DataSource 를 {@code LazyConnectionDataSourceProxy} 로 감싸면({@code dmes.datasource.lazy-connection})
+ * 바깥은 첫 SQL 전까지 물리 연결을 받지 않으므로, send·reset 은 SQL 없이 바깥을 내려놓아 LLM 을 기다리는 동안 연결을 쥐지 않는다.
+ * 감싸지 않으면 바깥 연결 1개를 LLM 대기 내내 쥔다.
  * 이 클래스에는 {@code @Transactional} 을 붙이지 않는다(BackEnd 표준 §6-B-1) — 경계는 프로그램으로({@link TransactionTemplate}) 잡는다.
  */
 @Service("widgetChatService")
@@ -100,6 +107,8 @@ public class WidgetChatService {
     static final int MAX_QUOTA_USERS = 10_000;
     /** 답 최대 토큰에 걸려 글이 끊겼을 때 답 끝에 붙이는 표시. */
     static final String TRUNCATED_NOTICE = "(답이 길어 중간에 끊겼습니다.)";
+    /** 도구를 실행하지 못했을 때 모델에 돌려주는 도구 오류 결과. */
+    static final String TOOL_FAILED_MESSAGE = "도구를 실행하지 못했습니다.";
     /** 한 차례(질문 하나 → 답 하나, 도구 반복 포함) 시간 제한 기본값(스펙 §9.2 「시간 초과 60초」). */
     static final int DEFAULT_TIMEOUT_SEC = 60;
     /** 답 최대 토큰에 걸려 끊긴 답의 끝난 이유 — Anthropic {@code max_tokens}, OpenAI 호환 {@code length}. */
@@ -127,6 +136,11 @@ public class WidgetChatService {
     private final SecurityIdentity securityIdentity;
     private final Duration turnTimeout;
     private final TransactionTemplate outsideTx;
+    /**
+     * {@code NOT_SUPPORTED} 범위 안의 읽기(대화 문맥·도구 실행)를 묶는 짧은 읽기 전용 트랜잭션 — 범위에 묶인 EntityManager 가 LLM 대기
+     * 내내 연결을 쥐지 않게. 읽기뿐이라 늘 롤백한다({@link #read}).
+     */
+    private final TransactionTemplate readTx;
     private final Clock clock;
     private final int dailyCallLimit;
     /** 사용자 → 오늘(서울 날짜 epochDay) LLM 호출 수. */
@@ -175,6 +189,11 @@ public class WidgetChatService {
         outside.setName("widgetChat");
         outside.setPropagationBehavior(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);
         this.outsideTx = outside;
+        TransactionTemplate read = new TransactionTemplate(transactionManager);
+        read.setName("widgetChatRead");
+        read.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRED);
+        read.setReadOnly(true);
+        this.readTx = read;
     }
 
     /** 한 차례 시간 제한 — {@code dmes.widget.llm.timeout-sec}(기본 60초, 0 이하면 60초). */
@@ -222,7 +241,7 @@ public class WidgetChatService {
         ToolBox toolBox = new ToolBox(config);
         String answer;
         try {
-            answer = converse(userId, systemPrompt(user, config.systemPrompt()), context(userId, instId), toolBox, deadline);
+            answer = converse(userId, systemPrompt(user, config.systemPrompt()), read(() -> context(userId, instId)), toolBox, deadline);
         } catch (BusinessException e) {
             throw e; // 업무 거절 문구는 그대로
         } catch (RuntimeException e) {
@@ -283,9 +302,37 @@ public class WidgetChatService {
             }
             messages.add(LlmMessage.assistantReply(reply));
             List<LlmToolResult> results = new ArrayList<>();
-            for (LlmToolCall call : reply.toolCalls()) results.add(toolBox.run(call));
+            for (LlmToolCall call : reply.toolCalls()) results.add(runTool(toolBox, call));
             messages.add(LlmMessage.toolResults(results));
         }
+    }
+
+    /**
+     * 도구 하나를 짧은 읽기 트랜잭션({@link #read}) 안에서 실행한다. 도구 안의 실패는 {@link ToolBox#run} 이 도구 오류 결과로 바꾸지만,
+     * 트랜잭션 시작(연결 획득)·롤백 실패는 그 바깥에서 나므로 여기서 같은 도구 오류 결과로 바꿔 대화를 이어 간다.
+     */
+    private LlmToolResult runTool(ToolBox toolBox, LlmToolCall call) {
+        try {
+            return read(() -> toolBox.run(call));
+        } catch (RuntimeException e) {
+            log.warn("[widgetChat] 도구 트랜잭션 실패 tool={} cause={}", call.name(), e.getClass().getSimpleName());
+            return new LlmToolResult(call.id(), TOOL_FAILED_MESSAGE, true);
+        }
+    }
+
+    /**
+     * 짧은 읽기 트랜잭션({@link #readTx}) 안에서 돌리고 늘 롤백한다 — 끝나면 연결을 돌려준다. 늘 롤백이라 안쪽 저장소 호출이 실패해
+     * rollback-only 가 되어도 커밋 때 UnexpectedRollbackException 이 나지 않는다.
+     * <p>연결을 받는 시점은 기본 DataSource 설정에 달렸다 — 읽기 전용 정의라 {@code HibernateJpaDialect} 가 시작하자마자 연결을 잡고,
+     * 지연 획득({@code dmes.datasource.lazy-connection})이 켜져 있으면 첫 SQL 때 실제로 받는다. 시작(연결 획득)·롤백 실패는
+     * {@code work} 바깥에서 그대로 던진다 — 대화 문맥 읽기는 send 가 「답을 받지 못했습니다」로, 도구 실행은 {@link #runTool} 이
+     * 도구 오류 결과로 바꾼다.
+     */
+    private <T> T read(Supplier<T> work) {
+        return readTx.execute(status -> {
+            status.setRollbackOnly();
+            return work.get();
+        });
     }
 
     /** 하루 상한의 구간 — 서울 날짜(시계 시간대). 날짜가 바뀌면 0 부터 다시 센다. */
@@ -373,7 +420,7 @@ public class WidgetChatService {
                 return error(call, "모르는 도구입니다: " + call.name());
             } catch (RuntimeException e) {
                 log.warn("[widgetChat] 도구 실패 tool={} cause={}", call.name(), e.getClass().getSimpleName());
-                return error(call, "도구를 실행하지 못했습니다.");
+                return error(call, TOOL_FAILED_MESSAGE);
             }
         }
 

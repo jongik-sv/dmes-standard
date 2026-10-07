@@ -140,11 +140,11 @@ class MdmMasterCodeEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
         assertEquals(V1_000, reCateItem.getFromVer());
         assertEquals(new BigDecimal("9999.000"), reCateItem.getToVer());
 
-        // 규칙표 #17 관찰(상태는 TSK-06-02 몫 그대로) — SQLite NUMERIC 친화도가 1.000 을 INTEGER, 1.001 을 REAL 로 둔다.
+        // 규칙표 #17 — Oracle 은 VER 가 NUMBER(7,3) 이라 1.000 도 1.001 도 같은 형이다(SQLite 는 INTEGER·REAL 로 갈렸다).
         Object observed = entityManager.createNativeQuery(
-                "SELECT group_concat(CAST(VER AS TEXT) || ':' || typeof(VER), ',') FROM "
-                        + "(SELECT VER FROM TB_MDM_CODE_VER WHERE MARU_CODE_ID = 'PROC_CD' ORDER BY VER)").getSingleResult();
-        System.out.println("[TSK-06-01 #17 관찰] TB_MDM_CODE_VER.VER typeof = " + observed);
+                "SELECT LISTAGG(TO_CHAR(VER), ',') WITHIN GROUP (ORDER BY VER) FROM TB_MDM_CODE_VER "
+                        + "WHERE MARU_CODE_ID = 'PROC_CD'").getSingleResult();
+        assertEquals("1,1.001,2", String.valueOf(observed), "TB_MDM_CODE_VER.VER 저장값");
     }
 
     /** 3 — AUD_VER 는 감사 카운터로 오르고, 업무 VER·ROW_VERSION 은 그대로다(ROW_VERSION 은 @Version 아님, 불변 규칙 11·13). */
@@ -170,9 +170,9 @@ class MdmMasterCodeEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
         assertEquals(auditBefore + 1, ((Number) audVer).longValue());
     }
 
-    /** 4 — SQLite 엔티티 업무 일시 = 네이티브와 같은 19자 TEXT(D7, 규칙표 #16). 교차 읽기 양방향. */
+    /** 4 — 엔티티 업무 일시 = 네이티브와 같은 초 단위 TIMESTAMP(6)(D7, 규칙표 #16). 교차 읽기 양방향. */
     @Test
-    void 업무_일시는_네이티브와_같은_19자_TEXT_로_저장되고_양방향으로_읽힌다() {
+    void 업무_일시는_네이티브와_같은_초_단위_TIMESTAMP_로_저장되고_양방향으로_읽힌다() {
         LocalDateTime applyFrom = LocalDateTime.of(2026, 7, 1, 0, 0, 0, 700_000_000);
         codeRepository.save(new MdmCode("TIME_CD", "시각코드", "MDM"));
         MdmCodeVer ver = new MdmCodeVer("TIME_CD", V1_000, "MAJOR");
@@ -182,15 +182,17 @@ class MdmMasterCodeEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
         flushAndClear();
 
         Object[] stored = (Object[]) entityManager.createNativeQuery(
-                "SELECT typeof(APPLY_FROM), APPLY_FROM, typeof(APPLY_TO), APPLY_TO FROM TB_MDM_CODE_VER WHERE MARU_CODE_ID = 'TIME_CD'")
+                "SELECT (SELECT DATA_TYPE FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'TB_MDM_CODE_VER' AND COLUMN_NAME = 'APPLY_FROM'), "
+                        + "APPLY_FROM, "
+                        + "(SELECT DATA_TYPE FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'TB_MDM_CODE_VER' AND COLUMN_NAME = 'APPLY_TO'), "
+                        + "APPLY_TO FROM TB_MDM_CODE_VER WHERE MARU_CODE_ID = 'TIME_CD'")
                 .getSingleResult();
-        // Build 실측: 컨버터가 빠지면 Hibernate 가 epoch millis 정수를 바인딩하고, TEXT 친화도 칼럼이 그것을 문자열
-        // '1782831600000' 으로 바꿔 저장한다 — typeof 는 여전히 text 라, 판별은 아래 값 단언이 한다.
-        assertEquals("text", stored[0], "① APPLY_FROM 저장 타입");
-        assertEquals("2026-07-01 00:00:00", stored[1], "① 컨버터가 빠지면 epoch millis 문자열이 된다");
-        assertEquals(temporalBinder.toDb(applyFrom), stored[1], "① 네이티브 경로와 글자 단위로 같다");
-        assertEquals("text", stored[2]);
-        assertEquals("9999-12-31 00:00:00", stored[3]);
+        // 칼럼이 TIMESTAMP(6) 이라 값은 시각 형으로 읽힌다. 소수 초(700ms)는 엔티티 세터가 잘라 저장한다.
+        assertEquals("TIMESTAMP(6)", stored[0], "① APPLY_FROM 저장 타입");
+        assertEquals(LocalDateTime.of(2026, 7, 1, 0, 0, 0), temporalBinder.fromDb(stored[1]), "① 저장값은 초 단위");
+        assertEquals(temporalBinder.toDb(applyFrom), temporalBinder.fromDb(stored[1]), "① 네이티브 경로와 같다");
+        assertEquals("TIMESTAMP(6)", stored[2]);
+        assertEquals(VersionConventions.OPEN_END, temporalBinder.fromDb(stored[3]));
 
         MdmCodeVer reloaded = verRepository.findById(new MdmCodeVerId("TIME_CD", V1_000)).orElseThrow();
         assertEquals(LocalDateTime.of(2026, 7, 1, 0, 0, 0), reloaded.getApplyFrom(), "② 초 절단");
@@ -198,12 +200,12 @@ class MdmMasterCodeEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
 
         // ③ 네이티브로 쓴 행을 엔티티가 읽는다.
         entityManager.createNativeQuery("INSERT INTO TB_MDM_CODE_VER (MARU_CODE_ID, VER, VER_KIND, APPLY_FROM) "
-                + "VALUES ('TIME_CD', 2.000, 'MAJOR', '2024-01-01 00:00:00')").executeUpdate();
+                + "VALUES ('TIME_CD', 2.000, 'MAJOR', TIMESTAMP '2024-01-01 00:00:00')").executeUpdate();
         entityManager.clear();
         assertEquals(LocalDateTime.of(2024, 1, 1, 0, 0),
                 verRepository.findById(new MdmCodeVerId("TIME_CD", V2_000)).orElseThrow().getApplyFrom());
 
-        // ④ 엔티티로 쓴 행을 공통 버전 서비스의 네이티브 읽기(fromDb)가 읽는다 — 정수면 fromDb 가 예외를 낸다.
+        // ④ 엔티티로 쓴 행을 공통 버전 서비스의 네이티브 읽기(fromDb)가 읽는다.
         VersionRow row = versionRowStore.find(new VersionRef(VersionTarget.MASTER_CODE, "TIME_CD", V1_000)).orElseThrow();
         assertEquals(LocalDateTime.of(2026, 7, 1, 0, 0, 0), row.applyFrom());
         assertEquals(VersionConventions.OPEN_END, row.applyTo());

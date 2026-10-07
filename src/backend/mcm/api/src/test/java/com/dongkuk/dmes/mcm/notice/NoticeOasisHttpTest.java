@@ -89,7 +89,7 @@ class NoticeOasisHttpTest extends McmNoticeTestDb {
     private void insert(String id, String title, String status, String category, String pinYn, String format, String content) {
         jdbc.update("INSERT INTO TB_MCM_NOTICE (NOTICE_ID, TITLE, CONTENT, NOTICE_STATUS, POST_START_DT, POST_END_DT, "
                         + "CONTENT_FORMAT, NOTICE_CATEGORY, PIN_YN, TARGET_SCOPE) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ALL')",
-                id, title, content, status, LocalDate.now().minusDays(1).toString(), LocalDate.now().plusDays(1).toString(),
+                id, title, content, status, LocalDate.now().minusDays(1), LocalDate.now().plusDays(1),
                 format, category, pinYn);
     }
 

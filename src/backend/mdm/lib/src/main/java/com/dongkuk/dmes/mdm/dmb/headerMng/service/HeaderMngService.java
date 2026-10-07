@@ -315,6 +315,9 @@ public class HeaderMngService {
         if (name == null) {
             issues.add(LayoutIssue.of(LayoutIssueCode.L11, null, "LAYOUT_NAME", "헤더 이름이 비었다"));
         }
+        // 칸 길이(ORA-12899 예방) — EAI 행·헤더 부모를 쓰기 전에 거부한다
+        issues.addAll(LayoutRegistrationRules.basicLengthIssues("헤더 이름", name, eaiCode, LayoutRows.text(request.getEaiName()),
+                LayoutRows.text(request.getEncoding()), LayoutRows.text(request.getPadRule())));
         MdmEai eai = eaiCode == null ? null : eaiRepository.findById(eaiCode).orElse(null);
         if (eaiCode != null && eai == null
                 && (LayoutRows.text(request.getEaiName()) == null || LayoutRows.text(request.getEncoding()) == null)) {

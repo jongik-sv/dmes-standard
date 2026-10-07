@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -145,11 +144,6 @@ class CommonContractTest {
         assertEquals("미적용 버전이 2개입니다. 하나를 삭제하세요", MdmErrorCode.MULTIPLE_UNAPPLIED_VERSIONS.defaultMessage());
         assertEquals("MDM008", MdmErrorCode.APPLY_FROM_NOT_AFTER_PREVIOUS.code());
         assertEquals(403, MdmErrorCode.NOT_DRAFT_OWNER.httpStatus());
-    }
-
-    @Test
-    void 방언은_SQLITE_하나다_운영_DB_미정() {
-        assertEquals(List.of("SQLITE"), Arrays.stream(MdmDialect.values()).map(Enum::name).toList());
     }
 
     @Test

@@ -135,7 +135,9 @@ public final class MasterCodeConfirmChecks {
     /** 저장 검사 이슈 코드 → 확정 검사 항목(I6). 저장 검사가 내지 않는 코드는 조용히 버리지 않고 던진다. */
     static MasterCodeConfirmCheckItem itemOf(MasterCodeItemIssueCode code) {
         return switch (code) {
-            case CODE_REQUIRED, CODE_FORBIDDEN_CHAR -> MasterCodeConfirmCheckItem.CODE_VALUE_CHARS;
+            // 길이 초과(KEY·TEXT_TOO_LONG)는 저장 때 막혀 오래된 행에만 남을 수 있다 — 가장 가까운 1항(코드값·행 값 형식)으로 거부한다
+            case CODE_REQUIRED, CODE_FORBIDDEN_CHAR, KEY_TOO_LONG, TEXT_TOO_LONG ->
+                    MasterCodeConfirmCheckItem.CODE_VALUE_CHARS;
             case LVL_GAP, LVL_PARENT_MISMATCH -> MasterCodeConfirmCheckItem.LVL_HIERARCHY;
             case ATTR_WITHOUT_LABEL -> MasterCodeConfirmCheckItem.ATTR_WITHOUT_LABEL;
             case LVL_BEYOND_CNT -> MasterCodeConfirmCheckItem.LVL_BEYOND_CNT;

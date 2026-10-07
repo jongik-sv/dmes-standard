@@ -14,7 +14,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *     service-loader-url:                    # 명시 시 HttpServiceDocumentLoader 사용 (transactional=true 필수)
  *     transactional: false                   # true 면 CactusServiceStarterFactory + JpaTransactionManager
  *     transaction-manager-name: transactionManager
- *     dialect:                                # mssql | sqlite | none. 명시 시 ColumnConverter 빈 등록
  *     aop-check: warn                         # warn | fail | off. BPMN 빈의 프록시 의존 어노테이션 기동 검사
  * </pre>
  *
@@ -49,12 +48,6 @@ public class OasisProperties {
 
     /** 트랜잭션 매니저 빈 이름 (기본 Spring Boot 의 "transactionManager"). */
     private String transactionManagerName = "transactionManager";
-
-    /**
-     * DB dialect — {@code ColumnConverter} 빈 등록 분기.
-     * 허용값: {@code mssql} | {@code sqlite} | {@code none} 또는 미설정.
-     */
-    private String dialect;
 
     /**
      * BPMN 이 부르는 빈의 프록시 의존 어노테이션 검사 방식 ({@code warn} | {@code fail} | {@code off}).
@@ -92,8 +85,6 @@ public class OasisProperties {
         this.transactionManagerName = transactionManagerName;
     }
 
-    public String getDialect() { return dialect; }
-    public void setDialect(String dialect) { this.dialect = dialect; }
 
     public OasisAopCheckMode getAopCheck() { return aopCheck; }
     public void setAopCheck(OasisAopCheckMode aopCheck) { this.aopCheck = aopCheck; }

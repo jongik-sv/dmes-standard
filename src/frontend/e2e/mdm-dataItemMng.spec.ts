@@ -23,9 +23,9 @@ import { gridRowById, gridRows } from "./support/grid";
  * 9~11(D-104 카테고리 탭, 66f40e88 부터 오른쪽 [카테고리 편집] 탭) — BASE 목록, REGEX 등록·[편집] 팝업 저장·오류·카테고리 이력, TABLE 카테고리 이력·소속.
  *   (옛 S12 키 없는 소속 이력 조회 거부는 그 조회 칸이 화면에서 빠져 지웠다.)
  *
- * 픽스처: e2e/fixtures/mdm-dataItem.sql(mdm.db). 서버 절차는 build-log.md 「E2E 서버 절차(TSK-07-04)」(TSK-07-03
+ * 픽스처: e2e/fixtures/mdm-dataItem.sql(MDMAPUSER). 서버 절차는 build-log.md 「E2E 서버 절차(TSK-07-04)」(TSK-07-03
  * design.md 「E2E 서버 절차」를 이 워크트리 값으로 옮긴 것). SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다. 픽스처
- * 행은 고치지 않고 쓰기는 실행마다 새 키로 한다(같은 mdm.db 로 다시 돌려도 결과가 같다).
+ * 행은 고치지 않고 쓰기는 실행마다 새 키로 한다(같은 PDB 로 다시 돌려도 결과가 같다).
  */
 
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";

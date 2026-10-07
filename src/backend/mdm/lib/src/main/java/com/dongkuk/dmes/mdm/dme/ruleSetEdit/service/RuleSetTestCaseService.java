@@ -12,12 +12,14 @@ import com.dongkuk.dmes.mdm.common.rule.RuleSetTestCaseWrites;
 import com.dongkuk.dmes.mdm.common.rule.RuleStewardCheck;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleLimits;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetSaveRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetSaveResult;
 import com.dongkuk.dmes.mdm.entity.MdmRuleSet;
 import com.dongkuk.dmes.mdm.entity.MdmRuleSetTestCase;
 import com.dongkuk.dmes.mdm.repository.MdmRuleSetRepository;
+import java.sql.SQLException;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -36,6 +38,10 @@ public class RuleSetTestCaseService {
     /** 세트당 저장 상한이자 한 번 실행 상한(P-D5). */
     public static final int MAX_CASES_PER_SET = 50;
     static final String CONCURRENT_CASE_MESSAGE = "같은 세트에 케이스가 동시에 저장됐습니다. 목록을 다시 불러와 저장하세요";
+    /** Oracle 고유 제약 위반 오류 코드(ORA-00001). */
+    private static final int ORA_UNIQUE_VIOLATION = 1;
+    /** V1 기준선의 PK 제약 이름 — 같은 (세트, 케이스 ID) 동시 INSERT 를 이것으로 가린다. */
+    private static final String PK_CONSTRAINT = "PK_TB_MDM_RULE_SET_TEST_CASE";
 
     private final MdmRuleSetRepository setRepository;
     private final RuleStewardCheck stewardCheck;
@@ -72,6 +78,12 @@ public class RuleSetTestCaseService {
         }
         if (name.length() > RuleLimits.MAX_CASE_NAME_CHARS) {
             throw RuleCaseInputs.limit("케이스 이름이 " + name.length() + "자다. " + RuleLimits.MAX_CASE_NAME_CHARS + "자까지 받는다");
+        }
+        // DESCRIPTION 은 VARCHAR2(4000 BYTE) 칸 — UTF-8 바이트로 막는다(ORA-12899 예방)
+        String descriptionText = blankToNull(request.getDescription());
+        if (MdmTextLimits.overBytes(descriptionText)) {
+            throw RuleCaseInputs.limit("케이스 설명이 " + MdmTextLimits.bytes(descriptionText) + "바이트다. " + MdmTextLimits.TEXT_BYTES_MAX
+                    + "바이트(한글 약 1,333자)까지 받는다");
         }
         String input = request.getInputJson();
         if (input == null || input.isBlank()) {
@@ -119,7 +131,7 @@ public class RuleSetTestCaseService {
         } catch (BusinessException e) {
             throw e;
         } catch (RuntimeException e) {
-            // 실측: SQLite PK 위반은 DataIntegrityViolationException 이 아니라 JpaSystemException(GenericJDBCException) 으로 온다 — 원인 사슬로 가린다.
+            // 예외 번역 층(JpaSystemException·DataIntegrityViolationException 등)에 기대지 않고 원인 사슬의 JDBC 오류로 가린다.
             if (!primaryKeyClash(e)) {
                 throw e;
             }
@@ -141,11 +153,16 @@ public class RuleSetTestCaseService {
         return result(setId, null, caseId);
     }
 
-    /** 원인 사슬에 SQLite PK 위반이 있는가 — 다른 제약(CHECK·FK) 위반은 그대로 던진다. */
+    /**
+     * 원인 사슬에 이 표의 PK 위반이 있는가 — Oracle {@code ORA-00001}(오류 코드 1)이고 문구에 PK 제약 이름이 든 것만 본다.
+     * 다른 제약(UNIQUE·CHECK·FK) 위반은 그대로 던진다. 23 이상은 문구 뒤에 표·칼럼을 덧붙이므로 문구 전체는 비교하지 않는다.
+     */
     private static boolean primaryKeyClash(Throwable e) {
         for (Throwable t = e; t != null; t = t.getCause()) {
             String m = t.getMessage();
-            if (m != null && (m.contains("SQLITE_CONSTRAINT_PRIMARYKEY") || m.contains("PRIMARY KEY"))) {
+            boolean uniqueViolation = (t instanceof SQLException s && s.getErrorCode() == ORA_UNIQUE_VIOLATION)
+                    || (m != null && m.contains("ORA-00001"));
+            if (uniqueViolation && m != null && m.contains(PK_CONSTRAINT)) {
                 return true;
             }
         }

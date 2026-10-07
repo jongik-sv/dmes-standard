@@ -2,9 +2,7 @@ package com.dongkuk.dmes.mcm.queryroute;
 
 import com.dongkuk.dmes.mcm.cma.masterCodeSelPop.service.MasterCodeSelPopService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -19,16 +17,13 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * 행 수 두 단계(100·10,000), 워밍업 각 경로 5회 제외 뒤 각 20회, 중앙값·p90(ms).
  *
  * <p>평소 시험에서는 돌지 않는다 — {@code -DqueryRoute.perf=true} 또는 환경 변수 {@code QUERY_ROUTE_PERF=1} 일 때만 돈다(시간이 들고 결과가 PC 부하에 흔들린다).
- * 결과는 표준 출력의 {@code PERF} 줄로 남는다. 한계: SQLite 파일 DB·MockMvc(HTTP 없음)·로깅 인터셉터 없음이라 운영 DB·WAS 와
+ * 결과는 표준 출력의 {@code PERF} 줄로 남는다. 한계: 공유 Oracle 시험 PDB·MockMvc(HTTP 없음)·로깅 인터셉터 없음이라 운영 DB·WAS 와
  * 절대값이 다르다. OASIS 경로는 transactional=true 라 JPA 트랜잭션(txBiz)을 열고 닫고, 라우터는 트랜잭션 없이 자동 커밋으로 돈다.
  */
 class MasterCodeSelPopQueryRoutePerfTest {
 
     private static final int WARMUP = 5;
     private static final int RUNS = 20;
-
-    @TempDir
-    Path tmp;
 
     @Test
     void 경로별_왕복_시간() throws Exception {
@@ -40,10 +35,9 @@ class MasterCodeSelPopQueryRoutePerfTest {
     }
 
     private void measure(int size) throws Exception {
-        try (QueryRouteHarness h = new QueryRouteHarness(tmp.resolve("perf-" + size + ".db"),
+        try (QueryRouteHarness h = new QueryRouteHarness("query-route-perf-" + size,
                 MasterCodeSelPopQueryRouteParityTest.MAPPER,
                 ctx -> ctx.registerBean("masterCodeSelPopService", MasterCodeSelPopService.class))) {
-            MasterCodeSelPopQueryRouteParityTest.createView(h);
             List<Object[]> rows = new ArrayList<>(size + 10);
             for (int i = 0; i < size; i++) {
                 rows.add(new Object[]{"PERF", String.format("V%06d", i), "의미 " + i, "C" + (i % 10), "분류" + (i % 10)});
@@ -51,7 +45,7 @@ class MasterCodeSelPopQueryRoutePerfTest {
             for (int i = 0; i < 10; i++) {
                 rows.add(new Object[]{"OTHER", String.format("W%06d", i), "다른 코드", "C0", "분류0"});
             }
-            h.insertRows(MasterCodeSelPopQueryRouteParityTest.INSERT, rows);
+            h.insertCodeRows(rows);
 
             Map<String, Object> params = Map.of("pCodeId", "PERF");
             assertThat(h.oasis("masterCodeSelPop", "search", "items", params)).hasSize(size);

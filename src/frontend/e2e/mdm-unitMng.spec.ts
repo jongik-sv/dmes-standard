@@ -13,8 +13,7 @@ import { T, login, walkMenuPath, type LoginOptions } from "./support/common";
  *   3. 등록 1회 + 서버 데이터로 채워짐 — 새 차원 첫 단위 + 파생 단위 등록.
  *   4. 서버 오류 노출 — 금지 단위 코드(MONTH) 등록 시도.
  *
- * 서버 절차는 design.md 「E2E 서버 절차」(be-run.sh·fe-run.sh 미사용, 빈 포트 직접 기동, mcm.db·mdm.db
- * 둘 다 옮겨 격리). SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다.
+ * 서버 절차는 design.md 「E2E 서버 절차」(be-run.sh·fe-run.sh 미사용, 빈 포트 직접 기동, 새 PDB 로 격리). SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다.
  */
 
 const STDADMIN = process.env.SMOKE_MDM_STDADMIN_USER ?? "e2e_mdm_stdadmin";

@@ -24,8 +24,8 @@ class FullScanTextSearcherTest {
     public void performanceCheck() {
         long start = System.currentTimeMillis();
         String keyword = "현재시간";
-        File file = new File("C:/Users/USER/Desktop/dmes_prd_log/dmes_prd_log/mpp_app_20200811_16.log");
-//        File file = new File("C:/Users/USER/Desktop/dmes_prd_log/dmes_prd_log/mpp_app_20200805_10.log");
+        File file = new File(System.getProperty("user.home"), "Desktop/dmes_prd_log/dmes_prd_log/mpp_app_20200811_16.log");
+//        File file = new File(System.getProperty("user.home"), "Desktop/dmes_prd_log/dmes_prd_log/mpp_app_20200805_10.log");
         SearchResult searchResult = new SearchResult(file);
         FullScanTextSearcher fullScanTextSearcher = new FullScanTextSearcher(searchResult, new LogContentsFilter[]{new LogContentsKeywordFilter(keyword)}, new YearFirstContextualNewLineInspector());
         fullScanTextSearcher.run();

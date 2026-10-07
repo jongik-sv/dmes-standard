@@ -6,9 +6,12 @@
 // 사용법은 `node scripts/oracle/pdb.mjs help` 또는 scripts/oracle/README.md 참고.
 
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdirSync, rmSync, statSync, writeFileSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 // ── 설정(환경 변수로 덮어쓴다) ─────────────────────────────────────
 const CFG = {
@@ -22,6 +25,8 @@ const CFG = {
   // 동시에 열려 있는 PDB 상한(FREEPDB1·시드 제외한 것까지 센다 — 시드는 세지 않는다). VM 2GB 에서는 3 이 한계다.
   maxOpen: Number(process.env.DMES_ORA_MAX_OPEN || 3),
   lockWaitSec: Number(process.env.DMES_ORA_LOCK_WAIT_SEC || 900),
+  // sqlplus 한 번이 이 시간을 넘으면 자식(podman exec)을 끊고 실패로 본다. 인스턴스가 멈췄을 때 고아 세션이 남지 않게 한다.
+  sqlTimeoutSec: Number(process.env.DMES_ORA_SQL_TIMEOUT_SEC || 1200),
 };
 
 // 운영과 같은 이름의 스키마 사용자(docs/oracle-1007/schema-owners.md). 모든 레인 PDB 에 만든다.
@@ -44,26 +49,52 @@ const die = (msg, code = 1) => { process.stderr.write(`[pdb] 오류: ${msg}\n`);
 const log = (msg) => process.stderr.write(`[pdb] ${msg}\n`);
 const upper = (s) => String(s || '').toUpperCase();
 
-function checkName(name, { needManaged = true } = {}) {
+// openCloseOnly: open·close 명령만 FREEPDB1(조정자 데이터가 든 옛 PDB)을 열고 닫을 수 있다(메인 서버 전환 때 슬롯을 비우는 용도). 만들기·지우기·복제 등은
+// 여전히 보호 PDB 라 거부한다. PDB$SEED·CDB$ROOT·FREE 는 어느 경우에도 거부한다.
+function checkName(name, { needManaged = true, openCloseOnly = false } = {}) {
   const n = upper(name);
   if (!/^[A-Z][A-Z0-9_$]{0,29}$/.test(n)) die(`PDB 이름이 올바르지 않다: ${name}`);
+  if (openCloseOnly && n === 'FREEPDB1') return n;
   if (PROTECTED.has(n)) die(`보호된 PDB 라 건드리지 않는다: ${n}`);
   if (needManaged && !MANAGED.test(n)) die(`이 도구는 TPL_·L_·T_ 접두 PDB 만 다룬다: ${n}`);
   return n;
 }
 
 // ── sqlplus 실행 ───────────────────────────────────────────────────
-function sqlplus(sql, { service = 'FREE', user = 'sys', password = CFG.sysPassword, asSysdba = true } = {}) {
+// 살아 있는 자식(podman exec). 신호를 받으면 모두 끊고 나간다(고아 세션이 VM 안에 남지 않게).
+const children = new Set();
+let ownsLock = false;
+function killChildren() {
+  for (const c of children) { try { c.kill('SIGTERM'); } catch { /* 이미 끝남 */ } }
+}
+for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
+  process.on(sig, () => {
+    killChildren();
+    if (ownsLock) { try { rmSync(LOCK_DIR, { recursive: true, force: true }); } catch { /* 무시 */ } }
+    process.exit(128 + (sig === 'SIGINT' ? 2 : sig === 'SIGHUP' ? 1 : 15));
+  });
+}
+
+function sqlplus(sql, { service = 'FREE', user = 'sys', password = CFG.sysPassword, asSysdba = true, timeoutSec = CFG.sqlTimeoutSec } = {}) {
   const conn = `${user}/${password}@localhost/${service}${asSysdba ? ' as sysdba' : ''}`;
   const script = `whenever sqlerror exit failure\nset pagesize 0 feedback off heading off linesize 500 trimspool on verify off echo off\n${sql}\nexit\n`;
   return new Promise((resolve) => {
     const p = spawn(CFG.engine, ['exec', '-i', CFG.container, 'sqlplus', '-s', conn], { stdio: ['pipe', 'pipe', 'pipe'] });
+    children.add(p);
     let out = '';
     let err = '';
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; try { p.kill('SIGTERM'); } catch { /* 무시 */ } }, timeoutSec * 1000);
     p.stdout.on('data', (d) => { out += d; });
     p.stderr.on('data', (d) => { err += d; });
-    p.on('error', (e) => resolve({ code: 127, out, err: String(e) }));
-    p.on('close', (code) => resolve({ code, out: out.trim(), err: err.trim() }));
+    p.on('error', (e) => { clearTimeout(timer); children.delete(p); resolve({ code: 127, out, err: String(e) }); });
+    p.on('close', (code) => {
+      clearTimeout(timer);
+      children.delete(p);
+      resolve(timedOut
+        ? { code: 124, out: out.trim(), err: `sqlplus 가 ${timeoutSec}초 안에 끝나지 않아 끊었다(인스턴스가 바쁘거나 멈췄을 수 있다)` }
+        : { code, out: out.trim(), err: err.trim() });
+    });
     p.stdin.end(script);
   });
 }
@@ -79,11 +110,26 @@ const sqlTry = (text, opts) => sqlplus(text, opts);
 
 // ── PC 전체 잠금(복제·열기·삭제는 한 번에 하나) ─────────────────────
 const LOCK_DIR = join(tmpdir(), 'dmes-ora-pdb.lock');
-async function withLock(fn) {
-  const deadline = Date.now() + CFG.lockWaitSec * 1000;
+// 시험 하니스(Gradle)가 clone→시험→drop 전 구간 동안 `lock-hold` 로 잠금을 쥐고, 그 아래에서 부르는 명령에
+// DMES_ORA_LOCK_HELD=<잠금 주인 pid> 를 넘긴다. 주인 pid 가 owner 파일과 같고 살아 있을 때만 잠금을 다시 잡지 않는다.
+function lockHeldByParent() {
+  const held = Number(process.env.DMES_ORA_LOCK_HELD || 0);
+  if (!held) return false;
+  try {
+    const pid = Number(readFileSync(join(LOCK_DIR, 'owner'), 'utf8').split(' ')[0]);
+    if (pid !== held) return false;
+    process.kill(held, 0);
+    return true;
+  } catch { return false; }
+}
+
+// 잠금을 잡고 owner 를 적는다. 이미 누가 쥐고 있으면 deadlineMs 까지 기다린다.
+async function acquireLock(waitSec) {
+  const deadline = Date.now() + waitSec * 1000;
   for (;;) {
     try {
       mkdirSync(LOCK_DIR);
+      ownsLock = true;
       writeFileSync(join(LOCK_DIR, 'owner'), `${process.pid} ${process.cwd()}\n`);
       break;
     } catch (e) {
@@ -96,13 +142,23 @@ async function withLock(fn) {
         let alive = true;
         try { process.kill(pid, 0); } catch { alive = false; }
         stale = !alive || age > 30 * 60 * 1000;
-      } catch { stale = true; }
+      } catch {
+        // mkdir 직후 owner 를 쓰기 전 찰나일 수 있으니 10초 안이면 기다린다.
+        try { stale = Date.now() - statSync(LOCK_DIR).mtimeMs > 10 * 1000; } catch { stale = true; }
+      }
       if (stale) { rmSync(LOCK_DIR, { recursive: true, force: true }); continue; }
       if (Date.now() > deadline) die(`다른 PDB 작업이 끝나지 않는다(잠금 ${LOCK_DIR})`);
       await new Promise((r) => setTimeout(r, 1500));
     }
   }
-  try { return await fn(); } finally { rmSync(LOCK_DIR, { recursive: true, force: true }); }
+}
+
+const releaseLock = () => { ownsLock = false; rmSync(LOCK_DIR, { recursive: true, force: true }); };
+
+async function withLock(fn) {
+  if (lockHeldByParent()) return await fn();
+  await acquireLock(CFG.lockWaitSec);
+  try { return await fn(); } finally { releaseLock(); }
 }
 
 // ── PDB 조회 ───────────────────────────────────────────────────────
@@ -170,6 +226,205 @@ async function ensureUsers(pdb) {
   await sql(sqlText);
 }
 
+// ── 잠금 없는 내부 동작(withLock 은 재진입이 안 되므로 명령이 한 번 잠그고 이 함수들을 조합한다) ──
+// 2GB VM 에서 인스턴스를 가만히 두어도 스래싱하지 않도록 PDB 안 자동 작업(autotask: 통계 수집·공간·SQL 튜닝 어드바이저)과
+// AWR 자동 스냅숏을 끈다. autotask 는 컨테이너마다 따로라서 root 에서 끈 것이 PDB 에 적용되지 않을 수 있다. 템플릿을 만들 때와
+// 복제본을 연 뒤에 이 단계를 거치고, 켜져 있으면 끄고 상태를 한 줄로 남긴다. 멱등이다(AWR 이 없거나 권한이 없으면 건너뛴다).
+async function ensureQuiet(pdb) {
+  const clients = ["'auto optimizer stats collection'", "'auto space advisor'", "'sql tuning advisor'"];
+  const text = [
+    'set serveroutput on',
+    `alter session set container = ${pdb};`,
+    'begin',
+    ...clients.map((c) => `  begin dbms_auto_task_admin.disable(client_name => ${c}, operation => null, window_name => null); exception when others then null; end;`),
+    // AWR 자동 스냅숏 간격 0 = 끔. AWR 을 쓸 수 없는 에디션이면 예외를 무시한다.
+    // PDB 의 AWR 자동 스냅숏은 awr_pdb_autoflush_enabled(기본 FALSE)가 켜야 일어난다. 켜져 있으면 끈다.
+    "  begin execute immediate 'alter system set awr_pdb_autoflush_enabled=false'; exception when others then null; end;",
+    '  begin dbms_workload_repository.modify_snapshot_settings(interval => 0); exception when others then dbms_output.put_line(\'awr_error=\' || substr(sqlerrm, 1, 120)); end;',
+    'end;',
+    '/',
+    "select 'awr_autoflush=' || value from v$parameter where name = 'awr_pdb_autoflush_enabled';",
+    "select 'autotask ' || client_name || '=' || status from dba_autotask_client order by client_name;",
+    "select 'awr_interval=' || (extract(day from snap_interval)*1440 + extract(hour from snap_interval)*60 + extract(minute from snap_interval)) from dba_hist_wr_control;",
+  ].join('\n');
+  const r = await sqlplus(text);
+  if (r.code !== 0) { log(`${pdb} 자동 작업 확인 실패(무시): ${(r.err || r.out).split('\n')[0]}`); return; }
+  const lines = r.out.split('\n');
+  const enabled = lines.filter((l) => l.startsWith('autotask ') && l.endsWith('=ENABLED'));
+  const pick = (k) => (lines.find((l) => l.startsWith(`${k}=`)) || `${k}=?`).replace(`${k}=`, '');
+  const awr = pick('awr_interval'), flush = pick('awr_autoflush'), awrErr = lines.find((l) => l.startsWith('awr_error='));
+  if (enabled.length) log(`경고: ${pdb} 자동 작업이 아직 켜져 있다 — ${enabled.join(', ')}`);
+  else log(`${pdb} autotask 3종 꺼짐 확인`);
+  // AWR: 자동 플러시가 꺼져 있으면(FALSE) PDB 안 스냅숏은 일어나지 않는다. 간격 값은 참고용이다.
+  // interval=>0 은 간격을 최대값(약 40,150일 = 57,816,000분)으로 바꾼다. 그 값이면 스냅숏은 사실상 꺼진 것이다.
+  const awrOff = Number(awr) >= 1000000 ? '꺼짐(최대 간격)' : `${awr}분`;
+  log(`${pdb} AWR 자동 플러시 ${flush}, 스냅숏 간격 ${awrOff}${awrErr ? ` (${awrErr})` : ''}`);
+  if (flush.toUpperCase() === 'TRUE') log(`경고: ${pdb} AWR 자동 플러시가 켜져 있다`);
+}
+async function doCreate(n) {
+  await waitForSlot(1);
+  log(`시드에서 ${n} 생성(약 30초)...`);
+  await sql(`create pluggable database ${n} admin user pdbadm identified by "${CFG.appPassword}" file_name_convert = ('/pdbseed/', '/${n}/');`);
+  await sql(`alter pluggable database ${n} open;`);
+  await ensureUsers(n);
+  await ensureQuiet(n);
+}
+
+async function doSeal(n) {
+  await sqlTry(`alter pluggable database ${n} close immediate;`);
+  await sql(`alter pluggable database ${n} open read only;`);
+  await sql(`alter pluggable database ${n} close immediate;`);
+}
+
+// 템플릿 t 를 READ ONLY 로 잠깐 열어 n 으로 복제하고 n 을 연다. 동시에 열린 PDB 는 늘 하나만 늘어난다.
+async function doClone(t, n) {
+  await waitForSlot(1);
+  const t0 = Date.now();
+  await sqlTry(`alter pluggable database ${t} close immediate;`);
+  await sql(`alter pluggable database ${t} open read only;`);
+  try {
+    await sql(`create pluggable database ${n} from ${t} file_name_convert = ('/${t}/', '/${n}/');`);
+  } finally {
+    await sqlTry(`alter pluggable database ${t} close immediate;`);
+  }
+  await sql(`alter pluggable database ${n} open;`);
+  await ensureQuiet(n);
+  log(`${n} 복제·열기 ${Math.round((Date.now() - t0) / 1000)}초`);
+}
+
+async function doDrop(n) {
+  const p = await find(n);
+  if (!p) return false;
+  if (isOpen(p)) await sql(`alter pluggable database ${n} close immediate;`);
+  await sql(`drop pluggable database ${n} including datafiles;`);
+  return true;
+}
+
+// ── Flyway 마이그레이션 탐색·적용(전 모듈 V1 을 한 PDB 에 적용하고 flyway_schema_history 도 맞춘다) ──
+// 시험·검증 때만 DMES_BACKEND_DIR 로 탐색 루트를 바꾼다(기본: 이 저장소의 src/backend).
+const BACKEND_DIR = process.env.DMES_BACKEND_DIR || join(REPO_ROOT, 'src', 'backend');
+// 폴더 이름으로 스키마를 알 수 없는 모듈의 기본 스키마(운영 이름이 없는 모듈은 <모듈>APUSER)
+const MODULE_SCHEMA = { mdm: 'MDMAPUSER', mls: 'MLSAPUSER', mpp: 'MPPAPUSER', mqc: 'MQCAPUSER', mpn: 'MPNAPUSER', 'aps-core': 'APSAPUSER' };
+// 마이그레이션 자리표시자(Flyway placeholders). 로컬·운영 모두 mcm 앱 사용자다.
+const PLACEHOLDERS = { app_user: 'MCMAPUSER' };
+
+function* walk(dir) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (['node_modules', 'build', '.gradle', 'archive', '.git', 'out'].includes(e.name)) continue;
+    const p = join(dir, e.name);
+    if (e.isDirectory()) yield* walk(p);
+    else yield p;
+  }
+}
+
+// src/backend 아래 db/migration/**/oracle/**/V*.sql 을 찾아 {schema, version, description, script, path} 로 돌려준다.
+function findMigrations() {
+  const found = [];
+  const unknown = [];
+  const legacyDirs = new Map();
+  if (!existsSync(BACKEND_DIR)) return { found, unknown };
+  for (const path of walk(BACKEND_DIR)) {
+    const rel = relative(BACKEND_DIR, path).split(sep);
+    if (!/^V[0-9][0-9_.]*__.+\.sql$/.test(rel[rel.length - 1])) continue;
+    const mi = rel.indexOf('migration');
+    if (mi < 1 || rel[mi - 1] !== 'db') continue;
+    const oi = rel.indexOf('oracle', mi);
+    const parent = rel[rel.length - 2];
+    const dirName = parent.toUpperCase();
+    // 스키마를 정하는 위치는 세 가지다(모두 Oracle 용이다. sqlite·mssql 등 다른 방언 폴더는 어디에도 해당하지 않아 건너뛴다):
+    //   ① db/migration/**/oracle/**        — 폴더 이름이 스키마(mcm-core oracle/mcmapuser/) 또는 모듈(mdm oracle/ → MDMAPUSER)
+    //   ② db/migration/<스키마 사용자>/    — caravan-hub 의 caravanuser/·ifuser/
+    //   ③ db/migration/<모듈>/             — aps-core·mls·mpn·mpp·mqc 처럼 방언 폴더 없이 모듈 이름 폴더(MODULE_SCHEMA)
+    let schema;
+    if (oi >= 0) schema = SCHEMA_USERS.includes(dirName) ? dirName : MODULE_SCHEMA[rel[0]];
+    else if (SCHEMA_USERS.includes(dirName)) schema = dirName;
+    else if (rel[mi + 1] === parent && rel.length === mi + 3 && MODULE_SCHEMA[parent]) {
+      // 아직 archive 로 옮기지 않은 옛 SQLite 평평한 폴더(mls V1~V4 등)를 Oracle 로 잘못 적용하지 않게, 폴더에 SQLite 낱말이 든 파일이
+      // 하나라도 있으면 그 폴더 전체를 옛 체인으로 보고 건너뛴다(V2~V4 만 Oracle 로 적용되는 일을 막는다).
+      const dir = dirname(path);
+      if (!legacyDirs.has(dir)) {
+        legacyDirs.set(dir, readdirSync(dir).filter((f) => /^V\d.*\.sql$/.test(f))
+          .some((f) => /\b(AUTOINCREMENT|PRAGMA)\b/i.test(readFileSync(join(dir, f), 'utf8'))));
+      }
+      if (legacyDirs.get(dir)) { unknown.push(rel.join('/') + ' (옛 SQLite 체인 폴더 — 건너뜀)'); continue; }
+      schema = MODULE_SCHEMA[parent];
+    } else continue;
+    const m = /^V([0-9][0-9_.]*)__(.+)\.sql$/.exec(rel[rel.length - 1]);
+    if (!schema) { unknown.push(rel.join('/')); continue; }
+    found.push({
+      schema,
+      version: m[1].replace(/_/g, '.'),
+      description: m[2].replace(/_/g, ' '),
+      script: rel[rel.length - 1],
+      path,
+    });
+  }
+  const vkey = (v) => v.split('.').map((x) => x.padStart(8, '0')).join('.');
+  found.sort((a, b) => SCHEMA_USERS.indexOf(a.schema) - SCHEMA_USERS.indexOf(b.schema) || vkey(a.version).localeCompare(vkey(b.version)));
+  return { found, unknown };
+}
+
+// Flyway 의 SQL 마이그레이션 체크섬: BOM 을 뗀 파일을 줄 단위(줄 끝 문자 제외)로 읽어 UTF-8 바이트의 CRC32 를 이어 계산하고 부호 있는 32비트로 쓴다.
+const CRC_TABLE = (() => {
+  const t = new Int32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c;
+  }
+  return t;
+})();
+function flywayChecksum(text) {
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+  const lines = text.split(/\r\n|\n|\r/);
+  if (lines.length && lines[lines.length - 1] === '') lines.pop();
+  let crc = 0xffffffff;
+  for (const line of lines) {
+    for (const b of Buffer.from(line, 'utf8')) crc = CRC_TABLE[(crc ^ b) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) | 0;
+}
+
+const HISTORY_DDL = `create table "flyway_schema_history" ("installed_rank" int not null, "version" varchar2(50), "description" varchar2(200) not null, "type" varchar2(20) not null, "script" varchar2(1000) not null, "checksum" int, "installed_by" varchar2(100) not null, "installed_on" timestamp(6) default systimestamp not null, "execution_time" int not null, "success" number(1) not null, constraint "flyway_schema_history_pk" primary key ("installed_rank"));
+create index "flyway_schema_history_s_idx" on "flyway_schema_history" ("success");`;
+
+// 마이그레이션 하나를 그 스키마 주인으로 접속해 적용하고 이력 행을 넣는다.
+async function applyMigration(pdb, mig, rank) {
+  const raw = readFileSync(mig.path, 'utf8');
+  let text = raw;
+  for (const [k, v] of Object.entries(PLACEHOLDERS)) text = text.split('${' + k + '}').join(v);
+  const left = text.match(/\$\{[A-Za-z0-9_.]+\}/g);
+  if (left) die(`${mig.script}(${mig.schema}) 에 풀지 못한 자리표시자 ${[...new Set(left)].join(', ')} — PLACEHOLDERS 에 더한다.`);
+  const t0 = Date.now();
+  const user = mig.schema;
+  const common = { service: pdb, user, password: CFG.appPassword, asSysdba: false };
+  const head = 'set define off scan off sqlblanklines on\n';
+  const r = await sqlplus(head + text, common);
+  if (r.code !== 0) die(`${mig.schema} ${mig.script} 적용 실패(exit ${r.code})\n${r.out}\n${r.err}`);
+  const ms = Date.now() - t0;
+  if (rank === 1) {
+    // Flyway 가 만드는 것과 같은 이력 표를 만들어, 앱이 Flyway 를 켠 채 붙어도 이미 적용된 V 파일을 다시 적용하지 않게 한다.
+    await sql(head + HISTORY_DDL, common);
+  }
+  const esc = (x) => x.replace(/'/g, "''");
+  const ins = `insert into "flyway_schema_history" ("installed_rank","version","description","type","script","checksum","installed_by","execution_time","success") values (${rank}, '${esc(mig.version)}', '${esc(mig.description)}', 'SQL', '${esc(mig.script)}', ${flywayChecksum(raw)}, '${user}', ${ms}, 1);\ncommit;`;
+  await sql(ins, common);
+  return ms;
+}
+
+async function applyAllMigrations(pdb) {
+  const { found, unknown } = findMigrations();
+  if (unknown.length) log(`스키마를 알 수 없어 건너뜀: ${unknown.join(', ')}`);
+  if (!found.length) die(`적용할 Oracle V 파일이 없다(${BACKEND_DIR} 의 db/migration/**/oracle/**/V*.sql). dev 에 머지된 모듈 V1 만 쓴다.`);
+  const rank = {};
+  for (const mig of found) {
+    rank[mig.schema] = (rank[mig.schema] || 0) + 1;
+    const ms = await applyMigration(pdb, mig, rank[mig.schema]);
+    log(`  ${mig.schema.padEnd(11)} V${mig.version} ${mig.description} (${Math.round(ms / 100) / 10}초)`);
+  }
+  return found;
+}
+
 // ── 명령 ───────────────────────────────────────────────────────────
 const jdbcUrl = (pdb) => `jdbc:oracle:thin:@//${CFG.host}:${CFG.port}/${pdb}`;
 
@@ -194,25 +449,18 @@ const commands = {
     if (!n.startsWith('TPL_')) die('템플릿 이름은 TPL_ 로 시작한다.');
     await withLock(async () => {
       if (await find(n)) die(`이미 있다: ${n}`);
-      await waitForSlot(1);
-      log(`시드에서 ${n} 생성(약 30초)...`);
-      await sql(`create pluggable database ${n} admin user pdbadm identified by "${CFG.appPassword}" file_name_convert = ('/pdbseed/', '/${n}/');`);
-      await sql(`alter pluggable database ${n} open;`);
-      await ensureUsers(n);
+      await doCreate(n);
       log(`${n} 준비됨(READ WRITE). Flyway 를 적용한 뒤 'template-seal ${n}' 을 실행한다.`);
     });
   },
 
   // 복제 원본으로 쓰려면 READ ONLY 로 봉인한다. 봉인 뒤에는 닫아 두고, 복제 때만 잠깐 연다.
+  // seal 도 close 처럼 PC 잠금을 잡지 않는다: 결과가 닫힌 PDB 라 메모리를 줄이는 쪽이다(READ WRITE 로 열려 있던 템플릿을 닫는다).
   async 'template-seal'([name]) {
     const n = checkName(name);
-    await withLock(async () => {
-      if (!(await find(n))) die(`없다: ${n}`);
-      await sqlTry(`alter pluggable database ${n} close immediate;`);
-      await sql(`alter pluggable database ${n} open read only;`);
-      await sql(`alter pluggable database ${n} close immediate;`);
-      log(`${n} 봉인(닫힌 상태, 복제 때 READ ONLY 로 잠깐 연다).`);
-    });
+    if (!(await find(n))) die(`없다: ${n}`);
+    await doSeal(n);
+    log(`${n} 봉인(닫힌 상태, 복제 때 READ ONLY 로 잠깐 연다).`);
   },
 
   async 'template-unseal'([name]) {
@@ -233,24 +481,57 @@ const commands = {
     await withLock(async () => {
       if (!(await find(t))) die(`템플릿이 없다: ${t}`);
       if (await find(n)) die(`이미 있다: ${n}`);
-      // 템플릿을 READ ONLY 로 여는 동안 한 자리, 복제 직후 템플릿을 닫고 복제본을 여는 동안 한 자리 — 동시에 둘이 열리지 않는다.
-      await waitForSlot(1);
-      const t0 = Date.now();
-      await sqlTry(`alter pluggable database ${t} close immediate;`);
-      await sql(`alter pluggable database ${t} open read only;`);
-      try {
-        await sql(`create pluggable database ${n} from ${t} file_name_convert = ('/${t}/', '/${n}/');`);
-      } finally {
-        await sqlTry(`alter pluggable database ${t} close immediate;`);
-      }
-      await sql(`alter pluggable database ${n} open;`);
-      log(`${n} 복제·열기 ${Math.round((Date.now() - t0) / 1000)}초`);
+      await doClone(t, n);
     });
     process.stdout.write(`${jdbcUrl(n)}\n`);
   },
 
+  // 전 모듈 Oracle V 파일(dev 에 있는 것)을 순서대로 적용한 데이터 없는 템플릿. 레인·시험 PDB 의 기본 원본이다.
+  //   template-schema [TPL_SCHEMA] [--rebuild]
+  async 'template-schema'(args) {
+    const rebuild = args.includes('--rebuild');
+    const n = checkName(args.find((a) => !a.startsWith('--')) || 'TPL_SCHEMA');
+    if (!n.startsWith('TPL_')) die('템플릿 이름은 TPL_ 로 시작한다.');
+    await withLock(async () => {
+      const { found } = findMigrations();
+      if (!found.length) die('적용할 Oracle V 파일이 없다(dev 에 머지된 모듈 V1 이 필요하다).');
+      if (await find(n)) {
+        if (!rebuild) die(`이미 있다: ${n} (다시 만들려면 --rebuild)`);
+        await doDrop(n);
+      }
+      await doCreate(n);
+      await applyAllMigrations(n);
+      await doSeal(n);
+      log(`${n} 완성: 스키마 ${[...new Set(found.map((m) => m.schema))].join('·')}, V 파일 ${found.length}개(데이터 없음, 봉인됨).`);
+    });
+  },
+
+  // TPL_SCHEMA 를 복제해 db-snapshot CSV 를 적재하고 봉인한 템플릿(데이터까지 있는 것).
+  //   template-data [TPL_DATA] [--from TPL_SCHEMA] [--rebuild]
+  async 'template-data'(args) {
+    const rebuild = args.includes('--rebuild');
+    const fi = args.indexOf('--from');
+    const from = checkName(fi >= 0 ? args[fi + 1] : 'TPL_SCHEMA');
+    const rest = args.filter((a, i) => !a.startsWith('--') && i !== fi + 1);
+    const n = checkName(rest[0] || 'TPL_DATA');
+    if (!n.startsWith('TPL_') || !from.startsWith('TPL_')) die('템플릿 이름은 TPL_ 로 시작한다.');
+    await withLock(async () => {
+      if (!(await find(from))) die(`원본 템플릿이 없다: ${from} (먼저 template-schema)`);
+      if (await find(n)) {
+        if (!rebuild) die(`이미 있다: ${n} (다시 만들려면 --rebuild)`);
+        await doDrop(n);
+      }
+      await doClone(from, n);
+      const py = spawnSync(process.platform === 'win32' ? 'python' : 'python3',
+        [join(REPO_ROOT, 'scripts', 'db-snapshot', 'snapshot.py'), 'import', '--pdb', n, '--replace'], { stdio: ['ignore', 'inherit', 'inherit'] });
+      if (py.status !== 0) die(`스냅샷 적재 실패(exit ${py.status}) — ${n} 은 열린 채 남겼다. 확인 뒤 drop 하거나 다시 만든다.`);
+      await doSeal(n);
+      log(`${n} 완성: ${from} + db-snapshot 적재(봉인됨).`);
+    });
+  },
+
   async open([name]) {
-    const n = checkName(name);
+    const n = checkName(name, { openCloseOnly: true });
     await withLock(async () => {
       const p = await find(n);
       if (!p) die(`없다: ${n}`);
@@ -261,25 +542,21 @@ const commands = {
     });
   },
 
+  // close 는 PC 잠금을 잡지 않는다: 열린 PDB 와 메모리를 줄이는 쪽이라 다른 작업(시험·복제)과 겹쳐도 안전하다.
+  // 템플릿을 복제하는 도중에 그 템플릿을 닫지 않도록 호출하는 쪽이 조심한다(시험 PDB T_ 는 하니스가 직접 지운다).
   async close([name]) {
-    const n = checkName(name);
-    await withLock(async () => {
-      const p = await find(n);
-      if (!p) die(`없다: ${n}`);
-      if (!isOpen(p)) { log(`${n} 이미 닫혀 있다.`); return; }
-      await sql(`alter pluggable database ${n} close immediate;`);
-      log(`${n} 닫았다(데이터는 그대로).`);
-    });
+    const n = checkName(name, { openCloseOnly: true });
+    const p = await find(n);
+    if (!p) die(`없다: ${n}`);
+    if (!isOpen(p)) { log(`${n} 이미 닫혀 있다.`); return; }
+    await sql(`alter pluggable database ${n} close immediate;`);
+    log(`${n} 닫았다(데이터는 그대로).`);
   },
 
   async drop([name]) {
     const n = checkName(name);
     await withLock(async () => {
-      const p = await find(n);
-      if (!p) { log(`${n} 없음`); return; }
-      if (isOpen(p)) await sql(`alter pluggable database ${n} close immediate;`);
-      await sql(`drop pluggable database ${n} including datafiles;`);
-      log(`${n} 삭제했다.`);
+      log((await doDrop(n)) ? `${n} 삭제했다.` : `${n} 없음`);
     });
   },
 
@@ -294,6 +571,55 @@ const commands = {
     });
   },
 
+  // 시험 하니스용: 잠금을 잡고 "LOCKED <pid>" 한 줄을 낸 뒤, 표준 입력이 닫히거나 신호를 받을 때까지 쥐고 있다.
+  // 쥐는 동안 1분마다 잠금 폴더 시각을 갱신해 30분 넘은 잠금으로 오인돼 치워지지 않게 한다.
+  async 'lock-hold'(args) {
+    const i = args.indexOf('--wait-sec');
+    const waitSec = i >= 0 ? Number(args[i + 1]) : CFG.lockWaitSec;
+    await acquireLock(waitSec);
+    const beat = setInterval(() => { try { utimesSync(LOCK_DIR, new Date(), new Date()); } catch { /* 무시 */ } }, 60 * 1000);
+    const done = () => { clearInterval(beat); releaseLock(); process.exit(0); };
+    process.on('SIGTERM', done);
+    process.on('SIGINT', done);
+    process.on('SIGHUP', done);
+    process.stdin.on('end', done);
+    process.stdin.on('close', done);
+    process.stdin.resume();
+    process.stdout.write(`LOCKED ${process.pid}\n`);
+  },
+
+  // 열린 PDB 의 자동 작업(autotask·AWR 스냅숏)을 끄고 상태를 확인한다. 이미 만든 PDB 에도 쓸 수 있다.
+  async quiet([name]) {
+    const n = checkName(name);
+    await withLock(async () => {
+      const p = await find(n);
+      if (!p || !isOpen(p)) die(`${n} 이 열려 있지 않다. open 먼저.`);
+      await ensureQuiet(n);
+    });
+  },
+
+  // 인스턴스 세션 수와 그 PDB 의 사용자 세션 수를 한 줄로 낸다(하니스가 시험 끝에 로그로 남긴다). v$resource_limit 은 루트에서만 값이 나온다.
+  // 인스턴스 max 는 기동 이후 최대치라 시험 전후 값을 비교해 시험이 늘렸는지 본다. 잠금 없이 실행한다.
+  async sessions([name]) {
+    const n = checkName(name);
+    const p = await find(n);
+    if (!p || !isOpen(p)) die(`${n} 이 열려 있지 않다.`);
+    const out = await sql(
+      "select 'inst_sessions max=' || max_utilization || ' limit=' || trim(limit_value) || ' cur=' || current_utilization from v$resource_limit where resource_name='sessions';\n" +
+      `alter session set container=${n};\n` +
+      "select 'pdb_user_sessions=' || count(*) from v$session where type='USER';");
+    const lines = out.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('inst_sessions') || l.startsWith('pdb_user_sessions'));
+    process.stdout.write(`sessions ${lines.join(' ') || '?'}\n`);
+  },
+
+  // 적용하지 않고 어떤 V 파일을 어느 스키마에 적용할지만 보여 준다(Oracle 불필요, 위치 규칙 확인용).
+  async migrations() {
+    const { found, unknown } = findMigrations();
+    for (const m of found) process.stdout.write(`${m.schema.padEnd(11)} V${m.version.padEnd(4)} ${relative(BACKEND_DIR, m.path).split(sep).join('/')}\n`);
+    for (const u of unknown) process.stdout.write(`건너뜀: ${u}\n`);
+    process.stdout.write(`${found.length}개\n`);
+  },
+
   async 'schema-users'() {
     process.stdout.write(`${SCHEMA_USERS.join('\n')}\n`);
   },
@@ -306,11 +632,17 @@ const commands = {
   template-create <TPL_이름>    시드에서 빈 템플릿 생성 + 운영 이름 사용자 심기
   template-seal <TPL_이름>      복제 원본으로 봉인(닫아 둠)
   template-unseal <TPL_이름>    수정하려고 READ WRITE 로 연다
+  template-schema [TPL_SCHEMA] [--rebuild]   전 모듈 Oracle V 파일(dev 에 있는 것)을 적용한 데이터 없는 템플릿
+  template-data [TPL_DATA] [--from TPL_SCHEMA] [--rebuild]   그 위에 db-snapshot CSV 를 적재한 템플릿
   clone <TPL_이름> <PDB>        템플릿에서 복제하고 연다(L_<레인> 개발용·T_<레인> 시험용)
-  open|close <PDB>              열기·닫기(쓰지 않을 때는 닫아 메모리를 비운다)
+  open|close <PDB>              열기·닫기(쓰지 않을 때는 닫아 메모리를 비운다). FREEPDB1 도 열고 닫기만 된다(만들기·지우기는 거부)
   drop <PDB>                    닫고 데이터 파일까지 삭제
   users <PDB>                   운영 이름 사용자 (재)생성
+  migrations                    적용 없이 V 파일 탐색 결과(스키마·경로)만 출력
   schema-users                  만드는 사용자 목록
+  quiet <PDB>                   열린 PDB 의 autotask·AWR 자동 스냅숏을 끄고 확인(create·clone 은 자동으로 거친다)
+  sessions <PDB>                열린 PDB 의 세션 수(max·limit·cur) 한 줄
+  lock-hold [--wait-sec N]      PC 잠금을 쥐고 LOCKED <pid> 를 낸 뒤 표준 입력이 닫힐 때까지 유지(시험 하니스용)
 
 환경 변수: DMES_ORA_ENGINE·DMES_ORA_CONTAINER·DMES_ORA_SYS_PASSWORD·DMES_ORA_PASSWORD·DMES_ORA_HOST·DMES_ORA_PORT·DMES_ORA_MAX_OPEN
 `);

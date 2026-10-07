@@ -26,7 +26,7 @@
 | 보안/인증 | [`Security/README.md`](Security/README.md) | [`Security/Security-Guide.md`](Security/Security-Guide.md), [`Security/RBAC-PATH-CONVENTION.md`](Security/RBAC-PATH-CONVENTION.md), [`FrontEnd/Portal-Menu-Role-Policy.md`](FrontEnd/Portal-Menu-Role-Policy.md) |
 | 전체 DMES 배포 | [`Operations/README.md`](Operations/README.md) | Backend+Frontend 통합 배포 가이드 |
 | Frontend 모듈 패키지 발행·소비 | [`FrontEnd/README.md`](FrontEnd/README.md) | [`FrontEnd/Portal-Development-Guide.md`](FrontEnd/Portal-Development-Guide.md), [`Operations/DMES-Module-Package-Publishing-and-Consumption-Guide.md`](Operations/DMES-Module-Package-Publishing-and-Consumption-Guide.md), [`FrontEnd/Verdaccio-Guide.md`](FrontEnd/Verdaccio-Guide.md) |
-| DB 방언 차이(운영 DB Oracle·PostgreSQL, 로컬 SQLite) | [`Database/README.md`](Database/README.md) | [`Database/dialect-neutral-sql.md`](Database/dialect-neutral-sql.md), 필요한 DBMS 전환 문서 |
+| Oracle SQL 작성·로컬 Oracle DB 환경(로컬·시험·운영 모두 Oracle) | [`Database/README.md`](Database/README.md) | [`Database/oracle-sql-rules.md`](Database/oracle-sql-rules.md), [`Database/oracle-26ai-test-guide.md`](Database/oracle-26ai-test-guide.md) |
 | 모듈별 참조 | [`reference/README.md`](reference/README.md) | 작업 대상 모듈 reference |
 | 산출물 runner | [`runners/README.md`](runners/README.md) | runner 실행이 필요한 경우만 |
 

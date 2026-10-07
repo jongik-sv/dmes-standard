@@ -1,0 +1,24 @@
+plugins {
+    id 'dmes.test-conventions'
+}
+
+// included build 하나가 모듈 하나인 상황을 흉내 낸다. test 태스크와 같은 순서(차례 → 시험 PDB)로 서비스를 써서 잠깐 쓰는 척한다.
+// 차례는 같은 빌드의 모듈 사이에서 한 번에 하나만 돌게 하므로 start~end 구간이 겹치지 않아야 한다(tests/run.sh 가 본다).
+tasks.register('probe') {
+    doLast {
+        def svc = gradle.sharedServices.registrations.getByName('dmesOraTestPdb').service.get()
+        String turn = 'probe-c'
+        svc.acquireTurn(turn, 60000L)
+        try {
+            long t0 = System.currentTimeMillis()
+            String pdb = svc.acquire()
+            println "PROBE-c pdb=${pdb} waited=${System.currentTimeMillis() - t0}ms service=${System.identityHashCode(svc)}"
+            println "PROBE-c start ${System.currentTimeMillis()}"
+            Thread.sleep((System.getenv('PROBE_SLEEP_MS') ?: '1500') as long)
+            println "PROBE-c end ${System.currentTimeMillis()}"
+        } finally {
+            svc.releaseTurn(turn)
+        }
+        println "PROBE-c done"
+    }
+}

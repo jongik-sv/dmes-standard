@@ -15,6 +15,7 @@ import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.security.MdmStewardGuard;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeConventions;
@@ -160,6 +161,9 @@ public class CodeEditService {
         String name = trimToNull(request.getMaruCodeName());
         if (name == null || name.length() > NAME_MAX) {
             throw invalid("이름은 1~" + NAME_MAX + "자여야 합니다");
+        }
+        if (MdmTextLimits.overBytes(trimToNull(request.getDescription()))) {
+            throw invalid("설명은 4000바이트(한글 약 1,333자)를 넘을 수 없습니다");
         }
         int lvlCnt = request.getLvlCnt() == null ? code.getLvlCnt() : request.getLvlCnt();
         if (lvlCnt < MasterCodeConventions.LVL_CNT_MIN || lvlCnt > MasterCodeConventions.LVL_CNT_MAX) {

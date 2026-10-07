@@ -269,12 +269,12 @@ SQL 은 두 갈래로 쓴다.
 <mapper namespace="orders.list">
   <select id="byBuyer" resultType="map">
     <![CDATA[
-      SELECT ORDER_ID, BUYER_ID, ITEM_CODE, QTY, STATUS, ORDER_DATE
-        FROM TB_ORDER
-       WHERE BUYER_ID LIKE #{buyerId} || '%'
-         AND ITEM_CODE LIKE #{itemCode} || '%'
-         AND STATUS IN ('A','B')
-         AND ORDER_DATE BETWEEN NVL(#{from}, '00000000') AND NVL(#{to}, '99999999')
+      SELECT A.ORDER_ID, A.BUYER_ID, A.ITEM_CODE, A.QTY, A.STATUS, A.ORDER_DATE
+      FROM   TB_ORDER A
+      WHERE  A.BUYER_ID LIKE #{buyerId} || '%'
+      AND    A.ITEM_CODE LIKE #{itemCode} || '%'
+      AND    A.STATUS IN ('A','B')
+      AND    A.ORDER_DATE BETWEEN NVL(#{from}, '00000000') AND NVL(#{to}, '99999999')
     ]]>
   </select>
 </mapper>

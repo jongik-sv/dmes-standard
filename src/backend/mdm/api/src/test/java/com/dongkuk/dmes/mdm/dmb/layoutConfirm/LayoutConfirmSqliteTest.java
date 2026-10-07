@@ -116,12 +116,12 @@ class LayoutConfirmSqliteTest extends LayoutServiceTestSupport {
         Map<String, Object> row = jdbc.queryForMap("SELECT STATUS, APPLY_FROM, SWITCH_MODE, CHANGE_KINDS, SNAPSHOT_JSON FROM TB_MDM_LAYOUT_VER "
                 + "WHERE LAYOUT_ID = ? AND VER = 1.001", m.message());
         assertThat(row.get("STATUS")).isEqualTo("RELEASED");
-        assertThat(row.get("APPLY_FROM")).isEqualTo(JUL1);
+        assertThat(row.get("APPLY_FROM")).isEqualTo(ts(JUL1)); // TIMESTAMP 칸은 java.sql.Timestamp 로 온다
         assertThat(row.get("SWITCH_MODE")).isEqualTo("SEQUENTIAL");
         assertThat(row.get("CHANGE_KINDS")).isEqualTo("FILLER_SPLIT");
         assertThat((String) row.get("SNAPSHOT_JSON")).contains("\"headerIds\"").doesNotContain("\"headers\"");
-        assertThat(jdbc.queryForObject("SELECT APPLY_TO FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID = ? AND VER = 1", String.class, m.message()))
-                .isEqualTo(JUL1);
+        assertThat(jdbc.queryForObject("SELECT APPLY_TO FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID = ? AND VER = 1", java.sql.Timestamp.class,
+                m.message())).isEqualTo(ts(JUL1));
     }
 
     @Test

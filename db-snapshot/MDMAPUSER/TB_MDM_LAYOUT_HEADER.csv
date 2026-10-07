@@ -1,0 +1,6 @@
+LAYOUT_ID,VER,SEQ,HEADER_LAYOUT_ID,C_USR_ID,C_AT,C_SVC_ID,C_PGM_ID,U_USR_ID,U_AT,U_SVC_ID,U_PGM_ID,AUD_VER
+201,3,1,100,kim,2026-09-18 10:20:00,\N,mdm-local-sample,kim,2026-09-18 10:20:00,\N,mdm-local-sample,0
+201,3,2,110,kim,2026-09-18 10:20:00,\N,mdm-local-sample,kim,2026-09-18 10:20:00,\N,mdm-local-sample,0
+305,1,1,200,kim,2026-09-12 11:00:00,\N,mdm-local-sample,kim,2026-09-12 11:00:00,\N,mdm-local-sample,0
+363,1,1,361,E2E_USR_STD,1791079163921,layoutMng,layoutMng,E2E_USR_STD,1791079163921,layoutMng,layoutMng,0
+363,1,2,362,E2E_USR_STD,1791079163921,layoutMng,layoutMng,E2E_USR_STD,1791079163921,layoutMng,layoutMng,0

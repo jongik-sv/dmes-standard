@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mcm.cmb.masterRuleDataList.service;
 import com.dongkuk.dmes.mcm.cmb.masterRuleDataList.dto.MasterRuleDataListSearchRequest;
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
+import com.dongkuk.dmes.mcm.common.util.DatePrefixRange;
 import com.dongkuk.dmes.mcm.repository.MasterRuleColListRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -10,11 +11,15 @@ import jakarta.persistence.Query;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Service;
 
+import java.sql.Clob;
+import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.strOfTrim;
@@ -45,6 +50,11 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNull;
  * (BR-007 — As-Is java:54~82 대소문자 무시 검색).
  *
  * <p>가이드 §6-B-1: {@code @Transactional} 미사용 — OASIS process wrap (전 액션 읽기 전용).
+ *
+ * <p><b>Oracle 형 처리 (oracle-1007 c4 — 형제 masterRuleData 와 같은 규칙)</b>: DATE 칸 조건은
+ * {@code col op TO_DATE(:v, 'YYYYMMDDHH24MISS')}(값은 14자로 정규화, LIKE 는 숫자 앞 일치면 {@link DatePrefixRange} 의 반열린 범위, 그 밖의 패턴은 {@code TO_CHAR(col, …) LIKE :v}),
+ * CLOB·NCLOB 칸의 {@code =}·{@code <=}·{@code >=} 는 사전에서 실제 형을 읽어 앞 1000 자 글자 비교로 바꾼다(ORA-22848 회피).
+ * 응답 행의 Clob·NClob 은 글 전체 String, CHAR(1) 의 Character 는 String 으로 싣는다.
  */
 @Service("masterRuleDataListService")
 public class MasterRuleDataListService {
@@ -56,6 +66,10 @@ public class MasterRuleDataListService {
     private static final Set<String> OPERATOR_WHITELIST = Set.of("LIKE", "=", "<=", ">=");
     /** 동적 테이블 고정 키 컬럼 (형제 masterRuleData pkColSet 동일). */
     private static final Set<String> PK_COL_SET = Set.of("RULE_VER", "RULE_SEQ");
+    /** DATE 칸 글자 값 형식 — {@link #dateText} 가 맞춘 14자와 짝. */
+    private static final String DATE_FMT = "'YYYYMMDDHH24MISS'";
+    /** CLOB 칸 비교에 쓰는 앞부분 글자 수 — {@code DBMS_LOB.SUBSTR} 결과 VARCHAR2(4000 바이트)를 넘지 않는 값. */
+    private static final int LOB_CMP_CHARS = 1000;
 
     @PersistenceContext
     private EntityManager em;
@@ -84,7 +98,7 @@ public class MasterRuleDataListService {
         List<Map<String, Object>> list = new ArrayList<>(raw.size());
         for (Object[] r : raw) {
             Map<String, Object> row = new LinkedHashMap<>();
-            for (int i = 0; i < keys.length; i++) row.put(keys[i], r[i]);
+            for (int i = 0; i < keys.length; i++) row.put(keys[i], plainValue(r[i]));   // PK_YN 'Y'/'N' 은 Oracle CHAR(1) → Character
             list.add(row);
         }
 
@@ -99,7 +113,7 @@ public class MasterRuleDataListService {
     /**
      * action=search — 동적 테이블 페이징 조회 (As-Is GetMasterRuleDataList.run() + Mapper #2).
      *
-     * <p>CTE + ROW_NUMBER(ORDER BY RULE_SEQ) + BETWEEN 페이징 (As-Is 구조 보존 — MSSQL 호환, BR-009).
+     * <p>CTE + ROW_NUMBER(ORDER BY RULE_SEQ) + BETWEEN 페이징 (As-Is 구조 보존 — Oracle·ANSI 공통, BR-009).
      * 5조건 동적 WHERE 는 화이트리스트 컬럼/연산자 + 바인딩 값 (Q-007). VARCHAR2 컬럼이면
      * {@code UPPER(col) op UPPER(:v)} (BR-007 — As-Is java:54~82).
      * 응답 = {@code { ds_GetMasterRuleDataList: [rows — 대문자 키 + SEQ/TOTALCOUNT], cnt, totalCount }}.
@@ -111,6 +125,7 @@ public class MasterRuleDataListService {
 
         StringBuilder where = new StringBuilder();
         Map<String, String> binds = new LinkedHashMap<>();
+        Set<String> lobCols = null;   // 필요할 때만 사전 조회 (CLOB 칸 = / <= / >=)
         for (int n = 1; n <= 5; n++) {
             String col = blankToNull(request.where(n));
             if (col == null) continue;   // 미입력 조건 skip (As-Is if)
@@ -124,12 +139,41 @@ public class MasterRuleDataListService {
                 throw new BusinessException(ErrorCode.INVALID_VALUE, "[" + op + "] 허용되지 않은 연산자입니다.");     // Q-007
             }
             String bind = "v" + n;
-            if ("VARCHAR2".equals(typeMap.get(col))) {
-                where.append(" AND UPPER(").append(col).append(") ").append(op).append(" UPPER(:").append(bind).append(")");   // BR-007
+            String type = typeMap.get(col);
+            String val = nvl(request.val(n));
+            if ("VARCHAR2".equals(type)) {
+                boolean lob = false;
+                if (!"LIKE".equals(op)) {   // LIKE 는 LOB 에도 되므로 사전 조회 불필요
+                    if (lobCols == null) lobCols = lobColumns(ruleId);
+                    lob = lobCols.contains(col);
+                }
+                if (lob) {
+                    where.append(lobCondition(col, op, bind));   // CLOB·NCLOB — ORA-22848 회피
+                } else {
+                    where.append(" AND UPPER(").append(col).append(") ").append(op).append(" UPPER(:").append(bind).append(")");   // BR-007
+                }
+            } else if ("DATE".equals(type)) {
+                if ("LIKE".equals(op)) {
+                    val = stripDateSeparators(val);
+                    Optional<DatePrefixRange.Range> range = DatePrefixRange.of(val);
+                    if (range.isPresent()) {
+                        // 숫자 앞 일치(202610%)는 같은 결과의 반열린 범위로 — 칼럼을 원형으로 두어 인덱스를 쓴다
+                        where.append(" AND ").append(col).append(" >= TO_DATE(:").append(bind).append(", ").append(DATE_FMT).append(")")
+                                .append(" AND ").append(col).append(" < TO_DATE(:").append(bind).append("e, ").append(DATE_FMT).append(")");
+                        binds.put(bind + "e", range.get().to());
+                        val = range.get().from();
+                    } else {
+                        // 중간 일치(%1003%)·_ 패턴·달력 단위가 아닌 앞부분은 글자 비교가 필요해 현행 유지(함수 때문에 인덱스는 못 쓴다)
+                        where.append(" AND TO_CHAR(").append(col).append(", ").append(DATE_FMT).append(") LIKE :").append(bind);
+                    }
+                } else {
+                    where.append(" AND ").append(col).append(" ").append(op).append(" TO_DATE(:").append(bind).append(", ").append(DATE_FMT).append(")");
+                    val = dateText(col, val);
+                }
             } else {
                 where.append(" AND ").append(col).append(" ").append(op).append(" :").append(bind);
             }
-            binds.put(bind, nvl(request.val(n)));
+            binds.put(bind, val);
         }
 
         int pageRow = request.getCountPerPage() == null || request.getCountPerPage() <= 0 ? 30 : request.getCountPerPage();
@@ -234,10 +278,72 @@ public class MasterRuleDataListService {
         List<Map<String, Object>> list = new ArrayList<>(tuples.size());
         for (Tuple t : tuples) {
             Map<String, Object> row = new LinkedHashMap<>();
-            t.getElements().forEach(el -> row.put(el.getAlias().toUpperCase(Locale.ROOT), t.get(el)));
+            t.getElements().forEach(el -> row.put(el.getAlias().toUpperCase(Locale.ROOT), plainValue(t.get(el))));
             list.add(row);
         }
         return list;
+    }
+
+    // ──────────────── Oracle 형 처리 (oracle-1007 c4 — 형제 MasterRuleDataService 와 같은 규칙) ────────────────
+
+    /** 동적 표에서 실제 형이 CLOB·NCLOB 인 칸 이름 (COL_TYPE 은 이를 'VARCHAR2' 로 묶어 구분이 안 된다). */
+    private Set<String> lobColumns(String ruleId) {
+        @SuppressWarnings("unchecked")
+        List<Object> names = em.createNativeQuery("SELECT COLUMN_NAME FROM ALL_TAB_COLUMNS"
+                        + " WHERE OWNER = '" + SCHEMA + "' AND TABLE_NAME = :tableName AND DATA_TYPE IN ('CLOB', 'NCLOB')")
+                .setParameter("tableName", "TB_MCA_" + ruleId)
+                .getResultList();
+        Set<String> out = new HashSet<>();
+        if (names != null) names.forEach(nm -> out.add(String.valueOf(nm).toUpperCase(Locale.ROOT)));
+        return out;
+    }
+
+    /**
+     * CLOB·NCLOB 칸의 {@code =}·{@code <=}·{@code >=} 조건 (대소문자 무시 BR-007 유지) — 앞 {@value #LOB_CMP_CHARS} 자 글자 비교.
+     * {@code =} 는 길이 {@value #LOB_CMP_CHARS} 자 이하일 때만 맞다고 보아 정확히 같음을 지킨다.
+     */
+    private static String lobCondition(String col, String op, String bind) {
+        String head = "UPPER(DBMS_LOB.SUBSTR(" + col + ", " + LOB_CMP_CHARS + ", 1))";
+        if ("=".equals(op)) {
+            return " AND (DBMS_LOB.GETLENGTH(" + col + ") <= " + LOB_CMP_CHARS + " AND " + head + " = UPPER(:" + bind + "))";
+        }
+        return " AND " + head + " " + op + " UPPER(:" + bind + ")";
+    }
+
+    /**
+     * DATE 칸 조건 값 → {@code yyyyMMddHHmmss} 14자 (구분자 제거·14자 절단·짧으면 0 채움, 빈 값은 그대로).
+     * 숫자 8자 미만이거나 숫자 아닌 글자가 남으면 INVALID_VALUE.
+     */
+    static String dateText(String col, String s) {
+        if (s == null) return null;
+        String t = s.trim();
+        if (t.isEmpty()) return t;
+        String digits = stripDateSeparators(t);
+        if (!digits.chars().allMatch(Character::isDigit) || digits.length() < 8) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE,
+                    "[" + col + "] 날짜 값 '" + t + "' 은 yyyyMMdd 또는 yyyyMMddHHmmss 형식이어야 합니다.");
+        }
+        if (digits.length() > 14) return digits.substring(0, 14);
+        return digits + "0".repeat(14 - digits.length());
+    }
+
+    /** 날짜 글자의 구분자({@code - : / . 공백})를 지운다. */
+    private static String stripDateSeparators(String s) {
+        return s == null ? null : s.replaceAll("[-:/. ]", "");
+    }
+
+    /** 응답 값 정리 — Clob·NClob 은 글 전체 String, Oracle CHAR(1) 의 Character 는 String. 그 밖은 그대로. */
+    private static Object plainValue(Object v) {
+        if (v instanceof Character c) return c.toString();
+        if (v instanceof Clob lob) {
+            try {
+                long len = lob.length();
+                return len == 0 ? "" : lob.getSubString(1, Math.toIntExact(len));
+            } catch (SQLException e) {
+                throw new IllegalStateException("LOB 칸 값을 읽지 못했습니다.", e);
+            }
+        }
+        return v;
     }
 
     private static String nvl(String s) {

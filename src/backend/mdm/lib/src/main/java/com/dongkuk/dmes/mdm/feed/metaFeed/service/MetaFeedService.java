@@ -9,6 +9,7 @@ import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder.MetaRevisionRang
 import com.dongkuk.dmes.mdm.common.metarev.MetaTargetType;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.entity.MdmMetaRev;
@@ -45,6 +46,8 @@ public class MetaFeedService {
     static final int DEFAULT_LIMIT = 1000;
     static final int MAX_LIMIT = 5000;
     static final int MAX_KEYS = 500;
+    /** TB_MDM_META_REV.TARGET_KEY 는 VARCHAR2(100 CHAR) — 강제 기록(save)이 이 칸에 키를 그대로 쓴다. */
+    static final int TARGET_KEY_CHARS_MAX = 100;
 
     static final String SYSADMIN = "SYSADMIN";
 
@@ -144,6 +147,14 @@ public class MetaFeedService {
         List<String> wanted = keyList(type, keys);
         if (wanted.isEmpty()) {
             throw invalid("강제 기록할 키가 없습니다");
+        }
+        // 정규화(trim·COLUMN 대문자)가 끝난 키가 TARGET_KEY 칸에 그대로 들어간다 — 조회 경로(keyList)는 길이를 막지 않는다.
+        for (String key : wanted) {
+            if (MdmTextLimits.overChars(key, TARGET_KEY_CHARS_MAX)) {
+                // 키가 매우 길 수 있어 문구에는 앞 50자만 싣는다.
+                String shown = key.substring(0, key.offsetByCodePoints(0, 50)) + "…";
+                throw invalid("키는 " + TARGET_KEY_CHARS_MAX + "자를 넘을 수 없습니다: " + shown);
+            }
         }
         MetaRevisionRange range = recorder.force(type, wanted, kind);
         Map<String, Object> out = new LinkedHashMap<>();

@@ -37,38 +37,24 @@ public class WidgetCollectWriter {
         this.dataRepository = dataRepository;
     }
 
-    /** 잠금 충돌 등으로 insert 가 실패했을 때 다시 해 보는 횟수(처음 시도 뒤)와 사이 대기 — SQLite 같은 파일 DB 의 쓰기 잠금 충돌용. */
-    static final int START_RETRIES = 2;
-    static final long START_RETRY_WAIT_MS = 50;
-
     /**
      * 이 (정의, 시각)을 잡는다 — 확인 없이 RUN 행을 바로 insert 한다(먼저 읽고 넣으면 두 인스턴스가 모두 통과하는 틈이 생긴다).
-     * PK 위반이면 다른 인스턴스·이전 시도가 이미 잡은 시각이라 false(건너뜀). 잠금 충돌 등 다른 DB 오류는 짧게 {@value #START_RETRIES} 번 다시 해 보고
-     * 그래도 안 되면 false 로 건너뛴다(다음 분에 다시 잡는다). 트랜잭션은 저장소 호출 하나가 맡는다(여기서 묶으면 위반이 롤백 표식을 남긴다).
+     * PK 위반이면 다른 인스턴스·이전 시도가 이미 잡은 시각이라 false(건너뜀). 다른 DB 오류도 다시 해 보지 않고 경고 로그만 남긴 채
+     * false 로 건너뛴다(다음 분에 다시 잡는다). 트랜잭션은 저장소 호출 하나가 맡는다(여기서 묶으면 위반이 롤백 표식을 남긴다).
      */
     public boolean tryStart(String widgetId, String slot, Instant startedAt) {
-        for (int attempt = 0; ; attempt++) {
-            try {
-                runRepository.saveAndFlush(WidgetCollectRun.start(widgetId, slot, startedAt));
-                return true;
-            } catch (DataIntegrityViolationException e) {
-                // PK 중복이면 다른 인스턴스·이전 시도가 이미 잡은 시각이라 정상 건너뜀(로그 없음). 행이 없는데 위반이면 다른 제약(NOT NULL·길이·CHECK)이다.
-                if (!runRepository.existsById(new WidgetCollectRunId(widgetId, slot))) {
-                    log.warn("정시 수집 회차 잡기 무결성 오류(PK 중복 아님) defId={} 원인={}", widgetId, e.getClass().getSimpleName());
-                }
-                return false;
-            } catch (DataAccessException | PersistenceException e) {
-                if (attempt >= START_RETRIES) {
-                    log.warn("정시 수집 회차 잡기 실패 defId={} 원인={}", widgetId, e.getClass().getSimpleName());
-                    return false;
-                }
-                try {
-                    Thread.sleep(START_RETRY_WAIT_MS * (attempt + 1));
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    return false;
-                }
+        try {
+            runRepository.saveAndFlush(WidgetCollectRun.start(widgetId, slot, startedAt));
+            return true;
+        } catch (DataIntegrityViolationException e) {
+            // PK 중복이면 다른 인스턴스·이전 시도가 이미 잡은 시각이라 정상 건너뜀(로그 없음). 행이 없는데 위반이면 다른 제약(NOT NULL·길이·CHECK)이다.
+            if (!runRepository.existsById(new WidgetCollectRunId(widgetId, slot))) {
+                log.warn("정시 수집 회차 잡기 무결성 오류(PK 중복 아님) defId={} 원인={}", widgetId, e.getClass().getSimpleName());
             }
+            return false;
+        } catch (DataAccessException | PersistenceException e) {
+            log.warn("정시 수집 회차 잡기 실패 defId={} 원인={}", widgetId, e.getClass().getSimpleName());
+            return false;
         }
     }
 

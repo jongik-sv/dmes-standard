@@ -1,3 +1,4 @@
+# SQLite 사본 읽기 도구(로컬 DB 가 Oracle 로 바뀐 뒤에는 SQLite 사본이 있을 때만 동작), Oracle 판은 후속(oracle-1007 b8).
 """MDM 사전 후보(candidates.sqlite) → 앱 DB(mdm.db) TB_MDM_TERM·DOMAIN·UNIT·COLUMN·COLUMN_SYSTEM 병합.
 
 원칙

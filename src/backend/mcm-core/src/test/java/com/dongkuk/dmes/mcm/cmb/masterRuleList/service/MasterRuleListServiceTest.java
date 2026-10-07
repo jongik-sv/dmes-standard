@@ -148,6 +148,21 @@ class MasterRuleListServiceTest {
         verify(repository, never()).searchRuleMasterList(anyString(), anyString());
     }
 
+    @Test
+    @DisplayName("save — C·U RULE_NM 공란(빈 글자·공백·null): REQUIRED_VALUE — Oracle '' = NULL 이라 ORA-01400 전에 막는다")
+    void save_ruleNm_공란() {
+        for (Map<String, Object> row : List.of(
+                rowC("USD", "", "설명", "Y", "A", "E001", "1"),
+                rowC("USD", "  ", "설명", "Y", "A", "E001", "1"),
+                rowU("USD", null, "설명", "Y"))) {
+            assertThatThrownBy(() -> service.save(req("", ""), List.of(row)))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.REQUIRED_VALUE));
+        }
+
+        verify(repository, never()).save(any());
+    }
+
     // ──────────────────────────────── builders ────────────────────────────────
 
     private static MasterRuleListSearchRequest req(String ruleId, String ruleNm) {

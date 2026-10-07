@@ -37,7 +37,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * TSK-04-04 design.md §3.3 R1~R7 — 용어 인라인 등록 팝업 서비스(유사어·약어 제안·등록)를 local(SQLite)로 돌린다.
+ * TSK-04-04 design.md §3.3 R1~R7 — 용어 인라인 등록 팝업 서비스(유사어·약어 제안·등록)를 Oracle 시험 PDB 로 돌린다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
