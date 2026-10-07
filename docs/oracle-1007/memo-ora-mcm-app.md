@@ -62,6 +62,9 @@ Oracle: 20:20 VM 3GB 재기동 뒤 T_ORA_MCM_APP drop 완료, 측정 뒤 하니�
 | 10-07 | caravan 표 없이 기동 → CaravanMetaSeeder 에 ORA-00942 만 건너뛰는 가드(조정 승인 ㉡) | 사용자 확인 대기 |
 | 10-07 | SQLite 치환 API 호출은 이 레인이 a2·a3 안에서 0건으로. a4 머지 요청에 grep 결과 첨부 | 조정 전달(ora-mcm-core c2 발) |
 | 10-07 | Oracle 무거운 작업은 PC 전체 한 번에 하나(새 하니스 PC 잠금). 상태 확인 sqlplus·pdb list 반복 금지 | 조정 재개 규칙 |
+| 10-07 | 시험 풀은 상한 2·minimumIdle 0·idleTimeout 10초·@AfterAll 로 닫기 | 조정 ㉠ 승인 |
+| 10-07 | dmes.widget.query.require-dedicated 는 prod 에만 ${WIDGET_QUERY_REQUIRE_DEDICATED:true}(wildfly 에 두면 dev 도 켜짐) | 조정 ㉠ 승인 |
+| 10-07 | backup/ora-mcm-app-pre-split 브랜치는 그대로 두고 마감 보고 「남긴 브랜치」 로 사용자 결정에 넘긴다. SQLite 기준 측정용 임시 워크트리(scratchpad sqlite-base, detached fb253556d)도 함께 적는다 | 조정 ㉠ |
 
 ## 남은 순서
 
