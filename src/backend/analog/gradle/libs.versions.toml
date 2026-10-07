@@ -7,6 +7,9 @@ springdoc = "2.8.4"
 mapstruct = "1.6.3"
 
 [libraries]
+# Oracle(oracle-1007): 버전은 Spring Boot BOM 이 관리한다.
+ojdbc11 = { module = "com.oracle.database.jdbc:ojdbc11" }
+flyway-database-oracle = { module = "org.flywaydb:flyway-database-oracle" }
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }

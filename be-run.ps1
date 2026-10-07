@@ -118,7 +118,7 @@ function Wait-ProcessExit {
 # 인자가 없거나 옵션(--dry-run·--keep-port)뿐이면 모듈 대상은 기본값(BE_RUN_ARGS, 없으면 --all)에서 가져온다.
 # 모듈 플래그·--help·모르는 인자가 하나라도 있으면 기본값을 붙이지 않는다.
 $GivenArgs   = @($ScriptArgs | Where-Object { $_ })
-$OptionsOnly = @($GivenArgs | Where-Object { $_ -notmatch '^--(dry-run|keep-port)$' }).Count -eq 0
+$OptionsOnly = @($GivenArgs | Where-Object { $_ -notmatch '^--(dry-run|keep-port|pdb=.+)$' }).Count -eq 0
 if ($OptionsOnly) {
     $defaults = Read-RunEnvValue 'BE_RUN_ARGS'
     if ($defaults) {
@@ -140,6 +140,7 @@ foreach ($arg in $ScriptArgs) {
         '^--(all|full)$'   { foreach ($m in $BeModules.Keys) { if (-not $Selected.Contains($m)) { $Selected.Add($m) } } }
         '^--keep-port$'    { $KeepPort = $true }
         '^--dry-run$'      { $DryRun = $true }
+        '^--pdb=(.+)$'     { $env:BE_ORA_PDB = $Matches[1] }
         # 모듈 플래그(--<모듈>)는 카탈로그에 있는 이름만 받는다. 위 패턴들과 겹치지 않는다(--all·--full 은 모듈 이름이 아니다).
         { $_ -like '--*' -and $BeModules.Contains($_.Substring(2)) } {
             $m = $arg.Substring(2)
@@ -152,6 +153,17 @@ foreach ($arg in $ScriptArgs) {
 if ($Selected.Count -eq 0) {
     Write-DevError 'BE 실행 대상을 선택하세요: --all 또는 --mpn/--mcm/--mls/--mqc/--mpp/--analog'
     exit 2
+}
+
+# ── Oracle PDB 접속값(oracle-1007 b6) ────────────────────────────
+# BE_ORA_PDB(또는 --pdb=<PDB>)가 있으면 앱 JVM 이 물려받을 환경 변수로 접속값을 내보낸다. 없으면 아무것도 하지 않아
+# 종전 SQLite 동작 그대로다. 값은 be-run.sh 와 같다: DMES_ORA_PDB·DMES_ORA_HOST·DMES_ORA_PORT·DMES_ORA_URL.
+if ($env:BE_ORA_PDB) {
+    $env:DMES_ORA_PDB  = $env:BE_ORA_PDB.ToUpper()
+    if (-not $env:DMES_ORA_HOST) { $env:DMES_ORA_HOST = 'localhost' }
+    if (-not $env:DMES_ORA_PORT) { $env:DMES_ORA_PORT = '1521' }
+    $env:DMES_ORA_URL = "jdbc:oracle:thin:@//$($env:DMES_ORA_HOST):$($env:DMES_ORA_PORT)/$($env:DMES_ORA_PDB)"
+    Write-DevLog 'be' "Oracle PDB 접속값 전달: $($env:DMES_ORA_URL)"
 }
 
 # 모듈 전용 wrapper 가 있으면 그것을, 없으면 src\backend 공용 wrapper 를 쓴다.
