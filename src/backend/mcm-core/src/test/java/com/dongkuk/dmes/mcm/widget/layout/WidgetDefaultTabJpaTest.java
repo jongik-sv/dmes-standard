@@ -30,6 +30,7 @@ import com.dongkuk.dmes.mcm.widget.layout.service.WidgetLayoutWriter.LayoutItem;
 import com.dongkuk.dmes.mcm.widget.repository.SecUserWidgetRepository;
 import com.dongkuk.dmes.mcm.widget.repository.SecUserWidgetTabRepository;
 import com.dongkuk.dmes.mcm.widget.repository.WidgetUserLookupRepository;
+import com.dongkuk.dmes.mcm.widget.service.SecWidgetInstSplitWriter;
 import com.dongkuk.dmes.mcm.widget.service.SecWidgetTabWriter;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -62,6 +63,7 @@ class WidgetDefaultTabJpaTest {
     @Autowired WidgetDefaultTabWriter writer;
     @Autowired WidgetUserLookupRepository userLookup;
     @Autowired SecWidgetTabWriter shareWriter;
+    @Autowired SecWidgetInstSplitWriter instSplitWriter;
     @Autowired PlatformTransactionManager txManager;
     @PersistenceContext EntityManager em;
 
@@ -246,7 +248,7 @@ class WidgetDefaultTabJpaTest {
         when(identity.currentUserId()).thenReturn("userA");
         WidgetUserContextResolver resolver = mock(WidgetUserContextResolver.class);
         when(resolver.deptChain(org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
-        SecWidgetService service = new SecWidgetService(userTabRepository, userWidgetRepository, shareWriter, identity,
+        SecWidgetService service = new SecWidgetService(userTabRepository, userWidgetRepository, shareWriter, instSplitWriter, identity,
                 fixedTabs, layoutRepository, resolver, userLookup, txManager);
 
         Map<String, Object> result = new TransactionTemplate(txManager).execute(status -> {

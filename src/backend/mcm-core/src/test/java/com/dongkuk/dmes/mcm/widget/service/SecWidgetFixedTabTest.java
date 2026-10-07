@@ -58,6 +58,7 @@ class SecWidgetFixedTabTest {
     @Mock SecUserWidgetTabRepository tabRepository;
     @Mock SecUserWidgetRepository widgetRepository;
     @Mock SecWidgetTabWriter writer;
+    @Mock SecWidgetInstSplitWriter instSplitWriter;
     @Mock SecurityIdentity securityIdentity;
     @Mock WidgetFixedTabs fixedTabs;
     @Mock WidgetDefaultLayoutRepository layoutRepository;
@@ -238,6 +239,41 @@ class SecWidgetFixedTabTest {
 
         assertThat(list(result, "tabs")).extracting(t -> t.get("tabId")).doesNotContain("home").contains("tab-1");
         verify(writer, never()).moveTabs(anyString(), anyList());
+        verify(writer, never()).deleteTab(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("sharedInstSplits — 개인 탭 위젯만, 고정 instId 이거나 default- 접두일 때만 나눈다(w- 로 시작하는 사용자 instId·고정 탭 쪽·옛 행은 그대로)")
+    void sharedInstSplitsPicksOnlyOverlappingPersonalWidgets() {
+        List<SecUserWidget> widgets = List.of(
+                userWidget("userA", "tab-1", "c9", "N", null),           // 고정 탭 항목과 같음
+                userWidget("userA", "tab-1", "default-kpi", "N", null),  // 프런트 기본 배치 접두어
+                userWidget("userA", "tab-1", "w-mine", "N", null),       // 겹침 없음
+                userWidget("userA", "tab-2", "c9", "N", null),           // 다른 개인 탭도 같은 규칙, 위젯마다 새 ID
+                userWidget("userA", "home", "c9", "N", null),            // 옮기지 않은 옛 행은 대상이 아니다
+                userWidget("userA", "def-1", "default-kpi", "N", null));
+        int[] n = {0};
+
+        List<SecWidgetInstSplitWriter.Split> splits = SecWidgetService.sharedInstSplits(widgets, Set.of("c9"), () -> "n" + (++n[0]));
+
+        assertThat(splits).containsExactly(
+                new SecWidgetInstSplitWriter.Split("tab-1", "c9", "n1"),
+                new SecWidgetInstSplitWriter.Split("tab-1", "default-kpi", "n2"),
+                new SecWidgetInstSplitWriter.Split("tab-2", "c9", "n3"));
+    }
+
+    @Test
+    @DisplayName("search instId 분리 실패(DB 잠금 등) — 오류 없이 응답하고 행을 지우지 않으며, 다음 조회가 다시 시도한다")
+    void searchInstSplitFailureDoesNotBreakHome() {
+        when(tabRepository.findByUserIdOrderByTabSeqAsc("userA")).thenReturn(List.of(tab("userA", "tab-1", "내 홈", 0, "N")));
+        when(widgetRepository.findByUserId("userA")).thenReturn(List.of(userWidget("userA", "tab-1", "c9", "N", null)));
+        doThrow(new CannotAcquireLockException("busy")).when(instSplitWriter).splitInstIds(eq("userA"), anyList());
+
+        Map<String, Object> first = service.search(new SecWidgetSearchRequest());
+
+        assertThat(list(first, "tabs")).extracting(t -> t.get("tabId")).contains("tab-1");
+        service.search(new SecWidgetSearchRequest());
+        verify(instSplitWriter, times(2)).splitInstIds(eq("userA"), anyList());
         verify(writer, never()).deleteTab(anyString(), anyString());
     }
 
