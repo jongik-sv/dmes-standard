@@ -12,7 +12,8 @@
 ## 화면 골격 (`@dk-oasis/shared/layout`)
 
 - [PageLayout](page-layout.md): 화면 제목, 상단 버튼(조회·신규·저장·삭제·엑셀), 본문, 하단 화면 ID 를 한 틀로 묶고 버튼 권한(RBAC)과 F8 조회 단축키를 처리할 때 쓴다.
-- [SearchArea](search-area.md): 조회조건 입력칸을 격자로 배치하고 어느 입력에서든 Enter 로 조회가 실행되게 할 때 쓴다. 칸 하나는 SearchField 로 만든다.
+- [SearchArea](search-area.md): 조회조건 입력칸을 격자로 배치하고 어느 입력에서든 Enter 로 조회가 실행되게 할 때 쓴다. 칸 하나는 SearchField 로 만든다. 사용자별 조회 기본값(`autoSearch`·`defaultKey`·`dependsOn`)도 여기서 켠다.
+- [SearchSettings (조회 기본값 설정 메뉴·창)](search-settings-menu.md): 조회 영역 오른쪽 위의 설정 아이콘 「조회 기본값」과 그 메뉴·확인 창·설정 창이다. 사용자가 칸마다 기본값 규칙(고정 값·상대 날짜·마지막 조회값)을 정하는 UI 이고, SearchArea 가 스스로 그린다. 화면이 직접 쓰지 않는 내부 부품이다.
 - [ContentBody](content-body.md): 화면 본문을 좌우 또는 상하 패널로 나누고, 필요하면 드래그로 크기를 조절하고 패널을 최대화할 때 쓴다. 패널 하나는 ContentPanel 로 만든다.
 - [상세 폼 (DETAIL_TABLE_STYLE · DETAIL_LABEL_CELL · DETAIL_VALUE_CELL)](detail-form.md): 선택한 행의 상세 정보를 라벨-값 두 칸짜리 표로 보여 주고 수정할 때 쓴다.
 
@@ -114,6 +115,23 @@
 - `clearSearchHistory`: 포털 셸용
 - `readSearchHistory`: SearchField 내부용
 - `emitSearch`: PageLayout·SearchArea 내부용
+- `subscribeSearchReset`: SearchArea 내부용(초기화 이벤트 구독, 발행은 PageLayout)
+- `RANGE_PRESETS`: 조회 기본값 설정 창 내부용(기간 묶음 선택지)
+- `RELATIVE_DATE_PRESETS`: 조회 기본값 설정 창 내부용(상대 날짜 이름표)
+- `isValidIsoDate`: 조회 기본값 규칙 계산 내부용(search-area 문서의 사용자 기본값 참고)
+- `parseSearchDefaultRule`: 조회 기본값 저장소 내부용
+- `resolveRelativeDate`: 조회 기본값 규칙 계산 내부용
+- `resolveSearchDefault`: 조회 기본값 규칙 계산 내부용
+- `getPageSearchDefaults`: 조회 기본값 저장소 내부용(SearchArea·설정 창이 쓴다)
+- `getSearchDefaultsSource`: 조회 기본값 저장소 내부용
+- `getSearchDefaultsStatus`: 조회 기본값 저장소 내부용
+- `preloadSearchDefaults`: 포털 셸·SearchArea 내부용(조회 기본값 미리 받기)
+- `resetSearchDefaults`: 조회 기본값 저장소 내부용(시험·로그아웃 정리)
+- `saveSearchDefaults`: 조회 기본값 저장소 내부용(설정 창이 저장한다)
+- `setSearchDefaultsLocalForDev`: 개발 모드 확인용(조회 기본값 샘플 화면)
+- `subscribeSearchDefaults`: 조회 기본값 저장소 내부용
+- `readSearchLastValues`: 조회 기본값 설정 창 내부용(마지막 조회값 읽기)
+- `useSearchDefaultsArea`: SearchArea 내부용(조회 기본값 등록소)
 - `subscribeSearch`: PageLayout·SearchArea 내부용
 - `useContentMaximize`: ContentBody 최대화 내부용
 - `canDoButton`: 팝업 내부 버튼 권한 판정용(page-layout 문서 참고)

@@ -4,11 +4,10 @@
  * workOrderMng — 작업지시 조회. 화면 유형 D(마스터-디테일, 상하 분할) + E(등록 팝업) 표준 예제.
  * 규칙 정본: .claude/skills/mantine-aggrid-ui/references/screen-patterns.md §D·§E
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { ContentBody, ContentPanel, PageLayout, SearchArea, SearchField } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridBadge, GridLimitNotice, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
-import { DatePicker } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 
 import { searchOpers, searchWorkOrders } from "./api";
@@ -99,11 +98,6 @@ export default function WorkOrderMngPage() {
     [filters, showMessage],
   );
 
-  useEffect(() => {
-    void handleSearch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   /** 마스터 행을 누르면 디테일을 조회한다. 디테일 로딩은 별도 상태로 둔다. */
   const loadOpers = useCallback(
     async (row: Record<string, unknown>) => {
@@ -136,15 +130,11 @@ export default function WorkOrderMngPage() {
         { id: "btn_new", label: "신규", onClick: () => setRegisterOpen(true), disabled: isBusy, action: "save" },
       ]}
     >
-      <SearchArea onSearch={() => void handleSearch()}>
-        <SearchField label="계획일자">
-          <DatePicker value={filters.fromDt} onChange={(v) => setFilter("fromDt", v)} />
-        </SearchField>
-        <SearchField label="~">
-          <DatePicker value={filters.toDt} onChange={(v) => setFilter("toDt", v)} />
-        </SearchField>
-        <SearchField label="상태" type="select" options={WO_STATUS_OPTIONS} value={filters.woStatus} onChange={(v) => setFilter("woStatus", v)} />
-        <SearchField label="품번" value={filters.itemCd} onChange={(v) => setFilter("itemCd", v)} />
+      <SearchArea onSearch={() => void handleSearch()} autoSearch>
+        <SearchField label="계획일자" defaultKey="fromDt" type="date" value={filters.fromDt} onChange={(v) => setFilter("fromDt", v)} />
+        <SearchField label="~" type="date" value={filters.toDt} onChange={(v) => setFilter("toDt", v)} />
+        <SearchField label="상태" defaultKey="woStatus" type="select" options={WO_STATUS_OPTIONS} value={filters.woStatus} onChange={(v) => setFilter("woStatus", v)} />
+        <SearchField label="품번" defaultKey="itemCd" value={filters.itemCd} onChange={(v) => setFilter("itemCd", v)} />
       </SearchArea>
 
       <ContentBody root direction="column" resizable storageKey="mpp.pwo.workOrderMng">

@@ -48,11 +48,23 @@ MES 화면(`m-mpp`·`m-mqc`·`m-mls`·`m-mcm` 등)을 누가 만들어도, 어�
 
 ### 조회조건
 
+```tsx
+<SearchArea onSearch={() => void handleSearch()} autoSearch>
+  <SearchField label="품번" name="itemCd" value={filters.itemCd} onChange={(v) => setFilter("itemCd", v)} />
+  <SearchField label="상태" name="status" type="select" options={STATUS_OPTIONS} value={filters.status} onChange={(v) => setFilter("status", v)} />
+  <SearchField label="조회 기간" defaultKey="fromDt" type="date" value={filters.fromDt} onChange={(v) => setFilter("fromDt", v)} />
+  <SearchField label="~" type="date" value={filters.toDt} onChange={(v) => setFilter("toDt", v)} />
+</SearchArea>
+```
+
 - `<SearchArea onSearch={…}>` 로 감싼다(Enter 조회). `onSearch` 를 빠뜨리지 않는다.
-- 텍스트: `<SearchField label="품번" value onChange />`. 선택: `type="select"` + 첫 옵션 `{ value: "", label: "전체" }`.
-- 기간: SearchField 두 개, 두 번째 `label="~"`. SearchArea 가 한 칸으로 묶는다. `div`·`span`·`className="span-2"` 로 직접 묶지 않는다.
-- 기간 기본값은 오늘-7일 ~ 오늘이다: `formatDateStr(addDays(today(), -7))`, `formatDateStr(today())` (`@dk-oasis/shared/utils`). `today()`·`addDays()` 는 `yyyyMMdd` 를 돌려주므로 `formatDateStr` 로 `yyyy-MM-dd` 로 바꾼다. `formatDate` 는 UTC 로 계산해 하루가 밀릴 수 있으니 쓰지 않는다.
-- 필수 조회조건이 없으면 진입 시 1회 자동 조회한다(`useEffect(() => { void handleSearch(); }, [])`). 단, 첫 조회에는 반드시 상한을 건다(§성능 기본 구조). 상한 없는 전체 조회를 진입 자동 조회로 두지 않는다. 자동 조회가 있는 화면은 진행 중인 같은 조건 요청을 다시 보내지 않는다(가이드 R4).
+- 텍스트: `<SearchField label="품번" name="itemCd" value onChange />`. 선택: `type="select"` + 첫 옵션 `{ value: "", label: "전체" }`.
+- 칸마다 `name`(MDM 컬럼 사전 키) 또는 `defaultKey` 를 단다. 사용자별 조회 기본값(조회 영역 오른쪽 위 설정 아이콘)의 저장 키이고, 화면은 이 선언 말고 기본값 처리 코드를 두지 않는다. 라벨 글자는 키가 아니다([search-area](components/search-area.md) §사용자 기본값).
+- 조회 칸 `onChange` 는 함수형 갱신이다: `const setFilter = (k, v) => setFilters((p) => ({ ...p, [k]: v }))`. `setFilters({ ...filters, k: v })` 로 쓰면 기본값이 여러 칸에 한꺼번에 들어올 때 앞 칸 값이 사라진다.
+- 날짜: `type="date"` 를 쓴다(내장 `DatePicker`). 기간은 `type="date"` 두 칸이고 두 번째를 `label="~"` 로 둔다. SearchArea 가 한 칸으로 묶고 기본값 설정에서도 한 줄로 다룬다. `div`·`span`·`className="span-2"` 로 직접 묶지 않는다.
+- 기간 코드 기본값은 오늘-7일 ~ 오늘이다: `formatDateStr(addDays(today(), -7))`, `formatDateStr(today())` (`@dk-oasis/shared/utils`). `today()`·`addDays()` 는 `yyyyMMdd` 를 돌려주므로 `formatDateStr` 로 `yyyy-MM-dd` 로 바꾼다. `formatDate` 는 UTC 로 계산해 하루가 밀릴 수 있으니 쓰지 않는다.
+- 필수 조회조건이 없으면 진입 시 1회 자동 조회한다. `SearchArea` 에 `autoSearch` 를 달고 마운트 조회 `useEffect` 는 두지 않는다. 마운트 effect 는 사용자 기본값이 들어가기 전 조건으로 조회한다. `autoSearch` 는 기본값을 넣은 다음 커밋에서 `onSearch` 를 한 번 부른다(분리 창이 이어받은 값으로 시작했으면 부르지 않는다. 이어받기를 쓰는 화면은 `restored && 행 0건` 일 때만 조회하는 마운트 effect 를 둔다 — use-carry-state 규칙 5). 단, 첫 조회에는 반드시 상한을 건다(§성능 기본 구조). 상한 없는 전체 조회를 진입 자동 조회로 두지 않는다. 자동 조회가 있는 화면은 진행 중인 같은 조건 요청을 다시 보내지 않는다(가이드 R4).
+- 기준 칸이 바뀌면 다른 조건 칸을 비우고 다시 채워야 하는 화면은 그 칸에 `dependsOn="기준 칸 키"` 를 선언한다. 화면이 직접 비우지 않는다.
 
 ### 본문 배치
 
@@ -208,7 +220,8 @@ B 예제에서 오른쪽 `ContentPanel`·상세 상태·신규/저장/삭제 버
 | 저장형 행 상태 | Part B §6 MUST 이나 사용 화면 0 | `useGridDataManager` | 정책 MUST |
 | 상세 폼 | `FormGroup` 0, `DETAIL_TABLE_STYLE` 21 | `DETAIL_*` 표 | 다수 사용 |
 | 상세 패널 폭 | 360·380·440·460 | 460 | 표준값. `noticeMgmt` 는 본문 편집기가 넓어야 해 사용자 요청으로 50:50(2026-10-02 예외) |
-| 기간 조회조건 | `label="~"` 쌍 / `span-2` 안 인라인 묶음 | `label="~"` 쌍 | 인라인 스타일 없이 SearchArea 가 배치 |
+| 기간 조회조건 | `label="~"` 쌍 / `span-2` 안 인라인 묶음 | `type="date"` 두 칸의 `label="~"` 쌍 | 인라인 스타일 없이 SearchArea 가 배치, 사용자 기본값에서도 한 쌍으로 처리 |
+| 진입 자동 조회 | 마운트 `useEffect` / `SearchArea autoSearch` | `autoSearch` | 마운트 effect 는 사용자 기본값이 들어가기 전 조건으로 조회(2026-10-07) |
 | 행추가·행삭제 위치 | 상단 버튼 / 그리드 머리 | `GridPanel` 머리. 행삭제는 확인창 버튼(`buttons`) | 래퍼 내장 행추가. 내장 행삭제는 확인창이 없어 개선 후 시험에서 상단으로 새는 일이 있었다 |
 | 빈 목록·로딩 문구 | 화면마다 다름 | 래퍼 기본값 | 문구 통일 |
 | 상단 버튼 라벨 | "단위 등록" 등 업무명 포함 | 신규·저장·삭제·엑셀 | 화면 간 동일 |

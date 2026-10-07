@@ -40,7 +40,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│ A-FILTER                                              │
+│ A-FILTER                                          [⚙] │
 │ [주문일자 From] ~ [To]  [고객사 ▼]  [상태 ▼]  [주문번호]│
 │                                      [조회] [초기화]   │
 ├─────────────────────────┬────────────────────────────┤
@@ -53,6 +53,8 @@
 │ FOOTER                                   [엑셀]       │
 └──────────────────────────────────────────────────────┘
 ```
+
+> A-FILTER 오른쪽 위 `[⚙]` 는 「조회 기본값」 설정 아이콘이다. `SearchArea` 가 조건 칸 뒤에 자동으로 그리므로 구조도에는 위치만 표기하고 별도 컴포넌트로 설계하지 않는다. 날짜 기간은 `[주문일자 From] ~ [To]` 처럼 날짜 칸 두 칸 사이에 `~` 를 두어 표기한다.
 
 ## C.3. §4 그리드 컬럼 (기능설계서 §3.2와 일치)
 
@@ -84,8 +86,7 @@ OrderRegistrationPage                   ← m-mls/src/order/orderRegistration/Or
 │   ├── buttons=[조회, 초기화, 신규, 저장, 삭제, 확정, 취소, 엑셀]
 │   │                                      ← @dk-oasis/shared/form: Button
 │   ├── SearchArea (A-FILTER)              ← @dk-oasis/shared/layout: SearchArea
-│   │   ├── SearchField (S-001, S-002) 주문일자 From/To
-│   │   │   └── DatePicker                 ← @dk-oasis/shared/form: DatePicker
+│   │   ├── SearchField (S-001, S-002) 주문일자 From/To   ← 기간: type="date" 두 칸(label="~"), DatePicker 는 내장이라 별도 노드 없음
 │   │   ├── SearchField (S-003) 고객사
 │   │   │   └── ComboBox                   ← @dk-oasis/shared/form: ComboBox
 │   │   ├── SearchField (S-004) 상태
