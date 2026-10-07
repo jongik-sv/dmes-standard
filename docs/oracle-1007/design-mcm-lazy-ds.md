@@ -1,0 +1,111 @@
+# mcm 기본 DataSource 연결 지연 획득(LazyConnectionDataSourceProxy) 설계 메모
+
+- 작성: 2026-10-07, oracle-1007 ③c 후속(브랜치 `feat/ora-mcm-lazy-ds`, dev 1e93e6197 기준)
+- 상태: 시제품 구현·시험 완료. **운영(WildFly) 적용은 사용자 결정 대기**(기본 끔, local 만 켬)
+- 관련: ③c 연결 풀 고갈 교착(`SecWidgetService.search`), ③d 기본 풀 설정 읽기·local 누수 감지 30초
+
+## 1. 문제
+
+위젯 채팅(`WidgetChatService.send·reset`)은 OASIS 바깥 트랜잭션(txBiz)을 `NOT_SUPPORTED` 로 내려놓고 LLM 을 기다린다. 그 목적은 기다리는 동안 DB 트랜잭션·잠금·연결을 잡지 않는 것이었다. 실제로는 연결을 2개 쥔다(현재 dev 실측 2개, §5).
+
+1. **바깥 txBiz 연결.** OASIS(`SpringTransactionHandler.startTransaction`)는 REQUIRED·**READ_COMMITTED** 로 트랜잭션을 연다.
+   - spring-orm 7.0.7 `HibernateJpaDialect.beginTransaction` 은 격리 수준을 지정받으면 곧바로 `getPhysicalConnection()` 을 불러 풀에서 연결을 받는다. 연결에 격리 수준을 걸기 위해서다(바이트코드 line 133~136).
+   - 격리 수준이 없어도 Hibernate 7.2 `LogicalConnectionManagedImpl.begin` 이 `setAutoCommit(false)` 를 하려고 연결을 받는다.
+   - 내려놓아도(suspend) 이 연결은 풀로 돌아가지 않는다.
+2. **NOT_SUPPORTED 범위의 EntityManager 연결.** 범위 안에서도 트랜잭션 동기화가 켜져 있다(`SYNCHRONIZATION_ALWAYS`).
+   - 그래서 트랜잭션 없이 도는 파생 쿼리(대화 문맥 `findTop20…`, 도구 find_screen 의 내 메뉴 조회)가 범위에 묶인 EntityManager 를 연다(`EntityManagerFactoryUtils.doGetTransactionalEntityManager`).
+   - 그 EntityManager 는 `DELAYED_ACQUISITION_AND_HOLD`(HibernateJpaVendorAdapter 기본값) 때문에 연결을 범위가 끝날 때까지, 곧 LLM 대기 내내 쥔다.
+
+동시 채팅이 풀 크기(로컬 3)에 닿으면 다른 요청이 connectionTimeout 까지 멈춘다. LLM 대기가 30초를 넘으면 local 누수 감지(③d, 30초)도 경고를 낸다.
+
+## 2. 핵심 쟁점 — Lazy 프록시가 첫 연결을 어떻게 미루는가
+
+spring-jdbc 7.0.7 `LazyConnectionDataSourceProxy` 를 바이트코드로 확인했다.
+
+- `getConnection()` 은 실제 연결 대신 JDK 프록시(`ConnectionProxy`)를 돌려준다. 다음 메서드는 실제 연결 없이 처리한다.
+  - `setAutoCommit`·`setTransactionIsolation`·`setReadOnly`·`setHoldability`·`setCatalog`·`setSchema` 는 기록만 하고, 실제 연결을 받을 때 적용한다.
+  - `getAutoCommit`·`getTransactionIsolation`·`isReadOnly`·`getHoldability`·`getCatalog`·`getSchema` 는 기록값이나 기본값을 돌려준다.
+  - `commit`·`rollback` 은 실제 연결이 없으면 무시하고, `close` 는 실제 연결이 있을 때만 그 연결을 돌려준다. `getWarnings`·`clearWarnings`·`isClosed`·`equals`·`hashCode`·`toString` 도 연결 없이 처리한다.
+  - 그 밖의 메서드(`prepareStatement`·`createStatement`·`getMetaData`·`abort`·`unwrap` 대상 등)는 그때 실제 연결을 받는다.
+- **OASIS READ_COMMITTED 경로**는 다음 순서로 실제 연결 없이 지나간다.
+  1. `HibernateJpaDialect.beginTransaction` 이 `getPhysicalConnection()` 으로 받는 것은 프록시다.
+  2. `DataSourceUtils.prepareConnectionForTransaction` 의 `getTransactionIsolation()` 은 기본값(READ_COMMITTED)을 돌려준다. 이미 같은 값이라 `setTransactionIsolation` 은 부르지 않는다. 값이 다르면 기록만 한다.
+  3. Hibernate `begin` 의 `getAutoCommit()`·`setAutoCommit(false)` 도 기록만 한다.
+  4. 첫 SQL(`prepareStatement`)에서 실제 연결을 받고, 기록한 autoCommit 끔·격리 수준을 적용한다.
+- **Hibernate 의 메타데이터 접근.** `getMetaData()` 는 실제 연결을 연다. 그러나 Hibernate 는 EMF 를 만들 때(JdbcEnvironment) 한 번 읽을 뿐이고, 세션·트랜잭션마다 읽지 않는다.
+  - 실측: 트랜잭션 시작 직후 Hikari active 0, 첫 SQL 뒤 1, 끝난 뒤 0(`JpaConfigLazyConnectionTest`).
+- **기본값(autoCommit·격리 수준) 알려 주기.**
+  - `setDefaultAutoCommit`·`setDefaultTransactionIsolation` 으로 고정하지 않는다.
+  - 대신 처음 `getConnection()` 을 부를 때 `checkDefaultConnectionProperties()` 가 대상 풀의 실제 연결 하나로 한 번 감지한다. 감지한 연결은 바로 돌려준다.
+  - 이 첫 호출은 기동 때 EMF 를 만들면서 일어난다. 그래서 요청 처리 중에 감지 때문에 연결을 기다리는 일은 없다.
+  - WildFly 데이터소스에 `transaction-isolation` 이 걸려 있어도 그 값을 그대로 기본값으로 읽는다(DB·컨테이너 설정에 맞춰진다).
+
+## 3. 영향 범위
+
+| 대상 | 어느 DataSource 를 쓰나 | Lazy 를 켰을 때 |
+|---|---|---|
+| OASIS txBiz(JpaTransactionManager, READ_COMMITTED) | EMF 의 DataSource = 기본 `dataSource` 빈 | 첫 SQL 때 연결을 받는다. SQL 이 있는 서비스는 전과 같다. SQL 없이 끝나면 연결을 받지 않는다. 트랜잭션 의미(autoCommit 끔·격리·롤백)는 같다(시험 확인). |
+| JPA 기본 EMF(`JpaConfig.entityManagerFactory`) | `@Qualifier("dataSource")` | 위와 같다. JpaTransactionManager 는 EMF 에서 DataSource(=Lazy)를 찾아 ConnectionHolder 를 그 키로 묶는다. |
+| MyBatis biz(`cactus CactusMultiMybatisAutoConfiguration.sqlSessionFactoryBiz`) | `@Qualifier("dataSource")` = Lazy | `DataSourceUtils` 로 같은 키의 ConnectionHolder 를 찾아 JPA 트랜잭션 연결에 합류한다(JdbcTemplate 로 같은 경로를 시험에서 확인). |
+| MyBatis if·cmn, cactus extras(cmn·if·caravan) | 각자 풀(local 직결 Hikari·WildFly JNDI) — 기본 DS 와 공유하지 않는다 | 영향 없음(감싸지 않는다). |
+| 위젯 쿼리 실행기(`WidgetQueryConfig`) | 전용 풀이 있으면 그것(local), 없으면 기본 DS(dev JNDI·공유 모드) | 전용 풀은 감싸지 않는다. 공유 모드는 Lazy 연결로 실행한다. 아래 evict 보강이 필요하다. |
+| `WidgetReadOnlyJdbc.evict` | — | Hikari `evictConnection` 은 클래스 이름이 `com.zaxxer.hikari.` 로 시작하는 연결만 뺀다(Hikari 7.0.2 바이트코드). Lazy 프록시 연결은 조용히 무시된다. → `ConnectionProxy.getTargetConnection()` 으로 꺼내 빼도록 고쳤다(시험 추가). |
+| 감사 inspector(`McmAuditStatementInspector`) | SQL 문자열만 다룬다 | 영향 없음. |
+| Flyway(`McmFlywayConfig`) | 스키마 주인 계정으로 url 직결(기본 DS 를 쓰지 않는다) | 영향 없음. |
+| 누수 감지(③d, local 30초) | Hikari 가 빌림~반납 시간을 잰다 | 빌림이 첫 SQL 로 늦춰진다. 채팅은 LLM 대기 중 빌린 연결이 없어 30초 경고가 사라진다. SQL 을 하는 트랜잭션은 전과 같다. |
+| 종료 처리 | — | `LazyConnectionDataSourceProxy` 에는 `close` 가 없다. 스프링이 종료 때 Hikari 를 닫지 않게 된다. → 감싸개 `LazyPrimaryDataSource` 가 직접 만든 풀만 닫는다(JNDI 는 닫지 않음). |
+
+## 4. WildFly JNDI 경로
+
+- `JndiDataSourceLookup` 결과를 그대로 감싼다(`new LazyPrimaryDataSource(jndi, null)`). 컨테이너 풀을 닫지 않는다.
+- 컨테이너 풀은 `getConnection` 시점만 늦춰질 뿐이다. 반납은 Lazy 프록시 `close` → 컨테이너 연결 `close` 로 전과 같다.
+- 확인할 것(운영 적용 전 dev WildFly 에서):
+  1. 데이터소스가 `jta=true` 이고 Spring 이 resource-local(JpaTransactionManager)로 쓰는 지금 구성이 그대로인지. Lazy 는 JTA 와 무관하지만, CCM(cached-connection-manager) debug 가 「요청 안에서 닫지 않은 연결」을 보고하는지 기동·요청 로그를 본다.
+  2. 컨테이너 데이터소스의 `transaction-isolation`·`new-connection-sql` 이 감지한 기본값과 맞는지. 첫 `getConnection` 시점의 감지 로그가 debug 에만 남으므로 필요하면 잠시 debug 로 본다.
+  3. dev 는 위젯 쿼리 실행기가 공유 모드다. evict 보강이 컨테이너 연결(Hikari 아님)에서는 빼지 않고 `abort` 만 하는 기존 동작과 같은지.
+  4. `pool-prefill`·`min-pool-size` 로 미리 연 연결 수, 그리고 요청당 사용 시간 지표가 바뀌었는지(빌림이 첫 SQL 로 늦춰진다).
+
+## 5. 대안 비교(실측)
+
+- 측정: mcm-core `WidgetChatPoolHold*JpaTest`. clone PDB, 풀 3·유휴 0·connectionTimeout 4초, OASIS 흉내 바깥 트랜잭션 REQUIRED·READ_COMMITTED.
+- 「LLM 대기 중 연결」: 가짜 LLM 이 불릴 때 Hikari activeConnections 를 잰다. 첫 호출은 문맥 읽기 뒤, 둘째 호출은 도구 실행 뒤다.
+- 「동시 3」: 채팅 3개가 LLM 대기에 들어간 동안 다른 요청(바깥 트랜잭션 안 채팅 기록 조회)을 하나 더 보낸다.
+
+| 안 | LLM 대기 중 쥔 연결 | 동시 3 채팅 + 다른 요청 | 바꾸는 main 파일 | 위험 |
+|---|---|---|---|---|
+| 현재 dev | **2, 2** | 측정 안 함(아래 두 단독안보다 나쁘다) | — | 채팅 동시 요청이 풀을 바닥낸다. 30초 넘는 LLM 대기는 누수 경고를 낸다. |
+| (가) 채팅 안 읽기를 짧은 REQUIRED(읽기 전용, 늘 롤백)로 묶기 | **1, 1** | 셋 다 LLM 대기에 들어가지 못했다. 바깥 연결 3개로 풀이 차서 Writer 가 연결을 못 받았고, 채팅 2건이 연결 시간 초과로 실패했다(20초 관찰). | 1(`WidgetChatService`) | 낮음. 채팅에만 영향이 있다. 도구 실행이 「트랜잭션 없음」에서 「짧은 읽기 전용 트랜잭션」으로 바뀐다(기존 시험 단언 수정). |
+| (나) Lazy 프록시 앱 전역만 | **1, 1** | LLM 대기 중 3개를 쥐었다. 다른 요청은 4.07초 뒤 시간 초과로 실패했고, 채팅 2건도 실패했다. | 2 + yml 2 + evict 1 | 중간. 앱 전역에서 연결을 받는 시점이 바뀐다(§3·§4). |
+| **(다) 둘 다(권고)** | **0, 0** | LLM 대기 중 0개를 쥐었다. 다른 요청은 4ms 만에 성공했고, 채팅 실패는 0건이다. | (가)+(나) | (나)와 같다. 스위치로 (가)만 남길 수 있다. |
+
+권고는 **(다)** 다.
+- (가)는 스위치와 무관하게 늘 켠다. 단독으로도 2개를 1개로 줄이고 위험이 낮다.
+- (나)는 `dmes.datasource.lazy-connection` 스위치로 둔다.
+  - local 은 기본으로 켠다.
+  - application.yml(운영·dev 공통)은 기본으로 끈다. 운영 적용은 dev WildFly 에서 §4 를 확인한 뒤 사용자 결정으로 켠다.
+
+## 6. 시제품 구현
+
+- `mcm/api config/LazyPrimaryDataSource`: `LazyConnectionDataSourceProxy` 를 상속하고 `AutoCloseable` 을 구현한다. 직접 만든 풀만 닫는다.
+- `mcm/api config/JpaConfig.dataSource`: 스위치가 켜져 있으면 Hikari·JNDI 모두 감싼다(JNDI 는 닫지 않음).
+- yml 스위치:
+  - `application.yml`: `dmes.datasource.lazy-connection: ${DMES_DATASOURCE_LAZY_CONNECTION:false}`
+  - `application-local.yml`: 같은 키에 기본값 `true`
+- `mcm-core WidgetChatService`: 대화 문맥(`context`)과 도구 실행(`toolBox.run`)을 짧은 읽기 전용 트랜잭션(`readTx`)으로 묶는다.
+  - 늘 롤백한다. 안쪽 실패가 rollback-only 를 걸어도 `UnexpectedRollbackException` 이 나지 않는다.
+- `mcm-core WidgetReadOnlyJdbc.evict`: `ConnectionProxy` 면 실제 연결을 꺼내 Hikari 에서 뺀다.
+
+## 7. 위험과 롤백
+
+- **롤백**: `dmes.datasource.lazy-connection=false`(또는 env `DMES_DATASOURCE_LAZY_CONNECTION=false`)로 두고 재기동하면 전과 같다. (가)는 스위치와 무관하게 남지만 단독으로도 안전하다(현재 dev 대비 연결 1개 감소).
+- **남는 위험**:
+  - 트랜잭션 시작 때 연결을 받아야 하는 코드: 예컨대 트랜잭션 시작 직후 `DataSourceUtils.getConnection` 의 실제 연결에 세션 상태를 거는 코드다. 지금 mcm·mcm-core·cactus 에서 찾지 못했다. 그런 코드도 첫 메서드 호출에서 실제 연결을 받으므로 동작은 같고, 받는 시점만 늦다.
+  - 연결 획득 실패가 트랜잭션 시작이 아니라 첫 SQL 에서 난다. 오류의 스택·메시지 위치가 바뀐다(예: `CannotCreateTransactionException` 대신 SQL 실행 시점의 `JDBCConnectionException`). 오류 코드를 매핑하는 곳이 시작 단계 예외에 기대고 있는지 운영 로그로 확인한다.
+  - 처음 `getConnection` 때의 기본값 감지 연결 1회.
+  - SQL 이 하나도 없는 트랜잭션의 `commit`·`rollback` 은 DB 에 가지 않는다(의도한 동작이다).
+  - Hikari 지표(active·usage)의 의미가 「트랜잭션 수」에서 「SQL 이 있는 트랜잭션 수」로 바뀐다.
+
+## 8. 사용자 결정
+
+1. 운영(WildFly dev·prod)에 `dmes.datasource.lazy-connection` 을 켤지, 켠다면 언제 어떤 순서로 켤지(dev WildFly 에서 §4 확인 → prod).
+2. (가)의 동작 변경(도구 실행이 짧은 읽기 전용 트랜잭션 안에서 돈다)을 그대로 둘지.

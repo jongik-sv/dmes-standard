@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.sql.DataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.datasource.ConnectionProxy;
 
 /**
  * 쿼리 위젯 SQL 을 <b>읽기 전용</b>으로 실행하는 연결 범위(스펙 2026-10-02-widget-admin-generic §7.3). 어느 DataSource 든 실행마다:
@@ -244,8 +245,11 @@ public final class WidgetReadOnlyJdbc {
         /**
          * Hikari 풀이 직접 내준 연결만 뺀다(Hikari 연결이 아니면 아무것도 하지 않는다 — 그때도 앞선 abort 가 이미 끊었다). 뺐으면 true.
          * 끊긴 뒤에도 프록시의 {@code isClosed()} 는 false 라 Hikari 는 이 연결을 주인으로 보고 바로 뺀다.
+         * 기본 DataSource 가 스프링 연결 프록시(지연 획득 {@code LazyConnectionDataSourceProxy} 등, design-mcm-lazy-ds.md)면 그 안의
+         * Hikari 연결을 꺼내 뺀다 — 감싼 연결은 Hikari 연결이 아니라 그대로면 빼지 못한다.
          */
         static boolean evict(DataSource ds, Connection con) throws SQLException {
+            if (con instanceof ConnectionProxy proxy) con = proxy.getTargetConnection();
             if (!con.getClass().getName().startsWith("com.zaxxer.hikari.")) return false;
             if (!ds.isWrapperFor(com.zaxxer.hikari.HikariDataSource.class)) return false;
             ds.unwrap(com.zaxxer.hikari.HikariDataSource.class).evictConnection(con);

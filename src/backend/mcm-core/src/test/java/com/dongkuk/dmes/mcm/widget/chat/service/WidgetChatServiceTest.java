@@ -422,11 +422,12 @@ class WidgetChatServiceTest {
 
     @Test
     @DisplayName("OASIS 처럼 바깥 트랜잭션(REQUIRED) 안에서 불러도 사용자 메시지는 따로 커밋돼 바깥 롤백 뒤에도 남는다. "
-            + "LLM 호출·도구 실행 동안에는 트랜잭션을 잡지 않는다")
+            + "LLM 호출 동안에는 트랜잭션을 잡지 않고, 도구 실행은 바깥이 아닌 짧은 읽기 전용 트랜잭션 안에서 한다")
     void userMessageSurvivesOuterRollback() {
         List<Boolean> txActiveDuringLlm = new ArrayList<>();
         List<Integer> committedDuringLlm = new ArrayList<>();
         List<Boolean> txActiveDuringTool = new ArrayList<>();
+        List<Boolean> readOnlyDuringTool = new ArrayList<>();
         TransactionTemplate fresh = new TransactionTemplate(transactionManager);
         fresh.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         LlmClient probe = (system, messages, tools) -> {
@@ -436,6 +437,7 @@ class WidgetChatServiceTest {
         };
         when(screenFinder.find(eq("위젯"), anyInt())).thenAnswer(inv -> {
             txActiveDuringTool.add(TransactionSynchronizationManager.isActualTransactionActive());
+            readOnlyDuringTool.add(TransactionSynchronizationManager.isCurrentTransactionReadOnly());
             return List.of();
         });
         llm.then(callTool("t1", "find_screen", Map.of("keyword", "위젯")))
@@ -452,7 +454,9 @@ class WidgetChatServiceTest {
         });
         assertThat(txActiveDuringLlm).as("LLM 호출 동안 트랜잭션 없음").containsExactly(false, false);
         assertThat(committedDuringLlm).as("LLM 을 부를 때 질문은 이미 커밋돼 있다").containsExactly(1, 1);
-        assertThat(txActiveDuringTool).as("도구 실행 동안 트랜잭션 없음").containsExactly(false);
+        // 도구 실행은 짧은 읽기 전용 트랜잭션 — 범위 EntityManager 가 LLM 대기 내내 연결을 쥐지 않게(design-mcm-lazy-ds.md).
+        assertThat(txActiveDuringTool).as("도구 실행은 짧은 트랜잭션 안").containsExactly(true);
+        assertThat(readOnlyDuringTool).as("그 트랜잭션은 읽기 전용").containsExactly(true);
     }
 
     @Test

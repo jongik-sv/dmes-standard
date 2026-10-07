@@ -40,6 +40,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -321,6 +322,42 @@ class WidgetQueryReadOnlyTest {
             }
         }
         assertThat(admin.queryForObject("SELECT COUNT(*) FROM " + TBL_T + " WHERE ID = 200", Long.class)).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("기본 DataSource 가 지연 획득 프록시(LazyConnectionDataSourceProxy)로 감싸여 있어도 되돌리지 못한 연결은 끊고 Hikari 풀에서 빠진다")
+    void connectionThatCannotBeRestoredIsEvictedThroughLazyProxy() throws Exception {
+        AtomicBoolean failRestore = new AtomicBoolean(true);
+        List<String> calls = new CopyOnWriteArrayList<>();
+        HikariDataSource faulty = new HikariDataSource() {
+            @Override
+            public void evictConnection(Connection connection) {
+                calls.add("evict:" + connection.getClass().getName().startsWith("com.zaxxer.hikari."));
+                super.evictConnection(connection);
+            }
+        };
+        faulty.setPoolName("widget-query-test-faulty-lazy");
+        faulty.setMaximumPoolSize(1);
+        faulty.setMinimumIdle(0);
+        faulty.setDataSource(failingRestoreDataSource(
+                new DriverManagerDataSource(McmCoreOraTestDb.url(), McmCoreOraTestDb.APP_USER, McmCoreOraTestDb.password()), failRestore, calls));
+        extraPools.add(faulty);
+        Connection before;
+        try (Connection c = faulty.getConnection()) {
+            before = c.unwrap(Connection.class);
+        }
+        calls.clear();
+
+        WidgetReadOnlyJdbc ro = new WidgetReadOnlyJdbc(new LazyConnectionDataSourceProxy(faulty));
+        Integer one = ro.execute(con -> 1);
+        assertThat(one).isEqualTo(1);
+
+        assertThat(calls).contains("abort:physical", "evict:true");
+        assertThat(calls.indexOf("abort:physical")).isLessThan(calls.indexOf("evict:true"));
+        failRestore.set(false);
+        try (Connection c = faulty.getConnection()) {
+            assertThat(c.unwrap(Connection.class)).as("빠진 뒤에는 새 물리 연결").isNotSameAs(before);
+        }
     }
 
     @Test
