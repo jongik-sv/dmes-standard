@@ -2,6 +2,8 @@
 -- MCM_SOURCE Oracle 기준선 V1 (oracle-1007 c1, 2026-10-07)
 --
 -- 적용 방식: 스키마 폴더마다 Flyway 하나. 이 폴더는 defaultSchema=MCM_SOURCE 로 돈다. DDL 은 접두 없이 쓴다.
+-- 전제: Oracle 23 이상. Flyway 는 이 스키마의 주인(MCM_SOURCE)으로 접속한다 — 끝의 GRANT 는 표 주인만 줄 수 있고,
+--   ${app_user} 로 접속하면 자기 자신에게 주는 꼴이 되어 ORA-01749 로 실패한다. ${app_user} 사용자가 먼저 있어야 한다.
 -- 내용: 마스터코드 원장(편집·DML 대상) 엔티티 MasterCode·MasterCodeCategory·MasterCodeDetail(@Table(schema="MCM_SOURCE"))
 --   를 Hibernate OracleDialect(23)로 내보낸 것. 운영 조회 사본 3표와 VI_MCM_CODE_ACCESS 는 MCMAPUSER V1 에 있다.
 -- 권한: mcm 앱은 MCMAPUSER 로 접속해 원장을 편집한다 — 끝의 GRANT 대상은 Flyway 자리표시자 ${app_user}

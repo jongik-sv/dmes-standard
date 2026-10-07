@@ -4,6 +4,9 @@
 -- 적용 방식: 스키마 폴더마다 Flyway 하나. 이 폴더는 defaultSchema=MCMAPUSER 로 돈다.
 --   DDL 은 스키마 접두 없이 쓴다 — 접속(또는 defaultSchema) 사용자의 스키마에 만든다.
 --   런타임 SQL 의 접두(MCMAPUSER.)는 그대로 유지한다(README §0.4).
+-- 전제: Oracle 23 이상(BOOLEAN 열·30자 넘는 제약 이름). Flyway 는 이 스키마의 주인(MCMAPUSER)으로 접속한다.
+--   MCM_SOURCE·MCM_BACKUP·MCAAPUSER 기준선은 MCMAPUSER 에게 GRANT 하므로, 이 사용자가 먼저 있어야 한다(적용 순서는 무관).
+-- 시퀀스 SEQ_MCM_MOM_TC_SEND·SEQ_MCM_MOM_TC_ERROR 는 1 부터 시작한다 — 기존 데이터를 옮겨 넣으면 MAX(키)+1 로 다시 맞춘다.
 -- 내용: mcm 기본 영속성 단위(JpaConfig packagesToScan — cactus.security.auth·cactus.mastercode·com.dongkuk.dmes.mcm)
 --   중 @Table(schema="MCMAPUSER") 엔티티와 접두 없는 엔티티(TB_SEC_*·위젯·샘플 등 — biz 접속 사용자 = MCMAPUSER 에 놓인다)를
 --   Hibernate OracleDialect(23) 로 내보낸 것 + 엔티티가 없는 Java DDL(SchemaArtifactsMssql/Sqlite) 객체.
@@ -997,6 +1000,9 @@ create index IX_SEC_SCREEN_USAGE_LOG_PAGE
 -- 엔티티가 없는 객체 (SchemaArtifactsMssql·SchemaArtifactsSqlite 의 마지막 상태)
 -- ----------------------------------------------------------------------------
 
+-- MOM TC 에러 로그 키 — 엔티티 MomTcError 는 키를 직접 받고, cactus DmomMapper.xml 의 INSERT 가 이 시퀀스로 SQ_VAL 을 채운다.
+create sequence SEQ_MCM_MOM_TC_ERROR start with 1 increment by 1;
+
 -- 메뉴 폴더(모듈·그룹) — SecMenuNativeRepository 가 TB_MCM_SEC_MENU 와 조인해 트리를 만든다.
 -- FULL_SEQ 는 7자리 인코딩 숫자(모듈 백만·그룹 만). TB_MCM_SEC_MENU.FULL_SEQ 는 문자열이다.
 create table TB_MCM_SEC_MENU_FLD (
@@ -1013,7 +1019,9 @@ create table TB_MCM_SEC_MENU_FLD (
 );
 
 -- 마스터코드 운영 조회 사본 3표 — 원장은 MCM_SOURCE(엔티티 MasterCode·MasterCodeCategory·MasterCodeDetail).
--- 동기화 화면이 MCM_SOURCE → MCMAPUSER 로 행을 복사한다. MSSQL 판(SELECT INTO ... WHERE 1=0)과 열 구성이 같고 PK 를 더했다.
+-- 동기화 화면(CommSyncMngService)이 MCM_SOURCE → MCMAPUSER 로 DELETE(MASTER_CODE 기준) 후 INSERT ... SELECT * 로 복사한다.
+-- SELECT * 복사라 열 순서가 원장과 같아야 한다. MSSQL 판(SELECT INTO ... WHERE 1=0)처럼 PK 를 두지 않는다 —
+-- 원장에서 CODE_ID 의 MASTER_CODE 가 바뀌면 옛 행이 남아 PK 가 동기화를 막기 때문이다(동작 보존).
 create table TB_MCM_CODE_CATEGORY (
     SORT_SEQ number(10,0),
     C_AT timestamp(6),
@@ -1027,8 +1035,7 @@ create table TB_MCM_CODE_CATEGORY (
     U_SVC_ID varchar2(100 char),
     U_USR_ID varchar2(100 char),
     CATEGORY_ID varchar2(180 char) not null,
-    CATEGORY_NM varchar2(180 char),
-    constraint PK_TB_MCM_CODE_CATEGORY primary key (MASTER_CODE, CATEGORY_ID)
+    CATEGORY_NM varchar2(180 char)
 );
 
 create table TB_MCM_CODE_DETAIL (
@@ -1053,8 +1060,7 @@ create table TB_MCM_CODE_DETAIL (
     CODE_VAL_REF3 varchar2(300 char),
     CODE_VAL_REF4 varchar2(300 char),
     CODE_VAL_REF5 varchar2(300 char),
-    CODE_VAL_REMARK varchar2(300 char),
-    constraint PK_TB_MCM_CODE_DETAIL primary key (CODE_VAL, MASTER_CODE, CATEGORY_ID)
+    CODE_VAL_REMARK varchar2(300 char)
 );
 
 create table TB_MCM_CODE_MASTER (
@@ -1082,8 +1088,7 @@ create table TB_MCM_CODE_MASTER (
     MASTER_CODE_REF2 varchar2(300 char),
     MASTER_CODE_REF3 varchar2(300 char),
     MASTER_CODE_REF4 varchar2(300 char),
-    MASTER_CODE_REF5 varchar2(300 char),
-    constraint PK_TB_MCM_CODE_MASTER primary key (CODE_ID)
+    MASTER_CODE_REF5 varchar2(300 char)
 );
 
 -- 코드 선택 팝업(masterCodeSelPop) 조회 뷰 — 자기 스키마의 사본 3표를 조인한다(원장 직접 조인 안 함, 동기화 시차 의도).
