@@ -63,12 +63,12 @@
 이 문서가 공통 기본값의 정본이다. 앱은 엔티티마다 매핑을 바꾸지 않고 설정에서 맞춘다.
 
 ```yaml
-spring.jpa.properties.hibernate.type.preferred_boolean_jdbc_type: BIT       # boolean 칸을 NUMBER(1) 로 유지
+spring.jpa.properties.hibernate.type.preferred_boolean_jdbc_type: TINYINT   # boolean 칸을 NUMBER(1,0) 로 유지
 spring.jpa.properties.hibernate.type.preferred_instant_jdbc_type: TIMESTAMP # Instant 감사 칸(KST 로 저장)
 # hibernate.jdbc.time_zone 은 넣지 않는다(JVM 기본 Asia/Seoul)
 ```
 
-- `preferred_boolean_jdbc_type=BIT`: 운영 Oracle 이 23 미만일 수 있어 기준선의 boolean 칸은 `NUMBER(1)` 로 둔다. Spring Boot 4.0.6 이 관리하는 Hibernate 7.2.12 의 `OracleDialect` 는 Oracle 전용 legacy boolean 설정이 없어, 이 값이 없으면 23 이상에서 `BOOLEAN` 을 기대해 validate 가 실패한다(b0 에서 `TB_MDM_COLUMN.REQUIRED` 로 확인). 설정은 ora-mdm 이 정했고 mdm m2 에서 validate 로 확인한다.
+- `preferred_boolean_jdbc_type=TINYINT`: 운영 Oracle 이 23 미만일 수 있어 기준선의 boolean 칸은 `NUMBER(1,0)` + `CHECK (0,1)` 로 둔다. Spring Boot 4.0.6 이 관리하는 Hibernate 7.2.12 의 `OracleDialect` 는 Oracle 전용 legacy boolean 설정이 없어, 이 값이 없으면 23 이상에서 `BOOLEAN` 을 기대해 validate 가 실패한다(b0 에서 `TB_MDM_COLUMN.REQUIRED` 로 확인). 처음에는 `BIT` 로 정했으나 철회했다. 23 이상에서 `BIT` 는 boolean 으로 매핑돼 `NUMBER(1)` 칸 validate 가 실패한다(ora-mcm-core 실측, Hibernate 7.2.12·DB 23 계열). `TINYINT`(·`SMALLINT`·`INTEGER`·`NUMERIC`)는 오류가 0 이라 **23 미만·이상 모두 통하는 값**이다. 이 설정은 ora-mdm·ora-mcm-core 가 각 앱에서 validate 로 확인한다.
 
 ### 3.2 운용 규칙(Podman VM 2GB 기준, 사용자 결정)
 
