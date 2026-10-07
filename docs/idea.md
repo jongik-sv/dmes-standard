@@ -47,6 +47,8 @@
 
 ### 위젯 관련
 
+- 위젯 칸 설명의 화면 ID 예시 정리(2026-10-07 보류): 공지가 MCM 으로 옮겨져 화면 ID 가 `mcm:lsh/noticeMgmt` 가 됐는데, 메인 mdm.db 의 위젯 linkPageId 칸 설명과 `scripts/mdm-meta/columns-widget-2026-10-05.json` 예시는 아직 `mls:lsh/noticeMgmt` 다. 공용 DB 쓰기라 지금은 그대로 둔다.
+
 - 회사/부서별 위젯은 기본 제공, 기본 제공 위젯 화면은 삭제 불가. ✅ 완료(2026-10-05, 5f57d51f)
 - 위젯 화면 공유
   - 특정 유저에게 위젯 화면 전달 기능
@@ -103,6 +105,8 @@
 - 로그인 잠금과 계정 삭제가 둘 다 `USE_TP='N'` 이라 구분되지 않는다. 잠긴 계정 로그인 응답도 ACCOUNT_LOCKED 가 아니라 ACCOUNT_DISABLED 로 나가고, 잠금을 푸는 길은 비밀번호까지 초기화하는 '계정 재생성'뿐이다(관리자 비밀번호 초기화는 잠금·실패 횟수를 풀지 않고, `unlockUser` 는 부르는 곳이 없다). 잠금 전용 표시 칸과 비밀번호를 건드리지 않는 잠금 해제 경로(화면·API)를 설계하자(2026-10-03 로그인 잠금 롤백 수정 중 발견).
 
 ### 리팩토링 후속
+
+- 스킬 윈도우 실기 확인(2026-10-07, 나중에): 스킬을 python 없이 node·Git Bash 로 옮긴 뒤 실제 윈도우 PC 에서 확인할 18건과 동봉 jq.exe 1.8.2 실행 확인이 남았다. 목록: docs/superpowers/specs/2026-10-07-skills-windows-compat.md §8.2. 그때 `kill -0` 직접 사용 약 10곳을 compat_pid_alive 로 바꾸는 일도 함께 한다.
 
 - m-mcm 화면의 OASIS 호출 복사본 20개를 shared 공통 계층으로 옮기기 — 정리 문서: [docs/refactor-2026-10/m-mcm-api-commonization.md](refactor-2026-10/m-mcm-api-commonization.md) (2026-10-04)
   - 필요성: 같은 unwrap 로직이 20벌 복사돼 있고, 프론트 가이드 §7-A-2 와 스킬 예제가 이 복사 코드를 싣고 있어 새 화면·새 고객사 프로젝트마다 늘어난다. 오류 문구 선택 C(기본 문구 + 항목명 상세)를 m-mcm 에 넓히려면 공통 계층이 필요하다.
