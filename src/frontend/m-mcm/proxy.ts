@@ -67,6 +67,8 @@ const RBAC_POLICY: RbacPolicyConfig = {
     // BE EndpointPermissionFilter.AUTH_ONLY_OBJ_ACTION_PREFIXES 의 "screenusage/record" 와 동기화.
     "/api/mcm/oasis/screenUsage/record",
     "/api/mcm/oasis/secWidget/", // 포털 홈 위젯 탭·배치(본인 데이터, 5 action 전부) — BE EndpointPermissionFilter 와 동기화
+    // 조회 칸 사용자 기본값(본인 데이터, search·savePage·resetPage, 설계 2026-10-07-search-defaults §5.3) — BE EndpointPermissionFilter 와 동기화.
+    "/api/mcm/oasis/secSrchDflt/",
     // 위젯 B·C·D 사용자용(스펙 2026-10-02-widget-admin-generic §5.1) — BE EndpointPermissionFilter 와 동기화.
     // 관리자용 commWidgetMng(정의 저장·SQL 미리보기·기본 배치·미디어 올리기)은 메뉴 RBAC 이라 여기 넣지 않는다.
     "/api/mcm/oasis/widgetDef/list", // 위젯 정의 목록 + 부서 기준 「홈」 기본 배치

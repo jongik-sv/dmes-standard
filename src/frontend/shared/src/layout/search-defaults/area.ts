@@ -1,0 +1,350 @@
+"use client";
+
+/**
+ * 조회 칸 사용자 기본값 — SearchArea 등록소와 넣기 흐름 (설계 2026-10-07-search-defaults-design §6).
+ *
+ * - SearchArea 가 컨텍스트로 등록소를 내려주고, 대상 SearchField 가 칸 정보·지금 값 읽기·값 넣기를 등록한다(children 을 들여다보지 않는다).
+ * - 넣기는 마운트 때 한 번: SearchArea 의 layout effect(자식 칸 등록이 끝난 같은 커밋)에서 규칙이 있는 칸마다 `onChange(값)` 을 부른다.
+ *   지금 값과 같으면 부르지 않는다. 다시 넣기는 하지 않고, 다음 커밋에 값이 다르면 개발 모드에서만 경고한다(§6.2 4단계 —
+ *   handoff 처럼 화면 effect 가 정한 값을 덮지 않으려고).
+ * - 생략: `defaults={false}`, 분리 창이 이어받은 값으로 시작함(useCarryRestored), pageId 없음, 대화 상자(role="dialog") 안.
+ * - 저장소가 아직 준비 중이면 최대 1.5초 기다린다. 그동안 사용자가 고친 칸은 넣지 않는다. 넘으면 넣지 않고 끝낸다.
+ * - autoSearch: 넣기가 끝난 다음 커밋의 effect 에서 onSearch 를 한 번 부른다(그 커밋의 onSearch 가 새 상태를 잡고 있다). 이어받은 값으로 시작했으면
+ *   부르지 않는다(화면의 useCarryRefetch 가 맡는다). 사용자가 한 조회가 아니므로 emitSearch 를 내지 않는다.
+ * - 초기화(emitSearchReset): 사용자 기본값을 다시 넣는다. 「마지막 조회값」 칸은 넣지 않는다(초기화는 조건을 비우려는 동작).
+ * - 조회(emitSearch): 등록된 칸의 지금 값을 마지막 조회값으로 적는다.
+ */
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Context, type RefObject } from "react";
+
+import { useCarryRestored } from "../../portal-shell/carry-state";
+import { getCurrentUser, peekCurrentUser, subscribeCurrentUser } from "../../portal-shell/current-user";
+import { useTabPage } from "../../portal-shell/tab-page-context";
+import { useIsomorphicLayoutEffect } from "../../hooks/use-isomorphic-layout-effect";
+import { subscribeSearch, subscribeSearchReset } from "../search-history-bus";
+import { readSearchLastValues, writeSearchLastValues } from "./last-values";
+import { resolveSearchDefault, type SearchValueType } from "./rule";
+import {
+  getPageSearchDefaults,
+  getSearchDefaultsStatus,
+  preloadSearchDefaults,
+  subscribeSearchDefaults,
+} from "./store";
+
+/** 저장소가 준비되기를 기다리는 한도(설계 §6.2). */
+export const SEARCH_DEFAULTS_WAIT_MS = 1500;
+
+export interface SearchDefaultsFieldInfo {
+  /** 칸의 키(`defaultKey ?? name`, 기간 To 는 `{From 키}~to`). scope 접두는 붙지 않은 값이다. */
+  fieldKey: string;
+  valueType: SearchValueType;
+  label: string;
+  meta?: string;
+  options?: readonly { value: string; label: string }[];
+  /** 기간 짝(label="~") — 역할과 상대 칸의 키. */
+  pair?: { role: "from" | "to"; partnerKey: string | null };
+}
+
+/** SearchField 가 등록하는 칸 하나. info·getValue·setValue 는 렌더마다 최신으로 바뀐다. */
+export interface SearchDefaultsFieldHandle {
+  info: SearchDefaultsFieldInfo;
+  getValue: () => string;
+  /** 화면 onChange 를 부른다(사용자가 고친 것으로 표시하지 않는다). */
+  setValue: (value: string) => void;
+  /** 사용자가 내장 입력으로 값을 바꿨는가(넣기 전에 고친 칸은 덮지 않는다). */
+  touched: boolean;
+}
+
+export interface SearchDefaultsAreaApi {
+  /** 칸을 등록하고 해제 함수를 돌려준다. */
+  register: (handle: SearchDefaultsFieldHandle) => () => void;
+  /** 등록된 칸 정보(저장 키는 scope 접두 포함). 설정 창이 쓴다. */
+  listFields: () => Array<SearchDefaultsFieldInfo & { storageKey: string }>;
+  /** 지금 저장된 규칙을 다시 넣는다(설정 저장 직후). 조회는 하지 않는다. */
+  applyNow: () => void;
+  /** 기능이 꺼진 영역인가(설정 아이콘을 그리지 않는다). 마운트 판정 뒤에 정해진다. */
+  isDisabled: () => boolean;
+  /** 이 영역의 화면 키·scope. */
+  pageId: string;
+  scope: string;
+}
+
+const GLOBAL_KEY = "__dkOasisSearchDefaultsAreaContext__";
+const PAIR_GLOBAL_KEY = "__dkOasisSearchFieldPairContext__";
+interface GlobalCache {
+  [GLOBAL_KEY]?: Context<SearchDefaultsAreaApi | null>;
+  [PAIR_GLOBAL_KEY]?: Context<SearchFieldPair | null>;
+}
+const cache = globalThis as unknown as GlobalCache;
+
+/** SearchArea → SearchField 등록소. tsup entry 분리로 Context 가 겹치지 않게 globalThis 에 둔다. */
+export const SearchDefaultsAreaContext: Context<SearchDefaultsAreaApi | null> =
+  cache[GLOBAL_KEY] ?? (cache[GLOBAL_KEY] = createContext<SearchDefaultsAreaApi | null>(null));
+
+export interface SearchFieldPair {
+  role: "from" | "to";
+  /** 상대 칸의 키(없으면 null). */
+  partnerKey: string | null;
+}
+
+/** SearchArea 의 기간 짝(label="~") 묶음이 두 칸에 내려주는 짝 정보. */
+export const SearchFieldPairContext: Context<SearchFieldPair | null> =
+  cache[PAIR_GLOBAL_KEY] ?? (cache[PAIR_GLOBAL_KEY] = createContext<SearchFieldPair | null>(null));
+
+export function useSearchDefaultsArea(): SearchDefaultsAreaApi | null {
+  return useContext(SearchDefaultsAreaContext);
+}
+
+const isDev = () => process.env.NODE_ENV !== "production";
+
+export interface UseSearchDefaultsControllerOptions {
+  /** false 면 넣지 않는다(SearchArea `defaults`). */
+  enabled: boolean;
+  /** 한 화면에 SearchArea 가 둘 이상일 때 저장 키 접두(SearchArea `defaultsScope`). */
+  scope?: string;
+  /** 넣기가 끝난 뒤 onSearch 를 한 번 부른다(SearchArea `autoSearch`). */
+  autoSearch: boolean;
+  onSearch?: () => void;
+  /** SearchArea 바깥 요소 — 대화 상자 안인지 본다. */
+  rootRef: RefObject<HTMLElement | null>;
+}
+
+type Phase = "pending" | "done";
+
+/** SearchArea 안에서 부른다. 컨텍스트로 내려줄 등록소를 돌려준다. */
+export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOptions): SearchDefaultsAreaApi {
+  const { enabled, autoSearch, onSearch, rootRef } = opts;
+  const scope = opts.scope ?? "";
+  const { pageId } = useTabPage();
+  const restored = useCarryRestored();
+
+  const handlesRef = useRef(new Map<string, SearchDefaultsFieldHandle>());
+  const phaseRef = useRef<Phase>("pending");
+  /** 대화 상자 안 등 — 넣기·기록을 모두 하지 않는다(마운트 때 정한다). */
+  const offRef = useRef(false);
+  const appliedRef = useRef(new Set<string>());
+  const userIdRef = useRef("");
+  const pendingCheckRef = useRef<Map<string, string> | null>(null);
+  const pendingAutoSearchRef = useRef(false);
+  /**
+   * 렌더 번호. 넣기·autoSearch 를 예약한 뒤의 렌더가 커밋됐을 때만 처리한다 — layout effect 에서 동기 재렌더를 예약하면
+   * React 가 재렌더 전에 앞 커밋의 passive effect 를 먼저 돌리는데, 그때의 onSearch·값은 넣기 전 것이다(설계 §6.4).
+   */
+  const renderIdRef = useRef(0);
+  renderIdRef.current += 1;
+  const scheduledAtRef = useRef(0);
+  const onSearchRef = useRef(onSearch);
+  onSearchRef.current = onSearch;
+  const optsRef = useRef({ enabled, autoSearch, pageId, scope, restored });
+  optsRef.current = { enabled, autoSearch, pageId, scope, restored };
+  const [tick, setTick] = useState(0);
+
+  const storageKey = useCallback((fieldKey: string) => (scope ? `${scope}.${fieldKey}` : fieldKey), [scope]);
+
+  /** 칸들에 규칙을 넣는다. 넣은 값은 다음 커밋에 확인한다. */
+  const applyTo = useCallback(
+    (handles: Array<[string, SearchDefaultsFieldHandle]>, mode: { skipLast: boolean; ignoreTouched: boolean }) => {
+      const userId = userIdRef.current;
+      const { pageId: pid } = optsRef.current;
+      if (!userId || !pid) return;
+      const rules = getPageSearchDefaults(userId, pid);
+      const last = readSearchLastValues(userId, pid);
+      const now = new Date();
+      const targets = new Map<string, string>();
+      for (const [key, h] of handles) {
+        const rule = rules[key];
+        if (!rule) continue;
+        if (mode.skipLast && rule.kind === "last") continue;
+        if (!mode.ignoreTouched && h.touched) continue;
+        const v = resolveSearchDefault(rule, {
+          valueType: h.info.valueType,
+          optionValues: h.info.options?.map((o) => o.value),
+          lastValue: last[key],
+          now,
+        });
+        if (v !== undefined) targets.set(key, v);
+      }
+      // 기간: From 이 To 보다 늦으면 두 칸 모두 넣지 않는다(설계 §4.4).
+      for (const [key, h] of handles) {
+        const pair = h.info.pair;
+        if (pair?.role !== "from" || !pair.partnerKey) continue;
+        const toKey = storageKey(pair.partnerKey);
+        const from = targets.get(key) ?? h.getValue();
+        const toHandle = handlesRef.current.get(toKey);
+        const to = targets.get(toKey) ?? toHandle?.getValue() ?? "";
+        if ((targets.has(key) || targets.has(toKey)) && from && to && from > to) {
+          if (isDev()) console.warn(`[search-defaults] "${h.info.label}" 기간 기본값의 시작(${from})이 끝(${to})보다 늦어 넣지 않는다`);
+          targets.delete(key);
+          targets.delete(toKey);
+        }
+      }
+      if (targets.size === 0) return;
+      const check = pendingCheckRef.current ?? new Map<string, string>();
+      for (const [key, v] of targets) {
+        const h = handlesRef.current.get(key);
+        if (!h) continue;
+        appliedRef.current.add(key);
+        if (h.getValue() !== v) h.setValue(v);
+        check.set(key, v);
+      }
+      pendingCheckRef.current = check;
+      scheduledAtRef.current = renderIdRef.current;
+      setTick((n) => n + 1);
+    },
+    [storageKey],
+  );
+
+  /** 넣기를 끝낸다. 이어받은 값으로 시작한 화면이 아니면 autoSearch 를 예약한다. */
+  const finish = useCallback(() => {
+    if (phaseRef.current === "done") return;
+    phaseRef.current = "done";
+    if (optsRef.current.autoSearch && !optsRef.current.restored) {
+      pendingAutoSearchRef.current = true;
+      scheduledAtRef.current = renderIdRef.current;
+      setTick((n) => n + 1);
+    }
+  }, []);
+
+  const applyAll = useCallback(
+    (mode: { skipLast: boolean; ignoreTouched: boolean }) => {
+      applyTo([...handlesRef.current.entries()], mode);
+    },
+    [applyTo],
+  );
+
+  // 마운트 때 한 번 — 자식 칸의 등록(layout effect)이 끝난 같은 커밋에서 돈다.
+  useIsomorphicLayoutEffect(() => {
+    if (phaseRef.current !== "pending") return undefined;
+    const { enabled: en, pageId: pid, restored: rs } = optsRef.current;
+    const inDialog = !!rootRef.current?.closest?.('[role="dialog"]');
+    offRef.current = inDialog;
+    if (!en || !pid || rs || inDialog) {
+      finish();
+      return undefined;
+    }
+
+    let cancelled = false;
+    const cleanups: Array<() => void> = [];
+    const timer = setTimeout(() => {
+      if (cancelled || phaseRef.current !== "pending") return;
+      if (isDev()) console.warn("[search-defaults] 조회 기본값을 기다리다 시간이 넘어 넣지 않는다", pid);
+      finish();
+    }, SEARCH_DEFAULTS_WAIT_MS);
+    cleanups.push(() => clearTimeout(timer));
+
+    const startWithUser = (userId: string) => {
+      if (cancelled || phaseRef.current !== "pending" || !userId) return;
+      userIdRef.current = userId;
+      preloadSearchDefaults(userId);
+      const tryApply = () => {
+        if (cancelled || phaseRef.current !== "pending") return;
+        if (getSearchDefaultsStatus(userId) !== "ready") return;
+        applyAll({ skipLast: false, ignoreTouched: false });
+        finish();
+      };
+      tryApply();
+      if (phaseRef.current === "pending") cleanups.push(subscribeSearchDefaults(tryApply));
+    };
+
+    const known = peekCurrentUser()?.id ?? "";
+    if (known) {
+      startWithUser(known);
+    } else {
+      cleanups.push(subscribeCurrentUser((u) => startWithUser(u?.id ?? "")));
+      void getCurrentUser().then(
+        (r) => startWithUser(r.ok ? r.user.id : ""),
+        () => {},
+      );
+    }
+    return () => {
+      // StrictMode 의 effect 두 번 실행 — 기다림만 거두고 phase 는 그대로 둔다(두 번째 실행이 다시 기다린다).
+      cancelled = true;
+      cleanups.forEach((c) => c());
+    };
+    // 마운트 1회 — 함수들은 안정적이고, phase 가 pending 이 아니면 다시 돌아도 바로 끝난다.
+  }, [applyAll, finish, rootRef]);
+
+  // 넣은 뒤 확인(개발 모드 경고)과 autoSearch 는 커밋 뒤에 한다 — 그 커밋의 onSearch 가 새 상태를 잡고 있다.
+  useEffect(() => {
+    // 예약한 렌더 그대로의 커밋이면(아직 새 상태로 다시 그리지 않음) 건너뛴다 — 다음 커밋의 effect 가 처리한다.
+    if (renderIdRef.current <= scheduledAtRef.current) return;
+    const check = pendingCheckRef.current;
+    if (check) {
+      pendingCheckRef.current = null;
+      if (isDev()) {
+        for (const [key, v] of check) {
+          const h = handlesRef.current.get(key);
+          if (h && h.getValue() !== v) {
+            console.warn(
+              `[search-defaults] "${h.info.label}" 에 기본값(${v})을 넣었는데 값이 ${h.getValue()} 이다 — 조회 칸 onChange 를 함수형 갱신(setFilters((p) => ({ ...p, k: v })))으로 쓰는지 확인한다`,
+            );
+          }
+        }
+      }
+    }
+    if (pendingAutoSearchRef.current) {
+      pendingAutoSearchRef.current = false;
+      onSearchRef.current?.();
+    }
+  }, [tick]);
+
+  // 조회(emitSearch) → 마지막 조회값 기록 / 초기화(emitSearchReset) → 사용자 기본값 다시 넣기.
+  useEffect(() => {
+    if (!pageId) return undefined;
+    const offSearch = subscribeSearch(pageId, () => {
+      if (!optsRef.current.enabled || offRef.current) return;
+      const userId = userIdRef.current || peekCurrentUser()?.id || "";
+      if (!userId) return;
+      const values: Record<string, string> = {};
+      for (const [key, h] of handlesRef.current) values[key] = h.getValue();
+      writeSearchLastValues(userId, pageId, values);
+    });
+    const offReset = subscribeSearchReset(pageId, () => {
+      if (!optsRef.current.enabled || offRef.current) return;
+      if (!userIdRef.current) userIdRef.current = peekCurrentUser()?.id ?? "";
+      for (const h of handlesRef.current.values()) h.touched = false;
+      applyAll({ skipLast: true, ignoreTouched: true });
+    });
+    return () => {
+      offSearch();
+      offReset();
+    };
+  }, [pageId, applyAll]);
+
+  return useMemo<SearchDefaultsAreaApi>(
+    () => ({
+      register(handle) {
+        const key = storageKey(handle.info.fieldKey);
+        const map = handlesRef.current;
+        if (map.has(key) && map.get(key) !== handle) {
+          if (isDev()) {
+            console.warn(`[search-defaults] 같은 칸 키 "${key}" 가 두 번 등록됐다 — 나중 칸("${handle.info.label}")은 기본값 대상에서 뺀다`);
+          }
+          return () => {};
+        }
+        map.set(key, handle);
+        // 넣기가 끝난 뒤 처음 등록된 칸(조건부 칸)은 등록할 때 한 번 넣는다.
+        if (phaseRef.current === "done" && !appliedRef.current.has(key) && optsRef.current.enabled && !offRef.current && !optsRef.current.restored) {
+          applyTo([[key, handle]], { skipLast: false, ignoreTouched: false });
+          appliedRef.current.add(key);
+        }
+        return () => {
+          if (map.get(key) === handle) map.delete(key);
+        };
+      },
+      listFields() {
+        return [...handlesRef.current.entries()].map(([storageKey, h]) => ({ ...h.info, storageKey }));
+      },
+      applyNow() {
+        if (!optsRef.current.enabled || offRef.current) return;
+        if (!userIdRef.current) userIdRef.current = peekCurrentUser()?.id ?? "";
+        applyAll({ skipLast: false, ignoreTouched: true });
+      },
+      isDisabled() {
+        return !optsRef.current.enabled || offRef.current || !optsRef.current.pageId;
+      },
+      pageId,
+      scope,
+    }),
+    [storageKey, applyTo, applyAll, pageId, scope],
+  );
+}

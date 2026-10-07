@@ -28,6 +28,7 @@ export const USAGE_PORTAL_PATH_PREFIXES: readonly string[] = [
   "secFavorite/",
   "secStartPgm/",
   "secWidget/",
+  "secSrchDflt/", // 조회 칸 사용자 기본값 미리 받기·저장(설계 2026-10-07-search-defaults §5.3)
   "noticeBoard/search",
   "ntfNotification/",
   "screenUsage/record",

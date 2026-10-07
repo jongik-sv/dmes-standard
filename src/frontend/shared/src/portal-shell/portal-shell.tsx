@@ -31,6 +31,8 @@ import { ErrorBoundary } from "../components/error-boundary";
 import { createHomeTabId, usePortalTabs, type PortalShellTabState } from "./use-portal-tabs";
 import { usePortalFullscreen } from "./use-portal-fullscreen";
 import { usePortalAuthUser } from "./use-portal-auth-user";
+import { getCurrentUser } from "./current-user";
+import { preloadSearchDefaults } from "../layout/search-defaults/store";
 import { clearCurrentUserCache } from "./current-user";
 import { usePortalShellFavorites } from "./use-portal-shell-favorites";
 import {
@@ -336,6 +338,20 @@ export function PortalShell({
   // 5) 즐겨찾기 훅 — effect 없음. 6) F3 · 화면 사용 effect.
   // 7) 위젯 도크 — 화면 사용 effect 뒤(사용자 확인은 1)의 진행 중 요청을 함께 쓴다). widgetDock 이 없으면 아무 effect 도 하지 않는다.
   const { displayUserName, displayLoginId } = usePortalAuthUser({ userName, userLoginId });
+
+  // 조회 칸 사용자 기본값 미리 받기(설계 2026-10-07-search-defaults §5.4) — 사용자 확인(진행 중 요청 공유) 뒤 한 번. 탭 화면이 열릴 때 바로 쓰게 한다.
+  useEffect(() => {
+    let cancelled = false;
+    void getCurrentUser().then(
+      (r) => {
+        if (!cancelled && r.ok) preloadSearchDefaults(r.user.id);
+      },
+      () => {},
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     writeSecureJson(recentMenuStorageKey, recentMenuPageIds);
