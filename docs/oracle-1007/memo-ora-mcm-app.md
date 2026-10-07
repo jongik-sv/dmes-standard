@@ -2,21 +2,25 @@
 
 - 레인: ora-mcm-app / 브랜치 `feat/ora-mcm-app` / 워크트리 `/Users/jji/project/dmes-wt/ora-mcm-app`
 - 조정 세션: dmes-standard-d8 (지시 ora-mcm-app-1, 원문 `/Users/jji/.coord/oracle-1007/lanes/ora-mcm-app/brief.md`)
-- 갱신: 2026-10-07 19:00 KST
+- 갱신: 2026-10-07 20:30 KST
 
 ## 지금 상태
 
 | 항목 | 상태 | 커밋·비고 |
 |---|---|---|
-| a1 Flyway·Java DDL 제거 | Oracle 시험 끝까지 돎(18:35~18:53, 162개 중 실패 1·건너뜀 1). 실패 1건은 시험 버그(아래)라 고쳐 단독 재실행 | dd985b781(본체), ced723336(시험 전환), efa57059c(dev 합치기, fb253556d 포함) |
-| a1 리뷰(opus/high) | 지적 9건 반영·전달 끝(blocker 지문 골든 재생성·대조 완료) | 아래 「리뷰 지적」 |
-| SQLite 치환 API 호출 제거 | **완료** — mcm main·시험에서 setSqlite·isSqlite·toSqliteCompatible·stripUnicodeLiteralPrefix·McmSqliteMybatisInterceptor·SqliteTemporalConverterContributor 호출 0건(grep) | 남은 것은 application.yml 의 `statement_inspector` 설정 1줄(JpaConfig 가 직접 만든 EMF 에는 적용되지 않는 옛 감사 inspector 설정, 치환 API 아님) |
-| CaravanMetaSeeder 가드 | **사용자 확인 대기** | 조정자 승인(표가 없으면 ORA-00942 만 경고 뒤 건너뜀). 사용자가 명령을 거절해 되돌렸다. 패치는 세션 scratchpad `caravan-guard.patch` |
-| a2 `''` 비교 | 작업 트리에 수정 2건(미커밋) | McmMenuSeeder.normalizeSecMenuCharColumns(`LTRIM(RTRIM(c)) IS NULL` — fix), NoticeRepository(`OR :p = ''` 제거 — refactor). 커밋 때 특성화 골든 4개 재생성 필요 |
-| a3 프로파일 | 미착수 | local 은 a1 에서 Oracle 로 바꿈. 남은 것: local-db archive, dev·prod·wildfly 를 OracleDialect·중립 JNDI(`java:/jdbc/mcm/dsBiz` 등), wildfly 는 dmes.flyway.enabled=false 명시 |
-| a4 시험·머지 요청 | 미착수 | |
+| a1 Flyway·Java DDL 제거 | 완료. Oracle 전체 시험 1회(18:35~18:53, 162개 중 실패 1·건너뜀 1), 실패 1건은 시험 버그라 고쳐 단독 재실행 통과 | dd985b781·ced723336·efa57059c·2bfd299fd |
+| a1 리뷰(opus/high) | 9건 반영·전달 끝(blocker 지문 골든 재생성·대조 완료) | 아래 「리뷰 지적」 |
+| SQLite 치환 API·LocalSqliteDataSource 호출 | 0건(HEAD 와 feat/ora-mcm-core 합친 트리 모두). McmAuthController:80·McmApplication:58-59 에 「걷어냈다」 주석만 | grep, archive 제외 |
+| a2 `''` 비교 | 완료 | 0663dfc9d(fix: SEC_MENU LTRIM(RTRIM(c)) IS NULL + 특성화 골든 4), 52c7eed20(refactor: NoticeRepository `:p = ''` 제거) |
+| CaravanMetaSeeder 가드 | 완료(조정 세션 경유 사용자 승인) | 10ca56676(fix: ORA-00942 만 경고 뒤 건너뜀 + 시험 2) |
+| a2·가드 리뷰(opus/high) | minor 4·nit 4 반영 → 확인 리뷰(sonnet) 남은 문구 반영 | 887915185(McmMenuSeederNormalizeTest·빈 조회조건 시험·표 이름), a92a00b4d |
+| a3 프로파일 | 완료 | 666812393(wildfly OracleDialect·java:/jdbc/mcm/*·Flyway 끔, prod require-dedicated, local-db archive), d998d2150(리뷰 반영) |
+| a3 리뷰(opus/high) | blocker 0, 범위 밖 major 1(caravan-hub JNDI)·문서 3 은 조정에 전달, 범위 안은 반영 | |
+| 시험 풀 | 상한 2·minimumIdle 0·idleTimeout 10초·@AfterAll 로 닫기(조정 ㉠ 승인) | a92a00b4d |
+| feat/ora-mcm-core 합치기 | 1d612401a 합침(충돌 0, 골든 재생성 불필요, 시험 컴파일 통과) | 7141a7de8 |
+| a4 시험·머지 요청 | **Oracle 재개 대기**. 새 시험 2개(McmMenuSeederNormalizeTest·빈 조회조건)는 아직 Oracle 미실행 | perf 문서 틀(SQLite 3회: 45·45·43초, 173개) 작성, 미커밋 |
 
-Oracle: 18:24 인스턴스 스래싱으로 조정자 동결 → 이 레인 프로세스 전부 TERM. 재개 뒤 새 pdb.mjs 로 T_ORA_MCM_APP drop 완료(18:50). 남은 Oracle 작업·백그라운드 0.
+Oracle: 19:25 두 번째 동결(시험 JVM 등 TERM). 재개 뒤 T_ORA_MCM_APP drop 은 잠금 시간 초과(rc 1), close 는 성공(20:2x). VM available 81MB·load 19 로 「VM 의심」 보고. T_ORA_MCM_APP 은 닫힌 채 남아 있다 — 재개 뒤 drop.
 
 ## a1 에서 한 것
 
@@ -60,14 +64,14 @@ Oracle: 18:24 인스턴스 스래싱으로 조정자 동결 → 이 레인 프�
 
 ## 남은 순서
 
-1. a1 시험: `../gradlew :api:test :lib:test -Pdmes.ora.test=clone` 를 heavy.sh `--detach` 로(바뀐 시험만 먼저). 지문 골든은 `FINGERPRINT_UPDATE=true` 로 재생성 → 행 수 대조 기록. 통과하면 진행 보고.
-2. CaravanMetaSeeder 가드: 사용자 답에 따라 패치 적용 또는 보류.
-3. a2: 미커밋 2건 + 특성화 골든 재생성(`MSSQLSQL_UPDATE=true`) → fix·refactor 커밋 분리 → 리뷰.
-4. a3: local-db archive, dev·prod·wildfly OracleDialect·중립 JNDI, wildfly Flyway 끔 → 리뷰.
-5. a4: dev 최신(notice-fill2 공지 변경 포함) 합치기, mcm 시험 전체(heavy.sh), `docs/oracle-1007/perf-ora-mcm-app.md`(SQLite 대비 시간, 반복 측정), 치환 API grep 0건 첨부 → 머지 요청(머지③, ora-mcm-core 바로 뒤).
+1. 「Oracle 재개」 뒤 T_ORA_MCM_APP drop(새 pdb.mjs).
+2. a4: 합친 상태로 `../gradlew :lib:test :api:test -Pdmes.ora.test=clone` 를 heavy.sh `--detach` 로 3회(측정). Oracle 오류는 먼저 `podman machine ssh -- 'free -m; cat /proc/loadavg'` 로 VM 신호를 가려 보고(조정 새 규칙).
+3. perf 문서에 Oracle 값을 채우고 커밋.
+4. ora-mcm-core c4 머지 요청 SHA 가 나오면 다시 합쳐 4개 시험(Characterization·Fingerprint·NoticePermissionFilter·MenuCatalogOasisSave)과 Flyway V1 체크섬만 재확인.
+5. 머지 요청(머지③, mcm-core 바로 뒤): 치환 API·LocalSqliteDataSource grep 0건, caravan-hub JNDI 의존(ora-platform 이 java:/jdbc/mcm/dsCaravan·dsIF 로 맞춰야 함), require-dedicated 는 mcm-core 10d9b67de 뒤 효력, 윈도우 영향 한 줄.
 
 ## 다음 단계
 
-- 조정자가 compact 를 보낸 뒤 「남은 순서」 1번(a1 시험 재실행)부터 잇는다.
-- 실행 수단: 시험·골든 재생성은 직접(D0), 리뷰는 opus/high agent(D2).
-- 셸: git 은 `/usr/bin/git`, gradle 은 `JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home`, 무거운 Oracle 시험은 heavy.sh `--detach` 후 `heavy.sh wait <id>`.
+- 「Oracle 재개」 를 기다린다. 받으면 「남은 순서」 1번부터.
+- 실행 수단: 시험은 직접(heavy.sh), 리뷰는 opus/high agent, 문서·점검은 sonnet agent. 동시 agent 상한 4.
+- 셸: git 은 `/usr/bin/git`, gradle 은 `JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home`, 무거운 Oracle 시험은 heavy.sh `--detach` 후 결과 파일을 직접 읽는다. 잠금 없는 close 는 feat/ora-base 판 pdb.mjs(bd7075d51)를 scratchpad 에서 실행.
