@@ -80,5 +80,5 @@ import { Textarea } from "@dk-oasis/shared/form";
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:356` `rows={8}`·`maxLength={4000}`·`disabled={!form || isBusy}`.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:356` `rows={8}`·`maxLength={4000}`·`disabled={!form || isBusy}`.
 - `src/frontend/m-mcm/page-components/csa/commPermMng/page.tsx:744` 상세 영역의 Textarea.

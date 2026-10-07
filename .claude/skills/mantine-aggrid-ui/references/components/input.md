@@ -94,6 +94,6 @@ import { Input } from "@dk-oasis/shared/form";
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:308` 읽기전용(`disabled readOnly`), 314줄 `maxLength`·`disabled={!form || isBusy}`·`onChange`.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:308` 읽기전용(`disabled readOnly`), 314줄 `maxLength`·`disabled={!form || isBusy}`·`onChange`.
 - `src/frontend/m-mdm/pages/dma/unitMng/page.tsx:278` m-mdm 상세 폼의 읽기전용 Input.
 - `error` prop 을 쓰는 화면은 아직 사용처 없음.

@@ -270,7 +270,7 @@ StandardActionCode: `search` `save` `delete` `export` `import` `print` `approve`
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:209` 조회·신규·저장·삭제 버튼과 `objId`. 단, 삭제의 `action` 이 `"save"` 이고 "게시중지" 버튼이 추가되어 있어 표준과 다르다.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:209` 조회·신규·저장·삭제 버튼과 `objId`. 단, 삭제의 `action` 이 `"save"` 이고 "게시중지" 버튼이 추가되어 있어 표준과 다르다.
 - `src/frontend/m-mqc/src/sample/SampleInspectionPanel.tsx:35` 버튼 없는 최소 틀(`title`, `breadcrumb`만).
 - m-mdm 화면은 `MdmPageLayout` 을 쓰므로 이 컴포넌트의 예가 아니다.
 
@@ -701,7 +701,7 @@ MaxHandleProps: `panelId: string`(필수), `style?: React.CSSProperties`, `class
 
 ## 표준값: 모든 화면 동일
 
-- storageKey 는 `<모듈코드>.<pages 아래 그룹 폴더>.<screenId>` 이다. `m-mls/pages/lsh/noticeMgmt` 는 `mls.lsh.noticeMgmt` 다. 화면마다 고유해야 한다.
+- storageKey 는 `<모듈코드>.<pages 아래 그룹 폴더>.<screenId>` 이다. `m-mdm/pages/dme/ruleMng` 는 `mdm.dme.ruleMng` 다. 화면마다 고유해야 한다. (공지 관리 `mls.lsh.noticeMgmt` 는 2026-10-07 m-mcm 으로 옮긴 뒤에도 사용자 저장값을 지키려고 옛 키를 그대로 쓰는 예외다.)
 - 좌우 분할의 상세 폼 폭은 `width={460}` 이고 그 패널의 첫 자식이 곧바로 상세 표다(머리·제목을 따로 두지 않는다).
 - 패널 안을 `display: flex` 인 `div` 로 다시 감싸지 않는다. ContentPanel·GridPanel 이 높이와 스크롤을 처리한다.
 - `root` 는 화면당 하나다.
@@ -719,7 +719,7 @@ MaxHandleProps: `panelId: string`(필수), `style?: React.CSSProperties`, `class
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx` `root resizable storageKey="mls.lsh.noticeMgmt"` + `ContentPanel minSize={320}`(목록) + `ContentPanel minSize={420}`(상세). 사용자 요청으로 상세 폭을 고정하지 않고 목록·상세를 50:50 으로 나눈다(표준 460 의 예외). 상세 패널 안은 세로 flex 스크롤 영역 하나이고, 본문 편집기가 남은 높이를 채운다(Local-Rules §23). 홈 표시 미리보기는 팝업이다.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx` `root resizable storageKey="mls.lsh.noticeMgmt"` + `ContentPanel minSize={320}`(목록) + `ContentPanel minSize={420}`(상세). 사용자 요청으로 상세 폭을 고정하지 않고 목록·상세를 50:50 으로 나눈다(표준 460 의 예외). 상세 패널 안은 세로 flex 스크롤 영역 하나이고, 본문 편집기가 남은 높이를 채운다(Local-Rules §23). 홈 표시 미리보기는 팝업이다.
 - `src/frontend/m-mdm/pages/dme/ruleMng/page.tsx:225` `root resizable storageKey="mdm.dme.ruleMng"`.
 - `src/frontend/m-mdm/pages/dme/ruleSetEdit/page.tsx:664` column 분할 + 중첩 ContentBody(`flex`, `minSize`).
 - `src/frontend/m-mcm/page-components/cmb/masterRuleFrame/page.tsx:344` `panelId`. `MaxHandle` 연결 예는 `src/frontend/m-design-dummy/src/screens/ResizableLayoutCatalogScreen.tsx:194`(디자인 더미 화면).
@@ -835,7 +835,7 @@ import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:302` 목록 옆 상세 폼 전체(Input·Select·DatePicker·Textarea, 읽기전용 공지번호, 필수 " *", `!form` 비활성). 제목 줄은 `NoticeTitleRow.tsx`(`MdmFieldLabel`).
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:302` 목록 옆 상세 폼 전체(Input·Select·DatePicker·Textarea, 읽기전용 공지번호, 필수 " *", `!form` 비활성). 제목 줄은 `NoticeTitleRow.tsx`(`MdmFieldLabel`).
 - `src/frontend/m-mdm/pages/dma/unitMng/page.tsx:262` ComboBox·읽기전용 Input 이 섞인 상세 폼. m-mdm 화면이므로 `MdmPageLayout` 아래에 있다.
 
 
@@ -1051,7 +1051,7 @@ import { Input } from "@dk-oasis/shared/form";
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:308` 읽기전용(`disabled readOnly`), 314줄 `maxLength`·`disabled={!form || isBusy}`·`onChange`.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:308` 읽기전용(`disabled readOnly`), 314줄 `maxLength`·`disabled={!form || isBusy}`·`onChange`.
 - `src/frontend/m-mdm/pages/dma/unitMng/page.tsx:278` m-mdm 상세 폼의 읽기전용 Input.
 - `error` prop 을 쓰는 화면은 아직 사용처 없음.
 
@@ -1147,7 +1147,7 @@ const STATUS_OPTIONS: SelectOption[] = [
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:325` 상세 폼의 Select(`options`, `disabled={!form || isBusy}`).
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:325` 상세 폼의 Select(`options`, `disabled={!form || isBusy}`).
 - `src/frontend/m-mcm/page-components/cme/masterCodeMngList/page.tsx:340` 동적 선택지를 `map` 으로 만든 예. 단, `style={{ minWidth: 120 }}` 를 주고 있어 폭 지정 외의 의도는 아니다.
 - `src/frontend/m-mdm/pages/dmc/codeItemEdit/page.tsx:444` 조회영역 안의 Select. m-mdm 화면이다.
 
@@ -1431,8 +1431,8 @@ import { DatePicker } from "@dk-oasis/shared/form";
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:336` 상세 폼의 DatePicker(`disabled={!form || isBusy}`).
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:270` 조회조건 기간. 단, 한 SearchField 안에 `div`·`span "~"` 로 묶여 있어 표준과 다르다.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:336` 상세 폼의 DatePicker(`disabled={!form || isBusy}`).
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:270` 조회조건 기간. 단, 한 SearchField 안에 `div`·`span "~"` 로 묶여 있어 표준과 다르다.
 - `min`·`max` 는 아직 사용처 없음.
 
 
@@ -1876,7 +1876,7 @@ import { Textarea } from "@dk-oasis/shared/form";
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:356` `rows={8}`·`maxLength={4000}`·`disabled={!form || isBusy}`.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:356` `rows={8}`·`maxLength={4000}`·`disabled={!form || isBusy}`.
 - `src/frontend/m-mcm/page-components/csa/commPermMng/page.tsx:744` 상세 영역의 Textarea.
 
 
@@ -2609,7 +2609,7 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:286`: 목록 + `highlightedRowKey` + `onRowClick` + `loading` 의 MES 기준 모양. 단, `:295-296` 에서 `emptyMessage`·`loadingMessage` 를 주는 점은 표준과 다름.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:286`: 목록 + `highlightedRowKey` + `onRowClick` + `loading` 의 MES 기준 모양. 단, `:295-296` 에서 `emptyMessage`·`loadingMessage` 를 주는 점은 표준과 다름.
 - `src/frontend/m-mdm/pages/dme/ruleConfirm/page.tsx:457-464`: `height="auto"` + `columnSizing="fit"` + `ag-row-error`.
 - `src/frontend/m-mdm/pages/dme/ruleEdit/sections/columns/column-grid.tsx:366-374`: 편집 열(select, `cellEditorValuesGetter`)과 `cellClassRules`.
 - `src/frontend/m-mdm/pages/dme/ruleEdit/sections/columns/ColumnSettingsSection.tsx:336-344`: `onCellValueChanged` 와 `rowClassRefreshToken`. 단, `getRowClassExtra` 로 `ag-row-inserted`·`ag-row-deleted` 를 직접 준다(위 함정 참고).
@@ -2772,7 +2772,7 @@ const confirmDeleteRow = () =>
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:285`: 제목 + 건수만 쓰는 표준 모양(MES).
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:285`: 제목 + 건수만 쓰는 표준 모양(MES).
 - `src/frontend/m-mcm/page-components/csa/commUserMng/page.tsx:908-920`: `showAddButton`·`showCopyButton`·`showDeleteButton` + `onDataChange` + `loading`. 단, 훅을 쓰지 않고 화면이 직접 `handleDataChange` 를 구현한다.
 - `src/frontend/m-mdm/pages/dmc/codeItemEdit/page.tsx:480-495`: `titleExtra`(필터 칩)와 `headerExtra`(코드 추가 버튼). 단, 버튼에 `size` prop 을 주는 점은 표준과 다름.
 - `src/frontend/m-design-dummy/src/screens/MasterDataScreen.tsx:362-391`: `help` 의 형식. 단, 행추가·행삭제를 `buttons` 로 직접 만드는 점은 표준과 다름.
@@ -3863,7 +3863,7 @@ if (rows) setRows(rows);
 
 - `src/frontend/m-mdm/pages/dmb/headerMng/page.tsx:157-161`: confirm 의 `onConfirm` 형태(`title: "확인"`). 표준과 같다.
 - `src/frontend/m-mdm/pages/dmb/headerMng/page.tsx:138-142`, `src/frontend/m-mdm/pages/dme/ruleConfirm/page.tsx:275`: 성공 토스트. 단, `alertType: "info"` 이고 문구가 "저장했습니다."·"확정했습니다"라 표준("저장되었습니다.", `success`)과 다름.
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:58`, `:89`: `ErrorModal` 용 `errorMessage` 상태를 쓴다. 단, 새 화면 표준(`showMessage`)과 다름.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:58`, `:89`: `ErrorModal` 용 `errorMessage` 상태를 쓴다. 단, 새 화면 표준(`showMessage`)과 다름.
 - `src/frontend/m-mcm/page-components/cmz/masterCodeUploadFilePopup/masterCodeUploadFilePopup.tsx:168`: `useGfnMessage` 사용(기존 화면).
 - `useApiCall`·`MessageModal` 직접 사용은 아직 사용처 없음.
 
@@ -5070,7 +5070,7 @@ const issue = column ? validateMdmValue(column, v) : null;   // 같은 column �
 - 서버 오류(`toFieldErrors(e, grid)` 결과)는 칸별 상태에 담아 `error` 로 준다. 그 칸을 고치거나 다른 행을 열면 지운다.
 - 저장 전 `validateRow(row, names)` 로 막을 칸은 서버 `MdmValidator.columns(...)` 와 같게 둔다.
 - 훅은 공급자(포털 탭) 밖이면 아무것도 부르지 않고 늘 통과다 — 포털 밖 단독 실행에서도 같은 코드가 돈다.
-- 빈 칸은 입력 중에는 검사하지 않는다(필수는 저장 때). 예: `m-mls/pages/lsh/noticeMgmt/NoticeTitleRow.tsx`.
+- 빈 칸은 입력 중에는 검사하지 않는다(필수는 저장 때). 예: `m-mcm/page-components/lsh/noticeMgmt/NoticeTitleRow.tsx`.
 - 툴팁은 라벨 글자 span 이 아니라 **라벨 칸 전체**에서 마우스 hover 로 뜬다(2026-10-05): span 에서 가장 가까운 `th, td, .search-field__label`(없으면 span 만)의 빈 곳에 올려도 뜨고, 칸 안 이동은 닫지 않으며, 칸 안을 누르면 닫는다. 카드 위치는 글자 기준 그대로다. 입력칸이 따로 있는 td 에는 걸리지 않는다(라벨 글자가 든 칸만). 글자 span 은 Tab 순서에 들지 않는다(`tabIndex` -1 — 입력 화면에서 Tab 이 라벨마다 멈추지 않게).
 
 ### HTML 설명·상호작용 툴팁(2026-10-03)
@@ -5197,12 +5197,12 @@ th 안이나 아무 라벨 자리에 넣는 인라인 라벨(`FormGroup` 을 쓰
 ## 실제 사용 예
 
 - `src/frontend/shared/src/portal-shell/portal-shell.tsx` `TabPageSlot`: 탭 본문을 `MdmMetaProvider` 로 감싼다.
-- 화면 파일럿: `src/frontend/m-mls/pages/lsh/noticeMgmt/`(2026-10-03)
+- 화면 파일럿: `src/frontend/m-mcm/page-components/lsh/noticeMgmt/`(2026-10-03)
   - `notice-columns.tsx`: `TITLE` 열은 대체 `header`("제목")를 두고, 화면(`page.tsx` 의 default export)이 `MdmMetaProvider captionPriority="mdm"` 으로 감싸 MDM 이 있으면 MDM 캡션·머리글 툴팁이 이긴다. 파생 열(`CATEGORY_LABEL` 등)은 header 를 적고 `meta: false` 로 연결을 끈다.
   - `NoticeTitleRow.tsx`: 상세 표(th/td) 제목 줄 — 라벨은 `MdmFieldLabel`(캡션 + 올리면 MDM 카드 툴팁), 입력 중 검사는 같은 `column` 으로 `validateMdmValue` → `Input error`(MDM 장애 중에도 요청은 등록 한 번).
   - `page.tsx`: 저장 전 `validateRow` 로 막고, 저장 실패는 `toFieldErrors(e, "master")` → 칸별 `error`(고치면 지운다). 그리드에 `mdmValidate`(목록이 읽기 전용이라 지금은 검사할 칸이 없다).
   - `api.ts`: `NoticeApiError.errors` 에 OASIS 봉투의 `errors` 를 실어 `toFieldErrors` 가 읽게 한다.
-  - 시험: `m-mls/tests/lsh/noticeMgmt/notice-page-mdm.test.ts`(화면 전체), `notice-mdm-render.test.ts`(제목 줄·그리드 캡션·라벨 툴팁).
+  - 시험: `m-mcm/tests/lsh/noticeMgmt/notice-page-mdm.test.ts`(화면 전체), `notice-mdm-render.test.ts`(제목 줄·그리드 캡션·라벨 툴팁).
 
 
 <!-- ===== tabs.md ===== -->
@@ -5940,7 +5940,7 @@ import { MarkdownDocViewer } from "@dk-oasis/shared/markdown-editor";
 
 - `src/frontend/m-mdm/pages/dme/ruleSetEdit/canvas/nodes.tsx` `NoteNodeView`: 흐름도 메모 — `MarkdownEditor toolbar="floating"`, `editingClassName="nodrag nowheel nopan nokey"`, `linkClassName="nodrag nopan"`, `modeStorageKey="rsf:noteEditMode"`, 읽기 모습은 `MarkdownView`. 넘침 풀기·z-index 는 `styles/note-editor.ts`.
 - `src/frontend/m-mdm/pages/dme/ruleSetEdit/panels/PropertyPanel.tsx`: 오른쪽 패널 「메모」 칸 — `MarkdownField fill`(캔버스와 같은 키). 패널 쪽 세로 flex 사슬은 `styles/note-editor.ts` 의 `.rsf-panel-fill` 규칙.
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/NoticeBodyEditor.tsx`: 공지 본문 형식이 마크다운일 때 `MarkdownField fill`(`modeStorageKey="mls:noticeBodyEditMode"`, 공지마다 `key`, 세로 flex 사슬은 `notice-styles.ts` 의 `.nm-editor*`). 미리보기는 [NoticeBodyView](notice-body-view.md). MD 편집 칸은 표를 글자로 두므로(미리보기는 표를 그린다) 화면 안내 문구가 표가 필요하면 HTML 형식을 권한다.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/NoticeBodyEditor.tsx`: 공지 본문 형식이 마크다운일 때 `MarkdownField fill`(`modeStorageKey="mls:noticeBodyEditMode"`, 공지마다 `key`, 세로 flex 사슬은 `notice-styles.ts` 의 `.nm-editor*`). 미리보기는 [NoticeBodyView](notice-body-view.md). MD 편집 칸은 표를 글자로 두므로(미리보기는 표를 그린다) 화면 안내 문구가 표가 필요하면 HTML 형식을 권한다.
 
 
 <!-- ===== html-editor.md ===== -->

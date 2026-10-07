@@ -108,6 +108,6 @@ StandardActionCode: `search` `save` `delete` `export` `import` `print` `approve`
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:209` 조회·신규·저장·삭제 버튼과 `objId`. 단, 삭제의 `action` 이 `"save"` 이고 "게시중지" 버튼이 추가되어 있어 표준과 다르다.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:209` 조회·신규·저장·삭제 버튼과 `objId`. 단, 삭제의 `action` 이 `"save"` 이고 "게시중지" 버튼이 추가되어 있어 표준과 다르다.
 - `src/frontend/m-mqc/src/sample/SampleInspectionPanel.tsx:35` 버튼 없는 최소 틀(`title`, `breadcrumb`만).
 - m-mdm 화면은 `MdmPageLayout` 을 쓰므로 이 컴포넌트의 예가 아니다.
