@@ -2,7 +2,7 @@
 -- MCAAPUSER Oracle 기준선 V1 (oracle-1007 c1, 2026-10-07)
 --
 -- 적용 방식: 스키마 폴더마다 Flyway 하나. 이 폴더는 defaultSchema=MCAAPUSER 로 돈다. DDL 은 접두 없이 쓴다.
--- 전제: Oracle 23 이상. Flyway 는 이 스키마의 주인(MCAAPUSER)으로 접속한다 — 끝의 GRANT 는 표 주인만 줄 수 있고,
+-- 전제: Oracle 12.2 이상. Flyway 는 이 스키마의 주인(MCAAPUSER)으로 접속한다 — 끝의 GRANT 는 표 주인만 줄 수 있고,
 --   ${app_user} 로 접속하면 자기 자신에게 주는 꼴이 되어 ORA-01749 로 실패한다. ${app_user} 사용자가 먼저 있어야 한다.
 -- 내용: 업무기준(cmb) 엔티티 RuleMaster·MasterRuleColList(@Table(schema="MCAAPUSER")) 를 Hibernate OracleDialect(23)로 내보낸 것.
 -- 권한: mcm 앱은 MCMAPUSER 로 접속해 MCAAPUSER.TB_MCA_* 를 읽고 쓴다 — 끝의 GRANT 대상은 Flyway 자리표시자 ${app_user}
