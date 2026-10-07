@@ -978,3 +978,61 @@ CREATE INDEX IX_MCM_WCOL_DATA_SLOT
        on TB_MCM_WIDGET_COLLECT_DATA (SLOT);
 CREATE INDEX IX_MCM_WCOL_RUN_SLOT 
        on TB_MCM_WIDGET_COLLECT_RUN (SLOT);
+CREATE TABLE TB_MCM_SEC_USER_SRCH_DFLT (
+        FIELD_KEY varchar(100) not null,
+        PAGE_ID varchar(200) not null,
+        USER_ID varchar(30) not null,
+        C_AT timestamp,
+        C_USR_ID varchar(100),
+        C_PGM_ID varchar(100),
+        C_SVC_ID varchar(100),
+        U_AT timestamp,
+        U_USR_ID varchar(100),
+        U_PGM_ID varchar(100),
+        U_SVC_ID varchar(100),
+        VER bigint,
+        FIELD_LABEL varchar(100),
+        FIELD_META varchar(50),
+        RULE_JSON varchar(1000) not null,
+        primary key (FIELD_KEY, PAGE_ID, USER_ID)
+    );
+CREATE TABLE TB_MCM_NOTICE (
+        NOTICE_ID varchar(30) not null,
+        C_AT timestamp,
+        C_USR_ID varchar(100),
+        C_PGM_ID varchar(100),
+        C_SVC_ID varchar(100),
+        U_AT timestamp,
+        U_USR_ID varchar(100),
+        U_PGM_ID varchar(100),
+        U_SVC_ID varchar(100),
+        VER bigint,
+        CONTENT clob,
+        CONTENT_FORMAT varchar(10) not null,
+        NOTICE_CATEGORY varchar(10) not null,
+        NOTICE_STATUS varchar(10) not null,
+        PIN_YN varchar(1) not null,
+        POST_END_DT varchar(255),
+        POST_START_DT varchar(255),
+        TARGET_SCOPE varchar(10) not null,
+        TITLE varchar(200) not null,
+        primary key (NOTICE_ID)
+    );
+CREATE TABLE TB_MCM_NOTICE_TARGET (
+        NOTICE_ID varchar(30) not null,
+        ROLE_ID varchar(100) not null,
+        C_AT timestamp,
+        C_USR_ID varchar(100),
+        C_PGM_ID varchar(100),
+        C_SVC_ID varchar(100),
+        U_AT timestamp,
+        U_USR_ID varchar(100),
+        U_PGM_ID varchar(100),
+        U_SVC_ID varchar(100),
+        VER bigint,
+        primary key (NOTICE_ID, ROLE_ID)
+    );
+CREATE INDEX IX_TB_MCM_NOTICE_STATUS 
+       on TB_MCM_NOTICE (NOTICE_STATUS);
+CREATE INDEX IX_TB_MCM_NOTICE_TARGET_ROLE 
+       on TB_MCM_NOTICE_TARGET (ROLE_ID);

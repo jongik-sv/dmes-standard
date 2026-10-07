@@ -157,4 +157,4 @@ SKILL.md 「1. 시작」 1번 전제 검사 블록이 `PRECHECK_OK` 없이 끝�
 
 ## 지원 환경: macOS · Git Bash(윈도우)
 
-`scripts/*.sh` 는 macOS 와 Git Bash 에서 같이 돈다. 필요 도구: bash, git, jq, tmux 또는 Orca(터미널 백엔드), curl. Git Bash 에는 `ps -o`·`sysctl`·`memory_pressure` 가 없다 — `tick.sh`·`wake.sh` 는 `/proc/$PPID/ppid` 로 팀장 pid 를 읽고, `capacity.sh` 는 읽을 수 없는 자원 값을 `CAPACITY_UNKNOWN`(막지 않음)으로 처리한다. 종료 시각 해석은 BSD `date -j` 먼저, 없으면 GNU `date -d`(Git Bash 는 GNU). 스크립트를 새로 쓸 때는 macOS 전용 명령·perl 을 쓰지 않는다. 정본·도구 표·한계: `../../_shared/platform-support.md`.
+`scripts/*.sh` 는 macOS 와 Git Bash 에서 같이 돈다. 필요 도구: bash, git, jq(윈도우는 `_shared/bin` 동봉판), tmux 또는 Orca(터미널 백엔드), curl. Git Bash 에는 `ps -o`·`sysctl`·`memory_pressure` 가 없다 — `tick.sh`·`wake.sh` 는 `/proc/$PPID/ppid` 로 팀장 pid 를 읽고, `capacity.sh` 는 읽을 수 없는 자원 값을 `CAPACITY_UNKNOWN`(막지 않음)으로 처리한다. 종료 시각 해석은 BSD `date -j` 먼저, 없으면 GNU `date -d`(Git Bash 는 GNU). 스크립트를 새로 쓸 때는 macOS 전용 명령·perl 을 쓰지 않는다. 정본·도구 표·한계: `../../_shared/platform-support.md`.

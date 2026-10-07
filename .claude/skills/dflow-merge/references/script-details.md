@@ -55,4 +55,4 @@ SKILL.md 「결정 번호 매김」·「마이그레이션 버전 관문」 의 
 
 ## 지원 환경: macOS · Git Bash(윈도우)
 
-`scripts/*.sh` 는 macOS 와 Git for Windows 의 Git Bash 에서 같이 돈다. 필요 도구: bash, git, jq, awk·sed·grep. 별도 플랫폼 의존 명령은 쓰지 않는다. 스크립트를 새로 쓸 때는 macOS 전용 명령·perl 을 쓰지 않는다. 정본·도구 표·한계: `../../_shared/platform-support.md`.
+`scripts/*.sh` 는 macOS 와 Git for Windows 의 Git Bash 에서 같이 돈다. 필요 도구: bash, git, jq(윈도우는 `_shared/bin` 동봉판), awk·sed·grep. 별도 플랫폼 의존 명령은 쓰지 않는다. 스크립트를 새로 쓸 때는 macOS 전용 명령·perl 을 쓰지 않는다. 정본·도구 표·한계: `../../_shared/platform-support.md`.

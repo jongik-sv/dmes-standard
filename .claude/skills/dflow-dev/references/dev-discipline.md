@@ -47,7 +47,8 @@ LLM 의 자기 신고를 게이트 판정에 쓰지 않는다.
 - **콘솔에 총수가 나오지 않는 러너(Gradle·Maven)는 명령이 끝난 직후 `junit-count.sh [<모듈 폴더>…]` 로 센다.** 모듈
   게이트면 대응표의 그 모듈 폴더만 넘기고, full 이면 리포 최상위에서 센다. 기준선과 게이트는 같은 폴더 인자로 센다.
   실패 이름은 `--failed-file` 로 뽑아 `baseline.sh note` 에 넘긴다. `files=0`(XML 이 없거나 모두 깨짐)이면 그 수를 기준선으로
-  적지 않는다 — 총수 0 은 미감소 판정을 늘 통과시킨다. 원인을 밝히고 다시 잰다. `--tests` 로 일부 클래스만 고른 실행 직후에는
+  적지 않는다 — 총수 0 은 미감소 판정을 늘 통과시킨다. 원인을 밝히고 다시 잰다. 파싱은 node(같은 폴더의 `junit-count.mjs`, python
+  불필요)가 하며 node 가 없으면 `JUNIT_SUMMARY_NONODE`(exit 2)를 낸다 — 센 것으로 치지 않는다. 크기·인코딩 때문에 못 읽는 XML 이 있으면 합계 줄 없이 `JUNIT_ABORT`(exit 1)로 멈춘다 — 이것도 센 것으로 치지 않는다. `--tests` 로 일부 클래스만 고른 실행 직후에는
   세지 않는다(필터 밖 클래스의 결과까지 지워져 총수가 준다 — Gradle 9.3 실측).
 - 기준선이 빨간데 이번 작업과 무관하면 그 사실을 기록하고 진행한다. 이번 작업 영역이 빨갛다면
   중단하고 사람에게 보고한다(빨간 기준선 위에 쌓지 않는다).
@@ -618,7 +619,7 @@ Task 브랜치는 기점에서 만든 뒤 **개발 브랜치를 다시 머지하
 
 ## 지원 환경: macOS · Git Bash(윈도우)
 
-이 스킬의 스크립트(`scripts/*.sh`)는 macOS 와 Git for Windows 의 Git Bash 에서 같이 돈다. 필요 도구: bash, git, jq, awk·sed·grep(GNU 또는 BSD), node(변이 검증 `mutate.sh` 의 본체 `mutate.mjs`, `free-port.sh` 폴백), python3(선택). Git Bash 에는 `ps -o`·`pgrep`·`pkill`·`lsof`·`sysctl` 이 없다 — `heavy.sh` 는 `ps -W`(WINPID)·`/proc` 로 대신하고 판정할 수 없는 값(시작 시각·부하)은 생략한다. `deps.sh` 의 의존성 링크는 윈도우에서 심링크가 복사로 만들어지는 점에 주의한다. 스크립트를 새로 쓸 때는 macOS 전용 명령·perl 을 쓰지 않는다. 정본·도구 표·한계: `../../_shared/platform-support.md`.
+이 스킬의 스크립트(`scripts/*.sh`)는 macOS 와 Git for Windows 의 Git Bash 에서 같이 돈다. 필요 도구: bash, git, jq(윈도우는 `_shared/bin` 동봉판을 스크립트가 PATH 에 넣는다), awk·sed·grep(GNU 또는 BSD), node(변이 검증 `mutate.sh` 의 본체 `mutate.mjs`, `free-port.sh` 첫 선택지, `junit-count.sh` 의 XML 합산, jq 가 없을 때의 `timeout-guard.sh`). python 은 필요 없다. Git Bash 에는 `ps -o`·`pgrep`·`pkill`·`lsof`·`sysctl` 이 없다 — `heavy.sh` 는 `ps -W`(WINPID)·`/proc` 로 대신하고 판정할 수 없는 값(시작 시각·부하)은 생략한다. `deps.sh` 의 의존성 링크는 윈도우에서 심링크가 복사로 만들어지는 점에 주의한다. 스크립트를 새로 쓸 때는 macOS 전용 명령·perl 을 쓰지 않는다. 정본·도구 표·한계: `../../_shared/platform-support.md`.
 
 ## 공통 금지
 

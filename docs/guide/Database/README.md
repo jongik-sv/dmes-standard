@@ -5,6 +5,7 @@
 | 문서 | 역할 |
 |---|---|
 | [`dialect-neutral-sql.md`](dialect-neutral-sql.md) | **먼저 읽는다.** SQLite(로컬·테스트)와 운영 DB(Oracle·PostgreSQL)에서 함께 도는 방언 중립 SQL 작성 규칙·구문 대조표 |
+| [`oracle-26ai-test-guide.md`](oracle-26ai-test-guide.md) | **로컬 DB 테스트 환경.** Podman 기반 Oracle 26ai Free 로컬 컨테이너 실행 가이드 (Mac/Windows 공용) |
 | [`DBMS-용어-비교.md`](DBMS-용어-비교.md) | Oracle·MSSQL·PostgreSQL·SQLite **4-DB** 용어·개념 비교 |
 | [`oracle-to-mssql-practical-guide.md`](oracle-to-mssql-practical-guide.md) | 보관. dmes-ksm(MSSQL) 이관 시절 자료이며 MSSQL 현장을 맡을 때만 참고한다(Oracle→SQL Server 실무 전환 상세본) |
 | [`oracle-to-mssql-핵심요약.md`](oracle-to-mssql-핵심요약.md) | 보관. dmes-ksm(MSSQL) 이관 시절 자료이며 MSSQL 현장을 맡을 때만 참고한다(위 상세본의 1장 요약) |

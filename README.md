@@ -116,7 +116,7 @@ cp .dflow.local.example .dflow.local   # pats= 에 D'Flow 웹 /account 「내 �
 .claude/skills/dflow-work/scripts/dflow.sh doctor
 ```
 
-`.dflow.local` 은 개인 토큰이 들어가므로 커밋하지 않는다(`.gitignore`). 필요한 명령: git · curl · jq · python3 · gh.
+`.dflow.local` 은 개인 토큰이 들어가므로 커밋하지 않는다(`.gitignore`). 필요한 명령: git · curl · jq · node(18.17 이상) · gh. 윈도우(Git Bash)에서는 jq 를 `.claude/skills/_shared/bin` 에 동봉한 것을 스크립트가 쓰므로 따로 설치하지 않는다. python3 는 dflow 스킬에 필요 없다(mantine-aggrid-ui 의 문서 조회 스크립트 `.py` 만 아직 python3 를 쓰며 node 로 이식 중이다). 자세한 환경은 `.claude/skills/_shared/platform-support.md` 를 본다.
 
 ### 6. (필수) Claude Code — 사용 한도 초기화 뒤 자동 계속
 

@@ -289,39 +289,23 @@ project_map=docs/c10=<uuid>,docs/m30=<uuid>   # .dflow.local — DOCS_DIR 마다
 | 포맷 | 방법 |
 |---|---|
 | `.json` | 객체 배열, 또는 `{"programs": [...]}` 의 그 배열 |
-| `.yaml` / `.yml` | `python3 -c "import yaml,json,sys; print(json.dumps(yaml.safe_load(open(sys.argv[1])), ensure_ascii=False))" {경로}` — `pyyaml` 설치 확인됨 |
-| `.csv` | `csv.DictReader`, 인코딩 `utf-8-sig` (엑셀 CSV 의 BOM) |
+| `.yaml` / `.yml` | Read 도구로 파일을 직접 읽어 객체 배열(또는 `programs:` 아래 배열)로 해석한다. 값이 모호하면(탭 들여쓰기, 앵커·별칭, 멀티 문서) 사용자에게 알리고 JSON 으로 변환해 달라고 요청한다. **스칼라 형 규칙**: 따옴표로 감싼 값은 항상 문자열, 따옴표 없는 `true`/`false` 는 불리언, `null`·`~`·빈 값은 null, 숫자처럼 보이는 따옴표 없는 값은 숫자다. 단 `program_id`·`module`·`depends` 처럼 식별자·코드 칸은 어떤 형이든 **원문 글자 그대로의 문자열**로 쓴다(`007` 이 `7` 이 되거나 `1.0` 이 `1` 이 되지 않게). 따옴표 없는 `yes`/`no`/`on`/`off` 는 불리언이 아니라 문자열로 읽는다 |
+| `.csv` | Read 도구로 파일을 직접 읽어 에이전트가 해석한다(별도 프로그램 없이). 첫 글자가 BOM(`U+FEFF`, 엑셀 CSV)이면 지운다. 첫 행이 헤더이고 구분자는 쉼표다. 따옴표 규칙(RFC 4180): 쌍따옴표(`"`)로 감싼 칸 안의 쉼표·줄바꿈은 칸 내용이고, 칸 안의 `""` 는 `"` 한 글자다. 줄 끝은 LF·CRLF 모두 같다. 데이터 행이 헤더보다 짧으면 모자란 칸은 빈 값이고, 길면(칸 수 초과) 그 행을 입력 매핑 리포트에 남긴다. 따옴표가 닫히지 않거나 헤더가 비면 사용자에게 알리고 중단한다 |
 | `.md` | 파일의 **첫 번째 GFM 파이프 표**. 헤더 행 → 구분 행(`---`) → 데이터 행. 셀 앞뒤 공백과 양끝 `|` 제거 |
-| `.xlsx` | 첫 시트. `openpyxl` 이 있으면 그것으로, 없으면 아래 표준 라이브러리 리더로 |
+| `.xlsx` | 첫 시트. 아래 `xlsx-read.mjs` 로 읽는다 |
 
-`.xlsx` 표준 라이브러리 리더 (의존성 0 — `openpyxl` 미설치 환경 실측 대응):
+`.xlsx` 는 스크립트로 읽는다(node 만 필요, 의존성 0 — zip 해제·XML 해석을 스크립트가 직접 한다):
 
-```python
-import sys, zipfile, re, json, xml.etree.ElementTree as ET
-NS = '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
-z = zipfile.ZipFile(sys.argv[1])
-ss = []
-if 'xl/sharedStrings.xml' in z.namelist():
-    for si in ET.fromstring(z.read('xl/sharedStrings.xml')):
-        ss.append(''.join(t.text or '' for t in si.iter(NS + 't')))
-sheet = sorted(n for n in z.namelist() if n.startswith('xl/worksheets/sheet'))[0]
-rows = []
-for row in ET.fromstring(z.read(sheet)).iter(NS + 'row'):
-    vals = {}
-    for c in row.iter(NS + 'c'):
-        col = re.match(r'[A-Z]+', c.get('r')).group(0)
-        v = c.find(NS + 'v')
-        txt = '' if v is None else v.text
-        if c.get('t') == 's':
-            txt = ss[int(txt)]
-        elif c.get('t') == 'inlineStr':
-            txt = ''.join(t.text or '' for t in c.iter(NS + 't'))
-        vals[col] = txt
-    rows.append(vals)
-hdr = rows[0]
-cols = sorted(hdr, key=lambda k: (len(k), k))
-print(json.dumps([{hdr[c]: r.get(c, '') for c in cols} for r in rows[1:]], ensure_ascii=False))
+```bash
+node .claude/skills/dflow-wbs/scripts/xlsx-read.mjs {경로}
 ```
+
+- 첫 시트를 읽어 stdout 에 한 줄 JSON 객체 배열(`[{"헤더": "값", …}, …]`, 들여쓰기 없음)을 낸다. 첫 행이 헤더이고, 모든 셀 값은 문자열이다(숫자 셀도 `<v>` 원문 그대로 — `12` 는 `"12"`). 빈 셀은 `""`.
+- **날짜 셀은 일련번호 문자열로 읽힌다.** 엑셀의 날짜는 숫자 셀이라 서식이 아니라 값이 나온다(`2026-10-01` 이 `"46296"`). 일정·날짜 성격의 칸에 5자리 안팎 정수 문자열이 오면 `1899-12-30` 에 그 일수를 더한 날짜로 해석하고(`"46296"` → `2026-10-01`), 입력 매핑 리포트에 해석한 칸을 남긴다. 문자열로 입력된 날짜(`'2026-10-01`)는 그대로 읽힌다. 불리언 셀은 `"1"`/`"0"`, 오류 셀은 `#N/A` 같은 원문이다.
+- **첫 시트는 파트 이름 정렬 순으로 정해진다.** `xl/worksheets/sheet*` 이름을 코드포인트 순으로 정렬한 첫 번째이며 `workbook.xml` 의 시트 순서는 보지 않는다. 그래서 `sheet1` < `sheet10` < `sheet2` 이고, 사용자가 화면에서 첫 번째로 보는 시트와 다를 수 있다. 시트가 둘 이상인 파일이면 어느 시트를 읽었는지 입력 매핑 리포트에 남긴다. 공유 문자열(sharedStrings)·`inlineStr`·서식 run 이 섞인 셀은 이어 붙여 읽는다.
+- **`<v/>` 처럼 값이 빈 비문자열 셀은 JSON `null` 이다**(데이터 셀이면 값 `null`, 헤더 셀이면 키 이름 `"null"`). 셀 요소 자체가 없거나 `<v>` 요소가 없는 칸은 빈 문자열 `""` 이다. `null` 과 `""` 를 모두 미기재로 취급한다.
+- 엑셀이 제어 문자 등에 쓰는 XLSX 이스케이프 `_xHHHH_`(예: `_x000D_`)는 읽을 때 원래 글자로 되돌린다. 글자 그대로의 `_x0041_` 은 `_x005F_x0041_` 로 저장돼 있다.
+- 파일이 깨졌거나(zip 아님·XML 오류·시트 없음) 읽을 수 없으면 종료 코드 1 과 stderr 한 줄 사유로 끝난다. 읽기 실패를 "행 없음"으로 위장하지 않는다(에러 3원칙).
 
 ### 검증 (에러 3원칙 — 실패를 "없음"으로 위장하지 않는다)
 
@@ -502,39 +486,17 @@ C1·C4 는 강제 진행 설계(`2026-09-23-force-progress-design.md`) §3.4 1�
 
 ### 쓰기 — 의존성 0
 
-`openpyxl` 이 있으면 그것을 쓰고, 없으면(실측 환경이 그렇다) 표준 라이브러리로 쓴다. 문자열 셀은 `t="s"`(sharedStrings), 숫자 셀(12·17번)은 `t` 속성을 생략한다.
+행 배열을 JSON 으로 만들어 스크립트에 넘긴다(node 만 필요, 의존성 0 — zip 은 스크립트가 직접 쓴다):
 
-```python
-import zipfile, html
-
-def write_xlsx(path, rows):           # rows[0] = 헤더, 셀 값은 str 또는 int/float
-    ss, idx, body = [], {}, []
-    def sid(v):
-        if v not in idx:
-            idx[v] = len(ss); ss.append(v)
-        return idx[v]
-    for r, row in enumerate(rows, 1):
-        cs = []
-        for c, v in enumerate(row):
-            ref = f"{chr(ord('A') + c)}{r}"
-            if isinstance(v, (int, float)) and not isinstance(v, bool):
-                cs.append(f'<c r="{ref}"><v>{v}</v></c>')
-            else:
-                cs.append(f'<c r="{ref}" t="s"><v>{sid(str(v))}</v></c>')
-        body.append(f'<row r="{r}">{"".join(cs)}</row>')
-    M = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
-    R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
-    z = zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED)
-    z.writestr("[Content_Types].xml", '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>')
-    z.writestr("_rels/.rels", f'<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="{R}/officeDocument" Target="xl/workbook.xml"/></Relationships>')
-    z.writestr("xl/workbook.xml", f'<?xml version="1.0"?><workbook xmlns="{M}" xmlns:r="{R}"><sheets><sheet name="WBS" sheetId="1" r:id="rId1"/></sheets></workbook>')
-    z.writestr("xl/_rels/workbook.xml.rels", f'<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="{R}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="{R}/sharedStrings" Target="sharedStrings.xml"/></Relationships>')
-    z.writestr("xl/worksheets/sheet1.xml", f'<?xml version="1.0"?><worksheet xmlns="{M}"><sheetData>{"".join(body)}</sheetData></worksheet>')
-    z.writestr("xl/sharedStrings.xml", '<?xml version="1.0"?><sst xmlns="%s" count="%d" uniqueCount="%d">%s</sst>' % (M, len(ss), len(ss), "".join("<si><t>%s</t></si>" % html.escape(s) for s in ss)))
-    z.close()
+```bash
+node .claude/skills/dflow-wbs/scripts/xlsx-write.mjs --out {경로} < rows.json
 ```
 
-`html.escape` 를 반드시 통과시킨다 — Task 제목에 `&`·`<` 가 들어가면 파일이 열리지 않는다. 서식(열 너비·틀 고정·색)은 이 절의 범위 밖이다.
+- 입력 `rows.json` 은 행 배열 `[[헤더…], [셀…], …]` 이다(첫 행이 헤더). 셀은 문자열 또는 숫자이며, 파일 경로를 인자로 줘도 된다(`… --out {경로} rows.json`). 숫자(12·17번 컬럼)는 JSON 숫자로 쓴다.
+- 문자열 셀은 `t="s"`(sharedStrings)로, 숫자 셀은 `t` 속성 없이 쓴다. 공유 문자열 중복은 하나로 합친다. 출력 경로의 부모 폴더가 없으면 만들고, 파일이 있으면 덮어쓴다.
+- **열은 최대 26개(A~Z)다.** 이 문서의 표는 18열이라 충분하다. 27열 이상이면 스크립트가 종료 코드 1 과 짧은 stderr 로 끝난다. 입력 JSON 이 잘못돼도 종료 코드 1 이고 파일은 만들지 않는다.
+
+XML 이스케이프(`&`·`<`·`>`·`"`·`'`)는 스크립트가 처리한다 — Task 제목에 `&`·`<` 가 들어가도 XML 이 깨지지 않는다. XML 이 문자로 허용하지 않는 제어 문자(`0x00~0x08`·`0x0B`·`0x0C`·`0x0E~0x1F`)·`U+FFFE`·`U+FFFF`·짝 없는 서로게이트는 XLSX 관례의 `_xHHHH_`(대문자 16진 4자리)로 인코딩해 쓰고(원문에 있는 `_x0041_` 같은 글자는 `_x005F_x0041_` 로 밑줄을 이스케이프), `xlsx-read.mjs` 는 읽을 때 되돌린다. 엑셀은 이 표기를 원래 글자로 열고 일부 뷰어는 표기 그대로 보인다. 이 스크립트는 파일이 어느 엑셀·뷰어에서나 열린다고 보장하지 않는다: 확인한 것은 XML 해석 가능성과 이 저장소의 읽기 스크립트로의 왕복뿐이다(엑셀 실물 열기 시험은 하지 않았다). 서식(열 너비·틀 고정·색)은 이 절의 범위 밖이다.
 
 ### 순서와 실패 처리
 

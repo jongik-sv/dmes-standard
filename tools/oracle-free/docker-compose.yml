@@ -1,0 +1,17 @@
+# 로컬 Oracle 26ai Free — docs/guide/Database/oracle-26ai-test-guide.md §5
+services:
+  oracle-db:
+    image: docker.io/gvenzl/oracle-free:slim-faststart
+    container_name: oracle-26ai-free
+    ports:
+      - "1521:1521"
+    environment:
+      ORACLE_PASSWORD: "sys_password_123"
+      APP_USER: "dmes_user"
+      APP_USER_PASSWORD: "dmes_password_123"
+    volumes:
+      - oracle-data:/opt/oracle/oradata:Z
+      # - ./init-scripts:/container-entrypoint-initdb.d
+
+volumes:
+  oracle-data:
