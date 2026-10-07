@@ -62,7 +62,7 @@ let targetChecked = false;
 
 /**
  * 접속 PDB 가 시험·레인 E2E 용인지 확인한다(프로세스당 한 번). 서비스 이름이 `T_*`(시험 PDB) 또는 `L_*`(레인 PDB) 이면서 DMES_E2E_ALLOW_PDB 와 대소문자 무시로 같을 때만 통과한다.
- * FREEPDB1·TPL_*·PDB$SEED·CDB$ROOT 는 지정해도 던지고, 허용을 적지 않은 `T_*`·`L_*`(다른 레인의 것일 수 있다)도 던진다. oracle.ts 에는 PDB 이름 검사가 없어 여기에 둔다.
+ * FREEPDB1·TPL_*·PDB$SEED·CDB$ROOT 는 지정해도 던지고, 허용을 적지 않은 `T_*`·`L_*`(다른 레인의 것일 수 있다)도 던진다. oracle.ts 쪽 PDB 이름 검사(ora-base)가 있어도 남긴다 — `T_*` 까지 명시 허용을 요구해 더 엄격하다.
  */
 function guardTarget(): void {
   if (targetChecked) return;

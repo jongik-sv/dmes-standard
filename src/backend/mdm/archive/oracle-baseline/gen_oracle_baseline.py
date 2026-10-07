@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """mdm SQLite 마이그레이션(V1~Vn)의 최종 스키마로 Oracle 기준선 V1 을 만든다.
+(archive, oracle-1007) V1 확정 뒤 tools/oracle-baseline 에서 옮겼다 — 더는 실행하지 않는다. 아래 사용 예·V1 머리 주석의 경로는 옛 tools/ 기준이고,
+결정표 DECISIONS.md 는 tools/oracle-baseline 에 남아 있다(이 위치에서 돌리면 archive 쪽에 새로 쓴다).
 
 사용 예
   python3 src/backend/mdm/tools/oracle-baseline/gen_oracle_baseline.py            # V1·결정표를 다시 쓴다
