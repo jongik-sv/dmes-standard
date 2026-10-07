@@ -828,4 +828,18 @@ describe("의존 칸(dependsOn)", () => {
     });
     expect(dep.code).toBe("");
   });
+
+  it("저장소를 기다리는 동안 기준 칸보다 나중에 고친 의존 칸은 넣기가 끝나도 둔다", async () => {
+    let resolve: (v: unknown) => void = () => {};
+    setSearchDefaultsTransportForTest(() => new Promise((r) => (resolve = r)));
+    await mount(inPage(createElement(DepScreen)));
+    await act(async () => setMd("D1"));
+    await typeTo("키", "K1");
+    await act(async () => {
+      resolve(serverRows({}));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(dep).toEqual({ md: "D1", code: "K1", cate: "", closed: "N" });
+  });
 });

@@ -179,8 +179,9 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
    * 칸 값이 이와 달라지면(사용자·화면이 고침) 그만둔다.
    */
   const depWatchRef = useRef(new Map<string, { sig: string; until: number; expected: string; skipLast: boolean }>());
-  /** 넣기 전(저장소 대기)에 값이 바뀐 칸 — 넣기가 끝난 뒤 첫 커밋에서 기준 칸 변경으로 본다. */
-  const changedWhilePendingRef = useRef(new Set<string>());
+  /** 넣기 전(저장소 대기)에 값이 바뀐 칸과 그 커밋 번호 — 넣기가 끝난 뒤 첫 커밋에서 기준 칸 변경으로 보고, 기준 칸보다 나중에 바뀐 의존 칸은 둔다. */
+  const changedWhilePendingRef = useRef(new Map<string, number>());
+  const commitSeqRef = useRef(0);
   /** 초기화가 넣은 값이 커밋되는 다음 커밋 — 그 커밋의 의존 칸 다시 채우기도 마지막 조회값을 넣지 않는다(§6.6). */
   const afterResetRef = useRef(false);
   /** 선택지에 아직 없어 보류한 값(서버에서 받는 선택지) — 한도 안에 선택지가 생기고 칸이 그대로면 넣는다. */
@@ -320,9 +321,7 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
   }, [armDeferTimer, scheduleAutoSearch]);
 
   const applyAll = useCallback(
-    (mode: ApplyMode) => {
-      applyTo([...handlesRef.current.entries()], mode);
-    },
+    (mode: ApplyMode) => applyTo([...handlesRef.current.entries()], mode),
     [applyTo],
   );
 
@@ -415,8 +414,11 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
     // 넣기 전(저장소 대기)에 바뀐 칸은 모아 두었다가 넣기가 끝난 뒤 첫 커밋에서 바뀐 기준 칸으로 본다 — 그 사이 바뀐 기준 칸도 의존 칸을 비운다.
     // (같은 커밋에 화면이 바꾼 의존 칸을 두는 판정에는 이번 커밋 변경만 쓴다.)
     const baseChanged = new Set<string>();
+    const commitSeq = ++commitSeqRef.current;
+    let pendingChanges: Map<string, number> | null = null;
     if (done && changedWhilePendingRef.current.size > 0) {
-      for (const key of changedWhilePendingRef.current) baseChanged.add(key);
+      pendingChanges = new Map(changedWhilePendingRef.current);
+      for (const key of pendingChanges.keys()) baseChanged.add(key);
       changedWhilePendingRef.current.clear();
     }
     for (const [key, h] of handlesRef.current) {
@@ -427,14 +429,21 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
       if (done) {
         changed.add(key);
         baseChanged.add(key);
-      } else changedWhilePendingRef.current.add(key);
+      } else changedWhilePendingRef.current.set(key, commitSeq);
     }
+    /** 화면·사용자가 기준 칸과 같은 커밋이나 그 뒤에 바꾼 의존 칸인가(그러면 둔다). */
+    const keptByScreen = (key: string, baseKey: string) => {
+      if (changed.has(key)) return true;
+      const depAt = pendingChanges?.get(key);
+      const baseAt = pendingChanges?.get(baseKey);
+      return depAt !== undefined && baseAt !== undefined && depAt >= baseAt;
+    };
     for (const key of [...seen.keys()]) if (!handlesRef.current.has(key)) seen.delete(key);
     if (baseChanged.size > 0 && done) {
       const deps: Array<[string, SearchDefaultsFieldHandle]> = [];
       for (const [key, h] of handlesRef.current) {
         const base = h.info.dependsOn;
-        if (base && baseChanged.has(storageKey(base)) && !changed.has(key)) {
+        if (base && baseChanged.has(storageKey(base)) && !keptByScreen(key, storageKey(base))) {
           h.touched = false;
           awaitingRef.current.delete(key);
           depWatchRef.current.delete(key);
@@ -466,8 +475,8 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
     if (pendingResetRef.current && renderIdRef.current > resetAtRef.current) {
       pendingResetRef.current = false;
       // 비우기는 화면 초기화(onClick)가 이미 했다 — 처음 등록 값으로 되돌리지 않는다(분리 창은 처음 값이 이어받은 값이라 화면의 초기값과 다르다).
-      applyAll({ skipLast: true, ignoreTouched: true, onlyIfUnchanged: false });
-      afterResetRef.current = true;
+      // 넣은 값이 있을 때만 다음 커밋을 「초기화 뒤」 로 본다(없으면 다시 그리지 않아 표시가 엉뚱한 커밋까지 남는다).
+      afterResetRef.current = applyAll({ skipLast: true, ignoreTouched: true, onlyIfUnchanged: false }).size > 0;
     }
     if (lateRef.current.size > 0) {
       const late = [...lateRef.current]
