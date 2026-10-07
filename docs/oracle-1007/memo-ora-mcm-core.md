@@ -31,18 +31,20 @@
   - mcm 영향(ora-mcm-app 몫): 어댑터 5개는 setSqlite(true) 여도 Oracle 형을 보낸다 — mcm 의 SQLite 시험(DataInitializerMssqlSqlCharacterizationTest·DataInitializerSeedFingerprintTest·NoticePermissionFilterTest·MenuCatalogOasisSaveIntegrationTest)이 이 SQL 을 타면 깨진다.
   - **c4 Oracle 확인 목록**: ① 재귀 WITH 3개(SecMenuNativeRepository searchCmMenu·searchMenuFld, SecRoleGroupMappingNativeRepository.searchCmRoleGrpMenu — H2 시험이 타지 않음) ② searchMenuObjPop 상관 서브쿼리 FETCH FIRST ③ MomTcErrorRepository 따옴표 별칭·TO_CHAR·Instant 바인드 시간대 ④ MasterRuleColListRepository 사전 뷰(MCAAPUSER GRANT 없으면 조용히 0건) ⑤ CommSyncMngService 'FM999999990.0'·INSERT…SELECT * 칸 순서(원장·사본·백업 V1 일치) ⑥ CommUserMngQueryService LOCALTIMESTAMP·INTERVAL ⑦ masterRuleData 동적 CTE 페이징·DATE 칸에 14자 글자 바인드(NLS)·CLOB 칸 = 비교 ⑧ 화면 사용 표 색인·유일 제약·엔티티 왕복(archive 한 MSSQL DDL 시험 대체).
   - ScreenUsageMssqlDdlTest → archive/test/screenusage(4e63da218), build.gradle test 입력에서 ScreenUsageSchemaArtifacts·DataInitializer 뺌. ScreenUsageMssqlDdl 은 @Deprecated. **c4 할 일: 화면 사용 표 색인·유일 제약·엔티티 왕복을 Oracle 시험으로 대체**.
-- c4: c2 다음. 시험은 `-Pdmes.ora.test=clone` 하니스(scripts/oracle/README.md). PC 전체 Oracle 무거운 작업은 한 번에 하나(잠금이 줄 세움).
+- **c4 시험 Oracle 전환 — 완료(10-07, 03e1263da)**. 최종: clone 모드 1232건 실패 0·건너뜀 2, 51초(perf-ora-mcm-core.md). 1차 레인 PDB 실행 63건 실패(ORA-01466·01873·01861·22848·NCLOB 투영·CHAR 상수·풀 부족) → 7594e556b 로 고침. 잔재 정리 4·5항(위젯 SQLite·SQL Server·PostgreSQL 갈래, SQLITE_BUSY 재시도) 448baab71·03e1263da, 1항(h2·sqlite·flyway-postgresql 시험 의존) 03e1263da.. 틀 1d612401a(McmCoreOraTestDb·EntitySchemaValidateOraTest — 레인 PDB validate 1/1·WidgetDefaultLayout 4/4). 병렬 4묶음(조정 지시, sonnet/high): A 위젯 쿼리 4·B 위젯 기타 8·C 사용자·메뉴·검색 기본값·화면 사용 5(+SearchRoleGrpSqliteTest → SearchRoleGrpOraTest)·D c2 확인 새 시험 oracheck/ 8파일 → WIP 8306615a9, 컴파일 오류 0, 남은 jdbc:h2·sqlite 0. 시험 자원 application.yml(H2, 읽는 Boot 시험 없음) → archive/test/resources.
+  - 실패 나면 VM 값(available·load) 먼저 재고 VM 신호면 재실행 말고 조정에 「VM 의심」(조정 규칙 10-07).
+  - D 가 짚은 main 의심(Oracle 결과로 판정): masterRuleData DATE 칸 14자 바인드·CLOB = 비교·CLOB 응답, searchCmRoleGrpMenu 정렬(MENU_SEQ 글자 정렬)·앵커(MENU_FLD.MENU_ID IN 화면 MENU_ID), MomTcError NCLOB 투영·null Instant 바인드, 재귀 순환 ORA-32044. A 의 DDL 시험은 「SqlGuard 가 DDL 거절」 로 의도 바뀜(Oracle DDL 암묵 커밋 — 정책 B 로 대응).
+  - 시험은 `-Pdmes.ora.test=clone`(빌드마다 복제·삭제) 또는 `-Pdmes.ora.pdb=<PDB>`. PC 전체 Oracle 무거운 작업은 한 번에 하나(잠금).
 - c2 주의(조정 지시 10-07): `SqliteTemporalConverterContributor` 는 지우지 말고 `@Deprecated` 만 단다 — mls application.yml 이 가리킨다. 제거는 ora-platform 이 mls yml 을 고친 뒤 ora-base b8.
 
 ## 남은 순서
 
-1. ~~c1 검증·리뷰·진행 보고~~ 완료(10-07)
-2. c3 위젯 조회 SQL(SqlGuard·WidgetReadOnlyJdbc Oracle 읽기 전용) — 의존 없음
-3. c2 방언 전환(ora-base 머지① 뒤)
-4. c4 시험 789개 H2 → Oracle(ora-base b4 하니스 뒤)
-5. 머지 요청(ora-mcm-app 과 같은 창, mcm-core → mcm 순서)
-   - 직전에 dev 최신을 합치고 notice-fill2 회차가 넣은 공지 엔티티(mcm/lib notice/entity)·마이그레이션 변경을 MCMAPUSER V1 에 반영한 뒤 내보내기·대조·validate 를 다시 돌린다.
-   - 공지 표 TB_MCM_NOTICE·TB_MCM_NOTICE_TARGET(+인덱스 2)·TB_MCM_SEC_USER_SRCH_DFLT 는 MCMAPUSER V1 에 들어 있다(10-07 확인).
+1. ~~c1·c3·c2·c4~~ 완료(10-07)
+2. 머지 요청(ora-mcm-app 과 같은 창, mcm-core → mcm 순서) — 직전에 dev 최신(①d 하니스 교착 수정 포함)을 합치고 컴파일·지목 시험 확인.
+   - 머지 요청에 적을 것: 대상 SHA, 전체 시험·perf, McmSqliteMybatisInterceptor·ScreenUsageMssqlDdl @Deprecated 유지(③b 정리), 위젯 PostgreSQL 갈래 제거(사용자 확정 3),
+     V1 체크섬 변경(MCMAPUSER V1 머리 주석 BIT→TINYINT, 1d612401a — 이미 적용한 PDB 는 clean 또는 repair), 위젯 도움말 sync 는 node 단언(vitest 는 조정 게이트).
+3. ③b(머지③ 직후, 조정이 맡김): McmSqliteMybatisInterceptor·McmAuditStatementInspectorSqliteTest·ScreenUsageMssqlDdl → archive, McmAuditStatementInspector SQLite 분기 제거.
+4. 머지④ 뒤: SqliteTemporalConverterContributor·LocalDate(Time)AttributeConverter 정리(조정 지시).
 
 ## 결정
 
@@ -61,6 +63,7 @@
 
 - 쿼리 위젯: 운영(prod·wildfly)은 `dmes.widget.query.require-dedicated: true` 로 둔다 — 전용 DataSource 가 없으면 시험·저장·실행을 거절한다(정책 B, 10d9b67de).
 - 쿼리 위젯 실행기(`dmes.widget.query.datasource.*`)에는 **읽기 권한만 가진 DB 계정**의 전용 DataSource 를 붙이고, 그 계정에는 자율 트랜잭션(`PRAGMA AUTONOMOUS_TRANSACTION`) 함수·프로시저의 EXECUTE 권한과 DB 링크를 주지 않는다 — Oracle 읽기 전용 트랜잭션은 자율 트랜잭션 함수의 쓰기를 막지 못한다(2026-10-07 Oracle 26ai 실측).
+- 쿼리 위젯·자동 수집은 읽기 전용 트랜잭션으로 읽으므로, 표를 만들거나 바꾼(DDL) 직후 몇 초 동안 그 표 조회가 ORA-01466 으로 실패할 수 있다(2026-10-07 실측, 잠시 뒤 다시 하면 된다).
 - 업무기준 동적 표 `MCAAPUSER.TB_MCA_<RULE_ID>` 는 DBA 가 만들고, 만들 때 MCMAPUSER 에 `SELECT, INSERT, UPDATE, DELETE` 를 GRANT 한다(앱은 DDL 을 보내지 않는다).
 - 원장 → 사본 동기화(MCM_SOURCE → MCMAPUSER·MCM_BACKUP)는 동기화 관리 화면이 유일한 경로다(트리거·배치 없음).
 - 시퀀스 `SEQ_MCM_MOM_TC_SEND`·`SEQ_MCM_MOM_TC_ERROR` 는 데이터를 옮긴 뒤 MAX(키)+1 로 다시 맞춘다.
@@ -113,8 +116,6 @@ c2 로 넘길 것(이 레인):
 
 ## 다음 단계
 
-- c3 착수. 기준선을 다시 만들 일(머지 직전 dev 합치기 등)이 생기면 아래 scratch 도구로 다시 한다(커밋하지 않음): mcm/api runtimeClasspath + ojdbc11 23.9 + flyway-database-oracle 11.14.1 로
-  ① `SchemaTool export`(JpaConfig 와 같은 packagesToScan, OracleDialect 23, preferred_instant TIMESTAMP, 연결 없음) ② `FlywayRun`(스키마 주인으로 접속, placeholder app_user) ③ `SchemaTool validate`(L_MCC_MCMAPUSER 로 접속, PhysicalNamingStrategy 가 스키마 이름에만 L_MCC_ 접두).
-  scratch 가 사라졌으면 같은 방식으로 다시 만든다.
-- 검증 사용자 `L_MCC_MCMAPUSER`·`L_MCC_MCM_SOURCE`·`L_MCC_MCM_BACKUP`·`L_MCC_MCAAPUSER` 는 검증 뒤 지운다.
+- 머지 요청 → 허가 → 메인에서 --no-ff 머지 → 완료 보고 → 워크트리 정리(-d·force 금지) → 정리 보고. 그 뒤 ③b.
+- 기준선을 다시 만들 일이 생기면: 엔티티 validate 는 이제 `EntitySchemaValidateOraTest`(clone 하니스)로 본다. 내보내기는 scratch SchemaTool 방식(mcm/api runtimeClasspath + ojdbc11·flyway-database-oracle, OracleDialect, preferred_instant TIMESTAMP·boolean TINYINT) — scratch 가 사라졌으면 다시 만든다.
 - 머지②·③ 은 같은 창(mcm-core 엔티티가 mdm 런타임 EMF 에도 들어온다 — 조정 10-07).

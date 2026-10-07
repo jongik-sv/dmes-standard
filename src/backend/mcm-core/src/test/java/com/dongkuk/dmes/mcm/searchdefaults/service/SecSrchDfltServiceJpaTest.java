@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
-/** 서비스·쓰기 빈·저장소를 실제 DB(H2)로 묶어 본 시험 — 정상·검사 위반·사용자 격리·교체 원자성. */
+/** 서비스·쓰기 빈·저장소를 실제 DB(Oracle 시험 PDB)로 묶어 본 시험 — 정상·검사 위반·사용자 격리·교체 원자성. */
 @SpringJUnitConfig(SrchDfltJpaTestConfig.class)
 class SecSrchDfltServiceJpaTest {
 

@@ -14,6 +14,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.sql.Clob;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -51,6 +53,11 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNull;
  * 반환은 As-Is ds_RuleColData 미선언 컬럼과 동일하게 FE 미사용 — 무해).
  *
  * <p>가이드 §6-B-1: {@code @Transactional} 미사용 — OASIS process wrap (save 는 process 단위 atomic).
+ *
+ * <p><b>Oracle 형 처리 (oracle-1007 c4 — 형제 masterRuleData 와 같은 규칙)</b>: DATE 칸 글자 값은 14자
+ * ({@code yyyyMMddHHmmss}, 8자 {@code yyyyMMdd} 는 0시로 채움)로 맞춰 {@code TO_DATE(:v, 'YYYYMMDDHH24MISS')} 로 넣는다
+ * (글자 그대로는 세션 NLS_DATE_FORMAT 으로 바뀌어 ORA-01861). 응답 행의 Clob·NClob 은 글 전체 String,
+ * CHAR(1) 의 Character 는 String 으로 싣는다.
  */
 @Service("masterRuleDataUploadFilePopupService")
 public class MasterRuleDataUploadFilePopupService {
@@ -63,6 +70,8 @@ public class MasterRuleDataUploadFilePopupService {
     private static final Pattern COL_ID_PATTERN = Pattern.compile("^[A-Z0-9_]{1,30}$");
     /** 동적 테이블 고정 키 컬럼 (가족 공통 pkColSet). */
     private static final String PGM_ID = "masterRuleDataUploadFilePopup";
+    /** DATE 칸 글자 값 형식 — {@link #dateText} 가 맞춘 14자와 짝. */
+    private static final String DATE_FMT = "'YYYYMMDDHH24MISS'";
 
     @PersistenceContext
     private EntityManager em;
@@ -89,7 +98,7 @@ public class MasterRuleDataUploadFilePopupService {
         List<Map<String, Object>> list = new ArrayList<>(raw.size());
         for (Object[] r : raw) {
             Map<String, Object> row = new LinkedHashMap<>();
-            for (int i = 0; i < keys.length; i++) row.put(keys[i], r[i]);
+            for (int i = 0; i < keys.length; i++) row.put(keys[i], plainValue(r[i]));   // PK_YN 'Y'/'N' 은 Oracle CHAR(1) → Character
             list.add(row);
         }
 
@@ -155,7 +164,12 @@ public class MasterRuleDataUploadFilePopupService {
         int cnt = 0;
         for (int i = 0; i < rows.size(); i++) {
             maxRuleSeq++;   // R-109 — 행마다 +1 채번 (As-Is java:62)
-            Map<String, Object> cols = filterCols(rows.get(i), typeMap);   // 화이트리스트 + DATE 정규화 (R-110)
+            Map<String, Object> cols;
+            try {
+                cols = filterCols(rows.get(i), typeMap);   // 화이트리스트 + DATE 정규화 (R-110)
+            } catch (BusinessException e) {
+                throw new BusinessException(e.getErrorCode(), (i + 1) + "행 — " + e.getMessage());   // MT-003 행 번호
+            }
 
             StringBuilder colSql = new StringBuilder("RULE_VER, RULE_SEQ");
             StringBuilder valSql = new StringBuilder(":ruleVer, :ruleSeq");
@@ -164,7 +178,9 @@ public class MasterRuleDataUploadFilePopupService {
             for (Map.Entry<String, Object> e : cols.entrySet()) {
                 String bind = "c" + (b++);
                 colSql.append(", ").append(e.getKey());
-                valSql.append(", :").append(bind);
+                valSql.append(", ").append("DATE".equals(typeMap.get(e.getKey())) && e.getValue() instanceof String
+                        ? "TO_DATE(:" + bind + ", " + DATE_FMT + ")"   // DATE 칸 글자 값 (oracle-1007 c4)
+                        : ":" + bind);
                 binds.put(bind, e.getValue());
             }
             colSql.append(", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID");   // Q-105 (F-006 해소)
@@ -236,7 +252,8 @@ public class MasterRuleDataUploadFilePopupService {
 
     /**
      * Excel 행에서 실제 컬럼만 추출 — 컬럼정의 COL_ID 화이트리스트 (As-Is 는 Excel 헤더 키 전체를
-     * 신뢰 java:64-74 — Q-104 안전화). DATE 컬럼은 {@code -} 제거 후 14자 절단 (R-110 — As-Is java:69-72).
+     * 신뢰 java:64-74 — Q-104 안전화). DATE 컬럼은 {@code -} 제거 후 14자 절단 (R-110 — As-Is java:69-72),
+     * 8자 등 짧은 값은 0 으로 채워 14자로 맞춘다({@link #dateText}).
      */
     /** INSERT 고정 조립 컬럼 — 컬럼정의에 동명 COL_ID 가 등록돼도 중복 조립 차단 (R0-3 리뷰 반영 — 형제 remove 패턴 통일). */
     private static final java.util.Set<String> FIXED_COLS = java.util.Set.of(
@@ -251,8 +268,7 @@ public class MasterRuleDataUploadFilePopupService {
             if (FIXED_COLS.contains(key)) continue;    // 고정 조립 컬럼과 중복 시 칸 중복 오류(Oracle ORA-00957) 방지
             Object v = e.getValue();
             if ("DATE".equals(typeMap.get(key)) && v instanceof String s) {
-                String norm = s.replace("-", "");   // R-110 (As-Is java:69-72)
-                v = norm.length() > 14 ? norm.substring(0, 14) : norm;
+                v = dateText(key, s);   // R-110 (As-Is java:69-72) '-' 제거·14자 절단 + 짧으면 0 채움
             }
             cols.put(key, v);
         }
@@ -266,10 +282,42 @@ public class MasterRuleDataUploadFilePopupService {
         List<Map<String, Object>> list = new ArrayList<>(tuples.size());
         for (Tuple t : tuples) {
             Map<String, Object> row = new LinkedHashMap<>();
-            t.getElements().forEach(el -> row.put(el.getAlias().toUpperCase(Locale.ROOT), t.get(el)));
+            t.getElements().forEach(el -> row.put(el.getAlias().toUpperCase(Locale.ROOT), plainValue(t.get(el))));
             list.add(row);
         }
         return list;
+    }
+
+    /**
+     * DATE 칸 글자 값 → {@code yyyyMMddHHmmss} 14자. 구분자({@code - : / . 공백})를 지우고, 14자보다 길면 자르고,
+     * 짧으면(8자 yyyyMMdd 등) 뒤를 0 으로 채운다. 빈 값은 그대로(Oracle 에서 NULL). 숫자 8자 미만이거나 숫자 아닌 글자가
+     * 남으면 INVALID_VALUE (형제 MasterRuleDataService 와 같은 규칙).
+     */
+    static String dateText(String col, String s) {
+        if (s == null) return null;
+        String t = s.trim();
+        if (t.isEmpty()) return t;
+        String digits = t.replaceAll("[-:/. ]", "");
+        if (!digits.chars().allMatch(Character::isDigit) || digits.length() < 8) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE,
+                    "[" + col + "] 날짜 값 '" + t + "' 은 yyyyMMdd 또는 yyyyMMddHHmmss 형식이어야 합니다.");
+        }
+        if (digits.length() > 14) return digits.substring(0, 14);
+        return digits + "0".repeat(14 - digits.length());
+    }
+
+    /** 응답 값 정리 — Clob·NClob 은 글 전체 String, Oracle CHAR(1) 의 Character 는 String. 그 밖은 그대로. */
+    private static Object plainValue(Object v) {
+        if (v instanceof Character c) return c.toString();
+        if (v instanceof Clob lob) {
+            try {
+                long len = lob.length();
+                return len == 0 ? "" : lob.getSubString(1, Math.toIntExact(len));
+            } catch (SQLException e) {
+                throw new IllegalStateException("LOB 칸 값을 읽지 못했습니다.", e);
+            }
+        }
+        return v;
     }
 
     /** 인증 컨텍스트 사용자 (audit — Q-105). 미인증 컨텍스트(테스트 등)는 "system". */

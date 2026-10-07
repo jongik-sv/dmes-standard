@@ -176,7 +176,8 @@ class MasterRuleDataUploadFilePopupServiceTest {
         assertThat(insertSql).contains("RULE_VER, RULE_SEQ")
                 .contains("C_USR_ID").contains("U_PGM_ID");                          // Q-105 audit 8
         assertThat(insertSql).doesNotContain("EVIL_COL");
-        verify(query, org.mockito.Mockito.atLeastOnce()).setParameter(eq("c0"), eq("20260709"));   // R-110 '-' 제거
+        verify(query, org.mockito.Mockito.atLeastOnce()).setParameter(eq("c0"), eq("20260709000000"));   // R-110 '-' 제거 + 8자 → 0시 채움(oracle-1007 c4)
+        assertThat(insertSql).contains("TO_DATE(:c0, 'YYYYMMDDHH24MISS')");                                 // DATE 칸 글자 값은 TO_DATE 로 (ORA-01861 회피)
         verify(query, org.mockito.Mockito.atLeastOnce()).setParameter(eq("ruleSeq"), eq(1L));       // COALESCE 0 + 1
         assertThat(out.get("cnt_import")).isEqualTo(1);
     }

@@ -14,7 +14,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.sql.Clob;
+import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -52,6 +55,16 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNull;
  *
  * <p>As-Is 보존: 영향행 ≤ 0 시 예외 미발생 — 로그만 (BR-013 비고 / VAL-06). VARCHAR2 UPPER 검색(BR-008),
  * DATE 14자 절단(BR-009). 가이드 §6-B-1: {@code @Transactional} 미사용 — OASIS process wrap.
+ *
+ * <p><b>Oracle 형 처리 (oracle-1007 c4)</b>:
+ * <ul>
+ *   <li>DATE 칸(COL_TYPE 'DATE' — 사전 뷰가 DATE·TIMESTAMP 를 묶은 값)의 글자 값은 {@link #dateText} 로
+ *       {@code yyyyMMddHHmmss} 14자로 맞춘 뒤 {@code TO_DATE(:v, 'YYYYMMDDHH24MISS')} 로 감싼다 — 글자를 그대로 바인드하면
+ *       세션 NLS_DATE_FORMAT 으로 바뀌어 ORA-01861 이 난다. 조건 LIKE 는 {@code TO_CHAR(col, 'YYYYMMDDHH24MISS') LIKE :v}.</li>
+ *   <li>CLOB·NCLOB 칸은 COL_TYPE 이 'VARCHAR2' 로 묶여 구분되지 않으므로 {@code =}·{@code <=}·{@code >=} 조건이 있을 때만
+ *       사전(ALL_TAB_COLUMNS)에서 실제 형을 읽어 LOB 비교식으로 바꾼다(ORA-22848 회피). LIKE 는 LOB 에도 되므로 그대로.</li>
+ *   <li>응답 행의 Clob·NClob 은 글 전체를, CHAR(1) 의 Character 는 String 으로 바꿔 싣는다.</li>
+ * </ul>
  */
 @Service("masterRuleDataService")
 public class MasterRuleDataService {
@@ -67,6 +80,13 @@ public class MasterRuleDataService {
     private static final Set<String> PK_COL_SET = Set.of("RULE_VER", "RULE_SEQ");
     /** To-Be audit 컬럼 (Q-006 — McmAuditEntity 체계 native 세팅). */
     private static final String PGM_ID = "masterRuleData";
+    /** DATE 칸 글자 값 형식 — {@link #dateText} 가 맞춘 14자와 짝. */
+    private static final String DATE_FMT = "'YYYYMMDDHH24MISS'";
+    /**
+     * CLOB 칸 {@code =}·{@code <=}·{@code >=} 비교에 쓰는 앞부분 글자 수. {@code DBMS_LOB.SUBSTR} 결과는 SQL 에서 VARCHAR2(4000 바이트)라
+     * 한 글자 최대 4바이트(AL32UTF8)여도 넘치지 않는 1000 자로 둔다.
+     */
+    private static final int LOB_CMP_CHARS = 1000;
 
     @PersistenceContext
     private EntityManager em;
@@ -93,7 +113,7 @@ public class MasterRuleDataService {
         List<Map<String, Object>> list = new ArrayList<>(raw.size());
         for (Object[] r : raw) {
             Map<String, Object> row = new LinkedHashMap<>();
-            for (int i = 0; i < keys.length; i++) row.put(keys[i], r[i]);
+            for (int i = 0; i < keys.length; i++) row.put(keys[i], plainValue(r[i]));   // PK_YN 'Y'/'N' 은 Oracle CHAR(1) → Character
             list.add(row);
         }
 
@@ -120,6 +140,7 @@ public class MasterRuleDataService {
 
         StringBuilder where = new StringBuilder();
         Map<String, String> binds = new LinkedHashMap<>();
+        Set<String> lobCols = null;   // 필요할 때만 사전 조회 (CLOB 칸 = / <= / >=)
         for (int n = 1; n <= 5; n++) {
             String col = blankToNull(request.where(n));
             if (col == null) continue;   // 미입력 조건 skip (As-Is if)
@@ -133,12 +154,31 @@ public class MasterRuleDataService {
                 throw new BusinessException(ErrorCode.INVALID_VALUE, "[" + op + "] 허용되지 않은 연산자입니다.");     // Q-007
             }
             String bind = "v" + n;
-            if ("VARCHAR2".equals(typeMap.get(col))) {
-                where.append(" AND UPPER(").append(col).append(") ").append(op).append(" UPPER(:").append(bind).append(")");   // BR-008
+            String type = typeMap.get(col);
+            String val = nvl(request.val(n));
+            if ("VARCHAR2".equals(type)) {
+                boolean lob = false;
+                if (!"LIKE".equals(op)) {   // LIKE 는 LOB 에도 되므로 사전 조회 불필요
+                    if (lobCols == null) lobCols = lobColumns(ruleId);
+                    lob = lobCols.contains(col);
+                }
+                if (lob) {
+                    where.append(lobCondition(col, op, bind));   // CLOB·NCLOB — ORA-22848 회피
+                } else {
+                    where.append(" AND UPPER(").append(col).append(") ").append(op).append(" UPPER(:").append(bind).append(")");   // BR-008
+                }
+            } else if ("DATE".equals(type)) {
+                if ("LIKE".equals(op)) {
+                    where.append(" AND TO_CHAR(").append(col).append(", ").append(DATE_FMT).append(") LIKE :").append(bind);
+                    val = stripDateSeparators(val);
+                } else {
+                    where.append(" AND ").append(col).append(" ").append(op).append(" TO_DATE(:").append(bind).append(", ").append(DATE_FMT).append(")");
+                    val = dateText(col, val);
+                }
             } else {
                 where.append(" AND ").append(col).append(" ").append(op).append(" :").append(bind);
             }
-            binds.put(bind, nvl(request.val(n)));
+            binds.put(bind, val);
         }
 
         int pageRow = request.getCountPerPage() == null || request.getCountPerPage() <= 0 ? 30 : request.getCountPerPage();
@@ -212,7 +252,7 @@ public class MasterRuleDataService {
                     if (PK_COL_SET.contains(e.getKey())) continue;   // 키 컬럼은 SET 제외 (WHERE 로만)
                     if (!set.isEmpty()) set.append(", ");
                     String bind = "c" + (i++);
-                    set.append(e.getKey()).append(" = :").append(bind);
+                    set.append(e.getKey()).append(" = ").append(valueExpr(bind, e.getKey(), e.getValue(), typeMap));
                     binds.put(bind, e.getValue());
                 }
                 set.append(set.isEmpty() ? "" : ", ").append("U_USR_ID = :auditUser, U_AT = CURRENT_TIMESTAMP, U_SVC_ID = :auditPgm, U_PGM_ID = :auditPgm");
@@ -251,7 +291,7 @@ public class MasterRuleDataService {
             for (Map.Entry<String, Object> e : cols.entrySet()) {
                 String bind = "c" + (i++);
                 colSql.append(", ").append(e.getKey());
-                valSql.append(", :").append(bind);
+                valSql.append(", ").append(valueExpr(bind, e.getKey(), e.getValue(), typeMap));
                 binds.put(bind, e.getValue());
             }
             colSql.append(", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID");
@@ -340,7 +380,7 @@ public class MasterRuleDataService {
 
     /**
      * 행에서 실제 컬럼만 추출 (As-Is filterKeyByColId 등가 — BR-012):
-     * 컬럼정의 COL_ID 집합 + RULE_VER/RULE_SEQ 만. DATE 컬럼 14자 절단 (BR-009).
+     * 컬럼정의 COL_ID 집합 + RULE_VER/RULE_SEQ 만. DATE 컬럼 글자 값은 {@link #dateText} 로 14자 정규화 (BR-009 절단 포함).
      */
     private Map<String, Object> filterCols(Map<String, Object> row, Map<String, String> typeMap) {
         Map<String, Object> cols = new LinkedHashMap<>();
@@ -350,8 +390,8 @@ public class MasterRuleDataService {
             String key = e.getKey() == null ? "" : e.getKey().toUpperCase(Locale.ROOT);
             if (!allowed.contains(key)) continue;
             Object v = e.getValue();
-            if ("DATE".equals(typeMap.get(key)) && v instanceof String s && s.length() > 14) {
-                v = s.substring(0, 14);   // BR-009 (As-Is java:77)
+            if ("DATE".equals(typeMap.get(key)) && v instanceof String s) {
+                v = dateText(key, s);   // BR-009 (As-Is java:77) 14자 절단 + 8자 → 0시 채움
             }
             cols.put(key, v);
         }
@@ -372,10 +412,85 @@ public class MasterRuleDataService {
         List<Map<String, Object>> list = new ArrayList<>(tuples.size());
         for (Tuple t : tuples) {
             Map<String, Object> row = new LinkedHashMap<>();
-            t.getElements().forEach(el -> row.put(el.getAlias().toUpperCase(Locale.ROOT), t.get(el)));
+            t.getElements().forEach(el -> row.put(el.getAlias().toUpperCase(Locale.ROOT), plainValue(t.get(el))));
             list.add(row);
         }
         return list;
+    }
+
+    // ────────────────────────────── Oracle 형 처리 (oracle-1007 c4) ──────────────────────────────
+
+    /** 동적 표에서 실제 형이 CLOB·NCLOB 인 칸 이름 (COL_TYPE 은 이를 'VARCHAR2' 로 묶어 구분이 안 된다). */
+    private Set<String> lobColumns(String ruleId) {
+        @SuppressWarnings("unchecked")
+        List<Object> names = em.createNativeQuery("SELECT COLUMN_NAME FROM ALL_TAB_COLUMNS"
+                        + " WHERE OWNER = '" + SCHEMA + "' AND TABLE_NAME = :tableName AND DATA_TYPE IN ('CLOB', 'NCLOB')")
+                .setParameter("tableName", "TB_MCA_" + ruleId)
+                .getResultList();
+        Set<String> out = new HashSet<>();
+        if (names != null) names.forEach(nm -> out.add(String.valueOf(nm).toUpperCase(Locale.ROOT)));
+        return out;
+    }
+
+    /**
+     * CLOB·NCLOB 칸의 {@code =}·{@code <=}·{@code >=} 조건 (대소문자 무시 BR-008 유지). LOB 는 비교 키가 될 수 없어(ORA-22848)
+     * 앞 {@value #LOB_CMP_CHARS} 자를 글자로 꺼내 비교한다. {@code =} 는 길이도 {@value #LOB_CMP_CHARS} 자 이하일 때만 맞다고 보아
+     * 정확히 같음을 지킨다(그보다 긴 글은 {@code =} 로 찾을 수 없다). {@code <=}·{@code >=} 는 앞 {@value #LOB_CMP_CHARS} 자 기준 순서다.
+     */
+    private static String lobCondition(String col, String op, String bind) {
+        String head = "UPPER(DBMS_LOB.SUBSTR(" + col + ", " + LOB_CMP_CHARS + ", 1))";
+        if ("=".equals(op)) {
+            return " AND (DBMS_LOB.GETLENGTH(" + col + ") <= " + LOB_CMP_CHARS + " AND " + head + " = UPPER(:" + bind + "))";
+        }
+        return " AND " + head + " " + op + " UPPER(:" + bind + ")";
+    }
+
+    /** SET·VALUES 값 식 — DATE 칸의 글자 값은 {@code TO_DATE} 로 감싸고, 그 밖(숫자·null·글자 칸)은 바인드 그대로. */
+    private static String valueExpr(String bind, String col, Object value, Map<String, String> typeMap) {
+        if ("DATE".equals(typeMap.get(col)) && value instanceof String) {
+            return "TO_DATE(:" + bind + ", " + DATE_FMT + ")";
+        }
+        return ":" + bind;
+    }
+
+    /**
+     * DATE 칸 글자 값 → {@code yyyyMMddHHmmss} 14자. 구분자({@code - : / . 공백})를 지우고, 14자보다 길면 자르고(BR-009),
+     * 짧으면(8자 yyyyMMdd 등) 뒤를 0 으로 채운다. 빈 값은 그대로(Oracle 에서 NULL). 숫자 8자 미만이거나 숫자 아닌 글자
+     * (예: ISO {@code 'T'}·{@code 'Z'}·{@code '+'})가 남으면 INVALID_VALUE — 시간대가 섞인 값을 조용히 잘못 저장하지 않는다.
+     */
+    static String dateText(String col, String s) {
+        if (s == null) return null;
+        String t = s.trim();
+        if (t.isEmpty()) return t;
+        String digits = stripDateSeparators(t);
+        if (!digits.chars().allMatch(Character::isDigit) || digits.length() < 8) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE,
+                    "[" + col + "] 날짜 값 '" + t + "' 은 yyyyMMdd 또는 yyyyMMddHHmmss 형식이어야 합니다.");
+        }
+        if (digits.length() > 14) return digits.substring(0, 14);
+        return digits + "0".repeat(14 - digits.length());
+    }
+
+    /** 날짜 글자의 구분자({@code - : / . 공백})를 지운다. */
+    private static String stripDateSeparators(String s) {
+        return s == null ? null : s.replaceAll("[-:/. ]", "");
+    }
+
+    /**
+     * 응답 값 정리 — Clob·NClob(NClob 은 Clob 의 하위 형)은 글 전체를 String 으로(잘라내지 않는다: 이 행이 save(U) 로 되돌아오므로),
+     * Oracle CHAR(1) 의 Character 는 String 으로 바꾼다. 그 밖은 그대로.
+     */
+    private static Object plainValue(Object v) {
+        if (v instanceof Character c) return c.toString();
+        if (v instanceof Clob lob) {
+            try {
+                long len = lob.length();
+                return len == 0 ? "" : lob.getSubString(1, Math.toIntExact(len));
+            } catch (SQLException e) {
+                throw new IllegalStateException("LOB 칸 값을 읽지 못했습니다.", e);
+            }
+        }
+        return v;
     }
 
     /** 인증 컨텍스트 사용자 (audit — Q-006). 미인증 컨텍스트(테스트 등)는 "system". */

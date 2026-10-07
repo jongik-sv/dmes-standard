@@ -94,7 +94,7 @@ public interface MasterRuleColListRepository extends JpaRepository<MasterRuleCol
                    COALESCE(NULLIF(COL.CHAR_LENGTH, 0), COL.DATA_PRECISION, COL.DATA_LENGTH) AS colLen,
                    COL.DATA_PRECISION           AS colPrecLen,   -- As-Is DATA_PRECISION 1:1 (C-003 — As-Is 도 scale 아닌 precision 반환, 운영자 확인 대상 초기값)
                    'OUT'                        AS ioFlag,
-                   'N'                          AS masterCodeDiv
+                   CAST('N' AS VARCHAR2(1 CHAR)) AS masterCodeDiv
               FROM ALL_TAB_COLUMNS COL
               LEFT JOIN ALL_COL_COMMENTS COM
                 ON COM.OWNER = COL.OWNER
@@ -139,7 +139,8 @@ public interface MasterRuleColListRepository extends JpaRepository<MasterRuleCol
                    RCLIST.COL_PREC_LEN,
                    RCLIST.MES_COL_ID,
                    RCLIST.MASTER_CODE_DIV AS CODE_YN,
-                   CASE WHEN EXISTS (
+                   -- CHAR(1) 상수 CASE 는 Oracle 에서 Character 로 온다 — VARCHAR2 로 고정해 String 으로 받는다(MSSQL 판과 같은 형)
+                   CAST(CASE WHEN EXISTS (
                         SELECT 1
                           FROM ALL_CONSTRAINTS C
                           JOIN ALL_CONS_COLUMNS K
@@ -150,7 +151,7 @@ public interface MasterRuleColListRepository extends JpaRepository<MasterRuleCol
                            AND C.CONSTRAINT_TYPE = 'P'
                            AND C.TABLE_NAME = UPPER('TB_MCA_' || :pRuleId)
                            AND K.COLUMN_NAME = UPPER(RCLIST.COL_ID))
-                        THEN 'Y' ELSE 'N' END AS PK_YN,
+                        THEN 'Y' ELSE 'N' END AS VARCHAR2(1 CHAR)) AS PK_YN,
                    RCLIST.COL_TYPE,
                    RCLIST.IO_FLAG
               FROM MCAAPUSER.TB_MCA_RULE_COL_LIST RCLIST

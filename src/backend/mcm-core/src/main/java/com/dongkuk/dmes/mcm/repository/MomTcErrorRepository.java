@@ -29,6 +29,11 @@ import java.util.List;
  * 숫자 CAST 는 Oracle 에 없는 BIGINT 대신 NUMERIC(19) — 투영 getter(Long)로 Spring 이 바꿔 준다.
  * 발생일시는 {@code TO_CHAR(C_AT, 'YYYY-MM-DD HH24:MI:SS')} (예전 MSSQL CONVERT(,120) 과 같은 글자형).
  * ORDER BY C_AT DESC (As-Is 동일).
+ *
+ * <p>INTERFACE_MSG 는 NCLOB 이라 Hibernate 가 {@code java.sql.NClob} 으로 돌려주고, 인터페이스 투영은 이를 String 으로 바꾸지 못한다
+ * (UnsupportedOperationException "Cannot project … NClob"). 재전송 팝업(P-001)이 이 글을 그대로 다시 보내므로 SQL 에서
+ * {@code DBMS_LOB.SUBSTR} 로 자르지 않고, 별칭 {@code "interfaceMsgLob"} 로 LOB 를 넘겨 {@link TcErrorRowView#getInterfaceMsg()} 가
+ * 글 전체를 읽는다(oracle-1007 c4). LOB 는 조회한 연결로 읽으므로 호출부는 트랜잭션(OASIS process) 안에서 getter 를 부른다.
  */
 public interface MomTcErrorRepository extends JpaRepository<MomTcError, Long> {
 
@@ -37,7 +42,7 @@ public interface MomTcErrorRepository extends JpaRepository<MomTcError, Long> {
                    e.TRANSACTION_CODE                   AS "transactionCode",
                    t.TRANSACTION_NM                     AS "transactionNm",
                    e.INTERFACE_ID                       AS "interfaceId",
-                   e.INTERFACE_MSG                      AS "interfaceMsg",
+                   e.INTERFACE_MSG                      AS "interfaceMsgLob",
                    e.ERROR_TYPE                         AS "errorType",
                    e.ERROR_CODE                         AS "errorCode",
                    e.ERROR_MSG                          AS "errorMsg",

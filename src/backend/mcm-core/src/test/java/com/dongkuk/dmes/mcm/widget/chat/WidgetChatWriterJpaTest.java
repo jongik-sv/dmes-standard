@@ -14,7 +14,7 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** {@link WidgetChatWriter} — MSG_SEQ 채번·인스턴스당 100개 유지·reset(사용자·인스턴스 격리)·바깥 트랜잭션과 따로 커밋, H2. */
+/** {@link WidgetChatWriter} — MSG_SEQ 채번·인스턴스당 100개 유지·reset(사용자·인스턴스 격리)·바깥 트랜잭션과 따로 커밋, Oracle 시험 PDB. */
 @SpringJUnitConfig(WidgetChatJpaTestConfig.class)
 class WidgetChatWriterJpaTest {
 

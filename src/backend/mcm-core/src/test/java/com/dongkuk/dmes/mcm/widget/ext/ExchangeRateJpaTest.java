@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mcm.widget.ext;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.dongkuk.dmes.mcm.testdb.McmCoreOraTestDb;
 import com.dongkuk.dmes.mcm.widget.ext.entity.ExchangeRate;
 import com.dongkuk.dmes.mcm.widget.ext.entity.ExchangeRateId;
 import com.dongkuk.dmes.mcm.widget.ext.repository.ExchangeRateRepository;
@@ -9,7 +10,6 @@ import jakarta.persistence.EntityManagerFactory;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Properties;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -18,16 +18,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
-import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 /**
- * {@code TB_MCM_EXCHANGE_RATE} 저장소·upsert(H2 메모리). 저장소 메서드 이름 해석(부팅 시 실패 방지)과
+ * {@code TB_MCM_EXCHANGE_RATE} 저장소·upsert(Oracle 시험 PDB, 기준선 V1 — {@link McmCoreOraTestDb}). 저장소 메서드 이름 해석(부팅 시 실패 방지)과
  * 같은 키 고치기·한 번에 같은 키 두 번을 확인한다. 구성은 screenusage 의 최소 JPA 시험 구성을 따른다.
  */
 @SpringJUnitConfig(ExchangeRateJpaTest.Config.class)
@@ -40,24 +38,12 @@ class ExchangeRateJpaTest {
 
         @Bean
         DataSource dataSource() {
-            DriverManagerDataSource ds = new DriverManagerDataSource();
-            ds.setDriverClassName("org.h2.Driver"); // testRuntimeOnly — 클래스 직접 참조 금지
-            ds.setUrl("jdbc:h2:mem:widgetext;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS MCMAPUSER");
-            ds.setUsername("sa");
-            ds.setPassword("");
-            return ds;
+            return McmCoreOraTestDb.appDataSource("widget-ext");
         }
 
         @Bean
         LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
-            LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
-            em.setDataSource(dataSource);
-            em.setPackagesToScan("com.dongkuk.dmes.mcm.widget.ext.entity");
-            em.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
-            Properties props = new Properties();
-            props.put("hibernate.hbm2ddl.auto", "create-drop");
-            em.setJpaProperties(props);
-            return em;
+            return McmCoreOraTestDb.entityManagerFactory(dataSource, "com.dongkuk.dmes.mcm.widget.ext.entity");
         }
 
         @Bean
