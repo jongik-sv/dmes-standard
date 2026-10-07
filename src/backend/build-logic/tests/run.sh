@@ -29,6 +29,10 @@ last_done="$(grep -n 'PROBE-. done' "$out" | tail -1 | cut -d: -f1)"
 cleanup="$(grep -n '\[dmes-ora\] 정리:' "$out" | head -1 | cut -d: -f1)"
 [ -n "$cleanup" ] || fail "주인 정리 로그가 없음"
 [ "$cleanup" -gt "$last_done" ] || fail "주인이 probe 보다 먼저 정리했다(정리 $cleanup 줄 < 마지막 done $last_done 줄)"
+# Test 태스크 배선: Oracle 모드에서 Test 태스크가 구성되고(configureEach 안 tasks.register 같은 구성 오류가 없고) 마무리 태스크가 붙는지 본다.
+wout="$tmp/wiring.txt"
+"$backend/gradlew" -p "$here/composite" wiring --dry-run --no-daemon --console=plain -Pdmes.ora.pdb=T_FIXTURE >"$wout" 2>&1 || { cat "$wout"; fail "Test 태스크 구성 실패(--dry-run)"; }
+grep -q ':testOraTurnRelease' "$wout" || { cat "$wout"; fail "test 에 차례 마무리 태스크가 붙지 않음"; }
 # 차례: probe 의 start~end 구간이 서로 겹치지 않아야 한다.
 python3 - "$out" <<'PY' || fail "probe 구간이 겹쳤다(차례가 직렬이 아님)"
 import re, sys

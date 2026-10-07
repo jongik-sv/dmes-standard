@@ -24,7 +24,7 @@
 
 **결정(조정자, 2026-10-07)**: 메인 서버 PDB 는 전용 `L_MAIN` 이다. 롤백이 쉽고(PDB 통째 재생성), 사용자 이름이 운영과 같은 13명이라 FREEPDB1 의 옛 사용자와 섞이지 않는다.
 
-- 전환할 때 `FREEPDB1` 은 **`close` 만 한다**(`node scripts/oracle/pdb.mjs close FREEPDB1`). 조정자 데이터가 들어 있어 `drop` 하지 않는다.
+- 전환할 때 `FREEPDB1` 은 **`close` 만 한다**(`node scripts/oracle/pdb.mjs close FREEPDB1`; `pdb.mjs` 는 FREEPDB1 에 대해 `open`·`close` 만 받고 만들기·지우기·복제·세션 조회는 거부한다). 조정자 데이터가 들어 있어 `drop` 하지 않는다.
 - 열린 PDB 상한은 3개(`DMES_ORA_MAX_OPEN`, 올리지 않는다)이므로 상주 PDB 가 `L_MAIN` 하나가 되고 레인·시험이 2칸을 쓴다.
 - **`FREEPDB1` 을 다시 열 때는 다른 PDB 하나를 먼저 닫는다**(열린 PDB 가 3개를 넘지 않게). `L_MAIN` 을 닫는 것은 서버가 내려간 뒤에만 한다.
 
@@ -128,9 +128,16 @@ Oracle 쪽 문제로 서버를 급히 띄워야 하는 경우의 임시 우회�
 - 참고: 공유용 변환(`--full` 없음)은 같은 `mcm.db` 에서 481행만 남고 사용자·즐겨찾기·위젯 탭·로그인 기록 등 14개 표가 줄어든다. 그래서 로컬 서버 전환에는 `--full` 을 쓴다.
 - mdm·mls 리허설: mdm V1 은 머지②, mls V1~V4 는 머지④ 뒤에 같은 방법으로 한다(mdm 변환은 미리 확인: 39표 42,870행, CSV 56MB).
 
+### 실제 전환 결과 (2026-10-07 23시, `L_MAIN`)
+
+- 순서와 소요(VM 3GB, 다른 레인 시험이 슬롯을 쓰는 중): `template-schema TPL_SCHEMA --rebuild` 약 2분(PC 잠금 대기 포함, 스키마 12개 V 12개 적용) → `template-data TPL_DATA --rebuild` 약 2분(적재 자체 mdm 9.5초, **E2E 잔여 행 413개·19표를 거르고 적재**, 로그의 「E2E 행 N 거름」은 이 경로가 실제 Oracle 에서 처음 확인됐다) → `clone TPL_SCHEMA L_MAIN` 4초 → `convert --full` 4개 몇 초 → `import --replace --keep-e2e` 26초(mdm 19초) → `compare_counts.py` 4건 약 10초. heavy 슬롯 대기가 길 수 있다(이번에 4분 34초).
+- 이관한 행: mcm 1,699(55표)·mcm_source 6·mca 6·mdm 42,870(39표, E2E 행 포함)·mls 0(샘플 표뿐)·caravan 4. mdm 표 40개 중 SQLite 에만 있는 보조 표 1개는 대조 제외.
+- 대조: mcm·mdm·caravan-console **불일치 0**. mls 는 `TB_MLS_NOTICE` 6행·`TB_MLS_NOTICE_TARGET` 0행이 Oracle 에 표가 없어 「불일치」로 나온다. 공지는 mcm 으로 옮겨져(`MCMAPUSER.TB_MCM_NOTICE`, 이미 이관된 mcm 표에 있음) mls 코드가 `TB_MLS_NOTICE` 를 쓰지 않고 mls V1 도 만들지 않으므로 의도된 차이다(옛 SQLite 잔재 행). `compare_counts.py` 는 이 경우 종료 코드 1 을 낸다.
+- `FREEPDB1` 은 close 했다(세션 없음 확인 뒤). 열린 PDB 는 `L_MAIN`·ora-mdm 의 `T_ORA_MDM` 2개다.
+
 ### 막힌 점
 
-- mdm·mls Oracle V1 이 dev 에 없어 이 둘의 적재·대조는 아직 못 했다.
+- (해소) mdm·mls V1 이 dev 에 들어왔고 `L_MAIN` 에서 적재·대조를 마쳤다(위 「실제 전환 결과」).
 - 앱 기동 확인(Flyway 체크섬 검증, 로그인)은 리허설에 넣지 않았다(무거운 기동이라 이 리허설은 적재까지). `pdb.mjs` 가 넣는 이력 행(체크섬)이 앱 Flyway 의 검증과 맞는지는 전환 때 기동 로그로 처음 확인하게 된다. 실패하면 `flyway_schema_history` 의 체크섬 불일치 메시지가 나오므로 §6 으로 롤백한다.
 - caravan 표(CARAVANUSER·EAIUSER)가 없으면 mcm 의 `CaravanMetaSeeder` 는 `ORA-00942` 만 건너뛰는 가드(사용자 결정 「가드 넣기」, 머지③ 에 포함)로 기동은 되지만 caravan 관련 기능이 온전하지 않다. caravan 표는 caravan-hub V1 이 만들므로 전환 PDB 는 caravan V1 이 dev 에 들어온 뒤(머지④) `template-schema --rebuild` 로 만든 `TPL_SCHEMA` 에서 복제한다(§0).
 - 열린 PDB 슬롯: 결정 완료(`L_MAIN` 상주, `FREEPDB1` 은 close 만, 다시 열 때는 다른 PDB 하나를 닫는다, §1).

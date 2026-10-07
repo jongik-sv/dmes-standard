@@ -268,24 +268,37 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
      * oracheck 21건 ORA-00942). --parallel 이어도 included build 사이에 같은 차례를 쓴다. 같은 키로 다시 부르면 그대로 통과한다.
      * 순서는 늘 차례 → PC 잠금 → 시험 슬롯이다(차례를 쥔 쪽만 잠금·슬롯으로 가므로 서로 기다리며 멈추지 않는다).
      */
-    void acquireTurn(String key, long waitMs) {
-        long deadline = System.currentTimeMillis() + waitMs
-        boolean announced = false
+    boolean tryTurn(String key) {
         synchronized (JVM_MONITOR) {
-            while (true) {
-                String cur = System.getProperty(TURN_OWNER)
-                if (cur == null || cur == key) break
-                if (!announced) {
-                    System.err.println("[dmes-ora] 같은 빌드의 다른 Oracle 시험이 끝나기를 기다린다: ${key}\n  쥔 쪽: ${cur}")
-                    announced = true
-                }
-                long left = deadline - System.currentTimeMillis()
-                if (left <= 0) {
-                    throw new org.gradle.api.GradleException("Oracle 시험 차례를 ${waitMs / 1000}초 기다려도 받지 못했다(쥔 쪽: ${cur}). 같은 스키마를 쓰는 모듈은 따로 돌린다.")
-                }
-                JVM_MONITOR.wait(Math.min(left, 5000L))
-            }
+            String cur = System.getProperty(TURN_OWNER)
+            if (cur != null && cur != key) return false
             System.setProperty(TURN_OWNER, key)
+            return true
+        }
+    }
+
+    /** around: 기다리는 동안만 감쌀 클로저(Runnable 을 받는다). 기다리는 동안 Gradle worker lease 를 놓는 데 쓴다. null 이면 그냥 기다린다. */
+    void acquireTurn(String key, long waitMs, Closure around = null) {
+        boolean announced = false
+        if (!tryTurn(key)) {
+            long deadline = System.currentTimeMillis() + waitMs
+            announced = true
+            Runnable waiter = {
+                synchronized (JVM_MONITOR) {
+                    while (true) {
+                        String cur = System.getProperty(TURN_OWNER)
+                        if (cur == null || cur == key) break
+                        long left = deadline - System.currentTimeMillis()
+                        if (left <= 0) {
+                            throw new org.gradle.api.GradleException("Oracle 시험 차례를 ${waitMs / 1000}초 기다려도 받지 못했다(쥔 쪽: ${cur}). 같은 스키마를 쓰는 모듈은 따로 돌린다.")
+                        }
+                        JVM_MONITOR.wait(Math.min(left, 5000L))
+                    }
+                    System.setProperty(TURN_OWNER, key)
+                }
+            } as Runnable
+            System.err.println("[dmes-ora] 같은 빌드의 다른 Oracle 시험이 끝나기를 기다린다: ${key}\n  쥔 쪽: ${System.getProperty(TURN_OWNER)}")
+            if (around != null) around.call(waiter) else waiter.run()
         }
         synchronized (turnsHeld) { turnsHeld.add(key) }
         if (announced) System.err.println("[dmes-ora] 시험 차례를 받았다: ${key}")
