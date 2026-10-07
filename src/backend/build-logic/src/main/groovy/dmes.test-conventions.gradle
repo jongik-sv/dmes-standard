@@ -60,6 +60,10 @@ allprojects {
             usesService(svc)
             maxParallelForks = 1
             forkEvery = 0
+            // 시험이 실패하면 VM 상태 한 줄을 남겨 VM 크기(2GB) 때문인지 가리게 한다(scripts/oracle/README.md 「Oracle 오류 판별」).
+            afterSuite { desc, result ->
+                if (desc.parent == null && result.resultType.toString() == 'FAILURE') svc.get().logVmState('시험 실패')
+            }
             doFirst {
                 // 모듈 build.gradle 이 maxParallelForks 를 나중에 대입해도 Oracle 시험은 1 로 고정한다(실행 직전 값이 쓰인다).
                 maxParallelForks = 1

@@ -85,3 +85,20 @@ node scripts/oracle/pdb.mjs clone TPL_EMPTY L_ORA_MDM    # 레인 PDB
 ## 환경 변수
 
 `DMES_ORA_ENGINE`(podman|docker)·`DMES_ORA_CONTAINER`·`DMES_ORA_SYS_PASSWORD`·`DMES_ORA_PASSWORD`·`DMES_ORA_HOST`·`DMES_ORA_PORT`·`DMES_ORA_DATA_DIR`·`DMES_ORA_MAX_OPEN`·`DMES_ORA_LOCK_WAIT_SEC`·`DMES_ORA_SQL_TIMEOUT_SEC`·`DMES_ORA_HARNESS_LOCK_WAIT_SEC`·`DMES_ORA_POOL_EXTRAS`(= `-Pdmes.ora.poolExtras`).
+
+## Oracle 오류 판별(VM 때문인가, 코드 때문인가)
+
+로컬 인스턴스는 Podman VM 2GB·SGA 900M 이라 부하가 겹치면 스래싱한다. Oracle 시험 실패·접속 실패·시간 초과가 나면 **다시 돌리기 전에** VM 상태를 한 번 잰다(Oracle 명령이 아니다).
+
+```bash
+podman machine ssh -- 'free -m; cat /proc/loadavg'
+```
+
+시험 하니스는 Oracle 시험이 실패하거나 PDB 준비가 실패했을 때 같은 값을 `[dmes-ora] … VM available=…MB load=…` 한 줄로 로그에 남기고, 아래 VM 신호면 「VM 의심」 을 붙인다. 보고에는 오류 번호와 VM 값(available MB·load)을 함께 적는다.
+
+| 구분 | 신호 | 처리 |
+|---|---|---|
+| VM 의심 | available **150MB 미만**, load **10 이상**, ORA-04031·04030·00020·00018·12516·12519·12520·3136·609·12751·00800·01092·00822, JDBC 접속·읽기 시간 초과 | **재실행하지 않고** 조정자에게 「VM 의심」 으로 보고한다 |
+| 코드 | ORA-00942·00904·00001·01400·12899·00933 같은 SQL·제약 오류 | 평소대로 레인이 고친다 |
+
+경고 로그(alert log)에 `Time drifted`·ORA-3136·ORA-609·ORA-12751·ORA-00800 이 쌓였으면 그 시각은 스래싱 구간이다.
