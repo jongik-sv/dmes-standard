@@ -1,15 +1,32 @@
 # 메인 로컬 서버 Oracle 전환 런북 (mls 8092 · mdm 8096 · mcm 8100)
 
-대상: 메인 저장소(`/Users/jji/project/dmes-standard`)의 로컬 서버 3개를 SQLite 에서 Oracle 26ai Free 로 바꾸는 절차다. 전환은 머지 ③c·②·④(mdm·mls 의 Oracle V1 이 dev 에 들어온 뒤) 다음에 조정자가 한다. 모듈별 상태와 mcm 리허설 결과는 §7 에 있다. `src/backend/data/*.db` 파일은 지우지 않는다.
+대상: 메인 저장소(`/Users/jji/project/dmes-standard`)의 로컬 서버 3개를 SQLite 에서 Oracle 26ai Free 로 바꾸는 절차다. 전환은 머지 ③c·②·④(mdm·mls 의 Oracle V1 이 dev 에 들어온 뒤) 다음에, §0 의 순서대로 한다(서버 기동은 조정자). 모듈별 상태와 mcm 리허설 결과는 §7 에 있다. `src/backend/data/*.db` 파일은 지우지 않는다.
 
-## 1. 쓸 PDB: 전용 `L_MAIN` (권장)
+## 0. 전환 순서와 소요 어림 (확정, 2026-10-07 조정자 결정)
+
+| 단계 | 할 일 | 어림(측정 근거) | 담당 |
+|---|---|---|---|
+| 1 | 머지 ③c·②(mdm)·④(platform)이 dev 에 들어온다 | — | 조정자 |
+| 2 | dev 합침 후 `template-schema TPL_SCHEMA --rebuild`(§3) | 약 1~2분(빈 PDB 생성 약 30초 + V 파일 적용, mcm 4벌은 1초 미만) | ora-base |
+| 3 | `template-data TPL_DATA --rebuild`(리포 CSV 적재, **E2E 거름 로그 확인**) | 1~3분(복제 5초 + 적재; mcm 3초, mdm 약 4만 행·BLOB 은 미측정) | ora-base |
+| 4 | `clone TPL_SCHEMA L_MAIN`(§3) | 5~10초(실측 4~5초) | ora-base |
+| 5 | mcm·mdm·mls·caravan-console 이관(`convert --full` → `import --replace --keep-e2e`, §4)과 행 수 대조 | mcm 변환·적재 합쳐 약 5초(실측), mdm 은 CSV 56MB 라 1분 안팎 예상(미측정), mls·caravan 은 몇 초 | ora-base |
+| 6 | 서버 기동(§5)·확인(§7) | 모듈당 기동 1~2분 | 조정자 |
+
+단계 2~5 는 PC 잠금 아래 한 번에 하나이며 합쳐 5~10분을 예상한다(VM 3GB, 다른 레인이 Oracle 을 쓰지 않을 때). 단계 6 은 서버를 기동하는 조정자 몫이다. mdm·mls 이관 소요는 V1 이 dev 에 들어온 뒤 재서 갱신한다.
+
+## 1. 쓸 PDB: 전용 `L_MAIN` (결정)
 
 | 선택 | 장점 | 단점 |
 |---|---|---|
 | **`L_MAIN`(권장)**: `TPL_SCHEMA` 에서 복제한 전용 PDB | 운영 이름 사용자 13명과 V1 이력(`flyway_schema_history`)이 템플릿에서 이미 맞춰져 있다. 잘못되면 `drop` → 다시 `clone` 으로 롤백된다. 도구(`pdb.mjs`)가 `L_` 접두만 만들고 지우므로 안전장치가 그대로 적용된다 | 열린 PDB 슬롯 1개를 상주로 쓴다 |
 | `FREEPDB1` | 슬롯을 더 쓰지 않는다 | 이미 조정자 데이터 사용자(MDM·MCM·MLS·MPN·MPP·MQC·CARAVAN_CONSOLE·dmes_user)가 있고, 도구가 FREEPDB1 은 만들지도 지우지도 않아 사용자·V1 적용을 손으로 해야 한다. 롤백이 어렵다 |
 
-**권장 이유**: 롤백이 쉽고(PDB 통째 재생성), 사용자 이름이 운영과 같은 13명이라 FREEPDB1 의 옛 사용자와 섞이지 않는다. 열린 PDB 상한은 3개이므로(`DMES_ORA_MAX_OPEN`, 올리지 않는다) `FREEPDB1`·`L_MAIN` 이 상주하면 레인·시험이 쓸 수 있는 슬롯이 1개로 줄어든다. 그래서 **전환과 함께 `FREEPDB1` 을 닫는 것**(`pdb.mjs close FREEPDB1`, 쓰는 사람이 없는지 확인)을 권한다. 조정자가 FREEPDB1 을 계속 열어 두어야 하면 레인 작업이 슬롯을 기다리게 된다. 이 결정은 조정자가 한다.
+**결정(조정자, 2026-10-07)**: 메인 서버 PDB 는 전용 `L_MAIN` 이다. 롤백이 쉽고(PDB 통째 재생성), 사용자 이름이 운영과 같은 13명이라 FREEPDB1 의 옛 사용자와 섞이지 않는다.
+
+- 전환할 때 `FREEPDB1` 은 **`close` 만 한다**(`node scripts/oracle/pdb.mjs close FREEPDB1`). 조정자 데이터가 들어 있어 `drop` 하지 않는다.
+- 열린 PDB 상한은 3개(`DMES_ORA_MAX_OPEN`, 올리지 않는다)이므로 상주 PDB 가 `L_MAIN` 하나가 되고 레인·시험이 2칸을 쓴다.
+- **`FREEPDB1` 을 다시 열 때는 다른 PDB 하나를 먼저 닫는다**(열린 PDB 가 3개를 넘지 않게). `L_MAIN` 을 닫는 것은 서버가 내려간 뒤에만 한다.
 
 스키마 사용자는 `TPL_SCHEMA` 에 이미 있다: MCMAPUSER·MCAAPUSER·MCM_SOURCE·MCM_BACKUP·CARAVANUSER·EAIUSER·IFUSER·MDMAPUSER·MLSAPUSER·MPPAPUSER·MQCAPUSER·MPNAPUSER·APSAPUSER, 비밀번호 `dmes_password_123`(`docs/oracle-1007/schema-owners.md`).
 
@@ -113,5 +130,5 @@ Oracle 쪽 문제로 서버를 급히 띄워야 하는 경우의 임시 우회�
 
 - mdm·mls Oracle V1 이 dev 에 없어 이 둘의 적재·대조는 아직 못 했다.
 - 앱 기동 확인(Flyway 체크섬 검증, 로그인)은 리허설에 넣지 않았다(무거운 기동이라 이 리허설은 적재까지). `pdb.mjs` 가 넣는 이력 행(체크섬)이 앱 Flyway 의 검증과 맞는지는 전환 때 기동 로그로 처음 확인하게 된다. 실패하면 `flyway_schema_history` 의 체크섬 불일치 메시지가 나오므로 §6 으로 롤백한다.
-- mcm 은 기동 때 caravan 표(CARAVANUSER·EAIUSER)가 없으면 `CaravanMetaSeeder` 가 실패한다(ora-mcm-app 메모, 가드 사용자 확인 대기). caravan 표는 caravan-hub V1 이 만들므로 전환 PDB 는 caravan V1 이 dev 에 들어온 뒤(머지④) `template-schema --rebuild` 로 만든 `TPL_SCHEMA` 에서 복제해야 한다.
-- 열린 PDB 슬롯: `L_MAIN` 상주 + `FREEPDB1` 닫기 결정이 필요하다(§1).
+- caravan 표(CARAVANUSER·EAIUSER)가 없으면 mcm 의 `CaravanMetaSeeder` 는 `ORA-00942` 만 건너뛰는 가드(사용자 결정 「가드 넣기」, 머지③ 에 포함)로 기동은 되지만 caravan 관련 기능이 온전하지 않다. caravan 표는 caravan-hub V1 이 만들므로 전환 PDB 는 caravan V1 이 dev 에 들어온 뒤(머지④) `template-schema --rebuild` 로 만든 `TPL_SCHEMA` 에서 복제한다(§0).
+- 열린 PDB 슬롯: 결정 완료(`L_MAIN` 상주, `FREEPDB1` 은 close 만, 다시 열 때는 다른 PDB 하나를 닫는다, §1).
