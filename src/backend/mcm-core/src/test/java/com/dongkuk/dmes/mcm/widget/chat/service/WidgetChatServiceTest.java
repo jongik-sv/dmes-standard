@@ -57,8 +57,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -207,6 +209,48 @@ class WidgetChatServiceTest {
     }
 
     // ── 도구 ────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("도구 실행의 짧은 읽기 트랜잭션이 시작되지 못해도(연결을 못 받음) 대화를 끊지 않고 도구 오류 결과로 모델에 돌려준다")
+    void toolTransactionStartFailureBecomesToolError() {
+        // 읽기 트랜잭션(widgetChatRead): 1번째 = 대화 문맥 읽기, 2번째 = 도구 실행 → 2번째만 시작에 실패시킨다.
+        AtomicInteger reads = new AtomicInteger();
+        PlatformTransactionManager failingSecondRead = new PlatformTransactionManager() {
+            @Override
+            public TransactionStatus getTransaction(TransactionDefinition definition) {
+                if (definition != null && "widgetChatRead".equals(definition.getName()) && reads.incrementAndGet() == 2) {
+                    throw new CannotCreateTransactionException("연결을 받지 못함(시험)");
+                }
+                return transactionManager.getTransaction(definition);
+            }
+
+            @Override
+            public void commit(TransactionStatus status) {
+                transactionManager.commit(status);
+            }
+
+            @Override
+            public void rollback(TransactionStatus status) {
+                transactionManager.rollback(status);
+            }
+        };
+        llm.then(callTool("t1", "find_screen", Map.of("keyword", "위젯")))
+                .then(LlmReply.ofText("지금은 화면을 찾지 못했습니다."));
+        WidgetChatService svc = new WidgetChatService(repository, writer, defRepository, queryRunner, userContextResolver, screenFinder,
+                llm, securityIdentity, failingSecondRead, Duration.ofSeconds(60), Clock.fixed(NOW, SEOUL),
+                WidgetChatService.DEFAULT_DAILY_CALL_LIMIT);
+
+        Map<String, Object> reply = reply(svc.send(req("i1", DEF_ID, "위젯은 어디서 바꿔?")));
+
+        assertThat(reply.get("content")).isEqualTo("지금은 화면을 찾지 못했습니다.");
+        assertThat(llm.calls()).hasSize(2);
+        LlmToolResult result = llm.calls().get(1).messages().get(2).toolResults().get(0);
+        assertThat(result.toolCallId()).isEqualTo("t1");
+        assertThat(result.error()).isTrue();
+        assertThat(result.content()).isEqualTo(WidgetChatService.TOOL_FAILED_MESSAGE);
+        verify(screenFinder, never()).find(anyString(), anyInt());
+        assertThat(stored("userA", "i1")).extracting(WidgetChatMessage::getRoleTp).containsExactly("user", "assistant");
+    }
 
     @Test
     @DisplayName("도구 1회 후 답: find_screen 결과를 모델에 돌려주고, 그 화면을 links({pageId,title})로 저장·반환한다")
@@ -422,11 +466,12 @@ class WidgetChatServiceTest {
 
     @Test
     @DisplayName("OASIS 처럼 바깥 트랜잭션(REQUIRED) 안에서 불러도 사용자 메시지는 따로 커밋돼 바깥 롤백 뒤에도 남는다. "
-            + "LLM 호출·도구 실행 동안에는 트랜잭션을 잡지 않는다")
+            + "LLM 호출 동안에는 트랜잭션을 잡지 않고, 도구 실행은 바깥이 아닌 짧은 읽기 전용 트랜잭션 안에서 한다")
     void userMessageSurvivesOuterRollback() {
         List<Boolean> txActiveDuringLlm = new ArrayList<>();
         List<Integer> committedDuringLlm = new ArrayList<>();
         List<Boolean> txActiveDuringTool = new ArrayList<>();
+        List<Boolean> readOnlyDuringTool = new ArrayList<>();
         TransactionTemplate fresh = new TransactionTemplate(transactionManager);
         fresh.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         LlmClient probe = (system, messages, tools) -> {
@@ -436,6 +481,7 @@ class WidgetChatServiceTest {
         };
         when(screenFinder.find(eq("위젯"), anyInt())).thenAnswer(inv -> {
             txActiveDuringTool.add(TransactionSynchronizationManager.isActualTransactionActive());
+            readOnlyDuringTool.add(TransactionSynchronizationManager.isCurrentTransactionReadOnly());
             return List.of();
         });
         llm.then(callTool("t1", "find_screen", Map.of("keyword", "위젯")))
@@ -452,7 +498,9 @@ class WidgetChatServiceTest {
         });
         assertThat(txActiveDuringLlm).as("LLM 호출 동안 트랜잭션 없음").containsExactly(false, false);
         assertThat(committedDuringLlm).as("LLM 을 부를 때 질문은 이미 커밋돼 있다").containsExactly(1, 1);
-        assertThat(txActiveDuringTool).as("도구 실행 동안 트랜잭션 없음").containsExactly(false);
+        // 도구 실행은 짧은 읽기 전용 트랜잭션 — 범위 EntityManager 가 LLM 대기 내내 연결을 쥐지 않게(design-mcm-lazy-ds.md).
+        assertThat(txActiveDuringTool).as("도구 실행은 짧은 트랜잭션 안").containsExactly(true);
+        assertThat(readOnlyDuringTool).as("그 트랜잭션은 읽기 전용").containsExactly(true);
     }
 
     @Test
