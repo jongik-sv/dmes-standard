@@ -160,6 +160,64 @@ podman ps
 
 * 동시에 열린 PDB 수 상한은 환경 변수 `DMES_ORA_MAX_OPEN`(기본 **3** = FREEPDB1 + 템플릿 1 + 작업 1)으로 정한다. 2GB 머신(§8-5)은 기본값을 그대로 쓰고, 4GB 이상·기본 SGA 인 PC 는 메모리 여유만큼 올린다(예: `export DMES_ORA_MAX_OPEN=5`). 2GB 에서 4개를 열면 인스턴스가 내려간다.
 
+### 6.4.2. 레인 PDB·시험 PDB 사용법
+
+PDB 이름은 접두로 용도를 나눈다. 도구는 이 세 접두의 PDB 만 만들고 지운다(`FREEPDB1` 과 조정자 데이터는 건드리지 않는다).
+
+| 접두 | 용도 | 수명 |
+| :--- | :--- | :--- |
+| `TPL_<태그>` | 복제 원본 템플릿(`TPL_EMPTY` 사용자만, `TPL_SCHEMA` 표만, `TPL_DATA` 표와 데이터) | 닫아 두고 복제 때만 읽기 전용으로 잠깐 연다 |
+| `L_<레인>` | 레인 개발·E2E·로컬 서버 확인용 | 쓰는 동안만 `open`, 끝나면 `close`(데이터는 남는다) |
+| `T_<레인>` | 자동 시험용 | Gradle 이 복제 → 시험 → 삭제를 한 번에 한다 |
+
+```bash
+node scripts/oracle/pdb.mjs clone TPL_EMPTY L_ORA_MDM     # 레인 PDB 만들기(없을 때 한 번)
+node scripts/oracle/pdb.mjs open L_ORA_MDM                # 서버를 띄우거나 시험하기 전에 연다
+node scripts/oracle/pdb.mjs url L_ORA_MDM                 # JDBC URL 확인
+./be-run.sh --mdm --pdb=L_ORA_MDM                         # 그 PDB 로 로컬 서버 기동(--pdb 가 없으면 종전 동작)
+node scripts/oracle/pdb.mjs close L_ORA_MDM               # 다 쓰면 닫는다(drop 은 데이터까지 지운다)
+
+# 자동 시험: 빌드 한 번에 T_<레인> 복제 → 시험 → 삭제
+cd src/backend/mdm && ../gradlew test -Pdmes.ora.test=clone
+# 이미 있는 PDB 로 시험하려면(복제·삭제 없음)
+cd src/backend/mdm && ../gradlew test -Pdmes.ora.pdb=L_ORA_MDM
+```
+
+시험 JVM 은 `-Duser.timezone=Asia/Seoul` 이고 Hikari 풀은 3 으로 제한된다. 접속 규약·스키마 소유표는 [`schema-owners.md`](../../oracle-1007/schema-owners.md) 가 정본이다.
+
+### 6.4.3. PC 잠금 규칙
+
+인스턴스 하나를 PC 의 모든 레인·시험이 나눠 쓰므로 무거운 작업은 PC 전체에서 한 번에 하나만 돈다(잠금 폴더 `$TMPDIR/dmes-ora-pdb.lock`).
+
+* `clone`·`open`·`drop`·`template-*` 는 잠금을 잡고, 다른 작업이 쥐고 있으면 끝날 때까지 기다린다(기다리는 한도 `DMES_ORA_LOCK_WAIT_SEC`, 기본 900초).
+* `-Pdmes.ora.test=clone`(또는 `-Pdmes.ora.pdb=…`) 시험 빌드는 복제 직전부터 PDB 를 지울 때까지(시험 JVM 이 도는 구간 포함) 같은 잠금을 쥔다. 기다리는 한도는 `DMES_ORA_HARNESS_LOCK_WAIT_SEC`(기본 7200초)이다. Gradle 이 죽어도 잠금 주인이 스스로 놓는다.
+* `close` 는 잠금을 잡지 않고 바로 실행한다(열린 PDB 와 메모리를 줄이는 쪽이라 시험과 겹쳐도 안전하다).
+* 명령을 중간에 끊으면(SIGTERM·SIGINT) `pdb.mjs` 가 자식 `podman exec` 를 먼저 끊고 잠금을 놓는다. sqlplus 한 번이 `DMES_ORA_SQL_TIMEOUT_SEC`(기본 1200초)를 넘기면 끊고 실패로 본다.
+* 인스턴스가 느릴 때 상태 확인용 sqlplus 를 계속 보내지 않는다(대기 세션만 쌓인다). 응답이 2분 넘게 없으면 보낸 쪽이 끊는다.
+
+### 6.4.4. 로컬 데이터 넣기(snapshot import)
+
+데이터 원본은 git 에 올라 있는 표별 CSV(`db-snapshot/<스키마>/*.csv`, UTF-8·LF·PK 순·NULL 은 `\N`·BLOB 은 `b64:`)이고, 적재기는 `scripts/db-snapshot/snapshot.py`(`python3` + `pip install oracledb`)다. 데이터만 넣으므로 표는 Flyway(또는 `template-schema`)가 먼저 만든 것이어야 한다.
+
+```bash
+# 레인 PDB 에 넣기(스키마를 생략하면 db-snapshot 아래 전부)
+python3 scripts/db-snapshot/snapshot.py import --pdb L_ORA_MDM MDMAPUSER
+python3 scripts/db-snapshot/snapshot.py import --pdb L_ORA_MDM --replace MCMAPUSER   # 초기 행까지 CSV 로 덮기
+
+# 처음부터 데이터가 든 PDB 가 필요하면 템플릿에서 복제
+node scripts/oracle/pdb.mjs template-schema TPL_SCHEMA   # 전 모듈 V 파일 적용, 데이터 없음
+node scripts/oracle/pdb.mjs template-data TPL_DATA       # 그 위에 CSV 적재(mdm 약 6분)
+node scripts/oracle/pdb.mjs clone TPL_DATA L_ORA_MDM
+
+# 스냅샷 갱신: 레인 PDB -> CSV
+python3 scripts/db-snapshot/snapshot.py export --pdb L_ORA_MDM
+```
+
+* 값 변환: epoch(초·밀리초) 시각은 KST 로, 빈 문자열은 NULL 로 바꾼다. 용어 임베딩(`TB_MDM_TERM.EMBEDDING`)과 비밀번호·키·로그 표는 비어 있거나 제외된다.
+* 코드 원장 3표는 `MCM_SOURCE` 와 `MCMAPUSER` 양쪽에 들어가고, `MCM_BACKUP` 은 비워 둔다. `TB_MCA_*` 동적 표는 적재기가 만든다.
+* 마이그레이션 `V1` 은 dev 에 머지된 뒤 고치지 않는다(체크섬이 달라진다). 바꿀 일은 `V2` 이상으로 추가한다. 옛 `V1` 이 적용된 레인 PDB 는 `template-schema --rebuild` 로 템플릿을 다시 만들고 레인 PDB 를 다시 복제한다.
+* 데이터 보정(`FORM_URL`·폴더 `USE_TP`)은 SQLite 에서 CSV 로 바꾸는 `convert` 단계에서 한 번 한다.
+
 ### 6.5. 컨테이너 정지 및 데이터 리셋
 
 ```bash
@@ -174,9 +232,11 @@ podman compose down -v
 
 ---
 
-## 7. 로컬 SQLite 데이터를 Oracle 로 옮기기
+## 7. (참고) 옛 SQLite 데이터를 Oracle 로 옮기기
 
-### 7.0. 다른 PC 에서는 이 스크립트 한 줄
+> 로컬 DB 가 Oracle 로 바뀌면서 이 절은 이관 크기 측정·방언 비교용 참고 자료가 되었다. 로컬 데이터는 §6.4.4 의 `snapshot.py import` 로 넣는다. 아래 도구(`tools/oracle-free/*.py`·`scripts/db-snapshot/{export,import}.sh`)는 SQLite 원본이 있을 때만 쓴다.
+
+### 7.0. 옛 스냅샷에서 적재하기(참고)
 
 git 에 올라 있는 `db-snapshot/` 만으로 로컬 Oracle 에 같은 데이터를 넣는다(원본 `src/backend/data/*.db` 가 없어도 된다). Oracle 컨테이너가 떠 있고 `pip install oracledb` 가 되어 있으면 된다.
 
@@ -273,3 +333,8 @@ python3 tools/oracle-free/sqlite_to_oracle.py --sqlite /tmp/ora-mig/mdm.db --sch
      ```bash
      export DOCKER_HOST="unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
      ```
+7. **2GB VM 에서는 무거운 작업을 한 번에 하나만(스래싱 사례):**
+   - 2026-10-07 18:24 여러 레인이 동시에 PDB 를 복제·삭제하고 시험 JVM 을 돌리자 VM 의 가용 메모리가 48MB, `kswapd` 38%, load 42 까지 올라 인스턴스가 스래싱했고 `sqlplus` 응답이 수 분씩 밀렸다. 같은 날 먼저 PDB 4개를 동시에 열었을 때는 서버 프로세스가 `ORA-03113` 으로 죽었다(`docs/oracle-1007/spike.md`).
+   - 증상: `pdb.mjs list` 나 sqlplus 가 2분 넘게 응답이 없고 `podman exec` 세션이 쌓입니다. 이때 상태 확인을 더 보내지 않습니다(대기만 늘어납니다).
+   - 원칙: ① 동시에 열린 PDB 는 3개 이하(`DMES_ORA_MAX_OPEN`) ② `clone`·`drop`·`open`·`template-*`·Oracle 시험 빌드는 PC 전체에서 하나(§6.4.3 의 PC 잠금) ③ 레인 PDB 는 쓸 때만 열고 `close` ④ 시험 PDB 는 복제 직후 시험하고 바로 삭제 ⑤ 인스턴스 부하를 줄이려고 `job_queue_processes=0`(자동 작업·통계 수집 정지)을 쓴다.
+   - 복구: 조정자가 동결을 알리면 새 Oracle 명령을 멈추고, 진행 중인 `drop` 등 변경 작업은 끝나게 둡니다. 확인용으로 띄운 sqlplus 와 고아 `podman exec` 는 종료합니다. 인스턴스가 응답하면 재개합니다.
