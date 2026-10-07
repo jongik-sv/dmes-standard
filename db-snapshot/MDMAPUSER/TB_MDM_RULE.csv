@@ -1,0 +1,55 @@
+MARU_RULE_ID,MARU_RULE_NAME,RULE_KIND,STATUS,SOURCE_KIND,SOURCE_SYSTEM,DESCRIPTION,USAGE_NOTE,LAST_VAR_ID,LAST_ROW_ID,LAST_CASE_ID,C_USR_ID,C_AT,C_SVC_ID,C_PGM_ID,U_USR_ID,U_AT,U_SVC_ID,U_PGM_ID,VER
+BASE_SPD_LKP,기본 L/S 조회,DECISION,INUSE,MDM,\N,두께 구간과 칼라 BOM 수지 코드·도장 면으로 기본 라인스피드(mpm),LS_A3 1단계. 결과 열 그룹 BASE_SPD,11,8,77,kim,2026-08-20 10:00:00,\N,mdm-local-sample,41000132,2026-10-02 21:54:50,ruleEdit,ruleEdit,78
+C10B1040,설계KEY,DECISION,CREATED,MDM,\N,레거시 GlueMaster C10B1040 이관(2026-09-29),\N,27,2600,0,41000132,1790661735061,ruleMng,ruleMng,41000132,2026-09-29 15:02:16,ruleEdit,ruleEdit,2
+C10B1071,원자재두께 관리,DECISION,CREATED,MDM,\N,레거시 GlueMaster C10B1071 이관(2026-09-29),\N,9,417,100,41000132,1790661708347,ruleMng,ruleMng,41000132,2026-10-04 05:55:20,ruleEdit,ruleEdit,102
+CHK_RULE1,CHK_룰1,DECISION,CREATED,MDM,\N,\N,\N,2,3,0,CHK_STW,1791086387768,ruleMng,ruleMng,CHK_STW,2026-10-04 13:00:40,ruleEdit,ruleEdit,2
+COIL_WGT_CALC,코일 중량 산출,DERIVE,INUSE,MDM,\N,두께 × 폭 × 길이 × 비중으로 코일 이론 중량(kg),계산수식 시뮬레이션. 배포 대상 없음. MES·ERP가 각자 구현하고 값 테스트 결과와 맞춰 본다,1,1,1,kim,2026-09-10 10:00:00,\N,mdm-local-sample,kim,2026-09-10 10:00:00,\N,mdm-local-sample,0
+EQP_CHK_JDG,설비 점검 판정,DECISION,INUSE,EXTERNAL,MES,설비 유형과 가동 시간으로 점검 필요 여부,\N,3,3,10,kim,2026-09-04 16:00:00,\N,mdm-local-sample,41000132,2026-10-02 21:52:28,ruleEdit,ruleEdit,10
+M47C0001,코일원판중량,DECISION,INUSE,MDM,\N,"레거시 M47 룰 엔진 M47C0001(코일원판중량, 룰 7287 현행 v1.0, 테스트계 Oracle UBMADQ 조회 2026-10-06) 이관. 공정코드·OP등급·통판포장재구분과 치수·비중으로 코일 원판 중량(kg)을 산출한다. 행 1: 공정코드 '74'~'77' 이면 PLTCM_SET_THK_TRV×COIL_WTH×COIL_LTH×GRA/1000×SLIT_GRP_CNT, 행 2: 공정코드 '7O' 이면 같은 식, 행 3: 공정코드 '61'~'6Z' 이고 OP_GRD='S' 이면 COIL_THK×COIL_WTH×SHT_LTH/1000×GRA/1000×SHT_CNT, 행 4: 공정코드 '61'~'6Z' 이고 PASS_BOD_PAK_MTL_TP='P' 이면 같은 식, 행 5: 공정코드 '61'~'6Z' 이면 ORD_UNIT_WGT×SHT_CNT−0.01, 행 6(그 밖): PLTCM_SET_THK_TRV×COIL_WTH×COIL_LTH×GRA/1000. 결과는 소수 0 자리로 반올림한다. 결과 컬럼은 COIL_ORN_PLT_WGT(코일 원 원판 중량, 레거시 Java 가 CON_COIL_ORN_PLT_WGT 에 저장). 레거시 분기 행을 판정표 6행으로 그대로 옮겼다.","- 레거시 버전이 둘이다(룰 6473: 2012-06-25~2012-08-16 USE_TP=N 종료, 룰 7287: 2012-08-16~ USE_TP=Y 현행). 현행 7287 만 옮겼다.
+- 레거시 조건 CHK_NO 1 행(조건·식 빈 값, ACTION_TYPE C)은 이관하지 않았다(역할 미확인).
+- 레거시 조건 '74'<=C1 AND C1<='77' 같은 문자열 구간은 한 칸에 둘 수 없어 조건 열 두 칸(공정코드 조건 1·2)으로 나눴다. 같은 행의 조건 칸들은 AND 이다. 행 2 는 공정코드 조건 1 칸만 쓴다(PROC_CD == ""7O"").
+- 주문단위중량은 기존 컬럼 ORD_UNIT_WGT(주문 단위 중량)를 재사용했다(조정자 승인 2026-10-06). 레거시 이름은 ORD_UNT_WGT.
+- 레거시 호출부(M47CoilUtil)는 Slit조수 자리에 1 을 넣어 호출한다(통합 중량 계산 쪽). 호출 측 몫이라 룰에 넣지 않았다. 레거시 Java 후처리·호출 조건은 확인하지 못했다.
+- 조건 열의 변수(PROC_CD·OP_GRD·PASS_BOD_PAK_MTL_TP)는 모든 행에서 필수 입력이고, 행별로 결과 식이 읽는 변수만 그 행의 필수 입력이 된다. 변수 번호 대응(C1 공정코드, C2 OP등급, C3 통판포장재구분, V1~V9)·단위·ACTION_TYPE 뜻은 확인되지 않은 가정이다.
+- 반올림은 DMES ROUND(HALF_EVEN)이고 레거시 R(HALF_UP 추정)은 정확히 .5 에서 다를 수 있다.
+- 새로 만든 입력 컬럼: PLTCM_SET_THK_TRV(7959, 도메인 202), OP_GRD(7960, 도메인 156), PASS_BOD_PAK_MTL_TP(7961, 도메인 157). 입력 순서는 조건 열 변수가 먼저라 레거시 입력 순서와 다를 수 있다.",5,6,8,41000132,1791267812482,ruleMng,ruleMng,41000132,2026-10-06 15:24:11,ruleEdit,ruleEdit,10
+M47C0004,코일이론중량,DECISION,INUSE,MDM,\N,"레거시 M47 룰 엔진 M47C0004(코일이론중량, 테스트계 Oracle UBMADQ 조회 2026-10-06) 이관. 행 1: 공정코드가 '61'~'6Z' 이면 코일원판중량만, 행 2(그 밖): 코일원판중량+코일도금중량+코일코팅중량. 결과는 소수 0 자리로 반올림한다. 결과 컬럼은 COIL_THY_WGT(코일 이론 중량, 레거시 이름 코일이론중량).","- 레거시 조건 '61'<=C1 AND C1<='6Z' 는 문자열 구간 조건을 한 칸에 둘 수 없어 조건 열 두 칸(PROC_CD >= ""61"", PROC_CD <= ""6Z"")으로 나눴다. 두 칸은 AND 이다.
+- 행별 필수 입력: 공정코드는 늘 필수이고, 행 1 은 COIL_ORN_PLT_WGT 만, 행 2 는 COIL_ORN_PLT_WGT·COIL_GAL_WGT·COIL_COT_WGT 가 필수이다.
+- 61~6Z 구간에서 M47C0005 는 Sheet 식으로 도금중량을 구하지만 이 룰은 그 값을 쓰지 않는다. 의도된 설계인지 확인되지 않았다.",3,2,2,41000132,1791247675559,ruleMng,ruleMng,41000132,2026-10-06 09:48:30,ruleEdit,ruleEdit,4
+M47C0005,코일도금중량,DECISION,INUSE,MDM,\N,"레거시 M47 룰 엔진 M47C0005(룰 3059, 테스트계 Oracle UBMADQ 조회 2026-10-06) 이관. 도금부착량으로 코일도금중량(kg)을 산출한다. 행 1: 공정코드가 '61'~'6Z' 이면 GAL_ATT_AMT×SHT_LTH/1000×COIL_WTH/1000000×SHT_CNT, 행 2(그 밖): GAL_ATT_AMT×COIL_LTH×COIL_WTH/1000000. 결과는 소수 0 자리로 반올림한다. 레거시 분기 행(조건 '61'<=C1 AND C1<='6Z' / 1=1)을 판정표 2행으로 그대로 옮겼다.","- 레거시 Java 후처리 '결과가 0 이면 1' 과 'CGL/EGL 통과 시에만 계산' 은 룰에 넣지 않았다(호출 측 몫, 분석 문서 근거로 원본 코드는 미확인).
+- 레거시 조건 '61'<=C1 AND C1<='6Z' 는 문자열 구간 조건을 한 칸에 둘 수 없어 조건 열 두 칸(PROC_CD >= ""61"", PROC_CD <= ""6Z"")으로 나눴다. 두 칸은 AND 이다.
+- 행별 필수 입력: 공정코드는 늘 필수이고, 행 1 은 GAL_ATT_AMT·SHT_LTH·COIL_WTH·SHT_CNT, 행 2 는 GAL_ATT_AMT·COIL_LTH·COIL_WTH 만 필수이다.
+- 입력 변수 매핑·단위(g/m², m, mm, kg)·도금부착량 양면 여부는 확인되지 않은 가정이다.",3,2,4,41000132,1791247675542,ruleMng,ruleMng,41000132,2026-10-06 09:48:30,ruleEdit,ruleEdit,6
+M47C0006,코일코팅중량,DECISION,INUSE,MDM,\N,"레거시 M47 룰 엔진 M47C0006(코일코팅중량, 룰 3061, 테스트계 Oracle UBMADQ 조회 2026-10-06) 이관. 도장부착량으로 코일코팅중량(kg)을 산출한다. 행 1: 공정코드가 '61'~'6Z' 이면 GOT_ATT_AMT×SHT_LTH/1000×COIL_WTH/1000000×SHT_CNT, 행 2(그 밖): GOT_ATT_AMT×COIL_LTH×COIL_WTH/1000000. 결과는 소수 0 자리로 반올림한다. 레거시 분기 행(조건 '61'<=C1 AND C1<='6Z' / 1=1)을 판정표 2행으로 그대로 옮겼다. 결과 컬럼은 COIL_COT_WGT(코일 코팅 중량).","- 레거시 Java 후처리 '결과가 0 이면 1' 과 'CCL 통과 시에만 계산(비도장작업 제외)' 은 룰에 넣지 않았다(호출 측 몫, 분석 문서 근거로 원본 코드는 미확인).
+- 레거시 조건 '61'<=C1 AND C1<='6Z' 는 문자열 구간 조건을 한 칸에 둘 수 없어 조건 열 두 칸(PROC_CD >= ""61"", PROC_CD <= ""6Z"")으로 나눴다. 두 칸은 AND 이다.
+- 행별 필수 입력: 공정코드는 늘 필수이고, 행 1 은 GOT_ATT_AMT·SHT_LTH·COIL_WTH·SHT_CNT, 행 2 는 GOT_ATT_AMT·COIL_LTH·COIL_WTH 만 필수이다.
+- 입력 변수 매핑·단위(g/m², m, mm, kg)·도장부착량 양면 여부는 확인되지 않은 가정이다. GOT_ATT_AMT 는 M47C0007(도장부착량 계산 룰)의 결과값으로 추정한다.
+- 입력 컬럼 GOT_ATT_AMT(도장 부착 량)는 새로 만들었고 도메인은 GAL_ATT_AMT 와 같은 236(도금량 NUMBER 4,1)을 썼다. 레거시 입력 항목 길이는 5 라 다르다.",3,2,4,41000132,1791252236344,ruleMng,ruleMng,41000132,1791252273748,ruleMng,ruleMng,7
+M47C0007,도장부착량,DECISION,INUSE,MDM,\N,"레거시 M47 룰 엔진 M47C0007(도장부착량, 룰 5272, 테스트계 Oracle UBMADQ 조회 2026-10-06) 이관. 주문용도코드와 도막두께(전면·후면 합계)로 도장부착량(g/m²)을 산출한다. 행 1~4: 주문용도코드가 L0801N·L0802N·L09000·L10000 이면 0, 행 5(그 밖): 도막두께전면Total×1.78 + 도막두께후면Total×1.7. 결과는 소수 0 자리로 반올림한다. 결과 컬럼은 GOT_ATT_AMT(도장 부착 량). 레거시 분기 행을 판정표 행으로 옮겼다.","- 레거시 행 5·6(색상코드후면1Coat HUE_CD_BAK_1COT 가 'Y' 인 행과 'N' 인 행)은 식이 같아(전면×1.78 + 후면×1.7) 입력 HUE_CD_BAK_1COT 를 빼고 「그 밖」 DEFAULT 한 행으로 합쳤다. 레거시는 Y·N 이 아닌 값이면 어느 행도 맞지 않지만 DMES 는 그 밖 행에서 계산한다(조정자 승인 2026-10-06).
+- 레거시 조건 CHK_NO 1 행(조건·식 빈 값, ACTION_TYPE C)은 이관하지 않았다(역할 미확인).
+- 변수 번호 대응(C1 주문용도코드, C2 색상코드후면1Coat, V1 도막두께전면Total, V2 도막두께후면Total)·단위(µm, g/m²)·ACTION_TYPE 뜻은 확인되지 않은 가정이다.
+- 반올림은 DMES ROUND(HALF_EVEN)이고 레거시 R(HALF_UP 추정)은 정확히 .5 에서 다를 수 있다.
+- 행별 필수 입력: 주문용도코드는 늘 필수, 행 5 는 PNT_FLM_THK_FRN_TOT·PNT_FLM_THK_BAK_TOT 도 필수이다.
+- 입력 컬럼 PNT_FLM_THK_FRN_TOT·PNT_FLM_THK_BAK_TOT 는 새로 만들었고(도메인 204 필름 두께 NUMBER 3,0) 결과 GOT_ATT_AMT 는 도메인 236 이다.",2,5,5,41000132,1791267773566,ruleMng,ruleMng,41000132,2026-10-06 15:23:12,ruleEdit,ruleEdit,7
+M47C0014,코일길이,DERIVE,INUSE,MDM,\N,"레거시 M47 룰 엔진 M47C0014(룰 5677, 테스트계 Oracle UBMADQ 조회 2026-10-06) 이관. 코일계근중량·두께·폭·비중·Slit조수로 코일길이(m, 정수)를 산출한다. 길이 = 계근중량(kg)×1000 / (두께×폭×비중×조수).","- 근거: M47CoilUtil.java 1710줄 주석(길이 = (중량(KG)*1,000) / (두께*폭*비중*Slit조수)). 레거시 룰 테이블(TB_M00_RULES050)에는 수식이 없다(CHK_NO 1 한 행, 조건·결과 식 빈 값, ACTION_TYPE C). 룰 엔진 소스는 미확인이라 주석 수식이 실제 계산과 같은지는 확인되지 않은 가정이다.
+- 레거시 호출부(M47CoilUtil.getCoilLth)는 Slit조수를 1 로 고정해(2012.10.25) 넘긴다. 이 룰은 SLIT_GRP_CNT 를 입력으로 받으니 호출 측에서 1 을 넣는다.
+- 레거시 입력 TCM_THK_SET_VAL(TCM두께Setting값)·GAL_GRA(도금합금비중)는 식에 쓰이지 않아 입력에서 뺐다(산출 룰은 쓰지 않는 변수도 필수 입력이 되므로).
+- 식에 쓴 5개 입력은 모두 필수다. 단위(kg, mm)는 가정이다.
+- 반올림은 HALF_EVEN(엔진 계약)이고 레거시 R(HALF_UP 추정)과 정확히 .5 에서 다를 수 있다.",1,1,3,41000132,1791248540420,ruleMng,ruleMng,41000132,2026-10-06 10:02:37,ruleEdit,ruleEdit,5
+M47C0025,코일외경개선,DERIVE,INUSE,MDM,\N,"레거시 M47 룰 엔진 M47C0025(코일외경개선, 룰 12470 v1.0 사용중, 유효 2024-02-15~) 이관. 코일두께·길이·보호필름두께·엠보스 공극율·내경·내경링두께로 코일 외경(mm, 정수)을 산출한다. 외경 = SQRT((코일두께 + 보호필름두께/1000) × 코일길이 × 1000 × 4 / 3.14 / (0.97425 × 엠보스 공극율) + (코일내경 + 내경링두께 × 2)²). 보호필름두께·내경링두께가 비면 0, 엠보스 공극율이 비면 1 로 본다. 결과는 소수 0 자리로 반올림한다. 결과 컬럼은 COIL_ODIA(코일 외경 항목). 식 출처는 사용자가 보낸 레거시 룰 마스터 화면(계산수식 내용상세)이다.","- 이 룰의 수식은 테스트계 룰 테이블 조회(TB_M00_RULES050.MD_RULE_DECISION_RST1)가 빈 값이라 DB 조회로는 얻지 못했다. 룰 종류 「단순」은 계산공식을 판정행의 RST1 이 아닌 다른 칸에서 화면에 보여 주는 것으로 추정한다(미확인). 식은 사용자가 레거시 룰 마스터 화면에서 보내 준 것이다(2026-10-06).
+- 레거시 식: SQRT((V1+NVL(V3,0)/1000)*V2*1000*4/3.14/(0.97425*NVL(V4,1))+POWER(V5+NVL(V6,0)*2,2)). NVL 은 COALESCE, POWER(x,2) 는 x^2 로 옮겼다.
+- 변수 대응(가정): V1 COIL_THK(mm) V2 COIL_LTH(m) V3 PTT_FLM_THK(µm) V4 EMBO_VOID_RATE(코드 아님, 단위 없음) V5 COIL_IDIA(mm) V6 SLV_THK(mm). /1000 은 µm→mm, *1000 은 m→mm 환산이다.
+- 엠보스 공극율은 레거시에서 룰 M47B3300(엠보여부·코일두께)이 돌려주는 값이다. M47B3300 은 이관하지 않았고 이 룰에서는 입력값으로만 받는다.
+- 레거시 Java(M47CoilUtil.getCoilODia)는 보호필름두께가 없으면 0 으로 보내고, 코일두께·길이·엠보여부·내경·내경링두께가 없으면 실패한다. 이 룰의 필수 입력은 COIL_THK·COIL_LTH·COIL_IDIA 이고 PTT_FLM_THK·SLV_THK·EMBO_VOID_RATE 는 비어도 된다(COALESCE).
+- 반올림은 DMES ROUND(HALF_EVEN)이고 레거시 반올림(HALF_UP 추정)은 정확히 .5 에서 다를 수 있다.
+- 새로 만든 입력 컬럼 EMBO_VOID_RATE(7964, 도메인 267)는 용어 「공극」(termId 8215)을 새로 등록해 만들었다. 표준 분해 물리명은 EMBS_VOID_RAT 이지만 레거시 이름을 썼다.",1,1,5,41000132,1791267912095,ruleMng,ruleMng,41000132,2026-10-06 15:25:20,ruleEdit,ruleEdit,7
+PACK_TYPE_LKP,포장 방식 판정,DECISION,INUSE,MDM,\N,단위폭중량(kg/mm) 구간으로 포장 방식을 고른다,PACK_TYPE_SET 2단계. 단위폭중량은 앞 산출 룰 UNIT_WID_WGT_CALC 가 계산한다,2,3,3,kim,2026-09-28 10:00:00,\N,mdm-local-sample,kim,2026-09-28 10:00:00,\N,mdm-local-sample,0
+PACK_WGT_CALC,출하 중량 산출,DERIVE,INUSE,MDM,\N,포장재 중량 → 출하 총중량 → 필요 차량 대수를 차례로 계산. 뒤 결과가 앞 결과를 읽는다,산출 룰 단계 계산 데모. PKG_WGT 2단계,3,1,2,kim,2026-09-27 10:00:00,\N,mdm-local-sample,kim,2026-09-27 10:00:00,\N,mdm-local-sample,0
+PROD_WGT_CALC,제품 중량 산출,DECISION,INUSE,MDM,\N,"코일은 두께 × 폭 × 길이(m) × 비중 또는 π/4 × (외경² − 내경²) × 폭 × (1 − 공극률) × 비중, 시트는 두께 × 폭 × 길이(mm) × 매수 × 비중",계산수식 시뮬레이션. 배포 대상 없음,3,3,3,kim,2026-09-16 10:00:00,\N,mdm-local-sample,kim,2026-09-16 10:00:00,\N,mdm-local-sample,0
+QLTY_GRD_JDG,품질 등급 판정,DECISION,INUSE,MDM,\N,코일 두께·폭·표면등급으로 등급과 단가계수,MES 품질판정 화면 QM0310,5,4,3,kim,2026-08-20 10:00:00,\N,mdm-local-sample,41000132,2026-10-02 20:57:19,ruleEdit,ruleEdit,2
+QLTY_SURCHG,등급 할증률,DECISION,INUSE,MDM,\N,판정 등급과 두께로 할증률(%),QG_A1 2단계,3,4,0,kim,2026-07-25 10:00:00,\N,mdm-local-sample,kim,2026-07-25 10:00:00,\N,mdm-local-sample,0
+RMTL_STL_KND_GRD,원자재 강종 판정표,DECISION,CREATED,MDM,\N,품명코드·규격약호·두께 구간으로 재질코드·적정원료·차선원료·원자재 강종 메시지를 정하는 판정표(19행). 주문용도코드는 열을 두되 모든 행에서 조건을 보지 않는다(NA). 출처는 사용자 제공 엑셀 이미지(2026-10-06)이며 이미지 값을 그대로 옮겼다.,"레거시 C10B1040 설계KEY 와 값이 겹치지만 정확히 일치하는 룰은 못 찾음, 출처는 사용자 제공 엑셀 이미지. 9~11행(품명 3, KS3-CGCD3)은 두께 구간이 겹쳐 FIRST 에서는 위 행이 먼저 적중한다. 규격약호 표기(9~11행 하이픈 없음)와 19행 재질코드 DA 는 이미지 그대로이며 확인이 필요하다.",8,19,100,41000132,1791249078703,ruleMng,ruleMng,41000132,2026-10-06 11:07:42,ruleEdit,ruleEdit,102
+SPD_EXC,예외 조건,DECISION,INUSE,MDM,\N,광폭·고속 조합의 예외 속도,LS_A3 2단계,3,2,9,kim,2026-07-25 10:00:00,\N,mdm-local-sample,41000132,2026-10-02 21:57:25,ruleEdit,ruleEdit,9
+SPD_JOIN,결합,DERIVE,INUSE,MDM,\N,기본 L/S 와 예외 L/S 중 작은 값,LS_A3 3단계,1,1,0,kim,2026-07-25 10:00:00,\N,mdm-local-sample,kim,2026-07-25 10:00:00,\N,mdm-local-sample,0
+UNIT_WID_WGT_CALC,단위폭중량 산출,DERIVE,INUSE,MDM,\N,코일 중량(ton) × 1000 ÷ 코일 폭(mm) 으로 단위폭중량(kg/mm)을 계산한다,PACK_TYPE_SET 1단계. 결과 UNIT_WID_WGT 를 PACK_TYPE_LKP 가 읽는다,1,1,2,kim,2026-09-28 10:00:00,\N,mdm-local-sample,kim,2026-09-28 10:00:00,\N,mdm-local-sample,0
+WID_CHK,광폭 여부,DECISION,INUSE,MDM,\N,폭 1500mm 이상이면 광폭,구 세트 WID_OLD 에서 쓰던 룰,2,2,0,kim,2026-07-25 10:00:00,\N,mdm-local-sample,kim,2026-07-25 10:00:00,\N,mdm-local-sample,0

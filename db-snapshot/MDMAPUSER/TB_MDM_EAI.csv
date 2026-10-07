@@ -1,0 +1,5 @@
+EAI_CODE,EAI_NAME,ENCODING,PAD_RULE,HEADER_LAYOUT_ID,C_USR_ID,C_AT,C_SVC_ID,C_PGM_ID,U_USR_ID,U_AT,U_SVC_ID,U_PGM_ID,VER
+E2HE2EX,E2E EAI E2EX,EUC-KR,"숫자 왼쪽 0, 문자 오른쪽 공백(E2E 수정)",\N,E2E_USR_STD,1791079130041,headerMng,headerMng,E2E_USR_STD,1791079132933,headerMng,headerMng,1
+GLUE,GLUE,EUC-KR,"숫자 왼쪽 0, 문자 오른쪽 공백",\N,kim,1789049100000,\N,mdm-local-sample,admin,1790418784061,headerMng,headerMng,1
+MES,MES,EUC-KR,"숫자 왼쪽 0, 문자 오른쪽 공백",100,admin,1790418784099,headerMng,headerMng,admin,1790418784099,headerMng,headerMng,0
+SAP_PI,SAP PI,UTF-8,"숫자 왼쪽 0, 문자 오른쪽 공백",200,kim,2026-09-10 14:05:00,\N,mdm-local-sample,kim,2026-09-10 14:05:00,\N,mdm-local-sample,0

@@ -1,0 +1,9 @@
+DEPT_CD,PAGE_ID,USAGE_DT,USER_ID,DURATION_MS,OPEN_CNT,SEG_CNT
+IT,csa/commUserMng,20261004,admin,199679,1,1
+IT,dma/columnMng,20261004,admin,232235,9,9
+IT,dma/termMng,20261004,admin,734945,17,17
+IT,dmb/headerMng,20261004,admin,180087,3,3
+IT,dmc/codeMng,20261004,admin,17813,2,2
+IT,dmd/dataItemMng,20261004,admin,29841,1,1
+IT,dmd/dataMng,20261004,admin,180050,3,3
+IT,lsh/noticeMgmt,20261004,admin,39354,2,2

@@ -1,0 +1,8 @@
+MARU_RULE_ID,SYSTEM_CODE,DEPLOY_KIND,DESCRIPTION,C_USR_ID,C_AT,C_SVC_ID,C_PGM_ID,U_USR_ID,U_AT,U_SVC_ID,U_PGM_ID,VER
+BASE_SPD_LKP,MES,DEF,\N,kim,2026-08-20 10:00:00,\N,mdm-local-sample,kim,2026-08-20 10:00:00,\N,mdm-local-sample,0
+EQP_CHK_JDG,MES,DEF,\N,kim,2026-09-04 16:00:00,\N,mdm-local-sample,kim,2026-09-04 16:00:00,\N,mdm-local-sample,0
+QLTY_GRD_JDG,MES,DEF,\N,kim,2026-08-20 10:00:00,\N,mdm-local-sample,kim,2026-08-20 10:00:00,\N,mdm-local-sample,0
+QLTY_SURCHG,MES,DEF,\N,kim,2026-07-25 10:00:00,\N,mdm-local-sample,kim,2026-07-25 10:00:00,\N,mdm-local-sample,0
+SPD_EXC,MES,DEF,\N,kim,2026-07-25 10:00:00,\N,mdm-local-sample,kim,2026-07-25 10:00:00,\N,mdm-local-sample,0
+SPD_JOIN,MES,DEF,\N,kim,2026-07-25 10:00:00,\N,mdm-local-sample,kim,2026-07-25 10:00:00,\N,mdm-local-sample,0
+WID_CHK,MES,DEF,\N,kim,2026-07-25 10:00:00,\N,mdm-local-sample,kim,2026-07-25 10:00:00,\N,mdm-local-sample,0
