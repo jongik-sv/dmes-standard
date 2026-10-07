@@ -264,7 +264,9 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
       const tryApply = () => {
         if (cancelled || phaseRef.current !== "pending") return;
         if (getSearchDefaultsStatus(userId) !== "ready") return;
-        applyAll({ skipLast: false, ignoreTouched: false, onlyIfUnchanged: true });
+        // 기다리는 사이 화면이 defaults={false} 로 바꿨으면(handoff 로 조건을 정한 화면) 넣지 않는다 —
+        // handoff 가 코드 기본값과 같은 값(빈 값)으로 비우면 값만으로는 구별할 수 없다(§6.3).
+        if (optsRef.current.enabled) applyAll({ skipLast: false, ignoreTouched: false, onlyIfUnchanged: true });
         finish();
       };
       tryApply();

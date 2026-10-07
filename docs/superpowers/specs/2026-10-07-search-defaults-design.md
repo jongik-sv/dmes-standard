@@ -272,6 +272,7 @@ carry 복원 > handoff 등 화면의 명시 동작 > 사용자 기본값 > 코�
 
 - carry 복원은 §6.2 의 1단계에서 넣지 않는 것으로 지킨다.
 - handoff(`codeMng`·`dataMng`)는 화면의 passive effect 에서 조건을 비우고 조회한다. 사용자 기본값은 그보다 먼저(layout effect) 들어가므로 handoff 가 덮어쓴다. 구현 레인이 두 화면에서 이 순서를 시험으로 확인한다.
+- 다만 그 PC 에 사본이 없어 서버 응답을 기다린 뒤 넣는 경우에는 넣기가 handoff 보다 늦다. 등록 때 값과 달라진 칸은 넣지 않지만, handoff 가 코드 기본값과 같은 값(빈 값)으로 비우면 값만으로 구별할 수 없다. 그래서 늦게 넣을 때 `defaults` 를 다시 읽는다. handoff 로 조건을 정하는 화면은 handoff 때 `<SearchArea defaults={!handoffActive}>` 로 넣기를 막는다(구현 2026-10-07, 단계 3 이 codeMng·dataMng 에 적용).
 
 ### 6.4 첫 자동 조회
 

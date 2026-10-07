@@ -41,8 +41,8 @@ interface UserEntry {
   promise: Promise<void> | null;
   /** 마지막으로 서버에 물은 시각(실패 뒤 다시 묻기 간격용). */
   lastAttemptAt: number;
-  /** 저장·지우기로 메모리를 바꿀 때마다 오른다 — 그 전에 출발한 서버 응답이 저장한 값을 덮지 않게 한다. */
-  gen: number;
+  /** 서버 요청이 진행되는 동안 저장·지우기로 바꾼 화면 — 늦게 온 응답이 그 화면만은 덮지 않는다(지운 화면도 되살리지 않는다). */
+  dirtyPages: Set<string>;
 }
 
 interface StoreState {
@@ -175,7 +175,7 @@ function entryFor(userId: string): UserEntry {
   const st = getState();
   let e = st.users.get(userId);
   if (!e) {
-    e = { status: "idle", source: "none", rules: {}, promise: null, lastAttemptAt: 0, gen: 0 };
+    e = { status: "idle", source: "none", rules: {}, promise: null, lastAttemptAt: 0, dirtyPages: new Set() };
     st.users.set(userId, e);
   }
   return e;
@@ -203,18 +203,19 @@ export function preloadSearchDefaults(userId: string): void {
     }
   }
   e.lastAttemptAt = Date.now();
-  const startGen = e.gen;
+  e.dirtyPages.clear();
   e.promise = (async () => {
     try {
       const body = await getState().transport("search", { meta: { menuId: "HOME" }, params: {} });
-      const fromServer = rowsToUserRules(extractRows(body));
-      // 요청 중에 저장·지우기가 있었으면 그 화면들은 메모리 값을 그대로 둔다.
-      if (e.gen === startGen) {
-        e.rules = fromServer;
-      } else {
-        const local = e.rules;
-        e.rules = { ...fromServer, ...local };
+      const next = rowsToUserRules(extractRows(body));
+      // 요청 중에 저장·지우기한 화면은 메모리 값을 그대로 둔다(지운 화면은 지운 채로).
+      for (const pageId of e.dirtyPages) {
+        const local = e.rules[pageId];
+        if (local) next[pageId] = local;
+        else delete next[pageId];
       }
+      e.dirtyPages.clear();
+      e.rules = next;
       e.source = "server";
       writeMirror(userId, e.rules);
     } catch (err) {
@@ -235,8 +236,9 @@ function watchUserChanges(): void {
   if (st.watchingUser) return;
   st.watchingUser = true;
   subscribeCurrentUser((user) => {
-    const keep = user?.id ?? "";
-    for (const id of [...st.users.keys()]) if (id !== keep) st.users.delete(id);
+    // 캐시 비우기(null 통지)는 다시 확인하는 중이라는 뜻이라 지우지 않는다 — 다른 사용자가 확인됐을 때만 정리한다.
+    if (!user) return;
+    for (const id of [...st.users.keys()]) if (id !== user.id) st.users.delete(id);
     notify();
   });
 }
@@ -267,7 +269,7 @@ export function subscribeSearchDefaults(listener: () => void): () => void {
 
 function setPageLocal(userId: string, pageId: string, rules: PageRules): void {
   const e = entryFor(userId);
-  e.gen += 1;
+  if (e.promise) e.dirtyPages.add(pageId);
   const next = { ...e.rules };
   if (Object.keys(rules).length === 0) delete next[pageId];
   else next[pageId] = rules;

@@ -124,6 +124,32 @@ describe("리뷰 지적 회귀(2026-10-07)", () => {
   });
 });
 
+describe("재검토 회귀(2026-10-07)", () => {
+  it("미리 받기 중에 지운 화면은 늦게 온 응답이 되살리지 않고, 다른 화면은 서버 값을 쓴다", async () => {
+    localStorage.setItem(`${SEARCH_DEFAULTS_MIRROR_PREFIX}u1`, JSON.stringify({ q: { k: { kind: "fixed", value: "STALE" } } }));
+    let resolveSearch: (v: unknown) => void = () => {};
+    setSearchDefaultsTransportForTest(async (action) => {
+      if (action === "search") return new Promise((r) => (resolveSearch = r));
+      return { meta: { success: true } };
+    });
+    preloadSearchDefaults("u1");
+    await resetSearchDefaults("u1", "p");
+    resolveSearch({
+      data: {
+        result: {
+          rows: [
+            { pageId: "p", fieldKey: "k", ruleJson: '{"kind":"fixed","value":"OLD"}' },
+            { pageId: "q", fieldKey: "k", ruleJson: '{"kind":"fixed","value":"FRESH"}' },
+          ],
+        },
+      },
+    });
+    await flush();
+    expect(getPageSearchDefaults("u1", "p")).toEqual({});
+    expect(getPageSearchDefaults("u1", "q")).toEqual({ k: { kind: "fixed", value: "FRESH" } });
+  });
+});
+
 describe("saveSearchDefaults·resetSearchDefaults", () => {
   it("savePage 본문(grids.rows.rows, ruleJson 문자열)을 보내고 성공하면 메모리·거울을 바꾼다", async () => {
     const calls: unknown[] = [];

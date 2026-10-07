@@ -456,6 +456,32 @@ describe("리뷰 지적 회귀(2026-10-07)", () => {
     expect(latest.item).toBe("HANDOFF");
   });
 
+  it("handoff 화면이 기다리는 사이 defaults=false 로 바꾸면 늦게 온 규칙을 넣지 않는다(같은 빈 값으로 비운 경우)", async () => {
+    let resolve: (v: unknown) => void = () => {};
+    setSearchDefaultsTransportForTest(() => new Promise((r) => (resolve = r)));
+    function HandoffSame() {
+      const [v, setV] = useCarryState("v", "");
+      const [handoff, setHandoff] = useState(false);
+      latest = { ...DEFAULT, item: v };
+      useEffect(() => {
+        setV("");
+        setHandoff(true);
+      }, [setV]);
+      return createElement(
+        SearchArea,
+        { onSearch: () => {}, defaults: !handoff },
+        createElement(SearchField, { label: "품번", name: "itemCd", value: v, onChange: setV }),
+      );
+    }
+    await mount(inPage(createElement(HandoffSame)));
+    await act(async () => {
+      resolve(serverRows({ [PAGE]: rules({ itemCd: { kind: "fixed", value: "S" } }) }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(latest.item).toBe("");
+  });
+
   it("선택지가 늦게 오면 보류했다가 선택지가 생길 때 넣는다", async () => {
     givenRules(rules({ status: { kind: "fixed", value: "SYS1" } }));
     let load: () => void = () => {};
