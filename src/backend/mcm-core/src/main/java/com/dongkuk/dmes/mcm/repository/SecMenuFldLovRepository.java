@@ -5,7 +5,6 @@
  */
 package com.dongkuk.dmes.mcm.repository;
 
-import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Repository;
@@ -34,8 +33,7 @@ import java.util.Map;
  * ORDER BY MENU_ID
  * </pre>
  *
- * <p>MSSQL 변환 — Oracle {@code ||} 문자열 결합 → MSSQL {@code +} 또는 {@code CONCAT}. 본 native query
- * 는 {@code CONCAT} 사용 (NULL-safe).
+ * <p>Oracle 단일화(oracle-1007) — As-Is 와 같은 {@code ||} 결합을 쓴다(Oracle 은 NULL 을 빈 글자로 잇는다).
  */
 @Repository
 public class SecMenuFldLovRepository {
@@ -84,10 +82,8 @@ public class SecMenuFldLovRepository {
 
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> findAllMenuIdLov() {
-        // SQLite 는 CONCAT 미지원 → || 분기. MSSQL 은 기존 CONCAT 유지. schema 접두는 inspector.toSqlite 가 제거.
-        String menuIdNm = McmAuditStatementInspector.isSqlite()
-                ? "MAX(MENU_ID) || ' (' || MAX(MENU_NM) || ')'"
-                : "CONCAT(MAX(MENU_ID), ' (', MAX(MENU_NM), ')')";
+        // Oracle 단일화(oracle-1007) — 3인자 이상 결합은 || (Oracle 은 NULL 을 빈 글자로 잇는다).
+        String menuIdNm = "MAX(MENU_ID) || ' (' || MAX(MENU_NM) || ')'";
         List<Object[]> rows = entityManager.createNativeQuery(
                 "SELECT MENU_ID, " +
                 "       MAX(BIZ_SYSTEM_CODE) AS BIZ_SYSTEM_CODE, " +

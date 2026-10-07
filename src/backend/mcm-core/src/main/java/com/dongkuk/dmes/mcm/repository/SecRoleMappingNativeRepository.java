@@ -6,7 +6,6 @@
  */
 package com.dongkuk.dmes.mcm.repository;
 
-import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Repository;
@@ -52,7 +51,7 @@ public class SecRoleMappingNativeRepository {
     private EntityManager entityManager;
 
     /**
-     * As-Is {@code selectCommRoleMapList} (xml:89~110) MSSQL 변환.
+     * As-Is {@code selectCommRoleMapList} (xml:89~110) 변환.
      *
      * <p>As-Is SQL (Oracle 콤마 join):
      * <pre>
@@ -100,7 +99,7 @@ public class SecRoleMappingNativeRepository {
     }
 
     /**
-     * As-Is {@code selectCommPerm} (xml:143~159) MSSQL 변환.
+     * As-Is {@code selectCommPerm} (xml:143~159) 변환.
      *
      * <p>As-Is SQL:
      * <pre>
@@ -160,7 +159,7 @@ public class SecRoleMappingNativeRepository {
      *  ORDER BY MENU_ID
      * </pre>
      *
-     * <p>MSSQL 변환 — Oracle {@code ||} 결합 → MSSQL {@code CONCAT}.
+     * <p>Oracle 단일화(oracle-1007) — As-Is 와 같은 {@code ||} 결합.
      * To-Be 정책 #1: BIZ_SYSTEM_CODE 컬럼 잔존 (테이블 DDL 보존) — FE 가 미사용.
      */
     /**
@@ -200,10 +199,8 @@ public class SecRoleMappingNativeRepository {
                 .append(" WHERE USE_TP = 'Y' ");
         boolean hasKw = edtObjectId != null && !edtObjectId.isBlank();
         if (hasKw) {
-            // SQLite 는 CONCAT 미지원 → || 분기. MSSQL 은 기존 CONCAT 유지.
-            sql.append(McmAuditStatementInspector.isSqlite()
-                    ? "   AND (UPPER(OBJECT_ID) LIKE UPPER('%' || :edtObjectId || '%') OR UPPER(OBJECT_NM) LIKE UPPER('%' || :edtObjectId || '%')) "
-                    : "   AND (UPPER(OBJECT_ID) LIKE UPPER(CONCAT('%', :edtObjectId, '%')) OR UPPER(OBJECT_NM) LIKE UPPER(CONCAT('%', :edtObjectId, '%'))) ");
+            // Oracle 단일화(oracle-1007) — 3인자 결합은 || 로 쓴다.
+            sql.append("   AND (UPPER(OBJECT_ID) LIKE UPPER('%' || :edtObjectId || '%') OR UPPER(OBJECT_NM) LIKE UPPER('%' || :edtObjectId || '%')) ");
         }
         sql.append(" ORDER BY OBJECT_ID");
 
@@ -226,10 +223,8 @@ public class SecRoleMappingNativeRepository {
 
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> findAllMenuIdLov() {
-        // SQLite 는 CONCAT 미지원 → || 분기. MSSQL 은 기존 CONCAT 유지. schema 접두는 inspector.toSqlite 가 제거.
-        String menuIdNm = McmAuditStatementInspector.isSqlite()
-                ? "MAX(MENU_ID) || ' (' || MAX(MENU_NM) || ')'"
-                : "CONCAT(MAX(MENU_ID), ' (', MAX(MENU_NM), ')')";
+        // Oracle 단일화(oracle-1007) — 3인자 이상 결합은 || (Oracle 은 NULL 을 빈 글자로 잇는다).
+        String menuIdNm = "MAX(MENU_ID) || ' (' || MAX(MENU_NM) || ')'";
         String sql =
                 "SELECT MENU_ID, " +
                 "       MAX(BIZ_SYSTEM_CODE) AS BIZ_SYSTEM_CODE, " +

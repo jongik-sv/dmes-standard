@@ -32,7 +32,7 @@ public final class CoreRbacSeeder extends SeedSupport {
                 "TB_MCM_SEC_USER", "USER_ID", "admin",
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_USER " +
                 "(USER_ID, USER_NM, USER_EMP_NO, DEPT_CD, USE_TP, IN_OUT_EMP_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
-                "VALUES ('admin', N'관리자', 'E0001', 'IT', 'Y', 'I', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "VALUES ('admin', N'관리자', 'E0001', 'IT', 'Y', 'I', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
 
         // TB_MCM_SEC_USER_PWD — admin 비밀번호 (BCrypt). passwordEncoder 가 null 인 빈 환경에서는 skip.
         if (passwordEncoder != null) {
@@ -40,14 +40,14 @@ public final class CoreRbacSeeder extends SeedSupport {
                     "TB_MCM_SEC_USER_PWD", "USER_ID", "admin",
                     "INSERT INTO MCMAPUSER.TB_MCM_SEC_USER_PWD " +
                     "(USER_ID, USER_ENC_PWD, LAST_PWD_CHNG_DATE" + AUDIT_COLS + ") " +
-                    "VALUES ('admin', '" + escapeSql(passwordEncoder.encode("admin123")) + "', SYSDATETIME()" + AUDIT_VALS + ")");
+                    "VALUES ('admin', '" + escapeSql(passwordEncoder.encode("admin123")) + "', SYSTIMESTAMP" + AUDIT_VALS + ")");
             // 2026-06-05 사용자 결정 — 매 부팅 시 admin 비밀번호 admin123 으로 강제 재설정.
             //   사유: DB hash 가 commUserMng 의 "비밀번호 초기화" 액션 / 수동 변경으로 어긋난 경우 dev 환경 복구 안전망.
             //   운영 환경(prod profile)에서는 본 강제 갱신을 분기로 차단할 수 있도록 후속 cycle 에서 조건 추가 검토.
             String adminHash = passwordEncoder.encode("admin123");
             int updated = nq(
                     "UPDATE MCMAPUSER.TB_MCM_SEC_USER_PWD " +
-                    "   SET USER_ENC_PWD = :hash, LAST_PWD_CHNG_DATE = SYSDATETIME(), U_USR_ID = 'admin', U_AT = SYSDATETIME() " +
+                    "   SET USER_ENC_PWD = :hash, LAST_PWD_CHNG_DATE = SYSTIMESTAMP, U_USR_ID = 'admin', U_AT = SYSTIMESTAMP " +
                     " WHERE USER_ID = 'admin'")
                     .setParameter("hash", adminHash)
                     .executeUpdate();
@@ -60,7 +60,7 @@ public final class CoreRbacSeeder extends SeedSupport {
                 "TB_MCM_SEC_ROLEGROUP", "ROLE_GROUP_ID", "ROLE_GROUP_SYSADMIN",
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLEGROUP " +
                 "(ROLE_GROUP_ID, ROLE_GROUP_NM, ROLE_GROUP_DESC, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
-                "VALUES ('ROLE_GROUP_SYSADMIN', N'시스템관리자 그룹', N'시스템 전체 관리 권한', 'Y', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "VALUES ('ROLE_GROUP_SYSADMIN', N'시스템관리자 그룹', N'시스템 전체 관리 권한', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
 
         // TB_MCM_SEC_USER_MAPPING — (admin, ROLE_GROUP_SYSADMIN)
         insertIfAbsentComposite(
@@ -78,7 +78,7 @@ public final class CoreRbacSeeder extends SeedSupport {
                 "TB_MCM_SEC_ROLE", "ROLE_ID", "SYSADMIN",
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE " +
                 "(ROLE_ID, ROLE_NM, ROLE_DESC, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
-                "VALUES ('SYSADMIN', N'시스템관리자', N'전체 권한', 'Y', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "VALUES ('SYSADMIN', N'시스템관리자', N'전체 권한', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
 
         // 기존 잔존 "ROLE_SYSADMIN" row 가 있다면 swap UPDATE — 멱등성 (신규 클린 DB 무영향).
         // 외래키 (TB_MCM_SEC_ROLEGROUP_MAPPING.ROLE_ID / TB_MCM_SEC_ROLE_MAPPING.ROLE_ID) 도 동시 UPDATE.
@@ -153,7 +153,7 @@ public final class CoreRbacSeeder extends SeedSupport {
                 "VALUES ('PERM_ALL', N'전체 권한', N'SYSADMIN 전체 접근', " +
                 "'search,save,delete,import,export', " +
                 "'" + escapeSql(allActions) + "', " +
-                "'Y', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
         ensurePermAllActions(allActions);
 
         // TB_MCM_SEC_OBJ — 13 화면 OBJECT 시드 (W1~W9 9 화면 + cma 4 화면).
@@ -264,11 +264,11 @@ public final class CoreRbacSeeder extends SeedSupport {
     }
 
     /**
-     * local 프로필(SQLite 단독, 프로필 미지정 폴백 포함) 부팅 때 admin 의 로그인 잠금을 푼다 — PWD_FAIL_COUNT=0, USE_TP='Y'.
+     * local 프로필(로컬 Oracle PDB, 프로필 미지정 폴백 포함) 부팅 때 admin 의 로그인 잠금을 푼다 — PWD_FAIL_COUNT=0, USE_TP='Y'.
      *
      * <p>로그인 실패가 최대 횟수에 닿으면 USE_TP='N' 으로 잠긴다(AuthService · McmSecUserRepository#lockUser). 위의 비밀번호
      * 강제 재설정만으로는 풀리지 않아, 공용 로컬 DB 에서 admin 이 한 번 잠기면 재기동해도 admin 으로 로그인하는 e2e 가 모두 막힌다.
-     * admin 외 계정, local-db(외부 RDB 직결)·dev·prod 는 건드리지 않는다. 이미 풀려 있으면 쓰지 않는다.
+     * admin 외 계정, local 이 아닌 프로필(dev·prod 등)은 건드리지 않는다. 이미 풀려 있으면 쓰지 않는다.
      *
      * @return 되돌린 행 수(0 또는 1)
      */

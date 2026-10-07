@@ -16,7 +16,7 @@ import java.util.List;
  * <ul>
  *   <li>C-008: CREATION_TIMESTAMP → AUDIT {@code C_AT} (DEC-04 승인)</li>
  *   <li>C-009: 묵시조인 → LEFT JOIN TC_LIST (TC_LIST 미존재 row 도 표시, DEC-04)</li>
- *   <li>C-007: Oracle {@code ||} → ANSI {@code CONCAT}</li>
+ *   <li>C-007: As-Is 와 같은 {@code ||} 결합 (oracle-1007 — 3인자 CONCAT 은 Oracle 이 받지 않는다)</li>
  *   <li>C-002: RESEND_CNT = COUNT(TB_MCM_MOM_TC_SEND WHERE ERR_SQ_VAL = SQ_VAL) — Q-100(A) 재전송 이력형</li>
  *   <li>C-001(SNDR_INFORM_EDIT_DATE): DEC-Q-102(유효하지않음) → 미산출·컬럼 제거</li>
  * </ul>
@@ -24,30 +24,39 @@ import java.util.List;
  * <p>날짜 조건(S-001/S-002)은 Service 에서 14자리(yyyyMMddHHmmss) → {@link Instant} 파싱 후
  * 타입 파라미터로 전달(빈값 → null). LIKE 5조건은 {@code IS NULL OR} 동적 패턴.
  *
- * <p>SELECT alias = camelCase ({@link TcErrorRowView} 매핑). ORDER BY C_AT DESC (As-Is 동일).
+ * <p>SELECT alias = 따옴표 camelCase ({@link TcErrorRowView} 이름 매핑) — Oracle 은 따옴표 없는 별칭을 대문자로
+ * 돌려주므로(creationTimestamp → CREATIONTIMESTAMP) 투영 이름과 어긋나지 않게 따옴표로 대소문자를 고정한다.
+ * 숫자 CAST 는 Oracle 에 없는 BIGINT 대신 NUMERIC(19) — 투영 getter(Long)로 Spring 이 바꿔 준다.
+ * 발생일시는 {@code TO_CHAR(C_AT, 'YYYY-MM-DD HH24:MI:SS')} (예전 MSSQL CONVERT(,120) 과 같은 글자형).
+ * ORDER BY C_AT DESC (As-Is 동일).
+ *
+ * <p>INTERFACE_MSG 는 NCLOB 이라 Hibernate 가 {@code java.sql.NClob} 으로 돌려주고, 인터페이스 투영은 이를 String 으로 바꾸지 못한다
+ * (UnsupportedOperationException "Cannot project … NClob"). 재전송 팝업(P-001)이 이 글을 그대로 다시 보내므로 SQL 에서
+ * {@code DBMS_LOB.SUBSTR} 로 자르지 않고, 별칭 {@code "interfaceMsgLob"} 로 LOB 를 넘겨 {@link TcErrorRowView#getInterfaceMsg()} 가
+ * 글 전체를 읽는다(oracle-1007 c4). LOB 는 조회한 연결로 읽으므로 호출부는 트랜잭션(OASIS process) 안에서 getter 를 부른다.
  */
 public interface MomTcErrorRepository extends JpaRepository<MomTcError, Long> {
 
     @Query(nativeQuery = true, value = """
-            SELECT CAST(e.SQ_VAL AS BIGINT)             AS sqVal,
-                   e.TRANSACTION_CODE                   AS transactionCode,
-                   t.TRANSACTION_NM                     AS transactionNm,
-                   e.INTERFACE_ID                       AS interfaceId,
-                   e.INTERFACE_MSG                      AS interfaceMsg,
-                   e.ERROR_TYPE                         AS errorType,
-                   e.ERROR_CODE                         AS errorCode,
-                   e.ERROR_MSG                          AS errorMsg,
-                   CONVERT(VARCHAR(19), e.C_AT, 120)    AS creationTimestamp,
+            SELECT CAST(e.SQ_VAL AS NUMERIC(19))        AS "sqVal",
+                   e.TRANSACTION_CODE                   AS "transactionCode",
+                   t.TRANSACTION_NM                     AS "transactionNm",
+                   e.INTERFACE_ID                       AS "interfaceId",
+                   e.INTERFACE_MSG                      AS "interfaceMsgLob",
+                   e.ERROR_TYPE                         AS "errorType",
+                   e.ERROR_CODE                         AS "errorCode",
+                   e.ERROR_MSG                          AS "errorMsg",
+                   TO_CHAR(e.C_AT, 'YYYY-MM-DD HH24:MI:SS') AS "creationTimestamp",
                    CAST((SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_MOM_TC_SEND s
-                          WHERE s.ERR_SQ_VAL = e.SQ_VAL) AS BIGINT) AS resendCnt
+                          WHERE s.ERR_SQ_VAL = e.SQ_VAL) AS NUMERIC(19)) AS "resendCnt"
               FROM MCMAPUSER.TB_MCM_MOM_TC_ERROR e
               LEFT JOIN MCMAPUSER.TB_MCM_MOM_TC_LIST t
                      ON t.TRANSACTION_CODE = e.TRANSACTION_CODE
              WHERE (:pCreationTimestampFrom IS NULL OR e.C_AT >= :pCreationTimestampFrom)
                AND (:pCreationTimestampTo   IS NULL OR e.C_AT <= :pCreationTimestampTo)
-               AND (:pErrorSystem     IS NULL OR e.INTERFACE_ID     LIKE CONCAT('%', :pErrorSystem,     '%'))
-               AND (:pErrorCode       IS NULL OR e.ERROR_CODE       LIKE CONCAT('%', :pErrorCode,       '%'))
-               AND (:pTransactionCode IS NULL OR e.TRANSACTION_CODE LIKE CONCAT('%', :pTransactionCode, '%'))
+               AND (:pErrorSystem     IS NULL OR e.INTERFACE_ID     LIKE '%' || :pErrorSystem     || '%')
+               AND (:pErrorCode       IS NULL OR e.ERROR_CODE       LIKE '%' || :pErrorCode       || '%')
+               AND (:pTransactionCode IS NULL OR e.TRANSACTION_CODE LIKE '%' || :pTransactionCode || '%')
              ORDER BY e.C_AT DESC
             """)
     List<TcErrorRowView> search(@Param("pCreationTimestampFrom") Instant pCreationTimestampFrom,

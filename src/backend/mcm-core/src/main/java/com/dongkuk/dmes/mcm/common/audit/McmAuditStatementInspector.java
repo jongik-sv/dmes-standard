@@ -21,7 +21,9 @@ import java.util.regex.Pattern;
  * <p>SQL parsing 한계:
  * <ul>
  *   <li>INSERT 는 single-row {@code VALUES (...)} 만 처리. multi-row batch insert 는 보수적으로 skip.</li>
- *   <li>괄호는 depth counting 으로 분리 — VALUES 절 안 {@code SYSDATETIME()} / 함수 호출 안전.</li>
+ *   <li>괄호는 depth counting 으로 분리 — VALUES 절 안 함수 호출 안전.</li>
+ *   <li>보강 SQL 은 ANSI 형({@code CURRENT_TIMESTAMP}·{@code COALESCE})만 쓴다 — Oracle·H2·SQLite 공통. Oracle 의
+ *       {@code CURRENT_TIMESTAMP} 는 세션 시간대(JDBC 가 JVM 시간대 Asia/Seoul 로 맞춘다) 기준이라 KST 로 들어간다.</li>
  *   <li>UPDATE 는 마지막 등장 {@code WHERE} 기준 분리 — SET 절 안 {@code CASE WHEN ... THEN ... END} 안전.</li>
  *   <li>SELECT / DELETE 는 통과 (audit 컬럼 변경 ✗).</li>
  * </ul>
@@ -46,7 +48,13 @@ public class McmAuditStatementInspector implements StatementInspector {
     // JpaConfig 가 SQLite primary EMF 빌드 시 setSqlite(true) 1회 주입. 기본 false(MSSQL/dev/prod 무영향).
     private static volatile boolean sqlite = false;
 
-    /** SQLite 환경에서만 1회 주입 (JpaConfig). MSSQL 은 호출 안 됨 → false 유지 → toSqlite 미적용. */
+    /**
+     * SQLite 환경에서만 1회 주입 (JpaConfig). 그 밖(Oracle 등)은 호출 안 됨 → false 유지 → toSqlite 미적용.
+     *
+     * @deprecated Oracle 단일화(oracle-1007). mcm 모듈 호출을 ora-mcm-app 이 없앤 뒤 ora-base b8 에서 지운다.
+     *             동작은 그대로 둔다 — {@code setSqlite(true)} 를 명시했을 때만 SQLite 치환이 돈다(mcm 모듈 SQLite 시험이 기댄다).
+     */
+    @Deprecated
     public static void setSqlite(boolean value) {
         sqlite = value;
     }
@@ -57,7 +65,12 @@ public class McmAuditStatementInspector implements StatementInspector {
      * 함수(CONCAT / RIGHT / subquery TOP)를 SQLite 호환 구문({@code ||} / SUBSTR / LIMIT)으로 분기할 때 참조한다.
      * schema 접두({@code MCMAPUSER.}) 제거는 본 inspector 의 {@link #toSqlite}가 담당하므로 어댑터 분기는 함수 토큰만 다룬다.
      * 로그인 SQLITE_BUSY 재시도({@code SqliteBusyRetry}, mcm/lib)도 이 값으로 로컬 SQLite 에서만 다시 시도한다.
+     *
+     * <p>oracle-1007 c2 — mcm-core 자기 native 어댑터의 SQLite 갈래는 Oracle·H2 공통형 하나로 합쳐 더는 이 값을 보지 않는다.
+     *
+     * @deprecated Oracle 단일화(oracle-1007). mcm 모듈 호출을 ora-mcm-app 이 없앤 뒤 ora-base b8 에서 지운다.
      */
+    @Deprecated
     public static boolean isSqlite() {
         return sqlite;
     }
@@ -85,7 +98,10 @@ public class McmAuditStatementInspector implements StatementInspector {
     /**
      * {@link #toSqlite} 와 같은 SQLite 치환을 정적 플래그와 무관하게 적용한다 — MyBatis SQL 은 Hibernate inspector 를
      * 거치지 않으므로 {@link McmSqliteMybatisInterceptor} 가 연결이 SQLite 일 때 이 메서드를 부른다(audit 보강은 하지 않는다).
+     *
+     * @deprecated Oracle 단일화(oracle-1007). mcm 모듈 호출을 ora-mcm-app 이 없앤 뒤 ora-base b8 에서 지운다.
      */
+    @Deprecated
     public static String toSqliteCompatible(String sql) {
         return stripUnicodeLiteralPrefix(
                 sql.replace("MCMAPUSER.", "")
@@ -107,7 +123,10 @@ public class McmAuditStatementInspector implements StatementInspector {
      *
      * <p>따라서 문자열 리터럴 안/밖을 추적하며, <b>리터럴 밖에서 여는 따옴표 바로 앞에 붙은</b>
      * {@code N} 만 제거한다. {@code ''} 이스케이프도 리터럴 내부로 올바르게 처리한다.
+     *
+     * @deprecated Oracle 단일화(oracle-1007). mcm 모듈 호출을 ora-mcm-app 이 없앤 뒤 ora-base b8 에서 지운다.
      */
+    @Deprecated
     public static String stripUnicodeLiteralPrefix(String sql) {
         StringBuilder out = new StringBuilder(sql.length());
         boolean inStr = false;
@@ -206,7 +225,7 @@ public class McmAuditStatementInspector implements StatementInspector {
         String userId = currentUserId();
         String escUser = escape(userId);
         String auditVals = String.format(
-                "'%s', SYSDATETIME(), 'mcm', 'mcm', '%s', SYSDATETIME(), 'mcm', 'mcm', 0",
+                "'%s', CURRENT_TIMESTAMP, 'mcm', 'mcm', '%s', CURRENT_TIMESTAMP, 'mcm', 'mcm', 0",
                 escUser, escUser
         );
 
@@ -246,8 +265,8 @@ public class McmAuditStatementInspector implements StatementInspector {
         String userId = currentUserId();
         String escUser = escape(userId);
         String auditSet = String.format(
-                ", U_USR_ID = '%s', U_AT = SYSDATETIME(), U_SVC_ID = 'mcm', U_PGM_ID = 'mcm', "
-                        + "VER = ISNULL(VER, 0) + 1",
+                ", U_USR_ID = '%s', U_AT = CURRENT_TIMESTAMP, U_SVC_ID = 'mcm', U_PGM_ID = 'mcm', "
+                        + "VER = COALESCE(VER, 0) + 1",
                 escUser
         );
 

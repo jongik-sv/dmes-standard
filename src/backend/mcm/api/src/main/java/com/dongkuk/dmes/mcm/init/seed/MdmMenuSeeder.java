@@ -357,24 +357,24 @@ public final class MdmMenuSeeder extends SeedSupport {
                 "TB_MCM_SEC_ROLE", "ROLE_ID", "MDM_STD_ADMIN",
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE " +
                 "(ROLE_ID, ROLE_NM, ROLE_DESC, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
-                "VALUES ('MDM_STD_ADMIN', N'표준 관리자', N'용어·도메인·레이아웃 등록·수정(ADR-0003 D5)', 'Y', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "VALUES ('MDM_STD_ADMIN', N'표준 관리자', N'용어·도메인·레이아웃 등록·수정(ADR-0003 D5)', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
         insertIfAbsent(
                 "TB_MCM_SEC_ROLE", "ROLE_ID", "MDM_STEWARD",
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE " +
                 "(ROLE_ID, ROLE_NM, ROLE_DESC, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
-                "VALUES ('MDM_STEWARD', N'담당자', N'마스터코드·마스터데이터·업무기준 편집과 버전 확정(ADR-0003 D5)', 'Y', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "VALUES ('MDM_STEWARD', N'담당자', N'마스터코드·마스터데이터·업무기준 편집과 버전 확정(ADR-0003 D5)', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
 
         // TB_MCM_SEC_ROLEGROUP — 역할 그룹 1:1
         insertIfAbsent(
                 "TB_MCM_SEC_ROLEGROUP", "ROLE_GROUP_ID", "ROLE_GROUP_MDM_STD_ADMIN",
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLEGROUP " +
                 "(ROLE_GROUP_ID, ROLE_GROUP_NM, ROLE_GROUP_DESC, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
-                "VALUES ('ROLE_GROUP_MDM_STD_ADMIN', N'MDM 표준 관리자 그룹', N'MDM 표준 관리자 역할 그룹', 'Y', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "VALUES ('ROLE_GROUP_MDM_STD_ADMIN', N'MDM 표준 관리자 그룹', N'MDM 표준 관리자 역할 그룹', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
         insertIfAbsent(
                 "TB_MCM_SEC_ROLEGROUP", "ROLE_GROUP_ID", "ROLE_GROUP_MDM_STEWARD",
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLEGROUP " +
                 "(ROLE_GROUP_ID, ROLE_GROUP_NM, ROLE_GROUP_DESC, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
-                "VALUES ('ROLE_GROUP_MDM_STEWARD', N'MDM 담당자 그룹', N'MDM 담당자 역할 그룹', 'Y', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "VALUES ('ROLE_GROUP_MDM_STEWARD', N'MDM 담당자 그룹', N'MDM 담당자 역할 그룹', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
 
         // TB_MCM_SEC_ROLEGROUP_MAPPING — (그룹, 역할)
         for (String roleId : new String[]{"MDM_STD_ADMIN", "MDM_STEWARD"}) {
@@ -403,7 +403,7 @@ public final class MdmMenuSeeder extends SeedSupport {
                     "INSERT INTO MCMAPUSER.TB_MCM_SEC_PERM " +
                     "(PERMISSION_ID, PERMISSION_NM, PERMISSION_DESC, PERMISSION_ACTION, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
                     "VALUES ('" + perm[0] + "', N'" + escapeSql(perm[1]) + "', N'" + escapeSql(perm[2]) + "', " +
-                    "'" + escapeSql(perm[3]) + "', 'Y', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                    "'" + escapeSql(perm[3]) + "', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
             // 이미 있는 DB 는 insert-if-absent 가 건너뛰므로 빠진 action 만 끝에 덧붙인다(TSK-08-02 — 기존 순서는 바꾸지 않는다).
             ensurePermActions(perm[0], perm[3]);
         }

@@ -290,8 +290,8 @@ public final class QueryParams {
     }
 
     /**
-     * 숫자는 정규화해 바인드한다 — {@code 1.0}·{@code 1}·{@code 1E+1}·{@code 10} 이 같은 글자로 DB 에 가야 한다(SQLite 처럼 십진수를 글자로
-     * 바인드하는 드라이버에서 같은 캐시 항목이 다른 결과를 내지 않게). 끝의 0 을 지우고, 지수 표기(scale&lt;0)는 정수로 편다.
+     * 숫자는 정규화해 바인드한다 — {@code 1.0}·{@code 1}·{@code 1E+1}·{@code 10} 이 같은 글자로 DB 에 가야 한다(캐시 키와 바인드 값이
+     * 늘 같은 모양이어야 같은 캐시 항목이 다른 결과를 내지 않는다 — 십진수를 글자로 바인드하는 드라이버도 있다). 끝의 0 을 지우고, 지수 표기(scale&lt;0)는 정수로 편다.
      */
     private static BigDecimal toNumber(QueryParam p, String s) {
         BigDecimal parsed;

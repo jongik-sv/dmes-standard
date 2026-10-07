@@ -113,7 +113,7 @@ public final class McmMenuSeeder extends SeedSupport {
         insertMcmSecMenuIfAbsent("masterRuleListPop",             "001", "1050120", "업무기준 List조회 팝업",           "cmz", "masterRuleListPop",             "N");
         insertMcmSecMenuIfAbsent("masterRuleFrameColListPopup",   "001", "1050130", "업무기준 컬럼 리스트 등록 팝업",   "cmz", "masterRuleFrameColListPopup",   "N");
         insertMcmSecMenuIfAbsent("masterRuleDataUploadFilePopup", "001", "1050140", "일반 업무기준 등록(Excel Upload)", "cmz", "masterRuleDataUploadFilePopup", "N");
-        // 이미 적재된 DB(개발 MSSQL·동료 SQLite) 백필 — INSERT 헬퍼는 기존 행을 갱신하지 않으므로,
+        // 이미 적재된 DB(개발계·다른 개발자 로컬 DB) 백필 — INSERT 헬퍼는 기존 행을 갱신하지 않으므로,
         //   시드 리터럴만 cmz 로 바꿔서는 기존 DB 의 부모가 영원히 cma/cmb 로 남는다.
         for (String popupId : new String[]{
                 "masterCodeSelPop", "masterCodeUploadFilePopup",
@@ -342,7 +342,7 @@ public final class McmMenuSeeder extends SeedSupport {
         //   시드 리터럴은 체계만 맞으면 되고, 부팅 말미 recomputeMenuFullSeq() 가 트리 위치 기준으로
         //   실제 값을 재부여한다(현 DB 실값은 모듈 순번이 2 라 20xxxxx 대다).
         insertMpnFld("cmz", "00000500", "팝업", "mcm", 1050000L, "N");
-        // 이미 적재된 DB(개발 MSSQL·동료 SQLite) 백필 — insertMpnFld 는 기존 행을 갱신하지 않는다.
+        // 이미 적재된 DB(개발계·다른 개발자 로컬 DB) 백필 — insertMpnFld 는 기존 행을 갱신하지 않는다.
         ensureMenuFldViewYn("cmz", "N");
     }
 
@@ -358,15 +358,18 @@ public final class McmMenuSeeder extends SeedSupport {
      *
      * <p>{@code ''} 는 Y/N·WEB 같은 코드값이 들어가야 할 자리에 잘못 들어간 값이므로 기본값으로 승격한다.
      * 유입 경로(구 시드·수동 저장 등)와 무관하게 매 부팅 멱등 보정한다.
+     *
+     * <p>2026-10-07 oracle-1007 — Oracle 은 {@code ''} 를 NULL 로 다뤄 {@code LTRIM(RTRIM(c)) = ''} 가 늘 거짓이다. 공백만 든
+     * 값({@code ' '})을 놓치지 않게 {@code LTRIM(RTRIM(c)) IS NULL} 하나로 NULL·빈 값·공백을 함께 본다.
      */
     public void normalizeSecMenuCharColumns() {
         int n = 0;
         n += nq("UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET USE_TP = 'Y' "
-              + " WHERE USE_TP IS NULL OR LTRIM(RTRIM(USE_TP)) = ''").executeUpdate();
+              + " WHERE LTRIM(RTRIM(USE_TP)) IS NULL").executeUpdate();
         n += nq("UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET MENU_VIEW_YN = 'Y' "
-              + " WHERE MENU_VIEW_YN IS NULL OR LTRIM(RTRIM(MENU_VIEW_YN)) = ''").executeUpdate();
+              + " WHERE LTRIM(RTRIM(MENU_VIEW_YN)) IS NULL").executeUpdate();
         n += nq("UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET MENU_TP = 'WEB' "
-              + " WHERE MENU_TP IS NULL OR LTRIM(RTRIM(MENU_TP)) = ''").executeUpdate();
+              + " WHERE LTRIM(RTRIM(MENU_TP)) IS NULL").executeUpdate();
         if (n > 0) {
             log.info("[DataInitializer] SEC_MENU 코드컬럼 빈 문자열 정규화 — {} 행 보정 (Character 변환 오류 예방)", n);
         }
@@ -396,7 +399,7 @@ public final class McmMenuSeeder extends SeedSupport {
                 "INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO " +
                 "(DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
                 "VALUES ('DEPT_001', N'경영지원본부', 'Management Support HQ', NULL, 'Y', " +
-                "SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
 
         // DEPT_002 — 정보기술팀 (UPPER = DEPT_001)
         insertIfAbsent(
@@ -404,7 +407,7 @@ public final class McmMenuSeeder extends SeedSupport {
                 "INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO " +
                 "(DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
                 "VALUES ('DEPT_002', N'정보기술팀', 'IT Team', 'DEPT_001', 'Y', " +
-                "SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
 
         // DEPT_003 — 생산관리팀 (UPPER = DEPT_001)
         insertIfAbsent(
@@ -412,7 +415,7 @@ public final class McmMenuSeeder extends SeedSupport {
                 "INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO " +
                 "(DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
                 "VALUES ('DEPT_003', N'생산관리팀', 'Production Mgmt Team', 'DEPT_001', 'Y', " +
-                "SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
 
         // 2026-06-04 — 사용자 결정: Detail LoV 모달 확인을 위해 추가 부서 4 row 시드.
         // DEPT_004 ~ DEPT_007 — 인사팀 / 재무팀 / 영업1팀 / 영업2팀 / 품질관리팀.
@@ -424,7 +427,7 @@ public final class McmMenuSeeder extends SeedSupport {
                 "INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO " +
                 "(DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
                 "VALUES ('DEPT_004', N'인사팀', 'HR Team', 'DEPT_001', 'Y', " +
-                "SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
 
         // DEPT_005 — 재무팀
         insertIfAbsent(
@@ -432,7 +435,7 @@ public final class McmMenuSeeder extends SeedSupport {
                 "INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO " +
                 "(DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
                 "VALUES ('DEPT_005', N'재무팀', 'Finance Team', 'DEPT_001', 'Y', " +
-                "SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
 
         // DEPT_006 — 영업1팀
         insertIfAbsent(
@@ -440,7 +443,7 @@ public final class McmMenuSeeder extends SeedSupport {
                 "INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO " +
                 "(DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
                 "VALUES ('DEPT_006', N'영업1팀', 'Sales Team 1', 'DEPT_001', 'Y', " +
-                "SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
 
         // DEPT_007 — 품질관리팀
         insertIfAbsent(
@@ -448,6 +451,6 @@ public final class McmMenuSeeder extends SeedSupport {
                 "INSERT INTO MCMAPUSER.TB_MCM_DEPT_INFO " +
                 "(DEPT_CD, DEPT_NM, DEPT_NM_EN, UPPER_DEPT_CD, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
                 "VALUES ('DEPT_007', N'품질관리팀', 'Quality Mgmt Team', 'DEPT_001', 'Y', " +
-                "SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
     }
 }

@@ -6,8 +6,13 @@ import java.util.List;
 /**
  * 화면 사용 통계 테이블 MSSQL DDL 정본 (설계 4.6). mcm/api DataInitializer(local-db 등 MSSQL 계열 멱등 생성)와
  * 운영 DBA 전달본이 같은 문장을 쓴다. 감사 계열처럼 schema 접두가 없다 — 접속 계정의 기본 스키마에 만든다.
- * 컬럼·제약·인덱스 이름은 엔티티 {@code ScreenUsageLog}/{@code ScreenUsageDay} 매핑과 같다(ScreenUsageMssqlDdlTest).
+ * 컬럼·제약·인덱스 이름은 엔티티 {@code ScreenUsageLog}/{@code ScreenUsageDay} 매핑과 같다(ScreenUsageMssqlDdlTest — archive/test).
+ *
+ * @deprecated Oracle 단일화(oracle-1007). 표 정본은 Flyway 기준선
+ *     {@code db/migration/oracle/mcmapuser/V1__baseline.sql} 이다. mcm/api ScreenUsageSchemaArtifacts 호출을
+ *     ora-mcm-app 이 없앤 뒤 ora-base b8 에서 지운다.
  */
+@Deprecated
 public final class ScreenUsageMssqlDdl {
 
     public static final String LOG_TABLE = "TB_SEC_SCREEN_USAGE_LOG";

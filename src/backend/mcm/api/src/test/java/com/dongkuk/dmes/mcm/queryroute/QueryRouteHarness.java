@@ -8,16 +8,13 @@ import com.dongkuk.dmes.cactus.oasis.OasisServiceExecutor;
 import com.dongkuk.dmes.cactus.tx.CactusTxProperties;
 import com.dongkuk.dmes.cactus.web.inbound.OasisController;
 import com.dongkuk.dmes.cactus.web.inbound.QueryController;
-import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
-import com.dongkuk.dmes.mcm.common.audit.McmSqliteMybatisInterceptor;
-import org.hibernate.resource.jdbc.spi.StatementInspector;
+import com.dongkuk.dmes.mcm.testdb.McmOraTestDb;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariDataSource;
 import com.dongkuk.dmes.cactus.web.inbound.QueryStatementGuard;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.springframework.stereotype.Controller;
-import org.hibernate.jpa.HibernatePersistenceProvider;
 import org.mybatis.spring.SqlSessionFactoryBean;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -26,35 +23,31 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.http.MediaType;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
-import org.springframework.orm.jpa.persistenceunit.PersistenceManagedTypes;
-import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import javax.sql.DataSource;
-import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.function.Consumer;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 조회 라우터 시범 하네스 — 같은 SQLite 파일 위에 운영과 같은 두 경로를 조립해 MockMvc 로 부른다.
+ * 조회 라우터 시범 하네스 — Oracle 시험 PDB 의 MCMAPUSER(Flyway 기준선) 위에 운영과 같은 두 경로를 조립해 MockMvc 로 부른다.
  * <ul>
  *   <li>OASIS: {@code POST /oasis/{serviceId}/{action}} → BPMN(classpath services/**) → 서비스 빈(JPA native)</li>
  *   <li>조회 라우터: {@code POST /query/{queryId}} → cactus {@link QueryController} → MyBatis 매퍼</li>
  * </ul>
  * 두 경로는 같은 {@code dataSource} 를 쓴다(운영의 sqlSessionFactoryBiz 와 같음, 설계 §1 F2). 매퍼 SqlSessionFactory 는
- * cactus 기본 설정 파일({@code cactus-mybatis-config.xml}, callSettersOnNulls)과 {@link McmSqliteMybatisInterceptor} 를 쓴다.
+ * cactus 기본 설정 파일({@code cactus-mybatis-config.xml}, callSettersOnNulls)을 쓴다. 매퍼의 {@code MCMAPUSER.} 접두는 Oracle 에서
+ * 그대로 돈다(옛 SQLite 접두 제거 인터셉터는 oracle-1007 에서 뺐다).
  *
  * <p>모듈을 바꿔 시범할 때는 서비스 빈 등록({@code serviceBeans})·매퍼 위치·서비스 경로만 바꾼다
  * (설계 docs/superpowers/specs/2026-10-07-query-route-mybatis-design.md §10). 라우터 보호(route-guard 레인의 스위치·검사)는
@@ -67,21 +60,17 @@ final class QueryRouteHarness implements AutoCloseable {
     private final AnnotationConfigApplicationContext ctx;
     private final HikariDataSource dataSource;
     private final MockMvc mvc;
-    private final Path db;
 
     /**
-     * @param db           SQLite 파일(없으면 만든다). 테이블·시드는 호출자가 {@link #execute}·{@link #insertRows} 로 넣는다.
+     * 시험 PDB 의 네 스키마를 비우고 Flyway 로 다시 만든 뒤 조립한다. 시드는 호출자가 {@link #insertCodeRows}·{@link #execute} 로 넣는다.
+     *
+     * @param poolName     커넥션 풀 이름
      * @param mapperPattern 매퍼 위치(classpath 패턴)
      * @param serviceBeans 서비스 빈 등록 — BPMN 의 camunda:class 이름으로 등록한다
      */
-    QueryRouteHarness(Path db, String mapperPattern, Consumer<AnnotationConfigApplicationContext> serviceBeans) throws Exception {
-        this.db = db;
-        dataSource = new HikariDataSource();
-        dataSource.setJdbcUrl("jdbc:sqlite:" + db);
-        dataSource.setPoolName("query-route-harness");
-        dataSource.setMaximumPoolSize(2);
-        // SQLite LIKE 는 기본이 ASCII 대소문자 무시라 UPPER 가 빠져도 시험이 통과한다. 운영(Oracle·PostgreSQL)처럼 구분하게 한다.
-        dataSource.setConnectionInitSql("PRAGMA case_sensitive_like = ON");
+    QueryRouteHarness(String poolName, String mapperPattern, Consumer<AnnotationConfigApplicationContext> serviceBeans) throws Exception {
+        McmOraTestDb.resetSchemas();
+        dataSource = McmOraTestDb.appDataSource(poolName);
 
         ctx = new AnnotationConfigApplicationContext();
         ctx.registerBean("dataSource", DataSource.class, () -> dataSource);
@@ -117,21 +106,8 @@ final class QueryRouteHarness implements AutoCloseable {
     }
 
     private LocalContainerEntityManagerFactoryBean entityManagerFactory() {
-        Properties props = new Properties();
-        props.put("hibernate.dialect", "org.hibernate.community.dialect.SQLiteDialect");
-        props.put("hibernate.hbm2ddl.auto", "none");
-        // 로컬 JpaConfig 는 SQLite 일 때 McmAuditStatementInspector(정적 플래그)로 MCMAPUSER. 접두를 지운다. 플래그를 켜면 같은 JVM 의
-        // 다른 시험에 남으므로 같은 치환 함수만 부르는 검사기 인스턴스를 넣는다(SELECT 경로라 audit 보강은 무관).
-        props.put("hibernate.session_factory.statement_inspector",
-                (StatementInspector) McmAuditStatementInspector::toSqliteCompatible);
-        LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
-        em.setDataSource(dataSource);
-        em.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
-        em.setJpaProperties(props);
-        em.setPersistenceUnitName("query-route-harness");
-        em.setManagedTypes(PersistenceManagedTypes.of());
-        em.setPersistenceProviderClass(HibernatePersistenceProvider.class);
-        return em;
+        // 운영 JpaConfig 와 같은 Hibernate 설정(OracleDialect·ddl none). 엔티티 없이 native 조회만 쓴다.
+        return McmOraTestDb.entityManagerFactory(dataSource, "query-route-harness");
     }
 
     private SqlSessionFactory sqlSessionFactory(String mapperPattern) throws Exception {
@@ -139,7 +115,6 @@ final class QueryRouteHarness implements AutoCloseable {
         bean.setDataSource(dataSource);
         bean.setConfigLocation(new ClassPathResource("cactus-mybatis-config.xml"));
         bean.setMapperLocations(new PathMatchingResourcePatternResolver().getResources(mapperPattern));
-        bean.setPlugins(new McmSqliteMybatisInterceptor());
         return bean.getObject();
     }
 
@@ -193,7 +168,7 @@ final class QueryRouteHarness implements AutoCloseable {
     }
 
     void execute(String sql) throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:sqlite:" + db);
+        try (Connection c = dataSource.getConnection();
              Statement s = c.createStatement()) {
             s.execute(sql);
         }
@@ -201,12 +176,16 @@ final class QueryRouteHarness implements AutoCloseable {
 
     /** 한 트랜잭션으로 여러 행을 넣는다(10,000행 시드용). */
     void insertRows(String insertSql, List<Object[]> rows) throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:sqlite:" + db)) {
+        try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try (PreparedStatement ps = c.prepareStatement(insertSql)) {
                 for (Object[] row : rows) {
                     for (int i = 0; i < row.length; i++) {
-                        ps.setObject(i + 1, row[i]);
+                        if (row[i] == null) {
+                            ps.setNull(i + 1, java.sql.Types.VARCHAR); // ojdbc 는 형식 없는 null 을 받지 않는다
+                        } else {
+                            ps.setObject(i + 1, row[i]);
+                        }
                     }
                     ps.addBatch();
                 }
@@ -214,6 +193,28 @@ final class QueryRouteHarness implements AutoCloseable {
             }
             c.commit();
         }
+    }
+
+    /**
+     * 운영 뷰 {@code MCMAPUSER.VI_MCM_CODE_ACCESS} 가 돌려줄 행을 넣는다. 행 = {CODE_ID, CODE_VAL, CODE_VAL_MEAN, CATEGORY_ID, CATEGORY_NM}.
+     * 뷰는 사본 3표(MASTER·CATEGORY·DETAIL)를 MASTER_CODE·CATEGORY_ID 로 조인하므로 행마다 MASTER_CODE 를 따로 주어(Q00001…)
+     * 다른 행과 섞이지 않게 한다 — 같은 CODE_ID·CATEGORY_ID 에 CATEGORY_NM 이 다른 행도 그대로 재현된다.
+     */
+    void insertCodeRows(List<Object[]> rows) throws Exception {
+        List<Object[]> masters = new java.util.ArrayList<>();
+        List<Object[]> categories = new java.util.ArrayList<>();
+        List<Object[]> details = new java.util.ArrayList<>();
+        for (int i = 0; i < rows.size(); i++) {
+            Object[] r = rows.get(i);
+            String master = String.format("Q%05d", i + 1);
+            masters.add(new Object[]{master, r[0]});
+            categories.add(new Object[]{master, r[3], r[4]});
+            details.add(new Object[]{master, r[3], r[1], r[2]});
+        }
+        insertRows("INSERT INTO MCMAPUSER.TB_MCM_CODE_MASTER (MASTER_CODE, CODE_ID, USE_TP) VALUES (?, ?, 'Y')", masters);
+        insertRows("INSERT INTO MCMAPUSER.TB_MCM_CODE_CATEGORY (MASTER_CODE, CATEGORY_ID, CATEGORY_NM) VALUES (?, ?, ?)", categories);
+        insertRows("INSERT INTO MCMAPUSER.TB_MCM_CODE_DETAIL (MASTER_CODE, CATEGORY_ID, CODE_VAL, CODE_VAL_MEAN) VALUES (?, ?, ?, ?)",
+                details);
     }
 
     @Override

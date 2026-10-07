@@ -247,8 +247,10 @@ public class MasterCodeMngService {
                 String masterCode = strOf(row.get("MASTER_CODE"));
                 String categoryId = strOf(row.get("CATEGORY_ID"));
                 String codeVal = strOf(row.get("CODE_VAL"));
-                if (masterCode == null || categoryId == null || codeVal == null) {
-                    log.warn("[masterCodeMng.saveDetail] PK null — skip row (status={})", status);
+                // PK 3칸은 null 뿐 아니라 빈·공백 글자도 거른다 — Oracle 은 '' 를 NULL 로 받아(oracle-1007)
+                // INSERT 는 ORA-01400 으로 실패하고, 삭제·존재 확인은 조용히 0 건이 된다.
+                if (isBlankPk(masterCode) || isBlankPk(categoryId) || isBlankPk(codeVal)) {
+                    log.warn("[masterCodeMng.saveDetail] PK null/blank — skip row (status={})", status);
                     continue;
                 }
                 MasterCodeDetailId id = new MasterCodeDetailId(masterCode, categoryId, codeVal);
@@ -381,5 +383,10 @@ public class MasterCodeMngService {
         if (o == null) return null;
         if (o instanceof Number n) return n.longValue();
         try { return Long.parseLong(String.valueOf(o)); } catch (NumberFormatException e) { return null; }
+    }
+
+    /** PK 칸 빈 값 판정 — null·빈 글자·공백만 (Oracle '' = NULL). */
+    private static boolean isBlankPk(String s) {
+        return s == null || s.isBlank();
     }
 }

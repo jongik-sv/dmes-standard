@@ -14,6 +14,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.dongkuk.dmes.mcm.testdb.McmCoreOraTestDb;
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.widget.collect.entity.WidgetCollectData;
 import com.dongkuk.dmes.mcm.widget.collect.entity.WidgetCollectRun;
@@ -37,7 +38,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Properties;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -47,17 +47,15 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
-import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 /**
- * 정시 수집기·쓰기·읽기 — 스펙 2026-10-05 정시 수집 §3~§5(H2 메모리, 실제 JPA). 원천은 가짜(질의 실행기 모의)이고 시계는 움직이는 시계다.
+ * 정시 수집기·쓰기·읽기 — 스펙 2026-10-05 정시 수집 §3~§5(Oracle 시험 PDB, 기준선 V1 — {@link McmCoreOraTestDb}, 실제 JPA). 원천은 가짜(질의 실행기 모의)이고 시계는 움직이는 시계다.
  * 일정 계산 자체는 {@link CollectConfigsTest}, 원천별 수집은 {@link CollectSourcesTest}.
  */
 @SpringJUnitConfig(WidgetCollectorJpaTest.Config.class)
@@ -70,24 +68,12 @@ class WidgetCollectorJpaTest {
 
         @Bean
         DataSource dataSource() {
-            DriverManagerDataSource ds = new DriverManagerDataSource();
-            ds.setDriverClassName("org.h2.Driver"); // testRuntimeOnly — 클래스 직접 참조 금지
-            ds.setUrl("jdbc:h2:mem:widgetcollect;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS MCMAPUSER");
-            ds.setUsername("sa");
-            ds.setPassword("");
-            return ds;
+            return McmCoreOraTestDb.appDataSource("widget-collect");
         }
 
         @Bean
         LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
-            LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
-            em.setDataSource(dataSource);
-            em.setPackagesToScan("com.dongkuk.dmes.mcm.widget.collect.entity");
-            em.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
-            Properties props = new Properties();
-            props.put("hibernate.hbm2ddl.auto", "create-drop");
-            em.setJpaProperties(props);
-            return em;
+            return McmCoreOraTestDb.entityManagerFactory(dataSource, "com.dongkuk.dmes.mcm.widget.collect.entity");
         }
 
         @Bean
@@ -423,25 +409,24 @@ class WidgetCollectorJpaTest {
     // ── 회차 잡기 ────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("tryStart: 바로 insert 해 PK 위반이면 false, 잠금 충돌 같은 DB 오류는 짧게 두 번 다시 해 보고 그래도 안 되면 false(건너뜀)")
-    void tryStartInsertsFirstAndRetriesBriefly() {
+    @DisplayName("tryStart: 바로 insert 해 PK 위반이면 false, 잠금 충돌 같은 다른 DB 오류는 다시 해 보지 않고 false(건너뜀 — 다음 분에 다시 잡는다)")
+    void tryStartInsertsFirstAndSkipsOnDbError() {
         assertThat(writer.tryStart("def.a0000001", SLOT0, T0)).isTrue();
         assertThat(writer.tryStart("def.a0000001", SLOT0, T0)).isFalse();
         assertThat(runs.count()).isEqualTo(1);
 
         WidgetCollectRunRepository mockRuns = mock(WidgetCollectRunRepository.class);
         WidgetCollectWriter w = new WidgetCollectWriter(mockRuns, data);
-        when(mockRuns.saveAndFlush(any(WidgetCollectRun.class)))
-                .thenThrow(new org.springframework.dao.CannotAcquireLockException("database is locked"))
-                .thenAnswer(inv -> inv.getArgument(0));
+        when(mockRuns.saveAndFlush(any(WidgetCollectRun.class))).thenAnswer(inv -> inv.getArgument(0));
         assertThat(w.tryStart("def.b0000001", SLOT0, T0)).isTrue();
-        verify(mockRuns, times(2)).saveAndFlush(any(WidgetCollectRun.class));
+        verify(mockRuns, times(1)).saveAndFlush(any(WidgetCollectRun.class));
         verify(mockRuns, never()).existsById(any()); // 먼저 읽고 넣지 않는다
 
         WidgetCollectRunRepository locked = mock(WidgetCollectRunRepository.class);
-        when(locked.saveAndFlush(any(WidgetCollectRun.class))).thenThrow(new org.springframework.dao.CannotAcquireLockException("database is locked"));
+        when(locked.saveAndFlush(any(WidgetCollectRun.class))).thenThrow(new org.springframework.dao.CannotAcquireLockException("lock"));
         assertThat(new WidgetCollectWriter(locked, data).tryStart("def.c0000001", SLOT0, T0)).isFalse();
-        verify(locked, times(1 + WidgetCollectWriter.START_RETRIES)).saveAndFlush(any(WidgetCollectRun.class));
+        verify(locked, times(1)).saveAndFlush(any(WidgetCollectRun.class)); // 다시 해 보지 않는다
+        verify(locked, never()).existsById(any());
 
         WidgetCollectRunRepository dup = mock(WidgetCollectRunRepository.class);
         when(dup.saveAndFlush(any(WidgetCollectRun.class))).thenThrow(new DataIntegrityViolationException("pk"));
@@ -475,13 +460,13 @@ class WidgetCollectorJpaTest {
     @Autowired DataSource dataSource;
 
     @Test
-    @DisplayName("두 엔티티에 SLOT 인덱스가 있다 — 어노테이션과 실제로 만들어진 인덱스")
+    @DisplayName("두 엔티티에 SLOT 인덱스가 있다 — 어노테이션과 기준선(V1)이 만든 인덱스")
     void slotIndexesExist() {
         assertThat(WidgetCollectRun.class.getAnnotation(jakarta.persistence.Table.class).indexes()[0].columnList()).isEqualTo("SLOT");
         assertThat(WidgetCollectData.class.getAnnotation(jakarta.persistence.Table.class).indexes()[0].columnList()).isEqualTo("SLOT");
         org.springframework.jdbc.core.JdbcTemplate jdbc = new org.springframework.jdbc.core.JdbcTemplate(dataSource);
         for (String name : List.of("IX_MCM_WCOL_RUN_SLOT", "IX_MCM_WCOL_DATA_SLOT")) {
-            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM INFORMATION_SCHEMA.INDEXES WHERE INDEX_NAME = ?", Long.class, name)).as(name).isPositive();
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM USER_INDEXES WHERE INDEX_NAME = ?", Long.class, name)).as(name).isPositive();
         }
     }
 

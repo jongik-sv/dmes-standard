@@ -6,7 +6,6 @@
  */
 package com.dongkuk.dmes.mcm.repository;
 
-import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.hibernate.query.NativeQuery;
@@ -33,7 +32,7 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
  *       LEFT JOIN TB_MCM_SEC_OBJ B + 4 if 분기 (To-Be 정책 #1: BIZ_SYSTEM_CODE 분기 제거).
  *       MENU_ID UPPER LIKE / p_MENU_ID 정확일치 / MENU_NM LIKE / USE_TP 일치.</li>
  *   <li>{@link #searchMenuFld} — As-Is {@code selectMenuFldList} (xml:125~140) —
- *       Oracle {@code CONNECT BY PRIOR MENU_ID = PARENT_MENU_ID} → MSSQL CTE WITH RECURSIVE 변환.
+ *       Oracle {@code CONNECT BY PRIOR MENU_ID = PARENT_MENU_ID} → ANSI 재귀 WITH(칸 이름 목록 포함) 변환.
  *       LEV 0-base 누적 + PATH 누적 컬럼으로 ORDER BY.</li>
  *   <li>{@link #searchObj} — As-Is {@code selectMenuObj} (xml:142~154) — TB_MCM_SEC_OBJ
  *       8 컬럼 (To-Be 정책 #1: BIZ_SYSTEM_CODE 제거 후).</li>
@@ -53,7 +52,7 @@ public class SecMenuNativeRepository {
     private EntityManager entityManager;
 
     /**
-     * As-Is {@code selectCommMenuMng} (xml:7~44) MSSQL 변환 + 폴더 트리 후손 → leaf 화면 조회 (2026-06-02 R3 P1 round 3).
+     * As-Is {@code selectCommMenuMng} (xml:7~44) 변환 + 폴더 트리 후손 → leaf 화면 조회 (2026-06-02 R3 P1 round 3).
      *
      * <p>round 3 변경 (사용자 결정 2026-06-02):
      * <ul>
@@ -96,7 +95,6 @@ public class SecMenuNativeRepository {
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> searchCmMenu(String edtMenuId, String pMenuId,
                                                   String edtMenuNm, String cboUseTp) {
-        boolean sqlite = McmAuditStatementInspector.isSqlite();
         StringBuilder sql = new StringBuilder();
         boolean useDescendants = notBlank(pMenuId);
         if (useDescendants) {
@@ -104,8 +102,8 @@ public class SecMenuNativeRepository {
             // FldDesc anchor = TB_MCM_SEC_MENU_FLD WHERE MENU_ID = :pMenuId (폴더 시작점).
             // FldDesc recursive = child FLD JOIN parent FLD (PARENT_MENU_ID = d.MENU_ID).
             // 최종 leaf 화면은 SEC_MENU.PARENT_MENU_ID IN (FldDesc.MENU_ID) — SEC_MENU 는 모두 leaf.
-            // SQLite 재귀 CTE 는 RECURSIVE 키워드 명시(MSSQL 은 WITH 만 허용). schema 접두는 inspector 가 제거.
-            sql.append(sqlite ? "WITH RECURSIVE FldDesc AS ( " : "WITH FldDesc AS ( ")
+            // Oracle 재귀 WITH 는 RECURSIVE 키워드 없이 칸 이름 목록(FldDesc (MENU_ID))을 반드시 단다(ORA-32039).
+            sql.append("WITH FldDesc (MENU_ID) AS ( ")
                .append("  SELECT MENU_ID FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD ")
                .append("   WHERE MENU_ID = :pMenuId ")
                .append("  UNION ALL ")
@@ -132,14 +130,10 @@ public class SecMenuNativeRepository {
                .append(" WHERE 1 = 1 ");
         }
         if (notBlank(edtMenuId)) {
-            sql.append(sqlite
-                    ? " AND UPPER(A.MENU_ID) LIKE UPPER('%' || :edtMenuId || '%') "
-                    : " AND UPPER(A.MENU_ID) LIKE UPPER(CONCAT('%', :edtMenuId, '%')) ");
+            sql.append(" AND UPPER(A.MENU_ID) LIKE UPPER('%' || :edtMenuId || '%') ");
         }
         if (notBlank(edtMenuNm)) {
-            sql.append(sqlite
-                    ? " AND A.MENU_NM LIKE '%' || :edtMenuNm || '%' "
-                    : " AND A.MENU_NM LIKE CONCAT('%', :edtMenuNm, '%') ");
+            sql.append(" AND A.MENU_NM LIKE '%' || :edtMenuNm || '%' ");
         }
         if (notBlank(cboUseTp)) {
             sql.append(" AND A.USE_TP = :cboUseTp ");
@@ -178,14 +172,14 @@ public class SecMenuNativeRepository {
     }
 
     /**
-     * As-Is {@code selectMenuFldList} (xml:125~140) — Oracle CONNECT BY → MSSQL CTE WITH RECURSIVE 변환.
+     * As-Is {@code selectMenuFldList} (xml:125~140) — Oracle CONNECT BY → ANSI 재귀 WITH(칸 이름 목록 포함) 변환.
      *
      * <p>변환 매핑 (정합 §F #1~#5):
      * <ul>
      *   <li>{@code LEVEL - 1 AS LEV} → CTE 누적 LEV 컬럼 (anchor=0, recursive=parent.LEV+1)</li>
      *   <li>{@code START WITH PARENT_MENU_ID IS NULL} → anchor member WHERE</li>
      *   <li>{@code CONNECT BY PRIOR MENU_ID = PARENT_MENU_ID} → JOIN child ON child.PARENT_MENU_ID = parent.MENU_ID</li>
-     *   <li>{@code SYS_CONNECT_BY_PATH(TO_CHAR(MENU_SEQ,'00000000'),'/')} → 누적 PATH 컬럼 (RIGHT 8자 zero-pad)</li>
+     *   <li>{@code SYS_CONNECT_BY_PATH(TO_CHAR(MENU_SEQ,'00000000'),'/')} → 누적 PATH 컬럼 (LPAD 8자 zero-pad)</li>
      * </ul>
      *
      * <p>To-Be 정책 #1: As-Is {@code <if cbo_bizSystemCode>WHERE BIZ_SYSTEM_CODE = #{}</if>} (xml:132~134) 제거.
@@ -194,16 +188,12 @@ public class SecMenuNativeRepository {
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> searchMenuFld() {
         // 2026-06-04 — FULL_SEQ 컬럼 SELECT 추가 (폴더 트리 정렬 tie-break / FE buildMenuTree FULL_SEQ 활용 정합).
-        boolean sqlite = McmAuditStatementInspector.isSqlite();
-        // SQLite 는 RIGHT() 와 문자열 '+' 연결을 미지원 → SUBSTR(.., -8)(우측 8자) + || 로 분기. MSSQL 은 기존 RIGHT/CAST 유지.
-        // 재귀 CTE 는 SQLite 에서 RECURSIVE 키워드 명시. schema 접두(MCMAPUSER.) 제거는 inspector.toSqlite 가 담당.
-        String pathAnchor = sqlite
-                ? "'/' || SUBSTR('00000000' || CAST(MENU_SEQ AS TEXT), -8)"
-                : "CAST('/' + RIGHT('00000000' + CAST(MENU_SEQ AS VARCHAR(20)), 8) AS VARCHAR(4000))";
-        String pathRecursive = sqlite
-                ? "parent.PATH || '/' || SUBSTR('00000000' || CAST(child.MENU_SEQ AS TEXT), -8)"
-                : "CAST(parent.PATH + '/' + RIGHT('00000000' + CAST(child.MENU_SEQ AS VARCHAR(20)), 8) AS VARCHAR(4000))";
-        String cteKeyword = sqlite ? "WITH RECURSIVE FldTree AS ( " : "WITH FldTree AS ( ";
+        // Oracle 단일화(oracle-1007) — 8자 0 채움은 LPAD, 결합은 ||. MENU_SEQ 는 VARCHAR2(30) 이라 8자 이하 값에서는
+        // 예전 RIGHT('00000000' + x, 8) 와 같다(8자를 넘으면 RIGHT 는 오른쪽, LPAD 는 왼쪽 8자를 남긴다).
+        // Oracle 재귀 WITH 는 RECURSIVE 키워드 없이 칸 이름 목록을 반드시 단다(ORA-32039). 앵커·재귀 쪽 PATH 형은 VARCHAR(4000) 으로 맞춘다.
+        String pathAnchor = "CAST('/' || LPAD(CAST(MENU_SEQ AS VARCHAR(30)), 8, '0') AS VARCHAR(4000))";
+        String pathRecursive = "CAST(parent.PATH || '/' || LPAD(CAST(child.MENU_SEQ AS VARCHAR(30)), 8, '0') AS VARCHAR(4000))";
+        String cteKeyword = "WITH FldTree (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, LEV, PATH) AS ( ";
         String sql =
                 cteKeyword +
                 "  SELECT MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, 0 AS LEV, " +
@@ -273,33 +263,28 @@ public class SecMenuNativeRepository {
      * WHERE USE_TP='Y' AND (UPPER OBJECT_ID LIKE OR UPPER OBJECT_NM LIKE).
      *
      * <p>SELECT 6 컬럼 (OBJECT_ID / OBJECT_NM / SERVICE / FORM_URL / PARAM / PARENT_MENU_ID).
-     * Oracle {@code ||} 결합 → MSSQL CONCAT (정합 §F #7).
+     * As-Is 와 같은 Oracle {@code ||} 결합 (정합 §F #7 — oracle-1007 로 되돌림).
      *
      * <p>2026-06-04 round 5 — PARENT_MENU_ID 컬럼 추가 (사용자 결정):
      * <ul>
      *   <li>FE OBJECT LoV 모달에서 행 선택 시 OBJECT_ID + PARENT_MENU_ID (상위 폴더) 자동 세트 요구.</li>
      *   <li>PARENT_MENU_ID 는 {@code TB_MCM_SEC_MENU} 에 기등록된 (OBJECT_ID 가 이미 다른 메뉴에 묶인 경우의)
      *       그룹 폴더 ID. {@code commObjMng} 의 {@code SecObjRepository.findOneParentMenuIdByObjectId}
-     *       와 동일 패턴 — {@code TOP 1} 로 임의 1행 가져온다.</li>
+     *       와 동일 패턴 — 상관 서브쿼리 끝의 {@code FETCH FIRST 1 ROWS ONLY} 로 임의 1행 가져온다.</li>
      *   <li>OBJECT 가 어떤 메뉴에도 매핑 안 됐으면 LEFT JOIN 결과 NULL — FE 는 빈 문자열로 처리.</li>
      * </ul>
      */
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> searchMenuObjPop(String edtObjectId) {
-        boolean sqlite = McmAuditStatementInspector.isSqlite();
-        // 상관 subquery 의 TOP 1 → SQLite 는 LIMIT 1. CONCAT → SQLite 는 || 분기. MSSQL 은 기존 유지.
-        String parentSub = sqlite
-                ? "(SELECT M.PARENT_MENU_ID FROM MCMAPUSER.TB_MCM_SEC_MENU M WHERE M.OBJECT_ID = O.OBJECT_ID LIMIT 1)"
-                : "(SELECT TOP 1 M.PARENT_MENU_ID FROM MCMAPUSER.TB_MCM_SEC_MENU M WHERE M.OBJECT_ID = O.OBJECT_ID)";
+        // Oracle 단일화(oracle-1007) — 상관 서브쿼리의 임의 1행은 FETCH FIRST 1 ROWS ONLY(Oracle 12c+·H2 공통).
+        String parentSub = "(SELECT M.PARENT_MENU_ID FROM MCMAPUSER.TB_MCM_SEC_MENU M WHERE M.OBJECT_ID = O.OBJECT_ID FETCH FIRST 1 ROWS ONLY)";
         StringBuilder sql = new StringBuilder()
                 .append("SELECT O.OBJECT_ID, O.OBJECT_NM, O.SERVICE, O.FORM_URL, O.PARAM, ")
                 .append("       ").append(parentSub).append(" AS PARENT_MENU_ID ")
                 .append("  FROM MCMAPUSER.TB_MCM_SEC_OBJ O ")
                 .append(" WHERE O.USE_TP = 'Y' ");
         if (notBlank(edtObjectId)) {
-            sql.append(sqlite
-                    ? "   AND (UPPER(O.OBJECT_ID) LIKE UPPER('%' || :edtObjectId || '%') OR UPPER(O.OBJECT_NM) LIKE UPPER('%' || :edtObjectId || '%')) "
-                    : "   AND (UPPER(O.OBJECT_ID) LIKE UPPER(CONCAT('%', :edtObjectId, '%')) OR UPPER(O.OBJECT_NM) LIKE UPPER(CONCAT('%', :edtObjectId, '%'))) ");
+            sql.append("   AND (UPPER(O.OBJECT_ID) LIKE UPPER('%' || :edtObjectId || '%') OR UPPER(O.OBJECT_NM) LIKE UPPER('%' || :edtObjectId || '%')) ");
         }
         sql.append(" ORDER BY O.OBJECT_ID");
 

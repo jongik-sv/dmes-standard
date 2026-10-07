@@ -4,7 +4,6 @@
  */
 package com.dongkuk.dmes.mcm.csa.commUserMng.service;
 
-import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngDeptRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngSearchDeptLovRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngSearchRequest;
@@ -194,7 +193,7 @@ public class CommUserMngQueryService {
     /**
      * action {@code searchRoleGrp} 본문. As-Is {@code selectCommRoleGrpList} (xml:182~194).
      *
-     * <p>TB_MCM_SEC_ROLEGROUP WHERE USE_TP='Y' AND today BETWEEN START_ACTIVE_DATE AND ISNULL(END_ACTIVE_DATE, today+100)
+     * <p>TB_MCM_SEC_ROLEGROUP WHERE USE_TP='Y' AND today BETWEEN START_ACTIVE_DATE AND COALESCE(END_ACTIVE_DATE, today+100)
      * AND NOT EXISTS (TB_MCM_SEC_USER_MAPPING B WHERE B.USER_ID = #{USER_ID} AND B.ROLE_GROUP_ID = A.ROLE_GROUP_ID).
      *
      * <p>응답: {@code ds_rolegrpList} (As-Is dataset 이름 보존 / 분석 §3.8 DS-003).
@@ -202,14 +201,15 @@ public class CommUserMngQueryService {
     @SuppressWarnings("unchecked")
     public Map<String, Object> searchRoleGrp(CommUserMngUserIdRequest request) {
         String userId = request != null ? request.getUSER_ID() : null;
-        // GETDATE()/DATEADD/ISNULL 은 MSSQL 전용 — 로컬 SQLite 개발계에서는 등가 구문으로 분기한다.
-        // (미분기 시 "no such column: day" 로 조회가 통째로 실패하고, OASIS 가 이를 HTTP 200 +
-        //  meta.success=false 로 돌려줘 역할그룹 목록이 조용히 빈 채로 보였다. 2026-08-07)
-        boolean sqlite = McmAuditStatementInspector.isSqlite();
-        String now = sqlite ? "CURRENT_TIMESTAMP" : "GETDATE()";
-        String endDefault = sqlite
-                ? "IFNULL(A.END_ACTIVE_DATE, DATETIME(CURRENT_TIMESTAMP, '+100 day'))"
-                : "ISNULL(A.END_ACTIVE_DATE, DATEADD(day, 100, GETDATE()))";
+        // Oracle 단일화(oracle-1007) — 방언 분기 없이 Oracle·H2 공통 ANSI 형(LOCALTIMESTAMP·COALESCE·INTERVAL)을 쓴다.
+        // CURRENT_TIMESTAMP 가 아니라 LOCALTIMESTAMP 인 까닭: Oracle COALESCE 는 인자 형이 같아야 한다(NVL 과 달리 암묵 변환을
+        // 기대할 수 없다). END_ACTIVE_DATE 는 TIMESTAMP(6) 인데 CURRENT_TIMESTAMP 는 TIMESTAMP WITH TIME ZONE 이라 ORA-00932 위험이
+        // 있다. LOCALTIMESTAMP 는 세션 시간대(Asia/Seoul) 기준 TIMESTAMP 라 형이 맞는다.
+        // (방언에 없는 함수가 섞이면 조회가 통째로 실패하고, OASIS 가 이를 HTTP 200 + meta.success=false 로 돌려줘
+        //  역할그룹 목록이 조용히 빈 채로 보인다 — 2026-08-07 SQLite 사례)
+        String now = "LOCALTIMESTAMP";
+        // INTERVAL '100' DAY 는 기본 앞자리 정밀도가 2라 ORA-01873 — 세 자리를 쓰려면 DAY(3) 을 적는다(2026-10-07 Oracle 26ai 실측).
+        String endDefault = "COALESCE(A.END_ACTIVE_DATE, LOCALTIMESTAMP + INTERVAL '100' DAY(3))";
         String sql =
                 "SELECT A.ROLE_GROUP_ID, A.ROLE_GROUP_NM " +
                 "  FROM MCMAPUSER.TB_MCM_SEC_ROLEGROUP A " +
