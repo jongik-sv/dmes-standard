@@ -54,7 +54,10 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
         if (name.length() > 28) name = name.substring(0, 28)
         // 이전 시험이 비정상 종료돼 남긴 같은 이름 PDB 가 있으면 지운다(레인 하나가 이 이름 하나를 쓴다).
         runPdb(['drop', name], 600, true)
-        runPdb(['clone', parameters.template.get().toUpperCase(), name], 1800, false)
+        String cloneOut = runPdbOutput(['clone', parameters.template.get().toUpperCase(), name], 1800)
+        // 자동 작업(autotask·AWR) 끄기 확인 줄만 로그에 올린다.
+        cloneOut.readLines().findAll { it.contains('자동 작업') || it.contains('autotask') || it.contains('AWR') || it.contains('복제·열기') }
+                .each { System.err.println("[dmes-ora] ${it.replaceFirst(/^\[pdb\]\s*/, '')}") }
         pdbName = name
         cloned = true
         return pdbName
@@ -100,6 +103,23 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
         String host = System.getenv('DMES_ORA_HOST') ?: 'localhost'
         String port = System.getenv('DMES_ORA_PORT') ?: '1521'
         return "jdbc:oracle:thin:@//${host}:${port}/${pdb}"
+    }
+
+    /** runPdb 와 같지만 출력(표준 출력·오류 합침)을 돌려준다. 실패하면 예외. */
+    String runPdbOutput(List<String> args, long timeoutSec) {
+        File script = new File(parameters.repoRoot.get(), 'scripts/oracle/pdb.mjs')
+        ProcessBuilder pb = new ProcessBuilder(['node', script.absolutePath] + args).redirectErrorStream(true)
+        if (lockPid > 0) pb.environment().put('DMES_ORA_LOCK_HELD', String.valueOf(lockPid))
+        Process p = pb.start()
+        StringBuilder out = new StringBuilder()
+        Thread t = Thread.start { p.inputStream.eachLine { out.append(it).append('\n') } }
+        if (!p.waitFor(timeoutSec, TimeUnit.SECONDS)) {
+            p.destroyForcibly()
+            throw new org.gradle.api.GradleException("pdb.mjs ${args} 시간 초과(${timeoutSec}초)")
+        }
+        t.join(2000)
+        if (p.exitValue() != 0) throw new org.gradle.api.GradleException("pdb.mjs ${args} 실패(exit ${p.exitValue()})\n${out}")
+        return out.toString()
     }
 
     int runPdb(List<String> args, long timeoutSec, boolean ignoreFailure) {
