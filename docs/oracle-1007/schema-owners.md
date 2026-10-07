@@ -58,6 +58,18 @@
    `DBTIMEZONE` 은 `+00:00` 으로 남는다. `TIMESTAMP WITH LOCAL TIME ZONE` 을 쓰지 않으므로 영향이 없다(쓰지 않는다).
 4. 적재기(b5)는 epoch 밀리초를 KST 로 변환하고, KST 문자열은 그대로 넣는다. 업무 일시(감사 아닌 것)는 변환하지 않는다.
 
+### 3.1.1 공통 Hibernate 설정(앱마다 자기 yml 에 둔다)
+
+이 문서가 공통 기본값의 정본이다. 앱은 엔티티마다 매핑을 바꾸지 않고 설정에서 맞춘다.
+
+```yaml
+spring.jpa.properties.hibernate.type.preferred_boolean_jdbc_type: BIT       # boolean 칸을 NUMBER(1) 로 유지
+spring.jpa.properties.hibernate.type.preferred_instant_jdbc_type: TIMESTAMP # Instant 감사 칸(KST 로 저장)
+# hibernate.jdbc.time_zone 은 넣지 않는다(JVM 기본 Asia/Seoul)
+```
+
+- `preferred_boolean_jdbc_type=BIT`: 운영 Oracle 이 23 미만일 수 있어 기준선의 boolean 칸은 `NUMBER(1)` 로 둔다. Spring Boot 4.0.6 이 관리하는 Hibernate 7.2.12 의 `OracleDialect` 는 Oracle 전용 legacy boolean 설정이 없어, 이 값이 없으면 23 이상에서 `BOOLEAN` 을 기대해 validate 가 실패한다(b0 에서 `TB_MDM_COLUMN.REQUIRED` 로 확인). 설정은 ora-mdm 이 정했고 mdm m2 에서 validate 로 확인한다.
+
 ### 3.2 운용 규칙(Podman VM 2GB 기준, 사용자 결정)
 
 Podman VM 은 2GB 그대로 쓴다. b0 실측에서 **동시에 열린 PDB 가 4개가 되자 인스턴스가 종료**됐다(`docs/oracle-1007/spike.md` §0). 그래서 아래를 지킨다.
