@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Semaphore;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -87,8 +88,13 @@ public class SecWidgetService {
     private final WidgetDefaultLayoutRepository layoutRepository;
     private final WidgetUserContextResolver userContextResolver;
     private final WidgetUserLookupRepository userLookup;
-    /** OASIS 바깥 트랜잭션을 내려놓고 도는 틀 — search 의 이전 쓰기가 자기 트랜잭션으로 커밋되게(§4). */
+    /** OASIS 바깥 트랜잭션을 내려놓고 도는 틀 — search 의 이전 쓰기만 이 안에서 자기 트랜잭션으로 커밋한다(§4). */
     private final TransactionTemplate outsideTx;
+    /**
+     * 이전 쓰기(옛 행 이전·instId 분리)를 한 번에 하나만 — 이전하는 요청은 바깥 연결 + 이전 트랜잭션 연결 2개를 쓰므로, 여럿이 동시에
+     * 바깥을 쥔 채 이전 연결을 기다리면 풀이 바닥난다(oracle-1007 ③c). 기다리지 않고, 못 잡으면 이번 조회에서는 건너뛴다.
+     */
+    private final Semaphore migrationSlot = new Semaphore(1);
 
     @Autowired
     public SecWidgetService(SecUserWidgetTabRepository tabRepository,
@@ -119,15 +125,19 @@ public class SecWidgetService {
     /**
      * 고정 탭(전사 기본 탭 → 부서 대표·기본 탭, 관리자 배치 그대로, fixedYn=Y·lockYn=Y) + 개인 탭. 「홈」은 돌려주지 않는다 —
      * 화면이 widgetDef/list 의 전사 「홈」 배치로 그린다. 응답 전에 옛 「홈」·기본 탭 재정의 행을 개인 탭으로 옮긴다(§4).
-     * <p><b>트랜잭션</b>: OASIS({@code cactus.oasis.transactional: true})가 서비스 전체를 txBiz 로 감싸므로, 그 바깥 트랜잭션을
-     * {@code NOT_SUPPORTED} 로 내려놓고 돈다 — 이전은 writer 가 자기 트랜잭션으로 커밋하고, 실패해도 바깥을 rollback-only 로
-     * 만들지 않는다(WidgetChatService 와 같은 방식). 이전이 실패하면 경고만 남기고 옛 행을 숨긴 채 응답한다(다음 조회에 다시 시도).
+     * <p><b>트랜잭션</b>: OASIS({@code cactus.oasis.transactional: true})가 서비스 전체를 txBiz 로 감싸고, 그 트랜잭션은 시작할 때
+     * 이미 연결 하나를 쥔다. 읽기는 모두 그 바깥 트랜잭션에 합류해 그 연결 하나로 한다 — 바깥을 내려놓고 읽으면 바깥 연결을 쥔 채
+     * 같은 풀에서 연결을 더 받아, 동시 조회가 풀 크기에 닿으면 서로 기다리다 멈춘다(oracle-1007 ③c). 옛 행 이전 쓰기만 바깥을
+     * {@code NOT_SUPPORTED} 로 내려놓고 writer 가 자기 트랜잭션으로 커밋한다 — 실패해도 바깥을 rollback-only 로 만들지 않고, 바깥이
+     * 롤백돼도 남는다. 이전하는 동안만 연결 2개를 쓴다. 이전이 실패하면 경고만 남기고 옛 행을 숨긴 채 응답한다(다음 조회에 다시 시도).
+     * <p><b>이전 동시 실행</b>: 이전 연결을 서로 기다리지 않게 이 인스턴스(JVM) 안에서 이전 쓰기는 한 번에 하나만 한다
+     * ({@link #migrationSlot}, 기다리지 않음). 다른 요청이 이전 중이면 이번 조회는 이전을 건너뛰고 옛 행을 숨긴 채 응답한다 — 실패와 같게
+     * 다음 조회에 다시 시도한다. 그래서 배포 직후 여러 사용자가 동시에 처음 조회하면 그중 하나만 이번 응답에 「내 홈」 등이 보이고,
+     * 나머지는 다음 조회부터 보인다. 이전 중인 요청 하나와 다른 요청들이 함께 풀을 다 쓰면 그 하나는 다른 요청이 끝나 연결을 돌려줄 때까지
+     * 기다린다(이전하지 않는 조회는 연결을 하나만 쓰므로 서로 막히지는 않는다 — 연결 2개를 쓰는 다른 경로, 예컨대 위젯 채팅과 섞이면
+     * connectionTimeout 까지 막힐 수 있다).
      */
     public Map<String, Object> search(SecWidgetSearchRequest request) {
-        return outsideTx.execute(status -> searchOutsideTx());
-    }
-
-    private Map<String, Object> searchOutsideTx() {
         String userId = requireUser();
         List<WidgetFixedTabs.FixedTab> fixed = fixedFor(userId);
         List<SecUserWidgetTab> rows = tabRepository.findByUserIdOrderByTabSeqAsc(userId);
@@ -389,17 +399,27 @@ public class SecWidgetService {
      * 옛 「홈」 행과 지금 고정 탭 집합에 있는 기본 탭 재정의 행 중 위젯이 1개 이상인 것을 개인 탭으로 옮긴다. 옮길 것이 있었으면 true(다시 읽는다).
      * 새 탭 번호가 그사이 차면 writer 가 다음 빈 번호를 고른다. 위젯 0개인 옛 행은 그대로 두고 숨긴다(지우지 않는다).
      * 실패하면(DB 잠금 등) 경고만 남기고 다시 읽은 행으로 응답한다 — 못 옮긴 옛 행은 숨기고 다음 조회에 다시 옮긴다.
+     * 다른 요청이 이전 중이면({@link #migrationSlot}) 건너뛰고 false — 옛 행은 숨기고 다음 조회에 다시 옮긴다.
+     * <p>다시 읽기는 바깥 트랜잭션의 EM 으로 하므로 1차 캐시를 거친다 — 이미 읽은 엔티티는 DB 값이 아니라 캐시 인스턴스가 돌아온다.
+     * 이전이 PK 칸(TAB_ID — 탭·위젯 행 모두 PK 에 든다)을 바꾸기 때문에 옮긴 행은 새 인스턴스로 읽혀 정확하다. PK 가 아닌 칸만 바꾸는
+     * 이전을 더하면 다시 읽어도 옛 값이 보인다.
      */
     private boolean migrateLegacy(String userId, List<SecUserWidgetTab> rows, List<SecUserWidget> widgets,
                                   List<WidgetFixedTabs.FixedTab> fixed) {
         List<SecWidgetTabWriter.TabMove> moves = legacyMoves(rows, widgets, fixed);
         if (moves.isEmpty()) return false;
+        if (!migrationSlot.tryAcquire()) {
+            log.info("위젯 옛 배치 이전 건너뜀 — 다른 요청이 이전 중이라 다음 조회에 다시 시도한다. userId={}", userId);
+            return false;
+        }
         try {
-            writer.moveTabs(userId, moves); // 0 이어도 다른 요청이 먼저 옮긴 것이라 다시 읽는다
+            outsideTx.executeWithoutResult(status -> writer.moveTabs(userId, moves)); // 0 이어도 다른 요청이 먼저 옮긴 것이라 다시 읽는다
             return true;
         } catch (RuntimeException e) {
             log.warn("위젯 옛 배치 이전 실패 — 다음 조회에 다시 시도한다. userId={}, moves={}", userId, moves, e);
             return true; // 동시 조회가 먼저 옮겼을 수 있으니 다시 읽어 응답한다(못 옮긴 옛 행은 숨긴다)
+        } finally {
+            migrationSlot.release();
         }
     }
 
@@ -449,7 +469,10 @@ public class SecWidgetService {
      * 개인 탭 위젯의 instId 가 고정 탭 위젯의 instId 와 같으면 개인 쪽 instId 를 새로 발급하고 메모·대화를 복사해 둔다(두 위젯이
      * 같은 USER_ID+INST_ID 메모·대화를 함께 쓰지 않게). 고정 탭 쪽 instId 는 관리자 배치와 묶여 있어 바꾸지 않는다. 매 조회 때 검사하므로
      * 이미 옮겨진 사용자도 한 번에 고쳐지고, 관리자가 나중에 같은 instId 를 배치해도 다음 조회에 나뉜다. 나눌 것이 있었으면 true(다시 읽는다).
-     * 실패하면(DB 잠금 등) 경고만 남기고 조회는 막지 않는다 — 다음 조회에 다시 시도한다.
+     * 실패하면(DB 잠금 등) 경고만 남기고 조회는 막지 않는다 — 다음 조회에 다시 시도한다. 다른 요청이 이전 중이면({@link #migrationSlot})
+     * 건너뛰고 false — 이번 응답은 나누지 않은 instId 그대로다.
+     * <p>다시 읽기는 {@link #migrateLegacy} 와 같이 바깥 EM 의 1차 캐시를 거친다 — 분리가 PK 칸(INST_ID)을 바꾸므로 나눈 위젯은 새
+     * 인스턴스로 읽혀 정확하다.
      */
     private boolean splitSharedInstIds(String userId, List<SecUserWidgetTab> rows, List<SecUserWidget> widgets,
                                        List<WidgetFixedTabs.FixedTab> fixed) {
@@ -457,10 +480,16 @@ public class SecWidgetService {
         if (widgets.stream().noneMatch(w -> personal.contains(w.getTabId()))) return false; // 개인 위젯이 없으면 전사 「홈」 배치도 읽지 않는다
         List<SecWidgetInstSplitWriter.Split> splits = sharedInstSplits(personal, widgets, fixedInstIds(fixed), SecWidgetService::newInstId);
         if (splits.isEmpty()) return false;
+        if (!migrationSlot.tryAcquire()) {
+            log.info("위젯 instId 분리 건너뜀 — 다른 요청이 이전 중이라 다음 조회에 다시 시도한다. userId={}", userId);
+            return false;
+        }
         try {
-            instSplitWriter.splitInstIds(userId, splits);
+            outsideTx.executeWithoutResult(status -> instSplitWriter.splitInstIds(userId, splits));
         } catch (RuntimeException e) {
             log.warn("위젯 instId 분리 실패 — 다음 조회에 다시 시도한다. userId={}, splits={}", userId, splits, e);
+        } finally {
+            migrationSlot.release();
         }
         return true;
     }

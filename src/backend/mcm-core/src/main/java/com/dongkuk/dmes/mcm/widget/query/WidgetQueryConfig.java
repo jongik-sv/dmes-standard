@@ -53,6 +53,7 @@ public class WidgetQueryConfig {
             if (d.getPassword() != null && !d.getPassword().isEmpty()) ds.setPassword(d.getPassword());
             ds.setMaximumPoolSize(d.getMaximumPoolSize() > 0 ? d.getMaximumPoolSize() : DEFAULT_POOL_SIZE);
             ds.setMinimumIdle(0); // 쓰지 않을 때 연결을 잡아 두지 않는다
+            ds.setIdleTimeout(d.getIdleTimeout() > 0 ? d.getIdleTimeout() : WidgetQueryProperties.Datasource.DEFAULT_IDLE_TIMEOUT_MS);
             log.info("[widgetQuery] 쿼리 위젯 실행기 전용 DataSource 를 씁니다(직결, 풀 {} 최대 {}개)", POOL_NAME, ds.getMaximumPoolSize());
             return WidgetQueryDataSource.dedicated(ds, ds);
         }
