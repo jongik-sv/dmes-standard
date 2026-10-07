@@ -36,6 +36,11 @@ hub 의 `if` 데이터소스 접속 사용자는 EAIUSER 이고, IF_* 표는 IFU
 
 표가 늘 때마다 같은 권한을 부여해야 한다. 한 표를 INBOUND·OUTBOUND 양쪽으로 쓰면 SELECT·INSERT·UPDATE 모두 필요하다. 신규 IF 표 추가 절차에 GRANT 단계를 넣는 것이 안전하다.
 
+## 일시 정지 (2026-10-07, 조정 지시)
+
+사용자 퇴근으로 조정 세션이 멈추라고 지시했다. 진행 중 편집 없음(전부 커밋), 백그라운드·Workflow·Oracle 접속 없음, 임시 사용자 `L_PLT_*` 는 모두 삭제했다. 다음 지시까지 새 작업을 시작하지 않는다.
+재개 때 확인할 것: ora-base 스파이크에서 mdm 이 mcm-core 를 포함해 mcm-core 엔티티가 mdm EMF 에 들어온다고 확인됐다. mls 도 같은 구조인지(mls EMF 에 mcm-core 엔티티가 들어오는지, `metadata_builder_contributor` 와 `TB_MLS_*`·`TB_MCM_*` 매핑) 확인해 이 메모에 적는다. 이어서 ora-base 머지① 알림을 받으면 p3 실제 전환부터 한다.
+
 ## 남은 순서
 
 1. 초안 Oracle 검증(FREEPDB1 `L_PLT_*` 사용자) → 리뷰 → 커밋
