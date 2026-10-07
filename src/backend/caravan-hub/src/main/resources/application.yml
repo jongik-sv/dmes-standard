@@ -12,9 +12,9 @@ spring:
     name: caravan-hub
 
   # ── 프로파일 체계 (2026-07-09 JNDI 전환 — docs/framework/DataSource_JNDI설계.md, mcm 패턴) ──
-  #   local    : SQLite 직결 (bootRun/IDE) — 미지정 기동은 CaravanHubApplication 의 spring.profiles.default=local 폴백
-  #   local-ph : 포항 개발 DB 직결 (bootRun, 구 mssql)
-  #   local-kp : 김포 개발 DB 직결 (bootRun, 구 dev)
+  #   local    : 로컬 Oracle PDB 직결 (bootRun/IDE, DMES_ORA_* 접속값) — 미지정 기동은 CaravanHubApplication 의 spring.profiles.default=local 폴백
+  #   local-ph : 포항 개발 Oracle 직결 (bootRun, 접속값 env 필수)
+  #   local-kp : 김포 개발 Oracle 직결 (bootRun, 접속값 env 필수)
   #   dev      : 포항·김포 개발계 WildFly — JNDI (group 으로 wildfly 자동 활성)
   #   prod     : 운영계 WildFly — JNDI
   # local 계열(직결)과 dev/prod(JNDI)는 상호배타 — 반드시 하나만 활성. 구 `local,mssql` 조합 폐기.
@@ -95,10 +95,13 @@ caravan-hub:
       enabled: ${CARAVAN_HUB_SMS_ALERT_ENABLED:false}
       # gateway-url: ${CARAVAN_HUB_SMS_GATEWAY_URL:}
       # recipients: ${CARAVAN_HUB_SMS_RECIPIENTS:}
-  # DataInitializer 게이트 (2026-07-09 신설) — false 면 기동 시 스키마 DDL 전체 skip.
-  # 기본 true(현행 동작 유지) — local 계열 직결 개발 편의. WildFly(dev/prod)는 프로파일 yml 에서 false 명시.
-  init:
-    enabled: true
+  # 스키마 마이그레이션 게이트(oracle-1007) — 옛 DataInitializer 의 caravan-hub.init.enabled 를 대신한다.
+  # spring.flyway.enabled(기본 true)가 CARAVANUSER 표(HubFlywayConfig.caravanFlyway)를 켜고 끈다. WildFly(dev/prod)는
+  # 프로파일 yml 에서 false 로 두고 DBA 가 같은 V 파일(db/migration/caravanuser)을 적용한다.
+  # IFUSER 는 로컬·시험 전용(caravan-hub.flyway.ifuser.*, 기본 꺼짐) — IF_* 표는 운영자·DBA 가 정의한다.
+  flyway:
+    ifuser:
+      enabled: false
 
 # =============================================================================
 # MyBatis
