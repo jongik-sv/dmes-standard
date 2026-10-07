@@ -14,7 +14,7 @@ import org.hibernate.resource.jdbc.spi.StatementInspector;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariDataSource;
-import org.apache.ibatis.session.SqlSession;
+import com.dongkuk.dmes.cactus.web.inbound.QueryStatementGuard;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.springframework.stereotype.Controller;
 import org.hibernate.jpa.HibernatePersistenceProvider;
@@ -91,7 +91,10 @@ final class QueryRouteHarness implements AutoCloseable {
         serviceBeans.accept(ctx);
         ctx.refresh();
 
-        QueryController queryController = new TestQueryController(new SqlSessionTemplate(sqlSessionFactory(mapperPattern)));
+        // 운영 스위치(cactus.inbound.query-routes.enabled, 기본 off)와 무관하게 시험에서만 라우터를 직접 조립한다.
+        // 운영과 같은 QueryStatementGuard(SELECT 만·persistence/query/** 만·행 상한 기본 10,000)를 거친다.
+        QueryController queryController = new TestQueryController(new QueryStatementGuard(
+                new SqlSessionTemplate(sqlSessionFactory(mapperPattern)), 10_000));
         OasisController oasisController = new TestOasisController(new OasisServiceExecutor(
                 serviceStarter(), ctx, new CactusRequestConverter(), new CactusResponseConverter()));
         mvc = MockMvcBuilders.standaloneSetup(oasisController, queryController).build();
@@ -101,8 +104,8 @@ final class QueryRouteHarness implements AutoCloseable {
     // MockMvc 단독 구성의 기본 매핑은 @Controller 만 핸들러로 보므로 시험에서만 표시를 붙인 하위 클래스로 감싼다.
     @Controller
     static class TestQueryController extends QueryController {
-        TestQueryController(SqlSession sqlSession) {
-            super(sqlSession);
+        TestQueryController(QueryStatementGuard guard) {
+            super(guard);
         }
     }
 
