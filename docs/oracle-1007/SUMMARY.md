@@ -7,7 +7,7 @@
 
 ## 0. 한 줄 결과
 
-로컬 앱 기동과 백엔드 자동 시험을 Oracle 26ai Free 하나로 통일했다(SQLite·H2·MSSQL·PostgreSQL·Tibero 경로 제거 또는 archive). 운영(WildFly)·caravan-hub 의 코드·설정·문서도 Oracle 기준으로 바꿨다. 격리는 레인·시험별 PDB(템플릿 복제)로 한다. 실제 운영 Oracle 서버의 버전·호스트·서비스명은 미정이라 운영 적용은 이 회차 범위 밖이다(§5). 문서 불일치가 하나 있다: `DMES-Deployment-Guide.md` 126행은 「운영 DB는 Oracle 26ai」 라고 적었고 `schema-owners.md` §3.1.1 은 운영 Oracle 이 23 미만일 수 있다고 적는다(조정자 확인 필요). 마감 시점 전 모듈 시험 결과는 §7.1 이다(Oracle 을 쓰는 모듈은 통과, 실패는 윈도우 로그 경로에 기대는 analog 83건뿐). E2E 는 마감에서 재실행하지 않았다.
+로컬 앱 기동과 백엔드 자동 시험을 Oracle 26ai Free 하나로 통일했다(SQLite·H2·MSSQL·PostgreSQL·Tibero 경로 제거 또는 archive). 운영(WildFly)·caravan-hub 의 코드·설정·문서도 Oracle 기준으로 바꿨다. 격리는 레인·시험별 PDB(템플릿 복제)로 한다. 실제 운영 Oracle 서버의 버전·호스트·서비스명은 미정이라 운영 적용은 이 회차 범위 밖이다(§5). 문서 불일치가 하나 있다: `DMES-Deployment-Guide.md` 126행은 「운영 DB는 Oracle 26ai」 라고 적었고 `schema-owners.md` §3.1.1 은 운영 Oracle 이 23 미만일 수 있다고 적는다. 운영 버전은 확인되지 않았으므로 운영 반영 전 확인 항목이다(§4.3). 마감 시점 전 모듈 시험 결과는 §7.1 이다(Oracle 을 쓰는 모듈은 통과, 실패는 윈도우 로그 경로에 기대는 analog 83건뿐). E2E 는 마감에서 재실행하지 않았다.
 
 ## 1. 머지 이력
 
@@ -38,7 +38,7 @@ dev 에 `--no-ff` 로 들어간 순서다(레인이 dev 를 자기 브랜치로 
 | z1 | - | ora-base | z1 머지 커밋(조정자 머지 때 확정) | 이 문서(마감) | 커밋·push 는 조정자 |
 
 - ③g 는 dev 커밋이 없다. `L_MAIN` 의 쿼리 위젯 SQL 6개를 UPDATE 로 고친 데이터 보정이다(원본이 일치할 때만 변경, 홈 오류 0 을 브라우저로 확인).
-- dev 외 main 반영: 조정자 스킬 1a7ba27ec, dflow 스킬 47ab42884. 그 밖의 회차 변경이 main 에 들어갔는지는 메모에서 찾지 못함, 조정자 확인 필요.
+- dev 외 main 반영: 조정자 스킬 1a7ba27ec, dflow 스킬 47ab42884. 그 밖의 회차 변경은 main 에 반영하지 않았다(킷 공용 변경만 반영).
 
 ## 2. 성능 전후 (SQLite·H2 대비 Oracle)
 
@@ -103,8 +103,8 @@ Podman VM 3GB(처음 2GB, 10-07 스래싱 3회로 상향, 사용자 결정), SGA
 | **SQL 은 Oracle 전용**(NVL·CONNECT BY·ROWNUM 허용). 방언 중립 SQL 규칙을 폐기하고 `dialect-neutral-sql.md` 를 `oracle-sql-rules.md` 로 바꿈 | 사용자, 22:2x | 이벤트 기록, ⑤a |
 | **Tibero 미사용**: `TiberoDialectResolver` archive, caravan 문서를 Oracle 기준으로 | 사용자, 22:24 | ④ (`bcde00d9f`, `8456d54ec`) |
 | 위젯 실행기의 PostgreSQL·SQLite 갈래 제거(사용자 확정 3) | 사용자, 21시대 | ③ |
-| **CaravanMetaSeeder 가드**: caravan 표가 없을 때 `ORA-00942` 만 경고 뒤 건너뜀 | 사용자 승인, 18:37 | 레인 보고에는 18:32 에 「사용자 거절로 원복」, 18:37 에 승인으로 기록됨(시각·경위 조정자 확인 필요) |
-| **Podman VM 2GB → 3GB**, SGA 900M 유지(문제 생길 때만 1200M) | 사용자, 20:1x~20:20 | 이벤트 기록 20:19, 재기동 완료 20:20. 조정자 메모의 해당 줄 머리말은 20:4x 라 시각이 어긋남(조정자 확인 필요). 근거: 스래싱 3회·kswapd 74%·Mac 여유 51% |
+| **CaravanMetaSeeder 가드**: caravan 표가 없을 때 `ORA-00942` 만 경고 뒤 건너뜀 | 사용자 결정, 18:37 승인 | 레인 메모에 18:32 「거절로 원복」 뒤 18:37 승인으로 기록되어 18:37 로 적는다. 조정자 메모는 18:4x 회복 직후 결정으로 기록 |
+| **Podman VM 2GB → 3GB**, SGA 900M 유지(문제 생길 때만 1200M) | 사용자, 20:1x 결정·20:20 적용 | 20:20 VM 3GB 재기동 완료(available 959MB). 조정자 메모의 「20:4x」 는 오기. 근거: 스래싱 3회·kswapd 74%·Mac 여유 51% |
 | **mcm 연결 풀**: yml 기본 3 유지, 메인 로컬 서버만 기동 시 최대 8·쉬는 연결 2·유휴 60s, local 누수 감지 30s | 사용자, 22:39 | ③d, `be-run` 의 `BE_MCM_POOL_*` |
 | **Lazy DS**: 연결 지연 획득은 local 만 켜고 머지, wildfly·prod 는 끔. 개발계 적용은 후속 | 사용자, 23:02 | ③f, 「로컬만 켜고 머지」 |
 | 병렬 최대(동시 agent 4)·새 레인에 GLM·opencode·agy 활용·주간 사용량 무시 | 사용자 지시 | 조정자 메모(작업 방식) |
@@ -150,27 +150,39 @@ Podman VM 3GB(처음 2GB, 10-07 스래싱 3회로 상향, 사용자 결정), SGA
 | 남긴 브랜치 `backup/ora-mcm-app-pre-split` | 팁 aa22c98b2(10-07 19:16), dev 에 없는 커밋 4개. `git cherry` 로 3개는 dev 에 같은 패치가 있고 1개(d104c6e46, 지문 골든·Instant 왕복 시험)는 없다. 메모는 조정자·사용자 결정으로 이 브랜치를 그대로 두고 마감 보고에 넘기기로 했다고만 적는다(이름의 뜻은 설명이 없음, 추측: 레인이 커밋을 나누기 전 원본 보관). 같은 때 레인이 정리한 임시 워크트리 `sqlite-base` 는 21:28 에 제거됨 | 보존 또는 삭제. d104c6e46 이 dev 에 없는 이유는 확인하지 않음(추측: 머지 뒤 골든을 다시 만든 것으로 대체) |
 | mdm 스냅샷의 E2E 잔여 413행 | `db-snapshot/MDMAPUSER` CSV 에 옛 로컬 DB 의 E2E 시험 잔여 413행(19표, `E2E_USR_*` 등)이 있다. 리포 스냅샷에서는 지우지 않고, 적재기(`snapshot.py import`)가 적재 때 거른다(로그에 「E2E 행 N 거름」, `TPL_DATA` 적재에서 실제 확인). 메인 서버 이관은 `--keep-e2e` 로 사용자 데이터를 그대로 옮겼으므로 `L_MAIN` 의 mdm 에는 이 행이 들어 있다 | 리포 스냅샷에서 영구 삭제할지, `L_MAIN` 에서 지울지 |
 | 개발계 WildFly 에서 `dmes.datasource.lazy-connection` 켜기 | 지금은 local 만 true, wildfly·prod 는 false(롤백은 env `DMES_DATASOURCE_LAZY_CONNECTION=false`). 켜기 전에 볼 것(설계 §4): jta 데이터소스를 resource-local 로 쓸 때 CCM 「닫지 않은 연결」 경고, 컨테이너 `transaction-isolation`·`new-connection-sql` 과 감지한 기본값 일치, 위젯 공유 모드 evict, `min-pool-size`·prefill 과 사용 시간 지표, 기동 때 DB 장애로 기본값 감지 실패, 잠금 캐시(UserPermCache 등) 안 첫 SQL | 위 확인 뒤 사용자가 정함 |
-| Tibero 옛 비밀번호의 git 이력 | caravan 문서에 옛 Tibero 개발 서버 접속 정보(주소·비밀번호)가 있었고 `8456d54ec`(`caravan-hub/docs/00-OVERVIEW.md` 등)가 문서에서 걷었다(조정자 메모는 「bcde00d9f 무렵」). git 이력에는 남아 있다. 실제로 쓰이던 계정인지는 메모에서 찾지 못함, 조정자 확인 필요 | 실제 계정이면 비밀번호 교체 권고. 이력 정리(rewrite)는 별도 결정 |
+| Tibero 옛 비밀번호의 git 이력 | caravan-hub 문서의 설정 예시에 옛 Tibero 접속 정보(`jdbc:tibero:thin:@localhost:8629:tibero` 형 URL 과 `password:` 값 2줄)가 있었다. 이를 문서에서 지운 커밋은 `8456d54ec`(docs, 「Tibero·PostgreSQL·MySQL·H2 설명을 Oracle 기준으로」)이고, `TiberoDialectResolver` 를 archive 한 것은 `bcde00d9f`(refactor, 코드만, 비밀번호 변경 없음)다. 두 커밋은 역할이 다르며 조정자 메모의 「bcde00d9f 무렵」 은 이 둘을 묶어 부른 것이다. 값은 최초 스냅샷 `caa3e5d46`(2026-09-02)부터 git 이력에 남아 있다. 이 값이 실제로 쓰이던 계정인지는 확인되지 않았다 | 실제 계정이면 비밀번호 교체 권고. 이력 정리(rewrite)는 별도 결정. 운영 확인 목록(§4.3)에도 올림 |
 | `FREEPDB1` 처분 | 조정자의 옛 데이터(MDM·MCM·MLS·MPN·MPP·MQC·CARAVAN_CONSOLE·dmes_user 사용자)가 들어 있어 drop 하지 않고 close 만 했다. 다시 열 때는 다른 PDB 하나를 먼저 닫는다 | 계속 보존할지 |
-| 위젯 `SqlGuard` 의 SQL Server 방어 | 조정자 메모는 「위젯 SQL Server 분기도 제거로 결정(사용자 확정 3)」. 현재 코드의 차단 낱말 목록에는 `WAITFOR`·`KILL`·`SHUTDOWN` 등이 남아 있다. 결정이 분기 코드만 뜻하는지 차단 낱말까지 뜻하는지는 메모에서 찾지 못함, 조정자 확인 필요 | 차단 낱말 유지 여부 |
+| 위젯 `SqlGuard`·실행기의 SQL Server 제거 범위 | 확정됨: `448baab71`(mcm-core)이 위젯 쿼리·쓰기에서 SQLite·SQL Server 갈래와 `SQLITE_BUSY` 재시도를 걷었고, `03e1263da` 가 PostgreSQL 갈래를 걷었다. `SqlGuard` 의 SQL Server 전용 분기(`SET`·`IF` 를 SQL Server 일 때만 막기)는 없어졌고, 4단계 금지 낱말(`WAITFOR`·`KILL`·`SHUTDOWN`·`USE`·`DECLARE`·`WHILE`·`BEGIN` 등)은 **실행 DB 와 관계없이 늘 적용하는 방어로 남겼다**(어느 DB 의 SELECT 문법에도 쓰이지 않아 Oracle 조회를 막지 않고, 겹쳐도 해롭지 않음). `SET`·`IF` 는 Oracle 함수와 겹쳐 막지 않는다 | 차단 낱말을 더 줄일지(현재 유지) |
 | `src/frontend/playwright.config.ts` `workers: 1` | 이유 주석이 SQLITE_BUSY 라 옛 것이다(b8 §9.5) | Oracle 동시 로그인 확인 뒤 병렬 허용 여부 |
 | `*SqliteTest` 72개 클래스 이름(mdm) | 내용은 이미 Oracle 이고 이름에만 `Sqlite` 가 남음. 조정자가 이번 회차에 하지 않기로 함 | 이름 변경 여부(바꾸면 시험 선택 패턴·문서 참조도 갱신) |
 | mdm 분석 도구 Oracle 판 | `docs/mdm/dict-std/embed_terms.py` 등 SQLite 사본을 읽는 도구에 「Oracle 판은 후속」 한 줄만 달았다(`TB_MDM_TERM.EMBEDDING` 일괄 재계산 포함) | Oracle 판 작성 여부 |
 | mcm `admin123` 강제 재설정 | `CoreRbacSeeder` 가 매 부팅 때 admin 비밀번호를 `admin123` 으로 재설정한다(2026-06-05 결정, `db-snapshot/README.md` 에 「운영 프로파일 차단은 후속 검토」) | 운영 프로파일 차단 시점 |
 | 10-08 오전 Oracle 쿼리 작성 양식 | 사용자 지시로 10-08 08~09시에 양식(들여쓰기 등)을 사용자에게 먼저 요청하고, 받으면 `oracle-sql-rules.md` 에 반영한다(알림 cron 예약) | 사용자 답 |
 
+### 4.3 운영 반영 전 DBA·사용자 확인 필요
+
+이 회차에서 정해지지 않았고 조정자도 모르는 항목이다. 운영 반영 전에 DBA·사용자가 확인한다.
+
+| 항목 | 확인할 것 |
+|---|---|
+| 운영 Oracle 버전 | 로컬은 26ai Free(23.26). 23 미만이면 IDENTITY·BOOLEAN 등 확인 필요. mdm V1 의 30자 초과 식별자(12.2 이상)·`IS JSON STRICT`(12.1.0.2 이상), mcm-core V1 이 Hibernate OracleDialect(23)로 내보낸 스크립트라는 점. 문서 불일치: Deployment-Guide 는 「Oracle 26ai」, schema-owners 는 23 미만 가능 |
+| 위젯 전용 읽기 계정의 SELECT 대상 | 스키마·표 목록(§5 의 1번) |
+| 운영 비밀번호 정책·교차 스키마 GRANT | 길이·만료·교체 주기, 운영의 GRANT 목록(§5 의 5번) |
+| Tibero 옛 접속 정보가 실제 계정이었는지 | §4.2 의 Tibero 행 |
+| 운영 WAS JVM 의 `-Duser.timezone=Asia/Seoul` | §5 의 6번 |
+
 ## 5. 운영 안내 (DBA·운영 담당 전달)
 
 | 번호 | 항목 | 내용 |
 |---|---|---|
-| 1 | 위젯 전용 읽기 계정 | 쿼리 위젯 실행은 읽기 전용 DataSource(`dmes.widget.query.datasource.*`)로 한다. Oracle 의 읽기 전용 트랜잭션은 INSERT·UPDATE·MERGE·FOR UPDATE 를 ORA-01456 으로 막지만 이미 있는 자율 트랜잭션 함수(`PRAGMA AUTONOMOUS_TRANSACTION`)의 쓰기·DB 링크 너머 실행·NEXTVAL 소모·DDL(암묵 커밋)은 막지 못한다(26ai 실측). 그래서 SELECT 권한만 가진 전용 계정이 근본 방어선이다. 이 계정에 자율 트랜잭션 함수·프로시저의 EXECUTE 와 DB 링크 권한을 주지 않고, 쓰기 계정(`MCMAPUSER` 등)을 재사용하지 않는다. 개발계·운영계 WildFly 에는 위젯 전용 JNDI 데이터소스(작은 풀)를 따로 만들고 `WIDGET_QUERY_DS_JNDI` 에 넣는다. 앱 기본 데이터소스(`dsBiz`·`dsCmn`)를 가리키면 같은 풀이라 교착한다. 계정명·JNDI 이름 예시(`READ_WIDGET`·`dsWidgetRead`)는 임의 값이다. **SELECT 를 줄 대상 스키마·표 목록은 메모에서 찾지 못함, 운영에서 정하며 조정자 확인 필요** |
+| 1 | 위젯 전용 읽기 계정 | 쿼리 위젯 실행은 읽기 전용 DataSource(`dmes.widget.query.datasource.*`)로 한다. Oracle 의 읽기 전용 트랜잭션은 INSERT·UPDATE·MERGE·FOR UPDATE 를 ORA-01456 으로 막지만 이미 있는 자율 트랜잭션 함수(`PRAGMA AUTONOMOUS_TRANSACTION`)의 쓰기·DB 링크 너머 실행·NEXTVAL 소모·DDL(암묵 커밋)은 막지 못한다(26ai 실측). 그래서 SELECT 권한만 가진 전용 계정이 근본 방어선이다. 이 계정에 자율 트랜잭션 함수·프로시저의 EXECUTE 와 DB 링크 권한을 주지 않고, 쓰기 계정(`MCMAPUSER` 등)을 재사용하지 않는다. 개발계·운영계 WildFly 에는 위젯 전용 JNDI 데이터소스(작은 풀)를 따로 만들고 `WIDGET_QUERY_DS_JNDI` 에 넣는다. 앱 기본 데이터소스(`dsBiz`·`dsCmn`)를 가리키면 같은 풀이라 교착한다. 계정명·JNDI 이름 예시(`READ_WIDGET`·`dsWidgetRead`)는 임의 값이다. **SELECT 를 줄 대상 스키마·표 목록은 아직 정해지지 않았다(운영 반영 전 DBA·사용자 확인 필요, §4.3)** |
 | 2 | `WIDGET_QUERY_REQUIRE_DEDICATED` | 키 `dmes.widget.query.require-dedicated`. 코드 기본값 false, `application-prod.yml` 에서만 `${WIDGET_QUERY_REQUIRE_DEDICATED:true}`(`wildfly` 프로파일에 두면 개발계 그룹까지 켜지므로 prod 에만 둠). 켜면 전용 DataSource 가 없을 때 위젯 시험·저장·실행을 모두 거절한다. 운영은 prod 프로파일로 기동해 켜 두고, 급히 풀 때만 env 로 false 를 준다(문서 기본값). 개발계에서 켤지는 메모에서 찾지 못함 |
 | 3 | JNDI `java:/jdbc/mcm/*` | DB 종류를 이름에 넣지 않는 규약이다(옛 `java:/jdbc/mssql/mcm/*` 에서 변경). `application-wildfly.yml` 은 mcm·mdm·caravan-hub 세 곳에만 있다(확인). mcm: `dsBiz`(MCMAPUSER, env `JNDI_DS_BIZ`)·`dsCmn`(MCMAPUSER, `JNDI_DS_CMN`)·`dsIF`(EAIUSER, `JNDI_DS_IF`)·`dsCaravan`(CARAVANUSER, `JNDI_DS_CARAVAN`). caravan-hub: mst 는 `JNDI_DS_MST`, 없으면 `JNDI_DS_CARAVAN`, 기본 `java:/jdbc/mcm/dsCaravan` / if 는 `JNDI_DS_IF`, 기본 `java:/jdbc/mcm/dsIF`(mcm 과 같은 이름 재사용). mdm: `java:/jdbc/mdm/dsBiz`(`JNDI_DS_BIZ`). mls·mpp·mqc·mpn·aps-core 는 wildfly 프로파일 파일이 없다. 데이터소스는 모두 `jta="false"`, `connection-url` 은 `jdbc:oracle:thin:@//호스트:1521/서비스`. 상세 `docs/guide/Operations/DMES-Deployment-Guide.md` §2.5 |
 | 4 | DBA 가 V 파일 적용, WildFly 에서 Flyway 꺼짐 | 운영·개발계(WildFly)는 `spring.flyway.enabled=false`, mcm 은 `dmes.flyway.enabled=false`(기본 false, local 만 true)로 앱이 기동 때 DDL 을 돌리지 않는다. DBA 가 `V` 파일을 **스키마 주인 계정으로** 적용한다. 스키마 사이에는 순서 의존이 없다. 현재 V 파일은 12개이고 모두 V1 이다(스키마 12개): `src/backend/mcm-core/src/main/resources/db/migration/oracle/{mcmapuser,mcaapuser,mcm_source,mcm_backup}/V1__baseline.sql`, `src/backend/caravan-hub/src/main/resources/db/migration/caravanuser/V1__baseline.sql`·`ifuser/V1__sample_if_table.sql`, `src/backend/mdm/api/src/main/resources/db/migration/mdm/oracle/V1__baseline.sql`, `src/backend/{mls,mpn,mpp,mqc}/api/src/main/resources/db/migration/<모듈>/V1__baseline.sql`, `src/backend/aps-core/src/main/resources/db/migration/aps-core/V1__baseline.sql`. 스키마마다 Flyway 주인 앱은 하나이므로 겹쳐 적용하지 않는다. **머지된 V1 은 불변**(머리 주석 한 줄도 체크섬이 바뀜), 변경은 V2 이상. mcm-core V 파일의 다른 스키마 표에 대한 GRANT 는 Flyway 자리표시자 `${app_user}`(로컬·운영 모두 MCMAPUSER)를 쓴다. Flyway 밖에서 sqlplus 로 적용하면 직접 치환해야 하고, 모든 스키마를 MCMAPUSER 로 돌리면 GRANT 가 ORA-01749 로 실패한다(주인 계정으로 접속). `EAIUSER` 는 표가 없는 접속 사용자이며 `IFUSER` 표 GRANT 는 caravan-hub 마이그레이션이 부여한다 |
-| 5 | 스키마 사용자 13명·비밀번호 | `MCMAPUSER`·`MCAAPUSER`·`MCM_SOURCE`·`MCM_BACKUP`(mcm-core), `CARAVANUSER`·`IFUSER`(caravan-hub), `EAIUSER`(표 없음), `MDMAPUSER`, `MLSAPUSER`·`MPPAPUSER`·`MQCAPUSER`·`MPNAPUSER`·`APSAPUSER`. 로컬 비밀번호는 전원 `dmes_password_123` 이고 **로컬 전용**이며 운영 비밀번호는 저장소에 두지 않는다(WildFly vault·credential store 또는 `${env.<변수명>}`). 로컬에서는 `EAIUSER` 를 뺀 사용자에게 `SELECT·INSERT·UPDATE·DELETE ANY TABLE` 을 주지만 이는 운영 교차 스키마 GRANT 를 대신하는 로컬 전용 설정이다. **운영 비밀번호 정책(길이·만료·교체 주기)과 운영의 교차 스키마 GRANT 목록은 메모에서 찾지 못함, 조정자 확인 필요**(`EAIUSER` 의 IF 표 권한은 `memo-ora-platform.md` 에 있음: INBOUND 표 SELECT·UPDATE, OUTBOUND 표 INSERT, DELETE 없음, IF 표를 추가할 때마다 GRANT 필요) |
+| 5 | 스키마 사용자 13명·비밀번호 | `MCMAPUSER`·`MCAAPUSER`·`MCM_SOURCE`·`MCM_BACKUP`(mcm-core), `CARAVANUSER`·`IFUSER`(caravan-hub), `EAIUSER`(표 없음), `MDMAPUSER`, `MLSAPUSER`·`MPPAPUSER`·`MQCAPUSER`·`MPNAPUSER`·`APSAPUSER`. 로컬 비밀번호는 전원 `dmes_password_123` 이고 **로컬 전용**이며 운영 비밀번호는 저장소에 두지 않는다(WildFly vault·credential store 또는 `${env.<변수명>}`). 로컬에서는 `EAIUSER` 를 뺀 사용자에게 `SELECT·INSERT·UPDATE·DELETE ANY TABLE` 을 주지만 이는 운영 교차 스키마 GRANT 를 대신하는 로컬 전용 설정이다. **운영 비밀번호 정책(길이·만료·교체 주기)과 운영의 교차 스키마 GRANT 목록은 아직 정해지지 않았다(운영 반영 전 DBA·사용자 확인 필요, §4.3)**(`EAIUSER` 의 IF 표 권한은 `memo-ora-platform.md` 에 있음: INBOUND 표 SELECT·UPDATE, OUTBOUND 표 INSERT, DELETE 없음, IF 표를 추가할 때마다 GRANT 필요) |
 | 6 | KST | 모든 시각을 KST 로 통일한다. JVM `-Duser.timezone=Asia/Seoul` 이 전제이고 Hibernate `time_zone` 은 지정하지 않는다. 로컬은 build-logic 과 `be-run` 이 넣는다. WildFly 는 `standalone.conf` 의 `JAVA_OPTS`(Windows 는 `standalone.conf.bat`)에 추가해야 한다. 운영 JVM 옵션은 확인되지 않았고, 아니면 JPA 감사 칸이 어긋날 수 있다(mdm 후속 2). Oracle 컨테이너 TZ 는 Asia/Seoul, `DBTIMEZONE` 은 +00:00 이며 `TIMESTAMP WITH LOCAL TIME ZONE` 을 쓰지 않아 영향 없음 |
 | 7 | Oracle 특성 주의 | (가이드 `oracle-26ai-test-guide.md` §8) `''` 는 NULL(NOT NULL 칸에 빈 문자열이면 ORA-01400, 코드의 `= ''` 비교는 NULL 을 함께 봐야 함). CLOB 칸에 JPQL `UPPER`·`LOWER`·`LIKE` 를 쓰면 `FunctionArgumentException`(네이티브 SQL 로). 엔티티 백틱 칼럼은 소문자 따옴표로 나가 ORA-00904 이고 validate 로 못 잡음. `IDENTITY BY DEFAULT ON NULL` 은 명시 ID 를 따라가지 않음(명시·자동 ID 혼용 시 번호 어긋남·ORA-00001). VARCHAR2 4000바이트 초과는 ORA-12899. IN 목록 1000개 초과 ORA-01795, LIKE 이스케이프의 `[` 는 ORA-01424. 여러 행 `VALUES (…),(…)` 는 23 이상 전용(`INSERT … SELECT … FROM DUAL UNION ALL` 로 바꿈). 읽기 전용 트랜잭션에서 방금 만든·바꾼 표를 읽으면 몇 초간 ORA-01466(잠시 뒤 재시도). 세션 `NLS_SORT`·`NLS_COMP` 는 BINARY 로 확인됨 |
-| 8 | 운영 Oracle 23 미만 가능성 | 로컬은 26ai Free(23.26.3)다. 운영 버전은 메모에서 찾지 못함(§0 의 문서 불일치 참고). mdm V1 의 30자 초과 식별자(12.2 이상)와 `IS JSON STRICT`(12.1.0.2 이상)는 23 미만에서 스모크 확인이 필요하다(mdm 후속 6). boolean 칸은 이 때문에 `NUMBER(1)` 로 둠. mcm-core V1 머리 주석은 Hibernate OracleDialect(23) 로 내보낸 스크립트라고 적혀 있어, 23 미만에서 V1 전체가 적용되는지는 확인된 바 없음(추측: 대부분 표준 DDL, 실측 필요) |
+| 8 | 운영 Oracle 23 미만 가능성 | 로컬은 26ai Free(23.26.3)다. 로컬 26ai Free(23.26), 운영 버전 미확인이며 23 미만이면 IDENTITY·BOOLEAN 등 확인이 필요하다(§0 의 문서 불일치, §4.3). mdm V1 의 30자 초과 식별자(12.2 이상)와 `IS JSON STRICT`(12.1.0.2 이상)는 23 미만에서 스모크 확인이 필요하다(mdm 후속 6). boolean 칸은 이 때문에 `NUMBER(1)` 로 둠. mcm-core V1 머리 주석은 Hibernate OracleDialect(23) 로 내보낸 스크립트라고 적혀 있어, 23 미만에서 V1 전체가 적용되는지는 확인된 바 없음(추측: 대부분 표준 DDL, 실측 필요) |
 | 9 | 윈도우에서 한 번 확인 | `be-run.ps1` 의 mcm 큰 풀 분기(커밋 e6ba8cfb1 은 `be-run.sh`·`be-run.ps1` 만 바꿈): `DMES_ORA_PDB=L_MAIN`(또는 `BE_MCM_BIG_POOL=1`)일 때 mcm 프로세스에만 `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=8`·`MINIMUM_IDLE=2`·`IDLE_TIMEOUT=60000` 이 전달되고 로그에 `be-mcm 연결 풀: max=8 minIdle=2 idleTimeout=60000ms` 가 찍히는지. 이 PC 는 pwsh 가 없어 실행해 보지 못했다. `be-run.ps1`·`be-run.cmd` 는 `bootRun` 을 쓰므로 `user.timezone` 이 build-logic 으로 적용되는지(문서상 그렇다, 윈도우 실측 없음)도 함께 본다 |
 | 10 | 데이터 이관 | 로컬은 `db-snapshot/**.csv` 와 `snapshot.py import`(Python `oracledb` thin, `sqlite3` 불필요)로 적재한다. 운영 데이터 이관 계획은 이 회차 범위 밖이다. 이관 후 `SEQ_MCM_MOM_TC_SEND`·`SEQ_MCM_MOM_TC_ERROR` 는 `MAX(키)+1` 로 다시 맞추고 IDENTITY 는 `START WITH LIMIT VALUE` 로 맞춘다(적재기가 처리). MSSQL 원본의 `TB_MCM_SEC_ROLE_MAPPING.PERMISSION_ID=''` 행은 옮기지 않는다 |
 | 11 | 업무기준 동적 표 | `MCAAPUSER.TB_MCA_<RULE_ID>` 는 앱이 만들지 않는다. DBA 가 만들고 `MCMAPUSER` 에 `SELECT, INSERT, UPDATE, DELETE` 를 GRANT 한다. 원장 → 사본 동기화(`MCM_SOURCE` → `MCMAPUSER`·`MCM_BACKUP`)는 동기화 관리 화면이 유일한 경로다(트리거·배치 없음) |
@@ -184,6 +196,7 @@ Podman VM 3GB(처음 2GB, 10-07 스래싱 3회로 상향, 사용자 결정), SGA
 
 ### ora-base
 
+- **analog 시험 픽스처 미커밋(결정 필요)**: `analog/core/src/test/resources/logs/tiny*.log` 등이 저장소에 한 번도 커밋되지 않아(`.gitignore` 예외 줄만 있고 파일이 없음, 2026-07-17 기록 「82건 FileNotFound」) analog core 79건·api 4건이 실패한다(마감 시험 §7.1). 결정: 원본 파일을 받아 커밋하거나 시험을 생성형으로 바꾼다. 같은 회차에 시험이 읽는 운영 로그 샘플 경로 18곳은 `C:/Users/USER/Desktop/...` 에서 `user.home` 기준으로 바꿨다(`b5f1db28e`, 사용자 지시).
 - b8 남은 것(`b8-residue.md` §9.5, §10 에 처리 기록이 없어 나열했고 현재 코드와 대조하지는 않았다): `be-run.sh`·`be-run.ps1` 의 `../data` 디렉터리 준비 제거, `.gitignore` 의 SQLite 항목(로컬 `.db` 가 남은 PC 가 있어 z1 에서 판단), `playwright.config.ts:8-9` 주석, `build-logic` `dmes.test-conventions` 의 「../data SQLite」 문구, `pdb.mjs` 의 옛 SQLite 체인 폴더 건너뛰기 분기(해당 폴더가 모두 archive 로 가면 죽은 코드), `DBMS-용어-비교.md`, `scripts/perf/mdm-backend` 이름·주석, `e2e/fixtures/mdm-*.sql` 3개의 SQLite 문법 여부, `docs/guide/Database/oracle-to-mssql-*.md` 폐기 표시.
 - 하니스: 잠금 대기와 PDB 복제·삭제 시간을 따로 찍기(mcm 시험 시간 분해용). `pdb.mjs clone` 이 한 번 `SQL 실패(exit 1)` 로 끝났는데 오류 본문을 보지 못했다(L_SPIKE1, 원인 미확인, 다시 나면 sqlplus 출력 전문을 남긴다). 삭제된 PDB 폴더가 빈 채 남는다(해롭지 않음).
 - dflow 스킬의 `dialect_check` 장치는 킷 공용이라 남겼다.
