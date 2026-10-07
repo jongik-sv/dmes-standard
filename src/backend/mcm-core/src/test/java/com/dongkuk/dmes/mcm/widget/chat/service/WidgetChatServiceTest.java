@@ -63,7 +63,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * {@link WidgetChatService} — 각본 가짜 LLM + H2 기록(실제 Writer·저장소) + mock(정의·쿼리 실행기·사용자·화면 찾기).
+ * {@link WidgetChatService} — 각본 가짜 LLM + Oracle 시험 PDB 기록(실제 Writer·저장소) + mock(정의·쿼리 실행기·사용자·화면 찾기).
  * 스펙 §9: 일반 답 저장, 도구 반복(상한 4), 허용 defId, pageGuide, 메시지 길이, chat 정의 검사, 공급자 오류, 100개 유지, 문맥 20개, IDOR.
  */
 @SpringJUnitConfig(WidgetChatJpaTestConfig.class)

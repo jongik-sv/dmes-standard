@@ -19,9 +19,9 @@ import java.util.regex.Pattern;
  *   <li>첫 낱말이 SELECT 또는 WITH 여야 한다.</li>
  *   <li>끝의 {@code ;} 하나만 허용(여러 문장 금지).</li>
  *   <li>쓰기·DDL·권한·트랜잭션 낱말은 단어 경계·대소문자 무시로 거절({@code SELECT … INTO}, {@code FOR UPDATE} 포함).
- *       SQL Server 가 {@code ;} 없이 이어 쓸 수 있는 서버 문장({@code WAITFOR}·{@code KILL}·{@code SHUTDOWN} 등)과 T-SQL 흐름·세션 문장
- *       ({@code USE}·{@code DECLARE}·{@code WHILE}·{@code BEGIN} 등)도 여기서 막는다. {@code SET}·{@code IF} 는 Oracle {@code SET()}·SQLite
- *       {@code if()} 함수와 겹쳐 실행 DB 가 SQL Server 일 때만 막는다({@link #check(String, WidgetReadOnlyJdbc.Dialect)}).</li>
+ *       {@code ;} 없이 이어 쓸 수 있는 서버 문장({@code WAITFOR}·{@code KILL}·{@code SHUTDOWN} 등)과 흐름·세션 문장
+ *       ({@code USE}·{@code DECLARE}·{@code WHILE}·{@code BEGIN} 등)도 실행 DB 와 관계없이 여기서 막는다(방어가 겹쳐도 Oracle 조회를 막지 않는다).
+ *       {@code SET}·{@code IF} 는 Oracle {@code SET()} 같은 함수와 겹쳐 막지 않는다.</li>
  *   <li>이름 붙은 변수({@code :name}·{@code &name}, PostgreSQL {@code ::} 캐스트 제외)는 §7.2 시스템 변수만. 단 호출자가 정의에 선언한
  *       사용자 입력 조건 이름(declaredNames, 스펙 2026-10-02-widget-admin-generic 입력 조건)은 <b>정확히 일치할 때만</b> 사용자 바인드로 통과시킨다
  *       ({@code :plant.x} 같은 덩어리 이름은 선언과 달라 걸린다). 시스템 변수 이름은 선언 여부와 관계없이 늘 시스템 변수다.
@@ -50,6 +50,11 @@ import java.util.regex.Pattern;
  * {@code U&"…"} 는 이스케이프로 이름을 숨길 수 있어 받지 않는다. 이름 목록은 <b>보조</b>일 뿐이다(확장·새 판이 문자열 SQL 을 실행하는
  * 함수를 더할 수 있다). 운영에서는 실행기에 읽기 권한만 가진 DB 계정의 DataSource({@code dmes.widget.query.datasource.*})를
  * <b>반드시</b> 붙인다({@link WidgetQueryExecutor} 운영 주의).
+ * <p>
+ * <b>Oracle 잔여 위험</b>(2026-10-07 Oracle 26ai·ojdbc11 23.9 실측): 접속 계정이 부를 수 있는 <b>이미 있는</b> PL/SQL 함수가
+ * {@code PRAGMA AUTONOMOUS_TRANSACTION} 이면 그 안의 쓰기는 읽기 전용·롤백을 벗어나 남는다. 검사는 사용자 함수를 이름으로 알 수 없다.
+ * 위젯 경로로 PL/SQL 을 <b>만들</b> 수는 없다(첫 낱말 SELECT·WITH, 문장 하나, {@code WITH FUNCTION} 거절). 그래서 운영의 읽기 전용 계정에는
+ * 자율 트랜잭션 함수 실행 권한을 주지 않는다.
  */
 public final class SqlGuard {
 
@@ -68,6 +73,8 @@ public final class SqlGuard {
     static final String MSG_FORBIDDEN_FUNCTION = "쓸 수 없는 함수가 있습니다: ";
     static final String MSG_DB_PLACEHOLDER =
             "DB 고유 자리표시자(\\:이름, @이름, $이름, $숫자)는 쓸 수 없습니다. 조건은 :이름 으로만 씁니다";
+    static final String MSG_DB_LINK = "DB 링크(이름@링크)는 쓸 수 없습니다";
+    static final String MSG_INLINE_PLSQL = "WITH 안의 PL/SQL 함수·프로시저 선언은 쓸 수 없습니다";
 
     /**
      * 식별자를 이루는 글자(Oracle 의 $·# 포함) — 낱말 경계 판단용. 거절 낱말·함수 패턴은 {@code UNICODE_CASE} 로 대소문자를 유니코드 규칙으로
@@ -80,25 +87,18 @@ public final class SqlGuard {
             Pattern.compile("^(SELECT|WITH)(?!" + WORD_CHAR + ")", Pattern.CASE_INSENSITIVE);
 
     /**
-     * 4단계 금지 낱말. 둘째 줄부터는 SQL Server 가 {@code ;} 없이 한 배치에 이어 쓸 수 있는 문장 중 읽기 전용 강제가 없는 그 DB 에서
-     * 서버 자원을 붙잡거나 서버를 바꾸는 것(대기·세션 종료·종료·DBCC·설정 반영·백업·복원·권한 거부)과, 연결을 풀에 돌려준 뒤에도 남거나
-     * 잠금을 붙잡는 T-SQL 흐름·세션 문장(DB 바꾸기·변수·반복·블록·이동·텍스트 쓰기·체크포인트·사용자 바꾸기·오류 로그)이다 —
-     * 어느 DB 의 SELECT 문법에도 쓰이지 않는다(같은 이름의 열은 큰따옴표로 감싼다, {@link #forbiddenWord}).
+     * 4단계 금지 낱말 — 실행 DB 와 관계없이 늘 적용한다. 둘째 줄부터는 {@code ;} 없이 한 배치에 이어 쓸 수 있는 서버 문장
+     * (대기·세션 종료·종료·DBCC·설정 반영·백업·복원·권한 거부)과, 연결을 풀에 돌려준 뒤에도 남거나 잠금을 붙잡는 흐름·세션 문장
+     * (DB 바꾸기·변수·반복·블록·이동·텍스트 쓰기·체크포인트·사용자 바꾸기·오류 로그)이다. 처음에는 SQL Server 때문에 넣었지만
+     * 어느 DB 의 SELECT 문법에도 쓰이지 않아 Oracle 조회를 막지 않고, 방어가 겹쳐도 해롭지 않아 그대로 둔다
+     * (같은 이름의 열은 큰따옴표로 감싼다, {@link #forbiddenWord}).
+     * {@code NEXTVAL} 은 Oracle 읽기 전용 트랜잭션에서도 시퀀스를 소모한다(2026-10-07 Oracle 26ai 실측 — 롤백해도 되돌아가지 않는다).
      */
     private static final Pattern FORBIDDEN = Pattern.compile(
             "(?<!" + WORD_CHAR + ")(INSERT|UPDATE|DELETE|MERGE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|EXECUTE|EXEC|CALL"
-                    + "|COMMIT|ROLLBACK|INTO|PRAGMA|ATTACH|DETACH"
+                    + "|COMMIT|ROLLBACK|INTO|PRAGMA|ATTACH|DETACH|NEXTVAL"
                     + "|DENY|WAITFOR|KILL|SHUTDOWN|DBCC|RECONFIGURE|BACKUP|RESTORE"
                     + "|USE|DECLARE|WHILE|BEGIN|GOTO|WRITETEXT|UPDATETEXT|READTEXT|CHECKPOINT|SETUSER|RAISERROR|REVERT)(?!" + WORD_CHAR + ")",
-            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
-
-    /**
-     * 4단계 중 실행 DB 가 SQL Server 일 때만 더 막는 낱말 — {@code SET}(세션 설정: {@code SET IMPLICIT_TRANSACTIONS OFF} 는 mssql-jdbc 가
-     * autoCommit=false 를 구현하는 방식을 꺼 뒤이은 쓰기를 자동 커밋하게 하고, {@code SET LANGUAGE}·{@code SET ANSI_WARNINGS OFF} 는 풀에
-     * 돌려준 연결에 남는다)·{@code IF}. 다른 DB 에서는 함수 이름(Oracle {@code SET()}, SQLite·MySQL {@code if()})이라 막지 않는다.
-     */
-    private static final Pattern SQLSERVER_FORBIDDEN = Pattern.compile(
-            "(?<!" + WORD_CHAR + ")(SET|IF)(?!" + WORD_CHAR + ")",
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     /**
@@ -138,6 +138,10 @@ public final class SqlGuard {
                     + "|DBMS_LOCK|DBMS_SESSION|DBMS_PIPE|DBMS_ALERT|DBMS_SCHEDULER|DBMS_JOB|DBMS_SQL|DBMS_SYS_SQL"
                     + "|DBMS_XMLGEN|DBMS_XMLQUERY|DBMS_XMLSTORE|DBMS_SQLHASH|DBMS_LDAP|DBMS_JAVA[A-Z0-9_]*|DBMS_AQ[A-Z0-9_]*"
                     + "|DBMS_AW|DBMS_CLOUD[A-Z0-9_]*|APEX_WEB_SERVICE"
+                    // Oracle — 오라클이 관리하는 스키마의 패키지·함수(정의자 권한으로 돈다 — CTXSYS.DRITHSX.SN 같은 알려진 권한 상승 경로)와
+                    // Oracle Text 패키지. SYS 는 DBMS_LOB 같은 평범한 조회를 SYS. 로 한정해 쓰므로 막지 않는다(위험 패키지는 이름으로 막는다)
+                    + "|CTXSYS|MDSYS|XDB|ORDSYS|OLAPSYS|LBACSYS|DVSYS|WMSYS|DBSNMP|OJVMSYS|AUDSYS|GSMADMIN_INTERNAL"
+                    + "|APEX_[0-9]+|FLOWS_[0-9]+|CTX_[A-Z]+"
                     // SQLite — 확장 적재·토크나이저 포인터
                     + "|LOAD_EXTENSION|FTS3_TOKENIZER"
                     // SQL Server — 외부 행 집합·확장 프로시저·서버 파일 읽기 함수
@@ -177,6 +181,31 @@ public final class SqlGuard {
     /** Spring 이 이름 붙은 변수를 {@code ?} 로 바꾼 뒤에도 남은 {@code :이름}({@code ::} 캐스트 제외). */
     private static final Pattern LEFTOVER_COLON = Pattern.compile("(?<![:\\p{L}\\p{N}_]):[\\p{L}\\p{N}_]");
 
+    /**
+     * Oracle DB 링크 {@code 이름@링크}(공백을 끼워도 같다). 원격 DB 에서 도는 질의·함수는 이 연결의 읽기 전용 트랜잭션이 막지 못한다.
+     * 앞이 이름 글자가 아닌 {@code @이름} 은 {@link #DB_PLACEHOLDER} 가, 따옴표 식별자 뒤의 {@code "T"@링크} 는 가린 사본에서 따옴표가 공백이
+     * 되어 역시 {@link #DB_PLACEHOLDER} 가 막는다. 뒤가 이름 글자가 아닌 {@code @}(PostgreSQL {@code @>}·{@code @@})는 링크가 아니다.
+     * 링크 이름을 따옴표로 감싼 {@code T@"LINK"}·{@code "T"@"LINK"} 는 가린 사본에서 {@code @} 양쪽이 공백이 되어 보이지 않으므로,
+     * 6단계처럼 식별자 글자를 드러낸 사본에서도 한 번 더 본다({@link #rejectRevealedOracle}).
+     */
+    private static final Pattern DB_LINK = Pattern.compile(WORD_CHAR + "[\\s\\p{Z}\\p{Cc}\\p{Cf}]*@[\\s\\p{Z}\\p{Cc}\\p{Cf}]*" + WORD_CHAR);
+
+    /**
+     * Oracle 12c 의 {@code WITH FUNCTION f … / WITH PROCEDURE p …} 인라인 PL/SQL 선언. 본문에 {@code ;} 가 있어 3단계(문장 하나)에서도 걸리지만,
+     * 자율 트랜잭션({@code PRAGMA AUTONOMOUS_TRANSACTION})으로 읽기 전용·롤백을 벗어날 수 있어(2026-10-07 Oracle 26ai 실측) 따로 막고 알맞은
+     * 문구를 낸다. {@code WITH function AS (…)}·{@code WITH function(a) AS (…)} 처럼 CTE 이름이 FUNCTION 인 경우는 막지 않는다.
+     */
+    private static final Pattern INLINE_PLSQL = Pattern.compile(
+            "(?<!" + WORD_CHAR + ")WITH\\s+(FUNCTION|PROCEDURE)\\s+(?!AS(?!" + WORD_CHAR + "))" + WORD_CHAR,
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+
+    /**
+     * 따옴표로 감싼 시퀀스 의사열 {@code seq."NEXTVAL"} — 가린 사본에서는 공백이라 4단계 금지 낱말을 지난다. 드러낸 사본에서 점 바로 뒤의
+     * NEXTVAL 만 본다(따옴표로 감싼 같은 이름의 열 {@code "NEXTVAL"} 을 점 없이 쓰는 것은 막지 않는다).
+     */
+    private static final Pattern QUALIFIED_NEXTVAL = Pattern.compile(
+            "\\.[\\s\\p{Z}\\p{Cc}\\p{Cf}]*NEXTVAL(?!" + WORD_CHAR + ")", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+
     /** PostgreSQL 달러 따옴표 시작($$ 또는 $tag$). */
     private static final Pattern DOLLAR_QUOTE = Pattern.compile("\\$(?:[A-Za-z_][A-Za-z0-9_]*)?\\$");
 
@@ -195,24 +224,6 @@ public final class SqlGuard {
     }
 
     private SqlGuard() {}
-
-    /**
-     * §7.1 검사 + 실행 DB 갈래에만 해당하는 규칙(지금은 SQL Server 의 {@code SET}·{@code IF}). 갈래를 모르면(null)
-     * {@link #check(String)} 와 같다. SQL Server 는 대괄호를 식별자로 읽으므로 대괄호 식별자를 가린 사본으로 본다({@code [SET]} 열은 통과).
-     */
-    public static Validated check(String sql, WidgetReadOnlyJdbc.Dialect dialect) {
-        return check(sql, dialect, Set.of());
-    }
-
-    /** {@link #check(String, WidgetReadOnlyJdbc.Dialect)} + 선언된 사용자 입력 조건 이름을 사용자 바인드로 통과시킨다. */
-    public static Validated check(String sql, WidgetReadOnlyJdbc.Dialect dialect, Set<String> declaredNames) {
-        Validated validated = checkDeclared(sql, declaredNames);
-        if (dialect == WidgetReadOnlyJdbc.Dialect.SQLSERVER) {
-            Matcher m = SQLSERVER_FORBIDDEN.matcher(mask(sql, true));
-            if (m.find()) throw invalid(forbiddenWord(m.group(1).toUpperCase(Locale.ROOT)));
-        }
-        return validated;
-    }
 
     /** §7.1 검사(어느 DB 에나 적용하는 규칙). 어기면 {@code BusinessException(INVALID_VALUE, 사람이 읽을 메시지)}. */
     public static Validated check(String sql) {
@@ -236,6 +247,9 @@ public final class SqlGuard {
         // 6. 함수 거절 목록 — 따옴표·대괄호 식별자 안 글자도 드러낸 사본(대괄호 두 해석 모두)으로 본다.
         rejectForbiddenFunction(mask(sql, false, true));
         rejectForbiddenFunction(mask(sql, true, true));
+        // 6-2. 따옴표 식별자로 가린 사본을 지나는 Oracle 경로(DB 링크 T@"LINK", seq."NEXTVAL")도 드러낸 사본으로 본다.
+        rejectRevealedOracle(mask(sql, false, true));
+        rejectRevealedOracle(mask(sql, true, true));
 
         // 가린 사본과 원문은 글자 위치가 같다 — 원문에서 그 자리의 ; 만 지운다.
         int semicolon = asExpression.semicolon();
@@ -263,6 +277,9 @@ public final class SqlGuard {
         // 2. 첫 낱말
         if (!FIRST_WORD.matcher(masked.strip()).find()) throw invalid(MSG_NOT_SELECT);
 
+        // 2-2. Oracle 인라인 PL/SQL 선언(WITH FUNCTION·PROCEDURE) — 3단계보다 먼저 알맞은 문구로 거절한다
+        if (INLINE_PLSQL.matcher(masked).find()) throw invalid(MSG_INLINE_PLSQL);
+
         // 3. 끝 ; 하나만
         int semicolon = masked.indexOf(';');
         if (semicolon >= 0) {
@@ -276,6 +293,9 @@ public final class SqlGuard {
 
         // 4-2. Spring 이 바꾸지 않는 DB 고유 자리표시자(\:이름·@이름·$이름·$숫자)
         if (ESCAPED_PLACEHOLDER.matcher(masked).find() || DB_PLACEHOLDER.matcher(masked).find()) throw invalid(MSG_DB_PLACEHOLDER);
+
+        // 4-3. Oracle DB 링크(이름@링크)
+        if (DB_LINK.matcher(masked).find()) throw invalid(MSG_DB_LINK);
 
         // 5. 시스템 변수와 선언된 사용자 입력 조건만(:name·&name) — 이름은 정확히 일치해야 한다
         Set<String> used = new LinkedHashSet<>();
@@ -302,6 +322,12 @@ public final class SqlGuard {
      */
     static String forbiddenWord(String word) {
         return MSG_FORBIDDEN + word + " — 열·표 이름이면 큰따옴표로 감싸세요(예: \"" + word + "\", 따옴표 안은 대소문자를 구분합니다)";
+    }
+
+    /** 6-2단계 — 식별자 글자를 드러낸 사본에서 DB 링크와 점으로 한정한 NEXTVAL 을 찾는다(문자열 리터럴·주석은 여전히 가려져 있다). */
+    private static void rejectRevealedOracle(String revealed) {
+        if (DB_LINK.matcher(revealed).find()) throw invalid(MSG_DB_LINK);
+        if (QUALIFIED_NEXTVAL.matcher(revealed).find()) throw invalid(MSG_FORBIDDEN + "NEXTVAL");
     }
 
     /** 6단계 — 식별자 글자를 드러낸 사본에서 거절 목록 함수를 부르는 곳(과 위험 저장 프로시저 이름)을 찾는다. */

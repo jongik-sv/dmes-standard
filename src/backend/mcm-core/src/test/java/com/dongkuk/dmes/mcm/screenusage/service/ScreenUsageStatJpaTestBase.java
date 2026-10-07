@@ -27,7 +27,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 통계 슬라이스 공통 JPA 테스트 기반 — H2 저장소는 실제, 메뉴·사용자·부서는 mock, 시계는 2026-10-03 10:00 고정.
+ * 통계 슬라이스 공통 JPA 테스트 기반 — Oracle 시험 PDB 저장소는 실제, 메뉴·사용자·부서는 mock, 시계는 2026-10-03 10:00 고정.
  * 쿼리 클래스는 하위 테스트가 {@code new} 로 만든다(ScreenUsageJpaTestConfig 는 고치지 않는다).
  * 슬라이스는 이 파일을 고치지 않는다 — 더 필요한 것이 있으면 메인에 보고한다.
  */

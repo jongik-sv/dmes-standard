@@ -23,7 +23,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>판정은 정적 플래그({@link McmAuditStatementInspector#isSqlite()})가 아니라 실제 연결의 DB 제품명으로 한다 — 운영(Oracle·
  * PostgreSQL)에서는 SQL 을 건드리지 않고, 시험처럼 JpaConfig 를 거치지 않는 조립에서도 같은 코드로 동작한다.
  * 제품명은 JDBC URL 별로 한 번만 읽는다. audit 컬럼 보강은 하지 않는다(MyBatis 쓰기는 cactus {@code CactusMybatisAuditInterceptor} 몫).
+ *
+ * @deprecated Oracle 단일화(oracle-1007). mcm 모듈 호출을 ora-mcm-app 이 없앤 뒤 ora-base b8 에서 지운다.
+ *             동작은 그대로 둔다 — 연결이 SQLite 일 때만 치환하고 Oracle 연결에서는 SQL 을 건드리지 않는다.
  */
+@Deprecated
 @Intercepts({
         @Signature(type = StatementHandler.class, method = "prepare", args = {Connection.class, Integer.class})
 })

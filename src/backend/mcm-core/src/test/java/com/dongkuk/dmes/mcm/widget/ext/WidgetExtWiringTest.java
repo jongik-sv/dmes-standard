@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.dongkuk.dmes.mcm.testdb.McmCoreOraTestDb;
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
 import com.dongkuk.dmes.mcm.widget.def.WidgetDefSavedEvent;
@@ -20,8 +21,8 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import javax.sql.DataSource;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,10 +32,8 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
-import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -42,7 +41,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 /**
  * 빈 연결 확인 — mcm 런처처럼 {@code widget.ext} 패키지를 스캔해 설정 바인딩(dmes.widget.ext.*)·생성자 선택·저장소가
- * 함께 뜨는지, OASIS 진입점이 실제 DB(H2)로 끝까지 도는지 본다. 외부 호출은 enabled=false 로 막는다(실제 네트워크 금지).
+ * 함께 뜨는지, OASIS 진입점이 실제 DB(Oracle 시험 PDB)로 끝까지 도는지 본다. 외부 호출은 enabled=false 로 막는다(실제 네트워크 금지).
  * 환율 허용 목록은 실제 정의 표(TB_MCM_WIDGET_DEF)의 exchange 정의로 판정한다.
  */
 @SpringJUnitConfig(WidgetExtWiringTest.Config.class)
@@ -63,24 +62,12 @@ class WidgetExtWiringTest {
 
         @Bean
         DataSource dataSource() {
-            DriverManagerDataSource ds = new DriverManagerDataSource();
-            ds.setDriverClassName("org.h2.Driver"); // testRuntimeOnly — 클래스 직접 참조 금지
-            ds.setUrl("jdbc:h2:mem:widgetextwiring;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS MCMAPUSER");
-            ds.setUsername("sa");
-            ds.setPassword("");
-            return ds;
+            return McmCoreOraTestDb.appDataSource("widget-ext-wiring");
         }
 
         @Bean
         LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
-            LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
-            em.setDataSource(dataSource);
-            em.setPackagesToScan("com.dongkuk.dmes.mcm.widget.ext.entity", "com.dongkuk.dmes.mcm.widget.def.entity");
-            em.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
-            Properties props = new Properties();
-            props.put("hibernate.hbm2ddl.auto", "create-drop");
-            em.setJpaProperties(props);
-            return em;
+            return McmCoreOraTestDb.entityManagerFactory(dataSource, "com.dongkuk.dmes.mcm.widget.ext.entity", "com.dongkuk.dmes.mcm.widget.def.entity");
         }
 
         @Bean
@@ -101,6 +88,13 @@ class WidgetExtWiringTest {
     @Autowired ExchangeRateWriter writer;
     @Autowired WidgetDefRepository defRepository;
     @Autowired ApplicationEventPublisher events;
+    @Autowired ExchangeRateRepository rateRepository;
+
+    @BeforeEach
+    void clean() {
+        rateRepository.deleteAllInBatch();
+        defRepository.deleteAllInBatch();
+    }
 
     @Test
     @DisplayName("dmes.widget.ext.* 가 바인딩되고 widgetExtService 가 DB 값만으로 환율·날씨를 돌려준다")

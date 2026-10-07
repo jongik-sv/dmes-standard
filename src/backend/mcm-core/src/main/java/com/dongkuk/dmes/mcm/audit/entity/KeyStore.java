@@ -1,6 +1,8 @@
 package com.dongkuk.dmes.mcm.audit.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 
@@ -17,13 +19,17 @@ public class KeyStore {
     @Column(name = "ALG", length = 20)
     private String alg;
 
-    @Column(name = "PUBLIC_KEY", columnDefinition = "TEXT")
+    // 키 본문 — LONG32VARCHAR(Oracle CLOB). columnDefinition "TEXT" 는 Oracle 에 없는 형식이다(W-D30, @Lob 금지).
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
+    @Column(name = "PUBLIC_KEY")
     private String publicKey;
 
-    @Column(name = "PRIVATE_KEY", columnDefinition = "TEXT")
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
+    @Column(name = "PRIVATE_KEY")
     private String privateKey;
 
-    @Column(name = "SECRET", columnDefinition = "TEXT")
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
+    @Column(name = "SECRET")
     private String secret;
 
     @Column(name = "ACTIVE", length = 1)

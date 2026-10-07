@@ -69,8 +69,8 @@ class CommUserMngServiceSsoTest extends CommUserMngJpaTestBase {
         assertOtherPwdColumnsKept("s3");
 
         // 기존 행 경로는 JPQL 벌크 UPDATE(SSO 컬럼만 SET)라 엔티티 리스너(McmAuditListener)가 돌지 않는다 →
-        // VER·U_AT·U_USR_ID 가 그대로다. 운영(MSSQL)과 같은 조건이다. 로컬 SQLite 는 mcm JpaConfig 가
-        // McmAuditStatementInspector 를 걸어 UPDATE 에 감사 컬럼을 덧붙이므로 거기서는 VER 가 오른다(H2 시험 구성에는 없다).
+        // VER·U_AT·U_USR_ID 가 그대로다. McmAuditStatementInspector 를 걸면 UPDATE 에 감사 컬럼이 덧붙어 VER 가 오르는데,
+        // 이 시험 구성은 계수기만 걸고 감사 보강은 걸지 않는다.
         // 일괄 처리를 saveAll 등 엔티티 저장으로 바꾸면 VER 가 오르고 U_AT 가 바뀌어 여기서 걸린다 —
         // 그 변화를 받아들일지는 그때 판단하고 이 단언을 고친다.
         assertThat(s1.getVersion()).isEqualTo(s1Before.getVersion());

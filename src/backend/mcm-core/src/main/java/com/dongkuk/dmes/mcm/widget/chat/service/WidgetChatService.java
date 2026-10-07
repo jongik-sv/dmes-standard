@@ -66,8 +66,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * </ul>
  * <b>트랜잭션</b>: OASIS({@code cactus.oasis.transactional: true})는 서비스 시작 때 txBiz 를 열고 예외면 통째로 롤백한다.
  * send·reset 은 그 바깥 트랜잭션을 {@code NOT_SUPPORTED} 로 잠시 내려놓고 돈다 — 그래서 ① 공급자가 실패해 바깥이 롤백돼도
- * 사용자 메시지는 남고(스펙 §9.2), ② LLM 을 기다리는 동안 DB 트랜잭션·잠금을 잡지 않는다(로컬 SQLite 는 바깥이 한 번 읽기만 해도
- * 다른 연결의 커밋이 SQLITE_BUSY 로 막힌다). 쓰기는 {@link WidgetChatWriter} 가 한 건씩 자기 트랜잭션으로 커밋한다.
+ * 사용자 메시지는 남고(스펙 §9.2), ② LLM 을 기다리는 동안 DB 트랜잭션·연결·잠금을 잡지 않는다. 쓰기는 {@link WidgetChatWriter} 가 한 건씩 자기 트랜잭션으로 커밋한다.
  * 이 클래스에는 {@code @Transactional} 을 붙이지 않는다(BackEnd 표준 §6-B-1) — 경계는 프로그램으로({@link TransactionTemplate}) 잡는다.
  */
 @Service("widgetChatService")

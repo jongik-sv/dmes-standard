@@ -19,11 +19,11 @@ import java.util.List;
  * {@code TB_MCM_NOTICE} JPA Repository (noticeMgmt 화면 owner).
  *
  * <p>기능설계서 §3 조회조건 S-001~S-006 과 홈 공지 목록(noticeBoard)을 JPQL 로 처리한다.
- * 방언 독립을 위해 native query 를 쓰지 않는다 — local 은 SQLite, 운영 방언은 고객사가 정한다.
+ * native query 는 쓰지 않는다. 다만 아래 null-guard 는 Oracle 의 빈 문자열 = NULL 동작에 기댄다(대상 DB 는 Oracle).
  *
- * <p><b>null-guard 관용구</b>: {@code (:p IS NULL OR :p = '' OR ...)} 는 mcm
- * {@code SecRoleRepository.searchByFilter} 가 쓰는 정본 패턴이다. FE 가 미입력 조건을 빈 문자열로
- * 보내오므로 {@code IS NULL} 만으로는 부족하다.
+ * <p><b>null-guard 관용구</b>: {@code (:p IS NULL OR ...)}. FE 는 미입력 조건을 빈 문자열로 보내오는데, Oracle 은 빈 문자열
+ * 바인드를 NULL 로 다루므로 {@code IS NULL} 하나로 미입력(null·빈 문자열)을 함께 거른다(2026-10-07 oracle-1007 — 옛
+ * {@code OR :p = ''} 는 Oracle 에서 늘 거짓이라 뺐다).
  */
 public interface NoticeRepository extends JpaRepository<Notice, String> {
 
@@ -39,13 +39,13 @@ public interface NoticeRepository extends JpaRepository<Notice, String> {
      */
     @Query("""
             SELECT n FROM Notice n
-            WHERE (:pTitle IS NULL OR :pTitle = ''
+            WHERE (:pTitle IS NULL
                    OR UPPER(n.title) LIKE UPPER(CONCAT('%', :pTitle, '%')))
-              AND (:pStatus IS NULL OR :pStatus = '' OR n.noticeStatus = :pStatus)
+              AND (:pStatus IS NULL OR n.noticeStatus = :pStatus)
               AND (:pFromDt IS NULL OR n.postEndDt IS NULL OR n.postEndDt >= :pFromDt)
               AND (:pToDt IS NULL OR n.postStartDt IS NULL OR n.postStartDt <= :pToDt)
-              AND (:pCategory IS NULL OR :pCategory = '' OR n.noticeCategory = :pCategory)
-              AND (:pFormat IS NULL OR :pFormat = '' OR n.contentFormat = :pFormat)
+              AND (:pCategory IS NULL OR n.noticeCategory = :pCategory)
+              AND (:pFormat IS NULL OR n.contentFormat = :pFormat)
             ORDER BY n.noticeId DESC
             """)
     List<Notice> searchByFilter(@Param("pTitle") String pTitle,
@@ -72,13 +72,13 @@ public interface NoticeRepository extends JpaRepository<Notice, String> {
             SELECT n.noticeId, n.title, n.noticeStatus, n.contentFormat, n.noticeCategory, n.pinYn, n.targetScope,
                    n.postStartDt, n.postEndDt, n.createdBy, n.createdAt
             FROM Notice n
-            WHERE (:pTitle IS NULL OR :pTitle = ''
+            WHERE (:pTitle IS NULL
                    OR UPPER(n.title) LIKE UPPER(CONCAT('%', :pTitle, '%')))
-              AND (:pStatus IS NULL OR :pStatus = '' OR n.noticeStatus = :pStatus)
+              AND (:pStatus IS NULL OR n.noticeStatus = :pStatus)
               AND (:pFromDt IS NULL OR n.postEndDt IS NULL OR n.postEndDt >= :pFromDt)
               AND (:pToDt IS NULL OR n.postStartDt IS NULL OR n.postStartDt <= :pToDt)
-              AND (:pCategory IS NULL OR :pCategory = '' OR n.noticeCategory = :pCategory)
-              AND (:pFormat IS NULL OR :pFormat = '' OR n.contentFormat = :pFormat)
+              AND (:pCategory IS NULL OR n.noticeCategory = :pCategory)
+              AND (:pFormat IS NULL OR n.contentFormat = :pFormat)
             ORDER BY n.noticeId DESC
             """)
     List<Object[]> searchSummaryByFilter(@Param("pTitle") String pTitle,
@@ -107,8 +107,8 @@ public interface NoticeRepository extends JpaRepository<Notice, String> {
      * 고정해서 넘긴다 — 모든 로그인 사용자가 부르는 경로라 요청 값으로 조회 범위를 넓힐 수 없어야 한다.
      *
      * <p>정렬: 상단 고정(PIN_YN='Y') → 긴급(URGENT) → 등록 시각 최신 → 공지번호 역순. 등록 시각이 NULL 인 행
-     * (V2 시드처럼 C_AT 없이 넣은 행)은 맨 뒤로 보낸다 — DESC 정렬에서 NULL 의 위치가 SQLite 와 Oracle·PostgreSQL 이
-     * 서로 달라서 CASE 로 고정한다. 같은 이유로 {@code NULLS LAST} 대신 CASE 를 쓴다.
+     * (V2 시드처럼 C_AT 없이 넣은 행)은 맨 뒤로 보낸다 — DESC 정렬에서 NULL 의 위치가 DB 마다 달라서(Oracle·PostgreSQL 은
+     * DESC 에서 NULL 이 앞) CASE 로 고정한다. 같은 이유로 {@code NULLS LAST} 대신 CASE 를 쓴다.
      */
     @Query("""
             SELECT n FROM Notice n
@@ -180,7 +180,7 @@ public interface NoticeRepository extends JpaRepository<Notice, String> {
      *
      * <p>{@code MAX()} 집계 대신 {@code ORDER BY DESC} + {@link Limit} 을 쓰는 이유는
      * {@code SecRoleRepository.findRoleGroupIdsByRoleId} 와 동일하다 — Hibernate 가 방언별
-     * {@code TOP} / {@code LIMIT} 을 생성해 주므로 SQLite·MSSQL 양쪽에서 그대로 동작한다.
+     * 행 수 제한({@code FETCH FIRST} 등)을 생성해 주므로 방언과 무관하게 그대로 동작한다.
      */
     @Query("SELECT n.noticeId FROM Notice n WHERE n.noticeId LIKE CONCAT(:prefix, '%') ORDER BY n.noticeId DESC")
     List<String> findNoticeIdsByPrefix(@Param("prefix") String prefix, Limit limit);
