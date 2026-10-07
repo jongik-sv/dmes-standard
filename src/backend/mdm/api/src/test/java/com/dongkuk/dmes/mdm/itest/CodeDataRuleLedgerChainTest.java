@@ -67,7 +67,7 @@ class CodeDataRuleLedgerChainTest {
     static final String CLIENT_KEY = "mdm-itest-chain-client-key";
     private static final String STEWARD = "MDM_STEWARD";
     private static final String STD_ADMIN = "MDM_STD_ADMIN";
-    private static final DateTimeFormatter SQLITE_TEXT = DateTimeFormatter.ofPattern(MdmTemporalBinder.SQLITE_TEXT_PATTERN);
+    private static final DateTimeFormatter SQLITE_TEXT = DateTimeFormatter.ofPattern(MdmTemporalBinder.TEXT_PATTERN);
 
     @TempDir
     static Path tempDir;

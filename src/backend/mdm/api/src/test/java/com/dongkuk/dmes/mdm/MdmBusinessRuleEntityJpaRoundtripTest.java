@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.dongkuk.dmes.mdm.common.support.MdmSqliteLocalDateTimeConverter;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.version.VersionKind;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
@@ -30,7 +29,6 @@ import com.dongkuk.dmes.mdm.repository.MdmRuleSetVerRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleTestCaseRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleVarRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleVerRepository;
-import jakarta.persistence.Converter;
 import jakarta.persistence.EntityManager;
 import java.io.IOException;
 import java.io.InputStream;
@@ -434,15 +432,11 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
         assertFalse(managedTableNames.contains("TB_MDM_RULE_RECV"), "D1 — TB_MDM_RULE_RECV 는 엔티티를 붙이지 않는다");
     }
 
-    // ── §3.4-7: 컨버터가 SQLite 밖으로 새지 않는다(D5, 정적 검사) ──
+    // ── §3.4-7: SQLite 일시 컨버터·contributor 가 남아 있지 않다(Oracle 전용 전환, D5) ──
 
     @Test
-    void SQLite_일시_컨버터는_local_프로파일에만_등록되고_Converter_어노테이션이_없다() {
-        assertFalse(MdmSqliteLocalDateTimeConverter.class.isAnnotationPresent(Converter.class),
-                "@Converter 가 붙으면 엔티티 스캔이 SQLite 가 아닌 DB 에도 적용한다");
-        assertTrue(classpathText("application-local.yml").contains("metadata_builder_contributor"),
-                "local 프로파일에는 contributor 가 있어야 한다");
-        for (String yml : new String[] {"application.yml", "application-wildfly.yml"}) {
+    void SQLite_일시_contributor_는_어느_프로파일에도_등록되지_않는다() {
+        for (String yml : new String[] {"application.yml", "application-local.yml", "application-wildfly.yml"}) {
             assertFalse(classpathText(yml).contains("metadata_builder_contributor"), yml + " 에 SQLite contributor 가 있다");
         }
     }

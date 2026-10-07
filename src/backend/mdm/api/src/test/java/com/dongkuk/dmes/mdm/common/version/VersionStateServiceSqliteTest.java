@@ -3,15 +3,12 @@ package com.dongkuk.dmes.mdm.common.version;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.dongkuk.dmes.mdm.contract.common.MdmDialect;
-import com.dongkuk.dmes.mdm.contract.common.MdmDialectResolver;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import java.nio.file.Path;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -34,9 +31,6 @@ class VersionStateServiceSqliteTest extends AbstractVersionStateScenarioTest {
 
     @TempDir
     static Path tempDir;
-
-    @Autowired
-    MdmDialectResolver dialectResolver;
 
     @DynamicPropertySource
     static void overrideDatasource(DynamicPropertyRegistry registry) {
@@ -61,11 +55,6 @@ class VersionStateServiceSqliteTest extends AbstractVersionStateScenarioTest {
     @Override
     protected void clearTables(JdbcTemplate jdbc) {
         VersionFixtureTables.clear(jdbc);
-    }
-
-    @Test
-    void A1_local_프로파일의_방언은_SQLITE_다() {
-        assertEquals(MdmDialect.SQLITE, dialectResolver.current());
     }
 
     @Test
