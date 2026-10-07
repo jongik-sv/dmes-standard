@@ -6,7 +6,8 @@
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findPython, runCommand } from '../../_shared/node/proc.mjs';
+import { findPython } from '../../_shared/node/proc.mjs';
+import { runCommand } from './_run.mjs';
 import { writeText } from '../../_shared/node/io.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));

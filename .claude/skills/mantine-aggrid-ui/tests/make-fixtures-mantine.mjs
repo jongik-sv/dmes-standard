@@ -9,7 +9,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findPython, makeTempDir, runCommand } from '../../_shared/node/proc.mjs';
+import { findPython, makeTempDir } from '../../_shared/node/proc.mjs';
+import { runCommand } from './_run.mjs';
 import { splitlinesPy } from '../../_shared/node/pytext.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));

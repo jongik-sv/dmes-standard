@@ -18,6 +18,7 @@
 //  - 줄끝: 읽을 때 CRLF·CR 을 LF 로 바꾸고(python universal newlines) 쓸 때는 항상 LF 다(윈도우 python 은 CRLF 로 썼다).
 //    CRLF 로 체크아웃된 llms*.txt 도 coverage 의 「생성물 낡음」 비교를 통과한다.
 //  - 사용 오류(argparse): 종료 코드 2 는 같지만 stderr 문구는 공용 헬퍼(_shared/node/args.mjs)의 한국어 `사용: …`·`오류: …` 이다.
+//    -h/--help 는 종료 코드 0 이고 머리말의 사용 예 블록(node 호출 형태)을 보여 준다.
 //  - `\b{이름}\b` 검색(find_doc·coverage)은 python 처럼 한글을 단어 문자로 본다(JS 의 ASCII `\b` 를 쓰지 않는다).
 //  - check-examples: tsc 는 `node_modules/.bin/tsc`(윈도우에서는 tsc.cmd 라 직접 실행이 안 된다) 대신 `process.execPath` 로
 //    `m-mqc/node_modules/typescript/bin/tsc` 를 부른다. 그래서 「tsc 없음: …」 문구의 경로가 `…/node_modules/typescript/bin/tsc` 로 바뀐다
@@ -356,9 +357,22 @@ export function cmd_check_examples() {
   return rc;
 }
 
+// -h/--help 에 보이는 설명. python 판은 머리말(docstring)을 그대로 보여 줬다(RawDescriptionHelpFormatter) — 사용 예는 node 호출 형태로 옮겼다.
+const DESCRIPTION = `DMES 공통 UI 컴포넌트 문서(references/components) 조회·생성·점검 도구.
+
+PrimeReact 의 llms.txt / llms-full.txt 방식을 따른다.
+  - components/llms.txt      : 컴포넌트 1개 = 한 줄(링크 + 용도). \`index --write\` 가 생성한다.
+  - components/llms-full.txt : 모든 컴포넌트 문서 합본. \`full --write\` 가 생성한다.
+  - components/<name>.md     : 컴포넌트별 사용 문서(사람이 쓴다).
+
+  node ui_docs.mjs index                 # 색인 출력 (--write 로 llms.txt 갱신)
+  node ui_docs.mjs get <이름>            # 컴포넌트 문서 출력 (파일명·제목·export 이름 모두 가능)
+  node ui_docs.mjs full [--write]        # 합본 출력 / llms-full.txt 갱신
+  node ui_docs.mjs coverage              # shared export 중 문서·제외 목록 어디에도 없는 것 + 생성물 최신 여부
+  node ui_docs.mjs check-examples        # references/examples 를 m-mqc 설정으로 tsc + audit`;
 const SPEC = {
   prog: 'ui_docs.mjs',
-  description: 'DMES 공통 UI 컴포넌트 문서(references/components) 조회·생성·점검 도구.',
+  description: DESCRIPTION,
   commands: {
     index: { options: { write: { type: 'boolean' } } },
     get: { positionals: [{ name: 'name' }] },

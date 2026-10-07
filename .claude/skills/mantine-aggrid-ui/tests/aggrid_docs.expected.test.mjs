@@ -9,6 +9,7 @@ import {
   makeSandbox, buildTrees, buildVariant, VARIANT_EXCEPTIONS, startServer, snapshotAll, EXPECTED_FILE, CASES, USAGE_CASES,
 } from './_aggrid_harness.mjs';
 import { readJson } from '../../_shared/node/io.mjs';
+import { normSep } from './_norm.mjs';
 
 const expected = readJson(EXPECTED_FILE);
 let sb;
@@ -30,13 +31,13 @@ for (const c of CASES) {
   test(`expected CLI: ${c.id}`, () => {
     const exp = expected.cases[c.id];
     assert.ok(exp, `기대값에 케이스가 없음: ${c.id} (make-aggrid-expected.mjs --write 로 다시 생성)`);
-    assert.deepEqual(got.cases[c.id], exp);
+    assert.deepEqual(got.cases[c.id], normSep(exp)); // 윈도우에서는 양쪽의 `\` 를 `/` 로 맞춘다(_norm.mjs)
   });
 }
 
 for (const c of USAGE_CASES) {
   test(`expected 사용 오류: ${c.id}`, () => {
-    assert.deepEqual(got.usage[c.id], expected.usage[c.id]);
+    assert.deepEqual(got.usage[c.id], normSep(expected.usage[c.id]));
   });
 }
 

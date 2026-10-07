@@ -5,7 +5,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { findPython, makeTempDir, runCommand } from '../../_shared/node/proc.mjs';
+import { findPython, makeTempDir } from '../../_shared/node/proc.mjs';
+import { runCommand } from './_run.mjs';
 import { writeJson } from '../../_shared/node/io.mjs';
 import { CASES, EXPECTED_FILE, pythonData, runCase } from './_ui_golden.mjs';
 

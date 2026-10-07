@@ -13,7 +13,7 @@ import {
   CASES, USAGE_CASES, snapshotCalls, snapshotPyre, snapshotFuzz, prepareFuzz, UNESCAPE_INPUTS, CODE_INPUTS, htmlInputs, pyreTexts,
   REPO_FRONTEND, SCRIPT, DRIVER, PY_ENV, normalizePyOutput, canonAudit,
 } from './_aggrid_harness.mjs';
-import { runCommand, runNode } from '../../_shared/node/proc.mjs';
+import { runCommand, runNode } from './_run.mjs';
 
 const py = pythonOrNull();
 const skip = py ? false : 'python3 를 찾지 못해 골든 비교를 건너뜀';

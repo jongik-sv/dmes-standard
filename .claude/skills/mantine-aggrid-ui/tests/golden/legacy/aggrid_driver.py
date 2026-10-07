@@ -5,7 +5,8 @@ legacy 스크립트(원래 이름 aggrid_docs.py)를 시험이 임시 폴더에 
 환경 변수 AGGRID_DOCS_SITE·AGGRID_DOCS_AGDEV_RAW 가 있을 때 SITE·AGDEV_RAW 를 바꾸고(로컬 가짜 서버용) 아래 모드로 돈다.
 
   aggrid_driver.py <legacy 폴더> cli <인자...>   원래 CLI 와 같게 main() 을 돌린다(prog 이름은 aggrid_docs.py)
-  aggrid_driver.py <legacy 폴더> call            stdin 의 JSON [[함수이름, [인자...]], ...] 를 불러 결과를 JSON 으로 stdout 에 쓴다
+  aggrid_driver.py <legacy 폴더> call <JSON 파일>  그 파일의 JSON [[함수이름, [인자...]], ...] 를 불러 결과를 JSON 으로 stdout 에 쓴다
+                                                   (파일 경로를 생략하면 stdin 에서 읽는다 — 큰 입력을 stdin 으로 넘기면 간헐적으로 교착해 시험은 파일을 쓴다)
 """
 import importlib.util
 import json
@@ -40,7 +41,11 @@ if mode == "cli":
 elif mode == "call":
     import html
 
-    calls = json.load(sys.stdin)
+    if len(sys.argv) > 3:
+        with open(sys.argv[3], encoding="utf-8") as fh:
+            calls = json.load(fh)
+    else:
+        calls = json.load(sys.stdin)
     results = []
     for name, args in calls:
         fn = html.unescape if name == "html.unescape" else getattr(mod, name)

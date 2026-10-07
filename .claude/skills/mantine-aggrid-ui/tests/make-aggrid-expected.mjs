@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { writeJson } from '../../_shared/node/io.mjs';
-import { runCommand } from '../../_shared/node/proc.mjs';
+import { runCommand } from './_run.mjs';
 import {
   makeSandbox, buildTrees, buildVariant, VARIANT_EXCEPTIONS, startServer, pythonOrNull, snapshotAll, EXPECTED_FILE,
 } from './_aggrid_harness.mjs';

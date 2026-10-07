@@ -51,6 +51,11 @@
       "stdout": "[FAQ] How to align input with a button in a flex container? q-align-input-button                     Learn how to align Mantine inputs with buttons using Group component\n[FAQ] Is there a floating action button component? q-floating-action-button                 No, but you can build it with Affix and ActionIcon components\n[FAQ] My buttons are transparent and the background is visible only on hover, what is wrong? q-transparent-buttons                    You have installed a third-party library that overrides Mantine styles\n[FAQ] Why does FileButton not work in Menu? q-file-button-in-menu                    Learn how to use FileButton in Menu component\n[Core] ActionIcon                   core-action-icon                         Icon button\n[Core] Burger                       core-burger                              Open/close navigation button\n[Core] Button                       core-button                              Button component to render button or link\n[Core] CloseButton                  core-close-button                        Button with close icon\n[Core] ComboboxPopover              core-combobox-popover                    Add combobox dropdown to any button element\n[Core] CopyButton                   core-copy-button                         Copies given text to clipboard\n",
       "stderr": ""
     },
+    "search-limit-negative-space": {
+      "status": 0,
+      "stdout": "[FAQ] How to align input with a button in a flex container? q-align-input-button                     Learn how to align Mantine inputs with buttons using Group component\n[FAQ] Is there a floating action button component? q-floating-action-button                 No, but you can build it with Affix and ActionIcon components\n[FAQ] My buttons are transparent and the background is visible only on hover, what is wrong? q-transparent-buttons                    You have installed a third-party library that overrides Mantine styles\n[FAQ] Why does FileButton not work in Menu? q-file-button-in-menu                    Learn how to use FileButton in Menu component\n[Core] ActionIcon                   core-action-icon                         Icon button\n[Core] Burger                       core-burger                              Open/close navigation button\n[Core] Button                       core-button                              Button component to render button or link\n[Core] CloseButton                  core-close-button                        Button with close icon\n[Core] ComboboxPopover              core-combobox-popover                    Add combobox dropdown to any button element\n[Core] CopyButton                   core-copy-button                         Copies given text to clipboard\n",
+      "stderr": ""
+    },
     "search-section": {
       "status": 0,
       "stdout": "[Core] ActionIcon                   core-action-icon                         Icon button\n[Core] Burger                       core-burger                              Open/close navigation button\n[Core] Button                       core-button                              Button component to render button or link\n[Core] CloseButton                  core-close-button                        Button with close icon\n[Core] ComboboxPopover              core-combobox-popover                    Add combobox dropdown to any button element\n[Core] CopyButton                   core-copy-button                         Copies given text to clipboard\n[Core] FileButton                   core-file-button                         Open file picker with a button click\n[Core] Toggle                       core-toggle                              A toggleable button with active/inactive states\n[Core] UnstyledButton               core-unstyled-button                     Unstyled polymorphic button\n",
@@ -239,6 +244,21 @@
     "grep-attached-c": {
       "status": 0,
       "stdout": "--- L1578\n\nfunction Demo() {\n  const [expanded, { toggle }] = useDisclosure(false);\n\n  return (\n--- L1586\n      </Group>\n\n      <Collapse expanded={expanded}>\n        <Text>{/* ... content */}</Text>\n      </Collapse>\n... 2건에서 중단 (--limit 로 조정)\n",
+      "stderr": ""
+    },
+    "grep-context-negative": {
+      "status": 0,
+      "stdout": "--- L1578\n\n--- L1586\n\n... 2건에서 중단 (--limit 로 조정)\n",
+      "stderr": ""
+    },
+    "grep-limit-negative": {
+      "status": 0,
+      "stdout": "--- L1578\n  const [expanded, { toggle }] = useDisclosure(false);\n... -2건에서 중단 (--limit 로 조정)\n",
+      "stderr": ""
+    },
+    "grep-both-negative": {
+      "status": 0,
+      "stdout": "--- L1578\n\n... -2건에서 중단 (--limit 로 조정)\n",
       "stderr": ""
     },
     "grep-heading": {

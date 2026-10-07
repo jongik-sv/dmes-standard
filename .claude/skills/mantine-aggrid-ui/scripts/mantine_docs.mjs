@@ -18,13 +18,18 @@
 //    파일 이름 규칙·TTL(7일, mtime 기준)은 같아서 두 판이 캐시를 공유한다. HTTP 오류·네트워크 오류 문구는 `HTTP Error 404: Not Found`·
 //    `<urlopen error …>` 모양으로 맞췄지만 세부 원인 문구(DNS 오류 번호 등)는 다를 수 있다. node 18 의 fetch ExperimentalWarning 은 억제한다.
 //  - 사용 오류(argparse): 종료 코드 2 는 같지만 stderr 문구는 공용 헬퍼(_shared/node/args.mjs)의 한국어 `사용: …`·`오류: …` 이다.
-//    긴 옵션 약어(`--sec`)·`--`/`-C -1` 같은 음수 값은 받지 않는다. `--C`(긴 형태)는 python 에 없지만 여기서는 받는다.
+//    긴 옵션 약어(`--sec`)와 `--` 는 받지 않는다. `--limit -3`·`-C -1` 같은 옵션 값 자리의 음수는 python 처럼 받는다(glue_negative_numbers).
+//    위치 인자 자리의 음수(`search -3`)는 받지 않는다. `--C`(긴 형태)는 python 에 없지만 여기서는 받는다.
+//    -h/--help 는 종료 코드 0 이고, 머리말의 사용 예 블록(node 호출 형태)을 보여 준다(문구 나머지는 공용 헬퍼 형식).
 //  - grep 의 정규식은 python re 문법을 JS 로 옮겨 쓴다(_shared pyRe + 이 파일의 pyReU: \s·\b·\w 는 python 처럼 유니코드 기준).
 //    정규식이 잘못되었거나 옮길 수 없는 구문이면 python 은 Traceback(종료 1)이고 여기서는 한 줄 오류 + 종료 1 이다.
 //  - audit: 파일 열거 순서는 python rglob(파일시스템 순서)이 아니라 경로 성분별 코드포인트 순으로 고정한다(결과 집합은 같다.
 //    골든 비교는 파일 단위로 묶어 정렬해 맞춘다). 깨진 UTF-8 은 python errors="ignore" 처럼 해당 바이트를 버린다.
 //  - 캐시 파일은 python read_text 처럼 CRLF·CR 을 LF 로 읽고 BOM 은 지우지 않는다. 쓸 때는 받은 내용 그대로(LF 고정) 쓴다.
 //  - `refresh` 는 python shutil.rmtree(ignore_errors) 처럼 폴더가 아닌 것·심볼릭 링크는 지우지 않는다.
+//  - 환경 변수 MANTINE_LLMS_CACHE 가 빈 문자열이면 설정하지 않은 것으로 본다(python 은 Path("") = "." 이라 `refresh` 가 현재 폴더 안을 지운다).
+//  - 시험 전용 통로: 환경 변수 MANTINE_LLMS_BASE(기본 https://mantine.dev; 인덱스·llms-full·인덱스가 적은 페이지 URL 의 기준)·
+//    MANTINE_OFFICIAL_RAW(공식 스킬 raw 주소)가 있으면 기준 URL 을 바꾼다(로컬 가짜 서버·닫힌 포트용, 평소에는 설정하지 않는다).
 //  - 시험 전용 통로: export 한 `hooks`(get·out·err 교체)·`main(argv)`·`fetch_text()`·`http_get()`(실제 fetch 한 번). 명령줄 사용에는 영향이 없다.
 
 import fs from 'node:fs';
@@ -35,10 +40,14 @@ import { parseCli, finish, OK, VIOLATION } from '../../_shared/node/args.mjs';
 import { walkSorted } from '../../_shared/node/paths.mjs';
 import { compareCodePoint, pyRe, splitlinesPy } from '../../_shared/node/pytext.mjs';
 
-const BASE = 'https://mantine.dev';
+const SITE_BASE = 'https://mantine.dev';
+// 시험 전용 통로: 환경 변수 MANTINE_LLMS_BASE·MANTINE_OFFICIAL_RAW 가 있으면 기준 URL 을 바꾼다(빈 값은 설정 안 한 것).
+// 인덱스가 적어 둔 페이지 URL(https://mantine.dev/…)도 같은 기준으로 바꿔, 캐시에 없는 페이지가 실제 인터넷으로 나가지 않게 한다.
+const BASE = process.env.MANTINE_LLMS_BASE || SITE_BASE;
 const INDEX_URL = `${BASE}/llms.txt`;
 const FULL_URL = `${BASE}/llms-full.txt`;
-const OFFICIAL_RAW = 'https://raw.githubusercontent.com/mantinedev/skills/HEAD/skills';
+const OFFICIAL_RAW = process.env.MANTINE_OFFICIAL_RAW || 'https://raw.githubusercontent.com/mantinedev/skills/HEAD/skills';
+const rebase = (url) => (BASE !== SITE_BASE && url.startsWith(SITE_BASE) ? BASE + url.slice(SITE_BASE.length) : url);
 const TTL_SECONDS = 7 * 24 * 3600;
 const USER_AGENT = 'mantine-ui-skill';
 
@@ -245,7 +254,7 @@ export async function fetch_text(url, dest, ttl = TTL_SECONDS) {
 
 function cacheDir() {
   const env = process.env.MANTINE_LLMS_CACHE;
-  return env !== undefined ? pyPathStr(env) : path.join(os.homedir(), '.cache', 'mantine-llms');
+  return env ? pyPathStr(env) : path.join(os.homedir(), '.cache', 'mantine-llms');
 }
 
 // ---------------------------------------------------------------------------
@@ -374,7 +383,7 @@ const HEADING = new RegExp(`^(#{1,6})[${PY_WS}]+(.*)`);
 
 export async function cmd_get(args) {
   const row = await resolve(args.name);
-  const text = await fetch_text(row.url, path.join(cacheDir(), 'pages', `${row.slug}.md`));
+  const text = await fetch_text(rebase(row.url), path.join(cacheDir(), 'pages', `${row.slug}.md`));
   if (!args.section) {
     print(text);
     return OK;
@@ -621,7 +630,19 @@ export function cmd_refresh() {
 // 진입점
 // ---------------------------------------------------------------------------
 
-const DESCRIPTION = 'Mantine 9 LLM 문서 조회 + v9 사용법 점검 도구.';
+// -h/--help 에 보이는 설명. python 판은 머리말(docstring)을 그대로 보여 줬다(RawDescriptionHelpFormatter) — 사용 예는 node 호출 형태로 옮겼다.
+const DESCRIPTION = `Mantine 9 LLM 문서 조회 + v9 사용법 점검 도구.
+
+mantine.dev 가 배포하는 llms.txt(인덱스) · 페이지별 .md · llms-full.txt 를
+~/.cache/mantine-llms/ 에 캐시해 두고 필요한 부분만 꺼내 본다.
+
+  node mantine_docs.mjs version                  # 설치된 @mantine/* 버전
+  node mantine_docs.mjs search <단어...>          # 인덱스에서 페이지 찾기
+  node mantine_docs.mjs get <이름|slug> [--section Props]
+  node mantine_docs.mjs grep <정규식> [-C 3]      # llms-full.txt 전문 검색
+  node mantine_docs.mjs official <combobox|form|custom-components> [skill|api|patterns]
+  node mantine_docs.mjs audit <경로...>           # v8 이하 API·금지 패턴 점검
+  node mantine_docs.mjs refresh                  # 캐시 비우기`;
 const SPEC = {
   prog: 'mantine_docs.mjs',
   description: DESCRIPTION,
@@ -647,9 +668,31 @@ const SPEC = {
   },
 };
 
+/**
+ * argparse 는 `--limit -3`·`-C -1` 의 -3·-1 을 값으로 받는다(음수 모양 인자). util.parseArgs 는 못 받으니
+ * `--limit=-3`·`-C-1` 처럼 붙여 준다. (위치 인자 자리의 음수 `search -3` 은 받지 않는다.)
+ */
+export function glue_negative_numbers(argv) {
+  const res = [];
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    const next = argv[i + 1] ?? '';
+    if (/^-\d+$/.test(next) && (a === '--limit' || a === '--C')) {
+      res.push(`${a}=${next}`);
+      i++;
+    } else if (/^-\d+$/.test(next) && a === '-C') {
+      res.push(`-C${next}`);
+      i++;
+    } else {
+      res.push(a);
+    }
+  }
+  return res;
+}
+
 /** 명령줄 인자(= process.argv.slice(2))를 처리하고 종료 코드를 돌려준다. */
 export async function main(argv) {
-  const cli = parseCli(argv, SPEC);
+  const cli = parseCli(glue_negative_numbers(argv), SPEC);
   if (!cli) return process.exitCode ?? OK;
   const args = { ...cli.values, ...cli.positionals };
   try {

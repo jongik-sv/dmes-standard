@@ -9,8 +9,11 @@ import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { findPython, makeTempDir } from '../../_shared/node/proc.mjs';
 import { readJson } from '../../_shared/node/io.mjs';
+import { normSep } from './_norm.mjs';
+import { runNode } from './_run.mjs';
 import * as U from '../scripts/ui_docs.mjs';
 import {
   CASES, REAL_CASES, EXPECTED_FILE, runCase, pythonData, nodeData,
@@ -48,7 +51,7 @@ for (const c of CASES) {
     const exp = expected.cases[c.id];
     assert.ok(exp, `expected 에 케이스가 없음: ${c.id} (make-expected-ui.mjs --write 로 다시 생성)`);
     const nd = runCase(base, c, 'node');
-    assert.deepEqual(nd, exp, diffMsg(exp, nd));
+    assert.deepEqual(nd, normSep(exp), diffMsg(exp, nd));
   });
 }
 
@@ -110,4 +113,17 @@ test('copy_tree: 하위 폴더·빈 폴더·한글 이름·심볼릭 링크 대�
     assert.equal(fs.readFileSync(path.join(dst, 'link.txt'), 'utf8'), 'top');
   }
   assert.throws(() => U.copy_tree(src, dst), /EEXIST/); // python copytree 처럼 대상이 이미 있으면 실패
+});
+
+test('-h/--help 는 종료 코드 0 이고 머리말의 사용 예 블록(node 호출 형태)을 보여 준다', () => {
+  const script = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'scripts', 'ui_docs.mjs');
+  for (const args of [['-h'], ['get', '--help']]) {
+    const r = runNode(script, args);
+    assert.equal(r.status, 0, args.join(' '));
+    assert.match(r.stdout, /^사용: ui_docs\.mjs/);
+    assert.match(r.stdout, /node ui_docs\.mjs coverage +# shared export 중 문서·제외 목록 어디에도 없는 것/);
+    assert.match(r.stdout, /node ui_docs\.mjs check-examples +# references\/examples 를 m-mqc 설정으로 tsc \+ audit/);
+    assert.ok(!/python|\.py\b/.test(r.stdout));
+    assert.equal(r.stderr, '');
+  }
 });

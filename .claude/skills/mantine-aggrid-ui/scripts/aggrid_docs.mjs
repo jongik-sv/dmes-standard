@@ -20,7 +20,7 @@
 // ── python 판과 달라진 점 ──────────────────────────────────────────────────────────────────────
 //  1. 호출 표기: `python3 aggrid_docs.py …` → `node aggrid_docs.mjs …`, 안내 문구 속 `aggrid_docs.py` → `aggrid_docs.mjs`.
 //  2. 인자 해석은 `_shared/node/args.mjs`(argparse 대응)를 쓴다. 오류는 종료 코드 2(stderr 문구는 한국어 `사용: …`),
-//     `-h` 도움말 문구도 python argparse 와 다르다. 음수 `--limit -1` 은 python 처럼 받아들인다(= 로 바꿔 넘김).
+//     `-h` 도움말 문구도 python argparse 와 다르다(종료 코드 0, 머리말의 사용 예 블록은 node 호출 형태로 보여 준다). 음수 `--limit -1` 은 python 처럼 받아들인다(= 로 바꿔 넘김).
 //  3. audit 의 파일 열거 순서: python `rglob` 은 파일시스템 순서(비결정적), 여기는 경로 성분별 코드포인트 순으로 고정한다.
 //     따라서 출력의 파일 순서만 다를 수 있고 파일 안의 줄 순서·내용은 같다. `audit-exceptions.json` 의 path 비교는
 //     python 과 같게 `resolve().as_posix()` 끝 일치이며 윈도우 역슬래시 경로도 `/` 로 바꿔 비교한다.
@@ -32,7 +32,8 @@
 //     평소에는 설정하지 않는다.
 //  7. 환경 변수 AGGRID_DOCS_CACHE 가 빈 문자열이면 설정하지 않은 것으로 본다(python 은 Path("") = "." 이라 `refresh` 가 현재 폴더를 지운다).
 //     `refresh` 는 심볼릭 링크·일반 파일인 CACHE 를 지우지 않는다(shutil.rmtree 가 오류를 무시하고 남기는 것과 같음).
-//  8. 한계: audit 은 파일을 읽을 때 비 BMP 문자(이모지 등)를 한 칸짜리 자리표시자로 바꿔 python 의 코드포인트 단위 위치·길이와 맞춘다.
+//  8. path_norm 은 윈도우 UNC 경로(`\\srv\share\x`)의 앞 역슬래시 두 개를 보존한다(python PureWindowsPath 처럼).
+//  9. 한계: audit 은 파일을 읽을 때 비 BMP 문자(이모지 등)를 한 칸짜리 자리표시자로 바꿔 python 의 코드포인트 단위 위치·길이와 맞춘다.
 //     (비 BMP 글자·숫자로 된 식별자는 출력에서 다른 글자로 보일 수 있다 — 현실에 없다.)
 
 import fs from 'node:fs';
@@ -337,6 +338,11 @@ const path_with_name = (p, name) => {
 };
 /** python `Path(arg)` 의 문자열: 빈 성분·`.` 제거, 끝 슬래시 제거(`..` 는 그대로). */
 export function path_norm(arg, win = WIN) {
+  if (win) {
+    // UNC(`\\srv\share\x`): 서버·공유 이름이 드라이브 구실을 하므로 앞 역슬래시 두 개와 공유 뒤 구분자를 보존한다(python PureWindowsPath 처럼)
+    const u = /^[\\/]{2}([^\\/]+)[\\/]+([^\\/]+)(.*)$/s.exec(arg);
+    if (u) return `\\\\${u[1]}\\${u[2]}\\${path_parts(u[3], true).join('\\')}`;
+  }
   const abs = win ? /^([A-Za-z]:)?[\\/]/.test(arg) : arg.startsWith('/');
   const parts = path_parts(arg, win);
   let drive = '';
@@ -1400,9 +1406,23 @@ function cmd_refresh() {
 }
 
 // ── 명령줄 ───────────────────────────────────────────────────────────────────────────────────────
+// -h/--help 에 보이는 설명. python 판은 머리말(docstring)을 그대로 보여 줬다(RawDescriptionHelpFormatter) — 사용 예는 node 호출 형태로 옮겼다.
+const DESCRIPTION = `ag-grid-community 버전 맞춤 문서 조회 + 사용법 점검 도구.
+
+ag-grid.com 의 llms.txt · \`.md\` 는 **최신 메이저**만 제공한다. 설치 버전 문서는
+\`/archive/{x.y.z}/{framework}-data-grid/{slug}/\` HTML 로만 열리므로 텍스트로 바꿔 캐시한다.
+슬러그 색인과 권장사항은 공식 스킬 ag-grid/skills(ag-dev) 의 references 를 쓴다.
+
+  node aggrid_docs.mjs version                    # 설치된 ag-grid-community / react 버전
+  node aggrid_docs.mjs search <단어...>            # 공식 슬러그 색인 검색
+  node aggrid_docs.mjs get <slug> [--section 제목] [--version x.y.z] [--latest]
+  node aggrid_docs.mjs types <이름>                # 설치 .d.ts 에서 옵션·인터페이스 정의 찾기
+  node aggrid_docs.mjs recommendations            # 공식 ag-dev 권장사항(LLM 흔한 실수)
+  node aggrid_docs.mjs audit <경로...>             # deprecated 옵션·금지 import 점검 + 화면 성능 정적 점검(P-*)
+  node aggrid_docs.mjs refresh                    # 캐시 비우기`;
 export const CLI_SPEC = {
   prog: 'aggrid_docs.mjs',
-  description: 'ag-grid-community 버전 맞춤 문서 조회 + 사용법 점검 도구. 자세한 사용법은 이 파일 머리말을 본다.',
+  description: DESCRIPTION,
   commands: {
     version: {},
     search: { options: { limit: { type: 'int', default: 30 } }, positionals: [{ name: 'terms', variadic: true }] },

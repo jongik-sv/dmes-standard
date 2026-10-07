@@ -9,11 +9,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { findPython, makeTempDir, runCommand } from '../../_shared/node/proc.mjs';
+import { findPython, makeTempDir } from '../../_shared/node/proc.mjs';
+import { runCommand, runNode } from './_run.mjs';
+import { normSep } from './_norm.mjs';
 import { readJson } from '../../_shared/node/io.mjs';
 import * as M from '../scripts/mantine_docs.mjs';
 import {
-  buildWorld, CASES, EXPECTED_FILE, realCases, runNodeCase, runPythonCase, copyTreeNow, FIXTURE_CACHE,
+  buildWorld, CASES, EXPECTED_FILE, realCases, runNodeCase, runPythonCase, copyTreeNow, FIXTURE_CACHE, NODE_SCRIPT, DEAD,
 } from './_mantine_golden.mjs';
 
 const base = fs.realpathSync(makeTempDir('mantine-test-'));
@@ -45,7 +47,7 @@ for (const c of CASES) {
     const exp = expected.cases[c.id];
     assert.ok(exp, `expected 에 케이스가 없음: ${c.id} (make-expected-mantine.mjs --write 로 다시 생성)`);
     const nd = runNodeCase(world, c);
-    assert.deepEqual(nd, exp, diffMsg(exp, nd));
+    assert.deepEqual(nd, normSep(exp), diffMsg(exp, nd));
   });
 }
 
@@ -324,4 +326,87 @@ print(json.dumps(out, ensure_ascii=False))
       });
     });
   });
+});
+
+// ---- 환경 변수·refresh 안전·도움말·시험 전용 기준 URL (node 판 단독, 자식 프로세스) ---------------------------------
+/** 자식 node 로 mantine_docs.mjs 를 돈다. HOME·USERPROFILE 은 임시 폴더로 바꿔 사용자 ~/.cache 를 건드릴 수 없게 한다. */
+function runCli(args, { cwd, env = {}, home } = {}) {
+  const h = home ?? fs.mkdtempSync(path.join(base, 'home-'));
+  const clean = { ...process.env, HOME: h, USERPROFILE: h, ...env };
+  for (const k of Object.keys(env)) if (env[k] === undefined) delete clean[k];
+  delete clean.MANTINE_LLMS_CACHE;
+  if ('MANTINE_LLMS_CACHE' in env) clean.MANTINE_LLMS_CACHE = env.MANTINE_LLMS_CACHE;
+  return { ...runNode(NODE_SCRIPT, args, { cwd, env: clean }), home: h };
+}
+
+test('refresh: MANTINE_LLMS_CACHE 가 빈 값이면 설정 안 한 것으로 보고 기본 캐시(홈의 .cache/mantine-llms)만 지운다 — 현재 폴더는 그대로', () => {
+  const home = fs.mkdtempSync(path.join(base, 'home-empty-'));
+  const defCache = path.join(home, '.cache', 'mantine-llms');
+  fs.mkdirSync(path.join(defCache, 'pages'), { recursive: true });
+  fs.writeFileSync(path.join(defCache, 'llms.txt'), 'x');
+  const cwd = fs.mkdtempSync(path.join(base, 'cwd-empty-'));
+  fs.writeFileSync(path.join(cwd, 'dummy.txt'), 'keep');
+  fs.mkdirSync(path.join(cwd, 'sub'));
+  fs.writeFileSync(path.join(cwd, 'sub', 'inner.txt'), 'keep');
+  const r = runCli(['refresh'], { cwd, home, env: { MANTINE_LLMS_CACHE: '' } });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, `캐시 삭제: ${defCache}\n`);
+  assert.ok(!fs.existsSync(defCache), '기본 캐시가 지워져야 한다');
+  assert.equal(fs.readFileSync(path.join(cwd, 'dummy.txt'), 'utf8'), 'keep', '현재 폴더의 파일이 남아야 한다');
+  assert.equal(fs.readFileSync(path.join(cwd, 'sub', 'inner.txt'), 'utf8'), 'keep');
+});
+
+test('refresh: 심볼릭 링크·일반 파일인 캐시 경로는 지우지 않는다(shutil.rmtree 의 오류 무시와 같다)', () => {
+  const real = fs.mkdtempSync(path.join(base, 'real-cache-'));
+  fs.writeFileSync(path.join(real, 'keep.txt'), 'x');
+  const link = path.join(base, 'link-cache');
+  try {
+    fs.symlinkSync(real, link, 'junction');
+    const r = runCli(['refresh'], { cwd: base, env: { MANTINE_LLMS_CACHE: link } });
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(fs.existsSync(path.join(real, 'keep.txt')), '링크 대상 안의 파일이 남아야 한다');
+    assert.ok(fs.lstatSync(link).isSymbolicLink(), '링크 자체도 남아야 한다');
+  } catch (e) {
+    if (e.code !== 'EPERM') throw e; // 심볼릭 링크 권한이 없는 환경은 건너뛴다
+  }
+  const file = path.join(base, 'file-cache');
+  fs.writeFileSync(file, 'x');
+  assert.equal(runCli(['refresh'], { cwd: base, env: { MANTINE_LLMS_CACHE: file } }).status, 0);
+  assert.ok(fs.existsSync(file));
+  const dir = path.join(base, 'dir-cache');
+  fs.mkdirSync(path.join(dir, 'pages'), { recursive: true });
+  runCli(['refresh'], { cwd: base, env: { MANTINE_LLMS_CACHE: dir } });
+  assert.ok(!fs.existsSync(dir), '진짜 폴더는 지운다');
+});
+
+test('-h/--help 는 종료 코드 0 이고 머리말의 사용 예 블록(node 호출 형태)을 보여 준다', () => {
+  for (const args of [['-h'], ['search', '--help'], ['grep', '-h']]) {
+    const r = runCli(args, { cwd: base });
+    assert.equal(r.status, 0, args.join(' '));
+    assert.match(r.stdout, /^사용: mantine_docs\.mjs/);
+    assert.match(r.stdout, /node mantine_docs\.mjs grep <정규식> \[-C 3\] +# llms-full\.txt 전문 검색/);
+    assert.match(r.stdout, /node mantine_docs\.mjs official <combobox\|form\|custom-components> \[skill\|api\|patterns\]/);
+    assert.ok(!/python|\.py\b/.test(r.stdout));
+    assert.equal(r.stderr, '');
+  }
+});
+
+test('glue_negative_numbers: 옵션 값 자리의 음수만 붙여 주고 나머지는 그대로 둔다', () => {
+  assert.deepEqual(M.glue_negative_numbers(['search', 'a', '--limit', '-3']), ['search', 'a', '--limit=-3']);
+  assert.deepEqual(M.glue_negative_numbers(['grep', 'x', '-C', '-1', '--limit', '-2']), ['grep', 'x', '-C-1', '--limit=-2']);
+  assert.deepEqual(M.glue_negative_numbers(['grep', 'x', '-C', '2']), ['grep', 'x', '-C', '2']);
+  assert.deepEqual(M.glue_negative_numbers(['search', '--limit', '-x']), ['search', '--limit', '-x']);
+  assert.deepEqual(M.glue_negative_numbers(['get', '-3']), ['get', '-3']);
+});
+
+test('시험 전용 기준 URL: MANTINE_LLMS_BASE 가 있으면 캐시에 없는 페이지도 그 주소로 가고 실제 인터넷으로 나가지 않는다', () => {
+  const cache = path.join(fs.mkdtempSync(path.join(base, 'base-env-')), 'cache');
+  copyTreeNow(FIXTURE_CACHE, cache);
+  fs.rmSync(path.join(cache, 'pages', 'core-button.md'));
+  const r = runCli(['get', 'button'], { cwd: base, env: { MANTINE_LLMS_CACHE: cache, MANTINE_LLMS_BASE: DEAD, MANTINE_OFFICIAL_RAW: DEAD } });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /^\[error\] http:\/\/127\.0\.0\.1:9\/llms\/core-button\.md 조회 실패: /);
+  const o = runCli(['official', 'form'], { cwd: base, env: { MANTINE_LLMS_CACHE: fs.mkdtempSync(path.join(base, 'off-')), MANTINE_LLMS_BASE: DEAD, MANTINE_OFFICIAL_RAW: DEAD } });
+  assert.equal(o.status, 1);
+  assert.match(o.stderr, /^\[error\] http:\/\/127\.0\.0\.1:9\/mantine-form\/SKILL\.md 조회 실패: /);
 });

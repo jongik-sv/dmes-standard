@@ -9,7 +9,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findPython, runCommand, runNode } from '../../_shared/node/proc.mjs';
+import { findPython } from '../../_shared/node/proc.mjs';
+import { runCommand, runNode } from './_run.mjs';
+import { normSep } from './_norm.mjs';
 import { compareCodePoint } from '../../_shared/node/pytext.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -289,6 +291,7 @@ export const CASES = [
   { id: 'search-limit', args: ['search', 'collapse', '--limit', '3'] },
   { id: 'search-limit-zero', args: ['search', 'button', '--limit', '0'] },
   { id: 'search-limit-negative', args: ['search', 'button', '--limit=-3'] },
+  { id: 'search-limit-negative-space', args: ['search', 'button', '--limit', '-3'] },
   { id: 'search-section', args: ['search', 'button', '--section', 'Core'] },
   { id: 'search-section-lower', args: ['search', 'a', '--section', 'faq', '--limit', '5'] },
   { id: 'search-multi-terms', args: ['search', 'use', 'disclosure'] },
@@ -329,6 +332,9 @@ export const CASES = [
   { id: 'grep-basic', args: ['grep', 'Collapse', '-C', '0', '--limit', '2'] },
   { id: 'grep-context', args: ['grep', 'expanded', '-C', '1', '--limit', '3'] },
   { id: 'grep-attached-c', args: ['grep', 'expanded', '-C2', '--limit', '2'] },
+  { id: 'grep-context-negative', args: ['grep', 'expanded', '-C', '-1', '--limit', '2'] },
+  { id: 'grep-limit-negative', args: ['grep', 'expanded', '-C', '0', '--limit', '-2'] },
+  { id: 'grep-both-negative', args: ['grep', 'expanded', '-C', '-1', '--limit', '-2'] },
   { id: 'grep-heading', args: ['grep', '^## ', '--limit', '5', '-C', '0'] },
   { id: 'grep-dollar', args: ['grep', 'collapse$', '--limit', '3'] },
   { id: 'grep-alternation', args: ['grep', 'use(disclosure|collapse)', '-C', '1', '--limit', '2'] },
@@ -463,8 +469,8 @@ function finish(world, c, r, cache, isPython) {
   let stdout = r.stdout;
   let stderr = r.stderr;
   if (isPython) { stdout = normPythonText(stdout); stderr = normPythonText(stderr); }
-  stdout = sub(stdout, world, cache);
-  stderr = sub(stderr, world, cache);
+  stdout = normSep(sub(stdout, world, cache)); // 윈도우에서는 `\` → `/` (비교 단계 정규화, _norm.mjs)
+  stderr = normSep(sub(stderr, world, cache));
   if (c.audit) stdout = normalizeAuditOutput(stdout);
   const res = { status: r.status, stdout, stderr };
   if (c.refresh) res.cacheExists = fs.existsSync(cache);
@@ -473,8 +479,11 @@ function finish(world, c, r, cache, isPython) {
   return res;
 }
 
+/** 닫혀 있는 로컬 포트 — 캐시에 없는 페이지를 부르는 실수가 실제 인터넷으로 나가지 않게 하는 기준 URL(node 판의 시험 전용 통로) */
+export const DEAD = 'http://127.0.0.1:9';
+
 function envFor(c, cache) {
-  const env = { MANTINE_LLMS_CACHE: cache };
+  const env = { MANTINE_LLMS_CACHE: cache, MANTINE_LLMS_BASE: DEAD, MANTINE_OFFICIAL_RAW: DEAD };
   if (c.env) Object.assign(env, c.env);
   return env;
 }

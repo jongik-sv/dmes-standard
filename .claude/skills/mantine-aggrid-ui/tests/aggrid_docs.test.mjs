@@ -8,8 +8,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { runNode } from '../../_shared/node/proc.mjs';
+import { runNode } from './_run.mjs';
 import { toPosix } from '../../_shared/node/paths.mjs';
+import { normSep } from './_norm.mjs';
 import {
   makeSandbox, buildTrees, startServer, populateCache, SCRIPT, DEAD, HERE, FIXTURES,
 } from './_aggrid_harness.mjs';
@@ -129,7 +130,7 @@ test('AGGRID_DOCS_CACHE 가 비어 있으면 설정하지 않은 것으로 본�
 test('AGGRID_DOCS_CACHE 의 경로는 python Path 처럼 정규화해 출력한다', () => {
   const dir = path.join(sb.tmp, 'norm-cache');
   const r = runNode(SCRIPT, ['refresh'], { env: { AGGRID_DOCS_CACHE: `${dir}//sub/../x/./` } });
-  assert.equal(r.stdout, `캐시 삭제: ${dir}/sub/../x\n`);
+  assert.equal(normSep(r.stdout), normSep(`캐시 삭제: ${dir}/sub/../x\n`)); // 윈도우에서는 `\` 도 `/` 로 맞춰 비교한다
 });
 
 test('refresh: 심볼릭 링크·일반 파일인 캐시 경로는 지우지 않는다(shutil.rmtree 의 오류 무시와 같다)', () => {
@@ -165,6 +166,9 @@ test('-h 는 종료 코드 0, 사용법을 stdout 에 쓴다', () => {
     const r = cli(args);
     assert.equal(r.status, 0, args.join(' '));
     assert.match(r.stdout, /^사용: aggrid_docs\.mjs/);
+    assert.match(r.stdout, /node aggrid_docs\.mjs get <slug> \[--section 제목\] \[--version x\.y\.z\] \[--latest\]/); // 머리말의 사용 예 블록(node 호출 형태)
+    assert.match(r.stdout, /node aggrid_docs\.mjs audit <경로\.\.\.> +# deprecated 옵션/);
+    assert.ok(!/python|\.py\b/.test(r.stdout));
     assert.equal(r.stderr, '');
   }
 });
@@ -197,6 +201,21 @@ test('path_norm: python Path(arg) 의 문자열(빈 성분·. 제거, .. 유지,
   assert.equal(mod.path_norm('src\\frontend\\', true), 'src\\frontend');
   assert.equal(mod.path_norm('C:/a/./b/', true), 'C:\\a\\b');
   assert.equal(mod.path_norm('C:\\', true), 'C:\\');
+});
+
+test('path_norm: 윈도우 UNC 경로의 앞 역슬래시 두 개와 공유 뒤 구분자를 보존한다(python PureWindowsPath)', () => {
+  const cases = [
+    ['\\\\srv\\share\\x', '\\\\srv\\share\\x'],
+    ['\\\\srv\\share\\x\\', '\\\\srv\\share\\x'],
+    ['//srv/share/a/./b/', '\\\\srv\\share\\a\\b'],
+    ['\\\\srv\\share', '\\\\srv\\share\\'],
+    ['\\\\srv\\share\\a\\..\\b', '\\\\srv\\share\\a\\..\\b'],
+    ['\\\\srv\\share\\한글 폴더\\x.tsx', '\\\\srv\\share\\한글 폴더\\x.tsx'],
+    ['\\srv', '\\srv'], // 공유 이름이 없으면 UNC 가 아니라 루트 + srv
+    ['\\a\\b', '\\a\\b'],
+  ];
+  for (const [input, want] of cases) assert.equal(mod.path_norm(input, true), want, input);
+  assert.equal(mod.path_norm('\\\\srv\\share\\x', false), '\\\\srv\\share\\x'); // posix 는 `\` 가 이름 글자라 그대로(단일 성분)
 });
 
 test('path_suffix: python Path.suffix', () => {

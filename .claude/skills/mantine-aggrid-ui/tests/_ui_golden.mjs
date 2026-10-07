@@ -12,7 +12,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findPython, runCommand, runNode } from '../../_shared/node/proc.mjs';
+import { findPython } from '../../_shared/node/proc.mjs';
+import { runCommand, runNode } from './_run.mjs';
+import { normSep } from './_norm.mjs';
 import { GROUPS, EXCLUDED, EXPORT_FILES } from '../scripts/ui_docs.mjs';
 import { normalizeAuditOutput, normPythonText, copyTreeNow } from './_mantine_golden.mjs';
 
@@ -202,7 +204,7 @@ function norm(text, root, tool) {
   let t = text.replace(/\r\n?/g, '\n');
   if (tool === 'py') t = normPythonText(t).split('node_modules/.bin/tsc').join('node_modules/typescript/bin/tsc');
   for (const r of new Set([root, fs.realpathSync(root)])) t = t.split(r).join('<TREE>');
-  return t;
+  return normSep(t); // 윈도우에서는 `\` → `/` (비교 단계 정규화, _norm.mjs)
 }
 
 /** 케이스 하나를 한 도구로 실행한다 → {status, stdout, stderr, files} */

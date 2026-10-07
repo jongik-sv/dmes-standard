@@ -5,7 +5,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { findPython, makeTempDir, runCommand } from '../../_shared/node/proc.mjs';
+import { findPython, makeTempDir } from '../../_shared/node/proc.mjs';
+import { runCommand } from './_run.mjs';
 import { writeJson } from '../../_shared/node/io.mjs';
 import { buildWorld, CASES, EXPECTED_FILE, runPythonCase } from './_mantine_golden.mjs';
 

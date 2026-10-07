@@ -9,7 +9,9 @@ import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { findPython, runCommand, runNode, makeTempDir } from '../../_shared/node/proc.mjs';
+import { findPython, makeTempDir } from '../../_shared/node/proc.mjs';
+import { runCommand, runNode } from './_run.mjs';
+import { normSep } from './_norm.mjs';
 import { walkSorted } from '../../_shared/node/paths.mjs';
 import { compareCodePoint } from '../../_shared/node/pytext.mjs';
 
@@ -85,9 +87,9 @@ export function copyTree(src, dst, filter = () => true) {
 }
 
 // ── 가짜 서버 ────────────────────────────────────────────────────────────────────────────────────────
-/** 로컬 가짜 서버를 별도 프로세스로 띄운다. {base, log(), reset(), stop()} */
+/** 로컬 가짜 서버를 별도 프로세스로 띄운다. {base, log(), reset(), stop()}. 서버는 stdin 파이프가 닫히면(부모가 강제 종료돼도) 스스로 끝난다. */
 export async function startServer() {
-  const child = spawn(process.execPath, [SERVER, '--serve', FIXTURES], { stdio: ['ignore', 'pipe', 'inherit'] });
+  const child = spawn(process.execPath, [SERVER, '--serve', FIXTURES], { stdio: ['pipe', 'pipe', 'inherit'] });
   const port = await new Promise((resolve, reject) => {
     let buf = '';
     child.stdout.on('data', (d) => {
@@ -288,6 +290,15 @@ export function maskTmp(s, tmp) {
   return out;
 }
 
+/**
+ * 실행 출력 한 덩어리를 비교용으로 다듬는다: 임시 폴더 → <T>, 캐시·서버 → <CACHE>·<SERVER>. 윈도우에서는 구분자가 `\` 라
+ * `<T>\cache-xxxxxx` 모양도 잡고(구분자 무관), 마지막에 normSep 으로 `\` 를 `/` 로 맞춘다(platform 으로 mac 에서도 흉내 낼 수 있다).
+ */
+export function maskRun(text, tmp, platform = process.platform) {
+  const masked = maskTmp(text, tmp).replace(/<T>[\\/]cache-[A-Za-z0-9]{6}/g, '<CACHE>').replace(/127\.0\.0\.1:\d+/g, '<SERVER>');
+  return normSep(masked, platform);
+}
+
 /** audit 출력은 파일 순서가 python 에서 파일시스템 순서라 파일 단위 묶음으로 정렬해 비교한다. */
 export function canonAudit(text) {
   const lines = text.split('\n');
@@ -329,12 +340,12 @@ export function runSide(side, c, ctx) {
   } else {
     r = runNode(variant ? variant.script : SCRIPT, args, { cwd, env, input: c.input });
   }
-  const mask = (t) => maskTmp(t, ctx.tmp).replace(/<T>\/cache-[A-Za-z0-9]{6}/g, '<CACHE>').replace(/127\.0\.0\.1:\d+/g, '<SERVER>');
+  const mask = (t) => maskRun(t, ctx.tmp);
   let stdout = mask(r.stdout);
   const stderr = mask(r.stderr);
   if (c.canon === 'audit') stdout = canonAudit(stdout);
   const out = { status: r.status, stdout, stderr };
-  if (c.post) out.post = c.post(cacheDir, ctx);
+  if (c.post) out.post = normSep(c.post(cacheDir, ctx));
   out.cache = listCache(cacheDir);
   return out;
 }
@@ -606,6 +617,17 @@ import { buildFuzzTree, loadBases } from './_aggrid_fuzz.mjs';
 export const RE_PROBE = path.join(HERE, 'golden', 'legacy', 'aggrid_re_probe.py');
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
+/**
+ * python 도우미에 넘길 큰 JSON(약 840KB)을 stdin 대신 임시 파일로 쓰고 경로를 돌려준다. 큰 입력을 stdin 으로 넘기면
+ * python 이 간헐적으로(최대 6/150) 교착해 시험이 끝없이 멈췄다. 폴더는 샌드박스(ctx.tmp) 아래라 시험 끝에 함께 지워진다.
+ */
+export function writeJsonInput(ctx, value) {
+  const dir = fs.mkdtempSync(path.join(ctx.tmp, 'in-'));
+  const file = path.join(dir, 'input.json');
+  fs.writeFileSync(file, JSON.stringify(value), 'utf8');
+  return file;
+}
+
 /** 모든 CASES·USAGE_CASES 를 돌린다. 반환 {cases:{id:out}, usage:{id:{status,stdout}}} */
 export function snapshotCases(side, ctx) {
   const cases = {};
@@ -631,7 +653,8 @@ export async function snapshotCalls(side, ctx) {
       ...CODE_INPUTS.map((s) => ['mask_comments', [s]]),
       ...closeCalls.map(([ci, i]) => ['match_close', [CODE_INPUTS[ci], i]]),
     ];
-    const r = runCommand(ctx.py, [DRIVER, ctx.legacyDir, 'call'], { input: JSON.stringify(calls), env: PY_ENV });
+    const input = writeJsonInput(ctx, calls);
+    const r = runCommand(ctx.py, [DRIVER, ctx.legacyDir, 'call', input], { env: PY_ENV });
     if (r.status !== 0) throw new Error(`python call 실패: ${r.stderr}`);
     const res = JSON.parse(r.stdout);
     let k = 0;
@@ -661,7 +684,8 @@ export async function snapshotPyre(side, ctx) {
   const patterns = [...mod.STATIC_PATTERNS, ...htmlPatterns, ...extras];
   const texts = pyreTexts();
   if (side === 'py') {
-    const r = runCommand(ctx.py, [RE_PROBE], { input: JSON.stringify({ patterns, texts }), env: PY_ENV });
+    const input = writeJsonInput(ctx, { patterns, texts });
+    const r = runCommand(ctx.py, [RE_PROBE, input], { env: PY_ENV });
     if (r.status !== 0) throw new Error(`python re 대조 실패: ${r.stderr}`);
     return JSON.parse(r.stdout);
   }
@@ -693,7 +717,7 @@ export function prepareFuzz(ctx, { seed, count, withReal }) {
 export function snapshotFuzz(side, ctx, root) {
   const args = ['audit', path.join(root, 'm-fz'), path.join(root, 'shared')];
   const r = runSide(side, { id: 'fuzz', args, cwd: 'front', canon: 'audit' }, ctx);
-  const text = r.stdout.split(root).join('<FZ>').replace(/<T>\/fz-[A-Za-z0-9]{6}/g, '<FZ>');
+  const text = r.stdout.split(root).join('<FZ>').replace(/<T>[\\/]fz-[A-Za-z0-9]{6}/g, '<FZ>');
   return { status: r.status, lines: text.split('\n').length, sha: sha(text), stderr: r.stderr, text };
 }
 
