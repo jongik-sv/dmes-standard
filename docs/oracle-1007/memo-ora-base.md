@@ -41,6 +41,17 @@
 4. CLOB 15개, NOT NULL 해제 1개(`TERM.DEFINITION`).
 5. 코드 원장 3표(`TB_MCM_CODE_MASTER`·`CATEGORY`·`DETAIL`)는 `MCM_SOURCE` 와 `MCMAPUSER` 양쪽에 넣는다. `MCM_BACKUP` 은 비워 둔다.
 6. 형식: sqlite3 없이 윈도우에서도 도는 스냅샷(표별 CSV 등), Python(oracledb thin) 또는 node. `db-snapshot`·`export/import`·`tools/e2e-clean-data.sh` 전환.
+7. (ora-mcm-core c1) 시퀀스 `SEQ_MCM_MOM_TC_SEND`·`SEQ_MCM_MOM_TC_ERROR` 는 적재 뒤 `MAX(키)+1` 로 재설정한다.
+8. (ora-mcm-core c1) 동적 표 `MCAAPUSER.TB_MCA_<RULE_ID>` 는 앱이 만들지 않는다. 적재기가 SQLite 의 해당 표를 `MCAAPUSER` 에 만들어 옮기고 `MCMAPUSER` 에 SELECT·INSERT·UPDATE·DELETE GRANT 를 준다.
+9. (ora-mcm-core c1) MSSQL 원본 기준 `TB_MCM_SEC_ROLE_MAPPING.PERMISSION_ID=''` 행은 옮기지 않는다.
+
+## b7 문서 항목(조정자 전달)
+
+- 옛 경로 문서 3곳 수정: `docs/guide/BackEnd/Mcm-Core-Onboarding.md:155,159`, `docs/mcm/erd/csa-sec-erd.md:256`, `docs/widget-2026-10/erd-widget-meta.md:31`.
+
+## 운영 제약
+
+- `feat/ora-base` 위에 ora-mcm-app·ora-platform 이 쌓였다(워크트리가 이 브랜치를 merge). **머지① 전에 이미 커밋한 것을 rebase·force 로 바꾸지 않는다. 추가 커밋만 한다.**
 
 ## 알려진 위험·미확인
 
