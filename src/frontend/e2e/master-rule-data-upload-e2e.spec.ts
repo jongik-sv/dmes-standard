@@ -24,7 +24,7 @@ test("masterRuleDataUploadFilePopup E2E — 부모 P-002 진입/컬럼정의 자
   const rulePop = page.getByRole("dialog");
   await page.getByRole("button", { name: "업무기준", exact: true }).click();
   await expect(rulePop.getByText(/건 조회 되었습니다/)).toBeVisible({ timeout: T.UI });
-  await rulePop.getByRole("button", { name: "조회" }).click();
+  await rulePop.getByRole("button", { name: "조회", exact: true }).click();
   await expect(rulePop.getByText("7건 조회 되었습니다.")).toBeVisible({ timeout: T.UI });
   await rulePop.getByText("E2E 컬럼등록 검증기준").first().dblclick();
   await expect(page.getByRole("dialog")).toBeHidden();

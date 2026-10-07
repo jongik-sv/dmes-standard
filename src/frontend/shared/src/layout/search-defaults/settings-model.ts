@@ -12,7 +12,17 @@ import {
   type SearchDefaultRule,
   type SearchValueType,
 } from "./rule";
-import { getPageSearchDefaults, resetSearchDefaults, saveSearchDefaults, type PageRules, type SearchDefaultSaveRow } from "./store";
+import {
+  getPageSearchDefaultFieldInfo,
+  getPageSearchDefaults,
+  getSearchDefaultsSource,
+  preloadSearchDefaults,
+  resetSearchDefaults,
+  saveSearchDefaults,
+  type PageRules,
+  type SearchDefaultFieldInfo,
+  type SearchDefaultSaveRow,
+} from "./store";
 import type { SearchDefaultsFieldInfo } from "./area";
 
 export type SettingsField = SearchDefaultsFieldInfo & { storageKey: string };
@@ -275,24 +285,35 @@ export function checkRow(row: SettingsRow, lastValues: Record<string, string>, n
   return { preview };
 }
 
+/** 칸 이름 — 기간 To 칸(라벨 「~」)은 시작 칸 이름에 「(끝)」 을 붙인다. */
+function fieldLabelOf(f: SettingsField, fields: ReadonlyMap<string, SettingsField>, scope: string): string {
+  if (f.pair?.role === "to" && f.pair.partnerKey) {
+    const from = fields.get(scopedKey(scope, f.pair.partnerKey));
+    if (from) return `${from.label} (끝)`;
+  }
+  return f.label;
+}
+
 /**
  * 이 영역의 새 규칙을 화면 전체 규칙에 합친다 — 이 영역 칸 키(areaKeys)는 새 값으로 바꾸거나 빼고, 나머지는 그대로 둔다.
- * labels 는 이 영역 칸의 이름(서버 행의 fieldLabel). 다른 칸 행의 이름은 브라우저가 모르므로 비운다.
+ * 남기는 행은 서버에서 받은 칸 메타·이름(info)을 그대로 이어 붙인다(savePage 가 행 전체를 바꾸므로 잃지 않게).
  */
 export function mergeAreaRules(
   pageRules: PageRules,
   areaKeys: ReadonlySet<string>,
   next: ReadonlyArray<[string, SearchDefaultRule | null]>,
   fields: ReadonlyMap<string, SettingsField>,
+  info: Readonly<Record<string, SearchDefaultFieldInfo>> = {},
+  scope = "",
 ): SearchDefaultSaveRow[] {
   const out: SearchDefaultSaveRow[] = [];
   for (const [key, rule] of Object.entries(pageRules)) {
-    if (!areaKeys.has(key)) out.push({ fieldKey: key, rule });
+    if (!areaKeys.has(key)) out.push({ fieldKey: key, rule, fieldMeta: info[key]?.fieldMeta ?? null, fieldLabel: info[key]?.fieldLabel ?? null });
   }
   for (const [key, rule] of next) {
     if (!rule) continue;
     const f = fields.get(key);
-    out.push({ fieldKey: key, rule, fieldLabel: f?.label ?? null, fieldMeta: f?.meta ?? null });
+    out.push({ fieldKey: key, rule, fieldLabel: f ? fieldLabelOf(f, fields, scope) : null, fieldMeta: f?.meta ?? null });
   }
   return out;
 }
@@ -309,14 +330,33 @@ export function currentValueRules(fields: ReadonlyArray<SettingsField & { value:
  * 이 영역의 규칙을 서버에 저장한다 — 화면 전체 규칙에 합쳐 savePage 하고, 합친 결과가 비면 resetPage 한다.
  * 메뉴의 「내 기본값 초기화」·설정 창 [이 화면 초기화] 는 next 를 모두 null 로 넘긴다.
  */
+/** 저장소가 서버 값을 받았는가 — 받기 전(loading)·실패(empty·거울)에 합쳐 저장하면 서버의 다른 규칙을 지우므로 막는다. */
+export function canSaveAreaRules(userId: string): boolean {
+  return !!userId && getSearchDefaultsSource(userId) === "server";
+}
+
+export const NOT_READY_MESSAGE = "조회 기본값을 아직 서버에서 받지 못했습니다. 잠시 뒤 다시 시도하세요.";
+
 export async function saveAreaRules(
   userId: string,
   pageId: string,
   fields: ReadonlyArray<SettingsField>,
   next: ReadonlyArray<[string, SearchDefaultRule | null]>,
+  scope = "",
 ): Promise<void> {
+  if (!canSaveAreaRules(userId)) {
+    preloadSearchDefaults(userId);
+    throw new Error(NOT_READY_MESSAGE);
+  }
   const areaKeys = new Set(fields.map((f) => f.storageKey));
-  const rows = mergeAreaRules(getPageSearchDefaults(userId, pageId), areaKeys, next, new Map(fields.map((f) => [f.storageKey, f])));
+  const rows = mergeAreaRules(
+    getPageSearchDefaults(userId, pageId),
+    areaKeys,
+    next,
+    new Map(fields.map((f) => [f.storageKey, f])),
+    getPageSearchDefaultFieldInfo(userId, pageId),
+    scope,
+  );
   if (rows.length === 0) await resetSearchDefaults(userId, pageId);
   else await saveSearchDefaults(userId, pageId, rows);
 }

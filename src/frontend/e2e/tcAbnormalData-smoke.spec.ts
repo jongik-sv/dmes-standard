@@ -45,11 +45,11 @@ test.describe("비정상 TC 등록 (tcAbnormalData) Smoke", () => {
     // 핵심 UI — 전문ID / Skip LEVEL / 사용구분 라벨 + 조회/저장 버튼
     await expect(page.getByText("전문ID", { exact: false }).first()).toBeVisible();
     await expect(page.getByText("Skip LEVEL", { exact: false }).first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "조회" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "조회", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "저장" })).toBeVisible();
 
     // 조회 → Footer 토스트 "N건 조회 되었습니다."
-    await page.getByRole("button", { name: "조회" }).click();
+    await page.getByRole("button", { name: "조회", exact: true }).click();
     // 상한은 옛 쉼(2초) + 대기(8초)와 같은 설정 expect 기본 10초
     await expect(page.getByText(/건 조회 되었습니다/).first()).toBeVisible();
   });

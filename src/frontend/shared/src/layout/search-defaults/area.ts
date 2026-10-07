@@ -84,8 +84,11 @@ export interface SearchDefaultsAreaApi {
   listFields: () => Array<SearchDefaultsFieldInfo & { storageKey: string }>;
   /** 등록된 칸의 지금 값(저장 키별). 「지금 조건을 기본값으로」 가 쓴다. */
   readValues: () => Record<string, string>;
-  /** 지금 저장된 규칙을 다시 넣는다(설정 저장 직후). 조회는 하지 않는다. */
-  applyNow: () => void;
+  /**
+   * 지금 저장된 규칙을 다시 넣는다(설정 저장 직후). 조회는 하지 않는다. keys(저장 키)를 주면 그 칸과 기간 짝 상대 칸만 넣는다 —
+   * 규칙을 바꾸지 않은 칸의 지금 입력을 덮지 않게.
+   */
+  applyNow: (keys?: readonly string[]) => void;
   /** 기능이 꺼진 영역인가(설정 아이콘을 그리지 않는다). 마운트 판정 뒤에 정해진다. */
   isDisabled: () => boolean;
   /** 이 영역의 화면 키·scope. */
@@ -517,10 +520,20 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
         for (const [key, h] of handlesRef.current) out[key] = h.getValue();
         return out;
       },
-      applyNow() {
+      applyNow(keys) {
         if (!optsRef.current.enabled || offRef.current) return;
         if (!userIdRef.current) userIdRef.current = peekCurrentUser()?.id ?? "";
-        applyAll({ skipLast: false, ignoreTouched: true, onlyIfUnchanged: false });
+        const mode = { skipLast: false, ignoreTouched: true, onlyIfUnchanged: false };
+        if (!keys) {
+          applyAll(mode);
+          return;
+        }
+        const want = new Set(keys);
+        for (const k of keys) {
+          const partner = handlesRef.current.get(k)?.info.pair?.partnerKey;
+          if (partner) want.add(storageKey(partner));
+        }
+        applyTo([...handlesRef.current.entries()].filter(([k]) => want.has(k)), mode);
       },
       isDisabled() {
         return !optsRef.current.enabled || offRef.current || !optsRef.current.pageId;

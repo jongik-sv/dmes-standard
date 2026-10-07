@@ -273,6 +273,50 @@ describe("설정 창", () => {
   });
 });
 
+describe("리뷰 반영(2026-10-07)", () => {
+  it("서버 값을 받기 전에는 저장·초기화를 막는다(메뉴 항목 비활성, 창은 안내와 저장 단추 비활성)", async () => {
+    setSearchDefaultsTransportForTest(() => new Promise(() => {}));
+    await mount(inPage(createElement(Screen)));
+    await click(icons()[0]);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(byTestId("search-settings-save-current")?.hasAttribute("data-disabled") || (byTestId<HTMLButtonElement>("search-settings-save-current")?.disabled ?? false)).toBe(true);
+    expect(byTestId("search-settings-reset")?.hasAttribute("data-disabled") || (byTestId<HTMLButtonElement>("search-settings-reset")?.disabled ?? false)).toBe(true);
+    await click(byTestId("search-settings-open"));
+    expect(byTestId("search-defaults-dialog-not-ready")).not.toBeNull();
+    expect(byTestId<HTMLButtonElement>("search-defaults-dialog-save")!.disabled).toBe(true);
+    expect(calls.some(([a]) => a === "savePage" || a === "resetPage")).toBe(false);
+  });
+
+  it("저장하면 규칙이 바뀐 칸만 넣고, 규칙을 그대로 둔 칸의 지금 입력은 덮지 않는다", async () => {
+    given({ itemCd: { kind: "fixed", value: "RULE" } });
+    await mount(inPage(createElement(Screen)));
+    await flush();
+    expect(latest.item).toBe("RULE");
+    const input = [...document.querySelectorAll("input")].find((i) => i.closest(".search-field")?.textContent?.includes("품번")) as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "TYPED");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await openMenuItem("search-settings-open");
+    await changeSelect("sd-mode-useTp", "fixed");
+    await changeSelect("sd-fixed-useTp", "N");
+    await click(byTestId("search-defaults-dialog-save"));
+    await flush();
+    expect(latest.useTp).toBe("N");
+    expect(latest.item).toBe("TYPED");
+  });
+
+  it("F8 대조군 — 창이 없으면 F8 이 조회한다", async () => {
+    await mount(inPage(createElement(Screen, { withLayout: true })));
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "F8", bubbles: true }));
+    });
+    expect(searches).toBe(1);
+  });
+});
+
 describe("메뉴", () => {
   it("지금 조건을 기본값으로 — 확인 뒤 칸 값을 고정 값으로 저장한다(빈 텍스트·날짜는 빼고 select 는 남김)", async () => {
     await mount(inPage(createElement(Screen)));

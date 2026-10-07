@@ -51,7 +51,7 @@ test.describe("메시지 전송 (messageSender) Smoke", () => {
     // 음수 조회: 전문ID 2자 + TC 입력 후 조회 → 안내 (시드 무관 — 없거나 길이미달)
     const ifInput = page.locator("input").first();
     await ifInput.fill("XX");
-    await page.getByRole("button", { name: "조회" }).click();
+    await page.getByRole("button", { name: "조회", exact: true }).click();
     await page.waitForTimeout(1500);
     // ErrorModal / 안내 텍스트 중 하나라도 떠야 함 (정상 흐름이면 그리드, 음수면 안내)
     const after = (await page.textContent("body")) ?? "";

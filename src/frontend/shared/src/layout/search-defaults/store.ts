@@ -43,6 +43,14 @@ interface UserEntry {
   lastAttemptAt: number;
   /** 서버 요청이 진행되는 동안 저장·지우기로 바꾼 화면 — 늦게 온 응답이 그 화면만은 덮지 않는다(지운 화면도 되살리지 않는다). */
   dirtyPages: Set<string>;
+  /** 서버 행의 칸 메타·이름(화면 → 칸 키). 설정 창이 다른 칸 행을 다시 저장할 때 잃지 않게 이어 붙인다. 거울에는 두지 않는다. */
+  fieldInfo: Record<string, Record<string, SearchDefaultFieldInfo>>;
+}
+
+/** 서버 행의 칸 메타(FIELD_META)·이름(FIELD_LABEL). */
+export interface SearchDefaultFieldInfo {
+  fieldMeta: string | null;
+  fieldLabel: string | null;
 }
 
 interface StoreState {
@@ -171,11 +179,23 @@ function rowsToUserRules(rows: Record<string, unknown>[]): UserRules {
   return out;
 }
 
+function rowsToFieldInfo(rows: Record<string, unknown>[]): UserEntry["fieldInfo"] {
+  const out: UserEntry["fieldInfo"] = {};
+  const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+  for (const row of rows) {
+    const pageId = typeof row.pageId === "string" ? row.pageId : "";
+    const fieldKey = typeof row.fieldKey === "string" ? row.fieldKey : "";
+    if (!pageId || !fieldKey) continue;
+    (out[pageId] ??= {})[fieldKey] = { fieldMeta: str(row.fieldMeta), fieldLabel: str(row.fieldLabel) };
+  }
+  return out;
+}
+
 function entryFor(userId: string): UserEntry {
   const st = getState();
   let e = st.users.get(userId);
   if (!e) {
-    e = { status: "idle", source: "none", rules: {}, promise: null, lastAttemptAt: 0, dirtyPages: new Set() };
+    e = { status: "idle", source: "none", rules: {}, promise: null, lastAttemptAt: 0, dirtyPages: new Set(), fieldInfo: {} };
     st.users.set(userId, e);
   }
   return e;
@@ -207,13 +227,18 @@ export function preloadSearchDefaults(userId: string): void {
   e.promise = (async () => {
     try {
       const body = await getState().transport("search", { meta: { menuId: "HOME" }, params: {} });
-      const next = rowsToUserRules(extractRows(body));
+      const rows = extractRows(body);
+      const next = rowsToUserRules(rows);
+      const info = rowsToFieldInfo(rows);
       // 요청 중에 저장·지우기한 화면은 메모리 값을 그대로 둔다(지운 화면은 지운 채로).
       for (const pageId of e.dirtyPages) {
         const local = e.rules[pageId];
         if (local) next[pageId] = local;
         else delete next[pageId];
+        if (e.fieldInfo[pageId]) info[pageId] = e.fieldInfo[pageId];
+        else delete info[pageId];
       }
+      e.fieldInfo = info;
       e.dirtyPages.clear();
       e.rules = next;
       e.source = "server";
@@ -323,13 +348,26 @@ export async function saveSearchDefaults(userId: string, pageId: string, rows: S
     },
   });
   assertSuccess(body);
+  const e = entryFor(userId);
+  e.fieldInfo = {
+    ...e.fieldInfo,
+    [pageId]: Object.fromEntries(rows.map((r) => [r.fieldKey, { fieldMeta: r.fieldMeta ?? null, fieldLabel: r.fieldLabel ?? null }])),
+  };
   setPageLocal(userId, pageId, Object.fromEntries(rows.map((r) => [r.fieldKey, r.rule])));
+}
+
+/** 그 화면 서버 행의 칸 메타·이름(서버에서 받은 적이 없으면 빈 객체). */
+export function getPageSearchDefaultFieldInfo(userId: string, pageId: string): Record<string, SearchDefaultFieldInfo> {
+  return getState().users.get(userId)?.fieldInfo[pageId] ?? {};
 }
 
 /** 한 화면의 규칙을 서버에서 지우고(resetPage) 메모리·거울에서도 지운다. 실패하면 던진다. */
 export async function resetSearchDefaults(userId: string, pageId: string): Promise<void> {
   const body = await getState().transport("resetPage", { meta: { menuId: "HOME" }, params: { pageId } });
   assertSuccess(body);
+  const e = entryFor(userId);
+  const { [pageId]: _removed, ...restInfo } = e.fieldInfo;
+  e.fieldInfo = restInfo;
   setPageLocal(userId, pageId, {});
 }
 

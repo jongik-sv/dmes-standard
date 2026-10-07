@@ -169,12 +169,20 @@ describe("영역 합치기·지금 조건", () => {
         ["useTp", null],
       ],
       new Map(fields.map((f) => [f.storageKey, f])),
+      { "tab2.item": { fieldMeta: "ITEM_CD", fieldLabel: "품번2" } },
     );
+    // 남기는 행은 서버에서 받은 칸 메타·이름을 이어 붙인다(savePage 가 행 전체를 바꾸므로).
     expect(rows).toEqual([
-      { fieldKey: "tab2.item", rule: { kind: "fixed", value: "T2" } },
-      { fieldKey: "hiddenField", rule: { kind: "last" } },
+      { fieldKey: "tab2.item", rule: { kind: "fixed", value: "T2" }, fieldMeta: "ITEM_CD", fieldLabel: "품번2" },
+      { fieldKey: "hiddenField", rule: { kind: "last" }, fieldMeta: null, fieldLabel: null },
       { fieldKey: "item", rule: { kind: "fixed", value: "NEW" }, fieldLabel: "품번", fieldMeta: null },
     ]);
+  });
+
+  it("기간 To 칸 이름은 시작 칸 이름에 「(끝)」 을 붙인다", () => {
+    const fields = [{ ...date("fromDt", { role: "from", partnerKey: "fromDt~to" }), label: "조회 기간" }, { ...date("fromDt~to", { role: "to", partnerKey: "fromDt" }), label: "~" }];
+    const rows = mergeAreaRules({}, new Set(fields.map((f) => f.storageKey)), [["fromDt~to", { kind: "relative", base: "today" }]], new Map(fields.map((f) => [f.storageKey, f])));
+    expect(rows[0].fieldLabel).toBe("조회 기간 (끝)");
   });
 
   it("지금 조건 — 빈 텍스트·날짜는 규칙 없음, select 의 빈 값(전체)은 남긴다", () => {

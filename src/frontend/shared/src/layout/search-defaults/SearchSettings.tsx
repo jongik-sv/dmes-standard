@@ -12,7 +12,7 @@
  * - 아이콘은 조회 form 안에 있으므로 type="button" 이다. 메뉴·창은 portal 로 그려지고 안에 form·submit 단추가 없어 조회가 일어나지 않는다.
  * - 스타일은 부품이 직접 넣는다(포털이 원격 모듈의 CSS 파일을 싣지 않는다 — Part B §18-3).
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ActionIcon, Menu } from "@mantine/core";
 import { IconAdjustmentsHorizontal, IconDeviceFloppy, IconRestore, IconSettings } from "@tabler/icons-react";
 
@@ -27,10 +27,12 @@ import { readSearchLastValues } from "./last-values";
 import { RANGE_PRESETS, type SearchDefaultRule } from "./rule";
 import { SEARCH_SETTINGS_LABELS as L } from "./search-settings-labels";
 import {
+  NOT_READY_MESSAGE,
   N_LIMITS,
   SETTINGS_RELATIVE_OPTIONS,
   applyBulkMode,
   buildSettingsRows,
+  canSaveAreaRules,
   checkRow,
   currentValueRules,
   rowRules,
@@ -44,7 +46,7 @@ import {
   type SingleMode,
   type SingleRow,
 } from "./settings-model";
-import { getPageSearchDefaults } from "./store";
+import { getPageSearchDefaults, preloadSearchDefaults, subscribeSearchDefaults } from "./store";
 
 export const SEARCH_SETTINGS_STYLE_HREF = "cm-search-settings";
 const SEARCH_SETTINGS_CSS = `
@@ -68,10 +70,20 @@ const SEARCH_SETTINGS_CSS = `
 .cm-sd-warning { color: var(--color-warning, #b45309); display: block; }
 .cm-sd-save-error { color: var(--color-danger, #dc2626); margin-top: 8px; }
 .cm-sd-empty { color: var(--color-text-secondary, #6b7280); }
+.cm-sd-notice { color: var(--color-warning, #b45309); margin-bottom: 6px; font-size: 12px; }
 .cm-sd-bulk { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 12px; }
 `;
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** 저장소가 서버 값을 받았는가 — 받기 전·실패면 저장·초기화를 막는다(합쳐 저장하면 서버의 다른 규칙을 지운다). */
+function useServerReady(userId: string): boolean {
+  return useSyncExternalStore(
+    subscribeSearchDefaults,
+    () => canSaveAreaRules(userId),
+    () => false,
+  );
+}
 
 interface SearchSettingsProps {
   api: SearchDefaultsAreaApi;
@@ -87,6 +99,7 @@ export function SearchSettings({ api, enabled }: SearchSettingsProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [confirm, setConfirm] = useState<"saveCurrent" | "reset" | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  const ready = useServerReady(userId);
 
   useEffect(() => {
     setUserId(peekCurrentUser()?.id ?? "");
@@ -99,20 +112,25 @@ export function SearchSettings({ api, enabled }: SearchSettingsProps) {
     const inDialog = !!host?.closest?.('[role="dialog"]');
     const next = enabled && !!api.pageId && !inDialog && !!userId && api.listFields().length > 0;
     setVisible((v) => (v === next ? v : next));
+    // 아이콘이 사라지면(handoff 로 기본값을 끔 등) 열어 둔 창·확인 창도 닫는다 — 다시 보일 때 저절로 열리지 않게.
+    if (!next) {
+      setDialogOpen((o) => (o ? false : o));
+      setConfirm((c) => (c ? null : c));
+    }
   });
 
   const fields = (): SettingsField[] => api.listFields();
 
   const runSave = async (next: Array<[string, SearchDefaultRule | null]>) => {
     try {
-      await saveAreaRules(userId, api.pageId, fields(), next);
+      await saveAreaRules(userId, api.pageId, fields(), next, api.scope);
     } catch (e) {
       setFailure(errorText(e));
     }
   };
 
   const confirmMessage = useMemo(() => {
-    if (confirm === "reset") return "이 조회 영역의 내 기본값을 지웁니다. 지금 칸 값은 그대로 둡니다. 계속할까요?";
+    if (confirm === "reset") return "이 조회 영역에 지금 보이는 칸의 내 기본값을 지웁니다. 지금 칸 값은 그대로 둡니다. 계속할까요?";
     if (confirm !== "saveCurrent") return "";
     const hasDate = api.listFields().some((f) => f.valueType === "date");
     return hasDate
@@ -128,7 +146,7 @@ export function SearchSettings({ api, enabled }: SearchSettingsProps) {
           <style href={SEARCH_SETTINGS_STYLE_HREF} precedence="default">
             {SEARCH_SETTINGS_CSS}
           </style>
-          <Menu position="bottom-end" shadow="md" width={220} withinPortal>
+          <Menu position="bottom-end" shadow="md" width={220} withinPortal onOpen={() => (ready ? undefined : preloadSearchDefaults(userId))}>
             <Menu.Target>
               <ActionIcon
                 type="button"
@@ -146,10 +164,10 @@ export function SearchSettings({ api, enabled }: SearchSettingsProps) {
               <Menu.Item data-testid="search-settings-open" leftSection={<IconAdjustmentsHorizontal size={14} aria-hidden="true" />} onClick={() => setDialogOpen(true)}>
                 {L.open}
               </Menu.Item>
-              <Menu.Item data-testid="search-settings-save-current" leftSection={<IconDeviceFloppy size={14} aria-hidden="true" />} onClick={() => setConfirm("saveCurrent")}>
+              <Menu.Item data-testid="search-settings-save-current" disabled={!ready} leftSection={<IconDeviceFloppy size={14} aria-hidden="true" />} onClick={() => setConfirm("saveCurrent")}>
                 {L.saveCurrent}
               </Menu.Item>
-              <Menu.Item data-testid="search-settings-reset" color="red" leftSection={<IconRestore size={14} aria-hidden="true" />} onClick={() => setConfirm("reset")}>
+              <Menu.Item data-testid="search-settings-reset" color="red" disabled={!ready} leftSection={<IconRestore size={14} aria-hidden="true" />} onClick={() => setConfirm("reset")}>
                 {L.reset}
               </Menu.Item>
             </Menu.Dropdown>
@@ -195,7 +213,20 @@ interface DialogProps {
 /** 설정 창 — 열 때마다 지금 칸과 저장된 규칙으로 처음부터 시작한다. */
 function SearchDefaultsDialog({ api, userId, onClose }: DialogProps) {
   const [fields] = useState(() => api.listFields());
+  const [current] = useState(() => api.readValues());
   const [rows, setRows] = useState<SettingsRow[]>(() => buildSettingsRows(fields, getPageSearchDefaults(userId, api.pageId), api.scope));
+  const ready = useServerReady(userId);
+  /** 사용자가 줄을 고쳤는가 — 고치기 전에 서버 값이 오면 줄을 다시 만든다. */
+  const [dirty, setDirty] = useState(false);
+  const [shownReady, setShownReady] = useState(ready);
+  if (ready !== shownReady) {
+    // 창을 연 뒤 서버 값이 왔다 — 아직 고치지 않았으면 받은 규칙으로 줄을 다시 만든다(렌더 중 상태 맞추기).
+    setShownReady(ready);
+    if (ready && !dirty) setRows(buildSettingsRows(fields, getPageSearchDefaults(userId, api.pageId), api.scope));
+  }
+  useEffect(() => {
+    if (!ready) preloadSearchDefaults(userId);
+  }, [ready, userId]);
   const [lastValues] = useState(() => readSearchLastValues(userId, api.pageId));
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -203,16 +234,23 @@ function SearchDefaultsDialog({ api, userId, onClose }: DialogProps) {
   const checks = rows.map((r) => checkRow(r, lastValues, now));
   const hasError = checks.some((c) => c.error);
 
-  const update = (i: number, next: SettingsRow) => setRows((rs) => rs.map((r, j) => (j === i ? next : r)));
+  const edit = (fn: (rs: SettingsRow[]) => SettingsRow[]) => {
+    setDirty(true);
+    setRows(fn);
+  };
+  const update = (i: number, next: SettingsRow) => edit((rs) => rs.map((r, j) => (j === i ? next : r)));
 
   const handleSave = async () => {
-    if (hasError || saving) return;
+    if (hasError || saving || !ready) return;
     setSaving(true);
     setSaveError(null);
     try {
-      await saveAreaRules(userId, api.pageId, fields, rows.flatMap(rowRules));
-      // 저장한 규칙을 지금 칸에 바로 넣는다(조회는 하지 않는다).
-      api.applyNow();
+      const before = getPageSearchDefaults(userId, api.pageId);
+      const next = rows.flatMap(rowRules);
+      await saveAreaRules(userId, api.pageId, fields, next, api.scope);
+      // 규칙이 바뀐 칸만 지금 칸에 바로 넣는다(조회는 하지 않는다) — 규칙을 그대로 둔 칸의 지금 입력은 덮지 않는다.
+      const changed = next.filter(([k, r]) => r && JSON.stringify(r) !== JSON.stringify(before[k] ?? null)).map(([k]) => k);
+      if (changed.length > 0) api.applyNow(changed);
       onClose();
     } catch (e) {
       setSaveError(errorText(e));
@@ -220,7 +258,7 @@ function SearchDefaultsDialog({ api, userId, onClose }: DialogProps) {
     }
   };
 
-  const handleResetAll = () => setRows((rs) => applyBulkMode(rs, "none"));
+  const handleResetAll = () => edit((rs) => applyBulkMode(rs, "none"));
 
   return (
     <>
@@ -240,19 +278,24 @@ function SearchDefaultsDialog({ api, userId, onClose }: DialogProps) {
             <Button data-testid="search-defaults-dialog-cancel" onClick={onClose} disabled={saving}>
               {L.cancel}
             </Button>
-            <Button variant="primary" data-testid="search-defaults-dialog-save" onClick={() => void handleSave()} disabled={saving || hasError}>
+            <Button variant="primary" data-testid="search-defaults-dialog-save" onClick={() => void handleSave()} disabled={saving || hasError || !ready}>
               {L.save}
             </Button>
           </>
         }
       >
         <div data-testid="search-defaults-dialog">
+          {!ready ? (
+            <div className="cm-sd-notice" role="status" data-testid="search-defaults-dialog-not-ready">
+              {NOT_READY_MESSAGE}
+            </div>
+          ) : null}
           <div className="cm-sd-bulk">
             <span>{L.bulk}</span>
-            <Button size="sm" data-testid="search-defaults-bulk-none" onClick={() => setRows((rs) => applyBulkMode(rs, "none"))} disabled={saving}>
+            <Button size="sm" data-testid="search-defaults-bulk-none" onClick={() => edit((rs) => applyBulkMode(rs, "none"))} disabled={saving}>
               {L.modes.none}
             </Button>
-            <Button size="sm" data-testid="search-defaults-bulk-last" onClick={() => setRows((rs) => applyBulkMode(rs, "last"))} disabled={saving}>
+            <Button size="sm" data-testid="search-defaults-bulk-last" onClick={() => edit((rs) => applyBulkMode(rs, "last"))} disabled={saving}>
               {L.modes.last}
             </Button>
           </div>
@@ -272,7 +315,7 @@ function SearchDefaultsDialog({ api, userId, onClose }: DialogProps) {
                 return (
                   <tr key={key} data-testid={`sd-row-${key}`}>
                     <td className="cm-sd-field">{row.kind === "single" ? row.field.label : `${row.from.label} (시작 ~ 끝)`}</td>
-                    <td>{row.kind === "single" ? <SingleModeSelect row={row} onChange={(r) => update(i, r)} /> : <PairModeSelect row={row} onChange={(r) => update(i, r)} />}</td>
+                    <td>{row.kind === "single" ? <SingleModeSelect row={row} current={current} onChange={(r) => update(i, r)} /> : <PairModeSelect row={row} current={current} onChange={(r) => update(i, r)} />}</td>
                     <td>{row.kind === "single" ? <SingleValue row={row} onChange={(r) => update(i, r)} /> : <PairValue row={row} onChange={(r) => update(i, r)} />}</td>
                     <td className="cm-sd-preview" data-testid={`sd-preview-${key}`}>
                       {c.preview}
@@ -297,7 +340,18 @@ function SearchDefaultsDialog({ api, userId, onClose }: DialogProps) {
 
 const modeOption = (m: keyof typeof L.modes) => ({ value: m, label: L.modes[m] });
 
-function SingleModeSelect({ row, onChange }: { row: SingleRow; onChange: (r: SingleRow) => void }) {
+/**
+ * 「고정 값」 으로 바꿀 때 처음 값 — 비어 있으면 지금 칸 값으로 시작하고, select·radio 는 선택지에 있는 값으로 맞춘다
+ * (「전체」 선택지가 없는 칸이 빈 값으로 저장되어 영영 들어가지 않는 일을 막는다).
+ */
+function fixedStart(field: SettingsField, side: SideState, current: Record<string, string>): SideState {
+  let v = side.fixed || current[field.storageKey] || "";
+  const opts = field.options;
+  if (opts && opts.length > 0 && !opts.some((o) => o.value === v)) v = opts[0].value;
+  return v === side.fixed ? side : { ...side, fixed: v };
+}
+
+function SingleModeSelect({ row, current, onChange }: { row: SingleRow; current: Record<string, string>; onChange: (r: SingleRow) => void }) {
   const opts = [modeOption("none"), modeOption("fixed"), ...(row.field.valueType === "date" ? [modeOption("relative")] : []), modeOption("last"), ...(row.custom ? [modeOption("custom")] : [])];
   return (
     <Select
@@ -305,12 +359,12 @@ function SingleModeSelect({ row, onChange }: { row: SingleRow; onChange: (r: Sin
       data-testid={`sd-mode-${row.field.storageKey}`}
       value={row.mode}
       options={opts}
-      onChange={(v) => onChange({ ...row, mode: v as SingleMode })}
+      onChange={(v) => onChange({ ...row, mode: v as SingleMode, side: v === "fixed" ? fixedStart(row.field, row.side, current) : row.side })}
     />
   );
 }
 
-function PairModeSelect({ row, onChange }: { row: PairRow; onChange: (r: PairRow) => void }) {
+function PairModeSelect({ row, current, onChange }: { row: PairRow; current: Record<string, string>; onChange: (r: PairRow) => void }) {
   const opts = [modeOption("none"), modeOption("range"), modeOption("fixed"), modeOption("relative"), modeOption("last"), ...(row.custom ? [modeOption("custom")] : [])];
   return (
     <Select
@@ -318,7 +372,13 @@ function PairModeSelect({ row, onChange }: { row: PairRow; onChange: (r: PairRow
       data-testid={`sd-mode-${row.from.storageKey}`}
       value={row.mode}
       options={opts}
-      onChange={(v) => onChange({ ...row, mode: v as PairMode })}
+      onChange={(v) =>
+        onChange(
+          v === "fixed"
+            ? { ...row, mode: "fixed", fromSide: fixedStart(row.from, row.fromSide, current), toSide: fixedStart(row.to, row.toSide, current) }
+            : { ...row, mode: v as PairMode },
+        )
+      }
     />
   );
 }
@@ -326,6 +386,14 @@ function PairModeSelect({ row, onChange }: { row: PairRow; onChange: (r: PairRow
 function RelativeEditor({ pick, onChange, testId, label }: { pick: RelativePick; onChange: (p: RelativePick) => void; testId: string; label: string }) {
   const opt = SETTINGS_RELATIVE_OPTIONS.find((o) => o.id === pick.presetId);
   const limits = opt?.needsN ? N_LIMITS[opt.needsN] : null;
+  // 입력 중에는 글자 그대로 두고(지우고 다시 치는 중에 범위로 바뀌지 않게), 벗어날 때 범위로 맞춘다. 범위 안의 수는 바로 반영한다.
+  const [text, setText] = useState<string | null>(null);
+  const commit = (raw: string) => {
+    if (!limits) return;
+    const n = Math.trunc(Number(raw));
+    onChange({ ...pick, n: Number.isFinite(n) && raw.trim() !== "" ? Math.min(Math.max(n, limits.min), limits.max) : pick.n });
+    setText(null);
+  };
   return (
     <>
       <Select
@@ -347,11 +415,13 @@ function RelativeEditor({ pick, onChange, testId, label }: { pick: RelativePick;
           data-testid={`${testId}-n`}
           min={limits.min}
           max={limits.max}
-          value={pick.n}
+          value={text ?? String(pick.n)}
           onChange={(v) => {
+            setText(v);
             const n = Math.trunc(Number(v));
-            if (Number.isFinite(n)) onChange({ ...pick, n: Math.min(Math.max(n, limits.min), limits.max) });
+            if (v.trim() !== "" && Number.isFinite(n) && n >= limits.min && n <= limits.max) onChange({ ...pick, n });
           }}
+          onBlur={(e) => commit(e.currentTarget.value)}
         />
       ) : null}
     </>
@@ -360,7 +430,13 @@ function RelativeEditor({ pick, onChange, testId, label }: { pick: RelativePick;
 
 function FixedEditor({ field, side, onChange, testId }: { field: SettingsField; side: SideState; onChange: (s: SideState) => void; testId: string }) {
   const set = (v: string) => onChange({ ...side, fixed: v });
-  if (field.valueType === "date") return <DatePicker aria-label={field.label} data-testid={testId} value={side.fixed} onChange={set} />;
+  // shared DatePicker 는 data-testid 를 넘기지 않으므로 감싼 요소에 둔다.
+  if (field.valueType === "date")
+    return (
+      <span data-testid={testId}>
+        <DatePicker aria-label={field.label} value={side.fixed} onChange={set} />
+      </span>
+    );
   if (field.valueType === "select" || field.valueType === "radio") {
     const options = [...(field.options ?? [])];
     if (!options.some((o) => o.value === side.fixed)) options.push({ value: side.fixed, label: `${side.fixed} (선택지에 없음)` });
