@@ -14,6 +14,9 @@ import java.util.concurrent.TimeUnit
  * 같은 값을 환경 변수 DMES_ORA_TEST(clone)·DMES_ORA_TEMPLATE·DMES_ORA_PDB 로도 줄 수 있다.
  *
  * 복제·삭제는 scripts/oracle/pdb.mjs 가 한다(PC 전체 잠금·열린 PDB 상한을 거친다). 이 클래스는 node 를 부를 뿐이다.
+ * PC 잠금은 복제 직전부터 빌드가 끝나 PDB 를 지울 때까지(시험 JVM 이 도는 구간 포함) `pdb.mjs lock-hold` 가 쥔다.
+ * 그래서 PC 전체에서 Oracle 을 쓰는 시험 빌드는 한 번에 하나만 돈다. 기존 PDB 를 쓰는 existing 모드도 같다.
+ * 잠금 주인은 node 프로세스이고 표준 입력이 닫히면(Gradle 이 죽어도) 스스로 놓는다.
  * 멤버에 private 을 두지 않는다 — Gradle 이 서비스를 하위 클래스로 감싸 클로저에서 private 에 닿지 못한다.
  */
 abstract class OraTestPdbService implements BuildService<Parameters>, AutoCloseable {
@@ -27,10 +30,13 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
 
     String pdbName
     boolean cloned = false
+    Process lockHolder = null
+    long lockPid = 0
 
     /** 시험 PDB 이름을 돌려준다. 처음 부를 때 복제한다. */
     synchronized String acquire() {
         if (pdbName != null) return pdbName
+        holdPcLock()
         if (parameters.mode.get() == 'existing') {
             pdbName = parameters.pdb.get().toUpperCase()
             return pdbName
@@ -45,6 +51,42 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
         return pdbName
     }
 
+    /** PC 전체 Oracle 잠금을 쥔다(이미 쥐고 있으면 그대로). 기다리는 한도는 DMES_ORA_HARNESS_LOCK_WAIT_SEC(기본 7200초). */
+    void holdPcLock() {
+        if (lockHolder != null) return
+        File script = new File(parameters.repoRoot.get(), 'scripts/oracle/pdb.mjs')
+        if (!script.isFile()) throw new org.gradle.api.GradleException("PDB 도구가 없다: ${script}")
+        long waitSec = (System.getenv('DMES_ORA_HARNESS_LOCK_WAIT_SEC') ?: '7200') as long
+        Process p = new ProcessBuilder(['node', script.absolutePath, 'lock-hold', '--wait-sec', String.valueOf(waitSec)])
+                .redirectErrorStream(true).start()
+        // 첫 줄 "LOCKED <pid>" 가 오면 잠금을 쥔 것이다. 이후 출력은 버린다(파이프가 막히지 않게 읽는다).
+        def first = new java.util.concurrent.LinkedBlockingQueue<String>()
+        Thread.start {
+            String last = ''
+            try {
+                p.inputStream.eachLine { String l ->
+                    if (l.startsWith('LOCKED')) first.offer(l) else last = l
+                }
+            } catch (Exception ignored) { }
+            first.offer('종료: ' + last)
+        }
+        String line = first.poll(waitSec + 60, TimeUnit.SECONDS)
+        if (line == null || !line.startsWith('LOCKED')) {
+            p.destroyForcibly()
+            throw new org.gradle.api.GradleException("PC Oracle 잠금을 잡지 못했다(${line ?: '시간 초과'}). 다른 레인의 Oracle 작업이 끝나지 않았을 수 있다.")
+        }
+        lockHolder = p
+        lockPid = p.pid()
+    }
+
+    void releasePcLock() {
+        if (lockHolder == null) return
+        try { lockHolder.outputStream.close() } catch (Exception ignored) { }
+        if (!lockHolder.waitFor(10, TimeUnit.SECONDS)) lockHolder.destroyForcibly()
+        lockHolder = null
+        lockPid = 0
+    }
+
     static String jdbcUrl(String pdb) {
         String host = System.getenv('DMES_ORA_HOST') ?: 'localhost'
         String port = System.getenv('DMES_ORA_PORT') ?: '1521'
@@ -55,7 +97,10 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
         File script = new File(parameters.repoRoot.get(), 'scripts/oracle/pdb.mjs')
         if (!script.isFile()) throw new org.gradle.api.GradleException("PDB 도구가 없다: ${script}")
         List<String> cmd = ['node', script.absolutePath] + args
-        Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start()
+        ProcessBuilder pb = new ProcessBuilder(cmd).redirectErrorStream(true)
+        // 이 서비스가 PC 잠금을 쥐고 있으니 자식 pdb.mjs 는 잠금을 다시 잡지 않고 지나간다.
+        if (lockPid > 0) pb.environment().put('DMES_ORA_LOCK_HELD', String.valueOf(lockPid))
+        Process p = pb.start()
         StringBuilder out = new StringBuilder()
         Thread t = Thread.start { p.inputStream.eachLine { out.append(it).append('\n') } }
         if (!p.waitFor(timeoutSec, TimeUnit.SECONDS)) {
@@ -73,12 +118,16 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
     @Override
     void close() {
         // 빌드 종료(성공·실패·취소)에서 불린다. 복제한 PDB 만 지운다.
-        if (cloned && pdbName != null) {
-            try {
-                runPdb(['drop', pdbName], 600, true)
-            } catch (Exception ignored) {
-                // 지우지 못해도 빌드 결과를 바꾸지 않는다 — 다음 시험이 같은 이름을 먼저 지운다.
+        try {
+            if (cloned && pdbName != null) {
+                try {
+                    runPdb(['drop', pdbName], 600, true)
+                } catch (Exception ignored) {
+                    // 지우지 못해도 빌드 결과를 바꾸지 않는다 — 다음 시험이 같은 이름을 먼저 지운다.
+                }
             }
+        } finally {
+            releasePcLock()
         }
     }
 }

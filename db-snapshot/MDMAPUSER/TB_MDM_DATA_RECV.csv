@@ -1,0 +1,70 @@
+RECV_ID,MARU_DATA_ID,SOURCE_SYSTEM,SOURCE_REF,RECEIVED_AT,BODY,ROW_COUNT,RESULT,RESULT_DETAIL,CHG_SEQ,PROCESSED_AT,C_USR_ID,C_AT,C_SVC_ID,C_PGM_ID,U_USR_ID,U_AT,U_SVC_ID,U_PGM_ID,VER
+1,CUST,ERP,ERP-20260905-0001,2026-09-05 10:00:00,"{
+  ""rows"": [
+    {
+      ""code"": ""1234567890"",
+      ""name"": ""동국철강"",
+      ""attrs"": {
+        ""attr01"": ""1234567890"",
+        ""attr02"": ""C""
+      },
+      ""closed"": false
+    },
+    {
+      ""code"": ""9876543210"",
+      ""name"": ""대성상사"",
+      ""attrs"": {
+        ""attr01"": ""9876543210"",
+        ""attr02"": ""S""
+      },
+      ""closed"": false
+    }
+  ]
+}",2,OK,\N,3,2026-09-05 10:00:01,ERP,2026-09-05 10:00:00,\N,mdm-local-sample,ERP,2026-09-05 10:00:00,\N,mdm-local-sample,0
+2,CUST,ERP,ERP-20260912-0002,2026-09-12 14:00:00,"{
+  ""rows"": [
+    {
+      ""code"": ""1111111111"",
+      ""name"": ""한빛금속"",
+      ""lvls"": [
+        ""A"",
+        ""B"",
+        ""C"",
+        ""D"",
+        ""E"",
+        ""F""
+      ],
+      ""attrs"": {
+        ""attr01"": ""1111111111"",
+        ""attr02"": ""S""
+      },
+      ""closed"": false
+    }
+  ]
+}",0,REJECTED,본문 형식 오류: rows[0].lvls가 6개다. 계층 칸은 5개까지다,\N,2026-09-12 14:00:00,ERP,2026-09-12 14:00:00,\N,mdm-local-sample,ERP,2026-09-12 14:00:00,\N,mdm-local-sample,0
+3,CUST,MES,MES-20260914-0003,2026-09-14 09:20:00,"{
+  ""rows"": [
+    {
+      ""code"": ""2222222222"",
+      ""name"": ""세진물산"",
+      ""attrs"": {
+        ""attr01"": ""2222222222"",
+        ""attr02"": ""C""
+      },
+      ""closed"": false
+    }
+  ]
+}",0,REJECTED,원천 불일치: CUST의 원천 시스템은 ERP다. MES는 부를 수 없다,\N,2026-09-14 09:20:00,MES,2026-09-14 09:20:00,\N,mdm-local-sample,MES,2026-09-14 09:20:00,\N,mdm-local-sample,0
+4,CUST,ERP,ERP-20260915-0004,2026-09-15 08:30:00,"{
+  ""rows"": [
+    {
+      ""code"": ""1234567890"",
+      ""name"": ""동국철강"",
+      ""attrs"": {
+        ""attr01"": ""1234567890"",
+        ""attr02"": ""B""
+      },
+      ""closed"": false
+    }
+  ]
+}",0,\N,\N,\N,\N,ERP,2026-09-15 08:30:00,\N,mdm-local-sample,ERP,2026-09-15 08:30:00,\N,mdm-local-sample,0

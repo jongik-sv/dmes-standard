@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -63,6 +64,11 @@ public class SecWidgetService {
     /** 옛 「홈」 행을 옮긴 개인 탭 이름, 옛 기본 탭 재정의 행은 「내 」+관리자 탭 이름. */
     static final String MIGRATED_HOME_NM = "내 홈";
     static final String MIGRATED_PREFIX = "내 ";
+    /**
+     * 프런트 「홈」 코드 기본 배치(m-mcm home-layout.ts HOME_DEFAULT_LAYOUT)의 instId 접두어 — 서버는 그 상수를 복제하지 않고 접두어만
+     * 같이 쓴다. 그쪽 상수 옆에도 이 값을 가리키는 주석이 있다.
+     */
+    static final String DEFAULT_INST_PREFIX = "default-";
     static final String FIXED_TAB_MESSAGE = "관리자가 정한 탭은 바꿀 수 없습니다. 내 탭에서 편집하세요.";
     static final int USER_SEARCH_MIN = 2;
     static final int USER_SEARCH_MAX = 30;
@@ -75,6 +81,7 @@ public class SecWidgetService {
     private final SecUserWidgetTabRepository tabRepository;
     private final SecUserWidgetRepository widgetRepository;
     private final SecWidgetTabWriter writer;
+    private final SecWidgetInstSplitWriter instSplitWriter;
     private final SecurityIdentity securityIdentity;
     private final WidgetFixedTabs fixedTabs;
     private final WidgetDefaultLayoutRepository layoutRepository;
@@ -87,6 +94,7 @@ public class SecWidgetService {
     public SecWidgetService(SecUserWidgetTabRepository tabRepository,
                             SecUserWidgetRepository widgetRepository,
                             SecWidgetTabWriter writer,
+                            SecWidgetInstSplitWriter instSplitWriter,
                             SecurityIdentity securityIdentity,
                             WidgetFixedTabs fixedTabs,
                             WidgetDefaultLayoutRepository layoutRepository,
@@ -96,6 +104,7 @@ public class SecWidgetService {
         this.tabRepository = tabRepository;
         this.widgetRepository = widgetRepository;
         this.writer = writer;
+        this.instSplitWriter = instSplitWriter;
         this.securityIdentity = securityIdentity;
         this.fixedTabs = fixedTabs;
         this.layoutRepository = layoutRepository;
@@ -125,6 +134,9 @@ public class SecWidgetService {
         List<SecUserWidget> userWidgets = widgetRepository.findByUserId(userId);
         if (migrateLegacy(userId, rows, userWidgets, fixed)) {
             rows = tabRepository.findByUserIdOrderByTabSeqAsc(userId);
+            userWidgets = widgetRepository.findByUserId(userId);
+        }
+        if (splitSharedInstIds(userId, rows, userWidgets, fixed)) {
             userWidgets = widgetRepository.findByUserId(userId);
         }
 
@@ -429,6 +441,71 @@ public class SecWidgetService {
             moves.add(new SecWidgetTabWriter.TabMove(id, TAB_PREFIX + (++no), nm, seq));
         }
         return moves;
+    }
+
+    // ── 고정 탭 위젯과 같은 instId 를 쓰는 개인 탭 위젯 분리 (스펙 2026-10-07 §4) ───────────
+
+    /**
+     * 개인 탭 위젯의 instId 가 고정 탭 위젯의 instId 와 같으면 개인 쪽 instId 를 새로 발급하고 메모·대화를 복사해 둔다(두 위젯이
+     * 같은 USER_ID+INST_ID 메모·대화를 함께 쓰지 않게). 고정 탭 쪽 instId 는 관리자 배치와 묶여 있어 바꾸지 않는다. 매 조회 때 검사하므로
+     * 이미 옮겨진 사용자도 한 번에 고쳐지고, 관리자가 나중에 같은 instId 를 배치해도 다음 조회에 나뉜다. 나눌 것이 있었으면 true(다시 읽는다).
+     * 실패하면(DB 잠금 등) 경고만 남기고 조회는 막지 않는다 — 다음 조회에 다시 시도한다.
+     */
+    private boolean splitSharedInstIds(String userId, List<SecUserWidgetTab> rows, List<SecUserWidget> widgets,
+                                       List<WidgetFixedTabs.FixedTab> fixed) {
+        Set<String> personal = personalTabIds(rows);
+        if (widgets.stream().noneMatch(w -> personal.contains(w.getTabId()))) return false; // 개인 위젯이 없으면 전사 「홈」 배치도 읽지 않는다
+        List<SecWidgetInstSplitWriter.Split> splits = sharedInstSplits(personal, widgets, fixedInstIds(fixed), SecWidgetService::newInstId);
+        if (splits.isEmpty()) return false;
+        try {
+            instSplitWriter.splitInstIds(userId, splits);
+        } catch (RuntimeException e) {
+            log.warn("위젯 instId 분리 실패 — 다음 조회에 다시 시도한다. userId={}, splits={}", userId, splits, e);
+        }
+        return true;
+    }
+
+    /**
+     * 사용자의 고정 탭에 실제로 있는 위젯 instId — 전사 「홈」·부서 대표·기본 탭 항목. 고정 「홈」은 전사 배치(없으면 프런트
+     * HOME_DEFAULT_LAYOUT)로 그려지는데, 전사 배치가 있어도 옛 개인 위젯이 {@link #DEFAULT_INST_PREFIX} 형 instId 를 들고 있을 수 있어
+     * 접두어 판정을 함께 쓴다({@link #sharedInstSplits}).
+     */
+    private Set<String> fixedInstIds(List<WidgetFixedTabs.FixedTab> fixed) {
+        Set<String> ids = new HashSet<>();
+        for (WidgetFixedTabs.FixedTab f : fixed) {
+            for (WidgetFixedTabs.Item i : f.items()) ids.add(i.instId());
+        }
+        List<WidgetDefaultLayout> home = layoutRepository.findByLayoutKeyOrderByPosYAscPosXAsc(WidgetDefaultLayout.COMPANY_KEY);
+        if (home != null) {
+            for (WidgetDefaultLayout l : home) ids.add(l.getInstId());
+        }
+        return ids;
+    }
+
+    /**
+     * 나눌 목록 — 탭 행이 있는 개인 탭({@code tab-N}) 위젯 중 instId 가 고정 탭 instId 이거나 프런트 기본 배치 접두어 {@link #DEFAULT_INST_PREFIX}
+     * 로 시작하는 것. 사용자가 만드는 instId 는 {@code w-} 로 시작하므로(shared newInstanceId) 접두어와 겹치지 않는다.
+     */
+    static List<SecWidgetInstSplitWriter.Split> sharedInstSplits(Set<String> personalTabIds, List<SecUserWidget> widgets,
+                                                                 Set<String> fixedInstIds, Supplier<String> newId) {
+        List<SecWidgetInstSplitWriter.Split> splits = new ArrayList<>();
+        for (SecUserWidget w : widgets) {
+            String id = w.getInstId();
+            if (!personalTabIds.contains(w.getTabId()) || id == null) continue; // 탭 행 없이 남은 위젯 행은 화면에 나오지 않아 건드리지 않는다
+            if (fixedInstIds.contains(id) || id.startsWith(DEFAULT_INST_PREFIX)) {
+                splits.add(new SecWidgetInstSplitWriter.Split(w.getTabId(), id, newId.get()));
+            }
+        }
+        return splits;
+    }
+
+    /** 실제 탭 행이 있는 개인 탭({@code tab-N}) ID. */
+    private static Set<String> personalTabIds(List<SecUserWidgetTab> rows) {
+        Set<String> ids = new HashSet<>();
+        for (SecUserWidgetTab t : rows) {
+            if (isPersonalTabId(t.getTabId())) ids.add(t.getTabId());
+        }
+        return ids;
     }
 
     // ── helpers ─────────────────────────────────────────────────────────

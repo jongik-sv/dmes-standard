@@ -60,7 +60,7 @@
 
 | 구분 | 건수 | 내용 |
 |---|---|---|
-| BOOLEAN | 1 | `TB_MDM_COLUMN.REQUIRED`: V1 은 `NUMBER(1)`, 엔티티는 `boolean`. Hibernate 7 `OracleDialect` 는 Oracle 23 이상에서 `BOOLEAN` 을 기대한다. **첫 validate 오류가 이것이다.** 해결: 설정 `hibernate.type.preferred_boolean_jdbc_type=BIT`(`schema-owners.md` §3.1.1, 조정자 결정) |
+| BOOLEAN | 1 | `TB_MDM_COLUMN.REQUIRED`: V1 은 `NUMBER(1)`, 엔티티는 `boolean`. Hibernate 7 `OracleDialect` 는 Oracle 23 이상에서 `BOOLEAN` 을 기대한다. **첫 validate 오류가 이것이다.** 해결: 설정 `hibernate.type.preferred_boolean_jdbc_type=TINYINT`(처음 BIT 안은 철회: 23 이상에서 boolean 으로 매핑됨)(`schema-owners.md` §3.1.1, 조정자 결정) |
 | CLOB 열인데 엔티티는 문자열 | 14 | `BODY`·`BIZ_AST`·`STD_AST`·`TEST_CASES`·`SNAPSHOT_JSON`·`CELLS`·`INPUT_JSON`·`EXPECTED_JSON`·`FLOW_JSON`·`GRP_COND_AST`·`VAR_AST` 등. 엔티티에 `@Lob` 또는 `@JdbcTypeCode(SqlTypes.CLOB)` 가 없으면 validate 가 `wrong column type` 으로 실패한다. |
 | 업무 일시 | 3 | `TB_MDM_DATA_CATE(_ITEM)`·`TB_MDM_DATA_ITEM.VALID_FROM`: V1 은 `TIMESTAMP(6)`, 엔티티는 `String`. 필드 타입을 `LocalDateTime` 으로 바꿔야 한다(또는 V1 을 `VARCHAR2`). |
 | 숫자 정밀도 | 10 | `*.CHG_SEQ`·`LAST_CHG_SEQ`: V1 `NUMBER(10)`, 엔티티 `Long`(`NUMBER(19)`). Oracle 에서는 NUMERIC 계열을 같은 종류로 보아 validate 는 통과하지만 10자리를 넘으면 값이 넘친다. |

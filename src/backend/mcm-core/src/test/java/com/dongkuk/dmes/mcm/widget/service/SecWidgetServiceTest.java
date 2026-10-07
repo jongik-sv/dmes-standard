@@ -45,6 +45,7 @@ class SecWidgetServiceTest {
     @Mock SecUserWidgetTabRepository tabRepository;
     @Mock SecUserWidgetRepository widgetRepository;
     @Mock SecWidgetTabWriter writer;
+    @Mock SecWidgetInstSplitWriter instSplitWriter;
     @Mock SecurityIdentity securityIdentity;
     @Mock WidgetFixedTabs fixedTabs;
     @Mock WidgetDefaultLayoutRepository layoutRepository;

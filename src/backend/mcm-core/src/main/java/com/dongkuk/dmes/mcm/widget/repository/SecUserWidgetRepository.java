@@ -23,6 +23,13 @@ public interface SecUserWidgetRepository extends JpaRepository<SecUserWidget, Se
     int moveTab(@Param("userId") String userId, @Param("fromTabId") String fromTabId, @Param("toTabId") String toTabId,
                 @Param("now") Instant now);
 
+    /** 한 위젯의 INST_ID 만 바꾼다(행 삭제 없음). 메모·대화 복사와 같은 트랜잭션 안에서 부른다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update SecUserWidget w set w.instId = :toInstId, w.updatedAt = :now, w.updatedBy = :userId"
+            + " where w.userId = :userId and w.tabId = :tabId and w.instId = :fromInstId")
+    int renameInstId(@Param("userId") String userId, @Param("tabId") String tabId, @Param("fromInstId") String fromInstId,
+                     @Param("toInstId") String toInstId, @Param("now") Instant now);
+
     /** 탭 행 없이 남은 위젯 행까지 보려고 — 새 탭 ID 를 고를 때 쓴다. */
     boolean existsByUserIdAndTabId(String userId, String tabId);
 
