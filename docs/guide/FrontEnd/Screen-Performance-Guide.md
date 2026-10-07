@@ -17,7 +17,7 @@
 
 ## 새 화면 만들 때 하지 말 것
 
-MDM 화면들에서 실제로 나온 문제만 모았다. 설명은 해당 R 절에 있다. 새 화면은 PR 전에 이 표를 한 번 훑는다. 확인 방법 열의 번호는 §7 점검표 번호다. audit 는 `python3 .claude/skills/mantine-aggrid-ui/scripts/aggrid_docs.py audit <바꾼 파일·폴더>` 이고, 성능 항목 코드(`P-…`)와 수준은 [README §자동 점검](README.md) 에 있다. audit 가 잡지 못하는 행은 점검표와 `count-renders` 로 확인한다.
+MDM 화면들에서 실제로 나온 문제만 모았다. 설명은 해당 R 절에 있다. 새 화면은 PR 전에 이 표를 한 번 훑는다. 확인 방법 열의 번호는 §7 점검표 번호다. audit 는 `node .claude/skills/mantine-aggrid-ui/scripts/aggrid_docs.mjs audit <바꾼 파일·폴더>` 이고, 성능 항목 코드(`P-…`)와 수준은 [README §자동 점검](README.md) 에 있다. audit 가 잡지 못하는 행은 점검표와 `count-renders` 로 확인한다.
 
 | 하지 말 것 | 증상(수치) | 규칙 | 확인 방법 |
 |---|---|---|---|
@@ -360,7 +360,7 @@ const recoColumns = useMemo<GridColumn[]>(() => [/* form 을 읽는 셀 */], [fo
 8. 전역 이벤트로 다시 조회하는 곳이 없고, 숨은 탭(폭 0)에서 다시 그리지 않는다(R10).
 9. 상세 폼 state 가 화면 루트에 있지 않고(별도 상세 폼 컴포넌트 + `ref` 핸들), 그리드 열·행 deps 에 폼 객체 전체가 없다(R12).
 10. 하네스에 화면을 등록해 cold 3회(`RENDER_ISOLATE=1`)를 쟀고, §5 예산 주 기준 항목 값을 PR 에 적었다.
-11. 바꾼 파일·폴더에 `python3 .claude/skills/mantine-aggrid-ui/scripts/aggrid_docs.py audit <바꾼 파일·폴더>` 를 돌렸고, 결과(오탐이면 이유)를 PR 에 적었다. 성능 항목(`P-R1`·`P-R6`·`P-R10`·`P-R12`·`P-R12b`·`P-K`·`P-R14`·`P-R16`·`P-R1b`)은 자동으로 잡히고, 나머지는 위 1~10 을 눈으로 확인한다.
+11. 바꾼 파일·폴더에 `node .claude/skills/mantine-aggrid-ui/scripts/aggrid_docs.mjs audit <바꾼 파일·폴더>` 를 돌렸고, 결과(오탐이면 이유)를 PR 에 적었다. 성능 항목(`P-R1`·`P-R6`·`P-R10`·`P-R12`·`P-R12b`·`P-K`·`P-R14`·`P-R16`·`P-R1b`)은 자동으로 잡히고, 나머지는 위 1~10 을 눈으로 확인한다.
 12. shared 공통 컴포넌트를 새로 만들었으면 `count-renders` 로 동작당 렌더를 보고, 기존 shared props·동작을 바꾸는 수정은 사용자 승인을 받았다.
 13. 위젯·대시보드에서 슬라이드·`refreshSec`·`setInterval` 타이머가 탭 활성·요소 표시와 연동되고(R14), 진입 불러오기가 준비 조건을 모아 한 번만 나가며 이미 그린 보드를 스켈레톤으로 되돌리지 않고(R13), 등록부 entry·배치 참조가 같은 결과면 그대로다(R7 확장).
 14. 같은 목록을 쓰는 위젯·컴포넌트가 요청을 나눠 쓰고(호스트가 올린 저장소를 먼저 본다), 홈 진입 목록 요청이 각 1회다(R15, §5).

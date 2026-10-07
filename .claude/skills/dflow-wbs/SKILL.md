@@ -11,6 +11,7 @@ description: PRD/TRD 또는 프로그램 리스트(json/yaml/csv/md/xlsx)로 WBS
 > WBS 파서·검증·의존 분석(`wbs-parse`·`wbs-validate`·`dep-analysis`)은 **`/dflow-export` 스킬의 node 판**
 > (`.claude/skills/dflow-export/scripts/*.mjs`)을 쓴다 — 별도 복사본을 두지 않는다(2026-10-07 통합).
 > dev 플러그인이 없는 PC 에서도 리포 클론과 node(18.17 이상)만으로 동작한다. 아래 상대 경로들은 리포 루트가 cwd 라는 전제다.
+> `decision-log.mjs append` 는 `decisions.md.lock` 디렉터리(mkdir 잠금)로 동시 기록을 막고(15초 안에 못 잡으면 종료 코드 1), 항목 머리는 `## D-<숫자> (<시각>)` 로 줄이 끝나는 줄만 인정한다(dflow-merge `decisions.sh` 와 같은 규칙).
 > 구조·경계·게이트 규칙의 문서 정본은 대상 리포의 `docs/wbs-workflow.md` 다 —
 > 있으면 생성 전에 Read 하고, 이 파일과 다르면 그 문서가 이긴다.
 > **상태·전이·배정·진척의 정본은 D'Flow 다.** 이 스킬은 상태를 `[ ]` 로만 생성한다 —

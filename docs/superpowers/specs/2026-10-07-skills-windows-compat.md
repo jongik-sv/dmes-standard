@@ -129,7 +129,7 @@
 
 기존 `_shared/platform-support.md` 는 jq 를 「설치 필요(`winget install jqlang.jq`)」로 적고 있는데, 이 안을 택하면 「동봉」으로 고친다. 회사 PC 에서 winget 이 막혀 있을 가능성이 있어 동봉이 더 안전하다(추정).
 
-현재: 동봉안(A)으로 확정되어 `platform-support.md` 의 jq 행을 「동봉」으로 고쳤다. 줄끝은 래퍼 `_shared/bin/jq` 가 `-b` 를 붙여 부르는 방식으로 대비했다(실기 확인 항목은 §8). 하이브리드(C)로는 `timeout-guard.sh` 가 jq 가 없을 때 node 로 입력을 파싱한다(D1). jq 1.7.1 을 1.8.x 로 올리는 일은 후속 과제다.
+현재: 동봉안(A)으로 확정되어 `platform-support.md` 의 jq 행을 「동봉」으로 고쳤다. 줄끝은 래퍼 `_shared/bin/jq` 가 `-b` 를 붙여 부르는 방식으로 대비했다(실기 확인 항목은 §8). 하이브리드(C)로는 `timeout-guard.sh` 가 jq 가 없을 때 node 로 입력을 파싱한다(D1). jq 는 2026-10-07 에 1.7.1 에서 1.8.2 로 올렸다(보안 수정 반영, 윈도우 동봉본만 교체하고 macOS 시스템 jq 는 그대로이며, 상향 근거와 검증은 `_shared/bin/README.md`).
 
 ### 4.2 python (결정 필요 D2)
 
@@ -292,6 +292,7 @@ bash 는 Git Bash 를 전제로 하고 다음을 지킨다.
 | 16 | `junit-count.sh` 가 윈도우에서 도는지, 시험 `tests/junit-count.sh` 의 MINGW 분기(python 이 없다고 보기, `sort` 에 `LC_ALL=C`)가 통과하는지, `--failed-file` 이 LF 인지 | 두 스크립트를 Git Bash 에서 실행 | python 없이 node 로 돈다. 시험 스크립트는 MSYS 에서 `HAVE_PY=0` | - | L6 |
 | 17 | `xlsx-read.mjs`·`xlsx-write.mjs` 가 윈도우 node 에서 도는지, 만든 `.xlsx` 가 Excel 에서 열리는지(한글 시트 이름·셀 포함) | 임의 xlsx 읽기와 쓰기, Excel 로 열기 | 직접 구현한 zip(`_zip.mjs`, node 18.17 에 없는 `zlib.crc32` 를 쓰지 않음)과 시험 192건 | - | L6 |
 | 18 | python 이 없는 윈도우에서 `node --test` 가 통과하는지(골든 비교를 건너뛰고 기대값 파일과 비교하는 경로) | `node --test .claude/skills/_shared/node/tests/` 와 각 스킬 `tests/` | `DMES_NO_PYTHON=1` 로 macOS 에서 같은 경로를 흉내 낼 수 있다 | - | L1~L6 |
+| 19 | 동봉 jq.exe 1.8.2 가 윈도우에서 실제로 실행되고 기존 jq 필터가 같은 결과를 내는지 | 윈도우 Git Bash 에서 `jq --version`(`jq-1.8.2` 확인), `printf a \| jq -r . \| od -c` 로 줄끝 확인, `bash .claude/skills/coordinator/tests/compat.sh` 와 jq 를 쓰는 `tests/*.sh` 실행 | macOS 에서 같은 1.8.2 공식 바이너리(`jq-macos-arm64`)로 쓰는 시험을 돌려 필터 회귀 없음을 확인했다. 윈도우 빌드의 실행 자체는 미확인 | - | jq-up |
 
 ### 8.3 조사 당시 목록(원문)
 
