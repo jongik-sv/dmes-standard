@@ -338,3 +338,12 @@ python3 tools/oracle-free/sqlite_to_oracle.py --sqlite /tmp/ora-mig/mdm.db --sch
    - 증상: `pdb.mjs list` 나 sqlplus 가 2분 넘게 응답이 없고 `podman exec` 세션이 쌓입니다. 이때 상태 확인을 더 보내지 않습니다(대기만 늘어납니다).
    - 원칙: ① 동시에 열린 PDB 는 3개 이하(`DMES_ORA_MAX_OPEN`) ② `clone`·`drop`·`open`·`template-*`·Oracle 시험 빌드는 PC 전체에서 하나(§6.4.3 의 PC 잠금) ③ 레인 PDB 는 쓸 때만 열고 `close` ④ 시험 PDB 는 복제 직후 시험하고 바로 삭제 ⑤ 인스턴스 부하를 줄이려고 `job_queue_processes=0`(자동 작업·통계 수집 정지)을 쓴다.
    - 복구: 조정자가 동결을 알리면 새 Oracle 명령을 멈추고, 진행 중인 `drop` 등 변경 작업은 끝나게 둡니다. 확인용으로 띄운 sqlplus 와 고아 `podman exec` 는 종료합니다. 인스턴스가 응답하면 재개합니다.
+8. **Oracle 오류가 났을 때: VM 때문인지 코드 때문인지 먼저 가립니다:**
+   - Oracle 시험 실패·접속 실패·시간 초과가 나면 **다시 돌리기 전에** VM 상태를 한 번 잽니다(Oracle 명령이 아닙니다): `podman machine ssh -- 'free -m; cat /proc/loadavg'`. 시험 하니스는 시험이 실패하거나 PDB 준비가 실패했을 때 같은 값을 `[dmes-ora] … VM available=…MB load=…` 한 줄로 남기고 VM 신호면 「VM 의심」 을 붙입니다.
+   - 보고에는 오류 번호와 VM 값(available MB·load)을 함께 적습니다.
+
+     | 구분 | 신호 | 처리 |
+     | :--- | :--- | :--- |
+     | VM 의심 | available 150MB 미만, load 10 이상, ORA-04031·04030·00020·00018·12516·12519·12520·3136·609·12751·00800·01092·00822, JDBC 접속·읽기 시간 초과 | 재실행하지 않고 조정자에게 「VM 의심」 으로 보고 |
+     | 코드 | ORA-00942·00904·00001·01400·12899·00933 같은 SQL·제약 오류 | 평소대로 레인이 고침 |
+   - 경고 로그에 `Time drifted`·ORA-3136·ORA-609·ORA-12751·ORA-00800 이 쌓였으면 그 시각은 스래싱 구간입니다. 같은 표는 `scripts/oracle/README.md` 「Oracle 오류 판별」 에도 있습니다.
