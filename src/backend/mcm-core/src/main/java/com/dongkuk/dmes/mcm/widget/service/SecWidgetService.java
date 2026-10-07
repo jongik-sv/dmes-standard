@@ -136,7 +136,7 @@ public class SecWidgetService {
             rows = tabRepository.findByUserIdOrderByTabSeqAsc(userId);
             userWidgets = widgetRepository.findByUserId(userId);
         }
-        if (splitSharedInstIds(userId, userWidgets, fixed)) {
+        if (splitSharedInstIds(userId, rows, userWidgets, fixed)) {
             userWidgets = widgetRepository.findByUserId(userId);
         }
 
@@ -451,8 +451,11 @@ public class SecWidgetService {
      * 이미 옮겨진 사용자도 한 번에 고쳐지고, 관리자가 나중에 같은 instId 를 배치해도 다음 조회에 나뉜다. 나눌 것이 있었으면 true(다시 읽는다).
      * 실패하면(DB 잠금 등) 경고만 남기고 조회는 막지 않는다 — 다음 조회에 다시 시도한다.
      */
-    private boolean splitSharedInstIds(String userId, List<SecUserWidget> widgets, List<WidgetFixedTabs.FixedTab> fixed) {
-        List<SecWidgetInstSplitWriter.Split> splits = sharedInstSplits(widgets, fixedInstIds(fixed), SecWidgetService::newInstId);
+    private boolean splitSharedInstIds(String userId, List<SecUserWidgetTab> rows, List<SecUserWidget> widgets,
+                                       List<WidgetFixedTabs.FixedTab> fixed) {
+        Set<String> personal = personalTabIds(rows);
+        if (widgets.stream().noneMatch(w -> personal.contains(w.getTabId()))) return false; // 개인 위젯이 없으면 전사 「홈」 배치도 읽지 않는다
+        List<SecWidgetInstSplitWriter.Split> splits = sharedInstSplits(personal, widgets, fixedInstIds(fixed), SecWidgetService::newInstId);
         if (splits.isEmpty()) return false;
         try {
             instSplitWriter.splitInstIds(userId, splits);
@@ -480,20 +483,29 @@ public class SecWidgetService {
     }
 
     /**
-     * 나눌 목록 — 개인 탭({@code tab-N}) 위젯 중 instId 가 고정 탭 instId 이거나 프런트 기본 배치 접두어 {@link #DEFAULT_INST_PREFIX}
+     * 나눌 목록 — 탭 행이 있는 개인 탭({@code tab-N}) 위젯 중 instId 가 고정 탭 instId 이거나 프런트 기본 배치 접두어 {@link #DEFAULT_INST_PREFIX}
      * 로 시작하는 것. 사용자가 만드는 instId 는 {@code w-} 로 시작하므로(shared newInstanceId) 접두어와 겹치지 않는다.
      */
-    static List<SecWidgetInstSplitWriter.Split> sharedInstSplits(List<SecUserWidget> widgets, Set<String> fixedInstIds,
-                                                                 Supplier<String> newId) {
+    static List<SecWidgetInstSplitWriter.Split> sharedInstSplits(Set<String> personalTabIds, List<SecUserWidget> widgets,
+                                                                 Set<String> fixedInstIds, Supplier<String> newId) {
         List<SecWidgetInstSplitWriter.Split> splits = new ArrayList<>();
         for (SecUserWidget w : widgets) {
             String id = w.getInstId();
-            if (!isPersonalTabId(w.getTabId()) || id == null) continue;
+            if (!personalTabIds.contains(w.getTabId()) || id == null) continue; // 탭 행 없이 남은 위젯 행은 화면에 나오지 않아 건드리지 않는다
             if (fixedInstIds.contains(id) || id.startsWith(DEFAULT_INST_PREFIX)) {
                 splits.add(new SecWidgetInstSplitWriter.Split(w.getTabId(), id, newId.get()));
             }
         }
         return splits;
+    }
+
+    /** 실제 탭 행이 있는 개인 탭({@code tab-N}) ID. */
+    private static Set<String> personalTabIds(List<SecUserWidgetTab> rows) {
+        Set<String> ids = new HashSet<>();
+        for (SecUserWidgetTab t : rows) {
+            if (isPersonalTabId(t.getTabId())) ids.add(t.getTabId());
+        }
+        return ids;
     }
 
     // ── helpers ─────────────────────────────────────────────────────────

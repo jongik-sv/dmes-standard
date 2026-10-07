@@ -17,7 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
  * 개인 탭 위젯의 instId 를 새로 발급하면서 그 위젯의 메모·대화를 새 instId 로 <b>복사</b>하는 트랜잭션 경계
  * (스펙 2026-10-07-widget-fixed-tabs §4, 고정 탭 위젯과 같은 instId 를 쓰는 개인 탭 위젯의 메모·대화 분리).
  * 옛 instId 의 메모·대화 행은 지우지 않는다 — 고정 탭 위젯이 계속 쓴다. 한 트랜잭션이라 중간에 실패하면 모두 되돌아가고,
- * 이미 나뉜 위젯(옛 instId 행이 없음)은 건너뛰므로 두 번 불러도 같은 결과다.
+ * 이미 나뉜 위젯(옛 instId 행이 없음)은 건너뛰므로 두 번 불러도 같은 결과다. 복사는 메모 사용자당 100개·대화 사용자별 상한 검사를 거치지 않으므로
+ * 상한을 넘을 수 있다(넘으면 새 메모 저장·새 대화 때 각 Writer 가 평소대로 막거나 오래된 대화부터 정리한다).
  */
 @Component("secWidgetInstSplitWriter")
 public class SecWidgetInstSplitWriter {
@@ -66,6 +67,7 @@ public class SecWidgetInstSplitWriter {
         copy.setFmt(src.getFmt());
         copy.setContent(src.getContent());
         copy.setTitle(src.getTitle());
+        copy.setCreatedAt(src.getCreatedAt()); // 원본 C_AT 유지(U_AT 은 저장 시각으로 새로 찍힌다)
         memoRepository.save(copy);
     }
 
@@ -80,6 +82,7 @@ public class SecWidgetInstSplitWriter {
             c.setRoleTp(m.getRoleTp());
             c.setContent(m.getContent());
             c.setLinksJson(m.getLinksJson());
+            c.setCreatedAt(m.getCreatedAt()); // 원본 C_AT 유지 — 사용자별 상한 정리가 C_AT 오래된 순이라 복사본이 원본을 밀어내지 않게
             copies.add(c);
         }
         chatRepository.saveAll(copies);

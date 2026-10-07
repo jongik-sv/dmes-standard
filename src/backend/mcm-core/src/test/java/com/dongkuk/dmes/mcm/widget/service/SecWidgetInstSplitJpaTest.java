@@ -187,6 +187,10 @@ class SecWidgetInstSplitJpaTest {
                 .containsExactly(org.assertj.core.groups.Tuple.tuple(1, "user", "질문"),
                         org.assertj.core.groups.Tuple.tuple(2, "assistant", "답"));
         assertThat(chatCopy.get(1).getLinksJson()).contains("p1");
+        // 복사본 C_AT 은 원본과 같다(사용자별 상한 정리가 C_AT 오래된 순이라 복사본이 원본을 밀어내지 않게).
+        assertThat(chatCopy).extracting(WidgetChatMessage::getCreatedAt)
+                .containsExactlyElementsOf(chatRepository.findByUserIdAndInstIdOrderByMsgSeqAsc("userA", "h1").stream()
+                        .map(WidgetChatMessage::getCreatedAt).toList());
         assertThat(memoRepository.findById(new WidgetMemoId("userB", "h1")).orElseThrow().getContent()).isEqualTo("남의 메모");
         assertThat(userWidgetRepository.findByUserId("userA")).hasSize(4); // 행 삭제 없음
 
@@ -226,6 +230,19 @@ class SecWidgetInstSplitJpaTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> widgets = (List<Map<String, Object>>) service.search(new SecWidgetSearchRequest()).get("widgets");
         assertThat(widgets).extracting(w -> w.get("instId")).contains("c1"); // 고정 탭 위젯은 관리자 instId 그대로
+    }
+
+    @Test
+    @DisplayName("search — 탭 행이 없는 개인 탭 위젯 행(고아)은 겹쳐도 나누지 않는다")
+    void orphanWidgetRowIsLeftAlone() {
+        widget("userA", "tab-7", "h1"); // 탭 행 없음
+        memo("userA", "h1", "메모", null);
+
+        service.search(new SecWidgetSearchRequest());
+
+        assertThat(userWidgetRepository.findByUserIdAndTabId("userA", "tab-7")).extracting(SecUserWidget::getInstId)
+                .containsExactly("h1");
+        assertThat(memoRepository.count()).isEqualTo(1);
     }
 
     @Test

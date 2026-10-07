@@ -251,10 +251,11 @@ class SecWidgetFixedTabTest {
                 userWidget("userA", "tab-1", "w-mine", "N", null),       // 겹침 없음
                 userWidget("userA", "tab-2", "c9", "N", null),           // 다른 개인 탭도 같은 규칙, 위젯마다 새 ID
                 userWidget("userA", "home", "c9", "N", null),            // 옮기지 않은 옛 행은 대상이 아니다
-                userWidget("userA", "def-1", "default-kpi", "N", null));
+                userWidget("userA", "def-1", "default-kpi", "N", null),
+                userWidget("userA", "tab-9", "c9", "N", null));          // 탭 행이 없는 고아 위젯 행도 건드리지 않는다
         int[] n = {0};
 
-        List<SecWidgetInstSplitWriter.Split> splits = SecWidgetService.sharedInstSplits(widgets, Set.of("c9"), () -> "n" + (++n[0]));
+        List<SecWidgetInstSplitWriter.Split> splits = SecWidgetService.sharedInstSplits(Set.of("tab-1", "tab-2"), widgets, Set.of("c9"), () -> "n" + (++n[0]));
 
         assertThat(splits).containsExactly(
                 new SecWidgetInstSplitWriter.Split("tab-1", "c9", "n1"),
