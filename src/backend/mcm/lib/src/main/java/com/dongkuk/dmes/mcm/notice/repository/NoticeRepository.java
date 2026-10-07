@@ -107,8 +107,8 @@ public interface NoticeRepository extends JpaRepository<Notice, String> {
      * 고정해서 넘긴다 — 모든 로그인 사용자가 부르는 경로라 요청 값으로 조회 범위를 넓힐 수 없어야 한다.
      *
      * <p>정렬: 상단 고정(PIN_YN='Y') → 긴급(URGENT) → 등록 시각 최신 → 공지번호 역순. 등록 시각이 NULL 인 행
-     * (V2 시드처럼 C_AT 없이 넣은 행)은 맨 뒤로 보낸다 — DESC 정렬에서 NULL 의 위치가 SQLite 와 Oracle·PostgreSQL 이
-     * 서로 달라서 CASE 로 고정한다. 같은 이유로 {@code NULLS LAST} 대신 CASE 를 쓴다.
+     * (V2 시드처럼 C_AT 없이 넣은 행)은 맨 뒤로 보낸다 — DESC 정렬에서 NULL 의 위치가 DB 마다 달라서(Oracle·PostgreSQL 은
+     * DESC 에서 NULL 이 앞) CASE 로 고정한다. 같은 이유로 {@code NULLS LAST} 대신 CASE 를 쓴다.
      */
     @Query("""
             SELECT n FROM Notice n

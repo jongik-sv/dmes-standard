@@ -64,7 +64,10 @@ public final class McmOraTestDb {
         McmSchemaMigrator.migrate(url(), password(), APP_USER);
     }
 
-    /** 사용자 하나로 붙는 작은 풀(인스턴스를 모든 레인이 나눠 쓴다 — 상한 2). 닫는 것은 호출자 몫이다. */
+    /**
+     * 사용자 하나로 붙는 작은 풀. 인스턴스를 모든 레인이 나눠 쓰므로 상한 2·유휴 0 이고, 쓰지 않는 연결은 10초 뒤 닫는다
+     * (Spring 시험 컨텍스트 캐시가 풀을 JVM 끝까지 들고 있어도 세션을 붙잡지 않게). 닫는 것은 호출자 몫이다.
+     */
     public static HikariDataSource dataSource(String user, String poolName) {
         HikariDataSource ds = new HikariDataSource();
         ds.setJdbcUrl(url());
@@ -73,6 +76,8 @@ public final class McmOraTestDb {
         ds.setDriverClassName("oracle.jdbc.OracleDriver");
         ds.setPoolName(poolName);
         ds.setMaximumPoolSize(2);
+        ds.setMinimumIdle(0);
+        ds.setIdleTimeout(10_000);
         return ds;
     }
 

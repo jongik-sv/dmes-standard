@@ -69,7 +69,7 @@ public final class CaravanMetaSeeder {
     }
 
     /**
-     * v4 Phase 4-C (2026-05-13) — SERAI_CONFIG 시드 (PoC 토픽별 INTEGRATION_TYPE 등록).
+     * v4 Phase 4-C (2026-05-13) — TB_CARAVAN_HUB_CONFIG 시드 (PoC 토픽별 INTEGRATION_TYPE 등록).
      *
      * <p>v4 §6-1 — 각 토픽이 INBOUND/OUTBOUND × DB/HTTP/FILE 4 조합 중 어느 패턴인지 운영자가 등록.
      * caravan-hub 가 부팅 시점에 본 테이블 read → 토픽별 라우팅 결정.

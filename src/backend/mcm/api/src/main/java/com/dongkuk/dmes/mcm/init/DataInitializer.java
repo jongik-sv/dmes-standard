@@ -107,8 +107,8 @@ public class DataInitializer implements ApplicationRunner {
         // 시드 문맥을 한 번 만들어 모든 단계에 넘긴다 (단계 클래스는 빈이 아니다 — 트랜잭션은 이 메서드 하나).
         SeedSupport support = new SeedSupport(entityManager);
 
-        // caravan-console 메타 (TB_MCM_APPHOST / TB_MCM_MOM_KAFKA_SERAI_CONFIG) 는 secondary DB (caravan.db / CARAVANUSER).
-        // mcm.db 의 secUser count 와 무관하게 매번 idempotent saveAll 수행 (JpaRepository.save 는 PK 있으면 UPDATE).
+        // caravan-console 메타 (TB_CARAVAN_APPHOST / TB_CARAVAN_HUB_CONFIG) 는 보조 DataSource(CARAVANUSER).
+        // biz 의 secUser count 와 무관하게 매번 idempotent saveAll 수행 (JpaRepository.save 는 PK 있으면 UPDATE).
         // v4 결정 #14 + Phase 4-C (2026-05-13).
         CaravanMetaSeeder caravanMeta = new CaravanMetaSeeder(appHostJpaRepository, consoleCaravanHubConfigJpaRepository);
         caravanMeta.initAppHostData();

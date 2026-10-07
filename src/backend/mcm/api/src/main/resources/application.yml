@@ -111,9 +111,9 @@ cactus:
         persistence-unit-name: cactus-if
       caravan:                 # Kafka 메타 DS — CARAVANUSER (운영·로컬 Oracle PDB). caravan-console 메타 entity 3종
         packages-to-scan:
-          - com.dongkuk.caravan.console.host        # AppHostEntity (TB_MCM_APPHOST)
-          - com.dongkuk.caravan.console.caravanhubconfig # ConsoleCaravanHubConfigEntity (TB_MCM_MOM_KAFKA_SERAI_CONFIG)
-          - com.dongkuk.caravan.console.topic       # ConsoleTopicInfoEntity (TB_MCM_MOM_KAFKA_TOPICS)
+          - com.dongkuk.caravan.console.host        # AppHostEntity (TB_CARAVAN_APPHOST)
+          - com.dongkuk.caravan.console.caravanhubconfig # ConsoleCaravanHubConfigEntity (TB_CARAVAN_HUB_CONFIG)
+          - com.dongkuk.caravan.console.topic       # ConsoleTopicInfoEntity (TB_CARAVAN_TOPICS)
         persistence-unit-name: cactus-caravan
   tx:
     managers:                  # 옵션 δ — 표준 3개(txBiz/txCmn/txIF) 의무 + txCaravan(MCM 전용, MCM yml 에만 존재)
@@ -217,7 +217,7 @@ caravan-console:
     base-url: ${CARAVAN_HUB_BASE_URL:http://localhost:8200}
     auth:
       client-key: ${CARAVAN_HUB_CLIENT_KEY:dmes-bff-local-client-key-2026}
-  works-code: ${CARAVAN_CONSOLE_WORKS_CODE:p}        # caravan-console 인스턴스의 공장 식별자 (TB_MCM_APPHOST.WORKS_CD 필터)
+  works-code: ${CARAVAN_CONSOLE_WORKS_CODE:p}        # caravan-console 인스턴스의 공장 식별자 (TB_CARAVAN_APPHOST.WORKS_CD 필터)
   message:
     max-browse-count: 200                 # 메시지 검색 1회 최대 행 수
   repository:                             # caravan-console 메타 Repository → caravan EMF/TxMgr (Kafka 스키마 CARAVANUSER)

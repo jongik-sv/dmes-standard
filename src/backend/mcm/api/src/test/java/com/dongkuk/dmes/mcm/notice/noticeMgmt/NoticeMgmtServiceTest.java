@@ -81,8 +81,8 @@ class NoticeMgmtServiceTest extends McmNoticeTestDb {
     // ── 엔티티 기본값 (mls 의 V3 마이그레이션 기본값 시험을 대체) ─────────────────────
 
     /**
-     * mls 에서는 Flyway V3 가 기존 시드 행에 기본값(TEXT·NORMAL·N)을 채우고 점검 시드 1건을 마크다운 예시로 바꿨다. mcm 은 Flyway 가 없고
-     * 공지 시드 행도 없으며(ddl-auto 가 빈 테이블만 만든다), ddl-auto 는 DB DEFAULT 를 만들지 않는다. 그래서 같은 기본값 계약을 엔티티
+     * mls 에서는 Flyway V3 가 기존 시드 행에 기본값(TEXT·NORMAL·N)을 채우고 점검 시드 1건을 마크다운 예시로 바꿨다. mcm 은 공지 시드 행이
+     * 없고, Flyway 기준선(mcm-core V1)의 TB_MCM_NOTICE 는 이 세 칸에 DB DEFAULT 가 없다(NOT NULL 만). 그래서 같은 기본값 계약을 엔티티
      * 필드 초기값과, 값 없이 저장한 행의 실제 저장값으로 확인한다.
      */
     @Test
