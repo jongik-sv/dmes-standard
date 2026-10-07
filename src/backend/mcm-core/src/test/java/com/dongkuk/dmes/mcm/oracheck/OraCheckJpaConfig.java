@@ -5,6 +5,7 @@ import com.dongkuk.dmes.mcm.csa.commSyncMng.service.CommSyncMngService;
 import com.dongkuk.dmes.mcm.repository.MasterRuleColListRepository;
 import com.dongkuk.dmes.mcm.repository.MomTcErrorRepository;
 import com.dongkuk.dmes.mcm.repository.RuleMasterRepository;
+import com.dongkuk.dmes.mcm.repository.SecUserRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleGroupMappingNativeRepository;
 import com.dongkuk.dmes.mcm.testdb.McmCoreOraTestDb;
@@ -41,7 +42,8 @@ import javax.sql.DataSource;
         includeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {
                 MomTcErrorRepository.class,
                 MasterRuleColListRepository.class,
-                RuleMasterRepository.class
+                RuleMasterRepository.class,
+                SecUserRepository.class
         }))
 public class OraCheckJpaConfig {
 
