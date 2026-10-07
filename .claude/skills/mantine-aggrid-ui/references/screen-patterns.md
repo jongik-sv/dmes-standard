@@ -22,7 +22,7 @@ MES 화면(`m-mpp`·`m-mqc`·`m-mls`·`m-mcm` 등)을 누가 만들어도, 어�
 
 ### 파일과 import
 
-- 화면 코드는 `page.tsx`(화면) + `api.ts`(호출·body 변환) + `types.ts`(타입·옵션 상수) 셋으로 나누고, 팝업은 같은 폴더의 `<이름>Modal.tsx` 로 둔다(MES 실례: `m-mls/pages/lsh/noticeMgmt/`). 파일 위치·tsup 엔트리·포털 등록은 UI 규칙이 아니므로 [Frontend 표준 01](../../../../docs/guide/FrontEnd/standard-v2/frontend-standard/01-rules-decisions-files.md) §2-3 과 RULE.md 를 따른다.
+- 화면 코드는 `page.tsx`(화면) + `api.ts`(호출·body 변환) + `types.ts`(타입·옵션 상수) 셋으로 나누고, 팝업은 같은 폴더의 `<이름>Modal.tsx` 로 둔다(MES 실례: `m-mcm/page-components/lsh/noticeMgmt/`). 파일 위치·tsup 엔트리·포털 등록은 UI 규칙이 아니므로 [Frontend 표준 01](../../../../docs/guide/FrontEnd/standard-v2/frontend-standard/01-rules-decisions-files.md) §2-3 과 RULE.md 를 따른다.
 - import 순서: `react` → `@dk-oasis/shared/layout` → `grid` → `form` → `modal` → `message-provider` → `utils` → `./api` → `./types`. 화면은 `@mantine/*`·`ag-grid-*` 를 import 하지 않는다.
 - `export default function <ScreenId>Page()`. 맨 위에 `"use client";` 와 한 줄 설명 주석.
 - `const SCREEN_ID = "<screenId>";` 를 두고 `PageLayout` 의 `screenId`·`objId` 에 같은 값을 준다.
@@ -48,11 +48,23 @@ MES 화면(`m-mpp`·`m-mqc`·`m-mls`·`m-mcm` 등)을 누가 만들어도, 어�
 
 ### 조회조건
 
+```tsx
+<SearchArea onSearch={() => void handleSearch()} autoSearch>
+  <SearchField label="품번" name="itemCd" value={filters.itemCd} onChange={(v) => setFilter("itemCd", v)} />
+  <SearchField label="상태" name="status" type="select" options={STATUS_OPTIONS} value={filters.status} onChange={(v) => setFilter("status", v)} />
+  <SearchField label="조회 기간" defaultKey="fromDt" type="date" value={filters.fromDt} onChange={(v) => setFilter("fromDt", v)} />
+  <SearchField label="~" type="date" value={filters.toDt} onChange={(v) => setFilter("toDt", v)} />
+</SearchArea>
+```
+
 - `<SearchArea onSearch={…}>` 로 감싼다(Enter 조회). `onSearch` 를 빠뜨리지 않는다.
-- 텍스트: `<SearchField label="품번" value onChange />`. 선택: `type="select"` + 첫 옵션 `{ value: "", label: "전체" }`.
-- 기간: SearchField 두 개, 두 번째 `label="~"`. SearchArea 가 한 칸으로 묶는다. `div`·`span`·`className="span-2"` 로 직접 묶지 않는다.
-- 기간 기본값은 오늘-7일 ~ 오늘이다: `formatDateStr(addDays(today(), -7))`, `formatDateStr(today())` (`@dk-oasis/shared/utils`). `today()`·`addDays()` 는 `yyyyMMdd` 를 돌려주므로 `formatDateStr` 로 `yyyy-MM-dd` 로 바꾼다. `formatDate` 는 UTC 로 계산해 하루가 밀릴 수 있으니 쓰지 않는다.
-- 필수 조회조건이 없으면 진입 시 1회 자동 조회한다(`useEffect(() => { void handleSearch(); }, [])`). 단, 첫 조회에는 반드시 상한을 건다(§성능 기본 구조). 상한 없는 전체 조회를 진입 자동 조회로 두지 않는다. 자동 조회가 있는 화면은 진행 중인 같은 조건 요청을 다시 보내지 않는다(가이드 R4).
+- 텍스트: `<SearchField label="품번" name="itemCd" value onChange />`. 선택: `type="select"` + 첫 옵션 `{ value: "", label: "전체" }`.
+- 칸마다 `name`(MDM 컬럼 사전 키) 또는 `defaultKey` 를 단다. 사용자별 조회 기본값(조회 영역 오른쪽 위 설정 아이콘)의 저장 키이고, 화면은 이 선언 말고 기본값 처리 코드를 두지 않는다. 라벨 글자는 키가 아니다([search-area](components/search-area.md) §사용자 기본값).
+- 조회 칸 `onChange` 는 함수형 갱신이다: `const setFilter = (k, v) => setFilters((p) => ({ ...p, [k]: v }))`. `setFilters({ ...filters, k: v })` 로 쓰면 기본값이 여러 칸에 한꺼번에 들어올 때 앞 칸 값이 사라진다.
+- 날짜: `type="date"` 를 쓴다(내장 `DatePicker`). 기간은 `type="date"` 두 칸이고 두 번째를 `label="~"` 로 둔다. SearchArea 가 한 칸으로 묶고 기본값 설정에서도 한 줄로 다룬다. `div`·`span`·`className="span-2"` 로 직접 묶지 않는다.
+- 기간 코드 기본값은 오늘-7일 ~ 오늘이다: `formatDateStr(addDays(today(), -7))`, `formatDateStr(today())` (`@dk-oasis/shared/utils`). `today()`·`addDays()` 는 `yyyyMMdd` 를 돌려주므로 `formatDateStr` 로 `yyyy-MM-dd` 로 바꾼다. `formatDate` 는 UTC 로 계산해 하루가 밀릴 수 있으니 쓰지 않는다.
+- 필수 조회조건이 없으면 진입 시 1회 자동 조회한다. `SearchArea` 에 `autoSearch` 를 달고 마운트 조회 `useEffect` 는 두지 않는다. 마운트 effect 는 사용자 기본값이 들어가기 전 조건으로 조회한다. `autoSearch` 는 기본값을 넣은 다음 커밋에서 `onSearch` 를 한 번 부른다(분리 창이 이어받은 값으로 시작했으면 부르지 않는다. 이어받기를 쓰는 화면은 `restored && 행 0건` 일 때만 조회하는 마운트 effect 를 둔다 — use-carry-state 규칙 5). 단, 첫 조회에는 반드시 상한을 건다(§성능 기본 구조). 상한 없는 전체 조회를 진입 자동 조회로 두지 않는다. 자동 조회가 있는 화면은 진행 중인 같은 조건 요청을 다시 보내지 않는다(가이드 R4).
+- 기준 칸이 바뀌면 다른 조건 칸을 비우고 다시 채워야 하는 화면은 그 칸에 `dependsOn="기준 칸 키"` 를 선언한다. 화면이 직접 비우지 않는다.
 
 ### 본문 배치
 
@@ -62,7 +74,7 @@ MES 화면(`m-mpp`·`m-mqc`·`m-mls`·`m-mcm` 등)을 누가 만들어도, 어�
 | 좌우 (B) | `<ContentBody root resizable storageKey=…>` + `<ContentPanel>`(목록) + `<ContentPanel width={460}>`(상세 폼) |
 | 상하 (D) | `<ContentBody root direction="column" resizable storageKey=…>` + `<ContentPanel>`(마스터) + `<ContentPanel height="40%">`(디테일) |
 
-- `storageKey` 는 `<모듈코드>.<그룹 폴더>.<screenId>` 다(예: `m-mls/pages/lsh/noticeMgmt` → `mls.lsh.noticeMgmt`).
+- `storageKey` 는 `<모듈코드>.<그룹 폴더>.<screenId>` 다(예: `m-mdm/pages/dme/ruleMng` → `mdm.dme.ruleMng`).
 - 오른쪽 상세 패널의 첫 자식은 바로 상세 표다. 제목·머리를 따로 만들지 않는다.
 - 패널 안을 `<div style={{ display: "flex", … }}>` 로 다시 감싸지 않는다. 높이와 스크롤은 `ContentPanel`·`GridPanel` 이 맡는다.
 
@@ -85,7 +97,7 @@ MES 화면(`m-mpp`·`m-mqc`·`m-mls`·`m-mcm` 등)을 누가 만들어도, 어�
 | 비고·제목(남는 폭) | 큰 가중치(예: `100`) + `minWidth`(예: `180`) | left | 남는 폭. **폭을 생략하지 않는다** |
 
 - `"fit"` 에서 `width` 는 픽셀이 아니라 **비율 가중치**다(위 표의 값은 그 비율). 폭을 생략하면 가중치 1 이 되어 최소 50px 까지 줄어, 남는 폭을 가져가기는커녕 가장 좁아진다. 남는 폭을 줄 열은 큰 가중치와 `minWidth` 를 함께 준다.
-- 목록이 좁은 배치(좌우 분할의 왼쪽 목록 등)에서는 짧은 열에 가중치 `1` + 내용 폭만큼의 `minWidth`(배지 2자 ≈ 52, 4자 ≈ 74, 칸 좌우 여백 8px 포함)를 주어 그 폭에 머물게 하고, 남는 폭 열 하나만 큰 가중치를 준다. `minWidth` 합이 목록 폭을 넘으면 가로 스크롤이 생기므로, 기본 배치의 목록 폭 안에 들도록 열을 줄인다(예: `m-mls/pages/lsh/noticeMgmt` — `minWidth` 합 574. 목록·상세 50:50 이라 1300px 포털에서는 목록이 약 520px 로 조금 가로 스크롤한다).
+- 목록이 좁은 배치(좌우 분할의 왼쪽 목록 등)에서는 짧은 열에 가중치 `1` + 내용 폭만큼의 `minWidth`(배지 2자 ≈ 52, 4자 ≈ 74, 칸 좌우 여백 8px 포함)를 주어 그 폭에 머물게 하고, 남는 폭 열 하나만 큰 가중치를 준다. `minWidth` 합이 목록 폭을 넘으면 가로 스크롤이 생기므로, 기본 배치의 목록 폭 안에 들도록 열을 줄인다(예: `m-mcm/page-components/lsh/noticeMgmt` — `minWidth` 합 574. 목록·상세 50:50 이라 1300px 포털에서는 목록이 약 520px 로 조금 가로 스크롤한다).
 
 ### 배지 색 (`GridBadge`)
 
@@ -208,7 +220,8 @@ B 예제에서 오른쪽 `ContentPanel`·상세 상태·신규/저장/삭제 버
 | 저장형 행 상태 | Part B §6 MUST 이나 사용 화면 0 | `useGridDataManager` | 정책 MUST |
 | 상세 폼 | `FormGroup` 0, `DETAIL_TABLE_STYLE` 21 | `DETAIL_*` 표 | 다수 사용 |
 | 상세 패널 폭 | 360·380·440·460 | 460 | 표준값. `noticeMgmt` 는 본문 편집기가 넓어야 해 사용자 요청으로 50:50(2026-10-02 예외) |
-| 기간 조회조건 | `label="~"` 쌍 / `span-2` 안 인라인 묶음 | `label="~"` 쌍 | 인라인 스타일 없이 SearchArea 가 배치 |
+| 기간 조회조건 | `label="~"` 쌍 / `span-2` 안 인라인 묶음 | `type="date"` 두 칸의 `label="~"` 쌍 | 인라인 스타일 없이 SearchArea 가 배치, 사용자 기본값에서도 한 쌍으로 처리 |
+| 진입 자동 조회 | 마운트 `useEffect` / `SearchArea autoSearch` | `autoSearch` | 마운트 effect 는 사용자 기본값이 들어가기 전 조건으로 조회(2026-10-07) |
 | 행추가·행삭제 위치 | 상단 버튼 / 그리드 머리 | `GridPanel` 머리. 행삭제는 확인창 버튼(`buttons`) | 래퍼 내장 행추가. 내장 행삭제는 확인창이 없어 개선 후 시험에서 상단으로 새는 일이 있었다 |
 | 빈 목록·로딩 문구 | 화면마다 다름 | 래퍼 기본값 | 문구 통일 |
 | 상단 버튼 라벨 | "단위 등록" 등 업무명 포함 | 신규·저장·삭제·엑셀 | 화면 간 동일 |

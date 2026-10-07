@@ -86,7 +86,7 @@
 | `integration_check` | `""` | 통합 확인 방법 문장(서버 기동·화면 확인). 킷에 도구 이름을 넣지 않는다 |
 | `claude_projects_dir` | `"~/.claude/projects"` | transcript 뿌리 |
 | `sessions_dir` | `"~/.claude/sessions"` | 세션 상태 json 폴더 |
-| `tasks_root` | `null` | 세션 tasks 출력 뿌리(예: `/private/tmp/claude-501`). null 이면 S7(다) 생략 |
+| `tasks_root` | `null` | 세션 tasks 출력 뿌리(Claude 세션이 tasks 출력을 쌓는 폴더. macOS 는 `/private/tmp/claude-<uid>` 꼴). null 이면 S7(다) 생략 |
 | `wake_targets` | `null` | 한도 초기화 깨우기 대상 파일(있으면 레인 증감 때 갱신 알림) |
 
 ### 1.3 `workflow.model_table` 기본값
@@ -198,7 +198,7 @@ macOS(BSD `date`·`stat`) 와 GNU(Git Bash 포함) 양쪽에서 돈다. 기계�
 | `tick.sh` | `[--no-answer] [--dry-run]` | 감시 틱 한 번을 묶어 행동 줄만 낸다: `ANSWER/DENY/ESCALATE … lane=<레인>`(확인 창 자동 응답) · `PROMPT <레인> <kind>`(`--no-answer`) · `IDLE`·`WAIT_USER`·`STALL?`·`GONE`(idle-check) · `STALL`(stall-check) · `CTX_OVER <레인> pct=<n> thr=<n>` · `CTX_OVER_SELF pct=<n> thr=<n>` · `BAND_CHANGED <이전> <지금> five=<n> week=<n>`(state.usage 갱신, 한 번만) · `LOAD_SOFT\|LOAD_HARD\|LOAD_RELEASE per_core=<f>`(두 틱 연속) · `WINDOW_DUE <kind> lane=<레인\|-> until=<iso>` · `UNACKED <instr-id> <레인> <분>m` · `UNLINKED <이름> pid=<pid>`(처음 본 것만) · `STALE_RUN <run-id> session=<id> idle=<분>m`(마감 표식 없는 다른 회차 — 경고만, 팀장 키는 세션 단위라 유령을 만들지 않는다). 하나도 없으면 `TICK quiet` |
 | `ctx-usage.sh` | `<session-id>` \| `--pid <pid>` \| `--lane <레인>` `[--window N]` | `CTX <session-id> tokens=<n> window=<n> pct=<n> src=transcript|dump at=<iso>` 또는 `CTX <id> unknown <사유>` |
 | `usage-band.sh` | 없음 | `BAND <G|Y|O|R|UNKNOWN> five=<n|-> week=<n|-> week_allow=<n|-> src=<kind|-> at=<iso|-> five_reset=<iso|-> week_reset=<iso|-> raw=<G|Y|O|R|->`. `raw` 는 `usage.relaxed` 로 내리기 전 띠다 |
-| `coord-status.sh` | `[--json]` | 레인마다 `LANE <레인> name=<세션> status=<busy|idle|gone> for=<분>m report=<HH:MM|-> commit=<HH:MM|-> ahead=<n|-> bg=<콤마목록|-> ctx=<n|->% hold=<사유|->`, 이어 `PC load1=<f> cpus=<n> per_core=<f> heavy=<held>/<waiting>/<K> swap_mb=<n|-> five=<n|-> week=<n|-> band=<띠>`, 상태에 없는 Claude 세션마다 `UNLINKED <이름> pid=<pid> cwd=<경로>`, 회차의 창마다 `WINDOW <kind> lane=<레인|-> until=<iso>` |
+| `coord-status.sh` | `[--json]` | 레인마다 `LANE <레인> name=<세션> status=<busy|idle|gone> for=<분>m report=<HH:MM|-> commit=<HH:MM|-> ahead=<n|-> bg=<콤마목록|-> ctx=<n|->% hold=<사유|->`, 이어 `PC load1=<f|-> cpus=<n> per_core=<f|-> heavy=<held>/<waiting>/<K> swap_mb=<n|-> five=<n|-> week=<n|-> band=<띠>`, 상태에 없는 Claude 세션마다 `UNLINKED <이름> pid=<pid> cwd=<경로>`, 회차의 창마다 `WINDOW <kind> lane=<레인|-> until=<iso>` |
 | `idle-check.sh` | `[레인…]` (없으면 active 레인 전부) | 레인마다 하나: `IDLE <레인> since=<iso>` · `CANDIDATE <레인>`(첫 관측, 확정 전) · `BUSY <레인> <사유>` · `HOLD <레인> <사유>` · `WAIT_USER <레인> <창 종류>` · `COMPACTING <레인>` · `STALL? <레인> bg=<분>m` · `GONE <레인>` |
 | `stall-check.sh` | `[레인…]` | `STALL <레인> pid=<pid> cpu_delta=<초> quiet=<분>m heavy=<yes|no>` 또는 `OK <레인>` |
 | `merge-gate.sh` | `<레인>` \| `--branch <브랜치>` | 첫 줄 `GATE <ok|wait|conflict> branch=<b> base=<integration> tree=<hash|-> files=<n>`, 이어 사유 줄 `CONFLICT <경로>` · `FORBIDDEN <경로>` · `OUTSIDE <경로>`(소유 밖) · `SHARED_API <경로>` · `RESTART <note>` · `WINDOW <kind> until=<iso>` · `INFLIGHT <레인>` |
@@ -235,7 +235,7 @@ macOS(BSD `date`·`stat`) 와 GNU(Git Bash 포함) 양쪽에서 돈다. 기계�
 | `compact-lane.sh` | `<레인> [--force-no-memo]` | `COMPACT_REFUSED <레인> <merge-in-flight|measure-lane|no-memo|cooldown|unsupported-kind|no-handle|term-send-safe 거부 사유>` · `COMPACT_DONE <레인> before=<n> after=<n>` · `COMPACT_TIMEOUT <레인>` |
 | `spawn-lane.sh` | `--name <n> --kind <claude|glm|opencode> [--worktree <경로|선택자>] [--model m] [--effort e] [--autocompact t] [--prompt-file f]` | `SPAWNED <n> handle=<h> pid=<pid|-> session_id=<id|->` 또는 `SPAWN_FAIL <n> <wait|process|screen|preflight|glm-cap> <사유>`. glm 은 preflight 실패 시 `SPAWN_FAIL … preflight` (대체 여부는 조정자가 정한다) |
 | `close-lane.sh` | `<레인>` \| `--handle <h>` | `CLOSED <레인> handle=<h>` 또는 `CLOSE_REFUSED <레인> <bg-running|worktree-left|branch-left|not-reported>` (worktree·branch 는 경고만, `--force-report` 로 통과) |
-| `measure-window.sh` | `open <kind> [--lane <레인>] --until <iso> [--hold-heavy]` · `close` · `status` · `quiet-check` | `WINDOW_OPEN <kind> until=<iso> hold_job=<id|->` · `WINDOW_CLOSED <kind>` · `WINDOW <kind> lane=… until=…`/`WINDOW none` · `QUIET yes|no run=<n> per_core=<f> procs=<n>` |
+| `measure-window.sh` | `open <kind> [--lane <레인>] --until <iso> [--hold-heavy]` · `close` · `status` · `quiet-check` | `WINDOW_OPEN <kind> until=<iso> hold_job=<id|->` · `WINDOW_CLOSED <kind>` · `WINDOW <kind> lane=… until=…`/`WINDOW none` · `QUIET yes|no|unknown run=<n> per_core=<f|-> procs=<n>`(unknown = load 를 얻을 수 없는 윈도우 — per_core 는 `-`) |
 | `auto-answer.sh` | `--lane <레인>` \| `--handle <h>` | `NONE <h>` · `ANSWER <h> <kind> <키> <사유>` · `DENY <h> <kind> <사유>`(Esc) · `ESCALATE <h> <kind> <사유>`(아무것도 안 보냄, 조정자가 판단 올리기 또는 사용자에게). 판정표는 `references/approvals.md` §5. 권한 창의 명령·질문·선택지는 지문과 같은 한 번의 창 판정(`console_window_json`)의 창 안에서만 읽고, 허용(ANSWER)은 질문 줄이 정확히 `Do you want to proceed?` 이고 도구 이름 줄이 `… command` 인 창만이다(그 밖의 권한 창은 거부 칸이면 DENY, 아니면 `ESCALATE … not-proceed|not-command|window-shape`). trust·usage-limit·question·choice 도 같은 창의 모양과 kind 확인 문구가 창 안에 있을 때만 답하고 아니면 `ESCALATE … window-shape`(§4.1 `full`). 판정에 쓴 화면의 창 지문(가리기 전 원문 창의 sha, §4.1 `full`)을 기억했다가 레인 잠금을 얻은 뒤 보내기 바로 앞에 다시 읽은 화면과 비교해, kind 가 같아도 다르면 아무것도 보내지 않고 `NONE <h>`(다음 틱이 처음부터 다시 판정). 지문을 못 만들면 `ESCALATE <h> <kind> no-fingerprint` |
 | `statusline-dump.sh` | stdin = statusLine JSON | `<state_dir>/ctx/<session_id>.json` 에 `{at,session_id,context_window,rate_limits}` 저장 뒤 `COORD_STATUSLINE_NEXT` 명령이 있으면 같은 stdin 으로 실행해 그 출력을 그대로 낸다 |
 | `console-poll.sh` | `[--once] [--dry-run]` \| `start` \| `stop` \| `status` \| `input-handled (--lane <레인> \| --lead <세션8>) --by <coordinator\|auto>` \| `judge-sha --lane <레인>` | 정본 §4.1. `judge-sha` → `JUDGE <h> <kind> <창 지문(가리기 전 원문 창의 sha)>`·`NONE <h>`·`STALE <h>`·`NOFP <h>`(창 머리를 못 찾아 지문 없음 — 직접 보내지 않는다). `start` → `CONSOLE_POLLER started pid=<pid>`·`CONSOLE_POLLER running pid=<pid>`·`CONSOLE_POLLER skipped <사유>`, `stop` → `CONSOLE_POLLER stopped`·`CONSOLE_POLLER none`, `status` → `CONSOLE_POLLER up pid=<pid> since=<iso> cycle=<초>`·`CONSOLE_POLLER down`. 본문 루프는 stdout 에 아무것도 쓰지 않고 로그를 `~/.dflow/console/poller-<신원>.log` 에 남긴다 |
@@ -243,7 +243,7 @@ macOS(BSD `date`·`stat`) 와 GNU(Git Bash 포함) 양쪽에서 돈다. 기계�
 
 ### 지원 환경: macOS · Git Bash(윈도우)
 
-- 필요 도구: bash 3.2+, git, curl, **jq**, openssl 또는 sha256sum, orca CLI, node(드문 경로 — 변이 검증·포트 폴백)·python3(선택). Git Bash 에는 jq·node·orca 가 기본 제공이 아니다(설치 필요).
+- 필요 도구: bash 3.2+, git, curl, **jq**, openssl 또는 sha256sum, orca CLI, node(드문 경로 — 변이 검증·포트 폴백). Git Bash 에서는 jq 를 킷 동봉판(`_shared/bin`)이 PATH 앞에서 채우고, node·orca 는 설치가 필요하다.
 - 플랫폼 차이(stat·date·프로세스 표·후손 종료·pgrep/pkill·cwd·sha256)는 `scripts/lib/compat.sh` 한 곳에 모은다. Git Bash 는 `ps -o`·`pgrep`·`lsof` 가 없어 `/proc/<pid>/{ppid,cmdline,cwd}` 를 읽는다.
 - **작성 규칙**: 스크립트에 macOS 전용 명령·옵션(`ps -axo`·`pgrep`·`pkill`·`lsof`·`stat -f`·`date -r/-j/-v`·`sed -i ''`·`shasum`)을 직접 쓰지 않고 perl 을 쓰지 않는다. `BSD || GNU` 사슬은 GNU 를 앞에 둔다(GNU `stat -f` 는 `?` 와 rc 0). 정본·도구 표·한계: `../../_shared/platform-support.md`.
 - 윈도우에서 얻을 수 없는 값(프로세스 누적 CPU·시작 시각·부하)은 「관측 불가」로 열어 둔다: `stall-check.sh` 는 STALL 을 내지 않는다.

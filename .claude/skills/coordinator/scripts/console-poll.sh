@@ -126,22 +126,8 @@ drylog() { coord_log "DRY $*"; plog "DRY $*"; }
 
 # ---- 제한 시간 실행(timeout 명령 없이, 후손까지 죽인다 — office.sh 와 같은 방식) ---------------------
 descendants() { compat_descendants "$1"; }   # 깊은 쪽부터(pgrep -P 재귀와 같은 순서, 프로세스 표 한 번 — lib/compat.sh)
-# 나무를 먼저 멈춰(STOP) 세는 사이에 새로 뜬 자손이 빠지지 않게 하고(세 번까지 다시 센다), TERM → CONT → 남으면 KILL
-kill_tree() {
-  local all="" p n=0 new
-  while [ "$n" -lt 3 ]; do
-    new=0
-    for p in $(descendants "$1"; echo "$1"); do
-      case " $all " in *" $p "*) ;; *) all="$all $p"; new=1; kill -STOP "$p" 2>/dev/null ;; esac
-    done
-    [ "$new" = 0 ] && break
-    n=$((n + 1))
-  done
-  for p in $all; do kill -TERM "$p" 2>/dev/null; kill -CONT "$p" 2>/dev/null; done
-  sleep 0.3
-  for p in $all; do kill -0 "$p" 2>/dev/null && kill -KILL "$p" 2>/dev/null; done
-  return 0
-}
+# 후손부터 TERM → 0.3초 → 남은 것 KILL(compat.sh). STOP/CONT 로 나무를 얼리는 방식은 윈도우(Git Bash)에 신호가 없어 걷었다.
+kill_tree() { compat_kill_tree "$1"; }
 # 겹쳐 불러도 된다(구간 함수 안에서 다시 부름): 시간 초과 표식 파일을 호출마다 따로 둔다($$ + 호출 번호 — 자식 프로세스는 부모의 번호에서
 # 이어 세므로 부모가 기다리는 동안 안쪽 호출과 겹치지 않는다). 표식은 시간 초과일 때만 만들어지고 바로 지운다.
 # 감시자는 sleep 의 pid 를 직접 쥐고(TERM trap 으로 그 sleep 만 죽인다) 끝나므로 pkill -P·mktemp·rm 이 필요 없다.

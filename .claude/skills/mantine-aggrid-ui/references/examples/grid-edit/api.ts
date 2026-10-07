@@ -1,6 +1,6 @@
 /**
  * defectCodeMng OASIS 호출. 봉투 해제(meta.success=false → throw)와 grids 키 규칙은
- * MES 실례 `src/frontend/m-mls/pages/lsh/noticeMgmt/api.ts` 와 `oasis-contract-check` 스킬이 정본이다.
+ * MES 실례 `src/frontend/m-mcm/page-components/lsh/noticeMgmt/api.ts` 와 `oasis-contract-check` 스킬이 정본이다.
  * 이 파일은 UI 예제가 타입 검사를 통과하도록 그 형태를 줄여 옮긴 것이다.
  */
 import { apiRequest } from "@dk-oasis/shared/http";

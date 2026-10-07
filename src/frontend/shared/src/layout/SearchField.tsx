@@ -63,6 +63,12 @@ export interface SearchFieldProps {
   defaultKey?: string;
   /** false 면 이 칸은 조회 기본값 대상이 아니다(설정 창에 나오지 않고 넣지 않는다). 기본 true. */
   defaultable?: boolean;
+  /**
+   * 기준 칸 키(같은 SearchArea 칸의 `defaultKey ?? name`). 기준 칸 값이 바뀌면 SearchArea 가 이 칸을 코드 기본값으로 비우고
+   * 사용자 기본값(설정 값·마지막 조회값)으로 다시 채운다. 화면은 조건을 직접 비우지 않는다(설계 2026-10-07-search-defaults §13).
+   * 이 칸과 기준 칸 모두 value·onChange 를 준 등록 칸이어야 한다.
+   */
+  dependsOn?: string;
 }
 
 /**
@@ -82,10 +88,11 @@ function useSearchDefaultsRegistration(props: {
   hasChildren: boolean;
   defaultKey?: string;
   defaultable: boolean;
+  dependsOn?: string;
 }): ((value: string) => void) | undefined {
   const api = useContext(SearchDefaultsAreaContext);
   const pair = useContext(SearchFieldPairContext);
-  const { label, name, meta, type, value, onChange, options, hasChildren, defaultKey, defaultable } = props;
+  const { label, name, meta, type, value, onChange, options, hasChildren, defaultKey, defaultable, dependsOn } = props;
 
   const ownKey = defaultKey || name || null;
   const fieldKey = ownKey ?? (pair?.role === "to" && pair.partnerKey ? `${pair.partnerKey}~to` : null);
@@ -105,6 +112,7 @@ function useSearchDefaultsRegistration(props: {
       meta: typeof meta === "string" ? meta : name,
       options: type === "select" || type === "radio" ? options : undefined,
       pair: pair ? { role: pair.role, partnerKey: pair.partnerKey } : undefined,
+      dependsOn,
     };
     if (!handleRef.current) {
       handleRef.current = {
@@ -148,6 +156,7 @@ export function SearchField({
   className = "",
   defaultKey,
   defaultable = true,
+  dependsOn,
 }: SearchFieldProps) {
   const { pageId } = useTabPage();
   const handleChange = useSearchDefaultsRegistration({
@@ -161,6 +170,7 @@ export function SearchField({
     hasChildren: children != null,
     defaultKey,
     defaultable,
+    dependsOn,
   });
   // 아래 내장 입력은 감싼 onChange(사용자가 고친 칸 표시)를 쓴다.
   const onChange = handleChange;

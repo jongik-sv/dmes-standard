@@ -87,6 +87,6 @@ const STATUS_OPTIONS: SelectOption[] = [
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:325` 상세 폼의 Select(`options`, `disabled={!form || isBusy}`).
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:325` 상세 폼의 Select(`options`, `disabled={!form || isBusy}`).
 - `src/frontend/m-mcm/page-components/cme/masterCodeMngList/page.tsx:340` 동적 선택지를 `map` 으로 만든 예. 단, `style={{ minWidth: 120 }}` 를 주고 있어 폭 지정 외의 의도는 아니다.
 - `src/frontend/m-mdm/pages/dmc/codeItemEdit/page.tsx:444` 조회영역 안의 Select. m-mdm 화면이다.

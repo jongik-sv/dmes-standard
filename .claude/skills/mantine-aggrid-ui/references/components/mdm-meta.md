@@ -78,7 +78,7 @@ const issue = column ? validateMdmValue(column, v) : null;   // 같은 column �
 - 서버 오류(`toFieldErrors(e, grid)` 결과)는 칸별 상태에 담아 `error` 로 준다. 그 칸을 고치거나 다른 행을 열면 지운다.
 - 저장 전 `validateRow(row, names)` 로 막을 칸은 서버 `MdmValidator.columns(...)` 와 같게 둔다.
 - 훅은 공급자(포털 탭) 밖이면 아무것도 부르지 않고 늘 통과다 — 포털 밖 단독 실행에서도 같은 코드가 돈다.
-- 빈 칸은 입력 중에는 검사하지 않는다(필수는 저장 때). 예: `m-mls/pages/lsh/noticeMgmt/NoticeTitleRow.tsx`.
+- 빈 칸은 입력 중에는 검사하지 않는다(필수는 저장 때). 예: `m-mcm/page-components/lsh/noticeMgmt/NoticeTitleRow.tsx`.
 - 툴팁은 라벨 글자 span 이 아니라 **라벨 칸 전체**에서 마우스 hover 로 뜬다(2026-10-05): span 에서 가장 가까운 `th, td, .search-field__label`(없으면 span 만)의 빈 곳에 올려도 뜨고, 칸 안 이동은 닫지 않으며, 칸 안을 누르면 닫는다. 카드 위치는 글자 기준 그대로다. 입력칸이 따로 있는 td 에는 걸리지 않는다(라벨 글자가 든 칸만). 글자 span 은 Tab 순서에 들지 않는다(`tabIndex` -1 — 입력 화면에서 Tab 이 라벨마다 멈추지 않게).
 
 ### HTML 설명·상호작용 툴팁(2026-10-03)
@@ -205,9 +205,9 @@ th 안이나 아무 라벨 자리에 넣는 인라인 라벨(`FormGroup` 을 쓰
 ## 실제 사용 예
 
 - `src/frontend/shared/src/portal-shell/portal-shell.tsx` `TabPageSlot`: 탭 본문을 `MdmMetaProvider` 로 감싼다.
-- 화면 파일럿: `src/frontend/m-mls/pages/lsh/noticeMgmt/`(2026-10-03)
+- 화면 파일럿: `src/frontend/m-mcm/page-components/lsh/noticeMgmt/`(2026-10-03)
   - `notice-columns.tsx`: `TITLE` 열은 대체 `header`("제목")를 두고, 화면(`page.tsx` 의 default export)이 `MdmMetaProvider captionPriority="mdm"` 으로 감싸 MDM 이 있으면 MDM 캡션·머리글 툴팁이 이긴다. 파생 열(`CATEGORY_LABEL` 등)은 header 를 적고 `meta: false` 로 연결을 끈다.
   - `NoticeTitleRow.tsx`: 상세 표(th/td) 제목 줄 — 라벨은 `MdmFieldLabel`(캡션 + 올리면 MDM 카드 툴팁), 입력 중 검사는 같은 `column` 으로 `validateMdmValue` → `Input error`(MDM 장애 중에도 요청은 등록 한 번).
   - `page.tsx`: 저장 전 `validateRow` 로 막고, 저장 실패는 `toFieldErrors(e, "master")` → 칸별 `error`(고치면 지운다). 그리드에 `mdmValidate`(목록이 읽기 전용이라 지금은 검사할 칸이 없다).
   - `api.ts`: `NoticeApiError.errors` 에 OASIS 봉투의 `errors` 를 실어 `toFieldErrors` 가 읽게 한다.
-  - 시험: `m-mls/tests/lsh/noticeMgmt/notice-page-mdm.test.ts`(화면 전체), `notice-mdm-render.test.ts`(제목 줄·그리드 캡션·라벨 툴팁).
+  - 시험: `m-mcm/tests/lsh/noticeMgmt/notice-page-mdm.test.ts`(화면 전체), `notice-mdm-render.test.ts`(제목 줄·그리드 캡션·라벨 툴팁).

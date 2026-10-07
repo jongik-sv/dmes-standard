@@ -4,7 +4,7 @@
  * <p>proxy 는 권한을 원래 경로의 접두로 판정하는데, 라우트는 경로 조각을 디코드해 BE URL 을 만든다. 그래서 인코딩된 구분자가
  * 섞이면 둘이 보는 경로가 갈라진다(2026-10-03 보안 지적):
  * <ul>
- *   <li>`/api/mls/oasis/noticeBoard/search%2F..%2F..%2FnoticeMgmt%2Fsave` — proxy 는 로그인만 보는 noticeBoard/search 로 보고,
+ *   <li>`/api/mcm/oasis/noticeBoard/search%2F..%2F..%2FnoticeMgmt%2Fsave` — proxy 는 로그인만 보는 noticeBoard/search 로 보고,
  *       라우트는 action=`search/../../noticeMgmt/save` 를 붙여 fetch 가 `/oasis/noticeMgmt/save` 로 정리했다.</li>
  *   <li>`%5C`(역슬래시)도 같다 — fetch 는 http URL 의 `\` 를 `/` 로 바꾼다.</li>
  *   <li>`/…/search/..;/..;/…` — `..;` 는 WHATWG 기준 점 조각이 아니라 proxy 를 그대로 지나 BE 까지 가는데,
@@ -32,4 +32,37 @@ export function isUnsafeApiPath(pathname: string): boolean {
   if (ENCODED_PATH_META.test(pathname)) return true;
   if (pathname.includes("\\") || pathname.includes(";")) return true;
   return pathname.split("/").some((segment) => segment === "." || segment === "..");
+}
+
+/**
+ * BFF 가 BE 로 보내면 안 되는 경로 — forwardToBackend 가 BE 로 보낼 경로(backendPath)를 본다(2026-10-07 보안 지적).
+ * <ul>
+ *   <li>cactus 직접 실행 경로 `/service`·`/query/service`·`/lov/service`(요청이 고른 BPMN 을 고정 action 으로 실행),
+ *       `/query/{id}`·`/lov/query/{id}`(매퍼 statement 실행) — 권한키를 만들 수 없어 늘 막는다.
+ *       mcm EndpointPermissionFilter.isDirectRoute 와 동기화.</li>
+ *   <li>OASIS 실행 경로 `/oasis/…`·`/{m}/oasis/…`·`/api/{m}/oasis/…`(cactus OasisController) — OASIS 는 전용 라우트
+ *       (`/api/{m}/oasis/{svc}/{act}`, 권한키 `{m}/{svc}/{act}`)로만 간다.</li>
+ * </ul>
+ * proxy.ts 는 브라우저 경로로 권한을 보는데, REST 신경로는 `/api/{m}/rest/{objId}/{action}/` 뒤 꼬리를 그대로 BE 경로로 보내
+ * `/api/mdm/rest/codeEdit/save/service/codeEdit`·`…/save/oasis/termMng/save` 처럼 한 화면 권한으로 다른 BPMN 에 닿을 수 있었다.
+ * 빈 조각(`//`)은 Tomcat 이 합쳐 읽으므로 합친 뒤 판정하고, 조각마다 디코드한 경로도 본다(디코드 실패는 막는다).
+ */
+const BLOCKED_BACKEND_PATH =
+  /^\/(?:service|query|lov\/(?:query|service)|(?:api\/[^/]+\/|[^/]+\/)?oasis)(?:\/|$)/;
+
+/** BE 로 보낼 경로(조회 문자열 제외)가 BFF 가 보내면 안 되는 경로면 참. */
+export function isBlockedBackendPath(backendPath: string): boolean {
+  const path = backendPath.split("?")[0].replace(/\/{2,}/g, "/");
+  if (BLOCKED_BACKEND_PATH.test(path)) return true;
+  if (!path.includes("%")) return false;
+  try {
+    const decoded = path
+      .split("/")
+      .map((s) => decodeURIComponent(s))
+      .join("/")
+      .replace(/\/{2,}/g, "/");
+    return BLOCKED_BACKEND_PATH.test(decoded);
+  } catch {
+    return true;
+  }
 }

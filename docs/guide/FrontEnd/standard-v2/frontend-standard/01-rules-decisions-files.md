@@ -142,7 +142,8 @@ OASIS / REST 외에 mybatis 쿼리·트랜잭션 service·LoV 호출용 path 가
 
 - MUST: BFF 는 `/api/{module}/` 만 제거하고 `${module_url}/...` 로 그대로 전달한다 (rest 와 동일하게 prefix 만 떼는 정책).
 - MUST: 인증 헤더 4종(`Authorization`, `X-Client-Key`, `X-Authenticated-User`, `X-Authenticated-Role`) 과 환경변수 우선순위(`${MODULE}_WAS_URL` → `BACKEND_API_URL`) 정책은 기존 rest 프록시와 동일.
-- SHOULD: FE 호출은 수동 path 조립을 지양하고 Part B §2 의 `apiQuery / apiQueryService / apiService / apiLovMaster / apiLovQuery / apiLovService` 헬퍼를 사용한다.
+- SHOULD: FE 호출은 수동 path 조립을 지양하고 Part B §2 의 헬퍼를 사용한다. 지금 쓸 수 있는 것은 `apiLovMaster` 하나다(아래 경고).
+- **MUST NOT (2026-10-07 보안)**: `apiLovMaster` 를 뺀 5종(`query`·`query/service`·`service`·`lov/query`·`lov/service`)은 쓰지 않는다. 요청이 고른 BPMN·매퍼 statement 를 화면 권한 없이 실행할 수 있어 BFF(`proxy.ts` denyPatterns)가 403 으로 막고, BE 컨트롤러도 기본으로 꺼져 있다(`cactus.inbound.service-routes`·`query-routes`). 화면은 OASIS 패턴을 쓴다. `/query` 조회 라우터는 query-route 설계(2026-10-07-query-route-mybatis-design)가 권한 키 판정과 함께 다시 연다.
 - 본 Phase 7 컨벤션은 `oasis` / `rest` 와 병행한다 (대체 아님).
 
 ##### 2-2-1-A. 모듈별 Phase 7 사용 가능 조건 (MUST)
@@ -310,6 +311,15 @@ TypeScript 지역 변수 · 함수 파라미터에 **타입 prefix + camelCase**
 - **컬럼 간 일정 간격 유지**(`column-gap` 고정), 조건이 많으면 **여러 줄로 자연스럽게 접힌다**(한 줄에 억지로 몰지 않는다 — 여러 줄이 다닥다닥보다 낫다).
 - `SearchField` 라벨은 **min-width 통일**(셀 내 필드 시작 X축도 정렬). 각 조회조건 = grid 셀 1칸(넓은 조건도 1칸 기준, 필요 시에만 span).
 - Raw HTML 로 조회영역을 직접 조립하지 말고 `SearchArea`+`SearchField` 를 쓰면 이 표준이 자동 적용된다. 체크박스는 `input[type="checkbox"]` 예외 규칙으로 네이티브 크기(14px)를 유지한다(텍스트 인풋 폭 150px 규격에 딸려가지 않음).
+
+**★조회 칸 사용자 기본값 규칙 (MUST, 2026-10-07)** — 사용자가 조회 칸마다 기본값(고정 값·상대 날짜·마지막 조회값)을 정하는 기능이 `SearchArea`·`SearchField` 에 들어 있다. 화면은 아래 선언만 한다. 동작·키 규칙·한계는 [Part B §4-4·§4-5](../part-b-shared-policy.md#4-4-조회-칸-사용자-기본값-searchareasearchfield) 가 정본이다.
+- MUST: 기본값 대상으로 삼을 조회 칸에는 `name` 또는 `defaultKey` 를 단다(`defaultKey ?? name` 이 저장 키이고 `label` 은 키로 쓰지 않는다). `children` 으로 직접 그린 칸은 `SearchField` 에도 같은 `value`·`onChange` 를 준다.
+- MUST: 화면을 열 때 자동으로 조회하는 화면은 마운트 effect 로 조회하지 않고 `<SearchArea autoSearch>` 로만 선언한다. 마운트 effect 는 사용자 기본값이 빠진 조건으로 조회한다.
+- MUST: 조회 칸의 `onChange` 는 함수형 갱신으로 쓴다. 예: `setFilters((p) => ({ ...p, k: v }))`. `setFilters({ ...filters, k: v })` 처럼 지난 상태를 복사하면 기본값이 여러 칸에 한 번에 들어갈 때 앞 칸 값이 사라진다.
+- MUST: 화면은 선언만 한다. 기본값을 넣고 비우는 처리 코드를 화면에 두지 않으며, 다른 칸이 바뀌면 비워야 하는 칸은 `dependsOn="기준 칸 키"` 로 선언한다.
+- MUST: 날짜 칸은 `type="date"` 내장 입력을 쓰고, 기간은 `type="date"` 두 칸을 `label="~"` 짝으로 쓴다.
+- MUST: 한 화면에 `SearchArea` 가 둘 이상이면 두 번째부터 `defaultsScope` 를 준다.
+- 끄는 방법: 화면 전체는 `<SearchArea defaults={false}>`, 칸 하나는 `<SearchField defaultable={false}>`.
 
 **팝업 호출**:
 ```ts

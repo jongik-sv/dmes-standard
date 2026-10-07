@@ -66,7 +66,7 @@ async function clickSearchAndWait(page: Page) {
       r.status() === 200,
     { timeout: T.UI },
   );
-  await page.getByRole("button", { name: "조회" }).click();
+  await page.getByRole("button", { name: "조회", exact: true }).click();
   await response;
 }
 

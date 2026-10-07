@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 시간 제한으로 끊긴 office.sh 가 남긴 잠금이 뒤 호출을 막지 않는지 시험한다(일반 리뷰 6, contract §3.1 coord_lock · §4.1 알림).
 #   coord_lock: 주인 pid·pstart 기록, 죽은 주인·오래된(COORD_LOCK_STALE_S) 잠금 탈취, 남의 잠금은 풀지 않음
-#   office.sh: TERM 으로 끊겨도(폴러 run_limited 의 kill_tree 와 같은 방식) 잠금·임시 폴더·자식 프로세스를 남기지 않음
+#   office.sh: TERM 으로 끊겨도(폴러 run_limited 의 kill_tree = compat_kill_tree 와 같은 방식) 잠금·임시 폴더·자식 프로세스를 남기지 않음
 #   죽은 pid 의 세션 기록 잠금이 남아 있어도 lead-sync·console-poll input-handled 가 바로 끝남
 # 사용법: bash tests/office-locks.sh   (네트워크·실제 D'Flow·터미널을 쓰지 않는다. 상태·콘솔 폴더·HOME·TMPDIR 은 모두 임시 폴더)
 set -uo pipefail
@@ -81,15 +81,7 @@ eq "그 lead-sync 가 팀장 watch 를 보냈다(처리됨 → 조정 중)" "$(g
 rm -f "$tmp/console/input/coord_lead_$S8.json"
 
 # ---- 3. office.sh 를 중간에 끊어도(폴러의 kill_tree 와 같은 방식) 잠금·임시 폴더·자식 프로세스가 남지 않는다 ------------
-descendants() { compat_descendants "$1"; }
-kill_tree() {  # console-poll.sh 의 kill_tree 와 같은 순서(STOP → TERM → CONT → 0.3초 뒤 KILL)
-  local all p; all="$(descendants "$1"; echo "$1")"
-  for p in $all; do kill -STOP "$p" 2>/dev/null; done
-  for p in $all; do kill -TERM "$p" 2>/dev/null; kill -CONT "$p" 2>/dev/null; done
-  sleep 0.3
-  for p in $all; do kill -0 "$p" 2>/dev/null && kill -KILL "$p" 2>/dev/null; done
-  return 0
-}
+kill_tree() { compat_kill_tree "$1"; }   # console-poll.sh 의 kill_tree 와 같다(후손부터 TERM → 0.3초 → 남은 것 KILL)
 echo 2 > "$tmp/watch_delay"
 bad=""
 for off in 0.2 0.6 1.0 1.6 2.3 3.1; do

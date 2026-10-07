@@ -2,7 +2,7 @@
  * screenUsageStat OASIS 호출 — POST /api/mcm/oasis/screenUsageStat/{action}.
  * 응답 계약: docs/superpowers/plans/2026-10-02-screen-usage-stats.md C4.
  * envelope 해제는 csa/commSyncMng/api.ts 와 같은 규칙이다: meta.success=false 거절, data(+data.result) 펼침, grids.{key}.rows.
- * meta.userId 는 보내지 않는다 — 서버가 인증 정보로 채운다(m-mls noticeMgmt/api.ts 와 같다).
+ * meta.userId 는 보내지 않는다 — 서버가 인증 정보로 채운다(lsh/noticeMgmt/api.ts 와 같다).
  * @dk-oasis/shared 를 런타임 import 하지 않는다(m-mcm vitest 가 shared dist 없이 시험한다).
  */
 import { createJsonApiClient } from "@/lib/http/json-api-client";

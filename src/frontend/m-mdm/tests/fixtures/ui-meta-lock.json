@@ -338,7 +338,8 @@
   "label|formErrors|저장할 수 없음|false",
   "label|linkPageId|화면 열기 pageId|-",
   "label|multipleYn|여러 번 놓기|-",
-  "label|preview|미리보기(기본 크기)|false",
+  "label|placeTp|배치|false",
+  "label|preview|(식:previewTitle)|false",
   "label|privateYn|비공개|\"WIDGET_PRIVATE_YN\"",
   "label|refreshSec|새로 고침(초)|-",
   "label|subtitle|부제|\"WIDGET_SUBTITLE\"",
@@ -405,6 +406,27 @@
   "col|menuNm|-",
   "col|menuPath|false",
   "col|pageId|-"
+ ],
+ "m-mcm/page-components/lsh/noticeMgmt/notice-columns.tsx": [
+  "col|CATEGORY_LABEL|false",
+  "col|FORMAT_LABEL|false",
+  "col|PIN_LABEL|false",
+  "col|POST_PERIOD|false",
+  "col|STATUS_LABEL|false",
+  "col|TARGET_LABEL|false",
+  "col|TITLE|-"
+ ],
+ "m-mcm/page-components/lsh/noticeMgmt/page.tsx": [
+  "label|CONTENT_FORMAT|본문 형식|-",
+  "label|C_USR_ID|등록|false",
+  "label|NOTICE_CATEGORY|분류|-",
+  "label|NOTICE_ID|공지번호|-",
+  "label|NOTICE_STATUS|게시상태|-",
+  "label|PIN_YN|상단 고정|-",
+  "label|POST_END_DT|게시종료일|-",
+  "label|POST_START_DT|게시시작일|-",
+  "label|TARGET_ROLES|대상 역할|false",
+  "label|TARGET_SCOPE|게시 대상|-"
  ],
  "m-mcm/widget-types/chat/chat-model.ts": [
   "col|welcome|-"
@@ -1092,27 +1114,6 @@
   "col|filler|-",
   "col|h1|-",
   "col|h2|-"
- ],
- "m-mls/pages/lsh/noticeMgmt/notice-columns.tsx": [
-  "col|CATEGORY_LABEL|false",
-  "col|FORMAT_LABEL|false",
-  "col|PIN_LABEL|false",
-  "col|POST_PERIOD|false",
-  "col|STATUS_LABEL|false",
-  "col|TARGET_LABEL|false",
-  "col|TITLE|-"
- ],
- "m-mls/pages/lsh/noticeMgmt/page.tsx": [
-  "label|CONTENT_FORMAT|본문 형식|-",
-  "label|C_USR_ID|등록|false",
-  "label|NOTICE_CATEGORY|분류|-",
-  "label|NOTICE_ID|공지번호|-",
-  "label|NOTICE_STATUS|게시상태|-",
-  "label|PIN_YN|상단 고정|-",
-  "label|POST_END_DT|게시종료일|-",
-  "label|POST_START_DT|게시시작일|-",
-  "label|TARGET_ROLES|대상 역할|false",
-  "label|TARGET_SCOPE|게시 대상|-"
  ],
  "m-mls/src/sample/SampleInventoryPanel.tsx": [
   "col|code|false",

@@ -6,6 +6,8 @@ description: 승인(approved)된 D'Flow 작업의 agent 브랜치를 개발 브�
 
 # /dflow-merge — 승인된 작업의 main 반영
 
+> 윈도우: 아래 `jq` 예시를 Bash 로 직접 칠 때는 같은 호출 맨 앞에 `export PATH="$PWD/.claude/skills/_shared/bin:$PATH";` 를 붙인다(`_shared/platform-support.md` 「문서 속 인라인 jq」).
+
 인자: `$ARGUMENTS` (선택: ref 목록. 없으면 「절차」 1번의 로컬·원격 후보 전부)
 
 **`--on-report`(팀장 전용, 승인 전 머지)**: `/dflow-team` 팀장이 자동 머지 모드에서만 붙인다. 사람이 직접 쓰지 않으며

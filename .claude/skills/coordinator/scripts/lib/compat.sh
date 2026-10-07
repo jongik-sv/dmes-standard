@@ -17,6 +17,10 @@
 #   compat_pkill_f <정규식>         위 pid 에 TERM
 #   compat_pgrep_s / compat_pkill_s <문자열>   위와 같되 정규식이 아니라 고정 문자열(경로 등)
 #   compat_posix_path <경로>        Git Bash 에서 C:/x 를 /c/x 꼴로(cygpath), 그 밖에는 그대로
+#   compat_norm_path <경로>         Git Bash 에서 C:\x · C:/x · /cygdrive/c/x → /c/x 꼴·끝 / 제거·전체 소문자(비교용, NTFS 대소문자 무시). 그 밖의 OS 는 그대로
+#   compat_native_path <경로>       네이티브 프로그램에 넘길 꼴: Git Bash 에서 /c/x → C:/x(cygpath -m), 그 밖에는 그대로
+#   compat_is_abs_path <경로>       절대 경로면 0(윈도우는 C:/x · C:\x · \\서버 포함)
+#   orca <…>                        (윈도우만 함수) MSYS2_ARG_CONV_EXCL='*' 를 붙여 orca 에 넘기는 /경로 형 인자의 변환을 막는다
 #   compat_pid_cwd <pid>            프로세스 작업 폴더(알 수 없으면 빈 출력)
 #   compat_pid_alive <pid>          살아 있으면 0(Git Bash 는 네이티브 Windows pid 라 ps -W 로 한 번 더 본다)
 #   compat_sha256                   표준입력 → 소문자 hex 64자 한 줄(openssl → sha256sum → shasum → node)
@@ -188,6 +192,39 @@ compat_posix_path() {
   local o
   if [ "$COMPAT_WIN" = 1 ] && command -v cygpath >/dev/null 2>&1 && o="$(cygpath -u "$1" 2>/dev/null)" && [ -n "$o" ]; then printf '%s' "$o"; else printf '%s' "$1"; fi
 }
+
+# 경로 비교용 정규형. Git Bash 에서 `C:\x`·`C:/x`·`/cygdrive/c/x` 를 모두 `/c/x` 꼴로 맞추고 끝 `/` 를 뗀다.
+# 비교용 값이라 경로 전체를 소문자로 맞춘다(NTFS 는 대소문자 무시). 이 값으로 파일을 열지 않는다. 그 밖의 OS 는 입력을 그대로 낸다(macOS 동작 불변).
+_COMPAT_BASH4=0; [ "${BASH_VERSINFO[0]:-3}" -ge 4 ] && _COMPAT_BASH4=1   # bash 4+ 는 ${p,,}, 3.2 는 tr
+compat_norm_path() {
+  local p="$1"
+  [ "$COMPAT_WIN" = 1 ] || { printf '%s' "$p"; return 0; }
+  p="${p//\\//}"
+  case "$p" in
+    /cygdrive/[A-Za-z]|/cygdrive/[A-Za-z]/*) p="${p#/cygdrive}" ;;
+    [A-Za-z]:|[A-Za-z]:/*) p="/${p%%:*}${p#?:}" ;;
+  esac
+  # NTFS 는 대소문자를 가리지 않으므로 비교용으로 전체를 소문자로 맞춘다(bash 4+ 는 `${p,,}`, 3.2 는 tr). 이 값으로 파일을 열지 않는다.
+  if [ "$_COMPAT_BASH4" = 1 ]; then eval 'p=${p,,}'; else p="$(printf '%s' "$p" | tr '[:upper:]' '[:lower:]')"; fi
+  while [ "${#p}" -gt 1 ] && [ "${p%/}" != "$p" ]; do p="${p%/}"; done
+  printf '%s' "$p"
+}
+# 네이티브 프로그램(orca 등)에 넘길 경로: Git Bash 에서 /c/x → C:/x(cygpath -m). cygpath 가 없거나 그 밖의 OS 는 그대로.
+compat_native_path() {
+  local o
+  if [ "$COMPAT_WIN" = 1 ] && command -v cygpath >/dev/null 2>&1 && o="$(cygpath -m "$1" 2>/dev/null)" && [ -n "$o" ]; then printf '%s' "$o"; else printf '%s' "$1"; fi
+}
+# 절대 경로인가(0). POSIX `/x` 는 어디서나, 윈도우에서는 `C:/x`·`C:\x`·`\\서버\공유` 도 절대 경로다.
+compat_is_abs_path() {
+  case "${1:-}" in
+    /*) return 0 ;;
+    [A-Za-z]:[/\\]*|\\\\*) [ "$COMPAT_WIN" = 1 ] ;;
+    *) return 1 ;;
+  esac
+}
+# 윈도우의 orca 는 네이티브 exe 라 MSYS 가 `/compact …` 같은 인자를 C:/Program Files/Git/compact 로 바꾼다 — orca 호출에서만 변환을 끈다.
+# (전체에 걸면 node.exe 에 넘기는 /c/x 경로가 깨진다.) macOS·Linux 에서는 함수를 만들지 않는다.
+if [ "$COMPAT_WIN" = 1 ]; then orca() { MSYS2_ARG_CONV_EXCL='*' command orca "$@"; }; fi
 
 compat_pid_cwd() {
   local root="${COMPAT_PROC_ROOT:-/proc}" c=""

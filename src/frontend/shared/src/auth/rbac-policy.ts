@@ -27,7 +27,12 @@ export interface PolicyToken {
   perms?: unknown;
 }
 
-export type RbacVerdict = "pass" | "unauthorized" | "forbidden-perm" | "forbidden-unmatched";
+export type RbacVerdict =
+  | "pass"
+  | "unauthorized"
+  | "forbidden-perm"
+  | "forbidden-unmatched"
+  | "forbidden-route";
 
 export interface RbacPolicyConfig {
   /** 완전 공개 (인증·권한 모두 skip). 예: `/api/auth/`. */
@@ -47,7 +52,14 @@ export interface RbacPolicyConfig {
    * 예: `/^\/api\/mcm\/rest\/widgetMedia\/file\/api\/mcm\/widgetMedia\/file\/[0-9a-f]{32}$/` — 미디어 위젯 파일 내려받기(2026-10-03).
    */
   authOnlyReadPatterns?: readonly RegExp[];
-  /** LoV 경로 (인증만). 예: `/^\/api\/[^/]+\/lov\//`. */
+  /**
+   * 로그인한 사용자여도 늘 거부하는 경로 (선택, verdict `forbidden-route`). 권한키를 만들 수 없는데 요청이 고른
+   * BPMN·매퍼 statement 를 실행하는 경로에 쓴다. 세션 확인 바로 뒤, AUTH_ONLY·LoV·RBAC 보다 먼저 본다.
+   * 원 경로와 조각을 디코드한 경로를 모두 검사한다(`/api/mdm/%73ervice/x` 도 라우트는 `service/[serviceId]` 로 간다).
+   * 예: `/^\/api\/[^/]+\/(?:service|query|lov\/(?:query|service))(?:\/|$)/` — cactus 직접 실행 경로(2026-10-07).
+   */
+  denyPatterns?: readonly RegExp[];
+  /** LoV 경로 (인증만). 예: `/^\/api\/[^/]+\/lov\/master\//`. */
   lovPattern: RegExp;
   /** 미매칭(2패턴 외) 경로 차단 여부. 지금 false(통과) / 추후 true(전면차단). */
   unmatchedDeny: boolean;
@@ -116,13 +128,25 @@ export function parseRbacKey(
  */
 export type PermsLoader = (userId: string) => Promise<readonly string[]> | readonly string[];
 
+/** 조각마다 디코드한 경로. 디코드할 수 없는 조각이 있으면 null(원 경로 검사만 남는다 — Next 라우트도 그 조각을 풀지 못한다). */
+function decodePathSegments(path: string): string | null {
+  try {
+    return path
+      .split("/")
+      .map((s) => decodeURIComponent(s))
+      .join("/");
+  } catch {
+    return null;
+  }
+}
+
 /** {@link RbacPolicyConfig.authOnlyReadPatterns} 가 여는 메서드. */
 const READ_METHODS: ReadonlySet<string> = new Set(["GET", "HEAD"]);
 
 /**
  * `/api/*` 경로 RBAC 판정. (self-fetch 헤더 처리는 호출측 미들웨어에서 선행.)
  *
- * 평가 순서: PUBLIC → 세션(401) → AUTH_ONLY(접두·패턴·읽기 전용 패턴) → LoV → RBAC 3패턴 → 미매칭(토글).
+ * 평가 순서: PUBLIC → 세션(401) → 거부 패턴(denyPatterns) → AUTH_ONLY(접두·패턴·읽기 전용 패턴) → LoV → RBAC 3패턴 → 미매칭(토글).
  * RBAC 단계에서만 {@link PermsLoader} 로 사용자 권한키를 lazy load 하여 멤버십 검사.
  * SYSADMIN 프리패스 제거 (2026-07-30) — 롤 무관 멤버십 판정. BE 브레이크글라스
  * (mcm.security.sysadmin-freepass=true) 시 로더가 ["*"] 를 반환해 전면 통과로 복원된다.
@@ -139,6 +163,14 @@ export async function evaluateApiPolicy(
   if (config.publicPrefixes.some((p) => path.startsWith(p))) return "pass";
 
   if (!token || typeof token.sub !== "string" || token.sub.length === 0) return "unauthorized";
+
+  if (config.denyPatterns && config.denyPatterns.length > 0) {
+    const pathOnly = path.split("?")[0];
+    const decoded = decodePathSegments(pathOnly);
+    if (config.denyPatterns.some((re) => re.test(pathOnly) || (decoded !== null && re.test(decoded)))) {
+      return "forbidden-route";
+    }
+  }
 
   if (config.authOnlyPrefixes.some((p) => path.startsWith(p))) return "pass";
   if (config.authOnlyPatterns?.some((re) => re.test(path))) return "pass";

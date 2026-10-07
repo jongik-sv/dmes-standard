@@ -19,9 +19,12 @@
  * 받는다(§2 "별도(비페이징) 조회"). 트리에서 "이 노드로 보기"를 누르면 `nodeFilter` 를 검색 조건에 실어 그리드를 다시
  * 조회하고 칩으로 보인다. "CSV 업로드" 버튼은 `dataCsvUploadPop` 의 OBJECT_ID 로 판정한다(팝업 버튼은 팝업의 OBJECT_ID).
  *
- * 진입 마루 데이터는 handoff(openMdmPage, 한 번) > snapshot > 첫 항목 순서로 정하고, 고른 값은 snapshot 에 남긴다(§6.10).
+ * 진입 마루 데이터는 handoff(openMdmPage, 한 번) > 사용자 조회 기본값 > snapshot > 첫 항목 순서로 정하고, 고른 값은 snapshot 에 남긴다(§6.10).
+ * 마루 데이터를 바꾸면 키·이름·카테고리·닫힌 항목은 SearchArea 가 비우고 사용자 기본값으로 다시 채운다(SearchField dependsOn,
+ * 설계 2026-10-07-search-defaults §13) — 이 화면은 조건을 직접 비우지 않는다.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 import {
   ContentBody,
@@ -74,6 +77,11 @@ const SCREEN_ID = "dataItemMng";
 const COMPONENT_PATH = "dmd/dataItemMng";
 /** 마루 데이터 고르기 후보 건수 — 룰·세트·코드 고르기와 같은 20건. */
 const MARU_PICK_LIMIT = 20;
+/** 「닫힌 항목」 조회 칸 선택지 — 칸 그리기와 조회 기본값 등록이 같은 목록을 쓴다. */
+const CLOSED_OPTIONS = [
+  { value: "N", label: "숨김" },
+  { value: "Y", label: "보기" },
+];
 /** 카테고리 쓰기 권한 OBJECT — 합치기 전 카테고리 편집 화면의 키를 그대로 쓴다(D-104). */
 const CATE_OBJ_ID = "dataCateEdit";
 
@@ -107,6 +115,11 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
 
   const [options, setOptions] = useState<MaruDataOption[]>([]);
   const [filters, setFilters] = useState<DataItemFilters>(emptyFilters);
+  /** 지금 조건 — 마루 데이터를 고른 뒤 조회할 때, 그 사이 SearchArea 가 다시 채운 의존 칸까지 읽는다. */
+  const filtersRef = useRef(filters);
+  useLayoutEffect(() => {
+    filtersRef.current = filters;
+  });
   const [header, setHeader] = useState<DataItemHeader | null>(null);
   const [rows, setRows] = useState<DataItemRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -288,9 +301,9 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
   const selectMaruData = useCallback(
     async (maruDataId: string) => {
       const seq = ++selectSeq.current;
-      const next = { ...emptyFilters(), maruDataId };
-      setFilters(next);
-      applied.current = { filters: next };
+      // 다른 조건 칸은 SearchArea 가 마루 데이터가 바뀐 것을 보고 비운 뒤 기본값으로 다시 채운다(dependsOn). 트리 노드 거르기는 조건 칸이 아니라 여기서 푼다.
+      setFilters((prev) => ({ ...prev, maruDataId, nodeFilter: null }));
+      applied.current = { filters: { ...emptyFilters(), maruDataId } };
       regFormRef.current?.load(null);
       historySeq.current++;
       setHistory(null);
@@ -314,14 +327,18 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
         // view 는 마루 데이터를 줘도 선택 목록을 늘 함께 준다 — 이미 열린 탭이 handoff 로 방금 등록된 데이터를 받거나
         // 이름이 바뀐 뒤에도 조회조건의 고르기(`IdPicker`)가 그 데이터를 제 이름으로 찾게 목록을 새로 채운다.
         optionsFromSelect.current = true;
-        setOptions(view.maruDataOptions ?? []);
-        setHeader(view.header ?? null);
+        // 바로 커밋한다 — 카테고리 선택지가 새 데이터 것으로 바뀌면 SearchArea 가 의존 칸을 새 선택지로 다시 채우고(dependsOn),
+        // 아래 조회가 filtersRef 로 그 값을 읽는다(커밋 전이면 옛 선택지로 판정한 값으로 조회한다).
+        flushSync(() => {
+          setOptions(view.maruDataOptions ?? []);
+          setHeader(view.header ?? null);
+        });
       } catch (e) {
         if (seq === selectSeq.current) setError(errorMessage(e));
         return;
       }
       if (tabRef.current === "tree") void loadTree(maruDataId);
-      await runSearch(next);
+      await runSearch({ ...filtersRef.current, maruDataId, nodeFilter: null });
     },
     [loadTree, onSnapshotChange, runSearch],
   );
@@ -342,7 +359,10 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
         const list = view.maruDataOptions ?? [];
         // handoff 선택이 먼저 끝나 더 새 목록을 채웠으면 덮지 않는다.
         if (!optionsFromSelect.current) setOptions(list);
+        // handoff 나 사용자 조회 기본값(SearchArea 가 마루 데이터 칸에 넣음)으로 이미 골랐으면 snapshot·첫 항목으로 덮지 않는다.
+        // 다만 기본값으로 고른 데이터가 목록에 없으면(지워짐) 첫 항목으로 간다.
         if (handedOff.current) return;
+        if (selectSeq.current > 0 && list.some((o) => o.maruDataId === filtersRef.current.maruDataId)) return;
         const fromSnapshot = snapshotMaruDataId(snapshotRef.current);
         const first = fromSnapshot && list.some((o) => o.maruDataId === fromSnapshot) ? fromSnapshot : list[0]?.maruDataId;
         if (first) await selectMaruData(first);
@@ -564,7 +584,13 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
       ]}
     >
       <SearchArea onSearch={handleSearch}>
-        <SearchField label="마루 데이터" className="span-2">
+        <SearchField
+          label="마루 데이터"
+          className="span-2"
+          defaultKey="maruDataId"
+          value={filters.maruDataId}
+          onChange={(v) => void selectMaruData(v)}
+        >
           <IdPicker
             placeholder="데이터 ID·데이터명"
             noun="마루 데이터"
@@ -587,7 +613,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
             </span>
           )}
         </SearchField>
-        <SearchField label="키">
+        <SearchField label="키" defaultKey="code" dependsOn="maruDataId" value={filters.code} onChange={(v) => setFilters((prev) => ({ ...prev, code: v }))}>
           <Input
             data-testid="item-search-code"
             aria-label="키"
@@ -595,7 +621,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
             onChange={(v) => setFilters((prev) => ({ ...prev, code: v }))}
           />
         </SearchField>
-        <SearchField label="이름">
+        <SearchField label="이름" defaultKey="name" dependsOn="maruDataId" value={filters.name} onChange={(v) => setFilters((prev) => ({ ...prev, name: v }))}>
           <Input
             data-testid="item-search-name"
             aria-label="이름"
@@ -603,7 +629,15 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
             onChange={(v) => setFilters((prev) => ({ ...prev, name: v }))}
           />
         </SearchField>
-        <SearchField label="카테고리">
+        <SearchField
+          label="카테고리"
+          defaultKey="cateId"
+          dependsOn="maruDataId"
+          type="select"
+          options={cateOptions}
+          value={filters.cateId}
+          onChange={(v) => setFilters((prev) => ({ ...prev, cateId: v }))}
+        >
           <Select
             data-testid="item-search-cate"
             aria-label="카테고리"
@@ -613,15 +647,20 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
           />
         </SearchField>
         {/* 05 「화면」 "닫힌 항목 보기". 조회영역 안 Checkbox 는 shared page-layout.css 가 네모를 지워 Select 로 둔다. */}
-        <SearchField label="닫힌 항목">
+        <SearchField
+          label="닫힌 항목"
+          defaultKey="showClosed"
+          dependsOn="maruDataId"
+          type="select"
+          options={CLOSED_OPTIONS}
+          value={filters.showClosed ? "Y" : "N"}
+          onChange={(v) => setFilters((prev) => ({ ...prev, showClosed: v === "Y" }))}
+        >
           <Select
             data-testid="item-search-closed"
             aria-label="닫힌 항목 보기"
             value={filters.showClosed ? "Y" : "N"}
-            options={[
-              { value: "N", label: "숨김" },
-              { value: "Y", label: "보기" },
-            ]}
+            options={CLOSED_OPTIONS}
             onChange={(v) => setFilters((prev) => ({ ...prev, showClosed: v === "Y" }))}
           />
         </SearchField>

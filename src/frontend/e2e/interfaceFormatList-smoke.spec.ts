@@ -44,12 +44,12 @@ test.describe("I/F Format 조회 (interfaceFormatList) Smoke", () => {
 
     // 핵심 UI — FORMAT ID 라벨 + 조회 버튼 + 좌/우 그리드 패널 제목
     await expect(page.getByText("FORMAT ID", { exact: false }).first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "조회" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "조회", exact: true })).toBeVisible();
     await expect(page.getByText("포맷 리스트", { exact: false }).first()).toBeVisible();
     await expect(page.getByText("변경이력", { exact: false }).first()).toBeVisible();
 
     // 조회 클릭 (시드 무관 — 0건이어도 안내/그리드 렌더)
-    await page.getByRole("button", { name: "조회" }).click();
+    await page.getByRole("button", { name: "조회", exact: true }).click();
     await page.waitForTimeout(1500);
     const after = (await page.textContent("body")) ?? "";
     expect(after.length).toBeGreaterThan(0);

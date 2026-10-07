@@ -1,5 +1,5 @@
 /**
- * equipMng OASIS 호출. 봉투 규칙의 정본은 `src/frontend/m-mls/pages/lsh/noticeMgmt/api.ts` 와
+ * equipMng OASIS 호출. 봉투 규칙의 정본은 `src/frontend/m-mcm/page-components/lsh/noticeMgmt/api.ts` 와
  * `oasis-contract-check` 스킬이다. 이 파일은 UI 예제가 타입 검사를 통과하도록 줄인 형태다.
  */
 import { apiRequest } from "@dk-oasis/shared/http";

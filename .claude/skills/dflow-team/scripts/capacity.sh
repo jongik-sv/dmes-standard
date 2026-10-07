@@ -32,6 +32,9 @@
 #   기준: DFLOW_CAP_WEEKLY_CAP_PCT(90) 이상이면 동시 팀원 DFLOW_CAP_WEEKLY_MAX(2)명까지, DFLOW_CAP_WEEKLY_STOP_PCT(95) 이상이면
 #   새 작업 없음. 시험용 주입: DFLOW_CAP_LIMITS_DIR(~/.dflow/limits 대신).
 #
+# 윈도우(Git Bash): 여유 메모리는 node 의 os 모듈(freemem/totalmem)로 읽고(`os=windows`), 스왑·1분 부하는 얻을 수 없어 `?` 로 둔다
+#   (os.loadavg() 는 윈도우에서 늘 0 이라 부하 판정에 쓰지 않는다). node 가 없으면 이전처럼 CAPACITY_UNKNOWN(막지 않음).
+#   `capacity.sh max` 의 RAM 은 sysctl·/proc/meminfo 가 없으면 node 의 totalmem 으로 읽는다.
 # 측정하지 못한 항목은 `?` 로 적고 `unknown=<항목,…>` 을 붙인다. 판정은 읽은 항목만으로 한다. 자원 항목(free·swap·load)
 # 을 하나도 못 읽고 막을 사유도 없으면 CAPACITY_UNKNOWN 이다.
 # --state 를 주면 지난 판정(첫 낱말)과 비교해 끝에 notify=1(바뀜) / notify=0(같음) 을 붙이고 이번 줄을 그 파일에
@@ -75,17 +78,29 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-OS="${DFLOW_CAP_OS:-$(uname -s 2>/dev/null)}"
+# DFLOW_CAP_OS 가 먼저, 다음이 COMPAT_FORCE_OS=windows(윈도우 흉내 시험, coordinator/scripts/lib/compat.sh 와 같은 이름), 없으면 uname.
+OS="${DFLOW_CAP_OS:-}"
+[ -n "$OS" ] || { [ "${COMPAT_FORCE_OS:-}" = windows ] && OS=windows || OS="$(uname -s 2>/dev/null)"; }
 PROC="${DFLOW_CAP_PROC:-/proc}"
 
 isnum() { case "${1:-}" in ''|*[!0-9.]*) return 1 ;; *) return 0 ;; esac; }
 isint() { case "${1:-}" in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
 pct() { awk -v a="$1" -v b="$2" 'BEGIN { if (b <= 0) exit 1; printf "%d", (a * 100 / b) + 0.5 }'; }
+# node 의 os 모듈에서 한 값을 얻는다(윈도우 Git Bash 에는 sysctl·/proc/loadavg 가 없다). node 가 없거나 실패하면 빈 출력·rc 1 —
+# 호출한 쪽이 「못 읽음(?)」 으로 둔다. 0 이나 빈 값으로 대신하지 않는다. $1: cpus | totalmem | freepct(여유 메모리 %, 0~100)
+node_os() {
+  command -v node >/dev/null 2>&1 || return 1
+  node -e 'const os = require("os"); const w = process.argv[1]; const t = os.totalmem(), f = os.freemem();
+    if (w === "cpus") { const n = os.cpus().length; if (n > 0) console.log(n); }
+    else if (w === "totalmem") { if (t > 0) console.log(t); }
+    else if (w === "freepct") { if (t > 0 && f >= 0 && f <= t) console.log(Math.round(f * 100 / t)); }' "$1" 2>/dev/null
+}
 ncpu() {
   local n="${DFLOW_CAP_NCPU:-}"
   [ -n "$n" ] || n=$(getconf _NPROCESSORS_ONLN 2>/dev/null) || n=
   [ -n "$n" ] || n=$(sysctl -n hw.ncpu 2>/dev/null) || n=
   [ -n "$n" ] || n=$(nproc 2>/dev/null) || n=
+  [ -n "$n" ] || n=$(node_os cpus) || n=
   isnum "$n" && [ "$n" -gt 0 ] 2>/dev/null && echo "$n"
 }
 # heavy.sh 의 ram_gb 와 같은 반올림(GB)
@@ -95,6 +110,8 @@ ram_gb() {
   isint "$b" && { echo $(( (b + 536870912) / 1073741824 )); return 0; }
   kb=$(awk '/^MemTotal:/{print $2; exit}' "$PROC/meminfo" 2>/dev/null) || kb=
   isint "$kb" && { echo $(( (kb + 524288) / 1048576 )); return 0; }
+  b=$(node_os totalmem) || b=
+  isint "$b" && { echo $(( (b + 536870912) / 1073741824 )); return 0; }
   return 1
 }
 
@@ -210,6 +227,14 @@ case "$OS" in
       isnum "$mt" && isnum "$st" && isnum "$sf" && swap=$(pct "$((st - sf))" "$mt")
     fi
     la=$(awk '{ print $2; exit }' "$PROC/loadavg" 2>/dev/null)
+    ;;
+  windows|MINGW*|MSYS*|CYGWIN*)
+    # Git Bash: ps -o·sysctl·/proc/loadavg 가 없다. node 의 os.freemem()/os.totalmem() 으로 여유 메모리 %만 얻는다.
+    # 스왑(페이지파일)은 얻지 못하고, os.loadavg() 는 윈도우에서 늘 0 이라 측정값이 아니다 — 둘 다 「못 읽음」 으로 둔다.
+    # node 가 없거나 값을 못 읽으면 free 도 비어 기존처럼 CAPACITY_UNKNOWN 이다(조용히 0 으로 넘기지 않는다).
+    os=windows
+    f=$(node_os freepct) || f=
+    isint "$f" && free="$f"
     ;;
   *)
     os="${OS:-unknown}"

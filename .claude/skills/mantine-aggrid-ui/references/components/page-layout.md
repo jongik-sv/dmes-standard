@@ -77,6 +77,7 @@ PageButton
 | action | `StandardActionCode \| (string & {})` | 없음 | RBAC 액션 코드(소문자). |
 | objId | `string` | 페이지 objId | 이 버튼만 다른 보안객체로 판정할 때. |
 | emitSearch | `boolean` | `action === "search"` | 클릭 시 최근 검색값 저장 이벤트를 낼지 여부. |
+| resetsSearch | `boolean` | `id === "btn_reset"` | 조회 조건 초기화 버튼인가. true 면 onClick 직후 조회 기본값 초기화 이벤트를 내어 SearchArea 가 사용자 기본값을 다시 넣는다(「마지막 조회값」 칸 제외). onClick 은 조건을 동기로 비워야 한다. 확인 창 뒤처럼 비동기로 비우는 화면은 false 로 두고, 비운 뒤 직접 `emitSearchReset(pageId)` 를 부른다. |
 
 StandardActionCode: `search` `save` `delete` `export` `import` `print` `approve` `reject` `confirm` `cancel` `copy`. 이 타입은 `layout` 서브패스로 재노출되지 않으므로 코드는 문자열 리터럴로 쓴다.
 
@@ -107,6 +108,6 @@ StandardActionCode: `search` `save` `delete` `export` `import` `print` `approve`
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:209` 조회·신규·저장·삭제 버튼과 `objId`. 단, 삭제의 `action` 이 `"save"` 이고 "게시중지" 버튼이 추가되어 있어 표준과 다르다.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:209` 조회·신규·저장·삭제 버튼과 `objId`. 단, 삭제의 `action` 이 `"save"` 이고 "게시중지" 버튼이 추가되어 있어 표준과 다르다.
 - `src/frontend/m-mqc/src/sample/SampleInspectionPanel.tsx:35` 버튼 없는 최소 틀(`title`, `breadcrumb`만).
 - m-mdm 화면은 `MdmPageLayout` 을 쓰므로 이 컴포넌트의 예가 아니다.

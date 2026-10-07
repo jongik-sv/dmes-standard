@@ -120,7 +120,7 @@ public final class CoreRbacSeeder extends SeedSupport {
                 "apply", "release", "calculate",
                 // TSK-08-02 D4 — mdm DRAFT 소유권(선점·해제·넘기기). mdm MdmActions·MdmPermissions 와 같은 이름.
                 "lock", "unlock", "handover",
-                // 2026-10-02 — mls 공지사항 관리(services/lsh/noticeMgmt.bpmn) 게시상태 변경. 이 토큰이 없어 SYSADMIN 도
+                // 2026-10-02 — 공지사항 관리(services/lsh/noticeMgmt.bpmn, 10-07 mls→mcm 이전) 게시상태 변경. 이 토큰이 없어 SYSADMIN 도
                 //   게시중지가 403 이었다. 이미 시드된 DB 는 아래 ensurePermAllActions 가 끝에 덧붙인다.
                 "changeStatus",
                 // 2026-10-02 — mcm 화면 사용 통계(services/csa/screenUsageStat.bpmn) 6개 action. 이미 시드된 DB 는

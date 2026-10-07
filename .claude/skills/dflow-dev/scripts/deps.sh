@@ -10,7 +10,8 @@
 # 1-1) gitignore 된 심링크 복제: 메인 체크아웃에서 ignore 된 심링크(.claude·node_modules 아래 제외, 깊이
 #    DEPS_MAXDEPTH 미만)가 이 워크트리의 같은 상대 경로에 없으면 `ln -s <메인>/<경로>` 로 건다. 이미 무엇이든
 #    있으면 건드리지 않는다. 외부 설계 문서 링크(dmes-standard docs/mdm/design)가 새 워크트리에 없어 팀원이 절대경로를
-#    추측해 읽은 일(2026-09-24 TSK-02-02)에서 나왔다. Windows(Git Bash) 의 ln -s 는 복사본을 만든다.
+#    추측해 읽은 일(2026-09-24 TSK-02-02)에서 나왔다. Windows(Git Bash) 의 ln -s 는 복사본을 만들고 메인의 심링크도 복사본이라 한 건도 걸리지 않는다 —
+#    그때는 `DEPS_WARN 윈도우(Git Bash): 의존성 링크가 한 건도 …` 한 줄로 알린다(윈도우에서 DEPS_LINK 가 하나도 없을 때만).
 #    `node_modules` 자체가 심링크인 것은 걸지 않는다 — 링크째 걸리면 워커의 설치가 사람 체크아웃에 쓴다.
 #    대상이 메인 체크아웃 안(폴더·파일·끊어진 링크 모두)을 가리키는 그 밖의 심링크도 걸지 않는다(DEPS_LINK_SKIP). 리포 밖(예 설계 문서)을 가리키는 것만 건다.
 # 1-0) 메인 쓰기 방지(2026-10-05 tooltip-screens 사고): 설치 전에 이 워크트리 안의 `node_modules` 심링크를 깊이 제한 없이 찾아
@@ -209,7 +210,10 @@ done
 # ---- 1-1) gitignore 된 심링크 복제 ----
 # 메인 체크아웃에 ignore 된 심링크(예 docs/mdm/design -> 리포 밖 설계 문서)는 새 워크트리에 따라오지 않는다.
 # --directory 라 ignore 된 폴더(node_modules·build·워크트리)는 한 줄(끝 /)로만 나와 파고들지 않는다.
-if [ -n "$MAIN" ] && [ "$(cd "$MAIN" && pwd -P)" != "$(pwd -P)" ]; then
+# 윈도우(Git Bash)에서는 ln -s 가 복사를 만들고(개발자 모드 + MSYS=winsymlinks:nativestrict 가 아니면) 메인의 심링크도 복사본이라 `[ -L ]` 이
+# 거짓이다 — 그래서 아래 복제가 한 건도 걸리지 않는다. 조용히 지나가지 않고 DEPS_WARN 한 줄로 알린다(출력 계약: DEPS_LINK 줄은 그대로).
+case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) DEPS_WIN=1 ;; *) DEPS_WIN=0 ;; esac
+link_ignored_symlinks() {
   git -C "$MAIN" ls-files --others --ignored --exclude-standard --directory 2>/dev/null |
   while IFS= read -r p; do
     # node_modules 자체가 심링크여도 걸지 않는다 — 링크째 걸리면 워커의 설치가 사람 체크아웃에 쓴다(2-b)
@@ -222,6 +226,15 @@ if [ -n "$MAIN" ] && [ "$(cd "$MAIN" && pwd -P)" != "$(pwd -P)" ]; then
     case "${tgt:+$tgt/}" in "$(cd "$MAIN" && pwd -P)"/*) echo "DEPS_LINK_SKIP $p (메인 체크아웃 안을 가리킨다)"; continue ;; esac
     mkdir -p "$(dirname "$p")" && ln -s "$MAIN/$p" "$p" && echo "DEPS_LINK $p"
   done
+}
+if [ -n "$MAIN" ] && [ "$(cd "$MAIN" && pwd -P)" != "$(pwd -P)" ]; then
+  if [ "$DEPS_WIN" = 1 ]; then
+    LINK_OUT="$(link_ignored_symlinks)"
+    [ -z "$LINK_OUT" ] || printf '%s\n' "$LINK_OUT"
+    printf '%s\n' "$LINK_OUT" | grep -q '^DEPS_LINK ' || echo "DEPS_WARN 윈도우(Git Bash): 의존성 링크(gitignore 된 심링크 복제)가 한 건도 걸리지 않았다(이미 있거나 메인에 원래 없으면 무시해도 된다) — 윈도우는 ln -s 가 복사를 만들어 메인의 심링크가 보이지 않을 수 있다. 외부 설계 문서 링크 같은 것이 필요하면 직접 복사하거나 개발자 모드 + MSYS=winsymlinks:nativestrict 로 메인에 심링크를 만든 뒤 다시 부른다"
+  else
+    link_ignored_symlinks
+  fi
 fi
 
 # ---- 2) JS 의존성 ----

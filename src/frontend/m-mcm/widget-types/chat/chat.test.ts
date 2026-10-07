@@ -140,8 +140,8 @@ describe("Enter 로 보내기", () => {
 
 describe("링크 변환", () => {
   it("배열을 {pageId,title} 로 바꾼다", () => {
-    expect(parseLinks([{ pageId: "mls:lsh/noticeMgmt", title: "공지 관리" }])).toEqual([
-      { pageId: "mls:lsh/noticeMgmt", title: "공지 관리" },
+    expect(parseLinks([{ pageId: "mcm:lsh/noticeMgmt", title: "공지 관리" }])).toEqual([
+      { pageId: "mcm:lsh/noticeMgmt", title: "공지 관리" },
     ]);
   });
 

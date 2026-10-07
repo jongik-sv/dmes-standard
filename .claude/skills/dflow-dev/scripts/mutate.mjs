@@ -20,7 +20,7 @@ const logs = `${gitdir}/dflow-bak/mutate-logs`;
 const slurp = (f) => { try { return fs.readFileSync(f, 'latin1'); } catch { return undefined; } };
 const spit = (f, c) => { try { fs.writeFileSync(f, c, 'latin1'); return true; } catch { return false; } };
 const cpPlain = (from, to) => { const c = slurp(from); return c !== undefined && spit(to, c); };  // 평범한 복사: mtime 이 새로 찍힌다
-// 첫 표지 줄 기준 둘로 가른다(perl split /^표지\n/m, 2 와 같다)
+// 첫 표지 줄 기준 둘로 가른다(perl split /^표지\n/m, 2 와 같다). 표지 줄 끝은 \n 도 \r\n 도 받는다(.mut 가 CRLF 로 체크아웃되는 윈도우)
 const splitOnce = (s, re) => { const m = re.exec(s); return m ? [s.slice(0, m.index), s.slice(m.index + m[0].length)] : [s, undefined]; };
 
 // 지난 실행의 사본 되돌리기
@@ -56,8 +56,8 @@ for (const f of files) {
   if (!/^[A-Za-z0-9_-]+$/.test(id)) bad(f, 'ID 는 [A-Za-z0-9_-] 만');
   if (want.size && !want.has(id)) continue;
   const c = slurp(f); if (c === undefined) bad(f, '읽을 수 없음');
-  const [head, r1] = splitOnce(c, /^--- find\n/m); if (r1 === undefined) bad(f, '--- find 표지 없음');
-  const [find, repl] = splitOnce(r1, /^--- replace\n/m); if (repl === undefined) bad(f, '--- replace 표지 없음');
+  const [head, r1] = splitOnce(c, /^--- find\r?\n/m); if (r1 === undefined) bad(f, '--- find 표지 없음');
+  const [find, repl] = splitOnce(r1, /^--- replace\r?\n/m); if (repl === undefined) bad(f, '--- replace 표지 없음');
   if (!find.length) bad(f, '원문이 비었다');
   const h = {};
   // 헤더(file·test 등)는 UTF-8 글로 풀어 쓴다(본문 find·repl 은 바이트 그대로 latin1). perl 은 바이트를 그대로 넘겼다.
@@ -90,19 +90,29 @@ const runTest = (cmd, logPath) => new Promise((resolve) => {
   child.on('close', (code, sig) => done(sig ? 128 + (os.constants.signals[sig] ?? 0) : code ?? 127));
 });
 
+const toEol = (t, eol) => t.replace(/\r?\n/g, eol);   // 줄바꿈을 하나로 통일한다(\r\n·\n → eol)
+const countOf = (s, f) => { let c = 0, pos = 0, i; while ((i = s.indexOf(f, pos)) >= 0) { c++; pos = i + 1; } return c; };
 const n = { total: 0, caught: 0, survived: 0, anchor: 0, busy: 0 };
 const nowS = () => Math.floor(Date.now() / 1000);
 for (const m of muts) {
   n.total++;
   let src = slurp(m.file);
-  let count = 0;
-  if (src !== undefined) { let pos = 0, i; while ((i = src.indexOf(m.find, pos)) >= 0) { count++; pos = i + 1; } }
+  let count = 0, find = m.find, repl = m.repl;
+  if (src !== undefined) {
+    // 줄바꿈 맞춤: 대상 소스가 CRLF 면 원문·치환문의 줄바꿈도 \r\n 으로, 아니면 \n 으로 맞춘다(.mut 와 소스의 줄끝이 달라도 찾는다).
+    // 맞춘 원문이 하나도 없으면 적힌 그대로(바이트 일치)도 한 번 본다 — 줄끝이 섞인 소스·바이트까지 지정한 원문을 위해.
+    const eolSrc = src.includes('\r\n') ? '\r\n' : '\n';
+    const adj = (t) => toEol(t, eolSrc);
+    const cands = [[adj(m.find), adj(m.repl)]];
+    if (cands[0][0] !== m.find) cands.push([m.find, m.repl]);
+    for (const [cf, cr] of cands) { count = countOf(src, cf); if (count > 0) { find = cf; repl = cr; break; } }
+  }
   if (count !== 1) { n.anchor++; out(`MUTATION_RESULT ${m.id} anchor count=${count} file=${m.file}\n`); continue; }
   const b = `${bak}/${m.file}`; fs.mkdirSync(path.dirname(b), { recursive: true });
   if (!cpPlain(m.file, b)) { err(`MUTATION_RESTORE_FAIL ${m.file} 사본을 만들 수 없음\n`); process.exit(3); }
   curFile = m.file; curBak = b;
-  const i = src.indexOf(m.find);
-  src = src.slice(0, i) + m.repl + src.slice(i + m.find.length);
+  const i = src.indexOf(find);
+  src = src.slice(0, i) + repl + src.slice(i + find.length);
   if (!spit(m.file, src)) { restore(); err(`MUTATION_RESTORE_FAIL ${m.file} 쓸 수 없음\n`); process.exit(3); }
   const log = `${logs}/${m.id}.log`; const t0 = nowS();
   const rc = await runTest(m.test, log);
