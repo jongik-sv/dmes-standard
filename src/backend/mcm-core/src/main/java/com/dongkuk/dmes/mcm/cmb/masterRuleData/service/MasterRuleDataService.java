@@ -108,7 +108,7 @@ public class MasterRuleDataService {
     /**
      * action=search — 동적 테이블 페이징 조회 (As-Is GetMasterRuleData.run() + GetMasterRuleDataList #2).
      *
-     * <p>CTE + ROW_NUMBER(ORDER BY RULE_SEQ) + BETWEEN 페이징 (As-Is 구조 보존 — MSSQL 호환, BR-015).
+     * <p>CTE + ROW_NUMBER(ORDER BY RULE_SEQ) + BETWEEN 페이징 (As-Is 구조 보존 — Oracle·ANSI 공통, BR-015).
      * 5조건 동적 WHERE 는 화이트리스트 컬럼/연산자 + 바인딩 값 (Q-007). VARCHAR2 컬럼이면
      * {@code UPPER(col) op UPPER(:v)} (BR-008 — As-Is java:54~77).
      * 응답 = {@code { ds_GetMasterRuleData: [rows — 대문자 키 + SEQ/TOTALCOUNT], cnt, totalCount }}.
@@ -215,7 +215,7 @@ public class MasterRuleDataService {
                     set.append(e.getKey()).append(" = :").append(bind);
                     binds.put(bind, e.getValue());
                 }
-                set.append(set.isEmpty() ? "" : ", ").append("U_USR_ID = :auditUser, U_AT = SYSDATETIME(), U_SVC_ID = :auditPgm, U_PGM_ID = :auditPgm");
+                set.append(set.isEmpty() ? "" : ", ").append("U_USR_ID = :auditUser, U_AT = CURRENT_TIMESTAMP, U_SVC_ID = :auditPgm, U_PGM_ID = :auditPgm");
                 Query q = em.createNativeQuery("UPDATE " + table + " SET " + set + " WHERE RULE_SEQ = :seq");
                 binds.forEach(q::setParameter);
                 q.setParameter("auditUser", userId).setParameter("auditPgm", PGM_ID).setParameter("seq", seq);
@@ -237,7 +237,7 @@ public class MasterRuleDataService {
         for (Map<String, Object> row : rows) {
             if (!"C".equals(nvl(strOfTrim(row.get("rowStatus"))))) continue;
             if (maxSeq < 0) {
-                Object max = em.createNativeQuery("SELECT ISNULL(MAX(RULE_SEQ), 0) FROM " + table).getSingleResult();   // #4 GetMaxRuleSeq
+                Object max = em.createNativeQuery("SELECT COALESCE(MAX(RULE_SEQ), 0) FROM " + table).getSingleResult();   // #4 GetMaxRuleSeq
                 maxSeq = ((Number) max).longValue();
             }
             maxSeq++;
@@ -255,7 +255,7 @@ public class MasterRuleDataService {
                 binds.put(bind, e.getValue());
             }
             colSql.append(", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID");
-            valSql.append(", :auditUser, SYSDATETIME(), :auditPgm, :auditPgm, :auditUser, SYSDATETIME(), :auditPgm, :auditPgm");
+            valSql.append(", :auditUser, CURRENT_TIMESTAMP, :auditPgm, :auditPgm, :auditUser, CURRENT_TIMESTAMP, :auditPgm, :auditPgm");
             Query q = em.createNativeQuery("INSERT INTO " + table + " (" + colSql + ") VALUES (" + valSql + ")");
             q.setParameter("ruleVer", "1").setParameter("ruleSeq", maxSeq);   // BR-010
             binds.forEach(q::setParameter);

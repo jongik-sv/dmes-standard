@@ -148,8 +148,8 @@ public class MasterRuleDataUploadFilePopupService {
             log.info("[masterRuleDataUploadFilePopup] 삭제등록 — {} 전건 삭제 {}건 (R-107)", table, deleted);
         }
 
-        // 채번 base — 본 화면 일원화 (Q-103 확정: As-Is 부모 매퍼 namespace 호출 F-004 해소. C-002 NVL→ISNULL)
-        Object max = em.createNativeQuery("SELECT ISNULL(MAX(RULE_SEQ), 0) FROM " + table).getSingleResult();
+        // 채번 base — 본 화면 일원화 (Q-103 확정: As-Is 부모 매퍼 namespace 호출 F-004 해소. C-002 NVL→COALESCE)
+        Object max = em.createNativeQuery("SELECT COALESCE(MAX(RULE_SEQ), 0) FROM " + table).getSingleResult();
         long maxRuleSeq = ((Number) max).longValue();
 
         int cnt = 0;
@@ -168,7 +168,7 @@ public class MasterRuleDataUploadFilePopupService {
                 binds.put(bind, e.getValue());
             }
             colSql.append(", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID");   // Q-105 (F-006 해소)
-            valSql.append(", :auditUser, SYSDATETIME(), :auditPgm, :auditPgm, :auditUser, SYSDATETIME(), :auditPgm, :auditPgm");
+            valSql.append(", :auditUser, CURRENT_TIMESTAMP, :auditPgm, :auditPgm, :auditUser, CURRENT_TIMESTAMP, :auditPgm, :auditPgm");
 
             Query q = em.createNativeQuery("INSERT INTO " + table + " (" + colSql + ") VALUES (" + valSql + ")");
             q.setParameter("ruleVer", "1").setParameter("ruleSeq", maxRuleSeq);   // R-109 — RULE_VER "1" 고정
@@ -248,7 +248,7 @@ public class MasterRuleDataUploadFilePopupService {
         for (Map.Entry<String, Object> e : row.entrySet()) {
             String key = e.getKey() == null ? "" : e.getKey().toUpperCase(Locale.ROOT);
             if (!typeMap.containsKey(key)) continue;   // RULE_VER/RULE_SEQ 는 서버 채번 — 행 값 미신뢰
-            if (FIXED_COLS.contains(key)) continue;    // 고정 조립 컬럼과 중복 시 MSSQL 264 방지
+            if (FIXED_COLS.contains(key)) continue;    // 고정 조립 컬럼과 중복 시 칸 중복 오류(Oracle ORA-00957) 방지
             Object v = e.getValue();
             if ("DATE".equals(typeMap.get(key)) && v instanceof String s) {
                 String norm = s.replace("-", "");   // R-110 (As-Is java:69-72)

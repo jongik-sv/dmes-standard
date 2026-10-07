@@ -47,7 +47,10 @@ public interface InterfaceFormatLayoutRepository extends JpaRepository<MomFormat
      * interfaceFormatList 변경이력(UNION MCM_BACKUP)에 보존됨. native (cross-schema INSERT...SELECT).
      *
      * @return 백업된 행 수
+     * @deprecated 표 없음, 호출 없음 — Oracle 기준선(oracle-1007)에 {@code MCM_BACKUP.TB_MCM_MOM_FORMAT_LAYOUT} 이 없고,
+     *             {@code src/backend} 전체에 이 메서드를 부르는 곳이 없다(2026-10-07 c2 확인). 부르면 ORA-00942 가 난다.
      */
+    @Deprecated
     @Modifying
     @Query(nativeQuery = true, value = """
             INSERT INTO MCM_BACKUP.TB_MCM_MOM_FORMAT_LAYOUT

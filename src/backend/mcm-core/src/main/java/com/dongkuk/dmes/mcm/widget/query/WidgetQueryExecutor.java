@@ -351,7 +351,11 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
      * 로컬 SQLite 는 스키마가 없다 — JDBC 로 바로 실행하는 SQL 은 Hibernate 의 {@link McmAuditStatementInspector} 를 거치지 않으므로
      * 같은 규칙({@code MCMAPUSER.} 접두·{@code N'…'} 접두 제거)을 여기서 적용한다. 운영 DB(Oracle·PostgreSQL)에서는 그대로 실행한다.
      * 검사(§7.1)는 늘 원문으로 끝낸 뒤라 이 변환이 검사를 우회하지 않는다(접두를 지우기만 한다).
+     *
+     * @deprecated Oracle 단일화(oracle-1007). {@code setSqlite(true)} 를 명시한 mcm 로컬 SQLite 경로에서만 돈다(Oracle 은 그대로 통과).
+     *             mcm 모듈의 SQLite 호출을 ora-mcm-app 이 없앤 뒤 ora-base b8 에서 SQLite 치환 API 와 함께 지운다.
      */
+    @Deprecated
     static String adaptForLocalSqlite(String sql) {
         if (!McmAuditStatementInspector.isSqlite()) return sql;
         return McmAuditStatementInspector.stripUnicodeLiteralPrefix(SCHEMA_PREFIX.matcher(sql).replaceAll(""));
