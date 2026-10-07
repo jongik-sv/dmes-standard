@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mcm.widget.repository;
 
 import com.dongkuk.dmes.mcm.widget.entity.SecUserWidgetTab;
 import com.dongkuk.dmes.mcm.widget.entity.SecUserWidgetTabId;
+import java.time.Instant;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -24,8 +25,8 @@ public interface SecUserWidgetTabRepository extends JpaRepository<SecUserWidgetT
      * 바뀐 행 수(0 이면 다른 요청이 먼저 옮겼다). 호출하는 쪽 트랜잭션 안에서 부른다.
      */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query("update SecUserWidgetTab t set t.tabId = :toTabId, t.tabNm = :tabNm, t.tabSeq = :tabSeq"
-            + " where t.userId = :userId and t.tabId = :fromTabId")
+    @Query("update SecUserWidgetTab t set t.tabId = :toTabId, t.tabNm = :tabNm, t.tabSeq = :tabSeq,"
+            + " t.updatedAt = :now, t.updatedBy = :userId where t.userId = :userId and t.tabId = :fromTabId")
     int moveTab(@Param("userId") String userId, @Param("fromTabId") String fromTabId, @Param("toTabId") String toTabId,
-                @Param("tabNm") String tabNm, @Param("tabSeq") int tabSeq);
+                @Param("tabNm") String tabNm, @Param("tabSeq") int tabSeq, @Param("now") Instant now);
 }

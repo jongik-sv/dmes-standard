@@ -36,6 +36,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
 
 /** {@link SecWidgetService} — 사용자 격리(IDOR)·입력 검사·한도·탭 교체 위임. */
 @ExtendWith(MockitoExtension.class)
@@ -49,6 +50,7 @@ class SecWidgetServiceTest {
     @Mock WidgetDefaultLayoutRepository layoutRepository;
     @Mock WidgetUserContextResolver userContextResolver;
     @Mock WidgetUserLookupRepository userLookup;
+    @Mock PlatformTransactionManager transactionManager;
 
     @InjectMocks SecWidgetService service;
 
@@ -56,6 +58,8 @@ class SecWidgetServiceTest {
     @BeforeEach
     void noFixedTabs() {
         lenient().when(fixedTabs.resolve(any())).thenReturn(List.of());
+        lenient().when(writer.insertTab(anyString(), any(), anyList()))
+                .thenAnswer(inv -> inv.<SecWidgetTabWriter.TabValues>getArgument(1).tabId());
     }
 
     private static SecWidgetTabSaveRequest save(String tabId, String tabNm) {
@@ -139,7 +143,7 @@ class SecWidgetServiceTest {
         ArgumentCaptor<SecWidgetTabWriter.TabValues> tabCap = ArgumentCaptor.forClass(SecWidgetTabWriter.TabValues.class);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<SecWidgetTabWriter.WidgetValues>> widgetCap = ArgumentCaptor.forClass(List.class);
-        verify(writer).replaceTab(eq("userA"), tabCap.capture(), widgetCap.capture());
+        verify(writer).insertTab(eq("userA"), tabCap.capture(), widgetCap.capture());
         assertThat(tabCap.getValue().tabNm()).isEqualTo("내 생산");
         assertThat(tabCap.getValue().tabSeq()).isEqualTo(1);
         assertThat(widgetCap.getValue()).singleElement().satisfies(v -> {

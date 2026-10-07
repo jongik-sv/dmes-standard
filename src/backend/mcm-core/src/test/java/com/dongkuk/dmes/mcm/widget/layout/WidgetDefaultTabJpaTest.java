@@ -3,8 +3,14 @@ package com.dongkuk.dmes.mcm.widget.layout;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.dongkuk.dmes.mcm.entity.DeptInfo;
+import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
+import com.dongkuk.dmes.mcm.widget.common.WidgetUserContextResolver;
+import com.dongkuk.dmes.mcm.widget.dto.SecWidgetSearchRequest;
+import com.dongkuk.dmes.mcm.widget.entity.SecUserWidgetTabId;
+import com.dongkuk.dmes.mcm.widget.service.SecWidgetService;
 import com.dongkuk.dmes.mcm.entity.SecUser;
 import com.dongkuk.dmes.mcm.widget.def.dto.WidgetDefListRequest;
 import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
@@ -194,21 +200,69 @@ class WidgetDefaultTabJpaTest {
     }
 
     @Test
-    @DisplayName("moveTabs — 옮길 ID 가 이미 있으면 예외로 드러나고 같은 호출의 앞선 이전도 함께 롤백된다")
-    void moveTabsRollsBackOnTakenId() {
+    @DisplayName("moveTabs — 바란 ID 에 탭 행이나 탭 행 없는 위젯 행이 있으면 다음 빈 번호로 옮긴다(덮어쓰기·섞임 없음)")
+    void moveTabsSkipsTakenIds() {
         userTab("userA", "home");
         userWidget("userA", "home", "h1");
-        userTab("userA", "def-1");
-        userWidget("userA", "def-1", "d1");
-        userTab("userA", "tab-3");
+        userTab("userA", "tab-2");
+        userWidget("userA", "tab-3", "orphan"); // 탭 행 없는 위젯
 
-        assertThatThrownBy(() -> shareWriter.moveTabs("userA", List.of(
-                new SecWidgetTabWriter.TabMove("home", "tab-2", "내 홈", 0),
-                new SecWidgetTabWriter.TabMove("def-1", "tab-3", "내 생산", 5)))).isInstanceOf(IllegalStateException.class);
+        shareWriter.moveTabs("userA", List.of(new SecWidgetTabWriter.TabMove("home", "tab-2", "내 홈", 0)));
 
         assertThat(userTabRepository.findByUserIdOrderByTabSeqAsc("userA")).extracting(SecUserWidgetTab::getTabId)
-                .containsExactlyInAnyOrder("home", "def-1", "tab-3");
-        assertThat(userWidgetRepository.findByUserIdAndTabId("userA", "home")).hasSize(1);
+                .containsExactlyInAnyOrder("tab-4", "tab-2");
+        assertThat(userWidgetRepository.findByUserIdAndTabId("userA", "tab-4")).extracting(SecUserWidget::getInstId)
+                .containsExactly("h1");
+        assertThat(userWidgetRepository.findByUserIdAndTabId("userA", "tab-3")).extracting(SecUserWidget::getInstId)
+                .containsExactly("orphan");
+        assertThat(userTabRepository.findById(new SecUserWidgetTabId("userA", "tab-4")).orElseThrow().getUpdatedBy())
+                .isEqualTo("userA");
+    }
+
+    @Test
+    @DisplayName("insertTab — 바란 tab-N 이 그사이 옮겨진 「내 홈」이면 덮어쓰지 않고 다음 빈 번호에 넣는다")
+    void insertTabNeverOverwrites() {
+        userTab("userA", "tab-2");
+        userWidget("userA", "tab-2", "h1");
+        SecWidgetTabWriter.WidgetValues w = new SecWidgetTabWriter.WidgetValues("n1", "home.notice", 0, 0, 6, 6, "N", null);
+
+        String id = shareWriter.insertTab("userA", new SecWidgetTabWriter.TabValues("tab-2", "새 탭", 3, "N"), List.of(w));
+
+        assertThat(id).isEqualTo("tab-3");
+        assertThat(userTabRepository.findById(new SecUserWidgetTabId("userA", "tab-2")).orElseThrow().getTabNm()).isEqualTo("재정의");
+        assertThat(userWidgetRepository.findByUserIdAndTabId("userA", "tab-2")).extracting(SecUserWidget::getInstId)
+                .containsExactly("h1");
+        assertThat(userWidgetRepository.findByUserIdAndTabId("userA", "tab-3")).extracting(SecUserWidget::getInstId)
+                .containsExactly("n1");
+    }
+
+    @Test
+    @DisplayName("search — OASIS 처럼 바깥 트랜잭션 안에서 불러도 이전은 자기 트랜잭션으로 커밋되고, 바깥이 롤백돼도 남는다")
+    void searchMigratesOutsideOuterTransaction() {
+        userTab("userA", "home");
+        userWidget("userA", "home", "h1");
+        userTab("userA", "tab-1");
+        SecurityIdentity identity = mock(SecurityIdentity.class);
+        when(identity.currentUserId()).thenReturn("userA");
+        WidgetUserContextResolver resolver = mock(WidgetUserContextResolver.class);
+        when(resolver.deptChain(org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
+        SecWidgetService service = new SecWidgetService(userTabRepository, userWidgetRepository, shareWriter, identity,
+                fixedTabs, layoutRepository, resolver, userLookup, txManager);
+
+        Map<String, Object> result = new TransactionTemplate(txManager).execute(status -> {
+            userTabRepository.findAll(); // 바깥이 먼저 읽는다(OASIS 서비스 시작과 같게)
+            Map<String, Object> r = service.search(new SecWidgetSearchRequest());
+            status.setRollbackOnly();
+            return r;
+        });
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> tabs = (List<Map<String, Object>>) result.get("tabs");
+        assertThat(tabs).extracting(t -> t.get("tabId") + ":" + t.get("tabNm")).containsExactly("tab-2:내 홈", "tab-1:재정의");
+        assertThat(userTabRepository.findByUserIdOrderByTabSeqAsc("userA")).extracting(SecUserWidgetTab::getTabId)
+                .containsExactlyInAnyOrder("tab-2", "tab-1");
+        assertThat(userWidgetRepository.findByUserIdAndTabId("userA", "tab-2")).extracting(SecUserWidget::getInstId)
+                .containsExactly("h1");
     }
 
     // ── Writer 채번·교체·키 삭제 ─────────────────────────────────────
@@ -294,30 +348,33 @@ class WidgetDefaultTabJpaTest {
     @Test
     @DisplayName("copyTabs — 사본 하나가 PK 충돌로 실패하면 오류가 드러나고 같은 호출의 다른 받는 사람 사본도 함께 롤백된다")
     void copyTabsRollsBackTogether() {
-        // userC 에 탭 행 없이 남은 위젯 행(tab-1/s1) — 탭 ID 는 비어 보이지만 위젯 persist 가 PK 충돌한다.
-        SecUserWidget orphan = new SecUserWidget();
-        orphan.setUserId("userC");
-        orphan.setTabId("tab-1");
-        orphan.setInstId("s1");
-        orphan.setWidgetId("home.notice");
-        orphan.setPosX(0);
-        orphan.setPosY(0);
-        orphan.setSizeW(6);
-        orphan.setSizeH(6);
-        orphan.setLockYn("N");
-        userWidgetRepository.saveAndFlush(orphan);
+        // userC 사본에 같은 instId 가 두 번 — 두 번째 위젯 persist 가 PK 충돌한다(빈 번호 고르기로는 피할 수 없는 충돌).
         SecWidgetTabWriter.WidgetValues w = new SecWidgetTabWriter.WidgetValues("s1", "home.notice", 0, 0, 6, 6, "N", null);
 
         assertThatThrownBy(() -> shareWriter.copyTabs(List.of(
                 new SecWidgetTabWriter.TabCopy("userB", new SecWidgetTabWriter.TabValues("tab-1", "(공유) a", 1, "N"), List.of(w)),
-                new SecWidgetTabWriter.TabCopy("userC", new SecWidgetTabWriter.TabValues("tab-1", "(공유) a", 1, "N"), List.of(w)))))
+                new SecWidgetTabWriter.TabCopy("userC", new SecWidgetTabWriter.TabValues("tab-1", "(공유) a", 1, "N"), List.of(w, w)))))
                 .isInstanceOf(PersistenceException.class);
 
         assertThat(userTabRepository.findByUserIdOrderByTabSeqAsc("userB")).isEmpty();
         assertThat(userWidgetRepository.findByUserId("userB")).isEmpty();
         assertThat(userTabRepository.findByUserIdOrderByTabSeqAsc("userC")).isEmpty();
-        assertThat(userWidgetRepository.findByUserId("userC")).singleElement()
-                .satisfies(r -> assertThat(r.getTabId()).isEqualTo("tab-1"));
+        assertThat(userWidgetRepository.findByUserId("userC")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("copyTabs — 받는 사람에게 탭 행 없이 남은 위젯 행(tab-1)이 있으면 그 번호를 건너뛰어 섞이지 않는다")
+    void copyTabsSkipsOrphanWidgets() {
+        userWidget("userC", "tab-1", "s1");
+        SecWidgetTabWriter.WidgetValues w = new SecWidgetTabWriter.WidgetValues("s1", "home.notice", 0, 0, 6, 6, "N", null);
+
+        shareWriter.copyTabs(List.of(
+                new SecWidgetTabWriter.TabCopy("userC", new SecWidgetTabWriter.TabValues("tab-1", "(공유) a", 1, "N"), List.of(w))));
+
+        assertThat(userTabRepository.findByUserIdOrderByTabSeqAsc("userC")).extracting(SecUserWidgetTab::getTabId)
+                .containsExactly("tab-2");
+        assertThat(userWidgetRepository.findByUserIdAndTabId("userC", "tab-1")).hasSize(1);
+        assertThat(userWidgetRepository.findByUserIdAndTabId("userC", "tab-2")).hasSize(1);
     }
 
     // ── ⑦ 사용자 찾기 쿼리 ─────────────────────────────────────────

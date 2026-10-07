@@ -45,7 +45,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.transaction.PlatformTransactionManager;
 
 /**
  * {@link SecWidgetService} 고정 탭(스펙 2026-10-07-widget-fixed-tabs) — 고정 탭 + 개인 탭 응답, 옛 「홈」·기본 탭 재정의 행의 지연 이전,
@@ -62,6 +63,7 @@ class SecWidgetFixedTabTest {
     @Mock WidgetDefaultLayoutRepository layoutRepository;
     @Mock WidgetUserContextResolver userContextResolver;
     @Mock WidgetUserLookupRepository userLookup;
+    @Mock PlatformTransactionManager transactionManager;
 
     @InjectMocks SecWidgetService service;
 
@@ -78,6 +80,9 @@ class SecWidgetFixedTabTest {
         lenient().when(userLookup.findDeptCd("userA")).thenReturn("D100");
         lenient().when(userContextResolver.deptChain("D100")).thenReturn(List.of("D100", "D10"));
         lenient().when(fixedTabs.resolve(List.of("D100", "D10"))).thenReturn(userAFixed);
+        // 새 탭은 writer 가 실제로 쓴 ID 를 돌려준다 — 시험에서는 바란 ID 그대로.
+        lenient().when(writer.insertTab(anyString(), any(), anyList()))
+                .thenAnswer(inv -> inv.<SecWidgetTabWriter.TabValues>getArgument(1).tabId());
     }
 
     // ── fixtures ───────────────────────────────────────────────────
@@ -237,25 +242,20 @@ class SecWidgetFixedTabTest {
     }
 
     @Test
-    @DisplayName("search 이전 충돌 — 첫 시도가 부딪히면 다시 읽고 새 번호로 한 번 더, 두 번 다 실패면 오류(행은 그대로)")
-    void searchMigrationRetries() {
-        List<SecUserWidgetTab> first = List.of(tab("userA", "home", "홈", 0, "N"), tab("userA", "tab-1", "a", 1, "N"));
-        List<SecUserWidgetTab> raced = List.of(tab("userA", "home", "홈", 0, "N"), tab("userA", "tab-1", "a", 1, "N"),
-                tab("userA", "tab-2", "(공유) x", 2, "N"));
-        List<SecUserWidget> widgets = List.of(userWidget("userA", "home", "h1", "N", null));
-        when(tabRepository.findByUserIdOrderByTabSeqAsc("userA")).thenReturn(first, raced, raced);
-        when(widgetRepository.findByUserId("userA")).thenReturn(widgets);
-        doThrow(new DataIntegrityViolationException("pk")).when(writer)
-                .moveTabs("userA", List.of(new SecWidgetTabWriter.TabMove("home", "tab-2", "내 홈", 0)));
+    @DisplayName("search 이전 실패(DB 잠금 등) — 오류 없이 옛 행을 숨긴 채 응답하고, 다음 조회가 다시 옮긴다")
+    void searchMigrationFailureDoesNotBreakHome() {
+        List<SecUserWidgetTab> rows = List.of(tab("userA", "home", "홈", 0, "N"), tab("userA", "tab-1", "a", 1, "N"));
+        when(tabRepository.findByUserIdOrderByTabSeqAsc("userA")).thenReturn(rows);
+        when(widgetRepository.findByUserId("userA")).thenReturn(List.of(userWidget("userA", "home", "h1", "N", null)));
+        when(writer.moveTabs(eq("userA"), anyList())).thenThrow(new CannotAcquireLockException("busy")).thenReturn(1);
 
+        Map<String, Object> first = service.search(new SecWidgetSearchRequest());
+
+        assertThat(list(first, "tabs")).extracting(t -> t.get("tabId")).contains("tab-1").doesNotContain("home");
+        assertThat(list(first, "widgets")).extracting(w -> w.get("instId")).doesNotContain("h1");
         service.search(new SecWidgetSearchRequest());
-
-        verify(writer).moveTabs("userA", List.of(new SecWidgetTabWriter.TabMove("home", "tab-3", "내 홈", 0)));
-
-        doThrow(new IllegalStateException("taken")).when(writer).moveTabs(eq("userA"), anyList());
-        when(tabRepository.findByUserIdOrderByTabSeqAsc("userA")).thenReturn(first);
-        assertThatThrownBy(() -> service.search(new SecWidgetSearchRequest()))
-                .isInstanceOf(BusinessException.class).hasMessageContaining("옮기지 못했습니다");
+        verify(writer, times(2)).moveTabs("userA", List.of(new SecWidgetTabWriter.TabMove("home", "tab-2", "내 홈", 0)));
+        verify(writer, never()).deleteTab(anyString(), anyString());
     }
 
     @Test
@@ -291,6 +291,7 @@ class SecWidgetFixedTabTest {
         assertThatThrownBy(() -> service.resetTab(tabReq("def-1"))).isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> service.resetTab(tabReq("home"))).isInstanceOf(BusinessException.class);
         verify(writer, never()).replaceTab(anyString(), any(), anyList());
+        verify(writer, never()).insertTab(anyString(), any(), anyList());
         verify(writer, never()).deleteTab(anyString(), anyString());
     }
 
@@ -317,7 +318,7 @@ class SecWidgetFixedTabTest {
         when(tabRepository.findByUserIdOrderByTabSeqAsc("userA")).thenReturn(rows);
 
         service.saveTab(save("tab-10", "t10", 10, "N"), List.of());
-        verify(writer).replaceTab(eq("userA"), any(), anyList());
+        verify(writer).insertTab(eq("userA"), any(), anyList());
 
         rows.add(tab("userA", "tab-10", "t10", 10, "N"));
         assertThatThrownBy(() -> service.saveTab(save("tab-11", "t11", 11, "N"), List.of()))
@@ -332,9 +333,10 @@ class SecWidgetFixedTabTest {
         return r;
     }
 
-    private String savedTabId() {
+    /** 새 탭 저장이 writer.insertTab 으로 바란 ID. */
+    private String insertedTabId() {
         ArgumentCaptor<SecWidgetTabWriter.TabValues> cap = ArgumentCaptor.forClass(SecWidgetTabWriter.TabValues.class);
-        verify(writer).replaceTab(eq("userA"), cap.capture(), anyList());
+        verify(writer).insertTab(eq("userA"), cap.capture(), anyList());
         return cap.getValue().tabId();
     }
 
@@ -346,8 +348,19 @@ class SecWidgetFixedTabTest {
 
         Map<String, Object> result = service.saveTab(saveNew("tab-3", "새 탭", "Y"), List.of(widget("i1")));
 
-        assertThat(savedTabId()).isEqualTo("tab-4");
+        assertThat(insertedTabId()).isEqualTo("tab-4");
         assertThat(result).containsEntry("tabId", "tab-4").containsEntry("savedCount", 1);
+        verify(writer, never()).replaceTab(anyString(), any(), anyList());
+    }
+
+    @Test
+    @DisplayName("새 탭은 덮어쓰지 않고 넣기만 한다 — writer 가 그사이 찬 번호를 피해 고른 ID 를 응답한다(동시 이전 「내 홈」 보호)")
+    void saveNewReturnsWriterId() {
+        when(tabRepository.findByUserIdOrderByTabSeqAsc("userA")).thenReturn(List.of(tab("userA", "tab-1", "a", 1, "N")));
+        when(writer.insertTab(eq("userA"), any(), anyList())).thenReturn("tab-3");
+
+        assertThat(service.saveTab(saveNew("tab-2", "새 탭", "Y"), List.of(widget("i1")))).containsEntry("tabId", "tab-3");
+        verify(writer, never()).replaceTab(anyString(), any(), anyList());
     }
 
     @Test
@@ -357,7 +370,8 @@ class SecWidgetFixedTabTest {
 
         assertThat(service.saveTab(saveNew("tab-5", "새 탭", "Y"), List.of())).containsEntry("tabId", "tab-5");
         assertThat(service.saveTab(saveNew("tab-1", "a2", null), List.of())).containsEntry("tabId", "tab-1");
-        verify(writer, times(2)).replaceTab(eq("userA"), any(), anyList());
+        verify(writer, times(1)).insertTab(eq("userA"), any(), anyList());
+        verify(writer, times(1)).replaceTab(eq("userA"), any(), anyList());
     }
 
     @Test
@@ -373,6 +387,21 @@ class SecWidgetFixedTabTest {
         assertThatThrownBy(() -> service.saveTab(saveNew("tab-3", "t3", "Y"), List.of()))
                 .isInstanceOf(BusinessException.class).hasMessageContaining("같은 이름");
         verify(writer, never()).replaceTab(anyString(), any(), anyList());
+        verify(writer, never()).insertTab(anyString(), any(), anyList());
+    }
+
+    @Test
+    @DisplayName("기존 개인 탭 이름이 나중에 생긴 고정 탭 이름과 같아도 이름을 그대로 두면 배치 저장은 된다, 「내 홈」 순서 0 유지")
+    void existingNameClashStillSaves() {
+        when(tabRepository.findByUserIdOrderByTabSeqAsc("userA")).thenReturn(List.of(tab("userA", "tab-1", "품질", 0, "N")));
+
+        service.saveTab(save("tab-1", "품질", 0, "N"), List.of(widget("i1")));
+
+        ArgumentCaptor<SecWidgetTabWriter.TabValues> cap = ArgumentCaptor.forClass(SecWidgetTabWriter.TabValues.class);
+        verify(writer).replaceTab(eq("userA"), cap.capture(), anyList());
+        assertThat(cap.getValue().tabSeq()).isZero();
+        assertThatThrownBy(() -> service.saveTab(save("tab-1", "생산", 0, "N"), List.of()))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("같은 이름");
     }
 
     @Test

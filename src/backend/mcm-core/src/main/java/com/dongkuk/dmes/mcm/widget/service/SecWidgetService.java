@@ -32,8 +32,12 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataAccessException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 사용자 위젯 탭·배치 저장 — OASIS {@code secWidget}(스펙 2026-10-02-widget-foundation §4.2, 공유는
@@ -44,6 +48,8 @@ import org.springframework.stereotype.Service;
  */
 @Service("secWidgetService")
 public class SecWidgetService {
+
+    private static final Logger log = LoggerFactory.getLogger(SecWidgetService.class);
 
     static final String HOME_TAB_ID = "home";
     static final String HOME_TAB_NM = "홈";
@@ -62,8 +68,6 @@ public class SecWidgetService {
     static final int USER_SEARCH_MAX = 30;
     static final int USER_SEARCH_LIMIT = 20;
     private static final int USER_ID_MAX = 30;
-    /** 이전이 동시 요청과 부딪혔을 때 다시 읽고 시도하는 횟수(첫 시도 포함). */
-    private static final int MIGRATE_ATTEMPTS = 2;
     private static final Pattern TAB_ID = Pattern.compile("^(home|tab-\\d{1,6}|def-\\d{1,6}|dept-[A-Za-z0-9_.-]{1,30})$");
     private static final Pattern USER_TAB_ID = Pattern.compile("^tab-(\\d{1,6})$");
     private static final String TAB_PREFIX = "tab-";
@@ -76,6 +80,8 @@ public class SecWidgetService {
     private final WidgetDefaultLayoutRepository layoutRepository;
     private final WidgetUserContextResolver userContextResolver;
     private final WidgetUserLookupRepository userLookup;
+    /** OASIS 바깥 트랜잭션을 내려놓고 도는 틀 — search 의 이전 쓰기가 자기 트랜잭션으로 커밋되게(§4). */
+    private final TransactionTemplate outsideTx;
 
     @Autowired
     public SecWidgetService(SecUserWidgetTabRepository tabRepository,
@@ -85,7 +91,8 @@ public class SecWidgetService {
                             WidgetFixedTabs fixedTabs,
                             WidgetDefaultLayoutRepository layoutRepository,
                             WidgetUserContextResolver userContextResolver,
-                            WidgetUserLookupRepository userLookup) {
+                            WidgetUserLookupRepository userLookup,
+                            PlatformTransactionManager transactionManager) {
         this.tabRepository = tabRepository;
         this.widgetRepository = widgetRepository;
         this.writer = writer;
@@ -94,13 +101,24 @@ public class SecWidgetService {
         this.layoutRepository = layoutRepository;
         this.userContextResolver = userContextResolver;
         this.userLookup = userLookup;
+        TransactionTemplate outside = new TransactionTemplate(transactionManager);
+        outside.setName("secWidgetSearch");
+        outside.setPropagationBehavior(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);
+        this.outsideTx = outside;
     }
 
     /**
      * 고정 탭(전사 기본 탭 → 부서 대표·기본 탭, 관리자 배치 그대로, fixedYn=Y·lockYn=Y) + 개인 탭. 「홈」은 돌려주지 않는다 —
      * 화면이 widgetDef/list 의 전사 「홈」 배치로 그린다. 응답 전에 옛 「홈」·기본 탭 재정의 행을 개인 탭으로 옮긴다(§4).
+     * <p><b>트랜잭션</b>: OASIS({@code cactus.oasis.transactional: true})가 서비스 전체를 txBiz 로 감싸므로, 그 바깥 트랜잭션을
+     * {@code NOT_SUPPORTED} 로 내려놓고 돈다 — 이전은 writer 가 자기 트랜잭션으로 커밋하고, 실패해도 바깥을 rollback-only 로
+     * 만들지 않는다(WidgetChatService 와 같은 방식). 이전이 실패하면 경고만 남기고 옛 행을 숨긴 채 응답한다(다음 조회에 다시 시도).
      */
     public Map<String, Object> search(SecWidgetSearchRequest request) {
+        return outsideTx.execute(status -> searchOutsideTx());
+    }
+
+    private Map<String, Object> searchOutsideTx() {
         String userId = requireUser();
         List<WidgetFixedTabs.FixedTab> fixed = fixedFor(userId);
         List<SecUserWidgetTab> rows = tabRepository.findByUserIdOrderByTabSeqAsc(userId);
@@ -141,7 +159,8 @@ public class SecWidgetService {
     /**
      * 개인 탭 하나를 통째로 바꾼다. 위젯 목록은 grids.widgets.rows. 고정 탭(home·def-*·dept-*)은 거절한다. newYn=Y 인 {@code tab-N} 이
      * 이미 있으면(화면이 연 뒤 공유 사본이 그 번호로 생긴 경우) 덮어쓰지 않고 개인 탭 최대 번호 + 1 로 옮겨 새 탭으로 저장하며,
-     * 응답 tabId 에 실제 ID 를 돌려준다.
+     * 응답 tabId 에 실제 ID 를 돌려준다. 새 탭은 writer 가 넣기만 하고(그사이 그 번호가 차면 다음 빈 번호 — 동시에 옮긴 「내 홈」을
+     * 덮어쓰지 않게), 이름 중복은 새 탭이거나 이름이 바뀔 때만 본다(나중에 생긴 고정 탭 이름과 같아도 배치 저장은 막지 않게).
      */
     public Map<String, Object> saveTab(SecWidgetTabSaveRequest request, List<Map<String, Object>> widgets) {
         String userId = requireUser();
@@ -164,12 +183,16 @@ public class SecWidgetService {
         if (isNew && userTabCount(existing) >= MAX_TABS) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "내 탭은 " + MAX_TABS + "개까지 만들 수 있습니다.");
         }
-        Set<String> taken = fixedNames(fixedFor(userId));
-        for (SecUserWidgetTab t : existing) {
-            if (isPersonalTabId(t.getTabId()) && !t.getTabId().equals(tabId)) taken.add(t.getTabNm());
-        }
-        if (taken.contains(tabNm)) {
-            throw new BusinessException(ErrorCode.DUPLICATE_DATA, "같은 이름의 탭이 있습니다.");
+        String prevNm = existing.stream().filter(t -> t.getTabId().equals(tabId)).map(SecUserWidgetTab::getTabNm)
+                .findFirst().orElse(null);
+        if (!tabNm.equals(prevNm)) {
+            Set<String> taken = fixedNames(fixedFor(userId));
+            for (SecUserWidgetTab t : existing) {
+                if (isPersonalTabId(t.getTabId()) && !t.getTabId().equals(tabId)) taken.add(t.getTabNm());
+            }
+            if (taken.contains(tabNm)) {
+                throw new BusinessException(ErrorCode.DUPLICATE_DATA, "같은 이름의 탭이 있습니다.");
+            }
         }
         List<Map<String, Object>> rows = widgets == null ? List.of() : widgets;
         if (rows.size() > MAX_WIDGETS) {
@@ -184,12 +207,19 @@ public class SecWidgetService {
             }
             values.add(v);
         }
-        int seq = Math.max(1, request.getTabSeq() == null ? existing.size() : request.getTabSeq());
+        // 0 은 옮긴 「내 홈」의 자리(개인 탭 맨 앞)라 그대로 받는다.
+        int seq = Math.max(0, request.getTabSeq() == null ? existing.size() : request.getTabSeq());
         String lockYn = "Y".equals(request.getLockYn()) ? "Y" : "N";
-        writer.replaceTab(userId, new SecWidgetTabWriter.TabValues(tabId, tabNm, seq, lockYn), values);
+        SecWidgetTabWriter.TabValues tabValues = new SecWidgetTabWriter.TabValues(tabId, tabNm, seq, lockYn);
+        String savedId = tabId;
+        if (isNew) {
+            savedId = writer.insertTab(userId, tabValues, values);
+        } else {
+            writer.replaceTab(userId, tabValues, values);
+        }
 
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("tabId", tabId);
+        result.put("tabId", savedId);
         result.put("savedCount", values.size());
         return result;
     }
@@ -344,26 +374,20 @@ public class SecWidgetService {
     // ── 옛 행 이전 (스펙 2026-10-07 §4) ──────────────────────────────────
 
     /**
-     * 옛 「홈」 행과 지금 고정 탭 집합에 있는 기본 탭 재정의 행 중 위젯이 1개 이상인 것을 개인 탭으로 옮긴다. 옮길 것이 없으면 false.
-     * 같은 사용자의 동시 요청과 새 탭 번호가 부딪히면 다시 읽어 한 번 더 시도한다. 위젯 0개인 옛 행은 그대로 두고 숨긴다(지우지 않는다).
+     * 옛 「홈」 행과 지금 고정 탭 집합에 있는 기본 탭 재정의 행 중 위젯이 1개 이상인 것을 개인 탭으로 옮긴다. 옮길 것이 있었으면 true(다시 읽는다).
+     * 새 탭 번호가 그사이 차면 writer 가 다음 빈 번호를 고른다. 위젯 0개인 옛 행은 그대로 두고 숨긴다(지우지 않는다).
+     * 실패하면(DB 잠금 등) 경고만 남기고 false — 옛 행은 숨긴 채 응답하고 다음 조회에 다시 옮긴다.
      */
     private boolean migrateLegacy(String userId, List<SecUserWidgetTab> rows, List<SecUserWidget> widgets,
                                   List<WidgetFixedTabs.FixedTab> fixed) {
-        List<SecUserWidgetTab> curRows = rows;
-        List<SecUserWidget> curWidgets = widgets;
-        for (int attempt = 1; ; attempt++) {
-            List<SecWidgetTabWriter.TabMove> moves = legacyMoves(curRows, curWidgets, fixed);
-            if (moves.isEmpty()) return attempt > 1;
-            try {
-                writer.moveTabs(userId, moves);
-                return true;
-            } catch (IllegalStateException | DataAccessException e) {
-                if (attempt >= MIGRATE_ATTEMPTS) {
-                    throw new BusinessException(ErrorCode.BUSINESS_ERROR, "예전 위젯 배치를 내 탭으로 옮기지 못했습니다. 다시 열어 주세요.");
-                }
-                curRows = tabRepository.findByUserIdOrderByTabSeqAsc(userId);
-                curWidgets = widgetRepository.findByUserId(userId);
-            }
+        List<SecWidgetTabWriter.TabMove> moves = legacyMoves(rows, widgets, fixed);
+        if (moves.isEmpty()) return false;
+        try {
+            writer.moveTabs(userId, moves); // 0 이어도 다른 요청이 먼저 옮긴 것이라 다시 읽는다
+            return true;
+        } catch (RuntimeException e) {
+            log.warn("위젯 옛 배치 이전 실패 — 다음 조회에 다시 시도한다. userId={}, moves={}", userId, moves, e);
+            return false;
         }
     }
 

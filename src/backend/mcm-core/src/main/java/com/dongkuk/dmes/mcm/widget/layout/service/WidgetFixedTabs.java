@@ -27,7 +27,7 @@ public class WidgetFixedTabs {
 
     /** 부서 대표 탭 ID 접두 — 뒤에 DEPT_CD 가 붙는다. 사용자 테이블에는 저장하지 않는다(saveTab 거절). */
     public static final String DEPT_TAB_PREFIX = "dept-";
-    /** 응답 tabSeq 대역 — 전사 기본 탭 100+관리자 순서, 부서 200+단계×10+(대표 0 | 관리자 순서). */
+    /** 응답 tabSeq 대역 — 전사 기본 탭 100+순번, 부서 200+단계×10+(대표 0 | 순번). 순번은 관리자 순서의 1부터. */
     static final int COMPANY_SEQ_BASE = 100;
     static final int DEPT_SEQ_BASE = 200;
     static final int DEPT_SEQ_STEP = 10;
@@ -94,13 +94,15 @@ public class WidgetFixedTabs {
         List<WidgetDefaultTab> tabs = tabRepository.findByLayoutKeyOrderByTabSeqAscTabIdAsc(layoutKey);
         if (tabs == null || tabs.isEmpty()) return;
         Map<String, List<WidgetDefaultTabItem>> items = defaultTabs.itemsByTab(layoutKey);
+        int index = 0;
         for (WidgetDefaultTab d : tabs) {
             List<Item> rows = new ArrayList<>();
             for (WidgetDefaultTabItem i : items.getOrDefault(d.getTabId(), List.of())) {
                 rows.add(new Item(i.getInstId(), i.getWidgetId(), i.getPosX(), i.getPosY(), i.getSizeW(), i.getSizeH(),
                         i.getLockYn()));
             }
-            int seq = seqBase + (d.getTabSeq() == null ? 0 : d.getTabSeq());
+            // 대역 안 순번은 관리자 순서(조회 정렬)의 1부터 — 관리자 TAB_SEQ 값이 커도 다음 대역과 겹치지 않게(키당 5개).
+            int seq = seqBase + (++index);
             out.add(new FixedTab(d.getTabId(), d.getTabNm(), seq, origin, rows));
         }
     }
