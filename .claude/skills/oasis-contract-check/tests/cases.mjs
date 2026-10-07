@@ -12,9 +12,10 @@ export const SCRIPTS = path.join(SKILL_DIR, 'scripts');
 export const REPO_ROOT = path.resolve(SKILL_DIR, '..', '..', '..');
 export const SHARED_NODE = path.join(SKILL_DIR, '..', '_shared', 'node');
 
-export const PY_CHECKER = path.join(SCRIPTS, 'check_oasis_contract.py');
+// python 원본은 골든 비교 기준으로만 남긴 동결 사본이다(실행 경로·문서는 node 판만 쓴다).
+export const LEGACY = path.join(HERE, 'golden', 'legacy');
+export const PY_CHECKER = path.join(LEGACY, 'check_oasis_contract.legacy.py');
 export const NODE_CHECKER = path.join(SCRIPTS, 'check_oasis_contract.mjs');
-export const PY_HOOK = path.join(SCRIPTS, 'hook_post_edit.py');
 export const NODE_HOOK = path.join(SCRIPTS, 'hook_post_edit.mjs');
 
 function put(root, rel, content) {
@@ -162,7 +163,11 @@ function buildMany(root) {
 export function installScripts(repo) {
   const sd = path.join(repo, '.claude', 'skills', 'oasis-contract-check', 'scripts');
   fs.mkdirSync(sd, { recursive: true });
-  for (const f of ['check_oasis_contract.py', 'hook_post_edit.py', 'check_oasis_contract.mjs', 'hook_post_edit.mjs', 'selftest.mjs']) {
+  // python 훅은 자기 위치에서 저장소 루트를 계산하므로 원래 이름·원래 자리에 복원해 둔다.
+  for (const f of ['check_oasis_contract', 'hook_post_edit']) {
+    fs.copyFileSync(path.join(LEGACY, `${f}.legacy.py`), path.join(sd, `${f}.py`));
+  }
+  for (const f of ['check_oasis_contract.mjs', 'hook_post_edit.mjs', 'selftest.mjs']) {
     fs.copyFileSync(path.join(SCRIPTS, f), path.join(sd, f));
   }
   const shared = path.join(repo, '.claude', 'skills', '_shared', 'node');
@@ -216,6 +221,16 @@ export function buildRoots(base) {
   });
   mkHook('h-many', (r) => { buildFixture(r); buildMany(r); });
   mkHook('h-nobpmn', (r) => put(r, 'src/backend/mls/x/A.java', 'class A {}\n'));
+  // 실제 저장소 대상 훅: 스크립트를 임시 루트에 설치하고 src 만 실제 저장소로 연결한다.
+  {
+    const r = mk('h-real');
+    try {
+      fs.symlinkSync(path.join(REPO_ROOT, 'src'), path.join(r, 'src'), 'dir');
+      hooks['h-real'] = installScripts(r);
+    } catch {
+      // 심볼릭 링크 권한이 없는 환경(윈도우 일반 사용자)에서는 실저장소 훅 케이스를 건너뛴다.
+    }
+  }
   return { roots, hooks };
 }
 

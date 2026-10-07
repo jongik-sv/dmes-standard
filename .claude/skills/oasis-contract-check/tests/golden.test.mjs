@@ -14,7 +14,7 @@ import { runNode, makeTempDir } from '../../_shared/node/proc.mjs';
 import { readJson } from '../../_shared/node/io.mjs';
 import { runCheck } from '../scripts/check_oasis_contract.mjs';
 import {
-  buildRoots, CHECK_CASES, HOOK_CASES, NODE_CHECKER, NODE_HOOK, PY_CHECKER, PY_HOOK,
+  buildRoots, CHECK_CASES, HOOK_CASES, NODE_CHECKER, PY_CHECKER,
 } from './cases.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -37,8 +37,10 @@ for (const c of CHECK_CASES) {
 }
 
 for (const c of HOOK_CASES) {
-  const py = c.repo === 'real' ? PY_HOOK : hooks[c.repo].pyHook;
-  const nd = c.repo === 'real' ? NODE_HOOK : hooks[c.repo].nodeHook;
+  const h = hooks[c.repo === 'real' ? 'h-real' : c.repo];
+  if (!h) continue; // 심볼릭 링크를 못 만드는 환경에서는 실저장소 훅 케이스를 건너뛴다
+  const py = h.pyHook;
+  const nd = h.nodeHook;
   goldenTest(`golden 훅: ${c.id}`, {
     python: { cmd: [py], input: c.stdin },
     node: { script: nd, input: c.stdin },
