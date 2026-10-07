@@ -42,6 +42,7 @@
 - 워크트리는 `/Users/jji/project/dmes-wt/<레인>`(기준 `dev` 최신). git 실행 파일·JDK 경로는 PC 의 CLAUDE.md·메모리를 따른다.
 - **Oracle 컨테이너를 내리거나 재시작하지 않는다**(`podman compose down`·`podman machine stop` 금지). 메모리·SGA 설정도 바꾸지 않는다. 필요하면 조정자에게 요청한다.
 - PDB 도구가 머지되기 전(ora-base b2 전)에는 `FREEPDB1` 안에 **레인 접두 사용자**(`L_<레인약어>_*`, 예 `L_MDM_MDMAPUSER`)를 SYSTEM(`sys_password_123`)으로 만들어 초안 검증에 쓴다. 이 사용자는 레인 것만 만들고 지운다. `MDM`·`MCM`·`MLS`·`MPN`·`MPP`·`MQC`·`CARAVAN_CONSOLE`·`dmes_user` 사용자는 건드리지 않는다(조정자 데이터).
+- 레인 PDB 는 시험·적재·서버 확인을 실제로 돌리는 동안만 `open`(`node scripts/oracle/pdb.mjs open <PDB>`) 하고 끝나면 바로 `close` 한다(drop 아님). 열린 PDB 는 PC 전체 상한 3개를 나눠 쓴다. 템플릿 `template-schema`·`template-data` 와 규칙은 `scripts/oracle/README.md`.
 - PDB 도구가 머지된 뒤에는 자기 레인 PDB 만 만들고 지운다. 다른 레인 PDB·템플릿 PDB 는 건드리지 않는다.
 - 로컬 서버(mls 8092·mdm 8096·mcm 8100·포털 5100)는 끄거나 재기동하지 않는다. 화면 확인은 조정자에게 요청한다. 레인이 서버를 직접 띄울 때는 다른 포트(18100·18096·5110 등)와 자기 PDB 로 띄우고 끝나면 내린다.
 - 무거운 명령(gradle 전체 시험·빌드·E2E)은 `.claude/skills/dflow-dev/scripts/heavy.sh` 를 거치고 레인당 한 번에 하나. Oracle 을 쓰는 시험은 인스턴스를 공유하므로 Hikari 상한을 작게(3) 둔다.

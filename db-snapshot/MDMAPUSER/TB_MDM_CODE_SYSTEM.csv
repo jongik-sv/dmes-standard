@@ -1,0 +1,11 @@
+MARU_CODE_ID,SYSTEM_CODE,DESCRIPTION,C_USR_ID,C_AT,C_SVC_ID,C_PGM_ID,U_USR_ID,U_AT,U_SVC_ID,U_PGM_ID,VER
+EQP_CD,ERP,\N,park,2026-07-28 09:00:00,\N,mdm-local-sample,park,2026-07-28 09:00:00,\N,mdm-local-sample,0
+EQP_CD,MES,\N,park,2026-07-28 09:00:00,\N,mdm-local-sample,park,2026-07-28 09:00:00,\N,mdm-local-sample,0
+LINE_CD,APS,\N,park,2026-09-10 10:00:00,\N,mdm-local-sample,park,2026-09-10 10:00:00,\N,mdm-local-sample,0
+LINE_CD,MES,\N,park,2026-09-10 10:00:00,\N,mdm-local-sample,park,2026-09-10 10:00:00,\N,mdm-local-sample,0
+PROC_CD,APS,설비관리 대체(TB_MDM_SYSTEM 에 없는 시스템),park,2023-12-15 10:00:00,\N,mdm-local-sample,park,2023-12-15 10:00:00,\N,mdm-local-sample,0
+PROC_CD,ERP,\N,park,2023-12-15 10:00:00,\N,mdm-local-sample,park,2023-12-15 10:00:00,\N,mdm-local-sample,0
+PROC_CD,MES,\N,park,2023-12-15 10:00:00,\N,mdm-local-sample,park,2023-12-15 10:00:00,\N,mdm-local-sample,0
+STEEL_STD,ERP,\N,park,2025-12-10 10:00:00,\N,mdm-local-sample,park,2025-12-10 10:00:00,\N,mdm-local-sample,0
+STEEL_STD,MES,\N,park,2025-12-10 10:00:00,\N,mdm-local-sample,park,2025-12-10 10:00:00,\N,mdm-local-sample,0
+SURF_GRD,MES,\N,park,2026-08-01 10:00:00,\N,mdm-local-sample,park,2026-08-01 10:00:00,\N,mdm-local-sample,0

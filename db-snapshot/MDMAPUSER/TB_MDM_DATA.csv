@@ -1,0 +1,19 @@
+MARU_DATA_ID,MARU_DATA_NAME,STATUS,SOURCE_KIND,SOURCE_SYSTEM,CODE_PATTERN,DESCRIPTION,ATTR01_NAME,ATTR02_NAME,ATTR03_NAME,ATTR04_NAME,ATTR05_NAME,ATTR06_NAME,ATTR07_NAME,ATTR08_NAME,ATTR09_NAME,ATTR10_NAME,LVL_CNT,CLOSED_AT,LAST_CHG_SEQ,CHG_SEQ,C_USR_ID,C_AT,C_SVC_ID,C_PGM_ID,U_USR_ID,U_AT,U_SVC_ID,U_PGM_ID,VER
+CHK_DT1,CHK_데이터1,INUSE,MDM,\N,"^[A-Z0-9_]{1,30}$",\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,1,\N,0,0,CHK_STW,1791084407909,dataMng,dataMng,CHK_STW,1791084407909,dataMng,dataMng,0
+CUST,거래처,INUSE,EXTERNAL,ERP,^[0-9]{10}$,ERP 거래처,사업자번호,유형,\N,\N,\N,\N,\N,\N,\N,\N,0,\N,4,2,kim,2026-09-04 09:00:00,\N,mdm-local-sample,kim,2026-09-04 09:00:00,\N,mdm-local-sample,0
+CUS_CD,고객사코드,INUSE,MDM,\N,^[0-9]{6}$,GlueMaster MasterCode Detail (Code Identifier=CUS_CD) 2026-09-30 export — 고객사코드 원장,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,0,\N,0,0,admin,1790725658519,dataMng,dataMng,admin,1790725658519,dataMng,dataMng,0
+E2E_DC_PORT,카테고리편집항구,INUSE,MDM,\N,"^[0-9A-Z]{1,20}$",\N,국가,\N,\N,\N,\N,\N,\N,\N,\N,\N,2,\N,0,0,e2e-fixture,\N,\N,mdm-dataMng.sql,\N,\N,\N,\N,0
+E2E_DI_CSV,CSV 항구,INUSE,MDM,\N,"^[0-9A-Z]{1,20}$",\N,국가,\N,\N,\N,\N,\N,\N,\N,\N,\N,1,\N,0,0,e2e-fixture,\N,\N,mdm-dataItem.sql,\N,\N,\N,\N,0
+E2E_DI_CUST,거래처,INUSE,EXTERNAL,ERP,"^[0-9A-Z]{1,20}$",\N,사업자번호,\N,\N,\N,\N,\N,\N,\N,\N,\N,0,\N,0,0,e2e-fixture,\N,\N,mdm-dataItem.sql,\N,\N,\N,\N,0
+E2E_DI_EMPTY,빈 항구,INUSE,MDM,\N,"^[0-9A-Z]{1,20}$",\N,국가,\N,\N,\N,\N,\N,\N,\N,\N,\N,1,\N,0,0,e2e-fixture,\N,\N,mdm-dataItem.sql,\N,\N,\N,\N,0
+E2E_DI_PORT,항구,INUSE,MDM,\N,"^[0-9A-Z]{1,20}$",\N,국가,\N,비고,\N,\N,\N,\N,\N,\N,\N,1,\N,0,0,e2e-fixture,\N,\N,mdm-dataItem.sql,\N,\N,\N,\N,0
+E2E_DM_CUST,거래처 E2E MUMC5OP5,INUSE,MDM,\N,"^[0-9A-Z]{1,20}$",\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,0,\N,0,0,e2e-fixture,\N,\N,mdm-dataMng.sql,e2e_mdm_steward,1790665765797,dataEdit,dataEdit,11
+E2E_DM_PORT,항구,INUSE,MDM,\N,"^[0-9A-Z]{1,20}$",\N,국가,\N,\N,\N,\N,\N,\N,\N,\N,\N,2,\N,0,0,e2e-fixture,\N,\N,mdm-dataMng.sql,\N,\N,\N,\N,0
+E2E_USR_DMA_MUT6ES4Y,E2E 항구 수정 E2EX,INUSE,MDM,\N,"^[A-Z0-9_]{1,30}$",stw2 가 먼저 고친 설명,국가명,비고,\N,\N,\N,\N,\N,\N,\N,\N,2,\N,0,0,E2E_USR_STW,1791079371842,dataMng,dataMng,E2E_USR_STW2,1791079382822,dataEdit,dataEdit,2
+E2E_USR_DMB_MUT6ES4Y,E2E 항목 E2EX,INUSE,MDM,\N,"^[A-Z0-9_]{1,30}$",\N,국가명,비고,\N,\N,\N,\N,\N,\N,\N,\N,2,\N,0,0,E2E_USR_STW,1791079388090,dataMng,dataMng,E2E_USR_STW,1791079388510,dataEdit,dataEdit,1
+E2E_USR_DMC_MUT6ES4Y,E2E 카테고리 E2EX,INUSE,MDM,\N,"^[A-Z0-9_]{1,30}$",\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,1,\N,0,0,E2E_USR_STW,1791079422944,dataMng,dataMng,E2E_USR_STW,1791079422944,dataMng,dataMng,0
+E2E_USR_DMD_MUT6ES4Y,E2E 폐기 E2EX,DEPRECATED,MDM,\N,"^[A-Z0-9_]{1,30}$",\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,2,\N,0,0,E2E_USR_STW,1791079449639,dataMng,dataMng,E2E_USR_STW,1791079454136,dataEdit,dataEdit,1
+E2E_USR_DME_MUT6ES4Y,E2E 권한 E2EX,INUSE,MDM,\N,"^[A-Z0-9_]{1,30}$",\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,1,\N,0,0,E2E_USR_STW,1791079458447,dataMng,dataMng,E2E_USR_STW,1791079458447,dataMng,dataMng,0
+E2E_USR_DMP_MUT6ES4Y,E2E 쪽 E2EX,INUSE,MDM,\N,"^[A-Z0-9_]{1,30}$",\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,1,\N,0,0,E2E_USR_STW,1791079414604,dataMng,dataMng,E2E_USR_STW,1791079414604,dataMng,dataMng,0
+ORG,조직,INUSE,MDM,\N,"^[0-9A-Z-]{1,20}$",공장·팀 조직,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,2,\N,2,1,kim,2026-09-09 09:00:00,\N,mdm-local-sample,kim,2026-09-09 09:00:00,\N,mdm-local-sample,0
+PORT,항구,INUSE,MDM,\N,^[A-Z]{5}$,UN/LOCODE,국가,위도,경도,\N,\N,\N,\N,\N,\N,\N,0,\N,8,2,kim,2026-08-19 09:00:00,\N,mdm-local-sample,kim,2026-08-19 09:00:00,\N,mdm-local-sample,0
