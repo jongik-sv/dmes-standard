@@ -2,27 +2,28 @@
 
 - 레인: ora-base / 브랜치 `feat/ora-base` / 워크트리 `/Users/jji/project/dmes-wt/ora-base` / 조정 세션 `dmes-standard-d8`
 - 지시: ora-base-1 (정본 `/Users/jji/.coord/oracle-1007/lanes/ora-base/brief.md`)
-- 마지막 갱신: 2026-10-07 17:15 KST, **조정자 지시로 일시 정지 중**(사용자 퇴근). 다음 지시 전까지 새 작업 없음.
+- 마지막 갱신: 2026-10-07 저녁 KST. 머지①b(fb253556d) 완료. **다음 base 머지 묶음(머지②·③ 뒤 요청)** 준비 완료, 대기 중.
 
 ## 지금 상태
 
 | 항목 | 상태 | 커밋·비고 |
 |---|---|---|
-| b0 스파이크 | 완료·머지① | `docs/oracle-1007/spike.md` |
-| b1 의존성·b3 소유표·b6 be-run | 완료·머지①(dev 08978b6ff, push 됨) | boolean 공통 설정은 TINYINT 로 정정(머지 뒤 커밋) |
-| b2 PDB 도구·b4 시험 하니스 | 완료·머지①. 이후 `template-schema`·`template-data` 추가(미머지) | 하니스: mdm `SapCsvTest` 8건 복제→시험→삭제 51초 확인 |
-| b5 적재기 | **핵심 완료(미머지)** `scripts/db-snapshot/snapshot.py` convert·export·import | f9baf7a9b. L_ORA_BASE 에서 mdm 39표 42,870행·mcm 54표 481행·MCM_SOURCE 6행·MCAAPUSER 6행, IDENTITY 8개·시퀀스 재설정, FK 복원, 동적 표 생성+GRANT, PK 빈 행 제외, epoch→KST 확인. `template-schema`(5벌 V1 적용)→`template-data`(CSV 적재 mdm 344초) 끝까지 통과 |
-| b5 후속: 위젯 정의 6개 | CSV 반영 **미커밋** | `db-snapshot/MCMAPUSER/TB_MCM_WIDGET_DEF.csv` 의 6행(`def.fpkt65d4`·`ldj2hpgw`·`lo41tduo`·`qcondsmp`·`spzufhgo`·`ubb8dih0`) CONFIG_JSON.sql 만 Oracle 판으로 교체(원문 `git show feat/ora-mcm-core:docs/oracle-1007/widget-sql-oracle.md`). **남음: 레인 PDB 에서 import 후 SQL 실행 확인 → 커밋 → PDB close** |
-| 템플릿 정리 | 시험 템플릿 `TPL_ZTEST`·`TPL_ZDATA`·`L_ORA_BASE` drop 이 백그라운드로 진행 중이었음 — 남았으면 `node scripts/oracle/pdb.mjs drop <이름>`. 남기는 것: `TPL_EMPTY`(사용자만) | |
-| b7 문서·스킬 | 미착수(ora-platform 머지 뒤) | 항목: 가이드 Database/*·dialect-neutral-sql·Backend-Implementation-Guide·Mes-Guide·flyway-migration-add·dflow-merge migration-check.sh, 워크트리 서버 확인 절차, 옛 경로 문서 3곳(`Mcm-Core-Onboarding.md:155,159`·`csa-sec-erd.md:256`·`erd-widget-meta.md:31`), be-run 의 `mdm.sample.path` 인자 정리·"로컬 MDM 데이터는 `snapshot.py import`" 안내(MdmLocalSampleLoader 가 archive 로 감), e2e-clean-data 를 가리키는 문서·스크립트 정리(스크립트는 dev 에서 이미 삭제됨 — dev 합칠 때 되살리지 않는다). **`Widget-Authoring-Guide.md` §3 은 건드리지 않는다**(ora-mcm-core 소관) |
-| b8 잔재 정리 | 미착수(ora-platform 머지 뒤) | 카탈로그의 sqlite·mssql·h2, scripts/archive, scripts/perf/render, playwright.config.ts, 옛 SQL 스냅샷 `db-snapshot/{mdm,mcm}`(→archive), mcm-core `SqliteTemporalConverterContributor` 제거(mls yml 이 가리키므로 platform 머지 뒤) |
+| b0~b4, b6 | 완료·머지①(08978b6ff) | 스파이크·의존성·PDB 도구·소유표·시험 하니스·be-run |
+| b5 적재기 + template 명령 + 하니스 PC 잠금 + KST 고정 | **머지①b 완료**(dev fb253556d, push 됨) | `lock-hold`·SIGTERM 정리·sqlplus 시간 상한, build-logic 시간대 |
+| b5 후속(미머지, 다음 묶음) | 커밋됨 | 위젯 6행 CSV `5a3416987`, MCM 데이터 보정 convert 후처리 `c5b8d2142`(FORM_URL·폴더 USE_TP), `close` 잠금 제거 `bd7075d51` |
+| b7 일부(미머지, 다음 묶음) | 커밋됨 | be-run `mdm.sample.path` 제거·README MDM 데이터 안내·옛 경로 문서 3곳 `5b4640946`, Oracle 테스트 가이드·V1 불변 규칙 `843e265be`, db-snapshot/README CSV 기준 `b845cbd8d` |
+| b8 준비 | 목록 작성 완료 `b845cbd8d`·`3247557aa` | `docs/oracle-1007/b8-residue.md`(파일/레인/처리, 삭제 승인 후보 §8). 고친 것은 없음 |
+| b7 나머지 | **머지④(ora-platform) 뒤 한 번에** | 아래 「b7 문서 항목」 |
+| b8 | 머지④ 뒤 착수(조정자 확인 후) | b8-residue.md 의 ora-base 소유 행 + 머지 뒤 재검색으로 대조 |
 | z1 마감 | 조정자 지시 때 | 전 모듈 시험·E2E·시험 시간 비교·SUMMARY·PDB 정리 |
 
-## 남은 순서(재개 뒤)
+PDB: 남긴 것은 `TPL_EMPTY` 와 `L_ORA_BASE`(닫힘, 옛 mcm V1 이 적용돼 있어 머지③ 뒤 `template-schema` 로 다시 복제한다). 시험 템플릿 `TPL_ZDATA`·`TPL_ZTEST` 는 지웠다.
 
-1. 위젯 CSV: 레인 PDB 하나(`clone TPL_EMPTY L_ORA_BASE` 또는 `template-schema`)에서 `snapshot.py import` 후 6개 SQL 을 MCMAPUSER 로 실제 실행(읽기 전용) → 확인 → `git add db-snapshot/MCMAPUSER/TB_MCM_WIDGET_DEF.csv` 커밋(메시지에 변환표 경로 적기, 원본 표 문서는 복사하지 않음) → PDB close → 진행 보고.
-2. 미커밋·미머지 정리: `scripts/oracle` 템플릿 명령·README(커밋됨), b5(커밋됨) 를 머지④ 전에 dev 최신 합쳐 머지 요청(ora-mdm 머지② 와 ③ 같은 창 확인).
-3. ora-platform 머지 뒤 b7·b8, 조정자 지시로 z1. 모듈 V1 이 dev 에 들어오면 `template-schema --rebuild` → `template-data --rebuild`.
+## 남은 순서
+
+1. 머지②(ora-mdm)·③(mcm 묶음) 뒤: dev 최신 합침 → Oracle 없이 되는 확인(build-logic 구성 `:lib:help`, `snapshot.py convert` 두 번 해시 동일) → 「다음 base 머지 묶음」 머지 요청. 묶음 = `c5b8d2142`·`5a3416987`·`5b4640946`·`bd7075d51`·`843e265be`·`b845cbd8d`·`3247557aa`(+ 이후 커밋).
+2. 모듈 V1 이 dev 에 들어오면 `template-schema --rebuild` → `template-data --rebuild` 로 템플릿을 만들고 `L_ORA_BASE` 를 다시 복제한다(조정자 허락한 시점·PC 잠금 아래).
+3. 머지④ 뒤: b7 나머지, b8, 조정자 지시로 z1.
 
 ## 결정·전달 사항(조정자)
 
@@ -46,11 +47,19 @@
 
 ## b7 문서 항목(조정자 전달)
 
-- 옛 경로 문서 3곳 수정: `docs/guide/BackEnd/Mcm-Core-Onboarding.md:155,159`, `docs/mcm/erd/csa-sec-erd.md:256`, `docs/widget-2026-10/erd-widget-meta.md:31`.
+- 옛 경로 문서 3곳 수정: `docs/guide/BackEnd/Mcm-Core-Onboarding.md:155,159`, `docs/mcm/erd/csa-sec-erd.md:256`, `docs/widget-2026-10/erd-widget-meta.md:31` → **완료**(`5b4640946`).
+- **머지④ 뒤 문서 묶음**(앱이 아직 SQLite 로 뜨는 동안 고치면 사실과 어긋나므로 한 번에): README「처음 받은 뒤 셋업」·`Backend-Implementation-Guide`·`dialect-neutral-sql`·`docs/guide/Database/README`·`Mes-Guide`·`flyway-migration-add` 스킬(`SKILL.md`·`migration_tool.mjs`·골든 시험)·`dflow-merge`(`migration-check.sh`·`script-details.md`)·`dflow-dev/references/dev-dialect.md`·`dflow-team/references/resolve-prompt.md:208`.
+- mcm wildfly 는 이제 `OracleDialect`·`java:/jdbc/mcm/*` JNDI(ora-mcm-app 666812393). 낡은 설명 수정: `docs/guide/Operations/DMES-Deployment-Guide.md:117`, `docs/framework/DataSource_JNDI설계.md` 머리 안내. `docs/mdm/adr/0004-drop-mssql-production-assumption.md:93` 은 **본문을 고치지 않고** 「2026-10-07 oracle-1007 로 대체됨」 주석과 링크만 단다.
+- 위젯 가이드 `Widget-Authoring-Guide.md:505` 의 `widget-rule-calc-defs.sql` 예시 문장은 ora-mcm-core 소관이다(§3 도 건드리지 않는다).
 
 ## 운영 제약
 
 - `feat/ora-base` 위에 ora-mcm-app·ora-platform 이 쌓였다(워크트리가 이 브랜치를 merge). **머지① 전에 이미 커밋한 것을 rebase·force 로 바꾸지 않는다. 추가 커밋만 한다.**
+
+## 운영 규칙(조정자 결정)
+
+- Oracle 동결: 조정자가 「Oracle 재개」 를 보낼 때까지 새 Oracle 명령 금지(상태 확인 sqlplus 포함). 재개 뒤 PC 전체에서 무거운 작업(clone·drop·template·open·시험 하니스)은 한 번에 하나. `close` 는 잠금 없이 실행.
+- 확인용 sqlplus 가 2분 넘게 걸리면 보낸 쪽이 TERM 한다(고아 `podman exec` 를 남기지 않는다).
 
 ## 알려진 위험·미확인
 
