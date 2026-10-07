@@ -14,7 +14,54 @@ if (project != rootProject) {
 //   상태 있는 ../data/*.db, BACKEND_CLIENT_KEY 환경 변수. 캐시가 다른 워크트리의 통과 결과를 꺼내 실패를 숨길 수 있다.
 //   컴파일 등 다른 태스크는 그대로 캐시한다. 루트 composite 에서 켠 캐시는 모든 includeBuild 에 적용되므로 모듈마다 이 플러그인을 적용한다.
 // - 테스트 JVM 은 짧게 돌아 C2 JIT 컴파일이 CPU 만 먹고(측정 시 350% 가까이) 이득이 없다 — C1 까지만 쓴다.
+
+// ── Oracle 시험 PDB(oracle-1007 b4) — 기본은 꺼짐이라 기존 동작은 그대로다 ──
+// -Pdmes.ora.test=clone(또는 DMES_ORA_TEST=clone)이면 빌드 한 번에 한 번 템플릿(-Pdmes.ora.template, 기본 TPL_EMPTY)에서
+// T_<레인> PDB 를 복제하고 빌드가 끝나면 지운다. -Pdmes.ora.pdb=<PDB>(DMES_ORA_PDB)면 있는 PDB 를 그대로 쓴다.
+// 켜면 Test 는 forks=1 이고 접속값이 시스템 속성 dmes.ora.url·dmes.ora.password·dmes.ora.pdb 와 환경 변수 DMES_ORA_URL·
+// DMES_ORA_PASSWORD·DMES_ORA_PDB 로 넘어간다(사용자 이름은 시험이 스키마별로 고른다). 인스턴스를 모든 레인이 나눠 쓰므로
+// Hikari 상한도 3 으로 건다(SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE).
+def oraProp = { String key, String env -> providers.gradleProperty(key).orElse(providers.environmentVariable(env)).getOrNull() }
+def oraMode = oraProp('dmes.ora.test', 'DMES_ORA_TEST')
+def oraExisting = oraProp('dmes.ora.pdb', 'DMES_ORA_PDB')
+def oraService = null
+if (oraMode == 'clone' || oraExisting) {
+    File repoRoot = rootProject.projectDir
+    while (repoRoot != null && !new File(repoRoot, 'scripts/oracle/pdb.mjs').isFile()) repoRoot = repoRoot.parentFile
+    if (repoRoot == null) {
+        throw new GradleException('scripts/oracle/pdb.mjs 를 찾지 못했다 — 저장소 안에서 실행한다.')
+    }
+    final File root = repoRoot
+    oraService = gradle.sharedServices.registerIfAbsent('dmesOraTestPdb', OraTestPdbService) {
+        parameters.repoRoot = root.absolutePath
+        parameters.lane = root.name
+        parameters.mode = oraExisting ? 'existing' : 'clone'
+        parameters.template = oraProp('dmes.ora.template', 'DMES_ORA_TEMPLATE') ?: 'TPL_EMPTY'
+        parameters.pdb = oraExisting ?: ''
+    }
+}
+
 allprojects {
+    if (oraService != null) {
+        final def svc = oraService
+        tasks.withType(Test).configureEach {
+            usesService(svc)
+            maxParallelForks = 1
+            forkEvery = 0
+            doFirst {
+                String pdb = svc.get().acquire()
+                String password = System.getenv('DMES_ORA_PASSWORD') ?: 'dmes_password_123'
+                String url = OraTestPdbService.jdbcUrl(pdb)
+                systemProperty 'dmes.ora.pdb', pdb
+                systemProperty 'dmes.ora.url', url
+                systemProperty 'dmes.ora.password', password
+                environment 'DMES_ORA_PDB', pdb
+                environment 'DMES_ORA_URL', url
+                environment 'DMES_ORA_PASSWORD', password
+                environment 'SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE', '3'
+            }
+        }
+    }
     tasks.withType(Test).configureEach {
         outputs.doNotCacheIf('선언되지 않은 외부 입력(작업 트리 밖 파일·../data SQLite·환경 변수)에 기대는 테스트') { true }
         // C1 만 쓰면 JVM 이 코드 캐시 기본값을 240MB → 48MB 로 줄인다. mdm/api 1060건에서 "Out of space in CodeCache for
