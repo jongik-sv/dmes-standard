@@ -12,7 +12,7 @@
 | p1 caravan 기준선 | **완료·시험 통과** | `caravan-hub/src/main/resources/db/migration/{caravanuser,ifuser}`. `HubOracleBaselineTest` 2건 통과(Flyway 적용·표 5개, 4000자 초과 CLOB 을 String 으로 읽기, 읽은 U_AT 로 낙관락 갱신 1행) |
 | p3 샘플 모듈 | 코드 완료·**기동 시험 미실행** | SQL archive 이동, yml(DMES_ORA_*·Hikari 3·Instant TIMESTAMP·boolean TINYINT), lib build.gradle(sqlite·community dialects 제거), MlsTestDb. 컴파일 통과. mls·mpp·mqc·mpn Spring 기동·Flyway 확인은 아직 안 함 |
 | p2 caravan-hub·console·core | 코드 완료·hub 시험 통과 | HubFlywayConfig(CARAVANUSER 항상·IFUSER 로컬 전용), yml 6종, InterfaceMapper CLOB resultMap, TiberoDialectResolver·KafkaJpaConfig, 빈 값 검증(groupId·호스트 이름·URL). hub 앱 실기동(bootRun)은 안 함 |
-| p5 H2 시험 | **진행 중: 시험 통과 못 함** | caravan-core h2 제거(완료). oasis-core 시험 16개를 `OracleTestDatabase` 로 전환. 아래 「oasis 시험 진행」 참조 |
+| p5 H2 시험 | **oasis 완료**(686건 전부 통과, 1건 skip, 53초) | caravan-core h2 제거(완료). oasis-core 시험을 `OracleTestDatabase` 로 전환. caravan-core·console 시험은 p6 전체 시험에서 확인. 아래 「oasis 시험 진행」 참조 |
 | 리뷰 | p1·p3 초안 opus 리뷰 반영 완료, p2·p3·p5 코드 opus 리뷰 반영 완료 | 반영 안 한 지적 2건은 아래 「결정」 |
 | p4 cactus-core SQLite 제거 | 대기 | ora-mdm·mcm 머지②·③ 뒤. `DialectDetector`·`LocalSqliteDataSource`·`SqliteColumnConverter`·`OasisCommitFailureSqliteTest`·`DialectDetectorTest` 제거 또는 archive, `DmomMapper.xml:65,70` 의 `NEXT VALUE FOR MCMAPUSER.SEQ_MCM_MOM_TC_ERROR` 를 `.NEXTVAL` 로 |
 | p6 전체 시험·머지 요청(④) | 대기 | heavy.sh 경유 한 번, 머지②·③ 뒤 |
@@ -24,6 +24,7 @@
 - 남은 확인: 3차 실행(`cd src/backend/cactus-core && DMES_ORA_TEST=clone sh ../gradlew :oasis-core:test --offline --console=plain > 파일`, 출력은 파일로 받고 `grep ' FAILED$'` 로만 읽는다). 시험은 `dmes.ora.url` 이 필요해 cactus-core 합성 빌드에서만 돈다(oasis 단독 빌드는 시작 불가, 의도).
 - `PreStructuredMessageSendTaskServiceTest` 143행 실패는 `sendTaskWithSqlScript.bpmn` 의 SQL 별칭(`firstName as name`) 결과 칸 이름 대소문자나 `initData.sql` 변환(`TO_TIMESTAMP`)과 관련 가능성. 3차에서도 실패하면 결과 맵 키를 출력해 확인한다.
 - 3차(10-07 오후, 중단): 143행 실패가 같은 모습으로 남았고 이후 잠금 대기로 멈춰 조정자 요청으로 TERM(시험 JVM 이 34분간 CPU 0). 수정(1502badba, **재시험 전·컴파일 전**): `TransactionalSubServiceTest`·`ParallelTransactionTest` 의 Hikari 풀(기본 최대 10·유휴 10)을 최대 3·유휴 0 으로 줄이고 `@AfterEach` 에서 닫음, `OracleTestDatabase` 연결 8개 상한과 `oracle.jdbc.ReadTimeout` 60초, `junit.jupiter.execution.timeout.default=120s`, `spring.test.context.cache.maxSize=2`, `maxParallelForks=1`. 143행은 `current_timestamp`(TIMESTAMP WITH TIME ZONE)가 `ColumnConverter` 의 `Timestamp` 판정을 빠져나가는 것으로 보고 `cast(... as timestamp)` 로 고침(미검증). 접속 25개가 스래싱 원인이라는 진단은 조정자가 확정 아님으로 정정했다. **조정자의 「Oracle 재개」 전에는 Oracle 시험을 돌리지 않는다.** 시험 PDB `T_ORA_PLATFORM` 이 남았을 수 있어 재개 때 먼저 확인한다.
+- 5~9차(VM 3GB 재기동 뒤, dev ce378785a 병합): 5차 686건 중 4건 실패 → `mainService.bpmn` 대상 조회 SQL 에 `from dual` 추가, `DataProcessor` 가 Oracle BigDecimal 정수를 `Number` 로 받음. 전체 재실행에서 `CoreServiceStarter` 의 `messages`(ArrayList)가 병렬 인스턴스에서 add 를 잃어 1건 흔들림(path 는 이미 동기화) → `synchronizedList` 로 고침(운영 코드 변경 1건). 마지막 전체 실행 통과. 143행 실패는 `cast(current_timestamp as timestamp)` 로 해결.
 - hub WildFly JNDI 는 mcm 과 같은 `java:/jdbc/mcm/dsCaravan`·`dsIF`(207465138), `JNDI_DS_CARAVAN` 도 받는다.
 
 ### 이번 세션에서 확인한 운용 교훈
