@@ -113,6 +113,30 @@ public class SecWidgetTabWriter {
         em.flush();
     }
 
+    /** 옛 고정 탭 행 하나를 개인 탭으로 옮기는 값(스펙 2026-10-07-widget-fixed-tabs §4). */
+    public record TabMove(String fromTabId, String toTabId, String tabNm, int tabSeq) {}
+
+    /**
+     * 옛 고정 탭 행(home·def-*)을 개인 탭으로 옮긴다 — 한 트랜잭션, 행 삭제 없이 TAB_ID 만 바꾼다. 탭 행이 이미 옮겨졌으면(갱신 0)
+     * 그 탭의 위젯은 건드리지 않는다. 옮길 ID 에 행이 이미 있으면(동시에 생긴 공유 사본) 예외로 되돌린다 — 부르는 쪽이 다시 읽고 다시 시도한다.
+     * @return 실제로 옮긴 탭 수
+     */
+    @Transactional
+    public int moveTabs(String userId, List<TabMove> moves) {
+        int moved = 0;
+        for (TabMove m : moves) {
+            // 원래 행이 없으면 이미 옮겼다(멱등) — 대상 ID 검사보다 먼저 본다.
+            if (!tabRepository.existsById(new SecUserWidgetTabId(userId, m.fromTabId()))) continue;
+            if (tabRepository.existsById(new SecUserWidgetTabId(userId, m.toTabId()))) {
+                throw new IllegalStateException("옮길 탭 ID 가 이미 있습니다: " + m.toTabId());
+            }
+            if (tabRepository.moveTab(userId, m.fromTabId(), m.toTabId(), m.tabNm(), m.tabSeq()) == 0) continue;
+            widgetRepository.moveTab(userId, m.fromTabId(), m.toTabId());
+            moved++;
+        }
+        return moved;
+    }
+
     /** 탭과 그 위젯을 지운다. 없으면 아무것도 하지 않는다. */
     @Transactional
     public void deleteTab(String userId, String tabId) {

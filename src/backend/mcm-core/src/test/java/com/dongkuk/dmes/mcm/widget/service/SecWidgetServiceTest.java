@@ -22,7 +22,7 @@ import com.dongkuk.dmes.mcm.widget.repository.SecUserWidgetRepository;
 import com.dongkuk.dmes.mcm.widget.repository.SecUserWidgetTabRepository;
 import com.dongkuk.dmes.mcm.widget.common.WidgetUserContextResolver;
 import com.dongkuk.dmes.mcm.widget.layout.repository.WidgetDefaultLayoutRepository;
-import com.dongkuk.dmes.mcm.widget.layout.service.WidgetDefaultTabs;
+import com.dongkuk.dmes.mcm.widget.layout.service.WidgetFixedTabs;
 import com.dongkuk.dmes.mcm.widget.repository.WidgetUserLookupRepository;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -45,17 +45,17 @@ class SecWidgetServiceTest {
     @Mock SecUserWidgetRepository widgetRepository;
     @Mock SecWidgetTabWriter writer;
     @Mock SecurityIdentity securityIdentity;
-    @Mock WidgetDefaultTabs defaultTabs;
+    @Mock WidgetFixedTabs fixedTabs;
     @Mock WidgetDefaultLayoutRepository layoutRepository;
     @Mock WidgetUserContextResolver userContextResolver;
     @Mock WidgetUserLookupRepository userLookup;
 
     @InjectMocks SecWidgetService service;
 
-    /** 이 시험들은 기본 탭이 없는 사용자다(기본 탭 동작은 SecWidgetDefaultTabTest). */
+    /** 이 시험들은 고정 탭이 없는 사용자다(고정 탭 동작은 SecWidgetFixedTabTest). */
     @BeforeEach
-    void noDefaultTabs() {
-        lenient().when(defaultTabs.resolve(any())).thenReturn(WidgetDefaultTabs.Resolved.EMPTY);
+    void noFixedTabs() {
+        lenient().when(fixedTabs.resolve(any())).thenReturn(List.of());
     }
 
     private static SecWidgetTabSaveRequest save(String tabId, String tabNm) {
@@ -93,9 +93,9 @@ class SecWidgetServiceTest {
     @DisplayName("search 는 인증 사용자의 탭·위젯만 Map 목록으로 돌려준다")
     void searchReturnsOwnTabsAndWidgets() {
         when(securityIdentity.currentUserId()).thenReturn("userA");
-        when(tabRepository.findByUserIdOrderByTabSeqAsc("userA")).thenReturn(List.of(tab("userA", "home", "홈", 0)));
+        when(tabRepository.findByUserIdOrderByTabSeqAsc("userA")).thenReturn(List.of(tab("userA", "tab-1", "내 탭", 1)));
         SecUserWidget w = new SecUserWidget();
-        w.setUserId("userA"); w.setTabId("home"); w.setInstId("i1"); w.setWidgetId("home.notice");
+        w.setUserId("userA"); w.setTabId("tab-1"); w.setInstId("i1"); w.setWidgetId("home.notice");
         w.setPosX(0); w.setPosY(0); w.setSizeW(10); w.setSizeH(16); w.setLockYn("Y");
         when(widgetRepository.findByUserId("userA")).thenReturn(List.of(w));
 
@@ -106,8 +106,8 @@ class SecWidgetServiceTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> widgets = (List<Map<String, Object>>) result.get("widgets");
         assertThat(tabs).singleElement().satisfies(t -> {
-            assertThat(t.get("tabId")).isEqualTo("home");
-            assertThat(t.get("tabNm")).isEqualTo("홈");
+            assertThat(t.get("tabId")).isEqualTo("tab-1");
+            assertThat(t.get("tabNm")).isEqualTo("내 탭");
             assertThat(t.get("lockYn")).isEqualTo("N");
         });
         assertThat(widgets).singleElement().satisfies(m -> {
@@ -123,30 +123,30 @@ class SecWidgetServiceTest {
         when(securityIdentity.currentUserId()).thenReturn(null);
 
         assertThatThrownBy(() -> service.search(new SecWidgetSearchRequest())).isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> service.saveTab(save("home", "홈"), List.of())).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.saveTab(save("tab-1", "가"), List.of())).isInstanceOf(BusinessException.class);
         verify(tabRepository, never()).findByUserIdOrderByTabSeqAsc(anyString());
         verify(writer, never()).replaceTab(anyString(), any(), anyList());
     }
 
     @Test
-    @DisplayName("saveTab 은 인증 사용자로 탭 교체를 Writer 에 맡긴다 — home 이름은 「홈」으로 고정")
+    @DisplayName("saveTab 은 인증 사용자로 탭 교체를 Writer 에 맡긴다")
     void saveTabDelegatesToWriter() {
         when(securityIdentity.currentUserId()).thenReturn("userA");
         when(tabRepository.findByUserIdOrderByTabSeqAsc("userA")).thenReturn(new ArrayList<>());
 
-        Map<String, Object> result = service.saveTab(save("home", "아무 이름"), List.of(widget("i1", 0, 0, 10, 16)));
+        Map<String, Object> result = service.saveTab(save("tab-1", "내 생산"), List.of(widget("i1", 0, 0, 10, 16)));
 
         ArgumentCaptor<SecWidgetTabWriter.TabValues> tabCap = ArgumentCaptor.forClass(SecWidgetTabWriter.TabValues.class);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<SecWidgetTabWriter.WidgetValues>> widgetCap = ArgumentCaptor.forClass(List.class);
         verify(writer).replaceTab(eq("userA"), tabCap.capture(), widgetCap.capture());
-        assertThat(tabCap.getValue().tabNm()).isEqualTo("홈");
-        assertThat(tabCap.getValue().tabSeq()).isEqualTo(0);
+        assertThat(tabCap.getValue().tabNm()).isEqualTo("내 생산");
+        assertThat(tabCap.getValue().tabSeq()).isEqualTo(1);
         assertThat(widgetCap.getValue()).singleElement().satisfies(v -> {
             assertThat(v.instId()).isEqualTo("i1");
             assertThat(v.sizeW()).isEqualTo(10);
         });
-        assertThat(result).containsEntry("tabId", "home").containsEntry("savedCount", 1);
+        assertThat(result).containsEntry("tabId", "tab-1").containsEntry("savedCount", 1);
     }
 
     @Test
@@ -180,36 +180,20 @@ class SecWidgetServiceTest {
     }
 
     @Test
-    @DisplayName("탭 10개면 새 탭은 거절, 기존 탭 저장은 허용 · 위젯 31개는 거절")
+    @DisplayName("개인 탭 10개면 새 탭은 거절, 기존 탭 저장은 허용 · 위젯 31개는 거절")
     void saveTabLimits() {
         when(securityIdentity.currentUserId()).thenReturn("userA");
         List<SecUserWidgetTab> ten = new ArrayList<>();
-        ten.add(tab("userA", "home", "홈", 0));
-        for (int i = 1; i <= 9; i++) ten.add(tab("userA", "tab-" + i, "t" + i, i));
+        for (int i = 1; i <= 10; i++) ten.add(tab("userA", "tab-" + i, "t" + i, i));
         when(tabRepository.findByUserIdOrderByTabSeqAsc("userA")).thenReturn(ten);
 
-        assertThatThrownBy(() -> service.saveTab(save("tab-10", "새"), List.of()))
+        assertThatThrownBy(() -> service.saveTab(save("tab-11", "새"), List.of()))
                 .isInstanceOf(BusinessException.class).hasMessageContaining("10");
         service.saveTab(save("tab-3", "t3"), List.of());
         List<Map<String, Object>> many = new ArrayList<>();
         for (int i = 0; i < 31; i++) many.add(widget("i" + i, 0, i * 6, 6, 6));
         assertThatThrownBy(() -> service.saveTab(save("tab-3", "t3"), many))
                 .isInstanceOf(BusinessException.class).hasMessageContaining("30");
-    }
-
-    @Test
-    @DisplayName("home 이 없고 일반 탭이 9개여도 home 저장은 통과하고 새 일반 탭은 거절된다")
-    void homeExemptFromTabLimit() {
-        when(securityIdentity.currentUserId()).thenReturn("userA");
-        List<SecUserWidgetTab> nine = new ArrayList<>();
-        for (int i = 1; i <= 9; i++) nine.add(tab("userA", "tab-" + i, "t" + i, i));
-        when(tabRepository.findByUserIdOrderByTabSeqAsc("userA")).thenReturn(nine);
-
-        service.saveTab(save("home", "홈"), List.of());
-        verify(writer).replaceTab(eq("userA"), any(), anyList());
-
-        assertThatThrownBy(() -> service.saveTab(save("tab-10", "새"), List.of()))
-                .isInstanceOf(BusinessException.class).hasMessageContaining("10");
     }
 
     @Test
@@ -243,12 +227,12 @@ class SecWidgetServiceTest {
     }
 
     @Test
-    @DisplayName("resetHome 은 인증 사용자의 home 탭만 지운다")
+    @DisplayName("resetHome 은 「홈」이 관리자 배치로 고정이라 거절하고 사용자 행을 지우지 않는다")
     void resetHome() {
         when(securityIdentity.currentUserId()).thenReturn("userA");
 
-        service.resetHome(new SecWidgetSearchRequest());
+        assertThatThrownBy(() -> service.resetHome(new SecWidgetSearchRequest())).isInstanceOf(BusinessException.class);
 
-        verify(writer).deleteTab("userA", "home");
+        verify(writer, never()).deleteTab(anyString(), anyString());
     }
 }

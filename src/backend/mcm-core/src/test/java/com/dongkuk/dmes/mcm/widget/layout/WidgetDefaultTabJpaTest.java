@@ -3,12 +3,9 @@ package com.dongkuk.dmes.mcm.widget.layout;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.dongkuk.dmes.mcm.entity.DeptInfo;
 import com.dongkuk.dmes.mcm.entity.SecUser;
-import com.dongkuk.dmes.mcm.widget.common.WidgetUserContext;
-import com.dongkuk.dmes.mcm.widget.common.WidgetUserContextResolver;
 import com.dongkuk.dmes.mcm.widget.def.dto.WidgetDefListRequest;
 import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
 import com.dongkuk.dmes.mcm.widget.def.service.WidgetDefService;
@@ -22,6 +19,7 @@ import com.dongkuk.dmes.mcm.widget.layout.repository.WidgetDefaultTabItemReposit
 import com.dongkuk.dmes.mcm.widget.layout.repository.WidgetDefaultTabRepository;
 import com.dongkuk.dmes.mcm.widget.layout.service.WidgetDefaultTabWriter;
 import com.dongkuk.dmes.mcm.widget.layout.service.WidgetDefaultTabs;
+import com.dongkuk.dmes.mcm.widget.layout.service.WidgetFixedTabs;
 import com.dongkuk.dmes.mcm.widget.layout.service.WidgetLayoutWriter.LayoutItem;
 import com.dongkuk.dmes.mcm.widget.repository.SecUserWidgetRepository;
 import com.dongkuk.dmes.mcm.widget.repository.SecUserWidgetTabRepository;
@@ -54,7 +52,7 @@ class WidgetDefaultTabJpaTest {
     @Autowired WidgetDefaultTabItemRepository itemRepository;
     @Autowired SecUserWidgetTabRepository userTabRepository;
     @Autowired SecUserWidgetRepository userWidgetRepository;
-    @Autowired WidgetDefaultTabs defaultTabs;
+    @Autowired WidgetFixedTabs fixedTabs;
     @Autowired WidgetDefaultTabWriter writer;
     @Autowired WidgetUserLookupRepository userLookup;
     @Autowired SecWidgetTabWriter shareWriter;
@@ -101,20 +99,18 @@ class WidgetDefaultTabJpaTest {
         userTabRepository.saveAndFlush(t);
     }
 
-    // ── ① widgetDef/list homeDefault 불변 ──────────────────────────
+    // ── ① widgetDef/list homeDefault = 전사 배치만 ──────────────────
 
     @Test
-    @DisplayName("기본 탭이 있어도 widgetDef/list 의 homeDefault 는 「홈」 기본 배치만 본다(기본 탭만 있으면 null)")
-    void homeDefaultUnaffectedByDefaultTabs() {
-        WidgetUserContextResolver resolver = mock(WidgetUserContextResolver.class);
-        when(resolver.current()).thenReturn(new WidgetUserContext("userA", "사용자A", "D100", null, List.of("D100", "D10")));
-        WidgetDefService defService = new WidgetDefService(mock(WidgetDefRepository.class), layoutRepository, resolver);
+    @DisplayName("widgetDef/list 의 homeDefault 는 전사(*) 「홈」 배치만 본다 — 부서 배치·기본 탭만 있으면 null(스펙 2026-10-07 §5)")
+    void homeDefaultIsCompanyOnly() {
+        WidgetDefService defService = new WidgetDefService(mock(WidgetDefRepository.class), layoutRepository);
         writer.save("D100", null, "생산", 1, List.of(item("t1"), item("t2")));
-        writer.save("D10", null, "품질", 1, List.of(item("t3")));
+        homeLayout("D100", "dh1");
 
-        Map<String, Object> onlyTabs = defService.list(new WidgetDefListRequest());
-        assertThat(onlyTabs.get("homeDefault")).isNull();
-        assertThat(onlyTabs.get("homeDefaultKey")).isNull();
+        Map<String, Object> deptOnly = defService.list(new WidgetDefListRequest());
+        assertThat(deptOnly.get("homeDefault")).isNull();
+        assertThat(deptOnly.get("homeDefaultKey")).isNull();
 
         homeLayout("*", "h1");
         Map<String, Object> withHome = defService.list(new WidgetDefListRequest());
@@ -124,25 +120,95 @@ class WidgetDefaultTabJpaTest {
         assertThat(homeDefault).singleElement().satisfies(m -> assertThat(m).containsEntry("instId", "h1"));
     }
 
-    // ── ② 해석 순서 ────────────────────────────────────────────────
+    // ── ② 고정 탭 집합 ─────────────────────────────────────────────
 
     @Test
-    @DisplayName("기본 탭 집합 = 부서 → 상위 부서 → 전사 중 기본 탭이 있는 첫 키의 탭 전체(관리자 순서)")
-    void resolveFirstKeyWithTabs() {
+    @DisplayName("고정 탭 = 전사 기본 탭 → 부서 사슬(가까운 순)마다 대표 탭(부서 「홈」 배치가 있을 때만)+기본 탭, 대역 순서·출처·관리자 위젯")
+    void fixedTabsUnionCompanyAndDeptChain() {
+        String star = writer.save("*", null, "전사 탭", 1, List.of(item("c1")));
         String b = writer.save("D10", null, "B", 2, List.of());
         String a = writer.save("D10", null, "A", 1, List.of(item("w1")));
-        String star = writer.save("*", null, "전사 탭", 1, List.of());
+        String own = writer.save("D100", null, "우리 팀", 1, List.of());
+        homeLayout("D100", "dh1");
+        homeLayout("*", "h1");
 
-        WidgetDefaultTabs.Resolved upper = defaultTabs.resolve(List.of("D100", "D10"));
-        assertThat(upper.layoutKey()).isEqualTo("D10");
-        assertThat(upper.tabs()).extracting(WidgetDefaultTab::getTabId).containsExactly(a, b);
-        assertThat(defaultTabs.itemsByTab("D10")).containsOnlyKeys(a);
+        List<WidgetFixedTabs.FixedTab> tabs = fixedTabs.resolve(List.of("D100", "D10"));
 
-        assertThat(defaultTabs.resolve(List.of("D200")).layoutKey()).isEqualTo("*");
-        assertThat(defaultTabs.resolve(List.of()).tabs()).extracting(WidgetDefaultTab::getTabId).containsExactly(star);
+        assertThat(tabs).extracting(WidgetFixedTabs.FixedTab::tabId).containsExactly(star, "dept-D100", own, a, b);
+        assertThat(tabs).extracting(WidgetFixedTabs.FixedTab::tabSeq).containsExactly(101, 200, 201, 211, 212);
+        assertThat(tabs.get(1).tabNm()).isEqualTo("생산1팀");
+        assertThat(tabs.get(1).origin()).isEqualTo("생산1팀 부서 탭");
+        assertThat(tabs.get(0).origin()).isEqualTo("전사 기본 탭");
+        assertThat(tabs.get(3).origin()).isEqualTo("D10 부서 탭"); // 부서 이름이 없으면 코드
+        assertThat(tabs.get(1).items()).extracting(WidgetFixedTabs.Item::instId).containsExactly("dh1");
+        assertThat(tabs.get(3).items()).extracting(WidgetFixedTabs.Item::instId).containsExactly("w1");
 
-        tabRepository.deleteAllInBatch();
-        assertThat(defaultTabs.resolve(List.of("D100"))).isEqualTo(WidgetDefaultTabs.Resolved.EMPTY);
+        // 하위 부서 사용자도 상위 부서 탭을 보고, 부서 배치가 없는 사용자는 전사 탭만 본다.
+        assertThat(fixedTabs.resolve(List.of("D101", "D100", "D10"))).extracting(WidgetFixedTabs.FixedTab::tabId)
+                .containsExactly(star, "dept-D100", own, a, b);
+        assertThat(fixedTabs.resolve(List.of("D200"))).extracting(WidgetFixedTabs.FixedTab::tabId).containsExactly(star);
+        assertThat(fixedTabs.resolve(List.of())).extracting(WidgetFixedTabs.FixedTab::tabId).containsExactly(star);
+    }
+
+    // ── ③ 옛 행 이전 ───────────────────────────────────────────────
+
+    private void userWidget(String userId, String tabId, String instId) {
+        SecUserWidget w = new SecUserWidget();
+        w.setUserId(userId);
+        w.setTabId(tabId);
+        w.setInstId(instId);
+        w.setWidgetId("home.notice");
+        w.setPosX(0);
+        w.setPosY(0);
+        w.setSizeW(6);
+        w.setSizeH(6);
+        w.setLockYn("N");
+        userWidgetRepository.saveAndFlush(w);
+    }
+
+    @Test
+    @DisplayName("moveTabs — 행을 지우지 않고 TAB_ID·이름·순서만 바꾸며 위젯 instId 는 그대로, 두 번째 실행은 아무것도 하지 않는다")
+    void moveTabsRenamesWithoutDeleting() {
+        userTab("userA", "home");
+        userWidget("userA", "home", "h1");
+        userWidget("userA", "home", "h2");
+        userTab("userA", "tab-1");
+        userWidget("userA", "tab-1", "t1");
+        userTab("userB", "home");
+        userWidget("userB", "home", "b1");
+        List<SecWidgetTabWriter.TabMove> moves = List.of(new SecWidgetTabWriter.TabMove("home", "tab-2", "내 홈", 0));
+
+        assertThat(shareWriter.moveTabs("userA", moves)).isEqualTo(1);
+
+        assertThat(userTabRepository.findByUserIdOrderByTabSeqAsc("userA"))
+                .extracting(SecUserWidgetTab::getTabId, SecUserWidgetTab::getTabNm, SecUserWidgetTab::getTabSeq)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("tab-2", "내 홈", 0),
+                        org.assertj.core.groups.Tuple.tuple("tab-1", "재정의", 100));
+        assertThat(userWidgetRepository.findByUserIdAndTabId("userA", "tab-2"))
+                .extracting(SecUserWidget::getInstId).containsExactlyInAnyOrder("h1", "h2");
+        assertThat(userWidgetRepository.findByUserId("userA")).hasSize(3);
+        assertThat(userWidgetRepository.findByUserIdAndTabId("userB", "home")).hasSize(1); // 다른 사용자는 그대로
+
+        assertThat(shareWriter.moveTabs("userA", moves)).isZero();
+        assertThat(userWidgetRepository.findByUserId("userA")).hasSize(3);
+    }
+
+    @Test
+    @DisplayName("moveTabs — 옮길 ID 가 이미 있으면 예외로 드러나고 같은 호출의 앞선 이전도 함께 롤백된다")
+    void moveTabsRollsBackOnTakenId() {
+        userTab("userA", "home");
+        userWidget("userA", "home", "h1");
+        userTab("userA", "def-1");
+        userWidget("userA", "def-1", "d1");
+        userTab("userA", "tab-3");
+
+        assertThatThrownBy(() -> shareWriter.moveTabs("userA", List.of(
+                new SecWidgetTabWriter.TabMove("home", "tab-2", "내 홈", 0),
+                new SecWidgetTabWriter.TabMove("def-1", "tab-3", "내 생산", 5)))).isInstanceOf(IllegalStateException.class);
+
+        assertThat(userTabRepository.findByUserIdOrderByTabSeqAsc("userA")).extracting(SecUserWidgetTab::getTabId)
+                .containsExactlyInAnyOrder("home", "def-1", "tab-3");
+        assertThat(userWidgetRepository.findByUserIdAndTabId("userA", "home")).hasSize(1);
     }
 
     // ── Writer 채번·교체·키 삭제 ─────────────────────────────────────
