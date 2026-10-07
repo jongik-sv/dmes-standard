@@ -386,7 +386,7 @@ coord_state_call() {
 coord_heavy_script() {
   local p; p="$(coord_cfg .heavy.script)"; [ -n "$p" ] || return 1
   p="$(coord_expand "$p")"
-  case "$p" in /*) ;; *) p="$(coord_repo)/$p" ;; esac
+  compat_is_abs_path "$p" || p="$(coord_repo)/$p"
   [ -f "$p" ] || return 1
   printf '%s' "$p"
 }
@@ -419,17 +419,18 @@ coord_default_repo() { _coord_default_repo_set; coord_cfg_prime; return 0; }   #
 coord_wt_abs() {
   local p; p="$(coord_expand "${1:-}")"
   [ -n "$p" ] && [ "$p" != "null" ] || return 0
-  case "$p" in /*) ;; *) p="$(coord_repo)/$p" ;; esac
+  compat_is_abs_path "$p" || p="$(coord_repo)/$p"
   p="${p%/}"; p="${p%/.}"
   printf '%s' "$p"
 }
 # <경로> 가 <워크트리> 안이면 0. 워크트리가 메인 체크아웃이면 그 아래 .claude/worktrees/ 는 다른 워크트리라 뺀다.
 coord_path_in_wt() {
   local p="${1%/}" w="${2%/}" repo
-  if [ "$COMPAT_WIN" = 1 ]; then p="$(compat_posix_path "$p")"; w="$(compat_posix_path "$w")"; p="${p%/}"; w="${w%/}"; fi   # Git Bash: C:/x 와 /c/x 를 같은 꼴로
+  if [ "$COMPAT_WIN" = 1 ]; then p="$(compat_norm_path "$p")"; w="$(compat_norm_path "$w")"; fi   # Git Bash: C:/x · C:\x · /c/x 를 같은 꼴로
   [ -n "$p" ] && [ -n "$w" ] || return 1
   case "$p/" in "$w/"*) ;; *) return 1 ;; esac
   repo="$(coord_repo 2>/dev/null)"
+  [ "$COMPAT_WIN" != 1 ] || repo="$(compat_norm_path "$repo")"
   if [ -n "$repo" ] && [ "$w" = "${repo%/}" ]; then
     case "$p/" in "$w/.claude/worktrees/"*) return 1 ;; esac
   fi

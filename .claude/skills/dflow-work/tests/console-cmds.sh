@@ -11,14 +11,16 @@ eq() { if [ "$2" = "$3" ]; then chk ok "$1"; else chk fail "$1" "기대 [$3] 실
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/dflow-console-test.XXXXXX")" && tmp="$(cd "$tmp" && pwd -P)"
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/bin" "$tmp/work" "$tmp/cache"
-# 가짜 curl: 마지막 인자(URL)·--data 를 기록하고 $FAKE_CODE/$FAKE_BODY 로 응답한다(-o 파일에 본문, -w 로 상태 코드).
+# 가짜 curl: 마지막 인자(URL)와 본문(--data-binary @- 로 표준입력에서 읽는다)을 기록하고 $FAKE_CODE/$FAKE_BODY 로 응답한다(-o 파일에 본문, -w 로 상태 코드).
 cat > "$tmp/bin/curl" <<'FAKE'
 #!/bin/sh
 out=""; data=""; url=""
+printf '%s\n' "$*" > "${FAKE_ARGS:-/dev/null}"
 while [ $# -gt 0 ]; do
   case "$1" in
     -o) out="$2"; shift 2 ;;
-    --data) data="$2"; shift 2 ;;
+    --data-binary) if [ "$2" = "@-" ]; then data=$(cat); else data="@@unexpected-arg:$2"; fi; shift 2 ;;
+    --data) data="@@command-line-body:$2"; shift 2 ;;   # 본문을 명령줄에 싣는 옛 방식 — 시험이 잡아낸다
     -w|-X|-H) shift 2 ;;
     -sS) shift ;;
     *) url="$1"; shift ;;
@@ -29,7 +31,7 @@ printf '%s' "${FAKE_BODY:-{\}}" > "$out"
 printf '%s' "${FAKE_CODE:-200}"
 FAKE
 chmod +x "$tmp/bin/curl"
-export PATH="$tmp/bin:$PATH" FAKE_LOG="$tmp/log"
+export PATH="$tmp/bin:$PATH" FAKE_LOG="$tmp/log" FAKE_ARGS="$tmp/args"
 export DFLOW_API_BASE="http://fake.invalid" DFLOW_PAT="dflow_pat_AAAAAAAAAAAA_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
 export XDG_CACHE_HOME="$tmp/cache" HOME="$tmp/home"; mkdir -p "$HOME"
 unset DFLOW_PATS DFLOW_AS DFLOW_CONFIG_DIR DFLOW_PROJECT_ID
@@ -99,6 +101,19 @@ eq "screen: JSON 아님 exit 2" "$(printf 'nope' | run console-screen --host mac
 eq "screen: 배열 아님 exit 2" "$(printf '{"a":1}' | run console-screen --host mac-1 >/dev/null 2>&1; echo $?)" 2
 many="$(jq -nc '[range(0;21) | {target_kind:"coord_lane", target_ref:"l\(.)", sha:"aa"}]')"
 eq "screen: 21개 exit 2" "$(printf '%s' "$many" | run console-screen --host mac-1 >/dev/null 2>&1; echo $?)" 2
+
+# ---- 본문은 명령줄이 아니라 표준입력으로(윈도우 명령줄 한도 약 32,767자) ----
+big="$(jq -nc '[{target_kind:"coord_lane", target_ref:"kit", sha:"aa", lines:[range(0;3000) | "줄 \(.) " + ("x" * 40)]}]')"
+eq "큰 본문 시험 자료가 40000자를 넘는다" "$([ "${#big}" -gt 40000 ] && echo yes || echo no)" yes
+out="$(printf '%s' "$big" | run console-screen --host mac-1 2>/dev/null)"; rc=$?
+eq "큰 본문: rc 0 · 결과 줄" "$rc:$(printf '%s\n' "$out" | head -1)" "0:SCREEN coord_lane kit stored"
+eq "큰 본문: 서버가 받은 줄 수" "$(cut -d' ' -f2- "$FAKE_LOG" | jq -r '.items[0].lines | length')" 3000
+eq "큰 본문: 마지막 줄까지 그대로" "$(cut -d' ' -f2- "$FAKE_LOG" | jq -r '.items[0].lines[2999]')" "줄 2999 $(printf 'x%.0s' $(seq 1 40))"
+eq "curl 인자는 --data-binary @- 이고 본문이 실리지 않는다" "$(cat "$FAKE_ARGS" | tr -d '\n' | sed 's/.*\(--data-binary @-\).*/\1/' | head -c 20)" "--data-binary @-"
+eq "curl 인자 길이가 짧다(1000자 미만)" "$([ "$(wc -c < "$FAKE_ARGS")" -lt 1000 ] && echo yes || echo no)" yes
+eq "옛 --data 본문 인자를 쓰지 않는다" "$(grep -c -- '--data ' "$FAKE_ARGS")" 0
+run console-poll --host mac-1 >/dev/null 2>&1
+eq "본문이 있는 다른 명령(poll)도 stdin 본문" "$(cut -d' ' -f2- "$FAKE_LOG" | jq -c .)" '{"host":"mac-1"}'
 
 echo "통과 $pass · 실패 $fail"
 exit "$fail"

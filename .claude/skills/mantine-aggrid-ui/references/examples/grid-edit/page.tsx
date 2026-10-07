@@ -127,12 +127,6 @@ export default function DefectCodeMngPage() {
     });
   }, [grid.hasChanges, runSearch, showMessage]);
 
-  // 필수 조회조건이 없는 화면은 진입 시 1회 자동 조회한다.
-  useEffect(() => {
-    void runSearch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // useGridDataManager 는 저장 실패를 saveError 에 담기만 한다. 표시는 화면이 하고, 닫을 때 지운다.
   useEffect(() => {
     if (!saveError) return;
@@ -196,15 +190,17 @@ export default function DefectCodeMngPage() {
         { id: "btn_export", label: "엑셀", onClick: handleExport, disabled: isBusy, action: "export" },
       ]}
     >
-      <SearchArea onSearch={() => handleSearch()}>
+      {/* 필수 조회조건이 없는 화면은 autoSearch 로 진입 시 1회 자동 조회한다(마운트 effect 로 조회하지 않는다). */}
+      <SearchArea onSearch={() => handleSearch()} autoSearch>
         <SearchField
           label="불량유형"
+          defaultKey="defectType"
           type="select"
           options={DEFECT_TYPE_OPTIONS}
           value={filters.defectType}
           onChange={(v) => setFilter("defectType", v)}
         />
-        <SearchField label="검색어" value={filters.keyword} onChange={(v) => setFilter("keyword", v)} />
+        <SearchField label="검색어" defaultKey="keyword" value={filters.keyword} onChange={(v) => setFilter("keyword", v)} />
       </SearchArea>
 
       <ContentBody root>

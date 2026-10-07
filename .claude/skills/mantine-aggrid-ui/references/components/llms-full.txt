@@ -12,7 +12,8 @@
 ## 화면 골격 (`@dk-oasis/shared/layout`)
 
 - [PageLayout](page-layout.md): 화면 제목, 상단 버튼(조회·신규·저장·삭제·엑셀), 본문, 하단 화면 ID 를 한 틀로 묶고 버튼 권한(RBAC)과 F8 조회 단축키를 처리할 때 쓴다.
-- [SearchArea](search-area.md): 조회조건 입력칸을 격자로 배치하고 어느 입력에서든 Enter 로 조회가 실행되게 할 때 쓴다. 칸 하나는 SearchField 로 만든다.
+- [SearchArea](search-area.md): 조회조건 입력칸을 격자로 배치하고 어느 입력에서든 Enter 로 조회가 실행되게 할 때 쓴다. 칸 하나는 SearchField 로 만든다. 사용자별 조회 기본값(`autoSearch`·`defaultKey`·`dependsOn`)도 여기서 켠다.
+- [SearchSettings (조회 기본값 설정 메뉴·창)](search-settings-menu.md): 조회 영역 오른쪽 위의 설정 아이콘 「조회 기본값」과 그 메뉴·확인 창·설정 창이다. 사용자가 칸마다 기본값 규칙(고정 값·상대 날짜·마지막 조회값)을 정하는 UI 이고, SearchArea 가 스스로 그린다. 화면이 직접 쓰지 않는 내부 부품이다.
 - [ContentBody](content-body.md): 화면 본문을 좌우 또는 상하 패널로 나누고, 필요하면 드래그로 크기를 조절하고 패널을 최대화할 때 쓴다. 패널 하나는 ContentPanel 로 만든다.
 - [상세 폼 (DETAIL_TABLE_STYLE · DETAIL_LABEL_CELL · DETAIL_VALUE_CELL)](detail-form.md): 선택한 행의 상세 정보를 라벨-값 두 칸짜리 표로 보여 주고 수정할 때 쓴다.
 
@@ -114,6 +115,23 @@
 - `clearSearchHistory`: 포털 셸용
 - `readSearchHistory`: SearchField 내부용
 - `emitSearch`: PageLayout·SearchArea 내부용
+- `subscribeSearchReset`: SearchArea 내부용(초기화 이벤트 구독, 발행은 PageLayout)
+- `RANGE_PRESETS`: 조회 기본값 설정 창 내부용(기간 묶음 선택지)
+- `RELATIVE_DATE_PRESETS`: 조회 기본값 설정 창 내부용(상대 날짜 이름표)
+- `isValidIsoDate`: 조회 기본값 규칙 계산 내부용(search-area 문서의 사용자 기본값 참고)
+- `parseSearchDefaultRule`: 조회 기본값 저장소 내부용
+- `resolveRelativeDate`: 조회 기본값 규칙 계산 내부용
+- `resolveSearchDefault`: 조회 기본값 규칙 계산 내부용
+- `getPageSearchDefaults`: 조회 기본값 저장소 내부용(SearchArea·설정 창이 쓴다)
+- `getSearchDefaultsSource`: 조회 기본값 저장소 내부용
+- `getSearchDefaultsStatus`: 조회 기본값 저장소 내부용
+- `preloadSearchDefaults`: 포털 셸·SearchArea 내부용(조회 기본값 미리 받기)
+- `resetSearchDefaults`: 조회 기본값 저장소 내부용(시험·로그아웃 정리)
+- `saveSearchDefaults`: 조회 기본값 저장소 내부용(설정 창이 저장한다)
+- `setSearchDefaultsLocalForDev`: 개발 모드 확인용(조회 기본값 샘플 화면)
+- `subscribeSearchDefaults`: 조회 기본값 저장소 내부용
+- `readSearchLastValues`: 조회 기본값 설정 창 내부용(마지막 조회값 읽기)
+- `useSearchDefaultsArea`: SearchArea 내부용(조회 기본값 등록소)
 - `subscribeSearch`: PageLayout·SearchArea 내부용
 - `useContentMaximize`: ContentBody 최대화 내부용
 - `canDoButton`: 팝업 내부 버튼 권한 판정용(page-layout 문서 참고)
@@ -221,6 +239,7 @@ PageButton
 | action | `StandardActionCode \| (string & {})` | 없음 | RBAC 액션 코드(소문자). |
 | objId | `string` | 페이지 objId | 이 버튼만 다른 보안객체로 판정할 때. |
 | emitSearch | `boolean` | `action === "search"` | 클릭 시 최근 검색값 저장 이벤트를 낼지 여부. |
+| resetsSearch | `boolean` | `id === "btn_reset"` | 조회 조건 초기화 버튼인가. true 면 onClick 직후 조회 기본값 초기화 이벤트를 내어 SearchArea 가 사용자 기본값을 다시 넣는다(「마지막 조회값」 칸 제외). onClick 은 조건을 동기로 비워야 한다. 확인 창 뒤처럼 비동기로 비우는 화면은 false 로 두고, 비운 뒤 직접 `emitSearchReset(pageId)` 를 부른다. |
 
 StandardActionCode: `search` `save` `delete` `export` `import` `print` `approve` `reject` `confirm` `cancel` `copy`. 이 타입은 `layout` 서브패스로 재노출되지 않으므로 코드는 문자열 리터럴로 쓴다.
 
@@ -251,7 +270,7 @@ StandardActionCode: `search` `save` `delete` `export` `import` `print` `approve`
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:209` 조회·신규·저장·삭제 버튼과 `objId`. 단, 삭제의 `action` 이 `"save"` 이고 "게시중지" 버튼이 추가되어 있어 표준과 다르다.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:209` 조회·신규·저장·삭제 버튼과 `objId`. 단, 삭제의 `action` 이 `"save"` 이고 "게시중지" 버튼이 추가되어 있어 표준과 다르다.
 - `src/frontend/m-mqc/src/sample/SampleInspectionPanel.tsx:35` 버튼 없는 최소 틀(`title`, `breadcrumb`만).
 - m-mdm 화면은 `MdmPageLayout` 을 쓰므로 이 컴포넌트의 예가 아니다.
 
@@ -260,11 +279,12 @@ StandardActionCode: `search` `save` `delete` `export` `import` `print` `approve`
 
 # SearchArea
 
-조회조건 입력칸을 격자로 배치하고 어느 입력에서든 Enter 로 조회가 실행되게 할 때 쓴다. 칸 하나는 SearchField 로 만든다.
+조회조건 입력칸을 격자로 배치하고 어느 입력에서든 Enter 로 조회가 실행되게 할 때 쓴다. 칸 하나는 SearchField 로 만든다. 사용자별 조회 기본값(`autoSearch`·`defaultKey`·`dependsOn`)도 여기서 켠다.
 
 - import: `import { SearchArea, SearchField } from "@dk-oasis/shared/layout";`
-- 소스: `src/frontend/shared/src/layout/SearchArea.tsx`, `src/frontend/shared/src/layout/SearchField.tsx`
-- 내부 구현: Mantine `Paper`(SearchArea), `Text`(SearchField 라벨). 입력칸은 shared 의 [Input](input.md)·[Select](select.md)·[Radio](radio.md)
+- 소스: `src/frontend/shared/src/layout/SearchArea.tsx`, `src/frontend/shared/src/layout/SearchField.tsx`, 사용자 기본값은 `src/frontend/shared/src/layout/search-defaults/`
+- 내부 구현: Mantine `Paper`(SearchArea), `Text`(SearchField 라벨). 입력칸은 shared 의 [Input](input.md)·[Select](select.md)·[Radio](radio.md)·[DatePicker](date-picker.md)
+- 함께 그려지는 내부 부품: 조회 영역 오른쪽 위의 설정 아이콘·메뉴·설정 창([search-settings-menu](search-settings-menu.md)). 화면이 직접 쓰지 않는다.
 
 ## 언제 쓰나
 
@@ -276,29 +296,42 @@ StandardActionCode: `search` `save` `delete` `export` `import` `print` `approve`
 
 ```tsx
 import { SearchArea, SearchField } from "@dk-oasis/shared/layout";
-import { DatePicker } from "@dk-oasis/shared/form";
 
-<SearchArea onSearch={() => void handleSearch()}>
-  <SearchField label="품번" value={f.itemCd} onChange={(v) => set("itemCd", v)} />
+const set = (k: keyof Filters, v: string) => setF((p) => ({ ...p, [k]: v }));
+
+<SearchArea onSearch={() => void handleSearch()} autoSearch>
+  <SearchField label="품번" name="itemCd" value={f.itemCd} onChange={(v) => set("itemCd", v)} />
   <SearchField
     label="검사유형"
+    name="inspType"
     type="select"
     value={f.inspType}
     onChange={(v) => set("inspType", v)}
     options={[{ value: "", label: "전체" }, { value: "IN", label: "수입검사" }]}
   />
-  <SearchField label="검사일자"><DatePicker value={f.fromDt} onChange={(v) => set("fromDt", v)} /></SearchField>
-  <SearchField label="~"><DatePicker value={f.toDt} onChange={(v) => set("toDt", v)} /></SearchField>
+  <SearchField label="검사일자" defaultKey="fromDt" type="date" value={f.fromDt} onChange={(v) => set("fromDt", v)} />
+  <SearchField label="~" type="date" value={f.toDt} onChange={(v) => set("toDt", v)} />
 </SearchArea>
 ```
 
-`onSearch` 는 생략하지 않는다. 지정하면 내부가 `form` 이 되어 Enter 가 조회로 이어진다.
+- `onSearch` 는 생략하지 않는다. 지정하면 내부가 `form` 이 되어 Enter 가 조회로 이어진다.
+- 진입할 때 한 번 조회하는 화면은 마운트 effect 대신 `autoSearch` 를 단다(아래 「사용자 기본값」).
+- 조회 칸의 `onChange` 는 지난 상태를 복사하지 않고 함수형 갱신(`setF((p) => ({ ...p, [k]: v }))`)으로 쓴다. 기본값이 여러 칸에 한꺼번에 들어올 때 앞 칸 값이 사라지지 않게 하려는 규칙이다.
+- 날짜 칸은 `DatePicker` 를 직접 그리지 않고 `type="date"` 로 쓴다. 기간은 `type="date"` 두 칸을 `label="~"` 짝으로 둔다.
+- 칸마다 `name`(MDM 컬럼 사전 키) 또는 `defaultKey` 가 있어야 사용자 기본값 대상이 된다. 기간의 두 번째 칸은 키가 없어도 `{첫 칸 키}~to` 로 정해진다.
 
 ## 변형
 
 ### 기간(From~To)
 
-두 개의 SearchField 로 쓰고 두 번째 label 을 정확히 `"~"` 로 둔다. SearchArea 가 직전 필드와 한 칸(span 2)으로 묶는다. 인라인 `div`·`span` 으로 묶지 않는다. 기본값은 시작이 오늘 7일 전, 종료가 오늘이며 문자열은 `yyyy-MM-dd` 다: `formatDateStr(addDays(today(), -7))`·`formatDateStr(today())`(`@dk-oasis/shared/utils`). `today()`·`addDays()` 는 `yyyyMMdd` 를 돌려주므로 `formatDateStr` 를 꼭 거친다. `formatDate` 는 UTC 계산이라 하루가 밀릴 수 있어 쓰지 않는다.
+`type="date"` SearchField 두 개로 쓰고 두 번째 label 을 정확히 `"~"` 로 둔다. SearchArea 가 직전 필드와 한 칸(span 2)으로 묶고, 사용자 기본값에서도 한 쌍(기간 한 줄)으로 다룬다. 인라인 `div`·`span` 으로 묶지 않는다. 코드 기본값은 시작이 오늘 7일 전, 종료가 오늘이며 문자열은 `yyyy-MM-dd` 다: `formatDateStr(addDays(today(), -7))`·`formatDateStr(today())`(`@dk-oasis/shared/utils`). `today()`·`addDays()` 는 `yyyyMMdd` 를 돌려주므로 `formatDateStr` 를 꼭 거친다. `formatDate` 는 UTC 계산이라 하루가 밀릴 수 있어 쓰지 않는다.
+
+```tsx
+<SearchField label="조회 기간" defaultKey="fromDt" type="date" value={f.fromDt} onChange={(v) => set("fromDt", v)} />
+<SearchField label="~" type="date" value={f.toDt} onChange={(v) => set("toDt", v)} />
+```
+
+이미 `DatePicker` 를 children 으로 그리는 화면은 그리기를 바꾸지 않고 SearchField 에도 `type="date"`·`value`·`onChange` 를 함께 주면 대상이 된다(아래 「대상 칸 판정」).
 
 ### 복합 입력(입력 2개 이상)
 
@@ -323,6 +356,77 @@ import { DatePicker } from "@dk-oasis/shared/form";
 <SearchField label="코드" name="code" meta="MASTER_CD" value={f.code} onChange={(v) => set("code", v)} />
 ```
 
+`name` 은 사용자 기본값의 저장 키도 겸한다. 툴팁 동작을 바꾸지 않고 기본값 키만 달려면 `name` 대신 `defaultKey` 를 쓴다(`defaultKey` 는 툴팁에 영향이 없다).
+
+## 사용자 기본값
+
+사용자는 조회 영역 오른쪽 위의 설정 아이콘 「조회 기본값」에서 칸마다 기본값 규칙을 정한다. 규칙은 고정 값, 상대 날짜(날짜 칸만), 마지막 조회값 세 가지이고, 「사용 안 함」은 규칙이 없는 상태다. 규칙은 서버에 사용자·화면(`pageId`)·칸 키 단위로 저장되고 브라우저에도 사본이 남는다. 화면을 열면 SearchArea 가 규칙으로 계산한 값을 칸에 넣는다. 설정 아이콘·메뉴·설정 창의 동작은 [search-settings-menu](search-settings-menu.md) 에 있다.
+
+**화면은 선언만 한다.** 기본값을 읽거나 칸에 넣고 비우는 코드를 화면에 두지 않는다. 화면이 하는 일은 칸 묶기(`value`·`onChange`·`defaultKey`), 자동 조회(`autoSearch`), 의존 칸(`dependsOn`), 끄기(`defaults`·`defaultable`) 선언뿐이다.
+
+### 대상 칸 판정
+
+| 조건 | 대상 여부 |
+|---|---|
+| 내장 입력(`type` 이 text·select·radio·date)이고 칸 키가 있음 | 대상 |
+| children 칸이고 SearchField 에 `value`·`onChange` 를 함께 줬고 칸 키가 있음 | 대상(그리기는 children 이 그대로 맡는다) |
+| children 칸이고 SearchField 에 `value`·`onChange` 가 없음 | 대상 아님(`IdPicker`·`Checkbox`·읽기 전용 칸 등, 지금 동작 그대로) |
+| 칸 키가 없음 | 대상 아님 |
+| `defaultable={false}` | 대상 아님(설정 창에도 나오지 않는다) |
+
+칸 키는 `defaultKey ?? name` 이다. `label` 은 키로 쓰지 않는다(문구가 바뀌면 저장값이 끊기고, `~` 처럼 한 화면에서 겹친다).
+
+- 기간의 두 번째 칸(`label="~"`)은 자기 키가 없으면 `{첫 칸 키}~to` 를 쓴다.
+- 한 SearchArea 안에서 같은 키가 두 번 등록되면 개발 모드에서 경고하고 나중 칸을 대상에서 뺀다.
+- 한 화면에 SearchArea 가 둘 이상이면(탭마다 조회 영역이 있는 화면) 두 번째부터 `defaultsScope="이름"` 을 준다. 저장 키가 `{defaultsScope}.{칸 키}` 가 되어 같은 `name` 을 써도 섞이지 않는다.
+- 저장 키의 화면 값은 `pageId` 다. 포털 밖(`pageId` 없음)과 대화 상자(`role="dialog"`) 안의 SearchArea 는 기본값 기능이 전체 꺼진다(설정 아이콘도, 값 넣기도 없다).
+
+### 넣는 시점
+
+- 화면을 마운트할 때 한 번 넣는다. 탭 전환은 마운트가 아니므로 사용자가 바꾼 조건이 그대로 유지된다. 브라우저를 새로 고치면 다시 마운트되어 기본값이 다시 들어간다.
+- 우선순위는 분리 창이 이어받은 값(carry) > handoff 등 화면의 명시 동작 > 사용자 기본값 > 코드 기본값이다. 분리 창이 이어받은 값으로 시작하면 넣지 않는다.
+- 서버에서 받은 규칙의 사본이 이 PC 에 없으면 저장소 응답을 최대 1.5초 기다린다. 넘으면 넣지 않고 끝낸다. 기다리는 동안 사용자가 고친 칸은 덮지 않는다.
+- handoff 로 조건을 정하는 화면은 handoff 가 활성인 동안 `<SearchArea defaults={!handoffActive}>` 로 넣기를 막는다.
+- 상단 초기화 버튼(`id: "btn_reset"`, 또는 `resetsSearch`)을 누르면 코드 기본값 위에 사용자 기본값이 다시 들어간다. 「마지막 조회값」 규칙인 칸은 코드 기본값으로 둔다. 버튼 `onClick` 은 조회 조건을 동기로 비워야 하고, 비동기로 비우는 화면은 `resetsSearch: false` 로 두고 직접 `emitSearchReset(pageId)` 를 부른다.
+- 「마지막 조회값」은 사용자가 조회 버튼이나 Enter 로 실제 조회한 순간의 값이다. `autoSearch` 의 자동 조회는 기록하지 않는다. 저장소는 이 PC 의 localStorage 다.
+
+### 자동 조회: autoSearch
+
+마운트 effect 에서 조회하면 기본값이 들어가기 전의 조건으로 조회해서, 칸에는 기본값이 보이는데 목록은 코드 기본값으로 조회된 상태가 된다. 진입 때 한 번 조회하는 화면은 마운트 effect 를 지우고 `autoSearch` 를 단다.
+
+```tsx
+<SearchArea onSearch={handleSearch} autoSearch>
+```
+
+- 기본값을 다 넣은 다음 커밋에서 `onSearch` 를 한 번 부른다. 그 커밋의 `onSearch` 가 새 조건을 잡고 있다.
+- 분리 창이 이어받은 값으로 시작했으면 부르지 않는다. 이어받기를 쓰는 화면은 `useCarryRefetch` 대신 「복원됐는데 행이 비었을 때만 조회하는 마운트 effect」(`if (restored && rows.length === 0) void handleSearch()`)를 둔다([use-carry-state.md](use-carry-state.md) 규칙 5).
+- 서버에서 받는 선택지에 아직 없는 고정 값이 있으면 조회를 최대 1.5초 미룬다. 그 안에 값을 넣으면 넣은 값으로, 넘으면 지금 값으로 조회한다.
+- 자동 조회는 최근 입력값·마지막 조회값에 남기지 않는다.
+
+### 칸 키: defaultKey·defaultable
+
+- `defaultKey`: 기본값 저장 키. 없으면 `name` 을 쓴다. `name` 이 없는 칸을 대상으로 만들 때 쓰고, `name` 과 달리 MDM 툴팁 동작에 영향이 없다.
+- `defaultable={false}`: 이 칸은 대상이 아니다. 설정 창에도 나오지 않는다.
+- `defaults={false}`(SearchArea): 이 조회 영역은 기본값을 넣지 않고 설정 아이콘도 그리지 않는다.
+
+### 의존 칸: dependsOn
+
+어떤 칸이 바뀌면 다른 칸을 비우고 기본값으로 다시 채워야 하는 화면은 의존 칸을 선언한다. 기준 칸이 바뀌어도 화면이 조건을 직접 비우지 않는다.
+
+```tsx
+<SearchField label="마루 데이터" defaultKey="maruDataId" value={f.maruDataId} onChange={setMaruData}>…</SearchField>
+<SearchField label="키" defaultKey="code" dependsOn="maruDataId" value={f.code} onChange={(v) => setF((p) => ({ ...p, code: v }))}>…</SearchField>
+```
+
+- `dependsOn` 값은 같은 SearchArea 에 있는 기준 칸의 키(`defaultKey ?? name`)다. 두 칸 모두 `value`·`onChange` 를 준 대상 칸이어야 한다.
+- 기준 칸 값이 바뀐 커밋 뒤에 SearchArea 가 의존 칸을 처음 등록 때 값(코드 기본값)으로 비우고, 그 칸의 규칙(설정 값·마지막 조회값)으로 다시 채운다. 새 선택지에 없는 값은 넣지 않는다. 같은 커밋에서 화면이 직접 바꾼 의존 칸은 그대로 둔다.
+- 선택지가 기준 칸을 따라 바뀌는 칸(서버에서 받는 선택지)은 기준 칸이 바뀐 뒤 10초 안에 선택지 내용이 바뀌면 새 선택지로 다시 판정한다. 사용자가 그 칸을 고치면 그만둔다.
+- `defaults={false}` 인 영역이나 대화 상자 안에서도 비우기는 한다.
+
+### 설정 창의 일괄 옵션
+
+설정 창 머리에는 「이 화면 모든 칸: [사용 안 함] [마지막 조회값]」 일괄 옵션이 있다. 누르면 모든 줄의 방식을 그것으로 채우는 입력 편의일 뿐이고, 저장 모양(칸별 규칙)은 같다. 고정 값과 상대 날짜는 칸마다 직접 고른다. 화면이 따로 할 일은 없다.
+
 ## Props
 
 SearchAreaProps
@@ -331,6 +435,9 @@ SearchAreaProps
 |---|---|---|---|
 | children | `React.ReactNode` | 필수 | SearchField 들. |
 | onSearch | `() => void` | 없음 | Enter 조회 핸들러. 지정하면 form 으로 렌더되고 최근 검색값 저장 이벤트도 낸다. |
+| autoSearch | `boolean` | `false` | 사용자 기본값을 넣은 다음 커밋에서 `onSearch` 를 한 번 부른다. 진입 때 자동 조회는 마운트 effect 대신 이것으로 한다. 분리 창이 이어받은 값으로 시작하면 부르지 않는다. |
+| defaults | `boolean` | `true` | `false` 면 이 조회 영역은 사용자 기본값을 넣지 않고 설정 아이콘도 없다. |
+| defaultsScope | `string` | 없음 | 한 화면에 SearchArea 가 둘 이상일 때 두 번째부터 준다. 저장 키가 `{defaultsScope}.{칸 키}` 가 된다. |
 
 SearchFieldProps
 
@@ -339,9 +446,9 @@ SearchFieldProps
 | label | `string` | 필수 | 라벨. `"~"` 이면 직전 필드와 묶인다. |
 | name | `string` | 없음 | MDM 컬럼 사전 키(업무 키, 예 `"title"`). 있고 사전에 있으면 라벨에 MDM 카드 툴팁이 뜬다. |
 | meta | `string \| false` | 없음 | 명시 물리명(`name` 보다 우선). `false` 면 MDM 연결을 끈다. `name` 이 있을 때만 쓴다. |
-| type | `"text" \| "select" \| "radio"` | `"text"` | 내장 입력 종류. `children` 이 있으면 무시된다. |
-| value | `string` | `""`(내장 입력) | 내장 입력의 값. |
-| onChange | `(value: string) => void` | 없음 | 내장 입력의 변경 콜백. |
+| type | `"text" \| "select" \| "radio" \| "date"` | `"text"` | 내장 입력 종류. `"date"` 는 shared DatePicker(`yyyy-MM-dd`)를 그린다. `children` 이 있으면 그리기는 children 이 맡고 `type` 은 기본값의 값 종류(상대 날짜 가능 여부 등)로만 쓰인다. |
+| value | `string` | `""`(내장 입력) | 내장 입력의 값. children 칸이 `onChange` 와 함께 주면 사용자 기본값 대상이 된다. |
+| onChange | `(value: string) => void` | 없음 | 내장 입력의 변경 콜백. 함수형 갱신으로 쓴다. |
 | onKeyDown | `(e: React.KeyboardEvent) => void` | 없음 | 텍스트칸 키 핸들러. |
 | options | `readonly SearchFieldOption[]` | `[]` | select·radio 선택지(`{ value, label }`). |
 | placeholder | `string` | 없음 | 텍스트칸 안내 문구. |
@@ -350,11 +457,17 @@ SearchFieldProps
 | historyKey | `string` | label | 최근 입력값 저장 키. |
 | disableHistory | `boolean` | `false` | 최근 입력값 기능을 끈다. |
 | className | `string` | `""` | 추가 클래스(예: `span-2`). |
+| defaultKey | `string` | `name` | 사용자 기본값 저장 키. `name` 이 없는 칸을 대상으로 만들 때 쓴다. `label` 은 키로 쓰지 않는다. |
+| defaultable | `boolean` | `true` | `false` 면 이 칸은 사용자 기본값 대상이 아니다. |
+| dependsOn | `string` | 없음 | 기준 칸 키. 기준 칸이 바뀌면 이 칸을 코드 기본값으로 비우고 사용자 기본값으로 다시 채운다. |
 
 ## 표준값: 모든 화면 동일
 
 - select 의 첫 항목은 반드시 `{ value: "", label: "전체" }` 다.
-- 기간은 `label="~"` 쌍이다. 두 번째 필드의 label 문구를 바꾸지 않는다.
+- 기간은 `type="date"` 두 칸의 `label="~"` 쌍이다. 두 번째 필드의 label 문구를 바꾸지 않는다.
+- 진입 때 자동 조회는 `autoSearch` 로 하고 마운트 조회 effect 를 두지 않는다.
+- 사용자 기본값을 처리하는 코드는 화면에 두지 않는다. 선언(`defaultKey`·`autoSearch`·`dependsOn` 등)으로만 끝낸다.
+- 조건을 비우는 칸은 `dependsOn` 으로 선언한다. 기준 칸이 바뀐다고 화면이 직접 비우지 않는다.
 - 필수·선택 표시는 조회조건에 붙이지 않는다(상세 폼에만 " *").
 
 ## 흔한 실수
@@ -367,13 +480,118 @@ SearchFieldProps
 | `label` 이 같은 텍스트칸 둘에 `historyKey` 를 안 준다 | 최근 입력값이 서로 섞이므로 키를 따로 준다. |
 | 필터 키(`edt_title`·`cbo_type`)를 `name` 으로 준다 | 사전에 없는 이름이라 툴팁이 안 뜬다. 업무 키(`"title"`)나 `meta="TITLE"` 로 적는다. |
 | `name` 없이 `meta` 만 준다 | `meta` 는 `name` 이 있을 때만 쓴다. `name` 도 함께 준다. |
+| 마운트 effect(`useEffect(() => { void handleSearch(); }, [])`)로 자동 조회한다 | 사용자 기본값이 빠진 조건으로 조회한다. effect 를 지우고 `<SearchArea autoSearch>` 를 쓴다. |
+| children 칸(`Input`·`Select`·`DatePicker`)에 `value`·`onChange` 를 SearchField 에 주지 않는다 | 기본값 대상에서 빠진다. SearchField 에도 같은 `value`·`onChange`(필요하면 `type`·`options`)를 준다. 그리기는 children 이 그대로 맡는다. |
+| `name` 없는 칸에 `label` 만 있으면 기본값이 된다고 기대한다 | `label` 은 키가 아니다. `name` 이나 `defaultKey` 를 달아야 대상이 된다. |
+| 조회 칸 `onChange` 를 `setFilters({ ...filters, k: v })` 로 쓴다 | 기본값이 여러 칸에 한꺼번에 들어올 때 앞 칸 값이 사라진다. `setFilters((p) => ({ ...p, k: v }))` 함수형 갱신으로 쓴다. 개발 모드에서 경고가 난다. |
+| 기준 칸이 바뀔 때 화면이 다른 조건 칸을 직접 비운다 | 기본값과 순서가 엇갈린다. 의존 칸에 `dependsOn="기준 칸 키"` 를 선언한다. |
+| 한 화면의 두 번째 SearchArea 에 `defaultsScope` 를 주지 않는다 | 같은 `name` 의 저장 키가 겹친다. 두 번째부터 `defaultsScope` 를 준다. |
+| `DatePicker` 를 children 으로 그리면서 `type="date"` 를 빼먹는다 | 날짜 칸이 상대 날짜 규칙을 쓸 수 없다. `type="date"` 를 함께 준다(새 화면은 children 없이 `type="date"` 만 쓴다). |
+
+## 알려진 한계
+
+- 기간의 시작 > 끝 검사는 「오늘」 하나로만 한다. 예를 들어 「당월 1일 ~ 전일」은 매월 1일에만 뒤집혀 그날은 기본값을 넣지 않는다.
+- 이 PC 에 규칙 사본이 없는 첫 진입에서 저장소 응답이 화면의 첫 조회보다 늦으면, 첫 조회는 코드 기본값으로 하고 의존 칸만 뒤늦게 채워질 수 있다.
+- 기준 칸을 따라 바뀌는 선택지 칸은 새 선택지가 올 때까지(화면의 선택지 요청이 끝나기 전) 옛 선택지로 판정한 값이 잠깐 보인다. 그 사이 조회하거나 선택지 요청이 실패하면 그 값으로 조회된다.
+- 선택지를 받은 뒤 바로 조회하는 화면은 선택지를 `flushSync` 로 커밋한 뒤 조회 조건을 읽어야 한다. 다시 채운 값이 커밋돼야 조회가 그 값을 본다(`dataItemMng` 의 `selectMaruData` 가 예다). 기본값 처리 코드가 아니라 커밋 순서를 보장하는 일이다.
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:255` SearchArea·텍스트·select·기간. 단, 기간(268줄)이 `label="~"` 쌍이 아니라 `className="span-2"` 안에 인라인 `div`·`span` 으로 묶여 있어 표준과 다르다.
-- `src/frontend/m-mcm/page-components/cme/masterCodeMngList/page.tsx:264` `onSearch` 만 지정한 조회조건.
-- `src/frontend/m-mdm/pages/dmc/codeItemEdit/page.tsx:434` 복합 입력에 `span-2`.
-- `label="~"` 쌍을 쓰는 화면은 아직 사용처 없음.
+- `src/frontend/m-mcm/page-components/csa/commUserMng/page.tsx` `autoSearch` 로 진입 조회. 마운트 조회 effect 는 분리 창이 행 없이 복원됐을 때만 조회한다.
+- `src/frontend/m-mcm/page-components/csa/screenUsageStat/page.tsx` `label="~"` 짝. 첫 칸에 `defaultKey="fromDt"` 와 `type="date"`, children 은 `DatePicker` 그대로.
+- `src/frontend/m-mdm/pages/dmd/dataItemMng/page.tsx` `dependsOn="maruDataId"`. 키·이름·카테고리·닫힌 항목이 마루 데이터 칸을 따라 비워지고 다시 채워진다. 카테고리 선택지를 `flushSync` 로 커밋한 뒤 조회한다.
+- `src/frontend/m-mcm/page-components/csa/searchDefaultsSample/page.tsx` 칸 형식 전부(텍스트·select·radio·날짜·기간·children 묶기·`defaultKey`·`defaultable={false}`·대상 아님), `autoSearch`, `defaultsScope`, `defaults={false}` 를 한 화면에 모은 확인용 샘플(로컬 메뉴 「조회 기본값 샘플」).
+- `src/frontend/m-mcm/page-components/cme/masterCodeMngList/page.tsx:287` `onSearch` 만 지정한 조회조건(자동 조회 없음).
+- `src/frontend/m-mdm/pages/dmc/codeItemEdit/page.tsx:460` 복합 입력에 `span-2`. handoff 로 고른 코드가 조회 기준이라 기본값 대상이 없다.
+
+
+<!-- ===== search-settings-menu.md ===== -->
+
+# SearchSettings (조회 기본값 설정 메뉴·창)
+
+조회 영역 오른쪽 위의 설정 아이콘 「조회 기본값」과 그 메뉴·확인 창·설정 창이다. 사용자가 칸마다 기본값 규칙(고정 값·상대 날짜·마지막 조회값)을 정하는 UI 이고, SearchArea 가 스스로 그린다. 화면이 직접 쓰지 않는 내부 부품이다.
+
+- import: 없음. `@dk-oasis/shared/layout` 의 index 로 내보내지 않는다(Part B §18 등록 대상이 아니다). 화면은 [SearchArea](search-area.md) 만 쓰면 이 부품이 따라 그려진다.
+- 소스: `src/frontend/shared/src/layout/search-defaults/SearchSettings.tsx`(아이콘·메뉴·확인 창·설정 창), `settings-model.ts`(설정 창 줄 모델·저장 합치기), `search-settings-labels.ts`(메뉴·창의 글을 한곳에 모은 파일)
+- 내부 구현: Mantine `Menu`·`ActionIcon`(아이콘과 메뉴), shared [Modal](modal.md)(설정 창, `size="lg"`)·`MessageModal`(확인·오류 창), shared [Select](select.md)·[Input](input.md)·[DatePicker](date-picker.md)·`Button`. 스타일은 부품이 `<style href="cm-search-settings" precedence="default">` 로 직접 넣는다(포털이 원격 모듈의 CSS 파일을 싣지 않는다, Part B §18-3)
+- 모습과 조작감은 그리드 설정 아이콘(`GridSettingsMenu`·`GridSettingsOverlay`, [grid-panel](grid-panel.md) §그리드 설정)과 맞췄다.
+
+## 언제 쓰나
+
+- **화면은 직접 쓸 일이 없다.** 조회 영역에 대상 칸(`name` 또는 `defaultKey` 가 있고 `value`·`onChange` 가 묶인 칸)이 하나라도 있으면 SearchArea 가 아이콘을 그린다. 화면이 하는 일은 칸 선언뿐이다(자세한 판정은 [search-area](search-area.md) §사용자 기본값).
+- 아이콘을 없애려면 `<SearchArea defaults={false}>` 로 영역 전체를 끄거나, 칸 하나는 `<SearchField defaultable={false}>` 로 뺀다. 이 부품에 줄 prop 은 없다.
+- 쓰지 않는다: 조회 기본값이 아닌 그리드 열 설정 → [column-settings-modal](column-settings-modal.md)·「그리드 설정」 메뉴.
+
+## 그려지는 조건
+
+| 조건 | 아이콘 |
+|---|---|
+| 등록된 대상 칸이 하나 이상, `defaults` 가 `false` 가 아님, `pageId` 와 사용자 ID 가 있음 | 그린다 |
+| 등록된 칸이 없음, `defaults={false}`, 포털 밖(`pageId` 없음), 사용자 ID 없음 | 그리지 않는다 |
+| 대화 상자(`role="dialog"`) 안의 SearchArea | 그리지 않는다(기본값 기능 전체가 꺼진다. 팝업은 부모 탭과 같은 `pageId` 를 써서 부모 규칙이 섞이는 일과 모달 위 모달의 Esc·Tab 꼬임을 피한다) |
+
+- 자리: 조회 영역(`.search-area`) 오른쪽 위 모서리에 겹친 `IconSettings` 16px `ActionIcon`(subtle·gray·24px, `data-testid="search-settings-menu"`, 툴팁·`aria-label` 「조회 기본값」). 평소에는 흐리고 조회 영역에 마우스가 오거나 초점이 들어오면 진해진다. 마지막 칸과 겹치지 않게 조건 칸 영역 오른쪽에 아이콘 폭만큼 여백을 둔다.
+- 조회 `form` 안에 있으므로 아이콘은 `type="button"` 이다. 메뉴와 창은 portal 로 그려지고 안에 `form`·submit 단추가 없어 조회가 일어나지 않는다.
+- 조건부 칸이 나타나거나 사라지면 렌더마다 다시 판정한다. 아이콘이 사라지면 열려 있던 설정 창·확인 창도 닫는다.
+
+## 메뉴 항목
+
+항목 이름은 `search-settings-labels.ts` 한곳에 두고 메뉴·확인 창·설정 창이 같은 이름을 쓴다.
+
+| 순서 | 항목 | `data-testid` | 동작 |
+|---|---|---|---|
+| 1 | 기본값 설정… | `search-settings-open` | 설정 창을 연다 |
+| 2 | 지금 조건을 기본값으로 | `search-settings-save-current` | 등록된 칸의 지금 값을 「고정 값」 규칙으로 저장한다. 확인 창을 거친다. 날짜 칸이 있으면 오늘 날짜로 고정된다고 알리고 상대 날짜는 설정 창에서 고르라고 안내한다 |
+| 3 | 내 기본값 초기화… (빨강) | `search-settings-reset` | 확인 뒤 이 조회 영역에 지금 보이는 칸의 내 규칙을 지운다. 지금 칸 값은 바꾸지 않는다 |
+
+2·3번 항목은 서버에서 규칙을 받은 뒤에만 눌린다(아래 「저장 범위와 서버 값 대기」).
+
+## 설정 창
+
+제목은 「조회 기본값 설정」(`data-testid="search-defaults-dialog"`)이다. 열 때마다 지금 칸 값과 저장된 규칙으로 처음부터 시작하고, 표 한 줄이 칸 하나다. 기간(`label="~"` 짝)은 한 줄로 묶는다.
+
+| 열 | 내용 |
+|---|---|
+| 칸 | 라벨. 기간 줄은 「조회 기간 (시작 ~ 끝)」 형태 |
+| 방식 | `Select`: 사용 안 함 / 고정 값 / 상대 날짜(날짜 칸만) / 마지막 조회값. 기간 줄은 「묶음」 선택지도 함께 보인다 |
+| 값 | 방식에 맞는 입력. 텍스트는 `Input`, select·radio 는 그 칸의 선택지를 쓴 `Select`, 날짜 고정은 `DatePicker`, 상대 날짜는 이름표 `Select` 와 N 입력 |
+| 오늘 기준 | 계산 결과 미리보기(예: `2026-09-01 ~ 2026-09-30`). 「마지막 조회값」은 저장된 값이나 「없음」 |
+
+- 상대 날짜 이름표: 당일, 전일, N일 전, N일 후(N 은 0~366), 당월 1일, 당월 말일, 전월 1일, 전월 말일, N개월 전 같은 날(N 은 1~120).
+- 기간 묶음 선택지: 당일~당일, 전일~전일, 최근 7일, 최근 30일, 당월(1일~당일), 당월 전체, 전월 전체. 두 칸의 규칙이 한꺼번에 채워지고, 저장은 칸 단위다.
+- 일괄 옵션: 창 머리에 「이 화면 모든 칸: [사용 안 함] [마지막 조회값]」 이 있다. 누르면 모든 줄(기간 짝 포함)의 방식을 그것으로 채우는 입력 편의일 뿐이고 저장 모양(칸별 규칙)은 같다. 고정 값과 상대 날짜는 칸마다 직접 고른다.
+- 아래쪽 단추: [이 화면 초기화] [취소] [저장]. [이 화면 초기화] 는 창 안의 모든 줄을 「사용 안 함」 으로 돌릴 뿐이고 [저장] 을 눌러야 서버에 반영된다.
+- 저장 검사: 기간의 시작이 끝보다 늦으면 그 줄에 오류를 보이고 저장을 막는다. 선택지에 없는 고정 값은 「(선택지에 없음)」 으로 표시한다.
+- 이름표로 나타낼 수 없는 규칙(예: JSON 으로 직접 넣은 값)은 「사용자 지정(그대로 둠)」 으로 보이고, 그 줄을 고치지 않으면 그대로 저장한다.
+- [저장] 은 서버에 저장하고 브라우저 사본을 갱신한 뒤, 규칙이 바뀐 칸(과 기간 짝)만 지금 칸에 바로 넣는다. 조회는 하지 않는다. 규칙을 그대로 둔 칸의 지금 입력은 덮지 않는다.
+- 저장에 실패하면 메시지를 보이고 창을 닫지 않는다. 창을 연 뒤 서버 값이 오면 사용자가 고치지 않은 줄만 서버 규칙으로 다시 만든다(낡은 사본으로 다른 칸 규칙을 덮지 않게).
+
+## 저장 범위와 서버 값 대기
+
+- 저장·초기화는 이 조회 영역의 칸 규칙만 바꾼다. 서버는 화면(`pageId`) 단위로 행 전체를 교체하므로, 같은 화면의 다른 영역(`defaultsScope`)과 지금 등록되지 않은 칸(조건부 칸)의 규칙은 합쳐서 함께 보낸다. 합친 결과가 비면 화면 규칙을 지운다.
+- 남기는 행에는 서버에서 받은 칸 메타·이름을 이어 붙인다. 기간의 두 번째 칸 이름은 「{시작 칸 이름} (끝)」 으로 저장한다.
+- 저장소가 서버 값을 받기 전이거나 받기에 실패한 상태에서는 저장·초기화를 막는다. 사본만으로 합쳐 저장하면 서버의 다른 규칙을 지우기 때문이다. 메뉴의 2·3번 항목은 비활성이 되고, 설정 창은 「조회 기본값을 아직 서버에서 받지 못했습니다. 잠시 뒤 다시 시도하세요.」 안내와 함께 [저장] 을 막는다(메뉴를 열면 서버 값을 다시 받아 온다).
+- 다른 창(분리 창)이 사본을 바꾸면 이 창은 서버에서 다시 받고, 다시 받기 전에는 저장을 막는다.
+
+## 규칙
+
+- 메뉴·창의 글을 코드에 직접 쓰지 않고 `search-settings-labels.ts` 의 `SEARCH_SETTINGS_LABELS` 를 쓴다.
+- 이 부품을 화면에서 import 하거나 따라 만들지 않는다. 설정 UI 를 고치려면 shared 에서 고치고, 모습·동작을 바꾸는 일은 사용자 승인 뒤에 한다(공통 컴포넌트 행동강령).
+- e2e 는 위 표의 `data-testid`(`search-settings-menu`, `search-settings-open`, `search-defaults-dialog`, `search-defaults-dialog-save`, 줄별 `sd-row-{칸 키}`·`sd-mode-{칸 키}`)로 잡는다. shared `DatePicker` 는 `data-testid` 를 넘기지 않아 날짜 입력은 감싼 요소(`sd-fixed-{칸 키}`)에 testid 가 있다.
+
+## 흔한 실수
+
+| 실수 | 바로잡기 |
+|---|---|
+| 화면에서 설정 아이콘·창을 직접 만든다 | 만들지 않는다. 대상 칸을 선언하면 SearchArea 가 그린다. |
+| 팝업(대화 상자) 안의 조회 영역에서 설정 아이콘이 없다고 버그로 본다 | 의도된 동작이다. 팝업 안의 SearchArea 는 기본값 기능이 전체 꺼진다. |
+| 설정 아이콘이 안 보인다 | 대상 칸이 하나도 없거나(`name`·`defaultKey`·`value`·`onChange` 확인), `defaults={false}`, 사용자 ID·`pageId` 가 없는 경우다. [search-area](search-area.md) §대상 칸 판정을 본다. |
+| 저장이 막힌다 | 서버에서 규칙을 아직 받지 못한 상태다. 잠시 뒤 다시 시도하면 된다. |
+
+## 실제 사용 예
+
+- `src/frontend/m-mcm/page-components/csa/searchDefaultsSample/page.tsx`: 모든 칸 형식을 모은 확인용 샘플. 설정 아이콘·창을 눈으로 확인할 수 있다.
+- 대상 칸이 있는 모든 SearchArea 화면(예: `commUserMng`, `screenUsageStat`, `dataItemMng`)에서 같은 아이콘이 보인다.
 
 
 <!-- ===== content-body.md ===== -->
@@ -483,7 +701,7 @@ MaxHandleProps: `panelId: string`(필수), `style?: React.CSSProperties`, `class
 
 ## 표준값: 모든 화면 동일
 
-- storageKey 는 `<모듈코드>.<pages 아래 그룹 폴더>.<screenId>` 이다. `m-mls/pages/lsh/noticeMgmt` 는 `mls.lsh.noticeMgmt` 다. 화면마다 고유해야 한다.
+- storageKey 는 `<모듈코드>.<pages 아래 그룹 폴더>.<screenId>` 이다. `m-mdm/pages/dme/ruleMng` 는 `mdm.dme.ruleMng` 다. 화면마다 고유해야 한다. (공지 관리 `mls.lsh.noticeMgmt` 는 2026-10-07 m-mcm 으로 옮긴 뒤에도 사용자 저장값을 지키려고 옛 키를 그대로 쓰는 예외다.)
 - 좌우 분할의 상세 폼 폭은 `width={460}` 이고 그 패널의 첫 자식이 곧바로 상세 표다(머리·제목을 따로 두지 않는다).
 - 패널 안을 `display: flex` 인 `div` 로 다시 감싸지 않는다. ContentPanel·GridPanel 이 높이와 스크롤을 처리한다.
 - `root` 는 화면당 하나다.
@@ -501,7 +719,7 @@ MaxHandleProps: `panelId: string`(필수), `style?: React.CSSProperties`, `class
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx` `root resizable storageKey="mls.lsh.noticeMgmt"` + `ContentPanel minSize={320}`(목록) + `ContentPanel minSize={420}`(상세). 사용자 요청으로 상세 폭을 고정하지 않고 목록·상세를 50:50 으로 나눈다(표준 460 의 예외). 상세 패널 안은 세로 flex 스크롤 영역 하나이고, 본문 편집기가 남은 높이를 채운다(Local-Rules §23). 홈 표시 미리보기는 팝업이다.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx` `root resizable storageKey="mls.lsh.noticeMgmt"` + `ContentPanel minSize={320}`(목록) + `ContentPanel minSize={420}`(상세). 사용자 요청으로 상세 폭을 고정하지 않고 목록·상세를 50:50 으로 나눈다(표준 460 의 예외). 상세 패널 안은 세로 flex 스크롤 영역 하나이고, 본문 편집기가 남은 높이를 채운다(Local-Rules §23). 홈 표시 미리보기는 팝업이다.
 - `src/frontend/m-mdm/pages/dme/ruleMng/page.tsx:225` `root resizable storageKey="mdm.dme.ruleMng"`.
 - `src/frontend/m-mdm/pages/dme/ruleSetEdit/page.tsx:664` column 분할 + 중첩 ContentBody(`flex`, `minSize`).
 - `src/frontend/m-mcm/page-components/cmb/masterRuleFrame/page.tsx:344` `panelId`. `MaxHandle` 연결 예는 `src/frontend/m-design-dummy/src/screens/ResizableLayoutCatalogScreen.tsx:194`(디자인 더미 화면).
@@ -617,7 +835,7 @@ import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:302` 목록 옆 상세 폼 전체(Input·Select·DatePicker·Textarea, 읽기전용 공지번호, 필수 " *", `!form` 비활성). 제목 줄은 `NoticeTitleRow.tsx`(`MdmFieldLabel`).
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:302` 목록 옆 상세 폼 전체(Input·Select·DatePicker·Textarea, 읽기전용 공지번호, 필수 " *", `!form` 비활성). 제목 줄은 `NoticeTitleRow.tsx`(`MdmFieldLabel`).
 - `src/frontend/m-mdm/pages/dma/unitMng/page.tsx:262` ComboBox·읽기전용 Input 이 섞인 상세 폼. m-mdm 화면이므로 `MdmPageLayout` 아래에 있다.
 
 
@@ -833,7 +1051,7 @@ import { Input } from "@dk-oasis/shared/form";
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:308` 읽기전용(`disabled readOnly`), 314줄 `maxLength`·`disabled={!form || isBusy}`·`onChange`.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:308` 읽기전용(`disabled readOnly`), 314줄 `maxLength`·`disabled={!form || isBusy}`·`onChange`.
 - `src/frontend/m-mdm/pages/dma/unitMng/page.tsx:278` m-mdm 상세 폼의 읽기전용 Input.
 - `error` prop 을 쓰는 화면은 아직 사용처 없음.
 
@@ -929,7 +1147,7 @@ const STATUS_OPTIONS: SelectOption[] = [
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:325` 상세 폼의 Select(`options`, `disabled={!form || isBusy}`).
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:325` 상세 폼의 Select(`options`, `disabled={!form || isBusy}`).
 - `src/frontend/m-mcm/page-components/cme/masterCodeMngList/page.tsx:340` 동적 선택지를 `map` 으로 만든 예. 단, `style={{ minWidth: 120 }}` 를 주고 있어 폭 지정 외의 의도는 아니다.
 - `src/frontend/m-mdm/pages/dmc/codeItemEdit/page.tsx:444` 조회영역 안의 Select. m-mdm 화면이다.
 
@@ -1213,8 +1431,8 @@ import { DatePicker } from "@dk-oasis/shared/form";
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:336` 상세 폼의 DatePicker(`disabled={!form || isBusy}`).
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:270` 조회조건 기간. 단, 한 SearchField 안에 `div`·`span "~"` 로 묶여 있어 표준과 다르다.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:336` 상세 폼의 DatePicker(`disabled={!form || isBusy}`).
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:270` 조회조건 기간. 단, 한 SearchField 안에 `div`·`span "~"` 로 묶여 있어 표준과 다르다.
 - `min`·`max` 는 아직 사용처 없음.
 
 
@@ -1658,7 +1876,7 @@ import { Textarea } from "@dk-oasis/shared/form";
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:356` `rows={8}`·`maxLength={4000}`·`disabled={!form || isBusy}`.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:356` `rows={8}`·`maxLength={4000}`·`disabled={!form || isBusy}`.
 - `src/frontend/m-mcm/page-components/csa/commPermMng/page.tsx:744` 상세 영역의 Textarea.
 
 
@@ -2391,7 +2609,7 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:286`: 목록 + `highlightedRowKey` + `onRowClick` + `loading` 의 MES 기준 모양. 단, `:295-296` 에서 `emptyMessage`·`loadingMessage` 를 주는 점은 표준과 다름.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:286`: 목록 + `highlightedRowKey` + `onRowClick` + `loading` 의 MES 기준 모양. 단, `:295-296` 에서 `emptyMessage`·`loadingMessage` 를 주는 점은 표준과 다름.
 - `src/frontend/m-mdm/pages/dme/ruleConfirm/page.tsx:457-464`: `height="auto"` + `columnSizing="fit"` + `ag-row-error`.
 - `src/frontend/m-mdm/pages/dme/ruleEdit/sections/columns/column-grid.tsx:366-374`: 편집 열(select, `cellEditorValuesGetter`)과 `cellClassRules`.
 - `src/frontend/m-mdm/pages/dme/ruleEdit/sections/columns/ColumnSettingsSection.tsx:336-344`: `onCellValueChanged` 와 `rowClassRefreshToken`. 단, `getRowClassExtra` 로 `ag-row-inserted`·`ag-row-deleted` 를 직접 준다(위 함정 참고).
@@ -2554,7 +2772,7 @@ const confirmDeleteRow = () =>
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:285`: 제목 + 건수만 쓰는 표준 모양(MES).
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:285`: 제목 + 건수만 쓰는 표준 모양(MES).
 - `src/frontend/m-mcm/page-components/csa/commUserMng/page.tsx:908-920`: `showAddButton`·`showCopyButton`·`showDeleteButton` + `onDataChange` + `loading`. 단, 훅을 쓰지 않고 화면이 직접 `handleDataChange` 를 구현한다.
 - `src/frontend/m-mdm/pages/dmc/codeItemEdit/page.tsx:480-495`: `titleExtra`(필터 칩)와 `headerExtra`(코드 추가 버튼). 단, 버튼에 `size` prop 을 주는 점은 표준과 다름.
 - `src/frontend/m-design-dummy/src/screens/MasterDataScreen.tsx:362-391`: `help` 의 형식. 단, 행추가·행삭제를 `buttons` 로 직접 만드는 점은 표준과 다름.
@@ -3645,7 +3863,7 @@ if (rows) setRows(rows);
 
 - `src/frontend/m-mdm/pages/dmb/headerMng/page.tsx:157-161`: confirm 의 `onConfirm` 형태(`title: "확인"`). 표준과 같다.
 - `src/frontend/m-mdm/pages/dmb/headerMng/page.tsx:138-142`, `src/frontend/m-mdm/pages/dme/ruleConfirm/page.tsx:275`: 성공 토스트. 단, `alertType: "info"` 이고 문구가 "저장했습니다."·"확정했습니다"라 표준("저장되었습니다.", `success`)과 다름.
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:58`, `:89`: `ErrorModal` 용 `errorMessage` 상태를 쓴다. 단, 새 화면 표준(`showMessage`)과 다름.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:58`, `:89`: `ErrorModal` 용 `errorMessage` 상태를 쓴다. 단, 새 화면 표준(`showMessage`)과 다름.
 - `src/frontend/m-mcm/page-components/cmz/masterCodeUploadFilePopup/masterCodeUploadFilePopup.tsx:168`: `useGfnMessage` 사용(기존 화면).
 - `useApiCall`·`MessageModal` 직접 사용은 아직 사용처 없음.
 
@@ -4692,11 +4910,11 @@ const handleSearch = useCallback(async () => {
 // Promise 를 돌려주면 끝난 때를 알아 분리 창 새로고침 판단에 쓴다.
 useCarryRefetch(handleSearch);
 
-// 마운트 때 자동 조회하는 화면은 useCarryRefetch 를 두지 않고, 이어받은 행이 있을 때만 자동 조회를 건너뛴다.
-// (행 없이 복원됐거나 분리 순간 조회가 진행 중이라 행이 비었으면 자동 조회가 한 번 돈다 — 중복 조회 없음)
+// 마운트 때 자동 조회하는 화면은 useCarryRefetch 를 두지 않는다. 첫 조회는 <SearchArea autoSearch> 가 하고(사용자 기본값을 넣은 뒤),
+// 복원됐는데 행이 비었을 때만 이 effect 가 이어받은 조건으로 조회한다(autoSearch 는 복원이면 부르지 않는다 — 중복 조회 없음).
 const restored = useCarryRestored();
 useEffect(() => {
-  if (!restored || masterRows.length === 0) void handleSearch();
+  if (restored && masterRows.length === 0) void handleSearch();
 }, []);
 ```
 
@@ -4706,7 +4924,7 @@ useEffect(() => {
 2. 사용자가 [조회]로 받은 결과 배열만 `{ bulky: true }` 로 둔다. 마운트 때 불러오는 LOV·콤보 목록은 `useState` 로 둔다.
 3. 결과가 `{ rows, total }` 같은 객체면 배열과 나머지를 나눠 배열만 bulky 로 둔다(빈 배열 판정 때문). `total` 은 light 로 둔다.
 4. `useCarryRefetch(handleSearch)` 를 둔다. 조회한 적 없으면(빈 배열) 새 창에서 재조회하지 않는다. 그래서 진입 때 자동 조회를 금지한 화면도 따로 막을 필요가 없다. 조회했는데 0건이었던 화면도 재조회하지 않는다(빈 그리드가 같은 결과다). refetch 는 Promise 를 돌려주는 조회 함수를 그대로 넘긴다.
-5. 마운트 때 자동 조회하는 화면은 4번의 `useCarryRefetch` 를 두지 않는다. 대신 자동 조회 조건을 `!useCarryRestored() || 결과 배열.length === 0` 으로 바꾼다. `useCarryRestored()` 만 보면, 분리 순간 조회가 진행 중이라 행이 빈 채 넘어온 경우 자동 조회도 재조회도 돌지 않아 빈 그리드로 남는다. 둘 다 두면 행 없이 복원됐을 때 두 번 조회한다.
+5. 마운트 때 자동 조회하는 화면은 4번의 `useCarryRefetch` 를 두지 않는다. 첫 조회는 `<SearchArea autoSearch>` 가 맡고(마운트 조회 effect 금지 — 사용자 기본값이 들어가기 전 조건으로 조회한다), 화면은 `useCarryRestored() && 결과 배열.length === 0` 일 때만 조회하는 마운트 effect 를 둔다. `autoSearch` 는 복원이면 부르지 않으므로, 분리 순간 조회가 진행 중이라 행이 빈 채 넘어온 경우도 이 effect 가 채운다. `useCarryRefetch` 까지 두면 행 없이 복원됐을 때 두 번 조회한다.
 6. 값은 JSON 으로 옮길 수 있어야 한다. `Date` 는 문자열로 두고, `Set`·`Map`·`dayjs` 같은 값은 쓰지 않는다(개발 모드 경고). 그런 상태는 `useState` 로 둔다.
 7. key 는 화면 안에서 유일해야 한다. 같은 key 를 두 번 쓰면 개발 모드에서 경고한다. 같은 key 의 복원값은 한 번만 쓰인다.
 8. setter 를 `useCallback`·`useEffect` deps 에 넣는다. eslint 가 안정값으로 인식하지 못해 요구하지만 넣어도 무해하다.
@@ -4852,7 +5070,7 @@ const issue = column ? validateMdmValue(column, v) : null;   // 같은 column �
 - 서버 오류(`toFieldErrors(e, grid)` 결과)는 칸별 상태에 담아 `error` 로 준다. 그 칸을 고치거나 다른 행을 열면 지운다.
 - 저장 전 `validateRow(row, names)` 로 막을 칸은 서버 `MdmValidator.columns(...)` 와 같게 둔다.
 - 훅은 공급자(포털 탭) 밖이면 아무것도 부르지 않고 늘 통과다 — 포털 밖 단독 실행에서도 같은 코드가 돈다.
-- 빈 칸은 입력 중에는 검사하지 않는다(필수는 저장 때). 예: `m-mls/pages/lsh/noticeMgmt/NoticeTitleRow.tsx`.
+- 빈 칸은 입력 중에는 검사하지 않는다(필수는 저장 때). 예: `m-mcm/page-components/lsh/noticeMgmt/NoticeTitleRow.tsx`.
 - 툴팁은 라벨 글자 span 이 아니라 **라벨 칸 전체**에서 마우스 hover 로 뜬다(2026-10-05): span 에서 가장 가까운 `th, td, .search-field__label`(없으면 span 만)의 빈 곳에 올려도 뜨고, 칸 안 이동은 닫지 않으며, 칸 안을 누르면 닫는다. 카드 위치는 글자 기준 그대로다. 입력칸이 따로 있는 td 에는 걸리지 않는다(라벨 글자가 든 칸만). 글자 span 은 Tab 순서에 들지 않는다(`tabIndex` -1 — 입력 화면에서 Tab 이 라벨마다 멈추지 않게).
 
 ### HTML 설명·상호작용 툴팁(2026-10-03)
@@ -4979,12 +5197,12 @@ th 안이나 아무 라벨 자리에 넣는 인라인 라벨(`FormGroup` 을 쓰
 ## 실제 사용 예
 
 - `src/frontend/shared/src/portal-shell/portal-shell.tsx` `TabPageSlot`: 탭 본문을 `MdmMetaProvider` 로 감싼다.
-- 화면 파일럿: `src/frontend/m-mls/pages/lsh/noticeMgmt/`(2026-10-03)
+- 화면 파일럿: `src/frontend/m-mcm/page-components/lsh/noticeMgmt/`(2026-10-03)
   - `notice-columns.tsx`: `TITLE` 열은 대체 `header`("제목")를 두고, 화면(`page.tsx` 의 default export)이 `MdmMetaProvider captionPriority="mdm"` 으로 감싸 MDM 이 있으면 MDM 캡션·머리글 툴팁이 이긴다. 파생 열(`CATEGORY_LABEL` 등)은 header 를 적고 `meta: false` 로 연결을 끈다.
   - `NoticeTitleRow.tsx`: 상세 표(th/td) 제목 줄 — 라벨은 `MdmFieldLabel`(캡션 + 올리면 MDM 카드 툴팁), 입력 중 검사는 같은 `column` 으로 `validateMdmValue` → `Input error`(MDM 장애 중에도 요청은 등록 한 번).
   - `page.tsx`: 저장 전 `validateRow` 로 막고, 저장 실패는 `toFieldErrors(e, "master")` → 칸별 `error`(고치면 지운다). 그리드에 `mdmValidate`(목록이 읽기 전용이라 지금은 검사할 칸이 없다).
   - `api.ts`: `NoticeApiError.errors` 에 OASIS 봉투의 `errors` 를 실어 `toFieldErrors` 가 읽게 한다.
-  - 시험: `m-mls/tests/lsh/noticeMgmt/notice-page-mdm.test.ts`(화면 전체), `notice-mdm-render.test.ts`(제목 줄·그리드 캡션·라벨 툴팁).
+  - 시험: `m-mcm/tests/lsh/noticeMgmt/notice-page-mdm.test.ts`(화면 전체), `notice-mdm-render.test.ts`(제목 줄·그리드 캡션·라벨 툴팁).
 
 
 <!-- ===== tabs.md ===== -->
@@ -5722,7 +5940,7 @@ import { MarkdownDocViewer } from "@dk-oasis/shared/markdown-editor";
 
 - `src/frontend/m-mdm/pages/dme/ruleSetEdit/canvas/nodes.tsx` `NoteNodeView`: 흐름도 메모 — `MarkdownEditor toolbar="floating"`, `editingClassName="nodrag nowheel nopan nokey"`, `linkClassName="nodrag nopan"`, `modeStorageKey="rsf:noteEditMode"`, 읽기 모습은 `MarkdownView`. 넘침 풀기·z-index 는 `styles/note-editor.ts`.
 - `src/frontend/m-mdm/pages/dme/ruleSetEdit/panels/PropertyPanel.tsx`: 오른쪽 패널 「메모」 칸 — `MarkdownField fill`(캔버스와 같은 키). 패널 쪽 세로 flex 사슬은 `styles/note-editor.ts` 의 `.rsf-panel-fill` 규칙.
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/NoticeBodyEditor.tsx`: 공지 본문 형식이 마크다운일 때 `MarkdownField fill`(`modeStorageKey="mls:noticeBodyEditMode"`, 공지마다 `key`, 세로 flex 사슬은 `notice-styles.ts` 의 `.nm-editor*`). 미리보기는 [NoticeBodyView](notice-body-view.md). MD 편집 칸은 표를 글자로 두므로(미리보기는 표를 그린다) 화면 안내 문구가 표가 필요하면 HTML 형식을 권한다.
+- `src/frontend/m-mcm/page-components/lsh/noticeMgmt/NoticeBodyEditor.tsx`: 공지 본문 형식이 마크다운일 때 `MarkdownField fill`(`modeStorageKey="mls:noticeBodyEditMode"`, 공지마다 `key`, 세로 flex 사슬은 `notice-styles.ts` 의 `.nm-editor*`). 미리보기는 [NoticeBodyView](notice-body-view.md). MD 편집 칸은 표를 글자로 두므로(미리보기는 표를 그린다) 화면 안내 문구가 표가 필요하면 HTML 형식을 권한다.
 
 
 <!-- ===== html-editor.md ===== -->

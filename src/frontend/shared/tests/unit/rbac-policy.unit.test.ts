@@ -13,7 +13,7 @@ const CFG: RbacPolicyConfig = {
     "/api/mcm/oasis/secUser/myMenus",
     "/api/mcm/oasis/secUser/myButtonEndpoints",
     "/api/mcm/oasis/secFavorite/search",
-    "/api/mls/oasis/noticeBoard/search", // m-mcm proxy.ts 와 같은 값 — 포털 홈 공지 목록(2026-10-02)
+    "/api/mcm/oasis/noticeBoard/search", // m-mcm proxy.ts 와 같은 값 — 포털 홈 공지 목록(2026-10-02)
     "/api/mcm/oasis/secWidget/", // m-mcm proxy.ts 와 같은 값 — 사용자 위젯 탭·배치(본인 데이터, 2026-10-02)
     // m-mcm proxy.ts 와 같은 값 — 위젯 B·C·D 사용자용(스펙 2026-10-02-widget-admin-generic §5.1)
     "/api/mcm/oasis/widgetDef/list",
@@ -159,12 +159,12 @@ describe("evaluateApiPolicy 매트릭스 (방식 C — perms 는 로더로 lazy 
     expect(await evaluateApiPolicy("/api/auth/login", null, CFG, loadThrow)).toBe("pass");
     expect(await evaluateApiPolicy("/api/mcm/auth/refresh", null, CFG, loadThrow)).toBe("pass");
   });
-  it("AUTH_ONLY(mls noticeBoard.search) — 권한키 없는 사용자도 pass(loader 미호출), 같은 서비스의 다른 action 은 RBAC", async () => {
+  it("AUTH_ONLY(mcm noticeBoard.search) — 권한키 없는 사용자도 pass(loader 미호출), 같은 서비스의 다른 action 은 RBAC", async () => {
     // 홈 공지는 로그인한 모든 사용자 몫이고 게시 대상은 서비스가 사용자 역할로 거른다 — 역할 매핑 없이 열려야 한다.
-    expect(await evaluateApiPolicy("/api/mls/oasis/noticeBoard/search", viewer, CFG, loadThrow)).toBe("pass");
-    expect(await evaluateApiPolicy("/api/mls/oasis/noticeBoard/search", null, CFG, loadThrow)).toBe("unauthorized");
-    expect(await evaluateApiPolicy("/api/mls/oasis/noticeBoard/save", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
-    expect(await evaluateApiPolicy("/api/mls/oasis/noticeMgmt/search", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
+    expect(await evaluateApiPolicy("/api/mcm/oasis/noticeBoard/search", viewer, CFG, loadThrow)).toBe("pass");
+    expect(await evaluateApiPolicy("/api/mcm/oasis/noticeBoard/search", null, CFG, loadThrow)).toBe("unauthorized");
+    expect(await evaluateApiPolicy("/api/mcm/oasis/noticeBoard/save", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
+    expect(await evaluateApiPolicy("/api/mcm/oasis/noticeMgmt/search", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
   });
   it("AUTH_ONLY(mcm secWidget) — 다섯 action 모두 권한키 없는 사용자도 pass, 미로그인은 unauthorized", async () => {
     for (const action of ["search", "saveTab", "deleteTab", "reorderTabs", "resetHome"]) {

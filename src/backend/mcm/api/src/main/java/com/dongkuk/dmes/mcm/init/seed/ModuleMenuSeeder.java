@@ -107,36 +107,39 @@ public final class ModuleMenuSeeder extends SeedSupport {
     }
 
     /**
-     * 공지사항 관리(noticeMgmt) 메뉴·OBJECT·RBAC 시드 — 2026-10-02. <b>메뉴는 공통관리(mcm) 아래, 코드는 mls</b> 다.
+     * 공지사항 관리(noticeMgmt) 메뉴·OBJECT·RBAC 시드 — 2026-10-02, <b>2026-10-07 코드도 mcm 으로 옮겼다</b>(DEC-001 「재검토 → 이전」).
      *
      * <ul>
      *   <li>폴더 1: lsh(공지관리) — 부모는 공통관리 루트 {@code mcm}. MENU_SEQ '00000600' 으로 기존 그룹
      *       cma(100)·csa(200)·cme(300)·cmb(400)·cmz(500, 숨김 팝업) 뒤에 둔다 — 기존 그룹의 순서·FULL_SEQ 는 그대로다.
-     *       폴더 ID {@code lsh} 는 식별자 사전의 mls 그룹 코드이고, componentPath 가 {@code PARENT_MENU_ID/OBJECT_ID} 로
-     *       조립되므로 FE 경로 {@code lsh/noticeMgmt}(m-mls {@code pages/lsh/noticeMgmt/page}) 와 맞추려면 폴더 ID 를 바꾸면 안 된다.</li>
-     *   <li>noticeMgmt: OBJECT(SYSTEM_CODE='mls' — 화면 코드를 m-mls 로더로 부른다) + 메뉴 leaf(parent=lsh) + SYSADMIN × PERM_ALL.
+     *       폴더 ID {@code lsh} 는 식별자 사전의 mcm 그룹 예외(옛 mls 그룹 코드, 이전 때 메뉴·즐겨찾기 보존 위해 유지)이고,
+     *       componentPath 가 {@code PARENT_MENU_ID/OBJECT_ID} 로 조립되므로 FE 경로 {@code lsh/noticeMgmt}
+     *       (m-mcm {@code page-components/lsh/noticeMgmt/page}) 와 맞추려면 폴더 ID 를 바꾸면 안 된다.</li>
+     *   <li>noticeMgmt: OBJECT(SYSTEM_CODE='mcm') + 메뉴 leaf(parent=lsh) + SYSADMIN × PERM_ALL.
      *       action(search·save·changeStatus) 은 PERM_ALL 에 있다(changeStatus 는 같은 날 allActions 에 추가).</li>
      * </ul>
      *
-     * <p><b>경과</b> — 같은 날 처음에는 물류관리(mls) 모듈 루트를 새로 만들고 그 아래에 lsh 를 두었다. 사용자 요청으로 공통관리 아래로
+     * <p><b>경과</b> — 10-02 처음에는 물류관리(mls) 모듈 루트를 새로 만들고 그 아래에 lsh 를 두었다. 사용자 요청으로 공통관리 아래로
      * 옮겼다. insert-if-absent 는 이미 있는 lsh 행을 옮기지 않으므로 {@link #relocateNoticeFolderToMcm()} 이 멱등 보정한다. mls 루트
      * 폴더는 더 시드하지 않는다(이미 생긴 DB 의 빈 mls 폴더는 보이는 화면이 없어 사이드바에 나오지 않는다).
+     * 10-07 코드 이전으로 OBJECT SYSTEM_CODE 가 mls → mcm 이 되었고, 이미 시드된 DB 는 {@link #moveNoticeObjectsToMcm()} 이 맞춘다.
      *
-     * <p><b>포털 홈 공지 목록(mls noticeBoard)은 여기서 시드하지 않는다</b> — 로그인한 모든 사용자에게 여는 AUTH_ONLY 경로다
+     * <p><b>포털 홈 공지 목록(noticeBoard)은 여기서 시드하지 않는다</b> — 로그인한 모든 사용자에게 여는 AUTH_ONLY 경로다
      * (m-mcm {@code proxy.ts} authOnlyPrefixes · mcm-core {@code EndpointPermissionFilter}). 게시 대상은 서비스가 현재 사용자
-     * 역할로 거른다. 같은 날 잠시 두었던 {@code PERM_SEARCH_ONLY} 권한 세트와 noticeBoard OBJECT·역할 매핑 시드는 뺐다.
+     * 역할로 거른다. 10-02 에 잠시 두었던 {@code PERM_SEARCH_ONLY} 권한 세트와 noticeBoard OBJECT·역할 매핑 시드는 뺐다.
      * 이미 시드된 DB 에 남은 그 행들은 지우지 않는다 — search 하나만 주는 행이라 AUTH_ONLY 와 결과가 같아 해가 없다.
      *
      * <p>FULL_SEQ: 공통관리 모듈(1,000,000) + 그룹 6번째(lsh=1,060,000) + 화면(1060100). 부팅 끝 recomputeMenuFullSeq() 가
      * 트리 위치 기준으로 다시 매긴다. 모두 멱등이다.
      */
-    public void seedMlsMenus() {
+    public void seedNoticeMenus() {
         // ── 폴더 (FLD) — 공통관리(mcm) 아래 lsh(공지관리). 이미 다른 부모로 시드된 DB 는 아래 보정이 옮긴다 ──
         insertMpnFld("lsh", "00000600", "공지관리", "mcm", 1060000L);
         relocateNoticeFolderToMcm();
 
         // ── noticeMgmt — OBJECT + 메뉴 leaf + SYSADMIN 전체 권한 ──
-        insertMcmSecObjIfAbsent("noticeMgmt", "공지사항 관리", "mls");
+        insertMcmSecObjIfAbsent("noticeMgmt", "공지사항 관리", "mcm");
+        moveNoticeObjectsToMcm();
         insertMcmSecMenuIfAbsent("noticeMgmt", "001", "1060100", "공지사항 관리", "lsh", "noticeMgmt");
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
@@ -144,7 +147,24 @@ public final class ModuleMenuSeeder extends SeedSupport {
                 new String[]{"SYSADMIN", "noticeMgmt", "PERM_ALL"},
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
                 "VALUES ('SYSADMIN', 'noticeMgmt', 'PERM_ALL'" + AUDIT_VALS + ")");
-        log.info("[DataInitializer] 공지 메뉴 시드 — 폴더 1(mcm/lsh) + OBJECT 1(noticeMgmt, SYSTEM_CODE=mls) + 메뉴 leaf 1(lsh/noticeMgmt) + RBAC(SYSADMIN 1)");
+        log.info("[DataInitializer] 공지 메뉴 시드 — 폴더 1(mcm/lsh) + OBJECT 1(noticeMgmt, SYSTEM_CODE=mcm) + 메뉴 leaf 1(lsh/noticeMgmt) + RBAC(SYSADMIN 1)");
+    }
+
+    /**
+     * 공지 OBJECT 의 SYSTEM_CODE 보정 — mls → mcm (2026-10-07, 멱등).
+     *
+     * <p>공지 코드가 mls 에서 mcm 으로 옮겨졌다. 권한키의 모듈은 OBJECT SYSTEM_CODE 에서 나오므로({@code UserPermCache}),
+     * 이미 {@code 'mls'} 로 시드된 DB 를 그대로 두면 {@code /api/mcm/oasis/noticeMgmt/*} 가 403 이 되고 화면 pageId 도
+     * {@code mls:lsh/noticeMgmt} 로 남아 m-mls 로더를 찾는다. 10-02 에 잠시 시드했던 noticeBoard OBJECT 도 같이 맞춘다.
+     * 값이 {@code mls} 인 행만 바꾼다 — 권한 캐시처럼 앞뒤 공백·대소문자는 무시한다({@code 'MLS'}, {@code ' mls'} 도 대상). 메뉴 관리 화면에서
+     * 다른 값으로 바꾼 행과 이미 mcm 인 행은 건드리지 않는다. 행은 지우지 않는다.
+     */
+    private void moveNoticeObjectsToMcm() {
+        int n = nq("UPDATE MCMAPUSER.TB_MCM_SEC_OBJ SET SYSTEM_CODE = 'mcm' "
+                 + " WHERE OBJECT_ID IN ('noticeMgmt', 'noticeBoard') AND LOWER(TRIM(SYSTEM_CODE)) = 'mls'").executeUpdate();
+        if (n > 0) {
+            log.info("[DataInitializer] 공지 OBJECT SYSTEM_CODE 를 mls → mcm 으로 옮김 — rows={}", n);
+        }
     }
 
     /**

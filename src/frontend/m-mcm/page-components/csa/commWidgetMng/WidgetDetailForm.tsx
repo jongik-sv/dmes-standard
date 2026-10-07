@@ -240,7 +240,7 @@ export function WidgetDetailForm({
             <Input
               value={text("linkPageId")}
               maxLength={200}
-              placeholder={ph.linkPageId || "예: mls:lsh/noticeMgmt"}
+              placeholder={ph.linkPageId || "예: mcm:lsh/noticeMgmt"}
               disabled={off}
               onChange={set("linkPageId")}
             />

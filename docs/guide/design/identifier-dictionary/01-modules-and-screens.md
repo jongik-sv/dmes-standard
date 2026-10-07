@@ -122,12 +122,13 @@ A.1.1 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 �
 | `mls` | `lse` | **신규 영역 코드** (★ 2026-06-10) | **수불관리** | 2026-06-10 | (itemTransSummary 등재 동시) | `itemTransSummary` · `itemTransCheck` |
 | `mls` | `lsf` | **신규 영역 코드** (★ 2026-06-10) | **PDA관리** | 2026-06-10 | (사용자 카탈로그 확정) | — |
 | `mls` | `lsg` | **신규 영역 코드** (★ 2026-06-10) | **기준관리** | 2026-06-10 | (slInfoMgmt 등재 동시) | `slInfoMgmt` · `slLocMgmt` · `itemMoveTypeMgmt` |
-| `mls` | `lsh` | **신규 영역 코드** (★ 2026-09-03) | **공지관리** — 전사 공지사항 등록·게시 | 2026-09-03 | (noticeMgmt 등재 동시 — 사용자 지시) | `noticeMgmt`, `noticeBoard`(서비스 전용, 2026-10-02) |
+| `mls` | `lsh` | **신규 영역 코드** (★ 2026-09-03) — `migrated_to: mcm(2026-10-07)` | **공지관리** — 전사 공지사항 등록·게시 | 2026-09-03 | (noticeMgmt 등재 동시 — 사용자 지시) | `noticeMgmt`, `noticeBoard`(서비스 전용, 2026-10-02) — 2026-10-07 mcm 으로 이전, 아래 `mcm` · `lsh` 행 참조 |
 | `mpp` | `operation` | legacy 의미명 | 일상 운영 (작업실적·공정보고) | 2026-04-28 | (workReport 등재 동시) | `workReport` |
 | `mpp` | `master` | legacy 의미명 (예정) | mpp 모듈 마스터 (작업장·자원 등) | (예정) | — | — |
 | `mpp` | `setup` | legacy 의미명 (예정) | mpp 셋업 (BOP·라우팅 등) | (예정) | — | — |
 | `mcm` | `cma` | **영역 코드** (`cm`+`a`) | Master 관리(원장) — 카테고리·마스터코드 | 2026-05-27 | (masterCategoryMng 등재 동시) | `masterCategoryMng` / `masterCodeMng` / `masterCodeSelPop` / `masterCodeUploadFilePopup` |
 | `mcm` | `cmb` | **영역 코드** (`cm`+`b`) | 업무기준 관리(원장) — 업무기준(Rule) 구조·데이터 | 2026-06-04 | (masterRule* 5종 설계확정 등재) | `masterRuleListPop` / `masterRuleList` / `masterRuleFrame` / `masterRuleData` / `masterRuleFrameColListPopup` |
+| `mcm` | `lsh` | **cm? 접두 규칙 예외** (mls 에서 이전, 2026-10-07) | **공지관리** — 전사 공지사항 등록·게시 | 2026-10-07 | (공지 mls→mcm 이전, DEC-001 「재검토 → 이전」) | `noticeMgmt`, `noticeBoard`(서비스 전용) |
 | `mdm` | `dma` | **영역 코드** (`dm`+`a`) | 용어·도메인·컬럼·단위(02) — 표준 원장 사전(마루 MDM) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `unitMng` / `termMng` / `domainMng` / `columnMng` / `termRegPop` (+ TSK-01-01 샘플 `mdmSample` 은 옛 경로에 있으며 TSK-01-03 에서 옮긴다) |
 | `mdm` | `dmb` | **영역 코드** (`dm`+`b`) | 인터페이스 레이아웃(03) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `headerMng` / `layoutMng` |
 | `mdm` | `dmc` | **영역 코드** (`dm`+`c`) | 마스터코드(04) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `codeMng` / `codeItemEdit` / `codeConfirm` (2026-09-28 D-101: `codeEdit`→`codeMng`, `codeCateEdit`→`codeItemEdit` 로 합침. 두 ID 는 서버 서비스·권한 OBJECT 로만 남음) |
@@ -140,6 +141,8 @@ A.1.1 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 �
 **legacy 보존 원칙**: 기 등재된 의미명 행 (`operation` / `master` / `setup` / `common` / `item` / `planning`) 은 신규 표기 표준 (A.2.1) 적용 ✗ — As-Is 1:1 보존. 신규 그룹 등재 시에만 §A.2.1 의 영역 코드 표준 강제.
 
 **legacy → 영역 코드 마이그레이션** (선택 사항): 기 등재된 의미명 영역을 신규 영역 코드로 변경할 수 있다. 변경 시 (a) §A.2.3 에 새 행 추가 + (b) legacy 행에 `migrated_to: {새 코드}` 표기 + (c) 영향 산출물 (화면별 5종 + 체크리스트 frontmatter + 폴더 위치) 동시 갱신 + (d) 본 §A.2.3 changelog 행 추가. **사용자 결정 2026-05-28 — `mls` 모듈은 이미 영역 코드 (lsa) 로 전환됨** (기 등재 `slitting` 의미명 → `lsa`).
+
+**`cm?` 접두 규칙 예외 — `mcm` · `lsh` (2026-10-07)**: 공지사항(`noticeMgmt`·`noticeBoard`)을 mls 에서 mcm 으로 옮기면서 그룹명 `lsh` 를 그대로 유지한다. 그룹명은 포털·tsup 경로의 디렉토리 세그먼트(`lsh/noticeMgmt`)와 메뉴 폴더, 즐겨찾기 `componentPath` 에 사용되고 있어 `cm?` 로 바꾸면 기존 즐겨찾기가 깨지기 때문이다(사용자 결정 D1=A). mcm 에는 이미 `csa` 라는 비-`cm?` 그룹이 있다. 바뀐 것은 모듈뿐이며 pageId 는 `mls:lsh/noticeMgmt` 에서 `mcm:lsh/noticeMgmt` 가 된다.
 
 ---
 
@@ -227,8 +230,8 @@ A.1.1 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 �
 | `slLocMgmt` | `IBA007K` | `mls` | `lsg` | `slLocMgmt` | 2026-06-11 | 적재위치 관리 (As-Is LOCATION 등록 — **MES 정본 CRUD 소유 전환**: TB_MLS_SL_LOC(120) 직접 IUD, 창고(119)는 SELECT-only 참조. IF-MLS-IN-04 폐기. 사용자 확정 2026-06-11) |
 | `itemMoveTypeMgmt` | `IBA001K` | `mls` | `lsg` | `itemMoveTypeMgmt` | 2026-06-12 | 수불유형정보조회 (As-Is 수불유형등록 — **ERP CRUD 존치 / MES 조회전용 미러**, IF-MLS-IN-05 → TB_MLS_MOVE_TYPE(121). 사용자 확정 2026-06-12) |
 | `itemStockIssueMgmt` | `PCB020K` | `mls` | `lsb` | `itemStockIssueMgmt` | 2026-06-12 | 자재불출처리(창고) — **사용자 부여 + 설계 완료 2026-06-12 (6종 산출)**. 일반 자재 전용(박판 분기 미이식 — slitStockIssueMgmt 위임), 반납 ADMIN popup 1:1, IF-MLS-OUT-06/07, 공정보고 자동 연동(P-6) 미채택 |
-| `noticeMgmt` | — (To-Be only) | `mls` | `lsh` | `noticeMgmt` | 2026-09-03 | 공지사항 관리 — **As-Is 없음(신규 화면)**. 사용자 지시 2026-09-03 로 mls 를 테스트 모듈 삼아 신설. 목록+상세 CRUD + 게시상태/게시기간. 분석리포트 미작성(기능설계서 1종 축소 — 사용자 결정) |
-| `noticeBoard` | — (To-Be only) | `mls` | `lsh` | — (화면 없음) | 2026-10-02 | 포털 홈 공지 목록 — **화면이 아니라 OASIS 서비스 전용 식별자**(serviceId). 포털 홈이 `POST /api/mls/oasis/noticeBoard/search` 로 부른다. 로그인한 모든 사용자 AUTH_ONLY, 게시 대상은 서비스가 사용자 역할로 거른다. 메뉴 leaf·OBJECT 없음. 정본: `docs/mls/design/noticeMgmt/noticeMgmt_기능설계서.md` §12 |
+| `noticeMgmt` | — (To-Be only) | `mcm` | `lsh` | `noticeMgmt` | 2026-09-03 | 공지사항 관리 — **As-Is 없음(신규 화면)**. 사용자 지시 2026-09-03 로 mls 를 테스트 모듈 삼아 신설했고 **2026-10-07 mcm 으로 이전**(화면 ID·그룹 유지, 호출 경로 `/api/mcm/oasis/noticeMgmt/*`, DEC-001). 목록+상세 CRUD + 게시상태/게시기간. 분석리포트 미작성(기능설계서 1종 축소 — 사용자 결정) |
+| `noticeBoard` | — (To-Be only) | `mcm` | `lsh` | — (화면 없음) | 2026-10-02 | 포털 홈 공지 목록 — **화면이 아니라 OASIS 서비스 전용 식별자**(serviceId). 포털 홈이 `POST /api/mcm/oasis/noticeBoard/search` 로 부른다(2026-10-07 mls 에서 mcm 으로 이전). 로그인한 모든 사용자 AUTH_ONLY, 게시 대상은 서비스가 사용자 역할로 거른다. 메뉴 leaf·OBJECT 없음. 정본: `docs/mcm/design/noticeMgmt/noticeMgmt_기능설계서.md` §12 |
 | `domainMng` | — (To-Be only) | `mdm` | `dma` | `domainMng` | 2026-09-24 | 도메인 관리 — As-Is 없음, 원천 02 maru03020/03030 계승. 상속 트리·검증식 두 칸·테스트 케이스·영향도(TSK-04-03). 기능설계서 1종(`docs/mdm/screens/domainMng/`) |
 | `columnMng` | — (To-Be only) | `mdm` | `dma` | `columnMng` | 2026-09-24 | 컬럼 사전 — As-Is 없음(신규). TSK-04-04. 기능설계서 1종(`docs/mdm/screens/columnMng/`, 팝업 termRegPop 절 포함) |
 | `termRegPop` | — (To-Be only) | `mdm` | `dma` | `termRegPop` | 2026-09-24 | 용어 인라인 등록 팝업(columnMng 에서 호출, 메뉴 leaf 없음). TSK-04-04 |

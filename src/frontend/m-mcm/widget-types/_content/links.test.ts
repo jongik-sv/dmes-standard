@@ -96,7 +96,7 @@ describe("항목 편집 순수 함수", () => {
 
 describe("linkTarget — 렌더러가 누를 때 할 일", () => {
   it("화면 링크 → page, 웹 링크 → 정리된 url", () => {
-    expect(linkTarget(page("A", " mls:lsh/noticeMgmt "))).toEqual({ kind: "page", pageId: "mls:lsh/noticeMgmt" });
+    expect(linkTarget(page("A", " mcm:lsh/noticeMgmt "))).toEqual({ kind: "page", pageId: "mcm:lsh/noticeMgmt" });
     expect(linkTarget(url("B", " https://www.example.org/x "))).toEqual({
       kind: "url",
       url: "https://www.example.org/x",
@@ -124,7 +124,7 @@ describe("메뉴 고르기 목록", () => {
         { name: "숨은 폴더", pageId: null, items: [{ name: "코드 관리", pageId: "mcm:csa/codeMng", items: [] }] },
       ],
     },
-    { name: "공지", pageId: "mls:lsh/noticeMgmt", items: [] },
+    { name: "공지", pageId: "mcm:lsh/noticeMgmt", items: [] },
     { name: "중복", pageId: "mcm:csa/commMenuMng", items: [] },
   ];
 
@@ -132,7 +132,7 @@ describe("메뉴 고르기 목록", () => {
     expect(flattenMenuPages(tree, (n) => n.pageId)).toEqual([
       { value: "mcm:csa/commMenuMng", label: "공통 > 메뉴 관리" },
       { value: "mcm:csa/codeMng", label: "공통 > 숨은 폴더 > 코드 관리" },
-      { value: "mls:lsh/noticeMgmt", label: "공지" },
+      { value: "mcm:lsh/noticeMgmt", label: "공지" },
     ]);
   });
 });

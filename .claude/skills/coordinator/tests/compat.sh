@@ -144,7 +144,7 @@ eq "Win: proc_cwds 는 /proc 에서(lsof 없이)" "$(win 'compat_proc_cwds 200,4
 mkdir -p "$tmp/cyg"; printf '#!/bin/sh\n[ "$1" = -u ] && printf "%%s" "$2" | sed "s|^\\([A-Za-z]\\):|/\\1|" | tr A-Z a-z | sed "s|^/\\(.\\)|/\\1|"\n' > "$tmp/cyg/cygpath"; chmod +x "$tmp/cyg/cygpath"
 eq "Win: posix_path 는 cygpath 로 C:/x 를 /c/x 꼴로" "$(PATH="$tmp/cyg:$PATH" COMPAT_FORCE_OS=windows run 'compat_posix_path C:/Users/x/wt')" "/c/users/x/wt"
 eq "Unix: posix_path 는 그대로" "$(PATH="$tmp/cyg:$PATH" COMPAT_FORCE_OS=unix run 'compat_posix_path C:/Users/x/wt')" "C:/Users/x/wt"
-eq "Win: coord_path_in_wt 가 두 꼴을 같게 본다" "$(PATH="$tmp/cyg:$PATH" COMPAT_FORCE_OS=windows COORD_REPO="$tmp" bash -c '. "$1/lib/common.sh"; coord_path_in_wt /c/users/x/wt/sub C:/Users/x/wt && echo in || echo out' _ "$here/../scripts")" in
+eq "Win: coord_path_in_wt 가 두 꼴을 같게 본다" "$(PATH="$tmp/cyg:$PATH" COMPAT_FORCE_OS=windows COORD_REPO="$tmp" bash -c '. "$1/lib/common.sh"; coord_path_in_wt /c/Users/x/wt/sub C:/Users/x/wt && echo in || echo out' _ "$here/../scripts")" in
 eq "Win: 후손 없는 pid" "$(win 'compat_descendants 300' | grep -c .)" 0
 
 # 여러 줄 인자·끝 줄바꿈 없는 ppid·숫자가 아닌 첫 낱말(과거 결함: 둘째 줄의 `-1` 이 pid 로 읽혀 kill -TERM -1 이 될 수 있었다)
@@ -165,6 +165,46 @@ case "$(COMPAT_FORCE_OS=unix run 'echo "${PATH%%:*}"')" in "$SBIN") chk fail "Un
 eq "래퍼: SKILLS_JQ_EXE 의 jq 를 -b 로 실행한다" "$(echo '{"a":[1,2]}' | SKILLS_JQ_EXE="$(command -v jq)" "$SBIN/jq" -c '.a')" "[1,2]"
 eq "래퍼: 실행 파일이 없으면 rc 127" "$(SKILLS_JQ_EXE="$tmp/없는-jq" "$SBIN/jq" . </dev/null >/dev/null 2>&1; echo $?)" 127
 eq "jq.exe 는 줄끝 변환 없이 보존된다(SHA-256)" "$(compat_sha256 < "$SBIN/win64/jq.exe")" 7451fbbf37feffb9bf262bd97c54f0da558c63f0748e64152dd87b0a07b6d6ab
+
+# ---- 경로 정규화·절대 경로 판정·orca 래퍼 (C1) ---------------------------------------------------------------------------
+wn() { COMPAT_FORCE_OS=windows run "$@"; }
+un() { COMPAT_FORCE_OS=unix run "$@"; }
+eq "norm_path Win: C:\\x\\wt\\ → /c/x/wt" "$(wn 'compat_norm_path "C:\Users\x\wt\\"')" "/c/users/x/wt"
+eq "norm_path Win: C:/x/ → /c/x" "$(wn 'compat_norm_path C:/Users/x/')" "/c/users/x"
+eq "norm_path Win: 이미 /c/x 여도 소문자로(NTFS 대소문자 무시)" "$(wn 'compat_norm_path /c/Users/x')" "/c/users/x"
+eq "norm_path Win: 드라이브 문자는 소문자로(D:/y → /d/y)" "$(wn 'compat_norm_path D:/y')" "/d/y"
+eq "norm_path Win: /cygdrive/E/z → /e/z" "$(wn 'compat_norm_path /cygdrive/E/z')" "/e/z"
+eq "norm_path Win: 뿌리 C: → /c" "$(wn 'compat_norm_path C:')" "/c"
+eq "norm_path Win: 대소문자만 다른 두 꼴이 같은 값" "$(wn 'a="$(compat_norm_path "C:\w\r")"; b="$(compat_norm_path C:/w/r)"; c="$(compat_norm_path /c/w/r)"; [ "$a" = "$b" ] && [ "$b" = "$c" ] && echo same')" same
+eq "norm_path Win: C:\\Users\\X\\wt 와 /c/users/x/wt 가 같은 값" "$(wn 'a="$(compat_norm_path "C:\Users\X\wt")"; b="$(compat_norm_path /c/users/x/wt)"; [ "$a" = "$b" ] && echo same')" same
+eq "norm_path Win(bash 3.2 경로): tr 로도 같은 값" "$(wn '_COMPAT_BASH4=0; compat_norm_path "C:\Users\X"')" "/c/users/x"
+eq "Win: coord_path_in_wt 는 대소문자가 달라도 같은 폴더로 본다" "$(COMPAT_FORCE_OS=windows COORD_REPO="$tmp" bash -c '. "$1/lib/common.sh"; coord_path_in_wt /c/users/x/wt/sub C:/Users/X/WT && echo in || echo out' _ "$here/../scripts")" in
+eq "norm_path Unix: 입력을 그대로(백슬래시·끝 /도)" "$(un 'compat_norm_path "C:\x/"')" 'C:\x/'
+eq "norm_path Unix: POSIX 경로 그대로" "$(un 'compat_norm_path /Users/x/wt/')" "/Users/x/wt/"
+eq "is_abs_path Win: C:/x" "$(wn 'compat_is_abs_path C:/x && echo y || echo n')" y
+eq "is_abs_path Win: C:\\x" "$(wn 'compat_is_abs_path "C:\x" && echo y || echo n')" y
+eq "is_abs_path Win: 상대 경로·드라이브 상대(C:x)는 아니다" "$(wn 'if compat_is_abs_path rel/x || compat_is_abs_path C:x; then echo y; else echo n; fi')" n
+eq "is_abs_path Unix: /x 는 절대" "$(un 'compat_is_abs_path /x && echo y || echo n')" y
+eq "is_abs_path Unix: C:/x 는 절대가 아니다(macOS 판정 그대로)" "$(un 'compat_is_abs_path C:/x && echo y || echo n')" n
+printf '#!/bin/sh\n[ "$1" = -m ] && printf "%%s" "C:/mixed$2"\n' > "$tmp/cyg/cygpath"
+eq "native_path Win: cygpath -m 로" "$(PATH="$tmp/cyg:$PATH" COMPAT_FORCE_OS=windows run 'compat_native_path /w')" "C:/mixed/w"
+eq "native_path Unix: 그대로" "$(PATH="$tmp/cyg:$PATH" COMPAT_FORCE_OS=unix run 'compat_native_path /w')" "/w"
+eq "Win: coord_path_in_wt 가 C:\\ 꼴(백슬래시)도 같게 본다" "$(COMPAT_FORCE_OS=windows COORD_REPO="$tmp" bash -c '. "$1/lib/common.sh"; coord_path_in_wt "C:\Users\x\wt\sub" /c/Users/x/wt && echo in || echo out' _ "$here/../scripts")" in
+eq "Win: coord_path_in_wt 는 워크트리 밖을 밖으로 본다" "$(COMPAT_FORCE_OS=windows COORD_REPO="$tmp" bash -c '. "$1/lib/common.sh"; coord_path_in_wt "C:\Users\x\wt2" C:/Users/x/wt && echo in || echo out' _ "$here/../scripts")" out
+eq "Win: coord_path_in_wt 는 메인 체크아웃 안의 .claude/worktrees 를 뺀다(repo 가 C:/ 꼴이어도)" "$(COMPAT_FORCE_OS=windows COORD_REPO="C:/Users/x/main" bash -c '. "$1/lib/common.sh"; coord_path_in_wt /c/Users/x/main/.claude/worktrees/a C:\\Users\\x\\main && echo in || echo out' _ "$here/../scripts")" out
+eq "Win: coord_wt_abs 는 C:/x 를 절대 경로로 둔다" "$(COMPAT_FORCE_OS=windows COORD_REPO="$tmp" bash -c '. "$1/lib/common.sh"; coord_wt_abs C:/w/r' _ "$here/../scripts")" "C:/w/r"
+printf '#!/bin/sh\nprintf "[%%s]" "${MSYS2_ARG_CONV_EXCL:-}"\n' > "$tmp/cyg/orca"; chmod +x "$tmp/cyg/orca"
+eq "Win: orca 호출에는 MSYS2_ARG_CONV_EXCL=* 가 붙는다" "$(PATH="$tmp/cyg:$PATH" COMPAT_FORCE_OS=windows run 'orca terminal send --text /compact')" "[*]"
+eq "Unix: orca 는 함수가 아니고 변환 변수도 없다" "$(PATH="$tmp/cyg:$PATH" COMPAT_FORCE_OS=unix run '[ "$(type -t orca)" = function ] && echo func; orca x')" "[]"
+eq "Win: orca 래퍼가 MSYS2_ARG_CONV_EXCL 을 이 셸에 남기지 않는다" "$(PATH="$tmp/cyg:$PATH" COMPAT_FORCE_OS=windows run 'orca x >/dev/null; echo "[${MSYS2_ARG_CONV_EXCL:-}]"')" "[]"
+
+# ---- load 관측 불가 → '-'·QUIET unknown (C1) -----------------------------------------------------------------------
+mkdir -p "$tmp/nosys"; printf '#!/bin/sh\nexit 1\n' > "$tmp/nosys/sysctl"; chmod +x "$tmp/nosys/sysctl"
+SDIR="$(cd "$here/../scripts" && pwd)"
+if [ ! -r /proc/loadavg ]; then   # /proc/loadavg 가 있는 OS(리눅스)에서는 load 를 얻을 수 있어 이 시험을 건너뛴다
+  q="$(cd "$here" && PATH="$tmp/nosys:$PATH" bash "$SDIR/measure-window.sh" quiet-check 2>/dev/null)"
+  case "$q" in "QUIET unknown run="*" per_core=- procs="*) chk ok "quiet-check: load 를 못 얻으면 QUIET unknown·per_core=-" ;; *) chk fail "quiet-check: load 를 못 얻으면 QUIET unknown" "[$q]" ;; esac
+else echo "ok   quiet-check unknown 시험은 /proc/loadavg 가 있는 OS 라 건너뜀"; pass=$((pass+1)); fi
 
 echo "통과 $pass · 실패 $fail"
 [ "$fail" = 0 ]

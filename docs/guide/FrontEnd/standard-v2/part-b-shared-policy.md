@@ -180,6 +180,112 @@ import { ColorSchemeScript, DmesUiProvider, dmesTheme } from "@dk-oasis/shared/u
 - MUST NOT: 우측 폼 폭만 조절하는 기존 `ResizableFormPanel` 을 신규 화면에 쓰지 않는다 — 위 방식(`ContentBody resizable`)을 쓴다.
 - 구현: `src/frontend/shared/src/layout/{ContentBody,ContentPanel,split-sizing}.{tsx,ts}`. 적용 예시: `src/frontend/m-mdm/pages/dma/columnMng/page.tsx`.
 
+### 4-4. 조회 칸 사용자 기본값 (`SearchArea`·`SearchField`)
+
+사용자가 조회 칸마다 기본값 규칙을 직접 정하고, 화면을 열면 규칙으로 계산한 값이 칸에 들어가는 기능이다(설계 `docs/superpowers/specs/2026-10-07-search-defaults-design.md`). 새 화면은 아래 선언만 따르면 기능이 켜지고, 기본값을 넣고 비우는 코드는 화면에 쓰지 않는다.
+
+**개요**
+
+- 규칙 종류는 「사용 안 함」·「고정 값」·「상대 날짜」(날짜 칸만, 예: 당월 1일·전일)·「마지막 조회값」이다. 기간(From~To)은 한 줄에서 두 칸을 함께 정한다.
+- 설정은 조회 영역 오른쪽 위(조건 칸 뒤)의 「조회 기본값」 설정 아이콘에서 연다. 등록된 칸이 하나도 없거나 `defaults={false}` 이면 아이콘이 나오지 않는다.
+- 규칙은 서버(사용자별)에 저장되어 PC 를 옮겨도 유지된다. 「마지막 조회값」 은 그 PC 의 localStorage 에 저장되며, 사용자가 [조회] 버튼이나 Enter 로 실제 조회한 순간의 값만 남긴다(자동 조회는 남기지 않는다).
+- 값은 화면을 마운트할 때 한 번 들어간다. 탭을 전환해 돌아오는 것은 마운트가 아니므로 다시 넣지 않고, 브라우저를 새로 고치면 다시 들어간다.
+- 우선순위는 「분리 창이 이어받은 값(carry) > 화면의 명시 동작(handoff 등) > 사용자 기본값 > 코드 기본값」이다. 분리 창이 이어받은 값으로 시작했으면 기본값을 넣지 않는다.
+- 초기화 버튼(`id: "btn_reset"`, 필요하면 `PageButton.resetsSearch`)을 누르면 코드 기본값 위에 사용자 기본값이 다시 들어간다. 「마지막 조회값」 규칙인 칸은 코드 기본값으로 돌아간다. 이 버튼의 `onClick` 은 조회 조건을 동기로 비워야 한다.
+- 대화 상자(`role="dialog"`) 안의 `SearchArea` 는 기본값 기능 전체를 끈다(아이콘도 없고 값도 넣지 않는다).
+
+**키 규칙**
+
+저장 키는 `(사용자, pageId, 칸 키)` 이고, 칸 키는 다음 순서로 정해진다.
+
+| 대상 | 칸 키 |
+|---|---|
+| 일반 칸 | `defaultKey ?? name`. 둘 다 없으면 그 칸은 기본값 대상이 아니다. `label` 은 키로 쓰지 않는다. |
+| 기간의 To 칸(`label="~"` 로 앞 칸과 묶인 칸) | 자기 키가 없으면 `{From 칸의 키}~to` |
+| 한 화면에 `SearchArea` 가 둘 이상일 때 두 번째부터 `defaultsScope="이름"` 을 준 영역 | `{defaultsScope}.{칸 키}` |
+
+- MUST: 기본값 대상으로 삼을 조회 칸에는 `name` 또는 `defaultKey` 를 단다. MDM 툴팁 없이 기본값만 켜려면 `name` 대신 `defaultKey` 를 쓴다(`name` 을 새로 달면 MDM 툴팁 동작이 바뀐다).
+- MUST: 한 화면에 `SearchArea` 가 둘 이상이면 두 번째부터 `defaultsScope` 를 준다. 주지 않으면 같은 `name` 의 칸끼리 저장 키가 겹친다.
+- 한 `SearchArea` 안에서 같은 칸 키가 두 번 등록되면 개발 모드에서 경고하고 나중 칸을 대상에서 뺀다.
+
+**칸 선언**
+
+| prop | 설명 |
+|---|---|
+| `SearchField type` | `"text" \| "select" \| "radio" \| "date"`. `"date"` 는 shared `DatePicker` 를 그린다. |
+| `SearchField defaultKey` | 기본값 저장 키. 없으면 `name` 을 쓴다. |
+| `SearchField defaultable` | `false` 면 이 칸은 기본값 대상이 아니다(설정 창에 나오지 않고 값도 넣지 않는다). 기본 `true`. |
+| `SearchField dependsOn` | 기준 칸의 키. 기준 칸 값이 바뀌면 이 칸을 비우고 기본값으로 다시 채운다. |
+| `SearchArea autoSearch` | 화면을 열 때 기본값을 넣은 다음 커밋에서 `onSearch` 를 한 번 부른다. |
+| `SearchArea defaults` | `false` 면 이 영역 전체가 기본값을 쓰지 않는다. 기본 `true`. |
+| `SearchArea defaultsScope` | 한 화면의 둘째 이후 영역에 주는 저장 키 접두. |
+
+- `children` 으로 칸을 직접 그리는 경우에는 `SearchField` 에도 같은 `value`·`onChange` 를 주어야 기본값 대상이 된다. 그리기는 `children` 이 그대로 맡고, `type`·`options` 는 값 종류를 알려 주는 용도로만 쓰인다. `value`·`onChange` 를 주지 않은 `children` 칸(`IdPicker`, 돋보기 버튼, `Checkbox` 등)은 대상이 아니며 지금 동작 그대로다.
+- 날짜 칸은 `type="date"` 내장 입력을 쓰고, 기간은 `type="date"` 두 칸을 `label="~"` 짝으로 쓴다. 두 칸이 한 칸(`search-field-pair`)으로 묶이고 기간 키가 자동으로 정해진다.
+- 끄는 방법: 화면 전체는 `<SearchArea defaults={false}>`, 칸 하나는 `<SearchField defaultable={false}>`.
+- 마운트 때 자동 조회하는 화면은 마운트 effect 를 두지 않고 `<SearchArea autoSearch>` 로만 선언한다. effect 로 조회하면 기본값이 빠진 조건으로 조회되어 칸 값과 목록이 어긋난다. 분리 창이 이어받은 값으로 시작한 경우에는 `autoSearch` 가 부르지 않는다. 이어받기를 쓰는 화면은 `useCarryRefetch` 대신 「복원됐는데 행이 비었을 때만 조회하는 마운트 effect」(`if (restored && rows.length === 0) void handleSearch()`)를 둔다 — 분리 순간 조회가 진행 중이라 행이 빈 채 넘어와도 빈 그리드로 남지 않게 한다(use-carry-state 규칙 5, 예: `commUserMng`).
+
+```tsx
+<SearchArea onSearch={handleSearch} autoSearch>
+  <SearchField label="품번" name="itemCd" value={f.itemCd}
+    onChange={(v) => setFilters((p) => ({ ...p, itemCd: v }))} />
+  <SearchField label="상태" name="status" type="select" options={STATUS_OPTIONS} value={f.status}
+    onChange={(v) => setFilters((p) => ({ ...p, status: v }))} />
+  {/* 기간: type="date" 두 칸을 label="~" 로 짝짓는다. To 칸의 키는 `fromDt~to` 로 자동 정해진다. */}
+  <SearchField label="조회 기간" defaultKey="fromDt" type="date" value={f.fromDt}
+    onChange={(v) => setFilters((p) => ({ ...p, fromDt: v }))} />
+  <SearchField label="~" type="date" value={f.toDt}
+    onChange={(v) => setFilters((p) => ({ ...p, toDt: v }))} />
+  {/* 직접 그리는 칸: 같은 value·onChange 를 SearchField 에도 준다. 키 없는 칸은 defaultKey. */}
+  <SearchField label="작업장" defaultKey="workCenter" value={f.workCenter}
+    onChange={(v) => setFilters((p) => ({ ...p, workCenter: v }))}>
+    <Input value={f.workCenter} onChange={(v) => setFilters((p) => ({ ...p, workCenter: v }))} />
+  </SearchField>
+</SearchArea>
+```
+
+**의존 칸 (`dependsOn`)**
+
+- 「어떤 칸이 바뀌면 다른 칸을 비우고 기본값으로 다시 채운다」 는 동작은 shared 가 맡는다. 화면은 `<SearchField dependsOn="기준 칸 키">` 로 선언만 한다.
+- 기준 칸 값이 바뀐 커밋 뒤에 `SearchArea` 가 의존 칸을 처음 등록할 때의 값(코드 기본값)으로 비우고, 그 칸의 규칙(사용 안 함·마지막 조회값·설정 값)으로 다시 채운다. 새 선택지에 없는 값은 넣지 않는다. 같은 커밋에서 화면이 직접 바꾼 의존 칸은 그대로 둔다.
+- 선택지가 기준 칸을 따라 바뀌는 칸(서버에서 받는 선택지)은 기준 칸이 바뀐 뒤 10초 안에 선택지 내용이 바뀌면 새 선택지로 다시 판정한다. 사용자가 그 칸을 고치면 그만둔다.
+- 이 칸과 기준 칸 모두 `value`·`onChange` 를 준 등록 칸이어야 한다. 기본값 기능이 꺼진 영역(`defaults={false}`·대화 상자 안)에서도 비우기는 한다.
+- 적용 예: `src/frontend/m-mdm/pages/dmd/dataItemMng/page.tsx` 는 마루 데이터 칸(`defaultKey="maruDataId"`)을 기준으로 키·이름·카테고리·닫힌 항목 칸에 `dependsOn="maruDataId"` 를 선언한다.
+
+**설정 창과 일괄 옵션**
+
+- 설정 창(제목 「조회 기본값 설정」)은 한 줄이 칸 하나이고 기간 짝은 한 줄로 묶는다. 방식은 사용 안 함 / 고정 값 / 상대 날짜(날짜 칸만) / 마지막 조회값이다.
+- 창 머리에 일괄 옵션 「이 화면 모든 칸: 사용 안 함 / 마지막 조회값」 이 있다. 이것은 입력 편의일 뿐이며, 누르면 모든 줄의 방식을 그것으로 채우고 저장 모양(칸별 규칙 행)은 칸마다 정한 경우와 같다. 고정 값·상대 날짜는 칸마다 직접 고른다.
+- 설정 창·메뉴(`SearchSettings`)는 `SearchArea` 의 내부 부품이며 화면에서 직접 쓰지 않는다.
+
+**가이드 줄 (MUST)**
+
+1. 화면은 선언만 한다. 기본값을 넣고 비우는 처리 코드(effect 로 칸 값을 채우는 코드, 값 비교로 덮어쓰는 코드)는 화면에 두지 않는다. 칸 묶기(`value`·`onChange`·`defaultKey`), 자동 조회(`autoSearch`), 의존 칸(`dependsOn`), 끄기(`defaults`·`defaultable`) 선언으로 끝낸다.
+2. 다른 칸이 바뀌면 조건을 비워야 하는 칸은 `dependsOn` 으로 선언한다. 화면 코드에서 직접 비우지 않는다.
+3. 설정 창의 일괄 옵션(이 화면 모든 칸: 사용 안 함 / 마지막 조회값)은 입력 편의일 뿐이고 저장 모양은 같다. 화면은 일괄 옵션에 대해 할 일이 없다.
+
+- MUST: 조회 칸의 `onChange` 는 함수형 갱신(`setFilters((p) => ({ ...p, k: v }))`)으로 쓴다. 여러 칸에 기본값이 한 번에 들어갈 때 `setFilters({ ...filters, k: v })` 처럼 지난 상태를 복사하면 앞 칸 값이 사라진다. 개발 모드에서는 이런 경우를 경고한다.
+- MUST: handoff(다른 화면에서 넘어온 값으로 조건을 정하는 화면, 예: `codeMng`·`dataMng`)는 handoff 중에 `<SearchArea defaults={!handoffActive}>` 로 넣기를 막는다.
+- 구현: `src/frontend/shared/src/layout/{SearchArea,SearchField}.tsx`, `src/frontend/shared/src/layout/search-defaults/`. 적용 예시: `src/frontend/m-mcm/page-components/csa/commUserMng/page.tsx`(`autoSearch`), `src/frontend/m-mdm/pages/dmd/dataItemMng/page.tsx`(`dependsOn`), 모든 칸 형식을 모은 확인용 샘플 `src/frontend/m-mcm/page-components/csa/searchDefaultsSample/page.tsx`.
+
+### 4-5. 조회 칸 기본값의 흔한 실수와 알려진 한계
+
+흔한 실수:
+
+- 마운트 effect 로 직접 조회한다. 기본값이 빠진 조건으로 조회되어 칸에는 기본값이 보이는데 목록은 코드 기본값으로 나온다. `autoSearch` 를 쓴다.
+- `children` 으로 그린 칸에 `SearchField` 의 `value`·`onChange` 를 주지 않는다. 대상에서 빠져 설정 창에 나오지 않는다.
+- `name` 도 `defaultKey` 도 없이 `label` 만 있는 칸이 기본값 대상이 되길 기대한다. `label` 은 키로 쓰지 않는다.
+- 조회 칸 `onChange` 를 `setFilters({ ...filters, k: v })` 로 쓴다. 기본값이 여러 칸에 한 번에 들어갈 때 앞 칸 값이 사라진다.
+- 한 화면에 둘째 `SearchArea` 를 두고 `defaultsScope` 를 주지 않는다. 같은 `name` 의 칸끼리 저장 키가 겹친다.
+- 다른 칸이 바뀔 때 조건을 비우는 코드를 화면에 둔다. 기본값 다시 채우기와 순서가 꼬이므로 `dependsOn` 으로 선언한다.
+
+알려진 한계:
+
+- 기간 시작이 끝보다 늦은지 보는 검사는 「오늘」 하나로만 한다. 예를 들어 「당월 1일 ~ 전일」 은 매월 1일에만 시작이 끝보다 늦어져 그날은 값을 넣지 않는다.
+- 이 PC 에 거울(브라우저 쪽 사본)이 없는 첫 진입에서 서버의 저장소 응답이 화면의 첫 조회보다 늦으면, 첫 조회는 코드 기본값으로 나가고 의존 칸만 뒤늦게 채워질 수 있다.
+- 선택지가 기준 칸을 따라 바뀌는 칸은 새 선택지가 올 때까지(화면의 선택지 요청 동안) 옛 선택지로 판정한 값이 잠깐 보인다. 그 사이 [조회] 를 누르거나 선택지 요청이 실패하면 그 값으로 조회된다.
+- 선택지를 받은 뒤 바로 조회하는 화면은 선택지를 `flushSync` 로 커밋한 뒤 조회 조건을 읽어야 한다. 다시 채운 값이 커밋돼야 조회가 그 값을 본다. 기본값 처리 코드가 아니라 커밋 순서를 보장하는 것이다(예: `dataItemMng` 의 `selectMaruData`).
+
 ---
 
 ## 5. Form `/form`

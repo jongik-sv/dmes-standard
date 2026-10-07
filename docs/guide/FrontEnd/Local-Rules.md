@@ -265,7 +265,7 @@ shared·m-mcm 의 Prettier 는 `prettier-plugin-tailwindcss` 를 쓴다. 이 플
 - 좁은 화면에서 편집기가 0 으로 찌그러지지 않게 편집 구역에 `min-height`(예: 320px)를 두고, 그보다 작으면 상세 패널이 스크롤하게 둔다.
 - `Textarea`(shared)는 `.mantine-Textarea-root`·`.mantine-Input-wrapper` 를 `flex: 1 1 0`, `textarea` 를 `height: 100%; resize: none` 으로 둔다.
 - 미리보기는 편집기 옆에 칸으로 두지 말고, 필요하면 버튼으로 여는 팝업에 둔다(편집 폭을 줄이지 않는다).
-- 예시: `m-mls/pages/lsh/noticeMgmt/notice-styles.ts` 의 `.nm-detail`·`.nm-body*`·`.nm-editor*`.
+- 예시: `m-mcm/page-components/lsh/noticeMgmt/notice-styles.ts` 의 `.nm-detail`·`.nm-body*`·`.nm-editor*`.
 
 ## 24. MDM 버전 버튼 규약 — 코드·룰 화면이 같은 이름·순서·모양을 쓴다 (2026-10-02)
 
@@ -326,8 +326,8 @@ shared `Modal` 의 `lg`·`xl` 은 최소 높이(70·80vh)만 있고 고정 높�
 
 **시험**
 
-- 화면 시험(happy-dom)은 진짜 shared(dist)에 가짜 `fetch` 를 꽂는다: `/api/{module}/mdmMeta/columns`·`domains` 응답, `apiRequest` 를 쓰는 화면이면 Node 의 `localStorage` 전역(파일 미지정이라 접근 시 예외)을 스텁하고, `PageLayout` 버튼이 필요하면 `/api/auth/me`·`myButtonEndpoints`(`{objId:"*",action:"*"}`)에 답한다. 실제 MDM 정의는 입력 제한에 먼저 걸릴 수 있으니 시험용은 더 엄격한 가짜 정의(짧은 길이·필수)를 쓴다. 예: `m-mls/tests/lsh/noticeMgmt/notice-page-mdm.test.ts`. 사용자 확인·RBAC 결과는 globalThis 세션 캐시라 같은 파일의 다음 시험까지 남는다 — 시험마다 사용자를 바꾸거나 `/api/auth/me` 호출 수를 세면 `beforeEach` 에서 `clearCurrentUserCache()`(`@dk-oasis/shared/portal-shell`)를 부른다(shared 는 `tests/setup.ts` 가 비운다).
-- 예시 화면: `m-mls/pages/lsh/noticeMgmt/`(`notice-columns.tsx` 의 `TITLE` 열 대체 header + 파생 열 `meta: false`, `page.tsx` 의 `captionPriority="mdm"` 공급자와 저장 흐름, `NoticeTitleRow.tsx`).
+- 화면 시험(happy-dom)은 진짜 shared(dist)에 가짜 `fetch` 를 꽂는다: `/api/{module}/mdmMeta/columns`·`domains` 응답, `apiRequest` 를 쓰는 화면이면 Node 의 `localStorage` 전역(파일 미지정이라 접근 시 예외)을 스텁하고, `PageLayout` 버튼이 필요하면 `/api/auth/me`·`myButtonEndpoints`(`{objId:"*",action:"*"}`)에 답한다. 실제 MDM 정의는 입력 제한에 먼저 걸릴 수 있으니 시험용은 더 엄격한 가짜 정의(짧은 길이·필수)를 쓴다. 예: `m-mcm/tests/lsh/noticeMgmt/notice-page-mdm.test.ts`. 사용자 확인·RBAC 결과는 globalThis 세션 캐시라 같은 파일의 다음 시험까지 남는다 — 시험마다 사용자를 바꾸거나 `/api/auth/me` 호출 수를 세면 `beforeEach` 에서 `clearCurrentUserCache()`(`@dk-oasis/shared/portal-shell`)를 부른다(shared 는 `tests/setup.ts` 가 비운다).
+- 예시 화면: `m-mcm/page-components/lsh/noticeMgmt/`(`notice-columns.tsx` 의 `TITLE` 열 대체 header + 파생 열 `meta: false`, `page.tsx` 의 `captionPriority="mdm"` 공급자와 저장 흐름, `NoticeTitleRow.tsx`).
 
 ## 28. 계속 늘어나는 마스터 고르기 — 콤보 대신 검색형 선택 (2026-10-03)
 

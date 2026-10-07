@@ -6,11 +6,13 @@
 #   측정·이동·금지 창(설계 §3.d). 정본 출력: references/contract.md §3.5
 #   open       : state windows 에 추가. --hold-heavy 이고 heavy.script 가 있으면 `<heavy> --detach --exclusive sleep <창 길이초>` 로
 #                공용 칸을 창 내내 붙잡고 job id 를 hold_job 에 남긴다. → `WINDOW_OPEN <kind> until=<iso> hold_job=<id|->`
-#   close      : (kind 를 주면 그 종류만) 붙잡은 job 이 있으면 그 job 의 손자(runpid)·자식(pid)을 lstart 대조 뒤 TERM 으로 끝내고,
+#   close      : (kind 를 주면 그 종류만) 붙잡은 job 이 있으면 그 job 의 손자(runpid)·자식(pid)을 lstart 대조 뒤 TERM 으로 끝내고(윈도우는 compat_kill_tree,
+#                시작 시각을 못 얻으면 건너뜀),
 #                windows 에서 빼고 이벤트. 창마다 `WINDOW_CLOSED <kind>`, 없으면 `WINDOW none`.
 #   status     : 창마다 `WINDOW <kind> lane=<레인|-> until=<iso>`, 없으면 `WINDOW none`.
 #   quiet-check: heavy snapshot RUN 수 · load1/코어 · ps 의 GradleWrapperMain·vitest·playwright(mcp 제외) 수로
-#                `QUIET yes|no run=<n> per_core=<f> procs=<n>`. yes = RUN 0·procs 0·per_core < heavy.measure_quiet.
+#                `QUIET yes|no|unknown run=<n> per_core=<f|-> procs=<n>`. yes = RUN 0·procs 0·per_core < heavy.measure_quiet.
+#                unknown = load 를 얻을 수 없는 환경(Git Bash) — per_core 는 `-`, 호출한 쪽이 판단한다.
 #                2분 유지 판정은 조정자가 두 번 불러 확인한다.
 set -uo pipefail
 . "$(dirname "$0")/lib/common.sh"
@@ -44,7 +46,17 @@ stop_job() {
     p="$(cat "$jd/${n}pid" 2>/dev/null)"; ps0="$(cat "$jd/${n}pstart" 2>/dev/null)"
     [ -n "$p" ] || continue
     cur="$(coord_pstart "$p")"
-    if [ -n "$cur" ] && [ "$cur" = "$ps0" ]; then coord_do kill -TERM "$p" && any=1
+    if [ -z "$cur" ] && [ -z "$ps0" ] && coord_pid_alive "$p"; then
+      # 시작 시각을 얻을 수 없는 환경(Git Bash): 시작 시각은 `-`(관측 불가)다. pid 재사용은 명령줄로 가린다 —
+      # 잡 본체(pid)의 명령줄에는 `__job <잡 폴더>` 가 들어 있다. 맞으면 후손(runpid 포함)까지 compat_kill_tree 로 끝낸다.
+      if [ "$COMPAT_WIN" = 1 ] && [ -z "$n" ] && compat_ps_table | awk -v p="$p" -v j="$jd" '$1 == p && index($0, "__job") && index($0, j) { f = 1 } END { exit !f }'; then
+        coord_do compat_kill_tree "$p" && any=1
+      else
+        coord_log "잡 $id 의 ${n:-job }pid $p 시작 시각 - (관측 불가) — 명령줄로 같은 잡임을 확인하지 못해 건너뜀"
+      fi
+    elif [ -n "$cur" ] && [ "$cur" = "$ps0" ]; then
+      # 윈도우는 TERM 신호가 네이티브 프로세스에 가지 않으므로 후손까지 compat_kill_tree 로 끝낸다(macOS 는 예전처럼 TERM 한 번)
+      if [ "$COMPAT_WIN" = 1 ]; then coord_do compat_kill_tree "$p" && any=1; else coord_do kill -TERM "$p" && any=1; fi
     else coord_log "잡 $id 의 ${n:-job }pid $p 는 이미 없거나 다른 프로세스다(건너뜀)"; fi
   done
   [ "$any" = 1 ] && [ "${COORD_DRY:-0}" != 1 ] && sleep 1
@@ -108,9 +120,13 @@ quiet-check)
   fi
   procs="$(compat_ps_table | awk '{ $2 = ""; print }' | grep -E 'GradleWrapperMain|vitest|playwright' | grep -viE 'mcp|grep' | awk -v me="$$" '$1 != me' | wc -l | tr -d ' ')"
   load="$(coord_load1)"; cpus="$(coord_cpus)"
-  pc="$(awk -v l="${load:-0}" -v c="${cpus:-1}" 'BEGIN { printf "%.2f", (c > 0 ? l / c : l) }')"
   q="$(coord_cfg .heavy.measure_quiet)"; q="${q:-0.5}"
-  if [ "$run" = 0 ] && [ "$procs" = 0 ] && awk -v p="$pc" -v q="$q" 'BEGIN { exit !(p < q) }'; then r=yes; else r=no; fi
+  if [ -z "$load" ]; then
+    pc="-"; r=unknown   # load 를 못 얻는 환경(Git Bash): 0 으로 읽어 `QUIET yes` 를 내지 않는다 — 호출한 쪽이 사람 판단으로 넘긴다
+  else
+    pc="$(awk -v l="$load" -v c="${cpus:-1}" 'BEGIN { printf "%.2f", (c > 0 ? l / c : l) }')"
+    if [ "$run" = 0 ] && [ "$procs" = 0 ] && awk -v p="$pc" -v q="$q" 'BEGIN { exit !(p < q) }'; then r=yes; else r=no; fi
+  fi
   echo "QUIET $r run=$run per_core=$pc procs=$procs" ;;
 
 *) coord_die 2 "사용법: measure-window.sh open|close|status|quiet-check …" ;;

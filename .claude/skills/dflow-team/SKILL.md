@@ -7,6 +7,8 @@ description: D'Flow 에서 내게 배정되고 에이전트 위임(tags:agent)�
 
 인자: `$ARGUMENTS`
 
+> 윈도우: 아래 `jq` 예시를 Bash 로 직접 칠 때는 같은 호출 맨 앞에 `export PATH="$PWD/.claude/skills/_shared/bin:$PATH";` 를 붙인다(`_shared/platform-support.md` 「문서 속 인라인 jq」).
+
 > **컨텍스트 압축 뒤에는 Skill 도구로 `/dflow-team` 을 다시 부르지 않는다**(스킬 전체가 다시 실린다). 「팀장 상태」
 > 의 「압축 뒤 첫 기상」 대로 재독 세트만 Bash `sed` 로 읽는다. 재독 명령은 매 기상 `wake.sh` 출력의 `COMPACT_REREAD` 줄에 있다.
 

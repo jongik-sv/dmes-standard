@@ -27,6 +27,8 @@
 #   phase-build.md 「되돌리기」) 사본을 지운다. 중단(INT·TERM)·오류에도 되돌린다.
 #   결과: `MUTATION_RESULT <ID> caught|survived|busy rc=<rc> sec=<초> e2e=<yes|no> log=<경로>`
 #     caught = test 가 0 이 아닌 코드로 끝남(빨강), survived = 0(변이가 안 잡힘), busy = 75(HEAVY_BUSY 등 — 판정 아님).
+# 줄끝(CRLF): 표지 줄은 \n 도 \r\n 도 받는다. 대상 소스에 \r\n 이 있으면 원문·치환문의 줄바꿈도 \r\n 으로, 없으면 \n 으로 맞춰
+#   찾고 치환한다(맞춘 원문이 없을 때만 적힌 그대로도 한 번 본다). 되돌리기는 바이트 사본이라 줄끝이 그대로 돌아온다.
 # 윈도우(Git Bash) 한계: MSYS `kill -TERM` 이 node.exe 를 강제 종료하면 신호 핸들러가 돌지 못한다 — 사본은 남지만 다음 실행이 시작할 때
 #   「지난 실행의 사본 되돌리기」 로 복구한다(MUTATION_RESTORED·MUTATION_RERUN_NEEDED).
 # 마지막 줄: `MUTATION_SUMMARY total=<n> caught=<c> survived=<s> anchor=<a> busy=<b>` (stdout).

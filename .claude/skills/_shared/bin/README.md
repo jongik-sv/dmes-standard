@@ -30,7 +30,7 @@
 
 ## 알려진 한계
 
-- 스크립트 안에서만 PATH 가 바뀐다. 스킬 문서에 적힌 인라인 `… | jq …` 예시(`dflow-team/SKILL.md`, `dflow-merge/SKILL.md`, `dflow-team/references/restart.md`·`backends.md` 등 약 30곳)를 에이전트가 Bash 도구로 직접 실행하면 윈도우에서는 jq 를 찾지 못한다. 후속 작업으로 문서의 인라인 호출을 래퍼 경로(`bash <_shared>/bin/jq`)로 바꾸거나 세션 시작 때 PATH 에 넣는다.
+- 해결됨: 각 문서 앞의 PATH 안내(`platform-support.md` 「문서 속 인라인 jq」). 스크립트 안에서만 PATH 가 바뀌므로, 스킬 문서에 적힌 인라인 `… | jq …` 예시(`dflow-team/SKILL.md`, `dflow-merge/SKILL.md`, `dflow-team/references/restart.md`·`backends.md` 등 약 30곳)를 에이전트가 Bash 도구로 직접 칠 때는 **호출마다** 같은 호출 맨 앞에 `export PATH="$PWD/.claude/skills/_shared/bin:$PATH";` 를 붙여야 한다(Bash 도구는 호출 사이에 셸 환경을 유지하지 않는다). macOS·리눅스는 필요 없다. `coordinator/` 문서의 인라인 예시는 별도 레인이 정리한다.
 - 이 폴더(`_shared`)를 빼고 `dflow-*` 폴더만 다른 저장소에 심링크하거나 복사하면 머리말이 `_shared/bin` 을 찾지 못해 조용히 꺼진다. `_shared` 를 함께 배포한다(머리말은 `cd -P` 로 실제 경로 기준 `../../_shared` 를 찾는다).
 - jq 1.7.1 에는 1.8.0 에서 고쳐진 CVE 3건(CVE-2024-23337, CVE-2024-53427, CVE-2025-48060)이 남아 있다. D'Flow 서버 응답도 jq 로 파싱하므로, 기존 필터 시험으로 회귀를 확인한 뒤 macOS 와 함께 1.8.x 로 올리는 것을 후속으로 둔다(윈도우만 올리면 두 환경의 동작이 달라진다).
 
