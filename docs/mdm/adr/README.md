@@ -12,12 +12,12 @@
 - **위치**: adr-write 스킬의 기본 위치는 `docs/{module}/design/adr/` 이지만, mdm 은 `docs/mdm/adr/` 에 둔다.
   `docs/mdm/design` 은 외부 mdm 프로젝트로 가는 로컬 링크이고 `.gitignore` 로 통째 무시되므로, 그 안에 둔 ADR 은
   저장소에 커밋되지 않는다. `docs/guide/adr/`(모듈 횡단용)과 같은 평평한 구조다.
-- **발행 도구**: `adr_tool.py` 는 ADR 경로를 `docs/{module}/design/adr` 로 고정한다. 그래서 `new`·`status`·`index`
+- **발행 도구**: `adr_tool.mjs` 는 ADR 경로를 `docs/{module}/design/adr` 로 고정한다. 그래서 `new`·`status`·`index`
   를 `--module mdm` 으로 실행하면 커밋되지 않는 외부 링크 자리에 파일이 생긴다. mdm ADR 은 스킬 §4 의 절 구조를
   손으로 만들고, 채번은 이 폴더의 파일 목록으로 손으로 한다. 검사는 파일 경로를 지정한 lint 로만 한다.
 
   ```bash
-  python3 .claude/skills/adr-write/scripts/adr_tool.py lint docs/mdm/adr/NNNN-{slug}.md
+  node .claude/skills/adr-write/scripts/adr_tool.mjs lint docs/mdm/adr/NNNN-{slug}.md
   ```
 
 - 인덱스 정합(`index`)도 도구가 이 경로를 보지 못하므로, 파일을 추가할 때 아래 표를 손으로 맞춘다.

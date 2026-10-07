@@ -47,7 +47,7 @@ Spring Boot 의 `spring.flyway.locations=classpath:db/migration/{vendor}` 자리
 ## 2. 채번
 
 ```bash
-python3 .claude/skills/flyway-migration-add/scripts/migration_tool.py status --module aps-core
+node .claude/skills/flyway-migration-add/scripts/migration_tool.mjs status --module aps-core
 ```
 
 `--module` 은 `src/backend/{모듈}/…/db/migration` 또는 `src/backend/{모듈}/api/…/db/migration` 을
@@ -64,7 +64,7 @@ oracle 의 방언 보정이 쓰고 있을 수 있다. `status` 가 이 충돌을
 모든 방언 공통 변경 (대부분의 경우):
 
 ```bash
-python3 .../migration_tool.py scaffold --module aps-core --slug add_foo_column --title "foo 컬럼 추가"
+node .../migration_tool.mjs scaffold --module aps-core --slug add_foo_column --title "foo 컬럼 추가"
 ```
 
 방언 폴더가 있으면 그 전부에, 없으면 공통 폴더에 같은 번호로 만든다. 공통 폴더와 방언 폴더가
@@ -77,8 +77,8 @@ python3 .../migration_tool.py scaffold --module aps-core --slug add_foo_column -
 일부 방언에만 필요한 보정:
 
 ```bash
-python3 .../migration_tool.py scaffold --module aps-core --slug fk_parity --dialect oracle
-python3 .../migration_tool.py scaffold --module aps-core --slug seq_fix --dialect oracle,postgresql
+node .../migration_tool.mjs scaffold --module aps-core --slug fk_parity --dialect oracle
+node .../migration_tool.mjs scaffold --module aps-core --slug seq_fix --dialect oracle,postgresql
 ```
 
 `--dialect` 에서 빠진 방언의 번호는 **결번으로 남긴다.** 채우기 위한 no-op 파일을 만들지 않는다.
@@ -140,8 +140,12 @@ PRAGMA(비트랜잭션)와 DDL 을 한 파일에 섞기 때문이다.
 ## 8. 도구 자체 검증
 
 ```bash
-python3 .claude/skills/flyway-migration-add/scripts/selftest.py
+node .claude/skills/flyway-migration-add/scripts/selftest.mjs
 ```
 
 채번 로직을 고쳤으면 반드시 다시 돌린다. 임시 픽스처에 oracle·postgresql·sqlite 3 방언의 비대칭을 심어
 합집합 채번이 실제로 충돌을 피하는지 확인한다.
+
+도구는 node 18.17 이상만 있으면 윈도우·macOS 어디서든 돈다(python 불필요). 생성 파일의 줄끝은 항상 LF 다.
+python 원본과의 동등성은 python 이 있는 PC 에서 `node --test .claude/skills/flyway-migration-add/tests/` 로 확인한다
+(`tests/golden/legacy/` 의 동결 사본과 같은 입력으로 비교하고, python 이 없으면 건너뛴다).
