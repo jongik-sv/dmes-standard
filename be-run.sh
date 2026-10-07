@@ -36,6 +36,7 @@
 #   BE_JAVA_XMX(768m)·BE_JAVA_XSS(512k)·BE_JAVA_CODECACHE(40m)  기본값만 바꾼다
 #   BE_JAVA_OPTS="-Xmx1g"        모든 모듈에 덧붙인다(뒤에 오는 옵션이 이긴다 — 위 기본값도 덮는다)
 #   BE_JAVA_OPTS_MDM="-Xmx1g"    모듈 하나에만 덧붙인다(BE_JAVA_OPTS_<모듈 대문자>)
+#   BE_MCM_BIG_POOL=1|0          mcm 연결 풀 8·minIdle 2·idle 60s 강제 켜기·끄기(기본: --pdb=L_MAIN 일 때만 켬, 값은 BE_MCM_POOL_MAX 등)
 #   엑셀 내보내기처럼 큰 요청이 OOM 이면 그 모듈의 -Xmx 를 올린다. 실측 힙은 모듈당 66~141MB 였다.
 #   KURE 임베딩 인코더를 다시 켜면(application-local.yml.kure-on) mdm 은 힙 밖(ONNX 네이티브)이 약 1GB 더 든다.
 #   -Xmx 로는 막을 수 없으니 그만큼 메모리 여유가 있을 때만 켠다.
@@ -231,6 +232,36 @@ if [ -n "${BE_ORA_PDB:-}" ]; then
   export DMES_ORA_PDB DMES_ORA_HOST DMES_ORA_PORT DMES_ORA_URL
   dev_log_print "be" "Oracle PDB 접속값 전달: $DMES_ORA_URL"
 fi
+
+# ── 메인 서버 mcm 연결 풀 ────────────────────────────────────────
+# 메인 로컬 서버(전용 PDB L_MAIN)의 mcm 은 여러 사용자가 한꺼번에 쓰므로 연결 풀을 크게 띄운다. 값은 mcm 프로세스에만 넘기고
+# (다른 모듈에는 넘기지 않는다), 레인·시험·E2E 는 yml 기본값(3)을 그대로 써서 연결 중복 점유 결함을 계속 잡는다.
+#   적용 조건  DMES_ORA_PDB 가 L_MAIN 이거나 BE_MCM_BIG_POOL=1. BE_MCM_BIG_POOL=0 이면 L_MAIN 이어도 쓰지 않는다.
+#   값 바꾸기  BE_MCM_POOL_MAX(기본 8)·BE_MCM_POOL_MIN_IDLE(기본 2)·BE_MCM_POOL_IDLE_TIMEOUT(ms, 기본 60000)
+# mcm JpaConfig 가 minimumIdle·idleTimeout 을 읽기 전에는 최대치만 먹는다(오류는 아니다).
+be_mcm_big_pool_on() {
+  case "${BE_MCM_BIG_POOL:-}" in
+    0) return 1 ;;
+    1) return 0 ;;
+  esac
+  [ "${DMES_ORA_PDB:-}" = "L_MAIN" ]
+}
+
+be_mcm_pool_export() {
+  BE_MCM_POOL_SET=0
+  [ "$1" = "mcm" ] && be_mcm_big_pool_on || return 0
+  BE_MCM_POOL_SET=1
+  export SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE="${BE_MCM_POOL_MAX:-8}"
+  export SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE="${BE_MCM_POOL_MIN_IDLE:-2}"
+  export SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT="${BE_MCM_POOL_IDLE_TIMEOUT:-60000}"
+  dev_log_print "be" "be-mcm 연결 풀: max=$SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE minIdle=$SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE idleTimeout=${SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT}ms"
+}
+
+be_mcm_pool_unset() {
+  [ "${BE_MCM_POOL_SET:-0}" = "1" ] || return 0
+  BE_MCM_POOL_SET=0
+  unset SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT
+}
 
 # ── 선빌드 ───────────────────────────────────────────────────
 # 모듈마다 따로 bootRun 을 띄우면 Gradle 프로세스 여러 개가 공유 includeBuild(cactus-core·mcm-core·
@@ -897,12 +928,14 @@ be_start_module() {
 }
 
 for m in "${SELECTED_MODULES[@]}"; do
+  be_mcm_pool_export "$m"
   if be_legacy_mode; then
     run_with_prefix "be-$m" "$BACKEND_DIR/$m" \
       "$(be_module_gradlew "$m")" :api:bootRun --args="$(be_module_boot_args "$m")" --console=plain
   else
     be_start_module "$m"
   fi
+  be_mcm_pool_unset
 done
 
 if [ "${#PIDS[@]}" -eq 0 ]; then

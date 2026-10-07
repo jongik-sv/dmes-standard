@@ -94,6 +94,8 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 
 기동 로그에서 `Oracle PDB 접속값 전달: jdbc:oracle:thin:@//localhost:1521/L_MAIN` 과 Flyway 「적용할 마이그레이션 없음」(스키마별)을 확인한다. mcm 은 매 기동에 `admin` 비밀번호를 `admin123` 으로 재설정한다(`CoreRbacSeeder`). 시각은 모두 KST 이고 `be-run.sh` 가 `-Duser.timezone=Asia/Seoul` 을 준다.
 
+**메인 서버 mcm 연결 풀(사용자 결정)**: `--pdb=L_MAIN` 으로 띄우면 `be-run.sh`·`be-run.ps1` 이 mcm 프로세스에만 `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=8`·`MINIMUM_IDLE=2`·`IDLE_TIMEOUT=60000` 을 넘기고 로그에 `be-mcm 연결 풀: max=8 minIdle=2 idleTimeout=60000ms` 를 남긴다. mdm·mls 와 레인·시험·E2E 는 yml 기본값 3 그대로다. 레인·시험에서 일부러 3 으로 두는 이유는 한 요청이 연결을 겹쳐 잡는 결함(위젯 조회 풀 교착 같은 것)이 풀이 작아야 드러나기 때문이다. 메인 서버만 여러 사용자가 동시에 쓰므로 크게 둔다. 적용 조건은 `DMES_ORA_PDB=L_MAIN` 이거나 `BE_MCM_BIG_POOL=1` 이다(`BE_MCM_BIG_POOL=0` 이면 `L_MAIN` 이어도 끈다). 값은 `BE_MCM_POOL_MAX`·`BE_MCM_POOL_MIN_IDLE`·`BE_MCM_POOL_IDLE_TIMEOUT` 으로 바꾼다. mcm `JpaConfig` 가 `minimumIdle`·`idleTimeout` 을 읽기 전(ora-mcm-core ③d 전)에는 최대치만 먹는다(오류는 아니다). 기동 로그의 풀 줄과 HikariCP 의 `maximumPoolSize` 로그로 반영을 확인한다.
+
 ## 6. 롤백(데이터 재적재)
 
 코드에 SQLite 로 되돌리는 경로가 없으므로 「이전 커밋 체크아웃」이 아니라 **PDB 를 지우고 다시 만들어 `.db` 에서 다시 적재**한다. 원본 `.db` 는 그대로이고 §2 에서 백업해 두었다.
