@@ -355,3 +355,6 @@ python3 tools/oracle-free/sqlite_to_oracle.py --sqlite /tmp/ora-mig/mdm.db --sch
      | VM 의심 | available 150MB 미만, load 10 이상, ORA-04031·04030·00020·00018·12516·12519·12520·3136·609·12751·00800·01092·00822, JDBC 접속·읽기 시간 초과 | 재실행하지 않고 조정자에게 「VM 의심」 으로 보고 |
      | 코드 | ORA-00942·00904·00001·01400·12899·00933 같은 SQL·제약 오류 | 평소대로 레인이 고침 |
    - 경고 로그에 `Time drifted`·ORA-3136·ORA-609·ORA-12751·ORA-00800 이 쌓였으면 그 시각은 스래싱 구간입니다. 같은 표는 `scripts/oracle/README.md` 「Oracle 오류 판별」 에도 있습니다.
+9. **JPQL 에서 CLOB 칸에 `UPPER`·`LOWER`·`LIKE` 를 쓸 때 `FunctionArgumentException`:**
+   - Hibernate 7.2.12 + Oracle 26ai 에서 `@Lob`(CLOB) 칸에 JPQL 문자열 함수·`LIKE` 를 쓰면 이 예외가 납니다(ora-mdm 실측).
+   - 해결: 그 조회를 네이티브 SQL 로 바꾸거나(CLOB 은 `DBMS_LOB`·`TO_CHAR` 로 다룸), 값이 4000바이트를 넘지 않는 칸이면 `VARCHAR2(4000 CHAR)` 로 둡니다. 정본은 `docs/oracle-1007/schema-owners.md` §3.1.1 입니다.

@@ -72,6 +72,13 @@ spring.jpa.properties.hibernate.type.preferred_instant_jdbc_type: TIMESTAMP # In
 
 - `preferred_boolean_jdbc_type=TINYINT`: 운영 Oracle 이 23 미만일 수 있어 기준선의 boolean 칸은 `NUMBER(1,0)` + `CHECK (0,1)` 로 둔다. Spring Boot 4.0.6 이 관리하는 Hibernate 7.2.12 의 `OracleDialect` 는 Oracle 전용 legacy boolean 설정이 없어, 이 값이 없으면 23 이상에서 `BOOLEAN` 을 기대해 validate 가 실패한다(b0 에서 `TB_MDM_COLUMN.REQUIRED` 로 확인). 처음에는 `BIT` 로 정했으나 철회했다. 23 이상에서 `BIT` 는 boolean 으로 매핑돼 `NUMBER(1)` 칸 validate 가 실패한다(ora-mcm-core 실측, Hibernate 7.2.12·DB 23 계열). `TINYINT`(·`SMALLINT`·`INTEGER`·`NUMERIC`)는 오류가 0 이라 **23 미만·이상 모두 통하는 값**이다. 이 설정은 ora-mdm·ora-mcm-core 가 각 앱에서 validate 로 확인한다.
 
+#### 확인된 동작과 주의(ora-mdm m3 실측, Hibernate 7.2.12·Oracle 26ai)
+
+- `ddl-auto=validate` 로 mdm 엔티티 전체와 `V1` 이 맞았다(위 `TINYINT`·`TIMESTAMP` 규약 그대로).
+- 세션 `NLS_SORT`·`NLS_COMP` 가 `BINARY` 라 `connection-init-sql` 로 따로 맞출 필요가 없다.
+- CLOB 4000바이트 초과 네이티브 UPDATE, boolean 왕복, `INSERT … SELECT … FROM DUAL UNION ALL` 은 통과했다.
+- **주의: JPQL 에서 `@Lob`(CLOB) 칸에 `UPPER`·`LOWER`·`LIKE` 를 쓰면 `FunctionArgumentException` 이 난다.** 해결은 네이티브 SQL 로 바꾸거나 칸을 `VARCHAR2` 로 두는 것이다(길이가 4000바이트를 넘지 않는 칸이면 `VARCHAR2(4000 CHAR)`). CLOB 칸에 대한 검색 조건을 새로 쓸 때 먼저 확인한다.
+
 ### 3.2 운용 규칙(Podman VM 3GB 기준, 사용자 결정)
 
 Podman VM 은 처음 2GB 로 시작했으나 10-07 에 세 번 스래싱해 **3GB(cpus 2)로 올렸다**(사용자 결정). 설정값은 SGA 900M·PGA 목표 400M·`pga_aggregate_limit` 2G 이다(`oracle-26ai-test-guide.md` §8-5). b0 실측(2GB)에서 **동시에 열린 PDB 가 4개가 되자 인스턴스가 종료**됐다(`docs/oracle-1007/spike.md` §0). 3GB 에서도 아래를 지킨다.
