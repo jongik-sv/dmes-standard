@@ -5,7 +5,8 @@
 
 ## 지금 상태 (2026-10-07 19시 무렵, compact 전 정본)
 
-- **진도율 40%(m1·m2 완료, 2/5).** HEAD = e8181f72e. 작업 트리 깨끗함, 백그라운드·agent 0, Oracle 접속 0.
+- **진도율 45%(m1·m2·길이 검사 완료).** 길이 검사 89685b58a. 다음은 m3(아래 「남은 순서」 2).
+- (compact 전 기록) HEAD = e8181f72e. 작업 트리 깨끗함, 백그라운드·agent 0, Oracle 접속 0.
 - m2: 구현(opus/high) → 리뷰(opus/high, 중간 3·낮음 5) → 지적 수정 커밋 e8181f72e. main 컴파일 rc=0. 리뷰에서 ClassCastException 위험은 clean(네이티브 숫자는 모두 `(Number)`, 일시는 `fromDb`, CLOB 은 `MdmStrings.text`).
 - **다음 단계(재개 즉시):**
   1. Oracle 작업 전에 dev(머지①b `fb253556d` 이상: 하니스 PC 잠금·pdb.mjs 자식 정리·sqlplus 시간 상한·JVM Asia/Seoul)를 이 브랜치에 합친다.
@@ -103,7 +104,7 @@
 
 ## 남은 순서
 
-1. dev(`fb253556d` 이상) 합치기 → 길이 검사 커밋(구현 → 리뷰 → 수정).
+1. (완료) dev `fb253556d` 합침(e279b4323, mdm 변경 없음) → 길이 검사 89685b58a(구현 sonnet/high ×2 → 리뷰 opus/high 8건 → 수정 → 재리뷰 clean, main 컴파일 rc=0). 남긴 것: 확정 보고서 1행 화면 제목 `src/frontend/m-mdm/pages/dmc/codeConfirm/checks.ts:22`("코드값에 콤마·공백이 없다")이 길이 이슈를 포함하지 않는다(레인 소유 밖, 조정자에 알림). 룰 서비스·HeaderMng·ColumnMng 길이 시험은 m3(통합 시험 하니스) 뒤에 더한다.
 2. m3 시험 하니스 전환: 깨진 시험 컴파일 9파일·SQLite 문자열 49파일을 `-Pdmes.ora.test=clone` 하니스로. `*MigrationTest` 약 15개는 Oracle 기준선 검증 하나로 대체(파일은 archive, 삭제는 사용자 승인 대기). 위 「m3 에서 실측할 것」 6가지.
 3. m4 E2E 지원 전환(`e2e/support/mdm-e2e.ts`·`fixtures/mdm-*.sql`·`e2e/mdm-user/**`·`scripts/perf/mdm-backend/**` 를 node-oracledb thin 으로, 샘플 적재 전제 교체).
 4. m5 mdm 전체 시험(heavy.sh, 약 2,734개)·mdm E2E 통과, 시험 시간 비교 `docs/oracle-1007/perf-ora-mdm.md`(반복 측정), 머지 직전 dev 최신 합치고 `gen_oracle_baseline.py` 재생성·`--check` 대조(notice-fill2 의 새 SQLite 마이그레이션 반영) → 머지 요청(머지②, b5 뒤. 머지③ 과 같은 창 필수 아님).
