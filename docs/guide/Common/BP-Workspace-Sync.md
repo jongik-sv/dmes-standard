@@ -6,6 +6,8 @@ BP의 `{CLIENT} (케이에스엠)` 워크스페이스 전체 문서를 로컬 wo
 
 ## 요구 버전
 
+`tools/bp-sync` 는 python 3 스크립트이므로 python 3 가 필요하다. 윈도우 사용자는 python 3 를 설치해서 쓴다. 정기 실행기 `tools/bp-sync-schedule` 은 macOS launchd 전용이라 윈도우에서는 쓰지 않는다.
+
 `bp sync` 는 bp CLI `0.4.0` 이상에서 동작하지만, 래퍼가 쓰는 throttle 대응 옵션(`--delay`/`--retries`)과 401/429 재시도는 **`0.4.1` 이상**에서만 제공된다. 따라서 최소 요구 버전은 **`0.4.1`** 이다. 구버전이면 `./tools/bp-sync` 가 실행을 거부하고 안내 메시지를 출력한다. 최신 버전으로 업데이트한다.
 
 ```bash
