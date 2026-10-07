@@ -64,6 +64,14 @@ env 는 process.env 위에 덮어씀; CRLF 는 그대로 두고 `normalizeEol:tr
 python 은 `PYTHONDONTWRITEBYTECODE=1`·`PYTHONUTF8=1` 로 실행해 `__pycache__` 를 남기지 않는다. python 이 없으면 `{skipped:true, reason, ok:null}`. `formatDiffs(result)` 는 첫 차이 위치를 포함한 문자열.
 `goldenTest(name, spec, opts)` 는 `node:test` 용으로, 스킵 시 `t.skip(reason)`, 차이가 있으면 실패한다.
 
+**pyrepr.mjs** — `pyReprStr(s)`(python `repr(str)`: 작은따옴표 기본, `'` 만 있으면 큰따옴표, 제어·비출력 문자는 `\xNN`·`\uNNNN`)와
+`pyReprStrList(items)`(`['V1', 'V2']`). 이식한 도구가 `{x!r}`·`{list}` 로 출력하던 자리를 바이트까지 맞출 때 쓴다.
+
+**goldentool.mjs** — 파일을 만드는 도구용 골든 비교. `compareToolGolden({legacy, script, setup(root), args, replacePython, statusOnly})` 는
+python 판과 node 판을 **각자 새 임시 저장소**(realpath)에서 같은 인자로 돌려(`--root` 는 자동으로 붙임) stdout·stderr(저장소 경로는 `<ROOT>` 로 치환)·종료 코드와
+**저장소에 남은 파일 전체(바이트)** 를 비교한다. `goldenToolTest(name, spec)` 은 `node:test` 용(python 이 없으면 skip).
+`statusOnly:true` 는 argparse 사용 오류처럼 문구가 다른 경우에 종료 코드만 본다. 사용 예: `flyway-migration-add/tests/golden.test.mjs`.
+
 ## 이식 체크리스트
 
 1. **CRLF 정규화**: 읽기는 `readText`(BOM 제거 + `\r\n?`→`\n`), 쓰기는 `writeText`(LF 그대로). 윈도우 python 의 `write_text` 는 CRLF 로 쓰는 함정이 있었다. CSV 입력은 `utf-8-sig` 이므로 같은 `readText` 를 쓴다.

@@ -45,7 +45,7 @@ APS 는 이미 0001~0059 를 쓰고 있고 문서·코드에 인용이 2,774 건
 ## 2. 현황과 채번
 
 ```bash
-python3 .claude/skills/adr-write/scripts/adr_tool.py status --module mls
+node .claude/skills/adr-write/scripts/adr_tool.mjs status --module mls
 ```
 
 번호 공백, 같은 번호를 공유하는 파일(본 ADR + 부속 문서 관행), 다음 번호를 낸다.
@@ -53,7 +53,7 @@ python3 .claude/skills/adr-write/scripts/adr_tool.py status --module mls
 ## 3. 발행
 
 ```bash
-python3 .../adr_tool.py new --module mls --slug stock-id-surrogate-key \
+node .../adr_tool.mjs new --module mls --slug stock-id-surrogate-key \
     --title "슬리팅 재고 대리키 도입" --date 2026-07-20 --tags "MLS, inventory"
 ```
 
@@ -103,13 +103,13 @@ PROPOSED | ACCEPTED | REJECTED | DEPRECATED | SUPERSEDED by ADR-XXXX
 작성한 파일을 지정해서 검사한다.
 
 ```bash
-python3 .../adr_tool.py lint docs/mls/design/adr/0001-stock-id-surrogate-key.md
+node .../adr_tool.mjs lint docs/mls/design/adr/0001-stock-id-surrogate-key.md
 ```
 
 모듈 전체 현황(참고용, 기존 문서 포함):
 
 ```bash
-python3 .../adr_tool.py lint --module aps --all
+node .../adr_tool.mjs lint --module aps --all
 ```
 
 `--all` 은 보고만 하고 exit 0 이다. 기존 문서의 ERROR 로 작업이 막히지 않게 하기 위함이다.
@@ -117,7 +117,7 @@ python3 .../adr_tool.py lint --module aps --all
 ## 7. 인덱스 정합
 
 ```bash
-python3 .../adr_tool.py index --module aps
+node .../adr_tool.mjs index --module aps
 ```
 
 파일과 README 인덱스 표의 어긋남(미등재·유령 행·가리켜지지 않는 부속 문서)을 보고한다.
@@ -152,8 +152,12 @@ python3 .../adr_tool.py index --module aps
 ## 10. 도구 자체 검증
 
 ```bash
-python3 .claude/skills/adr-write/scripts/selftest.py
+node .claude/skills/adr-write/scripts/selftest.mjs
 ```
 
 규약 위반을 하나씩 심어 린트가 실제로 잡는지 확인한다(RED-first). 린트 규칙을
 고쳤으면 반드시 다시 돌린다.
+
+도구는 node 18.17 이상만 있으면 윈도우·macOS 어디서든 돈다(python 불필요). 생성 파일의 줄끝은 항상 LF 다.
+python 원본과의 동등성은 python 이 있는 PC 에서 `node --test .claude/skills/adr-write/tests/` 로 확인한다
+(`tests/golden/legacy/` 의 동결 사본과 같은 입력으로 비교하고, python 이 없으면 건너뛴다).

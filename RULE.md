@@ -59,7 +59,7 @@
 | 조건 | 스킬 |
 |---|---|
 | MES 모듈(`mcm`/`mls`/`mqc`/`mpp`/`mas`)의 OASIS Service·BPMN 을 작성·수정한 뒤, 또는 응답 body 가 `meta` 만이라 화면 0 건 / `ParameterName must not be null` / `[grid] is an unavailable attribute` / `Generic type. You must explicitly specify` 오류가 났을 때 | [`.claude/skills/oasis-contract-check/`](.claude/skills/oasis-contract-check/SKILL.md) — 커밋 전 `node .claude/skills/oasis-contract-check/scripts/check_oasis_contract.mjs --root .` 가 ERROR 0 이어야 한다 |
-| 백엔드 모듈(`aps-core`·`mcm-core`·`mdm` 등)의 DB 스키마를 바꿔 Flyway 마이그레이션 파일을 새로 만들 때 (엔티티·컬럼·인덱스·제약 추가/변경) | [`.claude/skills/flyway-migration-add/`](.claude/skills/flyway-migration-add/SKILL.md) — 번호는 방언별로 고르지 말고 `migration_tool.py status` 가 주는 합집합 채번을 쓴다 |
+| 백엔드 모듈(`aps-core`·`mcm-core`·`mdm` 등)의 DB 스키마를 바꿔 Flyway 마이그레이션 파일을 새로 만들 때 (엔티티·컬럼·인덱스·제약 추가/변경) | [`.claude/skills/flyway-migration-add/`](.claude/skills/flyway-migration-add/SKILL.md) — 번호는 방언별로 고르지 말고 `migration_tool.mjs status` 가 주는 합집합 채번을 쓴다 |
 | ADR 을 발행·개정하거나 `PROPOSED → ACCEPTED` 로 확정할 때 (전 모듈 공용) | [`.claude/skills/adr-write/`](.claude/skills/adr-write/SKILL.md) — 번호는 **모듈별 독립**(접두어 없음). 모듈 밖 인용은 번호만 쓰지 말고 경로 링크를 함께 쓴다 |
 | BP(bpgoat)에 **새 회의록·협의·설계 문서가 올라왔을 때** 그 내용을 설계에 반영해야 하는 경우 (조회만 하면 해당 없음) | [`.claude/skills/bp-update-intake/`](.claude/skills/bp-update-intake/SKILL.md) — 실질 신규분은 `.md` mtime 으로 가린다(`.doc.json` 단독 갱신 = 본문 무변경). 판정은 문서끼리가 아니라 shipped 코드로 하고, 반영은 **안건집 → ADR → 메모리** 순 |
 | STT(음성 인식) 자막을 **회의록으로 정리**할 때 (녹음 자막 `.txt` 수령, "회의록 정리·작성해줘") | [`.claude/skills/meeting-minutes/`](.claude/skills/meeting-minutes/SKILL.md) — 작성 규칙 정본은 BP 미러의 「회의 내용 요약 프롬프트」. 자막은 `offset`/`limit` 으로 **전량** 읽고, 교정 근거는 [`docs/glossary/`](docs/glossary/) 의 단어집·이해관계자 명단(고객사 착수 시 채움). 확신 낮은 인명·수치는 본문에서 빼고 따로 보고 |
