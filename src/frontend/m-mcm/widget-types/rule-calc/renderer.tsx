@@ -11,7 +11,7 @@
  */
 import { useId, useState } from "react";
 import { Button, Input, Select } from "@dk-oasis/shared/form";
-import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
+import { MdmFieldLabel, MdmMetaProvider, useMdmMetaScope } from "@dk-oasis/shared/mdm-meta";
 import type { WidgetProps } from "@dk-oasis/shared/widget";
 
 import {
@@ -206,7 +206,17 @@ function Steps({ io, run }: { io: RuleCalcIo; run: RuleCalcRun }) {
   );
 }
 
+/** 도크(업무 화면 도구 창)는 포털 탭 밖이라 공급자가 없다 — 바깥 공급자가 있으면 그 범위(모듈·꺼짐)를 따르고, 없으면 mcm 사전으로 받는다. */
 export default function RuleCalcRenderer(props: WidgetProps) {
+  const scope = useMdmMetaScope();
+  return (
+    <MdmMetaProvider module={scope?.module ?? "mcm"}>
+      <RuleCalcBody {...props} />
+    </MdmMetaProvider>
+  );
+}
+
+function RuleCalcBody(props: WidgetProps) {
   const { definition, refreshKey, screenContext } = props;
   const screenApply = readScreenApply(props);
   const cfg = readRuleCalcConfig(definition);

@@ -2,7 +2,7 @@
 /**
  * 룰 계산기 입력·결과 라벨 × MDM 컬럼 사전 툴팁 — 입력·출력 이름이 사전 물리명(PROC_CD·COIL_GAL_WGT 등)이라
  * 포털 탭 공급자(module "mcm") 안에서는 라벨이 사전 카드 툴팁 트리거(.form-tip-trigger)가 되고, 이름 목록이 사전에 한 번에 요청된다.
- * 공급자 밖(도크 등 공급자가 없는 자리)이면 라벨은 예전처럼 적어 둔 글자 그대로다.
+ * 도크(업무 화면 도구 창)처럼 공급자가 없는 자리에서는 렌더러가 스스로 mcm 공급자를 두어 같은 툴팁이 서고, 꺼진 공급자(편집기 미리보기) 안에서는 글자 그대로다.
  * 서버 호출(./api)만 대역이고, 공급자·폼 부품·라벨은 진짜 shared(dist) 다. JSX 없이 createElement 로 쓴다.
  */
 import { act, createElement } from "react";
@@ -122,10 +122,12 @@ const props = {
   definition: { targetTp: "RULE", targetId: "M47C0005" },
 };
 
-async function show(withProvider: boolean) {
+async function show(wrap: "tab" | "none" | "disabled") {
   h.fetchIo.mockResolvedValue(io());
   const body = createElement(RuleCalcRenderer, props as never);
-  const el = createElement(DmesUiProvider, null, withProvider ? createElement(MdmMetaProvider, { module: "mcm", children: body }) : body);
+  const outer =
+    wrap === "none" ? body : createElement(MdmMetaProvider, wrap === "tab" ? { module: "mcm", children: body } : { disabled: true, children: body });
+  const el = createElement(DmesUiProvider, null, outer);
   await act(async () => root!.render(el));
   await act(async () => {
     await new Promise((r) => setTimeout(r, 150));
@@ -136,14 +138,14 @@ const triggers = () => [...host.querySelectorAll(".form-tip-trigger")].map((el) 
 
 describe("룰 계산기 라벨 툴팁", () => {
   it("공급자 안 — 입력 라벨마다 사전 툴팁 트리거가 서고 입력 이름이 사전에 요청된다", async () => {
-    await show(true);
+    await show("tab");
     // 사전 캡션이 아니라 위젯이 룰에서 받은 라벨(명시 캡션)이 글자로 남는다.
     expect(triggers()).toEqual(["공정 코드", "도금부착량"]);
     expect(f.asked).toEqual(expect.arrayContaining(["PROC_CD", "GAL_ATT_AMT"]));
   });
 
   it("공급자 안 — 계산 뒤 결과 라벨도 사전 툴팁 트리거가 된다", async () => {
-    await show(true);
+    await show("tab");
     h.run.mockResolvedValue(normalizeRun({ ok: true, result: { COIL_GAL_WGT: "1234" }, steps: [], messages: [] }));
     const input = host.querySelector<HTMLInputElement>('[data-testid="rc-input-GAL_ATT_AMT"]')!;
     await act(async () => {
@@ -161,8 +163,14 @@ describe("룰 계산기 라벨 툴팁", () => {
     expect(f.asked).toContain("COIL_GAL_WGT");
   });
 
-  it("공급자 밖 — 라벨은 글자 그대로이고 사전 요청이 없다", async () => {
-    await show(false);
+  it("공급자 밖(도크) — 렌더러가 mcm 공급자를 두어 입력 라벨 툴팁이 선다", async () => {
+    await show("none");
+    expect(triggers()).toEqual(["공정 코드", "도금부착량"]);
+    expect(f.asked).toEqual(expect.arrayContaining(["PROC_CD", "GAL_ATT_AMT"]));
+  });
+
+  it("꺼진 공급자(편집기 미리보기) 안 — 라벨은 글자 그대로이고 사전 요청이 없다", async () => {
+    await show("disabled");
     expect(triggers()).toEqual([]);
     expect([...host.querySelectorAll(".mcm-rc__label")].map((l) => l.textContent)).toEqual(["공정 코드", "도금부착량GPM2"]);
     expect(f.asked).toEqual([]);
