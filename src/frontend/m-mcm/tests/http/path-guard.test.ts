@@ -280,6 +280,20 @@ describe("cactus 직접 실행 경로 — proxy·forwardToBackend 두 곳에서 
     const res = await forwardToBackend(new NextRequest(`${BFF}/api/mcm/lov/master/UNIT/KG`), "mcm", "/lov/master/UNIT/KG");
     expect(res.status).toBe(200);
     expect(fetchMock.mock.calls[0][0]).toBe("http://be.test/lov/master/UNIT/KG");
+
+    const rest = await restGet(new NextRequest(`${BFF}/api/mcm/rest/x/search/api/planned-orders`), {
+      params: Promise.resolve({ module: "mcm", objId: "x", action: "search", path: ["api", "planned-orders"] }),
+    });
+    expect(rest.status).toBe(200);
+    expect(fetchMock.mock.calls[1][0]).toBe("http://be.test/api/planned-orders");
+
+    const catchAll = await forwardToBackend(
+      new NextRequest(`${BFF}/api/mcm/mdmMeta/columns`),
+      "mcm",
+      "/api/mcm/mdmMeta/columns",
+    );
+    expect(catchAll.status).toBe(200);
+    expect(fetchMock.mock.calls[2][0]).toBe("http://be.test/api/mcm/mdmMeta/columns");
   });
 
   it("isBlockedBackendPath — 순수 판정", () => {
@@ -287,6 +301,7 @@ describe("cactus 직접 실행 경로 — proxy·forwardToBackend 두 곳에서 
       "/service/x", "/service", "/query/a.b", "/query/service/x", "/lov/query/a.b", "/lov/service/x",
       "/%73ervice/x", "/service/x?y=1", "/q%ZZ", "//service/x", "/%2F/service/x",
       "/oasis/termMng/save", "/mdm/oasis/termMng/save", "/api/mdm/oasis/termMng/save", "/oasis",
+      "/api//mdm//oasis/a/b", "/%6Fasis/a/b", "/api/mdm/%6Fasis/a/b",
     ]) {
       expect(isBlockedBackendPath(p), p).toBe(true);
     }
