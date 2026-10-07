@@ -15,13 +15,19 @@
   - 1차 검증(리뷰 반영 전 V1): Flyway 4벌 적용 성공 · 기본 영속성 단위 validate 오류 0 · 음성 시험(칸 삭제·형식 변경)으로 validate 가 실패함을 확인. cmn·if 단위는 엔티티 0, caravan 단위는 ora-platform 기준선 뒤.
   - opus/high 리뷰 지적 13건(blocker 0·major 5·minor 8) 중 c1 몫 반영: SEQ_MCM_MOM_TC_ERROR 추가, 사본·백업 표 PK 제거(MSSQL 동작 보존), 머리 주석(Oracle 23 이상·주인 접속·시퀀스 재설정), README(주인 접속·locations·채번). 나머지는 아래 「넘길 조건·후속」.
   - 공지 표 TB_MCM_NOTICE·TB_MCM_NOTICE_TARGET(+인덱스 2)·TB_MCM_SEC_USER_SRCH_DFLT 는 MCMAPUSER V1 에 들어 있다.
-- **c3 위젯 조회 SQL — 진행 중(구현 절반)**. 범위(조정 승인): Oracle 갈래를 실측으로 굳힌다. 다른 방언 갈래 삭제는 c4, `adaptForLocalSqlite` 는 c2.
+- **c3 위젯 조회 SQL — 완료(10-07, c1276e6aa)**. 범위(조정 승인): Oracle 갈래를 실측으로 굳힌다. 다른 방언 갈래 삭제는 c4, `adaptForLocalSqlite` 는 c2.
   - 실측(L_ORA_MCM_CORE, 풀 1개): `WidgetReadOnlyJdbc` Oracle 갈래 동작 — INSERT·UPDATE·MERGE·FOR UPDATE 가 ORA-01456, 같은 SID 로 업무 쓰기 정상. 막지 못한 것: NEXTVAL 소모, DDL(암묵 커밋), 기존 자율 트랜잭션 함수 쓰기, WITH FUNCTION(PRAGMA AUTONOMOUS_TRANSACTION), LOCK TABLE·dbms_session.sleep(첫 낱말 검사가 막음).
   - 위젯 경로로 PL/SQL 을 **만드는** 길은 없다(첫 낱말 SELECT/WITH·문장 하나·WITH FUNCTION 거절). 이미 있는 함수 **호출**만 가능 → 정책 A 유지(조정 확인).
   - SqlGuard 보강(미커밋, 작업 트리): 금지 낱말 NEXTVAL, DB 링크 `이름@링크` 거절(MSG_DB_LINK), `WITH FUNCTION/PROCEDURE` 거절(MSG_INLINE_PLSQL), 함수 목록에 Oracle 관리 스키마(CTXSYS·MDSYS·XDB·ORDSYS·OLAPSYS·LBACSYS·DVSYS·WMSYS·DBSNMP·OJVMSYS·AUDSYS·GSMADMIN_INTERNAL·APEX_n·FLOWS_n)·CTX_*. 클래스 설명에 Oracle 잔여 위험. WidgetReadOnlyJdbc 설명에 실측 결과. SqlGuardTest 사례 추가 → **277/277 통과**.
   - 위젯 정의 6개 Oracle 변환표: `docs/oracle-1007/widget-sql-oracle.md`(7개 모두 PDB 실행 성공). 조정에 보내 적재(ora-base)로 넘길 것.
-  - 남은 c3: ① 도움말 원본 `docs/guide/FrontEnd/Widget-Authoring-Guide.md`(조정 허가: §3.3 검사 규칙 표에 NEXTVAL·DB 링크·WITH FUNCTION·Oracle 관리 스키마, §3.3 방언 주의 → Oracle, §3.4 주의 문구, §9.1·9.2·9.3 예시 SQL 을 위 변환표 Oracle 판으로) 고치고 같은 커밋에서 `pnpm --filter @dk-oasis/mcm gen:widget-guide` 로 사본 재생성 + `widget-guide-sync.test.ts` 통과 확인 ② WidgetQueryExecutor·WidgetReadOnlyJdbc 의 Oracle 값 변환(`oracle.sql.TIMESTAMP` 등) 확인 ③ opus/xhigh 보안 리뷰 → 지적 수정 → 커밋 → 진행 보고 ④ 「운영 안내」 절 추가.
-- c2·c4: c3 다음(머지① 들어옴 — dev 08978b6ff 합침 8f030e673). c4 시험은 `-Pdmes.ora.test=clone` 하니스(scripts/oracle/README.md).
+  - 도움말: 원본 Widget-Authoring-Guide.md §3.3·§3.4·§3.6·§3.7·§9 를 Oracle 판으로(60976f8c6), 사본 재생성. dev(fb253556d) 머지 뒤 dev 자체 사본 어긋남도 재생성(da68e2034). sync 확인은 워크트리에 node_modules 를 깔지 않고(조정 지시) 같은 단언 3개를 node 로 돌렸다 — 실제 vitest 는 조정자가 머지 게이트에서 돌린다(머지 요청에 적을 것).
+  - Oracle 값 변환(L_ORA_MCM_CORE 실측): TIMESTAMP·TIMESTAMPTZ·TIMESTAMPLTZ·DATE → ISO 글자(KST), CLOB·NCLOB → 글자, NUMBER → BigDecimal, BINARY_DOUBLE NaN → 글자, ROWID·INTERVAL → 글자, RAW → null, '' → null, BOOLEAN → true. 코드 수정 없음.
+  - opus/xhigh 보안 리뷰: major 1(T@"LINK"·"T"@"LINK" 따옴표 링크가 가린 사본을 지남)·nit 1(seq."NEXTVAL") → 드러낸 사본에서도 DB 링크·점 한정 NEXTVAL 검사(6-2단계), SqlGuardTest 283/283(c1276e6aa). WidgetReadOnlyJdbc Oracle 갈래 정리·예외 경로는 이상 없음. 리뷰어 권고: 운영 Oracle 에서 전용 읽기 DataSource 가 없으면 실행 거절(B). 조정 기준(PL/SQL 을 만드는 길)은 해당 없음 → A 유지, 판단은 조정에 올림.
+- **c2 방언 전환 — 진행 중(10-07)**. dev fb253556d(머지①b) 합침(35c7be3c2).
+  - 조정 결정 A: SQLite 치환 API(setSqlite·isSqlite·toSqliteCompatible·stripUnicodeLiteralPrefix·McmSqliteMybatisInterceptor·SqliteTemporalConverterContributor)는 @Deprecated 로 남기고 동작 유지(setSqlite(true) 때만). mcm 호출(main 4·시험 약 15)은 조정이 ora-mcm-app a2·a3 조건으로 넘김, 삭제는 ora-base b8.
+  - 감사 보강 SQL → CURRENT_TIMESTAMP·COALESCE(VER,0)+1(작업 트리). mcm-core 자기 isSqlite 갈래는 Oracle·H2 공통형 하나로(구현 agent 진행 중).
+  - ScreenUsageMssqlDdlTest → archive/test/screenusage(4e63da218), build.gradle test 입력에서 ScreenUsageSchemaArtifacts·DataInitializer 뺌. ScreenUsageMssqlDdl 은 @Deprecated. **c4 할 일: 화면 사용 표 색인·유일 제약·엔티티 왕복을 Oracle 시험으로 대체**.
+- c4: c2 다음. 시험은 `-Pdmes.ora.test=clone` 하니스(scripts/oracle/README.md). PC 전체 Oracle 무거운 작업은 한 번에 하나(잠금이 줄 세움).
 - c2 주의(조정 지시 10-07): `SqliteTemporalConverterContributor` 는 지우지 말고 `@Deprecated` 만 단다 — mls application.yml 이 가리킨다. 제거는 ora-platform 이 mls yml 을 고친 뒤 ora-base b8.
 
 ## 남은 순서
