@@ -14,6 +14,7 @@
 #   ./be-run.sh --dry-run        # 모듈 플래그가 없으면 BE_RUN_ARGS(없으면 --all) 대상으로
 #
 #   ./be-run.sh --mcm --build-only  # 빌드(classpath 산출)만 하고 기동하지 않는다. 포트·이전 실행은 건드리지 않는다
+#   ./be-run.sh --mdm --pdb=L_ORA_MDM  # Oracle PDB 접속값(DMES_ORA_PDB·DMES_ORA_URL)을 앱에 넘긴다(BE_ORA_PDB 도 같다). 없으면 종전 그대로
 #
 # 모듈 플래그: --mpn --mcm --mls --mqc --mpp --mdm --analog
 # --all 은 7개 JVM 을 동시에 띄운다. 메모리가 빠듯하면 필요한 모듈만 골라 쓴다.
@@ -74,7 +75,7 @@ be_args_options_only() {
   local a
   for a in "$@"; do
     case "$a" in
-      --dry-run|--keep-port|--build-only) ;;
+      --dry-run|--keep-port|--build-only|--pdb=*) ;;
       *) return 1 ;;
     esac
   done
@@ -200,6 +201,7 @@ for arg in "$@"; do
     --keep-port) KEEP_PORT=1 ;;
     --dry-run) DRY_RUN=1 ;;
     --build-only) BUILD_ONLY=1 ;;
+    --pdb=*) BE_ORA_PDB="${arg#--pdb=}" ;;
     --all|--full)
       for m in "${BE_ALL_MODULES[@]}"; do be_select_module "$m"; done ;;
     -h|--help) sed -n '2,/^# ── 머리말 끝/p' "$0" | sed '$d'; exit 0 ;;
@@ -217,6 +219,20 @@ done
 if [ "${#SELECTED_MODULES[@]}" -eq 0 ]; then
   dev_log_error "BE 실행 대상을 선택하세요: --all 또는 --mpn/--mcm/--mls/--mqc/--mpp/--mdm/--analog"
   exit 2
+fi
+
+# ── Oracle PDB 접속값(oracle-1007 b6) ────────────────────────────
+# BE_ORA_PDB(또는 --pdb=<PDB>)가 있으면 앱 JVM 이 물려받을 환경 변수로 접속값을 내보낸다. 없으면 아무것도 하지 않아
+# 종전 SQLite 동작 그대로다. Oracle 로 컷오버한 모듈의 프로파일이 이 값을 읽는다(docs/oracle-1007/schema-owners.md §3).
+#   DMES_ORA_PDB  서비스 이름(PDB)   DMES_ORA_URL  jdbc:oracle:thin:@//host:port/PDB   DMES_ORA_HOST·DMES_ORA_PORT
+# PDB 는 scripts/oracle/pdb.mjs 로 만든다(예: node scripts/oracle/pdb.mjs clone TPL_DATA L_<레인>).
+if [ -n "${BE_ORA_PDB:-}" ]; then
+  DMES_ORA_PDB="$(printf '%s' "$BE_ORA_PDB" | tr '[:lower:]' '[:upper:]')"
+  DMES_ORA_HOST="${DMES_ORA_HOST:-localhost}"
+  DMES_ORA_PORT="${DMES_ORA_PORT:-1521}"
+  DMES_ORA_URL="jdbc:oracle:thin:@//${DMES_ORA_HOST}:${DMES_ORA_PORT}/${DMES_ORA_PDB}"
+  export DMES_ORA_PDB DMES_ORA_HOST DMES_ORA_PORT DMES_ORA_URL
+  dev_log_print "be" "Oracle PDB 접속값 전달: $DMES_ORA_URL"
 fi
 
 # ── 선빌드 ───────────────────────────────────────────────────
