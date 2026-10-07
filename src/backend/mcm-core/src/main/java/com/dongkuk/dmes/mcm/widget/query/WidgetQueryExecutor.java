@@ -108,6 +108,9 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
             "SQL Server 에서는 읽기 전용 계정의 전용 연결(dmes.widget.query.datasource)을 설정해야 쿼리 위젯을 실행할 수 있습니다";
     static final String MSG_OTHER_NEEDS_DEDICATED =
             "읽기 전용 트랜잭션을 걸 수 없는 DB 에서는 읽기 전용 계정의 전용 연결(dmes.widget.query.datasource)을 설정해야 쿼리 위젯을 실행할 수 있습니다";
+    static final String MSG_REQUIRE_DEDICATED =
+            "이 서버는 쿼리 위젯에 읽기 전용 계정의 전용 연결(dmes.widget.query.datasource)을 요구합니다(dmes.widget.query.require-dedicated)"
+                    + " — 읽기 권한만 가진 계정을 쓰고, 그 계정에 자율 트랜잭션 함수의 EXECUTE 권한과 DB 링크를 주지 마세요";
     static final String MSG_DB_UNAVAILABLE = "쿼리 위젯 DB 에 연결하지 못했습니다";
 
     private static final DateTimeFormatter YMD = DateTimeFormatter.ofPattern("yyyyMMdd");
@@ -120,6 +123,8 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     private final WidgetReadOnlyJdbc readOnlyJdbc;
     /** 전용 DataSource(dmes.widget.query.datasource.*)인가 — 읽기 전용 트랜잭션이 없는 DB 에서 실행을 허락할지 정한다. */
     private final boolean dedicated;
+    /** dmes.widget.query.require-dedicated — true 면 전용 DataSource 가 아닐 때 DB 갈래와 상관없이 거절한다. */
+    private final boolean requireDedicated;
     private final LimitedJdbcTemplate jdbc;
     private final Clock clock;
     private final Map<CacheKey, CachedResult> cache = new ConcurrentHashMap<>();
@@ -148,6 +153,7 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
         this.userContextResolver = userContextResolver;
         this.readOnlyJdbc = new WidgetReadOnlyJdbc(dataSource);
         this.dedicated = queryDataSource.dedicated();
+        this.requireDedicated = queryDataSource.requireDedicated();
         this.jdbc = new LimitedJdbcTemplate(dataSource);
         this.clock = clock;
     }
@@ -345,7 +351,11 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
      * 로컬 SQLite 는 스키마가 없다 — JDBC 로 바로 실행하는 SQL 은 Hibernate 의 {@link McmAuditStatementInspector} 를 거치지 않으므로
      * 같은 규칙({@code MCMAPUSER.} 접두·{@code N'…'} 접두 제거)을 여기서 적용한다. 운영 DB(Oracle·PostgreSQL)에서는 그대로 실행한다.
      * 검사(§7.1)는 늘 원문으로 끝낸 뒤라 이 변환이 검사를 우회하지 않는다(접두를 지우기만 한다).
+     *
+     * @deprecated Oracle 단일화(oracle-1007). {@code setSqlite(true)} 를 명시한 mcm 로컬 SQLite 경로에서만 돈다(Oracle 은 그대로 통과).
+     *             mcm 모듈의 SQLite 호출을 ora-mcm-app 이 없앤 뒤 ora-base b8 에서 SQLite 치환 API 와 함께 지운다.
      */
+    @Deprecated
     static String adaptForLocalSqlite(String sql) {
         if (!McmAuditStatementInspector.isSqlite()) return sql;
         return McmAuditStatementInspector.stripUnicodeLiteralPrefix(SCHEMA_PREFIX.matcher(sql).replaceAll(""));
@@ -453,6 +463,10 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
         } catch (SQLException | RuntimeException e) {
             log.warn("위젯 쿼리 DB 갈래 판정 실패 원인={}", rootMessage(e));
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, MSG_DB_UNAVAILABLE);
+        }
+        if (!dedicated && requireDedicated && dialect != WidgetReadOnlyJdbc.Dialect.SQLSERVER) {
+            // 정책 B(oracle-1007 c3) — Oracle 의 읽기 전용 트랜잭션은 기존 자율 트랜잭션 함수·DB 링크를 막지 못한다. 계정 권한이 근본 방어다.
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, MSG_REQUIRE_DEDICATED);
         }
         if (!dedicated && !WidgetReadOnlyJdbc.enforcesReadOnly(dialect)) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, dialect == WidgetReadOnlyJdbc.Dialect.SQLSERVER

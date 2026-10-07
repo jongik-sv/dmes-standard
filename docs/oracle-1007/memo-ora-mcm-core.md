@@ -15,7 +15,23 @@
   - 1차 검증(리뷰 반영 전 V1): Flyway 4벌 적용 성공 · 기본 영속성 단위 validate 오류 0 · 음성 시험(칸 삭제·형식 변경)으로 validate 가 실패함을 확인. cmn·if 단위는 엔티티 0, caravan 단위는 ora-platform 기준선 뒤.
   - opus/high 리뷰 지적 13건(blocker 0·major 5·minor 8) 중 c1 몫 반영: SEQ_MCM_MOM_TC_ERROR 추가, 사본·백업 표 PK 제거(MSSQL 동작 보존), 머리 주석(Oracle 23 이상·주인 접속·시퀀스 재설정), README(주인 접속·locations·채번). 나머지는 아래 「넘길 조건·후속」.
   - 공지 표 TB_MCM_NOTICE·TB_MCM_NOTICE_TARGET(+인덱스 2)·TB_MCM_SEC_USER_SRCH_DFLT 는 MCMAPUSER V1 에 들어 있다.
-- c3: 다음 착수. c2·c4: 대기(ora-base 머지① 뒤)
+- **c3 위젯 조회 SQL — 완료(10-07, c1276e6aa)**. 범위(조정 승인): Oracle 갈래를 실측으로 굳힌다. 다른 방언 갈래 삭제는 c4, `adaptForLocalSqlite` 는 c2.
+  - 실측(L_ORA_MCM_CORE, 풀 1개): `WidgetReadOnlyJdbc` Oracle 갈래 동작 — INSERT·UPDATE·MERGE·FOR UPDATE 가 ORA-01456, 같은 SID 로 업무 쓰기 정상. 막지 못한 것: NEXTVAL 소모, DDL(암묵 커밋), 기존 자율 트랜잭션 함수 쓰기, WITH FUNCTION(PRAGMA AUTONOMOUS_TRANSACTION), LOCK TABLE·dbms_session.sleep(첫 낱말 검사가 막음).
+  - 위젯 경로로 PL/SQL 을 **만드는** 길은 없다(첫 낱말 SELECT/WITH·문장 하나·WITH FUNCTION 거절). 이미 있는 함수 **호출**만 가능 → 정책 A 유지(조정 확인).
+  - SqlGuard 보강(미커밋, 작업 트리): 금지 낱말 NEXTVAL, DB 링크 `이름@링크` 거절(MSG_DB_LINK), `WITH FUNCTION/PROCEDURE` 거절(MSG_INLINE_PLSQL), 함수 목록에 Oracle 관리 스키마(CTXSYS·MDSYS·XDB·ORDSYS·OLAPSYS·LBACSYS·DVSYS·WMSYS·DBSNMP·OJVMSYS·AUDSYS·GSMADMIN_INTERNAL·APEX_n·FLOWS_n)·CTX_*. 클래스 설명에 Oracle 잔여 위험. WidgetReadOnlyJdbc 설명에 실측 결과. SqlGuardTest 사례 추가 → **277/277 통과**.
+  - 위젯 정의 6개 Oracle 변환표: `docs/oracle-1007/widget-sql-oracle.md`(7개 모두 PDB 실행 성공). 조정에 보내 적재(ora-base)로 넘길 것.
+  - 도움말: 원본 Widget-Authoring-Guide.md §3.3·§3.4·§3.6·§3.7·§9 를 Oracle 판으로(60976f8c6), 사본 재생성. dev(fb253556d) 머지 뒤 dev 자체 사본 어긋남도 재생성(da68e2034). sync 확인은 워크트리에 node_modules 를 깔지 않고(조정 지시) 같은 단언 3개를 node 로 돌렸다 — 실제 vitest 는 조정자가 머지 게이트에서 돌린다(머지 요청에 적을 것).
+  - Oracle 값 변환(L_ORA_MCM_CORE 실측): TIMESTAMP·TIMESTAMPTZ·TIMESTAMPLTZ·DATE → ISO 글자(KST), CLOB·NCLOB → 글자, NUMBER → BigDecimal, BINARY_DOUBLE NaN → 글자, ROWID·INTERVAL → 글자, RAW → null, '' → null, BOOLEAN → true. 코드 수정 없음.
+  - opus/xhigh 보안 리뷰: major 1(T@"LINK"·"T"@"LINK" 따옴표 링크가 가린 사본을 지남)·nit 1(seq."NEXTVAL") → 드러낸 사본에서도 DB 링크·점 한정 NEXTVAL 검사(6-2단계), SqlGuardTest 283/283(c1276e6aa). WidgetReadOnlyJdbc Oracle 갈래 정리·예외 경로는 이상 없음. 리뷰어 권고: 운영 Oracle 에서 전용 읽기 DataSource 가 없으면 실행 거절(B). 조정 기준(PL/SQL 을 만드는 길)은 해당 없음 → A 유지, 판단은 조정에 올림.
+- **c2 방언 전환 — 코드 완료(10-07, 0fc581c9b)**, Oracle 실행 확인은 c4. dev fb253556d(머지①b) 합침(35c7be3c2).
+  - 조정 결정 A: SQLite 치환 API(setSqlite·isSqlite·toSqliteCompatible·stripUnicodeLiteralPrefix·McmSqliteMybatisInterceptor·SqliteTemporalConverterContributor)는 @Deprecated 로 남기고 동작 유지(setSqlite(true) 때만). mcm 호출(main 4·시험 약 15)은 조정이 ora-mcm-app a2·a3 조건으로 넘김, 삭제는 ora-base b8.
+  - 감사 보강 SQL → CURRENT_TIMESTAMP·COALESCE(VER,0)+1. isSqlite 갈래 5곳을 Oracle·H2 공통형 하나로(LPAD·||·FETCH FIRST·LOCALTIMESTAMP+INTERVAL·재귀 WITH 칸 목록). INFORMATION_SCHEMA → ALL_*. RULE_NM·코드 PK 빈 값 검사. adaptForLocalSqlite 는 @Deprecated(결정 A).
+  - 정책 B(조정 결정): `dmes.widget.query.require-dedicated`(기본 false) — true 면 전용 DataSource 없을 때 거절(10d9b67de). yml 은 ora-mcm-app a3.
+  - H2 시험: SQLite 전용 CommUserMngServiceSearchRoleGrpSqliteTest 3건 실패(INTERVAL) → c4 에서 Oracle 로.
+  - mcm 영향(ora-mcm-app 몫): 어댑터 5개는 setSqlite(true) 여도 Oracle 형을 보낸다 — mcm 의 SQLite 시험(DataInitializerMssqlSqlCharacterizationTest·DataInitializerSeedFingerprintTest·NoticePermissionFilterTest·MenuCatalogOasisSaveIntegrationTest)이 이 SQL 을 타면 깨진다.
+  - **c4 Oracle 확인 목록**: ① 재귀 WITH 3개(SecMenuNativeRepository searchCmMenu·searchMenuFld, SecRoleGroupMappingNativeRepository.searchCmRoleGrpMenu — H2 시험이 타지 않음) ② searchMenuObjPop 상관 서브쿼리 FETCH FIRST ③ MomTcErrorRepository 따옴표 별칭·TO_CHAR·Instant 바인드 시간대 ④ MasterRuleColListRepository 사전 뷰(MCAAPUSER GRANT 없으면 조용히 0건) ⑤ CommSyncMngService 'FM999999990.0'·INSERT…SELECT * 칸 순서(원장·사본·백업 V1 일치) ⑥ CommUserMngQueryService LOCALTIMESTAMP·INTERVAL ⑦ masterRuleData 동적 CTE 페이징·DATE 칸에 14자 글자 바인드(NLS)·CLOB 칸 = 비교 ⑧ 화면 사용 표 색인·유일 제약·엔티티 왕복(archive 한 MSSQL DDL 시험 대체).
+  - ScreenUsageMssqlDdlTest → archive/test/screenusage(4e63da218), build.gradle test 입력에서 ScreenUsageSchemaArtifacts·DataInitializer 뺌. ScreenUsageMssqlDdl 은 @Deprecated. **c4 할 일: 화면 사용 표 색인·유일 제약·엔티티 왕복을 Oracle 시험으로 대체**.
+- c4: c2 다음. 시험은 `-Pdmes.ora.test=clone` 하니스(scripts/oracle/README.md). PC 전체 Oracle 무거운 작업은 한 번에 하나(잠금이 줄 세움).
 - c2 주의(조정 지시 10-07): `SqliteTemporalConverterContributor` 는 지우지 말고 `@Deprecated` 만 단다 — mls application.yml 이 가리킨다. 제거는 ora-platform 이 mls yml 을 고친 뒤 ora-base b8.
 
 ## 남은 순서
@@ -40,6 +56,14 @@
 | 10-07 | `TB_SEC_CODE_GROUP`·`TB_SEC_CODE_ITEM` 주인은 mcm-core(MCMAPUSER). MDMAPUSER 에 사본을 만들지 않는다(mdm 사용 여부는 ora-mdm 확인) | 조정 결정 ③ |
 | 10-07 | `TB_MCA_RULE_COL_LIST.RULE_ID` 를 50자로 넓혀 마스터와 맞춘다(엔티티 포함) | 조정 결정 ④ |
 | 10-07 | 다른 스키마 표의 권한 대상은 Flyway 자리표시자 `${app_user}`(로컬·운영 = MCMAPUSER) — ora-mcm-app 이 Flyway 설정에 넣어야 한다 | 레인 판단 |
+
+## 운영 안내 (ora-base b7 이 운영 배포 문서로 모은다)
+
+- 쿼리 위젯: 운영(prod·wildfly)은 `dmes.widget.query.require-dedicated: true` 로 둔다 — 전용 DataSource 가 없으면 시험·저장·실행을 거절한다(정책 B, 10d9b67de).
+- 쿼리 위젯 실행기(`dmes.widget.query.datasource.*`)에는 **읽기 권한만 가진 DB 계정**의 전용 DataSource 를 붙이고, 그 계정에는 자율 트랜잭션(`PRAGMA AUTONOMOUS_TRANSACTION`) 함수·프로시저의 EXECUTE 권한과 DB 링크를 주지 않는다 — Oracle 읽기 전용 트랜잭션은 자율 트랜잭션 함수의 쓰기를 막지 못한다(2026-10-07 Oracle 26ai 실측).
+- 업무기준 동적 표 `MCAAPUSER.TB_MCA_<RULE_ID>` 는 DBA 가 만들고, 만들 때 MCMAPUSER 에 `SELECT, INSERT, UPDATE, DELETE` 를 GRANT 한다(앱은 DDL 을 보내지 않는다).
+- 원장 → 사본 동기화(MCM_SOURCE → MCMAPUSER·MCM_BACKUP)는 동기화 관리 화면이 유일한 경로다(트리거·배치 없음).
+- 시퀀스 `SEQ_MCM_MOM_TC_SEND`·`SEQ_MCM_MOM_TC_ERROR` 는 데이터를 옮긴 뒤 MAX(키)+1 로 다시 맞춘다.
 
 ## 기준선 근거
 
@@ -70,6 +94,13 @@ c2 로 넘길 것(이 레인):
 - `TB_SEC_CODE_ITEM.EXTRA_VAL1` 을 `= ''` 로 비교하는 코드(시더가 `''` 를 넣음 → NULL).
 - `InterfaceFormatLayoutRepository.backupToMcmBackup`(MCM_BACKUP.TB_MCM_MOM_FORMAT_LAYOUT) 는 부르는 곳 없는 죽은 코드 — 표를 만들지 않고 c2 에서 정리.
 - 사본·백업 표는 PK 없이 둠(MSSQL 동작 보존). 동기화 DELETE 를 CODE_ID 기준까지 넓힐지는 c2 에서 판단.
+- `ScreenUsageMssqlDdlTest.dataInitializerUsesDdl`(mcm/api 의 DataInitializer·ScreenUsageSchemaArtifacts 문자열을 읽음) — ora-mcm-app 이 그 DDL 단계를 archive 하므로 c2 에서 archive 하거나 Oracle 기준선 검증으로 바꾼다(삭제 금지, 조정 요청 10-07).
+- `SqliteTemporalConverterContributor` 는 지우지 않고 `@Deprecated` 만(mls yml 이 가리킴).
+
+## boolean 칸 (10-07 실측)
+
+- 공통 규약(schema-owners.md §3.1.1)의 `preferred_boolean_jdbc_type=BIT` 는 Hibernate 7.2.12 + Oracle 26ai 에서 NUMBER(1) 칸 validate 를 **통과하지 못한다**(BIT 도 boolean 으로 기대). TINYINT·SMALLINT·INTEGER·NUMERIC 은 통과. **조정 결정: 공통값 TINYINT**(전 레인·ora-base 에 전달됨), 왕복은 c4 에서 확인. scratch SchemaTool 도 TINYINT.
+- MCMAPUSER V1 의 boolean 칸은 `sample_notice.active` 하나 → `number(1,0)` + check (0,1)(7e9ceee0d).
 
 ## 원장 → 사본 동기화 (운영 단서)
 

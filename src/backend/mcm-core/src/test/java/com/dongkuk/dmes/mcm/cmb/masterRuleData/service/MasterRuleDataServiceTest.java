@@ -172,7 +172,7 @@ class MasterRuleDataServiceTest {
         String updateSql = sqlCap.getAllValues().stream().filter(s -> s.startsWith("UPDATE")).findFirst().orElseThrow();
         assertThat(updateSql).contains("MCAAPUSER.TB_MCA_E2ESRC")
                 .contains("WHERE RULE_SEQ = :seq")
-                .contains("U_USR_ID").contains("U_AT = SYSDATETIME()");
+                .contains("U_USR_ID").contains("U_AT = CURRENT_TIMESTAMP");
         assertThat(updateSql).doesNotContain("EVIL_COL");
         verify(query, org.mockito.Mockito.atLeastOnce()).setParameter(eq("c0"), eq("20260708123456"));   // 절단 확인
         assertThat(out.get("cnt_save")).isEqualTo(1);

@@ -3,7 +3,7 @@ package com.dongkuk.dmes.mcm.repository;
 /**
  * tcErrorList 조회 결과 projection (Spring Data native query interface projection).
  *
- * <p>{@link MomTcErrorRepository#search} 의 SELECT alias(camelCase)와 1:1 매핑.
+ * <p>{@link MomTcErrorRepository#search} 의 SELECT alias(따옴표 camelCase — Oracle 대문자화 방지)와 1:1 매핑.
  * ({@code resultType=map}/projection 키는 underscore→camel 자동변환이 보장되지 않으므로
  * 네이티브 SELECT 에서 camelCase alias 를 명시한다 — cactus dmom 매퍼 버그 교훈.)
  *
@@ -35,7 +35,7 @@ public interface TcErrorRowView {
     /** G-008 Message. */
     String getErrorMsg();
 
-    /** G-005 발생일시 (AUDIT C_AT, As-Is CREATION_TIMESTAMP) — SQL CONVERT(,120) 표시문자열 yyyy-MM-dd HH:mm:ss. */
+    /** G-005 발생일시 (AUDIT C_AT, As-Is CREATION_TIMESTAMP) — SQL TO_CHAR(,'YYYY-MM-DD HH24:MI:SS') 표시문자열 yyyy-MM-dd HH:mm:ss. */
     String getCreationTimestamp();
 
     /** G-009 재전송 횟수 (TB_MCM_MOM_TC_SEND COUNT — Q-100 A). */

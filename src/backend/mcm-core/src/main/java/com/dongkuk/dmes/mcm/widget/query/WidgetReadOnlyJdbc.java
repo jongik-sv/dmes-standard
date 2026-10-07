@@ -30,7 +30,11 @@ import org.slf4j.LoggerFactory;
  *   <li>SQLite — {@code setReadOnly} 는 연결 뒤 바꿀 수 없어 드라이버가 거절한다. 대신 {@code PRAGMA query_only = 1} 을 걸고 다시 읽어
  *       확인한다. 이 값은 트랜잭션이 아니라 연결에 남으므로 돌려주기 전에 원래 값으로 되돌리고 다시 읽어 확인한다.</li>
  *   <li>PostgreSQL·Oracle — {@code SET TRANSACTION READ ONLY}(Spring {@code DataSourceTransactionManager#setEnforceReadOnly} 와 같은 문장).
- *       PostgreSQL 은 {@code SHOW transaction_read_only} 가 {@code on} 인지 확인한다. Oracle 은 문장이 성공하면 걸린 것으로 본다.</li>
+ *       PostgreSQL 은 {@code SHOW transaction_read_only} 가 {@code on} 인지 확인한다. Oracle 은 문장이 성공하면 걸린 것으로 본다
+ *       (읽기 전용 상태를 일반 계정이 조회할 길이 없다). 실 Oracle 26ai + ojdbc11 23.9 + Hikari 7(풀 1개) 실측(2026-10-07):
+ *       {@code setReadOnly(true)} 뒤의 {@code SET TRANSACTION READ ONLY} 가 충돌 없이 걸리고, INSERT·UPDATE·MERGE·{@code FOR UPDATE} 가
+ *       ORA-01456 으로 거절되며, 되돌린 같은 물리 연결(같은 SID)에서 업무 쓰기·커밋이 정상이다. 막지 못하는 것 — 시퀀스 {@code NEXTVAL}
+ *       소모, DDL(암묵 커밋 뒤 실행), 자율 트랜잭션 함수의 쓰기 — 은 {@link SqlGuard} 가 막거나(앞의 둘) 운영 읽기 계정 권한으로 막는다.</li>
  *   <li>SQL Server·그 밖 — 읽기 전용 트랜잭션이 없다. {@code setReadOnly} 힌트와 늘 롤백뿐이라 읽기 계정 전용 DataSource 가 필요하다
  *       (처음 실행 때 한 번 경고 로그). 그래서 {@link WidgetQueryExecutor} 는 이 갈래({@link #enforcesReadOnly} 가 false)에서 전용
  *       DataSource 가 없으면 실행·미리보기·저장 검사를 거절한다(실패 닫힘). 이 클래스 자체는 갈래를 판정해 알려 줄 뿐 거절하지 않는다.</li>

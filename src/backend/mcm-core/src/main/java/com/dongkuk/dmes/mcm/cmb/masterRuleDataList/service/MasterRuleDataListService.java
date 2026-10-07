@@ -99,7 +99,7 @@ public class MasterRuleDataListService {
     /**
      * action=search — 동적 테이블 페이징 조회 (As-Is GetMasterRuleDataList.run() + Mapper #2).
      *
-     * <p>CTE + ROW_NUMBER(ORDER BY RULE_SEQ) + BETWEEN 페이징 (As-Is 구조 보존 — MSSQL 호환, BR-009).
+     * <p>CTE + ROW_NUMBER(ORDER BY RULE_SEQ) + BETWEEN 페이징 (As-Is 구조 보존 — Oracle·ANSI 공통, BR-009).
      * 5조건 동적 WHERE 는 화이트리스트 컬럼/연산자 + 바인딩 값 (Q-007). VARCHAR2 컬럼이면
      * {@code UPPER(col) op UPPER(:v)} (BR-007 — As-Is java:54~82).
      * 응답 = {@code { ds_GetMasterRuleDataList: [rows — 대문자 키 + SEQ/TOTALCOUNT], cnt, totalCount }}.

@@ -31,10 +31,9 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.named('test') {
     useJUnitPlatform()
-    // ScreenUsageOasisContractTest·ScreenUsageMssqlDdlTest 가 mcm/api 시드 소스를 작업 디렉터리 기준 상대 경로로 직접 읽는다 — 입력으로 선언한다.
-    inputs.files(rootProject.file('../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/CoreRbacSeeder.java'),
-                rootProject.file('../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/ScreenUsageSchemaArtifacts.java'),
-                rootProject.file('../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java'))
+    // ScreenUsageOasisContractTest 가 mcm/api 시드 소스를 작업 디렉터리 기준 상대 경로로 직접 읽는다 — 입력으로 선언한다.
+    // (ScreenUsageMssqlDdlTest 는 Oracle 단일화로 archive/test 로 옮겼다 — ScreenUsageSchemaArtifacts·DataInitializer 는 더 읽지 않는다)
+    inputs.files(rootProject.file('../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/CoreRbacSeeder.java'))
             .withPropertyName('mcmSeedSources').withPathSensitivity(PathSensitivity.RELATIVE)
     // ScreenUsageOasisContractTest — mcm/api 의 BPMN 2개를 SERVICES.resolve 로 직접 읽는다(디렉터리 walk 없음)
     inputs.files(rootProject.file('../mcm/api/src/main/resources/services/audit/screenUsage.bpmn'),

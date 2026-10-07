@@ -152,16 +152,24 @@ flowchart TB
 |---|---|---|
 | 첫 낱말 | `SELECT` 또는 `WITH` | 「SELECT 또는 WITH 로 시작하는 조회문만 쓸 수 있습니다」(앞의 주석 때문에 위치가 밀리지 않았는지도 봅니다) |
 | 문장 수 | 하나만. 끝의 `;` 하나는 지워 주고 중간 `;` 는 거절 | 「문장은 하나만 쓸 수 있습니다」 |
-| 쓰기·관리 낱말 | 주석과 문자열 리터럴을 걷어 낸 뒤 검사. INSERT, UPDATE, DELETE, MERGE, DROP, ALTER, CREATE, TRUNCATE, GRANT, REVOKE, EXEC, EXECUTE, CALL, COMMIT, ROLLBACK, INTO, PRAGMA, ATTACH, DETACH 등. `SELECT ... INTO` 와 SQL Server 계열(USE, DECLARE, WHILE, BEGIN, DENY, WAITFOR 등)도 거절. 열·표 이름이 같으면 큰따옴표로 감싸면 통과 | 「쓸 수 없는 낱말이 있습니다: 낱말」 |
-| DB 함수 | 세션 끊기, 파일 읽기, 잠금, 문자열 SQL 실행 함수. 이름 뒤에 `(`, `.`, DB 링크 이름이 붙은 `@` 가 오면(공백·주석은 건너뜀) 호출로 봅니다. 같은 이름의 열·표 이름은 통과하지만 `XP_HIST.CNT` 처럼 표 이름으로 열을 한정하면 거절되므로 별칭을 씁니다. `SP_EXECUTESQL` 같은 SQL Server 위험 저장 프로시저는 이름만 나와도 거절 | 「쓸 수 없는 함수가 있습니다: 함수 이름」 |
+| 쓰기·관리 낱말 | 주석과 문자열 리터럴을 걷어 낸 뒤 검사. INSERT, UPDATE, DELETE, MERGE, DROP, ALTER, CREATE, TRUNCATE, GRANT, REVOKE, EXEC, EXECUTE, CALL, COMMIT, ROLLBACK, INTO, PRAGMA, ATTACH, DETACH, NEXTVAL(시퀀스 값을 소모합니다) 등. `SELECT ... INTO` 와 SQL Server 계열(USE, DECLARE, WHILE, BEGIN, DENY, WAITFOR 등)도 거절. 열·표 이름이 같으면 큰따옴표로 감싸면 통과 | 「쓸 수 없는 낱말이 있습니다: 낱말」 |
+| DB 함수 | 세션 끊기, 파일 읽기, 잠금, 문자열 SQL 실행 함수와 Oracle 이 관리하는 스키마(CTXSYS, MDSYS, XDB, ORDSYS, APEX_n 등)·Oracle Text(`CTX_*`) 패키지. 이름 뒤에 `(` 나 `.` 가 오면(공백·주석은 건너뜀) 호출로 봅니다. 같은 이름의 열·표 이름은 통과하지만 `XP_HIST.CNT` 처럼 표 이름으로 열을 한정하면 거절되므로 별칭을 씁니다. `SP_EXECUTESQL` 같은 SQL Server 위험 저장 프로시저는 이름만 나와도 거절 | 「쓸 수 없는 함수가 있습니다: 함수 이름」 |
+| DB 링크 | `표@링크`, `함수@링크` 처럼 다른 DB 로 가는 이름(`@` 앞뒤 공백 포함). 문자열 리터럴 안의 `@` 와 PostgreSQL 연산자 `@>`, `<@`, `@@` 는 통과 | 「DB 링크(이름@링크)는 쓸 수 없습니다」 |
+| WITH 안 PL/SQL | `WITH FUNCTION ...`, `WITH PROCEDURE ...` 선언(Oracle). `WITH function AS (...)` 처럼 CTE 이름이 function 인 것은 통과 | 「WITH 안의 PL/SQL 함수·프로시저 선언은 쓸 수 없습니다」 |
 | 닫힘 | 따옴표, 괄호, 주석은 모두 닫아야 함 | 「닫히지 않은 따옴표·괄호·주석이 있습니다」 |
 | 특수 표기 | `E'...'`, `q'...'`, `$$...$$`, 백틱, `U&"..."` 와 DB 고유 자리표시자(`\:이름`, `@이름`, `$이름`, `$숫자`) 불가. 조건은 `:이름` 으로만 씀 | |
 
 - 실행 한도: 위젯 최대 500행(넘으면 「상위 500행만 표시합니다」), [쿼리 시험] 최대 50행, 실행 시간 10초. 결과 값은 JSON 으로 바뀌며 긴 글(CLOB)은 4000자까지 옵니다.
-- 연결: 읽기 전용으로 열고 항상 롤백합니다. 운영에서는 읽기 권한만 가진 DB 계정의 전용 연결(`dmes.widget.query.datasource.*`)을 서버에 설정하는 것이 원칙이며, SQL Server 처럼 읽기 전용 트랜잭션이 없는 DB 는 전용 연결이 없으면 시험, 저장, 실행이 모두 거절됩니다.
+- 연결: 읽기 전용으로 열고 항상 롤백합니다. 운영에서는 읽기 권한만 가진 DB 계정의 전용 연결(`dmes.widget.query.datasource.*`)을 서버에 설정하는 것이 원칙입니다. Oracle 은 읽기 전용 트랜잭션이 INSERT, UPDATE, MERGE, `FOR UPDATE` 를 막지만, DB 에 이미 있는 자율 트랜잭션 함수를 부르면 그 함수가 쓴 값은 롤백되지 않고 남습니다. SQL Server 처럼 읽기 전용 트랜잭션이 없는 DB 는 전용 연결이 없으면 시험, 저장, 실행이 모두 거절됩니다.
 - 결과 보관: 같은 위젯, 시스템 변수 값, 조회 조건 값(`:userId`, `:deptCd` 를 쓰면 사용자별)의 결과를 30초 보관하고 저장하면 지웁니다. 사용자가 [새로 고침] 을 자주 눌러도 DB 부하가 크게 늘지 않지만 새 데이터가 30초쯤 늦게 보일 수 있고, 위젯당 50개까지 보관하며 가득 차면 보관 없이 매번 DB 에서 읽습니다.
 
-> **방언 주의:** 로컬 개발 DB 는 SQLite, 운영 DB 는 Oracle 또는 PostgreSQL 입니다. 이 문서의 예시 SQL 은 SQLite 문법(`SUBSTR`, `INSTR`, `LIMIT`, `||`)이므로 운영 DB 에서는 함수와 행 수 제한 문법을 그 DB 에 맞게 고칩니다.
+> **방언 주의:** 로컬 개발 DB 와 운영 DB 는 Oracle 입니다(PostgreSQL 로 운영하는 곳은 그 DB 문법에 맞게 고칩니다). 이 문서의 예시 SQL 은 Oracle 문법(`TRUNC(SYSDATE)`, `TO_CHAR`, `INSTR`, `FETCH FIRST n ROWS ONLY`, `||`)입니다. Oracle 에서 자주 틀리는 점은 아래와 같습니다.
+>
+> - 일시 열(`STARTED_AT` 등)은 TIMESTAMP 이므로 `SUBSTR` 로 자르지 말고 `TO_CHAR(STARTED_AT, 'YYYY-MM-DD HH24:MI')` 로 글자를 만듭니다. 오늘 0시는 `TRUNC(SYSDATE)`, 6일 전 0시는 `TRUNC(SYSDATE) - 6` 입니다(DB 시간대는 서울 시간).
+> - 행 수 제한은 `LIMIT n` 이 아니라 `FETCH FIRST n ROWS ONLY` 입니다.
+> - `GROUP BY` 에는 위치 번호(`GROUP BY 1`)를 쓸 수 없어 식을 그대로 다시 씁니다. `ORDER BY 2` 는 됩니다.
+> - 빈 글자 `''` 는 NULL 이라 `열 = ''` 은 늘 거짓입니다. `열 IS NULL` 로 씁니다.
+> - 따옴표 없는 별칭은 대문자로 돌아옵니다(`AS cnt` → `CNT`). 필드 이름은 대소문자를 구분하므로 별칭을 대문자로 쓰거나 [쿼리 시험] 결과 목록에서 고릅니다.
 
 ### 3.4 시스템 변수
 
@@ -176,7 +184,7 @@ SQL 안의 `:이름` 에 서버가 값을 넣습니다. 아래 6개가 전부이
 | `:monthStart` | 이달 1일 `yyyyMMdd` 글자 |
 | `:now` | 현재 시각(타임스탬프) |
 
-> **주의:** 날짜가 `yyyyMMdd` 글자라서 `yyyy-MM-dd` 로 저장된 날짜 열과 바로 비교하면 어긋납니다. `REPLACE(SUBSTR(STARTED_AT, 1, 10), '-', '')` 처럼 열 쪽을 맞춥니다.
+> **주의:** 날짜가 `yyyyMMdd` 글자라서 일시(TIMESTAMP) 열과 바로 비교하면 어긋납니다. `TO_CHAR(STARTED_AT, 'YYYYMMDD') = :today` 처럼 열 쪽을 글자로 바꾸거나, `STARTED_AT >= TO_DATE(:today, 'YYYYMMDD')` 처럼 변수 쪽을 날짜로 바꿉니다(색인을 타려면 뒤쪽이 낫습니다).
 
 ### 3.5 조회 조건
 
@@ -215,7 +223,7 @@ SQL 칸 아래 [쿼리 시험] 은 저장 전에 SQL 을 서버에서 실제로 
 
 - 로그인한 관리자 본인의 시스템 변수 값과 조회 조건 **기본값** 으로 실행하며 값 없는 필수 조건은 NULL 입니다.
 - 최대 50행. 성공하면 버튼 옆에 결과 요약이 보이고 상세 아래 미리보기가 이 결과로 그려집니다(실제 위젯 서버 호출은 하지 않습니다).
-- 실패하면 서버 메시지를 그대로 보이며 DB 오류는 「쿼리 오류: 」 뒤에 DB 메시지가 붙습니다사용자 화면의 위젯은 서버가 거절하면 이유와 상관없이 「위젯 데이터를 불러오지 못했습니다」 만 보이며 자세한 원인은 서버 로그에 위젯 ID 와 함께 남습니다. 로컬 SQLite 에서 쓴 함수가 운영 DB 에 없는 경우가 흔합니다.
+- 실패하면 서버 메시지를 그대로 보이며 DB 오류는 「쿼리 오류: 」 뒤에 DB 메시지가 붙습니다. 사용자 화면의 위젯은 서버가 거절하면 이유와 상관없이 「위젯 데이터를 불러오지 못했습니다」 만 보이며 자세한 원인은 서버 로그에 위젯 ID 와 함께 남습니다. SQLite 나 SQL Server 문법(`LIMIT`, `DATE('now')`, `ISNULL`, `GETDATE()`)으로 쓴 SQL 은 Oracle 에서 실패합니다.
 - SQL 칸이 비면 「SQL 을 입력하세요」 가 보입니다.
 
 > **주의:** 시험 결과는 저장되지 않습니다. 시험만 누르고 다른 값을 바꾸지 않았다면 저장할 변경이 없어 [저장] 이 눌리지 않습니다.
@@ -232,7 +240,7 @@ SQL 칸 아래 [쿼리 시험] 은 저장 전에 SQL 을 서버에서 실제로 
 
 **예시:** §9 쿼리 표 최소 예시를 봅니다.
 
-> **주의:** 표시 컬럼 필드 이름의 대소문자가 SQL 별칭(AS)과 다르면 빈 열이 나오므로 시험 뒤 선택 목록에서 고릅니다. 필드가 빈 컬럼 줄은 「필드가 빈 컬럼이 있습니다」 로 저장되지 않고, 500행을 넘는 결과는 잘리므로 SQL 안에서 `LIMIT` 등으로 줄입니다.
+> **주의:** 표시 컬럼 필드 이름의 대소문자가 SQL 별칭(AS)과 다르면 빈 열이 나오므로 시험 뒤 선택 목록에서 고릅니다. 필드가 빈 컬럼 줄은 「필드가 빈 컬럼이 있습니다」 로 저장되지 않고, 500행을 넘는 결과는 잘리므로 SQL 안에서 `FETCH FIRST n ROWS ONLY` 등으로 줄입니다.
 
 ### 3.8 쿼리 차트
 
@@ -713,26 +721,26 @@ flowchart TB
 
 `def.qcondsmp`: 조회 조건 4개(범위, 화면명, 시작일, 최소 사용 초)를 가진 쿼리 표입니다.
 
-> **주의:** 시드 코드가 아니라 로컬 개발 DB(`mcm.db`)의 `TB_MCM_WIDGET_DEF` 행을 옮긴 값이며 SQLite 문법입니다(§3 방언 주의).
+> **주의:** 시드 코드가 아니라 로컬 개발 DB 의 `TB_MCM_WIDGET_DEF` 행을 옮긴 값입니다. SQL 은 Oracle 문법으로 바꿔 Oracle 에서 실행해 확인했습니다(§3.3 방언 주의).
 
 공통 칸 값: 유형 쿼리 표, 실행 모듈 `mcm`, 이름 「화면 사용 기록 검색(입력 조건 샘플)」, 부제 「범위·화면명·시작일·최소 사용 초로 조회」, 기본 크기 14×12, 새로 고침 600초, 화면 열기 `mcm:csa/screenUsageStat`, 분류 INFO(외부 정보), 여러 번 놓기 허용 안 함, 비공개 아니오.
 
 SQL:
 
 ```
-SELECT SUBSTR(l.STARTED_AT, 1, 16) AS STARTED,
+SELECT TO_CHAR(l.STARTED_AT, 'YYYY-MM-DD HH24:MI') AS STARTED,
        COALESCE(o.OBJECT_NM, l.PAGE_ID) AS SCREEN_NM,
        l.USER_ID AS USER_ID,
-       ROUND(l.DURATION_MS / 1000.0) AS SEC
+       ROUND(l.DURATION_MS / 1000) AS SEC
   FROM TB_SEC_SCREEN_USAGE_LOG l
   LEFT JOIN TB_MCM_SEC_OBJ o
     ON o.OBJECT_ID = SUBSTR(l.PAGE_ID, INSTR(l.PAGE_ID, '/') + 1)
  WHERE (:scope = 'ALL' OR l.USER_ID = :userId)
    AND (:screenNm IS NULL OR COALESCE(o.OBJECT_NM, l.PAGE_ID) LIKE '%' || :screenNm || '%')
-   AND (:fromDt IS NULL OR REPLACE(SUBSTR(l.STARTED_AT, 1, 10), '-', '') >= :fromDt)
+   AND (:fromDt IS NULL OR TO_CHAR(l.STARTED_AT, 'YYYYMMDD') >= :fromDt)
    AND (:minSec IS NULL OR l.DURATION_MS >= :minSec * 1000)
  ORDER BY l.STARTED_AT DESC
- LIMIT 100
+ FETCH FIRST 100 ROWS ONLY
 ```
 
 조회 조건 선언(`params`):
@@ -764,18 +772,18 @@ SELECT SUBSTR(l.STARTED_AT, 1, 16) AS STARTED,
 
 ### 9.2 쿼리 표 최소 예시
 
-`def.ldj2hpgw`: 조회 조건이 없는 가장 단순한 쿼리 표(로컬 DB 정의 행의 값)입니다.
+`def.ldj2hpgw`: 조회 조건이 없는 가장 단순한 쿼리 표(로컬 DB 정의 행의 값을 Oracle 문법으로 바꾼 것)입니다.
 
 ```
-SELECT SUBSTR(l.STARTED_AT, 1, 16) AS STARTED,
+SELECT TO_CHAR(l.STARTED_AT, 'YYYY-MM-DD HH24:MI') AS STARTED,
        COALESCE(o.OBJECT_NM, l.PAGE_ID) AS SCREEN_NM,
-       ROUND(l.DURATION_MS / 1000.0) AS SEC
+       ROUND(l.DURATION_MS / 1000) AS SEC
   FROM TB_SEC_SCREEN_USAGE_LOG l
   LEFT JOIN TB_MCM_SEC_OBJ o
     ON o.OBJECT_ID = SUBSTR(l.PAGE_ID, INSTR(l.PAGE_ID, '/') + 1)
  WHERE l.USER_ID = :userId
  ORDER BY l.STARTED_AT DESC
- LIMIT 20
+ FETCH FIRST 20 ROWS ONLY
 ```
 
 표시 컬럼은 `STARTED`(시작, 폭 130), `SCREEN_NM`(화면, 폭 160), `SEC`(사용(초), 폭 80, 형식 숫자) 입니다.
@@ -786,14 +794,14 @@ SELECT SUBSTR(l.STARTED_AT, 1, 16) AS STARTED,
 
 ### 9.3 자동 수집 예시
 
-하루 화면 열람 횟수를 30분마다 모읍니다. `CollectConfigs` 검사 규칙에 맞춰 이 문서가 만든 예시이며 로컬 DB 에 정의가 없어 실행해 보지 않았습니다.
+하루 화면 열람 횟수를 30분마다 모읍니다. `CollectConfigs` 검사 규칙에 맞춰 이 문서가 만든 예시이며 로컬 DB 에 정의는 없지만, SQL 은 Oracle 에서 시험 행으로 실행해 확인했습니다.
 
 설정: 「새 위젯」 에서 「자동 수집」, 이름 「오늘 화면 열람 횟수」, 일정 「주기마다」 30분, 원천 「SQL」 에 아래 SQL(수집 SQL 은 `:today` 같은 시스템 변수만 가능), [쿼리 시험] 으로 `CNT` 를 확인해 값 컬럼에 고르고 항목 컬럼은 비움(비우면 첫 행의 값이 `VALUE` 항목), 표시 기간 7·단위 「회」 로 [저장] 합니다.
 
 ```
 SELECT COUNT(*) AS CNT
   FROM TB_SEC_SCREEN_USAGE_LOG
- WHERE REPLACE(SUBSTR(STARTED_AT, 1, 10), '-', '') = :today
+ WHERE TO_CHAR(STARTED_AT, 'YYYYMMDD') = :today
 ```
 
 저장되는 JSON:

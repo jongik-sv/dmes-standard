@@ -72,7 +72,8 @@ Oracle 단일화(oracle-1007, 2026-10-07)부터 mcm 스키마의 정본은 `src/
 - `${app_user}` 는 Flyway 자리표시자다. mcm 앱이 접속하는 사용자(로컬·운영 모두 MCMAPUSER)로 넣는다.
 - 스키마 폴더마다 Flyway 는 **그 스키마의 주인으로 접속**한다(GRANT 는 표 주인만 줄 수 있다). `locations` 는 그 폴더 하나로
   좁힌다 — `classpath:db/migration/oracle` 처럼 넓히면 V1 네 벌이 한 이력에 섞여 부팅이 실패한다.
-- 전제는 Oracle 23 이상이다(BOOLEAN 열, 30자 넘는 제약 이름).
+- 전제는 Oracle 12.2 이상이다(30자 넘는 제약 이름, IDENTITY). boolean 칸은 `NUMBER(1)` 이고 앱 설정에
+  `hibernate.type.preferred_boolean_jdbc_type=BIT` 가 있어야 validate 가 맞는다(`docs/oracle-1007/schema-owners.md` §3.1.1).
 - CARAVANUSER·EAIUSER·IFUSER 기준선은 caravan-hub 가 갖는다(mcm-core 에 두지 않는다).
 - 운영(WildFly)은 Flyway 를 끄고 DBA 가 같은 파일을 적용한다.
 - 다음 번호는 **바꾸려는 스키마 폴더의 최대 V + 1** 로 직접 정한다. `/flyway-migration-add` 스킬의 `status` 는 아직

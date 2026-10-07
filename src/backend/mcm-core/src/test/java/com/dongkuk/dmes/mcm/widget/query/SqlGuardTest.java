@@ -146,8 +146,30 @@ class SqlGuardTest {
                 arguments("SELECT 1 SETUSER 'dbo'", SqlGuard.forbiddenWord("SETUSER")),
                 arguments("SELECT 1 RAISERROR('x', 10, 1) WITH LOG", SqlGuard.forbiddenWord("RAISERROR")),
                 arguments("SELECT 1 REVERT", SqlGuard.forbiddenWord("REVERT")),
-                // Oracle 12c 인라인 PL/SQL(WITH FUNCTION)은 본문에 ; 가 있어야 해서 여러 문장으로 거절된다
-                arguments("WITH FUNCTION f RETURN NUMBER IS BEGIN DBMS_SESSION.SLEEP(5); RETURN 1; END; SELECT f FROM dual", MULTI));
+                // Oracle 12c 인라인 PL/SQL(WITH FUNCTION·PROCEDURE)은 본문에 ; 가 있어야 해서 여러 문장이기도 하지만, 자율 트랜잭션으로
+                // 읽기 전용을 벗어나므로(2026-10-07 Oracle 26ai 실측) 따로 알맞은 문구로 거절한다
+                arguments("WITH FUNCTION f RETURN NUMBER IS BEGIN DBMS_SESSION.SLEEP(5); RETURN 1; END; SELECT f FROM dual",
+                        SqlGuard.MSG_INLINE_PLSQL),
+                arguments("with\n  function f return number is pragma autonomous_transaction; begin return 1; end;\nselect f from dual",
+                        SqlGuard.MSG_INLINE_PLSQL),
+                arguments("WITH PROCEDURE p IS BEGIN NULL; END; FUNCTION f RETURN NUMBER IS BEGIN p; RETURN 1; END; SELECT f FROM dual",
+                        SqlGuard.MSG_INLINE_PLSQL),
+                // Oracle 읽기 전용 트랜잭션에서도 시퀀스는 소모된다(2026-10-07 실측) — NEXTVAL 은 낱말로 막는다
+                arguments("SELECT SEQ_MCM_MOM_TC_SEND.NEXTVAL FROM dual", SqlGuard.forbiddenWord("NEXTVAL")),
+                arguments("SELECT MCMAPUSER.SEQ_X . nextval FROM dual", SqlGuard.forbiddenWord("NEXTVAL")),
+                arguments("SELECT nextval('seq_x')", SqlGuard.forbiddenWord("NEXTVAL")),
+                // Oracle DB 링크 — 원격 DB 에서 도는 질의는 이 연결의 읽기 전용 트랜잭션이 막지 못한다
+                arguments("SELECT * FROM TB_X@REMOTE_LINK", SqlGuard.MSG_DB_LINK),
+                arguments("SELECT * FROM TB_X @ remote.link.com", SqlGuard.MSG_DB_LINK),
+                arguments("SELECT a.c FROM MCMAPUSER.TB_X@LNK a", SqlGuard.MSG_DB_LINK),
+                arguments("SELECT BFILENAME@remote_link('D', 'f') FROM dual", SqlGuard.MSG_DB_LINK),
+                arguments("SELECT * FROM \"TB_X\"@remote_link", SqlGuard.MSG_DB_PLACEHOLDER),
+                // 링크 이름을 따옴표로 감싸면 가린 사본에서 @ 양쪽이 공백이 된다 — 드러낸 사본에서 다시 본다(보안 리뷰 10-07)
+                arguments("SELECT * FROM \"T\"@\"LINK\"", SqlGuard.MSG_DB_LINK),
+                arguments("SELECT * FROM T@\"LINK\"", SqlGuard.MSG_DB_LINK),
+                arguments("SELECT pkg.f@\"LNK\"(1) FROM dual", SqlGuard.MSG_DB_LINK),
+                arguments("SELECT seq.\"NEXTVAL\" FROM dual", SqlGuard.MSG_FORBIDDEN + "NEXTVAL"),
+                arguments("SELECT \"SEQ\" . \"nextval\" FROM dual", SqlGuard.MSG_FORBIDDEN + "NEXTVAL"));
     }
 
     @ParameterizedTest(name = "[{index}] {0}")
@@ -299,7 +321,7 @@ class SqlGuardTest {
                 arguments("SELECT * FROM ts_stat /* a */ -- b\n /* c */ ('select 1')", "TS_STAT"),
                 arguments("SELECT DBMS_LOCK . SLEEP(5) FROM dual", "DBMS_LOCK"),
                 arguments("SELECT DBMS_SESSION.UNIQUE_SESSION_ID FROM dual", "DBMS_SESSION"),
-                arguments("SELECT BFILENAME@remote_link('D', 'f') FROM dual", "BFILENAME"),
+                // 이름@링크 는 2026-10-07 부터 DB 링크 규칙(rejects)이 먼저 거절한다 — 따옴표 링크 이름은 가린 사본에서 이름이 보이지 않아 여기서 걸린다
                 arguments("SELECT BFILENAME @ \"REMOTE\"('D', 'f') FROM dual", "BFILENAME"),
                 arguments("SELECT xp_cmdshell ('dir')", "XP_CMDSHELL"),
                 arguments("SELECT XMLTYPE.CREATEXML('<a/>') FROM dual", "XMLTYPE"),
@@ -308,7 +330,13 @@ class SqlGuardTest {
                 // 대문자로 바꾸면 I·S 가 되는 유니코드 글자(ı U+0131, ſ U+017F)를 끼워도 걸린다(UNICODE_CASE)
                 arguments("SELECT DBMS_P\u0131PE.RECEIVE_MESSAGE('p', 10) FROM dual", "DBMS_PIPE"),
                 arguments("SELECT DBM\u017F_XMLGEN.GETXML('select 1 from dual') FROM dual", "DBMS_XMLGEN"),
-                arguments("SELECT 1 \u017Fp_executesql N'select 1'", "SP_EXECUTESQL"));
+                arguments("SELECT 1 \u017Fp_executesql N'select 1'", "SP_EXECUTESQL"),
+                // Oracle \uC774 \uAD00\uB9AC\uD558\uB294 \uC2A4\uD0A4\uB9C8\uC758 \uD328\uD0A4\uC9C0(\uC815\uC758\uC790 \uAD8C\uD55C \u2014 CTXSYS.DRITHSX.SN \uAD8C\uD55C \uC0C1\uC2B9 \uACBD\uB85C)\uC640 Oracle Text \uD328\uD0A4\uC9C0(2026-10-07)
+                arguments("SELECT ctxsys.drithsx.sn(1, 'x') FROM dual", "CTXSYS"),
+                arguments("SELECT CTX_DOC.SNIPPET('idx', 'k', 'q') FROM dual", "CTX_DOC"),
+                arguments("SELECT MDSYS.SDO_UTIL.FROM_WKTGEOMETRY('POINT(1 1)') FROM dual", "MDSYS"),
+                arguments("SELECT \"XDB\".\"DBMS_XDB\".GETACLDOCUMENT('/') FROM dual", "XDB"),
+                arguments("SELECT APEX_230200.WWV_FLOW_UTILITIES.GET_X(1) FROM dual", "APEX_230200"));
     }
 
     @ParameterizedTest(name = "[{index}] {0}")
@@ -333,6 +361,14 @@ class SqlGuardTest {
                 // DBMS_ 전체를 막지 않는다 — 평범한 CLOB 조회
                 arguments("SELECT DBMS_LOB.SUBSTR(note, 100, 1) FROM t"),
                 arguments("SELECT DBMS_LOB.GETLENGTH(note) FROM t"),
+                // Oracle 2026-10-07 보강과 이름이 겹치지만 부르지 않거나 다른 뜻인 것 — CTE 이름 FUNCTION·PROCEDURE, ctx_·xdb_ 로 시작하는 열,
+                // 리터럴 안 @, PostgreSQL @>·<@·@@ 연산자, 시퀀스 이름 열(nextval_dt)은 통과한다
+                arguments("WITH function AS (SELECT 1 a FROM dual) SELECT a FROM function"),
+                arguments("WITH procedure (a) AS (SELECT 1 FROM dual) SELECT a FROM procedure"),
+                arguments("SELECT ctx_cd, xdb_yn, mdsys_cnt, nextval_dt FROM t"),
+                arguments("SELECT \"NEXTVAL\" AS n, t.\"NEXTVAL_DT\" FROM t"),
+                arguments("SELECT 'a@b.com', 'x @ y' FROM dual"),
+                arguments("SELECT 1 FROM t WHERE tags @> ARRAY[1] AND ARRAY[2] <@ tags AND tsv @@ q"),
                 // 이름 일부만 같은 식별자·리터럴 안 이름·비트 연산 & 뒤 따옴표 식별자는 통과
                 arguments("SELECT sleep_cnt, lock_yn, xml_data, utl_http_log FROM t"),
                 arguments("SELECT \"utl_http_log\", \"update\" FROM t"),
