@@ -115,3 +115,85 @@ archive 로 옮긴 뒤 승인되면 삭제할 수 있는 묶음이다.
 - `scripts/db-snapshot/{export,import}.sh`, `tools/oracle-free/{sqlite_to_oracle,load_snapshot}.py`.
 - SQLite 마이그레이션 폴더(mdm 19·mcm-core 16)와 SQLite 전용 시험·코드 클래스(위 §2·§4 의 archive 항목 전부).
 - `scripts/perf/render`, `scripts/archive`, 필요하면 `scripts/data/notice-mls-to-mcm.*`.
+- `poc/camel-hub-poc`, `poc/mdm-embedding-bench`(폐기된 PoC, §9 참고).
+
+## 9. 머지 전 잔재 예측 (2026-10-07, 레인 4개 + base 가상 병합 기준)
+
+방법: `dev`(ce378785a)에 `feat/ora-base`(0358664a6)·`ora-mdm`(8192ec67e)·`ora-mcm-core`(750e6d1d3)·`ora-mcm-app`(faed71612)·`ora-platform`(f00addc03)를 `git merge-tree --write-tree` 로 차례로 합친 트리(충돌 없음, 브랜치·머지는 만들지 않았다)에서 `git grep` 했다. 대상은 `archive/`(최상위·모듈 안 `archive/`)와 `pnpm-lock.yaml` 을 뺀 저장소 전체이고, 패턴은 sqlite·h2·H2Dialect·SQLServer·mssql·jdbc:sqlite·sqlite-jdbc·LocalSqliteDataSource·postgres 이다. 브랜치가 더 나아가면 결과가 달라지므로, 각 레인이 머지를 요청하기 직전에 같은 방법으로 다시 확인한다(§9.6 의 명령).
+
+원자료는 전체 707 파일이었으나 대부분은 과거 기록이라 아래처럼 나눴다. **고쳐야 할 것**은 §9.1~9.5 의 표에 있는 것이고, 나머지는 놓아 둔다.
+
+- 놓아 두는 것: 「As-Is MSSQL 변환」·「예전 MSSQL 은 …」 같은 이력 주석(mcm-core 의 repository·service 약 40곳), 프런트 `m-mcm` 의 As-Is 변환 주석, 오류 문구 필터 정규식의 `sqlite_`(`noticeMgmt/api.ts`, `shared/tests/unit/http-oasis-call.unit.test.ts`, 방어용), 위젯 가이드 본문(`widget-guide-content.ts`, 가이드 §3 은 건드리지 않는다).
+- **머지된 V1(`db/migration/**/V1__*.sql`)의 머리 주석에 든 SQLite·MSSQL 언급은 고치지 않는다**(한 줄도 체크섬을 바꾼다). 대상: mls·mpp·caravanuser·ifuser·mcm-core(mcmapuser·mcm_backup)·mcm V1. 필요하면 V2 이상에서 다룬다.
+- docs 이력: `docs/mdm/tasks`(77)·`docs/mcm/design`(52)·`docs/superpowers/{specs,plans}`(36)·`docs/cactus/**`·`docs/mdm/{erd,adr,dict-*}` 는 과거 설계·결정 기록이라 고치지 않는다. 현행 가이드(`docs/guide/**`, `README.md`)와 스킬(`.claude/skills/**`)만 b7 소관이다.
+- `poc/camel-hub-poc`·`poc/mdm-embedding-bench`: 폐기된 PoC 폴더(11곳). 범위 밖이며 정리는 사용자 결정이다(§8 에 추가).
+
+### 9.1 ora-mdm
+
+| 위치 | 잔재 | 조치 |
+|---|---|---|
+| `src/backend/mdm/api/src/test/**/*SqliteTest.java` 72개 | 클래스 이름에 `Sqlite`. 내용은 이미 `AbstractMdmSharedDbTest`(Oracle)이고 본문 언급은 45개가 1곳(주석) | 이름·주석만 남은 것이다. 이름 바꾸기는 선택(바꾸면 `-Pdmes.ora.test` 등 시험 선택 패턴·문서 참조를 함께 갱신) |
+| `src/backend/mdm/sample/mdm-local-sample.sql` | `sqlite3 src/backend/data/mdm.db < …` 실행 안내 3줄·`.bail`/`.timeout` | Oracle 판(`snapshot.py import`)으로 안내를 바꾸거나 archive |
+| `src/backend/mdm/tools/oracle-baseline/gen_oracle_baseline.py`·`overrides.json` | `import sqlite3`(SQLite 최종 스키마에서 V1 을 만든 도구) | V1 을 이미 만들었으니 archive 후보 |
+| `src/backend/mdm/{build.gradle:47, lib/build.gradle:14}`, `…/RuleCalcSeedSetTest.java:61` | 「SQLite 시절」 주석 | 주석 정리 |
+| `src/frontend/playwright.mdm-user.config.ts:12`, `e2e/mdm-user/{dmb,dme}.user.ts`·`support.ts:81`, `e2e/fixtures/mdm-*.sql`(3), `mdm-user/TEST-CASES.md:18` | SQLite 샘플 로더·SQLITE_BUSY 회피 주석 | 주석을 Oracle 기준으로 고친다 |
+
+### 9.2 ora-mcm-core
+
+| 위치 | 잔재 | 조치 |
+|---|---|---|
+| `mcm-core/build.gradle:76-81` | `testRuntimeOnly libs.h2`·`libs.sqlite.jdbc`·`libs.flyway.database.postgresql` | 쓰는 시험이 없으면 제거(그 뒤 base 가 `libs.versions.toml` 항목을 걷는다) |
+| `common/audit/McmSqliteMybatisInterceptor.java`(15)·`McmAuditStatementInspector.java`(27, SQLite 판별·MSSQL 토큰 치환) | SQLite 전용 SQL 변환 | 인터셉터는 archive, Inspector 는 SQLite 분기 제거 |
+| `common/audit/…McmAuditStatementInspectorSqliteTest.java`(test) | SQLite 시험 | archive |
+| `common/persistence/{SqliteTemporalConverterContributor, LocalDateAttributeConverter, LocalDateTimeAttributeConverter}.java` | SQLite 날짜 우회 | **ora-platform 머지 뒤**에 제거(기존 결정), 미리 archive 하면 안 된다 |
+| `screenusage/schema/ScreenUsageMssqlDdl.java`(main) | 시험은 archive 했는데 클래스는 main 에 남음 | archive(`build.gradle:35` 주석과 맞춤) |
+| `widget/query/{SqlGuard(33), WidgetReadOnlyJdbc(21), WidgetQueryExecutor(14), WidgetQueryProperties, WidgetQueryRunner}` | SQL Server·PostgreSQL·SQLite `query_only` 분기·문구 | 운영은 Oracle 전용 읽기 계정이므로 SQLite 분기는 제거, SQL Server 분기(`WAITFOR` 등 차단 낱말)는 레인 판단(방어 규칙은 유지해도 무해) |
+| `widget/{chat/service/WidgetChatService, chat/WidgetChatWriter, collect/WidgetCollectWriter, service/SecWidgetTabWriter}`, `repository/SecMenuNativeRepository:335` | SQLITE_BUSY 재시도·「로컬 SQLite 는 …」 주석 | 재시도 상수가 SQLite 락 전용이면 정리, 아니면 주석만 |
+
+### 9.3 ora-mcm-app
+
+| 위치 | 잔재 | 조치 |
+|---|---|---|
+| `mcm/lib/build.gradle:31` | `api libs.sqlite.jdbc`(api 노출) | 제거(다른 모듈이 이 transitive 에 기대는지 `:mcm:lib` 소비 모듈 컴파일로 확인) |
+| `mcm/api/src/test/**/init/DataInitializerMssqlSqlCharacterizationTest.java`(29)와 골든 `src/test/resources/init/data-initializer-mssql-sql.*.golden.txt` 4개 | `DataInitializer` 의 MSSQL SQL 기록. 본문에 Java DDL 단계를 걷어냈다고 적혀 있어 대상이 없어진 시험 | archive(시험·골든 함께) |
+| `mcm/api/src/test/**/queryroute/{MasterCodeSelPopQueryRoutePerfTest, McmMybatisConfigWiringTest, QueryMapperLintTest, QueryRouteHarness}`, `init/DataInitializerSeedFingerprintTest` | 「SQLite 파일 DB」 설명·주석 | 주석 정리 |
+| `mcm/api/src/main/java/**/init/{DataInitializer, seed/McmMenuSeeder, MenuFinalizer, RuleMasterSampleSeeder, SeedSupport, WidgetCategoryCodeSeeder}` | 「개발 MSSQL·동료 SQLite」 백필 주석, `WidgetCategoryCodeSeeder` 의 SQLite V18 언급 | 주석 정리(동작 변경 없음) |
+| `mcm/sample/widget-rule-calc-defs.sql:13` | `sqlite3 … < …` 실행 안내 | Oracle 안내로 교체 |
+| `mcm/lib/…/notice/{entity/Notice, repository/NoticeRepository}`, `domain/security/controller/McmAuthController`, `db/McmSchemaMigrator` | 옛 SQLite 설명 주석 | 주석 정리 |
+| `mcm/gradle.properties:8` | 「../data SQLite」 주석 | 주석 정리 |
+
+### 9.4 ora-platform
+
+| 위치 | 잔재 | 조치 |
+|---|---|---|
+| `cactus-core/src/main/java/**/cactus/local/LocalSqliteDataSource.java` | `jdbc:sqlite:` 로 접속을 만드는 클래스. mcm-app 은 이미 쓰지 않는다(`McmApplication.java:59`) | 다른 모듈이 안 쓰면 archive(소비처는 `git grep LocalSqliteDataSource` 로 확인) |
+| `cactus-core/…/datasource/CactusDataSourceProperties.java`(javadoc), `jpa/CactusJpaProperties.java:26` | 설정 예시가 `jdbc:sqlserver://`·`SQLServerDialect` | Oracle 예시로 교체 |
+| `cactus-core/…/persistence/dmom/DmomMapper.xml:5`(「MSSQL」 매퍼) | MSSQL 문법일 수 있는 전문 송신 SQL | Oracle 문법 확인, 아니면 변환 |
+| `cactus-core/…/test/**/CactusMultiJpaAutoConfigurationTest.java`(H2Dialect 4곳), `oasis-core/src/test/resources/META-INF/persistence.xml:27`(`jdbc:h2:tcp`) | 방언 이름 문자열·H2 URL | 이름 문자열은 Oracle 로 바꾼다. 영속성 설정 H2 URL 은 쓰는 시험이 없으면 정리 |
+| `cactus-core/…/security/auth/AuthService.java:55`, `dmes-logback-base.xml:79` | SQLite·mssql-validate 프로파일 주석 | 주석 정리 |
+| `aps-core/build.gradle:61` | `testRuntimeOnly libs.sqlite.jdbc` | 제거 |
+| `caravan-console/…/AppHostEntity.java:27`, `caravan-core/…/{TiberoDialectResolver, TopicInfoJpaRepository}`, `caravan-hub/{build.gradle:47, HubFlywayConfig}` | SQLite·MSSQL 설명 주석 | 주석 정리. **caravanuser·ifuser V1 의 머리 주석은 고치지 않는다** |
+| `{localKafka, maru-mdm-engine, mls, mpn, mpp, mqc, cactus-core}/gradle.properties:8`, `data-migration/sample-migration/index.cjs:14` | 「../data SQLite」·mssql 예시 주석 | 주석 정리(8행은 모듈마다 같은 문구라 한 번에) |
+
+### 9.5 ora-base (내 몫, 머지 뒤 처리)
+
+| 위치 | 잔재 | 조치 |
+|---|---|---|
+| `src/backend/gradle/libs.versions.toml:77-85` | `sqlite-jdbc`·`mssql-jdbc`·`h2`·`hibernate-community-dialects-*`·`flyway-database-postgresql` | 레인이 위 `build.gradle` 사용을 걷은 뒤 **마지막에** 제거(먼저 지우면 레인이 깨진다). `git grep 'libs\.\(sqlite\|h2\|mssql\)'` 가 0 이고 `hibernate-community-dialects` 소비처가 없을 때 |
+| `analog/gradle/libs.versions.toml:5` | `sqlite-jdbc = "3.47.2.0"` | analog 는 범위 밖(조정자 결정). 기록만 |
+| `be-run.sh:528-529`·`be-run.ps1:310` | 「local 프로파일 SQLite 파일 위치」 `../data` 디렉터리 준비 | 모듈이 모두 Oracle 로 넘어가면 제거. 머지③ 뒤 확인 |
+| `.gitignore:38,47` | SQLite DB·런타임 아티팩트 항목 | 로컬 `.db` 가 남은 PC 를 위해 당분간 유지, z1 에서 제거 |
+| `src/backend/build-logic/…/dmes.test-conventions.gradle:112`, 각 `gradle.properties:8` | 「../data SQLite」 캐시 제외 사유 문구 | 문구만 Oracle 로 고친다(캐시 제외 자체는 유지) |
+| `scripts/db-snapshot/{export,import}.sh`, `db-snapshot/mdm/sqlite_sequence.sql` 등 옛 SQL 스냅샷, `tools/oracle-free/{sqlite_to_oracle,load_snapshot}.py`, `scripts/data/notice-mls-to-mcm.*`, `scripts/archive`, `scripts/perf/{render,mcm,mdm-backend}` | SQLite 도구·하니스 | §1·§5 대로 archive(삭제는 승인 뒤) |
+| `src/frontend/playwright.config.ts:8-9` | 「mcm SQLite 가 SQLITE_BUSY 로 500」 주석 + `workers: 1` | 주석 수정, 병렬 허용 여부는 Oracle 동시 로그인 확인 뒤 판단 |
+| `.claude/skills/{flyway-migration-add, dflow-merge, dflow-dev, dflow-work, dflow-team, dflow-wbs, coordinator, analyze-*}` | `dialect`·`sqlite` 낱말(스크립트 `migration_tool.mjs`·`selftest.mjs`·`golden.test.mjs`·`dialect-check.sh` 등 약 40곳) | b7 후속(초안 A·B, 머지④ 뒤) |
+| `docs/guide/Database/oracle-to-mssql-*.md` 2개 | 옛 Oracle→MSSQL 변환 가이드 | 이력 문서. 폐기 표시를 머리에 붙일지 b7 에서 판단 |
+
+### 9.6 다시 확인하는 명령(읽기 전용)
+
+```bash
+V=$(git merge-tree --write-tree --no-messages dev feat/ora-base >/dev/null; echo dev)   # 필요하면 위 방법대로 레인을 차례로 합쳐 commit-tree 로 만든다
+git -c core.quotepath=false grep -I -n -E 'jdbc:sqlite|sqlite-jdbc|org\.sqlite|LocalSqliteDataSource|SQLiteDialect|H2Dialect|jdbc:h2|mssql-jdbc|jdbc:sqlserver|SQLServerDialect|sqlite3' <합친 커밋> -- . ':(exclude)**/archive/**' ':(exclude)docs' ':(exclude)*.md' ':(exclude)poc'
+```
+
+강한 신호(드라이버·방언·URL·식별자) 74줄이 0 이 되는 것이 머지 전 기준이다. 약한 신호(주석·이름)는 위 표에 적은 만큼만 정리한다.
