@@ -39,10 +39,20 @@ LANE_SKEL='{"session":{"name":"","addr":"","session_id":"","pid":0,"handle":"","
 _LOCKED=""
 trap '[ -n "$_LOCKED" ] && coord_unlock "$_LOCKED"' EXIT
 
+# mv 를 재시도한다: 윈도우는 다른 프로세스가 대상 파일을 열고 있으면(백신·탐색기·동시 읽기) mv 가 잠금 오류로 실패한다.
+# 0.1초 간격으로 최대 5번. macOS 는 첫 시도에서 성공하므로 달라지지 않는다.
+_atomic_mv() {
+  local i=0
+  while [ "$i" -lt 5 ]; do
+    mv -f "$1" "$2" 2>/dev/null && return 0
+    i=$((i + 1)); [ "$i" -lt 5 ] && sleep 0.1
+  done
+  mv -f "$1" "$2"
+}
 # stdin → <파일> 원자적 쓰기(같은 폴더 임시 파일 → mv).
 atomic_write() {
   local f="$1" t; t="$1.tmp.$$"
-  if cat > "$t" && [ -s "$t" ]; then mv -f "$t" "$f"; else rm -f "$t"; return 1; fi
+  if cat > "$t" && [ -s "$t" ]; then _atomic_mv "$t" "$f"; else rm -f "$t"; return 1; fi
 }
 run_dir() { coord_run_dir; }
 state_file_checked() {
