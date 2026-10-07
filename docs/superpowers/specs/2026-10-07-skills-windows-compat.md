@@ -7,7 +7,7 @@
 ## 0. 요약
 
 1. **막히는 곳은 두 가지다.** jq 가 없으면 bash 스크립트 약 20개가 실행되지 않고, python 이 없으면 python 스크립트 28개(10,707줄)가 모두 실행되지 않는다.
-2. **jq 는 호출 지점이 약 700곳이고 복잡한 필터(`reduce`, `capture`, `@tsv`, `def` 등)가 많다.** node 로 옮기면 사실상 재작성이라, 단일 실행 파일인 jq.exe 를 킷에 동봉하는 안을 권한다(결정 필요 D1).
+2. **jq 는 스크립트에서 약 415줄(coordinator 약 265줄, dflow 약 150줄), 시험과 문서 예시까지 합치면 약 700곳이고 복잡한 필터(`reduce`, `capture`, `@tsv`, `def` 등)가 많다.** node 로 옮기면 사실상 재작성이라, 단일 실행 파일인 jq.exe 를 킷에 동봉하는 안을 권한다(결정 필요 D1).
 3. **python 은 node 로 이식한다(약 6,000줄과 시험 약 1,500줄).** 훅과 게이트에 걸린 oasis-contract-check 를 가장 먼저 옮긴다.
 4. **Git Bash 는 Claude Code 의 필수 조건이 아니다.** 공식 문서상 Git for Windows 가 없으면 PowerShell 도구만 돈다. 이 스킬의 `.sh` 는 Git Bash 가 있어야 돌므로, 이 리포는 git 작업이 전제라 Git for Windows 설치를 전제로 한다(§1).
 5. **이미 처리된 것이 많다.** 줄끝은 `.gitattributes` 의 `.claude/skills/** text eol=lf` 로 고정되어 있고, 프로세스·stat·date 차이는 `coordinator/scripts/lib/compat.sh` 가 흡수한다. perl 은 mutate.mjs 를 포함해 스크립트에서 이미 걷혔다.
@@ -56,7 +56,7 @@
 
 ## 3. 조사 표
 
-세부 표는 조사 에이전트가 만든 파일별 표에 있다(레인 작업 폴더 `~/.coord/notice-fill2/lanes/skills-win/audit/` 에 복사). 여기에는 스킬 단위로 요약한다. 심각도는 「실행불가」(기능이 윈도우에서 못 돈다), 「일부 기능」, 「문서만」이다. 크기는 S(몇 줄), M(한 파일에서 수십 줄), L(여러 파일이나 이식)이다.
+파일별 세부 표는 같은 폴더의 `2026-10-07-skills-windows-compat-audit/` 에 있다(`coordinator.md`, `dflow.md`, `python.md`, `others.md`). 이 표는 소스 읽기 결과이며 실기 실행 결과가 아니다. 여기에는 스킬 단위로 요약한다. 심각도는 「실행불가」(기능이 윈도우에서 못 돈다), 「일부 기능」, 「문서만」이다. 크기는 S(몇 줄), M(한 파일에서 수십 줄), L(여러 파일이나 이식)이다.
 
 ### 3.1 런타임 의존 요약
 
@@ -218,6 +218,7 @@ Git Bash 가 있는 윈도우 PC 에서 한 번 확인해야 하는 항목이다
 7. `.claude/settings.json` 의 훅이 윈도우에서 어떤 셸로 실행되는지와, PostToolUse 훅의 비정상 종료가 비차단인지.
 8. `ln -s` 복사 동작이 `deps.sh` 와 `lead-worktree.sh` 에서 어떻게 보이는지.
 9. 네이티브 프로세스 손자의 종료(`compat_kill_tree`)가 `heavy.sh` 시간 상한에서 충분한지.
+10. `coord_pid_alive` 호출처(idle-check, coord-status, office reap)는 모두 세션 json 의 네이티브 Claude pid 를 넘긴다. MSYS pid(잠금 주인 `$$`)는 `kill -0` 을 직접 쓰는 곳이라 이번 변경과 무관하다. 다만 `compat_pid_alive` 의 `ps -W` WINPID 대조가 pid 재사용 때 무관한 프로세스와 맞을 수 있어(오래된 세션 기록이 살아 있는 것으로 보임), 실기에서 TTL 정리와 함께 확인한다.
 
 ## 9. 부록: 지시 대비 보정
 
