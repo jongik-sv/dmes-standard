@@ -64,7 +64,7 @@ Hibernate 가 실제로 내는 SQL 로 확인했다: `upper(su1_0.USER_ID) like 
 
 - 단위: `DatePrefixRangeTest`(3), `MasterRuleDataServiceTest`(13), `MasterRuleDataListServiceTest`(7)
 - Oracle: `RuleMasterUseTpOraTest`, `SecUserSearchOraTest`(2), `MasterRuleDataDynamicTableOraTest`(17, 날짜 LIKE 시험 포함) — `-Pdmes.ora.test=clone`
-- 전체 Oracle 시험은 머지 요청 직전 한 번(`heavy.sh`) 돌린다. 결과는 머지 요청에 적는다.
+- 머지 전 전체 Oracle 시험(`-Pdmes.ora.test=clone`, `heavy.sh`, 2026-10-08 새벽): `mcm-core :test` 124 스위트·1248건 실패 0·오류 0(건너뜀 3, 기존), `mdm :api:test` 182 스위트·1856건 실패 0·오류 0(건너뜀 13, 기존). 기준 dev `3a1f1992a`(변동 없음).
 
 ## 5. 후속과 알려진 위험
 
