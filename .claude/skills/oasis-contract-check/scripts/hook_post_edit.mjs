@@ -18,10 +18,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { pyJsonDumps } from '../../_shared/node/pyjson.mjs';
-import { readStdinTextSync } from '../../_shared/node/io.mjs';
-import { finish, OK } from '../../_shared/node/args.mjs';
-import { runCheck } from './check_oasis_contract.mjs';
+
+// 검사기·공용 헬퍼는 정적 import 가 아니라 여기서 불러온다. 파일이 빠졌거나 문법 오류가 있어도
+// "항상 exit 0" 계약이 깨지지 않게 하고, 검사 불가 사실은 알린다(python 판은 검사기가 별도 프로세스였다).
+let pyJsonDumps, readStdinTextSync, finish, OK, runCheck;
+let loadError = null;
+try {
+  ({ pyJsonDumps } = await import('../../_shared/node/pyjson.mjs'));
+  ({ readStdinTextSync } = await import('../../_shared/node/io.mjs'));
+  ({ finish, OK } = await import('../../_shared/node/args.mjs'));
+  ({ runCheck } = await import('./check_oasis_contract.mjs'));
+} catch (e) {
+  loadError = e;
+}
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..', '..', '..'); // .claude/skills/oasis-contract-check/scripts -> repo root
@@ -127,7 +136,15 @@ function isMain() {
 
 if (isMain()) {
   try {
-    main();
+    if (loadError) {
+      process.stdout.write(JSON.stringify({
+        systemMessage:
+          `OASIS 계약 검사기 실행 실패 (${loadError.code || loadError.name || 'Error'}). ` +
+          '검사가 수행되지 않았으므로 위반 여부는 확인되지 않았다.',
+      }) + '\n');
+    } else {
+      main();
+    }
   } catch {
     // 훅은 어떤 경우에도 편집을 막지 않는다(종료 코드 0)
   }

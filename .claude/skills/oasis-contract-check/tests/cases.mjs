@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildFixture, MUTATIONS } from '../scripts/selftest.mjs';
+import { findPython } from '../../_shared/node/proc.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const SKILL_DIR = path.resolve(HERE, '..');
@@ -138,6 +139,7 @@ export function buildEdge(root) {
   put(root, 'src/backend/mcm/api/src/main/java/x/EdgeService.java', EDGE_JAVA);
   put(root, 'src/backend/mcm/api/src/main/java/x/한글Service.java', HANGUL_JAVA);
   put(root, 'src/backend/mcm/api/src/main/java/x/BadBytes.java', BAD_BYTES_JAVA);
+  put(root, 'src/backend/mcm/api/src/main/resources/services/edge/.bpmn', '<bpmn:serviceTask id="h" camunda:class="hiddenBean"></bpmn:serviceTask>\n'); // 이름이 정확히 `.bpmn` 인 파일도 python glob 은 잡는다
   put(root, 'src/backend/mcm/api/src/test/java/x/GhostTest.java', '@Service("ghostBean")\nclass GhostTest {}\n');
   put(root, 'src/backend/mcm/api/build/gen/Skipped.bpmn', '<bpmn:serviceTask id="s" camunda:class="skippedBean"></bpmn:serviceTask>\n');
   put(root, 'src/backend/mcm/api/node_modules/p/Ignored.java', '@Service("ghostBean")\nclass Ignored {}\n');
@@ -185,6 +187,17 @@ export function installScripts(repo) {
  * base 아래에 모든 픽스처를 만든다.
  * @returns {Record<string,string>} 이름 → 저장소 루트. 'real' 은 이 워크트리의 실제 저장소 루트.
  */
+/** buildRoots 가 만든 임시 폴더를 지운다. 실저장소로 가는 링크를 먼저 끊어 recursive 삭제가 링크 너머로 가지 않게 한다. */
+export function cleanupBase(base) {
+  const link = path.join(base, 'h-real', 'src');
+  try {
+    if (fs.lstatSync(link).isSymbolicLink()) {
+      if (process.platform === 'win32') fs.rmdirSync(link); else fs.unlinkSync(link);
+    }
+  } catch { /* 링크가 없으면 그대로 */ }
+  fs.rmSync(base, { recursive: true, force: true });
+}
+
 export function buildRoots(base) {
   const roots = { real: REPO_ROOT };
   const mk = (name, sub = name) => {
@@ -221,14 +234,15 @@ export function buildRoots(base) {
   });
   mkHook('h-many', (r) => { buildFixture(r); buildMany(r); });
   mkHook('h-nobpmn', (r) => put(r, 'src/backend/mls/x/A.java', 'class A {}\n'));
-  // 실제 저장소 대상 훅: 스크립트를 임시 루트에 설치하고 src 만 실제 저장소로 연결한다.
-  {
+  // 실제 저장소 대상 훅: python 이 있을 때만 만든다(python 판과 비교하는 데만 쓰인다).
+  // 스크립트를 임시 루트에 설치하고 src 만 실제 저장소로 연결한다. 링크를 못 만들면 케이스는 skip 으로 등록된다.
+  if (findPython()) {
     const r = mk('h-real');
     try {
-      fs.symlinkSync(path.join(REPO_ROOT, 'src'), path.join(r, 'src'), 'dir');
+      fs.symlinkSync(path.join(REPO_ROOT, 'src'), path.join(r, 'src'), process.platform === 'win32' ? 'junction' : 'dir');
       hooks['h-real'] = installScripts(r);
     } catch {
-      // 심볼릭 링크 권한이 없는 환경(윈도우 일반 사용자)에서는 실저장소 훅 케이스를 건너뛴다.
+      // 권한 없는 환경
     }
   }
   return { roots, hooks };

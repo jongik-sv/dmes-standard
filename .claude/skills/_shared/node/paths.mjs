@@ -43,13 +43,14 @@ export function expandHome(p) {
  *  - localeCompare 는 쓰지 않는다. 윈도우 python 은 Path 비교가 대소문자 무시지만 여기는 항상 대소문자 구분.
  * @param {string} root
  * @param {{skipDirs?: string[]|((name:string, full:string)=>boolean), extensions?: string[]|null,
- *          followSymlinks?: boolean, includeDirs?: boolean, order?: 'path'|'string'}} [opts]
+ *          followSymlinks?: boolean, includeDirs?: boolean, order?: 'path'|'string', skipUnreadable?: boolean}} [opts]
  *   skipDirs: 들어가지 않을 폴더 이름(기본 없음), extensions: ['.md'] 처럼 마지막 확장자 일치(대소문자 구분),
  *   followSymlinks: 폴더 심볼릭 링크를 따라 들어갈지(기본 false, 순환은 realpath 로 차단),
- *   includeDirs: 폴더도 결과에 포함(기본 false, 파일만).
+ *   includeDirs: 폴더도 결과에 포함(기본 false, 파일만),
+ *   skipUnreadable: 권한이 없어 못 여는 폴더(EACCES·EPERM)를 건너뜀(기본 false = 예외 전파. python rglob 은 건너뛴다).
  * @returns {string[]} path.join(root, 상대경로) 형태의 경로
  */
-export function walkSorted(root, { skipDirs = [], extensions = null, followSymlinks = false, includeDirs = false, order = 'path' } = {}) {
+export function walkSorted(root, { skipDirs = [], extensions = null, followSymlinks = false, includeDirs = false, order = 'path', skipUnreadable = false } = {}) {
   const skip = typeof skipDirs === 'function' ? skipDirs : (n) => skipDirs.includes(n);
   const exts = extensions ? new Set(extensions) : null;
   const out = [];
@@ -60,7 +61,13 @@ export function walkSorted(root, { skipDirs = [], extensions = null, followSymli
     try { real = fs.realpathSync(dir); } catch { return; }
     if (seen.has(real)) return; // 심볼릭 순환 방지
     seen.add(real);
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (err) {
+      if (skipUnreadable && (err.code === 'EACCES' || err.code === 'EPERM')) return;
+      throw err;
+    }
     entries.sort((a, b) => compareCodePoint(a.name, b.name));
     for (const e of entries) {
       const full = path.join(dir, e.name);

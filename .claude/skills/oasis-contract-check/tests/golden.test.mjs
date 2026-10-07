@@ -14,12 +14,12 @@ import { runNode, makeTempDir } from '../../_shared/node/proc.mjs';
 import { readJson } from '../../_shared/node/io.mjs';
 import { runCheck } from '../scripts/check_oasis_contract.mjs';
 import {
-  buildRoots, CHECK_CASES, HOOK_CASES, NODE_CHECKER, PY_CHECKER,
+  buildRoots, cleanupBase, CHECK_CASES, HOOK_CASES, NODE_CHECKER, PY_CHECKER,
 } from './cases.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const tmp = makeTempDir('oasis-golden-');
-after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+after(() => cleanupBase(tmp));
 const { roots, hooks } = buildRoots(tmp);
 
 const fill = (args, root) => args.map((a) => a.replaceAll('{root}', root));
@@ -38,7 +38,10 @@ for (const c of CHECK_CASES) {
 
 for (const c of HOOK_CASES) {
   const h = hooks[c.repo === 'real' ? 'h-real' : c.repo];
-  if (!h) continue; // 심볼릭 링크를 못 만드는 환경에서는 실저장소 훅 케이스를 건너뛴다
+  if (!h) {
+    test.skip(`golden 훅: ${c.id} (python 없음 또는 심볼릭 링크 불가)`);
+    continue;
+  }
   const py = h.pyHook;
   const nd = h.nodeHook;
   goldenTest(`golden 훅: ${c.id}`, {
@@ -123,4 +126,35 @@ test('훅: 한글이 깨지지 않는다', () => {
   assert.ok(r.stdout.includes('계약 위반'));
   assert.ok(r.stdout.includes('한글.java'));
   assert.ok(!r.stdout.includes('\ufffd'));
+});
+
+test('훅: 검사기·헬퍼를 못 불러와도 exit 0 이고 검사 불가를 알린다', () => {
+  const sd = path.dirname(hooks['h-err'].nodeHook);
+  const shared = path.join(sd, '..', '..', '_shared', 'node', 'pyjson.mjs');
+  const bak = `${shared}.bak`;
+  fs.renameSync(shared, bak);
+  try {
+    const r = runNode(hooks['h-err'].nodeHook, [], { input: JSON.stringify({ tool_input: { file_path: '/w/src/backend/mls/lib/A.java' } }) });
+    assert.equal(r.status, 0);
+    assert.match(JSON.parse(r.stdout).systemMessage, /검사기 실행 실패/);
+  } finally {
+    fs.renameSync(bak, shared);
+  }
+});
+
+test('검사기: 권한 없는 폴더는 건너뛰고 계속한다(python rglob 과 같음)', { skip: process.platform === 'win32' || (typeof process.getuid === 'function' && process.getuid() === 0) }, () => {
+  const root = path.join(tmp, 'unreadable');
+  const locked = path.join(root, 'src', 'backend', 'mcm', 'locked');
+  fs.mkdirSync(locked, { recursive: true });
+  const bpmnDir = path.join(root, 'src', 'backend', 'mcm', 'ok');
+  fs.mkdirSync(bpmnDir, { recursive: true });
+  fs.writeFileSync(path.join(bpmnDir, 'a.bpmn'), '<bpmn:serviceTask id="a" camunda:class="aBean"></bpmn:serviceTask>\n');
+  fs.chmodSync(locked, 0o000);
+  try {
+    const r = runCheck({ root });
+    assert.ok(!r.noBpmn);
+    assert.equal(r.scanned.bpmn, 1);
+  } finally {
+    fs.chmodSync(locked, 0o755);
+  }
 });

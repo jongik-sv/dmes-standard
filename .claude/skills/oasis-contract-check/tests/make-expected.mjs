@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findPython, runCommand, makeTempDir } from '../../_shared/node/proc.mjs';
 import { writeJson } from '../../_shared/node/io.mjs';
-import { buildRoots, CHECK_CASES, HOOK_CASES, PY_CHECKER } from './cases.mjs';
+import { buildRoots, cleanupBase, CHECK_CASES, HOOK_CASES, PY_CHECKER } from './cases.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const py = process.argv.includes('--write') ? findPython() : null;
@@ -40,6 +40,6 @@ if (!process.argv.includes('--write')) {
     writeJson(path.join(HERE, 'golden', 'expected.json'), out, { mkdirp: true });
     console.log(`expected.json 생성: 검사기 ${Object.keys(out.check).length} + 훅 ${Object.keys(out.hook).length} (${out.generatedWith})`);
   } finally {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    cleanupBase(tmp);
   }
 }

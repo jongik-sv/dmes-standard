@@ -21,7 +21,7 @@ prepare	cd src/frontend && pnpm --filter "@dk-oasis/m-mdm^..." build
 # ── 게이트 대상 아님 ──
 docs/	-
 *.md	-
-.claude/skills/oasis-contract-check/	node .claude/skills/oasis-contract-check/scripts/check_oasis_contract.mjs --root .
+.claude/skills/oasis-contract-check/	node .claude/skills/oasis-contract-check/scripts/check_oasis_contract.mjs --root . && node .claude/skills/oasis-contract-check/scripts/selftest.mjs && node --test .claude/skills/oasis-contract-check/tests/
 .claude/	-
 src/frontend/e2e/	-
 

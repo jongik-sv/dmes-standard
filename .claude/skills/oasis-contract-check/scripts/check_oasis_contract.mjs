@@ -17,6 +17,12 @@
 // python 판과 맞춘 방언 차이: python3 의 \w·\s·\b 는 유니코드 기준이라 아래 정규식은 \p{L}\p{N}_ 와
 // python 의 공백 집합을 직접 쓴다. 파일 읽기는 read_text(errors="ignore") 처럼 잘못된 바이트를 버리고
 // CRLF/CR 을 LF 로 바꾼다(BOM 은 python 처럼 그대로 둔다).
+//
+// python 판과 알려진 차이(의도했거나 환경 의존이라 맞추지 않음):
+//  - 같은 이름(stem)의 Java 파일·같은 @Service("이름") 이 여럿이면 python rglob 은 파일시스템 순서라 결과가 불안정하다.
+//    여기서는 코드포인트 정렬로 결정적이다(실저장소에는 해당 중복이 없다).
+//  - 백엔드 모듈 폴더 자체가 심볼릭 링크면 안으로 들어가지 않는다(python 은 시작점이라 따라 들어감).
+//  - `--module ../x` 처럼 `..` 가 든 모듈은 정규화해 같은 BPMN 을 한 번만 센다(python 은 두 번 센다).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -24,6 +30,7 @@ import { fileURLToPath } from 'node:url';
 import { walkSorted, toPosix } from '../../_shared/node/paths.mjs';
 import { compareCodePoint } from '../../_shared/node/pytext.mjs';
 import { pyJsonDumps } from '../../_shared/node/pyjson.mjs';
+import { pyReprStrList } from '../../_shared/node/pyrepr.mjs';
 import { parseCli, finish, OK, VIOLATION, USAGE } from '../../_shared/node/args.mjs';
 
 export const MES_MODULES = ['mcm', 'mls', 'mqc', 'mpp', 'mas', 'mcm-core'];
@@ -150,7 +157,7 @@ function collectBackend(root, modules) {
   const walkBackend = () => {
     if (!backendFiles) {
       backendFiles = isDir(backend) && !hasSkippedPart(backend)
-        ? walkSorted(backend, { skipDirs: skipDir, extensions: ['.bpmn', '.java'] })
+        ? walkSorted(backend, { skipDirs: skipDir, skipUnreadable: true }).filter((f) => f.endsWith('.bpmn') || f.endsWith('.java'))
         : [];
     }
     return backendFiles;
@@ -167,7 +174,7 @@ function collectBackend(root, modules) {
         if (f.endsWith('.bpmn') && (base === backend || f.startsWith(prefix))) bpmnSet.add(f);
       }
     } else {
-      for (const f of walkSorted(base, { skipDirs: skipDir, extensions: ['.bpmn'] })) bpmnSet.add(f);
+      for (const f of walkSorted(base, { skipDirs: skipDir, skipUnreadable: true }).filter((f) => f.endsWith('.bpmn'))) bpmnSet.add(f);
     }
   }
   for (const f of walkBackend()) {
@@ -308,7 +315,7 @@ function checkFrontend(root, findings) {
     const base = path.join(root, 'src', 'frontend', `m-${m}`);
     if (!isDir(base) || hasSkippedPart(base)) continue;
     // python 판은 *.ts 전부 뒤에 *.tsx 를 붙이지만 아래에서 finding 정렬이 순서를 정하므로 한 번에 걷는다
-    const found = walkSorted(base, { skipDirs: skipDir, extensions: ['.ts', '.tsx'] });
+    const found = walkSorted(base, { skipDirs: skipDir, skipUnreadable: true }).filter((f) => f.endsWith('.ts') || f.endsWith('.tsx'));
     files.push(...found.filter((f) => f.endsWith('.ts')), ...found.filter((f) => f.endsWith('.tsx')));
   }
 
@@ -371,9 +378,6 @@ function check6D(resolved, root, javaCode, findings) {
   }
 }
 
-function pyListRepr(items) {
-  return `[${items.map((s) => (s.includes("'") && !s.includes('"') ? `"${s}"` : `'${s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`)).join(', ')}]`;
-}
 
 /**
  * 검사를 실행한다(출력 없음).
@@ -509,7 +513,7 @@ export function main(argv = process.argv.slice(2)) {
 
   const result = runCheck({ root: values.root, modules: values.module, severity: values.severity });
   if (result.noBpmn) {
-    process.stderr.write(`검사 대상 BPMN 이 없다. root=${result.root} modules=${pyListRepr(result.modules)}\n`);
+    process.stderr.write(`검사 대상 BPMN 이 없다. root=${result.root} modules=${pyReprStrList(result.modules)}\n`);
     return finish(USAGE);
   }
   process.stdout.write(values.json ? formatJson(result) : formatText(result, values.all));
