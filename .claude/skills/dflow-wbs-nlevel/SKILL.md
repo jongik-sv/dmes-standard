@@ -11,7 +11,7 @@ description: N단(5~8단) 대형 프로젝트의 wbs.md 를 levels 계약(frontm
 >
 > **업로드 게이트 (2026-08-22 갱신)**: import v2.2(levels·attach·fold)는 **서버 랜딩 완료** —
 > 스테이징(dflow-staging)은 코드·DB(0089) 모두 적용돼 업로드 가능. **운영은 0089 운영 적용 +
-> main 머지 전까지 금지.** 업로드 전 반드시 `wbs-nlevel-parse.py validate` 통과(§검증·업로드).
+> main 머지 전까지 금지.** 업로드 전 반드시 `wbs-nlevel-parse.mjs validate` 통과(§검증·업로드).
 
 ## 모드 — 인자로 판정
 
@@ -207,7 +207,7 @@ systems:
 - subsystem 값→SUB 약어 매핑은 최초 등장 시 제안·programs 파일 머리에 주석으로 고정(재실행 안정).
 5. **검증 게이트** — 파서 스크립트가 정본(수동 체크리스트 대체, 2026-08-22):
    ```bash
-   python3 .claude/skills/dflow-wbs-nlevel/scripts/wbs-nlevel-parse.py validate \
+   node .claude/skills/dflow-wbs-nlevel/scripts/wbs-nlevel-parse.mjs validate \
      --wbs docs/mes/조업/wbs.md --role pl        # 골격은 --role skeleton
    ```
    errors 0 이어야 통과. warnings 는 리포트에 전량 나열(생략 금지) — 얕은 비대칭 골격의
@@ -218,7 +218,7 @@ systems:
 
 ```bash
 # 1) export — 검증 게이트 내장(에러 시 payload 안 나옴). attach_ref 는 골격 module 로 자동 조립.
-python3 .claude/skills/dflow-wbs-nlevel/scripts/wbs-nlevel-parse.py export \
+node .claude/skills/dflow-wbs-nlevel/scripts/wbs-nlevel-parse.mjs export \
   --wbs docs/mes/조업/wbs.md --skeleton docs/mes/skel/wbs.md > "$SCRATCHPAD/nlevel-op.json"   # 골격 경로는 프로젝트마다 다름
 
 # 2) 봉투 완성(project_id) 후 전송 — PAT 규칙·바인딩은 dflow-export SKILL.md 준용(값 비출력)

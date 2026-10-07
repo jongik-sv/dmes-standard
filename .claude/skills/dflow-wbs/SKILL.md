@@ -5,10 +5,12 @@ description: PRD/TRD 또는 프로그램 리스트(json/yaml/csv/md/xlsx)로 WBS
 
 # /dflow-wbs - PRD/TRD·프로그램 리스트 기반 WBS 생성 (Water-Scrum-Fall)
 
-> **독립 실행 패키지다** — 정본 위치는 wbs-web 리포의 `.claude/skills/dflow-wbs/` 이며(git 추적,
-> 프로젝트 스코프 스킬), 실행에 필요한 스크립트(`scripts/` — dev 플러그인 1.7.1 스냅샷 5종)와
-> 템플릿·출력 형식 정본(`references/`)을 전부 동봉한다. dev 플러그인이 없는 PC 에서도 리포
-> 클론만으로 동작한다. 아래 상대 경로들은 리포 루트가 cwd 라는 전제다.
+> **이 리포의 `.claude/skills/` 안에서 동작하는 스킬이다** — 스크립트와 템플릿·출력 형식 정본(`references/`)은 이 폴더에 있지만,
+> node 판 스크립트는 같은 `.claude/skills/` 아래의 `_shared/node/` 와 `dflow-export/scripts/`(`_pystr.mjs`·`wbs-validate.mjs`)를 import 하므로
+> 이 폴더만 따로 복사해서는 돌지 않는다(`_shared` 와 `dflow-export` 를 함께 둔다). PRD 검증·결정 로그 스크립트(`prd-validate`·`decision-log`)는 이 스킬의 `scripts/` 에 있고,
+> WBS 파서·검증·의존 분석(`wbs-parse`·`wbs-validate`·`dep-analysis`)은 **`/dflow-export` 스킬의 node 판**
+> (`.claude/skills/dflow-export/scripts/*.mjs`)을 쓴다 — 별도 복사본을 두지 않는다(2026-10-07 통합).
+> dev 플러그인이 없는 PC 에서도 리포 클론과 node(18.17 이상)만으로 동작한다. 아래 상대 경로들은 리포 루트가 cwd 라는 전제다.
 > 구조·경계·게이트 규칙의 문서 정본은 대상 리포의 `docs/wbs-workflow.md` 다 —
 > 있으면 생성 전에 Read 하고, 이 파일과 다르면 그 문서가 이긴다.
 > **상태·전이·배정·진척의 정본은 D'Flow 다.** 이 스킬은 상태를 `[ ]` 로만 생성한다 —
@@ -44,37 +46,39 @@ description: PRD/TRD 또는 프로그램 리스트(json/yaml/csv/md/xlsx)로 WBS
 PRD/TRD 가 있을 때만 실행한다 — 프로그램 리스트 모드에서 둘 다 없으면 건너뛴다.
 
 ```bash
-python3 .claude/skills/dflow-wbs/scripts/prd-validate.py validate --target {DOCS_DIR}/PRD.md
-python3 .claude/skills/dflow-wbs/scripts/prd-validate.py validate --target {DOCS_DIR}/TRD.md
+node .claude/skills/dflow-wbs/scripts/prd-validate.mjs validate --target {DOCS_DIR}/PRD.md
+node .claude/skills/dflow-wbs/scripts/prd-validate.mjs validate --target {DOCS_DIR}/TRD.md
 ```
 
-`issues` 있으면: 합리적 가정으로 보강 → `## Assumptions (auto-resolved YYYY-MM-DD)` append → `decisions.md` 에 `phase=prd-resolve` 적재 (`decision-log.py append`) → 재검증 1회. 그래도 남으면 한 줄 알림 후 진행 (흐름 차단 없음).
+`issues` 있으면: 합리적 가정으로 보강 → `## Assumptions (auto-resolved YYYY-MM-DD)` append → `decisions.md` 에 `phase=prd-resolve` 적재 (`node .claude/skills/dflow-wbs/scripts/decision-log.mjs append`) → 재검증 1회. 그래도 남으면 한 줄 알림 후 진행 (흐름 차단 없음).
 
 ### 출력 검증 (wbs.md 생성 직후)
 
 ```bash
-python3 .claude/skills/dflow-wbs/scripts/wbs-parse.py {DOCS_DIR}/wbs.md - --dev-config > {scratchpad}/dev-config.json
-python3 .claude/skills/dflow-wbs/scripts/wbs-validate.py validate --wbs {DOCS_DIR}/wbs.md --dev-config-json "$(cat {scratchpad}/dev-config.json)"
+node .claude/skills/dflow-export/scripts/wbs-parse.mjs {DOCS_DIR}/wbs.md - --dev-config > {scratchpad}/dev-config.json
+node .claude/skills/dflow-export/scripts/wbs-validate.mjs validate --wbs {DOCS_DIR}/wbs.md --dev-config-json "$(cat {scratchpad}/dev-config.json)"
 ```
 
 > ⚠️ **툴체인 제약 — 실측 기준. 검증 결과를 곧이곧대로 믿지 말 것.**
 >
+> 이 절의 `wbs-parse`·`wbs-validate`·`dep-analysis` 는 `/dflow-export` 스킬의 node 판이다
+> (`.claude/skills/dflow-export/scripts/*.mjs`). 옛 동봉 스냅샷(3단계만 인식·`[xx]` 단독 판정·stdin 불가)은 제거됐고
+> 그 중 3단계 한정과 stdin 불가는 아래 표에서 「해소됨」, `[xx]` 단독 판정은 「부분 해소」(대상 리포가 6상태 정의를 둘 때만 해소)로 표시했다. `merge-wbs-status.py`·`wbs-transition.py` 는 이 리포 밖(dev-workflow) 스크립트라 제약이 그대로다.
+>
 > | 제약 | 근거 | 생성 시 영향 | 해소 |
 > |---|---|---|---|
-> | `wbs-validate.py` 는 3단계만 인식 | `wbs-validate.py:39` 정규식 `^###\s+(TSK-\d+-\d+):` | **4단계 WBS 는 task_count 0 + `ok:true`** — 통과가 아니라 아무것도 안 본 것 | DEV-03 |
-> | `merge-wbs-status.py` 도 3단계만 인식 | `merge-wbs-status.py:37` 동일 정규식 | 4단계에서 상태 머지가 조용히 무동작 | DEV-03 |
+> | ~~`wbs-validate` 는 3단계만 인식~~ | export 판은 `#{3,5}` + `TSK-숫자(-숫자)+` 로 3·4단계를 모두 읽는다 | 4단계 WBS 도 `task_count` 에 잡힌다 — 0 이면 헤딩을 못 읽은 것이니 실패로 본다 | **해소됨 (dflow-export 판 사용)** |
+> | `merge-wbs-status.py` 도 3단계만 인식 | `merge-wbs-status.py:37` 정규식 `^###\s+(TSK-\d+-\d+):` | 4단계에서 상태 머지가 조용히 무동작 | DEV-03 |
 > | 머지 상태 어휘가 5개 | `merge-wbs-status.py:28-33` + `:172` `.get(v, -1)` | 어휘 밖 상태는 랭크 −1 로 `[ ]`(0)보다도 낮게 취급되어 **조용히 덮인다** | DEV-01 |
 > | 전이 스크립트 상태 어휘가 5개 | `wbs-transition.py:353` `{"[ ]","[dd]","[im]","[ts]","[xx]"}` | 파일에 `[as]` 같은 진행 상태를 쓰면 `unknown status in wbs.md` 로 **거부** | DEV-01 |
-> | 의존 완료 판정이 `[xx]` 단독 | `dep-analysis.py:388` | 문서 기준(`[im]` 이상)과 어긋나 진행 중 체인을 미완으로 계산 | DEV-01 |
-> | Task ID 정규식은 숫자만 | `wbs-parse.py:198` | `TSK-02-01a` 같은 letter suffix 는 **조용히 무시** — 절대 쓰지 않는다 | — |
-> | `dep-analysis.py` 는 stdin 불가 | 인자가 JSON array 파일 경로 | `wbs-parse.py --tasks-all` 출력을 파일로 저장 후 전달 | — |
+> | 의존 완료 판정의 기본값이 `[xx]` 단독 | `dep-analysis.mjs` — `--docs-dir` 를 안 주면 `[xx]` 만 충족, 주면 상태머신이 정한다(6상태 정의면 `[im]` 이상, 5상태면 `[xx]` 만) | 진행 중 WBS 를 `--docs-dir` 없이 재분석하면 완료 판정이 문서 기준(`[im]` 이상)보다 좁다 | **부분 해소 (`--docs-dir {DOCS_DIR}` 사용 — 임계는 프로젝트 상태머신 정의가 정함)** |
+> | Task ID 정규식은 숫자만 | export 판 `_TSK_HEADING_RE` = `TSK-숫자(-숫자)+:` | `TSK-02-01a` 같은 letter suffix 는 **조용히 무시** — 절대 쓰지 않는다 | — |
+> | ~~`dep-analysis` 는 stdin 불가~~ | export 판은 파일 경로 인자 또는 표준입력(파이프)을 모두 받는다 | `wbs-parse.mjs … --tasks-all` 출력을 그대로 파이프해도 된다 | **해소됨 (dflow-export 판 사용)** |
 >
-> **4단계(ACT) 를 생성했으면** `wbs-validate.py` 결과를 구조 검증으로 쓰지 않는다. 대신
-> `wbs-parse.py --tasks-all` 로 Task 건수·필드를 직접 확인하고(파서는 `#{3,4}` 를 읽는다),
-> **생성 리포트에 "4단계 — wbs-validate·merge-wbs-status 무력화(DEV-03 대기)" 를 한 줄 출력한다.**
-> 단, **DEV-02·DEV-03 해소판 스크립트는 `/dflow-export` 스킬에 동봉돼 있다**
-> (`.claude/skills/dflow-export/scripts/` — `wbs-validate.mjs` 4단계 지원, `wbs-parse.mjs --export`, 모두 `node` 로 실행).
-> 위 제약 표는 이 스킬의 동봉 스냅샷(`dflow-wbs/scripts/`) 기준으로 여전히 유효하다.
+> **4단계(ACT) 를 생성했으면** `wbs-validate.mjs` 결과의 `task_count` 가 생성한 Task 건수와 같은지 확인한다
+> (같지 않으면 헤딩을 못 읽은 것 — `wbs-parse.mjs --tasks-all` 로 건수·필드를 직접 대조한다).
+> **생성 리포트에 "4단계 — merge-wbs-status 는 3단계만 인식(외부 스크립트, DEV-03 대기)" 를 한 줄 출력한다**
+> (wbs-validate 는 이제 4단계를 읽으므로 무력화 대상이 아니다).
 > 이 경고는 생성 리포트에만 남기고 wbs.md 본문에는 넣지 않는다 — wbs.md 는 작업 정본이지 툴 상태 기록부가 아니다.
 
 issue 발견 시 해당 Task 만 재작성 → 재검증 1회 → `decisions.md` 에 `phase=wbs-resolve` 적재.
@@ -139,8 +143,9 @@ Phase → WP → [ACT(4단계만)] → Task → [Sub Task 수동]
   배정·전이는 import 후 D'Flow(stage)가 관리한다. `[as]` 같은 진행 상태를 파일에 직접 쓰면
   로컬 툴체인도 거부한다(`wbs-transition.py:353` — `unknown status in wbs.md`).
 - `assignee` 는 **입력이 email 을 줄 때만** 그 값을 쓰고, 그 외에는 `-` 다 (규칙은 아래 `## D'Flow 연동 표기` 절).
-- ⚠️ `dep-analysis.py:388` 은 `[xx]` 만 완료로 센다 — 진행 중 WBS 를 재분석하면 완료 판정이
-  문서 기준(`[im]` 이상)보다 좁다. 생성 시점엔 전 Task 가 `[ ]` 라 영향이 없다.
+- ⚠️ `dep-analysis.mjs` 는 `--docs-dir` 를 주지 않으면 `[xx]` 만 완료로 센다 — 진행 중 WBS 를 재분석할 때는
+  `--docs-dir {DOCS_DIR}` 를 붙여 상태머신이 충족 임계를 정하게 한다(6상태 정의면 `[im]` 이상, 5상태면 `[xx]` 만).
+  생성 시점엔 전 Task 가 `[ ]` 라 영향이 없다.
 
 ## D'Flow 연동 표기 (정본: 부록 §2.5·§2.6·§7.2)
 
@@ -455,15 +460,15 @@ C1·C4 는 강제 진행 설계(`2026-09-23-force-progress-design.md`) §3.4 1�
 
 실행 중 Task 는 `docs/tasks/<ID>/state.json` 이 진실 원천이고 wbs.md 는 파생 사본이다(부록 §7.1-F2). 따라서:
 
-1. `wbs-parse.py {wbs} --tasks-all` 로 **Task ID 목록**을 얻는다 (이 모드는 `tsk_id`·`title`·`status`·`depends`·`domain`·`category` 6필드만 낸다 — `wbs-parse.py:198-224` 실측).
-2. 각 ID 에 대해 `wbs-parse.py {wbs} {TSK_ID} --json` 을 호출해 **나머지 필드**를 얻는다 — `model`·`priority`·`assignee`·`schedule`·`tags`·`blocked-by`·`note`·`entry-point`·`prd-ref` (`wbs-parse.py:829-836` 실측). N회 호출은 부록 §2.6이 DEV-02 전 과도기로 명시한 방식 그대로다.
+1. `node .claude/skills/dflow-export/scripts/wbs-parse.mjs {wbs} --tasks-all` 로 **Task ID 목록**을 얻는다 (이 모드는 `tsk_id`·`title`·`status`·`depends`·`domain`·`category` 6필드만 낸다).
+2. 각 ID 에 대해 `node .claude/skills/dflow-export/scripts/wbs-parse.mjs {wbs} {TSK_ID} --json` 을 호출해 **나머지 필드**를 얻는다 — `model`·`priority`·`assignee`·`schedule`·`tags`·`blocked-by`·`note`·`entry-point`·`prd-ref`. N회 호출은 부록 §2.6이 DEV-02 전 과도기로 명시한 방식 그대로다.
 3. **WP/ACT 행의 제목만** wbs.md 헤딩 정규식(`^##\s+(WP-\d+):\s*(.*)` · `^###\s+(ACT-\d+-\d+):\s*(.*)`)으로 읽는다. 파서가 계층 노드를 내지 않기 때문이며(부록 §7.1-F5), **헤딩은 구조라 진실 원천 문제가 없다.** 그 블록의 필드는 읽지 않는다.
 4. **부모 귀속은 ID 세그먼트로 유도한다** — 파서가 계층을 내지 않으므로 이것이 유일한 연결 고리다(`## D'Flow 연동 표기` 의 ID 불변 규칙이 기대는 것과 같은 규칙).
    - 4단계: `TSK-03-02-01` → `ACT-03-02` → `WP-03`
    - 3단계: `TSK-03-03` → `WP-03` (ACT 행 없음)
    - 유도한 부모 ID 가 3단계에서 읽은 헤딩 목록에 없으면 **그 Task 를 버리지 않고** 부모 없이 쓰고 리포트에 나열한다.
 
-⚠️ `status` 는 어떤 경우에도 wbs.md 텍스트에서 읽지 않는다 — 1·2단계의 파서 출력만 쓴다. DEV-02(`--export`)는 `/dflow-export` 스킬에 구현돼 있으나(`.claude/skills/dflow-export/scripts/wbs-parse.mjs`), **이 스킬의 동봉 스냅샷(`dflow-wbs/scripts/`)은 구판이라 위 N회 호출 절차를 유지한다** — 스냅샷을 신판으로 교체할 때 이 절차를 한 번의 `--export` 호출로 대체한다.
+⚠️ `status` 는 어떤 경우에도 wbs.md 텍스트에서 읽지 않는다 — 1·2단계의 파서 출력만 쓴다. DEV-02(`--export`)는 `/dflow-export` 스킬에 구현돼 있고 이제 이 스킬도 같은 `wbs-parse.mjs` 를 쓰지만, **위 N회 호출 절차는 유지한다** — `--export` 노드는 D'Flow `stage` 코드(`as|fp|ip|im|xx`·`null`)만 싣고 로컬 상태 코드(`[dd]`·`[ts]` 등)·`note`·`blocked-by` 가 없어, 7·8·17·18번 컬럼(상태 코드·라벨·진척 환산·note)을 채울 수 없기 때문이다. (WP/ACT 제목·부모만 `--export` 로 얻는 변형은 가능하지만 이 절차의 의미를 바꾸지 않으려고 적용하지 않았다.)
 
 ### 컬럼
 
@@ -543,7 +548,7 @@ def write_xlsx(path, rows):           # rows[0] = 헤더, 셀 값은 str 또는 
   프로그램 리스트 모드에서는 이 원칙이 **프로그램 1개 = Task 1개**로 구체화된다 (`## 프로그램 리스트 입력 어댑터`).
 - 순수 백엔드 = `backend` 단독, `entry-point: -`.
 - 크기: 최소 4시간 / 권장 1~3일 / 최대 1주.
-- `model` 필드: 다중 시스템·아키텍처·보안 핵심 → `opus`, 표준 패턴 → `sonnet`. 명시 권장 (생략 시 `wbs-parse.py --complexity` fallback).
+- `model` 필드: 다중 시스템·아키텍처·보안 핵심 → `opus`, 표준 패턴 → `sonnet`. 명시 권장 (생략 시 `wbs-parse.mjs --complexity` fallback).
 
 ## 일정 계산
 
@@ -566,7 +571,7 @@ depends 기반 시작/종료일 산출. 산출 후 FS+겹침 검증식 통과 �
 골격은 플러그인 템플릿 참조: `.claude/skills/dflow-wbs/references/dev-config-template.md` 를 Read 후 채운다. (경로 실재 확인됨)
 
 - **PRD 모드**: TRD 로 채운다.
-- **프로그램 리스트 모드**: TRD 가 없어도 **템플릿 골격을 반드시 생성한다** — 이 블록이 없으면 `wbs-parse.py --dev-config` 와 `wbs-validate.py` 가 돌지 않는다.
+- **프로그램 리스트 모드**: TRD 가 없어도 **템플릿 골격을 반드시 생성한다** — 이 블록이 없으면 `wbs-parse.mjs --dev-config` 와 `wbs-validate.mjs` 가 돌지 않는다.
   - `Domains` 표의 행은 **실제 생성된 Task 의 domain 집합만** 남긴다 (`fullstack`·`backend` + 공정 Task 의 `database`·`infra`·`test`).
   - `Quality Commands`·`Design Guidance` 는 템플릿 기본값을 그대로 두고, PRD/TRD 가 함께 주어졌으면 그 내용으로 덮는다.
   - 추측으로 명령어를 지어내지 않는다 — 모르는 칸은 템플릿 기본값이 정답이다.
@@ -588,8 +593,8 @@ depends 기반 시작/종료일 산출. 산출 후 FS+겹침 검증식 통과 �
 9. `{DOCS_DIR}/wbs.md` 생성.
 10. 의존 그래프 검증:
     ```bash
-    python3 .claude/skills/dflow-wbs/scripts/wbs-parse.py {DOCS_DIR}/wbs.md --tasks-all > {scratchpad}/tasks.json
-    python3 .claude/skills/dflow-wbs/scripts/dep-analysis.py {scratchpad}/tasks.json --graph-stats
+    node .claude/skills/dflow-export/scripts/wbs-parse.mjs {DOCS_DIR}/wbs.md --tasks-all > {scratchpad}/tasks.json
+    node .claude/skills/dflow-export/scripts/dep-analysis.mjs {scratchpad}/tasks.json --graph-stats
     ```
     `max_chain_depth > 3`(기능 구간 내부 기준, 공정 양끝 +2 는 구조 비용 허용) 또는 `fan_in ≥ 3` → 계약 추출 재검토. 결과를 `## 의존 그래프` 챕터에 기록 (후보 없어도 "후보 없음" 명시).
     같은 자리에서 계약 Task(`tags: contract`)마다 acceptance 에 「계약 Task 의 공유 파일 규칙」 의 고정 네 줄이 있는지,
@@ -598,10 +603,10 @@ depends 기반 시작/종료일 산출. 산출 후 FS+겹침 검증식 통과 �
     유형 미매핑 · 난이도 미매핑 · 담당 미매칭 · depends 미해결 · route 파생, 다섯 표를 전부 쓴다.
     해당 없는 표는 "해당 없음"이라고 명시한다 — 비워두지 않는다.
 12. 출력 검증.
-    - 3단계: `wbs-validate.py` 실행.
-    - **4단계: `wbs-validate.py` 결과를 구조 검증으로 쓰지 않는다**(task_count 0 + `ok:true`). 대신
-      `wbs-parse.py --tasks-all` 로 Task 건수·`category`·`domain`·`entry-point` 를 직접 확인하고,
-      생성 리포트에 "4단계 — wbs-validate·merge-wbs-status 무력화(DEV-03 대기)" 를 출력한다.
+    - `node .claude/skills/dflow-export/scripts/wbs-validate.mjs validate …` 실행(`### 출력 검증` 절의 명령).
+    - **4단계**: `wbs-validate.mjs` 는 4단계도 읽는다(`#{3,5}` 헤딩). `task_count` 가 생성한 Task 건수와 같은지 확인하고,
+      다르면 `wbs-parse.mjs --tasks-all` 로 Task 건수·`category`·`domain`·`entry-point` 를 직접 대조한다.
+      생성 리포트에 "4단계 — merge-wbs-status 는 3단계만 인식(외부 스크립트, DEV-03 대기)" 를 출력한다.
 13. **`.dflow`·`.dflow.local` 바인딩 확인** — `## D'Flow 연동 표기` 의 프로젝트 바인딩 절 그대로. 키 유무만 보고
     (값 출력 금지), 해석 결과(업로드 가능 / `업로드 불가 — .dflow 에 project_id 또는
     .dflow.local 에 project_map 필요`)를 생성 리포트에 남긴다. 없어도 생성은 정상 완료다(fail-closed 는 업로드에만).
@@ -682,9 +687,9 @@ wbs.md 와 xlsx 뿐). 반드시 담는 것: 규모 판정(3/4단계)과 근거 �
 
 | # | 규칙 | 근거 | 어겼을 때 |
 |---|---|---|---|
-| 1 | **명세 블록 헤딩은 TSK 헤딩보다 반드시 한 단계 이상 깊다** — 3단계(`### TSK-`)면 `####`, 4단계(`#### TSK-`)면 `#####` | `wbs-parse.py:80` — `if found and hl >= 2 and hl <= level: break` (같거나 얕은 헤딩에서 블록이 끝난다) | **Task 블록이 명세 앞에서 잘려 전 필드가 통째로 유실**된다. 4단계에 `#### PRD 요구사항` 을 쓰는 것이 이 사고의 전형 |
-| 2 | **필드 줄은 열 0에서 시작한다** — `- requirements:` (앞 공백 금지) | `wbs-parse.py:117` — `line.startswith("- {field}:")` | 그 필드만 빈 값이 된다 |
-| 3 | **bullet 항목은 정확히 2칸 들여쓴다** — `  - 항목` | `parse_list_field` 의 bullet 형태(`:122-144`) | 항목이 안 잡히거나 앞 항목에 붙는다 |
+| 1 | **명세 블록 헤딩은 TSK 헤딩보다 반드시 한 단계 이상 깊다** — 3단계(`### TSK-`)면 `####`, 4단계(`#### TSK-`)면 `#####` | `wbs-parse.mjs` `extract_task_block` — 헤딩 깊이 `hl >= 2 && hl <= level` 에서 블록이 끝난다 (같거나 얕은 헤딩. 펜스 코드 블록 안의 Task 가 아닌 헤딩은 무시하지만 Task 헤딩은 항상 닫는다) | **Task 블록이 명세 앞에서 잘려 전 필드가 통째로 유실**된다. 4단계에 `#### PRD 요구사항` 을 쓰는 것이 이 사고의 전형 |
+| 2 | **필드 줄은 열 0에서 시작한다** — `- requirements:` (앞 공백 금지) | `wbs-parse.mjs` `get_field` — 줄이 `- {field}:` 로 시작해야 한다 (`startsWith`) | 그 필드만 빈 값이 된다 |
+| 3 | **bullet 항목은 정확히 2칸 들여쓴다** — `  - 항목` | `parse_list_field` 의 bullet 형태(`  - ` 2칸 들여쓰기로 시작하는 줄만 항목) | 항목이 안 잡히거나 앞 항목에 붙는다 |
 | 4 | **빈 리스트는 생략하지 말고 `- field: -` 로 명시한다** | 같은 함수의 `-` 처리 | 필드 부재와 "비었음"이 구별되지 않는다 |
 
 단일행 필드(`category`·`domain`·`model`·`status`·`priority`·`assignee`·`schedule`·`tags`·`depends`·`entry-point`·`prd-ref`·`note`)는

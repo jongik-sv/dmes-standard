@@ -5,8 +5,8 @@ SKILL.md 「결정 번호 매김」·「마이그레이션 버전 관문」 의 
 
 ## 결정 번호 매김
 
-`decisions.sh`(머지 자리의 최상위, 임시 머지 워크트리면 `-C "$W"`). 결정 기록 형식은 dflow-wbs `decision-log.py` 이고, `validate`
-는 D-001 부터 끊김 없는 순번을 요구한다. 번호는 개발 브랜치에 들어가는 순서로만 정해진다. `decision-log.py` 의 형식·validate 는
+`decisions.sh`(머지 자리의 최상위, 임시 머지 워크트리면 `-C "$W"`). 결정 기록 형식은 dflow-wbs `decision-log.mjs` 이고, `validate`
+는 D-001 부터 끊김 없는 순번을 요구한다. 번호는 개발 브랜치에 들어가는 순서로만 정해진다. `decision-log.mjs` 의 형식·validate 는
 바꾸지 않는다(`Temp ID`·`Renumbered from` 은 선택 필드로 읽힌다).
 
 - **충돌 풀기**(`merge-conflicts`): 결과는 개발 브랜치 쪽 파일 전체 뒤에, 머지 대상이 merge-base 에 없던 블록을 그 순서대로

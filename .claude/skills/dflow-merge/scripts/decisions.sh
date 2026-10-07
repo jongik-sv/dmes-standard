@@ -2,10 +2,10 @@
 # 공용 결정 기록(decisions.md)의 머지 처리 — /dflow-merge 가 머지 자리에서 부른다(SKILL.md 「결정 번호 매김」).
 #
 # 배경: 대상 리포의 decisions.md 는 `## D-NNN (<UTC 타임스탬프>)` 블록을 추가만 하는 결정 감사 기록이고,
-# dflow-wbs 의 decision-log.py validate 가 D-001 부터 끊김 없는 순번을 요구한다. 병렬 워커가 같은 기점에서 같은
+# dflow-wbs 의 decision-log.mjs validate 가 D-001 부터 끊김 없는 순번을 요구한다. 병렬 워커가 같은 기점에서 같은
 # 다음 번호를 고르면 머지마다 충돌했다(2026-09-24 dmes-standard TSK-01-02·TSK-02-03). 그래서 agent 브랜치는
 # Task 범위 임시 ID `D-<TSK>-<n>`(예 D-TSK-02-02-1)를 쓰고(dev-discipline 「공용 결정 기록(decisions.md)의 번호」),
-# 전역 번호는 머지 때 이 스크립트가 매긴다. decision-log.py 의 형식·validate 규칙은 바꾸지 않는다.
+# 전역 번호는 머지 때 이 스크립트가 매긴다. decision-log.mjs 의 형식·validate 규칙은 바꾸지 않는다.
 #
 # 사용:
 #   decisions.sh merge-conflicts [-C <dir>]

@@ -284,7 +284,7 @@ credits:
 3. ✅ **import 계약 v2.2** (2026-08-22 랜딩) — 서버: 0089 마이그레이션(level_idx·milestone·credit_key·
    if_id + RPC p_attach_id, 스테이징 리허설 완료) + import 라우트(levels 시드/일치 검증·attach 해석·
    input 층 발행 일반화·종료일 단독 schedule) + `GET /api/v1/wbs/structure`(PL 서버 직조회).
-   스킬: `wbs-nlevel-parse.py`(validate/export — fold 접기·마일스톤·토큰 파싱, pytest 18건) +
+   스킬: `wbs-nlevel-parse.mjs`(validate/export — fold 접기·마일스톤·토큰 파싱, node 시험 `tests/wbs-nlevel-parse.test.mjs`) +
    SKILL.md 조회 사슬·업로드 절차. **운영 DB 적용은 main 머지 시점**(그 전까지 업로드는 스테이징만).
 4. ⏸ **stage→크레딧·weight 롤업** — 데이터(weight·credit_key·level_idx)는 3에서 랜딩됨. 계산·표시만 남음.
 
