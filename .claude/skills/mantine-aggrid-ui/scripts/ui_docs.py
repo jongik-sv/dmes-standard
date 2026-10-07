@@ -30,7 +30,7 @@ SHARED = FRONT / "shared" / "src"
 
 # 색인 묶음: (제목, 서브패스 설명, 문서 파일명 목록). 새 문서를 추가하면 여기에 넣는다.
 GROUPS: list[tuple[str, list[str]]] = [
-    ("화면 골격 (`@dk-oasis/shared/layout`)", ["page-layout", "search-area", "content-body", "detail-form"]),
+    ("화면 골격 (`@dk-oasis/shared/layout`)", ["page-layout", "search-area", "search-settings-menu", "content-body", "detail-form"]),
     ("입력 (`@dk-oasis/shared/form`)", [
         "button", "input", "select", "combo-box", "multi-select-combo-box", "date-picker",
         "date-time-picker", "checkbox", "radio", "segmented-control", "textarea", "form-group", "loading", "badge",
@@ -65,6 +65,23 @@ EXCLUDED: dict[str, str] = {
     "clearSearchHistory": "포털 셸용",
     "readSearchHistory": "SearchField 내부용",
     "emitSearch": "PageLayout·SearchArea 내부용",
+    "subscribeSearchReset": "SearchArea 내부용(초기화 이벤트 구독, 발행은 PageLayout)",
+    "RANGE_PRESETS": "조회 기본값 설정 창 내부용(기간 묶음 선택지)",
+    "RELATIVE_DATE_PRESETS": "조회 기본값 설정 창 내부용(상대 날짜 이름표)",
+    "isValidIsoDate": "조회 기본값 규칙 계산 내부용(search-area 문서의 사용자 기본값 참고)",
+    "parseSearchDefaultRule": "조회 기본값 저장소 내부용",
+    "resolveRelativeDate": "조회 기본값 규칙 계산 내부용",
+    "resolveSearchDefault": "조회 기본값 규칙 계산 내부용",
+    "getPageSearchDefaults": "조회 기본값 저장소 내부용(SearchArea·설정 창이 쓴다)",
+    "getSearchDefaultsSource": "조회 기본값 저장소 내부용",
+    "getSearchDefaultsStatus": "조회 기본값 저장소 내부용",
+    "preloadSearchDefaults": "포털 셸·SearchArea 내부용(조회 기본값 미리 받기)",
+    "resetSearchDefaults": "조회 기본값 저장소 내부용(시험·로그아웃 정리)",
+    "saveSearchDefaults": "조회 기본값 저장소 내부용(설정 창이 저장한다)",
+    "setSearchDefaultsLocalForDev": "개발 모드 확인용(조회 기본값 샘플 화면)",
+    "subscribeSearchDefaults": "조회 기본값 저장소 내부용",
+    "readSearchLastValues": "조회 기본값 설정 창 내부용(마지막 조회값 읽기)",
+    "useSearchDefaultsArea": "SearchArea 내부용(조회 기본값 등록소)",
     "subscribeSearch": "PageLayout·SearchArea 내부용",
     "useContentMaximize": "ContentBody 최대화 내부용",
     "canDoButton": "팝업 내부 버튼 권한 판정용(page-layout 문서 참고)",
