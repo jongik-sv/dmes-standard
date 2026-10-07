@@ -3,6 +3,8 @@ package com.dongkuk.caravan.hub.init;
 import lombok.extern.slf4j.Slf4j;
 import org.flywaydb.core.Flyway;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,6 +32,35 @@ import javax.sql.DataSource;
 @Configuration
 @ConditionalOnProperty(name = "spring.flyway.enabled", havingValue = "true", matchIfMissing = true)
 public class HubFlywayConfig {
+
+    /**
+     * 표를 읽는 빈(caravan EMF·MyBatis 세션 팩터리)보다 마이그레이션을 먼저 돌린다. 수동 Flyway 빈은 Spring Boot 의 자동 순서
+     * 보장(FlywayMigrationInitializer)을 받지 못해, 그대로 두면 Kafka 부트스트랩 등 먼저 만들어지는 빈이 표 없이 뜬다.
+     */
+    @Bean
+    public static BeanFactoryPostProcessor flywayBeforeDataAccessBeans() {
+        return beanFactory -> {
+            for (String name : new String[] {"caravanEntityManagerFactory", "mstSqlSessionFactory"}) {
+                addDependsOn(beanFactory.containsBeanDefinition(name) ? beanFactory.getBeanDefinition(name) : null,
+                        "caravanFlyway");
+            }
+            for (String flyway : new String[] {"caravanFlyway", "ifuserFlyway"}) {
+                if (beanFactory.containsBeanDefinition("ifSqlSessionFactory") && beanFactory.containsBeanDefinition(flyway)) {
+                    addDependsOn(beanFactory.getBeanDefinition("ifSqlSessionFactory"), flyway);
+                }
+            }
+        };
+    }
+
+    private static void addDependsOn(BeanDefinition definition, String dependency) {
+        if (definition == null) {
+            return;
+        }
+        String[] existing = definition.getDependsOn() == null ? new String[0] : definition.getDependsOn();
+        String[] merged = java.util.Arrays.copyOf(existing, existing.length + 1);
+        merged[existing.length] = dependency;
+        definition.setDependsOn(merged);
+    }
 
     @Bean(initMethod = "migrate")
     public Flyway caravanFlyway(@Qualifier("mstDataSource") DataSource mstDataSource) {
