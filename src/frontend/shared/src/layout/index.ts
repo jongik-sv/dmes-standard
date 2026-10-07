@@ -14,7 +14,38 @@ export {
   clearSearchHistory,
   readSearchHistory,
 } from "./search-history-store";
-export { emitSearch, subscribeSearch } from "./search-history-bus";
+export { emitSearch, subscribeSearch, emitSearchReset, subscribeSearchReset } from "./search-history-bus";
+// 조회 칸 사용자 기본값(설계 2026-10-07-search-defaults).
+export {
+  RANGE_PRESETS,
+  RELATIVE_DATE_PRESETS,
+  isValidIsoDate,
+  parseSearchDefaultRule,
+  resolveRelativeDate,
+  resolveSearchDefault,
+  type RelativeDateBase,
+  type SearchDefaultRule,
+  type SearchDefaultRuleKind,
+  type SearchValueType,
+} from "./search-defaults/rule";
+export {
+  getPageSearchDefaults,
+  getSearchDefaultsSource,
+  getSearchDefaultsStatus,
+  preloadSearchDefaults,
+  resetSearchDefaults,
+  saveSearchDefaults,
+  setSearchDefaultsLocalForDev,
+  subscribeSearchDefaults,
+  type PageRules,
+  type SearchDefaultSaveRow,
+} from "./search-defaults/store";
+export { readSearchLastValues } from "./search-defaults/last-values";
+export {
+  useSearchDefaultsArea,
+  type SearchDefaultsAreaApi,
+  type SearchDefaultsFieldInfo,
+} from "./search-defaults/area";
 export { ContentBody, useContentMaximize, type ContentBodyProps } from "./ContentBody";
 export { ContentPanel, type ContentPanelProps } from "./ContentPanel";
 export { ResizableFormPanel, type ResizableFormPanelProps } from "./ResizableFormPanel";

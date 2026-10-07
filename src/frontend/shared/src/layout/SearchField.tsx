@@ -1,14 +1,21 @@
 "use client";
 
-import React from "react";
+import React, { useContext, useRef } from "react";
 import { Text } from "@mantine/core";
+import { DatePicker } from "../components/form/DatePicker";
 import { Input } from "../components/form/Input";
 import { Radio } from "../components/form/Radio";
 import { Select } from "../components/form/Select";
+import { useIsomorphicLayoutEffect } from "../hooks/use-isomorphic-layout-effect";
 import { MdmFieldLabel } from "../mdm-meta/MdmFieldLabel";
 import { useTabPage } from "../portal-shell/tab-page-context";
 import { SearchHistoryInput } from "./SearchHistoryInput";
 import { isSearchHistoryPage } from "./search-history-store";
+import {
+  SearchDefaultsAreaContext,
+  SearchFieldPairContext,
+  type SearchDefaultsFieldHandle,
+} from "./search-defaults/area";
 
 export interface SearchFieldOption {
   value: string;
@@ -25,7 +32,14 @@ export interface SearchFieldProps {
   name?: string;
   /** 명시 물리명(`name` 보다 우선). `false` 면 MDM 연결을 끈다. `name` 이 있을 때만 쓴다. */
   meta?: string | false;
-  type?: "text" | "select" | "radio";
+  /**
+   * 내장 입력 종류. `"date"` 는 shared DatePicker(`YYYY-MM-DD`)를 그린다.
+   * `children` 이 있으면 그리기는 children 이 맡고, `type` 은 조회 기본값의 값 종류(상대 날짜를 쓸 수 있는지 등)로만 쓴다.
+   */
+  type?: "text" | "select" | "radio" | "date";
+  /**
+   * 값. 내장 입력의 값이고, `children` 칸에서 함께 주면(`onChange` 도 함께) 조회 기본값 대상이 된다 — 그리기는 children 그대로다.
+   */
   value?: string;
   onChange?: (value: string) => void;
   onKeyDown?: (e: React.KeyboardEvent) => void;
@@ -42,6 +56,79 @@ export interface SearchFieldProps {
   disableHistory?: boolean;
   /** 조회영역 grid 에서 셀 span 등 추가 클래스(예: 넓은 범위입력 = "span-2"). */
   className?: string;
+  /**
+   * 조회 기본값 저장 키. 없으면 `name` 을 쓴다. 둘 다 없으면 이 칸은 기본값 대상이 아니다(label 은 키로 쓰지 않는다).
+   * `name` 을 새로 달면 MDM 툴팁 동작이 바뀌므로, 툴팁 없이 기본값만 켤 칸은 이 prop 을 쓴다.
+   */
+  defaultKey?: string;
+  /** false 면 이 칸은 조회 기본값 대상이 아니다(설정 창에 나오지 않고 넣지 않는다). 기본 true. */
+  defaultable?: boolean;
+}
+
+/**
+ * SearchArea 의 조회 기본값 등록소에 이 칸을 올린다(설계 2026-10-07-search-defaults §6.1·§7.1).
+ * 대상: 키(`defaultKey ?? name`, 기간 To 는 `{From 키}~to`)가 있고, `defaultable` 이 false 가 아니며,
+ * 내장 입력이거나 children 칸에 `value`·`onChange` 를 함께 준 칸. 등록은 렌더 횟수를 늘리지 않는다(ref + layout effect).
+ * 돌려주는 함수는 내장 입력의 onChange 를 감싸 「사용자가 고친 칸」 으로 표시한다.
+ */
+function useSearchDefaultsRegistration(props: {
+  label: string;
+  name?: string;
+  meta?: string | false;
+  type: "text" | "select" | "radio" | "date";
+  value?: string;
+  onChange?: (value: string) => void;
+  options: readonly SearchFieldOption[];
+  hasChildren: boolean;
+  defaultKey?: string;
+  defaultable: boolean;
+}): ((value: string) => void) | undefined {
+  const api = useContext(SearchDefaultsAreaContext);
+  const pair = useContext(SearchFieldPairContext);
+  const { label, name, meta, type, value, onChange, options, hasChildren, defaultKey, defaultable } = props;
+
+  const ownKey = defaultKey || name || null;
+  const fieldKey = ownKey ?? (pair?.role === "to" && pair.partnerKey ? `${pair.partnerKey}~to` : null);
+  const bound = hasChildren ? value !== undefined && !!onChange : !!onChange;
+  const registrable = !!api && defaultable && !!fieldKey && bound;
+
+  const valueRef = useRef(value ?? "");
+  valueRef.current = value ?? "";
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const handleRef = useRef<SearchDefaultsFieldHandle | null>(null);
+  if (registrable) {
+    const info = {
+      fieldKey: fieldKey as string,
+      valueType: type,
+      label,
+      meta: typeof meta === "string" ? meta : name,
+      options: type === "select" || type === "radio" ? options : undefined,
+      pair: pair ? { role: pair.role, partnerKey: pair.partnerKey } : undefined,
+    };
+    if (!handleRef.current) {
+      handleRef.current = {
+        info,
+        getValue: () => valueRef.current,
+        setValue: (v) => onChangeRef.current?.(v),
+        touched: false,
+      };
+    } else {
+      handleRef.current.info = info;
+    }
+  }
+
+  useIsomorphicLayoutEffect(() => {
+    if (!registrable || !api || !handleRef.current) return undefined;
+    return api.register(handleRef.current);
+  }, [api, registrable, fieldKey]);
+
+  if (!onChange) return undefined;
+  if (!registrable || hasChildren) return onChange;
+  return (v: string) => {
+    if (handleRef.current) handleRef.current.touched = true;
+    onChange(v);
+  };
 }
 
 export function SearchField({
@@ -50,7 +137,7 @@ export function SearchField({
   meta,
   type = "text",
   value,
-  onChange,
+  onChange: rawOnChange,
   onKeyDown,
   options = [],
   placeholder,
@@ -59,12 +146,32 @@ export function SearchField({
   historyKey,
   disableHistory = false,
   className = "",
+  defaultKey,
+  defaultable = true,
 }: SearchFieldProps) {
   const { pageId } = useTabPage();
+  const handleChange = useSearchDefaultsRegistration({
+    label,
+    name,
+    meta,
+    type,
+    value,
+    onChange: rawOnChange,
+    options,
+    hasChildren: children != null,
+    defaultKey,
+    defaultable,
+  });
+  // 아래 내장 입력은 감싼 onChange(사용자가 고친 칸 표시)를 쓴다.
+  const onChange = handleChange;
 
   const renderInput = () => {
     // 커스텀 입력(LookupTextField·날짜·콤보 등)은 그대로 — 최근 입력값 대상 아님.
     if (children) return children;
+
+    if (type === "date") {
+      return <DatePicker value={value ?? ""} onChange={onChange} disabled={disabled} placeholder={placeholder} />;
+    }
 
     if (type === "select") {
       return (
