@@ -7,7 +7,7 @@ macOS·Linux·Windows 공용이며 python3 + oracledb(pip install oracledb, thin
 
 사용법
   python3 scripts/db-snapshot/snapshot.py convert --from-db src/backend/data/mdm.db --name mdm
-  python3 scripts/db-snapshot/snapshot.py convert --from-sql db-snapshot/mcm --name mcm      # 옛 SQL 스냅샷
+  python3 scripts/db-snapshot/snapshot.py convert --from-sql archive/oracle-1007/db-snapshot-sql/mcm --name mcm      # 옛 SQL 스냅샷(b8 에서 archive 로 옮김)
   python3 scripts/db-snapshot/snapshot.py import --pdb L_ORA_MDM [MDMAPUSER MCMAPUSER ...]
   python3 scripts/db-snapshot/snapshot.py export --pdb L_ORA_MDM [MDMAPUSER ...]
 

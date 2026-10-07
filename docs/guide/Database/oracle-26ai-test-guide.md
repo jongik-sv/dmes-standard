@@ -237,11 +237,11 @@ podman compose down -v
 
 ## 7. (참고) 옛 SQLite 데이터를 Oracle 로 옮기기
 
-> 로컬 DB 가 Oracle 로 바뀌면서 이 절은 이관 크기 측정·방언 비교용 참고 자료가 되었다. 로컬 데이터는 §6.4.4 의 `snapshot.py import` 로 넣는다. 아래 도구(`tools/oracle-free/*.py`·`scripts/db-snapshot/{export,import}.sh`)는 SQLite 원본이 있을 때만 쓴다.
+> 로컬 DB 가 Oracle 로 바뀌면서 이 절은 이관 크기 측정·방언 비교용 참고 자료가 되었다. 로컬 데이터는 §6.4.4 의 `snapshot.py import` 로 넣는다. 아래 도구(`sqlite_to_oracle.py`·`load_snapshot.py`·`export.sh`·`import.sh`)는 b8 에서 `archive/oracle-1007/` 아래로 옮겼다(`archive/oracle-1007/tools/oracle-free/`·`archive/oracle-1007/scripts/db-snapshot/`). 삭제하지 않았고 SQLite 원본이 있을 때만 쓴다. 아래 명령의 경로는 옮기기 전 기준이니 앞에 `archive/oracle-1007/` 를 붙여 읽는다.
 
 ### 7.0. 옛 스냅샷에서 적재하기(참고)
 
-git 에 올라 있는 `db-snapshot/` 만으로 로컬 Oracle 에 같은 데이터를 넣는다(원본 `src/backend/data/*.db` 가 없어도 된다). Oracle 컨테이너가 떠 있고 `pip install oracledb` 가 되어 있으면 된다.
+(옛 SQL 스냅샷 `db-snapshot/{mdm,mcm}` 도 `archive/oracle-1007/db-snapshot-sql/` 로 옮겼다. 지금 스냅샷은 표별 CSV `db-snapshot/<스키마>/` 다.) git 에 올라 있던 옛 `db-snapshot/` 만으로 로컬 Oracle 에 같은 데이터를 넣는다(원본 `src/backend/data/*.db` 가 없어도 된다). Oracle 컨테이너가 떠 있고 `pip install oracledb` 가 되어 있으면 된다.
 
 ```bash
 python3 tools/oracle-free/load_snapshot.py                 # db-snapshot/ 아래 전부(mdm mcm) -> 스키마 MDM·MCM

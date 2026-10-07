@@ -57,13 +57,13 @@ SQLite 원본이 있을 때만 쓴다. 로컬 DB 를 Oracle 로 바꾸기 전 �
 
 ```bash
 python3 scripts/db-snapshot/snapshot.py convert --from-db src/backend/data/mdm.db --name mdm
-python3 scripts/db-snapshot/snapshot.py convert --from-sql db-snapshot/mcm --name mcm   # 옛 표별 SQL 스냅샷에서
+python3 scripts/db-snapshot/snapshot.py convert --from-sql archive/oracle-1007/db-snapshot-sql/mcm --name mcm   # 옛 표별 SQL 스냅샷에서(b8 에서 archive 로 옮김)
 ```
 
 - 서버가 DB 를 쓰는 중이어도 읽기 전용 사본을 떠서 읽는다. 같은 입력이면 결과 CSV 가 같다.
 - `--name mcm` 은 SQLite 가 거친 적 없는 MCM 데이터 보정을 사본에 적용한다: `TB_MCM_SEC_OBJ.FORM_URL`(SEC_MENU 와 연결되는 행을 `PARENT_MENU_ID/OBJECT_ID` 로), 폴더 `mcm·cma·csa·cme` 의 `USE_TP`·`MENU_VIEW_YN`(COALESCE 'Y'). 출처는 `SchemaArtifactsMssql.java` 이다(원본 DB 는 바꾸지 않고 멱등이다).
 - 위젯 정의 `TB_MCM_WIDGET_DEF` 6행의 `CONFIG_JSON.sql` 은 Oracle 문법으로 고쳐 CSV 에 직접 넣었다. `convert` 를 다시 돌리면 이 6행이 SQLite 문법으로 되돌아가므로, 돌린 뒤 `git checkout -- db-snapshot/MCMAPUSER/TB_MCM_WIDGET_DEF.csv` 로 복원한다.
-- 옛 표별 SQL 스냅샷 폴더 `db-snapshot/mdm`·`db-snapshot/mcm`(`_schema.sql` 이 있다)은 b8 에서 `archive/` 로 옮긴다.
+- 옛 표별 SQL 스냅샷 폴더 `db-snapshot/mdm`·`db-snapshot/mcm`(`_schema.sql` 이 있다)은 b8 에서 `archive/oracle-1007/db-snapshot-sql/` 로 옮겼다.
 
 ### 내 PC 의 .db 를 거르지 않고 옮기기(`--full`)
 
