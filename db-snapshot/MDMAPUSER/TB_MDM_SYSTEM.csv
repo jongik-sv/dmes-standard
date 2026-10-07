@@ -1,0 +1,7 @@
+SYSTEM_CODE,SYSTEM_NAME,SELF_YN,C_USR_ID,C_AT,C_SVC_ID,C_PGM_ID,U_USR_ID,U_AT,U_SVC_ID,U_PGM_ID,VER
+APS,APS,N,SYSTEM,\N,flyway,V2__create_mdm_system,SYSTEM,\N,flyway,V2__create_mdm_system,0
+DKMS,DKMS,N,SYSTEM,\N,flyway,V2__create_mdm_system,SYSTEM,\N,flyway,V2__create_mdm_system,0
+ERP,ERP,N,SYSTEM,\N,flyway,V2__create_mdm_system,SYSTEM,\N,flyway,V2__create_mdm_system,0
+L2,레벨2,N,SYSTEM,\N,flyway,V2__create_mdm_system,SYSTEM,\N,flyway,V2__create_mdm_system,0
+MDM,마루 MDM,Y,SYSTEM,\N,flyway,V2__create_mdm_system,SYSTEM,\N,flyway,V2__create_mdm_system,0
+MES,MES,N,SYSTEM,\N,flyway,V2__create_mdm_system,SYSTEM,\N,flyway,V2__create_mdm_system,0

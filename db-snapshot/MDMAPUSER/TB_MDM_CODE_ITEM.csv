@@ -1,0 +1,70 @@
+MARU_CODE_ID,CODE,FROM_VER,TO_VER,NAME,ALTER_NAME,SEQ,DESCRIPTION,LVL1,LVL2,LVL3,LVL4,LVL5,ATTR01,ATTR02,ATTR03,ATTR04,ATTR05,ATTR06,ATTR07,ATTR08,ATTR09,ATTR10,C_USR_ID,C_AT,C_SVC_ID,C_PGM_ID,U_USR_ID,U_AT,U_SVC_ID,U_PGM_ID,VER
+CHK_CD1,CHK01,1,9999,코드1,\N,\N,\N,HR,A,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,CHK_STW,1791083217007,codeItemEdit,codeItemEdit,CHK_STW,1791083217007,codeItemEdit,codeItemEdit,0
+CHK_CD1,CHK02,1,9999,코드2,\N,\N,\N,HR,B,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,CHK_STW,1791083217007,codeItemEdit,codeItemEdit,CHK_STW,1791083217007,codeItemEdit,codeItemEdit,0
+CHK_CD1,CHK03,1,9999,코드3,\N,\N,\N,CR,C,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,CHK_STW,1791083217007,codeItemEdit,codeItemEdit,CHK_STW,1791083217007,codeItemEdit,codeItemEdit,0
+CHK_CD1,CHK04,1,9999,코드4,\N,\N,\N,CR,D,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,CHK_STW,1791083217006,codeItemEdit,codeItemEdit,CHK_STW,1791083217006,codeItemEdit,codeItemEdit,0
+CHK_CD1,CHK05,1,9999,코드5,\N,\N,\N,HR,E,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,CHK_STW,1791083359290,codeItemEdit,codeItemEdit,CHK_STW,1791083359290,codeItemEdit,codeItemEdit,0
+E2E_USR_CD,CR01,1,9999,냉연 1호,\N,\N,\N,CR,CRA,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,E2E_USR_STW,1791079236436,codeItemEdit,codeItemEdit,E2E_USR_STW,2026-10-04 11:01:19,codeEdit,codeEdit,2
+E2E_USR_CD,HR01,1,9999,열연 1호 경미,HR-1,5,경미 수정(E2E),HR,\N,\N,\N,\N,KS,SS400,\N,\N,\N,\N,\N,\N,\N,\N,E2E_USR_STW,1791079236436,codeItemEdit,codeItemEdit,E2E_USR_STW,1791079271181,codeItemEdit,codeItemEdit,1
+E2E_USR_CD,HR02,1,9999,열연 2호 고급,HR2,\N,\N,HR,\N,\N,\N,\N,JIS,\N,\N,\N,\N,\N,\N,\N,\N,\N,E2E_USR_STW,1791079236436,codeItemEdit,codeItemEdit,E2E_USR_STW,2026-10-04 11:01:19,codeEdit,codeEdit,3
+E2E_USR_DEL,D1,1,9999,지울 행,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,E2E_USR_STW,1791079334647,codeItemEdit,codeItemEdit,E2E_USR_STW,1791079334647,codeItemEdit,codeItemEdit,0
+E2E_USR_SEQ,S1,1,9999,순서 시험,\N,3,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,E2E_USR_STW,1791079324346,codeItemEdit,codeItemEdit,E2E_USR_STW,1791079324346,codeItemEdit,codeItemEdit,0
+E2E_USR_UND,U1,1,9999,원래 이름,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,E2E_USR_STW,1791079329346,codeItemEdit,codeItemEdit,E2E_USR_STW,1791079329346,codeItemEdit,codeItemEdit,0
+EQP_CD,EQ01,1,9999,1호기,\N,1,\N,\N,\N,\N,\N,\N,ROLL,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2026-07-28 09:00:00,\N,mdm-local-sample,park,2026-07-28 09:00:00,\N,mdm-local-sample,0
+EQP_CD,EQ02,1,9999,2호기,\N,2,\N,\N,\N,\N,\N,\N,ROLL,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2026-07-28 09:00:00,\N,mdm-local-sample,park,2026-07-28 09:00:00,\N,mdm-local-sample,0
+EQP_CD,EQ03,2,9999,3호기,\N,3,\N,\N,\N,\N,\N,\N,PUMP,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2026-08-28 09:00:00,\N,mdm-local-sample,park,2026-08-28 09:00:00,\N,mdm-local-sample,0
+EQP_CD,EQ04,2,9999,4호기,\N,4,\N,\N,\N,\N,\N,\N,PUMP,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2026-08-28 09:00:00,\N,mdm-local-sample,park,2026-08-28 09:00:00,\N,mdm-local-sample,0
+EQP_CD,EQ05,2,9999,5호기,\N,5,\N,\N,\N,\N,\N,\N,FAN,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2026-08-28 09:00:00,\N,mdm-local-sample,park,2026-08-28 09:00:00,\N,mdm-local-sample,0
+LINE_CD,CCL3,1,9999,3컬러 라인,\N,5,\N,\N,\N,\N,\N,\N,B1,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2026-09-10 10:00:00,\N,mdm-local-sample,park,2026-09-10 10:00:00,\N,mdm-local-sample,0
+LINE_CD,CGL2,1,9999,2도금 라인,\N,3,\N,\N,\N,\N,\N,\N,B1,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2026-09-10 10:00:00,\N,mdm-local-sample,park,2026-09-10 10:00:00,\N,mdm-local-sample,0
+LINE_CD,CGL3,1,9999,3도금 라인,\N,4,\N,\N,\N,\N,\N,\N,B1,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2026-09-10 10:00:00,\N,mdm-local-sample,park,2026-09-10 10:00:00,\N,mdm-local-sample,0
+LINE_CD,CR1,1,9999,1냉연 라인,\N,2,\N,\N,\N,\N,\N,\N,B0,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2026-09-10 10:00:00,\N,mdm-local-sample,park,2026-09-10 10:00:00,\N,mdm-local-sample,0
+LINE_CD,PL1,1,9999,1산세 라인,\N,1,\N,\N,\N,\N,\N,\N,B0,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2026-09-10 10:00:00,\N,mdm-local-sample,park,2026-09-10 10:00:00,\N,mdm-local-sample,0
+PROC_CD,1P,1,2.001,PLTCM,PLTCM,11,\N,\N,\N,\N,\N,\N,냉연,산세압연,\N,\N,\N,\N,\N,\N,\N,\N,park,1702634400000,\N,mdm-local-sample,41000132,1790599714732,codeItemEdit,codeItemEdit,1
+PROC_CD,1P,2.001,9999,PLTCM,PLTCM,1,\N,\N,\N,\N,\N,\N,냉연,"산세,압연",\N,\N,\N,\N,\N,\N,\N,\N,41000132,1790599714733,codeItemEdit,codeItemEdit,41000132,1790754613651,codeItemEdit,codeItemEdit,2
+PROC_CD,2P,1.001,2.001,PLTCM2,PLTCM,12,\N,\N,\N,\N,\N,\N,냉연,산세압연,\N,\N,\N,\N,\N,\N,\N,\N,park,1781517600000,\N,mdm-local-sample,41000132,1790599714723,codeItemEdit,codeItemEdit,1
+PROC_CD,33,2.001,9999,3ECL,3ECL,2,\N,\N,\N,\N,\N,\N,냉연,전정,\N,\N,\N,\N,\N,\N,\N,\N,41000132,1790604802567,codeItemEdit,codeItemEdit,41000132,1790754613663,codeItemEdit,codeItemEdit,3
+PROC_CD,41,2.001,9999,Hi-CON,HCON,4,\N,\N,\N,\N,\N,\N,냉연,소둔,\N,\N,\N,\N,\N,\N,\N,\N,41000132,1790741823995,codeItemEdit,codeItemEdit,41000132,1790754613667,codeItemEdit,codeItemEdit,2
+PROC_CD,44,2.001,9999,4ANN,4ANN,5,\N,\N,\N,\N,\N,\N,냉연,소둔,\N,\N,\N,\N,\N,\N,\N,\N,41000132,1790741823994,codeItemEdit,codeItemEdit,41000132,1790754613668,codeItemEdit,codeItemEdit,2
+PROC_CD,51,2.001,9999,TM,TM,3,\N,\N,\N,\N,\N,\N,냉연,조질압연,\N,\N,\N,\N,\N,\N,\N,\N,41000132,1790599714734,codeItemEdit,codeItemEdit,41000132,1790754613666,codeItemEdit,codeItemEdit,3
+PROC_CD,82,1,2,2CGL,CGL,21,\N,\N,\N,\N,\N,\N,도금,연속도금,\N,\N,\N,\N,\N,\N,\N,\N,park,2023-12-15 10:00:00,\N,mdm-local-sample,park,2023-12-15 10:00:00,\N,mdm-local-sample,0
+PROC_CD,82,2,2.001,2CGL,CGL2,21,\N,\N,\N,\N,\N,\N,도금,연속도금,\N,\N,\N,\N,\N,\N,\N,\N,park,1789466400000,\N,mdm-local-sample,41000132,1790754613683,codeItemEdit,codeItemEdit,1
+PROC_CD,82,2.001,9999,2CGL,CGL2,7,\N,\N,\N,\N,\N,\N,도금,연속도금,\N,\N,\N,\N,\N,\N,\N,\N,41000132,1790754613700,codeItemEdit,codeItemEdit,41000132,1790754613700,codeItemEdit,codeItemEdit,0
+PROC_CD,83,1,1.001,3CGl,CGL,22,\N,\N,\N,\N,\N,\N,도금,연속도금,\N,\N,\N,\N,\N,\N,\N,\N,park,2023-12-15 10:00:00,\N,mdm-local-sample,park,2023-12-15 10:00:00,\N,mdm-local-sample,0
+PROC_CD,83,1.001,2.001,3CGL,CGL,22,\N,\N,\N,\N,\N,\N,도금,연속도금,\N,\N,\N,\N,\N,\N,\N,\N,park,1781517600000,\N,mdm-local-sample,41000132,1790754613708,codeItemEdit,codeItemEdit,1
+PROC_CD,83,2.001,9999,3CGL,CGL,6,\N,\N,\N,\N,\N,\N,도금,연속도금,\N,\N,\N,\N,\N,\N,\N,\N,41000132,1790754613708,codeItemEdit,codeItemEdit,41000132,1790762226975,codeItemEdit,codeItemEdit,2
+PROC_CD,84,2,2.001,4CGL,CGL,23,\N,\N,\N,\N,\N,\N,도금,연속도금,\N,\N,\N,\N,\N,\N,\N,\N,park,1789466400000,\N,mdm-local-sample,41000132,1790754613709,codeItemEdit,codeItemEdit,1
+PROC_CD,84,2.001,9999,4CGL,CGL,9,\N,\N,\N,\N,\N,\N,도금,연속도금,\N,\N,\N,\N,\N,\N,\N,\N,41000132,1790754613710,codeItemEdit,codeItemEdit,41000132,1790754613710,codeItemEdit,codeItemEdit,0
+PROC_CD,85,2,2.001,5CGL,CGL,24,\N,\N,\N,\N,\N,\N,도금,연속도금,\N,\N,\N,\N,\N,\N,\N,\N,park,1789466400000,\N,mdm-local-sample,41000132,1790754613711,codeItemEdit,codeItemEdit,1
+PROC_CD,85,2.001,9999,5CGL,CGL,10,\N,\N,\N,\N,\N,\N,도금,연속도금,\N,\N,\N,\N,\N,\N,\N,\N,41000132,1790754613712,codeItemEdit,codeItemEdit,41000132,1790754613712,codeItemEdit,codeItemEdit,0
+PROC_CD,91,2.001,9999,EGL,EGL,11,\N,\N,\N,\N,\N,\N,도금,전기도금,\N,\N,\N,\N,\N,\N,\N,\N,41000132,1790745514651,codeItemEdit,codeItemEdit,41000132,1790762214938,codeItemEdit,codeItemEdit,2
+PROC_CD,A2,1,2.001,2CCL,CCL,32,\N,\N,\N,\N,\N,\N,컬러,컬러도장,\N,\N,\N,\N,\N,\N,\N,\N,park,1702634400000,\N,mdm-local-sample,41000132,1790754613713,codeItemEdit,codeItemEdit,1
+PROC_CD,A2,2.001,9999,2CCL,CCL,11,\N,\N,\N,\N,\N,\N,컬러,컬러도장,\N,\N,\N,\N,\N,\N,\N,\N,41000132,1790754613714,codeItemEdit,codeItemEdit,41000132,1790754613714,codeItemEdit,codeItemEdit,0
+PROC_CD,A3,1,2.001,3CCL,CCL,33,\N,\N,\N,\N,\N,\N,컬러,컬러도장,\N,\N,\N,\N,\N,\N,\N,\N,park,1702634400000,\N,mdm-local-sample,41000132,1790754613715,codeItemEdit,codeItemEdit,1
+PROC_CD,A3,2.001,9999,3CCL,CCL,12,\N,\N,\N,\N,\N,\N,컬러,컬러도장,\N,\N,\N,\N,\N,\N,\N,\N,41000132,1790754613716,codeItemEdit,codeItemEdit,41000132,1790754613716,codeItemEdit,codeItemEdit,0
+PROC_CD,A4,1,2.001,4CCL,CCL,34,\N,\N,\N,\N,\N,\N,컬러,컬러도장,\N,\N,\N,\N,\N,\N,\N,\N,park,1702634400000,\N,mdm-local-sample,41000132,1790754613718,codeItemEdit,codeItemEdit,1
+PROC_CD,A4,2.001,9999,4CCL,CCL,13,\N,\N,\N,\N,\N,\N,컬러,컬러도장,\N,\N,\N,\N,\N,\N,\N,\N,41000132,1790754613718,codeItemEdit,codeItemEdit,41000132,1790754613718,codeItemEdit,codeItemEdit,0
+PROC_CD,A5,1,2.001,5CCL,CCL,35,\N,\N,\N,\N,\N,\N,컬러,컬러도장,\N,\N,\N,\N,\N,\N,\N,\N,park,1702634400000,\N,mdm-local-sample,41000132,1790754613721,codeItemEdit,codeItemEdit,1
+PROC_CD,A5,2.001,9999,5CCL,CCL,14,\N,\N,\N,\N,\N,\N,컬러,컬러도장,\N,\N,\N,\N,\N,\N,\N,\N,41000132,1790754613722,codeItemEdit,codeItemEdit,41000132,1790754613722,codeItemEdit,codeItemEdit,0
+PROC_CD,A6,1,2.001,6CCL,CCL,36,\N,\N,\N,\N,\N,\N,컬러,컬러도장,\N,\N,\N,\N,\N,\N,\N,\N,park,1702634400000,\N,mdm-local-sample,41000132,1790754613724,codeItemEdit,codeItemEdit,1
+PROC_CD,A6,2.001,9999,6CCL,CCL,15,\N,\N,\N,\N,\N,\N,컬러,컬러도장,\N,\N,\N,\N,\N,\N,\N,\N,41000132,1790754613725,codeItemEdit,codeItemEdit,41000132,1790754613725,codeItemEdit,codeItemEdit,0
+PROC_CD,A7,1,2.001,7CCL,CCL,37,\N,\N,\N,\N,\N,\N,컬러,컬러도장,\N,\N,\N,\N,\N,\N,\N,\N,park,1702634400000,\N,mdm-local-sample,41000132,1790754613727,codeItemEdit,codeItemEdit,1
+PROC_CD,A7,2.001,9999,7CCL,CCL,16,\N,\N,\N,\N,\N,\N,컬러,컬러도장,\N,\N,\N,\N,\N,\N,\N,\N,41000132,1790754613727,codeItemEdit,codeItemEdit,41000132,1790754613727,codeItemEdit,codeItemEdit,0
+PROC_CD,A8,1,2.001,8CCL,CCL,38,\N,\N,\N,\N,\N,\N,컬러,컬러도장,\N,\N,\N,\N,\N,\N,\N,\N,park,1702634400000,\N,mdm-local-sample,41000132,1790754613728,codeItemEdit,codeItemEdit,1
+PROC_CD,A8,2.001,9999,8CCL,CCL,17,\N,\N,\N,\N,\N,\N,컬러,컬러도장,\N,\N,\N,\N,\N,\N,\N,\N,41000132,1790754613729,codeItemEdit,codeItemEdit,41000132,1790754613729,codeItemEdit,codeItemEdit,0
+PROC_CD,A9,1,2.001,9CCL,CCL,39,\N,\N,\N,\N,\N,\N,컬러,컬러도장,\N,\N,\N,\N,\N,\N,\N,\N,park,1702634400000,\N,mdm-local-sample,41000132,1790754613729,codeItemEdit,codeItemEdit,1
+PROC_CD,A9,2.001,9999,9CCL,CCL,18,\N,\N,\N,\N,\N,\N,컬러,컬러도장,\N,\N,\N,\N,\N,\N,\N,\N,41000132,1790754613730,codeItemEdit,codeItemEdit,41000132,1790754613730,codeItemEdit,codeItemEdit,0
+PROC_CD,AA,1,2.001,S1CCL,CCL,40,\N,\N,\N,\N,\N,\N,컬러,컬러도장,\N,\N,\N,\N,\N,\N,\N,\N,park,1702634400000,\N,mdm-local-sample,41000132,1790754613732,codeItemEdit,codeItemEdit,1
+PROC_CD,AA,2.001,9999,S1CCL,CCL,19,\N,\N,\N,\N,\N,\N,컬러,컬러도장,\N,\N,\N,\N,\N,\N,\N,\N,41000132,1790754613733,codeItemEdit,codeItemEdit,41000132,1790754613733,codeItemEdit,codeItemEdit,0
+STEEL_STD,JIS-3-CGCC,1,9999,CGCC(JIS),\N,1,\N,JIS,JIS-3,\N,\N,\N,270,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2025-12-10 10:00:00,\N,mdm-local-sample,park,2025-12-10 10:00:00,\N,mdm-local-sample,0
+STEEL_STD,JIS-4-SPCC,1,9999,SPCC,\N,1,\N,JIS,JIS-4,\N,\N,\N,270,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2025-12-10 10:00:00,\N,mdm-local-sample,park,2025-12-10 10:00:00,\N,mdm-local-sample,0
+STEEL_STD,KS-3-CGCC,1,9999,CGCC,\N,1,\N,KS,KS-3,\N,\N,\N,270,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2025-12-10 10:00:00,\N,mdm-local-sample,park,2025-12-10 10:00:00,\N,mdm-local-sample,0
+STEEL_STD,KS-3-CGCD,1,9999,CGCD,\N,2,\N,KS,KS-3,\N,\N,\N,270,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2025-12-10 10:00:00,\N,mdm-local-sample,park,2025-12-10 10:00:00,\N,mdm-local-sample,0
+STEEL_STD,KS-3-CGCH,1,9999,CGCH(기본),\N,3,\N,KS,KS-3,\N,\N,\N,270,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2025-12-10 10:00:00,\N,mdm-local-sample,park,2025-12-10 10:00:00,\N,mdm-local-sample,0
+STEEL_STD,KS-3-CGCH-Z12,1,9999,CGCH Z12,\N,1,\N,KS,KS-3,KS-3-CGCH,\N,\N,270,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2025-12-10 10:00:00,\N,mdm-local-sample,park,2025-12-10 10:00:00,\N,mdm-local-sample,0
+STEEL_STD,KS-3-CGCH-Z27,1,9999,CGCH Z27,\N,2,\N,KS,KS-3,KS-3-CGCH,\N,\N,270,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2025-12-10 10:00:00,\N,mdm-local-sample,park,2025-12-10 10:00:00,\N,mdm-local-sample,0
+STEEL_STD,KS-9,1,9999,규격 외 KS,\N,9,\N,KS,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2025-12-10 10:00:00,\N,mdm-local-sample,park,2025-12-10 10:00:00,\N,mdm-local-sample,0
+SURF_GRD,A,1,9999,양호,\N,1,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2026-08-01 10:00:00,\N,mdm-local-sample,park,2026-08-01 10:00:00,\N,mdm-local-sample,0
+SURF_GRD,B,1,9999,보통,\N,2,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2026-08-01 10:00:00,\N,mdm-local-sample,park,2026-08-01 10:00:00,\N,mdm-local-sample,0
+SURF_GRD,C,1,9999,미흡,\N,3,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2026-08-01 10:00:00,\N,mdm-local-sample,park,2026-08-01 10:00:00,\N,mdm-local-sample,0
+SURF_GRD,D,1,9999,불량,\N,4,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,\N,park,2026-08-01 10:00:00,\N,mdm-local-sample,park,2026-08-01 10:00:00,\N,mdm-local-sample,0

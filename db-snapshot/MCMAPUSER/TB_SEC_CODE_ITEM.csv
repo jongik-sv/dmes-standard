@@ -1,0 +1,7 @@
+GROUP_CD,ITEM_CD,EXTRA_VAL1,EXTRA_VAL2,ITEM_DESC,ITEM_NM,SORT_ORD,USE_YN,C_AT,C_USR_ID,C_PGM_ID,C_SVC_ID,U_AT,U_USR_ID,U_PGM_ID,U_SVC_ID,VER
+WIDGET_CTG,COMMON,,\N,공통(공지·알림·바로 가기),공통,10,Y,2026-10-05 13:25:39,admin,DataInitializer,DataInitializer,2026-10-05 13:25:39,admin,DataInitializer,DataInitializer,0
+WIDGET_CTG,INFO,,\N,외부 정보(날씨·환율),외부 정보,60,Y,2026-10-05 13:25:39,admin,DataInitializer,DataInitializer,2026-10-05 13:25:39,admin,DataInitializer,DataInitializer,0
+WIDGET_CTG,LOGI,,\N,물류(출하·재고),물류,40,Y,2026-10-05 13:25:39,admin,DataInitializer,DataInitializer,2026-10-05 13:25:39,admin,DataInitializer,DataInitializer,0
+WIDGET_CTG,PROD,,\N,생산(작업·설비·실적),생산,20,Y,2026-10-05 13:25:39,admin,DataInitializer,DataInitializer,2026-10-05 13:25:39,admin,DataInitializer,DataInitializer,0
+WIDGET_CTG,QUAL,,\N,품질(불량·검사),품질,30,Y,2026-10-05 13:25:39,admin,DataInitializer,DataInitializer,2026-10-05 13:25:39,admin,DataInitializer,DataInitializer,0
+WIDGET_CTG,TOOL,,\N,도구(계산기·메모·단위),도구,50,Y,2026-10-05 13:25:39,admin,DataInitializer,DataInitializer,2026-10-05 13:25:39,admin,DataInitializer,DataInitializer,0
