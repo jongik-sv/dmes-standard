@@ -15,6 +15,8 @@ scripts\oracle\pdb.cmd <명령>           # Windows
 | `template-create <TPL_이름>` | 시드에서 빈 템플릿 생성 + 운영 이름 사용자 13명 생성 |
 | `template-seal <TPL_이름>` | 복제 원본으로 봉인(닫아 둠) |
 | `template-unseal <TPL_이름>` | 수정하려고 READ WRITE 로 열기(수정 뒤 다시 seal) |
+| `template-schema [TPL_SCHEMA] [--rebuild]` | 시드에서 새로 만들어 **dev 에 있는 모든 모듈의 Oracle V 파일**을 스키마 주인으로 순서대로 적용하고(`flyway_schema_history` 도 맞춘다) 봉인한 데이터 없는 템플릿. 레인·시험 PDB 의 기본 원본 |
+| `template-data [TPL_DATA] [--from TPL_SCHEMA] [--rebuild]` | `TPL_SCHEMA` 를 복제해 `db-snapshot/` CSV 를 적재(`snapshot.py import`)하고 봉인한 템플릿 |
 | `clone <TPL_이름> <PDB>` | 템플릿에서 복제하고 열기 |
 | `open` · `close <PDB>` | 열기·닫기 |
 | `drop <PDB>` | 닫고 데이터 파일까지 삭제 |
@@ -37,7 +39,24 @@ scripts\oracle\pdb.cmd <명령>           # Windows
 - 복제·열기·삭제는 PC 전체에서 한 번에 하나(`$TMPDIR/dmes-ora-pdb.lock`).
 - 시험 PDB 는 복제 → 시험 → 즉시 삭제. 레인 개발 PDB 는 쓸 때만 열고 끝나면 `close`.
 
-## 템플릿 만들기(처음 한 번)
+## 레인 PDB 는 쓰는 동안만 OPEN
+
+- 열린 PDB 슬롯은 PC 전체가 나눠 쓴다. 레인 PDB(`L_<레인>`)는 시험·적재·서버 확인을 **실제로 돌리는 동안만** `open` 하고 끝나면 바로 `close` 한다(`drop` 이 아니다: 데이터는 남는다).
+- 슬롯이 없으면 `open`·`clone` 이 자리가 날 때까지 기다린다. 오래 기다리게 하지 않도록 쓰고 나면 닫는다.
+
+## 템플릿 만들기
+
+권장: 모듈 V 파일이 dev 에 머지된 뒤 한 번에 만든다.
+
+```
+node scripts/oracle/pdb.mjs template-schema TPL_SCHEMA         # 전 모듈 V1 적용, 데이터 없음
+node scripts/oracle/pdb.mjs template-data TPL_DATA             # + db-snapshot CSV 적재(python3 + pip install oracledb)
+node scripts/oracle/pdb.mjs clone TPL_DATA L_ORA_MDM           # 레인 PDB
+```
+
+모듈 V1 이 새로 머지되면 `--rebuild` 로 다시 만든다. V 파일 위치는 `src/backend/**/db/migration/**/oracle/**/V*.sql` 이고 스키마는 폴더 이름(`mcmapuser` 등) 또는 모듈(mdm→`MDMAPUSER`)로 정한다. 마이그레이션 자리표시자 `${app_user}` 는 `MCMAPUSER` 로 치환한다.
+
+### 사용자만 있는 빈 템플릿(처음 한 번)
 
 ```
 node scripts/oracle/pdb.mjs template-create TPL_EMPTY
