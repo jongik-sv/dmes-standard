@@ -19,7 +19,7 @@ class BufferedRandomAccessFileTest {
     @Test
     public void bufferedPerformanceTest() throws Exception {
         File file1 = new File("src/test/resources/logs/tiny_interface.log");
-//        File file1 = new File("C:/Users/USER/Desktop/dmes_prd_log/dmes_prd_log/mpp_app_20200826_14.log");
+//        File file1 = new File(System.getProperty("user.home"), "Desktop/dmes_prd_log/dmes_prd_log/mpp_app_20200826_14.log");
 
         LocalDateTime start = LocalDateTime.parse("2020-08-26 14:20:02", DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         LocalDateTime end = LocalDateTime.parse("2020-08-26 14:40:02", DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
