@@ -2,8 +2,6 @@ package com.dongkuk.dmes.mcm.widget.chat.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
@@ -20,11 +18,8 @@ class WidgetChatPoolHoldLazyJpaTest extends WidgetChatPoolHoldJpaTestBase {
         return 0;
     }
 
-    @Test
-    @DisplayName("풀 크기만큼의 채팅이 LLM 을 기다리는 동안에도 다른 요청이 connectionTimeout 전에 끝난다")
-    void otherRequestCompletesWhileChatsWaitForLlm() throws Exception {
-        ConcurrentRun run = otherRequestWhileChatsWait();
-
+    @Override
+    void assertConcurrent(ConcurrentRun run) {
         assertThat(run.allWaiting()).as("채팅이 모두 LLM 대기에 들어갔다").isTrue();
         assertThat(run.heldWhileWaiting()).as("LLM 대기 중 쥔 연결 수").isZero();
         assertThat(run.otherFailure()).as("다른 요청 실패").isNull();

@@ -65,6 +65,9 @@ abstract class WidgetChatPoolHoldJpaTestBase {
     /** LLM 을 기다리는 동안 이 풀에서 쥔 연결 수 — 기대값. */
     abstract int expectedHeldDuringLlm();
 
+    /** {@link #otherRequestWhileChatsWait} 결과 판정 — 구성마다 다르다. */
+    abstract void assertConcurrent(ConcurrentRun run);
+
     @BeforeEach
     void setUp() {
         repository.deleteAllInBatch();
@@ -141,9 +144,16 @@ abstract class WidgetChatPoolHoldJpaTestBase {
         assertThat(repository.findByUserIdAndInstIdOrderByMsgSeqAsc("userA", "i1")).hasSize(2);
     }
 
+    @Test
+    @DisplayName("풀 크기만큼의 채팅이 LLM 을 기다리는 동안 다른 요청 하나 — 쥔 연결 수·다른 요청 결과·채팅 실패")
+    void otherRequestWhileChatsWaitForLlm() throws Exception {
+        assertConcurrent(otherRequestWhileChatsWait());
+    }
+
     /**
      * 풀 크기만큼의 채팅이 바깥 트랜잭션 안에서 LLM 을 기다리는 동안 다른 요청(같은 바깥 트랜잭션 흉내 안에서 채팅 기록 조회)이
-     * connectionTimeout 전에 끝나는지. 결과(성공·실패·소요 시간·쥔 연결 수)를 돌려준다 — 단언은 하위 클래스가 한다.
+     * connectionTimeout 전에 끝나는지. 채팅이 LLM 대기에 모두 들어가기를 connectionTimeout 의 두 배까지 기다린다(못 들어가면 연결을
+     * 못 받아 실패한 것이다). 결과(성공·실패·소요 시간·쥔 연결 수)를 돌려준다 — 판정은 하위 클래스가 한다.
      */
     ConcurrentRun otherRequestWhileChatsWait() throws Exception {
         int n = WidgetChatPoolJpaTestConfig.POOL_SIZE;
@@ -177,7 +187,7 @@ abstract class WidgetChatPoolHoldJpaTestBase {
                     }
                 }));
             }
-            boolean allWaiting = waiting.await(20, TimeUnit.SECONDS);
+            boolean allWaiting = waiting.await(2 * WidgetChatPoolJpaTestConfig.CONNECTION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             int heldWhileWaiting = active();
             long t0 = System.nanoTime();
             String otherFailure = null;
@@ -191,7 +201,8 @@ abstract class WidgetChatPoolHoldJpaTestBase {
             long otherMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - t0);
             release.countDown();
             for (Future<?> f : chats) f.get(60, TimeUnit.SECONDS);
-            ConcurrentRun run = new ConcurrentRun(allWaiting, heldWhileWaiting, otherFailure, otherMs, List.copyOf(chatFailures));
+            ConcurrentRun run = new ConcurrentRun(allWaiting, heldWhileWaiting, otherFailure == null, otherFailure, otherMs,
+                    chatFailures.size(), List.copyOf(chatFailures));
             System.out.println("[chat-pool] " + getClass().getSimpleName() + " 동시 채팅 " + n + "개 LLM 대기 중: " + run);
             return run;
         } finally {
@@ -200,5 +211,6 @@ abstract class WidgetChatPoolHoldJpaTestBase {
         }
     }
 
-    record ConcurrentRun(boolean allWaiting, int heldWhileWaiting, String otherFailure, long otherMs, List<String> chatFailures) {}
+    record ConcurrentRun(boolean allWaiting, int heldWhileWaiting, boolean otherOk, String otherFailure, long otherMs,
+                         int chatFailureCount, List<String> chatFailures) {}
 }
