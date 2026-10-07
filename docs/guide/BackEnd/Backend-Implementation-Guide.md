@@ -111,6 +111,7 @@ public interface ItemRepository extends JpaRepository<Item, String> {
 - JPQL 에서는 DB 컬럼명이 아니라 Java 필드명을 쓴다.
 - 파라미터는 `@Param` 으로 명시한다.
 - native query 는 JPQL/Repository 메서드로 표현이 어려운 경우에만 사용한다.
+- `@Query`·네이티브 SQL·MyBatis 의 `WHERE`·`ON` 에서 칼럼에 함수·형변환을 씌우지 않는다(`TO_CHAR(col,…) >= :d` 금지, 변환은 바인드 쪽). 인덱스를 못 타 전체를 읽는다. 규칙·확인법: [`../Database/oracle-sql-rules.md`](../Database/oracle-sql-rules.md) 「인덱스를 살리는 조건(sargable)」.
 - nullable 컬럼이 포함된 유니크 키는 null/non-null 경로를 분리한다.
 
 페이징:

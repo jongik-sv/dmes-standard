@@ -184,7 +184,7 @@ SQL 안의 `:이름` 에 서버가 값을 넣습니다. 아래 6개가 전부이
 | `:monthStart` | 이달 1일 `yyyyMMdd` 글자 |
 | `:now` | 현재 시각(타임스탬프) |
 
-> **주의:** 날짜가 `yyyyMMdd` 글자라서 일시(TIMESTAMP) 열과 바로 비교하면 어긋납니다. `TO_CHAR(STARTED_AT, 'YYYYMMDD') = :today` 처럼 열 쪽을 글자로 바꾸거나, `STARTED_AT >= TO_DATE(:today, 'YYYYMMDD')` 처럼 변수 쪽을 날짜로 바꿉니다(색인을 타려면 뒤쪽이 낫습니다).
+> **주의:** 날짜가 `yyyyMMdd` 글자라서 일시(TIMESTAMP) 열과 바로 비교하면 어긋납니다. `STARTED_AT >= TO_DATE(:today, 'YYYYMMDD') AND STARTED_AT < TO_DATE(:today, 'YYYYMMDD') + 1` 처럼 **변수 쪽을 날짜로 바꿔** 비교합니다. `TO_CHAR(STARTED_AT, 'YYYYMMDD') = :today` 처럼 열 쪽에 함수를 씌우면 색인을 못 타 표 전체를 읽으므로 쓰지 않습니다(`SELECT` 목록의 표시용 `TO_CHAR` 는 괜찮습니다). 색인을 살리는 조건 규칙 전체는 저장소 문서 `docs/guide/Database/oracle-sql-rules.md` 의 「인덱스를 살리는 조건(sargable)」 을 봅니다.
 
 ### 3.5 조회 조건
 

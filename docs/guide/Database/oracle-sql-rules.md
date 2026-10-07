@@ -31,6 +31,80 @@
 
 ## 3. 권장 구문
 
+### 인덱스를 살리는 조건(sargable)
+
+`WHERE`·`JOIN ... ON` 의 **칼럼 쪽에 함수·연산·형변환이 붙으면 그 칼럼의 인덱스로 범위 탐색을 하지 못해** 표를 전부 읽는다(`TO_CHAR(l.STARTED_AT, 'YYYYMMDD') >= :fromDt` 가 위젯 SQL 에 있었다). 변환은 **바인드·상수 쪽**에 하고 칼럼은 원형 그대로 둔다. 작성한 SQL 은 아래 「확인 방법」 으로 한 번 본다.
+
+1. **칼럼을 함수·연산으로 감싸지 않는다.** 칼럼 쪽 식을 반대편으로 옮긴다.
+
+   ```sql
+   -- 금지: 칼럼에 함수·연산
+   WHERE TO_CHAR(l.STARTED_AT, 'YYYYMMDD') >= :fromDt
+   WHERE TRUNC(l.STARTED_AT) = TO_DATE(:d, 'YYYYMMDD')
+   WHERE l.DUR_SEC * 1000 >= :ms          AND  l.SEQ_NO + 1 = :x
+   WHERE UPPER(i.ITEM_CD) = :v            AND  SUBSTR(i.ITEM_CD, 1, 4) = :y
+   -- 권장: 칼럼은 원형, 변환은 바인드 쪽
+   WHERE l.STARTED_AT >= TO_DATE(:fromDt, 'YYYYMMDD')
+   WHERE l.STARTED_AT >= TO_DATE(:d, 'YYYYMMDD') AND l.STARTED_AT < TO_DATE(:d, 'YYYYMMDD') + 1
+   WHERE l.DUR_SEC >= :ms / 1000          AND  l.SEQ_NO = :x - 1
+   WHERE i.ITEM_CD = UPPER(:v)            AND  i.ITEM_CD LIKE :y || '%'
+   ```
+
+   `UPPER(칼럼) = :v` 처럼 대소문자를 무시하고 찾아야 하는 요구는 값을 저장할 때 대문자로 통일하거나, 정말 필요하면 **함수 기반 인덱스**를 DBA 와 합의해 만든다(V 파일로 추가). 이때도 SQL 의 식은 인덱스 정의와 글자 그대로 같아야 쓰인다.
+
+2. **날짜 범위는 반열린 구간** `>= 시작 AND < 다음날` 로 쓴다. `BETWEEN a AND b + 0.99999` 나 `'… 23:59:59'` 는 초 아래(`TIMESTAMP(6)`)·경계 값을 놓친다.
+
+   ```sql
+   -- 금지
+   WHERE l.STARTED_AT BETWEEN TO_DATE(:f, 'YYYYMMDD') AND TO_DATE(:t || '235959', 'YYYYMMDDHH24MISS')
+   -- 권장 (끝 날짜 하루를 포함하려면 끝 + 1 을 미포함으로)
+   WHERE l.STARTED_AT >= TO_DATE(:f, 'YYYYMMDD') AND l.STARTED_AT < TO_DATE(:t, 'YYYYMMDD') + 1
+   ```
+
+3. **암묵 형변환을 만들지 않는다.** 칼럼과 바인드·리터럴의 형이 다르면 Oracle 이 한쪽을 몰래 바꾼다. 문자 칼럼에 숫자 바인드를 비교하면 칼럼 쪽에 `TO_NUMBER` 가 숨어 인덱스를 못 타고, 숫자가 아닌 값이 한 행이라도 있으면 `ORA-01722` 가 난다. 날짜 칼럼에 글자를 바로 비교하면 세션 `NLS_DATE_FORMAT` 에 기대게 된다. 바인드의 형을 **칼럼의 형에 맞추고**, 글자를 날짜·숫자로 바꿀 때는 `TO_DATE`·`TO_NUMBER` 를 바인드 쪽에 명시한다.
+
+   ```sql
+   -- 금지: LOT_NO 는 VARCHAR2 인데 숫자 바인드 → TO_NUMBER("LOT_NO") = :n
+   WHERE t.LOT_NO = :lotNoAsNumber
+   -- 권장: 글자 바인드(자바에서 String 으로 넘긴다)
+   WHERE t.LOT_NO = :lotNo
+   ```
+
+4. **`LIKE` 는 앞 일치만 인덱스를 쓴다.** `col LIKE :v || '%'` 는 범위 탐색이 되지만 `col LIKE '%' || :v || '%'` 는 전체를 읽는다. 중간 일치가 꼭 필요하면 그 사실을 알고 쓰고, 건수 상한(`FETCH FIRST n ROWS ONLY`)과 다른 조건(기간·상태 등)을 같이 건다. 사용자 입력을 패턴에 넣을 때는 `ESCAPE` 를 쓴다(아래 「LIKE」).
+
+5. **`NVL(칼럼, x) = :v`·`칼럼1 || 칼럼2 = :v` 도 같은 문제다.** 칼럼을 풀어서 쓴다.
+
+   ```sql
+   -- 금지
+   WHERE NVL(m.USE_YN, 'Y') = :useYn      AND  m.GRP_CD || m.ITEM_CD = :key
+   -- 권장
+   WHERE (m.USE_YN = :useYn OR (m.USE_YN IS NULL AND :useYn = 'Y'))
+   WHERE m.GRP_CD = :grpCd AND m.ITEM_CD = :itemCd
+   ```
+
+6. **선택 조건 `(:p IS NULL OR col = :p)` 는 허용한다.** 칼럼 쪽을 원형으로 두기만 하면 된다(`(:p IS NULL OR UPPER(col) = :p)` 처럼 칼럼에 함수를 씌우면 금지). 다만 선택 조건이 여러 개이고 표가 크면 이 패턴은 계획이 한 가지로 굳어 느려지기 쉽다. 그런 곳은 MyBatis `<if>` 같은 동적 SQL 로 값이 있는 조건만 SQL 에 넣는 편이 계획이 좋다. 정적 SQL 만 쓰는 위젯 쿼리는 이 패턴을 쓰되 기간 조건과 행 상한을 함께 둔다.
+
+7. **위젯 쿼리의 날짜 조회 조건은 `yyyyMMdd` 글자로 들어온다**(시스템 변수 `:today` 와 같은 형, 화면 안내는 `src/frontend/m-mcm/widget-types/_query/ParamsEditor.tsx` 의 힌트). 날짜·시각 칼럼과는 `TO_DATE(:이름, 'YYYYMMDD')` 로 바꿔 비교한다. 칼럼 쪽 `TO_CHAR` 로 맞추지 않는다. 보기 좋게 만드는 변환은 `SELECT` 목록에만 쓴다.
+
+   ```sql
+   SELECT TO_CHAR(l.STARTED_AT, 'YYYY-MM-DD HH24:MI') AS STARTED_TXT   -- 표시용 변환은 괜찮다
+     FROM SOME_LOG l
+    WHERE (:fromDt IS NULL OR l.STARTED_AT >= TO_DATE(:fromDt, 'YYYYMMDD'))
+      AND (:toDt   IS NULL OR l.STARTED_AT <  TO_DATE(:toDt,   'YYYYMMDD') + 1)
+   ```
+
+**표시용 변환은 괜찮다**: `SELECT` 목록(결과 칼럼)의 `TO_CHAR`·`NVL`·`||` 는 인덱스 탐색과 무관하므로 그대로 써도 된다. 문제가 되는 것은 `WHERE`·`JOIN ... ON`·(드물게) `ORDER BY`·`GROUP BY` 에서 칼럼을 감싸는 경우다.
+
+**확인 방법**: 실행하기 전에 계획을 본다.
+
+```sql
+EXPLAIN PLAN FOR
+SELECT ... FROM ... WHERE ... ;   -- 바인드는 :이름 그대로 두거나 실제 값으로 바꿔서
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY(NULL, NULL, 'BASIC +PREDICATE'));
+```
+
+`Predicate Information` 에서 칼럼이 함수 없이 `access("L"."STARTED_AT">=TO_DATE(...))` 또는 `filter("L"."STARTED_AT">=TO_DATE(...))` 로 나오면 정상이다. `filter(TO_CHAR(INTERNAL_FUNCTION("L"."STARTED_AT"),'YYYYMMDD')>=:FROMDT)`·`filter(TO_NUMBER("LOT_NO")=:N)` 처럼 **칼럼을 함수가 감싸고 있으면** 위반이다. 작은 표(수백 행)는 전체 읽기(`TABLE ACCESS FULL`)가 오히려 정상일 수 있으니 계획의 모양(INDEX 인가)보다 **Predicate 에서 함수가 칼럼을 감쌌는지**를 본다.
+
 ### 페이징
 
 - 목록 조회는 Spring Data `Pageable`·JPQL 로 둔다. 네이티브가 필요하면 `ORDER BY <유일한 키> OFFSET :n ROWS FETCH NEXT :m ROWS ONLY`(12c 이상)로 쓴다. 페이징 쿼리는 항상 유일한 정렬 키까지 `ORDER BY` 에 넣는다.

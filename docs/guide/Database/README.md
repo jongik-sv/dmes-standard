@@ -4,7 +4,7 @@
 
 | 문서 | 역할 |
 |---|---|
-| [`oracle-sql-rules.md`](oracle-sql-rules.md) | **먼저 읽는다.** Oracle 에서 실수하기 쉬운 점(`''`=NULL, 대문자 식별자·백틱, IDENTITY, boolean·KST TIMESTAMP, CLOB 비교 제한 등)과 권장 구문 |
+| [`oracle-sql-rules.md`](oracle-sql-rules.md) | **먼저 읽는다.** Oracle 에서 실수하기 쉬운 점(`''`=NULL, 대문자 식별자·백틱, IDENTITY, boolean·KST TIMESTAMP, CLOB 비교 제한 등)과 권장 구문. **WHERE·JOIN 의 칼럼에 함수를 씌우지 않는 규칙**(인덱스를 살리는 조건, sargable)도 여기 |
 | [`oracle-26ai-test-guide.md`](oracle-26ai-test-guide.md) | **로컬 DB·시험 환경.** Podman 기반 Oracle 26ai Free 컨테이너, 레인·시험 PDB 사용법, 트러블슈팅(Mac/Windows 공용) |
 | [`DBMS-용어-비교.md`](DBMS-용어-비교.md) | 보관. Oracle·MSSQL·PostgreSQL·SQLite 4-DB 용어 비교(옛 다중 DB 시절 자료) |
 | [`oracle-to-mssql-practical-guide.md`](oracle-to-mssql-practical-guide.md) | 보관. dmes-ksm(MSSQL) 이관 시절 자료(Oracle→SQL Server 실무 전환 상세본) |
