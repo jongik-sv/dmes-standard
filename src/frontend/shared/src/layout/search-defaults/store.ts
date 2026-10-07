@@ -214,9 +214,11 @@ export function getSearchDefaultsSource(userId: string): SearchDefaultsSource {
   return getState().users.get(userId)?.source ?? "none";
 }
 
-/** 그 화면의 규칙(없으면 빈 객체). */
+const EMPTY_PAGE_RULES: PageRules = Object.freeze({}) as PageRules;
+
+/** 그 화면의 규칙(없으면 늘 같은 빈 객체 — useSyncExternalStore 의 스냅샷으로 써도 된다). */
 export function getPageSearchDefaults(userId: string, pageId: string): PageRules {
-  return getState().users.get(userId)?.rules[pageId] ?? {};
+  return getState().users.get(userId)?.rules[pageId] ?? EMPTY_PAGE_RULES;
 }
 
 /** 상태가 바뀌면 불린다. 해제 함수를 돌려준다. */

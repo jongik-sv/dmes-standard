@@ -33,6 +33,7 @@ export const PAGE_REGISTRY: Record<string, () => Promise<{ default: unknown }>> 
   "csa/commWidgetMng": () => import("@/page-components/csa/commWidgetMng/page"),
   "csa/mdmCacheMng": () => import("@/page-components/csa/mdmCacheMng/page"),
   "csa/screenUsageStat": () => import("@/page-components/csa/screenUsageStat/page"),
+  "csa/searchDefaultsSample": () => import("@/page-components/csa/searchDefaultsSample/page"),
   "dashboard-overview": () => import("@/page-components/dashboard-overview/page"),
   "dma/columnMng": () => import("@dk-oasis/m-mdm/pages/dma/columnMng/page"),
   "dma/domainMng": () => import("@dk-oasis/m-mdm/pages/dma/domainMng/page"),
