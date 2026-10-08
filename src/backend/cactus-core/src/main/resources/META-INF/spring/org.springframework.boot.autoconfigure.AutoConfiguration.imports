@@ -19,3 +19,4 @@ com.dongkuk.dmes.cactus.tx.CactusMultiTransactionManagerAutoConfiguration
 com.dongkuk.dmes.cactus.integration.caravanhub.CaravanHubIntegrationAutoConfiguration
 com.dongkuk.dmes.cactus.dmom.DmomAutoConfiguration
 com.dongkuk.dmes.cactus.mdm.MdmAutoConfiguration
+com.dongkuk.dmes.cactus.scheduling.ScheduledJobLogAutoConfiguration
