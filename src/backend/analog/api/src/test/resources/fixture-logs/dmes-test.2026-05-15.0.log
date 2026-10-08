@@ -1,0 +1,7 @@
+2026-05-15 08:45:00.100 [http-nio-8191-exec-1] [] [] INFO  c.d.s.analog.Fixture - keyword past the range (조회 시작 시각 이전)
+2026-05-15 09:30:00.000 [cactus-schedule-1] [ykP4] [ruleCalc] INFO  c.d.d.c.oasis.OasisServiceExecutor - ruleCalc/view
+2026-05-15 09:31:12.345 [http-nio-8191-exec-1] [] [] INFO  c.d.s.analog.Fixture - keyword present
+2026-05-15 09:32:00.500 [http-nio-8191-exec-2] [] [] DEBUG c.d.s.analog.Fixture - binding parameter [1] as [VARCHAR] - [SAMPLE-VALUE]
+2026-05-15 09:40:00.900 [http-nio-8191-exec-3] [] [] INFO  c.d.s.analog.Fixture - second keyword match
+2026-05-15 11:00:00.000 [cactus-schedule-1] [ykP4] [ruleCalc] INFO  c.d.d.c.oasis.OasisServiceExecutor - Service end - service name [ruleCalc] RunTime : [360]
+2026-05-15 12:15:00.700 [http-nio-8191-exec-1] [] [] INFO  c.d.s.analog.Fixture - keyword past the range (조회 종료 시각 이후)
