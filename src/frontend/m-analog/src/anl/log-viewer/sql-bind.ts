@@ -283,12 +283,23 @@ function bindEntries(
     if (found.has(parsed.index)) break; // 같은 번호가 다시 나오면 배치 등 다음 실행의 파라미터.
     found.set(parsed.index, parsed.param);
   }
-  const params = [...found.entries()].sort((a, b) => a[0] - b[0]).map(([, p]) => p);
-  return { sql, params };
+  const sorted = [...found.entries()].sort((a, b) => a[0] - b[0]);
+  // 번호가 이어지지 않으면(선택 범위가 중간에서 잘린 경우 등) 값이 엉뚱한 자리에 들어가므로 중단한다.
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i][0] !== sorted[i - 1][0] + 1) {
+      throw new Error(
+        `파라미터 번호가 이어지지 않습니다(${sorted[i - 1][0]} 다음 ${sorted[i][0]}). 선택한 로그 범위를 확인하세요.`,
+      );
+    }
+  }
+  return { sql, params: sorted.map(([, p]) => p) };
 }
 
 export function bindSql(editorString: string): string {
-  const bound = bindEntries(editorString, editorString.lastIndexOf("SQL :"));
+  // MyBatis 건의 위치: 다른 형식의 값 안에 "SQL :" 문자열이 있어도 오판하지 않도록 로그 머리까지 맞춰 찾는다.
+  const myBatisHeads = [...editorString.matchAll(/ DEBUG {2}==> SQL :/g)];
+  const myBatisAt = myBatisHeads.length > 0 ? (myBatisHeads[myBatisHeads.length - 1].index ?? -1) : -1;
+  const bound = bindEntries(editorString, myBatisAt);
   if (!bound) return bindMyBatis(editorString);
 
   const { sql, params } = bound;
