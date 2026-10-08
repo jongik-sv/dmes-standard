@@ -19,7 +19,7 @@ import { GridHelpButton, type GridHelpConfig } from "./GridHelpButton";
 import { GridSettingsMenu } from "./GridSettingsMenu";
 import { GridPanelContext, type GridPanelGridControls, type GridPanelRegistry } from "./grid-panel-context";
 import { useGridSettingsMenuProps } from "./useGridSettingsMenu";
-import { GridQuickFilter, useGridFilterCount } from "./GridQuickFilter";
+import { GridQuickFilter, useGridFilterCount, useGridQuickFilterVisible } from "./GridQuickFilter";
 
 export interface GridButton {
   id?: string;
@@ -156,7 +156,7 @@ function GridPanelComponent({
   // 대상이 바뀌면 스위치 구독을 새 대상으로 갈아 끼우고, 등록한 그리드마다 「내가 대상인가」를 알려 준다(대상 그리드만 아래 줄 [엑셀] 단추를 숨긴다).
   const gridEntriesRef = useRef<Array<{ controls: GridPanelGridControls; onTargetChange?: (isTarget: boolean) => void }>>([]);
   const [gridTarget, setGridTarget] = useState<GridPanelGridControls | null>(null);
-  // 빠른 검색 칸의 대상 — 필터를 켠 그리드 중 먼저 등록한 것(설정 메뉴 대상과 따로 고른다).
+  // 빠른 검색 칸의 대상 — filter={true} 그리드(검색 칸이 늘 보이는 것) 중 먼저 등록한 것. 없으면 설정 메뉴 대상 그리드(그 그리드가 filter 생략이면 「필터 창 보기」 를 켠 동안만 보인다).
   const [filterTarget, setFilterTarget] = useState<GridPanelGridControls | null>(null);
   const titleRef = useRef(title);
   titleRef.current = title;
@@ -166,7 +166,8 @@ function GridPanelComponent({
       // 대상 — 개인화 명령을 가진 그리드를 먼저 찾고(엑셀만 켠 그리드가 앞서 등록돼도 컬럼 설정 항목이 사라지지 않게), 없으면 먼저 등록한 그리드.
       const first = (list.find((e) => e.controls.openSettings) ?? list[0])?.controls ?? null;
       setGridTarget(first);
-      setFilterTarget(list.find((e) => e.controls.setQuickFilter)?.controls ?? null);
+      const alwaysEntry = list.find((e) => e.controls.setQuickFilter && !e.controls.getQuickFilterVisible);
+      setFilterTarget(alwaysEntry?.controls ?? (first?.setQuickFilter ? first : null));
       for (const entry of [...list]) entry.onTargetChange?.(entry.controls === first);
     };
     return {
@@ -188,6 +189,8 @@ function GridPanelComponent({
   const menuProps = useGridSettingsMenuProps(gridTarget, serverPaged);
   const hasGridControls = menuProps !== null;
   const filterCount = useGridFilterCount(filterTarget);
+  // filter 생략 그리드는 「필터 창 보기」 를 켠 동안만 검색 칸이 있다. 꺼지면 칸도 건수 표시도 사라진다(끌 때 그리드가 조건을 지운다).
+  const quickFilterVisible = useGridQuickFilterVisible(filterTarget);
 
   useEffect(() => {
     if (!usePermission || !fetchPermissions) return;
@@ -264,7 +267,7 @@ function GridPanelComponent({
   }
 
   allButtons.push(...buttons);
-  const hasHeaderActions = allButtons.length > 0 || headerExtra != null || hasGridControls || filterTarget !== null;
+  const hasHeaderActions = allButtons.length > 0 || headerExtra != null || hasGridControls || quickFilterVisible;
 
   return (
     <GridPanelContext.Provider value={gridRegistry}>
@@ -284,8 +287,10 @@ function GridPanelComponent({
           </div>
           {hasHeaderActions ? (
             <div className="grid-panel-header-actions">
-              {/* 빠른 검색 칸 — 그리드 filter 를 켠 그리드가 있을 때만, 업무 버튼 앞. */}
-              {filterTarget ? <GridQuickFilter key="grid_quick_filter" controls={filterTarget} /> : null}
+              {/* 빠른 검색 칸 — filter={true} 그리드가 있거나 「필터 창 보기」 를 켰을 때만, 업무 버튼 앞. */}
+              {filterTarget && quickFilterVisible ? (
+                <GridQuickFilter key="grid_quick_filter" controls={filterTarget} serverPaged={serverPaged} />
+              ) : null}
               {allButtons.length > 0 ? (
                 <div className="grid-panel-buttons">
                   {allButtons.map((btn, index) => (

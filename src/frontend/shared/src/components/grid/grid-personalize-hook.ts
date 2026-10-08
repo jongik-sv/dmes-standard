@@ -26,6 +26,7 @@ import {
   loadGridAutoSave,
   loadGridPrefs,
   mergeColumnState,
+  resolveGridScreenKey,
   resolvePersonalize,
   saveGridAutoSave,
   saveGridPrefs,
@@ -519,7 +520,7 @@ const emptyUserId = () => "";
  * 확인된 사용자 ID 를 읽기만 한다 — `/api/auth/me` 를 부르지 않는다. 포털 부팅이 사용자 확인을 하므로 값은 구독 알림으로 온다.
  * 개인화가 꺼져 있으면 구독도 하지 않는다(useSyncExternalStore 는 조건부로 부를 수 없어 subscribe 가 아무것도 하지 않는다).
  */
-function useConfirmedUserId(enabled: boolean): string {
+export function useConfirmedUserId(enabled: boolean): string {
   const subscribe = useCallback(
     (onChange: () => void) => (enabled ? subscribeCurrentUser(() => onChange()) : noopUnsubscribe),
     [enabled],
@@ -537,7 +538,7 @@ export function useGridPersonalize(opts: UseGridPersonalizeOptions): GridPersona
   const enabled = resolved.enabled;
   const userId = useConfirmedUserId(enabled);
   const { pageId, tabId } = useTabPage();
-  const screenKey = pageId || (typeof window !== "undefined" ? window.location.pathname : "");
+  const screenKey = resolveGridScreenKey(pageId);
   const gid = gridId || DEFAULT_GRID_ID;
   const regKey = gridPersonalizeRegistryKey(tabId, screenKey, gid);
 

@@ -10,7 +10,7 @@
 
 - 쓴다: 모든 목록의 머리. 제목과 건수만 있어도 쓴다.
 - 쓴다: 행추가·행삭제·행복사 버튼을 그리드 머리에 둘 때(상단 PageLayout 버튼이 아니다).
-- 안에 둔 그리드는 개인화 여부와 상관없이 머리줄 맨 오른쪽에 「그리드 설정」 아이콘 메뉴(컬럼 설정…·자동 설정 저장·설정 초기화…·엑셀 출력)가 자동으로 붙는다. 엑셀 출력은 `excelExport` 를 주지 않아도 기본으로 켜진다(`excelExport={false}` 로 끈다. 그리드의 `settingsMenu={false}` 는 메뉴를 통째로 끈다. §그리드 설정 메뉴).
+- 안에 둔 그리드는 개인화 여부와 상관없이 머리줄 맨 오른쪽에 「그리드 설정」 아이콘 메뉴(필터 창 보기·컬럼 설정…·자동 설정 저장·설정 초기화…·엑셀 출력)가 자동으로 붙는다. 엑셀 출력은 `excelExport` 를 주지 않아도 기본으로 켜진다(`excelExport={false}` 로 끈다. 그리드의 `settingsMenu={false}` 는 메뉴를 통째로 끈다. §그리드 설정 메뉴).
 - 쓰지 않는다: 그리드 없는 일반 카드 제목. 목록 자체는 [AgDataGrid](ag-data-grid.md), 행 상태 관리는 [useGridDataManager](use-grid-data-manager.md).
 
 ## 표준 사용
@@ -55,11 +55,11 @@ const confirmDeleteRow = () =>
 
 ### 그리드 설정 메뉴
 
-안쪽 `AgDataGrid` 의 컬럼 개인화가 켜져 있거나(기본 켬) 엑셀 출력이 켜져 있으면(GridPanel 안은 `excelExport={false}` 가 아닌 한 기본 켬), 머리줄 맨 오른쪽 끝(업무 버튼 묶음과 `headerExtra` 뒤)에 톱니 아이콘 버튼 「그리드 설정」(`data-testid="grid-settings-menu"`, 툴팁·`aria-label` 「그리드 설정」)이 저절로 붙는다. 누르면 Mantine `Menu` 가 열린다. 내부 부품 `GridSettingsMenu`(`GridSettingsMenu.tsx`)가 그리며 화면이 직접 쓰지 않으므로 별도 문서 파일은 없다. GridPanel 에 줄 prop 은 없고(엑셀 이름만 `serverPaged`), 끄고 켜는 것은 안쪽 `AgDataGrid` 의 `settingsMenu`·`excelExport`·`personalize` 가 정한다. 예전의 머리줄 [컬럼 설정] 단추·「자동 저장」 스위치·[초기화] 단추와 그리드 아래 줄 [엑셀] 단추는 이 메뉴 하나로 모였다. 팝업(대화 상자) 안의 그리드는 이전처럼 이 머리줄 메뉴에 등록되지 않고, 자기 머리글 줄 아이콘에 엑셀 출력 항목만 둔다. 같은 메뉴를 GridPanel 밖의 그리드도 자기 머리글 줄 오른쪽 끝의 작은 아이콘으로 단다(항목·순서·이름·`data-testid` 가 같다. [AgDataGrid](ag-data-grid.md) §그리드 설정 아이콘과 settingsMenu).
+안쪽 `AgDataGrid` 의 컬럼 개인화가 켜져 있거나(기본 켬) 엑셀 출력이 켜져 있거나(GridPanel 안은 `excelExport={false}` 가 아닌 한 기본 켬) 걸러 보기가 있으면(`filter={false}` 가 아닌 한 기본으로 「필터 창 보기」 가 있다), 머리줄 맨 오른쪽 끝(업무 버튼 묶음과 `headerExtra` 뒤)에 톱니 아이콘 버튼 「그리드 설정」(`data-testid="grid-settings-menu"`, 툴팁·`aria-label` 「그리드 설정」)이 저절로 붙는다. 누르면 Mantine `Menu` 가 열린다. 내부 부품 `GridSettingsMenu`(`GridSettingsMenu.tsx`)가 그리며 화면이 직접 쓰지 않으므로 별도 문서 파일은 없다. GridPanel 에 줄 prop 은 없고(엑셀 이름만 `serverPaged`), 끄고 켜는 것은 안쪽 `AgDataGrid` 의 `settingsMenu`·`excelExport`·`personalize` 가 정한다. 예전의 머리줄 [컬럼 설정] 단추·「자동 저장」 스위치·[초기화] 단추와 그리드 아래 줄 [엑셀] 단추는 이 메뉴 하나로 모였다. 팝업(대화 상자) 안의 그리드는 이전처럼 이 머리줄 메뉴에 등록되지 않고, 자기 머리글 줄 아이콘에 엑셀 출력 항목만 둔다. 같은 메뉴를 GridPanel 밖의 그리드도 자기 머리글 줄 오른쪽 끝의 작은 아이콘으로 단다(항목·순서·이름·`data-testid` 가 같다. [AgDataGrid](ag-data-grid.md) §그리드 설정 아이콘과 settingsMenu).
 
 | 항목 | 이름 | id · `data-testid` | 보이는 때·동작 |
 |---|---|---|---|
-| 필터 창 보기 | 필터 창 보기 | 항목 `grid-filter-row-item`, 안의 스위치 `grid-filter-row-switch` | 그리드 `filter` 를 켰을 때. 켜면 머리글 아래 칸별 입력 줄이 펼쳐지고 끄면 접히면서 칸별 조건을 지운다. 누르면 메뉴가 닫힌다 |
+| 필터 창 보기 | 필터 창 보기 | 항목 `grid-filter-row-item`, 안의 스위치 `grid-filter-row-switch` | `filter={false}` 나 `settingsMenu={false}` 가 아니면 늘(대화 상자 안 그리드 제외). 켜면 머리줄에 빠른 검색 칸이 나타나고 머리글 아래 칸별 입력 줄이 펼쳐지며, 끄면 둘 다 사라지고 칸별 조건과 검색어를 지운다. `filter={true}` 그리드는 검색 칸이 늘 보이고 이 항목은 입력 줄만 펴고 접는다(끄면 칸별 조건만 지움). 켜짐은 그 그리드에 기억한다. 툴팁에 검색 범위 안내(`serverPaged` 면 「지금 쪽에서만」)가 뜬다. 누르면 메뉴가 닫힌다 |
 | (구분선) | | | 필터 창 항목 뒤에 다른 항목이 있을 때 |
 | 컬럼 설정 | 컬럼 설정… | `btn_grid_columns` · `grid-columns-button` | 개인화가 동작 중일 때. 그 그리드의 [컬럼 설정 창](column-settings-modal.md)을 연다 |
 | 자동 설정 저장 | 자동 설정 저장 | 항목 `grid-autosave-item`, 안의 스위치 `grid-autosave-switch` | 개인화가 동작 중일 때. 스위치(`xs`)가 항목 안에 있고 항목 어디를 눌러도 값이 바뀌며 메뉴는 닫히지 않는다 |
@@ -68,9 +68,9 @@ const confirmDeleteRow = () =>
 | 엑셀 출력 | 엑셀 출력 (`serverPaged` 면 「엑셀 출력 (현재 페이지)」) | `grid-excel` | 엑셀 출력이 켜진 그리드가 대상일 때(GridPanel 안은 `excelExport={false}` 가 아니면 기본 켬). 행이 0 이면 비활성(메뉴를 열 때마다 다시 읽는다) |
 
 - 항목 이름은 `grid-settings-labels.ts` 의 `GRID_SETTINGS_LABELS` 한 곳에서 가져오며 머리글 우클릭 메뉴(`GridHeaderContextMenu`)도 같은 이름·순서(컬럼 설정…·자동 설정 저장·설정 초기화…)를 쓴다. 우클릭 메뉴에는 엑셀 항목이 없다. 엑셀 항목 이름이 「엑셀 내려받기」에서 「엑셀 출력」으로 바뀌었다. 스위치 이름이 「자동 저장」에서 「자동 설정 저장」으로 바뀌었다.
-- 항목은 대상 그리드가 올려 둔 명령에 따라 달라진다. 개인화 항목은 개인화가 켜진 그리드가, 엑셀 항목은 엑셀 출력이 켜진 그리드(`excelExport={false}` 가 아닌 GridPanel 안의 그리드)가 채운다. 둘 다 없으면(개인화도 엑셀도 꺼진 그리드뿐이면) 메뉴 버튼이 없다. 개인화(`gridId`·`personalize`) 여부와 상관없이 GridPanel 안이면 메뉴 아이콘이 보이고 항목만 그리드 능력에 따라 달라진다. `personalize={false}` 인 그리드, 포털 밖이나 사용자 확인 전처럼 개인화가 아직 동작하지 않는 그리드, 개인화를 끄는 숨은 탭 패널의 그리드는 개인화 항목이 없다. 그리드가 켜고 끌 때 따라서 나타나고 사라진다.
+- 항목은 대상 그리드가 올려 둔 명령에 따라 달라진다. 개인화 항목은 개인화가 켜진 그리드가, 엑셀 항목은 엑셀 출력이 켜진 그리드(`excelExport={false}` 가 아닌 GridPanel 안의 그리드)가 채운다. 셋 다 없으면(개인화·엑셀·걸러 보기가 모두 꺼진 `filter={false}` 그리드뿐이면) 메뉴 버튼이 없다. `filter` 를 생략한 그리드는 다른 항목이 없어도 「필터 창 보기」 하나짜리 메뉴를 가진다. 개인화(`gridId`·`personalize`) 여부와 상관없이 GridPanel 안이면 메뉴 아이콘이 보이고 항목만 그리드 능력에 따라 달라진다. `personalize={false}` 인 그리드, 포털 밖이나 사용자 확인 전처럼 개인화가 아직 동작하지 않는 그리드, 개인화를 끄는 숨은 탭 패널의 그리드는 개인화 항목이 없다. 그리드가 켜고 끌 때 따라서 나타나고 사라진다.
 - 권한 검사를 거치지 않는다: `usePermission`·`fetchPermissions` 가 허용 id 목록에 `btn_grid_columns`·`btn_grid_reset` 을 넣지 않아도 보이고 `loading` 이어도 활성이다. 그리드 모양만 바꾸고 보이는 행을 내려받을 뿐 데이터를 바꾸지 않기 때문이다. 엑셀 출력 항목도 같다. 화면에 보이는 데이터만 내려받으므로 버튼 권한 검사를 하지 않고 늘 활성이다. 권한 검사가 붙은 업무 엑셀 단추(`btn_excelDown`·`btn_excelDownL`·R·올리기 등)와 서버 조회·가공 값을 내리는 화면 전용 단추는 그대로 둔다.
-- 머리줄 순서(고정): 빠른 검색 칸(`.grid-quick-filter`, 그리드 `filter` 일 때) → 업무 버튼(`.grid-panel-buttons`) → `headerExtra`(`.grid-panel-header-extra`) → 그리드 설정 아이콘 칸(`.grid-panel-settings-slot`, `data-testid="grid-panel-settings-slot"`). 이 칸은 머리줄 DOM 의 마지막 자식이고 CSS 로 `order: 2147483647` 과 `margin-left: auto` 가 고정되어 있어, 화면이 `headerExtra` 로 넘긴 요소가 `order` 를 줘도 아이콘 앞에 서지 못하고 아이콘은 늘 맨 오른쪽 끝이다. 업무 버튼이 하나도 없어도(`headerExtra` 만 있거나 메뉴만 있어도) 같다. 이전 문서에 쓴 「버튼 묶음 맨 끝(`buttons` 뒤, `headerExtra` 앞)」 은 이 순서로 바뀌었다. 단 `position: absolute` 로 띄운 요소는 순서로 막지 못하므로 `headerExtra` 안에서 absolute·fixed 배치를 쓰지 않는다.
+- 머리줄 순서(고정): 빠른 검색 칸(`.grid-quick-filter`, `filter={true}` 이거나 「필터 창 보기」 를 켰을 때) → 업무 버튼(`.grid-panel-buttons`) → `headerExtra`(`.grid-panel-header-extra`) → 그리드 설정 아이콘 칸(`.grid-panel-settings-slot`, `data-testid="grid-panel-settings-slot"`). 이 칸은 머리줄 DOM 의 마지막 자식이고 CSS 로 `order: 2147483647` 과 `margin-left: auto` 가 고정되어 있어, 화면이 `headerExtra` 로 넘긴 요소가 `order` 를 줘도 아이콘 앞에 서지 못하고 아이콘은 늘 맨 오른쪽 끝이다. 업무 버튼이 하나도 없어도(`headerExtra` 만 있거나 메뉴만 있어도) 같다. 이전 문서에 쓴 「버튼 묶음 맨 끝(`buttons` 뒤, `headerExtra` 앞)」 은 이 순서로 바뀌었다. 단 `position: absolute` 로 띄운 요소는 순서로 막지 못하므로 `headerExtra` 안에서 absolute·fixed 배치를 쓰지 않는다.
 - `settingsMenu={false}` 인 그리드(읽기 전용 작은 표 등)는 이 메뉴의 대상에서 빠진다. 같은 GridPanel 에 다른 그리드가 있으면 그 그리드가 대상이 되고, 없으면 메뉴 칸이 없다. 이때 `excelExport` 객체가 있으면 그 그리드 아래 줄 [엑셀] 단추는 그대로 남는다.
 - 한 GridPanel 안에 그리드가 여럿이면 먼저 등록된 그리드가 대상이다(메뉴는 하나뿐이다). 그리드마다 따로 쓰게 하려면 그리드마다 GridPanel 을 둔다.
 - 자동 설정 저장 스위치는 대상 그리드의 값을 보이고 바꾼다. 대상 그리드가 사라져 다음 그리드가 대상이 되면 그 그리드의 값으로 바뀐다. 값은 사용자·화면·그리드별 옆 키에 저장되고, 저장 규칙(끄면 화면에만 적용, 켜면 저장)은 [AgDataGrid](ag-data-grid.md) 「컬럼 개인화」 절의 「자동 설정 저장 스위치·초기화」 항목을 본다.
@@ -83,7 +83,7 @@ const confirmDeleteRow = () =>
 
 ### 빠른 검색 칸과 거른 건수
 
-안쪽 그리드에 `filter` 를 주면 머리줄 업무 버튼 앞에 빠른 검색 칸(`data-testid="grid-quick-filter-input"`)이 생기고, 거른 동안 제목 옆 건수가 「보이는 행 / 전체 행」(`grid-panel-filter-count`)으로 바뀐다. 거르지 않으면 `count` 그대로다. GridPanel 에 줄 prop 은 없다. 규칙은 [AgDataGrid](ag-data-grid.md) §걸러 보기: filter. 한 GridPanel 에 `filter` 그리드가 여럿이면 먼저 등록한 그리드가 검색 칸의 대상이다.
+안쪽 그리드가 `filter={true}` 이면 머리줄 업무 버튼 앞에 빠른 검색 칸(`data-testid="grid-quick-filter-input"`)이 처음부터 있고, `filter` 를 생략한 그리드는 사용자가 「그리드 설정」 > 「필터 창 보기」 를 켠 동안만 생긴다(끄면 사라지고 검색어·칸별 조건을 지운다). 거른 동안 제목 옆 건수가 「보이는 행 / 전체 행」(`grid-panel-filter-count`)으로 바뀌고, 거르지 않으면 `count` 그대로다. 검색 칸의 툴팁(title)과 안내 글은 「받아 둔 행 안에서만 찾습니다.」 이고, GridPanel 의 `serverPaged` 면 「지금 쪽에서만 찾습니다.」, 안쪽 그리드에 편집 칸이 있으면 「새로 넣은 행도 조건에 맞지 않으면 숨습니다.」 가 덧붙는다. GridPanel 에 줄 걸러 보기 prop 은 없다(`serverPaged` 만 안내 글에 쓰인다). 규칙은 [AgDataGrid](ag-data-grid.md) §걸러 보기: filter. 한 GridPanel 에 `filter={true}` 그리드가 여럿이면 먼저 등록한 그리드가 검색 칸의 대상이고, 없으면 설정 메뉴의 대상 그리드가 대상이다.
 
 ### 추가 버튼·도움말·머리 노드
 
@@ -110,7 +110,7 @@ const confirmDeleteRow = () =>
 |---|---|---|---|
 | title | `string` | - | 패널 제목 |
 | count | `number` | - | 건수. 주면 "N건"으로 표시하고, 안 주면 표시하지 않는다 |
-| serverPaged | `boolean` | `false` | Pagination 으로 쪽을 넘기며 한 쪽의 행만 `data` 로 들고 있으면 준다. 「그리드 설정」 메뉴의 엑셀 항목이 「엑셀 출력 (현재 페이지)」 가 된다(§그리드 설정 메뉴) |
+| serverPaged | `boolean` | `false` | Pagination 으로 쪽을 넘기며 한 쪽의 행만 `data` 로 들고 있으면 준다. 「그리드 설정」 메뉴의 엑셀 항목이 「엑셀 출력 (현재 페이지)」 가 되고, 빠른 검색 칸 안내 글이 「지금 쪽에서만 찾습니다.」 가 된다(§그리드 설정 메뉴) |
 | children | `ReactNode` | - | 보통 `AgDataGrid` |
 | showAddButton | `boolean` | `false` | 행추가 버튼. `data`·`columns`·`onDataChange` 가 있어야 동작한다 |
 | showDeleteButton | `boolean` | `false` | 행삭제 버튼. `selectedRowKey` 가 없으면 비활성 |

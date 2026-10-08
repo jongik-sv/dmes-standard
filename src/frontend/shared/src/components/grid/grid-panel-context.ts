@@ -30,14 +30,26 @@ export interface GridPanelGridControls {
   /** 내려받을 수 있는가 — 행이 0 이면 false. 메뉴를 열 때와 GridPanel 이 그릴 때 읽는다. */
   canExportExcel?(): boolean;
   /**
-   * 필터 명령(그리드 `filter` 를 켠 그리드만). 빠른 검색어·거른 건수는 GridPanel 머리줄이 쓰고, 입력 줄 펴기·접기는 설정 메뉴가 쓴다.
-   * 입력 줄 명령(getFilterRowOpen·setFilterRowOpen)은 설정 메뉴를 켠 그리드만 채운다(`settingsMenu={false}` 면 비운다).
+   * 필터 명령. 그리드 `filter={true}` 인 그리드와, `filter` 를 생략한 GridPanel 안 그리드(설정 메뉴가 있는 것)가 올린다. 빠른 검색어·거른 건수는 GridPanel 머리줄이 쓰고,
+   * 「필터 창 보기」 는 설정 메뉴가 쓴다. 입력 줄 명령(getFilterRowOpen·setFilterRowOpen)은 설정 메뉴를 켠 그리드만 채운다(`settingsMenu={false}` 면 비운다).
    */
   setQuickFilter?(text: string): void;
-  /** 필터 입력 줄이 펼쳐져 있는가. */
+  /**
+   * 「필터 창 보기」 가 켜져 있는가 — `filter={true}` 그리드는 입력 줄이 펼쳐져 있는가, `filter` 생략 그리드는 걸러 보기 전체(검색 칸 + 입력 줄)가 켜져 있는가.
+   */
   getFilterRowOpen?(): boolean;
-  /** 필터 입력 줄을 펴고 접는다 — 접으면 칸별 조건을 지운다(빠른 검색어는 그대로). */
+  /**
+   * 「필터 창 보기」 를 켜고 끈다. `filter={true}` 그리드는 입력 줄만 펴고 접으며 끄면 칸별 조건만 지운다(빠른 검색어는 그대로).
+   * `filter` 생략 그리드는 검색 칸과 입력 줄이 함께 나타나고 사라지며, 끄면 칸별 조건과 검색어를 모두 지운다. 켜짐은 그리드가 기억한다.
+   */
   setFilterRowOpen?(open: boolean): void;
+  /**
+   * 빠른 검색 칸을 지금 보일 것인가. `filter` 생략 그리드(켜기 전에는 검색 칸이 없다)만 채운다 — 비어 있으면(`filter={true}`) 늘 보인다.
+   * 바뀔 때 `subscribeFilter` 로 알린다.
+   */
+  getQuickFilterVisible?(): boolean;
+  /** 편집 칸이 있는 그리드인가 — 검색 칸 안내 글에 「새로 넣은 행도 조건에 맞지 않으면 숨습니다」 를 덧붙인다. */
+  isFilterEditable?(): boolean;
   /** 거른 건수 — 걸러 보이는 행 수와 전체 행 수. 거르지 않으면 null. 값이 같으면 같은 객체를 돌려준다(`useSyncExternalStore` 의 getSnapshot). */
   getFilterCount?(): GridFilterCount | null;
   /** 입력 줄·거른 건수가 바뀔 때 알린다. 돌려주는 함수로 해제한다. */

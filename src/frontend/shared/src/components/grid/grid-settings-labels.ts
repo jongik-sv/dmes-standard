@@ -11,8 +11,18 @@ export const GRID_SETTINGS_LABELS = {
   /** 서버 페이징 그리드(GridPanel 안에 Pagination 이 둘 이상의 쪽을 보일 때)의 엑셀 항목 — 지금 쪽의 행만 나간다. */
   excelPaged: "엑셀 출력 (현재 페이지)",
   reset: "설정 초기화…",
-  /** 칸별 필터 입력 줄을 펴고 접는 항목(그리드 `filter` 를 켠 그리드만). */
+  /** 걸러 보기를 켜고 끄는 항목 — GridPanel 안의 설정 메뉴가 있는 그리드는 늘 있고(`filter={false}` 만 없다), 켜면 검색 칸과 칸별 입력 줄이 나타난다. */
   filterRow: "필터 창 보기",
   /** GridPanel 머리줄 빠른 검색 칸의 안내 글·aria-label. */
   quickFilter: "그리드에서 찾기",
 } as const;
+
+/**
+ * 빠른 검색 칸의 안내 글(툴팁 title·보조 설명) — 걸러 보기는 이 그리드가 받아 둔 행 안에서만 찾는다.
+ * - 서버 페이징(GridPanel `serverPaged`)이면 지금 쪽에서만 찾는다.
+ * - 편집 칸이 있는 그리드는 새로 넣은 행도 조건에 맞지 않으면 숨는다.
+ */
+export function gridFilterNotice(opts: { paged?: boolean; editable?: boolean }): string {
+  const base = opts.paged ? "지금 쪽에서만 찾습니다." : "받아 둔 행 안에서만 찾습니다.";
+  return opts.editable ? `${base} 새로 넣은 행도 조건에 맞지 않으면 숨습니다.` : base;
+}

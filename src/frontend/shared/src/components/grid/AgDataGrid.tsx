@@ -120,14 +120,33 @@ function AgDataGridComponent({
   settingsMenu = true,
   gridId,
   personalize,
-  filter = false,
+  filter,
 }: AgDataGridProps) {
   const gridRef = useRef<AgGridReact>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   // 툴팁은 그리드 밖(body)에 띄워 좁은 그리드에서 잘리지 않게 한다 — 툴팁이 뜰 수 있는 동안에만 popupParent 를 바꾼다.
   useGridTooltipOutside(containerRef, gridRef);
-  // 걸러 보기(빠른 검색 + 칸별 입력 줄) — 입력 줄 펴기·접기는 설정 메뉴가 있는 그리드만(useGridFilter.ts).
-  const gridFilter = useGridFilter(filter, settingsMenu, gridRef);
+  const hasEditableColumns = useMemo(() => hasEditableColumn(columns), [columns]);
+  // 이 그리드가 놓인 자리 — panel(GridPanel 그리드 영역: 메뉴는 GridPanel 머리줄), dialog(대화 상자 안: 엑셀만 있는 머리글 줄 아이콘), standalone(그 밖: 이 그리드의 머리글 줄 아이콘).
+  // DOM 을 봐야 알 수 있어 페인트 전에 한 번 정한다(null 인 첫 렌더에는 아이콘을 그리지 않아 깜빡이지 않는다).
+  const gridPanelRegistry = useGridPanelRegistry();
+  const [host, setHost] = useState<"panel" | "dialog" | "standalone" | null>(null);
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    setHost(isInDialog(el) ? "dialog" : gridPanelRegistry && el.closest(".grid-panel-content") ? "panel" : "standalone");
+  }, [gridPanelRegistry]);
+  // 걸러 보기(빠른 검색 + 칸별 입력 줄) — filter 세 상태(true·false·생략)와 꺼진 동안의 비용·켜짐 기억은 useGridFilter.ts 머리 주석.
+  const gridFilter = useGridFilter({
+    filter,
+    settingsMenu,
+    inPanel: gridPanelRegistry !== null,
+    host,
+    gridRef,
+    gridId,
+    personalize,
+    editable: hasEditableColumns,
+  });
   const [gridReady, setGridReady] = useState(false);
   const resolvedColumnSizing = columnSizing ?? "auto";
   const shouldAutoSizeColumns = resolvedColumnSizing === "auto" && autoSizeColumns !== false;
@@ -179,7 +198,7 @@ function AgDataGridComponent({
       ...(mdm ? { mdm } : {}),
       ...(issuesEnabled ? { cellIssue } : {}),
       lockGroups: true,
-      ...(filter ? { filter: true } : {}),
+      ...(gridFilter.filterColumns ? { filter: true } : {}),
     });
     // 체크박스는 rowSelection 설정에서 자동 관리 (수동 컬럼 불필요)
     if (!rowNumber) return defs;
@@ -208,7 +227,7 @@ function AgDataGridComponent({
       tooltipValueGetter: () => "",
     };
     return [noCol, ...defs];
-  }, [columns, effectiveSortable, shouldAutoSizeColumns, resolvedColumnSizing, rowDragField, stableIsRowDraggable, rowNumber, mdm, issuesEnabled, cellIssue, filter]);
+  }, [columns, effectiveSortable, shouldAutoSizeColumns, resolvedColumnSizing, rowDragField, stableIsRowDraggable, rowNumber, mdm, issuesEnabled, cellIssue, gridFilter.filterColumns]);
 
   // 셀 툴팁 — 말줄임된 긴 값을 확인하도록 셀 값을 ag-grid 툴팁으로 띄운다. 잘림 여부는 보지 않아 짧은 값도 뜬다(값 검증 오류 칸은 열 정의의 getter 가 오류 문구를 먼저 띄운다).
   // 지연은 그리드 tooltipShowDelay(기본 GRID_TOOLTIP_SHOW_DELAY_MS), 열에서 끄려면 GridColumn.tooltip=false.
@@ -248,8 +267,6 @@ function AgDataGridComponent({
     apply(3);
     return () => clearTimeout(retry);
   }, [gridReady, headerLabelSignature]);
-
-  const hasEditableColumns = useMemo(() => hasEditableColumn(columns), [columns]);
 
   const getRowId = useCallback(
     (params: GetRowIdParams) => gridRowIdOf(params.data as Record<string, unknown>, rowKey),
@@ -396,14 +413,12 @@ function AgDataGridComponent({
   // 엑셀 명령은 엑셀 출력이 켜진 그리드만 채운다. 엑셀 함수·행 수는 ref 로 읽어 명령 객체가 바뀌지 않게 한다.
   // 엑셀 항목은 excelExport 를 주지 않아도 켠다(메뉴 항목만 — 아래 줄·행 수 안내는 excelExport 객체를 줄 때만). excelExport={false}·settingsMenu={false} 는 끈다.
   // 메뉴는 GridPanel 안이면 GridPanel 머리줄이, 밖이면 이 그리드 머리글 줄의 아이콘(GridSettingsOverlay)이 맡는다.
-  const gridPanelRegistry = useGridPanelRegistry();
   const excelOptions = excelExport || undefined;
   const hasExcel = excelExport !== false && settingsMenu;
   const exportExcelRef = useRef<() => void>(() => {});
   const rowCountRef = useRef(0);
-  const gridControls = useMemo<GridPanelGridControls>(
+  const baseControls = useMemo<GridPanelGridControls>(
     () => ({
-      ...gridFilter.controls,
       ...(personalizeEnabled && settingsMenu
         ? {
             openSettings,
@@ -422,22 +437,18 @@ function AgDataGridComponent({
         ? { exportExcel: () => exportExcelRef.current(), canExportExcel: () => rowCountRef.current > 0 }
         : {}),
     }),
-    [personalizeEnabled, settingsMenu, hasExcel, openSettings, requestReset, gridFilter.controls],
+    [personalizeEnabled, settingsMenu, hasExcel, openSettings, requestReset],
   );
+  // GridPanel 에 올리는 명령 = 기본 명령 + 걸러 보기 명령. GridPanel 밖 설정 아이콘(overlay)에는 filter={true} 의 걸러 보기만 보인다(filter 생략의 걸러 보기는 GridPanel 머리줄 전용).
+  const gridControls = useMemo<GridPanelGridControls>(() => ({ ...gridFilter.controls, ...baseControls }), [gridFilter.controls, baseControls]);
+  const overlayControls = useMemo<GridPanelGridControls>(() => ({ ...gridFilter.overlayControls, ...baseControls }), [gridFilter.overlayControls, baseControls]);
   // 이 그리드가 GridPanel 설정 메뉴의 대상이면 아래 줄 [엑셀] 단추를 뺀다(메뉴가 엑셀을 맡는다). 한 패널에 그리드가 여럿이면 대상이 아닌 그리드는 단추를 그대로 둔다.
   const [isMenuTarget, setIsMenuTarget] = useState(false);
-  // 이 그리드가 놓인 자리 — panel(GridPanel 그리드 영역: 메뉴는 GridPanel 머리줄), dialog(대화 상자 안: 엑셀만 있는 머리글 줄 아이콘), standalone(그 밖: 이 그리드의 머리글 줄 아이콘).
-  // DOM 을 봐야 알 수 있어 페인트 전에 한 번 정한다(null 인 첫 렌더에는 아이콘을 그리지 않아 깜빡이지 않는다).
-  const [host, setHost] = useState<"panel" | "dialog" | "standalone" | null>(null);
-  useLayoutEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    setHost(isInDialog(el) ? "dialog" : gridPanelRegistry && el.closest(".grid-panel-content") ? "panel" : "standalone");
-  }, [gridPanelRegistry]);
   // 페인트 전에 등록해야 대상이 된 그리드의 아래 줄 [엑셀] 단추가 첫 프레임에 보였다 사라지지 않는다.
   useLayoutEffect(() => {
-    // 설정 메뉴 항목(개인화·엑셀·필터 입력 줄)이 있거나 빠른 검색 칸을 둘 그리드(filter)만 올린다. settingsMenu={false} 면 gridControls 에 메뉴 명령이 없다.
-    if (!gridPanelRegistry || !((settingsMenu && (personalizeEnabled || hasExcel)) || filter)) return;
+    // 설정 메뉴 항목(개인화·엑셀·필터 창)이 있거나 빠른 검색 칸을 둘 그리드(filter={true})만 올린다. settingsMenu={false} 면 gridControls 에 메뉴 명령이 없다.
+    // filter 생략 그리드(mode optional)는 설정 메뉴가 있으면 「필터 창 보기」 항목을 가지므로 늘 올린다 — 실제 GridPanel 안 그리드인지는 아래 DOM 검사가 가린다.
+    if (!gridPanelRegistry || !((settingsMenu && (personalizeEnabled || hasExcel)) || gridFilter.mode !== "off")) return;
     // React context 는 포털을 넘어 오므로, GridPanel 안에서 띄운 팝업(룩업 등)의 그리드도 여기로 온다. 실제로 그 패널의
     // 그리드 영역 안에 있고 대화 상자 안이 아닌 그리드만 등록한다 — 개인화가 꺼진 패널에 남의 설정 메뉴가 생기지 않게.
     const el = containerRef.current;
@@ -447,7 +458,7 @@ function AgDataGridComponent({
       unregister();
       setIsMenuTarget(false);
     };
-  }, [gridPanelRegistry, settingsMenu, personalizeEnabled, hasExcel, filter, gridControls]);
+  }, [gridPanelRegistry, settingsMenu, personalizeEnabled, hasExcel, gridFilter.mode, gridControls]);
   // 개인화가 꺼지면(탭 비활성·키 충돌로 대기) 열려 있던 창·메뉴를 닫는다. 처음부터 꺼진 그리드는 아무 상태도 건드리지 않는다.
   const wasPersonalizeEnabledRef = useRef(false);
   useEffect(() => {
@@ -623,12 +634,12 @@ function AgDataGridComponent({
     [gridControls],
   );
   const showSettingsOverlay =
-    settingsMenu && hasMantine && ((host === "standalone" && (personalizeEnabled || hasExcel || filter)) || (host === "dialog" && hasExcel));
+    settingsMenu && hasMantine && ((host === "standalone" && (personalizeEnabled || hasExcel || filter === true)) || (host === "dialog" && hasExcel));
 
   const grid = (
     <div
       ref={containerRef}
-      className={`cm-data-grid ag-theme-alpine${showSettingsOverlay ? " cm-grid-settings-on" : ""}${isAutoHeight ? " cm-data-grid-auto-height" : ""}${isAutoHeight && sortedData.length === 0 ? " cm-data-grid-empty" : ""}${filter && !gridFilter.rowOpen ? ` ${GRID_FILTER_ROW_CLOSED_CLASS}` : ""} ${className}`.trim()}
+      className={`cm-data-grid ag-theme-alpine${showSettingsOverlay ? " cm-grid-settings-on" : ""}${isAutoHeight ? " cm-data-grid-auto-height" : ""}${isAutoHeight && sortedData.length === 0 ? " cm-data-grid-empty" : ""}${gridFilter.filterColumns && !gridFilter.rowOpen ? ` ${GRID_FILTER_ROW_CLOSED_CLASS}` : ""} ${className}`.trim()}
       style={{ height: isAutoHeight ? "auto" : excelOptions ? "100%" : height || "100%", width: "100%" }}
       aria-label={ariaLabel || "데이터 목록"}
       aria-busy={loading}
@@ -702,11 +713,11 @@ function AgDataGridComponent({
         suppressDragLeaveHidesColumns={personalizeEnabled}
         alwaysShowHorizontalScroll={alwaysShowHorizontalScroll}
         domLayout={isAutoHeight ? "autoHeight" : "normal"}
-        localeText={filter ? GRID_FILTER_LOCALE_TEXT : undefined}
+        localeText={gridFilter.filterColumns ? GRID_FILTER_LOCALE_TEXT : undefined}
         {...gridFilter.gridProps}
         {...rowDrag.gridProps}
       />
-      {showSettingsOverlay ? <GridSettingsOverlay controls={host === "dialog" ? dialogControls : gridControls} /> : null}
+      {showSettingsOverlay ? <GridSettingsOverlay controls={host === "dialog" ? dialogControls : overlayControls} /> : null}
     </div>
   );
 
