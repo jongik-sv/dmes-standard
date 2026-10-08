@@ -4,12 +4,15 @@
  * 그리드 걸러 보기(빠른 검색 + 칸별 입력 줄)의 상태와 명령 — AgDataGrid 가 쓴다.
  *
  * 세 상태(AgDataGrid `filter`)
- * - `true`(always): 빠른 검색 칸이 처음부터 늘 보이고, 「필터 창 보기」 는 입력 줄만 펴고 접는다. 끄면 칸별 조건만 지운다(검색어는 그대로).
- * - 생략(optional): GridPanel 안(대화 상자 밖)이고 설정 메뉴가 있는 그리드만 대상이다. 꺼짐이 기본이고, 「필터 창 보기」 를 켜면 검색 칸과 입력 줄이 함께
- *   나타난다. 끄면 둘 다 사라지고 칸별 조건과 검색어를 모두 지운다. GridPanel 밖·대화 상자 안이면 아무것도 생기지 않는다(host 가 정해진 뒤에 판정).
+ * - `true`(always): 빠른 검색 칸이 처음부터 늘 보이고, 「칸별 필터 보기」 는 입력 줄만 펴고 접는다. 끄면 칸별 조건만 지운다(검색어는 그대로).
+ * - 생략(optional): GridPanel 안(대화 상자 밖)이고 설정 메뉴가 있는 그리드만 대상이다. 빠른 검색 칸은 기본으로 늘 보이고(`quickVisible`),
+ *   「칸별 필터 보기」 는 칸별 입력 줄만 펴고 접는다(처음에는 접힘). 끄면 칸별 조건만 지우고 검색어는 그대로다. GridPanel 밖·대화 상자 안이면 아무것도 생기지 않는다(host 가 정해진 뒤에 판정).
  *   한 GridPanel 에 그리드가 여럿이면 GridPanel 이 정한 「걸러 보기 대상」(filter={true} 그리드 우선, 없으면 메뉴 대상)만 켜질 수 있다 — 그 밖의 생략 그리드는
  *   저장된 켜짐을 무시하고 꺼진 채 시작한다(끌 메뉴 항목이 그 그리드를 가리키지 않으므로).
- * - 입력 줄이 펼침에서 접힘으로 바뀌는 모든 경로(메뉴 토글·저장 키 변경·저장값 읽기·대상 상실)에서 칸별 조건을 지운다(optional 은 검색어도). 효과 하나가 맡는다.
+ *   예외 — 서버 페이징 GridPanel(`serverPaged`): 지금 쪽 안에서만 걸러져 오해를 주므로 검색 칸이 기본으로 없고, 「필터 창 보기」 를 켜면 검색 칸과 입력 줄이 함께 나타난다.
+ *   끄면 둘 다 사라지고 칸별 조건과 검색어를 모두 지운다.
+ * - 입력 줄이 펼침에서 접힘으로 바뀌는 모든 경로(메뉴 토글·저장 키 변경·저장값 읽기·대상 상실)에서 칸별 조건을 지운다(서버 페이징 optional 은 검색어도). 효과 하나가 맡는다.
+ * - 검색 칸이 보임에서 사라짐으로 바뀌는 경로(대상 상실·자리 변경)에서는 검색어를 지운다 — 칸은 없는데 행만 숨은 채 남지 않게. 효과 하나가 맡는다.
  * - `false`(off): 메뉴 항목·검색 칸·필터 열 정의가 모두 없다.
  *
  * 꺼진 동안의 비용 — 결정: 열 정의에 필터 속성을 「처음 켤 때」 더한다(지연). 그때 칸 상태(너비·순서)는 직접 이어 준다
@@ -20,13 +23,16 @@
  *   정의값으로 돌아간다). 숨김·고정·정렬은 정의에 없어 그대로다. 그래서 `filterColumns` 가 바뀌는 모든 경로(메뉴 토글·저장된 켜짐이 늦게 들어옴·대상 변경)에서
  *   바뀐 커밋의 레이아웃 효과로 `api.getColumnState()` 를 잡아 둔다 — AgGridReact 는 prop 변경을 자기 passive 효과(준비 전이면 더 늦게)에서 적용하므로 부모의 레이아웃 효과가 먼저 돌아 옛 상태를 읽는다.
  *   새 정의가 들어가 `newColumnsLoaded` 가 오면(개인화 훅과 같은 시점) `applyColumnState({ applyOrder: true })` 로 한 번 돌려놓고 듣기를 끝낸다. 개인화 그리드의 재주입 재적용과 겹쳐도 같은 상태다.
+ * - 빠른 검색만 쓰는 동안(입력 줄을 켜지 않음)에도 열 정의는 필터가 없던 때와 같다 — 빠른 검색은 열 정의의 filter 속성과 무관하게 모든 칸을 찾는다(시험 grid-quick-search).
+ *   검색 칸이 보이는 동안 AgGridReact 에는 quickFilterText·onFilterChanged·onModelUpdated 만 더 넘긴다(거른 건수·숨은 행 선택 풀기에 필요).
  * - 한 번 켠 뒤에는 열 정의를 다시 바꾸지 않는다(`everOn` 은 되돌아가지 않는다). 끄고 켜기는 `floatingFiltersHeight`(0 ↔ 머리글 높이)로만 한다.
  *   입력 줄에 깔때기 단추가 있는 동안 ag-grid 는 머리글 깔때기를 그리지 않아(설치본 isHeaderFilterButtonEnabled), 접힌 머리글은 필터가 없는 그리드와 같아 보인다.
  * - 접힌 동안 입력 칸이 Tab 으로 잡히지 않게 그리드 칸에 `cm-grid-filter-row-closed` 를 단다(grid.css 가 입력 줄을 감춘다).
  * - 늘 달아 두는 방식을 고르지 않은 이유: 꺼진 동안에도 칸 수만큼 입력 줄 칸·필터 컴포넌트가 생기고 DOM 클래스가 달라진다. 수치는 시험 grid-filter.unit.test 「꺼진 동안의 DOM」 에 남겼다.
  *
  * 켜짐 기억
- * - 사용자가 켠 상태(「필터 창 보기」)를 그 그리드에 기억한다 — 조건값·검색어는 기억하지 않는다. 다시 열면 켜진 채로 시작한다.
+ * - 사용자가 켠 상태(「칸별 필터 보기」 — 서버 페이징은 「필터 창 보기」)를 그 그리드에 기억한다 — 조건값·검색어는 기억하지 않는다. 다시 열면 켜진 채로 시작한다.
+ * - 이 값의 뜻은 「입력 줄 펼침」 이다(예전에는 optional 에서 걸러 보기 전체 켜짐). 저장 키는 그대로라 예전에 켜 둔 사용자는 입력 줄이 펼쳐진 채로 시작한다.
  * - 개인화가 켜진 그리드는 자동 설정 저장 스위치 값과 같은 객체(`gridOptsKey`)의 `filterOpen`, 아닌 그리드는 별도 키(`gridFilterKey`)에 적는다. 개인화 여부는 저장 위치를 고를 뿐
  *   기억의 키(memoryKey)에는 넣지 않는다 — 숨은 탭처럼 `personalize` 만 오가도 켜 둔 조건·검색어가 사라지지 않는다.
  *   자동 설정 저장 스위치가 꺼져 있어도 적는다(스위치와 같은 성격의 옵션). 사용자 ID·화면 키가 비면 기억하지 않고, 저장소 예외는 모두 삼킨다.
@@ -138,6 +144,8 @@ export interface UseGridFilterOptions {
   personalize?: GridPersonalize;
   /** 편집 칸이 있는 그리드인가 — 검색 안내 글에 쓴다. */
   editable: boolean;
+  /** GridPanel 이 서버 페이징인가(optional 의 검색 칸을 기본으로 두지 않고 「필터 창 보기」 와 함께 켠다). */
+  serverPaged?: boolean;
 }
 
 export function resolveGridFilterMode(filter: boolean | undefined, settingsMenu: boolean, inPanel: boolean): GridFilterMode {
@@ -148,6 +156,7 @@ export function resolveGridFilterMode(filter: boolean | undefined, settingsMenu:
 
 export function useGridFilter(opts: UseGridFilterOptions): GridFilterState {
   const { filter, settingsMenu, inPanel, host, isFilterTarget, gridRef, editable } = opts;
+  const serverPaged = opts.serverPaged ?? false;
   const mode = resolveGridFilterMode(filter, settingsMenu, inPanel);
   // 설정 메뉴가 없으면 입력 줄을 펴고 접을 수 없다. optional 은 host 가 panel 로 정해진 뒤에야 켜진다.
   const withRowToggle = settingsMenu && mode !== "off";
@@ -172,6 +181,11 @@ export function useGridFilter(opts: UseGridFilterOptions): GridFilterState {
   const rowOpen = withRowToggle && live && chosen;
   const rowOpenRef = useRef(rowOpen);
   rowOpenRef.current = rowOpen;
+  // 빠른 검색 칸을 보일 것인가 — always 는 늘, optional 은 걸러 보기 대상이면 기본으로 보인다. 서버 페이징 optional 만 입력 줄을 켠 동안에 한한다.
+  const searchTiedToRow = mode === "optional" && serverPaged;
+  const quickVisible = mode === "always" || (live && (!searchTiedToRow || chosen));
+  const quickVisibleRef = useRef(quickVisible);
+  quickVisibleRef.current = quickVisible;
   const memoryRef = useRef({ userId, screenKey, gid, withPersonalize, memoryKey, withRowToggle });
   memoryRef.current = { userId, screenKey, gid, withPersonalize, memoryKey, withRowToggle };
 
@@ -218,7 +232,7 @@ export function useGridFilter(opts: UseGridFilterOptions): GridFilterState {
   // 저장값이 늦게 들어와(사용자 확인 뒤) 켜짐이 바뀌어도 구독자(설정 메뉴·검색 칸)가 알도록 — 토글은 직접 알리므로 같은 값이면 무해하다.
   useEffect(() => {
     notify();
-  }, [rowOpen, notify]);
+  }, [rowOpen, quickVisible, notify]);
 
   // 거른 건수 — 필터·검색어가 걸려 있을 때만. 같은 값이면 객체를 바꾸지 않고 알리지도 않는다.
   const refreshCount = useCallback(() => {
@@ -238,17 +252,21 @@ export function useGridFilter(opts: UseGridFilterOptions): GridFilterState {
     notify();
   }, [gridRef, notify]);
 
-  // 칸별 조건을 지운다. optional 은 검색 칸도 함께 사라지므로 검색어도 지운다 — always 는 검색 칸이 남으니 검색어를 그대로 둔다.
+  // 검색어를 지운다. 지울 것이 없으면 아무 일도 하지 않는다(같은 값을 다시 넣어 필터 이벤트를 일으키지 않게).
+  const clearQuick = useCallback(() => {
+    if (quickRef.current === "") return;
+    quickRef.current = "";
+    const api = gridRef.current?.api;
+    if (api && !api.isDestroyed()) api.setGridOption("quickFilterText", "");
+  }, [gridRef]);
+  // 칸별 조건을 지운다. 서버 페이징 optional 은 검색 칸도 함께 사라지므로 검색어도 지운다 — 그 밖에는 검색 칸이 남으니 검색어를 그대로 둔다.
   // 지울 것이 없으면 아무 일도 하지 않는다(같은 값을 다시 넣어 필터 이벤트를 일으키지 않게).
   const clearConditions = useCallback(() => {
     const api = gridRef.current?.api;
     const target = api && !api.isDestroyed() ? api : null;
     if (target && Object.keys(target.getFilterModel()).length > 0) target.setFilterModel(null);
-    if (mode === "optional" && quickRef.current !== "") {
-      quickRef.current = "";
-      target?.setGridOption("quickFilterText", "");
-    }
-  }, [gridRef, mode]);
+    if (searchTiedToRow) clearQuick();
+  }, [gridRef, searchTiedToRow, clearQuick]);
 
   // 입력 줄이 펼침에서 접힘으로 바뀌는 모든 경로(메뉴 토글·저장 키 변경·저장값 읽기·대상 상실)에서 조건을 지운다 — 보이지 않는 조건 때문에 행이 빠진 채 남지 않게.
   // 마운트 때의 값으로 시작해 처음 그릴 때는 지우지 않는다.
@@ -258,6 +276,14 @@ export function useGridFilter(opts: UseGridFilterOptions): GridFilterState {
     prevRowOpenRef.current = rowOpen;
     if (was && !rowOpen) clearConditions();
   }, [rowOpen, clearConditions]);
+
+  // 검색 칸이 보임에서 사라짐으로 바뀌면(걸러 보기 대상 상실·자리 변경) 검색어를 지운다 — 칸은 없는데 행만 숨은 채 남지 않게.
+  const prevQuickVisibleRef = useRef(quickVisible);
+  useEffect(() => {
+    const was = prevQuickVisibleRef.current;
+    prevQuickVisibleRef.current = quickVisible;
+    if (was && !quickVisible) clearQuick();
+  }, [quickVisible, clearQuick]);
 
   // 걸러져 숨은 행의 선택을 푼다 — 머리글 전체 선택은 보이는 행만 고르지만(selectAll "filtered") 먼저 골라 둔 행이 걸러져 사라지면 보이지 않는 선택이 남기 때문이다.
   // 푼 선택은 selectionChanged 로 화면 onRowSelect·화면 문맥(useGridScreenContext)에 그대로 알려진다.
@@ -295,7 +321,7 @@ export function useGridFilter(opts: UseGridFilterOptions): GridFilterState {
         };
       },
       isFilterEditable: () => editableRef.current,
-      ...(mode === "optional" ? { getQuickFilterVisible: () => rowOpenRef.current } : {}),
+      ...(mode === "optional" ? { getQuickFilterVisible: () => quickVisibleRef.current } : {}),
       ...(withRowToggle
         ? {
             getFilterRowOpen: () => rowOpenRef.current,
@@ -316,19 +342,20 @@ export function useGridFilter(opts: UseGridFilterOptions): GridFilterState {
 
   const overlayControls = useMemo<FilterControls>(() => (mode === "always" ? controls : {}), [mode, controls]);
 
-  const gridProps = useMemo<GridFilterState["gridProps"]>(
-    () =>
-      filterColumns
-        ? {
-            // optional 은 접힌 동안 검색어가 없다 — 접히는 렌더에 옛 검색어가 prop 으로 실려 미뤄진 적용이 지운 뒤에 되살리지 않게.
-            quickFilterText: mode === "optional" && !rowOpen ? "" : quickRef.current,
-            floatingFiltersHeight: rowOpen ? GRID_FILTER_ROW_HEIGHT : 0,
-            onFilterChanged: handleFilterChanged,
-            onModelUpdated: refreshCount,
-          }
-        : {},
-    [mode, filterColumns, rowOpen, handleFilterChanged, refreshCount],
-  );
+  const gridProps = useMemo<GridFilterState["gridProps"]>(() => {
+    // 검색 칸이 없는 동안에는 검색어도 없다 — 사라지는 렌더에 옛 검색어가 prop 으로 실려 미뤄진 적용이 지운 뒤에 되살리지 않게.
+    const quickFilterText = quickVisible ? quickRef.current : "";
+    if (filterColumns) {
+      return {
+        quickFilterText,
+        floatingFiltersHeight: rowOpen ? GRID_FILTER_ROW_HEIGHT : 0,
+        onFilterChanged: handleFilterChanged,
+        onModelUpdated: refreshCount,
+      };
+    }
+    // 입력 줄을 켠 적이 없어도 검색 칸이 보이는 동안은 거른 건수·숨은 행 선택 풀기가 필요하다. 열 정의는 건드리지 않는다.
+    return quickVisible ? { quickFilterText, onFilterChanged: handleFilterChanged, onModelUpdated: refreshCount } : {};
+  }, [quickVisible, filterColumns, rowOpen, handleFilterChanged, refreshCount]);
 
   return { mode, filterColumns, controls, overlayControls, rowOpen: filterColumns && rowOpen, gridProps };
 }

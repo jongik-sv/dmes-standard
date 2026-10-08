@@ -36,22 +36,22 @@ export interface GridPanelGridControls {
   resetColumns?(): void;
   /**
    * 필터 명령. 그리드 `filter={true}` 인 그리드와, `filter` 를 생략한 GridPanel 안 그리드(설정 메뉴가 있는 것)가 올린다. 빠른 검색어·거른 건수는 GridPanel 머리줄이 쓰고,
-   * 「필터 창 보기」 는 설정 메뉴가 쓴다. 입력 줄 명령(getFilterRowOpen·setFilterRowOpen)은 설정 메뉴를 켠 그리드만 채운다(`settingsMenu={false}` 면 비운다).
+   * 입력 줄 켜기(「칸별 필터 보기」)는 설정 메뉴가 쓴다. 입력 줄 명령(getFilterRowOpen·setFilterRowOpen)은 설정 메뉴를 켠 그리드만 채운다(`settingsMenu={false}` 면 비운다).
    */
   setQuickFilter?(text: string): void;
   /** 그리드에 지금 걸려 있는 빠른 검색어 — 검색 칸이 다시 마운트될 때 이 값으로 시작한다(빈칸인데 행이 숨는 일이 없게). */
   getQuickFilterText?(): string;
   /**
-   * 「필터 창 보기」 가 켜져 있는가 — `filter={true}` 그리드는 입력 줄이 펼쳐져 있는가, `filter` 생략 그리드는 걸러 보기 전체(검색 칸 + 입력 줄)가 켜져 있는가.
+   * 칸별 입력 줄이 펼쳐져 있는가(메뉴의 「칸별 필터 보기」). 서버 페이징 GridPanel 의 `filter` 생략 그리드는 이 값이 검색 칸의 보임도 겸한다(「필터 창 보기」).
    */
   getFilterRowOpen?(): boolean;
   /**
-   * 「필터 창 보기」 를 켜고 끈다. `filter={true}` 그리드는 입력 줄만 펴고 접으며 끄면 칸별 조건만 지운다(빠른 검색어는 그대로).
-   * `filter` 생략 그리드는 검색 칸과 입력 줄이 함께 나타나고 사라지며, 끄면 칸별 조건과 검색어를 모두 지운다. 켜짐은 그리드가 기억한다.
+   * 칸별 입력 줄을 켜고 끈다. 입력 줄만 펴고 접으며 끄면 칸별 조건만 지운다(빠른 검색어는 그대로). 켜짐은 그리드가 기억한다.
+   * 단 서버 페이징 GridPanel 의 `filter` 생략 그리드는 검색 칸과 입력 줄이 함께 나타나고 사라지며, 끄면 칸별 조건과 검색어를 모두 지운다.
    */
   setFilterRowOpen?(open: boolean): void;
   /**
-   * 빠른 검색 칸을 지금 보일 것인가. `filter` 생략 그리드(켜기 전에는 검색 칸이 없다)만 채운다 — 비어 있으면(`filter={true}`) 늘 보인다.
+   * 빠른 검색 칸을 지금 보일 것인가. `filter` 생략 그리드만 채운다(걸러 보기 대상이 되기 전, 서버 페이징에서 입력 줄을 켜기 전에는 칸이 없다) — 비어 있으면(`filter={true}`) 늘 보인다.
    * 바뀔 때 `subscribeFilter` 로 알린다.
    */
   getQuickFilterVisible?(): boolean;
@@ -72,10 +72,12 @@ export interface GridFilterCount {
 export interface GridPanelRegistry {
   /** 이 GridPanel 의 제목(`title`) — 엑셀 파일 이름의 기본값. 내려받을 때 읽는다. */
   getTitle(): string | undefined;
+  /** 이 GridPanel 이 서버 페이징인가(`serverPaged`) — `filter` 생략 그리드의 빠른 검색 칸을 기본으로 둘지 정한다. 생략하면 false. */
+  isServerPaged?(): boolean;
   /**
    * 명령을 등록한다. 돌려주는 함수로 해제한다.
    * 같은 GridPanel 에 여럿이면 설정 메뉴 대상 순서: 개인화 명령을 가진 그리드 → 엑셀 명령을 가진 그리드 → 먼저 등록한 그리드.
-   * 걸러 보기(검색 칸·건수·「필터 창 보기」)의 대상은 따로다 — `filter={true}` 그리드 중 먼저 등록한 것, 없으면 메뉴 대상(검색 명령이 있을 때).
+   * 걸러 보기(검색 칸·건수·입력 줄 항목)의 대상은 따로다 — `filter={true}` 그리드 중 먼저 등록한 것, 없으면 메뉴 대상(검색 명령이 있을 때).
    * `onTargetChange` 는 이 그리드의 대상 여부가 바뀔 때(등록 직후 포함) 부른다 — `isMenuTarget`: 메뉴 대상(대상이 된 그리드만 아래 줄 [엑셀] 단추를 숨긴다),
    * `isFilterTarget`: 걸러 보기 대상(`filter` 생략 그리드는 이것일 때만 켜질 수 있다 — 끌 메뉴가 없는 그리드가 켜진 채 남지 않게).
    */

@@ -152,6 +152,7 @@ function AgDataGridComponent({
     gridId,
     personalize,
     editable: hasEditableColumns,
+    serverPaged: gridPanelRegistry?.isServerPaged?.() ?? false,
   });
   const [gridReady, setGridReady] = useState(false);
   const resolvedColumnSizing = columnSizing ?? "auto";
@@ -479,8 +480,8 @@ function AgDataGridComponent({
   // 이 그리드가 GridPanel 설정 메뉴의 대상이면 아래 줄 [엑셀] 단추를 뺀다(메뉴가 엑셀을 맡는다). 한 패널에 그리드가 여럿이면 대상이 아닌 그리드는 단추를 그대로 둔다.
   // 페인트 전에 등록해야 대상이 된 그리드의 아래 줄 [엑셀] 단추가 첫 프레임에 보였다 사라지지 않는다.
   useLayoutEffect(() => {
-    // 설정 메뉴 항목(개인화·엑셀·필터 창)이 있거나 빠른 검색 칸을 둘 그리드(filter={true})만 올린다. settingsMenu={false} 면 gridControls 에 메뉴 명령이 없다.
-    // filter 생략 그리드(mode optional)는 설정 메뉴가 있으면 「필터 창 보기」 항목을 가지므로 늘 올린다 — 실제 GridPanel 안 그리드인지는 아래 DOM 검사가 가린다.
+    // 설정 메뉴 항목(개인화·엑셀·칸별 필터)이 있거나 빠른 검색 칸을 둘 그리드(filter={true})만 올린다. settingsMenu={false} 면 gridControls 에 메뉴 명령이 없다.
+    // filter 생략 그리드(mode optional)는 설정 메뉴가 있으면 「칸별 필터 보기」 항목을 가지므로 늘 올린다 — 실제 GridPanel 안 그리드인지는 아래 DOM 검사가 가린다.
     // settingsMenu 가 켜진 그리드는 늘 항목이 있다(개인화 항목 또는 [컬럼 원래대로]). GridPanel 밖 아이콘(showSettingsOverlay)은 [컬럼 원래대로] 하나만으로는 새로 생기지 않는다.
     if (!gridPanelRegistry || !(settingsMenu || gridFilter.mode !== "off")) return;
     // React context 는 포털을 넘어 오므로, GridPanel 안에서 띄운 팝업(룩업 등)의 그리드도 여기로 온다. 실제로 그 패널의

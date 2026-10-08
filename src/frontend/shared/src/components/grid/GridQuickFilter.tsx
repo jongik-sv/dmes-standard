@@ -107,7 +107,7 @@ const neverVisible = () => false;
 
 /**
  * 빠른 검색 칸을 지금 보일 것인가. 대상이 없으면 false, `getQuickFilterVisible` 을 올리지 않았으면(filter={true}) 늘 true,
- * 올렸으면(filter 생략 — 「필터 창 보기」 를 켠 동안만) 그 값이다.
+ * 올렸으면(filter 생략 — 걸러 보기 대상이면 기본으로 보이고, 서버 페이징은 「필터 창 보기」 를 켠 동안만) 그 값이다.
  */
 export function useGridQuickFilterVisible(controls: GridPanelGridControls | null): boolean {
   return useSyncExternalStore(

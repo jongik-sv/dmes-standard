@@ -197,7 +197,7 @@ export function saveGridAutoSave(
 }
 
 /**
- * 그리드 걸러 보기(「필터 창 보기」)를 켠 채로 두었는가를 적는 키 접두어 — 개인화가 없는 그리드용. 컬럼 저장값(`dmes:grid:v1:`)과 옆 키(`dmes:grid-opts:v1:`)와
+ * 그리드 칸별 입력 줄(「칸별 필터 보기」)을 펼친 채로 두었는가를 적는 키 접두어 — 개인화가 없는 그리드용. 컬럼 저장값(`dmes:grid:v1:`)과 옆 키(`dmes:grid-opts:v1:`)와
  * 접두어를 달리해, 용량 초과 정리(`oldestUserGridKeys`)가 지우지 않고 컬럼 「초기화」도 건드리지 않는다.
  */
 export const GRID_FILTER_KEY_PREFIX = "dmes:grid-filter:v1:";

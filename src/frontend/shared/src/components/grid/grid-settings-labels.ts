@@ -13,8 +13,10 @@ export const GRID_SETTINGS_LABELS = {
   reset: "설정 초기화…",
   /** 개인화가 꺼진 그리드의 칸 되돌리기 — 저장값이 없으니 확인 없이 지금 화면만 열 정의의 순서·너비·숨김으로 되돌린다. */
   resetColumns: "컬럼 원래대로",
-  /** 걸러 보기를 켜고 끄는 항목 — GridPanel 안의 설정 메뉴가 있는 그리드는 늘 있고(`filter={false}` 만 없다), 켜면 검색 칸과 칸별 입력 줄이 나타난다. */
-  filterRow: "필터 창 보기",
+  /** 칸별 입력 줄을 켜고 끄는 항목 — GridPanel 안의 설정 메뉴가 있는 그리드는 늘 있다(`filter={false}` 만 없다). 빠른 검색 칸은 이 항목과 무관하게 기본으로 보인다. */
+  filterRow: "칸별 필터 보기",
+  /** 서버 페이징 GridPanel 의 항목 — 빠른 검색 칸이 기본으로 없어서 켜면 검색 칸과 칸별 입력 줄이 함께 나타난다. */
+  filterRowPaged: "필터 창 보기",
   /** GridPanel 머리줄 빠른 검색 칸의 안내 글·aria-label. */
   quickFilter: "그리드에서 찾기",
 } as const;

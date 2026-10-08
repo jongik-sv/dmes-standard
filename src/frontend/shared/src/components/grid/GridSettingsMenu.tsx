@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * GridPanel 머리줄 오른쪽 끝의 「그리드 설정」 아이콘 메뉴(내부 부품, 툴팁은 GridHelpButton 처럼 title) — 「필터 창 보기」 스위치(맨 위, 필터가 있는 그리드는 늘)·(구분선)·[컬럼 설정…]·「자동 설정 저장」 스위치·[설정 초기화…]·(구분선)·[엑셀 출력] 순서로 한 메뉴에 모은다.
+ * GridPanel 머리줄 오른쪽 끝의 「그리드 설정」 아이콘 메뉴(내부 부품, 툴팁은 GridHelpButton 처럼 title) — 「칸별 필터 보기」 스위치(맨 위, 필터가 있는 그리드는 늘)·(구분선)·[컬럼 설정…]·「자동 설정 저장」 스위치·[설정 초기화…]·(구분선)·[엑셀 출력] 순서로 한 메뉴에 모은다.
  *
- * - 항목은 대상 그리드가 올려 둔 명령에 따라 보인다: 필터 창은 `hasFilterRow`, 개인화 항목(컬럼 설정·자동 설정 저장·초기화)은 `hasPersonalize`,
+ * - 항목은 대상 그리드가 올려 둔 명령에 따라 보인다: 칸별 필터는 `hasFilterRow`, 개인화 항목(컬럼 설정·자동 설정 저장·초기화)은 `hasPersonalize`,
  *   [컬럼 원래대로](개인화가 꺼진 그리드)는 `hasColumnReset`, 엑셀은 `hasExcel` 일 때만.
- *   개인화 그리드: 필터 창 | 컬럼 설정·자동 저장·설정 초기화 | 엑셀. 개인화가 꺼진 그리드: 필터 창·컬럼 원래대로 | 엑셀.
- * - 「필터 창 보기」 는 누르면 메뉴를 닫는다 — 펼쳐진 입력 줄(과 검색 칸)이 바로 보이게.
+ *   개인화 그리드: 칸별 필터 | 컬럼 설정·자동 저장·설정 초기화 | 엑셀. 개인화가 꺼진 그리드: 칸별 필터·컬럼 원래대로 | 엑셀.
+ * - 「칸별 필터 보기」 는 누르면 메뉴를 닫는다 — 펼쳐진 입력 줄이 바로 보이게. 서버 페이징 GridPanel 의 filter 생략 그리드는 이름이 「필터 창 보기」 이고 검색 칸도 함께 켠다.
  * - 엑셀 항목은 서버 페이징 그리드(`excelPaged`)면 「엑셀 출력 (현재 페이지)」 로 보여 지금 쪽의 행만 나간다는 것을 알린다.
  * - 「자동 설정 저장」 은 누르면 값만 바꾸고 메뉴를 닫지 않는다(`closeMenuOnClick={false}`). 항목 전체가 누름 대상이고, 안의 스위치는 보여 주기만 한다
  *   (스위치 입력을 눌러도 항목의 onClick 이 한 번만 돈다).
@@ -23,17 +23,19 @@ export interface GridSettingsMenuProps {
   hasPersonalize: boolean;
   /** 엑셀 내려받기 항목을 보인다. */
   hasExcel: boolean;
-  /** 「필터 창 보기」 항목을 보인다(filter={true} 그리드와 filter 를 생략한 GridPanel 안 그리드 — filter={false} 는 뺀다). */
+  /** 「칸별 필터 보기」 항목을 보인다(filter={true} 그리드와 filter 를 생략한 GridPanel 안 그리드 — filter={false} 는 뺀다). */
   hasFilterRow?: boolean;
+  /** 이 항목이 빠른 검색 칸도 함께 켜는가(서버 페이징 GridPanel 의 filter 생략 그리드) — 이름이 「필터 창 보기」 가 된다. */
+  filterRowWithSearch?: boolean;
   /** [컬럼 원래대로] 항목을 보인다(개인화가 꺼진 그리드). */
   hasColumnReset?: boolean;
   /** 칸 순서·너비·숨김을 열 정의대로 되돌린다(저장 없음, 확인 없음). */
   onResetColumns?: () => void;
-  /** 「필터 창 보기」 항목의 툴팁 — 걸러 보기가 찾는 범위 안내. */
+  /** 입력 줄 항목의 툴팁 — 걸러 보기가 찾는 범위 안내. */
   filterNotice?: string;
-  /** 「필터 창 보기」 가 켜져 있는가. */
+  /** 입력 줄 항목이 켜져 있는가. */
   filterRowOpen?: boolean;
-  /** 「필터 창 보기」 를 켜고 끈다. */
+  /** 입력 줄 항목을 켜고 끈다. */
   onToggleFilterRow?: (next: boolean) => void;
   /** 자동 설정 저장 스위치의 지금 값. */
   autoSave: boolean;
@@ -54,6 +56,7 @@ function GridSettingsMenuComponent({
   hasPersonalize,
   hasExcel,
   hasFilterRow = false,
+  filterRowWithSearch = false,
   hasColumnReset = false,
   onResetColumns,
   filterNotice,
@@ -68,6 +71,7 @@ function GridSettingsMenuComponent({
   onRequestReset,
   onOpen,
 }: GridSettingsMenuProps) {
+  const filterRowLabel = filterRowWithSearch ? GRID_SETTINGS_LABELS.filterRowPaged : GRID_SETTINGS_LABELS.filterRow;
   return (
     <Menu position="bottom-end" shadow="md" width={220} withinPortal onOpen={onOpen}>
       <Menu.Target>
@@ -87,7 +91,7 @@ function GridSettingsMenuComponent({
           <Menu.Item
             data-testid="grid-filter-row-item"
             title={filterNotice}
-            aria-label={`${GRID_SETTINGS_LABELS.filterRow} ${filterRowOpen ? "켜짐" : "꺼짐"}`}
+            aria-label={`${filterRowLabel} ${filterRowOpen ? "켜짐" : "꺼짐"}`}
             leftSection={<IconFilter size={14} aria-hidden="true" />}
             rightSection={
               <Switch
@@ -104,7 +108,7 @@ function GridSettingsMenuComponent({
             }
             onClick={() => onToggleFilterRow?.(!filterRowOpen)}
           >
-            {GRID_SETTINGS_LABELS.filterRow}
+            {filterRowLabel}
           </Menu.Item>
         ) : null}
         {hasFilterRow && hasPersonalize ? <Menu.Divider /> : null}

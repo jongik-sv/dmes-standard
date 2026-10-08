@@ -1,6 +1,6 @@
 /** @vitest-environment happy-dom */
 /**
- * 그리드 걸러 보기 켜짐 기억 — 「필터 창 보기」 를 켠 상태를 그 그리드에 기억하고 다시 열면 켜진 채로 시작한다(조건값·검색어는 기억하지 않는다).
+ * 그리드 걸러 보기 켜짐 기억 — 「칸별 필터 보기」(칸별 입력 줄)를 켠 상태를 그 그리드에 기억하고 다시 열면 켜진 채로 시작한다(조건값·검색어는 기억하지 않는다).
  * - 개인화가 켜진 그리드: 자동 설정 저장 스위치와 같은 옆 키 객체(`dmes:grid-opts:v1:`)의 `filterOpen`. 자동 저장이 꺼져 있어도 적는다.
  * - 개인화가 없는 그리드: 별도 키(`dmes:grid-filter:v1:`).
  * - 켜는 순간 열 정의가 바뀌어도(개인화 복원·자동 저장 포함) 칸 상태가 그대로인지도 본다.
@@ -91,7 +91,8 @@ async function toggleFilter() {
 }
 const opts = () => JSON.parse(ls.getItem(OPTS) ?? "null");
 const plain = () => JSON.parse(ls.getItem(PLAIN) ?? "null");
-const filterOn = () => tid("grid-quick-filter") !== null && api().getGridOption("floatingFiltersHeight") === GRID_FILTER_ROW_HEIGHT;
+// 칸별 입력 줄이 펼쳐져 있는가 — 빠른 검색 칸은 켜짐과 무관하게 기본으로 보인다.
+const filterOn = () => api().getGridOption("floatingFiltersHeight") === GRID_FILTER_ROW_HEIGHT;
 
 beforeEach(async () => {
   ls.clear();
@@ -149,7 +150,7 @@ describe("저장 함수", () => {
 });
 
 describe("개인화가 켜진 그리드 — 옆 키(gridOptsKey)의 filterOpen", () => {
-  it("켜면 filterOpen:true 를 적고, 다시 열면 검색 칸과 입력 줄이 켜진 채로 시작한다(검색어는 비어 있다)", async () => {
+  it("켜면 filterOpen:true 를 적고, 다시 열면 입력 줄이 펼쳐진 채로 시작한다(검색어는 비어 있다)", async () => {
     await show(panel(gridEl()));
     expect(filterOn()).toBe(false);
     await toggleFilter();
@@ -175,7 +176,8 @@ describe("개인화가 켜진 그리드 — 옆 키(gridOptsKey)의 filterOpen",
     await unmount();
     await show(panel(gridEl()));
     expect(filterOn()).toBe(false);
-    expect(tid("grid-quick-filter")).toBeNull();
+    // 입력 줄이 접혀도 검색 칸은 기본으로 보인다
+    expect(tid("grid-quick-filter")).not.toBeNull();
   });
 
   it("자동 설정 저장이 꺼져 있어도 filterOpen 은 적고, 자동 저장 값도 그대로 남는다", async () => {

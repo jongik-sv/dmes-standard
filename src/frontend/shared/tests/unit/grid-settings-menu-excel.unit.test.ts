@@ -148,7 +148,7 @@ describe("GridPanel 안의 excelExport 그리드", () => {
     expect(tid("grid-settings-menu")).toBeNull();
   });
 
-  it("엑셀·개인화를 끄고 filter 를 생략한 그리드는 「필터 창 보기」 만 있는 메뉴가 생긴다", async () => {
+  it("엑셀·개인화를 끄고 filter 를 생략한 그리드는 「칸별 필터 보기」 만 있는 메뉴가 생긴다", async () => {
     await show(panel([gridEl({ personalize: false, excelExport: false })]));
     await openMenu();
     expect(tid("grid-filter-row-item")).not.toBeNull();
@@ -257,7 +257,7 @@ describe("GridPanel 안의 기본 켬", () => {
 });
 
 describe("메뉴 항목 순서", () => {
-  it("필터 창 보기 → (구분선) → 컬럼 설정… → 자동 설정 저장 → 설정 초기화… → (구분선) → 엑셀 출력 순서이고, 머리글 우클릭 메뉴의 항목은 같은 이름·순서(필터 창 보기·엑셀은 없다)다", async () => {
+  it("칸별 필터 보기 → (구분선) → 컬럼 설정… → 자동 설정 저장 → 설정 초기화… → (구분선) → 엑셀 출력 순서이고, 머리글 우클릭 메뉴의 항목은 같은 이름·순서(칸별 필터 보기·엑셀은 없다)다", async () => {
     await show(panel([gridEl()]));
     await openMenu();
     const dropdown = tid("grid-settings-dropdown")!;
@@ -266,7 +266,7 @@ describe("메뉴 항목 순서", () => {
         ? "|"
         : (el.textContent ?? "").trim(),
     ).filter((t) => t !== ""); // 드롭다운 맨 앞의 빈 자리(포커스 가드) 제외
-    expect(items).toEqual(["필터 창 보기", "|", "컬럼 설정…", "자동 설정 저장", "설정 초기화…", "|", "엑셀 출력"]);
+    expect(items).toEqual(["칸별 필터 보기", "|", "컬럼 설정…", "자동 설정 저장", "설정 초기화…", "|", "엑셀 출력"]);
 
     // 머리글 우클릭 메뉴 — 같은 이름·순서(엑셀 항목은 없다)
     await act(async () => {

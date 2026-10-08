@@ -206,7 +206,7 @@ describe("2. 저장 키가 바뀌거나 접힐 때 조건·검색어를 지운�
     expect(JSON.parse(ls.getItem(PLAIN)!)).toEqual({ filterOpen: false });
   });
 
-  it("저장된 켜짐으로 시작한 그리드는 personalize 가 바뀌어도 다시 읽지 않아 켜진 채 검색어를 지키고, 접으면 조건을 지운다", async () => {
+  it("저장된 켜짐으로 시작한 그리드는 personalize 가 바뀌어도 다시 읽지 않아 켜진 채 검색어를 지키고, 접으면 칸별 조건만 지운다", async () => {
     ls.setItem(OPTS, JSON.stringify({ filterOpen: true }));
     await show(panel(gridEl({ gridId: "g" })));
     expect(tid("grid-quick-filter")).not.toBeNull();
@@ -214,12 +214,19 @@ describe("2. 저장 키가 바뀌거나 접힐 때 조건·검색어를 지운�
     await show(panel(gridEl({ gridId: "g", personalize: false })));
     expect(tid("grid-quick-filter")).not.toBeNull();
     expect(api().getDisplayedRowCount()).toBe(2);
+    await act(async () => {
+      await api().setColumnFilterModel("qty", { filterType: "number", type: "greaterThan", filter: 1 });
+      api().onFilterChanged();
+    });
+    await until(() => api().getDisplayedRowCount() === 1, "칸별 조건까지 거른 행 1");
     await toggleFilter();
-    await until(() => api().getDisplayedRowCount() === 3, "조건 해제");
-    expect(api().getGridOption("quickFilterText")).toBe("");
+    await until(() => api().getDisplayedRowCount() === 2, "칸별 조건 해제");
+    expect(api().getFilterModel()).toEqual({});
+    // 검색어는 검색 칸이 남아 있으니 그대로다
+    expect(api().getGridOption("quickFilterText")).toBe("부품");
   });
 
-  it("저장 키가 바뀌어(gridId) 입력 줄이 접히면 칸별 조건과 검색어가 지워진다(토글을 거치지 않는 경로)", async () => {
+  it("저장 키가 바뀌어(gridId) 입력 줄이 접히면 칸별 조건만 지워지고 검색어는 남는다(토글을 거치지 않는 경로)", async () => {
     await show(panel(gridEl({ gridId: "g", personalize: false })));
     await toggleFilter();
     await act(async () => {
@@ -230,10 +237,10 @@ describe("2. 저장 키가 바뀌거나 접힐 때 조건·검색어를 지운�
     await until(() => api().getDisplayedRowCount() === 1, "거른 행 1");
     // 같은 그리드가 다른 gridId 로 바뀌면 저장 키가 바뀌어 이번 마운트의 선택이 버려지고 접힌다.
     await show(panel(gridEl({ gridId: "g2", personalize: false })));
-    await until(() => api().getDisplayedRowCount() === 3, "조건 해제");
+    await until(() => api().getDisplayedRowCount() === 2, "칸별 조건 해제");
     expect(api().getFilterModel()).toEqual({});
-    expect(api().getGridOption("quickFilterText")).toBe("");
-    expect(tid("grid-quick-filter")).toBeNull();
+    expect(api().getGridOption("quickFilterText")).toBe("창고");
+    expect(tid("grid-quick-filter")).not.toBeNull();
     expect(api().getGridOption("floatingFiltersHeight")).toBe(0);
   });
 
@@ -286,17 +293,19 @@ describe("3. 한 GridPanel 에 그리드가 여럿이면 대상이 엉키지 않
     ls.setItem(gridFilterKey("u1", SCREEN, "b"), JSON.stringify({ filterOpen: true }));
     // a 가 개인화 그리드라 메뉴·걸러 보기 대상이다. b 는 끌 메뉴가 없다.
     await show(panel(gridEl({ gridId: "a" }), gridEl({ gridId: "b", personalize: false })));
-    expect(tid("grid-quick-filter")).toBeNull();
+    // 검색 칸은 걸러 보기 대상(a)의 것 하나뿐이다
+    expect(document.querySelectorAll('[data-testid="grid-quick-filter"]').length).toBe(1);
+    expect(api(0).getGridOption("floatingFiltersHeight")).toBeUndefined();
     expect(api(1).getGridOption("floatingFiltersHeight")).toBeUndefined();
     expect(document.querySelectorAll(".ag-floating-filter").length).toBe(0);
-    // 메뉴의 「필터 창 보기」 는 a 를 켠다.
+    // 메뉴의 「칸별 필터 보기」 는 a 를 켠다.
     await toggleFilter();
     expect(tid("grid-quick-filter")).not.toBeNull();
     expect(api(0).getGridOption("floatingFiltersHeight")).toBe(GRID_FILTER_ROW_HEIGHT);
     expect(api(1).getGridOption("floatingFiltersHeight")).toBeUndefined();
   });
 
-  it("메뉴 대상은 filter 생략인데 다른 그리드가 filter={true} 면 「필터 창 보기」·검색 칸·건수가 그 filter={true} 그리드를 가리킨다", async () => {
+  it("메뉴 대상은 filter 생략인데 다른 그리드가 filter={true} 면 「칸별 필터 보기」·검색 칸·건수가 그 filter={true} 그리드를 가리킨다", async () => {
     ls.setItem(gridOptsKey("u1", SCREEN, "a"), JSON.stringify({ filterOpen: true }));
     await show(panel(gridEl({ gridId: "a" }), gridEl({ gridId: "b", personalize: false, filter: true })));
     // a(메뉴 대상)의 저장된 켜짐은 무시된다 — 걸러 보기 대상은 b 다.

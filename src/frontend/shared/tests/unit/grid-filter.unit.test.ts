@@ -1,8 +1,8 @@
 /** @vitest-environment happy-dom */
 /**
- * 그리드 걸러 보기(AgDataGrid `filter`) — 빠른 검색 칸(GridPanel 머리줄)·「필터 창 보기」(설정 메뉴)·거른 건수를 실제 ag-grid·MantineProvider 로 그려 확인한다.
- * `filter` 세 상태(true·false·생략) — 생략은 GridPanel 안(대화 상자 밖) 그리드의 「그리드 설정」 메뉴에서 켠다. 꺼진 동안 모양이 변경 전과 같은지, 처음 켤 때 열 정의가 바뀌어도
- * 사용자가 바꾼 칸 상태가 그대로인지(지연 방식의 근거)도 실제 ag-grid 로 본다. 켜짐 기억은 grid-filter-memory 시험이 본다.
+ * 그리드 걸러 보기(AgDataGrid `filter`) — 빠른 검색 칸(GridPanel 머리줄)·「칸별 필터 보기」(설정 메뉴)·거른 건수를 실제 ag-grid·MantineProvider 로 그려 확인한다.
+ * `filter` 세 상태(true·false·생략) — 생략은 GridPanel 안(대화 상자 밖) 그리드에 검색 칸이 기본으로 보이고, 칸별 입력 줄은 「그리드 설정」 메뉴에서 켠다. 입력 줄을 켜기 전 모양이 변경 전과
+ * 같은지, 처음 켤 때 열 정의가 바뀌어도 사용자가 바꾼 칸 상태가 그대로인지(지연 방식의 근거)도 실제 ag-grid 로 본다. 켜짐 기억은 grid-filter-memory 시험이, 기본 검색의 예외·부작용은 grid-quick-search 시험이 본다.
  * 열 정의 쪽(필터 종류·값 변환)은 순수 함수 buildColumnDefs 로 본다. 그리드 api 는 grid-autosave-switch-render 시험과 같이 AgGridReact.render 의 this 로 잡는다.
  */
 import { act, createElement, type ReactElement } from "react";
@@ -137,10 +137,11 @@ describe("buildColumnDefs — filter", () => {
 });
 
 describe("AgDataGrid filter — GridPanel", () => {
-  it("filter 를 주지 않으면 검색 칸·「필터 창 보기」 가 없다", async () => {
+  it("filter 를 주지 않아도 검색 칸이 기본으로 보이고, 입력 줄 열 정의는 아직 없다", async () => {
     await show(panel(gridEl()));
-    expect(tid("grid-quick-filter")).toBeNull();
+    expect(tid("grid-quick-filter-input")).not.toBeNull();
     expect(gridBox().classList.contains(GRID_FILTER_ROW_CLOSED_CLASS)).toBe(false);
+    expect(floatingCells()).toBe(0);
   });
 
   it("처음에는 검색 칸만 보이고 입력 줄은 접혀 있다", async () => {
@@ -168,7 +169,7 @@ describe("AgDataGrid filter — GridPanel", () => {
     expect(api().getDisplayedRowCount()).toBe(0);
   });
 
-  it("「필터 창 보기」 를 켜면 입력 줄이 펼쳐지고, 끄면 접히면서 칸별 조건만 지운다", async () => {
+  it("「칸별 필터 보기」 를 켜면 입력 줄이 펼쳐지고, 끄면 접히면서 칸별 조건만 지운다", async () => {
     await show(panel(gridEl({ filter: true })));
     await openMenu();
     await click(tid("grid-filter-row-item"));
@@ -209,7 +210,7 @@ describe("AgDataGrid filter — GridPanel", () => {
     expect(api().getAllGridColumns().map((c) => c.getColId())).toEqual(["qty", "code", "name"]);
   });
 
-  it("settingsMenu={false} 면 검색 칸은 있고 「필터 창 보기」 는 없다", async () => {
+  it("settingsMenu={false} 면 검색 칸은 있고 「칸별 필터 보기」 는 없다", async () => {
     await show(panel(gridEl({ filter: true, settingsMenu: false })));
     expect(tid("grid-quick-filter-input")).not.toBeNull();
     expect(tid("grid-settings-menu")).toBeNull();
@@ -217,7 +218,7 @@ describe("AgDataGrid filter — GridPanel", () => {
 });
 
 describe("AgDataGrid filter — GridPanel 밖", () => {
-  it("검색 칸은 없고 설정 아이콘 메뉴에 「필터 창 보기」 가 있다", async () => {
+  it("검색 칸은 없고 설정 아이콘 메뉴에 「칸별 필터 보기」 가 있다", async () => {
     await show(gridEl({ filter: true }));
     expect(tid("grid-quick-filter")).toBeNull();
     await openMenu();
@@ -237,7 +238,7 @@ const headerShape = () =>
     .replace(/ aria-describedby="[^"]*"/g, "");
 
 describe("AgDataGrid filter 생략 — GridPanel 안", () => {
-  it("꺼진 동안은 filter={false} 그리드와 모양이 같다 — 검색 칸·입력 줄·클래스·필터 열 정의·한국어 필터 문구가 없다", async () => {
+  it("입력 줄을 켜기 전에는 filter={false} 그리드와 모양이 같다 — 검색 칸만 더 있고 입력 줄·클래스·필터 열 정의·한국어 필터 문구는 없다", async () => {
     await show(panel(gridEl({ filter: false, excelExport: undefined })));
     const falseShape = headerShape();
     const falseDefs = api().getColumnDefs() as ColDef[];
@@ -247,7 +248,7 @@ describe("AgDataGrid filter 생략 — GridPanel 안", () => {
     document.body.innerHTML = "";
 
     await show(panel(gridEl({ excelExport: undefined })));
-    expect(tid("grid-quick-filter")).toBeNull();
+    expect(tid("grid-quick-filter-input")).not.toBeNull();
     expect(floatingCells()).toBe(0);
     expect(filterRows()).toBe(0);
     expect(api().getGridOption("floatingFiltersHeight")).toBeUndefined();
@@ -262,7 +263,8 @@ describe("AgDataGrid filter 생략 — GridPanel 안", () => {
     }
     expect(api().getGridOption("localeText")).toBeUndefined();
     expect(document.querySelector(".grid-panel-count")?.textContent).toBe("3건");
-    // 메뉴 맨 위에 「필터 창 보기」 가 꺼진 채로 있다
+    // 메뉴 맨 위에 「칸별 필터 보기」 가 꺼진 채로 있다
+    expect(api().getGridOption("quickFilterText")).toBe("");
     await openMenu();
     const item = tid("grid-filter-row-item")!;
     expect(item).not.toBeNull();
@@ -279,8 +281,9 @@ describe("AgDataGrid filter 생략 — GridPanel 안", () => {
     expect(tid("grid-excel")).toBeNull();
   });
 
-  it("켜면 검색 칸과 칸별 입력 줄이 함께 나타난다", async () => {
+  it("켜면 칸별 입력 줄이 나타난다 — 검색 칸은 켜기 전부터 있다", async () => {
     await show(panel(gridEl()));
+    expect(tid("grid-quick-filter-input")).not.toBeNull();
     await openMenu();
     await click(tid("grid-filter-row-item"));
     await wait(80);
@@ -294,7 +297,7 @@ describe("AgDataGrid filter 생략 — GridPanel 안", () => {
     // 켠 뒤 메뉴를 다시 열면 켜짐으로 읽힌다
     await openMenu();
     expect((tid("grid-filter-row-switch") as HTMLInputElement).checked).toBe(true);
-    // 켜자마자 검색이 된다(처음 켠 뒤에 단 getQuickFilterText 가 먹는다)
+    // 켜자마자 검색이 된다(처음 켠 뒤에 단 getQuickFilterText 가 먹는다) — 켜기 전 검색어도 이어진다
     await typeQuick("부품");
     expect(api().getDisplayedRowCount()).toBe(2);
     await openMenu();
@@ -302,7 +305,7 @@ describe("AgDataGrid filter 생략 — GridPanel 안", () => {
     await wait(40);
   });
 
-  it("끄면 검색 칸과 입력 줄이 사라지고 칸별 조건과 검색어를 모두 지운다", async () => {
+  it("끄면 입력 줄이 사라지고 칸별 조건만 지운다 — 검색 칸과 검색어는 그대로다", async () => {
     await show(panel(gridEl()));
     await openMenu();
     await click(tid("grid-filter-row-item"));
@@ -318,21 +321,22 @@ describe("AgDataGrid filter 생략 — GridPanel 안", () => {
     await openMenu();
     await click(tid("grid-filter-row-item"));
     await wait(80);
-    expect(tid("grid-quick-filter")).toBeNull();
     expect(api().getGridOption("floatingFiltersHeight")).toBe(0);
     expect(gridBox().classList.contains(GRID_FILTER_ROW_CLOSED_CLASS)).toBe(true);
     expect(api().getFilterModel()).toEqual({});
-    expect(api().getGridOption("quickFilterText")).toBe("");
+    // 검색어 「창고」 는 남는다
+    expect(tid("grid-quick-filter-input")).not.toBeNull();
+    expect((tid("grid-quick-filter-input") as HTMLInputElement).value).toBe("창고");
+    expect(api().getGridOption("quickFilterText")).toBe("창고");
+    expect(api().getDisplayedRowCount()).toBe(2);
+    expect(tid("grid-panel-filter-count")?.textContent).toBe("2 / 3건");
+
+    // 검색어를 지우면 건수 표시도 원래대로 돌아온다
+    await click(tid("grid-quick-filter-clear"));
+    await wait(30);
     expect(api().getDisplayedRowCount()).toBe(3);
     expect(tid("grid-panel-filter-count")).toBeNull();
     expect(document.querySelector(".grid-panel-count")?.textContent).toBe("3건");
-
-    // 다시 켜면 빈 검색 칸이 나온다
-    await openMenu();
-    await click(tid("grid-filter-row-item"));
-    await wait(80);
-    expect((tid("grid-quick-filter-input") as HTMLInputElement).value).toBe("");
-    expect(api().getDisplayedRowCount()).toBe(3);
   });
 
   it("처음 켜기 전에 사용자가 바꾼 칸 너비·순서·숨김·고정·정렬이 켜고 끄는 동안 그대로다(지연 방식의 근거)", async () => {
@@ -360,7 +364,7 @@ describe("AgDataGrid filter 생략 — GridPanel 안", () => {
     expect(api().getAllGridColumns().map((c) => c.getColId())).toEqual(before.map((c) => c.colId));
   });
 
-  it("filter={false} 는 항목이 없다 — 메뉴는 엑셀만", async () => {
+  it("filter={false} 는 항목이 없다 — 메뉴는 엑셀만, 검색 칸도 없다", async () => {
     await show(panel(gridEl({ filter: false, excelExport: undefined })));
     await openMenu();
     expect(tid("grid-filter-row-item")).toBeNull();
@@ -376,7 +380,7 @@ describe("AgDataGrid filter 생략 — GridPanel 안", () => {
     expect(floatingCells()).toBe(0);
   });
 
-  it("filter={true} 그리드는 예전 동작 그대로 — 검색 칸이 처음부터 보이고, 끄면 검색어는 남는다", async () => {
+  it("filter={true} 그리드는 예전 동작 그대로 — 검색 칸이 처음부터 보이고, 입력 줄을 꺼도 검색어는 남는다", async () => {
     await show(panel(gridEl({ filter: true })));
     expect(tid("grid-quick-filter-input")).not.toBeNull();
     await typeQuick("창고");
@@ -408,8 +412,7 @@ describe("AgDataGrid filter 생략 — GridPanel 안", () => {
     await show(panel(gridEl()));
     await openMenu();
     expect(tid("grid-filter-row-item")!.getAttribute("title")).toBe("받아 둔 행 안에서만 찾습니다.");
-    await click(tid("grid-filter-row-item"));
-    await wait(80);
+    await openMenu();
     expect(tid("grid-quick-filter-input")!.getAttribute("title")).toBe("받아 둔 행 안에서만 찾습니다.");
     expect(tid("grid-quick-filter-notice")!.textContent).toBe("받아 둔 행 안에서만 찾습니다.");
     expect(tid("grid-quick-filter-input")!.getAttribute("aria-describedby")).toBe(tid("grid-quick-filter-notice")!.id);
@@ -418,6 +421,8 @@ describe("AgDataGrid filter 생략 — GridPanel 안", () => {
   it("서버 페이징 GridPanel·편집 그리드의 안내 글", async () => {
     const editableCols: GridColumn[] = [{ key: "code", header: "코드" }, { key: "name", header: "이름", editable: true }];
     await show(createElement(GridPanel, { title: "목록", serverPaged: true }, gridEl({ columns: editableCols })));
+    // 서버 페이징 filter 생략 그리드는 검색 칸이 기본으로 없다 — 「필터 창 보기」 를 켜면 나타난다(grid-quick-search 시험)
+    expect(tid("grid-quick-filter")).toBeNull();
     await openMenu();
     await click(tid("grid-filter-row-item"));
     await wait(80);
@@ -426,7 +431,7 @@ describe("AgDataGrid filter 생략 — GridPanel 안", () => {
 });
 
 describe("AgDataGrid filter 생략 — GridPanel 밖", () => {
-  it("설정 아이콘 메뉴에 「필터 창 보기」 가 없고 필터 열 정의도 없다", async () => {
+  it("설정 아이콘 메뉴에 「칸별 필터 보기」 가 없고 필터 열 정의도 없다", async () => {
     await show(gridEl({ excelExport: undefined }));
     expect(tid("grid-quick-filter")).toBeNull();
     await openMenu();

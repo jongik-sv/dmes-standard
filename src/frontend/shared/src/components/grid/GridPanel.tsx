@@ -156,11 +156,13 @@ function GridPanelComponent({
   // 대상이 바뀌면 스위치 구독을 새 대상으로 갈아 끼우고, 등록한 그리드마다 「내가 대상인가」를 알려 준다(메뉴 대상 그리드만 아래 줄 [엑셀] 단추를 숨긴다).
   const gridEntriesRef = useRef<Array<{ controls: GridPanelGridControls; onTargetChange?: (isMenuTarget: boolean, isFilterTarget: boolean) => void }>>([]);
   const [gridTarget, setGridTarget] = useState<GridPanelGridControls | null>(null);
-  // 걸러 보기(검색 칸·거른 건수·「필터 창 보기」)의 대상 — filter={true} 그리드(검색 칸이 늘 보이는 것) 중 먼저 등록한 것, 없으면 설정 메뉴 대상(그 그리드가 filter 생략이면 「필터 창 보기」 를 켠 동안만 칸이 보인다).
-  // 세 가지가 늘 같은 그리드를 가리키도록 메뉴의 「필터 창 보기」 도 이 대상의 명령을 쓴다(아래 menuControls). filter 생략 그리드는 이 대상일 때만 켜진다.
+  // 걸러 보기(검색 칸·거른 건수·「칸별 필터 보기」)의 대상 — filter={true} 그리드 중 먼저 등록한 것, 없으면 설정 메뉴 대상(filter 생략 그리드도 검색 칸이 기본으로 보인다. 서버 페이징만 입력 줄을 켠 동안).
+  // 세 가지가 늘 같은 그리드를 가리키도록 메뉴의 입력 줄 항목도 이 대상의 명령을 쓴다(아래 menuControls). filter 생략 그리드는 이 대상일 때만 켜진다.
   const [filterTarget, setFilterTarget] = useState<GridPanelGridControls | null>(null);
   const titleRef = useRef(title);
   titleRef.current = title;
+  const serverPagedRef = useRef(serverPaged);
+  serverPagedRef.current = serverPaged;
   const gridRegistry = useMemo<GridPanelRegistry>(() => {
     const syncTarget = () => {
       const list = gridEntriesRef.current;
@@ -175,6 +177,7 @@ function GridPanelComponent({
     };
     return {
       getTitle: () => titleRef.current,
+      isServerPaged: () => serverPagedRef.current,
       register(controls, onTargetChange) {
         const entry = { controls, onTargetChange };
         gridEntriesRef.current.push(entry);
@@ -188,7 +191,7 @@ function GridPanelComponent({
       },
     };
   }, []);
-  // 메뉴 명령 — 메뉴 대상의 명령에, 걸러 보기 대상이 다른 그리드면 「필터 창 보기」 명령만 걸러 보기 대상의 것으로 바꾼다(검색 칸·건수와 같은 그리드를 가리키게).
+  // 메뉴 명령 — 메뉴 대상의 명령에, 걸러 보기 대상이 다른 그리드면 입력 줄 항목 명령만 걸러 보기 대상의 것으로 바꾼다(검색 칸·건수와 같은 그리드를 가리키게).
   const menuControls = useMemo<GridPanelGridControls | null>(() => {
     if (!gridTarget || gridTarget === filterTarget) return gridTarget;
     const merged: GridPanelGridControls = { ...gridTarget };
@@ -196,6 +199,8 @@ function GridPanelComponent({
     delete merged.setFilterRowOpen;
     delete merged.subscribeFilter;
     delete merged.isFilterEditable;
+    delete merged.getQuickFilterVisible;
+    if (filterTarget?.getQuickFilterVisible) merged.getQuickFilterVisible = filterTarget.getQuickFilterVisible;
     if (filterTarget?.setFilterRowOpen) {
       merged.getFilterRowOpen = filterTarget.getFilterRowOpen;
       merged.setFilterRowOpen = filterTarget.setFilterRowOpen;
@@ -208,7 +213,7 @@ function GridPanelComponent({
   const menuProps = useGridSettingsMenuProps(menuControls, serverPaged);
   const hasGridControls = menuProps !== null;
   const filterCount = useGridFilterCount(filterTarget);
-  // filter 생략 그리드는 「필터 창 보기」 를 켠 동안만 검색 칸이 있다. 꺼지면 칸도 건수 표시도 사라진다(끌 때 그리드가 조건을 지운다).
+  // filter 생략 그리드는 기본으로 검색 칸이 있다(서버 페이징은 「필터 창 보기」 를 켠 동안만). 칸이 사라지면 건수 표시도 사라진다(그리드가 검색어를 지운다).
   const quickFilterVisible = useGridQuickFilterVisible(filterTarget);
 
   useEffect(() => {
@@ -227,13 +232,22 @@ function GridPanelComponent({
     return allowedButtons.includes(btnId);
   };
 
+  // 내장 행추가·행복사는 검색어를 비운다 — 새 행이 검색에 걸리지 않아 보이지 않는 일이 없게. 검색 칸은 자기 입력값을 들고 있어 키를 바꿔 다시 마운트한다(그리드에 걸린 검색어 = 빈 칸으로 시작).
+  const [quickResetKey, setQuickResetKey] = useState(0);
+  const resetQuickFilter = useCallback(() => {
+    if (!filterTarget || !filterTarget.getQuickFilterText?.()) return;
+    filterTarget.setQuickFilter?.("");
+    setQuickResetKey((k) => k + 1);
+  }, [filterTarget]);
+
   const handleAddRow = useCallback(() => {
     if (!data || !columns || !onDataChange) return;
+    resetQuickFilter();
     tempIdCounter.current += 1;
     const tempId = `${TEMP_ROW_PREFIX}${tempIdCounter.current}`;
     const newRow = createEmptyRow(columns, rowKey, tempId, defaultRowValues);
     onDataChange([...data, newRow], tempId);
-  }, [data, columns, rowKey, defaultRowValues, onDataChange]);
+  }, [data, columns, rowKey, defaultRowValues, onDataChange, resetQuickFilter]);
 
   const handleDeleteRow = useCallback(() => {
     if (!data || !onDataChange || selectedRowKey == null) return;
@@ -245,6 +259,7 @@ function GridPanelComponent({
     if (!data || !onDataChange || selectedRowKey == null) return;
     const targetRow = data.find((row) => getRowIdentifier(row, rowKey) === selectedRowKey);
     if (!targetRow) return;
+    resetQuickFilter();
     tempIdCounter.current += 1;
     const tempId = `${TEMP_ROW_PREFIX}${tempIdCounter.current}`;
     const copied: Record<string, unknown> = {
@@ -253,7 +268,7 @@ function GridPanelComponent({
       [GRID_TEMP_ID_FIELD]: tempId,
     };
     onDataChange([...data, copied], tempId);
-  }, [data, rowKey, selectedRowKey, onDataChange]);
+  }, [data, rowKey, selectedRowKey, onDataChange, resetQuickFilter]);
 
   // 내장 버튼 + 커스텀 버튼 합치기
   const allButtons: GridButton[] = [];
@@ -306,9 +321,9 @@ function GridPanelComponent({
           </div>
           {hasHeaderActions ? (
             <div className="grid-panel-header-actions">
-              {/* 빠른 검색 칸 — filter={true} 그리드가 있거나 「필터 창 보기」 를 켰을 때만, 업무 버튼 앞. */}
+              {/* 빠른 검색 칸 — 걸러 보기 대상이 있으면 기본으로 보인다(서버 페이징 filter 생략은 「필터 창 보기」 를 켰을 때만). 업무 버튼 앞. */}
               {filterTarget && quickFilterVisible ? (
-                <GridQuickFilter key="grid_quick_filter" controls={filterTarget} serverPaged={serverPaged} />
+                <GridQuickFilter key={`grid_quick_filter_${quickResetKey}`} controls={filterTarget} serverPaged={serverPaged} />
               ) : null}
               {allButtons.length > 0 ? (
                 <div className="grid-panel-buttons">

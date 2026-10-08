@@ -141,7 +141,8 @@ describe("GridPanel 의 자동 저장 스위치", () => {
     const icon = tid("grid-settings-menu")!;
     expect(icon.getAttribute("aria-label")).toBe("그리드 설정");
     expect(document.querySelector(".grid-panel-settings-slot")!.contains(icon)).toBe(true);
-    expect(document.querySelector(".grid-panel-header-actions")!.textContent).toBe("");
+    // 검색 칸의 안내 글만 있다(빠른 검색 칸은 기본으로 보인다)
+    expect(document.querySelector(".grid-panel-header-actions")!.textContent).toBe("받아 둔 행 안에서만 찾습니다.");
     expect(switchInput()).toBeNull();
     await openMenu();
     expect(switchInput()!.checked).toBe(true);

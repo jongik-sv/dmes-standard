@@ -86,10 +86,10 @@ afterEach(async () => {
 });
 
 describe("[컬럼 원래대로] — 개인화가 꺼진 그리드", () => {
-  it("메뉴는 필터 창 보기 · 컬럼 원래대로 · (구분선) · 엑셀 출력 순서다", async () => {
+  it("메뉴는 칸별 필터 보기 · 컬럼 원래대로 · (구분선) · 엑셀 출력 순서다", async () => {
     await show(panel(gridEl({ personalize: false })));
     await openMenu();
-    expect(menuLabels()).toEqual(["필터 창 보기", "컬럼 원래대로", "|", "엑셀 출력"]);
+    expect(menuLabels()).toEqual(["칸별 필터 보기", "컬럼 원래대로", "|", "엑셀 출력"]);
   });
 
   it("누르면 확인 창 없이 순서·너비·숨김을 열 정의대로 되돌리고 정렬은 지키며, 아무것도 저장하지 않는다", async () => {
