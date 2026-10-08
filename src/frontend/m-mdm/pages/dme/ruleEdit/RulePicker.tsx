@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 룰 고르기 — 룰 화면 상단 바의 검색 칸·[찾기]와 그 아래 드롭다운 목록. 모양·키 동작은 공통 `IdPicker`(`@/shell`)다.
+ * 룰 고르기 — 룰 화면 조회 영역(`SearchField` 라벨 "룰")의 검색 칸·[찾기]와 그 아래 드롭다운 목록. 모양·키 동작은 공통 `IdPicker`(`@/shell`)다.
  * 서버가 `SEARCH_LIMIT`(20)건에서 자르므로 꽉 차면 좁혀 검색하라고 안내한다.
  */
 import { IdPicker, type IdPickRow } from "@/shell";
@@ -34,7 +34,6 @@ export interface RulePickerProps {
 export function RulePicker({ currentId, onPick, onError }: RulePickerProps) {
   return (
     <IdPicker
-      label="룰"
       placeholder="룰 ID·룰명 앞부분"
       noun="룰"
       testId="rule-pick"

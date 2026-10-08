@@ -10,12 +10,12 @@
  * 숨은 탭(active 거짓, 패널 display:none)은 포털로 그리는 대화 상자를 그리지 않고(오류 창 `ErrorModal` 은 여기서, 그 밖의 창은 `EditorActiveContext` 를 읽는 쪽에서
  * — 테스트 케이스 편집 창 `CaseEditModal`. 오류·작성 중 내용은 상태로 남아 탭을 고르면 이어진다) 우클릭 메뉴를 닫는다.
  * 단축키는 캔버스 감싸개가 보일 때만 받는다(`isShown`).
- * 세트 고르기와 흐름 툴바(`FlowToolbar`)는 한 줄이다(세트 고르기를 `lead` 로 넘긴다). 디버그 모드면 그 아래 줄에 `DebugToolbar`,
+ * 세트·버전 고르기는 조회 영역(`SearchArea`)에, 그 아래 버전 줄(`SetVersionRow`)과 흐름 툴바(`FlowToolbar`)가 있다. 디버그 모드면 그 아래 줄에 `DebugToolbar`,
  * 본문 3단(왼쪽 | 흐름 캔버스 | 오른쪽), 아래 패널을 둔다.
  * 한 줄 세트와 분기 세트 모두 캔버스로 편집하고 흐름(`flowJson`)으로 저장한다(P-D5).
  *
  * 모드(3단계 P1) — 세트를 열면 보기 모드다. 편집 모드는 서버 판정(`editable`)·폐기 아님·RBAC(save)일 때만 켠다(P10). 디버그 모드는 누구나 들어간다.
- * 편집 모드는 선택 버전이 내 DRAFT 일 때만(D-144 2단계). 버전 줄(`SetVersionRow`)이 흐름 툴바 위에 있다.
+ * 편집 모드는 선택 버전이 내 DRAFT 일 때만(D-144 2단계). 조회 영역(세트·버전 고르기)과 버전 줄(`SetVersionRow`)이 흐름 툴바 위에 있다.
  * - 왼쪽: 디버그 모드만 입력 패널(`DebugInputs`). 보기·편집 모드는 왼쪽 칸이 없고 캔버스 안 왼쪽 위에 도구 상자(`FlowToolbox`)가 뜬다(4단계 P1)
  * - 오른쪽: 보기·편집 = 머리글 + 접는 섹션(`SidePanel` — 속성·세트 섹션과 「룰 목록」/「룰 지정」 섹션), 디버그 = 변수 패널(`VariablePanel`)
  * - 아래 탭: 보기·편집 = 검사 결과 하나, 디버그 = 값 표·실행 비교·검사 결과. 디버그로 들고 날 때 그 모드의 첫 탭으로 간다
@@ -35,7 +35,7 @@
  */
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
-import { ContentBody, ContentPanel, ErrorModal, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
+import { ContentBody, ContentPanel, ErrorModal, SearchArea, SearchField, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
 import { IdPicker, sameVer, type IdPickRow } from "@/shell";
 
 import { searchSets } from "./api";
@@ -72,7 +72,7 @@ import { openRule } from "./links";
 import { BottomPanel, type BottomTab } from "./panels/BottomPanel";
 import { ChecksPanel } from "./panels/ChecksPanel";
 import { useSectionMemory } from "./panels/Section";
-import { SetVersionRow } from "./panels/SetVersionRow";
+import { SetVersionRow, SetVersionSelect } from "./panels/SetVersionRow";
 import { SidePanel } from "./panels/SidePanel";
 import { useCollapse } from "./state/useCollapse";
 import { useDragActions } from "./state/useDragActions";
@@ -820,54 +820,61 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
     />
   );
 
-  // 세트 고르기 — 흐름 툴바 줄 맨 앞에 둔다(세트를 열기 전에는 이것만 있는 줄). set-edit-topbar 는 [찾기] 를 찾는 테스트 기준이다.
+  // 세트 고르기·버전 고르기 — 흐름 툴바 위의 조회 영역(SearchArea, 설정 아이콘 없음). set-edit-topbar 는 [찾기] 를 찾는 테스트 기준이다.
+  // 탭마다 이 조회 영역이 하나씩 생기지만 defaults={false} 라 사용자 기본값 키를 쓰지 않으므로 defaultsScope 는 필요 없다.
   const picker = (
-    <span data-testid="set-edit-topbar" className="rsf-toolbar-group">
-      <IdPicker
-        key={pickerEpoch}
-        placeholder="세트 ID·세트명"
-        noun="세트"
-        testId="set-pick"
-        search={searchSetPicks}
-        limit={SET_PICK_LIMIT}
-        inputWidth={150}
-        currentId={view?.set.setId ?? null}
-        onPick={(id) => {
-          // 다른 탭에 열린 세트를 고르면 그 탭으로 가고 이 탭은 그대로다 — 이 탭의 고르기 칸에 친 ID 를 지금 세트 ID 로 되돌린다(칸을 다시 마운트).
-          const to = tabsApi.pickSet(tabKey, id);
-          if (to != null && to !== tabKey) setPickerEpoch((n) => n + 1);
-        }}
-        onError={state.reportError}
-      />
-    </span>
+    <div data-testid="set-edit-topbar">
+      <SearchArea defaults={false} onSearch={() => { if (view) void state.reload(); }}>
+        <SearchField label="세트" className="span-2">
+          <IdPicker
+            key={pickerEpoch}
+            placeholder="세트 ID·세트명"
+            noun="세트"
+            testId="set-pick"
+            search={searchSetPicks}
+            limit={SET_PICK_LIMIT}
+            inputWidth={150}
+            currentId={view?.set.setId ?? null}
+            onPick={(id) => {
+              // 다른 탭에 열린 세트를 고르면 그 탭으로 가고 이 탭은 그대로다 — 이 탭의 고르기 칸에 친 ID 를 지금 세트 ID 로 되돌린다(칸을 다시 마운트).
+              const to = tabsApi.pickSet(tabKey, id);
+              if (to != null && to !== tabKey) setPickerEpoch((n) => n + 1);
+            }}
+            onError={state.reportError}
+          />
+        </SearchField>
+        {view && (
+          <SearchField label="버전">
+            <SetVersionSelect state={state} />
+          </SearchField>
+        )}
+      </SearchArea>
+    </div>
   );
 
   return (
     <EditorActiveContext.Provider value={active}>
       {!view || !flow ? (
         <>
-          <div className="rsf-toolbar">
-            <div className="rsf-toolbar-row">
-              {picker}
-              {view && (
-                <>
-                  <span className="rsf-toolbar-sep" aria-hidden />
-                  <span data-testid="set-edit-current" className="rsf-toolbar-title" style={{ fontWeight: 600 }}>
-                    {`${view.set.setId} · ${view.set.setName}`}
-                  </span>
-                </>
-              )}
+          {picker}
+          {view && (
+            <div className="rsf-toolbar">
+              <div className="rsf-toolbar-row">
+                <span data-testid="set-edit-current" className="rsf-toolbar-title" style={{ fontWeight: 600 }}>
+                  {`${view.set.setId} · ${view.set.setName}`}
+                </span>
+              </div>
             </div>
-          </div>
+          )}
           <p data-testid="set-edit-empty" style={{ padding: "var(--spacing-lg) var(--spacing-md)", color: "var(--color-text-muted)" }}>
             세트를 골라 편집한다. 새 세트는 룰 세트 화면에서 등록한다
           </p>
         </>
       ) : (
         <>
+          {picker}
           <SetVersionRow state={state} canDo={canDo} />
           <FlowToolbar
-            lead={picker}
             state={state}
             canDo={canDo}
             canEdit={canEdit}
