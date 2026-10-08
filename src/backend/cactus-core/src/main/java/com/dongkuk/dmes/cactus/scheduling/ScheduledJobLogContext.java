@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.cactus.scheduling;
 
+import ch.qos.logback.classic.LoggerContext;
 import com.dongkuk.oasis.TraceConstants;
 import com.dongkuk.oasis.logger.MDCTemplate;
 import org.slf4j.Logger;
@@ -22,15 +23,18 @@ import java.lang.reflect.Modifier;
  * {@code OasisServiceExecutor})와 같은 방식으로 실행마다 다음을 넣는다.
  * <ul>
  *   <li>{@code service_tag}: OASIS {@link MDCTemplate} 이 만드는 랜덤 4자리</li>
- *   <li>{@code serviceId}: 작업 이름, 예: {@code sch.widgetCollector.collectMinute}</li>
+ *   <li>{@code serviceId}: 작업 이름, 예: {@code sch.mcm.widgetCollector.collectMinute}
+ *       ({@code sch.<모듈>.<클래스>.<메서드>}, 모듈은 logback 의 {@code DMES_MODULE} 값)</li>
  * </ul>
+ * 이 {@code sch.} 접두어로 {@link ScheduledJobLogFilter} 가 예약 작업 줄을 업무 로그에서 빼
+ * {@code logs/sch/dmes-sch.날짜.0.log} 한 파일로 모은다.
  * 끝나면 {@link MDCTemplate} 이 MDC 를 비우므로 스레드 풀의 다음 작업으로 새지 않는다.
  *
  * <p>작업 이름은 {@code serviceId/action} 줄의 정규식({@code [\w.-]+/\w+})에 맞게 콜론 없이 만든다.
  * analog 서비스 목록은 태그가 있는 줄이면 항목을 만들고 소요 시간은 아래 끝 줄에서 읽는다.
  * <pre>
- * sch.widgetCollector.collectMinute/run
- * Service end - service name [sch.widgetCollector.collectMinute] RunTime : [12]
+ * sch.mcm.widgetCollector.collectMinute/run
+ * Service end - service name [sch.mcm.widgetCollector.collectMinute] RunTime : [12]
  * </pre>
  * 이 두 줄은 {@code OasisServiceExecutor} 와 같은 문구라 analog 쪽 수정이 필요 없다.
  */
@@ -41,7 +45,19 @@ public final class ScheduledJobLogContext {
     /** 작업 이름 앞에 붙여 요청 서비스와 구분한다. */
     static final String NAME_PREFIX = "sch.";
 
+    /** {@code dmes-logback-base.xml} 이 logback 컨텍스트에 올리는 모듈 id(mcm, mdm 등). */
+    static final String MODULE_PROPERTY = "DMES_MODULE";
+
     private ScheduledJobLogContext() {
+    }
+
+    /**
+     * {@code sch.<모듈>.<이름>} 형태의 작업 이름을 만든다. 모듈 id 를 알 수 없으면(logback 설정이 없는 시험 등)
+     * {@code sch.<이름>} 으로 둔다. 자체 실행기에서 {@link #run} 을 직접 부르는 쪽이 쓴다.
+     */
+    public static String jobName(String name) {
+        String module = moduleId();
+        return module == null ? NAME_PREFIX + name : NAME_PREFIX + module + "." + name;
     }
 
     /** 시작·끝 줄을 INFO 로 남기며 실행한다. */
@@ -116,11 +132,23 @@ public final class ScheduledJobLogContext {
         task = unwrapSpring(task);
         if (task instanceof ScheduledMethodRunnable m) {
             Class<?> type = ClassUtils.getUserClass(m.getTarget());
-            return NAME_PREFIX + lowerFirst(type.getSimpleName()) + "." + m.getMethod().getName();
+            return jobName(lowerFirst(type.getSimpleName()) + "." + m.getMethod().getName());
         }
         Class<?> type = ClassUtils.getUserClass(task);
         String simple = type.getSimpleName();
-        return NAME_PREFIX + (simple.isEmpty() ? "anonymous" : lowerFirst(simple));
+        return jobName(simple.isEmpty() ? "anonymous" : lowerFirst(simple));
+    }
+
+    private static String moduleId() {
+        try {
+            if (LoggerFactory.getILoggerFactory() instanceof LoggerContext context) {
+                String module = context.getProperty(MODULE_PROPERTY);
+                return module == null || module.isBlank() ? null : module;
+            }
+        } catch (LinkageError e) {
+            // logback 이 없는 환경 — 모듈 없이 이름만 쓴다.
+        }
+        return null;
     }
 
     /**

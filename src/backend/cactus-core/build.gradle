@@ -117,6 +117,8 @@ dependencies {
 
     // ── Logging ──
     compileOnly libs.slf4j.api
+    // ScheduledJobLogFilter (logback Filter) — 실행 시에는 소비 모듈의 Spring Boot 로깅 스타터가 logback 을 가져온다.
+    compileOnly 'ch.qos.logback:logback-classic'
 
     // ── Test ──
     testImplementation libs.spring.boot.starter.test
