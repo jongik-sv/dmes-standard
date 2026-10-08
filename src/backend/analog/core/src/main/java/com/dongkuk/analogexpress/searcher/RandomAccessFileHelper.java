@@ -4,195 +4,80 @@ import com.dongkuk.analogexpress.comparator.LoggingTimeComparator;
 import com.dongkuk.analogexpress.io.RandomAccessibleLineReader;
 
 import java.io.IOException;
+import java.util.function.IntPredicate;
 
 public class RandomAccessFileHelper {
     public static final byte LINE_FEED = 0x0A;
     public static byte CARRIAGE_RETURN = 0x0D;
 
+    /**
+     * 시간 범위에 속하는 첫 로그 기록의 시작 위치를 돌려준다. 범위에 속한 기록이 없으면 -1 이다.
+     * 기록의 첫 줄만 시각을 가지며, 시각이 없는 줄(여러 줄 SQL·스택 트레이스)은 앞 기록에 이어진 줄로 본다.
+     */
     public static long startIndex(RandomAccessibleLineReader file, LoggingTimeComparator comparator) throws IOException {
-        long s = 0; //start index
-        long e = file.length() - 1; //end index
-        long h = 0; //head
-        long l = -1; //last selected index
-
-        // 날짜가 없는 Log 라인을 건너 뛴다.
-        long tempS = 0;
-        String removeInvalidLogString;
-        while ((removeInvalidLogString = file.readLine()) != null) {
-            if (comparator.canCompare(removeInvalidLogString)) {
-                s = tempS;
-                h = tempS;
-                break;
-            }
-            tempS = file.getFilePointer();
-        }
-
-        // 로그를 다 읽었으나 의미 있는 로그행이 없음
-        if (removeInvalidLogString == null)
-            return l;
-
-        int safeGuard = 0;
-        int safeGuardStart;
-        while (s != e && e >= 0 && h != l) {
-            String s1;
-
-            // 로그행의 시작점을 찾음
-            safeGuardStart = 0;
-            while (true) {
-                file.seek(h);
-                s1 = file.readLine();
-
-                // 로그를 다 읽었나 범위 밖임
-                if (s1 == null)
-                    return l;
-                // 헤더가 이미 한번 읽었던 라인 인 경우(h가 canCompare하지 않아 다음라인을 선택했는데 이미 읽은 라인임)
-                if (h == l)
-                    return l;
-
-                if (comparator.canCompare(s1)) {
-                    break;
-                } else {
-                    h = file.getFilePointer();
-                }
-                safeGuardStart++;
-                if (Short.MAX_VALUE == safeGuardStart)
-                    throw new RuntimeException("무한 루프 탐지");
-            }
-
-            int compare = comparator.compare(s1);
-            if (compare < 0) {
-                s = file.getFilePointer();
-            } else if (compare == 0) {
-                e = h;
-                l = h;
-            } else {
-                e = h;
-            }
-
-            long bfh = h;
-
-            h = ((e - s) / 2) + s;
-            h = getCurrentLineStartPointer(h, file);
-            // h를 선택했는데 이전 결과값이 같은 경우(마지막 라인에서 범위에 속하지 않아 다시 선택했는데 이전에 선택했던 라인)
-            if (bfh == h)
-                return l;
-
-            safeGuard++;
-            if (Short.MAX_VALUE == safeGuard)
-                throw new RuntimeException("무한 루프 탐지");
-        }
-        return l;
+        Record first = firstRecordMatching(file, comparator, compare -> compare >= 0);
+        if (first == null || comparator.compare(first.line) != 0)
+            return -1;
+        return first.start;
     }
 
+    /**
+     * 시간 범위에 속하는 마지막 로그 기록의 마지막 줄 시작 위치를 돌려준다(이어진 줄 포함). 범위에 속한 기록이 없으면 -1 이다.
+     */
     public static long endIndex(RandomAccessibleLineReader file, LoggingTimeComparator comparator) throws IOException {
-        long s = 0; //start index
-        long e = file.length() - 1; //end index
-        long h = file.length() - 1;
-        long l = -1; //last selected index
-        long lh = -1; //last middle index, 선택한 해더가 컴패어블 할 수 없는 라인일 때 최초 index
+        Record first = firstRecordMatching(file, comparator, compare -> compare >= 0);
+        if (first == null || comparator.compare(first.line) != 0)
+            return -1;
 
-        // 날짜가 없는 Log 라인을 건너 뛴다.
-        long tempS = 0;
-        String removeInvalidLogString;
-        while ((removeInvalidLogString = file.readLine()) != null) {
-            if (comparator.canCompare(removeInvalidLogString)) {
-                s = tempS;
-                h = tempS;
-                break;
+        // 범위를 넘는 첫 기록 직전까지가 범위 안의 마지막 기록(과 이어진 줄)이다.
+        Record beyond = firstRecordMatching(file, comparator, compare -> compare > 0);
+        long boundary = beyond == null ? file.length() : beyond.start;
+        return getCurrentLineStartPointer(boundary - 1, file);
+    }
+
+    private record Record(long start, long end, String line) {
+    }
+
+    /**
+     * 시각이 있는 기록 중 조건을 만족하는 첫 기록을 이진 탐색으로 찾는다. 없으면 null 이다.
+     * 기록의 시각은 파일 앞에서 뒤로 갈수록 작아지지 않으므로 조건은 파일을 따라 한 번만 거짓에서 참으로 바뀐다.
+     * 탐색 위치가 시각 없는 줄 묶음 안에 떨어져도 다음 기록을 앞으로 찾아 그 기록으로 판정하므로,
+     * 매 회 lo 가 커지거나 hi 가 작아져 반드시 끝난다.
+     */
+    private static Record firstRecordMatching(RandomAccessibleLineReader file, LoggingTimeComparator comparator, IntPredicate condition) throws IOException {
+        long lo = 0; // lo 앞의 기록은 모두 조건을 만족하지 않는다. 항상 줄의 시작 위치다.
+        long hi = file.length(); // 조건을 만족하는 첫 기록은 hi 앞에서 시작한다.
+        Record found = null;
+
+        while (lo < hi) {
+            long mid = lo + (hi - lo) / 2;
+            long lineStart = Math.max(lo, getCurrentLineStartPointer(mid, file));
+            Record record = nextRecord(file, lineStart, comparator);
+
+            if (record == null || record.start >= hi) {
+                // lineStart 부터 hi 까지는 기록의 시작이 없다.
+                hi = lineStart;
+            } else if (condition.test(comparator.compare(record.line))) {
+                found = record;
+                hi = record.start;
+            } else {
+                lo = record.end;
             }
-            tempS = file.getFilePointer();
         }
+        return found;
+    }
 
-        // 로그를 다 읽었으나 의미 있는 로그행이 없음
-        if (removeInvalidLogString == null)
-            return l;
-
-        int safeGuard = 0;
-        int safeGuardStart;
-        while (s != e && e >= 0 && h != l) {
-            String s1;
-
-            // 로그행의 시작점을 찾음
-            safeGuardStart = 0;
-            while (true) {
-                file.seek(h);
-                s1 = file.readLine();
-
-                // 로그를 다 읽었나 범위 밖임
-                if (s1 == null) {
-                    return l;
-                }
-                // 헤더가 이미 한번 읽었던 라인 인 경우(h가 canCompare하지 않아 다음라인을 선택했는데 이미 읽은 라인임)
-                if (h == l)
-                    return l;
-
-                if (comparator.canCompare(s1)) {
-                    safeGuardStart++;
-                    if (Short.MAX_VALUE == safeGuardStart)
-                        throw new RuntimeException("무한 루프 탐지");
-                    break;
-                } else {
-                    if (lh == -1)
-                        lh = h; // canCompare 할 수 없는 행의 첫 번째 index 저장
-                    h = file.getFilePointer();
-                }
-
-                // 마지막에 선택된 행이 없는데 여러행 중 중간에 선택되어
-                // 읽기 범위를 초과 한 경우
-                // 중간에 선택된 index에서 다시 검색 할 수 있도록 중간 선택된 index를 선택한 후 루프를 종료한다.
-                if (lh > 0 && e < h && l < 0) {
-                    e = lh;
-                    break;
-                }
-
-                safeGuardStart++;
-                if (Short.MAX_VALUE == safeGuardStart)
-                    throw new RuntimeException("무한 루프 탐지");
-            }
-
-            // 중간에
-            if (comparator.canCompare(s1)) {
-                int compare = comparator.compare(s1);
-                if (compare < 0) {
-                    s = file.getFilePointer();
-                } else if (compare == 0) {
-                    long bfp;
-                    l = h;
-                    while (true) {
-                        bfp = file.getFilePointer();
-                        String s2 = file.readLine();
-                        if (s2 == null)
-                            break;
-
-                        if (comparator.canCompare(s2)) {
-                            break;
-                        } else {
-                            l = bfp;
-                        }
-                    }
-                    s = bfp;
-                } else {
-                    if (e == h) {
-                        h = lh;
-                    }
-                    e = h;
-                }
-            }
-
-            long bfh = h;
-            h = ((e - s) / 2) + s;
-            h = getCurrentLineStartPointer(h, file);
-            // h를 선택했는데 이전 결과값이 같은 경우(마지막 라인에서 범위에 속하지 않아 다시 선택했는데 이전에 선택했던 라인)
-            if (bfh == h)
-                return l;
-
-            safeGuard++;
-            if (Short.MAX_VALUE == safeGuard)
-                throw new RuntimeException("무한 루프 탐지");
-
-            lh = -1;
+    /** position(줄의 시작 위치) 이후 처음 나오는 시각이 있는 줄을 읽는다. 없으면 null 이다. */
+    private static Record nextRecord(RandomAccessibleLineReader file, long position, LoggingTimeComparator comparator) throws IOException {
+        file.seek(position);
+        while (true) {
+            long start = file.getFilePointer();
+            String line = file.readLine();
+            if (line == null)
+                return null;
+            if (comparator.canCompare(line))
+                return new Record(start, file.getFilePointer(), line);
         }
-        return l;
     }
 
     public static long getCurrentLineStartPointer(long pos, RandomAccessibleLineReader file) throws IOException {
