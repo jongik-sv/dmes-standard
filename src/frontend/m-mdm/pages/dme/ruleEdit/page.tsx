@@ -3,7 +3,7 @@
 /**
  * ruleEdit — 룰 화면 골격(TSK-08-02). 정본: docs/mdm/screens/ruleEdit/ruleEdit_기능설계서.md.
  *
- * 상단 바(룰 고르기 `RulePicker`·버전 고르기·잠금 배지·알림)와 `cards.ts` 의 카드를 순서대로 그린다. 룰 조회 화면에서 넘어오면
+ * 조회 영역(`SearchArea` — 룰 고르기 `RulePicker`·버전 고르기), 그 아래 정보 줄(잠금 배지·알림)과 `cards.ts` 의 카드를 순서대로 그린다. 룰 조회 화면에서 넘어오면
  * handoff 대상(`@/dme/rule-handoff`)을 한 번 읽어 그 룰을 연다. 이미 열린 탭은 대상 이벤트를 듣고 바꾼다(D9·I28).
  * 편집 여부는 서버 판정(`editable`·`headerEditable`)만 따른다(I7). 카드 목록은 카드 사이 공유 상태(`RuleWorkbenchProvider` — 편집 중인 표·
  * 값 테스트 결과, TSK-08-04)로 감싼다.
@@ -11,7 +11,7 @@
 import { useCallback, useEffect } from "react";
 
 import { CardGroup } from "@dk-oasis/shared/card";
-import { ErrorModal, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
+import { ErrorModal, SearchArea, SearchField, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
 import { Button, Select } from "@dk-oasis/shared/form";
 import { DraftLockBadge, MdmPageLayout, VersionStatusBadge, badgeStyle, fmtVer, sameVer } from "@/shell";
 import { RULE_EDIT_TARGET_EVENT, takeRuleEditTarget, type RuleEditTarget } from "@/dme/rule-handoff";
@@ -62,59 +62,66 @@ export default function RuleEditPage() {
 
   return (
     <MdmPageLayout group="dme" screenId={SCREEN_ID} title="룰 화면">
-      <div
-        data-testid="rule-edit-topbar"
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          gap: "var(--spacing-sm)",
-          padding: "var(--spacing-sm) var(--spacing-md)",
-          borderBottom: "1px solid var(--color-border-light)",
-        }}
-      >
-        <RulePicker
-          currentId={state.ruleId}
-          onPick={(ruleId) => void open(ruleId)}
-          onError={(text) => state.notify({ kind: "error", text })}
-        />
-        {view && (
-          <>
-            <span aria-hidden style={{ alignSelf: "stretch", width: 1, margin: "2px var(--spacing-xs)", background: "var(--color-border)" }} />
-            <span data-testid="rule-edit-current" style={{ fontWeight: 600 }}>
-              {view.rule.maruRuleId}
-            </span>
-            <span data-testid="rule-edit-current-name">{view.rule.maruRuleName}</span>
-            <span>버전</span>
+      <div data-testid="rule-edit-topbar">
+        <SearchArea defaults={false} onSearch={() => { if (state.ruleId) void open(state.ruleId, view?.selectedVer); }}>
+          <SearchField label="룰" className="span-2">
+            <RulePicker
+              currentId={state.ruleId}
+              onPick={(ruleId) => void open(ruleId)}
+              onError={(text) => state.notify({ kind: "error", text })}
+            />
+          </SearchField>
+          <SearchField label="버전">
             <Select
               data-testid="rule-ver-select"
-              value={view.selectedVer ?? ""}
-              options={view.versions.map((v) => ({ value: v.ver, label: `${fmtVer(v.ver)} (${v.status})` }))}
+              value={view?.selectedVer ?? ""}
+              disabled={!view}
+              options={(view?.versions ?? []).map((v) => ({ value: v.ver, label: `${fmtVer(v.ver)} (${v.status})` }))}
               onChange={(v) => void state.selectVer(v)}
-              style={{ width: 150 }}
             />
-            {selected && <VersionStatusBadge status={selected.status} applyFrom={selected.applyFrom} />}
-            {selected && <DraftLockBadge status={selected.status} ownerId={selected.ownerId} currentUserId={view.me} />}
-            {view.rule.sourceKind !== "MDM" && (
-              <span data-testid="rule-readonly-badge" style={badgeStyle("muted")}>
-                조회 전용(외부 원천)
+          </SearchField>
+        </SearchArea>
+        {(view || state.conflict || state.notice) && (
+          <div
+            data-testid="rule-edit-info"
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: "var(--spacing-sm)",
+              padding: "var(--spacing-xs) var(--spacing-sm)",
+            }}
+          >
+            {view && (
+              <>
+                <span data-testid="rule-edit-current" style={{ fontWeight: 600 }}>
+                  {view.rule.maruRuleId}
+                </span>
+                <span data-testid="rule-edit-current-name">{view.rule.maruRuleName}</span>
+                {selected && <VersionStatusBadge status={selected.status} applyFrom={selected.applyFrom} />}
+                {selected && <DraftLockBadge status={selected.status} ownerId={selected.ownerId} currentUserId={view.me} />}
+                {view.rule.sourceKind !== "MDM" && (
+                  <span data-testid="rule-readonly-badge" style={badgeStyle("muted")}>
+                    조회 전용(외부 원천)
+                  </span>
+                )}
+              </>
+            )}
+            {state.conflict && (
+              <Button onClick={() => void state.reload()} disabled={state.loading}>
+                다시 불러오기
+              </Button>
+            )}
+            {state.notice && (
+              <span
+                role="status"
+                data-testid="rule-edit-notice"
+                style={{ color: state.notice.kind === "error" ? "var(--color-danger)" : "var(--color-text-secondary)" }}
+              >
+                {state.notice.text}
               </span>
             )}
-          </>
-        )}
-        {state.conflict && (
-          <Button onClick={() => void state.reload()} disabled={state.loading}>
-            다시 불러오기
-          </Button>
-        )}
-        {state.notice && (
-          <span
-            role="status"
-            data-testid="rule-edit-notice"
-            style={{ color: state.notice.kind === "error" ? "var(--color-danger)" : "var(--color-text-secondary)" }}
-          >
-            {state.notice.text}
-          </span>
+          </div>
         )}
       </div>
 
