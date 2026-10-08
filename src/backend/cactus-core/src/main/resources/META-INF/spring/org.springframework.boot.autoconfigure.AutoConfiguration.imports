@@ -20,3 +20,4 @@ com.dongkuk.dmes.cactus.integration.caravanhub.CaravanHubIntegrationAutoConfigur
 com.dongkuk.dmes.cactus.dmom.DmomAutoConfiguration
 com.dongkuk.dmes.cactus.mdm.MdmAutoConfiguration
 com.dongkuk.dmes.cactus.scheduling.ScheduledJobLogAutoConfiguration
+com.dongkuk.dmes.cactus.job.JobAutoConfiguration
