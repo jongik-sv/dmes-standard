@@ -23,7 +23,7 @@ import {
 import { useMessage } from "@dk-oasis/shared/message-provider";
 
 import { jobSchedApi } from "./api";
-import { copyForm, emptyForm, formatTimestamp, toForm, toJobGridRow, toRunGridRow, toSaveRequest, type JobForm } from "./form-model";
+import { copyForm, emptyForm, formatTimestamp, isJobListTruncated, JOB_LIST_MAX, toForm, toJobGridRow, toRunGridRow, toSaveRequest, type JobForm } from "./form-model";
 import { HistoryPanel } from "./HistoryPanel";
 import { KindBadges, RunStatusBadge, UseBadge } from "./JobBadges";
 import { JobDetailForm, checkForm, type JobDetailAction, type JobDetailHandle, type LastFailure } from "./JobDetailForm";
@@ -210,11 +210,15 @@ export default function JobSchedMngPage() {
 
   const handleSearch = useCallback(async () => {
     try {
-      await loadList();
+      const rows = await loadList();
+      // 서버가 500건까지만 돌려주고 총건수를 주지 않는다 — 상한에 닿으면 건수만으로는 전체인지 알 수 없다.
+      if (isJobListTruncated(rows.length)) {
+        showMessage({ message: `작업이 ${JOB_LIST_MAX}건까지만 표시됩니다. 모듈·유형 같은 조건으로 좁혀 조회하세요.`, alertType: "warning" });
+      }
     } catch (e) {
       fail(e);
     }
-  }, [loadList, fail]);
+  }, [loadList, fail, showMessage]);
 
   const handleRowClick = useCallback(
     (row: Record<string, unknown>) => {
@@ -271,7 +275,7 @@ export default function JobSchedMngPage() {
         select(def.jobId);
         detailRef.current?.load(toForm(def, form.codeMissing));
       }
-      showMessage({ message: "저장되었습니다. 다음 분부터 새 일정으로 실행합니다(MCM 서버가 여러 대면 최대 30초 늦을 수 있습니다).", alertType: "success", toast: true });
+      showMessage({ message: "저장되었습니다. 다음 분부터 새 설정으로 실행합니다.", alertType: "success", toast: true });
       // 목록·이력은 저장 뒤에 다시 받는다. 실패해도 저장은 끝났고 폼은 응답으로 맞춰져 있다.
       if (stillHere) await reopen(def.jobId, def.jobId);
       else await loadList();

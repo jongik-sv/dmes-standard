@@ -10,6 +10,8 @@ import {
   formatDuration,
   formatTimestamp,
   isFormDirty,
+  isJobListTruncated,
+  JOB_LIST_MAX,
   parseVars,
   serializeVars,
   switchKind,
@@ -115,6 +117,71 @@ describe("validateForm", () => {
     expect(validateForm(valid({ vars: [{ name: "n", type: "NUMBER", value: "abc" }] }))).toContain("숫자");
     expect(validateForm(valid({ vars: [{ name: "d", type: "DATE", value: "2026/10/01" }] }))).toContain("YYYY-MM-DD");
     expect(validateForm(valid({ vars: [{ name: "d", type: "DATE", value: ":today" }, { name: "j", type: "JSON", value: "{" }] }))).toContain("JSON");
+  });
+});
+
+describe("서버 검사와 같은 규칙", () => {
+  const bpmn = (patch: Partial<JobForm>): JobForm => ({ ...emptyForm("BPMN"), jobId: "mcm.b", jobNm: "비", serviceId: "dma^^term", svcAction: "sync", ...patch });
+
+  it("BPMN 서비스 ID·Action 형식을 서버처럼 본다", () => {
+    expect(validateForm(bpmn({ serviceId: "jobDispatch" }))).toContain("내장 서비스");
+    expect(validateForm(bpmn({ serviceId: "1abc" }))).toContain("서비스 ID");
+    expect(validateForm(bpmn({ serviceId: "a b" }))).toContain("서비스 ID");
+    expect(validateForm(bpmn({ serviceId: `a${"b".repeat(200)}` }))).toContain("서비스 ID");
+    expect(validateForm(bpmn({ svcAction: "re-build" }))).toContain("Action");
+    expect(validateForm(bpmn({ svcAction: "a".repeat(51) }))).toContain("Action");
+    expect(validateForm(bpmn({ serviceId: "mcm.job-x_1", svcAction: "run_2" }))).toBeNull();
+  });
+
+  it("변수: 예약어·30개·값 1000자·알 수 없는 실행 변수를 거절한다", () => {
+    for (const name of ["action", "sql", "handlerId", "source", "save"]) {
+      expect(validateForm(valid({ vars: [{ name, type: "STRING", value: "" }] }))).toContain("예약어");
+    }
+    const many = Array.from({ length: 31 }, (_, i) => ({ name: `v${i}`, type: "STRING" as const, value: "" }));
+    expect(validateForm(valid({ vars: many }))).toContain("30개");
+    expect(validateForm(valid({ vars: many.slice(0, 30) }))).toBeNull();
+    expect(validateForm(valid({ vars: [{ name: "a", type: "STRING", value: "x".repeat(1001) }] }))).toContain("1000자");
+    expect(validateForm(valid({ vars: [{ name: "a", type: "STRING", value: "x".repeat(1000) }] }))).toBeNull();
+    expect(validateForm(valid({ vars: [{ name: "a", type: "STRING", value: ":tomorrow" }] }))).toContain("알 수 없는 실행 변수");
+    for (const v of [":schedAt", ":now", ":today", ":yesterday", ":monthStart", ":prevMonthStart", ":prevRunAt", ":jobId", ":moduleCd"]) {
+      expect(validateForm(valid({ vars: [{ name: "a", type: "NUMBER", value: v }] }))).toBeNull();
+    }
+  });
+
+  it("DATE 변수는 날짜·날짜+시각(공백·T)을 받고 없는 날짜는 거절한다", () => {
+    const date = (value: string) => validateForm(valid({ vars: [{ name: "d", type: "DATE", value }] }));
+    for (const ok of ["2026-10-09", "2026-10-09 13:05", "2026-10-09 13:05:59", "2026-10-09T13:05", "2024-02-29"]) expect(date(ok)).toBeNull();
+    for (const bad of ["2026/10/09", "2026-02-30", "2026-13-01", "2026-10-09 24:00", "2026-10-09 13:60", "2026-10-09 13", "10-09"]) expect(date(bad)).toContain("YYYY-MM-DD");
+  });
+
+  it("NUMBER 변수는 서버(BigDecimal)가 받는 모양만 받는다", () => {
+    const num = (value: string) => validateForm(valid({ vars: [{ name: "n", type: "NUMBER", value }] }));
+    for (const ok of ["1", "-1.5", "+2", ".5", "5.", "1e3", "1.5E-2", " 7 "]) expect(num(ok)).toBeNull();
+    for (const bad of ["abc", "Infinity", "0x10", "1,000", "1e", "--1"]) expect(num(bad)).toContain("숫자");
+  });
+
+  it("COLLECT 한도: 항목 20개·키 100자·경로 200자·주소 500자·사용자 정보·통화 10개·중복", () => {
+    const f: JobForm = { ...emptyForm("COLLECT"), jobId: "mcm.c", jobNm: "수집", collectKind: "http", collectUrl: "https://api.example.com/q", items: [{ key: "a", path: "x" }] };
+    expect(validateForm(f)).toBeNull();
+    expect(validateForm({ ...f, items: Array.from({ length: 21 }, (_, i) => ({ key: `k${i}`, path: "x" })) })).toContain("20개");
+    expect(validateForm({ ...f, items: [{ key: "k".repeat(101), path: "x" }] })).toContain("키");
+    expect(validateForm({ ...f, items: [{ key: "a", path: "p".repeat(201) }] })).toContain("경로");
+    expect(validateForm({ ...f, collectUrl: `https://a.example.com/${"q".repeat(500)}` })).toContain("500자");
+    expect(validateForm({ ...f, collectUrl: "https://user:pw@api.example.com/q" })).toContain("사용자 정보");
+    expect(validateForm({ ...f, collectUrl: "https://api.example.com/q?mail=a@b.c" })).toBeNull();
+    const fx: JobForm = { ...emptyForm("COLLECT"), jobId: "mcm.fx", jobNm: "환율", collectKind: "exchange", currencies: ["USD", "JPY"] };
+    expect(validateForm(fx)).toBeNull();
+    expect(validateForm({ ...fx, currencies: ["USD", "USD"] })).toContain("겹칩니다");
+    expect(validateForm({ ...fx, currencies: Array.from({ length: 11 }, (_, i) => `AB${String.fromCharCode(65 + i)}`) })).toContain("10개");
+    const sql: JobForm = { ...emptyForm("COLLECT"), jobId: "mcm.s", jobNm: "수집", collectSql: "SELECT 1 V FROM DUAL", valueField: "V" };
+    expect(validateForm({ ...sql, valueField: "V".repeat(101) })).toContain("100자");
+    expect(validateForm({ ...sql, keyField: "K".repeat(101) })).toContain("100자");
+  });
+
+  it("목록은 서버 상한(500건)에 닿으면 잘렸을 수 있다고 본다", () => {
+    expect(JOB_LIST_MAX).toBe(500);
+    expect(isJobListTruncated(499)).toBe(false);
+    expect(isJobListTruncated(500)).toBe(true);
   });
 });
 

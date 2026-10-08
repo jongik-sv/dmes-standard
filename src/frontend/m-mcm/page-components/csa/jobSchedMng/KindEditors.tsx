@@ -93,7 +93,7 @@ function BpmnEditor({ form, disabled, onChange }: KindEditorProps) {
           </Row>
         </tbody>
       </table>
-      <Hint>없는 서비스 ID 는 저장은 되지만 실행할 때 실패로 남습니다. 예약 작업 내장 서비스(jobCode·jobQuery·jobCollect)는 쓸 수 없습니다.</Hint>
+      <Hint>없는 서비스 ID 는 저장은 되지만 실행할 때 실패로 남습니다. 예약 작업 내장 서비스(jobDispatch·jobCode·jobQuery·jobCollect)는 쓸 수 없습니다.</Hint>
     </div>
   );
 }

@@ -10,6 +10,25 @@ import type { HandlerRow, JobDef, JobGridRow, JobKind, JobListRow, JobRunGridRow
 
 export const JOB_ID_PATTERN = /^[A-Za-z0-9_.-]{1,60}$/;
 const VAR_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_]{0,29}$/;
+/** 서버 JobSchedMngService 의 서비스 ID·Action 형식(서비스 ID 는 ^ 를 쓸 수 있다). */
+const SERVICE_ID_PATTERN = /^[A-Za-z][A-Za-z0-9_^.-]{0,199}$/;
+const ACTION_PATTERN = /^[A-Za-z][A-Za-z0-9_]{0,49}$/;
+/** 서버 JobVars 의 한도·예약어·실행 변수 — @dk-oasis/shared 를 런타임 import 하지 않으므로 RUNTIME_VARIABLES 와 같은 값을 여기 둔다. */
+const MAX_VARS = 30;
+const MAX_VAR_VALUE_LENGTH = 1000;
+const RESERVED_VAR_NAMES: readonly string[] = ["action", "sql", "handlerId", "source", "save"];
+const RUNTIME_VAR_VALUES: readonly string[] = [":schedAt", ":now", ":today", ":yesterday", ":monthStart", ":prevMonthStart", ":prevRunAt", ":jobId", ":moduleCd"];
+/** 서버 CollectConfigs 의 한도. */
+const COLLECT_ITEMS_MAX = 20;
+const COLLECT_KEY_MAX = 100;
+const COLLECT_PATH_MAX = 200;
+const COLLECT_URL_MAX = 500;
+const COLLECT_CURRENCIES_MAX = 10;
+const COLLECT_FIELD_MAX = 100;
+/** 목록 응답의 서버 상한(JobDefStore.LIST_MAX) — 총건수 칸이 없어 이 건수에 닿으면 잘렸을 수 있다. */
+export const JOB_LIST_MAX = 500;
+/** 목록이 서버 상한에 닿아 뒤쪽 작업이 잘렸을 수 있는가. */
+export const isJobListTruncated = (count: number): boolean => count >= JOB_LIST_MAX;
 /** 예약 작업이 쓰는 내장 서비스 ID — 서비스 실행 유형에는 쓸 수 없다(쿼리 실행·수집·코드 실행 유형이 대신한다). */
 export const BUILTIN_SERVICE_IDS: readonly string[] = ["jobDispatch", "jobCode", "jobQuery", "jobCollect"];
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
@@ -318,11 +337,28 @@ export function toSaveRequest(form: JobForm): JobSaveRequest {
 
 const isInt = (v: string, min: number, max: number) => /^\d+$/.test(v.trim()) && Number(v) >= min && Number(v) <= max;
 
+/** yyyy-MM-dd 또는 yyyy-MM-dd HH:mm[:ss](공백·T 모두) — 서버 JobVars.normalizeDate 가 받는 모양. 실제 달력에 있는 날짜·시각이어야 한다. */
+function isServerDate(value: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(value);
+  if (!m) return false;
+  const [y, mo, d, h, mi, sec] = [m[1], m[2], m[3], m[4] ?? "0", m[5] ?? "0", m[6] ?? "0"].map(Number);
+  const date = new Date(Date.UTC(y, mo - 1, d));
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== mo - 1 || date.getUTCDate() !== d) return false;
+  return h < 24 && mi < 60 && sec < 60;
+}
+
+/** 서버 JobVars.isNumber(BigDecimal) 가 받는 숫자 모양. */
+const isServerNumber = (value: string): boolean => /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(value);
+
 function validateVariable(v: JobVarRow): string | null {
+  if (v.value.length > MAX_VAR_VALUE_LENGTH) return `변수 ${v.name} 의 값은 ${MAX_VAR_VALUE_LENGTH}자까지입니다.`;
   const value = v.value.trim();
-  if (value === "" || value.startsWith(":")) return null;
-  if (v.type === "NUMBER" && Number.isNaN(Number(value))) return `변수 ${v.name} 의 값이 숫자가 아닙니다.`;
-  if (v.type === "DATE" && !/^\d{4}-\d{2}-\d{2}$/.test(value)) return `변수 ${v.name} 의 값은 YYYY-MM-DD 이거나 실행 변수(:today 등)여야 합니다.`;
+  if (value === "") return null;
+  if (value.startsWith(":")) {
+    return RUNTIME_VAR_VALUES.includes(value) ? null : `알 수 없는 실행 변수입니다: ${value} (${[...RUNTIME_VAR_VALUES].sort().join(" ")})`;
+  }
+  if (v.type === "NUMBER" && !isServerNumber(value)) return `변수 ${v.name} 의 값이 숫자가 아닙니다.`;
+  if (v.type === "DATE" && !isServerDate(value)) return `변수 ${v.name} 의 값은 YYYY-MM-DD 또는 YYYY-MM-DD HH:mm[:ss] 이거나 실행 변수(:today 등)여야 합니다.`;
   if (v.type === "JSON") {
     try {
       JSON.parse(value);
@@ -337,19 +373,28 @@ function validateCollect(form: JobForm): string | null {
   if (form.collectKind === "sql") {
     if (form.collectSql.trim() === "") return "원천 SQL 을 입력하세요.";
     if (form.valueField.trim() === "") return "값 칸을 입력하세요.";
+    if (form.valueField.trim().length > COLLECT_FIELD_MAX || form.keyField.trim().length > COLLECT_FIELD_MAX) return `값 칸·항목 칸은 ${COLLECT_FIELD_MAX}자 이하로 입력하세요.`;
     return null;
   }
   if (form.collectKind === "http") {
-    if (!/^https?:\/\/\S+$/i.test(form.collectUrl.trim())) return "수집 주소는 http:// 또는 https:// 로 시작하는 절대 주소여야 합니다.";
+    const url = form.collectUrl.trim();
+    if (!/^https?:\/\/\S+$/i.test(url)) return "수집 주소는 http:// 또는 https:// 로 시작하는 절대 주소여야 합니다.";
+    if (url.length > COLLECT_URL_MAX) return `수집 주소는 ${COLLECT_URL_MAX}자 이하여야 합니다.`;
+    if (/^https?:\/\/[^/?#]*@/i.test(url)) return "수집 주소에는 사용자 정보(user:password@)를 쓸 수 없습니다.";
     if (form.items.length === 0) return "수집 항목을 하나 이상 추가하세요.";
+    if (form.items.length > COLLECT_ITEMS_MAX) return `수집 항목은 ${COLLECT_ITEMS_MAX}개까지입니다.`;
     if (form.items.some((i) => i.key.trim() === "" || i.path.trim() === "")) return "수집 항목의 키와 경로를 모두 입력하세요.";
+    if (form.items.some((i) => i.key.trim().length > COLLECT_KEY_MAX)) return `수집 항목의 키는 ${COLLECT_KEY_MAX}자 이하여야 합니다.`;
+    if (form.items.some((i) => i.path.trim().length > COLLECT_PATH_MAX)) return `수집 항목의 경로는 ${COLLECT_PATH_MAX}자 이하여야 합니다.`;
     const keys = form.items.map((i) => i.key.trim());
     if (new Set(keys).size !== keys.length) return "수집 항목의 키가 겹칩니다.";
     return null;
   }
   if (form.moduleCd !== "MCM") return "환율 수집은 실행 모듈이 MCM 일 때만 고를 수 있습니다.";
   if (form.currencies.length === 0) return "통화를 하나 이상 고르세요.";
+  if (form.currencies.length > COLLECT_CURRENCIES_MAX) return `통화는 ${COLLECT_CURRENCIES_MAX}개까지입니다.`;
   if (form.currencies.some((c) => !CURRENCY_PATTERN.test(c) || c === "KRW")) return "통화는 KRW 를 뺀 영문 대문자 3자리여야 합니다.";
+  if (new Set(form.currencies).size !== form.currencies.length) return "통화가 겹칩니다.";
   return null;
 }
 
@@ -379,8 +424,10 @@ export function validateForm(form: JobForm, options: { cronError?: string | null
       break;
     case "BPMN":
       if (form.serviceId.trim() === "") return "서비스 ID 를 입력하세요.";
-      if (BUILTIN_SERVICE_IDS.includes(form.serviceId.trim())) return "내장 서비스(jobCode·jobQuery·jobCollect)는 코드 실행·쿼리 실행·수집 유형으로 등록하세요.";
+      if (BUILTIN_SERVICE_IDS.includes(form.serviceId.trim())) return "내장 서비스(jobDispatch·jobCode·jobQuery·jobCollect)는 코드 실행·쿼리 실행·수집 유형으로 등록하세요.";
+      if (!SERVICE_ID_PATTERN.test(form.serviceId.trim())) return "서비스 ID 는 영문으로 시작하는 영문·숫자·_ ^ . - 200자 이내여야 합니다.";
       if (form.svcAction.trim() === "") return "Action 을 입력하세요.";
+      if (!ACTION_PATTERN.test(form.svcAction.trim())) return "Action 은 영문으로 시작하는 영문·숫자·_ 50자 이내여야 합니다.";
       break;
     case "QUERY":
       if (form.sql.trim() === "") return "실행할 SQL 을 입력하세요.";
@@ -394,11 +441,13 @@ export function validateForm(form: JobForm, options: { cronError?: string | null
       break;
   }
 
+  if (form.vars.length > MAX_VARS) return `변수는 ${MAX_VARS}개까지 쓸 수 있습니다.`;
   const seen = new Set<string>();
   for (const v of form.vars) {
     const name = v.name.trim();
     if (name === "") return "이름이 빈 변수가 있습니다.";
     if (!VAR_NAME_PATTERN.test(name)) return `변수 이름 ${name} 은 영문으로 시작하는 영문·숫자·_ 30자 이내여야 합니다.`;
+    if (RESERVED_VAR_NAMES.includes(name)) return `변수 이름 ${name} 은(는) 예약어입니다(${RESERVED_VAR_NAMES.join(" ")}).`;
     if (seen.has(name)) return `변수 이름 ${name} 이 두 번 쓰였습니다.`;
     seen.add(name);
     const message = validateVariable(v);
