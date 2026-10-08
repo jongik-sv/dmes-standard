@@ -27,14 +27,29 @@ import { fetchColumns } from "./db-viewer-api";
 import { columnAffixes, statementRange, valueAffixes } from "./sql-assist";
 import { attachSqlAssist, cachedColumnLoader } from "./sql-completion";
 
+/** 어느 자리에 끼울지 미리 잡아 둔 위치 — 글자 오프셋과, 잡은 때의 편집창 내용 버전. */
+export interface InsertPoint {
+  start: number;
+  end: number;
+  version: number;
+}
+
 export interface DbSqlEditorHandle {
   getValue: () => string;
+  /** 지금 커서(선택 영역) 위치를 잡아 둔다. 비동기 작업 뒤에 그 자리에 끼우려고 쓴다. 편집창이 아직 안 떴으면 null. */
+  captureInsertPoint: () => InsertPoint | null;
   /**
    * 커서 위치(선택 영역이 있으면 그 자리)에 글을 끼우고 편집창으로 초점을 옮긴다.
    * kind "column" 은 칸 이름(목록 안이면 쉼표), "value" 는 SQL 리터럴(필요할 때만 공백).
+   * `at` 이 있고 그 뒤로 편집창 내용이 바뀌지 않았으면 그 자리에 끼운다.
+   * 그 사이 다른 글이 들어갔거나 타이핑이 있었으면 오프셋이 어긋나므로 지금 커서에 끼운다.
    * 편집창이 아직 안 떴으면 false.
    */
-  insertAtCursor: (text: string, kind: "column" | "value") => boolean;
+  insertAtCursor: (
+    text: string,
+    kind: "column" | "value",
+    at?: InsertPoint | null,
+  ) => boolean;
 }
 
 interface DbSqlEditorProps {
@@ -44,6 +59,22 @@ interface DbSqlEditorProps {
   /** 왼쪽 목록의 표(스키마 → 표 이름) — 표 이름 후보와 FROM 표의 칸 찾기에 쓴다. */
   tablesBySchema: Record<string, string[]>;
   onRun: () => void;
+}
+
+/** 오프셋 구간을 Monaco 범위로 바꾼다. */
+function monacoRangeOf(
+  model: Monaco.editor.ITextModel,
+  start: number,
+  end: number,
+): Monaco.IRange {
+  const from = model.getPositionAt(start);
+  const to = model.getPositionAt(end);
+  return {
+    startLineNumber: from.lineNumber,
+    startColumn: from.column,
+    endLineNumber: to.lineNumber,
+    endColumn: to.column,
+  };
 }
 
 const DbSqlEditor = forwardRef<DbSqlEditorHandle, DbSqlEditorProps>(
@@ -71,13 +102,31 @@ const DbSqlEditor = forwardRef<DbSqlEditorHandle, DbSqlEditorProps>(
       ref,
       () => ({
         getValue: () => editor?.getValue() ?? valueRef.current,
-        insertAtCursor: (text, kind) => {
+        captureInsertPoint: () => {
+          const model = editor?.getModel();
+          const selection = editor?.getSelection();
+          if (!editor || !model || !selection) return null;
+          return {
+            start: model.getOffsetAt(selection.getStartPosition()),
+            end: model.getOffsetAt(selection.getEndPosition()),
+            version: model.getVersionId(),
+          };
+        },
+        insertAtCursor: (text, kind, at) => {
           const model = editor?.getModel();
           const selection = editor?.getSelection();
           if (!editor || !model || !selection) return false;
           const full = model.getValue();
-          const start = model.getOffsetAt(selection.getStartPosition());
-          const end = model.getOffsetAt(selection.getEndPosition());
+          const usable = !!at && at.version === model.getVersionId();
+          const start = usable
+            ? at.start
+            : model.getOffsetAt(selection.getStartPosition());
+          const end = usable
+            ? at.end
+            : model.getOffsetAt(selection.getEndPosition());
+          const range = usable
+            ? monacoRangeOf(model, start, end)
+            : selection;
           const [from, to] = statementRange(full, start);
           const before = full.slice(from, start);
           const after = full.slice(end, Math.max(to, end));
@@ -88,7 +137,7 @@ const DbSqlEditor = forwardRef<DbSqlEditorHandle, DbSqlEditorProps>(
           const inserted = `${prefix}${text}${suffix}`;
           editor.executeEdits(
             "db-viewer-assist",
-            [{ range: selection, text: inserted, forceMoveMarkers: true }],
+            [{ range, text: inserted, forceMoveMarkers: true }],
             () => {
               const cursor = model.getPositionAt(start + inserted.length);
               return [

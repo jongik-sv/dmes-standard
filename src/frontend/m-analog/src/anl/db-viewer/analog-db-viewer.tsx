@@ -282,6 +282,12 @@ export function AnalogDbViewer() {
     }
     return hit;
   }, []);
+  // 결과가 나오면 그 표의 칸 형식을 미리 받아 둔다 — 첫 더블클릭이 응답을 기다리지 않게 한다.
+  useEffect(() => {
+    if (result && result.schema && result.table) {
+      void columnTypesOf(result.schema, result.table);
+    }
+  }, [result, columnTypesOf]);
   const insertCellValue = useCallback(
     async (row: Record<string, unknown>, event: Event) => {
       const current = resultRef.current;
@@ -294,6 +300,8 @@ export function AnalogDbViewer() {
         gfn("LOB 칸은 칸 안의 「보기」 단추로 확인해 주세요.", "", "", "toast");
         return;
       }
+      // 칸 형식을 받는 동안 커서가 옮겨져도 더블클릭한 때의 자리에 넣도록 위치를 먼저 잡는다.
+      const at = editorRef.current?.captureInsertPoint() ?? null;
       // 칸 형식을 못 구하면(받기 실패·별칭 칸) 값 모양으로 짐작한다.
       const dataType = (
         await columnTypesOf(current.schema, current.table)
@@ -301,6 +309,7 @@ export function AnalogDbViewer() {
       editorRef.current?.insertAtCursor(
         toSqlLiteral(row[colId], dataType),
         "value",
+        at,
       );
     },
     [gfn, columnTypesOf],

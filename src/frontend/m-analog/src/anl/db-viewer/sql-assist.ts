@@ -408,9 +408,20 @@ export function valueAffixes(
 }
 
 const NUMBER_RE = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
+/** 숫자 모양이되 앞에 0 이 붙은 정수(`007`)는 제외하지 않는다 — 숫자 형식 칸이면 그대로 숫자다. */
+const LOOSE_NUMBER_RE = /^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
 const DATE_RE = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.(\d+))?$/;
+/** 시간대가 붙은 TIMESTAMP 글자 — `2026-09-01 00:00:00.0 +09:00` (지역 이름 형식은 글자로 둔다). */
+const TIMESTAMP_TZ_RE =
+  /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.(\d+))?\s*([+-]\d{2}:\d{2})$/;
 const STRING_TYPES = /^(?:N?VARCHAR2?|N?CHAR|LONG|CLOB|NCLOB|ROWID|UROWID)/i;
+const NUMBER_TYPES = /^(?:NUMBER|FLOAT|INTEGER|INT|SMALLINT|DECIMAL|NUMERIC|BINARY_(?:FLOAT|DOUBLE))/i;
 const DATE_TYPES = /^(?:DATE|TIMESTAMP)/i;
+
+/** 소수 초 글자 → `.123`. 0 뿐이거나 없으면 빈 글자. */
+function fractionOf(digits: string | undefined): string {
+  return digits && /[1-9]/.test(digits) ? `.${digits.replace(/0+$/, "")}` : "";
+}
 
 export function quoteString(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
@@ -419,26 +430,36 @@ export function quoteString(value: string): string {
 /**
  * 조회 결과 셀 값 → SQL 리터럴.
  * 서버가 모든 값을 문자열로 보내므로, 같은 표의 칸 정보가 있으면 `dataType` 으로 형식을 정하고
- * 없으면 값의 모양으로 짐작한다.
- *  - null → NULL
- *  - 숫자 → 그대로(앞에 0 이 붙은 글자 `007` 은 문자열)
- *  - 날짜(소수 초 없음) → TO_DATE('…','YYYY-MM-DD HH24:MI:SS'), 소수 초가 있으면 TO_TIMESTAMP(…FF)
- *  - 그 밖 → '값'(작은따옴표 두 번)
+ * 없으면(별칭 칸·조인 결과) 값의 모양으로 짐작한다.
+ *  - null·빈 글자 → NULL (오라클은 빈 문자열을 NULL 로 다루고, 서버도 SQL NULL 을 null 로 보낸다)
+ *  - 문자 형식(CHAR·VARCHAR2·NCHAR 등) → '값'(작은따옴표 두 번)
+ *  - 숫자 형식(NUMBER·FLOAT 등) → 그대로
+ *  - DATE·TIMESTAMP → `TIMESTAMP '…'` (시간이 자정이면 `DATE '…'`), 시간대가 있으면 `TIMESTAMP '… +09:00'`
+ *    서버가 괄호를 거부하므로(TO_DATE(…) 는 실행되지 않는다) 괄호 없는 ANSI 리터럴을 쓰고,
+ *    NLS 날짜 형식과도 무관하다.
+ *  - 형식을 모를 때: 숫자 모양은 그대로(앞에 0 이 붙은 글자 `007` 은 문자열), 날짜 모양은 날짜
+ *  - 그 밖 → '값'
  */
 export function toSqlLiteral(value: unknown, dataType?: string | null): string {
   if (value === null || value === undefined) return "NULL";
   const text = String(value);
+  if (text === "") return "NULL";
   if (dataType && STRING_TYPES.test(dataType)) return quoteString(text);
+  if (dataType && NUMBER_TYPES.test(dataType)) {
+    return LOOSE_NUMBER_RE.test(text) ? text : quoteString(text);
+  }
   const isDateType = !!dataType && DATE_TYPES.test(dataType);
   if (!isDateType && NUMBER_RE.test(text)) return text;
   if (isDateType || !dataType) {
+    const tz = TIMESTAMP_TZ_RE.exec(text);
+    if (tz) {
+      return `TIMESTAMP '${tz[1]} ${tz[2]}${fractionOf(tz[3])} ${tz[4]}'`;
+    }
     const d = DATE_RE.exec(text);
     if (d) {
-      const stamp = `${d[1]} ${d[2]}`;
-      if (d[3] && /[1-9]/.test(d[3])) {
-        return `TO_TIMESTAMP('${stamp}.${d[3]}','YYYY-MM-DD HH24:MI:SS.FF')`;
-      }
-      return `TO_DATE('${stamp}','YYYY-MM-DD HH24:MI:SS')`;
+      const fraction = fractionOf(d[3]);
+      if (d[2] === "00:00:00" && fraction === "") return `DATE '${d[1]}'`;
+      return `TIMESTAMP '${d[1]} ${d[2]}${fraction}'`;
     }
   }
   return quoteString(text);
@@ -449,4 +470,13 @@ export function identifierText(name: string): string {
   return /^[A-Z][A-Z0-9_$#]*$/.test(name)
     ? name
     : `"${name.replace(/"/g, '""')}"`;
+}
+
+/**
+ * 표 제안으로 넣을 글자. 이 화면은 서버가 `FROM 스키마.표` 형식만 받으므로(스키마 생략 불가) 스키마를 붙인다.
+ * 이미 `스키마.` 를 친 뒤라면(`schema` 를 null 로) 표 이름만 넣는다.
+ */
+export function tableInsertText(schema: string | null, table: string): string {
+  const name = identifierText(table);
+  return schema === null ? name : `${identifierText(schema)}.${name}`;
 }
