@@ -70,3 +70,10 @@ cactus:
     max-idle: 60m        # 마지막 조회 뒤 이 시간 동안 조회가 없으면 만료(조회될 때마다 연장)
     connect-timeout: 2s
     read-timeout: 5s
+
+# ── 예약 작업(docs/superpowers/specs/2026-10-08-job-scheduler-design.md §4.7) ──
+# 이 앱은 MCM 이 푸시하는 실행을 접수(POST /internal/job/run)하고 결과를 DB 에 직접 쓴다. 판정·호출 설정(server·modules)은 MCM 만 둔다.
+# schema(기본 MCMAPUSER)·pool-size(기본 4)·agent.enabled(기본 true) 는 기본값을 쓴다.
+dmes:
+  job:
+    module: mpn

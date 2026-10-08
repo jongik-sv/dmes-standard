@@ -2,8 +2,6 @@ package com.dongkuk.dmes.mcm.widget.admin.service;
 
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
-import com.dongkuk.dmes.mcm.widget.collect.CollectConfig;
-import com.dongkuk.dmes.mcm.widget.collect.CollectConfigs;
 import com.dongkuk.dmes.mcm.widget.memo.service.WidgetMemoService;
 import com.dongkuk.dmes.mcm.widget.query.QueryParam;
 import com.dongkuk.dmes.mcm.widget.query.QueryParams;
@@ -17,7 +15,6 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 /**
@@ -37,17 +34,9 @@ final class WidgetDefConfigRules {
     /**
      * 설정을 검사하고 저장할 DATA_SRC 를 돌려준다(쿼리 유형만 값, 그 밖은 null).
      * 쿼리 유형은 config.sql 을 {@link WidgetQueryRunner#validateSql} 로 저장 때도 검사하고, config.params(입력 조건)도 함께 본다(§7.1).
+     * 「자동 수집(collect)」 유형은 2026-10-09 부터 저장하지 않는다(예약 작업 COLLECT 로 옮김).
      */
     static String check(String typeId, String rawDataSrc, String configJson, WidgetQueryRunner queryRunner) {
-        return check(typeId, rawDataSrc, configJson, queryRunner, null);
-    }
-
-    /**
-     * {@link #check(String, String, String, WidgetQueryRunner)} + 정시 수집(collect) http 원천의 호스트 허용 판정. hostAllowed 가 null 이면 저장 때는
-     * 호스트 허용 목록을 보지 않는다(수집기가 실행 때마다 거절한다).
-     */
-    static String check(String typeId, String rawDataSrc, String configJson, WidgetQueryRunner queryRunner,
-                        Predicate<String> hostAllowed) {
         if (configJson.getBytes(StandardCharsets.UTF_8).length > CONFIG_MAX_BYTES) {
             throw invalid("위젯 설정은 200KB 이하로 정합니다.");
         }
@@ -97,8 +86,7 @@ final class WidgetDefConfigRules {
                     }
                 }
             }
-            case CollectConfig.TYPE_ID -> // 정시 수집 — 스펙 2026-10-05 정시 수집 §2 의 규칙을 모두 서버가 판정한다
-                    CollectConfigs.check(config, queryRunner::validateCollectSql, hostAllowed);
+            case "collect" -> throw invalid("「자동 수집」 유형은 저장하지 않는다 — 예약 작업 COLLECT 로 옮겼다(2026-10-09).");
             case "html" -> {
                 JsonNode allowScript = config.get("allowScript");
                 if (allowScript != null && !allowScript.isNull() && !allowScript.isBoolean()) {
