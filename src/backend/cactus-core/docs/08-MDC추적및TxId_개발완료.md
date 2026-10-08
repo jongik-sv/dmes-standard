@@ -13,7 +13,7 @@
 | `RequestIdFilter` | `cactus-core/web/filter/RequestIdFilter.java` | 동일 역할의 코어 구현체 (TxIdFilter 와 협업) |
 | `TxIdGenerator` | `cactus-core/util/TxIdGenerator.java` | 정식 txId 생성: `{userId}-{menuId}-{yyyyMMddHHmmss}-{random3}` |
 
-> **등록 방식**: `CactusWebSecurityAutoConfiguration` 와 각 모듈 SecurityConfig 가 SecurityFilterChain 최상단(RequestIdFilter/ClientKeyFilter 앞)에 명시 등록. SecurityFilterChain 명시 등록 시 servlet 표준 `@Order` 는 무의미하므로 **TxIdFilter 에 `@Order` 어노테이션은 부착되지 않음**.
+> **등록 방식**: `CactusWebSecurityAutoConfiguration#txIdFilterRegistration` 이 보안 필터 체인(FilterChainProxy) **바깥**의 servlet 필터로 등록한다(`Ordered.HIGHEST_PRECEDENCE + 10`, Spring Security 필터 -100 보다 앞). 각 모듈 SecurityConfig 는 SecurityFilterChain 에 추가하지 않는다. FilterChainProxy 가 체인 시작 전에 남기는 `Securing POST ...` 로그와 ClientKey 401 등 보안 단계 거절 로그에도 service_tag 가 붙게 하기 위해서다. 순서는 `FilterRegistrationBean` 의 order 로 정하므로 **TxIdFilter 에 `@Order` 어노테이션은 부착되지 않음**.
 
 ---
 
@@ -21,7 +21,7 @@
 
 ```
 HTTP 요청 진입
-  ↓ TxIdFilter (SecurityFilterChain 최상단에 명시 등록)
+  ↓ TxIdFilter (보안 필터 체인 바깥 servlet 필터, FilterChainProxy 보다 앞)
   ↓ new MDCTemplate() { ... }.mdc(null)        ← OASIS MDCTemplate 진입 (service_tag 자동 설정)
   ↓ MDC.put("txId", UUID.random()[0..8])       ← 임시 ID 8자리
   ↓ filterChain.doFilter(request, response)

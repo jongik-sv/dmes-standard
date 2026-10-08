@@ -144,7 +144,7 @@ http
 
 - 등록 위치: **`CactusWebSecurityAutoConfiguration`** (autoconfigure 패키지)
 - `@ConditionalOnMissingBean(SecurityFilterChain.class)` — 도메인 모듈이 자체 SecurityFilterChain 빈을 등록하면 비활성 (예: portal 의 `com.dongkuk.dmes.mcm.config.SecurityConfig`)
-- 필터 체인: TxIdFilter → RequestIdFilter → ClientKeyFilter (선택) → JwtAuthenticationFilter → UsernamePasswordAuthenticationFilter
+- 필터 체인: (보안 체인 바깥 servlet 필터 TxIdFilter) → RequestIdFilter → ClientKeyFilter (선택) → JwtAuthenticationFilter → UsernamePasswordAuthenticationFilter
 - 도메인별 `hasAnyAuthority("ROLE_*")` 매핑은 미적용. 17번 정리본 참고.
 
 ---
