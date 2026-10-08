@@ -4,13 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import java.math.BigDecimal;
-import java.time.Duration;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -22,30 +21,30 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/** {@link WeatherService} — 10분 캐시, 좌표 소수 둘째 자리 반올림, 실패 시 이전 값 stale, enabled=false, 입력 검사. */
+/** {@link WeatherService} — 수집 값만 읽는다: 좌표 반올림, 수집 시각, 90분 넘으면 stale, 수집 대상 아님·값 없음, 입력 검사. */
 @ExtendWith(MockitoExtension.class)
 class WeatherServiceTest {
 
-    @Mock WeatherProvider provider;
+    @Mock WeatherCollectReader reader;
 
-    private WidgetExtProperties props;
     private ExchangeServiceTest.MutableClock clock;
     private WeatherService service;
 
     private static final BigDecimal LAT = new BigDecimal("37.57");
     private static final BigDecimal LON = new BigDecimal("126.98");
+    /** 시계: 2026-10-09 12:40 서울. */
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 9, 12, 40);
 
     @BeforeEach
     void setUp() {
-        props = new WidgetExtProperties();
-        clock = new ExchangeServiceTest.MutableClock(
-                ZonedDateTime.of(2026, 10, 3, 10, 0, 0, 0, ZoneId.of("Asia/Seoul")).toInstant());
-        service = new WeatherService(props, provider, clock);
+        clock = new ExchangeServiceTest.MutableClock(ZonedDateTime.of(NOW, ZoneId.of("Asia/Seoul")).toInstant());
+        service = new WeatherService(reader, clock);
     }
 
-    private static WeatherReport report(double temp) {
-        return new WeatherReport(new WeatherReport.Current(temp, 0, 5.0, 50),
-                List.of(new WeatherReport.Daily("2026-10-03", 10.0, 20.0, 0, 0)));
+    private static WeatherCollectReader.Result ok(double temp, LocalDateTime collectedAt) {
+        WeatherReport report = new WeatherReport(new WeatherReport.Current(temp, 0, 5.0, 50),
+                List.of(new WeatherReport.Daily("2026-10-09", 10.0, 20.0, 0, 0)));
+        return new WeatherCollectReader.Result(WeatherCollectReader.Status.OK, report, collectedAt);
     }
 
     private static BigDecimal n(String v) {
@@ -58,78 +57,59 @@ class WeatherServiceTest {
     }
 
     @Test
-    @DisplayName("좌표는 소수 둘째 자리로 반올림해 묻고, 같은 칸은 10분 동안 캐시에서 준다")
-    void cachesTenMinutesByRoundedCoordinate() {
-        when(provider.fetch(LAT, LON)).thenReturn(report(18.0), report(19.0));
+    @DisplayName("좌표를 소수 둘째 자리로 반올림해 수집 값을 읽고, 수집 시각을 담는다")
+    void readsRoundedCoordinate() {
+        when(reader.read(LAT, LON)).thenReturn(ok(18.0, LocalDateTime.of(2026, 10, 9, 12, 30)));
 
-        Map<String, Object> first = service.weather(n("37.5665"), n("126.978"));
-        clock.now = clock.now.plus(Duration.ofMinutes(9).plusSeconds(59));
-        Map<String, Object> cached = service.weather(n("37.5711"), n("126.9849")); // 같은 칸(37.57, 126.98)
+        Map<String, Object> result = service.weather(n("37.5665"), n("126.978"));
 
-        verify(provider, times(1)).fetch(any(), any());
-        assertThat(temp(first)).isEqualTo(18.0);
-        assertThat(temp(cached)).isEqualTo(18.0);
-        assertThat(cached).doesNotContainKey("stale");
-
-        clock.now = clock.now.plusSeconds(1); // 10분 지남
-        Map<String, Object> refreshed = service.weather(n("37.5665"), n("126.978"));
-        verify(provider, times(2)).fetch(LAT, LON);
-        assertThat(temp(refreshed)).isEqualTo(19.0);
+        assertThat(temp(result)).isEqualTo(18.0);
+        assertThat(result).containsEntry("collectedAt", "2026-10-09T12:30").doesNotContainKeys("stale", "uncollected", "empty");
     }
 
     @Test
-    @DisplayName("실패 시 이전 값이 있으면 그것 + stale:true, 없으면 「날씨 정보를 불러오지 못했습니다」")
-    void failureFallsBackToPreviousValue() {
-        when(provider.fetch(LAT, LON)).thenReturn(report(18.0))
-                .thenThrow(new WidgetExtException("날씨(Open-Meteo) 요청 실패: HTTP 503"));
-        service.weather(LAT, LON);
-        clock.now = clock.now.plus(Duration.ofMinutes(11));
+    @DisplayName("수집 시각이 90분을 넘으면 stale:true — 정확히 90분은 아직 정상")
+    void staleAfterNinetyMinutes() {
+        when(reader.read(LAT, LON)).thenReturn(ok(18.0, NOW.minusMinutes(90)));
+        assertThat(service.weather(LAT, LON)).doesNotContainKey("stale");
 
+        when(reader.read(LAT, LON)).thenReturn(ok(18.0, NOW.minusMinutes(90).minusSeconds(1)));
         Map<String, Object> stale = service.weather(LAT, LON);
-
         assertThat(stale).containsEntry("stale", true);
         assertThat(temp(stale)).isEqualTo(18.0);
-
-        when(provider.fetch(n("35.18"), n("129.08"))).thenThrow(new WidgetExtException("timeout"));
-        assertThatThrownBy(() -> service.weather(n("35.1796"), n("129.0756")))
-                .isInstanceOf(BusinessException.class)
-                .hasMessage("날씨 정보를 불러오지 못했습니다");
     }
 
     @Test
-    @DisplayName("enabled=false — 외부 호출 없음, 캐시가 없으면 빈 결과 + disabled:true, 지난 캐시는 stale")
-    void disabledUsesCacheOnly() {
-        props.setEnabled(false);
-        Map<String, Object> empty = service.weather(LAT, LON);
-        verify(provider, never()).fetch(any(), any());
-        assertThat(empty).containsEntry("disabled", true).containsEntry("current", null);
-        assertThat((List<?>) empty.get("daily")).isEmpty();
+    @DisplayName("수집 대상이 아닌 좌표 → uncollected:true, 값 없음")
+    void uncollected() {
+        when(reader.read(LAT, LON)).thenReturn(new WeatherCollectReader.Result(WeatherCollectReader.Status.UNCOLLECTED, null, null));
 
-        props.setEnabled(true);
-        when(provider.fetch(LAT, LON)).thenReturn(report(18.0));
-        service.weather(LAT, LON);
-        props.setEnabled(false);
+        Map<String, Object> result = service.weather(LAT, LON);
 
-        Map<String, Object> fresh = service.weather(LAT, LON);
-        assertThat(temp(fresh)).isEqualTo(18.0);
-        assertThat(fresh).doesNotContainKeys("stale", "disabled");
-
-        clock.now = clock.now.plus(Duration.ofMinutes(30));
-        Map<String, Object> old = service.weather(LAT, LON);
-        assertThat(old).containsEntry("stale", true);
-        verify(provider, times(1)).fetch(any(), any());
+        assertThat(result).containsEntry("uncollected", true).containsEntry("current", null).doesNotContainKey("empty");
+        assertThat((List<?>) result.get("daily")).isEmpty();
     }
 
     @Test
-    @DisplayName("입력 검사 — 위도 −90~90, 경도 −180~180, 둘 다 필수")
+    @DisplayName("수집된 값이 아직 없음 → empty:true")
+    void empty() {
+        when(reader.read(LAT, LON)).thenReturn(new WeatherCollectReader.Result(WeatherCollectReader.Status.EMPTY, null, null));
+
+        Map<String, Object> result = service.weather(LAT, LON);
+
+        assertThat(result).containsEntry("empty", true).containsEntry("current", null).doesNotContainKey("uncollected");
+    }
+
+    @Test
+    @DisplayName("입력 검사 — 위도 −90~90, 경도 −180~180, 둘 다 필수. 틀리면 읽기도 하지 않는다")
     void validatesCoordinates() {
         assertThatThrownBy(() -> service.weather(null, LON)).isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> service.weather(LAT, null)).isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> service.weather(n("90.001"), LON)).isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> service.weather(LAT, n("-180.5"))).isInstanceOf(BusinessException.class);
-        verify(provider, never()).fetch(any(), any());
+        verify(reader, never()).read(any(), any());
 
-        when(provider.fetch(n("-90.00"), n("180.00"))).thenReturn(report(-30.0));
+        when(reader.read(n("-90.00"), n("180.00"))).thenReturn(ok(-30.0, NOW));
         assertThat(temp(service.weather(n("-90"), n("180")))).isEqualTo(-30.0);
     }
 }

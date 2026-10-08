@@ -388,6 +388,8 @@ mcm-core `widget.query` 패키지의 `WidgetQueryExecutor`. mcm 업무 코드에
 
 ### 8.2 날씨
 
+> **2026-10-09 변경**: 날씨는 외부를 직접 부르지 않고 예약 작업 수집(`mcm.weather.*`)이 모은 값을 읽는다. 아래 `WeatherProvider`·10분 캐시·실패 시 stale 는 옛 구조이며 새 구조는 `2026-10-09-weather-collect-design.md` 를 따른다.
+
 - `WeatherProvider`: 기본 `OpenMeteoProvider`(`https://api.open-meteo.com/v1/forecast?latitude&longitude&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia/Seoul&forecast_days=3`, 키 없음).
 - 캐시: 좌표(소수 둘째 자리 반올림)별 10분. 실패면 「날씨 정보를 불러오지 못했습니다」.
 - 날씨 코드 → 이름·아이콘 표는 렌더러가 갖는다(WMO 코드).

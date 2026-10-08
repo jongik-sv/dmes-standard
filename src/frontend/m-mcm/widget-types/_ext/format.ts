@@ -152,3 +152,11 @@ export function weekdayLabel(date: string): string {
   const [y, m, day] = d.split("-").map(Number);
   return WEEKDAYS[new Date(Date.UTC(y, m - 1, day)).getUTCDay()];
 }
+
+/** 날씨 수집 시각(yyyy-MM-ddTHH:mm, 서울) → 「기준 HH:mm」. 오늘이 아니면 「기준 M/d HH:mm」. 모양이 틀리면 빈 글자. today 는 시험용(기본: 지금). */
+export function formatCollectedAt(value: string, today: Date = new Date()): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}:\d{2})/.exec(value);
+  if (!m) return "";
+  const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  return `${m[1]}-${m[2]}-${m[3]}` === ymd ? `기준 ${m[4]}` : `기준 ${Number(m[2])}/${Number(m[3])} ${m[4]}`;
+}
