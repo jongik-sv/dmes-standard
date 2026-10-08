@@ -248,13 +248,20 @@ describe("부작용 점검", () => {
     expect(api().getDisplayedRowCount()).toBe(3);
   });
 
-  it("검색어가 비어 있을 때 행추가 단추는 검색 칸을 건드리지 않는다(칸을 다시 마운트하지 않는다)", async () => {
+  it("검색어를 치고 디바운스가 끝나기 전에 행추가를 눌러도 기다리던 검색이 뒤늦게 걸리지 않는다", async () => {
     const onDataChange = vi.fn();
     await show(panel(gridEl(), { showAddButton: true, columns: COLUMNS, data: DATA, onDataChange, rowKey: "code" }));
-    const input = tid("grid-quick-filter-input");
+    const input = tid("grid-quick-filter-input") as HTMLInputElement;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "창고");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
     await click(document.getElementById("btn_grid_add"));
-    await wait(40);
-    expect(tid("grid-quick-filter-input")).toBe(input);
+    await wait(GRID_QUICK_FILTER_DEBOUNCE_MS + 100);
+    expect(quickText()).toBe("");
+    expect(api().getGridOption("quickFilterText")).toBe("");
+    expect(api().getDisplayedRowCount()).toBe(3);
   });
 });
 

@@ -234,9 +234,10 @@ function GridPanelComponent({
 
   // 내장 행추가·행복사는 검색어를 비운다 — 새 행이 검색에 걸리지 않아 보이지 않는 일이 없게. 검색 칸은 자기 입력값을 들고 있어 키를 바꿔 다시 마운트한다(그리드에 걸린 검색어 = 빈 칸으로 시작).
   const [quickResetKey, setQuickResetKey] = useState(0);
+  // 검색어가 아직 그리드에 걸리기 전(입력 뒤 디바운스 대기 중)이어도 다시 마운트해야 기다리던 타이머가 끊긴다 — 그래서 검색 칸이 있으면 늘 키를 올린다.
   const resetQuickFilter = useCallback(() => {
-    if (!filterTarget || !filterTarget.getQuickFilterText?.()) return;
-    filterTarget.setQuickFilter?.("");
+    if (!filterTarget) return;
+    if (filterTarget.getQuickFilterText?.()) filterTarget.setQuickFilter?.("");
     setQuickResetKey((k) => k + 1);
   }, [filterTarget]);
 
