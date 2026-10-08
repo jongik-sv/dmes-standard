@@ -27,14 +27,14 @@ import java.lang.reflect.Modifier;
  *       ({@code sch.<모듈>.<클래스>.<메서드>}, 모듈은 logback 의 {@code DMES_MODULE} 값)</li>
  * </ul>
  * 이 {@code sch.} 접두어로 {@link ScheduledJobLogFilter} 가 예약 작업 줄을 업무 로그에서 빼
- * {@code logs/sch/dmes-sch.log} 한 파일로 모은다.
+ * {@code logs/sch/dmes-sch.날짜.0.log} 한 파일로 모은다.
  * 끝나면 {@link MDCTemplate} 이 MDC 를 비우므로 스레드 풀의 다음 작업으로 새지 않는다.
  *
  * <p>작업 이름은 {@code serviceId/action} 줄의 정규식({@code [\w.-]+/\w+})에 맞게 콜론 없이 만든다.
  * analog 서비스 목록은 태그가 있는 줄이면 항목을 만들고 소요 시간은 아래 끝 줄에서 읽는다.
  * <pre>
- * sch.widgetCollector.collectMinute/run
- * Service end - service name [sch.widgetCollector.collectMinute] RunTime : [12]
+ * sch.mcm.widgetCollector.collectMinute/run
+ * Service end - service name [sch.mcm.widgetCollector.collectMinute] RunTime : [12]
  * </pre>
  * 이 두 줄은 {@code OasisServiceExecutor} 와 같은 문구라 analog 쪽 수정이 필요 없다.
  */

@@ -56,6 +56,8 @@ class LogSearchControllerSchModuleTest {
         sb.append(String.format(LINE, 0, 0, 9, "pool-3-thread-1", "Cd34", "sch.mdm.mdmRevisionPoller.poll", "INFO ", "c.d.d.c.s.ScheduledJobLogContext", "Service end - service name [sch.mdm.mdmRevisionPoller.poll] RunTime : [7]"));
         sb.append(String.format(LINE, 0, 0, 12, "pool-2-thread-1", "Ab12", "sch.mcm.widgetCollector.collectMinute", "INFO ", "c.d.d.c.s.ScheduledJobLogContext", "Service end - service name [sch.mcm.widgetCollector.collectMinute] RunTime : [11]"));
         Files.writeString(sch.resolve("dmes-sch.2026-10-08.0.log"), sb.toString(), StandardCharsets.UTF_8);
+        String next = String.format(LINE, 0, 0, 5, "pool-3-thread-1", "Ef56", "sch.mdm.mdmRevisionPoller.poll", "INFO ", "c.d.d.c.s.ScheduledJobLogContext", "sch.mdm.mdmRevisionPoller.poll/run next-day");
+        Files.writeString(sch.resolve("dmes-sch.2026-10-09.0.log"), next.replace("2026-10-08", "2026-10-09"), StandardCharsets.UTF_8);
         registry.add("analog-express.log_base_dir", () -> logDir.toString() + "/{MODULE}");
     }
 
@@ -112,18 +114,31 @@ class LogSearchControllerSchModuleTest {
     }
 
     @Test
-    void 날짜_범위_밖이면_sch_파일이_검색에_들어오지_않는다() throws Exception {
-        mockMvc.perform(get("/log/range/time")
+    void 하루_범위는_그_날짜_파일만_읽고_여러_날_범위는_날짜_파일들을_이어서_읽는다() throws Exception {
+        searchSch("20261009100000", "20261009100059")
+                .andExpect(jsonPath("$.log", containsString("next-day")))
+                .andExpect(jsonPath("$.log", not(containsString("sch.mcm.widgetCollector"))));
+        searchSch("20261008100000", "20261008100059")
+                .andExpect(jsonPath("$.log", containsString("sch.mcm.widgetCollector")))
+                .andExpect(jsonPath("$.log", not(containsString("next-day"))));
+        searchSch("20261008100000", "20261009100059")
+                .andExpect(jsonPath("$.log", containsString("sch.mcm.widgetCollector")))
+                .andExpect(jsonPath("$.log", containsString("next-day")));
+        searchSch("20261010100000", "20261010100059")
+                .andExpect(jsonPath("$.log", not(containsString("sch."))));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions searchSch(String from, String to) throws Exception {
+        return mockMvc.perform(get("/log/range/time")
                         .header("X-Client-Key", "test-analog-client-key")
-                        .param("from", "20261009100000")
-                        .param("to", "20261009100059")
+                        .param("from", from)
+                        .param("to", to)
                         .param("keyword", b64("sch."))
                         .param("serverType", "app")
                         .param("module", "sch")
                         .param("clientType", "app")
                         .param("ignoreCase", "false")
                         .param("byThread", "false"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.log", not(containsString("sch.mcm"))));
+                .andExpect(status().isOk());
     }
 }
