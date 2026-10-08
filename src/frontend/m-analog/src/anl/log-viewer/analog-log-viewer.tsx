@@ -27,6 +27,8 @@ import {
 } from "./log-viewer-api";
 import { addSecondsToYyyymmddhh24miss, toYyyymmddhh24miss } from "./time-util";
 import { bindSql } from "./sql-bind";
+import { createRequestCounter } from "./request-counter";
+import { useStableCallback } from "./use-stable-callback";
 import { useWorkspaces } from "./use-workspaces";
 import { WorkspaceTabBar } from "./workspace-tab-bar";
 import { SearchSidebar } from "./search-sidebar";
@@ -102,8 +104,8 @@ function LogViewerMain({ meta }: { meta: AnalogMeta }) {
   const gfn = useGfnMessage();
   const defaultModule = meta.modules[0]?.value ?? "";
   const ws = useWorkspaces(defaultModule);
-  // 동시 요청 카운터 — >0 이면 wave 로딩 표시 (원본 loadingRequestCnt 동일).
-  const [requestCount, setRequestCount] = useState(0);
+  // 동시 요청 카운터 — 진행 중이면 wave 로딩 표시 (원본 loadingRequestCnt 동일). 탭바만 구독한다.
+  const [requests] = useState(createRequestCounter);
   const [activeDocTab, setActiveDocTab] = useState<DocTabKey>("text");
   const [serviceListOpen, setServiceListOpen] = useState(false);
   const logEditorRef = useRef<LogMonacoEditorHandle>(null);
@@ -112,8 +114,8 @@ function LogViewerMain({ meta }: { meta: AnalogMeta }) {
   const activeWs = ws.activeWorkspace;
   const logValue = ws.logDataMap[activeWs.workspaceId] ?? "";
 
-  const beginLoading = () => setRequestCount((count) => count + 1);
-  const endLoading = () => setRequestCount((count) => Math.max(0, count - 1));
+  const beginLoading = requests.begin;
+  const endLoading = requests.end;
 
   /**
    * cond → API 파라미터 변환 + 일시 14자리 검증.
@@ -309,6 +311,32 @@ function LogViewerMain({ meta }: { meta: AnalogMeta }) {
     [],
   );
 
+  // 아래 핸들러는 memo 한 자식(사이드바·탭바·Binder)에 넘기므로 참조를 고정한다 — 최신 클로저는 useStableCallback 이 부른다.
+  const handleCondChange = useStableCallback((patch: Partial<SearchCond>) =>
+    ws.updateCond(activeWs.workspaceId, patch),
+  );
+  const handleSearch = useStableCallback(() => {
+    void runSearch({ type: "search" });
+    setActiveDocTab("text");
+  });
+  const handleDownload = useStableCallback(() =>
+    void runSearch({ type: "download" }),
+  );
+  const handleRefresh = useStableCallback(() => void runRefresh());
+  const handleJsonSearch = useStableCallback(() => {
+    void runSearch({ type: "json" });
+    setActiveDocTab("json");
+  });
+  const handleToggleServiceList = useCallback(
+    () => setServiceListOpen((prev) => !prev),
+    [],
+  );
+  const handleSelectDocTab = useStableCallback(selectDocTab);
+  const handleBinderFlush = useStableCallback((value: string) =>
+    ws.setBindData(activeWs.workspaceId, value),
+  );
+  const handleRunBinder = useStableCallback(runBinderFromSelection);
+
   const closeServiceList = useCallback(() => setServiceListOpen(false), []);
 
   return (
@@ -316,7 +344,7 @@ function LogViewerMain({ meta }: { meta: AnalogMeta }) {
       <WorkspaceTabBar
         workspaces={ws.workspaces}
         activeWorkspaceId={ws.activeWorkspaceId}
-        loading={requestCount > 0}
+        requests={requests}
         stageTitle={meta.stageTitle}
         onSelect={ws.selectWorkspace}
         onAdd={ws.addWorkspace}
@@ -328,19 +356,13 @@ function LogViewerMain({ meta }: { meta: AnalogMeta }) {
           cond={activeWs.cond}
           serviceListCount={activeWs.serviceList.length}
           serviceListOpen={serviceListOpen}
-          onCondChange={(patch) => ws.updateCond(activeWs.workspaceId, patch)}
-          onSearch={() => {
-            void runSearch({ type: "search" });
-            setActiveDocTab("text");
-          }}
-          onDownload={() => void runSearch({ type: "download" })}
-          onRefresh={() => void runRefresh()}
-          onRunBinder={runBinderFromSelection}
-          onJsonSearch={() => {
-            void runSearch({ type: "json" });
-            setActiveDocTab("json");
-          }}
-          onToggleServiceList={() => setServiceListOpen((prev) => !prev)}
+          onCondChange={handleCondChange}
+          onSearch={handleSearch}
+          onDownload={handleDownload}
+          onRefresh={handleRefresh}
+          onRunBinder={handleRunBinder}
+          onJsonSearch={handleJsonSearch}
+          onToggleServiceList={handleToggleServiceList}
         />
         <div className="anl-content">
           <div className="anl-doc-panes">
@@ -370,11 +392,11 @@ function LogViewerMain({ meta }: { meta: AnalogMeta }) {
               <SqlBinderEditor
                 ref={binderRef}
                 value={activeWs.bindData}
-                onFlush={(value) => ws.setBindData(activeWs.workspaceId, value)}
+                onFlush={handleBinderFlush}
               />
             </div>
           </div>
-          <DocTabBar active={activeDocTab} onSelect={selectDocTab} />
+          <DocTabBar active={activeDocTab} onSelect={handleSelectDocTab} />
         </div>
       </div>
       <FloatingPanel

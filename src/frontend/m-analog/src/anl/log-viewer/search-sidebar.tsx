@@ -12,7 +12,7 @@
  *  - 사장된 serviceLogOnly 토글은 이식하지 않음.
  */
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import { Button, Checkbox } from "@dk-oasis/shared/form";
 import { SearchArea, SearchField } from "@dk-oasis/shared/layout";
 import { timeGenerator } from "./time-util";
@@ -77,7 +77,7 @@ function TreeIcon() {
   );
 }
 
-export function SearchSidebar({
+function SearchSidebarComponent({
   modules,
   cond,
   serviceListCount,
@@ -243,3 +243,6 @@ export function SearchSidebar({
     </aside>
   );
 }
+
+/** 탭 전환·로딩 카운터처럼 이 폼과 무관한 상위 상태 변경에 다시 그리지 않는다(핸들러는 상위가 고정해 넘긴다). */
+export const SearchSidebar = memo(SearchSidebarComponent);

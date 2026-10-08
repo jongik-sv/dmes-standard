@@ -120,14 +120,17 @@ function ServiceListPanelComponent({
     [onLogClick, onJsonClick],
   );
 
-  const rows = useMemo(
-    () =>
-      serviceList.map((item, index) => ({
-        ...item,
-        id: String(index),
-      })),
-    [serviceList],
-  );
+  const rows = useMemo(() => {
+    // 행 키는 서비스 태그·시작시각·서비스명으로 만든다. 순서·행 수가 바뀐 조회에서도 같은 서비스 행은 같은 키라
+    // ag-grid 가 행 노드를 제자리에서 덮어쓰지 않는다. 겹치는 키(같은 태그·시각)는 뒤에 순번을 붙여 유일하게 한다.
+    const seen = new Map<string, number>();
+    return serviceList.map((item) => {
+      const base = `${item.serviceTag}|${item.startTime}|${item.serviceName}`;
+      const count = seen.get(base) ?? 0;
+      seen.set(base, count + 1);
+      return { ...item, id: count === 0 ? base : `${base}#${count}` };
+    });
+  }, [serviceList]);
 
   return (
     <div className="anl-service-popup">

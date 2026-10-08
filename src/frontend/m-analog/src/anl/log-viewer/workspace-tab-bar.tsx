@@ -7,14 +7,16 @@
  * 탭바 줄 우측에 배치한다.
  */
 
+import { useSyncExternalStore } from "react";
 import { Button } from "@dk-oasis/shared/form";
+import type { RequestCounter } from "./request-counter";
 import type { Workspace } from "./types";
 
 interface WorkspaceTabBarProps {
   workspaces: Workspace[];
   activeWorkspaceId: string;
-  /** 로딩 중 여부 (동시 요청 카운터 > 0) — wave 애니메이션 표시. */
-  loading: boolean;
+  /** 동시 요청 카운터 — 진행 중 요청이 있으면 wave 애니메이션 표시(탭바만 구독한다). */
+  requests: RequestCounter;
   stageTitle: string;
   onSelect: (workspaceId: string) => void;
   onAdd: () => void;
@@ -35,12 +37,17 @@ function LoadingWave() {
 export function WorkspaceTabBar({
   workspaces,
   activeWorkspaceId,
-  loading,
+  requests,
   stageTitle,
   onSelect,
   onAdd,
   onRemove,
 }: WorkspaceTabBarProps) {
+  const loading = useSyncExternalStore(
+    requests.subscribe,
+    requests.isLoading,
+    () => false,
+  );
   const removable = workspaces.length > 1;
 
   return (

@@ -7,6 +7,7 @@
  * 재배치는 automaticLayout 이 담당).
  */
 
+import { memo } from "react";
 import type { DocTabKey } from "./types";
 
 const DOC_TABS: { key: DocTabKey; label: string }[] = [
@@ -20,7 +21,7 @@ interface DocTabBarProps {
   onSelect: (tab: DocTabKey) => void;
 }
 
-export function DocTabBar({ active, onSelect }: DocTabBarProps) {
+function DocTabBarComponent({ active, onSelect }: DocTabBarProps) {
   return (
     <div className="anl-doc-tab-bar" role="tablist" aria-label="문서 탭">
       {DOC_TABS.map((tab) => (
@@ -38,3 +39,5 @@ export function DocTabBar({ active, onSelect }: DocTabBarProps) {
     </div>
   );
 }
+
+export const DocTabBar = memo(DocTabBarComponent);
