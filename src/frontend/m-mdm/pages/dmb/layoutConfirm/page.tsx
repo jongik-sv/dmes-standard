@@ -216,12 +216,21 @@ export default function LayoutConfirmPage({ tabId }: LayoutConfirmPageProps) {
   };
 
   return (
-    <MdmPageLayout group="dmb" screenId={SCREEN_ID} title="레이아웃 확정">
+    <MdmPageLayout group="dmb" screenId={SCREEN_ID} title="레이아웃 확정"
+      buttons={[
+        { id: "btn_search", label: "조회", type: "primary", action: "search", onClick: () => void refreshList(keyword) },
+      ]}
+    >
+      <SearchArea onSearch={() => void refreshList(keyword)} autoSearch>
+        <SearchField label="검색어" defaultKey="keyword" value={keyword} onChange={setKeyword}>
+          <Input data-testid="lc-keyword" value={keyword} placeholder="이름" onChange={setKeyword} />
+        </SearchField>
+      </SearchArea>
       <ContentBody root resizable storageKey="mdm.dmb.layoutConfirm">
         <ContentPanel width="30%">
           <DraftList
-            drafts={drafts} keyword={keyword} selected={target} onKeyword={setKeyword}
-            onSearch={() => void refreshList(keyword)} onShowAll={() => void refreshList(keyword, true)} totalCount={draftsTotal}
+            drafts={drafts} selected={target}
+            onShowAll={() => void refreshList(keyword, true)} totalCount={draftsTotal}
             onSelect={(d) => choose({ layoutId: d.LAYOUT_ID, ver: normVer(d.VER) })}
           />
         </ContentPanel>
@@ -295,10 +304,7 @@ export default function LayoutConfirmPage({ tabId }: LayoutConfirmPageProps) {
 
 interface DraftListProps {
   drafts: DraftRow[] | null;
-  keyword: string;
   selected: Target | null;
-  onKeyword: (v: string) => void;
-  onSearch: () => void;
   /** [전체 보기] — 상한 없이 다시 받는다. */
   onShowAll: () => void;
   /** 상한으로 잘렸을 때의 전체 건수(안 잘렸으면 null). */
@@ -306,7 +312,7 @@ interface DraftListProps {
   onSelect: (d: DraftRow) => void;
 }
 
-function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onShowAll, totalCount, onSelect }: DraftListProps) {
+function DraftList({ drafts, selected, onShowAll, totalCount, onSelect }: DraftListProps) {
   const rows = useMemo(
     () => (drafts ?? []).map((d) => ({
       ...d, rowId: draftKey(d.LAYOUT_ID, d.VER), kindText: kindLabel(d.LAYOUT_KIND), verText: fmtVer(d.VER), ownerText: d.OWNER_ID ?? "—",
@@ -322,14 +328,6 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onShowAll, 
           <GridLimitNotice shownCount={drafts?.length ?? 0} totalCount={totalCount} onShowAll={onShowAll} testId="lc-list-limit" />
         </div>
       )}
-      <div style={{ ...section, paddingTop: "var(--spacing-sm)" }}>
-        <SearchArea onSearch={onSearch} autoSearch>
-          <SearchField label="검색어" defaultKey="keyword" value={keyword} onChange={onKeyword}>
-            <Input data-testid="lc-keyword" value={keyword} placeholder="이름" onChange={onKeyword} />
-          </SearchField>
-          <Button data-testid="lc-search" type="submit">조회</Button>
-        </SearchArea>
-      </div>
       <div style={{ ...section, flex: 1, minHeight: 0 }}>
         <AgDataGrid gridId="draftList"
           columnSizing="fit"

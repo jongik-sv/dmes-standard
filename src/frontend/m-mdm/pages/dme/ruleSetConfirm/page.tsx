@@ -271,12 +271,21 @@ export default function RuleSetConfirmPage({ tabId }: RuleSetConfirmPageProps) {
   };
 
   return (
-    <MdmPageLayout group="dme" screenId={SCREEN_ID} title="룰 세트 확정">
+    <MdmPageLayout group="dme" screenId={SCREEN_ID} title="룰 세트 확정"
+      buttons={[
+        { id: "btn_search", label: "조회", type: "primary", action: "search", onClick: () => void refreshList(keyword) },
+      ]}
+    >
+      <SearchArea onSearch={() => void refreshList(keyword)} autoSearch>
+        <SearchField label="검색어" defaultKey="keyword" value={keyword} onChange={setKeyword}>
+          <Input data-testid="rsc-keyword" value={keyword} placeholder="세트 ID·이름" onChange={setKeyword} />
+        </SearchField>
+      </SearchArea>
       <ContentBody root resizable storageKey="mdm.dme.ruleSetConfirm">
         <ContentPanel width="30%">
           <DraftList
-            drafts={drafts} keyword={keyword} selected={target} onKeyword={setKeyword}
-            onSearch={() => void refreshList(keyword)} total={draftsTotal} onShowAll={() => void refreshList(keyword, true)} onSelect={(d) => choose({ setId: d.setId, ver: d.ver })}
+            drafts={drafts} selected={target}
+            total={draftsTotal} onShowAll={() => void refreshList(keyword, true)} onSelect={(d) => choose({ setId: d.setId, ver: d.ver })}
           />
         </ContentPanel>
 
@@ -372,16 +381,13 @@ function draftKey(setId: string, ver: string | null): string {
 
 interface DraftListProps {
   drafts: PendingSetDraft[] | null;
-  keyword: string;
   selected: Target | null;
-  onKeyword: (v: string) => void;
-  onSearch: () => void;
   total: number | null;
   onShowAll: () => void;
   onSelect: (d: PendingSetDraft) => void;
 }
 
-function DraftList({ drafts, keyword, selected, onKeyword, onSearch, total, onShowAll, onSelect }: DraftListProps) {
+function DraftList({ drafts, selected, total, onShowAll, onSelect }: DraftListProps) {
   const draftRows = useMemo(
     () => (drafts ?? []).map((d) => ({ ...d, rowId: draftKey(d.setId, d.ver) }) as unknown as Record<string, unknown>),
     [drafts],
@@ -389,14 +395,6 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, total, onSh
   return (
     <div data-testid="rsc-list" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={cardTitle}>확정 대기 목록</div>
-      <div style={{ ...section, paddingTop: "var(--spacing-sm)" }}>
-        <SearchArea onSearch={onSearch} autoSearch>
-          <SearchField label="검색어" defaultKey="keyword" value={keyword} onChange={onKeyword}>
-            <Input data-testid="rsc-keyword" value={keyword} placeholder="세트 ID·이름" onChange={onKeyword} />
-          </SearchField>
-          <Button data-testid="rsc-search" type="submit">조회</Button>
-        </SearchArea>
-      </div>
       <div style={{ padding: "0 var(--spacing-md)" }}>
         <GridLimitNotice shownCount={drafts?.length ?? 0} totalCount={total} onShowAll={onShowAll} testId="rsc-list-limit" />
       </div>

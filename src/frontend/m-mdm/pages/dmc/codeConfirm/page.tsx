@@ -284,12 +284,21 @@ export default function CodeConfirmPage({ tabId }: CodeConfirmPageProps) {
   };
 
   return (
-    <MdmPageLayout group="dmc" screenId={SCREEN_ID} title="버전 확정">
+    <MdmPageLayout group="dmc" screenId={SCREEN_ID} title="버전 확정"
+      buttons={[
+        { id: "btn_search", label: "조회", type: "primary", action: "search", onClick: () => void refreshList(keyword) },
+      ]}
+    >
+      <SearchArea onSearch={() => void refreshList(keyword)} autoSearch>
+        <SearchField label="검색어" defaultKey="keyword" value={keyword} onChange={setKeyword}>
+          <Input data-testid="cf-keyword" value={keyword} placeholder="마루 코드 ID·이름" onChange={setKeyword} />
+        </SearchField>
+      </SearchArea>
       <ContentBody root resizable storageKey="mdm.dmc.codeConfirm">
         <ContentPanel width="30%">
           <DraftList
-            drafts={drafts} keyword={keyword} selected={target} onKeyword={setKeyword}
-            onSearch={() => void refreshList(keyword)} onSelect={(d) => choose({ maruCodeId: d.maruCodeId, ver: d.ver })}
+            drafts={drafts} selected={target}
+            onSelect={(d) => choose({ maruCodeId: d.maruCodeId, ver: d.ver })}
           />
         </ContentPanel>
 
@@ -369,14 +378,11 @@ export default function CodeConfirmPage({ tabId }: CodeConfirmPageProps) {
 
 interface DraftListProps {
   drafts: PendingDraft[] | null;
-  keyword: string;
   selected: Target | null;
-  onKeyword: (v: string) => void;
-  onSearch: () => void;
   onSelect: (d: PendingDraft) => void;
 }
 
-function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onSelect }: DraftListProps) {
+function DraftList({ drafts, selected, onSelect }: DraftListProps) {
   const draftRows = useMemo(
     () => (drafts ?? []).map((d) => ({ ...d, rowId: `${d.maruCodeId}-${d.ver}` }) as unknown as Record<string, unknown>),
     [drafts],
@@ -384,14 +390,6 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onSelect }:
   return (
     <div data-testid="cf-list" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={cardTitle}>확정 대기 목록</div>
-      <div style={{ ...section, paddingTop: "var(--spacing-sm)" }}>
-        <SearchArea onSearch={onSearch} autoSearch>
-          <SearchField label="검색어" defaultKey="keyword" value={keyword} onChange={onKeyword}>
-            <Input data-testid="cf-keyword" value={keyword} placeholder="마루 코드 ID·이름" onChange={onKeyword} />
-          </SearchField>
-          <Button data-testid="cf-search" type="submit">조회</Button>
-        </SearchArea>
-      </div>
       <div style={{ ...section, flex: 1, minHeight: 0 }}>
         <AgDataGrid gridId="draftList"
           columnSizing="fit"

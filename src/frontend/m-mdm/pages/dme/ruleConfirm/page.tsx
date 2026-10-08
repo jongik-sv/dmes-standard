@@ -290,12 +290,21 @@ export default function RuleConfirmPage({ tabId }: RuleConfirmPageProps) {
   const contract = view ? contractState(view.firstVersion, checked?.items ?? null, checked?.contractWarnings ?? []) : null;
 
   return (
-    <MdmPageLayout group="dme" screenId={SCREEN_ID} title="버전 확정">
+    <MdmPageLayout group="dme" screenId={SCREEN_ID} title="버전 확정"
+      buttons={[
+        { id: "btn_search", label: "조회", type: "primary", action: "search", onClick: () => void refreshList(keyword) },
+      ]}
+    >
+      <SearchArea onSearch={() => void refreshList(keyword)} autoSearch>
+        <SearchField label="검색어" defaultKey="keyword" value={keyword} onChange={setKeyword}>
+          <Input data-testid="rc-keyword" value={keyword} placeholder="룰 ID·이름" onChange={setKeyword} />
+        </SearchField>
+      </SearchArea>
       <ContentBody root resizable storageKey="mdm.dme.ruleConfirm">
         <ContentPanel width="30%">
           <DraftList
-            drafts={drafts} keyword={keyword} selected={target} onKeyword={setKeyword}
-            onSearch={() => void refreshList(keyword)} total={draftsTotal} onShowAll={() => void refreshList(keyword, true)} onSelect={(d) => choose({ maruRuleId: d.maruRuleId, ver: d.ver })}
+            drafts={drafts} selected={target}
+            total={draftsTotal} onShowAll={() => void refreshList(keyword, true)} onSelect={(d) => choose({ maruRuleId: d.maruRuleId, ver: d.ver })}
           />
         </ContentPanel>
 
@@ -386,16 +395,13 @@ function draftKey(maruRuleId: string, ver: string | null): string {
 
 interface DraftListProps {
   drafts: PendingDraft[] | null;
-  keyword: string;
   selected: Target | null;
-  onKeyword: (v: string) => void;
-  onSearch: () => void;
   total: number | null;
   onShowAll: () => void;
   onSelect: (d: PendingDraft) => void;
 }
 
-function DraftList({ drafts, keyword, selected, onKeyword, onSearch, total, onShowAll, onSelect }: DraftListProps) {
+function DraftList({ drafts, selected, total, onShowAll, onSelect }: DraftListProps) {
   const draftRows = useMemo(
     () => (drafts ?? []).map((d) => ({ ...d, rowId: draftKey(d.maruRuleId, d.ver) }) as unknown as Record<string, unknown>),
     [drafts],
@@ -403,14 +409,6 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, total, onSh
   return (
     <div data-testid="rc-list" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={cardTitle}>확정 대기 목록</div>
-      <div style={{ ...section, paddingTop: "var(--spacing-sm)" }}>
-        <SearchArea onSearch={onSearch} autoSearch>
-          <SearchField label="검색어" defaultKey="keyword" value={keyword} onChange={onKeyword}>
-            <Input data-testid="rc-keyword" value={keyword} placeholder="룰 ID·이름" onChange={onKeyword} />
-          </SearchField>
-          <Button data-testid="rc-search" type="submit">조회</Button>
-        </SearchArea>
-      </div>
       <div style={{ padding: "0 var(--spacing-md)" }}>
         <GridLimitNotice shownCount={drafts?.length ?? 0} totalCount={total} onShowAll={onShowAll} testId="rc-list-limit" />
       </div>

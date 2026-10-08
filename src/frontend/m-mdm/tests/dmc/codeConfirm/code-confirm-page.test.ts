@@ -11,6 +11,10 @@ import { openMdmPage, takeMdmPageParams } from "@/shell";
 import { pickDateTime } from "../../helpers/datetime-picker";
 import CodeConfirmPage from "../../../pages/dmc/codeConfirm/page";
 
+/** 상단 버튼 줄의 [조회] 단추 — 확정 화면은 조회 영역(SearchArea) + 상단 조회 단추 구조다. */
+const searchButton = () =>
+  Array.from(document.querySelectorAll(".page-layout__header-buttons button")).find((b) => b.textContent === "조회") as HTMLElement;
+
 const RBAC_STORE_KEY = "__dkOasisButtonRbacStore__";
 const CHECK_NOS = ["1", "2", "2-1", "2-2", "3", "4", "5", "6", "7", "8"];
 
@@ -329,7 +333,7 @@ describe("CodeConfirmPage", () => {
     }) as typeof fetch;
     await render();
     await typeInto("cf-keyword", "NO_SUCH");
-    await click(byTestId("cf-search"));
+    await click(searchButton());
     expect(actions("search").at(-1)?.params).toEqual({ keyword: "NO_SUCH" });
     expect(byTestId("cf-list-empty")?.textContent).toContain("확정할 DRAFT 가 없습니다");
   });
@@ -346,14 +350,14 @@ describe("CodeConfirmPage", () => {
       return jsonResponse({ grids: { buttons: { rows: rbacRows } } });
     }) as typeof fetch;
     await render();
-    await click(byTestId("cf-search"));
+    await click(searchButton());
     expect(byTestId("cf-list-empty")?.textContent).toContain("확정할 DRAFT 가 없습니다");
     const gridBefore = byTestId("cf-list")!.querySelector(".ag-root-wrapper");
     expect(gridBefore).not.toBeNull();
 
     searchRows = [{ maruCodeId: "PROC_CD", maruCodeName: "공정 코드", ver: "2.000", verLabel: "v2.000",
       verKind: "MAJOR", ownerId: "tester", codeStatus: "INUSE" }];
-    await click(byTestId("cf-search"));
+    await click(searchButton());
     expect(gridRow("cf-list", "PROC_CD-2.000")).not.toBeNull();
     expect(byTestId("cf-list")!.querySelector(".ag-root-wrapper")).toBe(gridBefore);
   });

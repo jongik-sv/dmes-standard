@@ -20,6 +20,10 @@ import LayoutMngPage from "../../pages/dmb/layoutMng/page";
 import { FIRST_SEARCH_LIMIT } from "../../src/oasis-screen";
 import { RBAC_STORE_KEY, findButton, flush, installDomStorage, jsonResponse } from "../dme/helpers/render";
 
+/** 상단 버튼 줄의 [조회] 단추 — 확정 화면은 조회 영역(SearchArea) + 상단 조회 단추 구조다. */
+const searchButton = () =>
+  Array.from(document.querySelectorAll(".page-layout__header-buttons button")).find((b) => b.textContent === "조회") as HTMLElement;
+
 let container: HTMLDivElement;
 let root: Root | null = null;
 const originalFetch = globalThis.fetch;
@@ -147,7 +151,7 @@ describe("layoutConfirm 첫 조회 상한", () => {
     expect(searchParams[1]).not.toHaveProperty("limit");
     expect(q("lc-list-limit")).toBeNull();
 
-    await click(q("lc-search")!);
+    await click(searchButton());
     expect(searchParams[2].limit).toBe(FIRST_SEARCH_LIMIT);
     expect(q("lc-list-limit")).not.toBeNull();
   });

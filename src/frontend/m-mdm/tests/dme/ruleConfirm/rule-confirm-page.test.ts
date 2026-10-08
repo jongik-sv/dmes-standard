@@ -13,6 +13,10 @@ import RuleConfirmPage from "../../../pages/dme/ruleConfirm/page";
 import { pickDateTime } from "../../helpers/datetime-picker";
 import { RBAC_STORE_KEY, flush, installDomStorage, jsonResponse, typeInto, visibleText } from "../helpers/render";
 
+/** 상단 버튼 줄의 [조회] 단추 — 확정 화면은 조회 영역(SearchArea) + 상단 조회 단추 구조다. */
+const searchButton = () =>
+  Array.from(document.querySelectorAll(".page-layout__header-buttons button")).find((b) => b.textContent === "조회") as HTMLElement;
+
 const ITEMS = ["SAVE_CHECKS", "NOT_EMPTY", "TEST_CASES", "RESULT_VAR_RELEASED"] as const;
 
 type Issue = { severity: string; code: string; message: string; field: string | null; itemKey: string | null };
@@ -198,7 +202,7 @@ describe("RuleConfirmPage", () => {
     }) as typeof fetch;
     await render();
     await typeTestId("rc-keyword", "NO_SUCH");
-    await click(byTestId("rc-search"));
+    await click(searchButton());
     expect(actions("search").at(-1)?.params).toEqual({ keyword: "NO_SUCH", limit: 1000 });
     expect(byTestId("rc-list-empty")?.textContent).toContain("확정할 DRAFT 가 없습니다");
   });
@@ -220,12 +224,12 @@ describe("RuleConfirmPage", () => {
     expect(byTestId("rc-row-QLTY_GRD_JDG-2.000")).not.toBeNull();
 
     empty = true;
-    await click(byTestId("rc-search"));
+    await click(searchButton());
     await vi.waitFor(() => expect(byTestId("rc-list-empty")?.textContent).toContain("확정할 DRAFT 가 없습니다"));
     expect(gridRoot()).toBe(first);
 
     empty = false;
-    await click(byTestId("rc-search"));
+    await click(searchButton());
     await vi.waitFor(() => expect(byTestId("rc-row-QLTY_GRD_JDG-2.000")).not.toBeNull());
     expect(byTestId("rc-list-empty")).toBeNull();
     expect(gridRoot()).toBe(first);
