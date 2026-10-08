@@ -26,6 +26,7 @@
 set -uo pipefail
 # shellcheck source=lib/common.sh
 _SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.   # dirname 대신(프로세스 0개)
+. "$_SD/lib/js-bridge.sh"; if _jsb_on COORD_STATE; then _jsb_exec "$_SD/coord-state" "$@"; fi   # node 판(스위치 COORD_JS_COORD_STATE)
 . "$_SD/lib/common.sh"
 coord_default_repo
 
