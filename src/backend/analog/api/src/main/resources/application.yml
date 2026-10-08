@@ -3,6 +3,19 @@ server:
   compression:
     enabled: true
 
+# ---------------------------------------------------------------------------
+# 읽기전용 DB 뷰어 (ADR-0002) — url 미설정 시 뷰어 비활성, analog 기동은 정상.
+# (오류 사유 본문은 DbViewerExceptionHandler 가 직접 만든다.)
+# ---------------------------------------------------------------------------
+analog:
+  db:
+    allowed-schemas: "${ANALOG_DB_ALLOWED_SCHEMAS:MCMAPUSER,MCM_SOURCE,MCM_BACKUP,MCAAPUSER,MDMAPUSER}"
+    max-rows: 200
+    query-timeout-seconds: 10
+    url: "${ANALOG_DB_URL:}"
+    username: "${ANALOG_DB_USERNAME:}"
+    password: "${ANALOG_DB_PASSWORD:}"
+
 spring:
   application:
     name: analog

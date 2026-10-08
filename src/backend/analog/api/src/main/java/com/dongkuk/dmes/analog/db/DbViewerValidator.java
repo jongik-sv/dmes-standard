@@ -1,0 +1,197 @@
+package com.dongkuk.dmes.analog.db;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * DB 뷰어 SQL 검증기 (ADR-0002 D3).
+ *
+ * <p>허용 모양 (v1): 단일 {@code SELECT ... FROM 스키마.테이블 [WHERE ...]} 단문.
+ * 식별자는 오라클 비인용 식별자 규칙(영문 대문자 시작, 30자 이하)으로 검증하고,
+ * 실행 SQL은 파싱 결과에서 재조립한다 — 원문 패스스루를 하지 않는다.
+ * {@code SELECT *} 는 {@code ALL_TAB_COLUMNS} 조회 후 명시 컬럼으로 재작성된다.
+ *
+ * <p>SQL 주석 표기(행 주석, 블록 주석)는 전면 거부한다 — WHERE 뒤에 붙는
+ * 건수 상한을 주석아웃하는 우회를 막기 위함이다.
+ */
+public final class DbViewerValidator {
+
+    private DbViewerValidator() {
+    }
+
+    /** 오라클 비인용 식별자 (대문자 정규화 후 검사). */
+    private static final Pattern IDENT = Pattern.compile("[A-Z][A-Z0-9_$#]{0,29}");
+
+    /** FROM 스키마.테이블 — 인용부호 허용, 스키마 생략 불가. */
+    private static final Pattern FROM_CLAUSE = Pattern.compile(
+            "\\bFROM\\s+\"?([A-Za-z][\\w$#]{0,29})\"?\\.\"?([A-Za-z][\\w$#]{0,29})\"?",
+            Pattern.CASE_INSENSITIVE);
+
+    /** WHERE 절 시작 (단어 경계 — WHEREabouts 같은 컬럼명 오탐 방지). */
+    private static final Pattern WHERE_CLAUSE = Pattern.compile("\\bWHERE\\b", Pattern.CASE_INSENSITIVE);
+
+    /** 금지 키워드 — DML/DDL/복문/집합연산/페이징 우회/서브쿼리 통로. */
+    private static final Pattern FORBIDDEN = Pattern.compile(
+            "\\b(INSERT|UPDATE|DELETE|MERGE|CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|EXECUTE|CALL|COMMENT|"
+                    + "UNION|MINUS|INTERSECT|JOIN|GROUP\\s+BY|ORDER\\s+BY|HAVING|FOR\\s+UPDATE|"
+                    + "ROWNUM|OFFSET|FETCH|CONNECT\\s+BY|START\\s+WITH|MODEL)\\b|\\b(TOP|LIMIT)\\b",
+            Pattern.CASE_INSENSITIVE);
+
+    /** 민감 컬럼 패턴 — 자격증명·토큰 노출 차단 (일치 시 조회 거부/제외). */
+    private static final Pattern SENSITIVE_COLUMN = Pattern.compile(
+            "PASS|PWD|HASH|TOKEN|SECRET|PRIVATE");
+
+    /** SQL 전체 길이 상한. */
+    static final int MAX_SQL_LENGTH = 4000;
+
+    /** WHERE 절 길이 상한. */
+    static final int MAX_WHERE_LENGTH = 500;
+
+    /** SELECT 목록 컬럼 개수 상한. */
+    static final int MAX_COLUMNS = 100;
+
+    /** 파싱 결과 — 실행 SQL 재조립 재료. */
+    public record ParsedQuery(String schema, String table, boolean star, List<String> columns, String where) {
+    }
+
+    public static String normalizeSchema(String schema) {
+        return schema == null ? "" : schema.trim().toUpperCase(Locale.ROOT);
+    }
+
+    public static void checkSchemaAllowed(String schema, Set<String> allowed) {
+        String normalized = normalizeSchema(schema);
+        if (normalized.isEmpty() || !IDENT.matcher(normalized).matches()) {
+            throw new DbViewerException(400, "허용되지 않은 스키마 형식입니다.");
+        }
+        if (!allowed.contains(normalized)) {
+            throw new DbViewerException(400, "허용되지 않은 스키마입니다: " + normalized);
+        }
+    }
+
+    public static void checkIdentifier(String kind, String name) {
+        String normalized = name == null ? "" : name.trim().toUpperCase(Locale.ROOT);
+        if (!IDENT.matcher(normalized).matches()) {
+            throw new DbViewerException(400, kind + " 이름 형식이 올바르지 않습니다.");
+        }
+        if (SENSITIVE_COLUMN.matcher(normalized).find()) {
+            throw new DbViewerException(400, kind + "에 민감 정보가 포함되어 조회할 수 없습니다.");
+        }
+    }
+
+    /** 민감 컬럼 여부 — {@code SELECT *} 확장 시 제외용. */
+    public static boolean isSensitiveColumn(String columnName) {
+        return columnName != null && SENSITIVE_COLUMN.matcher(
+                columnName.trim().toUpperCase(Locale.ROOT)).find();
+    }
+
+    /**
+     * SELECT 단문을 파싱한다. 위반 시 400 예외.
+     */
+    public static ParsedQuery parseSelect(String sql, Set<String> allowedSchemas) {
+        if (sql == null || sql.isBlank()) {
+            throw new DbViewerException(400, "SQL을 입력해 주세요.");
+        }
+        String trimmed = sql.trim();
+        if (trimmed.length() > MAX_SQL_LENGTH) {
+            throw new DbViewerException(400, "SQL이 너무 깁니다. (최대 " + MAX_SQL_LENGTH + "자)");
+        }
+        if (trimmed.contains(";")) {
+            throw new DbViewerException(400, "복문(;)은 실행할 수 없습니다.");
+        }
+        if (trimmed.contains("--") || trimmed.contains("/*") || trimmed.contains("*/")) {
+            throw new DbViewerException(400, "주석 표기는 사용할 수 없습니다.");
+        }
+        if (trimmed.contains("(") || trimmed.contains(")")) {
+            throw new DbViewerException(400, "괄호(함수·서브쿼리)는 v1에서 지원하지 않습니다.");
+        }
+        if (!trimmed.regionMatches(true, 0, "SELECT", 0, 6)) {
+            throw new DbViewerException(400, "SELECT 문만 실행할 수 있습니다.");
+        }
+        if (FORBIDDEN.matcher(trimmed).find()) {
+            throw new DbViewerException(400, "허용되지 않은 키워드가 포함되어 있습니다.");
+        }
+        Matcher from = FROM_CLAUSE.matcher(trimmed);
+        if (!from.find()) {
+            throw new DbViewerException(400, "FROM 스키마.테이블 형식을 확인해 주세요. (스키마 생략 불가)");
+        }
+        if (from.find()) {
+            throw new DbViewerException(400, "단일 테이블 조회만 지원합니다.");
+        }
+        from.reset();
+        from.find();
+        String schema = normalizeSchema(from.group(1));
+        String table = from.group(2).trim().toUpperCase(Locale.ROOT);
+        checkSchemaAllowed(schema, allowedSchemas);
+        checkIdentifier("테이블", table);
+
+        String selectList = trimmed.substring(6, from.start()).trim();
+        if (selectList.isEmpty()) {
+            throw new DbViewerException(400, "조회할 컬럼을 지정해 주세요.");
+        }
+        boolean star = selectList.equals("*") || selectList.endsWith(".*");
+        List<String> columns = null;
+        if (!star) {
+            columns = new ArrayList<>();
+            for (String item : selectList.split(",")) {
+                String col = item.trim().replace("\"", "").toUpperCase(Locale.ROOT);
+                // 테이블 접두(별칭·테이블명.) 허용 — 검증은 컬럼명만 한다.
+                int dot = col.lastIndexOf('.');
+                if (dot >= 0) {
+                    col = col.substring(dot + 1);
+                }
+                checkIdentifier("컬럼", col);
+                columns.add(col);
+            }
+            if (columns.isEmpty()) {
+                throw new DbViewerException(400, "조회할 컬럼을 지정해 주세요.");
+            }
+            if (columns.size() > MAX_COLUMNS) {
+                throw new DbViewerException(400, "컬럼이 너무 많습니다. (최대 " + MAX_COLUMNS + "개)");
+            }
+        }
+
+        String where = null;
+        Matcher whereMatcher = WHERE_CLAUSE.matcher(trimmed);
+        // FROM 절 이후의 WHERE만 인정한다 (SELECT 목록의 WHERExxx 컬럼명 오탐 방지).
+        int searchFrom = from.start();
+        if (whereMatcher.find(searchFrom)) {
+            where = trimmed.substring(whereMatcher.end()).trim();
+            if (where.isEmpty()) {
+                throw new DbViewerException(400, "WHERE 조건이 비어 있습니다.");
+            }
+            if (where.length() > MAX_WHERE_LENGTH) {
+                throw new DbViewerException(400, "WHERE 조건이 너무 깁니다. (최대 " + MAX_WHERE_LENGTH + "자)");
+            }
+            if (FORBIDDEN.matcher(where).find()) {
+                throw new DbViewerException(400, "WHERE 절에 허용되지 않은 키워드가 있습니다.");
+            }
+        }
+        return new ParsedQuery(schema, table, star, columns, where);
+    }
+
+    /**
+     * 파싱 결과 + 확정 컬럼 목록으로 실행 SQL을 재조립한다. 건수 상한은 항상 강제한다.
+     */
+    public static String buildSql(ParsedQuery parsed, List<String> effectiveColumns, int limit) {
+        if (effectiveColumns == null || effectiveColumns.isEmpty()) {
+            throw new DbViewerException(400, "조회할 컬럼이 없습니다.");
+        }
+        StringBuilder sb = new StringBuilder("SELECT ");
+        for (int i = 0; i < effectiveColumns.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append('"').append(effectiveColumns.get(i)).append('"');
+        }
+        sb.append(" FROM \"").append(parsed.schema()).append("\".\"").append(parsed.table()).append('"');
+        if (parsed.where() != null) {
+            sb.append(" WHERE ").append(parsed.where());
+        }
+        sb.append(" FETCH FIRST ").append(limit).append(" ROWS ONLY");
+        return sb.toString();
+    }
+}

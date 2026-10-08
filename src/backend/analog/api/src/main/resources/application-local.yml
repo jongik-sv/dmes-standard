@@ -1,0 +1,11 @@
+# ── local: DB 뷰어(ADR-0002) 로컬 기본값 ──
+# be-run 은 모든 모듈을 local 프로파일로 띄운다. ANALOG_DB_* env 를 주지 않아도 DB 뷰어가 켜지게 로컬 PDB 를 기본으로 둔다.
+#   url      ANALOG_DB_URL → be-run --pdb=<PDB> 가 내보내는 DMES_ORA_URL → localhost:1521/L_MAIN(메인 서버 PDB)
+#   계정     ANALOG_DB_USERNAME → MCMAPUSER(로컬 검증용 직결 — 운영은 읽기전용 유저 발급, ADR-0002 잔여)
+#   비밀번호 ANALOG_DB_PASSWORD → DMES_ORA_PASSWORD → 로컬 공통값(mcm application-local.yml 과 같다)
+# 풀은 첫 조회 때 연결하므로 PDB 가 없어도 analog 기동은 막히지 않는다(조회만 실패한다).
+analog:
+  db:
+    url: "${ANALOG_DB_URL:${DMES_ORA_URL:jdbc:oracle:thin:@//localhost:1521/L_MAIN}}"
+    username: "${ANALOG_DB_USERNAME:MCMAPUSER}"
+    password: "${ANALOG_DB_PASSWORD:${DMES_ORA_PASSWORD:dmes_password_123}}"
