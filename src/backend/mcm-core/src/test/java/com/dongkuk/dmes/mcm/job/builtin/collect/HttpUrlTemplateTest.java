@@ -76,11 +76,11 @@ class HttpUrlTemplateTest {
     void encodesValues() {
         HttpSource h = parsed("https://api.example.com/q/{{a}}?s={{b}}");
         Map<String, Object> vars = new HashMap<>();
-        vars.put("a", "x/y?z#w@evil.com:80");
+        vars.put("a", "x?z#w@evil.com:80");
         vars.put("b", "한글 &k=1\r\n%41");
         var uri = HttpUrlTemplate.render(h, vars, TODAY);
         assertThat(uri.getHost()).isEqualTo("api.example.com");
-        assertThat(uri.getRawPath()).isEqualTo("/q/x%2Fy%3Fz%23w%40evil.com%3A80");
+        assertThat(uri.getRawPath()).isEqualTo("/q/x%3Fz%23w%40evil.com%3A80");
         assertThat(uri.getRawQuery()).isEqualTo("s=%ED%95%9C%EA%B8%80%20%26k%3D1%0D%0A%2541");
         assertThat(uri.getRawFragment()).isNull();
         assertThat(uri.getRawUserInfo()).isNull();
@@ -138,6 +138,40 @@ class HttpUrlTemplateTest {
         assertThat(HttpUrlTemplate.render(parsed("https://a.com/v1/{{x}}.{{y}}/z"), Map.of("x", "a", "y", "b"), TODAY).getRawPath()).isEqualTo("/v1/a.b/z");
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"../../admin", "a/b", "a\\b", "%2e%2e", "50%", "x..y"})
+    @DisplayName("치환: 경로 자리 값에 / \\ % .. 가 있으면 거절한다 — 인코딩한 %2F·%5C 를 대상 서버가 풀 수 있다")
+    void pathPlaceholderRejectsTraversalChars(String value) {
+        HttpSource h = parsed("https://api.example.com/q/{{a}}/y");
+        assertRejected(h, Map.of("a", value), "경로 자리");
+    }
+
+    @Test
+    @DisplayName("치환: 쿼리 자리는 같은 값도 인코딩만 하고 받는다(% 도 %25 로)")
+    void queryPlaceholderOnlyEncodes() {
+        HttpSource h = parsed("https://api.example.com/q?s={{a}}#f{{b}}");
+        var uri = HttpUrlTemplate.render(h, Map.of("a", "../../admin 50%", "b", "a/b"), TODAY);
+        assertThat(uri.getRawPath()).isEqualTo("/q");
+        assertThat(uri.getRawQuery()).isEqualTo("s=..%2F..%2Fadmin%2050%25");
+    }
+
+    @Test
+    @DisplayName("치환: 경로 자리 값이 한글이어도 그대로 인코딩된다")
+    void pathPlaceholderAllowsKorean() {
+        HttpSource h = parsed("https://api.example.com/q/{{a}}");
+        assertThat(HttpUrlTemplate.render(h, Map.of("a", "설비1"), TODAY).getRawPath()).isEqualTo("/q/%EC%84%A4%EB%B9%84" + "1");
+    }
+
+    @Test
+    @DisplayName("치환: 저장 상한(500자)을 넘어도 치환 상한(2000자) 안이면 받고, 넘으면 길이 때문임을 밝혀 거절한다")
+    void renderedLengthLimit() {
+        HttpSource h = parsed("https://api.example.com/q?s={{a}}&t={{b}}");
+        String ko100 = "가".repeat(100);   // 인코딩하면 900자 — 저장 상한 500 은 넘고 치환 상한 2000 은 안 넘는다
+        var uri = HttpUrlTemplate.render(h, Map.of("a", ko100, "b", "x"), TODAY);
+        assertThat(uri.getRawQuery().length()).isGreaterThan(CollectConfigs.URL_MAX).isLessThan(HttpUrlTemplate.RENDERED_MAX);
+        assertRejected(h, Map.of("a", "가".repeat(200), "b", "가".repeat(100)), "2000자");   // 1800 + 900 > 2000
+    }
+
     private static void assertRejected(HttpSource h, Map<String, Object> vars, String messagePart) {
         assertThatThrownBy(() -> HttpUrlTemplate.render(h, vars, TODAY)).isInstanceOf(CollectException.class).hasMessageContaining(messagePart);
     }
@@ -161,11 +195,19 @@ class HttpUrlTemplateTest {
         f.server.verify();
         assertThat(items).extracting(CollectItem::key).containsExactly("P");
 
+        // 경로 자리에 호스트·경로를 바꾸려는 글자가 든 값은 거절한다 — 인코딩해도 대상 서버가 %2F 를 풀 수 있다. 호출도 이름 풀이도 하지 않는다.
         Fixture g = new Fixture();
-        g.server.expect(requestTo("https://api.example.com/q/%40evil.com%2F..%2F?d=1")).andRespond(withSuccess("{\"data\":{\"price\":1}}", MediaType.APPLICATION_JSON));
-        g.source.collect(parsed("https://api.example.com/q/{{symbol}}?d=1"), TODAY, Map.of("symbol", "@evil.com/../"));
+        assertThatThrownBy(() -> g.source.collect(parsed("https://api.example.com/q/{{symbol}}?d=1"), TODAY, Map.of("symbol", "@evil.com/../")))
+                .isInstanceOf(CollectException.class);
         g.server.verify();
-        assertThat(g.resolved).containsExactly("api.example.com");
+        assertThat(g.resolved).isEmpty();
+
+        // 같은 값이 쿼리 자리에서는 인코딩만 되어 같은 호스트로 나간다.
+        Fixture q = new Fixture();
+        q.server.expect(requestTo("https://api.example.com/q?s=%40evil.com%2F..%2F")).andRespond(withSuccess("{\"data\":{\"price\":1}}", MediaType.APPLICATION_JSON));
+        q.source.collect(parsed("https://api.example.com/q?s={{symbol}}"), TODAY, Map.of("symbol", "@evil.com/../"));
+        q.server.verify();
+        assertThat(q.resolved).containsExactly("api.example.com");
     }
 
     @Test
