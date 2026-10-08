@@ -510,7 +510,11 @@ describe("DecisionTableCard 렌더", () => {
     container.style.overflowY = "auto";
     const grid = () => container.querySelector<HTMLElement>('[data-testid="dt-grid"]')!;
     const toggle = () => container.querySelector<HTMLButtonElement>('[data-testid="dt-expand"]')!;
+    // 바깥 상자는 높이를 정하지 않고(내용만큼 늘어난다), 표 높이는 머리글 3단 + 최소 5행 + 여백 24px 이상이다.
     const fit = grid().style.height;
+    expect(fit).toBe("");
+    const tableHeight = () => parseInt(grid().querySelector<HTMLElement>(".cm-data-grid")!.style.height, 10);
+    expect(tableHeight()).toBeGreaterThanOrEqual(3 * 28 + 5 * 26 + 24);
     expect(toggle().textContent).toBe("크게 보기");
     await act(async () => {
       toggle().click();
