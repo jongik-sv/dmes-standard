@@ -1,0 +1,346 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_jobSchedMng" targetNamespace="http://dongkuk.com/dmes/mcm" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="jobSchedMng" name="예약 작업 관리 서비스" isExecutable="true">
+    <bpmn:documentation>예약 작업 관리 화면(csa/jobSchedMng) — 작업 정의·이력·처리기 조회와 저장·사용 변경·지금 실행. 설계 2026-10-08-job-scheduler-design §7. 메뉴 권한(RBAC)으로 보호된다.</bpmn:documentation>
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_list</bpmn:outgoing>
+      <bpmn:outgoing>flow_get</bpmn:outgoing>
+      <bpmn:outgoing>flow_save</bpmn:outgoing>
+      <bpmn:outgoing>flow_setUse</bpmn:outgoing>
+      <bpmn:outgoing>flow_runNow</bpmn:outgoing>
+      <bpmn:outgoing>flow_history</bpmn:outgoing>
+      <bpmn:outgoing>flow_cronPreview</bpmn:outgoing>
+      <bpmn:outgoing>flow_handlers</bpmn:outgoing>
+      <bpmn:outgoing>flow_delete</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="listTask" name="작업 목록" camunda:class="jobSchedMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="list" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.job.server.dto.JobSchedMngRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_list</bpmn:incoming>
+      <bpmn:outgoing>flow_list_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endList">
+      <bpmn:incoming>flow_list_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="getTask" name="작업 상세 조회" camunda:class="jobSchedMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="get" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.job.server.dto.JobSchedMngRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_get</bpmn:incoming>
+      <bpmn:outgoing>flow_get_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endGet">
+      <bpmn:incoming>flow_get_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="saveTask" name="작업 저장" camunda:class="jobSchedMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="save" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.job.server.dto.JobSchedMngRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_save</bpmn:incoming>
+      <bpmn:outgoing>flow_save_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSave">
+      <bpmn:incoming>flow_save_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="setUseTask" name="사용 여부 변경" camunda:class="jobSchedMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="setUse" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.job.server.dto.JobSchedMngRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_setUse</bpmn:incoming>
+      <bpmn:outgoing>flow_setUse_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSetUse">
+      <bpmn:incoming>flow_setUse_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="runNowTask" name="지금 실행" camunda:class="jobSchedMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="runNow" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.job.server.dto.JobSchedMngRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_runNow</bpmn:incoming>
+      <bpmn:outgoing>flow_runNow_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endRunNow">
+      <bpmn:incoming>flow_runNow_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="historyTask" name="실행 이력 조회" camunda:class="jobSchedMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="history" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.job.server.dto.JobSchedMngRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_history</bpmn:incoming>
+      <bpmn:outgoing>flow_history_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endHistory">
+      <bpmn:incoming>flow_history_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="cronPreviewTask" name="일정 미리보기" camunda:class="jobSchedMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="cronPreview" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.job.server.dto.JobSchedMngRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_cronPreview</bpmn:incoming>
+      <bpmn:outgoing>flow_cronPreview_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endCronPreview">
+      <bpmn:incoming>flow_cronPreview_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="handlersTask" name="처리기 목록" camunda:class="jobSchedMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="handlers" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.job.server.dto.JobSchedMngRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_handlers</bpmn:incoming>
+      <bpmn:outgoing>flow_handlers_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endHandlers">
+      <bpmn:incoming>flow_handlers_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="deleteTask" name="작업 삭제" camunda:class="jobSchedMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="delete" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.job.server.dto.JobSchedMngRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_delete</bpmn:incoming>
+      <bpmn:outgoing>flow_delete_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endDelete">
+      <bpmn:incoming>flow_delete_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_list" name="list" sourceRef="actionGateway" targetRef="listTask" />
+    <bpmn:sequenceFlow id="flow_list_end" sourceRef="listTask" targetRef="endList" />
+    <bpmn:sequenceFlow id="flow_get" name="get" sourceRef="actionGateway" targetRef="getTask" />
+    <bpmn:sequenceFlow id="flow_get_end" sourceRef="getTask" targetRef="endGet" />
+    <bpmn:sequenceFlow id="flow_save" name="save" sourceRef="actionGateway" targetRef="saveTask" />
+    <bpmn:sequenceFlow id="flow_save_end" sourceRef="saveTask" targetRef="endSave" />
+    <bpmn:sequenceFlow id="flow_setUse" name="setUse" sourceRef="actionGateway" targetRef="setUseTask" />
+    <bpmn:sequenceFlow id="flow_setUse_end" sourceRef="setUseTask" targetRef="endSetUse" />
+    <bpmn:sequenceFlow id="flow_runNow" name="runNow" sourceRef="actionGateway" targetRef="runNowTask" />
+    <bpmn:sequenceFlow id="flow_runNow_end" sourceRef="runNowTask" targetRef="endRunNow" />
+    <bpmn:sequenceFlow id="flow_history" name="history" sourceRef="actionGateway" targetRef="historyTask" />
+    <bpmn:sequenceFlow id="flow_history_end" sourceRef="historyTask" targetRef="endHistory" />
+    <bpmn:sequenceFlow id="flow_cronPreview" name="cronPreview" sourceRef="actionGateway" targetRef="cronPreviewTask" />
+    <bpmn:sequenceFlow id="flow_cronPreview_end" sourceRef="cronPreviewTask" targetRef="endCronPreview" />
+    <bpmn:sequenceFlow id="flow_handlers" name="handlers" sourceRef="actionGateway" targetRef="handlersTask" />
+    <bpmn:sequenceFlow id="flow_handlers_end" sourceRef="handlersTask" targetRef="endHandlers" />
+    <bpmn:sequenceFlow id="flow_delete" name="delete" sourceRef="actionGateway" targetRef="deleteTask" />
+    <bpmn:sequenceFlow id="flow_delete_end" sourceRef="deleteTask" targetRef="endDelete" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="jobSchedMng">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="642" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="635" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="listTask_di" bpmnElement="listTask">
+        <dc:Bounds x="400" y="60" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endList_di" bpmnElement="endList">
+        <dc:Bounds x="582" y="82" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="getTask_di" bpmnElement="getTask">
+        <dc:Bounds x="400" y="200" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endGet_di" bpmnElement="endGet">
+        <dc:Bounds x="582" y="222" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveTask_di" bpmnElement="saveTask">
+        <dc:Bounds x="400" y="340" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSave_di" bpmnElement="endSave">
+        <dc:Bounds x="582" y="362" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="setUseTask_di" bpmnElement="setUseTask">
+        <dc:Bounds x="400" y="480" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSetUse_di" bpmnElement="endSetUse">
+        <dc:Bounds x="582" y="502" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="runNowTask_di" bpmnElement="runNowTask">
+        <dc:Bounds x="400" y="620" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endRunNow_di" bpmnElement="endRunNow">
+        <dc:Bounds x="582" y="642" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="historyTask_di" bpmnElement="historyTask">
+        <dc:Bounds x="400" y="760" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endHistory_di" bpmnElement="endHistory">
+        <dc:Bounds x="582" y="782" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="cronPreviewTask_di" bpmnElement="cronPreviewTask">
+        <dc:Bounds x="400" y="900" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endCronPreview_di" bpmnElement="endCronPreview">
+        <dc:Bounds x="582" y="922" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="handlersTask_di" bpmnElement="handlersTask">
+        <dc:Bounds x="400" y="1040" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endHandlers_di" bpmnElement="endHandlers">
+        <dc:Bounds x="582" y="1062" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="deleteTask_di" bpmnElement="deleteTask">
+        <dc:Bounds x="400" y="1180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endDelete_di" bpmnElement="endDelete">
+        <dc:Bounds x="582" y="1202" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="660" />
+        <di:waypoint x="245" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_list_di" bpmnElement="flow_list">
+        <di:waypoint x="270" y="635" />
+        <di:waypoint x="270" y="100" />
+        <di:waypoint x="400" y="100" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="315" y="83" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_list_end_di" bpmnElement="flow_list_end">
+        <di:waypoint x="500" y="100" />
+        <di:waypoint x="582" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_get_di" bpmnElement="flow_get">
+        <di:waypoint x="270" y="635" />
+        <di:waypoint x="270" y="240" />
+        <di:waypoint x="400" y="240" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="315" y="223" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_get_end_di" bpmnElement="flow_get_end">
+        <di:waypoint x="500" y="240" />
+        <di:waypoint x="582" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_di" bpmnElement="flow_save">
+        <di:waypoint x="270" y="635" />
+        <di:waypoint x="270" y="380" />
+        <di:waypoint x="400" y="380" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="315" y="363" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_end_di" bpmnElement="flow_save_end">
+        <di:waypoint x="500" y="380" />
+        <di:waypoint x="582" y="380" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_setUse_di" bpmnElement="flow_setUse">
+        <di:waypoint x="270" y="635" />
+        <di:waypoint x="270" y="520" />
+        <di:waypoint x="400" y="520" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="315" y="503" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_setUse_end_di" bpmnElement="flow_setUse_end">
+        <di:waypoint x="500" y="520" />
+        <di:waypoint x="582" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_runNow_di" bpmnElement="flow_runNow">
+        <di:waypoint x="295" y="660" />
+        <di:waypoint x="400" y="660" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="327.5" y="643" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_runNow_end_di" bpmnElement="flow_runNow_end">
+        <di:waypoint x="500" y="660" />
+        <di:waypoint x="582" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_history_di" bpmnElement="flow_history">
+        <di:waypoint x="270" y="685" />
+        <di:waypoint x="270" y="800" />
+        <di:waypoint x="400" y="800" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="315" y="783" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_history_end_di" bpmnElement="flow_history_end">
+        <di:waypoint x="500" y="800" />
+        <di:waypoint x="582" y="800" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_cronPreview_di" bpmnElement="flow_cronPreview">
+        <di:waypoint x="270" y="685" />
+        <di:waypoint x="270" y="940" />
+        <di:waypoint x="400" y="940" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="315" y="923" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_cronPreview_end_di" bpmnElement="flow_cronPreview_end">
+        <di:waypoint x="500" y="940" />
+        <di:waypoint x="582" y="940" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_handlers_di" bpmnElement="flow_handlers">
+        <di:waypoint x="270" y="685" />
+        <di:waypoint x="270" y="1080" />
+        <di:waypoint x="400" y="1080" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="315" y="1063" width="56" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_handlers_end_di" bpmnElement="flow_handlers_end">
+        <di:waypoint x="500" y="1080" />
+        <di:waypoint x="582" y="1080" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_delete_di" bpmnElement="flow_delete">
+        <di:waypoint x="270" y="685" />
+        <di:waypoint x="270" y="1220" />
+        <di:waypoint x="400" y="1220" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="315" y="1203" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_delete_end_di" bpmnElement="flow_delete_end">
+        <di:waypoint x="500" y="1220" />
+        <di:waypoint x="582" y="1220" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

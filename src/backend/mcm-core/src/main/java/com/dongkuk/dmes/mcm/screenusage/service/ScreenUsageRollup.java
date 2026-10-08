@@ -6,7 +6,6 @@ import com.dongkuk.dmes.mcm.screenusage.repository.ScreenUsageLogRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
@@ -15,7 +14,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 화면 사용 일별 집계·보관 스케줄러 (설계 4.4). 매일 02:00 Asia/Seoul.
+ * 화면 사용 일별 집계·보관 스케줄러 (설계 4.4). 매일 02:00 Asia/Seoul(2026-10-09 부터 일정은 예약 작업 `mcm.screenUsageRollup` 이 DB 정의로 정한다).
  *
  * <ol>
  *   <li>범위: 집계 테이블 최대 USAGE_DT 의 2일 전 ~ 어제 (집계가 비면 원본 최소 일자부터). 늦게 도착한 구간 반영용.</li>
@@ -54,16 +53,6 @@ public class ScreenUsageRollup {
         this.dayRepository = dayRepository;
         this.dayWriter = dayWriter;
         this.clock = clock;
-    }
-
-    @Scheduled(cron = "0 0 2 * * *", zone = "Asia/Seoul")
-    public void scheduledRollup() {
-        try {
-            Result result = rollup();
-            log.info("ScreenUsageRollup: {} 일 집계, 원본 {} 건 보관 삭제", result.days(), result.purged());
-        } catch (Exception e) {
-            log.warn("ScreenUsageRollup 실패 (swallow)", e);
-        }
     }
 
     public Result rollup() {

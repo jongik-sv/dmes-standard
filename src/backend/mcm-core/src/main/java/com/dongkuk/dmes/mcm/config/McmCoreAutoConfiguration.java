@@ -1,8 +1,10 @@
 package com.dongkuk.dmes.mcm.config;
 
+import com.dongkuk.dmes.mcm.job.JobConfig;
 import com.dongkuk.dmes.mcm.security.password.McmPasswordProperties;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
@@ -22,6 +24,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * (mpn/mpp/mqc 등 mcm-core 를 라이브러리로만 참조하는 사이트)는 부팅 시 의존성 누락으로
  * 실패한다. 사이트가 의도해서 scan 에 포함했을 때만 활성화하는 게 안전하다.
  *
+ * <p>예약 작업(JOB) 전용 연결({@link JobConfig})도 여기서 올린다 — 모듈 앱마다 같은 표(MCMAPUSER.TB_MCM_JOB_*)를 쓴다.
+ *
  * <p>본 설정은 cactus-core / oasis-core 의존이 0건이며, 그 빈들은 사이트 책임이다.
  *
  * <p>사이트가 default 빈을 override 하려면 {@code @Primary} 또는 같은 이름의 빈으로
@@ -29,6 +33,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  */
 @AutoConfiguration
 @EnableConfigurationProperties(McmPasswordProperties.class)
+@Import(JobConfig.class)
 @EnableScheduling
 @EnableAsync
 public class McmCoreAutoConfiguration {

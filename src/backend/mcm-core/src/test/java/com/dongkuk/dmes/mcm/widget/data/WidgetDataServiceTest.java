@@ -8,7 +8,6 @@ import static org.mockito.Mockito.when;
 
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
-import com.dongkuk.dmes.mcm.widget.collect.WidgetCollectReader;
 import com.dongkuk.dmes.mcm.widget.query.WidgetQueryResult;
 import com.dongkuk.dmes.mcm.widget.query.WidgetQueryRunner;
 import java.util.LinkedHashMap;
@@ -29,7 +28,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class WidgetDataServiceTest {
 
     @Mock WidgetQueryRunner queryRunner;
-    @Mock WidgetCollectReader collectReader;
 
     @InjectMocks WidgetDataService service;
 
@@ -108,31 +106,6 @@ class WidgetDataServiceTest {
         WidgetDataRunRequest r = request("def.k3x9q2ab");
         r.setParamsJson("{\"a\":\"" + "x".repeat(4000) + "\"}");
         assertThatThrownBy(() -> service.run(r)).isInstanceOf(BusinessException.class).hasMessageContaining("너무 깁니다");
-        verifyNoInteractions(queryRunner);
-    }
-
-    @Test
-    @DisplayName("정시 수집(collect) 정의는 수집 읽기 서비스의 응답(lastRun 포함)을 그대로 돌려주고 쿼리 실행기를 부르지 않는다")
-    void collectDefinitionGoesToCollectReader() {
-        Map<String, Object> collected = new LinkedHashMap<>();
-        collected.put("columns", List.of("COLLECTED_AT", "ITEM_KEY", "VALUE"));
-        collected.put("rows", List.of());
-        collected.put("truncated", false);
-        collected.put("lastRun", null);
-        when(collectReader.readIfCollect("def.c0000001")).thenReturn(java.util.Optional.of(collected));
-        WidgetDataRunRequest r = request(" def.c0000001 ");
-        r.setParamsJson("{\"a\":\"1\"}");
-
-        assertThat(service.run(r)).isSameAs(collected);
-        verifyNoInteractions(queryRunner);
-    }
-
-    @Test
-    @DisplayName("정시 수집 읽기 서비스의 거절(사용 중지 등)도 그대로 전한다")
-    void collectReaderErrorsPropagate() {
-        when(collectReader.readIfCollect("def.c0000002"))
-                .thenThrow(new BusinessException(ErrorCode.BUSINESS_ERROR, "사용 중지된 위젯입니다"));
-        assertThatThrownBy(() -> service.run(request("def.c0000002"))).hasMessage("사용 중지된 위젯입니다");
         verifyNoInteractions(queryRunner);
     }
 

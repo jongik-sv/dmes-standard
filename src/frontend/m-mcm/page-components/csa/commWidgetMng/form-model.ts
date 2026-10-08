@@ -242,9 +242,6 @@ export function copyDataNotice(form: DefForm): string | null {
   if (form.typeId === "memo" && scope === "personal") {
     return "개인 메모는 정의 설정만 복사됩니다. 사용자가 쓴 메모 내용은 가져가지 않습니다.";
   }
-  if (form.typeId === "collect") {
-    return "자동 수집은 정의 설정만 복사됩니다. 이미 모은 값은 가져가지 않고, 저장한 뒤부터 새로 쌓입니다.";
-  }
   return null;
 }
 

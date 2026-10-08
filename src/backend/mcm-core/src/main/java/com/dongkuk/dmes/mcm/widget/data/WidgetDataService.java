@@ -2,20 +2,17 @@ package com.dongkuk.dmes.mcm.widget.data;
 
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
-import com.dongkuk.dmes.mcm.widget.collect.WidgetCollectReader;
 import com.dongkuk.dmes.mcm.widget.query.QueryParams;
 import com.dongkuk.dmes.mcm.widget.query.WidgetQueryResult;
 import com.dongkuk.dmes.mcm.widget.query.WidgetQueryRunner;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 /**
  * 쿼리 위젯 데이터 — OASIS {@code widgetData}(스펙 2026-10-02-widget-admin-generic §5.1). 로그인만 되면 부를 수 있다(AUTH_ONLY).
  * <ul>
  *   <li>{@code defId} 와 입력 조건 값({@code paramsJson})만 읽는다. 요청 본문의 SQL 은 어떤 경우에도 실행하지 않는다(W-D23).</li>
- *   <li>유형이 {@code collect} 인 정의는 {@link WidgetCollectReader} 가 수집 값을 읽어 답한다(입력 조건 값은 쓰지 않는다).</li>
  *   <li>정의 검사(사용 중·query-* 유형·mcm)·SQL 검사·시스템 변수(:userId 등, 인증 컨텍스트)·캐시는 {@link WidgetQueryRunner} 가 맡는다.</li>
  *   <li>{@code @Transactional} 을 붙이지 않는다 — 실행기가 별도 읽기 전용·늘 롤백 트랜잭션을 연다(BackEnd 표준 §6-B-1).</li>
  * </ul>
@@ -27,11 +24,9 @@ public class WidgetDataService {
     static final int MAX_ROWS = 500;
 
     private final WidgetQueryRunner queryRunner;
-    private final WidgetCollectReader collectReader;
 
-    public WidgetDataService(WidgetQueryRunner queryRunner, WidgetCollectReader collectReader) {
+    public WidgetDataService(WidgetQueryRunner queryRunner) {
         this.queryRunner = queryRunner;
-        this.collectReader = collectReader;
     }
 
     /** {@code { columns: string[], rows: [{컬럼: 값}], truncated }}. */
@@ -40,9 +35,6 @@ public class WidgetDataService {
         if (defId == null || defId.isEmpty()) {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "위젯 정의 ID 가 없습니다");
         }
-        // 정시 수집(collect) 정의는 수집 값 읽기 서비스가 답한다(스펙 2026-10-05 정시 수집 §5) — 응답에 lastRun 이 더해진다.
-        Optional<Map<String, Object>> collected = collectReader.readIfCollect(defId);
-        if (collected.isPresent()) return collected.get();
         // 값은 스칼라 글자로만 받는다(배열·객체 거절). 선언·형·길이 판정은 실행기가 정의의 params 로 다시 한다.
         Map<String, String> values = QueryParams.parseValues(request.getParamsJson());
         WidgetQueryResult data = queryRunner.runDefinition(defId, MAX_ROWS, values);

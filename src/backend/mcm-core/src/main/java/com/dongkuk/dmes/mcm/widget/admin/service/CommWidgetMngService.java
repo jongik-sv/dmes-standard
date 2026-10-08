@@ -5,7 +5,6 @@ import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.widget.admin.dto.CommWidgetMngRequest;
 import com.dongkuk.dmes.mcm.widget.admin.dto.WidgetDefSaveRequest;
 import com.dongkuk.dmes.mcm.widget.admin.repository.WidgetUsageRepository;
-import com.dongkuk.dmes.mcm.widget.collect.WidgetCollectProperties;
 import com.dongkuk.dmes.mcm.widget.def.WidgetDefSavedEvent;
 import com.dongkuk.dmes.mcm.widget.def.entity.WidgetDef;
 import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
@@ -50,20 +49,17 @@ public class CommWidgetMngService {
     private final WidgetUsageRepository usageRepository;
     private final WidgetQueryRunner queryRunner;
     private final ApplicationEventPublisher eventPublisher;
-    private final WidgetCollectProperties collectProperties;
     private final SecureRandom random = new SecureRandom();
 
     @Autowired
     public CommWidgetMngService(WidgetDefRepository defRepository,
                                 WidgetUsageRepository usageRepository,
                                 WidgetQueryRunner queryRunner,
-                                ApplicationEventPublisher eventPublisher,
-                                WidgetCollectProperties collectProperties) {
+                                ApplicationEventPublisher eventPublisher) {
         this.defRepository = defRepository;
         this.usageRepository = usageRepository;
         this.queryRunner = queryRunner;
         this.eventPublisher = eventPublisher;
-        this.collectProperties = collectProperties;
     }
 
     /**
@@ -147,8 +143,7 @@ public class CommWidgetMngService {
             }
             configJson = blankToNull(request.getConfigJson());
             if (configJson == null) configJson = "{}";
-            dataSrc = WidgetDefConfigRules.check(typeId, request.getDataSrc(), configJson, queryRunner,
-                    collectProperties::isAllowedHost); // 정시 수집 http 원천은 허용 호스트만 저장
+            dataSrc = WidgetDefConfigRules.check(typeId, request.getDataSrc(), configJson, queryRunner);
             if (widgetId == null) {
                 row = new WidgetDef();
                 widgetId = newDefinitionId();

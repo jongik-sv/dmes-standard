@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_jobRunNestedMid" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_jobRunNestedMid" name="3겹 서브서비스 - 가운데" isExecutable="true">
+    <bpmn:startEvent id="s1" name="s1">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="s1" targetRef="midLeaf" />
+    <bpmn:serviceTask id="midLeaf" name="가운데 leaf" camunda:class="com.dongkuk.dmes.cactus.job.JobRunTestTask">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="leaf" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="midLeaf" targetRef="callInner" />
+    <bpmn:callActivity id="callInner" name="안쪽 호출" calledElement="jobRunNestedInner">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="callInner" targetRef="e1" />
+    <bpmn:endEvent id="e1" name="e1">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+</bpmn:definitions>

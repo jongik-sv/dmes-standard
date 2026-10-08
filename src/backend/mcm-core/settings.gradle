@@ -13,3 +13,10 @@ dependencyResolutionManagement {
         }
     }
 }
+
+// 예약 작업(com.dongkuk.dmes.mcm.job..)이 cactus-core 의 job 패키지·oasis 를 쓴다(D1). 중첩 includeBuild 전달에 기대지 않고
+// mdm/settings.gradle 과 같이 maru-mdm-engine 도 명시한다(cactus-core 가 api 로 문다).
+apply from: '../gradle/include-builds.settings.gradle'
+
+dmesIncludeBuild('../cactus-core', 'com.dongkuk.dmes:cactus-core')
+dmesIncludeBuild('../maru-mdm-engine', 'kr.dongkuk.maru.mdm:maru-mdm-engine')
