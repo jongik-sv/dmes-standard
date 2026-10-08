@@ -271,7 +271,7 @@ export function testInt(s) {
 export const cmpInt = (a, b, op) => {
   const x = testInt(a), y = testInt(b);
   if (x === null || y === null) return false;
-  return op === 'gt' ? x > y : op === 'le' ? x <= y : op === 'lt' ? x < y : false;
+  return op === 'gt' ? x > y : op === 'le' ? x <= y : op === 'lt' ? x < y : op === 'ge' ? x >= y : false;
 };
 
 /** bash `$(( ))` 안의 변수 값 글 → BigInt. 앞 0 은 8진, 틀린 자리는 ArithAbort. 64비트로 감긴다 */
