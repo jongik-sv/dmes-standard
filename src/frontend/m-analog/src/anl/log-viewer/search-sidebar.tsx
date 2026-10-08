@@ -5,12 +5,16 @@
  * 원본: analog-express-ui-plate LogViewer.js 의 Sidebar/Sidenav 영역 이식.
  *  - 260px ↔ 56px 접힘 토글 (CSS transition, 접힘 시 폼 숨김).
  *  - 일시 입력: shared 에 초 단위 datetime 입력이 없어 일반 Input + 검색 시 14자리 검증으로 대체.
- *  - 검색어: 로컬 state 로 타이핑, blur 시 cond 반영 (원본 패턴 유지).
+ *  - 조회 조건 칸(모듈·시각·검색어·옵션)은 shared SearchArea·SearchField 로 그려 「조회 기본값」 대상이 된다.
+ *    사용자별 고정 값·마지막 조회값 저장은 SearchArea 가 맡고, 이 화면은 칸 선언만 한다.
+ *    시작·종료 일시는 고정 값이 곧 낡은 시각이 되므로 `defaultable={false}` 로 대상에서 뺀다(기본은 최근 1분).
+ *  - 검색 버튼은 SearchArea 안의 submit 단추라 Enter 와 같은 경로(조회 신호)를 타고 「마지막 조회값」 이 저장된다.
  *  - 사장된 serviceLogOnly 토글은 이식하지 않음.
  */
 
-import { useEffect, useState } from "react";
-import { Button, Checkbox, Input, Select } from "@dk-oasis/shared/form";
+import { useState } from "react";
+import { Button, Checkbox } from "@dk-oasis/shared/form";
+import { SearchArea, SearchField } from "@dk-oasis/shared/layout";
 import { timeGenerator } from "./time-util";
 import type { LovItem, SearchCond } from "./types";
 
@@ -19,6 +23,12 @@ const TIME_PRESETS = [1, 3, 5, 10, 20];
 
 const KEYWORD_TOOLTIP =
   '공백 : 입력한 검색어 모두 포함\n" " : 공백 검색어 묶음';
+
+/** 체크 칸을 조회 기본값 대상으로 올리기 위한 값 표현(설정 창에서는 끔·켬 선택으로 보인다). */
+const CHECK_OPTIONS = [
+  { value: "N", label: "끔" },
+  { value: "Y", label: "켬" },
+];
 
 interface SearchSidebarProps {
   modules: LovItem[];
@@ -81,79 +91,99 @@ export function SearchSidebar({
   onToggleServiceList,
 }: SearchSidebarProps) {
   const [expand, setExpand] = useState(true);
-  // 검색어는 로컬 state 로 타이핑하고 blur 시 cond 로 반영한다 (원본 패턴 유지).
-  const [keywordLocal, setKeywordLocal] = useState(cond.keyword);
-
-  // 워크스페이스 전환 등 외부 cond.keyword 변경을 로컬 입력에 동기화.
-  useEffect(() => {
-    setKeywordLocal(cond.keyword);
-  }, [cond.keyword]);
 
   return (
     <aside
       className={`anl-sidebar ${expand ? "" : "anl-sidebar-collapsed"}`.trim()}
     >
       <div className="anl-sidebar-form">
-        <Select
-          aria-label="모듈"
-          value={cond.module}
-          options={modules}
-          placeholder="모듈"
-          onChange={(value) => onCondChange({ module: value })}
-        />
+        <SearchArea onSearch={onSearch}>
+          <SearchField
+            label="모듈"
+            defaultKey="module"
+            type="select"
+            options={modules}
+            value={cond.module}
+            onChange={(value) => onCondChange({ module: value })}
+          />
+          <SearchField
+            label="시작일시"
+            defaultable={false}
+            placeholder="YYYY-MM-DD HH:mm:ss"
+            value={cond.from}
+            onChange={(value) => onCondChange({ from: value })}
+          />
+          <SearchField
+            label="종료일시"
+            defaultable={false}
+            placeholder="YYYY-MM-DD HH:mm:ss"
+            value={cond.to}
+            onChange={(value) => onCondChange({ to: value })}
+          />
 
-        <Input
-          aria-label="시작일시"
-          placeholder="YYYY-MM-DD HH:mm:ss"
-          value={cond.from}
-          onChange={(value) => onCondChange({ from: value })}
-        />
-        <div className="anl-range-tilde">~</div>
-        <Input
-          aria-label="종료일시"
-          placeholder="YYYY-MM-DD HH:mm:ss"
-          value={cond.to}
-          onChange={(value) => onCondChange({ to: value })}
-        />
+          <div className="anl-preset-row">
+            {TIME_PRESETS.map((minute) => (
+              <Button
+                key={minute}
+                size="mini"
+                title={`최근 ${minute}분`}
+                onClick={() =>
+                  onCondChange({
+                    from: timeGenerator(minute),
+                    to: timeGenerator(0),
+                  })
+                }
+              >
+                {minute}&#39;
+              </Button>
+            ))}
+          </div>
 
-        <div className="anl-preset-row">
-          {TIME_PRESETS.map((minute) => (
-            <Button
-              key={minute}
-              size="mini"
-              title={`최근 ${minute}분`}
-              onClick={() =>
-                onCondChange({
-                  from: timeGenerator(minute),
-                  to: timeGenerator(0),
-                })
-              }
-            >
-              {minute}&#39;
-            </Button>
-          ))}
-        </div>
+          <div title={KEYWORD_TOOLTIP}>
+            <SearchField
+              label="검색어"
+              defaultKey="keyword"
+              placeholder="검색어"
+              value={cond.keyword}
+              onChange={(value) => onCondChange({ keyword: value })}
+            />
+          </div>
 
-        <hr className="anl-divider" />
+          <SearchField
+            label="대소문자 무시"
+            defaultKey="ignoreCase"
+            type="select"
+            options={CHECK_OPTIONS}
+            className="anl-field-inline"
+            value={cond.ignoreCase ? "Y" : "N"}
+            onChange={(value) => onCondChange({ ignoreCase: value === "Y" })}
+          >
+            <Checkbox
+              aria-label="대소문자 무시"
+              checked={cond.ignoreCase}
+              onChange={(checked) => onCondChange({ ignoreCase: checked })}
+            />
+          </SearchField>
+          <SearchField
+            label="스레드 로그"
+            defaultKey="byThread"
+            type="select"
+            options={CHECK_OPTIONS}
+            className="anl-field-inline"
+            value={cond.byThread ? "Y" : "N"}
+            onChange={(value) => onCondChange({ byThread: value === "Y" })}
+          >
+            <Checkbox
+              aria-label="스레드 로그"
+              checked={cond.byThread}
+              onChange={(checked) => onCondChange({ byThread: checked })}
+            />
+          </SearchField>
 
-        <Input
-          aria-label="검색어"
-          placeholder="검색어"
-          title={KEYWORD_TOOLTIP}
-          value={keywordLocal}
-          onChange={setKeywordLocal}
-          onBlur={() => onCondChange({ keyword: keywordLocal })}
-        />
-
-        <hr className="anl-divider" />
-
-        <Button
-          variant="primary"
-          className="anl-block-button"
-          onClick={onSearch}
-        >
-          검색
-        </Button>
+          <Button variant="primary" type="submit" className="anl-block-button">
+            검색
+          </Button>
+        </SearchArea>
 
         <hr className="anl-divider" />
 
@@ -191,19 +221,6 @@ export function SearchSidebar({
             <TreeIcon />
           </Button>
         </div>
-
-        <hr className="anl-divider" />
-
-        <Checkbox
-          label="대소문자 무시"
-          checked={cond.ignoreCase}
-          onChange={(checked) => onCondChange({ ignoreCase: checked })}
-        />
-        <Checkbox
-          label="스레드 로그"
-          checked={cond.byThread}
-          onChange={(checked) => onCondChange({ byThread: checked })}
-        />
 
         <hr className="anl-divider" />
 

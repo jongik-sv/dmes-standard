@@ -195,10 +195,45 @@
   display: none;
 }
 
-.anl-log-viewer .anl-range-tilde {
-  text-align: center;
-  color: var(--color-text-muted);
-  line-height: 1;
+/* 사이드바 안의 SearchArea — 좁은 폭에 맞춰 칸을 세로 한 줄로 쌓고 라벨을 입력 위에 둔다.
+   기본 격자·라벨 폭 규칙은 .page-layout 안에서만 걸리므로 여기서는 이 화면 규칙만 둔다. */
+.anl-log-viewer .anl-sidebar .search-area {
+  display: block;
+  box-shadow: none;
+  background: var(--color-bg);
+}
+
+.anl-log-viewer .anl-sidebar .search-area__conditions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  min-width: 0;
+}
+
+.anl-log-viewer .anl-sidebar .search-field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+}
+
+.anl-log-viewer .anl-sidebar .search-field__label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.anl-log-viewer .anl-sidebar .search-field input:not([type="checkbox"]) {
+  width: 100%;
+}
+
+/* 체크 칸은 라벨과 체크박스를 한 줄에 둔다. */
+.anl-log-viewer .anl-sidebar .search-field.anl-field-inline {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .anl-log-viewer .anl-preset-row {
