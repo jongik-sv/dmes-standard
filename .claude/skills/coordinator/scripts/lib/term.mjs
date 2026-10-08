@@ -17,8 +17,11 @@ function backendOf(env, cwd) {
 
 // ---------- 외부 명령 한 곳 ----------
 function runCmd(cmd, args, env) {
-  const r = spawnSync(cmd, args, { env, encoding: 'buffer', windowsHide: true });
+  // env.COORD_TERM_TIMEOUT_MS: 상주 폴러(console-poll.mjs)가 호출 하나의 시간 상한을 줄 때만 쓴다(없으면 제한 없음 — 기존 동작 그대로)
+  const ms = Number(env.COORD_TERM_TIMEOUT_MS);
+  const r = spawnSync(cmd, args, { env, encoding: 'buffer', windowsHide: true, ...(ms > 0 ? { timeout: ms, killSignal: 'SIGKILL' } : {}) });
   if (r.error && (r.error.code === 'ENOENT' || r.error.code === 'EACCES')) return null;
+  if (r.error && r.error.code === 'ETIMEDOUT') return { stdout: Buffer.alloc(0), status: 124 };
   return r;
 }
 /** orca.exe/.cmd 재시도 헬퍼. stdout Buffer(실패해도 빈 값), status. stderr 는 버린다. */
