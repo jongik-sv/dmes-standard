@@ -31,7 +31,10 @@ import { WorkspaceTabBar } from "./workspace-tab-bar";
 import { SearchSidebar } from "./search-sidebar";
 import { DocTabBar } from "./doc-tabs";
 import { JsonTreeView } from "./json-tree-view";
-import { ServiceListPanel } from "./service-list-panel";
+import {
+  ServiceListPanel,
+  type ServiceDrilldownHandler,
+} from "./service-list-panel";
 import LogMonacoEditor, {
   type LogMonacoEditorHandle,
 } from "./log-monaco-editor";
@@ -264,6 +267,43 @@ function LogViewerMain({ meta }: { meta: AnalogMeta }) {
     setActiveDocTab(tab);
   };
 
+  /**
+   * 서비스 목록 링크 콜백 — 참조를 고정한다. 탭 전환·로그 조회로 이 컴포넌트가 다시 그려져도
+   * 서비스 목록 그리드가 새 콜백을 받아 컬럼 정의를 다시 만들지 않게 한다(runSearch 는 ref 로 최신본을 부른다).
+   */
+  const runSearchRef = useRef(runSearch);
+  useEffect(() => {
+    runSearchRef.current = runSearch;
+  });
+  const drilldownLog = useCallback<ServiceDrilldownHandler>(
+    (serviceTag, startTime, endTime, action, runTime) => {
+      void runSearchRef.current({
+        type: "search",
+        serviceTag,
+        startTime,
+        endTime,
+        action,
+        runTime,
+      });
+      setActiveDocTab("text");
+    },
+    [],
+  );
+  const drilldownJson = useCallback<ServiceDrilldownHandler>(
+    (serviceTag, startTime, endTime, action, runTime) => {
+      void runSearchRef.current({
+        type: "json",
+        serviceTag,
+        startTime,
+        endTime,
+        action,
+        runTime,
+      });
+      setActiveDocTab("json");
+    },
+    [],
+  );
+
   return (
     <div className="anl-log-viewer">
       <WorkspaceTabBar
@@ -331,34 +371,8 @@ function LogViewerMain({ meta }: { meta: AnalogMeta }) {
           {serviceListOpen && (
             <ServiceListPanel
               serviceList={activeWs.serviceList}
-              onLogClick={(serviceTag, startTime, endTime, action, runTime) => {
-                void runSearch({
-                  type: "search",
-                  serviceTag,
-                  startTime,
-                  endTime,
-                  action,
-                  runTime,
-                });
-                setActiveDocTab("text");
-              }}
-              onJsonClick={(
-                serviceTag,
-                startTime,
-                endTime,
-                action,
-                runTime,
-              ) => {
-                void runSearch({
-                  type: "json",
-                  serviceTag,
-                  startTime,
-                  endTime,
-                  action,
-                  runTime,
-                });
-                setActiveDocTab("json");
-              }}
+              onLogClick={drilldownLog}
+              onJsonClick={drilldownJson}
             />
           )}
         </div>
