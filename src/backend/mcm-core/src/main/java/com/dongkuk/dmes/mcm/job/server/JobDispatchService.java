@@ -27,7 +27,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 /**
- * BPMN {@code job^^dispatch} 의 서비스 태스크 몸체 — 색인 조회로 지금 할 작업을 읽고(설계 §4.1) 같은 트랜잭션에서 선점한다(§4.2). 트랜잭션은 OASIS 가
+ * BPMN {@code jobDispatch} 의 서비스 태스크 몸체 — 색인 조회로 지금 할 작업을 읽고(설계 §4.1) 같은 트랜잭션에서 선점한다(§4.2). 트랜잭션은 OASIS 가
  * 서비스마다 연다(이 클래스에 {@code @Transactional} 없음). {@code serviceStarter.start} 가 돌아오면 이미 커밋돼 있다.
  * <ul>
  *   <li>빈 결과면 바로 끝낸다 — 평소 매분 SQL 한 문장이 전부이다.</li>
@@ -88,7 +88,7 @@ public class JobDispatchService {
                        (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS, STARTED_AT, ENDED_AT, TIMEOUT_SEC, MSG, VARS_JSON,
                         C_AT, C_USR_ID, C_PGM_ID, C_SVC_ID, U_AT, U_USR_ID, U_PGM_ID, U_SVC_ID, VER)
                 VALUES (?, ?, 'S', ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                        %2$s, 'SCHEDULER', 'JobDispatchService', 'job^^dispatch', %2$s, 'SCHEDULER', 'JobDispatchService', 'job^^dispatch', 0)
+                        %2$s, 'SCHEDULER', 'JobDispatchService', 'jobDispatch', %2$s, 'SCHEDULER', 'JobDispatchService', 'jobDispatch', 0)
                 """.formatted(schema, NOW);
         this.liveRunSql = """
                 SELECT COUNT(*)

@@ -64,7 +64,7 @@ class JobDispatchServiceOraTest {
     /** NEXT_RUN_AT = DB 지금 + offsetSec 초. */
     private void def(String jobId, String kind, String cron, String varsJson, String configJson, String optsJson, long offsetSec) {
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_DEF (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, SERVICE_ID, ACTION, CRON_EXPR, USE_YN, CONFIG_JSON, VARS_JSON, "
-                + "TIMEOUT_SEC, NEXT_RUN_AT, OWNER_TP, OPTS_JSON) VALUES (?, 'MDM', 'n', ?, 'job^^code', 'run', ?, 'Y', ?, ?, 600, "
+                + "TIMEOUT_SEC, NEXT_RUN_AT, OWNER_TP, OPTS_JSON) VALUES (?, 'MDM', 'n', ?, 'jobCode', 'run', ?, 'Y', ?, ?, 600, "
                 + NOW_SQL + " + NUMTODSINTERVAL(?, 'SECOND'), 'USER', ?)", new Object[] {jobId, kind, cron, configJson, varsJson, offsetSec, optsJson},
                 new int[] {Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.CLOB, Types.CLOB, Types.BIGINT, Types.CLOB});
     }
@@ -78,7 +78,7 @@ class JobDispatchServiceOraTest {
     }
 
     @Test
-    @DisplayName("판정 서비스는 트리거가 연 표시가 없으면 거절한다 — 웹 경로로 job^^dispatch 를 불러도 선점하지 않는다")
+    @DisplayName("판정 서비스는 트리거가 연 표시가 없으면 거절한다 — 웹 경로로 jobDispatch 를 불러도 선점하지 않는다")
     void rejectsWithoutScope() {
         def("j1", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, -5);
         JobDispatchScope.close();
@@ -100,7 +100,7 @@ class JobDispatchServiceOraTest {
         JobRunRequest r = batch.runs().get(0);
         assertThat(r.jobId()).isEqualTo("j1");
         assertThat(r.module()).isEqualTo("MDM");
-        assertThat(r.serviceId()).isEqualTo("job^^code");
+        assertThat(r.serviceId()).isEqualTo("jobCode");
         assertThat(r.action()).isEqualTo("run");
         assertThat(r.config()).containsEntry("handlerId", "mdm.sync");
         assertThat(r.timeoutSec()).isEqualTo(600);
@@ -114,7 +114,7 @@ class JobDispatchServiceOraTest {
         assertThat(row.get("STATUS")).isEqualTo("RUN");
         assertThat(row.get("RUN_ID")).isEqualTo(r.runId());
         assertThat(row.get("TRIGGER_TP")).isEqualTo("S");
-        assertThat(row.get("SERVICE_ID")).isEqualTo("job^^code");
+        assertThat(row.get("SERVICE_ID")).isEqualTo("jobCode");
         assertThat(((Number) row.get("TIMEOUT_SEC")).intValue()).isEqualTo(600);
         assertThat(String.valueOf(row.get("VARS_JSON"))).contains("baseDt");
         assertThat(((Timestamp) row.get("SCHED_AT")).toLocalDateTime()).isEqualTo(r.schedAtTime());
@@ -188,7 +188,7 @@ class JobDispatchServiceOraTest {
     void overlapIsSkipped() {
         def("busy", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, -5);
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS, STARTED_AT, TIMEOUT_SEC) "
-                + "VALUES ('busy', TIMESTAMP '2020-01-01 00:00:00', 'S', 'old-run', 'MDM', 'job^^code', 'RUN', " + NOW_SQL + " - INTERVAL '10' SECOND, 600)");
+                + "VALUES ('busy', TIMESTAMP '2020-01-01 00:00:00', 'S', 'old-run', 'MDM', 'jobCode', 'RUN', " + NOW_SQL + " - INTERVAL '10' SECOND, 600)");
         ClaimedBatch batch = claim(50, "Y");
         assertThat(batch.runs()).isEmpty();
         assertThat(jdbc.queryForObject("SELECT MSG FROM MCMAPUSER.TB_MCM_JOB_RUN WHERE JOB_ID = 'busy' AND STATUS = 'SKIP'", String.class)).isEqualTo("이전 회차 실행 중");
@@ -230,11 +230,11 @@ class JobDispatchServiceOraTest {
     void prevRunAtIgnoresManualRuns() {
         def("pv", "CODE", "*/10 * * * *", "[{\"name\":\"p\",\"type\":\"DATE\",\"value\":\":prevRunAt\",\"desc\":\"\"}]", "{\"handlerId\":\"h\"}", null, -5);
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS) "
-                + "VALUES ('pv', TIMESTAMP '2026-10-08 09:00:00', 'S', 'r-s', 'MDM', 'job^^code', 'OK')");
+                + "VALUES ('pv', TIMESTAMP '2026-10-08 09:00:00', 'S', 'r-s', 'MDM', 'jobCode', 'OK')");
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS) "
-                + "VALUES ('pv', TIMESTAMP '2026-10-08 10:00:00', 'M', 'r-m', 'MDM', 'job^^code', 'OK')");
+                + "VALUES ('pv', TIMESTAMP '2026-10-08 10:00:00', 'M', 'r-m', 'MDM', 'jobCode', 'OK')");
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS) "
-                + "VALUES ('pv', TIMESTAMP '2026-10-08 11:00:00', 'S', 'r-f', 'MDM', 'job^^code', 'FAIL')");
+                + "VALUES ('pv', TIMESTAMP '2026-10-08 11:00:00', 'S', 'r-f', 'MDM', 'jobCode', 'FAIL')");
         JobRunRequest r = claim(50, "Y").runs().get(0);
         assertThat(r.inputs().get("p")).isEqualTo("2026-10-08T09:00:00");
     }

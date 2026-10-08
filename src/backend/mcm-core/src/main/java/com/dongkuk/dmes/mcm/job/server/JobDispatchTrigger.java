@@ -16,15 +16,15 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.scheduling.annotation.Scheduled;
 
 /**
- * 매분 0초에 깨어나 BPMN 서비스 {@code job^^dispatch} 를 부르는 시계(설계 §4.1). 판정은 하지 않는다. 공용 스케줄러 래퍼(cactus-core
+ * 매분 0초에 깨어나 BPMN 서비스 {@code jobDispatch} 를 부르는 시계(설계 §4.1). 판정은 하지 않는다. 공용 스케줄러 래퍼(cactus-core
  * {@code JobLoggingTaskScheduler})가 {@code serviceId=sch.mcm.jobDispatchTrigger.tick} 와 service_tag 를 넣고 경계 두 줄을 sch 로그에 남기며, 이 클래스는
- * {@code job^^dispatch} 를 부르는 동안만 MDC {@code serviceId}·{@code txId} 를 바꿔 SQL·bind 줄이 <b>mcm 업무 로그</b>로 가게 하고(설계 §4.8), 돌아오면 되돌린다.
+ * {@code jobDispatch} 를 부르는 동안만 MDC {@code serviceId}·{@code txId} 를 바꿔 SQL·bind 줄이 <b>mcm 업무 로그</b>로 가게 하고(설계 §4.8), 돌아오면 되돌린다.
  * (래퍼가 MDC 를 {@code MDCTemplate} 으로 지우므로 여기서는 쓰지 않는다.) 한 틱에 {@code more} 이면 최대 {@value #MAX_ROUNDS} 번 되풀이한다.
  * 호출은 {@code serviceStarter.start} 가 돌아온 뒤(= 커밋 뒤)에만 넘긴다. 실패(결과 비성공·예외)는 선점한 것이 없으므로 연속 첫 번째만 WARN, 복구 때 INFO.
  */
 public class JobDispatchTrigger {
 
-    static final String SERVICE_ID = "job^^dispatch";
+    static final String SERVICE_ID = "jobDispatch";
     static final int MAX_ROUNDS = 10;
 
     private static final Logger log = LoggerFactory.getLogger(JobDispatchTrigger.class);

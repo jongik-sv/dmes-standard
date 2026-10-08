@@ -55,7 +55,7 @@ class JobDispatchTriggerLogTest {
     }
 
     private static JobRunRequest req(String id) {
-        return new JobRunRequest(id, "j-" + id, "MDM", "job^^code", "run", null, null, null, 60, null, "2026-10-09T02:00:00", false, null);
+        return new JobRunRequest(id, "j-" + id, "MDM", "jobCode", "run", null, null, null, 60, null, "2026-10-09T02:00:00", false, null);
     }
 
     private static ServiceResult ok(ClaimedBatch batch) {
@@ -76,9 +76,9 @@ class JobDispatchTriggerLogTest {
     }
 
     @Test
-    @DisplayName("판정 구간의 줄은 serviceId=job^^dispatch(mcm 업무 로그), 래퍼가 남기는 경계 줄은 sch.…, 돌아온 뒤 MDC 는 래퍼의 값으로 복원된다")
+    @DisplayName("판정 구간의 줄은 serviceId=jobDispatch(mcm 업무 로그), 래퍼가 남기는 경계 줄은 sch.…, 돌아온 뒤 MDC 는 래퍼의 값으로 복원된다")
     void logsGoToTheBusinessLogAndMdcIsRestored() {
-        when(starter.start(eq("job^^dispatch"), any())).thenAnswer(inv -> {
+        when(starter.start(eq("jobDispatch"), any())).thenAnswer(inv -> {
             org.slf4j.LoggerFactory.getLogger("test.sql").info("select ... from TB_MCM_JOB_DEF");   // BPMN 안 SQL 줄 대용
             return ok(new ClaimedBatch(List.of(req("a")), false));
         });
@@ -92,12 +92,12 @@ class JobDispatchTriggerLogTest {
         });
 
         List<ILoggingEvent> events = appender.list;
-        assertThat(events).filteredOn(e -> e.getFormattedMessage().equals("job^^dispatch/run"))
-                .isNotEmpty().allSatisfy(e -> assertThat(e.getMDCPropertyMap()).containsEntry("serviceId", "job^^dispatch"));
-        assertThat(events).filteredOn(e -> e.getFormattedMessage().startsWith("Service end - service name [job^^dispatch]"))
-                .isNotEmpty().allSatisfy(e -> assertThat(e.getMDCPropertyMap()).containsEntry("serviceId", "job^^dispatch"));
+        assertThat(events).filteredOn(e -> e.getFormattedMessage().equals("jobDispatch/run"))
+                .isNotEmpty().allSatisfy(e -> assertThat(e.getMDCPropertyMap()).containsEntry("serviceId", "jobDispatch"));
+        assertThat(events).filteredOn(e -> e.getFormattedMessage().startsWith("Service end - service name [jobDispatch]"))
+                .isNotEmpty().allSatisfy(e -> assertThat(e.getMDCPropertyMap()).containsEntry("serviceId", "jobDispatch"));
         assertThat(events).filteredOn(e -> e.getLoggerName().equals("test.sql"))
-                .isNotEmpty().allSatisfy(e -> assertThat(e.getMDCPropertyMap()).containsEntry("serviceId", "job^^dispatch"));
+                .isNotEmpty().allSatisfy(e -> assertThat(e.getMDCPropertyMap()).containsEntry("serviceId", "jobDispatch"));
         assertThat(events).filteredOn(e -> e.getFormattedMessage().equals("sch.mcm.jobDispatchTrigger.tick/run"))
                 .isNotEmpty().allSatisfy(e -> assertThat(e.getMDCPropertyMap().get("serviceId")).startsWith("sch."));
         assertThat(events).filteredOn(e -> e.getFormattedMessage().startsWith("Service end - service name [sch.mcm.jobDispatchTrigger.tick]"))
@@ -109,14 +109,14 @@ class JobDispatchTriggerLogTest {
     @DisplayName("more=true 이면 같은 틱에서 다시 부른다 — 최대 10번, 묶음마다 호출을 넘긴다")
     void repeatsWhileMoreUpToTen() {
         AtomicInteger calls = new AtomicInteger();
-        when(starter.start(eq("job^^dispatch"), any())).thenAnswer(inv -> ok(new ClaimedBatch(List.of(req("r" + calls.incrementAndGet())), true)));
+        when(starter.start(eq("jobDispatch"), any())).thenAnswer(inv -> ok(new ClaimedBatch(List.of(req("r" + calls.incrementAndGet())), true)));
         trigger().tick();
         assertThat(calls.get()).isEqualTo(10);
         assertThat(submitted).hasSize(10);
 
         submitted.clear();
         calls.set(0);
-        when(starter.start(eq("job^^dispatch"), any())).thenAnswer(inv -> {
+        when(starter.start(eq("jobDispatch"), any())).thenAnswer(inv -> {
             int n = calls.incrementAndGet();
             return ok(new ClaimedBatch(List.of(req("s" + n)), n < 3));
         });
@@ -130,7 +130,7 @@ class JobDispatchTriggerLogTest {
         ServiceResult fail1 = failed();   // 결과 모의 객체는 바깥 when(...) 앞에서 만든다(안에서 만들면 UnfinishedStubbingException)
         ServiceResult fail2 = failed();
         ServiceResult okX = ok(new ClaimedBatch(List.of(req("x")), false));
-        when(starter.start(eq("job^^dispatch"), any())).thenReturn(fail1, fail2, okX);
+        when(starter.start(eq("jobDispatch"), any())).thenReturn(fail1, fail2, okX);
         JobDispatchTrigger t = trigger();
         t.tick();
         t.tick();

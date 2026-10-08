@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration;
 @ConditionalOnProperty(prefix = "dmes.job.server", name = "enabled", havingValue = "true")
 public class JobServerConfig {
 
-    /** BPMN {@code job^^dispatch} 의 {@code camunda:class="jobDispatchService"}. */
+    /** BPMN {@code jobDispatch} 의 {@code camunda:class="jobDispatchService"}. */
     @Bean
     public JobDispatchService jobDispatchService(ObjectProvider<DataSource> dataSource, JobProperties props) {
         return new JobDispatchService(dataSource.getObject(), props.getSchema());

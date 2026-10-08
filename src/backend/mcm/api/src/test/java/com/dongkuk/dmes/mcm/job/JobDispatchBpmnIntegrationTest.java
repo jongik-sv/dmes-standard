@@ -27,7 +27,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
 
-/** 실제 {@code services/job/job^^dispatch^^claimDue.bpmn}(서비스 ID {@code job^^dispatch} — OASIS 는 파일 이름의 마지막 {@code ^^} 뒤를 설명으로 버린다) 을 OASIS 트랜잭션으로 돌려 본다 — 커밋 뒤에야 호출이 나간다·실패는 선점 0·웹 경로 거절(설계 §9). */
+/** 실제 {@code services/job/jobDispatch.bpmn}(서비스 ID = 파일 이름 {@code jobDispatch}) 을 OASIS 트랜잭션으로 돌려 본다 — 커밋 뒤에야 호출이 나간다·실패는 선점 0·웹 경로 거절(설계 §9). */
 class JobDispatchBpmnIntegrationTest {
 
     private static final String NOW_SQL = "CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS TIMESTAMP)";
@@ -75,14 +75,14 @@ class JobDispatchBpmnIntegrationTest {
         jdbc.update("DELETE FROM MCMAPUSER.TB_MCM_JOB_RUN");
         jdbc.update("DELETE FROM MCMAPUSER.TB_MCM_JOB_DEF");
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_DEF (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, SERVICE_ID, ACTION, CRON_EXPR, USE_YN, CONFIG_JSON, TIMEOUT_SEC, NEXT_RUN_AT, OWNER_TP) "
-                + "VALUES ('j1', 'MDM', 'n', 'CODE', 'job^^code', 'run', '*/10 * * * *', 'Y', '{\"handlerId\":\"h\"}', 60, " + NOW_SQL + " - INTERVAL '5' SECOND, 'USER')");
+                + "VALUES ('j1', 'MDM', 'n', 'CODE', 'jobCode', 'run', '*/10 * * * *', 'Y', '{\"handlerId\":\"h\"}', 60, " + NOW_SQL + " - INTERVAL '5' SECOND, 'USER')");
     }
 
     private ServiceResult start(boolean withScope) {
         if (withScope) JobDispatchScope.open();
         try {
-            return JobServiceInvoker.start(starter, ctx, "job^^dispatch",
-                    Map.of("action", "run", "batchSize", 50, "collectEnabled", "Y"), new CactusAudit("SCHEDULER", "JOB_DISPATCH", "job^^dispatch"));
+            return JobServiceInvoker.start(starter, ctx, "jobDispatch",
+                    Map.of("action", "run", "batchSize", 50, "collectEnabled", "Y"), new CactusAudit("SCHEDULER", "JOB_DISPATCH", "jobDispatch"));
         } finally {
             JobDispatchScope.close();
         }
@@ -111,7 +111,7 @@ class JobDispatchBpmnIntegrationTest {
     }
 
     @Test
-    @DisplayName("웹 경로(표시 없음)로 job^^dispatch 를 부르면 거절되고 선점하지 않는다")
+    @DisplayName("웹 경로(표시 없음)로 jobDispatch 를 부르면 거절되고 선점하지 않는다")
     void webPathIsRejected() {
         ServiceResult result = start(false);
         assertThat(result.serviceResultCode()).isEqualTo(ServiceResultCode.SYSTEM_ERROR);
