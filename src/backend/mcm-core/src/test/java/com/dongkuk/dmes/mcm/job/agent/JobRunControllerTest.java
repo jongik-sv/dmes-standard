@@ -33,15 +33,18 @@ class JobRunControllerTest {
     private MockMvc mvc;
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void setUp() {
         JobRunDispatcher dispatcher = mock(JobRunDispatcher.class);
         when(dispatcher.serverName()).thenReturn("host:mdm:1");
         when(dispatcher.submit(any())).thenReturn(SubmitResult.ACCEPTED);
+        org.springframework.beans.factory.ObjectProvider<JobRunDispatcher> provider = mock(org.springframework.beans.factory.ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(dispatcher);
         JobHandlerRegistry handlers = new JobHandlerRegistry(JobModule.MDM,
                 List.of(new SimpleScheduledJob("mdm.sync", JobModule.MDM, "동기화", null, Duration.ofMinutes(5), c -> 1)));
         // 운영은 CactusRequestMappingHandlerMapping 이 클래스 @RequestMapping 만 단 컨트롤러를 인식한다(Spring 7 기본 매핑은 @Controller 만 본다).
         // standaloneSetup 도 같은 매핑으로 맞춘다(OasisControllerTest 선례).
-        mvc = MockMvcBuilders.standaloneSetup(new JobRunController(new JobRunAcceptor(JobModule.MDM, dispatcher, handlers)))
+        mvc = MockMvcBuilders.standaloneSetup(new JobRunController(new JobRunAcceptor(JobModule.MDM, provider, handlers)))
                 .setCustomHandlerMapping(CactusRequestMappingHandlerMapping::new).build();
     }
 
@@ -50,7 +53,7 @@ class JobRunControllerTest {
     }
 
     private String body(String module) throws Exception {
-        return json.writeValueAsString(new JobRunRequest("r1", "mdm.sync", module, "job^^code", "run", Map.of("a", 1), Map.of(),
+        return json.writeValueAsString(new JobRunRequest("r1", "mdm.sync", module, "jobCode", "run", Map.of("a", 1), Map.of(),
                 Map.of("handlerId", "mdm.sync"), 60, null, "2026-10-09T02:00:00", false, null));
     }
 

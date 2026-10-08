@@ -16,11 +16,19 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 
 class JobRunAcceptorTest {
 
     private JobRunDispatcher dispatcher;
     private JobRunAcceptor acceptor;
+
+    @SuppressWarnings("unchecked")
+    private static ObjectProvider<JobRunDispatcher> provider(JobRunDispatcher d) {
+        ObjectProvider<JobRunDispatcher> p = mock(ObjectProvider.class);
+        when(p.getIfAvailable()).thenReturn(d);
+        return p;
+    }
 
     @BeforeEach
     void setUp() {
@@ -28,7 +36,7 @@ class JobRunAcceptorTest {
         when(dispatcher.serverName()).thenReturn("host:mdm:1");
         JobHandlerRegistry handlers = new JobHandlerRegistry(JobModule.MDM,
                 List.of(new SimpleScheduledJob("mdm.sync", JobModule.MDM, "동기화", null, java.time.Duration.ofMinutes(5), c -> 1)));
-        acceptor = new JobRunAcceptor(JobModule.MDM, dispatcher, handlers);
+        acceptor = new JobRunAcceptor(JobModule.MDM, provider(dispatcher), handlers);
     }
 
     private static JobRunRequest req(String module, String serviceId, Map<String, Object> config) {
@@ -39,7 +47,7 @@ class JobRunAcceptorTest {
     @DisplayName("접수 — 202 {accepted:true, serverNm}")
     void accepted() {
         when(dispatcher.submit(any())).thenReturn(SubmitResult.ACCEPTED);
-        AcceptResult r = acceptor.accept(req("MDM", "mdm^^dailyClose", null));
+        AcceptResult r = acceptor.accept(req("MDM", "mdmDailyClose", null));
         assertThat(r.status()).isEqualTo(202);
         assertThat(r.body()).containsEntry("accepted", true).containsEntry("serverNm", "host:mdm:1");
     }
@@ -48,7 +56,7 @@ class JobRunAcceptorTest {
     @DisplayName("같은 runId 를 이미 접수했으면 200 {duplicate:true}")
     void duplicate() {
         when(dispatcher.submit(any())).thenReturn(SubmitResult.DUPLICATE);
-        AcceptResult r = acceptor.accept(req("MDM", "mdm^^dailyClose", null));
+        AcceptResult r = acceptor.accept(req("MDM", "mdmDailyClose", null));
         assertThat(r.status()).isEqualTo(200);
         assertThat(r.body()).containsEntry("duplicate", true);
     }
@@ -57,9 +65,9 @@ class JobRunAcceptorTest {
     @DisplayName("같은 서버에서 같은 작업이 실행 중이면 409 JOB_RUNNING, 풀이 가득이면 503 JOB_POOL_FULL")
     void runningAndPoolFull() {
         when(dispatcher.submit(any())).thenReturn(SubmitResult.JOB_RUNNING);
-        assertThat(acceptor.accept(req("MDM", "mdm^^dailyClose", null)).status()).isEqualTo(409);
+        assertThat(acceptor.accept(req("MDM", "mdmDailyClose", null)).status()).isEqualTo(409);
         when(dispatcher.submit(any())).thenReturn(SubmitResult.POOL_FULL);
-        AcceptResult r = acceptor.accept(req("MDM", "mdm^^dailyClose", null));
+        AcceptResult r = acceptor.accept(req("MDM", "mdmDailyClose", null));
         assertThat(r.status()).isEqualTo(503);
         assertThat(r.body()).containsEntry("code", "JOB_POOL_FULL");
     }
@@ -67,22 +75,41 @@ class JobRunAcceptorTest {
     @Test
     @DisplayName("요청의 module 이 이 앱의 모듈과 다르면 400 JOB_MODULE_MISMATCH — 실행 풀에 넣지 않는다")
     void moduleMismatch() {
-        AcceptResult r = acceptor.accept(req("MCM", "mdm^^dailyClose", null));
+        AcceptResult r = acceptor.accept(req("MCM", "mdmDailyClose", null));
         assertThat(r.status()).isEqualTo(400);
         assertThat(r.body()).containsEntry("code", "JOB_MODULE_MISMATCH");
         verify(dispatcher, never()).submit(any());
     }
 
     @Test
-    @DisplayName("CODE 작업(job^^code)의 처리기가 이 앱에 없으면 404 JOB_HANDLER_NOT_FOUND")
+    @DisplayName("CODE 작업(jobCode)의 처리기가 이 앱에 없으면 404 JOB_HANDLER_NOT_FOUND")
     void handlerNotFound() {
-        AcceptResult r = acceptor.accept(req("MDM", "job^^code", Map.of("handlerId", "mdm.other")));
+        AcceptResult r = acceptor.accept(req("MDM", "jobCode", Map.of("handlerId", "mdm.other")));
         assertThat(r.status()).isEqualTo(404);
         assertThat(r.body()).containsEntry("code", "JOB_HANDLER_NOT_FOUND");
         verify(dispatcher, never()).submit(any());
 
         when(dispatcher.submit(any())).thenReturn(SubmitResult.ACCEPTED);
-        assertThat(acceptor.accept(req("MDM", "job^^code", Map.of("handlerId", "mdm.sync"))).status()).isEqualTo(202);
+        assertThat(acceptor.accept(req("MDM", "jobCode", Map.of("handlerId", "mdm.sync"))).status()).isEqualTo(202);
+    }
+
+    @Test
+    @DisplayName("진입점 빈이 없으면(DataSource 미확정) 404 — 실행 풀에 넣지 않는다")
+    void noDispatcherIsUnavailable() {
+        JobHandlerRegistry handlers = new JobHandlerRegistry(JobModule.MDM, List.of());
+        JobRunAcceptor noAgent = new JobRunAcceptor(JobModule.MDM, provider(null), handlers);
+        AcceptResult r = noAgent.accept(req("MDM", "mdmDailyClose", null));
+        assertThat(r.status()).isEqualTo(404);
+        assertThat(r.body()).containsEntry("code", "JOB_AGENT_UNAVAILABLE");
+    }
+
+    @Test
+    @DisplayName("진입점이 잘못된 요청이라며 IllegalArgumentException 을 던지면 400 — 아무것도 등록하지 않는다")
+    void dispatcherRejectionIsBadRequest() {
+        when(dispatcher.submit(any())).thenThrow(new IllegalArgumentException("runId·jobId·serviceId 는 비어 있을 수 없습니다"));
+        AcceptResult r = acceptor.accept(req("MDM", "mdmDailyClose", null));
+        assertThat(r.status()).isEqualTo(400);
+        assertThat(r.body()).containsEntry("code", "JOB_BAD_REQUEST");
     }
 
     @Test

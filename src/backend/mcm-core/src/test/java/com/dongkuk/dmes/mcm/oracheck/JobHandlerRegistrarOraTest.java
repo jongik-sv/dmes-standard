@@ -58,7 +58,7 @@ class JobHandlerRegistrarOraTest {
         Map<String, Object> def = jdbc.queryForMap("SELECT * FROM MCMAPUSER.TB_MCM_JOB_DEF WHERE JOB_ID = 'mcm.rollup'");
         assertThat(def.get("MODULE_CD")).isEqualTo("MCM");
         assertThat(def.get("JOB_KIND")).isEqualTo("CODE");
-        assertThat(def.get("SERVICE_ID")).isEqualTo("job^^code");
+        assertThat(def.get("SERVICE_ID")).isEqualTo("jobCode");
         assertThat(def.get("ACTION")).isEqualTo("run");
         assertThat(def.get("OWNER_TP")).isEqualTo("CODE");
         assertThat(def.get("USE_YN")).isEqualTo("Y");

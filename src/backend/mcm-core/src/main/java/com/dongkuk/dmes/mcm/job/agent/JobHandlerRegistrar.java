@@ -40,7 +40,7 @@ public class JobHandlerRegistrar {
 
     public JobHandlerRegistrar(DataSource dataSource, String schema, JobHandlerRegistry registry, Duration retryDelay) {
         if (schema == null || !SCHEMA.matcher(schema).matches()) throw new IllegalArgumentException("dmes.job.schema 는 식별자여야 합니다");
-        this.jdbc = new JdbcTemplate(dataSource);
+        this.jdbc = dataSource == null ? null : new JdbcTemplate(dataSource);
         this.registry = registry;
         this.retryDelay = retryDelay;
         this.mergeHandlerSql = """
@@ -68,14 +68,14 @@ public class JobHandlerRegistrar {
                 WHEN NOT MATCHED THEN INSERT
                       (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, SERVICE_ID, ACTION, CRON_EXPR, USE_YN, CONFIG_JSON, VARS_JSON, TIMEOUT_SEC, NEXT_RUN_AT,
                        OWNER_TP, C_AT, C_USR_ID, C_PGM_ID, U_AT, U_USR_ID, U_PGM_ID, VER)
-                VALUES (S.JOB_ID, ?, ?, 'CODE', 'job^^code', 'run', ?, 'Y', ?, ?, ?, ?,
+                VALUES (S.JOB_ID, ?, ?, 'CODE', 'jobCode', 'run', ?, 'Y', ?, ?, ?, ?,
                         'CODE', %2$s, 'SYSTEM', 'JobHandlerRegistrar', %2$s, 'SYSTEM', 'JobHandlerRegistrar', 0)
                 """.formatted(schema, NOW);
     }
 
-    /** @return 등록한 처리기 수(건너뛴 것 제외). 처리기가 없으면 DB 에 닿지 않는다. */
+    /** @return 등록한 처리기 수(건너뛴 것 제외). 처리기가 없거나 DataSource 가 없으면 DB 에 닿지 않고 0. */
     public int register() {
-        if (registry.all().isEmpty()) return 0;
+        if (registry.all().isEmpty() || jdbc == null) return 0;
         Timestamp now = jdbc.queryForObject("SELECT " + NOW + " FROM DUAL", Timestamp.class);
         int count = 0;
         for (ScheduledJob job : registry.all()) {

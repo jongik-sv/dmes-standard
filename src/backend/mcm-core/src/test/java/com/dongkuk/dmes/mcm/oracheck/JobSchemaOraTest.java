@@ -40,12 +40,12 @@ class JobSchemaOraTest {
 
     private void insertRun(String jobId, Timestamp schedAt, String trigger, String runId, String status) {
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS) "
-                + "VALUES (?, ?, ?, ?, 'MCM', 'job^^code', ?)", jobId, schedAt, trigger, runId, status);
+                + "VALUES (?, ?, ?, ?, 'MCM', 'jobCode', ?)", jobId, schedAt, trigger, runId, status);
     }
 
     private void insertDef(String jobId, String module, String kind) {
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_DEF (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, SERVICE_ID, ACTION, CRON_EXPR, TIMEOUT_SEC, OWNER_TP) "
-                + "VALUES (?, ?, 'n', ?, 'job^^code', 'run', '0 0 * * *', 60, 'USER')", jobId, module, kind);
+                + "VALUES (?, ?, 'n', ?, 'jobCode', 'run', '0 0 * * *', 60, 'USER')", jobId, module, kind);
     }
 
     @Test
@@ -83,7 +83,7 @@ class JobSchemaOraTest {
     @DisplayName("SCHED_AT(TIMESTAMP(0))은 소수 초를 반올림한다 — 넣기 전에 초 단위로 버려야 하는 근거")
     void schedAtRoundsToSecond() {
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS) "
-                + "VALUES ('J2', TIMESTAMP '2026-10-09 02:00:00.7', 'S', 'run-r', 'MCM', 'job^^code', 'RUN')");
+                + "VALUES ('J2', TIMESTAMP '2026-10-09 02:00:00.7', 'S', 'run-r', 'MCM', 'jobCode', 'RUN')");
         Timestamp stored = jdbc.queryForObject("SELECT SCHED_AT FROM MCMAPUSER.TB_MCM_JOB_RUN WHERE JOB_ID = 'J2'", Timestamp.class);
         assertThat(stored).isEqualTo(Timestamp.valueOf("2026-10-09 02:00:01"));
     }

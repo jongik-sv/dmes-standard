@@ -31,11 +31,11 @@ class JobRunHttpSecurityTest extends AbstractMdmSharedDbTest {
     private final HttpClient client = HttpClient.newHttpClient();
 
     private static final String BODY_OTHER_MODULE = """
-            {"runId":"r1","jobId":"mcm.x","module":"MCM","serviceId":"job^^code","action":"run","inputs":{},"varTypes":{},"config":{"handlerId":"x"},
+            {"runId":"r1","jobId":"mcm.x","module":"MCM","serviceId":"jobCode","action":"run","inputs":{},"varTypes":{},"config":{"handlerId":"x"},
              "timeoutSec":60,"schedAt":"2026-10-09T02:00:00","manual":false}
             """;
     private static final String BODY_NO_HANDLER = """
-            {"runId":"r1","jobId":"mdm.x","module":"MDM","serviceId":"job^^code","action":"run","inputs":{},"varTypes":{},"config":{"handlerId":"no.such"},
+            {"runId":"r1","jobId":"mdm.x","module":"MDM","serviceId":"jobCode","action":"run","inputs":{},"varTypes":{},"config":{"handlerId":"no.such"},
              "timeoutSec":60,"schedAt":"2026-10-09T02:00:00","manual":false}
             """;
 

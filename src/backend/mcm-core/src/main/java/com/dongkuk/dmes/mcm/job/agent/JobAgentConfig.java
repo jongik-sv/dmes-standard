@@ -33,7 +33,7 @@ public class JobAgentConfig {
     }
 
     @Bean
-    public JobRunAcceptor jobRunAcceptor(JobAppInfo app, JobRunDispatcher dispatcher, JobHandlerRegistry handlers) {
+    public JobRunAcceptor jobRunAcceptor(JobAppInfo app, ObjectProvider<JobRunDispatcher> dispatcher, JobHandlerRegistry handlers) {
         return new JobRunAcceptor(app.module(), dispatcher, handlers);
     }
 
@@ -49,7 +49,7 @@ public class JobAgentConfig {
 
     @Bean
     public JobHandlerRegistrar jobHandlerRegistrar(ObjectProvider<DataSource> dataSource, JobProperties props, JobHandlerRegistry registry) {
-        return new JobHandlerRegistrar(dataSource.getObject(), props.getSchema(), registry, Duration.ofMinutes(1));
+        return new JobHandlerRegistrar(dataSource.getIfAvailable(), props.getSchema(), registry, Duration.ofMinutes(1));
     }
 
     /** 앱이 다 뜬 뒤 코드 작업 처리기를 등록한다 — 실패해도 기동은 실패하지 않는다. */

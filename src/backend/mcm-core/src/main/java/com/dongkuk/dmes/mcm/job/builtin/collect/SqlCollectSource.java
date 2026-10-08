@@ -28,7 +28,7 @@ public class SqlCollectSource implements CollectSource<CollectConfig.SqlSource> 
         return collect(source, today, Map.of(), Map.of(), JobCollectSql.MAX_TIMEOUT_SEC);
     }
 
-    /** 작업 변수(바인드 값)와 쿼리 시간 초과(초)를 받는 실행 경로 — {@code job^^collect} 가 쓴다. */
+    /** 작업 변수(바인드 값)와 쿼리 시간 초과(초)를 받는 실행 경로 — {@code jobCollect} 가 쓴다. */
     public List<CollectItem> collect(CollectConfig.SqlSource source, LocalDate today, Map<String, Object> vars, Map<String, String> varTypes,
                                      int timeoutSec) {
         WidgetQueryResult result = sql.run(source.sql(), vars, varTypes, timeoutSec, MAX_ITEMS, today);
