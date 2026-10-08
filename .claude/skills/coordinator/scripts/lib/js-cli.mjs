@@ -67,3 +67,15 @@ export async function runCli(functions, argv = process.argv.slice(2), env = proc
 export function cliMain(functions) {
   runCli(functions).then((rc) => { process.exitCode = rc; });
 }
+
+/**
+ * 스크립트 전체를 옮긴 모듈용(coord-state·office 같은 CLI). 모듈 끝에: `if (isMain(import.meta.url)) scriptMain(main);`
+ *   main(argv, {env, cwd}) 는 종료 코드(숫자)를 돌려준다(비동기 가능). stdout·stderr 는 main 이 process.stdout/stderr 에 직접 쓴다
+ *   (bash 스크립트처럼 진행 중에 흘려도 된다). 예외는 종료 코드 70.
+ */
+export function scriptMain(main) {
+  Promise.resolve()
+    .then(() => main(process.argv.slice(2), { env: process.env, cwd: process.cwd() }))
+    .then((rc) => { process.exitCode = rc ?? 0; })
+    .catch((e) => { process.stderr.write(`js-cli: 내부 오류: ${e && e.stack ? e.stack : e}\n`); process.exitCode = RC_INTERNAL; });
+}

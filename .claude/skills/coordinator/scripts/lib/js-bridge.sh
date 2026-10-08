@@ -8,6 +8,9 @@
 #                                         종료 코드도 그대로 돌려준다(node 가 못 뜨거나 내부 오류면 70 — 켜짐에서는 bash 로 되돌아가지 않는다).
 #   _jsb_callg <모듈> <함수> "<전역 변수 이름들>" [인자…]   위와 같되, 함수가 설정한 전역 변수(이름은 공백으로 나눔)를 이 셸의 전역 변수에 넣는다.
 #                                         node 판이 쓰지 않은 변수는 빈 값으로 만든다(bash 판이 함수 첫머리에서 비우는 것과 같은 효과).
+#   _jsb_exec <모듈 파일 이름> [인자…]      (스크립트 전체를 옮긴 경우) 이 프로세스를 node <모듈>.mjs 인자… 로 바꾼다(exec, stdin·stdout·stderr 그대로).
+#                                         스크립트 맨 위에서: `. "$LIB/js-bridge.sh"; if _jsb_on COORD_STATE; then _jsb_exec coord-state "$@"; fi`
+#                                         node 를 못 찾으면 70 으로 끝난다(켜짐에서는 bash 본문으로 되돌아가지 않는다).
 # 한계: 전역 변수는 문자열만, NUL 이 든 값은 못 옮긴다. stdout 에 NUL 이 있으면 bash 의 $(…) 에서 사라진다(bash 판도 같다).
 # node 는 source 시점의 절대 경로로 고정한다(이후 PATH 가 바뀌어도 같은 node). 윈도우(Git Bash)는 cygpath -m 경로를 node 에 준다.
 
@@ -59,4 +62,11 @@ _jsb_callg() {
   rm -f "$gf"
   printf '%s' "$out"
   return "$rc"
+}
+
+_jsb_exec() {
+  local mod="$1" p
+  shift
+  p="$(_jsb_path "$mod")" || exit 70
+  exec "$_JSB_NODE" "$p" "$@"
 }

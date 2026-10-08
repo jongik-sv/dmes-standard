@@ -35,6 +35,8 @@ export default {
 - `globals` 는 함수가 설정해 호출자가 읽는 전역 변수 이름들(예: SC_STORED_KIND). 두 판 값이 같아야 한다.
 - `compareFiles: false` 는 파일 상태 비교를 끈다(기본은 작업 폴더·HOME 아래 모든 파일의 종류·권한·크기·sha1 비교, mtime 은 안 봄).
 - `normalize(buf, side, c)`(모듈 또는 함수 수준)로 시각·pid 같은 비결정 값을 지운다. 되도록 쓰지 말고, 시계는 환경 변수로 고정하게 설계한다.
+- **자리표시자**: 환경 변수 값·인자 안의 `<WORK>`(사례 작업 폴더)·`<HOME>`·`<TMP>` 는 사례마다 실제 경로로 바뀐다. 외부 명령을 가짜로 바꿀 때: `files: {'bin/orca': {data: '#!/bin/sh\n…', mode: 0o755}}` + `env: {PATH: '<WORK>/bin:' + process.env.PATH}`.
+- **스크립트 전체를 옮기는 모듈**(`kind: 'script'`): sh 는 source 대신 `bash <sh> 인자…`, mjs 는 `node <mjs> 인자…`(같은 인자). 함수 이름은 서브커맨드 따위를 구분하는 보고용 이름이고 `shArgs(c)` 로 인자를 만든다. 표본 `specs/sample-script.mjs`.
 - 생성기(`gen.mjs`): `text`·`screen`·`prompt`(CRLF·한글·빈 입력·64KB 초과·깨진 UTF-8·비밀 값·ANSI 포함), `handle`, 조각 함수 `word`·`line`·`secret`·`textBuf`. 새 생성기는 gen.mjs 에 더하되 **기존 생성기의 난수 호출 순서를 바꾸지 않는다**(다른 모듈의 재현이 달라진다).
 - 표본: `specs/sample.mjs` + `sample/` (bash 판·mjs 판·명세가 한 벌). 새 모듈의 틀로 쓴다.
 
@@ -50,6 +52,8 @@ node scripts/lib/<모듈>.mjs <bash 함수 이름> [인자…]      # stdin → 
 - 모듈 코드는 `export const functions = { 함수이름: { stdin?: true, run({args, stdin, env, cwd}) } }` + 끝에 `if (isMain(import.meta.url)) cliMain(functions);`. 다른 모듈이 import 해 부를 수 있도록 **순수 로직은 별도 export 함수**로 두고 `functions` 표는 얇은 어댑터로 만든다. 시계·환경·작업 폴더는 인자로 받는다(전역을 직접 읽지 않는다).
 - 입출력은 바이트 단위로 다루고(`Buffer`), 문자열이 필요하면 UTF-8 로 해석한다. 윈도우 경로는 `node:path`, 줄끝 변환 금지(CRLF 그대로).
 
+스크립트 전체를 옮긴 모듈은 `export async function main(argv, {env, cwd})`(종료 코드를 돌려줌) + 끝에 `if (isMain(import.meta.url)) scriptMain(main);`. stdout·stderr 는 `process.stdout/stderr` 에 직접 써도 된다. 표본 `sample/sample-script.mjs`.
+
 ## 스위치 계약 (scripts/lib/js-bridge.sh)
 
 각 bash lib 는 맨 앞에서 `. "<lib 폴더>/js-bridge.sh"` 를 source 하고, 옮긴 함수마다 **첫 줄에만** 분기를 더한다(기존 본문은 한 글자도 바꾸지 않는다).
@@ -57,6 +61,7 @@ node scripts/lib/<모듈>.mjs <bash 함수 이름> [인자…]      # stdin → 
 sc_key()   { if _jsb_on SCREEN_CACHE; then _jsb_call screen-cache sc_key "$@"; return; fi; …기존 본문… }
 sc_store() { if _jsb_on SCREEN_CACHE; then _jsb_callg screen-cache sc_store "SC_STORED_KIND" "$@"; return; fi; … }
 ```
+- 스크립트 전체를 옮긴 경우는 스크립트 맨 위에 `. "$LIB/js-bridge.sh"; if _jsb_on COORD_STATE; then _jsb_exec coord-state "$@"; fi` 한 줄(프로세스를 node 로 바꿔 exec, 인자·stdin·stdout 그대로). 표본 `sample/sample-script.sh`.
 - 스위치 이름 `COORD_JS_<모듈 대문자, 하이픈은 밑줄>` (예: COORD_JS_SCREEN_CACHE). 기본(없음·0)은 bash 본문. `=1` 이고 node 가 있으면 node 판.
 - 켜짐에서 node 판이 실패(종료 코드 70)하면 bash 본문으로 되돌아가지 않고 그 코드로 실패한다. node 는 source 시점의 절대 경로로 고정한다.
 - 한계: 전역 변수는 문자열만, NUL 바이트는 못 옮긴다. 호출마다 node 기동 비용(약 40ms)이 든다 — 켜짐은 시험·확인용이고, 상주 폴러(W2)는 모듈을 import 한다.

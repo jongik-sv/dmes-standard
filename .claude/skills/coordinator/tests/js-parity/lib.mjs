@@ -80,6 +80,10 @@ export async function runSide(spec, fnName, fnSpec, c, side, opts = {}) {
     }
     const env = { ...process.env, HOME: home, USERPROFILE: home, TMPDIR: tmp, TZ: 'UTC', ...(spec.env || {}), ...(fnSpec.env || {}), ...(c.env || {}) };
     delete env.ORCA_TAB_ID;
+    // 자리표시자: 환경 변수·인자 안의 <WORK>(작업 폴더)·<HOME>(홈)·<TMP> 를 이 사례의 실제 경로로 바꾼다(예: PATH 앞에 <WORK>/bin 을 두어 가짜 orca 를 쓴다)
+    const sub = (v) => (typeof v === 'string' ? v.split('<WORK>').join(work).split('<HOME>').join(home).split('<TMP>').join(tmp) : v);
+    for (const k of Object.keys(env)) env[k] = sub(env[k]);
+    const subArgs = (a) => a.map(sub);
     if (spec.switchEnv) env[spec.switchEnv] = '0';   // bash 쪽이 정답이므로 스위치는 항상 끈다(node 판은 CLI 로 직접 부른다)
     let r;
     const gnames = fnSpec.globals || [];
@@ -89,11 +93,14 @@ export async function runSide(spec, fnName, fnSpec, c, side, opts = {}) {
       if (side === 'swon') env[spec.switchEnv] = '1';
       const pre = (spec.source || []).map((p) => `. ${shq(join(COORD_ROOT, p))}`).join('\n');
       const dump = gnames.length ? `for n in ${gnames.join(' ')}; do printf '%s=%s\\0' "$n" "\${!n}"; done > ${shq(gfile)}` : ':';
+      const args = subArgs(fnSpec.shArgs ? fnSpec.shArgs(c) : c.args || []);
+      // spec.kind === 'script' 이면 sh 는 source 하지 않고 스크립트를 그대로 실행한다(bash <sh> 인자…). 이때 mjs 도 같은 인자로 직접 실행한다.
       const script = `${pre}\n. ${shq(join(COORD_ROOT, spec.sh))}\nfn=$1; shift\n"$fn" "$@"\nrc=$?\n${dump}\nexit $rc`;
-      const args = fnSpec.shArgs ? fnSpec.shArgs(c) : c.args || [];
-      r = await run('bash', ['-c', script, '_', fnName, ...args], { cwd: work, env, stdin: c.stdin ?? '', timeoutMs: opts.timeoutMs || 30000 });
+      r = spec.kind === 'script'
+        ? await run('bash', [join(COORD_ROOT, spec.sh), ...args], { cwd: work, env, stdin: c.stdin ?? '', timeoutMs: opts.timeoutMs || 30000 })
+        : await run('bash', ['-c', script, '_', fnName, ...args], { cwd: work, env, stdin: c.stdin ?? '', timeoutMs: opts.timeoutMs || 30000 });
     } else {
-      const args = fnSpec.jsArgs ? fnSpec.jsArgs(c) : [...(fnSpec.js || []), ...(c.args || [])];
+      const args = subArgs(fnSpec.jsArgs ? fnSpec.jsArgs(c) : spec.kind === 'script' ? (fnSpec.shArgs ? fnSpec.shArgs(c) : c.args || []) : [...(fnSpec.js || []), ...(c.args || [])]);
       r = await run(process.execPath, [join(COORD_ROOT, spec.mjs), ...args], { cwd: work, env: { ...env, COORD_JS_GLOBALS_FILE: gfile }, stdin: c.stdin ?? '', timeoutMs: opts.timeoutMs || 30000 });
     }
     let globals = '';
