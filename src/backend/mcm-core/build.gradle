@@ -60,6 +60,10 @@ dependencies {
     api libs.jackson.datatype.jsr310
 
     compileOnly libs.flyway.core
+    // 예약 작업(com.dongkuk.dmes.mcm.job..)만 cactus-core(job 패키지·OASIS)를 쓴다 — McmCoreArchitectureTest 가 다른 패키지의 사용을 막는다.
+    // 6개 업무 앱이 모두 cactus-core 를 싣는다(런타임은 호스트 앱이 제공 — compileOnly).
+    compileOnly libs.cactus.core.v1020
+    testImplementation libs.cactus.core.v1020
 
     annotationProcessor platform(libs.spring.boot.dependencies)
     compileOnly libs.lombok.base

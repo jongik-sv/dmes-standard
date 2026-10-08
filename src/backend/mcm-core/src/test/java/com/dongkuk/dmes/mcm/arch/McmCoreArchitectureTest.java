@@ -14,7 +14,7 @@ import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.sli
  *
  * <p>강제 사항:
  * <ul>
- *   <li>mcm-core 는 cactus / oasis / aps / 호스트 런처 패키지를 import 하지 않는다.</li>
+ *   <li>mcm-core 는 cactus / oasis / aps / 호스트 런처 패키지를 import 하지 않는다(예약 작업 `mcm.job..` 제외).</li>
  *   <li>mcm-core 내부 패키지 간 사이클이 없다.</li>
  * </ul>
  */
@@ -27,16 +27,18 @@ class McmCoreArchitectureTest {
     @Test
     void mcm_core_는_cactus_패키지를_의존하지_않는다() {
         ArchRule rule = noClasses().that().resideInAPackage("com.dongkuk.dmes.mcm..")
+                .and().resideOutsideOfPackage("com.dongkuk.dmes.mcm.job..")
                 .should().dependOnClassesThat().resideInAPackage("com.dongkuk.dmes.cactus..")
-                .as("mcm-core 는 cactus-core 를 의존하지 않아야 한다 (04 §0 정책)");
+                .as("mcm-core 는 cactus-core 를 의존하지 않아야 한다 (04 §0 정책) — 예약 작업 mcm.job.. 만 예외(2026-10-09, 예약 작업 설계 D1)");
         rule.check(MCM_CORE);
     }
 
     @Test
     void mcm_core_는_oasis_패키지를_의존하지_않는다() {
         ArchRule rule = noClasses().that().resideInAPackage("com.dongkuk.dmes.mcm..")
+                .and().resideOutsideOfPackage("com.dongkuk.dmes.mcm.job..")
                 .should().dependOnClassesThat().resideInAPackage("com.dongkuk.oasis..")
-                .as("mcm-core 는 oasis-core 를 의존하지 않아야 한다");
+                .as("mcm-core 는 oasis-core 를 의존하지 않아야 한다 — 예약 작업 mcm.job.. 만 예외");
         rule.check(MCM_CORE);
     }
 

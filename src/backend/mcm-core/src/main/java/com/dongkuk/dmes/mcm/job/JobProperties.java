@@ -1,100 +1,90 @@
 package com.dongkuk.dmes.mcm.job;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 예약 작업 스케줄러 설정 — yml prefix {@code dmes.job}(설계 2026-10-08-job-scheduler-design).
+ * 예약 작업 설정 — yml prefix {@code dmes.job}(설계 §4.7).
  *
  * <pre>{@code
  * dmes:
  *   job:
- *     enabled: true             # false 면 이 앱은 예약 작업을 돌리지 않는다
- *     module: ""                # 비우면 spring.application.name 에서 판정
- *     server-name: ""           # 비우면 host:app:pid
- *     pool-size: 4              # 작업 실행 스레드 수
- *     max-claim-per-tick: 20    # 한 틱에 선점하는 최대 회차 수
- *     ver-poll-sec: 10          # 정의 버전 폴링 주기(초)
- *     datasource:               # 선택 — 비우면 앱 기본 DataSource
- *       jndi-name: ""
- *       url: ""
- *       username: ""
- *       password: ${JOB_DS_PASSWORD:}
- *       maximum-pool-size: 2
+ *     module: ""                 # 비우면 spring.application.name 의 첫 '-' 앞부분(대문자)
+ *     schema: MCMAPUSER          # 모듈 쪽 SQL 의 JOB 표 스키마 접두
+ *     pool-size: 4               # 모듈 앱의 작업 실행 스레드 수(대기열 0)
+ *     server-name: ""            # 비우면 호스트:앱이름:pid
+ *     agent:
+ *       enabled: true            # false 면 이 앱은 /internal/job/run 을 받지 않는다(404)
+ *     server:
+ *       enabled: false           # MCM 앱 application.yml 에서만 true — 판정·선점·호출·관리 빈
+ *       batch-size: 50           # 한 번에 선점하는 최대 작업 수
+ *     modules:                   # MCM 이 모듈을 부를 주소(기본값은 기존 <모듈>_WAS_URL 환경 변수)
+ *       mdm: { base-url: "${MDM_WAS_URL:http://localhost:8096}" }
  *     http:
- *       allowed-hosts: []       # HTTP 유형 작업이 호출할 수 있는 호스트
+ *       allowed-hosts: []        # COLLECT(http) 원천이 부를 수 있는 호스트(정확 일치)
  *     collect:
- *       enabled: true
+ *       enabled: true            # false 면 COLLECT 작업은 선점 후보에서 빠지고 mcm.collectPurge 는 아무것도 하지 않는다
  * }</pre>
- * 비밀번호는 환경변수로만 넣고, {@link Datasource#toString()} 은 비밀번호·주소를 보이지 않는다.
  */
 @ConfigurationProperties(prefix = "dmes.job")
 public class JobProperties {
 
-    private boolean enabled = true;
-    /** 비면 spring.application.name 대문자. */
     private String module;
-    /** 비면 host:app:pid. */
-    private String serverName;
+    private String schema = "MCMAPUSER";
     private int poolSize = 4;
-    private int maxClaimPerTick = 20;
-    private int verPollSec = 10;
-    private final Datasource datasource = new Datasource();
+    private String serverName;
+    private final Agent agent = new Agent();
+    private final Server server = new Server();
+    private final Map<String, ModuleTarget> modules = new LinkedHashMap<>();
     private final Http http = new Http();
     private final Collect collect = new Collect();
 
-    public boolean isEnabled() { return enabled; }
-    public void setEnabled(boolean enabled) { this.enabled = enabled; }
     public String getModule() { return module; }
     public void setModule(String module) { this.module = module; }
-    public String getServerName() { return serverName; }
-    public void setServerName(String serverName) { this.serverName = serverName; }
+    public String getSchema() { return schema; }
+    public void setSchema(String schema) { this.schema = schema; }
     public int getPoolSize() { return poolSize; }
     public void setPoolSize(int poolSize) { this.poolSize = poolSize; }
-    public int getMaxClaimPerTick() { return maxClaimPerTick; }
-    public void setMaxClaimPerTick(int maxClaimPerTick) { this.maxClaimPerTick = maxClaimPerTick; }
-    public int getVerPollSec() { return verPollSec; }
-    public void setVerPollSec(int verPollSec) { this.verPollSec = verPollSec; }
-    public Datasource getDatasource() { return datasource; }
+    public String getServerName() { return serverName; }
+    public void setServerName(String serverName) { this.serverName = serverName; }
+    public Agent getAgent() { return agent; }
+    public Server getServer() { return server; }
+    public Map<String, ModuleTarget> getModules() { return modules; }
     public Http getHttp() { return http; }
     public Collect getCollect() { return collect; }
 
-    /** JOB 전용 DataSource. jndi-name 이 있으면 그것, 없고 url 이 있으면 직결 풀, 둘 다 없으면 앱 기본 DataSource. */
-    public static class Datasource {
-        private String url;
-        private String username;
-        private String password;
-        private String jndiName;
-        private int maximumPoolSize = 2;
+    public static class Agent {
+        private boolean enabled = true;
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+    }
 
-        public String getUrl() { return url; }
-        public void setUrl(String url) { this.url = url; }
-        public String getUsername() { return username; }
-        public void setUsername(String username) { this.username = username; }
-        public String getPassword() { return password; }
-        public void setPassword(String password) { this.password = password; }
-        public String getJndiName() { return jndiName; }
-        public void setJndiName(String jndiName) { this.jndiName = jndiName; }
-        public int getMaximumPoolSize() { return maximumPoolSize; }
-        public void setMaximumPoolSize(int maximumPoolSize) { this.maximumPoolSize = maximumPoolSize; }
+    public static class Server {
+        private boolean enabled = false;
+        private int batchSize = 50;
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        public int getBatchSize() { return batchSize; }
+        public void setBatchSize(int batchSize) { this.batchSize = batchSize; }
+    }
 
-        @Override
-        public String toString() {
-            return "Datasource{jndiName=" + jndiName + ", maximumPoolSize=" + maximumPoolSize + "}";
-        }
+    public static class ModuleTarget {
+        private String baseUrl;
+        public String getBaseUrl() { return baseUrl; }
+        public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
     }
 
     public static class Http {
         private List<String> allowedHosts = new ArrayList<>();
-
         public List<String> getAllowedHosts() { return allowedHosts; }
-        public void setAllowedHosts(List<String> allowedHosts) { this.allowedHosts = allowedHosts; }
+        public void setAllowedHosts(List<String> allowedHosts) { this.allowedHosts = allowedHosts == null ? new ArrayList<>() : allowedHosts; }
     }
 
     public static class Collect {
         private boolean enabled = true;
-
         public boolean isEnabled() { return enabled; }
         public void setEnabled(boolean enabled) { this.enabled = enabled; }
     }
