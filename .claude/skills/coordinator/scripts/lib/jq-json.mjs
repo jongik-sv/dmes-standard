@@ -4,7 +4,7 @@
 //   · stringify(v, {indent: 2|0}) = jq `.`(2칸 들여쓰기)·`-c`(compact). 키 순서는 삽입 순서, 문자열 이스케이프는 jq 와 같다
 //     (\" \\ \b \f \n \r \t, 그 밖의 U+0000~U+001F 와 DEL(U+007F)은 \u00XX 소문자 16진, 나머지 비 ASCII 는 그대로).
 //   · 숫자 출력: JNum 은 decNumber 의 to-scientific-string(1.0→1.0, 1e3→1E+3, 0.10→0.10), JS number 는 jq 의 dtoa 꼴(1e+17, 1e-05).
-//   · 읽기 오류는 JqError(message) 를 던진다(jq 종료 코드 2 에 해당). 접근 오류(Cannot index …)는 JqError(code 5).
+//   · 읽기(파싱) 오류는 JqError(message, code 5)를 던진다(jq 1.7.1 이 입력 파싱 오류에 내는 종료 코드). 접근 오류(Cannot index …)는 JqError(code 5).
 // node 18.17 이상, 외부 패키지 없음.
 
 export class JqError extends Error {
@@ -66,7 +66,7 @@ export function numberText(n) { return n instanceof JNum ? decText(n.lit) : dtoa
 class Parser {
   constructor(text) { this.s = text; this.i = 0; }
   ws() { const s = this.s; while (this.i < s.length) { const c = s.charCodeAt(this.i); if (c === 32 || c === 9 || c === 10 || c === 13) this.i++; else break; } }
-  fail(msg) { throw new JqError(`parse error: ${msg} at offset ${this.i}`); }
+  fail(msg) { throw new JqError(`parse error: ${msg} at offset ${this.i}`, 5); }
   value() {
     this.ws();
     const s = this.s, c = s[this.i];
@@ -176,6 +176,22 @@ export function parseStream(text) {
     p.ws();
     if (p.i >= text.length) return out;
     out.push(p.value());
+  }
+}
+
+/** parseStream 과 같되 오류가 나도 그 앞까지 읽은 값들을 함께 돌려준다 — jq 는 입력을 읽는 대로 처리하므로 앞 값의 출력은 이미 나간 뒤에 오류가 난다. */
+export function parseStreamPartial(text) {
+  const p = new Parser(text);
+  const values = [];
+  try {
+    for (;;) {
+      p.ws();
+      if (p.i >= text.length) return { values, error: null };
+      values.push(p.value());
+    }
+  } catch (e) {
+    if (e instanceof JqError) return { values, error: e };
+    throw e;
   }
 }
 

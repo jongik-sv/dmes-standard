@@ -11,6 +11,8 @@
 #   _jsb_exec <모듈 파일 이름> [인자…]      (스크립트 전체를 옮긴 경우) 이 프로세스를 node <모듈>.mjs 인자… 로 바꾼다(exec, stdin·stdout·stderr 그대로).
 #                                         스크립트 맨 위에서: `. "$LIB/js-bridge.sh"; if _jsb_on COORD_STATE; then _jsb_exec coord-state "$@"; fi`
 #                                         node 를 못 찾으면 70 으로 끝난다(켜짐에서는 bash 본문으로 되돌아가지 않는다).
+#   _jsb_calld <모듈> <함수> [인자…]       _jsb_callg 에 전역 _JSB_DIE 를 붙인 것 — coord_die 로 끝나는 bash 함수용(위 설명)
+#   모든 호출은 환경 변수 COORD_JS_CALLER_PID=<부른 셸의 $$> 를 node 에 넘긴다(잠금 주인 pid·pgrep 제외 등 「부른 셸」이 의미 있는 곳용).
 # 한계: 전역 변수는 문자열만, NUL 이 든 값은 못 옮긴다. stdout 에 NUL 이 있으면 bash 의 $(…) 에서 사라진다(bash 판도 같다).
 # node 는 source 시점의 절대 경로로 고정한다(이후 PATH 가 바뀌어도 같은 node). 윈도우(Git Bash)는 cygpath -m 경로를 node 에 준다.
 
@@ -42,7 +44,7 @@ _jsb_call() {
   local mod="$1" fn="$2" p out rc
   shift 2
   p="$(_jsb_path "$mod")" || return 70
-  out="$("$_JSB_NODE" "$p" "$fn" "$@"; printf '.%d' "$?")"
+  out="$(COORD_JS_CALLER_PID=$$ "$_JSB_NODE" "$p" "$fn" "$@"; printf '.%d' "$?")"
   rc="${out##*.}"; out="${out%.*}"
   printf '%s' "$out"
   return "$rc"
@@ -53,7 +55,7 @@ _jsb_callg() {
   shift 3
   p="$(_jsb_path "$mod")" || return 70
   gf="$(mktemp "${TMPDIR:-/tmp}/jsb-globals.XXXXXX")" || return 70
-  out="$(COORD_JS_GLOBALS_FILE="$gf" "$_JSB_NODE" "$p" "$fn" "$@"; printf '.%d' "$?")"
+  out="$(COORD_JS_GLOBALS_FILE="$gf" COORD_JS_CALLER_PID=$$ "$_JSB_NODE" "$p" "$fn" "$@"; printf '.%d' "$?")"
   rc="${out##*.}"; out="${out%.*}"
   for n in $names; do printf -v "$n" '%s' ''; done
   while IFS= read -r -d '' kv; do
@@ -66,9 +68,18 @@ _jsb_callg() {
   return "$rc"
 }
 
+# 위와 같되, bash 판이 coord_die(= exit)로 끝나는 함수용: node 판이 전역 _JSB_DIE=1 로 「die 였다」를 알리면 그 종료 코드로 이 셸을 끝낸다
+# (서브셸 `$(…)` 안에서 부르면 그 서브셸만 끝나는 것도 bash 판과 같다).
+_jsb_calld() {
+  local rc
+  _jsb_callg "$1" "$2" "_JSB_DIE" "${@:3}"; rc=$?
+  [ -z "${_JSB_DIE:-}" ] || exit "$rc"
+  return "$rc"
+}
+
 _jsb_exec() {
   local mod="$1" p
   shift
   p="$(_jsb_path "$mod")" || exit 70
-  exec "$_JSB_NODE" "$p" "$@"
+  COORD_JS_CALLER_PID=$$ exec "$_JSB_NODE" "$p" "$@"
 }
