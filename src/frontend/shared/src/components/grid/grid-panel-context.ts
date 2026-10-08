@@ -29,6 +29,25 @@ export interface GridPanelGridControls {
   exportExcel?(): void;
   /** 내려받을 수 있는가 — 행이 0 이면 false. 메뉴를 열 때와 GridPanel 이 그릴 때 읽는다. */
   canExportExcel?(): boolean;
+  /**
+   * 필터 명령(그리드 `filter` 를 켠 그리드만). 빠른 검색어·거른 건수는 GridPanel 머리줄이 쓰고, 입력 줄 펴기·접기는 설정 메뉴가 쓴다.
+   * 입력 줄 명령(getFilterRowOpen·setFilterRowOpen)은 설정 메뉴를 켠 그리드만 채운다(`settingsMenu={false}` 면 비운다).
+   */
+  setQuickFilter?(text: string): void;
+  /** 필터 입력 줄이 펼쳐져 있는가. */
+  getFilterRowOpen?(): boolean;
+  /** 필터 입력 줄을 펴고 접는다 — 접으면 칸별 조건을 지운다(빠른 검색어는 그대로). */
+  setFilterRowOpen?(open: boolean): void;
+  /** 거른 건수 — 걸러 보이는 행 수와 전체 행 수. 거르지 않으면 null. 값이 같으면 같은 객체를 돌려준다(`useSyncExternalStore` 의 getSnapshot). */
+  getFilterCount?(): GridFilterCount | null;
+  /** 입력 줄·거른 건수가 바뀔 때 알린다. 돌려주는 함수로 해제한다. */
+  subscribeFilter?(listener: () => void): () => void;
+}
+
+/** 거른 동안의 건수 — GridPanel 머리줄이 「보이는 행 / 전체 행」 으로 보인다. */
+export interface GridFilterCount {
+  shown: number;
+  total: number;
 }
 
 export interface GridPanelRegistry {

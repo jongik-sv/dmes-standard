@@ -95,6 +95,11 @@ export interface GridColumn {
    * 그룹 항목의 `headerComponent`·`headerComponentParams` 는 그룹 머리 컴포넌트(headerGroupComponent)로 쓴다.
    */
   children?: GridColumn[];
+  /**
+   * 칸별 필터 종류 — 그리드 `filter` 를 켰을 때만 쓴다. 비우면 `type: "number"` 는 숫자 필터(같다·크다·범위), 그 밖은 글자 필터(포함·시작…).
+   * `false` 면 이 칸은 필터 입력 줄에 칸이 비고 빠른 검색에서도 빠진다(값이 화면 표시용이 아닌 render 전용 칸·단추 칸).
+   */
+  filter?: false | "text" | "number";
 }
 
 export interface AgDataGridProps {
@@ -313,6 +318,16 @@ export interface AgDataGridProps {
    * 너비는 사용자가 머리글 경계를 끌어 바꾼 컬럼만 저장되고, 그 컬럼만 자동 너비 맞춤에서 빠진다(나머지는 예전처럼 자동).
    */
   personalize?: GridPersonalize;
+  /**
+   * 그리드 안 걸러 보기. 기본 끔. 켜면
+   * - GridPanel 머리줄에 빠른 검색 칸이 처음부터 보인다 — 넣은 글자가 보이는 칸 어디에든 들어 있는 행만 남긴다(띄어 쓴 낱말은 모두 들어 있어야 한다).
+   * - 「그리드 설정」 메뉴에 「필터 창 보기」 가 생긴다. 켜면 머리글 아래에 칸별 입력 줄이 펼쳐지고(칸 종류는 `GridColumn.filter`), 끄면 접히면서 칸별 조건을 지운다(검색어는 그대로).
+   * - 거른 동안 GridPanel 건수는 「보이는 행 / 전체 행」 으로 바뀐다. 엑셀 출력도 걸러진 행만 내보낸다.
+   * 받아 둔 행 안에서만 거른다 — 서버 페이징 그리드는 지금 쪽만, 편집 그리드는 새로 넣은 행도 조건에 안 맞으면 숨는다.
+   * GridPanel 밖 그리드는 검색 칸이 없고 설정 아이콘 메뉴의 「필터 창 보기」 만 있다. `settingsMenu={false}` 면 입력 줄을 펼 수 없다.
+   * 대화 상자 안의 그리드는 GridPanel 안이어도 검색 칸·「필터 창 보기」 가 없다.
+   */
+  filter?: boolean;
 }
 
 /** 칸 검증 표시 한 건 — `AgDataGridProps.fieldErrors` 의 항목. */

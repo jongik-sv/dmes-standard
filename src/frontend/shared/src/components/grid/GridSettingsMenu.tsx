@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * GridPanel 머리줄 오른쪽 끝의 「그리드 설정」 아이콘 메뉴(내부 부품, 툴팁은 GridHelpButton 처럼 title) — [컬럼 설정…]·「자동 설정 저장」 스위치·[설정 초기화…]·(구분선)·[엑셀 출력] 순서로 한 메뉴에 모은다.
+ * GridPanel 머리줄 오른쪽 끝의 「그리드 설정」 아이콘 메뉴(내부 부품, 툴팁은 GridHelpButton 처럼 title) — 「필터 창 보기」 스위치·(구분선)·[컬럼 설정…]·「자동 설정 저장」 스위치·[설정 초기화…]·(구분선)·[엑셀 출력] 순서로 한 메뉴에 모은다.
  *
- * - 항목은 대상 그리드가 올려 둔 명령에 따라 보인다: 개인화 항목(컬럼 설정·자동 설정 저장·초기화)은 `hasPersonalize`, 엑셀은 `hasExcel` 일 때만.
+ * - 항목은 대상 그리드가 올려 둔 명령에 따라 보인다: 필터 창은 `hasFilterRow`, 개인화 항목(컬럼 설정·자동 설정 저장·초기화)은 `hasPersonalize`, 엑셀은 `hasExcel` 일 때만.
+ * - 「필터 창 보기」 는 누르면 메뉴를 닫는다 — 펼쳐진 입력 줄이 바로 보이게.
  * - 엑셀 항목은 서버 페이징 그리드(`excelPaged`)면 「엑셀 출력 (현재 페이지)」 로 보여 지금 쪽의 행만 나간다는 것을 알린다.
  * - 「자동 설정 저장」 은 누르면 값만 바꾸고 메뉴를 닫지 않는다(`closeMenuOnClick={false}`). 항목 전체가 누름 대상이고, 안의 스위치는 보여 주기만 한다
  *   (스위치 입력을 눌러도 항목의 onClick 이 한 번만 돈다).
@@ -11,7 +12,7 @@
  */
 import { memo } from "react";
 import { ActionIcon, Menu, Switch } from "@mantine/core";
-import { IconColumns3, IconDeviceFloppy, IconDownload, IconRestore, IconSettings } from "@tabler/icons-react";
+import { IconColumns3, IconDeviceFloppy, IconDownload, IconFilter, IconRestore, IconSettings } from "@tabler/icons-react";
 
 import { GRID_SETTINGS_LABELS } from "./grid-settings-labels";
 
@@ -20,6 +21,12 @@ export interface GridSettingsMenuProps {
   hasPersonalize: boolean;
   /** 엑셀 내려받기 항목을 보인다. */
   hasExcel: boolean;
+  /** 「필터 창 보기」 항목을 보인다(그리드 `filter` 를 켠 그리드). */
+  hasFilterRow?: boolean;
+  /** 필터 입력 줄이 펼쳐져 있는가. */
+  filterRowOpen?: boolean;
+  /** 필터 입력 줄을 펴고 접는다. */
+  onToggleFilterRow?: (next: boolean) => void;
   /** 자동 설정 저장 스위치의 지금 값. */
   autoSave: boolean;
   /** 엑셀 항목을 비활성으로 둔다(내려받을 행이 없을 때). */
@@ -38,6 +45,9 @@ export interface GridSettingsMenuProps {
 function GridSettingsMenuComponent({
   hasPersonalize,
   hasExcel,
+  hasFilterRow = false,
+  filterRowOpen = false,
+  onToggleFilterRow,
   autoSave,
   excelDisabled,
   excelPaged = false,
@@ -62,6 +72,30 @@ function GridSettingsMenuComponent({
         </ActionIcon>
       </Menu.Target>
       <Menu.Dropdown data-testid="grid-settings-dropdown">
+        {hasFilterRow ? (
+          <Menu.Item
+            data-testid="grid-filter-row-item"
+            aria-label={`${GRID_SETTINGS_LABELS.filterRow} ${filterRowOpen ? "켜짐" : "꺼짐"}`}
+            leftSection={<IconFilter size={14} aria-hidden="true" />}
+            rightSection={
+              <Switch
+                size="xs"
+                checked={filterRowOpen}
+                readOnly
+                tabIndex={-1}
+                aria-hidden="true"
+                data-testid="grid-filter-row-switch"
+                onChange={() => {}}
+                // 자동 설정 저장 스위치와 같은 이유 — 항목 버튼만 클릭을 받는다.
+                styles={{ root: { display: "flex", pointerEvents: "none" } }}
+              />
+            }
+            onClick={() => onToggleFilterRow?.(!filterRowOpen)}
+          >
+            {GRID_SETTINGS_LABELS.filterRow}
+          </Menu.Item>
+        ) : null}
+        {hasFilterRow && (hasPersonalize || hasExcel) ? <Menu.Divider /> : null}
         {hasPersonalize ? (
           <>
             <Menu.Item

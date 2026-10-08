@@ -11,4 +11,8 @@ export const GRID_SETTINGS_LABELS = {
   /** 서버 페이징 그리드(GridPanel 안에 Pagination 이 둘 이상의 쪽을 보일 때)의 엑셀 항목 — 지금 쪽의 행만 나간다. */
   excelPaged: "엑셀 출력 (현재 페이지)",
   reset: "설정 초기화…",
+  /** 칸별 필터 입력 줄을 펴고 접는 항목(그리드 `filter` 를 켠 그리드만). */
+  filterRow: "필터 창 보기",
+  /** GridPanel 머리줄 빠른 검색 칸의 안내 글·aria-label. */
+  quickFilter: "그리드에서 찾기",
 } as const;

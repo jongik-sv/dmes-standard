@@ -13,6 +13,8 @@ import type { GridSettingsMenuProps } from "./GridSettingsMenu";
  * 메뉴 props. 명령이 없으면(null) 메뉴를 그리지 않는다는 뜻으로 null 을 돌려준다.
  * - 자동 설정 저장 스위치는 대상 그리드의 값을 읽는다. 대상(controls)이 바뀌면 구독과 읽기 함수가 새 대상으로 바뀐다.
  * - 엑셀 항목의 비활성(행 0)은 그릴 때와 메뉴를 열 때마다 다시 읽는다(onOpen 이 다시 그리게 한다).
+ * - 「필터 창 보기」 는 입력 줄 명령(setFilterRowOpen)을 올린 그리드만. 켜짐 값은 그리드의 필터 구독으로 읽는다.
+ * - 보일 항목이 하나도 없으면(빠른 검색 칸만 올린 그리드) null 이다.
  */
 export function useGridSettingsMenuProps(
   controls: GridPanelGridControls | null,
@@ -29,10 +31,24 @@ export function useGridSettingsMenuProps(
   const getAutoSave = useCallback(() => controls?.getAutoSave?.() ?? true, [controls]);
   const autoSave = useSyncExternalStore(subscribeAutoSave, getAutoSave, () => true);
   const toggleAutoSave = useCallback((next: boolean) => controls?.setAutoSave?.(next), [controls]);
+  const subscribeFilter = useCallback(
+    (onChange: () => void) => controls?.subscribeFilter?.(onChange) ?? (() => {}),
+    [controls],
+  );
+  const getFilterRowOpen = useCallback(() => controls?.getFilterRowOpen?.() ?? false, [controls]);
+  const filterRowOpen = useSyncExternalStore(subscribeFilter, getFilterRowOpen, () => false);
+  const toggleFilterRow = useCallback((next: boolean) => controls?.setFilterRowOpen?.(next), [controls]);
   if (controls === null) return null;
+  const hasPersonalize = controls.openSettings !== undefined;
+  const hasExcel = controls.exportExcel !== undefined;
+  const hasFilterRow = controls.setFilterRowOpen !== undefined;
+  if (!hasPersonalize && !hasExcel && !hasFilterRow) return null;
   return {
-    hasPersonalize: controls.openSettings !== undefined,
-    hasExcel: controls.exportExcel !== undefined,
+    hasPersonalize,
+    hasExcel,
+    hasFilterRow,
+    filterRowOpen,
+    onToggleFilterRow: toggleFilterRow,
     autoSave,
     excelDisabled: !(controls.canExportExcel?.() ?? true),
     excelPaged,

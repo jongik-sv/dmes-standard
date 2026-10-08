@@ -37,6 +37,7 @@ import { useGridScreenContext } from "./useGridScreenContext";
 import { useGridEditing, useGridRowClass } from "./useGridEditing";
 import { useGridAutoSize } from "./useGridAutoSize";
 import { useGridCarry } from "./useGridCarry";
+import { GRID_FILTER_LOCALE_TEXT, GRID_FILTER_ROW_CLOSED_CLASS, useGridFilter } from "./useGridFilter";
 
 export type { GridColumn, AgDataGridProps, AgDataGridFieldError } from "./grid-types";
 export { gridRowIdOf, indexFieldErrors } from "./field-errors";
@@ -119,11 +120,14 @@ function AgDataGridComponent({
   settingsMenu = true,
   gridId,
   personalize,
+  filter = false,
 }: AgDataGridProps) {
   const gridRef = useRef<AgGridReact>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   // 툴팁은 그리드 밖(body)에 띄워 좁은 그리드에서 잘리지 않게 한다 — 툴팁이 뜰 수 있는 동안에만 popupParent 를 바꾼다.
   useGridTooltipOutside(containerRef, gridRef);
+  // 걸러 보기(빠른 검색 + 칸별 입력 줄) — 입력 줄 펴기·접기는 설정 메뉴가 있는 그리드만(useGridFilter.ts).
+  const gridFilter = useGridFilter(filter, settingsMenu, gridRef);
   const [gridReady, setGridReady] = useState(false);
   const resolvedColumnSizing = columnSizing ?? "auto";
   const shouldAutoSizeColumns = resolvedColumnSizing === "auto" && autoSizeColumns !== false;
@@ -175,6 +179,7 @@ function AgDataGridComponent({
       ...(mdm ? { mdm } : {}),
       ...(issuesEnabled ? { cellIssue } : {}),
       lockGroups: true,
+      ...(filter ? { filter: true } : {}),
     });
     // 체크박스는 rowSelection 설정에서 자동 관리 (수동 컬럼 불필요)
     if (!rowNumber) return defs;
@@ -198,10 +203,12 @@ function AgDataGridComponent({
       headerClass: "header-center",
       valueGetter: (params: { node: { rowIndex: number | null } | null }) =>
         (params.node?.rowIndex ?? -1) + 1,
+      // 표시 순서라 빠른 검색에서 뺀다 — 넣으면 "1" 이 모든 행의 번호에 걸린다.
+      getQuickFilterText: () => "",
       tooltipValueGetter: () => "",
     };
     return [noCol, ...defs];
-  }, [columns, effectiveSortable, shouldAutoSizeColumns, resolvedColumnSizing, rowDragField, stableIsRowDraggable, rowNumber, mdm, issuesEnabled, cellIssue]);
+  }, [columns, effectiveSortable, shouldAutoSizeColumns, resolvedColumnSizing, rowDragField, stableIsRowDraggable, rowNumber, mdm, issuesEnabled, cellIssue, filter]);
 
   // 셀 툴팁 — 말줄임된 긴 값을 확인하도록 셀 값을 ag-grid 툴팁으로 띄운다. 잘림 여부는 보지 않아 짧은 값도 뜬다(값 검증 오류 칸은 열 정의의 getter 가 오류 문구를 먼저 띄운다).
   // 지연은 그리드 tooltipShowDelay(기본 GRID_TOOLTIP_SHOW_DELAY_MS), 열에서 끄려면 GridColumn.tooltip=false.
@@ -396,7 +403,8 @@ function AgDataGridComponent({
   const rowCountRef = useRef(0);
   const gridControls = useMemo<GridPanelGridControls>(
     () => ({
-      ...(personalizeEnabled
+      ...gridFilter.controls,
+      ...(personalizeEnabled && settingsMenu
         ? {
             openSettings,
             requestReset,
@@ -414,7 +422,7 @@ function AgDataGridComponent({
         ? { exportExcel: () => exportExcelRef.current(), canExportExcel: () => rowCountRef.current > 0 }
         : {}),
     }),
-    [personalizeEnabled, hasExcel, openSettings, requestReset],
+    [personalizeEnabled, settingsMenu, hasExcel, openSettings, requestReset, gridFilter.controls],
   );
   // 이 그리드가 GridPanel 설정 메뉴의 대상이면 아래 줄 [엑셀] 단추를 뺀다(메뉴가 엑셀을 맡는다). 한 패널에 그리드가 여럿이면 대상이 아닌 그리드는 단추를 그대로 둔다.
   const [isMenuTarget, setIsMenuTarget] = useState(false);
@@ -428,7 +436,8 @@ function AgDataGridComponent({
   }, [gridPanelRegistry]);
   // 페인트 전에 등록해야 대상이 된 그리드의 아래 줄 [엑셀] 단추가 첫 프레임에 보였다 사라지지 않는다.
   useLayoutEffect(() => {
-    if (!gridPanelRegistry || !settingsMenu || !(personalizeEnabled || hasExcel)) return;
+    // 설정 메뉴 항목(개인화·엑셀·필터 입력 줄)이 있거나 빠른 검색 칸을 둘 그리드(filter)만 올린다. settingsMenu={false} 면 gridControls 에 메뉴 명령이 없다.
+    if (!gridPanelRegistry || !((settingsMenu && (personalizeEnabled || hasExcel)) || filter)) return;
     // React context 는 포털을 넘어 오므로, GridPanel 안에서 띄운 팝업(룩업 등)의 그리드도 여기로 온다. 실제로 그 패널의
     // 그리드 영역 안에 있고 대화 상자 안이 아닌 그리드만 등록한다 — 개인화가 꺼진 패널에 남의 설정 메뉴가 생기지 않게.
     const el = containerRef.current;
@@ -438,7 +447,7 @@ function AgDataGridComponent({
       unregister();
       setIsMenuTarget(false);
     };
-  }, [gridPanelRegistry, settingsMenu, personalizeEnabled, hasExcel, gridControls]);
+  }, [gridPanelRegistry, settingsMenu, personalizeEnabled, hasExcel, filter, gridControls]);
   // 개인화가 꺼지면(탭 비활성·키 충돌로 대기) 열려 있던 창·메뉴를 닫는다. 처음부터 꺼진 그리드는 아무 상태도 건드리지 않는다.
   const wasPersonalizeEnabledRef = useRef(false);
   useEffect(() => {
@@ -614,12 +623,12 @@ function AgDataGridComponent({
     [gridControls],
   );
   const showSettingsOverlay =
-    settingsMenu && hasMantine && ((host === "standalone" && (personalizeEnabled || hasExcel)) || (host === "dialog" && hasExcel));
+    settingsMenu && hasMantine && ((host === "standalone" && (personalizeEnabled || hasExcel || filter)) || (host === "dialog" && hasExcel));
 
   const grid = (
     <div
       ref={containerRef}
-      className={`cm-data-grid ag-theme-alpine${showSettingsOverlay ? " cm-grid-settings-on" : ""}${isAutoHeight ? " cm-data-grid-auto-height" : ""}${isAutoHeight && sortedData.length === 0 ? " cm-data-grid-empty" : ""} ${className}`.trim()}
+      className={`cm-data-grid ag-theme-alpine${showSettingsOverlay ? " cm-grid-settings-on" : ""}${isAutoHeight ? " cm-data-grid-auto-height" : ""}${isAutoHeight && sortedData.length === 0 ? " cm-data-grid-empty" : ""}${filter && !gridFilter.rowOpen ? ` ${GRID_FILTER_ROW_CLOSED_CLASS}` : ""} ${className}`.trim()}
       style={{ height: isAutoHeight ? "auto" : excelOptions ? "100%" : height || "100%", width: "100%" }}
       aria-label={ariaLabel || "데이터 목록"}
       aria-busy={loading}
@@ -693,6 +702,8 @@ function AgDataGridComponent({
         suppressDragLeaveHidesColumns={personalizeEnabled}
         alwaysShowHorizontalScroll={alwaysShowHorizontalScroll}
         domLayout={isAutoHeight ? "autoHeight" : "normal"}
+        localeText={filter ? GRID_FILTER_LOCALE_TEXT : undefined}
+        {...gridFilter.gridProps}
         {...rowDrag.gridProps}
       />
       {showSettingsOverlay ? <GridSettingsOverlay controls={host === "dialog" ? dialogControls : gridControls} /> : null}

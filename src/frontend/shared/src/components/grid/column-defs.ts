@@ -50,6 +50,53 @@ export interface BuildColumnDefsOptions {
    * AgDataGrid 는 늘 켠다. 없으면 열 정의는 예전과 같다(순수 함수 시험용).
    */
   lockGroups?: boolean;
+  /**
+   * 그리드 `filter` 를 켰는가. 켜면 잎 열마다 칸별 필터와 입력 줄(floatingFilter)을 단다 — 입력 줄을 펴고 접는 것은 그리드가
+   * `floatingFiltersHeight` 로 한다(열 정의를 다시 넣으면 사용자가 바꾼 너비·순서가 정의값으로 돌아간다). 없으면 열 정의는 예전과 같다.
+   */
+  filter?: boolean;
+}
+
+/** 셀에 보이는 글자 — 글자 필터·빠른 검색이 화면에 보이는 값(라벨·Y/N)으로 찾게 한다. 숫자는 천 단위 쉼표 없이 둔다. */
+function filterText(col: GridColumn, value: unknown): string | null {
+  if (value == null || value === "") return null;
+  const label = col.cellEditorValueLabels?.[String(value)];
+  if (label != null) return label;
+  if (col.type === "boolean") return value ? "Y" : "N";
+  return String(value);
+}
+
+/** 숫자 필터가 비교할 값 — 서버가 문자열("1,234")로 준 숫자도 숫자로 바꾼다. 숫자가 아니면 null(조건에 걸리지 않는다). */
+function filterNumber(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const n = typeof value === "number" ? value : Number(String(value).replace(/,/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+/** 그리드 `filter` 를 켰을 때 잎 열에 더하는 필터 속성. `GridColumn.filter: false` 칸은 필터·빠른 검색에서 뺀다. */
+function filterColDef(col: GridColumn): Partial<ColDef> {
+  if (col.filter === false) return { filter: false, floatingFilter: false, getQuickFilterText: () => "" };
+  const kind = col.filter ?? (col.type === "number" ? "number" : "text");
+  const quick = col.cellEditorValueLabels
+    ? // 라벨 칸은 코드와 라벨 어느 쪽으로도 찾게 둘 다 넣는다.
+      { getQuickFilterText: (params: { value: unknown }) => [params.value ?? "", filterText(col, params.value) ?? ""].join(" ") }
+    : col.type === "boolean"
+      ? { getQuickFilterText: (params: { value: unknown }) => filterText(col, params.value) ?? "" }
+      : {};
+  if (kind === "number") {
+    return {
+      filter: "agNumberColumnFilter",
+      floatingFilter: true,
+      filterValueGetter: (params: { data?: Record<string, unknown> }) => filterNumber(params.data?.[col.key]),
+      ...quick,
+    };
+  }
+  return {
+    filter: "agTextColumnFilter",
+    floatingFilter: true,
+    filterValueGetter: (params: { data?: Record<string, unknown> }) => filterText(col, params.data?.[col.key]),
+    ...quick,
+  };
 }
 
 /** 잎 열 하나 → ag-grid ColDef. */
@@ -234,6 +281,7 @@ function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
     ...(htmlLabel ?? {}),
     ...(col.tooltip === false ? { tooltipValueGetter: () => "" } : {}),
     ...(issueTooltip ?? {}),
+    ...(opts.filter ? filterColDef(col) : {}),
     cellRenderer: col.render
       ? (params: { value: unknown; data: Record<string, unknown> }) =>
           col.render!(params.value, params.data)

@@ -799,6 +799,77 @@ body > .ag-popup {
   border-color: var(--color-border-hover);
 }
 
+/* 걸러 보기(그리드 filter) — GridPanel 머리줄의 빠른 검색 칸(GridQuickFilter)과 거른 건수. */
+.grid-quick-filter {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.grid-quick-filter-icon {
+  position: absolute;
+  left: 7px;
+  color: var(--color-text-muted-light);
+  pointer-events: none;
+}
+
+.grid-quick-filter-input {
+  width: 180px;
+  height: 24px;
+  padding: 0 22px 0 24px;
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.grid-quick-filter-input::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+.grid-quick-filter-input:focus {
+  outline: none;
+  border-color: var(--color-focus);
+  box-shadow: var(--shadow-focus);
+}
+
+.grid-quick-filter-clear {
+  position: absolute;
+  right: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.grid-quick-filter-clear:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.grid-panel-count-filtered {
+  background-color: var(--color-primary-soft);
+}
+
+.grid-panel-count-filtered b {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* 필터 입력 줄이 접힌 동안 — 높이는 그리드가 0 으로 두고(floatingFiltersHeight), 입력 칸이 Tab 으로 잡히지 않게 줄째 감춘다(useGridFilter.ts). */
+.cm-data-grid.cm-grid-filter-row-closed .ag-header-row-column-filter {
+  display: none;
+}
+
 .grid-btn:active {
   background-color: var(--color-bg-disabled);
 }

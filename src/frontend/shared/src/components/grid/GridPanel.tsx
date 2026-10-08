@@ -19,6 +19,7 @@ import { GridHelpButton, type GridHelpConfig } from "./GridHelpButton";
 import { GridSettingsMenu } from "./GridSettingsMenu";
 import { GridPanelContext, type GridPanelGridControls, type GridPanelRegistry } from "./grid-panel-context";
 import { useGridSettingsMenuProps } from "./useGridSettingsMenu";
+import { GridQuickFilter, useGridFilterCount } from "./GridQuickFilter";
 
 export interface GridButton {
   id?: string;
@@ -155,6 +156,8 @@ function GridPanelComponent({
   // 대상이 바뀌면 스위치 구독을 새 대상으로 갈아 끼우고, 등록한 그리드마다 「내가 대상인가」를 알려 준다(대상 그리드만 아래 줄 [엑셀] 단추를 숨긴다).
   const gridEntriesRef = useRef<Array<{ controls: GridPanelGridControls; onTargetChange?: (isTarget: boolean) => void }>>([]);
   const [gridTarget, setGridTarget] = useState<GridPanelGridControls | null>(null);
+  // 빠른 검색 칸의 대상 — 필터를 켠 그리드 중 먼저 등록한 것(설정 메뉴 대상과 따로 고른다).
+  const [filterTarget, setFilterTarget] = useState<GridPanelGridControls | null>(null);
   const titleRef = useRef(title);
   titleRef.current = title;
   const gridRegistry = useMemo<GridPanelRegistry>(() => {
@@ -163,6 +166,7 @@ function GridPanelComponent({
       // 대상 — 개인화 명령을 가진 그리드를 먼저 찾고(엑셀만 켠 그리드가 앞서 등록돼도 컬럼 설정 항목이 사라지지 않게), 없으면 먼저 등록한 그리드.
       const first = (list.find((e) => e.controls.openSettings) ?? list[0])?.controls ?? null;
       setGridTarget(first);
+      setFilterTarget(list.find((e) => e.controls.setQuickFilter)?.controls ?? null);
       for (const entry of [...list]) entry.onTargetChange?.(entry.controls === first);
     };
     return {
@@ -183,6 +187,7 @@ function GridPanelComponent({
   // 메뉴 props — 대상 그리드의 명령에서 만든다(GridPanel 밖 그리드의 머리글 줄 아이콘과 같은 훅). 대상이 없으면 null 이라 메뉴를 그리지 않는다.
   const menuProps = useGridSettingsMenuProps(gridTarget, serverPaged);
   const hasGridControls = menuProps !== null;
+  const filterCount = useGridFilterCount(filterTarget);
 
   useEffect(() => {
     if (!usePermission || !fetchPermissions) return;
@@ -259,7 +264,7 @@ function GridPanelComponent({
   }
 
   allButtons.push(...buttons);
-  const hasHeaderActions = allButtons.length > 0 || headerExtra != null || hasGridControls;
+  const hasHeaderActions = allButtons.length > 0 || headerExtra != null || hasGridControls || filterTarget !== null;
 
   return (
     <GridPanelContext.Provider value={gridRegistry}>
@@ -268,11 +273,19 @@ function GridPanelComponent({
           <div className="grid-panel-title">
             {title ? <span>{title}</span> : null}
             {help ? <GridHelpButton {...help} /> : null}
-            {count !== undefined ? <span className="grid-panel-count">{count}건</span> : null}
+            {filterCount ? (
+              <span className="grid-panel-count grid-panel-count-filtered" data-testid="grid-panel-filter-count">
+                <b>{filterCount.shown}</b> / {filterCount.total}건
+              </span>
+            ) : count !== undefined ? (
+              <span className="grid-panel-count">{count}건</span>
+            ) : null}
             {titleExtra}
           </div>
           {hasHeaderActions ? (
             <div className="grid-panel-header-actions">
+              {/* 빠른 검색 칸 — 그리드 filter 를 켠 그리드가 있을 때만, 업무 버튼 앞. */}
+              {filterTarget ? <GridQuickFilter key="grid_quick_filter" controls={filterTarget} /> : null}
               {allButtons.length > 0 ? (
                 <div className="grid-panel-buttons">
                   {allButtons.map((btn, index) => (

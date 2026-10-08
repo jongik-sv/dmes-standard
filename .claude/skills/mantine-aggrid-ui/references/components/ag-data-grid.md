@@ -189,6 +189,25 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 - 아래 줄: `excelExport` 객체를 준 GridPanel 밖 그리드는 아래 줄에 「N행」 안내만 남고 [엑셀] 단추는 이 메뉴로 옮겨 간다(`GridExcelFoot` 의 `hideButton`, GridPanel 안과 같은 규칙). 대화 상자 안의 그리드도 같다(`settingsMenu={false}` 일 때만 단추가 남는다).
 - `settingsMenu?: boolean`(기본 `true`): `false` 면 이 그리드의 설정 메뉴를 통째로 끈다. GridPanel 안이면 GridPanel 머리줄 메뉴의 대상에서 빠지고(다른 그리드가 있으면 그 그리드가 대상이 된다), GridPanel 밖이면 아이콘이 없다. 읽기 전용 작은 표처럼 설정이 필요 없는 그리드에 쓴다. 이때 `excelExport` 객체가 있으면 아래 줄 [엑셀] 단추는 그대로 남는다. 개인화(저장·복원)와 머리글 우클릭 메뉴는 `personalize` 가 따로 정하므로 `settingsMenu={false}` 로 꺼지지 않는다.
 
+### 걸러 보기: filter(2026-10-08)
+
+받아 둔 행 안에서 글자·조건으로 걸러 보게 한다. 기본 끔이고 화면이 `filter` 를 줄 때만 켜진다.
+
+```tsx
+<GridPanel title="조회 결과" count={rows.length}>
+  <AgDataGrid rowKey="id" columns={COLUMNS} data={rows} filter />
+</GridPanel>
+```
+
+- 빠른 검색: GridPanel 머리줄(업무 버튼 앞)에 검색 칸(`data-testid="grid-quick-filter-input"`, 안내 「그리드에서 찾기」)이 처음부터 보인다. 넣은 글자가 보이는 칸 어디에든 들어 있는 행만 남긴다. 띄어 쓴 낱말은 모두 들어 있어야 한다. 입력은 200ms 모았다가 넣고, Esc·× 로 비운다. 숨긴 칸·행 번호·`filter: false` 칸은 찾지 않는다.
+- 필터 창: 「그리드 설정」 메뉴 맨 위의 「필터 창 보기」(`grid-filter-row-item`, 스위치 `grid-filter-row-switch`)를 켜면 머리글 아래에 칸별 입력 줄이 펼쳐진다. 입력 줄 오른쪽 깔때기를 누르면 「크다」·「범위」·「그리고/또는」 같은 조건 창이 열린다. 끄면 줄이 접히면서 칸별 조건을 지운다(검색어는 그대로). 접힌 동안 머리글은 필터가 없는 그리드와 같다.
+- 칸 종류: `type: "number"` 칸은 숫자 필터(문자열 숫자 `"1,234"` 도 숫자로 비교), 그 밖은 글자 필터다. 글자 필터·빠른 검색은 화면에 보이는 글자로 찾는다(`cellEditorValueLabels` 라벨, boolean 의 Y/N). 칸별로 바꾸거나 빼려면 `GridColumn.filter`(`"text"`·`"number"`·`false`).
+- 건수: 거른 동안 GridPanel 건수가 「보이는 행 / 전체 행」(`grid-panel-filter-count`)으로 바뀐다. 엑셀 출력도 걸러진 행만 내보낸다.
+- 필터 창 문구는 한국어다(내부 상수 `GRID_FILTER_LOCALE_TEXT`). 필터 조건·필터 창 펼침은 개인화에 저장하지 않는다.
+- GridPanel 밖의 그리드는 검색 칸이 없고 머리글 줄 설정 아이콘 메뉴의 「필터 창 보기」 만 있다. `settingsMenu={false}` 면 검색 칸만 있고 입력 줄은 펼 수 없다.
+- 대화 상자(`role="dialog"`) 안의 그리드는 GridPanel 안에 있어도 `filter` 가 보이는 효과가 없다(검색 칸·「필터 창 보기」 모두 없음). 머리글 우클릭 메뉴에도 「필터 창 보기」 는 없다. 필터 조건은 새 창 분리 때 이어받지 않는다.
+- 구현: 입력 줄은 열 정의에 늘 달아 두고 `floatingFiltersHeight`(0 ↔ 28)로 펴고 접는다. 열 정의를 다시 넣지 않으므로 사용자가 바꾼 너비·순서가 그대로다(`useGridFilter.ts`).
+
 ### 컬럼 개인화: gridId·personalize(2026-10-06)
 
 사용자가 바꾼 컬럼 순서·너비·표시 여부·좌우 고정·정렬을 저장했다가 같은 화면을 다시 열 때 복원한다. **기본 켬**이라 전 화면에 자동으로 적용되고, 화면은 아무것도 주지 않아도 된다.
@@ -267,6 +286,7 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 | mdmValidate | `boolean` | `false` | 편집 가능 + MDM 연결 열의 바뀐 값을 MDM 정의로 검사해 `cell-mdm-invalid`·셀 툴팁을 단다(포털 탭 안에서만) |
 | fieldErrors | `Array<{ rowKey?; rowIndex?; field; message }>` | - | 서버 오류 칸 표시(`toFieldErrors` 결과). rowKey → rowIndex(data 자리) 순으로 행을 찾는다 |
 | excelExport | `{ title?; fallbackName?; note?; sheetName?; testId?; excludeKeys? } \| false` | 켬(메뉴 항목) | 주지 않아도 「그리드 설정」 메뉴(GridPanel 안은 머리줄, 밖은 그리드 머리글 줄 아이콘)에 「엑셀 출력」 항목이 기본으로 생긴다(아래 줄 없이 항목만). 끄려면 `false`. 객체를 주면 표 아래에 「N행」 줄을 붙이고 컬럼·행을 내려받는다(사용자가 숨긴 열은 엑셀에도 숨긴 열). [엑셀] 단추는 메뉴가 맡아 아래 줄에는 「N행」만 남는다(`settingsMenu={false}` 면 단추가 남는다; §아래 줄과 엑셀 내려받기). 상수나 `useMemo` 로 둔다 |
+| filter | `boolean` | `false` | 걸러 보기. 켜면 GridPanel 머리줄에 빠른 검색 칸, 「그리드 설정」 메뉴에 「필터 창 보기」(칸별 입력 줄)가 생기고, 거른 동안 건수가 「보이는 행 / 전체 행」 이 된다. 받아 둔 행 안에서만 거른다(§걸러 보기: filter) |
 | settingsMenu | `boolean` | `true` | 「그리드 설정」 메뉴(컬럼 설정…·자동 설정 저장·설정 초기화…·엑셀 출력)를 이 그리드에 둔다. `false` 면 통째로 끈다(GridPanel 안이면 머리줄 메뉴 대상에서 빠지고, 밖이면 머리글 줄 아이콘이 없다). 대화 상자 안의 그리드는 메뉴 항목이 엑셀 출력 하나뿐이다(`excelExport={false}` 면 아이콘도 없다). `excelExport` 객체가 있으면 아래 줄 [엑셀] 단추는 남는다(§그리드 설정 아이콘과 settingsMenu) |
 | gridId | `string` | `"main"` | 한 화면(탭)에 그리드가 여럿일 때 컬럼 개인화 저장을 나누는 이름. 화면 안에서 그리드마다 다른, 렌더마다 바뀌지 않는 고정 문자열로 준다(§컬럼 개인화) |
 | personalize | `boolean \| { sort?: boolean; autoSave?: boolean }` | 켬 | 사용자별 컬럼 개인화. `false` 면 끈다. `{ sort: false }` 면 정렬은 저장·복원하지 않는다(서버 페이징 그리드). `{ autoSave: false }` 면 「자동 설정 저장」 스위치의 개발자 기본값이 끔이다(사용자가 정한 값이 이긴다) |
@@ -318,6 +338,7 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 | cellClassRules | `Record<string, (row) => boolean>` | - | 조건부 셀 클래스 |
 | rowDrag · headerTooltip | `boolean` · `string` | - | 이 열에 행 드래그 손잡이(`onRowOrderChange` 필요) · 머리 툴팁(주면 MDM 툴팁 대신 이것. 생략하면 표시 머리글 이름이 기본, `""` 면 끔) |
 | headerStyle · headerComponent · headerComponentParams | ag-grid 패스스루 | - | 머리 인라인 스타일(색은 의미 토큰만) · 커스텀 머리 컴포넌트 |
+| filter | `"text" \| "number" \| false` | `type` 따라 | 그리드 `filter` 를 켰을 때 칸별 필터 종류. 생략하면 `type: "number"` 는 숫자, 그 밖은 글자. `false` 면 필터·빠른 검색에서 뺀다(render 전용·단추 칸) |
 | children | `GridColumn[]` | - | 있으면 열 그룹. `groupId` 는 `key`, 열 정의에 `marryChildren: true`, 그룹 아래 잎에 `lockPinned: true` 가 붙는다 |
 
 ## 표준값: 모든 화면 동일
@@ -353,6 +374,8 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 | 서버 페이징 그리드에 `personalize={{ sort: false }}` 를 안 준다 | 저장된 정렬이 복원되면서 서버 조회 조건과 어긋난다. 정렬이 서버 조건이면 `{ sort: false }` |
 | 편집 컬럼을 사용자가 숨겨야 하는데 `hideable` 을 안 준다 | 편집 가능한 열은 기본으로 숨길 수 없다. 숨겨도 되는 열만 `hideable: true`. 반대로 편집 불가 열을 못 숨기게 하려면 `hideable: false` |
 | 개인화가 켜진 그리드에서 헤더를 밖으로 끌어 열을 숨기려 한다 | 숨겨지지 않는다. 숨김은 컬럼 설정 창으로만 한다 |
+| 목록 걸러 보기를 화면에서 따로 만든다(검색 `TextInput` + `data.filter(...)`) | 그리드에 `filter` 를 준다. 검색 칸·칸별 필터·거른 건수·엑셀 반영을 그리드가 맡는다 |
+| 서버 페이징·편집 그리드에 `filter` 를 켜 두고 전체에서 찾는다고 안내한다 | 받아 둔 행 안에서만 거른다. 서버 페이징은 지금 쪽만, 편집 그리드는 새로 넣은 행도 조건에 안 맞으면 숨는다. 전체를 찾을 일은 조회 조건(SearchArea)으로 한다 |
 | 그리드 설정 아이콘을 `className`·CSS 로 옮기거나 숨기려 한다 | 아이콘은 그리드가 그린다(머리글 줄 오른쪽 끝 고정). 필요 없는 그리드(읽기 전용 작은 표 등)는 `settingsMenu={false}`, 엑셀만 빼려면 `excelExport={false}` |
 | GridPanel 밖 그리드의 아래 줄 [엑셀] 단추를 `testId` 로 찾는 시험을 그대로 둔다 | 메뉴가 엑셀을 맡으면 단추가 없다. `grid-settings-menu` 를 열어 항목 `grid-excel` 을 누른다(`settingsMenu={false}` 이면 단추가 그대로다) |
 | 오른쪽 끝 열이 설정 아이콘에 가린다고 머리글 오른쪽 여백 CSS 를 따로 준다 | 마지막 열 머리글에 이미 오른쪽 여백 28px 이 붙는다(`cm-grid-settings-on`). 가로 스크롤로 가운데 열이 끝에 오는 경우만 가릴 수 있으니 그런 표는 `settingsMenu={false}` |
