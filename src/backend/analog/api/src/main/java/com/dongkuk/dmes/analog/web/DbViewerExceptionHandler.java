@@ -82,7 +82,7 @@ public class DbViewerExceptionHandler {
         String firstLine = raw.strip().lines().findFirst().orElse("").strip();
         Matcher ora = ORA_CODE.matcher(firstLine);
         String code = ora.find() ? ora.group() : "ORA-" + String.format("%05d", sql.getErrorCode());
-        String cleaned = SERVER_FETCH.matcher(firstLine).replaceAll("").strip();
+        String cleaned = SERVER_FETCH.matcher(firstLine).replaceAll("").replaceAll("[:\\s]+$", "");
         // 건수 제한 절은 서버가 붙인 것이라, 그 키워드를 탓하는 안내는 사용자가 이해할 수 없다.
         if (cleaned.toUpperCase().contains("FETCH")) {
             return "SQL 문법 오류: " + code + " SQL 끝부분(WHERE 조건 등)이 완성되었는지 확인해 주세요.";
