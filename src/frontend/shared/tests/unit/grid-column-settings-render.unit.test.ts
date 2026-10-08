@@ -199,11 +199,12 @@ describe("GridPanel 「그리드 설정」 메뉴의 [컬럼 설정…]", () => 
     await show(tab(panel(null)));
     const none = headerHtml();
     expect(document.querySelector(".grid-panel-header-actions")).toBeNull();
-    await show(tab(panel(gridEl({ personalize: false }))));
+    // 개인화를 끈 그리드는 [컬럼 원래대로] 때문에 메뉴가 생기므로, 메뉴가 전혀 없는 모양은 settingsMenu={false} 로 본다
+    await show(tab(panel(gridEl({ personalize: false, filter: false, settingsMenu: false }))));
     expect(settingsMenuButton()).toBeNull();
     expect(headerHtml()).toBe(none);
     // 버튼이 있는 패널도 그리드 켬 → 끔 사이 DOM 이 달라지는 것은 단추 하나뿐
-    await show(tab(panel(gridEl({ personalize: false }), { buttons: [{ id: "btn_x", label: "저장" }] })));
+    await show(tab(panel(gridEl({ personalize: false, filter: false, settingsMenu: false }), { buttons: [{ id: "btn_x", label: "저장" }] })));
     const withBtn = headerHtml();
     expect(withBtn).not.toContain("grid-settings-menu");
   });
@@ -219,11 +220,14 @@ describe("GridPanel 「그리드 설정」 메뉴의 [컬럼 설정…]", () => 
 
   it("사용자 확인 전에는 없다가 확인되면 나타난다", async () => {
     await stubUser(null);
-    await show(tab(panel(gridEl())));
-    expect(settingsMenuButton()).toBeNull();
+    // 사용자 확인 전에는 개인화가 꺼져 있어 [컬럼 원래대로] 가 보이고 [컬럼 설정…] 은 없다. 확인되면 서로 바뀐다
+    await show(tab(panel(gridEl({ filter: false }))));
+    expect(await menuItem("btn_grid_columns")).toBeNull();
+    expect(document.getElementById("btn_grid_columns_reset")).not.toBeNull();
     await seedCurrentUser("u1");
     await wait(50);
-    expect(settingsMenuButton()).not.toBeNull();
+    expect(await menuItem("btn_grid_columns")).not.toBeNull();
+    expect(document.getElementById("btn_grid_columns_reset")).toBeNull();
   });
 
   it("GridPanel 안에 그리드가 여럿이면 처음 등록한 그리드가 대상이고, 그 그리드가 빠지면 다음 그리드가 이어받는다", async () => {
@@ -257,7 +261,7 @@ describe("GridPanel 「그리드 설정」 메뉴의 [컬럼 설정…]", () => 
   it("패널 안에서 포털로 띄운 그리드(룩업 등)는 바깥 패널에 등록되지 않는다 — 개인화를 끈 패널의 머리줄에 단추가 생기지 않는다", async () => {
     await stubUser("u1");
     const portaled = createPortal(gridEl({ gridId: "popup" }), document.body);
-    await show(tab(panel(createElement("div", null, gridEl({ personalize: false }), portaled))));
+    await show(tab(panel(createElement("div", null, gridEl({ personalize: false, filter: false, settingsMenu: false }), portaled))));
     expect(apis()).toHaveLength(2);
     expect(document.querySelector(".grid-panel-header [data-testid='grid-settings-menu']")).toBeNull();
     // 포털로 밖에 나간 그리드는 GridPanel 밖 그리드라서 자기 머리글 줄 아이콘을 단다
@@ -428,6 +432,8 @@ describe("설정 창 적용 → 저장 → 복원", () => {
     const auto = vi.spyOn(api(), "autoSizeAllColumns");
     await click(await menuItem("btn_grid_columns"));
     await click(tid("column-settings-check-name")!.querySelector("input"));
+    // 마운트 직후의 자동 너비 맞춤이 늦게 겹쳐 호출 수를 흔들지 않게, 적용 직전에 센 값을 비운다.
+    auto.mockClear();
     await click(tid("column-settings-apply"));
     await wait(120);
     expect(auto).toHaveBeenCalledTimes(1);
@@ -464,17 +470,17 @@ describe("설정 창 적용 → 저장 → 복원", () => {
 });
 
 describe("머리글을 그리드 밖으로 끌어도 컬럼이 숨겨지지 않는다(suppressDragLeaveHidesColumns)", () => {
-  it("개인화가 켜진 그리드만 true 이고 꺼진 그리드는 기본값(false) 그대로다", async () => {
+  it("개인화 여부와 상관없이 늘 true 다 — 개인화가 꺼진 그리드는 숨긴 칸을 되살릴 창이 없다", async () => {
     await stubUser("u1");
     await show(tab(gridEl({ gridId: "on" }, "on"), gridEl({ gridId: "off", personalize: false }, "off")));
     expect(api(0).getGridOption("suppressDragLeaveHidesColumns")).toBe(true);
-    expect(api(1).getGridOption("suppressDragLeaveHidesColumns")).toBeFalsy();
+    expect(api(1).getGridOption("suppressDragLeaveHidesColumns")).toBe(true);
   });
 
-  it("사용자 확인 뒤(마운트 뒤에) 켜지면 그때 true 가 되고, 확인 전에는 false 다", async () => {
+  it("사용자 확인 전(개인화가 아직 꺼진 동안)에도 true 다", async () => {
     await stubUser(null);
     await show(tab(gridEl()));
-    expect(api().getGridOption("suppressDragLeaveHidesColumns")).toBeFalsy();
+    expect(api().getGridOption("suppressDragLeaveHidesColumns")).toBe(true);
     await seedCurrentUser("u1");
     await wait(50);
     expect(api().getGridOption("suppressDragLeaveHidesColumns")).toBe(true);

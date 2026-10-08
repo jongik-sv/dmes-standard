@@ -256,12 +256,13 @@ describe("GridPanel 의 자동 저장 스위치", () => {
     expect(setCount(KEY)).toBe(1);
   });
 
-  it("개인화를 끈 그리드에는 스위치·[초기화] 가 없다", async () => {
-    await show(panel([gridEl({ personalize: false })]));
-    expect(tid("grid-settings-menu")).toBeNull();
+  it("개인화를 끈 그리드에는 스위치·[설정 초기화…] 가 없고 [컬럼 원래대로] 만 있다", async () => {
+    // filter 생략 그리드는 「필터 창 보기」 항목도 생기므로 filter={false} 로 개인화 쪽 항목만 본다
+    await show(panel([gridEl({ personalize: false, filter: false })]));
+    await openMenu();
     expect(switchInput()).toBeNull();
     expect(document.getElementById("btn_grid_reset")).toBeNull();
-    expect(document.querySelector(".grid-panel-header-actions")).toBeNull();
+    expect(document.getElementById("btn_grid_columns_reset")).not.toBeNull();
   });
 
   it("그리드가 둘인 GridPanel 에서 첫 그리드를 언마운트하면 스위치가 둘째 그리드의 값을 보인다", async () => {

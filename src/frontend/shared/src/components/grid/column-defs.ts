@@ -51,8 +51,8 @@ export interface BuildColumnDefsOptions {
    */
   lockGroups?: boolean;
   /**
-   * 그리드 `filter` 를 켰는가. 켜면 잎 열마다 칸별 필터와 입력 줄(floatingFilter)을 단다 — 입력 줄을 펴고 접는 것은 그리드가
-   * `floatingFiltersHeight` 로 한다(열 정의를 다시 넣으면 사용자가 바꾼 너비·순서가 정의값으로 돌아간다). 없으면 열 정의는 예전과 같다.
+   * 열 정의에 걸러 보기 속성을 달 것인가(AgDataGrid 가 `filter={true}` 이거나, `filter` 를 생략한 그리드를 처음 켠 뒤부터 넘긴다). 켜면 잎 열마다 칸별 필터와 입력 줄(floatingFilter)을 단다 —
+   * 입력 줄을 펴고 접는 것은 그리드가 `floatingFiltersHeight` 로 한다. 없으면 열 정의는 걸러 보기가 없던 때와 같다.
    */
   filter?: boolean;
 }

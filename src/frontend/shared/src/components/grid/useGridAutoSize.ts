@@ -140,6 +140,21 @@ export function useGridAutoSize(opts: UseGridAutoSizeOptions) {
     rerunAutoSize();
   }, [rerunAutoSize]);
 
+  // [컬럼 원래대로](개인화가 꺼진 그리드) 뒤 — auto 그리드는 정의에 너비가 없어 사용자가 늘린 너비가 남아 있다. 타이머를 기다리지 않고 바로 자동 너비를 재 한 프레임도 옛 너비가 보이지 않게 한다.
+  // 대기 중인 자동 너비 타이머는 이 호출이 대신하므로 거둔다. 그 밖의 모드는 여백 분배만 다시 한다(너비는 정의값이 이미 들어갔다).
+  const autoSizeNowAfterColumnReset = useCallback(() => {
+    userResizedRef.current = false;
+    if (resolvedColumnSizing === "auto" && shouldAutoSizeColumns) {
+      if (autoSizeTimerRef.current != null) {
+        window.clearTimeout(autoSizeTimerRef.current);
+        autoSizeTimerRef.current = null;
+      }
+      autoSizeAllColumnsHandler();
+    } else {
+      scheduleFillRemainingColumnSpace();
+    }
+  }, [resolvedColumnSizing, shouldAutoSizeColumns, autoSizeAllColumnsHandler, scheduleFillRemainingColumnSpace]);
+
   // ★그리드 준비 직후 1회 폭 정리 — 데이터가 0건이면 ag-grid 가 firstDataRendered / rowDataUpdated 를
   //   내보내지 않아 아래 핸들러들이 한 번도 호출되지 않는다. 그 결과 "조회 결과가 없습니다" 상태에서
   //   컬럼 폭 합이 그리드보다 좁아도 우측이 빈 채로 남았다(2026-08-07 CR 이력 화면에서 실측: 그리드 976px
@@ -247,6 +262,7 @@ export function useGridAutoSize(opts: UseGridAutoSizeOptions) {
     sizedColumnsRef,
     rerunAutoSizeAfterRestore,
     rerunAutoSizeAfterReset,
+    autoSizeNowAfterColumnReset,
     onFirstDataRendered,
     onRowDataUpdated,
     onGridSizeChanged,
