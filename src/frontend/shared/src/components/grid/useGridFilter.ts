@@ -12,7 +12,7 @@
  *   저장된 켜짐을 무시하고 꺼진 채 시작한다(끌 메뉴 항목이 그 그리드를 가리키지 않으므로).
  *   예외 — 서버 페이징 GridPanel(`serverPaged`): 지금 쪽 안에서만 걸러져 오해를 주므로 검색 칸이 기본으로 없고, 「필터 창 보기」 를 켜면 검색 칸과 입력 줄이 함께 나타난다.
  *   끄면 둘 다 사라지고 칸별 조건과 검색어를 모두 지운다.
- * - 입력 줄이 펼침에서 접힘으로 바뀌는 모든 경로(메뉴 토글·저장 키 변경·저장값 읽기·대상 상실)에서 칸별 조건을 지운다(서버 페이징 optional 은 검색어도). 효과 하나가 맡는다.
+ * - 입력 줄이 펼침에서 접힘으로 바뀌는 모든 경로(메뉴 토글·화면·gridId 변경·대상 상실)에서 칸별 조건을 지운다(서버 페이징 optional 은 검색어도). 효과 하나가 맡는다.
  * - 검색 칸이 보임에서 사라짐으로 바뀌는 경로(optional 의 대상 상실·자리 변경)에서는 검색어를 지운다 — 칸은 없는데 행만 숨은 채 남지 않게. 효과 하나가 맡는다.
  * - `false`(off): 메뉴 항목·검색 칸·필터 열 정의가 모두 없다.
  *
@@ -31,12 +31,10 @@
  * - 접힌 동안 입력 칸이 Tab 으로 잡히지 않게 그리드 칸에 `cm-grid-filter-row-closed` 를 단다(grid.css 가 입력 줄을 감춘다).
  * - 늘 달아 두는 방식을 고르지 않은 이유: 꺼진 동안에도 칸 수만큼 입력 줄 칸·필터 컴포넌트가 생기고 DOM 클래스가 달라진다. 수치는 시험 grid-filter.unit.test 「꺼진 동안의 DOM」 에 남겼다.
  *
- * 켜짐 기억
- * - 사용자가 켠 상태(「칸별 필터 보기」 — 서버 페이징은 「필터 창 보기」)를 그 그리드에 기억한다 — 조건값·검색어는 기억하지 않는다. 다시 열면 켜진 채로 시작한다.
- * - 이 값의 뜻은 「입력 줄 펼침」 이다(예전에는 optional 에서 걸러 보기 전체 켜짐). 저장 키는 그대로라 예전에 켜 둔 사용자는 입력 줄이 펼쳐진 채로 시작한다.
- * - 개인화가 켜진 그리드는 자동 설정 저장 스위치 값과 같은 객체(`gridOptsKey`)의 `filterOpen`, 아닌 그리드는 별도 키(`gridFilterKey`)에 적는다. 개인화 여부는 저장 위치를 고를 뿐
- *   기억의 키(memoryKey)에는 넣지 않는다 — 숨은 탭처럼 `personalize` 만 오가도 켜 둔 조건·검색어가 사라지지 않는다.
- *   자동 설정 저장 스위치가 꺼져 있어도 적는다(스위치와 같은 성격의 옵션). 사용자 ID·화면 키가 비면 기억하지 않고, 저장소 예외는 모두 삼킨다.
+ * 켜짐은 기억하지 않는다
+ * - 「칸별 필터 보기」 는 화면을 열 때마다 늘 접힌 채 시작한다. 켜고 끈 값은 그 마운트 안에서만 유지하고(저장하지 않는다), 화면(탭 페이지)·gridId 가 바뀌면 버린다.
+ *   예전에는 켠 상태를 그 그리드에 기억해 다시 열면 펼쳐졌으나(2026-10-08 사용자 요청으로 폐기), 이미 저장된 `filterOpen`·`dmes:grid-filter:v1:` 값은 지우지 않고 읽지 않는다.
+ * - 조건값·검색어도 기억하지 않는다.
  *
  * 걸린 조건(칩)
  * - `getFilterChips`/`clearFilterChip` — 빠른 검색어와 칸별 필터 모델을 칩 목록으로 내주고(grid-filter-chips.ts), 칩 하나의 조건만 지운다. 건수와 같은 때(필터 변경·모델 갱신)에 다시 만들고,
@@ -53,9 +51,7 @@ import type { ColumnState, IRowNode } from "ag-grid-community";
 import { useTabPage } from "../../portal-shell/tab-page-context";
 import type { GridFilterChip, GridFilterCount, GridPanelGridControls } from "./grid-panel-context";
 import { buildFilterChips, COLUMN_CHIP_PREFIX, NO_FILTER_CHIPS, QUICK_CHIP_ID, sameChips } from "./grid-filter-chips";
-import { loadGridFilterOpen, resolveGridScreenKey, resolvePersonalize, saveGridFilterOpen, DEFAULT_GRID_ID } from "./grid-personalize";
-import { useConfirmedUserId } from "./grid-personalize-hook";
-import type { GridPersonalize } from "./grid-personalize";
+import { resolveGridScreenKey, DEFAULT_GRID_ID } from "./grid-personalize";
 
 /** 입력 줄을 폈을 때 높이 — AgDataGrid 머리글 높이(headerHeight)와 같다. */
 export const GRID_FILTER_ROW_HEIGHT = 28;
@@ -149,7 +145,6 @@ export interface UseGridFilterOptions {
   isFilterTarget: boolean;
   gridRef: RefObject<AgGridReact | null>;
   gridId?: string;
-  personalize?: GridPersonalize;
   /** 편집 칸이 있는 그리드인가 — 검색 안내 글에 쓴다. */
   editable: boolean;
   /** GridPanel 이 서버 페이징인가(optional 의 검색 칸을 기본으로 두지 않고 「필터 창 보기」 와 함께 켠다). */
@@ -170,22 +165,13 @@ export function useGridFilter(opts: UseGridFilterOptions): GridFilterState {
   const withRowToggle = settingsMenu && mode !== "off";
   const live = mode === "always" || (mode === "optional" && host === "panel" && isFilterTarget);
 
-  // 켜짐 기억 — 사용자가 이번 마운트에서 바꾼 값만 상태에 두고, 저장 키가 바뀌면 그 값은 버린다(자동 설정 저장 스위치와 같은 방식).
-  const userId = useConfirmedUserId(withRowToggle);
+  // 입력 줄 펼침 — 늘 접힌 채 시작하고, 사용자가 이번 마운트에서 바꾼 값만 상태에 둔다. 화면(탭 페이지)·그리드가 바뀌면 그 값은 버린다(저장하지 않는다).
   const { pageId } = useTabPage();
   const screenKey = resolveGridScreenKey(pageId);
   const gid = opts.gridId || DEFAULT_GRID_ID;
-  const withPersonalize = resolvePersonalize(opts.personalize).enabled;
-  // 개인화 여부(withPersonalize)는 저장 위치를 고르는 데만 쓴다 — 키에 넣으면 prop 이 오갈 때마다 이번 마운트의 선택이 버려져 조건·검색어가 남은 채 입력 칸만 사라진다.
-  const memoryKey = `${userId}\u0000${screenKey}\u0000${gid}`;
-  // 저장값은 키가 정해질 때(사용자 확인 뒤·화면/그리드 바뀜) 한 번 읽는다. 개인화 여부가 오가도 다시 읽지 않는다 — 저장 위치만 바뀔 뿐 켜 둔 상태는 그대로다.
-  const saved = useMemo(
-    () => (withRowToggle ? loadGridFilterOpen(userId, screenKey, gid, withPersonalize) : null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [withRowToggle, memoryKey],
-  );
+  const memoryKey = `${screenKey}\u0000${gid}`;
   const [toggled, setToggled] = useState<{ key: string; value: boolean } | null>(null);
-  const chosen = toggled && toggled.key === memoryKey ? toggled.value : (saved ?? false);
+  const chosen = toggled && toggled.key === memoryKey ? toggled.value : false;
   const rowOpen = withRowToggle && live && chosen;
   const rowOpenRef = useRef(rowOpen);
   rowOpenRef.current = rowOpen;
@@ -194,8 +180,8 @@ export function useGridFilter(opts: UseGridFilterOptions): GridFilterState {
   const quickVisible = mode === "always" || (live && (!searchTiedToRow || chosen));
   const quickVisibleRef = useRef(quickVisible);
   quickVisibleRef.current = quickVisible;
-  const memoryRef = useRef({ userId, screenKey, gid, withPersonalize, memoryKey, withRowToggle });
-  memoryRef.current = { userId, screenKey, gid, withPersonalize, memoryKey, withRowToggle };
+  const memoryKeyRef = useRef(memoryKey);
+  memoryKeyRef.current = memoryKey;
 
   // optional 은 한 번이라도 켠 뒤부터 열 정의에 필터를 단다 — 되돌리지 않는다(위 「꺼진 동안의 비용」). 걸러 보기 대상을 잃어 접혀도 정의는 그대로다(입력 줄 높이만 0).
   const everOnRef = useRef(false);
@@ -368,9 +354,7 @@ export function useGridFilter(opts: UseGridFilterOptions): GridFilterState {
               // 접으면 조건을 바로 지운다(렌더를 기다리지 않게). 다른 경로로 접히는 경우는 위 효과가 지운다.
               if (!open) clearConditions();
               rowOpenRef.current = open;
-              const m = memoryRef.current;
-              saveGridFilterOpen(m.userId, m.screenKey, m.gid, open, m.withPersonalize);
-              setToggled({ key: m.memoryKey, value: open });
+              setToggled({ key: memoryKeyRef.current, value: open });
               notify();
             },
           }

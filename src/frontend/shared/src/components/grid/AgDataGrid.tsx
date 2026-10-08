@@ -152,7 +152,7 @@ function AgDataGridInner({
   // 값 하나씩 따로 둔다(객체 하나로 두면 해제 뒤 다시 등록하는 같은 커밋에서도 새 객체라 한 번 더 그린다).
   const [isMenuTarget, setIsMenuTarget] = useState(false);
   const [isFilterTarget, setIsFilterTarget] = useState(false);
-  // 걸러 보기(빠른 검색 + 칸별 입력 줄) — filter 세 상태(true·false·생략)와 꺼진 동안의 비용·켜짐 기억은 useGridFilter.ts 머리 주석.
+  // 걸러 보기(빠른 검색 + 칸별 입력 줄) — filter 세 상태(true·false·생략)와 꺼진 동안의 비용은 useGridFilter.ts 머리 주석.
   const gridFilter = useGridFilter({
     filter,
     settingsMenu,
@@ -162,7 +162,6 @@ function AgDataGridInner({
     isFilterTarget: selfHeader ? true : isFilterTarget,
     gridRef,
     gridId,
-    personalize,
     editable: hasEditableColumns,
     serverPaged: gridPanelRegistry?.isServerPaged?.() ?? false,
   });
