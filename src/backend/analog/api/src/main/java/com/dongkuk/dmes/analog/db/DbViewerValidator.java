@@ -169,18 +169,57 @@ public final class DbViewerValidator {
             if (FORBIDDEN.matcher(where).find()) {
                 throw new DbViewerException(400, "WHERE 절에 허용되지 않은 키워드가 있습니다.");
             }
+            checkWhereIdentifiers(where);
         }
         return new ParsedQuery(schema, table, star, columns, where);
     }
+
+    /** 작은따옴표 문자열 값(내부의 '' 는 따옴표 하나) — 식별자 검사에서 뺀다. */
+    private static final Pattern STRING_LITERAL = Pattern.compile("'(?:[^']|'')*'");
+
+    /** WHERE 절의 식별자 후보(인용부호 안의 이름 포함). */
+    private static final Pattern WORD = Pattern.compile("[A-Za-z_][A-Za-z0-9_$#]*");
+
+    /**
+     * WHERE 절에 쓰인 식별자 중 민감 칸 패턴에 맞는 것이 있으면 400 으로 거부한다.
+     * {@code WHERE USER_PASS LIKE '$2a$1%'} 처럼 조건으로 값을 한 글자씩 알아내는 길을 막는다.
+     * 작은따옴표 안의 문자열 값은 식별자가 아니므로 검사하지 않는다.
+     * (ORDER BY 는 {@link #FORBIDDEN} 으로 이미 거부되어 검사 대상이 아니다.)
+     */
+    static void checkWhereIdentifiers(String where) {
+        String withoutLiterals = STRING_LITERAL.matcher(where).replaceAll(" ");
+        Matcher word = WORD.matcher(withoutLiterals);
+        while (word.find()) {
+            if (isSensitiveColumn(word.group())) {
+                throw new DbViewerException(400, "WHERE 절에 민감 정보가 포함된 컬럼이 있어 조회할 수 없습니다.");
+            }
+        }
+    }
+
+    /** 상세 재조회용 숨은 칸의 키 — 실제 표 조회일 때 SELECT 목록 맨 앞에 더한다. */
+    public static final String ROWID_KEY = "_ROWID";
 
     /**
      * 파싱 결과 + 확정 컬럼 목록으로 실행 SQL을 재조립한다. 건수 상한은 항상 강제한다.
      */
     public static String buildSql(ParsedQuery parsed, List<String> effectiveColumns, int limit) {
+        return buildSql(parsed, effectiveColumns, limit, false);
+    }
+
+    /**
+     * 실행 SQL 재조립 — {@code withRowId} 가 true 면 SELECT 목록 맨 앞에
+     * {@code ROWIDTOCHAR(ROWID) "_ROWID"} 를 더한다. ROWID 가 있는 실제 표일 때만 true 로 부른다
+     * (뷰 등에는 ROWID 가 없어 SQL 이 실패한다). 컬럼 이름은 검증을 거친 식별자뿐이므로 {@code _ROWID} 와 겹치지 않는다.
+     */
+    public static String buildSql(ParsedQuery parsed, List<String> effectiveColumns, int limit,
+                                  boolean withRowId) {
         if (effectiveColumns == null || effectiveColumns.isEmpty()) {
             throw new DbViewerException(400, "조회할 컬럼이 없습니다.");
         }
         StringBuilder sb = new StringBuilder("SELECT ");
+        if (withRowId) {
+            sb.append("ROWIDTOCHAR(ROWID) \"").append(ROWID_KEY).append("\", ");
+        }
         for (int i = 0; i < effectiveColumns.size(); i++) {
             if (i > 0) {
                 sb.append(", ");
