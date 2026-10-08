@@ -11,6 +11,8 @@
 # usage.relaxed(기본 false)가 true 이면 계정 여유가 있다고 보고 Y·O 를 G 로 내려 BAND 에 낸다(R 은 그대로). raw= 는 내리기 전 띠.
 # 출처가 모두 없으면 BAND UNKNOWN(막지 않는다).
 set -uo pipefail
+_SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.
+. "$_SD/lib/js-bridge.sh"; if _jsb_on USAGE_BAND; then _jsb_exec "$_SD/usage-band" "$@"; fi   # node 판(스위치 COORD_JS_USAGE_BAND)
 # shellcheck source=lib/common.sh
 . "$(dirname "$0")/lib/common.sh"
 coord_default_repo
