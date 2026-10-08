@@ -110,6 +110,28 @@ public final class ModuleMenuSeeder extends SeedSupport {
     }
 
     /**
+     * 예약 작업 관리(csa/jobSchedMng) 메뉴 시드 (2026-10-09, 스펙 2026-10-08-job-scheduler-design §7·§10) —
+     * OBJECT 1 + 메뉴 leaf 1 + SYSADMIN × PERM_ALL 1. 폴더는 기존 시스템관리 그룹 {@code csa} 를 쓴다.
+     * componentPath={@code csa/jobSchedMng} 는 m-mcm 페이지 레지스트리 키와 같다. 화면이 쓰는 action
+     * (list·get·save·setUse·runNow·history·cronPreview·handlers·delete)은 {@link CoreRbacSeeder} 의 PERM_ALL 에 있다.
+     * FULL_SEQ 1020220 은 기록용 값이고, 시드 끝의 recomputeMenuFullSeq() 가 csa 안 순서(MENU_SEQ → MENU_ID)로 다시 매긴다.
+     * 이미 운영 중인 DB 에는 docs/mcm/sql/jobSchedMng-menu.sql 로도 같은 행을 넣을 수 있다(둘 다 멱등이라 겹쳐도 중복이 없다).
+     * 모두 insert-if-absent 라 재기동해도 중복 행이 생기지 않는다.
+     */
+    public void seedJobSchedMngMenu() {
+        final String objId = "jobSchedMng";
+        insertMcmSecObjIfAbsent(objId, "예약 작업 관리", "mcm");
+        insertMcmSecMenuIfAbsent(objId, "001", "1020220", "예약 작업 관리", "csa", objId);
+        insertIfAbsentComposite(
+                "TB_MCM_SEC_ROLE_MAPPING",
+                new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                new String[]{"SYSADMIN", objId,       "PERM_ALL"},
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                "VALUES ('SYSADMIN', '" + objId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+        log.info("[DataInitializer] 예약 작업 관리 메뉴 시드 — OBJECT 1(jobSchedMng) + 메뉴 leaf 1(csa/jobSchedMng) + RBAC(SYSADMIN 1)");
+    }
+
+    /**
      * 조회 기본값 샘플(csa/searchDefaultsSample) 메뉴 시드 (2026-10-07, 스펙 2026-10-07-search-defaults-design §7.5) —
      * OBJECT 1 + 메뉴 leaf 1 + SYSADMIN × PERM_ALL 1. 기본값 동작을 눈과 e2e 로 확인하는 샘플 화면의 포털 진입점이다.
      * <b>local 프로필에서만</b> 부른다(호출하는 DataInitializer 가 판정 — 운영 메뉴에는 넣지 않는다). componentPath={@code csa/searchDefaultsSample}

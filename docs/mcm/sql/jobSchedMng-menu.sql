@@ -3,7 +3,9 @@
 -- ============================================================
 -- 대상: MCMAPUSER 스키마(TB_MCM_SEC_OBJ·TB_MCM_SEC_MENU·TB_MCM_SEC_ROLE_MAPPING·TB_MCM_SEC_PERM).
 -- 적용은 조정자가 한다(L_MAIN 에는 이 레인이 쓰지 않는다 — docs/superpowers/specs/2026-10-08-job-scheduler-design.md §10).
--- 같은 내용을 CoreRbacSeeder.allActions 가 새 DB 의 PERM_ALL 에 넣는다. 이미 시드된 DB 는 아래 6개 UPDATE 가 덧붙인다.
+-- 새 DB 는 mcm 기동 때 DataInitializer 가 같은 행을 넣는다(ModuleMenuSeeder.seedJobSchedMngMenu = OBJECT·메뉴·SYSADMIN 매핑,
+-- CoreRbacSeeder.allActions = PERM_ALL 의 action). 이 파일은 mcm 을 재기동하지 않고 이미 떠 있는 DB 에 먼저 넣을 때 쓴다.
+-- 시더와 이 파일은 둘 다 멱등이라 겹쳐 실행해도 중복 행이 생기지 않는다. 실행 뒤 mcm 의 메뉴·권한 캐시는 재기동(또는 시드 이벤트)으로 비운다.
 
 MERGE INTO MCMAPUSER.TB_MCM_SEC_OBJ T
 USING (SELECT 'jobSchedMng' OBJECT_ID FROM DUAL) S

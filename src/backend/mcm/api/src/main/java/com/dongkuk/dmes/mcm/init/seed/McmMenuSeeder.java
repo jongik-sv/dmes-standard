@@ -238,6 +238,7 @@ public final class McmMenuSeeder extends SeedSupport {
             {"commSyncMng",               "1020170", "csa"},
             {"mdmCacheMng",               "1020190", "csa"},   // 2026-10-02 MDM 캐시 관리(화면 사용 통계 1020180 다음) — 빠지면 잔존 DB 의 FULL_SEQ 가 매 부팅 어긋난다
             {"searchDefaultsSample",      "1020210", "csa"},   // 2026-10-07 조회 기본값 샘플(local 전용 시드) — 행이 있는 DB 에서만 적용된다
+            {"jobSchedMng",               "1020220", "csa"},   // 2026-10-09 예약 작업 관리 — 빠지면 잔존 DB 의 FULL_SEQ 가 매 부팅 어긋난다
             {"masterCodeMngList",         "1030100", "cme"},
             {"masterRuleList",            "1040100", "cmb"},
             // 2026-08-14 등재 — 본 배열에 빠지면 잔존 DB 의 FULL_SEQ/PARENT_MENU_ID 가 매 부팅 어긋난 채 남는다

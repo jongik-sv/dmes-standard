@@ -204,6 +204,9 @@ public class DataInitializer implements ApplicationRunner {
         // 2026-10-02 — 위젯관리(csa/commWidgetMng) 메뉴. 시스템관리(csa) 아래 leaf 1 — 사이드바 "시스템관리 > 위젯 관리".
         moduleMenus.seedWidgetAdminMenus();
 
+        // 2026-10-09 — 예약 작업 관리(csa/jobSchedMng) 메뉴. 시스템관리(csa) 아래 leaf 1 — 사이드바 "시스템관리 > 예약 작업 관리".
+        moduleMenus.seedJobSchedMngMenu();
+
         // 2026-10-07 — 조회 기본값 샘플 화면(csa/searchDefaultsSample) 메뉴. local 프로필 전용 — 운영·개발계 메뉴에는 넣지 않는다.
         if (environment.acceptsProfiles(Profiles.of("local"))) {
             moduleMenus.seedSearchDefaultsSampleMenu();
