@@ -16,6 +16,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.SchedulingAwareRunnable;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
@@ -205,6 +206,66 @@ class ScheduledJobLogContextTest {
         assertThat(start.group("action")).isEqualTo("run");
         assertThat(lines.get(1).group("message")).startsWith("Service end - service name ");
         assertThat(runTime.matcher(lines.get(1).group("message")).find()).isTrue();
+    }
+
+    @Test
+    void wrap_은_SchedulingAwareRunnable_의_qualifier_와_longLived_를_그대로_넘긴다() throws Exception {
+        ScheduledMethodRunnable inner = new ScheduledMethodRunnable(new Sample(), Sample.class.getDeclaredMethod("collectMinute"), "other", () -> null);
+
+        Runnable wrapped = ScheduledJobLogContext.wrap(inner);
+
+        assertThat(wrapped).isInstanceOfSatisfying(SchedulingAwareRunnable.class, w -> {
+            assertThat(w.getQualifier()).isEqualTo("other");
+            assertThat(w.isLongLived()).isEqualTo(inner.isLongLived());
+        });
+    }
+
+    @Test
+    void Scheduled_scheduler_로_고른_다른_스케줄러_스레드에서도_태그가_들어간다() throws Exception {
+        try (AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(
+                QualifiedSchedulingConfig.class, ScheduledJobLogAutoConfiguration.class)) {
+            QualifiedBean bean = ctx.getBean(QualifiedBean.class);
+
+            assertThat(bean.seen.await(10, TimeUnit.SECONDS)).isTrue();
+            assertThat(bean.threadName.get()).startsWith("other-sched-");
+            assertThat(bean.mdc.get()).containsEntry("serviceId", "sch.qualifiedBean.job");
+        }
+    }
+
+    @Configuration
+    @EnableScheduling
+    static class QualifiedSchedulingConfig {
+        @Bean
+        ThreadPoolTaskScheduler taskScheduler() {
+            ThreadPoolTaskScheduler s = new ThreadPoolTaskScheduler();
+            s.setThreadNamePrefix("default-sched-");
+            return s;
+        }
+
+        @Bean
+        ThreadPoolTaskScheduler otherScheduler() {
+            ThreadPoolTaskScheduler s = new ThreadPoolTaskScheduler();
+            s.setThreadNamePrefix("other-sched-");
+            return s;
+        }
+
+        @Bean
+        QualifiedBean qualifiedBean() {
+            return new QualifiedBean();
+        }
+    }
+
+    static class QualifiedBean {
+        final CountDownLatch seen = new CountDownLatch(1);
+        final AtomicReference<String> threadName = new AtomicReference<>();
+        final AtomicReference<Map<String, String>> mdc = new AtomicReference<>();
+
+        @Scheduled(fixedDelay = 100_000L, initialDelay = 10L, scheduler = "otherScheduler")
+        public void job() {
+            threadName.compareAndSet(null, Thread.currentThread().getName());
+            mdc.compareAndSet(null, MDC.getCopyOfContextMap());
+            seen.countDown();
+        }
     }
 
     @Configuration
