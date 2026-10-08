@@ -28,6 +28,7 @@ OFFICE_RC=0
 trap 'exit "${OFFICE_RC:-0}"' EXIT
 set -uo pipefail
 _SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.   # dirname 대신(프로세스 0개)
+. "$_SD/lib/js-bridge.sh"; if _jsb_on OFFICE; then _jsb_exec "$_SD/office" "$@"; fi   # node 판(스위치 COORD_JS_OFFICE)
 . "$_SD/lib/common.sh"
 . "$_SD/lib/compat.sh"
 coord_default_repo
