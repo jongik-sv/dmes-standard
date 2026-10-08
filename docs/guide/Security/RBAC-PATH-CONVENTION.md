@@ -203,7 +203,7 @@ public class UserPermCache {
 현재 `SecurityConfig.java` 의 필터 체인 순서:
 
 ```
-1. TxIdFilter            — 트랜잭션 ID 부여
+1. TxIdFilter            — 트랜잭션 ID 부여 (보안 체인 바깥 servlet 필터, 체인 시작 전에 실행)
 2. RequestIdFilter       — 요청 ID 부여
 3. ClientKeyFilter       — X-Client-Key 검증 (BFF 호출만)
 4. JwtAuthenticationFilter ← JWT 검증, SecurityContext 에 사용자 인증 정보 set
