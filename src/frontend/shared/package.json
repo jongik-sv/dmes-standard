@@ -174,6 +174,10 @@
       "types": "./dist/types/components/dashboard/index.d.ts",
       "import": "./dist/dashboard.js"
     },
+    "./floating-panel": {
+      "types": "./dist/types/components/floating-panel/index.d.ts",
+      "import": "./dist/floating-panel.js"
+    },
     "./widget": {
       "types": "./dist/types/widget/index.d.ts",
       "import": "./dist/widget.js"

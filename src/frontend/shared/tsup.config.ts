@@ -43,6 +43,7 @@ export default defineConfig((options) => ({
     card: "src/components/card/index.ts",
     "transfer-list": "src/components/transfer-list/index.ts",
     dashboard: "src/components/dashboard/index.ts",
+    "floating-panel": "src/components/floating-panel/index.ts",
     widget: "src/widget/index.ts",
     "screen-context": "src/screen-context/index.ts",
     oasis: "src/oasis/index.ts",

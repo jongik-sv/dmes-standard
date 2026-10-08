@@ -71,6 +71,10 @@
 - [PortalPageWindow](portal-page-window.md): 포털 셸(사이드바·탭 막대) 없이 업무 화면 하나를 포털 탭 안과 같은 조건으로 그리는 단독 창 호스트다. 포털 탭 우클릭 「새 창으로 분리」 가 여는 `/popup/…` 라우트가 쓴다. 권한 확인·화면 불러오기·공통 감싸기·상태 보관·창 제목·화면 사용 통계까지 한 번에 맡는다.
 - [useCarryState](use-carry-state.md): 포털 탭 우클릭 「새 창으로 분리」 때 조회 조건·조회 결과·선택 키를 재조회 없이 새 창으로 이어받게 하는 상태 훅이다. `useState` 와 같은 모양이라 화면은 `useState` 를 이 훅으로 바꾸기만 한다. `useCarryRefetch`·`useCarryRestored` 가 한 벌이다.
 
+## 떠 있는 창 — 비모달 (`@dk-oasis/shared/floating-panel`)
+
+- [FloatingPanel](floating-panel.md): 화면 위에 떠 있고 끌어서 옮기고 크기를 바꿀 수 있는 **비모달** 창을 열고 닫는 상태까지 한 번에 쓸 때 쓴다. `open` 이 true 인 동안 `document.body` 로 포털해 그리고, 위치·크기·접힘을 (선택) 브라우저에 저장해 다시 열 때 복원한다. 업무 도메인과 무관한 범용 부품이다.
+
 ## MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)
 
 - [MDM 화면 메타 (MdmMetaProvider · useMdmColumn · MdmMetaCard · MdmFieldLabel · useMdmValidation)](mdm-meta.md): 그리드 머리글·폼 라벨·상세 표(th) 라벨의 캡션과 툴팁을 MDM 컬럼 사전에서 가져오고, 입력값을 MDM 정의(필수·형식·길이·허용 코드·표준식)로 즉시 검사할 때 쓴다. 포털 탭이 공급자를 자동으로 씌우므로 캡션·툴팁은 화면이 아무것도 하지 않아도 붙는다. 값 검사는 화면이 켠다.
