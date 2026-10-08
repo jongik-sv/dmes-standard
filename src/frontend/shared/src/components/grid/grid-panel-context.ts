@@ -30,14 +30,33 @@ export interface GridPanelGridControls {
   /** 내려받을 수 있는가 — 행이 0 이면 false. 메뉴를 열 때와 GridPanel 이 그릴 때 읽는다. */
   canExportExcel?(): boolean;
   /**
-   * 필터 명령(그리드 `filter` 를 켠 그리드만). 빠른 검색어·거른 건수는 GridPanel 머리줄이 쓰고, 입력 줄 펴기·접기는 설정 메뉴가 쓴다.
-   * 입력 줄 명령(getFilterRowOpen·setFilterRowOpen)은 설정 메뉴를 켠 그리드만 채운다(`settingsMenu={false}` 면 비운다).
+   * [컬럼 원래대로] — 개인화가 꺼진 그리드만 채운다(켜진 그리드는 [설정 초기화…] 가 같은 일을 하며 저장값까지 지운다).
+   * 지금 화면의 칸 순서·너비·숨김·고정을 열 정의대로 되돌린다. 정렬은 그대로 둔다(서버 페이징 그리드는 정렬이 조회 조건이다). 저장하는 것은 없다.
+   */
+  resetColumns?(): void;
+  /**
+   * 필터 명령. 그리드 `filter={true}` 인 그리드와, `filter` 를 생략한 GridPanel 안 그리드(설정 메뉴가 있는 것)가 올린다. 빠른 검색어·거른 건수는 GridPanel 머리줄이 쓰고,
+   * 「필터 창 보기」 는 설정 메뉴가 쓴다. 입력 줄 명령(getFilterRowOpen·setFilterRowOpen)은 설정 메뉴를 켠 그리드만 채운다(`settingsMenu={false}` 면 비운다).
    */
   setQuickFilter?(text: string): void;
-  /** 필터 입력 줄이 펼쳐져 있는가. */
+  /** 그리드에 지금 걸려 있는 빠른 검색어 — 검색 칸이 다시 마운트될 때 이 값으로 시작한다(빈칸인데 행이 숨는 일이 없게). */
+  getQuickFilterText?(): string;
+  /**
+   * 「필터 창 보기」 가 켜져 있는가 — `filter={true}` 그리드는 입력 줄이 펼쳐져 있는가, `filter` 생략 그리드는 걸러 보기 전체(검색 칸 + 입력 줄)가 켜져 있는가.
+   */
   getFilterRowOpen?(): boolean;
-  /** 필터 입력 줄을 펴고 접는다 — 접으면 칸별 조건을 지운다(빠른 검색어는 그대로). */
+  /**
+   * 「필터 창 보기」 를 켜고 끈다. `filter={true}` 그리드는 입력 줄만 펴고 접으며 끄면 칸별 조건만 지운다(빠른 검색어는 그대로).
+   * `filter` 생략 그리드는 검색 칸과 입력 줄이 함께 나타나고 사라지며, 끄면 칸별 조건과 검색어를 모두 지운다. 켜짐은 그리드가 기억한다.
+   */
   setFilterRowOpen?(open: boolean): void;
+  /**
+   * 빠른 검색 칸을 지금 보일 것인가. `filter` 생략 그리드(켜기 전에는 검색 칸이 없다)만 채운다 — 비어 있으면(`filter={true}`) 늘 보인다.
+   * 바뀔 때 `subscribeFilter` 로 알린다.
+   */
+  getQuickFilterVisible?(): boolean;
+  /** 편집 칸이 있는 그리드인가 — 검색 칸 안내 글에 「새로 넣은 행도 조건에 맞지 않으면 숨습니다」 를 덧붙인다. */
+  isFilterEditable?(): boolean;
   /** 거른 건수 — 걸러 보이는 행 수와 전체 행 수. 거르지 않으면 null. 값이 같으면 같은 객체를 돌려준다(`useSyncExternalStore` 의 getSnapshot). */
   getFilterCount?(): GridFilterCount | null;
   /** 입력 줄·거른 건수가 바뀔 때 알린다. 돌려주는 함수로 해제한다. */
@@ -54,10 +73,13 @@ export interface GridPanelRegistry {
   /** 이 GridPanel 의 제목(`title`) — 엑셀 파일 이름의 기본값. 내려받을 때 읽는다. */
   getTitle(): string | undefined;
   /**
-   * 명령을 등록한다. 돌려주는 함수로 해제한다. 같은 GridPanel 에 여럿이면 개인화 명령을 가진 그리드 중 먼저 등록한 것이 대상이고, 없으면 먼저 등록한 것이다.
-   * `onTargetChange` 는 이 그리드가 대상이 되거나 대상에서 빠질 때(등록 직후 포함) 부른다 — 대상이 된 그리드만 아래 줄 [엑셀] 단추를 숨기려고 쓴다.
+   * 명령을 등록한다. 돌려주는 함수로 해제한다.
+   * 같은 GridPanel 에 여럿이면 설정 메뉴 대상 순서: 개인화 명령을 가진 그리드 → 엑셀 명령을 가진 그리드 → 먼저 등록한 그리드.
+   * 걸러 보기(검색 칸·건수·「필터 창 보기」)의 대상은 따로다 — `filter={true}` 그리드 중 먼저 등록한 것, 없으면 메뉴 대상(검색 명령이 있을 때).
+   * `onTargetChange` 는 이 그리드의 대상 여부가 바뀔 때(등록 직후 포함) 부른다 — `isMenuTarget`: 메뉴 대상(대상이 된 그리드만 아래 줄 [엑셀] 단추를 숨긴다),
+   * `isFilterTarget`: 걸러 보기 대상(`filter` 생략 그리드는 이것일 때만 켜질 수 있다 — 끌 메뉴가 없는 그리드가 켜진 채 남지 않게).
    */
-  register(controls: GridPanelGridControls, onTargetChange?: (isTarget: boolean) => void): () => void;
+  register(controls: GridPanelGridControls, onTargetChange?: (isMenuTarget: boolean, isFilterTarget: boolean) => void): () => void;
 }
 
 const GLOBAL_KEY = "__dkOasisGridPanelContext__";
