@@ -361,6 +361,7 @@ export function AnalogDbViewer() {
                   ref={editorRef}
                   value={sqlSeed.text}
                   revision={sqlSeed.revision}
+                  tablesBySchema={tablesBySchema}
                   onRun={runFromEditor}
                 />
               </div>
