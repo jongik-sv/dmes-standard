@@ -84,6 +84,7 @@ public class OasisServiceExecutor {
         CactusAudit audit = new CactusAudit(auditUserId, menuId, serviceId);
         AuditHolder.setAudit(audit);
 
+        // analog 서비스 목록의 Action 칸이 이 "serviceId/action" 줄을 파싱한다 — 문구 변경 시 analog application.yml 의 service_action.action_pattern 도 함께 맞춘다.
         log.info("{}/{}", serviceId, action);
 
         try {

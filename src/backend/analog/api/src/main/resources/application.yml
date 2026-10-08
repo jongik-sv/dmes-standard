@@ -89,7 +89,10 @@ analog-serializer:
     service_finish:
       start_with_match: "Service end - service name "
       run_time_pattern: "RunTime : \\[(?<runTime>\\d+)\\]\\s*$"
+    # cactus OasisServiceExecutor 가 서비스 시작 때 남기는 "serviceId/action" 줄(예: ruleCalc/view)을 파싱한다.
+    # 로그 문구를 바꾸면 이 패턴도 함께 맞춘다. start_with_match 는 ServiceListExtraction 에서 null 확인에만 쓰이고
+    # 실제 판정은 action_pattern(메시지 전체 일치)이 한다.
     service_action:
-      start_with_match: "SERVICE_ACTION : "
-      action_pattern: "SERVICE_ACTION : (?<action>\\w+)"
+      start_with_match: "serviceId/action"
+      action_pattern: "^[\\w.-]+/(?<action>\\w+)$"
   config_file: "classpath:analog-serializer.json"
