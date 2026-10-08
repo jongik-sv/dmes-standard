@@ -1,5 +1,7 @@
 # 정시 수집 유형(collect) 설계 계약 (widget-data 레인, 항목 4)
 
+> 폐기: collect 위젯은 예약 작업(docs/superpowers/specs/2026-10-08-job-scheduler-design.md)으로 대체되었다.
+
 2026-10-05. 사용자 결정(README §0-4): mcm-core 1분 `@Scheduled`, 수집 시각 PK 로 중복 방지, 90일 보관, 첫 판 원천은 SQL(기존 읽기 전용 실행기)·HTTP JSON(허용 호스트만)·내장 환율. 주식은 HTTP 원천, 기계 상태는 SQL 로 다룬다.
 이 문서는 백엔드·프런트·시험이 함께 따르는 계약이다. 바꿀 일이 생기면 먼저 이 문서를 고치고 알린다.
 
