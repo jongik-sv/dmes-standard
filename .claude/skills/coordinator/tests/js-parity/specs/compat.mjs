@@ -49,6 +49,14 @@ function procFiles(rng) {
   return files;
 }
 const WIN_ENV = { COMPAT_FORCE_OS: 'windows', COMPAT_PROC_ROOT: '<WORK>/proc', COORD_JS_CALLER_PID: '999997' };
+// 사례마다 새로 만드는 파일의 mtime(초)은 sh·js 실행이 1초 경계를 넘나들면 달라진다.
+// common 명세 coord_file_mtime 과 같이 숫자 모양만 본다(정확한 값은 고정 사례·tests/compat.sh가 본다).
+const digitsToN = (buf) => Buffer.from(buf.toString('latin1').replace(/[0-9]/g, 'N'), 'latin1');
+const infoTimeToN = (buf) => {
+  const parts = buf.toString('latin1').split(' ');
+  if (parts.length === 4) parts[2] = parts[2].replace(/[0-9]/g, 'N');
+  return Buffer.from(parts.join(' '), 'latin1');
+};
 function winCase(rng) {
   return { files: procFiles(rng), env: { ...WIN_ENV, PATH: `<WORK>/bin:${process.env.PATH}` } };
 }
@@ -64,6 +72,7 @@ export default {
   functions: {
     compat_stat_mtime: {
       js: ['compat_stat_mtime'],
+      normalize: digitsToN,
       fixed: [{ label: 'compat.sh: 방금 만든 파일은 숫자', args: ['f.txt'], files: { 'f.txt': 'x' }, stdin: '' }],
       gen: (rng) => ({ args: [rng.pick(['f.txt', 'missing', 'd', 'd/g', ''])], files: { 'f.txt': 'x', 'd/g': 'y' }, stdin: '' }),
     },
@@ -78,6 +87,7 @@ export default {
     },
     compat_stat_info: {
       js: ['compat_stat_info'],
+      normalize: infoTimeToN,
       fixed: [
         { label: 'compat.sh: 없는 파일은 rc 1', args: ['nofile'], stdin: '' },
         { label: 'compat.sh: uid 권한 mtime 크기', args: ['f.txt'], files: { 'f.txt': 'x' }, stdin: '' },
