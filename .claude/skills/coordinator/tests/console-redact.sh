@@ -341,13 +341,41 @@ eq "프롬프트: NBSP 가 섞인 글은 정상" "$(P 'a\302\240b')" "$(printf '
 mkdir -p "$tmp/shim"
 printf '#!/bin/sh\necho partial\nexit 2\n' > "$tmp/shim/awk"; chmod +x "$tmp/shim/awk"
 ln -s "$(command -v tr)" "$tmp/shim/tr"
-fo="$(printf 'secret %s\n' "$SK1" | PATH="$tmp/shim" console_redact_text)"; frc=$?
+fo="$(printf 'secret %s\n' "$SK1" | COORD_JS_REDACT=0 PATH="$tmp/shim" console_redact_text)"; frc=$?
 eq "awk 실패: console_redact_text 비정상 종료" "$([ "$frc" -ne 0 ] && echo nz)" nz
 eq "awk 실패: stdout 비어 있음" "$fo" ""
-fo="$(printf 'secret %s\n' "$SK1" | PATH="$tmp/shim" console_screen_filter)"; frc=$?
+fo="$(printf 'secret %s\n' "$SK1" | COORD_JS_REDACT=0 PATH="$tmp/shim" console_screen_filter)"; frc=$?
 eq "awk 실패: console_screen_filter 비정상 종료·출력 없음" "$frc:$fo" "2:"
-fo="$(printf 'hello' | PATH="$tmp/shim" console_clean_prompt)"; frc=$?
+fo="$(printf 'hello' | COORD_JS_REDACT=0 PATH="$tmp/shim" console_clean_prompt)"; frc=$?
 eq "awk 실패: console_clean_prompt 는 4·출력 없음" "$frc:$fo" "4:"
+
+# --- node 판(스위치) 전용: 같은 실패 계약·64KB 넘는 프롬프트 -------------------------------------
+if command -v node >/dev/null 2>&1; then
+  mkdir -p "$tmp/nodeshim"
+  printf '#!/bin/sh\necho partial\nexit 70\n' > "$tmp/nodeshim/node"; chmod +x "$tmp/nodeshim/node"
+  # 가짜 node 는 source 시점에 절대 경로로 고정된다(그 뒤 PATH 가 바뀌어도 같은 node)
+  jsf() { ( PATH="$tmp/nodeshim:$PATH"; . "$LIB"; PATH="/usr/bin:/bin"; COORD_JS_REDACT=1 "$@" ); }
+  fo="$(printf 'secret %s\n' "$SK1" | jsf console_redact_text)"; frc=$?
+  eq "node 실패: console_redact_text 비정상 종료·출력 없음" "$([ "$frc" -ne 0 ] && echo nz):$fo" "nz:"
+  fo="$(printf 'secret %s\n' "$SK1" | jsf console_screen_filter)"; frc=$?
+  eq "node 실패: console_screen_filter 비정상 종료·출력 없음" "$([ "$frc" -ne 0 ] && echo nz):$fo" "nz:"
+  fo="$(printf 'hello' | jsf console_clean_prompt)"; frc=$?
+  eq "node 실패: console_clean_prompt 는 4·출력 없음" "$frc:$fo" "4:"
+  fo="$(printf 'x' | jsf console_screen_sha)"; frc=$?
+  eq "node 실패: console_screen_sha 는 1·출력 없음" "$frc:$fo" "1:"
+  # 기준(32KB·한 줄 8000바이트)을 넘긴 줄 뒤에 64KB 넘게 남아 있으면 정본(awk 판)은 awk 가 일찍 끝낸 뒤 tr 이 SIGPIPE 로 죽어 4.
+  # 남은 것이 없으면(한 줄이 통째로 큰 경우 포함) 3. 남은 양 약 33~128KB 는 실행마다 갈려 시험하지 않는다
+  rep xxxxxxxx 25000 > "$tmp/p200k"; echo >> "$tmp/p200k"
+  rep xxxxxxxx 4200 > "$tmp/p33k"
+  { rep xxxxxxxx 1001; echo; yes 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' | head -c 200000; } > "$tmp/p-long-first"
+  yes 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' | head -c 200000 > "$tmp/p-many"
+  for mode in 0 1; do
+    eq "프롬프트: 200KB 한 줄은 남은 것이 없어 3(스위치 $mode)" "$(COORD_JS_REDACT=$mode console_clean_prompt < "$tmp/p200k"; echo "rc=$?")" "rc=3"
+    eq "프롬프트: 200KB 여러 줄은 4(스위치 $mode)" "$(COORD_JS_REDACT=$mode console_clean_prompt < "$tmp/p-many"; echo "rc=$?")" "rc=4"
+    eq "프롬프트: 8001바이트 줄 뒤에 200KB 가 남으면 4(스위치 $mode)" "$(COORD_JS_REDACT=$mode console_clean_prompt < "$tmp/p-long-first"; echo "rc=$?")" "rc=4"
+    eq "프롬프트: 33KB 한 줄은 3(스위치 $mode)" "$(COORD_JS_REDACT=$mode console_clean_prompt < "$tmp/p33k"; echo "rc=$?")" "rc=3"
+  done
+fi
 
 # --- console_screen_sha -------------------------------------------------------------------
 h1="$(printf 'line a\nline b\n' | console_screen_sha)"
@@ -360,9 +388,9 @@ eq "sha: 알려진 값(빈 입력)" "$(printf '' | console_screen_sha)" e3b0c442
 mkdir -p "$tmp/shaonly"
 if command -v openssl >/dev/null 2>&1; then
   ln -s "$(command -v openssl)" "$tmp/shaonly/openssl"
-  eq "sha: openssl 대체 경로도 같은 값" "$(printf 'line a\nline b\n' | PATH="$tmp/shaonly" console_screen_sha)" "$h1"
+  eq "sha: openssl 대체 경로도 같은 값" "$(printf 'line a\nline b\n' | COORD_JS_REDACT=0 PATH="$tmp/shaonly" console_screen_sha)" "$h1"
 fi
-eq "sha: 도구가 없으면 종료 코드 1" "$(printf 'x' | PATH="$tmp/empty-path" console_screen_sha; echo "rc=$?")" "rc=1"
+eq "sha: 도구가 없으면 종료 코드 1" "$(printf 'x' | COORD_JS_REDACT=0 PATH="$tmp/empty-path" console_screen_sha; echo "rc=$?")" "rc=1"
 
 # --- console_clean_prompt -----------------------------------------------------------------
 P() { printf "$1" | console_clean_prompt; echo "rc=$?"; }   # printf 형식 문자열로 입력
