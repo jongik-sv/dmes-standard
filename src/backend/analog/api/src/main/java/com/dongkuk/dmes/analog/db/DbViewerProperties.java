@@ -31,6 +31,12 @@ public class DbViewerProperties {
     /** 최대 반환 건수 — 요청값은 이 상한으로 clamp 한다. */
     private int maxRows = 200;
 
+    /** 「더보기」로 한 결과에 이어 붙일 수 있는 전체 행 수 상한(첫 화면 {@link #maxRows} 건 포함). */
+    private int maxRowsAll = 30000;
+
+    /** 「더보기」 한 번(요청 하나)에 읽는 묶음 크기. 요청이 이보다 크게 지정해도 이 값으로 줄인다. */
+    private int moreChunk = 5000;
+
     /** 쿼리 타임아웃(초). */
     private int queryTimeoutSeconds = 10;
 
@@ -61,6 +67,22 @@ public class DbViewerProperties {
 
     public void setMaxRows(int maxRows) {
         this.maxRows = maxRows;
+    }
+
+    public int getMaxRowsAll() {
+        return maxRowsAll;
+    }
+
+    public void setMaxRowsAll(int maxRowsAll) {
+        this.maxRowsAll = maxRowsAll;
+    }
+
+    public int getMoreChunk() {
+        return moreChunk;
+    }
+
+    public void setMoreChunk(int moreChunk) {
+        this.moreChunk = moreChunk;
     }
 
     public int getQueryTimeoutSeconds() {

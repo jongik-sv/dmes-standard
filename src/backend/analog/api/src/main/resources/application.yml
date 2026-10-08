@@ -12,6 +12,8 @@ analog:
     allowed-schemas: "${ANALOG_DB_ALLOWED_SCHEMAS:MCMAPUSER,MCM_SOURCE,MCM_BACKUP,MCAAPUSER,MDMAPUSER}"
     denied-tables: "${ANALOG_DB_DENIED_TABLES:}"
     max-rows: 200
+    max-rows-all: 30000
+    more-chunk: 5000
     query-timeout-seconds: 10
     url: "${ANALOG_DB_URL:}"
     username: "${ANALOG_DB_USERNAME:}"

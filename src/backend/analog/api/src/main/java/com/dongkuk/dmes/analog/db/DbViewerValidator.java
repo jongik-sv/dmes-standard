@@ -213,6 +213,48 @@ public final class DbViewerValidator {
      */
     public static String buildSql(ParsedQuery parsed, List<String> effectiveColumns, int limit,
                                   boolean withRowId) {
+        StringBuilder sb = selectFrom(parsed, effectiveColumns, withRowId);
+        sb.append(" FETCH FIRST ").append(limit).append(" ROWS ONLY");
+        return sb.toString();
+    }
+
+    /** 정렬 키로 쓰는 ROWID 의사 칸 표시. */
+    public static final String ORDER_BY_ROWID = "ROWID";
+
+    /**
+     * 「더보기」 묶음 SQL — 정렬을 고정하고 {@code OFFSET n ROWS FETCH NEXT m ROWS ONLY} 로 자른다.
+     * 묶음 사이에 행이 겹치거나 빠지지 않으려면 같은 정렬이어야 하므로 정렬 키는 호출자가 딕셔너리로 정한
+     * {@link #ORDER_BY_ROWID} 또는 식별자 형식 검사를 통과한 칸 이름뿐이다. 정수는 int 라 글자로 이어 붙여도 안전하다.
+     */
+    public static String buildPagedSql(ParsedQuery parsed, List<String> effectiveColumns, boolean withRowId,
+                                       List<String> orderKeys, int offset, int fetch) {
+        if (offset < 0 || fetch < 1) {
+            throw new DbViewerException(400, "offset 또는 건수가 올바르지 않습니다.");
+        }
+        if (orderKeys == null || orderKeys.isEmpty()) {
+            throw new DbViewerException(400, "정렬 기준이 없어 이어 볼 수 없습니다.");
+        }
+        StringBuilder sb = selectFrom(parsed, effectiveColumns, withRowId);
+        sb.append(" ORDER BY ");
+        for (int i = 0; i < orderKeys.size(); i++) {
+            String key = orderKeys.get(i);
+            if (i > 0) {
+                sb.append(", ");
+            }
+            if (ORDER_BY_ROWID.equals(key)) {
+                sb.append(ORDER_BY_ROWID);
+            } else if (key != null && IDENT.matcher(key).matches() && !isSensitiveColumn(key)) {
+                sb.append('"').append(key).append('"');
+            } else {
+                throw new DbViewerException(400, "정렬 기준 이름이 올바르지 않습니다.");
+            }
+        }
+        sb.append(" OFFSET ").append(offset).append(" ROWS FETCH NEXT ").append(fetch).append(" ROWS ONLY");
+        return sb.toString();
+    }
+
+    /** SELECT 목록 + FROM + WHERE — 두 조립 경로가 같은 본문을 쓴다. */
+    private static StringBuilder selectFrom(ParsedQuery parsed, List<String> effectiveColumns, boolean withRowId) {
         if (effectiveColumns == null || effectiveColumns.isEmpty()) {
             throw new DbViewerException(400, "조회할 컬럼이 없습니다.");
         }
@@ -230,7 +272,6 @@ public final class DbViewerValidator {
         if (parsed.where() != null) {
             sb.append(" WHERE ").append(parsed.where());
         }
-        sb.append(" FETCH FIRST ").append(limit).append(" ROWS ONLY");
-        return sb.toString();
+        return sb;
     }
 }
