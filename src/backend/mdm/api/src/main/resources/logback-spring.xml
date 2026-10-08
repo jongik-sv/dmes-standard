@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 공통 정책(파일 규약/보관기간/프로파일 분기)은 cactus-core 의 dmes-logback-base.xml 이 소유한다.
+     springProperty 사용으로 logback 자동 reload(scan)와 비호환 — scan 속성 금지. -->
+<configuration>
+    <property name="MODULE_ID" value="mdm"/>
+    <include resource="dmes-logback-base.xml"/>
+</configuration>

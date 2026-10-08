@@ -56,7 +56,7 @@ analog-express:
   log_file_name_format: "dmes-{MODULE}.{FILE_NAME_DATE}.{SEQ}.log"
   live_log_file_name_format: "dmes-{MODULE}.log"
   stage: "${ANALOG_STAGE:DEV}"
-  modules: "${ANALOG_MODULES:mpn,mpp,mqc,mcm,mls}"
+  modules: "${ANALOG_MODULES:mpn,mpp,mqc,mcm,mls,mdm}"
   client_types: "${ANALOG_CLIENT_TYPES:app}"
   # 공유 검색 풀(AnalogSearchExecutors) — 요청마다 풀을 만들지 않고 모든 요청이 나눠 쓴다.
   #   file_search_pool_size : 파일 단위 검색 동시 실행 상한(미설정 시 threads_per_request 값)
