@@ -856,13 +856,10 @@ body > .ag-popup {
   color: var(--color-text);
 }
 
-.grid-panel-count-filtered {
-  background-color: var(--color-primary-soft);
-}
-
+/* 거른 건수 — 배지 색은 평소 건수(.grid-panel-count)와 같게 두고 보이는 행 수만 굵게(포털 테마가 배지 바탕을 바꿔도 대비가 유지되게). */
 .grid-panel-count-filtered b {
-  color: var(--color-primary);
-  font-weight: 600;
+  color: inherit;
+  font-weight: 700;
 }
 
 /* 필터 입력 줄이 접힌 동안 — 높이는 그리드가 0 으로 두고(floatingFiltersHeight), 입력 칸이 Tab 으로 잡히지 않게 줄째 감춘다(useGridFilter.ts). */
