@@ -1,5 +1,13 @@
 package com.dongkuk.dmes.mcm.oracheck;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.sql.Timestamp;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -10,18 +18,14 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
-import java.sql.Timestamp;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 /**
- * V3(예약 작업 표 4개)를 실제 Oracle 에서 확인한다 — 표 존재·모듈 버전 6행·실행 기록 기본 키(중복 선점 방지)·
- * SCHED_AT 초 단위 정밀도·CHECK 제약. 표는 기준선(V1~V3)이 만들고, 시험이 넣은 행은 각 시험 앞뒤에서 지운다.
+ * V3(예약 작업 표 4개, 설계 §3) 확인 — 표·색인·제약·모듈 사용자 GRANT. 행은 각 시험 앞뒤에서 지운다.
+ * GRANT 는 로컬 PDB 의 ANY TABLE 권한에 가려 실제 동작으로는 확인되지 않으므로 USER_TAB_PRIVS_MADE 로 읽는다.
  */
 @SpringJUnitConfig(OraCheckJpaConfig.class)
 class JobSchemaOraTest {
+
+    private static final List<String> MODULE_USERS = List.of("MDMAPUSER", "MLSAPUSER", "MPNAPUSER", "MPPAPUSER", "MQCAPUSER");
 
     @Autowired JdbcTemplate jdbc;
 
@@ -31,70 +35,94 @@ class JobSchemaOraTest {
         jdbc.update("DELETE FROM MCMAPUSER.TB_MCM_JOB_RUN");
         jdbc.update("DELETE FROM MCMAPUSER.TB_MCM_JOB_DEF");
         jdbc.update("DELETE FROM MCMAPUSER.TB_MCM_JOB_COLLECT_DATA");
-        jdbc.update("UPDATE MCMAPUSER.TB_MCM_JOB_VER SET DEF_VER = 0");
+        jdbc.update("DELETE FROM MCMAPUSER.TB_MCM_JOB_HANDLER");
     }
 
-    private void insertRun(String jobId, Timestamp schedAt, String trigger, String module) {
-        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, MODULE_CD, STATUS) VALUES (?, ?, ?, ?, 'REQ')",
-                jobId, schedAt, trigger, module);
+    private void insertRun(String jobId, Timestamp schedAt, String trigger, String runId, String status) {
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS) "
+                + "VALUES (?, ?, ?, ?, 'MCM', 'job^^code', ?)", jobId, schedAt, trigger, runId, status);
+    }
+
+    private void insertDef(String jobId, String module, String kind) {
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_DEF (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, SERVICE_ID, ACTION, CRON_EXPR, TIMEOUT_SEC, OWNER_TP) "
+                + "VALUES (?, ?, 'n', ?, 'job^^code', 'run', '0 0 * * *', 60, 'USER')", jobId, module, kind);
     }
 
     @Test
-    @DisplayName("표 4개가 있고 TB_MCM_JOB_VER 에 모듈 6행이 DEF_VER 0 으로 들어 있다")
-    void tablesAndVerRows() {
+    @DisplayName("표 4개가 있고 JOB_VER 는 없다")
+    void tables() {
         List<String> tables = jdbc.queryForList(
                 "SELECT TABLE_NAME FROM ALL_TABLES WHERE OWNER = 'MCMAPUSER' AND TABLE_NAME LIKE 'TB_MCM_JOB%' ORDER BY TABLE_NAME", String.class);
-        assertThat(tables).containsExactly("TB_MCM_JOB_COLLECT_DATA", "TB_MCM_JOB_DEF", "TB_MCM_JOB_RUN", "TB_MCM_JOB_VER");
-
-        List<String> modules = jdbc.queryForList("SELECT MODULE_CD FROM MCMAPUSER.TB_MCM_JOB_VER ORDER BY MODULE_CD", String.class);
-        assertThat(modules).containsExactly("MCM", "MDM", "MLS", "MPN", "MPP", "MQC");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_JOB_VER WHERE DEF_VER = 0", Integer.class)).isEqualTo(6);
+        assertThat(tables).containsExactly("TB_MCM_JOB_COLLECT_DATA", "TB_MCM_JOB_DEF", "TB_MCM_JOB_HANDLER", "TB_MCM_JOB_RUN");
     }
 
     @Test
-    @DisplayName("같은 (JOB_ID, SCHED_AT, TRIGGER_TP) 를 두 번 넣으면 DuplicateKeyException — 회차 선점의 근거")
+    @DisplayName("매분 조회용 색인 IX_TB_MCM_JOB_DEF_DUE (USE_YN, NEXT_RUN_AT) 와 RUN_ID 유일 제약이 있다")
+    void indexes() {
+        List<String> dueCols = jdbc.queryForList(
+                "SELECT COLUMN_NAME FROM ALL_IND_COLUMNS WHERE INDEX_OWNER = 'MCMAPUSER' AND INDEX_NAME = 'IX_TB_MCM_JOB_DEF_DUE' ORDER BY COLUMN_POSITION",
+                String.class);
+        assertThat(dueCols).containsExactly("USE_YN", "NEXT_RUN_AT");
+
+        insertRun("J1", Timestamp.valueOf("2026-10-09 02:00:00"), "S", "run-1", "RUN");
+        assertThatThrownBy(() -> insertRun("J2", Timestamp.valueOf("2026-10-09 02:00:00"), "S", "run-1", "RUN"))
+                .isInstanceOf(DuplicateKeyException.class);
+    }
+
+    @Test
+    @DisplayName("같은 (JOB_ID, SCHED_AT, TRIGGER_TP) 는 한 번만 — 회차 선점의 이중 안전장치")
     void duplicateRunKey() {
-        Timestamp at = Timestamp.valueOf("2026-10-08 02:00:00");
-        insertRun("J1", at, "S", "MCM");
-        assertThatThrownBy(() -> insertRun("J1", at, "S", "MCM")).isInstanceOf(DuplicateKeyException.class);
-        // 트리거 구분이 다르면 별개 회차다
-        insertRun("J1", at, "M", "MCM");
+        Timestamp at = Timestamp.valueOf("2026-10-09 02:00:00");
+        insertRun("J1", at, "S", "run-a", "RUN");
+        assertThatThrownBy(() -> insertRun("J1", at, "S", "run-b", "RUN")).isInstanceOf(DuplicateKeyException.class);
+        insertRun("J1", at, "M", "run-c", "RUN");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_JOB_RUN WHERE JOB_ID = 'J1'", Integer.class)).isEqualTo(2);
     }
 
     @Test
-    @DisplayName("SCHED_AT(TIMESTAMP(0))에 소수 초를 넣으면 초 단위로 반올림되어 저장된다 — 실측 기록")
+    @DisplayName("SCHED_AT(TIMESTAMP(0))은 소수 초를 반올림한다 — 넣기 전에 초 단위로 버려야 하는 근거")
     void schedAtRoundsToSecond() {
-        // 2026-10-08 02:00:00.7 → Oracle 은 TIMESTAMP(0) 에 넣을 때 소수 초를 반올림한다(.7 → 다음 초 02:00:01)
-        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, MODULE_CD, STATUS) "
-                + "VALUES ('J2', TIMESTAMP '2026-10-08 02:00:00.7', 'S', 'MCM', 'REQ')");
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS) "
+                + "VALUES ('J2', TIMESTAMP '2026-10-09 02:00:00.7', 'S', 'run-r', 'MCM', 'job^^code', 'RUN')");
         Timestamp stored = jdbc.queryForObject("SELECT SCHED_AT FROM MCMAPUSER.TB_MCM_JOB_RUN WHERE JOB_ID = 'J2'", Timestamp.class);
-        assertThat(stored.getNanos()).isZero();
-        assertThat(stored).isEqualTo(Timestamp.valueOf("2026-10-08 02:00:01"));
-
-        // .3 → 반올림하면 같은 초
-        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, MODULE_CD, STATUS) "
-                + "VALUES ('J3', TIMESTAMP '2026-10-08 02:00:00.3', 'S', 'MCM', 'REQ')");
-        Timestamp stored3 = jdbc.queryForObject("SELECT SCHED_AT FROM MCMAPUSER.TB_MCM_JOB_RUN WHERE JOB_ID = 'J3'", Timestamp.class);
-        assertThat(stored3).isEqualTo(Timestamp.valueOf("2026-10-08 02:00:00"));
+        assertThat(stored).isEqualTo(Timestamp.valueOf("2026-10-09 02:00:01"));
     }
 
     @Test
-    @DisplayName("CHECK 제약 — 정의의 모듈·유형·소유, 기록의 트리거·상태가 허용 값이 아니면 DataIntegrityViolationException")
+    @DisplayName("CHECK — 유형은 CODE·BPMN·QUERY·COLLECT 만, 상태에 REQ 는 없다, 처리기 모듈은 6개만")
     void checkConstraints() {
-        Timestamp at = Timestamp.valueOf("2026-10-08 02:00:00");
-        assertThatThrownBy(() -> insertRun("J4", at, "Z", "MCM")).isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, MODULE_CD, STATUS) "
-                + "VALUES ('J4', ?, 'S', 'MCM', 'BAD')", at)).isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_DEF (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, CRON_EXPR, TIMEOUT_SEC, OWNER_TP) "
-                + "VALUES ('D1', 'XXX', 'n', 'CODE', '0 0 * * *', 60, 'CODE')")).isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_DEF (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, CRON_EXPR, TIMEOUT_SEC, OWNER_TP) "
-                + "VALUES ('D1', 'MCM', 'n', 'NOPE', '0 0 * * *', 60, 'CODE')")).isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_DEF (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, CRON_EXPR, TIMEOUT_SEC, OWNER_TP) "
-                + "VALUES ('D1', 'MCM', 'n', 'CODE', '0 0 * * *', 60, 'ETC')")).isInstanceOf(DataIntegrityViolationException.class);
-        // 올바른 정의는 들어가고 USE_YN·VER 기본값이 채워진다
-        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_DEF (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, CRON_EXPR, TIMEOUT_SEC, OWNER_TP) "
-                + "VALUES ('D2', 'MPN', 'n', 'PURGE', '0 0 * * *', 60, 'USER')");
+        assertThatThrownBy(() -> insertDef("D1", "XXX", "CODE")).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> insertDef("D1", "MCM", "HTTP")).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> insertDef("D1", "MCM", "PURGE")).isInstanceOf(DataIntegrityViolationException.class);
+        insertDef("D2", "MPN", "COLLECT");
         assertThat(jdbc.queryForObject("SELECT USE_YN || VER FROM MCMAPUSER.TB_MCM_JOB_DEF WHERE JOB_ID = 'D2'", String.class)).isEqualTo("Y0");
+
+        Timestamp at = Timestamp.valueOf("2026-10-09 02:00:00");
+        assertThatThrownBy(() -> insertRun("J3", at, "S", "run-q", "REQ")).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> insertRun("J3", at, "Z", "run-z", "RUN")).isInstanceOf(DataIntegrityViolationException.class);
+        List<String> statuses = List.of("RUN", "OK", "FAIL", "SKIP", "TIMEOUT");
+        for (int i = 0; i < statuses.size(); i++) {
+            insertRun("J4", Timestamp.valueOf(java.time.LocalDateTime.of(2026, 10, 9, 2, i, 0)), "S", "run-" + statuses.get(i), statuses.get(i));
+        }
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_HANDLER (HANDLER_ID, MODULE_CD, HANDLER_NM) VALUES ('h', 'XXX', 'n')"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_HANDLER (HANDLER_ID, MODULE_CD, HANDLER_NM) VALUES ('mdm.h', 'MDM', 'n')");
+    }
+
+    @Test
+    @DisplayName("모듈 사용자 5명에게 표별 최소 권한만 GRANT — RUN: SELECT·UPDATE, COLLECT_DATA·DEF·HANDLER: SELECT·INSERT·UPDATE, DELETE 없음")
+    void grantsToModuleUsers() {
+        Map<String, Set<String>> expected = Map.of(
+                "TB_MCM_JOB_RUN", Set.of("SELECT", "UPDATE"),
+                "TB_MCM_JOB_COLLECT_DATA", Set.of("SELECT", "INSERT", "UPDATE"),
+                "TB_MCM_JOB_DEF", Set.of("SELECT", "INSERT", "UPDATE"),
+                "TB_MCM_JOB_HANDLER", Set.of("SELECT", "INSERT", "UPDATE"));
+        for (String user : MODULE_USERS) {
+            Map<String, Set<String>> actual = jdbc.queryForList(
+                            "SELECT TABLE_NAME, PRIVILEGE FROM USER_TAB_PRIVS_MADE WHERE GRANTEE = ? AND TABLE_NAME LIKE 'TB_MCM_JOB%'", user)
+                    .stream().collect(Collectors.groupingBy(r -> (String) r.get("TABLE_NAME"),
+                            Collectors.mapping(r -> (String) r.get("PRIVILEGE"), Collectors.toSet())));
+            assertThat(actual).as(user).isEqualTo(expected);
+        }
     }
 }

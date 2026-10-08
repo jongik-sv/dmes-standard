@@ -42,9 +42,6 @@ public final class McmCoreOraTestDb {
 
     private static final String HISTORY_TABLE = "flyway_schema_history";
 
-    /** 행 지우기에서 빼는 기준 데이터 표 — 기준선 V3 가 모듈 6행을 시드하고 앱이 행이 있다고 전제한다(DEF_VER 만 시험이 되돌린다). */
-    private static final String JOB_VER_TABLE = "TB_MCM_JOB_VER";
-
     private static boolean migrated;
 
     private McmCoreOraTestDb() {
@@ -82,12 +79,12 @@ public final class McmCoreOraTestDb {
         migrated = true;
     }
 
-    /** 네 스키마의 모든 표에서 행을 지운다(이력 표·기준 데이터 표 {@code TB_MCM_JOB_VER} 제외). 시험 컨텍스트가 처음 뜰 때 빈 표에서 시작하게 한다. */
+    /** 네 스키마의 모든 표에서 행을 지운다(이력 표 제외). 시험 컨텍스트가 처음 뜰 때 빈 표에서 시작하게 한다. */
     public static synchronized void resetData() {
         for (String schema : SCHEMAS) {
             try (Connection c = DriverManager.getConnection(url(), schema, password()); Statement st = c.createStatement()) {
                 List<String> tables = new ArrayList<>();
-                try (ResultSet rs = st.executeQuery("SELECT TABLE_NAME FROM USER_TABLES WHERE TABLE_NAME NOT IN ('" + HISTORY_TABLE + "', '" + JOB_VER_TABLE + "')")) {
+                try (ResultSet rs = st.executeQuery("SELECT TABLE_NAME FROM USER_TABLES WHERE TABLE_NAME <> '" + HISTORY_TABLE + "'")) {
                     while (rs.next()) tables.add(rs.getString(1));
                 }
                 for (String table : tables) st.executeUpdate("DELETE FROM \"" + table + "\"");
