@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  ContentBody, ContentPanel, canDoButton, useUserButtonRbac,
+  ContentBody, ContentPanel, SearchArea, SearchField, canDoButton, useUserButtonRbac,
 } from "@dk-oasis/shared/layout";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, DateTimePicker, Input } from "@dk-oasis/shared/form";
@@ -213,10 +213,11 @@ export default function CodeConfirmPage({ tabId }: CodeConfirmPageProps) {
     }
   });
 
-  // 마운트 자동 조회 — 분리 창이 이어받은 목록이 있으면 건너뛴다(행 없이 복원됐거나 비었으면 이어받은 검색어로 한 번 조회한다).
+  // 진입 자동 조회는 SearchArea autoSearch 가 한다(조회 기본값을 넣은 뒤). 분리 창이 이어받은 값으로 시작하면 autoSearch 가 쉬므로,
+  // 행 없이 복원됐거나 비었을 때만 이어받은 검색어로 한 번 조회한다.
   const restored = useCarryRestored();
   useEffect(() => {
-    if (!restored || !drafts || drafts.length === 0) void refreshList(keyword);
+    if (restored && (!drafts || drafts.length === 0)) void refreshList(keyword);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -383,9 +384,13 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onSelect }:
   return (
     <div data-testid="cf-list" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={cardTitle}>확정 대기 목록</div>
-      <div style={{ ...section, ...rowFlex, paddingTop: "var(--spacing-sm)" }}>
-        <Input data-testid="cf-keyword" value={keyword} placeholder="마루 코드 ID·이름" onChange={onKeyword} />
-        <Button data-testid="cf-search" onClick={onSearch}>조회</Button>
+      <div style={{ ...section, paddingTop: "var(--spacing-sm)" }}>
+        <SearchArea onSearch={onSearch} autoSearch>
+          <SearchField label="검색어" defaultKey="keyword" value={keyword} onChange={onKeyword}>
+            <Input data-testid="cf-keyword" value={keyword} placeholder="마루 코드 ID·이름" onChange={onKeyword} />
+          </SearchField>
+          <Button data-testid="cf-search" type="submit">조회</Button>
+        </SearchArea>
       </div>
       <div style={{ ...section, flex: 1, minHeight: 0 }}>
         <AgDataGrid gridId="draftList"
