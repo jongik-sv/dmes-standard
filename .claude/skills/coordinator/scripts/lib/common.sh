@@ -5,6 +5,7 @@
 # 플랫폼 차이(stat·date·프로세스 표·후손·cwd·sha256)는 compat.sh 한 곳에 모은다(macOS·Git Bash — ../../../_shared/platform-support.md)
 _coord_d="${BASH_SOURCE[0]%/*}"; [ "$_coord_d" != "${BASH_SOURCE[0]}" ] || _coord_d=.   # 슬래시 없이 `. common.sh` 해도 같은 폴더를 가리키게
 . "$_coord_d/compat.sh"
+. "$_coord_d/js-bridge.sh"   # COORD_JS_COMMON=1 이면 아래 함수 대부분을 scripts/lib/common.mjs(node)로 넘긴다(기본은 꺼짐 — tests/js-parity/README.md)
 
 COORD_DEFAULTS='{
   "integration_branch": "dev",
@@ -74,7 +75,7 @@ coord_die() { local rc="$1"; shift; coord_log "$*"; exit "$rc"; }
 
 command -v jq >/dev/null 2>&1 || coord_die 4 "jq 가 필요하다"
 
-coord_expand() { local p="$1"; case "$p" in "~") p="$HOME" ;; "~/"*) p="$HOME/${p#\~/}" ;; esac; printf '%s' "$p"; }
+coord_expand() { if _jsb_on COMMON; then _jsb_call common coord_expand "$@"; return; fi; local p="$1"; case "$p" in "~") p="$HOME" ;; "~/"*) p="$HOME/${p#\~/}" ;; esac; printf '%s' "$p"; }
 
 # cwd 가 속한 리포의 메인 경로. 같은 cwd 의 결과는 변수에 기억해(_COORD_REPO_KEY·_COORD_REPO_VAL — 서브셸 $(…) 은 부모가 채워 둔 값을
 # 물려받는다) git 을 다시 부르지 않는다. 못 찾은 것도 같은 cwd 안에서는 기억한다(rc 1).
@@ -86,6 +87,7 @@ coord_repo_prime() {  # 서브셸 없이 부른다 — _COORD_REPO_VAL 을 채�
   _COORD_REPO_KEY="$PWD"; _COORD_REPO_VAL="$common"; _COORD_REPO_SET=1
 }
 coord_repo() {
+  if _jsb_on COMMON; then _jsb_call common coord_repo "$@"; return; fi
   if [ -n "${COORD_REPO:-}" ]; then printf '%s' "$COORD_REPO"; return; fi
   coord_repo_prime
   [ -n "$_COORD_REPO_VAL" ] || return 1
@@ -135,7 +137,7 @@ _coord_cfg_ensure() {  # 서브셸 없이 부르면 부모에 남는다(서브�
   return 0
 }
 # 서브셸 $(…) 안에서 처음 부르면 결과가 부모에 남지 않아 호출마다 jq 를 다시 부른다 — 스크립트 맨 앞에서 서브셸 없이 한 번 불러 둔다
-coord_cfg_prime() { _coord_cfg_ensure quiet; return 0; }
+coord_cfg_prime() { if _jsb_on COMMON; then return 0; fi; _coord_cfg_ensure quiet; return 0; }
 # 단순 경로(.a.b.c)가 값 변수에 있으면 0 — _CF_JSON·_CF_RAW 에 값. 없거나(객체·없는 경로·특수 글자) 덮어쓴 설정이면 1(jq 로 읽는다)
 _coord_flat_get() {
   local p="$1" n j r
@@ -148,14 +150,16 @@ _coord_flat_get() {
   _CF_RAW="${!r:-}"
   return 0
 }
-coord_cfg_all() { _coord_cfg_ensure; printf '%s' "$_COORD_CFG"; }
+coord_cfg_all() { if _jsb_on COMMON; then _jsb_calld common coord_cfg_all "$@"; return; fi; _coord_cfg_ensure; printf '%s' "$_COORD_CFG"; }
 # 값(문자열은 따옴표 없이). null·없음은 빈 줄.
 coord_cfg() {
+  if _jsb_on COMMON; then _jsb_calld common coord_cfg "$@"; return; fi
   _coord_cfg_ensure
   if _coord_flat_get "$1"; then [ -z "$_CF_RAW" ] || printf '%s\n' "$_CF_RAW"; return 0; fi
   printf '%s' "$_COORD_CFG" | jq -r "($1) // empty | if type==\"string\" or type==\"number\" or type==\"boolean\" then tostring else tojson end"
 }
 coord_cfg_json() {
+  if _jsb_on COMMON; then _jsb_calld common coord_cfg_json "$@"; return; fi
   _coord_cfg_ensure
   if _coord_flat_get "$1"; then printf '%s\n' "$_CF_JSON"; return 0; fi
   printf '%s' "$_COORD_CFG" | jq -c "($1)"
@@ -163,6 +167,7 @@ coord_cfg_json() {
 
 # 상태 뿌리. COORD_STATE_ROOT 환경 변수가 있으면 그것(office.sh reap --state-dir 이 하위 호출에 넘긴다), 없으면 설정 state_dir.
 coord_state_root() {
+  if _jsb_on COMMON; then _jsb_call common coord_state_root "$@"; return; fi
   if [ -n "${COORD_STATE_ROOT:-}" ]; then coord_expand "$COORD_STATE_ROOT"; return; fi
   coord_expand "$(coord_cfg .state_dir)"
 }
@@ -174,6 +179,7 @@ COORD_S8_JQ='def coord_s8: (.run.coordinator.session_id // "" | tostring | .[0:8
     elif ($p != "0" and $p != "" and $p != "null") then "p" + $p
     else (.run.id // "" | tostring | gsub("[/\r\n\t ]"; "")) end;'
 coord_sess8() {  # coord_sess8 <state.json> — 그 회차의 <세션8>. 읽기 실패면 빈 출력
+  if _jsb_on COMMON; then _jsb_call common coord_sess8 "$@"; return; fi
   jq -r "$COORD_S8_JQ"' coord_s8' "$1" 2>/dev/null
 }
 # 상태 뿌리 아래 회차마다 한 줄 요약(깨진 파일은 건너뛴다):
@@ -181,6 +187,7 @@ coord_sess8() {  # coord_sess8 <state.json> — 그 회차의 <세션8>. 읽기 
 # open = .run.closed_at 이 null. 레인 판정은 office.sh 의 상태 라벨 규칙(closed=끝, in_flight=머지 중, hold·closing=대기)과 같다.
 # 인자: [제외할 run-id] [그 회차에서 제외할 레인]
 coord_runs_summary() {
+  if _jsb_on COMMON; then _jsb_call common coord_runs_summary "$@"; return; fi
   local root d; root="$(coord_state_root)"
   for d in "$root"/*/; do
     [ -f "${d}state.json" ] || continue
@@ -200,6 +207,7 @@ coord_runs_summary() {
   return 0
 }
 coord_run_id() {
+  if _jsb_on COMMON; then _jsb_call common coord_run_id "$@"; return; fi
   if [ -n "${1:-}" ]; then printf '%s' "$1"; return; fi
   if [ -n "${COORD_RUN:-}" ]; then printf '%s' "$COORD_RUN"; return; fi
   local cur line=""; cur="$(coord_state_root)/current"
@@ -207,12 +215,13 @@ coord_run_id() {
   return 1
 }
 coord_run_dir() {
+  if _jsb_on COMMON; then _jsb_calld common coord_run_dir "$@"; return; fi
   local id; id="$(coord_run_id "${1:-}")" || coord_die 3 "현재 회차가 없다(coord-state.sh init 먼저)"
   printf '%s/%s' "$(coord_state_root)" "$id"
 }
-coord_state_file() { printf '%s/state.json' "$(coord_run_dir "${1:-}")"; }
+coord_state_file() { if _jsb_on COMMON; then _jsb_call common coord_state_file "$@"; return; fi; printf '%s/state.json' "$(coord_run_dir "${1:-}")"; }
 # 현재 state.json 에 jq 적용(없으면 빈 출력, rc 3)
-coord_state() { local f; f="$(coord_state_file)" || return 3; [ -f "$f" ] || return 3; jq -r "$1" "$f"; }
+coord_state() { if _jsb_on COMMON; then _jsb_call common coord_state "$@"; return; fi; local f; f="$(coord_state_file)" || return 3; [ -f "$f" ] || return 3; jq -r "$1" "$f"; }
 
 # 오래 사는 프로세스(폴러)는 coord_clock_init 으로 「지금 초 ↔ bash SECONDS」 대응을 한 번 잡아 두면 이후 coord_now_epoch 이 date 를 부르지 않는다.
 # SECONDS 는 date 와 같은 벽시계 초 차이라, 대응을 잡을 때 SECONDS 가 date 앞뒤로 같았던(초가 안 넘어간) 값만 쓰면 date +%s 와 같은 값이다.
@@ -223,10 +232,11 @@ coord_clock_init() {  # 서브셸 없이 부른다
   _COORD_EP0="$e"; _COORD_SEC0="$a"
 }
 coord_now_epoch() { if [ -n "$_COORD_EP0" ]; then printf '%s\n' $(( _COORD_EP0 + SECONDS - _COORD_SEC0 )); else date +%s; fi; }
-coord_now_iso() { local s; s="$(date +%Y-%m-%dT%H:%M:%S%z)"; printf '%s:%s' "${s%??}" "${s: -2}"; }
-coord_epoch_to_hm() { compat_epoch_fmt "$1" %H:%M; }
+coord_now_iso() { if _jsb_on COMMON; then _jsb_call common coord_now_iso "$@"; return; fi; local s; s="$(date +%Y-%m-%dT%H:%M:%S%z)"; printf '%s:%s' "${s%??}" "${s: -2}"; }
+coord_epoch_to_hm() { if _jsb_on COMMON; then _jsb_call common coord_epoch_to_hm "$@"; return; fi; compat_epoch_fmt "$1" %H:%M; }
 # ISO 8601(+09:00·Z·소수초 허용) → epoch. 실패하면 빈 출력.
 coord_iso_to_epoch() {
+  if _jsb_on COMMON; then _jsb_call common coord_iso_to_epoch "$@"; return; fi
   local iso="$1" base tz
   [ -z "$iso" ] || [ "$iso" = "null" ] && return 0
   # 시간대(Z·±HH:MM)가 적힌 정상 범위 시각은 날짜 계산을 bash 산술로 직접 한다(date 프로세스 0개, 같은 값). 범위 밖·그 밖의 꼴은 아래 종전 길.
@@ -259,7 +269,7 @@ coord_iso_to_epoch() {
 coord_read1() { local _v=""; { IFS= read -r _v < "$2"; } 2>/dev/null || true; printf -v "$1" '%s' "$_v"; }
 coord_mkdirp() { [ -d "$1" ] || mkdir -p "$1" 2>/dev/null; }   # 이미 있으면 프로세스를 부르지 않는다
 # GNU 판별은 compat.sh 가 한 번만 한다(GNU stat -f 는 파일시스템 모드라 `?` 와 rc 0 이어서 BSD 를 먼저 쓰면 대안으로 넘어가지 못한다)
-coord_file_mtime() { compat_stat_mtime "$1"; }
+coord_file_mtime() { if _jsb_on COMMON; then _jsb_call common coord_file_mtime "$@"; return; fi; compat_stat_mtime "$1"; }
 
 # mkdir 잠금 `<dir>.lock/`(안에 주인 pid·pstart). 최대 30초 기다리고 못 얻으면 rc 1(로그 한 줄).
 # 주인이 죽었거나(pid 없음·pstart 다름) 잠금이 COORD_LOCK_STALE_S(기본 60초)보다 오래됐으면 탈취한다 — 시간 제한으로 끊긴
@@ -279,6 +289,7 @@ _coord_lock_stale() {  # <잠금 폴더> — 탈취해도 되면 0
 }
 _coord_lock_own() { printf '%s\n' "$$" > "$1/pid" 2>/dev/null; coord_pstart "$$" > "$1/pstart" 2>/dev/null; return 0; }
 coord_lock() {
+  if _jsb_on COMMON; then _jsb_call common coord_lock "$@"; return; fi
   local d="$1.lock" i=0 m st
   m="$d.steal"
   while ! mkdir "$d" 2>/dev/null; do
@@ -298,6 +309,7 @@ coord_lock() {
 }
 # 내가 쥔 잠금만 푼다(주인 pid 가 나이거나 비었을 때). 탈취당한 뒤 남의 새 잠금을 지우지 않는다
 coord_unlock() {
+  if _jsb_on COMMON; then _jsb_call common coord_unlock "$@"; return; fi
   local d="$1.lock" p
   coord_read1 p "$d/pid"
   [ -z "$p" ] || [ "$p" = "$$" ] || return 0
@@ -317,6 +329,7 @@ coord_load1() {
 
 # 화면 글에서 확인 창·질문 창 종류를 판정(없으면 빈 출력). stdin = 화면.
 coord_screen_prompt_kind() {
+  if _jsb_on COMMON; then _jsb_call common coord_screen_prompt_kind "$@"; return; fi
   # 창은 화면 아래에 그려지므로 마지막 30줄만 본다(대화 기록 속 같은 문구에 속지 않게).
   # tail -30 대신 내장 read 로 마지막 30줄만 남긴다(프로세스 0개). $(…) 처럼 끝의 빈 줄은 떼고 비교한다.
   local s="" line n=0 i cnt start; local -a b=()
@@ -337,6 +350,7 @@ coord_screen_prompt_kind() {
 # ---------- 게이트·감지·실행 스크립트용(추가) ----------
 # 현재 회차 state.json 이 있으면 0(조용히 판정, 회차 없음 메시지를 내지 않는다).
 coord_has_run() {
+  if _jsb_on COMMON; then _jsb_call common coord_has_run "$@"; return; fi
   local id; id="$(coord_run_id 2>/dev/null)" || return 1
   [ -n "$id" ] && [ -f "$(coord_state_root)/$id/state.json" ]
 }
@@ -344,6 +358,7 @@ coord_has_run() {
 # 한 줄에 `<run-id>\t<조정 세션 id|->\t<세션8>\t<살아 있는 레인 수>`. 같은 세션(<세션8>)의 회차는 팀장 칸을 공유하는 정상 상태이므로
 # 호출자가 <세션8> 로 갈라 다른 세션의 회차만 STALE_RUN 으로 알린다(경고만, 자동 마감 없음 — contract §2.1·§3.3·§3.4).
 coord_stale_runs() {
+  if _jsb_on COMMON; then _jsb_call common coord_stale_runs "$@"; return; fi
   local rid s8 open fin alive _busy sid _pid
   while IFS=$'\t' read -r rid s8 open fin alive _busy sid _pid; do
     [ -n "$rid" ] && [ "$rid" != "${1:-}" ] || continue
@@ -354,12 +369,14 @@ coord_stale_runs() {
 }
 # 레인 값 읽기: coord_lane_get <레인> <jq 하위경로 예: .session.handle>. 없거나 null 이면 빈 줄. 회차 없으면 rc 3.
 coord_lane_get() {
+  if _jsb_on COMMON; then _jsb_call common coord_lane_get "$@"; return; fi
   coord_has_run || return 3
   jq -r --arg l "$1" "(.lanes[\$l]${2:-}) // empty | if type==\"string\" or type==\"number\" or type==\"boolean\" then tostring else tojson end" \
     "$(coord_state_file)"
 }
 # 사람이 읽을 셸 인용(작은따옴표). bash 3.2 의 printf %q 는 한글을 깨뜨려 쓰지 않는다.
 coord_q() {
+  if _jsb_on COMMON; then _jsb_call common coord_q "$@"; return; fi
   local a out="" sq="'" esc="'\\''"
   for a in "$@"; do
     case "$a" in
@@ -392,6 +409,7 @@ coord_heavy_script() {
 }
 # 프로세스 시작 시각(pid 재사용 판정용, heavy.sh 의 pstart 와 같은 형식).
 coord_pstart() {  # ps 한 번(앞뒤 공백 정리는 sed 대신 bash 로)
+  if _jsb_on COMMON; then _jsb_call common coord_pstart "$@"; return; fi
   local s; s="$(LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null)"
   s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"
   [ -z "$s" ] || printf '%s\n' "$s"
@@ -401,6 +419,7 @@ coord_pstart() {  # ps 한 번(앞뒤 공백 정리는 sed 대신 bash 로)
 # ---------- 상태 수집·판정 스크립트용(추가) ----------
 # epoch 초 → ISO 8601(+09:00 꼴). 빈 값·실패면 빈 출력.
 coord_epoch_to_iso() {
+  if _jsb_on COMMON; then _jsb_call common coord_epoch_to_iso "$@"; return; fi
   [ -n "${1:-}" ] && [ "$1" != "null" ] || return 0
   local s; s="$(compat_epoch_fmt "$1" %Y-%m-%dT%H:%M:%S%z)"
   [ -n "$s" ] && printf '%s:%s' "${s%??}" "${s: -2}"
@@ -417,6 +436,7 @@ _coord_default_repo_set() {
 coord_default_repo() { _coord_default_repo_set; coord_cfg_prime; return 0; }   # 설정도 미리 읽어 둔다(서브셸 호출들이 물려받게)
 # 레인 워크트리 값(리포 기준 상대 허용) → 절대경로(끝 / 없음). 빈 값이면 빈 출력.
 coord_wt_abs() {
+  if _jsb_on COMMON; then _jsb_call common coord_wt_abs "$@"; return; fi
   local p; p="$(coord_expand "${1:-}")"
   [ -n "$p" ] && [ "$p" != "null" ] || return 0
   compat_is_abs_path "$p" || p="$(coord_repo)/$p"
@@ -425,6 +445,7 @@ coord_wt_abs() {
 }
 # <경로> 가 <워크트리> 안이면 0. 워크트리가 메인 체크아웃이면 그 아래 .claude/worktrees/ 는 다른 워크트리라 뺀다.
 coord_path_in_wt() {
+  if _jsb_on COMMON; then _jsb_call common coord_path_in_wt "$@"; return; fi
   local p="${1%/}" w="${2%/}" repo
   if [ "$COMPAT_WIN" = 1 ]; then p="$(compat_norm_path "$p")"; w="$(compat_norm_path "$w")"; fi   # Git Bash: C:/x · C:\x · /c/x 를 같은 꼴로
   [ -n "$p" ] && [ -n "$w" ] || return 1
@@ -436,12 +457,13 @@ coord_path_in_wt() {
   fi
   return 0
 }
-coord_pid_alive() { compat_pid_alive "${1:-}"; }   # Git Bash 는 네이티브 Windows pid(Claude 세션 등)를 kill -0 만으로 못 본다 — compat 가 ps -W 로 한 번 더 본다
+coord_pid_alive() { if _jsb_on COMMON; then _jsb_call common coord_pid_alive "$@"; return; fi; compat_pid_alive "${1:-}"; }   # Git Bash 는 네이티브 Windows pid(Claude 세션 등)를 kill -0 만으로 못 본다 — compat 가 ps -W 로 한 번 더 본다
 # pid 콤마 목록 → 한 줄에 `<pid>\t<cwd>`(lsof, 없으면 /proc — compat.sh).
-coord_proc_cwds() { compat_proc_cwds "$@"; }
+coord_proc_cwds() { if _jsb_on COMMON; then _jsb_call common coord_proc_cwds "$@"; return; fi; compat_proc_cwds "$@"; }
 # 세션 상태 json 경로: <sessions_dir>/<pid>.json 이 있으면 그것(/clear 로 sessionId 가 바뀌어도 pid 가 정본),
 # 없으면 sessionId 가 같은 파일을 찾는다. 못 찾으면 rc 1.
 coord_session_file() {
+  if _jsb_on COMMON; then _jsb_call common coord_session_file "$@"; return; fi
   local pid="${1:-}" sid="${2:-}" d f
   d="$(coord_expand "$(coord_cfg .sessions_dir)")"
   if [ -n "$pid" ] && [ "$pid" != 0 ] && [ "$pid" != null ] && [ -f "$d/$pid.json" ]; then printf '%s' "$d/$pid.json"; return 0; fi
@@ -503,6 +525,7 @@ coord_bg_signals() {
 }
 # coord_iso_to_epoch 과 같되 초가 없는 꼴(2026-10-04T13:00+09:00)도 받는다. 실패하면 빈 출력.
 coord_iso_to_epoch_loose() {
+  if _jsb_on COMMON; then _jsb_call common coord_iso_to_epoch_loose "$@"; return; fi
   local e; e="$(coord_iso_to_epoch "${1:-}")"
   if [ -z "$e" ] && [ -n "${1:-}" ]; then
     e="$(coord_iso_to_epoch "$(printf '%s' "$1" | sed -E 's/^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2})([^:0-9]|$)/\1:00\2/')")"
