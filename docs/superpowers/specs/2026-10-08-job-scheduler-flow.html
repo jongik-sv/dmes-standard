@@ -77,7 +77,7 @@ footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line)
 flowchart LR
   subgraph MCM["MCM 앱"]
     T["매분 트리거<br/>@Scheduled"]
-    B["판정 BPMN<br/>job^^dispatch"]
+    B["판정 BPMN<br/>jobDispatch"]
     P["호출 풀<br/>(Java)"]
   end
   DB[("JOB 표<br/>MCMAPUSER")]
@@ -104,7 +104,7 @@ flowchart LR
 sequenceDiagram
   autonumber
   participant T as 매분 트리거 (MCM)
-  participant B as 판정 BPMN job^^dispatch
+  participant B as 판정 BPMN jobDispatch
   participant DB as JOB 표
   participant P as 호출 풀 (MCM)
   participant M as 모듈 진입점
@@ -235,9 +235,9 @@ sequenceDiagram
     <div class="diagram"><pre class="mermaid">
 flowchart TB
   E["예약 실행 진입점<br/>접수 · 감사 SCHEDULER · 시간 초과 감시 · 결과 기록"]
-  E --> CODE["job^^code<br/>등록된 ScheduledJob 빈"]
-  E --> QUERY["job^^query<br/>DML 한 문장 또는 프로시저"]
-  E --> COLLECT["job^^collect<br/>SQL · HTTP · 환율 읽기<br/>(save:false 면 HTTP 트리거)"]
+  E --> CODE["jobCode<br/>등록된 ScheduledJob 빈"]
+  E --> QUERY["jobQuery<br/>DML 한 문장 또는 프로시저"]
+  E --> COLLECT["jobCollect<br/>SQL · HTTP · 환율 읽기<br/>(save:false 면 HTTP 트리거)"]
   E --> BPMN["업무 BPMN<br/>serviceId 그대로"]
   BPMN -. "서브서비스" .-> QUERY
   BPMN -. "서브서비스" .-> COLLECT
@@ -246,14 +246,14 @@ flowchart TB
     <div class="table-box"><table>
       <thead><tr><th>화면 유형</th><th>실제 실행</th><th>비고</th></tr></thead>
       <tbody>
-        <tr><td>CODE</td><td><code>job^^code</code></td><td>코드 실행 = 일반 클래스 실행. 등록된 빈만 실행하고, 화면에서 임의의 클래스 이름은 받지 않음</td></tr>
+        <tr><td>CODE</td><td><code>jobCode</code></td><td>코드 실행 = 일반 클래스 실행. 등록된 빈만 실행하고, 화면에서 임의의 클래스 이름은 받지 않음</td></tr>
         <tr><td>BPMN</td><td>지정한 serviceId</td><td>BPMN 은 코드와 함께 배포되는 파일이라 실행 중에 고칠 수 없음</td></tr>
-        <tr><td>QUERY</td><td><code>job^^query</code></td><td>트랜잭션 하나로 실행. 남은 시간만큼 쿼리 시간 초과를 검</td></tr>
-        <tr><td>COLLECT</td><td><code>job^^collect</code></td><td>수집 값은 결과를 기록할 때 같은 트랜잭션에서 저장. SQL 읽기는 10초와 남은 시간 중 작은 값으로 쿼리 시간 초과. HTTP 는 첫 판에서 GET 만</td></tr>
+        <tr><td>QUERY</td><td><code>jobQuery</code></td><td>트랜잭션 하나로 실행. 남은 시간만큼 쿼리 시간 초과를 검</td></tr>
+        <tr><td>COLLECT</td><td><code>jobCollect</code></td><td>수집 값은 결과를 기록할 때 같은 트랜잭션에서 저장. SQL 읽기는 10초와 남은 시간 중 작은 값으로 쿼리 시간 초과. HTTP 는 첫 판에서 GET 만</td></tr>
         <tr><td>(PURGE)</td><td>CODE 로 대신</td><td>기존 정리 작업(위젯 보관 삭제, 폐기 토큰 정리)을 코드 작업으로 옮김</td></tr>
       </tbody>
     </table></div>
-    <p>내장 서비스와 <code>job^^dispatch</code> 는 웹 경로로도 불릴 수 있습니다. 그래서 진입점이나 트리거를 거치지 않은 호출은 거절합니다.</p>
+    <p>내장 서비스와 <code>jobDispatch</code> 는 웹 경로로도 불릴 수 있습니다. 그래서 진입점이나 트리거를 거치지 않은 호출은 거절합니다.</p>
   </section>
 
   <section>
@@ -261,7 +261,7 @@ flowchart TB
     <div class="table-box"><table>
       <thead><tr><th>로그</th><th>파일</th><th>찾는 법</th></tr></thead>
       <tbody>
-        <tr><td>판정 SQL · bind 줄</td><td>mcm 업무 로그</td><td>로그 뷰어 서비스 목록의 <code>job^^dispatch</code></td></tr>
+        <tr><td>판정 SQL · bind 줄</td><td>mcm 업무 로그</td><td>로그 뷰어 서비스 목록의 <code>jobDispatch</code></td></tr>
         <tr><td>모듈 호출 로그, 접수 뒤 UPDATE SQL</td><td>mcm 업무 로그</td><td>runId 로 판정 로그와 이어짐</td></tr>
         <tr><td>매분 트리거의 시작·끝 두 줄</td><td>sch 파일</td><td>판정 로그와 같은 service_tag</td></tr>
         <tr><td>모듈의 실제 작업 실행 로그</td><td>각 모듈 업무 로그</td><td>실행 기록 행에 저장된 서버 이름 · service_tag</td></tr>
