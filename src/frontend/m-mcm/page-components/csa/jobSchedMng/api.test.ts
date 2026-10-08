@@ -142,3 +142,37 @@ describe("unwrapPayload", () => {
     expect(unwrapPayload({ grids: { jobs: { rows: [{ a: 1 }] } } })).toEqual({ jobs: [{ a: 1 }] });
   });
 });
+
+describe("collectData", () => {
+  it("조건을 params 로 보내고(빈 값은 뺀다) 행·잘림 정보를 돌려준다", async () => {
+    reply({
+      meta: { success: true },
+      data: {
+        result: {
+          rows: [
+            { slot: "202610090850", itemKey: "TEMP", valueNum: 21.5, valueTxt: null, collectedAt: "2026-10-09T08:50:01" },
+            { slot: "202610090850", itemKey: "NOTE", valueNum: null, valueTxt: "맑음", collectedAt: "2026-10-09T08:50:01" },
+          ],
+          truncated: true,
+          nextBeforeSlot: "202610090850",
+          latestSlot: null,
+          count: 2,
+        },
+      },
+    });
+    const res = await jobSchedApi.collectData({ jobId: "mcm.weather", days: 7, itemKey: undefined, latestOnly: false, limit: 500 });
+    expect(sent().url).toBe("/api/mcm/oasis/jobSchedMng/collectData");
+    expect(sent().body.params).toEqual({ jobId: "mcm.weather", days: 7, latestOnly: false, limit: 500 });
+    expect(res.truncated).toBe(true);
+    expect(res.nextBeforeSlot).toBe("202610090850");
+    expect(res.latestSlot).toBe("");
+    expect(res.rows[0]).toEqual({ slot: "202610090850", itemKey: "TEMP", valueNum: 21.5, valueTxt: "", collectedAt: "2026-10-09T08:50:01" });
+    expect(res.rows[1].valueNum).toBeNull();
+  });
+
+  it("행이 없으면 빈 목록이다", async () => {
+    reply({ meta: { success: true }, data: { result: {} } });
+    const res = await jobSchedApi.collectData({ jobId: "mcm.weather" });
+    expect(res).toEqual({ rows: [], truncated: false, nextBeforeSlot: "", latestSlot: "", count: 0 });
+  });
+});
