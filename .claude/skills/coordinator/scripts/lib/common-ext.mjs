@@ -426,3 +426,29 @@ export function cfgLenAt(c, segs) {
   return stripNl(out);
 }
 
+/** LC_ALL=C printf '%.<digits>f' 와 같은 자릿수(이진값 그대로의 반올림, 절반은 짝수로). 수가 아니면 null */
+export function fmtFixed(secs, digits) {
+  const v = Number(secs);
+  if (Number.isNaN(v) || !Number.isFinite(v)) return null;
+  const buf = new DataView(new ArrayBuffer(8));
+  buf.setFloat64(0, v, true);
+  const bits = buf.getBigUint64(0, true);
+  const neg = (bits >> 63n) === 1n;
+  const be = (bits >> 52n) & 0x7ffn;
+  let m = bits & 0xfffffffffffffn;
+  let e = Number(be) - 1075;
+  if (be === 0n) e = -1074;
+  else m |= 0x10000000000000n;
+  const scale = 10n ** BigInt(digits);
+  const x = m * scale;
+  let r;
+  if (e >= 0) r = x << BigInt(e);
+  else {
+    const d = 1n << BigInt(-e);
+    const q = x / d, rem = x % d;
+    const t = rem * 2n;
+    r = t > d ? q + 1n : t < d ? q : (q % 2n === 0n ? q : q + 1n);
+  }
+  const ip = r / scale, fp = r % scale;
+  return `${neg ? '-' : ''}${ip}${digits > 0 ? `.${String(fp).padStart(digits, '0')}` : ''}`;
+}

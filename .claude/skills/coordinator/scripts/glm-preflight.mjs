@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import * as J from './lib/jq-json.mjs';
 import { Ctx, cfgSub, nowIso } from './lib/common.mjs';
 import { whichSync } from './lib/compat.mjs';
-import { coordLog, coordStateCall, runSync } from './lib/common-ext.mjs';
+import { coordLog, coordStateCall, fmtFixed, runSync } from './lib/common-ext.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 
 const stripNl = (s) => s.replace(/\n+$/, '');
@@ -36,30 +36,8 @@ export function getv(body, name) {
   return '';
 }
 
-/** LC_ALL=C printf '%.1f' 와 같은 자릿수(이진값 그대로의 반올림, 절반은 짝수로). 실패(null)면 bash 처럼 `0.0\n<원문>` */
-export function fmt1f(secs) {
-  const v = Number(secs);
-  if (Number.isNaN(v) || !Number.isFinite(v)) return null;
-  const buf = new DataView(new ArrayBuffer(8));
-  buf.setFloat64(0, v, true);   // getBigUint64(…, true) 과 같은 리틀 엔디언
-  const bits = buf.getBigUint64(0, true);
-  const neg = (bits >> 63n) === 1n;
-  const be = (bits >> 52n) & 0x7ffn;
-  let m = bits & 0xfffffffffffffn;
-  let e = Number(be) - 1075;
-  if (be === 0n) e = -1074;
-  else m |= 0x10000000000000n;
-  let x = m * 10n, r;
-  if (e >= 0) r = x << BigInt(e);
-  else {
-    const d = 1n << BigInt(-e);
-    const q = x / d, rem = x % d;   // 절댓값으로 나눈다(부호는 마지막에)
-    const t = rem * 2n;
-    r = t > d ? q + 1n : t < d ? q : (q % 2n === 0n ? q : q + 1n);
-  }
-  const ip = r / 10n, fp = r % 10n;
-  return `${neg ? '-' : ''}${ip}.${fp}`;
-}
+/** printf '%.1f' (시험·호환용 이름) */
+export const fmt1f = (secs) => fmtFixed(secs, 1);
 
 /** record — 결과를 state `.glm` 에 남기고 이벤트를 낸다(at 은 정규화 대상이라 그냥 nowIso) */
 function record(c, st, detail) {
@@ -140,7 +118,7 @@ export async function main(_argv, { env, cwd } = {}) {
     const lower = rmodel.replace(/[A-Z]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) + 32));
     if (!lower.includes('glm')) return fail('model', rmodel === '' ? 'none' : rmodel);
 
-    const f = fmt1f(secs);
+    const f = fmtFixed(secs, 1);
     secs = f == null ? `0.0${secs}` : f;   // printf '%.1f' 은 줄바꿈이 없어 echo 원문이 바로 붙는다
     process.stdout.write(`ok ${host} ${rmodel} ${secs}\n`);
     coordLog(c, [`(토큰 변수: ${tokvar}, 요청 모델: ${model})`]);
