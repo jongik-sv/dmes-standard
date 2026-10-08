@@ -387,3 +387,8 @@ export function toSqlLiteral(value: unknown, dataType?: string | null): string {
   }
   return quoteString(text);
 }
+
+/** 칸·표 이름을 SQL 에 쓸 글자로 — 보통 이름(대문자·숫자·_$#)은 그대로, 소문자·공백 등이 있으면 큰따옴표로 감싼다. */
+export function identifierText(name: string): string {
+  return /^[A-Z][A-Z0-9_$#]*$/.test(name) ? name : `"${name.replace(/"/g, '""')}"`;
+}
