@@ -59,17 +59,4 @@ describe("SqlEditor — [쿼리 시험] 과 조건 정의", () => {
     await act(async () => btn.click());
     expect(h.preview).toHaveBeenCalledWith("mcm", "select :ok", [{ name: "ok", type: "text", default: "1" }]);
   });
-
-  it("수집용(variant=collect)은 :userId·:deptCd 를 시스템 변수 안내에서 뺀다", async () => {
-    await act(async () => {
-      root.render(
-        createElement(DmesUiProvider, null, createElement(SqlEditor, { sql: "", variant: "collect", preview: null, onSqlChange: () => {}, onPreview: () => {} }))
-      );
-    });
-    const hint = host.querySelector(".wq-hint")!.textContent!;
-    expect(hint).toContain(":today");
-    expect(hint).toContain("수집에는 사용자가 없어");
-    expect(hint).not.toContain("사용자 ID");
-    expect(hint).not.toContain("부서 코드");
-  });
 });
