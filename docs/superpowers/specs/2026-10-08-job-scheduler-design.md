@@ -339,7 +339,7 @@ SELECT JOB_ID, MODULE_CD, SERVICE_ID, ACTION, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_A
 
 ### 4.7 모듈과 서버 설정(호출 주소)
 
-- 앱의 모듈 키는 `dmes.job.module`(비어 있으면 `spring.application.name` 의 첫 `-` 앞부분을 대문자로)이다.
+- 앱의 모듈 키는 `dmes.job.module`(비어 있으면 `spring.application.name` 의 첫 `-` 앞부분을 대문자로)이다. **판정할 수 없거나 `MCM|MDM|MPP|MLS|MQC|MPN` 이 아니면 기동을 실패시킨다**(`JobAgentConfig` 가 `JobModule.resolve` 로 `IllegalStateException` — 예약 실행만 조용히 끄지 않는 빠른 실패. 끄려면 `dmes.job.agent.enabled=false`).
 - `dmes.job.agent.enabled`(기본 true): false 면 그 앱은 `/internal/job/run` 을 404 로 답한다.
 - `dmes.job.server.enabled`: MCM 앱의 `application.yml` 에서만 true. JOB 표·스케줄러·API·화면 서비스 빈은 이 값이 true 일 때만 만든다.
 - **MCM → 모듈 호출 주소**(사용자 「알아서 정해줘」 → 조정자 결정): 백엔드에는 모듈 간 호출 주소를 모아 둔 설정이 없다. 있는 것은 `cactus.mdm.base-url: ${MDM_WAS_URL:http://localhost:8096}`(MDM 하나)와 포털 BFF 의 `<모듈>_WAS_URL` 환경 변수 관례다. BFF 는 사용자 세션을 거쳐 `/api/…` 로만 전달하므로 서버 간 호출에 쓸 수 없다. 그래서 MCM `application.yml` 에 새 자리를 두되 **환경 변수 이름은 기존 관례를 재사용한다.**
@@ -413,6 +413,7 @@ dmes:
   - 날짜 변수(`:today`·`:yesterday`·`:monthStart`·`:prevMonthStart`)는 **`SCHED_AT` 기준**이다. `DB_NOW` 는 `:now` 에만 쓴다. 선점은 30초 일찍 할 수 있어서, 자정 작업이 23:59:59 에 선점되어도 날짜가 하루 어긋나지 않게 한다.
 - 값은 **MCM 이 선점할 때 확정**해 호출 입력(`inputs`)으로 넘기고 실행 기록 `VARS_JSON` 에 남긴다. 모듈은 받은 값을 서비스 입력으로 그대로 넣는다.
 - 쓰이는 곳: BPMN 은 서비스 입력 파라미터, 쿼리·수집(SQL)은 바인드 변수 `:이름`, 수집(HTTP)은 URL 의 `{{이름}}` 자리, 코드는 `JobContext.vars()`.
+  - URL 자리(`HttpUrlTemplate`): 경로·쿼리에만 둘 수 있고(스킴·호스트·포트 자리는 저장 거절 — SSRF 방지), 값은 영문·숫자·`-._~` 외 모두 퍼센트 인코딩해 넣는다(`.`·`..` 값은 거절). 작업 변수에 없으면 `today·yesterday·monthStart·now`(SQL 원천과 같은 내장 변수)를 쓰고, 둘 다 없으면 실행을 거절한다(메시지에 URL 원문을 넣지 않는다). 허용 호스트 검사는 치환한 URL 로 한다.
 - 코드 작업은 코드가 기본 변수를 정하고, 화면에서는 값만 바꾼다.
 - 화면 「지금 실행」은 이번 한 번만 쓰는 변수 값을 받을 수 있다(D11).
 
