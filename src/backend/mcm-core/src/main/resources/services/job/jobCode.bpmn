@@ -8,6 +8,7 @@
       <bpmn:extensionElements>
         <camunda:properties>
           <camunda:property name="method" value="run" />
+          <camunda:property name="opt" value="handlerId" />
           <camunda:property name="output" value="result" />
         </camunda:properties>
       </bpmn:extensionElements>

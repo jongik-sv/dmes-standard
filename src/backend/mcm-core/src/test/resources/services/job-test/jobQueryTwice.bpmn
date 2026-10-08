@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_jobQueryTwice" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="jobQueryTwice" name="시험 - 사용자 BPMN 이 내장 jobQuery 를 서로 다른 문장으로 두 번 호출" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="flow_1" sourceRef="start" targetRef="callFirst" />
+    <bpmn:callActivity id="callFirst" name="첫 문장" calledElement="jobQuery">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="sql">UPDATE T_JOB_Q SET V = 'first' WHERE ID = 1</camunda:inputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_1</bpmn:incoming>
+      <bpmn:outgoing>flow_2</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:sequenceFlow id="flow_2" sourceRef="callFirst" targetRef="callSecond" />
+    <bpmn:callActivity id="callSecond" name="둘째 문장" calledElement="jobQuery">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="sql">UPDATE T_JOB_Q SET V = 'second' WHERE ID IN (2, 3)</camunda:inputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_2</bpmn:incoming>
+      <bpmn:outgoing>flow_3</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:sequenceFlow id="flow_3" sourceRef="callSecond" targetRef="end" />
+    <bpmn:endEvent id="end">
+      <bpmn:incoming>flow_3</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+</bpmn:definitions>

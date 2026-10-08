@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mcm.job.builtin;
 
 import com.dongkuk.dmes.cactus.job.JobRunScope;
 import com.dongkuk.oasis.exceptions.UserException;
+import com.dongkuk.oasis.methodinvoker.annotations.OptionalParam;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import javax.sql.DataSource;
@@ -13,7 +14,8 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
  * 내장 서비스 {@code jobQuery}(설계 §5.1·§4.4 D31) — 그 모듈 기본 DataSource 에서 DML 한 문장 또는 프로시저 호출 하나를 서비스 트랜잭션 안에서 실행한다.
  * <b>JDBC 문장마다 쿼리 시간 초과</b>: 이 시도의 마감까지 남은 초를 올림, 최소 1초({@link JobRunScope#queryTimeoutSeconds()}). 초과하면 Oracle 이 ORA-01013 을 던지고
  * 예외를 그대로 올려 서비스 트랜잭션이 롤백되며, 진입점이 TIMEOUT 으로 기록한다. 문장은 실행 때 다시 검사한다({@link QueryStatementGuard}).
- * 입력 파라미터를 받지 않는다(바인더가 없는 파라미터를 묶지 못한다 — 계획 「설계와 다름」). SQL·변수는 진입점이 config·inputs 에 실은 값으로 읽는다.
+ * 서비스 입력 {@code sql} 이 있으면 그것을, 없으면 실행 범위의 정의 설정(config)의 {@code sql} 을 쓴다(설계 §5.1). 변수 값은 늘 범위의 {@code vars} 에서 읽는다.
+ * 입력이 없는 호출도 묶이려면 BPMN 서비스 태스크에 {@code opt} 속성으로 {@code sql} 을 선택 파라미터로 알려야 한다.
  */
 public class JobQueryService {
 
@@ -23,9 +25,9 @@ public class JobQueryService {
         this.dataSource = dataSource;
     }
 
-    public Map<String, Object> run() {
+    public Map<String, Object> run(@OptionalParam String sql) {
         JobRunScope scope = JobRunScope.require();
-        String text = scope.config().get("sql") == null ? null : String.valueOf(scope.config().get("sql"));
+        String text = sql != null && !sql.isBlank() ? sql : scope.config().get("sql") == null ? null : String.valueOf(scope.config().get("sql"));
         QueryStatementGuard.Checked checked;
         try {
             checked = QueryStatementGuard.check(text);

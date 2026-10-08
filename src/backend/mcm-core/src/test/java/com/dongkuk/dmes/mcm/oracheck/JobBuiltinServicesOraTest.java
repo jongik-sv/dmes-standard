@@ -49,6 +49,16 @@ class JobBuiltinServicesOraTest {
         jdbc.execute("CREATE TABLE T_JOB_Q (ID NUMBER(10), DT DATE, V VARCHAR2(30))");
         jdbc.execute("CREATE OR REPLACE PROCEDURE P_JOB_Q_SLOW(P_ID NUMBER, P_SEC NUMBER) AS BEGIN "
                 + "INSERT INTO T_JOB_Q (ID, DT, V) VALUES (P_ID, SYSDATE, 'slow'); DBMS_SESSION.SLEEP(P_SEC); END;");
+        // 수집 SQL 은 읽기 전용 트랜잭션이라 방금 만든 표를 DDL 시각 직후에 읽으면 ORA-01466(테이블 정의가 변경되었습니다) 이 난다 — 스냅숏 시각 해상도(약 3초)만큼 기다린다
+        sleepQuietly(3_500);
+    }
+
+    private static void sleepQuietly(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     @AfterAll
@@ -138,6 +148,62 @@ class JobBuiltinServicesOraTest {
             assertThat(result.exception()).as(id).isInstanceOf(com.dongkuk.dmes.cactus.job.JobScopeRequiredException.class);
         }
         assertThat(count("V = 'hack'")).isZero();
+    }
+
+    @Test
+    @DisplayName("jobQuery — 서비스 입력 sql 이 있으면 config 의 sql 보다 우선하고, 입력이 없으면 config 를 쓴다")
+    void queryInputBeatsConfig() throws Exception {
+        JobRunReport viaInput = kit.run(request("r1", "j1", "jobQuery", 30, Map.of("sql", "UPDATE T_JOB_Q SET V = 'cfg' WHERE ID = 1"),
+                Map.of("sql", "UPDATE T_JOB_Q SET V = 'inp' WHERE ID = 2"), Map.of()));
+        assertThat(viaInput.status()).isEqualTo("OK");
+        assertThat(viaInput.itemCnt()).isEqualTo(1);
+        assertThat(count("V = 'inp'")).isEqualTo(1);
+        assertThat(count("V = 'cfg'")).as("config 문장은 실행되지 않는다").isZero();
+        JobRunReport viaConfig = kit.run(request("r2", "j2", "jobQuery", 30, Map.of("sql", "UPDATE T_JOB_Q SET V = 'cfg' WHERE ID = 1"), Map.of(), Map.of()));
+        assertThat(viaConfig.status()).isEqualTo("OK");
+        assertThat(count("V = 'cfg'")).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("jobQuery — 사용자 BPMN 이 내장 jobQuery 를 서로 다른 sql 입력으로 두 번 호출하면 두 문장이 한 트랜잭션에서 실행되고 건수가 합쳐진다")
+    void userBpmnCallsQueryTwiceWithDifferentInputs() throws Exception {
+        JobRunReport r = kit.run(request("r1", "j1", "jobQueryTwice", 30, Map.of("sql", "UPDATE T_JOB_Q SET V = 'cfg'"), Map.of(), Map.of()));
+        assertThat(r.status()).isEqualTo("OK");
+        assertThat(r.itemCnt()).isEqualTo(3);
+        assertThat(count("V = 'first'")).isEqualTo(1);
+        assertThat(count("V = 'second'")).isEqualTo(2);
+        assertThat(count("V = 'cfg'")).as("입력이 있으면 config 문장은 쓰이지 않는다").isZero();
+    }
+
+    @Test
+    @DisplayName("jobQuery — 두 번째 호출이 실패하면 첫 호출의 변경도 같은 트랜잭션이라 함께 롤백된다")
+    void userBpmnSecondCallFailureRollsBackFirst() throws Exception {
+        JobRunReport r = kit.run(request("r1", "j1", "jobQueryFailsSecond", 30, Map.of(), Map.of(), Map.of()));
+        assertThat(r.status()).isEqualTo("FAIL");
+        assertThat(count("V = 'first'")).isZero();
+        assertThat(count("1 = 1")).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("jobCode — 서비스 입력 handlerId 가 config 의 handlerId 보다 우선한다")
+    void codeInputBeatsConfig() throws Exception {
+        JobRunReport r = kit.run(request("r1", "j1", "jobCode", 30, Map.of("handlerId", "no.such"), Map.of("handlerId", "mcm.test"), Map.of()));
+        assertThat(r.status()).isEqualTo("OK");
+        assertThat(r.itemCnt()).isEqualTo(4);
+    }
+
+    @Test
+    @DisplayName("jobCollect — 서비스 입력 source·save 가 config 보다 우선한다")
+    void collectInputBeatsConfig() throws Exception {
+        Map<String, Object> good = Map.of("kind", "sql", "sql", "SELECT V, ID FROM T_JOB_Q ORDER BY ID", "valueField", "ID", "keyField", "V");
+        Map<String, Object> badHost = Map.of("kind", "http", "url", "https://secret-host.example.com/x", "items", List.of(Map.of("key", "k", "path", "a")));
+        JobRunReport r = kit.run(request("r1", "j1", "jobCollect", 30, Map.of("source", badHost), Map.of("source", good), Map.of()));
+        assertThat(r.status()).isEqualTo("OK");
+        assertThat(r.collected()).hasSize(3);
+        JobRunReport noSave = kit.run(request("r2", "j2", "jobCollect", 30, Map.of("source", good, "save", true), Map.of("save", false), Map.of()));
+        assertThat(noSave.status()).isEqualTo("OK");
+        assertThat(noSave.itemCnt()).isEqualTo(3);
+        assertThat(noSave.collected()).as("입력 save:false 가 config save:true 보다 우선").isEmpty();
     }
 
     @Test
