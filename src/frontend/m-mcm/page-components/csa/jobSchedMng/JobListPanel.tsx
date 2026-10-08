@@ -3,8 +3,9 @@
 /**
  * 작업 목록 — 왼쪽 위 그리드. 루트가 조회 조건 입력마다 다시 그려져도 jobs·선택·로딩이 그대로면 다시 그리지 않는다(화면 성능 가이드 R12 「함께 할 것」).
  */
-import { memo } from "react";
+import { memo, useMemo } from "react";
 
+import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { MaxHandle } from "@dk-oasis/shared/layout";
 
@@ -32,7 +33,7 @@ const JOB_COLUMNS: GridColumn[] = [
   { key: "lastServerNm", header: "최근 실행 서버", width: 3, minWidth: 150, align: "left", meta: false },
 ];
 
-const HEADER_EXTRA = <MaxHandle panelId="job-list" />;
+const MAX_HANDLE = <MaxHandle panelId="job-list" />;
 
 export interface JobListPanelProps {
   jobs: readonly JobGridRow[];
@@ -41,11 +42,25 @@ export interface JobListPanelProps {
   loading: boolean;
   buttons: { id: string; label: string; onClick: () => void; disabled?: boolean }[];
   onRowClick: (row: Record<string, unknown>) => void;
+  /** 도움말 모달을 연다. */
+  onHelp: () => void;
 }
 
-function JobListPanelImpl({ jobs, selectedId, loading, buttons, onRowClick }: JobListPanelProps) {
+function JobListPanelImpl({ jobs, selectedId, loading, buttons, onRowClick, onHelp }: JobListPanelProps) {
+  const headerExtra = useMemo(
+    () => (
+      <>
+        {/* 도움말은 업무 권한(메뉴 RBAC)과 무관한 안내라 권한 단추(buttons)가 아니라 머리 오른쪽에 둔다(권한 없는 사용자도 읽는다). */}
+        <Button size="sm" onClick={onHelp} aria-haspopup="dialog" data-testid="job-sched-help-btn">
+          도움말
+        </Button>
+        {MAX_HANDLE}
+      </>
+    ),
+    [onHelp],
+  );
   return (
-    <GridPanel title="작업 목록" count={jobs.length} headerExtra={HEADER_EXTRA} buttons={buttons} loading={loading}>
+    <GridPanel title="작업 목록" count={jobs.length} headerExtra={headerExtra} buttons={buttons} loading={loading}>
       <AgDataGrid
         gridId="jobList"
         rowKey="jobId"

@@ -6,6 +6,7 @@
  * 상세 폼 state 는 JobDetailForm 안에 있고 이 루트는 ref 핸들로 대화한다(화면 성능 가이드 R12).
  * 단추는 메뉴 RBAC action(save·setUse·runNow·delete)으로 막는다. 서버도 같은 권한으로 막는다.
  */
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -41,6 +42,9 @@ import {
   type JobRunGridRow,
   type RunStatus,
 } from "./types";
+
+/** 도움말 문서(약 28KB)는 열 때만 내려받는다 — 예약 작업 관리 첫 화면 번들에 싣지 않는다. */
+const JobSchedHelpModal = dynamic(() => import("./help/JobSchedHelpModal").then((m) => m.JobSchedHelpModal), { ssr: false });
 
 const ALL = { value: "", label: "전체" };
 const MODULE_FILTER_OPTIONS = [ALL, ...JOB_MODULES.map((m) => ({ value: m, label: m }))];
@@ -91,6 +95,8 @@ export default function JobSchedMngPage() {
   const [historyBusy, setHistoryBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  /** 「도움말」 모달 — 열 때만 마운트해 문서를 닫혀 있는 동안 그리지 않는다. */
+  const [helpOpen, setHelpOpen] = useState(false);
   const loadSeq = useRef(0);
   const historySeq = useRef(0);
 
@@ -379,6 +385,8 @@ export default function JobSchedMngPage() {
 
   const handleSearchClick = useCallback(() => void handleSearch(), [handleSearch]);
   const closePicker = useCallback(() => setPickerOpen(false), []);
+  const openHelp = useCallback(() => setHelpOpen(true), []);
+  const closeHelp = useCallback(() => setHelpOpen(false), []);
 
   const pageButtons = useMemo<PageButton[]>(
     () => [{ id: "btn_search", label: "조회", onClick: handleSearchClick, type: "primary", action: "search", disabled: isBusy }],
@@ -404,7 +412,7 @@ export default function JobSchedMngPage() {
         <ContentBody root resizable storageKey="mcm.csa.jobSchedMng">
           <ContentBody direction="column" resizable storageKey="mcm.csa.jobSchedMng.left" flex="1 1 0">
             <ContentPanel panelId="job-list">
-              <JobListPanel jobs={jobs} selectedId={selectedId} loading={listBusy} buttons={listButtons} onRowClick={handleRowClick} />
+              <JobListPanel jobs={jobs} selectedId={selectedId} loading={listBusy} buttons={listButtons} onRowClick={handleRowClick} onHelp={openHelp} />
             </ContentPanel>
             <ContentPanel height="40%">
               <HistoryPanel title={historyTitle} rows={runs} loading={historyBusy} />
@@ -416,6 +424,7 @@ export default function JobSchedMngPage() {
         </ContentBody>
       </div>
 
+      {helpOpen ? <JobSchedHelpModal open onClose={closeHelp} /> : null}
       <KindPickerModal open={pickerOpen} onClose={closePicker} onPick={handlePickKind} />
     </PageLayout>
   );
