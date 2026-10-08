@@ -26,10 +26,10 @@ case "$_JSB_DIR" in /*|?:*) ;; *) _JSB_DIR="$PWD/$_JSB_DIR" ;; esac   # 이후 c
 
 # 모듈 파일 경로(윈도우면 node 가 읽는 C:/x 꼴). 없으면 rc 1
 _jsb_path() {
-  local p="$_JSB_DIR/$1.mjs"
+  local p="$_JSB_DIR/$1.mjs" q
   case "$1" in */*) p="$1.mjs" ;; esac   # 경로가 든 이름은 그 경로(확장자 .mjs 제외)를 쓴다(하니스의 표본 모듈용)
   [ -f "$p" ] || return 1
-  if command -v cygpath >/dev/null 2>&1; then p="$(cygpath -m "$p")" || return 1; fi
+  if command -v cygpath >/dev/null 2>&1; then q="$(cygpath -m "$p" 2>/dev/null)" && [ -n "$q" ] && p="$q"; fi   # cygpath 가 -m 을 못 하면(시험의 가짜 cygpath) 원래 경로 그대로
   printf '%s' "$p"
 }
 

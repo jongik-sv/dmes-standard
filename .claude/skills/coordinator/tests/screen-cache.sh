@@ -270,9 +270,10 @@ mk_idle "$FAKE_DIR/screens/hk.txt"; mk_perm "$S/perm.txt"; mk_idle "$S/idle.txt"
 d="$(CD)"
 plant hk "$S/idle.txt"
 resetlog
-# 시간 의존 구간: JS 스위치(COORD_JS_*=1)가 켜지면 함수 호출마다 node 기동(약 40ms)이 더해져 폴러 한 바퀴가 길어지므로
-# 간격(--every)·표본 사이 대기를 3배로 늘린다. 꺼짐(기본)은 예전 값 그대로다.
-if env | grep -q '^COORD_JS_[A-Z_]*=1$'; then T_EV=3; T_FW=27; T_1=4.2; T_2=2.4; T_3=3.6; T_OFF_CACHE=9; T_OFF=4.5
+# 시간 의존 구간: JS 스위치(COORD_JS_*=1)가 켜지면 함수 호출마다 node 기동(약 40ms)이 더해져 폴러 한 바퀴가 0.5~1초 길어진다.
+# 표본을 심은 뒤 폴러가 한 번은 읽고 그다음에 화면을 바꾸는 순서가 지켜지도록 간격(--every)은 3초, 표본 사이 대기는 한 바퀴(약 3.5~4초)보다 길게 둔다.
+# 꺼짐(기본)은 예전 값 그대로다.
+if env | grep -q '^COORD_JS_[A-Z_]*=1$'; then T_EV=3; T_FW=45; T_1=5; T_2=5; T_3=8; T_OFF_CACHE=9; T_OFF=4.5
 else T_EV=1; T_FW=9; T_1=1.4; T_2=0.8; T_3=1.2; T_OFF_CACHE=3; T_OFF=1.5; fi
 ( env COORD_RUN=r1 bash "$PW" --lanes kit --follow "$T_FW" --every "$T_EV" > "$S/follow.out" 2>/dev/null ) & BG="$BG $!"; fp=$!
 sleep "$T_1"; plant hk "$S/perm.txt"                    # 폴러가 권한 창을 읽었다
