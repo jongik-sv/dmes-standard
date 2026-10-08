@@ -24,11 +24,13 @@ import {
   ErrorModal,
   canDoButton,
   useUserButtonRbac,
+  type SearchTrigger,
 } from "@dk-oasis/shared/layout";
 import { GridPanel, AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { searchMaster, searchDetail, saveMaster, saveDetail } from "./api";
+import { decideAreaSearch } from "./area-search";
 import {
   MasterCodeUploadFilePopupDialog,
   OBJ_ID as UPLOAD_POPUP_OBJ_ID,
@@ -416,13 +418,15 @@ export default function MasterCodeMngPage() {
   };
 
   /**
-   * 조회 영역의 조회(Enter·autoSearch). 첫 호출은 진입 자동 조회(autoSearch)라 지금처럼 가드 없이 loadMaster 를 부른다 —
+   * 조회 영역의 조회(Enter·autoSearch). autoSearch 가 부른 첫 호출(trigger === "auto")만 진입 자동 조회라 가드 없이 loadMaster 를 부른다 —
    *   autoSearch 는 사용자 확인 직후 한 번만 부르므로 그때 권한 확인이 끝나지 않았으면 가드가 첫 조회를 버린다.
+   *   사용자가 친 Enter(인자 없음)는 진입 대기 중이어도 늘 handleSearch(권한 가드 포함)를 탄다 — 조회 기본값을 기다리는 동안
+   *   친 Enter 가 진입 대기 표지(autoSearchPendingRef)를 먼저 가져가 가드를 건너뛰는 경합을 막는다.
    *   복원으로 시작하면 autoSearch 가 부르지 않으므로 처음부터 가드를 탄다.
    */
   const autoSearchPendingRef = useRef(!restored);
-  const handleAreaSearch = () => {
-    if (autoSearchPendingRef.current) {
+  const handleAreaSearch = (trigger?: SearchTrigger) => {
+    if (decideAreaSearch(trigger, autoSearchPendingRef.current) === "entry") {
       autoSearchPendingRef.current = false;
       void loadMaster(filters);
       return;
