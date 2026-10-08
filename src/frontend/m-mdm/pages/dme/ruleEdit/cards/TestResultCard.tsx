@@ -157,7 +157,8 @@ function VersionTable({ def, result }: { def: RuleEditView; result: ValueTestRes
   return (
     <div data-testid="vt-result-table" style={{ paddingTop: "var(--spacing-sm)" }}>
       <MutedText>테스트한 버전이 위 의사결정표와 달라 그 버전의 표를 따로 보인다. 초록 행이 적중 행이고 붉은 칸이 떨어진 행의 첫 거짓 조건이다.</MutedText>
-      <div style={{ height, paddingTop: "var(--spacing-xs)" }}>
+      {/* 바깥 상자는 높이를 고정하지 않는다 — 머리줄이 표 위에 더해지고, 칸별 필터 입력 줄을 펴면 그리드가 숫자 height 에 그 줄 높이를 더해 내용만큼 늘어난다. */}
+      <div style={{ paddingTop: "var(--spacing-xs)" }}>
         <AgDataGrid gridId="testResultTable"
           key={`${def.rule.maruRuleId}:${def.selectedVer}`}
           columns={columns}
