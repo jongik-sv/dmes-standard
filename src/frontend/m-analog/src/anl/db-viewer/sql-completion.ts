@@ -17,6 +17,7 @@ import {
   isTablePosition,
   qualifierBefore,
   statementRange,
+  tableInsertText,
   type TableRef,
 } from "./sql-assist";
 
@@ -172,7 +173,8 @@ function registerProvider(monaco: typeof Monaco): void {
             suggestions.push({
               label: table,
               kind: kinds.Struct,
-              insertText: table,
+              insertText: tableInsertText(null, table),
+              filterText: table,
               range,
               sortText: `0${table}`,
             });
@@ -189,7 +191,7 @@ function registerProvider(monaco: typeof Monaco): void {
             suggestions.push({
               label: { label: table, description: schema },
               kind: kinds.Struct,
-              insertText: `${schema}.${table}`,
+              insertText: tableInsertText(schema, table),
               filterText: table,
               range,
               sortText: `${rank}${table}`,
