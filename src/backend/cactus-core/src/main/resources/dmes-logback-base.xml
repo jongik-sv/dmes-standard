@@ -92,6 +92,9 @@
          springProfile 은 와일드카드 미지원 → local* 계열은 콤마 열거.
          신규 local-* 프로파일 추가 시 아래 열거 및 fallback 부정식에 반드시 추가한다. -->
     <springProfile name="local, local-kp, local-ph">
+        <!-- local 은 root DEBUG 를 따라 HikariCP housekeeper 가 풀 통계(Pool stats·Fill pool 등)를 30초마다 찍는다.
+             요청 로그가 아니라 소음뿐이므로 com.zaxxer.hikari 만 INFO 로 낮춘다(SQL 바인딩 로그는 org.hibernate.* 로거라 무관). -->
+        <logger name="com.zaxxer.hikari" level="INFO"/>
         <root level="DEBUG">
             <appender-ref ref="CONSOLE"/>
             <appender-ref ref="FILE"/>
