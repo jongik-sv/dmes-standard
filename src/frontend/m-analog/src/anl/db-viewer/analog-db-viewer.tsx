@@ -268,10 +268,22 @@ export function AnalogDbViewer() {
   // 어느 셀인지는 shared 를 건드리지 않고 이벤트 대상의 가장 가까운 [col-id] 칸에서 읽는다.
   const resultRef = useRef(result);
   resultRef.current = result;
-  const columnsRef = useRef({ key: selectedTableKey, columns });
-  columnsRef.current = { key: selectedTableKey, columns };
+  // 결과가 나온 표의 칸 정보 — 표 단위로 한 번만 받는다(칸 형식으로 '10' 과 10 을 가른다).
+  const typeCacheRef = useRef(new Map<string, Promise<DbColumnInfo[]>>());
+  const columnTypesOf = useCallback((schema: string, table: string) => {
+    const key = `${schema}.${table}`;
+    let hit = typeCacheRef.current.get(key);
+    if (!hit) {
+      hit = fetchColumns(schema, table).catch(() => {
+        typeCacheRef.current.delete(key);
+        return [] as DbColumnInfo[];
+      });
+      typeCacheRef.current.set(key, hit);
+    }
+    return hit;
+  }, []);
   const insertCellValue = useCallback(
-    (row: Record<string, unknown>, event: Event) => {
+    async (row: Record<string, unknown>, event: Event) => {
       const current = resultRef.current;
       const target = event.target;
       if (!current || !(target instanceof Element)) return;
@@ -282,18 +294,16 @@ export function AnalogDbViewer() {
         gfn("LOB 칸은 칸 안의 「보기」 단추로 확인해 주세요.", "", "", "toast");
         return;
       }
-      // 결과가 선택한 표 하나의 조회일 때만 칸의 데이터 형식을 안다(문자열 '10' 과 숫자 10 구분).
-      const known = columnsRef.current;
-      const dataType =
-        known.key === `${current.schema}.${current.table}`
-          ? known.columns.find((c) => c.COLUMN_NAME === colId)?.DATA_TYPE
-          : undefined;
+      // 칸 형식을 못 구하면(받기 실패·별칭 칸) 값 모양으로 짐작한다.
+      const dataType = (
+        await columnTypesOf(current.schema, current.table)
+      ).find((c) => c.COLUMN_NAME === colId)?.DATA_TYPE;
       editorRef.current?.insertAtCursor(
         toSqlLiteral(row[colId], dataType),
         "value",
       );
     },
-    [gfn],
+    [gfn, columnTypesOf],
   );
 
   const pageButtons: PageButton[] = useMemo(

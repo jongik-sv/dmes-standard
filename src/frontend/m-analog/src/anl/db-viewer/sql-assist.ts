@@ -130,7 +130,14 @@ const NON_ALIAS = new Set([
   "FROM",
   "AND",
   "OR",
+  "PARTITION",
+  "SAMPLE",
+  "PIVOT",
+  "UNPIVOT",
 ]);
+
+/** 칸 목록 절에서 이 단어 뒤는 이미 한 항목이 끝난 자리다(그래서 다음 항목 앞에 쉼표). */
+const ITEM_END_WORDS = new Set(["ASC", "DESC", "END", "NULL"]);
 
 /** 앞 단어가 이 중 하나면 그 뒤는 새 항목 자리다(쉼표 없이 공백만). */
 const OPENING_WORDS = new Set([
@@ -165,6 +172,7 @@ const OPENING_WORDS = new Set([
   "PRIOR",
   "FIRST",
   "LAST",
+  "NULLS",
 ]);
 
 export interface TableRef {
@@ -198,6 +206,10 @@ export function maskCommentsAndStrings(sql: string): string {
       end = end < 0 ? sql.length : end + 2;
       blank(i, end);
       i = end;
+    } else if (c === '"') {
+      // 큰따옴표 식별자는 내용을 그대로 두고 건너뛴다(안의 따옴표·주석 기호가 뒤를 가리지 않게).
+      const end = sql.indexOf('"', i + 1);
+      i = end < 0 ? sql.length : end + 1;
     } else if (c === "'") {
       let j = i + 1;
       while (j < sql.length) {
@@ -247,7 +259,21 @@ export function extractTableRefs(sql: string): TableRef[] {
     let pos = m.index + m[0].length;
     for (let guard = 0; guard < 20; guard++) {
       const rest = masked.slice(pos);
-      if (/^\s*\(/.test(rest)) break;
+      const paren = /^\s*\(/.exec(rest);
+      if (paren) {
+        // 서브쿼리 `( … ) 별칭` 은 표로 읽지 않고 건너뛴 뒤 쉼표 목록을 이어 읽는다.
+        let depth = 0;
+        let k = paren[0].length - 1;
+        for (; k < rest.length; k++) {
+          if (rest[k] === "(") depth += 1;
+          else if (rest[k] === ")" && --depth === 0) break;
+        }
+        if (k >= rest.length) break;
+        const tail = /^\s*(?:AS\s+)?[\w$#"]*\s*,/i.exec(rest.slice(k + 1));
+        if (!tail) break;
+        pos += k + 1 + tail[0].length;
+        continue;
+      }
       const r = REF_RE.exec(rest);
       if (!r) break;
       const [whole, first, second, aliasPart, aliasName] = r;
@@ -259,7 +285,8 @@ export function extractTableRefs(sql: string): TableRef[] {
         table: unquote(second ?? first),
         alias: isAlias ? unquote(aliasName) : null,
       });
-      pos += isAlias || !aliasPart ? whole.length : whole.length - aliasPart.length;
+      pos +=
+        isAlias || !aliasPart ? whole.length : whole.length - aliasPart.length;
       // FROM 절의 쉼표 목록을 이어서 읽는다.
       const comma = /^\s*,/.exec(masked.slice(pos));
       if (!comma) break;
@@ -271,7 +298,9 @@ export function extractTableRefs(sql: string): TableRef[] {
 
 /** 커서 바로 앞의 `단어.접두` 에서 `.` 앞 이름(별칭·표·스키마). 없으면 null. */
 export function qualifierBefore(lineBeforeCursor: string): string | null {
-  const m = new RegExp(String.raw`(${IDENT})\s*\.\s*[\w$#]*$`).exec(lineBeforeCursor);
+  const m = new RegExp(String.raw`(${IDENT})\s*\.\s*[\w$#]*$`).exec(
+    lineBeforeCursor,
+  );
   return m ? unquote(m[1]) : null;
 }
 
@@ -291,10 +320,24 @@ export function isTablePosition(before: string): boolean {
   if (prev && TABLE_KEYWORDS.has(prev[1].toUpperCase())) return true;
   // FROM A a, | — 마지막 FROM 이후로 WHERE/GROUP/ORDER/HAVING/ON 이 없고 쉼표 직후.
   if (/,\s*$/.test(stripped)) {
-    const lastFrom = stripped.toUpperCase().lastIndexOf("FROM");
-    if (lastFrom >= 0) {
-      const tail = stripped.slice(lastFrom);
-      return !/\b(WHERE|GROUP|ORDER|HAVING|ON|SELECT|CONNECT|UNION)\b/i.test(tail);
+    const froms = [...stripped.matchAll(/\bFROM\b/gi)];
+    // 뒤에서부터 보며, 괄호가 닫힌 서브쿼리 안의 FROM 은 건너뛰고 지금 문장 단계의 FROM 을 찾는다.
+    for (let i = froms.length - 1; i >= 0; i--) {
+      const tail = stripped.slice(froms[i].index);
+      let depth = 0;
+      let closedBelowStart = false;
+      for (const ch of tail) {
+        if (ch === "(") depth += 1;
+        else if (ch === ")" && --depth < 0) {
+          closedBelowStart = true;
+          break;
+        }
+      }
+      if (closedBelowStart) continue;
+      return (
+        depth === 0 &&
+        !/\b(WHERE|GROUP|ORDER|HAVING|ON|SELECT|CONNECT|UNION)\b/i.test(tail)
+      );
     }
   }
   return false;
@@ -318,7 +361,10 @@ const LIST_CLAUSES = new Set(["SELECT", "GROUP BY", "ORDER BY"]);
  *  - SELECT·GROUP BY·ORDER BY 목록에서 앞이 이미 항목이면 `, `
  *  - 바로 뒤에 항목이 이어지면 목록 안에서는 `, `, 그 밖에는 공백
  */
-export function columnAffixes(before: string, after: string): { prefix: string; suffix: string } {
+export function columnAffixes(
+  before: string,
+  after: string,
+): { prefix: string; suffix: string } {
   const clause = currentClause(before);
   const inList = clause !== null && LIST_CLAUSES.has(clause);
   const beforeTrim = before.replace(/\s+$/, "");
@@ -327,7 +373,12 @@ export function columnAffixes(before: string, after: string): { prefix: string; 
   const prevWord = previousWord(beforeTrim);
   const endsWithItem =
     /[)'"]/.test(lastChar) ||
-    (/[\w$#]/.test(lastChar) && !(prevWord !== null && OPENING_WORDS.has(prevWord)));
+    (/[\w$#]/.test(lastChar) &&
+      !(
+        prevWord !== null &&
+        OPENING_WORDS.has(prevWord) &&
+        !ITEM_END_WORDS.has(prevWord)
+      ));
 
   let prefix = "";
   if (beforeTrim === "") prefix = "";
@@ -337,14 +388,19 @@ export function columnAffixes(before: string, after: string): { prefix: string; 
   let suffix = "";
   const nextWord = /^\s*([A-Za-z_][\w$#]*)/.exec(after)?.[1]?.toUpperCase();
   const nextIsPlainItem =
-    nextWord !== undefined && !OPENING_WORDS.has(nextWord) && !NON_ALIAS.has(nextWord);
+    nextWord !== undefined &&
+    !OPENING_WORDS.has(nextWord) &&
+    !NON_ALIAS.has(nextWord);
   if (inList && nextIsPlainItem) suffix = /^\s/.test(after) ? "," : ", ";
   else if (/^[\w$#"']/.test(after)) suffix = " ";
   return { prefix, suffix };
 }
 
 /** 값(SQL 리터럴 등)을 끼울 때 앞뒤에 붙일 공백 — 단어에 붙어 있을 때만. */
-export function valueAffixes(before: string, after: string): { prefix: string; suffix: string } {
+export function valueAffixes(
+  before: string,
+  after: string,
+): { prefix: string; suffix: string } {
   return {
     prefix: /[\w$#"')]$/.test(before) ? " " : "",
     suffix: /^[\w$#"'(]/.test(after) ? " " : "",
@@ -390,5 +446,7 @@ export function toSqlLiteral(value: unknown, dataType?: string | null): string {
 
 /** 칸·표 이름을 SQL 에 쓸 글자로 — 보통 이름(대문자·숫자·_$#)은 그대로, 소문자·공백 등이 있으면 큰따옴표로 감싼다. */
 export function identifierText(name: string): string {
-  return /^[A-Z][A-Z0-9_$#]*$/.test(name) ? name : `"${name.replace(/"/g, '""')}"`;
+  return /^[A-Z][A-Z0-9_$#]*$/.test(name)
+    ? name
+    : `"${name.replace(/"/g, '""')}"`;
 }

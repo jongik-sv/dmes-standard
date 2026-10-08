@@ -13,6 +13,7 @@ import type * as Monaco from "monaco-editor";
 import {
   SQL_KEYWORDS,
   extractTableRefs,
+  identifierText,
   isTablePosition,
   qualifierBefore,
   statementRange,
@@ -120,7 +121,10 @@ function registerProvider(monaco: typeof Monaco): void {
         const loaded = await Promise.all(
           targets.slice(0, MAX_REF_TABLES).map(async (t) => {
             try {
-              return { t, columns: await source.loadColumns(t.schema, t.table) };
+              return {
+                t,
+                columns: await source.loadColumns(t.schema, t.table),
+              };
             } catch {
               return { t, columns: [] as string[] };
             }
@@ -135,7 +139,8 @@ function registerProvider(monaco: typeof Monaco): void {
             suggestions.push({
               label: { label: name, description: t.label },
               kind: kinds.Field,
-              insertText: name,
+              insertText: identifierText(name),
+              filterText: name,
               range,
               sortText: `${sortPrefix}${name}`,
             });
@@ -146,12 +151,18 @@ function registerProvider(monaco: typeof Monaco): void {
       // 1) `별칭.` · `표.` · `스키마.` 뒤
       if (qualifier !== null) {
         const byAlias = refs.filter((r) => r.alias === qualifier);
-        const byName = refs.filter((r) => r.alias === null && r.table === qualifier);
+        const byName = refs.filter(
+          (r) => r.alias === null && r.table === qualifier,
+        );
         const matched = byAlias.length > 0 ? byAlias : byName;
-        if (matched.length > 0) {
-          const targets = matched.flatMap((r) =>
-            resolveRef(r, tables).map((x) => ({ ...x, label: r.alias ?? x.table })),
-          );
+        const targets = matched.flatMap((r) =>
+          resolveRef(r, tables).map((x) => ({
+            ...x,
+            label: r.alias ?? x.table,
+          })),
+        );
+        // `FROM 스키마.` 의 스키마도 참조로 읽히므로, 실제 표로 풀리는 경우만 칸을 낸다.
+        if (targets.length > 0) {
           await columnItems(targets, "0");
           return { suggestions };
         }

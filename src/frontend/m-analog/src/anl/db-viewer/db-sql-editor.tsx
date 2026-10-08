@@ -138,7 +138,8 @@ const DbSqlEditor = forwardRef<DbSqlEditorHandle, DbSqlEditorProps>(
         if (model) {
           detachAssist = attachSqlAssist(monaco, model, {
             getTables: () => tablesRef.current,
-            loadColumns: (schema, table) => columnLoaderRef.current(schema, table),
+            loadColumns: (schema, table) =>
+              columnLoaderRef.current(schema, table),
           });
         }
         created.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () =>
@@ -160,6 +161,20 @@ const DbSqlEditor = forwardRef<DbSqlEditorHandle, DbSqlEditorProps>(
       if (!editor) return;
       if (editor.getValue() !== value) {
         editor.setValue(value);
+        // 표를 고르면 SQL 이 `SELECT * FROM …` 으로 바뀐다 — `*` 를 선택해 두면 칸 이름을 더블클릭해 넣을 때
+        // 커서가 문서 맨 앞(1:1)이라 SQL 이 깨지는 대신 `*` 자리를 칸 이름이 대신한다.
+        const star = /^SELECT (\*) FROM\b/i.exec(value);
+        const model = editor.getModel();
+        if (star && model) {
+          const from = model.getPositionAt(star[0].indexOf("*"));
+          const to = model.getPositionAt(star[0].indexOf("*") + 1);
+          editor.setSelection({
+            selectionStartLineNumber: from.lineNumber,
+            selectionStartColumn: from.column,
+            positionLineNumber: to.lineNumber,
+            positionColumn: to.column,
+          });
+        }
       }
     }, [editor, value, revision]);
 
