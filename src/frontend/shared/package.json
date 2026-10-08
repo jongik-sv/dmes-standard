@@ -162,6 +162,14 @@
       "types": "./dist/types/components/json-view/index.d.ts",
       "import": "./dist/json-view.js"
     },
+    "./cron-input": {
+      "types": "./dist/types/components/cron-input/index.d.ts",
+      "import": "./dist/cron-input.js"
+    },
+    "./variable-table": {
+      "types": "./dist/types/components/variable-table/index.d.ts",
+      "import": "./dist/variable-table.js"
+    },
     "./card": {
       "types": "./dist/types/components/card/index.d.ts",
       "import": "./dist/card.js"

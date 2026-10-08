@@ -92,6 +92,8 @@
 - [DetailPopover](detail-popover.md): 정보 아이콘(또는 감싼 글자)을 누르면 팝업에 가까운 큰 패널(제목·닫기·내부 스크롤)을 그 자리에 여는 상세 팝오버다. 툴팁에 담기 어려운 긴 설명(HTML 본문, 라벨-값 표)을 화면 이동 없이 보여 줄 때 쓴다.
 - [GridResizeBox](grid-resize-box.md): 24열 격자(위젯 보드와 같은 규칙) 단위로 마우스를 끌어 크기를 바꾸는 틀이다. 안쪽 children 을 틀 크기로 그리고, 끄는 동안 「12×8」 같은 칸 크기를 보인다. 칸 ↔ 픽셀 계산(`gridBoxPx`·`snapGridSize`)도 함께 내보낸다.
 - [JsonView](json-view.md): JSON 값(서버 설정·캐시 값·응답 본문처럼 모양이 정해지지 않은 값)을 읽기 전용 트리로 살펴볼 때 쓴다. 객체·배열은 접고 펼 수 있고, 글자·수·참거짓·null 은 종류별 색으로 보인다. 글자 값은 JSON 표기(따옴표·역슬래시·줄바꿈 이스케이프)로 보인다.
+- [CronInput](cron-input.md): 반복 일정을 crontab 5칸 식(`분 시 일 월 요일`)으로 입력받을 때 쓴다. 「쉬운 설정」(반복 종류별 칸)과 「직접 입력」(다섯 칸)을 전환하고, 만들어진 식 한 줄·자주 쓰는 식 칩·일정 설명·다음 예정을 함께 보인다. 값은 늘 5칸 식 한 줄이다.
+- [VariableTable](variable-table.md): 이름·형식·값·설명 네 칸의 변수 목록을 편집하는 표다. 값에는 고정값이나 실행 변수(`:today` 등)를 쓰며, 표 아래에 쓸 수 있는 실행 변수 안내를 보인다. 업무 도메인을 모른다.
 - [Card](card.md): 내용 높이를 따르는 테두리 카드(`CardFrame`: 제목 줄 + 본문), 여러 카드를 제목 줄 하나로 함께 접는 묶음(`CardGroup`), 카드 안 흐린 보조 글(`MutedText`)을 그릴 때 쓴다. 편집 화면처럼 카드 여러 장을 세로로 쌓는 화면에 맞다.
 - [TransferList](transfer-list.md): 좌(가능)·우(소속) 두 목록 사이로 코드를 옮겨 소속 집합을 고칠 때 쓰는 제어형 전송 목록이다(`TransferList`). 검색·분류 필터·행 토글·Shift 범위 선택·전체선택·`>`/`>>`/`<`/`<<` 를 갖췄고, 같은 일을 하는 순수 함수(검색·분류·이동·diff 집합)도 함께 낸다.
 - [MatrixTable](matrix-table.md): "첫 열(라벨) + 동적으로 늘어나는 열 + 셀마다 직접 그린 값" 구조의 비교 매트릭스(피벗) 표를 보일 때 쓴다.
@@ -408,6 +410,7 @@ const set = (k: keyof Filters, v: string) => setF((p) => ({ ...p, [k]: v }));
 - 분리 창이 이어받은 값으로 시작했으면 부르지 않는다. 이어받기를 쓰는 화면은 `useCarryRefetch` 대신 「복원됐는데 행이 비었을 때만 조회하는 마운트 effect」(`if (restored && rows.length === 0) void handleSearch()`)를 둔다([use-carry-state.md](use-carry-state.md) 규칙 5).
 - 서버에서 받는 선택지에 아직 없는 고정 값이 있으면 조회를 최대 1.5초 미룬다. 그 안에 값을 넣으면 넣은 값으로, 넘으면 지금 값으로 조회한다.
 - 자동 조회는 최근 입력값·마지막 조회값에 남기지 않는다.
+- 기본값을 기다리는 동안 사용자가 먼저 조회(Enter·조회 버튼)했고 그 뒤 넣은 값이 없으면 뒤늦은 자동 조회는 건너뛴다. 자동 조회가 부르는 `onSearch` 에는 `"auto"` 가 넘어오므로(사용자 조회는 인자 없음), 진입 조회와 사용자 조회를 가르는 화면은 이 인자로 판단한다.
 
 ### 칸 키: defaultKey·defaultable
 
@@ -2647,6 +2650,7 @@ GridPanel 밖의 AgDataGrid 도 GridPanel 과 같은 머리줄을 스스로 그�
 |---|---|
 | 소스의 JSDoc("columnSizing 기본 fixed")을 믿고 생략한다 | 실제 기본값은 `"auto"` 다. auto 에서는 `width` 가 무시되고 내용 폭으로 잰다. 표준대로 항상 명시한다 |
 | 비고·제목 열을 폭 생략하고 남는 폭을 기대한다 | fit 에서는 가중치 1 이라 최소 폭 50px 까지 줄고, fixed 에서는 120px 이 된다. 넓게 보이려면 fit 의 `width` 를 큰 가중치(예: `100`)로 주고 `minWidth`(예: `180`)를 함께 준다. 좁은 목록이면 짧은 열은 가중치 `1` + 내용 폭 `minWidth` 로 둔다([screen-patterns](../screen-patterns.md) §목록 그리드) |
+| 숫자 `height` 로 고정 높이 상자(`height: N`)를 만들고 안에 `height={N - GRID_HEADER_HEIGHT}` 그리드를 넣는다 | 칸별 필터 입력 줄을 펴면 그리드가 28px 커져 상자를 넘고 아래 버튼과 겹친다(룰 의사결정표 결함, 2026-10-08). 높이를 직접 계산하는 화면은 입력 줄 높이를 포함하게: 바깥 상자는 높이를 고정하지 않거나 `height="100%"` 로 채우게 한다 |
 | `useGridDataManager` 의 추가·수정 행에 배경이 자동으로 칠린다고 본다 | 소스는 `nativeeditor_status === "deleted"` 만 `ag-row-deleted` 로 칠하고, 추가·수정 배경은 `_rowState`(`useRowStateManager`)일 때만 칠한다. UI-Visual-Standard §7 과 어긋나는 shared 결함이다. 자세한 내용은 [use-grid-data-manager](use-grid-data-manager.md) |
 | `columns` 를 렌더 안에서 새로 만든다 | 열 상태와 선택이 초기화된다. 모듈 상수로 둔다 |
 | `data` 의 행을 제자리에서 바꾼다 | 참조 비교라 갱신되지 않는다. 새 객체로 교체한다 |
@@ -6495,6 +6499,137 @@ export function ValuePanel({ value }: { value: unknown }) {
 | `<pre>{JSON.stringify(v, null, 2)}</pre>` 를 화면에 직접 둠 | `JsonView` — 접기·색·복사가 같은 모습으로 나온다 |
 | `ContentPanel` 안에서 트리가 잘림 | `fill` 을 준다. `ContentPanel` 은 넘침을 숨기므로 스크롤은 `JsonView` 가 맡는다 |
 | 값 종류별 색을 화면 CSS 로 덮음 | 색은 의미 토큰으로 정해져 있다. 바꿔야 하면 shared 를 고친다(승인 뒤) |
+
+
+<!-- ===== cron-input.md ===== -->
+
+# CronInput
+
+반복 일정을 crontab 5칸 식(`분 시 일 월 요일`)으로 입력받을 때 쓴다. 「쉬운 설정」(반복 종류별 칸)과 「직접 입력」(다섯 칸)을 전환하고, 만들어진 식 한 줄·자주 쓰는 식 칩·일정 설명·다음 예정을 함께 보인다. 값은 늘 5칸 식 한 줄이다.
+
+- import: `import { CronInput, type CronInputProps, type CronPreview, describeCron, validateCron } from "@dk-oasis/shared/cron-input";` (CSS import 없음)
+- 소스: `src/frontend/shared/src/components/cron-input/` (`CronInput.tsx` 본체, `CronEasyEditor.tsx`·`CronDirectEditor.tsx` 두 입력 방식, `cron.ts` 순수 함수)
+- 내부 구현: 자체 구현. 모드 전환은 form `SegmentedControl`, 칸은 form `Input`·`Select`·`Checkbox`·`Button`, 식 복사는 [CopyTextButton](button.md).
+- Part B 허용 목록(§1): `cron-input` SHOULD.
+- 순수 함수(같은 import 경로): `parseCron`·`validateCron(expr, minGapMin?)`·`describeCron`·`runTimes`·`buildCron`·`toEasy`·`DEFAULT_EASY`·`CRON_PRESETS`·`formatWithDow`·`validateFieldText`.
+
+## 언제 쓰나
+
+- 쓴다: 예약 작업처럼 반복 일정을 식으로 정하는 화면.
+- 쓰지 않는다: 날짜·기간 하나를 고르는 입력 → [date-picker](date-picker.md)·[date-time-picker](date-time-picker.md).
+- 설명·다음 예정·최종 검사는 서버가 계산하는 값이 정본이다. 브라우저 계산(`cron.ts`)은 입력하는 동안 곧바로 오류를 보이기 위한 것이고, 시간대는 브라우저 시간대를 쓴다(서버 미리보기가 Asia/Seoul 정본).
+- 쉬운 설정이 식을 만들 수 없는 상태(요일을 하나도 고르지 않음 등)면 `onChange("")` 로 빈 글자를 올린다. 화면은 빈 값을 저장 불가로 취급해 저장 버튼을 막는다.
+- 쉬운 설정으로 나타낼 수 없는 식(`0 0 1 1 *` 등)을 받으면 직접 입력으로 열고 안내 문구를 보인다.
+- `value` 가 바깥에서 바뀌면(다른 작업을 고름 등) 입력 방식과 칸을 처음부터 다시 연다.
+- `data-testid`: `cron-mode`(입력 방식 전환)·`cron-expression`(만들어진 식)·`cron-error`·`cron-mode-notice`.
+
+## 표준 사용
+
+```tsx
+import { useCallback, useState } from "react";
+import { CronInput, type CronPreview } from "@dk-oasis/shared/cron-input";
+
+// 화면이 서버 cronPreview 를 부르고 결과를 preview 로 돌려준다.
+export function ScheduleField({ value, onChange, kind }: { value: string; onChange: (v: string) => void; kind: string }) {
+  const [preview, setPreview] = useState<CronPreview | null>(null);
+  const requestPreview = useCallback(async (expr: string) => {
+    setPreview(await jobSchedApi.cronPreview({ expr, jobKind: kind }));
+  }, [kind]);
+  return (
+    <CronInput
+      value={value}
+      onChange={(v) => { setPreview(null); onChange(v); }}
+      minGapMin={kind === "COLLECT" ? 5 : undefined}
+      preview={preview}
+      onRequestPreview={requestPreview}
+    />
+  );
+}
+```
+
+`onRequestPreview` 는 올바른 식이 400ms 멈추면 불린다. 식이 바뀌면 이전 `preview` 를 비워 다른 식의 설명이 남지 않게 한다.
+
+## Props
+
+| prop | 타입 | 기본 | 설명 |
+|---|---|---|---|
+| `value` | `string` | — | crontab 5칸 식. 비어 있으면 아직 정하지 않은 상태 |
+| `onChange` | `(value: string) => void` | — | 식이 바뀔 때. 쉬운 설정이 만들 수 없으면 `""` |
+| `disabled` | `boolean` | `false` | 모든 입력을 막는다 |
+| `minGapMin` | `number` | — | 실행 간격 하한(분). 더 짧은 식은 오류(수집 작업 5분·환율 60분) |
+| `preview` | `CronPreview \| null` | — | 서버가 계산한 `{ valid, error?, desc?, next?, minGapMin? }`. 없으면 브라우저 계산을 보인다. `valid:false` 면 `error` 를 오류로 보인다 |
+| `onRequestPreview` | `(expr: string) => void` | — | 올바른 식이 400ms 멈추면 부른다 |
+| `previewCount` | `number` | `5` | 보일 다음 예정 개수 |
+
+## 흔한 실수
+
+| 실수 | 바로잡기 |
+|---|---|
+| Spring 6칸 식(`0 0 2 * * *`)을 넣음 | 5칸만 받는다. `?`·`L`·`W`·`#` 도 거절한다 |
+| 일과 요일을 함께 제한한 식(`0 9 1 * 1`) | crontab 은 둘을 OR 로 읽는다. 이 입력은 거절하니 둘 중 하나를 `*` 로 둔다 |
+| 서버 미리보기를 받지 않고 브라우저 계산만 믿음 | `onRequestPreview` 로 서버 `cronPreview` 를 불러 `preview` 에 넣는다 |
+| 식이 바뀌어도 이전 `preview` 를 그대로 둠 | `onChange` 에서 `preview` 를 비운다 |
+| 빈 값(`""`)도 저장함 | 쉬운 설정이 만들 수 없을 때 빈 글자가 올라온다. 저장 검증에서 막는다 |
+
+
+<!-- ===== variable-table.md ===== -->
+
+# VariableTable
+
+이름·형식·값·설명 네 칸의 변수 목록을 편집하는 표다. 값에는 고정값이나 실행 변수(`:today` 등)를 쓰며, 표 아래에 쓸 수 있는 실행 변수 안내를 보인다. 업무 도메인을 모른다.
+
+- import: `import { VariableTable, type JobVarRow, RUNTIME_VARIABLES } from "@dk-oasis/shared/variable-table";`
+- 소스: `src/frontend/shared/src/components/variable-table/VariableTable.tsx` (`variables.ts` 에 형식·실행 변수·행 도우미)
+- 내부 구현: `mode="full"` 은 [EditableRowList](editable-row-list.md), `mode="valueOnly"` 는 [AgDataGrid](ag-data-grid.md)(값 칸만 편집)를 [GridPanel](grid-panel.md) 로 감싸 쓴다.
+- Part B 허용 목록(§1): `variable-table` SHOULD.
+- 같은 경로의 export: `VariableTableProps`·`JobVarRow`·`VariableType`·`RUNTIME_VARIABLES`·`VARIABLE_TYPE_LABEL`·`newVariableRow`·`normalizeVariableCell`.
+
+## 언제 쓰나
+
+- 쓴다: 이름·형식·값·설명 네 칸 변수 목록을 편집할 때(예약 작업의 변수).
+- 쓰지 않는다: 일반 목록 편집 → [editable-row-list](editable-row-list.md). 읽기 전용 표 → [ag-data-grid](ag-data-grid.md).
+- `mode="valueOnly"`: 코드로 정한 목록(행 추가·삭제·이름·형식 편집 없이 값만 고친다).
+- `runtimeVariables`: 값 칸 안내문을 교체한다. 기본 `RUNTIME_VARIABLES`(`:schedAt`·`:now`·`:today`·`:yesterday`·`:monthStart`·`:prevMonthStart`·`:prevRunAt`·`:jobId`·`:moduleCd`)는 서버가 선점 때 확정하는 이름과 같다.
+- 이름은 앞뒤 공백을 지우고 다른 칸은 입력 그대로 둔다(`normalizeVariableCell`). `valueOnly` 의 `disabled` 는 값 변경 통지를 막는다.
+
+## 표준 사용
+
+```tsx
+import { VariableTable, type JobVarRow } from "@dk-oasis/shared/variable-table";
+
+export function JobVariables({ rows, onChange, isCode }: { rows: JobVarRow[]; onChange: (r: JobVarRow[]) => void; isCode: boolean }) {
+  return (
+    <VariableTable
+      value={rows}
+      onChange={onChange}
+      mode={isCode ? "valueOnly" : "full"}
+      hint={isCode ? "변수 목록은 코드가 정합니다. 값만 고칩니다." : "쿼리에서는 :이름 으로 씁니다."}
+      idPrefix="job-variable"
+    />
+  );
+}
+```
+
+## Props
+
+| prop | 타입 | 기본 | 설명 |
+|---|---|---|---|
+| `value` | `JobVarRow[]` | — | `{ name, type: "STRING"\|"NUMBER"\|"DATE"\|"JSON", value, desc? }` 목록 |
+| `onChange` | `(rows: JobVarRow[]) => void` | — | 행이 바뀔 때 전체 목록 |
+| `mode` | `"full" \| "valueOnly"` | `"full"` | `valueOnly` 는 값만 편집 |
+| `disabled` | `boolean` | `false` | `valueOnly` 에서 값 변경을 막는다 |
+| `hint` | `ReactNode` | — | 표 아래 안내(유형마다 다른 쓰임) |
+| `runtimeVariables` | `{ name; desc }[]` | `RUNTIME_VARIABLES` | 값 칸에 쓸 실행 변수 안내 |
+| `title` | `string` | `"변수"` | 표 제목 |
+| `idPrefix` | `string` | `"job-variable"` | 그리드 ID·테스트 ID 접두어. 한 화면에 둘 이상이면 서로 다르게 준다 |
+
+## 흔한 실수
+
+| 실수 | 바로잡기 |
+|---|---|
+| 코드로 정한 변수를 `full` 로 열어 이름·형식을 고치게 함 | `mode="valueOnly"` |
+| 한 화면에 표를 둘 두면서 `idPrefix` 를 같게 둠 | 서로 다른 `idPrefix` |
+| 실행 변수 이름을 화면에서 따로 적음 | 기본 `RUNTIME_VARIABLES` 를 쓴다(서버 확정 이름과 같다) |
 
 
 <!-- ===== card.md ===== -->
