@@ -25,6 +25,7 @@ m-analog 화면 (log-viewer-page)
   시간범위(이진탐색) + 키워드 필터로 검색한다.
   - live: `dmes-{module}.log`
   - archive: `dmes-{module}.{yyyy-MM-dd}.{seq}.log`
+  - 예약 작업 로그(2026-10-08): 모든 모듈의 `@Scheduled` 실행 줄은 모듈 로그가 아니라 `logs/sch/dmes-sch.{yyyy-MM-dd}.0.log` 한 파일에 쓰며(여러 JVM 이 쓰는 prudent 모드라 live 이름 `dmes-sch.log` 가 없고 날짜 파일 하나뿐), 뷰어에는 모듈 `sch` 로 나온다.
 - 화면의 Module 드롭다운은 BE `/api/meta` 가 내려주는 `analog-express.modules` 설정값
   기반이다. **FE 는 모듈 추가 시 수정이 필요 없다.**
 
