@@ -88,6 +88,8 @@ const COLUMNS: GridColumn[] = [
 const DEFAULT_PAGE_SIZE = 50;
 const PAGE_SIZE_OPTIONS = [50, 100, 200];
 const GRID_HEIGHT = 320;
+/** 그리드가 표 위에 그리는 머리줄(그리드명·건수·설정 메뉴) 높이 — 숫자 height 는 표 높이라 고정 높이 상자(GRID_HEIGHT)에 맞추려면 뺀다. */
+const GRID_HEADER_HEIGHT = 34;
 const LOOKUP_PERSONALIZE: GridPersonalizeOptions = { sort: false };
 
 const FIELD_WRAP_STYLE: CSSProperties = { display: "flex", flexDirection: "column", gap: 4 };
@@ -337,7 +339,7 @@ export function LookupModal({
             columns={COLUMNS}
             data={rows as unknown as Record<string, unknown>[]}
             rowKey="code"
-            height={GRID_HEIGHT}
+            height={GRID_HEIGHT - GRID_HEADER_HEIGHT}
             highlightedRowKey={selected?.code ?? null}
             onRowClick={(row) => setSelected(row as unknown as LookupRow)}
             onRowDoubleClick={(row) => {

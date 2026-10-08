@@ -6,7 +6,7 @@
  * - 이 파일은 GridPanel.tsx ↔ AgDataGrid.tsx 순환을 만들지 않으려고 따로 둔다(AgDataGrid 는 이미 GridPanel 에서 GRID_TEMP_ID_FIELD 를 가져온다).
  * - tsup 여러 entry 에서 Context 가 둘로 갈리지 않게 globalThis 에 캐시한다(portal-shell/tab-page-context.ts 와 같은 방식).
  */
-import { createContext, useContext, type Context } from "react";
+import { createContext, createElement, useContext, type Context, type ReactNode } from "react";
 
 /**
  * 개인화가 켜졌거나 엑셀 출력이 켜진 그리드가 GridPanel 에 내주는 명령. 객체는 그리드가 사는 동안(켜짐 상태가 같은 동안)
@@ -121,4 +121,14 @@ export const GridPanelContext: Context<GridPanelRegistry | null> =
 /** 가장 가까운 GridPanel 의 등록부. GridPanel 안이 아니면 null. */
 export function useGridPanelRegistry(): GridPanelRegistry | null {
   return useContext(GridPanelContext);
+}
+
+/**
+ * GridPanel 등록부를 끊는 경계 — 자식 AgDataGrid 가 바깥 GridPanel 을 「내 GridPanel」 로 보지 않게 한다. DOM 을 더하지 않는다(Provider 한 겹).
+ * GridPanel 안에서 포털로 띄운 부품(대화 상자·떠 있는 창·상세 팝오버)은 React 트리로는 GridPanel 의 자손이라 등록부를 그대로 물려받는다 —
+ * 끊지 않으면 그 안의 그리드가 머리줄을 못 그리고(GridPanel 이 그려 준다고 오해), 바깥 GridPanel 의 건수·검색 칸·설정 메뉴 대상으로 등록해 버린다.
+ * 포털로 자식을 띄우는 shared 부품(Modal·FloatingPanel·DetailPopover)이 쓴다. 이 경계 안에 새 GridPanel 을 두면 그 GridPanel 이 다시 등록부를 내린다.
+ */
+export function GridPanelBoundary({ children }: { children?: ReactNode }) {
+  return createElement(GridPanelContext.Provider, { value: null }, children);
 }

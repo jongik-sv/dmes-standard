@@ -1010,7 +1010,8 @@ body > .ag-popup {
  * 스스로 머리줄을 그리는 AgDataGrid(GridPanel 밖) — GridPanel 과 같은 머리줄(grid-panel-header …)과 「걸린 조건」 칩 줄 아래에 표가 남은 높이를 채운다.
  * 바깥 상자가 테두리를 갖고 표 상자는 테두리를 걷는다(이중 테두리 없음). `.grid-panel`·`.grid-panel-content` 를 쓰지 않는다 —
  * AgDataGrid 가 `.grid-panel-content` 안인지로 자리(host)를 정하고, `.grid-panel` 의 `height:100%`·contain 은 height="auto" 와 맞지 않는다.
- * 높이(height)는 이 바깥 상자의 높이다: 표는 flex 로 남은 높이를 받는다(contain: strict 인 표 상자는 flex 가 준 크기를 쓴다).
+ * 높이: 생략·"100%" 는 이 바깥 상자가 부모를 채우고 표가 flex 로 남은 높이를 받는다(contain: strict 인 표 상자는 flex 가 준 크기를 쓴다).
+ * 숫자 height 는 표 높이다(GridPanel 안 그리드와 같은 뜻) — 바깥 상자는 내용 높이(auto)이고 머리줄·칩 줄이 그 위에 더해진다(--sized).
  */
 .cm-grid-with-header {
   display: flex;
@@ -1025,7 +1026,9 @@ body > .ag-popup {
   overflow: hidden;
   contain: strict;
 }
-.cm-grid-with-header.cm-grid-with-header--auto {
+/* contain: strict 의 크기 격리는 높이 auto 를 0 으로 만든다 — 내용 높이인 바깥 상자(auto·숫자 height)는 크기 격리를 뺀다. */
+.cm-grid-with-header.cm-grid-with-header--auto,
+.cm-grid-with-header.cm-grid-with-header--sized {
   contain: layout paint;
 }
 .cm-grid-with-header > .cm-data-grid,

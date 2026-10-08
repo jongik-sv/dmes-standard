@@ -14,6 +14,7 @@
 - 닫힘: 닫기 단추, Esc, 패널·트리거 밖을 누를 때. 한 번에 하나만 열린다(다른 트리거를 누르면 앞의 것은 바깥 누름으로 닫힌다).
 - 그리드 안에서 안전하다: 트리거의 click·dblclick·mousedown·Enter/Space 키를 **네이티브 단계에서** 끊어 ag-grid 의 행 선택·더블클릭·셀 편집 시작·열 끌기로 번지지 않는다. 패널은 portal 이라 React 트리로 트리거의 조상(머리 `onClick` 등)까지 올라가므로 패널의 React 이벤트도 끊는다.
 - 모달 안에서: 포커스가 패널 안에 있으면 Esc 는 팝오버만 닫고 모달은 닫지 않는다(패널 안 요소에 `data-mantine-stop-propagation` 을 단다 — Mantine Select 드롭다운과 같은 약속). 팝오버가 닫힌 뒤의 Esc 는 모달을 닫는다.
+- GridPanel 등록부를 끊는다(`GridPanelBoundary`) — GridPanel 안에서 연 팝오버 `content` 속 `AgDataGrid` 도 자기 머리줄을 그리고 바깥 GridPanel 의 건수·검색 칸·설정 메뉴 대상이 되지 않는다.
 - 층: z-index 9000 — Mantine 모달(200) 위, `MessageModal`(10000) 아래.
 
 ## 표준 사용

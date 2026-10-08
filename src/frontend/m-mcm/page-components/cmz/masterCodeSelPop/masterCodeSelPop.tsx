@@ -331,7 +331,7 @@ export function MasterCodeSelPopDialog({
           columns={GRID_COLUMNS}
           data={keyedRows}
           rowKey="__rowKey"
-          height={420}
+          height={386}
           highlightedRowKey={highlightedKey}
           onRowClick={(row) => {
             const r = row as unknown as MasterCodeRow;

@@ -410,7 +410,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
           columns={columns}
           data={data}
           rowKey="rowKey"
-          height={gridHeight}
+          height={gridHeight - 34}
           columnSizing="fixed"
           sortable={false}
           singleClickEdit

@@ -163,7 +163,7 @@ function VersionTable({ def, result }: { def: RuleEditView; result: ValueTestRes
           columns={columns}
           data={data}
           rowKey="rowKey"
-          height={height}
+          height={height - 34}
           columnSizing="fixed"
           sortable={false}
           getRowClassExtra={rowClassOf}

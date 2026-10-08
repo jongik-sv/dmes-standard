@@ -79,6 +79,7 @@ export function ServiceListButton({ rows }: { rows: ServiceRow[] }) {
 - 화면이 줄어 창이 밖으로 나가면 그릴 때 화면 안으로 자른다(저장값은 그대로라 화면이 다시 커지면 원래 자리로 돌아온다).
 - 포털 탭 안에서 쓰면 그 탭이 활성일 때만 보인다. 포털 셸은 탭을 숨기기만 하고 이 창은 body 에 포털되므로, 다른 탭이 활성화되면(`portal-tab-activated`) 창을 `display: none` 으로 숨기고(언마운트 아님) 자기 탭이 돌아오면 다시 보인다.
 - 서버 렌더에서는 `window`·`document` 를 건드리지 않는다(마운트 뒤에만 포털).
+- 포털로 뜨는 창은 GridPanel 등록부를 끊는다(`GridPanelBoundary`) — GridPanel 안에서 연 창 속 `AgDataGrid` 도 자기 머리줄을 그리고 바깥 GridPanel 의 건수·검색 칸·설정 메뉴 대상이 되지 않는다.
 - 순수 함수(`floating-panel-model.ts`, 같은 진입점에서 export): `parsePanelState`·`serializePanelState`·`clampPanelRect`·`defaultPanelRect`·`resolveInitialPanelState`·`floatingPanelStorageKey`. 단위 시험은 `tests/unit/floating-panel.unit.test.ts`.
 
 ## 흔한 실수

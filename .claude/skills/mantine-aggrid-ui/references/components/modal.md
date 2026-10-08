@@ -107,6 +107,7 @@ MessageModal (보통 `MessageProvider` 가 대신 띄운다)
 - footer 순서: 취소 → 실행(`variant="primary"`). 닫기만 있으면 "닫기" 하나.
 - 등록 폼 팝업 `size` 는 `md`. 실행 버튼은 처리 중 `disabled={isBusy}`.
 - 팝업 안의 목록도 `AgDataGrid`(행이 적으면 `height="auto"`), 입력은 상세 폼 표.
+- GridPanel 안에서 띄운 팝업이어도 안의 `AgDataGrid` 는 자기 머리줄(그리드명·건수·엑셀 메뉴)을 그린다 — Modal 이 GridPanel 등록부를 끊는다(`GridPanelBoundary`, DOM 추가 없음). 바깥 GridPanel 의 건수·검색 칸·설정 메뉴는 영향을 받지 않는다. 안의 숫자 `height` 는 표 높이이고 머리줄(약 30~34px)이 더해지니, 팝업 안 고정 높이 칸에 넣을 때는 숫자에서 뺀다.
 
 ## 흔한 실수
 

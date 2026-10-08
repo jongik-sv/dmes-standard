@@ -17,6 +17,9 @@ import { AgDataGrid, type AgDataGridProps, type GridColumn } from "../../src/com
 import { GridPanel } from "../../src/components/grid/GridPanel";
 import { GRID_QUICK_FILTER_DEBOUNCE_MS } from "../../src/components/grid/GridQuickFilter";
 import { buildFilterChips, describeFilterModel, shortenChipValue } from "../../src/components/grid/grid-filter-chips";
+import { Modal } from "../../src/components/modal";
+import { FloatingPanel } from "../../src/components/floating-panel";
+import { DetailPopover } from "../../src/components/detail-popover";
 import { renderWithMantine, rerender, type Rendered } from "./mantine-test-utils";
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
@@ -140,7 +143,9 @@ describe("머리줄 — GridPanel 안은 하나뿐, 밖은 스스로", () => {
     expect(gridBox().classList.contains("cm-grid-settings-on")).toBe(false);
     // GridPanel 안 그리드와 같은 규칙 — 검색 칸이 기본으로 보인다
     expect(tid("grid-quick-filter-input")).not.toBeNull();
-    expect(frame.style.height).toBe("300px");
+    // 숫자 height 는 표 높이 — 바깥 상자는 내용 높이이고 머리줄이 표 위에 더해진다(GridPanel 안 그리드와 같은 뜻)
+    expect(frame.style.height).toBe("auto");
+    expect(gridBox().style.height).toBe("300px");
     expect(frame.contains(gridBox())).toBe(true);
   });
 
@@ -221,10 +226,38 @@ describe("머리줄 — GridPanel 안은 하나뿐, 밖은 스스로", () => {
     expect(gridBox().querySelector(".ag-layout-normal")).not.toBeNull();
   });
 
+  it("숫자 height 는 표 높이이고 머리줄은 그 위에 더해진다 — 문자열 길이도 같고 100% 는 부모를 채운다", async () => {
+    await show(gridEl({ height: 300 }));
+    expect(tid("grid-with-header")!.style.height).toBe("auto");
+    expect(tid("grid-with-header")!.classList.contains("cm-grid-with-header--sized")).toBe(true);
+    expect(tid("grid-with-header")!.classList.contains("cm-grid-with-header--auto")).toBe(false);
+    expect(gridBox().style.height).toBe("300px");
+    expect(gridBox().style.flex).toBe("0 0 auto"); // flex: none — 바깥 상자가 줄어도 표 높이는 그대로
+    expect(gridBox().previousElementSibling!.classList.contains("grid-panel-header")).toBe(true);
+    await reset();
+    await show(gridEl({ height: "400px" }));
+    expect(tid("grid-with-header")!.style.height).toBe("auto");
+    expect(gridBox().style.height).toBe("400px");
+    await reset();
+    await show(gridEl({ height: "100%" }));
+    expect(tid("grid-with-header")!.style.height).toBe("100%");
+    expect(tid("grid-with-header")!.classList.contains("cm-grid-with-header--sized")).toBe(false);
+    expect(gridBox().style.height).toBe("");
+    expect(gridBox().style.flex).toContain("1 1 0");
+  });
+
+  it("GridPanel 안 그리드의 숫자 height 도 표 상자의 높이다(머리줄은 GridPanel 이 표 위에 따로 그린다)", async () => {
+    await show(panel(gridEl({ height: 300 })));
+    expect(gridBox().style.height).toBe("300px");
+    expect(gridBox().parentElement!.classList.contains("grid-panel-content")).toBe(true);
+  });
+
   it("excelExport 를 주면 아래 줄 [엑셀] 단추는 머리줄 메뉴가 맡고(단추 없음) 「N행」 줄은 남는다", async () => {
     await show(gridEl({ excelExport: {} }));
-    expect(tid("grid-with-header")!.style.height).toBe("300px");
-    expect(tid("grid-excel-frame")!.style.flex).toContain("1 1 0");
+    // 숫자 height 는 표 + 아래 줄 감싸개의 높이 — 바깥 상자(머리줄 + 감싸개)는 내용 높이다
+    expect(tid("grid-with-header")!.style.height).toBe("auto");
+    expect(tid("grid-excel-frame")!.style.height).toBe("300px");
+    expect(tid("grid-excel-frame")!.style.flex).toBe("");
     expect(tid("grid-foot-note")!.textContent).toBe("3행");
     expect(tid("grid-excel")).toBeNull();
     await openMenu();
@@ -254,6 +287,92 @@ describe("머리줄 — GridPanel 안은 하나뿐, 밖은 스스로", () => {
     expect(tid("grid-settings-menu")).toBeNull();
     await act(async () => root.unmount());
     host.remove();
+  });
+});
+
+/**
+ * GridPanel 안에서 포털로 띄운 부품(Modal·FloatingPanel·DetailPopover) 속 그리드 — React 트리로는 GridPanel 의 자손이지만 부품이 등록부를 끊어 준다.
+ * 바깥 GridPanel: 필터 생략 그리드(걸러 보기 대상 = 이 그리드). 부품 속 그리드는 filter={true} 라 끊기지 않았다면 GridPanel 의 걸러 보기 대상을 빼앗고 머리줄도 못 그린다.
+ */
+describe("GridPanel 안에서 띄운 포털 부품 속 그리드 — 등록부를 끊어 자기 머리줄을 그린다", () => {
+  const INNER_DATA = [
+    { code: "X", name: "대화 상자 행 하나", qty: 1 },
+    { code: "Y", name: "대화 상자 행 둘", qty: 2 },
+  ];
+  const innerGrid = () => gridEl({ title: "부품 속 목록", data: INNER_DATA, filter: true, height: 160 });
+  const outerGrid = () => gridEl({ title: "바깥 그리드" });
+  const portalRoot = (selector: string) => document.querySelector<HTMLElement>(selector)!;
+
+  /** 부품 속 그리드는 자기 머리줄을 그리고(제목·건수), 바깥 GridPanel 머리줄은 자기 그리드 기준으로 남는다. */
+  async function expectIsolated(partSelector: string) {
+    const part = portalRoot(partSelector);
+    expect(part).not.toBeNull();
+    // 부품 속 그리드: 스스로 그린 머리줄(제목·건수·엑셀 메뉴)이 있고, 대화 상자 판정(host=dialog)이 살아 있어 검색 칸·칩은 없다
+    const inner = part.querySelector<HTMLElement>('[data-testid="grid-with-header"]');
+    expect(inner).not.toBeNull();
+    expect(inner!.querySelector('[data-testid="grid-panel-title"]')!.textContent).toBe("부품 속 목록");
+    expect(inner!.querySelector('[data-testid="grid-panel-count"]')!.textContent).toBe("2건");
+    expect(inner!.querySelector('[data-testid="grid-quick-filter"]')).toBeNull();
+    expect(inner!.querySelector('[data-testid="grid-settings-menu"]')).not.toBeNull();
+    // 바깥 GridPanel 은 하나뿐인 자기 머리줄을 그대로 가진다 — 건수 3건, 설정 메뉴 하나(부품 속 그리드는 메뉴 대상으로 등록되지 않았다)
+    const outerPanel = document.querySelector<HTMLElement>(".grid-panel")!;
+    expect(outerPanel.contains(part)).toBe(false); // 포털이라 DOM 은 GridPanel 밖
+    expect(outerPanel.querySelector('[data-testid="grid-panel-title"]')!.textContent).toBe("목록");
+    expect(outerPanel.querySelector('[data-testid="grid-panel-count"]')!.textContent).toBe("3건");
+    expect(outerPanel.querySelectorAll('[data-testid="grid-settings-menu"]').length).toBe(1);
+    // 바깥 GridPanel 의 걸러 보기 대상은 바깥 그리드다 — 검색어를 넣으면 바깥 건수가 「2 / 3건」 이 되고 부품 속 건수는 그대로
+    expect(outerPanel.querySelector('[data-testid="grid-quick-filter-input"]')).not.toBeNull();
+    const input = outerPanel.querySelector<HTMLInputElement>('[data-testid="grid-quick-filter-input"]')!;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "부품");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await wait(GRID_QUICK_FILTER_DEBOUNCE_MS + 60);
+    expect(outerPanel.querySelector('[data-testid="grid-panel-filter-count"]')!.textContent).toBe("2 / 3건");
+    expect(inner!.querySelector('[data-testid="grid-panel-count"]')!.textContent).toBe("2건");
+    expect(inner!.querySelector('[data-testid="grid-panel-filter-count"]')).toBeNull();
+    // 바깥 칩 줄에는 바깥 조건만 보인다
+    expect(outerPanel.querySelectorAll('[data-testid="grid-filter-chip"]').length).toBe(1);
+    expect(inner!.querySelector('[data-testid="grid-filter-chip"]')).toBeNull();
+  }
+
+  it("Modal — 안 그리드가 자기 머리줄을 그리고 바깥 GridPanel 의 건수·검색 칸·메뉴 대상은 그대로다", async () => {
+    await show(
+      panel(createElement("div", { style: { height: 200 } }, outerGrid(), createElement(Modal, { open: true, title: "대화 상자" }, innerGrid()))),
+    );
+    await wait(300);
+    await expectIsolated('[role="dialog"]');
+  });
+
+  it("FloatingPanel — 같다", async () => {
+    await show(panel(createElement("div", { style: { height: 200 } }, outerGrid(), createElement(FloatingPanel, { open: true, title: "떠 있는 창", testId: "fp" }, innerGrid()))));
+    await wait(200);
+    await expectIsolated('[data-testid="fp"]');
+  });
+
+  it("DetailPopover — 같다", async () => {
+    await show(panel(createElement("div", { style: { height: 200 } }, outerGrid(), createElement(DetailPopover, { title: "상세", content: innerGrid() }))));
+    await act(async () => {
+      const t = document.querySelector<HTMLElement>('[data-testid="detail-popover-trigger"]')!;
+      t.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+      t.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+    await wait(200);
+    await expectIsolated('[data-testid="detail-popover-panel"]');
+  });
+
+  it("끊긴 경계 안에 새 GridPanel 을 두면 그 GridPanel 이 다시 자기 그리드를 맡는다(Modal 안 GridPanel)", async () => {
+    await show(
+      panel(
+        createElement("div", { style: { height: 200 } }, outerGrid(), createElement(Modal, { open: true, title: "대화 상자" }, createElement(GridPanel, { title: "대화 상자 GridPanel", count: 2 }, gridEl({ data: INNER_DATA })))),
+      ),
+    );
+    await wait(300);
+    const dlg = portalRoot('[role="dialog"]');
+    expect(dlg.querySelectorAll('[data-testid="grid-with-header"]').length).toBe(0); // 자기 GridPanel 이 머리줄을 그린다
+    expect(dlg.querySelector('[data-testid="grid-panel-title"]')!.textContent).toBe("대화 상자 GridPanel");
+    expect(dlg.querySelector('[data-testid="grid-panel-count"]')!.textContent).toBe("2건");
   });
 });
 

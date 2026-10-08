@@ -338,7 +338,7 @@ export function ColumnSettingsSection({ view, editable, runWrite, notify, setDir
           columns={columns}
           data={data}
           rowKey="rowKey"
-          height={gridHeight}
+          height={gridHeight - 34}
           columnSizing="fixed"
           sortable={false}
           singleClickEdit

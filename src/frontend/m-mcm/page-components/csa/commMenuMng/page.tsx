@@ -1285,7 +1285,7 @@ export default function CommMenuMngPage() {
               ]}
               data={lovRows.map((r, i) => ({ ...r, __k: `${r.OBJECT_ID ?? ""}-${i}` })) as unknown as Record<string, unknown>[]}
               rowKey="__k"
-              height={360}
+              height={326}
               highlightedRowKey={lovSelectedKey}
               onRowClick={(row) => setLovSelectedKey(String((row as { __k?: unknown }).__k ?? ""))}
               onRowDoubleClick={(row) => handleLovPick(row as unknown as CommMenuMngObjLovRow)}

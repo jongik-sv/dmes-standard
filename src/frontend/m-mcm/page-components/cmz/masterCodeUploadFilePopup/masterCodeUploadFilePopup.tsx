@@ -433,7 +433,7 @@ export function MasterCodeUploadFilePopupDialog({
             columns={GRID_COLS}
             data={gridData}
             rowKey="__idx"
-            height={320}
+            height={286}
             emptyMessage="파일선택 버튼으로 Excel 을 불러오세요."
             columnSizing="fit"
           />

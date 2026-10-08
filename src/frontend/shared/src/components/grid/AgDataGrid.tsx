@@ -134,7 +134,8 @@ function AgDataGridComponent({
   // DOM 을 봐야 알 수 있어 페인트 전에 한 번 정한다(null 인 첫 렌더에는 아이콘을 그리지 않아 깜빡이지 않는다).
   const gridPanelRegistry = useGridPanelRegistry();
   // 스스로 머리줄을 그리는가 — GridPanel 등록부(context)가 없고 header={false} 가 아닐 때. 렌더 중에 정해지고 마운트 뒤 바뀌지 않아(바깥 상자가 처음부터 있다) 그리드가 다시 마운트되지 않는다.
-  // GridPanel 안(등록부 있음)이면 GridPanel 머리줄이 이 그리드의 메뉴·검색 칸·건수·칩을 맡으므로 그리지 않는다. 포털로 GridPanel 아래에 뜬 대화 상자 안 그리드도 등록부가 있어 여기에 든다(예전 설정 아이콘).
+  // GridPanel 안(등록부 있음)이면 GridPanel 머리줄이 이 그리드의 메뉴·검색 칸·건수·칩을 맡으므로 그리지 않는다.
+  // GridPanel 안에서 포털로 띄운 대화 상자·떠 있는 창·상세 팝오버는 shared 부품(Modal·FloatingPanel·DetailPopover)이 등록부를 끊어 주므로(GridPanelBoundary) 그 안 그리드는 여기서 자기 머리줄을 그린다.
   const selfHeader = header !== false && gridPanelRegistry === null;
   const [host, setHost] = useState<"panel" | "dialog" | "standalone" | null>(null);
   useLayoutEffect(() => {
@@ -666,6 +667,10 @@ function AgDataGridComponent({
   }, [loading, gridReady, isDataEmpty, noRowsOverlayComponent]);
 
   const isAutoHeight = height === "auto";
+  // 스스로 머리줄을 그릴 때 `height` 의 뜻 — GridPanel 안 그리드와 같다: 숫자(또는 CSS 길이 문자열)는 표 높이이고 머리줄·걸린 조건 칩 줄은 그 위에 더해진다(바깥 상자는 내용 높이).
+  // 생략·"100%" 는 부모 높이를 채우고(머리줄을 뺀 나머지가 표), "auto" 는 머리줄 + 행 수만큼이다.
+  const isSizedTable = selfHeader && !isAutoHeight && !!height && height !== "100%";
+  const fillsParent = selfHeader && !isAutoHeight && !isSizedTable;
   const getExcelApi = useCallback(() => gridRef.current?.api, []);
   const headerTitleText = selfHeader && typeof title === "string" ? title : undefined;
   const getPanelTitle = useCallback(() => gridPanelRegistry?.getTitle() ?? headerTitleText, [gridPanelRegistry, headerTitleText]);
@@ -725,10 +730,15 @@ function AgDataGridComponent({
       ref={containerRef}
       className={`cm-data-grid ag-theme-alpine${showSettingsOverlay ? " cm-grid-settings-on" : ""}${isAutoHeight ? " cm-data-grid-auto-height" : ""}${isAutoHeight && sortedData.length === 0 ? " cm-data-grid-empty" : ""}${gridFilter.filterColumns && !gridFilter.rowOpen ? ` ${GRID_FILTER_ROW_CLOSED_CLASS}` : ""} ${className}`.trim()}
       style={
-        selfHeader && !isAutoHeight && !excelOptions
-          ? // 바깥 상자(머리줄 + 표)가 height 를 갖고 표는 남은 높이를 채운다.
+        fillsParent && !excelOptions
+          ? // 바깥 상자(머리줄 + 표)가 부모 높이를 채우고 표는 남은 높이를 채운다.
             { flex: "1 1 0", minHeight: 0, width: "100%" }
-          : { height: isAutoHeight ? "auto" : excelOptions ? "100%" : selfHeader ? undefined : height || "100%", width: "100%" }
+          : {
+              // 숫자 height 는 표 상자 높이 그대로(머리줄은 위에 더해진다). excelExport 가 있으면 감싸개가 그 높이를 갖고 표는 100% 다.
+              height: isAutoHeight ? "auto" : excelOptions ? "100%" : fillsParent ? undefined : height || "100%",
+              ...(isSizedTable && !excelOptions ? { flex: "none" } : null),
+              width: "100%",
+            }
       }
       aria-label={ariaLabel || "데이터 목록"}
       aria-busy={loading}
@@ -803,8 +813,8 @@ function AgDataGridComponent({
       options={excelOptions}
       data={data}
       onExcel={exportExcel}
-      height={selfHeader && !isAutoHeight ? undefined : height}
-      fill={selfHeader && !isAutoHeight}
+      height={fillsParent ? undefined : height}
+      fill={fillsParent}
       hideButton={isMenuTarget || showSettingsOverlay || headerMenuControls !== null}
     >
       {grid}
@@ -812,13 +822,14 @@ function AgDataGridComponent({
   ) : (
     grid
   );
-  // 스스로 머리줄을 그리면 바깥을 세로 flex 상자로 감싼다 — 머리줄(+ 걸린 조건 칩 줄) 아래를 표가 채운다. `height` 는 이 바깥 상자의 높이다.
+  // 스스로 머리줄을 그리면 바깥을 세로 flex 상자로 감싼다 — 머리줄(+ 걸린 조건 칩 줄) 아래에 표가 온다. 생략·"100%" 면 바깥 상자가 부모를 채우고 표가 남은 높이를 채운다.
+  // 숫자 `height` 면 바깥 상자는 내용 높이(auto)이고 표(excelExport 가 있으면 표 + 아래 줄 감싸개)가 그 높이를 갖는다 — 머리줄이 그 위에 더해진다.
   // 건수·검색 칸·메뉴·칩의 구독은 GridHeaderBar 안에 있어 그리드(AgGridReact)를 다시 그리지 않는다.
   const framed = selfHeader ? (
     <div
-      className={`cm-grid-with-header${isAutoHeight ? " cm-grid-with-header--auto" : ""}`}
+      className={`cm-grid-with-header${isAutoHeight ? " cm-grid-with-header--auto" : ""}${isSizedTable ? " cm-grid-with-header--sized" : ""}`}
       data-testid="grid-with-header"
-      style={{ height: isAutoHeight ? "auto" : height || "100%" }}
+      style={{ height: isAutoHeight || isSizedTable ? "auto" : "100%" }}
     >
       <GridHeaderBar title={title} count={sortedData.length} filterControls={headerFilterControls} menuControls={headerMenuControls} />
       {body}
