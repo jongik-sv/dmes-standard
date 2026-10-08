@@ -133,7 +133,11 @@ public final class CoreRbacSeeder extends SeedSupport {
                 //   ensurePermAllActions 가 덧붙인다. 사용자용 secWidget 의 resetTab·shareTab·searchUsers 는 AUTH_ONLY 라 넣지 않는다.
                 "loadDefaultTabs", "saveDefaultTab", "deleteDefaultTab", "reorderDefaultTabs",
                 // 2026-10-02 — MDM 캐시 관리(csa/mdmCacheMng) 재등록 버튼. 이미 시드된 DB 는 ensurePermAllActions 가 덧붙인다.
-                "reload"
+                "reload",
+                // 2026-10-08 — analog DB 뷰어(ADR-0002) REST 경유 action. BFF REST 신경로 규약의
+                //   permKey 가 `{objId}/{action}` = `dbViewer/query` 라 이 토큰이 없으면 SYSADMIN 도 403 이다.
+                //   (아래 코멘트 블록은 인자 열 끝이라 다음 토큰이 이어지도록 쉼표를 남긴다)
+                "query"
 
                 // ── 업무 모듈을 붙일 때 여기에 해당 모듈의 OASIS action 을 추가한다 ──────────────
                 // 본 목록은 PERM_ALL 의 PERMISSION_ACTION 이며, UserPermCache 가 콤마 분할해 PermKey

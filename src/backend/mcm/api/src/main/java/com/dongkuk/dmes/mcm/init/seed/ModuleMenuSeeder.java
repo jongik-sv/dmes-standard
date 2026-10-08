@@ -46,6 +46,29 @@ public final class ModuleMenuSeeder extends SeedSupport {
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
                 "VALUES ('SYSADMIN', 'logViewer', 'PERM_ALL'" + AUDIT_VALS + ")");
         log.info("[DataInitializer] ANALOG 로그 분석(anl) 메뉴 시드 — 폴더 2 + OBJECT 1 + 메뉴 leaf 1 + RBAC 1");
+
+        seedDbViewerMenu();
+    }
+
+    /**
+     * ANALOG DB 뷰어 메뉴/OBJECT/RBAC 시드 (ADR-0002, 2026-10-08).
+     *
+     * <p>읽기전용 오라클 테이블 브라우저(anl/dbViewer)의 포털 진입점 등록:
+     * OBJECT 1 + 메뉴 leaf 1(parent=anl, FULL_SEQ 4010200 = logViewer 다음) + SYSADMIN × PERM_ALL 1.
+     * componentPath = 'anl/dbViewer' (m-analog dist 페이지, ANALOG_STATIC_PAGES 등록).
+     * 모두 insert-if-absent 라 재기동해도 중복 행이 생기지 않는다.
+     */
+    public void seedDbViewerMenu() {
+        final String objId = "dbViewer";
+        insertMcmSecObjIfAbsent(objId, "DB 뷰어", "analog");
+        insertMcmSecMenuIfAbsent(objId, "001", "4010200", "DB 뷰어", "anl", objId);
+        insertIfAbsentComposite(
+                "TB_MCM_SEC_ROLE_MAPPING",
+                new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                new String[]{"SYSADMIN", objId,       "PERM_ALL"},
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                "VALUES ('SYSADMIN', '" + objId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+        log.info("[DataInitializer] ANALOG DB 뷰어(anl/dbViewer) 메뉴 시드 — OBJECT 1 + 메뉴 leaf 1 + RBAC(SYSADMIN 1)");
     }
 
     /**
