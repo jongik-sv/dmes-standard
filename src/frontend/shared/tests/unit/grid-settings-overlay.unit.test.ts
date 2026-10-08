@@ -245,7 +245,8 @@ describe("GridPanel 머리줄 순서 — 그리드 설정 아이콘이 늘 맨 �
     );
     const actions = document.querySelector(".grid-panel-header-actions")!;
     const kids = [...actions.children].map((el) => el.className);
-    expect(kids).toEqual(["grid-panel-buttons", "grid-panel-header-extra", "grid-panel-settings-slot"]);
+    // 빠른 검색 칸은 기본으로 보이고 업무 버튼 앞에 놓인다 — 설정 아이콘 칸이 마지막인 규칙은 그대로다.
+    expect(kids).toEqual(["grid-quick-filter", "grid-panel-buttons", "grid-panel-header-extra", "grid-panel-settings-slot"]);
     const order = [...document.querySelectorAll("#b1, #b2, [data-testid='extra'], [data-testid='grid-settings-menu']")].map(
       (el) => el.getAttribute("data-testid") ?? el.id,
     );

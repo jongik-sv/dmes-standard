@@ -186,6 +186,7 @@ describe("GridPanel 「그리드 설정」 메뉴의 [컬럼 설정…]", () => 
     expect(ids).toEqual(["btn_grid_add", "btn_x"]);
     const actions = document.querySelector(".grid-panel-header-actions")!;
     expect(Array.from(actions.children).map((e) => e.className)).toEqual([
+      "grid-quick-filter", // 빠른 검색 칸은 기본으로 보이고 업무 버튼 앞에 놓인다
       "grid-panel-buttons",
       "grid-panel-header-extra",
       "grid-panel-settings-slot",
