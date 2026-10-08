@@ -26,6 +26,7 @@
   18. 「모듈쪽 서비스 실행 로그는 모듈에 있어야 한다.」: 모듈에서 실행한 서비스의 로그는 그 모듈의 업무 로그에 남는다. sch 로그 파일에는 MCM 의 판정·선점·호출 로그만 간다(§4.8).
   19. 「OASIS에서는 서비스에서 서브서비스를 호출할 수 있다는 점을 명심해」 「다른 서비스를 함수처럼 호출하는거야. 그러니 몇번을 감싸도 된다는 말이야」: 작업 정의의 실체는 **서비스 ID + 입력**이다. 유형별 동작은 내장 서비스로 두고 BPMN 에서 서브서비스로 엮을 수 있다(§5).
   20. 「이러면 모듈별 정의 버전이 필요 없지?」(조정자 답: 필요 없다) → `TB_MCM_JOB_VER` 를 없앤다(§4.6). 「같은 말인데 다르게 표현했네」 → 코드 실행과 일반 클래스 실행은 같은 유형이다(§5.2). 「최대한 수정이 적은 쪽으로 해. 기존 것이 있으면 활용하자.」 → HTTP·PURGE 를 새 유형으로 만들지 않고 기존 코드를 재사용한다(§5.1·§6.1). 「알아서 정해줘」(모듈별 호출 주소) → 기존 `<모듈>_WAS_URL` 환경 변수 관례를 재사용한다(§4.7).
+  21. 「A 안으로 하고」(조정자 전달, MCM 여러 대 캐시): **저장한 MCM 이 다른 MCM 의 캐시를 즉시 비운다**(`/internal/job/cache/evict`). 5분 재적재는 안전망으로 남긴다(§4.6).
 - Spring 스케줄러의 역할: MCM 의 `TaskScheduler` 는 매분 깨우는 시계로만 쓴다. 어떤 작업을 언제 돌릴지는 작업 정의 테이블이 정한다.
 
 ## 1. 지금 상태(조사 결과)
@@ -57,11 +58,12 @@
 
 ```
 [MCM 앱] ─ JOB 표 3개(MCMAPUSER)에 닿는 유일한 앱
-   ├ JobDefCache : Map<모듈 키, ModuleDefs> — 지연 적재, 저장한 인스턴스는 즉시 갱신, 그 밖은 5분마다 다시 읽음
+   ├ JobDefCache : Map<모듈 키, ModuleDefs> — 지연 적재, 저장 커밋 뒤 자기 캐시 갱신 + 다른 MCM 에 evict 알림, 5분 재적재는 안전망
    ├ JobScheduler: 매분 0초 깨어나 캐시로 「지금 할 것」 판정 → 없으면 DB 0회
    │               있으면 FOR UPDATE SKIP LOCKED 선점(RUN INSERT·NEXT_RUN_AT 올림·커밋)
    │               커밋 뒤 호출 풀에서 그 모듈의 POST /internal/job/run 호출(비동기 접수)
-   ├ 서버 간 API(MCM 앱): POST /internal/job/result(실행 이력 보고), POST /internal/job/register(코드 작업 등록)
+   ├ 서버 간 API(MCM 앱): POST /internal/job/result(실행 이력 보고), POST /internal/job/register(코드 작업 등록),
+   │                      POST /internal/job/cache/evict(다른 MCM 이 저장했음 — 그 키 캐시 비움)
    └ 관리 화면 OASIS 서비스 jobSchedMng(「지금 실행」도 바로 호출)
 
 [각 모듈 앱(MCM 포함), 서버 N대]
@@ -202,6 +204,7 @@ SELECT JOB_ID, MODULE_CD, SERVICE_ID, ACTION, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_A
 - **MCM 은 /run 호출을 재시도하지 않는다.** 읽기 시간 초과를 FAIL 로 바꾸면, 모듈이 실제로 접수해 끝낸 OK 보고가 `WHERE STATUS='RUN'` 에서 0행이 되어 돈 작업이 FAIL 로 남는다. 그래서 확실한 거절만 그 자리에서 닫는다.
 - 모듈 서버가 여러 대이면 base-url 은 LB 주소다. LB 가 고른 서버의 풀이 가득이면 다른 서버가 비어 있어도 그 회차는 `SKIP` 이다(LB 는 라운드 로빈 권장).
 - **운영 요건: LB 는 `/internal/job/run` 을 다른 서버로 재시도하지 않는다**(nginx `proxy_next_upstream off` 등). 모듈의 최근 runId 맵은 서버마다 따로라 같은 서버 안의 중복만 막는다. LB 가 실패한 POST 를 다른 서버로 다시 보내면 같은 회차가 두 서버에서 돈다.
+- **운영 요건: `dmes.job.mcm-peers` 에 MCM 서버 개별 주소를 적는다**(LB 주소 아님, §4.6).
 - MCM 앱 자신의 작업은 `LocalJobRunGateway` 로 접수 서비스를 같은 프로세스에서 직접 부른다(HTTP 없음). 실행은 접수 쪽 실행 풀 스레드에서 돌므로 틱의 sch 태그를 물려받지 않는다.
 
 ### 4.4 모듈 쪽 접수와 예약 실행 진입점
@@ -259,12 +262,22 @@ SELECT JOB_ID, MODULE_CD, SERVICE_ID, ACTION, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_A
 
 - 캐시는 **모듈 키(`MCM`·`MDM`·`MLS`·`MPP`·`MQC`·`MPN`)를 키로 하는 맵**이다: `Map<JobModule, ModuleDefs(적재 시각, 정의 요약 목록)>`. 요약은 `JOB_ID·USE_YN·NEXT_RUN_AT·JOB_KIND` 만 들고, 실행에 쓰는 값은 선점 때 DB 에서 읽는다.
 - 지연 적재: 틱이나 화면이 그 키를 처음 쓸 때 읽는다.
-- 화면에서 저장·사용 변경·삭제하면 커밋 뒤 **그 인스턴스의 그 키를 바로 다시 읽는다.**
-- MCM 이 여러 대일 때 다른 인스턴스는 **5분마다** 모든 키를 다시 읽는다(한 쿼리, 정의 수만큼 행). 버전 표는 두지 않는다. 근거:
+- **저장한 MCM**: 화면에서 저장·사용 변경·삭제하면 **커밋 뒤** 자기 캐시의 그 키를 비우고(세대 +1) 다른 MCM 에 알린다(아래). 커밋 전에 비우면 같은 순간 다른 스레드가 옛 값을 다시 적재할 수 있고, 롤백되면 비울 이유가 없다.
+- **다른 MCM 에 즉시 알림(사용자 결정 21, A 안)**
+  - 설정 `dmes.job.mcm-peers`: MCM 서버 **개별 주소** 목록(LB 주소 아님). 로컬은 비운다(MCM 한 대). 운영은 자리만 둔다.
+  - 저장 서비스는 이벤트(`JobDefChanged{module}`)만 발행하고, `@TransactionalEventListener(phase = AFTER_COMMIT)` 가 **커밋 뒤에** 자기 캐시를 비우고 각 peer 에 `POST /internal/job/cache/evict {module}` 을 부른다. 커밋 전에 부르면 상대가 옛 값을 다시 읽는다. 저장 트랜잭션이 롤백되면 부르지 않는다. 화면 저장은 OASIS 서비스 트랜잭션(`SpringTransactionHandler` 가 `PlatformTransactionManager.getTransaction` 으로 엶) 안이라 Spring 트랜잭션 동기화가 살아 있어 AFTER_COMMIT 이 동작한다. 구현 때 시험으로 확인한다.
+  - 호출은 비동기(호출 풀)이고 시간 초과는 연결 1초·읽기 2초다. 실패하면 WARN 한 줄만 남기고 저장은 성공으로 둔다. 재시도하지 않는다(안전망이 5분 안에 맞춘다).
+  - 자기 주소는 건너뛴다: peer 주소의 포트가 `server.port` 와 같고 호스트가 이 서버의 이름·로컬 주소 중 하나면 자기다. 판정이 빗나가 자기에게 보내도 해롭지 않다(한 번 더 읽을 뿐).
+  - 인증은 다른 서버 간 API 와 같다(ClientKey + `system:mcm` 주체, §4.10).
+  - 받은 MCM 은 그 키를 비운다. 다음 틱이나 화면 요청에서 지연 적재로 다시 읽는다.
+- **적재 경합 방지(세대 번호)**: 캐시는 키마다 세대 번호를 두고 비울 때 올린다. 적재는 시작할 때 세대를 기억하고, DB 를 다 읽은 뒤 세대가 바뀌었으면 결과를 버리고 다시 읽는다(최대 3번, 그래도 바뀌면 이번엔 넣지 않고 다음 요청에 맡긴다). 그래서 「적재 시작 → 다른 MCM 저장·evict → 옛 값으로 적재 끝」 순서여도 옛 값이 남지 않는다. cactus-core `MdmMetaCache` 의 `Ticket`(시작 세대와 비교해 넣지 않음)과 같은 생각이다.
+- **5분 재적재는 안전망으로 남긴다**(모든 키를 한 쿼리로). 알림을 놓친 경우(순간 네트워크 오류·GC 멈춤·응답 지연·peer 목록 누락)에도 5분 안에 맞는다.
+- **꺼져 있던 MCM**: 재기동하면 캐시가 비어 있어 DB 에서 새로 읽는다. 꺼져 있는 동안 못 받은 알림은 문제가 되지 않는다.
+- 알림이 늦거나 빠져도 잘못 실행하지는 않는다:
   - 사용 안 함·일정 변경·삭제: 낡은 캐시가 후보로 골라도 선점 SQL 의 `USE_YN='Y' AND NEXT_RUN_AT <= now` 가 걸러 낸다. 잡히지 않은 후보는 바로 다시 읽어 캐시를 맞춘다(§4.1-5).
   - 서비스 ID·설정·변수 변경: 호출 값은 잠근 행에서 읽으므로 낡은 캐시와 관계없다.
-  - 새 작업·일정을 앞당김: 저장한 인스턴스는 즉시 알고, 그 인스턴스도 매분 틱을 돌므로 제때 선점한다. 빈틈은 「저장한 인스턴스가 그 직후 꺼진 경우」뿐이고, 다른 인스턴스가 5분 안에 알아챈다. 그 사이 회차는 늦은 회차로 `SKIP` 1건이 남을 수 있다.
-  - 「지금 실행」은 캐시를 거치지 않는다(§4.9).
+  - 새 작업·일정을 앞당김: 저장한 MCM 이 즉시 알고 자기도 매분 틱을 돈다. 다른 MCM 은 알림으로 바로, 알림을 놓치면 5분 안에 안다.
+- 「지금 실행」은 캐시를 거치지 않는다(§4.9).
 - SQL 로 정의를 직접 고쳤다면 최대 5분 뒤(또는 MCM 재기동 때) 반영된다.
 - JOB 표가 없거나 DB 에 닿지 않아도 MCM 기동은 실패하지 않는다. WARN 한 번 남기고 다음 틱에 다시 시도한다.
 - **정리**(`mcm.jobRunSweep`, MCM 코드 작업, 5분마다): `RUN` 이고 `STARTED_AT + TIMEOUT_SEC + 900초 < DB_NOW` → `TIMEOUT`("결과 보고 없음"). 여유 900초 = 모듈 재전송 창 600초 + 호출 풀·실행 풀 대기 상한 약 300초(`STARTED_AT` 은 선점 시각이라 실제 시작보다 이르다). 재시도 설정이 있는 회차는 MCM 이 INSERT 할 때 `TIMEOUT_SEC` 을 (timeoutSec + count × (timeoutSec + intervalMin 분))으로 기록한다.
@@ -274,6 +287,7 @@ SELECT JOB_ID, MODULE_CD, SERVICE_ID, ACTION, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_A
 
 - 앱의 모듈 키는 `dmes.job.module`(비어 있으면 `spring.application.name` 의 첫 `-` 앞부분을 대문자로)이다.
 - `dmes.job.agent.enabled`(기본 true): false 면 그 앱은 `/internal/job/run` 을 404 로 답한다.
+- `dmes.job.mcm-peers`: 다른 MCM 서버 개별 주소 목록(§4.6). 로컬은 비움, 운영은 자리만.
 - `dmes.job.server.enabled`: MCM 앱의 `application.yml` 에서만 true. JOB 표·캐시·스케줄러·API·화면 서비스 빈은 이 값이 true 일 때만 만든다.
 - **MCM → 모듈 호출 주소**(사용자 「알아서 정해줘」 → 조정자 결정): 백엔드에는 모듈 간 호출 주소를 모아 둔 설정이 없다. 있는 것은 `cactus.mdm.base-url: ${MDM_WAS_URL:http://localhost:8096}`(MDM 하나)와 포털 BFF 의 `<모듈>_WAS_URL` 환경 변수 관례다. BFF 는 사용자 세션을 거쳐 `/api/…` 로만 전달하므로 서버 간 호출에 쓸 수 없다. 그래서 MCM `application.yml` 에 새 자리를 두되 **환경 변수 이름은 기존 관례를 재사용한다.**
 
@@ -320,6 +334,7 @@ dmes:
 |---|---|---|---|---|
 | `POST /internal/job/run` | 6개 모듈 앱 | MCM(`system:mcm`) | §4.3 | 202·200·404·409·503 |
 | `POST /internal/job/result` | MCM | 각 모듈(`system:<모듈>`) | §4.5 | `{applied, reason?}` |
+| `POST /internal/job/cache/evict` | MCM | 다른 MCM(`system:mcm`) | `{module}` | 204 |
 | `POST /internal/job/register` | MCM | 각 모듈(`system:<모듈>`) | `{module, jobs:[{id, name, defaultCron, timeoutSec, vars, desc}]}` | `{inserted:n}` |
 
 - 보안
@@ -470,14 +485,15 @@ public interface ScheduledJob {
 
 ## 9. 시험
 
-- 단위: crontab 식 검사·다음 예정 계산·간격 하한, 변수 확정(자정 23:59:59 선점에도 `:today` 가 SCHED_AT 날짜), 유형별 입력 검사(QUERY 문장 검사), 늦은 회차 판정, 모듈 키 캐시(후보 없는 틱 SQL 0회, 저장 뒤 그 키만 다시 적재, 5분 재적재), 실행 기록 상태 전이, 코드 작업 등록(없을 때만, 모듈 키가 다르면 등록 안 함).
+- 단위: 캐시 세대 번호(적재 중 비움 → 결과 버림), crontab 식 검사·다음 예정 계산·간격 하한, 변수 확정(자정 23:59:59 선점에도 `:today` 가 SCHED_AT 날짜), 유형별 입력 검사(QUERY 문장 검사), 늦은 회차 판정, 모듈 키 캐시(후보 없는 틱 SQL 0회, 저장 뒤 그 키만 다시 적재, 5분 재적재), 실행 기록 상태 전이, 코드 작업 등록(없을 때만, 모듈 키가 다르면 등록 안 함).
 - 통합(레인 전용 PDB, `pdb.mjs clone`)
   - **MCM 인스턴스 둘(서로 다른 연결·각자 캐시)이 같은 분에 선점 경합** → 한 회차는 한 번만 RUN. SKIP LOCKED 는 모의 객체로 재현할 수 없어 실제 Oracle 로 한다.
-  - 낡은 캐시: 인스턴스 A 가 사용 안 함으로 저장한 뒤 B 의 틱은 잡지 않음. A 가 설정을 바꾼 뒤 B 가 잡은 회차는 새 설정으로 호출.
+  - evict: A 저장 커밋 뒤 B 의 그 키가 비워짐(롤백이면 호출 없음), peer 가 꺼져 있어도 저장 성공·WARN 1줄, 자기 주소 건너뜀. 세대 경합: B 적재 도중 evict 가 오면 적재 결과를 버리고 새 값으로 다시 읽음.
+  - 낡은 캐시(알림 놓침): 인스턴스 A 가 사용 안 함으로 저장한 뒤 B 의 틱은 잡지 않음. A 가 설정을 바꾼 뒤 B 가 잡은 회차는 새 설정으로 호출.
   - 호출 응답별 처리(가짜 모듈 HTTP): 202 → SERVER_NM 만, 503 → SKIP, 404 → FAIL, 연결 거부 → FAIL, **읽기 시간 초과 → RUN 유지**, 재시도 없음.
   - 결과 보고 경합: 접수 응답보다 결과 보고가 먼저 와도 최종 STATUS 는 보고 값. 같은 보고 두 번 → 한 번만 반영·두 번째도 성공. 정리가 TIMEOUT 으로 닫은 뒤 온 보고는 덮어쓰지 않음. 수집 값은 한 번만 저장.
   - 정리(여유 900초), 늦은 회차 SKIP, 한 틱 후보 120건(50개씩 되풀이·SKIP 없음), FAIL 보고의 수집 값 저장 안 함, 겹침 SKIP, 「지금 실행」이 일정 회차와 겹치면 거절.
-  - 보안: `/internal/job/*` 키 없음 401, 사용자 주체 403, 다른 모듈 주체 403(`result`), `system:mcm` 아닌 주체의 `/run` 403.
+  - 보안: `/internal/job/*` 키 없음 401, `cache/evict` 를 모듈 주체로 부르면 403, 사용자 주체 403, 다른 모듈 주체 403(`result`), `system:mcm` 아닌 주체의 `/run` 403.
 - 모듈 쪽: 진입점 — 대상 서비스 SUCCESS → OK 보고 1회, 실패 → FAIL(원문 메시지 없음), 시간 초과 → TIMEOUT 보고 1회·늦은 완료·인터럽트 FAIL 은 보고 안 함, 마감 직전 완료와 감시 경합에서 보고 1회, 재시도(1회차 FAIL → 대기 → 2회차 OK)가 TIMEOUT 되지 않고 건수가 쌓이지 않음, `Error` → FAIL, **서브서비스 3겹(사용자 BPMN → 내장 → 업무)에서도 보고 1회**, 진입점 재진입은 거절(바깥 회차는 그대로 OK), 내장 서비스를 웹 경로(`OasisController`)로 부르면 거절, `createNewService` 로 부르면 거절. 접수 — 중복 runId 200, 풀 가득 503, 처리기 없음 404. 보고 재전송 대기열(5초·15초·1분, 10분 뒤 버림). 진입점 실행 로그가 sch 가 아닌 업무 로그 태그(serviceId 가 `sch.` 아님)로 남는지.
 - 다른 모듈 앱 기동 시험: mdm 앱 하나를 MCM 이 꺼진 상태로 띄워 기동이 실패하지 않고 WARN 1회만 남기는지 확인한다.
 - 기존 시험: 위젯 collect 시험은 유형과 함께 지운다. 원천 시험은 새 패키지로 옮긴다. `ScreenUsageRollupTest` 등은 공개 메서드 그대로라 유지한다.
@@ -516,9 +532,9 @@ public interface ScheduledJob {
 | D14 | MCM 표에 닿는 길 | **폐기**(결정 15). JOB 표에는 MCM 만 닿음 |
 | D15 | 모듈 claim 방식 | **폐기**(사용자 결정 16). §12 |
 | D16 | 실행 방식 | **사용자 확정**(결정 16): MCM 이 판정·선점 → 모듈 `/internal/job/run` 비동기 접수 → 진입점이 실행·보고 |
-| D17 | MCM 여러 대 캐시 맞추기 | 버전 표 없음(결정 20). 저장한 인스턴스 즉시, 다른 인스턴스 5분 재적재. 선점 SQL·잠근 행 읽기가 정확성을 지킴 |
+| D17 | MCM 여러 대 캐시 맞추기 | **변경(사용자 결정 21, A 안)**: 버전 표 없음. 저장 커밋 뒤(AFTER_COMMIT) `dmes.job.mcm-peers` 각각에 `/internal/job/cache/evict` 비동기 호출(2초, 실패 WARN), 세대 번호로 적재 경합 방지, 5분 재적재는 안전망 |
 | D18 | 호출 실패 처리 | 확실한 거절만 즉시 FAIL/SKIP, 읽기 시간 초과·5xx 는 RUN 유지, MCM 재시도 없음 / 보고 재전송 5초·15초·1분·10분 뒤 버림 / 정리 여유 900초 / LB 는 /run 을 다른 서버로 재시도하지 않음(운영 요건) |
-| D19 | 서버 간 API 경로·인증 | `/internal/job/{run,result,register}`(BFF 미경유) + ClientKey + system 주체·SYSTEM 역할 + 모듈 일치 |
+| D19 | 서버 간 API 경로·인증 | `/internal/job/{run,result,register,cache/evict}`(BFF 미경유) + ClientKey + system 주체·SYSTEM 역할 + 모듈 일치 |
 | D20 | 「지금 실행」 | 받은 MCM 이 바로 RUN INSERT·호출(몇 초). `REQ` 상태 없음 |
 | D21 | 진입점 위치 | cactus-core 새 패키지 `job`(DMOM 수신과 같은 층, 기존 클래스 변경 없음). 접수·보고·내장 서비스는 mcm-core |
 | D22 | 실행 유형 | 서비스 ID + 입력. 화면 유형 4개(CODE·BPMN·QUERY·COLLECT). 코드 실행 = 일반 클래스 실행(등록된 빈만). HTTP 는 수집 `save:false`, PURGE 는 코드 작업으로 |
