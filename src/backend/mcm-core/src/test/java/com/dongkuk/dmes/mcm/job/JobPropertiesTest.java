@@ -4,11 +4,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Configuration;
 
 class JobPropertiesTest {
 
-    private final ApplicationContextRunner runner = new ApplicationContextRunner().withUserConfiguration(JobConfig.class);
+    /** 설정 바인딩만 본다 — {@link JobConfig} 가 얹는 에이전트·내장 서비스·판정 빈은 모듈 판정·DataSource 가 필요해 이 시험의 대상이 아니다. */
+    @Configuration(proxyBeanMethods = false)
+    @EnableConfigurationProperties(JobProperties.class)
+    static class PropertiesOnly {
+    }
+
+    private final ApplicationContextRunner runner = new ApplicationContextRunner().withUserConfiguration(PropertiesOnly.class);
 
     @Test
     @DisplayName("기본값 — agent 켜짐, server 꺼짐(배치 50), 스키마 MCMAPUSER, 풀 4, collect 켜짐, 허용 호스트 없음")
