@@ -94,6 +94,7 @@ export function SampleMessagePanel({ items, values, onChange, result, busy, canR
           )}
           <div data-testid="sample-segments" style={{ marginTop: "var(--spacing-sm)" }}>
             <AgDataGrid gridId="sampleSegments"
+              title="구간 목록"
               columnSizing="fit"
               columns={SEGMENT_COLUMNS}
               data={segments as unknown as Record<string, unknown>[]}

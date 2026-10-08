@@ -151,11 +151,13 @@ interface AgDataGridExcelFrameProps {
   height?: string | number;
   /** 아래 줄 [엑셀] 단추를 뺀다 — GridPanel 설정 메뉴가 대신할 때. */
   hideButton?: boolean;
+  /** 높이를 숫자·% 로 정하지 않고 부모(세로 flex 상자)의 남은 높이를 채운다 — 그리드가 스스로 머리줄을 그릴 때. `height` 는 무시한다. */
+  fill?: boolean;
   children: ReactNode;
 }
 
 /** 바깥을 세로 flex 로 감싸 그리드가 남은 높이를 채우고, 아래 줄(GridExcelFoot)이 바닥에 붙게 한다. */
-export function AgDataGridExcelFrame({ options, data, onExcel, height, hideButton, children }: AgDataGridExcelFrameProps) {
+export function AgDataGridExcelFrame({ options, data, onExcel, height, hideButton, fill, children }: AgDataGridExcelFrameProps) {
   const { note, testId } = options;
   const isAuto = height === "auto";
 
@@ -167,7 +169,7 @@ export function AgDataGridExcelFrame({ options, data, onExcel, height, hideButto
       <div
         className={`cm-grid-excel${isAuto ? " cm-grid-excel--auto" : ""}`}
         data-testid="grid-excel-frame"
-        style={{ height: isAuto ? "auto" : height || "100%" }}
+        style={fill ? { flex: "1 1 0", minHeight: 0 } : { height: isAuto ? "auto" : height || "100%" }}
       >
         <div className="cm-grid-excel__grow">{children}</div>
         <GridExcelFoot

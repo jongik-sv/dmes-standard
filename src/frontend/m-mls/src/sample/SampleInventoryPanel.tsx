@@ -36,6 +36,7 @@ export function SampleInventoryPanel({ title = "샘플 재고 화면" }: SampleI
       <ContentBody root>
         <ContentPanel>
           <AgDataGrid
+            title="재고 항목 목록"
             columns={COLUMNS}
             data={SAMPLE_ROWS}
             rowKey="code"

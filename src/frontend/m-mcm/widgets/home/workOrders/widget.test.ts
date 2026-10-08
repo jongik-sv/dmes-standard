@@ -115,12 +115,11 @@ describe("작업 지시 위젯 — 표", () => {
 });
 
 describe("작업 지시 위젯 — excelExport", () => {
-  it("제목·기본 이름(작업지시)·아래 줄 글(「N건」, 천 단위 쉼표)·단추 testId(wq-excel)를 그리드에 넘긴다", async () => {
+  it("제목·기본 이름(작업지시)·단추 testId(wq-excel)를 그리드에 넘긴다", async () => {
     await renderWidget(await loadWidget());
     expect(h.grid.current!.excelExport).toEqual({
       title: "금일 작업지시 현황",
       fallbackName: "작업지시",
-      note: `${SAMPLE_WORK_ORDERS.length.toLocaleString()}건`,
       testId: "wq-excel",
     });
   });
@@ -149,7 +148,7 @@ describe("작업 지시 위젯 — 0건", () => {
     vi.resetModules();
   });
 
-  it("행이 없으면 「0건」을 넘기고 표 행도 0이다(단추 비활성은 그리드가 맡는다)", async () => {
+  it("행이 없으면 표 행도 0이다(단추 비활성은 그리드가 맡는다)", async () => {
     vi.resetModules();
     vi.doMock("@/page-components/home/sample-data", async (importOriginal) => ({
       ...(await importOriginal<typeof import("@/page-components/home/sample-data")>()),
@@ -157,6 +156,6 @@ describe("작업 지시 위젯 — 0건", () => {
     }));
     await renderWidget(await loadWidget());
     expect(h.grid.current!.data).toHaveLength(0);
-    expect(h.grid.current!.excelExport?.note).toBe("0건");
+    expect(h.grid.current!.excelExport?.note).toBeUndefined();
   });
 });

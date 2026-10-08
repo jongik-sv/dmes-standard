@@ -8,10 +8,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 
-// 그리드 자체는 그리지 않는다 — 안내 띠는 그리드와 무관하다.
+// 그리드 자체는 그리지 않는다 — 안내 띠는 그리드와 무관하다. 다만 layoutConfirm 은 안내를 그리드 머리줄(titleExtra)에 넣으므로 titleExtra 만 그린다.
 vi.mock("@dk-oasis/shared/grid", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@dk-oasis/shared/grid")>();
-  return { ...actual, AgDataGrid: () => null };
+  return { ...actual, AgDataGrid: ({ titleExtra }: { titleExtra?: unknown }) => (titleExtra ?? null) as never };
 });
 
 import HeaderMngPage from "../../pages/dmb/headerMng/page";

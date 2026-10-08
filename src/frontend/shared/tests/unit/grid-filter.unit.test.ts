@@ -218,9 +218,19 @@ describe("AgDataGrid filter — GridPanel", () => {
 });
 
 describe("AgDataGrid filter — GridPanel 밖", () => {
-  it("검색 칸은 없고 설정 아이콘 메뉴에 「칸별 필터 보기」 가 있다", async () => {
+  // GridPanel 밖 그리드는 스스로 머리줄을 그리고, 검색 칸·「칸별 필터 보기」 를 GridPanel 안 그리드와 같은 규칙으로 갖는다(grid-header 시험).
+  it("스스로 그리는 머리줄에 검색 칸이 있고 설정 메뉴에 「칸별 필터 보기」 가 있다", async () => {
     await show(gridEl({ filter: true }));
+    expect(tid("grid-quick-filter")).not.toBeNull();
+    expect(tid("grid-panel-header")!.contains(tid("grid-quick-filter"))).toBe(true);
+    await openMenu();
+    expect(tid("grid-filter-row-item")).not.toBeNull();
+  });
+
+  it("header={false} 면 검색 칸은 없고 설정 아이콘 메뉴에만 「칸별 필터 보기」 가 있다(예전 동작)", async () => {
+    await show(gridEl({ filter: true, header: false }));
     expect(tid("grid-quick-filter")).toBeNull();
+    expect(tid("grid-settings-overlay")).not.toBeNull();
     await openMenu();
     expect(tid("grid-filter-row-item")).not.toBeNull();
   });
@@ -431,8 +441,17 @@ describe("AgDataGrid filter 생략 — GridPanel 안", () => {
 });
 
 describe("AgDataGrid filter 생략 — GridPanel 밖", () => {
-  it("설정 아이콘 메뉴에 「칸별 필터 보기」 가 없고 필터 열 정의도 없다", async () => {
+  it("스스로 그리는 머리줄이 GridPanel 안과 같은 규칙을 준다 — 검색 칸이 기본으로 보이고 「칸별 필터 보기」 가 있으며, 켜기 전에는 필터 열 정의가 없다", async () => {
     await show(gridEl({ excelExport: undefined }));
+    expect(tid("grid-quick-filter-input")).not.toBeNull();
+    expect(floatingCells()).toBe(0);
+    expect(api().getGridOption("floatingFiltersHeight")).toBeUndefined();
+    await openMenu();
+    expect(tid("grid-filter-row-item")).not.toBeNull();
+  });
+
+  it("header={false} 면 예전처럼 검색 칸도 「칸별 필터 보기」 도 없고 필터 열 정의도 없다", async () => {
+    await show(gridEl({ excelExport: undefined, header: false }));
     expect(tid("grid-quick-filter")).toBeNull();
     await openMenu();
     expect(tid("grid-filter-row-item")).toBeNull();

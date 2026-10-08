@@ -56,9 +56,9 @@ export function VersionPanel({ versions, selectedVersion, onSelectVersion, snaps
   const rows = versions.map((v) => ({ ...v, VER_KEY: normVer(v.VER) ?? v.VER }));
   return (
     <div>
-      <p style={{ ...sectionTitle, padding: "var(--spacing-xs) 0" }}>{`버전 이력 ${versions.length}건`}</p>
       <div data-testid="version-list">
         <AgDataGrid gridId="versionHistory"
+          title="버전 이력"
           columnSizing="fit"
           columns={COLUMNS}
           data={rows as unknown as Record<string, unknown>[]}
@@ -70,9 +70,9 @@ export function VersionPanel({ versions, selectedVersion, onSelectVersion, snaps
           onRowClick={(r) => onSelectVersion(String(r.VER_KEY))}
         />
       </div>
-      <p style={{ ...sectionTitle, padding: "var(--spacing-xs) 0" }}>변경 분류</p>
       <div data-testid="change-class-table">
         <AgDataGrid gridId="changeClass"
+          title="변경 분류"
           columnSizing="fit"
           columns={CHANGE_CLASS_COLUMNS}
           data={CHANGE_CLASS_TABLE as unknown as Record<string, unknown>[]}

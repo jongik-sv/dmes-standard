@@ -251,9 +251,8 @@ export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenR
               </p>
               <Sub>결과값</Sub>
               <Pairs testId="sim-detail-results" values={result.results} empty="결과값이 없다" />
-              <Sub>행 판정</Sub>
               <div data-testid="sim-detail-rows">
-                <AgDataGrid gridId="debugTraceRows" personalize={active ? undefined : false} columns={ROW_COLUMNS} data={rowData} rowKey="rowId" height="auto" sortable={false} emptyMessage="판정한 행이 없다" ariaLabel="행 판정" />
+                <AgDataGrid gridId="debugTraceRows" title="행 판정" personalize={active ? undefined : false} columns={ROW_COLUMNS} data={rowData} rowKey="rowId" height="auto" sortable={false} emptyMessage="판정한 행이 없다" ariaLabel="행 판정" />
               </div>
               {result.warnings.length > 0 && (
                 <ul className="rsim-list" data-testid="sim-detail-warnings">

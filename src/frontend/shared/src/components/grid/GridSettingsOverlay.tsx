@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * GridPanel 밖에 놓인 AgDataGrid 의 「그리드 설정」 아이콘 — 그리드 머리글 줄 오른쪽 끝 위에 겹쳐 놓는다(내부 부품, AgDataGrid 가 그린다).
+ * 머리줄이 없는 AgDataGrid(`header={false}` 이거나 GridPanel 등록부 아래의 GridPanel 밖 자리)의 「그리드 설정」 아이콘 — 그리드 머리글 줄 오른쪽 끝 위에 겹쳐 놓는다(내부 부품, AgDataGrid 가 그린다).
+ * 스스로 머리줄을 그리는 그리드는 이 아이콘 대신 머리줄의 settings-slot(GridHeaderBar)에 같은 메뉴를 둔다 — 둘이 함께 나오지 않는다.
  *
  * - 메뉴는 GridPanel 머리줄과 같은 GridSettingsMenu 라서 항목·순서·이름·testid 가 같다. 값은 useGridSettingsMenuProps 가 같은 방식으로 만든다.
  * - 그리드 높이를 늘리는 막대를 만들지 않는다. 머리글 높이(28px) 안, 마지막 열 머리글의 오른쪽 여백(grid.css 의 `cm-grid-settings-on`) 위에 놓는다.

@@ -9,7 +9,7 @@ import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { baseItemColumns, displayRows } from "@/layout/item-rows";
 import { lengthText } from "@/layout/layout-calc";
-import { hint, sectionTitle } from "@/layout/styles";
+import { hint } from "@/layout/styles";
 import type { LayoutItemRow } from "@/layout/types";
 
 export function itemColumns(readOnly: boolean): GridColumn[] {
@@ -39,7 +39,6 @@ export function BodyItemGrid(props: BodyItemGridProps) {
   const data = useMemo(() => displayRows(rows), [rows]);
   return (
     <div>
-      <p style={{ ...sectionTitle, padding: "var(--spacing-xs) 0" }}>{`본문 항목 ${rows.length}건`}</p>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "var(--spacing-sm)", marginBottom: "var(--spacing-xs)" }}>
         <span data-testid="layout-body-summary">{`헤더 ${lengthText(headerLength)} — 본문 첫 오프셋 ${lengthText(headerLength)}`}</span>
         {!readOnly && (
@@ -53,6 +52,7 @@ export function BodyItemGrid(props: BodyItemGridProps) {
       </div>
       <div data-testid="layout-items">
         <AgDataGrid gridId="bodyItems"
+          title="본문 항목"
           columnSizing="fit"
           columns={columns}
           data={data}

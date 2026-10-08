@@ -15,11 +15,9 @@
 
 import { memo, useState, useEffect, useCallback, useMemo, useRef, type ReactNode, type CSSProperties } from "react";
 import type { GridColumn } from "./grid-types";
-import { GridHelpButton, type GridHelpConfig } from "./GridHelpButton";
-import { GridSettingsMenu } from "./GridSettingsMenu";
+import type { GridHelpConfig } from "./GridHelpButton";
+import { GridHeaderBar } from "./GridHeaderBar";
 import { GridPanelContext, type GridPanelGridControls, type GridPanelRegistry } from "./grid-panel-context";
-import { useGridSettingsMenuProps } from "./useGridSettingsMenu";
-import { GridQuickFilter, useGridFilterCount, useGridQuickFilterVisible } from "./GridQuickFilter";
 
 export interface GridButton {
   id?: string;
@@ -209,12 +207,8 @@ function GridPanelComponent({
     }
     return merged;
   }, [gridTarget, filterTarget]);
-  // 메뉴 props — 메뉴 명령에서 만든다(GridPanel 밖 그리드의 머리글 줄 아이콘과 같은 훅). 명령이 없으면 null 이라 메뉴를 그리지 않는다.
-  const menuProps = useGridSettingsMenuProps(menuControls, serverPaged);
-  const hasGridControls = menuProps !== null;
-  const filterCount = useGridFilterCount(filterTarget);
-  // filter 생략 그리드는 기본으로 검색 칸이 있다(서버 페이징은 「필터 창 보기」 를 켠 동안만). 칸이 사라지면 건수 표시도 사라진다(그리드가 검색어를 지운다).
-  const quickFilterVisible = useGridQuickFilterVisible(filterTarget);
+  // 메뉴 props·거른 건수·검색 칸 보임·걸린 조건 칩은 머리줄 부품(GridHeaderBar)이 menuControls·filterTarget 에서 직접 구독한다
+  // (GridPanel 밖 그리드가 스스로 그리는 머리줄과 같은 부품).
 
   useEffect(() => {
     if (!usePermission || !fetchPermissions) return;
@@ -302,58 +296,38 @@ function GridPanelComponent({
   }
 
   allButtons.push(...buttons);
-  const hasHeaderActions = allButtons.length > 0 || headerExtra != null || hasGridControls || quickFilterVisible;
 
   return (
     <GridPanelContext.Provider value={gridRegistry}>
       <div className={`grid-panel ${className}`.trim()} style={style}>
-        <div className="grid-panel-header">
-          <div className="grid-panel-title">
-            {title ? <span>{title}</span> : null}
-            {help ? <GridHelpButton {...help} /> : null}
-            {filterCount ? (
-              <span className="grid-panel-count grid-panel-count-filtered" data-testid="grid-panel-filter-count">
-                <b>{filterCount.shown}</b> / {filterCount.total}건
-              </span>
-            ) : count !== undefined ? (
-              <span className="grid-panel-count">{count}건</span>
-            ) : null}
-            {titleExtra}
-          </div>
-          {hasHeaderActions ? (
-            <div className="grid-panel-header-actions">
-              {/* 빠른 검색 칸 — 걸러 보기 대상이 있으면 기본으로 보인다(서버 페이징 filter 생략은 「필터 창 보기」 를 켰을 때만). 업무 버튼 앞. */}
-              {filterTarget && quickFilterVisible ? (
-                <GridQuickFilter key={`grid_quick_filter_${quickResetKey}`} controls={filterTarget} serverPaged={serverPaged} />
-              ) : null}
-              {allButtons.length > 0 ? (
-                <div className="grid-panel-buttons">
-                  {allButtons.map((btn, index) => (
-                    <button
-                      key={btn.id || index}
-                      id={btn.id}
-                      className={`grid-btn ${btn.className || ""}`.trim()}
-                      onClick={btn.onClick}
-                      disabled={btn.disabled || loading || !isButtonAllowed(btn.id)}
-                    >
-                      {btn.label}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-              {headerExtra ? <div className="grid-panel-header-extra">{headerExtra}</div> : null}
-              {/* 그리드 설정 메뉴 — 머리줄의 맨 오른쪽 끝, 업무 버튼·headerExtra 보다 늘 뒤(예외 없음: DOM 순서가 마지막이고 CSS order 도 최대값).
-                  개인화가 켜졌거나 엑셀 출력이 켜진 그리드(GridPanel 안은 excelExport={false} 가 아니면 기본 켬)가 있을 때만.
-                  컬럼 설정·자동 설정 저장·설정 초기화·엑셀 출력을 모은다. 권한 검사·loading 과 무관하게 늘 활성
-                  (그리드 모양 설정과 화면에 보이는 행 내려받기라 데이터를 바꾸지 않는다). */}
-              {menuProps ? (
-                <div className="grid-panel-settings-slot" data-testid="grid-panel-settings-slot">
-                  <GridSettingsMenu key="grid_settings_menu" {...menuProps} />
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
+        <GridHeaderBar
+          title={title}
+          help={help}
+          count={count}
+          serverPaged={serverPaged}
+          titleExtra={titleExtra}
+          buttons={
+            allButtons.length > 0 ? (
+              <div className="grid-panel-buttons">
+                {allButtons.map((btn, index) => (
+                  <button
+                    key={btn.id || index}
+                    id={btn.id}
+                    className={`grid-btn ${btn.className || ""}`.trim()}
+                    onClick={btn.onClick}
+                    disabled={btn.disabled || loading || !isButtonAllowed(btn.id)}
+                  >
+                    {btn.label}
+                  </button>
+                ))}
+              </div>
+            ) : null
+          }
+          headerExtra={headerExtra}
+          filterControls={filterTarget}
+          menuControls={menuControls}
+          quickResetKey={quickResetKey}
+        />
 
         <div className="grid-panel-content">{children}</div>
       </div>

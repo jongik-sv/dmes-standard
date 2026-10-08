@@ -12,7 +12,7 @@ import { memo, useCallback, useEffect, useId, useRef, useState, useSyncExternalS
 import { IconSearch, IconX } from "@tabler/icons-react";
 
 import type { GridFilterCount, GridPanelGridControls } from "./grid-panel-context";
-import { GRID_SETTINGS_LABELS, gridFilterNotice } from "./grid-settings-labels";
+import { GRID_SETTINGS_LABELS, gridFilterNotice, gridQuickFilterLabel } from "./grid-settings-labels";
 
 /** 검색 칸 입력을 그리드에 넣기까지 기다리는 시간(ms). */
 export const GRID_QUICK_FILTER_DEBOUNCE_MS = 200;
@@ -21,11 +21,13 @@ interface GridQuickFilterProps {
   controls: GridPanelGridControls;
   /** 서버 페이징 GridPanel — 안내 글이 「지금 쪽에서만」 으로 바뀐다. */
   serverPaged?: boolean;
+  /** 그리드명(문자열일 때) — 검색 칸 aria-label 앞에 붙여 한 화면의 검색 칸을 구별한다. */
+  gridName?: string;
 }
 
 const noEditable = () => false;
 
-function GridQuickFilterComponent({ controls, serverPaged = false }: GridQuickFilterProps) {
+function GridQuickFilterComponent({ controls, serverPaged = false, gridName }: GridQuickFilterProps) {
   // 다시 마운트돼도(켜짐이 잠깐 꺼졌다 켜지거나 대상 그리드가 바뀔 때) 그리드에 걸려 있는 검색어로 시작한다 — 칸은 빈데 행이 숨는 일이 없게.
   const [text, setText] = useState(() => controls.getQuickFilterText?.() ?? "");
   const [boundControls, setBoundControls] = useState(controls);
@@ -68,7 +70,7 @@ function GridQuickFilterComponent({ controls, serverPaged = false }: GridQuickFi
         className="grid-quick-filter-input"
         value={text}
         placeholder={GRID_SETTINGS_LABELS.quickFilter}
-        aria-label={GRID_SETTINGS_LABELS.quickFilter}
+        aria-label={gridQuickFilterLabel(gridName)}
         aria-describedby={noticeId}
         title={notice}
         autoComplete="off"

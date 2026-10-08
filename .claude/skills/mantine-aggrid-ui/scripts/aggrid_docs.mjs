@@ -1335,6 +1335,54 @@ export function search_form_audit(f, raw, in_shared, warn) {
     + '목록 조회 조건은 SearchArea·SearchField 로 만들고 칸마다 name 또는 defaultKey 를 단다 (대화 상자 안은 예외, search-area.md)');
 }
 
+/** `<AgDataGrid` 여는 태그의 끝(`>` 위치)을 찾는다 — 중괄호·따옴표 안의 `>` 는 건너뛴다. 못 찾으면 -1. */
+function _jsx_open_tag_end(t, start) {
+  let depth = 0;
+  let quote = '';
+  for (let i = start; i < t.length; i++) {
+    const c = t[i];
+    if (quote) {
+      if (c === '\\') i++;
+      else if (c === quote) quote = '';
+      continue;
+    }
+    if (depth > 0 && (c === '"' || c === "'" || c === '`')) { quote = c; continue; }
+    if (c === '{') depth++;
+    else if (c === '}') depth--;
+    else if (depth === 0 && (c === '"' || c === "'")) quote = c;
+    else if (depth === 0 && c === '>') return i;
+  }
+  return -1;
+}
+
+/** P-S2: m-* 화면에서 GridPanel 로 감싸지 않은 AgDataGrid 에 title(그리드명)이 없다 — 그리드는 늘 머리줄(그리드명)을 가진다.
+ *  같은 파일 안의 JSX 조상(`<GridPanel` … `</GridPanel>`)만 본다. 대화 상자·카드 틀 제목이 이미 있어 일부러 title 을 안 주는 곳이 많으므로 경고(성능 경고와 같은 수준)다.
+ *  `header={false}`·`{...props}` 펼침이 있는 그리드와 대화 상자 파일(Pop·Modal·Dialog)은 뺀다. warn(pos, msg) 로 낸다. */
+export function grid_title_audit(f, raw, in_shared, warn) {
+  if (in_shared || path_suffix(path_name(f)) !== '.tsx') return;
+  const parts = path_parts(f);
+  const name = path_name(f);
+  if (!parts.some((x) => x.startsWith('m-'))) return;
+  if (parts.includes('tests') || parts.includes('__tests__') || parts.includes('e2e') || pyre('\\.(test|spec)\\.[jt]sx?$').search(name)) return;
+  if (_exception_level(f, 'P-S2') === 'exempt') return;
+  const t = mask_comments(raw);
+  if (!t.includes('<AgDataGrid') || SF_DIALOG_FILE.search(f) || SF_DIALOG_FILE.search(t)) return;
+  for (let pos = t.indexOf('<AgDataGrid'); pos >= 0; pos = t.indexOf('<AgDataGrid', pos + 1)) {
+    if (/[\w]/.test(t[pos + 11] ?? '')) continue; // <AgDataGridXxx
+    const end = _jsx_open_tag_end(t, pos);
+    if (end < 0) continue;
+    const tag = t.slice(pos, end + 1);
+    if (/\btitle\s*=/.test(tag) || /\bheader\s*=\s*\{\s*false\s*\}/.test(tag) || /\{\s*\.\.\./.test(tag)) continue;
+    // 같은 파일에서 이 위치를 감싸는 GridPanel 이 있으면 GridPanel 이 머리줄을 그린다
+    const before = t.slice(0, pos);
+    const opens = (before.match(/<GridPanel\b/g) || []).length;
+    const closes = (before.match(/<\/GridPanel>/g) || []).length;
+    if (opens > closes) continue;
+    warn(pos, '[P-S2 경고] GridPanel 밖 AgDataGrid 에 title(그리드명)이 없다 → 그리드는 늘 머리줄(그리드명)을 가진다. '
+      + '<AgDataGrid title="…"> 로 그리드명을 준다 (위에 이름만 있는 구역 제목은 title 로 옮긴다; 대화 상자·카드 틀 제목이 이미 있거나 부모가 GridPanel 이면 무시, ag-data-grid.md §머리줄)');
+  }
+}
+
 const SKIP_DIRS = ['node_modules', '.next', 'dist', 'build'];
 
 /** audit 대상 파일 열거. 폴더는 재귀(.tsx/.ts/.jsx, 제외 폴더 이름이 경로 성분에 있으면 제외), 파일은 그대로. 표시 경로는 python Path 문자열. */
@@ -1412,6 +1460,7 @@ function cmd_audit(args) {
       (pos, msg) => report_warn(f, text, pos, msg),
       (pos, msg) => report_info(f, text, pos, msg));
     search_form_audit(f, text, in_shared, (pos, msg) => report_warn(f, text, pos, msg));
+    grid_title_audit(f, text, in_shared, (pos, msg) => report_warn(f, text, pos, msg));
   }
   out(`\n${files.length}개 파일 점검, 의심 ${issues}건 (deprecated 기준: 설치본 ${deprecated.size}개 속성)`
     + (warnings ? `, 성능 경고 ${warnings}건(종료 코드 무관)` : '')

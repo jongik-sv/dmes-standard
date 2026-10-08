@@ -11,6 +11,7 @@ import {
 } from "@tabler/icons-react";
 import clsx from "clsx";
 import { CopyTextButton } from "./copy-text-button";
+import { GridPanelBoundary } from "./grid/grid-panel-context";
 import { installHoverTipEscapeGuard } from "./hover-tip-escape-guard";
 import "./modal.css";
 
@@ -226,9 +227,21 @@ export interface ModalProps {
   descriptionId?: string;
 }
 
+/**
+ * 포털로 뜨는 대화 상자는 React 트리로는 GridPanel 안(자손)일 수 있어 그 등록부를 물려받는다 — 끊어서 안의 AgDataGrid 가 자기 머리줄을 그리고
+ * 바깥 GridPanel 의 건수·검색 칸·설정 메뉴 대상으로 등록되지 않게 한다(Provider 한 겹, DOM 추가 없음). Modal·MessageModal 이 함께 쓴다.
+ */
+function ModalImpl(props: ModalProps & { overlayClassName?: string }) {
+  return (
+    <GridPanelBoundary>
+      <ModalCore {...props} />
+    </GridPanelBoundary>
+  );
+}
+
 /** `MessageModal` 전용으로 overlay 에 e2e 클래스(`cm-message-modal-overlay`)를 추가하기 위한 내부 구현.
  *  공개 `ModalProps` 계약에는 없는 필드라 export 하지 않는다. */
-function ModalImpl({
+function ModalCore({
   open,
   title,
   toolbar,

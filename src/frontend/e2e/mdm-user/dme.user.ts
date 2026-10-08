@@ -110,7 +110,7 @@ const searchSelect = (page: Page, label: string) =>
     .filter({ has: page.locator(".search-field__label", { hasText: new RegExp(`^${escapeRe(label)}$`) }) })
     .locator("select");
 
-const panelCount = (page: Page) => screen(page).locator(".grid-panel-count").first();
+const panelCount = (page: Page) => screen(page).locator(".grid-panel").first().locator(".grid-panel-count").first();
 
 // ── ruleMng ──
 

@@ -92,7 +92,7 @@ test.describe("mdm dme/ruleMng", () => {
 
     await search(page, "NO_SUCH_RULE");
     await expect(page.getByTestId("rule-list-empty")).toHaveText("조회된 룰이 없습니다.", { timeout: T.UI });
-    await expect(page.locator(".grid-panel-count")).toHaveText("0건");
+    await expect(page.locator(".grid-panel", { hasText: "룰 목록" }).locator(".grid-panel-count")).toHaveText("0건");
   });
 
   test("T3 등록: 등록하면 목록에 있고 고르면 상세가 버전 1 DRAFT·편집 중(나)으로 열린다", async ({ page }) => {

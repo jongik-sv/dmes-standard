@@ -36,6 +36,7 @@ export function SamplePlanningPanel({ title = "샘플 계획 화면" }: SamplePl
       <ContentBody root>
         <ContentPanel>
           <AgDataGrid
+            title="계획 항목 목록"
             columns={COLUMNS}
             data={SAMPLE_ROWS}
             rowKey="code"

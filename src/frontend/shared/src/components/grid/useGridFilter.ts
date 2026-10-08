@@ -5,8 +5,9 @@
  *
  * 세 상태(AgDataGrid `filter`)
  * - `true`(always): 빠른 검색 칸이 처음부터 늘 보이고, 「칸별 필터 보기」 는 입력 줄만 펴고 접는다. 끄면 칸별 조건만 지운다(검색어는 그대로).
- * - 생략(optional): GridPanel 안(대화 상자 밖)이고 설정 메뉴가 있는 그리드만 대상이다. 빠른 검색 칸은 기본으로 늘 보이고(`quickVisible`),
- *   「칸별 필터 보기」 는 칸별 입력 줄만 펴고 접는다(처음에는 접힘). 끄면 칸별 조건만 지우고 검색어는 그대로다. GridPanel 밖·대화 상자 안이면 아무것도 생기지 않는다(host 가 정해진 뒤에 판정).
+ * - 생략(optional): GridPanel 안(대화 상자 밖)이거나 스스로 머리줄을 그리는(AgDataGrid `header`, 대화 상자 밖) 그리드 중 설정 메뉴가 있는 것만 대상이다. 빠른 검색 칸은 기본으로 늘 보이고(`quickVisible`),
+ *   「칸별 필터 보기」 는 칸별 입력 줄만 펴고 접는다(처음에는 접힘). 끄면 칸별 조건만 지우고 검색어는 그대로다. `header={false}` GridPanel 밖·대화 상자 안이면 아무것도 생기지 않는다(host 가 정해진 뒤에 판정).
+ *   스스로 머리줄을 그리는 그리드는 host 를 panel 로, 걸러 보기 대상을 자기 자신으로 본다(AgDataGrid 가 넘긴다) — 그래서 GridPanel 안 그리드와 같은 규칙이 된다.
  *   한 GridPanel 에 그리드가 여럿이면 GridPanel 이 정한 「걸러 보기 대상」(filter={true} 그리드 우선, 없으면 메뉴 대상)만 켜질 수 있다 — 그 밖의 생략 그리드는
  *   저장된 켜짐을 무시하고 꺼진 채 시작한다(끌 메뉴 항목이 그 그리드를 가리키지 않으므로).
  *   예외 — 서버 페이징 GridPanel(`serverPaged`): 지금 쪽 안에서만 걸러져 오해를 주므로 검색 칸이 기본으로 없고, 「필터 창 보기」 를 켜면 검색 칸과 입력 줄이 함께 나타난다.
@@ -37,6 +38,10 @@
  *   기억의 키(memoryKey)에는 넣지 않는다 — 숨은 탭처럼 `personalize` 만 오가도 켜 둔 조건·검색어가 사라지지 않는다.
  *   자동 설정 저장 스위치가 꺼져 있어도 적는다(스위치와 같은 성격의 옵션). 사용자 ID·화면 키가 비면 기억하지 않고, 저장소 예외는 모두 삼킨다.
  *
+ * 걸린 조건(칩)
+ * - `getFilterChips`/`clearFilterChip` — 빠른 검색어와 칸별 필터 모델을 칩 목록으로 내주고(grid-filter-chips.ts), 칩 하나의 조건만 지운다. 건수와 같은 때(필터 변경·모델 갱신)에 다시 만들고,
+ *   건수가 같아도 조건이 달라졌으면 구독자에게 알린다(검색어 KR02 → KR03). 내용이 같으면 같은 배열을 돌려준다.
+ *
  * 그 밖에
  * - 빠른 검색어는 React 상태로 두지 않고 그리드 API 에 바로 넣는다 — 글자마다 그리드 전체를 다시 그리지 않게.
  * - 명령 객체(controls)는 모드가 같은 동안 같은 객체다. 값은 ref 로 읽는다.
@@ -46,7 +51,8 @@ import type { AgGridReact } from "ag-grid-react";
 import type { ColumnState, IRowNode } from "ag-grid-community";
 
 import { useTabPage } from "../../portal-shell/tab-page-context";
-import type { GridFilterCount, GridPanelGridControls } from "./grid-panel-context";
+import type { GridFilterChip, GridFilterCount, GridPanelGridControls } from "./grid-panel-context";
+import { buildFilterChips, COLUMN_CHIP_PREFIX, NO_FILTER_CHIPS, QUICK_CHIP_ID, sameChips } from "./grid-filter-chips";
 import { loadGridFilterOpen, resolveGridScreenKey, resolvePersonalize, saveGridFilterOpen, DEFAULT_GRID_ID } from "./grid-personalize";
 import { useConfirmedUserId } from "./grid-personalize-hook";
 import type { GridPersonalize } from "./grid-personalize";
@@ -102,6 +108,8 @@ type FilterControls = Pick<
   | "subscribeFilter"
   | "getQuickFilterVisible"
   | "isFilterEditable"
+  | "getFilterChips"
+  | "clearFilterChip"
 >;
 
 /** `always`: `filter={true}`, `optional`: `filter` 생략 + GridPanel 안 + 설정 메뉴, `off`: 그 밖. */
@@ -116,7 +124,7 @@ export interface GridFilterState {
   filterColumns: boolean;
   /** GridPanel 에 올릴 명령. 필터가 없는 그리드는 빈 객체. */
   controls: FilterControls;
-  /** GridPanel 밖 설정 아이콘(overlay)에 보일 명령 — always 만 채운다(optional 은 GridPanel 머리줄 전용). */
+  /** 머리글 줄 설정 아이콘(overlay, `header={false}` 인 GridPanel 밖 그리드)에 보일 명령 — always 만 채운다(optional 은 머리줄이 있는 그리드 전용). */
   overlayControls: FilterControls;
   /** 입력 줄이 펼쳐져 있는가. */
   rowOpen: boolean;
@@ -234,7 +242,20 @@ export function useGridFilter(opts: UseGridFilterOptions): GridFilterState {
     notify();
   }, [rowOpen, quickVisible, notify]);
 
-  // 거른 건수 — 필터·검색어가 걸려 있을 때만. 같은 값이면 객체를 바꾸지 않고 알리지도 않는다.
+  // 걸린 조건(칩) — 검색어와 칸별 필터 모델에서 만든다. 같은 내용이면 객체를 바꾸지 않는다. 바뀌었는지만 돌려주고 알림은 부른 쪽이 한다.
+  const chipsRef = useRef<readonly GridFilterChip[]>(NO_FILTER_CHIPS);
+  const computeChips = useCallback((): boolean => {
+    const api = gridRef.current?.api;
+    const live = api && !api.isDestroyed() ? api : null;
+    const quick = quickRef.current;
+    const next = quick === "" && (!live || !live.isAnyFilterPresent()) ? NO_FILTER_CHIPS : buildFilterChips(live, quick);
+    if (sameChips(chipsRef.current, next)) return false;
+    chipsRef.current = next;
+    return true;
+  }, [gridRef]);
+
+  // 거른 건수 — 필터·검색어가 걸려 있을 때만. 같은 값이면 객체를 바꾸지 않고 알리지도 않는다. 걸린 조건 칩도 같은 때에 다시 만든다
+  // (건수가 같아도 조건이 바뀔 수 있다 — 검색어 KR02 → KR03).
   const refreshCount = useCallback(() => {
     const api = gridRef.current?.api;
     if (!api || api.isDestroyed()) return;
@@ -247,10 +268,11 @@ export function useGridFilter(opts: UseGridFilterOptions): GridFilterState {
       next = { shown: api.getDisplayedRowCount(), total };
     }
     const prev = countRef.current;
-    if (prev === next || (prev && next && prev.shown === next.shown && prev.total === next.total)) return;
-    countRef.current = next;
-    notify();
-  }, [gridRef, notify]);
+    const countChanged = !(prev === next || (prev && next && prev.shown === next.shown && prev.total === next.total));
+    if (countChanged) countRef.current = next;
+    const chipsChanged = computeChips();
+    if (countChanged || chipsChanged) notify();
+  }, [gridRef, notify, computeChips]);
 
   // 검색어를 지운다. 지울 것이 없으면 아무 일도 하지 않는다(같은 값을 다시 넣어 필터 이벤트를 일으키지 않게).
   const clearQuick = useCallback(() => {
@@ -258,7 +280,8 @@ export function useGridFilter(opts: UseGridFilterOptions): GridFilterState {
     quickRef.current = "";
     const api = gridRef.current?.api;
     if (api && !api.isDestroyed()) api.setGridOption("quickFilterText", "");
-  }, [gridRef]);
+    if (computeChips()) notify();
+  }, [gridRef, computeChips, notify]);
   // 칸별 조건을 지운다. 서버 페이징 optional 은 검색 칸도 함께 사라지므로 검색어도 지운다 — 그 밖에는 검색 칸이 남으니 검색어를 그대로 둔다.
   // 지울 것이 없으면 아무 일도 하지 않는다(같은 값을 다시 넣어 필터 이벤트를 일으키지 않게).
   const clearConditions = useCallback(() => {
@@ -311,6 +334,7 @@ export function useGridFilter(opts: UseGridFilterOptions): GridFilterState {
         quickRef.current = text;
         const api = gridRef.current?.api;
         if (api && !api.isDestroyed()) api.setGridOption("quickFilterText", text);
+        if (computeChips()) notify();
       },
       getQuickFilterText: () => quickRef.current,
       getFilterCount: () => countRef.current,
@@ -321,6 +345,20 @@ export function useGridFilter(opts: UseGridFilterOptions): GridFilterState {
         };
       },
       isFilterEditable: () => editableRef.current,
+      getFilterChips: () => chipsRef.current,
+      clearFilterChip: (id: string) => {
+        if (id === QUICK_CHIP_ID) {
+          clearQuick();
+          return;
+        }
+        if (!id.startsWith(COLUMN_CHIP_PREFIX)) return;
+        const api = gridRef.current?.api;
+        if (!api || api.isDestroyed()) return;
+        // 그 칸의 필터 모델만 비운다. 모델을 바꾼 뒤 onFilterChanged 로 행·건수·칩을 다시 센다.
+        void api.setColumnFilterModel(id.slice(COLUMN_CHIP_PREFIX.length), null).then(() => {
+          if (!api.isDestroyed()) api.onFilterChanged();
+        });
+      },
       ...(mode === "optional" ? { getQuickFilterVisible: () => quickVisibleRef.current } : {}),
       ...(withRowToggle
         ? {
@@ -338,7 +376,7 @@ export function useGridFilter(opts: UseGridFilterOptions): GridFilterState {
           }
         : {}),
     };
-  }, [mode, withRowToggle, gridRef, notify, clearConditions]);
+  }, [mode, withRowToggle, gridRef, notify, clearConditions, clearQuick, computeChips]);
 
   const overlayControls = useMemo<FilterControls>(() => (mode === "always" ? controls : {}), [mode, controls]);
 

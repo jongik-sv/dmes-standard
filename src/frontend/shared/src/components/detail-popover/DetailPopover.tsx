@@ -27,6 +27,8 @@ import {
 import { createPortal } from "react-dom";
 import { IconInfoCircle, IconX } from "@tabler/icons-react";
 
+import { GridPanelBoundary } from "../grid/grid-panel-context";
+
 export interface DetailPopoverProps {
   /** 패널 제목. */
   title?: ReactNode;
@@ -285,45 +287,48 @@ export function DetailPopover({
         pos &&
         typeof document !== "undefined" &&
         createPortal(
-          <div
-            ref={panelRef}
-            className="cm-dpop"
-            role="dialog"
-            aria-modal="false"
-            aria-labelledby={title ? titleId : undefined}
-            aria-label={title ? undefined : triggerLabel}
-            tabIndex={-1}
-            style={panelStyle}
-            data-testid={`${testId}-panel`}
-            onClick={stop}
-            onDoubleClick={stop}
-            onMouseDown={stop}
-            onPointerDown={stop}
-            onKeyDown={stop}
-            onContextMenu={stop}
-            onFocus={markStopPropagation}
-            data-mantine-stop-propagation="true"
-          >
-            <div className="cm-dpop-head">
-              <div className="cm-dpop-title" id={titleId}>
-                {title}
+          // 포털로 body 에 뜨지만 React 트리로는 부른 쪽(GridPanel 안일 수 있다)의 자손 — 그 등록부를 끊어 content 안의 그리드가 자기 머리줄을 그리게 한다(DOM 추가 없음).
+          <GridPanelBoundary>
+            <div
+              ref={panelRef}
+              className="cm-dpop"
+              role="dialog"
+              aria-modal="false"
+              aria-labelledby={title ? titleId : undefined}
+              aria-label={title ? undefined : triggerLabel}
+              tabIndex={-1}
+              style={panelStyle}
+              data-testid={`${testId}-panel`}
+              onClick={stop}
+              onDoubleClick={stop}
+              onMouseDown={stop}
+              onPointerDown={stop}
+              onKeyDown={stop}
+              onContextMenu={stop}
+              onFocus={markStopPropagation}
+              data-mantine-stop-propagation="true"
+            >
+              <div className="cm-dpop-head">
+                <div className="cm-dpop-title" id={titleId}>
+                  {title}
+                </div>
+                {headerExtra ? <div className="cm-dpop-extra">{headerExtra}</div> : null}
+                <button
+                  type="button"
+                  className="cm-dpop-close"
+                  aria-label="닫기"
+                  title="닫기"
+                  onClick={close}
+                  data-testid={`${testId}-close`}
+                >
+                  <IconX size={16} stroke={1.8} aria-hidden="true" focusable="false" />
+                </button>
               </div>
-              {headerExtra ? <div className="cm-dpop-extra">{headerExtra}</div> : null}
-              <button
-                type="button"
-                className="cm-dpop-close"
-                aria-label="닫기"
-                title="닫기"
-                onClick={close}
-                data-testid={`${testId}-close`}
-              >
-                <IconX size={16} stroke={1.8} aria-hidden="true" focusable="false" />
-              </button>
+              <div className="cm-dpop-body" data-testid={`${testId}-body`}>
+                {content}
+              </div>
             </div>
-            <div className="cm-dpop-body" data-testid={`${testId}-body`}>
-              {content}
-            </div>
-          </div>,
+          </GridPanelBoundary>,
           document.body
         )}
     </>

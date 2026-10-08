@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+import { GridPanelBoundary } from "../grid/grid-panel-context";
 import { useTabPage } from "../../portal-shell/tab-page-context";
 import { FloatingWindow } from "../../widget-dock/FloatingWindow";
 import { readDockViewport, useDockViewport } from "../../widget-dock/use-dock-viewport";
@@ -176,5 +177,11 @@ export function FloatingPanel({ open, ...rest }: FloatingPanelProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!open || !mounted || typeof document === "undefined") return null;
-  return createPortal(<FloatingPanelBody {...rest} />, document.body);
+  // 포털로 body 에 뜨지만 React 트리로는 부른 쪽(GridPanel 안일 수 있다)의 자손 — 그 등록부를 끊어 안의 그리드가 자기 머리줄을 그리게 한다.
+  return createPortal(
+    <GridPanelBoundary>
+      <FloatingPanelBody {...rest} />
+    </GridPanelBoundary>,
+    document.body,
+  );
 }

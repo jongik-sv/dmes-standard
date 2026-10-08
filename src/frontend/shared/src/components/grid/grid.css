@@ -569,11 +569,16 @@ body > .ag-popup {
   min-width: 0;
 }
 
-.grid-panel-title > span:first-child {
+/* 제목이 없으면 건수 배지가 첫 span 이 되므로 제목 규칙이 배지를 덮지 않게 뺀다. */
+.grid-panel-title > span:first-child:not(.grid-panel-count) {
   font-size: var(--font-size-md);
   font-weight: 600;
   color: var(--color-text);
   white-space: nowrap;
+  /* 좁은 카드·위젯에서는 제목이 말줄임으로 줄어든다(오른쪽 단추 묶음과 설정 메뉴 칸이 밀려 잘리지 않게). */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .grid-panel-count {
@@ -756,11 +761,20 @@ body > .ag-popup {
   gap: 4px;
 }
 
+/*
+ * 오른쪽 단추 묶음 — 좁은 폭(카드·위젯 약 260px 미만)에서는 빠른 검색 칸만 줄어든다. 업무 버튼·headerExtra·설정 메뉴 칸은 줄지 않아 설정 메뉴가 늘 보인다.
+ * (제목은 .grid-panel-title 이 말줄임으로 먼저 줄어든다.)
+ */
 .grid-panel-header-actions {
   display: flex;
   align-items: center;
   gap: 4px;
   margin-left: auto;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.grid-panel-header-actions > .grid-panel-buttons,
+.grid-panel-header-actions > .grid-panel-header-extra {
   flex-shrink: 0;
 }
 
@@ -804,6 +818,9 @@ body > .ag-popup {
   position: relative;
   display: inline-flex;
   align-items: center;
+  /* 좁은 폭에서는 검색 칸이 줄어든다(넓은 폭의 모습은 그대로: 칸 폭 180px). */
+  flex: 0 1 auto;
+  min-width: 48px;
 }
 
 /* 검색 범위 안내 글 — 눈에는 보이지 않고 화면 낭독기가 검색 칸의 보조 설명(aria-describedby)으로 읽는다. 같은 글이 툴팁(title)으로 보인다. */
@@ -828,6 +845,8 @@ body > .ag-popup {
 
 .grid-quick-filter-input {
   width: 180px;
+  min-width: 0;
+  flex: 1 1 auto;
   height: 24px;
   padding: 0 22px 0 24px;
   font-size: var(--font-size-sm);
@@ -963,6 +982,16 @@ body > .ag-popup {
    */
   max-height: calc(100% - 1px);
 }
+/*
+ * 스스로 머리줄을 그리는 그리드(.cm-grid-with-header)는 테두리를 바깥 상자가 그리고 안쪽 .cm-data-grid 는 테두리가 없다(아래 규칙).
+ * 그래서 바닥선 1px 잘림을 막는 상한은 바깥 상자에 건다. 부모를 채우는 바깥 상자(height 생략·"100%")에만 건다 —
+ * 숫자(--sized)·auto(--auto) 바깥 상자는 내용 높이라 걸 필요가 없고, 걸면 max-height 백분율이 부모 높이(고정 높이 래퍼)를 기준으로 풀려
+ * 래퍼 − 1px 로 잘려 표 1px 가 가려진다(`height={래퍼 - GRID_HEADER_HEIGHT}` 로 딱 맞춘 곳).
+ */
+.form-panel .cm-grid-with-header:not(.cm-grid-with-header--sized):not(.cm-grid-with-header--auto),
+.cm-modal-body .cm-grid-with-header:not(.cm-grid-with-header--sized):not(.cm-grid-with-header--auto) {
+  max-height: calc(100% - 1px);
+}
 .form-panel .cm-data-grid .ag-root-wrapper,
 .cm-modal-body .cm-data-grid .ag-root-wrapper {
   border: none;
@@ -1003,4 +1032,97 @@ body > .ag-popup {
 .cm-data-grid:focus-within > .cm-grid-settings-overlay,
 .cm-grid-settings-overlay:has([data-expanded]) {
   opacity: 1;
+}
+
+/*
+ * 스스로 머리줄을 그리는 AgDataGrid(GridPanel 밖) — GridPanel 과 같은 머리줄(grid-panel-header …)과 「걸린 조건」 칩 줄 아래에 표가 남은 높이를 채운다.
+ * 바깥 상자가 테두리를 갖고 표 상자는 테두리를 걷는다(이중 테두리 없음). `.grid-panel`·`.grid-panel-content` 를 쓰지 않는다 —
+ * AgDataGrid 가 `.grid-panel-content` 안인지로 자리(host)를 정하고, `.grid-panel` 의 `height:100%`·contain 은 height="auto" 와 맞지 않는다.
+ * 높이: 생략·"100%" 는 이 바깥 상자가 부모를 채우고 표가 flex 로 남은 높이를 받는다(contain: strict 인 표 상자는 flex 가 준 크기를 쓴다).
+ * 숫자 height 는 표 높이다(GridPanel 안 그리드와 같은 뜻) — 바깥 상자는 내용 높이(auto)이고 머리줄·칩 줄이 그 위에 더해진다(--sized).
+ * 머리줄 높이: `.page-layout`·모달 안 머리줄 32px + 바깥 상자 테두리 위·아래 2px = 34px — grid-header-height.ts 의 GRID_HEADER_HEIGHT 와 같은 값이다(여기를 바꾸면 그 상수도 맞춘다).
+ */
+.cm-grid-with-header {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border-grid);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg);
+  overflow: hidden;
+  contain: strict;
+}
+/* contain: strict 의 크기 격리는 높이 auto 를 0 으로 만든다 — 내용 높이인 바깥 상자(auto·숫자 height)는 크기 격리를 뺀다. */
+.cm-grid-with-header.cm-grid-with-header--auto,
+.cm-grid-with-header.cm-grid-with-header--sized {
+  contain: layout paint;
+}
+.cm-grid-with-header > .cm-data-grid,
+.cm-grid-with-header > .cm-grid-excel > .cm-grid-excel__grow > .cm-data-grid {
+  border: none;
+  border-radius: 0;
+  max-height: none;
+}
+/* 「걸린 조건」 칩 줄 — 머리줄 바로 아래. 조건이 없으면 DOM 에 없다(GridFilterChips). 색은 의미 토큰만 쓴다. */
+.grid-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  padding: 4px 10px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  background-color: var(--color-bg);
+  border-bottom: 1px solid var(--color-border-light);
+}
+.grid-filter-chips-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.grid-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 260px;
+  height: 20px;
+  padding: 0 2px 0 8px;
+  box-sizing: border-box;
+  border: 1px solid var(--color-selection);
+  border-radius: 10px;
+  background-color: var(--color-primary-soft);
+  color: var(--color-text);
+  font-size: var(--font-size-xs);
+  line-height: 1;
+}
+.grid-filter-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.grid-filter-chip-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.grid-filter-chip-clear:hover {
+  background-color: var(--color-primary-soft-hover);
+  color: var(--color-text);
+}
+.grid-filter-chip-clear:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
 }

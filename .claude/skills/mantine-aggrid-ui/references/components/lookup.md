@@ -89,6 +89,8 @@ LookupModal
 | searchOnOpen | `boolean` | `false` | 참이면 열리자마자 첫 페이지를 조회한다 |
 | gridId | `string` | `"lookup"` | 안쪽 그리드의 컬럼 개인화 저장 이름([AgDataGrid](ag-data-grid.md) `gridId`). 한 화면에서 룩업을 여럿 쓰면 호출처마다 다른 이름(예: `"modal-user"`)을 준다. 서버 페이징이라 정렬은 저장하지 않는다 |
 
+안쪽 그리드(숫자 `height` 는 표 높이라 `GRID_HEIGHT - GRID_HEADER_HEIGHT` 로 고정 높이 상자에 맞춘다)의 머리줄 건수 배지는 서버 페이징이라 쪽 안 행 수 대신 아래 Pagination 과 같은 총건수(`totalElements`)를 보인다(AgDataGrid `count`).
+
 `LookupRow` 는 `{ code: string; name: string }` 하나뿐이다. 다른 열이 필요하면 `fetchFn` 안에서 `code`·`name` 으로 매핑한다.
 
 LookupTextField

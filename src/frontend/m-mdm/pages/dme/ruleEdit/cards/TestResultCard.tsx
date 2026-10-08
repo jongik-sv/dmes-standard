@@ -11,7 +11,7 @@
 import { useMemo } from "react";
 
 import { CardFrame, MutedText } from "@dk-oasis/shared/card";
-import { AgDataGrid } from "@dk-oasis/shared/grid";
+import { AgDataGrid, GRID_HEADER_HEIGHT } from "@dk-oasis/shared/grid";
 import { badgeStyle, sameVer } from "@/shell";
 
 import type { RuleEditCardProps } from "../cards";
@@ -163,7 +163,7 @@ function VersionTable({ def, result }: { def: RuleEditView; result: ValueTestRes
           columns={columns}
           data={data}
           rowKey="rowKey"
-          height={height}
+          height={height - GRID_HEADER_HEIGHT}
           columnSizing="fixed"
           sortable={false}
           getRowClassExtra={rowClassOf}

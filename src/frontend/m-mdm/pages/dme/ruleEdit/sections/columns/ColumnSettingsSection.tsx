@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { AgDataGrid } from "@dk-oasis/shared/grid";
+import { AgDataGrid, GRID_HEADER_HEIGHT } from "@dk-oasis/shared/grid";
 import { Button, Input } from "@dk-oasis/shared/form";
 import { Modal } from "@dk-oasis/shared/modal";
 import { DomainSearchBox, matchDomain } from "@/domain";
@@ -338,7 +338,7 @@ export function ColumnSettingsSection({ view, editable, runWrite, notify, setDir
           columns={columns}
           data={data}
           rowKey="rowKey"
-          height={gridHeight}
+          height={gridHeight - GRID_HEADER_HEIGHT}
           columnSizing="fixed"
           sortable={false}
           singleClickEdit

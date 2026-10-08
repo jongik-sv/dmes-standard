@@ -9,7 +9,7 @@ import { useMemo, useRef } from "react";
 import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { lengthText, positionLabel } from "@/layout/layout-calc";
-import { hint, sectionTitle } from "@/layout/styles";
+import { hint } from "@/layout/styles";
 import type { HeaderStackRow } from "@/layout/types";
 import { versionStateLabel } from "@/layout/version-rows";
 import { fmtVer } from "@/shell";
@@ -72,7 +72,6 @@ export function HeaderStackGrid({ rows, readOnly, onAdd, onRemove, onEditConst, 
   const missing = rows.some(isHeaderMissing);
   return (
     <div>
-      <p style={{ ...sectionTitle, padding: "var(--spacing-xs) 0" }}>{`헤더 구성 ${rows.length}건`}</p>
       <div style={{ marginBottom: "var(--spacing-xs)" }}>
         {!readOnly && <Button data-testid="layout-header-add" size="sm" onClick={onAdd}>+ 헤더 추가</Button>}
         <span style={hint}> 헤더 안 항목의 구성·길이는 헤더 정의 화면에서만 바꿉니다. 여기서는 상수만 재정의합니다.</span>
@@ -84,6 +83,7 @@ export function HeaderStackGrid({ rows, readOnly, onAdd, onRemove, onEditConst, 
       )}
       <div data-testid="layout-header-stack">
         <AgDataGrid gridId="headerStack"
+          title="헤더 구성"
           columnSizing="fit"
           columns={columns}
           data={data}

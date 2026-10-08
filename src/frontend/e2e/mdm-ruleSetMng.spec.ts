@@ -81,11 +81,11 @@ test.describe("mdm dme/ruleSetMng", () => {
 
     await search(page, { keyword: "E2S_", ruleId: "E2S_OLD" });
     await expect(page.getByTestId("set-link-E2S_HASOLD")).toBeVisible({ timeout: T.UI });
-    await expect(page.locator(".grid-panel-count")).toHaveText("1건");
+    await expect(page.locator(".grid-panel", { hasText: "룰 세트 목록" }).locator(".grid-panel-count")).toHaveText("1건");
 
     await search(page, { keyword: "NO_SUCH_SET" });
     await expect(page.getByTestId("set-list-empty")).toHaveText("조건에 맞는 룰 세트가 없다", { timeout: T.UI });
-    await expect(page.locator(".grid-panel-count")).toHaveText("0건");
+    await expect(page.locator(".grid-panel", { hasText: "룰 세트 목록" }).locator(".grid-panel-count")).toHaveText("0건");
   });
 
   test("M3 등록(수용 1): 저장하면 룰 세트 편집 탭이 그 빈 세트로 열리고 목록에 보인다", async ({ page }) => {

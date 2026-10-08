@@ -322,14 +322,14 @@ function DraftList({ drafts, selected, onShowAll, totalCount, onSelect }: DraftL
   const byId = useMemo(() => new Map((drafts ?? []).map((d) => [draftKey(d.LAYOUT_ID, d.VER), d])), [drafts]);
   return (
     <div data-testid="lc-list" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div style={cardTitle}>확정 대기 목록</div>
-      {totalCount !== null && (
-        <div style={{ ...section, paddingTop: "var(--spacing-xs)" }}>
-          <GridLimitNotice shownCount={drafts?.length ?? 0} totalCount={totalCount} onShowAll={onShowAll} testId="lc-list-limit" />
-        </div>
-      )}
       <div style={{ ...section, flex: 1, minHeight: 0 }}>
         <AgDataGrid gridId="draftList"
+          title="확정 대기 목록"
+          titleExtra={
+            totalCount !== null && (
+              <GridLimitNotice shownCount={drafts?.length ?? 0} totalCount={totalCount} onShowAll={onShowAll} testId="lc-list-limit" />
+            )
+          }
           columnSizing="fit"
           columns={DRAFT_COLUMNS}
           data={rows}
@@ -399,10 +399,9 @@ function ImpactArea({ impact, eais }: { impact: ImpactRow[]; eais: string[] }) {
   return (
     <>
       <div data-testid="lc-impact">
-        <div style={cardTitle}>영향받는 전문</div>
         <div style={section}>
           <div style={{ height: IMPACT_GRID_HEIGHT }}>
-            <AgDataGrid gridId="affectedLayouts" columnSizing="fit" columns={IMPACT_COLUMNS} data={rows} rowKey="rowId" ariaLabel="영향받는 전문"
+            <AgDataGrid gridId="affectedLayouts" title="영향받는 전문" columnSizing="fit" columns={IMPACT_COLUMNS} data={rows} rowKey="rowId" ariaLabel="영향받는 전문"
               emptyMessage="이 헤더를 쓰는 전문이 없습니다" />
           </div>
         </div>

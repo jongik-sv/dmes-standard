@@ -22,6 +22,13 @@ export const GRID_SETTINGS_LABELS = {
 } as const;
 
 /**
+ * 빠른 검색 칸의 aria-label — 한 화면에 그리드가 여럿이면 칸이 구별되도록 그리드명(문자열일 때)을 앞에 붙인다. 이름이 없으면 기본 문구 그대로.
+ */
+export function gridQuickFilterLabel(gridName?: string): string {
+  return gridName ? `${gridName} ${GRID_SETTINGS_LABELS.quickFilter}` : GRID_SETTINGS_LABELS.quickFilter;
+}
+
+/**
  * 빠른 검색 칸의 안내 글(툴팁 title·보조 설명) — 걸러 보기는 이 그리드가 받아 둔 행 안에서만 찾는다.
  * - 서버 페이징(GridPanel `serverPaged`)이면 지금 쪽에서만 찾는다.
  * - 편집 칸이 있는 그리드는 새로 넣은 행도 조건에 맞지 않으면 숨는다.
