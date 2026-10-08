@@ -284,6 +284,51 @@ class DbViewerMoreTest {
     }
 
     @Test
+    void chunk가_0_음수_최소값이면_서버_기본_묶음을_쓴다() {
+        for (Integer chunk : new Integer[]{0, -1, Integer.MIN_VALUE}) {
+            jdbc = mock(JdbcTemplate.class);
+            service = new DbViewerService(jdbc, properties);
+            objectKind("MCMAPUSER", "TB_T", "TABLE");
+            columns("MCMAPUSER", "TB_T", "A");
+            returnRows(1);
+            service.queryMore("SELECT A FROM MCMAPUSER.TB_T", 0, chunk);
+            assertThat(executedSql()).as("chunk=" + chunk).endsWith("FETCH NEXT 5001 ROWS ONLY");
+        }
+    }
+
+    @Test
+    void offset_최소값은_400이다() {
+        assertRejected(() -> service.queryMore("SELECT A FROM MCMAPUSER.TB_T", Integer.MIN_VALUE, null), 400,
+                "offset");
+    }
+
+    @Test
+    void 딕셔너리가_이상한_기본키_이름을_주면_이어_보기를_막는다() {
+        objectKind("MCMAPUSER", "V_T", "OTHER");
+        columns("MCMAPUSER", "V_T", "A");
+        for (String bad : List.of("code_id", "A\" , \"B", "A".repeat(31))) {
+            primaryKey("MCMAPUSER", "V_T", bad);
+            assertRejected(() -> service.queryMore("SELECT A FROM MCMAPUSER.V_T", 0, null), 400, "이어 볼 수 없습니다");
+        }
+        verify(jdbc, never()).query(anyString(), any(ResultSetExtractor.class));
+    }
+
+    @Test
+    void 복합_기본키에_민감_칸이_하나라도_있으면_이어_보기를_막는다() {
+        objectKind("MCMAPUSER", "V_T", "OTHER");
+        columns("MCMAPUSER", "V_T", "A");
+        primaryKey("MCMAPUSER", "V_T", "CODE_ID", "USER_PASS");
+        assertRejected(() -> service.queryMore("SELECT A FROM MCMAPUSER.V_T", 0, null), 400, "이어 볼 수 없습니다");
+    }
+
+    @Test
+    void 이어_보기의_WHERE_에_민감_식별자가_있으면_거부한다() {
+        assertRejected(() -> service.queryMore(
+                "SELECT A FROM MCMAPUSER.TB_T WHERE USER_PASS LIKE 'a%'", 0, null), 400, "민감");
+        verify(jdbc, never()).query(anyString(), any(ResultSetExtractor.class));
+    }
+
+    @Test
     void 전체_상한과_묶음_크기_기본값() {
         assertThat(properties.getMaxRowsAll()).isEqualTo(30000);
         assertThat(properties.getMoreChunk()).isEqualTo(5000);
