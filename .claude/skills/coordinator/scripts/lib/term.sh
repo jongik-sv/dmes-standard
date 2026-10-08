@@ -2,6 +2,8 @@
 # 터미널 어댑터. 정본 사양: ../../references/contract.md §3.2
 # 공개 함수만 쓴다: term_list · term_read_screen · term_wait_idle · term_send · term_close · term_send_keys(콘솔 키 입력 전용).
 # 백엔드는 설정 terminal_backend(orca 기본, tmux 는 뼈대). common.sh 를 먼저 source 해야 한다.
+_term_d="${BASH_SOURCE[0]%/*}"; [ "$_term_d" != "${BASH_SOURCE[0]}" ] || _term_d=.
+. "$_term_d/js-bridge.sh"   # COORD_JS_TERM=1 이면 아래 공개 함수를 scripts/lib/term.mjs(node)로 넘긴다(기본 꺼짐)
 
 _term_backend() { local b; b="$(coord_cfg .terminal_backend)"; printf '%s' "${b:-orca}"; }
 # 백엔드 이름을 _TB 에 둔다(서브셸 $(…) 없이 — 호출마다 fork 하지 않는다). 설정에 값이 없으면 orca.
@@ -101,11 +103,11 @@ _tmux_term_send_keys() {  # 이름 키를 send-keys 한 번에(Esc → Escape)
 }
 
 # ---------- 공개 함수 ----------
-term_list()        { _term_be; "_${_TB}_term_list" "$@"; }
-term_read_screen() { _term_be; "_${_TB}_term_read_screen" "$@"; }
-term_wait_idle()   { _term_be; "_${_TB}_term_wait_idle" "$@"; }
-term_send()        { _term_be; "_${_TB}_term_send" "$@"; }
-term_close()       { _term_be; "_${_TB}_term_close" "$@"; }
+term_list()        { if _jsb_on TERM; then _jsb_call term term_list "$@"; return; fi; _term_be; "_${_TB}_term_list" "$@"; }
+term_read_screen() { if _jsb_on TERM; then _jsb_call term term_read_screen "$@"; return; fi; _term_be; "_${_TB}_term_read_screen" "$@"; }
+term_wait_idle()   { if _jsb_on TERM; then _jsb_call term term_wait_idle "$@"; return; fi; _term_be; "_${_TB}_term_wait_idle" "$@"; }
+term_send()        { if _jsb_on TERM; then _jsb_call term term_send "$@"; return; fi; _term_be; "_${_TB}_term_send" "$@"; }
+term_close()       { if _jsb_on TERM; then _jsb_call term term_close "$@"; return; fi; _term_be; "_${_TB}_term_close" "$@"; }
 # term_send_keys <h> <키 이름…> — 확인·선택 창에 키(Up·Down·Tab·Enter·Esc·1~9)를 한 번에 넣는다(콘솔 키 입력, contract §4.1).
 #   stdout: accepted|submitted|turn_started · stale(넣지 못함이 확실) · `error <사유>`(bad-key 는 아무것도 보내지 않음)
-term_send_keys()   { _term_be; "_${_TB}_term_send_keys" "$@"; }
+term_send_keys()   { if _jsb_on TERM; then _jsb_call term term_send_keys "$@"; return; fi; _term_be; "_${_TB}_term_send_keys" "$@"; }
