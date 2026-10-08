@@ -72,6 +72,8 @@ const DEFAULT: Filters = { item: "", status: "", from: "", to: "", memo: "" };
 
 /** 기록: 조회 호출 때의 조건. */
 let searches: Filters[] = [];
+/** 기록: 조회 호출이 받은 trigger(autoSearch 는 "auto", 사용자 조회는 undefined). */
+let triggers: Array<string | undefined> = [];
 /** 마지막 렌더의 조건. */
 let latest: Filters = DEFAULT;
 
@@ -94,7 +96,13 @@ function Screen(props: {
   }, []);
   const area = createElement(
     SearchArea,
-    { onSearch: () => searches.push(f), ...props.area },
+    {
+      onSearch: (t?: string) => {
+        searches.push(f);
+        triggers.push(t);
+      },
+      ...props.area,
+    },
     createElement(SearchField, { label: "품번", name: "itemCd", value: f.item, onChange: (v: string) => set("item", v) }),
     createElement(SearchField, {
       label: "상태",
@@ -142,6 +150,7 @@ beforeEach(() => {
   setSearchDefaultsTransportForTest(async () => serverRows({}));
   setUser(USER);
   searches = [];
+  triggers = [];
   latest = DEFAULT;
 });
 
@@ -379,6 +388,58 @@ describe("저장소가 늦을 때", () => {
       vi.advanceTimersByTime(SEARCH_DEFAULTS_WAIT_MS + 10);
     });
     expect(searches).toEqual([DEFAULT]);
+  });
+});
+
+describe("기본값을 기다리는 동안 사용자 조회", () => {
+  /** 조회 칸 form 에서 Enter(implicit submission)를 흉내 낸다. */
+  async function pressEnter() {
+    const form = rendered!.host.querySelector("form") as HTMLFormElement;
+    await act(async () => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+  }
+
+  it("autoSearch 조회는 trigger 로 \"auto\" 를 알린다", async () => {
+    await mount(inPage(createElement(Screen, { area: { autoSearch: true } })));
+    expect(triggers).toEqual(["auto"]);
+  });
+
+  it("기다리는 중 사용자가 조회하면 그 조회만 사용자 조회로 돌고, 뒤늦은 autoSearch 는 건너뛴다", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    setSearchDefaultsTransportForTest(() => new Promise(() => {}));
+    await mount(inPage(createElement(Screen, { area: { autoSearch: true } })));
+    await pressEnter();
+    expect(triggers).toEqual([undefined]);
+    await act(async () => {
+      vi.advanceTimersByTime(SEARCH_DEFAULTS_WAIT_MS + 10);
+    });
+    expect(triggers).toEqual([undefined]);
+    expect(searches).toEqual([DEFAULT]);
+  });
+
+  it("기다리는 중 사용자가 조회했어도 그 뒤 기본값이 들어오면 넣은 값으로 autoSearch 한다", async () => {
+    let resolve: (v: unknown) => void = () => {};
+    setSearchDefaultsTransportForTest(() => new Promise((r) => (resolve = r)));
+    await mount(inPage(createElement(Screen, { area: { autoSearch: true } })));
+    await pressEnter();
+    expect(triggers).toEqual([undefined]);
+    await act(async () => {
+      resolve(serverRows({ [PAGE]: rules({ itemCd: { kind: "fixed", value: "S" } }) }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(latest.item).toBe("S");
+    expect(triggers).toEqual([undefined, "auto"]);
+    expect(searches[1]).toEqual(latest);
+  });
+
+  it("넣기가 끝난 뒤의 사용자 조회는 autoSearch 에 영향이 없다", async () => {
+    await mount(inPage(createElement(Screen, { area: { autoSearch: true } })));
+    expect(triggers).toEqual(["auto"]);
+    await pressEnter();
+    expect(triggers).toEqual(["auto", undefined]);
   });
 });
 
