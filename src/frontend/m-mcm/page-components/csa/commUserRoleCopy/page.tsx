@@ -58,7 +58,7 @@
  *      userFrom / userTo 그리드 높이 정렬 — 좌측/중앙/우측 ContentPanel 모두 그리드만으로 같은 row 높이.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   PageLayout,
   SearchArea,
@@ -72,6 +72,7 @@ import { Button, Input } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { searchUserList as apiSearchUserList, search as apiSearch, save as apiSave } from "./api";
+import { runEntrySearch } from "./entry";
 import type {
   CommUserRoleCopyCopyRoleGrpRow,
   CommUserRoleCopyCopyUserRow,
@@ -230,21 +231,26 @@ export default function CommUserRoleCopyPage() {
     }
   }, [filterUserId, showMessage, loadUserList, setCopyRolegrp, setCopyUser]);
 
-  // V-705 onload 자동 호출 — 초기 진입은 Copy 대상 미선택이라 본인 제외 ✗ (전체 반환)
+  // V-705 onload 자동 호출 — 처음 열 때는 SearchArea autoSearch 가 조회 기본값을 넣은 다음 handleSearchArea 를 한 번 부른다.
+  // 그 한 번만 진입 분기(runEntrySearch)를 타고, 그 뒤 Enter 는 조회 단추와 같다(Copy 대상이 비면 V-101 오류).
+  // 분리 창이 이어받은 값으로 시작하면 autoSearch 는 부르지 않으므로 아래 effect 가 이어받은 상태를 보고 조회한다.
+  const entryPendingRef = useRef(!restored);
+  const handleSearchArea = useCallback(async () => {
+    if (entryPendingRef.current) {
+      entryPendingRef.current = false;
+      await runEntrySearch(filterUserId, handleSearch, loadUserList);
+      return;
+    }
+    await handleSearch();
+  }, [filterUserId, handleSearch, loadUserList]);
+
   // 새 창이 이어받은 목록(사용자 List·권한 생성 대상)이 있으면 건너뛴다. 목록 없이 복원됐으면 이어받은 Copy 대상으로 다시 조회한다
   // (Copy 대상 ID 가 있으면 조회 버튼과 같은 흐름 — 그 조회가 0건이면 사용자 List 가 비지 않게 전체 List 로 물러선다. 없으면 전체 List).
   // 셔틀로 한쪽이 비어도 반대쪽이 차 있으면 이어받은 것으로 본다.
   useEffect(() => {
-    if (restored && (userFrom.length > 0 || userTo.length > 0)) return;
-    if (restored && filterUserId.trim()) {
-      // 조회 결과를 상태에 담는 비동기 호출이라 effect 안 setState 규칙에 걸린다.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      void handleSearch().then((found) => {
-        if (!found) void loadUserList();
-      });
-    } else {
-      void loadUserList();
-    }
+    if (!restored) return;
+    if (userFrom.length > 0 || userTo.length > 0) return;
+    void runEntrySearch(filterUserId, handleSearch, loadUserList);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -433,7 +439,8 @@ export default function CommUserRoleCopyPage() {
       ]}
     >
       {/* A-FILTER — S-001 권한 부여 source 사용자 ID/사번 (라벨 명확화 / 2026-06-04). */}
-      <SearchArea onSearch={handleSearch}>
+      <SearchArea onSearch={() => void handleSearchArea()} autoSearch>
+        {/* 조회 기본값 대상 칸 — 기본값이 들어오면 진입 조회가 이 칸으로 Copy 대상을 찾고, 없으면 전체 사용자 List 를 불러온다(handleSearchArea). */}
         <SearchField
           label="권한 부여 source 사용자 ID/사번"
           name="filterUserId"
@@ -441,8 +448,6 @@ export default function CommUserRoleCopyPage() {
           value={filterUserId}
           onChange={(v: string) => setFilterUserId(v)}
           placeholder="USER_ID 또는 사번"
-          // 진입 조회는 이 칸과 무관한 전체 사용자 목록이라 기본값을 넣어도 조회에 반영되지 않는다 — 대상에서 뺀다(설계 2026-10-07-search-defaults §7.3).
-          defaultable={false}
         />
       </SearchArea>
 
