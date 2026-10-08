@@ -290,7 +290,13 @@ SELECT JOB_ID, MODULE_CD, SERVICE_ID, ACTION, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_A
 - 감시는 **시도마다** 그 시도를 풀에 넣을 때 `timeoutSec` 으로 건다(재시도 대기 시간은 감시하지 않는다).
 - 실행이 끝나면 `RUNNING→DONE`, 감시가 마감에 닿으면 `RUNNING→TIMED_OUT` 으로 `compareAndSet` 한다. **교체에 이긴 쪽만 결과를 쓴다.** 감시는 이긴 뒤에만 `cancel(true)`(인터럽트)하고 `TIMEOUT` 을 쓴다(감시 스레드도 MDC 에 대상 serviceId·runId 를 넣어 모듈 업무 로그에 남긴다). 그래서 인터럽트로 생긴 SYSTEM_ERROR 결과(FAIL)나 마감 직전의 OK 와 TIMEOUT 이 함께 나가지 않는다.
 - 진입점은 `Throwable` 을 잡아 FAIL 로 쓴다(`CoreServiceStarter` 는 `Exception` 만 결과로 바꾸므로 `Error` 는 그대로 올라온다).
-- 인터럽트는 실행 중인 JDBC 문장을 멈추지 못한다. 그래서 내장 서비스는 문장마다 남은 시간을 쿼리 시간 초과로 건다. 사용자 BPMN 안의 SQL 은 시간 초과 뒤에도 끝까지 돌 수 있다. 그래도 MCM 쪽 기록은 TIMEOUT 이고, 늦은 결과는 덮어쓰지 않는다.
+- 인터럽트는 실행 중인 JDBC 문장을 멈추지 못한다. 인터럽트를 무시한 문장이 TIMEOUT 기록 뒤에 끝나 대상 트랜잭션이 늦게 커밋되는 일을 줄이려고, **내장 서비스는 JDBC 문장마다 쿼리 시간 초과를 건다**(사용자 결정, 보충 6).
+  - 대상: `job^^query`(DML·프로시저)와 `job^^collect` 의 SQL 원천(읽기).
+  - 값: `JobRunScope` 에 둔 이 시도의 마감 시각(`시도 시작 + timeoutSec`)까지 **남은 시간을 초 단위로 올림, 최소 1초**. `JdbcTemplate` 을 문장마다 `setQueryTimeout(남은 초)` 로 만들어 쓰거나 `PreparedStatement.setQueryTimeout` 을 직접 건다. 수집 SQL 원천은 기존 읽기 전용 실행기의 10초 상한과 남은 시간 중 작은 값을 쓴다.
+  - 초과하면 Oracle 이 문장을 취소하고 `ORA-01013`(사용자 요청으로 취소)을 던진다. 내장 서비스는 예외를 그대로 올리고, `CoreServiceStarter` 가 대상 트랜잭션 A 를 롤백한 뒤 `SYSTEM_ERROR` 결과를 돌려준다. 그래서 그 시도의 DML 은 남지 않는다.
+  - 진입점은 결과의 예외 원인이 쿼리 시간 초과(`SQLTimeoutException`·`QueryTimeoutException`·`ORA-01013`)이면 상태를 FAIL 이 아니라 **TIMEOUT** 으로 정한다.
+  - 감시와의 순서: 쿼리 시간 초과와 Future 감시는 같은 마감 시각을 보므로 거의 동시에 일어난다. **어느 쪽이 먼저든 회차 상태 객체의 CAS 를 이긴 쪽만 TIMEOUT 을 한 번 쓴다.** 감시가 이기면 실행 스레드의 결과(롤백된 SYSTEM_ERROR)는 쓰지 않는다. 실행 스레드가 이기면 감시는 아무것도 하지 않는다.
+  - 업무 BPMN·CODE 작업은 강제하지 않는다. 가이드에 「긴 SQL 은 쿼리 시간 초과를 걸 것」 한 줄을 둔다. 그런 작업은 TIMEOUT 기록 뒤에도 끝까지 돌아 커밋할 수 있고, 기록은 TIMEOUT 으로 남으며 늦은 결과는 덮어쓰지 않는다.
 - **OASIS `timeoutSecond` 로는 대신할 수 없다**(코드 확인): ① 값이 `CactusServiceStarterFactory.TIMEOUT_SECONDS=50` 으로 전역 고정이다. ② `createNewService=true` 서브서비스에만 쓰인다. ③ 시간을 넘기면 `shutdownNow` 뒤 `serviceResults[0].messages()` 를 읽어 결과가 null 이면 NPE 가 난다. oasis-core 는 고치지 않는다.
 
 **중첩: 결과 갱신은 가장 바깥 한 번만**
@@ -305,6 +311,11 @@ SELECT JOB_ID, MODULE_CD, SERVICE_ID, ACTION, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_A
 - 위치: cactus-core `job` 패키지 한 곳. 모듈 업무 코드는 표 구조를 모른다. 스키마 접두는 `dmes.job.schema`(기본 `MCMAPUSER`).
 - 연결: **그 모듈 앱의 기본 DataSource**(자기 스키마 사용자 연결, 멀티 트랜잭션 모드면 `cactus.tx.default-manager` 의 연결). 별도 연결 풀을 만들지 않는다.
 - 트랜잭션: 대상 서비스 트랜잭션과 **분리된 짧은 트랜잭션**(`TransactionTemplate`, `REQUIRES_NEW`). `serviceStarter.start` 가 돌아올 때 대상 트랜잭션은 이미 커밋·롤백이 끝났으므로, 대상이 롤백돼도 FAIL 기록은 남는다.
+- **실패하면 트랜잭션은 이렇게 된다**(사용자 질문 「모듈에서 처리에 실패하면 트랜잭션은 어떻게 되는거야? 실패 기록을 남겨야 하잖아」):
+  - 대상 서비스가 예외로 끝나면 `CoreServiceStarter` 가 대상 트랜잭션 A 를 **롤백**하고 실패 결과를 돌려준다. 그 시도에서 A 안에 쓴 내용은 남지 않는다(연결 서브서비스로 엮은 단계도 A 안이라 함께 롤백된다).
+  - 진입점은 A 와 **분리된 트랜잭션 B**(`REQUIRES_NEW`)로 RUN 행에 `FAIL`·메시지(결과 코드와 사용자용 메시지, 원문 DB 메시지 없음)를 쓰고 커밋한다. A 가 롤백돼도 실패 기록은 남는다.
+  - 예외: A 밖에서 이미 커밋된 것은 남는다. `createNewService=true` 로 부른 업무 서브서비스(자기 트랜잭션으로 따로 커밋), OASIS 의 커밋 요청 이벤트(`CommitTransactionAskedEvent` → `commitAndRestartTransaction`)로 묶음마다 중간 커밋하는 작업, `alwaysCommit` 트랜잭션 관리자로 쓴 내용이 그렇다. 이런 작업은 다시 돌려도 결과가 같게(멱등) 만든다.
+  - 실패 기록 자체가 실패하거나(DB 순간 오류가 5초 뒤 재시도에도 계속) 모듈 서버가 도중에 죽으면 RUN 행이 열린 채로 남는다. 이 행은 정리(§4.6)가 `STARTED_AT + TIMEOUT_SEC + 300초` 뒤 `TIMEOUT` 으로 닫는다.
 - 한 트랜잭션에서:
   1. `UPDATE <schema>.TB_MCM_JOB_RUN SET STATUS, ITEM_CNT, MSG, ENDED_AT=DB 시각, SERVER_NM=NVL(SERVER_NM,:srv), SERVICE_TAG=:tag WHERE RUN_ID=:runId AND STATUS='RUN'`.
   2. 1행이고 `OK` 이며 수집 값이 있으면 같은 트랜잭션에서 `TB_MCM_JOB_COLLECT_DATA` 에 MERGE 한다. 수집 값은 상태가 바뀌는 그 한 번만 저장된다.
@@ -407,7 +418,7 @@ dmes:
 |---|---|---|---|---|---|
 | `CODE` 코드 실행 | 내장 `job^^code` | `handlerId`(등록된 `ScheduledJob` 빈 ID) | 그 빈의 `run(ctx)` | 빈이 돌려준 수 | 30분 |
 | `BPMN` 서비스 실행 | 사용자가 고른 서비스 ID, `ACTION` | 없음(변수가 입력) | 그 BPMN 서비스 | 출력 `jobItemCnt` 또는 범위에 쌓인 수 | 10분 |
-| `QUERY` 쿼리 실행 | 내장 `job^^query` | `sql`(INSERT·UPDATE·DELETE·MERGE 한 문장 또는 `BEGIN 프로시저(…); END;`) | 그 모듈 기본 DataSource, 서비스 트랜잭션 안에서 실행. 문장 시간 초과 = 남은 시간 | 영향받은 행 수 | 10분 |
+| `QUERY` 쿼리 실행 | 내장 `job^^query` | `sql`(INSERT·UPDATE·DELETE·MERGE 한 문장 또는 `BEGIN 프로시저(…); END;`) | 그 모듈 기본 DataSource, 서비스 트랜잭션 안에서 실행. 쿼리 시간 초과 = 남은 시간(최소 1초, §4.4) | 영향받은 행 수 | 10분 |
 | `COLLECT` 수집 | 내장 `job^^collect` | `source`: `{kind:"sql", sql, valueField, keyField}`·`{kind:"http", url, items?}`·`{kind:"exchange", currencies}`, `save`(기본 true) | 기존 `Sql/Http/ExchangeCollectSource` 로 읽어 값을 범위에 담음 → 진입점이 결과 갱신 때 저장. `save:false` 면 읽기만(외부 트리거용) | 읽은 항목 수 | 2분 |
 
 - 내장 서비스는 mcm-core `src/main/resources/services/job/{code,query,collect}.bpmn` 이다. 각 BPMN 은 서비스 태스크 하나(`camunda:class` = mcm-core 빈, `method` = `run`)로 Java 몸체를 부른다. 6개 앱이 모두 싣는다.
@@ -459,7 +470,7 @@ public interface ScheduledJob {
 ### 5.4 수집 작업(위젯과 관계없음)
 
 - 위젯 「자동 수집(collect)」 유형은 지우고, 수집은 `job^^collect` 만 맡는다.
-- SQL 원천은 그 모듈 DB 를 기존 읽기 전용 실행기(SqlGuard·행 상한 50·10초·쿼리 위젯 전용 풀)로 읽는다. 값은 진입점이 결과 갱신과 같은 트랜잭션에서 `TB_MCM_JOB_COLLECT_DATA` 에 MERGE 한다(§4.5). 이전 설계의 `collect` 전용 API 는 없어진다.
+- SQL 원천은 그 모듈 DB 를 기존 읽기 전용 실행기(SqlGuard·행 상한 50·10초·쿼리 위젯 전용 풀)로 읽는다. 쿼리 시간 초과는 10초와 작업의 남은 시간 중 작은 값이다(§4.4). 값은 진입점이 결과 갱신과 같은 트랜잭션에서 `TB_MCM_JOB_COLLECT_DATA` 에 MERGE 한다(§4.5). 이전 설계의 `collect` 전용 API 는 없어진다.
 - HTTP 원천의 허용 호스트는 지금 `dmes.widget.collect.allowed-hosts` 다. `dmes.job.http.allowed-hosts` 로 옮기고, 옛 키가 있으면 기동 로그에 「새 키로 옮기세요」 warn 을 남기고 함께 읽는다.
 - 환율 원천은 `widget/ext` 의 환율 제공자 빈을 그대로 주입해 쓴다.
 - 수집 값을 화면에 보이려면 쿼리 위젯에서 `TB_MCM_JOB_COLLECT_DATA` 를 SQL 로 읽는다.
@@ -545,7 +556,7 @@ public interface ScheduledJob {
   - 등록: 같은 앱 두 대가 동시에 기동해도 DEF 행은 하나(MERGE), 화면 값은 덮어쓰지 않음, 처리기 목록이 MCM 대수와 무관하게 같음.
   - 정리(여유 300초), 늦은 회차 SKIP, 한 틱 후보 120건(50개씩 되풀이·SKIP 없음), FAIL 결과의 수집 값 저장 안 함, 겹침 SKIP, 「지금 실행」이 일정 회차와 겹치면 거절.
   - 보안: `/internal/job/run` 키 없음 401, 사용자 주체 403, `system:mcm` 아닌 주체 403.
-- 모듈 쪽: 진입점 — 대상 서비스 SUCCESS → OK 갱신 1회, 실패 → FAIL(원문 메시지 없음), 시간 초과 → TIMEOUT 갱신 1회·늦은 완료·인터럽트 FAIL 은 갱신 안 함, 마감 직전 완료와 감시 경합에서 갱신 1회, 재시도(1회차 FAIL → 대기 → 2회차 OK)가 TIMEOUT 되지 않고 건수가 쌓이지 않음, `Error` → FAIL, **서브서비스 3겹(사용자 BPMN → 내장 → 업무)에서도 갱신 1회**, 진입점 재진입은 거절(바깥 회차는 그대로 OK), 내장 서비스를 웹 경로(`OasisController`)로 부르면 거절, `createNewService` 로 부르면 거절. 접수 — 중복 runId 200, 풀 가득 503, 처리기 없음 404. 결과 갱신 실패 시 5초 뒤 한 번 더 하고 그다음은 WARN·정리에 맡김. 진입점 실행 로그가 sch 가 아닌 업무 로그 태그(serviceId 가 `sch.` 아님)로 남는지.
+- 모듈 쪽: 진입점 — 대상 서비스 SUCCESS → OK 갱신 1회, 실패 → FAIL(원문 메시지 없음), 시간 초과 → TIMEOUT 갱신 1회·늦은 완료·인터럽트 FAIL 은 갱신 안 함, `job^^query` 가 쿼리 시간 초과(시험용 `DBMS_SESSION.SLEEP`)로 ORA-01013 → DML 롤백·TIMEOUT 1회(감시와 경합해도 1회), 대상 롤백 뒤 FAIL 기록이 B 트랜잭션으로 남음, 마감 직전 완료와 감시 경합에서 갱신 1회, 재시도(1회차 FAIL → 대기 → 2회차 OK)가 TIMEOUT 되지 않고 건수가 쌓이지 않음, `Error` → FAIL, **서브서비스 3겹(사용자 BPMN → 내장 → 업무)에서도 갱신 1회**, 진입점 재진입은 거절(바깥 회차는 그대로 OK), 내장 서비스를 웹 경로(`OasisController`)로 부르면 거절, `createNewService` 로 부르면 거절. 접수 — 중복 runId 200, 풀 가득 503, 처리기 없음 404. 결과 갱신 실패 시 5초 뒤 한 번 더 하고 그다음은 WARN·정리에 맡김. 진입점 실행 로그가 sch 가 아닌 업무 로그 태그(serviceId 가 `sch.` 아님)로 남는지.
 - 다른 모듈 앱 기동 시험: mdm 앱 하나를 MCM 이 꺼진 상태로 띄워 기동이 실패하지 않고 WARN 1회만 남기는지 확인한다.
 - 기존 시험: 위젯 collect 시험은 유형과 함께 지운다. 원천 시험은 새 패키지로 옮긴다. `ScreenUsageRollupTest` 등은 공개 메서드 그대로라 유지한다.
 - 프런트: m-mcm tsc·audit·화면 단위 시험, shared 새 컴포넌트 시험.
@@ -596,7 +607,8 @@ public interface ScheduledJob {
 | D27 | 시간 초과·결과 1회 | 회차 상태 객체 CAS 로 이긴 쪽만 결과를 씀, 감시는 시도마다, 재시도는 풀에 새로 넣음, 진입점 재진입 거절 |
 | D28 | 판정 방식과 로그 | **변경(사용자 결정 24)**: `@Scheduled` 트리거 → BPMN 시스템 서비스 `job^^dispatch`(serviceStarter.start 직접, SCHEDULER 감사, 자기 트랜잭션에서 조회·선점·커밋) → 트랜잭션 밖 Java 호출 풀. 50개 묶음은 트리거가 `more` 로 되풀이. 판정·호출 로그는 mcm 업무 로그(serviceId `job^^dispatch`), 트리거 경계 두 줄만 sch. 억제 장치 없음. 웹 호출은 `JobDispatchScope` 로 거절. BPMN 은 코드와 함께 배포되는 파일이라 실행 중 수정 경로 없음(권한 장치 불필요) |
 | D29 | 실행 결과 기록 | **사용자 결정 25(B 안)**: 모듈 진입점이 RUN 행을 DB 에 직접 UPDATE(`WHERE RUN_ID AND STATUS='RUN'`, 0행이면 늦은 결과 WARN), 수집 값은 같은 트랜잭션에서 MERGE. SQL 은 cactus-core `JobRunResultWriter` 한 곳, 접두는 `dmes.job.schema`, 모듈 기본 DataSource, 대상과 분리된 짧은 트랜잭션. 모듈 사용자에 GRANT(§3.5) |
-| D30 | 코드 작업 등록 | **DB 직접**(권장, 수정이 적은 쪽): 모듈 기동 때 `TB_MCM_JOB_HANDLER` MERGE + 기본 일정 있는 빈만 `TB_MCM_JOB_DEF` 에 없을 때 INSERT. 이유: 결과 API 를 없애면 등록만을 위해 모듈→MCM HTTP 클라이언트·MCM 인바운드 API·MCM 꺼짐 재시도·MCM 주소·키 설정을 남겨야 하고, 처리기 목록을 MCM 메모리에 두면 MCM 여러 대에서 한 대만 안다. DB 직접은 표 하나와 GRANT 로 끝난다 |
+| D30 | 코드 작업 등록 | **사용자 확정(보충 6, 「둘 다 권장안대로 반영해줘」) — DB 직접**: 모듈 기동 때 `TB_MCM_JOB_HANDLER` MERGE + 기본 일정 있는 빈만 `TB_MCM_JOB_DEF` 에 없을 때 INSERT. 이유: 결과 API 를 없애면 등록만을 위해 모듈→MCM HTTP 클라이언트·MCM 인바운드 API·MCM 꺼짐 재시도·MCM 주소·키 설정을 남겨야 하고, 처리기 목록을 MCM 메모리에 두면 MCM 여러 대에서 한 대만 안다. DB 직접은 표 하나와 GRANT 로 끝난다 |
+| D31 | 내장 서비스 쿼리 시간 초과 | **사용자 확정(보충 6)**: `job^^query`·`job^^collect`(SQL) 문장마다 남은 시간(최소 1초) 쿼리 시간 초과. `ORA-01013` 은 대상 트랜잭션 롤백 + 진입점이 TIMEOUT 으로 정함, 감시와는 CAS 로 한 번만. 업무 BPMN·CODE 는 가이드 권장만 |
 
 ## 12. 검토 후 폐기한 안
 
