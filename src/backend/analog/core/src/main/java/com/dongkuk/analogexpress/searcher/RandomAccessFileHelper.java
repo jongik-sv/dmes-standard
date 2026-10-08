@@ -32,7 +32,7 @@ public class RandomAccessFileHelper {
         // 범위를 넘는 첫 기록 직전까지가 범위 안의 마지막 기록(과 이어진 줄)이다.
         Record beyond = firstRecordMatching(file, comparator, compare -> compare > 0);
         long boundary = beyond == null ? file.length() : beyond.start;
-        return getCurrentLineStartPointer(boundary - 1, file);
+        return Math.max(first.start, getCurrentLineStartPointer(boundary - 1, file));
     }
 
     private record Record(long start, long end, String line) {
@@ -52,9 +52,9 @@ public class RandomAccessFileHelper {
         while (lo < hi) {
             long mid = lo + (hi - lo) / 2;
             long lineStart = Math.max(lo, getCurrentLineStartPointer(mid, file));
-            Record record = nextRecord(file, lineStart, comparator);
+            Record record = nextRecord(file, lineStart, hi, comparator);
 
-            if (record == null || record.start >= hi) {
+            if (record == null) {
                 // lineStart 부터 hi 까지는 기록의 시작이 없다.
                 hi = lineStart;
             } else if (condition.test(comparator.compare(record.line))) {
@@ -67,11 +67,13 @@ public class RandomAccessFileHelper {
         return found;
     }
 
-    /** position(줄의 시작 위치) 이후 처음 나오는 시각이 있는 줄을 읽는다. 없으면 null 이다. */
-    private static Record nextRecord(RandomAccessibleLineReader file, long position, LoggingTimeComparator comparator) throws IOException {
+    /** position(줄의 시작 위치) 이후 limit 앞에서 시작하는 첫 시각 있는 줄을 읽는다. 없으면 null 이다. */
+    private static Record nextRecord(RandomAccessibleLineReader file, long position, long limit, LoggingTimeComparator comparator) throws IOException {
         file.seek(position);
         while (true) {
             long start = file.getFilePointer();
+            if (start >= limit)
+                return null;
             String line = file.readLine();
             if (line == null)
                 return null;

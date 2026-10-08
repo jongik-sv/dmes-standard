@@ -151,4 +151,30 @@ class RandomAccessFileHelperMultilineTest {
         assertThat(last.getStartIndex()).isEqualTo(w.lines.get(82).offset);
         assertThat(last.getEndIndex()).isEqualTo(w.length);
     }
+
+    @Test
+    void 첫_바이트가_빈_줄이어도_첫_기록이_빠지지_않는다() throws IOException {
+        File file = dir.resolve("leading-blank.log").toFile();
+        Files.writeString(file.toPath(), "\n2026-10-08 10:00:00.000 A\n2026-10-08 10:01:00.000 B\n", StandardCharsets.UTF_8);
+        Index index = MultiThreadSearcherHelper.getStartEndIndex(file, comparator(0, 0));
+        assertThat(index.getStartIndex()).isEqualTo(1);
+        assertThat(index.getEndIndex()).isEqualTo(1 + "2026-10-08 10:00:00.000 A\n".length());
+    }
+
+    @Test
+    void 스레드별_범위는_기록_머리줄에서만_나뉘고_이어진_줄과_갈라지지_않는다() throws IOException {
+        int[] continuations = {40, 40, 40, 40, 40, 40, 40, 40};
+        Written w = write("ranges.log", continuations, "\n", true, 0);
+        Index whole = new Index(0, w.length);
+        List<Range> ranges = MultiThreadSearcherHelper.getRanges(w.file, comparator(0, continuations.length - 1), whole);
+
+        assertThat(ranges).isNotEmpty();
+        long cursor = 0;
+        for (Range range : ranges) {
+            assertThat(range.getStartIndex()).as("범위는 앞 범위가 끝난 곳에서 이어진다").isEqualTo(cursor);
+            assertThat(w.lines.stream().filter(l -> l.minute >= 0).map(Line::offset)).as("범위 시작은 기록 머리줄").contains(range.getStartIndex());
+            cursor += range.getLimitLength();
+        }
+        assertThat(cursor).as("마지막 범위는 정확히 끝에서 끝난다").isEqualTo(w.length);
+    }
 }
