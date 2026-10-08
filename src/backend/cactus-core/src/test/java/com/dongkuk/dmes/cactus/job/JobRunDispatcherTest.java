@@ -78,6 +78,7 @@ class JobRunDispatcherTest {
         assertThat(r.userId()).isEqualTo("SCHEDULER");
         assertThat(r.slot()).isEqualTo("202610090200");
         assertThat(r.serviceTag()).isNotBlank();
+        assertThat(reporter.threads.get("r1")).as("실행 스레드가 직접 쓴다").startsWith("job-run-");
         assertThat(biz.events).containsExactly("begin", "commit");
         reporter.assertNoMore();
     }
@@ -130,6 +131,7 @@ class JobRunDispatcherTest {
         JobRunReport r = reporter.next();
         assertThat(r.status()).isEqualTo("TIMEOUT");
         assertThat(r.msg()).contains("시간 초과");
+        assertThat(reporter.threads.get("r1")).as("감시는 DB 를 쓰지 않고 기록 전용 실행기에 넘긴다").startsWith("job-report-");
         Thread.sleep(700);   // 인터럽트된 실행 스레드가 FAIL 로 끝난 뒤에도
         assertThat(JobRunTestTask.LOG).contains("interrupted");
         reporter.assertNoMore();
@@ -201,6 +203,7 @@ class JobRunDispatcherTest {
         assertThat(r.runId()).isEqualTo("r1");
         assertThat(r.status()).isEqualTo("FAIL");
         assertThat(r.msg()).contains("풀 가득");
+        assertThat(reporter.threads.get("r1")).as("재시도 스케줄러도 DB 를 쓰지 않는다").startsWith("job-report-");
     }
 
     @Test
@@ -290,7 +293,51 @@ class JobRunDispatcherTest {
     }
 
     /** 풀 크기만 다른 진입점을 다시 만든다(실제 OASIS 조립 — transactional + multi-tx, 서비스 경로 /job-run). */
+    @Test
+    @DisplayName("기록 대기열이 가득이면 그 TIMEOUT 기록은 버리되 jobId 는 풀어 다음 회차를 막지 않는다")
+    void reportQueueFullDropsButFreesJob() throws Exception {
+        executor.close();
+        executor = new JobRunExecutor(4, 1);   // 기록 스레드 2 + 대기열 1 → 동시 TIMEOUT 4건 중 1건은 버린다
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicInteger blocked = new java.util.concurrent.atomic.AtomicInteger();
+        JobRunReporter blocking = report -> {
+            if ("TIMEOUT".equals(report.status())) {
+                blocked.incrementAndGet();
+                try {
+                    release.await(20, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            return reporter.write(report);
+        };
+        dispatcher = newDispatcher(executor, blocking);
+        JobRunTestTask.sleepMillis = 3_000;
+        for (int i = 0; i < 4; i++) {
+            assertThat(dispatcher.submit(req("q-" + i, "q-job-" + i, "jobRunSlow", 1, null))).isEqualTo(SubmitResult.ACCEPTED);
+        }
+        for (int i = 0; i < 100 && blocked.get() < 2; i++) Thread.sleep(50);
+        Thread.sleep(500);   // 네 감시가 모두 넘긴 뒤
+        try {
+            int accepted = 0;
+            for (int i = 0; i < 4; i++) {
+                SubmitResult again = dispatcher.submit(req("q2-" + i, "q-job-" + i, "jobRunOk", 30, null));
+                if (again == SubmitResult.ACCEPTED) accepted++;
+                else assertThat(again).isEqualTo(SubmitResult.JOB_RUNNING);
+            }
+            assertThat(accepted).as("버린 1건만 jobId 가 풀려 있다").isEqualTo(1);
+        } finally {
+            release.countDown();
+        }
+        List<JobRunReport> reports = reporter.drain(4, 10_000);   // 기록된 TIMEOUT 3건 + 다시 접수된 OK 1건
+        assertThat(reports).extracting(JobRunReport::status).containsExactlyInAnyOrder("TIMEOUT", "TIMEOUT", "TIMEOUT", "OK");
+    }
+
     private JobRunDispatcher newDispatcher(JobRunExecutor pool) {
+        return newDispatcher(pool, reporter);
+    }
+
+    private JobRunDispatcher newDispatcher(JobRunExecutor pool, JobRunReporter rep) {
         OasisProperties props = new OasisProperties();
         props.setTransactional(true);
         props.setServicePath("/job-run");
@@ -298,7 +345,7 @@ class JobRunDispatcherTest {
         tx.getManagers().put("txBiz", new CactusTxProperties.TxMgrConfig());
         tx.setDefaultManager("txBiz");
         ServiceStarter starter = new OasisAutoConfiguration().serviceStarter(props, tx, ctx);
-        JobRunDispatcher d = new JobRunDispatcher(starter, ctx, reporter, pool, "srv1", Clock.systemDefaultZone(), TimeUnit.MILLISECONDS);
+        JobRunDispatcher d = new JobRunDispatcher(starter, ctx, rep, pool, "srv1", Clock.systemDefaultZone(), TimeUnit.MILLISECONDS);
         JobRunTestTask.dispatcher = d;
         return d;
     }
@@ -307,6 +354,8 @@ class JobRunDispatcherTest {
     static final class RecordingReporter implements JobRunReporter {
         private final BlockingQueue<JobRunReport> queue = new LinkedBlockingQueue<>();
         final List<List<String>> eventsAtWrite = new ArrayList<>();
+        /** runId → 결과를 쓴 스레드 이름(마지막 기록). */
+        final Map<String, String> threads = new java.util.concurrent.ConcurrentHashMap<>();
         private final RecordingTxManager tx;
 
         RecordingReporter(RecordingTxManager tx) {
@@ -318,6 +367,7 @@ class JobRunDispatcherTest {
             synchronized (eventsAtWrite) {
                 eventsAtWrite.add(new ArrayList<>(tx.events));
             }
+            threads.put(report.runId(), Thread.currentThread().getName());
             queue.add(report);
             return WriteResult.WRITTEN;
         }
