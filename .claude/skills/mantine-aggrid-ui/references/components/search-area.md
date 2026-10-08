@@ -125,6 +125,7 @@ const set = (k: keyof Filters, v: string) => setF((p) => ({ ...p, [k]: v }));
 - 분리 창이 이어받은 값으로 시작했으면 부르지 않는다. 이어받기를 쓰는 화면은 `useCarryRefetch` 대신 「복원됐는데 행이 비었을 때만 조회하는 마운트 effect」(`if (restored && rows.length === 0) void handleSearch()`)를 둔다([use-carry-state.md](use-carry-state.md) 규칙 5).
 - 서버에서 받는 선택지에 아직 없는 고정 값이 있으면 조회를 최대 1.5초 미룬다. 그 안에 값을 넣으면 넣은 값으로, 넘으면 지금 값으로 조회한다.
 - 자동 조회는 최근 입력값·마지막 조회값에 남기지 않는다.
+- 기본값을 기다리는 동안 사용자가 먼저 조회(Enter·조회 버튼)했고 그 뒤 넣은 값이 없으면 뒤늦은 자동 조회는 건너뛴다. 자동 조회가 부르는 `onSearch` 에는 `"auto"` 가 넘어오므로(사용자 조회는 인자 없음), 진입 조회와 사용자 조회를 가르는 화면은 이 인자로 판단한다.
 
 ### 칸 키: defaultKey·defaultable
 

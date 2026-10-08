@@ -13,6 +13,8 @@
  *   부르지 않는다(화면의 useCarryRefetch 가 맡는다). 사용자가 한 조회가 아니므로 emitSearch 를 내지 않는다.
  *   선택지를 기다리며 보류한 값이 있으면 조회를 최대 1.5초 미룬다 — 넣은 뒤에 조회하고, 넘으면 보류를 버리고 지금 값으로 조회한다
  *   (먼저 「전체」로 조회한 뒤 칸만 바뀌면 보이는 조건과 조회한 조건이 다르다).
+ *   기다리는 동안(넣기 전·미룬 동안) 사용자가 먼저 조회했고 그 뒤 넣은 값이 없으면 autoSearch 는 건너뛴다 — 사용자 조회가 이미 지금 조건으로 돌았다.
+ *   autoSearch 가 부르는 onSearch 에는 `"auto"` 를 넘겨 화면이 진입 조회와 사용자 조회를 가를 수 있게 한다.
  * - 초기화(emitSearchReset): 사용자 기본값을 다시 넣는다. 「마지막 조회값」 칸은 넣지 않는다(초기화는 조건을 비우려는 동작).
  * - 조회(emitSearch): 등록된 칸의 지금 값을 마지막 조회값으로 적는다.
  * - 의존 칸(SearchField `dependsOn`): 기준 칸 값이 바뀐 커밋 뒤에 의존 칸을 처음 등록 때 값(코드 기본값)으로 비우고 칸 규칙으로 다시 채운다.
@@ -30,6 +32,7 @@ import { getCurrentUser, peekCurrentUser, subscribeCurrentUser } from "../../por
 import { useTabPage } from "../../portal-shell/tab-page-context";
 import { useIsomorphicLayoutEffect } from "../../hooks/use-isomorphic-layout-effect";
 import { subscribeSearch, subscribeSearchReset } from "../search-history-bus";
+import type { SearchTrigger } from "../SearchArea";
 import { readSearchLastValues, writeSearchLastValues } from "./last-values";
 import { resolveSearchDefault, type SearchValueType } from "./rule";
 import {
@@ -145,7 +148,7 @@ export interface UseSearchDefaultsControllerOptions {
   scope?: string;
   /** 넣기가 끝난 뒤 onSearch 를 한 번 부른다(SearchArea `autoSearch`). */
   autoSearch: boolean;
-  onSearch?: () => void;
+  onSearch?: (trigger?: SearchTrigger) => void;
   /** SearchArea 바깥 요소 — 대화 상자 안인지 본다. */
   rootRef: RefObject<HTMLElement | null>;
 }
@@ -190,6 +193,9 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
   const lateRef = useRef(new Set<string>());
   const pendingCheckRef = useRef<Map<string, string> | null>(null);
   const pendingAutoSearchRef = useRef(false);
+  /** autoSearch 전(넣기 전·미룬 동안)에 사용자가 조회했는가. 그 뒤 넣은 값이 있으면 조건이 달라졌으므로 autoSearch 를 건너뛰지 않는다. */
+  const userSearchedRef = useRef(false);
+  const injectedAfterUserSearchRef = useRef(false);
   /** 선택지 보류 때문에 미룬 autoSearch — 보류가 비거나 한도가 넘으면 예약한다. */
   const deferredSearchRef = useRef(false);
   const deferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -276,6 +282,7 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
         check.set(key, v);
       }
       pendingCheckRef.current = check;
+      if (userSearchedRef.current) injectedAfterUserSearchRef.current = true;
       scheduledAtRef.current = renderIdRef.current;
       setTick((n) => n + 1);
       return targets;
@@ -290,6 +297,8 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
       clearTimeout(deferTimerRef.current);
       deferTimerRef.current = null;
     }
+    // 기다리는 동안 사용자가 이미 조회했고 그 뒤 넣은 값이 없으면 같은 조건의 조회를 또 하지 않는다.
+    if (userSearchedRef.current && !injectedAfterUserSearchRef.current) return;
     pendingAutoSearchRef.current = true;
     scheduledAtRef.current = renderIdRef.current;
     setTick((n) => n + 1);
@@ -534,7 +543,7 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
     }
     if (pendingAutoSearchRef.current) {
       pendingAutoSearchRef.current = false;
-      onSearchRef.current?.();
+      onSearchRef.current?.("auto");
     }
   }, [tick]);
 
@@ -542,6 +551,11 @@ export function useSearchDefaultsController(opts: UseSearchDefaultsControllerOpt
   useEffect(() => {
     if (!pageId) return undefined;
     const offSearch = subscribeSearch(pageId, () => {
+      // autoSearch 가 아직 안 불렸으면(넣기 전이거나 선택지를 기다려 미룬 동안) 사용자 조회를 적어 둔다.
+      if (optsRef.current.autoSearch && (phaseRef.current === "pending" || deferredSearchRef.current)) {
+        userSearchedRef.current = true;
+        injectedAfterUserSearchRef.current = false;
+      }
       if (!optsRef.current.enabled || offRef.current) return;
       // 지금 사용자 키로 적는다(같은 화면이 열린 채 사용자가 바뀌었어도 이전 사용자 키에 적지 않게).
       const userId = peekCurrentUser()?.id || userIdRef.current;

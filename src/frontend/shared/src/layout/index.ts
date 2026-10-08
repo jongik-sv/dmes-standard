@@ -5,7 +5,7 @@ export {
   useUserButtonRbac,
   type ButtonRbacState,
 } from "../portal-shell/use-user-button-rbac";
-export { SearchArea, type SearchAreaProps } from "./SearchArea";
+export { SearchArea, type SearchAreaProps, type SearchTrigger } from "./SearchArea";
 export { SearchField, type SearchFieldProps, type SearchFieldOption } from "./SearchField";
 export { SearchHistoryInput, type SearchHistoryInputProps } from "./SearchHistoryInput";
 export {

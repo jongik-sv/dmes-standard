@@ -11,17 +11,22 @@ import {
 } from "./search-defaults/area";
 import { SearchSettings } from "./search-defaults/SearchSettings";
 
+/** onSearch 를 부른 이유 — autoSearch 가 부르면 "auto", 사용자 조회(Enter)는 인자 없이 부른다. */
+export type SearchTrigger = "auto";
+
 export interface SearchAreaProps {
   children: React.ReactNode;
   /**
    * 조회 핸들러. 지정하면 SearchArea 내부가 form 으로 렌더되어 어느 입력 필드에서든
    * Enter 키로 자동 조회된다 (HTML implicit form submission).
+   * autoSearch 가 부를 때만 `"auto"` 를 넘긴다(진입 조회와 사용자 조회를 가르는 화면용).
    */
-  onSearch?: () => void;
+  onSearch?: (trigger?: SearchTrigger) => void;
   /**
    * 화면을 열 때 한 번 조회한다 — 사용자 기본값을 칸에 넣은 다음 커밋에서 `onSearch` 를 부른다(설계 2026-10-07-search-defaults §6.4).
    * 마운트 effect 에서 직접 조회하면 기본값이 빠진 조건으로 조회하므로, 첫 자동 조회는 이 prop 으로만 한다.
    * 분리 창이 이어받은 값으로 시작했으면 부르지 않는다(화면의 useCarryRefetch 가 맡는다).
+   * 기본값을 기다리는 동안 사용자가 먼저 조회했고 그 뒤 넣은 값이 없으면, 그 조회가 같은 조건이므로 이 조회는 건너뛴다.
    */
   autoSearch?: boolean;
   /** false 면 조회 칸 사용자 기본값을 쓰지 않는다(넣지 않고 설정 아이콘도 없다). 기본 true. */
