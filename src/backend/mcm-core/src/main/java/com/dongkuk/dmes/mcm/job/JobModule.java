@@ -27,7 +27,10 @@ public enum JobModule {
                 "예약 작업 모듈을 판정할 수 없습니다 — dmes.job.module 을 MCM|MDM|MPP|MLS|MQC|MPN 중 하나로 지정하세요"));
     }
 
-    /** {@link #resolve} 와 같으나 판정할 수 없으면 비어 있는 결과를 돌려준다(엔진이 경고 후 비활성화). */
+    /**
+     * {@link #resolve} 와 같으나 판정할 수 없으면 예외 대신 비어 있는 결과를 돌려준다. 지금 기동 경로는 쓰지 않는다 — {@code JobAgentConfig} 가
+     * {@link #resolve} 를 불러 판정에 실패하면 기동을 실패시킨다(빠른 실패).
+     */
     public static Optional<JobModule> tryResolve(JobProperties props, Environment env) {
         String configured = props.getModule();
         if (configured != null && !configured.isBlank()) {
