@@ -101,6 +101,13 @@ public final class HttpUrlTemplate {
         } catch (BusinessException e) {
             throw new CollectException("변수를 넣은 수집 주소가 올바르지 않습니다.");
         }
+        // 값 하나가 . 이 아니어도 템플릿 글자나 다른 값과 붙어 경로 조각이 . 또는 .. 이 될 수 있다("/.{{x}}/" + x=".") — 만든 경로 전체에서 막는다.
+        String rawPath = rendered.getRawPath();
+        if (rawPath != null) {
+            for (String segment : rawPath.split("/", -1)) {
+                if (".".equals(segment) || "..".equals(segment)) throw new CollectException("변수를 넣은 수집 주소의 경로에 . 또는 .. 조각이 생겨 수집하지 않습니다.");
+            }
+        }
         // 값이 인코딩돼 구조를 바꿀 수 없지만, 만든 주소가 자리 없는 주소와 같은 스킴·호스트·포트인지 한 번 더 본다.
         URI base = source.url();
         if (!sameOrigin(base, rendered)) throw new CollectException("변수를 넣은 수집 주소의 호스트가 달라져 수집하지 않습니다.");

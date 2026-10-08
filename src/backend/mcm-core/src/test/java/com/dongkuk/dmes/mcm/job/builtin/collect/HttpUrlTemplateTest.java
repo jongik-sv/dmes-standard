@@ -130,6 +130,14 @@ class HttpUrlTemplateTest {
         assertThat(HttpUrlTemplate.render(h, Map.of("a", "x".repeat(200)), TODAY).getRawPath()).hasSize(3 + 200);
     }
 
+    @Test
+    @DisplayName("치환: 템플릿 글자나 다른 값과 붙여 . 또는 .. 조각을 만들려 해도 거절한다(값 검사가 먼저 막고, 경로 조각 검사가 한 번 더 막는다)")
+    void dotSegmentsFromConcatenation() {
+        assertRejected(parsed("https://a.com/v1/.{{x}}/y"), Map.of("x", "."), ".");
+        assertRejected(parsed("https://a.com/v1/{{x}}{{y}}/z"), Map.of("x", ".", "y", "."), ".");
+        assertThat(HttpUrlTemplate.render(parsed("https://a.com/v1/{{x}}.{{y}}/z"), Map.of("x", "a", "y", "b"), TODAY).getRawPath()).isEqualTo("/v1/a.b/z");
+    }
+
     private static void assertRejected(HttpSource h, Map<String, Object> vars, String messagePart) {
         assertThatThrownBy(() -> HttpUrlTemplate.render(h, vars, TODAY)).isInstanceOf(CollectException.class).hasMessageContaining(messagePart);
     }
