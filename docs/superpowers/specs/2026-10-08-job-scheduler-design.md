@@ -1,6 +1,6 @@
 # 예약 작업 관리(자동 수집관리) 설계
 
-2026-10-08 · 레인 job-sched(지시 job-sched-1) · 상태: **초안 — 화면 시안 확인·조정자 결정 대기**
+2026-10-08 · 레인 job-sched(지시 job-sched-1) · 상태: **구현 허가(조정자, 2026-10-08) — §12 결정 반영본**
 
 ## 0. 배경과 사용자 결정
 
@@ -17,7 +17,9 @@
   9. 「각 모듈별로 자기 모듈의 스케줄을 실행하도록 하고 실행하는 것은 bpmn 서비스, 쿼리, 수집 프로그램 등의 형태를 실행할 수 있도록 하자. 생각해 보고 더 있으면 추가해 줘.」
   10. 「캐시는 각 모듈별로 캐시가 있으면 좋겠어. 키 자체가 MCM, MDM, MLS, MPP, ... 이 키에 포함되어야 한다는 거야」
   11. 「BPMN 의 경우는 변수와 Action 도 입력해 줘야 해.」 「다른 유형도 변수 받아야겠네.」
-  12. 「위젯처럼 간단하게 등록할 수 있으면 좋겠다.」 「화면 시안을 먼저 만들어 봐.」
+  12. 「위젯처럼 간단하게 등록할 수 있으면 좋겠다.」 「화면 시안을 먼저 만들어 봐.」 「crontab 식을 더 편하게 쓸 수 있게 하면 좋겠다.」
+  13. 「위젯과 JOB 은 관계 없어. 위젯에 시간 설정한 것은 무조건 화면 시간이야.」(조정자 전달): 위젯 「자동 수집(collect)」 유형을 지운다. 수집 원천은 JOB 의 COLLECT 유형으로 옮긴다. 빈 표 `TB_MCM_WIDGET_COLLECT_RUN`·`_DATA` 는 DROP 하지 않는다.
+  14. 「예약 작업 관리 테이블은 MCM 에 있지만 각 모듈에서 실행이 되어야 해」, 「각 모듈에서 해당 모듈에 해당하는 것을 조회해야지」(조정자 전달): 각 모듈 엔진이 MCM 표에서 자기 모듈 작업을 직접 조회·선점한다. MCM 이 다른 모듈을 HTTP 로 부르지 않는다. 수집 작업도 작업마다 실행 모듈을 고른다.
 - Spring 스케줄러의 역할: `TaskScheduler` 는 매분 깨우는 시계로만 쓴다. 어떤 작업을 언제 돌릴지는 작업 정의 테이블이 정한다.
 
 ## 1. 지금 상태(조사 결과)
@@ -56,6 +58,7 @@
 ```
 
 - 새 패키지: `com.dongkuk.dmes.mcm.job`(mcm-core). 하위 `def`(정의·모듈 키 캐시·crontab 식), `run`(틱·선점·실행·기록), `kind`(유형 등록부와 유형별 실행기), `code`(코드 작업 인터페이스·등록), `admin`(화면 서비스).
+- 각 모듈 앱은 JOB 전용 연결(§4.6a)로 MCMAPUSER 표에 닿는다. MCM 이 다른 모듈을 부르지 않는다.
 - 새 테이블 4개(MCMAPUSER): 작업 정의 `TB_MCM_JOB_DEF`, 실행 기록 `TB_MCM_JOB_RUN`, 모듈 키별 정의 버전 `TB_MCM_JOB_VER`, 수집 값 `TB_MCM_JOB_COLLECT_DATA`.
 - 관리 화면은 mcm 에 하나: 공통관리 > 시스템관리 > 「예약 작업 관리」(`csa/jobSchedMng`). 위젯관리와 같은 배치·흐름이며 모듈을 골라 보고 고친다.
 
@@ -115,8 +118,8 @@
 기존 `TB_MCM_WIDGET_COLLECT_DATA` 와 같은 모양이고 키만 `WIDGET_ID` → `JOB_ID` 로 바뀐다.
 PK `(JOB_ID, SLOT varchar2(12), ITEM_KEY varchar2(100))`, `VALUE_NUM number(24,8)`, `VALUE_TXT varchar2(200)`, 인덱스 `(SLOT)`.
 
-- 수집 작업을 위젯과 따로 만들고 여러 위젯이 한 작업을 볼 수 있어서 새 표를 둔다.
-- 기존 `TB_MCM_WIDGET_COLLECT_RUN`·`_DATA` 는 더 쓰지 않는다(행 0건). 표 삭제는 사용자 결정으로 남긴다.
+- 위젯 수집 표를 재사용하지 않고 새 표를 둔다. 위젯과 JOB 은 관계가 없고 키 이름(`WIDGET_ID`)과 뜻이 어긋난다.
+- 기존 `TB_MCM_WIDGET_COLLECT_RUN`·`_DATA` 는 더 쓰지 않는다(행 0건). DROP 하지 않고 표 삭제는 따로 결정한다.
 
 ## 4. 일정·선점·캐시
 
@@ -135,7 +138,7 @@ PK `(JOB_ID, SLOT varchar2(12), ITEM_KEY varchar2(100))`, `VALUE_NUM number(24,8
 3. 고른 작업이 있으면 실행 풀의 빈 자리 수(최대 20)만큼 앞에서 잘라 `JobClaimer.claim(ids)` 를 부른다.
 4. 선점이 끝나면 캐시의 해당 작업 `NEXT_RUN_AT` 을 새 값으로 바꾼다(다른 서버가 먼저 잡아 0건이었으면 crontab 식으로 다음 예정을 계산해 넣는다).
 
-### 4.2 선점 트랜잭션(`JobClaimer`, 별도 빈 `@Transactional`, 네이티브 SQL)
+### 4.2 선점 트랜잭션(`JobClaimer`, JOB 전용 연결의 `TransactionTemplate`, 네이티브 SQL)
 
 ```sql
 SELECT JOB_ID, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_AT, CAST(SYSTIMESTAMP AS TIMESTAMP) AS DB_NOW
@@ -185,6 +188,23 @@ SELECT JOB_ID, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_AT, CAST(SYSTIMESTAMP AS TIMESTA
 - `dmes.job.enabled`(기본 true)를 `false` 로 두면 그 앱은 예약 작업을 돌리지 않는다.
 - `SERVER_NM` 은 `dmes.job.server-name`, 비어 있으면 `호스트이름:spring.application.name:pid`.
 
+### 4.6a MCM 표에 닿는 길(JOB 전용 연결)
+
+- 모듈마다 DB 사용자·PDB 가 다르다(mdm 은 `MDMAPUSER`, 로컬 기본 `L_ORA_MDM`, 운영은 다른 서버일 수 있음). JOB 표 4개는 `MCMAPUSER` 에 있으므로 각 모듈 앱은 **JOB 전용 연결**로 MCM 표에 닿는다.
+- 결정: mcm-core 에 `JobDataSource`(DataSource 를 감싼 전용 형식, `DataSource` 형식의 빈이 아님)를 둔다. 쿼리 위젯 전용 풀 `WidgetQueryDataSource` 와 같은 방식이다.
+  - `dmes.job.datasource.url`·`username`·`password`(또는 `jndi-name`)가 있으면 전용 Hikari 풀(최대 2, 유휴 0, 이름 `job-ds`)을 만든다. 앱이 끝날 때 닫는다.
+  - 없으면 앱 기본 DataSource 를 그대로 쓴다. mcm 앱은 기본 연결이 이미 MCMAPUSER 라 설정하지 않는다.
+  - JOB 엔진(정의 캐시·버전 확인·선점·실행 기록·수집 값 저장·지금 실행 요청)은 이 연결의 JdbcTemplate·TransactionTemplate 만 쓴다. JPA 엔티티는 두지 않는다(모듈마다 EntityManager 가 다르고 MCMAPUSER 표를 엔티티로 올리면 다른 앱의 스키마 검사에 걸린다). SQL 은 `MCMAPUSER.` 접두를 붙인다.
+- 조정자 권장안(cactus-core 보조 데이터소스 `cactus.datasource.secondary.url`)을 쓰지 않는 근거
+  1. 그 빈은 `DataSource` 형식이다. mdm·mpp·mls·mqc·mpn 앱은 `@Primary` 없이 Boot 기본 DataSource 를 쓰므로, 켜는 순간 DataSource 후보가 둘이 된다. 그러면 Boot JPA 자동 설정(단일 후보 조건)이 빠지거나 형식으로 주입받는 곳에서 기동이 실패할 수 있다.
+  2. 보조 데이터소스는 「단일 보조 DS」 한 칸이라 JOB 이 차지하면 나중에 업무 보조 DB 가 쓸 자리가 없다. `cactus.jpa.secondary.enabled` 와도 엮여 있다.
+  3. 기본 풀 크기가 10 이다. 로컬 Oracle 은 앱마다 풀 3 이하 규칙(schema-owners §3)이고 JOB 은 2개면 충분하다.
+- 설정 자리
+  - 각 모듈 `application-local.yml`(mdm·mpp·mls·mqc·mpn): `dmes.job.datasource.url: ${DMES_JOB_DS_URL:jdbc:oracle:thin:@//localhost:1521/L_MAIN}`, `username: ${DMES_JOB_DS_USER:MCMAPUSER}`, `password: ${DMES_JOB_DS_PASSWORD:dmes_password_123}`. 레인 시험은 env 로 레인 PDB 를 가리킨다.
+  - 운영 프로필(`application-wildfly.yml` 등): 값 없이 `jndi-name: ${DMES_JOB_DS_JNDI:}` 자리만 둔다. 비어 있으면 그 앱은 기본 DataSource 로 붙는다(운영에서 MCMAPUSER 표에 교차 스키마 권한이 있으면 그대로 동작, 없으면 JNDI 를 채운다).
+  - 이 설정 파일들은 각 모듈 소유라 **겹칠 수 있는 파일**로 머지 요청에 적는다.
+- 작업 몸체가 쓰는 연결은 따로다. BPMN·QUERY·PURGE·CODE 는 **그 모듈 앱의 기본 DataSource**(자기 스키마)로 돈다. COLLECT 의 SQL 원천은 그 앱의 쿼리 위젯 실행기(읽기 전용 검사, 전용 풀이 없으면 기본 DataSource)로 읽고, 수집 값은 JOB 전용 연결로 MCM 표에 쓴다.
+
 ### 4.7 「지금 한 번 실행」
 
 - mcm 화면이 다른 모듈의 작업을 직접 돌릴 수 없으므로 요청을 DB 에 남긴다. mcm 서버가 `TB_MCM_JOB_RUN` 에 `STATUS='REQ'`, `TRIGGER_TP='M'`, `SCHED_AT`=요청 시각 행을 넣고 그 모듈 키의 버전을 +1 한다.
@@ -212,7 +232,7 @@ SELECT JOB_ID, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_AT, CAST(SYSTIMESTAMP AS TIMESTA
 | `CODE` 코드 작업 | 없음(코드가 정함) | `ScheduledJob` 빈 `run(ctx)` | 작업이 돌려준 수 | 30분 |
 | `BPMN` BPMN 서비스 | `serviceId`, `action` | 그 모듈 앱의 `OasisServiceExecutor.execute(serviceId, action, CactusRequest(meta{userId=실행 사용자, menuId=JOB_ID}, params=변수))`. 응답이 오류면 FAIL(응답 코드와 사용자용 메시지만 기록) | 응답의 처리 건수가 있으면 그 값 | 10분 |
 | `QUERY` 쿼리 | `sql`(INSERT·UPDATE·DELETE·MERGE 한 문장 또는 `BEGIN 프로시저(…); END;`) | 그 모듈 앱의 기본 DataSource 로 트랜잭션 하나에서 실행. DDL·여러 문장·COMMIT/ROLLBACK 문 거절 | 영향받은 행 수 | 10분 |
-| `COLLECT` 수집 | `source`: `{kind:"sql", sql, valueField, keyField}`·`{kind:"http", url, items}`·`{kind:"exchange", currencies}` | 기존 `Sql/Http/ExchangeCollectSource` 로 읽어 `TB_MCM_JOB_COLLECT_DATA` 에 저장. 위젯이 이 값을 보여 준다 | 저장한 항목 수 | 2분 |
+| `COLLECT` 수집 | `source`: `{kind:"sql", sql, valueField, keyField}`·`{kind:"http", url, items}`·`{kind:"exchange", currencies}` | 기존 `Sql/Http/ExchangeCollectSource` 로 읽어 `TB_MCM_JOB_COLLECT_DATA` 에 저장(쿼리 위젯이 SQL 로 읽을 수 있음) | 저장한 항목 수 | 2분 |
 | `HTTP` HTTP 호출 | `method`(GET·POST), `url`, `body`(JSON, `{{변수}}`), 성공 판정 2xx | 허용 호스트만, 리다이렉트 안 따름, 연결 3초·읽기 30초·응답 1MB(기존 `HttpCollectSource` 보안 규칙 재사용). 응답 본문은 저장하지 않음 | HTTP 상태 코드 | 2분 |
 | `PURGE` 보관 삭제 | `table`, `dateColumn`, `keepDays`, `chunkRows`(기본 5000) | `DELETE … WHERE 날짜칸 < 오늘-보관일수 AND ROWNUM <= chunkRows` 를 0 이 될 때까지 덩어리로 반복(최대 2000회). 표·칸 이름은 그 모듈 스키마의 실제 표·날짜 칸인지 데이터 사전으로 검사 | 지운 행 수 | 30분 |
 
@@ -254,35 +274,31 @@ public interface ScheduledJob {
 - BPMN 서비스는 감사 칸(`C_USR_ID` 등)과 권한 검사에 사용자가 필요하다. 예약 실행은 시스템 사용자 `SCHEDULER`(D10)로, 「지금 실행」은 요청한 사용자로 실행한다.
 - 서비스 ID·Action 은 저장할 때 그 모듈에 실제 있는 BPMN 서비스·Action 인지 확인한다(mcm 서버에서 다른 모듈 BPMN 목록을 읽을 수 없으면 실행 때 판정하고 FAIL 로 기록).
 
-### 5.4 수집 작업과 위젯 「자동 수집」 유형
+### 5.4 수집 작업(위젯과 관계없음)
 
-- 수집 작업의 모듈은 첫 판에서 `MCM` 하나로 고정한다. SQL 원천이 쓰는 쿼리 위젯 전용 풀과 허용 호스트 설정이 mcm 앱에 있기 때문이다(D2).
-- **권장안 A: 작업이 정본, 위젯은 작업 ID 만 참조**
-  - collect 위젯 정의의 CONFIG_JSON 은 `{ "jobId": "...", "show": { "days": 7, "unit": "건" } }` 로 줄인다. 한 작업을 여러 위젯이 볼 수 있다.
-  - 위젯관리 화면의 collect 편집기: 일정·원천 칸 대신 「수집 작업 선택」과 표시 칸만 둔다. **기존 위젯 화면 동작 변경이라 승인이 필요하다.**
-  - `widgetData/run` 응답 모양은 그대로다. `WidgetCollectReader` 는 `jobId` 로 새 표를 읽고, `lastRun` 은 `TB_MCM_JOB_RUN` 의 최근 회차로 만든다. `SKIP`·`TIMEOUT` 은 `FAIL` 로 바꿔 보낸다.
-  - 옛 모양(CONFIG_JSON 에 `schedule`·`source`)이 남아 있으면 기동할 때 작업 `wc.<widgetId>` 로 옮기고 일정을 crontab 식으로 바꾼다(개발·운영 DB 대비 안전장치).
-- 대안 B(위젯이 정본, 저장할 때 작업 행을 맞춰 만듦): 위젯 화면은 그대로지만 일정의 정본이 두 곳이 되고, 위젯 일정은 crontab 모양이 아니며, 위젯 없는 수집 작업의 저장·표시 경로를 따로 만들어야 한다.
-- `dmes.widget.collect.enabled=false` 의 뜻은 유지한다(수집 작업은 선점 후보에서 빠지고 보관 삭제도 하지 않음).
+- 위젯과 JOB 은 관계가 없다(사용자 결정 13). 위젯 「자동 수집(collect)」 유형은 지우고, 수집은 JOB 의 COLLECT 유형만 맡는다.
+- 수집 작업도 작업마다 실행 모듈을 고른다. SQL 원천은 그 모듈 DB 를 읽기 전용 실행기(SqlGuard·행 상한 50·10초)로 읽고, 값은 JOB 전용 연결로 `TB_MCM_JOB_COLLECT_DATA` 에 쓴다.
+- HTTP 원천의 허용 호스트는 지금 `dmes.widget.collect.allowed-hosts` 다. 위젯 유형을 지우므로 `dmes.job.http.allowed-hosts` 로 옮긴다. 옛 키가 있으면 기동 로그에 「새 키로 옮기세요」 warn 을 남기고 함께 읽는다. HTTP 호출 유형도 같은 허용 목록을 쓴다.
+- 환율 원천은 `widget/ext` 의 환율 제공자 빈을 그대로 주입해 쓴다(위젯 환율 유형은 남는다).
+- 수집 값을 화면에 보이려면 쿼리 위젯에서 `TB_MCM_JOB_COLLECT_DATA` 를 SQL 로 읽는다. 위젯은 일정을 갖지 않고 화면을 열 때·새로 고침 주기마다 읽는다.
+- 옛 `dmes.widget.collect.enabled` 는 `dmes.job.collect.enabled`(기본 true)로 바꾼다. false 면 COLLECT 작업은 선점 후보에서 빠지고 `mcm.collectPurge` 도 아무것도 하지 않는다.
 
 ## 6. 없애는 것 / 옮기는 것 / 그대로 두는 것
 
 | 구분 | 대상 | 처리 |
 |---|---|---|
-| 없앰 | `WidgetCollector.scheduledTick`(매분 `@Scheduled`) | 삭제. 수집은 작업마다 예약 작업이 돌린다 |
-| 없앰 | `WidgetCollector.scheduledPurge`(03:30 `@Scheduled`) | 삭제. 코드 작업 `mcm.collectPurge` |
-| 없앰 | 매분 위젯 정의 조회 `findBySrcTpAndTypeIdOrderByWidgetIdAsc`(수집기 용도) | 삭제. 정의는 모듈 키 캐시 |
-| 없앰 | `WidgetCollectWriter.tryStart`(RUN INSERT 선점) | 삭제. 선점은 `JobClaimer` |
+| 없앰 | 위젯 유형 「자동 수집(collect)」 프런트 `widget-types/collect/**`, 유형 등록부 항목, 위젯 도움말의 collect 부분 | 삭제(사용자 승인) |
+| 없앰 | mcm-core `widget/collect` 의 `WidgetCollector`(매분 tick·03:30 삭제 `@Scheduled`)·`WidgetCollectWriter`·`WidgetCollectReader`·`WidgetCollectConfig`·`CollectConfig`(일정 부분)·엔티티·저장소 | 삭제. 매분 위젯 정의 조회 `findBySrcTpAndTypeIdOrderByWidgetIdAsc` 도 함께 없어진다 |
+| 없앰 | `widgetData/run` 의 collect 분기, `WidgetDefConfigRules` 의 collect 검사, 관련 시험 | 삭제 |
 | 없앰 | 6개 앱에서 같은 `@Scheduled` 가 각각 도는 중복 | 작업마다 모듈 하나·서버 하나만 실행 |
+| 옮김 | `Sql/Http/ExchangeCollectSource`·`CollectItem`·`CollectException`·원천 설정 파싱 | `job/kind/collect` 로 옮겨 COLLECT 유형이 재사용 |
+| 옮김 | `WidgetCollectProperties`(허용 호스트·enabled) | `dmes.job.http.allowed-hosts`·`dmes.job.collect.enabled` (옛 키는 warn 과 함께 읽음) |
+| 옮김 | 수집 값 90일 보관 삭제 | 코드 작업 `mcm.collectPurge`(새 표 기준) |
 | 옮김 | `ScreenUsageRollup` 02:00 | 코드 작업 `mcm.screenUsageRollup` |
 | 옮김 | `RevokedTokenPurger` 1시간 | 코드 작업 `mcm.revokedTokenPurge` |
-| 옮김 | 수집 정의(일정·원천) | A안: 위젯 CONFIG_JSON → 작업 정의(crontab) |
-| 옮김 | 수집 값 저장 `insertItem`·`finish` | 새 표 기준 `JobCollectWriter` |
-| 그대로 | `Sql/Http/ExchangeCollectSource`·`CollectItem`·원천 설정 파싱 | 재사용 |
-| 그대로 | `WidgetCollectReader`·`widgetData/run` 응답 모양 | 읽는 표만 바뀌고 응답은 같음 |
-| 그대로 | 허용 호스트·`enabled` 설정, SqlGuard·쿼리 위젯 전용 풀 | 재사용 |
-| 그대로 | cactus-core `scheduling`·`OasisServiceExecutor`·`MdmRevisionPoller` | 바꾸지 않음. `MdmRevisionPoller` 는 서버마다 돌아야 하는 캐시 갱신이라 관리 대상에서 뺀다 |
-| 그대로(미사용) | `TB_MCM_WIDGET_COLLECT_RUN`·`_DATA` | 쓰지 않음. 표 삭제는 사용자 결정 |
+| 그대로 | 위젯 환율·쿼리 유형, `widget/ext` 환율 제공자, `widget/query` SqlGuard·쿼리 위젯 전용 풀 | 재사용, 동작 변경 없음 |
+| 그대로 | cactus-core `scheduling`·`OasisServiceExecutor`·`datasource`·`MdmRevisionPoller` | 바꾸지 않음. `MdmRevisionPoller` 는 서버마다 돌아야 하는 캐시 갱신이라 관리 대상에서 뺀다 |
+| 그대로(미사용) | `TB_MCM_WIDGET_COLLECT_RUN`·`_DATA` | DROP 하지 않음. 표 삭제는 따로 결정 |
 
 ## 7. 관리 화면 「예약 작업 관리」
 
@@ -313,7 +329,8 @@ public interface ScheduledJob {
   - **두 스케줄러 인스턴스(서로 다른 연결)로 같은 분에 선점 경합** → 한 회차는 한 번만 RUN. SKIP LOCKED 는 모의 객체로 재현할 수 없어 실제 Oracle 로 한다.
   - 시간 초과 정리, 늦은 회차 SKIP, 겹침 SKIP, 늦게 끝난 실행이 TIMEOUT 을 덮어쓰지 않음, REQ 를 두 인스턴스 중 한쪽만 잡음, 다른 모듈 키 인스턴스는 잡지 않음.
   - 유형별 실행: BPMN(시험용 서비스), QUERY(UPDATE 건수), PURGE(덩어리 삭제), COLLECT(SQL 원천).
-- 기존 시험: `WidgetCollectorTest` 등은 새 구조에 맞게 고친다. `ScreenUsageRollupTest` 등은 공개 메서드 그대로라 유지한다.
+- 기존 시험: 위젯 collect 시험(`WidgetCollectorTest`·Reader·Writer·collect 편집기 등)은 유형과 함께 지운다. 원천 시험(Sql·Http·Exchange·CollectItem)은 새 패키지로 옮긴다. `ScreenUsageRollupTest` 등은 공개 메서드 그대로라 유지한다.
+- 다른 모듈 앱 기동 시험: mdm 앱 하나를 레인 PDB 로 띄워 JOB 전용 연결로 MCM 표를 읽고, 기본 DataSource·JPA 가 그대로인지 확인한다.
 - 프런트: m-mcm tsc·audit·화면 단위 시험, shared 새 컴포넌트 시험.
 - 머지 직전: 전체 시험 1회, `DataInitializerSeedFingerprintTest` 골든 다시 만들기, V3 번호 충돌 재확인.
 
@@ -323,12 +340,13 @@ public interface ScheduledJob {
 - 메뉴·객체·RBAC 등록: Oracle 용 멱등 SQL `docs/mcm/sql/jobSchedMng-menu.sql`(`MERGE`).
 - 개발·운영 DB DDL 은 V3 파일을 DBA 가 적용한다.
 
-## 11. 결정이 필요한 항목
+## 11. 결정 항목(조정자 2026-10-08: D3~D13 권장안대로, D1 폐기·D2 변경)
 
 | # | 항목 | 권장 |
 |---|---|---|
-| D1 | 위젯 수집과의 관계 | **A안**: 작업이 정본, 위젯은 `jobId` 만 참조. 위젯관리 화면 collect 편집기 변경 승인 필요 |
-| D2 | 수집 작업의 모듈 | 첫 판은 `MCM` 고정. 다른 모듈 DB 를 읽는 수집은 그 모듈의 QUERY·CODE 작업으로 |
+| D1 | 위젯 수집과의 관계 | **폐기**(사용자 결정 13). 위젯 collect 유형 삭제, 위젯과 JOB 은 관계없음 |
+| D2 | 수집 작업의 모듈 | **변경**(사용자 결정 14): 작업마다 실행 모듈을 고른다 |
+| D14 | MCM 표에 닿는 길 | JOB 전용 연결 `JobDataSource`(§4.6a). cactus 보조 데이터소스는 쓰지 않음 |
 | D3 | crontab 과 다른 점 | 일·요일 함께 제한한 식, `?`·`L`·`W`·`#`·6칸 식 거절 |
 | D4 | 다른 서버·모듈에 수정 알리기 | 모듈 키 버전 한 칸을 10초마다 확인(스케줄 표는 읽지 않음, 로그 없음) |
 | D5 | 실행 범위 | 6개 모듈 앱 모두 엔진을 켜고 자기 모듈 키 작업만 실행 |
