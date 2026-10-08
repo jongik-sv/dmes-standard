@@ -99,6 +99,8 @@ export default function JobSchedMngPage() {
   const [helpOpen, setHelpOpen] = useState(false);
   const loadSeq = useRef(0);
   const historySeq = useRef(0);
+  /** 이력 패널에 실제로 올라온 작업 ID — 병렬로 부른 이력이 밀려 버려졌는지 openJob 이 알아본다. */
+  const historyJobRef = useRef("");
 
   const fail = useCallback((e: unknown) => showMessage({ title: "오류", message: errorText(e), alertType: "error" }), [showMessage]);
 
@@ -115,18 +117,19 @@ export default function JobSchedMngPage() {
   }, []);
 
   /** name 은 글자 또는 함수 — 선택 직후에는 get 응답이 오기 전의 목록 이름을 쓰고, 응답이 먼저 오면 그 이름으로 맞춘다. */
-  const loadHistory = useCallback(async (jobId: string, name: string | (() => string)) => {
+  const loadHistory = useCallback(async (jobId: string, name: string | (() => string), quiet = false) => {
     const seq = ++historySeq.current;
     setHistoryBusy(true);
     try {
       const raw = await jobSchedApi.history(jobId);
       if (seq !== historySeq.current) return;
       setRuns(raw.map(toRunGridRow));
+      historyJobRef.current = jobId;
       setHistoryTitle(`실행 이력 · ${typeof name === "function" ? name() : name}`);
       const last = raw[0];
       setLastFailure(last && (last.status === "FAIL" || last.status === "TIMEOUT") ? { status: last.status, schedAt: formatTimestamp(last.schedAt), serverNm: last.serverNm, msg: last.msg } : null);
     } catch (e) {
-      if (seq === historySeq.current) fail(e);
+      if (seq === historySeq.current && !quiet) fail(e);
     } finally {
       if (seq === historySeq.current) setHistoryBusy(false);
     }
@@ -134,6 +137,7 @@ export default function JobSchedMngPage() {
 
   const clearHistory = useCallback(() => {
     historySeq.current++;
+    historyJobRef.current = "";
     setRuns([]);
     setLastFailure(null);
     setHistoryTitle("실행 이력");
@@ -175,13 +179,17 @@ export default function JobSchedMngPage() {
       setActionBusy(true);
       // 상세와 이력은 서로 기다리지 않는다 — 이력은 get 응답의 이름이 필요 없으므로 목록의 이름으로 바로 부른다.
       let shownName = listName;
-      void loadHistory(jobId, () => shownName);
+      const history = loadHistory(jobId, () => shownName, true);
       try {
         const def = await jobSchedApi.get(jobId);
         if (selectedIdRef.current !== jobId) return;
         shownName = def.jobNm;
         if (def.jobNm !== listName) setHistoryTitle(`실행 이력 · ${def.jobNm}`);
         detailRef.current?.load(toForm(def, codeMissing));
+        // 병렬로 부른 이력이 다른 호출에 밀렸거나 실패했으면 상세가 열린 뒤 다시 받는다(그때는 오류도 보인다).
+        void history.then(() => {
+          if (selectedIdRef.current === jobId && historyJobRef.current !== jobId) void loadHistory(jobId, def.jobNm);
+        });
       } catch (e) {
         // 못 열었으면 폼에 남은 이전 작업으로 선택을 되돌린다(강조·저장 대상이 어긋나지 않게, 같은 행을 다시 눌러 열 수 있게).
         if (selectedIdRef.current === jobId) {
@@ -239,7 +247,13 @@ export default function JobSchedMngPage() {
    */
   const refreshAfterWrite = useCallback(
     async (def: JobDef) => {
-      await Promise.all([loadList(), selectedIdRef.current === def.jobId ? loadHistory(def.jobId, def.jobNm) : Promise.resolve()]);
+      const [rows] = await Promise.all([loadList(), selectedIdRef.current === def.jobId ? loadHistory(def.jobId, def.jobNm) : Promise.resolve()]);
+      // 쓰기 응답에는 codeMissing 이 없어 목록 행의 값을 따른다(열어 둔 사이 처리기가 다시 등록됐을 수 있다). 고친 내용이 없을 때만 폼을 다시 연다.
+      const codeMissing = rows.find((r) => r.jobId === def.jobId)?.codeMissing === true;
+      const shown = detailRef.current?.getForm();
+      if (selectedIdRef.current === def.jobId && shown && !shown.isNew && shown.codeMissing !== codeMissing && !detailRef.current?.isDirty()) {
+        detailRef.current?.load(toForm(def, codeMissing));
+      }
     },
     [loadList, loadHistory],
   );
