@@ -1,6 +1,6 @@
 # 예약 작업 관리(자동 수집관리) 설계
 
-2026-10-08 · 레인 job-sched(지시 job-sched-2) · 상태: **설계만(사용자 지시 「설계만해.」) — 결정 16~20(MCM 판정·선점 + 모듈 호출 push) 반영본**
+2026-10-08 · 레인 job-sched(지시 job-sched-2) · 상태: **구현 완료(job-sched-3) — 결정 D1~D32**
 
 ## 0. 배경과 사용자 결정
 
@@ -18,7 +18,7 @@
   10. 「캐시는 각 모듈별로 캐시가 있으면 좋겠어. 키 자체가 MCM, MDM, MLS, MPP, ... 이 키에 포함되어야 한다는 거야」 → **결정 22 로 대체**
   11. 「BPMN 의 경우는 변수와 Action 도 입력해 줘야 해.」 「다른 유형도 변수 받아야겠네.」
   12. 「위젯처럼 간단하게 등록할 수 있으면 좋겠다.」 「화면 시안을 먼저 만들어 봐.」 「crontab 식을 더 편하게 쓸 수 있게 하면 좋겠다.」
-  13. 「위젯과 JOB 은 관계 없어. 위젯에 시간 설정한 것은 무조건 화면 시간이야.」(조정자 전달): 위젯 「자동 수집(collect)」 유형을 지운다. 빈 표 `TB_MCM_WIDGET_COLLECT_RUN`·`_DATA` 는 DROP 하지 않는다.
+  13. 「위젯과 JOB 은 관계 없어. 위젯에 시간 설정한 것은 무조건 화면 시간이야.」(조정자 전달): 위젯 「자동 수집(collect)」 유형을 지운다. 빈 표 `TB_MCM_WIDGET_COLLECT_RUN`·`_DATA` 는 DROP 하지 않는다 → 2026-10-09 삭제 승인, V4.
   14. 「예약 작업 관리 테이블은 MCM 에 있지만 각 모듈에서 실행이 되어야 해」(조정자 전달): 실행은 각 모듈이 한다. 수집 작업도 작업마다 실행 모듈을 고른다.
   15. 「그냥 각 모듈의 스케줄러가 mcm 의 캐시를 읽어서 하는 게 낫지 않나?」 「MCM 의 API 는 쿼리를 읽어서 캐시 처리까지 하는 거고」(조정자 전달): **판정·선점은 MCM 만 한다**(결과 갱신·등록은 결정 25 로 모듈이 직접). 모듈이 MCM 표를 직접 읽는 안(`JobDataSource`)은 폐기한다.
   16. **(이번 수정)** 「2번 보완안으로 설계 수정해줘. 나도 2번이 좋다고 생각한다.」(조정자 전달): **MCM 이 판정·선점하고, MCM 이 각 모듈의 서비스를 호출한다(push).** 모듈이 매분 MCM 에 묻는 claim 안은 버린다(§12).
@@ -29,7 +29,7 @@
   21. 「A 안으로 하고」(조정자 전달, MCM 여러 대 캐시): 저장한 MCM 이 다른 MCM 의 캐시를 즉시 비우는 안 → 22 로 대체.
   22. **(최종)** 「어차피 DB 캐시에 올라가 있어서 WAS 캐시가 없어도 빠를 것 같다」(조정자 전달): **JOB 정의 WAS 캐시를 없앤다.** 각 MCM 이 매분 한 번 색인 조회(`USE_YN='Y' AND NEXT_RUN_AT <= 지금`)를 하고, 있으면 같은 트랜잭션에서 선점한다. 결정 8·10(캐시·모듈 키 캐시)은 이것으로 대체한다(§4.6).
   23. 「스케줄을 위한 SQL 로그는 실제 모듈은 아니지만 sch에 저장되도록 해줘.」(조정자 전달) → 24 로 대체.
-  24. **(최종)** 「bpmn 으로 하고 로그를 mcm에 남기자.」(조정자 전달): **판정·선점은 BPMN 시스템 서비스 `job^^dispatch` 가 한다.** 그 SQL·bind 로그는 mcm 업무 로그에 남고 로그 뷰어 서비스 목록에서 찾힌다. 매분 SQL 이 mcm 로그에 남는 것은 사용자 선택이므로 억제 장치는 두지 않는다(§4.1·§4.8).
+  24. **(최종)** 「bpmn 으로 하고 로그를 mcm에 남기자.」(조정자 전달): **판정·선점은 BPMN 시스템 서비스 `jobDispatch` 가 한다.** 그 SQL·bind 로그는 mcm 업무 로그에 남고 로그 뷰어 서비스 목록에서 찾힌다. 매분 SQL 이 mcm 로그에 남는 것은 사용자 선택이므로 억제 장치는 두지 않는다(§4.1·§4.8).
   25. 「B 안이 좋겠다」(조정자 전달): **실행 결과는 모듈이 DB 에 직접 갱신한다.** 결과 API 를 없앤다. 전제(사용자 확인): 운영에서도 모든 모듈이 MCMAPUSER 표에 닿는 같은 Oracle 을 쓴다(선례: mls 의 `Notice` 엔티티가 `MCMAPUSER.TB_MCM_NOTICE` 를 직접 매핑). 결정 15 의 「JOB 표에는 MCM 만 닿는다」는 **실행 결과 갱신·코드 작업 등록에 한해** 바뀐다(§4.5·§5.2).
 - Spring 스케줄러의 역할: MCM 의 `TaskScheduler` 는 매분 깨우는 시계로만 쓴다. 어떤 작업을 언제 돌릴지는 작업 정의 테이블이 정한다.
 
@@ -63,7 +63,7 @@
 ```
 [MCM 앱] ─ JOB 표(MCMAPUSER)의 판정·선점·정의 저장을 맡는 앱
    ├ JobDispatchTrigger(@Scheduled 매분 0초, 트리거만)
-   │     → BPMN 시스템 서비스 job^^dispatch(serviceStarter.start 직접, SCHEDULER 감사, 자기 트랜잭션)
+   │     → BPMN 시스템 서비스 jobDispatch(serviceStarter.start 직접, SCHEDULER 감사, 자기 트랜잭션)
    │          색인 조회(USE_YN='Y' AND NEXT_RUN_AT <= 지금, 50개) → 빈 결과면 끝
    │          있으면 FOR UPDATE SKIP LOCKED 선점(RUN INSERT·NEXT_RUN_AT 올림) → 커밋 → 선점 목록 반환
    │     → BPMN 트랜잭션 밖 Java 호출 풀이 그 모듈의 POST /internal/job/run 호출(비동기 접수)
@@ -74,7 +74,7 @@
    POST /internal/job/run (system:mcm 만) → 접수 응답 → 실행 풀
    예약 실행 진입점 JobRunDispatcher: 감사 주체·MDC·대상 serviceId 기동·시간 초과·실행 결과 DB 직접 갱신(가장 바깥 한 번)
    기동 때 코드 작업·처리기를 DB 에 직접 등록(TB_MCM_JOB_DEF·TB_MCM_JOB_HANDLER)
-   내장 서비스(mcm-core services/job/*.bpmn): job^^code · job^^query · job^^collect — BPMN 에서 서브서비스로 엮을 수 있음
+   내장 서비스(mcm-core services/job/*.bpmn): jobCode · jobQuery · jobCollect — BPMN 에서 서브서비스로 엮을 수 있음
    모듈은 작업 목록을 들고 있지 않고 일정을 판정하지 않는다
 ```
 
@@ -144,7 +144,7 @@
 PK `(JOB_ID, SLOT varchar2(12), ITEM_KEY varchar2(100))`, `VALUE_NUM number(24,8)`, `VALUE_TXT varchar2(200)`, 인덱스 `(SLOT)`.
 
 - 위젯 수집 표를 재사용하지 않고 새 표를 둔다. 위젯과 JOB 은 관계가 없고 키 이름(`WIDGET_ID`)과 뜻이 어긋난다.
-- 기존 `TB_MCM_WIDGET_COLLECT_RUN`·`_DATA` 는 더 쓰지 않는다(행 0건). DROP 하지 않고 표 삭제는 따로 결정한다.
+- 기존 `TB_MCM_WIDGET_COLLECT_RUN`·`_DATA` 는 V4(`V4__drop_widget_collect_tables.sql`)로 지운다(사용자 삭제 승인 2026-10-09, 삭제 전 L_MAIN 0행 확인).
 
 ### 3.4 `TB_MCM_JOB_HANDLER` 코드 처리기
 
@@ -181,21 +181,21 @@ PK `(JOB_ID, SLOT varchar2(12), ITEM_KEY varchar2(100))`, `VALUE_NUM number(24,8
 - 화면은 「쉬운 설정」(반복 종류별 칸)과 「직접 입력」(다섯 칸)으로 식을 만들고, 설명과 다음 예정 5개는 서버(`cronPreview`)가 계산한다.
 - 수집 작업의 간격 하한(기존 규칙 유지): 연속한 두 실행 간격 5분 이상, 환율은 60분 이상. 다른 유형은 1분 간격도 쓸 수 있다.
 
-### 4.1 MCM 매분 판정(트리거 + BPMN 서비스 `job^^dispatch`, MCM 앱만)
+### 4.1 MCM 매분 판정(트리거 + BPMN 서비스 `jobDispatch`, MCM 앱만)
 
 1. **트리거**: `JobDispatchTrigger` 의 `@Scheduled(cron = "0 * * * * *", zone = "Asia/Seoul")` 가 매분 0초에 깨어난다. 공용 스케줄러(cactus-core `JobLoggingTaskScheduler`)를 그대로 쓰므로 cactus-core `scheduling` 을 바꾸지 않는다. 트리거는 판정을 하지 않고 BPMN 서비스만 부른다.
-2. **판정 BPMN 기동**: 진입점(§4.4)·DMOM 수신 디스패처와 같은 방식으로 `serviceStarter.start("job^^dispatch", sc)` 를 직접 부른다.
+2. **판정 BPMN 기동**: 진입점(§4.4)·DMOM 수신 디스패처와 같은 방식으로 `serviceStarter.start("jobDispatch", sc)` 를 직접 부른다.
    - 감사 주체 `CactusAudit("SCHEDULER", menuId="JOB_DISPATCH", serviceId)` 를 `AuditHolder`·`sc.setAudit` 에 넣는다.
    - 입력: `action=run`, `batchSize`(기본 50, `dmes.job.server.batch-size`), `collectEnabled`.
    - 판정 실행 표시 `JobDispatchScope`(ThreadLocal)를 열고 끝나면 닫는다. 판정 몸체는 이 표시가 없으면 거절한다(§8).
-   - 웹 요청을 거치지 않으므로 `OasisServiceExecutor` 를 쓰지 않는다. 대신 그와 같은 `job^^dispatch/run` 줄과 `Service end - service name [job^^dispatch] RunTime : […]` 줄을 남긴다.
-3. **BPMN 서비스 `job^^dispatch`**(파일 `mcm/api/src/main/resources/services/job/dispatch.bpmn`, MCM 앱에만 있음): 서비스 태스크 하나(`camunda:class="jobDispatchService"`, `method="claimDue"`, `output="claimed"`)가 Java 몸체(mcm-core `server` 패키지)를 부른다. 몸체가 하는 일:
+   - 웹 요청을 거치지 않으므로 `OasisServiceExecutor` 를 쓰지 않는다. 대신 그와 같은 `jobDispatch/run` 줄과 `Service end - service name [jobDispatch] RunTime : […]` 줄을 남긴다.
+3. **BPMN 서비스 `jobDispatch`**(파일 `mcm/api/src/main/resources/services/job/jobDispatch.bpmn`, MCM 앱에만 있음): 서비스 태스크 하나(`camunda:class="jobDispatchService"`, `method="claimDue"`, `output="claimed"`)가 Java 몸체(mcm-core `server` 패키지)를 부른다. 몸체가 하는 일:
    - **색인 조회**: 아래 SQL 로 지금 할 작업 ID 를 `batchSize` 개까지 읽는다(잠금 없는 조회라 `FETCH FIRST` 를 쓸 수 있다). **빈 결과면 바로 끝낸다**(평소 매분 이 SQL 한 번이 전부다).
    - 있으면 같은 트랜잭션에서 선점한다(§4.2).
    - 출력 `claimed = { runs:[{runId, jobId, module, serviceId, action, inputs, config, timeoutSec, retry, schedAt}], more }`. `more` 는 조회 건수가 `batchSize` 와 같을 때 true.
    - 트랜잭션은 OASIS 가 서비스마다 연다(`CoreServiceStarter` → `transactionHandler`). `serviceStarter.start` 가 돌아오면 **이미 커밋되어 있다.**
 4. **호출은 BPMN 트랜잭션 밖**: 트리거가 결과의 `runs` 를 호출 풀(§4.3)에 넘긴다. HTTP 를 기다리는 동안 행 잠금·DB 연결을 쥐지 않는다.
-5. **50개 묶음은 BPMN 바깥(트리거)에서 되풀이한다.** `more=true` 이면 트리거가 `job^^dispatch` 를 다시 부른다(한 틱 최대 10번 = 500건). 묶음마다 BPMN 한 번 = 트랜잭션 한 번 = 커밋 뒤 호출이다. 그래서 잠근 행은 늘 그 트랜잭션 안에서 다 처리되고, BPMN 하나가 오래 잠금을 쥐지 않는다.
+5. **50개 묶음은 BPMN 바깥(트리거)에서 되풀이한다.** `more=true` 이면 트리거가 `jobDispatch` 를 다시 부른다(한 틱 최대 10번 = 500건). 묶음마다 BPMN 한 번 = 트랜잭션 한 번 = 커밋 뒤 호출이다. 그래서 잠근 행은 늘 그 트랜잭션 안에서 다 처리되고, BPMN 하나가 오래 잠금을 쥐지 않는다.
 6. **실패**: 결과가 `SUCCESS` 가 아니거나 예외면 OASIS 가 롤백했으므로 선점한 것이 없다. 트리거는 WARN 한 줄(결과 코드만)을 남기고 그 분은 건너뛴다. 다음 분에 다시 한다. 연속 실패는 첫 번째만 WARN, 복구 때 INFO 한 줄.
 7. JOB 정의 캐시는 두지 않는다(사용자 결정 22). 화면 저장은 커밋되면 다음 분 틱부터 반영되고, MCM 이 몇 대든 같다.
 
@@ -212,7 +212,7 @@ SELECT JOB_ID
 - 색인 `IX_TB_MCM_JOB_DEF_DUE (USE_YN, NEXT_RUN_AT)` 를 탄다. 정의 표는 작고(수십~수백 행) 자주 읽혀 DB 버퍼 캐시에 머문다. 분당 MCM 대수만큼의 색인 범위 조회라 부담이 없다.
 - 30초 여유는 틱이 0초보다 조금 늦거나 이르게 깨어나도 그 분의 회차를 잡게 한다. COLLECT 작업은 `dmes.job.collect.enabled` 가 true 일 때만 고른다.
 
-### 4.2 선점(`job^^dispatch` 트랜잭션 안)
+### 4.2 선점(`jobDispatch` 트랜잭션 안)
 
 ```sql
 SELECT JOB_ID, MODULE_CD, SERVICE_ID, ACTION, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_AT,
@@ -231,13 +231,14 @@ SELECT JOB_ID, MODULE_CD, SERVICE_ID, ACTION, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_A
   1. **늦은 회차**: `DB_NOW - NEXT_RUN_AT > 2분` 이면 따라잡지 않고 `SKIP`("놓친 회차를 건너뜀") 1건만 남긴다.
   2. **겹침**: 같은 작업에 `STATUS='RUN'` 이고 `STARTED_AT + TIMEOUT_SEC + 정리 여유(300초) > DB_NOW` 인 행이 있으면 `SKIP`("이전 회차 실행 중")을 남긴다.
   3. 둘 다 아니면 `RUN` 을 INSERT 한다(`SCHED_AT`=`NEXT_RUN_AT` 초 단위, `RUN_ID`=새 UUID, `SERVICE_ID`, `STARTED_AT`=`DB_NOW`, `TIMEOUT_SEC`, 확정한 `VARS_JSON`). PK 위반이면 건너뛴다.
-  4. `NEXT_RUN_AT` 을 `max(NEXT_RUN_AT, DB_NOW)` 보다 엄격히 뒤인 crontab 식의 첫 시각으로 올린다.
+  4. RUN·SKIP·FAIL 기록 INSERT 가 PK 중복이면 그 기록만 건너뛰고 `NEXT_RUN_AT` 은 그대로 올린다(같은 회차로 NEXT_RUN_AT 이 되돌아와도 판정 묶음 전체가 롤백되지 않게). 정의가 깨진 행(crontab 다음 시각 없음·변수 JSON 손상)은 그 행만 FAIL 로 닫고 묶음은 계속한다.
+  5. `NEXT_RUN_AT` 을 `max(NEXT_RUN_AT, DB_NOW)` 보다 엄격히 뒤인 crontab 식의 첫 시각으로 올린다.
 - 변수 값 확정(§5.0)은 MCM 이 이 트랜잭션에서 한다. 날짜 변수는 `SCHED_AT` 기준이다(§5.0). `:prevRunAt` 은 그 변수를 쓰는 작업만 `SELECT MAX(SCHED_AT) … WHERE JOB_ID=:id AND STATUS='OK' AND TRIGGER_TP='S'` 로 읽는다(「지금 실행」으로 지난 기간을 다시 돌려도 일정 회차의 구간이 당겨지지 않게).
 - DB 시계는 늘 `CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS TIMESTAMP)` 로 읽는다. 회차 키는 서버 시계가 아니라 DB 에 적힌 `NEXT_RUN_AT` 으로 만든다.
 
 ### 4.3 MCM → 모듈 호출(비동기 접수)
 
-- 호출 풀: MCM 앱 전용 `ThreadPoolExecutor`(스레드 8, 대기열 200). 호출 풀 스레드는 트리거 스레드의 MDC 를 물려받지 않는다(logback MDC 는 스레드마다 따로). 호출 한 건을 `MDCTemplate`(새 `service_tag`)으로 감싸고 MDC `serviceId=job^^dispatch`·`runId` 를 넣는다. `sch.` 태그로 감싸지 않으므로 호출 로그와 접수 응답 뒤 `UPDATE` SQL(트랜잭션 없는 JdbcTemplate 한 문장)은 **mcm 업무 로그**에 남고, 로그 뷰어에서 `job^^dispatch` 서비스로 찾힌다. 판정 로그와는 `runId` 로 잇는다(§4.8).
+- 호출 풀: MCM 앱 전용 `ThreadPoolExecutor`(스레드 8, 대기열 200). 호출 풀 스레드는 트리거 스레드의 MDC 를 물려받지 않는다(logback MDC 는 스레드마다 따로). 호출 한 건을 `MDCTemplate`(새 `service_tag`)으로 감싸고 MDC `serviceId=jobDispatch`·`runId` 를 넣는다. `sch.` 태그로 감싸지 않으므로 호출 로그와 접수 응답 뒤 `UPDATE` SQL(트랜잭션 없는 JdbcTemplate 한 문장)은 **mcm 업무 로그**에 남고, 로그 뷰어에서 `jobDispatch` 서비스로 찾힌다. 판정 로그와는 `runId` 로 잇는다(§4.8).
 - 요청: `POST {모듈 base-url}/internal/job/run`
   `{ runId, jobId, module, serviceId, action, inputs(변수 확정값), config(CONFIG_JSON), timeoutSec, retry, schedAt, manual, reqUserId }`
 - 시간 초과: 연결 2초, 읽기 5초. 모듈은 실행을 기다리지 않고 바로 답하므로 5초면 충분하다.
@@ -269,6 +270,8 @@ SELECT JOB_ID, MODULE_CD, SERVICE_ID, ACTION, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_A
 5. 같은 jobId 가 이 서버에서 실행 중이면 409 `JOB_RUNNING`.
 6. 실행 풀(앱마다 `ThreadPoolExecutor`, 스레드 `dmes.job.pool-size` 기본 4, 대기열 0)에 넣는다. 거절되면 503 `JOB_POOL_FULL`.
 7. 202 `{accepted:true, serverNm}` 로 답한다. 실행은 기다리지 않는다.
+8. 진입점 빈이 없는 앱(쓸 DataSource 를 정하지 못해 예약 실행을 끈 앱)은 404 `JOB_AGENT_UNAVAILABLE`.
+9. 요청 값이 잘못되면(runId·jobId·serviceId 빈 값, schedAt 없음·ISO 아님) 400.
 
 **예약 실행 진입점(`JobRunDispatcher`, cactus-core 새 클래스) — 새 서비스 유형**
 
@@ -291,7 +294,7 @@ SELECT JOB_ID, MODULE_CD, SERVICE_ID, ACTION, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_A
 - 실행이 끝나면 `RUNNING→DONE`, 감시가 마감에 닿으면 `RUNNING→TIMED_OUT` 으로 `compareAndSet` 한다. **교체에 이긴 쪽만 결과를 쓴다.** 감시는 이긴 뒤에만 `cancel(true)`(인터럽트)하고 `TIMEOUT` 을 쓴다(감시 스레드도 MDC 에 대상 serviceId·runId 를 넣어 모듈 업무 로그에 남긴다). 그래서 인터럽트로 생긴 SYSTEM_ERROR 결과(FAIL)나 마감 직전의 OK 와 TIMEOUT 이 함께 나가지 않는다.
 - 진입점은 `Throwable` 을 잡아 FAIL 로 쓴다(`CoreServiceStarter` 는 `Exception` 만 결과로 바꾸므로 `Error` 는 그대로 올라온다).
 - 인터럽트는 실행 중인 JDBC 문장을 멈추지 못한다. 인터럽트를 무시한 문장이 TIMEOUT 기록 뒤에 끝나 대상 트랜잭션이 늦게 커밋되는 일을 줄이려고, **내장 서비스는 JDBC 문장마다 쿼리 시간 초과를 건다**(사용자 결정, 보충 6).
-  - 대상: `job^^query`(DML·프로시저)와 `job^^collect` 의 SQL 원천(읽기).
+  - 대상: `jobQuery`(DML·프로시저)와 `jobCollect` 의 SQL 원천(읽기).
   - 값: `JobRunScope` 에 둔 이 시도의 마감 시각(`시도 시작 + timeoutSec`)까지 **남은 시간을 초 단위로 올림, 최소 1초**. `JdbcTemplate` 을 문장마다 `setQueryTimeout(남은 초)` 로 만들어 쓰거나 `PreparedStatement.setQueryTimeout` 을 직접 건다. 수집 SQL 원천은 기존 읽기 전용 실행기의 10초 상한과 남은 시간 중 작은 값을 쓴다.
   - 초과하면 Oracle 이 문장을 취소하고 `ORA-01013`(사용자 요청으로 취소)을 던진다. 내장 서비스는 예외를 그대로 올리고, `CoreServiceStarter` 가 대상 트랜잭션 A 를 롤백한 뒤 `SYSTEM_ERROR` 결과를 돌려준다. 그래서 그 시도의 DML 은 남지 않는다.
   - 진입점은 결과의 예외 원인이 쿼리 시간 초과(`SQLTimeoutException`·`QueryTimeoutException`·`ORA-01013`)이면 상태를 FAIL 이 아니라 **TIMEOUT** 으로 정한다.
@@ -364,8 +367,8 @@ dmes:
 | 로그 | 어디서 | 파일 |
 |---|---|---|
 | 트리거 경계 두 줄(`sch.mcm.jobDispatchTrigger.tick/run`·`Service end`) | 공용 스케줄러 래퍼(`JobLoggingTaskScheduler`) | sch(그대로 둔다) |
-| 판정·선점과 그 **SQL·bind 줄**, `job^^dispatch/run`·`Service end` 줄 | BPMN `job^^dispatch`(MDC serviceId=`job^^dispatch`) | **mcm 업무 로그** |
-| 모듈 호출·접수 결과·호출 실패와 접수 뒤 `UPDATE` SQL | MCM 호출 풀(MDC serviceId=`job^^dispatch`, `runId`) | **mcm 업무 로그** |
+| 판정·선점과 그 **SQL·bind 줄**, `jobDispatch/run`·`Service end` 줄 | BPMN `jobDispatch`(MDC serviceId=`jobDispatch`) | **mcm 업무 로그** |
+| 모듈 호출·접수 결과·호출 실패와 접수 뒤 `UPDATE` SQL | MCM 호출 풀(MDC serviceId=`jobDispatch`, `runId`) | **mcm 업무 로그** |
 | 「지금 실행」의 RUN INSERT | MCM 화면 요청 스레드(serviceId `jobSchedMng`) | MCM 업무 로그(화면 요청이므로). 이어지는 호출도 호출 풀이라 MCM 업무 로그 |
 | 정리(`mcm.jobRunSweep`) | MCM 코드 작업(진입점 경유) | MCM 업무 로그 |
 | **모듈에서 실행한 서비스 전체**(진입점 시작·끝 줄, 대상·서브서비스 로그)와 **결과 갱신 SQL**·늦은 결과 WARN | 각 모듈 `JobRunDispatcher`·`JobRunResultWriter` | **그 모듈 업무 로그** |
@@ -373,8 +376,8 @@ dmes:
 
 - 이력 행의 `SERVER_NM`·`SERVICE_TAG` 로 모듈 로그를 찾아간다(analog 에서 서버·태그로 검색).
 - **판정 로그는 mcm 업무 로그로**(사용자 결정 24): dev 의 sch 분리(`dmes-logback-base.xml`, `ScheduledJobLogFilter`)는 MDC `serviceId` 가 `sch.` 로 시작하는 줄만 sch 파일로 보낸다.
-  - `@Scheduled` 트리거는 공용 스케줄러 래퍼가 `serviceId=sch.mcm.jobDispatchTrigger.tick` 과 `service_tag` 를 넣은 채로 실행된다. 트리거는 `job^^dispatch` 를 부르기 전에 MDC 의 `serviceId`·`txId` 를 저장하고 `serviceId=job^^dispatch`·새 `txId` 를 넣는다. 돌아오면 저장한 값으로 되돌린다. `MDCTemplate` 은 끝에 `MDC.clear()` 로 래퍼의 MDC 까지 지우므로 여기서는 쓰지 않는다.
-  - 그래서 BPMN 안의 SQL·bind 줄(로컬 `JdbcTemplate` DEBUG·`StatementCreatorUtils` TRACE)은 serviceId `job^^dispatch` 로 mcm 업무 로그에 남는다.
+  - `@Scheduled` 트리거는 공용 스케줄러 래퍼가 `serviceId=sch.mcm.jobDispatchTrigger.tick` 과 `service_tag` 를 넣은 채로 실행된다. 트리거는 `jobDispatch` 를 부르기 전에 MDC 의 `serviceId`·`txId` 를 저장하고 `serviceId=jobDispatch`·새 `txId` 를 넣는다. 돌아오면 저장한 값으로 되돌린다. `MDCTemplate` 은 끝에 `MDC.clear()` 로 래퍼의 MDC 까지 지우므로 여기서는 쓰지 않는다.
+  - 그래서 BPMN 안의 SQL·bind 줄(로컬 `JdbcTemplate` DEBUG·`StatementCreatorUtils` TRACE)은 serviceId `jobDispatch` 로 mcm 업무 로그에 남는다.
   - 트리거 경계 두 줄은 sch 로 간다. **그대로 둔다**: 「매분 트리거가 깨어났다」는 기록이라 sch 에 있어도 되고, 막으려면 공용 스케줄러 래퍼를 바꾸거나 전용 스케줄러를 둬야 한다. 판정 줄과 같은 `service_tag` 를 쓰므로 둘을 이을 수 있다.
   - 매분 SQL 이 mcm 로그에 남는 것은 사용자 선택이므로 로그 억제 장치는 두지 않는다. 빈 분에는 조회 SQL 한 줄과 서비스 경계 줄이 남는다.
 - logback 설정은 바꾸지 않는다(sch 분리는 dev 에 이미 들어온 다른 레인 작업이다).
@@ -384,6 +387,7 @@ dmes:
 - 화면 요청(`jobSchedMng/runNow`)은 OASIS 서비스 트랜잭션 안에서 돈다. 그래서 RUN 행은 **별도 트랜잭션**(`TransactionTemplate`, `REQUIRES_NEW`)에서 만든다: 정의 행을 `FOR UPDATE`(대기 5초)로 잠그고, 같은 작업이 `RUN`(정리 여유 안)이면 거절한다. 아니면 `RUN` 을 INSERT 한다(`TRIGGER_TP='M'`, `SCHED_AT`=요청 시각(초), `REQ_USR_ID`, 화면에서 덮어쓴 변수). 그 트랜잭션을 커밋한 뒤 호출 풀에 넘긴다(§4.3). 바깥 서비스 트랜잭션에 합류하면 잠금을 쥔 채 호출하고, 서비스가 롤백되면 RUN 행 없이 모듈만 실행된다.
 - 화면에는 접수 결과(접수·거절 사유)를 바로 돌려준다. 이전 설계의 `REQ` 상태·`pendingReq`·정리의 REQ→SKIP 은 없어진다.
 - `NEXT_RUN_AT` 은 바꾸지 않는다.
+- 정의 행 잠금을 5초 안에 얻지 못하면(ORA-30006) 거절 사유 「다른 요청이 이 작업을 처리하는 중입니다. 잠시 뒤 다시 시도하세요」를 돌려준다.
 
 ### 4.10 서버 간 API(하나)
 
@@ -416,16 +420,16 @@ dmes:
 
 | 화면 유형 | 서비스 ID | 입력(`CONFIG_JSON`) | 하는 일 | 건수 | 기본 시간 초과 |
 |---|---|---|---|---|---|
-| `CODE` 코드 실행 | 내장 `job^^code` | `handlerId`(등록된 `ScheduledJob` 빈 ID) | 그 빈의 `run(ctx)` | 빈이 돌려준 수 | 30분 |
+| `CODE` 코드 실행 | 내장 `jobCode` | `handlerId`(등록된 `ScheduledJob` 빈 ID) | 그 빈의 `run(ctx)` | 빈이 돌려준 수 | 30분 |
 | `BPMN` 서비스 실행 | 사용자가 고른 서비스 ID, `ACTION` | 없음(변수가 입력) | 그 BPMN 서비스 | 출력 `jobItemCnt` 또는 범위에 쌓인 수 | 10분 |
-| `QUERY` 쿼리 실행 | 내장 `job^^query` | `sql`(INSERT·UPDATE·DELETE·MERGE 한 문장 또는 `BEGIN 프로시저(…); END;`) | 그 모듈 기본 DataSource, 서비스 트랜잭션 안에서 실행. 쿼리 시간 초과 = 남은 시간(최소 1초, §4.4) | 영향받은 행 수 | 10분 |
-| `COLLECT` 수집 | 내장 `job^^collect` | `source`: `{kind:"sql", sql, valueField, keyField}`·`{kind:"http", url, items?}`·`{kind:"exchange", currencies}`, `save`(기본 true) | 기존 `Sql/Http/ExchangeCollectSource` 로 읽어 값을 범위에 담음 → 진입점이 결과 갱신 때 저장. `save:false` 면 읽기만(외부 트리거용) | 읽은 항목 수 | 2분 |
+| `QUERY` 쿼리 실행 | 내장 `jobQuery` | `sql`(INSERT·UPDATE·DELETE·MERGE 한 문장 또는 `BEGIN 프로시저(…); END;`) | 그 모듈 기본 DataSource, 서비스 트랜잭션 안에서 실행. 쿼리 시간 초과 = 남은 시간(최소 1초, §4.4) | 영향받은 행 수 | 10분 |
+| `COLLECT` 수집 | 내장 `jobCollect` | `source`: `{kind:"sql", sql, valueField, keyField}`·`{kind:"http", url, items?}`·`{kind:"exchange", currencies}`, `save`(기본 true) | 기존 `Sql/Http/ExchangeCollectSource` 로 읽어 값을 범위에 담음 → 진입점이 결과 갱신 때 저장. `save:false` 면 읽기만(외부 트리거용) | 읽은 항목 수 | 2분 |
 
-- 내장 서비스는 mcm-core `src/main/resources/services/job/{code,query,collect}.bpmn` 이다. 각 BPMN 은 서비스 태스크 하나(`camunda:class` = mcm-core 빈, `method` = `run`)로 Java 몸체를 부른다. 6개 앱이 모두 싣는다.
+- 내장 서비스는 mcm-core `src/main/resources/services/job/{jobCode,jobQuery,jobCollect}.bpmn` 이다. 각 BPMN 은 서비스 태스크 하나(`camunda:class` = mcm-core 빈, `method` = `run`)로 Java 몸체를 부른다. 6개 앱이 모두 싣는다.
 - 내장 서비스는 `JobRunScope` 가 열려 있을 때만 실행한다(§8). 입력은 서비스 입력 파라미터가 있으면 그 값을, 없으면 범위의 정의 설정(`config`)을 쓴다. 그래서 사용자 BPMN 이 내장 서비스를 여러 번 엮으면서 호출마다 다른 문장·원천을 줄 수 있다.
-- **사용자가 BPMN 으로 엮는 예**: `mdm.dailyClose` 작업 = 사용자 BPMN `dma^^dailyClose` 가 ① `job^^query`(마감 표시 UPDATE) → ② 업무 서비스 `dma^^termMng`(action `rebuild`) → ③ `job^^collect`(건수 읽기, save) 를 연결 서브서비스로 차례로 부른다. 세 단계는 한 트랜잭션이고(연결 서브서비스는 부모 트랜잭션), 이력 보고는 진입점이 한 번 한다.
+- **사용자가 BPMN 으로 엮는 예**: `mdm.dailyClose` 작업 = 사용자 BPMN `dma^^dailyClose` 가 ① `jobQuery`(마감 표시 UPDATE) → ② 업무 서비스 `dma^^termMng`(action `rebuild`) → ③ `jobCollect`(건수 읽기, save) 를 연결 서브서비스로 차례로 부른다. 세 단계는 한 트랜잭션이고(연결 서브서비스는 부모 트랜잭션), 이력 보고는 진입점이 한 번 한다.
 - **HTTP·PURGE 를 새 유형으로 만들지 않는다**(사용자 「최대한 수정이 적은 쪽」).
-  - HTTP 호출은 `job^^collect` 의 http 원천 + `save:false` 로 대신한다. 기존 `HttpCollectSource` 가 GET·JSON 응답만 다루므로 첫 판의 외부 트리거도 GET 이다. POST 웹훅이 필요하면 다음 판에 원천에 `method` 를 더한다.
+  - HTTP 호출은 `jobCollect` 의 http 원천 + `save:false` 로 대신한다. 기존 `HttpCollectSource` 가 GET·JSON 응답만 다루므로 첫 판의 외부 트리거도 GET 이다. POST 웹훅이 필요하면 다음 판에 원천에 `method` 를 더한다.
   - 보관 삭제는 기존 정리 코드(위젯 수집 값 보관 삭제·`RevokedTokenPurger`·실행 기록 보관)를 코드 작업으로 옮겨 대신한다(§5.2). 화면에서 임의 표를 지우는 기능은 두지 않는다.
 - 넣지 않는 것: 셸 명령 실행(보안), 화면에서 임의 클래스·메서드 이름을 받는 실행(보안·리팩토링 때 깨짐).
 
@@ -445,7 +449,7 @@ public interface ScheduledJob {
 }
 ```
 
-- **등록은 DB 직접**(D30): 모듈 앱이 기동할 때(`ApplicationReadyEvent`, 실패하면 WARN 한 번 남기고 1분 뒤 한 번 더) 자기 모듈의 `ScheduledJob` 빈 전부를 `TB_MCM_JOB_HANDLER` 에 MERGE(`SEEN_AT` 갱신)한다. `defaultCron()` 이 있는 빈은 `TB_MCM_JOB_DEF` 에 **없을 때만** 같은 ID 의 작업(OWNER_TP=CODE, SERVICE_ID=`job^^code`, `NEXT_RUN_AT` 계산)을 INSERT 한다(MERGE … WHEN NOT MATCHED). 등록 SQL 은 mcm-core `agent` 한 곳에 있다.
+- **등록은 DB 직접**(D30): 모듈 앱이 기동할 때(`ApplicationReadyEvent`, 실패하면 WARN 한 번 남기고 1분 뒤 한 번 더) 자기 모듈의 `ScheduledJob` 빈 전부를 `TB_MCM_JOB_HANDLER` 에 MERGE(`SEEN_AT` 갱신)한다. `defaultCron()` 이 있는 빈은 `TB_MCM_JOB_DEF` 에 **없을 때만** 같은 ID 의 작업(OWNER_TP=CODE, SERVICE_ID=`jobCode`, `NEXT_RUN_AT` 계산)을 INSERT 한다(MERGE … WHEN NOT MATCHED). 등록 SQL 은 mcm-core `agent` 한 곳에 있다.
 - `defaultCron()` 이 있으면 이렇게 같은 ID 의 작업이 만들어진다. 화면은 일정·사용·시간 초과·변수 값만 바꾸고 지우기·유형 바꾸기는 막는다.
 - `defaultCron()` 이 없으면 작업을 만들지 않는다. 화면에서 [새 작업] → 「코드 실행」을 고르고 처리기 목록에서 골라 일정·변수를 정한다(OWNER_TP=USER). 같은 처리기를 변수만 달리해 여러 작업으로 쓸 수 있다.
 - 처리기 목록은 화면이 `TB_MCM_JOB_HANDLER` 에서 읽는다. MCM 이 여러 대여도 같은 목록이 보인다(이전 설계처럼 MCM 메모리에 두면 LB 가 등록을 받은 MCM 한 대만 목록을 안다).
@@ -469,7 +473,7 @@ public interface ScheduledJob {
 
 ### 5.4 수집 작업(위젯과 관계없음)
 
-- 위젯 「자동 수집(collect)」 유형은 지우고, 수집은 `job^^collect` 만 맡는다.
+- 위젯 「자동 수집(collect)」 유형은 지우고, 수집은 `jobCollect` 만 맡는다.
 - SQL 원천은 그 모듈 DB 를 기존 읽기 전용 실행기(SqlGuard·행 상한 50·10초·쿼리 위젯 전용 풀)로 읽는다. 쿼리 시간 초과는 10초와 작업의 남은 시간 중 작은 값이다(§4.4). 값은 진입점이 결과 갱신과 같은 트랜잭션에서 `TB_MCM_JOB_COLLECT_DATA` 에 MERGE 한다(§4.5). 이전 설계의 `collect` 전용 API 는 없어진다.
 - HTTP 원천의 허용 호스트는 지금 `dmes.widget.collect.allowed-hosts` 다. `dmes.job.http.allowed-hosts` 로 옮기고, 옛 키가 있으면 기동 로그에 「새 키로 옮기세요」 warn 을 남기고 함께 읽는다.
 - 환율 원천은 `widget/ext` 의 환율 제공자 빈을 그대로 주입해 쓴다.
@@ -490,11 +494,11 @@ public interface ScheduledJob {
 | 없앰 | mcm-core `widget/collect` 의 `WidgetCollector`(매분 tick·03:30 삭제 `@Scheduled`)·`WidgetCollectWriter`·`WidgetCollectReader`·`WidgetCollectConfig`·엔티티·저장소 | 삭제. 매분 위젯 정의 조회도 함께 없어진다 |
 | 없앰 | `widgetData/run` 의 collect 분기, `WidgetDefConfigRules` 의 collect 검사, 관련 시험 | 삭제 |
 | 없앰 | `ScreenUsageRollup`·`RevokedTokenPurger` 의 `@Scheduled` | 코드 작업으로 옮김(공개 메서드는 그대로) |
-| 옮김 | `Sql/Http/ExchangeCollectSource`·`CollectItem`·`CollectException`·`CollectConfig`·`CollectConfigs`(원천 파싱·검사) | `job/builtin/collect` 로 옮겨 `job^^collect` 가 재사용 |
+| 옮김 | `Sql/Http/ExchangeCollectSource`·`CollectItem`·`CollectException`·`CollectConfig`·`CollectConfigs`(원천 파싱·검사) | `job/builtin/collect` 로 옮겨 `jobCollect` 가 재사용 |
 | 옮김 | `WidgetCollectProperties`(허용 호스트·enabled) | `dmes.job.http.allowed-hosts`·`dmes.job.collect.enabled`(옛 키는 warn 과 함께 읽음) |
 | 그대로 | 위젯 환율·쿼리 유형, `widget/ext` 환율 제공자, `widget/query` SqlGuard·쿼리 위젯 전용 풀 | 재사용, 동작 변경 없음 |
 | 그대로 | cactus-core `scheduling`·`OasisServiceExecutor`·`DmomReceiveDispatcher`·`datasource`·`security`·`MdmRevisionPoller`, oasis-core 전체 | 바꾸지 않음. cactus-core 에는 새 패키지 `job` 만 더한다 |
-| 그대로(미사용) | `TB_MCM_WIDGET_COLLECT_RUN`·`_DATA` | DROP 하지 않음 |
+| 없앰 | `TB_MCM_WIDGET_COLLECT_RUN`·`_DATA` | V4 로 DROP(PURGE 없음) |
 
 ### 6.1 재사용하는 기존 코드
 
@@ -503,11 +507,11 @@ public interface ScheduledJob {
 | DMOM 수신 디스패처 패턴 | cactus-core `dmom/receiver/DmomReceiveDispatcher` | 예약 실행 진입점의 뼈대(웹 없이 `serviceStarter.start`, 시스템 감사 주체, 결과 코드 판정) |
 | 화면 서비스 실행기의 로그 두 줄·MDC | cactus-core `oasis/OasisServiceExecutor` | 진입점의 `serviceId/action`·`Service end` 줄, `txId`·`serviceId` MDC |
 | OASIS 서비스 기동기 | `ServiceStarter` 빈(`CactusServiceStarterFactory` 조립, 서비스마다 트랜잭션) | 대상 서비스 실행. 진입점은 새 트랜잭션 코드를 두지 않는다 |
-| OASIS BPMN 서비스 + 서비스 태스크(`camunda:class`·`method`) | 기존 업무 BPMN 관례(예: `mcm/api` `services/audit/screenUsage.bpmn`) | 판정 서비스 `job^^dispatch`·내장 서비스 BPMN |
+| OASIS BPMN 서비스 + 서비스 태스크(`camunda:class`·`method`) | 기존 업무 BPMN 관례(예: `mcm/api` `services/audit/screenUsage.bpmn`) | 판정 서비스 `jobDispatch`·내장 서비스 BPMN |
 | OASIS 연결 서브서비스 | oasis-core `SubServiceConnectedToParentServiceCallTaskExecutable` | 사용자 BPMN 이 내장·업무 서비스를 함수처럼 엮기(같은 스레드·같은 트랜잭션) |
 | 공용 스케줄러·예약 작업 로그 태그 | cactus-core `scheduling/JobLoggingTaskScheduler`·`ScheduledJobLogContext` | 매분 트리거 `@Scheduled`(경계 두 줄은 sch) |
 | 서버 간 호출 클라이언트 | cactus-core `mdm/MdmMetaClient`·`MdmClientProperties` | MCM→모듈 호출의 ClientKey·system 주체 헤더·설정 모양 |
-| 수집 원천 | mcm-core `widget/collect/*CollectSource`·`CollectConfigs` | `job^^collect`(HTTP 트리거 포함) |
+| 수집 원천 | mcm-core `widget/collect/*CollectSource`·`CollectConfigs` | `jobCollect`(HTTP 트리거 포함) |
 | 읽기 전용 SQL 실행기 | mcm-core `widget/query/SqlGuard`·`WidgetReadOnlyJdbc` | 수집 SQL 원천 |
 | 환율 제공자 | mcm-core `widget/ext` | 수집 환율 원천 |
 | 기존 정리·집계 메서드 | `ScreenUsageRollup.rollup()`·`RevokedTokenPurger.purge()`·`WidgetCollector.purge` | 코드 작업(PURGE 유형 대신) |
@@ -535,8 +539,8 @@ public interface ScheduledJob {
 - 화면 서버 호출은 SYSADMIN 권한(객체 `jobSchedMng`)만 연다.
 - 서버 간 API 는 §4.10 규칙을 따른다. 모듈 → MCM 방향의 인바운드 API 는 없다.
 - 모듈 DB 사용자는 JOB 표 4개에 §3.5 의 권한만 받는다(DELETE 없음). 모듈 앱이 다른 모듈의 RUN 행도 DB 로는 고칠 수 있지만, 같은 조직의 앱끼리라 받아들인다. 쓰는 코드는 cactus-core·mcm-core 한 곳뿐이다. 특히 **6개 모듈 앱 모두에 새 인바운드 `/internal/job/run` 이 생긴다.** `system:mcm` 주체만 받는다.
-- **내장 서비스를 웹으로 부르는 경로를 막는다.** BE 의 서비스 ID 별 권한 검사가 보류 중이라, 로그인한 사용자는 `/api/{module}/oasis/job^^query/run` 처럼 내장 서비스를 웹으로 부를 수 있다. 내장 서비스의 **Java 몸체 메서드**(BPMN 이 아니라 그 빈)가 첫 줄에서 `JobRunScope` 가 열려 있는지 확인하고, 없으면 「예약 실행 밖 호출」로 거절한다. 범위는 진입점만 열고, 진입점은 `system:mcm` 이 부른 `/internal/job/run` 으로만 열린다. 그래서 웹 요청은 SQL·주소를 넣어도 실행되지 않는다. 검사를 Java 몸체에 두는 이유는 사용자 BPMN 이 `camunda:class` 로 그 빈을 직접 부를 수도 있기 때문이다. 웹 진입 `OasisController`·`ServiceController`(`/service`·`/query/service`·`/lov/service`)는 모두 웹 스레드에서 `OasisServiceExecutor` 를 거치므로 범위가 없다(D23).
-- **판정 서비스 `job^^dispatch` 를 웹으로 부르는 경로를 막는다.** 이 BPMN 도 OASIS 서비스라 `/api/mcm/oasis/job^^dispatch/run` 으로 불릴 수 있다. 판정 몸체(`jobDispatchService.claimDue`)는 첫 줄에서 `JobDispatchScope` 가 열려 있는지 확인하고, 없으면 거절한다. 이 표시는 트리거만 연다(D23 과 같은 방식).
+- **내장 서비스를 웹으로 부르는 경로를 막는다.** BE 의 서비스 ID 별 권한 검사가 보류 중이라, 로그인한 사용자는 `/api/{module}/oasis/jobQuery/run` 처럼 내장 서비스를 웹으로 부를 수 있다. 내장 서비스의 **Java 몸체 메서드**(BPMN 이 아니라 그 빈)가 첫 줄에서 `JobRunScope` 가 열려 있는지 확인하고, 없으면 「예약 실행 밖 호출」로 거절한다. 범위는 진입점만 열고, 진입점은 `system:mcm` 이 부른 `/internal/job/run` 으로만 열린다. 그래서 웹 요청은 SQL·주소를 넣어도 실행되지 않는다. 검사를 Java 몸체에 두는 이유는 사용자 BPMN 이 `camunda:class` 로 그 빈을 직접 부를 수도 있기 때문이다. 웹 진입 `OasisController`·`ServiceController`(`/service`·`/query/service`·`/lov/service`)는 모두 웹 스레드에서 `OasisServiceExecutor` 를 거치므로 범위가 없다(D23).
+- **판정 서비스 `jobDispatch` 를 웹으로 부르는 경로를 막는다.** 이 BPMN 도 OASIS 서비스라 `/api/mcm/oasis/jobDispatch/run` 으로 불릴 수 있다. 판정 몸체(`jobDispatchService.claimDue`)는 첫 줄에서 `JobDispatchScope` 가 열려 있는지 확인하고, 없으면 거절한다. 이 표시는 트리거만 연다(D23 과 같은 방식).
 - **BPMN 은 코드와 함께 배포되는 파일이라 실행 중 수정 경로가 없다.** 모든 BPMN 은 각 모듈 api 의 클래스패스 파일(`src/backend/<모듈>/api/src/main/resources/services/**/*.bpmn`, 파일 경로가 serviceId)이고, 바꾸려면 코드 커밋·배포뿐이다. 그래서 판정 BPMN 에 따로 수정 권한 장치를 두지 않는다. (외부 주소에서 BPMN 을 읽는 `cactus.oasis.service-loader-url` 은 코드에만 있고 어느 앱도 설정하지 않는다.)
 - QUERY 는 화면에서 등록한 DML·프로시저를 그 모듈 DB 에 쓰는 강한 기능이다. SYSADMIN 만 저장할 수 있고, 저장·실행 때 한 문장인지·DDL·트랜잭션 제어문이 없는지 검사한다(D13).
 - COLLECT(SQL): 기존 읽기 전용 실행기를 그대로 쓴다. COLLECT(HTTP): 허용 호스트 정확 일치, 리다이렉트 안 따름, 내부·메타데이터 주소 거절(기존 `HttpCollectSource` 규칙).
@@ -548,15 +552,15 @@ public interface ScheduledJob {
 - 통합(레인 전용 PDB, `pdb.mjs clone`)
   - **MCM 인스턴스 둘(서로 다른 연결)이 같은 분에 선점 경합** → 한 회차는 한 번만 RUN. SKIP LOCKED 는 모의 객체로 재현할 수 없어 실제 Oracle 로 한다.
   - 저장 반영: 인스턴스 A 가 사용 안 함으로 저장한 뒤 B 의 다음 틱은 잡지 않음. A 가 설정을 바꾼 뒤 B 가 잡은 회차는 새 설정으로 호출. 조회와 잠금 사이에 바뀐 행은 건너뜀.
-  - 로그: 판정·호출의 SQL·bind 줄이 mcm 업무 로그에 serviceId `job^^dispatch` 로 남음, 트리거 경계 두 줄만 sch, 트리거가 되돌린 뒤 sch 경계 끝 줄이 sch 로 감.
-  - 판정 서비스: 결과 실패(시험용으로 몸체 예외) → 선점 0·RUN 행 없음·WARN 1줄·다음 분 정상. `more=true` 면 같은 틱에서 다시 부름(120건 → 50·50·20). 호출은 `serviceStarter.start` 가 돌아온 뒤(커밋 뒤)에만 나감. 웹 경로로 `job^^dispatch` 를 부르면 거절.
+  - 로그: 판정·호출의 SQL·bind 줄이 mcm 업무 로그에 serviceId `jobDispatch` 로 남음, 트리거 경계 두 줄만 sch, 트리거가 되돌린 뒤 sch 경계 끝 줄이 sch 로 감.
+  - 판정 서비스: 결과 실패(시험용으로 몸체 예외) → 선점 0·RUN 행 없음·WARN 1줄·다음 분 정상. `more=true` 면 같은 틱에서 다시 부름(120건 → 50·50·20). 호출은 `serviceStarter.start` 가 돌아온 뒤(커밋 뒤)에만 나감. 웹 경로로 `jobDispatch` 를 부르면 거절.
   - 호출 응답별 처리(가짜 모듈 HTTP): 202 → SERVER_NM 만, 503 → SKIP, 404 → FAIL, 연결 거부 → FAIL, **읽기 시간 초과 → RUN 유지**, 재시도 없음.
   - 결과 갱신 경합: MCM 의 접수 기록보다 모듈 결과가 먼저 써져도 최종 STATUS 는 모듈 결과. 정리가 TIMEOUT 으로 닫은 뒤 온 결과는 덮어쓰지 않고 WARN. 수집 값은 OK 일 때 한 번만 저장. 대상 서비스가 롤백돼도 FAIL 기록은 남음(분리 트랜잭션).
   - 권한: 모듈 사용자로 접속해 RUN UPDATE·COLLECT MERGE·DEF/HANDLER MERGE 가 되고(로컬은 ANY TABLE, GRANT 문은 V3 에 있음), DELETE 는 안 됨.
   - 등록: 같은 앱 두 대가 동시에 기동해도 DEF 행은 하나(MERGE), 화면 값은 덮어쓰지 않음, 처리기 목록이 MCM 대수와 무관하게 같음.
   - 정리(여유 300초), 늦은 회차 SKIP, 한 틱 후보 120건(50개씩 되풀이·SKIP 없음), FAIL 결과의 수집 값 저장 안 함, 겹침 SKIP, 「지금 실행」이 일정 회차와 겹치면 거절.
   - 보안: `/internal/job/run` 키 없음 401, 사용자 주체 403, `system:mcm` 아닌 주체 403.
-- 모듈 쪽: 진입점 — 대상 서비스 SUCCESS → OK 갱신 1회, 실패 → FAIL(원문 메시지 없음), 시간 초과 → TIMEOUT 갱신 1회·늦은 완료·인터럽트 FAIL 은 갱신 안 함, `job^^query` 가 쿼리 시간 초과(시험용 `DBMS_SESSION.SLEEP`)로 ORA-01013 → DML 롤백·TIMEOUT 1회(감시와 경합해도 1회), 대상 롤백 뒤 FAIL 기록이 B 트랜잭션으로 남음, 마감 직전 완료와 감시 경합에서 갱신 1회, 재시도(1회차 FAIL → 대기 → 2회차 OK)가 TIMEOUT 되지 않고 건수가 쌓이지 않음, `Error` → FAIL, **서브서비스 3겹(사용자 BPMN → 내장 → 업무)에서도 갱신 1회**, 진입점 재진입은 거절(바깥 회차는 그대로 OK), 내장 서비스를 웹 경로(`OasisController`)로 부르면 거절, `createNewService` 로 부르면 거절. 접수 — 중복 runId 200, 풀 가득 503, 처리기 없음 404. 결과 갱신 실패 시 5초 뒤 한 번 더 하고 그다음은 WARN·정리에 맡김. 진입점 실행 로그가 sch 가 아닌 업무 로그 태그(serviceId 가 `sch.` 아님)로 남는지.
+- 모듈 쪽: 진입점 — 대상 서비스 SUCCESS → OK 갱신 1회, 실패 → FAIL(원문 메시지 없음), 시간 초과 → TIMEOUT 갱신 1회·늦은 완료·인터럽트 FAIL 은 갱신 안 함, `jobQuery` 가 쿼리 시간 초과(시험용 `DBMS_SESSION.SLEEP`)로 ORA-01013 → DML 롤백·TIMEOUT 1회(감시와 경합해도 1회), 대상 롤백 뒤 FAIL 기록이 B 트랜잭션으로 남음, 마감 직전 완료와 감시 경합에서 갱신 1회, 재시도(1회차 FAIL → 대기 → 2회차 OK)가 TIMEOUT 되지 않고 건수가 쌓이지 않음, `Error` → FAIL, **서브서비스 3겹(사용자 BPMN → 내장 → 업무)에서도 갱신 1회**, 진입점 재진입은 거절(바깥 회차는 그대로 OK), 내장 서비스를 웹 경로(`OasisController`)로 부르면 거절, `createNewService` 로 부르면 거절. 접수 — 중복 runId 200, 풀 가득 503, 처리기 없음 404. 결과 갱신 실패 시 5초 뒤 한 번 더 하고 그다음은 WARN·정리에 맡김. 진입점 실행 로그가 sch 가 아닌 업무 로그 태그(serviceId 가 `sch.` 아님)로 남는지.
 - 다른 모듈 앱 기동 시험: mdm 앱 하나를 MCM 이 꺼진 상태로 띄워 기동이 실패하지 않고 WARN 1회만 남기는지 확인한다.
 - 기존 시험: 위젯 collect 시험은 유형과 함께 지운다. 원천 시험은 새 패키지로 옮긴다. `ScreenUsageRollupTest` 등은 공개 메서드 그대로라 유지한다.
 - 프런트: m-mcm tsc·audit·화면 단위 시험, shared 새 컴포넌트 시험.
@@ -605,10 +609,11 @@ public interface ScheduledJob {
 | D25 | 호출 주소 | 새 자리 `dmes.job.modules.<모듈>.base-url`, 기본값은 기존 `<모듈>_WAS_URL` 환경 변수와 로컬 포트 |
 | D26 | 코드 작업 목록 | **변경 → D30** |
 | D27 | 시간 초과·결과 1회 | 회차 상태 객체 CAS 로 이긴 쪽만 결과를 씀, 감시는 시도마다, 재시도는 풀에 새로 넣음, 진입점 재진입 거절 |
-| D28 | 판정 방식과 로그 | **변경(사용자 결정 24)**: `@Scheduled` 트리거 → BPMN 시스템 서비스 `job^^dispatch`(serviceStarter.start 직접, SCHEDULER 감사, 자기 트랜잭션에서 조회·선점·커밋) → 트랜잭션 밖 Java 호출 풀. 50개 묶음은 트리거가 `more` 로 되풀이. 판정·호출 로그는 mcm 업무 로그(serviceId `job^^dispatch`), 트리거 경계 두 줄만 sch. 억제 장치 없음. 웹 호출은 `JobDispatchScope` 로 거절. BPMN 은 코드와 함께 배포되는 파일이라 실행 중 수정 경로 없음(권한 장치 불필요) |
+| D28 | 판정 방식과 로그 | **변경(사용자 결정 24)**: `@Scheduled` 트리거 → BPMN 시스템 서비스 `jobDispatch`(serviceStarter.start 직접, SCHEDULER 감사, 자기 트랜잭션에서 조회·선점·커밋) → 트랜잭션 밖 Java 호출 풀. 50개 묶음은 트리거가 `more` 로 되풀이. 판정·호출 로그는 mcm 업무 로그(serviceId `jobDispatch`), 트리거 경계 두 줄만 sch. 억제 장치 없음. 웹 호출은 `JobDispatchScope` 로 거절. BPMN 은 코드와 함께 배포되는 파일이라 실행 중 수정 경로 없음(권한 장치 불필요) |
 | D29 | 실행 결과 기록 | **사용자 결정 25(B 안)**: 모듈 진입점이 RUN 행을 DB 에 직접 UPDATE(`WHERE RUN_ID AND STATUS='RUN'`, 0행이면 늦은 결과 WARN), 수집 값은 같은 트랜잭션에서 MERGE. SQL 은 cactus-core `JobRunResultWriter` 한 곳, 접두는 `dmes.job.schema`, 모듈 기본 DataSource, 대상과 분리된 짧은 트랜잭션. 모듈 사용자에 GRANT(§3.5) |
 | D30 | 코드 작업 등록 | **사용자 확정(보충 6, 「둘 다 권장안대로 반영해줘」) — DB 직접**: 모듈 기동 때 `TB_MCM_JOB_HANDLER` MERGE + 기본 일정 있는 빈만 `TB_MCM_JOB_DEF` 에 없을 때 INSERT. 이유: 결과 API 를 없애면 등록만을 위해 모듈→MCM HTTP 클라이언트·MCM 인바운드 API·MCM 꺼짐 재시도·MCM 주소·키 설정을 남겨야 하고, 처리기 목록을 MCM 메모리에 두면 MCM 여러 대에서 한 대만 안다. DB 직접은 표 하나와 GRANT 로 끝난다 |
-| D31 | 내장 서비스 쿼리 시간 초과 | **사용자 확정(보충 6)**: `job^^query`·`job^^collect`(SQL) 문장마다 남은 시간(최소 1초) 쿼리 시간 초과. `ORA-01013` 은 대상 트랜잭션 롤백 + 진입점이 TIMEOUT 으로 정함, 감시와는 CAS 로 한 번만. 업무 BPMN·CODE 는 가이드 권장만 |
+| D31 | 내장 서비스 쿼리 시간 초과 | **사용자 확정(보충 6)**: `jobQuery`·`jobCollect`(SQL) 문장마다 남은 시간(최소 1초) 쿼리 시간 초과. `ORA-01013` 은 대상 트랜잭션 롤백 + 진입점이 TIMEOUT 으로 정함, 감시와는 CAS 로 한 번만. 업무 BPMN·CODE 는 가이드 권장만 |
+| D32 | 서비스 ID 이름 | **변경(구현 중 발견, 조정자 승인 2026-10-09)**: OASIS 는 서비스를 파일 이름으로만 찾고(폴더 무시) 파일 이름의 `^^` 뒤를 설명으로 자른다(AbstractFileServiceLoader). analog 서비스 목록 정규식 `[\w.-]+/\w+` 도 `^` 를 받지 않는다. 그래서 `job^^…` 대신 저장소 관례(ID = 파일 이름)인 `jobDispatch`·`jobCode`·`jobQuery`·`jobCollect` 를 쓴다 |
 
 ## 12. 검토 후 폐기한 안
 

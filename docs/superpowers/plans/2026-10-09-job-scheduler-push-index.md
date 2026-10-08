@@ -6,7 +6,7 @@
 
 **Goal:** MCM 이 매분 예약 작업을 판정·선점하고 각 모듈의 `/internal/job/run` 을 호출하며, 모듈의 예약 실행 진입점이 대상 OASIS 서비스를 실행하고 결과를 DB 에 직접 갱신한다.
 
-**Architecture:** 설계 §2 그대로. MCM(`mcm-core` `job/server`, `dmes.job.server.enabled`)이 BPMN 시스템 서비스 `job^^dispatch` 로 색인 조회 → `FOR UPDATE SKIP LOCKED` 선점 → 커밋 뒤 호출 풀로 모듈 호출. 모듈(`mcm-core` `job/agent` + cactus-core 새 패키지 `job`)이 접수 → 실행 풀 → `JobRunDispatcher` 가 `serviceStarter.start` → `JobRunResultWriter` 가 REQUIRES_NEW 로 RUN 행 갱신. 유형은 서비스 ID + 입력(내장 서비스 `job^^code`·`job^^query`·`job^^collect`).
+**Architecture:** 설계 §2 그대로. MCM(`mcm-core` `job/server`, `dmes.job.server.enabled`)이 BPMN 시스템 서비스 `jobDispatch` 로 색인 조회 → `FOR UPDATE SKIP LOCKED` 선점 → 커밋 뒤 호출 풀로 모듈 호출. 모듈(`mcm-core` `job/agent` + cactus-core 새 패키지 `job`)이 접수 → 실행 풀 → `JobRunDispatcher` 가 `serviceStarter.start` → `JobRunResultWriter` 가 REQUIRES_NEW 로 RUN 행 갱신. 유형은 서비스 ID + 입력(내장 서비스 `jobCode`·`jobQuery`·`jobCollect`).
 
 **Tech Stack:** Java 21, Spring Boot, OASIS(BPMN), JdbcTemplate, Oracle 23ai(레인 PDB), Flyway, Next.js(m-mcm), `@dk-oasis/shared`, vitest.
 
@@ -18,7 +18,7 @@
 
 - git 은 `/usr/bin/git`. 삭제는 Task 에 적은 경로에 `git rm`·`git mv` 만. `rm -rf`·`branch -D`·DB 행 삭제 금지. push 금지.
 - 공용 DB L_MAIN 에 쓰지 않는다. 워크트리에서 mcm 앱을 L_MAIN 에 붙여 띄우지 않는다(기동하면 V3 가 L_MAIN 에 자동 적용된다). Oracle 시험은 `-Pdmes.ora.test=clone`(빌드마다 TPL_EMPTY 에서 T_<레인> 복제, 끝나면 삭제) 또는 레인 PDB 만.
-- JDK 21: `export JAVA_HOME=$(/usr/libexec/java_home -v 21)`. gradle 은 `--max-workers=2` 이하. 도커 금지(pdb.mjs 경유 Oracle 만 예외).
+- JDK 21: `export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home`(이 PC 에서 `java_home -v 21` 은 jdk-26 을 돌려준다 — 2026-10-09 실측). gradle 은 `--max-workers=2` 이하. 도커 금지(pdb.mjs 경유 Oracle 만 예외).
 - cactus-core 기존 클래스(`scheduling`·`oasis/OasisServiceExecutor`·`datasource`·`security`·`MdmRevisionPoller`·`dmom`)와 oasis-core 는 바꾸지 않는다. cactus-core 에는 새 패키지 `com.dongkuk.dmes.cactus.job` 만 더한다. 바꿔야 하면 멈추고 조정자에게 묻는다.
 - 보안 설정 변경 없음(확인됨): `/internal/**` 는 `anyRequest().authenticated()`, `ClientKeyFilter` 가 `X-Client-Key` + `X-Authenticated-User: system:mcm` + `X-Authenticated-Role: SYSTEM` 을 `ROLE_SYSTEM` 사전 인증으로 만든다(6개 모듈 yml 모두 client-key 있음). 컨트롤러가 주체 이름·권한을 검사한다.
 - 로그: dev `ScheduledJobLogFilter` 는 줄마다 MDC `serviceId` 가 `sch.` 로 시작하는지 본다. logback·sch 분리 설정은 바꾸지 않는다.
@@ -38,7 +38,7 @@
 1. 같은 회차 이중 실행: MCM 두 대가 같은 분에 선점 → RUN 1행(Task 7 경합 시험).
 2. 결과 1회: 시간 초과 감시·쿼리 시간 초과(ORA-01013)·마감 직전 완료가 겹쳐도 RUN 행 갱신은 한 번(Task 4).
 3. 대상 서비스 롤백 뒤에도 FAIL 기록이 남음(REQUIRES_NEW, Task 3·4).
-4. 웹에서 내장 서비스·`job^^dispatch` 를 불러도 실행 거절(Task 6·7).
+4. 웹에서 내장 서비스·`jobDispatch` 를 불러도 실행 거절(Task 6·7).
 5. 읽기 시간 초과·5xx 응답을 FAIL 로 바꾸지 않음(RUN 유지, Task 8).
 
 ## 파일 구조
@@ -50,8 +50,8 @@
   - `agent/`: `JobRunController`·`JobRunAcceptor`·`LocalJobRunGateway`·`ScheduledJob`·`JobContext`·`JobRegistrar`.
   - `builtin/`: `CodeJobService`·`QueryJobService`·`CollectJobService`, `builtin/collect/`(옮겨 온 원천).
   - `server/`: `JobDispatchScope`·`JobDispatchService`·`JobDispatchTrigger`·`JobRunStore`·`JobCallClient`·`JobCallPool`·`JobRunSweepJob`·`JobRunPurgeJob`·`CollectPurgeJob`·`JobSchedMngService`.
-- mcm-core 리소스: `db/migration/oracle/mcmapuser/V3__job_scheduler.sql`, `services/job/{code,query,collect}.bpmn`.
-- mcm/api 리소스: `services/job/dispatch.bpmn`, `services/csa/jobSchedMng.bpmn`, `application.yml`.
+- mcm-core 리소스: `db/migration/oracle/mcmapuser/V3__job_scheduler.sql`, `services/job/{jobCode,jobQuery,jobCollect}.bpmn`.
+- mcm/api 리소스: `services/job/jobDispatch.bpmn`, `services/csa/jobSchedMng.bpmn`, `application.yml`.
 - 프런트: `src/frontend/shared/src/components/…/CronInput`·`VariableTable`(위치는 shared 관례), `src/frontend/m-mcm/page-components/csa/jobSchedMng/**`, 삭제 `src/frontend/m-mcm/widget-types/collect/**`.
 - 문서: `docs/mcm/sql/jobSchedMng-menu.sql`, 가이드 한 줄씩.
 
@@ -139,7 +139,7 @@ T1 ─┬─ T2 ─┬─ T5 ─┬─ T6 ─┐
   - `JobRunAcceptor.accept(JobRunRequest) → AcceptResult`; `AcceptResult` = ACCEPTED·DUPLICATE·HANDLER_NOT_FOUND·RUNNING·POOL_FULL·WRONG_MODULE + `serverNm`. 실행 풀(`pool-size`, 대기열 0), 최근 runId 1시간, 실행 중 jobId 집합.
   - `JobRunController`: `POST /internal/job/run` → 주체 `system:mcm`·`ROLE_SYSTEM` 아니면 403, `AcceptResult` → 202·200·404·409·503·400. `dmes.job.agent.enabled=false` 면 404.
   - `LocalJobRunGateway.call(JobRunRequest) → AcceptResult`(MCM 앱 자신, HTTP 없음).
-  - `JobRegistrar`: `ApplicationReadyEvent` 에 자기 모듈 `ScheduledJob` 빈 → HANDLER MERGE(`SEEN_AT`), `defaultCron` 있는 빈만 DEF `WHEN NOT MATCHED` INSERT(SERVICE_ID `job^^code`, ACTION `run`, OWNER_TP CODE, CONFIG `{handlerId}`, NEXT_RUN_AT 계산). 실패 WARN 1회·1분 뒤 1회.
+  - `JobRegistrar`: `ApplicationReadyEvent` 에 자기 모듈 `ScheduledJob` 빈 → HANDLER MERGE(`SEEN_AT`), `defaultCron` 있는 빈만 DEF `WHEN NOT MATCHED` INSERT(SERVICE_ID `jobCode`, ACTION `run`, OWNER_TP CODE, CONFIG `{handlerId}`, NEXT_RUN_AT 계산). 실패 WARN 1회·1분 뒤 1회.
 - **필수 시험:** 접수 결과별 HTTP 코드(MockMvc, 사용자 주체 403·키 없음 401), 중복 runId 200, 풀 가득 503, 처리기 없음 404, 같은 jobId 실행 중 409, 등록이 화면 값을 덮어쓰지 않음, 모듈 키가 다른 빈은 등록 안 함, 두 앱 동시 등록에도 DEF 1행(Oracle).
 - **검증:** `cd src/backend/mcm-core && ../gradlew test --max-workers=2 --tests '*job.agent*'`(+ `-Pdmes.ora.test=clone --tests '*JobRegistrarOraTest'`)
 - **커밋:** `feat(mcm-core): 모든 모듈 앱에 예약 실행 접수와 코드 작업 기동 등록을 더한다`
@@ -147,9 +147,9 @@ T1 ─┬─ T2 ─┬─ T5 ─┬─ T6 ─┐
 ### Task 6: mcm-core `builtin` — 내장 서비스
 
 - **담당 후보:** GLM 또는 opencode · **의존:** T4, T5 · **설계:** §5.1·§5.4·§8·D13·D23·D31
-- **목표:** `job^^code`·`job^^query`·`job^^collect` 내장 서비스와 수집 원천 이전.
+- **목표:** `jobCode`·`jobQuery`·`jobCollect` 내장 서비스와 수집 원천 이전.
 - **소유 파일**
-  - Create: `src/backend/mcm-core/src/main/resources/services/job/code.bpmn`·`query.bpmn`·`collect.bpmn`(서비스 태스크 하나, `camunda:class`=빈, `method=run`, 본보기 `src/backend/mcm/api/src/main/resources/services/audit/screenUsage.bpmn`), `.../mcm/job/builtin/CodeJobService.java`·`QueryJobService.java`·`CollectJobService.java`·`QueryStatementGuard.java`
+  - Create: `src/backend/mcm-core/src/main/resources/services/job/jobCode.bpmn`·`jobQuery.bpmn`·`jobCollect.bpmn`(서비스 태스크 하나, `camunda:class`=빈, `method=run`, 본보기 `src/backend/mcm/api/src/main/resources/services/audit/screenUsage.bpmn`), `.../mcm/job/builtin/CodeJobService.java`·`QueryJobService.java`·`CollectJobService.java`·`QueryStatementGuard.java`
   - git mv: `.../mcm/widget/collect/{CollectConfig,CollectConfigs,CollectException,CollectItem,CollectSource,SqlCollectSource,HttpCollectSource,ExchangeCollectSource}.java` → `.../mcm/job/builtin/collect/`, 시험 `CollectConfigsTest`·`CollectSourcesTest` 도 같이 옮김
   - Modify: `WidgetCollectProperties` 대체 — `dmes.job.http.allowed-hosts`(옛 `dmes.widget.collect.allowed-hosts` 있으면 warn 후 함께 읽음)
 - **Interfaces(Produces):** 각 서비스 `run(Map<String,Object> in) → Map<String,Object>`(첫 줄 `JobRunScope.require()`), 건수는 `JobRunScope.addItems`, 수집 값은 `addCollected`. 입력 파라미터가 있으면 그 값, 없으면 `JobRunScope` 의 config.
@@ -160,22 +160,22 @@ T1 ─┬─ T2 ─┬─ T5 ─┬─ T6 ─┐
 ### Task 7: mcm-core `server` — 판정·선점
 
 - **담당 후보:** Claude opus/high · **의존:** T1, T2 · **설계:** §4.1·§4.2·§4.8·§8·D17·D28
-- **목표:** 매분 트리거 → `job^^dispatch` BPMN → 색인 조회·`FOR UPDATE SKIP LOCKED` 선점.
-- **소유 파일:** Create `.../mcm/job/server/JobDispatchScope.java`·`JobDispatchService.java`·`JobDispatchTrigger.java`·`JobRunStore.java`(RUN INSERT·접수 UPDATE·SKIP/FAIL 닫기 SQL), `src/backend/mcm/api/src/main/resources/services/job/dispatch.bpmn`, 시험 `src/test/.../mcm/job/server/JobDispatchServiceOraTest.java`·`JobDispatchTriggerTest.java`
+- **목표:** 매분 트리거 → `jobDispatch` BPMN → 색인 조회·`FOR UPDATE SKIP LOCKED` 선점.
+- **소유 파일:** Create `.../mcm/job/server/JobDispatchScope.java`·`JobDispatchService.java`·`JobDispatchTrigger.java`·`JobRunStore.java`(RUN INSERT·접수 UPDATE·SKIP/FAIL 닫기 SQL), `src/backend/mcm/api/src/main/resources/services/job/jobDispatch.bpmn`, 시험 `src/test/.../mcm/job/server/JobDispatchServiceOraTest.java`·`JobDispatchTriggerTest.java`
 - **Interfaces(Produces)**
   - `JobDispatchService.claimDue(Map<String,Object> in) → Map<String,Object>`; 출력 `claimed = {runs: List<JobRunRequest>, more: boolean}`. 첫 줄 `JobDispatchScope` 검사.
   - `JobRunStore`: `insertRun(...)`, `markAccepted(runId, serverNm)`(SERVER_NM 만), `closeIfRunning(runId, status, msg)`(`WHERE STATUS='RUN'`).
-  - `JobDispatchTrigger.tick()`(`@Scheduled(cron="0 * * * * *", zone="Asia/Seoul")`, `dmes.job.server.enabled` 일 때만) → MDC serviceId·txId 저장·교체·복원, `serviceStarter.start("job^^dispatch", sc)`(SCHEDULER, menuId JOB_DISPATCH), `more` 면 최대 10번, runs 를 `JobCallPool`(T8)에 넘김. T8 전에는 `Consumer<List<JobRunRequest>>` 로 주입받아 시험.
-- **필수 시험(Oracle, `-Pdmes.ora.test=clone`):** 두 판정 인스턴스(서로 다른 연결) 경합 → 회차당 RUN 1행, 120건 → 50·50·20 묶음, 빈 틱은 조회 SQL 1회·커밋 없음, 늦은 회차(2분 초과) SKIP 1건, 겹침 SKIP, 조회와 잠금 사이 사용 안 함 → 건너뜀, NEXT_RUN_AT 이 crontab 다음 시각, SCHED_AT 초 단위, `:prevRunAt` 은 S 회차만, 몸체 예외 → 선점 0·WARN 1줄·다음 분 정상, 웹 경로 거절, 판정 SQL 줄 MDC serviceId=`job^^dispatch`.
+  - `JobDispatchTrigger.tick()`(`@Scheduled(cron="0 * * * * *", zone="Asia/Seoul")`, `dmes.job.server.enabled` 일 때만) → MDC serviceId·txId 저장·교체·복원, `serviceStarter.start("jobDispatch", sc)`(SCHEDULER, menuId JOB_DISPATCH), `more` 면 최대 10번, runs 를 `JobCallPool`(T8)에 넘김. T8 전에는 `Consumer<List<JobRunRequest>>` 로 주입받아 시험.
+- **필수 시험(Oracle, `-Pdmes.ora.test=clone`):** 두 판정 인스턴스(서로 다른 연결) 경합 → 회차당 RUN 1행, 120건 → 50·50·20 묶음, 빈 틱은 조회 SQL 1회·커밋 없음, 늦은 회차(2분 초과) SKIP 1건, 겹침 SKIP, 조회와 잠금 사이 사용 안 함 → 건너뜀, NEXT_RUN_AT 이 crontab 다음 시각, SCHED_AT 초 단위, `:prevRunAt` 은 S 회차만, 몸체 예외 → 선점 0·WARN 1줄·다음 분 정상, 웹 경로 거절, 판정 SQL 줄 MDC serviceId=`jobDispatch`.
 - **검증:** `cd src/backend/mcm-core && ../gradlew test --max-workers=2 -Pdmes.ora.test=clone --tests '*JobDispatch*'`
-- **커밋:** `feat(mcm-core): MCM 이 매분 job^^dispatch 로 예약 작업을 색인 조회하고 SKIP LOCKED 로 선점한다`
+- **커밋:** `feat(mcm-core): MCM 이 매분 jobDispatch 로 예약 작업을 색인 조회하고 SKIP LOCKED 로 선점한다`
 
 ### Task 8: mcm-core `server` — 호출·정리
 
 - **담당 후보:** GLM 또는 opencode · **의존:** T5, T7 · **설계:** §4.3·§4.6(정리)·§4.7·§5.2 표(정리 3개)
 - **목표:** 호출 풀이 모듈을 부르고 응답별로 RUN 행을 닫으며, 정리 코드 작업 3개를 둔다.
 - **소유 파일:** Create `.../mcm/job/server/JobCallPool.java`·`JobCallClient.java`·`JobRunSweepJob.java`·`JobRunPurgeJob.java`·`CollectPurgeJob.java`, 시험 `src/test/.../mcm/job/server/JobCallClientTest.java`(가짜 모듈 HTTP)·`JobRunSweepOraTest.java`
-- **Interfaces(Produces):** `JobCallPool.submit(List<JobRunRequest>)`(스레드 8·대기열 200, 호출마다 `MDCTemplate` + MDC serviceId `job^^dispatch`·runId), `JobCallClient.call(JobRunRequest) → CallResult`(연결 2초·읽기 5초, 헤더는 `MdmMetaClient` 규칙, MCM 모듈이면 `LocalJobRunGateway`).
+- **Interfaces(Produces):** `JobCallPool.submit(List<JobRunRequest>)`(스레드 8·대기열 200, 호출마다 `MDCTemplate` + MDC serviceId `jobDispatch`·runId), `JobCallClient.call(JobRunRequest) → CallResult`(연결 2초·읽기 5초, 헤더는 `MdmMetaClient` 규칙, MCM 모듈이면 `LocalJobRunGateway`).
 - **필수 시험:** 202→SERVER_NM 만, 200 duplicate→같음, 503→SKIP, 409→SKIP, 404→FAIL, 연결 거부→FAIL, 읽기 시간 초과→RUN 유지·WARN, 5xx→RUN 유지, 재시도 없음, MSG 에 주소 없음. 정리: 300초 여유 뒤 TIMEOUT, 보관 삭제 90일, collect.enabled=false 면 수집 정리 0.
 - **검증:** `cd src/backend/mcm-core && ../gradlew test --max-workers=2 --tests '*JobCallClientTest'` 그리고 `-Pdmes.ora.test=clone --tests '*JobRunSweepOraTest'`
 - **커밋:** `feat(mcm-core): MCM 호출 풀이 모듈 /internal/job/run 을 부르고 응답별로 회차를 닫으며 정리 작업을 더한다`

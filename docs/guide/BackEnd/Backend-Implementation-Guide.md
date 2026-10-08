@@ -93,6 +93,8 @@ Physical Delete 를 쓰는 경우:
 - OASIS 분기에서 사용자 답변 없이 영속성 방식을 가정하고 코드를 작성하면 안 된다.
 - JPA 를 쓰는 모듈은 `application.yml` 의 `spring.jpa.properties.hibernate.format_sql: true` 를 mcm 처럼 켠다(서식만 바꾸며, SQL·bind 로그 수준은 `application-local.yml` 에서만 올린다). 서식이 모듈마다 다르면 로그 뷰어에서 읽는 모양이 갈린다. 로그 뷰어 Binder(`m-analog/.../sql-bind.ts`)는 이 한 줄·여러 줄 SQL 과 `binding parameter` 줄을 모두 읽는다.
 - 예약 작업(`@Scheduled`) 로그는 모듈 로그가 아니라 `logs/sch/dmes-sch.날짜.0.log` 한 파일에 `dmes-logback-base.xml` 을 쓰는 모든 모듈이 같이 쓴다(MDC `serviceId` 가 `sch.<모듈>.<클래스>.<메서드>` 인 줄, 실행 중 SQL·bind 포함. 업무 로그 `dmes-<모듈>.log` 에는 남지 않는다). 설정은 cactus-core `dmes-logback-base.xml`(prudent 모드) 한 곳이고 로그 뷰어의 모듈 목록에는 `sch` 로 나온다. 자체 실행기라 `@Scheduled` 데코레이터가 닿지 않는 작업은 `ScheduledJobLogContext.run(ScheduledJobLogContext.jobName("<클래스>.<메서드>"), …)` 로 감싼다.
+- 예약 작업(`TB_MCM_JOB_DEF`)으로 실행되는 BPMN·코드 작업에서 오래 걸릴 수 있는 SQL 은 쿼리 시간 초과를 건다(`JdbcTemplate.setQueryTimeout` 또는 `PreparedStatement.setQueryTimeout`). 진입점의 시간 초과는 실행 중인 JDBC 문장을 멈추지 못한다.
+- 내장 서비스 `jobCode`·`jobQuery`·`jobCollect` 는 연결 서브서비스(기본값)로만 부른다. `createNewService=true`·병렬 게이트웨이·병렬 다중 인스턴스 안에서 부르면 실행 범위가 없어 거절된다(`createNewService` 는 50초 상한·결과 null NPE 도 있다).
 
 ### 3.2 Repository 작성 원칙
 

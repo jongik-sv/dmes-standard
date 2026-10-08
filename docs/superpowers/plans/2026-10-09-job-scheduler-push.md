@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** MCM 이 매분 한 번 색인 조회로 실행할 작업을 판정·선점(BPMN 서비스 `job^^dispatch`)하고, 6개 모듈 앱(MCM·MDM·MPP·MLS·MQC·MPN)의 `POST /internal/job/run` 으로 푸시하면, 각 모듈의 「예약 실행 진입점」이 대상 서비스를 실행하고 결과를 DB 에 직접 갱신하게 한다. MCM 공통관리 화면(`csa/jobSchedMng`)에서 작업을 등록·관리하고, 위젯 「자동 수집(collect)」 유형은 지운다.
+**Goal:** MCM 이 매분 한 번 색인 조회로 실행할 작업을 판정·선점(BPMN 서비스 `jobDispatch`)하고, 6개 모듈 앱(MCM·MDM·MPP·MLS·MQC·MPN)의 `POST /internal/job/run` 으로 푸시하면, 각 모듈의 「예약 실행 진입점」이 대상 서비스를 실행하고 결과를 DB 에 직접 갱신하게 한다. MCM 공통관리 화면(`csa/jobSchedMng`)에서 작업을 등록·관리하고, 위젯 「자동 수집(collect)」 유형은 지운다.
 
-**Architecture:** cactus-core 의 새 패키지 `job` 이 모듈 쪽 공통 코드(실행 범위·진입점·결과 갱신)를 맡고, mcm-core 의 `com.dongkuk.dmes.mcm.job` 이 crontab 식·변수(`def`)·접수와 코드 작업 등록(`agent`)·내장 서비스(`builtin`)·MCM 전용 판정·호출·관리(`server`)를 맡는다. 판정은 `@Scheduled` 트리거 → BPMN `job^^dispatch`(자기 트랜잭션에서 조회·선점·커밋) → 트랜잭션 밖 호출 풀 순이다. 정의 캐시·모듈 claim·결과 HTTP 보고는 없다.
+**Architecture:** cactus-core 의 새 패키지 `job` 이 모듈 쪽 공통 코드(실행 범위·진입점·결과 갱신)를 맡고, mcm-core 의 `com.dongkuk.dmes.mcm.job` 이 crontab 식·변수(`def`)·접수와 코드 작업 등록(`agent`)·내장 서비스(`builtin`)·MCM 전용 판정·호출·관리(`server`)를 맡는다. 판정은 `@Scheduled` 트리거 → BPMN `jobDispatch`(자기 트랜잭션에서 조회·선점·커밋) → 트랜잭션 밖 호출 풀 순이다. 정의 캐시·모듈 claim·결과 HTTP 보고는 없다.
 
 **Tech Stack:** Java 21, Spring Boot 4(Spring 7) `CronExpression`·`JdbcTemplate`·`TransactionTemplate`·`RestClient`, OASIS(BPMN) `ServiceStarter`, Oracle(레인 PDB, `FOR UPDATE SKIP LOCKED`), Flyway, ArchUnit, JUnit 5·AssertJ·Mockito, Next.js(m-mcm)·`@dk-oasis/shared`(Mantine 9·ag-grid 33), vitest.
 
@@ -19,7 +19,7 @@
 - 워크트리 `/Users/jji/project/dmes-wt/job-scheduler-mng`(브랜치 `feat/job-scheduler-mng`) 안에서만 작업한다. git 은 `/usr/bin/git`. 복합 셸 명령(`&&`·`;`)은 거절될 수 있으니 하나씩 실행한다. **push 하지 않는다.**
 - 삭제는 Task 에 적은 경로에 `git rm` 만 쓴다. `rm -rf`·`branch -D`·DB 행 삭제 금지.
 - **공용 DB L_MAIN 에 쓰지 않는다.** 워크트리에서 mcm 을 L_MAIN 에 붙여 띄우지 않는다(기동하면 V3 가 L_MAIN 에 자동 적용된다). Oracle 시험은 `-Pdmes.ora.test=clone`(빌드마다 `TPL_EMPTY` 에서 `T_<레인>` PDB 를 새로 복제하고 끝나면 지운다) 또는 레인 PDB(`-Pdmes.ora.pdb=<PDB>`)로만 돌린다. 그래서 V3 를 제자리에서 고쳐도 된다.
-- JDK 21: `export JAVA_HOME=$(/usr/libexec/java_home -v 21)` 뒤 Gradle. `--max-workers=2` 이하. 도커 금지(`scripts/oracle/pdb.mjs` 경유 Oracle 만 예외).
+- JDK 21: `export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home`(이 PC 에서 `java_home -v 21` 은 jdk-26 을 돌려준다 — 2026-10-09 실측) 뒤 Gradle. `--max-workers=2` 이하. 도커 금지(`scripts/oracle/pdb.mjs` 경유 Oracle 만 예외).
 - **cactus-core 의 기존 클래스(`scheduling`·OASIS 실행기 `oasis/**`·`datasource`·`security`·`MdmRevisionPoller`)와 oasis-core 는 바꾸지 않는다.** cactus-core 에는 새 패키지 `job` 과 자동 설정 등록 한 줄(`AutoConfiguration.imports`)만 더한다. 바꿔야 하면 멈추고 조정자에게 묻는다.
 - shared 기존 컴포넌트의 props·동작·모습은 바꾸지 않는다. 새 컴포넌트는 같은 Task 에서 `mantine-aggrid-ui` 스킬의 컴포넌트 문서·색인까지 갱신한다.
 - 운영 프로필(`application-prod.yml` 등)에는 값 없이 자리만 둔다.
@@ -43,7 +43,7 @@
 | D1 | §2: 접수·내장 서비스·판정 트리거를 mcm-core 에 둔다 | mcm-core 가 cactus-core·oasis-core 를 **`com.dongkuk.dmes.mcm.job..` 패키지에 한해** 쓸 수 있게 한다(`mcm-core/build.gradle` 에 `compileOnly`·`testImplementation libs.cactus.core.v1020`, `mcm-core/settings.gradle` 에 `../cactus-core`·`../maru-mdm-engine` includeBuild, `McmCoreArchitectureTest` 의 cactus·oasis 규칙에 `resideOutsideOfPackage("com.dongkuk.dmes.mcm.job..")` 예외). 다른 mcm 패키지는 그대로 금지 | `McmCoreArchitectureTest` 가 mcm-core 의 cactus·oasis 의존을 금지한다. 내장 서비스 몸체는 mcm-core 의 수집 원천·`SqlGuard` 와 cactus-core 의 `JobRunScope` 를 함께 써야 해서 어느 한쪽으로 옮길 수 없다. 6개 앱이 모두 cactus-core 를 싣는다 |
 | D2 | §6·outline: 위젯 collect 백엔드 삭제는 Task 9 | **Task 6 의 같은 커밋**에서 `WidgetCollector`·`Writer`·`Reader`·`WidgetCollectConfig`·`WidgetCollectProperties`·엔티티·저장소 삭제, `WidgetDataService` collect 분기·`WidgetDefConfigRules` collect 검사·`CommWidgetMngService` 의 허용 호스트 인자 삭제 | 원천을 `job.builtin.collect` 로 옮기면 `job → widget`(원천이 `widget.query`·`widget.ext` 를 씀)이고 남은 위젯 코드가 `widget → job` 이라 `mcm_core_내부_패키지_사이클_없음` 이 Task 6 부터 Task 9 까지 깨진다 |
 | D3 | §2: `@Scheduled` 4개 → 코드 작업 | `JobDispatchTrigger` 의 `@Scheduled` 한 개는 남는다 | 매분 깨우는 시계이다(설계 §4.1). Task 9 의 `grep @Scheduled` 확인은 「트리거 1개만」이다 |
-| D4 | §4.3: 요청 본문 `inputs` | `varTypes`(변수 이름 → STRING·NUMBER·DATE·JSON) 필드를 더한다 | `job^^query`·`job^^collect(sql)` 가 DATE 변수를 `java.sql.Date`/`Timestamp` 로 바인드하려면 형을 알아야 한다(문자열 바인드는 NLS 설정에 기댄다) |
+| D4 | §4.3: 요청 본문 `inputs` | `varTypes`(변수 이름 → STRING·NUMBER·DATE·JSON) 필드를 더한다 | `jobQuery`·`jobCollect(sql)` 가 DATE 변수를 `java.sql.Date`/`Timestamp` 로 바인드하려면 형을 알아야 한다(문자열 바인드는 NLS 설정에 기댄다) |
 | D5 | §4.4 접수 1~7 | 컨트롤러가 1(주체)·2(모듈)·4(처리기)를 하고 `JobRunDispatcher.submit` 이 3(중복 runId)·5(실행 중 jobId)·6(풀)을 한다. 4 가 3 앞에 온다 | 중복 runId 는 이미 접수된 회차라 처리기가 있다는 뜻이므로 결과가 같다. 메모리 상태(최근 runId·실행 중 jobId·풀)를 진입점 한 곳에 모아 재시도 재투입과 같은 풀을 쓴다 |
 | D6 | §4.4 시간 초과: 감시가 `cancel(true)` | `Thread.interrupt()` 로 한다 | 같은 효과이고 `Future` 참조가 제출 뒤에야 생기는 경합을 피한다 |
 | D7 | §5.4: SQL 원천을 기존 읽기 전용 실행기로 | `WidgetQueryExecutor` 는 MCM 에만 있고(`dataSrc=mcm` 만, `require-dedicated`, 10초 고정) 다른 5개 앱에 없다. 그래서 `job.builtin.collect.JobCollectSql` 이 `SqlGuard`·`WidgetReadOnlyJdbc` 를 **그 모듈의 기본 DataSource** 에 대해 쓴다(`widget.query` 는 고치지 않는다). HTTP 원천은 모든 모듈에서, **환율(exchange) 원천은 `MODULE_CD=MCM` 작업에서만**(저장 검사 + 실행 때 빈 없으면 거절) | 환율 제공자 빈은 `WidgetExtConfig`(MCM 스캔)에만 있다 |
@@ -58,7 +58,7 @@
 2. **서버가 오래 꺼졌다 켜져도** 밀린 회차를 줄줄이 돌리지 않는다 — `SKIP` 1건 + 다음 미래 시각. 화면에서 일정을 바꾸거나 「사용 중지 → 사용」으로 되돌릴 때 옛 `NEXT_RUN_AT` 이 그대로 남아 폭주하지 않는다(저장이 다시 계산). (Task 7, 10)
 3. **호출 도중 MCM 이 죽거나 모듈이 재기동**해서 `RUN` 행이 열린 채 남는다 — 정리(`mcm.jobRunSweep`)가 `STARTED_AT + TIMEOUT_SEC + 300초` 뒤 `TIMEOUT` 으로 닫고, 이미 닫힌 행에 늦게 온 결과는 덮어쓰지 않는다. 연결 거부는 즉시 `FAIL`, 읽기 시간 초과는 `RUN` 유지. (Task 3, 8)
 4. **모듈 앱 기동**이 JOB 표 부재·권한 부족·MCM 꺼짐 때문에 실패하지 않는다 — 코드 작업 등록은 WARN 한 번 + 1분 뒤 한 번 더. (Task 5, 9)
-5. **로그·MSG 에 비밀이 새지 않는다** — 예외 메시지(`jdbc:oracle://…`)·URL·키가 실행 기록과 로그에 없다. 내장 서비스를 웹(`/api/{module}/oasis/job^^query/run`)으로 부르면 SQL 이 실행되지 않는다. (Task 4, 6)
+5. **로그·MSG 에 비밀이 새지 않는다** — 예외 메시지(`jdbc:oracle://…`)·URL·키가 실행 기록과 로그에 없다. 내장 서비스를 웹(`/api/{module}/oasis/jobQuery/run`)으로 부르면 SQL 이 실행되지 않는다. (Task 4, 6)
 
 ---
 
@@ -79,7 +79,7 @@ src/backend/cactus-core/src/main/java/com/dongkuk/dmes/cactus/job/              
   JobAutoConfiguration.java      빈 등록 (Task 4)
 src/backend/cactus-core/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports   한 줄 추가 (Task 4)
 src/backend/mcm-core/src/main/resources/db/migration/oracle/mcmapuser/V3__job_scheduler.sql   (Task 1 에서 고침)
-src/backend/mcm-core/src/main/resources/services/job/{code,query,collect}.bpmn   내장 서비스 (Task 6)
+src/backend/mcm-core/src/main/resources/services/job/{jobCode,jobQuery,jobCollect}.bpmn   내장 서비스 (Task 6)
 src/backend/mcm-core/src/main/java/com/dongkuk/dmes/mcm/job/
   JobModule.java, JobProperties.java, JobConfig.java        (Task 1 에서 고침; JobDataSource.java 삭제)
   def/CronSpec.java, JobVar.java, JobVars.java              (Task 2)
@@ -92,7 +92,7 @@ src/backend/mcm-core/src/main/java/com/dongkuk/dmes/mcm/job/
   server/JobDispatchScope.java, JobDispatchService.java, ClaimedBatch.java, JobDispatchTrigger.java,
          JobCaller.java, JobRunStore.java, JobServerConfig.java    (Task 7·8)
   server/JobDefStore.java, JobSchedMngService.java, dto/JobSchedMngRequest.java                (Task 10)
-src/backend/mcm/api/src/main/resources/services/job/dispatch.bpmn     (Task 7)
+src/backend/mcm/api/src/main/resources/services/job/jobDispatch.bpmn     (Task 7)
 src/backend/mcm/api/src/main/resources/services/csa/jobSchedMng.bpmn  (Task 10)
 docs/mcm/sql/jobSchedMng-menu.sql                                      (Task 10)
 src/frontend/shared/src/components/cron-input/**, variable-table/**   (Task 11)
@@ -170,12 +170,12 @@ class JobSchemaOraTest {
 
     private void insertRun(String jobId, Timestamp schedAt, String trigger, String runId, String status) {
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS) "
-                + "VALUES (?, ?, ?, ?, 'MCM', 'job^^code', ?)", jobId, schedAt, trigger, runId, status);
+                + "VALUES (?, ?, ?, ?, 'MCM', 'jobCode', ?)", jobId, schedAt, trigger, runId, status);
     }
 
     private void insertDef(String jobId, String module, String kind) {
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_DEF (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, SERVICE_ID, ACTION, CRON_EXPR, TIMEOUT_SEC, OWNER_TP) "
-                + "VALUES (?, ?, 'n', ?, 'job^^code', 'run', '0 0 * * *', 60, 'USER')", jobId, module, kind);
+                + "VALUES (?, ?, 'n', ?, 'jobCode', 'run', '0 0 * * *', 60, 'USER')", jobId, module, kind);
     }
 
     @Test
@@ -213,7 +213,7 @@ class JobSchemaOraTest {
     @DisplayName("SCHED_AT(TIMESTAMP(0))은 소수 초를 반올림한다 — 넣기 전에 초 단위로 버려야 하는 근거")
     void schedAtRoundsToSecond() {
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS) "
-                + "VALUES ('J2', TIMESTAMP '2026-10-09 02:00:00.7', 'S', 'run-r', 'MCM', 'job^^code', 'RUN')");
+                + "VALUES ('J2', TIMESTAMP '2026-10-09 02:00:00.7', 'S', 'run-r', 'MCM', 'jobCode', 'RUN')");
         Timestamp stored = jdbc.queryForObject("SELECT SCHED_AT FROM MCMAPUSER.TB_MCM_JOB_RUN WHERE JOB_ID = 'J2'", Timestamp.class);
         assertThat(stored).isEqualTo(Timestamp.valueOf("2026-10-09 02:00:01"));
     }
@@ -260,7 +260,7 @@ class JobSchemaOraTest {
 
 - [ ] **Step 2: 실패를 확인한다** (구현 전이므로 `TB_MCM_JOB_HANDLER` 없음·`JOB_VER` 있음으로 실패)
 
-Run: `export JAVA_HOME=$(/usr/libexec/java_home -v 21)` 다음 `cd src/backend/mcm-core` 다음 `../gradlew test --max-workers=2 -Pdmes.ora.test=clone --tests '*JobSchemaOraTest'`
+Run: `export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home` 다음 `cd src/backend/mcm-core` 다음 `../gradlew test --max-workers=2 -Pdmes.ora.test=clone --tests '*JobSchemaOraTest'`
 Expected: FAIL (ORA-00942 또는 단언 불일치).
 
 - [ ] **Step 3: V3 를 다시 쓴다** (`f1ed4d268` 의 파일을 설계 §11 머리 목록대로 고친다: `TB_MCM_JOB_VER` 표·시드 6행 삭제, `IX_TB_MCM_JOB_DEF_DUE` 추가, `TB_MCM_JOB_HANDLER` 추가·DEF 의 `CODE_SEEN_AT` 삭제, GRANT 추가, DEF 에 `SERVICE_ID`·`ACTION` 추가·`JOB_KIND` CHECK 4종, RUN 에 `RUN_ID`(UNIQUE)·`SERVICE_ID`·`SERVICE_TAG` 추가·STATUS 에서 `REQ` 삭제, 머리 주석의 「JOB 전용 연결」 설명 교체)
@@ -1488,7 +1488,7 @@ import org.junit.jupiter.api.Test;
 class JobRunRequestTest {
 
     private static JobRunRequest req(boolean manual, String reqUserId) {
-        return new JobRunRequest("r1", "mdm.sync", "MDM", "job^^code", "run", null, null, null, 60, null, "2026-10-09T02:00:00", manual, reqUserId);
+        return new JobRunRequest("r1", "mdm.sync", "MDM", "jobCode", "run", null, null, null, 60, null, "2026-10-09T02:00:00", manual, reqUserId);
     }
 
     @Test
@@ -1512,7 +1512,7 @@ class JobRunRequestTest {
 }
 ```
 
-- [ ] **Step 2: 실패를 확인한다** — `export JAVA_HOME=$(/usr/libexec/java_home -v 21)` 다음 `cd src/backend/cactus-core` 다음 `../gradlew test --max-workers=2 --tests '*JobRunScopeTest' --tests '*JobRunRequestTest'` → 컴파일 실패.
+- [ ] **Step 2: 실패를 확인한다** — `export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home` 다음 `cd src/backend/cactus-core` 다음 `../gradlew test --max-workers=2 --tests '*JobRunScopeTest' --tests '*JobRunRequestTest'` → 컴파일 실패.
 
 - [ ] **Step 3: 값 클래스를 구현한다**
 
@@ -1792,7 +1792,7 @@ class JobRunResultWriterOracleTest {
         jdbc.update("DELETE FROM TB_MCM_JOB_COLLECT_DATA");
         jdbc.update("DELETE FROM TB_MCM_JOB_RUN");
         jdbc.update("INSERT INTO TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS, STARTED_AT) "
-                + "VALUES ('j1', TIMESTAMP '2026-10-09 02:00:00', 'S', 'run-1', 'MDM', 'job^^code', 'RUN', SYSTIMESTAMP)");
+                + "VALUES ('j1', TIMESTAMP '2026-10-09 02:00:00', 'S', 'run-1', 'MDM', 'jobCode', 'RUN', SYSTIMESTAMP)");
         writer = new JobRunResultWriter(ds, USER, Duration.ZERO);
     }
 
@@ -3409,15 +3409,15 @@ class JobRunAcceptorTest {
     }
 
     @Test
-    @DisplayName("CODE 작업(job^^code)의 처리기가 이 앱에 없으면 404 JOB_HANDLER_NOT_FOUND")
+    @DisplayName("CODE 작업(jobCode)의 처리기가 이 앱에 없으면 404 JOB_HANDLER_NOT_FOUND")
     void handlerNotFound() {
-        AcceptResult r = acceptor.accept(req("MDM", "job^^code", Map.of("handlerId", "mdm.other")));
+        AcceptResult r = acceptor.accept(req("MDM", "jobCode", Map.of("handlerId", "mdm.other")));
         assertThat(r.status()).isEqualTo(404);
         assertThat(r.body()).containsEntry("code", "JOB_HANDLER_NOT_FOUND");
         verify(dispatcher, never()).submit(any());
 
         when(dispatcher.submit(any())).thenReturn(SubmitResult.ACCEPTED);
-        assertThat(acceptor.accept(req("MDM", "job^^code", Map.of("handlerId", "mdm.sync"))).status()).isEqualTo(202);
+        assertThat(acceptor.accept(req("MDM", "jobCode", Map.of("handlerId", "mdm.sync"))).status()).isEqualTo(202);
     }
 
     @Test
@@ -3518,7 +3518,7 @@ class JobRunControllerTest {
     }
 
     private String body(String module) throws Exception {
-        return json.writeValueAsString(new JobRunRequest("r1", "mdm.sync", module, "job^^code", "run", Map.of("a", 1), Map.of(),
+        return json.writeValueAsString(new JobRunRequest("r1", "mdm.sync", module, "jobCode", "run", Map.of("a", 1), Map.of(),
                 Map.of("handlerId", "mdm.sync"), 60, null, "2026-10-09T02:00:00", false, null));
     }
 
@@ -3570,7 +3570,7 @@ class JobRunControllerTest {
 }
 ```
 
-- [ ] **Step 2: 실패를 확인한다** — `export JAVA_HOME=$(/usr/libexec/java_home -v 21)` 다음 `cd src/backend/mcm-core` 다음 `../gradlew test --max-workers=2 --tests '*JobRunAcceptorTest' --tests '*JobRunControllerTest' --tests '*JobHandlerRegistryTest'` → 컴파일 실패.
+- [ ] **Step 2: 실패를 확인한다** — `export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home` 다음 `cd src/backend/mcm-core` 다음 `../gradlew test --max-workers=2 --tests '*JobRunAcceptorTest' --tests '*JobRunControllerTest' --tests '*JobHandlerRegistryTest'` → 컴파일 실패.
 
 - [ ] **Step 3: SPI·레지스트리·접수를 구현한다**
 
@@ -3728,7 +3728,7 @@ import java.util.Map;
  */
 public class JobRunAcceptor {
 
-    static final String CODE_SERVICE_ID = "job^^code";
+    static final String CODE_SERVICE_ID = "jobCode";
 
     private final JobModule appModule;
     private final JobRunDispatcher dispatcher;
@@ -3918,7 +3918,7 @@ class JobHandlerRegistrarOraTest {
         Map<String, Object> def = jdbc.queryForMap("SELECT * FROM MCMAPUSER.TB_MCM_JOB_DEF WHERE JOB_ID = 'mcm.rollup'");
         assertThat(def.get("MODULE_CD")).isEqualTo("MCM");
         assertThat(def.get("JOB_KIND")).isEqualTo("CODE");
-        assertThat(def.get("SERVICE_ID")).isEqualTo("job^^code");
+        assertThat(def.get("SERVICE_ID")).isEqualTo("jobCode");
         assertThat(def.get("ACTION")).isEqualTo("run");
         assertThat(def.get("OWNER_TP")).isEqualTo("CODE");
         assertThat(def.get("USE_YN")).isEqualTo("Y");
@@ -4113,7 +4113,7 @@ public class JobHandlerRegistrar {
                 WHEN NOT MATCHED THEN INSERT
                       (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, SERVICE_ID, ACTION, CRON_EXPR, USE_YN, CONFIG_JSON, VARS_JSON, TIMEOUT_SEC, NEXT_RUN_AT,
                        OWNER_TP, C_AT, C_USR_ID, C_PGM_ID, U_AT, U_USR_ID, U_PGM_ID, VER)
-                VALUES (S.JOB_ID, ?, ?, 'CODE', 'job^^code', 'run', ?, 'Y', ?, ?, ?, ?,
+                VALUES (S.JOB_ID, ?, ?, 'CODE', 'jobCode', 'run', ?, 'Y', ?, ?, ?, ?,
                         'CODE', %2$s, 'SYSTEM', 'JobHandlerRegistrar', %2$s, 'SYSTEM', 'JobHandlerRegistrar', 0)
                 """.formatted(schema, NOW);
     }
@@ -4285,11 +4285,11 @@ class JobRunHttpSecurityTest extends AbstractMdmSharedDbTest {
     private final HttpClient client = HttpClient.newHttpClient();
 
     private static final String BODY_OTHER_MODULE = """
-            {"runId":"r1","jobId":"mcm.x","module":"MCM","serviceId":"job^^code","action":"run","inputs":{},"varTypes":{},"config":{"handlerId":"x"},
+            {"runId":"r1","jobId":"mcm.x","module":"MCM","serviceId":"jobCode","action":"run","inputs":{},"varTypes":{},"config":{"handlerId":"x"},
              "timeoutSec":60,"schedAt":"2026-10-09T02:00:00","manual":false}
             """;
     private static final String BODY_NO_HANDLER = """
-            {"runId":"r1","jobId":"mdm.x","module":"MDM","serviceId":"job^^code","action":"run","inputs":{},"varTypes":{},"config":{"handlerId":"no.such"},
+            {"runId":"r1","jobId":"mdm.x","module":"MDM","serviceId":"jobCode","action":"run","inputs":{},"varTypes":{},"config":{"handlerId":"no.such"},
              "timeoutSec":60,"schedAt":"2026-10-09T02:00:00","manual":false}
             """;
 
@@ -4362,7 +4362,7 @@ class JobRunHttpSecurityTest extends AbstractMdmSharedDbTest {
 설계 §5.1(내장 서비스)·§5.4(수집)·§6(없애는 것/옮기는 것)·§4.4(쿼리 시간 초과 D31)·§8(웹 호출 차단 D23)·D13·D22. **계획 D2 로 위젯 collect 백엔드 삭제를 이 Task 에서 한다**(원천을 옮기는 순간 `job → widget` 이 생기므로 `widget → job` 을 같은 커밋에서 없앤다). D7(모듈마다 `JobCollectSql`).
 
 **Files:**
-- Create: `src/backend/mcm-core/src/main/resources/services/job/code.bpmn`, `query.bpmn`, `collect.bpmn`
+- Create: `src/backend/mcm-core/src/main/resources/services/job/jobCode.bpmn`, `jobQuery.bpmn`, `jobCollect.bpmn`
 - Create(`.../mcm/job/builtin/`): `JobBind.java`, `QueryStatementGuard.java`, `JobCodeService.java`, `JobQueryService.java`, `JobCollectService.java`, `JobBuiltinConfig.java`; (`.../builtin/collect/`) `JobCollectSql.java`, `JobCollectHosts.java`
 - Move(`git mv`, `widget/collect` → `job/builtin/collect`): `CollectConfig.java`, `CollectConfigs.java`, `CollectException.java`, `CollectItem.java`, `CollectSource.java`, `SqlCollectSource.java`, `HttpCollectSource.java`, `ExchangeCollectSource.java`; 시험 `CollectConfigsTest.java`, `CollectSourcesTest.java`
 - Delete(`git rm`): `widget/collect/WidgetCollector.java`, `WidgetCollectWriter.java`, `WidgetCollectReader.java`, `WidgetCollectConfig.java`, `WidgetCollectProperties.java`, `widget/collect/entity/*`, `widget/collect/repository/*`; 시험 `widget/collect/WidgetCollectorJpaTest.java`, `widget/admin/service/WidgetDefConfigRulesCollectTest.java`
@@ -4372,7 +4372,7 @@ class JobRunHttpSecurityTest extends AbstractMdmSharedDbTest {
 **Interfaces:**
 - Consumes: `JobRunScope.require()/queryTimeoutSeconds()/addItems/collect/config()/vars()/varTypes()/schedAt()/manual()`, `CollectedValue`, `JobRunDispatcher`, `JobRunReporter`(Task 3·4); `JobHandlerRegistry`·`ScheduledJob`·`JobContext`(Task 5).
 - Produces:
-  - 서비스 ID `job^^code`·`job^^query`·`job^^collect`(BPMN `camunda:class` = 빈 `jobCodeService`·`jobQueryService`·`jobCollectService`, `method=run`, `output=result`).
+  - 서비스 ID `jobCode`·`jobQuery`·`jobCollect`(BPMN `camunda:class` = 빈 `jobCodeService`·`jobQueryService`·`jobCollectService`, `method=run`, `output=result`).
   - `JobCodeService.run(@OptionalParam String handlerId): Map<String,Object>`, `JobQueryService.run(@OptionalParam String sql)`, `JobCollectService.run(@OptionalParam Map<String,Object> source, @OptionalParam Boolean save)` — 모두 **첫 줄에서 `JobRunScope.require()`** (없으면 `JobScopeRequiredException`). 반환 `{itemCnt: n}`.
   - `JobBind.of(Object value, String type): Bound(Object value, int sqlType)`.
   - `QueryStatementGuard.check(String): Checked(String sql, boolean procedure, List<String> variables)` — 어기면 `IllegalArgumentException`(문장 원문을 메시지에 넣지 않는다).
@@ -4459,7 +4459,7 @@ class QueryStatementGuardTest {
 }
 ```
 
-- [ ] **Step 2: 실패를 확인한다** — `export JAVA_HOME=$(/usr/libexec/java_home -v 21)` 다음 `cd src/backend/mcm-core` 다음 `../gradlew test --max-workers=2 --tests '*QueryStatementGuardTest'` → 컴파일 실패.
+- [ ] **Step 2: 실패를 확인한다** — `export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home` 다음 `cd src/backend/mcm-core` 다음 `../gradlew test --max-workers=2 --tests '*QueryStatementGuardTest'` → 컴파일 실패.
 
 - [ ] **Step 3: `QueryStatementGuard`·`JobBind` 를 구현한다**
 
@@ -4750,7 +4750,7 @@ public class SqlCollectSource implements CollectSource<CollectConfig.SqlSource> 
         return collect(source, today, Map.of(), Map.of(), JobCollectSql.MAX_TIMEOUT_SEC);
     }
 
-    /** 작업 변수(바인드 값)와 쿼리 시간 초과(초)를 받는 실행 경로 — {@code job^^collect} 가 쓴다. */
+    /** 작업 변수(바인드 값)와 쿼리 시간 초과(초)를 받는 실행 경로 — {@code jobCollect} 가 쓴다. */
     public List<CollectItem> collect(CollectConfig.SqlSource source, LocalDate today, Map<String, Object> vars, Map<String, String> varTypes,
                                      int timeoutSec) {
         WidgetQueryResult result = sql.run(source.sql(), vars, varTypes, timeoutSec, MAX_ITEMS, today);
@@ -5182,7 +5182,7 @@ import com.dongkuk.oasis.methodinvoker.annotations.OptionalParam;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** 내장 서비스 {@code job^^code}(설계 §5.1) — 등록된 {@link ScheduledJob} 빈 하나를 실행한다. 예약 실행 범위가 없으면(웹 호출 등) 거절한다. */
+/** 내장 서비스 {@code jobCode}(설계 §5.1) — 등록된 {@link ScheduledJob} 빈 하나를 실행한다. 예약 실행 범위가 없으면(웹 호출 등) 거절한다. */
 public class JobCodeService {
 
     private final JobHandlerRegistry registry;
@@ -5218,7 +5218,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 /**
- * 내장 서비스 {@code job^^query}(설계 §5.1·§4.4 D31) — 그 모듈 기본 DataSource 에서 DML 한 문장 또는 프로시저 호출 하나를 서비스 트랜잭션 안에서 실행한다.
+ * 내장 서비스 {@code jobQuery}(설계 §5.1·§4.4 D31) — 그 모듈 기본 DataSource 에서 DML 한 문장 또는 프로시저 호출 하나를 서비스 트랜잭션 안에서 실행한다.
  * <b>JDBC 문장마다 쿼리 시간 초과</b>: 이 시도의 마감까지 남은 초를 올림, 최소 1초({@link JobRunScope#queryTimeoutSeconds()}). 초과하면 Oracle 이 ORA-01013 을 던지고
  * 예외를 그대로 올려 서비스 트랜잭션이 롤백되며, 진입점이 TIMEOUT 으로 기록한다. 문장은 실행 때 다시 검사한다({@link QueryStatementGuard}).
  */
@@ -5281,7 +5281,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * 내장 서비스 {@code job^^collect}(설계 §5.1·§5.4) — 원천(sql·http·exchange)에서 값을 읽어 {@link JobRunScope} 에 담는다. 저장은 진입점이 결과 갱신과
+ * 내장 서비스 {@code jobCollect}(설계 §5.1·§5.4) — 원천(sql·http·exchange)에서 값을 읽어 {@link JobRunScope} 에 담는다. 저장은 진입점이 결과 갱신과
  * 같은 트랜잭션에서 한다({@code save:false} 면 읽기만 — 외부 트리거용). 수집 실패 문구는 주소·DB 메시지를 담지 않게 만들어져 있어 {@link UserException}
  * 으로 바꿔 실행 기록 MSG 에 남긴다. SQL 쿼리 시간 초과 = min(10초, 남은 시간). 환율은 MCM 모듈 작업만(그 빈이 있는 앱).
  */
@@ -5411,9 +5411,9 @@ public class JobBuiltinConfig {
 
 `JobConfig` 의 `@Import` 에 `JobBuiltinConfig.class` 를 더한다. `ObjectProvider<WidgetExtProperties>` 등은 클래스 로딩 때문에 ArchUnit 사이클 시험(`widget.ext` ← `job`)에 영향이 없다(방향이 `job → widget` 한쪽이다).
 
-- [ ] **Step 7: 내장 BPMN 3개를 쓴다** — 서비스 태스크 하나(`camunda:class` = 빈 이름, `method=run`, `output=result`). 파일 이름이 서비스 ID(`job^^code` ↔ `services/job/code.bpmn`)이다.
+- [ ] **Step 7: 내장 BPMN 3개를 쓴다** — 서비스 태스크 하나(`camunda:class` = 빈 이름, `method=run`, `output=result`). 파일 이름이 서비스 ID(`jobCode` ↔ `services/job/jobCode.bpmn`)이다.
 
-`src/backend/mcm-core/src/main/resources/services/job/query.bpmn`:
+`src/backend/mcm-core/src/main/resources/services/job/jobQuery.bpmn`:
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_jobQuery" targetNamespace="http://bpmn.io/schema/bpmn">
@@ -5448,7 +5448,7 @@ public class JobBuiltinConfig {
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>
 ```
-`code.bpmn` 은 위와 같되 `Definitions_jobCode`·process id `jobCode`·이름 「예약 작업 내장 서비스 - 코드 실행」·태스크 이름 「코드 실행」·`camunda:class="jobCodeService"`·`bpmnElement="jobCode"`, `collect.bpmn` 은 `Definitions_jobCollect`·`jobCollect`·「수집」·`jobCollectService` 로 바꾼 파일이다. 세 파일을 모두 위 모양으로 쓴다(복사한 뒤 이 다섯 값만 바꾼다). 끝나면 `node .claude/skills/oasis-contract-check/scripts/check_oasis_contract.mjs --root .` 가 ERROR 0 이어야 한다.
+`jobCode.bpmn` 은 위와 같되 `Definitions_jobCode`·process id `jobCode`·이름 「예약 작업 내장 서비스 - 코드 실행」·태스크 이름 「코드 실행」·`camunda:class="jobCodeService"`·`bpmnElement="jobCode"`, `jobCollect.bpmn` 은 `Definitions_jobCollect`·`jobCollect`·「수집」·`jobCollectService` 로 바꾼 파일이다. 세 파일을 모두 위 모양으로 쓴다(복사한 뒤 이 다섯 값만 바꾼다). 끝나면 `node .claude/skills/oasis-contract-check/scripts/check_oasis_contract.mjs --root .` 가 ERROR 0 이어야 한다.
 
 - [ ] **Step 8: 지원 도구와 통합 시험을 쓴다**
 
@@ -5565,10 +5565,10 @@ class JobBuiltinBeansTest {
     }
 
     @Test
-    @DisplayName("job^^code·job^^query·job^^collect BPMN 을 서비스 제공자가 찾는다(mcm-core jar 의 services/job/*)")
+    @DisplayName("jobCode·jobQuery·jobCollect BPMN 을 서비스 제공자가 찾는다(mcm-core jar 의 services/job/*)")
     void bpmnFilesAreFound() {
         SimpleServiceProvider provider = new SimpleServiceProvider("/services", "bpmn", "^^");
-        for (String id : List.of("job^^code", "job^^query", "job^^collect")) {
+        for (String id : List.of("jobCode", "jobQuery", "jobCollect")) {
             assertThat(provider.service(id)).as(id).isNotNull();
         }
     }
@@ -5673,9 +5673,9 @@ class JobBuiltinServicesOraTest {
     }
 
     @Test
-    @DisplayName("job^^query — DML 을 실행하고 DATE 변수는 날짜로 바인드된다. 영향 행 수가 건수 (@OptionalParam 이 비면 null 로 들어와 config 를 쓴다)")
+    @DisplayName("jobQuery — DML 을 실행하고 DATE 변수는 날짜로 바인드된다. 영향 행 수가 건수 (@OptionalParam 이 비면 null 로 들어와 config 를 쓴다)")
     void queryUpdatesWithTypedBinds() throws Exception {
-        JobRunReport r = kit.run(request("r1", "j1", "job^^query", 30, Map.of("sql", "UPDATE T_JOB_Q SET V = :tag WHERE DT >= :fromDt"),
+        JobRunReport r = kit.run(request("r1", "j1", "jobQuery", 30, Map.of("sql", "UPDATE T_JOB_Q SET V = :tag WHERE DT >= :fromDt"),
                 Map.of("tag", "x", "fromDt", "2026-10-09"), Map.of("fromDt", "DATE")));
         assertThat(r.status()).isEqualTo("OK");
         assertThat(r.itemCnt()).isEqualTo(2);
@@ -5683,9 +5683,9 @@ class JobBuiltinServicesOraTest {
     }
 
     @Test
-    @DisplayName("job^^query — 서비스 입력 sql 이 있으면 config 보다 우선한다(사용자 BPMN 이 내장 서비스를 여러 번 엮는 경우)")
+    @DisplayName("jobQuery — 서비스 입력 sql 이 있으면 config 보다 우선한다(사용자 BPMN 이 내장 서비스를 여러 번 엮는 경우)")
     void queryInputOverridesConfig() throws Exception {
-        JobRunReport r = kit.run(request("r1", "j1", "job^^query", 30, Map.of("sql", "UPDATE T_JOB_Q SET V = 'cfg'"),
+        JobRunReport r = kit.run(request("r1", "j1", "jobQuery", 30, Map.of("sql", "UPDATE T_JOB_Q SET V = 'cfg'"),
                 Map.of("sql", "UPDATE T_JOB_Q SET V = 'in' WHERE ID = 1"), Map.of()));
         assertThat(r.status()).isEqualTo("OK");
         assertThat(count("V = 'in'")).isEqualTo(1);
@@ -5693,21 +5693,21 @@ class JobBuiltinServicesOraTest {
     }
 
     @Test
-    @DisplayName("job^^query — 허용되지 않는 문장(DDL)·값 없는 변수는 USER_ERROR 로 실패하고 아무것도 바뀌지 않는다. 메시지에 문장 원문이 없다")
+    @DisplayName("jobQuery — 허용되지 않는 문장(DDL)·값 없는 변수는 USER_ERROR 로 실패하고 아무것도 바뀌지 않는다. 메시지에 문장 원문이 없다")
     void queryRejectsBadStatements() throws Exception {
-        JobRunReport ddl = kit.run(request("r1", "j1", "job^^query", 30, Map.of("sql", "DROP TABLE T_JOB_Q"), Map.of(), Map.of()));
+        JobRunReport ddl = kit.run(request("r1", "j1", "jobQuery", 30, Map.of("sql", "DROP TABLE T_JOB_Q"), Map.of(), Map.of()));
         assertThat(ddl.status()).isEqualTo("FAIL");
         assertThat(ddl.msg()).startsWith("USER_ERROR").doesNotContain("T_JOB_Q");
-        JobRunReport noVar = kit.run(request("r2", "j2", "job^^query", 30, Map.of("sql", "UPDATE T_JOB_Q SET V = :missing"), Map.of(), Map.of()));
+        JobRunReport noVar = kit.run(request("r2", "j2", "jobQuery", 30, Map.of("sql", "UPDATE T_JOB_Q SET V = :missing"), Map.of(), Map.of()));
         assertThat(noVar.status()).isEqualTo("FAIL");
         assertThat(noVar.msg()).contains(":missing");
         assertThat(count("1 = 1")).isEqualTo(3);
     }
 
     @Test
-    @DisplayName("job^^query — 쿼리 시간 초과(남은 시간 1초, 프로시저가 5초 잔다): ORA-01013 → 서비스 트랜잭션 롤백 → TIMEOUT 정확히 1회(감시와 경합해도)")
+    @DisplayName("jobQuery — 쿼리 시간 초과(남은 시간 1초, 프로시저가 5초 잔다): ORA-01013 → 서비스 트랜잭션 롤백 → TIMEOUT 정확히 1회(감시와 경합해도)")
     void queryTimeoutRollsBackAndReportsOnce() throws Exception {
-        JobRunReport r = kit.run(request("r1", "j1", "job^^query", 1, Map.of("sql", "BEGIN P_JOB_Q_SLOW(:id, :sec); END;"),
+        JobRunReport r = kit.run(request("r1", "j1", "jobQuery", 1, Map.of("sql", "BEGIN P_JOB_Q_SLOW(:id, :sec); END;"),
                 Map.of("id", 99, "sec", 5), Map.of("id", "NUMBER", "sec", "NUMBER")));
         assertThat(r.status()).isEqualTo("TIMEOUT");
         assertThat(count("ID = 99")).as("시간 초과한 시도의 DML 은 남지 않는다").isZero();
@@ -5717,7 +5717,7 @@ class JobBuiltinServicesOraTest {
     @Test
     @DisplayName("웹 경로처럼 예약 실행 범위 없이 내장 서비스를 부르면 거절 — 서비스 입력으로 SQL 을 줘도 실행되지 않는다")
     void withoutScopeIsRejected() {
-        for (String id : List.of("job^^query", "job^^code", "job^^collect")) {
+        for (String id : List.of("jobQuery", "jobCode", "jobCollect")) {
             DefaultServiceContext sc = new DefaultServiceContext(new com.dongkuk.dmes.cactus.oasis.CactusUnwrappingApplicationContext(kit.ctx),
                     com.dongkuk.dmes.cactus.job.JobServiceInvoker.typed(Map.of("action", "run", "sql", "UPDATE T_JOB_Q SET V = 'hack'",
                             "handlerId", "mcm.test", "source", Map.of("kind", "sql"))));
@@ -5729,28 +5729,28 @@ class JobBuiltinServicesOraTest {
     }
 
     @Test
-    @DisplayName("job^^code — 처리기를 실행하고 반환 건수가 이력 건수, 문맥에 변수·예정 시각이 실린다. 없는 처리기는 USER_ERROR")
+    @DisplayName("jobCode — 처리기를 실행하고 반환 건수가 이력 건수, 문맥에 변수·예정 시각이 실린다. 없는 처리기는 USER_ERROR")
     void codeRunsHandler() throws Exception {
-        JobRunReport r = kit.run(request("r1", "j1", "job^^code", 30, Map.of("handlerId", "mcm.test"), Map.of("baseDt", "2026-10-09"), Map.of()));
+        JobRunReport r = kit.run(request("r1", "j1", "jobCode", 30, Map.of("handlerId", "mcm.test"), Map.of("baseDt", "2026-10-09"), Map.of()));
         assertThat(r.status()).isEqualTo("OK");
         assertThat(r.itemCnt()).isEqualTo(4);
         assertThat(seenContext.get().vars()).containsEntry("baseDt", "2026-10-09");
         assertThat(seenContext.get().jobId()).isEqualTo("j1");
         assertThat(seenContext.get().schedAt().toString()).isEqualTo("2026-10-09T02:00");
-        JobRunReport missing = kit.run(request("r2", "j2", "job^^code", 30, Map.of("handlerId", "no.such"), Map.of(), Map.of()));
+        JobRunReport missing = kit.run(request("r2", "j2", "jobCode", 30, Map.of("handlerId", "no.such"), Map.of(), Map.of()));
         assertThat(missing.status()).isEqualTo("FAIL");
         assertThat(missing.msg()).contains("처리기를 찾을 수 없습니다");
     }
 
     @Test
-    @DisplayName("job^^collect(sql) — 값이 범위에 담겨 OK 보고에 실리고, save:false 면 읽기만(건수는 남고 값은 안 실림)")
+    @DisplayName("jobCollect(sql) — 값이 범위에 담겨 OK 보고에 실리고, save:false 면 읽기만(건수는 남고 값은 안 실림)")
     void collectSqlSavesOrNot() throws Exception {
         Map<String, Object> source = Map.of("kind", "sql", "sql", "SELECT V, ID FROM T_JOB_Q WHERE DT >= :fromDt ORDER BY ID", "valueField", "ID", "keyField", "V");
-        JobRunReport saved = kit.run(request("r1", "j1", "job^^collect", 30, Map.of("source", source), Map.of("fromDt", "2026-10-09"), Map.of("fromDt", "DATE")));
+        JobRunReport saved = kit.run(request("r1", "j1", "jobCollect", 30, Map.of("source", source), Map.of("fromDt", "2026-10-09"), Map.of("fromDt", "DATE")));
         assertThat(saved.status()).isEqualTo("OK");
         assertThat(saved.itemCnt()).isEqualTo(2);
         assertThat(saved.collected()).extracting(v -> v.key()).containsExactly("b", "c");
-        JobRunReport readOnly = kit.run(request("r2", "j2", "job^^collect", 30, Map.of("source", source, "save", false), Map.of("fromDt", "2026-10-09"),
+        JobRunReport readOnly = kit.run(request("r2", "j2", "jobCollect", 30, Map.of("source", source, "save", false), Map.of("fromDt", "2026-10-09"),
                 Map.of("fromDt", "DATE")));
         assertThat(readOnly.status()).isEqualTo("OK");
         assertThat(readOnly.itemCnt()).isEqualTo(2);
@@ -5758,15 +5758,15 @@ class JobBuiltinServicesOraTest {
     }
 
     @Test
-    @DisplayName("job^^collect — 허용 안 된 호스트·이 모듈에 없는 환율 원천·빈 결과는 USER_ERROR 문구(주소 없음)로 실패")
+    @DisplayName("jobCollect — 허용 안 된 호스트·이 모듈에 없는 환율 원천·빈 결과는 USER_ERROR 문구(주소 없음)로 실패")
     void collectFailuresHaveSafeMessages() throws Exception {
-        JobRunReport http = kit.run(request("r1", "j1", "job^^collect", 30, Map.of("source", Map.of("kind", "http", "url", "https://secret-host.example.com/x?key=abc",
+        JobRunReport http = kit.run(request("r1", "j1", "jobCollect", 30, Map.of("source", Map.of("kind", "http", "url", "https://secret-host.example.com/x?key=abc",
                 "items", List.of(Map.of("key", "k", "path", "a")))), Map.of(), Map.of()));
         assertThat(http.status()).isEqualTo("FAIL");
         assertThat(http.msg()).contains("허용 목록에 없는 호스트").doesNotContain("secret-host").doesNotContain("abc");
-        JobRunReport ex = kit.run(request("r2", "j2", "job^^collect", 30, Map.of("source", Map.of("kind", "exchange", "currencies", List.of("USD"))), Map.of(), Map.of()));
+        JobRunReport ex = kit.run(request("r2", "j2", "jobCollect", 30, Map.of("source", Map.of("kind", "exchange", "currencies", List.of("USD"))), Map.of(), Map.of()));
         assertThat(ex.msg()).contains("MCM 모듈 전용");
-        JobRunReport empty = kit.run(request("r3", "j3", "job^^collect", 30, Map.of("source",
+        JobRunReport empty = kit.run(request("r3", "j3", "jobCollect", 30, Map.of("source",
                 Map.of("kind", "sql", "sql", "SELECT V, ID FROM T_JOB_Q WHERE 1 = 0", "valueField", "ID", "keyField", "V")), Map.of(), Map.of()));
         assertThat(empty.msg()).contains("수집된 값이 없습니다");
     }
@@ -5789,7 +5789,7 @@ class JobBuiltinServicesOraTest {
 
 ---
 
-### Task 7: mcm-core `server` — 판정·선점 (`job^^dispatch`)
+### Task 7: mcm-core `server` — 판정·선점 (`jobDispatch`)
 
 **담당 후보:** Claude opus/high  
 **Model:** opus/high
@@ -5799,7 +5799,7 @@ class JobBuiltinServicesOraTest {
 **Files:**
 - Create(`src/backend/mcm-core/src/main/java/com/dongkuk/dmes/mcm/job/server/`): `JobDispatchScope.java`, `ClaimedBatch.java`, `JobDispatchService.java`, `JobCallSink.java`, `JobDispatchTrigger.java`, `JobServerConfig.java`
 - Modify: `.../mcm/job/JobConfig.java`(`@Import(JobServerConfig.class)`)
-- Create: `src/backend/mcm/api/src/main/resources/services/job/dispatch.bpmn`
+- Create: `src/backend/mcm/api/src/main/resources/services/job/jobDispatch.bpmn`
 - Test(mcm-core): `.../mcm/job/server/JobDispatchScopeTest.java`, `.../oracheck/JobDispatchServiceOraTest.java`(+ 같은 폴더 `CountingDataSource.java`)
 - Test(mcm/api): `src/backend/mcm/api/src/test/java/com/dongkuk/dmes/mcm/job/JobDispatchBpmnIntegrationTest.java`, `JobDispatchTriggerLogTest.java`
 
@@ -5808,10 +5808,10 @@ class JobBuiltinServicesOraTest {
 - Produces:
   - `final class JobDispatchScope` — `static void open()`, `static void close()`, `static boolean isOpen()`, `static void require()`(없으면 `IllegalStateException`). 트리거만 연다.
   - `record ClaimedBatch(List<JobRunRequest> runs, boolean more)`.
-  - `class JobDispatchService` — `JobDispatchService(DataSource, String schema)`, `ClaimedBatch claimDue(Integer batchSize, String collectEnabled)`(`collectEnabled` = `"Y"`/`"N"`). BPMN `job^^dispatch` 의 서비스 태스크 몸체이며 **첫 줄에서 `JobDispatchScope.require()`**.
+  - `class JobDispatchService` — `JobDispatchService(DataSource, String schema)`, `ClaimedBatch claimDue(Integer batchSize, String collectEnabled)`(`collectEnabled` = `"Y"`/`"N"`). BPMN `jobDispatch` 의 서비스 태스크 몸체이며 **첫 줄에서 `JobDispatchScope.require()`**.
   - `interface JobCallSink { void submit(JobRunRequest request); }` — Task 8 의 `JobCaller` 가 구현한다.
   - `class JobDispatchTrigger` — `JobDispatchTrigger(ServiceStarter, ApplicationContext, JobCallSink, int batchSize, boolean collectEnabled)`, `@Scheduled(cron="0 * * * * *", zone="Asia/Seoul") public void tick()`.
-  - 서비스 ID `job^^dispatch`(파일 `services/job/dispatch.bpmn`, 빈 `jobDispatchService`, 메서드 `claimDue`, 출력 `claimed`).
+  - 서비스 ID `jobDispatch`(파일 `services/job/jobDispatch.bpmn`, 빈 `jobDispatchService`, 메서드 `claimDue`, 출력 `claimed`).
 
 - [ ] **Step 1: 판정 표시 시험을 쓴다**
 
@@ -5923,7 +5923,7 @@ class JobDispatchServiceOraTest {
     /** NEXT_RUN_AT = DB 지금 + offsetSec 초. */
     private void def(String jobId, String kind, String cron, String varsJson, String configJson, String optsJson, long offsetSec) {
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_DEF (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, SERVICE_ID, ACTION, CRON_EXPR, USE_YN, CONFIG_JSON, VARS_JSON, "
-                + "TIMEOUT_SEC, NEXT_RUN_AT, OWNER_TP, OPTS_JSON) VALUES (?, 'MDM', 'n', ?, 'job^^code', 'run', ?, 'Y', ?, ?, 600, "
+                + "TIMEOUT_SEC, NEXT_RUN_AT, OWNER_TP, OPTS_JSON) VALUES (?, 'MDM', 'n', ?, 'jobCode', 'run', ?, 'Y', ?, ?, 600, "
                 + NOW_SQL + " + NUMTODSINTERVAL(?, 'SECOND'), 'USER', ?)", jobId, kind, cron, configJson, varsJson, offsetSec, optsJson);
     }
 
@@ -5936,7 +5936,7 @@ class JobDispatchServiceOraTest {
     }
 
     @Test
-    @DisplayName("판정 서비스는 트리거가 연 표시가 없으면 거절한다 — 웹 경로로 job^^dispatch 를 불러도 선점하지 않는다")
+    @DisplayName("판정 서비스는 트리거가 연 표시가 없으면 거절한다 — 웹 경로로 jobDispatch 를 불러도 선점하지 않는다")
     void rejectsWithoutScope() {
         def("j1", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, -5);
         JobDispatchScope.close();
@@ -5958,7 +5958,7 @@ class JobDispatchServiceOraTest {
         JobRunRequest r = batch.runs().get(0);
         assertThat(r.jobId()).isEqualTo("j1");
         assertThat(r.module()).isEqualTo("MDM");
-        assertThat(r.serviceId()).isEqualTo("job^^code");
+        assertThat(r.serviceId()).isEqualTo("jobCode");
         assertThat(r.action()).isEqualTo("run");
         assertThat(r.config()).containsEntry("handlerId", "mdm.sync");
         assertThat(r.timeoutSec()).isEqualTo(600);
@@ -5972,7 +5972,7 @@ class JobDispatchServiceOraTest {
         assertThat(row.get("STATUS")).isEqualTo("RUN");
         assertThat(row.get("RUN_ID")).isEqualTo(r.runId());
         assertThat(row.get("TRIGGER_TP")).isEqualTo("S");
-        assertThat(row.get("SERVICE_ID")).isEqualTo("job^^code");
+        assertThat(row.get("SERVICE_ID")).isEqualTo("jobCode");
         assertThat(((Number) row.get("TIMEOUT_SEC")).intValue()).isEqualTo(600);
         assertThat(String.valueOf(row.get("VARS_JSON"))).contains("baseDt");
         assertThat(((Timestamp) row.get("SCHED_AT")).toLocalDateTime()).isEqualTo(r.schedAtTime());
@@ -6046,7 +6046,7 @@ class JobDispatchServiceOraTest {
     void overlapIsSkipped() {
         def("busy", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, -5);
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS, STARTED_AT, TIMEOUT_SEC) "
-                + "VALUES ('busy', TIMESTAMP '2020-01-01 00:00:00', 'S', 'old-run', 'MDM', 'job^^code', 'RUN', " + NOW_SQL + " - INTERVAL '10' SECOND, 600)");
+                + "VALUES ('busy', TIMESTAMP '2020-01-01 00:00:00', 'S', 'old-run', 'MDM', 'jobCode', 'RUN', " + NOW_SQL + " - INTERVAL '10' SECOND, 600)");
         ClaimedBatch batch = claim(50, "Y");
         assertThat(batch.runs()).isEmpty();
         assertThat(jdbc.queryForObject("SELECT MSG FROM MCMAPUSER.TB_MCM_JOB_RUN WHERE JOB_ID = 'busy' AND STATUS = 'SKIP'", String.class)).isEqualTo("이전 회차 실행 중");
@@ -6088,11 +6088,11 @@ class JobDispatchServiceOraTest {
     void prevRunAtIgnoresManualRuns() {
         def("pv", "CODE", "*/10 * * * *", "[{\"name\":\"p\",\"type\":\"DATE\",\"value\":\":prevRunAt\",\"desc\":\"\"}]", "{\"handlerId\":\"h\"}", null, -5);
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS) "
-                + "VALUES ('pv', TIMESTAMP '2026-10-08 09:00:00', 'S', 'r-s', 'MDM', 'job^^code', 'OK')");
+                + "VALUES ('pv', TIMESTAMP '2026-10-08 09:00:00', 'S', 'r-s', 'MDM', 'jobCode', 'OK')");
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS) "
-                + "VALUES ('pv', TIMESTAMP '2026-10-08 10:00:00', 'M', 'r-m', 'MDM', 'job^^code', 'OK')");
+                + "VALUES ('pv', TIMESTAMP '2026-10-08 10:00:00', 'M', 'r-m', 'MDM', 'jobCode', 'OK')");
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS) "
-                + "VALUES ('pv', TIMESTAMP '2026-10-08 11:00:00', 'S', 'r-f', 'MDM', 'job^^code', 'FAIL')");
+                + "VALUES ('pv', TIMESTAMP '2026-10-08 11:00:00', 'S', 'r-f', 'MDM', 'jobCode', 'FAIL')");
         JobRunRequest r = claim(50, "Y").runs().get(0);
         assertThat(r.inputs().get("p")).isEqualTo("2026-10-08T09:00:00");
     }
@@ -6178,7 +6178,7 @@ final class CountingDataSource extends AbstractDataSource {
 }
 ```
 
-- [ ] **Step 3: 실패를 확인한다** — `export JAVA_HOME=$(/usr/libexec/java_home -v 21)` 다음 `cd src/backend/mcm-core` 다음 `../gradlew test --max-workers=2 --tests '*JobDispatchScopeTest' -Pdmes.ora.test=clone --tests '*JobDispatchServiceOraTest'` → 컴파일 실패.
+- [ ] **Step 3: 실패를 확인한다** — `export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home` 다음 `cd src/backend/mcm-core` 다음 `../gradlew test --max-workers=2 --tests '*JobDispatchScopeTest' -Pdmes.ora.test=clone --tests '*JobDispatchServiceOraTest'` → 컴파일 실패.
 
 - [ ] **Step 4: 표시·결과 record·호출 인터페이스를 구현한다**
 
@@ -6210,7 +6210,7 @@ package com.dongkuk.dmes.mcm.job.server;
 import com.dongkuk.dmes.cactus.job.JobRunRequest;
 import java.util.List;
 
-/** {@code job^^dispatch} 의 출력 {@code claimed} — 이번 묶음에서 선점한 실행들과 이어 부를 묶음이 더 있는지(조회 건수 == batchSize). */
+/** {@code jobDispatch} 의 출력 {@code claimed} — 이번 묶음에서 선점한 실행들과 이어 부를 묶음이 더 있는지(조회 건수 == batchSize). */
 public record ClaimedBatch(List<JobRunRequest> runs, boolean more) {
 }
 ```
@@ -6258,7 +6258,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 /**
- * BPMN {@code job^^dispatch} 의 서비스 태스크 몸체 — 색인 조회로 지금 할 작업을 읽고(설계 §4.1) 같은 트랜잭션에서 선점한다(§4.2). 트랜잭션은 OASIS 가
+ * BPMN {@code jobDispatch} 의 서비스 태스크 몸체 — 색인 조회로 지금 할 작업을 읽고(설계 §4.1) 같은 트랜잭션에서 선점한다(§4.2). 트랜잭션은 OASIS 가
  * 서비스마다 연다(이 클래스에 {@code @Transactional} 없음). {@code serviceStarter.start} 가 돌아오면 이미 커밋돼 있다.
  * <ul>
  *   <li>빈 결과면 바로 끝낸다 — 평소 매분 SQL 한 문장이 전부이다.</li>
@@ -6316,7 +6316,7 @@ public class JobDispatchService {
                        (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS, STARTED_AT, ENDED_AT, TIMEOUT_SEC, MSG, VARS_JSON,
                         C_AT, C_USR_ID, C_PGM_ID, C_SVC_ID, U_AT, U_USR_ID, U_PGM_ID, U_SVC_ID, VER)
                 VALUES (?, ?, 'S', ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                        %2$s, 'SCHEDULER', 'JobDispatchService', 'job^^dispatch', %2$s, 'SCHEDULER', 'JobDispatchService', 'job^^dispatch', 0)
+                        %2$s, 'SCHEDULER', 'JobDispatchService', 'jobDispatch', %2$s, 'SCHEDULER', 'JobDispatchService', 'jobDispatch', 0)
                 """.formatted(schema, NOW);
         this.liveRunSql = """
                 SELECT COUNT(*)
@@ -6509,15 +6509,15 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.scheduling.annotation.Scheduled;
 
 /**
- * 매분 0초에 깨어나 BPMN 서비스 {@code job^^dispatch} 를 부르는 시계(설계 §4.1). 판정은 하지 않는다. 공용 스케줄러 래퍼(cactus-core
+ * 매분 0초에 깨어나 BPMN 서비스 {@code jobDispatch} 를 부르는 시계(설계 §4.1). 판정은 하지 않는다. 공용 스케줄러 래퍼(cactus-core
  * {@code JobLoggingTaskScheduler})가 {@code serviceId=sch.mcm.jobDispatchTrigger.tick} 와 service_tag 를 넣고 경계 두 줄을 sch 로그에 남기며, 이 클래스는
- * {@code job^^dispatch} 를 부르는 동안만 MDC {@code serviceId}·{@code txId} 를 바꿔 SQL·bind 줄이 <b>mcm 업무 로그</b>로 가게 하고(설계 §4.8), 돌아오면 되돌린다.
+ * {@code jobDispatch} 를 부르는 동안만 MDC {@code serviceId}·{@code txId} 를 바꿔 SQL·bind 줄이 <b>mcm 업무 로그</b>로 가게 하고(설계 §4.8), 돌아오면 되돌린다.
  * (래퍼가 MDC 를 {@code MDCTemplate} 으로 지우므로 여기서는 쓰지 않는다.) 한 틱에 {@code more} 이면 최대 {@value #MAX_ROUNDS} 번 되풀이한다.
  * 호출은 {@code serviceStarter.start} 가 돌아온 뒤(= 커밋 뒤)에만 넘긴다. 실패(결과 비성공·예외)는 선점한 것이 없으므로 연속 첫 번째만 WARN, 복구 때 INFO.
  */
 public class JobDispatchTrigger {
 
-    static final String SERVICE_ID = "job^^dispatch";
+    static final String SERVICE_ID = "jobDispatch";
     static final int MAX_ROUNDS = 10;
 
     private static final Logger log = LoggerFactory.getLogger(JobDispatchTrigger.class);
@@ -6616,7 +6616,7 @@ import org.springframework.context.annotation.Configuration;
 @ConditionalOnProperty(prefix = "dmes.job.server", name = "enabled", havingValue = "true")
 public class JobServerConfig {
 
-    /** BPMN {@code job^^dispatch} 의 {@code camunda:class="jobDispatchService"}. */
+    /** BPMN {@code jobDispatch} 의 {@code camunda:class="jobDispatchService"}. */
     @Bean
     public JobDispatchService jobDispatchService(ObjectProvider<DataSource> dataSource, JobProperties props) {
         return new JobDispatchService(dataSource.getObject(), props.getSchema());
@@ -6631,7 +6631,7 @@ public class JobServerConfig {
 
 `JobConfig` 의 `@Import` 에 `JobServerConfig.class` 를 더한다.
 
-`src/backend/mcm/api/src/main/resources/services/job/dispatch.bpmn`:
+`src/backend/mcm/api/src/main/resources/services/job/jobDispatch.bpmn`:
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_jobDispatch" targetNamespace="http://bpmn.io/schema/bpmn">
@@ -6701,7 +6701,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
 
-/** 실제 {@code services/job/dispatch.bpmn} 을 OASIS 트랜잭션으로 돌려 본다 — 커밋 뒤에야 호출이 나간다·실패는 선점 0·웹 경로 거절(설계 §9). */
+/** 실제 {@code services/job/jobDispatch.bpmn} 을 OASIS 트랜잭션으로 돌려 본다 — 커밋 뒤에야 호출이 나간다·실패는 선점 0·웹 경로 거절(설계 §9). */
 class JobDispatchBpmnIntegrationTest {
 
     private static final String NOW_SQL = "CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS TIMESTAMP)";
@@ -6749,14 +6749,14 @@ class JobDispatchBpmnIntegrationTest {
         jdbc.update("DELETE FROM MCMAPUSER.TB_MCM_JOB_RUN");
         jdbc.update("DELETE FROM MCMAPUSER.TB_MCM_JOB_DEF");
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_DEF (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, SERVICE_ID, ACTION, CRON_EXPR, USE_YN, CONFIG_JSON, TIMEOUT_SEC, NEXT_RUN_AT, OWNER_TP) "
-                + "VALUES ('j1', 'MDM', 'n', 'CODE', 'job^^code', 'run', '*/10 * * * *', 'Y', '{\"handlerId\":\"h\"}', 60, " + NOW_SQL + " - INTERVAL '5' SECOND, 'USER')");
+                + "VALUES ('j1', 'MDM', 'n', 'CODE', 'jobCode', 'run', '*/10 * * * *', 'Y', '{\"handlerId\":\"h\"}', 60, " + NOW_SQL + " - INTERVAL '5' SECOND, 'USER')");
     }
 
     private ServiceResult start(boolean withScope) {
         if (withScope) JobDispatchScope.open();
         try {
-            return JobServiceInvoker.start(starter, ctx, "job^^dispatch",
-                    Map.of("action", "run", "batchSize", 50, "collectEnabled", "Y"), new CactusAudit("SCHEDULER", "JOB_DISPATCH", "job^^dispatch"));
+            return JobServiceInvoker.start(starter, ctx, "jobDispatch",
+                    Map.of("action", "run", "batchSize", 50, "collectEnabled", "Y"), new CactusAudit("SCHEDULER", "JOB_DISPATCH", "jobDispatch"));
         } finally {
             JobDispatchScope.close();
         }
@@ -6785,7 +6785,7 @@ class JobDispatchBpmnIntegrationTest {
     }
 
     @Test
-    @DisplayName("웹 경로(표시 없음)로 job^^dispatch 를 부르면 거절되고 선점하지 않는다")
+    @DisplayName("웹 경로(표시 없음)로 jobDispatch 를 부르면 거절되고 선점하지 않는다")
     void webPathIsRejected() {
         ServiceResult result = start(false);
         assertThat(result.serviceResultCode()).isEqualTo(ServiceResultCode.SYSTEM_ERROR);
@@ -6853,7 +6853,7 @@ class JobDispatchTriggerLogTest {
     }
 
     private static JobRunRequest req(String id) {
-        return new JobRunRequest(id, "j-" + id, "MDM", "job^^code", "run", null, null, null, 60, null, "2026-10-09T02:00:00", false, null);
+        return new JobRunRequest(id, "j-" + id, "MDM", "jobCode", "run", null, null, null, 60, null, "2026-10-09T02:00:00", false, null);
     }
 
     private static ServiceResult ok(ClaimedBatch batch) {
@@ -6874,9 +6874,9 @@ class JobDispatchTriggerLogTest {
     }
 
     @Test
-    @DisplayName("판정 구간의 줄은 serviceId=job^^dispatch(mcm 업무 로그), 래퍼가 남기는 경계 줄은 sch.…, 돌아온 뒤 MDC 는 래퍼의 값으로 복원된다")
+    @DisplayName("판정 구간의 줄은 serviceId=jobDispatch(mcm 업무 로그), 래퍼가 남기는 경계 줄은 sch.…, 돌아온 뒤 MDC 는 래퍼의 값으로 복원된다")
     void logsGoToTheBusinessLogAndMdcIsRestored() {
-        when(starter.start(eq("job^^dispatch"), any())).thenAnswer(inv -> {
+        when(starter.start(eq("jobDispatch"), any())).thenAnswer(inv -> {
             org.slf4j.LoggerFactory.getLogger("test.sql").info("select ... from TB_MCM_JOB_DEF");   // BPMN 안 SQL 줄 대용
             return ok(new ClaimedBatch(List.of(req("a")), false));
         });
@@ -6890,12 +6890,12 @@ class JobDispatchTriggerLogTest {
         });
 
         List<ILoggingEvent> events = appender.list;
-        assertThat(events).filteredOn(e -> e.getFormattedMessage().equals("job^^dispatch/run"))
-                .allSatisfy(e -> assertThat(e.getMDCPropertyMap()).containsEntry("serviceId", "job^^dispatch"));
-        assertThat(events).filteredOn(e -> e.getFormattedMessage().startsWith("Service end - service name [job^^dispatch]"))
-                .allSatisfy(e -> assertThat(e.getMDCPropertyMap()).containsEntry("serviceId", "job^^dispatch"));
+        assertThat(events).filteredOn(e -> e.getFormattedMessage().equals("jobDispatch/run"))
+                .allSatisfy(e -> assertThat(e.getMDCPropertyMap()).containsEntry("serviceId", "jobDispatch"));
+        assertThat(events).filteredOn(e -> e.getFormattedMessage().startsWith("Service end - service name [jobDispatch]"))
+                .allSatisfy(e -> assertThat(e.getMDCPropertyMap()).containsEntry("serviceId", "jobDispatch"));
         assertThat(events).filteredOn(e -> e.getLoggerName().equals("test.sql"))
-                .allSatisfy(e -> assertThat(e.getMDCPropertyMap()).containsEntry("serviceId", "job^^dispatch"));
+                .allSatisfy(e -> assertThat(e.getMDCPropertyMap()).containsEntry("serviceId", "jobDispatch"));
         assertThat(events).filteredOn(e -> e.getFormattedMessage().equals("sch.mcm.jobDispatchTrigger.tick/run"))
                 .allSatisfy(e -> assertThat(e.getMDCPropertyMap().get("serviceId")).startsWith("sch."));
         assertThat(events).filteredOn(e -> e.getFormattedMessage().startsWith("Service end - service name [sch.mcm.jobDispatchTrigger.tick]"))
@@ -6907,14 +6907,14 @@ class JobDispatchTriggerLogTest {
     @DisplayName("more=true 이면 같은 틱에서 다시 부른다 — 최대 10번, 묶음마다 호출을 넘긴다")
     void repeatsWhileMoreUpToTen() {
         AtomicInteger calls = new AtomicInteger();
-        when(starter.start(eq("job^^dispatch"), any())).thenAnswer(inv -> ok(new ClaimedBatch(List.of(req("r" + calls.incrementAndGet())), true)));
+        when(starter.start(eq("jobDispatch"), any())).thenAnswer(inv -> ok(new ClaimedBatch(List.of(req("r" + calls.incrementAndGet())), true)));
         trigger().tick();
         assertThat(calls.get()).isEqualTo(10);
         assertThat(submitted).hasSize(10);
 
         submitted.clear();
         calls.set(0);
-        when(starter.start(eq("job^^dispatch"), any())).thenAnswer(inv -> {
+        when(starter.start(eq("jobDispatch"), any())).thenAnswer(inv -> {
             int n = calls.incrementAndGet();
             return ok(new ClaimedBatch(List.of(req("s" + n)), n < 3));
         });
@@ -6925,7 +6925,7 @@ class JobDispatchTriggerLogTest {
     @Test
     @DisplayName("연속 실패는 첫 번째만 WARN, 복구 때 INFO 한 줄 — 실패한 분에는 호출이 나가지 않는다")
     void failureWarnsOnceAndRecoveryInfoOnce() {
-        when(starter.start(eq("job^^dispatch"), any())).thenReturn(failed(), failed(), ok(new ClaimedBatch(List.of(req("x")), false)));
+        when(starter.start(eq("jobDispatch"), any())).thenReturn(failed(), failed(), ok(new ClaimedBatch(List.of(req("x")), false)));
         JobDispatchTrigger t = trigger();
         t.tick();
         t.tick();
@@ -6943,7 +6943,7 @@ class JobDispatchTriggerLogTest {
 
 ```bash
 /usr/bin/git add src/backend/mcm-core/src src/backend/mcm/api/src
-/usr/bin/git commit -m "$(printf 'feat(mcm-core): 예약 작업 판정·선점 서비스(job^^dispatch)와 매분 트리거를 더한다\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>')"
+/usr/bin/git commit -m "$(printf 'feat(mcm-core): 예약 작업 판정·선점 서비스(jobDispatch)와 매분 트리거를 더한다\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>')"
 ```
 
 ---
@@ -7005,7 +7005,7 @@ class JobRunStoreOraTest {
     /** startedAgoSec 초 전에 시작한 RUN 행. */
     private void run(String runId, String status, long startedAgoSec, int timeoutSec) {
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS, STARTED_AT, TIMEOUT_SEC) "
-                + "VALUES (?, TIMESTAMP '2026-10-09 02:00:00' + NUMTODSINTERVAL(?, 'SECOND'), 'S', ?, 'MDM', 'job^^code', ?, "
+                + "VALUES (?, TIMESTAMP '2026-10-09 02:00:00' + NUMTODSINTERVAL(?, 'SECOND'), 'S', ?, 'MDM', 'jobCode', ?, "
                 + NOW + " - NUMTODSINTERVAL(?, 'SECOND'), ?)", "job-" + runId, Math.abs(runId.hashCode() % 86000), runId, status, startedAgoSec, timeoutSec);
     }
 
@@ -7186,8 +7186,8 @@ class JobCallerOraTest {
 
     private JobRunRequest insertAndRequest(String runId, String module) {
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS, STARTED_AT, TIMEOUT_SEC) "
-                + "VALUES (?, TIMESTAMP '2026-10-09 02:00:00', 'S', ?, ?, 'job^^code', 'RUN', SYSTIMESTAMP, 600)", "job-" + runId, runId, module);
-        return new JobRunRequest(runId, "job-" + runId, module, "job^^code", "run", Map.of("a", 1), Map.of(), Map.of("handlerId", "h"), 600, null,
+                + "VALUES (?, TIMESTAMP '2026-10-09 02:00:00', 'S', ?, ?, 'jobCode', 'RUN', SYSTIMESTAMP, 600)", "job-" + runId, runId, module);
+        return new JobRunRequest(runId, "job-" + runId, module, "jobCode", "run", Map.of("a", 1), Map.of(), Map.of("handlerId", "h"), 600, null,
                 "2026-10-09T02:00:00", false, null);
     }
 
@@ -7321,19 +7321,19 @@ class JobCallerOraTest {
     }
 
     @Test
-    @DisplayName("호출 로그는 mcm 업무 로그의 job^^dispatch 서비스(MDC serviceId·runId)로 남고 주소·키는 없다")
+    @DisplayName("호출 로그는 mcm 업무 로그의 jobDispatch 서비스(MDC serviceId·runId)로 남고 주소·키는 없다")
     void callLogCarriesDispatchServiceMdc() throws Exception {
         caller.submit(insertAndRequest("logrun", "MDM"));
         awaitRow("logrun", "RUN");
         assertThat(appender.list).isNotEmpty().allSatisfy(e -> {
-            assertThat(e.getMDCPropertyMap()).containsEntry("serviceId", "job^^dispatch").containsEntry("runId", "logrun");
+            assertThat(e.getMDCPropertyMap()).containsEntry("serviceId", "jobDispatch").containsEntry("runId", "logrun");
             assertThat(e.getFormattedMessage()).doesNotContain("127.0.0.1").doesNotContain("test-key");
         });
     }
 }
 ```
 
-- [ ] **Step 3: 실패를 확인한다** — `export JAVA_HOME=$(/usr/libexec/java_home -v 21)` 다음 `cd src/backend/mcm-core` 다음 `../gradlew test --max-workers=2 -Pdmes.ora.test=clone --tests '*JobRunStoreOraTest' --tests '*JobCallerOraTest'` → 컴파일 실패.
+- [ ] **Step 3: 실패를 확인한다** — `export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home` 다음 `cd src/backend/mcm-core` 다음 `../gradlew test --max-workers=2 -Pdmes.ora.test=clone --tests '*JobRunStoreOraTest' --tests '*JobCallerOraTest'` → 컴파일 실패.
 
 - [ ] **Step 4: `JobRunStore` 를 구현한다**
 
@@ -7475,7 +7475,7 @@ import org.slf4j.MDC;
 
 /**
  * MCM → 모듈 호출(설계 §4.3) — BPMN 트랜잭션 밖의 전용 풀(스레드 8, 대기열 200)에서 {@code POST {base-url}/internal/job/run} 을 보낸다.
- * HTTP 를 기다리는 동안 행 잠금·DB 연결을 쥐지 않는다. 호출 한 건은 새 {@code service_tag} 와 MDC {@code serviceId=job^^dispatch}·{@code runId} 로 감싸
+ * HTTP 를 기다리는 동안 행 잠금·DB 연결을 쥐지 않는다. 호출 한 건은 새 {@code service_tag} 와 MDC {@code serviceId=jobDispatch}·{@code runId} 로 감싸
  * (호출 풀 스레드는 트리거의 MDC 를 물려받지 않는다) <b>mcm 업무 로그</b>에 남긴다. 주소·인증값은 로그와 기록에 넣지 않는다.
  *
  * <p>응답별 처리: 202·200(duplicate) → SERVER_NM 만 기록(STATUS 는 건드리지 않음) / 503 JOB_POOL_FULL → SKIP / 409 JOB_RUNNING → SKIP /
@@ -7486,7 +7486,7 @@ public class JobCaller implements JobCallSink, AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(JobCaller.class);
     private static final ObjectMapper JSON = new ObjectMapper();
-    static final String SERVICE_ID = "job^^dispatch";
+    static final String SERVICE_ID = "jobDispatch";
 
     private final Map<String, String> baseUrls;
     private final JobModule localModule;
@@ -7811,7 +7811,7 @@ class JobServerConfigWiringTest {
 ```
 
 - [ ] **Step 8: 실행한다**
-  - `export JAVA_HOME=$(/usr/libexec/java_home -v 21)` 다음 `cd src/backend/mcm-core` 다음 `../gradlew test --max-workers=2 --tests '*McmCodeJobsTest' --tests '*JobServerConfigWiringTest'` → PASS
+  - `export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home` 다음 `cd src/backend/mcm-core` 다음 `../gradlew test --max-workers=2 --tests '*McmCodeJobsTest' --tests '*JobServerConfigWiringTest'` → PASS
   - `../gradlew test --max-workers=2 -Pdmes.ora.test=clone --tests '*JobRunStoreOraTest' --tests '*JobCallerOraTest'` → PASS (호출 시험은 Task 8 의 읽기 시간 초과 시험이 2초 넘게 걸린다)
   - `JobServerConfigWiringTest` 에서 `JobAppInfo`·`LocalJobRunGateway` 빈이 없다는 오류가 나면(스캔·`@Import` 순서) `JobConfig` 의 `@Import` 가 `JobAgentConfig` 를 포함하는지 먼저 본다.
 
@@ -7931,7 +7931,7 @@ class NoStraySchedulingTest {
 }
 ```
 
-- [ ] **Step 2: 실패를 확인한다** — `export JAVA_HOME=$(/usr/libexec/java_home -v 21)` 다음 `cd src/backend/mcm-core` 다음 `../gradlew test --max-workers=2 --tests '*McmLegacyJobsTest' --tests '*NoStraySchedulingTest'` → 컴파일/단언 실패.
+- [ ] **Step 2: 실패를 확인한다** — `export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home` 다음 `cd src/backend/mcm-core` 다음 `../gradlew test --max-workers=2 --tests '*McmLegacyJobsTest' --tests '*NoStraySchedulingTest'` → 컴파일/단언 실패.
 
 - [ ] **Step 3: 기존 클래스에서 `@Scheduled` 를 뺀다** (공개 메서드는 유지한다)
 
@@ -8077,7 +8077,7 @@ class JobAgentWiringTest extends AbstractMdmSharedDbTest {
     @Test
     void 내장_서비스_BPMN_3개를_이_앱의_서비스_제공자가_찾는다() {
         SimpleServiceProvider provider = new SimpleServiceProvider("/services", "bpmn", "^^");
-        for (String id : new String[] {"job^^code", "job^^query", "job^^collect"}) {
+        for (String id : new String[] {"jobCode", "jobQuery", "jobCollect"}) {
             assertNotNull(provider.service(id), id);
         }
     }
@@ -8219,11 +8219,11 @@ class JobSchedMngServiceOraTest {
     }
 
     @Test
-    @DisplayName("QUERY 저장 — 서비스 ID 는 job^^query·Action run 으로 정하고, NEXT_RUN_AT 은 다음 미래 시각, 출처는 USER")
+    @DisplayName("QUERY 저장 — 서비스 ID 는 jobQuery·Action run 으로 정하고, NEXT_RUN_AT 은 다음 미래 시각, 출처는 USER")
     void saveQueryJob() {
         Map<String, Object> saved = def(service.save(queryReq("mdm.q1")));
         Map<String, Object> r = row("mdm.q1");
-        assertThat(r.get("SERVICE_ID")).isEqualTo("job^^query");
+        assertThat(r.get("SERVICE_ID")).isEqualTo("jobQuery");
         assertThat(r.get("ACTION")).isEqualTo("run");
         assertThat(r.get("OWNER_TP")).isEqualTo("USER");
         assertThat(((Timestamp) r.get("NEXT_RUN_AT")).toLocalDateTime()).isAfter(LocalDateTime.now().minusMinutes(1));
@@ -8263,11 +8263,11 @@ class JobSchedMngServiceOraTest {
     }
 
     @Test
-    @DisplayName("유형별 입력 — BPMN 은 서비스 ID·Action 필수(내장 job^^ 금지), CODE 는 등록된 처리기, COLLECT 는 원천·간격 하한(5분, 환율 60분)·환율은 MCM 만")
+    @DisplayName("유형별 입력 — BPMN 은 서비스 ID·Action 필수(내장 jobCode·jobQuery·jobCollect 금지), CODE 는 등록된 처리기, COLLECT 는 원천·간격 하한(5분, 환율 60분)·환율은 MCM 만")
     void kindSpecificValidation() {
         JobSchedMngRequest b = req("mdm.b1", "MDM", "BPMN", "0 3 * * *");
         assertThatThrownBy(() -> service.save(b)).isInstanceOf(BusinessException.class).hasMessageContaining("서비스 ID");
-        b.setServiceId("job^^query");
+        b.setServiceId("jobQuery");
         b.setSvcAction("run");
         assertThatThrownBy(() -> service.save(b)).isInstanceOf(BusinessException.class).hasMessageContaining("내장");
         b.setServiceId("dma^^dailyClose");
@@ -8279,7 +8279,7 @@ class JobSchedMngServiceOraTest {
         assertThatThrownBy(() -> service.save(c)).isInstanceOf(BusinessException.class).hasMessageContaining("처리기");
         c.setConfigJson("{\"handlerId\":\"mdm.sync\"}");
         service.save(c);
-        assertThat(row("mdm.c1").get("SERVICE_ID")).isEqualTo("job^^code");
+        assertThat(row("mdm.c1").get("SERVICE_ID")).isEqualTo("jobCode");
 
         JobSchedMngRequest col = req("mdm.col", "MDM", "COLLECT", "*/4 * * * *");
         col.setConfigJson("{\"source\":{\"kind\":\"sql\",\"sql\":\"SELECT 1 V FROM DUAL\",\"valueField\":\"V\"}}");
@@ -8334,7 +8334,7 @@ class JobSchedMngServiceOraTest {
     @DisplayName("CODE 작업(출처 CODE)은 일정·사용·시간 초과·변수 값만 바꾼다 — 이름·유형·처리기 변경과 삭제는 거절")
     void codeJobsAreLimited() {
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_DEF (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, SERVICE_ID, ACTION, CRON_EXPR, USE_YN, CONFIG_JSON, VARS_JSON, TIMEOUT_SEC, NEXT_RUN_AT, OWNER_TP) "
-                + "VALUES ('mdm.sync', 'MDM', '동기화', 'CODE', 'job^^code', 'run', '0 1 * * *', 'Y', '{\"handlerId\":\"mdm.sync\"}', "
+                + "VALUES ('mdm.sync', 'MDM', '동기화', 'CODE', 'jobCode', 'run', '0 1 * * *', 'Y', '{\"handlerId\":\"mdm.sync\"}', "
                 + "'[{\"name\":\"n\",\"type\":\"NUMBER\",\"value\":\"3\",\"desc\":\"\"}]', 1800, " + NOW + " + INTERVAL '1' HOUR, 'CODE')");
         JobSchedMngRequest ok = req("mdm.sync", "MDM", "CODE", "30 1 * * *");
         ok.setJobNm("동기화");
@@ -8360,7 +8360,7 @@ class JobSchedMngServiceOraTest {
     void deleteUserJobs() {
         service.save(queryReq("mdm.q1"));
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS, STARTED_AT, TIMEOUT_SEC) "
-                + "VALUES ('mdm.q1', TIMESTAMP '2026-10-08 02:00:00', 'S', 'rr', 'MDM', 'job^^query', 'RUN', " + NOW + ", 600)");
+                + "VALUES ('mdm.q1', TIMESTAMP '2026-10-08 02:00:00', 'S', 'rr', 'MDM', 'jobQuery', 'RUN', " + NOW + ", 600)");
         JobSchedMngRequest d = new JobSchedMngRequest();
         d.setJobId("mdm.q1");
         assertThatThrownBy(() -> service.delete(d)).isInstanceOf(BusinessException.class).hasMessageContaining("실행 중");
@@ -8377,13 +8377,13 @@ class JobSchedMngServiceOraTest {
     void listWithFiltersAndCodeMissing() {
         service.save(queryReq("mdm.q1"));
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_DEF (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, SERVICE_ID, ACTION, CRON_EXPR, USE_YN, CONFIG_JSON, TIMEOUT_SEC, OWNER_TP) "
-                + "VALUES ('mdm.old', 'MDM', '옛', 'CODE', 'job^^code', 'run', '0 1 * * *', 'Y', '{\"handlerId\":\"mdm.old\"}', 60, 'CODE')");
+                + "VALUES ('mdm.old', 'MDM', '옛', 'CODE', 'jobCode', 'run', '0 1 * * *', 'Y', '{\"handlerId\":\"mdm.old\"}', 60, 'CODE')");
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_DEF (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, SERVICE_ID, ACTION, CRON_EXPR, USE_YN, CONFIG_JSON, TIMEOUT_SEC, OWNER_TP) "
-                + "VALUES ('mdm.gone', 'MDM', '없음', 'CODE', 'job^^code', 'run', '0 1 * * *', 'Y', '{\"handlerId\":\"mdm.gone\"}', 60, 'CODE')");
+                + "VALUES ('mdm.gone', 'MDM', '없음', 'CODE', 'jobCode', 'run', '0 1 * * *', 'Y', '{\"handlerId\":\"mdm.gone\"}', 60, 'CODE')");
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS, SERVER_NM, STARTED_AT, ENDED_AT) "
-                + "VALUES ('mdm.q1', TIMESTAMP '2026-10-08 02:00:00', 'S', 'a', 'MDM', 'job^^query', 'FAIL', 'old-srv', " + NOW + ", " + NOW + ")");
+                + "VALUES ('mdm.q1', TIMESTAMP '2026-10-08 02:00:00', 'S', 'a', 'MDM', 'jobQuery', 'FAIL', 'old-srv', " + NOW + ", " + NOW + ")");
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS, SERVER_NM, STARTED_AT, ENDED_AT) "
-                + "VALUES ('mdm.q1', TIMESTAMP '2026-10-09 02:00:00', 'S', 'b', 'MDM', 'job^^query', 'OK', 'new-srv', " + NOW + ", " + NOW + ")");
+                + "VALUES ('mdm.q1', TIMESTAMP '2026-10-09 02:00:00', 'S', 'b', 'MDM', 'jobQuery', 'OK', 'new-srv', " + NOW + ", " + NOW + ")");
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> jobs = (List<Map<String, Object>>) service.list(new JobSchedMngRequest()).get("jobs");
@@ -8460,7 +8460,7 @@ class JobSchedMngServiceOraTest {
 
 서비스 생성자는 `(JobDefStore, JobDispatchService, JobCallSink, JobCollectSql, Duration decisionWait, SecurityIdentity identity)` 이다. `identity` 가 `null` 이면 사용자 ID 는 `admin`(시험용)이고, `decisionWait` 는 「지금 실행」이 접수 결과를 기다리는 최대 시간(운영 8초, 시험 300ms — 시험의 가짜 호출 풀은 RUN 행을 바꾸지 않으므로 끝까지 기다린다)이다.
 
-- [ ] **Step 2: 실패를 확인한다** — `export JAVA_HOME=$(/usr/libexec/java_home -v 21)` 다음 `cd src/backend/mcm-core` 다음 `../gradlew test --max-workers=2 -Pdmes.ora.test=clone --tests '*JobSchedMngServiceOraTest'` → 컴파일 실패.
+- [ ] **Step 2: 실패를 확인한다** — `export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home` 다음 `cd src/backend/mcm-core` 다음 `../gradlew test --max-workers=2 -Pdmes.ora.test=clone --tests '*JobSchedMngServiceOraTest'` → 컴파일 실패.
 
 - [ ] **Step 3: DTO 를 쓴다**
 
@@ -9011,7 +9011,7 @@ public class JobSchedMngService {
         String configJson = blankToNull(req.getConfigJson());
         switch (kind) {
             case "CODE" -> {
-                serviceId = "job^^code";
+                serviceId = "jobCode";
                 JsonNode cfg = readObject(configJson, "처리기 설정(configJson)");
                 String handlerId = cfg.path("handlerId").asText("");
                 if (handlerId.isBlank() || !store.handlerExists(handlerId, moduleCd)) throw invalid("등록된 처리기가 아닙니다: " + handlerId + " (그 모듈 앱이 기동할 때 등록됩니다)");
@@ -9020,12 +9020,12 @@ public class JobSchedMngService {
                 serviceId = req.getServiceId() == null ? "" : req.getServiceId().strip();
                 svcAction = req.getSvcAction() == null ? "" : req.getSvcAction().strip();
                 if (!SERVICE_ID.matcher(serviceId).matches()) throw invalid("서비스 ID 를 형식에 맞게 입력해 주세요");
-                if (serviceId.startsWith("job^^")) throw invalid("내장 서비스(job^^…)는 쿼리 실행·수집 유형으로 등록하세요");
+                if (Set.of("jobCode", "jobQuery", "jobCollect").contains(serviceId)) throw invalid("내장 서비스(jobCode·jobQuery·jobCollect)는 쿼리 실행·수집 유형으로 등록하세요");
                 if (!ACTION.matcher(svcAction).matches()) throw invalid("Action 을 형식에 맞게 입력해 주세요");
                 configJson = null;
             }
             case "QUERY" -> {
-                serviceId = "job^^query";
+                serviceId = "jobQuery";
                 JsonNode cfg = readObject(configJson, "쿼리 설정(configJson)");
                 QueryStatementGuard.Checked checked;
                 try {
@@ -9036,7 +9036,7 @@ public class JobSchedMngService {
                 for (String v : checked.variables()) if (!varNames.contains(v)) throw invalid("변수 :" + v + " 를 변수 표에 선언해 주세요");
             }
             default -> {
-                serviceId = "job^^collect";
+                serviceId = "jobCollect";
                 JsonNode cfg = readObject(configJson, "수집 설정(configJson)");
                 CollectConfig parsed;
                 try {
@@ -9372,7 +9372,7 @@ class JobSchedMngBpmnTest {
         CactusResponse saved = executor.execute("jobSchedMng", "save", request(save));
         assertThat(saved.getMeta().success()).as(saved.getMeta().message()).isTrue();
         Map<String, Object> def = (Map<String, Object>) ((Map<String, Object>) saved.getData().get("result")).get("def");
-        assertThat(def).containsEntry("jobId", "mcm.q1").containsEntry("serviceId", "job^^query");
+        assertThat(def).containsEntry("jobId", "mcm.q1").containsEntry("serviceId", "jobQuery");
 
         CactusResponse list = executor.execute("jobSchedMng", "list", request(Map.of()));
         List<Map<String, Object>> jobs = (List<Map<String, Object>>) ((Map<String, Object>) list.getData().get("result")).get("jobs");
@@ -10011,11 +10011,11 @@ node .claude/skills/mantine-aggrid-ui/scripts/ui_docs.mjs check-examples
 설계 §9(시험)·§10(DB 적용과 메뉴 등록). 전체 시험은 머지 직전 이 Task 에서 한 번만 돌린다.
 
 **Files:**
-- Modify: `docs/guide/BackEnd/Backend-Implementation-Guide.md` — 「긴 SQL 은 쿼리 시간 초과를 건다」와 「내장 서비스(`job^^*`)는 `createNewService`·병렬 안에서 부르지 않는다(범위 `ThreadLocal` 이 넘어가지 않는다)」 각 한 줄.
+- Modify: `docs/guide/BackEnd/Backend-Implementation-Guide.md` — 「긴 SQL 은 쿼리 시간 초과를 건다」와 「내장 서비스(`jobCode`·`jobQuery`·`jobCollect`)는 `createNewService`·병렬 안에서 부르지 않는다(범위 `ThreadLocal` 이 넘어가지 않는다)」 각 한 줄.
 - Modify: `src/backend/mcm/api/src/test/resources/init/data-initializer-fingerprint.golden.txt` — `CoreRbacSeeder.allActions` 에 Task 10 이 더한 6개 action 때문에 재생성.
 - Regenerate: `TPL_SCHEMA`(Oracle 템플릿) — V3 를 고쳤으므로 레인 PDB 에서 `scripts/oracle/pdb.mjs` 의 `template-schema` 절차(없으면 `scripts/oracle/README` 의 TPL_SCHEMA 재생성 절)로 다시 만든다. 레인 PDB 가 없으면 만들지 말고 「재생성 필요」로 보고한다. 공용 L_MAIN 은 건드리지 않는다.
 
-**순서와 명령** (JDK 21: `export JAVA_HOME=$(/usr/libexec/java_home -v 21)`, gradle `--max-workers=2`):
+**순서와 명령** (JDK 21: `export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home`, gradle `--max-workers=2`):
 1. 가이드 두 줄 추가.
 2. `cd src/backend/mcm && FINGERPRINT_UPDATE=true ../gradlew :api:test --tests '*DataInitializerSeedFingerprintTest' --max-workers=2` → 골든이 바뀐다. `git diff` 에 추가한 6개 action 만 있는지 본다(다른 변화가 있으면 멈추고 보고).
 3. 전체 시험 1회 — 각각 `-Pdmes.ora.test=clone` 으로: `src/backend/cactus-core`(`../gradlew test`), `src/backend/mcm-core`, `src/backend/mcm`(`:api:test` 와 하위 모듈), `src/backend/mdm`·mpp·mls·mqc·mpn 중 `JobAgentWiringTest`·`JobRunHttpSecurityTest` 가 있는 모듈은 반드시. 프런트 `pnpm --filter @dk-oasis/shared test`, `pnpm --filter @dk-oasis/mcm test`, `tsc --noEmit`, 스킬 audit.
