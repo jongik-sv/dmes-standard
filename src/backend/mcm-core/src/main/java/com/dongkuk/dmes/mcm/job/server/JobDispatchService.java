@@ -22,9 +22,13 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 import javax.sql.DataSource;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * BPMN {@code jobDispatch} 의 서비스 태스크 몸체 — 색인 조회로 지금 할 작업을 읽고(설계 §4.1) 같은 트랜잭션에서 선점한다(§4.2). 트랜잭션은 OASIS 가
@@ -36,6 +40,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
  *   <li>변수 확정은 여기서 한다(날짜 변수는 SCHED_AT 기준, {@code :prevRunAt} 은 그 변수를 쓰는 작업만 TRIGGER_TP='S' 직전 정상 회차).</li>
  *   <li>정의 한 건이 깨져 있으면(CONFIG_JSON·VARS_JSON·OPTS_JSON·crontab) 그 행만 FAIL 「정의 오류」로 남기고 NEXT_RUN_AT 을 미룬다 — 다른 작업을 막지 않는다.</li>
  * </ul>
+ * 화면의 「지금 한 번 실행」({@link #claimManual})도 같은 변수 확정·겹침 검사를 쓰므로 여기에 둔다(설계 §4.9).
  */
 public class JobDispatchService {
 
@@ -50,6 +55,8 @@ public class JobDispatchService {
     /** null 칸(ENDED_AT·MSG·VARS_JSON)의 형을 드라이버에 묻지 않게 명시한다 — ojdbc 는 식이 섞인 INSERT 의 매개변수 메타데이터를 풀지 못한다. */
     private static final int[] INSERT_RUN_TYPES = {Types.VARCHAR, Types.TIMESTAMP, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR,
             Types.TIMESTAMP, Types.TIMESTAMP, Types.INTEGER, Types.VARCHAR, Types.CLOB};
+    private static final int[] INSERT_MANUAL_TYPES = {Types.VARCHAR, Types.TIMESTAMP, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.TIMESTAMP,
+            Types.INTEGER, Types.CLOB, Types.VARCHAR, Types.VARCHAR};
 
     private final JdbcTemplate jdbc;
     private final NamedParameterJdbcTemplate named;
@@ -59,6 +66,9 @@ public class JobDispatchService {
     private final String liveRunSql;
     private final String prevOkSql;
     private final String nextRunSql;
+    private final TransactionTemplate manualTx;
+    private final String manualLockSql;
+    private final String insertManualSql;
 
     public JobDispatchService(DataSource dataSource, String schema) {
         if (schema == null || !SCHEMA.matcher(schema).matches()) throw new IllegalArgumentException("dmes.job.schema 는 식별자여야 합니다");
@@ -113,6 +123,23 @@ public class JobDispatchService {
                      , VER = VER + 1
                 WHERE  JOB_ID = ?
                 """.formatted(schema, NOW);
+        this.manualTx = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        this.manualTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        this.manualLockSql = """
+                SELECT A.JOB_ID, A.MODULE_CD, A.SERVICE_ID, A.ACTION, A.CRON_EXPR, A.TIMEOUT_SEC, A.NEXT_RUN_AT
+                     , A.CONFIG_JSON, A.VARS_JSON, A.OPTS_JSON
+                     , %2$s DB_NOW
+                FROM   %1$s.TB_MCM_JOB_DEF A
+                WHERE  A.JOB_ID = ?
+                FOR UPDATE WAIT 5
+                """.formatted(schema, NOW);
+        this.insertManualSql = """
+                INSERT INTO %1$s.TB_MCM_JOB_RUN
+                       (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS, STARTED_AT, TIMEOUT_SEC, VARS_JSON, REQ_USR_ID,
+                        C_AT, C_USR_ID, C_PGM_ID, C_SVC_ID, U_AT, U_USR_ID, U_PGM_ID, U_SVC_ID, VER)
+                VALUES (?, ?, 'M', ?, ?, ?, 'RUN', ?, ?, ?, ?,
+                        %2$s, ?, 'JobDispatchService', 'jobSchedMng', %2$s, 'SCHEDULER', 'JobDispatchService', 'jobSchedMng', 0)
+                """.formatted(schema, NOW);
     }
 
     /** 정의 한 건이 읽을 수 없는 상태 — 이 행만 FAIL 로 남긴다. 메시지에는 어느 칸인지만 쓴다(원문 없음). */
@@ -146,6 +173,73 @@ public class JobDispatchService {
             }
         }
         return new ClaimedBatch(List.copyOf(runs), ids.size() == limit);
+    }
+
+    /** {@link #claimManual} 의 결과 — 둘 중 하나만 값이 있다. */
+    public record ManualClaim(JobRunRequest request, String rejectReason) {}
+
+    /**
+     * 「지금 한 번 실행」(설계 §4.9). 화면 요청은 OASIS 서비스 트랜잭션 안이라 RUN 행은 <b>별도 트랜잭션</b>(REQUIRES_NEW)에서 만든다: 정의 행을
+     * {@code FOR UPDATE WAIT 5} 로 잠그고, 같은 작업이 RUN(시간 초과 + 정리 여유 안)이면 거절한다. 아니면 {@code TRIGGER_TP='M'} RUN 을 INSERT 하고
+     * 커밋한다(바깥 서비스 트랜잭션에 합류하면 잠금을 쥔 채 호출하고, 서비스가 롤백되면 RUN 행 없이 모듈만 실행된다). NEXT_RUN_AT 은 바꾸지 않는다.
+     * {@code varOverrides} 는 이번 한 번만 쓰는 변수 값(이력의 VARS_JSON 에 남는다 — D11). 화면 서비스가 부르므로 {@link JobDispatchScope} 는 보지 않는다.
+     */
+    public ManualClaim claimManual(String jobId, String reqUserId, Map<String, String> varOverrides) {
+        return manualTx.execute(status -> {
+            List<Row> rows;
+            try {
+                rows = jdbc.query(manualLockSql, (rs, i) -> {
+                    LocalDateTime dbNow = rs.getTimestamp("DB_NOW").toLocalDateTime();
+                    Timestamp next = rs.getTimestamp("NEXT_RUN_AT");
+                    return new Row(rs.getString("JOB_ID"), rs.getString("MODULE_CD"), rs.getString("SERVICE_ID"), rs.getString("ACTION"),
+                            rs.getString("CRON_EXPR"), rs.getInt("TIMEOUT_SEC"), next == null ? dbNow : next.toLocalDateTime(), rs.getString("CONFIG_JSON"),
+                            rs.getString("VARS_JSON"), rs.getString("OPTS_JSON"), dbNow);
+                }, jobId);
+            } catch (PessimisticLockingFailureException e) {
+                return new ManualClaim(null, "다른 요청이 이 작업을 처리하는 중입니다. 잠시 뒤 다시 시도하세요");   // ORA-30006 (WAIT 5 초과)
+            }
+            if (rows.isEmpty()) return new ManualClaim(null, "작업을 찾을 수 없습니다");
+            Row r = rows.get(0);
+            if (jdbc.queryForObject(liveRunSql, Integer.class, r.jobId(), Timestamp.valueOf(r.dbNow())) > 0) {
+                return new ManualClaim(null, "이미 실행 중인 작업입니다");
+            }
+            LocalDateTime sched = r.dbNow().truncatedTo(ChronoUnit.SECONDS);   // TIMESTAMP(0) 은 소수 초를 반올림한다
+            JobRunRequest base;
+            try {
+                base = buildRequest(withOverrides(r, varOverrides), sched);
+            } catch (BrokenDefinition e) {
+                return new ManualClaim(null, e.getMessage());
+            }
+            JobRunRequest request = new JobRunRequest(base.runId(), base.jobId(), base.module(), base.serviceId(), base.action(), base.inputs(), base.varTypes(),
+                    base.config(), base.timeoutSec(), base.retry(), base.schedAt(), true, reqUserId);
+            try {
+                jdbc.update(insertManualSql, new Object[] {r.jobId(), Timestamp.valueOf(sched), request.runId(), r.module(), r.serviceId(),
+                        Timestamp.valueOf(r.dbNow()), recordedTimeout(r.timeoutSec(), request.retry()), writeJson(request.inputs()), reqUserId, reqUserId},
+                        INSERT_MANUAL_TYPES);
+            } catch (DuplicateKeyException e) {
+                return new ManualClaim(null, "같은 초에 이미 요청한 실행이 있습니다");
+            }
+            return new ManualClaim(request, null);
+        });
+    }
+
+    /** 화면에서 덮어쓴 변수 값(이름 → 글자)으로 VARS_JSON 의 value 를 바꾼다. 선언 안 된 이름은 무시한다. */
+    private Row withOverrides(Row r, Map<String, String> overrides) {
+        if (overrides == null || overrides.isEmpty()) return r;
+        List<JobVar> vars;
+        try {
+            vars = JobVars.parse(r.varsJson());
+        } catch (IllegalArgumentException e) {
+            throw new BrokenDefinition("정의 오류: 변수 목록(VARS_JSON)을 읽을 수 없습니다");
+        }
+        List<JobVar> merged = new ArrayList<>();
+        for (JobVar v : vars) {
+            merged.add(overrides.containsKey(v.name()) ? new JobVar(v.name(), v.type(), overrides.get(v.name()), v.desc()) : v);
+        }
+        List<String> errors = JobVars.validate(merged);
+        if (!errors.isEmpty()) throw new BrokenDefinition(errors.get(0));
+        return new Row(r.jobId(), r.module(), r.serviceId(), r.action(), r.cron(), r.timeoutSec(), r.nextRunAt(), r.configJson(), JobVars.toJson(merged),
+                r.optsJson(), r.dbNow());
     }
 
     private JobRunRequest process(Row r) {
