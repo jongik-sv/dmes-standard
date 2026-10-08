@@ -7,6 +7,10 @@
  *  - 가운데: SQL 편집창(위) ↔ 조회 결과 그리드(아래)
  *  - 오른쪽: 컬럼 속성 사이드바 — 접으면 세로 막대만 남고, 막대를 누르면 다시 펼친다.
  * 실행: 상단 [실행] · F8 · 편집창 Ctrl/⌘+Enter.
+ * - 왼쪽 트리에서 테이블을 고르면 기본 SQL 을 곧바로 실행해 조회 결과를 그 테이블로 바꾼다.
+ *   키보드로 빠르게 훑을 때는 마지막 선택만 조회하고(SELECT_DEBOUNCE_MS), 늦게 도착한 이전 응답은 버린다.
+ *   조회 결과 제목 옆 칩이 지금 결과의 출처(테이블 또는 직접 실행)를 보인다.
+ *   건수 제한(MAX_ROWS)은 서버가 DB 단계(FETCH FIRST + setMaxRows)에서 건다.
  * - shared 컴포넌트만 사용 (AgDataGrid, form, layout). ag-grid·Mantine 직접 import 금지.
  * - 결과 0건이어도 그리드를 유지한다 (성능 가이드 R6).
  * - LOB 칸은 서버 요약 글자 + 「보기」 단추로 그리고, 단추를 누르면 그 한 칸만 다시 읽어 상세 창에 보인다.
@@ -35,6 +39,7 @@ import { LobViewerModal, type LobTarget } from "./lob-viewer-modal";
 import { DbMenuTree } from "./db-menu-tree";
 import DbSqlEditor, { type DbSqlEditorHandle } from "./db-sql-editor";
 import { identifierText, toSqlLiteral } from "./sql-assist";
+import { createSeq } from "./latest-seq";
 import type { DbColumnInfo, DbQueryResult } from "./types";
 import "./db-viewer.css";
 
@@ -46,6 +51,10 @@ const PROPS_OPEN_KEY = "analog.anl.dbViewer.propsOpen";
 /** 표 목록 사이드바 펼침 여부(이 브라우저 편의값). */
 const TREE_OPEN_KEY = "analog.anl.dbViewer.treeOpen";
 const INITIAL_SQL = "SELECT * FROM MCMAPUSER.TB_MCM_CODE_MASTER";
+/** 테이블 선택 뒤 조회를 내보내기까지 기다리는 시간 — 트리를 키보드로 훑을 때 테이블마다 조회가 나가지 않게 한다. */
+const SELECT_DEBOUNCE_MS = 200;
+/** 조회 결과의 출처 칩 — 편집창 SQL 을 사용자가 직접 실행한 결과. */
+const DIRECT_RUN_LABEL = "직접 실행";
 
 /** PK·FK 배지. FK 는 참조 테이블을 툴팁으로 보인다. */
 function renderKeys(_value: unknown, row: Record<string, unknown>) {
@@ -162,6 +171,10 @@ export function AnalogDbViewer() {
   const [propsOpen, setPropsOpen] = useState(true);
   const [treeOpen, setTreeOpen] = useState(true);
   const [result, setResult] = useState<DbQueryResult | null>(null);
+  /** 지금 결과가 어느 테이블 것인지("스키마.테이블") — null 이면 편집창 SQL 을 직접 실행한 결과다. */
+  const [resultTableKey, setResultTableKey] = useState<string | null>(null);
+  /** 테이블 결과가 바뀔 때마다 올려 그리드를 새로 만든다 — 이전 테이블의 정렬·스크롤·열 너비가 남지 않게 한다. */
+  const [gridEpoch, setGridEpoch] = useState(0);
   const [running, setRunning] = useState(false);
   const [lobTarget, setLobTarget] = useState<LobTarget | null>(null);
 
@@ -211,27 +224,95 @@ export function AnalogDbViewer() {
     void loadTables();
   }, [loadTables]);
 
-  const handleSelectTable = useCallback(
-    async (schema: string, table: string) => {
-      setSelectedTableKey(`${schema}.${table}`);
-      setSqlSeed((prev) => ({
-        text: defaultSql(schema, table),
-        revision: prev.revision + 1,
-      }));
-      setColumnsLoading(true);
+  // 요청 순번 — 가장 나중에 낸 요청의 응답만 화면에 반영한다(늦게 온 이전 응답은 버린다).
+  const querySeqRef = useRef(createSeq());
+  const columnsSeqRef = useRef(createSeq());
+  const runningRef = useRef(false);
+  const selectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 마지막으로 고른 테이블의 기본 SQL — 편집창이 그대로면 직접 실행이 아니라 그 테이블 결과로 본다. */
+  const tableSqlRef = useRef<{ key: string; sql: string } | null>(null);
+
+  useEffect(
+    () => () => {
+      if (selectTimerRef.current) clearTimeout(selectTimerRef.current);
+    },
+    [],
+  );
+
+  /**
+   * 조회를 실행해 결과를 바꾼다. tableKey 는 결과 출처(테이블이면 "스키마.테이블", 직접 실행이면 null).
+   * auto 가 참이면 테이블 선택에 따른 자동 조회라 결과 그리드를 새로 만든다.
+   */
+  const execute = useCallback(
+    async (sql: string, tableKey: string | null, auto = false) => {
+      const ticket = querySeqRef.current.next();
+      runningRef.current = true;
+      setRunning(true);
       try {
-        setColumns(await fetchColumns(schema, table));
+        const queryResult = await runQuery({ sql });
+        if (!querySeqRef.current.isLatest(ticket)) return;
+        setResult(queryResult);
+        setResultTableKey(tableKey);
+        if (auto) setGridEpoch((prev) => prev + 1);
+        if (queryResult.rowCount >= MAX_ROWS) {
+          gfn(`최대 ${MAX_ROWS}건까지만 표시합니다.`, "", "", "toast");
+        }
       } catch (err) {
-        gfn(errText(err), "", "", "warning");
-        setColumns([]);
+        if (querySeqRef.current.isLatest(ticket)) {
+          gfn(errText(err), "", "", "warning");
+        }
       } finally {
-        setColumnsLoading(false);
+        // 더 나중에 낸 요청이 있으면 실행 중 표시는 그 요청이 끝날 때 내린다.
+        if (querySeqRef.current.isLatest(ticket)) {
+          runningRef.current = false;
+          setRunning(false);
+        }
       }
     },
     [gfn],
   );
 
-  const runningRef = useRef(false);
+  /** 고른 테이블의 컬럼 속성을 받고 기본 SQL 을 실행한다. */
+  const loadSelectedTable = useCallback(
+    async (schema: string, table: string) => {
+      const key = `${schema}.${table}`;
+      const columnsTicket = columnsSeqRef.current.next();
+      void execute(defaultSql(schema, table), key, true);
+      try {
+        const loaded = await fetchColumns(schema, table);
+        if (columnsSeqRef.current.isLatest(columnsTicket)) setColumns(loaded);
+      } catch (err) {
+        if (columnsSeqRef.current.isLatest(columnsTicket)) {
+          gfn(errText(err), "", "", "warning");
+          setColumns([]);
+        }
+      } finally {
+        if (columnsSeqRef.current.isLatest(columnsTicket)) {
+          setColumnsLoading(false);
+        }
+      }
+    },
+    [execute, gfn],
+  );
+
+  const handleSelectTable = useCallback(
+    (schema: string, table: string) => {
+      const key = `${schema}.${table}`;
+      const sql = defaultSql(schema, table);
+      setSelectedTableKey(key);
+      tableSqlRef.current = { key, sql };
+      setSqlSeed((prev) => ({ text: sql, revision: prev.revision + 1 }));
+      setColumnsLoading(true);
+      // 선택 표시·기본 SQL 은 곧바로 바꾸고, 서버 조회는 마지막 선택만 내보낸다.
+      if (selectTimerRef.current) clearTimeout(selectTimerRef.current);
+      selectTimerRef.current = setTimeout(() => {
+        selectTimerRef.current = null;
+        void loadSelectedTable(schema, table);
+      }, SELECT_DEBOUNCE_MS);
+    },
+    [loadSelectedTable],
+  );
+
   const handleRun = useCallback(async () => {
     const sql = (editorRef.current?.getValue() ?? "").trim();
     if (runningRef.current) return;
@@ -239,21 +320,12 @@ export function AnalogDbViewer() {
       gfn("실행할 SQL 을 입력해 주세요.", "", "", "warning");
       return;
     }
-    runningRef.current = true;
-    setRunning(true);
-    try {
-      const queryResult = await runQuery({ sql });
-      setResult(queryResult);
-      if (queryResult.rowCount >= MAX_ROWS) {
-        gfn(`최대 ${MAX_ROWS}건까지만 표시합니다.`, "", "", "toast");
-      }
-    } catch (err) {
-      gfn(errText(err), "", "", "warning");
-    } finally {
-      runningRef.current = false;
-      setRunning(false);
-    }
-  }, [gfn]);
+    const fromTable = tableSqlRef.current;
+    await execute(
+      sql,
+      fromTable && fromTable.sql === sql ? fromTable.key : null,
+    );
+  }, [execute, gfn]);
 
   const runFromEditor = useCallback(() => void handleRun(), [handleRun]);
 
@@ -439,9 +511,7 @@ export function AnalogDbViewer() {
                   tablesBySchema={tablesBySchema}
                   schemaOrder={ALLOWED_SCHEMAS}
                   selectedKey={selectedTableKey}
-                  onSelectTable={(schema, table) =>
-                    void handleSelectTable(schema, table)
-                  }
+                  onSelectTable={handleSelectTable}
                 />
               )}
             </div>
@@ -500,11 +570,20 @@ export function AnalogDbViewer() {
               count={result?.rowCount ?? 0}
               titleExtra={
                 result ? (
-                  <span className="anl-db-elapsed">{result.elapsedMs}ms</span>
+                  <>
+                    <span
+                      className="anl-db-chip"
+                      title={resultTableKey ?? DIRECT_RUN_LABEL}
+                    >
+                      {resultTableKey ?? DIRECT_RUN_LABEL}
+                    </span>
+                    <span className="anl-db-elapsed">{result.elapsedMs}ms</span>
+                  </>
                 ) : undefined
               }
             >
               <AgDataGrid
+                key={gridEpoch}
                 columns={resultColumns}
                 data={resultRows}
                 columnSizing={resultColumns.length > 8 ? "fixed" : "fit"}
