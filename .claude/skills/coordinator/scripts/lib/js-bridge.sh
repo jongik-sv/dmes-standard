@@ -29,7 +29,8 @@ _jsb_path() {
   local p="$_JSB_DIR/$1.mjs" q
   case "$1" in */*) p="$1.mjs" ;; esac   # 경로가 든 이름은 그 경로(확장자 .mjs 제외)를 쓴다(하니스의 표본 모듈용)
   [ -f "$p" ] || return 1
-  if command -v cygpath >/dev/null 2>&1; then q="$(cygpath -m "$p" 2>/dev/null)" && [ -n "$q" ] && p="$q"; fi   # cygpath 가 -m 을 못 하면(시험의 가짜 cygpath) 원래 경로 그대로
+  # 윈도우(Git Bash)는 cygpath -m 의 C:/x 꼴을 node 에 준다. 단 변환한 경로가 실제 파일이 아니면(cygpath 가 -m 을 못 하거나 없는 경로를 내면 — 시험의 가짜 cygpath) 원래 경로 그대로
+  if command -v cygpath >/dev/null 2>&1; then q="$(cygpath -m "$p" 2>/dev/null)" && [ -n "$q" ] && [ -f "$q" ] && p="$q"; fi
   printf '%s' "$p"
 }
 
