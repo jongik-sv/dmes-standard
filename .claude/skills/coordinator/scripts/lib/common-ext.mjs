@@ -11,7 +11,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as C from './compat.mjs';
 import * as J from './jq-json.mjs';
-import { CoordDie, Ctx, cfgSub, expand, hasRun, pathInWt, q, repo } from './common.mjs';
+import { CoordDie, Ctx, cfgLoad, cfgSub, expand, hasRun, pathInWt, q, repo } from './common.mjs';
 import { cliMain, isMain } from './js-cli.mjs';
 
 const LIB_DIR = dirname(fileURLToPath(import.meta.url));
@@ -392,3 +392,37 @@ export function jqAdd(a, b) {
   if (a instanceof Map && b instanceof Map) return new Map([...a, ...b]);
   throw new J.JqError(`${J.typeName(a)} and ${J.typeName(b)} cannot be added`, 5);
 }
+
+/** coord_cfg 가 문서에서 읽는 글(절 이름 또는 [..., 숫자]). 오류는 '' */
+export function cfgAtSegs(c, segs) {
+  const { docs } = cfgLoad(c);
+  let out = '';
+  for (const d of docs().values) {
+    try {
+      const a = J.alt(walk(d, segs), undefined);
+      if (a !== undefined) out += `${typeof a === 'string' || typeof a === 'number' || typeof a === 'boolean' || a instanceof J.JNum ? J.tostring(a) : J.tojson(a)}\n`;
+    } catch (e) { if (!(e instanceof J.JqError)) throw e; c.log(`jq: error: ${e.message}`); }
+  }
+  return stripNl(out);
+}
+
+/** `<경로> | length` 의 coord_cfg_json 결과글(오류면 ''). */
+export function cfgLenAt(c, segs) {
+  const { docs } = cfgLoad(c);
+  let out = '';
+  for (const d of docs().values) {
+    try {
+      const v = walk(d, segs);
+      let n;
+      if (v === null) n = '0';
+      else if (Array.isArray(v)) n = String(v.length);
+      else if (v instanceof Map) n = String(v.size);
+      else if (typeof v === 'string') n = String(Array.from(v).length);
+      else if (typeof v === 'number' || v instanceof J.JNum) n = J.numberText(Math.abs(Number(v)));
+      else throw new J.JqError(`${J.typeName(v)} (${J.tojson(v)}) has no length`, 5);
+      out += `${n}\n`;
+    } catch (e) { if (!(e instanceof J.JqError)) throw e; }
+  }
+  return stripNl(out);
+}
+

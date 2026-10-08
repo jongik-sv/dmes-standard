@@ -13,46 +13,13 @@ import { fileURLToPath } from 'node:url';
 import * as J from './lib/jq-json.mjs';
 import { CoordDie, Ctx, cfgLoad, cfgSub, epochToIso, expand, isoToEpoch, nowEpoch } from './lib/common.mjs';
 import { statMtime } from './lib/compat.mjs';
-import { ArithAbort, arithVal, awkGe, awkInt, cmpInt, coordDefaultRepo, cutF, cutRest, stripNl, step, strOr, testInt, tsvEsc, walk } from './lib/common-ext.mjs';
+import { ArithAbort, arithVal, awkGe, awkInt, cmpInt, cfgAtSegs, cfgLenAt, coordDefaultRepo, cutF, cutRest, stripNl, step, strOr, testInt, tsvEsc, walk } from './lib/common-ext.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 
 export { awkGe, awkInt, arithVal, testInt };
 export { awkNum } from './lib/common-ext.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const isnum = (s) => /^[0-9]+(?:\.[0-9]+)?$/.test(s);
-
-/** coord_cfg 가 문서에서 읽는 글(절 이름 또는 [..., 숫자]). 오류는 '' */
-function cfgAt(c, segs) {
-  const { docs } = cfgLoad(c);
-  let out = '';
-  for (const d of docs().values) {
-    try {
-      const a = J.alt(walk(d, segs), undefined);
-      if (a !== undefined) out += `${typeof a === 'string' || typeof a === 'number' || typeof a === 'boolean' || a instanceof J.JNum ? J.tostring(a) : J.tojson(a)}\n`;
-    } catch (e) { if (!(e instanceof J.JqError)) throw e; c.log(`jq: error: ${e.message}`); }
-  }
-  return stripNl(out);
-}
-
-/** `.usage.sources | length` 의 coord_cfg_json 결과글(오류면 ''). */
-function sourcesLen(c) {
-  const { docs } = cfgLoad(c);
-  let out = '';
-  for (const d of docs().values) {
-    try {
-      const v = walk(d, ['usage', 'sources']);
-      let n;
-      if (v === null) n = '0';
-      else if (Array.isArray(v)) n = String(v.length);
-      else if (v instanceof Map) n = String(v.size);
-      else if (typeof v === 'string') n = String(Array.from(v).length);
-      else if (typeof v === 'number' || v instanceof J.JNum) n = J.numberText(Math.abs(Number(v)));
-      else throw new J.JqError(`${J.typeName(v)} (${J.tojson(v)}) has no length`, 5);
-      out += `${n}\n`;
-    } catch (e) { if (!(e instanceof J.JqError)) throw e; }
-  }
-  return stripNl(out);
-}
 
 const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
 const isDir = (p) => { try { return statSync(p).isDirectory(); } catch { return false; } };
@@ -142,12 +109,12 @@ const intOf = (s) => (s === '' ? '-' : awkInt(Number(s) + 0.5));
 export function usageBand(c, now) {
   let maxAge = cfgSub(c, '.usage.max_age_min');
   if (maxAge === '' || /[^0-9]/.test(maxAge)) maxAge = '30';
-  const nText = sourcesLen(c);
+  const nText = cfgLenAt(c, ['usage', 'sources']);
   const n = testInt(nText === '' ? '0' : nText);   // `${n:-0}`. 정수 글이 아니면 [ -lt ] 가 거짓
   let found = null, src = '';
   for (let i = 0; n !== null && BigInt(i) < n; i++) {
-    const kind = cfgAt(c, ['usage', 'sources', i, 'kind']);
-    const path = resolve(c.cwd, expand(cfgAt(c, ['usage', 'sources', i, 'path']), c.env));
+    const kind = cfgAtSegs(c, ['usage', 'sources', i, 'kind']);
+    const path = resolve(c.cwd, expand(cfgAtSegs(c, ['usage', 'sources', i, 'path']), c.env));
     let r;
     try { r = readSrc(c, kind, path, now, maxAge); }
     catch (e) { if (e instanceof ArithAbort) { c.log(`bash: ${e.message}`); break; } throw e; }   // $(( )) 오류는 이 while 명령 전체를 버린다(스크립트는 계속)
