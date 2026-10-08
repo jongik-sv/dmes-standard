@@ -6,6 +6,8 @@ import com.dongkuk.dmes.mcm.job.agent.JobAppInfo;
 import com.dongkuk.dmes.mcm.job.agent.LocalJobRunGateway;
 import com.dongkuk.dmes.mcm.job.agent.ScheduledJob;
 import com.dongkuk.dmes.mcm.job.agent.SimpleScheduledJob;
+import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
+import com.dongkuk.dmes.mcm.job.builtin.collect.JobCollectSql;
 import com.dongkuk.dmes.mcm.audit.service.RevokedTokenPurger;
 import com.dongkuk.dmes.mcm.screenusage.service.ScreenUsageRollup;
 import com.dongkuk.oasis.service.ServiceStarter;
@@ -91,5 +93,12 @@ public class JobServerConfig {
     public ScheduledJob mcmRevokedTokenPurge(ObjectProvider<RevokedTokenPurger> purger) {
         return new SimpleScheduledJob("mcm.revokedTokenPurge", JobModule.MCM, "만료 토큰 정리", "0 * * * *", Duration.ofMinutes(10),
                 ctx -> purger.getObject().purgeExpired());
+    }
+
+    /** BPMN {@code jobSchedMng} 의 {@code camunda:class="jobSchedMngService"}. */
+    @Bean
+    public JobSchedMngService jobSchedMngService(ObjectProvider<DataSource> dataSource, JobProperties props, JobDispatchService dispatch, JobCallSink sink,
+                                                 JobCollectSql collectSql, SecurityIdentity identity) {
+        return new JobSchedMngService(new JobDefStore(dataSource.getObject(), props.getSchema()), dispatch, sink, collectSql, Duration.ofSeconds(8), identity);
     }
 }

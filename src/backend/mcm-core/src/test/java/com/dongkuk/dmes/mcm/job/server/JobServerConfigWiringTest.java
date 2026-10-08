@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import com.dongkuk.dmes.cactus.job.JobRunDispatcher;
+import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
 import com.dongkuk.dmes.mcm.job.JobConfig;
 import com.dongkuk.oasis.service.ServiceStarter;
 import javax.sql.DataSource;
@@ -20,6 +21,7 @@ class JobServerConfigWiringTest {
             .withBean(DataSource.class, () -> new DriverManagerDataSource("jdbc:oracle:thin:@//localhost:1/none", "u", "p"))
             .withBean(ServiceStarter.class, () -> mock(ServiceStarter.class))
             .withBean(JobRunDispatcher.class, () -> mock(JobRunDispatcher.class))
+            .withBean(SecurityIdentity.class, () -> mock(SecurityIdentity.class))
             .withPropertyValues("spring.application.name=mcm");
 
     @Test
@@ -37,6 +39,7 @@ class JobServerConfigWiringTest {
         runner.withPropertyValues("dmes.job.server.enabled=true", "dmes.job.modules.mdm.base-url=http://localhost:8096").run(ctx -> {
             assertThat(ctx).hasBean("jobDispatchService").hasSingleBean(JobDispatchTrigger.class).hasSingleBean(JobCaller.class).hasSingleBean(JobRunStore.class);
             assertThat(ctx).hasBean("mcmJobRunSweep").hasBean("mcmJobRunPurge").hasBean("mcmCollectPurge");
+            assertThat(ctx).hasBean("jobSchedMngService");
             assertThat(ctx.getBean(JobCallSink.class)).isSameAs(ctx.getBean(JobCaller.class));
         });
     }
