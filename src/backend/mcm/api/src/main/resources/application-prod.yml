@@ -25,6 +25,8 @@ dmes:
   widget:
     query:
       require-dedicated: ${WIDGET_QUERY_REQUIRE_DEDICATED:true}   # 운영에서 급히 끌 때 env 로 false
+  # 예약 작업 모듈 호출 주소 — 운영은 환경 변수로 LB 주소를 준다(MDM_WAS_URL 등 기존 관례). 이 파일에는 값을 두지 않는다.
+  #   job.modules.<모듈>.base-url 을 따로 줘야 하면(BFF 가 보는 주소와 MCM 이 보는 주소가 다를 때) 그때 여기에 환경 변수로 쓴다.
 
 logging:
   level:

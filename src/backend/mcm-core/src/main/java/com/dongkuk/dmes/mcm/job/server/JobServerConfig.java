@@ -6,6 +6,8 @@ import com.dongkuk.dmes.mcm.job.agent.JobAppInfo;
 import com.dongkuk.dmes.mcm.job.agent.LocalJobRunGateway;
 import com.dongkuk.dmes.mcm.job.agent.ScheduledJob;
 import com.dongkuk.dmes.mcm.job.agent.SimpleScheduledJob;
+import com.dongkuk.dmes.mcm.audit.service.RevokedTokenPurger;
+import com.dongkuk.dmes.mcm.screenusage.service.ScreenUsageRollup;
 import com.dongkuk.oasis.service.ServiceStarter;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -75,5 +77,19 @@ public class JobServerConfig {
             String cutoff = DateTimeFormatter.ofPattern("yyyyMMddHHmm").format(LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(90).atStartOfDay());
             return store.purgeCollectBefore(cutoff, 5000);
         });
+    }
+
+    /** 화면 사용 일별 집계 — 기존 {@code ScreenUsageRollup#rollup()} 을 그대로 부른다. 건수는 집계한 일수. */
+    @Bean
+    public ScheduledJob mcmScreenUsageRollup(ObjectProvider<ScreenUsageRollup> rollup) {
+        return new SimpleScheduledJob("mcm.screenUsageRollup", JobModule.MCM, "화면 사용 일별 집계", "0 2 * * *", Duration.ofMinutes(30),
+                ctx -> rollup.getObject().rollup().days());
+    }
+
+    /** 만료된 회수 토큰 정리 — 매시. 건수는 지운 수. */
+    @Bean
+    public ScheduledJob mcmRevokedTokenPurge(ObjectProvider<RevokedTokenPurger> purger) {
+        return new SimpleScheduledJob("mcm.revokedTokenPurge", JobModule.MCM, "만료 토큰 정리", "0 * * * *", Duration.ofMinutes(10),
+                ctx -> purger.getObject().purgeExpired());
     }
 }

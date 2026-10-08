@@ -210,6 +210,26 @@ dmes:
       # 남용 막기(메모리·인스턴스마다 따로 센다). 하루 상한은 서울 날짜 기준, 도구 반복 포함 LLM 호출마다 1.
       daily-call-limit: 200      # 사용자별 하루 LLM 호출 수 상한 — 넘으면 「오늘 AI 챗봇 사용 한도(n회)를 모두 썼습니다」
       user-history-limit: 300    # 사용자별 저장 대화 기록 수(모든 인스턴스 합계) — 넘으면 가장 오래된 것부터 지운다
+  # ── 예약 작업(docs/superpowers/specs/2026-10-08-job-scheduler-design.md §4.7) ──
+  # MCM 앱만 server.enabled=true — 매분 판정·선점·모듈 호출·관리 화면. 모듈 앱(mdm 등)은 접수(/internal/job/run)만 한다.
+  # modules.<모듈>.base-url 은 MCM 이 모듈을 부르는 주소이다. 기본값은 기존 <모듈>_WAS_URL 환경 변수 관례와 로컬 포트(워크트리 서버는 환경 변수로 덮어쓴다).
+  # 모듈이 여러 대면 LB 주소를 준다(LB 는 /internal/job/run 을 다른 서버로 재시도하지 않게 설정 — nginx proxy_next_upstream off).
+  job:
+    module: mcm
+    server:
+      enabled: true
+      batch-size: 50
+    modules:
+      mcm: { base-url: "${MCM_WAS_URL:http://localhost:8100}" }   # MCM 자신은 LocalJobRunGateway 로 직접 부르므로 쓰지 않는다
+      mdm: { base-url: "${MDM_WAS_URL:http://localhost:8096}" }
+      mpp: { base-url: "${MPP_WAS_URL:http://localhost:8094}" }
+      mls: { base-url: "${MLS_WAS_URL:http://localhost:8092}" }
+      mqc: { base-url: "${MQC_WAS_URL:http://localhost:8093}" }
+      mpn: { base-url: "${MPN_WAS_URL:http://localhost:8095}" }
+    http:
+      allowed-hosts: []          # COLLECT(http) 원천이 부를 수 있는 호스트(정확 일치). 옛 키 dmes.widget.collect.allowed-hosts 도 함께 읽는다(warn)
+    collect:
+      enabled: true              # false 면 COLLECT 작업은 선점 후보에서 빠지고 mcm.collectPurge 는 아무것도 하지 않는다
 
 # ── caravan-console 자체 설정 + Repository alias (kmc-core 0.2.0 패턴 B) ──
 # caravan 의존 제거 (2026-05-12) — caravan-console.kafka.* / caravan.* 블록 삭제. caravan 라이브러리는 caravan-hub 호스트에서만 사용 (v4 정본).
