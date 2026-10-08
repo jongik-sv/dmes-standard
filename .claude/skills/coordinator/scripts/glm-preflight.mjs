@@ -108,7 +108,7 @@ export async function main(_argv, { env, cwd } = {}) {
     const hdr = join(tmpdir, 'h');
     const out = join(tmpdir, 'o');
     const head = `x-api-key: ${tok}\nauthorization: Bearer ${tok}\nanthropic-version: 2023-06-01\ncontent-type: application/json\n`;
-    try { writeFileSync(hdr, head); if (process.platform !== 'win32') chmodSync(hdr, 0o600); } catch { return fail('call', '임시 폴더 실패'); }
+    try { writeFileSync(hdr, head, { mode: 0o600 }); if (process.platform !== 'win32') chmodSync(hdr, 0o600); } catch { return fail('call', '임시 폴더 실패'); }
     const data = J.stringify(new Map([['model', model], ['max_tokens', 1], ['messages', [new Map([['role', 'user'], ['content', 'ok']])]]]), { indent: 0 });
     let timeoutS = stripNl(cfgSub(c, '.glm.timeout_s'));
     if (timeoutS === '') timeoutS = '10';

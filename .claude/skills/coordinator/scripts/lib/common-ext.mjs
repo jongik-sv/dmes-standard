@@ -15,7 +15,8 @@ import { cliMain, isMain } from './js-cli.mjs';
 
 const LIB_DIR = dirname(fileURLToPath(import.meta.url));
 /** coord_state_call 이 부를 coord-state.sh 위치: 환경 변수 우선, 없으면 이 파일 기준 scripts/ 폴더 */
-export const scriptsDir = () => process.env.COORD_SCRIPTS_DIR || join(LIB_DIR, '..');
+// common.sh 71줄처럼 환경 변수와 무관하게 lib 폴더 기준이다(bash 판이 정답).
+export const scriptsDir = () => join(LIB_DIR, '..');
 
 const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
 const isDir = (p) => { try { return statSync(p).isDirectory(); } catch { return false; } };
@@ -44,7 +45,7 @@ export function runCmd(cmd, args, { env, cwd, input = '' } = {}) {
     const finish = (rc, sig) => {
       if (done) return;
       done = true;
-      if (spawnErr && rc == null && sig == null) res({ rc: 127, out: Buffer.alloc(0), err: Buffer.from(String(spawnErr)) });
+      if (spawnErr && (rc == null || rc < 0) && sig == null) res({ rc: 127, out: Buffer.alloc(0), err: Buffer.from(String(spawnErr)) });
       else res({ rc: rc == null ? (sig ? 128 : 70) : rc, out: Buffer.concat(so), err: Buffer.concat(se) });
     };
     ch.stdout.on('data', (d) => so.push(d));
