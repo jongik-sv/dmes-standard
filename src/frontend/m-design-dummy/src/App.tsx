@@ -17,6 +17,7 @@ import { DataDisplayCatalogScreen } from "./screens/DataDisplayCatalogScreen";
 import { ResizableLayoutCatalogScreen } from "./screens/ResizableLayoutCatalogScreen";
 import { ChartDashboardScreen } from "./screens/ChartDashboardScreen";
 import { WorkOrderGanttScreen } from "./screens/WorkOrderGanttScreen";
+import { JobSchedulerScreen } from "./screens/JobSchedulerScreen";
 
 const MODULE_ID = "design-dummy";
 const HOME_PAGE_ID = `${MODULE_ID}:guide/overview`;
@@ -125,6 +126,14 @@ const PORTAL_MENU: PortalShellMenuResponse = {
       ),
       page("quality", "부적합가공검토", "sample/quality", "sample-screens"),
     ]),
+    directory("system-screens", "시스템관리(시안)", [
+      page(
+        "job-scheduler",
+        "예약 작업 관리",
+        "system/job-scheduler",
+        "system-screens",
+      ),
+    ]),
   ],
 };
 
@@ -164,6 +173,8 @@ const WorkOrderGanttPage: PortalShellPageComponent = () => (
   <WorkOrderGanttScreen />
 );
 
+const JobSchedulerPage: PortalShellPageComponent = () => <JobSchedulerScreen />;
+
 const PAGE_COMPONENTS = new Map<string, PortalShellPageComponent>([
   [HOME_PAGE_ID, OverviewPage],
   [`${MODULE_ID}:catalog/form-feedback`, FormFeedbackPage],
@@ -176,6 +187,7 @@ const PAGE_COMPONENTS = new Map<string, PortalShellPageComponent>([
   [`${MODULE_ID}:sample/gantt`, GanttPage],
   [`${MODULE_ID}:sample/work-order-gantt`, WorkOrderGanttPage],
   [`${MODULE_ID}:sample/quality`, QualityPage],
+  [`${MODULE_ID}:system/job-scheduler`, JobSchedulerPage],
 ]);
 
 export function App() {
