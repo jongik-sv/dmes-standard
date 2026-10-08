@@ -250,7 +250,8 @@ public class JobRunDispatcher {
             synchronized (attempt) {
                 if (attempt.thread != null) attempt.thread.interrupt();
             }
-            finish(run, new Outcome("TIMEOUT", null, "시간 초과(" + run.req.timeoutSec() + "초)", List.of()));
+            // 감시는 CAS·인터럽트만 한다 — DB 기록은 기록 전용 실행기로 넘겨 다른 회차의 마감 판정이 밀리지 않게 한다.
+            finishAsync(run, new Outcome("TIMEOUT", null, "시간 초과(" + run.req.timeoutSec() + "초)", List.of()));
         } finally {
             MDC.clear();
         }
@@ -272,15 +273,29 @@ public class JobRunDispatcher {
         try {
             executor.submit(() -> attempt(run));
         } catch (RejectedExecutionException e) {
+            Outcome last = run.lastFail;
+            run.attemptNo--;   // 이 재시도는 시작하지 못했다
+            finishAsync(run, new Outcome("FAIL", null, (last == null ? "" : last.msg()) + " — 재시도 풀 가득", List.of()));
+        }
+    }
+
+    /**
+     * 실행 스레드가 아닌 곳(감시·재시도 대기 스케줄러)의 결과 기록 — 기록 전용 실행기에서 대상 serviceId 의 MDC 아래 {@link #finish} 한다.
+     * 대기열이 가득이면 WARN 하고 버린다(RUN 행은 정리가 TIMEOUT 으로 닫는다). 버려도 jobId 는 풀어 다음 회차를 막지 않는다.
+     */
+    private void finishAsync(Run run, Outcome o) {
+        boolean queued = executor.submitReport(() -> {
             try {
                 if (run.serviceTag != null) MDC.put(TraceConstants.SERVICE_TAG, run.serviceTag);
                 putMdc(run);
-                Outcome last = run.lastFail;
-                run.attemptNo--;   // 이 재시도는 시작하지 못했다
-                finish(run, new Outcome("FAIL", null, (last == null ? "" : last.msg()) + " — 재시도 풀 가득", List.of()));
+                finish(run, o);
             } finally {
                 MDC.clear();
             }
+        });
+        if (!queued) {
+            log.warn("결과 기록 대기열이 가득이라 버립니다(정리가 닫는다) jobId={} runId={} 상태={}", run.req.jobId(), run.req.runId(), o.status());
+            runningJobs.remove(run.req.jobId(), run.req.runId());
         }
     }
 

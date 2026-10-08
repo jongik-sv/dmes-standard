@@ -47,6 +47,64 @@ class JobAutoConfigurationTest {
                 .run(ctx -> assertThat(ctx).doesNotHaveBean(JobRunDispatcher.class));
     }
 
+    private static DataSource ds(String name) {
+        return new DriverManagerDataSource("jdbc:oracle:thin:@//localhost:1/" + name, "u", "p");
+    }
+
+    private static ApplicationContextRunner withStarter() {
+        return new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(JobAutoConfiguration.class))
+                .withBean(ServiceStarter.class, () -> mock(ServiceStarter.class));
+    }
+
+    @Test
+    @DisplayName("DataSource 가 둘이고 primary·dataSource 이름·default-manager 매핑이 없으면 기동은 되고 진입점 빈만 없다")
+    void twoDataSourcesWithoutPrimary() {
+        withStarter().withBean("ds1", DataSource.class, () -> ds("ds1")).withBean("ds2", DataSource.class, () -> ds("ds2"))
+                .run(ctx -> {
+                    assertThat(ctx).hasNotFailed();
+                    assertThat(ctx).doesNotHaveBean(JobRunResultWriter.class).doesNotHaveBean(JobRunDispatcher.class)
+                            .doesNotHaveBean(JobRunExecutor.class);
+                });
+    }
+
+    @Test
+    @DisplayName("DataSource 가 없으면 기동은 되고 진입점 빈만 없다")
+    void noDataSource() {
+        withStarter().run(ctx -> {
+            assertThat(ctx).hasNotFailed();
+            assertThat(ctx).doesNotHaveBean(JobRunDispatcher.class).doesNotHaveBean(JobRunResultWriter.class);
+        });
+    }
+
+    @Test
+    @DisplayName("primary 가 하나면 그것을, primary 가 없으면 이름이 dataSource 인 빈을 쓴다")
+    void primaryThenDefaultName() {
+        withStarter().withBean("ds1", DataSource.class, () -> ds("ds1"))
+                .withBean("ds2", DataSource.class, () -> ds("ds2"), bd -> bd.setPrimary(true))
+                .run(ctx -> {
+                    assertThat(ctx).hasSingleBean(JobRunDispatcher.class);
+                    assertThat(JobDataSources.resolve(ctx, ctx.getEnvironment())).isSameAs(ctx.getBean("ds2"));
+                });
+        withStarter().withBean("other", DataSource.class, () -> ds("other")).withBean("dataSource", DataSource.class, () -> ds("dataSource"))
+                .run(ctx -> {
+                    assertThat(ctx).hasSingleBean(JobRunDispatcher.class);
+                    assertThat(JobDataSources.resolve(ctx, ctx.getEnvironment())).isSameAs(ctx.getBean("dataSource"));
+                });
+    }
+
+    @Test
+    @DisplayName("멀티 트랜잭션 모드면 cactus.tx.default-manager 의 data-source 를 먼저 쓴다 — primary-alias 와 같으면 dataSource 빈, 아니면 그 이름의 빈")
+    void defaultManagerDataSourceFirst() {
+        ApplicationContextRunner two = withStarter()
+                .withBean("dataSource", DataSource.class, () -> ds("dataSource"), bd -> bd.setPrimary(true))
+                .withBean("biz", DataSource.class, () -> ds("biz"))
+                .withPropertyValues("cactus.tx.managers.txBiz.data-source=biz", "cactus.tx.default-manager=txBiz");
+        two.run(ctx -> assertThat(JobDataSources.resolve(ctx, ctx.getEnvironment())).isSameAs(ctx.getBean("biz")));
+        two.withPropertyValues("cactus.datasource.primary-alias=biz")
+                .run(ctx -> assertThat(JobDataSources.resolve(ctx, ctx.getEnvironment())).isSameAs(ctx.getBean("dataSource")));
+    }
+
     @Test
     @DisplayName("AutoConfiguration.imports 에 등록돼 있다")
     void registeredInImports() throws Exception {
