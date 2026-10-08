@@ -181,6 +181,7 @@ const recoColumns = useMemo<GridColumn[]>(() => [/* form 을 읽는 셀 */], [fo
 ```
 
 - **함께 할 것**: 상세 폼 안의 그리드(추천·하위 목록)는 `memo` 한 하위 패널로 떼고 rows·columns 만 넘긴다. 그러지 않으면 입력마다 `GridPanel` 이 다시 그려진다(AgDataGrid 자체는 건너뜀). 루트 재렌더는 화면 시험에서 `MdmPageLayout` 호출 수로 막을 수 있다(`m-mdm/tests/dma/columnMng/detail-form.test.ts`).
+- **탭·보조 상태 전환도 같다**: 화면 루트가 문서 탭(LOG·JSON·Binder 등)·열림 상태·요청 수 같은 보조 상태를 들고 있으면 그 상태가 바뀔 때마다 아래 그리드 패널이 새 `columns`·`data`·콜백을 받아 다시 그려진다(로그 뷰어 서비스 목록: 탭 전환 1회에 그리드 렌더 +1). 그리드를 품은 패널은 `memo` 로 감싸고, `columns`·rows 는 `useMemo`, 행 클래스 같은 콜백은 모듈 상수, 상위가 넘기는 콜백은 `useCallback` + 최신 함수를 담은 ref 로 참조를 고정한다. 고친 뒤 렌더 수는 +0 이어야 하고, 새 데이터가 들어올 때 +1 은 정상이다(`m-analog/src/anl/log-viewer/service-list-panel.tsx`).
 - **어기면**: 지금 크기로는 한 프레임(16ms) 안이지만 화면 컴포넌트 수·그리드 행 수에 비례해 늘어 큰 화면에서는 입력이 끊긴다. headerMng 사용 전문 그리드처럼 rowData 를 매 렌더 새로 만드는 곳(`HeaderUsagePanel.tsx:25,39`)도 같은 이유로 피한다.
 - **표준 골격**: `mantine-aggrid-ui` 스킬의 [list-detail 예제](../../../.claude/skills/mantine-aggrid-ui/references/examples/list-detail/page.tsx)가 이 구조(`EquipDetailPane` + `ref` 핸들)로 되어 있다. 새 화면은 예제를 복사해 시작한다.
 - **적용 사례**(profiling 번들 `count-renders` ⑤ 상세 폼 입력, 한 글자당):

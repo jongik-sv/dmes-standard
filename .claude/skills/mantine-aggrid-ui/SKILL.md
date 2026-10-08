@@ -118,6 +118,8 @@ node $D/aggrid_docs.mjs recommendations           # 공식 ag-dev 의 LLM 흔한
 | 목록 조회 조건을 `Input`·`Button` 으로 직접 그림(`SearchArea` 없이 [조회] 단추 포함) | `SearchArea`·`SearchField` 로 만들고 칸마다 `name`/`defaultKey` 를 단다 — audit `P-S1`. 대화 상자 안과 이미 받은 목록을 좁히는 빠른 찾기 칸은 예외 — [search-area](references/components/search-area.md) |
 | 진입 자동 조회를 마운트 `useEffect` 로 함(사용자 기본값이 빠진 조건으로 조회) | `<SearchArea autoSearch>` — [search-area](references/components/search-area.md) |
 | 기준 칸이 바뀔 때 화면이 다른 조회 칸을 직접 비움 / 조회 칸 `onChange` 를 `setFilters({ ...filters, k: v })` 로 씀 | 의존 칸에 `dependsOn="기준 칸 키"` 선언 / 함수형 갱신 `setFilters((p) => ({ ...p, k: v }))` |
+| 화면 루트가 탭·열림 같은 보조 상태를 들고 있어, 상태가 바뀔 때마다 아래 그리드 패널이 새 `columns`·`data`·콜백을 받아 다시 그려짐 | 그리드 패널을 `memo` 로 감싸고 `columns`·rows 는 `useMemo`, 콜백은 `useCallback`(+ 최신 함수 ref)로 고정 — [가이드 R12](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) |
+| `FloatingPanel`·모달처럼 body 로 포털하는 창 안 내용에 화면 루트 범위 CSS(`.화면-루트 .클래스`)를 기대함(스타일이 통째로 빠짐) | 창 안 루트 클래스를 따로 두고 `:is(.화면-루트, .창-루트) .클래스` 로 선택자를 넓힌다 — [floating-panel](references/components/floating-panel.md) |
 | 화면 루트를 직접 만든 `div` 로 두고 ContentBody·ContentPanel 을 씀(분할 CSS 가 안 먹어 본문이 좁게 쪼그라듦) | 화면 루트는 `PageLayout`. 분할·패널 CSS 는 `.page-layout`·모달 바디 아래에서만 적용된다 — [content-body](references/components/content-body.md) 흔한 실수 |
 | 패널 안을 flex `div` 로 다시 감싸거나 안내 `<p style>` 추가 | 감싸지 않는다. ContentPanel·GridPanel 이 높이를 맡는다 |
 | `GridPanel headerExtra` 안에서 absolute·fixed 배치를 쓰거나 `order` 로 그리드 설정 아이콘 앞에 서려 함 | 아이콘 칸은 머리줄 맨 끝(DOM 마지막·`order` 최대값)으로 고정이라 `order` 는 통하지 않고 absolute 요소는 아이콘을 가린다. 일반 흐름으로만 둔다 |
