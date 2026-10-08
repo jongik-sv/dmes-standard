@@ -1,4 +1,4 @@
-package com.dongkuk.dmes.mcm.widget.collect;
+package com.dongkuk.dmes.mcm.job.builtin.collect;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -21,18 +21,17 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
-import org.springframework.beans.factory.annotation.Autowired;
+import java.util.function.Predicate;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
-import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 /**
  * HTTP JSON 원천 — 스펙 2026-10-05 정시 수집 §2·§4. 관리자가 정한 주소를 서버가 부르므로 SSRF 를 막는 규칙을 모두 여기서 지킨다.
  * <ul>
- *   <li>호스트가 허용 목록({@code dmes.widget.collect.allowed-hosts})에 정확히 있어야 한다(대소문자 무시, 포트는 허용). 목록이 비면 모두 거절.</li>
+ *   <li>호스트가 허용 목록({@code dmes.job.http.allowed-hosts})에 정확히 있어야 한다(대소문자 무시, 포트는 허용). 목록이 비면 모두 거절.</li>
  *   <li>사용자 정보({@code user:pw@})가 든 주소는 거절한다(저장 검사와 같은 {@link CollectConfigs#parseUrl}).</li>
  *   <li>호스트를 풀어(상한 3초) 하나라도 링크 로컬({@code 169.254.x.x}·{@code fe80::})·멀티캐스트·와일드카드·클라우드 메타데이터 주소
  *       ({@code fd00:ec2::254}·{@code 100.100.100.200}, IPv4 호환 {@code ::a.b.c.d}·NAT64 {@code 64:ff9b::/96}·6to4 에 묻힌 IPv4 는 꺼내 다시 판정)이면
@@ -43,8 +42,7 @@ import org.springframework.web.client.RestClientException;
  * </ul>
  * 값은 숫자(또는 숫자 글자)면 숫자, 그 밖의 글자는 글자(200자까지). 경로에 값이 없는 항목은 건너뛰고, 전부 없으면 호출자가 실패로 기록한다.
  */
-@Component
-class HttpCollectSource implements CollectSource<CollectConfig.HttpSource> {
+public class HttpCollectSource implements CollectSource<CollectConfig.HttpSource> {
 
     static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(3);
     static final Duration READ_TIMEOUT = Duration.ofSeconds(5);
@@ -52,7 +50,7 @@ class HttpCollectSource implements CollectSource<CollectConfig.HttpSource> {
 
     private static final ObjectMapper JSON = new ObjectMapper().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
 
-    private final WidgetCollectProperties properties;
+    private final Predicate<String> hostAllowed;
     private final RestClient http;
     static final Duration DNS_TIMEOUT = Duration.ofSeconds(3);
     /** 이름 풀이 전용 스레드(데몬) — 풀이가 오래 걸려도 수집기 스레드는 DNS_TIMEOUT 에 풀려난다. 밀리면 새 풀이를 거절한다. */
@@ -65,19 +63,17 @@ class HttpCollectSource implements CollectSource<CollectConfig.HttpSource> {
     private final Function<String, InetAddress[]> resolver;
     private final Duration dnsTimeout;
 
-    @Autowired
-    HttpCollectSource(WidgetCollectProperties properties) {
-        this(properties, builder(), HttpCollectSource::resolve, DNS_TIMEOUT);
+    public HttpCollectSource(Predicate<String> hostAllowed) {
+        this(hostAllowed, builder(), HttpCollectSource::resolve, DNS_TIMEOUT);
     }
 
     /** 시험은 {@code MockRestServiceServer.bindTo(builder)} 로 묶은 빌더와 가짜 이름 풀이를 넘긴다(실제 네트워크 금지). */
-    HttpCollectSource(WidgetCollectProperties properties, RestClient.Builder builder, Function<String, InetAddress[]> resolver) {
-        this(properties, builder, resolver, DNS_TIMEOUT);
+    HttpCollectSource(Predicate<String> hostAllowed, RestClient.Builder builder, Function<String, InetAddress[]> resolver) {
+        this(hostAllowed, builder, resolver, DNS_TIMEOUT);
     }
 
-    HttpCollectSource(WidgetCollectProperties properties, RestClient.Builder builder, Function<String, InetAddress[]> resolver,
-                      Duration dnsTimeout) {
-        this.properties = properties;
+    HttpCollectSource(Predicate<String> hostAllowed, RestClient.Builder builder, Function<String, InetAddress[]> resolver, Duration dnsTimeout) {
+        this.hostAllowed = hostAllowed;
         this.http = builder.build();
         this.resolver = resolver;
         this.dnsTimeout = dnsTimeout;
@@ -107,7 +103,7 @@ class HttpCollectSource implements CollectSource<CollectConfig.HttpSource> {
     public List<CollectItem> collect(CollectConfig.HttpSource source, LocalDate today) {
         java.net.URI uri = source.url();
         String host = uri.getHost();
-        if (!properties.isAllowedHost(host)) throw new CollectException("허용 목록에 없는 호스트라 수집하지 않습니다.");
+        if (host == null || !hostAllowed.test(host)) throw new CollectException("허용 목록에 없는 호스트라 수집하지 않습니다.");
         requireSafeAddress(host);
         JsonNode root = fetch(uri);
         List<CollectItem> items = new ArrayList<>();

@@ -1,37 +1,34 @@
-package com.dongkuk.dmes.mcm.widget.collect;
+package com.dongkuk.dmes.mcm.job.builtin.collect;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-import com.dongkuk.dmes.mcm.common.exception.BusinessException;
+import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfig.ExchangeSource;
+import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfig.HttpSource;
+import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfig.SqlSource;
 import com.dongkuk.dmes.mcm.testdb.McmCoreOraTestDb;
-import com.dongkuk.dmes.mcm.widget.collect.CollectConfig.ExchangeSource;
-import com.dongkuk.dmes.mcm.widget.collect.CollectConfig.HttpSource;
-import com.dongkuk.dmes.mcm.widget.collect.CollectConfig.SqlSource;
-import com.dongkuk.dmes.mcm.widget.common.WidgetUserContextResolver;
-import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
 import com.dongkuk.dmes.mcm.widget.ext.ExchangeRatePoint;
 import com.dongkuk.dmes.mcm.widget.ext.ExchangeRateProvider;
 import com.dongkuk.dmes.mcm.widget.ext.WidgetExtException;
 import com.dongkuk.dmes.mcm.widget.ext.WidgetExtProperties;
-import com.dongkuk.dmes.mcm.widget.query.WidgetQueryDataSource;
-import com.dongkuk.dmes.mcm.widget.query.WidgetQueryExecutor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariDataSource;
 import java.math.BigDecimal;
 import java.net.InetAddress;
 import java.net.URI;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.junit.jupiter.api.AfterEach;
@@ -47,10 +44,38 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 /**
- * 정시 수집 원천 3종 — 스펙 2026-10-05 정시 수집 §2·§4. SQL 은 Oracle 시험 PDB(MCMAPUSER 의 시험 전용 표 T_C4_MACHINE)와 실제 읽기 전용 실행기, HTTP 는 {@link MockRestServiceServer}, 환율은 가짜
+ * COLLECT 작업 원천 3종 — 수집 SQL 은 Oracle 시험 PDB(MCMAPUSER 의 시험 전용 표 T_C4_MACHINE)와 그 모듈의 읽기 전용 실행기, HTTP 는 {@link MockRestServiceServer}, 환율은 가짜
  * 제공자를 쓴다(실제 네트워크 금지).
  */
 class CollectSourcesTest {
+
+    /** 삭제된 WidgetCollectorJpaTest 의 시계 대용 — 30분 캐시·10분 백오프 시험이 시간을 움직인다. */
+    static final class MutableClock extends Clock {
+        private Instant now;
+
+        MutableClock(Instant now) {
+            this.now = now;
+        }
+
+        void advance(Duration d) {
+            now = now.plus(d);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneId.of("UTC");
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
+    }
 
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 5);
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -66,7 +91,7 @@ class CollectSourcesTest {
         private HikariDataSource dataSource;
         private JdbcTemplate jdbc;
         private SqlCollectSource source;
-        private WidgetQueryExecutor executor;
+        private JobCollectSql sqlGuard;
 
         @BeforeEach
         void setUp() {
@@ -78,9 +103,8 @@ class CollectSourcesTest {
             jdbc.update("INSERT INTO T_C4_MACHINE VALUES ('L1', 5, 1.500, 'RUN', DATE '2026-10-05')");
             jdbc.update("INSERT INTO T_C4_MACHINE VALUES ('L2', 7, 2.250, 'STOP', DATE '2026-10-05')");
             jdbc.update("INSERT INTO T_C4_MACHINE VALUES ('L3', NULL, NULL, NULL, NULL)");
-            executor = new WidgetQueryExecutor(mock(WidgetDefRepository.class), mock(WidgetUserContextResolver.class),
-                    WidgetQueryDataSource.dedicated(dataSource, null));
-            source = new SqlCollectSource(executor);
+            sqlGuard = new JobCollectSql(dataSource);
+            source = new SqlCollectSource(sqlGuard);
         }
 
         @AfterEach
@@ -139,8 +163,8 @@ class CollectSourcesTest {
                     .isInstanceOf(CollectException.class).hasMessageContaining("사용자 변수");
             assertThatThrownBy(() -> source.collect(new SqlSource("SELECT CNT FROM T_C4_MACHINE WHERE LINE = :deptCd", "CNT", null), TODAY))
                     .isInstanceOf(CollectException.class).hasMessageContaining("사용자 변수");
-            assertThatThrownBy(() -> executor.validateCollectSql("SELECT CNT FROM T_C4_MACHINE WHERE LINE = :userId")).isInstanceOf(BusinessException.class);
-            executor.validateCollectSql("SELECT CNT FROM T_C4_MACHINE WHERE D = TO_DATE(:today, 'YYYYMMDD') AND :now IS NOT NULL");
+            assertThatThrownBy(() -> sqlGuard.validate("SELECT CNT FROM T_C4_MACHINE WHERE LINE = :userId", Set.of())).isInstanceOf(CollectException.class);
+            sqlGuard.validate("SELECT CNT FROM T_C4_MACHINE WHERE D = TO_DATE(:today, 'YYYYMMDD') AND :now IS NOT NULL", Set.of());
 
             List<CollectItem> items = source.collect(new SqlSource("SELECT LINE, CNT FROM T_C4_MACHINE WHERE CAST(:today AS VARCHAR2(8)) IS NOT NULL"
                     + " AND CAST(:yesterday AS VARCHAR2(8)) IS NOT NULL AND CAST(:monthStart AS VARCHAR2(8)) IS NOT NULL"
@@ -155,7 +179,7 @@ class CollectSourcesTest {
             assertThatThrownBy(() -> source.collect(new SqlSource("SELECT CNT FROM T_C4_MACHINE WHERE LINE = :line", "CNT", null), TODAY))
                     .isInstanceOf(CollectException.class).hasMessageContaining("알 수 없는 변수");
             assertThatThrownBy(() -> source.collect(new SqlSource("SELECT CNT FROM NO_SUCH_TABLE", "CNT", null), TODAY))
-                    .isInstanceOf(CollectException.class).hasMessage("위젯 데이터를 불러오지 못했습니다")
+                    .isInstanceOf(CollectException.class).hasMessage(JobCollectSql.MSG_LOAD_FAILED)
                     .satisfies(e -> assertThat(e.getMessage()).doesNotContain("NO_SUCH_TABLE"));
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM T_C4_MACHINE", Long.class)).isEqualTo(3L);
         }
@@ -168,7 +192,7 @@ class CollectSourcesTest {
 
         private static final InetAddress PUBLIC = addr(203, 0, 113, 10);
 
-        private final WidgetCollectProperties props = new WidgetCollectProperties();
+        private final List<String> allowedHosts = new ArrayList<>();
         private MockRestServiceServer server;
         private HttpCollectSource source;
         private Function<String, InetAddress[]> resolver = host -> new InetAddress[] {PUBLIC};
@@ -176,10 +200,10 @@ class CollectSourcesTest {
 
         @BeforeEach
         void setUp() {
-            props.setAllowedHosts(List.of("api.example.com", "Quote.Example.com"));
+            allowedHosts.addAll(List.of("api.example.com", "Quote.Example.com"));
             RestClient.Builder builder = RestClient.builder();
             server = MockRestServiceServer.bindTo(builder).build();
-            source = new HttpCollectSource(props, builder, host -> {
+            source = new HttpCollectSource(JobCollectHosts.matcher(allowedHosts), builder, host -> {
                 resolveCalls.incrementAndGet();
                 return resolver.apply(host);
             });
@@ -239,7 +263,7 @@ class CollectSourcesTest {
                 assertThatThrownBy(() -> source.collect(http(url, "v", "v"), TODAY)).as(url)
                         .isInstanceOf(CollectException.class).hasMessage("허용 목록에 없는 호스트라 수집하지 않습니다.");
             }
-            props.setAllowedHosts(List.of());
+            allowedHosts.clear();
             assertThatThrownBy(() -> source.collect(http("https://api.example.com/x", "v", "v"), TODAY)).isInstanceOf(CollectException.class);
             server.verify(); // 거절된 호출은 요청을 보내지 않았다
         }
@@ -296,7 +320,7 @@ class CollectSourcesTest {
         void dnsResolutionTimesOut() {
             RestClient.Builder builder = RestClient.builder();
             MockRestServiceServer none = MockRestServiceServer.bindTo(builder).build();
-            HttpCollectSource slow = new HttpCollectSource(props, builder, host -> {
+            HttpCollectSource slow = new HttpCollectSource(JobCollectHosts.matcher(allowedHosts), builder, host -> {
                 try {
                     Thread.sleep(3000);
                 } catch (InterruptedException e) {
@@ -403,7 +427,7 @@ class CollectSourcesTest {
         private List<ExchangeRatePoint> frankfurterPoints = List.of();
         private List<ExchangeRatePoint> koreaEximPoints = List.of();
         private RuntimeException frankfurterError;
-        private final WidgetCollectorJpaTest.MutableClock clock = new WidgetCollectorJpaTest.MutableClock(Instant.parse("2026-10-05T03:00:00Z"));
+        private final MutableClock clock = new MutableClock(Instant.parse("2026-10-05T03:00:00Z"));
         private ExchangeCollectSource source;
 
         private ExchangeRateProvider fake(String id, java.util.function.Supplier<List<ExchangeRatePoint>> points) {

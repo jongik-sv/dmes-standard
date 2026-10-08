@@ -1,4 +1,4 @@
-package com.dongkuk.dmes.mcm.widget.collect;
+package com.dongkuk.dmes.mcm.job.builtin.collect;
 
 import com.dongkuk.dmes.mcm.widget.ext.ExchangeRatePoint;
 import com.dongkuk.dmes.mcm.widget.ext.ExchangeRateProvider;
@@ -10,14 +10,13 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 /**
  * 내장 환율 원천 — 기준 통화 KRW 에 대한 각 통화의 값을 항목 키=통화 코드로 저장한다(스펙 2026-10-05 정시 수집 §2).
@@ -29,9 +28,9 @@ import org.springframework.stereotype.Component;
  * 같은 (제공자, 통화) 조회 결과는 30분 캐시하고 실패한 조회는 10분 동안 다시 묻지 않는다(여러 정의·회차가 같은 통화를 반복해서 외부에 묻지 않게).
  * {@code dmes.widget.ext.enabled=false} 면 외부 호출 없이 실패로 기록한다.
  */
-@Component
-class ExchangeCollectSource implements CollectSource<CollectConfig.ExchangeSource> {
+public class ExchangeCollectSource implements CollectSource<CollectConfig.ExchangeSource> {
 
+    static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
     static final String BASE = "KRW";
     /** 값을 찾아볼 기간(수집 시각 기준 며칠 전까지). */
     static final int LOOKBACK_DAYS = 7;
@@ -52,16 +51,15 @@ class ExchangeCollectSource implements CollectSource<CollectConfig.ExchangeSourc
     private final Clock clock;
     private final Map<String, Entry> cache = new ConcurrentHashMap<>();
 
-    @Autowired
-    ExchangeCollectSource(WidgetExtProperties properties, FrankfurterProvider frankfurter, KoreaEximProvider koreaExim) {
-        this(properties, (ExchangeRateProvider) frankfurter, (ExchangeRateProvider) koreaExim, Clock.system(WidgetCollector.ZONE));
+    public ExchangeCollectSource(WidgetExtProperties properties, FrankfurterProvider frankfurter, KoreaEximProvider koreaExim) {
+        this(properties, (ExchangeRateProvider) frankfurter, (ExchangeRateProvider) koreaExim, Clock.system(ZONE));
     }
 
-    ExchangeCollectSource(WidgetExtProperties properties, ExchangeRateProvider frankfurter, ExchangeRateProvider koreaExim) {
-        this(properties, frankfurter, koreaExim, Clock.system(WidgetCollector.ZONE));
+    public ExchangeCollectSource(WidgetExtProperties properties, ExchangeRateProvider frankfurter, ExchangeRateProvider koreaExim) {
+        this(properties, frankfurter, koreaExim, Clock.system(ZONE));
     }
 
-    ExchangeCollectSource(WidgetExtProperties properties, ExchangeRateProvider frankfurter, ExchangeRateProvider koreaExim, Clock clock) {
+    public ExchangeCollectSource(WidgetExtProperties properties, ExchangeRateProvider frankfurter, ExchangeRateProvider koreaExim, Clock clock) {
         this.properties = properties;
         this.frankfurter = frankfurter;
         this.koreaExim = koreaExim;

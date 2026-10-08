@@ -1,20 +1,17 @@
-package com.dongkuk.dmes.mcm.widget.collect;
+package com.dongkuk.dmes.mcm.job.builtin.collect;
 
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
-import com.dongkuk.dmes.mcm.widget.collect.CollectConfig.ExchangeSource;
-import com.dongkuk.dmes.mcm.widget.collect.CollectConfig.HttpItem;
-import com.dongkuk.dmes.mcm.widget.collect.CollectConfig.HttpSource;
-import com.dongkuk.dmes.mcm.widget.collect.CollectConfig.Mode;
-import com.dongkuk.dmes.mcm.widget.collect.CollectConfig.Schedule;
-import com.dongkuk.dmes.mcm.widget.collect.CollectConfig.Source;
-import com.dongkuk.dmes.mcm.widget.collect.CollectConfig.SqlSource;
+import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfig.ExchangeSource;
+import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfig.HttpItem;
+import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfig.HttpSource;
+import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfig.Source;
+import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfig.SqlSource;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -25,29 +22,20 @@ import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 /**
- * 정시 수집 정의 파싱·검사 — 스펙 2026-10-05 정시 수집 §2. 저장 때({@code WidgetDefConfigRules})와 수집기가 실행 때마다 함께 쓴다
- * (저장된 값을 믿지 않는다). 어기면 {@code BusinessException(INVALID_VALUE)} 한국어 한 문장. 알 수 없는 키는 무시한다.
+ * COLLECT 작업 설정 파싱·검사 — 원천 3종·저장 여부·경로 문법. 저장 때와 실행 때 함께 쓴다(저장된 값을 믿지 않는다).
+ * 어기면 {@code BusinessException(INVALID_VALUE)} 한국어 한 문장. 알 수 없는 키는 무시한다.
  */
 public final class CollectConfigs {
 
-    /** interval 에 허용하는 분(1440 의 약수 중 자정에 맞춰지고 외부 호출이 잦지 않은 것). */
-    public static final List<Integer> EVERY_MIN_ALLOWED = List.of(5, 10, 15, 20, 30, 60, 120, 180, 240, 360, 480, 720, 1440);
-    public static final int AT_MAX = 24;
-    /** 환율 원천의 interval 최소 주기(분) — 외부 제공자 호출이 잦지 않게. */
-    public static final int EXCHANGE_EVERY_MIN_MIN = 60;
     public static final int ITEMS_MAX = 20;
     public static final int KEY_MAX = 100;
     public static final int PATH_MAX = 200;
     public static final int URL_MAX = 500;
     public static final int CURRENCIES_MAX = 10;
     public static final int FIELD_MAX = 100;
-    public static final int DAYS_DEFAULT = 7;
-    public static final int DAYS_MAX = 90;
-    public static final int UNIT_MAX = 10;
     static final int PATH_DEPTH_MAX = 20;
     static final int PATH_INDEX_MAX = 9999;
 
-    private static final Pattern AT = Pattern.compile("^([01][0-9]|2[0-3]):[0-5][0-9]$");
     private static final Pattern CURRENCY = Pattern.compile("^[A-Z]{3}$");
     private static final Pattern PATH_NAME = Pattern.compile("^[\\p{L}\\p{N}_$\\-]+$");
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -56,94 +44,41 @@ public final class CollectConfigs {
 
     /** 저장된 CONFIG_JSON 글자를 읽어 검사한다. */
     public static CollectConfig parse(String configJson) {
-        if (configJson == null || configJson.isBlank()) throw invalid("정시 수집 설정이 없습니다.");
+        if (configJson == null || configJson.isBlank()) throw invalid("수집 설정이 없습니다.");
         try {
             return parse(JSON.readTree(configJson));
         } catch (JsonProcessingException e) {
-            throw invalid("정시 수집 설정(configJson)이 올바른 JSON 이 아닙니다.");
+            throw invalid("수집 설정(CONFIG_JSON)이 올바른 JSON 이 아닙니다.");
         }
     }
 
     public static CollectConfig parse(JsonNode config) {
-        if (config == null || !config.isObject()) throw invalid("정시 수집 설정은 JSON 객체여야 합니다.");
-        Schedule schedule = parseSchedule(config.get("schedule"));
+        if (config == null || !config.isObject()) throw invalid("수집 설정은 JSON 객체여야 합니다.");
         Source source = parseSource(config.get("source"));
-        JsonNode show = config.get("show");
-        int days = DAYS_DEFAULT;
-        String unit = "";
-        if (show != null && !show.isNull()) {
-            if (!show.isObject()) throw invalid("정시 수집 표시 설정(show)은 객체여야 합니다.");
-            JsonNode d = show.get("days");
-            if (d != null && !d.isNull()) {
-                if (!d.isIntegralNumber() || !d.canConvertToInt() || d.asInt() < 1 || d.asInt() > DAYS_MAX) {
-                    throw invalid("표시 기간(show.days)은 1~" + DAYS_MAX + " 사이 정수여야 합니다.");
-                }
-                days = d.asInt();
-            }
-            JsonNode u = show.get("unit");
-            if (u != null && !u.isNull()) {
-                if (!u.isTextual() || u.asText().length() > UNIT_MAX) {
-                    throw invalid("값 단위(show.unit)는 " + UNIT_MAX + "자 이하 문자열이어야 합니다.");
-                }
-                unit = u.asText();
-            }
-        }
-        if (source instanceof ExchangeSource && schedule.mode() == Mode.INTERVAL && schedule.everyMin() < EXCHANGE_EVERY_MIN_MIN) {
-            throw invalid("환율 원천은 수집 주기(schedule.everyMin)를 " + EXCHANGE_EVERY_MIN_MIN + "분 이상으로 정해 주세요(정해진 시각 daily 는 가능합니다).");
-        }
-        return new CollectConfig(schedule, source, days, unit);
+        JsonNode save = config.get("save");
+        if (save != null && !save.isNull() && !save.isBoolean()) throw invalid("저장 여부(save)는 true 또는 false 여야 합니다.");
+        return new CollectConfig(source, save == null || save.isNull() || save.asBoolean());
     }
 
     /**
-     * 저장 검사 — {@link #parse(JsonNode)} + sql 원천은 {@code validateSql}(실행기의 SQL 검사, 사용자 변수 거절)을, http 원천은 호스트 허용 여부를
-     * 본다. hostAllowed 가 null 이면 호스트 허용 목록은 저장 때 보지 않는다(수집기가 실행 때마다 거절한다).
+     * 저장 검사 — {@link #parse(JsonNode)} + SQL 원천은 {@code validateSql}(사용자 변수 거절 포함), HTTP 원천은 호스트 허용 여부,
+     * 환율 원천은 MCM 모듈 작업에서만(계획 D7). hostAllowed 가 null 이면 호스트 허용 목록은 저장 때 보지 않는다(실행 때마다 거절한다).
      */
-    public static CollectConfig check(JsonNode config, Consumer<String> validateSql, Predicate<String> hostAllowed) {
+    public static CollectConfig check(JsonNode config, String moduleCd, Consumer<String> validateSql, Predicate<String> hostAllowed) {
         CollectConfig parsed = parse(config);
         if (parsed.source() instanceof SqlSource sql) {
             validateSql.accept(sql.sql());
         } else if (parsed.source() instanceof HttpSource http && hostAllowed != null && !hostAllowed.test(http.url().getHost())) {
-            throw invalid("이 호스트는 수집 허용 목록(dmes.widget.collect.allowed-hosts)에 없습니다: " + http.url().getHost());
+            throw invalid("이 호스트는 수집 허용 목록(dmes.job.http.allowed-hosts)에 없습니다: " + http.url().getHost());
+        } else if (parsed.source() instanceof ExchangeSource && !"MCM".equalsIgnoreCase(moduleCd)) {
+            throw invalid("환율 수집은 MCM 모듈 작업에서만 쓸 수 있습니다.");
         }
         return parsed;
     }
 
-    // ── schedule ─────────────────────────────────────────────────────
-
-    private static Schedule parseSchedule(JsonNode node) {
-        if (node == null || !node.isObject()) throw invalid("수집 일정(schedule)이 없습니다.");
-        String mode = text(node, "mode");
-        if ("interval".equals(mode)) {
-            JsonNode every = node.get("everyMin");
-            if (every == null || !every.isIntegralNumber() || !every.canConvertToInt() || !EVERY_MIN_ALLOWED.contains(every.asInt())) {
-                throw invalid("수집 주기(schedule.everyMin)는 " + EVERY_MIN_ALLOWED.stream().map(String::valueOf)
-                        .collect(java.util.stream.Collectors.joining("·")) + " 분 중 하나여야 합니다.");
-            }
-            return new Schedule(Mode.INTERVAL, every.asInt(), List.of());
-        }
-        if ("daily".equals(mode)) {
-            JsonNode at = node.get("at");
-            if (at == null || !at.isArray() || at.isEmpty() || at.size() > AT_MAX) {
-                throw invalid("수집 시각(schedule.at)은 HH:mm 을 1~" + AT_MAX + "개 담은 배열이어야 합니다.");
-            }
-            List<LocalTime> times = new ArrayList<>();
-            Set<LocalTime> seen = new HashSet<>();
-            for (JsonNode item : at) {
-                if (!item.isTextual() || !AT.matcher(item.asText()).matches()) {
-                    throw invalid("수집 시각은 24시간제 HH:mm 형식이어야 합니다: " + shorten(item.asText()));
-                }
-                LocalTime t = LocalTime.parse(item.asText());
-                if (!seen.add(t)) throw invalid("수집 시각이 겹칩니다: " + item.asText());
-                times.add(t);
-            }
-            return new Schedule(Mode.DAILY, 0, List.copyOf(times));
-        }
-        throw invalid("수집 일정 방식(schedule.mode)은 interval 또는 daily 여야 합니다.");
-    }
-
     // ── source ───────────────────────────────────────────────────────
 
-    private static Source parseSource(JsonNode node) {
+    public static Source parseSource(JsonNode node) {
         if (node == null || !node.isObject()) throw invalid("수집 원천(source)이 없습니다.");
         String kind = text(node, "kind");
         if ("sql".equals(kind)) return parseSql(node);

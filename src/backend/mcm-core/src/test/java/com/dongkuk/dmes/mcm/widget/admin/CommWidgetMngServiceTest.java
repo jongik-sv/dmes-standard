@@ -17,7 +17,6 @@ import com.dongkuk.dmes.mcm.widget.admin.dto.CommWidgetMngRequest;
 import com.dongkuk.dmes.mcm.widget.admin.dto.WidgetDefSaveRequest;
 import com.dongkuk.dmes.mcm.widget.admin.repository.WidgetUsageRepository;
 import com.dongkuk.dmes.mcm.widget.admin.service.CommWidgetMngService;
-import com.dongkuk.dmes.mcm.widget.collect.WidgetCollectProperties;
 import com.dongkuk.dmes.mcm.widget.def.WidgetDefSavedEvent;
 import com.dongkuk.dmes.mcm.widget.def.entity.WidgetDef;
 import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
@@ -34,7 +33,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -46,7 +44,6 @@ class CommWidgetMngServiceTest {
     @Mock WidgetUsageRepository usageRepository;
     @Mock WidgetQueryRunner queryRunner;
     @Mock ApplicationEventPublisher eventPublisher;
-    @Spy WidgetCollectProperties collectProperties = new WidgetCollectProperties();
 
     @InjectMocks CommWidgetMngService service;
 
@@ -444,34 +441,6 @@ class CommWidgetMngServiceTest {
         WidgetDefSaveRequest r = defReq("query-table", configJson);
         r.setDataSrc("mcm");
         return r;
-    }
-
-    private static final String COLLECT_HTTP = "{\"schedule\":{\"mode\":\"interval\",\"everyMin\":10},\"source\":{\"kind\":\"http\","
-            + "\"url\":\"https://Api.Example.com:8443/q\",\"items\":[{\"key\":\"a\",\"path\":\"x\"}]}}";
-
-    @Test
-    @DisplayName("정시 수집 http 원천은 허용 호스트(대소문자 무시·포트 허용)만 저장한다 — 목록에 없거나 목록이 비면 한국어 한 문장으로 거절")
-    void collectHttpHostMustBeAllowedAtSave() {
-        assertRejected(defReq("collect", COLLECT_HTTP), "허용 목록(dmes.widget.collect.allowed-hosts)에 없습니다: Api.Example.com");
-        collectProperties.setAllowedHosts(List.of("other.example.com"));
-        assertRejected(defReq("collect", COLLECT_HTTP), "허용 목록");
-
-        when(defRepository.existsById(anyString())).thenReturn(false);
-        collectProperties.setAllowedHosts(List.of("api.example.com"));
-        service.save(defReq("collect", COLLECT_HTTP));
-        assertThat(savedRow().getTypeId()).isEqualTo("collect");
-        assertThat(savedRow().getDataSrc()).isNull();
-        verifyNoInteractions(queryRunner);
-    }
-
-    @Test
-    @DisplayName("정시 수집 sql 원천은 수집 SQL 검사(validateCollectSql)를 거치고, 호스트 목록과 무관하게 저장한다")
-    void collectSqlSourceValidated() {
-        when(defRepository.existsById(anyString())).thenReturn(false);
-        String config = "{\"schedule\":{\"mode\":\"daily\",\"at\":[\"09:00\"]},\"source\":{\"kind\":\"sql\","
-                + "\"sql\":\"select 1 v from t\",\"valueField\":\"V\"}}";
-        service.save(defReq("collect", config));
-        verify(queryRunner).validateCollectSql("select 1 v from t");
     }
 
     @Test

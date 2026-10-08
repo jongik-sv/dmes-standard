@@ -1,4 +1,4 @@
-package com.dongkuk.dmes.mcm.widget.collect;
+package com.dongkuk.dmes.mcm.job.builtin.collect;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;

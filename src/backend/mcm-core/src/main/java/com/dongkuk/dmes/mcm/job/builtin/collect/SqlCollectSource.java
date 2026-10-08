@@ -1,42 +1,37 @@
-package com.dongkuk.dmes.mcm.widget.collect;
+package com.dongkuk.dmes.mcm.job.builtin.collect;
 
-import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.widget.query.WidgetQueryResult;
-import com.dongkuk.dmes.mcm.widget.query.WidgetQueryRunner;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 /**
- * SQL 원천 — 기존 읽기 전용 실행기를 재사용한다({@link WidgetQueryRunner#runCollect}, 행 상한 50·10초, 사용자 변수 없음).
+ * SQL 원천 — 그 모듈의 기본 DataSource 를 읽기 전용으로 읽는다({@link JobCollectSql}, 행 상한 50, 쿼리 시간 초과 = min(10초, 남은 시간)).
  * keyField 가 있으면 행마다 항목 하나(키=그 열 값), 없으면 첫 행의 valueField 값 하나를 키 {@code VALUE} 로 저장한다.
  */
-@Component
-class SqlCollectSource implements CollectSource<CollectConfig.SqlSource> {
+public class SqlCollectSource implements CollectSource<CollectConfig.SqlSource> {
 
     static final int MAX_ITEMS = 50;
     static final String SINGLE_KEY = "VALUE";
 
-    private final WidgetQueryRunner queryRunner;
+    private final JobCollectSql sql;
 
-    @Autowired
-    SqlCollectSource(WidgetQueryRunner queryRunner) {
-        this.queryRunner = queryRunner;
+    public SqlCollectSource(JobCollectSql sql) {
+        this.sql = sql;
     }
 
     @Override
     public List<CollectItem> collect(CollectConfig.SqlSource source, LocalDate today) {
-        WidgetQueryResult result;
-        try {
-            result = queryRunner.runCollect(source.sql(), MAX_ITEMS);
-        } catch (BusinessException e) {
-            throw new CollectException(e.getMessage()); // 실행기의 고정 문구·검사 문구 — DB 메시지가 아니다
-        }
+        return collect(source, today, Map.of(), Map.of(), JobCollectSql.MAX_TIMEOUT_SEC);
+    }
+
+    /** 작업 변수(바인드 값)와 쿼리 시간 초과(초)를 받는 실행 경로 — {@code job^^collect} 가 쓴다. */
+    public List<CollectItem> collect(CollectConfig.SqlSource source, LocalDate today, Map<String, Object> vars, Map<String, String> varTypes,
+                                     int timeoutSec) {
+        WidgetQueryResult result = sql.run(source.sql(), vars, varTypes, timeoutSec, MAX_ITEMS, today);
         String valueColumn = column(result.columns(), source.valueField());
         if (valueColumn == null) throw new CollectException("쿼리 결과에 값 열이 없습니다: " + shorten(source.valueField()));
         List<CollectItem> items = new ArrayList<>();
