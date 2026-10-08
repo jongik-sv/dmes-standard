@@ -270,24 +270,29 @@ mk_idle "$FAKE_DIR/screens/hk.txt"; mk_perm "$S/perm.txt"; mk_idle "$S/idle.txt"
 d="$(CD)"
 plant hk "$S/idle.txt"
 resetlog
-( env COORD_RUN=r1 bash "$PW" --lanes kit --follow 9 --every 1 > "$S/follow.out" 2>/dev/null ) & BG="$BG $!"; fp=$!
-sleep 1.4; plant hk "$S/perm.txt"                       # 폴러가 권한 창을 읽었다
-sleep 0.8; cp "$d/hk.txt" "$S/keep.txt"; printf '%s\n' "가짜 화면" > "$d/hk.txt"   # json 은 그대로 — 다시 판정했다면 짝이 안 맞아 직접 읽는다
-sleep 1.2
+# 시간 의존 구간: JS 스위치(COORD_JS_*=1)가 켜지면 함수 호출마다 node 기동(약 40ms)이 더해져 폴러 한 바퀴가 0.5~1초 길어진다.
+# 표본을 심은 뒤 폴러가 한 번은 읽고 그다음에 화면을 바꾸는 순서가 지켜지도록 간격(--every)은 3초, 표본 사이 대기는 한 바퀴(약 3.5~4초)보다 길게 둔다.
+# 꺼짐(기본)은 예전 값 그대로다.
+if env | grep -q '^COORD_JS_[A-Z_]*=1$'; then T_EV=3; T_FW=45; T_1=5; T_2=5; T_3=8; T_OFF_CACHE=9; T_OFF=4.5
+else T_EV=1; T_FW=9; T_1=1.4; T_2=0.8; T_3=1.2; T_OFF_CACHE=3; T_OFF=1.5; fi
+( env COORD_RUN=r1 bash "$PW" --lanes kit --follow "$T_FW" --every "$T_EV" > "$S/follow.out" 2>/dev/null ) & BG="$BG $!"; fp=$!
+sleep "$T_1"; plant hk "$S/perm.txt"                    # 폴러가 권한 창을 읽었다
+sleep "$T_2"; cp "$d/hk.txt" "$S/keep.txt"; printf '%s\n' "가짜 화면" > "$d/hk.txt"   # json 은 그대로 — 다시 판정했다면 짝이 안 맞아 직접 읽는다
+sleep "$T_3"
 plant hk "$S/perm.txt"                                  # 같은 창을 다시 읽음(read_at 만 새로)
-sleep 1.4; plant hk "$S/idle.txt"                       # 창이 사라짐
-sleep 1.4; plant hk "$S/perm.txt"                       # 다시 뜸
+sleep "$T_1"; plant hk "$S/idle.txt"                    # 창이 사라짐
+sleep "$T_1"; plant hk "$S/perm.txt"                    # 다시 뜸
 wait "$fp" 2>/dev/null
 eq "follow: 캐시가 바뀐 때만 판정한다(같은 창은 한 번, 사라졌다 다시 뜨면 또 한 번)" "$(grep -c '^kit PROMPT hk permission$' "$S/follow.out")" 2
 eq "follow: 바뀌지 않은 캐시는 다시 읽지도 않는다(직접 읽기는 권한 창 120줄 두 번뿐)" "$(reads) $(grep -c -- '--limit 120 ' "$FAKE_DIR/orca.log")" "2 2"
 eq "follow: 끝줄 NONE 한 줄은 기존대로" "$(grep -c '^kit NONE' "$S/follow.out")" 1
 # 폴러가 꺼짐(캐시가 낡음) → 그때부터 직접 읽기
-setcfg '{"approvals":{"screen_cache_s":3}}'
+setcfg "{\"approvals\":{\"screen_cache_s\":$T_OFF_CACHE}}"
 mk_idle "$FAKE_DIR/screens/hk.txt"; plant hk "$S/idle.txt"
 resetlog
-( bash "$PW" --handle hk --follow 9 --every 1 > "$S/off.out" 2>/dev/null ) & BG="$BG $!"; fp=$!
-sleep 1.5; r_early="$(reads)"
-sleep 1.5; mk_perm "$FAKE_DIR/screens/hk.txt"           # 캐시는 이제 낡았고(3초 뒤), 실제 화면에 창이 뜬다
+( bash "$PW" --handle hk --follow "$T_FW" --every "$T_EV" > "$S/off.out" 2>/dev/null ) & BG="$BG $!"; fp=$!
+sleep "$T_OFF"; r_early="$(reads)"
+sleep "$T_OFF"; mk_perm "$FAKE_DIR/screens/hk.txt"      # 캐시는 이제 낡았고(screen_cache_s 초 뒤), 실제 화면에 창이 뜬다
 wait "$fp" 2>/dev/null
 eq "폴러 꺼짐: 신선한 동안은 읽기 0" "$r_early" 0
 eq "폴러 꺼짐: 캐시가 낡으면 직접 읽어 창을 찾는다" "$(head -1 "$S/off.out")" "PROMPT hk permission"
