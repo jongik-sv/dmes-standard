@@ -24,6 +24,11 @@
   min-width: 0;
 }
 
+/* 머리줄 맨 끝(접기 단추)으로 밀어 둔다. */
+.anl-db-viewer .anl-db-panel-head-end {
+  margin-left: auto;
+}
+
 .anl-db-viewer .anl-db-panel-title {
   font-size: 13px;
   font-weight: 700;

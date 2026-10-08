@@ -3,7 +3,7 @@
 /**
  * DB 뷰어 (anl/dbViewer) — 읽기전용 오라클 테이블 브라우저 (ADR-0002).
  * 구성(PageLayout 본문 3단 분할, 모두 드래그로 크기 조절·사용자별 저장):
- *  - 왼쪽: 스키마·테이블 트리
+ *  - 왼쪽: 스키마·테이블 트리 — 오른쪽과 같이 접으면 세로 막대만 남는다.
  *  - 가운데: SQL 편집창(위) ↔ 조회 결과 그리드(아래)
  *  - 오른쪽: 컬럼 속성 사이드바 — 접으면 세로 막대만 남고, 막대를 누르면 다시 펼친다.
  * 실행: 상단 [실행] · F8 · 편집창 Ctrl/⌘+Enter.
@@ -43,6 +43,8 @@ const MAX_ROWS = 200;
 const SPLIT_STORAGE_KEY = "analog.anl.dbViewer";
 /** 컬럼 속성 사이드바 펼침 여부(이 브라우저 편의값). */
 const PROPS_OPEN_KEY = "analog.anl.dbViewer.propsOpen";
+/** 표 목록 사이드바 펼침 여부(이 브라우저 편의값). */
+const TREE_OPEN_KEY = "analog.anl.dbViewer.treeOpen";
 const INITIAL_SQL = "SELECT * FROM MCMAPUSER.TB_MCM_CODE_MASTER";
 
 /** PK·FK 배지. FK 는 참조 테이블을 툴팁으로 보인다. */
@@ -67,7 +69,14 @@ function renderKeys(_value: unknown, row: Record<string, unknown>) {
 
 const COLUMN_PROP_COLUMNS: GridColumn[] = [
   { key: "NO", header: "#", width: 40, type: "number" },
-  { key: "KEYS", header: "키", width: 64, align: "center", tooltip: false, render: renderKeys },
+  {
+    key: "KEYS",
+    header: "키",
+    width: 64,
+    align: "center",
+    tooltip: false,
+    render: renderKeys,
+  },
   { key: "COLUMN_NAME", header: "컬럼", width: 170 },
   { key: "TYPE_TEXT", header: "타입", width: 120 },
   { key: "NULLABLE", header: "Null", width: 50, align: "center" },
@@ -85,23 +94,40 @@ function typeText(col: DbColumnInfo): string {
     : col.DATA_TYPE;
 }
 
-function readPropsOpen(): boolean {
+function readOpen(storageKey: string): boolean {
   try {
-    return window.localStorage.getItem(PROPS_OPEN_KEY) !== "0";
+    return window.localStorage.getItem(storageKey) !== "0";
   } catch {
     return true;
   }
 }
 
-function writePropsOpen(open: boolean) {
+function writeOpen(storageKey: string, open: boolean) {
   try {
-    window.localStorage.setItem(PROPS_OPEN_KEY, open ? "1" : "0");
+    window.localStorage.setItem(storageKey, open ? "1" : "0");
   } catch {
     // 저장소를 못 쓰면 이번 화면에서만 유지한다.
   }
 }
 
-function SidebarIcon({ collapse }: { collapse: boolean }) {
+/** 사이드바 접기·펼치기 아이콘. side 는 사이드바가 붙은 쪽 — 접기 화살표는 그 쪽으로, 펼치기는 반대로 향한다. */
+function SidebarIcon({
+  collapse,
+  side = "right",
+}: {
+  collapse: boolean;
+  side?: "left" | "right";
+}) {
+  const left = side === "left";
+  // 접기는 사이드바 쪽(‹ 왼쪽 / › 오른쪽)으로, 펼치기는 그 반대로 향한다.
+  const points = left
+    ? collapse
+      ? "7 9 4 12 7 15"
+      : "4 9 7 12 4 15"
+    : collapse
+      ? "8 9 11 12 8 15"
+      : "11 9 8 12 11 15";
+  const dividerX = left ? 9 : 15;
   return (
     <svg
       width="14"
@@ -115,8 +141,8 @@ function SidebarIcon({ collapse }: { collapse: boolean }) {
       aria-hidden="true"
     >
       <rect x="3" y="4" width="18" height="16" rx="2" />
-      <line x1="15" y1="4" x2="15" y2="20" />
-      <polyline points={collapse ? "8 9 11 12 8 15" : "11 9 8 12 11 15"} />
+      <line x1={dividerX} y1="4" x2={dividerX} y2="20" />
+      <polyline points={points} />
     </svg>
   );
 }
@@ -124,9 +150,9 @@ function SidebarIcon({ collapse }: { collapse: boolean }) {
 export function AnalogDbViewer() {
   const gfn = useGfnMessage();
   const editorRef = useRef<DbSqlEditorHandle>(null);
-  const [tablesBySchema, setTablesBySchema] = useState<Record<string, string[]>>(
-    {},
-  );
+  const [tablesBySchema, setTablesBySchema] = useState<
+    Record<string, string[]>
+  >({});
   const [tablesLoading, setTablesLoading] = useState(true);
   const [tablesError, setTablesError] = useState<string | null>(null);
   const [selectedTableKey, setSelectedTableKey] = useState<string | null>(null);
@@ -134,17 +160,26 @@ export function AnalogDbViewer() {
   const [columns, setColumns] = useState<DbColumnInfo[]>([]);
   const [columnsLoading, setColumnsLoading] = useState(false);
   const [propsOpen, setPropsOpen] = useState(true);
+  const [treeOpen, setTreeOpen] = useState(true);
   const [result, setResult] = useState<DbQueryResult | null>(null);
   const [running, setRunning] = useState(false);
   const [lobTarget, setLobTarget] = useState<LobTarget | null>(null);
 
   useEffect(() => {
-    setPropsOpen(readPropsOpen());
+    setPropsOpen(readOpen(PROPS_OPEN_KEY));
+    setTreeOpen(readOpen(TREE_OPEN_KEY));
   }, []);
 
   const toggleProps = useCallback(() => {
     setPropsOpen((prev) => {
-      writePropsOpen(!prev);
+      writeOpen(PROPS_OPEN_KEY, !prev);
+      return !prev;
+    });
+  }, []);
+
+  const toggleTree = useCallback(() => {
+    setTreeOpen((prev) => {
+      writeOpen(TREE_OPEN_KEY, !prev);
       return !prev;
     });
   }, []);
@@ -253,7 +288,10 @@ export function AnalogDbViewer() {
         known.key === `${current.schema}.${current.table}`
           ? known.columns.find((c) => c.COLUMN_NAME === colId)?.DATA_TYPE
           : undefined;
-      editorRef.current?.insertAtCursor(toSqlLiteral(row[colId], dataType), "value");
+      editorRef.current?.insertAtCursor(
+        toSqlLiteral(row[colId], dataType),
+        "value",
+      );
     },
     [gfn],
   );
@@ -299,7 +337,13 @@ export function AnalogDbViewer() {
               summary={value == null ? "" : String(value)}
               canOpen={canOpen}
               onOpen={() =>
-                openLob({ schema, table, column: col, dataType, rowid: String(rowid) })
+                openLob({
+                  schema,
+                  table,
+                  column: col,
+                  dataType,
+                  rowid: String(rowid),
+                })
               }
             />
           );
@@ -340,38 +384,63 @@ export function AnalogDbViewer() {
   return (
     <PageLayout title="DB 뷰어" buttons={pageButtons} className="anl-db-viewer">
       <ContentBody root resizable storageKey={SPLIT_STORAGE_KEY}>
-        {/* 왼쪽 — 스키마·테이블 트리 */}
-        <ContentPanel key="tree" width={280} minSize={200}>
-          <div className="anl-db-panel">
-            <div className="anl-db-panel-head">
-              <span className="anl-db-panel-title">테이블</span>
-              {!tablesLoading && !tablesError && (
-                <span className="anl-db-panel-count">{tableCount}</span>
+        {/* 왼쪽 — 스키마·테이블 트리(접기/펼치기) */}
+        {treeOpen ? (
+          <ContentPanel key="tree" width={280} minSize={200}>
+            <div className="anl-db-panel">
+              <div className="anl-db-panel-head">
+                <span className="anl-db-panel-title">테이블</span>
+                {!tablesLoading && !tablesError && (
+                  <span className="anl-db-panel-count">{tableCount}</span>
+                )}
+                <button
+                  type="button"
+                  className="anl-db-icon-btn anl-db-panel-head-end"
+                  onClick={toggleTree}
+                  title="테이블 접기"
+                  aria-label="테이블 접기"
+                  aria-expanded
+                >
+                  <SidebarIcon collapse side="left" />
+                </button>
+              </div>
+              {tablesLoading ? (
+                <div className="anl-db-panel-state">
+                  <Spinner />
+                </div>
+              ) : tablesError ? (
+                <div className="anl-db-panel-state">
+                  <div className="anl-db-error-text">{tablesError}</div>
+                  <Button variant="primary" onClick={() => void loadTables()}>
+                    재시도
+                  </Button>
+                </div>
+              ) : (
+                <DbMenuTree
+                  tablesBySchema={tablesBySchema}
+                  schemaOrder={ALLOWED_SCHEMAS}
+                  selectedKey={selectedTableKey}
+                  onSelectTable={(schema, table) =>
+                    void handleSelectTable(schema, table)
+                  }
+                />
               )}
             </div>
-            {tablesLoading ? (
-              <div className="anl-db-panel-state">
-                <Spinner />
-              </div>
-            ) : tablesError ? (
-              <div className="anl-db-panel-state">
-                <div className="anl-db-error-text">{tablesError}</div>
-                <Button variant="primary" onClick={() => void loadTables()}>
-                  재시도
-                </Button>
-              </div>
-            ) : (
-              <DbMenuTree
-                tablesBySchema={tablesBySchema}
-                schemaOrder={ALLOWED_SCHEMAS}
-                selectedKey={selectedTableKey}
-                onSelectTable={(schema, table) =>
-                  void handleSelectTable(schema, table)
-                }
-              />
-            )}
-          </div>
-        </ContentPanel>
+          </ContentPanel>
+        ) : (
+          <button
+            key="tree-rail"
+            type="button"
+            className="anl-db-rail"
+            onClick={toggleTree}
+            title="테이블 펼치기"
+            aria-label="테이블 펼치기"
+            aria-expanded={false}
+          >
+            <SidebarIcon collapse={false} side="left" />
+            <span className="anl-db-rail-text">테이블</span>
+          </button>
+        )}
 
         {/* 가운데 — SQL 편집창 ↔ 조회 결과 */}
         <ContentBody
@@ -437,7 +506,10 @@ export function AnalogDbViewer() {
               count={columns.length}
               titleExtra={
                 selectedTableName ? (
-                  <span className="anl-db-props-table" title={selectedTableKey ?? ""}>
+                  <span
+                    className="anl-db-props-table"
+                    title={selectedTableKey ?? ""}
+                  >
                     {selectedTableName}
                   </span>
                 ) : undefined
