@@ -128,7 +128,7 @@ class JobSchedMngServiceOraTest {
     }
 
     @Test
-    @DisplayName("유형별 입력 — BPMN 은 서비스 ID·Action 필수(내장 job^^ 금지), CODE 는 등록된 처리기, COLLECT 는 원천·간격 하한(5분, 환율 60분)·환율은 MCM 만")
+    @DisplayName("유형별 입력 — BPMN 은 서비스 ID·Action 필수(내장 jobCode·jobQuery·jobCollect 금지), CODE 는 등록된 처리기, COLLECT 는 원천·간격 하한(5분, 환율 60분)·환율은 MCM 만")
     void kindSpecificValidation() {
         JobSchedMngRequest b = req("mdm.b1", "MDM", "BPMN", "0 3 * * *");
         assertThatThrownBy(() -> service.save(b)).isInstanceOf(BusinessException.class).hasMessageContaining("서비스 ID");

@@ -83,7 +83,7 @@ class JobRunResultWriterOracleTest {
         jdbc.update("DELETE FROM TB_MCM_JOB_COLLECT_DATA");
         jdbc.update("DELETE FROM TB_MCM_JOB_RUN");
         jdbc.update("INSERT INTO TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS, STARTED_AT) "
-                + "VALUES ('j1', TIMESTAMP '2026-10-09 02:00:00', 'S', 'run-1', 'MDM', 'job^^code', 'RUN', SYSTIMESTAMP)");
+                + "VALUES ('j1', TIMESTAMP '2026-10-09 02:00:00', 'S', 'run-1', 'MDM', 'jobCode', 'RUN', SYSTIMESTAMP)");
         writer = new JobRunResultWriter(ds, USER, Duration.ZERO);
     }
 

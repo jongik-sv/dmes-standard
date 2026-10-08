@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 class JobRunRequestTest {
 
     private static JobRunRequest req(boolean manual, String reqUserId) {
-        return new JobRunRequest("r1", "mdm.sync", "MDM", "job^^code", "run", null, null, null, 60, null, "2026-10-09T02:00:00", manual, reqUserId);
+        return new JobRunRequest("r1", "mdm.sync", "MDM", "jobCode", "run", null, null, null, 60, null, "2026-10-09T02:00:00", manual, reqUserId);
     }
 
     @Test

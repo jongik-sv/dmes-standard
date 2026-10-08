@@ -33,7 +33,7 @@ class JobRunStoreOraTest {
     /** startedAgoSec 초 전에 시작한 RUN 행. */
     private void run(String runId, String status, long startedAgoSec, int timeoutSec) {
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS, STARTED_AT, TIMEOUT_SEC) "
-                + "VALUES (?, TIMESTAMP '2026-10-09 02:00:00' + NUMTODSINTERVAL(?, 'SECOND'), 'S', ?, 'MDM', 'job^^code', ?, "
+                + "VALUES (?, TIMESTAMP '2026-10-09 02:00:00' + NUMTODSINTERVAL(?, 'SECOND'), 'S', ?, 'MDM', 'jobCode', ?, "
                 + NOW + " - NUMTODSINTERVAL(?, 'SECOND'), ?)", "job-" + runId, Math.abs(runId.hashCode() % 86000), runId, status, startedAgoSec, timeoutSec);
     }
 
