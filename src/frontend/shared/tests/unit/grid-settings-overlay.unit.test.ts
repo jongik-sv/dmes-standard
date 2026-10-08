@@ -144,10 +144,10 @@ describe("GridPanel 밖 그리드의 설정 아이콘", () => {
     expect(css).toMatch(/\.cm-data-grid\.cm-grid-settings-on \.ag-header-cell\.ag-column-last,[^{]*\{\s*padding-right: 28px;/);
   });
 
-  it("개인화가 없는(gridId·화면 없음, personalize={false}) 그리드는 엑셀 항목만 있다", async () => {
+  it("개인화가 없는(gridId·화면 없음, personalize={false}) 그리드는 [컬럼 원래대로] 와 엑셀 항목만 있다", async () => {
     await show(page(gridEl({ personalize: false })));
     await openMenu();
-    expect(menuItems()).toEqual(["엑셀 출력"]);
+    expect(menuItems()).toEqual(["컬럼 원래대로", "|", "엑셀 출력"]);
     expect(tid("grid-columns-button")).toBeNull();
     expect(tid("grid-autosave-item")).toBeNull();
     expect(tid("grid-reset-button")).toBeNull();

@@ -199,12 +199,12 @@ describe("GridPanel 「그리드 설정」 메뉴의 [컬럼 설정…]", () => 
     await show(tab(panel(null)));
     const none = headerHtml();
     expect(document.querySelector(".grid-panel-header-actions")).toBeNull();
-    // filter 생략 그리드는 「필터 창 보기」 항목 때문에 메뉴가 생기므로 filter={false} 로 개인화 항목만 본다
-    await show(tab(panel(gridEl({ personalize: false, filter: false }))));
+    // 개인화를 끈 그리드는 [컬럼 원래대로] 때문에 메뉴가 생기므로, 메뉴가 전혀 없는 모양은 settingsMenu={false} 로 본다
+    await show(tab(panel(gridEl({ personalize: false, filter: false, settingsMenu: false }))));
     expect(settingsMenuButton()).toBeNull();
     expect(headerHtml()).toBe(none);
     // 버튼이 있는 패널도 그리드 켬 → 끔 사이 DOM 이 달라지는 것은 단추 하나뿐
-    await show(tab(panel(gridEl({ personalize: false, filter: false }), { buttons: [{ id: "btn_x", label: "저장" }] })));
+    await show(tab(panel(gridEl({ personalize: false, filter: false, settingsMenu: false }), { buttons: [{ id: "btn_x", label: "저장" }] })));
     const withBtn = headerHtml();
     expect(withBtn).not.toContain("grid-settings-menu");
   });
@@ -220,12 +220,14 @@ describe("GridPanel 「그리드 설정」 메뉴의 [컬럼 설정…]", () => 
 
   it("사용자 확인 전에는 없다가 확인되면 나타난다", async () => {
     await stubUser(null);
-    // filter 생략 그리드는 「필터 창 보기」 항목 때문에 사용자 확인 전에도 메뉴가 있으므로 filter={false} 로 개인화 항목만 본다
+    // 사용자 확인 전에는 개인화가 꺼져 있어 [컬럼 원래대로] 가 보이고 [컬럼 설정…] 은 없다. 확인되면 서로 바뀐다
     await show(tab(panel(gridEl({ filter: false }))));
-    expect(settingsMenuButton()).toBeNull();
+    expect(await menuItem("btn_grid_columns")).toBeNull();
+    expect(document.getElementById("btn_grid_columns_reset")).not.toBeNull();
     await seedCurrentUser("u1");
     await wait(50);
-    expect(settingsMenuButton()).not.toBeNull();
+    expect(await menuItem("btn_grid_columns")).not.toBeNull();
+    expect(document.getElementById("btn_grid_columns_reset")).toBeNull();
   });
 
   it("GridPanel 안에 그리드가 여럿이면 처음 등록한 그리드가 대상이고, 그 그리드가 빠지면 다음 그리드가 이어받는다", async () => {
@@ -259,7 +261,7 @@ describe("GridPanel 「그리드 설정」 메뉴의 [컬럼 설정…]", () => 
   it("패널 안에서 포털로 띄운 그리드(룩업 등)는 바깥 패널에 등록되지 않는다 — 개인화를 끈 패널의 머리줄에 단추가 생기지 않는다", async () => {
     await stubUser("u1");
     const portaled = createPortal(gridEl({ gridId: "popup" }), document.body);
-    await show(tab(panel(createElement("div", null, gridEl({ personalize: false, filter: false }), portaled))));
+    await show(tab(panel(createElement("div", null, gridEl({ personalize: false, filter: false, settingsMenu: false }), portaled))));
     expect(apis()).toHaveLength(2);
     expect(document.querySelector(".grid-panel-header [data-testid='grid-settings-menu']")).toBeNull();
     // 포털로 밖에 나간 그리드는 GridPanel 밖 그리드라서 자기 머리글 줄 아이콘을 단다

@@ -30,6 +30,11 @@ export interface GridPanelGridControls {
   /** 내려받을 수 있는가 — 행이 0 이면 false. 메뉴를 열 때와 GridPanel 이 그릴 때 읽는다. */
   canExportExcel?(): boolean;
   /**
+   * [컬럼 원래대로] — 개인화가 꺼진 그리드만 채운다(켜진 그리드는 [설정 초기화…] 가 같은 일을 하며 저장값까지 지운다).
+   * 지금 화면의 칸 순서·너비·숨김·고정을 열 정의대로 되돌린다. 정렬은 그대로 둔다(서버 페이징 그리드는 정렬이 조회 조건이다). 저장하는 것은 없다.
+   */
+  resetColumns?(): void;
+  /**
    * 필터 명령. 그리드 `filter={true}` 인 그리드와, `filter` 를 생략한 GridPanel 안 그리드(설정 메뉴가 있는 것)가 올린다. 빠른 검색어·거른 건수는 GridPanel 머리줄이 쓰고,
    * 「필터 창 보기」 는 설정 메뉴가 쓴다. 입력 줄 명령(getFilterRowOpen·setFilterRowOpen)은 설정 메뉴를 켠 그리드만 채운다(`settingsMenu={false}` 면 비운다).
    */

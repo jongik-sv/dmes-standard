@@ -11,6 +11,8 @@ export const GRID_SETTINGS_LABELS = {
   /** 서버 페이징 그리드(GridPanel 안에 Pagination 이 둘 이상의 쪽을 보일 때)의 엑셀 항목 — 지금 쪽의 행만 나간다. */
   excelPaged: "엑셀 출력 (현재 페이지)",
   reset: "설정 초기화…",
+  /** 개인화가 꺼진 그리드의 칸 되돌리기 — 저장값이 없으니 확인 없이 지금 화면만 열 정의의 순서·너비·숨김으로 되돌린다. */
+  resetColumns: "컬럼 원래대로",
   /** 걸러 보기를 켜고 끄는 항목 — GridPanel 안의 설정 메뉴가 있는 그리드는 늘 있고(`filter={false}` 만 없다), 켜면 검색 칸과 칸별 입력 줄이 나타난다. */
   filterRow: "필터 창 보기",
   /** GridPanel 머리줄 빠른 검색 칸의 안내 글·aria-label. */

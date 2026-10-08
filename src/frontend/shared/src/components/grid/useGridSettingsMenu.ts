@@ -40,15 +40,19 @@ export function useGridSettingsMenuProps(
   const getFilterRowOpen = useCallback(() => controls?.getFilterRowOpen?.() ?? false, [controls]);
   const filterRowOpen = useSyncExternalStore(subscribeFilter, getFilterRowOpen, () => false);
   const toggleFilterRow = useCallback((next: boolean) => controls?.setFilterRowOpen?.(next), [controls]);
+  const resetColumns = useCallback(() => controls?.resetColumns?.(), [controls]);
   if (controls === null) return null;
   const hasPersonalize = controls.openSettings !== undefined;
   const hasExcel = controls.exportExcel !== undefined;
   const hasFilterRow = controls.setFilterRowOpen !== undefined;
-  if (!hasPersonalize && !hasExcel && !hasFilterRow) return null;
+  const hasColumnReset = controls.resetColumns !== undefined;
+  if (!hasPersonalize && !hasExcel && !hasFilterRow && !hasColumnReset) return null;
   return {
     hasPersonalize,
     hasExcel,
     hasFilterRow,
+    hasColumnReset,
+    onResetColumns: resetColumns,
     filterNotice: hasFilterRow ? gridFilterNotice({ paged: excelPaged, editable: controls.isFilterEditable?.() ?? false }) : undefined,
     filterRowOpen,
     onToggleFilterRow: toggleFilterRow,

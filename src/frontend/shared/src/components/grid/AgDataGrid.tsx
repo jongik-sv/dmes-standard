@@ -385,6 +385,18 @@ function AgDataGridComponent({
     setResetConfirmOpen(false);
     personalizeHandleRef.current.reset();
   }, []);
+  // [컬럼 원래대로](개인화가 꺼진 그리드) — 칸 순서·너비·숨김·고정을 열 정의대로 되돌리고 정렬은 지킨다. 저장값이 없어 확인 창을 띄우지 않는다.
+  // 되돌린 너비는 정의값이므로 auto 그리드는 사용자가 늘린 너비를 잊고 자동 너비를 다시 잰다.
+  const resetColumns = useCallback(() => {
+    const api = gridRef.current?.api;
+    if (!api || api.isDestroyed()) return;
+    const keepSort = api.getColumnState().filter((c) => c.sort != null);
+    api.resetColumnState();
+    if (keepSort.length > 0) {
+      api.applyColumnState({ state: keepSort.map((c) => ({ colId: c.colId, sort: c.sort, sortIndex: c.sortIndex })) });
+    }
+    rerunAfterResetRef.current();
+  }, []);
   const toggleAutoSave = useCallback(() => {
     const handle = personalizeHandleRef.current;
     handle.setAutoSave(!handle.autoSave);
@@ -393,6 +405,8 @@ function AgDataGridComponent({
   // 저장 너비가 있는 컬럼은 sizedColumnsRef 가 지킨다.
   const rerunAfterApplyRef = useRef(rerunAutoSizeAfterRestore);
   rerunAfterApplyRef.current = rerunAutoSizeAfterRestore;
+  const rerunAfterResetRef = useRef(rerunAutoSizeAfterReset);
+  rerunAfterResetRef.current = rerunAutoSizeAfterReset;
   const applyPersonalize = useCallback((state: ColumnState[]) => {
     personalizeHandleRef.current.apply(state);
     rerunAfterApplyRef.current();
@@ -433,11 +447,12 @@ function AgDataGridComponent({
             },
           }
         : {}),
+      ...(!personalizeEnabled && settingsMenu ? { resetColumns } : {}),
       ...(hasExcel
         ? { exportExcel: () => exportExcelRef.current(), canExportExcel: () => rowCountRef.current > 0 }
         : {}),
     }),
-    [personalizeEnabled, settingsMenu, hasExcel, openSettings, requestReset],
+    [personalizeEnabled, settingsMenu, hasExcel, openSettings, requestReset, resetColumns],
   );
   // GridPanel 에 올리는 명령 = 기본 명령 + 걸러 보기 명령. GridPanel 밖 설정 아이콘(overlay)에는 filter={true} 의 걸러 보기만 보인다(filter 생략의 걸러 보기는 GridPanel 머리줄 전용).
   const gridControls = useMemo<GridPanelGridControls>(() => ({ ...gridFilter.controls, ...baseControls }), [gridFilter.controls, baseControls]);
@@ -448,7 +463,8 @@ function AgDataGridComponent({
   useLayoutEffect(() => {
     // 설정 메뉴 항목(개인화·엑셀·필터 창)이 있거나 빠른 검색 칸을 둘 그리드(filter={true})만 올린다. settingsMenu={false} 면 gridControls 에 메뉴 명령이 없다.
     // filter 생략 그리드(mode optional)는 설정 메뉴가 있으면 「필터 창 보기」 항목을 가지므로 늘 올린다 — 실제 GridPanel 안 그리드인지는 아래 DOM 검사가 가린다.
-    if (!gridPanelRegistry || !((settingsMenu && (personalizeEnabled || hasExcel)) || gridFilter.mode !== "off")) return;
+    // settingsMenu 가 켜진 그리드는 늘 항목이 있다(개인화 항목 또는 [컬럼 원래대로]). GridPanel 밖 아이콘(showSettingsOverlay)은 [컬럼 원래대로] 하나만으로는 새로 생기지 않는다.
+    if (!gridPanelRegistry || !(settingsMenu || gridFilter.mode !== "off")) return;
     // React context 는 포털을 넘어 오므로, GridPanel 안에서 띄운 팝업(룩업 등)의 그리드도 여기로 온다. 실제로 그 패널의
     // 그리드 영역 안에 있고 대화 상자 안이 아닌 그리드만 등록한다 — 개인화가 꺼진 패널에 남의 설정 메뉴가 생기지 않게.
     const el = containerRef.current;
