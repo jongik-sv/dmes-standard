@@ -298,6 +298,10 @@ public class LogSearchController {
                                 String clientType,
                                 boolean ignoreCase,
                                 boolean byThread) {
+        if (fromTime.isAfter(toTime)) {
+            // LoggingTimeComparator 가 IllegalArgumentException 으로 거절하면 500 이 되므로 먼저 4xx 로 안내한다.
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "조회 시작 시각이 종료 시각보다 늦습니다.");
+        }
         String decodedKeyword = decodeKeyword(keyword);
         String localLogBaseDir = resolveBaseDirectory(module);
         File localUnzipCacheDir = resolveUnzipCacheDir(module, localLogBaseDir);

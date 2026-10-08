@@ -84,8 +84,8 @@ class RangeSearchCharacterizationTest {
 
         assertThat(index.getStartIndex()).isEqualTo(710);
         assertThat(index.getEndIndex()).isEqualTo(2957);
-        // 100MB 미만은 3 등분을 시도하지만, 줄 경계로 밀다가 끝에 닿으면 남은 조각이 없어 2개가 된다.
-        assertThat(rangesOf(ranges)).containsExactly("710+890", "1600+1412");
+        // 100MB 미만은 3 등분하며, 경계는 기록 머리줄 시작에 두고 마지막 범위는 끝 위치(2957)에서 끝난다.
+        assertThat(rangesOf(ranges)).containsExactly("710+706", "1416+835", "2251+706");
     }
 
     @Test
@@ -132,10 +132,7 @@ class RangeSearchCharacterizationTest {
 
         assertThat(strategy.getTextSearcher()).isInstanceOf(MultiThreadRangeSearcherRunner.class);
         strategy.getTextSearcher().run();
-        // 기존 결함 고정: 파일 전체를 범위로 나누면 경계에 걸린 논리 줄(line 20 + 이어진 줄)이 빠진다.
-        // getRanges 의 경계 계산 문제로, 스레드 풀 정리와 무관하다(이 작업 범위 밖 — 바뀌면 이 기대값도 함께 고친다).
-        List<String> expected = new ArrayList<>(expectedLines());
-        expected.removeIf(s -> s.startsWith("2026-05-15 09:20:00.000"));
-        assertThat(strategy.getSearchResult().getResult()).containsExactlyElementsOf(expected);
+        // 범위 경계가 기록 머리줄 시작이라 경계에 걸리던 논리 줄(line 20 + 이어진 줄)도 빠지지 않는다.
+        assertThat(strategy.getSearchResult().getResult()).containsExactlyElementsOf(expectedLines());
     }
 }
