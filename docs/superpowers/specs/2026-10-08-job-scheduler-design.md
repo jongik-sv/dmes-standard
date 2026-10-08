@@ -172,13 +172,13 @@ SELECT JOB_ID, MODULE_CD, SERVICE_ID, ACTION, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_A
 ```
 
 - 호출에 쓰는 값(서비스 ID·설정·변수·시간 초과)은 **캐시가 아니라 이 잠근 행에서 읽는다.** 그래서 캐시가 낡아도 바뀐 정의로 실행한다.
-- 행 수 제한(`FETCH FIRST`·`ROWNUM`)은 SQL 에 넣지 않는다(`FOR UPDATE` 와 함께 쓰면 ORA-02014 또는 잠금 전 잘림). 한 틱 상한(`dmes.job.server.max-per-tick`, 기본 50)은 Java 로 건다. 남은 후보는 다음 분에 잡는다.
+- 행 수 제한(`FETCH FIRST`·`ROWNUM`)은 SQL 에 넣지 않는다(`FOR UPDATE` 와 함께 쓰면 ORA-02014 또는 잠금 전 잘림). 대신 `:ids`(캐시 후보)를 한 번에 50개(`dmes.job.server.batch-size`)로 잘라 넘기고, 후보가 남으면 같은 틱 안에서 다음 50개로 되풀이한다. 잠근 행은 모두 그 트랜잭션에서 처리하므로, 잠가 놓고 처리하지 않아 다른 MCM 도 못 잡는 행이 생기지 않는다.
 - 잡은 행마다:
   1. **늦은 회차**: `DB_NOW - NEXT_RUN_AT > 2분` 이면 따라잡지 않고 `SKIP`("놓친 회차를 건너뜀") 1건만 남긴다.
-  2. **겹침**: 같은 작업에 `STATUS='RUN'` 이고 `STARTED_AT + TIMEOUT_SEC + 600초 > DB_NOW` 인 행이 있으면 `SKIP`("이전 회차 실행 중")을 남긴다.
+  2. **겹침**: 같은 작업에 `STATUS='RUN'` 이고 `STARTED_AT + TIMEOUT_SEC + 정리 여유(900초) > DB_NOW` 인 행이 있으면 `SKIP`("이전 회차 실행 중")을 남긴다.
   3. 둘 다 아니면 `RUN` 을 INSERT 한다(`SCHED_AT`=`NEXT_RUN_AT` 초 단위, `RUN_ID`=새 UUID, `SERVICE_ID`, `STARTED_AT`=`DB_NOW`, `TIMEOUT_SEC`, 확정한 `VARS_JSON`). PK 위반이면 건너뛴다.
   4. `NEXT_RUN_AT` 을 `max(NEXT_RUN_AT, DB_NOW)` 보다 엄격히 뒤인 crontab 식의 첫 시각으로 올린다.
-- 변수 값 확정(§5.0)은 MCM 이 이 트랜잭션에서 한다. `:prevRunAt` 은 그 변수를 쓰는 작업만 `SELECT MAX(SCHED_AT) … WHERE JOB_ID=:id AND STATUS='OK'` 로 읽는다.
+- 변수 값 확정(§5.0)은 MCM 이 이 트랜잭션에서 한다. 날짜 변수는 `SCHED_AT` 기준이다(§5.0). `:prevRunAt` 은 그 변수를 쓰는 작업만 `SELECT MAX(SCHED_AT) … WHERE JOB_ID=:id AND STATUS='OK' AND TRIGGER_TP='S'` 로 읽는다(「지금 실행」으로 지난 기간을 다시 돌려도 일정 회차의 구간이 당겨지지 않게).
 - DB 시계는 늘 `CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS TIMESTAMP)` 로 읽는다. 회차 키는 서버 시계가 아니라 DB 에 적힌 `NEXT_RUN_AT` 으로 만든다.
 
 ### 4.3 MCM → 모듈 호출(비동기 접수)
@@ -201,6 +201,7 @@ SELECT JOB_ID, MODULE_CD, SERVICE_ID, ACTION, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_A
 
 - **MCM 은 /run 호출을 재시도하지 않는다.** 읽기 시간 초과를 FAIL 로 바꾸면, 모듈이 실제로 접수해 끝낸 OK 보고가 `WHERE STATUS='RUN'` 에서 0행이 되어 돈 작업이 FAIL 로 남는다. 그래서 확실한 거절만 그 자리에서 닫는다.
 - 모듈 서버가 여러 대이면 base-url 은 LB 주소다. LB 가 고른 서버의 풀이 가득이면 다른 서버가 비어 있어도 그 회차는 `SKIP` 이다(LB 는 라운드 로빈 권장).
+- **운영 요건: LB 는 `/internal/job/run` 을 다른 서버로 재시도하지 않는다**(nginx `proxy_next_upstream off` 등). 모듈의 최근 runId 맵은 서버마다 따로라 같은 서버 안의 중복만 막는다. LB 가 실패한 POST 를 다른 서버로 다시 보내면 같은 회차가 두 서버에서 돈다.
 - MCM 앱 자신의 작업은 `LocalJobRunGateway` 로 접수 서비스를 같은 프로세스에서 직접 부른다(HTTP 없음). 실행은 접수 쪽 실행 풀 스레드에서 돌므로 틱의 sch 태그를 물려받지 않는다.
 
 ### 4.4 모듈 쪽 접수와 예약 실행 진입점
@@ -225,29 +226,32 @@ SELECT JOB_ID, MODULE_CD, SERVICE_ID, ACTION, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_A
 4. **실행 범위 열기**: `JobRunScope`(ThreadLocal)에 runId·jobId·설정(config)·건수·수집 값 버퍼를 둔다.
 5. **실행**: 입력 맵(`action` + 변수 확정값)으로 `serviceStarter.start(serviceId, sc)` 를 부른다. 대상 서비스는 자기 트랜잭션에서 돈다(`CoreServiceStarter` → `transactionHandler`, 바깥 트랜잭션 없음). 진입점 자체는 `@Transactional` 이 없는 평범한 Java 라 트랜잭션 밖이다.
 6. **결과 판정**: `SUCCESS` 이면 `OK`. 아니면 `FAIL` 이고 MSG 에는 결과 코드와 사용자용 메시지만 넣는다(`SYSTEM_ERROR` 는 예외 종류 이름만). 건수는 `JobRunScope` 에 쌓인 값, 없으면 서비스 출력 `jobItemCnt`, 둘 다 없으면 null.
-7. **재시도**(OPTS `retry`): FAIL 이면 `intervalMin` 분 뒤 같은 서버에서 다시 실행한다(최대 `count` 회). 보고는 마지막 시도 뒤 한 번이고 MSG 에 「재시도 n/N」을 덧붙인다.
+7. **재시도**(OPTS `retry`): FAIL 이면 실행 스레드에서 잠들지 않고 `intervalMin` 분 뒤 같은 회차를 실행 풀에 **새로 넣는다**(최대 `count` 회). 넣을 때 풀이 가득이면 그때까지의 FAIL 을 보고한다. 시도마다 범위의 건수·수집 버퍼를 비운다. 보고는 마지막 시도 뒤 한 번이고 MSG 에 「재시도 n/N」을 덧붙인다.
 8. **이력 자동 보고**: `POST /internal/job/result`(§4.5). MCM 앱은 같은 서비스를 직접 부른다.
 9. **범위 닫기**: `finally` 에서 `JobRunScope`·`AuditHolder`·`UserContextHolder`·MDC 를 비운다.
 
 **시간 초과**
 
-- 실행 풀에 넣을 때 `Future` 를 받고, 감시 스케줄러가 `timeoutSec` 에 `cancel(true)`(인터럽트)한 뒤 `TIMEOUT` 을 바로 보고한다. 범위에 「닫힘」 표시를 해서 늦게 끝난 실행은 보고하지 않는다.
+- 회차마다 실행 스레드와 감시가 **함께 보는 상태 객체**(`AtomicReference`: `RUNNING`·`DONE`·`TIMED_OUT`)를 둔다. ThreadLocal 인 `JobRunScope` 는 감시 스레드가 볼 수 없으므로 이 판정에 쓰지 않는다.
+- 감시는 **시도마다** 그 시도를 풀에 넣을 때 `timeoutSec` 으로 건다(재시도 대기 시간은 감시하지 않는다).
+- 실행이 끝나면 `RUNNING→DONE`, 감시가 마감에 닿으면 `RUNNING→TIMED_OUT` 으로 `compareAndSet` 한다. **교체에 이긴 쪽만 보고한다.** 감시는 이긴 뒤에만 `cancel(true)`(인터럽트)하고 `TIMEOUT` 을 보고한다. 그래서 인터럽트로 생긴 SYSTEM_ERROR 결과(FAIL)나 마감 직전의 OK 와 TIMEOUT 이 함께 나가지 않는다.
+- 진입점은 `Throwable` 을 잡아 FAIL 로 보고한다(`CoreServiceStarter` 는 `Exception` 만 결과로 바꾸므로 `Error` 는 그대로 올라온다).
 - 인터럽트는 실행 중인 JDBC 문장을 멈추지 못한다. 그래서 내장 서비스는 문장마다 남은 시간을 쿼리 시간 초과로 건다. 사용자 BPMN 안의 SQL 은 시간 초과 뒤에도 끝까지 돌 수 있다. 그래도 MCM 쪽 기록은 TIMEOUT 이고, 늦은 결과는 덮어쓰지 않는다.
 - **OASIS `timeoutSecond` 로는 대신할 수 없다**(코드 확인): ① 값이 `CactusServiceStarterFactory.TIMEOUT_SECONDS=50` 으로 전역 고정이다. ② `createNewService=true` 서브서비스에만 쓰인다. ③ 시간을 넘기면 `shutdownNow` 뒤 `serviceResults[0].messages()` 를 읽어 결과가 null 이면 NPE 가 난다. oasis-core 는 고치지 않는다.
 
 **중첩: 이력 보고는 가장 바깥 한 번만**
 
 - 이력 보고 코드는 **진입점 Java 클래스에만** 있다. BPMN 서브서비스(`SubServiceCallTask`)는 `serviceStarter`·`ProcessStarter` 로 바로 들어가고 진입점을 다시 지나지 않는다. 그래서 서비스를 몇 겹으로 감싸도 안쪽 서비스는 보고할 길이 없다. 내장 서비스도 보고 코드를 갖지 않고, 건수·수집 값을 `JobRunScope` 에 쌓기만 한다.
-- 같은 스레드에서 진입점이 다시 불리는 경우(코드가 진입점을 직접 부름)는 `JobRunScope` 가 이미 열려 있는지로 판별한다. 열려 있으면 새 범위를 열지 않고 보고도 하지 않는다. 대상 서비스만 부른다.
+- **진입점은 범위가 이미 열려 있으면 거절한다**(예외, 보고 없음). 같은 스레드 재진입을 허용해 대상만 부르면 안쪽 `serviceStarter.start` 가 바깥 트랜잭션까지 커밋하고(`CactusSpringTransactionHandler.commitAll`), `CoreServiceStarter` 의 `AuditHolder.remove()` 와 진입점 finally 가 바깥 감사 주체·범위를 지워 바깥 회차가 깨진다. 서비스 중첩은 연결 서브서비스로만 한다. 진입점의 공개 진입은 agent 접수(`JobRunController`·`LocalJobRunGateway`)뿐이다.
 - MDC 로 판별하지 않는다. `MDCTemplate.mdc()` 가 `finally` 에서 `MDC.clear()` 로 전부 지우고, `createNewService` 서브서비스는 새 스레드에 `service_tag` 만 넘기기 때문이다.
-- 내장 서비스는 **같은 스레드의 연결 서브서비스**(기본값)로 불릴 때만 범위를 본다. `createNewService=true`·병렬 다중 인스턴스처럼 다른 스레드에서 불리면 범위가 없으므로 「예약 실행 밖 호출」로 거절한다(§8). BPMN 작성 안내에 「내장 서비스는 createNewService 를 켜지 말 것(50초 상한·NPE·범위 없음)」을 적는다.
+- 내장 서비스는 **같은 스레드의 연결 서브서비스**(기본값)로 불릴 때만 범위를 본다. `createNewService=true`·병렬 다중 인스턴스·병렬 게이트웨이(`ParallelGatewayExecutable` 도 새 스레드)처럼 다른 스레드에서 불리면 범위가 없으므로 「예약 실행 밖 호출」로 거절한다(§8). BPMN 작성 안내에 「내장 서비스는 createNewService·병렬 게이트웨이·병렬 다중 인스턴스 안에서 부르지 말 것(범위 없음, createNewService 는 50초 상한·NPE)」을 적는다.
 
 ### 4.5 실행 이력 보고(`result`, MCM)
 
 - 요청: `{ runId, status(OK|FAIL|TIMEOUT), itemCnt, msg, endedAt, serverNm, serviceTag, collect:{ slot, items:[{key, num, txt}] }? }`.
 - MCM 한 트랜잭션:
   1. `UPDATE … SET STATUS, ITEM_CNT, MSG, ENDED_AT, SERVER_NM=NVL(SERVER_NM,:srv), SERVICE_TAG=:tag WHERE RUN_ID=:runId AND STATUS='RUN'`.
-  2. 1행이고 `collect` 가 있으면 같은 트랜잭션에서 `TB_MCM_JOB_COLLECT_DATA` 에 MERGE 한다. 수집 값은 상태가 바뀌는 그 한 번만 저장되므로 따로 멱등 키가 필요 없다.
+  2. 1행이고 `status=OK` 이며 `collect` 가 있으면 같은 트랜잭션에서 `TB_MCM_JOB_COLLECT_DATA` 에 MERGE 한다. 수집 값은 상태가 바뀌는 그 한 번만 저장되므로 따로 멱등 키가 필요 없다.
   3. 0행이면 지금 상태를 읽는다. 같은 상태면 이미 반영된 재전송이라 성공으로 답한다. `TIMEOUT`·`SKIP` 으로 닫힌 행이면 덮어쓰지 않고 「늦은 보고」로 답한다(MCM WARN).
 - 모듈: 보고가 실패하면 메모리 재전송 대기열에 넣고 5초·15초 뒤, 그 뒤로는 1분마다 다시 보낸다. 10분이 지나면 버리고 WARN 한다(그 행은 정리가 TIMEOUT 으로 닫는다).
 
@@ -263,7 +267,7 @@ SELECT JOB_ID, MODULE_CD, SERVICE_ID, ACTION, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_A
   - 「지금 실행」은 캐시를 거치지 않는다(§4.9).
 - SQL 로 정의를 직접 고쳤다면 최대 5분 뒤(또는 MCM 재기동 때) 반영된다.
 - JOB 표가 없거나 DB 에 닿지 않아도 MCM 기동은 실패하지 않는다. WARN 한 번 남기고 다음 틱에 다시 시도한다.
-- **정리**(`mcm.jobRunSweep`, MCM 코드 작업, 5분마다): `RUN` 이고 `STARTED_AT + TIMEOUT_SEC + 600초 < DB_NOW` → `TIMEOUT`("결과 보고 없음"). 여유 600초는 모듈의 재전송 창(10분)과 맞춘다. 재시도 설정이 있는 회차는 MCM 이 INSERT 할 때 `TIMEOUT_SEC` 을 (timeoutSec + count × (timeoutSec + intervalMin 분))으로 기록한다.
+- **정리**(`mcm.jobRunSweep`, MCM 코드 작업, 5분마다): `RUN` 이고 `STARTED_AT + TIMEOUT_SEC + 900초 < DB_NOW` → `TIMEOUT`("결과 보고 없음"). 여유 900초 = 모듈 재전송 창 600초 + 호출 풀·실행 풀 대기 상한 약 300초(`STARTED_AT` 은 선점 시각이라 실제 시작보다 이르다). 재시도 설정이 있는 회차는 MCM 이 INSERT 할 때 `TIMEOUT_SEC` 을 (timeoutSec + count × (timeoutSec + intervalMin 분))으로 기록한다.
 - `TIMEOUT` 으로 닫힌 작업은 다음 회차를 막지 않는다. 그래서 작업 몸체는 같은 회차가 겹쳐도 결과가 같게(멱등) 만든다. 옮기는 기존 작업은 모두 멱등이다.
 
 ### 4.7 모듈과 서버 설정(호출 주소)
@@ -306,7 +310,7 @@ dmes:
 
 ### 4.9 「지금 한 번 실행」
 
-- 화면 요청을 받은 MCM 이 한 트랜잭션에서 정의 행을 `FOR UPDATE`(대기 5초)로 잠그고, 같은 작업이 `RUN`(정리 여유 안)이면 거절한다. 아니면 `RUN` 을 INSERT 한다(`TRIGGER_TP='M'`, `SCHED_AT`=요청 시각(초), `REQ_USR_ID`, 화면에서 덮어쓴 변수). 커밋 뒤 바로 모듈을 호출한다(§4.3).
+- 화면 요청(`jobSchedMng/runNow`)은 OASIS 서비스 트랜잭션 안에서 돈다. 그래서 RUN 행은 **별도 트랜잭션**(`TransactionTemplate`, `REQUIRES_NEW`)에서 만든다: 정의 행을 `FOR UPDATE`(대기 5초)로 잠그고, 같은 작업이 `RUN`(정리 여유 안)이면 거절한다. 아니면 `RUN` 을 INSERT 한다(`TRIGGER_TP='M'`, `SCHED_AT`=요청 시각(초), `REQ_USR_ID`, 화면에서 덮어쓴 변수). 그 트랜잭션을 커밋한 뒤 호출 풀에 넘긴다(§4.3). 바깥 서비스 트랜잭션에 합류하면 잠금을 쥔 채 호출하고, 서비스가 롤백되면 RUN 행 없이 모듈만 실행된다.
 - 화면에는 접수 결과(접수·거절 사유)를 바로 돌려준다. 이전 설계의 `REQ` 상태·`pendingReq`·정리의 REQ→SKIP 은 없어진다.
 - `NEXT_RUN_AT` 은 바꾸지 않는다.
 
@@ -333,7 +337,8 @@ dmes:
 
 - 모든 유형이 변수 목록을 받는다(`VARS_JSON`): `[{ "name": "baseDt", "type": "DATE", "value": ":yesterday", "desc": "기준일" }]`.
   - `name`: `[A-Za-z][A-Za-z0-9_]{0,29}`, 작업 안에서 겹치지 않음. `type`: `STRING`·`NUMBER`·`DATE`·`JSON`.
-  - `value`: 고정값 또는 **실행 변수**: `:schedAt`, `:now`, `:today`, `:yesterday`, `:monthStart`, `:prevMonthStart`, `:prevRunAt`(직전 정상 회차의 예정 시각, 없으면 null), `:jobId`, `:moduleCd`.
+  - `value`: 고정값 또는 **실행 변수**: `:schedAt`, `:now`, `:today`, `:yesterday`, `:monthStart`, `:prevMonthStart`, `:prevRunAt`(직전 정상 일정 회차의 예정 시각, 없으면 null), `:jobId`, `:moduleCd`.
+  - 날짜 변수(`:today`·`:yesterday`·`:monthStart`·`:prevMonthStart`)는 **`SCHED_AT` 기준**이다. `DB_NOW` 는 `:now` 에만 쓴다. 선점은 30초 일찍 할 수 있어서, 자정 작업이 23:59:59 에 선점되어도 날짜가 하루 어긋나지 않게 한다.
 - 값은 **MCM 이 선점할 때 확정**해 호출 입력(`inputs`)으로 넘기고 실행 기록 `VARS_JSON` 에 남긴다. 모듈은 받은 값을 서비스 입력으로 그대로 넣는다.
 - 쓰이는 곳: BPMN 은 서비스 입력 파라미터, 쿼리·수집(SQL)은 바인드 변수 `:이름`, 수집(HTTP)은 URL 의 `{{이름}}` 자리, 코드는 `JobContext.vars()`.
 - 코드 작업은 코드가 기본 변수를 정하고, 화면에서는 값만 바꾼다.
@@ -458,22 +463,22 @@ public interface ScheduledJob {
 
 - 화면 서버 호출은 SYSADMIN 권한(객체 `jobSchedMng`)만 연다.
 - 서버 간 API 는 §4.10 규칙을 따른다. 특히 **6개 모듈 앱 모두에 새 인바운드 `/internal/job/run` 이 생긴다.** `system:mcm` 주체만 받는다.
-- **내장 서비스를 웹으로 부르는 경로를 막는다.** BE 의 서비스 ID 별 권한 검사가 보류 중이라, 로그인한 사용자는 `/api/{module}/oasis/job^^query/run` 처럼 내장 서비스를 웹으로 부를 수 있다. 내장 서비스는 첫 줄에서 `JobRunScope` 가 열려 있는지 확인하고, 없으면 「예약 실행 밖 호출」로 거절한다. 범위는 진입점만 열고, 진입점은 `system:mcm` 이 부른 `/internal/job/run` 으로만 열린다. 그래서 웹 요청은 SQL·주소를 넣어도 실행되지 않는다(D23).
+- **내장 서비스를 웹으로 부르는 경로를 막는다.** BE 의 서비스 ID 별 권한 검사가 보류 중이라, 로그인한 사용자는 `/api/{module}/oasis/job^^query/run` 처럼 내장 서비스를 웹으로 부를 수 있다. 내장 서비스의 **Java 몸체 메서드**(BPMN 이 아니라 그 빈)가 첫 줄에서 `JobRunScope` 가 열려 있는지 확인하고, 없으면 「예약 실행 밖 호출」로 거절한다. 범위는 진입점만 열고, 진입점은 `system:mcm` 이 부른 `/internal/job/run` 으로만 열린다. 그래서 웹 요청은 SQL·주소를 넣어도 실행되지 않는다. 검사를 Java 몸체에 두는 이유는 사용자 BPMN 이 `camunda:class` 로 그 빈을 직접 부를 수도 있기 때문이다. 웹 진입 `OasisController`·`ServiceController`(`/service`·`/query/service`·`/lov/service`)는 모두 웹 스레드에서 `OasisServiceExecutor` 를 거치므로 범위가 없다(D23).
 - QUERY 는 화면에서 등록한 DML·프로시저를 그 모듈 DB 에 쓰는 강한 기능이다. SYSADMIN 만 저장할 수 있고, 저장·실행 때 한 문장인지·DDL·트랜잭션 제어문이 없는지 검사한다(D13).
 - COLLECT(SQL): 기존 읽기 전용 실행기를 그대로 쓴다. COLLECT(HTTP): 허용 호스트 정확 일치, 리다이렉트 안 따름, 내부·메타데이터 주소 거절(기존 `HttpCollectSource` 규칙).
 - 실행 기록 `MSG` 와 로그에는 주소·인증값·DB 원문 메시지를 넣지 않는다(예외는 종류 이름만).
 
 ## 9. 시험
 
-- 단위: crontab 식 검사·다음 예정 계산·간격 하한, 변수 확정, 유형별 입력 검사(QUERY 문장 검사), 늦은 회차 판정, 모듈 키 캐시(후보 없는 틱 SQL 0회, 저장 뒤 그 키만 다시 적재, 5분 재적재), 실행 기록 상태 전이, 코드 작업 등록(없을 때만, 모듈 키가 다르면 등록 안 함).
+- 단위: crontab 식 검사·다음 예정 계산·간격 하한, 변수 확정(자정 23:59:59 선점에도 `:today` 가 SCHED_AT 날짜), 유형별 입력 검사(QUERY 문장 검사), 늦은 회차 판정, 모듈 키 캐시(후보 없는 틱 SQL 0회, 저장 뒤 그 키만 다시 적재, 5분 재적재), 실행 기록 상태 전이, 코드 작업 등록(없을 때만, 모듈 키가 다르면 등록 안 함).
 - 통합(레인 전용 PDB, `pdb.mjs clone`)
   - **MCM 인스턴스 둘(서로 다른 연결·각자 캐시)이 같은 분에 선점 경합** → 한 회차는 한 번만 RUN. SKIP LOCKED 는 모의 객체로 재현할 수 없어 실제 Oracle 로 한다.
   - 낡은 캐시: 인스턴스 A 가 사용 안 함으로 저장한 뒤 B 의 틱은 잡지 않음. A 가 설정을 바꾼 뒤 B 가 잡은 회차는 새 설정으로 호출.
   - 호출 응답별 처리(가짜 모듈 HTTP): 202 → SERVER_NM 만, 503 → SKIP, 404 → FAIL, 연결 거부 → FAIL, **읽기 시간 초과 → RUN 유지**, 재시도 없음.
   - 결과 보고 경합: 접수 응답보다 결과 보고가 먼저 와도 최종 STATUS 는 보고 값. 같은 보고 두 번 → 한 번만 반영·두 번째도 성공. 정리가 TIMEOUT 으로 닫은 뒤 온 보고는 덮어쓰지 않음. 수집 값은 한 번만 저장.
-  - 정리(여유 600초), 늦은 회차 SKIP, 겹침 SKIP, 「지금 실행」이 일정 회차와 겹치면 거절.
+  - 정리(여유 900초), 늦은 회차 SKIP, 한 틱 후보 120건(50개씩 되풀이·SKIP 없음), FAIL 보고의 수집 값 저장 안 함, 겹침 SKIP, 「지금 실행」이 일정 회차와 겹치면 거절.
   - 보안: `/internal/job/*` 키 없음 401, 사용자 주체 403, 다른 모듈 주체 403(`result`), `system:mcm` 아닌 주체의 `/run` 403.
-- 모듈 쪽: 진입점 — 대상 서비스 SUCCESS → OK 보고 1회, 실패 → FAIL(원문 메시지 없음), 시간 초과 → TIMEOUT 보고 1회·늦은 완료는 보고 안 함, **서브서비스 3겹(사용자 BPMN → 내장 → 업무)에서도 보고 1회**, 진입점 재진입 시 보고 안 함, 내장 서비스를 웹 경로(`OasisController`)로 부르면 거절, `createNewService` 로 부르면 거절. 접수 — 중복 runId 200, 풀 가득 503, 처리기 없음 404. 보고 재전송 대기열(5초·15초·1분, 10분 뒤 버림). 진입점 실행 로그가 sch 가 아닌 업무 로그 태그(serviceId 가 `sch.` 아님)로 남는지.
+- 모듈 쪽: 진입점 — 대상 서비스 SUCCESS → OK 보고 1회, 실패 → FAIL(원문 메시지 없음), 시간 초과 → TIMEOUT 보고 1회·늦은 완료·인터럽트 FAIL 은 보고 안 함, 마감 직전 완료와 감시 경합에서 보고 1회, 재시도(1회차 FAIL → 대기 → 2회차 OK)가 TIMEOUT 되지 않고 건수가 쌓이지 않음, `Error` → FAIL, **서브서비스 3겹(사용자 BPMN → 내장 → 업무)에서도 보고 1회**, 진입점 재진입은 거절(바깥 회차는 그대로 OK), 내장 서비스를 웹 경로(`OasisController`)로 부르면 거절, `createNewService` 로 부르면 거절. 접수 — 중복 runId 200, 풀 가득 503, 처리기 없음 404. 보고 재전송 대기열(5초·15초·1분, 10분 뒤 버림). 진입점 실행 로그가 sch 가 아닌 업무 로그 태그(serviceId 가 `sch.` 아님)로 남는지.
 - 다른 모듈 앱 기동 시험: mdm 앱 하나를 MCM 이 꺼진 상태로 띄워 기동이 실패하지 않고 WARN 1회만 남기는지 확인한다.
 - 기존 시험: 위젯 collect 시험은 유형과 함께 지운다. 원천 시험은 새 패키지로 옮긴다. `ScreenUsageRollupTest` 등은 공개 메서드 그대로라 유지한다.
 - 프런트: m-mcm tsc·audit·화면 단위 시험, shared 새 컴포넌트 시험.
@@ -512,7 +517,7 @@ public interface ScheduledJob {
 | D15 | 모듈 claim 방식 | **폐기**(사용자 결정 16). §12 |
 | D16 | 실행 방식 | **사용자 확정**(결정 16): MCM 이 판정·선점 → 모듈 `/internal/job/run` 비동기 접수 → 진입점이 실행·보고 |
 | D17 | MCM 여러 대 캐시 맞추기 | 버전 표 없음(결정 20). 저장한 인스턴스 즉시, 다른 인스턴스 5분 재적재. 선점 SQL·잠근 행 읽기가 정확성을 지킴 |
-| D18 | 호출 실패 처리 | 확실한 거절만 즉시 FAIL/SKIP, 읽기 시간 초과·5xx 는 RUN 유지, MCM 재시도 없음 / 보고 재전송 5초·15초·1분·10분 뒤 버림 / 정리 여유 600초 |
+| D18 | 호출 실패 처리 | 확실한 거절만 즉시 FAIL/SKIP, 읽기 시간 초과·5xx 는 RUN 유지, MCM 재시도 없음 / 보고 재전송 5초·15초·1분·10분 뒤 버림 / 정리 여유 900초 / LB 는 /run 을 다른 서버로 재시도하지 않음(운영 요건) |
 | D19 | 서버 간 API 경로·인증 | `/internal/job/{run,result,register}`(BFF 미경유) + ClientKey + system 주체·SYSTEM 역할 + 모듈 일치 |
 | D20 | 「지금 실행」 | 받은 MCM 이 바로 RUN INSERT·호출(몇 초). `REQ` 상태 없음 |
 | D21 | 진입점 위치 | cactus-core 새 패키지 `job`(DMOM 수신과 같은 층, 기존 클래스 변경 없음). 접수·보고·내장 서비스는 mcm-core |
@@ -521,6 +526,7 @@ public interface ScheduledJob {
 | D24 | 이어 실행 | 첫 판 제외. 같은 모듈은 BPMN 서브서비스로, 다른 모듈 잇기는 다음 판 |
 | D25 | 호출 주소 | 새 자리 `dmes.job.modules.<모듈>.base-url`, 기본값은 기존 `<모듈>_WAS_URL` 환경 변수와 로컬 포트 |
 | D26 | 코드 작업 목록 | `register` 유지(MCM 이 꺼진 모듈에 물을 필요 없이 화면이 목록을 앎). 기본 일정 없는 처리기도 `handlers` 로 함께 보냄 |
+| D27 | 시간 초과·보고 1회 | 회차 상태 객체 CAS 로 이긴 쪽만 보고, 감시는 시도마다, 재시도는 풀에 새로 넣음, 진입점 재진입 거절 |
 
 ## 12. 검토 후 폐기한 안
 
