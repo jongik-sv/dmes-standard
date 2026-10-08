@@ -55,7 +55,7 @@ const confirmDeleteRow = () =>
 
 ### 그리드 설정 메뉴
 
-안쪽 `AgDataGrid` 의 컬럼 개인화가 켜져 있거나(기본 켬) 엑셀 출력이 켜져 있거나(GridPanel 안은 `excelExport={false}` 가 아닌 한 기본 켬) 걸러 보기가 있으면(`filter={false}` 가 아닌 한 기본으로 「칸별 필터 보기」 가 있다), 머리줄 맨 오른쪽 끝(업무 버튼 묶음과 `headerExtra` 뒤)에 톱니 아이콘 버튼 「그리드 설정」(`data-testid="grid-settings-menu"`, 툴팁·`aria-label` 「그리드 설정」)이 저절로 붙는다. 누르면 Mantine `Menu` 가 열린다. 내부 부품 `GridSettingsMenu`(`GridSettingsMenu.tsx`)가 그리며 화면이 직접 쓰지 않으므로 별도 문서 파일은 없다. GridPanel 에 줄 prop 은 없고(엑셀 이름만 `serverPaged`), 끄고 켜는 것은 안쪽 `AgDataGrid` 의 `settingsMenu`·`excelExport`·`personalize` 가 정한다. 예전의 머리줄 [컬럼 설정] 단추·「자동 저장」 스위치·[초기화] 단추와 그리드 아래 줄 [엑셀] 단추는 이 메뉴 하나로 모였다. 팝업(대화 상자) 안의 그리드는 이전처럼 이 머리줄 메뉴에 등록되지 않고, 자기 머리글 줄 아이콘에 엑셀 출력 항목만 둔다. 같은 메뉴를 GridPanel 밖의 그리드도 자기 머리글 줄 오른쪽 끝의 작은 아이콘으로 단다(항목·순서·이름·`data-testid` 가 같다. [AgDataGrid](ag-data-grid.md) §그리드 설정 아이콘과 settingsMenu).
+안쪽 `AgDataGrid` 의 컬럼 개인화가 켜져 있거나(기본 켬) 엑셀 출력이 켜져 있거나(GridPanel 안은 `excelExport={false}` 가 아닌 한 기본 켬) 걸러 보기가 있으면(`filter={false}` 가 아닌 한 기본으로 「칸별 필터 보기」 가 있다), 머리줄 맨 오른쪽 끝(업무 버튼 묶음과 `headerExtra` 뒤)에 톱니 아이콘 버튼 「그리드 설정」(`data-testid="grid-settings-menu"`, 툴팁·`aria-label` 「그리드 설정」)이 저절로 붙는다. 누르면 Mantine `Menu` 가 열린다. 내부 부품 `GridSettingsMenu`(`GridSettingsMenu.tsx`)가 그리며 화면이 직접 쓰지 않으므로 별도 문서 파일은 없다. GridPanel 에 줄 prop 은 없고(엑셀 이름만 `serverPaged`), 끄고 켜는 것은 안쪽 `AgDataGrid` 의 `settingsMenu`·`excelExport`·`personalize` 가 정한다. 예전의 머리줄 [컬럼 설정] 단추·「자동 저장」 스위치·[초기화] 단추와 그리드 아래 줄 [엑셀] 단추는 이 메뉴 하나로 모였다. 팝업(대화 상자) 안의 그리드는 이전처럼 이 머리줄 메뉴에 등록되지 않고, 자기 머리글 줄 아이콘에 엑셀 출력 항목만 둔다. 같은 메뉴를 GridPanel 밖의 그리드도 자기 머리줄(`header={false}` 면 머리글 줄 오른쪽 끝의 작은 아이콘)에 단다(항목·순서·이름·`data-testid` 가 같다. [AgDataGrid](ag-data-grid.md) §그리드 설정 아이콘과 settingsMenu).
 
 | 항목 | 이름 | id · `data-testid` | 보이는 때·동작 |
 |---|---|---|---|
@@ -79,8 +79,14 @@ const confirmDeleteRow = () =>
 - 엑셀: `excelExport` 를 주지 않아도 메뉴 항목만 생기고 아래 줄(「N행」 안내·[엑셀] 단추)과 감싸개는 생기지 않는다. `excelExport` 객체를 주면 아래 줄이 붙고 메뉴가 대상 그리드의 엑셀을 맡아 [엑셀] 단추는 빠지고 「N행」 안내만 남는다([GridExcelFoot](grid-excel-foot.md) 의 `hideButton`). GridPanel 밖의 그리드는 자기 아이콘 메뉴가 같은 규칙으로 맡는다. 대상이 아닌 둘째 그리드(GridPanel 안)는 아래 줄 단추를 그대로 둔다. 화면의 업무 버튼(`btn_excelDown` 등)은 그대로다. 끄려면 `excelExport={false}` 를 준다.
 - 파일 이름은 `excelExport.title`, 없으면 GridPanel 의 `title`, 없으면 `fallbackName` 또는 「목록」 이고 규칙은 「{이름}_{yyyyMMdd}.xlsx」 다. 내용 규칙(사용자 순서·숨긴 열은 숨긴 열·내부 열 제외·정렬·필터 반영·원래 값)은 [AgDataGrid](ag-data-grid.md) §아래 줄과 엑셀 내려받기와 같다.
 - `serverPaged`: Pagination 으로 쪽을 넘기며 한 쪽의 행만 `data` 로 들고 있는 화면은 `<GridPanel serverPaged …>` 를 준다. 엑셀 항목 이름이 「엑셀 출력 (현재 페이지)」 가 되어 지금 쪽의 행만 나간다는 것을 알린다. 전체를 받는 업무 단추(엑셀다운)가 따로 있으면 그것은 그대로 둔다. `AgDataGrid` 는 서버·무한 행 모델을 쓰지 않으므로(클라이언트 `rowData` 만) 서버 행 모델 처리는 없다.
-- GridPanel 없이 쓰는 그리드는 머리글 줄 오른쪽 끝의 작은 아이콘(`data-testid="grid-settings-overlay"` 안의 `grid-settings-menu`)으로 같은 메뉴를 쓴다(GridPanel 머리줄 메뉴와 내부 훅 `useGridSettingsMenuProps` 가 같다). 머리글 우클릭 메뉴로도 컬럼 설정·자동 설정 저장·초기화를 쓸 수 있다.
+- GridPanel 없이 쓰는 그리드는 자기 머리줄의 메뉴(`header={false}` 면 머리글 줄 오른쪽 끝의 작은 아이콘 `data-testid="grid-settings-overlay"` 안의 `grid-settings-menu`)로 같은 메뉴를 쓴다(GridPanel 머리줄 메뉴와 내부 훅 `useGridSettingsMenuProps` 가 같다). 머리글 우클릭 메뉴로도 컬럼 설정·자동 설정 저장·초기화를 쓸 수 있다.
 - 구현 계약: 그리드는 `register(controls, onTargetChange?)` 로 명령을 올린다. 개인화 명령 5개(`openSettings`·`requestReset`·`getAutoSave`·`setAutoSave`·`subscribeAutoSave`)와 엑셀 명령 2개(`exportExcel`·`canExportExcel`)는 모두 선택 속성이다(`grid-panel-context.ts`). `onTargetChange(isMenuTarget, isFilterTarget)` 로 메뉴 대상·걸러 보기 대상 여부를 알려 받는다(`filter` 생략 그리드는 걸러 보기 대상일 때만 켜진다). `GridPanelRegistry` 에는 `getTitle(): string | undefined` 도 있어 GridPanel 의 `title` 을 엑셀 파일 이름 기본값으로 읽는다(내려받을 때 읽는다).
+
+### 머리줄 공유와 「걸린 조건」 칩 줄(2026-10-08)
+
+머리줄(그리드명·건수 배지·도움말·빠른 검색 칸·업무 버튼·설정 메뉴)은 내부 공통 부품 `GridHeaderBar` 가 그린다. GridPanel 은 안쪽 그리드를 위해, GridPanel 밖 [AgDataGrid](ag-data-grid.md) 는 스스로 같은 부품으로 같은 머리줄을 그린다(클래스·`data-testid` 는 `grid-panel-header`·`grid-panel-title`·`grid-panel-count` 그대로). GridPanel 안의 AgDataGrid 는 머리줄을 그리지 않아 겹치지 않는다.
+
+머리줄 아래에는 검색어와 칸별 필터가 걸려 있을 때만 「걸린 조건」 칩 줄이 붙는다. 칩의 × 는 그 조건만 지우고(검색어 칩이면 검색 칸 입력도 비운다), 조건이 없으면 줄 자체가 없다. 대화 상자 안에는 칩도 검색 칸도 없다.
 
 ### 빠른 검색 칸과 거른 건수
 

@@ -51,6 +51,7 @@ node $D/aggrid_docs.mjs audit <바꾼 파일·폴더>
 | `[P-R14]` 위젯 파일(경로에 `widgets/`·`widget-types/`, 파일명에 `widget`·`renderer`)에 `setInterval(` 또는 자기 자신을 다시 거는 `setTimeout(` 이 있는데 `visibilityState`·`visibilitychange`·`IntersectionObserver`·`useTabPage`·`isActive` 가 없음 | [성능 가이드 R14](Screen-Performance-Guide.md) | 경고 |
 | `[P-R8]` 행 클릭·선택 처리 함수(이름 `[handle|on]RowClick*`·`[handle|on]RowSelect*`·`choose*`·`selectRow*`·`selectItem*` 또는 `onRowClicked`·`onRowSelected`·`onSelectionChanged` props)가 `onSnapshotChange` 를 부름(그 함수가 부르는 헬퍼를 거쳐도 잡는다) | [성능 가이드 R8](Screen-Performance-Guide.md) | 오류 |
 | `[P-R16]` `useSyncExternalStore` 의 getSnapshot 이 상태 객체 전체(`() => state`)뿐이고 같은 파일에 필드 단위 getSnapshot(`() => state.field`) 훅이 없음 | [성능 가이드 R16](Screen-Performance-Guide.md) | 경고 |
+| `[P-S2]` `m-*` 화면에서 `GridPanel` 로 감싸지 않은 `<AgDataGrid>` 에 `title` 이 없음(같은 파일 JSX 조상만 봄, `header={false}`·`{...props}` 펼침·대화 상자 파일 제외) → 그리드명을 `title` 로 준다. 카드·대화 상자·위젯 틀 제목이 이미 있으면 무시 | [Local-Rules §7](Local-Rules.md) · [ag-data-grid.md](../../../.claude/skills/mantine-aggrid-ui/references/components/ag-data-grid.md) §머리줄 | 경고 |
 
 성능 항목(`[P-…]`)은 `aggrid_docs.mjs audit` 가 함께 낸다. 오류는 종료 코드 1, 경고는 종료 코드에 영향이 없다(설계상 정상일 수 있으므로 해당 규칙을 읽고 판단한다). 테스트 파일(`tests/`·`*.test.*`)은 성능 점검에서 뺀다.
 

@@ -15,7 +15,7 @@
 - 쓰지 않는다:
   - 후보 목록에서 골라 어떤 묶음에 넣고 빼는 편집(좌 가능·우 소속) → [TransferList](transfer-list.md). 이 창은 한 목록에서 켜고 끄며 순서만 바꾼다.
   - 항목마다 이름·타입 같은 여러 칸을 고치고 행을 추가·삭제해야 할 때 → [EditableRowList](editable-row-list.md).
-  - AgDataGrid 의 컬럼 설정을 화면이 따로 열려는 경우 → 이미 있는 「그리드 설정」 메뉴(GridPanel 머리줄·GridPanel 밖 머리글 줄 아이콘)·헤더 우클릭을 쓴다. 두 번째 창을 만들지 않는다.
+  - AgDataGrid 의 컬럼 설정을 화면이 따로 열려는 경우 → 이미 있는 「그리드 설정」 메뉴(그리드 머리줄 — GridPanel 안·밖 공통)·헤더 우클릭을 쓴다. 두 번째 창을 만들지 않는다.
 - 제어형이다. `opened`·`columns` 와 결과(`onApply`·`onReset`)는 모두 props 로 오간다. 열린 동안만 그리며, 열 때마다 `columns` 로 처음부터 시작하므로 바깥에서 편집 중 상태를 유지할 필요가 없다. 창 안 변경은 [적용]을 눌러야 `onApply` 로 나가고 [취소]·X·Esc 는 버린다.
 
 ## 표준 사용
@@ -104,7 +104,7 @@ export function ExportItemPicker({ onChange }: { onChange: (items: ColumnSetting
 
 | 실수 | 바로잡기 |
 |---|---|
-| AgDataGrid 컬럼을 고르게 하려고 이 창을 화면에서 직접 연다 | 개인화가 켜져 있으면 「그리드 설정」 메뉴(GridPanel 머리줄 또는 GridPanel 밖 머리글 줄 아이콘)·헤더 우클릭 메뉴가 이미 같은 창을 연다. 끈 그리드(`personalize={false}`)에는 이 기능을 붙이지 않는다 |
+| AgDataGrid 컬럼을 고르게 하려고 이 창을 화면에서 직접 연다 | 개인화가 켜져 있으면 「그리드 설정」 메뉴(그리드 머리줄)·헤더 우클릭 메뉴가 이미 같은 창을 연다. 끈 그리드(`personalize={false}`)에는 이 기능을 붙이지 않는다 |
 | `onApply` 로 받은 상태에서 내부 컬럼을 걸러 낸다 | 모든 컬럼이 원래 자리에 담겨 온다. 걸러 내면 선택 체크박스 등이 뒤로 밀린다 |
 | `columns` 에 `width` 를 얹어 `onApply` 결과에 합쳐 넘긴다 | 너비를 넘기면 개인화가 그 컬럼 너비를 저장·잠근다. `{ colId, hide }` 만 쓴다 |
 | 창이 열린 동안 `columns` 를 바꾸면 창에 반영될 거라 기대한다 | 창은 열릴 때의 `columns` 로 한 번 시작하고 이후 바뀐 값은 반영하지 않는다. 열기 직전에 목록을 만든다 |
