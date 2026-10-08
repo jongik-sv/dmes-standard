@@ -91,6 +91,7 @@ Physical Delete 를 쓰는 경우:
 
 - APS 코어에서 JPA 로 표현이 어려운 케이스가 있더라도 native query (`@Query(nativeQuery = true)`) 또는 EntityManager 직접 사용으로 해결하고, MyBatis 로 우회하지 않는다.
 - OASIS 분기에서 사용자 답변 없이 영속성 방식을 가정하고 코드를 작성하면 안 된다.
+- JPA 를 쓰는 모듈은 `application.yml` 의 `spring.jpa.properties.hibernate.format_sql: true` 를 mcm 처럼 켠다(서식만 바꾸며, SQL·bind 로그 수준은 `application-local.yml` 에서만 올린다). 서식이 모듈마다 다르면 로그 뷰어에서 읽는 모양이 갈린다. 로그 뷰어 Binder(`m-analog/.../sql-bind.ts`)는 이 한 줄·여러 줄 SQL 과 `binding parameter` 줄을 모두 읽는다.
 
 ### 3.2 Repository 작성 원칙
 
