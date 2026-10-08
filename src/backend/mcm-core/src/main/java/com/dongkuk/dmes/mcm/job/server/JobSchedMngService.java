@@ -210,6 +210,7 @@ public class JobSchedMngService {
                 svcAction = req.getSvcAction() == null ? "" : req.getSvcAction().strip();
                 if (!SERVICE_ID.matcher(serviceId).matches()) throw invalid("서비스 ID 를 형식에 맞게 입력해 주세요");
                 if (BUILTIN_SERVICE_IDS.contains(serviceId)) throw invalid("내장 서비스(jobCode·jobQuery·jobCollect)는 쿼리 실행·수집 유형으로 등록하세요");
+                if ("jobDispatch".equals(serviceId)) throw invalid("판정 서비스(jobDispatch)는 예약 작업으로 등록할 수 없습니다");
                 if (!ACTION.matcher(svcAction).matches()) throw invalid("Action 을 형식에 맞게 입력해 주세요");
                 configJson = null;
             }
