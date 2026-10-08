@@ -181,7 +181,7 @@ function CollectEditor({ form, onConfig, disabled }: KindEditorProps) {
         />
       )}
       <Hint>
-        모은 항목 값은 수집 값 표에 저장되고 위젯이 이 값을 보여 줍니다.{" "}
+        모은 항목 값은 수집 값 표(TB_MCM_JOB_COLLECT_DATA)에 저장합니다. 쿼리 위젯 등에서 SQL 로 읽을 수 있습니다.{" "}
         {c.collectSource === "SQL" && "원천 SQL 은 SELECT 만 쓰며 읽기 전용으로 실행합니다."}
         {c.collectSource === "HTTP" && "응답 JSON 에서 경로(예: $.plants[0].temp)로 값을 꺼냅니다. 허용 호스트만 호출할 수 있습니다."}
         {c.collectSource === "EXCHANGE" && "환율 수집은 실행 간격이 60분 이상이어야 합니다."}

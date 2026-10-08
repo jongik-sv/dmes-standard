@@ -200,7 +200,7 @@ export const INITIAL_JOBS: JobRecord[] = [
       name: "라인 가동률 수집",
       kind: "COLLECT",
       cron: "*/10 * * * *",
-      desc: "라인별 가동률을 10분마다 모아 홈 위젯에 보여 줍니다.",
+      desc: "라인별 가동률을 10분마다 모아 수집 값 표에 쌓습니다.",
     },
     {
       collectSource: "SQL",
@@ -278,6 +278,22 @@ export const INITIAL_JOBS: JobRecord[] = [
     },
     {
       sql: "INSERT INTO TB_MPN_SCHED_SNAP (SNAP_DT, PLAN_ID, PLAN_QTY)\nSELECT :snapDt\n     , PLAN_ID\n     , PLAN_QTY\n  FROM TB_MPN_PLAN\n WHERE PLAN_STATUS = 'CONFIRMED'",
+    },
+  ),
+  job(
+    {
+      jobId: "mpp.equipmentUtilization",
+      module: "MPP",
+      name: "설비 가동률 수집",
+      kind: "COLLECT",
+      cron: "*/15 * * * *",
+      desc: "MPP DB 의 설비별 가동률을 15분마다 모읍니다.",
+    },
+    {
+      collectSource: "SQL",
+      sql: "SELECT EQP_CD AS ITEM_KEY\n     , ROUND(RUN_MIN / NULLIF(PLAN_MIN, 0) * 100, 1) AS ITEM_VALUE\n  FROM TB_MPP_EQP_STATUS\n WHERE STATUS_DT = :today",
+      valueField: "ITEM_VALUE",
+      keyField: "ITEM_KEY",
     },
   ),
   job(

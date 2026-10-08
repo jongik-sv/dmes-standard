@@ -35,6 +35,7 @@ const PATTERNS: Record<string, Spec[]> = {
   "mdm.masterSync": [ok(8421, 214), ok(8390, 207), fail("서비스 응답 오류: 동기화 대상 조회 실패", 12), ok(8340, 205), manual(4000, ok(120, 18)), ok(8302, 201), ok(8288, 199)],
   "mdm.metaRevPurge": [ok(412, 9), ok(388, 8), ok(0, 2), ok(401, 9), ok(377, 8), ok(395, 9), ok(402, 9), ok(366, 7)],
   "mpp.dailyClose": [manual(2, { s: "RUN" }), ok(9402, 118), ok(9388, 121), timeout(), ok(9311, 117), ok(9290, 119), ok(9276, 115)],
+  "mpp.equipmentUtilization": [ok(8, 2), ok(8, 2), ok(8, 2), fail("수집된 값이 없습니다.", 2), ok(7, 2), ok(8, 2), skip(OVERLAP), ok(8, 2)],
   "mpn.scheduleSnapshot": [skip(MISSED), ok(5120, 17), ok(5098, 16), ok(5071, 16), manual(3200, ok(5071, 16)), ok(5044, 15), ok(5010, 15)],
   "mls.erpPush": [timeout(), ok(37, 6), ok(41, 7), fail("HTTP 502 응답", 4), ok(33, 6), skip(OVERLAP), ok(29, 5), ok(36, 6)],
   "mls.noticeArchive": [fail("서비스 응답 오류: 대상 공지 조회 실패", 9), ok(214, 31), ok(198, 30), ok(207, 29), ok(181, 27), ok(176, 26)],

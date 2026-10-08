@@ -44,7 +44,7 @@ export const JOB_KIND_INFO: Record<JobKind, JobKindInfo> = {
   },
   COLLECT: {
     label: "수집",
-    description: "SQL·HTTP JSON·환율에서 값을 모아 수집 값 표에 저장합니다. 위젯이 이 값을 보여 줍니다.",
+    description: "SQL·HTTP JSON·환율에서 값을 모아 수집 값 표(TB_MCM_JOB_COLLECT_DATA)에 저장합니다. 쿼리 위젯 등에서 SQL 로 읽을 수 있습니다.",
     icon: <IconCloudDownload size={ICON_SIZE} />,
     variableHint: "원천이 SQL 이면 :이름 바인드 변수가 되고, 그 밖의 원천에서는 값 칸의 실행 변수로 쓸 수 있습니다.",
   },

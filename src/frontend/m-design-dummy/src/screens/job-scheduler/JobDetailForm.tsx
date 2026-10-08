@@ -93,7 +93,7 @@ export function JobDetailForm({ form, jobs, lastRun, errors, disabled, onChange,
       <CardFrame title="기본" testId="job-card-basic">
         <table style={DETAIL_TABLE_STYLE}>
           <tbody>
-            <Row label="모듈" required>
+            <Row label="실행 모듈" required>
               <Select
                 value={form.module}
                 options={MODULE_OPTIONS}

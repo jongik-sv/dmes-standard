@@ -83,6 +83,45 @@ function parseField(text: string, label: string, lo: number, hi: number, names?:
   return out;
 }
 
+/** 직접 입력 다섯 칸의 정의 — 이름표·허용 범위·짧은 예. */
+export const CRON_FIELD_SPECS = [
+  { label: "분", range: "0-59", example: "*/5, 0,30" },
+  { label: "시", range: "0-23", example: "9-18, 0,12" },
+  { label: "일", range: "1-31", example: "1, 1,15" },
+  { label: "월", range: "1-12", example: "*/3, 1,7" },
+  { label: "요일", range: "0-6 (일=0)", example: "1-5, 0,6" },
+] as const;
+
+const FIELD_RULES: [number, number, string[]?, number?][] = [
+  [0, 59],
+  [0, 23],
+  [1, 31],
+  [1, 12, MONTH_NAMES, 1],
+  [0, 7, DOW_NAMES, 0],
+];
+
+/** 한 칸의 글자가 올바르면 null, 아니면 그 칸의 오류 문구(칸 이름 없이). */
+export function validateFieldText(index: number, text: string): string | null {
+  const value = text.trim();
+  if (value === "") return "값을 입력하세요.";
+  const [lo, hi, names, nameBase] = FIELD_RULES[index];
+  try {
+    parseField(value, FIELD_LABELS[index], lo, hi, names, nameBase);
+    return null;
+  } catch (e) {
+    const message = e instanceof CronError ? e.message : "값이 올바르지 않습니다.";
+    return message.startsWith(`${FIELD_LABELS[index]} 칸 `) ? message.slice(FIELD_LABELS[index].length + 3) : message;
+  }
+}
+
+/** 통째로 붙여 넣은 글자를 다섯 칸으로 나눈다. 5칸 식이나 매크로가 아니면 null. */
+export function splitExpression(text: string): string[] | null {
+  const trimmed = text.trim().replace(/\s+/g, " ");
+  const macro = MACROS[trimmed.toLowerCase()];
+  const tokens = (macro ?? trimmed).split(" ");
+  return tokens.length === 5 && tokens.every((t) => t !== "") ? tokens : null;
+}
+
 export function parseCron(input: string): CronResult {
   let text = input.trim().replace(/\s+/g, " ");
   if (text === "") return { ok: false, error: "crontab 식을 입력하세요." };
@@ -245,3 +284,189 @@ export const CRON_PRESETS: { value: string; label: string }[] = [
   { value: "0 4 * * 0", label: "매주 일요일 04:00 (0 4 * * 0)" },
   { value: "30 0 1 * *", label: "매월 1일 00:30 (30 0 1 * *)" },
 ];
+
+/* ------------------------------------------------------------------ 쉬운 설정 */
+
+export type EasyKind = "everyMinute" | "everyNMinutes" | "hourly" | "daily" | "weekly" | "monthly";
+
+export const EASY_KIND_LABEL: Record<EasyKind, string> = {
+  everyMinute: "매분",
+  everyNMinutes: "N분마다",
+  hourly: "매시간",
+  daily: "매일",
+  weekly: "매주",
+  monthly: "매월",
+};
+
+export const EASY_INTERVALS = [1, 2, 3, 5, 10, 15, 20, 30];
+
+/** 쉬운 설정 값. 반복 종류에 쓰지 않는 칸은 마지막으로 만진 값을 그대로 둔다(종류를 바꿔도 입력이 사라지지 않게). */
+export interface EasyConfig {
+  kind: EasyKind;
+  /** N분마다 */
+  interval: number;
+  /** 매시간: 몇 분에 */
+  minute: number;
+  /** 시간대 제한(N분마다·매시간) */
+  limitHours: boolean;
+  hourFrom: number;
+  hourTo: number;
+  /** 요일 0(일)~6(토). 비어 있거나 7개면 제한 없음. 매주는 하나 이상 필요. */
+  weekdays: number[];
+  /** HH:mm 목록(매일·매주·매월) */
+  times: string[];
+  /** 매월 날짜 1~31 */
+  days: number[];
+}
+
+export const DEFAULT_EASY: EasyConfig = {
+  kind: "daily",
+  interval: 5,
+  minute: 0,
+  limitHours: false,
+  hourFrom: 8,
+  hourTo: 20,
+  weekdays: [],
+  times: ["02:00"],
+  days: [1],
+};
+
+export type BuildResult = { ok: true; cron: string } | { ok: false; error: string };
+
+const TIME_PATTERN = /^([01]?\d|2[0-3]):([0-5]\d)$/;
+
+/** 정렬한 값 목록을 crontab 칸 글자로 — 3개 이상 이어진 값은 범위(1-5)로 줄인다. */
+function compressList(values: number[]): string {
+  const sorted = [...new Set(values)].sort((a, b) => a - b);
+  const parts: string[] = [];
+  for (let i = 0; i < sorted.length; ) {
+    let j = i;
+    while (j + 1 < sorted.length && sorted[j + 1] === sorted[j] + 1) j += 1;
+    if (j - i >= 2) parts.push(`${sorted[i]}-${sorted[j]}`);
+    else for (let k = i; k <= j; k += 1) parts.push(String(sorted[k]));
+    i = j + 1;
+  }
+  return parts.join(",");
+}
+
+function dowField(weekdays: number[]): string {
+  const set = [...new Set(weekdays)];
+  return set.length === 0 || set.length === 7 ? "*" : compressList(set);
+}
+
+/** 쉬운 설정 → crontab 식. 만들 수 없으면 사유를 돌려준다. */
+export function buildCron(e: EasyConfig): BuildResult {
+  const hours = (): string | BuildResult => {
+    if (!e.limitHours) return "*";
+    if (e.hourFrom > e.hourTo) {
+      return { ok: false, error: "시작 시는 끝 시보다 늦을 수 없습니다. 밤을 넘기는 시간대는 지원하지 않습니다." };
+    }
+    return `${e.hourFrom}-${e.hourTo}`;
+  };
+  switch (e.kind) {
+    case "everyMinute":
+      return { ok: true, cron: "* * * * *" };
+    case "everyNMinutes": {
+      if (!EASY_INTERVALS.includes(e.interval)) return { ok: false, error: "간격을 목록에서 고르세요." };
+      const h = hours();
+      if (typeof h !== "string") return h;
+      return { ok: true, cron: `${e.interval === 1 ? "*" : `*/${e.interval}`} ${h} * * ${dowField(e.weekdays)}` };
+    }
+    case "hourly": {
+      if (!Number.isInteger(e.minute) || e.minute < 0 || e.minute > 59) return { ok: false, error: "분은 0~59 사이로 고르세요." };
+      const h = hours();
+      if (typeof h !== "string") return h;
+      return { ok: true, cron: `${e.minute} ${h} * * ${dowField(e.weekdays)}` };
+    }
+    case "daily":
+    case "weekly":
+    case "monthly": {
+      if (e.kind === "weekly" && e.weekdays.length === 0) return { ok: false, error: "요일을 하나 이상 고르세요." };
+      if (e.kind === "monthly" && e.days.length === 0) return { ok: false, error: "날짜를 하나 이상 고르세요." };
+      if (e.times.length === 0) return { ok: false, error: "시각을 하나 이상 추가하세요." };
+      const parsed = e.times.map((t) => TIME_PATTERN.exec(t.trim()));
+      if (parsed.some((m) => m === null)) return { ok: false, error: "시각을 HH:mm 형식으로 모두 입력하세요." };
+      const minutes = new Set(parsed.map((m) => Number(m?.[2])));
+      if (minutes.size > 1) {
+        return { ok: false, error: "분이 같은 시각만 함께 쓸 수 있습니다. 분이 다르면 작업을 나눠 등록하세요." };
+      }
+      const minute = [...minutes][0];
+      const hourList = compressHours(parsed.map((m) => Number(m?.[1])));
+      const dom = e.kind === "monthly" ? compressList(e.days) : "*";
+      const dow = e.kind === "monthly" ? "*" : dowField(e.weekdays);
+      return { ok: true, cron: `${minute} ${hourList} ${dom} * ${dow}` };
+    }
+    default:
+      return { ok: false, error: "반복 종류를 고르세요." };
+  }
+}
+
+/** 시각 목록의 시 칸은 범위로 줄이지 않고 쉼표 목록으로 둔다(8-20 은 매시간의 시간대 제한과 구분된다). */
+function compressHours(hours: number[]): string {
+  return [...new Set(hours)].sort((a, b) => a - b).join(",");
+}
+
+const INTEGER = /^\d+$/;
+const INT_LIST = /^\d+(,\d+)*$/;
+const HOUR_RANGE = /^(\d+)-(\d+)$/;
+
+const timesOf = (hourField: string, minute: string): string[] =>
+  [...new Set(hourField.split(",").map(Number))].sort((a, b) => a - b).map((h) => `${pad(h)}:${pad(Number(minute))}`);
+
+/** crontab 식 → 쉬운 설정. 쉬운 설정으로 나타낼 수 없는 식이면 null. */
+export function toEasy(expr: string): EasyConfig | null {
+  const parsed = parseCron(expr);
+  if (!parsed.ok) return null;
+  const { cron } = parsed;
+  const [fMin, fHour, fDom, fMon] = cron.fields;
+  if (fMon !== "*") return null;
+  const dowVals = valuesOf(cron.dow, 0);
+  const weekdays = dowVals.length === 7 ? [] : dowVals;
+  const base: EasyConfig = { ...DEFAULT_EASY, times: [...DEFAULT_EASY.times], days: [...DEFAULT_EASY.days] };
+
+  if (fDom !== "*") {
+    if (!INTEGER.test(fMin) || !INT_LIST.test(fHour)) return null;
+    return { ...base, kind: "monthly", days: valuesOf(cron.dom, 1), times: timesOf(fHour, fMin) };
+  }
+
+  const step = /^\*\/(\d+)$/.exec(fMin);
+  const stepOk = fMin === "*" || (step !== null && EASY_INTERVALS.includes(Number(step[1])));
+  const range = fHour === "*" ? null : HOUR_RANGE.exec(fHour);
+  if (stepOk) {
+    if (fHour !== "*" && !range) return null;
+    const interval = fMin === "*" ? 1 : Number(step?.[1]);
+    if (interval === 1 && fHour === "*" && weekdays.length === 0) return { ...base, kind: "everyMinute" };
+    return {
+      ...base,
+      kind: "everyNMinutes",
+      interval,
+      limitHours: range !== null,
+      hourFrom: range ? Number(range[1]) : base.hourFrom,
+      hourTo: range ? Number(range[2]) : base.hourTo,
+      weekdays,
+    };
+  }
+
+  if (!INTEGER.test(fMin)) return null;
+  if (fHour === "*" || range) {
+    return {
+      ...base,
+      kind: "hourly",
+      minute: Number(fMin),
+      limitHours: range !== null,
+      hourFrom: range ? Number(range[1]) : base.hourFrom,
+      hourTo: range ? Number(range[2]) : base.hourTo,
+      weekdays,
+    };
+  }
+  if (INT_LIST.test(fHour)) {
+    return { ...base, kind: weekdays.length > 0 ? "weekly" : "daily", weekdays, times: timesOf(fHour, fMin) };
+  }
+  return null;
+}
+
+/** 쉬운 설정 아래에 보이는 참고 안내(저장을 막지는 않는다). */
+export function easyNotice(e: EasyConfig): string | null {
+  if (e.kind === "monthly" && e.days.some((d) => d >= 29)) return "29~31일을 고르면 그 날짜가 없는 달은 건너뜁니다.";
+  return null;
+}
