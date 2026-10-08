@@ -123,3 +123,12 @@ mcm:
 cactus.notify:
   publish-url: http://localhost:8100/notify/publish
   source: mcm
+
+# ── SQL 바인딩 값 로깅 (local 전용) ──
+# local 전용 — 바인딩 값(비밀번호 해시·키·개인정보 등 민감 값 포함)을 로그와 로그 뷰어에 남긴다, dev·prod 금지.
+# org.hibernate.SQL: DEBUG 는 공통 application.yml 에 이미 있다.
+logging:
+  level:
+    org.hibernate.orm.jdbc.bind: TRACE
+    org.springframework.jdbc.core.JdbcTemplate: DEBUG
+    org.springframework.jdbc.core.StatementCreatorUtils: TRACE
