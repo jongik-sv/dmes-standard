@@ -543,11 +543,10 @@ describe("복사해서 만들기", () => {
     expect(copyBlockReason(dForm({ widgetId: "def.x" }), true)).toBeNull();
   });
 
-  it("copyDataNotice — 개인 메모·자동 수집만 안내, 공용 메모·그 밖은 null", () => {
+  it("copyDataNotice — 개인 메모만 안내, 공용 메모·그 밖은 null", () => {
     const memo = (scope: string) => dForm({ widgetId: "def.m", typeId: "memo", config: { scope, format: "text", content: "" } });
     expect(copyDataNotice(memo("personal"))).toMatch(/개인 메모/);
     expect(copyDataNotice(memo("shared"))).toBeNull();
-    expect(copyDataNotice(dForm({ widgetId: "def.c", typeId: "collect", config: {} }))).toMatch(/자동 수집/);
     expect(copyDataNotice(dForm({ widgetId: "def.x" }))).toBeNull();
   });
 });
@@ -784,5 +783,13 @@ describe("미리보기 크기 조절(기본·최소·최대)", () => {
     const form = { ...dForm({ title: "t", typeId: "markdown" }), ...sizePatch("min", { w: 10, h: 4 }), defW: "8", defH: "8" };
     expect(previewSizes(form, base).min).toEqual({ w: 10, h: 4 });
     expect(validateDefForm(form)).toContain("최소 너비는 기본 너비 이하여야 합니다.");
+  });
+});
+
+describe("위젯 유형 등록부", () => {
+  it("collect 유형이 목록에 없다 — 수집은 예약 작업(COLLECT)이 맡는다", async () => {
+    const { WIDGET_TYPE_REGISTRY } = await import("@/lib/generated/widget-type-registry");
+    expect(Object.keys(WIDGET_TYPE_REGISTRY)).not.toContain("collect");
+    expect(Object.keys(WIDGET_TYPE_REGISTRY)).toContain("query-table");
   });
 });

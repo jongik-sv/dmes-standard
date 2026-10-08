@@ -9,6 +9,8 @@ import com.dongkuk.dmes.mcm.job.server.JobDispatchScope;
 import com.dongkuk.dmes.mcm.job.server.JobDispatchService;
 import com.dongkuk.dmes.mcm.testdb.McmCoreOraTestDb;
 import com.zaxxer.hikari.HikariDataSource;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Duration;
@@ -28,6 +30,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @SpringJUnitConfig(OraCheckJpaConfig.class)
@@ -39,6 +42,7 @@ class JobDispatchServiceOraTest {
 
     @Autowired DataSource dataSource;
     @Autowired JdbcTemplate jdbc;
+    @Autowired PlatformTransactionManager jpaTx;   // 운영 txBiz 와 같은 JpaTransactionManager — 「지금 실행」의 바깥 서비스 트랜잭션 대용
     private JobDispatchService service;
     private TransactionTemplate tx;
 
@@ -271,5 +275,114 @@ class JobDispatchServiceOraTest {
     @DisplayName("DB 시계는 KST 로 읽는다 — SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' 이 서울 벽시계와 1분 안")
     void dbClockIsKst() {
         assertThat(Duration.between(dbNow(), LocalDateTime.now(ZoneId.of("Asia/Seoul"))).abs()).isLessThan(Duration.ofMinutes(1));
+    }
+
+    // ── 「지금 한 번 실행」(claimManual, 설계 §4.9) ──
+
+    private Timestamp nextRunAt(String jobId) {
+        return jdbc.queryForObject("SELECT NEXT_RUN_AT FROM MCMAPUSER.TB_MCM_JOB_DEF WHERE JOB_ID = ?", Timestamp.class, jobId);
+    }
+
+    private int manualRuns(String jobId) {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_JOB_RUN WHERE JOB_ID = ? AND TRIGGER_TP = 'M'", Integer.class, jobId);
+    }
+
+    @Test
+    @DisplayName("지금 실행은 판정 표시 없이 TRIGGER_TP='M' RUN 1행을 만들고 NEXT_RUN_AT 은 그대로 둔다 — SCHED_AT 은 DB 시각(초), 요청자 기록")
+    void manualClaimRecordsRun() {
+        JobDispatchScope.close();   // 화면 서비스가 부른다 — 판정 표시가 없어도 된다
+        def("mn", "CODE", "*/10 * * * *", "[{\"name\":\"baseDt\",\"type\":\"DATE\",\"value\":\":today\",\"desc\":\"\"}]",
+                "{\"handlerId\":\"h\"}", null, 3600);
+        Timestamp nextBefore = nextRunAt("mn");
+        LocalDateTime before = dbNow().withNano(0);
+
+        JobDispatchService.ManualClaim claim = service.claimManual("mn", "u1", null);
+
+        assertThat(claim.rejectReason()).isNull();
+        JobRunRequest r = claim.request();
+        assertThat(r.manual()).isTrue();
+        assertThat(r.userId()).isEqualTo("u1");
+        assertThat(r.serviceId()).isEqualTo("jobCode");
+        assertThat(r.schedAtTime()).isAfterOrEqualTo(before);
+        assertThat(r.inputs().get("baseDt")).isEqualTo(r.schedAtTime().toLocalDate().toString());
+        Map<String, Object> row = run("mn");
+        assertThat(row.get("TRIGGER_TP")).isEqualTo("M");
+        assertThat(row.get("STATUS")).isEqualTo("RUN");
+        assertThat(row.get("RUN_ID")).isEqualTo(r.runId());
+        assertThat(row.get("REQ_USR_ID")).isEqualTo("u1");
+        assertThat(row.get("C_USR_ID")).isEqualTo("u1");
+        assertThat(row.get("C_SVC_ID")).isEqualTo("jobSchedMng");
+        assertThat(((Timestamp) row.get("SCHED_AT")).toLocalDateTime()).isEqualTo(r.schedAtTime());
+        assertThat(r.schedAtTime().getNano()).isZero();
+        assertThat(nextRunAt("mn")).isEqualTo(nextBefore);
+    }
+
+    @Test
+    @DisplayName("같은 작업이 RUN(시간 초과 + 정리 여유 안)이면 거절하고 행을 만들지 않는다")
+    void manualRejectsWhileRunning() {
+        def("mb", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, 3600);
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS, STARTED_AT, TIMEOUT_SEC) "
+                + "VALUES ('mb', TIMESTAMP '2020-01-01 00:00:00', 'S', 'old-run', 'MDM', 'jobCode', 'RUN', " + NOW_SQL + " - INTERVAL '10' SECOND, 600)");
+        JobDispatchService.ManualClaim claim = service.claimManual("mb", "u1", null);
+        assertThat(claim.request()).isNull();
+        assertThat(claim.rejectReason()).isEqualTo("이미 실행 중인 작업입니다");
+        assertThat(manualRuns("mb")).isZero();
+    }
+
+    @Test
+    @DisplayName("없는 작업은 거절한다")
+    void manualRejectsUnknownJob() {
+        JobDispatchService.ManualClaim claim = service.claimManual("nope", "u1", null);
+        assertThat(claim.request()).isNull();
+        assertThat(claim.rejectReason()).isEqualTo("작업을 찾을 수 없습니다");
+    }
+
+    @Test
+    @DisplayName("변수 덮어쓰기는 이번 한 번만 — 이력 VARS_JSON 에 남고 정의는 그대로, 형에 안 맞는 값은 거절")
+    void manualOverridesAreRecordedOnce() {
+        def("mo", "CODE", "*/10 * * * *", "[{\"name\":\"n\",\"type\":\"NUMBER\",\"value\":\"3\",\"desc\":\"\"}]", "{\"handlerId\":\"h\"}", null, 3600);
+
+        JobDispatchService.ManualClaim bad = service.claimManual("mo", "u1", Map.of("n", "abc"));
+        assertThat(bad.request()).isNull();
+        assertThat(bad.rejectReason()).isNotBlank();
+        assertThat(manualRuns("mo")).isZero();
+
+        JobDispatchService.ManualClaim claim = service.claimManual("mo", "u1", Map.of("n", "7", "undeclared", "x"));
+        assertThat(claim.rejectReason()).isNull();
+        assertThat(claim.request().inputs().get("n")).hasToString("7");
+        assertThat(claim.request().inputs()).doesNotContainKey("undeclared");
+        assertThat(String.valueOf(run("mo").get("VARS_JSON"))).contains("7");
+        assertThat(jdbc.queryForObject("SELECT VARS_JSON FROM MCMAPUSER.TB_MCM_JOB_DEF WHERE JOB_ID = 'mo'", String.class)).contains("\"3\"");
+    }
+
+    @Test
+    @DisplayName("RUN 행은 별도 트랜잭션(REQUIRES_NEW)에서 커밋된다 — 바깥 서비스 트랜잭션(JPA)이 롤백돼도 남는다")
+    void manualClaimSurvivesOuterRollback() {
+        def("mr", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, 3600);
+        JobDispatchService.ManualClaim claim = new TransactionTemplate(jpaTx).execute(st -> {
+            JobDispatchService.ManualClaim c = service.claimManual("mr", "u1", null);
+            st.setRollbackOnly();
+            return c;
+        });
+        assertThat(claim.rejectReason()).isNull();
+        assertThat(manualRuns("mr")).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("다른 트랜잭션이 정의 행을 잠그고 있으면 5초 기다린 뒤 거절한다(FOR UPDATE WAIT 5) — 예외가 아니라 거절 사유")
+    void manualRejectsWhenDefinitionLocked() throws Exception {
+        def("ml", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, 3600);
+        try (HikariDataSource other = McmCoreOraTestDb.dataSource(McmCoreOraTestDb.APP_USER, "job-manual-lock");
+             Connection c = other.getConnection()) {
+            c.setAutoCommit(false);
+            try (PreparedStatement ps = c.prepareStatement("SELECT JOB_ID FROM MCMAPUSER.TB_MCM_JOB_DEF WHERE JOB_ID = 'ml' FOR UPDATE")) {
+                ps.executeQuery().close();
+            }
+            JobDispatchService.ManualClaim claim = service.claimManual("ml", "u1", null);
+            assertThat(claim.request()).isNull();
+            assertThat(claim.rejectReason()).startsWith("다른 요청이");
+            c.rollback();
+        }
+        assertThat(manualRuns("ml")).isZero();
     }
 }

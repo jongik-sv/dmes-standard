@@ -64,7 +64,7 @@ export const GROUPS = [
   ['MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)', ['mdm-meta']],
   ['탭·트리·룩업·기타', [
     'tabs', 'closable-tabs', 'tree', 'lookup', 'lookup-multi-modal', 'markdown-editor', 'html-editor',
-    'notice-body-view', 'detail-popover', 'grid-resize-box', 'json-view', 'card', 'transfer-list', 'matrix-table',
+    'notice-body-view', 'detail-popover', 'grid-resize-box', 'json-view', 'cron-input', 'variable-table', 'card', 'transfer-list', 'matrix-table',
     'charts', 'export-to-excel', 'print-element-as-page', 'icons',
   ]],
 ];
@@ -146,6 +146,8 @@ export const EXPORT_FILES = [
   'components/detail-popover/index.ts',
   'components/grid-resize-box/index.ts',
   'components/json-view/index.ts',
+  'components/cron-input/index.ts',
+  'components/variable-table/index.ts',
   'components/card/index.ts',
   'components/transfer-list/index.ts',
   'components/dashboard/index.ts',
