@@ -58,7 +58,7 @@ export default {
   sh: 'tests/js-parity/fixtures/glm-parity.sh',
   mjs: 'tests/js-parity/fixtures/glm-parity.mjs',
   switchEnv: 'COORD_JS_GLM_PREFLIGHT',
-  env: { COORD_RUN: 'r1', COORD_STATE_ROOT: '<WORK>/sr', COORD_DRY: '', COORD_SCRIPTS_DIR: '' },
+  env: { COORD_REPO: '<WORK>', COORD_RUN: 'r1', COORD_STATE_ROOT: '<WORK>/sr', COORD_DRY: '', COORD_SCRIPTS_DIR: '' },
   functions: {
     run: {
       compareFiles: false,
@@ -77,6 +77,8 @@ export default {
         return { args: [], files, env, stdin: '' };
       },
       fixed: [
+        { label: '설정 launch.glm 이 alias 이름 꼴이 아니다', args: [], env: { ...PATHENV, FAKE_ZSH_OUT: '', CURL_LOG: '<WORK>/curl.log' }, files: { 'bin/zsh': FAKE_ZSH, 'bin/curl': FAKE_CURL, 'curl.log': '', '.coord.local.json': '{"launch":{"glm":"weird name"}}', 'sr/r1/state.json': STATE }, stdin: '' },
+        { label: '설정 glm.timeout_s=5 가 curl -m 으로', args: [], env: { ...PATHENV, FAKE_ZSH_OUT: "glm='ANTHROPIC_BASE_URL=https://api.z.ai ANTHROPIC_AUTH_TOKEN=t ANTHROPIC_DEFAULT_HAIKU_MODEL=glm'", FAKE_CURL: 'ok', FAKE_CURL_BODY: '{"model":"glm"}', CURL_LOG: '<WORK>/curl.log' }, files: { 'bin/zsh': FAKE_ZSH, 'bin/curl': FAKE_CURL, 'curl.log': '', '.coord.local.json': '{"glm":{"timeout_s":5}}', 'sr/r1/state.json': STATE }, stdin: '' },
         { label: '정상(ok)', args: [], env: { ...PATHENV, FAKE_ZSH_OUT: "glm='ANTHROPIC_BASE_URL=\"https://api.z.ai\" ANTHROPIC_AUTH_TOKEN=abc ANTHROPIC_DEFAULT_HAIKU_MODEL=glm-4.6 claude'", FAKE_CURL: 'ok', FAKE_CURL_CODE: '200', FAKE_CURL_TIME: '0.837', FAKE_CURL_BODY: '{"model":"glm-4.6"}', CURL_LOG: '<WORK>/curl.log' }, files: { 'bin/zsh': FAKE_ZSH, 'bin/curl': FAKE_CURL, 'curl.log': '', 'sr/r1/state.json': STATE }, stdin: '' },
         { label: '반올림 0.25 → 0.2(짝수로)', args: [], env: { ...PATHENV, FAKE_ZSH_OUT: "glm='ANTHROPIC_BASE_URL=https://api.z.ai ANTHROPIC_AUTH_TOKEN=t ANTHROPIC_DEFAULT_HAIKU_MODEL=glm'", FAKE_CURL: 'ok', FAKE_CURL_TIME: '0.25', FAKE_CURL_BODY: '{"model":"glm"}', CURL_LOG: '<WORK>/curl.log' }, files: { 'bin/zsh': FAKE_ZSH, 'bin/curl': FAKE_CURL, 'curl.log': '' }, stdin: '' },
         { label: '시간이 글자(printf 실패 → 0.0\\n원문)', args: [], env: { ...PATHENV, FAKE_ZSH_OUT: "glm='ANTHROPIC_BASE_URL=https://api.z.ai ANTHROPIC_AUTH_TOKEN=t ANTHROPIC_DEFAULT_HAIKU_MODEL=glm'", FAKE_CURL: 'ok', FAKE_CURL_TIME: 'abc', FAKE_CURL_BODY: '{"model":"glm"}', CURL_LOG: '<WORK>/curl.log' }, files: { 'bin/zsh': FAKE_ZSH, 'bin/curl': FAKE_CURL, 'curl.log': '' }, stdin: '' },

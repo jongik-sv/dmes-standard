@@ -65,7 +65,7 @@ const snapCase = (rng) => {
 };
 
 const STATE = '{"schema":1,"run":{"id":"r1","coordinator":{"session_id":"S1","pid":0}},"lanes":{"a1":{"state":"active"}}}';
-const runEnv = { COORD_STATE_ROOT: '<WORK>/sr', COORD_RUN: 'r1' };
+const runEnv = { COORD_STATE_ROOT: '<WORK>/sr', COORD_RUN: 'r1', COORD_REPO: '<WORK>' };
 
 export default {
   module: 'common-ext',
@@ -100,7 +100,7 @@ export default {
       js: ['coord_state_call'],
       fixed: [
         { label: 'DRY: DRY 만 찍고 부르지 않는다', args: ['set', '.glm', '{"a":1}'], env: { COORD_DRY: '1', ...runEnv }, files: { 'sr/r1/state.json': STATE }, stdin: '' },
-        { label: '회차 없음: 건너뛴다', args: ['set', '.glm', '{"a":1}'], files: {}, env: {}, stdin: '' },
+        { label: '회차 없음: 건너뛴다', args: ['set', '.glm', '{"a":1}'], files: {}, env: { COORD_REPO: '<WORK>' }, stdin: '' },
         { label: 'get: 읽기만(rc 0)', args: ['get', '.run.id'], env: runEnv, files: { 'sr/r1/state.json': STATE }, stdin: '' },
         { label: 'set: state.json 에 쓴다', args: ['set', '.glm', '{"status":"ok"}'], env: runEnv, files: { 'sr/r1/state.json': STATE }, stdin: '' },
         { label: '잘못된 사용법(rc 2)', args: ['set', '.x'], env: runEnv, files: { 'sr/r1/state.json': STATE }, stdin: '' },
@@ -111,17 +111,20 @@ export default {
         if (kind === 1) return { args: ['set', rng.pick(['.glm', '.note', '.run.goal']), rng.pick(['{"a":1}', '3', '"글"', 'null', '{}'])], env: runEnv, files: { 'sr/r1/state.json': STATE }, stdin: '' };
         if (kind === 2) return { args: ['set', '.glm', '{"a":1}'], env: { ...runEnv, COORD_DRY: '1' }, files: { 'sr/r1/state.json': STATE }, stdin: '' };
         if (kind === 3) return { args: ['bogus-subcommand', 'x'], env: runEnv, files: { 'sr/r1/state.json': STATE }, stdin: '' };
-        return { args: ['set', '.glm', '{"a":1}'], files: {}, env: {}, stdin: '' };   // 회차 없음
+        return { args: ['set', '.glm', '{"a":1}'], files: {}, env: { COORD_REPO: '<WORK>' }, stdin: '' };   // 회차 없음
       },
     },
 
     coord_git: {
       js: ['coord_git'],
+      fixed: [
+        { label: 'git_bin=mygit 이 실제로 불린다(MYGIT 출력)', args: ['status'], files: { 'git.log': '', 'bin/mygit': MYGIT, 'bin/sysctl': SYSCTL, 'bin/nproc': NPROC, '.coord.local.json': '{"git_bin":"mygit"}' }, env: { PATH: '<WORK>/bin:' + process.env.PATH, FAKE_GIT_LOG: '<WORK>/git.log', COORD_REPO: '<WORK>' }, stdin: '' },
+      ],
       gen: (rng) => {
         const c = withPath({ 'git.log': '', 'bin/mygit': MYGIT }, { FAKE_GIT_LOG: '<WORK>/git.log' });
         const cfg = rng.pick([{}, {}, { git_bin: 'mygit' }, { git_bin: 'mygit' }, { git_bin: 'missing-tool-xyz' }, { git_bin: '' }]);
         if (Object.keys(cfg).length) c.files['.coord.local.json'] = JSON.stringify(cfg);
-        return { args: [rng.pick(['rev-parse', 'status', 'log']), ...Array.from({ length: rng.int(0, 2) }, () => rng.pick(['HEAD', '--short', '-1', 'x']))], files: c.files, env: { ...c.env, ...(rng.chance(0.3) ? { FAKE_GIT_RC: '7' } : {}) }, stdin: '' };
+        return { args: [rng.pick(['rev-parse', 'status', 'log']), ...Array.from({ length: rng.int(0, 2) }, () => rng.pick(['HEAD', '--short', '-1', 'x']))], files: c.files, env: { ...c.env, COORD_REPO: '<WORK>', ...(rng.chance(0.3) ? { FAKE_GIT_RC: '7' } : {}) }, stdin: '' };
       },
     },
 

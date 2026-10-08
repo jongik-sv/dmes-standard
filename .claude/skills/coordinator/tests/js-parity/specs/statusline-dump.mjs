@@ -34,7 +34,7 @@ export default {
   sh: 'tests/js-parity/fixtures/statusline-parity.sh',
   mjs: 'tests/js-parity/fixtures/statusline-parity.mjs',
   switchEnv: 'COORD_JS_STATUSLINE_DUMP',
-  env: { COORD_STATE_ROOT: '<WORK>/sr', COORD_STATUSLINE_NEXT: '' },
+  env: { COORD_REPO: '<WORK>', COORD_STATE_ROOT: '<WORK>/sr', COORD_STATUSLINE_NEXT: '' },
   functions: {
     run: {
       compareFiles: false,
