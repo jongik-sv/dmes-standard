@@ -160,7 +160,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await pickSet(page, "E2S_CHAIN");
     await expect(page.getByTestId("set-status")).toHaveText("INUSE");
     // 기본 선택은 내 DRAFT v2.000 이다(D-144 2단계) — 버전 줄에 보인다.
-    await expect(page.getByTestId("set-ver-row")).toContainText("v2.000", { timeout: T.UI });
+    await expect(page.getByTestId("set-ver-select")).toContainText("v2.000", { timeout: T.UI });
     await expect(page.getByTestId("set-ver-select")).toHaveValue("2.000");
 
     // 세트를 열면 보기 모드다 — 팔레트가 없고, 노드 5개(시작 · 룰 셋 · 끝)가 그려진다.

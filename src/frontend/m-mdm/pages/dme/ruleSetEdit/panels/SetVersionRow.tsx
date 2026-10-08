@@ -2,6 +2,7 @@
 
 /**
  * 룰 세트 버전 줄(D-144 2단계) — 버전 고르기·상태·소유자 배지와 공통 `VersionActionBar`(룰·마스터코드와 같은 이름·순서·모양).
+ * 버전 고르기 칸은 조회 영역(`SearchArea`)의 「버전」 칸으로 옮겨 `SetVersionSelect` 가 그린다.
  * 활성 조건은 서버 판정(flags·cancelConfirmable·editable)과 RBAC 로 여기서 계산한다. 저장하지 않은 변경·자동 저장 중·불러오는 중에는 모두 끈다.
  *
  * 예약 버전: 서버의 기본 선택은 "내 DRAFT → 지금 적용 중인 RELEASED" 라 아직 적용 시각이 오지 않은(예약된) RELEASED 가 있어도 처음에는 적용 중인
@@ -51,6 +52,22 @@ export function reservedVersions(versions: readonly RuleSetVersionRow[], current
   return out;
 }
 
+/** 버전 고르기 칸 — 편집기 조회 영역의 SearchField 「버전」 안에 둔다. 세트를 열기 전에는 그리지 않는다. */
+export function SetVersionSelect({ state }: { state: RuleSetEditState }) {
+  const view = state.view;
+  if (!view) return null;
+  const versions = view.versions ?? [];
+  return (
+    <Select
+      data-testid="set-ver-select"
+      value={view.set.ver ?? ""}
+      options={versions.map((v) => ({ value: v.ver, label: `${fmtVer(v.ver)} (${v.status})` }))}
+      onChange={(v) => void state.selectVer(String(v))}
+      disabled={versions.length === 0 || state.loading}
+    />
+  );
+}
+
 export function SetVersionRow({ state, canDo }: SetVersionRowProps) {
   const [handoverTo, setHandoverTo] = useState("");
   const view = state.view;
@@ -77,15 +94,6 @@ export function SetVersionRow({ state, canDo }: SetVersionRowProps) {
   return (
     <div data-testid="set-ver-row" className="rsf-toolbar">
       <div className="rsf-toolbar-row">
-        <span>버전</span>
-        <Select
-          data-testid="set-ver-select"
-          value={ver ?? ""}
-          options={versions.map((v) => ({ value: v.ver, label: `${fmtVer(v.ver)} (${v.status})` }))}
-          onChange={(v) => void state.selectVer(String(v))}
-          disabled={versions.length === 0 || state.loading}
-          style={{ width: 150 }}
-        />
         {selected && <VersionStatusBadge status={selected.status as MdmVersionStatus} applyFrom={selected.applyFrom} />}
         {selected && <DraftLockBadge status={selected.status as MdmVersionStatus} ownerId={selected.ownerId} currentUserId={me} />}
         {!view.editable && (

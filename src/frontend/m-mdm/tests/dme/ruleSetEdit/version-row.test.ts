@@ -78,7 +78,9 @@ describe("세트 버전 줄", () => {
 
   it("1. 버전 목록·선택 버전·상태가 보이고 다른 버전을 고르면 그 버전으로 다시 부른다", async () => {
     await openSet("E2S_CHAIN", draftView());
-    expect(visibleText(byTestId("set-ver-row"))).toContain("v2.000");
+    // 버전 고르기 칸은 조회 영역(SearchField 「버전」)에 있어 버전 줄(set-ver-row) 밖이다.
+    expect(byTestId<HTMLSelectElement>("set-ver-select").value).toBe("2.000");
+    expect(visibleText(byTestId("set-ver-select"))).toContain("v2.000");
     await chooseVer("1.000");
     expect(calls("view").at(-1)!.body.params).toMatchObject({ setId: "E2S_CHAIN", ver: "1.000" });
   });
