@@ -135,6 +135,11 @@ function handCases() {
   rawBytes.forEach((b, i) => { for (const fn of ['text', 'screen', 'prompt', 'sha']) cases.push({ name: `직접:원시바이트${i}`, fn, input: Buffer.from(b) }); });
   cases.push({ name: '직접:NUL 많은 입력', fn: 'screen', input: Buffer.from([0x61, 0, 0x62, 0x0a, 0, 0, 0x63]) });
   cases.push({ name: '직접:프롬프트 32KB 경계', fn: 'prompt', input: enc(rep('x', 8000) + '\n' + rep('x', 8000) + '\n' + rep('x', 8000) + '\n' + rep('x', 8000) + '\n') });
+  // 기준을 넘긴 줄 뒤에 64KB 넘게 남으면 awk 판은 SIGPIPE 때문에 4(남은 양 약 33~128KB 는 실행마다 갈려 넣지 않는다)
+  cases.push({ name: '직접:프롬프트 200KB 여러 줄(4)', fn: 'prompt', input: enc(rep(rep('x', 70) + '\n', 2900)) });
+  cases.push({ name: '직접:프롬프트 8001바이트 줄 뒤 200KB(4)', fn: 'prompt', input: enc(rep('x', 8001) + '\n' + rep(rep('x', 70) + '\n', 2900)) });
+  cases.push({ name: '직접:프롬프트 200KB 한 줄(3)', fn: 'prompt', input: enc(rep('x', 200000)) });
+  cases.push({ name: '직접:프롬프트 1MB 여러 줄(4)', fn: 'prompt', input: enc(rep(rep('x', 1000) + '\n', 1100)) });
   cases.push({ name: '직접:프롬프트 2000자 한글', fn: 'prompt', input: enc(rep('가', 2000)) });
   cases.push({ name: '직접:프롬프트 2001자 한글', fn: 'prompt', input: enc(rep('가', 2001)) });
   cases.push({ name: '직접:프롬프트 1024바이트 경계 한글', fn: 'prompt', input: enc('x' + rep('가', 700)) });
@@ -212,6 +217,8 @@ test('모듈 단독: 알려진 값', () => {
   assert.equal(cleanPrompt('').rc, 1);
   assert.equal(cleanPrompt('run this!').rc, 2);
   assert.equal(cleanPrompt('가'.repeat(2001)).rc, 3);
+  assert.equal(cleanPrompt('x'.repeat(200000)).rc, 3);          // 한 줄이 통째로 크면 남은 것이 없어 3
+  assert.equal(cleanPrompt('x'.repeat(70).concat('\n').repeat(2900)).rc, 4);   // awk 판은 SIGPIPE 로 4
   assert.equal(redactText('x '.repeat(600000)).rc, 71);
 });
 

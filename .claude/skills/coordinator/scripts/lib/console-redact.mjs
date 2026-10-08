@@ -858,7 +858,14 @@ export function cleanPrompt(input) {
   let tot = 0, T = '';
   for (let r = 0; r < rec.length; r++) {
     tot += rec[r].length + 1;
-    if (tot > 32769 || rec[r].length > 8000) return failure(3);
+    if (tot > 32769 || rec[r].length > 8000) {
+      // 길이 초과는 3. 단 awk 판은 기준을 넘긴 줄을 읽자마자 끝내고, 그때 입력이 파이프 버퍼를 넘게 남아 있으면 앞단 tr 이 SIGPIPE 로
+      // 죽어 pipefail 로 4(내부 오류)가 된다. 정본은 awk 판 동작이므로 기준을 넘긴 줄 뒤에 64KB 넘게 남아 있으면 4 로 맞춘다
+      // (남은 양이 약 33KB~128KB 인 구간은 실행마다 3·4 가 갈려 정해지지 않는다. 한 줄이 통째로 크면 남은 것이 없으니 3).
+      let rest = 0;
+      for (let q = r + 1; q < rec.length; q++) rest += rec[q].length + 1;
+      return failure(rest > 65536 ? 4 : 3);
+    }
     T = r === 0 ? rec[r] : T + ' ' + rec[r];
   }
   const n = T.length;

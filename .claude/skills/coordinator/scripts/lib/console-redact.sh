@@ -50,7 +50,7 @@
 #     [A-Za-z0-9+/_=-] 로만 되어 있고(숫자만은 제외) 뒤가 공백·줄 끝일 때 함께 가린다.
 #   잘린 꼬리: 2000바이트로 잘린 줄의 끝 [A-Za-z0-9+/_=.-] 연속이 12자 이상이거나 알려진 비밀 접두어로 시작하면 가린다.
 # 스위치: 환경 변수 COORD_JS_REDACT=1 이고 node 가 있으면 네 함수 모두 console-redact.mjs(node 판, 같은 규칙·같은 바이트)로 처리한다.
-#   기본(꺼짐)은 이 파일의 awk·shell 판이다. 켜짐에서 node 판이 실패하면 awk 판으로 되돌아가지 않고 실패(비정상 종료·출력 없음)다.
+#   node 는 이 파일을 source 할 때 `command -v node` 로 찾은 절대 경로를 쓴다(없으면 켜도 awk 판). 기본(꺼짐)은 이 파일의 awk·shell 판이다. 켜짐에서 node 판이 실패하면 awk 판으로 되돌아가지 않고 실패(비정상 종료·출력 없음)다.
 #   호출마다 node 를 새로 띄우므로 호출당 40ms 쯤 더 든다(조정자 폴러를 node 상주로 옮기기 전의 시험 연결용).
 # awk 는 LC_ALL=C 바이트 단위로 돌고 시작할 때 바이트 의미(sprintf %c 200 = 1바이트, "가" = 3바이트)를 확인해 아니면 실패한다.
 # 이 lib 의 awk 본문은 셸 작은따옴표 안에 있으므로 awk 코드·주석에 작은따옴표 글자를 쓰지 않는다(39 로 비교한다).
@@ -786,14 +786,15 @@ _CONSOLE_REDACT_MJS="${BASH_SOURCE[0]}"
 case "$_CONSOLE_REDACT_MJS" in */*) _CONSOLE_REDACT_MJS="${_CONSOLE_REDACT_MJS%/*}/console-redact.mjs" ;; *) _CONSOLE_REDACT_MJS="./console-redact.mjs" ;; esac
 case "$_CONSOLE_REDACT_MJS" in /*|?:*) ;; *) _CONSOLE_REDACT_MJS="$PWD/$_CONSOLE_REDACT_MJS" ;; esac   # 이후 cd 해도 같은 경로
 # 켜짐이면 0. 윈도우(Git Bash)의 node 는 /c/x 꼴을 못 읽으므로 cygpath -m 으로 C:/x 꼴을 쓴다
+_CONSOLE_REDACT_NODE="$(command -v node 2>/dev/null || true)"   # source 시점에 절대 경로로 고정(이후 PATH 가 바뀌어도 같은 node)
 _console_js_on() {
-  [ "${COORD_JS_REDACT:-}" = 1 ] && [ -f "$_CONSOLE_REDACT_MJS" ] && command -v node >/dev/null 2>&1
+  [ "${COORD_JS_REDACT:-}" = 1 ] && [ -f "$_CONSOLE_REDACT_MJS" ] && [ -n "$_CONSOLE_REDACT_NODE" ] && [ -x "$_CONSOLE_REDACT_NODE" ]
 }
 # _console_js <모드> — stdin 을 node 판에 넣어 stdout 에 낸다. 종료 코드는 node 판의 것(0 이 아니면 stdout 비어 있음)
 _console_js() {
   local _p="$_CONSOLE_REDACT_MJS" _out _rc
   if command -v cygpath >/dev/null 2>&1; then _p="$(cygpath -m "$_p")" || return 70; fi
-  _out="$(node "$_p" "$1" && printf '.')"
+  _out="$("$_CONSOLE_REDACT_NODE" "$_p" "$1" && printf '.')"
   _rc=$?
   if [ "$_rc" -ne 0 ]; then return "$_rc"; fi
   case "$_out" in *.) ;; *) return 70 ;; esac
