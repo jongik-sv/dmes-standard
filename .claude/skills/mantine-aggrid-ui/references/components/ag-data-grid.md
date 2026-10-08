@@ -179,10 +179,10 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 
 ### 그리드 설정 아이콘과 settingsMenu(2026-10-06)
 
-「그리드 설정」 메뉴(필터 창 보기·컬럼 설정…·자동 설정 저장·설정 초기화…·엑셀 출력)는 [GridPanel](grid-panel.md) 머리줄에만 붙던 것을 GridPanel 밖에 놓인 그리드도 스스로 단다. 항목·순서·이름·`data-testid` 는 GridPanel 안과 같은 `GridSettingsMenu` 다(§GridPanel 「그리드 설정 메뉴」 표).
+「그리드 설정」 메뉴(칸별 필터 보기·컬럼 설정…·자동 설정 저장·설정 초기화…·엑셀 출력)는 [GridPanel](grid-panel.md) 머리줄에만 붙던 것을 GridPanel 밖에 놓인 그리드도 스스로 단다. 항목·순서·이름·`data-testid` 는 GridPanel 안과 같은 `GridSettingsMenu` 다(§GridPanel 「그리드 설정 메뉴」 표).
 
 - 자리: 그리드 머리글 줄 오른쪽 끝 위에 겹친 작은 아이콘(내부 부품 `GridSettingsOverlay`, `data-testid="grid-settings-overlay"` 안에 `grid-settings-menu` 버튼, `aria-label` 「그리드 설정」)이다. 화면이 따로 줄 prop 은 `settingsMenu` 와 `excelExport={false}` 뿐이다.
-- 항목: 엑셀 출력은 GridPanel 안과 같은 기본 켬 규칙이라 `excelExport` 를 주지 않아도 나오고 `excelExport={false}` 로 끈다. 개인화가 동작하지 않는 그리드(`personalize={false}`, 포털 밖·사용자 확인 전, 같은 키의 먼저 뜬 그리드가 있어 대기 중인 그리드)는 엑셀 항목만 나온다. 「필터 창 보기」 는 `filter={true}` 일 때만 나온다(GridPanel 밖에서 `filter` 를 생략하면 걸러 보기가 없다). 항목이 하나도 없으면(개인화도 엑셀도 끔, `filter` 도 `true` 아님) 아이콘도 없다.
+- 항목: 엑셀 출력은 GridPanel 안과 같은 기본 켬 규칙이라 `excelExport` 를 주지 않아도 나오고 `excelExport={false}` 로 끈다. 개인화가 동작하지 않는 그리드(`personalize={false}`, 포털 밖·사용자 확인 전, 같은 키의 먼저 뜬 그리드가 있어 대기 중인 그리드)는 엑셀 항목만 나온다. 「칸별 필터 보기」 는 `filter={true}` 일 때만 나온다(GridPanel 밖에서 `filter` 를 생략하면 걸러 보기가 없다). 항목이 하나도 없으면(개인화도 엑셀도 끔, `filter` 도 `true` 아님) 아이콘도 없다.
 - 모양: 그리드 높이를 늘리는 새 막대는 없다. 머리글 높이(28px) 안에 놓이고, 아이콘이 있는 그리드는 루트에 `cm-grid-settings-on` 클래스가 붙어 마지막 열 머리글(`ag-column-last`)에 오른쪽 여백 28px 이 생기므로 글자·정렬·필터 표시를 가리지 않는다. 평소에는 흐리고(투명도 0.45), 그리드에 마우스가 오거나 키보드 초점이 들어오거나 메뉴가 열려 있으면 진하다.
 - 한계: 가로 스크롤로 마지막 열이 아닌 열이 오른쪽 끝에 오면 아이콘이 그 머리글의 오른쪽 끝(정렬·필터 표시)을 가릴 수 있다. 가로 스크롤이 생기는 넓은 표에서 문제가 되면 `settingsMenu={false}` 로 끄고 머리글 우클릭 메뉴를 쓴다.
 - 대화 상자(`role="dialog"`) 안의 그리드도 같은 아이콘을 머리글 줄 오른쪽 끝에 달지만 메뉴 항목은 「엑셀 출력」 하나뿐이다(`excelExport={false}` 이거나 `settingsMenu={false}` 면 아이콘이 없다). 컬럼 설정…·자동 설정 저장·설정 초기화… 는 대화 상자 안에서 뺀다. 설정 창(모달)이 대화 상자 위에 겹쳐 Esc 한 번에 바깥 창까지 닫히고 Tab 이 갇히기 때문이며, 머리글 우클릭 메뉴가 대화 상자 안에 없는 것과 같은 이유다(겹친 모달의 Esc·Tab 처리는 후속 과제).
@@ -193,9 +193,9 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 
 받아 둔 행 안에서 글자·조건으로 걸러 보게 한다. `filter` 는 세 상태다(`boolean | undefined`). **화면이 아무것도 주지 않아도** GridPanel 안 그리드는 「그리드 설정」 메뉴에서 사용자가 켤 수 있다.
 
-| `filter` | 대상 | 처음 | 「필터 창 보기」 를 켜면 | 끄면 |
+| `filter` | 대상 | 처음 | 「칸별 필터 보기」 를 켜면 | 끄면 |
 |---|---|---|---|---|
-| 생략(기본) | GridPanel 안이고 대화 상자 밖인 그리드(`settingsMenu={false}` 제외) | 꺼짐. 머리글·머리줄·건수·DOM 클래스가 걸러 보기가 없던 때와 같다 | GridPanel 머리줄에 빠른 검색 칸이 나타나고 머리글 아래에 칸별 입력 줄이 펼쳐진다 | 둘 다 사라지고 칸별 조건과 검색어를 모두 지운다 |
+| 생략(기본) | GridPanel 안이고 대화 상자 밖인 그리드(`settingsMenu={false}` 제외) | 빠른 검색 칸이 기본으로 늘 보이고 입력 줄은 접힘. 입력 줄을 켜기 전까지 열 정의는 걸러 보기가 없던 때와 같다 | 입력 줄만 펴진다 | 입력 줄만 접히고 칸별 조건만 지운다(검색어는 그대로). 예외: `serverPaged` GridPanel 은 검색 칸이 기본으로 없고 항목 이름이 「필터 창 보기」 이며, 켜면 검색 칸과 입력 줄이 함께 나타나고 끄면 둘 다 사라지며 조건과 검색어를 모두 지운다 |
 | `true` | 모든 그리드 | 빠른 검색 칸이 처음부터 늘 보인다 | 입력 줄만 펴진다 | 입력 줄만 접히고 칸별 조건만 지운다(검색어는 그대로) |
 | `false` | — | 메뉴 항목·검색 칸·필터 열 정의가 모두 없다 | — | — |
 
@@ -212,16 +212,16 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 <AgDataGrid rowKey="id" columns={COLUMNS} data={rows} filter={false} />
 ```
 
-- 빠른 검색: GridPanel 머리줄(업무 버튼 앞)에 검색 칸(`data-testid="grid-quick-filter-input"`, 안내 「그리드에서 찾기」)이 보인다(`true` 는 처음부터, 생략은 켠 동안). 넣은 글자가 보이는 칸 어디에든 들어 있는 행만 남긴다. 띄어 쓴 낱말은 모두 들어 있어야 한다. 입력은 200ms 모았다가 넣고, Esc·× 로 비운다. 숨긴 칸·행 번호·`filter: false` 칸은 찾지 않는다.
-- 필터 창: 「그리드 설정」 메뉴 맨 위의 「필터 창 보기」(`grid-filter-row-item`, 스위치 `grid-filter-row-switch`)를 켜면 머리글 아래에 칸별 입력 줄이 펼쳐진다. 입력 줄 오른쪽 깔때기를 누르면 「크다」·「범위」·「그리고/또는」 같은 조건 창이 열린다. 접힌 동안 머리글은 필터가 없는 그리드와 같다. 항목은 개인화·엑셀이 모두 꺼진 그리드에도 있다(그 경우 메뉴에는 이 항목만 남는다).
+- 빠른 검색: GridPanel 머리줄(업무 버튼 앞)에 검색 칸(`data-testid="grid-quick-filter-input"`, 안내 「그리드에서 찾기」)이 늘 보인다(`true` 와 생략 모두 기본으로. `serverPaged` 의 생략 그리드만 「필터 창 보기」 를 켠 동안). 검색어는 저장하지 않고 데이터가 바뀌어도 유지된다. GridPanel 의 내장 행추가·행복사 단추는 누를 때 검색어를 비우고, `headerExtra` 의 사용자 버튼 등으로 넣은 행은 조건에 안 맞으면 숨을 수 있다(검색 칸 툴팁이 안내한다). 넣은 글자가 보이는 칸 어디에든 들어 있는 행만 남긴다. 띄어 쓴 낱말은 모두 들어 있어야 한다. 입력은 200ms 모았다가 넣고, Esc·× 로 비운다. 숨긴 칸·행 번호·`filter: false` 칸은 찾지 않는다.
+- 칸별 입력 줄: 「그리드 설정」 메뉴 맨 위의 「칸별 필터 보기」(`grid-filter-row-item`, 스위치 `grid-filter-row-switch`)를 켜면 머리글 아래에 칸별 입력 줄이 펼쳐진다. 입력 줄 오른쪽 깔때기를 누르면 「크다」·「범위」·「그리고/또는」 같은 조건 창이 열린다. 접힌 동안 머리글은 필터가 없는 그리드와 같다. 항목은 개인화·엑셀이 모두 꺼진 그리드에도 있다(그 경우 메뉴에는 이 항목만 남는다).
 - 칸 종류: `type: "number"` 칸은 숫자 필터(문자열 숫자 `"1,234"` 도 숫자로 비교), 그 밖은 글자 필터다. 글자 필터·빠른 검색은 화면에 보이는 글자로 찾는다(`cellEditorValueLabels` 라벨, boolean 의 Y/N). 칸별로 바꾸거나 빼려면 `GridColumn.filter`(`"text"`·`"number"`·`false`).
 - 건수: 거른 동안 GridPanel 건수가 「보이는 행 / 전체 행」(`grid-panel-filter-count`)으로 바뀐다. 엑셀 출력도 걸러진 행만 내보낸다.
 - 필터 창 문구는 한국어다(내부 상수 `GRID_FILTER_LOCALE_TEXT`). 필터 조건·검색어는 개인화에 저장하지 않는다.
-- **켜짐 기억**: 사용자가 켠 상태(「필터 창 보기」)를 그 그리드에 기억하고 다시 열면 켜진 채로 시작한다(`true` 그리드는 입력 줄의 펼침). 조건값·검색어는 기억하지 않는다. 개인화가 켜진 그리드는 자동 설정 저장 스위치와 같은 저장 객체 `dmes:grid-opts:v1:{사용자}:{화면}:{gridId}` 의 `filterOpen` 에 적고(자동 설정 저장이 꺼져 있어도 적는다. 컬럼 「설정 초기화」 는 지우지 않는다), 개인화가 없는 그리드는 `dmes:grid-filter:v1:{사용자}:{화면}:{gridId}` 에 `{ "filterOpen": true }` 로 적는다. 사용자·화면 키를 만들 수 없으면 기억하지 않고, 저장소 읽기·쓰기 예외는 모두 삼킨다. 한 화면에 그리드가 여럿이면 `gridId` 로 나눈다.
+- **켜짐 기억**: 사용자가 켠 상태(「칸별 필터 보기」, 저장 키 `filterOpen` 의 뜻은 입력 줄 펼침)를 그 그리드에 기억하고 다시 열면 켜진 채로 시작한다(`serverPaged` 의 생략 그리드는 검색 칸 + 입력 줄). 조건값·검색어는 기억하지 않는다. 개인화가 켜진 그리드는 자동 설정 저장 스위치와 같은 저장 객체 `dmes:grid-opts:v1:{사용자}:{화면}:{gridId}` 의 `filterOpen` 에 적고(자동 설정 저장이 꺼져 있어도 적는다. 컬럼 「설정 초기화」 는 지우지 않는다), 개인화가 없는 그리드는 `dmes:grid-filter:v1:{사용자}:{화면}:{gridId}` 에 `{ "filterOpen": true }` 로 적는다. 사용자·화면 키를 만들 수 없으면 기억하지 않고, 저장소 읽기·쓰기 예외는 모두 삼킨다. 한 화면에 그리드가 여럿이면 `gridId` 로 나눈다.
 - **받아 둔 행 안에서만 찾는다**: 켠 검색 칸의 툴팁(title)과 안내 글(화면 낭독기용 보조 설명), 메뉴 항목 툴팁이 「받아 둔 행 안에서만 찾습니다.」 를 알린다. 서버 페이징(GridPanel `serverPaged`)이면 「지금 쪽에서만 찾습니다.」, 편집 칸이 있는 그리드면 「새로 넣은 행도 조건에 맞지 않으면 숨습니다.」 를 덧붙인다. 서버 전체에서 찾을 일은 조회 조건(SearchArea)으로 한다. 이런 그리드도 메뉴로 켤 수 있다.
-- GridPanel 밖의 그리드는 `true` 일 때만 걸러 보기가 있고(검색 칸 없이 머리글 줄 설정 아이콘 메뉴의 「필터 창 보기」 만), 생략하면 아무것도 생기지 않는다. `settingsMenu={false}` 면 `true` 그리드도 검색 칸만 있고 입력 줄은 펼 수 없으며 생략 그리드는 걸러 보기가 없다.
-- 대화 상자(`role="dialog"`) 안의 그리드는 GridPanel 안에 있어도 `true` 가 아니면 아무것도 생기지 않고, `true` 여도 GridPanel 에는 올라가지 않아 검색 칸·「필터 창 보기」 가 없다. 머리글 우클릭 메뉴에도 「필터 창 보기」 는 없다. 필터 조건은 새 창 분리 때 이어받지 않는다.
-- 한 GridPanel 에 그리드가 여럿이면 **걸러 보기 대상은 하나**다 — `filter={true}` 그리드 중 먼저 등록한 것, 없으면 설정 메뉴 대상(개인화가 켜진 그리드 → 엑셀이 켜진 그리드 → 먼저 등록한 그리드). 「필터 창 보기」·검색 칸·거른 건수는 모두 이 한 그리드를 가리킨다. 대상이 아닌 `filter` 생략 그리드는 저장된 켜짐을 무시하고 꺼진 채 시작한다(끌 메뉴 항목이 그 그리드를 가리키지 않으므로). 대상을 잃어 접히면 그 그리드의 조건도 지워진다. 그리드마다 따로 쓰려면 그리드마다 GridPanel 을 둔다.
+- GridPanel 밖의 그리드는 `true` 일 때만 걸러 보기가 있고(검색 칸 없이 머리글 줄 설정 아이콘 메뉴의 「칸별 필터 보기」 만), 생략하면 아무것도 생기지 않는다. `settingsMenu={false}` 면 `true` 그리드도 검색 칸만 있고 입력 줄은 펼 수 없으며 생략 그리드는 걸러 보기가 없다.
+- 대화 상자(`role="dialog"`) 안의 그리드는 GridPanel 안에 있어도 `true` 가 아니면 아무것도 생기지 않고, `true` 여도 GridPanel 에는 올라가지 않아 검색 칸·「칸별 필터 보기」 가 없다. 머리글 우클릭 메뉴에도 이 항목은 없다. 필터 조건은 새 창 분리 때 이어받지 않는다.
+- 한 GridPanel 에 그리드가 여럿이면 **걸러 보기 대상은 하나**다 — `filter={true}` 그리드 중 먼저 등록한 것, 없으면 설정 메뉴 대상(개인화가 켜진 그리드 → 엑셀이 켜진 그리드 → 먼저 등록한 그리드). 「칸별 필터 보기」·검색 칸·거른 건수는 모두 이 한 그리드를 가리킨다. 대상이 아닌 `filter` 생략 그리드는 저장된 켜짐을 무시하고 꺼진 채 시작한다(끌 메뉴 항목이 그 그리드를 가리키지 않으므로). 대상을 잃어 접히면 그 그리드의 조건도 지워진다. 그리드마다 따로 쓰려면 그리드마다 GridPanel 을 둔다.
 - **조건을 지우는 때**: 입력 줄이 펼침에서 접힘으로 바뀌는 모든 경로(메뉴 토글·저장 키 변경·저장값 읽기·대상 상실)에서 칸별 조건을 지운다(`filter` 생략 그리드는 검색어도, `filter={true}` 는 검색어를 남긴다). 개인화 여부(`personalize`)는 저장 위치만 고르고 켜짐의 기억 키에는 들어가지 않아, 숨은 탭처럼 `personalize` 만 오가도 켜 둔 상태·검색어가 유지된다. 검색 칸이 다시 마운트되면 그리드에 걸린 검색어로 시작한다.
 - **숨은 행의 선택**: `multiSelect` 의 머리 체크박스는 걸러진 결과만 고르고(`selectAll: "filtered"`, 거르지 않을 때는 전과 같다), 먼저 골라 둔 행이 걸러져 사라지면 필터가 바뀔 때 그 선택을 푼다. 푼 선택은 `onRowSelect`·화면 문맥·`acceptScreenApply` 에 반영돼 숨은 행이 문맥이 되거나 값을 받지 않는다.
 - **꺼진 동안의 비용(결정)**: 모든 GridPanel 그리드가 대상이라, 생략 그리드는 한 번도 켜지 않은 동안 열 정의에 필터 속성을 달지 않는다. 열 정의·`AgGridReact` prop·DOM(입력 줄 칸, `cm-grid-filter-row-closed` 클래스)이 걸러 보기가 없던 때와 같다(실측 12칸·5행: 꺼진 생략 = 입력 줄 칸 0·그리드 안 노드 535, 늘 달기 = 입력 줄 칸 12·노드 632, 약 +18%). 처음 켤 때(메뉴 토글이든 저장된 켜짐이 그리드 준비 뒤에 들어오든) 열 정의에 필터 속성이 더해지는데, ag-grid 는 새 열 정의의 `width`·정의 순서를 다시 적용해 사용자가 바꾼 너비·순서가 정의값으로 돌아가므로, 열 정의가 바뀌는 커밋의 레이아웃 효과에서 칸 상태를 잡아 두었다가 `newColumnsLoaded` 에서 한 번 돌려놓는다(숨김·고정·정렬은 정의에 없어 그대로다). 한 번 켠 뒤에는 열 정의를 다시 바꾸지 않고 `floatingFiltersHeight`(0 ↔ 28)로만 접고 편다(`useGridFilter.ts` 머리 주석).
@@ -304,8 +304,8 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 | mdmValidate | `boolean` | `false` | 편집 가능 + MDM 연결 열의 바뀐 값을 MDM 정의로 검사해 `cell-mdm-invalid`·셀 툴팁을 단다(포털 탭 안에서만) |
 | fieldErrors | `Array<{ rowKey?; rowIndex?; field; message }>` | - | 서버 오류 칸 표시(`toFieldErrors` 결과). rowKey → rowIndex(data 자리) 순으로 행을 찾는다 |
 | excelExport | `{ title?; fallbackName?; note?; sheetName?; testId?; excludeKeys? } \| false` | 켬(메뉴 항목) | 주지 않아도 「그리드 설정」 메뉴(GridPanel 안은 머리줄, 밖은 그리드 머리글 줄 아이콘)에 「엑셀 출력」 항목이 기본으로 생긴다(아래 줄 없이 항목만). 끄려면 `false`. 객체를 주면 표 아래에 「N행」 줄을 붙이고 컬럼·행을 내려받는다(사용자가 숨긴 열은 엑셀에도 숨긴 열). [엑셀] 단추는 메뉴가 맡아 아래 줄에는 「N행」만 남는다(`settingsMenu={false}` 면 단추가 남는다; §아래 줄과 엑셀 내려받기). 상수나 `useMemo` 로 둔다 |
-| filter | `boolean \| undefined` | 생략 | 걸러 보기. **생략**: GridPanel 안 그리드는 「그리드 설정」 메뉴 「필터 창 보기」 로 사용자가 켠다(켜면 검색 칸 + 칸별 입력 줄, 끄면 모두 사라지고 조건·검색어 지움, 켜짐은 기억). `true`: 검색 칸이 처음부터 늘 보이고 「필터 창 보기」 는 입력 줄만 편다. `false`: 항목·검색 칸·필터 열 정의 없음. 받아 둔 행 안에서만 거른다(§걸러 보기: filter) |
-| settingsMenu | `boolean` | `true` | 「그리드 설정」 메뉴(필터 창 보기·컬럼 설정…·자동 설정 저장·설정 초기화…·엑셀 출력, 개인화가 꺼진 그리드는 컬럼 설정 대신 [컬럼 원래대로])를 이 그리드에 둔다. GridPanel 밖 그리드는 [컬럼 원래대로] 하나만으로는 아이콘이 생기지 않는다. `false` 면 통째로 끈다(GridPanel 안이면 머리줄 메뉴 대상에서 빠지고, 밖이면 머리글 줄 아이콘이 없다). 대화 상자 안의 그리드는 메뉴 항목이 엑셀 출력 하나뿐이다(`excelExport={false}` 면 아이콘도 없다). `excelExport` 객체가 있으면 아래 줄 [엑셀] 단추는 남는다(§그리드 설정 아이콘과 settingsMenu) |
+| filter | `boolean \| undefined` | 생략 | 걸러 보기. **생략**: GridPanel 안 그리드는 검색 칸이 기본으로 늘 보이고 「그리드 설정」 메뉴 「칸별 필터 보기」 가 입력 줄만 펴고 접는다(끄면 칸별 조건만 지움, 켜짐은 기억, 검색어는 저장 안 함). `serverPaged` GridPanel 은 검색 칸이 기본으로 없고 항목 「필터 창 보기」 를 켜면 검색 칸 + 입력 줄이 함께 나타난다. `true`: 서버 페이징이어도 검색 칸이 늘 보이고 입력 줄만 편다. `false`: 항목·검색 칸·필터 열 정의 없음. 받아 둔 행 안에서만 거른다(§걸러 보기: filter) |
+| settingsMenu | `boolean` | `true` | 「그리드 설정」 메뉴(칸별 필터 보기·컬럼 설정…·자동 설정 저장·설정 초기화…·엑셀 출력, 개인화가 꺼진 그리드는 컬럼 설정 대신 [컬럼 원래대로])를 이 그리드에 둔다. GridPanel 밖 그리드는 [컬럼 원래대로] 하나만으로는 아이콘이 생기지 않는다. `false` 면 통째로 끈다(GridPanel 안이면 머리줄 메뉴 대상에서 빠지고, 밖이면 머리글 줄 아이콘이 없다). 대화 상자 안의 그리드는 메뉴 항목이 엑셀 출력 하나뿐이다(`excelExport={false}` 면 아이콘도 없다). `excelExport` 객체가 있으면 아래 줄 [엑셀] 단추는 남는다(§그리드 설정 아이콘과 settingsMenu) |
 | gridId | `string` | `"main"` | 한 화면(탭)에 그리드가 여럿일 때 컬럼 개인화 저장을 나누는 이름. 화면 안에서 그리드마다 다른, 렌더마다 바뀌지 않는 고정 문자열로 준다(§컬럼 개인화) |
 | personalize | `boolean \| { sort?: boolean; autoSave?: boolean }` | 켬 | 사용자별 컬럼 개인화. `false` 면 끈다. `{ sort: false }` 면 정렬은 저장·복원하지 않는다(서버 페이징 그리드). `{ autoSave: false }` 면 「자동 설정 저장」 스위치의 개발자 기본값이 끔이다(사용자가 정한 값이 이긴다) |
 
@@ -356,7 +356,7 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 | cellClassRules | `Record<string, (row) => boolean>` | - | 조건부 셀 클래스 |
 | rowDrag · headerTooltip | `boolean` · `string` | - | 이 열에 행 드래그 손잡이(`onRowOrderChange` 필요) · 머리 툴팁(주면 MDM 툴팁 대신 이것. 생략하면 표시 머리글 이름이 기본, `""` 면 끔) |
 | headerStyle · headerComponent · headerComponentParams | ag-grid 패스스루 | - | 머리 인라인 스타일(색은 의미 토큰만) · 커스텀 머리 컴포넌트 |
-| filter | `"text" \| "number" \| false` | `type` 따라 | 걸러 보기(그리드 `filter` 가 `true` 이거나 설정 메뉴에서 켠 뒤)의 칸별 필터 종류. 생략하면 `type: "number"` 는 숫자, 그 밖은 글자. `false` 면 필터·빠른 검색에서 뺀다(render 전용·단추 칸) |
+| filter | `"text" \| "number" \| false` | `type` 따라 | 걸러 보기(그리드 `filter` 가 `true` 이거나 설정 메뉴에서 입력 줄을 켠 뒤)의 칸별 필터 종류. 생략하면 `type: "number"` 는 숫자, 그 밖은 글자. `false` 면 필터·빠른 검색에서 뺀다(render 전용·단추 칸) |
 | children | `GridColumn[]` | - | 있으면 열 그룹. `groupId` 는 `key`, 열 정의에 `marryChildren: true`, 그룹 아래 잎에 `lockPinned: true` 가 붙는다 |
 
 ## 표준값: 모든 화면 동일
@@ -392,7 +392,7 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 | 서버 페이징 그리드에 `personalize={{ sort: false }}` 를 안 준다 | 저장된 정렬이 복원되면서 서버 조회 조건과 어긋난다. 정렬이 서버 조건이면 `{ sort: false }` |
 | 편집 컬럼을 사용자가 숨겨야 하는데 `hideable` 을 안 준다 | 편집 가능한 열은 기본으로 숨길 수 없다. 숨겨도 되는 열만 `hideable: true`. 반대로 편집 불가 열을 못 숨기게 하려면 `hideable: false` |
 | 헤더를 밖으로 끌어 열을 숨기려 한다 | 숨겨지지 않는다(모든 그리드). 숨김은 컬럼 설정 창으로만 한다 |
-| 목록 걸러 보기를 화면에서 따로 만든다(검색 `TextInput` + `data.filter(...)`) | GridPanel 안 그리드의 「그리드 설정」 > 「필터 창 보기」 를 쓴다(`filter` 생략이면 이미 있다). 검색 칸이 처음부터 보여야 하면 `filter` 를 준다. 검색 칸·칸별 필터·거른 건수·엑셀 반영을 그리드가 맡는다 |
+| 목록 걸러 보기를 화면에서 따로 만든다(검색 `TextInput` + `data.filter(...)`) | GridPanel 안 그리드의 빠른 검색 칸과 「그리드 설정」 > 「칸별 필터 보기」 를 쓴다(`filter` 생략이면 이미 있다). 서버 페이징에서도 검색 칸이 처음부터 보여야 하면 `filter` 를 준다. 검색 칸·칸별 필터·거른 건수·엑셀 반영을 그리드가 맡는다 |
 | 서버 페이징·편집 그리드의 걸러 보기를 전체에서 찾는다고 안내한다 | 받아 둔 행 안에서만 거른다. 서버 페이징은 지금 쪽만, 편집 그리드는 새로 넣은 행도 조건에 안 맞으면 숨는다. 전체를 찾을 일은 조회 조건(SearchArea)으로 한다 |
 | 그리드 설정 아이콘을 `className`·CSS 로 옮기거나 숨기려 한다 | 아이콘은 그리드가 그린다(머리글 줄 오른쪽 끝 고정). 필요 없는 그리드(읽기 전용 작은 표 등)는 `settingsMenu={false}`, 엑셀만 빼려면 `excelExport={false}` |
 | GridPanel 밖 그리드의 아래 줄 [엑셀] 단추를 `testId` 로 찾는 시험을 그대로 둔다 | 메뉴가 엑셀을 맡으면 단추가 없다. `grid-settings-menu` 를 열어 항목 `grid-excel` 을 누른다(`settingsMenu={false}` 이면 단추가 그대로다) |
