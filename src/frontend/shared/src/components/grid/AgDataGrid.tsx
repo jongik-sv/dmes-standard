@@ -136,12 +136,18 @@ function AgDataGridComponent({
     if (!el) return;
     setHost(isInDialog(el) ? "dialog" : gridPanelRegistry && el.closest(".grid-panel-content") ? "panel" : "standalone");
   }, [gridPanelRegistry]);
+  // GridPanel 이 정한 이 그리드의 자리 — 설정 메뉴 대상인가(대상이면 아래 줄 [엑셀] 단추를 뺀다), 걸러 보기 대상인가(filter 생략 그리드는 이것일 때만 켜진다).
+  // 한 패널에 그리드가 하나면 둘 다 그 그리드다. 등록 효과(아래)가 채운다.
+  // 값 하나씩 따로 둔다(객체 하나로 두면 해제 뒤 다시 등록하는 같은 커밋에서도 새 객체라 한 번 더 그린다).
+  const [isMenuTarget, setIsMenuTarget] = useState(false);
+  const [isFilterTarget, setIsFilterTarget] = useState(false);
   // 걸러 보기(빠른 검색 + 칸별 입력 줄) — filter 세 상태(true·false·생략)와 꺼진 동안의 비용·켜짐 기억은 useGridFilter.ts 머리 주석.
   const gridFilter = useGridFilter({
     filter,
     settingsMenu,
     inPanel: gridPanelRegistry !== null,
     host,
+    isFilterTarget,
     gridRef,
     gridId,
     personalize,
@@ -295,6 +301,7 @@ function AgDataGridComponent({
     sizedColumnsRef,
     rerunAutoSizeAfterRestore,
     rerunAutoSizeAfterReset,
+    autoSizeNowAfterColumnReset,
     onFirstDataRendered,
     onRowDataUpdated,
     onGridSizeChanged,
@@ -385,17 +392,31 @@ function AgDataGridComponent({
     setResetConfirmOpen(false);
     personalizeHandleRef.current.reset();
   }, []);
+  const resetColumnsAutoSizeRef = useRef(autoSizeNowAfterColumnReset);
+  resetColumnsAutoSizeRef.current = autoSizeNowAfterColumnReset;
   // [컬럼 원래대로](개인화가 꺼진 그리드) — 칸 순서·너비·숨김·고정을 열 정의대로 되돌리고 정렬은 지킨다. 저장값이 없어 확인 창을 띄우지 않는다.
-  // 되돌린 너비는 정의값이므로 auto 그리드는 사용자가 늘린 너비를 잊고 자동 너비를 다시 잰다.
+  // resetColumnState 는 정렬까지 정의대로 지우므로(정렬 되살리기가 sortChanged 를 두 번 낸다) 정렬을 뺀 정의 상태를 한 번에 적용한다 — state 에 sort 키가 없으면 ag-grid 는 정렬을 건드리지 않는다.
+  // 선택 체크박스 열 같은 자동 열은 정의가 없어 맨 앞에 그대로 둔다(applyOrder 가 목록에 없는 열을 뒤로 보내므로). 정의에 너비가 없는 열(auto 그리드)은 너비를 건드리지 않고 바로 자동 너비를 잰다.
   const resetColumns = useCallback(() => {
     const api = gridRef.current?.api;
     if (!api || api.isDestroyed()) return;
-    const keepSort = api.getColumnState().filter((c) => c.sort != null);
-    api.resetColumnState();
-    if (keepSort.length > 0) {
-      api.applyColumnState({ state: keepSort.map((c) => ({ colId: c.colId, sort: c.sort, sortIndex: c.sortIndex })) });
-    }
-    rerunAfterResetRef.current();
+    const defCols = api.getColumns() ?? [];
+    const lead = api.getAllGridColumns().filter((c) => !defCols.includes(c));
+    const state: ColumnState[] = [
+      ...lead.map((c) => ({ colId: c.getColId() })),
+      ...defCols.map((c) => {
+        const d = c.getColDef();
+        return {
+          colId: c.getColId(),
+          hide: d.hide ?? d.initialHide ?? false,
+          pinned: d.pinned ?? d.initialPinned ?? null,
+          width: d.width ?? d.initialWidth ?? undefined,
+          flex: d.flex ?? d.initialFlex ?? null,
+        };
+      }),
+    ];
+    api.applyColumnState({ state, applyOrder: true });
+    resetColumnsAutoSizeRef.current();
   }, []);
   const toggleAutoSave = useCallback(() => {
     const handle = personalizeHandleRef.current;
@@ -405,8 +426,6 @@ function AgDataGridComponent({
   // 저장 너비가 있는 컬럼은 sizedColumnsRef 가 지킨다.
   const rerunAfterApplyRef = useRef(rerunAutoSizeAfterRestore);
   rerunAfterApplyRef.current = rerunAutoSizeAfterRestore;
-  const rerunAfterResetRef = useRef(rerunAutoSizeAfterReset);
-  rerunAfterResetRef.current = rerunAutoSizeAfterReset;
   const applyPersonalize = useCallback((state: ColumnState[]) => {
     personalizeHandleRef.current.apply(state);
     rerunAfterApplyRef.current();
@@ -458,7 +477,6 @@ function AgDataGridComponent({
   const gridControls = useMemo<GridPanelGridControls>(() => ({ ...gridFilter.controls, ...baseControls }), [gridFilter.controls, baseControls]);
   const overlayControls = useMemo<GridPanelGridControls>(() => ({ ...gridFilter.overlayControls, ...baseControls }), [gridFilter.overlayControls, baseControls]);
   // 이 그리드가 GridPanel 설정 메뉴의 대상이면 아래 줄 [엑셀] 단추를 뺀다(메뉴가 엑셀을 맡는다). 한 패널에 그리드가 여럿이면 대상이 아닌 그리드는 단추를 그대로 둔다.
-  const [isMenuTarget, setIsMenuTarget] = useState(false);
   // 페인트 전에 등록해야 대상이 된 그리드의 아래 줄 [엑셀] 단추가 첫 프레임에 보였다 사라지지 않는다.
   useLayoutEffect(() => {
     // 설정 메뉴 항목(개인화·엑셀·필터 창)이 있거나 빠른 검색 칸을 둘 그리드(filter={true})만 올린다. settingsMenu={false} 면 gridControls 에 메뉴 명령이 없다.
@@ -469,10 +487,14 @@ function AgDataGridComponent({
     // 그리드 영역 안에 있고 대화 상자 안이 아닌 그리드만 등록한다 — 개인화가 꺼진 패널에 남의 설정 메뉴가 생기지 않게.
     const el = containerRef.current;
     if (!el || !el.closest(".grid-panel-content") || isInDialog(el)) return;
-    const unregister = gridPanelRegistry.register(gridControls, setIsMenuTarget);
+    const unregister = gridPanelRegistry.register(gridControls, (menu, filterTarget) => {
+      setIsMenuTarget(menu);
+      setIsFilterTarget(filterTarget);
+    });
     return () => {
       unregister();
       setIsMenuTarget(false);
+      setIsFilterTarget(false);
     };
   }, [gridPanelRegistry, settingsMenu, personalizeEnabled, hasExcel, gridFilter.mode, gridControls]);
   // 개인화가 꺼지면(탭 비활성·키 충돌로 대기) 열려 있던 창·메뉴를 닫는다. 처음부터 꺼진 그리드는 아무 상태도 건드리지 않는다.
@@ -652,6 +674,27 @@ function AgDataGridComponent({
   const showSettingsOverlay =
     settingsMenu && hasMantine && ((host === "standalone" && (personalizeEnabled || hasExcel || filter === true)) || (host === "dialog" && hasExcel));
 
+  // 행 선택 — 머리글 전체 선택은 보이는 행(걸러진 결과)만 고른다(selectAll "filtered"). 거르지 않을 때는 모든 행이라 전과 같다.
+  // 걸러져 숨은 행의 선택은 필터가 바뀔 때 풀린다(useGridFilter 의 handleFilterChanged).
+  const rowSelection = selectable
+    ? multiSelect
+      ? {
+          mode: "multiRow" as const,
+          enableClickSelection: false,
+          checkboxes: true,
+          headerCheckbox: true,
+          selectAll: "filtered" as const,
+          isRowSelectable: isRowSelectable ? (node: { data?: Record<string, unknown> }) => isRowSelectable(node.data ?? {}) : undefined,
+        }
+      : {
+          mode: "singleRow" as const,
+          enableClickSelection: false,
+          checkboxes: true,
+          headerCheckbox: false,
+          isRowSelectable: isRowSelectable ? (node: { data?: Record<string, unknown> }) => isRowSelectable(node.data ?? {}) : undefined,
+        }
+    : undefined;
+
   const grid = (
     <div
       ref={containerRef}
@@ -671,19 +714,7 @@ function AgDataGridComponent({
         getRowId={getRowId}
         getRowClass={getRowClass}
         initialState={initialState}
-        rowSelection={
-          selectable
-            ? {
-                mode: multiSelect ? "multiRow" : "singleRow",
-                enableClickSelection: false,
-                checkboxes: true,
-                headerCheckbox: multiSelect,
-                isRowSelectable: isRowSelectable
-                  ? (node: { data?: Record<string, unknown> }) => isRowSelectable(node.data ?? {})
-                  : undefined,
-              }
-            : undefined
-        }
+        rowSelection={rowSelection}
         onGridReady={onGridReady}
         onFirstDataRendered={onFirstDataRendered}
         onRowDataUpdated={publishScreenContext ? onRowDataUpdatedWithCtx : onRowDataUpdated}

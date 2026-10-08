@@ -432,6 +432,8 @@ describe("설정 창 적용 → 저장 → 복원", () => {
     const auto = vi.spyOn(api(), "autoSizeAllColumns");
     await click(await menuItem("btn_grid_columns"));
     await click(tid("column-settings-check-name")!.querySelector("input"));
+    // 마운트 직후의 자동 너비 맞춤이 늦게 겹쳐 호출 수를 흔들지 않게, 적용 직전에 센 값을 비운다.
+    auto.mockClear();
     await click(tid("column-settings-apply"));
     await wait(120);
     expect(auto).toHaveBeenCalledTimes(1);

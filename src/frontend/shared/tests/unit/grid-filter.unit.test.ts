@@ -441,6 +441,8 @@ describe("AgDataGrid filter 생략 — 처음 켤 때 열 정의 변경과 칸 �
 
   it("columnSizing=auto(기본) 그리드도 켜고 끄는 동안 사용자가 바꾼 너비·순서가 그대로다", async () => {
     await show(panel(gridEl({ columnSizing: "auto" })));
+    // 마운트 직후의 자동 너비 맞춤(타이머 50ms)이 부하로 늦게 돌아 사용자가 바꾼 너비를 덮는 일이 없게, 맞춤이 끝난 뒤에 바꾼다.
+    await wait(200);
     await act(async () => {
       api().setColumnWidths([{ key: "name", newWidth: 210 }]);
       api().moveColumns(["qty"], 0);
