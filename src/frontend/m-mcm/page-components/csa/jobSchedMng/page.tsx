@@ -8,12 +8,10 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import {
   canDoButton,
   ContentBody,
   ContentPanel,
-  MaxHandle,
   PageLayout,
   SearchArea,
   SearchField,
@@ -25,7 +23,7 @@ import { useMessage } from "@dk-oasis/shared/message-provider";
 import { jobSchedApi } from "./api";
 import { copyForm, emptyForm, formatTimestamp, isJobListTruncated, JOB_LIST_MAX, toForm, toJobGridRow, toRunGridRow, toSaveRequest, type JobForm } from "./form-model";
 import { HistoryPanel } from "./HistoryPanel";
-import { KindBadges, RunStatusBadge, UseBadge } from "./JobBadges";
+import { JobListPanel } from "./JobListPanel";
 import { JobDetailForm, checkForm, type JobDetailAction, type JobDetailHandle, type LastFailure } from "./JobDetailForm";
 import { kindLabel } from "./kind-label";
 import { KindPickerModal } from "./KindPickerModal";
@@ -36,6 +34,7 @@ import {
   RUN_STATUS_LABEL,
   SCREEN_ID,
   type HandlerRow,
+  type JobDef,
   type JobGridRow,
   type JobKind,
   type JobListFilters,
@@ -50,27 +49,6 @@ const USE_FILTER_OPTIONS = [ALL, { value: "Y", label: "사용" }, { value: "N", 
 const STATUS_FILTER_OPTIONS = [
   ALL,
   ...(["OK", "FAIL", "RUN", "SKIP", "TIMEOUT"] as RunStatus[]).map((s) => ({ value: s, label: RUN_STATUS_LABEL[s] })),
-];
-
-const JOB_COLUMNS: GridColumn[] = [
-  { key: "moduleCd", header: "모듈", width: 1, minWidth: 64, align: "center", meta: false },
-  { key: "jobId", header: "작업 ID", width: 3, minWidth: 150, align: "left", meta: false },
-  { key: "jobNm", header: "작업명", width: 100, minWidth: 150, align: "left", meta: false },
-  {
-    key: "kindLabel",
-    header: "유형",
-    width: 2,
-    minWidth: 140,
-    align: "left",
-    meta: false,
-    render: (v, row) => <KindBadges label={String(v ?? "")} codeMissing={row.codeMissing === true} />,
-  },
-  { key: "cronExpr", header: "crontab 식", width: 2, minWidth: 110, align: "left", meta: false },
-  { key: "cronDesc", header: "일정 설명", width: 3, minWidth: 130, align: "left", meta: false },
-  { key: "useYn", header: "사용", width: 1, minWidth: 64, align: "center", meta: false, render: (v) => <UseBadge useYn={String(v ?? "")} /> },
-  { key: "nextRun", header: "다음 예정", width: 2, minWidth: 130, align: "center", meta: false },
-  { key: "lastStatus", header: "최근 결과", width: 1, minWidth: 86, align: "center", meta: false, render: (v) => <RunStatusBadge status={String(v ?? "")} /> },
-  { key: "lastServerNm", header: "최근 실행 서버", width: 3, minWidth: 150, align: "left", meta: false },
 ];
 
 const errorText = (e: unknown): string => (e instanceof Error && e.message ? e.message : "요청을 처리하지 못했습니다.");
@@ -130,14 +108,15 @@ export default function JobSchedMngPage() {
     }
   }, []);
 
-  const loadHistory = useCallback(async (jobId: string, name: string) => {
+  /** name 은 글자 또는 함수 — 선택 직후에는 get 응답이 오기 전의 목록 이름을 쓰고, 응답이 먼저 오면 그 이름으로 맞춘다. */
+  const loadHistory = useCallback(async (jobId: string, name: string | (() => string)) => {
     const seq = ++historySeq.current;
     setHistoryBusy(true);
     try {
       const raw = await jobSchedApi.history(jobId);
       if (seq !== historySeq.current) return;
       setRuns(raw.map(toRunGridRow));
-      setHistoryTitle(`실행 이력 · ${name}`);
+      setHistoryTitle(`실행 이력 · ${typeof name === "function" ? name() : name}`);
       const last = raw[0];
       setLastFailure(last && (last.status === "FAIL" || last.status === "TIMEOUT") ? { status: last.status, schedAt: formatTimestamp(last.schedAt), serverNm: last.serverNm, msg: last.msg } : null);
     } catch (e) {
@@ -183,22 +162,27 @@ export default function JobSchedMngPage() {
   );
 
   const openJob = useCallback(
-    async (jobId: string, codeMissing: boolean) => {
+    async (jobId: string, listName: string, codeMissing: boolean) => {
       const previous = selectedIdRef.current;
       select(jobId);
       clearHistory();
       setActionBusy(true);
+      // 상세와 이력은 서로 기다리지 않는다 — 이력은 get 응답의 이름이 필요 없으므로 목록의 이름으로 바로 부른다.
+      let shownName = listName;
+      void loadHistory(jobId, () => shownName);
       try {
         const def = await jobSchedApi.get(jobId);
         if (selectedIdRef.current !== jobId) return;
+        shownName = def.jobNm;
+        if (def.jobNm !== listName) setHistoryTitle(`실행 이력 · ${def.jobNm}`);
         detailRef.current?.load(toForm(def, codeMissing));
-        void loadHistory(jobId, def.jobNm);
       } catch (e) {
         // 못 열었으면 폼에 남은 이전 작업으로 선택을 되돌린다(강조·저장 대상이 어긋나지 않게, 같은 행을 다시 눌러 열 수 있게).
         if (selectedIdRef.current === jobId) {
           select(previous);
           const shown = detailRef.current?.getForm();
           if (previous && shown && !shown.isNew) void loadHistory(previous, shown.jobNm);
+          else clearHistory();
         }
         fail(e);
       } finally {
@@ -225,7 +209,7 @@ export default function JobSchedMngPage() {
       const id = String(row.jobId);
       const current = detailRef.current?.getForm();
       if (id === selectedIdRef.current && current && !current.isNew) return;
-      guard("저장하지 않은 변경을 버릴까요?", () => void openJob(id, row.codeMissing === true));
+      guard("저장하지 않은 변경을 버릴까요?", () => void openJob(id, String(row.jobNm ?? ""), row.codeMissing === true));
     },
     [guard, openJob],
   );
@@ -243,18 +227,15 @@ export default function JobSchedMngPage() {
     [clearHistory],
   );
 
-  /** 저장·사용 변경 같은 뒤처리: 목록을 다시 받고 그 작업을 폼에 다시 연다. */
-  const reopen = useCallback(
-    async (jobId: string, expectedSelected: string) => {
-      const rows = await loadList();
-      const def = await jobSchedApi.get(jobId);
-      // 기다리는 동안 사용자가 다른 작업을 열었으면 그 화면을 덮어쓰지 않는다.
-      if (selectedIdRef.current !== expectedSelected) return;
-      select(jobId);
-      detailRef.current?.load(toForm(def, rows.find((r) => r.jobId === jobId)?.codeMissing === true));
-      void loadHistory(jobId, def.jobNm);
+  /**
+   * 저장·사용 변경 같은 뒤처리: 폼은 쓰기 응답으로 이미 맞췄으므로 목록과 이력만 다시 받는다(둘은 서로 기다리지 않는다).
+   * 기다리는 동안 사용자가 다른 작업을 열었으면 이력은 openJob 의 순번이 버린다.
+   */
+  const refreshAfterWrite = useCallback(
+    async (def: JobDef) => {
+      await Promise.all([loadList(), selectedIdRef.current === def.jobId ? loadHistory(def.jobId, def.jobNm) : Promise.resolve()]);
     },
-    [loadList, loadHistory, select],
+    [loadList, loadHistory],
   );
 
   const doSave = useCallback(async () => {
@@ -277,14 +258,14 @@ export default function JobSchedMngPage() {
       }
       showMessage({ message: "저장되었습니다. 다음 분부터 새 설정으로 실행합니다.", alertType: "success", toast: true });
       // 목록·이력은 저장 뒤에 다시 받는다. 실패해도 저장은 끝났고 폼은 응답으로 맞춰져 있다.
-      if (stillHere) await reopen(def.jobId, def.jobId);
+      if (stillHere) await refreshAfterWrite(def);
       else await loadList();
     } catch (e) {
       fail(e);
     } finally {
       setActionBusy(false);
     }
-  }, [showMessage, reopen, loadList, select, fail]);
+  }, [showMessage, refreshAfterWrite, loadList, select, fail]);
 
   const doCopy = useCallback(() => {
     const form = detailRef.current?.getForm();
@@ -304,8 +285,9 @@ export default function JobSchedMngPage() {
     const next = form.useYn === "N" ? "Y" : "N";
     setActionBusy(true);
     try {
-      await jobSchedApi.setUse(form.jobId, next);
-      await reopen(form.jobId, form.jobId);
+      const def = await jobSchedApi.setUse(form.jobId, next);
+      if (selectedIdRef.current === form.jobId) detailRef.current?.load(toForm(def, form.codeMissing));
+      await refreshAfterWrite(def);
       showMessage({
         message: next === "Y" ? "사용으로 바꿨습니다." : "사용을 중지했습니다. 일정에 따른 실행이 멈춥니다.",
         alertType: "success",
@@ -316,7 +298,7 @@ export default function JobSchedMngPage() {
     } finally {
       setActionBusy(false);
     }
-  }, [showMessage, reopen, fail]);
+  }, [showMessage, refreshAfterWrite, fail]);
 
   const doRunNow = useCallback(() => {
     const form = detailRef.current?.getForm();
@@ -339,9 +321,8 @@ export default function JobSchedMngPage() {
             } else {
               showMessage({ message: result.message || "실행하지 못했습니다.", alertType: "warning" });
             }
-            await loadList();
             // 접수를 기다리는 동안 다른 작업을 열었으면 그 작업의 이력을 덮어쓰지 않는다.
-            if (selectedIdRef.current === form.jobId) await loadHistory(form.jobId, form.jobNm);
+            await Promise.all([loadList(), selectedIdRef.current === form.jobId ? loadHistory(form.jobId, form.jobNm) : Promise.resolve()]);
           } catch (e) {
             fail(e);
           } finally {
@@ -396,9 +377,13 @@ export default function JobSchedMngPage() {
 
   const isBusy = listBusy || actionBusy;
 
-  const pageButtons: PageButton[] = [
-    { id: "btn_search", label: "조회", onClick: () => void handleSearch(), type: "primary", action: "search", disabled: isBusy },
-  ];
+  const handleSearchClick = useCallback(() => void handleSearch(), [handleSearch]);
+  const closePicker = useCallback(() => setPickerOpen(false), []);
+
+  const pageButtons = useMemo<PageButton[]>(
+    () => [{ id: "btn_search", label: "조회", onClick: handleSearchClick, type: "primary", action: "search", disabled: isBusy }],
+    [handleSearchClick, isBusy],
+  );
 
   const listButtons = useMemo(
     () => [{ id: "job_new", label: "새 작업", onClick: handleNew, disabled: !permissions.save || actionBusy }],
@@ -407,7 +392,7 @@ export default function JobSchedMngPage() {
 
   return (
     <PageLayout title="예약 작업 관리" breadcrumb="공통관리 > 시스템관리 > 예약 작업 관리" screenId={SCREEN_ID} objId={SCREEN_ID} buttons={pageButtons}>
-      <SearchArea onSearch={() => void handleSearch()} autoSearch>
+      <SearchArea onSearch={handleSearchClick} autoSearch>
         <SearchField label="모듈" name="moduleCd" type="select" options={MODULE_FILTER_OPTIONS} value={filters.moduleCd} onChange={(v) => setFilter("moduleCd", v)} />
         <SearchField label="유형" name="jobKind" type="select" options={KIND_FILTER_OPTIONS} value={filters.jobKind} onChange={(v) => setFilter("jobKind", v)} />
         <SearchField label="사용" name="useYn" type="select" options={USE_FILTER_OPTIONS} value={filters.useYn} onChange={(v) => setFilter("useYn", v)} />
@@ -419,18 +404,7 @@ export default function JobSchedMngPage() {
         <ContentBody root resizable storageKey="mcm.csa.jobSchedMng">
           <ContentBody direction="column" resizable storageKey="mcm.csa.jobSchedMng.left" flex="1 1 0">
             <ContentPanel panelId="job-list">
-              <GridPanel title="작업 목록" count={jobs.length} headerExtra={<MaxHandle panelId="job-list" />} buttons={listButtons} loading={listBusy}>
-                <AgDataGrid
-                  gridId="jobList"
-                  rowKey="jobId"
-                  columns={JOB_COLUMNS}
-                  data={jobs}
-                  columnSizing="fixed"
-                  highlightedRowKey={selectedId || null}
-                  onRowClick={handleRowClick}
-                  loading={listBusy}
-                />
-              </GridPanel>
+              <JobListPanel jobs={jobs} selectedId={selectedId} loading={listBusy} buttons={listButtons} onRowClick={handleRowClick} />
             </ContentPanel>
             <ContentPanel height="40%">
               <HistoryPanel title={historyTitle} rows={runs} loading={historyBusy} />
@@ -442,7 +416,7 @@ export default function JobSchedMngPage() {
         </ContentBody>
       </div>
 
-      <KindPickerModal open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={handlePickKind} />
+      <KindPickerModal open={pickerOpen} onClose={closePicker} onPick={handlePickKind} />
     </PageLayout>
   );
 }
