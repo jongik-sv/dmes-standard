@@ -101,6 +101,8 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
   const [rows, setRows] = useState<EditRow[]>([]);
   const [issues, setIssues] = useState<Record<string, Issue[]>>({});
   const [showClosed, setShowClosed] = useState(false);
+  /** 다른 화면이 마루 코드를 넘겨 열었으면 조회 기본값이 그 코드를 덮지 않게 끈다. */
+  const [handedOff, setHandedOff] = useState(false);
   const [tab, setTab] = useState<Tab>("grid");
   const [rightTab, setRightTab] = useState<RightTab>("cateEdit");
   const [expanded, setExpanded] = useState<string[]>([]);
@@ -197,10 +199,18 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
   // 마루 코드 화면이 [코드 편집]으로 넘긴 마루 코드·버전(openMdmPage)을 받는다(§6.10). RELEASED 도 열린다(읽기 전용).
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
     if (!params.maruCodeId) return;
+    setHandedOff(true);
     selectSeq.current++;
     setMaruCodeId(params.maruCodeId);
     void load(params.maruCodeId, params.ver ?? null);
   });
+
+  const chooseVer = (ver: string) => {
+    // 조회 기본값이 코드를 고르기 전이나 같은 버전으로 불러도 다시 읽지 않는다.
+    if (!maruCodeId || ver === (selected?.ver ?? "")) return;
+    selectSeq.current++;
+    void load(maruCodeId, ver);
+  };
 
   const chooseCode = (id: string) => {
     selectSeq.current++;
@@ -456,8 +466,8 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
         }] : []),
       ]}
     >
-      <SearchArea onSearch={() => void load(maruCodeId, selected?.ver)}>
-        <SearchField label="마루 코드" className="span-2">
+      <SearchArea onSearch={() => void load(maruCodeId, selected?.ver)} defaults={!handedOff}>
+        <SearchField label="마루 코드" defaultKey="maruCodeId" className="span-2" value={maruCodeId} onChange={chooseCode}>
           <IdPicker placeholder="코드 ID·코드명" noun="마루 코드" testId="code-pick" search={searchCodePicks}
             limit={CODE_PICK_LIMIT} currentId={header?.maruCodeId ?? null} onPick={chooseCode} onError={(message) => setErrorMessage(message)} inputWidth={150} />
           {header && (
@@ -466,12 +476,14 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
             </span>
           )}
         </SearchField>
-        <SearchField label="버전">
+        <SearchField label="버전" defaultKey="ver" type="select" value={selected?.ver ?? ""} onChange={chooseVer}
+          options={versions.map((v) => ({ value: v.ver, label: `${v.display} ${v.status}` }))}>
           <Select data-testid="code-ver-select" value={selected?.ver ?? ""} disabled={versions.length === 0}
             options={versions.map((v) => ({ value: v.ver, label: `${v.display} ${v.status}` }))}
-            onChange={(v) => { selectSeq.current++; void load(maruCodeId, v); }} />
+            onChange={chooseVer} />
         </SearchField>
-        <SearchField label="닫힌 코드">
+        <SearchField label="닫힌 코드" defaultKey="showClosed" type="select" value={showClosed ? "Y" : "N"} onChange={(v) => setShowClosed(v === "Y")}
+          options={[{ value: "N", label: "숨김" }, { value: "Y", label: "보기" }]}>
           <span data-testid="code-closed-toggle">
             <Checkbox label="닫힌 코드 보기" checked={showClosed} onChange={setShowClosed} />
           </span>
