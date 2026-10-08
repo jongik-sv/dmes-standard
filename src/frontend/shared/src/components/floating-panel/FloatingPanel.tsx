@@ -10,11 +10,15 @@
  *   놓을 때 한 번만 여기 상태가 바뀌므로, 상위가 같은 children 요소를 주는 한 본문은 끌기·크기 조절로 다시 그려지지 않는다.
  * - `storageKey` 가 있으면 끌기·크기 조절·접기를 마친 시점에 localStorage `dmes:floating-panel:{storageKey}` 에 저장하고, 창을 열 때 복원한다.
  *   저장값이 깨졌거나 화면보다 크면 기본값·화면 안으로 자른다. 저장소를 못 쓰는 환경(private 창 등)은 조용히 넘어간다.
+ * - 포털 탭 안에서 쓰면 그 탭이 활성일 때만 보인다. 포털 셸은 탭을 닫지 않고 숨기기만 하는데 이 창은 body 에 포털되므로,
+ *   자기 탭이 아닌 탭이 활성화되면(`portal-tab-activated`) 창을 `display: none` 으로 숨긴다(언마운트하지 않아 안의 그리드·입력이 남는다).
+ * - 접힌 채 닫았더라도 다시 열 때는 펼친 창으로 시작한다(아이콘만 보이면 열렸는지 알기 어렵다). 위치·크기만 복원한다.
  * - 화면이 줄어 창이 밖으로 나가면 그릴 때 자른다(저장값은 건드리지 않아 화면이 다시 커지면 원래 자리로 돌아온다).
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+import { useTabPage } from "../../portal-shell/tab-page-context";
 import { FloatingWindow } from "../../widget-dock/FloatingWindow";
 import { readDockViewport, useDockViewport } from "../../widget-dock/use-dock-viewport";
 import {
@@ -54,6 +58,22 @@ export interface FloatingPanelProps {
   children: ReactNode;
 }
 
+/** 이 컴포넌트가 속한 포털 탭이 활성인지. 포털 밖(tabId 없음)이면 늘 true. 마운트될 때 탭은 활성이라고 본다. */
+function useOwnTabActive(): boolean {
+  const { tabId } = useTabPage();
+  const [active, setActive] = useState(true);
+  useEffect(() => {
+    if (!tabId || typeof window === "undefined") return;
+    const onActivated = (e: Event) => {
+      const detail = (e as CustomEvent<{ tabId?: string }>).detail;
+      if (detail?.tabId) setActive(detail.tabId === tabId);
+    };
+    window.addEventListener("portal-tab-activated", onActivated);
+    return () => window.removeEventListener("portal-tab-activated", onActivated);
+  }, [tabId]);
+  return !tabId || active;
+}
+
 function readStored(storageKey: string | undefined): string | null {
   if (!storageKey || typeof window === "undefined") return null;
   try {
@@ -88,9 +108,11 @@ function FloatingPanelBody({
 }: PanelBodyProps) {
   const min = useMemo(() => ({ minWidth, minHeight }), [minWidth, minHeight]);
   const viewport = useDockViewport(true);
-  const [state, setState] = useState<PanelState>(() =>
-    resolveInitialPanelState(readStored(storageKey), readDockViewport(), min, defaultRect),
-  );
+  const tabActive = useOwnTabActive();
+  const [state, setState] = useState<PanelState>(() => ({
+    ...resolveInitialPanelState(readStored(storageKey), readDockViewport(), min, defaultRect),
+    collapsed: false, // 열 때는 늘 펼친 창으로 시작한다(위치·크기만 복원)
+  }));
 
   const shown = useMemo(() => clampPanelRect(state, viewport, min), [state, viewport, min]);
 
@@ -119,7 +141,13 @@ function FloatingPanelBody({
   return (
     <div
       className="cm-floating-panel-layer"
-      style={{ position: "fixed", inset: 0, zIndex, pointerEvents: "none" }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex,
+        pointerEvents: "none",
+        display: tabActive ? undefined : "none",
+      }}
     >
       <FloatingWindow
         title={title}

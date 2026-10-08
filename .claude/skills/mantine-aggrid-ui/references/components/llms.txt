@@ -73,7 +73,7 @@
 
 ## 떠 있는 창 — 비모달 (`@dk-oasis/shared/floating-panel`)
 
-- [FloatingPanel](floating-panel.md): 화면 위에 떠 있고 끌어서 옮기고 크기를 바꿀 수 있는 **비모달** 창을 열고 닫는 상태까지 한 번에 쓸 때 쓴다. `open` 이 true 인 동안 `document.body` 로 포털해 그리고, 위치·크기·접힘을 (선택) 브라우저에 저장해 다시 열 때 복원한다. 업무 도메인과 무관한 범용 부품이다.
+- [FloatingPanel](floating-panel.md): 화면 위에 떠 있고 끌어서 옮기고 크기를 바꿀 수 있는 **비모달** 창을 열고 닫는 상태까지 한 번에 쓸 때 쓴다. `open` 이 true 인 동안 `document.body` 로 포털해 그리고, 위치·크기를 (선택) 브라우저에 저장해 다시 열 때 복원한다(접힌 채 닫았어도 펼쳐서 연다). 업무 도메인과 무관한 범용 부품이다.
 
 ## MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)
 
