@@ -83,6 +83,7 @@
 | `JOB_DESC` | varchar2(500) | 설명 |
 | `OWNER_TP` | varchar2(10) | `CODE`(코드 등록)·`USER`(화면 등록). 화면에서 지우기·유형 바꾸기 가능 여부를 가른다 |
 | `CODE_SEEN_AT` | timestamp(6) | 코드 작업의 빈이 마지막으로 확인된 시각(「코드 없음」 판정) |
+| `OPTS_JSON` | clob | 고급 설정: 재시도 `{retry:{count,intervalMin}}`, 이어 실행 `{next:[jobId…]}`(D12) |
 
 - 인덱스: `(MODULE_CD, USE_YN)`.
 
@@ -100,6 +101,8 @@
 | `ITEM_CNT` | number(10) | 처리 건수(유형별 뜻은 §5) |
 | `MSG` | varchar2(500) | 실패·건너뜀 사유. 주소·인증값·DB 원문 메시지는 넣지 않는다 |
 | `REQ_USR_ID` | varchar2(100) | 지금 실행을 요청한 사용자 |
+| `TIMEOUT_SEC` | number(6) | 이 회차에 적용한 시간 초과(정의가 나중에 바뀌어도 정리가 정확하도록) |
+| `VARS_JSON` | clob | 「지금 실행」 때 덮어쓴 변수 값(D11) |
 
 - PK `(JOB_ID, SCHED_AT, TRIGGER_TP)` 는 **이중 안전장치**다. 행 잠금으로 한 서버만 잡지만 같은 회차를 두 번 INSERT 하면 PK 위반으로 막힌다.
 - 인덱스: `(STATUS, STARTED_AT)`, `(STARTED_AT)`, `(JOB_ID, SCHED_AT DESC)`.
@@ -282,6 +285,12 @@ public interface ScheduledJob {
 - 환율 원천은 `widget/ext` 의 환율 제공자 빈을 그대로 주입해 쓴다(위젯 환율 유형은 남는다).
 - 수집 값을 화면에 보이려면 쿼리 위젯에서 `TB_MCM_JOB_COLLECT_DATA` 를 SQL 로 읽는다. 위젯은 일정을 갖지 않고 화면을 열 때·새로 고침 주기마다 읽는다.
 - 옛 `dmes.widget.collect.enabled` 는 `dmes.job.collect.enabled`(기본 true)로 바꾼다. false 면 COLLECT 작업은 선점 후보에서 빠지고 `mcm.collectPurge` 도 아무것도 하지 않는다.
+
+### 5.5 재시도·이어 실행(D12)
+
+- 재시도: FAIL 이면 같은 서버가 `intervalMin` 분 뒤 같은 회차를 다시 실행한다(최대 `count` 회). 실행 기록 행은 하나이고 MSG 에 「재시도 n/N」을 덧붙인다. 그 사이 서버가 죽으면 재시도는 사라지고 시간 초과 정리가 행을 닫는다.
+- 이어 실행: OK 로 끝나면 `next` 의 작업마다 「지금 실행」 요청(REQ, 요청자 `SCHEDULER`)을 넣는다. 다른 모듈 작업도 이어 실행할 수 있다.
+- 실패 알림은 다음 판이다.
 
 ## 6. 없애는 것 / 옮기는 것 / 그대로 두는 것
 
