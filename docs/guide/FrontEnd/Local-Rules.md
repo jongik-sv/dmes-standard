@@ -490,3 +490,10 @@ AgDataGrid 는 사용자별로 컬럼 순서·너비·표시·고정·정렬을 
 - 목록 조회 조건은 `SearchArea`·`SearchField` 로 화면 위쪽에 만들고, 칸마다 `name`(MDM 컬럼 사전 키) 또는 `defaultKey` 를 단다. [조회] 는 상단 버튼 줄(`btn_search`)에 둔다. 대화 상자 안의 조회 칸은 예외다.
 - 패널 안에서 이미 받은 목록을 화면에서 좁혀 보는 칸(서버 조회 조건이 아닌 빠른 찾기, 예: DB 뷰어 표 목록의 테이블명 검색)은 `SearchArea` 대상이 아니다.
 - 칸 키를 달지 않는 경우는 의도된 제외(`defaultable={false}`, 팝업이 채우는 읽기 전용 칸, 업무기준마다 달라지는 동적 칸)로 한정한다. 상세: [search-area](../../../.claude/skills/mantine-aggrid-ui/references/components/search-area.md). audit 은 `[P-S1]` 경고로 잡는다.
+
+## 47. 서버 시각은 ISO 로 오므로 화면 글자로 바꿔 보인다 — 공통 입력 칸에 그대로 넘기지 않는다 (2026-10-09)
+
+예약 작업 관리(`jobSchedMng`)에서 서버 `cronPreview` 의 `next`(ISO `2026-10-10T02:00:00`, Asia/Seoul 시각 그대로)를 `CronInput.preview.next` 에 그대로 넘기면 입력 칸이 ISO 글자를 날것으로 보인다. `CronInput` 은 받은 글자를 그대로 그리므로 화면이 먼저 바꾼다.
+
+- 서버 시각(ISO, 시간대 표기 없음)은 `new Date(iso)` 로 읽고(브라우저 시간대에서 같은 벽시계 시각이 된다) `formatWithDow`(`@dk-oasis/shared/cron-input`)나 화면의 시각 포맷터로 「날짜(요일) 시:분」 글자로 만들어 넘긴다. 목록·이력·실패 사유 상자의 시각도 같은 규칙이다(`formatTimestamp`).
+- 백엔드 없이 화면을 확인할 때는 `m-mcm/app/<임시>/page.tsx`(커밋하지 않음)에 `MessageProvider` 와 `window.fetch` 목(`/api/…/<화면>/<action>`·`myButtonEndpoints`(`grids.buttons.rows`)·`/api/auth/me`(`{ authenticated, user }`))을 두고 워크트리에서 `next dev` 를 다른 포트로 띄운다. `/portal`·`/api` 가 아닌 경로라 인증을 거치지 않는다. 확인이 끝나면 하니스를 지우고 서버를 내린다.

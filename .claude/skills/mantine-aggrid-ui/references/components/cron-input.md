@@ -42,7 +42,7 @@ export function ScheduleField({ value, onChange, kind }: { value: string; onChan
 }
 ```
 
-`onRequestPreview` 는 올바른 식이 400ms 멈추면 불린다. 식이 바뀌면 이전 `preview` 를 비워 다른 식의 설명이 남지 않게 한다.
+`onRequestPreview` 는 올바른 식이 400ms 멈추면 불린다. 식이 바뀌면 이전 `preview` 를 비워 다른 식의 설명이 남지 않게 한다. `preview.next` 는 화면에 보일 글자를 그대로 그리므로, 서버가 ISO 시각을 주면 `formatWithDow(new Date(iso))` 로 바꿔 넘긴다([Local-Rules §47](../../../../docs/guide/FrontEnd/Local-Rules.md)).
 
 ## Props
 
@@ -63,5 +63,6 @@ export function ScheduleField({ value, onChange, kind }: { value: string; onChan
 | Spring 6칸 식(`0 0 2 * * *`)을 넣음 | 5칸만 받는다. `?`·`L`·`W`·`#` 도 거절한다 |
 | 일과 요일을 함께 제한한 식(`0 9 1 * 1`) | crontab 은 둘을 OR 로 읽는다. 이 입력은 거절하니 둘 중 하나를 `*` 로 둔다 |
 | 서버 미리보기를 받지 않고 브라우저 계산만 믿음 | `onRequestPreview` 로 서버 `cronPreview` 를 불러 `preview` 에 넣는다 |
+| 서버의 ISO 시각을 `preview.next` 에 그대로 넘겨 `2026-10-10T02:00:00` 이 보임 | `formatWithDow(new Date(iso))` 로 글자를 만들어 넘긴다 |
 | 식이 바뀌어도 이전 `preview` 를 그대로 둠 | `onChange` 에서 `preview` 를 비운다 |
 | 빈 값(`""`)도 저장함 | 쉬운 설정이 만들 수 없을 때 빈 글자가 올라온다. 저장 검증에서 막는다 |

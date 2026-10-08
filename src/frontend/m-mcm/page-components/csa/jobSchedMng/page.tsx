@@ -23,7 +23,7 @@ import {
 import { useMessage } from "@dk-oasis/shared/message-provider";
 
 import { jobSchedApi } from "./api";
-import { copyForm, emptyForm, toForm, toJobGridRow, toRunGridRow, toSaveRequest, type JobForm } from "./form-model";
+import { copyForm, emptyForm, formatTimestamp, toForm, toJobGridRow, toRunGridRow, toSaveRequest, type JobForm } from "./form-model";
 import { HistoryPanel } from "./HistoryPanel";
 import { KindBadges, RunStatusBadge, UseBadge } from "./JobBadges";
 import { JobDetailForm, checkForm, type JobDetailAction, type JobDetailHandle, type LastFailure } from "./JobDetailForm";
@@ -134,7 +134,7 @@ export default function JobSchedMngPage() {
       setRuns(raw.map(toRunGridRow));
       setHistoryTitle(`실행 이력 · ${name}`);
       const last = raw[0];
-      setLastFailure(last && (last.status === "FAIL" || last.status === "TIMEOUT") ? { status: last.status, schedAt: last.schedAt, serverNm: last.serverNm, msg: last.msg } : null);
+      setLastFailure(last && (last.status === "FAIL" || last.status === "TIMEOUT") ? { status: last.status, schedAt: formatTimestamp(last.schedAt), serverNm: last.serverNm, msg: last.msg } : null);
     } catch (e) {
       if (seq === historySeq.current) fail(e);
     } finally {

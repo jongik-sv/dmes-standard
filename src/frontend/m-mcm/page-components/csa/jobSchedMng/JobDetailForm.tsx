@@ -8,7 +8,7 @@
 import { useCallback, useImperativeHandle, useMemo, useRef, useState, type CSSProperties, type ReactNode, type Ref } from "react";
 
 import { CardFrame, CardGroup, MutedText } from "@dk-oasis/shared/card";
-import { CronInput, validateCron, type CronPreview } from "@dk-oasis/shared/cron-input";
+import { CronInput, formatWithDow, validateCron, type CronPreview } from "@dk-oasis/shared/cron-input";
 import { Badge, Button, Input, Radio, Select, Textarea } from "@dk-oasis/shared/form";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { VariableTable } from "@dk-oasis/shared/variable-table";
@@ -130,7 +130,12 @@ export function JobDetailForm({ ref, handlers, busy, permissions, lastFailure, o
     jobSchedApi
       .cronPreview(expr)
       .then((result) => {
-        if (previewExprRef.current === expr) setPreview(result);
+        // 서버의 다음 예정은 ISO(Asia/Seoul 시각 그대로)다 — 입력 칸의 브라우저 계산과 같은 「날짜(요일) 시:분」 글자로 바꿔 보인다.
+        const next = result.next?.map((t) => {
+          const d = new Date(t);
+          return Number.isNaN(d.getTime()) ? t : formatWithDow(d);
+        });
+        if (previewExprRef.current === expr) setPreview({ ...result, next });
       })
       .catch(() => {
         // 서버 미리보기를 못 받아도 브라우저 계산이 남는다.
