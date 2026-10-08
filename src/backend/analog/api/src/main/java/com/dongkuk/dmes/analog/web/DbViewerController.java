@@ -56,7 +56,14 @@ public class DbViewerController {
     @PostMapping("/query")
     public DbViewerService.QueryResult query(@RequestBody QueryRequest request) {
         if (request.sql() != null && !request.sql().isBlank()) {
+            // offset 이 있으면 「더보기」 묶음 요청이다 — 검사 경로는 첫 조회와 같다.
+            if (request.offset() != null) {
+                return service().queryMore(request.sql(), request.offset(), request.chunk());
+            }
             return service().query(request.sql());
+        }
+        if (request.offset() != null) {
+            throw new DbViewerException(400, "offset 은 sql 조회에서만 쓸 수 있습니다.");
         }
         if (request.table() != null && !request.table().isBlank()) {
             return service().queryStructured(request.schema(), request.table(), request.columns(),
@@ -81,7 +88,9 @@ public class DbViewerController {
     /**
      * 조회 요청 — {@code limit} 은 Jackson 3 엄격 바인딩 대응을 위해 {@code Integer} 로 받는다
      * (미지정 시 null → 서버 상한 적용).
+     * {@code offset}·{@code chunk} 는 「더보기」 묶음용이며 둘 다 정수 범위를 서버가 다시 검사한다.
      */
-    public record QueryRequest(String sql, String schema, String table, List<String> columns, Integer limit) {
+    public record QueryRequest(String sql, String schema, String table, List<String> columns, Integer limit,
+                               Integer offset, Integer chunk) {
     }
 }

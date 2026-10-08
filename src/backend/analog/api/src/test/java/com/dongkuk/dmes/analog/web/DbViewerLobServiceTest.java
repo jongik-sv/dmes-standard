@@ -352,7 +352,7 @@ class DbViewerLobServiceTest {
         DbViewerService.QueryResult byNull = service.queryStructured("MCMAPUSER", "TB_USER", null, null);
         assertThat(byNull.columns()).containsExactly("USER_ID", "USER_NM");
         assertThat(capturedSql()).isEqualTo(
-                "SELECT \"USER_ID\", \"USER_NM\" FROM \"MCMAPUSER\".\"TB_USER\" FETCH FIRST 200 ROWS ONLY");
+                "SELECT \"USER_ID\", \"USER_NM\" FROM \"MCMAPUSER\".\"TB_USER\" FETCH FIRST 201 ROWS ONLY");
     }
 
     @Test
@@ -396,7 +396,7 @@ class DbViewerLobServiceTest {
         DbViewerService.QueryResult result = runQuery("TABLE", "SELECT NOTICE_ID, CONTENT FROM MCMAPUSER.TB_NOTICE",
                 "NOTICE_ID", "NUMBER", "CONTENT", "CLOB");
         assertThat(result.executedSql()).isEqualTo("SELECT ROWIDTOCHAR(ROWID) \"_ROWID\", \"NOTICE_ID\", \"CONTENT\" "
-                + "FROM \"MCMAPUSER\".\"TB_NOTICE\" FETCH FIRST 200 ROWS ONLY");
+                + "FROM \"MCMAPUSER\".\"TB_NOTICE\" FETCH FIRST 201 ROWS ONLY");
         assertThat(result.rowIdKey()).isEqualTo("_ROWID");
         assertThat(result.columns()).containsExactly("NOTICE_ID", "CONTENT");
         assertThat(capturedSql()).isEqualTo(result.executedSql());
@@ -407,7 +407,7 @@ class DbViewerLobServiceTest {
         DbViewerService.QueryResult result = runQuery("TABLE", "SELECT NOTICE_ID FROM MCMAPUSER.TB_NOTICE",
                 "NOTICE_ID", "NUMBER", "CONTENT", "CLOB");
         assertThat(result.executedSql()).isEqualTo(
-                "SELECT \"NOTICE_ID\" FROM \"MCMAPUSER\".\"TB_NOTICE\" FETCH FIRST 200 ROWS ONLY");
+                "SELECT \"NOTICE_ID\" FROM \"MCMAPUSER\".\"TB_NOTICE\" FETCH FIRST 201 ROWS ONLY");
         assertThat(result.rowIdKey()).isNull();
     }
 
@@ -443,7 +443,7 @@ class DbViewerLobServiceTest {
                 "SELECT CODE_ID, CODE_NM FROM MCMAPUSER.TB_NOTICE WHERE CODE_ID = 'A'",
                 "CODE_ID", "VARCHAR2", "CODE_NM", "VARCHAR2");
         assertThat(result.executedSql()).isEqualTo("SELECT \"CODE_ID\", \"CODE_NM\" FROM \"MCMAPUSER\".\"TB_NOTICE\" "
-                + "WHERE CODE_ID = 'A' FETCH FIRST 200 ROWS ONLY");
+                + "WHERE CODE_ID = 'A' FETCH FIRST 201 ROWS ONLY");
         assertThat(auditMessages().get(0)).isEqualTo("query MCMAPUSER.TB_NOTICE cols=2 rows=0 lobs=0 ms="
                 + auditMessages().get(0).replaceAll(".* ms=(\\d+) .*", "$1")
                 + " sql=" + result.executedSql());

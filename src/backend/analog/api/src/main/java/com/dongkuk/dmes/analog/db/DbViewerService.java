@@ -198,6 +198,17 @@ public class DbViewerService {
         return run(parsed, parsed.star() ? null : parsed.columns(), properties.getMaxRows());
     }
 
+    /**
+     * 「더보기」 묶음 — 같은 SQL 을 정렬을 고정해 {@code offset} 번째 행부터 한 묶음 읽는다.
+     * 검사·재조립 경로는 첫 조회와 같고(스키마 허용 목록·차단 표·민감 칸·읽기 전용), 정렬 키는 딕셔너리로만 정한다.
+     * 한 결과의 전체 행 수는 {@code analog.db.max-rows-all} 까지다.
+     */
+    public QueryResult queryMore(String sql, Integer offset, Integer chunk) {
+        DbViewerValidator.ParsedQuery parsed = DbViewerValidator.parseSelect(sql, allowedSchemas);
+        checkTableNotDenied(parsed.table());
+        return runMore(parsed, parsed.star() ? null : parsed.columns(), offset, chunk);
+    }
+
     /** 구조화 조회 — 스키마·테이블·컬럼·건수 지정. */
     public QueryResult queryStructured(String schema, String table, List<String> columns, Integer limit) {
         DbViewerValidator.checkSchemaAllowed(schema, allowedSchemas);
@@ -222,16 +233,84 @@ public class DbViewerService {
     }
 
     /** 확정 칸 목록과 ROWID 여부 — {@link #plan} 의 결과. */
-    private record ColumnPlan(List<String> columns, boolean withRowId) {
+    private record ColumnPlan(List<String> columns, boolean withRowId, boolean heapTable) {
     }
+
+    /** 기본키 칸 — 정렬 기준이 필요한데 ROWID 를 못 쓰는 대상(뷰·IOT·외부 표)용. 바인드: (OWNER, TABLE_NAME). */
+    private static final String PK_COLUMNS_SQL = """
+            SELECT C.COLUMN_NAME
+            FROM   ALL_CONSTRAINTS K
+                 , ALL_CONS_COLUMNS C
+            WHERE  K.OWNER = C.OWNER
+            AND    K.CONSTRAINT_NAME = C.CONSTRAINT_NAME
+            AND    K.CONSTRAINT_TYPE = 'P'
+            AND    K.OWNER = ?
+            AND    K.TABLE_NAME = ?
+            ORDER BY C.POSITION
+            """;
 
     private enum ObjectKind { NONE, TABLE, OTHER }
 
     private QueryResult run(DbViewerValidator.ParsedQuery parsed, List<String> requested, int limit) {
         ColumnPlan plan = plan(parsed.schema(), parsed.table(), requested);
-        String finalSql = DbViewerValidator.buildSql(parsed, plan.columns(), limit, plan.withRowId());
-        return execute(parsed, plan.columns(), finalSql, plan.withRowId());
+        // 더보기 여부를 알려고 한 건 더 읽고, 화면에는 limit 건만 돌려준다.
+        String finalSql = DbViewerValidator.buildSql(parsed, plan.columns(), limit + 1, plan.withRowId());
+        QueryResult read = execute(parsed, plan.columns(), finalSql, plan.withRowId(), limit + 1);
+        boolean hasMore = read.rows().size() > limit;
+        String blocked = null;
+        if (hasMore && orderKeys(parsed.schema(), parsed.table(), plan.heapTable()).isEmpty()) {
+            blocked = MORE_BLOCKED_NO_KEY;
+        }
+        return read.paged(limit, hasMore, blocked, false);
     }
+
+    /** 정렬 기준 칸이 없어 이어 볼 수 없다는 안내. */
+    static final String MORE_BLOCKED_NO_KEY = "ROWID·기본키가 없는 대상이라 이어 볼 수 없습니다. WHERE 로 좁혀 주세요.";
+
+    private QueryResult runMore(DbViewerValidator.ParsedQuery parsed, List<String> requested, Integer offset,
+                                Integer chunk) {
+        int all = properties.getMaxRowsAll();
+        int off = offset == null ? 0 : offset;
+        if (off < 0 || off >= all) {
+            throw new DbViewerException(400, "offset 이 범위를 벗어났습니다. (0 이상 " + all + " 미만)");
+        }
+        int size = chunk == null || chunk <= 0 ? properties.getMoreChunk()
+                : Math.min(chunk, properties.getMoreChunk());
+        int fetch = Math.min(size, all - off);
+        ColumnPlan plan = plan(parsed.schema(), parsed.table(), requested);
+        List<String> keys = orderKeys(parsed.schema(), parsed.table(), plan.heapTable());
+        if (keys.isEmpty()) {
+            throw new DbViewerException(400, MORE_BLOCKED_NO_KEY);
+        }
+        String finalSql = DbViewerValidator.buildPagedSql(parsed, plan.columns(), plan.withRowId(), keys, off,
+                fetch + 1);
+        QueryResult read = execute(parsed, plan.columns(), finalSql, plan.withRowId(), fetch + 1);
+        boolean more = read.rows().size() > fetch;
+        boolean capReached = more && off + fetch >= all;
+        return read.paged(fetch, more && !capReached, null, capReached);
+    }
+
+    /**
+     * 이어 보기 정렬 기준 — 실제 표는 ROWID, 아니면 기본키 칸(민감 칸이 섞였거나 식별자 형식이 아니면 쓰지 않는다).
+     * 없으면 빈 목록이며 더보기를 막는다.
+     */
+    private List<String> orderKeys(String owner, String table, boolean heapTable) {
+        if (heapTable) {
+            return List.of(DbViewerValidator.ORDER_BY_ROWID);
+        }
+        List<String> pk = jdbcTemplate.queryForList(PK_COLUMNS_SQL, String.class, owner, table);
+        if (pk == null || pk.isEmpty()) {
+            return List.of();
+        }
+        for (String column : pk) {
+            if (column == null || DbViewerValidator.isSensitiveColumn(column) || !PK_IDENT.matcher(column).matches()) {
+                return List.of();
+            }
+        }
+        return List.copyOf(pk);
+    }
+
+    private static final java.util.regex.Pattern PK_IDENT = java.util.regex.Pattern.compile("[A-Z][A-Z0-9_$#]{0,29}");
 
     /**
      * 모든 조회 경로(자유 SQL 의 {@code *}·명시 칸, 구조화 조회의 빈 목록·명시 칸)의 칸 목록을
@@ -272,7 +351,7 @@ public class DbViewerService {
             throw new DbViewerException(400, "테이블에 조회 가능한 컬럼이 없습니다: " + table);
         }
         boolean hasLob = columns.stream().anyMatch(c -> DbViewerLobSupport.LobKind.fromDataType(types.get(c)) != null);
-        return new ColumnPlan(List.copyOf(columns), hasLob && kind == ObjectKind.TABLE);
+        return new ColumnPlan(List.copyOf(columns), hasLob && kind == ObjectKind.TABLE, kind == ObjectKind.TABLE);
     }
 
     private ObjectKind objectKind(String owner, String table) {
@@ -284,11 +363,11 @@ public class DbViewerService {
     }
 
     private QueryResult execute(DbViewerValidator.ParsedQuery parsed, List<String> columns, String finalSql,
-                                boolean withRowId) {
+                                boolean withRowId, int readCap) {
         long start = System.currentTimeMillis();
-        // FETCH FIRST 상한과 별개로 드라이버·추출 단계에서도 상한을 강제한다
+        // FETCH 상한과 별개로 드라이버·추출 단계에서도 상한을 강제한다
         // (SQL 텍스트 우회 시에도 JVM 적재 폭주 방지 — 방어 심화).
-        final int hardCap = properties.getMaxRows();
+        final int hardCap = readCap;
         final Map<String, String> lobColumns = new LinkedHashMap<>();
         ResultSetExtractor<List<Map<String, Object>>> extractor = rs -> extractRows(rs, hardCap, lobColumns);
         List<Map<String, Object>> rows = jdbcTemplate.query(finalSql, extractor);
@@ -498,9 +577,28 @@ public class DbViewerService {
      * @param table      정규화된 대문자 테이블 이름
      * @param rowIdKey   상세 재조회용 숨은 칸의 키(행 Map 에만 있고 {@code columns} 에는 없다). 실제 표가 아니면 null
      * @param lobColumns LOB·RAW 칸 이름 → 종류(CLOB·NCLOB·BLOB·RAW·LONG RAW)
+     * @param hasMore    이 묶음 뒤에 읽을 행이 더 있는지(상한 한 건 더 읽어 판정한다)
+     * @param moreBlocked 더 있는데도 이어 볼 수 없는 사유(정렬 기준 칸이 없음). 이어 볼 수 있거나 더 없으면 null
+     * @param capReached 한 결과의 전체 행 수 상한({@code analog.db.max-rows-all})에 걸려 멈췄는지
      */
     public record QueryResult(List<String> columns, List<Map<String, Object>> rows, int rowCount,
                              long elapsedMs, String executedSql, String schema, String table,
-                             String rowIdKey, Map<String, String> lobColumns) {
+                             String rowIdKey, Map<String, String> lobColumns,
+                             boolean hasMore, String moreBlocked, boolean capReached) {
+
+        /** 더보기 정보가 없는 결과(구조화 조회·시험용). */
+        public QueryResult(List<String> columns, List<Map<String, Object>> rows, int rowCount,
+                           long elapsedMs, String executedSql, String schema, String table,
+                           String rowIdKey, Map<String, String> lobColumns) {
+            this(columns, rows, rowCount, elapsedMs, executedSql, schema, table, rowIdKey, lobColumns,
+                    false, null, false);
+        }
+
+        /** 읽은 행을 keep 건으로 줄이고 더보기 정보를 붙인 사본. */
+        QueryResult paged(int keep, boolean hasMore, String moreBlocked, boolean capReached) {
+            List<Map<String, Object>> kept = rows.size() > keep ? List.copyOf(rows.subList(0, keep)) : rows;
+            return new QueryResult(columns, kept, kept.size(), elapsedMs, executedSql, schema, table, rowIdKey,
+                    lobColumns, hasMore, moreBlocked, capReached);
+        }
     }
 }

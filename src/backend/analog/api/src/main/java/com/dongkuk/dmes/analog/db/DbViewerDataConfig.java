@@ -36,7 +36,8 @@ public class DbViewerDataConfig {
         JdbcTemplate jdbcTemplate = new JdbcTemplate(dbViewerDataSource);
         jdbcTemplate.setQueryTimeout(properties.getQueryTimeoutSeconds());
         // SQL 텍스트 우회 시에도 드라이버 단계에서 행 수를 차단한다 (추출 단계 상한과 이중화).
-        jdbcTemplate.setMaxRows(properties.getMaxRows());
+        // 「더보기」 여부를 알려고 한 건 더 읽으므로 첫 화면·묶음 중 큰 쪽 + 1 건이 드라이버 상한이다.
+        jdbcTemplate.setMaxRows(Math.max(properties.getMaxRows(), properties.getMoreChunk()) + 1);
         return jdbcTemplate;
     }
 }
