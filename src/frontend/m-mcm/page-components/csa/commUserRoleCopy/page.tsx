@@ -231,18 +231,22 @@ export default function CommUserRoleCopyPage() {
     }
   }, [filterUserId, showMessage, loadUserList, setCopyRolegrp, setCopyUser]);
 
-  // V-705 onload 자동 호출 — 처음 열 때는 SearchArea autoSearch 가 조회 기본값을 넣은 다음 handleSearchArea 를 한 번 부른다.
-  // 그 한 번만 진입 분기(runEntrySearch)를 타고, 그 뒤 Enter 는 조회 단추와 같다(Copy 대상이 비면 V-101 오류).
+  // V-705 onload 자동 호출 — 처음 열 때는 SearchArea autoSearch 가 조회 기본값을 넣은 다음 handleSearchArea("auto") 를 한 번 부른다.
+  // 그 autoSearch 한 번만 진입 분기(runEntrySearch)를 타고, 사용자가 한 조회(Enter)는 늘 조회 단추와 같다(Copy 대상이 비면 V-101 오류).
+  // 기본값을 기다리는 1.5초 안에 사용자가 먼저 조회하면 SearchArea 가 뒤늦은 autoSearch 를 건너뛴다(넣은 값이 없을 때).
   // 분리 창이 이어받은 값으로 시작하면 autoSearch 는 부르지 않으므로 아래 effect 가 이어받은 상태를 보고 조회한다.
   const entryPendingRef = useRef(!restored);
-  const handleSearchArea = useCallback(async () => {
-    if (entryPendingRef.current) {
-      entryPendingRef.current = false;
-      await runEntrySearch(filterUserId, handleSearch, loadUserList);
-      return;
-    }
-    await handleSearch();
-  }, [filterUserId, handleSearch, loadUserList]);
+  const handleSearchArea = useCallback(
+    async (trigger?: "auto") => {
+      if (trigger === "auto" && entryPendingRef.current) {
+        entryPendingRef.current = false;
+        await runEntrySearch(filterUserId, handleSearch, loadUserList);
+        return;
+      }
+      await handleSearch();
+    },
+    [filterUserId, handleSearch, loadUserList],
+  );
 
   // 새 창이 이어받은 목록(사용자 List·권한 생성 대상)이 있으면 건너뛴다. 목록 없이 복원됐으면 이어받은 Copy 대상으로 다시 조회한다
   // (Copy 대상 ID 가 있으면 조회 버튼과 같은 흐름 — 그 조회가 0건이면 사용자 List 가 비지 않게 전체 List 로 물러선다. 없으면 전체 List).
@@ -439,7 +443,7 @@ export default function CommUserRoleCopyPage() {
       ]}
     >
       {/* A-FILTER — S-001 권한 부여 source 사용자 ID/사번 (라벨 명확화 / 2026-06-04). */}
-      <SearchArea onSearch={() => void handleSearchArea()} autoSearch>
+      <SearchArea onSearch={(trigger) => void handleSearchArea(trigger)} autoSearch>
         {/* 조회 기본값 대상 칸 — 기본값이 들어오면 진입 조회가 이 칸으로 Copy 대상을 찾고, 없으면 전체 사용자 List 를 불러온다(handleSearchArea). */}
         <SearchField
           label="권한 부여 source 사용자 ID/사번"
