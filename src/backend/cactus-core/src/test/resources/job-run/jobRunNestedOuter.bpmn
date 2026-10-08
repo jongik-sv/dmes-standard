@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_jobRunNestedOuter" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_jobRunNestedOuter" name="3겹 서브서비스 - 바깥" isExecutable="true">
+    <bpmn:startEvent id="s1" name="s1">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="s1" targetRef="callMid" />
+    <bpmn:callActivity id="callMid" name="가운데 호출" calledElement="jobRunNestedMid">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="callMid" targetRef="e1" />
+    <bpmn:endEvent id="e1" name="e1">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+</bpmn:definitions>

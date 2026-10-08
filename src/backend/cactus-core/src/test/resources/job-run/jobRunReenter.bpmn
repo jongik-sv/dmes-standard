@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_jobRunReenter" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_jobRunReenter" name="진입점 재진입" isExecutable="true">
+    <bpmn:startEvent id="s1" name="s1">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="s1" targetRef="task" />
+    <bpmn:serviceTask id="task" name="진입점 재진입" camunda:class="com.dongkuk.dmes.cactus.job.JobRunTestTask">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="reenter" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="task" targetRef="e1" />
+    <bpmn:endEvent id="e1" name="e1">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+</bpmn:definitions>
