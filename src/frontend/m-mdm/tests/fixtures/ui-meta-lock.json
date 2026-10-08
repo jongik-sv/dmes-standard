@@ -1,9 +1,4 @@
 {
- "m-mcm/page-components/access-management/ObjectPickerModal.tsx": [
-  "col|objId|\"OBJECT_ID\"",
-  "col|objNm|\"OBJECT_NM\"",
-  "col|sysCd|-"
- ],
  "m-mcm/page-components/cma/masterCodeMng/page.tsx": [
   "col|CATEGORY_ID|-",
   "col|CATEGORY_NM|-",
@@ -749,12 +744,6 @@
   "col|mark|false",
   "col|matchCount|false",
   "col|name|false"
- ],
- "m-mdm/pages/dmc/codeItemEdit/cate/components/PreviewPanel.tsx": [
-  "col|code|false",
-  "col|hitMark|false",
-  "col|name|false",
-  "col|targetValue|false"
  ],
  "m-mdm/pages/dmc/codeItemEdit/components/PreviewPanel.tsx": [
   "col|code|false",

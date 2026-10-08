@@ -35,7 +35,6 @@ import { PatchPanel, type PatchValues } from "./components/PatchPanel";
 import { PreviewPanel, type PreviewMode } from "./components/PreviewPanel";
 import { hint, issueText, struck, toolbar } from "./components/styles";
 import { CategoryTab } from "./cate/CategoryTab";
-import { PreviewPanel as CatePreviewPanel } from "./cate/components/PreviewPanel";
 import { useCategoryEdit } from "./cate/useCategoryEdit";
 import type { Issue, PreviewResult, ViewResult } from "./types";
 
