@@ -47,6 +47,7 @@ export PATH="$PWD/.claude/skills/_shared/bin:$PATH"; <문서의 jq 예시>
 7. 시간 상한·새 프로세스 세션은 스크립트마다 방식이 조금 다르다: 시간 상한은 `console-input.sh` 가 GNU `timeout`(Git Bash 에 있음, macOS 에는 없음) → 셸 감시 순이고, 새 세션은 `console-poll.sh` 가 `setsid` → node spawn detached(윈도우 제외) → nohup 순, `heavy.sh` 는 `set -m` + nohup 이다. 새로 쓸 때는 시간 상한을 GNU `timeout` → 셸 감시 순으로, 새 세션은 `setsid` → node spawn detached → nohup 순으로 한다.
 8. **jq 를 쓰는 새 진입 스크립트는 머리말(첫 실행 줄 앞)에 동봉 jq 를 켜는 한 줄을 둔다.** 기존 스크립트(`dflow.sh`·`tick.sh` 등)의 첫 줄을 그대로 복사한다(`case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|… ) PATH="…/_shared/bin:$PATH"`). coordinator 스크립트는 `lib/common.sh` 를 source 하면 `lib/compat.sh` 가 같은 일을 하므로 필요 없다. 윈도우 jq.exe 는 `jq` 래퍼(`-b`)로만 부른다 — 그래야 출력 줄끝이 CRLF 가 되지 않는다.
 9. **python 을 새로 쓰지 않는다.** 스크립트는 bash 나 node(`.mjs`, 18.17 이상)로 쓰고, node 공용 헬퍼는 `_shared/node/` 를 쓴다.
+10. **node 판이 있는 lib 함수**: `coordinator/scripts/lib/console-redact.mjs` 는 `console-redact.sh` 네 함수(가림·화면 거르기·지문·프롬프트 정리)의 node 판이다(awk 판과 골든 시험으로 바이트까지 같음, 윈도우 미실측). 환경 변수 `COORD_JS_REDACT=1` 일 때만 sh 함수가 호출마다 node 를 띄워 쓰고(Git Bash 는 `cygpath -m` 경로), 기본(꺼짐)은 awk 판이다.
 
 ## 알려진 한계(Git Bash)
 
