@@ -98,7 +98,7 @@ public class MdmRevisionPoller implements AutoCloseable {
             return t;
         });
         // 자체 스케줄러라 @Scheduled 용 데코레이터가 닿지 않는다 — 같은 로그 태그를 직접 건다. 간격이 짧아 시작·끝 줄은 DEBUG.
-        executor.scheduleWithFixedDelay(() -> ScheduledJobLogContext.runQuiet("sch.mdmRevisionPoller.poll", this::pollQuietly),
+        executor.scheduleWithFixedDelay(() -> ScheduledJobLogContext.runQuiet(ScheduledJobLogContext.jobName("mdmRevisionPoller.poll"), this::pollQuietly),
                 0L, interval.toMillis(), TimeUnit.MILLISECONDS);
     }
 
