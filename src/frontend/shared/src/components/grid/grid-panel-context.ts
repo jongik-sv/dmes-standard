@@ -59,8 +59,31 @@ export interface GridPanelGridControls {
   isFilterEditable?(): boolean;
   /** 거른 건수 — 걸러 보이는 행 수와 전체 행 수. 거르지 않으면 null. 값이 같으면 같은 객체를 돌려준다(`useSyncExternalStore` 의 getSnapshot). */
   getFilterCount?(): GridFilterCount | null;
-  /** 입력 줄·거른 건수가 바뀔 때 알린다. 돌려주는 함수로 해제한다. */
+  /** 입력 줄·거른 건수·걸린 조건(칩)이 바뀔 때 알린다. 돌려주는 함수로 해제한다. */
   subscribeFilter?(listener: () => void): () => void;
+  /**
+   * 걸린 조건 — 빠른 검색어(맨 앞)와 칸별 필터 조건. 머리줄 아래 「걸린 조건」 칩 줄이 읽는다. 없으면 빈 목록.
+   * 조건이 같으면 같은 배열을 돌려준다(`useSyncExternalStore` 의 getSnapshot). 바뀔 때 `subscribeFilter` 로 알린다.
+   */
+  getFilterChips?(): readonly GridFilterChip[];
+  /**
+   * 칩 하나가 가리키는 조건만 지운다. 검색어 칩은 빠른 검색 지우기 경로(`setQuickFilter("")`)와 같다 — 검색 칸 입력은 머리줄이 비운다.
+   * 칸별 조건 칩은 그 칸의 필터 모델만 비운다(`setColumnFilterModel(colId, null)` 뒤 `onFilterChanged`).
+   */
+  clearFilterChip?(id: string): void;
+}
+
+/** 걸린 조건 칩 하나. */
+export interface GridFilterChip {
+  /** 검색어 칩은 `quick`, 칸별 조건 칩은 `col:{colId}`. */
+  id: string;
+  kind: "quick" | "column";
+  /** 이름 — 검색어 칩은 「검색어」, 칸별 조건 칩은 그 칸의 머리글 표시 이름. */
+  label: string;
+  /** 짧게 줄인 값. */
+  value: string;
+  /** 줄이지 않은 전체 글(툴팁). */
+  title: string;
 }
 
 /** 거른 동안의 건수 — GridPanel 머리줄이 「보이는 행 / 전체 행」 으로 보인다. */

@@ -25,6 +25,7 @@ import type { GridColumn, AgDataGridProps } from "./grid-types";
 import { useGridPersonalize, type GridPersonalizeColumn } from "./grid-personalize-hook";
 import { useGridPanelRegistry, type GridPanelGridControls } from "./grid-panel-context";
 import { GridSettingsOverlay } from "./GridSettingsOverlay";
+import { GridHeaderBar } from "./GridHeaderBar";
 import { ColumnSettingsModal } from "./ColumnSettingsModal";
 import { MessageModal } from "../modal";
 import { GridHeaderContextMenu } from "./GridHeaderContextMenu";
@@ -121,6 +122,8 @@ function AgDataGridComponent({
   gridId,
   personalize,
   filter,
+  title,
+  header = true,
 }: AgDataGridProps) {
   const gridRef = useRef<AgGridReact>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -130,6 +133,9 @@ function AgDataGridComponent({
   // 이 그리드가 놓인 자리 — panel(GridPanel 그리드 영역: 메뉴는 GridPanel 머리줄), dialog(대화 상자 안: 엑셀만 있는 머리글 줄 아이콘), standalone(그 밖: 이 그리드의 머리글 줄 아이콘).
   // DOM 을 봐야 알 수 있어 페인트 전에 한 번 정한다(null 인 첫 렌더에는 아이콘을 그리지 않아 깜빡이지 않는다).
   const gridPanelRegistry = useGridPanelRegistry();
+  // 스스로 머리줄을 그리는가 — GridPanel 등록부(context)가 없고 header={false} 가 아닐 때. 렌더 중에 정해지고 마운트 뒤 바뀌지 않아(바깥 상자가 처음부터 있다) 그리드가 다시 마운트되지 않는다.
+  // GridPanel 안(등록부 있음)이면 GridPanel 머리줄이 이 그리드의 메뉴·검색 칸·건수·칩을 맡으므로 그리지 않는다. 포털로 GridPanel 아래에 뜬 대화 상자 안 그리드도 등록부가 있어 여기에 든다(예전 설정 아이콘).
+  const selfHeader = header !== false && gridPanelRegistry === null;
   const [host, setHost] = useState<"panel" | "dialog" | "standalone" | null>(null);
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -145,9 +151,10 @@ function AgDataGridComponent({
   const gridFilter = useGridFilter({
     filter,
     settingsMenu,
-    inPanel: gridPanelRegistry !== null,
-    host,
-    isFilterTarget,
+    // 스스로 머리줄을 그리는 그리드는 GridPanel 안 그리드와 같은 규칙으로 걸러 보기를 준다 — 대화 상자 밖(standalone)이면 host 를 panel 처럼 다루고 걸러 보기 대상은 자기 자신이다.
+    inPanel: gridPanelRegistry !== null || (selfHeader && host !== "dialog"),
+    host: selfHeader && host === "standalone" ? "panel" : host,
+    isFilterTarget: selfHeader ? true : isFilterTarget,
     gridRef,
     gridId,
     personalize,
@@ -474,7 +481,8 @@ function AgDataGridComponent({
     }),
     [personalizeEnabled, settingsMenu, hasExcel, openSettings, requestReset, resetColumns],
   );
-  // GridPanel 에 올리는 명령 = 기본 명령 + 걸러 보기 명령. GridPanel 밖 설정 아이콘(overlay)에는 filter={true} 의 걸러 보기만 보인다(filter 생략의 걸러 보기는 GridPanel 머리줄 전용).
+  // GridPanel 에 올리는 명령 = 기본 명령 + 걸러 보기 명령. 머리글 줄 설정 아이콘(overlay, header={false})에는 filter={true} 의 걸러 보기만 보인다(filter 생략의 걸러 보기는 머리줄이 있는 그리드 전용).
+  // 스스로 머리줄을 그리는 그리드의 머리줄 메뉴·검색 칸은 이 gridControls 전체를 쓴다.
   const gridControls = useMemo<GridPanelGridControls>(() => ({ ...gridFilter.controls, ...baseControls }), [gridFilter.controls, baseControls]);
   const overlayControls = useMemo<GridPanelGridControls>(() => ({ ...gridFilter.overlayControls, ...baseControls }), [gridFilter.overlayControls, baseControls]);
   // 이 그리드가 GridPanel 설정 메뉴의 대상이면 아래 줄 [엑셀] 단추를 뺀다(메뉴가 엑셀을 맡는다). 한 패널에 그리드가 여럿이면 대상이 아닌 그리드는 단추를 그대로 둔다.
@@ -659,12 +667,14 @@ function AgDataGridComponent({
 
   const isAutoHeight = height === "auto";
   const getExcelApi = useCallback(() => gridRef.current?.api, []);
-  const getPanelTitle = useCallback(() => gridPanelRegistry?.getTitle(), [gridPanelRegistry]);
+  const headerTitleText = selfHeader && typeof title === "string" ? title : undefined;
+  const getPanelTitle = useCallback(() => gridPanelRegistry?.getTitle() ?? headerTitleText, [gridPanelRegistry, headerTitleText]);
   const exportExcel = useGridExcelExport(excelOptions, columns, sortedData, getExcelApi, getPanelTitle);
   exportExcelRef.current = exportExcel;
   rowCountRef.current = data.length;
 
-  // GridPanel 밖 그리드의 설정 아이콘 — 항목(개인화·엑셀)이 하나라도 있을 때만. 있으면 아래 줄 [엑셀] 단추는 메뉴가 맡는다.
+  // 머리줄이 없는 GridPanel 밖 그리드(header={false} 등)의 설정 아이콘 — 항목(개인화·엑셀)이 하나라도 있을 때만. 있으면 아래 줄 [엑셀] 단추는 메뉴가 맡는다.
+  // 스스로 머리줄을 그리는 그리드(selfHeader)는 이 아이콘 없이 머리줄 settings-slot 의 메뉴가 같은 일을 한다(아래 headerMenuControls).
   // 대화 상자 안 그리드는 엑셀 항목만 둔다 — 컬럼 설정·초기화는 모달을 하나 더 띄우는데, 겹친 모달에서는 Esc 한 번에 바깥 창까지 닫히고 Tab 이 갇힌다(머리글 우클릭 메뉴를 뺀 이유와 같다).
   // MantineProvider 밖(Mantine Menu 을 못 쓰는 자리)이면 아이콘을 그리지 않는다 — 아래 줄 [엑셀] 단추도 그대로 둔다.
   const hasMantine = useContext(MantineContext) !== null;
@@ -673,7 +683,21 @@ function AgDataGridComponent({
     [gridControls],
   );
   const showSettingsOverlay =
-    settingsMenu && hasMantine && ((host === "standalone" && (personalizeEnabled || hasExcel || filter === true)) || (host === "dialog" && hasExcel));
+    !selfHeader &&
+    settingsMenu &&
+    hasMantine &&
+    ((host === "standalone" && (personalizeEnabled || hasExcel || filter === true)) || (host === "dialog" && hasExcel));
+  // 스스로 그리는 머리줄의 메뉴·검색 칸 — host 가 정해진 뒤에 켠다(첫 렌더에 깜빡이지 않게). 대화 상자 안은 엑셀 출력 항목만 있는 메뉴이고 검색 칸·칩은 없다.
+  const headerMenuControls =
+    selfHeader && settingsMenu && hasMantine
+      ? host === "standalone"
+        ? gridControls
+        : host === "dialog" && hasExcel
+          ? dialogControls
+          : null
+      : null;
+  // 검색 명령이 없는 그리드(filter={false}·settingsMenu={false})는 걸러 보기 대상이 아니다 — GridPanel 의 걸러 보기 대상과 같은 기준.
+  const headerFilterControls = selfHeader && host === "standalone" && gridControls.setQuickFilter ? gridControls : null;
 
   // 행 선택 — 머리글 전체 선택은 보이는 행(걸러진 결과)만 고른다(selectAll "filtered"). 거르지 않을 때는 모든 행이라 전과 같다.
   // 걸러져 숨은 행의 선택은 필터가 바뀔 때 풀린다(useGridFilter 의 handleFilterChanged).
@@ -700,7 +724,12 @@ function AgDataGridComponent({
     <div
       ref={containerRef}
       className={`cm-data-grid ag-theme-alpine${showSettingsOverlay ? " cm-grid-settings-on" : ""}${isAutoHeight ? " cm-data-grid-auto-height" : ""}${isAutoHeight && sortedData.length === 0 ? " cm-data-grid-empty" : ""}${gridFilter.filterColumns && !gridFilter.rowOpen ? ` ${GRID_FILTER_ROW_CLOSED_CLASS}` : ""} ${className}`.trim()}
-      style={{ height: isAutoHeight ? "auto" : excelOptions ? "100%" : height || "100%", width: "100%" }}
+      style={
+        selfHeader && !isAutoHeight && !excelOptions
+          ? // 바깥 상자(머리줄 + 표)가 height 를 갖고 표는 남은 높이를 채운다.
+            { flex: "1 1 0", minHeight: 0, width: "100%" }
+          : { height: isAutoHeight ? "auto" : excelOptions ? "100%" : selfHeader ? undefined : height || "100%", width: "100%" }
+      }
       aria-label={ariaLabel || "데이터 목록"}
       aria-busy={loading}
       tabIndex={-1}
@@ -774,18 +803,33 @@ function AgDataGridComponent({
       options={excelOptions}
       data={data}
       onExcel={exportExcel}
-      height={height}
-      hideButton={isMenuTarget || showSettingsOverlay}
+      height={selfHeader && !isAutoHeight ? undefined : height}
+      fill={selfHeader && !isAutoHeight}
+      hideButton={isMenuTarget || showSettingsOverlay || headerMenuControls !== null}
     >
       {grid}
     </AgDataGridExcelFrame>
   ) : (
     grid
   );
+  // 스스로 머리줄을 그리면 바깥을 세로 flex 상자로 감싼다 — 머리줄(+ 걸린 조건 칩 줄) 아래를 표가 채운다. `height` 는 이 바깥 상자의 높이다.
+  // 건수·검색 칸·메뉴·칩의 구독은 GridHeaderBar 안에 있어 그리드(AgGridReact)를 다시 그리지 않는다.
+  const framed = selfHeader ? (
+    <div
+      className={`cm-grid-with-header${isAutoHeight ? " cm-grid-with-header--auto" : ""}`}
+      data-testid="grid-with-header"
+      style={{ height: isAutoHeight ? "auto" : height || "100%" }}
+    >
+      <GridHeaderBar title={title} count={sortedData.length} filterControls={headerFilterControls} menuControls={headerMenuControls} />
+      {body}
+    </div>
+  ) : (
+    body
+  );
   // 늘 같은 모양(Fragment)으로 돌려준다 — 개인화가 켜지고 꺼질 때 그리드가 다시 마운트되지 않게. 꺼진 동안 덧붙는 DOM 은 없다.
   return (
     <>
-      {body}
+      {framed}
       {personalizeEnabled && headerMenu ? (
         <GridHeaderContextMenu
           x={headerMenu.x}

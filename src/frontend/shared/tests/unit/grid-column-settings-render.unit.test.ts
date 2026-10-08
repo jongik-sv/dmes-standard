@@ -276,9 +276,19 @@ describe("GridPanel 「그리드 설정」 메뉴의 [컬럼 설정…]", () => 
     expect(settingsMenuButton()).toBeNull();
   });
 
-  it("GridPanel 없이 쓰는 그리드는 등록할 곳이 없어 자기 머리글 줄 아이콘으로 같은 메뉴를 단다", async () => {
+  it("GridPanel 없이 쓰는 그리드는 등록할 곳이 없어 자기 머리줄의 설정 메뉴로 같은 메뉴를 단다(머리글 줄 아이콘과 겹치지 않는다)", async () => {
     await stubUser("u1");
     await show(tab(gridEl()));
+    expect(document.querySelectorAll(".grid-panel-header").length).toBe(1);
+    expect(document.querySelector("[data-testid='grid-with-header']")!.contains(document.querySelector(".grid-panel-header"))).toBe(true);
+    expect(settingsMenuButton()!.closest("[data-testid='grid-panel-settings-slot']")).not.toBeNull();
+    expect(tid("grid-settings-overlay")).toBeNull();
+    expect(api().getAllGridColumns().length).toBeGreaterThan(0);
+  });
+
+  it("header={false} 인 GridPanel 밖 그리드는 머리줄 없이 자기 머리글 줄 아이콘으로 같은 메뉴를 단다", async () => {
+    await stubUser("u1");
+    await show(tab(gridEl({ header: false })));
     expect(document.querySelector(".grid-panel-header")).toBeNull();
     expect(settingsMenuButton()!.closest("[data-testid='grid-settings-overlay']")).not.toBeNull();
     expect(api().getAllGridColumns().length).toBeGreaterThan(0);

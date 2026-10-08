@@ -173,18 +173,30 @@ describe("예외 — 검색 칸을 기본으로 두지 않는 경우", () => {
     expect(tid("grid-quick-filter")).toBeNull();
   });
 
-  it("GridPanel 밖 그리드는 검색 칸을 새로 만들지 않고 메뉴 항목도 없다(filter 생략)", async () => {
-    await show(gridEl({ excelExport: undefined }));
+  it("header={false} 인 GridPanel 밖 그리드는 검색 칸을 새로 만들지 않고 메뉴 항목도 없다(filter 생략)", async () => {
+    await show(gridEl({ excelExport: undefined, header: false }));
     expect(tid("grid-quick-filter")).toBeNull();
     await openMenu();
     expect(tid("grid-filter-row-item")).toBeNull();
   });
 
-  it("GridPanel 밖 filter={true} 그리드는 메뉴 항목만 있다(검색 칸 없음)", async () => {
-    await show(gridEl({ filter: true }));
+  it("header={false} 인 GridPanel 밖 filter={true} 그리드는 메뉴 항목만 있다(검색 칸 없음)", async () => {
+    await show(gridEl({ filter: true, header: false }));
     expect(tid("grid-quick-filter")).toBeNull();
     await openMenu();
     expect(tid("grid-filter-row-item")!.textContent).toBe("칸별 필터 보기");
+  });
+
+  it("스스로 머리줄을 그리는 GridPanel 밖 그리드는 GridPanel 안과 같은 규칙이다 — filter 생략·true 모두 검색 칸이 기본으로 보이고 「칸별 필터 보기」 가 있다", async () => {
+    for (const filter of [undefined, true]) {
+      await show(gridEl({ excelExport: undefined, filter }));
+      expect(tid("grid-quick-filter-input")).not.toBeNull();
+      await openMenu();
+      expect(tid("grid-filter-row-item")!.textContent).toBe("칸별 필터 보기");
+      await act(async () => r?.unmount());
+      r = null;
+      document.body.innerHTML = "";
+    }
   });
 
   it("서버 페이징 GridPanel 은 검색 칸이 기본으로 없고, 「필터 창 보기」 를 켜면 검색 칸과 입력 줄이 함께 나타난다", async () => {

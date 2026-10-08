@@ -569,7 +569,8 @@ body > .ag-popup {
   min-width: 0;
 }
 
-.grid-panel-title > span:first-child {
+/* 제목이 없으면 건수 배지가 첫 span 이 되므로 제목 규칙이 배지를 덮지 않게 뺀다. */
+.grid-panel-title > span:first-child:not(.grid-panel-count) {
   font-size: var(--font-size-md);
   font-weight: 600;
   color: var(--color-text);
@@ -1003,4 +1004,93 @@ body > .ag-popup {
 .cm-data-grid:focus-within > .cm-grid-settings-overlay,
 .cm-grid-settings-overlay:has([data-expanded]) {
   opacity: 1;
+}
+
+/*
+ * 스스로 머리줄을 그리는 AgDataGrid(GridPanel 밖) — GridPanel 과 같은 머리줄(grid-panel-header …)과 「걸린 조건」 칩 줄 아래에 표가 남은 높이를 채운다.
+ * 바깥 상자가 테두리를 갖고 표 상자는 테두리를 걷는다(이중 테두리 없음). `.grid-panel`·`.grid-panel-content` 를 쓰지 않는다 —
+ * AgDataGrid 가 `.grid-panel-content` 안인지로 자리(host)를 정하고, `.grid-panel` 의 `height:100%`·contain 은 height="auto" 와 맞지 않는다.
+ * 높이(height)는 이 바깥 상자의 높이다: 표는 flex 로 남은 높이를 받는다(contain: strict 인 표 상자는 flex 가 준 크기를 쓴다).
+ */
+.cm-grid-with-header {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border-grid);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg);
+  overflow: hidden;
+  contain: strict;
+}
+.cm-grid-with-header.cm-grid-with-header--auto {
+  contain: layout paint;
+}
+.cm-grid-with-header > .cm-data-grid,
+.cm-grid-with-header > .cm-grid-excel > .cm-grid-excel__grow > .cm-data-grid {
+  border: none;
+  border-radius: 0;
+  max-height: none;
+}
+/* 「걸린 조건」 칩 줄 — 머리줄 바로 아래. 조건이 없으면 DOM 에 없다(GridFilterChips). 색은 의미 토큰만 쓴다. */
+.grid-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  padding: 4px 10px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  background-color: var(--color-bg);
+  border-bottom: 1px solid var(--color-border-light);
+}
+.grid-filter-chips-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.grid-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 260px;
+  height: 20px;
+  padding: 0 2px 0 8px;
+  box-sizing: border-box;
+  border: 1px solid var(--color-selection);
+  border-radius: 10px;
+  background-color: var(--color-primary-soft);
+  color: var(--color-text);
+  font-size: var(--font-size-xs);
+  line-height: 1;
+}
+.grid-filter-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.grid-filter-chip-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.grid-filter-chip-clear:hover {
+  background-color: var(--color-primary-soft-hover);
+  color: var(--color-text);
+}
+.grid-filter-chip-clear:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
 }

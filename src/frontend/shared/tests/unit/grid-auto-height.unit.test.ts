@@ -59,7 +59,8 @@ describe("AgDataGrid 높이", () => {
   });
 
   it("height 를 주지 않으면 부모 높이(100%)를 채우는 normal 배치다", async () => {
-    const grid = await render({});
+    // 머리줄이 없는(header={false}) 그리드 — 머리줄이 있으면 바깥 상자가 100% 를 갖고 표는 flex 로 남은 높이를 채운다(grid-header 시험).
+    const grid = await render({ header: false });
     expect(grid.style.height).toBe("100%");
     expect(grid.querySelector(".ag-layout-normal")).not.toBeNull();
     expect(grid.querySelector(".ag-layout-auto-height")).toBeNull();

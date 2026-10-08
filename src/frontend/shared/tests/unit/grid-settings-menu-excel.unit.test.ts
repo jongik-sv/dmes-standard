@@ -233,12 +233,14 @@ describe("GridPanel 안의 기본 켬", () => {
     expect(tid("grid-excel")).toBeNull();
   });
 
-  it("GridPanel 밖의 그리드도 excelExport 를 주지 않으면 아래 줄은 없고, 머리글 줄 아이콘 메뉴에만 엑셀 출력이 나온다(자세한 것은 grid-settings-overlay 시험)", async () => {
+  it("GridPanel 밖의 그리드도 excelExport 를 주지 않으면 아래 줄은 없고, 머리줄 설정 메뉴에만 엑셀 출력이 나온다(자세한 것은 grid-header 시험)", async () => {
     await show(
       createElement(TabPageContext.Provider, { value: { pageId: "scr-xl", serviceId: "", tabId: "t1" } }, gridEl()),
     );
     expect(tid("grid-foot")).toBeNull();
-    expect(tid("grid-settings-overlay")).not.toBeNull();
+    // 스스로 그리는 머리줄의 설정 메뉴가 엑셀을 맡는다(머리글 줄 아이콘은 header={false} 일 때만 — grid-settings-overlay 시험)
+    expect(tid("grid-settings-overlay")).toBeNull();
+    expect(tid("grid-panel-settings-slot")!.contains(tid("grid-settings-menu"))).toBe(true);
     await openMenu();
     expect(tid("grid-excel")!.textContent).toBe("엑셀 출력");
   });

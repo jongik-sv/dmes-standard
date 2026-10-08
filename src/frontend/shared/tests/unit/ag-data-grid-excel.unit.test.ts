@@ -56,8 +56,9 @@ async function settle() {
 }
 
 async function render(props: Record<string, unknown> = {}) {
-  // 이 파일은 아래 줄 [엑셀] 단추 쪽을 시험한다 — GridPanel 밖 그리드는 기본으로 머리글 줄 설정 메뉴가 엑셀을 맡으므로(grid-settings-overlay 시험) 메뉴를 끈다.
-  const element = createElement(AgDataGrid, { columns, data, rowKey: "woNo", settingsMenu: false, ...props } as never);
+  // 이 파일은 아래 줄 [엑셀] 단추 쪽을 시험한다 — GridPanel 밖 그리드는 기본으로 설정 메뉴가 엑셀을 맡으므로(grid-settings-overlay 시험) 메뉴를 끈다.
+  // 또 GridPanel 밖 그리드는 기본으로 머리줄(바깥 flex 상자)을 그려 `height` 가 바깥 상자 전체의 높이가 되므로(grid-header 시험) 여기서는 header={false} 로 그리드 상자·바깥 상자 구조만 본다.
+  const element = createElement(AgDataGrid, { columns, data, rowKey: "woNo", settingsMenu: false, header: false, ...props } as never);
   if (r) rerender(r, element);
   else {
     r = renderWithMantine(element);

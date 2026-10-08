@@ -58,6 +58,8 @@ function gridEl(props: Partial<AgDataGridProps> = {}) {
     columnSizing: "fixed",
     height: "auto",
     gridId: "g",
+    // 이 파일은 머리글 줄 설정 아이콘(header={false}, 머리줄 없는 그리드)을 시험한다. 머리줄이 있는 그리드는 grid-header 시험이 본다.
+    header: false,
     ...props,
   });
 }
