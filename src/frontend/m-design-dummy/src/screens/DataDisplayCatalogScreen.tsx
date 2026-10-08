@@ -335,8 +335,9 @@ export function DataDisplayCatalogScreen() {
             </div>
           </section>
 
-          <section className="catalog-panel">
-            <div className="alias-grid-sample">
+          {/* 그리드가 스스로 머리줄·테두리를 그리므로 카드 테두리·안 여백을 걷어 테두리가 한 겹만 보이게 한다. */}
+          <section className="catalog-panel" style={{ border: "none", background: "transparent" }}>
+            <div className="alias-grid-sample" style={{ padding: 0 }}>
               <AgDataGrid
                 title="AgDataGrid 직접 사용"
                 columns={DIRECT_GRID_COLUMNS}

@@ -189,7 +189,7 @@ export function TestCasePanel({ sim, tests, canEditCases, canRun }: TestCasePane
   return (
     <section className="rsf-case-panel" data-testid="case-panel" aria-label="테스트 케이스">
       <div className="rsf-case-head">
-        <p className="rsf-dbg-title">{`테스트 케이스 ${cases.length}건`}</p>
+        <p className="rsf-dbg-title">테스트 케이스</p>
         {summary && (
           <span className="rsf-case-summary">
             <strong data-testid="case-summary">{`${summary.pass}/${summary.total} 통과`}</strong>
