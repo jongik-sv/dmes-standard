@@ -2,6 +2,7 @@ package com.dongkuk.dmes.cactus.scheduling;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.PatternLayout;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.AfterEach;
@@ -9,6 +10,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.autoconfigure.task.TaskSchedulingAutoConfiguration;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,6 +24,8 @@ import org.springframework.scheduling.support.ScheduledMethodRunnable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -155,6 +161,58 @@ class ScheduledJobLogContextTest {
             assertThat(bean.fixedDelayMdc.get().get("service_tag")).matches("\\w{4}");
             assertThat(bean.cronMdc.get()).containsEntry("serviceId", "sch.scheduledBean.cronJob");
             assertThat(bean.cronMdc.get().get("service_tag")).matches("\\w{4}");
+        }
+    }
+
+    @Test
+    void Boot_가_만든_스케줄러에서도_태그가_들어간다() throws Exception {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(TaskSchedulingAutoConfiguration.class, ScheduledJobLogAutoConfiguration.class))
+                .withUserConfiguration(BootSchedulingConfig.class)
+                .run(ctx -> {
+                    ScheduledBean bean = ctx.getBean(ScheduledBean.class);
+
+                    assertThat(bean.fixedDelaySeen.await(10, TimeUnit.SECONDS)).isTrue();
+                    assertThat(bean.fixedDelayMdc.get()).containsEntry("serviceId", "sch.scheduledBean.fixedDelayJob");
+                    assertThat(bean.fixedDelayMdc.get().get("service_tag")).matches("\\w{4}");
+                });
+    }
+
+    /** 공통 logback 패턴으로 찍힌 줄을 analog application.yml 의 정규식이 서비스로 읽는지 확인한다. */
+    @Test
+    void 공통_logback_패턴_줄을_analog_정규식이_서비스_Action_소요시간으로_읽는다() {
+        PatternLayout layout = new PatternLayout();
+        layout.setContext(contextLogger.getLoggerContext());
+        layout.setPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{service_tag}] [%X{serviceId}] %-5level %logger{36} - %msg%n");
+        layout.start();
+        Pattern lex = Pattern.compile("(?<time>20\\d\\d-\\d\\d-\\d\\d \\d\\d:\\d\\d:\\d\\d\\.\\d\\d\\d) \\[(?<thread>[^\\]]+)\\] \\[(?<serviceTag>[\\w:]+)\\] \\[(?<service>[^\\]]+)\\] (?<level>(?:TRACE|DEBUG|INFO|WARN|ERROR))\\s+(?<logger>[\\w.$-]+) - (?<message>.*)");
+        Pattern action = Pattern.compile("^[\\w.-]+/(?<action>\\w+)$");
+        Pattern runTime = Pattern.compile("RunTime : \\[(?<runTime>\\d+)\\]\\s*$");
+
+        ScheduledJobLogContext.run("sch.widgetCollector.collectMinute", () -> { });
+
+        List<Matcher> lines = appender.list.stream()
+                .map(e -> lex.matcher(layout.doLayout(e).strip()))
+                .toList();
+        assertThat(lines).hasSize(2).allMatch(Matcher::find);
+        assertThat(lines).allSatisfy(m -> {
+            assertThat(m.group("serviceTag")).matches("\\w{4}");
+            assertThat(m.group("service")).isEqualTo("sch.widgetCollector.collectMinute");
+        });
+        assertThat(lines.get(0).group("serviceTag")).isEqualTo(lines.get(1).group("serviceTag"));
+        Matcher start = action.matcher(lines.get(0).group("message"));
+        assertThat(start.find()).isTrue();
+        assertThat(start.group("action")).isEqualTo("run");
+        assertThat(lines.get(1).group("message")).startsWith("Service end - service name ");
+        assertThat(runTime.matcher(lines.get(1).group("message")).find()).isTrue();
+    }
+
+    @Configuration
+    @EnableScheduling
+    static class BootSchedulingConfig {
+        @Bean
+        ScheduledBean scheduledBean() {
+            return new ScheduledBean();
         }
     }
 
