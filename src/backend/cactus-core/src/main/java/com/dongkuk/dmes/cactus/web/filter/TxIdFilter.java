@@ -27,9 +27,11 @@ import java.util.UUID;
  *
  * <p>요청 완료 시 MDCTemplate.finally에서 MDC 전체를 클리어한다.
  *
- * <p>등록 위치: cactus {@code CactusWebSecurityAutoConfiguration} 와 각 모듈 SecurityConfig 가
- * SecurityFilterChain 최상단(RequestIdFilter/ClientKeyFilter 앞)에 명시적으로 등록.
- * SecurityFilterChain 명시 등록 시 servlet 표준 {@code @Order} 는 무의미하므로 제거.
+ * <p>등록 위치: cactus {@code CactusWebSecurityAutoConfiguration#txIdFilterRegistration} 이
+ * 보안 필터 체인(FilterChainProxy) 바깥의 servlet 필터로 등록한다
+ * ({@code Ordered.HIGHEST_PRECEDENCE + 10}). 각 모듈 SecurityConfig 는 이 필터를
+ * SecurityFilterChain 에 추가하지 않는다. FilterChainProxy 가 체인 시작 전에 남기는
+ * "Securing ..." 로그에도 service_tag 가 붙게 하기 위해서다.
  */
 public class TxIdFilter extends OncePerRequestFilter {
 
