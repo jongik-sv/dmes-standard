@@ -10,7 +10,7 @@
  * 숨은 탭(active 거짓, 패널 display:none)은 포털로 그리는 대화 상자를 그리지 않고(오류 창 `ErrorModal` 은 여기서, 그 밖의 창은 `EditorActiveContext` 를 읽는 쪽에서
  * — 테스트 케이스 편집 창 `CaseEditModal`. 오류·작성 중 내용은 상태로 남아 탭을 고르면 이어진다) 우클릭 메뉴를 닫는다.
  * 단축키는 캔버스 감싸개가 보일 때만 받는다(`isShown`).
- * 세트 고르기와 흐름 툴바(`FlowToolbar`)는 한 줄이다(세트 고르기를 `lead` 로 넘긴다). 디버그 모드면 그 아래 줄에 `DebugToolbar`,
+ * 세트·버전 고르기는 조회 영역(`SearchArea`)에, 그 아래 버전 줄(`SetVersionRow`)과 흐름 툴바(`FlowToolbar`)가 있다. 디버그 모드면 그 아래 줄에 `DebugToolbar`,
  * 본문 3단(왼쪽 | 흐름 캔버스 | 오른쪽), 아래 패널을 둔다.
  * 한 줄 세트와 분기 세트 모두 캔버스로 편집하고 흐름(`flowJson`)으로 저장한다(P-D5).
  *
