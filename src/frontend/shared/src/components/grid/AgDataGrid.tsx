@@ -708,9 +708,9 @@ function AgDataGridComponent({
         }
         suppressColumnVirtualisation={resolvedColumnSizing === "auto"}
         suppressHorizontalScroll={false}
-        // 개인화가 켜지면 머리글을 그리드 밖으로 끌어도 컬럼이 숨겨지지 않는다 — 실수 숨김이 자동 저장되어 계속 사라지는 것을 막는다.
-        // 숨김은 컬럼 설정 창으로만 한다. 꺼진 그리드는 ag-grid 기본(false)이라 예전과 같다.
-        suppressDragLeaveHidesColumns={personalizeEnabled}
+        // 머리글을 그리드 밖으로 끌어도 컬럼이 숨겨지지 않는다(개인화 여부와 무관) — 실수 숨김이 자동 저장되어 계속 사라지거나,
+        // 개인화가 꺼진 그리드에서 되살릴 길 없이 사라지는 것을 막는다(2026-10-08 DB 뷰어 결함). 숨김은 컬럼 설정 창으로만 한다.
+        suppressDragLeaveHidesColumns
         alwaysShowHorizontalScroll={alwaysShowHorizontalScroll}
         domLayout={isAutoHeight ? "autoHeight" : "normal"}
         localeText={gridFilter.filterColumns ? GRID_FILTER_LOCALE_TEXT : undefined}

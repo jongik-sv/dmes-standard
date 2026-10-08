@@ -466,17 +466,17 @@ describe("설정 창 적용 → 저장 → 복원", () => {
 });
 
 describe("머리글을 그리드 밖으로 끌어도 컬럼이 숨겨지지 않는다(suppressDragLeaveHidesColumns)", () => {
-  it("개인화가 켜진 그리드만 true 이고 꺼진 그리드는 기본값(false) 그대로다", async () => {
+  it("개인화 여부와 상관없이 늘 true 다 — 개인화가 꺼진 그리드는 숨긴 칸을 되살릴 창이 없다", async () => {
     await stubUser("u1");
     await show(tab(gridEl({ gridId: "on" }, "on"), gridEl({ gridId: "off", personalize: false }, "off")));
     expect(api(0).getGridOption("suppressDragLeaveHidesColumns")).toBe(true);
-    expect(api(1).getGridOption("suppressDragLeaveHidesColumns")).toBeFalsy();
+    expect(api(1).getGridOption("suppressDragLeaveHidesColumns")).toBe(true);
   });
 
-  it("사용자 확인 뒤(마운트 뒤에) 켜지면 그때 true 가 되고, 확인 전에는 false 다", async () => {
+  it("사용자 확인 전(개인화가 아직 꺼진 동안)에도 true 다", async () => {
     await stubUser(null);
     await show(tab(gridEl()));
-    expect(api().getGridOption("suppressDragLeaveHidesColumns")).toBeFalsy();
+    expect(api().getGridOption("suppressDragLeaveHidesColumns")).toBe(true);
     await seedCurrentUser("u1");
     await wait(50);
     expect(api().getGridOption("suppressDragLeaveHidesColumns")).toBe(true);
