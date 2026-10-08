@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import { NativeSelect, TextInput } from "@mantine/core";
 import { Modal } from "../modal";
 import { Button } from "../form";
-import { AgDataGrid, Pagination, type GridColumn, type GridPersonalizeOptions } from "../grid";
+import { AgDataGrid, GRID_HEADER_HEIGHT, Pagination, type GridColumn, type GridPersonalizeOptions } from "../grid";
 
 export interface LookupRow {
   code: string;
@@ -88,8 +88,6 @@ const COLUMNS: GridColumn[] = [
 const DEFAULT_PAGE_SIZE = 50;
 const PAGE_SIZE_OPTIONS = [50, 100, 200];
 const GRID_HEIGHT = 320;
-/** 그리드가 표 위에 그리는 머리줄(그리드명·건수·설정 메뉴) 높이 — 숫자 height 는 표 높이라 고정 높이 상자(GRID_HEIGHT)에 맞추려면 뺀다. */
-const GRID_HEADER_HEIGHT = 34;
 const LOOKUP_PERSONALIZE: GridPersonalizeOptions = { sort: false };
 
 const FIELD_WRAP_STYLE: CSSProperties = { display: "flex", flexDirection: "column", gap: 4 };
@@ -260,6 +258,7 @@ export function LookupModal({
           ag-grid 의 .ag-root-wrapper 가 자체 border-radius 를 가져 cm-data-grid 만 덮어도 잔존하므로
           !important + 자손 wrapper 까지 함께 0 으로 강제. */}
       <style>{`
+        .cm-lookup-grid .cm-grid-with-header,
         .cm-lookup-grid .cm-data-grid,
         .cm-lookup-grid .ag-root-wrapper,
         .cm-lookup-grid .ag-root,
@@ -339,7 +338,10 @@ export function LookupModal({
             columns={COLUMNS}
             data={rows as unknown as Record<string, unknown>[]}
             rowKey="code"
+            // 숫자 height 는 표 높이 — 고정 높이 상자(GRID_HEIGHT)에 머리줄이 더해져 들어가도록 머리줄만큼 뺀다.
             height={GRID_HEIGHT - GRID_HEADER_HEIGHT}
+            // 서버 페이징이라 행 수는 한 쪽 분량이다 — 머리줄 건수 배지는 아래 Pagination 과 같은 총건수를 보인다.
+            count={total}
             highlightedRowKey={selected?.code ?? null}
             onRowClick={(row) => setSelected(row as unknown as LookupRow)}
             onRowDoubleClick={(row) => {

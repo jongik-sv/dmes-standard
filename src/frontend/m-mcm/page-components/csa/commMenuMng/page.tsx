@@ -37,7 +37,7 @@ import {
   DETAIL_LABEL_CELL,
   DETAIL_VALUE_CELL,
 } from "@dk-oasis/shared/layout";
-import { GridPanel, AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
+import { GridPanel, AgDataGrid, GRID_HEADER_HEIGHT, type GridColumn } from "@dk-oasis/shared/grid";
 import {
   Input,
   Select,
@@ -1249,6 +1249,7 @@ export default function CommMenuMngPage() {
             shared Modal + Input + Button + AgDataGrid (LookupModal 본체 구조 mirror). */}
       <Modal open={lovOpen} title="OBJECT 검색" onClose={() => setLovOpen(false)} size="md">
         <style>{`
+          .cm-objlov-grid .cm-grid-with-header,
           .cm-objlov-grid .cm-data-grid,
           .cm-objlov-grid .ag-root-wrapper,
           .cm-objlov-grid .ag-root,
@@ -1285,7 +1286,7 @@ export default function CommMenuMngPage() {
               ]}
               data={lovRows.map((r, i) => ({ ...r, __k: `${r.OBJECT_ID ?? ""}-${i}` })) as unknown as Record<string, unknown>[]}
               rowKey="__k"
-              height={326}
+              height={360 - GRID_HEADER_HEIGHT}
               highlightedRowKey={lovSelectedKey}
               onRowClick={(row) => setLovSelectedKey(String((row as { __k?: unknown }).__k ?? ""))}
               onRowDoubleClick={(row) => handleLovPick(row as unknown as CommMenuMngObjLovRow)}

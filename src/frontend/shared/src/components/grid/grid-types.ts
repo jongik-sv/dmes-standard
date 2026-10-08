@@ -310,6 +310,17 @@ export interface AgDataGridProps {
    */
   title?: React.ReactNode;
   /**
+   * 머리줄 건수 배지에 보일 건수 — GridPanel `count` 와 같은 이름·뜻. 주면 그리드가 받은 행 수 대신 이 값을 보인다(서버 페이징 목록의 총건수 등).
+   * 걸러져 있는 동안은 GridPanel 처럼 「보이는 행 / 전체 행」(그리드가 받은 행 기준)이 대신 보이고, 거름을 풀면 이 값으로 돌아온다. 스스로 머리줄을 그리는 그리드에만 쓴다(GridPanel 안이면 GridPanel 의 `count`).
+   * 값이 바뀌어도 AgGridReact 는 다시 그려지지 않는다(머리줄 부품만).
+   */
+  count?: number;
+  /**
+   * 그리드명·건수 배지 오른쪽(제목 옆)에 놓을 추가 노드 — GridPanel `titleExtra` 와 같은 이름·뜻·자리(예: 「최대 N건」 안내 GridLimitNotice). 업무 단추와는 다른 영역이라 겹치지 않는다.
+   * 스스로 머리줄을 그리는 그리드에만 쓴다(GridPanel 안이면 GridPanel 의 `titleExtra`). 렌더마다 새로 만들어도 AgGridReact 는 다시 그려지지 않는다(머리줄 부품만).
+   */
+  titleExtra?: React.ReactNode;
+  /**
    * 스스로 머리줄을 그리는가. 기본 `true`. **GridPanel 안이 아닌** 그리드(대화 상자 안·카드 안의 작은 목록·`height="auto"` 포함)는 표 위에 GridPanel 과 같은 머리줄을 그린다 —
    * 그리드명(`title`)·건수 배지(`N건`, 걸러지면 `보이는 / 전체건`)·「그리드 설정」 메뉴, 조건이 맞으면 빠른 검색 칸, 그 아래 「걸린 조건」 칩 줄(검색어·칸별 조건, × 로 그 조건만 지움, 조건이 없으면 줄 없음).
    * GridPanel 안이면 GridPanel 이 머리줄을 그리므로 이 그리드는 그리지 않는다(겹치지 않는다). `false` 면 머리줄 없이 예전처럼 머리글 줄 오른쪽 끝의 설정 아이콘을 쓴다.

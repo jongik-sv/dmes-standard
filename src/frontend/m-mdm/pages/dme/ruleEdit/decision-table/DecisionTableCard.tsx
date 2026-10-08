@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type RefObject } from "react";
 
 import { CardFrame, MutedText } from "@dk-oasis/shared/card";
-import { AgDataGrid } from "@dk-oasis/shared/grid";
+import { AgDataGrid, GRID_HEADER_HEIGHT } from "@dk-oasis/shared/grid";
 import { Button, Select } from "@dk-oasis/shared/form";
 import { badgeStyle, fmtVer, sameVer } from "@/shell";
 import { isRowVersionConflict } from "@/dme/oasis-call";
@@ -410,7 +410,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
           columns={columns}
           data={data}
           rowKey="rowKey"
-          height={gridHeight - 34}
+          height={gridHeight - GRID_HEADER_HEIGHT}
           columnSizing="fixed"
           sortable={false}
           singleClickEdit

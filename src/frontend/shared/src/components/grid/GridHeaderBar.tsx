@@ -11,7 +11,7 @@
  * - `menuControls`: 설정 메뉴 대상 그리드의 명령. 없거나 보일 항목이 없으면 메뉴를 그리지 않는다.
  * - 칩 줄은 머리줄 아래에 이어 붙는다(걸린 조건이 없으면 DOM 없음).
  */
-import { memo, useCallback, useState, type ReactNode } from "react";
+import { memo, useCallback, useRef, useState, type ReactNode } from "react";
 
 import { GridHelpButton, type GridHelpConfig } from "./GridHelpButton";
 import { GridFilterChips } from "./GridFilterChips";
@@ -58,11 +58,20 @@ function GridHeaderBarComponent({
   // 검색어 칩을 지우면 검색 칸을 다시 마운트해 입력도 비운다(칸은 자기 입력값을 들고 있다). 이 상태는 이 부품만 다시 그린다.
   const [chipResetKey, setChipResetKey] = useState(0);
   const onQuickCleared = useCallback(() => setChipResetKey((k) => k + 1), []);
+  // 칩 × 로 칩이 모두 사라질 때 포커스를 받을 곳 — 검색 입력 칸(검색 칸을 다시 마운트한 뒤에도 그 시점의 칸), 없으면 이 머리줄이 속한 그리드 상자.
+  const headerRef = useRef<HTMLDivElement>(null);
+  const getFocusFallback = useCallback(
+    () =>
+      headerRef.current?.querySelector<HTMLElement>(".grid-quick-filter-input") ??
+      headerRef.current?.parentElement?.querySelector<HTMLElement>(".cm-data-grid") ??
+      null,
+    [],
+  );
   const hasActions = buttons != null || headerExtra != null || menuProps !== null || quickVisible;
 
   return (
     <>
-      <div className="grid-panel-header" data-testid="grid-panel-header">
+      <div ref={headerRef} className="grid-panel-header" data-testid="grid-panel-header">
         <div className="grid-panel-title">
           {title ? (
             <span className="grid-panel-title-text" data-testid="grid-panel-title">
@@ -85,7 +94,12 @@ function GridHeaderBarComponent({
           <div className="grid-panel-header-actions">
             {/* 빠른 검색 칸 — 걸러 보기 대상이 있으면 기본으로 보인다(서버 페이징 filter 생략은 「필터 창 보기」 를 켰을 때만). 업무 버튼 앞. */}
             {filterControls && quickVisible ? (
-              <GridQuickFilter key={`grid_quick_filter_${quickResetKey}_${chipResetKey}`} controls={filterControls} serverPaged={serverPaged} />
+              <GridQuickFilter
+                key={`grid_quick_filter_${quickResetKey}_${chipResetKey}`}
+                controls={filterControls}
+                serverPaged={serverPaged}
+                gridName={typeof title === "string" && title !== "" ? title : undefined}
+              />
             ) : null}
             {buttons}
             {headerExtra ? <div className="grid-panel-header-extra">{headerExtra}</div> : null}
@@ -100,7 +114,7 @@ function GridHeaderBarComponent({
           </div>
         ) : null}
       </div>
-      <GridFilterChips controls={filterControls} onQuickCleared={onQuickCleared} />
+      <GridFilterChips controls={filterControls} onQuickCleared={onQuickCleared} getFocusFallback={getFocusFallback} />
     </>
   );
 }

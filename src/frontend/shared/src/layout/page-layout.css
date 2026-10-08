@@ -443,8 +443,8 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
-  /* 좁은 패널에서도 제목·건수는 남기고 버튼 영역이 줄어든다. */
-  flex: 0 0 auto;
+  /* 좁은 패널에서도 제목·건수는 남기고 버튼 영역이 줄어든다. 아주 좁으면(카드·위젯 약 260px 미만) 제목도 말줄임으로 함께 줄어 설정 메뉴 칸이 잘리지 않는다. */
+  flex: 0 1 auto;
   max-width: 60%;
   min-width: 0;
 }
@@ -565,7 +565,9 @@ button {
   align-items: center;
   gap: 3px;
   margin-left: auto;
-  flex-shrink: 0;
+  /* 좁은 폭에서는 빠른 검색 칸만 줄어든다(grid.css 참고) — 단추·설정 메뉴 칸은 줄지 않는다. */
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .page-layout .grid-panel-header-extra {

@@ -104,7 +104,8 @@
   align-items: center;
   gap: 8px;
 }
-.cm-modal-body .grid-panel-title > span:first-child {
+/* 제목이 없으면 건수 배지가 첫 span 이 되므로 제목 규칙이 배지를 덮지 않게 뺀다(grid.css·page-layout.css 와 같다). */
+.cm-modal-body .grid-panel-title > span:first-child:not(.grid-panel-count) {
   font-size: var(--font-size-md);
   font-weight: 700;
   color: var(--color-text);

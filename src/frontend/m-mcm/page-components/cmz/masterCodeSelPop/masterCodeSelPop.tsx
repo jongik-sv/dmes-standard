@@ -34,7 +34,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@dk-oasis/shared/modal";
 import { Button, Input, Select } from "@dk-oasis/shared/form";
-import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
+import { AgDataGrid, GRID_HEADER_HEIGHT, type GridColumn } from "@dk-oasis/shared/grid";
 import { ErrorModal, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
 import { OBJ_ID, searchMasterCodes } from "./api";
 import type {
@@ -331,7 +331,7 @@ export function MasterCodeSelPopDialog({
           columns={GRID_COLUMNS}
           data={keyedRows}
           rowKey="__rowKey"
-          height={386}
+          height={420 - GRID_HEADER_HEIGHT}
           highlightedRowKey={highlightedKey}
           onRowClick={(row) => {
             const r = row as unknown as MasterCodeRow;

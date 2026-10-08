@@ -25,7 +25,7 @@ import type { GridColumn, AgDataGridProps } from "./grid-types";
 import { useGridPersonalize, type GridPersonalizeColumn } from "./grid-personalize-hook";
 import { useGridPanelRegistry, type GridPanelGridControls } from "./grid-panel-context";
 import { GridSettingsOverlay } from "./GridSettingsOverlay";
-import { GridHeaderBar } from "./GridHeaderBar";
+import { createGridHeaderExtrasStore, GridHeaderSlot, type GridHeaderExtrasStore } from "./grid-header-extras";
 import { ColumnSettingsModal } from "./ColumnSettingsModal";
 import { MessageModal } from "../modal";
 import { GridHeaderContextMenu } from "./GridHeaderContextMenu";
@@ -66,7 +66,10 @@ function isInDialog(el: Element): boolean {
 }
 export { GRID_TOOLTIP_SHOW_DELAY_MS };
 
-function AgDataGridComponent({
+/** 본체(AgDataGridInner)가 받는 props — 공개 props 에서 머리줄 전용 `count`·`titleExtra` 를 빼고 그 둘이 담긴 저장소를 더한다(바깥 껍데기 AgDataGrid 참고). */
+type AgDataGridInnerProps = Omit<AgDataGridProps, "count" | "titleExtra"> & { headerExtras: GridHeaderExtrasStore };
+
+function AgDataGridInner({
   columns = [],
   data = [],
   rowKey = "id",
@@ -124,7 +127,8 @@ function AgDataGridComponent({
   filter,
   title,
   header = true,
-}: AgDataGridProps) {
+  headerExtras,
+}: AgDataGridInnerProps) {
   const gridRef = useRef<AgGridReact>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   // 툴팁은 그리드 밖(body)에 띄워 좁은 그리드에서 잘리지 않게 한다 — 툴팁이 뜰 수 있는 동안에만 popupParent 를 바꾼다.
@@ -740,7 +744,7 @@ function AgDataGridComponent({
               width: "100%",
             }
       }
-      aria-label={ariaLabel || "데이터 목록"}
+      aria-label={ariaLabel || (typeof title === "string" && title !== "" ? title : "데이터 목록")}
       aria-busy={loading}
       tabIndex={-1}
       onKeyDown={handleContainerKeyDown}
@@ -831,7 +835,13 @@ function AgDataGridComponent({
       data-testid="grid-with-header"
       style={{ height: isAutoHeight || isSizedTable ? "auto" : "100%" }}
     >
-      <GridHeaderBar title={title} count={sortedData.length} filterControls={headerFilterControls} menuControls={headerMenuControls} />
+      <GridHeaderSlot
+        store={headerExtras}
+        title={title}
+        fallbackCount={sortedData.length}
+        filterControls={headerFilterControls}
+        menuControls={headerMenuControls}
+      />
       {body}
     </div>
   ) : (
@@ -879,6 +889,23 @@ function AgDataGridComponent({
       ) : null}
     </>
   );
+}
+
+const AgDataGridInnerMemo = memo(AgDataGridInner);
+
+/**
+ * 공개 그리드 — 머리줄 전용 `count`·`titleExtra` 는 렌더마다 바뀌기 쉬운 값(요소)이라 본체 props 로 넘기지 않고 저장소로 머리줄 부품에만 흘린다.
+ * 그래서 이 둘이 바뀌어도 본체(AgGridReact)는 다시 그려지지 않는다. 껍데기는 가벼워서 부른 쪽이 다시 그릴 때 같이 다시 그려져도 비용이 거의 없다.
+ */
+function AgDataGridComponent({ count, titleExtra, ...rest }: AgDataGridProps) {
+  const storeRef = useRef<GridHeaderExtrasStore | null>(null);
+  if (storeRef.current === null) storeRef.current = createGridHeaderExtrasStore({ count, titleExtra });
+  const store = storeRef.current;
+  // 페인트 전에 머리줄로 흘린다(첫 렌더 값은 저장소 생성 때 이미 들어가 있어 이 호출은 건너뛴다).
+  useLayoutEffect(() => {
+    store.set({ count, titleExtra });
+  }, [store, count, titleExtra]);
+  return <AgDataGridInnerMemo {...rest} headerExtras={store} />;
 }
 
 export const AgDataGrid = memo(AgDataGridComponent);

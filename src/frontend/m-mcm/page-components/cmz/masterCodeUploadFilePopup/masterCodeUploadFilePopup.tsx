@@ -35,7 +35,7 @@ import * as XLSX from "xlsx";
 import { Modal } from "@dk-oasis/shared/modal";
 import { useGfnMessage } from "@dk-oasis/shared/message-provider";
 import { ContentBody, ContentPanel, ErrorModal, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
-import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
+import { AgDataGrid, GRID_HEADER_HEIGHT, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button } from "@dk-oasis/shared/form";
 import {
   searchMasterCodeUploadList,
@@ -433,7 +433,7 @@ export function MasterCodeUploadFilePopupDialog({
             columns={GRID_COLS}
             data={gridData}
             rowKey="__idx"
-            height={286}
+            height={320 - GRID_HEADER_HEIGHT}
             emptyMessage="파일선택 버튼으로 Excel 을 불러오세요."
             columnSizing="fit"
           />

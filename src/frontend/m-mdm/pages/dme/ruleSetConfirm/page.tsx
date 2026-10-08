@@ -394,11 +394,9 @@ function DraftList({ drafts, selected, total, onShowAll, onSelect }: DraftListPr
   );
   return (
     <div data-testid="rsc-list" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div style={{ padding: "0 var(--spacing-md)" }}>
-        <GridLimitNotice shownCount={drafts?.length ?? 0} totalCount={total} onShowAll={onShowAll} testId="rsc-list-limit" />
-      </div>
       <div style={{ ...section, flex: 1, minHeight: 0 }}>
         <AgDataGrid gridId="draftList" title="확정 대기 목록"
+          titleExtra={<GridLimitNotice shownCount={drafts?.length ?? 0} totalCount={total} onShowAll={onShowAll} testId="rsc-list-limit" />}
           columnSizing="fit"
           columns={DRAFT_COLUMNS}
           data={draftRows}

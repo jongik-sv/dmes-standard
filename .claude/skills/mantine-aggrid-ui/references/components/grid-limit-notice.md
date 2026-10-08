@@ -15,7 +15,7 @@
 
 ## 표준 사용
 
-`GridPanel` 의 `titleExtra`(제목·건수 오른쪽) 자리에 넣는다. 감싸개를 따로 만들지 않는다. 잘리지 않았으면(`shownCount >= totalCount` 또는 `totalCount` 없음) 아무것도 그리지 않으므로 화면은 늘 넣어 두면 된다.
+`GridPanel` 의 `titleExtra`(제목·건수 오른쪽) 자리에 넣는다. GridPanel 없이 쓰는 [AgDataGrid](ag-data-grid.md) 도 같은 이름의 `titleExtra` 가 같은 자리(그리드 머리줄의 제목·건수 오른쪽)이니 그리드 위에 따로 두지 말고 거기에 넣는다. 감싸개를 따로 만들지 않는다. 잘리지 않았으면(`shownCount >= totalCount` 또는 `totalCount` 없음) 아무것도 그리지 않으므로 화면은 늘 넣어 두면 된다.
 
 ```tsx
 import { useCallback, useState } from "react";

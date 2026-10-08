@@ -9,6 +9,7 @@ export {
   type GridColumn,
   type MdmGridTooltipParams,
 } from "./AgDataGrid";
+export { GRID_HEADER_HEIGHT } from "./grid-header-height";
 export type { AgDataGridExcelExport } from "./AgDataGridExcel";
 export {
   ColumnSettingsModal,

@@ -8,13 +8,16 @@
  * 칩 이름·값 요약은 순수 함수 describeFilterModel 로 따로 본다.
  */
 import { readFileSync } from "node:fs";
-import { act, createElement, type ReactElement } from "react";
+import { act, createElement, useState, type ReactElement } from "react";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef, GridApi } from "ag-grid-community";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 import { AgDataGrid, type AgDataGridProps, type GridColumn } from "../../src/components/grid/AgDataGrid";
 import { GridPanel } from "../../src/components/grid/GridPanel";
+import { GridFilterChips } from "../../src/components/grid/GridFilterChips";
+import { GRID_HEADER_HEIGHT } from "../../src/components/grid";
+import type { GridFilterChip, GridPanelGridControls } from "../../src/components/grid/grid-panel-context";
 import { GRID_QUICK_FILTER_DEBOUNCE_MS } from "../../src/components/grid/GridQuickFilter";
 import { buildFilterChips, describeFilterModel, shortenChipValue } from "../../src/components/grid/grid-filter-chips";
 import { Modal } from "../../src/components/modal";
@@ -560,4 +563,270 @@ describe("렌더 수·열 정의 — 머리줄을 달아도 header={false}(= 예
       expect(base.quick).toBe(label.startsWith("GridPanel 안"));
     });
   }
+});
+
+describe("count — GridPanel count 와 같은 이름·뜻", () => {
+  it("count 를 주면 건수 배지가 그 값을 보이고, 걸러지면 「보이는 / 받은 행 전체」 로 바뀌었다가 풀면 돌아온다", async () => {
+    await show(gridEl({ title: "목록", count: 1234 }));
+    expect(tid("grid-panel-count")!.textContent).toBe("1234건");
+    await typeQuick("부품");
+    // GridPanel 과 같다: 걸러진 동안은 count 가 아니라 그리드가 받은 행 기준 「보이는 / 전체」
+    expect(tid("grid-panel-filter-count")!.textContent).toBe("2 / 3건");
+    expect(tid("grid-panel-count")).toBeNull();
+    await click(tid("grid-quick-filter-clear"));
+    await wait(30);
+    expect(tid("grid-panel-filter-count")).toBeNull();
+    expect(tid("grid-panel-count")!.textContent).toBe("1234건");
+  });
+
+  it("count 를 주지 않으면 받은 행 수를 보인다(예전 그대로)", async () => {
+    await show(gridEl({ title: "목록" }));
+    expect(tid("grid-panel-count")!.textContent).toBe("3건");
+  });
+
+  it("GridPanel 의 걸러진 상태와 같은 표기다(GridPanel count=1234 / 그리드 count=1234)", async () => {
+    await show(createElement(GridPanel, { title: "목록", count: 1234 }, gridEl()));
+    await typeQuick("부품");
+    const panelText = tid("grid-panel-filter-count")!.textContent;
+    await reset();
+    await show(gridEl({ title: "목록", count: 1234 }));
+    await typeQuick("부품");
+    expect(tid("grid-panel-filter-count")!.textContent).toBe(panelText);
+  });
+
+  it("count·titleExtra 가 바뀌어도 AgGridReact 는 다시 그려지지 않고 머리줄만 바뀐다", async () => {
+    // MantineProvider 를 다시 그리면 Mantine 컨텍스트를 읽는 그리드가 어차피 다시 그려지므로, 그리드의 부모만 상태로 바꿔 다시 그린다.
+    let setExtras!: (next: { count: number; label: string }) => void;
+    function Harness() {
+      const [x, set] = useState({ count: 10, label: "A" });
+      setExtras = set;
+      return gridEl({ title: "목록", count: x.count, titleExtra: createElement("i", { "data-testid": "extra" }, x.label) });
+    }
+    await show(createElement(Harness));
+    expect(tid("grid-panel-count")!.textContent).toBe("10건");
+    expect(tid("extra")!.textContent).toBe("A");
+    const before = renderSpy.mock.calls.length;
+    await act(async () => setExtras({ count: 99, label: "B" }));
+    await act(async () => setExtras({ count: 99, label: "C" })); // count 는 같고 titleExtra 요소만 새로
+    await act(async () => setExtras({ count: 100, label: "C" })); // titleExtra 요소만 새로(내용 같음)
+    expect(tid("grid-panel-count")!.textContent).toBe("100건");
+    expect(tid("extra")!.textContent).toBe("C");
+    expect(renderSpy.mock.calls.length).toBe(before);
+  });
+});
+
+describe("titleExtra — GridPanel titleExtra 와 같은 자리(제목·건수 옆)", () => {
+  const extra = () => createElement("span", { "data-testid": "extra" }, "최대 100건");
+  const orderInTitle = () => [...tid("extra")!.parentElement!.children].map((el) => el.getAttribute("data-testid"));
+
+  it("제목 → 건수 배지 → titleExtra 순서로 .grid-panel-title 안에 놓이고, GridPanel 의 titleExtra 와 같은 순서다", async () => {
+    await show(gridEl({ title: "목록", titleExtra: extra() }));
+    const own = orderInTitle();
+    expect(own).toEqual(["grid-panel-title", "grid-panel-count", "extra"]);
+    expect(tid("extra")!.parentElement!.classList.contains("grid-panel-title")).toBe(true);
+    await reset();
+    await show(createElement(GridPanel, { title: "목록", count: 3, titleExtra: extra() }, gridEl()));
+    expect(orderInTitle()).toEqual(own);
+  });
+
+  it("title 이 없어도 건수 배지 옆에 놓인다", async () => {
+    await show(gridEl({ titleExtra: extra() }));
+    expect(orderInTitle()).toEqual(["grid-panel-count", "extra"]);
+  });
+});
+
+describe("접근성 이름", () => {
+  const gridLabel = () => gridBox().getAttribute("aria-label");
+  const searchLabel = () => tid("grid-quick-filter-input")!.getAttribute("aria-label");
+
+  it("그리드 aria-label 기본값은 문자열 title 이고, ariaLabel 이 있으면 그것이 먼저며, title 이 없거나 요소면 「데이터 목록」", async () => {
+    await show(gridEl({ title: "항목 목록" }));
+    expect(gridLabel()).toBe("항목 목록");
+    await reset();
+    await show(gridEl({ title: "항목 목록", ariaLabel: "직접 지정" }));
+    expect(gridLabel()).toBe("직접 지정");
+    await reset();
+    await show(gridEl());
+    expect(gridLabel()).toBe("데이터 목록");
+    await reset();
+    await show(gridEl({ title: createElement("b", null, "요소 제목") }));
+    expect(gridLabel()).toBe("데이터 목록");
+  });
+
+  it("빠른 검색 칸 이름에 그리드명이 들어가 한 화면의 검색 칸이 구별된다 — 이름이 없으면 기본 문구", async () => {
+    await show(createElement("div", null, gridEl({ title: "항목 목록" }), gridEl({ title: "버전 이력" }), gridEl()));
+    const labels = [...document.querySelectorAll<HTMLElement>('[data-testid="grid-quick-filter-input"]')].map((el) => el.getAttribute("aria-label"));
+    expect(labels).toEqual(["항목 목록 그리드에서 찾기", "버전 이력 그리드에서 찾기", "그리드에서 찾기"]);
+    expect(new Set(labels).size).toBe(3);
+  });
+
+  it("GridPanel 머리줄의 검색 칸도 GridPanel title 이 이름에 들어간다", async () => {
+    await show(panel(gridEl()));
+    expect(searchLabel()).toBe("목록 그리드에서 찾기");
+  });
+});
+
+describe("칩 × 뒤 포커스", () => {
+  const clears = () => tids("grid-filter-chip-clear");
+  /** 실제 사용처럼 × 에 포커스를 둔 채 누른다(포커스를 쥔 칩이 사라지면 브라우저는 body 로 보낸다). */
+  async function pressClear(i: number) {
+    const btn = clears()[i]!;
+    btn.focus();
+    await click(btn);
+    await wait(60);
+  }
+  async function threeChips() {
+    await show(gridEl({ filter: true }));
+    await typeQuick("창고");
+    await setQtyFilter({ filterType: "number", type: "greaterThan", filter: 100 });
+    await act(async () => {
+      await api().setColumnFilterModel("name", { filterType: "text", type: "contains", filter: "창고" });
+      api().onFilterChanged();
+    });
+    await wait(30);
+    expect(chipTexts().length).toBe(3);
+  }
+
+  it("가운데 칩을 지우면 다음 칩의 ×, 마지막 칩을 지우면 앞 칩의 ×로 간다", async () => {
+    await threeChips();
+    await pressClear(1);
+    expect(chipTexts().length).toBe(2);
+    expect(document.activeElement).toBe(clears()[1]); // 가운데가 사라지고 마지막 칩이 그 자리
+    await pressClear(1); // 마지막 칩
+    expect(chipTexts().length).toBe(1);
+    expect(document.activeElement).toBe(clears()[0]);
+  });
+
+  it("첫 칩을 지우면 다음 칩의 ×로 간다", async () => {
+    await threeChips();
+    await pressClear(0);
+    expect(chipTexts().length).toBe(2);
+    expect(document.activeElement).toBe(clears()[0]);
+  });
+
+  it("마지막 칩을 지우면 빠른 검색 입력 칸으로 간다(포커스가 body 로 빠지지 않는다)", async () => {
+    await show(gridEl({ filter: true }));
+    await setQtyFilter({ filterType: "number", type: "greaterThan", filter: 100 });
+    expect(chipTexts().length).toBe(1);
+    await pressClear(0);
+    expect(tid("grid-filter-chips")).toBeNull();
+    expect(document.activeElement).toBe(tid("grid-quick-filter-input"));
+  });
+
+  it("검색어 칩이 마지막이었어도(검색 칸이 다시 마운트돼도) 새 검색 입력 칸으로 간다", async () => {
+    await show(gridEl({ filter: true }));
+    await typeQuick("창고");
+    expect(chipTexts()).toEqual(["검색어 창고"]);
+    await pressClear(0);
+    expect(tid("grid-filter-chips")).toBeNull();
+    expect(document.activeElement).toBe(tid("grid-quick-filter-input"));
+    expect(document.activeElement).not.toBe(document.body);
+  });
+
+  it("GridPanel 안에서도 같다", async () => {
+    await show(panel(gridEl({ filter: true })));
+    await setQtyFilter({ filterType: "number", type: "greaterThan", filter: 100 });
+    await pressClear(0);
+    expect(document.activeElement).toBe(tid("grid-quick-filter-input"));
+  });
+
+  it("사용자가 그 사이 다른 곳에 포커스를 두었으면 빼앗지 않는다", async () => {
+    await threeChips();
+    const other = document.createElement("button");
+    document.body.appendChild(other);
+    clears()[0]!.focus();
+    other.focus();
+    await click(clears()[0]!);
+    await wait(60);
+    expect(document.activeElement).toBe(other);
+    other.remove();
+  });
+
+  it("검색 칸이 없는 머리줄은 칩이 다 사라지면 getFocusFallback(그리드 상자)으로 간다", async () => {
+    let chips: readonly GridFilterChip[] = [{ id: "col:qty", kind: "column", label: "수량", value: "> 5", title: "수량 > 5" }];
+    const listeners = new Set<() => void>();
+    const controls: GridPanelGridControls = {
+      subscribeFilter: (l) => (listeners.add(l), () => void listeners.delete(l)),
+      getFilterChips: () => chips,
+      clearFilterChip: () => {
+        chips = [];
+        listeners.forEach((l) => l());
+      },
+    };
+    const gridLike = document.createElement("div");
+    gridLike.tabIndex = -1;
+    document.body.appendChild(gridLike);
+    await show(createElement(GridFilterChips, { controls, getFocusFallback: () => gridLike }));
+    clears()[0]!.focus();
+    await click(clears()[0]!);
+    await wait(30);
+    expect(tid("grid-filter-chips")).toBeNull();
+    expect(document.activeElement).toBe(gridLike);
+    gridLike.remove();
+  });
+});
+
+describe("머리줄 CSS — 문자열 검사", () => {
+  const read = (p: string) => readFileSync(p, "utf8");
+  /** 선택자 목록(쉼표 분리)과 본문으로 나눈 규칙들. 주석은 먼저 뺀다. */
+  function rules(css: string): Array<{ selectors: string[]; body: string }> {
+    const out: Array<{ selectors: string[]; body: string }> = [];
+    for (const m of css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      out.push({ selectors: m[1]!.split(",").map((x) => x.trim().replace(/\s+/g, " ")), body: m[2]! });
+    }
+    return out;
+  }
+
+  it("modal.css·grid.css 의 제목 글꼴 규칙은 건수 배지(.grid-panel-count)에 닿지 않는다 — 제목 없는 머리줄", () => {
+    for (const file of ["src/components/modal.css", "src/components/grid/grid.css"]) {
+      const titleRules = rules(read(file))
+        .flatMap((r) => r.selectors)
+        .filter((sel) => /\.grid-panel-title\s*>\s*span:first-child/.test(sel));
+      expect(titleRules.length, file).toBeGreaterThan(0);
+      for (const sel of titleRules) expect(sel, file).toContain(":not(.grid-panel-count)");
+    }
+  });
+
+  it("부모를 채우는 바깥 상자(.cm-grid-with-header)에도 .form-panel·.cm-modal-body 안 바닥선 1px 상한이 걸리고, 숫자·auto 바깥 상자에는 걸리지 않는다", () => {
+    const fill = (scope: string) => `${scope} .cm-grid-with-header:not(.cm-grid-with-header--sized):not(.cm-grid-with-header--auto)`;
+    const hit = rules(read("src/components/grid/grid.css")).find(
+      (r) => r.selectors.includes(fill(".cm-modal-body")) && r.selectors.includes(fill(".form-panel")),
+    );
+    expect(hit?.body).toMatch(/max-height:\s*calc\(100% - 1px\)/);
+    // 걸 필요 없는(내용 높이) 바깥 상자에 거는 규칙은 없다 — 고정 높이 래퍼 안에서 1px 잘림
+    for (const r of rules(read("src/components/grid/grid.css"))) {
+      for (const sel of r.selectors) {
+        if (/\.cm-grid-with-header(--sized|--auto)?$/.test(sel) && sel.includes(".cm-modal-body")) expect(r.body, sel).not.toMatch(/max-height:\s*calc/);
+      }
+    }
+  });
+
+  it("좁은 폭 — 검색 칸만 줄어들고(min-width 작게, flex 줄어듦) 단추 묶음·설정 메뉴 칸은 줄지 않으며 제목은 말줄임이다", () => {
+    const css = rules(read("src/components/grid/grid.css"));
+    const body = (sel: string) => css.find((r) => r.selectors.includes(sel))?.body ?? "";
+    expect(body(".grid-quick-filter")).toMatch(/flex:\s*0 1 auto/);
+    expect(body(".grid-quick-filter")).toMatch(/min-width:\s*\d+px/);
+    expect(body(".grid-quick-filter-input")).toMatch(/min-width:\s*0/);
+    expect(body(".grid-panel-header-actions")).not.toMatch(/flex-shrink:\s*0/);
+    expect(body(".grid-panel-header-actions")).toMatch(/min-width:\s*0/);
+    expect(body(".grid-panel-settings-slot")).toMatch(/flex-shrink:\s*0/);
+    expect(body(".grid-panel-header-actions > .grid-panel-buttons")).toMatch(/flex-shrink:\s*0/);
+    const title = css.find((r) => r.selectors.some((x) => x.startsWith(".grid-panel-title > span:first-child")))?.body ?? "";
+    expect(title).toMatch(/text-overflow:\s*ellipsis/);
+    expect(title).toMatch(/overflow:\s*hidden/);
+    // 업무 화면 레이아웃(.page-layout)의 단추 묶음도 줄어들 수 있어야 검색 칸이 줄어든다
+    const layout = rules(read("src/layout/page-layout.css")).find((r) => r.selectors.includes(".page-layout .grid-panel-header-actions"));
+    expect(layout?.body).not.toMatch(/flex-shrink:\s*0/);
+    // .page-layout 의 제목도 아주 좁으면 줄어든다(60% 상한 + 말줄임) — 설정 메뉴 칸이 밀려 잘리지 않게
+    const layoutTitle = rules(read("src/layout/page-layout.css")).find((r) => r.selectors.includes(".page-layout .grid-panel-title"));
+    expect(layoutTitle?.body).toMatch(/flex:\s*0 1 auto/);
+    expect(layoutTitle?.body).toMatch(/min-width:\s*0/);
+  });
+
+  it("GRID_HEADER_HEIGHT 는 34 이고 grid 모듈 index 에서 내보내며 grid.css·상수 파일이 서로를 가리킨다", () => {
+    expect(GRID_HEADER_HEIGHT).toBe(34);
+    expect(read("src/components/grid/index.ts")).toContain('export { GRID_HEADER_HEIGHT } from "./grid-header-height"');
+    expect(read("src/components/grid/grid-header-height.ts")).toContain("grid.css");
+    expect(read("src/components/grid/grid.css")).toContain("GRID_HEADER_HEIGHT");
+  });
 });
