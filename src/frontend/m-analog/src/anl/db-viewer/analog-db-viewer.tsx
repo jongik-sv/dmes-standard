@@ -100,7 +100,9 @@ function errText(err: unknown): string {
 
 /** 건수 글 — 만 단위로 떨어지면 「3만 건」, 아니면 쉼표 숫자. */
 function countText(n: number): string {
-  return n % 10000 === 0 ? `${n / 10000}만 건` : `${n.toLocaleString("ko-KR")}건`;
+  return n % 10000 === 0
+    ? `${n / 10000}만 건`
+    : `${n.toLocaleString("ko-KR")}건`;
 }
 
 /** VARCHAR2 → VARCHAR2(100) 처럼 길이를 붙인 표시용 타입. 길이가 의미 없는 타입은 그대로 둔다. */
@@ -244,12 +246,23 @@ export function AnalogDbViewer() {
   /** 지금 그리드에 보이는 결과를 만든 SQL — 「더보기」는 편집창이 아니라 이 SQL 로 이어 읽는다. */
   const resultSqlRef = useRef("");
 
-  useEffect(
-    () => () => {
+  /** 디바운스 대기 중인 테이블 선택 — 타이머가 터지면 이 테이블을 조회하고, 그 전에 수동 실행하면 컬럼 속성만 먼저 받는다. */
+  const pendingTableRef = useRef<{
+    schema: string;
+    table: string;
+    columnsTicket: number;
+  } | null>(null);
+
+  // 화면을 떠나면 대기 타이머를 지우고 요청 순번을 올려 진행 중인 조회·더보기가 상태를 쓰지 못하게 한다.
+  useEffect(() => {
+    const querySeq = querySeqRef.current;
+    const columnsSeq = columnsSeqRef.current;
+    return () => {
       if (selectTimerRef.current) clearTimeout(selectTimerRef.current);
-    },
-    [],
-  );
+      querySeq.next();
+      columnsSeq.next();
+    };
+  }, []);
 
   /**
    * 조회를 실행해 결과를 바꾼다. tableKey 는 결과 출처(테이블이면 "스키마.테이블", 직접 실행이면 null).
@@ -286,12 +299,9 @@ export function AnalogDbViewer() {
     [gfn],
   );
 
-  /** 고른 테이블의 컬럼 속성을 받고 기본 SQL 을 실행한다. */
-  const loadSelectedTable = useCallback(
-    async (schema: string, table: string) => {
-      const key = `${schema}.${table}`;
-      const columnsTicket = columnsSeqRef.current.next();
-      void execute(defaultSql(schema, table), key, true);
+  /** 고른 테이블의 컬럼 속성을 받는다. columnsTicket 은 선택한 순간 받은 번호표다. */
+  const loadColumns = useCallback(
+    async (schema: string, table: string, columnsTicket: number) => {
       try {
         const loaded = await fetchColumns(schema, table);
         if (columnsSeqRef.current.isLatest(columnsTicket)) setColumns(loaded);
@@ -306,7 +316,7 @@ export function AnalogDbViewer() {
         }
       }
     },
-    [execute, gfn],
+    [gfn],
   );
 
   const handleSelectTable = useCallback(
@@ -316,30 +326,51 @@ export function AnalogDbViewer() {
       setSelectedTableKey(key);
       tableSqlRef.current = { key, sql };
       setSqlSeed((prev) => ({ text: sql, revision: prev.revision + 1 }));
+      // 이전 선택의 컬럼 속성은 비우고, 진행 중이던 조회·더보기는 버린다(응답이 와도 반영하지 않는다).
+      const columnsTicket = columnsSeqRef.current.next();
+      querySeqRef.current.next();
+      runningRef.current = false;
+      setRunning(false);
+      setMoreCount(null);
+      setColumns([]);
       setColumnsLoading(true);
       // 선택 표시·기본 SQL 은 곧바로 바꾸고, 서버 조회는 마지막 선택만 내보낸다.
       if (selectTimerRef.current) clearTimeout(selectTimerRef.current);
+      pendingTableRef.current = { schema, table, columnsTicket };
       selectTimerRef.current = setTimeout(() => {
         selectTimerRef.current = null;
-        void loadSelectedTable(schema, table);
+        pendingTableRef.current = null;
+        void execute(sql, key, true);
+        void loadColumns(schema, table, columnsTicket);
       }, SELECT_DEBOUNCE_MS);
     },
-    [loadSelectedTable],
+    [execute, loadColumns],
   );
 
   const handleRun = useCallback(async () => {
     const sql = (editorRef.current?.getValue() ?? "").trim();
-    if (runningRef.current) return;
+    if (runningRef.current) {
+      gfn("이미 조회 중입니다.", "", "", "toast");
+      return;
+    }
     if (sql === "") {
       gfn("실행할 SQL 을 입력해 주세요.", "", "", "warning");
       return;
+    }
+    // 테이블을 고른 직후 디바운스 대기 중이면 기본 SQL 조회는 취소하고(방금 실행하는 SQL 이 이긴다) 컬럼 속성만 먼저 받는다.
+    const pending = pendingTableRef.current;
+    if (pending) {
+      if (selectTimerRef.current) clearTimeout(selectTimerRef.current);
+      selectTimerRef.current = null;
+      pendingTableRef.current = null;
+      void loadColumns(pending.schema, pending.table, pending.columnsTicket);
     }
     const fromTable = tableSqlRef.current;
     await execute(
       sql,
       fromTable && fromTable.sql === sql ? fromTable.key : null,
     );
-  }, [execute, gfn]);
+  }, [execute, gfn, loadColumns]);
 
   /**
    * 「더보기」 — 지금 결과를 만든 SQL 을 서버 묶음 단위로 끝까지 이어 읽는다.
@@ -350,14 +381,26 @@ export function AnalogDbViewer() {
     const sql = resultSqlRef.current;
     if (sql === "" || runningRef.current) return;
     const ticket = querySeqRef.current.next();
-    const rows: Record<string, unknown>[] = [];
+    let rows: Record<string, unknown>[] = [];
+    let first: DbQueryResult | null = null;
+    let elapsedMs = 0;
     setMoreCount(0);
     try {
       for (;;) {
         const part = await runQuery({ sql, offset: rows.length });
         if (!querySeqRef.current.isLatest(ticket)) return;
-        for (const row of part.rows) rows.push(row);
-        setResult({ ...part, rows: [...rows], rowCount: rows.length });
+        rows = rows.concat(part.rows);
+        elapsedMs += part.elapsedMs;
+        // 열 정의가 묶음마다 새로 만들어지지 않게 첫 묶음의 columns·lobColumns 참조를 그대로 쓴다.
+        first ??= part;
+        setResult({
+          ...part,
+          columns: first.columns,
+          lobColumns: first.lobColumns,
+          rows,
+          rowCount: rows.length,
+          elapsedMs,
+        });
         setMoreCount(rows.length);
         if (part.capReached) {
           gfn(
@@ -457,21 +500,25 @@ export function AnalogDbViewer() {
   }, []);
   const closeLob = useCallback(() => setLobTarget(null), []);
 
-  // 결과가 바뀔 때만 다시 만든다. LOB 칸은 요약 글자 + 「보기」 단추(ROWID 가 없으면 단추 없음).
+  // 열 정의에 쓰는 값이 바뀔 때만 다시 만든다(더보기 묶음마다 result 객체는 바뀌지만 이 값들은 그대로다).
+  // LOB 칸은 요약 글자 + 「보기」 단추(ROWID 가 없으면 단추 없음).
+  const resultColumnNames = result?.columns;
+  const resultLobTypes = result?.lobColumns;
+  const resultRowIdKey = result?.rowIdKey ?? null;
+  const resultSchema = result?.schema ?? "";
+  const resultTable = result?.table ?? "";
   const resultColumns: GridColumn[] = useMemo(() => {
-    const lobTypes = result?.lobColumns ?? {};
-    const rowIdKey = result?.rowIdKey ?? null;
-    return (result?.columns ?? []).map((col): GridColumn => {
+    const lobTypes = resultLobTypes ?? {};
+    return (resultColumnNames ?? []).map((col): GridColumn => {
       const base: GridColumn = { key: col, header: col, width: 160 };
       const dataType = lobTypes[col] ?? lobTypes[col.toUpperCase()];
-      if (!dataType || !result) return base;
-      const { schema, table } = result;
+      if (!dataType) return base;
       return {
         ...base,
         width: 240,
         tooltip: false,
         render: (value, row) => {
-          const rowid = rowIdKey ? row[rowIdKey] : null;
+          const rowid = resultRowIdKey ? row[resultRowIdKey] : null;
           const canOpen =
             value != null && typeof rowid === "string" && rowid !== "";
           return (
@@ -480,8 +527,8 @@ export function AnalogDbViewer() {
               canOpen={canOpen}
               onOpen={() =>
                 openLob({
-                  schema,
-                  table,
+                  schema: resultSchema,
+                  table: resultTable,
                   column: col,
                   dataType,
                   rowid: String(rowid),
@@ -492,7 +539,14 @@ export function AnalogDbViewer() {
         },
       };
     });
-  }, [result, openLob]);
+  }, [
+    resultColumnNames,
+    resultLobTypes,
+    resultRowIdKey,
+    resultSchema,
+    resultTable,
+    openLob,
+  ]);
 
   const resultRows = useMemo(
     () =>
@@ -625,7 +679,11 @@ export function AnalogDbViewer() {
                     불러오는 중 {moreCount.toLocaleString("ko-KR")}건
                   </span>
                 ) : result?.hasMore && !result.moreBlocked ? (
-                  <Button variant="default" onClick={() => void loadMore()}>
+                  <Button
+                    variant="default"
+                    disabled={running}
+                    onClick={() => void loadMore()}
+                  >
                     더보기
                   </Button>
                 ) : result?.capReached ? (
