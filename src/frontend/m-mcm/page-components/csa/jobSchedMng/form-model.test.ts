@@ -27,7 +27,7 @@ const def = (patch: Partial<JobDef> = {}): JobDef => ({
   moduleCd: "MCM",
   jobNm: "작업",
   jobKind: "QUERY",
-  serviceId: "job^^query",
+  serviceId: "jobQuery",
   svcAction: "run",
   cronExpr: "0 2 * * *",
   cronDesc: "매일 02:00",
@@ -89,7 +89,7 @@ describe("validateForm", () => {
   it("BPMN 은 서비스 ID·Action 이 필요하고 내장 서비스는 거절한다", () => {
     const f: JobForm = { ...emptyForm("BPMN"), jobId: "mcm.b", jobNm: "비" };
     expect(validateForm(f)).toBe("서비스 ID 를 입력하세요.");
-    expect(validateForm({ ...f, serviceId: "job^^query", svcAction: "run" })).toContain("내장 서비스");
+    expect(validateForm({ ...f, serviceId: "jobQuery", svcAction: "run" })).toContain("내장 서비스");
     expect(validateForm({ ...f, serviceId: "dma^^term", svcAction: "" })).toBe("Action 을 입력하세요.");
     expect(validateForm({ ...f, serviceId: "dma^^term", svcAction: "sync" })).toBeNull();
   });
@@ -167,7 +167,7 @@ describe("유형별 설정", () => {
 
   it("COLLECT 설정을 읽고 다시 쓴다(source·save)", () => {
     const cfg = { source: { kind: "http", url: "https://a.b/c", items: [{ key: "t", path: "data.t" }] }, save: false };
-    const form = toForm(def({ jobKind: "COLLECT", serviceId: "job^^collect", configJson: JSON.stringify(cfg) }));
+    const form = toForm(def({ jobKind: "COLLECT", serviceId: "jobCollect", configJson: JSON.stringify(cfg) }));
     expect(form.collectKind).toBe("http");
     expect(form.save).toBe(false);
     expect(JSON.parse(buildConfigJson(form)!)).toEqual(cfg);

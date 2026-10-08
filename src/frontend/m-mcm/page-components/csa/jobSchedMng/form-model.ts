@@ -10,6 +10,8 @@ import type { HandlerRow, JobDef, JobGridRow, JobKind, JobListRow, JobRunGridRow
 
 export const JOB_ID_PATTERN = /^[A-Za-z0-9_.-]{1,60}$/;
 const VAR_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_]{0,29}$/;
+/** 예약 작업이 쓰는 내장 서비스 ID — 서비스 실행 유형에는 쓸 수 없다(쿼리 실행·수집·코드 실행 유형이 대신한다). */
+export const BUILTIN_SERVICE_IDS: readonly string[] = ["jobDispatch", "jobCode", "jobQuery", "jobCollect"];
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 const VARIABLE_TYPES: readonly VariableType[] = ["STRING", "NUMBER", "DATE", "JSON"];
 
@@ -370,7 +372,7 @@ export function validateForm(form: JobForm, options: { cronError?: string | null
       break;
     case "BPMN":
       if (form.serviceId.trim() === "") return "서비스 ID 를 입력하세요.";
-      if (form.serviceId.trim().startsWith("job^^")) return "내장 서비스(job^^…)는 쿼리 실행·수집 유형으로 등록하세요.";
+      if (BUILTIN_SERVICE_IDS.includes(form.serviceId.trim())) return "내장 서비스(jobCode·jobQuery·jobCollect)는 코드 실행·쿼리 실행·수집 유형으로 등록하세요.";
       if (form.svcAction.trim() === "") return "Action 을 입력하세요.";
       break;
     case "QUERY":
