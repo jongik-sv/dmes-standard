@@ -10,6 +10,7 @@ import { mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as C from './compat.mjs';
+import * as J from './jq-json.mjs';
 import { CoordDie, Ctx, cfgSub, expand, hasRun, pathInWt, q, repo } from './common.mjs';
 import { cliMain, isMain } from './js-cli.mjs';
 
@@ -20,7 +21,7 @@ export const scriptsDir = () => join(LIB_DIR, '..');
 
 const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
 const isDir = (p) => { try { return statSync(p).isDirectory(); } catch { return false; } };
-const stripNl = (s) => s.replace(/\n+$/, '');
+export const stripNl = (s) => s.replace(/\n+$/, '');
 
 // ---------- 외부 명령(한 곳에 모은다) ----------
 /** spawnSync 래퍼: 셸 없이, 인자 배열, windowsHide. {rc, out(Buffer), err(Buffer)}. 명령이 없으면 rc 127.
@@ -257,3 +258,137 @@ export const functions = {
   coord_mkdirp: plain({ run: (_c, { args }) => coordMkdirp(args[0] ?? '') }),
 };
 if (isMain(import.meta.url)) cliMain(functions);
+
+// ---------- bash·awk·jq 가장자리 흉내(여러 스크립트가 같이 쓴다) ----------
+const I64_MIN = -(2n ** 63n), I64_MAX = 2n ** 63n - 1n;
+
+/** bash `[ a -gt b ]` 의 피연산자: 10진 정수 글(앞 부호 가능)이고 64비트 안이면 BigInt, 아니면 null(= 시험이 오류 → 거짓) */
+export function testInt(s) {
+  if (!/^[+-]?[0-9]+$/.test(s)) return null;
+  const v = BigInt(s);
+  return v < I64_MIN || v > I64_MAX ? null : v;
+}
+export const cmpInt = (a, b, op) => {
+  const x = testInt(a), y = testInt(b);
+  if (x === null || y === null) return false;
+  return op === 'gt' ? x > y : op === 'le' ? x <= y : op === 'lt' ? x < y : false;
+};
+
+/** bash `$(( ))` 안의 변수 값 글 → BigInt. 앞 0 은 8진, 틀린 자리는 ArithAbort. 64비트로 감긴다 */
+export class ArithAbort extends Error {}
+export function arithVal(s) {
+  if (s === '') return 0n;
+  let neg = false, t = s;
+  if (t[0] === '-') { neg = true; t = t.slice(1); } else if (t[0] === '+') t = t.slice(1);
+  const base = t.length > 1 && t[0] === '0' ? 8n : 10n;
+  const body = base === 8n ? t.slice(1) : t;
+  let v = 0n;
+  for (const ch of body) {
+    const d = BigInt(ch.charCodeAt(0) - 48);
+    if (d < 0n || d > 9n) throw new ArithAbort(`${s}: 식 오류`);
+    if (d >= base) throw new ArithAbort(`${s}: value too great for base (error token is "${s}")`);
+    v = BigInt.asIntN(64, v * base + d);
+  }
+  return neg ? BigInt.asIntN(64, -v) : v;
+}
+
+// ---------- awk 흉내 ----------
+const WS = ' \t\n\v\f\r';
+/** onetrue-awk 의 is_number: C strtod 로 읽어 끝(뒤 공백 ' \t\n\r' 제외)까지 먹었고 +HUGE_VAL·범위 오류가 아니면 수. 수면 값, 아니면 null */
+export function awkNum(s) {
+  let i = 0;
+  while (i < s.length && WS.includes(s[i])) i++;
+  const rest = s.slice(i);
+  let m, v, len;
+  if ((m = /^[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?/.exec(rest)) && !/^[+-]?0[xX]/.test(rest)) {
+    v = Number(m[0].replace(/^\+/, '').replace(/\.(?=[eE]|$)/, '')); len = m[0].length;
+  } else if ((m = /^([+-]?)0[xX]((?:[0-9a-fA-F]+\.?[0-9a-fA-F]*|\.[0-9a-fA-F]+))(?:[pP]([+-]?[0-9]+))?/.exec(rest))) {
+    const [ip, fp = ''] = m[2].split('.');
+    v = (parseInt(ip || '0', 16) + (fp ? parseInt(fp, 16) / 16 ** fp.length : 0)) * 2 ** Number(m[3] ?? 0);
+    if (m[1] === '-') v = -v;
+    len = m[0].length;
+  } else if ((m = /^[+-]?nan(?:\([A-Za-z0-9_]*\))?/i.exec(rest))) { v = NaN; len = m[0].length; }
+  else if ((m = /^[+-]?(?:infinity|inf)/i.exec(rest))) { v = m[0][0] === '-' ? -Infinity : Infinity; len = m[0].length; }
+  else return null;
+  if (v === Infinity) return null;   // r == HUGE_VAL 은 수가 아니다(문자열 비교로)
+  if (!Number.isFinite(v) && !Number.isNaN(v) && v !== -Infinity) return null;
+  if (Number.isFinite(v) && /[eE][+-]?[0-9]+$/.test(m[0]) && v === 0 && /[1-9]/.test(m[0].replace(/[eE].*$/, ''))) return null;   // 언더플로(ERANGE)
+  let j = i + len;
+  while (j < s.length && ' \t\n\r'.includes(s[j])) j++;
+  return j === s.length ? v : null;
+}
+
+/** awk -v v=… -v t=… 'BEGIN { exit !(v >= t) }' — 둘이 모두 수 꼴이면 수 비교(NaN 은 같다고 본다), 아니면 문자열(strcmp) 비교 */
+export function awkGe(v, t) {
+  const a = awkNum(v), b = awkNum(t);
+  if (a !== null && b !== null) { const j = a - b; return !(j < 0); }
+  return Buffer.compare(Buffer.from(v, 'utf8'), Buffer.from(t, 'utf8')) >= 0;
+}
+
+/** awk printf "%d" — 0 쪽으로 버리고 64비트를 넘으면 2^63-1 (음수는 -2^63) */
+export function awkInt(x) {
+  if (Number.isNaN(x)) return '-9223372036854775808';   // C 캐스트 결과는 실행 환경마다 달라 쓰지 않는 값이다
+  if (x >= 2 ** 63) return '9223372036854775807';
+  if (x <= -(2 ** 63)) return '-9223372036854775808';
+  return BigInt(Math.trunc(x)).toString();
+}
+
+
+/** awk 가 문자열을 수로 바꿀 때(atof): 앞 공백 뒤 strtod 로 읽히는 앞부분만, 없으면 0 */
+export function awkAtof(s) {
+  const rest = s.replace(/^[ \t\n\v\f\r]+/, '');
+  let m;
+  if (/^[+-]?0[xX][0-9a-fA-F.]/.test(rest) || /^[+-]?(?:nan|inf)/i.test(rest)) {
+    const v = awkNum(rest.match(/^[+-]?(?:0[xX][0-9a-fA-F.]+(?:[pP][+-]?[0-9]+)?|nan(?:\([A-Za-z0-9_]*\))?|infinity|inf)/i)?.[0] ?? '');
+    if (v !== null) return v;
+    if (/^[+-]?(?:inf)/i.test(rest)) return rest[0] === '-' ? -Infinity : Infinity;
+  }
+  if ((m = /^[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?/.exec(rest))) return Number(m[0].replace(/^\+/, '').replace(/\.(?=[eE]|$)/, ''));
+  return 0;
+}
+
+// ---------- jq 흉내 ----------
+/** @tsv 의 문자열 이스케이프 */
+export const tsvEsc = (s) => s.replace(/[\\\t\n\r]/g, (ch) => (ch === '\\' ? '\\\\' : ch === '\t' ? '\\t' : ch === '\n' ? '\\n' : '\\r'));
+/** `// ""` 다음 tostring */
+export const strOr = (v) => J.tostring(J.alt(v, ''));
+export const step = (v, k) => {
+  if (typeof k === 'number') {
+    if (v === null || v === undefined) return null;
+    if (Array.isArray(v)) return k >= 0 && k < v.length ? v[k] : null;
+    throw new J.JqError(`Cannot index ${J.typeName(v)} with number`, 5);
+  }
+  return J.index(v, k);
+};
+export const walk = (d, segs) => { let v = d; for (const s of segs) v = step(v, s); return v; };
+
+
+/** `printf '%s' "$row" | cut -f<n>` 을 $(…) 에 넣은 글 */
+export function cutF(row, n) {
+  if (row === '') return '';
+  return stripNl(row.split('\n').map((l) => (l.includes('\t') ? (l.split('\t')[n - 1] ?? '') : l)).join('\n'));
+}
+/** `cut -f2-` + `sed 's/^/\t/'` */
+export function cutRest(row) {
+  if (row === '') return '';
+  return stripNl(row.split('\n').map((l) => `\t${l.includes('\t') ? l.slice(l.indexOf('\t') + 1) : l}`).join('\n'));
+}
+
+
+/** jq -r 가 값 하나를 내는 글: 문자열은 그대로, 나머지는 `jq .` 꼴(들여쓰기 2) */
+export const rawOut = (v) => (typeof v === 'string' ? v : J.stringify(v));
+/** @tsv 한 칸: null 은 빈 글, 불리언·숫자는 글, 문자열은 이스케이프, 배열·객체는 오류 */
+export function tsvText(v) {
+  if (v === null || v === undefined) return '';
+  if (Array.isArray(v) || v instanceof Map) throw new J.JqError(`${J.typeName(v)} (${J.tojson(v)}) is not valid in a csv row`, 5);
+  return tsvEsc(J.tostring(v));
+}
+/** jq `+` (null 은 쓰지 않는다): 수끼리 합, 문자열끼리 이음, 배열 이음, 객체 병합, 그 밖은 오류 */
+export function jqAdd(a, b) {
+  const num = (x) => typeof x === 'number' || x instanceof J.JNum;
+  if (num(a) && num(b)) return Number(a) + Number(b);
+  if (typeof a === 'string' && typeof b === 'string') return a + b;
+  if (Array.isArray(a) && Array.isArray(b)) return [...a, ...b];
+  if (a instanceof Map && b instanceof Map) return new Map([...a, ...b]);
+  throw new J.JqError(`${J.typeName(a)} and ${J.typeName(b)} cannot be added`, 5);
+}

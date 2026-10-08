@@ -13,100 +13,13 @@ import { fileURLToPath } from 'node:url';
 import * as J from './lib/jq-json.mjs';
 import { CoordDie, Ctx, cfgLoad, cfgSub, epochToIso, expand, isoToEpoch, nowEpoch } from './lib/common.mjs';
 import { statMtime } from './lib/compat.mjs';
-import { coordDefaultRepo } from './lib/common-ext.mjs';
+import { ArithAbort, arithVal, awkGe, awkInt, cmpInt, coordDefaultRepo, cutF, cutRest, stripNl, step, strOr, testInt, tsvEsc, walk } from './lib/common-ext.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 
+export { awkGe, awkInt, arithVal, testInt };
+export { awkNum } from './lib/common-ext.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
-const stripNl = (s) => s.replace(/\n+$/, '');
-const I64_MIN = -(2n ** 63n), I64_MAX = 2n ** 63n - 1n;
-
-/** bash `[ a -gt b ]` 의 피연산자: 10진 정수 글(앞 부호 가능)이고 64비트 안이면 BigInt, 아니면 null(= 시험이 오류 → 거짓) */
-export function testInt(s) {
-  if (!/^[+-]?[0-9]+$/.test(s)) return null;
-  const v = BigInt(s);
-  return v < I64_MIN || v > I64_MAX ? null : v;
-}
-const cmpInt = (a, b, op) => {
-  const x = testInt(a), y = testInt(b);
-  if (x === null || y === null) return false;
-  return op === 'gt' ? x > y : op === 'le' ? x <= y : op === 'lt' ? x < y : false;
-};
-
-/** bash `$(( ))` 안의 변수 값 글 → BigInt. 앞 0 은 8진, 틀린 자리는 ArithAbort. 64비트로 감긴다 */
-class ArithAbort extends Error {}
-export function arithVal(s) {
-  if (s === '') return 0n;
-  let neg = false, t = s;
-  if (t[0] === '-') { neg = true; t = t.slice(1); } else if (t[0] === '+') t = t.slice(1);
-  const base = t.length > 1 && t[0] === '0' ? 8n : 10n;
-  const body = base === 8n ? t.slice(1) : t;
-  let v = 0n;
-  for (const ch of body) {
-    const d = BigInt(ch.charCodeAt(0) - 48);
-    if (d < 0n || d > 9n) throw new ArithAbort(`${s}: 식 오류`);
-    if (d >= base) throw new ArithAbort(`${s}: value too great for base (error token is "${s}")`);
-    v = BigInt.asIntN(64, v * base + d);
-  }
-  return neg ? BigInt.asIntN(64, -v) : v;
-}
-
-// ---------- awk 흉내 ----------
-const WS = ' \t\n\v\f\r';
-/** onetrue-awk 의 is_number: C strtod 로 읽어 끝(뒤 공백 ' \t\n\r' 제외)까지 먹었고 +HUGE_VAL·범위 오류가 아니면 수. 수면 값, 아니면 null */
-export function awkNum(s) {
-  let i = 0;
-  while (i < s.length && WS.includes(s[i])) i++;
-  const rest = s.slice(i);
-  let m, v, len;
-  if ((m = /^[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?/.exec(rest)) && !/^[+-]?0[xX]/.test(rest)) {
-    v = Number(m[0].replace(/^\+/, '').replace(/\.(?=[eE]|$)/, '')); len = m[0].length;
-  } else if ((m = /^([+-]?)0[xX]((?:[0-9a-fA-F]+\.?[0-9a-fA-F]*|\.[0-9a-fA-F]+))(?:[pP]([+-]?[0-9]+))?/.exec(rest))) {
-    const [ip, fp = ''] = m[2].split('.');
-    v = (parseInt(ip || '0', 16) + (fp ? parseInt(fp, 16) / 16 ** fp.length : 0)) * 2 ** Number(m[3] ?? 0);
-    if (m[1] === '-') v = -v;
-    len = m[0].length;
-  } else if ((m = /^[+-]?nan(?:\([A-Za-z0-9_]*\))?/i.exec(rest))) { v = NaN; len = m[0].length; }
-  else if ((m = /^[+-]?(?:infinity|inf)/i.exec(rest))) { v = m[0][0] === '-' ? -Infinity : Infinity; len = m[0].length; }
-  else return null;
-  if (v === Infinity) return null;   // r == HUGE_VAL 은 수가 아니다(문자열 비교로)
-  if (!Number.isFinite(v) && !Number.isNaN(v) && v !== -Infinity) return null;
-  if (Number.isFinite(v) && /[eE][+-]?[0-9]+$/.test(m[0]) && v === 0 && /[1-9]/.test(m[0].replace(/[eE].*$/, ''))) return null;   // 언더플로(ERANGE)
-  let j = i + len;
-  while (j < s.length && ' \t\n\r'.includes(s[j])) j++;
-  return j === s.length ? v : null;
-}
-
-/** awk -v v=… -v t=… 'BEGIN { exit !(v >= t) }' — 둘이 모두 수 꼴이면 수 비교(NaN 은 같다고 본다), 아니면 문자열(strcmp) 비교 */
-export function awkGe(v, t) {
-  const a = awkNum(v), b = awkNum(t);
-  if (a !== null && b !== null) { const j = a - b; return !(j < 0); }
-  return Buffer.compare(Buffer.from(v, 'utf8'), Buffer.from(t, 'utf8')) >= 0;
-}
-
-/** awk printf "%d" — 0 쪽으로 버리고 64비트를 넘으면 2^63-1 (음수는 -2^63) */
-export function awkInt(x) {
-  if (Number.isNaN(x)) return '-9223372036854775808';   // C 캐스트 결과는 실행 환경마다 달라 쓰지 않는 값이다
-  if (x >= 2 ** 63) return '9223372036854775807';
-  if (x <= -(2 ** 63)) return '-9223372036854775808';
-  return BigInt(Math.trunc(x)).toString();
-}
-
 const isnum = (s) => /^[0-9]+(?:\.[0-9]+)?$/.test(s);
-
-// ---------- jq 흉내 ----------
-/** @tsv 의 문자열 이스케이프 */
-const tsvEsc = (s) => s.replace(/[\\\t\n\r]/g, (ch) => (ch === '\\' ? '\\\\' : ch === '\t' ? '\\t' : ch === '\n' ? '\\n' : '\\r'));
-/** `// ""` 다음 tostring */
-const strOr = (v) => J.tostring(J.alt(v, ''));
-const step = (v, k) => {
-  if (typeof k === 'number') {
-    if (v === null || v === undefined) return null;
-    if (Array.isArray(v)) return k >= 0 && k < v.length ? v[k] : null;
-    throw new J.JqError(`Cannot index ${J.typeName(v)} with number`, 5);
-  }
-  return J.index(v, k);
-};
-const walk = (d, segs) => { let v = d; for (const s of segs) v = step(v, s); return v; };
 
 /** coord_cfg 가 문서에서 읽는 글(절 이름 또는 [..., 숫자]). 오류는 '' */
 function cfgAt(c, segs) {
@@ -139,17 +52,6 @@ function sourcesLen(c) {
     } catch (e) { if (!(e instanceof J.JqError)) throw e; }
   }
   return stripNl(out);
-}
-
-/** `printf '%s' "$row" | cut -f<n>` 을 $(…) 에 넣은 글 */
-function cutF(row, n) {
-  if (row === '') return '';
-  return stripNl(row.split('\n').map((l) => (l.includes('\t') ? (l.split('\t')[n - 1] ?? '') : (n === 1 ? l : l))).join('\n'));
-}
-/** `cut -f2-` + `sed 's/^/\t/'` */
-function cutRest(row) {
-  if (row === '') return '';
-  return stripNl(row.split('\n').map((l) => `\t${l.includes('\t') ? l.slice(l.indexOf('\t') + 1) : l}`).join('\n'));
 }
 
 const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
