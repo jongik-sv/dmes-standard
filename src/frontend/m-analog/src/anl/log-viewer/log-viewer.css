@@ -372,24 +372,16 @@
 }
 
 /* ============================================================
-   서비스 목록 오버레이 패널 (원본 위치/크기 유지)
+   서비스 목록 떠 있는 창 — FloatingPanel 이 body 로 포털하므로 .anl-log-viewer 밖에 그려진다.
+   아래 서비스 목록 전용 규칙은 :is(.anl-log-viewer, .anl-service-popup) 로 두 곳 모두 받는다.
    ============================================================ */
-.anl-log-viewer .anl-service-overlay {
-  position: absolute;
-  z-index: 999;
-  bottom: 30px;
-  left: 62px;
-  width: calc(100% - 200px);
-  height: 500px;
-  max-height: calc(100% - 60px);
-  box-shadow: var(--shadow-dropdown);
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+.anl-service-popup {
+  width: 100%;
+  height: 100%;
 }
 
 /* 로그/JSON 드릴다운 링크 버튼 (원본 .linkButton) */
-.anl-log-viewer .anl-link-button {
+:is(.anl-log-viewer, .anl-service-popup) .anl-link-button {
   background-color: transparent;
   border: none;
   padding: 0;
@@ -400,34 +392,34 @@
   cursor: pointer;
 }
 
-.anl-log-viewer .anl-link-button:hover {
+:is(.anl-log-viewer, .anl-service-popup) .anl-link-button:hover {
   font-weight: bolder;
 }
 
 /* 오류 행 — 빨간 글씨 */
-.anl-log-viewer .anl-row-error .ag-cell {
+:is(.anl-log-viewer, .anl-service-popup) .anl-row-error .ag-cell {
   color: var(--color-danger);
 }
 
 /* 수행시간 히트맵 — cellClassRules 이산 버킷 (원본 연속 alpha 의 5단계 근사).
    heat-5 는 오류 행 글자색보다 뒤에 선언해 흰 글씨가 우선하게 한다. */
-.anl-log-viewer .ag-cell.anl-heat-1 {
+:is(.anl-log-viewer, .anl-service-popup) .ag-cell.anl-heat-1 {
   background-color: color-mix(in srgb, var(--color-danger) 16%, transparent);
 }
 
-.anl-log-viewer .ag-cell.anl-heat-2 {
+:is(.anl-log-viewer, .anl-service-popup) .ag-cell.anl-heat-2 {
   background-color: color-mix(in srgb, var(--color-danger) 32%, transparent);
 }
 
-.anl-log-viewer .ag-cell.anl-heat-3 {
+:is(.anl-log-viewer, .anl-service-popup) .ag-cell.anl-heat-3 {
   background-color: color-mix(in srgb, var(--color-danger) 48%, transparent);
 }
 
-.anl-log-viewer .ag-cell.anl-heat-4 {
+:is(.anl-log-viewer, .anl-service-popup) .ag-cell.anl-heat-4 {
   background-color: color-mix(in srgb, var(--color-danger) 64%, transparent);
 }
 
-.anl-log-viewer .ag-cell.anl-heat-5 {
+:is(.anl-log-viewer, .anl-service-popup) .ag-cell.anl-heat-5 {
   background-color: var(--color-danger);
   color: var(--color-on-primary);
 }

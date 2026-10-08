@@ -5,7 +5,7 @@
  * 원본: analog-express-ui-plate App.js + AnlaogMainPage.js + LogViewer.js 오케스트레이션 이식.
  *
  * 구성: 워크스페이스 탭바 / 좌측 검색 사이드바 / 본문(Monaco 로그 에디터 + 하단 문서 탭) /
- *       서비스 목록 오버레이. 원본 상단 Navbar(로고)는 포털 셸이 대체하므로 이식하지 않음.
+ *       서비스 목록 떠 있는 창(FloatingPanel). 원본 상단 Navbar(로고)는 포털 셸이 대체하므로 이식하지 않음.
  *
  * 원본 대비 의도적 수정:
  *  - 메타(GET api/meta) 실패 시 무한 로딩 → 재시도 버튼 있는 오류 화면.
@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, Spinner } from "@dk-oasis/shared/form";
+import { FloatingPanel } from "@dk-oasis/shared/floating-panel";
 import { useGfnMessage } from "@dk-oasis/shared/message-provider";
 import {
   buildDownloadUrl,
@@ -49,6 +50,10 @@ import type {
   SearchOptions,
 } from "./types";
 import "./log-viewer.css";
+
+/** 서비스 목록 창의 위치·크기 저장 키(FloatingPanel 이 dmes:floating-panel: 접두어를 붙인다)와 처음 열 때의 자리. */
+const SERVICE_LIST_STORAGE_KEY = "analog-log-viewer:service-list";
+const SERVICE_LIST_DEFAULT_RECT = { x: 120, y: 140, width: 960, height: 460 };
 
 /** 메타 로드 게이트 — 성공 시 본 화면, 실패 시 재시도 화면 (원본 무한 로딩 고침). */
 export function AnalogLogViewer() {
@@ -304,6 +309,8 @@ function LogViewerMain({ meta }: { meta: AnalogMeta }) {
     [],
   );
 
+  const closeServiceList = useCallback(() => setServiceListOpen(false), []);
+
   return (
     <div className="anl-log-viewer">
       <WorkspaceTabBar
@@ -368,15 +375,24 @@ function LogViewerMain({ meta }: { meta: AnalogMeta }) {
             </div>
           </div>
           <DocTabBar active={activeDocTab} onSelect={selectDocTab} />
-          {serviceListOpen && (
-            <ServiceListPanel
-              serviceList={activeWs.serviceList}
-              onLogClick={drilldownLog}
-              onJsonClick={drilldownJson}
-            />
-          )}
         </div>
       </div>
+      <FloatingPanel
+        title="서비스 목록"
+        open={serviceListOpen}
+        onClose={closeServiceList}
+        storageKey={SERVICE_LIST_STORAGE_KEY}
+        defaultRect={SERVICE_LIST_DEFAULT_RECT}
+        minWidth={420}
+        minHeight={240}
+        testId="anl-service-list-window"
+      >
+        <ServiceListPanel
+          serviceList={activeWs.serviceList}
+          onLogClick={drilldownLog}
+          onJsonClick={drilldownJson}
+        />
+      </FloatingPanel>
     </div>
   );
 }

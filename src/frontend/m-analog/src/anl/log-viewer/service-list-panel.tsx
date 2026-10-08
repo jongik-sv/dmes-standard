@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 로그 분석 (anl/logViewer) — 서비스 목록 오버레이 패널.
+ * 로그 분석 (anl/logViewer) — 서비스 목록 패널(떠 있는 창 FloatingPanel 안에 넣어 쓴다).
  * 원본: analog-express-ui-plate ServiceListViewer_AG.js 이식.
  *  - ag-grid 직접 import 금지 정책에 따라 shared AgDataGrid 래퍼 사용.
  *  - 수행시간 히트맵: 원본의 연속 rgba alpha(cellStyle) 대신 cellClassRules 로 이산 버킷 구현
@@ -130,7 +130,7 @@ function ServiceListPanelComponent({
   );
 
   return (
-    <div className="anl-service-overlay">
+    <div className="anl-service-popup">
       <AgDataGrid
         columns={columns}
         data={rows}
