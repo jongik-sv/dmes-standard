@@ -183,7 +183,7 @@ function readOpts(store: Storage, key: string): Record<string, unknown> {
   }
 }
 
-/** 자동 저장 스위치 값을 저장한다(같은 객체의 다른 옵션 — `filterOpen` — 은 그대로 둔다). 성공하면 true. 용량 초과여도 다른 키를 지우지 않는다(값 하나라 조용히 포기). */
+/** 자동 저장 스위치 값을 저장한다(같은 객체의 다른 옵션은 그대로 둔다 — 예전에 적힌 `filterOpen` 도 지우지 않는다). 성공하면 true. 용량 초과여도 다른 키를 지우지 않는다(값 하나라 조용히 포기). */
 export function saveGridAutoSave(
   userId: string,
   screenKey: string,
@@ -194,58 +194,6 @@ export function saveGridAutoSave(
   if (!userId || !screenKey || !store) return false;
   const key = gridOptsKey(userId, screenKey, gridId);
   return trySet(store, key, JSON.stringify({ ...readOpts(store, key), autoSave })) === null;
-}
-
-/**
- * 그리드 칸별 입력 줄(「칸별 필터 보기」)을 펼친 채로 두었는가를 적는 키 접두어 — 개인화가 없는 그리드용. 컬럼 저장값(`dmes:grid:v1:`)과 옆 키(`dmes:grid-opts:v1:`)와
- * 접두어를 달리해, 용량 초과 정리(`oldestUserGridKeys`)가 지우지 않고 컬럼 「초기화」도 건드리지 않는다.
- */
-export const GRID_FILTER_KEY_PREFIX = "dmes:grid-filter:v1:";
-
-export function gridFilterKey(userId: string, screenKey: string, gridId: string = DEFAULT_GRID_ID): string {
-  return `${GRID_FILTER_KEY_PREFIX}${userId}:${screenKey}:${gridId || DEFAULT_GRID_ID}`;
-}
-
-/**
- * 사용자가 켜 둔 걸러 보기 상태. 없거나 깨졌으면 null(꺼짐으로 본다). 조건값·검색어는 기억하지 않고 켜짐만 기억한다.
- * - 개인화가 켜진 그리드(`withPersonalize`)는 옆 키 객체의 `filterOpen`, 아닌 그리드는 `gridFilterKey` 의 `{ filterOpen }` 이다.
- * - 저장소가 막혀 있거나(읽기 예외) 사용자·화면 키가 비면 null.
- */
-export function loadGridFilterOpen(
-  userId: string,
-  screenKey: string,
-  gridId: string = DEFAULT_GRID_ID,
-  withPersonalize = false,
-  store: Storage | null = defaultStorage(),
-): boolean | null {
-  if (!userId || !screenKey || !store) return null;
-  try {
-    const raw = store.getItem(withPersonalize ? gridOptsKey(userId, screenKey, gridId) : gridFilterKey(userId, screenKey, gridId));
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return null;
-    const v = (parsed as Record<string, unknown>).filterOpen;
-    return typeof v === "boolean" ? v : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * 걸러 보기 켜짐을 적는다. 성공하면 true. 개인화가 켜진 그리드는 자동 설정 저장 스위치가 꺼져 있어도 적는다(스위치 값과 같은 성격의 옵션이라 늘 저장).
- * 값 하나라 용량 초과면 조용히 포기한다(다른 키를 지우지 않는다).
- */
-export function saveGridFilterOpen(
-  userId: string,
-  screenKey: string,
-  gridId: string,
-  open: boolean,
-  withPersonalize = false,
-  store: Storage | null = defaultStorage(),
-): boolean {
-  if (!userId || !screenKey || !store) return false;
-  const key = withPersonalize ? gridOptsKey(userId, screenKey, gridId) : gridFilterKey(userId, screenKey, gridId);
-  return trySet(store, key, JSON.stringify({ ...(withPersonalize ? readOpts(store, key) : {}), filterOpen: open })) === null;
 }
 
 /**

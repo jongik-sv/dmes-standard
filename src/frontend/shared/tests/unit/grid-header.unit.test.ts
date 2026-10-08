@@ -17,6 +17,7 @@ import { AgDataGrid, type AgDataGridProps, type GridColumn } from "../../src/com
 import { GridPanel } from "../../src/components/grid/GridPanel";
 import { GridFilterChips } from "../../src/components/grid/GridFilterChips";
 import { GRID_HEADER_HEIGHT } from "../../src/components/grid";
+import { GRID_FILTER_ROW_HEIGHT } from "../../src/components/grid/useGridFilter";
 import type { GridFilterChip, GridPanelGridControls } from "../../src/components/grid/grid-panel-context";
 import { GRID_QUICK_FILTER_DEBOUNCE_MS } from "../../src/components/grid/GridQuickFilter";
 import { buildFilterChips, describeFilterModel, shortenChipValue } from "../../src/components/grid/grid-filter-chips";
@@ -213,6 +214,26 @@ describe("머리줄 — GridPanel 안은 하나뿐, 밖은 스스로", () => {
     await wait(80);
     expect(api().getGridOption("floatingFiltersHeight")).toBeGreaterThan(0);
     expect(document.querySelectorAll(".ag-floating-filter").length).toBe(COLUMNS.length);
+  });
+
+  it("칸별 필터 입력 줄을 펴면 숫자 height 에 그 줄 높이를 더하고, 접으면 되돌린다 — 보이는 행 수가 줄지 않는다", async () => {
+    await show(gridEl({ height: 300 }));
+    expect(gridBox().style.height).toBe("300px");
+    await openMenu();
+    await click(tid("grid-filter-row-item"));
+    await wait(80);
+    expect(gridBox().style.height).toBe(`${300 + GRID_FILTER_ROW_HEIGHT}px`);
+    await openMenu();
+    await click(tid("grid-filter-row-item"));
+    await wait(80);
+    expect(gridBox().style.height).toBe("300px");
+    // CSS 길이 문자열은 더하지 않는다
+    await reset();
+    await show(gridEl({ height: "400px" }));
+    await openMenu();
+    await click(tid("grid-filter-row-item"));
+    await wait(80);
+    expect(gridBox().style.height).toBe("400px");
   });
 
   it("height=auto 와 height 생략도 바깥 상자가 높이를 갖고 표가 남은 높이를 채운다", async () => {

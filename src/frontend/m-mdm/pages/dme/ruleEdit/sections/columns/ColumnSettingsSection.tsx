@@ -332,7 +332,8 @@ export function ColumnSettingsSection({ view, editable, runWrite, notify, setDir
       {probes.map(([k, x]) => (
         <ExprProbe key={k} text={x.text} slot={x.slot} enabled={parseEnabled} candidates={candidates} onParsed={onParsed} />
       ))}
-      <div data-testid="col-table" style={{ height: gridHeight, paddingTop: "var(--spacing-xs)" }}>
+      {/* 바깥 상자는 높이를 고정하지 않는다 — 머리줄이 표 위에 더해지고, 칸별 필터 입력 줄을 펴면 그리드가 숫자 height 에 그 줄 높이를 더해 내용만큼 늘어나 아래 요소와 겹치지 않는다. */}
+      <div data-testid="col-table" style={{ paddingTop: "var(--spacing-xs)" }}>
         <AgDataGrid gridId="columnSettings"
           key={gridKey}
           columns={columns}

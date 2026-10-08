@@ -104,6 +104,8 @@ export interface DecisionTableCardProps extends RuleEditCardProps {
 /** 표를 크게 볼 때 가장 작은 높이(px) — 본문이 아주 좁아도 이보다 줄이지 않는다. */
 const EXPANDED_MIN_HEIGHT = 320;
 const EXPANDED_GAP = 8;
+/** 의사결정표가 늘 보여 주는 최소 행 수 — 행이 이보다 적어도 이만큼의 높이를 둔다(칸별 필터 입력 줄을 켜도 유지). */
+const DT_MIN_ROWS = 5;
 
 function scrollParentOf(el: HTMLElement): HTMLElement | null {
   for (let p = el.parentElement; p; p = p.parentElement) {
@@ -324,8 +326,11 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
     [decision, view, hitPolicy, loadedHit],
   );
   const canSave = editable && dirty && canDo("save") && !busy && !saveBlocked && hitConflicts.length === 0;
-  const fitHeight = Math.min(560, 3 * 28 + Math.max(state.rows.length, 3) * 26 + 24);
-  const gridHeight = expandedHeight == null ? fitHeight : Math.max(fitHeight, expandedHeight);
+  // 행 수에 맞춘 표 높이 — 머리글 3단(28px) + 행(최소 5행) + 가로 스크롤바·테두리(24px). 머리줄(GRID_HEADER_HEIGHT)과 칸별 필터 입력 줄은 포함하지 않는다:
+  // 머리줄은 그리드가 표 위에 더하고, 입력 줄은 펴는 동안 그리드가 숫자 height 에 스스로 더한다(AgDataGrid). 그래서 바깥 상자는 높이를 정하지 않고 내용만큼 늘어나 아래 버튼 줄과 겹치지 않는다.
+  const fitHeight = Math.min(560, 3 * 28 + Math.max(state.rows.length, DT_MIN_ROWS) * 26 + 24);
+  // 크게 보기 — 바깥 상자가 정한 높이(머리줄 포함)를 그리드가 채운다(height="100%"). 입력 줄·칩 줄이 생기면 행이 줄어드는 대신 넘치지 않는다.
+  const expandedBoxHeight = expandedHeight == null ? null : Math.max(fitHeight + GRID_HEADER_HEIGHT, expandedHeight);
 
   return (
     <CardFrame
@@ -404,13 +409,13 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
         </p>
       )}
 
-      <div ref={gridBoxRef} data-testid="dt-grid" style={{ height: gridHeight }}>
+      <div ref={gridBoxRef} data-testid="dt-grid" style={expandedBoxHeight == null ? undefined : { height: expandedBoxHeight }}>
         <AgDataGrid gridId="decisionTable"
           key={gridKey}
           columns={columns}
           data={data}
           rowKey="rowKey"
-          height={gridHeight - GRID_HEADER_HEIGHT}
+          height={expandedBoxHeight == null ? fitHeight : "100%"}
           columnSizing="fixed"
           sortable={false}
           singleClickEdit

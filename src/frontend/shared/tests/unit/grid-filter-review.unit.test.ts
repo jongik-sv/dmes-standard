@@ -18,9 +18,11 @@ import { AgDataGrid, type AgDataGridProps, type GridColumn } from "../../src/com
 import { GridPanel } from "../../src/components/grid/GridPanel";
 import { GridQuickFilter } from "../../src/components/grid/GridQuickFilter";
 import type { GridPanelGridControls } from "../../src/components/grid/grid-panel-context";
-import { gridFilterKey, gridOptsKey } from "../../src/components/grid/grid-personalize";
+import { gridOptsKey } from "../../src/components/grid/grid-personalize";
+
+// 예전에 개인화가 없는 그리드가 켜짐을 적던 키 — 지금은 쓰지 않는다(저장값이 남아 있어도 읽지 않는 것만 본다).
+const gridFilterKey = (userId: string, screenKey: string, gridId: string) => `dmes:grid-filter:v1:${userId}:${screenKey}:${gridId}`;
 import { GRID_FILTER_ROW_HEIGHT } from "../../src/components/grid/useGridFilter";
-import { clearCurrentUserCache } from "../../src/portal-shell/current-user";
 import { TabPageContext } from "../../src/portal-shell/tab-page-context";
 import { screenApplyStore, screenContextStore } from "../../src/screen-context";
 import { installMemoryLocalStorage, seedCurrentUser } from "./grid-personalize-test-env";
@@ -188,9 +190,6 @@ describe("1. 머리글 전체 선택은 보이는 행만 고른다", () => {
 });
 
 describe("2. 저장 키가 바뀌거나 접힐 때 조건·검색어를 지운다", () => {
-  const PLAIN = gridFilterKey("u1", SCREEN, "g");
-  const OPTS = gridOptsKey("u1", SCREEN, "g");
-
   it("켜고 검색한 뒤 personalize 를 false 로 바꿔도(숨은 탭 패턴) 이번에 켠 걸러 보기는 검색어와 함께 그대로다", async () => {
     await show(panel(gridEl({ gridId: "g" })));
     await toggleFilter();
@@ -201,14 +200,15 @@ describe("2. 저장 키가 바뀌거나 접힐 때 조건·검색어를 지운�
     expect(api().getDisplayedRowCount()).toBe(2);
     expect((tid("grid-quick-filter-input") as HTMLInputElement).value).toBe("부품");
     expect(api().getGridOption("floatingFiltersHeight")).toBe(GRID_FILTER_ROW_HEIGHT);
-    // 저장 위치는 새 개인화 여부를 따른다 — 이후 끄면 별도 키에 적힌다.
+    // 켜짐은 저장하지 않는다 — 끄고 켜도 저장소에는 아무것도 적히지 않는다.
     await toggleFilter();
-    expect(JSON.parse(ls.getItem(PLAIN)!)).toEqual({ filterOpen: false });
+    expect(ls.getItem(gridFilterKey("u1", SCREEN, "g"))).toBeNull();
+    expect(ls.getItem(gridOptsKey("u1", SCREEN, "g"))).toBeNull();
   });
 
-  it("저장된 켜짐으로 시작한 그리드는 personalize 가 바뀌어도 다시 읽지 않아 켜진 채 검색어를 지키고, 접으면 칸별 조건만 지운다", async () => {
-    ls.setItem(OPTS, JSON.stringify({ filterOpen: true }));
+  it("켠 채 시작한 그리드는 personalize 가 바뀌어도 켜진 채 검색어를 지키고, 접으면 칸별 조건만 지운다", async () => {
     await show(panel(gridEl({ gridId: "g" })));
+    await toggleFilter();
     expect(tid("grid-quick-filter")).not.toBeNull();
     await typeQuick("부품");
     await show(panel(gridEl({ gridId: "g", personalize: false })));
@@ -245,8 +245,8 @@ describe("2. 저장 키가 바뀌거나 접힐 때 조건·검색어를 지운�
   });
 
   it("filter={true} 그리드는 키가 바뀌어 입력 줄이 접혀도 검색어를 남기고 칸별 조건만 지운다", async () => {
-    ls.setItem(gridFilterKey("u1", SCREEN, "g"), JSON.stringify({ filterOpen: true }));
     await show(panel(gridEl({ gridId: "g", filter: true, personalize: false })));
+    await toggleFilter();
     expect(api().getGridOption("floatingFiltersHeight")).toBe(GRID_FILTER_ROW_HEIGHT);
     await act(async () => {
       await api().setColumnFilterModel("qty", { filterType: "number", type: "greaterThan", filter: 1 });
@@ -330,25 +330,6 @@ describe("3. 한 GridPanel 에 그리드가 여럿이면 대상이 엉키지 않
     await until(() => api(0).getDisplayedRowCount() === 3, "a 조건 해제");
     expect(api(0).getGridOption("quickFilterText")).toBe("");
     expect((tid("grid-quick-filter-input") as HTMLInputElement).value).toBe("");
-  });
-});
-
-describe("4. 저장된 켜짐이 그리드 준비 뒤에 들어와도 칸 상태를 이어 준다", () => {
-  it("personalize={false}: 사용자 확인이 마운트 뒤에 오면 켜지면서도 사용자가 바꾼 순서·너비가 그대로다", async () => {
-    // 사용자 확인 전(공유 사용자 저장소가 빈 상태)으로 시작한다.
-    clearCurrentUserCache();
-    ls.setItem(gridFilterKey("u1", SCREEN, "main"), JSON.stringify({ filterOpen: true }));
-    await show(panel(gridEl({ personalize: false })));
-    await act(async () => {
-      api().moveColumns(["qty"], 0);
-      api().setColumnWidths([{ key: "name", newWidth: 222 }]);
-    });
-    const before = api().getColumnState().map((c) => `${c.colId}:${c.width}`).join();
-    await seedCurrentUser("u1");
-    await until(() => api().getGridOption("floatingFiltersHeight") === GRID_FILTER_ROW_HEIGHT, "저장된 켜짐 반영");
-    await wait(30);
-    expect(api().getColumnState().map((c) => `${c.colId}:${c.width}`).join()).toBe(before);
-    expect(colIds(api())).toEqual(["qty", "code", "name"]);
   });
 });
 

@@ -119,6 +119,12 @@ body > .ag-popup {
   border-right: none;
 }
 
+/* 칸별 필터 입력 줄 셀 — 위 머리글 셀의 좌우 여백(8px)을 물려받으면 입력 칸이 칸 경계보다 오른쪽에서 시작하고, 좁은 칸(행 번호 등)에서는 입력 칸이 없어진다.
+   입력 칸이 칸 경계에 닿게 여백을 없앤다. */
+.cm-data-grid .ag-header-cell.ag-floating-filter {
+  padding: 0;
+}
+
 .cm-data-grid .ag-header-cell-label {
   justify-content: center;
 }
