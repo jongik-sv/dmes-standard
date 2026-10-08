@@ -239,16 +239,22 @@ export function sess8Of(doc) {
   return asText(J.alt(get(doc, 'run', 'id'), '')).replace(/[/\r\n\t ]/g, '');
 }
 
+// jq 의 `==`: 숫자끼리는 값으로, 그 밖은 같은 종류·같은 글일 때만
+const jEq = (a, b) => {
+  const num = (x) => typeof x === 'number' || x instanceof J.JNum;
+  return num(a) && num(b) ? J.toNumber(a) === J.toNumber(b) : a === b;
+};
+
 function summaryRow(doc, id, xr, xl) {
   const s8 = sess8Of(doc);
   const lanesV = J.alt(get(doc, 'lanes'), new Map());
   const alive = [];
-  for (const k of J.keys(lanesV)) {
-    if (id === xr && k === xl) continue;
-    const l = J.index(lanesV, k);
+  for (const k of J.keys(lanesV)) {   // 객체면 키(문자열), 배열이면 인덱스(숫자) — jq 의 keys[] 와 같다
+    if (id === xr && jEq(k, xl)) continue;
+    const l = Array.isArray(lanesV) ? lanesV[k] : lanesV.get(k);
     let label;
     if (J.alt(J.index(l, 'state'), 'active') === 'closed') label = '끝';
-    else if (J.alt(get(doc, 'merge', 'in_flight', 'lane'), '') === k) label = '머지 중';
+    else if (jEq(J.alt(get(doc, 'merge', 'in_flight', 'lane'), ''), k)) label = '머지 중';
     else if (J.index(l, 'hold') !== null || J.alt(J.index(l, 'state'), '') === 'closing') label = '대기';
     else label = '작업 중';
     if (label !== '끝') alive.push(label);

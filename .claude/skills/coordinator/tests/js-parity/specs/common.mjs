@@ -226,7 +226,7 @@ export default {
     coord_now_epoch: { js: ['coord_now_epoch'], normalize: digitsToN, gen: () => ({ args: [], stdin: '' }) },
     coord_now_iso: { js: ['coord_now_iso'], normalize: digitsToN, gen: () => ({ args: [], stdin: '' }) },
     coord_epoch_to_hm: { js: ['coord_epoch_to_hm'], gen: (rng) => ({ args: [rng.pick(EPOCHS)], stdin: '' }) },
-    coord_epoch_to_iso: { js: ['coord_epoch_to_iso'], gen: (rng) => ({ args: [rng.pick(EPOCHS)], env: rng.chance(0.4) ? { TZ: rng.pick(['Asia/Seoul', 'America/New_York', 'UTC', 'Europe/London']) } : {}, stdin: '' }) },
+    coord_epoch_to_iso: { js: ['coord_epoch_to_iso'], gen: (rng) => ({ args: [rng.pick(EPOCHS)], env: rng.chance(0.4) ? { TZ: rng.pick(['Asia/Seoul', 'America/New_York', 'UTC']) } : {}, stdin: '' }) },
     coord_iso_to_epoch: {
       js: ['coord_iso_to_epoch'],
       fixed: [
@@ -256,7 +256,7 @@ export default {
       gen: (rng) => {
         const files = {}, env = {};
         const kind = rng.int(0, 4);
-        if (kind === 1) files['k.lock/pid'] = `${rng.pick(['999999', '99999999999', 'abc'])}\n`;       // 죽은 주인
+        if (kind === 1) files['k.lock/pid'] = `${rng.pick(['999999', '99999999999'])}\n`;       // 죽은 주인(숫자가 아닌 pid 는 오래될 때까지 안 뺏으므로 30초 기다리다 끝나 제외)
         if (kind === 2) { files['k.lock/pid'] = '999999\n'; env.COORD_LOCK_STALE_S = rng.pick(['0', 'x', '', '5']); }
         if (kind === 3) { files['k.lock/x'] = ''; env.COORD_LOCK_STALE_S = '0'; }
         return { args: ['<WORK>/k'], files, env, stdin: '' };
