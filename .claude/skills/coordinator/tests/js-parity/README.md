@@ -63,7 +63,7 @@ sc_key()   { if _jsb_on SCREEN_CACHE; then _jsb_call screen-cache sc_key "$@"; r
 sc_store() { if _jsb_on SCREEN_CACHE; then _jsb_callg screen-cache sc_store "SC_STORED_KIND" "$@"; return; fi; … }
 ```
 - 스크립트 전체를 옮긴 경우는 스크립트 맨 위에 `. "$LIB/js-bridge.sh"; if _jsb_on COORD_STATE; then _jsb_exec coord-state "$@"; fi` 한 줄(프로세스를 node 로 바꿔 exec, 인자·stdin·stdout 그대로). 표본 `sample/sample-script.sh`.
-- 스위치 이름 `COORD_JS_<모듈 대문자, 하이픈은 밑줄>` (예: COORD_JS_SCREEN_CACHE). 기본(없음·0)은 bash 본문. `=1` 이고 node 가 있으면 node 판.
+- 스위치 이름 `COORD_JS_<모듈 대문자, 하이픈은 밑줄>` (예: COORD_JS_SCREEN_CACHE). 기본(없음·0)은 bash 본문. `=1` 이고 node 가 있으면 node 판. 이름 변수가 비어 있을 때 `COORD_JS_ALL=1` 이면 전체가 켜진다(명시한 `=0` 이 우선). 단 console-redact 는 옛 스위치 `COORD_JS_REDACT` 를 따로 쓴다.
 - 켜짐에서 node 판이 실패(종료 코드 70)하면 bash 본문으로 되돌아가지 않고 그 코드로 실패한다. node 는 source 시점의 절대 경로로 고정한다.
 - 한계: 전역 변수는 문자열만, NUL 바이트는 못 옮긴다. 호출마다 node 기동 비용(약 40ms)이 든다 — 켜짐은 시험·확인용이고, 상주 폴러(W2)는 모듈을 import 한다.
 - 서브셸 안에서 부른 함수가 바꾼 전역 변수는 호출자에게 안 보이는 것이 bash 판과 같다. `_jsb_callg` 는 부른 셸에 전역을 넣으므로 같은 조건(`$(…)` 밖에서 호출)에서만 의미가 같다.
