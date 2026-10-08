@@ -710,6 +710,7 @@ MaxHandleProps: `panelId: string`(필수), `style?: React.CSSProperties`, `class
 
 | 실수 | 바로잡기 |
 |---|---|
+| 화면 루트를 직접 만든 `div` 로 두고 그 안에 ContentBody·ContentPanel 을 쓴다 | 분할·높이·패널 CSS 가 `.page-layout`(또는 모달 바디) 아래에서만 적용돼, 본문이 꽉 차지 않고 패널이 좁게 쪼그라든다(2026-10-08 DB 뷰어). 화면 루트를 `PageLayout` 으로 둔다. |
 | 같은 `storageKey` 를 두 화면이 쓴다 | 저장 크기가 섞인다. 화면 경로로 고유하게 만든다. |
 | 패널 대신 `div` 를 막대 사이에 둔다 | 막대는 ContentPanel·ContentBody 사이에만 생긴다. 패널로 감싼다. |
 | `panelId` 를 주고 `MaxHandle` 의 id 를 다르게 쓴다 | 두 값을 같은 상수로 쓴다. |
