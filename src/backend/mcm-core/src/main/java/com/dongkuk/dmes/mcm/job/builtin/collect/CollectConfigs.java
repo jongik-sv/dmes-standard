@@ -124,8 +124,13 @@ public final class CollectConfigs {
 
     /** http·https 절대 주소, 호스트 있음, 사용자 정보({@code user:pw@}) 없음. */
     static URI parseUrl(String text) {
+        return parseUrl(text, URL_MAX);
+    }
+
+    /** {@link #parseUrl(String)} 와 같고 길이 상한만 다르다 — 변수를 넣은 실행 주소는 저장 상한({@link #URL_MAX})보다 길 수 있다. */
+    static URI parseUrl(String text, int maxLength) {
         if (text == null || text.isBlank()) throw invalid("수집 주소(source.url)를 입력해 주세요.");
-        if (text.length() > URL_MAX) throw invalid("수집 주소는 " + URL_MAX + "자 이하여야 합니다.");
+        if (text.length() > maxLength) throw invalid("수집 주소는 " + maxLength + "자 이하여야 합니다.");
         URI uri;
         try {
             uri = new URI(text.strip());
