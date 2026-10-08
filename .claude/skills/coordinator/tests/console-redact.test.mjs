@@ -235,3 +235,14 @@ test('CLI: 한글이 깨지지 않고 CRLF 가 LF 로 바뀌지 않는다(윈도
   const r = spawnSync(process.execPath, [MJS, 'text'], { input: Buffer.from('한글 줄\r\n비밀번호: 1234\r\n', 'utf8'), windowsHide: true });
   assert.equal(r.stdout.toString('utf8'), '한글 줄\r\n비밀번호: [가림]\n');
 });
+
+test('윈도우 모의: cygpath 가 있는 Git Bash 처럼 보여도 스위치가 cygpath -m 경로로 node 판을 부른다(윈도우 실기는 미측정)', { skip: skipNoBash }, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'redact-cyg-'));
+  try {
+    // 가짜 cygpath: -m 이면 그대로 돌려주고, 불린 사실을 파일에 남긴다
+    writeFileSync(join(dir, 'cygpath'), `#!/bin/sh\necho "$@" >> "${dir}/called"\nshift\nprintf '%s\\n' "$1"\n`, { mode: 0o755 });
+    const r = spawnSync('bash', ['-c', '. "$1"; printf "password=abc\\n" | console_redact_text', '_', LIB], { env: { ...process.env, PATH: `${dir}${process.platform === 'win32' ? ';' : ':'}${process.env.PATH}`, COORD_JS_REDACT: '1' }, encoding: 'utf8' });
+    assert.equal(r.stdout, 'password=[가림]\n');
+    assert.match(readFileSync(join(dir, 'called'), 'utf8'), /^-m /);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
