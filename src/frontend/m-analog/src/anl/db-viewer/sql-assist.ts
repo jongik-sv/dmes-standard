@@ -438,7 +438,7 @@ export function quoteString(value: string): string {
  *    서버가 괄호를 거부하므로(TO_DATE(…) 는 실행되지 않는다) 괄호 없는 ANSI 리터럴을 쓰고,
  *    NLS 날짜 형식과도 무관하다.
  *  - 형식을 모를 때: 숫자 모양은 그대로(앞에 0 이 붙은 글자 `007` 은 문자열), 날짜 모양은 날짜
- *  - 그 밖 → '값'
+ *  - 그 밖(형식을 아는 RAW·INTERVAL 등 포함) → '값'
  */
 export function toSqlLiteral(value: unknown, dataType?: string | null): string {
   if (value === null || value === undefined) return "NULL";
@@ -449,6 +449,8 @@ export function toSqlLiteral(value: unknown, dataType?: string | null): string {
     return LOOSE_NUMBER_RE.test(text) ? text : quoteString(text);
   }
   const isDateType = !!dataType && DATE_TYPES.test(dataType);
+  // 형식을 아는데 문자·숫자·날짜가 아니면(RAW·INTERVAL 등) 값 모양으로 짐작하지 않고 글자로 둔다.
+  if (dataType && !isDateType) return quoteString(text);
   if (!isDateType && NUMBER_RE.test(text)) return text;
   if (isDateType || !dataType) {
     const tz = TIMESTAMP_TZ_RE.exec(text);

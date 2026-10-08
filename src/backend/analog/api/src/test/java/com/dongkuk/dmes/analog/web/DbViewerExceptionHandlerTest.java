@@ -79,6 +79,22 @@ class DbViewerExceptionHandlerTest {
     }
 
     @Test
+    void 닫는_따옴표가_빠진_ORA_01756은_400이다() throws Exception {
+        when(service.query(anyString())).thenThrow(new BadSqlGrammarException("StatementCallback", SERVER_SQL,
+                new SQLException("ORA-01756: quoted string not properly terminated", "42000", 1756)));
+        query().andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("SQL 문법 오류: ORA-01756: quoted string not properly terminated"));
+    }
+
+    @Test
+    void 사용자_식별자에_FETCH가_들어_있어도_원래_안내를_유지한다() throws Exception {
+        when(service.query(anyString())).thenThrow(new BadSqlGrammarException("StatementCallback", SERVER_SQL,
+                new SQLException("ORA-00904: \"FETCH_DT\": invalid identifier", "42000", 904)));
+        query().andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("SQL 문법 오류: ORA-00904: \"FETCH_DT\": invalid identifier"));
+    }
+
+    @Test
     void 연결_권한_시간_초과_같은_서버_쪽_오류는_400으로_바꾸지_않는다() {
         when(service.query(anyString())).thenThrow(new UncategorizedSQLException("StatementCallback", SERVER_SQL,
                 new SQLException("ORA-01017: invalid credential or not authorized", "72000", 1017)));
@@ -93,6 +109,8 @@ class DbViewerExceptionHandlerTest {
         assertThat(DbViewerExceptionHandler.isUserSqlError(933)).isTrue();
         assertThat(DbViewerExceptionHandler.isUserSqlError(942)).isTrue();
         assertThat(DbViewerExceptionHandler.isUserSqlError(1861)).isTrue();
+        assertThat(DbViewerExceptionHandler.isUserSqlError(1756)).isTrue();
+        assertThat(DbViewerExceptionHandler.isUserSqlError(1742)).isTrue();
         assertThat(DbViewerExceptionHandler.isUserSqlError(6550)).isTrue();
         assertThat(DbViewerExceptionHandler.isUserSqlError(1017)).isFalse();
         assertThat(DbViewerExceptionHandler.isUserSqlError(1013)).isFalse();

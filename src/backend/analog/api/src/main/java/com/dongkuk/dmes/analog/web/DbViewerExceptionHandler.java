@@ -28,6 +28,9 @@ public class DbViewerExceptionHandler {
     private static final Pattern SERVER_FETCH = Pattern.compile(
             "\\s*FETCH\\s+FIRST\\s+\\d+\\s+ROWS\\s+ONLY", Pattern.CASE_INSENSITIVE);
 
+    /** 서버가 붙인 FETCH 를 탓하는 오라클 안내 판별 — 단어 경계로 FETCH_DT 같은 사용자 식별자는 거른다. */
+    private static final Pattern FETCH_WORD = Pattern.compile("\\bFETCH\\b", Pattern.CASE_INSENSITIVE);
+
     private static final int MAX_DETAIL = 200;
 
     @ExceptionHandler(DbViewerException.class)
@@ -66,12 +69,14 @@ public class DbViewerExceptionHandler {
 
     /**
      * 사용자 SQL 탓으로 보는 오라클 오류 번호.
-     * ORA-00900~00999(문법·이름), 03049(키워드 위치), 06550(PL/SQL), 01722(숫자 형식), 018xx(날짜 형식),
-     * 01427·01476·01747·01789·01790(조건식 오류).
+     * ORA-00900~00999(문법·이름), 01740~01746·01756(따옴표·이름 짝), 03049(키워드 위치), 06550(PL/SQL),
+     * 01008(바인드 변수), 01722(숫자 형식), 018xx(날짜 형식), 01427·01476·01747·01789·01790(조건식 오류).
      */
     static boolean isUserSqlError(int code) {
         return (code >= 900 && code <= 999)
+                || (code >= 1740 && code <= 1746)
                 || (code >= 1830 && code <= 1899)
+                || code == 1008 || code == 1756
                 || code == 1427 || code == 1476 || code == 1722 || code == 1747
                 || code == 1789 || code == 1790 || code == 3049 || code == 6550;
     }
@@ -84,7 +89,7 @@ public class DbViewerExceptionHandler {
         String code = ora.find() ? ora.group() : "ORA-" + String.format("%05d", sql.getErrorCode());
         String cleaned = SERVER_FETCH.matcher(firstLine).replaceAll("").replaceAll("[:\\s]+$", "");
         // 건수 제한 절은 서버가 붙인 것이라, 그 키워드를 탓하는 안내는 사용자가 이해할 수 없다.
-        if (cleaned.toUpperCase().contains("FETCH")) {
+        if (FETCH_WORD.matcher(cleaned).find()) {
             return "SQL 문법 오류: " + code + " SQL 끝부분(WHERE 조건 등)이 완성되었는지 확인해 주세요.";
         }
         if (cleaned.length() > MAX_DETAIL) {
