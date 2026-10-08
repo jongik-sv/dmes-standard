@@ -480,3 +480,11 @@ AgDataGrid 는 사용자별로 컬럼 순서·너비·표시·고정·정렬을 
 ## 45. GridPanel 안에 위젯 보드·다른 그리드를 품지 않는다 (2026-10-08)
 
 `GridPanel` 본문(`.grid-panel-content`) 안의 모든 `AgDataGrid` 는 공통 CSS 규칙으로 패널 영역을 절대 배치로 덮고, 설정 메뉴·엑셀 단추를 패널 머리줄로 올린다. 위젯 보드(`WidgetWorkspace`)를 GridPanel 안에 두면 쿼리 표 같은 그리드 위젯이 제목 줄·조건줄·「N행」·그리드 설정 아이콘을 잃고 그리드만 위젯 틀 전체를 덮는다(위젯 관리 기본 배치 탭, 미리보기는 GridPanel 밖이라 정상이어서 늦게 발견). 보드·상세 폼처럼 그리드가 아닌 내용을 담는 우측 패널은 `grid-panel` / `grid-panel-header` 클래스로 머리줄만 같게 그리고 본문은 `grid-panel-content` 없는 상자로 둔다(`LayoutTab.tsx` `BOARD_BODY_STYLE`). 확인: 보드에 쿼리 표 위젯을 놓고 `.cm-data-grid` 의 computed position 이 static 인지, 제목 줄·조건줄이 그리드 위에 있는지 본다.
+
+## 46. 목록 조회 조건은 SearchArea 로 만든다 — 자체 조회 폼을 그리지 않는다 (2026-10-08)
+
+확정 4화면(layoutConfirm·codeConfirm·ruleConfirm·ruleSetConfirm)이 패널 안에 `Input`·`Button` 으로 자체 조회 폼을 그려서 조회 기본값(설정 아이콘)과 다른 목록 화면과 같은 모양이 빠졌다.
+
+- 목록 조회 조건은 `SearchArea`·`SearchField` 로 화면 위쪽에 만들고, 칸마다 `name`(MDM 컬럼 사전 키) 또는 `defaultKey` 를 단다. [조회] 는 상단 버튼 줄(`btn_search`)에 둔다. 대화 상자 안의 조회 칸은 예외다.
+- 패널 안에서 이미 받은 목록을 화면에서 좁혀 보는 칸(서버 조회 조건이 아닌 빠른 찾기, 예: DB 뷰어 표 목록의 테이블명 검색)은 `SearchArea` 대상이 아니다.
+- 칸 키를 달지 않는 경우는 의도된 제외(`defaultable={false}`, 팝업이 채우는 읽기 전용 칸, 업무기준마다 달라지는 동적 칸)로 한정한다. 상세: [search-area](../../../.claude/skills/mantine-aggrid-ui/references/components/search-area.md). audit 은 `[P-S1]` 경고로 잡는다.

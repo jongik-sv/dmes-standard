@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { ContentBody, ContentPanel, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
+import { ContentBody, ContentPanel, SearchArea, SearchField, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
 import { Button, Checkbox, DateTimePicker, Input } from "@dk-oasis/shared/form";
 import { AgDataGrid, GridLimitNotice, type GridColumn } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
@@ -200,10 +200,11 @@ export default function RuleSetConfirmPage({ tabId }: RuleSetConfirmPageProps) {
     }
   });
 
-  // 마운트 자동 조회 — 분리 창이 이어받은 목록이 있으면 건너뛴다(행 없이 복원됐거나 비었으면 이어받은 검색어로 한 번 조회한다).
+  // 진입 자동 조회는 SearchArea autoSearch 가 한다(조회 기본값을 넣은 뒤). 분리 창이 이어받은 값으로 시작하면 autoSearch 가 쉬므로,
+  // 행 없이 복원됐거나 비었을 때만 이어받은 검색어로 한 번 조회한다.
   const restored = useCarryRestored();
   useEffect(() => {
-    if (!restored || !drafts || drafts.length === 0) void refreshList(keyword, showAll);
+    if (restored && (!drafts || drafts.length === 0)) void refreshList(keyword, showAll);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -270,12 +271,21 @@ export default function RuleSetConfirmPage({ tabId }: RuleSetConfirmPageProps) {
   };
 
   return (
-    <MdmPageLayout group="dme" screenId={SCREEN_ID} title="룰 세트 확정">
+    <MdmPageLayout group="dme" screenId={SCREEN_ID} title="룰 세트 확정"
+      buttons={[
+        { id: "btn_search", label: "조회", type: "primary", action: "search", onClick: () => void refreshList(keyword) },
+      ]}
+    >
+      <SearchArea onSearch={() => void refreshList(keyword)} autoSearch>
+        <SearchField label="검색어" defaultKey="keyword" value={keyword} onChange={setKeyword}>
+          <Input data-testid="rsc-keyword" value={keyword} placeholder="세트 ID·이름" onChange={setKeyword} />
+        </SearchField>
+      </SearchArea>
       <ContentBody root resizable storageKey="mdm.dme.ruleSetConfirm">
         <ContentPanel width="30%">
           <DraftList
-            drafts={drafts} keyword={keyword} selected={target} onKeyword={setKeyword}
-            onSearch={() => void refreshList(keyword)} total={draftsTotal} onShowAll={() => void refreshList(keyword, true)} onSelect={(d) => choose({ setId: d.setId, ver: d.ver })}
+            drafts={drafts} selected={target}
+            total={draftsTotal} onShowAll={() => void refreshList(keyword, true)} onSelect={(d) => choose({ setId: d.setId, ver: d.ver })}
           />
         </ContentPanel>
 
@@ -371,16 +381,13 @@ function draftKey(setId: string, ver: string | null): string {
 
 interface DraftListProps {
   drafts: PendingSetDraft[] | null;
-  keyword: string;
   selected: Target | null;
-  onKeyword: (v: string) => void;
-  onSearch: () => void;
   total: number | null;
   onShowAll: () => void;
   onSelect: (d: PendingSetDraft) => void;
 }
 
-function DraftList({ drafts, keyword, selected, onKeyword, onSearch, total, onShowAll, onSelect }: DraftListProps) {
+function DraftList({ drafts, selected, total, onShowAll, onSelect }: DraftListProps) {
   const draftRows = useMemo(
     () => (drafts ?? []).map((d) => ({ ...d, rowId: draftKey(d.setId, d.ver) }) as unknown as Record<string, unknown>),
     [drafts],
@@ -388,10 +395,6 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, total, onSh
   return (
     <div data-testid="rsc-list" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={cardTitle}>확정 대기 목록</div>
-      <div style={{ ...section, ...rowFlex, paddingTop: "var(--spacing-sm)" }}>
-        <Input data-testid="rsc-keyword" value={keyword} placeholder="세트 ID·이름" onChange={onKeyword} />
-        <Button data-testid="rsc-search" onClick={onSearch}>조회</Button>
-      </div>
       <div style={{ padding: "0 var(--spacing-md)" }}>
         <GridLimitNotice shownCount={drafts?.length ?? 0} totalCount={total} onShowAll={onShowAll} testId="rsc-list-limit" />
       </div>

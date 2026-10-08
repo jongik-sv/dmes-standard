@@ -11,6 +11,8 @@
 
 - 쓴다: 목록 위의 조회조건 영역 전체.
 - 쓴다: 텍스트·선택·라디오·날짜 등 조회조건 한 칸(SearchField).
+- 쓴다: 새 화면의 목록 조회 조건은 모두 이것으로 만들고 칸마다 `name` 또는 `defaultKey` 를 단다. 패널 안에서 `Input` 과 [조회] 단추를 직접 그리지 않는다(audit `P-S1` 경고).
+- 쓰지 않는다: 대화 상자(`role="dialog"`) 안의 조회 칸, 패널 안에서 이미 받은 목록을 화면에서 좁혀 보는 빠른 찾기 칸(서버 조회 조건이 아님, 예: DB 뷰어 표 목록의 테이블명 검색).
 - 쓰지 않는다: 상세 폼의 라벨-값 입력 → [detail-form](detail-form.md).
 
 ## 표준 사용
@@ -195,6 +197,7 @@ SearchFieldProps
 
 | 실수 | 바로잡기 |
 |---|---|
+| `Input`·`DateTimePicker` 와 [조회] 단추로 자체 조회 폼을 그린다 | 기본값 기능이 빠진다. 화면 위쪽 `SearchArea`·`SearchField` 로 옮기고 [조회] 는 상단 버튼 줄(`btn_search`)에 둔다. 칸 키를 달지 않는 건 의도된 제외(`defaultable={false}`·팝업이 채우는 읽기 전용 칸·동적 칸)만 허용한다. |
 | `onSearch` 를 빼고 조회 버튼만 둔다 | Enter 조회가 되지 않는다. 항상 `onSearch` 를 준다. |
 | 기간을 `SearchField` 하나에 `div`·`span "~"` 로 묶는다 | `label="~"` 두 번째 SearchField 를 쓴다. |
 | select 에 "전체" 를 빼거나 `value` 를 `"all"` 로 둔다 | `{ value: "", label: "전체" }` 로 통일한다. |
@@ -223,4 +226,5 @@ SearchFieldProps
 - `src/frontend/m-mdm/pages/dmd/dataItemMng/page.tsx` `dependsOn="maruDataId"`. 키·이름·카테고리·닫힌 항목이 마루 데이터 칸을 따라 비워지고 다시 채워진다. 카테고리 선택지를 `flushSync` 로 커밋한 뒤 조회한다.
 - `src/frontend/m-mcm/page-components/csa/searchDefaultsSample/page.tsx` 칸 형식 전부(텍스트·select·radio·날짜·기간·children 묶기·`defaultKey`·`defaultable={false}`·대상 아님), `autoSearch`, `defaultsScope`, `defaults={false}` 를 한 화면에 모은 확인용 샘플(로컬 메뉴 「조회 기본값 샘플」).
 - `src/frontend/m-mcm/page-components/cme/masterCodeMngList/page.tsx:287` `onSearch` 만 지정한 조회조건(자동 조회 없음).
-- `src/frontend/m-mdm/pages/dmc/codeItemEdit/page.tsx:460` 복합 입력에 `span-2`. handoff 로 고른 코드가 조회 기준이라 기본값 대상이 없다.
+- `src/frontend/m-mdm/pages/dmc/codeItemEdit/page.tsx` 복합 입력에 `span-2`. 마루 코드·버전·닫힌 코드 모두 `defaultKey` 대상이고, handoff 로 열면 `defaults={!handedOff}` 로 기본값이 넘겨 받은 코드를 덮지 않게 한다.
+- `src/frontend/m-mdm/pages/dmc/codeConfirm/page.tsx` 상단 `SearchArea`(`autoSearch`) + 상단 버튼 줄 [조회]. 분리 창 복원 때는 행이 비었을 때만 이어받은 검색어로 조회하는 마운트 effect 를 둔다.

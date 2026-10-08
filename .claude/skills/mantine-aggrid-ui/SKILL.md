@@ -115,6 +115,7 @@ node $D/aggrid_docs.mjs recommendations           # 공식 ag-dev 의 LLM 흔한
 | `PageLayout buttons` 에 `<Button>` JSX 를 넣음 | `PageButton` 객체 배열(`{ id, label, onClick, type, action }`) — [screen-patterns.md](references/screen-patterns.md) §상단 버튼 |
 | 메시지를 `useGfnMessage`·`ErrorModal`·`alert` 로 제각각 띄움 | `useMessage().showMessage` + screen-patterns.md §메시지 문구 표 |
 | 기간 조회조건을 `<div style={{display:"flex"}}>` 나 `span-2` 로 직접 묶음 | `type="date"` `SearchField` 두 개, 두 번째 `label="~"` |
+| 목록 조회 조건을 `Input`·`Button` 으로 직접 그림(`SearchArea` 없이 [조회] 단추 포함) | `SearchArea`·`SearchField` 로 만들고 칸마다 `name`/`defaultKey` 를 단다 — audit `P-S1`. 대화 상자 안과 이미 받은 목록을 좁히는 빠른 찾기 칸은 예외 — [search-area](references/components/search-area.md) |
 | 진입 자동 조회를 마운트 `useEffect` 로 함(사용자 기본값이 빠진 조건으로 조회) | `<SearchArea autoSearch>` — [search-area](references/components/search-area.md) |
 | 기준 칸이 바뀔 때 화면이 다른 조회 칸을 직접 비움 / 조회 칸 `onChange` 를 `setFilters({ ...filters, k: v })` 로 씀 | 의존 칸에 `dependsOn="기준 칸 키"` 선언 / 함수형 갱신 `setFilters((p) => ({ ...p, k: v }))` |
 | 화면 루트를 직접 만든 `div` 로 두고 ContentBody·ContentPanel 을 씀(분할 CSS 가 안 먹어 본문이 좁게 쪼그라듦) | 화면 루트는 `PageLayout`. 분할·패널 CSS 는 `.page-layout`·모달 바디 아래에서만 적용된다 — [content-body](references/components/content-body.md) 흔한 실수 |

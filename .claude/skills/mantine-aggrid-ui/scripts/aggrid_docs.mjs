@@ -1313,6 +1313,28 @@ export function perf_audit(f, raw, in_shared, error, warn, info = null) {
   }
 }
 
+const SF_FORM_IMPORT = pyre('import\\s*\\{[^}]*\\b(?:Input|Select|DatePicker|DateTimePicker)\\b[^}]*\\}\\s*from\\s*[\"\']@dk-oasis/shared/form[\"\']');
+const SF_SEARCH_BUTTON = pyre('<(?:Button|button)\\b[^>]*>\\s*조회\\s*</(?:Button|button)>');
+const SF_DIALOG_FILE = pyre('(?:Pop|Modal|Dialog|Popup)\\w*\\.tsx$|role=[\"\']dialog[\"\']|<Modal\\b');
+
+/** P-S1: 화면이 SearchArea 없이 shared/form 입력 칸과 [조회] 단추로 자체 조회 폼을 그린다 — 조회 기본값(설정 아이콘)이 빠진다.
+ *  서버 조회 조건이 아닌 빠른 찾기(조회 단추 없이 이미 받은 목록만 좁히는 칸)와 대화 상자는 대상이 아니다. warn(pos, msg) 로 낸다. */
+export function search_form_audit(f, raw, in_shared, warn) {
+  if (in_shared || path_suffix(path_name(f)) !== '.tsx') return;
+  const parts = path_parts(f);
+  const name = path_name(f);
+  if (parts.includes('tests') || parts.includes('__tests__') || parts.includes('e2e') || pyre('\\.(test|spec)\\.[jt]sx?$').search(name)) return;
+  if (!parts.includes('pages') && !parts.includes('page-components')) return;
+  if (_exception_level(f, 'P-S1') === 'exempt') return;
+  const t = mask_comments(raw);
+  if (t.includes('<SearchArea') || SF_DIALOG_FILE.search(f) || SF_DIALOG_FILE.search(t)) return;
+  if (!SF_FORM_IMPORT.search(t)) return;
+  const m = SF_SEARCH_BUTTON.search(t);
+  if (!m) return;
+  warn(m.start(), '[P-S1 경고] SearchArea 없이 shared/form 입력 칸과 [조회] 단추로 자체 조회 폼을 그린다 → 조회 기본값(설정 아이콘)이 빠진다. '
+    + '목록 조회 조건은 SearchArea·SearchField 로 만들고 칸마다 name 또는 defaultKey 를 단다 (대화 상자 안은 예외, search-area.md)');
+}
+
 const SKIP_DIRS = ['node_modules', '.next', 'dist', 'build'];
 
 /** audit 대상 파일 열거. 폴더는 재귀(.tsx/.ts/.jsx, 제외 폴더 이름이 경로 성분에 있으면 제외), 파일은 그대로. 표시 경로는 python Path 문자열. */
@@ -1389,6 +1411,7 @@ function cmd_audit(args) {
       (pos, msg) => report(f, text, pos, msg),
       (pos, msg) => report_warn(f, text, pos, msg),
       (pos, msg) => report_info(f, text, pos, msg));
+    search_form_audit(f, text, in_shared, (pos, msg) => report_warn(f, text, pos, msg));
   }
   out(`\n${files.length}개 파일 점검, 의심 ${issues}건 (deprecated 기준: 설치본 ${deprecated.size}개 속성)`
     + (warnings ? `, 성능 경고 ${warnings}건(종료 코드 무관)` : '')

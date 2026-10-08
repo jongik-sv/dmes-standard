@@ -12,6 +12,10 @@ import RuleSetConfirmPage from "../../pages/dme/ruleSetConfirm/page";
 import { FIRST_SEARCH_LIMIT } from "../../src/oasis-screen";
 import { RBAC_STORE_KEY, flush, installDomStorage, jsonResponse } from "./helpers/render";
 
+/** 상단 버튼 줄의 [조회] 단추 — 확정 화면은 조회 영역(SearchArea) + 상단 조회 단추 구조다. */
+const searchButton = () =>
+  Array.from(document.querySelectorAll(".page-layout__header-buttons button")).find((b) => b.textContent === "조회") as HTMLElement;
+
 let container: HTMLDivElement;
 let root: Root | null = null;
 const originalFetch = globalThis.fetch;
@@ -93,7 +97,7 @@ describe.each([
     expect(searchParams[1]).not.toHaveProperty("limit");
     expect(byTestId(testId)).toBeNull();
 
-    await click(byTestId(`${prefix}-search`)!);
+    await click(searchButton());
     expect(searchParams[2].limit).toBe(FIRST_SEARCH_LIMIT);
     expect(byTestId(testId)).not.toBeNull();
   });
