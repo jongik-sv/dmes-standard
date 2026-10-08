@@ -3,7 +3,8 @@
 /**
  * DB 뷰어 (anl/dbViewer) — 스키마·테이블 트리 패널.
  * 머리줄(제목·전체 테이블 수) + 테이블명 검색 + 스키마별로 접는 테이블 목록.
- * 검색어가 있으면 일치하는 테이블이 없는 스키마는 숨기고, 일치 부분을 강조한다.
+ * 처음에는 스키마가 모두 접혀 있다. 검색어가 있으면 일치하는 테이블이 없는 스키마는 숨기고,
+ * 일치하는 스키마는 펼쳐 일치 부분을 강조한다.
  */
 
 import { memo, useMemo, useState } from "react";
@@ -105,7 +106,10 @@ const SchemaNode = memo(function SchemaNode({
   selectedKey: string | null;
   onSelectTable: (schema: string, table: string) => void;
 }) {
-  const [open, setOpen] = useState(true);
+  // 처음에는 모두 접는다. 왼쪽 패널을 접었다 펼쳐 다시 그려질 때만, 선택한 표가 있는 스키마는 펼쳐 둔다.
+  const [open, setOpen] = useState(
+    () => selectedKey?.startsWith(`${schema}.`) ?? false,
+  );
   // 검색 중에는 접어 둔 스키마도 펼쳐 일치 항목을 보여 준다.
   const expanded = open || term !== "";
   return (
