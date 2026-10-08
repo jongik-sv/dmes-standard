@@ -144,11 +144,11 @@ PK `(JOB_ID, SLOT varchar2(12), ITEM_KEY varchar2(100))`, `VALUE_NUM number(24,8
 ### 4.2 선점 트랜잭션(`JobClaimer`, JOB 전용 연결의 `TransactionTemplate`, 네이티브 SQL)
 
 ```sql
-SELECT JOB_ID, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_AT, CAST(SYSTIMESTAMP AS TIMESTAMP) AS DB_NOW
+SELECT JOB_ID, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_AT, CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS TIMESTAMP) AS DB_NOW
   FROM MCMAPUSER.TB_MCM_JOB_DEF
  WHERE JOB_ID IN (:ids)
    AND USE_YN = 'Y'
-   AND NEXT_RUN_AT <= CAST(SYSTIMESTAMP AS TIMESTAMP) + INTERVAL '30' SECOND
+   AND NEXT_RUN_AT <= CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS TIMESTAMP) + INTERVAL '30' SECOND
    FOR UPDATE SKIP LOCKED
 ```
 
@@ -159,6 +159,7 @@ SELECT JOB_ID, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_AT, CAST(SYSTIMESTAMP AS TIMESTA
   3. 둘 다 아니면 `RUN` 행을 INSERT 한다(`SCHED_AT` = `NEXT_RUN_AT`). PK 위반이면 건너뛴다.
   4. `NEXT_RUN_AT` 을 `max(NEXT_RUN_AT, DB_NOW)` 보다 엄격히 뒤인 crontab 식의 첫 시각으로 올린다. 밀린 회차가 줄줄이 돌지 않는다.
 - 바로 커밋한다. 잠금은 이 몇 ms 동안만 쥔다.
+- DB 시계는 `SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul'` 로 읽는다(운영 DB 의 OS 시간대가 UTC 여도 맞게).
 - 시계 차이: 비교는 DB 시계로, 회차 키는 DB 에 적힌 `NEXT_RUN_AT` 으로 만든다. 서버 시계가 달라도 같은 회차는 같은 PK 다. +30초 여유는 서버 시계가 DB 보다 조금 빠를 때 그 분을 놓치지 않게 하는 값이다.
 
 ### 4.3 실행(트랜잭션 밖)
@@ -178,6 +179,7 @@ SELECT JOB_ID, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_AT, CAST(SYSTIMESTAMP AS TIMESTA
 ### 4.5 모듈 키 캐시
 
 - 캐시는 **모듈 키(`MCM`·`MDM`·`MLS`·`MPP`·`MQC`·`MPN`)를 키로 하는 맵**이다: `JobDefCache: Map<모듈 키, ModuleJobDefs(버전, 정의 목록)>`. 실행하는 앱은 자기 모듈 키 하나만 적재한다. mcm 관리 화면 서버는 화면 표시용으로 모든 키를 필요할 때 적재한다.
+- JOB 표가 없거나 DB 에 닿지 않아도 앱 기동은 실패하지 않는다. WARN 한 번 남기고 버전 확인 주기마다 다시 시도한다(V3 적용 전 PDB·시험 컨텍스트 대비).
 - 앱이 기동하면 캐시[자기 모듈 키]에 정의를 적재한다. 이후 틱은 스케줄 표를 읽지 않는다.
 - mcm 관리 화면에서 정의를 저장·사용 변경·삭제하면, 같은 트랜잭션에서 그 작업 모듈 키의 `TB_MCM_JOB_VER.DEF_VER` 를 +1 하고, 저장한 서버의 캐시[그 모듈 키]를 곧바로 비운다.
 - 각 앱은 **10초마다 자기 모듈 키의 버전 한 칸만** 읽는다(`SELECT DEF_VER FROM MCMAPUSER.TB_MCM_JOB_VER WHERE MODULE_CD=:key`, JdbcTemplate 이라 Hibernate SQL 로그에 찍히지 않음). 버전이 바뀌었으면 캐시[그 키]를 비우고 다시 적재한다. 실패하면 첫 실패만 WARN 한다(MdmRevisionPoller 와 같은 규칙).
@@ -203,7 +205,7 @@ SELECT JOB_ID, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_AT, CAST(SYSTIMESTAMP AS TIMESTA
   2. 보조 데이터소스는 「단일 보조 DS」 한 칸이라 JOB 이 차지하면 나중에 업무 보조 DB 가 쓸 자리가 없다. `cactus.jpa.secondary.enabled` 와도 엮여 있다.
   3. 기본 풀 크기가 10 이다. 로컬 Oracle 은 앱마다 풀 3 이하 규칙(schema-owners §3)이고 JOB 은 2개면 충분하다.
 - 설정 자리
-  - 각 모듈 `application-local.yml`(mdm·mpp·mls·mqc·mpn): `dmes.job.datasource.url: ${DMES_JOB_DS_URL:jdbc:oracle:thin:@//localhost:1521/L_MAIN}`, `username: ${DMES_JOB_DS_USER:MCMAPUSER}`, `password: ${DMES_JOB_DS_PASSWORD:dmes_password_123}`. 레인 시험은 env 로 레인 PDB 를 가리킨다.
+  - 각 모듈 `application-local.yml`(mdm·mpp·mls·mqc·mpn): `dmes.job.datasource.url: ${DMES_JOB_DS_URL:${dmes.ora.url:<그 모듈 기본 PDB>}}`, `username: ${DMES_JOB_DS_USER:MCMAPUSER}`, `password: ${DMES_JOB_DS_PASSWORD:dmes_password_123}`. 기본값은 앱 자기 연결과 같은 PDB 다(L_MAIN 고정 아님). 메인 서버는 `be-run --pdb=L_MAIN` 이 `DMES_ORA_URL` 을 넘겨 L_MAIN 에 붙고, 레인·시험은 자기 PDB 에 붙는다.
   - 운영 프로필(`application-wildfly.yml` 등): 값 없이 `jndi-name: ${DMES_JOB_DS_JNDI:}` 자리만 둔다. 비어 있으면 그 앱은 기본 DataSource 로 붙는다(운영에서 MCMAPUSER 표에 교차 스키마 권한이 있으면 그대로 동작, 없으면 JNDI 를 채운다).
   - 이 설정 파일들은 각 모듈 소유라 **겹칠 수 있는 파일**로 머지 요청에 적는다.
 - 작업 몸체가 쓰는 연결은 따로다. BPMN·QUERY·PURGE·CODE 는 **그 모듈 앱의 기본 DataSource**(자기 스키마)로 돈다. COLLECT 의 SQL 원천은 그 앱의 쿼리 위젯 실행기(읽기 전용 검사, 전용 풀이 없으면 기본 DataSource)로 읽고, 수집 값은 JOB 전용 연결로 MCM 표에 쓴다.
@@ -274,7 +276,7 @@ public interface ScheduledJob {
 
 ### 5.3 BPMN 실행 사용자
 
-- BPMN 서비스는 감사 칸(`C_USR_ID` 등)과 권한 검사에 사용자가 필요하다. 예약 실행은 시스템 사용자 `SCHEDULER`(D10)로, 「지금 실행」은 요청한 사용자로 실행한다.
+- BPMN 서비스는 감사 칸(`C_USR_ID` 등)과 권한 검사에 사용자가 필요하다. 감사 사용자는 `UserContextHolder` 에서 읽히므로 실행 전후로 넣고 비운다. 트랜잭션은 OASIS 가 프로세스마다 연다. 예약 실행은 시스템 사용자 `SCHEDULER`(D10)로, 「지금 실행」은 요청한 사용자로 실행한다.
 - 서비스 ID·Action 은 저장할 때 그 모듈에 실제 있는 BPMN 서비스·Action 인지 확인한다(mcm 서버에서 다른 모듈 BPMN 목록을 읽을 수 없으면 실행 때 판정하고 FAIL 로 기록).
 
 ### 5.4 수집 작업(위젯과 관계없음)

@@ -343,13 +343,15 @@ describe: 위 받는 식들 각각의 기대 문구.
 
 ```sql
 SELECT JOB_ID, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_AT, MODULE_CD, VARS_JSON,
-       CAST(SYSTIMESTAMP AS TIMESTAMP) AS DB_NOW
+       CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS TIMESTAMP) AS DB_NOW
   FROM MCMAPUSER.TB_MCM_JOB_DEF
  WHERE JOB_ID IN (:ids)
    AND USE_YN = 'Y'
-   AND NEXT_RUN_AT <= CAST(SYSTIMESTAMP AS TIMESTAMP) + INTERVAL '30' SECOND
+   AND NEXT_RUN_AT <= CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS TIMESTAMP) + INTERVAL '30' SECOND
    FOR UPDATE SKIP LOCKED
 ```
+
+**DB 시계는 늘 `CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS TIMESTAMP)` 로 읽는다**(상수 `JobSql.DB_NOW_KST`). 로컬 컨테이너는 OS 시간대가 서울이라 그냥 `SYSTIMESTAMP` 도 맞지만 운영 DB 가 UTC 면 9시간 어긋난다. 선점·sweep·REQ 나이 판정·hasLiveRun 모두 이 식을 쓴다. Oracle 시험 하나는 이 식과 `LocalDateTime.now(Asia/Seoul)` 의 차이가 1분 안인지 확인한다.
 
 `NamedParameterJdbcTemplate` 로 `:ids` 를 펼친다(최대 20개라 IN 목록 1000 제한과 무관). `FETCH FIRST`/`ROWNUM` 금지. 트랜잭션은 `JobDataSource.tx()`.
 
@@ -412,12 +414,12 @@ public record JobContext(JobDef def, LocalDateTime schedAt, boolean manual, Map<
   - `JobTicker#tick(LocalDateTime now): int` — 캐시 판정(Task 4 `get(appModule)`), 후보 = use && kind 실행 가능 && `nextRunAt != null && !nextRunAt.isAfter(now.plusSeconds(30))` && 실행 중 아님 && (COLLECT 이면 `collect.enabled`). 빈 자리 `executor.freeSlots()` 와 `maxClaimPerTick` 중 작은 수만큼. 후보 0 이면 **DB 호출 0회**. claim 결과의 nextRunAt 을 캐시에 반영, 0건으로 끝난 후보는 `CronSpec.next(now)` 로 캐시만 앞으로 민다.
   - `JobExecutor#submit(ClaimedRun, JobDef): boolean`, `#freeSlots(): int`, `#isRunning(String jobId): boolean`, `#shutdown()`. 실행: `ScheduledJobLogContext.run("sch.job." + jobId, () -> …)`. 변수 확정 `JobVars.resolve(def.vars(), facts)` + `varsOverride` 덮어쓰기. 결과 → `finish(OK/FAIL)`. 시간 초과: 감시용 `ScheduledExecutorService`(데몬 1) 에서 `timeoutSec` 뒤 `future.cancel(true)` + `markTimeout`. `finish` 가 false 면 warn「이미 시간 초과로 정리된 회차가 늦게 끝났습니다 jobId={}」.
   - FAIL 메시지 규칙: `JobFailure` → 그 메시지(500자 자름), 그 밖 → `"실행 중 오류가 발생했습니다: " + e.getClass().getSimpleName()`.
-  - 고급 설정(OPTS_JSON): 재시도 — FAIL 이면 `retry.count` 회까지 `retry.intervalMin` 분 뒤 같은 회차를 `TRIGGER_TP='M'`·REQ 로 넣지 말고, 같은 서버에서 지연 재실행하고 각 시도는 같은 RUN 행의 MSG 에 「재시도 n/N」 덧붙임(행은 하나). 이어 실행 — OK 면 `opts.next` 의 작업마다 `requestManual(nextJobId, 그 작업 모듈, "SCHEDULER", Map.of())`.
-  - `JobEngine implements SmartLifecycle`: `start()` 에서 `enabled` 가 false 면 아무것도 안 함. 전용 `ThreadPoolTaskScheduler`(풀 1, 이름 `job-tick-`, 데몬) — `CronTrigger("0 * * * * *", Asia/Seoul)` 로 `ScheduledJobLogContext.runQuiet("sch.jobTicker.tick", ticker::tickNow)`; 그리고 `verPollSec` 고정 지연으로 `cache.refreshIfChanged(appModule)` → true 면 `claimRequests` 처리(REQ 는 버전이 올라갈 때만 생기므로). 버전 확인은 로그 태그 없이 돌고 실패는 첫 번째만 WARN, 복구 때 INFO 1줄. 기동 시 캐시 적재 + CODE 작업 등록(Task 7 의 registrar 호출) + `touchCodeSeen`. `stop()` 은 스케줄러·실행 풀 종료(실행 중 작업은 30초 기다린 뒤 인터럽트).
+  - 고급 설정(OPTS_JSON): 재시도 — FAIL 이면 `retry.count` 회까지 `retry.intervalMin` 분 뒤 같은 서버에서 같은 회차를 다시 실행한다(행은 하나, MSG 에 「재시도 n/N」). **시도마다 그 행의 `STARTED_AT` 을 지금으로, `TIMEOUT_SEC` 을 (남은 대기 + timeoutSec)로 고쳐**(`JobRunStore#extendForRetry(run, waitSec)`, `STATUS='RUN'` 일 때만) 기다리는 동안 `jobRunSweep` 이 TIMEOUT 으로 닫지 않게 한다. 이어 실행 — OK 면 `opts.next` 의 작업마다 `requestManual(nextJobId, 그 작업 모듈, "SCHEDULER", Map.of())`.
+  - `JobEngine implements SmartLifecycle`: `start()` 에서 `enabled` 가 false 면 아무것도 안 함. 전용 `ThreadPoolTaskScheduler`(풀 1, 이름 `job-tick-`, 데몬) — `CronTrigger("0 * * * * *", Asia/Seoul)` 로 `ScheduledJobLogContext.runQuiet("sch.jobTicker.tick", ticker::tickNow)`; 그리고 `verPollSec` 고정 지연으로 `cache.refreshIfChanged(appModule)` → true 면 `claimRequests` 처리(REQ 는 버전이 올라갈 때만 생기므로). 버전 확인은 로그 태그 없이 돌고 실패는 첫 번째만 WARN, 복구 때 INFO 1줄. 기동 시 캐시 적재 + CODE 작업 등록(Task 7 의 registrar 호출) + `touchCodeSeen`. **JOB 표가 없거나 DB 에 닿지 않아도 `start()` 는 예외를 던지지 않는다**(V3 가 없는 TPL_SCHEMA·다른 레인 PDB·mcm 재기동 전 L_MAIN, 모든 모듈의 `@SpringBootTest`): WARN 한 번(「예약 작업 표에 닿지 못해 기다립니다: 원인 종류」) 남기고 준비 안 됨 상태로 두며, 버전 확인 주기마다 등록·적재를 다시 시도한다. 준비 안 됨 동안 틱은 아무것도 하지 않는다. 처음 성공하면 INFO 1줄. `stop()` 은 스케줄러·실행 풀 종료(실행 중 작업은 30초 기다린 뒤 인터럽트).
   - 서버 이름: `props.serverName` 또는 `InetAddress.getLocalHost().getHostName() + ":" + appName + ":" + ProcessHandle.current().pid()`, 100자 자름.
 - [ ] **Step 1: `JobTickerTest`** — 가짜 캐시·가짜 claimer(호출 횟수 기록)·고정 시계: ① 후보 없음 → claimer 0회(Review Focus 5) ② 사용 중지·다른 모듈·미래 일정은 후보 아님 ③ 실행 중인 jobId 제외 ④ freeSlots=2 면 앞 2개만 ⑤ claim 결과 nextRunAt 이 캐시에 반영 ⑥ `collect.enabled=false` 면 COLLECT 제외.
-- [ ] **Step 2: `JobExecutorTest`** — 가짜 JobKind: ① OK → finish(OK, itemCnt) ② JobFailure("값 없음") → FAIL 메시지 그대로 ③ RuntimeException("jdbc:oracle://secret") → 메시지에 "secret" 이 없음 ④ timeoutSec=1, 3초 걸리는 작업 → markTimeout 호출, 늦은 finish 는 false 처리·warn ⑤ 같은 jobId 두 번 submit → 두 번째 false ⑥ MDC `serviceId` 가 `sch.job.<id>` 인지(작업 안에서 `MDC.get` 기록).
-- [ ] **Step 3: `JobEngineTest`** — `enabled=false` 면 스케줄러를 만들지 않음; 버전 확인이 true 를 돌려주면 claimRequests 호출.
+- [ ] **Step 2: `JobExecutorTest`** — 가짜 JobKind: ① OK → finish(OK, itemCnt) ② JobFailure("값 없음") → FAIL 메시지 그대로 ③ RuntimeException("jdbc:oracle://secret") → 메시지에 "secret" 이 없음 ④ timeoutSec=1, 3초 걸리는 작업 → markTimeout 호출, 늦은 finish 는 false 처리·warn ⑤ 같은 jobId 두 번 submit → 두 번째 false ⑥ MDC `serviceId` 가 `sch.job.<id>` 인지(작업 안에서 `MDC.get` 기록) ⑦ 재시도 대기 중 sweep 이 돌아도 행이 TIMEOUT 이 되지 않고 두 번째 시도 OK 가 finish 됨(가짜 runStore 로 extendForRetry 호출 확인).
+- [ ] **Step 3: `JobEngineTest`** — `enabled=false` 면 스케줄러를 만들지 않음; 버전 확인이 true 를 돌려주면 claimRequests 호출; **저장소가 `BadSqlGrammarException`(ORA-00942)·`CannotGetJdbcConnectionException` 을 던져도 `start()` 가 예외 없이 끝나고 WARN 1회, 다음 주기에 성공하면 등록·적재가 이루어짐**(Review Focus 4 보강).
 - [ ] **Step 4: 실패 확인 → 구현 → 통과 확인**
 - [ ] **Step 5: 커밋** — `feat(mcm-core): 예약 작업 틱·실행 풀·시간 초과·엔진 수명 주기를 더한다`
 
@@ -452,13 +454,13 @@ public interface ScheduledJob {
 
   - `CodeJobRegistrar#register(JobModule appModule)`: 이 앱의 `ScheduledJob` 빈 중 `module()==appModule` 인 것만 `insertIfAbsent`(OWNER_TP=CODE, JOB_KIND=CODE, NEXT_RUN_AT=CronSpec.next(now)) 뒤 `touchCodeSeen`. id 정규식·cron 검사 실패는 기동 실패가 아니라 ERROR 로그 + 건너뜀. 하나라도 등록되면 `bumpVersion(appModule)`.
   - `CodeJobKind`: `canRunIn` = 그 id 의 빈이 이 앱에 있음. `run` → `bean.run(ctx)` 를 `JobOutcome(n, null)`.
-  - `BpmnJobKind`: CONFIG_JSON `{"serviceId":"…","action":"…"}`. validate: 둘 다 필수, `^[A-Za-z][A-Za-z0-9_]{0,99}$`. run: `CactusRequest req = new CactusRequest(new RequestMeta(userId, jobId, …), vars, Map.of())`(RequestMeta 생성 방식은 `cactus-core/.../oasis/CactusRequest`·`RequestMeta` 를 읽고 맞춘다), `userId` = 수동이면 reqUserId, 아니면 `"SCHEDULER"`. `OasisServiceExecutor` 는 `ObjectProvider` 로 받아 없으면 JobFailure「이 앱에서 BPMN 서비스를 실행할 수 없습니다」. 응답 `meta` 가 오류면 JobFailure(응답 코드 + 응답 메시지 200자). itemCnt: 응답 데이터에 `processedCount`/`count` 숫자가 있으면 그 값, 아니면 0.
+  - `BpmnJobKind`: CONFIG_JSON `{"serviceId":"…","action":"…"}`. validate: 둘 다 필수, `^[A-Za-z][A-Za-z0-9_]{0,99}$`. run: `CactusRequest req = new CactusRequest(new RequestMeta(userId, jobId, …), vars, Map.of())`(RequestMeta 생성 방식은 `cactus-core/.../oasis/CactusRequest`·`RequestMeta` 를 읽고 맞춘다), `userId` = 수동이면 reqUserId, 아니면 `"SCHEDULER"`. **감사 사용자는 `RequestMeta` 가 아니라 `UserContextHolder` 에서 읽히므로** 호출 전 `UserContextHolder.set(new UserInfo(userId, userId, null, List.of()))`, finally 에서 `UserContextHolder.clear()`(본보기 `cactus-core/.../security/jwt/JwtAuthenticationFilter.java:115-174`). 트랜잭션은 OASIS `ServiceStarter`(transactional 모드, `CactusServiceStarterFactory`)가 프로세스마다 열므로 바깥에서 따로 열지 않는다. `OasisServiceExecutor` 는 `ObjectProvider` 로 받아 없으면 JobFailure「이 앱에서 BPMN 서비스를 실행할 수 없습니다」. 응답 `meta` 가 오류면 JobFailure(응답 코드 + 응답 메시지 200자). itemCnt: 응답 데이터에 `processedCount`/`count` 숫자가 있으면 그 값, 아니면 0.
   - `DmlGuard#check(String sql): Optional<String>` — 주석·문자열 리터럴을 지운 뒤 판정: 세미콜론으로 나뉜 문장이 둘 이상이면 거절(단 `BEGIN … END;` 블록 하나는 허용), 첫 단어 `INSERT|UPDATE|DELETE|MERGE|BEGIN` 만 허용, 금지어 단어 경계로 `CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|COMMIT|ROLLBACK|SAVEPOINT|EXECUTE\s+IMMEDIATE|DBMS_SQL` 거절, `BEGIN` 블록 안은 `프로시저(인자);` 호출 한 개만 허용(`^BEGIN\s+[\w.$#]+\s*(\(.*\))?\s*;\s*END;?$`, 대소문자 무시, DOTALL).
   - `QueryJobKind`: CONFIG_JSON `{"sql":"…"}`. 앱 기본 DataSource 의 `NamedParameterJdbcTemplate` + 그 앱 트랜잭션 관리자(`ObjectProvider<PlatformTransactionManager>`, 없으면 `DataSourceTransactionManager`)로 한 트랜잭션. 바인드 변수 = 변수 맵(SQL 의 `:이름` 이 변수에 없으면 validate 오류). DML 은 `update` 결과 행 수, `BEGIN` 은 0. 쿼리 시간 제한 = 작업 timeoutSec(`setQueryTimeout`).
   - `PurgeJobKind`: CONFIG_JSON `{"table":"TB_X","dateColumn":"C_AT","keepDays":90,"chunkRows":5000}`. validate: table·column `^[A-Z][A-Z0-9_$#]{0,127}$`, keepDays 1~3650, chunkRows 100~50000, 그리고 실행 앱 기본 연결의 `USER_TAB_COLUMNS` 에 그 표·칸이 있고 칸 DATA_TYPE 이 `DATE` 또는 `TIMESTAMP%` 인지(저장 시점 검사는 mcm 서버가 다른 모듈 스키마를 볼 수 없으므로 **실행 때** 검사, 저장 때는 형식만). 실행: `DELETE FROM "TB_X" WHERE "C_AT" < ? AND ROWNUM <= ?` 를 0 이 될 때까지(최대 2000회), 덩어리마다 커밋. 기준 = `schedAt.toLocalDate().minusDays(keepDays).atStartOfDay()`. itemCnt=지운 합.
   - `JobHttpClient`: 기존 `widget/collect/HttpCollectSource` 의 보안 규칙(허용 호스트 정확 일치, 리다이렉트 안 따름, 사용자 정보 금지, 링크 로컬·멀티캐스트·와일드카드·메타데이터·IPv6 매립 IPv4 거절, 이름 풀이 3초, 연결 3초, 프록시 안 씀, 응답 1MB) 를 그대로 옮긴 공용 클라이언트. `get(URI, Duration readTimeout)`, `post(URI, String jsonBody, Duration readTimeout)` → `HttpResult(int status, byte[] body)`. 허용 호스트는 `JobProperties.http.allowedHosts` + 옛 키 `dmes.widget.collect.allowed-hosts`(있으면 기동 시 WARN「dmes.job.http.allowed-hosts 로 옮기세요」).
   - `HttpJobKind`: CONFIG_JSON `{"method":"GET|POST","url":"…","body":"{…}"}`. URL·본문의 `{{이름}}` 을 변수 값으로 바꾼다(URL 은 `URLEncoder` 로 인코딩, 본문은 JSON 문자열 이스케이프). 성공 = 2xx. itemCnt = 상태 코드. 실패 메시지에 URL 을 넣지 않는다(「HTTP 503 응답」).
-- [ ] **Step 1: 단위 시험** — `DmlGuardTest`(허용: `UPDATE T SET A=1 WHERE B=:b`, `MERGE INTO …`, `BEGIN PKG.P(:schedAt); END;`, 주석 속 `DROP` 은 통과; 거절: `SELECT 1 FROM DUAL`, `UPDATE A SET X=1; DELETE B`, `DROP TABLE X`, `BEGIN EXECUTE IMMEDIATE 'x'; END;`, `BEGIN P1; P2; END;`, `COMMIT`, `TRUNCATE TABLE X`), `CodeJobRegistrarTest`(다른 모듈 빈은 등록 안 함, 잘못된 cron 은 건너뜀, 등록 시 bumpVersion 1회), `BpmnJobKindTest`(가짜 executor: 변수→params, 예약 실행 userId SCHEDULER, 오류 응답→JobFailure), `HttpJobKindTest`(허용 안 된 호스트 거절 메시지에 호스트 없음, `{{baseDt}}` 치환, 500 응답→FAIL「HTTP 500 응답」 — 로컬 `com.sun.net.httpserver.HttpServer` 를 127.0.0.1 에 띄우되 시험에서만 루프백 허용 플래그를 켠다: 기존 HttpCollectSource 시험이 쓰는 방식을 그대로 따른다).
+- [ ] **Step 1: 단위 시험** — `DmlGuardTest`(허용: `UPDATE T SET A=1 WHERE B=:b`, `MERGE INTO …`, `BEGIN PKG.P(:schedAt); END;`, 주석 속 `DROP` 은 통과; 거절: `SELECT 1 FROM DUAL`, `UPDATE A SET X=1; DELETE B`, `DROP TABLE X`, `BEGIN EXECUTE IMMEDIATE 'x'; END;`, `BEGIN P1; P2; END;`, `COMMIT`, `TRUNCATE TABLE X`), `CodeJobRegistrarTest`(다른 모듈 빈은 등록 안 함, 잘못된 cron 은 건너뜀, 등록 시 bumpVersion 1회), `BpmnJobKindTest`(가짜 executor: 변수→params, 실행 중 `UserContextHolder.getUserId()` 가 SCHEDULER(수동이면 요청자), 끝난 뒤 비어 있음, 오류 응답→JobFailure), `HttpJobKindTest`(허용 안 된 호스트 거절 메시지에 호스트 없음, `{{baseDt}}` 치환, 500 응답→FAIL「HTTP 500 응답」 — 로컬 `com.sun.net.httpserver.HttpServer` 를 127.0.0.1 에 띄우되 시험에서만 루프백 허용 플래그를 켠다: 기존 HttpCollectSource 시험이 쓰는 방식을 그대로 따른다).
 - [ ] **Step 2: Oracle 시험 `QueryPurgeJobOraTest`** — QUERY: 시험 표(`MCMAPUSER.TB_MCM_JOB_COLLECT_DATA` 를 대상으로 써도 됨)에 UPDATE `:v` 바인드 → 행 수; PURGE: 1만 행 넣고 keepDays=1, chunkRows=3000 → 4회 덩어리, 합 1만; 없는 칸 → JobFailure.
 - [ ] **Step 3: 실패 확인 → 구현 → 통과 확인**
 - [ ] **Step 4: 커밋** — `feat(mcm-core): 예약 작업 실행 유형 CODE·BPMN·QUERY·PURGE·HTTP 를 더한다`
@@ -512,11 +514,12 @@ public interface ScheduledJob {
 dmes:
   job:
     datasource:
-      url: ${DMES_JOB_DS_URL:jdbc:oracle:thin:@//localhost:1521/L_MAIN}
+      url: ${DMES_JOB_DS_URL:${dmes.ora.url:jdbc:oracle:thin:@//localhost:1521/<그 모듈의 기본 PDB — 같은 파일의 spring.datasource.url 기본값과 같게>}}
       username: ${DMES_JOB_DS_USER:MCMAPUSER}
       password: ${DMES_JOB_DS_PASSWORD:dmes_password_123}
 ```
 
+  **기본값을 L_MAIN 으로 두지 않는다.** 앱 자기 연결(`dmes.ora.url`, be-run `--pdb` 가 `DMES_ORA_URL` 로 넘김)과 같은 PDB 의 MCMAPUSER 로 붙는다. 그래서 메인 서버(`be-run --pdb=L_MAIN`)는 L_MAIN 에, 레인·시험은 자기 PDB 에 붙고, 다른 레인이 공용 DB 에 JOB 행을 쓰지 않는다(로컬 PDB 는 모든 스키마 사용자가 있다).
   이미 `dmes:` 최상위 키가 있으면 그 아래 `job:` 으로 합친다(키 중복 금지 — 파일을 먼저 읽는다). 모듈 키는 `spring.application.name` 으로 정해지므로 각 파일의 `spring.application.name` 을 확인하고, 값이 모듈 이름과 다르면 `dmes.job.module: MDM` 처럼 명시한다.
 - Modify: 같은 모듈들의 운영 프로필 yml(`application-wildfly.yml` 등 존재하는 것만) — 값 없이 자리만:
 
