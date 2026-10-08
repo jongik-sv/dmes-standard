@@ -336,11 +336,9 @@ export function DataDisplayCatalogScreen() {
           </section>
 
           <section className="catalog-panel">
-            <header>
-              <strong>AgDataGrid 직접 사용</strong>
-            </header>
             <div className="alias-grid-sample">
               <AgDataGrid
+                title="AgDataGrid 직접 사용"
                 columns={DIRECT_GRID_COLUMNS}
                 data={GRID_ROWS.slice(0, 3)}
                 rowKey="id"

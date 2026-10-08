@@ -389,9 +389,9 @@ function DraftList({ drafts, selected, onSelect }: DraftListProps) {
   );
   return (
     <div data-testid="cf-list" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div style={cardTitle}>확정 대기 목록</div>
       <div style={{ ...section, flex: 1, minHeight: 0 }}>
         <AgDataGrid gridId="draftList"
+          title="확정 대기 목록"
           columnSizing="fit"
           columns={DRAFT_COLUMNS}
           data={draftRows}
@@ -409,9 +409,9 @@ function DraftList({ drafts, selected, onSelect }: DraftListProps) {
 function CheckTable({ rows }: { rows: CheckRow[] }) {
   return (
     <div data-testid="cf-checks">
-      <div style={cardTitle}>검사 결과</div>
       <div style={section}>
         <AgDataGrid gridId="checkResult"
+          title="검사 결과"
           height="auto"
           columnSizing="fit"
           columns={CHECK_COLUMNS}
@@ -431,10 +431,10 @@ function DiffTable({ entries }: { entries: DiffEntry[] }) {
   );
   return (
     <div data-testid="cf-diff">
-      <div style={cardTitle}>직전 RELEASED 대비 변경</div>
       <div style={section}>
         <div style={{ height: DIFF_GRID_HEIGHT }}>
           <AgDataGrid gridId="diffRows"
+            title="직전 RELEASED 대비 변경"
             columnSizing="fit"
             columns={DIFF_COLUMNS}
             data={diffRows}

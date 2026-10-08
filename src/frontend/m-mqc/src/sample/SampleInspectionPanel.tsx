@@ -36,6 +36,7 @@ export function SampleInspectionPanel({ title = "샘플 검사 화면" }: Sample
       <ContentBody root>
         <ContentPanel>
           <AgDataGrid
+            title="검사 항목 목록"
             columns={COLUMNS}
             data={SAMPLE_ROWS}
             rowKey="code"

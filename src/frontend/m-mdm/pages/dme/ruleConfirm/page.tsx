@@ -408,12 +408,11 @@ function DraftList({ drafts, selected, total, onShowAll, onSelect }: DraftListPr
   );
   return (
     <div data-testid="rc-list" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div style={cardTitle}>확정 대기 목록</div>
       <div style={{ padding: "0 var(--spacing-md)" }}>
         <GridLimitNotice shownCount={drafts?.length ?? 0} totalCount={total} onShowAll={onShowAll} testId="rc-list-limit" />
       </div>
       <div style={{ ...section, flex: 1, minHeight: 0 }}>
-        <AgDataGrid gridId="draftList"
+        <AgDataGrid gridId="draftList" title="확정 대기 목록"
           columnSizing="fit"
           columns={DRAFT_COLUMNS}
           data={draftRows}
@@ -466,9 +465,8 @@ function CheckTable({ items, applyFromCheck, caseSummary }: CheckTableProps) {
   }, [items, applyFromCheck, caseSummary]);
   return (
     <div data-testid="rc-checks">
-      <div style={cardTitle}>검사 결과</div>
       <div style={section}>
-        <AgDataGrid gridId="checkResult"
+        <AgDataGrid gridId="checkResult" title="검사 결과"
           height="auto"
           columnSizing="fit"
           sortable={false}

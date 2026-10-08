@@ -7,7 +7,7 @@
 import { useMemo } from "react";
 import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
-import { hint, sectionTitle } from "@/layout/styles";
+import { hint } from "@/layout/styles";
 import type { LayoutItemRow } from "@/layout/types";
 import { baseItemColumns, displayRows } from "@/layout/item-rows";
 
@@ -32,7 +32,6 @@ export function HeaderItemGrid(props: HeaderItemGridProps) {
   const data = useMemo(() => displayRows(rows), [rows]);
   return (
     <div>
-      <p style={{ ...sectionTitle, padding: "var(--spacing-xs) 0" }}>{`헤더 항목 ${rows.length}건`}</p>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "var(--spacing-sm)", marginBottom: "var(--spacing-xs)" }}>
         {!readOnly && (
           <>
@@ -45,6 +44,7 @@ export function HeaderItemGrid(props: HeaderItemGridProps) {
       </div>
       <div data-testid="header-items">
         <AgDataGrid gridId="headerItems"
+          title="헤더 항목"
           columnSizing="fit"
           columns={cols}
           data={data}

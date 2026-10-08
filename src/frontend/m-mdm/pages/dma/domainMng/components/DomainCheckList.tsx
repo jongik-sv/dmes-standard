@@ -48,7 +48,7 @@ export function DomainCheckList({ validated, ok, issues, descendantResults, pend
           height={160} />
       )}
       {descendantResults.length > 0 && (
-        <AgDataGrid gridId={`${gridId}Descendants`} columnSizing="fit" columns={DESC_COLUMNS} data={descData}
+        <AgDataGrid gridId={`${gridId}Descendants`} title="하위 도메인 재실행 결과" columnSizing="fit" columns={DESC_COLUMNS} data={descData}
           rowKey="ROW_KEY" height={140} />
       )}
     </div>

@@ -238,9 +238,9 @@ export function TermRegPopModal({
           padding: "var(--spacing-sm)",
         }}
       >
-        <p style={sectionTitleStyle}>1. 유사어 확인</p>
         <div data-testid="term-pop-similar" style={{ height: 180 }}>
           <AgDataGrid gridId="modal-similarTerms"
+            title="1. 유사어 확인"
             columnSizing="fit"
             columns={similarColumns}
             data={similarRows}
