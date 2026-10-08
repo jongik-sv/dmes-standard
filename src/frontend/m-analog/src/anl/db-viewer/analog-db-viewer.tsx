@@ -9,6 +9,7 @@
  * 실행: 상단 [실행] · F8 · 편집창 Ctrl/⌘+Enter.
  * - shared 컴포넌트만 사용 (AgDataGrid, form, layout). ag-grid·Mantine 직접 import 금지.
  * - 결과 0건이어도 그리드를 유지한다 (성능 가이드 R6).
+ * - LOB 칸은 서버 요약 글자 + 「보기」 단추로 그리고, 단추를 누르면 그 한 칸만 다시 읽어 상세 창에 보인다.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -28,6 +29,8 @@ import {
   fetchTables,
   runQuery,
 } from "./db-viewer-api";
+import { LobCell } from "./lob-cell";
+import { LobViewerModal, type LobTarget } from "./lob-viewer-modal";
 import { DbMenuTree } from "./db-menu-tree";
 import DbSqlEditor, { type DbSqlEditorHandle } from "./db-sql-editor";
 import type { DbColumnInfo, DbQueryResult } from "./types";
@@ -131,6 +134,7 @@ export function AnalogDbViewer() {
   const [propsOpen, setPropsOpen] = useState(true);
   const [result, setResult] = useState<DbQueryResult | null>(null);
   const [running, setRunning] = useState(false);
+  const [lobTarget, setLobTarget] = useState<LobTarget | null>(null);
 
   useEffect(() => {
     setPropsOpen(readPropsOpen());
@@ -229,15 +233,42 @@ export function AnalogDbViewer() {
     [handleRun, running],
   );
 
-  const resultColumns: GridColumn[] = useMemo(
-    () =>
-      (result?.columns ?? []).map((col) => ({
-        key: col,
-        header: col,
-        width: 160,
-      })),
-    [result],
-  );
+  // 안정 콜백 — 열 정의 deps 에 넣어도 참조가 변하지 않는다.
+  const openLob = useCallback((target: LobTarget) => {
+    setLobTarget(target);
+  }, []);
+  const closeLob = useCallback(() => setLobTarget(null), []);
+
+  // 결과가 바뀔 때만 다시 만든다. LOB 칸은 요약 글자 + 「보기」 단추(ROWID 가 없으면 단추 없음).
+  const resultColumns: GridColumn[] = useMemo(() => {
+    const lobTypes = result?.lobColumns ?? {};
+    const rowIdKey = result?.rowIdKey ?? null;
+    return (result?.columns ?? []).map((col): GridColumn => {
+      const base: GridColumn = { key: col, header: col, width: 160 };
+      const dataType = lobTypes[col] ?? lobTypes[col.toUpperCase()];
+      if (!dataType || !result) return base;
+      const { schema, table } = result;
+      return {
+        ...base,
+        width: 240,
+        tooltip: false,
+        render: (value, row) => {
+          const rowid = rowIdKey ? row[rowIdKey] : null;
+          const canOpen =
+            value != null && typeof rowid === "string" && rowid !== "";
+          return (
+            <LobCell
+              summary={value == null ? "" : String(value)}
+              canOpen={canOpen}
+              onOpen={() =>
+                openLob({ schema, table, column: col, dataType, rowid: String(rowid) })
+              }
+            />
+          );
+        },
+      };
+    });
+  }, [result, openLob]);
 
   const resultRows = useMemo(
     () =>
@@ -410,6 +441,14 @@ export function AnalogDbViewer() {
           </button>
         )}
       </ContentBody>
+      {/* 닫으면 언마운트되고, 열 때마다 새로 마운트돼 이전 응답·상태가 남지 않는다. */}
+      {lobTarget && (
+        <LobViewerModal
+          key={`${lobTarget.schema}.${lobTarget.table}.${lobTarget.column}.${lobTarget.rowid}`}
+          target={lobTarget}
+          onClose={closeLob}
+        />
+      )}
     </PageLayout>
   );
 }

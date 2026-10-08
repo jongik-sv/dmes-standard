@@ -9,7 +9,13 @@
  */
 
 import { apiRequest } from "@dk-oasis/shared/http";
-import type { DbColumnInfo, DbQueryRequest, DbQueryResult } from "./types";
+import type {
+  DbColumnInfo,
+  DbLobRequest,
+  DbLobResult,
+  DbQueryRequest,
+  DbQueryResult,
+} from "./types";
 
 const BASE = "/api/analog/rest/dbViewer/query";
 
@@ -43,6 +49,18 @@ export async function runQuery(
 ): Promise<DbQueryResult> {
   return apiRequest<DbQueryResult>(`${BASE}/db/query`, {
     method: "POST",
+    body: JSON.stringify(request),
+  });
+}
+
+/** LOB 한 칸의 상세 — 행의 ROWID 로 그 한 칸만 다시 읽는다. */
+export async function fetchLob(
+  request: DbLobRequest,
+  signal?: AbortSignal,
+): Promise<DbLobResult> {
+  return apiRequest<DbLobResult>(`${BASE}/db/lob`, {
+    method: "POST",
+    signal,
     body: JSON.stringify(request),
   });
 }
