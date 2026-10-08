@@ -38,7 +38,7 @@ import { useGridScreenContext } from "./useGridScreenContext";
 import { useGridEditing, useGridRowClass } from "./useGridEditing";
 import { useGridAutoSize } from "./useGridAutoSize";
 import { useGridCarry } from "./useGridCarry";
-import { GRID_FILTER_LOCALE_TEXT, GRID_FILTER_ROW_CLOSED_CLASS, useGridFilter } from "./useGridFilter";
+import { GRID_FILTER_LOCALE_TEXT, GRID_FILTER_ROW_CLOSED_CLASS, GRID_FILTER_ROW_HEIGHT, useGridFilter } from "./useGridFilter";
 
 export type { GridColumn, AgDataGridProps, AgDataGridFieldError } from "./grid-types";
 export { gridRowIdOf, indexFieldErrors } from "./field-errors";
@@ -675,6 +675,8 @@ function AgDataGridInner({
   // 생략·"100%" 는 부모 높이를 채우고(머리줄을 뺀 나머지가 표), "auto" 는 머리줄 + 행 수만큼이다.
   const isSizedTable = selfHeader && !isAutoHeight && !!height && height !== "100%";
   const fillsParent = selfHeader && !isAutoHeight && !isSizedTable;
+  // 숫자 `height` 는 칸별 필터 입력 줄을 뺀 표 높이다 — 줄이 펴져 있는 동안은 그 높이만큼 더해 보이는 행 수가 줄지 않게 한다(아래 버튼 줄과 겹치지도 않는다). CSS 길이 문자열은 그대로 쓴다.
+  const tableHeight = typeof height === "number" && gridFilter.rowOpen ? height + GRID_FILTER_ROW_HEIGHT : height;
   const getExcelApi = useCallback(() => gridRef.current?.api, []);
   const headerTitleText = selfHeader && typeof title === "string" ? title : undefined;
   const getPanelTitle = useCallback(() => gridPanelRegistry?.getTitle() ?? headerTitleText, [gridPanelRegistry, headerTitleText]);
@@ -739,7 +741,7 @@ function AgDataGridInner({
             { flex: "1 1 0", minHeight: 0, width: "100%" }
           : {
               // 숫자 height 는 표 상자 높이 그대로(머리줄은 위에 더해진다). excelExport 가 있으면 감싸개가 그 높이를 갖고 표는 100% 다.
-              height: isAutoHeight ? "auto" : excelOptions ? "100%" : fillsParent ? undefined : height || "100%",
+              height: isAutoHeight ? "auto" : excelOptions ? "100%" : fillsParent ? undefined : tableHeight || "100%",
               ...(isSizedTable && !excelOptions ? { flex: "none" } : null),
               width: "100%",
             }
@@ -817,7 +819,7 @@ function AgDataGridInner({
       options={excelOptions}
       data={data}
       onExcel={exportExcel}
-      height={fillsParent ? undefined : height}
+      height={fillsParent ? undefined : tableHeight}
       fill={fillsParent}
       hideButton={isMenuTarget || showSettingsOverlay || headerMenuControls !== null}
     >
