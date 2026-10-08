@@ -22,7 +22,7 @@ const typeLabel = (v: unknown) => VARIABLE_TYPE_LABEL[v as VariableType] ?? Stri
 const ROW_KEY = "__rowKey";
 
 const EDIT_COLUMNS: GridColumn[] = [
-  { key: "name", header: "이름", width: 3, minWidth: 90, align: "left", editable: true },
+  { key: "name", header: "이름", width: 3, minWidth: 90, align: "left", editable: true, meta: false },
   {
     key: "type",
     header: "형식",
@@ -30,13 +30,14 @@ const EDIT_COLUMNS: GridColumn[] = [
     minWidth: 76,
     align: "center",
     editable: true,
+    meta: false,
     cellEditor: "select",
     cellEditorValues: TYPE_KEYS,
     cellEditorValueLabels: VARIABLE_TYPE_LABEL,
     render: typeLabel,
   },
-  { key: "value", header: "값", width: 4, minWidth: 110, align: "left", editable: true },
-  { key: "desc", header: "설명", width: 4, minWidth: 100, align: "left", editable: true },
+  { key: "value", header: "값", width: 4, minWidth: 110, align: "left", editable: true, meta: false },
+  { key: "desc", header: "설명", width: 4, minWidth: 100, align: "left", editable: true, meta: false },
 ];
 
 const VALUE_ONLY_COLUMNS: GridColumn[] = EDIT_COLUMNS.map((c) => (c.key === "value" ? c : { ...c, editable: false }));

@@ -101,6 +101,11 @@ export default function JobSchedMngPage() {
   const [selectedId, setSelectedId] = useState("");
   const selectedIdRef = useRef("");
   selectedIdRef.current = selectedId;
+  /** 선택을 바꾼다 — ref 도 바로 맞춰, 늦게 끝난 요청이 바뀐 선택을 알아본다(렌더를 기다리지 않는다). */
+  const select = useCallback((id: string) => {
+    selectedIdRef.current = id;
+    setSelectedId(id);
+  }, []);
   const [runs, setRuns] = useState<JobRunGridRow[]>([]);
   const [lastFailure, setLastFailure] = useState<LastFailure | null>(null);
   const [historyTitle, setHistoryTitle] = useState("실행 이력");
@@ -179,7 +184,9 @@ export default function JobSchedMngPage() {
 
   const openJob = useCallback(
     async (jobId: string, codeMissing: boolean) => {
-      setSelectedId(jobId);
+      const previous = selectedIdRef.current;
+      select(jobId);
+      clearHistory();
       setActionBusy(true);
       try {
         const def = await jobSchedApi.get(jobId);
@@ -187,12 +194,18 @@ export default function JobSchedMngPage() {
         detailRef.current?.load(toForm(def, codeMissing));
         void loadHistory(jobId, def.jobNm);
       } catch (e) {
+        // 못 열었으면 폼에 남은 이전 작업으로 선택을 되돌린다(강조·저장 대상이 어긋나지 않게, 같은 행을 다시 눌러 열 수 있게).
+        if (selectedIdRef.current === jobId) {
+          select(previous);
+          const shown = detailRef.current?.getForm();
+          if (previous && shown && !shown.isNew) void loadHistory(previous, shown.jobNm);
+        }
         fail(e);
       } finally {
         setActionBusy(false);
       }
     },
-    [fail, loadHistory],
+    [fail, loadHistory, clearHistory, select],
   );
 
   const handleSearch = useCallback(async () => {
@@ -219,7 +232,7 @@ export default function JobSchedMngPage() {
     (kind: JobKind) => {
       setPickerOpen(false);
       const moduleCd = filtersRef.current.moduleCd || "MCM";
-      setSelectedId("");
+      select("");
       clearHistory();
       detailRef.current?.load(emptyForm(kind, moduleCd));
     },
@@ -228,14 +241,16 @@ export default function JobSchedMngPage() {
 
   /** 저장·사용 변경 같은 뒤처리: 목록을 다시 받고 그 작업을 폼에 다시 연다. */
   const reopen = useCallback(
-    async (jobId: string) => {
+    async (jobId: string, expectedSelected: string) => {
       const rows = await loadList();
       const def = await jobSchedApi.get(jobId);
-      setSelectedId(jobId);
+      // 기다리는 동안 사용자가 다른 작업을 열었으면 그 화면을 덮어쓰지 않는다.
+      if (selectedIdRef.current !== expectedSelected) return;
+      select(jobId);
       detailRef.current?.load(toForm(def, rows.find((r) => r.jobId === jobId)?.codeMissing === true));
       void loadHistory(jobId, def.jobNm);
     },
-    [loadList, loadHistory],
+    [loadList, loadHistory, select],
   );
 
   const doSave = useCallback(async () => {
@@ -248,20 +263,29 @@ export default function JobSchedMngPage() {
     }
     setActionBusy(true);
     try {
+      const expected = selectedIdRef.current;
       const def = await jobSchedApi.save(toSaveRequest(form));
-      await reopen(def.jobId);
+      // 저장은 끝났다 — 응답으로 먼저 폼을 맞춰 두면, 뒤따르는 재조회가 실패해도 옛 ver·새 작업 상태로 남지 않는다.
+      const stillHere = selectedIdRef.current === expected;
+      if (stillHere) {
+        select(def.jobId);
+        detailRef.current?.load(toForm(def, form.codeMissing));
+      }
       showMessage({ message: "저장되었습니다. 다음 분부터 새 일정으로 실행합니다(MCM 서버가 여러 대면 최대 30초 늦을 수 있습니다).", alertType: "success", toast: true });
+      // 목록·이력은 저장 뒤에 다시 받는다. 실패해도 저장은 끝났고 폼은 응답으로 맞춰져 있다.
+      if (stillHere) await reopen(def.jobId, def.jobId);
+      else await loadList();
     } catch (e) {
       fail(e);
     } finally {
       setActionBusy(false);
     }
-  }, [showMessage, reopen, fail]);
+  }, [showMessage, reopen, loadList, select, fail]);
 
   const doCopy = useCallback(() => {
     const form = detailRef.current?.getForm();
     if (!form || form.isNew) return;
-    setSelectedId("");
+    select("");
     clearHistory();
     detailRef.current?.load(copyForm(form));
   }, [clearHistory]);
@@ -277,7 +301,7 @@ export default function JobSchedMngPage() {
     setActionBusy(true);
     try {
       await jobSchedApi.setUse(form.jobId, next);
-      await reopen(form.jobId);
+      await reopen(form.jobId, form.jobId);
       showMessage({
         message: next === "Y" ? "사용으로 바꿨습니다." : "사용을 중지했습니다. 일정에 따른 실행이 멈춥니다.",
         alertType: "success",
@@ -311,7 +335,9 @@ export default function JobSchedMngPage() {
             } else {
               showMessage({ message: result.message || "실행하지 못했습니다.", alertType: "warning" });
             }
-            await Promise.all([loadList(), loadHistory(form.jobId, form.jobNm)]);
+            await loadList();
+            // 접수를 기다리는 동안 다른 작업을 열었으면 그 작업의 이력을 덮어쓰지 않는다.
+            if (selectedIdRef.current === form.jobId) await loadHistory(form.jobId, form.jobNm);
           } catch (e) {
             fail(e);
           } finally {
@@ -334,7 +360,7 @@ export default function JobSchedMngPage() {
           setActionBusy(true);
           try {
             await jobSchedApi.remove(form.jobId);
-            setSelectedId("");
+            select("");
             detailRef.current?.load(null);
             clearHistory();
             await loadList();

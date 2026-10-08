@@ -119,8 +119,8 @@ function QueryEditor({ form, disabled, onChange }: KindEditorProps) {
 }
 
 const ITEM_COLUMNS: GridColumn[] = [
-  { key: "key", header: "키", width: 3, minWidth: 90, align: "left", editable: true },
-  { key: "path", header: "경로", width: 5, minWidth: 130, align: "left", editable: true },
+  { key: "key", header: "키", width: 3, minWidth: 90, align: "left", editable: true, meta: false },
+  { key: "path", header: "경로", width: 5, minWidth: 130, align: "left", editable: true, meta: false },
 ];
 
 const SOURCE_LABEL: Record<CollectSourceKind, string> = { sql: "SQL", http: "HTTP JSON", exchange: "환율" };

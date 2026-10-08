@@ -41,7 +41,7 @@ export function JobVariables({ rows, onChange, isCode }: { rows: JobVarRow[]; on
 | `value` | `JobVarRow[]` | — | `{ name, type: "STRING"\|"NUMBER"\|"DATE"\|"JSON", value, desc? }` 목록 |
 | `onChange` | `(rows: JobVarRow[]) => void` | — | 행이 바뀔 때 전체 목록 |
 | `mode` | `"full" \| "valueOnly"` | `"full"` | `valueOnly` 는 값만 편집 |
-| `disabled` | `boolean` | `false` | `valueOnly` 에서 값 변경을 막는다 |
+| `disabled` | `boolean` | `false` | `valueOnly` 에서 값 변경 통지를 막는다. `full`(EditableRowList)에는 비활성 입력이 없어 적용되지 않으니, 처리 중에 막아야 하면 화면이 표 위에서 처리 중 안내를 보이고 저장을 막는다 |
 | `hint` | `ReactNode` | — | 표 아래 안내(유형마다 다른 쓰임) |
 | `runtimeVariables` | `{ name; desc }[]` | `RUNTIME_VARIABLES` | 값 칸에 쓸 실행 변수 안내 |
 | `title` | `string` | `"변수"` | 표 제목 |

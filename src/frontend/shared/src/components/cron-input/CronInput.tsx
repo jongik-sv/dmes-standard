@@ -101,13 +101,15 @@ export function CronInput({
 
   const handleFields = (next: string[]) => {
     setFields(next);
+    setNotice(null);
     emit(next.map((f) => f.trim()).join(" ").trim());
   };
 
   const handleMode = (target: string) => {
     if (target === mode) return;
     if (target === "direct") {
-      setFields((prev) => fieldsOf(value, prev));
+      // 쉬운 설정이 식을 만들 수 없어 값이 빈 글자일 때는 칸도 비워 화면과 값이 어긋나지 않게 한다.
+      setFields((prev) => (value ? fieldsOf(value, prev) : ["", "", "", "", ""]));
       setNotice(null);
       setMode("direct");
       return;

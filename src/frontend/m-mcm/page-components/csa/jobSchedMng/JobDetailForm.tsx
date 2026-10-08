@@ -95,6 +95,8 @@ export function JobDetailForm({ ref, handlers, busy, permissions, lastFailure, o
   const [form, setForm] = useState<JobForm | null>(null);
   const [baseline, setBaseline] = useState<JobForm | null>(null);
   const [preview, setPreview] = useState<CronPreview | null>(null);
+  /** 폼을 열 때마다 올린다 — CronInput 을 새로 마운트해 같은 식이어도 서버 미리보기를 다시 받는다. */
+  const [openSeq, setOpenSeq] = useState(0);
 
   const formRef = useRef<JobForm | null>(null);
   formRef.current = form;
@@ -110,6 +112,7 @@ export function JobDetailForm({ ref, handlers, busy, permissions, lastFailure, o
       load: (next) => {
         previewExprRef.current = "";
         setPreview(null);
+        setOpenSeq((n) => n + 1);
         setForm(next);
         setBaseline(next);
       },
@@ -249,6 +252,7 @@ export function JobDetailForm({ ref, handlers, busy, permissions, lastFailure, o
 
           <CardFrame title="일정" testId="job-card-schedule">
             <CronInput
+              key={openSeq}
               value={form.cronExpr}
               disabled={disabled}
               minGapMin={collectMinGapMin(form)}

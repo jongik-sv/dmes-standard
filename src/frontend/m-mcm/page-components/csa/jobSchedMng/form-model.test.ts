@@ -221,6 +221,9 @@ describe("새 작업 · 복사 · 처리기", () => {
     const f = { ...emptyForm("CODE", "MDM"), handlerId: "mdm.sync" };
     expect(changeModule(f, "MPP")).toMatchObject({ moduleCd: "MPP", handlerId: "" });
     expect(changeModule(valid({ sql: "x" }), "MPP").sql).toBe("x");
+    const fx: JobForm = { ...emptyForm("COLLECT"), collectKind: "exchange" };
+    expect(changeModule(fx, "MDM").collectKind).toBe("sql");
+    expect(changeModule({ ...fx, moduleCd: "MDM" }, "MCM").collectKind).toBe("exchange");
   });
 
   it("변경 여부는 내용 비교로 판정한다", () => {

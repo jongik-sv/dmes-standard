@@ -116,7 +116,14 @@ export function switchKind(form: JobForm, kind: JobKind): JobForm {
 /** 모듈을 바꾸면 고른 처리기가 그 모듈 것이 아니므로 비운다. */
 export function changeModule(form: JobForm, moduleCd: string): JobForm {
   if (moduleCd === form.moduleCd) return form;
-  return { ...form, moduleCd, handlerId: form.jobKind === "CODE" ? "" : form.handlerId, vars: form.jobKind === "CODE" ? [] : form.vars };
+  return {
+    ...form,
+    moduleCd,
+    handlerId: form.jobKind === "CODE" ? "" : form.handlerId,
+    vars: form.jobKind === "CODE" ? [] : form.vars,
+    // 환율 원천은 MCM 모듈에서만 고를 수 있다 — 다른 모듈로 바꾸면 SQL 원천으로 되돌린다.
+    collectKind: moduleCd !== "MCM" && form.collectKind === "exchange" ? "sql" : form.collectKind,
+  };
 }
 
 /** 처리기를 고르면 이름(비었을 때)·기본 일정·기본 변수를 채운다. */

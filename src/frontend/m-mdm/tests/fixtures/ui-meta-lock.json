@@ -356,6 +356,35 @@
   "col|userCount|\"WIDGET_USER_COUNT\"",
   "col|widgetId|\"WIDGET_ID\""
  ],
+ "m-mcm/page-components/csa/jobSchedMng/HistoryPanel.tsx": [
+  "col|duration|false",
+  "col|endedAt|false",
+  "col|itemCnt|false",
+  "col|msg|false",
+  "col|schedAt|false",
+  "col|serverNm|false",
+  "col|serviceTag|false",
+  "col|startedAt|false",
+  "col|status|false",
+  "col|trigger|false"
+ ],
+ "m-mcm/page-components/csa/jobSchedMng/KindEditors.tsx": [
+  "col|key|false",
+  "col|path|false",
+  "col||-"
+ ],
+ "m-mcm/page-components/csa/jobSchedMng/page.tsx": [
+  "col|cronDesc|false",
+  "col|cronExpr|false",
+  "col|jobId|false",
+  "col|jobNm|false",
+  "col|kindLabel|false",
+  "col|lastServerNm|false",
+  "col|lastStatus|false",
+  "col|moduleCd|false",
+  "col|nextRun|false",
+  "col|useYn|false"
+ ],
  "m-mcm/page-components/csa/mdmCacheMng/RegisterModal.tsx": [
   "label|keysText|키|false",
   "label|targetType|대상 종류|false"
@@ -426,18 +455,15 @@
  "m-mcm/widget-types/chat/chat-model.ts": [
   "col|welcome|-"
  ],
- "m-mcm/widget-types/collect/editor.tsx": [
-  "col|at|false",
-  "col|key|false",
-  "col|path|false",
-  "col||-",
-  "label|(식:name)|(식:label)|-"
- ],
  "m-mcm/widget-types/exchange/renderer.tsx": [
   "col|diffText|false",
   "col|label|false",
   "col|rateText|false",
   "col|spark|false"
+ ],
+ "m-mcm/widget-types/rule-calc/renderer.tsx": [
+  "label|(식:input.name)|(식:input.label)|(식:input.name)",
+  "label|(식:name)|(식:label)|(식:name)"
  ],
  "m-mcm/widgets/home/shipments/widget.tsx": [
   "col|customer|-",
