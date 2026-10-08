@@ -31,6 +31,7 @@ export const PAGE_REGISTRY: Record<string, () => Promise<{ default: unknown }>> 
   "csa/commUserMng": () => import("@/page-components/csa/commUserMng/page"),
   "csa/commUserRoleCopy": () => import("@/page-components/csa/commUserRoleCopy/page"),
   "csa/commWidgetMng": () => import("@/page-components/csa/commWidgetMng/page"),
+  "csa/jobSchedMng": () => import("@/page-components/csa/jobSchedMng/page"),
   "csa/mdmCacheMng": () => import("@/page-components/csa/mdmCacheMng/page"),
   "csa/screenUsageStat": () => import("@/page-components/csa/screenUsageStat/page"),
   "csa/searchDefaultsSample": () => import("@/page-components/csa/searchDefaultsSample/page"),
