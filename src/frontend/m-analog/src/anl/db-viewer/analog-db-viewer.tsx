@@ -10,7 +10,7 @@
  * - shared 컴포넌트만 사용 (AgDataGrid, form, layout). ag-grid·Mantine 직접 import 금지.
  * - 결과 0건이어도 그리드를 유지한다 (성능 가이드 R6).
  * - LOB 칸은 서버 요약 글자 + 「보기」 단추로 그리고, 단추를 누르면 그 한 칸만 다시 읽어 상세 창에 보인다.
- * - 컬럼 속성 행을 더블클릭하면 칸 이름을 편집창 커서 위치에 넣는다.
+ * - 컬럼 속성 행을 더블클릭하면 칸 이름을, 조회 결과 셀을 더블클릭하면 셀 값(SQL 리터럴)을 편집창 커서 위치에 넣는다.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -34,7 +34,7 @@ import { LobCell } from "./lob-cell";
 import { LobViewerModal, type LobTarget } from "./lob-viewer-modal";
 import { DbMenuTree } from "./db-menu-tree";
 import DbSqlEditor, { type DbSqlEditorHandle } from "./db-sql-editor";
-import { identifierText } from "./sql-assist";
+import { identifierText, toSqlLiteral } from "./sql-assist";
 import type { DbColumnInfo, DbQueryResult } from "./types";
 import "./db-viewer.css";
 
@@ -229,6 +229,35 @@ export function AnalogDbViewer() {
     editorRef.current?.insertAtCursor(identifierText(name), "column");
   }, []);
 
+  // 조회 결과 셀 더블클릭 → 셀 값을 SQL 리터럴로 편집창에 넣는다.
+  // 어느 셀인지는 shared 를 건드리지 않고 이벤트 대상의 가장 가까운 [col-id] 칸에서 읽는다.
+  const resultRef = useRef(result);
+  resultRef.current = result;
+  const columnsRef = useRef({ key: selectedTableKey, columns });
+  columnsRef.current = { key: selectedTableKey, columns };
+  const insertCellValue = useCallback(
+    (row: Record<string, unknown>, event: Event) => {
+      const current = resultRef.current;
+      const target = event.target;
+      if (!current || !(target instanceof Element)) return;
+      const colId = target.closest("[col-id]")?.getAttribute("col-id");
+      if (!colId || !current.columns.includes(colId)) return;
+      const lobs = current.lobColumns ?? {};
+      if (lobs[colId] ?? lobs[colId.toUpperCase()]) {
+        gfn("LOB 칸은 칸 안의 「보기」 단추로 확인해 주세요.", "", "", "toast");
+        return;
+      }
+      // 결과가 선택한 표 하나의 조회일 때만 칸의 데이터 형식을 안다(문자열 '10' 과 숫자 10 구분).
+      const known = columnsRef.current;
+      const dataType =
+        known.key === `${current.schema}.${current.table}`
+          ? known.columns.find((c) => c.COLUMN_NAME === colId)?.DATA_TYPE
+          : undefined;
+      editorRef.current?.insertAtCursor(toSqlLiteral(row[colId], dataType), "value");
+    },
+    [gfn],
+  );
+
   const pageButtons: PageButton[] = useMemo(
     () => [
       {
@@ -391,6 +420,7 @@ export function AnalogDbViewer() {
                 columns={resultColumns}
                 data={resultRows}
                 columnSizing={resultColumns.length > 8 ? "fixed" : "fit"}
+                onRowDoubleClick={insertCellValue}
                 personalize={false}
                 loading={running}
                 ariaLabel="조회 결과"
