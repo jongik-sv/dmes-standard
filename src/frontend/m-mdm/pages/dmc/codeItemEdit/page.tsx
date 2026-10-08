@@ -22,7 +22,7 @@ import { useMessage } from "@dk-oasis/shared/message-provider";
 import { Tabs } from "@dk-oasis/shared/tabs";
 import { Tree } from "@dk-oasis/shared/tree";
 import "@dk-oasis/shared/tree.css";
-import { IdPicker, MdmPageLayout, VersionStatusBadge, useMdmPageParams, type IdPickRow } from "@/shell";
+import { IdPicker, MdmPageLayout, VersionStatusBadge, peekMdmPageParams, useMdmPageParams, type IdPickRow } from "@/shell";
 import {
   patchRow, previewCategory, revertRow, saveAll, searchCodes, validateAll, viewCode, type SaveChanges,
 } from "./api";
@@ -102,7 +102,7 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
   const [issues, setIssues] = useState<Record<string, Issue[]>>({});
   const [showClosed, setShowClosed] = useState(false);
   /** 다른 화면이 마루 코드를 넘겨 열었으면 조회 기본값이 그 코드를 덮지 않게 끈다. */
-  const [handedOff, setHandedOff] = useState(false);
+  const [handedOff] = useState(() => !!peekMdmPageParams(COMPONENT_PATH)?.maruCodeId);
   const [tab, setTab] = useState<Tab>("grid");
   const [rightTab, setRightTab] = useState<RightTab>("cateEdit");
   const [expanded, setExpanded] = useState<string[]>([]);
@@ -199,7 +199,6 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
   // 마루 코드 화면이 [코드 편집]으로 넘긴 마루 코드·버전(openMdmPage)을 받는다(§6.10). RELEASED 도 열린다(읽기 전용).
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
     if (!params.maruCodeId) return;
-    setHandedOff(true);
     selectSeq.current++;
     setMaruCodeId(params.maruCodeId);
     void load(params.maruCodeId, params.ver ?? null);
