@@ -247,7 +247,7 @@ export function JobSchedulerScreen() {
     setJobs((prev) => (form.isNew ? [...prev, record] : prev.map((j) => (j.jobId === record.jobId ? record : j))));
     if (form.isNew) setHistories((prev) => ({ ...prev, [record.jobId]: [] }));
     openForm(toForm(record), record.jobId);
-    showMessage({ message: "저장되었습니다. 다른 서버에는 10초 안에 반영됩니다.", alertType: "success", toast: true });
+    showMessage({ message: "저장되었습니다. 다음 분부터 새 일정으로 실행합니다(MCM 서버가 여러 대면 최대 30초 늦을 수 있습니다).", alertType: "success", toast: true });
   };
 
   const handleToggleUse = () => {
@@ -296,7 +296,7 @@ export function JobSchedulerScreen() {
           message: "",
         };
         setHistories((prev) => ({ ...prev, [savedJob.jobId]: [row, ...(prev[savedJob.jobId] ?? [])] }));
-        showMessage({ message: "실행을 요청했습니다. 해당 모듈 서버가 10초 안에 받아 실행합니다.", alertType: "success", toast: true });
+        showMessage({ message: "실행을 요청했습니다. 해당 모듈 서버가 다음 분에 받아 실행합니다(최대 1분 30초).", alertType: "success", toast: true });
       },
     });
   };
