@@ -2,6 +2,8 @@
 # 쓰는 쪽은 콘솔 폴러(console-poll.sh) 하나, 읽는 쪽은 prompt-watch.sh(「창이 떴는가」 감지·Monitor 알림)뿐이다.
 # 자동 응답 직전 재판정(auto-answer.sh·term-send-safe.sh·폴러 키 행)은 이 캐시를 절대 읽지 않는다(늘 직접 읽는다).
 # common.sh 를 먼저 source 해야 한다.
+_sc_d="${BASH_SOURCE[0]%/*}"; [ "$_sc_d" != "${BASH_SOURCE[0]}" ] || _sc_d=.
+. "$_sc_d/js-bridge.sh"   # COORD_JS_SCREEN_CACHE=1 이면 아래 함수를 scripts/lib/screen-cache.mjs(node)로 넘긴다(기본 꺼짐)
 #   위치: $DFLOW_CONSOLE_DIR/screen/(기본 ~/.dflow/console/screen, 폴더 700·파일 600)
 #   파일: <키>.txt = 읽은 화면 원문(가리기 전, 로컬에만 둔다 — 서버·로그·stderr 로 내지 않는다)
 #         <키>.json = {"kind":"permission|choice|question|usage-limit|trust|null","read_at_ms":<ms>,"lines":<n>,"full":"<창 지문>"}
@@ -9,17 +11,17 @@
 #   쓰기: .txt 를 먼저 .json 을 나중에 임시 파일 → mv -f 로 교체한다(json 이 새로우면 txt 도 새롭다).
 #   읽기: 폴더·파일이 현재 사용자 소유·권한 700/600·심볼릭 링크 아님일 때만 믿는다. 어긋나면 직접 읽기로 물러난다.
 
-sc_dir() { printf '%s/screen' "$(coord_expand "${DFLOW_CONSOLE_DIR:-$HOME/.dflow/console}")"; }
+sc_dir() { if _jsb_on SCREEN_CACHE; then _jsb_call screen-cache sc_dir "$@"; return; fi; printf '%s/screen' "$(coord_expand "${DFLOW_CONSOLE_DIR:-$HOME/.dflow/console}")"; }
 
 # 캐시를 믿는 시간(초). 0 이면 캐시 끔. 숫자가 아니면 20.
-sc_ttl() {
+sc_ttl() { if _jsb_on SCREEN_CACHE; then _jsb_call screen-cache sc_ttl "$@"; return; fi;
   local t; t="$(coord_cfg .approvals.screen_cache_s 2>/dev/null)"
   case "$t" in ''|*[!0-9]*) t=20 ;; esac
   printf '%s' "$t"
 }
 
 # handle → 파일 이름 키. 허용 글자 밖·앞 `.`·너무 긴 handle 은 거절(경로 이탈 불가).
-sc_key() {
+sc_key() { if _jsb_on SCREEN_CACHE; then _jsb_call screen-cache sc_key "$@"; return; fi;
   case "${1:-}" in ''|.*|*[!A-Za-z0-9._:-]*) return 1 ;; esac
   [ "${#1}" -le 100 ] || return 1
   printf '%s' "${1//:/=}"
@@ -27,7 +29,7 @@ sc_key() {
 
 # 지금 에포크 밀리초(정수·개행 없음). bash 5 $EPOCHREALTIME(프로세스 0개) → date +%s.%N(한 프로세스) → node → 초×1000.
 # 앞 셋은 결과가 `숫자(.|,)숫자` 꼴일 때만 쓴다.
-sc_now_ms() {
+sc_now_ms() { if _jsb_on SCREEN_CACHE; then _jsb_call screen-cache sc_now_ms "$@"; return; fi;
   local t s f
   t="${EPOCHREALTIME:-}"
   if [[ "$t" =~ ^([0-9]+)[.,]([0-9]+)$ ]]; then
@@ -45,13 +47,13 @@ sc_now_ms() {
 }
 
 # 파일의 `<소유 uid> <권한> <mtime> <크기>`
-sc_stat() {
+sc_stat() { if _jsb_on SCREEN_CACHE; then _jsb_call screen-cache sc_stat "$@"; return; fi;
   compat_stat_info "$1"   # GNU·BSD stat 분기는 compat.sh 한 곳(비숫자·빈 출력이면 rc 1)
 }
 
 # ---- 쓰는 쪽(폴러) --------------------------------------------------------------------------
 # sc_drop <handle> — 그 handle 의 캐시와 임시 파일을 지운다(읽기 실패·터미널 없음).
-sc_drop() {
+sc_drop() { if _jsb_on SCREEN_CACHE; then _jsb_call screen-cache sc_drop "$@"; return; fi;
   local key d; key="$(sc_key "$1")" || return 0
   d="$(sc_dir)"
   rm -f "$d/$key.txt" "$d/$key.json" 2>/dev/null
@@ -60,7 +62,7 @@ sc_drop() {
 
 # sc_clear — 캐시 폴더의 파일(캐시·임시 파일)을 모두 지운다. 폴더가 심볼릭 링크면 건드리지 않는다. 폴러가 끝날 때 부른다
 #   (화면 원문이 로컬에 남지 않게. prompt-watch 는 캐시가 없으면 조용히 직접 읽는다).
-sc_clear() {
+sc_clear() { if _jsb_on SCREEN_CACHE; then _jsb_call screen-cache sc_clear "$@"; return; fi;
   local d; d="$(sc_dir)"
   [ -d "$d" ] && [ ! -L "$d" ] || return 0
   find "$d" -maxdepth 1 -type f -delete 2>/dev/null
@@ -70,7 +72,7 @@ sc_clear() {
 # sc_store <handle> <화면 파일> <읽은 시각 ms> [창 지문] — 화면 원문과 판정을 남긴다. 실패하면 낡은 캐시를 지우고 rc 1.
 #   이번에 남긴 판정(창 종류, 없으면 빈 값)을 SC_STORED_KIND 에 둔다(호출자가 같은 화면을 다시 판정하지 않게).
 SC_STORED_KIND=""
-sc_store() {
+sc_store() { if _jsb_on SCREEN_CACHE; then _jsb_callg screen-cache sc_store "SC_STORED_KIND" "$@"; return; fi;
   local h="$1" scr="$2" at="$3" full="${4:-}" key d t1 t2 kind lines
   SC_STORED_KIND=""
   key="$(sc_key "$h")" || return 1
@@ -95,7 +97,7 @@ sc_store() {
 }
 
 # sc_prune [분] — 오래된(기본 10분) 캐시·임시 파일을 지운다. 대상에서 빠진 handle·끝난 회차의 것이 여기서 사라진다.
-sc_prune() {
+sc_prune() { if _jsb_on SCREEN_CACHE; then _jsb_call screen-cache sc_prune "$@"; return; fi;
   local d m="${1:-10}"; d="$(sc_dir)"
   [ -d "$d" ] && [ ! -L "$d" ] || return 0
   find "$d" -maxdepth 1 -type f -mmin "+$m" -delete 2>/dev/null
@@ -119,7 +121,7 @@ _sc_trusted() {  # <파일> — 0 믿음
 
 # sc_sig <handle> — 믿을 수 있는 json 의 내용 자체(읽은 시각 read_at_ms 가 들어 있어 폴러가 다시 쓸 때마다 바뀐다 — mtime 은 1초 단위라 쓰지 않는다).
 #   바뀜 감지용이라 파싱하지 않는다. 믿을 수 없거나 4KB 를 넘으면 rc 1.
-sc_sig() {
+sc_sig() { if _jsb_on SCREEN_CACHE; then _jsb_call screen-cache sc_sig "$@"; return; fi;
   local key f st c
   key="$(sc_key "$1")" || return 1
   f="$(sc_dir)/$key.json"
@@ -134,7 +136,7 @@ sc_sig() {
 # sc_load <handle> — 신선하고 믿을 수 있는 캐시면 rc 0, SC_SCREEN(마지막 40줄)·SC_KIND·SC_AT(읽은 시각 ms)·SC_FULL(창 지문, 없으면 빈 값)을 채운다.
 #   없음·낡음·깨짐·소유/권한 이상·설정 0 이면 rc 1 이고 아무 출력도 하지 않는다(호출자가 조용히 직접 읽는다).
 SC_SCREEN=""; SC_KIND=""; SC_AT=""; SC_FULL=""
-sc_load() {
+sc_load() { if _jsb_on SCREEN_CACHE; then _jsb_callg screen-cache sc_load "SC_SCREEN SC_KIND SC_AT SC_FULL" "$@"; return; fi;
   local key d jf tf ttl now at jk jl jf2 txtn kind
   SC_SCREEN=""; SC_KIND=""; SC_AT=""; SC_FULL=""
   ttl="${SC_TTL:-}"; [ -n "$ttl" ] || ttl="$(sc_ttl)"   # 호출자가 SC_TTL 에 한 번 읽어 둔 값을 쓴다(루프마다 설정을 다시 읽지 않게)
