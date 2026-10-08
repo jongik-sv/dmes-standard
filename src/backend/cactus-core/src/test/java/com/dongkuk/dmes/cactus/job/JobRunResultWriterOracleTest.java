@@ -146,6 +146,21 @@ class JobRunResultWriterOracleTest {
     }
 
     @Test
+    @DisplayName("칸에 안 맞는 수집 값은 건너뛰고(키 100자 초과·정수부 16자리 초과) 긴 글자는 200자로 잘라 RUN 갱신과 함께 커밋한다")
+    void invalidCollectedValuesAreSkippedOrTrimmed() {
+        List<CollectedValue> values = List.of(
+                new CollectedValue("K".repeat(101), BigDecimal.ONE, null),
+                new CollectedValue("BIG", new BigDecimal("12345678901234567"), null),
+                new CollectedValue("NOTE", null, "가".repeat(250)));
+        assertThat(writer.write(report("OK", values))).isEqualTo(WriteResult.WRITTEN);
+
+        assertThat(run().get("STATUS")).isEqualTo("OK");
+        assertThat(dataCount()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT VALUE_TXT FROM TB_MCM_JOB_COLLECT_DATA WHERE ITEM_KEY = 'NOTE'", String.class))
+                .isEqualTo("가".repeat(200));
+    }
+
+    @Test
     @DisplayName("같은 결과를 두 번 쓰면 두 번째는 LATE — 수집 값은 상태가 바뀌는 그 한 번만 저장된다")
     void secondWriteIsLate() {
         List<CollectedValue> values = List.of(new CollectedValue("USD", BigDecimal.ONE, null));

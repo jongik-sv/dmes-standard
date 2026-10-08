@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.cactus.job;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -17,7 +19,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  *   <li>연결: 그 모듈 앱의 기본 DataSource(자기 스키마 사용자). 스키마 접두는 {@code dmes.job.schema}(기본 MCMAPUSER).</li>
  *   <li>트랜잭션: 대상 서비스 트랜잭션과 분리된 짧은 트랜잭션({@code REQUIRES_NEW}). 대상이 롤백돼도 FAIL 기록은 남는다.</li>
  *   <li>{@code UPDATE … WHERE RUN_ID AND STATUS='RUN'} — 0행이면 이미 TIMEOUT(정리)·SKIP(MCM 거절)으로 닫힌 행이라 덮어쓰지 않고 「늦은 결과」 WARN.</li>
- *   <li>OK 이고 수집 값이 있으면 같은 트랜잭션에서 COLLECT_DATA 에 MERGE — 상태가 바뀐 그 한 번만 저장된다.</li>
+ *   <li>OK 이고 수집 값이 있으면 같은 트랜잭션에서 COLLECT_DATA 에 MERGE — 상태가 바뀐 그 한 번만 저장된다.
+ *       칸에 안 맞는 값은 건너뛰거나 맞춰서({@code fit}) 값 하나 때문에 RUN 갱신이 롤백되지 않게 한다.</li>
  *   <li>실패하면 {@code retryDelay}(운영 5초) 뒤 한 번 더. 그래도 실패하면 WARN 하고 버린다(재전송 대기열 없음 — 정리가 TIMEOUT 으로 닫는다).</li>
  * </ul>
  * 로그에는 예외 종류만 남긴다(DB 원문 메시지·주소 금지). 이 SQL 은 실행 스레드의 MDC(대상 serviceId) 아래에서 돌아 모듈 업무 로그에 남는다.
@@ -30,6 +33,10 @@ public class JobRunResultWriter implements JobRunReporter {
     private static final Pattern SCHEMA = Pattern.compile("^[A-Za-z][A-Za-z0-9_$#]{0,29}$");
     private static final String NOW = "CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS TIMESTAMP)";
     private static final int MSG_MAX = 500;
+    private static final int KEY_MAX = 100;
+    private static final int TXT_MAX = 200;
+    private static final int NUM_SCALE = 8;
+    private static final int NUM_INT_DIGITS = 16;   // NUMBER(24,8)
 
     private final TransactionTemplate tx;
     private final JdbcTemplate jdbc;
@@ -102,10 +109,34 @@ public class JobRunResultWriter implements JobRunReporter {
         if ("OK".equals(r.status())) {
             List<CollectedValue> values = r.collected();
             for (CollectedValue v : values) {
-                jdbc.update(mergeDataSql, r.jobId(), r.slot(), v.key(), v.num(), v.txt(), r.userId(), r.userId(), r.userId());
+                CollectedValue fit = fit(r.runId(), v);
+                if (fit == null) continue;
+                jdbc.update(mergeDataSql, r.jobId(), r.slot(), fit.key(), fit.num(), fit.txt(), r.userId(), r.userId(), r.userId());
             }
         }
         return true;
+    }
+
+    /**
+     * 수집 값을 COLLECT_DATA 칸에 맞춘다 — 한 값의 ORA 오류가 RUN 갱신까지 롤백하지 않게 한다.
+     * 키가 비었거나 100자를 넘으면, 숫자 정수부가 16자리를 넘으면 그 값은 건너뛴다(null). 소수 8자리 초과는 HALF_UP, 글자 200자 초과는 자른다.
+     */
+    private static CollectedValue fit(String runId, CollectedValue v) {
+        String key = v.key();
+        if (key == null || key.isBlank() || key.codePointCount(0, key.length()) > KEY_MAX) {
+            log.warn("수집 값을 건너뜁니다 runId={} 이유={}", runId, key == null || key.isBlank() ? "키 없음" : "키 길이 초과");
+            return null;
+        }
+        BigDecimal num = v.num() == null ? null : v.num().setScale(NUM_SCALE, RoundingMode.HALF_UP);
+        if (num != null && num.precision() - num.scale() > NUM_INT_DIGITS) {
+            log.warn("수집 값을 건너뜁니다 runId={} 이유=숫자 범위 초과", runId);
+            return null;
+        }
+        String txt = v.txt();
+        if (txt != null && txt.codePointCount(0, txt.length()) > TXT_MAX) {
+            txt = txt.substring(0, txt.offsetByCodePoints(0, TXT_MAX));
+        }
+        return new CollectedValue(key, num, txt);
     }
 
     private void pause() {
