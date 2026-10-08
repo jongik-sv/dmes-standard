@@ -58,6 +58,8 @@ cactus:
     client-key-skip-paths: /auth/,/api/auth/,/actuator/
   oasis:
     service-group: mqc
+    service-path: /services
+    transactional: true   # 예약 작업(jobQuery DML·업무 BPMN)이 서비스 단위 트랜잭션으로 돈다. mcm·mdm·mls 와 같다.
   mdm:
     enabled: ${MDM_CACHE_ENABLED:true}
     module: mqc
