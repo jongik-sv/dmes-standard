@@ -385,4 +385,73 @@ class JobDispatchServiceOraTest {
         }
         assertThat(manualRuns("ml")).isZero();
     }
+
+    // ── 독약 행: 한 행의 손상·PK 중복이 묶음 전체를 롤백시키지 않는다(리뷰 I-1·M-1) ──
+
+    /** 그 작업의 지금 NEXT_RUN_AT 을 초 단위로 버린 값 = 판정이 쓸 SCHED_AT. */
+    private Timestamp schedOf(String jobId) {
+        return Timestamp.valueOf(nextRunAt(jobId).toLocalDateTime().withNano(0));
+    }
+
+    @Test
+    @DisplayName("겹침 SKIP 갈래가 이미 있는 회차 PK 를 만나도 예외 없이 건너뛰고 NEXT_RUN_AT 을 올린다 — 다른 작업은 정상 선점")
+    void overlapSkipOnExistingSlotDoesNotPoisonBatch() {
+        def("dupO", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, -5);
+        def("okO", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, -5);
+        // 같은 회차 (dupO, sched, 'S') 가 이미 RUN 으로 있다 — 선점된 회차로 NEXT_RUN_AT 이 되돌아온 상황
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS, STARTED_AT, TIMEOUT_SEC) "
+                + "VALUES ('dupO', ?, 'S', 'prev-run', 'MDM', 'jobCode', 'RUN', " + NOW_SQL + " - INTERVAL '10' SECOND, 600)", schedOf("dupO"));
+
+        ClaimedBatch batch = claim(50, "Y");
+
+        assertThat(batch.runs()).extracting(JobRunRequest::jobId).containsExactly("okO");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_JOB_RUN WHERE JOB_ID = 'dupO'", Integer.class)).isEqualTo(1);
+        assertThat(nextRunAt("dupO").toLocalDateTime()).isAfter(dbNow());
+    }
+
+    @Test
+    @DisplayName("늦은 회차 SKIP 갈래가 이미 있는 회차 PK 를 만나도 예외 없이 건너뛰고 NEXT_RUN_AT 을 올린다 — 다른 작업은 정상 선점")
+    void lateSkipOnExistingSlotDoesNotPoisonBatch() {
+        def("dupL", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, -3 * 3600);
+        def("okL", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, -5);
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS) "
+                + "VALUES ('dupL', ?, 'S', 'prev-ok', 'MDM', 'jobCode', 'OK')", schedOf("dupL"));
+
+        ClaimedBatch batch = claim(50, "Y");
+
+        assertThat(batch.runs()).extracting(JobRunRequest::jobId).containsExactly("okL");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_JOB_RUN WHERE JOB_ID = 'dupL'", Integer.class)).isEqualTo(1);
+        assertThat(nextRunAt("dupL").toLocalDateTime()).isAfter(dbNow());
+    }
+
+    @Test
+    @DisplayName("앞으로 오는 시각이 없는 crontab(2월 30일)은 그 행만 FAIL 「정의 오류」, NEXT_RUN_AT 은 한 시간 뒤 — 다른 작업은 정상 선점")
+    void cronWithoutFutureTimeIsBrokenDefinition() {
+        def("never", "CODE", "0 0 30 2 *", null, "{\"handlerId\":\"h\"}", null, -5);
+        def("okN", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, -5);
+        LocalDateTime before = dbNow();
+
+        ClaimedBatch batch = claim(50, "Y");
+
+        assertThat(batch.runs()).extracting(JobRunRequest::jobId).containsExactly("okN");
+        Map<String, Object> row = run("never");
+        assertThat(row.get("STATUS")).isEqualTo("FAIL");
+        assertThat(row.get("MSG")).isEqualTo("정의 오류: crontab 식에 앞으로 오는 시각이 없습니다");   // 식은 읽히고 next() 가 null
+        assertThat(nextRunAt("never").toLocalDateTime()).isAfter(before.plusMinutes(59));
+    }
+
+    @Test
+    @DisplayName("VARS_JSON 이 '[null]' 처럼 손상돼도 그 행만 FAIL 「정의 오류」 — 다른 작업은 정상 선점")
+    void nullVarElementIsBrokenDefinition() {
+        def("nullvar", "CODE", "*/10 * * * *", "[null]", "{\"handlerId\":\"h\"}", null, -5);
+        def("okV", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, -5);
+
+        ClaimedBatch batch = claim(50, "Y");
+
+        assertThat(batch.runs()).extracting(JobRunRequest::jobId).containsExactly("okV");
+        Map<String, Object> row = run("nullvar");
+        assertThat(row.get("STATUS")).isEqualTo("FAIL");
+        assertThat(String.valueOf(row.get("MSG"))).startsWith("정의 오류");
+        assertThat(nextRunAt("nullvar").toLocalDateTime()).isAfter(dbNow());
+    }
 }

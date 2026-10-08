@@ -139,4 +139,20 @@ class JobDispatchTriggerLogTest {
         assertThat(appender.list).filteredOn(e -> e.getFormattedMessage().contains("복구")).hasSize(1);
         assertThat(submitted).extracting(JobRunRequest::runId).containsExactly("x");
     }
+
+    @Test
+    @DisplayName("한 회차를 넘기다 예외가 나도 같은 묶음의 나머지 회차는 넘어가고 WARN 에는 runId·예외 종류만 남는다")
+    void oneFailingSubmitDoesNotBlockOthers() {
+        List<String> passed = new ArrayList<>();
+        JobCallSink flaky = r -> {
+            if (r.runId().equals("bad")) throw new IllegalStateException("비밀 값이 든 메시지");
+            passed.add(r.runId());
+        };
+        ServiceResult okBatch = ok(new ClaimedBatch(List.of(req("a"), req("bad"), req("c")), false));
+        when(starter.start(eq("jobDispatch"), any())).thenReturn(okBatch);
+        new JobDispatchTrigger(starter, new GenericApplicationContext(), flaky, 50, true).tick();
+        assertThat(passed).containsExactly("a", "c");
+        assertThat(appender.list).filteredOn(e -> e.getLevel() == Level.WARN).singleElement()
+                .satisfies(e -> assertThat(e.getFormattedMessage()).contains("runId=bad").contains("IllegalStateException").doesNotContain("비밀"));
+    }
 }

@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import javax.sql.DataSource;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -48,6 +49,7 @@ public class JobDispatchService {
     static final int CLEANUP_MARGIN_SEC = 300;
     static final int DEFAULT_BATCH = 50;
     static final int MAX_BATCH = 200;
+    static final int MAX_RECORDED_TIMEOUT = 999_999;
     private static final Pattern SCHEMA = Pattern.compile("^[A-Za-z][A-Za-z0-9_$#]{0,29}$");
     private static final String NOW = "CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS TIMESTAMP)";
     private static final DateTimeFormatter ISO = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
@@ -170,6 +172,11 @@ public class JobDispatchService {
                 if (request != null) runs.add(request);
             } catch (BrokenDefinition e) {
                 broken(row, e.getMessage());
+            } catch (DataAccessException e) {
+                throw e;   // DB 오류는 묶음 전체를 롤백한다 — 이 분은 건너뛰고 다음 분에 다시 한다
+            } catch (RuntimeException e) {
+                // 정의를 손으로 고쳐 생긴 예상 밖 값(NPE 등) — 한 행 때문에 묶음 전체가 매분 롤백되지 않게 그 행만 닫는다
+                broken(row, "정의 오류: 정의를 처리할 수 없습니다(" + e.getClass().getSimpleName() + ")");
             }
         }
         return new ClaimedBatch(List.copyOf(runs), ids.size() == limit);
@@ -229,7 +236,7 @@ public class JobDispatchService {
         List<JobVar> vars;
         try {
             vars = JobVars.parse(r.varsJson());
-        } catch (IllegalArgumentException e) {
+        } catch (RuntimeException e) {   // IllegalArgumentException 과 '[null]' 같은 손상의 NPE
             throw new BrokenDefinition("정의 오류: 변수 목록(VARS_JSON)을 읽을 수 없습니다");
         }
         List<JobVar> merged = new ArrayList<>();
@@ -242,32 +249,47 @@ public class JobDispatchService {
                 r.optsJson(), r.dbNow());
     }
 
+    /**
+     * 한 행을 처리한다. 다음 시각은 INSERT 보다 먼저 계산한다(오지 않는 날짜면 INSERT 전에 정의 오류로 돌린다). 세 갈래(늦은 SKIP·겹침 SKIP·RUN)
+     * 모두 같은 회차 PK {@code (JOB_ID, SCHED_AT, 'S')} 가 이미 있으면 기록만 건너뛰고 NEXT_RUN_AT 은 그대로 올린다 — 이미 선점된 회차로
+     * NEXT_RUN_AT 이 되돌아와도(화면 저장·SQL 수정) 묶음이 롤백되지 않는다.
+     */
     private JobRunRequest process(Row r) {
         LocalDateTime sched = r.nextRunAt().truncatedTo(ChronoUnit.SECONDS);   // TIMESTAMP(0) 은 소수 초를 반올림한다
         CronSpec cron = parseCron(r.cron());
+        LocalDateTime base = sched.isAfter(r.dbNow()) ? sched : r.dbNow();
+        LocalDateTime next = cron.next(base);
+        if (next == null) throw new BrokenDefinition("정의 오류: crontab 식에 앞으로 오는 시각이 없습니다");
         JobRunRequest request = null;
         if (Duration.between(sched, r.dbNow()).compareTo(LATE_LIMIT) > 0) {
-            insertRun(r, sched, "SKIP", "놓친 회차를 건너뜀", null, r.timeoutSec());
+            insertRunOnce(r, sched, "SKIP", "놓친 회차를 건너뜀", null, r.timeoutSec());
         } else if (jdbc.queryForObject(liveRunSql, Integer.class, r.jobId(), Timestamp.valueOf(r.dbNow())) > 0) {
-            insertRun(r, sched, "SKIP", "이전 회차 실행 중", null, r.timeoutSec());
+            insertRunOnce(r, sched, "SKIP", "이전 회차 실행 중", null, r.timeoutSec());
         } else {
             request = buildRequest(r, sched);
-            try {
-                insertRun(r, sched, "RUN", null, request, recordedTimeout(r.timeoutSec(), request.retry()));
-            } catch (DuplicateKeyException e) {
+            if (!insertRunOnce(r, sched, "RUN", null, request, recordedTimeout(r.timeoutSec(), request.retry()))) {
                 request = null;   // 같은 회차 PK — 이미 다른 인스턴스·이전 시도가 잡았다
             }
         }
-        LocalDateTime base = sched.isAfter(r.dbNow()) ? sched : r.dbNow();
-        jdbc.update(nextRunSql, Timestamp.valueOf(cron.next(base)), r.jobId());
+        jdbc.update(nextRunSql, Timestamp.valueOf(next), r.jobId());
         return request;
+    }
+
+    /** RUN 행을 넣는다. 같은 회차 PK 가 이미 있으면 넣지 않고 false (Oracle 은 문장 단위 롤백이라 트랜잭션은 그대로 쓸 수 있다). */
+    private boolean insertRunOnce(Row r, LocalDateTime sched, String status, String msg, JobRunRequest request, int recordedTimeout) {
+        try {
+            insertRun(r, sched, status, msg, request, recordedTimeout);
+            return true;
+        } catch (DuplicateKeyException e) {
+            return false;
+        }
     }
 
     private JobRunRequest buildRequest(Row r, LocalDateTime sched) {
         List<JobVar> vars;
         try {
             vars = JobVars.parse(r.varsJson());
-        } catch (IllegalArgumentException e) {
+        } catch (RuntimeException e) {   // IllegalArgumentException 과 '[null]' 같은 손상의 NPE
             throw new BrokenDefinition("정의 오류: 변수 목록(VARS_JSON)을 읽을 수 없습니다");
         }
         LocalDateTime prev = null;
@@ -307,7 +329,8 @@ public class JobDispatchService {
 
     /** 재시도가 있는 회차는 정리가 너무 일찍 닫지 않도록 {@code timeoutSec + count × (timeoutSec + intervalMin 분)} 을 기록한다(설계 §4.6). */
     private static int recordedTimeout(int timeoutSec, JobRunRequest.Retry retry) {
-        return retry == null ? timeoutSec : timeoutSec + retry.count() * (timeoutSec + retry.intervalMin() * 60);
+        long total = retry == null ? timeoutSec : timeoutSec + (long) retry.count() * (timeoutSec + retry.intervalMin() * 60L);
+        return (int) Math.min(total, MAX_RECORDED_TIMEOUT);   // RUN.TIMEOUT_SEC 는 NUMBER(6) — SQL 로 고친 OPTS 가 넘치지 않게
     }
 
     private static CronSpec parseCron(String expr) {
@@ -329,18 +352,15 @@ public class JobDispatchService {
     /** 깨진 정의: 이 행만 FAIL 로 닫고 NEXT_RUN_AT 을 한 시간 뒤로 미룬다(식을 읽을 수 없으니 계산할 수 없다). */
     private void broken(Row r, String message) {
         LocalDateTime sched = r.nextRunAt().truncatedTo(ChronoUnit.SECONDS);
-        try {
-            insertRun(r, sched, "FAIL", message, null, r.timeoutSec());
-        } catch (DuplicateKeyException ignored) {
-            // 같은 회차의 기록이 이미 있다
-        }
+        insertRunOnce(r, sched, "FAIL", message, null, r.timeoutSec());   // 같은 회차의 기록이 이미 있으면 건너뛴다
         LocalDateTime next;
         try {
             LocalDateTime base = sched.isAfter(r.dbNow()) ? sched : r.dbNow();
             next = CronSpec.parse(r.cron()).next(base);
         } catch (IllegalArgumentException e) {
-            next = r.dbNow().plusHours(1);
+            next = null;
         }
+        if (next == null) next = r.dbNow().plusHours(1);   // 식을 읽을 수 없거나 앞으로 오는 시각이 없다
         jdbc.update(nextRunSql, Timestamp.valueOf(next), r.jobId());
     }
 

@@ -1,6 +1,7 @@
 package com.dongkuk.dmes.mcm.job.server;
 
 import com.dongkuk.dmes.cactus.audit.CactusAudit;
+import com.dongkuk.dmes.cactus.job.JobRunRequest;
 import com.dongkuk.dmes.cactus.job.JobServiceInvoker;
 import com.dongkuk.dmes.cactus.util.TxIdGenerator;
 import com.dongkuk.oasis.service.ServiceResult;
@@ -54,7 +55,7 @@ public class JobDispatchTrigger {
                 MDC.put("txId", TxIdGenerator.generate("SCHEDULER", "JOB_DISPATCH"));
                 ClaimedBatch batch = claim();
                 if (batch == null) break;
-                batch.runs().forEach(sink::submit);
+                batch.runs().forEach(this::submit);
                 if (!batch.more()) break;
             }
         } finally {
@@ -89,7 +90,16 @@ public class JobDispatchTrigger {
         }
     }
 
-    private void failed(String reason) {
+    /** 회차 하나를 넘긴다. 한 회차의 예외가 같은 묶음의 나머지와 남은 라운드를 막지 않게 WARN(runId·예외 종류만)만 남기고 넘어간다. */
+    private void submit(JobRunRequest request) {
+        try {
+            sink.submit(request);
+        } catch (RuntimeException e) {
+            log.warn("예약 작업 호출 넘김 실패 runId={} 예외={}", request.runId(), e.getClass().getSimpleName());
+        }
+    }
+
+        private void failed(String reason) {
         if (failing.compareAndSet(false, true)) log.warn("예약 작업 판정 실패 — 이 분은 건너뛰고 다음 분에 다시 합니다 결과={}", reason);
     }
 
