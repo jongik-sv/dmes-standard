@@ -1,6 +1,7 @@
 package com.dongkuk.dmes.analog.web;
 
 import com.dongkuk.dmes.analog.db.DbViewerException;
+import com.dongkuk.dmes.analog.db.DbViewerLobSupport;
 import com.dongkuk.dmes.analog.db.DbViewerService;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -62,6 +63,19 @@ public class DbViewerController {
                     request.limit());
         }
         throw new DbViewerException(400, "sql 또는 schema/table을 지정해 주세요.");
+    }
+
+    /**
+     * LOB·RAW 한 칸 상세 재조회 — 조회 결과의 {@code _ROWID} 로 한 행의 한 칸만 다시 읽는다.
+     * 권한은 BFF 가 {@code /db/query} 와 같은 permKey 로 이미 걸러 주므로 따로 만들지 않는다.
+     */
+    @PostMapping("/lob")
+    public DbViewerLobSupport.LobResult lob(@RequestBody LobRequest request) {
+        return service().readLob(request.schema(), request.table(), request.column(), request.rowid());
+    }
+
+    /** 상세 재조회 요청. */
+    public record LobRequest(String schema, String table, String column, String rowid) {
     }
 
     /**

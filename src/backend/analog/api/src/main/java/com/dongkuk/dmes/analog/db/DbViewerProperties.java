@@ -17,6 +17,17 @@ public class DbViewerProperties {
     private List<String> allowedSchemas = List.of(
             "MCMAPUSER", "MCM_SOURCE", "MCM_BACKUP", "MCAAPUSER", "MDMAPUSER");
 
+    /**
+     * 코드에 박힌 차단 표 — 자격증명·감사·대화 기록 표. 설정으로 줄일 수 없다.
+     * 모든 허용 스키마에서 표 이름만 비교한다.
+     */
+    public static final List<String> BUILT_IN_DENIED_TABLES = List.of(
+            "TB_SEC_KEY_STORE", "TB_SEC_AUDIT_LOG",
+            "TB_MCM_SEC_USER_WIDGET_CHAT", "TB_MCM_SEC_USER_WIDGET_MEMO");
+
+    /** 추가 차단 표 — {@link #BUILT_IN_DENIED_TABLES} 에 더해진다(합집합). 기본값은 비어 있다. */
+    private List<String> deniedTables = List.of();
+
     /** 최대 반환 건수 — 요청값은 이 상한으로 clamp 한다. */
     private int maxRows = 200;
 
@@ -34,6 +45,14 @@ public class DbViewerProperties {
 
     public void setAllowedSchemas(List<String> allowedSchemas) {
         this.allowedSchemas = allowedSchemas;
+    }
+
+    public List<String> getDeniedTables() {
+        return deniedTables;
+    }
+
+    public void setDeniedTables(List<String> deniedTables) {
+        this.deniedTables = deniedTables == null ? List.of() : deniedTables;
     }
 
     public int getMaxRows() {

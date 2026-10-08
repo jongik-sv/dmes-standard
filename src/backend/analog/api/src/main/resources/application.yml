@@ -10,6 +10,7 @@ server:
 analog:
   db:
     allowed-schemas: "${ANALOG_DB_ALLOWED_SCHEMAS:MCMAPUSER,MCM_SOURCE,MCM_BACKUP,MCAAPUSER,MDMAPUSER}"
+    denied-tables: "${ANALOG_DB_DENIED_TABLES:}"
     max-rows: 200
     query-timeout-seconds: 10
     url: "${ANALOG_DB_URL:}"

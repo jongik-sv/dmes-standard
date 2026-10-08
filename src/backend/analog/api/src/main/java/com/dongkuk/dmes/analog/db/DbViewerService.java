@@ -3,14 +3,28 @@ package com.dongkuk.dmes.analog.db;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Reader;
+import java.sql.Blob;
+import java.sql.Clob;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Types;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * DB 뷰어 조회 서비스 (ADR-0002 D2·D3·D4).
@@ -64,9 +78,32 @@ public class DbViewerService {
             ORDER BY A.COLUMN_ID
             """;
 
+    /** 칸 이름·형식 — 민감 칸 거르기와 LOB 칸 판별에 쓴다. */
+    private static final String COLUMN_TYPES_SQL =
+            "SELECT COLUMN_NAME, DATA_TYPE FROM ALL_TAB_COLUMNS WHERE OWNER = ? AND TABLE_NAME = ? "
+                    + "ORDER BY COLUMN_ID";
+
+    /**
+     * 조회 대상의 종류 — 해당 OWNER 의 표(ALL_TABLES)·뷰(ALL_VIEWS)만 잡힌다(동의어는 안 잡힌다).
+     * 'TABLE' 은 ROWID 를 가진 실제 표(IOT 아님·외부 표 아님), 'OTHER' 는 그 밖의 표와 뷰.
+     * 바인드 순서: (OWNER, TABLE_NAME) → (OWNER, VIEW_NAME).
+     */
+    private static final String OBJECT_KIND_SQL = """
+            SELECT CASE WHEN IOT_TYPE IS NULL AND EXTERNAL = 'NO' THEN 'TABLE' ELSE 'OTHER' END OBJ_KIND
+            FROM   ALL_TABLES
+            WHERE  OWNER = ?
+            AND    TABLE_NAME = ?
+            UNION ALL
+            SELECT 'OTHER'
+            FROM   ALL_VIEWS
+            WHERE  OWNER = ?
+            AND    VIEW_NAME = ?
+            """;
+
     private final JdbcTemplate jdbcTemplate;
     private final DbViewerProperties properties;
     private final Set<String> allowedSchemas;
+    private final Set<String> deniedTables;
 
     public DbViewerService(JdbcTemplate dbViewerJdbcTemplate, DbViewerProperties properties) {
         this.jdbcTemplate = dbViewerJdbcTemplate;
@@ -74,6 +111,56 @@ public class DbViewerService {
         this.allowedSchemas = properties.getAllowedSchemas().stream()
                 .map(DbViewerValidator::normalizeSchema)
                 .collect(Collectors.toUnmodifiableSet());
+        // 차단 표 = 코드에 박힌 기본 + 설정 추가분(합집합). 설정으로 기본을 줄일 수 없다.
+        this.deniedTables = Stream.concat(DbViewerProperties.BUILT_IN_DENIED_TABLES.stream(),
+                        properties.getDeniedTables().stream())
+                .filter(t -> t != null && !t.isBlank())
+                .map(t -> t.trim().toUpperCase(Locale.ROOT))
+                .collect(Collectors.toUnmodifiableSet());
+    }
+
+    /**
+     * 감사 로그 값 이스케이프 — 줄바꿈·제어 문자를 글자로 바꿔 로그 줄 위조(주입)를 막는다.
+     * 사용자 WHERE 원문이 들어가는 {@code sql=} 을 포함해 모든 감사 로그 값에 쓴다.
+     */
+    public static String escapeLog(Object value) {
+        if (value == null) {
+            return "null";
+        }
+        String text = value.toString();
+        StringBuilder sb = null;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            String replacement = null;
+            if (c == '\n') {
+                replacement = "\\n";
+            } else if (c == '\r') {
+                replacement = "\\r";
+            } else if (c == '\t') {
+                replacement = "\\t";
+            } else if (c < 0x20 || (c >= 0x7F && c < 0xA0) || c == 0x2028 || c == 0x2029) {
+                replacement = String.format("\\u%04x", (int) c);
+            }
+            if (replacement != null && sb == null) {
+                sb = new StringBuilder(text.length() + 16).append(text, 0, i);
+            }
+            if (sb != null) {
+                if (replacement != null) {
+                    sb.append(replacement);
+                } else {
+                    sb.append(c);
+                }
+            }
+        }
+        return sb == null ? text : sb.toString();
+    }
+
+    /** 차단 표면 400 — 모든 허용 스키마에서 표 이름만 비교한다(대문자 정규화). */
+    private void checkTableNotDenied(String table) {
+        String normalized = table == null ? "" : table.trim().toUpperCase(Locale.ROOT);
+        if (deniedTables.contains(normalized)) {
+            throw new DbViewerException(400, "조회할 수 없는 표입니다: " + normalized);
+        }
     }
 
     public List<String> listTables(String schema) {
@@ -81,8 +168,12 @@ public class DbViewerService {
         String owner = DbViewerValidator.normalizeSchema(schema);
         long start = System.currentTimeMillis();
         List<String> tables = jdbcTemplate.queryForList(
-                "SELECT TABLE_NAME FROM ALL_TABLES WHERE OWNER = ? ORDER BY TABLE_NAME", String.class, owner);
-        audit.info("tables schema={} count={} ms={}", owner, tables.size(), System.currentTimeMillis() - start);
+                        "SELECT TABLE_NAME FROM ALL_TABLES WHERE OWNER = ? ORDER BY TABLE_NAME", String.class, owner)
+                .stream()
+                .filter(t -> !deniedTables.contains(t.trim().toUpperCase(Locale.ROOT)))
+                .toList();
+        audit.info("tables schema={} count={} ms={}", escapeLog(owner), tables.size(),
+                System.currentTimeMillis() - start);
         return tables;
     }
 
@@ -90,11 +181,12 @@ public class DbViewerService {
         DbViewerValidator.checkSchemaAllowed(schema, allowedSchemas);
         DbViewerValidator.checkIdentifier("테이블", table);
         String owner = DbViewerValidator.normalizeSchema(schema);
-        String tableName = table.trim().toUpperCase(java.util.Locale.ROOT);
+        String tableName = table.trim().toUpperCase(Locale.ROOT);
+        checkTableNotDenied(tableName);
         long start = System.currentTimeMillis();
         List<Map<String, Object>> columns = jdbcTemplate.queryForList(COLUMNS_SQL,
                 owner, tableName, owner, tableName);
-        audit.info("columns {}.{} count={} ms={}", owner, tableName, columns.size(),
+        audit.info("columns {}.{} count={} ms={}", escapeLog(owner), escapeLog(tableName), columns.size(),
                 System.currentTimeMillis() - start);
         return columns;
     }
@@ -102,17 +194,8 @@ public class DbViewerService {
     /** 자유 SQL 실행 — 파싱·재조립 후 실행한다. */
     public QueryResult query(String sql) {
         DbViewerValidator.ParsedQuery parsed = DbViewerValidator.parseSelect(sql, allowedSchemas);
-        List<String> effectiveColumns = parsed.columns();
-        if (parsed.star()) {
-            effectiveColumns = columnNames(parsed.schema(), parsed.table()).stream()
-                    .filter(c -> !DbViewerValidator.isSensitiveColumn(c))
-                    .toList();
-            if (effectiveColumns.isEmpty()) {
-                throw new DbViewerException(400, "테이블에 조회 가능한 컬럼이 없습니다: " + parsed.table());
-            }
-        }
-        String finalSql = DbViewerValidator.buildSql(parsed, effectiveColumns, properties.getMaxRows());
-        return execute(parsed, effectiveColumns, finalSql);
+        checkTableNotDenied(parsed.table());
+        return run(parsed, parsed.star() ? null : parsed.columns(), properties.getMaxRows());
     }
 
     /** 구조화 조회 — 스키마·테이블·컬럼·건수 지정. */
@@ -120,61 +203,304 @@ public class DbViewerService {
         DbViewerValidator.checkSchemaAllowed(schema, allowedSchemas);
         DbViewerValidator.checkIdentifier("테이블", table);
         String owner = DbViewerValidator.normalizeSchema(schema);
-        String tableName = table.trim().toUpperCase(java.util.Locale.ROOT);
-        List<String> effectiveColumns;
-        if (columns == null || columns.isEmpty()) {
-            effectiveColumns = columnNames(owner, tableName);
-            if (effectiveColumns.isEmpty()) {
-                throw new DbViewerException(400, "테이블에 조회 가능한 컬럼이 없습니다: " + tableName);
-            }
-        } else {
-            effectiveColumns = columns.stream()
+        String tableName = table.trim().toUpperCase(Locale.ROOT);
+        checkTableNotDenied(tableName);
+        List<String> requested = null;
+        if (columns != null && !columns.isEmpty()) {
+            requested = columns.stream()
                     .map(c -> {
                         DbViewerValidator.checkIdentifier("컬럼", c);
-                        return c.trim().toUpperCase(java.util.Locale.ROOT);
+                        return c.trim().toUpperCase(Locale.ROOT);
                     })
                     .toList();
         }
         int capped = Math.max(1, Math.min(
                 limit == null || limit <= 0 ? properties.getMaxRows() : limit, properties.getMaxRows()));
         DbViewerValidator.ParsedQuery parsed =
-                new DbViewerValidator.ParsedQuery(owner, tableName, false, effectiveColumns, null);
-        String finalSql = DbViewerValidator.buildSql(parsed, effectiveColumns, capped);
-        return execute(parsed, effectiveColumns, finalSql);
+                new DbViewerValidator.ParsedQuery(owner, tableName, requested == null, requested, null);
+        return run(parsed, requested, capped);
     }
 
-    private List<String> columnNames(String schema, String table) {
-        return jdbcTemplate.queryForList(
-                "SELECT COLUMN_NAME FROM ALL_TAB_COLUMNS WHERE OWNER = ? AND TABLE_NAME = ? ORDER BY COLUMN_ID",
-                String.class, schema, table);
+    /** 확정 칸 목록과 ROWID 여부 — {@link #plan} 의 결과. */
+    private record ColumnPlan(List<String> columns, boolean withRowId) {
     }
 
-    private QueryResult execute(DbViewerValidator.ParsedQuery parsed, List<String> columns, String finalSql) {
+    private enum ObjectKind { NONE, TABLE, OTHER }
+
+    private QueryResult run(DbViewerValidator.ParsedQuery parsed, List<String> requested, int limit) {
+        ColumnPlan plan = plan(parsed.schema(), parsed.table(), requested);
+        String finalSql = DbViewerValidator.buildSql(parsed, plan.columns(), limit, plan.withRowId());
+        return execute(parsed, plan.columns(), finalSql, plan.withRowId());
+    }
+
+    /**
+     * 모든 조회 경로(자유 SQL 의 {@code *}·명시 칸, 구조화 조회의 빈 목록·명시 칸)의 칸 목록을
+     * SQL 을 만들기 직전 이 한 곳에서 거른다.
+     *
+     * <ul>
+     *   <li>대상이 해당 OWNER 의 표·뷰로 사전에 없으면(동의어 포함) 404.</li>
+     *   <li>{@code requested} 가 null·빈 목록이면 사전 칸 전체에서 민감 칸을 빼고, 명시 칸에 민감 칸이 있으면 400.</li>
+     *   <li>ROWID 는 조회 칸 중 LOB·RAW 형이 하나라도 있고 대상이 실제 표일 때만 더한다.</li>
+     * </ul>
+     */
+    private ColumnPlan plan(String owner, String table, List<String> requested) {
+        ObjectKind kind = objectKind(owner, table);
+        if (kind == ObjectKind.NONE) {
+            throw new DbViewerException(404, "테이블 또는 컬럼을 찾을 수 없습니다: " + table);
+        }
+        Map<String, String> types = new LinkedHashMap<>();
+        for (Map<String, Object> row : jdbcTemplate.queryForList(COLUMN_TYPES_SQL, owner, table)) {
+            Object name = row.get("COLUMN_NAME");
+            Object type = row.get("DATA_TYPE");
+            if (name != null) {
+                types.put(name.toString(), type == null ? null : type.toString());
+            }
+        }
+        boolean expand = requested == null || requested.isEmpty();
+        List<String> candidates = expand ? new ArrayList<>(types.keySet()) : requested;
+        List<String> columns = new ArrayList<>();
+        for (String column : candidates) {
+            if (DbViewerValidator.isSensitiveColumn(column)) {
+                if (expand) {
+                    continue;
+                }
+                throw new DbViewerException(400, "컬럼에 민감 정보가 포함되어 조회할 수 없습니다.");
+            }
+            columns.add(column);
+        }
+        if (columns.isEmpty()) {
+            throw new DbViewerException(400, "테이블에 조회 가능한 컬럼이 없습니다: " + table);
+        }
+        boolean hasLob = columns.stream().anyMatch(c -> DbViewerLobSupport.LobKind.fromDataType(types.get(c)) != null);
+        return new ColumnPlan(List.copyOf(columns), hasLob && kind == ObjectKind.TABLE);
+    }
+
+    private ObjectKind objectKind(String owner, String table) {
+        List<String> kinds = jdbcTemplate.queryForList(OBJECT_KIND_SQL, String.class, owner, table, owner, table);
+        if (kinds == null || kinds.isEmpty()) {
+            return ObjectKind.NONE;
+        }
+        return kinds.contains("TABLE") ? ObjectKind.TABLE : ObjectKind.OTHER;
+    }
+
+    private QueryResult execute(DbViewerValidator.ParsedQuery parsed, List<String> columns, String finalSql,
+                                boolean withRowId) {
         long start = System.currentTimeMillis();
         // FETCH FIRST 상한과 별개로 드라이버·추출 단계에서도 상한을 강제한다
         // (SQL 텍스트 우회 시에도 JVM 적재 폭주 방지 — 방어 심화).
         final int hardCap = properties.getMaxRows();
-        List<Map<String, Object>> rows = jdbcTemplate.query(finalSql, rs -> {
-            List<Map<String, Object>> out = new java.util.ArrayList<>();
-            int count = rs.getMetaData().getColumnCount();
-            while (rs.next() && out.size() < hardCap) {
-                Map<String, Object> row = new LinkedHashMap<>();
-                for (int i = 1; i <= count; i++) {
-                    Object value = rs.getObject(i);
-                    row.put(rs.getMetaData().getColumnLabel(i), value == null ? null : value.toString());
-                }
-                out.add(row);
-            }
-            return out;
-        });
+        final Map<String, String> lobColumns = new LinkedHashMap<>();
+        ResultSetExtractor<List<Map<String, Object>>> extractor = rs -> extractRows(rs, hardCap, lobColumns);
+        List<Map<String, Object>> rows = jdbcTemplate.query(finalSql, extractor);
         long elapsed = System.currentTimeMillis() - start;
-        audit.info("query {}.{} cols={} rows={} ms={} sql={}", parsed.schema(), parsed.table(),
-                columns.size(), rows.size(), elapsed, finalSql);
-        return new QueryResult(columns, rows, rows.size(), elapsed, finalSql);
+        // 감사 로그 값은 모두 이스케이프한다 — sql= 에는 사용자 WHERE 원문이 들어간다.
+        audit.info("query {}.{} cols={} rows={} lobs={} ms={} sql={}", escapeLog(parsed.schema()),
+                escapeLog(parsed.table()), columns.size(), rows.size(), lobColumns.size(), elapsed,
+                escapeLog(finalSql));
+        return new QueryResult(columns, rows, rows.size(), elapsed, finalSql, parsed.schema(), parsed.table(),
+                withRowId ? DbViewerValidator.ROWID_KEY : null, lobColumns);
     }
 
-    /** 조회 결과. */
+    /**
+     * 결과 집합을 행 Map 목록으로 읽는다(시험에서 목 ResultSet 으로 직접 실행한다).
+     *
+     * <p>오라클 드라이버는 LONG 스트림을 같은 행의 다른 칸을 읽기 전에 읽어야 한다(ORA-17027) —
+     * LONG 글 칸을 행마다 첫 단계에서 읽는다. LONG RAW 는 읽지 않고 종류 이름만 쓴다(상세 창에서만 읽는다).
+     * 행 Map 순서는 select 목록을 지킨다.
+     */
+    static List<Map<String, Object>> extractRows(ResultSet rs, int hardCap, Map<String, String> lobColumns)
+            throws SQLException {
+        List<Map<String, Object>> out = new ArrayList<>();
+        ResultSetMetaData meta = rs.getMetaData();
+        int count = meta.getColumnCount();
+        String[] labels = new String[count + 1];
+        DbViewerLobSupport.LobKind[] kinds = new DbViewerLobSupport.LobKind[count + 1];
+        boolean[] longText = new boolean[count + 1];
+        for (int i = 1; i <= count; i++) {
+            labels[i] = meta.getColumnLabel(i);
+            kinds[i] = DbViewerLobSupport.kindOf(meta, i);
+            if (kinds[i] != null) {
+                lobColumns.put(labels[i], kinds[i].label());
+            } else {
+                int type = meta.getColumnType(i);
+                longText[i] = type == Types.LONGVARCHAR || type == Types.LONGNVARCHAR;
+            }
+        }
+        // 응답 하나 전체의 CLOB 미리 보기 글자 예산 — 행·칸이 많아도 응답이 불어나지 않게 한다.
+        DbViewerLobSupport.PreviewBudget budget =
+                new DbViewerLobSupport.PreviewBudget(DbViewerLobSupport.RESPONSE_PREVIEW_BUDGET);
+        while (out.size() < hardCap && rs.next()) {
+            Object[] values = new Object[count + 1];
+            for (int i = 1; i <= count; i++) {
+                if (longText[i]) {
+                    values[i] = rs.getString(i);
+                }
+            }
+            for (int i = 1; i <= count; i++) {
+                if (longText[i]) {
+                    continue;
+                }
+                if (kinds[i] != null) {
+                    values[i] = DbViewerLobSupport.readSummary(rs, i, kinds[i], budget);
+                } else {
+                    Object value = rs.getObject(i);
+                    values[i] = value == null ? null : value.toString();
+                }
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            for (int i = 1; i <= count; i++) {
+                row.put(labels[i], values[i]);
+            }
+            out.add(row);
+        }
+        return out;
+    }
+
+    /** 상세 재조회 rowid 형식 — 오라클 확장 ROWID 18자. */
+    private static final java.util.regex.Pattern ROWID_FORMAT = java.util.regex.Pattern.compile("[A-Za-z0-9+/]{18}");
+
+    /**
+     * LOB·RAW 한 칸 상세 재조회. 식별자는 허용 스키마·형식 검사와 딕셔너리 확인을 거친 뒤에만
+     * 큰따옴표로 감싸 SQL 에 넣고, rowid 는 바인드 변수로만 넘긴다.
+     */
+    public DbViewerLobSupport.LobResult readLob(String schema, String table, String column, String rowid) {
+        try {
+            return readLobChecked(schema, table, column, rowid);
+        } catch (DbViewerException e) {
+            // 거부된 요청도 감사 로그에 남긴다 — 상태 코드와 사유, 요청 값(이스케이프).
+            audit.info("lob-rejected status={} reason={} schema={} table={} column={} rowid={}",
+                    e.getStatusCode().value(), escapeLog(e.getReason()), escapeLog(schema), escapeLog(table),
+                    escapeLog(column), escapeLog(rowid));
+            throw e;
+        }
+    }
+
+    private DbViewerLobSupport.LobResult readLobChecked(String schema, String table, String column, String rowid) {
+        DbViewerValidator.checkSchemaAllowed(schema, allowedSchemas);
+        // checkIdentifier 는 민감 칸(PASS·PWD·HASH·TOKEN·SECRET·PRIVATE)도 거부한다 — 기존 조회와 같은 400.
+        DbViewerValidator.checkIdentifier("테이블", table);
+        DbViewerValidator.checkIdentifier("컬럼", column);
+        String owner = DbViewerValidator.normalizeSchema(schema);
+        String tableName = table.trim().toUpperCase(Locale.ROOT);
+        String columnName = column.trim().toUpperCase(Locale.ROOT);
+        checkTableNotDenied(tableName);
+
+        List<String> types = jdbcTemplate.queryForList(
+                "SELECT DATA_TYPE FROM ALL_TAB_COLUMNS WHERE OWNER = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+                String.class, owner, tableName, columnName);
+        if (types.isEmpty()) {
+            throw new DbViewerException(404, "테이블 또는 컬럼을 찾을 수 없습니다: " + tableName + "." + columnName);
+        }
+        DbViewerLobSupport.LobKind kind = DbViewerLobSupport.LobKind.fromDataType(types.get(0));
+        if (kind == null) {
+            throw new DbViewerException(400, "LOB·RAW 칸이 아닙니다");
+        }
+        if (rowid == null || !ROWID_FORMAT.matcher(rowid.trim()).matches()) {
+            throw new DbViewerException(400, "rowid 형식이 올바르지 않습니다.");
+        }
+        String rid = rowid.trim();
+        if (objectKind(owner, tableName) != ObjectKind.TABLE) {
+            throw new DbViewerException(400, "ROWID 로 읽을 수 있는 실제 표가 아닙니다: " + tableName);
+        }
+
+        long start = System.currentTimeMillis();
+        String sql = "SELECT \"" + columnName + "\" FROM \"" + owner + "\".\"" + tableName
+                + "\" WHERE ROWID = CHARTOROWID(?)";
+        DbViewerLobSupport.LobResult result;
+        try {
+            result = jdbcTemplate.query(sql, rs -> {
+                if (!rs.next()) {
+                    return null;
+                }
+                return readLobDetail(rs, columnName, kind);
+            }, rid);
+        } catch (DataAccessException e) {
+            // CHARTOROWID 가 형식은 맞지만 이 표의 ROWID 가 아닌 값을 거부한 경우(ORA-01410)는 행 없음으로 본다.
+            if (e.getCause() instanceof SQLException se && se.getErrorCode() == 1410) {
+                throw new DbViewerException(404, ROW_NOT_FOUND);
+            }
+            throw e;
+        }
+        if (result == null) {
+            throw new DbViewerException(404, ROW_NOT_FOUND);
+        }
+        long bytes = (result.text() == null ? 0 : result.text().length())
+                + (result.base64() == null ? 0 : result.base64().length())
+                + (result.hex() == null ? 0 : result.hex().length());
+        audit.info("lob {}.{}.{} rowid={} type={} kind={} length={} lengthKnown={} respChars={} ms={}",
+                escapeLog(owner), escapeLog(tableName), escapeLog(columnName), escapeLog(rid),
+                escapeLog(result.dataType()), escapeLog(result.kind()), result.length(), result.lengthKnown(),
+                bytes, System.currentTimeMillis() - start);
+        return result;
+    }
+
+    private static final String ROW_NOT_FOUND = "행을 찾을 수 없습니다. 다시 조회해 주세요";
+
+    private static DbViewerLobSupport.LobResult readLobDetail(ResultSet rs, String column,
+                                                              DbViewerLobSupport.LobKind kind)
+            throws SQLException {
+        try {
+            switch (kind) {
+                case CLOB, NCLOB -> {
+                    Clob clob = kind == DbViewerLobSupport.LobKind.NCLOB ? rs.getNClob(1) : rs.getClob(1);
+                    if (clob == null) {
+                        return DbViewerLobSupport.detailFromText(column, kind, null, 0);
+                    }
+                    try {
+                        long total = clob.length();
+                        // 배열은 실제 길이와 상한 중 작은 쪽만 잡는다.
+                        int cap = (int) Math.min(total, DbViewerLobSupport.DETAIL_TEXT_CHARS);
+                        String text;
+                        try (Reader reader = clob.getCharacterStream()) {
+                            text = DbViewerLobSupport.readChars(reader, cap);
+                        }
+                        return DbViewerLobSupport.detailFromText(column, kind, text, total);
+                    } finally {
+                        DbViewerLobSupport.freeQuietly(clob);
+                    }
+                }
+                case BLOB -> {
+                    Blob blob = rs.getBlob(1);
+                    if (blob == null) {
+                        return DbViewerLobSupport.detailFromBytes(column, kind, null, 0, false);
+                    }
+                    try (InputStream in = blob.getBinaryStream()) {
+                        return DbViewerLobSupport.readBinaryDetail(column, kind, in, blob.length());
+                    } finally {
+                        DbViewerLobSupport.freeQuietly(blob);
+                    }
+                }
+                case RAW -> {
+                    byte[] bytes = rs.getBytes(1);
+                    return DbViewerLobSupport.detailFromBytes(column, kind, bytes,
+                            bytes == null ? 0 : bytes.length, false);
+                }
+                case LONG_RAW -> {
+                    try (InputStream in = rs.getBinaryStream(1)) {
+                        if (in == null) {
+                            return DbViewerLobSupport.detailFromBytes(column, kind, null, 0, false);
+                        }
+                        // 전체 길이를 알 수 없다 — 읽은 만큼이 length 이고 lengthKnown=false.
+                        return DbViewerLobSupport.readBinaryDetail(column, kind, in, -1);
+                    }
+                }
+                default -> throw new IllegalStateException("지원하지 않는 종류: " + kind);
+            }
+        } catch (IOException e) {
+            throw new SQLException("LOB 칸을 읽지 못했습니다: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 조회 결과.
+     *
+     * @param schema     정규화된 대문자 스키마 이름
+     * @param table      정규화된 대문자 테이블 이름
+     * @param rowIdKey   상세 재조회용 숨은 칸의 키(행 Map 에만 있고 {@code columns} 에는 없다). 실제 표가 아니면 null
+     * @param lobColumns LOB·RAW 칸 이름 → 종류(CLOB·NCLOB·BLOB·RAW·LONG RAW)
+     */
     public record QueryResult(List<String> columns, List<Map<String, Object>> rows, int rowCount,
-                             long elapsedMs, String executedSql) {
+                             long elapsedMs, String executedSql, String schema, String table,
+                             String rowIdKey, Map<String, String> lobColumns) {
     }
 }
