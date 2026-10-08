@@ -319,3 +319,23 @@ test('픽스처 트리 안내: 시험 폴더 이름(tests)이 성능 점검 제�
   const copy = runNode(SCRIPT, ['audit', path.join(trees.front, 'm-fx', 'pages', 'auth')], { cwd: trees.front, env: { AGGRID_DOCS_CACHE: path.join(sb.tmp, 'c-y') } });
   assert.match(copy.stdout, /\[P-K\]/);
 });
+
+test('search_form_audit(P-S1): SearchArea 없이 입력 칸과 [조회] 단추를 직접 그리면 경고, 빠른 찾기·SearchArea·대화 상자는 통과', () => {
+  const run = (f, src) => {
+    const hits = [];
+    mod.search_form_audit(f, src, false, (pos, msg) => hits.push(msg));
+    return hits;
+  };
+  const imp = 'import { Button, Input } from "@dk-oasis/shared/form";\n';
+  const own = `${imp}export default function P() { return <div><Input value="" onChange={f} /><Button onClick={s}>조회</Button></div>; }`;
+  assert.equal(run('m-x/pages/a/page.tsx', own).length, 1);
+  assert.match(run('m-x/pages/a/page.tsx', own)[0], /\[P-S1 경고\]/);
+  // 서버 조회 조건이 아닌 빠른 찾기(조회 단추 없음)
+  assert.equal(run('m-x/pages/a/page.tsx', `${imp}export default function P() { return <Input placeholder="테이블 검색" value="" onChange={f} />; }`).length, 0);
+  // SearchArea 를 쓰는 화면
+  assert.equal(run('m-x/pages/a/page.tsx', `${own}\nconst x = <SearchArea onSearch={s} />;`).length, 0);
+  // 대화 상자(팝업) 파일·화면 밖 경로·시험 파일
+  assert.equal(run('m-x/pages/a/FooPopup.tsx', own).length, 0);
+  assert.equal(run('m-x/lib/a.tsx', own).length, 0);
+  assert.equal(run('m-x/pages/a/page.test.tsx', own).length, 0);
+});

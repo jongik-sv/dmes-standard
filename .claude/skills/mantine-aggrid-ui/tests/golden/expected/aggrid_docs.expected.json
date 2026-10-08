@@ -1238,7 +1238,7 @@
   "pyre": {
     "patterns": 45,
     "matches": 4845,
-    "sha": "4a73c28bb34ed12c"
+    "sha": "3a8586b091dd1d79"
   },
   "fuzz": [
     {
