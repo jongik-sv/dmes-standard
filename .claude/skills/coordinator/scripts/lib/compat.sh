@@ -33,6 +33,8 @@
 
 [ -z "${_COMPAT_LOADED:-}" ] || return 0
 _COMPAT_LOADED=1
+_compat_d="${BASH_SOURCE[0]%/*}"; [ "$_compat_d" != "${BASH_SOURCE[0]}" ] || _compat_d=.
+. "$_compat_d/js-bridge.sh"   # COORD_JS_COMPAT=1 이면 아래 함수를 scripts/lib/compat.mjs(node)로 넘긴다(기본 꺼짐)
 
 case "${COMPAT_FORCE_OS:-}" in
   windows) COMPAT_WIN=1 ;;
@@ -61,26 +63,26 @@ case "${COMPAT_FORCE_USERLAND:-}" in
     esac ;;
 esac
 
-compat_stat_mtime() {
+compat_stat_mtime() { if _jsb_on COMPAT; then _jsb_call compat compat_stat_mtime "$@"; return; fi;
   if [ "$COMPAT_GNU" = 1 ]; then stat -c %Y "$1" 2>/dev/null; else stat -f %m "$1" 2>/dev/null; fi
 }
-compat_stat_mode() {
+compat_stat_mode() { if _jsb_on COMPAT; then _jsb_call compat compat_stat_mode "$@"; return; fi;
   if [ "$COMPAT_GNU" = 1 ]; then stat -c %a "$1" 2>/dev/null; else stat -f %Lp "$1" 2>/dev/null; fi
 }
 
-compat_stat_info() {  # <파일> → `<소유 uid> <8진 권한> <mtime> <크기>` 한 줄(못 읽으면 rc 1)
+compat_stat_info() { if _jsb_on COMPAT; then _jsb_call compat compat_stat_info "$@"; return; fi;  # <파일> → `<소유 uid> <8진 권한> <mtime> <크기>` 한 줄(못 읽으면 rc 1)
   local o
   if [ "$COMPAT_GNU" = 1 ]; then o="$(stat -c '%u %a %Y %s' "$1" 2>/dev/null)"; else o="$(stat -f '%u %Lp %m %z' "$1" 2>/dev/null)"; fi
   case "$o" in *[!0-9\ ]*|'') return 1 ;; esac
   printf '%s' "$o"
 }
 
-compat_epoch_fmt() {  # <epoch> <형식(+ 없이)> [-u]
+compat_epoch_fmt() { if _jsb_on COMPAT; then _jsb_call compat compat_epoch_fmt "$@"; return; fi;  # <epoch> <형식(+ 없이)> [-u]
   local e="$1" f="$2" u=""
   [ "${3:-}" = -u ] && u="-u"
   if [ "$COMPAT_GNU" = 1 ]; then date $u -d "@$e" "+$f" 2>/dev/null; else date $u -r "$e" "+$f" 2>/dev/null; fi
 }
-compat_touch_ago() {  # <초> <파일>
+compat_touch_ago() { if _jsb_on COMPAT; then _jsb_call compat compat_touch_ago "$@"; return; fi;  # <초> <파일>
   # 형식화와 touch 를 같은 시간대(UTC)로 맞춘다(서머타임 겹침 구간에서 1시간 어긋나지 않게)
   local t; t="$(TZ=UTC compat_epoch_fmt $(( $(date +%s) - $1 )) %Y%m%d%H%M.%S)" || return 1
   [ -n "$t" ] && TZ=UTC touch -t "$t" "$2"
@@ -104,18 +106,18 @@ _compat_proc_scan() {  # <1=args 포함 | 0=pid ppid 만>
     fi
   done
 }
-compat_ps_table() {
+compat_ps_table() { if _jsb_on COMPAT; then _jsb_call compat compat_ps_table "$@"; return; fi;
   if [ "$COMPAT_WIN" = 1 ]; then _compat_proc_scan 1; else ps -axo pid=,ppid=,args= 2>/dev/null; fi
 }
-compat_ps_pairs() {
+compat_ps_pairs() { if _jsb_on COMPAT; then _jsb_call compat compat_ps_pairs "$@"; return; fi;
   if [ "$COMPAT_WIN" = 1 ]; then _compat_proc_scan 0; else ps -axo pid=,ppid= 2>/dev/null; fi
 }
 
-compat_ps_pidargs() {  # 한 줄에 `pid args`(ppid 없음)
+compat_ps_pidargs() { if _jsb_on COMPAT; then _jsb_call compat compat_ps_pidargs "$@"; return; fi;  # 한 줄에 `pid args`(ppid 없음)
   if [ "$COMPAT_WIN" = 1 ]; then _compat_proc_scan 1 | sed -E 's/^([0-9]+) [0-9]+/\1/'; else ps -axo pid=,args= 2>/dev/null; fi
 }
 
-compat_proc_cwds() {  # pid 콤마 목록 → 한 줄에 `<pid>\t<cwd>`(lsof 가 있으면 한 번에, 없으면 /proc)
+compat_proc_cwds() { if _jsb_on COMPAT; then _jsb_call compat compat_proc_cwds "$@"; return; fi;  # pid 콤마 목록 → 한 줄에 `<pid>\t<cwd>`(lsof 가 있으면 한 번에, 없으면 /proc)
   local root="${COMPAT_PROC_ROOT:-/proc}" p c
   [ -n "${1:-}" ] || return 0
   if [ ! -e "$root/self/cwd" ] && command -v lsof >/dev/null 2>&1; then
@@ -128,11 +130,11 @@ compat_proc_cwds() {  # pid 콤마 목록 → 한 줄에 `<pid>\t<cwd>`(lsof 가
 }
 
 # 프로세스 그룹(시험 정리용): 그룹 전체에 KILL·생존 확인. `kill -- -<pgid>` 는 macOS·Git Bash 모두 내장이다.
-compat_kill_pgroup() { _compat_pid_ok "${1:-}" && kill -KILL -- "-$1" 2>/dev/null; return 0; }
+compat_kill_pgroup() { if _jsb_on COMPAT; then _jsb_call compat compat_kill_pgroup "$@"; return; fi; _compat_pid_ok "${1:-}" && kill -KILL -- "-$1" 2>/dev/null; return 0; }
 # 주의(Git Bash): 네이티브 Windows pid 가 리더인 그룹(node detached 등)은 MSYS 의 kill 이 알지 못해 늘 「없음」으로 나온다 — MSYS 가 만든 그룹에만 유효하다.
-compat_pgroup_alive() { _compat_pid_ok "${1:-}" && kill -0 -- "-$1" 2>/dev/null; }
+compat_pgroup_alive() { if _jsb_on COMPAT; then _jsb_call compat compat_pgroup_alive "$@"; return; fi; _compat_pid_ok "${1:-}" && kill -0 -- "-$1" 2>/dev/null; }
 
-compat_descendants() {  # 깊은 쪽부터(후위 순회) — 부모를 죽여도 자식을 잃지 않게 후손부터 보낼 수 있다
+compat_descendants() { if _jsb_on COMPAT; then _jsb_call compat compat_descendants "$@"; return; fi;  # 깊은 쪽부터(후위 순회) — 부모를 죽여도 자식을 잃지 않게 후손부터 보낼 수 있다
   [ -n "${1:-}" ] || return 0
   compat_ps_pairs | awk -v root="$1" '
     { kids[$2] = kids[$2] " " $1 }
@@ -144,7 +146,7 @@ compat_descendants() {  # 깊은 쪽부터(후위 순회) — 부모를 죽여�
 }
 # 신호를 보내도 되는 pid 인가(2 이상의 정수만 — 0·1·-1 은 프로세스 그룹·전체에 가므로 절대 보내지 않는다)
 _compat_pid_ok() { case "${1:-}" in ''|*[!0-9]*|0|1) return 1 ;; esac; return 0; }
-compat_kill_tree() {
+compat_kill_tree() { if _jsb_on COMPAT; then _jsb_call compat compat_kill_tree "$@"; return; fi;
   local all p
   all="$(compat_descendants "$1"; echo "$1")"
   for p in $all; do _compat_pid_ok "$p" && kill -TERM "$p" 2>/dev/null; done
@@ -173,22 +175,22 @@ _compat_pgrep() {
       }
     }'
 }
-compat_pgrep_f() { _compat_pgrep f "${1:-}"; }
+compat_pgrep_f() { if _jsb_on COMPAT; then _jsb_call compat compat_pgrep_f "$@"; return; fi; _compat_pgrep f "${1:-}"; }
 # 고정 문자열 판(정규식 아님): 임시 폴더 경로처럼 공백·`(`·`+` 가 들어 있을 수 있는 값은 이쪽을 쓴다.
-compat_pgrep_s() { _compat_pgrep s "${1:-}"; }
-compat_pkill_s() {
+compat_pgrep_s() { if _jsb_on COMPAT; then _jsb_call compat compat_pgrep_s "$@"; return; fi; _compat_pgrep s "${1:-}"; }
+compat_pkill_s() { if _jsb_on COMPAT; then _jsb_call compat compat_pkill_s "$@"; return; fi;
   local p
   for p in $(compat_pgrep_s "$1"); do _compat_pid_ok "$p" && kill -TERM "$p" 2>/dev/null; done
   return 0
 }
-compat_pkill_f() {
+compat_pkill_f() { if _jsb_on COMPAT; then _jsb_call compat compat_pkill_f "$@"; return; fi;
   local p
   for p in $(compat_pgrep_f "$1"); do _compat_pid_ok "$p" && kill -TERM "$p" 2>/dev/null; done
   return 0
 }
 
 # Git Bash 의 경로 꼴 맞춤: C:\x·C:/x → /c/x(cygpath 가 있을 때). 그 밖의 OS·cygpath 없음이면 그대로.
-compat_posix_path() {
+compat_posix_path() { if _jsb_on COMPAT; then _jsb_call compat compat_posix_path "$@"; return; fi;
   local o
   if [ "$COMPAT_WIN" = 1 ] && command -v cygpath >/dev/null 2>&1 && o="$(cygpath -u "$1" 2>/dev/null)" && [ -n "$o" ]; then printf '%s' "$o"; else printf '%s' "$1"; fi
 }
@@ -196,7 +198,7 @@ compat_posix_path() {
 # 경로 비교용 정규형. Git Bash 에서 `C:\x`·`C:/x`·`/cygdrive/c/x` 를 모두 `/c/x` 꼴로 맞추고 끝 `/` 를 뗀다.
 # 비교용 값이라 경로 전체를 소문자로 맞춘다(NTFS 는 대소문자 무시). 이 값으로 파일을 열지 않는다. 그 밖의 OS 는 입력을 그대로 낸다(macOS 동작 불변).
 _COMPAT_BASH4=0; [ "${BASH_VERSINFO[0]:-3}" -ge 4 ] && _COMPAT_BASH4=1   # bash 4+ 는 ${p,,}, 3.2 는 tr
-compat_norm_path() {
+compat_norm_path() { if _jsb_on COMPAT; then _jsb_call compat compat_norm_path "$@"; return; fi;
   local p="$1"
   [ "$COMPAT_WIN" = 1 ] || { printf '%s' "$p"; return 0; }
   p="${p//\\//}"
@@ -210,12 +212,12 @@ compat_norm_path() {
   printf '%s' "$p"
 }
 # 네이티브 프로그램(orca 등)에 넘길 경로: Git Bash 에서 /c/x → C:/x(cygpath -m). cygpath 가 없거나 그 밖의 OS 는 그대로.
-compat_native_path() {
+compat_native_path() { if _jsb_on COMPAT; then _jsb_call compat compat_native_path "$@"; return; fi;
   local o
   if [ "$COMPAT_WIN" = 1 ] && command -v cygpath >/dev/null 2>&1 && o="$(cygpath -m "$1" 2>/dev/null)" && [ -n "$o" ]; then printf '%s' "$o"; else printf '%s' "$1"; fi
 }
 # 절대 경로인가(0). POSIX `/x` 는 어디서나, 윈도우에서는 `C:/x`·`C:\x`·`\\서버\공유` 도 절대 경로다.
-compat_is_abs_path() {
+compat_is_abs_path() { if _jsb_on COMPAT; then _jsb_call compat compat_is_abs_path "$@"; return; fi;
   case "${1:-}" in
     /*) return 0 ;;
     [A-Za-z]:[/\\]*|\\\\*) [ "$COMPAT_WIN" = 1 ] ;;
@@ -226,7 +228,7 @@ compat_is_abs_path() {
 # (전체에 걸면 node.exe 에 넘기는 /c/x 경로가 깨진다.) macOS·Linux 에서는 함수를 만들지 않는다.
 if [ "$COMPAT_WIN" = 1 ]; then orca() { MSYS2_ARG_CONV_EXCL='*' command orca "$@"; }; fi
 
-compat_pid_cwd() {
+compat_pid_cwd() { if _jsb_on COMPAT; then _jsb_call compat compat_pid_cwd "$@"; return; fi;
   local root="${COMPAT_PROC_ROOT:-/proc}" c=""
   [ -n "${1:-}" ] || return 0
   if [ -e "$root/$1/cwd" ] || [ -L "$root/$1/cwd" ]; then
@@ -238,7 +240,7 @@ compat_pid_cwd() {
   return 0
 }
 
-compat_pid_alive() {
+compat_pid_alive() { if _jsb_on COMPAT; then _jsb_call compat compat_pid_alive "$@"; return; fi;
   [ -n "${1:-}" ] && [ "$1" != 0 ] && [ "$1" != null ] || return 1
   kill -0 "$1" 2>/dev/null && return 0
   [ "$COMPAT_WIN" = 1 ] || return 1
@@ -250,7 +252,7 @@ compat_pid_alive() {
 
 # ---- 해시 ---------------------------------------------------------------------------------------------------------
 # openssl 우선(shasum 은 perl 이라 호출당 5배쯤 든다) → sha256sum(GNU·Git Bash) → shasum(macOS) → node(드문 경로).
-compat_sha256() {
+compat_sha256() { if _jsb_on COMPAT; then _jsb_call compat compat_sha256 "$@"; return; fi;
   local h
   if command -v openssl >/dev/null 2>&1; then h="$(openssl dgst -sha256 -r 2>/dev/null)" || return 1
   elif command -v sha256sum >/dev/null 2>&1; then h="$(sha256sum 2>/dev/null)" || return 1
