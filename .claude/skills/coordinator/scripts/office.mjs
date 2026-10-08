@@ -24,15 +24,19 @@ const SCRIPTS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SH_FILE = path.join(SCRIPTS_DIR, 'office.sh');
 const IS_WIN = process.platform === 'win32';
 
-/** bash 판 REDACT_OK 와 같은 판정: lib/console-redact.sh 가 읽히고 console_redact_text 가 동작하는가(프로세스당 한 번만 bash 로 확인). bash 가 없으면 통과로 본다. */
-let redactShState = null;
-function redactShOk() {
-  if (redactShState !== null) return redactShState;
-  const f = path.join(SCRIPTS_DIR, 'lib', 'console-redact.sh');
-  if (!isFile(f)) return (redactShState = false);
-  const r = spawnSync('bash', ['-c', '. "$1" 2>/dev/null && declare -F console_redact_text >/dev/null && printf "a\\n" | console_redact_text >/dev/null 2>&1', 'x', f], { stdio: 'ignore', windowsHide: true, timeout: 10000 });
-  return (redactShState = r.error ? true : r.status === 0);
+/**
+ * bash 판 REDACT_OK 와 같은 판정(실패 시 닫힘): lib/console-redact.sh 가 읽히고 console_redact_text 가 동작하는가.
+ * bash 가 있으면 한 번만 확인하고, bash 가 없으면(윈도우 등) console-redact.mjs 로 같은 확인을 하며, 그것도 안 되면 실패로 본다.
+ * 확인 수단은 시험에서 바꿔 끼울 수 있다(spawn·redact).
+ */
+export function redactCheck(file = path.join(SCRIPTS_DIR, 'lib', 'console-redact.sh'), spawn = spawnSync, redact = redactText) {
+  if (!isFile(file)) return false;
+  const r = spawn('bash', ['-c', '. "$1" 2>/dev/null && declare -F console_redact_text >/dev/null && printf "a\\n" | console_redact_text >/dev/null 2>&1', 'x', file], { stdio: 'ignore', windowsHide: true, timeout: 10000 });
+  if (!r.error) return r.status === 0;
+  try { return redact(Buffer.from('a\n', 'utf8')).rc === 0; } catch { return false; }
 }
+let redactShState = null;
+const redactShOk = () => (redactShState ??= redactCheck());
 
 const OFFICE_TIMEOUT_S = 5;
 const KEY_MAX = 120;

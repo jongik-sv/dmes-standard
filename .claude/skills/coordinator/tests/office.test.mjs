@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { COORD_ROOT, makeRng } from './js-parity/lib.mjs';
-import { epochOf, isotz, ctlSp, ctlDel, strN, rng, u16, trunc16, slug, leadKey, laneKey, maskPaths, sha256Hex, laneSum, inreq, inreqActive, lbl, readTab } from '../scripts/office.mjs';
+import { epochOf, isotz, ctlSp, ctlDel, strN, rng, u16, trunc16, slug, leadKey, laneKey, maskPaths, sha256Hex, laneSum, inreq, inreqActive, lbl, readTab, redactCheck } from '../scripts/office.mjs';
 import { parse, tojson } from '../scripts/lib/jq-json.mjs';
 
 const HAS_JQ = spawnSync('jq', ['--version'], { stdio: 'ignore' }).status === 0;
@@ -129,4 +129,26 @@ test('readTab: bash IFS=탭 read 처럼 빈 칸을 합치고 마지막 변수가
     const r = spawnSync('bash', ['-c', script, 'x', f.join('\t')], { encoding: 'utf8' });
     assert.deepEqual(readTab(f, n), r.stdout.split('\0').slice(0, n), JSON.stringify([f, n]));
   }
+});
+
+test('redactCheck: bash 가 없으면 JS 가림으로 확인하고, 그것도 안 되면 실패(닫힘)로 본다', () => {
+  const file = join(COORD_ROOT, 'scripts', 'lib', 'console-redact.sh');
+  const noBash = () => ({ error: Object.assign(new Error('spawn bash ENOENT'), { code: 'ENOENT' }) });
+  assert.equal(redactCheck(file, noBash), true, 'bash 없음 + JS 가림 정상 → 통과');
+  assert.equal(redactCheck(file, noBash, () => { throw new Error('boom'); }), false, 'bash 없음 + JS 가림 예외 → 닫힘');
+  assert.equal(redactCheck(file, noBash, () => ({ rc: 71 })), false, 'bash 없음 + JS 가림 rc≠0 → 닫힘');
+  assert.equal(redactCheck(file, () => ({ status: 71 })), false, 'bash 가 실패를 돌려주면 닫힘');
+  assert.equal(redactCheck(file, () => ({ status: 0 })), true);
+  assert.equal(redactCheck(join(COORD_ROOT, 'scripts', 'lib', 'nope.sh'), noBash), false, 'sh 라이브러리가 없으면 닫힘');
+  if (HAS_BASH) assert.equal(redactCheck(file), true, '진짜 bash 로 확인');
+});
+
+test('redactCheck: bash 가 PATH 에 없는 프로세스에서도 JS 가림이 통과하고 비밀을 가린다', () => {
+  const empty = mkdtempSync(join(tmpdir(), 'nobash-'));
+  try {
+    const lib = join(COORD_ROOT, 'scripts', 'lib', 'console-redact.mjs').replace(/\\/g, '/');
+    const code = `import('${join(COORD_ROOT, 'scripts', 'office.mjs').replace(/\\/g, '/')}').then(async (m) => { const { redactText } = await import('${lib}'); console.log(m.redactCheck(), redactText(Buffer.from('password=hunter2xyz\\n')).out.toString().includes('hunter2')); });`;
+    const r = spawnSync(process.execPath, ['-e', code], { env: { PATH: empty, HOME: empty }, encoding: 'utf8' });
+    assert.equal(r.stdout.trim(), 'true false', r.stderr);
+  } finally { rmSync(empty, { recursive: true, force: true }); }
 });
