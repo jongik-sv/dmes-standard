@@ -38,6 +38,7 @@ export default defineConfig([
   {
     entry: {
       "pages/anl/logViewer": "pages/anl/logViewer.tsx",
+      "pages/anl/dbViewer": "pages/anl/dbViewer.tsx",
     },
     format: ["esm"],
     target: "es2022",

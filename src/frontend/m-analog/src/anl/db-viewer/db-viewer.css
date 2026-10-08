@@ -1,0 +1,313 @@
+/**
+ * DB 뷰어 (anl/dbViewer) 화면 전용 스타일 — .anl-db-viewer(PageLayout className)로 스코프.
+ * 분할·패널·그리드 머리줄 모습은 shared(PageLayout·ContentBody·GridPanel)가 맡고,
+ * 여기서는 트리·SQL 패널 안쪽과 접힌 사이드바 막대만 그린다. 색은 의미 토큰만 쓴다.
+ */
+
+/* ── 패널 공통: GridPanel 머리줄과 같은 높이·바탕의 머리 + 남은 높이를 채우는 본문 ── */
+.anl-db-viewer .anl-db-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.anl-db-viewer .anl-db-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 8px 0 10px;
+  flex-shrink: 0;
+  background-color: var(--color-bg-header);
+  border-bottom: 1px solid var(--color-border);
+  min-width: 0;
+}
+
+.anl-db-viewer .anl-db-panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.anl-db-viewer .anl-db-panel-count {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 9px;
+  background-color: var(--color-bg-grid-header);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.anl-db-viewer .anl-db-panel-hint {
+  margin-left: auto;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.anl-db-viewer .anl-db-panel-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 12px;
+  text-align: center;
+}
+
+.anl-db-viewer .anl-db-error-text {
+  color: var(--color-danger);
+  word-break: break-all;
+}
+
+/* ── 왼쪽 트리 ── */
+.anl-db-viewer .anl-db-tree {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.anl-db-viewer .anl-db-tree-search {
+  padding: 8px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.anl-db-viewer .anl-db-tree-search input {
+  width: 100%;
+}
+
+.anl-db-viewer .anl-db-tree-list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+}
+
+.anl-db-viewer .anl-db-tree-list ul {
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0;
+}
+
+.anl-db-viewer .anl-db-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 26px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-md);
+  text-align: left;
+  cursor: pointer;
+}
+
+.anl-db-viewer .anl-db-tree-row:hover {
+  background-color: var(--color-bg-hover);
+}
+
+.anl-db-viewer .anl-db-tree-row:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.anl-db-viewer .anl-db-tree-row--schema {
+  font-weight: 600;
+}
+
+/* 테이블 행은 화살표 폭(12px)+간격만큼 들여 스키마 아이콘 아래에 맞춘다. */
+.anl-db-viewer .anl-db-tree-row--table {
+  padding-left: 24px;
+  color: var(--color-text-secondary);
+}
+
+.anl-db-viewer .anl-db-tree-row--table.is-active,
+.anl-db-viewer .anl-db-tree-row--table.is-active:hover {
+  background-color: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.anl-db-viewer .anl-db-tree-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-text-muted-light);
+}
+
+.anl-db-viewer .anl-db-tree-row--schema .anl-db-tree-icon,
+.anl-db-viewer .anl-db-tree-row.is-active .anl-db-tree-icon {
+  color: var(--color-primary);
+}
+
+.anl-db-viewer .anl-db-chevron {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: transform var(--transition-fast);
+}
+
+.anl-db-viewer .anl-db-chevron--open {
+  transform: rotate(90deg);
+}
+
+.anl-db-viewer .anl-db-tree-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.anl-db-viewer .anl-db-tree-name mark {
+  background-color: var(--color-warning-soft, var(--color-primary-soft-hover));
+  color: inherit;
+  border-radius: 2px;
+}
+
+.anl-db-viewer .anl-db-tree-count {
+  flex-shrink: 0;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--color-text-muted-light);
+  font-variant-numeric: tabular-nums;
+}
+
+.anl-db-viewer .anl-db-tree-empty {
+  padding: 16px 8px;
+  text-align: center;
+  color: var(--color-text-muted-light);
+}
+
+/* ── 가운데 SQL 패널 ── */
+.anl-db-viewer .anl-db-chip {
+  max-width: 50%;
+  padding: 1px 8px;
+  border-radius: 9px;
+  background-color: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.anl-db-viewer .anl-db-sql-body {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.anl-db-viewer .anl-db-sql-host {
+  position: absolute;
+  inset: 0;
+}
+
+.anl-db-viewer .anl-db-elapsed {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 오른쪽 컬럼 속성 ── */
+.anl-db-viewer .anl-db-props-table {
+  min-width: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.anl-db-viewer .anl-db-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.anl-db-viewer .anl-db-icon-btn:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+/* 접힌 사이드바 — 세로 막대. 누르면 다시 펼친다. */
+.anl-db-viewer .anl-db-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 30px;
+  padding: 8px 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg);
+  color: var(--color-text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.anl-db-viewer .anl-db-rail:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-primary);
+}
+
+.anl-db-viewer .anl-db-rail-text {
+  writing-mode: vertical-rl;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  letter-spacing: 2px;
+}
+
+/* 컬럼 속성의 PK·FK 배지 */
+.anl-db-viewer .anl-db-keys {
+  display: inline-flex;
+  gap: 3px;
+  vertical-align: middle;
+}
+
+.anl-db-viewer .anl-db-key {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.3px;
+}
+
+.anl-db-viewer .anl-db-key--pk {
+  background-color: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.anl-db-viewer .anl-db-key--fk {
+  background-color: var(--color-primary-soft);
+  color: var(--color-primary);
+  cursor: help;
+}

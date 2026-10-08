@@ -81,6 +81,11 @@ const ANALOG_STATIC_PAGES: Record<string, () => Promise<{ default: unknown }>> =
       import("@dk-oasis/m-analog/pages/anl/logViewer"),
       import("@dk-oasis/m-analog/pages/anl/logViewer.css"),
     ]).then(([pageModule]) => pageModule),
+  "anl/dbViewer": () =>
+    Promise.all([
+      import("@dk-oasis/m-analog/pages/anl/dbViewer"),
+      import("@dk-oasis/m-analog/pages/anl/dbViewer.css"),
+    ]).then(([pageModule]) => pageModule),
 };
 const analogDirectPackageLoader = createSafePageLoader(async (pageName) => {
   const loader = ANALOG_STATIC_PAGES[pageName];
