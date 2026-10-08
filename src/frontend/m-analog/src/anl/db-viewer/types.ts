@@ -32,6 +32,12 @@ export interface DbQueryResult {
   rowIdKey: string | null;
   /** LOB 칸 이름 → 데이터 형식. 셀 값은 서버가 이미 요약해 보낸다. */
   lobColumns: Record<string, DbLobType>;
+  /** 이 묶음 뒤에 읽을 행이 더 있는지 — 서버가 상한보다 한 건 더 읽어 판정한다. */
+  hasMore?: boolean;
+  /** 더 있는데 이어 볼 수 없는 사유(정렬 기준 ROWID·기본키가 없음). 없으면 null. */
+  moreBlocked?: string | null;
+  /** 한 결과의 전체 행 수 상한(analog.db.max-rows-all)에 걸려 멈췄는지. */
+  capReached?: boolean;
 }
 
 export interface DbLobRequest {
@@ -68,4 +74,7 @@ export interface DbQueryRequest {
   table?: string;
   columns?: string[];
   limit?: number;
+  /** 「더보기」 묶음 — sql 과 함께 보내면 서버가 정렬을 고정해 offset 번째 행부터 한 묶음을 읽는다. */
+  offset?: number;
+  chunk?: number;
 }

@@ -11,6 +11,9 @@
  *   키보드로 빠르게 훑을 때는 마지막 선택만 조회하고(SELECT_DEBOUNCE_MS), 늦게 도착한 이전 응답은 버린다.
  *   조회 결과 제목 옆 칩이 지금 결과의 출처(테이블 또는 직접 실행)를 보인다.
  *   건수 제한(MAX_ROWS)은 서버가 DB 단계(FETCH FIRST + setMaxRows)에서 건다.
+ * - 결과가 상한에 걸려 잘렸으면(서버 hasMore) 「더보기」 단추로 끝까지(서버 전체 상한까지) 묶음 단위로 이어 붙인다.
+ *   묶음 사이 순서를 고정하려고 서버가 ROWID·기본키로 정렬하므로 첫 묶음부터 다시 읽어 그리드를 그 순서로 바꾼다.
+ *   테이블을 바꾸거나 새로 실행하면 진행 중인 더보기는 멈춘다(요청 순번).
  * - shared 컴포넌트만 사용 (AgDataGrid, form, layout). ag-grid·Mantine 직접 import 금지.
  * - 결과 0건이어도 그리드를 유지한다 (성능 가이드 R6).
  * - LOB 칸은 서버 요약 글자 + 「보기」 단추로 그리고, 단추를 누르면 그 한 칸만 다시 읽어 상세 창에 보인다.
@@ -95,6 +98,11 @@ function errText(err: unknown): string {
   return err instanceof Error ? err.message : "요청이 실패했습니다.";
 }
 
+/** 건수 글 — 만 단위로 떨어지면 「3만 건」, 아니면 쉼표 숫자. */
+function countText(n: number): string {
+  return n % 10000 === 0 ? `${n / 10000}만 건` : `${n.toLocaleString("ko-KR")}건`;
+}
+
 /** VARCHAR2 → VARCHAR2(100) 처럼 길이를 붙인 표시용 타입. 길이가 의미 없는 타입은 그대로 둔다. */
 function typeText(col: DbColumnInfo): string {
   const lengthTypes = ["CHAR", "NCHAR", "VARCHAR2", "NVARCHAR2", "RAW"];
@@ -176,6 +184,8 @@ export function AnalogDbViewer() {
   /** 테이블 결과가 바뀔 때마다 올려 그리드를 새로 만든다 — 이전 테이블의 정렬·스크롤·열 너비가 남지 않게 한다. */
   const [gridEpoch, setGridEpoch] = useState(0);
   const [running, setRunning] = useState(false);
+  /** 「더보기」 진행 중이면 지금까지 불러온 행 수, 아니면 null. */
+  const [moreCount, setMoreCount] = useState<number | null>(null);
   const [lobTarget, setLobTarget] = useState<LobTarget | null>(null);
 
   useEffect(() => {
@@ -231,6 +241,8 @@ export function AnalogDbViewer() {
   const selectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** 마지막으로 고른 테이블의 기본 SQL — 편집창이 그대로면 직접 실행이 아니라 그 테이블 결과로 본다. */
   const tableSqlRef = useRef<{ key: string; sql: string } | null>(null);
+  /** 지금 그리드에 보이는 결과를 만든 SQL — 「더보기」는 편집창이 아니라 이 SQL 로 이어 읽는다. */
+  const resultSqlRef = useRef("");
 
   useEffect(
     () => () => {
@@ -248,14 +260,16 @@ export function AnalogDbViewer() {
       const ticket = querySeqRef.current.next();
       runningRef.current = true;
       setRunning(true);
+      setMoreCount(null);
       try {
         const queryResult = await runQuery({ sql });
         if (!querySeqRef.current.isLatest(ticket)) return;
+        resultSqlRef.current = sql;
         setResult(queryResult);
         setResultTableKey(tableKey);
         if (auto) setGridEpoch((prev) => prev + 1);
-        if (queryResult.rowCount >= MAX_ROWS) {
-          gfn(`최대 ${MAX_ROWS}건까지만 표시합니다.`, "", "", "toast");
+        if (queryResult.hasMore && queryResult.moreBlocked) {
+          gfn(queryResult.moreBlocked, "", "", "toast");
         }
       } catch (err) {
         if (querySeqRef.current.isLatest(ticket)) {
@@ -326,6 +340,43 @@ export function AnalogDbViewer() {
       fromTable && fromTable.sql === sql ? fromTable.key : null,
     );
   }, [execute, gfn]);
+
+  /**
+   * 「더보기」 — 지금 결과를 만든 SQL 을 서버 묶음 단위로 끝까지 이어 읽는다.
+   * 서버가 묶음마다 같은 정렬(ROWID·기본키)로 자르므로 첫 묶음(offset 0)부터 읽어 그리드를 그 순서로 채운다.
+   * 새 조회·테이블 선택이 요청 순번을 올리면 다음 응답부터 버리고 멈춘다.
+   */
+  const loadMore = useCallback(async () => {
+    const sql = resultSqlRef.current;
+    if (sql === "" || runningRef.current) return;
+    const ticket = querySeqRef.current.next();
+    const rows: Record<string, unknown>[] = [];
+    setMoreCount(0);
+    try {
+      for (;;) {
+        const part = await runQuery({ sql, offset: rows.length });
+        if (!querySeqRef.current.isLatest(ticket)) return;
+        for (const row of part.rows) rows.push(row);
+        setResult({ ...part, rows: [...rows], rowCount: rows.length });
+        setMoreCount(rows.length);
+        if (part.capReached) {
+          gfn(
+            `${countText(rows.length)}까지만 볼 수 있습니다. WHERE 로 좁혀 주세요.`,
+            "",
+            "",
+            "warning",
+          );
+        }
+        if (!part.hasMore || part.rows.length === 0) break;
+      }
+    } catch (err) {
+      if (querySeqRef.current.isLatest(ticket)) {
+        gfn(errText(err), "", "", "warning");
+      }
+    } finally {
+      if (querySeqRef.current.isLatest(ticket)) setMoreCount(null);
+    }
+  }, [gfn]);
 
   const runFromEditor = useCallback(() => void handleRun(), [handleRun]);
 
@@ -568,6 +619,21 @@ export function AnalogDbViewer() {
             <GridPanel
               title="조회 결과"
               count={result?.rowCount ?? 0}
+              headerExtra={
+                moreCount !== null ? (
+                  <span className="anl-db-elapsed" role="status">
+                    불러오는 중 {moreCount.toLocaleString("ko-KR")}건
+                  </span>
+                ) : result?.hasMore && !result.moreBlocked ? (
+                  <Button variant="default" onClick={() => void loadMore()}>
+                    더보기
+                  </Button>
+                ) : result?.capReached ? (
+                  <span className="anl-db-elapsed">
+                    {countText(result.rowCount)}까지만 볼 수 있습니다
+                  </span>
+                ) : undefined
+              }
               titleExtra={
                 result ? (
                   <>
