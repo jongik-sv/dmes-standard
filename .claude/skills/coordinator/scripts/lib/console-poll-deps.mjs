@@ -69,7 +69,7 @@ const consumedFile = (env, name) => `${consoleDir(env)}/input/consumed/${name}.l
 const consumedFullFile = (env, name) => `${consoleDir(env)}/input/consumed/${name}.full`;
 function listAdd(file, since, value, pid) {
   try {
-    mkdirp(dirname(file));
+    if (!isDir(dirname(file))) mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
     const nw = `${since} ${value}`;
     const ls = [];
     if (isFile(file)) {

@@ -600,7 +600,7 @@ mkdir -p "$tmp/badbin"; REAL_DATE="$(command -v date)"
 printf '#!/bin/sh\nfor a in "$@"; do case "$a" in *%%N*|*T%%H:%%M:%%S*) echo garbage; exit 0 ;; esac; done\nexec "%s" "$@"\n' "$REAL_DATE" > "$tmp/badbin/date"
 printf '#!/bin/sh\necho garbage\n' > "$tmp/badbin/node"; chmod +x "$tmp/badbin/date" "$tmp/badbin/node"
 mkkey2 73 "$FUT"
-PATH="$tmp/badbin:$PATH" COORD_JS_COMMON=0 once   # 가짜 node 가 garbage 를 내므로 bash 판 시간 경로를 보는 이 시험은 스위치를 끈다(켬에서는 node 판이 실패 코드로 끝나는 계약 — js-parity)
+PATH="$tmp/badbin:$PATH" COORD_JS_COMMON=0 COORD_JS_CONSOLE_POLL=0 once   # 가짜 node 가 garbage 를 내므로 bash 판 시간 경로를 보는 이 시험은 스위치를 끈다(켬에서는 node 판이 실패 코드로 끝나는 계약 — js-parity). 폴러 자체도 node 가 아닌 bash 판으로 돌린다
 eq "키 행: 지금 시각이 숫자가 아니면 refused error·send 0" "$(ackof 73):$(sends)" "tok-KEY-073 refused --reason error:0"
 
 # =================================================================================================
