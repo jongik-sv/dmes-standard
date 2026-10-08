@@ -31,6 +31,7 @@ export default {
 };
 ```
 - `gen(rng, i)` → 사례 `{args, stdin, files, env}`. `files` 는 사례마다 새로 만든 작업 폴더(상대 경로) 또는 `home/…`(= HOME)에 둘 파일이고 `{data, mode}` 도 된다. 하니스가 HOME·TMPDIR·작업 폴더를 사례마다 새 임시 폴더로 바꾸고 TZ=UTC 로 둔다.
+- `fixed`: 기존 bash 시험(tests/*.sh)이 그 함수에 넣는 입력을 옮겨 둔 사례 배열(또는 비동기 함수). 무작위 사례와 별개로 **항상 전부** 돈다. 이것이 「골든 입력」이다 — 시험 파일의 `eq`·`chk` 한 줄을 사례 하나로 옮기고 `label` 에 시험 이름을 적는다.
 - `js` 는 CLI 인자 앞머리(보통 `[함수 이름]`). 다르게 부르려면 `jsArgs(c)`, bash 쪽 인자를 바꾸려면 `shArgs(c)`.
 - `globals` 는 함수가 설정해 호출자가 읽는 전역 변수 이름들(예: SC_STORED_KIND). 두 판 값이 같아야 한다.
 - `compareFiles: false` 는 파일 상태 비교를 끈다(기본은 작업 폴더·HOME 아래 모든 파일의 종류·권한·크기·sha1 비교, mtime 은 안 봄).

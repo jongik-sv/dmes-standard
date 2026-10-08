@@ -172,9 +172,17 @@ export async function runParity(spec, opts = {}) {
   for (const name of names) {
     const fnSpec = spec.functions[name];
     if (!fnSpec) throw new Error(`명세에 함수가 없다: ${spec.module}.${name} (있는 함수: ${Object.keys(spec.functions).join(', ')})`);
+    // 고정 사례(fnSpec.fixed: 배열 또는 비동기 함수) — 기존 bash 시험의 입력을 옮겨 둔 것. 무작위 사례보다 먼저, 항상 전부 돈다
+    const fixed = opts.index != null ? [] : typeof fnSpec.fixed === 'function' ? await fnSpec.fixed() : fnSpec.fixed || [];
     const n = opts.index != null ? 1 : cases;
-    const stat = { cases: n, diffs: 0 };
+    const stat = { cases: fixed.length + n, fixed: fixed.length, diffs: 0 };
     report.perFn[name] = stat;
+    await pool(fixed.length, jobs, async (k) => {
+      const c = fixed[k];
+      const d = await compareCase(spec, name, fnSpec, c, opts);
+      report.total++;
+      if (d) { stat.diffs++; if (report.diffs.length < maxReport) report.diffs.push(describeDiff(name, `fixed:${k}${c.label ? ` (${c.label})` : ''}`, c, d)); }
+    });
     await pool(n, jobs, async (k) => {
       const i = opts.index != null ? opts.index : k;
       const rng = makeRng(`${seed}:${spec.module}:${name}`, i);

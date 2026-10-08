@@ -9,7 +9,7 @@ export default {
   functions: {
     // 표본의 bash 본문은 $(…) 를 쓰므로 NUL 이 든 입력은 제외한다(하니스가 NUL 차이를 잡아낸 것을 확인함)
     smp_upper: { js: ['smp_upper'], gen: (rng, i) => { const c = gen('text')(rng, i); c.stdin = Buffer.from(c.stdin.filter((b) => b !== 0)); return c; } },
-    smp_pair: { js: ['smp_pair'], globals: ['SMP_A', 'SMP_B'], gen: (rng) => ({ args: [rng.pick(['', 'a', '한글', 'x y', 'ab\ncd']), rng.pick(['', 'zz', '값', "it's"])], stdin: '' }) },
+    smp_pair: { fixed: [{ label: '고정 사례 표본', args: ['ab', 'cde'], stdin: '' }], js: ['smp_pair'], globals: ['SMP_A', 'SMP_B'], gen: (rng) => ({ args: [rng.pick(['', 'a', '한글', 'x y', 'ab\ncd']), rng.pick(['', 'zz', '값', "it's"])], stdin: '' }) },
     smp_write: { js: ['smp_write'], gen: (rng) => ({ args: [rng.pick(['', 'a', 'dir/x', 'n1', '한']), ], stdin: '' }) },
   },
 };

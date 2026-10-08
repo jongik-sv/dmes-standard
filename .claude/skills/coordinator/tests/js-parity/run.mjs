@@ -20,7 +20,7 @@ let rep;
 try {
   rep = await runParity(spec, { functions: values.all ? [] : fns, cases: num(values.cases, 200), seed: values.seed ?? 20261009, jobs: num(values.jobs, 6), index: values.index == null ? undefined : Number(values.index), compareStderr: values.stderr, viaSwitch: values.switch, maxReport: num(values.max, 5) });
 } catch (e) { process.stderr.write(`${e.message}\n`); process.exit(2); }
-for (const [name, s] of Object.entries(rep.perFn)) process.stdout.write(`${s.diffs ? '✖' : '✔'} ${spec.module}.${name}: 사례 ${s.cases}건 · 차이 ${s.diffs}건\n`);
+for (const [name, s] of Object.entries(rep.perFn)) process.stdout.write(`${s.diffs ? '✖' : '✔'} ${spec.module}.${name}: 사례 ${s.cases}건${s.fixed ? `(고정 ${s.fixed})` : ''} · 차이 ${s.diffs}건\n`);
 const bad = Object.values(rep.perFn).reduce((a, s) => a + s.diffs, 0);
 process.stdout.write(`js-parity ${spec.module}: 총 ${rep.total}건 · 차이 ${bad}건 · ${((Date.now() - t0) / 1000).toFixed(1)}초\n`);
 for (const d of rep.diffs) process.stdout.write(d + '\n');
