@@ -42,7 +42,7 @@ export function ScheduleField({ value, onChange, kind }: { value: string; onChan
 }
 ```
 
-`onRequestPreview` 는 올바른 식이 400ms 멈추면 불린다. 식이 바뀌면 이전 `preview` 를 비워 다른 식의 설명이 남지 않게 한다. `preview.next` 는 화면에 보일 글자를 그대로 그리므로, 서버가 ISO 시각을 주면 `formatWithDow(new Date(iso))` 로 바꿔 넘긴다([Local-Rules §47](../../../../docs/guide/FrontEnd/Local-Rules.md)).
+`onRequestPreview` 는 올바른 식이 400ms 멈추면 불린다. 식이 바뀌면 이전 `preview` 를 비워 다른 식의 설명이 남지 않게 한다. `preview.next` 는 화면에 보일 글자를 그대로 그리므로, 서버가 ISO 시각을 주면 `formatWithDow(new Date(iso))` 로 바꿔 넘긴다([Local-Rules §48](../../../../docs/guide/FrontEnd/Local-Rules.md)).
 
 ## Props
 

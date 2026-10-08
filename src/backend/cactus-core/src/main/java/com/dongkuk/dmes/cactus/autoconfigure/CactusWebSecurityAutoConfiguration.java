@@ -15,6 +15,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.Ordered;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -31,15 +32,18 @@ import java.util.List;
  *
  * <p>등록 빈:
  * <ul>
- *     <li>{@link SecurityFilterChain} — default 매처 + TxId/RequestId/ClientKey/JWT 통합 필터.
+ *     <li>{@link SecurityFilterChain} — default 매처 + RequestId/ClientKey/JWT 통합 필터.
  *         소비 모듈이 자체 {@code SecurityFilterChain} 빈을 정의한 경우 등록되지 않음
  *         ({@code @ConditionalOnMissingBean}).</li>
  *     <li>{@link TxIdFilter} — cactus 표준 필터(항상 등록). MDC {@code txId}/{@code service_tag} 부여.
- *         체인 최상단(RequestIdFilter/ClientKeyFilter 보다 앞)에서 동작해야 ClientKey 401 short-circuit 응답 로그에도 txId 가 부여된다.</li>
+ *         보안 필터 체인 <b>바깥</b>의 servlet 필터로 등록한다
+ *         ({@code Ordered.HIGHEST_PRECEDENCE + 10}, Spring Security 필터 -100 보다 앞).
+ *         FilterChainProxy 의 "Securing ..." 로그와 ClientKey 401 등 보안 단계 거절 응답 로그에도 태그가 부여된다.
+ *         체인 안에는 등록하지 않는다.</li>
  *     <li>{@link RequestIdFilter} — cactus 표준 필터(항상 등록)</li>
  *     <li>{@link ClientKeyFilter} — {@code cactus.security.client-key} 가 정의된 경우만 등록</li>
- *     <li>각 필터의 {@link FilterRegistrationBean} ({@code setEnabled(false)}) — servlet 측
- *         자동 등록 차단(이중 등록 방지)</li>
+ *     <li>{@link TxIdFilter} 를 제외한 각 필터의 {@link FilterRegistrationBean} ({@code setEnabled(false)}) —
+ *         servlet 측 자동 등록 차단(이중 등록 방지)</li>
  * </ul>
  */
 @AutoConfiguration
@@ -50,10 +54,17 @@ import java.util.List;
 public class CactusWebSecurityAutoConfiguration {
 
     /**
+     * TxIdFilter 의 servlet 필터 순서. Spring Security 의 {@code springSecurityFilterChain}
+     * ({@code SecurityProperties.DEFAULT_FILTER_ORDER} = -100) 보다 앞서야 한다.
+     */
+    static final int TX_ID_FILTER_ORDER = Ordered.HIGHEST_PRECEDENCE + 10;
+
+    /**
      * TxId 필터 빈 (항상 등록).
      * MDC {@code txId} 8자리 임시 UUID 와 {@code service_tag} 4자리를 부여한다.
-     * SecurityFilterChain 최상단(RequestIdFilter/ClientKeyFilter 앞)에 배치해야
-     * ClientKey 검증 401 short-circuit 응답 로그에도 txId 가 정상 부여된다.
+     * 보안 필터 체인 바깥(servlet 필터, {@link #txIdFilterRegistration})에서 동작하므로
+     * FilterChainProxy 의 "Securing ..." 로그와 ClientKey 401 등 보안 단계 거절 응답 로그에도
+     * 태그가 부여된다.
      */
     @Bean
     @ConditionalOnMissingBean
@@ -87,13 +98,11 @@ public class CactusWebSecurityAutoConfiguration {
             HttpSecurity http,
             JwtTokenProvider tokenProvider,
             ObjectProvider<ClientKeyFilter> clientKeyFilterProvider,
-            RequestIdFilter requestIdFilter,
-            TxIdFilter txIdFilter) throws Exception {
+            RequestIdFilter requestIdFilter) throws Exception {
 
         JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(tokenProvider);
 
         // 필터 실행 순서를 명시 target 의 사슬로 보장:
-        //   txIdFilter → before requestIdFilter
         //   requestIdFilter → before (clientKey | jwtFilter)
         //   clientKeyFilter → before jwtFilter
         //   jwtFilter → before UsernamePasswordAuthenticationFilter
@@ -122,8 +131,7 @@ public class CactusWebSecurityAutoConfiguration {
             http.addFilterBefore(requestIdFilter, JwtAuthenticationFilter.class);
         }
 
-        // txId → before requestId
-        http.addFilterBefore(txIdFilter, RequestIdFilter.class);
+        // TxIdFilter 는 체인 안이 아니라 servlet 필터로 등록한다 (txIdFilterRegistration 참고).
 
         return http.build();
     }
@@ -159,13 +167,17 @@ public class CactusWebSecurityAutoConfiguration {
         return registration;
     }
 
-    /** servlet 컨테이너 측 자동 등록 차단 — TxIdFilter. */
+    /**
+     * TxIdFilter 를 보안 필터 체인(FilterChainProxy) 바깥의 servlet 필터로 등록한다.
+     * FilterChainProxy 는 체인을 시작하기 전에 "Securing POST ..." 로그를 남기므로,
+     * 그 앞에서 MDC 태그를 부여해야 해당 줄에도 service_tag 가 찍힌다.
+     */
     @Bean
     public FilterRegistrationBean<TxIdFilter> txIdFilterRegistration(
             TxIdFilter txIdFilter) {
         FilterRegistrationBean<TxIdFilter> registration =
                 new FilterRegistrationBean<>(txIdFilter);
-        registration.setEnabled(false);
+        registration.setOrder(TX_ID_FILTER_ORDER);
         return registration;
     }
 }

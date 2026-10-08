@@ -49,6 +49,9 @@
 #     8자 이상 hex 만이거나 두 종류 이상을 섞었으면 두 토막을 다 가린다. 앞 토막이 40자 이상이고 혼자 가려지면 다음 줄 첫 토막이
 #     [A-Za-z0-9+/_=-] 로만 되어 있고(숫자만은 제외) 뒤가 공백·줄 끝일 때 함께 가린다.
 #   잘린 꼬리: 2000바이트로 잘린 줄의 끝 [A-Za-z0-9+/_=.-] 연속이 12자 이상이거나 알려진 비밀 접두어로 시작하면 가린다.
+# 스위치: 환경 변수 COORD_JS_REDACT=1 이고 node 가 있으면 네 함수 모두 console-redact.mjs(node 판, 같은 규칙·같은 바이트)로 처리한다.
+#   node 는 이 파일을 source 할 때 `command -v node` 로 찾은 절대 경로를 쓴다(없으면 켜도 awk 판). 기본(꺼짐)은 이 파일의 awk·shell 판이다. 켜짐에서 node 판이 실패하면 awk 판으로 되돌아가지 않고 실패(비정상 종료·출력 없음)다.
+#   호출마다 node 를 새로 띄우므로 호출당 40ms 쯤 더 든다(조정자 폴러를 node 상주로 옮기기 전의 시험 연결용).
 # awk 는 LC_ALL=C 바이트 단위로 돌고 시작할 때 바이트 의미(sprintf %c 200 = 1바이트, "가" = 3바이트)를 확인해 아니면 실패한다.
 # 이 lib 의 awk 본문은 셸 작은따옴표 안에 있으므로 awk 코드·주석에 작은따옴표 글자를 쓰지 않는다(39 로 비교한다).
 
@@ -778,12 +781,33 @@ _console_awk() {
   printf '%s' "${_out%.}"
 }
 
-console_redact_text()   { _console_awk "$_CONSOLE_REDACT_AWK_TEXT"; }
-console_screen_filter() { _console_awk "$_CONSOLE_REDACT_AWK_SCREEN"; }
+# ---------- node 판 스위치 ----------
+_CONSOLE_REDACT_MJS="${BASH_SOURCE[0]}"
+case "$_CONSOLE_REDACT_MJS" in */*) _CONSOLE_REDACT_MJS="${_CONSOLE_REDACT_MJS%/*}/console-redact.mjs" ;; *) _CONSOLE_REDACT_MJS="./console-redact.mjs" ;; esac
+case "$_CONSOLE_REDACT_MJS" in /*|?:*) ;; *) _CONSOLE_REDACT_MJS="$PWD/$_CONSOLE_REDACT_MJS" ;; esac   # 이후 cd 해도 같은 경로
+# 켜짐이면 0. 윈도우(Git Bash)의 node 는 /c/x 꼴을 못 읽으므로 cygpath -m 으로 C:/x 꼴을 쓴다
+_CONSOLE_REDACT_NODE="$(command -v node 2>/dev/null || true)"   # source 시점에 절대 경로로 고정(이후 PATH 가 바뀌어도 같은 node)
+_console_js_on() {
+  [ "${COORD_JS_REDACT:-}" = 1 ] && [ -f "$_CONSOLE_REDACT_MJS" ] && [ -n "$_CONSOLE_REDACT_NODE" ] && [ -x "$_CONSOLE_REDACT_NODE" ]
+}
+# _console_js <모드> — stdin 을 node 판에 넣어 stdout 에 낸다. 종료 코드는 node 판의 것(0 이 아니면 stdout 비어 있음)
+_console_js() {
+  local _p="$_CONSOLE_REDACT_MJS" _out _rc
+  if command -v cygpath >/dev/null 2>&1; then _p="$(cygpath -m "$_p")" || return 70; fi
+  _out="$("$_CONSOLE_REDACT_NODE" "$_p" "$1" && printf '.')"
+  _rc=$?
+  if [ "$_rc" -ne 0 ]; then return "$_rc"; fi
+  case "$_out" in *.) ;; *) return 70 ;; esac
+  printf '%s' "${_out%.}"
+}
+
+console_redact_text()   { if _console_js_on; then _console_js text; else _console_awk "$_CONSOLE_REDACT_AWK_TEXT"; fi; }
+console_screen_filter() { if _console_js_on; then _console_js screen; else _console_awk "$_CONSOLE_REDACT_AWK_SCREEN"; fi; }
 
 console_screen_sha() {
   local _h
-  if command -v openssl >/dev/null 2>&1; then _h="$(openssl dgst -sha256 -r 2>/dev/null)" || return 1   # openssl 우선(shasum 은 perl 이라 호출당 5배쯤 든다)
+  if _console_js_on; then _h="$(_console_js sha)" || return 1   # node crypto — openssl·sha256sum 불필요
+  elif command -v openssl >/dev/null 2>&1; then _h="$(openssl dgst -sha256 -r 2>/dev/null)" || return 1   # openssl 우선(shasum 은 perl 이라 호출당 5배쯤 든다)
   elif command -v sha256sum >/dev/null 2>&1; then _h="$(sha256sum 2>/dev/null)" || return 1   # GNU·Git Bash(shasum 은 perl 이라 뒤로)
   elif command -v shasum >/dev/null 2>&1; then _h="$(shasum -a 256 2>/dev/null)" || return 1
   else return 1
@@ -797,6 +821,13 @@ console_screen_sha() {
 console_clean_prompt() {
   local _out _code _nl='
 '
+  if _console_js_on; then
+    _out="$(_console_js clean-prompt)"; _code=$?   # node 판은 함수와 같은 종료 코드(0 은 stdout 한 줄 + LF)를 낸다
+    case "$_code" in 0) ;; 1|2|3) return "$_code" ;; *) return 4 ;; esac
+    [ -n "$_out" ] || return 4
+    printf '%s\n' "$_out"
+    return 0
+  fi
   _out="$(_console_awk "$_CONSOLE_PROMPT_AWK")" || return 4
   _code="${_out%%"$_nl"*}"
   case "$_code" in 0) ;; 1|2|3) return "$_code" ;; *) return 4 ;; esac

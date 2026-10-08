@@ -1,0 +1,8 @@
+2020-07-30 10:52:38,000 [http-nio-8080-exec-1] [] [] INFO  c.d.mpr.Schedule - 생산중량 계산 시작
+    select weight
+      from item
+     where id = ?
+2020-07-30 10:52:38,100 [http-nio-8080-exec-1] [] [] DEBUG c.d.mpr.Sql - binding parameter [1] as [VARCHAR] - [A01]
+2020-07-30 10:52:38,200 [http-nio-8080-exec-1] [] [] INFO  c.d.mpr.Schedule - 생산중량 계산 완료
+2020-07-30 10:52:38,300 [http-nio-8080-exec-1] [] [] INFO  c.d.mpr.Schedule - heartbeat
+2020-07-30 10:52:38,400 [http-nio-8080-exec-1] [] [] INFO  c.d.mpr.Schedule - 생산중량 집계

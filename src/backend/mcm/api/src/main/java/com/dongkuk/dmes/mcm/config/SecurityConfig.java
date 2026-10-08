@@ -4,7 +4,6 @@ import com.dongkuk.dmes.cactus.security.filter.ClientKeyFilter;
 import com.dongkuk.dmes.cactus.security.jwt.JwtAuthenticationFilter;
 import com.dongkuk.dmes.cactus.security.jwt.JwtTokenProvider;
 import com.dongkuk.dmes.cactus.web.filter.RequestIdFilter;
-import com.dongkuk.dmes.cactus.web.filter.TxIdFilter;
 import com.dongkuk.dmes.mcm.config.McmSecurityDefaults;
 import com.dongkuk.dmes.mcm.security.endpoint.EndpointPermissionFilter;
 import org.springframework.beans.factory.ObjectProvider;
@@ -28,12 +27,13 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  *
  * <p>cactus 의 {@code CactusWebSecurityAutoConfiguration} 이
  * {@code @ConditionalOnMissingBean(SecurityFilterChain.class)} 로 제공하는 default 빈을
- * 본 빈이 정의되면 비활성화한다. cactus 가 제공하는 servlet 필터 4종
- * ({@link TxIdFilter}, {@link JwtAuthenticationFilter}, {@link ClientKeyFilter}, {@link RequestIdFilter}) 을
+ * 본 빈이 정의되면 비활성화한다. cactus 가 제공하는 servlet 필터 3종
+ * ({@link JwtAuthenticationFilter}, {@link ClientKeyFilter}, {@link RequestIdFilter}) 을
  * SecurityFilterChain 에 통합 등록한다. 각 {@link FilterRegistrationBean} 자동 등록 차단은
- * cactus 가 이미 {@code setEnabled(false)} 로 처리한다.
+ * cactus 가 이미 {@code setEnabled(false)} 로 처리한다. {@code TxIdFilter} 는 체인 안이 아니라
+ * cactus 가 보안 체인 바깥 servlet 필터로 등록한다.
  *
- * <p>필터 순서: {@code txId → requestId → clientKey → jwt → revokedToken → endpointPerm → UsernamePasswordAuthenticationFilter}.
+ * <p>체인 안 필터 순서: {@code requestId → clientKey → jwt → revokedToken → endpointPerm → UsernamePasswordAuthenticationFilter}.
  *
  * <p>매처:
  * <ul>
@@ -61,14 +61,13 @@ public class SecurityConfig {
                                            JwtTokenProvider tokenProvider,
                                            ObjectProvider<ClientKeyFilter> clientKeyFilterProvider,
                                            RequestIdFilter requestIdFilter,
-                                           TxIdFilter txIdFilter,
                                            RevokedTokenFilter revokedTokenFilter,
                                            EndpointPermissionFilter endpointPermissionFilter,
                                            McmSecurityDefaults mcmSecurityDefaults) throws Exception {
 
         JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(tokenProvider);
 
-        // 필터 실행 순서를 명시 target 의 사슬로 보장 — txId → requestId → (clientKey) → jwt → revokedToken → endpointPerm
+        // 필터 실행 순서를 명시 target 의 사슬로 보장 — requestId → (clientKey) → jwt → revokedToken → endpointPerm
         http
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -99,7 +98,7 @@ public class SecurityConfig {
             http.addFilterBefore(requestIdFilter, JwtAuthenticationFilter.class);
         }
 
-        http.addFilterBefore(txIdFilter, RequestIdFilter.class);
+        // TxIdFilter 는 체인 안이 아니라 cactus 가 보안 체인 바깥 servlet 필터로 등록한다.
 
         return http.build();
     }
