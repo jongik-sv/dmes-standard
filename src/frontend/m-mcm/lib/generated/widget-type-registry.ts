@@ -5,20 +5,19 @@ import type { WidgetTypeRegistry } from "@dk-oasis/shared/widget";
 
 import { meta as t0 } from "@/widget-types/calculator/type.meta";
 import { meta as t1 } from "@/widget-types/chat/type.meta";
-import { meta as t2 } from "@/widget-types/collect/type.meta";
-import { meta as t3 } from "@/widget-types/exchange/type.meta";
-import { meta as t4 } from "@/widget-types/html/type.meta";
-import { meta as t5 } from "@/widget-types/links/type.meta";
-import { meta as t6 } from "@/widget-types/markdown/type.meta";
-import { meta as t7 } from "@/widget-types/media/type.meta";
-import { meta as t8 } from "@/widget-types/memo/type.meta";
-import { meta as t9 } from "@/widget-types/query-chart/type.meta";
-import { meta as t10 } from "@/widget-types/query-number/type.meta";
-import { meta as t11 } from "@/widget-types/query-table/type.meta";
-import { meta as t12 } from "@/widget-types/rule-calc/type.meta";
-import { meta as t13 } from "@/widget-types/unit-converter/type.meta";
-import { meta as t14 } from "@/widget-types/weather/type.meta";
-import { meta as t15 } from "@/widget-types/web/type.meta";
+import { meta as t2 } from "@/widget-types/exchange/type.meta";
+import { meta as t3 } from "@/widget-types/html/type.meta";
+import { meta as t4 } from "@/widget-types/links/type.meta";
+import { meta as t5 } from "@/widget-types/markdown/type.meta";
+import { meta as t6 } from "@/widget-types/media/type.meta";
+import { meta as t7 } from "@/widget-types/memo/type.meta";
+import { meta as t8 } from "@/widget-types/query-chart/type.meta";
+import { meta as t9 } from "@/widget-types/query-number/type.meta";
+import { meta as t10 } from "@/widget-types/query-table/type.meta";
+import { meta as t11 } from "@/widget-types/rule-calc/type.meta";
+import { meta as t12 } from "@/widget-types/unit-converter/type.meta";
+import { meta as t13 } from "@/widget-types/weather/type.meta";
+import { meta as t14 } from "@/widget-types/web/type.meta";
 
 export const WIDGET_TYPE_REGISTRY: WidgetTypeRegistry = {
   "calculator": {
@@ -31,73 +30,68 @@ export const WIDGET_TYPE_REGISTRY: WidgetTypeRegistry = {
     loadRenderer: () => import("@/widget-types/chat/renderer"),
     loadEditor: () => import("@/widget-types/chat/editor"),
   },
-  "collect": {
-    meta: t2,
-    loadRenderer: () => import("@/widget-types/collect/renderer"),
-    loadEditor: () => import("@/widget-types/collect/editor"),
-  },
   "exchange": {
-    meta: t3,
+    meta: t2,
     loadRenderer: () => import("@/widget-types/exchange/renderer"),
     loadEditor: () => import("@/widget-types/exchange/editor"),
   },
   "html": {
-    meta: t4,
+    meta: t3,
     loadRenderer: () => import("@/widget-types/html/renderer"),
     loadEditor: () => import("@/widget-types/html/editor"),
   },
   "links": {
-    meta: t5,
+    meta: t4,
     loadRenderer: () => import("@/widget-types/links/renderer"),
     loadEditor: () => import("@/widget-types/links/editor"),
   },
   "markdown": {
-    meta: t6,
+    meta: t5,
     loadRenderer: () => import("@/widget-types/markdown/renderer"),
     loadEditor: () => import("@/widget-types/markdown/editor"),
   },
   "media": {
-    meta: t7,
+    meta: t6,
     loadRenderer: () => import("@/widget-types/media/renderer"),
     loadEditor: () => import("@/widget-types/media/editor"),
   },
   "memo": {
-    meta: t8,
+    meta: t7,
     loadRenderer: () => import("@/widget-types/memo/renderer"),
     loadEditor: () => import("@/widget-types/memo/editor"),
   },
   "query-chart": {
-    meta: t9,
+    meta: t8,
     loadRenderer: () => import("@/widget-types/query-chart/renderer"),
     loadEditor: () => import("@/widget-types/query-chart/editor"),
   },
   "query-number": {
-    meta: t10,
+    meta: t9,
     loadRenderer: () => import("@/widget-types/query-number/renderer"),
     loadEditor: () => import("@/widget-types/query-number/editor"),
   },
   "query-table": {
-    meta: t11,
+    meta: t10,
     loadRenderer: () => import("@/widget-types/query-table/renderer"),
     loadEditor: () => import("@/widget-types/query-table/editor"),
   },
   "rule-calc": {
-    meta: t12,
+    meta: t11,
     loadRenderer: () => import("@/widget-types/rule-calc/renderer"),
     loadEditor: () => import("@/widget-types/rule-calc/editor"),
   },
   "unit-converter": {
-    meta: t13,
+    meta: t12,
     loadRenderer: () => import("@/widget-types/unit-converter/renderer"),
     loadEditor: () => import("@/widget-types/unit-converter/editor"),
   },
   "weather": {
-    meta: t14,
+    meta: t13,
     loadRenderer: () => import("@/widget-types/weather/renderer"),
     loadEditor: () => import("@/widget-types/weather/editor"),
   },
   "web": {
-    meta: t15,
+    meta: t14,
     loadRenderer: () => import("@/widget-types/web/renderer"),
     loadEditor: () => import("@/widget-types/web/editor"),
   },
