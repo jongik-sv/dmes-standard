@@ -90,7 +90,7 @@ describe("validateExchangeConfig — 편집기 검사", () => {
   });
 
   it("통화는 10개까지(서버 한도)", () => {
-    const eleven = EXCHANGE_CURRENCIES.slice(0, 11) as string[];
+    const eleven = [...EXCHANGE_CURRENCIES, "THB"] as string[];
     expect(validateExchangeConfig({ base: "KRW", currencies: eleven, days: 30 })).toEqual(["통화는 10개까지 고를 수 있습니다"]);
     expect(validateExchangeConfig({ base: "KRW", currencies: eleven.slice(0, 10), days: 30 })).toEqual([]);
   });
@@ -159,6 +159,13 @@ describe("toggleCurrency · daysOptions", () => {
 
   it("목록에 없는 코드는 맨 뒤에 둔다", () => {
     expect(toggleCurrency(["USD", "XYZ"], "EUR", true)).toEqual(["USD", "EUR", "XYZ"]);
+  });
+
+  it("저장된 THB(편집기 목록에서 빠진 통화)는 유지되고 해제할 수도 있다", () => {
+    expect(EXCHANGE_CURRENCIES as readonly string[]).not.toContain("THB");
+    expect(toggleCurrency(["USD", "THB"], "EUR", true)).toEqual(["USD", "EUR", "THB"]);
+    expect(toggleCurrency(["USD", "THB"], "THB", false)).toEqual(["USD"]);
+    expect(validateExchangeConfig({ base: "KRW", currencies: ["USD", "THB"], days: 30 })).toEqual([]);
   });
 
   it("기간 선택지는 7·30·90, 설정값이 그 밖이면 함께 보인다", () => {

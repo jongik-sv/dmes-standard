@@ -46,6 +46,12 @@ export interface CategoryTabProps {
   loaded: boolean;
   /** 마루 데이터가 편집 가능한지(header.editable — EXTERNAL·DEPRECATED 면 false). */
   editable: boolean;
+  /**
+   * 조회조건 「닫힌 항목」 선택 — 조회 전용 마루 데이터에서만 닫힌 카테고리를 보일지 가른다. 조회 전용은 다시 열 수 없어
+   * 닫힌 카테고리가 목록에 남으면 지금 쓰는 카테고리처럼 읽힌다(환율 FX_RATE 의 닫힌 MAJOR). 편집 가능한 마루 데이터는
+   * 닫은 카테고리를 [다시 열기] 로 되살려야 해서 늘 보인다.
+   */
+  showClosed?: boolean;
   /** 카테고리 쓰기 권한 — 옛 화면 OBJECT(dataCateEdit)의 save 권한 그대로. */
   canSave: boolean;
   /** 이력 조회 실패 문구를 페이지의 ErrorModal 로 올린다. */
@@ -54,14 +60,25 @@ export interface CategoryTabProps {
   errorShown?: boolean;
 }
 
-export function CategoryTab({ cate, loaded, editable, canSave, onError, errorShown = false }: CategoryTabProps) {
-  const { selectedRow, detail } = cate;
+/** 카테고리 목록에 보일 행 — 조회 전용 마루 데이터는 「닫힌 항목」을 보기로 두지 않으면 닫힌 카테고리를 뺀다. */
+export function visibleCateRows<T extends { open: boolean }>(rows: T[], editable: boolean, showClosed: boolean): T[] {
+  return editable || showClosed ? rows : rows.filter((r) => r.open);
+}
+
+export function CategoryTab({ cate, loaded, editable, showClosed = false, canSave, onError, errorShown = false }: CategoryTabProps) {
+  const { detail } = cate;
   const canEdit = editable && canSave;
   // 훅 객체 전체가 아니라 안정된 함수만 열 정의에 건다.
   const { close: closeCate, reopen: reopenCate } = cate;
   const [addOpen, setAddOpen] = useState(false);
   const [regexOpen, setRegexOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const visibleRows = useMemo(() => visibleCateRows(cate.rows, editable, showClosed), [cate.rows, editable, showClosed]);
+  // 고른 카테고리가 숨겨지면(닫힌 항목을 안 보기로 바꿈) 이력·소속 패널도 함께 비운다 — 목록에 없는 카테고리를 계속 보이지 않는다.
+  const selectedRow = useMemo(
+    () => visibleRows.find((r) => r.cateId === cate.selectedRow?.cateId) ?? null,
+    [visibleRows, cate.selectedRow],
+  );
   // 다른 카테고리를 고른 뒤 새 상세(view)가 올 때까지는 이전 소속 목록을 잠가 둔다 — 그 사이 [적용]하면 이전 카테고리의
   // 소속으로 낸 diff 가 새 카테고리에 저장된다(Local-Rules §11, 비웠다 다시 그리지 않고 잠근다).
   const detailCurrent = !!detail && detail.cate?.cateId === selectedRow?.cateId;
@@ -171,16 +188,16 @@ export function CategoryTab({ cate, loaded, editable, canSave, onError, errorSho
           <ContentPanel>
             <GridPanel
               title="카테고리"
-              count={cate.rows.length}
+              count={visibleRows.length}
               headerExtra={canEdit ? (
                 <Button data-testid="cate-add" size="sm" onClick={() => setAddOpen(true)}>카테고리 추가</Button>
               ) : undefined}
             >
               <AgDataGrid gridId="dataCategories"
                 columns={categoryColumns}
-                data={cate.rows as unknown as Record<string, unknown>[]}
+                data={visibleRows as unknown as Record<string, unknown>[]}
                 rowKey="cateId"
-                highlightedRowKey={cate.selectedCateId ?? undefined}
+                highlightedRowKey={selectedRow?.cateId}
                 onRowClick={(row) => cate.select(String(row.cateId))}
                 // 목록에 편집 칸이 없어 ↑/↓ 는 기본적으로 선택을 옮기지 않는다. 커서가 옮긴 행을 받아 카테고리 선택을
                 // 따라가게 하면 아래 소속 목록이 같은 카테고리를 계속 보여준다.

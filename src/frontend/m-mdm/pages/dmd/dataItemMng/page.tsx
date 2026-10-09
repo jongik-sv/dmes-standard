@@ -58,6 +58,7 @@ import {
   searchDataItems,
   viewDataItems,
 } from "./api";
+import { readonlyNotice } from "./messages";
 import { buildItemColumns, isRowEditable, isRowVersionConflict, toSaveParams } from "./columns";
 import {
   ALL_ITEMS_SIZE,
@@ -143,6 +144,8 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
 
   /** 마지막으로 조회한 조건 — 재조회(F1)와 트리 조회가 쓴다. */
   const applied = useRef<{ filters: DataItemFilters }>({ filters: emptyFilters() });
+  // 마지막으로 조회한 「닫힌 항목」 — 카테고리 탭이 아직 조회하지 않은 입력값이 아니라 항목 그리드와 같은 기준을 따르게 한다.
+  const [appliedShowClosed, setAppliedShowClosed] = useState(false);
   /** 요청 순번 — 늦게 도착한 옛 응답(예: 첫 로드의 자동 선택 조회)이 새 결과를 덮지 않게 한다. */
   const searchSeq = useRef(0);
   const selectSeq = useRef(0);
@@ -196,6 +199,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
       setTruncated(res.truncated === true);
       setDrafts({});
       applied.current = { filters: f };
+      setAppliedShowClosed(f.showClosed);
     } catch (e) {
       if (seq === searchSeq.current) setError(errorMessage(e));
     } finally {
@@ -304,6 +308,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
       // 다른 조건 칸은 SearchArea 가 마루 데이터가 바뀐 것을 보고 비운 뒤 기본값으로 다시 채운다(dependsOn). 트리 노드 거르기는 조건 칸이 아니라 여기서 푼다.
       setFilters((prev) => ({ ...prev, maruDataId, nodeFilter: null }));
       applied.current = { filters: { ...emptyFilters(), maruDataId } };
+      setAppliedShowClosed(false);
       regFormRef.current?.load(null);
       historySeq.current++;
       setHistory(null);
@@ -678,6 +683,19 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
                 { key: "tree", label: <span data-testid="item-tab-tree">트리</span> },
               ]}
             />
+            {/* 안내 문구는 GridPanel 바깥에 둔다 — 패널 안의 그리드(.cm-data-grid)가 position:absolute 로 패널 내용 전체를
+                덮어, 안쪽에 둔 문구는 그리드 헤더에 가려진다. */}
+            {tab === "grid" && header && !header.editable && (
+              <p data-testid="item-readonly" style={{ color: "var(--color-text-muted)", margin: 0, padding: "var(--spacing-xs) 0" }}>
+                {readonlyNotice(header)}
+              </p>
+            )}
+            {/* 상한에 걸려 일부만 온 경우 — 몇 건 중 몇 건인지를 그대로 말한다(조용히 자르지 않는다). */}
+            {tab === "grid" && truncated && (
+              <p data-testid="item-truncated" style={{ color: "var(--color-text-muted)", margin: 0, padding: "var(--spacing-xs) 0" }}>
+                {`조건에 맞는 항목이 ${total.toLocaleString()}건이어서 ${rows.length.toLocaleString()}건만 표시합니다. 조회조건으로 좁히세요.`}
+              </p>
+            )}
             {tab === "grid" && (
               <>
                 <GridPanel
@@ -716,17 +734,6 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
                 >
                   {/* 안내 문구와 그리드를 한 세로 흐름에 두어 그리드가 남은 높이만 쓰게 한다. */}
                   <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-                    {header && !header.editable && (
-                      <p data-testid="item-readonly" style={{ color: "var(--color-text-muted)", margin: 0 }}>
-                        조회 전용입니다(원천 {header.sourceSystem ?? header.sourceKind}, 상태 {header.status}).
-                      </p>
-                    )}
-                    {/* 상한에 걸려 일부만 온 경우 — 몇 건 중 몇 건인지를 그대로 말한다(조용히 자르지 않는다). */}
-                    {truncated && (
-                      <p data-testid="item-truncated" style={{ color: "var(--color-text-muted)", margin: 0 }}>
-                        {`조건에 맞는 항목이 ${total.toLocaleString()}건이어서 ${rows.length.toLocaleString()}건만 표시합니다. 조회조건으로 좁히세요.`}
-                      </p>
-                    )}
                     <div style={{ flex: 1, minHeight: 0 }}>
                       <AgDataGrid gridId="dataItems" personalize={{ sort: false }}
                         columns={columns}
@@ -774,6 +781,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
                   cate={cate}
                   loaded={!!header}
                   editable={editable}
+                  showClosed={appliedShowClosed}
                   canSave={canCateSave}
                   onError={setError}
                   errorShown={!!error}
