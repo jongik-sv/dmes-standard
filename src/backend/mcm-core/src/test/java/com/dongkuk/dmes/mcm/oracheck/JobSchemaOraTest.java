@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mcm.oracheck;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
@@ -124,5 +126,45 @@ class JobSchemaOraTest {
                             Collectors.mapping(r -> (String) r.get("PRIVILEGE"), Collectors.toSet())));
             assertThat(actual).as(user).isEqualTo(expected);
         }
+    }
+
+    @Test
+    @DisplayName("V7: 옵션 칸 MISFIRE_RUN_YN 은 기본 'N' 이고 Y·N 만 받는다")
+    void misfireColumn() {
+        insertDef("MF1", "MCM", "CODE");
+        assertThat(jdbc.queryForObject("SELECT MISFIRE_RUN_YN FROM MCMAPUSER.TB_MCM_JOB_DEF WHERE JOB_ID = 'MF1'", String.class)).isEqualTo("N");
+        jdbc.update("UPDATE MCMAPUSER.TB_MCM_JOB_DEF SET MISFIRE_RUN_YN = 'Y' WHERE JOB_ID = 'MF1'");
+        assertThatThrownBy(() -> jdbc.update("UPDATE MCMAPUSER.TB_MCM_JOB_DEF SET MISFIRE_RUN_YN = 'X' WHERE JOB_ID = 'MF1'"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("V7: TRIGGER_TP 는 S·M·C(놓친 회차 한 번 실행)만 받는다")
+    void triggerTypeAcceptsMissedRun() {
+        Timestamp at = Timestamp.valueOf("2026-10-09 02:00:00");
+        insertRun("T1", at, "S", "t-s", "OK");
+        insertRun("T1", at, "M", "t-m", "OK");
+        insertRun("T1", at, "C", "t-c", "OK");
+        assertThatThrownBy(() -> insertRun("T1", at, "X", "t-x", "OK")).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("V7 은 멱등이다 — 이미 적용된 DB 에 다시 실행해도 오류 없이 같은 결과(칼럼 1개·제약 유지·기존 행 보존)")
+    void v7IsIdempotent() throws Exception {
+        insertDef("ID1", "MCM", "CODE");
+        jdbc.update("UPDATE MCMAPUSER.TB_MCM_JOB_DEF SET MISFIRE_RUN_YN = 'Y' WHERE JOB_ID = 'ID1'");
+        insertRun("ID1", Timestamp.valueOf("2026-10-09 03:00:00"), "C", "id-c", "OK");
+        String sql = new String(new ClassPathResource("db/migration/oracle/mcmapuser/V7__job_misfire_run_once.sql").getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        String block = sql.substring(0, sql.lastIndexOf("/")).strip();   // 끝의 SQL*Plus 구분자(/)는 JDBC 에 보내지 않는다
+
+        jdbc.execute("ALTER SESSION SET CURRENT_SCHEMA = MCMAPUSER");
+        jdbc.execute(block);
+        jdbc.execute(block);
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ALL_TAB_COLUMNS WHERE OWNER = 'MCMAPUSER' AND TABLE_NAME = 'TB_MCM_JOB_DEF' AND COLUMN_NAME = 'MISFIRE_RUN_YN'", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT MISFIRE_RUN_YN FROM MCMAPUSER.TB_MCM_JOB_DEF WHERE JOB_ID = 'ID1'", String.class)).isEqualTo("Y");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_JOB_RUN WHERE JOB_ID = 'ID1' AND TRIGGER_TP = 'C'", Integer.class)).isEqualTo(1);
+        assertThatThrownBy(() -> insertRun("ID1", Timestamp.valueOf("2026-10-09 04:00:00"), "X", "id-x", "OK")).isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ALL_CONSTRAINTS WHERE OWNER = 'MCMAPUSER' AND CONSTRAINT_NAME IN ('CK_TB_MCM_JOB_DEF_MISFIRE', 'CK_TB_MCM_JOB_RUN_TRG')", Integer.class)).isEqualTo(2);
     }
 }

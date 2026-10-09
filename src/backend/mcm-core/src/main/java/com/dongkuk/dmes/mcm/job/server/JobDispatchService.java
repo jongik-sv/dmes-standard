@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.BooleanSupplier;
 import java.util.regex.Pattern;
 import javax.sql.DataSource;
 import org.springframework.dao.DataAccessException;
@@ -37,8 +38,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <ul>
  *   <li>빈 결과면 바로 끝낸다 — 평소 매분 SQL 한 문장이 전부이다.</li>
  *   <li>잠그는 SQL 에는 행 수 제한이 없다(ORA-02014). 개수는 앞의 조회가 {@code batchSize} 로 이미 제한했고, 잠근 행은 모두 이 트랜잭션에서 처리한다.</li>
- *   <li>늦은 회차(DB_NOW - NEXT_RUN_AT &gt; 2분)는 따라잡지 않고 SKIP 1건, 겹침은 SKIP, 그 밖은 RUN INSERT(PK 위반이면 건너뜀) 뒤 NEXT_RUN_AT 을 올린다.</li>
- *   <li>변수 확정은 여기서 한다(날짜 변수는 SCHED_AT 기준, {@code :prevRunAt} 은 그 변수를 쓰는 작업만 TRIGGER_TP='S' 직전 정상 회차).</li>
+ *   <li>늦은 회차(DB_NOW - NEXT_RUN_AT &gt; 2분)는 따라잡지 않고 SKIP 1건, 겹침은 SKIP, 그 밖은 RUN INSERT(PK 위반이면 건너뜀) 뒤 NEXT_RUN_AT 을 올린다.
+ *       작업의 「놓친 회차 한 번 실행」(MISFIRE_RUN_YN='Y')이 켜져 있으면 늦은 회차를 SKIP 하지 않고 겹침 검사를 거쳐 TRIGGER_TP='C' RUN 한 건을 만든다(설계 §4.2.1).
+ *       다음 시각은 늘 max(회차, DB_NOW) 이후로 계산하므로 몇 회차를 놓쳤든 실행은 한 번이다.</li>
+ *   <li>변수 확정은 여기서 한다(날짜 변수는 SCHED_AT 기준, {@code :prevRunAt} 은 그 변수를 쓰는 작업만 TRIGGER_TP='S'·'C' 직전 정상 회차).</li>
  *   <li>정의 한 건이 깨져 있으면(CONFIG_JSON·VARS_JSON·OPTS_JSON·crontab) 그 행만 FAIL 「정의 오류」로 남기고 NEXT_RUN_AT 을 미룬다 — 다른 작업을 막지 않는다.</li>
  * </ul>
  * 화면의 「지금 한 번 실행」({@link #claimManual})도 같은 변수 확정·겹침 검사를 쓰므로 여기에 둔다(설계 §4.9).
@@ -46,6 +49,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class JobDispatchService {
 
     static final Duration LATE_LIMIT = Duration.ofMinutes(2);
+    /** TRIGGER_TP: 일정 회차·놓친 회차 한 번 실행(설계 §4.2.1). 「지금 실행」은 M. */
+    static final String TRIGGER_SCHEDULED = "S";
+    static final String TRIGGER_MISSED = "C";
     static final int CLEANUP_MARGIN_SEC = 300;
     static final int DEFAULT_BATCH = 50;
     static final int MAX_BATCH = 200;
@@ -55,7 +61,7 @@ public class JobDispatchService {
     private static final DateTimeFormatter ISO = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
     private static final ObjectMapper JSON = new ObjectMapper();
     /** null 칸(ENDED_AT·MSG·VARS_JSON)의 형을 드라이버에 묻지 않게 명시한다 — ojdbc 는 식이 섞인 INSERT 의 매개변수 메타데이터를 풀지 못한다. */
-    private static final int[] INSERT_RUN_TYPES = {Types.VARCHAR, Types.TIMESTAMP, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR,
+    private static final int[] INSERT_RUN_TYPES = {Types.VARCHAR, Types.TIMESTAMP, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR,
             Types.TIMESTAMP, Types.TIMESTAMP, Types.INTEGER, Types.VARCHAR, Types.CLOB};
     private static final int[] INSERT_MANUAL_TYPES = {Types.VARCHAR, Types.TIMESTAMP, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.TIMESTAMP,
             Types.INTEGER, Types.CLOB, Types.VARCHAR, Types.VARCHAR};
@@ -87,7 +93,7 @@ public class JobDispatchService {
                 """.formatted(schema, NOW);
         this.lockSql = """
                 SELECT A.JOB_ID, A.MODULE_CD, A.SERVICE_ID, A.ACTION, A.CRON_EXPR, A.TIMEOUT_SEC, A.NEXT_RUN_AT
-                     , A.CONFIG_JSON, A.VARS_JSON, A.OPTS_JSON
+                     , A.CONFIG_JSON, A.VARS_JSON, A.OPTS_JSON, A.MISFIRE_RUN_YN
                      , %2$s DB_NOW
                 FROM   %1$s.TB_MCM_JOB_DEF A
                 WHERE  A.JOB_ID IN (:ids)
@@ -99,7 +105,7 @@ public class JobDispatchService {
                 INSERT INTO %1$s.TB_MCM_JOB_RUN
                        (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS, STARTED_AT, ENDED_AT, TIMEOUT_SEC, MSG, VARS_JSON,
                         C_AT, C_USR_ID, C_PGM_ID, C_SVC_ID, U_AT, U_USR_ID, U_PGM_ID, U_SVC_ID, VER)
-                VALUES (?, ?, 'S', ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                         %2$s, 'SCHEDULER', 'JobDispatchService', 'jobDispatch', %2$s, 'SCHEDULER', 'JobDispatchService', 'jobDispatch', 0)
                 """.formatted(schema, NOW);
         this.liveRunSql = """
@@ -114,7 +120,7 @@ public class JobDispatchService {
                 FROM   %1$s.TB_MCM_JOB_RUN A
                 WHERE  A.JOB_ID = ?
                 AND    A.STATUS = 'OK'
-                AND    A.TRIGGER_TP = 'S'
+                AND    A.TRIGGER_TP IN ('S', 'C')
                 """.formatted(schema);
         this.nextRunSql = """
                 UPDATE %1$s.TB_MCM_JOB_DEF
@@ -129,7 +135,7 @@ public class JobDispatchService {
         this.manualTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.manualLockSql = """
                 SELECT A.JOB_ID, A.MODULE_CD, A.SERVICE_ID, A.ACTION, A.CRON_EXPR, A.TIMEOUT_SEC, A.NEXT_RUN_AT
-                     , A.CONFIG_JSON, A.VARS_JSON, A.OPTS_JSON
+                     , A.CONFIG_JSON, A.VARS_JSON, A.OPTS_JSON, A.MISFIRE_RUN_YN
                      , %2$s DB_NOW
                 FROM   %1$s.TB_MCM_JOB_DEF A
                 WHERE  A.JOB_ID = ?
@@ -152,7 +158,7 @@ public class JobDispatchService {
     }
 
     private record Row(String jobId, String module, String serviceId, String action, String cron, int timeoutSec, LocalDateTime nextRunAt,
-                       String configJson, String varsJson, String optsJson, LocalDateTime dbNow) {}
+                       String configJson, String varsJson, String optsJson, boolean misfireRunOnce, LocalDateTime dbNow) {}
 
     public ClaimedBatch claimDue(Integer batchSize, String collectEnabled) {
         JobDispatchScope.require();
@@ -163,7 +169,7 @@ public class JobDispatchService {
         List<Row> rows = named.query(lockSql, new MapSqlParameterSource("ids", ids), (rs, i) -> new Row(
                 rs.getString("JOB_ID"), rs.getString("MODULE_CD"), rs.getString("SERVICE_ID"), rs.getString("ACTION"), rs.getString("CRON_EXPR"),
                 rs.getInt("TIMEOUT_SEC"), rs.getTimestamp("NEXT_RUN_AT").toLocalDateTime(), rs.getString("CONFIG_JSON"),
-                rs.getString("VARS_JSON"), rs.getString("OPTS_JSON"), rs.getTimestamp("DB_NOW").toLocalDateTime()));
+                rs.getString("VARS_JSON"), rs.getString("OPTS_JSON"), "Y".equals(rs.getString("MISFIRE_RUN_YN")), rs.getTimestamp("DB_NOW").toLocalDateTime()));
 
         List<JobRunRequest> runs = new ArrayList<>();
         for (Row row : rows) {
@@ -200,7 +206,7 @@ public class JobDispatchService {
                     Timestamp next = rs.getTimestamp("NEXT_RUN_AT");
                     return new Row(rs.getString("JOB_ID"), rs.getString("MODULE_CD"), rs.getString("SERVICE_ID"), rs.getString("ACTION"),
                             rs.getString("CRON_EXPR"), rs.getInt("TIMEOUT_SEC"), next == null ? dbNow : next.toLocalDateTime(), rs.getString("CONFIG_JSON"),
-                            rs.getString("VARS_JSON"), rs.getString("OPTS_JSON"), dbNow);
+                            rs.getString("VARS_JSON"), rs.getString("OPTS_JSON"), "Y".equals(rs.getString("MISFIRE_RUN_YN")), dbNow);
                 }, jobId);
             } catch (PessimisticLockingFailureException e) {
                 return new ManualClaim(null, "다른 요청이 이 작업을 처리하는 중입니다. 잠시 뒤 다시 시도하세요");   // ORA-30006 (WAIT 5 초과)
@@ -246,12 +252,35 @@ public class JobDispatchService {
         List<String> errors = JobVars.validate(merged);
         if (!errors.isEmpty()) throw new BrokenDefinition(errors.get(0));
         return new Row(r.jobId(), r.module(), r.serviceId(), r.action(), r.cron(), r.timeoutSec(), r.nextRunAt(), r.configJson(), JobVars.toJson(merged),
-                r.optsJson(), r.dbNow());
+                r.optsJson(), r.misfireRunOnce(), r.dbNow());
+    }
+
+    /** 한 회차의 판정 결과. */
+    enum Slot {
+        /** 늦은 회차(옵션 꺼짐) — SKIP 「놓친 회차를 건너뜀」. */
+        SKIP_LATE,
+        /** 이전 회차가 아직 실행 중 — SKIP 「이전 회차 실행 중」. */
+        SKIP_OVERLAP,
+        /** 제때의 일정 회차 — RUN (TRIGGER_TP='S'). */
+        RUN,
+        /** 늦었지만 「놓친 회차 한 번 실행」 옵션이 켜져 있어 실행 — RUN (TRIGGER_TP='C'). */
+        RUN_MISSED
+    }
+
+    /**
+     * 늦은 회차·겹침 판정(설계 §4.2.1). 늦음({@link #LATE_LIMIT} 초과)과 겹침은 서로 독립이다: 늦었어도 옵션이 꺼져 있으면 겹침을 보지 않고 SKIP_LATE,
+     * 옵션이 켜져 있으면 늦은 회차도 겹침 검사를 거친다. 겹침 조회는 필요할 때만 한다(늦은 SKIP 이면 DB 를 다시 읽지 않는다).
+     */
+    static Slot decide(Duration lateness, boolean misfireRunOnce, BooleanSupplier overlapping) {
+        boolean late = lateness.compareTo(LATE_LIMIT) > 0;
+        if (late && !misfireRunOnce) return Slot.SKIP_LATE;
+        if (overlapping.getAsBoolean()) return Slot.SKIP_OVERLAP;
+        return late ? Slot.RUN_MISSED : Slot.RUN;
     }
 
     /**
      * 한 행을 처리한다. 다음 시각은 INSERT 보다 먼저 계산한다(오지 않는 날짜면 INSERT 전에 정의 오류로 돌린다). 세 갈래(늦은 SKIP·겹침 SKIP·RUN)
-     * 모두 같은 회차 PK {@code (JOB_ID, SCHED_AT, 'S')} 가 이미 있으면 기록만 건너뛰고 NEXT_RUN_AT 은 그대로 올린다 — 이미 선점된 회차로
+     * 모두 같은 회차 PK {@code (JOB_ID, SCHED_AT, TRIGGER_TP)}(일정·SKIP 은 'S', 놓친 회차 실행은 'C') 가 이미 있으면 기록만 건너뛰고 NEXT_RUN_AT 은 그대로 올린다 — 이미 선점된 회차로
      * NEXT_RUN_AT 이 되돌아와도(화면 저장·SQL 수정) 묶음이 롤백되지 않는다.
      */
     private JobRunRequest process(Row r) {
@@ -261,14 +290,17 @@ public class JobDispatchService {
         LocalDateTime next = cron.next(base);
         if (next == null) throw new BrokenDefinition("정의 오류: crontab 식에 앞으로 오는 시각이 없습니다");
         JobRunRequest request = null;
-        if (Duration.between(sched, r.dbNow()).compareTo(LATE_LIMIT) > 0) {
-            insertRunOnce(r, sched, "SKIP", "놓친 회차를 건너뜀", null, r.timeoutSec());
-        } else if (jdbc.queryForObject(liveRunSql, Integer.class, r.jobId(), Timestamp.valueOf(r.dbNow())) > 0) {
-            insertRunOnce(r, sched, "SKIP", "이전 회차 실행 중", null, r.timeoutSec());
-        } else {
-            request = buildRequest(r, sched);
-            if (!insertRunOnce(r, sched, "RUN", null, request, recordedTimeout(r.timeoutSec(), request.retry()))) {
-                request = null;   // 같은 회차 PK — 이미 다른 인스턴스·이전 시도가 잡았다
+        Slot slot = decide(Duration.between(sched, r.dbNow()), r.misfireRunOnce(),
+                () -> jdbc.queryForObject(liveRunSql, Integer.class, r.jobId(), Timestamp.valueOf(r.dbNow())) > 0);
+        switch (slot) {
+            case SKIP_LATE -> insertRunOnce(r, sched, TRIGGER_SCHEDULED, "SKIP", "놓친 회차를 건너뜀", null, r.timeoutSec());
+            case SKIP_OVERLAP -> insertRunOnce(r, sched, TRIGGER_SCHEDULED, "SKIP", "이전 회차 실행 중", null, r.timeoutSec());
+            case RUN, RUN_MISSED -> {
+                request = buildRequest(r, sched);
+                String trigger = slot == Slot.RUN_MISSED ? TRIGGER_MISSED : TRIGGER_SCHEDULED;
+                if (!insertRunOnce(r, sched, trigger, "RUN", null, request, recordedTimeout(r.timeoutSec(), request.retry()))) {
+                    request = null;   // 같은 회차 PK — 이미 다른 인스턴스·이전 시도가 잡았다
+                }
             }
         }
         jdbc.update(nextRunSql, Timestamp.valueOf(next), r.jobId());
@@ -276,9 +308,9 @@ public class JobDispatchService {
     }
 
     /** RUN 행을 넣는다. 같은 회차 PK 가 이미 있으면 넣지 않고 false (Oracle 은 문장 단위 롤백이라 트랜잭션은 그대로 쓸 수 있다). */
-    private boolean insertRunOnce(Row r, LocalDateTime sched, String status, String msg, JobRunRequest request, int recordedTimeout) {
+    private boolean insertRunOnce(Row r, LocalDateTime sched, String triggerTp, String status, String msg, JobRunRequest request, int recordedTimeout) {
         try {
-            insertRun(r, sched, status, msg, request, recordedTimeout);
+            insertRun(r, sched, triggerTp, status, msg, request, recordedTimeout);
             return true;
         } catch (DuplicateKeyException e) {
             return false;
@@ -341,18 +373,18 @@ public class JobDispatchService {
         }
     }
 
-    private void insertRun(Row r, LocalDateTime sched, String status, String msg, JobRunRequest request, int recordedTimeout) {
+    private void insertRun(Row r, LocalDateTime sched, String triggerTp, String status, String msg, JobRunRequest request, int recordedTimeout) {
         boolean running = "RUN".equals(status);
         Timestamp now = Timestamp.valueOf(r.dbNow());
         String varsJson = request == null ? null : writeJson(request.inputs());
-        jdbc.update(insertRunSql, new Object[] {r.jobId(), Timestamp.valueOf(sched), running ? request.runId() : UUID.randomUUID().toString(), r.module(),
+        jdbc.update(insertRunSql, new Object[] {r.jobId(), Timestamp.valueOf(sched), triggerTp, running ? request.runId() : UUID.randomUUID().toString(), r.module(),
                 r.serviceId(), status, now, running ? null : now, recordedTimeout, msg, varsJson}, INSERT_RUN_TYPES);
     }
 
     /** 깨진 정의: 이 행만 FAIL 로 닫고 NEXT_RUN_AT 을 한 시간 뒤로 미룬다(식을 읽을 수 없으니 계산할 수 없다). */
     private void broken(Row r, String message) {
         LocalDateTime sched = r.nextRunAt().truncatedTo(ChronoUnit.SECONDS);
-        insertRunOnce(r, sched, "FAIL", message, null, r.timeoutSec());   // 같은 회차의 기록이 이미 있으면 건너뛴다
+        insertRunOnce(r, sched, TRIGGER_SCHEDULED, "FAIL", message, null, r.timeoutSec());   // 같은 회차의 기록이 이미 있으면 건너뛴다
         LocalDateTime next;
         try {
             LocalDateTime base = sched.isAfter(r.dbNow()) ? sched : r.dbNow();

@@ -187,6 +187,97 @@ class JobDispatchServiceOraTest {
         assertThat(jdbc.queryForObject("SELECT NEXT_RUN_AT FROM MCMAPUSER.TB_MCM_JOB_DEF WHERE JOB_ID = 'late'", Timestamp.class).toLocalDateTime()).isAfter(dbNow());
     }
 
+    private void misfireOn(String jobId) {
+        jdbc.update("UPDATE MCMAPUSER.TB_MCM_JOB_DEF SET MISFIRE_RUN_YN = 'Y' WHERE JOB_ID = ?", jobId);
+    }
+
+    @Test
+    @DisplayName("옵션 칸(MISFIRE_RUN_YN)은 INSERT 에서 빠뜨려도 기본 'N' 이다 — 코드 작업 등록·옛 INSERT 가 옵션을 켜지 않는다")
+    void misfireColumnDefaultsToN() {
+        def("dflt", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, 3600);
+        assertThat(jdbc.queryForObject("SELECT MISFIRE_RUN_YN FROM MCMAPUSER.TB_MCM_JOB_DEF WHERE JOB_ID = 'dflt'", String.class)).isEqualTo("N");
+    }
+
+    @Test
+    @DisplayName("놓친 회차 한 번 실행(Y): 3시간 늦은 회차는 SKIP 하지 않고 RUN 한 건(TRIGGER_TP='C', SCHED_AT=놓친 첫 회차) — 사이 회차 행은 없고 다음 시각은 미래, 다음 틱은 다시 실행하지 않는다")
+    void misfireRunsLateSlotOnce() {
+        def("mf", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, -3 * 3600);
+        misfireOn("mf");
+        Timestamp missedFirst = schedOf("mf");   // 놓친 첫 회차 = 지금의 NEXT_RUN_AT 을 초 단위로 버린 값
+
+        ClaimedBatch batch = claim(50, "Y");
+
+        assertThat(batch.runs()).hasSize(1);
+        JobRunRequest r = batch.runs().get(0);
+        assertThat(r.jobId()).isEqualTo("mf");
+        assertThat(r.manual()).isFalse();
+        Map<String, Object> row = run("mf");
+        assertThat(row.get("STATUS")).isEqualTo("RUN");
+        assertThat(row.get("TRIGGER_TP")).isEqualTo("C");
+        assertThat(row.get("RUN_ID")).isEqualTo(r.runId());
+        assertThat(((Timestamp) row.get("SCHED_AT")).toLocalDateTime()).isEqualTo(missedFirst.toLocalDateTime());
+        assertThat(r.schedAtTime()).isEqualTo(missedFirst.toLocalDateTime());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_JOB_RUN WHERE JOB_ID = 'mf'", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT NEXT_RUN_AT FROM MCMAPUSER.TB_MCM_JOB_DEF WHERE JOB_ID = 'mf'", Timestamp.class).toLocalDateTime()).isAfter(dbNow());
+        assertThat(claim(50, "Y").runs()).isEmpty();   // 여러 회차를 놓쳤어도 한 번뿐
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_JOB_RUN WHERE JOB_ID = 'mf'", Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("놓친 회차 한 번 실행(Y)이어도 겹침 규칙은 그대로다 — 이전 회차가 실행 중이면 SKIP 「이전 회차 실행 중」(TRIGGER_TP='S')")
+    void misfireStillSkipsOnOverlap() {
+        def("mfo", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, -3 * 3600);
+        misfireOn("mfo");
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS, STARTED_AT, TIMEOUT_SEC) "
+                + "VALUES ('mfo', TIMESTAMP '2020-01-01 00:00:00', 'S', 'old-run', 'MDM', 'jobCode', 'RUN', " + NOW_SQL + " - INTERVAL '10' SECOND, 600)");
+
+        assertThat(claim(50, "Y").runs()).isEmpty();
+
+        Map<String, Object> skip = jdbc.queryForMap("SELECT TRIGGER_TP, MSG FROM MCMAPUSER.TB_MCM_JOB_RUN WHERE JOB_ID = 'mfo' AND STATUS = 'SKIP'");
+        assertThat(skip.get("MSG")).isEqualTo("이전 회차 실행 중");
+        assertThat(skip.get("TRIGGER_TP")).isEqualTo("S");
+        assertThat(jdbc.queryForObject("SELECT NEXT_RUN_AT FROM MCMAPUSER.TB_MCM_JOB_DEF WHERE JOB_ID = 'mfo'", Timestamp.class).toLocalDateTime()).isAfter(dbNow());
+    }
+
+    @Test
+    @DisplayName("옵션이 켜져도 제때 도는 회차는 그대로 일정 RUN(TRIGGER_TP='S')이다 — 'C' 는 늦은 회차에만")
+    void misfireOptionDoesNotChangeOnTimeRuns() {
+        def("mft", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, -5);
+        misfireOn("mft");
+        assertThat(claim(50, "Y").runs()).hasSize(1);
+        assertThat(run("mft").get("TRIGGER_TP")).isEqualTo("S");
+    }
+
+    @Test
+    @DisplayName("놓친 회차 실행 'C' 가 이미 있는 회차 PK 를 만나도 예외 없이 건너뛰고 NEXT_RUN_AT 을 올린다 — 다른 작업은 정상 선점")
+    void misfireOnExistingSlotDoesNotPoisonBatch() {
+        def("dupM", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, -3 * 3600);
+        misfireOn("dupM");
+        def("okM", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, -5);
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS) "
+                + "VALUES ('dupM', ?, 'C', 'prev-c', 'MDM', 'jobCode', 'OK')", schedOf("dupM"));
+
+        ClaimedBatch batch = claim(50, "Y");
+
+        assertThat(batch.runs()).extracting(JobRunRequest::jobId).containsExactly("okM");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_JOB_RUN WHERE JOB_ID = 'dupM'", Integer.class)).isEqualTo(1);
+        assertThat(nextRunAt("dupM").toLocalDateTime()).isAfter(dbNow());
+    }
+
+    @Test
+    @DisplayName("지금 실행은 놓친 회차 옵션과 무관하다 — 옵션이 Y 여도 TRIGGER_TP='M' 이고 NEXT_RUN_AT 은 그대로")
+    void manualRunIgnoresMisfireOption() {
+        def("mfm", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, 3600);
+        misfireOn("mfm");
+        Timestamp nextBefore = nextRunAt("mfm");
+
+        JobDispatchService.ManualClaim claim = service.claimManual("mfm", "u1", null);
+
+        assertThat(claim.rejectReason()).isNull();
+        assertThat(run("mfm").get("TRIGGER_TP")).isEqualTo("M");
+        assertThat(nextRunAt("mfm")).isEqualTo(nextBefore);
+    }
+
     @Test
     @DisplayName("같은 작업의 이전 회차가 RUN(시간 초과 + 정리 여유 안)이면 SKIP 「이전 회차 실행 중」")
     void overlapIsSkipped() {
@@ -230,7 +321,7 @@ class JobDispatchServiceOraTest {
     }
 
     @Test
-    @DisplayName(":prevRunAt 은 직전 정상 「일정」 회차(TRIGGER_TP='S')의 예정 시각만 쓴다 — 「지금 실행」(M)은 구간을 당기지 않는다")
+    @DisplayName(":prevRunAt 은 직전 정상 「일정」 회차(TRIGGER_TP='S'·놓친 회차 'C')의 예정 시각만 쓴다 — 「지금 실행」(M)은 구간을 당기지 않는다")
     void prevRunAtIgnoresManualRuns() {
         def("pv", "CODE", "*/10 * * * *", "[{\"name\":\"p\",\"type\":\"DATE\",\"value\":\":prevRunAt\",\"desc\":\"\"}]", "{\"handlerId\":\"h\"}", null, -5);
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS) "
@@ -241,6 +332,20 @@ class JobDispatchServiceOraTest {
                 + "VALUES ('pv', TIMESTAMP '2026-10-08 11:00:00', 'S', 'r-f', 'MDM', 'jobCode', 'FAIL')");
         JobRunRequest r = claim(50, "Y").runs().get(0);
         assertThat(r.inputs().get("p")).isEqualTo("2026-10-08T09:00:00");
+    }
+
+    @Test
+    @DisplayName(":prevRunAt 은 정상으로 끝난 놓친 회차 실행(C)도 직전 일정 회차로 본다")
+    void prevRunAtCountsMissedRuns() {
+        def("pc", "CODE", "*/10 * * * *", "[{\"name\":\"p\",\"type\":\"DATE\",\"value\":\":prevRunAt\",\"desc\":\"\"}]", "{\"handlerId\":\"h\"}", null, -5);
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS) "
+                + "VALUES ('pc', TIMESTAMP '2026-10-08 09:00:00', 'S', 'r-s', 'MDM', 'jobCode', 'OK')");
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS) "
+                + "VALUES ('pc', TIMESTAMP '2026-10-08 10:00:00', 'C', 'r-c', 'MDM', 'jobCode', 'OK')");
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_RUN (JOB_ID, SCHED_AT, TRIGGER_TP, RUN_ID, MODULE_CD, SERVICE_ID, STATUS) "
+                + "VALUES ('pc', TIMESTAMP '2026-10-08 11:00:00', 'M', 'r-m', 'MDM', 'jobCode', 'OK')");
+        JobRunRequest r = claim(50, "Y").runs().get(0);
+        assertThat(r.inputs().get("p")).isEqualTo("2026-10-08T10:00:00");
     }
 
     @Test

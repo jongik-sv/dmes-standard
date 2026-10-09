@@ -17,6 +17,7 @@ public class JobSchedMngRequest {
     private String configJson;
     private String varsJson;
     private String optsJson;
+    private String misfireRunYn;
     private String jobDesc;
     private Integer timeoutSec;
     private Long ver;
@@ -55,6 +56,8 @@ public class JobSchedMngRequest {
     public void setVarsJson(String varsJson) { this.varsJson = varsJson; }
     public String getOptsJson() { return optsJson; }
     public void setOptsJson(String optsJson) { this.optsJson = optsJson; }
+    public String getMisfireRunYn() { return misfireRunYn; }
+    public void setMisfireRunYn(String misfireRunYn) { this.misfireRunYn = misfireRunYn; }
     public String getJobDesc() { return jobDesc; }
     public void setJobDesc(String jobDesc) { this.jobDesc = jobDesc; }
     public Integer getTimeoutSec() { return timeoutSec; }

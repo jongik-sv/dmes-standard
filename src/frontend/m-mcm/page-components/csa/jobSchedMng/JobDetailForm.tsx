@@ -9,7 +9,7 @@ import { memo, useCallback, useImperativeHandle, useMemo, useRef, useState, type
 
 import { CardFrame, CardGroup, MutedText } from "@dk-oasis/shared/card";
 import { CronInput, formatWithDow, validateCron, type CronPreview } from "@dk-oasis/shared/cron-input";
-import { Badge, Button, Input, Radio, Select, Textarea } from "@dk-oasis/shared/form";
+import { Badge, Button, Checkbox, Input, Radio, Select, Textarea } from "@dk-oasis/shared/form";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { VariableTable, type JobVarRow } from "@dk-oasis/shared/variable-table";
 
@@ -127,11 +127,12 @@ interface AdvancedCardProps {
   timeoutSec: string;
   retryCount: string;
   retryIntervalMin: string;
+  misfireRunOnce: boolean;
   disabled: boolean;
   onPatch: (patch: Partial<JobForm>) => void;
 }
 
-const AdvancedCard = memo(function AdvancedCard({ timeoutSec, retryCount, retryIntervalMin, disabled, onPatch }: AdvancedCardProps) {
+const AdvancedCard = memo(function AdvancedCard({ timeoutSec, retryCount, retryIntervalMin, misfireRunOnce, disabled, onPatch }: AdvancedCardProps) {
   return (
     <CardGroup id="advanced" title="고급 설정" testIdPrefix="job-group" defaultOpen={false}>
       <CardFrame title="시간 초과 · 재시도" testId="job-card-advanced">
@@ -160,10 +161,19 @@ const AdvancedCard = memo(function AdvancedCard({ timeoutSec, retryCount, retryI
                 <span>분</span>
               </div>
             </Row>
+            <Row label="놓친 회차">
+              <Checkbox
+                label="서버가 꺼져 있어 놓친 회차를 한 번 실행"
+                checked={misfireRunOnce}
+                disabled={disabled}
+                data-testid="job-misfire-run-once"
+                onChange={(on) => onPatch({ misfireRunOnce: on })}
+              />
+            </Row>
           </tbody>
         </table>
         <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)", marginTop: "var(--spacing-xs)" }}>
-          시간 초과를 넘기면 실행 기록이 시간 초과로 남습니다. 재시도는 최대 5회입니다.
+          시간 초과를 넘기면 실행 기록이 시간 초과로 남습니다. 재시도는 최대 5회입니다. 놓친 회차는 2분 넘게 늦은 회차이며, 켜면 건너뛰지 않고 한 번만 실행하고(이력 구분 「놓친 회차」) 끄면 건너뜀으로 남깁니다.
         </div>
       </CardFrame>
     </CardGroup>
@@ -356,6 +366,7 @@ function JobDetailFormImpl({ ref, handlers, busy, permissions, lastFailure, onAc
             timeoutSec={form.timeoutSec}
             retryCount={form.retryCount}
             retryIntervalMin={form.retryIntervalMin}
+            misfireRunOnce={form.misfireRunOnce}
             disabled={disabled}
             onPatch={patch}
           />

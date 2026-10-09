@@ -20,7 +20,8 @@ public class JobDefStore {
     public record Filter(String moduleCd, String jobKind, String useYn, String lastStatus, String keyword) {}
 
     public record DefRow(String jobId, String moduleCd, String jobNm, String jobKind, String serviceId, String svcAction, String cronExpr, String useYn,
-                         String configJson, String varsJson, String optsJson, int timeoutSec, String jobDesc, String ownerTp, LocalDateTime nextRunAt) {}
+                         String configJson, String varsJson, String optsJson, int timeoutSec, String jobDesc, String ownerTp, LocalDateTime nextRunAt,
+                         String misfireRunYn) {}
 
     static final int LIST_MAX = 500;
     static final int HANDLER_STALE_DAYS = 7;
@@ -74,7 +75,7 @@ public class JobDefStore {
     public Optional<Map<String, Object>> find(String jobId) {
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 SELECT A.JOB_ID, A.MODULE_CD, A.JOB_NM, A.JOB_KIND, A.SERVICE_ID, A.ACTION, A.CRON_EXPR, A.USE_YN, A.CONFIG_JSON, A.VARS_JSON, A.OPTS_JSON
-                     , A.TIMEOUT_SEC, A.NEXT_RUN_AT, A.JOB_DESC, A.OWNER_TP, A.VER
+                     , A.TIMEOUT_SEC, A.NEXT_RUN_AT, A.JOB_DESC, A.OWNER_TP, A.MISFIRE_RUN_YN, A.VER
                 FROM   %s.TB_MCM_JOB_DEF A
                 WHERE  A.JOB_ID = ?
                 """.formatted(schema), jobId);
@@ -86,14 +87,14 @@ public class JobDefStore {
         jdbc.update("""
                 INSERT INTO %1$s.TB_MCM_JOB_DEF
                        (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, SERVICE_ID, ACTION, CRON_EXPR, USE_YN, CONFIG_JSON, VARS_JSON, OPTS_JSON, TIMEOUT_SEC, NEXT_RUN_AT,
-                        JOB_DESC, OWNER_TP, C_AT, C_USR_ID, C_PGM_ID, C_SVC_ID, U_AT, U_USR_ID, U_PGM_ID, U_SVC_ID, VER)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, %2$s, ?, 'jobSchedMng', 'jobSchedMng', %2$s, ?, 'jobSchedMng', 'jobSchedMng', 0)
+                        JOB_DESC, OWNER_TP, MISFIRE_RUN_YN, C_AT, C_USR_ID, C_PGM_ID, C_SVC_ID, U_AT, U_USR_ID, U_PGM_ID, U_SVC_ID, VER)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, %2$s, ?, 'jobSchedMng', 'jobSchedMng', %2$s, ?, 'jobSchedMng', 'jobSchedMng', 0)
                 """.formatted(schema, NOW),
                 new Object[]{r.jobId(), r.moduleCd(), r.jobNm(), r.jobKind(), r.serviceId(), r.svcAction(), r.cronExpr(), r.useYn(), r.configJson(),
-                        r.varsJson(), r.optsJson(), r.timeoutSec(), ts(r.nextRunAt()), r.jobDesc(), r.ownerTp(), userId, userId},
+                        r.varsJson(), r.optsJson(), r.timeoutSec(), ts(r.nextRunAt()), r.jobDesc(), r.ownerTp(), r.misfireRunYn(), userId, userId},
                 new int[]{Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR,
                         Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.INTEGER, Types.TIMESTAMP, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR,
-                        Types.VARCHAR});
+                        Types.VARCHAR, Types.VARCHAR});
     }
 
     /** VER 가 맞을 때만 고친다. nextRunAt 이 null 이면 NEXT_RUN_AT 은 그대로 둔다. 바뀐 행 수(0 이면 VER 불일치). */
@@ -101,16 +102,16 @@ public class JobDefStore {
         return jdbc.update("""
                 UPDATE %1$s.TB_MCM_JOB_DEF
                 SET    MODULE_CD = ?, JOB_NM = ?, JOB_KIND = ?, SERVICE_ID = ?, ACTION = ?, CRON_EXPR = ?, USE_YN = ?, CONFIG_JSON = ?, VARS_JSON = ?, OPTS_JSON = ?
-                     , TIMEOUT_SEC = ?, JOB_DESC = ?
+                     , TIMEOUT_SEC = ?, JOB_DESC = ?, MISFIRE_RUN_YN = ?
                      , NEXT_RUN_AT = NVL(?, NEXT_RUN_AT)
                      , U_AT = %2$s, U_USR_ID = ?, U_PGM_ID = 'jobSchedMng', U_SVC_ID = 'jobSchedMng', VER = VER + 1
                 WHERE  JOB_ID = ?
                 AND    VER = ?
                 """.formatted(schema, NOW),
                 new Object[]{r.moduleCd(), r.jobNm(), r.jobKind(), r.serviceId(), r.svcAction(), r.cronExpr(), r.useYn(), r.configJson(), r.varsJson(),
-                        r.optsJson(), r.timeoutSec(), r.jobDesc(), ts(r.nextRunAt()), userId, r.jobId(), expectVer},
+                        r.optsJson(), r.timeoutSec(), r.jobDesc(), r.misfireRunYn(), ts(r.nextRunAt()), userId, r.jobId(), expectVer},
                 new int[]{Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR,
-                        Types.VARCHAR, Types.VARCHAR, Types.INTEGER, Types.VARCHAR, Types.TIMESTAMP, Types.VARCHAR, Types.VARCHAR, Types.BIGINT});
+                        Types.VARCHAR, Types.VARCHAR, Types.INTEGER, Types.VARCHAR, Types.VARCHAR, Types.TIMESTAMP, Types.VARCHAR, Types.VARCHAR, Types.BIGINT});
     }
 
     public int setUse(String jobId, String useYn, LocalDateTime nextRunAt, String userId) {

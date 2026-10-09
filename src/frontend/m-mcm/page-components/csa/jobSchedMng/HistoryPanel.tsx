@@ -10,7 +10,7 @@ import type { JobRunGridRow } from "./types";
 
 const COLUMNS: GridColumn[] = [
   { key: "schedAt", header: "예정 시각", width: 1, minWidth: 150, align: "center", meta: false },
-  { key: "trigger", header: "구분", width: 1, minWidth: 56, align: "center", meta: false },
+  { key: "trigger", header: "구분", width: 1, minWidth: 72, align: "center", meta: false },
   { key: "status", header: "상태", width: 1, minWidth: 84, align: "center", meta: false, render: (v) => <RunStatusBadge status={String(v ?? "")} /> },
   { key: "serverNm", header: "실행 서버", width: 2, minWidth: 150, align: "left", meta: false },
   { key: "serviceTag", header: "서비스 태그", width: 2, minWidth: 130, align: "left", meta: false },

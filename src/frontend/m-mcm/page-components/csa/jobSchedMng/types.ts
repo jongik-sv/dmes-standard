@@ -68,6 +68,8 @@ export interface JobDef {
   configJson: string;
   varsJson: string;
   optsJson: string;
+  /** 놓친 회차 한 번 실행 옵션 "Y"·"N" (서버 칼럼 MISFIRE_RUN_YN). */
+  misfireRunYn: string;
   timeoutSec: number;
   nextRunAt: string;
   jobDesc: string;
@@ -188,6 +190,7 @@ export interface JobSaveRequest {
   configJson?: string;
   varsJson: string;
   optsJson?: string;
+  misfireRunYn?: "Y" | "N";
   jobDesc?: string;
   timeoutSec: number;
   ver?: number;

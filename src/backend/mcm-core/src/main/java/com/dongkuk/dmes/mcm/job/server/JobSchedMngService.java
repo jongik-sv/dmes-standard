@@ -230,6 +230,8 @@ public class JobSchedMngService {
         String desc = req.getJobDesc() == null ? null : req.getJobDesc().strip();
         if (desc != null && desc.length() > 500) throw invalid("설명은 500자까지입니다");
         String useYn = "N".equals(req.getUseYn()) ? "N" : "Y";
+        String misfireRunYn = req.getMisfireRunYn();   // 없으면 새 작업은 꺼짐, 고치는 작업은 지금 값 유지(옛 화면이 보낸 저장이 옵션을 끄지 않게)
+        if (misfireRunYn != null && !"Y".equals(misfireRunYn) && !"N".equals(misfireRunYn)) throw invalid("놓친 회차 한 번 실행(misfireRunYn)은 Y 또는 N 이어야 합니다");
 
         CronSpec cron;
         try {
@@ -296,7 +298,7 @@ public class JobSchedMngService {
         LocalDateTime now = store.dbNow();
         if (isNew) {
             store.insert(new JobDefStore.DefRow(jobId, moduleCd, name, kind, serviceId, svcAction, cron.expression(), useYn, configJson, JobVars.toJson(vars), opts,
-                    timeout, desc, "USER", cron.next(now)), userId);
+                    timeout, desc, "USER", cron.next(now), misfireRunYn == null ? "N" : misfireRunYn), userId);
         } else {
             if (codeOwned) checkCodeOwnedEdit(existing, name, kind, moduleCd, configJson, vars);
             if (req.getVer() != null && req.getVer() != ((Number) existing.get("VER")).longValue()) {
@@ -306,7 +308,8 @@ public class JobSchedMngService {
             boolean resumed = "N".equals(existing.get("USE_YN")) && "Y".equals(useYn);
             LocalDateTime next = scheduleChanged || resumed ? cron.next(now) : null;   // 옛 NEXT_RUN_AT 이 남아 밀린 회차가 쏟아지지 않게
             int changed = store.update(new JobDefStore.DefRow(jobId, moduleCd, name, kind, serviceId, svcAction, cron.expression(), useYn, configJson,
-                    JobVars.toJson(vars), opts, timeout, desc, (String) existing.get("OWNER_TP"), next), userId, ((Number) existing.get("VER")).longValue());
+                    JobVars.toJson(vars), opts, timeout, desc, (String) existing.get("OWNER_TP"), next,
+                    misfireRunYn == null ? (String) existing.get("MISFIRE_RUN_YN") : misfireRunYn), userId, ((Number) existing.get("VER")).longValue());
             if (changed == 0) throw invalid("다른 사용자가 먼저 고쳤습니다. 다시 불러온 뒤 저장해 주세요");
         }
         return Map.of("def", defView(requireExisting(jobId)));
@@ -397,6 +400,7 @@ public class JobSchedMngService {
         m.put("configJson", r.get("CONFIG_JSON"));
         m.put("varsJson", r.get("VARS_JSON"));
         m.put("optsJson", r.get("OPTS_JSON"));
+        m.put("misfireRunYn", r.get("MISFIRE_RUN_YN"));
         m.put("timeoutSec", r.get("TIMEOUT_SEC"));
         m.put("nextRunAt", iso(r.get("NEXT_RUN_AT")));
         m.put("jobDesc", r.get("JOB_DESC"));

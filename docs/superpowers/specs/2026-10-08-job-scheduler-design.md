@@ -87,7 +87,7 @@
     - `builtin`: 내장 서비스의 Java 몸체(코드 실행·쿼리 실행·수집).
 - 새 테이블 4개(MCMAPUSER): 작업 정의 `TB_MCM_JOB_DEF`, 실행 기록 `TB_MCM_JOB_RUN`, 수집 값 `TB_MCM_JOB_COLLECT_DATA`, 코드 처리기 `TB_MCM_JOB_HANDLER`.
 - 관리 화면은 mcm 에 하나: 공통관리 > 시스템관리 > 「예약 작업 관리」(`csa/jobSchedMng`).
-- **MCM 이 꺼져 있는 동안에는 모든 모듈의 예약 작업이 멈춘다.** MCM 이 돌아오면 그 사이 회차는 따라잡지 않고 `SKIP`(「놓친 회차를 건너뜀」) 1건으로 남는다. 모듈은 MCM 이 꺼져 있어도 기동에 실패하지 않는다.
+- **MCM 이 꺼져 있는 동안에는 모든 모듈의 예약 작업이 멈춘다.** MCM 이 돌아오면 그 사이 회차는 따라잡지 않고 `SKIP`(「놓친 회차를 건너뜀」) 1건으로 남는다(작업별 「놓친 회차 한 번 실행」 옵션을 켠 작업은 건너뛰지 않고 한 번 실행한다 — §4.2.1). 모듈은 MCM 이 꺼져 있어도 기동에 실패하지 않는다.
 
 ## 3. 테이블
 
@@ -112,6 +112,7 @@
 | `JOB_DESC` | varchar2(500) | 설명 |
 | `OWNER_TP` | varchar2(10) | `CODE`(코드 등록)·`USER`(화면 등록) |
 | `OPTS_JSON` | clob | 고급 설정: 재시도 `{retry:{count,intervalMin}}`(D12) |
+| `MISFIRE_RUN_YN` | char(1) default `N` | 「놓친 회차 한 번 실행」 옵션 `Y`·`N`(CHECK, V7). `N` 이면 늦은 회차는 `SKIP`(D6 그대로), `Y` 면 한 번 실행한다(§4.2.1) |
 
 - 인덱스: `(MODULE_CD, USE_YN)`, 매분 조회용 `IX_TB_MCM_JOB_DEF_DUE (USE_YN, NEXT_RUN_AT)`.
 
@@ -121,7 +122,7 @@
 |---|---|---|
 | `JOB_ID` | varchar2(60) PK1 | |
 | `SCHED_AT` | timestamp(0) PK2 | 예정 시각(초 단위). 일정 회차는 `NEXT_RUN_AT`, 「지금 실행」은 요청 시각. **넣기 전에 초 단위로 버린다**(`TIMESTAMP(0)` 은 소수 초를 반올림한다 — f1ed4d268 실측) |
-| `TRIGGER_TP` | char(1) PK3 | `S`(일정)·`M`(지금 실행) |
+| `TRIGGER_TP` | char(1) PK3 | `S`(일정)·`M`(지금 실행)·`C`(놓친 회차 한 번 실행, §4.2.1. V7 이 CHECK 에 더한다) |
 | `RUN_ID` | varchar2(36) UNIQUE | 실행 하나의 ID(UUID). 호출·결과 갱신의 키 |
 | `MODULE_CD` | varchar2(10) | |
 | `SERVICE_ID` | varchar2(200) | 이 회차에 실행한 서비스 ID(정의가 바뀌어도 이력이 정확하도록) |
@@ -228,13 +229,25 @@ SELECT JOB_ID, MODULE_CD, SERVICE_ID, ACTION, CRON_EXPR, TIMEOUT_SEC, NEXT_RUN_A
 - `:ids` 는 §4.1 의 조회 결과다. 호출에 쓰는 값(서비스 ID·설정·변수·시간 초과)은 이 잠근 행에서 읽는다. 조회와 잠금 사이에 다른 MCM 이 올렸거나 사용 안 함으로 바뀐 행은 WHERE 가 다시 걸러 내거나 SKIP LOCKED 로 건너뛴다.
 - 잠그는 SQL 에는 행 수 제한(`FETCH FIRST`·`ROWNUM`)을 넣지 않는다(`FOR UPDATE` 와 함께 쓰면 ORA-02014 또는 잠금 전 잘림). 개수는 앞의 잠금 없는 조회가 `batchSize` 로 이미 제한했다. 잠근 행은 모두 그 트랜잭션에서 처리하므로, 잠가 놓고 처리하지 않아 다른 MCM 도 못 잡는 행이 생기지 않는다.
 - 잡은 행마다:
-  1. **늦은 회차**: `DB_NOW - NEXT_RUN_AT > 2분` 이면 따라잡지 않고 `SKIP`("놓친 회차를 건너뜀") 1건만 남긴다.
+  1. **늦은 회차**: `DB_NOW - NEXT_RUN_AT > 2분` 이면 따라잡지 않고 `SKIP`("놓친 회차를 건너뜀") 1건만 남긴다. 단 그 작업의 `MISFIRE_RUN_YN='Y'` 면 건너뛰지 않고 2번(겹침)으로 넘어간다(§4.2.1).
   2. **겹침**: 같은 작업에 `STATUS='RUN'` 이고 `STARTED_AT + TIMEOUT_SEC + 정리 여유(300초) > DB_NOW` 인 행이 있으면 `SKIP`("이전 회차 실행 중")을 남긴다.
-  3. 둘 다 아니면 `RUN` 을 INSERT 한다(`SCHED_AT`=`NEXT_RUN_AT` 초 단위, `RUN_ID`=새 UUID, `SERVICE_ID`, `STARTED_AT`=`DB_NOW`, `TIMEOUT_SEC`, 확정한 `VARS_JSON`). PK 위반이면 건너뛴다.
+  3. 둘 다 아니면 `RUN` 을 INSERT 한다(늦은 회차를 옵션으로 실행하는 경우 `TRIGGER_TP='C'`, 그 밖은 `'S'`. `SCHED_AT`=`NEXT_RUN_AT` 초 단위, `RUN_ID`=새 UUID, `SERVICE_ID`, `STARTED_AT`=`DB_NOW`, `TIMEOUT_SEC`, 확정한 `VARS_JSON`). PK 위반이면 건너뛴다.
   4. RUN·SKIP·FAIL 기록 INSERT 가 PK 중복이면 그 기록만 건너뛰고 `NEXT_RUN_AT` 은 그대로 올린다(같은 회차로 NEXT_RUN_AT 이 되돌아와도 판정 묶음 전체가 롤백되지 않게). 정의가 깨진 행(crontab 다음 시각 없음·변수 JSON 손상)은 그 행만 FAIL 로 닫고 묶음은 계속한다.
   5. `NEXT_RUN_AT` 을 `max(NEXT_RUN_AT, DB_NOW)` 보다 엄격히 뒤인 crontab 식의 첫 시각으로 올린다.
-- 변수 값 확정(§5.0)은 MCM 이 이 트랜잭션에서 한다. 날짜 변수는 `SCHED_AT` 기준이다(§5.0). `:prevRunAt` 은 그 변수를 쓰는 작업만 `SELECT MAX(SCHED_AT) … WHERE JOB_ID=:id AND STATUS='OK' AND TRIGGER_TP='S'` 로 읽는다(「지금 실행」으로 지난 기간을 다시 돌려도 일정 회차의 구간이 당겨지지 않게).
+- 변수 값 확정(§5.0)은 MCM 이 이 트랜잭션에서 한다. 날짜 변수는 `SCHED_AT` 기준이다(§5.0). `:prevRunAt` 은 그 변수를 쓰는 작업만 `SELECT MAX(SCHED_AT) … WHERE JOB_ID=:id AND STATUS='OK' AND TRIGGER_TP IN ('S','C')` 로 읽는다(「지금 실행」으로 지난 기간을 다시 돌려도 일정 회차의 구간이 당겨지지 않게. 놓친 회차 실행 `C` 는 일정 회차의 한 번이므로 포함한다).
 - DB 시계는 늘 `CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS TIMESTAMP)` 로 읽는다. 회차 키는 서버 시계가 아니라 DB 에 적힌 `NEXT_RUN_AT` 으로 만든다.
+
+### 4.2.1 놓친 회차 한 번 실행(D6 후속, 작업별 옵션)
+
+D6 은 MCM 이 꺼져 있었거나 판정이 늦어 `DB_NOW - NEXT_RUN_AT > 2분` 이 된 회차를 따라잡지 않는다. 사용자 결정으로 **작업마다 「놓친 회차를 한 번 실행」을 고를 수 있게** 한다. 따라잡기는 여러 번이 아니라 **최대 1회**다.
+
+- **기본 꺼짐.** `TB_MCM_JOB_DEF.MISFIRE_RUN_YN='N'` 이면 지금 동작(D6)이 그대로다. 옵션 칸은 V7 이 `default 'N'` 으로 더하므로 기존 작업은 모두 꺼진 채 유지된다. 새 작업의 화면 체크박스도 꺼진 상태로 시작한다.
+- **켜면(`Y`)**: 늦은 회차를 `SKIP` 으로 닫는 대신 겹침 검사(아래 「겹침」)를 거쳐 `RUN` 한 건을 만든다. 겹침 검사는 그대로이므로 이전 회차가 아직 돌고 있으면 `SKIP`("이전 회차 실행 중")이다.
+- **한 번만**: 판정은 작업마다 `NEXT_RUN_AT` 하나를 보고, 다음 시각은 늘 `max(회차, DB_NOW)` 이후로 계산한다(`process` 가 이미 그렇게 한다). 그래서 몇 회차를 놓쳤든(예: 매 30분 작업이 3시간 꺼짐) 실행은 **놓친 첫 회차 한 번**이고 나머지 놓친 회차는 합쳐져 사라진다. 다음 회차는 정상 일정대로 계산된다.
+- **SCHED_AT**: 놓친 첫 회차의 예정 시각(`NEXT_RUN_AT` 초 단위)이다. 날짜 변수(§5.0)와 `:prevRunAt` 도 이 시각으로 확정한다. 그래서 실행 시각(`STARTED_AT`)과 예정 시각의 차이가 이력에 그대로 보인다. 같은 회차를 두 MCM 이 동시에 잡아도 PK `(JOB_ID, SCHED_AT, 'C')` 로 한 번만 만들어진다.
+- **이력에 남기는 방법**: 실행 기록의 `TRIGGER_TP='C'`. 이력 표의 「구분」 칸에 「놓친 회차」로 보인다. MSG 에 쓰지 않는 이유는 모듈이 결과를 갱신할 때 MSG 를 덮어 쓰기 때문이다(`JobRunResultWriter`). `C` 도 일정 회차의 한 번이라 `:prevRunAt`(§4.2)과 「최근 결과」 계산에 `S` 와 같이 들어간다.
+- **주의**: 오래 꺼져 있다 돌아오면 이 옵션을 켠 작업이 한꺼번에 한 번씩 실행된다(판정 묶음 `batchSize` 50 씩 매분 나누어 선점). 수집처럼 외부 시스템을 부르는 작업은 필요한 것만 켠다.
+- **재시도(D12)·「지금 실행」**: 재시도는 이 회차의 시도 안에서 그대로 동작한다. 「지금 실행」(`M`)은 이 옵션과 무관하다.
 
 ### 4.3 MCM → 모듈 호출(비동기 접수)
 
@@ -589,7 +602,7 @@ public interface ScheduledJob {
 | D3 | crontab 과 다른 점 | 일·요일 함께 제한한 식, `?`·`L`·`W`·`#`·6칸 식 거절 |
 | D4 | 수정 알리기 | **D17 로 대체** |
 | D5 | 실행 범위 | 6개 모듈 앱 모두 접수·진입점을 켜고 자기 모듈 키 작업만 받음 |
-| D6 | 놓친 회차·겹침 | 따라잡지 않고 `SKIP` 행 1건 |
+| D6 | 놓친 회차·겹침 | 따라잡지 않고 `SKIP` 행 1건. **후속(tx-13)**: 작업별 옵션 `MISFIRE_RUN_YN='Y'` 면 늦은 회차를 한 번 실행(`TRIGGER_TP='C'`), 기본은 꺼짐(§4.2.1) |
 | D7 | 실행 기록 보관 | 90일 |
 | D8 | 화면에서 작업 삭제 | USER 작업만, 정의·이력·수집 값 함께 삭제 |
 | D9 | 메뉴 등록 방법 | 멱등 SQL 파일만 두고 조정자가 L_MAIN 에 적용 |

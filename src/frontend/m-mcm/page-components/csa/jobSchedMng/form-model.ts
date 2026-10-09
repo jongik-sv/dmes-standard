@@ -63,6 +63,8 @@ export interface JobForm {
   timeoutSec: string;
   retryCount: string;
   retryIntervalMin: string;
+  /** 놓친 회차 한 번 실행 — 켜면 MCM 이 꺼져 있다 돌아와 놓친 회차를 건너뛰지 않고 한 번 실행한다(기본 꺼짐, 서버 MISFIRE_RUN_YN). */
+  misfireRunOnce: boolean;
   /** retry 밖의 고급 설정 키 — 화면이 모르는 키도 저장 때 그대로 돌려보낸다. */
   extraOpts: Record<string, unknown>;
   /** BPMN */
@@ -104,6 +106,7 @@ export function emptyForm(kind: JobKind, moduleCd = "MCM"): JobForm {
     timeoutSec: String(DEFAULT_TIMEOUT_SEC[kind]),
     retryCount: "0",
     retryIntervalMin: "5",
+    misfireRunOnce: false,
     extraOpts: {},
     serviceId: "",
     svcAction: "",
@@ -216,6 +219,7 @@ export function toForm(def: JobDef, codeMissing = false): JobForm {
     timeoutSec: String(def.timeoutSec || DEFAULT_TIMEOUT_SEC[kind]),
     retryCount: String(typeof retryObj.count === "number" ? retryObj.count : 0),
     retryIntervalMin: String(typeof retryObj.intervalMin === "number" ? retryObj.intervalMin : 5),
+    misfireRunOnce: def.misfireRunYn === "Y",
     extraOpts,
     vars: parseVars(def.varsJson),
   };
@@ -332,6 +336,7 @@ export function toSaveRequest(form: JobForm): JobSaveRequest {
     configJson: buildConfigJson(form),
     varsJson: serializeVars(form.vars),
     optsJson: buildOptsJson(form),
+    misfireRunYn: form.misfireRunOnce ? "Y" : "N",
     jobDesc: form.jobDesc.trim() === "" ? undefined : form.jobDesc.trim(),
     timeoutSec: Number(form.timeoutSec),
     ver: form.isNew ? undefined : form.ver,
@@ -510,7 +515,7 @@ export function toRunGridRow(r: JobRunRow): JobRunGridRow {
   return {
     rowId: `${r.schedAt}|${r.triggerTp}`,
     schedAt: formatTimestamp(r.schedAt, true),
-    trigger: r.triggerTp === "M" ? "수동" : "일정",
+    trigger: r.triggerTp === "M" ? "수동" : r.triggerTp === "C" ? "놓친 회차" : "일정",
     status: r.status,
     serverNm: r.serverNm,
     serviceTag: r.serviceTag,
