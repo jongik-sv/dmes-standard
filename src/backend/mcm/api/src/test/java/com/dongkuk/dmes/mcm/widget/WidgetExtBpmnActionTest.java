@@ -37,14 +37,14 @@ class WidgetExtBpmnActionTest {
     private static final String CAMUNDA = "http://camunda.org/schema/1.0/bpmn";
 
     @Test
-    void widgetExt_는_exchange_weather_두_분기이고_서비스_메서드와_대응한다() throws Exception {
+    void widgetExt_는_exchange_weather_options_세_분기이고_서비스_메서드와_대응한다() throws Exception {
         Document doc = parse("services/roleManagement/widgetExt.bpmn");
 
         assertEquals("widgetExt", processId(doc));
         Map<String, Element> byAction = tasksByAction(doc);
-        assertEquals(List.of("exchange", "weather"), List.copyOf(byAction.keySet()));
+        assertEquals(List.of("exchange", "options", "weather"), List.copyOf(byAction.keySet()));
 
-        assertEquals(2, doc.getElementsByTagNameNS(BPMN, "serviceTask").getLength());
+        assertEquals(3, doc.getElementsByTagNameNS(BPMN, "serviceTask").getLength());
         for (Map.Entry<String, Element> e : byAction.entrySet()) {
             Element task = e.getValue();
             Map<String, String> props = properties(task);
@@ -57,6 +57,10 @@ class WidgetExtBpmnActionTest {
 
         assertDto(byAction, "exchange", WidgetExtExchangeRequest.class);
         assertDto(byAction, "weather", WidgetExtWeatherRequest.class);
+        // options 는 요청 값이 없는 편집기 선택지 — dto 없이 인자 없는 메서드다.
+        assertFalse(properties(byAction.get("options")).containsKey("dto"), "options 는 dto 가 없다");
+        assertEquals(0, method(WidgetExtService.class, "options").getParameterCount());
+        assertEquals(Map.class, method(WidgetExtService.class, "options").getReturnType());
 
         assertEquals("widgetExtService", WidgetExtService.class.getAnnotation(Service.class).value());
         assertFalse(WidgetExtService.class.isAnnotationPresent(Transactional.class), "@Transactional 금지 (§6-B-1)");

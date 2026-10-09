@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="widgetExtDefinitions" targetNamespace="http://dongkuk.com/dmes/mcm" exporter="bpmn-tool" exporterVersion="1.2.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
   <bpmn:process id="widgetExt" name="환율·날씨 위젯 서비스" isExecutable="true">
-    <bpmn:documentation>환율·날씨 위젯(서버 대리 호출·캐시) — 스펙 2026-10-02-widget-admin-generic §5.1·§8. 공용 정보라 AUTH_ONLY.</bpmn:documentation>
+    <bpmn:documentation>환율·날씨 위젯(서버 대리 호출·캐시) — 스펙 2026-10-02-widget-admin-generic §5.1·§8. 공용 정보라 AUTH_ONLY. options = 위젯 편집기 선택지(환율 마스터 통화·날씨 수집 지점).</bpmn:documentation>
     <bpmn:startEvent id="start">
       <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
     </bpmn:startEvent>
@@ -14,6 +14,7 @@
       <bpmn:incoming>flow_to_gw</bpmn:incoming>
       <bpmn:outgoing>flow_exchange</bpmn:outgoing>
       <bpmn:outgoing>flow_weather</bpmn:outgoing>
+      <bpmn:outgoing>flow_options</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="exchangeTask" name="환율 조회" camunda:class="widgetExtService">
       <bpmn:extensionElements>
@@ -43,11 +44,26 @@
     <bpmn:endEvent id="endWeather">
       <bpmn:incoming>flow_weather_end</bpmn:incoming>
     </bpmn:endEvent>
+    <bpmn:serviceTask id="optionsTask" name="편집기 선택지(통화·날씨 지점)" camunda:class="widgetExtService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="options" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_options</bpmn:incoming>
+      <bpmn:outgoing>flow_options_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endOptions">
+      <bpmn:incoming>flow_options_end</bpmn:incoming>
+    </bpmn:endEvent>
     <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
     <bpmn:sequenceFlow id="flow_exchange" name="exchange" sourceRef="actionGateway" targetRef="exchangeTask" />
     <bpmn:sequenceFlow id="flow_exchange_end" sourceRef="exchangeTask" targetRef="endExchange" />
     <bpmn:sequenceFlow id="flow_weather" name="weather" sourceRef="actionGateway" targetRef="weatherTask" />
     <bpmn:sequenceFlow id="flow_weather_end" sourceRef="weatherTask" targetRef="endWeather" />
+    <bpmn:sequenceFlow id="flow_options" name="options" sourceRef="actionGateway" targetRef="optionsTask" />
+    <bpmn:sequenceFlow id="flow_options_end" sourceRef="optionsTask" targetRef="endOptions" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="widgetExt">
@@ -69,6 +85,24 @@
       <bpmndi:BPMNShape id="endWeather_di" bpmnElement="endWeather">
         <dc:Bounds x="582" y="332" width="36" height="36" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="optionsTask_di" bpmnElement="optionsTask">
+        <dc:Bounds x="400" y="450" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endOptions_di" bpmnElement="endOptions">
+        <dc:Bounds x="582" y="472" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_options_di" bpmnElement="flow_options">
+        <di:waypoint x="295" y="275" />
+        <di:waypoint x="295" y="490" />
+        <di:waypoint x="400" y="490" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="327.5" y="473" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_options_end_di" bpmnElement="flow_options_end">
+        <di:waypoint x="500" y="490" />
+        <di:waypoint x="582" y="490" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
         <di:waypoint x="216" y="250" />
         <di:waypoint x="270" y="250" />

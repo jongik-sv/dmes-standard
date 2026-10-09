@@ -39,6 +39,8 @@ public class WeatherCollectReader {
 
     /** 날씨 수집 작업의 ID 접두. */
     public static final String JOB_PREFIX = "mcm.weather.";
+    /** 날씨 수집 작업 이름의 앞머리 — 지점 이름은 이것을 뗀 나머지다(V5 시드 「날씨 수집 서울」). */
+    static final String NAME_PREFIX = "날씨 수집";
     static final int FORECAST_DAYS = 3;
     static final int JOBS_MAX = 200;
     /** 요청 좌표와 작업 좌표가 이 도(°) 이내면 같은 지점으로 본다. */
@@ -63,10 +65,14 @@ public class WeatherCollectReader {
 
     @Autowired
     public WeatherCollectReader(DataSource dataSource, @Value("${dmes.job.schema:MCMAPUSER}") String schema) {
+        this(new JdbcTemplate(dataSource), schema);
+    }
+
+    WeatherCollectReader(JdbcTemplate jdbc, String schema) {
         if (schema == null || !SCHEMA.matcher(schema).matches()) throw new IllegalArgumentException("dmes.job.schema 는 식별자여야 합니다");
-        this.jdbc = new JdbcTemplate(dataSource);
+        this.jdbc = jdbc;
         this.jobSql = """
-                SELECT A.JOB_ID, A.VARS_JSON
+                SELECT A.JOB_ID, A.JOB_NM, A.VARS_JSON
                 FROM   %1$s.TB_MCM_JOB_DEF A
                 WHERE  A.JOB_KIND = 'COLLECT'
                 AND    A.MODULE_CD = 'MCM'
@@ -82,6 +88,9 @@ public class WeatherCollectReader {
                 AND    A.SLOT = (SELECT MAX(B.SLOT) FROM %1$s.TB_MCM_JOB_COLLECT_DATA B WHERE B.JOB_ID = ?)
                 """.formatted(schema);
     }
+
+    /** 수집 중인 지점 — 위젯 편집기의 「빠른 추가」 선택지. 좌표는 수집 작업의 변수(소수 둘째 자리)다. */
+    public record Place(String name, BigDecimal lat, BigDecimal lon) {}
 
     private record Candidate(String jobId, double dist) {}
 
@@ -117,23 +126,49 @@ public class WeatherCollectReader {
         return new Latest(slot, items);
     }
 
+    /**
+     * 수집 작업이 모으는 지점 목록 — 작업 ID 순. 이름은 작업 이름에서 앞의 「{@value #NAME_PREFIX}」 를 뗀 것(그 글자로 시작하지 않으면 작업 이름 그대로).
+     * 좌표 변수를 못 읽는 작업은 건너뛴다. 편집기가 이 좌표를 그대로 지점에 넣으면 {@link #read} 가 같은 작업을 찾는다.
+     */
+    public List<Place> places() {
+        List<Place> out = new ArrayList<>();
+        for (Map<String, Object> row : jdbc.queryForList(jobSql)) {
+            BigDecimal[] coords = coords(row);
+            if (coords == null) continue;
+            String name = row.get("JOB_NM") instanceof String n ? n.strip() : "";
+            if (name.startsWith(NAME_PREFIX) && name.length() > NAME_PREFIX.length()) name = name.substring(NAME_PREFIX.length()).strip();
+            if (name.isEmpty()) name = String.valueOf(row.get("JOB_ID"));
+            out.add(new Place(name, coords[0], coords[1]));
+        }
+        return out;
+    }
+
+    /** 작업의 변수 lat·lon(소수 둘째 자리) — 하나라도 없거나 변수를 못 읽으면 null(경고 한 줄). */
+    private static BigDecimal[] coords(Map<String, Object> row) {
+        String jobId = (String) row.get("JOB_ID");
+        BigDecimal jobLat = null;
+        BigDecimal jobLon = null;
+        try {
+            for (JobVar v : JobVars.parse((String) row.get("VARS_JSON"))) {
+                if ("lat".equals(v.name())) jobLat = coord(v.value());
+                if ("lon".equals(v.name())) jobLon = coord(v.value());
+            }
+        } catch (RuntimeException e) {
+            log.warn("[widgetExt] 날씨 수집 작업의 변수를 읽지 못해 건너뜁니다: {}", jobId);
+            return null;
+        }
+        return jobLat == null || jobLon == null ? null : new BigDecimal[] {jobLat, jobLon};
+    }
+
     /** 좌표 허용 거리 안의 작업을 가까운 순(같으면 작업 ID 순)으로. 변수를 못 읽는 작업 하나가 다른 지점의 조회를 막지 않게 그 작업만 건너뛴다. */
     private List<Candidate> candidates(BigDecimal lat, BigDecimal lon) {
         List<Candidate> out = new ArrayList<>();
         for (Map<String, Object> row : jdbc.queryForList(jobSql)) {
             String jobId = (String) row.get("JOB_ID");
-            BigDecimal jobLat = null;
-            BigDecimal jobLon = null;
-            try {
-                for (JobVar v : JobVars.parse((String) row.get("VARS_JSON"))) {
-                    if ("lat".equals(v.name())) jobLat = coord(v.value());
-                    if ("lon".equals(v.name())) jobLon = coord(v.value());
-                }
-            } catch (RuntimeException e) {
-                log.warn("[widgetExt] 날씨 수집 작업의 변수를 읽지 못해 건너뜁니다: {}", jobId);
-                continue;
-            }
-            if (jobLat == null || jobLon == null) continue;
+            BigDecimal[] coords = coords(row);
+            if (coords == null) continue;
+            BigDecimal jobLat = coords[0];
+            BigDecimal jobLon = coords[1];
             double dLat = lat.subtract(jobLat).abs().doubleValue();
             double dLon = lon.subtract(jobLon).abs().doubleValue();
             if (dLat <= NEAR_DEG + 1e-9 && dLon <= NEAR_DEG + 1e-9) out.add(new Candidate(jobId, dLat * dLat + dLon * dLon));

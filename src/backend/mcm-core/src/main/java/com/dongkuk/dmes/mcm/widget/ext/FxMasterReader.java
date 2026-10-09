@@ -53,6 +53,7 @@ public class FxMasterReader {
     private static final Set<Integer> UNREADABLE_CODES = Set.of(942, 980, 1031, 1435);
     private static final int QUERY_TIMEOUT_SEC = 10;
     private static final int ATTR_COUNT = 10;
+    private static final Pattern CURRENCY = Pattern.compile("^[A-Z]{3}$");
     private static final DateTimeFormatter YMD = DateTimeFormatter.BASIC_ISO_DATE;
 
     private static final Logger log = LoggerFactory.getLogger(FxMasterReader.class);
@@ -85,16 +86,9 @@ public class FxMasterReader {
     public List<ExchangeRatePoint> read(String base, Collection<String> currencies, LocalDate from, LocalDate to) {
         if (currencies == null || currencies.isEmpty()) return List.of();
         String schema = schema();
-        MapSqlParameterSource labelParams = new MapSqlParameterSource().addValue("md", MARU_DATA_ID);
         List<ExchangeRatePoint> out = new ArrayList<>();
         try {
-            String[] labels = new String[ATTR_COUNT];
-            jdbc.query(labelSql(schema), labelParams, (RowCallbackHandler) rs -> {
-                for (int i = 0; i < ATTR_COUNT; i++) {
-                    String v = rs.getString(i + 1);
-                    labels[i] = v == null || v.isBlank() ? null : v.trim().toUpperCase(Locale.ROOT);
-                }
-            });
+            String[] labels = readLabels(schema);
             // 요청한 통화 → 칼럼 번호(0 기준). 라벨에 없는 통화는 값이 없다.
             List<String> curs = new ArrayList<>();
             List<Integer> columns = new ArrayList<>();
@@ -114,15 +108,51 @@ public class FxMasterReader {
                 jdbc.query(itemSql(schema, columns), params, (RowCallbackHandler) rs -> readRow(rs, curs, from, to, out));
             }
         } catch (DataAccessException e) {
-            if (!isUnreadable(e)) throw e;
-            if (unreadableLogged.compareAndSet(false, true)) {
-                log.warn("[widgetExt] MDM 환율 마스터({}.TB_MDM_DATA_ITEM)를 읽지 못해 환율 없음으로 답한다"
-                        + " — 스키마·SELECT 권한(dmes.widget.ext.exchange.mdm-schema)을 확인하세요: {}", schema, e.getMessage());
-            }
+            handleUnreadable(schema, e);
             return List.of();
         }
         unreadableLogged.set(false);
         return out;
+    }
+
+    /**
+     * 환율 마스터가 가진 통화 코드 — {@code ATTR01~10_NAME} 라벨 순서대로, 영문 대문자 3자리이고 KRW 가 아닌 것만 중복 없이.
+     * 위젯 편집기의 통화 선택지다. 표를 못 읽으면 빈 목록(읽는 쪽이 고정 목록으로 대신한다).
+     */
+    public List<String> currencies() {
+        String schema = schema();
+        try {
+            List<String> out = new ArrayList<>();
+            for (String label : readLabels(schema)) {
+                if (label != null && CURRENCY.matcher(label).matches() && !"KRW".equals(label) && !out.contains(label)) out.add(label);
+            }
+            unreadableLogged.set(false);
+            return List.copyOf(out);
+        } catch (DataAccessException e) {
+            handleUnreadable(schema, e);
+            return List.of();
+        }
+    }
+
+    /** 칼럼 번호(0 기준)별 통화 라벨 — 라벨이 없으면 null. 마스터 정의 행이 없으면 모두 null. */
+    private String[] readLabels(String schema) {
+        String[] labels = new String[ATTR_COUNT];
+        jdbc.query(labelSql(schema), new MapSqlParameterSource().addValue("md", MARU_DATA_ID), (RowCallbackHandler) rs -> {
+            for (int i = 0; i < ATTR_COUNT; i++) {
+                String v = rs.getString(i + 1);
+                labels[i] = v == null || v.isBlank() ? null : v.trim().toUpperCase(Locale.ROOT);
+            }
+        });
+        return labels;
+    }
+
+    /** 「표를 못 읽음」 계열 오류면 경고를 한 번 남기고 삼킨다. 그 밖의 DB 오류는 그대로 올린다. */
+    private void handleUnreadable(String schema, DataAccessException e) {
+        if (!isUnreadable(e)) throw e;
+        if (unreadableLogged.compareAndSet(false, true)) {
+            log.warn("[widgetExt] MDM 환율 마스터({}.TB_MDM_DATA_ITEM)를 읽지 못해 환율 없음으로 답한다"
+                    + " — 스키마·SELECT 권한(dmes.widget.ext.exchange.mdm-schema)을 확인하세요: {}", schema, e.getMessage());
+        }
     }
 
     private static String labelSql(String schema) {
