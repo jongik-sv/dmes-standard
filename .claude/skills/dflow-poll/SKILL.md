@@ -5,6 +5,8 @@ description: D'Flow 할당 작업 폴링 루프 — 백그라운드 스크립트
 
 # /dflow-poll — 할당 작업 폴링 루프 (반자동)
 
+> 문체: 에이전트 지시·보고·메시지 → `../_shared/style/Korean-STE-LLM-Guide.md`. 사람이 읽는 산출물 → `../_shared/style/Korean-STE-Writing-Guide.md`.
+
 인자: `$ARGUMENTS` (`--interval <초>` 기본 300, `--until <HH:MM>` 기본 18:00,
 `--all` = 위임 태그 필터 해제)
 

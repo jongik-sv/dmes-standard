@@ -5,6 +5,8 @@ description: "ADR(설계 결정 기록)을 발행·개정·확정할 때 사용�
 
 # ADR 작성 (dmes-standard 전 모듈)
 
+> 문체: 산출 문서 → `../_shared/style/Korean-STE-Writing-Guide.md`.
+
 > **본 문서가 ADR 규약의 정본이다** (2026-07-20 표준화). ADR 은 원래 APS 전용이었으나
 > 전 모듈 공용 체계가 됐고, 규약 본문을 여기로 옮겼다. 각 모듈의
 > `docs/{module}/design/adr/README.md` 는 그 모듈의 **인덱스**만 유지한다.

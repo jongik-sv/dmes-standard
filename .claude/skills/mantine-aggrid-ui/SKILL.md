@@ -5,6 +5,8 @@ description: Mantine 9(@mantine/core · dates · hooks · modals · notification
 
 # Mantine 9 · ag-grid-community UI 개발
 
+> 문체: 화면 안내 문구·알림 메시지·문서 → `../_shared/style/Korean-STE-Writing-Guide.md`.
+
 ## 원칙
 
 - **확인된 API 만 쓴다.** 기억 속 Mantine 은 v6~v8, ag-grid 는 v25~v36 이 섞여 있다. 확인하지 못한 prop·옵션·import 는 만들어 내지 말고 "미확인"으로 보고한다.

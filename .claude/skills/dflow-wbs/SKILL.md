@@ -5,6 +5,8 @@ description: PRD/TRD 또는 프로그램 리스트(json/yaml/csv/md/xlsx)로 WBS
 
 # /dflow-wbs - PRD/TRD·프로그램 리스트 기반 WBS 생성 (Water-Scrum-Fall)
 
+> 문체: 산출 문서 → `../_shared/style/Korean-STE-Writing-Guide.md`.
+
 > **이 리포의 `.claude/skills/` 안에서 동작하는 스킬이다** — 스크립트와 템플릿·출력 형식 정본(`references/`)은 이 폴더에 있지만,
 > node 판 스크립트는 같은 `.claude/skills/` 아래의 `_shared/node/` 와 `dflow-export/scripts/`(`_pystr.mjs`·`wbs-validate.mjs`)를 import 하므로
 > 이 폴더만 따로 복사해서는 돌지 않는다(`_shared` 와 `dflow-export` 를 함께 둔다). PRD 검증·결정 로그 스크립트(`prd-validate`·`decision-log`)는 이 스킬의 `scripts/` 에 있고,

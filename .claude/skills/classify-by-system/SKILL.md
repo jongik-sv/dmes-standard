@@ -5,6 +5,8 @@ description: "영역 (조업/품질/물류) 단위로 화면들을 ERP / MES / h
 
 # 영역 분류 분석 (TIER 5)
 
+> 문체: 산출 문서 → `../_shared/style/Korean-STE-Writing-Guide.md`.
+
 > ⭐ **V4.1 (2026-05-13) 신규** — 분류 분석서가 종합 PROCESS_INDEX 의 사전 예측을 무비판 인용해 {CLIENT} 에 존재하지 않는 화면 6개를 분해표에 포함시킨 사고 (MIM010K/521K/522K/550K/560K/570K) 재발 방지를 위한 신규 스킬.
 >
 > **정본**: [`PLUGIN_USAGE.md §13`](../../docs/external/SampleErp/orgErpReport/PLUGIN_USAGE.md) + [`_AGENT_INSTRUCTIONS.md §10`](../../docs/external/SampleErp/orgErpReport/_AGENT_INSTRUCTIONS.md)

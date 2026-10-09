@@ -5,6 +5,8 @@ description: "모듈 내 모든 화면 통합 보고서 (screens/*.md, V3) 를 �
 
 # 프로세스 그룹 정의 (Phase 1)
 
+> 문체: 산출 문서 → `../_shared/style/Korean-STE-Writing-Guide.md`.
+
 > ⭐ **V4 (2026-05-13) — 영역 분리 폴더 구조 (필수)**
 >
 > 본 스킬의 모든 산출 경로는 V4 부터 **`{areaId}/{MODULE-ID}/...`** 로 해석 (root: `docs/external/SampleErp/orgErpReport/{areaId}/{MODULE-ID}/{MODULE-ID}_PROCESS_INDEX.md`). 본문에 `{MODULE-ID}/` 로 적힌 경로는 자동으로 영역 prefix.

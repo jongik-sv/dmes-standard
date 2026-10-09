@@ -5,6 +5,8 @@ description: "SampleErp(C# WinForms + 레거시 DB: Oracle·PostgreSQL·MSSQL) �
 
 # SampleErp 화면 전체 분석
 
+> 문체: 산출 문서 → `../_shared/style/Korean-STE-Writing-Guide.md`.
+
 > ⭐ **V4 (2026-05-13) — 영역 분리 폴더 구조 (필수)**
 >
 > 본 스킬의 모든 산출 경로는 V4 부터 **`{areaId}/{moduleId}/...`** 로 해석된다 (root: `docs/external/SampleErp/orgErpReport/{areaId}/{moduleId}/...`). 본문에 `{moduleId}/...` 로 적힌 경로는 자동으로 영역 prefix 가 붙는다.

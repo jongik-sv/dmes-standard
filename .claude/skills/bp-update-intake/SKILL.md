@@ -5,6 +5,8 @@ description: "BP(bpgoat / Bpmn) 워크스페이스에 새 회의록·협의·설
 
 # BP 업데이트 반영 (회의록·협의 문서 인테이크)
 
+> 문체: 산출 문서 → `../_shared/style/Korean-STE-Writing-Guide.md`.
+
 BP 워크스페이스에 **새 문서가 올라왔을 때** 그것을 프로젝트 설계에 반영하는 절차다.
 
 - 조회만 하는 작업은 이 스킬이 아니다 → [`bp-workspace-sync`](../bp-workspace-sync/SKILL.md)

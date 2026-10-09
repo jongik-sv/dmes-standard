@@ -5,6 +5,8 @@ description: D'Flow 작업(내 작업 조회·착수·진행 보고·완료 보�
 
 # D'Flow 작업 처리
 
+> 문체: 산출 문서 → `../_shared/style/Korean-STE-Writing-Guide.md`.
+
 모든 호출은 대상 리포의 `.claude/skills/dflow-work/scripts/dflow.sh` 로 한다(리포 루트가 cwd. `DFLOW_SH` env 가 있으면 그것). 산문 파싱 금지 —
 **exit code 로 분기한다**: 0 성공 / 2 사용법·설정·push 미완료 / 3 인증 실패 /
 4 선행·상태로 인한 진행 불가 — 409 충돌·로컬 선행 차단·선행 미충족(403 바디 `code=dependency_not_met` 재매핑) /

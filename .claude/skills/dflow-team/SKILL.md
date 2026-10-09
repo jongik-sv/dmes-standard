@@ -5,6 +5,8 @@ description: D'Flow 에서 내게 배정되고 에이전트 위임(tags:agent)�
 
 # /dflow-team: 팀장 (슬롯 N개 동시 개발)
 
+> 문체: 에이전트 지시·보고·메시지 → `../_shared/style/Korean-STE-LLM-Guide.md`. 사람이 읽는 산출물 → `../_shared/style/Korean-STE-Writing-Guide.md`.
+
 인자: `$ARGUMENTS`
 
 > 윈도우: 아래 `jq` 예시를 Bash 로 직접 칠 때는 같은 호출 맨 앞에 `export PATH="$PWD/.claude/skills/_shared/bin:$PATH";` 를 붙인다(`_shared/platform-support.md` 「문서 속 인라인 jq」).

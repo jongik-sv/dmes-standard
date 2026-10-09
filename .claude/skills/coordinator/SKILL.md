@@ -5,6 +5,8 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 
 # /coordinator: 레인 조정자
 
+> 문체: 에이전트 지시·보고·메시지 → `../_shared/style/Korean-STE-LLM-Guide.md`. 사람이 읽는 산출물 → `../_shared/style/Korean-STE-Writing-Guide.md`.
+
 인자: `$ARGUMENTS`
 
 - 스크립트 호출 = `node .claude/skills/coordinator/scripts/<이름>.mjs <인자…>` (문서에서는 `node scripts/<이름>.mjs`)

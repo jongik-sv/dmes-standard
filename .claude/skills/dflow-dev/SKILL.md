@@ -6,6 +6,8 @@ description: D'Flow 작업 1건의 전체 개발 사이클 실행 (승인 스윕
 
 # /dflow-dev — D'Flow 작업 개발 사이클 (supervised)
 
+> 문체: 에이전트 지시·보고·메시지 → `../_shared/style/Korean-STE-LLM-Guide.md`. 사람이 읽는 산출물 → `../_shared/style/Korean-STE-Writing-Guide.md`.
+
 인자: `$ARGUMENTS` (`<순번|TSK-ID>` + 옵션)
 
 <!-- worker:begin -->

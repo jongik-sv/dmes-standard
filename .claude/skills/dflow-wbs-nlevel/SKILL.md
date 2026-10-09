@@ -5,6 +5,8 @@ description: N단(5~8단) 대형 프로젝트의 wbs.md 를 levels 계약(frontm
 
 # /dflow-wbs-nlevel — N단 WBS 생성 (levels 계약)
 
+> 문체: 산출 문서 → `../_shared/style/Korean-STE-Writing-Guide.md`.
+
 > **계약 정본은 `.claude/skills/dflow-wbs-nlevel/references/wbs-nlevel-md-contract.md` 다** (wbs-web docs/superpowers/specs 의 사본 — 갱신 시 둘 다).
 > 생성 전에 반드시 Read 하고, 이 파일과 다르면 그 문서가 이긴다.
 > 기존 `dflow-wbs`(3~4단 WSF)는 **동결** — 이 스킬과 규약이 다르며 서로 섞지 않는다.

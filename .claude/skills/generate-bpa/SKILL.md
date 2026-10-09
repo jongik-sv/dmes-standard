@@ -5,6 +5,8 @@ description: "SampleErp 화면 1개의 PRIMARY 산출물인 통합 분석 보고
 
 # 화면 통합 분석 보고서 생성 (V3.1 PRIMARY 산출물)
 
+> 문체: 산출 문서 → `../_shared/style/Korean-STE-Writing-Guide.md`. 종결은 이 스킬의 간결 문체(명사형) 규칙 우선.
+
 > ⭐ **V4 (2026-05-13) — 영역 분리 폴더 구조 (필수)**
 >
 > 본 스킬의 모든 산출 경로는 V4 부터 **`{areaId}/{moduleId}/...`** 로 해석 (root: `docs/external/SampleErp/orgErpReport/{areaId}/{moduleId}/screens/{SCREEN-ID}_{화면명}.{md,bpmn}`). 본문에 `{moduleId}/` 로 적힌 경로는 자동으로 영역 prefix.
