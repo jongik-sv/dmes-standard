@@ -22,7 +22,7 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 단계 시
        - `contract_version` 으로는 못 가름: 이 필드가 들어간 뒤로도 한동안 버전을 안 올려 2.1 서버 중 키를 주는 것·안 주는 것이 섞임 (2.2 부터 계약에 명시)
        - **키 없음 = 옛 서버: `false` 단정 금지. "판정 불가"로 갈라 stage 축만으로 판정하고 그 사실 한 줄 남김.**
      - 선행 완료 + `head_sha` 있음: `git fetch origin && git merge-base --is-ancestor <head_sha> origin/<기본브랜치>`
-       - 거짓 = 선행이 main 미반영. **Phase 01-가 4번과 같은 절차로 지금 직접 merge** (Phase 01-가 가 `SWEEP_NONE` 으로 `/dflow-merge` SKILL.md 를 안 읽었으면 먼저 읽음)
+       - 거짓 = 선행이 main 미반영. **Phase 01-가 4번과 같은 절차로 지금 직접 merge** (Phase 01-가 가 `SWEEP_NONE` 으로 `.claude/skills/dflow-merge/references/merge-exec.md` 를 안 읽었으면 먼저 읽음)
        - 브랜치명 모르면 `<head_sha>` 를 그대로 merge 대상으로 써도 됨 (fetch 로 이미 origin 에 있음)
        - merge 후 이어서 진행
        <!-- worker:begin -->

@@ -2,7 +2,7 @@
 
 SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 단계 시작 금지. 모든 단계 공통 규칙(게이트 집행 원칙·상태 모델·서버 통신) = SKILL.md.
 
-4. **게이트 기준선 기록**: dev-discipline 기준선 절차 실행, state.json 에 저장 (`api_base` 아직 없으면 함께 기록. 상태 모델).
+4. **게이트 기준선 기록**: dev-discipline 기준선 절차 실행, state.json 에 저장 (`api_base` 아직 없으면 함께 기록. `.claude/skills/dflow-dev/references/state-model.md`).
    기준선 명령은 하나씩 캐시 스크립트로 감싸 실행 (dev-discipline 「기준선 캐시」 — 같은 기점·같은 명령은 한 번만 측정).
    ```bash
    node .claude/skills/dflow-dev/scripts/baseline.mjs list --base <기점>   # 이 기점에서 이미 잰 명령. 같은 일을 재는 명령이 있으면 그 문자열·cwd 를 글자 그대로 쓴다

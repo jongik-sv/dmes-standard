@@ -2,7 +2,7 @@
 # MDM 화면 렌더링 시간 측정 실행기 — measure-screens.mjs 를 돌리고 summarize.mjs 로 중앙값을 낸다.
 #
 # ★실행은 조정 세션이 「측정 시작」을 보낸 뒤에만 한다. 시간 잰 값은 다른 무거운 작업이 없는
-#   상태에서만 신뢰할 수 있다. 그래서 기본값은 heavy.sh 독점(--exclusive) 경로다.
+#   상태에서만 신뢰할 수 있다. 그래서 기본값은 heavy.mjs 독점(--exclusive) 경로다.
 #
 # 준비물: node, python 은 필요 없다(sqlite 도 쓰지 않는다). playwright 모듈이 보이는 위치에서 실행한다.
 #   기본은 이 스크립트가 있는 저장소 안에서 돌릴 때 src/frontend/node_modules 가 보인다.
@@ -24,7 +24,7 @@ REPO="${PERF_REPO:-$(/usr/bin/git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/
 PERF_OUT="${PERF_OUT:-${TMPDIR:-/tmp}/dmes-perf/render}"
 RENDER_BASE_URL="${RENDER_BASE_URL:-http://localhost:5300}"
 RENDER_ROUNDS="${1:-${RENDER_ROUNDS:-3}}"
-HEAVY_SH="${HEAVY_SH:-$REPO/.claude/skills/dflow-dev/scripts/heavy.sh}"
+HEAVY_SH="${HEAVY_SH:-$REPO/.claude/skills/dflow-dev/scripts/heavy.mjs}"
 export PERF_OUT RENDER_BASE_URL RENDER_ROUNDS
 
 say() { echo "[render-perf] $*" >&2; }
@@ -67,12 +67,13 @@ if [ "${RENDER_NO_EXCLUSIVE:-0}" = "1" ]; then
 fi
 
 if [ ! -f "$HEAVY_SH" ]; then
-  say "heavy.sh 가 없다: $HEAVY_SH"
+  say "heavy.mjs 가 없다: $HEAVY_SH"
   say "독점 실행을 보장할 수 없다. HEAVY_SH 로 지정하거나 RENDER_NO_EXCLUSIVE=1 로 명시하고 진행한다."
   exit 2
 fi
 
 # 다른 무거운 명령이 돌지 않게 독점 슬롯을 잡고 돌린다.
 # 슬롯을 DFLOW_HEAVY_WAIT(기본 90초) 안에 못 얻으면 HEAVY_BUSY(exit 75)로 끝난다 — 실패가 아니니 다시 부른다.
-# 감싼 자식이 다시 독점을 요청하면 heavy.sh 가 HEAVY_EXCL_NESTED(exit 2)로 거부한다 — 자식에는 독점을 끄고 넘긴다.
-bash "$HEAVY_SH" --exclusive -- env RENDER_NO_EXCLUSIVE=1 bash "$SCRIPT_DIR/run-measure.sh" "$RENDER_ROUNDS"
+# 감싼 자식이 다시 독점을 요청하면 heavy.mjs 가 HEAVY_EXCL_NESTED(exit 2)로 거부한다 — 자식에는 독점을 끄고 넘긴다.
+case "$HEAVY_SH" in *.mjs) HEAVY_RUN=node ;; *) HEAVY_RUN=bash ;; esac   # 확장자로 실행기를 고른다(.mjs node · .sh bash)
+"$HEAVY_RUN" "$HEAVY_SH" --exclusive -- env RENDER_NO_EXCLUSIVE=1 bash "$SCRIPT_DIR/run-measure.sh" "$RENDER_ROUNDS"

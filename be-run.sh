@@ -434,7 +434,7 @@ be_run_prebuild() {
   fi
 
   dev_log_print "be" "선빌드 시작 (태스크 ${#BE_PREBUILD_TASKS[@]}개, Gradle 1회) — cwd=$BE_BUILD_DIR"
-  # src/backend/gradlew 는 bootRun 이 아닌 실행을 PC 전역 무거운 명령 슬롯(heavy.sh)에 줄 세운다. 선빌드는
+  # src/backend/gradlew 는 bootRun 이 아닌 실행을 PC 전역 무거운 명령 슬롯(heavy.mjs)에 줄 세운다. 선빌드는
   # 종전에 bootRun 7개가 슬롯 없이 하던 컴파일을 한 번으로 모은 것이라, 슬롯을 기다리게 하면 다른 세션의
   # 테스트가 많을 때 서버 기동이 수십 분 밀린다(종전엔 없던 대기). 그래서 종전처럼 슬롯 없이 돈다.
   # 백그라운드로 띄우고 wait 한다 — 그래야 아래 임시 트랩이 신호를 받는 즉시 트리를 정리할 수 있다.
@@ -779,7 +779,7 @@ pid_cwd() {
 
 # pid 가 이 체크아웃($ROOT_DIR)의 be-run.sh 스크립트를 돌리는 bash 프로세스인지.
 # - 명령줄이 「셸 [옵션…] be-run.sh …」 꼴일 때만 be-run 으로 본다. 셸에 -c 로 넘긴 문자열 안의 토큰(zsh -c '… ./be-run.sh …' 같은
-#   Claude Code 래퍼)이나 다른 스크립트의 인자(bash heavy.sh ./be-run.sh …)는 be-run 이 아니다 — 그것을 끝내면 be-run 을 부른 부모 셸이 죽는다.
+#   Claude Code 래퍼)이나 다른 스크립트의 인자(bash heavy.sh ./be-run.sh …·node heavy.mjs ./be-run.sh …)는 be-run 이 아니다 — 그것을 끝내면 be-run 을 부른 부모 셸이 죽는다.
 # - be-run.sh 가 절대경로면 그 경로가 이 체크아웃의 것일 때만 참이다.
 # - 상대경로(./be-run.sh)면 cwd 로 본다. 서브셸은 모듈 폴더(src/backend/<m>)로 cd 해 있으므로
 #   $ROOT_DIR 자체이거나 $ROOT_DIR/src/ 아래면 참이다. 워크트리는 $ROOT_DIR/dflow-<id8>·
@@ -794,7 +794,7 @@ is_own_be_run() {
       case "${tok##*/}" in
         bash|sh) continue ;;                   # 인터프리터 — 다음 토큰부터 옵션·스크립트
         be-run.sh) script="$tok"; break ;;     # 인터프리터 없이 스크립트 자체로 보이는 경우
-        *) set +f; return 1 ;;
+        *) set +f; return 1 ;;                 # node(node heavy.mjs ./be-run.sh …) 등 다른 실행기 — be-run 이 아니다
       esac
     fi
     case "$tok" in
@@ -893,7 +893,7 @@ terminate_unregistered_be_runs() {
     fi
   done
 
-  # 나를 부른 조상(Claude Code 의 zsh -c 래퍼·heavy.sh·local-run.sh 등)은 명령줄에 be-run.sh 가 들어 있어도 끝내지 않는다.
+  # 나를 부른 조상(Claude Code 의 zsh -c 래퍼·heavy.sh·heavy.mjs(node)·local-run.sh 등)은 명령줄에 be-run.sh 가 들어 있어도 끝내지 않는다.
   local ancestors=" " a="$$" depth
   for depth in 1 2 3 4 5 6 7 8 9 10; do
     a="$(ps -o ppid= -p "$a" 2>/dev/null | tr -d ' ')"

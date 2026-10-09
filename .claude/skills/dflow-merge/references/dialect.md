@@ -1,8 +1,16 @@
 # /dflow-merge 방언 검증
 
-스윕 (`--resolve` 아님) 이 SKILL.md 「절차」 6번 보고 직전에 읽음. 스윕이 중간에 멈췄어도, 머지가 0건이어도 실행 (보류된 커밋 재시도). 규칙 머리 = SKILL.md 「방언 검증」 (스윕 한 번에 한 번, 머지마다 실행 금지, 도커 런타임 기동 금지).
+스윕 (`--resolve` 아님) 이 SKILL.md 「절차」 6번 보고 직전, `dialect_check` 가 빈 값이 아닐 때만 읽음. 스윕이 중간에 멈췄어도, 머지가 0건이어도 실행 (보류된 커밋 재시도). 규칙 머리 = 아래 「규칙 머리」 (이전에 SKILL.md 「방언 검증」. 스윕 한 번에 한 번, 머지마다 실행 금지, 도커 런타임 기동 금지).
 
 ## 방언 검증
+
+**규칙 머리**(SKILL.md 「방언 검증」 에서 옮김. 6번 보고 직전에 읽음)
+
+같은 목적의 도커 검증(DB 방언 검증 등)은 워커가 하지 않음(정본 dev-discipline 「도커 사용 규칙」). 이 스윕이 **스윕 한 번에 한 번, 마지막 머지 커밋(스윕 끝의 `origin/<기본브랜치>`)에서** 실행. 머지마다 실행 안 함. **도커 런타임을 켜지 않음.** `--resolve` 는 이 절을 타지 않음.
+- 스윕 시작의 `git fetch origin` 직후 `git rev-parse origin/<기본브랜치>` 를 `<스윕 전 sha>` 로 기록.
+- 6번 보고 직전에 `node .claude/skills/dflow-work/scripts/dflow.mjs config dialect_check` 확인.
+- exit 0 + 빈 값 → 이 단계 없음(`DIALECT_NONE`).
+- 그 밖 → `references/dialect.md` 를 읽고 그 명령을 한 번 호출.
 
 - **명령**: 대상 리포 설정의 `dialect_check` (`dflow.mjs config dialect_check`)
   - `.dflow`(리포 공통) 에 적음. PC 전용 값(JAVA_HOME 등)이 든 명령은 `.dflow.local` 이 덮음 (export 된 `DFLOW_DIALECT_CHECK` 가 둘 다 덮음)

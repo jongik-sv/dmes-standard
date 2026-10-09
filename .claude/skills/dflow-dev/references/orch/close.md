@@ -12,6 +12,7 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 단계 시
    - 이 브랜치가 파일명이 곧 버전인 migration(Flyway `V<버전>__…` 등)을 더했으면 push 직전 dev-discipline 「마이그레이션 버전」 재확인 먼저
 3. `dflow.mjs show <ref>` 로 spec 개정 여부 최종 확인(낡은 명세로 done 방지) → `<TASKS>/<TSK>/decisions.json` 작성 →
    `dflow.mjs done <ref> "<요약>" --auto-links --decisions <TASKS>/<TSK>/decisions.json`.
+   - 마이그레이션 포함 작업은 done 요약에 명시: done 이후에도 스테이징 리허설 없이는 main 에 못 감 (`references/rare-cases.md` §대상 저장소)
    - decisions.json(결정 목록 정본) = design.md `## 담당자 확인 필요 결정` 절을 옮긴 JSON 배열
    - 항목: `key`(절의 번호 `D1`…)·`question`·`options`(2~6개)·`chosen`(택한 선택지의 0부터 센 색인)·`rationale`·`on_reject`
    - 절이 없거나 0건이면 `[]`

@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import * as J from './lib/jq-json.mjs';
 import { CoordDie, Ctx, cfgSub, hasRun, q, isoToEpoch, nowEpoch, nowIso, pstart, stateFile } from './lib/common.mjs';
 import { isWin, killTree, pidAlive, psTable } from './lib/compat.mjs';
-import { ArithAbort, arithVal, awkAtof, awkNum, coordCpus, coordDo, coordHeavyScript, coordLoad1, coordStateCall, fmtFixed, jqAdd, runSync, stripNl, tsvText } from './lib/common-ext.mjs';
+import { ArithAbort, arithVal, awkAtof, awkNum, coordCpus, coordDo, coordHeavyScript, coordLoad1, coordStateCall, fmtFixed, jqAdd, runScriptFile, runSync, stripNl, tsvText } from './lib/common-ext.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 
 /** 도움말(= bash 판 머리말 2~15줄, 이름만 .mjs). */
@@ -185,9 +185,9 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
       if (hold) {
         const hs = coordHeavyScript(c);
         if (hs.out) {
-          if (dry) c.log(`DRY ${q(['bash', hs.out, '--detach', '--exclusive', 'sleep', String(secs)])}`);
+          if (dry) c.log(`DRY ${q([/\.mjs$/i.test(hs.out) ? 'node' : 'bash', hs.out, '--detach', '--exclusive', 'sleep', String(secs)])}`);
           else {
-            const o = stripNl(runSync('bash', [hs.out, '--detach', '--exclusive', 'sleep', String(secs)], { env: c.env, cwd: c.cwd }).out.toString('utf8'));
+            const o = stripNl(runScriptFile(hs.out, ['--detach', '--exclusive', 'sleep', String(secs)], { env: c.env, cwd: c.cwd }).out.toString('utf8'));
             const mk = 'HEAVY_DETACHED id=';
             const i = o.indexOf(mk);
             if (i >= 0) { const after = o.slice(i + mk.length); const sp = after.indexOf(' '); job = sp >= 0 ? after.slice(0, sp) : after; }
@@ -225,7 +225,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
       coordStateCall(c, ['set', '.windows', rest === null ? '' : J.tojson(rest)]);
       const hs = coordHeavyScript(c);
       if (hs.out && !dry) {
-        const first = runSync('bash', [hs.out, 'snapshot'], { env: c.env, cwd: c.cwd }).out.toString('latin1').split('\n')[0] ?? '';
+        const first = runScriptFile(hs.out, ['snapshot'], { env: c.env, cwd: c.cwd }).out.toString('latin1').split('\n')[0] ?? '';
         c.log(`heavy 현황: ${first.replace(/\t/g, ' ')}`);
       }
     } else if (sub === 'status') {
@@ -245,7 +245,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
       let run = '0';
       const hs = coordHeavyScript(c);
       if (hs.out) {
-        const snap = runSync('bash', [hs.out, 'snapshot'], { env: c.env, cwd: c.cwd }).out.toString('latin1');
+        const snap = runScriptFile(hs.out, ['snapshot'], { env: c.env, cwd: c.cwd }).out.toString('latin1');
         run = String(snap.split('\n').filter((l) => l.split('\t')[0] === 'RUN' && !(l === '' )).length);
         // awk 레코드: 끝 줄바꿈 없는 마지막 줄도 한 레코드로 센다
       } else c.log('heavy.script 가 없다 — RUN 수는 0 으로 본다(ps 검사만)');

@@ -454,11 +454,11 @@ function category(w, pathOk) {
     case 'awk': return 'read';
     case 'mkdir': case 'touch': case 'cp': case 'mv': case 'tee': return pathOk(w.slice(1)) ? 'edit-own' : '';
     case './gradlew': case 'gradlew': return 'heavy-build';
-    case 'bash': case 'sh': return a(1).endsWith('/heavy.sh') ? (a(2) === 'status' || a(2) === 'snapshot' ? 'status' : 'heavy-build') : '';
+    case 'node': case 'bash': case 'sh': return /\/heavy\.(sh|mjs)$/.test(a(1)) ? (a(2) === 'status' || a(2) === 'snapshot' ? 'status' : 'heavy-build') : '';
     case 'npx': return ['vitest', 'tsc', 'tsup', 'playwright', 'eslint', 'prettier'].includes(a(1)) ? 'heavy-build' : '';
     case 'npm': case 'pnpm': case 'yarn': return npmCat(`${a(1)} ${a(2)}`);
     default:
-      if ((w[0] ?? '').endsWith('/heavy.sh')) return a(1) === 'status' || a(1) === 'snapshot' ? 'status' : 'heavy-build';
+      if (/\/heavy\.(sh|mjs)$/.test(w[0] ?? '')) return a(1) === 'status' || a(1) === 'snapshot' ? 'status' : 'heavy-build';
       return '';
   }
 }

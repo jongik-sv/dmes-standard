@@ -10,7 +10,7 @@
 
 ```
 scripts/perf/mdm-backend/
-  run-measure.sh                     실행기(복사·heavy.sh 슬롯·gradle(Oracle 시험 하니스)·수집·정리)
+  run-measure.sh                     실행기(복사·heavy.mjs 슬롯·gradle(Oracle 시험 하니스)·수집·정리)
   README.md                          이 문서
   src/mdm-api/com/dongkuk/dmes/mdm/measure/
     MeasureSupport.java              MEASURE 줄 출력·MDM_MEASURE/DRY·시간 요약
@@ -98,11 +98,11 @@ PC 마다 다른 값은 모두 환경변수로 받는다. 상대경로를 주면
 | `DMES_ORA_PASSWORD`·`DMES_ORA_HARNESS_LOCK_WAIT_SEC` | | `dmes_password_123`·7200 | Oracle 시험 하니스 값(`scripts/oracle/README.md`) |
 | `MEASURE_BASE_REV`·`MEASURE_DEV_REV` | | — | HEAD 기대값(선택). 주면 다를 때 결과 파일에 경고 줄 |
 | `MEASURE_RESULTS_DIR` | | `${TMPDIR}/mdm-backend-perf` | 결과 폴더. 저장소 밖 기본값이라 `.gitignore` 를 건드리지 않는다. 저장소 안으로 바꾸면 결과를 커밋하지 않도록 주의한다 |
-| `DFLOW_HEAVY_WAIT` | | heavy.sh 기본(90초) | 슬롯·`--exclusive` 독점 대기 상한(heavy.sh 가 읽는다) |
+| `DFLOW_HEAVY_WAIT` | | heavy.mjs 기본(90초) | 슬롯·`--exclusive` 독점 대기 상한(heavy.mjs 가 읽는다) |
 
 스크립트가 시험에 넣는 값(직접 줄 일 없음): `MDM_MEASURE=1`(없으면 측정 시험이 Assumptions 로 건너뛴다), `MDM_MEASURE_DRY=1`(`--dry-run`), mdm 시험에는 `-Pdmes.ora.test=clone` 또는 `-Pdmes.ora.pdb=<PDB>`(환경에 남은 `DMES_ORA_PDB`·`DMES_ORA_URL`·`DMES_ORA_TEST` 는 치운다 — 하니스는 `DMES_ORA_PDB` 가 있으면 복제 대신 그 PDB 를 쓴다). 독점 안쪽 실행 구분용 `MDM_PERF_EXCL_INNER` 는 스크립트 내부용이다.
 
-`heavy.sh` 는 스크립트 위치(`${BASH_SOURCE}`)에서 찾은 저장소 루트의 `.claude/skills/dflow-dev/scripts/heavy.sh` 를 쓴다. 없거나 실행할 수 없으면 시작하지 않는다(종료 2). heavy.sh 의 슬롯 폴더는 `~/.dflow/locks/heavy`(`DFLOW_HEAVY_DIR`)라 어느 워크트리의 heavy.sh 로 불러도 같은 PC 전역 세마포어다.
+`heavy.mjs` 는 스크립트 위치(`${BASH_SOURCE}`)에서 찾은 저장소 루트의 `.claude/skills/dflow-dev/scripts/heavy.mjs` 를 쓴다. 없거나 실행할 수 없으면 시작하지 않는다(종료 2). heavy.mjs 의 슬롯 폴더는 `~/.dflow/locks/heavy`(`DFLOW_HEAVY_DIR`)라 어느 워크트리의 heavy.mjs 로 불러도 같은 PC 전역 세마포어다.
 
 ## 4. 사용법
 
@@ -135,26 +135,26 @@ Oracle 시험이 실패하거나 시간 초과가 나면 다시 돌리기 전에
 
 - `ab`: 기준·변경을 번갈아(기준·변경·기준·변경…) 회차 수만큼 돈다. P 마다 따로 돈다(`all` 이면 P1 의 모든 회차 → P2 … 순서).
 - 결정적 지표만 있는 P2·P4 는 회차 수를 1로 강제한다(`--keep-rounds` 로 끈다 — P4 의 응답 시간 참고값을 A·B 교대로 다시 볼 때만).
-- `--dry-run`: `MDM_MEASURE_DRY=1` — 규모를 아주 작게(용어·컬럼 50행, P1 N=10, P2 E·H 1·2, P5 100행·N=1, 반복 1·예열 0), 회차 1. 컴파일·실행·출력 수집만 확인한다. 결과는 `<결과 폴더>/dry/`. Oracle 은 쓰므로 heavy.sh 슬롯 하나 아래에서 돈다.
-- **한 번에 하나**: 모든 gradle 은 heavy.sh 슬롯(PC 전역 세마포어) 아래에서 돈다. 이미 슬롯 안에서 불렸으면(독점 안쪽·`heavy.sh acquire` 등) 다시 감싸지 않는다. Oracle 쓰는 mdm 빌드(P1~P4)는 여기에 더해 하니스가 복제 직전부터 PDB 삭제까지 PC Oracle 잠금(`pdb.mjs lock-hold`)을 쥐므로 PC 전체에서 한 번에 하나다. 예전 `MEASURE_LOCK`(mkdir 잠금)은 없앴다 — 슬롯 대기 상한은 `DFLOW_HEAVY_WAIT`, 못 잡으면 측정 없이 종료 75(`HEAVY_BUSY`)이며 같은 명령을 다시 부른다.
-- `--exclusive`(정식 측정용): 측정 전체를 PC 전역 세마포어 `heavy.sh` 의 `--exclusive` 한 번 안에서 돈다 — 일반 슬롯 K개(16GB PC 는 2개)를 모두 쥐어 다른 heavy.sh 명령(게이트·빌드·gradle)이 끼어들지 못한다. 스크립트가 자기 자신을 `heavy.sh --exclusive /bin/bash run-measure.sh <같은 인자>` 로 **한 번** 다시 부르므로, 회차마다 독점을 풀었다 다시 잡는 틈이 없다(`ab` 의 기준·변경 교대 전체가 한 독점 안).
+- `--dry-run`: `MDM_MEASURE_DRY=1` — 규모를 아주 작게(용어·컬럼 50행, P1 N=10, P2 E·H 1·2, P5 100행·N=1, 반복 1·예열 0), 회차 1. 컴파일·실행·출력 수집만 확인한다. 결과는 `<결과 폴더>/dry/`. Oracle 은 쓰므로 heavy.mjs 슬롯 하나 아래에서 돈다.
+- **한 번에 하나**: 모든 gradle 은 heavy.mjs 슬롯(PC 전역 세마포어) 아래에서 돈다. 이미 슬롯 안에서 불렸으면(독점 안쪽·`heavy.mjs acquire` 등) 다시 감싸지 않는다. Oracle 쓰는 mdm 빌드(P1~P4)는 여기에 더해 하니스가 복제 직전부터 PDB 삭제까지 PC Oracle 잠금(`pdb.mjs lock-hold`)을 쥐므로 PC 전체에서 한 번에 하나다. 예전 `MEASURE_LOCK`(mkdir 잠금)은 없앴다 — 슬롯 대기 상한은 `DFLOW_HEAVY_WAIT`, 못 잡으면 측정 없이 종료 75(`HEAVY_BUSY`)이며 같은 명령을 다시 부른다.
+- `--exclusive`(정식 측정용): 측정 전체를 PC 전역 세마포어 `heavy.mjs` 의 `--exclusive` 한 번 안에서 돈다 — 일반 슬롯 K개(16GB PC 는 2개)를 모두 쥐어 다른 heavy.mjs 명령(게이트·빌드·gradle)이 끼어들지 못한다. 스크립트가 자기 자신을 `heavy.mjs --exclusive /bin/bash run-measure.sh <같은 인자>` 로 **한 번** 다시 부르므로, 회차마다 독점을 풀었다 다시 잡는 틈이 없다(`ab` 의 기준·변경 교대 전체가 한 독점 안).
   - `--dry-run` 과 함께 쓰지 않는다(종료 2). 독점은 정식 측정에만 쓴다.
-  - **run-measure.sh 를 heavy.sh 로 감싸지 않는다.** 슬롯을 쥔 채 독점을 부르면 heavy.sh 가 `HEAVY_EXCL_NESTED`(종료 2)로 거부한다 — 스크립트가 `DFLOW_HEAVY_HELD`·`DFLOW_HEAVY_DOCKER_HELD` 를 보고 먼저 막는다. `heavy.sh acquire` 로 붙잡은 슬롯(E2E 서버)이 있어도 같은 거부이므로 `heavy.sh release` 뒤 부른다.
-  - 독점 대기 상한은 heavy.sh 의 `DFLOW_HEAVY_WAIT`(기본 90초)다. 못 잡으면 측정 없이 `HEAVY_BUSY` 와 종료 75 — 실패가 아니며, 180초(`DFLOW_HEAVY_EXCL_TTL`) 안에 같은 명령을 다시 부르면 독점 순번이 이어진다. 오래 기다려도 되는 실행이면 `DFLOW_HEAVY_WAIT=1800 run-measure.sh …` 처럼 늘린다.
-  - 안쪽 실행은 `DFLOW_HEAVY_HELD`(독점 슬롯)가 없으면(heavy.sh 가 슬롯 폴더를 못 만든 `HEAVY_UNLOCKED`) 측정하지 않고 종료 2 — 독점이 아닌 값이 정식 결과로 남지 않게. 결과 머리에 `exclusive=1 heavy_slot=slot-<i>` 를 적는다.
-  - **독점 슬롯을 쥔 채 Oracle PC 잠금을 기다릴 수 있다**(다른 레인의 Oracle 시험이 돌고 있으면 하니스가 `DMES_ORA_HARNESS_LOCK_WAIT_SEC` 까지 기다린다). 그동안 PC 의 다른 heavy.sh 명령도 멈춘다 — 정식 측정 전에 `pdb.mjs list`·`heavy.sh status` 로 비었는지 보고 시작한다.
-  - 독점이 막지 못하는 것: 떠 있는 E2E 서버, heavy.sh 를 거치지 않는 명령, LLM 세션, **같은 Oracle VM 을 쓰는 다른 PDB 의 부하**(VM 은 2GB 라 서로 영향을 준다). 그래서 회차마다 남기는 `uptime_before`·`uptime_after`·`load1` 로 잡음을 계속 본다.
+  - **run-measure.sh 를 heavy.mjs 로 감싸지 않는다.** 슬롯을 쥔 채 독점을 부르면 heavy.mjs 가 `HEAVY_EXCL_NESTED`(종료 2)로 거부한다 — 스크립트가 `DFLOW_HEAVY_HELD`·`DFLOW_HEAVY_DOCKER_HELD` 를 보고 먼저 막는다. `heavy.mjs acquire` 로 붙잡은 슬롯(E2E 서버)이 있어도 같은 거부이므로 `heavy.mjs release` 뒤 부른다.
+  - 독점 대기 상한은 heavy.mjs 의 `DFLOW_HEAVY_WAIT`(기본 90초)다. 못 잡으면 측정 없이 `HEAVY_BUSY` 와 종료 75 — 실패가 아니며, 180초(`DFLOW_HEAVY_EXCL_TTL`) 안에 같은 명령을 다시 부르면 독점 순번이 이어진다. 오래 기다려도 되는 실행이면 `DFLOW_HEAVY_WAIT=1800 run-measure.sh …` 처럼 늘린다.
+  - 안쪽 실행은 `DFLOW_HEAVY_HELD`(독점 슬롯)가 없으면(heavy.mjs 가 슬롯 폴더를 못 만든 `HEAVY_UNLOCKED`) 측정하지 않고 종료 2 — 독점이 아닌 값이 정식 결과로 남지 않게. 결과 머리에 `exclusive=1 heavy_slot=slot-<i>` 를 적는다.
+  - **독점 슬롯을 쥔 채 Oracle PC 잠금을 기다릴 수 있다**(다른 레인의 Oracle 시험이 돌고 있으면 하니스가 `DMES_ORA_HARNESS_LOCK_WAIT_SEC` 까지 기다린다). 그동안 PC 의 다른 heavy.mjs 명령도 멈춘다 — 정식 측정 전에 `pdb.mjs list`·`heavy.mjs status` 로 비었는지 보고 시작한다.
+  - 독점이 막지 못하는 것: 떠 있는 E2E 서버, heavy.mjs 를 거치지 않는 명령, LLM 세션, **같은 Oracle VM 을 쓰는 다른 PDB 의 부하**(VM 은 2GB 라 서로 영향을 준다). 그래서 회차마다 남기는 `uptime_before`·`uptime_after`·`load1` 로 잡음을 계속 본다.
 - gradle: `--max-workers=2`, `--rerun`(같은 소스를 다시 복사해도 UP-TO-DATE·캐시로 건너뛰지 않게 — 환경변수는 task 입력이 아니다), `-i --console=plain`. mdm 은 `src/backend/mdm` 에서 `../gradlew :api:test -Pdmes.ora.test=clone`(또는 `-Pdmes.ora.pdb=<PDB>`), P5 는 `src/backend/maru-mdm-engine` 에서 `../gradlew test`(DB 없음, 하니스 안 켬). 도커 직접 사용 없음(Oracle 컨테이너는 하니스가 다룬다).
 
 실행 순서(스크립트가 하는 일):
-1. 사전 점검 — 환경변수(§3), `MEASURE_ORA_PDB` 이름 규칙, 쓰는 쪽 워크트리의 Oracle 시험 기반·추적 시험 존재, P3·P4 면 스냅샷 CSV 4개, heavy.sh, 쓰는 쪽 워크트리 `git status --porcelain` 이 비었는지.
-   - `--exclusive` 면 이어서 `heavy.sh --exclusive` 를 자식으로 띄워 자기 자신(안쪽 실행)을 부르고, 그 종료 코드로 끝난다. 중단(INT·TERM·HUP)은 바깥이 heavy.sh 자식에 TERM 으로 넘기고, 안쪽이 복사본을 지우고 끝날 때까지 기다린다.
+1. 사전 점검 — 환경변수(§3), `MEASURE_ORA_PDB` 이름 규칙, 쓰는 쪽 워크트리의 Oracle 시험 기반·추적 시험 존재, P3·P4 면 스냅샷 CSV 4개, heavy.mjs, 쓰는 쪽 워크트리 `git status --porcelain` 이 비었는지.
+   - `--exclusive` 면 이어서 `heavy.mjs --exclusive` 를 자식으로 띄워 자기 자신(안쪽 실행)을 부르고, 그 종료 코드로 끝난다. 중단(INT·TERM·HUP)은 바깥이 heavy.mjs 자식에 TERM 으로 넘기고, 안쪽이 복사본을 지우고 끝날 때까지 기다린다.
    - 안쪽 실행이 아래 2~4를 그대로 한다(사전 점검도 한 번 더 한다).
-2. 회차마다: `uptime` 기록(없는 PC 는 `-`) → 그 P 의 시험 소스 복사(대상이 이미 있으면 중단) → gradle(heavy.sh 슬롯 아래, mdm 은 Oracle 하니스 켬) → 복사한 파일·만든 디렉터리만 지움 → 원 로그에서 MEASURE 줄·`[dmes-ora]` 줄 수집 → `uptime` 기록 → 워크트리 `git status` 가 비었는지 확인(아니면 종료 3).
+2. 회차마다: `uptime` 기록(없는 PC 는 `-`) → 그 P 의 시험 소스 복사(대상이 이미 있으면 중단) → gradle(heavy.mjs 슬롯 아래, mdm 은 Oracle 하니스 켬) → 복사한 파일·만든 디렉터리만 지움 → 원 로그에서 MEASURE 줄·`[dmes-ora]` 줄 수집 → `uptime` 기록 → 워크트리 `git status` 가 비었는지 확인(아니면 종료 3).
 3. MEASURE 줄이 0개면(건너뜀·컴파일 실패) 종료 4. gradle 이 실패했어도 MEASURE 줄이 있으면 남기고 다음으로 가며 끝에 종료 1 로 알린다. 복사 실패는 종료 5. 슬롯을 못 잡으면 종료 75.
 4. 정리는 한 trap 함수가 한다(복사한 파일·만든 디렉터리). git stash·checkout 은 쓰지 않는다.
 
-종료 코드: 0 성공 · 1 gradle 실패 있음 · 2 사용법·환경·점검 오류(또는 heavy.sh 독점 거부) · 3 정리 뒤 워크트리가 더러움 · 4 MEASURE 줄 없음 · 5 복사 실패 · 75 슬롯·독점 못 잡음(`HEAVY_BUSY`) · 130 중단.
+종료 코드: 0 성공 · 1 gradle 실패 있음 · 2 사용법·환경·점검 오류(또는 heavy.mjs 독점 거부) · 3 정리 뒤 워크트리가 더러움 · 4 MEASURE 줄 없음 · 5 복사 실패 · 75 슬롯·독점 못 잡음(`HEAVY_BUSY`) · 130 중단.
 
 ## 5. 출력 형식
 
@@ -255,7 +255,7 @@ MEASURE P1 applyItems-N100-time ms_median=… ms_min=… ms_max=… reps=7 runs_
 | 전체 | | 22 | 약 23분(12:33:33~12:56:20) |
 
 - **첫 컴파일은 독점 밖에서 끝낸다**: 새 측정 워크트리는 첫 실행에 수 분짜리 컴파일이 붙는다. 먼저 `ab all --dry-run`(독점 없음)으로 데워 두지 않으면 그 컴파일이 독점 창 안에 들어간다.
-- **독점 창 = 측정 전체**다. 그동안 PC 의 다른 heavy.sh 명령은 모두 멈춰 기다린다. `ab all 3 --exclusive` 는 PC 를 20분 넘게 세우므로 다른 작업과 시각을 맞춘 뒤에만 쓴다. 가벼운 쪽은 시간 지표가 있는 P1·P3·P5 만 `ab <P> 3 --exclusive` 로 P 하나씩 도는 것이다 — 기준·변경 교대는 P 안에서만 견주므로 P 사이에 독점이 풀려도 비교는 깨지지 않는다. P2·P4 는 결정적 계수만이라 `--exclusive` 없이 돈다.
+- **독점 창 = 측정 전체**다. 그동안 PC 의 다른 heavy.mjs 명령은 모두 멈춰 기다린다. `ab all 3 --exclusive` 는 PC 를 20분 넘게 세우므로 다른 작업과 시각을 맞춘 뒤에만 쓴다. 가벼운 쪽은 시간 지표가 있는 P1·P3·P5 만 `ab <P> 3 --exclusive` 로 P 하나씩 도는 것이다 — 기준·변경 교대는 P 안에서만 견주므로 P 사이에 독점이 풀려도 비교는 깨지지 않는다. P2·P4 는 결정적 계수만이라 `--exclusive` 없이 돈다.
 - 에이전트의 Bash 도구 한 번에 10분 상한이 있으면 P5·`all` 은 백그라운드 실행으로 띄우고 완료를 기다린다. 이때 `DFLOW_HEAVY_WAIT` 를 늘리거나(예 `DFLOW_HEAVY_WAIT=1800`), 종료 75(`HEAVY_BUSY`)면 180초 안에 다시 부른다.
 
 ## 9. 두 워크트리 API 차이로 바꾸거나 뺀 지표

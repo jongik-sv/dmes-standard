@@ -71,6 +71,7 @@ run_gradle() {
   local dir="$1"; shift
   local -a pre=()
   [ -n "$HEAVY_CMD" ] && read -r -a pre <<< "$HEAVY_CMD"
+  case "${pre[0]:-}" in *.mjs) pre=(node "${pre[@]}") ;; *.sh) pre=(bash "${pre[@]}") ;; esac   # 확장자로 실행기를 고른다
   [ -n "$GRADLE_LOCK" ] && pre+=(/usr/bin/lockf -k "$GRADLE_LOCK")
   ( cd "$dir" && "${pre[@]}" env JAVA_HOME="$JAVA_HOME" sh "${GRADLEW:-./gradlew}" "$@" --max-workers=2 --console=plain )
 }

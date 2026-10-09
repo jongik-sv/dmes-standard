@@ -27,14 +27,14 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 단계 시
    ```bash
    node .claude/skills/dflow-merge/scripts/dialect-check.mjs run --dev '<기본브랜치>'; echo "rc=$?"
    ```
-1. **후보 식별**: `/dflow-merge` 1번(`.claude/skills/dflow-merge/SKILL.md`)과 같게 로컬 + 원격으로 봄.
+1. **후보 식별**: `/dflow-merge` 1번(`.claude/skills/dflow-merge/references/sweep-scan.md` §1번)과 같게 로컬 + 원격으로 봄.
    - 로컬 후보: 대상 저장소 `dflow.mjs config tasks-dirs` 의 각 폴더 아래 `*/state.json` 중 `phase=reported` 전부
    - 원격 후보: 원격 `origin/agent/*` 브랜치 tip 의 state.json 중 브랜치 이름의 id8 과 `order` 가 일치하고 `phase` ≠ `merged`
    - 같은 order 가 로컬·원격 모두 있으면 로컬 후보 하나로 합침
    - `api_base` 가 현재 `DFLOW_API_BASE`(끝 `/` 제거)와 다르면 로컬이든 원격이든 "건너뜀(다른 D'Flow)" 집계. 원격에만 있는 후보는 값이 없어도 건너뜀
-   - 명령·합치는 규칙 = `/dflow-merge` 1번 그대로
+   - 명령·합치는 규칙 = `/dflow-merge` 1번(`.claude/skills/dflow-merge/references/sweep-scan.md`) 그대로
    - 원격에만 있는 후보의 merge 대상 = `origin/agent/<id8>-<slug>`
-2~5. **판정·순서·머지·뒷정리**: `/dflow-merge` SKILL.md(`.claude/skills/dflow-merge/SKILL.md`) 2~5번 그대로. 번호도 같음 → 이 문서의 "Phase 01-가 4번" = `/dflow-merge` 4번 (merge 절차를 두 곳에 안 적음).
+2~5. **판정·순서·머지·뒷정리**: `/dflow-merge` 2번(`.claude/skills/dflow-merge/references/sweep-scan.md`)·3~4번(`.claude/skills/dflow-merge/references/merge-exec.md`)·5번(`.claude/skills/dflow-merge/SKILL.md`) 그대로. 번호도 같음 → 이 문서의 "Phase 01-가 4번" = `/dflow-merge` 4번 (merge 절차를 두 곳에 안 적음).
 6. **집계 보고**: 머지됨 / 승인 대기 / 건너뜀(사유) 한 줄씩 — 원래 요청받은 작업으로 넘어가기 전.
 
 merge 대상이 wbs-web 자신이면 G1~G4 훅 제약이 여기도 적용.

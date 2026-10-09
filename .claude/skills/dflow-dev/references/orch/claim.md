@@ -46,7 +46,7 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 단계 시
    ```
    **agent 브랜치에 올라서면 곧바로 state.json `phase` 를 `prepare` 로 씀** — 설치·기준선·spec 판정 동안에도 heartbeat 훅이 신호를 보내게 함 (훅은 `ready` 를 안 보냄). claim 직후가 아니라 여기서 씀 (복귀 switch 를 막지 않게).
    - 파일 없거나 `phase` = `ready` 일 때만 씀. 재개로 이미 뒤 단계(`design` 이후)가 적혀 있으면 덮어쓰지 않음. 반려 재작업 경로(`phase=rejected`)에서는 안 씀.
-   - 이 쓰기가 state.json 첫 기록이면 `order`(전체 UUID)·`api_base`(상태 모델) 함께 기록. commit 안 함 (다음 commit 에 실림).
+   - 이 쓰기가 state.json 첫 기록이면 `order`(전체 UUID)·`api_base`(`.claude/skills/dflow-dev/references/state-model.md`) 함께 기록. commit 안 함 (다음 commit 에 실림).
    - 같은 쓰기에서 `scope` 기록 — claim 출력 `CLAIM_SCOPE` 값. 그 줄이 없으면(옛 서버) 범위(`orch/start.md` 「서버 판단」).
    이미 해당 브랜치면 재개. **main·staging 위에서 사이클 진행 금지** — Phase 진입 전 `git branch --show-current` 가 `agent/` 로 시작하는지 확인, 아니면 중단.
    <!-- worker:begin -->
