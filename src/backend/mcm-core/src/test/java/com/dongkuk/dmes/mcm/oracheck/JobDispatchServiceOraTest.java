@@ -265,6 +265,20 @@ class JobDispatchServiceOraTest {
     }
 
     @Test
+    @DisplayName("지금 실행은 놓친 회차 옵션과 무관하다 — 옵션이 Y 여도 TRIGGER_TP='M' 이고 NEXT_RUN_AT 은 그대로")
+    void manualRunIgnoresMisfireOption() {
+        def("mfm", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, 3600);
+        misfireOn("mfm");
+        Timestamp nextBefore = nextRunAt("mfm");
+
+        JobDispatchService.ManualClaim claim = service.claimManual("mfm", "u1", null);
+
+        assertThat(claim.rejectReason()).isNull();
+        assertThat(run("mfm").get("TRIGGER_TP")).isEqualTo("M");
+        assertThat(nextRunAt("mfm")).isEqualTo(nextBefore);
+    }
+
+    @Test
     @DisplayName("같은 작업의 이전 회차가 RUN(시간 초과 + 정리 여유 안)이면 SKIP 「이전 회차 실행 중」")
     void overlapIsSkipped() {
         def("busy", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, -5);

@@ -280,7 +280,7 @@ public class JobDispatchService {
 
     /**
      * 한 행을 처리한다. 다음 시각은 INSERT 보다 먼저 계산한다(오지 않는 날짜면 INSERT 전에 정의 오류로 돌린다). 세 갈래(늦은 SKIP·겹침 SKIP·RUN)
-     * 모두 같은 회차 PK {@code (JOB_ID, SCHED_AT, 'S')} 가 이미 있으면 기록만 건너뛰고 NEXT_RUN_AT 은 그대로 올린다 — 이미 선점된 회차로
+     * 모두 같은 회차 PK {@code (JOB_ID, SCHED_AT, TRIGGER_TP)}(일정·SKIP 은 'S', 놓친 회차 실행은 'C') 가 이미 있으면 기록만 건너뛰고 NEXT_RUN_AT 은 그대로 올린다 — 이미 선점된 회차로
      * NEXT_RUN_AT 이 되돌아와도(화면 저장·SQL 수정) 묶음이 롤백되지 않는다.
      */
     private JobRunRequest process(Row r) {
