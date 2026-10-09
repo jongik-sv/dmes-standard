@@ -354,7 +354,7 @@ Task 3·4·5 는 Task 1 의 shared 빌드가 끝난 뒤 시작한다(새 props �
 **소유:** `mcm-core …/widget/ext/**`(새), 시험 `…/test/…/widget/ext/**`, mcm api 리소스 `services/roleManagement/widgetExt.bpmn`, mcm api 시험 `widget/WidgetExtBpmnActionTest.java`.
 
 **Interfaces:**
-- Produces: 엔티티 `ExchangeRate`(`TB_MCM_EXCHANGE_RATE`, 스펙 §4.4, 복합키) + 저장소 + `ExchangeRateWriter`(upsert), `ExchangeRateProvider`(`FrankfurterProvider`·`KoreaEximProvider`), `WeatherProvider`(`OpenMeteoProvider`), 설정 `WidgetExtProperties`(`dmes.widget.ext.enabled`(기본 true), `.exchange.provider`(frankfurter), `.exchange.frankfurter-base-url`(`https://api.frankfurter.dev/v1`), `.exchange.koreaexim-key`(빈 값), `.exchange.koreaexim-base-url`(`https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON`), `.weather.base-url`(`https://api.open-meteo.com/v1/forecast`)), OASIS `widgetExt`(빈 `widgetExtService`) action `exchange`·`weather`(입출력 스펙 §5.1).
+- Produces: 엔티티 `ExchangeRate`(`TB_MCM_EXCHANGE_RATE`, 스펙 §4.4, 복합키) + 저장소 + `ExchangeRateWriter`(upsert), `ExchangeRateProvider`(`FrankfurterProvider`·`KoreaEximProvider`), `WeatherProvider`(`OpenMeteoProvider` — 2026-10-09 수집 전환 뒤 삭제), 설정 `WidgetExtProperties`(`dmes.widget.ext.enabled`(기본 true), `.exchange.provider`(frankfurter), `.exchange.frankfurter-base-url`(`https://api.frankfurter.dev/v1`), `.exchange.koreaexim-key`(빈 값), `.exchange.koreaexim-base-url`(`https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON`), `.weather.base-url`(`https://api.open-meteo.com/v1/forecast` — 2026-10-09 삭제)), OASIS `widgetExt`(빈 `widgetExtService`) action `exchange`·`weather`(입출력 스펙 §5.1).
 
 **요구(스펙 §8):**
 - `exchange`: params `base`(KRW 만 — 그 밖 거절), `symbols`(쉼표 문자열 또는 grids, 3자리 대문자, 1~10개), `days`(1~90, 기본 30). 흐름: DB 에서 `[오늘-days, 오늘]` 값을 읽고, 오늘 또는 빠진 영업일 구간이 있으면(같은 날 같은 통화 묶음은 하루 한 번만 시도 — 메모리 `Map<String, LocalDate>`) 제공자로 받아 upsert. 제공자 실패면 DB 값만 + `stale: true`. `latest` = 통화별 가장 최근 날짜 값과 그 전 값의 차(`diff`). 역수 변환: Frankfurter `base=KRW` 응답의 `rates.USD = 0.000724` → 「1 USD = 1/0.000724 KRW」, 소수 8자리 반올림(HALF_UP).
@@ -364,7 +364,7 @@ Task 3·4·5 는 Task 1 의 shared 빌드가 끝난 뒤 시작한다(새 props �
 - `enabled=false` 면 외부 호출 없이 DB·캐시 값만(없으면 빈 결과 + `disabled: true`).
 - HTTP: `RestClient`(연결 3초·읽기 5초 — `SimpleClientHttpRequestFactory` 또는 JDK `HttpClient` 팩토리), 빈으로 `RestClient.Builder` 를 받아 시험에서 `MockRestServiceServer.bindTo(builder)` 로 묶는다.
 
-**시험:** `ext/FrankfurterProviderTest`(구간·하루 응답 파싱, 역수·반올림, 오류 → 예외), `ext/KoreaEximProviderTest`(쉼표·JPY(100)·빈 배열), `ext/ExchangeServiceTest`(H2 또는 Mockito: 빈 구간만 요청, 하루 한 번 시도, 실패 시 stale, diff 계산, 입력 검사), `ext/OpenMeteoProviderTest`(매핑), `ext/WeatherServiceTest`(캐시 10분·좌표 반올림·실패 시 이전 값 stale·enabled=false), mcm api `WidgetExtBpmnActionTest`.
+**시험:** `ext/FrankfurterProviderTest`(구간·하루 응답 파싱, 역수·반올림, 오류 → 예외), `ext/KoreaEximProviderTest`(쉼표·JPY(100)·빈 배열), `ext/ExchangeServiceTest`(H2 또는 Mockito: 빈 구간만 요청, 하루 한 번 시도, 실패 시 stale, diff 계산, 입력 검사), `ext/OpenMeteoProviderTest`(매핑 — 2026-10-09 클래스 삭제와 함께 제거), `ext/WeatherServiceTest`(캐시 10분·좌표 반올림·실패 시 이전 값 stale·enabled=false), mcm api `WidgetExtBpmnActionTest`.
 
 - [ ] **Step 1~4:** 제공자 → 환율 서비스 → 날씨 서비스 → BPMN·계약 시험 순서로 TDD, 각 단계 `./gradlew :mcm-core:test --tests "com.dongkuk.dmes.mcm.widget.ext.*"` 통과.
 - [ ] **Step 5:** `oasis-contract-check` → 커밋.

@@ -52,8 +52,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
         "dmes.widget.ext.enabled=false",
         "dmes.widget.ext.exchange.provider=koreaexim",
         "dmes.widget.ext.exchange.koreaexim-key=K",
-        "dmes.widget.ext.exchange.mdm-schema=MCMAPUSER",
-        "dmes.widget.ext.weather.base-url=https://wx.test/forecast"
+        "dmes.widget.ext.exchange.mdm-schema=MCMAPUSER"
 })
 class WidgetExtWiringTest {
 
@@ -114,7 +113,6 @@ class WidgetExtWiringTest {
         assertThat(properties.getExchange().getProvider()).isEqualTo("koreaexim");
         assertThat(properties.getExchange().getKoreaeximKey()).isEqualTo("K");
         assertThat(properties.getExchange().getFrankfurterBaseUrl()).isEqualTo("https://api.frankfurter.dev/v1");
-        assertThat(properties.getWeather().getBaseUrl()).isEqualTo("https://wx.test/forecast");
 
         WidgetExtExchangeRequest req = new WidgetExtExchangeRequest();
         req.setSymbols("USD");
