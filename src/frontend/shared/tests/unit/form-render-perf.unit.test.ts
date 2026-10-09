@@ -74,16 +74,19 @@ describe("FormGroup 스크린리더 사본 늦추기", () => {
     });
   }
 
-  it("HTML 카드는 hover 전에는 빈 span 만 두고, 처음 hover 뒤 글자 사본을 채운다", async () => {
+  it("HTML 카드는 hover 전에는 제목·설명 글자만 두고, 처음 hover 뒤 카드 전체 글자 사본으로 바꾼다", async () => {
     await show();
     const sr = () => r!.host.querySelector(".form-sr-only") as HTMLElement;
-    expect(sr().textContent).toBe("");
+    // 준비 전에도 제목·설명 글자는 있다(커서 읽기 모드·첫 focus 대비) — 카드 전체(형식·도메인 줄)는 아직 없다.
+    expect(sr().textContent).toBe("공지 본문 굵은 설명 링크");
+    expect(sr().querySelector(".mdm-meta-card")).toBeNull();
     expect(r!.host.querySelector("input")!.getAttribute("aria-describedby")).toBe(sr().id);
     act(() => {
       (r!.host.querySelector(".form-tip-trigger") as HTMLElement).dispatchEvent(
         new MouseEvent("mouseover", { bubbles: true, relatedTarget: null })
       );
     });
+    expect(sr().querySelector(".mdm-meta-card")).not.toBeNull();
     expect(sr().textContent).toContain("굵은 설명 링크");
     expect(sr().querySelector("a")).toBeNull();
   });
@@ -91,6 +94,6 @@ describe("FormGroup 스크린리더 사본 늦추기", () => {
   it("필드 focus 도 사본을 채운다", async () => {
     await show();
     act(() => (r!.host.querySelector("input") as HTMLInputElement).focus());
-    expect((r!.host.querySelector(".form-sr-only") as HTMLElement).textContent).toContain("굵은 설명 링크");
+    expect((r!.host.querySelector(".form-sr-only") as HTMLElement).querySelector(".mdm-meta-card")).not.toBeNull();
   });
 });

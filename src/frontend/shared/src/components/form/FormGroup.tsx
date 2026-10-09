@@ -55,6 +55,19 @@ function mergeIds(...values: Array<unknown>): string | undefined {
   return ids.length > 0 ? [...new Set(ids)].join(" ") : undefined;
 }
 
+function lightSrText(column: {
+  labelLong?: string | null;
+  columnName?: string | null;
+  physName: string;
+  description?: string | null;
+  usageNote?: string | null;
+}): string {
+  const t = (v?: string | null) => (v && v.trim() ? v.trim() : undefined);
+  return [t(column.labelLong) ?? t(column.columnName) ?? column.physName, t(column.description), t(column.usageNote)]
+    .filter(Boolean)
+    .join(" ");
+}
+
 export const FormGroup = memo(function FormGroup({
   label: labelProp,
   required = false,
@@ -83,13 +96,14 @@ export const FormGroup = memo(function FormGroup({
   // (HTML 의 링크가 보이지 않는 채 Tab 순서에 들지 않게). 그 밖의 tip 은 예전 그대로다.
   const htmlTipOptions = tipProp == null ? mdmCardTipOptions(mdm.column) : undefined;
   // 스크린리더용 글자 사본(MdmMetaCard textOnly)은 칸마다 카드를 한 벌씩 더 그리므로, 라벨 hover·필드 focus 를 처음 받을 때까지 늦춘다.
-  // 그 전에는 빈 span 만 둔다(aria-describedby 대상 id 는 유지). 한 번 켜지면 그대로 둔다.
+  // 그 전에는 제목·설명·활용처 메모만 이은 가벼운 글자를 둔다(커서 읽기 모드처럼 focus 없이 읽는 경우와 첫 focus 에도 설명이 비지 않게).
+  // aria-describedby 대상 id 는 늘 유지하고, 한 번 켜지면 카드 전체 사본으로 바꿔 그대로 둔다.
   const lazySrTip = !!htmlTipOptions && !!mdm.column;
   const [srTipReady, setSrTipReady] = useState(false);
   const srTip: ReactNode = lazySrTip
     ? srTipReady
       ? <MdmMetaCard column={mdm.column!} domain={mdm.domain} textOnly />
-      : null
+      : lightSrText(mdm.column!)
     : tip;
   const generatedId = useId();
   const labelId = `${generatedId}-label`;
