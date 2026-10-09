@@ -99,3 +99,8 @@ import { ComboBox } from "@dk-oasis/shared/form";
 - `src/frontend/m-mcm/page-components/csa/commRoleMng/page.tsx:1001` `valueField`·`labelField` 지정(`as unknown as Record<string, unknown>[]` 로 타입을 맞춘 부분은 표준이 아니다).
 - `src/frontend/m-mdm/pages/dma/unitMng/page.tsx:265` `onCreateNew`. m-mdm 화면이다.
 - `maxVisible` 은 아직 사용처 없음.
+
+## 렌더 성능
+
+- `memo` 로 감싸져 있다. `data`·`onChange` 를 화면이 안정된 참조(상수·`useMemo`·`useCallback`)로 주면 부모가 다시 그려져도 건너뛴다.
+- 값이 있는 콤보는 첫 렌더부터 선택 라벨을 입력창에 둔다(마운트 직후 추가 렌더 없음).

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
+import { memo, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Select } from "@mantine/core";
 import clsx from "clsx";
 
@@ -64,7 +64,7 @@ function resolveOptions(data: any[], valueField: string, labelField: string): Re
   });
 }
 
-export function ComboBox({
+export const ComboBox = memo(function ComboBox({
   data,
   valueField = "value",
   labelField = "label",
@@ -91,17 +91,22 @@ export function ComboBox({
 
   const options = useMemo(() => resolveOptions(data, valueField, labelField), [data, valueField, labelField]);
 
+  // 선택된 옵션과 입력창에 보일 글자 — 렌더마다 목록을 훑지 않도록 options·value 가 바뀔 때만 구한다.
+  const selected = useMemo(() => options.find((o) => o.value === value), [options, value]);
+  const selectedText = selected ? selected.label : value || "";
+
   // 검색어를 직접 제어한다 — onCreateNew 노출 판정과 표시 텍스트 동기화에 필요하다.
-  const [searchValue, setSearchValue] = useState("");
+  // 처음 값부터 선택 라벨로 시작해, 값이 있는 콤보가 마운트 직후 한 번 더 그려지지 않게 한다.
+  const [searchValue, setSearchValue] = useState(selectedText);
 
   // value 가 현재 옵션 목록에 없어도(대용량 데이터의 maxVisible 캡 등으로 화면에 없을 수 있다)
   // 입력창 표시가 사라지지 않도록 임시 항목을 앞에 추가한다.
   const selectData = useMemo(() => {
-    if (value && !options.some((o) => o.value === value)) {
+    if (value && !selected) {
       return [{ value, label: value }, ...options];
     }
     return options;
-  }, [options, value]);
+  }, [options, value, selected]);
 
   // value(선택된 옵션)가 바뀌면 검색어를 그 라벨로 동기화한다. value 는 그대로이고 options 만
   // 바뀐 경우에는, 검색어가 마지막으로 맞춰 둔 텍스트와 같을 때(사용자가 손대지 않았을 때)만
@@ -110,13 +115,12 @@ export function ComboBox({
   const searchRef = useRef(searchValue);
   searchRef.current = searchValue;
   useEffect(() => {
-    const found = options.find((o) => o.value === value);
-    const text = found ? found.label : value || "";
+    const text = selectedText;
     const prev = syncedRef.current;
     if (prev && prev.value === value && searchRef.current !== prev.text) return;
     syncedRef.current = { value, text };
-    setSearchValue(text);
-  }, [value, options]);
+    if (searchRef.current !== text) setSearchValue(text);
+  }, [value, selectedText]);
 
   const trimmed = searchValue.trim();
   const showCreateItem = !!onCreateNew && trimmed.length > 0 && !options.some((o) => o.label === trimmed);
@@ -175,4 +179,4 @@ export function ComboBox({
       style={style}
     />
   );
-}
+});
