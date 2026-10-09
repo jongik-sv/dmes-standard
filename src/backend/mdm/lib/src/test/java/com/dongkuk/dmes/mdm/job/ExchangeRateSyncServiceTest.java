@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/** 환율 동기화 작업의 순수 함수: 키 만들기·정규화·중복 제거·제공자 선택·기간 해석(DB·외부 호출 없음). */
+/** 환율 동기화 작업의 순수 함수: 날짜 행 만들기·칼럼 대응·보존·정규화·중복 제거·제공자 선택·기간 해석(DB·외부 호출 없음). */
 class ExchangeRateSyncServiceTest {
 
     private static final LocalDate D = LocalDate.of(2026, 10, 9);
@@ -23,49 +23,80 @@ class ExchangeRateSyncServiceTest {
         return new ExchangeRatePoint(date, cur, rate == null ? null : new BigDecimal(rate));
     }
 
+    private static final List<String> COLUMNS = java.util.Arrays.asList("USD", "EUR", "JPY", null, null, null, null, null, null, null);
+
+    private static List<UpsertRow> rows(List<ExchangeRatePoint> points) {
+        return ExchangeRateSyncService.toRows(points, COLUMNS, SYMBOLS, "frankfurter", Map.of());
+    }
+
     @Test
-    void 키는_통화_더하기_기준일_8자리이고_값은_소수_8자리_문자열이다() {
-        List<UpsertRow> rows = ExchangeRateSyncService.toRows(List.of(point(D, "USD", "1384.51")), SYMBOLS, "koreaexim");
+    void 키는_기준일_8자리이고_통화는_라벨이_가리키는_칼럼에_소수_8자리_문자열로_들어간다() {
+        List<UpsertRow> rows = ExchangeRateSyncService.toRows(List.of(point(D, "USD", "1384.51"), point(D, "JPY", "9.5")),
+                COLUMNS, SYMBOLS, "koreaexim", Map.of());
 
         assertEquals(1, rows.size());
         UpsertRow row = rows.get(0);
-        assertEquals("USD20261009", row.code());
-        assertEquals("USD 2026-10-09", row.value().name());
-        assertEquals("USD", row.value().attr(1));
-        assertEquals("20261009", row.value().attr(2));
-        assertEquals("1384.51000000", row.value().attr(3));
-        assertEquals("KRW", row.value().attr(4));
-        assertEquals("koreaexim", row.value().attr(5));
-        assertNull(row.value().attr(6));
+        assertEquals("20261009", row.code());
+        assertEquals("2026-10-09", row.value().name());
+        assertEquals("기준통화 KRW · 출처 koreaexim", row.value().description());
+        assertEquals("1384.51000000", row.value().attr(1));
+        assertNull(row.value().attr(2));
+        assertEquals("9.50000000", row.value().attr(3));
+        assertNull(row.value().attr(4));
+    }
+
+    @Test
+    void 라벨을_바꾸면_칼럼_대응이_따라간다() {
+        List<String> swapped = java.util.Arrays.asList("EUR", "USD", null, null, null, null, null, null, null, null);
+        List<UpsertRow> rows = ExchangeRateSyncService.toRows(List.of(point(D, "USD", "1384")), swapped, SYMBOLS, "frankfurter",
+                Map.of());
+
+        assertEquals("1384.00000000", rows.get(0).value().attr(2));
+        assertNull(rows.get(0).value().attr(1));
     }
 
     @Test
     void 값은_소수_8자리로_반올림하고_지수_표기를_쓰지_않는다() {
-        List<UpsertRow> rows = ExchangeRateSyncService.toRows(
-                List.of(point(D, "USD", "0.123456785"), point(D, "JPY", "9.1E+2")), SYMBOLS, "frankfurter");
+        UpsertRow row = rows(List.of(point(D, "USD", "0.123456785"), point(D, "JPY", "9.1E+2"))).get(0);
 
-        assertEquals("910.00000000", rows.stream().filter(r -> r.code().startsWith("JPY")).findFirst().orElseThrow().value().attr(3));
-        assertEquals("0.12345679", rows.stream().filter(r -> r.code().startsWith("USD")).findFirst().orElseThrow().value().attr(3));
+        assertEquals("0.12345679", row.value().attr(1));
+        assertEquals("910.00000000", row.value().attr(3));
     }
 
     @Test
-    void 같은_키는_뒤의_값_하나만_남기고_키_순서로_정렬한다() {
-        List<UpsertRow> rows = ExchangeRateSyncService.toRows(List.of(
-                point(D, "USD", "1380"), point(D.minusDays(1), "USD", "1370"), point(D, "EUR", "1500"), point(D, "USD", "1390")),
-                SYMBOLS, "frankfurter");
+    void 날짜마다_한_행이고_같은_통화는_뒤의_값을_남기며_키_순서로_정렬한다() {
+        List<UpsertRow> rows = rows(List.of(
+                point(D, "USD", "1380"), point(D.minusDays(1), "USD", "1370"), point(D, "EUR", "1500"), point(D, "USD", "1390")));
 
-        assertEquals(List.of("EUR20261009", "USD20261008", "USD20261009"), rows.stream().map(UpsertRow::code).toList());
-        assertEquals("1390.00000000", rows.get(2).value().attr(3));
+        assertEquals(List.of("20261008", "20261009"), rows.stream().map(UpsertRow::code).toList());
+        assertEquals("1370.00000000", rows.get(0).value().attr(1));
+        assertEquals("1390.00000000", rows.get(1).value().attr(1));
+        assertEquals("1500.00000000", rows.get(1).value().attr(2));
+    }
+
+    @Test
+    void 같은_날_기존_행의_받지_않은_칼럼은_보존하고_받은_칼럼만_덮어쓴다() {
+        Map<String, ExchangeRateSyncService.ExistingRow> existing = Map.of("20261009", new ExchangeRateSyncService.ExistingRow(
+                "별칭", 3, java.util.Arrays.asList("1000.00000000", "1500.00000000", "9.00000000", null, null, null, null, null, null, null)));
+        UpsertRow row = ExchangeRateSyncService.toRows(List.of(point(D, "USD", "1384")), COLUMNS, SYMBOLS, "frankfurter", existing).get(0);
+
+        assertEquals("1384.00000000", row.value().attr(1));
+        assertEquals("1500.00000000", row.value().attr(2));
+        assertEquals("9.00000000", row.value().attr(3));
+        assertEquals("별칭", row.value().alterName());
+        assertEquals(3, row.value().seq());
     }
 
     @Test
     void 요청하지_않은_통화와_쓸_수_없는_값은_버린다() {
-        List<UpsertRow> rows = ExchangeRateSyncService.toRows(java.util.Arrays.asList(
+        List<UpsertRow> rows = rows(java.util.Arrays.asList(
                 point(D, "GBP", "1700"), point(D, "USD", null), point(D, "USD", "0"), point(D, "USD", "-1"),
                 point(D, "USD", "0.000000001"), new ExchangeRatePoint(null, "USD", BigDecimal.ONE),
-                new ExchangeRatePoint(D, null, BigDecimal.ONE), null, point(D, " jpy ", "9.5")), SYMBOLS, "frankfurter");
+                new ExchangeRatePoint(D, null, BigDecimal.ONE), null, point(D, " jpy ", "9.5")));
 
-        assertEquals(List.of("JPY20261009"), rows.stream().map(UpsertRow::code).toList());
+        assertEquals(1, rows.size());
+        assertEquals("9.50000000", rows.get(0).value().attr(3));
+        assertNull(rows.get(0).value().attr(1));
     }
 
     @Test
