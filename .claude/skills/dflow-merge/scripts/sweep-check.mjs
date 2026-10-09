@@ -164,7 +164,7 @@ function main(argv) {
       if (!p) continue;
       if (!p.startsWith(d + '/')) continue;
       const rel = p.slice(d.length + 1).split('/');
-      if (!(rel.length === 3 && rel[2] === 'state.json')) continue;
+      if (!(rel.length === 2 && rel[1] === 'state.json')) continue;
       const sh = git(top, ['show', `${tip}:${p}`]);
       if (sh.status !== 0) return unknown(`git show 실패: origin/${dev}:${p}`);
       let doc;

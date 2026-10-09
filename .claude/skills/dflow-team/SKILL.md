@@ -521,7 +521,7 @@ node .claude/skills/dflow-team/scripts/lead-state.mjs --agent '<신원>/<host>/l
 mkdir -p "$(git rev-parse --git-path dflow-team-poll)"
 POLL_DIR=$(cd "$(git rev-parse --git-path dflow-team-poll)" && pwd)
 ( cd "$POLL_DIR" && DFLOW_CONFIG_DIR="<MAIN>" DFLOW_WATCH=0 \
-    "<MAIN>/node .claude/skills/dflow-poll/scripts/poll.mjs" --require-tag agent --lead --until '<UNTIL>' --interval 180 --recheck-cycles 10 \
+    node "<MAIN>/.claude/skills/dflow-poll/scripts/poll.mjs" --require-tag agent --lead --until '<UNTIL>' --interval 180 --recheck-cycles 10 \
     --wait-cycles 40 [--wp <WP-02,dict/WP-03>] [--exclude <id8,id8>] [--exclude-temp <id8,id8>] [--exclude-wait <id8,id8>] )
 ```
 대괄호 = 선택 플래그 표기, 실제 명령에 쓰지 않음. `<MAIN>` 경로는 따옴표로 감쌈 (공백 있으면 poll 즉시 죽음).
