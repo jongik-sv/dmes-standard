@@ -78,6 +78,8 @@ export interface JobForm {
   valueField: string;
   keyField: string;
   collectUrl: string;
+  /** HTTP 수집: 일시 오류(503·502·504·429·연결 시간 초과)일 때 몇 초 뒤 한 번 다시 부른다. 저장된 설정에 키가 없으면 끔(기존 작업 동작 그대로). */
+  retryTransient: boolean;
   items: CollectItemRow[];
   currencies: string[];
   /** false 면 읽기만 하고 수집 값 표에 저장하지 않는다(외부 트리거용). */
@@ -112,6 +114,7 @@ export function emptyForm(kind: JobKind, moduleCd = "MCM"): JobForm {
     valueField: "",
     keyField: "",
     collectUrl: "",
+    retryTransient: true,   // 새 작업의 기본은 켬 — 저장된 기존 작업은 키가 없으면 끔이다(toForm)
     items: [],
     currencies: ["USD"],
     save: true,
@@ -236,6 +239,7 @@ export function toForm(def: JobDef, codeMissing = false): JobForm {
       form.valueField = text(source.valueField);
       form.keyField = text(source.keyField);
       form.collectUrl = text(source.url);
+      form.retryTransient = source.retryTransient === true;
       form.items = Array.isArray(source.items)
         ? source.items.filter(isRecord).map((i) => ({ key: text(i.key), path: text(i.path) }))
         : [];
@@ -280,7 +284,12 @@ export function collectMinGapMin(form: Pick<JobForm, "jobKind" | "collectKind">)
 function collectConfig(form: JobForm): Record<string, unknown> {
   let source: Record<string, unknown>;
   if (form.collectKind === "http") {
-    source = { kind: "http", url: form.collectUrl.trim(), items: form.items.map((i) => ({ key: i.key.trim(), path: i.path.trim() })) };
+    source = {
+      kind: "http",
+      url: form.collectUrl.trim(),
+      retryTransient: form.retryTransient,
+      items: form.items.map((i) => ({ key: i.key.trim(), path: i.path.trim() })),
+    };
   } else if (form.collectKind === "exchange") {
     source = { kind: "exchange", currencies: form.currencies };
   } else {
