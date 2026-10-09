@@ -59,7 +59,8 @@ import java.util.regex.Pattern;
 public final class SqlGuard {
 
     /** §7.2 시스템 변수 — 안내 문구·검사 순서. */
-    public static final List<String> SYSTEM_VARIABLES = List.of("userId", "deptCd", "today", "yesterday", "monthStart", "now");
+    public static final List<String> SYSTEM_VARIABLES = List.of("userId", "deptCd", "today", "yesterday", "monthStart", "now",
+            "bizDate", "bizYesterday", "baseHour");
 
     static final String MSG_EMPTY = "SQL 을 입력해 주세요";
     static final String MSG_NOT_SELECT = "SELECT 또는 WITH 로 시작하는 조회문만 쓸 수 있습니다";
