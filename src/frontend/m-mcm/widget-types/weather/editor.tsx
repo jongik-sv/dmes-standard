@@ -13,6 +13,7 @@ import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
 import {
   addQuickLocation,
   coordText,
+  isQuickLocationAdded,
   parseCoord,
   patchConfig,
   readWeatherConfig,
@@ -106,10 +107,10 @@ export default function WeatherEditor({ value, onChange, onValidate }: WidgetTyp
         <div className="mcm-extedit__quick">
           {places.map((q) => (
             <Button
-              key={q.name}
+              key={`${q.name}:${q.lat}:${q.lon}`}
               size="sm"
-              disabled={cfg.locations.some((l) => l.name === q.name)}
-              onClick={() => update(addQuickLocation(cfg.locations, q))}
+              disabled={isQuickLocationAdded(cfg.locations, q, places)}
+              onClick={() => update(addQuickLocation(cfg.locations, q, places))}
             >
               {q.name}
             </Button>

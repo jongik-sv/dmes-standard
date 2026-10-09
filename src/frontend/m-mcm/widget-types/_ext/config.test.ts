@@ -9,12 +9,14 @@ import {
   EXCHANGE_CURRENCIES,
   EXCHANGE_INITIAL,
   exchangeRequest,
+  isQuickLocationAdded,
   parseCoord,
   patchConfig,
   QUICK_LOCATIONS,
   readExchangeConfig,
   readWeatherConfig,
   sameCoord,
+  sameSpot,
   toggleCurrency,
   validLocations,
   validateExchangeConfig,
@@ -302,5 +304,36 @@ describe("좌표 입력 글자 ↔ 숫자", () => {
     expect(sameCoord("-", Number.NaN)).toBe(true);
     expect(sameCoord("37", 38)).toBe(false);
     expect(sameCoord("", 0)).toBe(false);
+  });
+});
+
+describe("빠른 추가 — 이미 들어 있는지(이름·좌표)", () => {
+  const seoul = { name: "서울", lat: 37.57, lon: 126.98 };
+
+  it("sameSpot — 소수 둘째 자리로 맞춰 같으면 같은 지점(37.5665 와 37.57), 숫자가 아니면 다르다", () => {
+    expect(sameSpot({ name: "a", lat: 37.5665, lon: 126.978 }, seoul)).toBe(true);
+    expect(sameSpot({ name: "a", lat: 37.46, lon: 126.98 }, seoul)).toBe(false);
+    expect(sameSpot({ name: "a", lat: Number.NaN, lon: 126.98 }, { name: "b", lat: Number.NaN, lon: 126.98 })).toBe(false);
+  });
+
+  it("이름이 달라도 같은 좌표면 이미 들어 있다 — 추가하지 않는다", () => {
+    const list = [{ name: "서울본사", lat: 37.5665, lon: 126.978 }];
+    expect(isQuickLocationAdded(list, seoul, [seoul])).toBe(true);
+    expect(addQuickLocation(list, seoul, [seoul])).toBe(list);
+  });
+
+  it("같은 이름이면(좌표가 달라도) 이미 들어 있다", () => {
+    expect(isQuickLocationAdded([{ name: "서울", lat: 1, lon: 1 }], seoul, [seoul])).toBe(true);
+  });
+
+  it("목록에 같은 이름의 다른 지점이 또 있으면 이름만으로는 막지 않는다 — 좌표가 다른 둘을 모두 넣을 수 있다", () => {
+    const a = { name: "공장", lat: 36.0, lon: 129.0 };
+    const b = { name: "공장", lat: 37.0, lon: 127.0 };
+    const presets = [a, b];
+    expect(isQuickLocationAdded([], a, presets)).toBe(false);
+    const afterA = addQuickLocation([], a, presets);
+    expect(isQuickLocationAdded(afterA, a, presets)).toBe(true);
+    expect(isQuickLocationAdded(afterA, b, presets)).toBe(false);
+    expect(addQuickLocation(afterA, b, presets)).toHaveLength(2);
   });
 });

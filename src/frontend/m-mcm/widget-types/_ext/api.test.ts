@@ -215,13 +215,13 @@ describe("네트워크 실패 — 브라우저 영어 문구 대신 한국어", 
 describe("편집기 선택지(widgetExt/options)", () => {
   const OK = { meta: { success: true }, data: { result: { currencies: ["USD", "EUR"], places: [{ name: "서울", lat: 37.57, lon: 126.98 }] } } };
 
-  it("normalizeOptions — 통화는 대문자 3자리·KRW 제외·중복 없이, 지점은 이름·좌표 범위를 지킨 것만", () => {
+  it("normalizeOptions — 통화는 대문자 3자리·KRW 제외·중복 없이, 지점은 이름·좌표 범위를 지키고 이름·좌표가 같은 것은 하나만", () => {
     expect(
       normalizeOptions({
         currencies: ["usd", " EUR ", "KRW", "ABCD", "USD", 3, null],
         places: [
           { name: " 서울 ", lat: "37.57", lon: 126.98 },
-          { name: "서울", lat: 1, lon: 1 },
+          { name: "서울", lat: 37.5701, lon: 126.9801 },
           { name: "", lat: 1, lon: 1 },
           { name: "범위밖", lat: 91, lon: 0 },
           { name: "좌표없음", lat: 1 },
@@ -229,6 +229,21 @@ describe("편집기 선택지(widgetExt/options)", () => {
         ],
       }),
     ).toEqual({ currencies: ["USD", "EUR"], places: [{ name: "서울", lat: 37.57, lon: 126.98 }] });
+  });
+
+  it("normalizeOptions — 이름이 같아도 좌표가 다르면 둘 다, 이름·좌표가 같으면 하나", () => {
+    expect(
+      normalizeOptions({
+        places: [
+          { name: "공장", lat: 36, lon: 129 },
+          { name: "공장", lat: 37, lon: 127 },
+          { name: "공장", lat: 36.001, lon: 129.002 },
+        ],
+      }).places,
+    ).toEqual([
+      { name: "공장", lat: 36, lon: 129 },
+      { name: "공장", lat: 37, lon: 127 },
+    ]);
   });
 
   it("normalizeOptions — 응답이 비었거나 모양이 틀리면 빈 목록", () => {

@@ -202,8 +202,38 @@ export function validateWeatherConfig(raw: unknown): string[] {
   return errors;
 }
 
-/** 빠른 추가 — 같은 이름이 이미 있으면 그대로(같은 배열) 돌려준다. */
-export function addQuickLocation(list: readonly WeatherLocation[], preset: WeatherLocation): WeatherLocation[] {
-  if (list.some((l) => l.name === preset.name)) return list as WeatherLocation[];
+/** 같은 지점인가 — 좌표를 소수 둘째 자리로 맞춰 비교한다(서버 수집 작업이 지점을 그 자릿수로 찾는다. 37.5665 와 37.57 은 같은 지점). 좌표가 숫자가 아니면 다르다. */
+export function sameSpot(a: WeatherLocation, b: WeatherLocation): boolean {
+  return (
+    Number.isFinite(a.lat) &&
+    Number.isFinite(a.lon) &&
+    Number.isFinite(b.lat) &&
+    Number.isFinite(b.lon) &&
+    Math.round(a.lat * 100) === Math.round(b.lat * 100) &&
+    Math.round(a.lon * 100) === Math.round(b.lon * 100)
+  );
+}
+
+/**
+ * 빠른 추가 지점이 이미 들어 있는가 — 같은 지점(이름이 달라도 좌표가 같으면)이거나, 같은 이름이다.
+ * 단 목록(`presets`)에 같은 이름의 다른 지점이 또 있으면 이름만으로는 막지 않는다(좌표가 다른 두 지점을 모두 넣을 수 있게).
+ */
+export function isQuickLocationAdded(
+  list: readonly WeatherLocation[],
+  preset: WeatherLocation,
+  presets: readonly WeatherLocation[] = [],
+): boolean {
+  if (list.some((l) => sameSpot(l, preset))) return true;
+  const ambiguousName = presets.some((p) => p !== preset && p.name === preset.name);
+  return !ambiguousName && list.some((l) => l.name === preset.name);
+}
+
+/** 빠른 추가 — 이미 들어 있으면({@link isQuickLocationAdded}) 그대로(같은 배열) 돌려준다. */
+export function addQuickLocation(
+  list: readonly WeatherLocation[],
+  preset: WeatherLocation,
+  presets: readonly WeatherLocation[] = [],
+): WeatherLocation[] {
+  if (isQuickLocationAdded(list, preset, presets)) return list as WeatherLocation[];
   return [...list, { ...preset }];
 }
