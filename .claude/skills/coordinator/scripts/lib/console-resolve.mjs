@@ -77,7 +77,7 @@ const get = (v, ...keys) => { for (const k of keys) v = J.index(v, k); return v;
 const EMPTY = undefined;
 
 /** 파일의 JSON 값마다 fn(doc) 을 돌려 그 출력들(배열)을 모은다. 읽기·접근 오류가 나면 거기서 멈춘다(앞 출력은 남는다). 파일을 못 읽으면 []. */
-function jqOutputs(file, fn) {
+export function jqOutputs(file, fn) {
   let text;
   try { text = readFileSync(file, 'utf8'); } catch { return []; }
   const { values } = J.parseStreamPartial(text);
