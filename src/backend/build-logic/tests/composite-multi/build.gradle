@@ -1,0 +1,3 @@
+tasks.register('testAll') {
+    dependsOn gradle.includedBuilds.collect { it.task(':test') }
+}
