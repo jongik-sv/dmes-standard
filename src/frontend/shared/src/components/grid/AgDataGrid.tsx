@@ -735,15 +735,11 @@ function AgDataGridInner({
 
   // 행 선택 — 머리글 전체 선택은 보이는 행(걸러진 결과)만 고른다(selectAll "filtered"). 거르지 않을 때는 모든 행이라 전과 같다.
   // 걸러져 숨은 행의 선택은 필터가 바뀔 때 풀린다(useGridFilter 의 handleFilterChanged).
-  // isRowSelectable 은 ref 로 읽는다 — 호출자가 인라인 함수를 넘겨도 rowSelection 객체가 렌더마다 바뀌지 않아 ag-grid 가 선택 옵션을 다시 적용하지 않는다.
-  const isRowSelectableRef = useRef(isRowSelectable);
-  isRowSelectableRef.current = isRowSelectable;
-  const hasRowSelectable = !!isRowSelectable;
+  // isRowSelectable 은 ref 로 감싸지 않고 참조 그대로 의존성에 둔다 — ag-grid 는 이 콜백 참조가 바뀔 때만 모든 행의 선택 가능 여부를 다시 계산하므로,
+  // 행 밖 상태(잠금 플래그 등)에 의존하는 화면이 새 함수를 넘겨 다시 계산시킬 길을 막으면 안 된다. 화면이 useCallback 으로 고정하면 rowSelection 도 고정된다.
   const rowSelection = useMemo(() => {
     if (!selectable) return undefined;
-    const rowSelectable = hasRowSelectable
-      ? (node: { data?: Record<string, unknown> }) => isRowSelectableRef.current?.(node.data ?? {}) ?? true
-      : undefined;
+    const rowSelectable = isRowSelectable ? (node: { data?: Record<string, unknown> }) => isRowSelectable(node.data ?? {}) : undefined;
     return multiSelect
       ? {
           mode: "multiRow" as const,
@@ -760,8 +756,8 @@ function AgDataGridInner({
           headerCheckbox: false,
           isRowSelectable: rowSelectable,
         };
-  }, [selectable, multiSelect, hasRowSelectable]);
-  // getRowHeight 도 같은 이유로 ref 로 읽는다.
+  }, [selectable, multiSelect, isRowSelectable]);
+  // getRowHeight 는 ag-grid 가 참조 변경에 반응하지 않으므로(행 높이를 다시 재지 않는다) ref 로 읽어 참조를 고정한다.
   const getRowHeightRef = useRef(getRowHeight);
   getRowHeightRef.current = getRowHeight;
   const hasGetRowHeight = !!getRowHeight;

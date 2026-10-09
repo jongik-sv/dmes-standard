@@ -1,6 +1,7 @@
 /** @vitest-environment happy-dom */
 /**
- * AgDataGrid 참조 안정화 — 호출자가 인라인 함수를 넘겨 다시 그려도 AgGridReact 에 내려가는 객체·콜백 참조가 바뀌지 않는다.
+ * AgDataGrid 참조 안정화 — 호출자가 인라인 getRowHeight·onRowOrderChange 를 넘겨 다시 그려도 AgGridReact 에 내려가는 콜백 참조가 바뀌지 않는다.
+ * isRowSelectable 은 ag-grid 가 참조 변경으로 선택 가능 여부를 다시 계산하므로 참조를 그대로 따른다.
  * 마운트 때 GridPanel 안 그리드가 다시 그려지는 횟수도 함께 본다.
  */
 import { act, createElement } from "react";
@@ -51,19 +52,11 @@ function grid(props: Partial<AgDataGridProps> = {}) {
 }
 
 describe("AgDataGrid 참조 안정화", () => {
-  it("인라인 isRowSelectable·getRowHeight·onRowOrderChange 를 새로 넘겨도 rowSelection·getRowHeight·onRowDragEnd 참조가 같다", async () => {
-    const make = () =>
-      grid({
-        selectable: true,
-        multiSelect: true,
-        isRowSelectable: (row) => row.code !== "B",
-        getRowHeight: () => 30,
-        onRowOrderChange: () => {},
-      });
+  it("인라인 getRowHeight·onRowOrderChange 를 새로 넘겨도 getRowHeight·onRowDragEnd 참조가 같다", async () => {
+    const make = () => grid({ selectable: true, multiSelect: true, getRowHeight: () => 30, onRowOrderChange: () => {} });
     await act(async () => void (r = renderWithMantine(make())));
     await wait(30);
     const before = seen.at(-1)!;
-    expect(before.rowSelection).toBeTruthy();
     const n = seen.length;
     await act(async () => rerender(r!, make()));
     await wait(30);
@@ -74,24 +67,29 @@ describe("AgDataGrid 참조 안정화", () => {
     expect(after.onRowDragEnd).toBe(before.onRowDragEnd);
   });
 
-  it("최신 isRowSelectable·getRowHeight 를 부른다 (ref 로 읽는다)", async () => {
-    let allowed = "B";
-    const make = (h: number) =>
-      grid({
-        selectable: true,
-        isRowSelectable: (row) => row.code === allowed,
-        getRowHeight: () => h,
-      });
+  it("isRowSelectable 참조를 고정하면 rowSelection 도 고정되고, 새 함수를 넘기면 새 rowSelection 으로 다시 계산시킨다", async () => {
+    const stable = (row: Record<string, unknown>) => row.code !== "B";
+    await act(async () => void (r = renderWithMantine(grid({ selectable: true, isRowSelectable: stable }))));
+    await wait(30);
+    const first = seen.at(-1)!.rowSelection;
+    await act(async () => rerender(r!, grid({ selectable: true, isRowSelectable: stable })));
+    await wait(30);
+    expect(seen.at(-1)!.rowSelection).toBe(first);
+    await act(async () => rerender(r!, grid({ selectable: true, isRowSelectable: (row) => row.code === "B" })));
+    await wait(30);
+    const next = seen.at(-1)!.rowSelection as { isRowSelectable: (n: { data?: unknown }) => boolean };
+    expect(next).not.toBe(first);
+    expect(next.isRowSelectable({ data: { code: "B" } })).toBe(true);
+  });
+
+  it("getRowHeight 는 최신 함수를 부른다 (ref 로 읽는다)", async () => {
+    const make = (h: number) => grid({ getRowHeight: () => h });
     await act(async () => void (r = renderWithMantine(make(30))));
     await wait(30);
     const first = seen.at(-1)!;
-    allowed = "A";
     await act(async () => rerender(r!, make(44)));
     await wait(30);
     const last = seen.at(-1)!;
-    const sel = (last.rowSelection as { isRowSelectable: (n: { data?: unknown }) => boolean }).isRowSelectable;
-    expect(sel({ data: { code: "A" } })).toBe(true);
-    expect(sel({ data: { code: "B" } })).toBe(false);
     expect((last.getRowHeight as (p: { data?: unknown }) => number)({ data: {} })).toBe(44);
     expect(last.getRowHeight).toBe(first.getRowHeight);
   });
