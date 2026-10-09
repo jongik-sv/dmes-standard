@@ -484,6 +484,8 @@ be_run_prebuild() {
 BE_STATE_DIR="$ROOT_DIR/.be-run"
 BE_STATE_LOCK="$BE_STATE_DIR/lock.d"
 BE_STATE_LOCK_HELD=0
+BE_STATE_LOCK_FAILED=0
+BE_ANY_DIED=0    # 모듈이 스스로 비정상 종료한 적이 있으면 1 — 이어받음으로 끝나도 이 오류를 가리지 않는다
 BE_ANY_TAKEN=0   # 내 모듈을 다른 be-run 이 가져간 적이 있으면 1 — 끝날 때 BE_RUN_HANDED_OVER_RC(79)로 알린다(local-run 이 구분한다)
 OWN_RUN_PID=""
 OWN_JVM_PID=""
@@ -492,35 +494,49 @@ CLAIM_PREV_JVM=""
 
 own_file() { printf '%s/%s.own' "$BE_STATE_DIR" "$1"; }
 
-# 기록 폴더 잠금. 다른 be-run 이 쥐고 있으면 최대 5초(0.05초 x 100) 기다리고, 쥔 pid 가 죽었으면 바로 낡은 잠금으로 치운다.
-# 5초가 지나도 안 풀리면 낡은 잠금으로 보고 빼앗는다(잠금 구간은 파일 한 줄을 읽고 쓰는 정도라 이보다 길 수 없다).
+# 기록 폴더 잠금. 다른 be-run 이 쥐고 있으면 최대 10초(0.05초 x 200) 기다린다.
+# - 쥔 pid 가 죽었으면(강제 종료) 그 잠금을 치운다. 치우기 직전에 쥔 pid 를 다시 읽어 같은 소유자일 때만 지운다.
+# - 쥔 pid 가 살아 있으면 빼앗지 않는다: 10초가 지나면 실패(1)를 돌려준다(fail-closed). 잠금 구간은 기록 파일 한 줄을 읽고 쓰는 정도로 짧게
+#   유지하므로(ps·lsof 같은 느린 판정은 잠금 밖에서 한다) 정상이라면 10초를 넘기지 않는다.
+# - pid 파일이 아직 없는 잠금(만든 직후이거나 그 사이 죽은 경우)은 3초 안 보이면 낡은 것으로 본다.
+# - 쥔 pid 가 나 자신이면(종료 트랩이 잠금 구간 안에서 다시 들어온 경우) 재진입을 허용한다.
 state_lock() {
-  local i holder
-  mkdir -p "$BE_STATE_DIR" 2>/dev/null || return 0
-  for i in $(seq 1 100); do
+  local i holder empty=0
+  mkdir -p "$BE_STATE_DIR" 2>/dev/null || return 1
+  for i in $(seq 1 200); do
     if mkdir "$BE_STATE_LOCK" 2>/dev/null; then
       printf '%s\n' "$$" > "$BE_STATE_LOCK/pid" 2>/dev/null || true
       BE_STATE_LOCK_HELD=1
       return 0
     fi
     holder="$(cat "$BE_STATE_LOCK/pid" 2>/dev/null || true)"
-    if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then
-      rm -rf "$BE_STATE_LOCK"
+    if [ "$holder" = "$$" ]; then
+      BE_STATE_LOCK_HELD=1
+      return 0
+    fi
+    if [ -z "$holder" ]; then
+      empty=$((empty + 1))
+      if [ "$empty" -ge 60 ] && [ -z "$(cat "$BE_STATE_LOCK/pid" 2>/dev/null || true)" ]; then
+        rm -rf "$BE_STATE_LOCK"
+        empty=0
+      fi
+    elif ! kill -0 "$holder" 2>/dev/null; then
+      if [ "$(cat "$BE_STATE_LOCK/pid" 2>/dev/null || true)" = "$holder" ]; then
+        rm -rf "$BE_STATE_LOCK"
+      fi
       continue
     fi
     sleep 0.05
   done
-  rm -rf "$BE_STATE_LOCK"
-  if mkdir "$BE_STATE_LOCK" 2>/dev/null; then
-    printf '%s\n' "$$" > "$BE_STATE_LOCK/pid" 2>/dev/null || true
-    BE_STATE_LOCK_HELD=1
-  fi
-  return 0
+  return 1
 }
 
+# 내가 쥔 잠금만 푼다(쥔 pid 가 나일 때만 지운다).
 state_unlock() {
   if [ "$BE_STATE_LOCK_HELD" = "1" ]; then
-    rm -rf "$BE_STATE_LOCK" 2>/dev/null || true
+    if [ "$(cat "$BE_STATE_LOCK/pid" 2>/dev/null || true)" = "$$" ]; then
+      rm -rf "$BE_STATE_LOCK" 2>/dev/null || true
+    fi
     BE_STATE_LOCK_HELD=0
   fi
   return 0
@@ -562,8 +578,13 @@ own_taken_by_other() {
 }
 
 # 모듈($1)을 내 것으로 기록하고, 직전 기록을 CLAIM_PREV_RUN·CLAIM_PREV_JVM 에 남긴다(읽기와 쓰기를 한 잠금 안에서).
+# 잠금을 얻지 못하면(다른 be-run 이 10초 넘게 쥐고 있음) 기록을 어지럽히지 않으려고 기동하지 않고 끝낸다.
 own_claim() {
-  state_lock
+  if ! state_lock; then
+    BE_STATE_LOCK_FAILED=1      # 종료 트랩의 기록 거두기가 또 10초 기다리지 않게
+    dev_log_error "소유 기록 잠금($BE_STATE_LOCK)을 얻지 못했다 — 쥔 be-run pid=$(cat "$BE_STATE_LOCK/pid" 2>/dev/null || echo '?'). 그 be-run 이 끝난 뒤 다시 실행하세요."
+    exit 1
+  fi
   own_read "$1"
   CLAIM_PREV_RUN="$OWN_RUN_PID"
   CLAIM_PREV_JVM="$OWN_JVM_PID"
@@ -571,23 +592,38 @@ own_claim() {
   state_unlock
 }
 
-# 방금 띄운 앱 JVM($2)을 모듈($1)의 기록에 남긴다. 그사이 다른 be-run 이 모듈을 가져갔으면 쓰지 않고 1 을 돌려준다.
+# 방금 띄운 앱 JVM($2)을 모듈($1)의 기록에 남긴다. 그사이 다른 be-run 이 모듈을 가져갔으면 쓰지 않고 1 을 돌려준다(OWN_RUN_PID = 그 pid).
+# 잠금 안에서는 기록을 읽고 쓰기만 하고, 다른 be-run 이 살아 있는지 보는 느린 판정(ps·lsof)은 잠금 밖에서 한다.
 own_set_jvm() {
-  local rc=0
-  state_lock
-  if own_taken_by_other "$1"; then
-    rc=1
-  else
-    own_write_file "$1" "$$" "$2"
-  fi
-  state_unlock
-  return "$rc"
+  local mod="$1" jvm="$2" other="" stale="" attempt
+  for attempt in 1 2; do
+    if ! state_lock; then
+      dev_log_print "be" "be-$mod 소유 기록 잠금을 얻지 못해 앱 JVM pid 를 기록하지 못했다(기록은 - 로 남는다)."
+      return 0
+    fi
+    own_read "$mod"
+    if [ -z "$OWN_RUN_PID" ] || [ "$OWN_RUN_PID" = "$$" ] || [ "$OWN_RUN_PID" = "$stale" ]; then
+      own_write_file "$mod" "$$" "$jvm"
+      state_unlock
+      return 0
+    fi
+    other="$OWN_RUN_PID"
+    state_unlock
+    if kill -0 "$other" 2>/dev/null && is_own_be_run "$other"; then
+      OWN_RUN_PID="$other"
+      return 1
+    fi
+    stale="$other"        # 기록한 be-run 이 죽었다 — 낡은 기록이니 덮어쓴다
+  done
+  OWN_RUN_PID="$other"
+  return 1
 }
 
 # 내가 맡은 모듈의 기록을 지운다(다른 be-run 이 가져간 기록은 그대로 둔다).
 own_release() {
-  state_lock
-  if ! own_taken_by_other "$1"; then
+  state_lock || return 0
+  own_read "$1"
+  if [ "$OWN_RUN_PID" = "$$" ]; then
     rm -f "$(own_file "$1")" 2>/dev/null || true
   fi
   state_unlock
@@ -600,11 +636,18 @@ unmark_alive() { rm -f "$BE_STATE_DIR/$$.alive" 2>/dev/null || true; }
 # 내 소유 기록과 살아 있음 표식을 거둔다. 기동 도중 실패·종료 때(종료 트랩이 서기 전)와 cleanup 끝에서 부른다.
 release_claims() {
   local m
-  for m in "${SELECTED_MODULES[@]}"; do
-    own_release "$m"
-  done
+  if [ "$BE_STATE_LOCK_FAILED" != "1" ]; then
+    for m in "${SELECTED_MODULES[@]}"; do
+      own_release "$m"
+    done
+  fi
   unmark_alive
 }
+
+# 이 판 be-run 의 살아 있음 표식을 최대한 일찍(드라이런·빌드 전용 포함) 남긴다 — 다른 새 실행이 표식 없는 예전 판으로 오인해 끝내지 않게.
+# 종료 트랩으로 표식과 소유 기록을 거둔다(기동 도중 선빌드 실패·포트 회수 실패로 끝나도 남지 않는다. cleanup 트랩이 서면 그것으로 바뀐다).
+mark_alive
+trap 'release_claims' EXIT
 
 # ── 드라이런 ─────────────────────────────────────────────────
 # 이전 인스턴스 종료·포트 회수·종료 트랩보다 앞에서 끝낸다 — 아무 프로세스도 끄거나 띄우지 않는다.
@@ -698,11 +741,6 @@ if [ "$BUILD_ONLY" = "1" ]; then
   exit 0
 fi
 
-# 여기서부터는 실제로 기동한다. 이 판 be-run 의 살아 있음 표식을 최대한 일찍 남기고(다른 새 실행이 나를 예전 판으로 오인해 끝내지 않게),
-# 선빌드 실패·포트 회수 실패로 끝나도 소유 기록과 표식을 남기지 않게 종료 트랩을 건다(cleanup 트랩이 서면 그것으로 바뀐다).
-mark_alive
-trap 'release_claims' EXIT
-
 # 빌드를 건너뛰는데(BE_PREBUILD=0) 직전 빌드의 classpath.txt 가 없으면, 이전 서버를 끄기 전에 알리고 끝낸다.
 if ! be_legacy_mode && ! be_prebuild_enabled; then
   be_check_classpath_files || exit 1
@@ -738,14 +776,15 @@ pid_cwd() {
 #   $ROOT_DIR 자체이거나 $ROOT_DIR/src/ 아래면 참이다. 워크트리는 $ROOT_DIR/dflow-<id8>·
 #   $ROOT_DIR/.claude/worktrees/ 아래에 생기므로 단순 접두 비교를 쓰지 않는다.
 is_own_be_run() {
-  local pid="$1" args tok cwd
+  local pid="$1" args tok cwd found=0
   args="$(ps -o command= -p "$pid" 2>/dev/null || true)"
   for tok in $args; do
     case "$tok" in
       /*be-run.sh) [ "$tok" = "$ROOT_DIR/be-run.sh" ]; return ;;
-      *be-run.sh) break ;;
+      *be-run.sh) found=1; break ;;
     esac
   done
+  [ "$found" = "1" ] || return 1               # 명령줄에 be-run.sh 가 없으면 be-run 이 아니다(pid 재사용 오인 방지)
   cwd="$(pid_cwd "$pid")"
   case "$cwd" in
     "$ROOT_DIR"|"$ROOT_DIR/src/"*) return 0 ;;
@@ -919,6 +958,11 @@ reclaim_backend_port() {
   for pid in $(lsof -nP -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true); do
     [ -n "$pid" ] || continue
     [ "$pid" = "$$" ] && continue
+    # 같은 모듈을 더 늦게 시작한 be-run 이 이미 가져갔다면 이 포트의 JVM 은 그쪽 것일 수 있다 — 진 쪽이 이긴 쪽 JVM 을 내리지 않는다.
+    if own_taken_by_other "${tag#be-}"; then
+      dev_log_print "be" "$tag 는 be-run(pid=$OWN_RUN_PID)이 가져갔다 — 포트 $port 점유 프로세스(pid=$pid)는 건드리지 않는다."
+      return 0
+    fi
     occupied=1
 
     if [ "$KEEP_PORT" = "1" ]; then
@@ -1048,6 +1092,7 @@ wait_for_backend_exit() {
       elif kill -0 "$pid" 2>/dev/null; then
         alive=1
       else
+        BE_ANY_DIED=1
         dev_log_error "${PID_TAGS[$i]} 프로세스가 종료됐습니다 (pid=$pid). 위 로그에서 원인을 확인하세요."
         dev_log_error "  다시 띄우려면: ./be-run.sh --$m"
         PIDS[$i]=""
@@ -1228,4 +1273,9 @@ done
 dev_log_print "be" "백엔드 기동 완료. Ctrl+C 로 종료."
 wait_for_backend_exit
 # 내 모듈을 다른 be-run 이 이어받아 끝나는 것이면 그 사실을 종료 코드로 알린다(local-run 이 백엔드 종료와 구분해 정리를 건너뛴다).
-[ "$BE_ANY_TAKEN" = "1" ] && exit "$BE_RUN_HANDED_OVER_RC"
+if [ "$BE_ANY_DIED" = "1" ]; then
+  exit 1
+elif [ "$BE_ANY_TAKEN" = "1" ]; then
+  exit "$BE_RUN_HANDED_OVER_RC"
+fi
+exit 0

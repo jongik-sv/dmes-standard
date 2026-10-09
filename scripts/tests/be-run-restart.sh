@@ -25,7 +25,7 @@ cleanup() {
   rm -rf "$tmp"
 }
 trap cleanup EXIT
-( sleep 170; echo "FAIL: 시험 전체 170초 상한 초과"; kill -TERM $$ ) & watchdog=$!
+( sleep 300 >/dev/null 2>&1; echo "FAIL: 시험 전체 300초 상한 초과"; kill -TERM $$ ) & watchdog=$!
 trap 'kill $watchdog 2>/dev/null; wait $watchdog 2>/dev/null; cleanup' EXIT
 
 mkdir -p "$root/scripts" "$tmp/app"
@@ -63,11 +63,23 @@ for m in mcm mdm analog; do
   mkdir -p "$d/api/build/be-run"
   # classpath 에 root/src 경로를 하나 넣는다: local-run 의 잔존 프로세스 정리가 명령줄에 이 경로가 든 프로세스를 쓸어 담는다.
   printf 'FakeApp\n%s\n' "$tmp/app:$root/src/backend/lib" > "$d/api/build/be-run/classpath.txt"
+  cp "$d/api/build/be-run/classpath.txt" "$tmp/cp-$m"
   declare_port "$m" > "$d/port.txt"
   if lsof -nP -tiTCP:"$(declare_port "$m")" -sTCP:LISTEN >/dev/null 2>&1; then
     echo "FAIL: 시험 포트 $(declare_port "$m") 가 이미 쓰이고 있다"; exit 1
   fi
 done
+
+# 가짜 gradlew: 8초 걸린 뒤 classpath.txt 를 다시 만든다(빌드 전용 실행을 오래 붙들어 두려는 용도)
+cat > "$root/src/backend/gradlew" <<GRADLE
+#!/bin/sh
+sleep 8
+for m in mcm mdm analog; do
+  mkdir -p "$root/src/backend/\$m/api/build/be-run"
+  cp "$tmp/cp-\$m" "$root/src/backend/\$m/api/build/be-run/classpath.txt"
+done
+GRADLE
+chmod +x "$root/src/backend/gradlew"
 
 run() { BE_PREBUILD=0 bash "$root/be-run.sh" "$@"; }
 # 백그라운드용: 함수를 &로 부르면 서브셸이 한 겹 더 생겨 $! 가 be-run 의 pid 가 아니므로 exec 로 바꾼다.
@@ -184,6 +196,42 @@ sleep 3
 kill -TERM "$SA"; wait "$SA" 2>/dev/null
 settle_down
 note "10) 낡은 기록 무시: SA 종료 때 mcm·mdm 모두 정리됨"
+
+# ── 11) 빌드 전용(--build-only) 실행 중에 새 기동이 그것을 예전 판으로 보고 끝내지 않는다 ──
+BE_PREBUILD=1 bash -c 'exec bash "$0" --mdm --analog --build-only' "$root/be-run.sh" >"$tmp/BO.log" 2>&1 & BO=$!
+pids_to_kill="$pids_to_kill $BO"
+sleep 4.5   # 시작한 지 3초가 지나 「막 시작한 be-run」 예외에 걸리지 않을 때
+alive "$BO" || bad "빌드 전용 실행이 너무 일찍 끝났다(시험 준비 문제)"
+runbg --mcm >"$tmp/BX.log" 2>&1 & BX=$!
+pids_to_kill="$pids_to_kill $BX"
+wait_up mcm || bad "BX: mcm 안 뜸"
+wait "$BO" 2>/dev/null; bo_rc=$?
+[ "$bo_rc" = 0 ] || bad "빌드 전용 실행이 새 기동에 끝났거나 실패했다(exit $bo_rc)"
+kill -TERM "$BX" 2>/dev/null; wait "$BX" 2>/dev/null
+settle_down
+note "11) 빌드 전용 실행 보호: 새 기동 중에도 exit 0 으로 끝남"
+
+# ── 12) 살아 있는 소유자의 기록 잠금은 빼앗지 않는다(fail-closed), 소유자가 끝나면 이어서 진행한다 ──
+mkdir -p "$root/.be-run/lock.d"
+sleep 40 & holder=$!
+pids_to_kill="$pids_to_kill $holder"
+printf '%s\n' "$holder" > "$root/.be-run/lock.d/pid"
+runbg --mcm >"$tmp/LK.log" 2>&1 & LK=$!
+pids_to_kill="$pids_to_kill $LK"
+for _ in $(seq 1 40); do alive "$LK" || break; sleep 0.5; done   # 대기 상한 10초 + 여유
+alive "$LK" && bad "잠금을 쥔 소유자가 살아 있는데 둘째 실행이 계속 돈다(빼앗았을 수 있다)"
+wait "$LK" 2>/dev/null; lk_rc=$?
+[ "$lk_rc" != 0 ] || bad "잠금을 못 얻었는데 정상 종료했다"
+[ "$(cat "$root/.be-run/lock.d/pid" 2>/dev/null)" = "$holder" ] || bad "살아 있는 소유자의 잠금이 바뀌었다"
+up mcm && bad "잠금을 못 얻은 실행이 mcm 을 띄웠다"
+kill -TERM "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
+# 소유자가 죽었으면 낡은 잠금을 치우고 진행한다
+runbg --mcm >"$tmp/LK2.log" 2>&1 & LK2=$!
+pids_to_kill="$pids_to_kill $LK2"
+wait_up mcm || bad "죽은 소유자의 잠금을 치우고 진행하지 못했다"
+kill -TERM "$LK2" 2>/dev/null; wait "$LK2" 2>/dev/null
+settle_down
+note "12) 기록 잠금: 살아 있는 소유자는 빼앗지 않고 실패, 죽은 소유자는 치우고 진행"
 
 # ── 7) 소유 기록 없이 뜬 예전 버전 be-run 은 종전처럼 끝내고 이어받는다 ──
 if [ -n "${OLD_BE_RUN_SRC:-}" ] && [ -f "$OLD_BE_RUN_SRC" ]; then
