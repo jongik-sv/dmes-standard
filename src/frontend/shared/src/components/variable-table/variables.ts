@@ -15,7 +15,7 @@ export interface JobVarRow {
   desc?: string;
 }
 
-/** 값 칸에 쓸 수 있는 실행 변수 — 서버가 선점 때 확정한다(예약 작업 설계 §5.0). 날짜 변수는 예정 시각 기준이다. */
+/** 값 칸에 쓸 수 있는 실행 변수 — 서버가 선점 때 확정한다(예약 작업 설계 §5.0). 날짜 변수는 예정 시각 기준이며, 변수 형이 STRING 이면 20261008 형태(yyyyMMdd), DATE 면 날짜로 바인드한다. */
 export const RUNTIME_VARIABLES: { name: string; desc: string }[] = [
   { name: ":schedAt", desc: "예정 시각" },
   { name: ":now", desc: "선점 시각" },
