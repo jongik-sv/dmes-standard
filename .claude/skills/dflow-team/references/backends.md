@@ -12,7 +12,7 @@ SKILL.md 「0. 환경 감지」 가 백엔드 선택: 팀장이 Orca 안이면 *
 > 윈도우: 아래 `jq` 예시를 Bash 로 직접 칠 때는 같은 호출 맨 앞에 `export PATH="$PWD/.claude/skills/_shared/bin:$PATH";` 추가(`_shared/platform-support.md` 「문서 속 인라인 jq」).
 
 **읽는 법**(필요한 절만 Bash `sed` 로 읽음):
-- spawn = 「입장 제어」-「폴더 신뢰 확인」(tmux). Orca 는 거기에 「pane(Orca)」 추가.
+- spawn = 「입장 제어」~「폴더 신뢰 확인」(tmux). Orca 는 거기에 「pane(Orca)」 추가.
 - 회수·답·결과 줄 폴백 = 「생존·화면·답·회수」「결과 줄과 죽은 pane 폴백」. 정리 = 「고아 정리 규칙」.
 ```bash
 sed -n '/^## 입장 제어/,/^### 팀원 환경을 벗기는 이유/p' .claude/skills/dflow-team/references/backends.md   # spawn(tmux·Orca 공통 준비 블록까지)
@@ -37,7 +37,7 @@ sed -n '/^## pane(Orca)/,/^## 고아 정리 규칙/p' .claude/skills/dflow-team/
 
 ## 입장 제어
 
-**모든 spawn 의 첫 단계**(두 백엔드 공통). 새 작업·재개·재투입·해소·차단기 test spawn 모두 통과.
+**모든 spawn 의 첫 단계**(두 백엔드 공통). 새 작업·재개·재투입·해소·차단기 시험 spawn 모두 통과.
 - 집행·`CAPACITY_*` 판정 정본 = SKILL.md 「5-3. 입장 제어」, 기준값·알림 문구 = `references/spawn.md` 「5-3. 입장 제어: 알림·기준값」. 집행 = 이 블록 한 곳. 팀장 체크아웃에서 돎.
 ```bash
 CAP=$(node .claude/skills/dflow-team/scripts/capacity.mjs --state "$(git rev-parse --git-path dflow-team.capacity)"); echo "$CAP"
@@ -255,7 +255,7 @@ done
 
 팀원 pane 은 팀장 환경을 통째로 물려받음.
 - `.dflow-run` 은 `CLAUDE` 로 시작하는 변수를 전부 벗김(`CLAUDE_CONFIG_DIR` 만 남김). 대화 기록 저장이 꺼짐. 팀장의 메시징 채널·세션 ID·PID·에이전트 팀 설정을 팀원이 제 것으로 쓰는 것을 막음.
-- **`ORCA_*`·`TMUX`·`TMUX_PANE` 벗기기와 PATH 의 shim 제거는 `ORCA_AGENT_TEAMS_TEAM_ID` 가 있을 때만 함**(팀장이 Orca 안에서 tmux 백엔드로 팀원을 띄울 때만 새는 값. Orca 가 새로 띄운 탭의 `ORCA_AGENT_HOOK_*` 를 지우면 그 탭이 오피스 screen에서 사라짐).
+- **`ORCA_*`·`TMUX`·`TMUX_PANE` 벗기기와 PATH 의 shim 제거는 `ORCA_AGENT_TEAMS_TEAM_ID` 가 있을 때만 함**(팀장이 Orca 안에서 tmux 백엔드로 팀원을 띄울 때만 새는 값. Orca 가 새로 띄운 탭의 `ORCA_AGENT_HOOK_*` 를 지우면 그 탭이 오피스 화면에서 사라짐).
 - 조건은 `if [ -n "${ORCA_AGENT_TEAMS_TEAM_ID-}" ]; then <벗기기 전부>; fi` 한 블록으로 묶음(줄마다 걸면 먼저 지운 `ORCA_*` 가 판별 변수까지 지움).
 - 변수별로 무엇이 깨지는지 = rationale.md.
 
@@ -385,7 +385,7 @@ orca worktree list        # 누수 확인. 옛 방식 워크트리(dflow-<id8>, 
 **아래 "Orca 정리 명령" = 「pane(Orca)」 「정리」 전환 규칙의 줄임말**(경로가 `orca worktree list --json` 에 있으면 `orca worktree rm --worktree path:<경로>`, 없으면(새 방식) `git worktree remove --force <경로>`).
 0. **설계 완료 대기**(`<TASKS>/*/state.json` 이 `phase=wait_pred`, `references/design-ahead.md`): 깨끗하고 push 됐어도 **지우지 않음**(결과 처리·고아 스캔·마감 모두).
    - 선행이 끝나면 같은 worktree로 이어 구현. 지우면 재개가 의존성 설치·기준선부터 다시 함.
-   - `.dflow-agent` 는 `parked` 로 둠. 아래 1-5번은 보지 않음.
+   - `.dflow-agent` 는 `parked` 로 둠. 아래 1~5번은 보지 않음.
 1. **부트스트랩 실패**(`.result` 의 branch 칸이 `-`, branch 만들기 전에 끝남): 미커밋 목록이 알려진 부산물(`.dflow-agent`, `.dflow-prompt`, `.dflow-pane`, `.dflow-run`, `.result`, `.issues`, `<TASK_DIR>/spec.md` 캐시, `.dflow.local`(레거시 `.env`) 링크, `.dflow` 링크, 스킬 링크(`.claude/skills` 또는 그 안의 `dflow-dev`·`dflow-work`))뿐일 때만 정리.
    - tmux 는 `git worktree remove --force`, Orca 는 Orca 정리 명령에 `--force` 추가. 두 백엔드 모두 `--force` 사용(`spec.md` 캐시·스킬 폴더 안 개별 링크는 `info/exclude` 가 안 가림).
    - Orca 의 `--force` 는 worktree 강제 제거만 함. branch 삭제는 강제 안 함.
