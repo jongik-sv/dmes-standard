@@ -1,5 +1,7 @@
 # 정시 수집 유형(collect) 설계 계약 (widget-data 레인, 항목 4)
 
+> **2026-10-09 변경**: mcm 의 환율 수집 원천(`exchange`, `ExchangeCollectSource`)은 제거했다. 환율 수집은 mdm 예약 작업 `mdm.exchangeRateSync` 하나로 일원화하고 mcm 위젯은 `FxMasterReader` 로 마스터를 읽는다. 아래 환율 원천 서술은 제거 전 기록이다.
+
 > 폐기: collect 위젯은 예약 작업(docs/superpowers/specs/2026-10-08-job-scheduler-design.md)으로 대체되었다.
 
 2026-10-05. 사용자 결정(README §0-4): mcm-core 1분 `@Scheduled`, 수집 시각 PK 로 중복 방지, 90일 보관, 첫 판 원천은 SQL(기존 읽기 전용 실행기)·HTTP JSON(허용 호스트만)·내장 환율. 주식은 HTTP 원천, 기계 상태는 SQL 로 다룬다.

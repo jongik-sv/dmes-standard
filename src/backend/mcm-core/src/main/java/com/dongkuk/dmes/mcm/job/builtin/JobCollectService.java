@@ -6,7 +6,6 @@ import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfig;
 import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfigs;
 import com.dongkuk.dmes.mcm.job.builtin.collect.CollectException;
 import com.dongkuk.dmes.mcm.job.builtin.collect.CollectItem;
-import com.dongkuk.dmes.mcm.job.builtin.collect.ExchangeCollectSource;
 import com.dongkuk.dmes.mcm.job.builtin.collect.HttpCollectSource;
 import com.dongkuk.dmes.mcm.job.builtin.collect.JobCollectSql;
 import com.dongkuk.dmes.mcm.job.builtin.collect.SqlCollectSource;
@@ -18,12 +17,11 @@ import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
- * 내장 서비스 {@code jobCollect}(설계 §5.1·§5.4) — 원천(sql·http·exchange)에서 값을 읽어 {@link JobRunScope} 에 담는다. 저장은 진입점이 결과 갱신과
+ * 내장 서비스 {@code jobCollect}(설계 §5.1·§5.4) — 원천(sql·http)에서 값을 읽어 {@link JobRunScope} 에 담는다. 저장은 진입점이 결과 갱신과
  * 같은 트랜잭션에서 한다({@code save:false} 면 읽기만 — 외부 트리거용). 수집 실패 문구는 주소·DB 메시지를 담지 않게 만들어져 있어 {@link UserException}
- * 으로 바꿔 실행 기록 MSG 에 남긴다. SQL 쿼리 시간 초과 = min(10초, 남은 시간). 환율은 MCM 모듈 작업만(그 빈이 있는 앱).
+ * 으로 바꿔 실행 기록 MSG 에 남긴다. SQL 쿼리 시간 초과 = min(10초, 남은 시간).
  * 서비스 입력 {@code source}·{@code save} 가 있으면 그것을, 없으면 실행 범위의 정의 설정(config)을 쓴다(설계 §5.1).
  * 입력이 없는 호출도 묶이려면 BPMN 서비스 태스크에 {@code opt} 속성으로 두 이름을 선택 파라미터로 알려야 한다.
  */
@@ -33,12 +31,10 @@ public class JobCollectService {
 
     private final SqlCollectSource sqlSource;
     private final HttpCollectSource httpSource;
-    private final Supplier<ExchangeCollectSource> exchangeSource;
 
-    public JobCollectService(SqlCollectSource sqlSource, HttpCollectSource httpSource, Supplier<ExchangeCollectSource> exchangeSource) {
+    public JobCollectService(SqlCollectSource sqlSource, HttpCollectSource httpSource) {
         this.sqlSource = sqlSource;
         this.httpSource = httpSource;
-        this.exchangeSource = exchangeSource;
     }
 
     public Map<String, Object> run(@OptionalParam Map<String, Object> source, @OptionalParam Boolean save) {
@@ -55,11 +51,6 @@ public class JobCollectService {
                     HttpCollectSource.Result r = httpSource.collectDetailed(h, today, scope.vars(), scope.deadline());
                     if (r.retryNote() != null) scope.note(r.retryNote());   // 일시 오류를 재시도해 성공 — 이력 MSG 에 남는다
                     yield r.items();
-                }
-                case CollectConfig.ExchangeSource e -> {
-                    ExchangeCollectSource ex = exchangeSource.get();
-                    if (ex == null) throw new CollectException("이 모듈에서는 환율 수집을 쓸 수 없습니다(MCM 모듈 전용).");
-                    yield ex.collect(e, today);
                 }
             };
             if (items.isEmpty()) throw new CollectException("수집된 값이 없습니다.");

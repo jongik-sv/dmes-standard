@@ -7,24 +7,16 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfig.ExchangeSource;
 import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfig.HttpSource;
 import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfig.SqlSource;
 import com.dongkuk.dmes.mcm.testdb.McmCoreOraTestDb;
-import com.dongkuk.dmes.mcm.widget.ext.ExchangeRatePoint;
-import com.dongkuk.dmes.mcm.widget.ext.ExchangeRateProvider;
-import com.dongkuk.dmes.mcm.widget.ext.WidgetExtException;
-import com.dongkuk.dmes.mcm.widget.ext.WidgetExtProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariDataSource;
 import java.math.BigDecimal;
 import java.net.InetAddress;
 import java.net.URI;
-import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -44,38 +36,10 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 /**
- * COLLECT 작업 원천 3종 — 수집 SQL 은 Oracle 시험 PDB(MCMAPUSER 의 시험 전용 표 T_C4_MACHINE)와 그 모듈의 읽기 전용 실행기, HTTP 는 {@link MockRestServiceServer}, 환율은 가짜
- * 제공자를 쓴다(실제 네트워크 금지).
+ * COLLECT 작업 원천 2종 — 수집 SQL 은 Oracle 시험 PDB(MCMAPUSER 의 시험 전용 표 T_C4_MACHINE)와 그 모듈의 읽기 전용 실행기, HTTP 는 {@link MockRestServiceServer} 를
+ * 쓴다(실제 네트워크 금지).
  */
 class CollectSourcesTest {
-
-    /** 삭제된 WidgetCollectorJpaTest 의 시계 대용 — 30분 캐시·10분 백오프 시험이 시간을 움직인다. */
-    static final class MutableClock extends Clock {
-        private Instant now;
-
-        MutableClock(Instant now) {
-            this.now = now;
-        }
-
-        void advance(Duration d) {
-            now = now.plus(d);
-        }
-
-        @Override
-        public ZoneId getZone() {
-            return ZoneId.of("UTC");
-        }
-
-        @Override
-        public Clock withZone(ZoneId zone) {
-            return this;
-        }
-
-        @Override
-        public Instant instant() {
-            return now;
-        }
-    }
 
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 5);
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -414,195 +378,6 @@ class CollectSourcesTest {
             assertThat(HttpCollectSource.READ_TIMEOUT.toSeconds()).isEqualTo(5);
             assertThat(HttpCollectSource.MAX_BODY_BYTES).isEqualTo(1024 * 1024);
             assertThat(HttpCollectSource.builder()).isNotNull();
-        }
-    }
-
-    // ── 환율 ─────────────────────────────────────────────────────────
-
-    @Nested
-    class Exchange {
-
-        private final WidgetExtProperties ext = new WidgetExtProperties();
-        private final List<String> calls = new ArrayList<>();
-        private List<ExchangeRatePoint> frankfurterPoints = List.of();
-        private List<ExchangeRatePoint> koreaEximPoints = List.of();
-        private RuntimeException frankfurterError;
-        private final MutableClock clock = new MutableClock(Instant.parse("2026-10-05T03:00:00Z"));
-        private ExchangeCollectSource source;
-
-        private ExchangeRateProvider fake(String id, java.util.function.Supplier<List<ExchangeRatePoint>> points) {
-            return new ExchangeRateProvider() {
-                @Override
-                public String id() {
-                    return id;
-                }
-
-                @Override
-                public List<ExchangeRatePoint> fetch(String base, List<String> symbols, LocalDate from, LocalDate to) {
-                    calls.add(id + ":" + base + ":" + symbols + ":" + from + ":" + to);
-                    if (frankfurterError != null && "frankfurter".equals(id)) throw frankfurterError;
-                    return points.get();
-                }
-            };
-        }
-
-        @BeforeEach
-        void setUp() {
-            source = new ExchangeCollectSource(ext, fake("frankfurter", () -> frankfurterPoints), fake("koreaexim", () -> koreaEximPoints), clock);
-        }
-
-        private static ExchangeRatePoint p(LocalDate date, String cur, String rate) {
-            return new ExchangeRatePoint(date, cur, new BigDecimal(rate));
-        }
-
-        @Test
-        @DisplayName("기준 통화 KRW 로 7일 구간을 한 번 묻고, 통화마다 가장 최근 날짜의 값을 키=통화 코드로 저장한다 — 값 없는 통화는 건너뛴다")
-        void latestWithinSevenDays() {
-            // 오늘 2026-10-05(일). 직전 영업일 금요일(10-02) 값이 온다.
-            frankfurterPoints = List.of(p(TODAY.minusDays(3), "USD", "1380.12345678"), p(TODAY.minusDays(4), "USD", "1370"),
-                    p(TODAY.minusDays(5), "JPY", "9.1"), p(TODAY, "EUR", "1500"));
-            List<CollectItem> items = source.collect(new ExchangeSource(List.of("USD", "JPY", "EUR", "GBP")), TODAY);
-            assertThat(calls).containsExactly("frankfurter:KRW:[USD, JPY, EUR, GBP]:2026-09-28:2026-10-05");
-            assertThat(items).extracting(CollectItem::key).containsExactly("USD", "JPY", "EUR");
-            assertThat(items.get(0).num()).isEqualByComparingTo("1380.12345678"); // 더 최근 날짜
-            assertThat(items.get(1).num()).isEqualByComparingTo("9.1");
-        }
-
-        @Test
-        @DisplayName("7일(10-05 기준 09-28)보다 오래된 값·미래 날짜·묻지 않은 통화는 쓰지 않는다 — 모두 없으면 빈 목록")
-        void outsideWindowIgnored() {
-            frankfurterPoints = List.of(p(TODAY.minusDays(8), "USD", "1300"), p(TODAY.plusDays(1), "USD", "1500"), p(TODAY, "CHF", "1600"));
-            assertThat(source.collect(new ExchangeSource(List.of("USD")), TODAY)).isEmpty();
-            clock.advance(Duration.ofMinutes(31)); // 캐시 만료
-            frankfurterPoints = List.of(p(TODAY.minusDays(7), "USD", "1310"));
-            assertThat(source.collect(new ExchangeSource(List.of("USD")), TODAY).get(0).num()).isEqualByComparingTo("1310"); // 경계 포함
-        }
-
-        @Test
-        @DisplayName("날짜마다 부르는 제공자는 값이 없는 통화만 오늘부터 하루씩 거슬러 묻고, 고시된 날을 찾으면 멈춘다")
-        void perDayProviderWalksBack() {
-            Map<LocalDate, List<ExchangeRatePoint>> byDay = Map.of(
-                    TODAY.minusDays(2), List.of(p(TODAY.minusDays(2), "USD", "1390")),
-                    TODAY.minusDays(3), List.of(p(TODAY.minusDays(3), "USD", "1380"), p(TODAY.minusDays(3), "JPY", "9.5")));
-            ExchangeRateProvider perDay = new ExchangeRateProvider() {
-                @Override
-                public String id() {
-                    return "koreaexim";
-                }
-
-                @Override
-                public boolean callsPerDay() {
-                    return true;
-                }
-
-                @Override
-                public List<ExchangeRatePoint> fetch(String base, List<String> symbols, LocalDate from, LocalDate to) {
-                    calls.add(symbols + ":" + from + ":" + to);
-                    return byDay.getOrDefault(from, List.of());
-                }
-            };
-            ext.getExchange().setProvider("koreaexim");
-            ext.getExchange().setKoreaeximKey("KEY");
-            ExchangeCollectSource s = new ExchangeCollectSource(ext, fake("frankfurter", List::of), perDay, clock);
-
-            List<CollectItem> items = s.collect(new ExchangeSource(List.of("USD", "JPY", "GBP")), TODAY);
-
-            assertThat(items).extracting(CollectItem::key, c -> c.num().stripTrailingZeros().toPlainString())
-                    .containsExactly(org.assertj.core.groups.Tuple.tuple("USD", "1390"), org.assertj.core.groups.Tuple.tuple("JPY", "9.5"));
-            // 오늘·어제는 전부 비어 있고, 이틀 전 USD 를 찾은 뒤에는 USD 를 다시 묻지 않으며, GBP 때문에 7일 전까지 거슬러 간다
-            assertThat(calls).containsExactly(
-                    "[USD, JPY, GBP]:2026-10-05:2026-10-05", "[USD, JPY, GBP]:2026-10-04:2026-10-04", "[USD, JPY, GBP]:2026-10-03:2026-10-03",
-                    "[JPY, GBP]:2026-10-02:2026-10-02", "[GBP]:2026-10-01:2026-10-01", "[GBP]:2026-09-30:2026-09-30", "[GBP]:2026-09-29:2026-09-29",
-                    "[GBP]:2026-09-28:2026-09-28");
-            calls.clear();
-            assertThat(s.collect(new ExchangeSource(List.of("GBP")), TODAY)).isEmpty();
-            assertThat(calls).isEmpty(); // 「7일 안에 값 없음」도 30분 캐시된다
-            clock.advance(Duration.ofMinutes(31));
-            assertThat(s.collect(new ExchangeSource(List.of("GBP")), TODAY)).isEmpty();
-            assertThat(calls).hasSize(8); // 7일 전 포함 8일을 모두 물었는데 없다
-        }
-
-        @Test
-        @DisplayName("제공자 선택은 ExchangeService 와 같다 — koreaexim 이고 키가 있을 때만 한국수출입은행, 키가 없거나 다른 값이면 Frankfurter")
-        void providerSelection() {
-            koreaEximPoints = List.of(p(TODAY, "USD", "1400"));
-            frankfurterPoints = List.of(p(TODAY, "USD", "1380"));
-            ext.getExchange().setProvider("koreaexim");
-            ext.getExchange().setKoreaeximKey("");
-            assertThat(source.collect(new ExchangeSource(List.of("USD")), TODAY).get(0).num()).isEqualByComparingTo("1380");
-            ext.getExchange().setKoreaeximKey("KEY");
-            assertThat(source.collect(new ExchangeSource(List.of("USD")), TODAY).get(0).num()).isEqualByComparingTo("1400");
-            clock.advance(Duration.ofMinutes(31)); // 캐시는 제공자별이지만 같은 제공자 호출은 만료시켜 다시 묻게 한다
-            ext.getExchange().setProvider(" KoreaExim ");
-            assertThat(source.collect(new ExchangeSource(List.of("USD")), TODAY).get(0).num()).isEqualByComparingTo("1400");
-            ext.getExchange().setProvider("frankfurter");
-            assertThat(source.collect(new ExchangeSource(List.of("USD")), TODAY).get(0).num()).isEqualByComparingTo("1380"); // frankfurter 캐시(첫 호출, 31분 전)는 만료
-            assertThat(calls).extracting(c -> c.substring(0, c.indexOf(':'))).containsExactly("frankfurter", "koreaexim", "koreaexim", "frankfurter");
-        }
-
-        @Test
-        @DisplayName("dmes.widget.ext.enabled=false 면 외부 호출 없이 실패, 제공자 예외는 그 메시지로 실패, 값이 하나도 없으면 빈 목록")
-        void disabledAndProviderFailure() {
-            ext.setEnabled(false);
-            assertThatThrownBy(() -> source.collect(new ExchangeSource(List.of("USD")), TODAY)).isInstanceOf(CollectException.class)
-                    .hasMessageContaining("dmes.widget.ext.enabled");
-            assertThat(calls).isEmpty();
-            ext.setEnabled(true);
-            frankfurterError = new WidgetExtException("환율(Frankfurter) 요청 실패: HTTP 503");
-            assertThatThrownBy(() -> source.collect(new ExchangeSource(List.of("USD")), TODAY)).isInstanceOf(CollectException.class)
-                    .hasMessage("환율(Frankfurter) 요청 실패: HTTP 503");
-            frankfurterError = null;
-            clock.advance(Duration.ofMinutes(11)); // 실패 10분 뒤에는 다시 묻는다
-            assertThat(source.collect(new ExchangeSource(List.of("USD")), TODAY)).isEmpty();
-        }
-
-        @Test
-        @DisplayName("같은 (제공자, 통화)는 30분 캐시 — 여러 정의가 같은 통화를 물어도 외부 호출은 한 번, 모자란 통화만 더 묻고, 30분 뒤에 다시 묻는다")
-        void cachedFor30Minutes() {
-            frankfurterPoints = List.of(p(TODAY, "USD", "1380"), p(TODAY, "JPY", "9.5"), p(TODAY, "EUR", "1500"));
-            assertThat(source.collect(new ExchangeSource(List.of("USD", "JPY")), TODAY)).hasSize(2);
-            frankfurterPoints = List.of(p(TODAY, "USD", "9999")); // 캐시가 쓰이면 이 값은 보이지 않는다
-            assertThat(source.collect(new ExchangeSource(List.of("USD")), TODAY).get(0).num()).isEqualByComparingTo("1380");
-            assertThat(source.collect(new ExchangeSource(List.of("JPY", "USD")), TODAY)).extracting(CollectItem::key).containsExactly("JPY", "USD");
-            assertThat(calls).hasSize(1);
-
-            frankfurterPoints = List.of(p(TODAY, "EUR", "1500"));
-            assertThat(source.collect(new ExchangeSource(List.of("USD", "EUR")), TODAY)).extracting(CollectItem::key).containsExactly("USD", "EUR");
-            assertThat(calls).hasSize(2);
-            assertThat(calls.get(1)).contains("[EUR]"); // 없는 통화만 묻는다
-
-            clock.advance(Duration.ofMinutes(29));
-            source.collect(new ExchangeSource(List.of("USD", "EUR")), TODAY);
-            assertThat(calls).hasSize(2);
-            clock.advance(Duration.ofMinutes(2));
-            frankfurterPoints = List.of(p(TODAY, "USD", "1400"), p(TODAY, "EUR", "1510"));
-            assertThat(source.collect(new ExchangeSource(List.of("USD", "EUR")), TODAY).get(0).num()).isEqualByComparingTo("1400");
-            assertThat(calls).hasSize(3);
-        }
-
-        @Test
-        @DisplayName("실패한 (제공자, 통화)는 10분 동안 다시 묻지 않는다 — 캐시된 통화가 있으면 그것만 저장하고, 10분 뒤에 다시 묻는다")
-        void failedLookupsBackOffTenMinutes() {
-            frankfurterPoints = List.of(p(TODAY, "USD", "1380"));
-            source.collect(new ExchangeSource(List.of("USD")), TODAY); // USD 캐시
-            frankfurterError = new WidgetExtException("환율(Frankfurter) 요청 실패: HTTP 503");
-            // JPY 를 새로 묻다 실패 — USD 는 캐시로 저장된다
-            assertThat(source.collect(new ExchangeSource(List.of("USD", "JPY")), TODAY)).extracting(CollectItem::key).containsExactly("USD");
-            assertThat(calls).hasSize(2);
-            // 실패 기록 중에는 JPY 를 다시 묻지 않는다
-            assertThat(source.collect(new ExchangeSource(List.of("USD", "JPY")), TODAY)).extracting(CollectItem::key).containsExactly("USD");
-            assertThatThrownBy(() -> source.collect(new ExchangeSource(List.of("JPY")), TODAY)).isInstanceOf(CollectException.class)
-                    .hasMessage(ExchangeCollectSource.MSG_BACKOFF);
-            assertThat(calls).hasSize(2);
-
-            clock.advance(Duration.ofMinutes(9));
-            assertThatThrownBy(() -> source.collect(new ExchangeSource(List.of("JPY")), TODAY)).hasMessage(ExchangeCollectSource.MSG_BACKOFF);
-            assertThat(calls).hasSize(2);
-            clock.advance(Duration.ofMinutes(2));
-            frankfurterError = null;
-            frankfurterPoints = List.of(p(TODAY, "JPY", "9.5"));
-            assertThat(source.collect(new ExchangeSource(List.of("JPY")), TODAY).get(0).num()).isEqualByComparingTo("9.5");
-            assertThat(calls).hasSize(3);
         }
     }
 

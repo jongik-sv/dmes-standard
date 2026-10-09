@@ -61,16 +61,10 @@ describe("validateForm", () => {
     expect(validateForm({ ...f, handlerId: "mdm.sync" })).toBeNull();
   });
 
-  it("COLLECT 환율은 MCM 이 아니면 검증 실패", () => {
-    const f: JobForm = { ...emptyForm("COLLECT", "MDM"), jobId: "mdm.fx", jobNm: "환율", collectKind: "exchange", currencies: ["USD"] };
-    expect(validateForm(f)).toContain("MCM");
-    expect(validateForm({ ...f, moduleCd: "MCM" })).toBeNull();
-  });
-
-  it("COLLECT 환율의 KRW·소문자 통화는 거절한다", () => {
-    const f: JobForm = { ...emptyForm("COLLECT"), jobId: "mcm.fx", jobNm: "환율", collectKind: "exchange", currencies: ["KRW"] };
-    expect(validateForm(f)).toContain("KRW");
-    expect(validateForm({ ...f, currencies: [] })).toContain("통화");
+  it("COLLECT 의 지원하지 않는 원천(제거된 exchange)은 저장 검증에서 거절한다", () => {
+    const f: JobForm = { ...emptyForm("COLLECT"), jobId: "mcm.fx", jobNm: "환율", collectKind: "unsupported" };
+    expect(validateForm(f)).toContain("지원하지 않는 수집 원천");
+    expect(validateForm({ ...f, collectKind: "sql", collectSql: "SELECT 1 V FROM DUAL", valueField: "V" })).toBeNull();
   });
 
   it("새 작업의 ID 형식·이름·일정·시간 초과를 차례로 본다", () => {
@@ -170,10 +164,6 @@ describe("서버 검사와 같은 규칙", () => {
     expect(validateForm({ ...f, collectUrl: `https://a.example.com/${"q".repeat(500)}` })).toContain("500자");
     expect(validateForm({ ...f, collectUrl: "https://user:pw@api.example.com/q" })).toContain("사용자 정보");
     expect(validateForm({ ...f, collectUrl: "https://api.example.com/q?mail=a@b.c" })).toBeNull();
-    const fx: JobForm = { ...emptyForm("COLLECT"), jobId: "mcm.fx", jobNm: "환율", collectKind: "exchange", currencies: ["USD", "JPY"] };
-    expect(validateForm(fx)).toBeNull();
-    expect(validateForm({ ...fx, currencies: ["USD", "USD"] })).toContain("겹칩니다");
-    expect(validateForm({ ...fx, currencies: Array.from({ length: 11 }, (_, i) => `AB${String.fromCharCode(65 + i)}`) })).toContain("10개");
     const sql: JobForm = { ...emptyForm("COLLECT"), jobId: "mcm.s", jobNm: "수집", collectSql: "SELECT 1 V FROM DUAL", valueField: "V" };
     expect(validateForm({ ...sql, valueField: "V".repeat(101) })).toContain("100자");
     expect(validateForm({ ...sql, keyField: "K".repeat(101) })).toContain("100자");
@@ -255,18 +245,17 @@ describe("유형별 설정", () => {
       expect(form.retryTransient).toBe(on);
       expect(JSON.parse(buildConfigJson(form)!)).toEqual(cfg);
     }
-    // SQL·환율 설정에는 이 키를 넣지 않는다
+    // SQL 설정에는 이 키를 넣지 않는다
     const sql = { ...emptyForm("COLLECT"), collectKind: "sql" as const, collectSql: "SELECT 1 V FROM DUAL", valueField: "V" };
     expect(JSON.parse(buildConfigJson(sql)!).source).not.toHaveProperty("retryTransient");
     // 복사해도 값이 이어진다
     expect(copyForm({ ...sql, retryTransient: false }).retryTransient).toBe(false);
   });
 
-  it("수집 간격 하한은 SQL·HTTP 5분, 환율 60분, 다른 유형은 없다", () => {
+  it("수집 간격 하한은 SQL·HTTP 5분, 다른 유형은 없다", () => {
     expect(collectMinGapMin({ jobKind: "COLLECT", collectKind: "sql" })).toBe(5);
     expect(collectMinGapMin({ jobKind: "COLLECT", collectKind: "http" })).toBe(5);
-    expect(collectMinGapMin({ jobKind: "COLLECT", collectKind: "exchange" })).toBe(60);
-    expect(collectMinGapMin({ jobKind: "QUERY", collectKind: "exchange" })).toBeUndefined();
+    expect(collectMinGapMin({ jobKind: "QUERY", collectKind: "sql" })).toBeUndefined();
   });
 });
 
@@ -307,9 +296,13 @@ describe("새 작업 · 복사 · 처리기", () => {
     const f = { ...emptyForm("CODE", "MDM"), handlerId: "mdm.sync" };
     expect(changeModule(f, "MPP")).toMatchObject({ moduleCd: "MPP", handlerId: "" });
     expect(changeModule(valid({ sql: "x" }), "MPP").sql).toBe("x");
-    const fx: JobForm = { ...emptyForm("COLLECT"), collectKind: "exchange" };
-    expect(changeModule(fx, "MDM").collectKind).toBe("sql");
-    expect(changeModule({ ...fx, moduleCd: "MDM" }, "MCM").collectKind).toBe("exchange");
+  });
+
+  it("저장된 정의의 원천이 exchange(제거됨)면 unsupported 로 읽고 저장은 막는다", () => {
+    const cfg = { source: { kind: "exchange", currencies: ["USD"] }, save: true };
+    const form = toForm(def({ jobKind: "COLLECT", serviceId: "jobCollect", configJson: JSON.stringify(cfg) }));
+    expect(form.collectKind).toBe("unsupported");
+    expect(validateForm(form)).toContain("지원하지 않는 수집 원천");
   });
 
   it("변경 여부는 내용 비교로 판정한다", () => {

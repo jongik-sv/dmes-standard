@@ -150,7 +150,7 @@ OASIS 에서는 서비스에서 다른 서비스를 함수처럼 부를 수 있�
 |---|---|---|---|
 | `jobCode` | `handlerId`(처리기 ID) | 그 `ScheduledJob` 빈의 `run` 을 실행합니다 | 처리기가 돌려준 수 |
 | `jobQuery` | `sql`(DML 한 문장 또는 `BEGIN 프로시저(…); END;`) | 그 모듈 기본 DB 에서 서비스 트랜잭션 안에 실행합니다 | DML 은 영향받은 행 수, 프로시저는 0 |
-| `jobCollect` | `source`(`kind` 가 sql, http, exchange 인 객체. http 는 선택 키 `retryTransient`), `save`(기본 true) | 원천에서 값을 읽어 범위에 담고, 저장은 진입점이 결과 갱신 때 합니다 | 읽은 항목 수 |
+| `jobCollect` | `source`(`kind` 가 sql, http 인 객체. http 는 선택 키 `retryTransient`), `save`(기본 true) | 원천에서 값을 읽어 범위에 담고, 저장은 진입점이 결과 갱신 때 합니다 | 읽은 항목 수 |
 
 - 입력을 서비스 입력 파라미터로 주면 그 값을 쓰고, 주지 않으면 작업 정의의 설정(쿼리 실행 작업의 `sql`, 수집 작업의 `source`)을 씁니다.
 - 변수 값은 늘 작업의 변수에서 읽습니다. `jobQuery` 의 SQL 안 `:이름` 은 변수 표에 있는 이름이어야 하고, 없으면 `변수 :이름 의 값이 없습니다` 로 실패합니다.

@@ -123,24 +123,14 @@ const ITEM_COLUMNS: GridColumn[] = [
   { key: "path", header: "경로", width: 5, minWidth: 130, align: "left", editable: true, meta: false },
 ];
 
-const SOURCE_LABEL: Record<CollectSourceKind, string> = { sql: "SQL", http: "HTTP JSON", exchange: "환율" };
-const CURRENCY_CHOICES = ["USD", "JPY", "EUR", "CNY", "GBP"];
+const SOURCE_OPTIONS = [
+  { value: "sql", label: "SQL" },
+  { value: "http", label: "HTTP JSON" },
+];
 const normalizeItem = (_field: string, value: unknown) => String(value ?? "").trim();
 const newItem = (): CollectItemRow => ({ key: "", path: "" });
 
 function CollectEditor({ form, disabled, onChange }: KindEditorProps) {
-  // 환율 원천은 MCM 모듈에서만 쓸 수 있다(설계 §5.4) — 다른 모듈이면 선택지에서 뺀다.
-  const sourceOptions = useMemo(
-    () =>
-      (["sql", "http", "exchange"] as CollectSourceKind[])
-        .filter((k) => k !== "exchange" || form.moduleCd === "MCM")
-        .map((k) => ({ value: k, label: SOURCE_LABEL[k] })),
-    [form.moduleCd],
-  );
-  const currencyChoices = useMemo(
-    () => [...CURRENCY_CHOICES, ...form.currencies.filter((c) => !CURRENCY_CHOICES.includes(c))],
-    [form.currencies],
-  );
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-sm)" }}>
       <table style={DETAIL_TABLE_STYLE}>
@@ -148,7 +138,7 @@ function CollectEditor({ form, disabled, onChange }: KindEditorProps) {
           <Row label="원천" required>
             <Radio
               name="jobCollectSource"
-              options={sourceOptions}
+              options={SOURCE_OPTIONS}
               value={form.collectKind}
               disabled={disabled}
               onChange={(v) => onChange({ collectKind: v as CollectSourceKind })}
@@ -196,23 +186,12 @@ function CollectEditor({ form, disabled, onChange }: KindEditorProps) {
               />
             </Row>
           )}
-          {form.collectKind === "exchange" && (
-            <Row label="통화 목록" required>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-md)" }}>
-                {currencyChoices.map((cur) => (
-                  <Checkbox
-                    key={cur}
-                    label={cur}
-                    checked={form.currencies.includes(cur)}
-                    disabled={disabled}
-                    onChange={(on) =>
-                      onChange({
-                        currencies: on ? currencyChoices.filter((x) => x === cur || form.currencies.includes(x)) : form.currencies.filter((x) => x !== cur),
-                      })
-                    }
-                  />
-                ))}
-              </div>
+          {form.collectKind === "unsupported" && (
+            <Row label="안내">
+              <span className="form-error-message" role="alert">
+                지원하지 않는 수집 원천입니다. 환율 수집은 MDM 환율 마스터(예약 작업 mdm.exchangeRateSync)로 일원화되어 제거되었습니다. 위에서 SQL 또는 HTTP JSON 을 골라
+                다시 설정해야 저장할 수 있습니다.
+              </span>
             </Row>
           )}
           <Row label="저장">
@@ -247,8 +226,7 @@ function CollectEditor({ form, disabled, onChange }: KindEditorProps) {
         {form.collectKind === "sql" && "원천 SQL 은 SELECT 만 쓰며 읽기 전용으로 실행합니다."}
         {form.collectKind === "http" &&
           "응답 JSON 에서 경로(예: data.items[0].price)로 값을 꺼냅니다. 허용 호스트만 호출할 수 있고 GET 만 씁니다. 「일시 오류 재시도」는 한 번 실행 안에서 503·502·504·429·연결 시간 초과일 때 3초쯤 뒤 한 번만 다시 부르며, 아래 「실패 시 재시도」(실패한 실행을 분 단위로 다시 실행)와 별개입니다."}
-        {form.collectKind === "exchange" && "환율 수집은 MCM 모듈에서만 쓸 수 있고 실행 간격이 60분 이상이어야 합니다."}
-        {form.collectKind !== "exchange" && " 실행 간격은 5분 이상이어야 합니다."}
+        {" 실행 간격은 5분 이상이어야 합니다."}
       </Hint>
     </div>
   );

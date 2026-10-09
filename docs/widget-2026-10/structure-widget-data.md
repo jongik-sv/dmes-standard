@@ -1,5 +1,7 @@
 # widget-data 레인 구조 변경 기록
 
+> **2026-10-09 변경**: mcm 의 환율 수집 원천(`exchange`, `ExchangeCollectSource`)은 제거했다. 환율 수집은 mdm 예약 작업 `mdm.exchangeRateSync` 하나로 일원화하고 mcm 위젯은 `FxMasterReader` 로 마스터를 읽는다. 아래 환율 원천 서술은 제거 전 기록이다.
+
 ## S1. 쿼리 위젯 입력 조건(사용자 바인드) 도입
 - 커밋: 2beb4608, 52dc3e1a (백엔드) / d6a70a0a, 123ac990 (프런트)
 - 바뀌기 전: 쿼리 위젯 SQL 은 시스템 변수(:userId·:deptCd·:today·:yesterday·:monthStart·:now)만 쓸 수 있었고, `widgetData/run` 은 defId 하나만 받았다. 캐시 키는 (defId, SQL, 행 상한, 시스템 변수 값).

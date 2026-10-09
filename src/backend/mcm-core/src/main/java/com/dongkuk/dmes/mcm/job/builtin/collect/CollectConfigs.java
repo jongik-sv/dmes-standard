@@ -2,7 +2,6 @@ package com.dongkuk.dmes.mcm.job.builtin.collect;
 
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
-import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfig.ExchangeSource;
 import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfig.HttpItem;
 import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfig.HttpSource;
 import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfig.Source;
@@ -22,7 +21,7 @@ import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 /**
- * COLLECT 작업 설정 파싱·검사 — 원천 3종·저장 여부·경로 문법. 저장 때와 실행 때 함께 쓴다(저장된 값을 믿지 않는다).
+ * COLLECT 작업 설정 파싱·검사 — 원천 2종·저장 여부·경로 문법. 저장 때와 실행 때 함께 쓴다(저장된 값을 믿지 않는다).
  * 어기면 {@code BusinessException(INVALID_VALUE)} 한국어 한 문장. 알 수 없는 키는 무시한다.
  */
 public final class CollectConfigs {
@@ -31,12 +30,10 @@ public final class CollectConfigs {
     public static final int KEY_MAX = 100;
     public static final int PATH_MAX = 200;
     public static final int URL_MAX = 500;
-    public static final int CURRENCIES_MAX = 10;
     public static final int FIELD_MAX = 100;
     static final int PATH_DEPTH_MAX = 20;
     static final int PATH_INDEX_MAX = 9999;
 
-    private static final Pattern CURRENCY = Pattern.compile("^[A-Z]{3}$");
     private static final Pattern PATH_NAME = Pattern.compile("^[\\p{L}\\p{N}_$\\-]+$");
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -61,17 +58,15 @@ public final class CollectConfigs {
     }
 
     /**
-     * 저장 검사 — {@link #parse(JsonNode)} + SQL 원천은 {@code validateSql}(사용자 변수 거절 포함), HTTP 원천은 호스트 허용 여부,
-     * 환율 원천은 MCM 모듈 작업에서만(계획 D7). hostAllowed 가 null 이면 호스트 허용 목록은 저장 때 보지 않는다(실행 때마다 거절한다).
+     * 저장 검사 — {@link #parse(JsonNode)} + SQL 원천은 {@code validateSql}(사용자 변수 거절 포함), HTTP 원천은 호스트 허용 여부.
+     * hostAllowed 가 null 이면 호스트 허용 목록은 저장 때 보지 않는다(실행 때마다 거절한다).
      */
-    public static CollectConfig check(JsonNode config, String moduleCd, Consumer<String> validateSql, Predicate<String> hostAllowed) {
+    public static CollectConfig check(JsonNode config, Consumer<String> validateSql, Predicate<String> hostAllowed) {
         CollectConfig parsed = parse(config);
         if (parsed.source() instanceof SqlSource sql) {
             validateSql.accept(sql.sql());
         } else if (parsed.source() instanceof HttpSource http && hostAllowed != null && !hostAllowed.test(http.url().getHost())) {
             throw invalid("이 호스트는 수집 허용 목록(dmes.job.http.allowed-hosts)에 없습니다: " + http.url().getHost());
-        } else if (parsed.source() instanceof ExchangeSource && !"MCM".equalsIgnoreCase(moduleCd)) {
-            throw invalid("환율 수집은 MCM 모듈 작업에서만 쓸 수 있습니다.");
         }
         return parsed;
     }
@@ -83,8 +78,7 @@ public final class CollectConfigs {
         String kind = text(node, "kind");
         if ("sql".equals(kind)) return parseSql(node);
         if ("http".equals(kind)) return parseHttp(node);
-        if ("exchange".equals(kind)) return parseExchange(node);
-        throw invalid("수집 원천 종류(source.kind)는 sql·http·exchange 중 하나여야 합니다.");
+        throw invalid("수집 원천 종류(source.kind)는 sql·http 중 하나여야 합니다.");
     }
 
     private static SqlSource parseSql(JsonNode node) {
@@ -194,22 +188,6 @@ public final class CollectConfigs {
 
     private static BusinessException badPath(String key) {
         return invalid("항목 " + shorten(key) + " 의 응답 위치(path)는 data.items[0].price 처럼 점·대괄호 경로여야 합니다.");
-    }
-
-    private static ExchangeSource parseExchange(JsonNode node) {
-        JsonNode list = node.get("currencies");
-        if (list == null || !list.isArray() || list.isEmpty() || list.size() > CURRENCIES_MAX) {
-            throw invalid("통화(source.currencies)는 1~" + CURRENCIES_MAX + "개여야 합니다.");
-        }
-        List<String> currencies = new ArrayList<>();
-        Set<String> seen = new HashSet<>();
-        for (JsonNode c : list) {
-            if (!c.isTextual() || !CURRENCY.matcher(c.asText()).matches()) throw invalid("통화는 영문 대문자 3자리여야 합니다: " + shorten(c.asText()));
-            if ("KRW".equals(c.asText())) throw invalid("기준 통화 KRW 는 수집할 수 없습니다.");
-            if (!seen.add(c.asText())) throw invalid("통화가 겹칩니다: " + c.asText());
-            currencies.add(c.asText());
-        }
-        return new ExchangeSource(List.copyOf(currencies));
     }
 
     // ── helpers ──────────────────────────────────────────────────────

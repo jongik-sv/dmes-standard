@@ -1,5 +1,7 @@
 # widget-data 레인 정본 메모 (widget-data-1)
 
+> **2026-10-09 변경**: mcm 의 환율 수집 원천(`exchange`, `ExchangeCollectSource`)은 제거했다. 환율 수집은 mdm 예약 작업 `mdm.exchangeRateSync` 하나로 일원화하고 mcm 위젯은 `FxMasterReader` 로 마스터를 읽는다. 아래 환율 원천 서술은 제거 전 기록이다.
+
 2026-10-05. 레인 widget-data / 브랜치 feat/widget-data / 워크트리 dmes-standard-wt/widget-data / 기준 dev a4848de8.
 설계 계약은 [spec-widget-data.md](./spec-widget-data.md), ERD 조각은 [erd-widget-data.md](./erd-widget-data.md), 구조 변경은 [structure-widget-data.md](./structure-widget-data.md).
 

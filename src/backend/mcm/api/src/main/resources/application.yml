@@ -183,22 +183,13 @@ dmes:
         password: ${WIDGET_QUERY_DS_PASSWORD:}
         driver-class-name: ${WIDGET_QUERY_DS_DRIVER:}
         maximum-pool-size: 5
-    # 환율·날씨 위젯(§8). 기본은 키 없는 공개 API. 서버가 밖으로 나갈 수 없는 망이면 enabled: false 로 끈다
-    # (위젯은 「외부 정보를 불러오지 못했습니다」를 보인다).
+    # 환율·날씨 위젯(§8). 환율은 MDM 환율 마스터를 읽고(외부 호출 없음) 날씨는 수집 작업 값만 읽는다. provider·키 등
+    # 환율 외부 제공자 설정은 mdm 앱(예약 작업 mdm.exchangeRateSync)만 쓴다(2026-10-09 mcm 수집 경로 제거).
     ext:
       enabled: true
       exchange:
-        provider: frankfurter                # frankfurter(유럽중앙은행, 키 없음) | koreaexim(한국수출입은행, 키 필요)
-        frankfurter-base-url: https://api.frankfurter.dev/v1
-        koreaexim-key: ${WIDGET_KOREAEXIM_KEY:}   # 키는 환경변수로만 넣는다(로그·저장소에 남기지 않는다)
-        koreaexim-base-url: https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON
-        # 남용 막기 — 조회는 사용 중인 환율 위젯 정의의 통화·기간 안만 된다. 아래는 메모리 기록이라 인스턴스마다 따로 센다.
-        user-fetch-limit: 10          # 사용자별로 외부 호출을 일으키는 요청 수 상한(구간마다). 넘으면 「환율 조회 요청이 너무 잦습니다」
-        user-fetch-window-sec: 600    # 위 상한의 구간(초)
-        retry-after-fail-sec: 600     # 실패·일부만 받음·오늘 값 없음 뒤 같은 통화·날짜를 다시 묻기까지(초). 지난 휴일은 그날 끝까지
-        # 환율 위젯은 MDM 환율 마스터(FX_RATE)를 읽는다(외부 호출 없음 — 위 user-fetch-*·retry-after-fail-sec 는 위젯 조회에 쓰이지 않는다).
-        # 마스터는 mdm 예약 작업 mdm.exchangeRateSync 가 채운다. 운영은 이 앱의 DB 계정에 <스키마>.TB_MDM_DATA_ITEM SELECT 권한이 필요하고,
-        # 못 읽으면 위젯은 「환율 없음」으로 답한다.
+        # 환율 위젯은 MDM 환율 마스터(FX_RATE)를 읽는다. 마스터는 mdm 예약 작업 mdm.exchangeRateSync 가 채운다.
+        # 운영은 이 앱의 DB 계정에 <스키마>.TB_MDM_DATA_ITEM SELECT 권한이 필요하고, 못 읽으면 위젯은 「환율 없음」으로 답한다.
         mdm-schema: ${WIDGET_EXCHANGE_MDM_SCHEMA:MDMAPUSER}   # 마스터 표가 있는 스키마(영문 대문자·숫자·밑줄, 30자 이내)
       weather:
         base-url: https://api.open-meteo.com/v1/forecast
