@@ -10,6 +10,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfig.HttpSource;
 import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfig.SqlSource;
 import com.dongkuk.dmes.mcm.testdb.McmCoreOraTestDb;
+import com.dongkuk.dmes.mcm.widget.query.WidgetQueryResult;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariDataSource;
 import java.math.BigDecimal;
@@ -17,6 +18,7 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -146,6 +148,46 @@ class CollectSourcesTest {
                     .isInstanceOf(CollectException.class).hasMessage(JobCollectSql.MSG_LOAD_FAILED)
                     .satisfies(e -> assertThat(e.getMessage()).doesNotContain("NO_SUCH_TABLE"));
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM T_C4_MACHINE", Long.class)).isEqualTo(3L);
+        }
+
+        @Test
+        @DisplayName(":bizDate·:bizYesterday·:baseHour 를 바인드하고 schedAt 07시 경계로 전기일이 갈린다")
+        void bizDayVariables() {
+            String sql = "SELECT CAST(:bizDate AS VARCHAR2(8)) AS B, CAST(:bizYesterday AS VARCHAR2(8)) AS Y,"
+                    + " CAST(:baseHour AS NUMBER(10)) AS H FROM T_C4_MACHINE WHERE ROWNUM = 1";
+            WidgetQueryResult before = sqlGuard.run(sql, Map.of(), Map.of(), 10, 50, LocalDateTime.of(2026, 1, 3, 6, 59));
+            assertThat(before.rows().get(0)).containsEntry("B", "20260102").containsEntry("Y", "20260101");
+            assertThat(((Number) before.rows().get(0).get("H")).longValue()).isEqualTo(7L);
+
+            WidgetQueryResult after = sqlGuard.run(sql, Map.of(), Map.of(), 10, 50, LocalDateTime.of(2026, 1, 3, 7, 0));
+            assertThat(after.rows().get(0)).containsEntry("B", "20260103").containsEntry("Y", "20260102");
+
+            WidgetQueryResult yearEdge = sqlGuard.run(sql, Map.of(), Map.of(), 10, 50, LocalDateTime.of(2026, 1, 1, 6, 59));
+            assertThat(yearEdge.rows().get(0)).containsEntry("B", "20251231").containsEntry("Y", "20251230");
+
+            // 날짜만 아는 호출은 그날 07시 기준 — 전기일 = today
+            WidgetQueryResult byDate = sqlGuard.run(sql, Map.of(), Map.of(), 10, 50, LocalDate.of(2026, 1, 3));
+            assertThat(byDate.rows().get(0)).containsEntry("B", "20260103").containsEntry("Y", "20260102");
+        }
+
+        @Test
+        @DisplayName("같은 이름의 작업 변수가 있으면 전기일 시스템 변수보다 작업 변수가 이긴다")
+        void jobVarWinsOverBizDaySystemValue() {
+            WidgetQueryResult r = sqlGuard.run("SELECT CAST(:bizDate AS VARCHAR2(8)) AS B FROM T_C4_MACHINE WHERE ROWNUM = 1",
+                    Map.of("bizDate", "20200101"), Map.of("bizDate", "STRING"), 10, 50, LocalDateTime.of(2026, 1, 3, 6, 59));
+            assertThat(r.rows().get(0)).containsEntry("B", "20200101");
+        }
+
+        @Test
+        @DisplayName("수집 원천의 schedAt 경로로 :bizDate 값을 거둔다 — 06:59 는 전날, 07:00 은 그날")
+        void collectWithSchedAt() {
+            SqlSource dateSource = new SqlSource("SELECT CAST(:bizDate AS VARCHAR2(8)) AS B FROM T_C4_MACHINE WHERE ROWNUM = 1", "B", null);
+            List<CollectItem> before = source.collect(dateSource, LocalDateTime.of(2026, 1, 3, 6, 59), Map.of(), Map.of(), 10);
+            assertThat(before).hasSize(1);
+            assertThat(before.get(0).num()).isEqualByComparingTo("20260102");
+            List<CollectItem> after = source.collect(dateSource, LocalDateTime.of(2026, 1, 3, 7, 0), Map.of(), Map.of(), 10);
+            assertThat(after).hasSize(1);
+            assertThat(after.get(0).num()).isEqualByComparingTo("20260103");
         }
     }
 

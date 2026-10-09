@@ -220,7 +220,7 @@ class WidgetQueryParamsTest {
 
         def("def.case", "SELECT ID FROM T_C4_WIDGET_P WHERE NM = :Nm", "[{\"name\":\"nm\",\"type\":\"text\"}]");
         assertMessage(() -> executor.runDefinition("def.case", 500, Map.of("nm", "N1")),
-                "알 수 없는 변수입니다: :Nm (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now / 선언한 조건: :nm)");
+                "알 수 없는 변수입니다: :Nm (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now, :bizDate, :bizYesterday, :baseHour / 선언한 조건: :nm)");
 
         def("def.dot", "SELECT ID FROM T_C4_WIDGET_P WHERE NM = :nm.x", "[{\"name\":\"nm\",\"type\":\"text\"}]");
         assertThatThrownBy(() -> executor.runDefinition("def.dot", 500, Map.of("nm", "N1")))
@@ -237,6 +237,17 @@ class WidgetQueryParamsTest {
         assertMessage(() -> executor.runDefinition("def.dup", 500, Map.of()), "입력 조건 이름이 겹칩니다: :a");
         def("def.shape", "SELECT 1 AS A FROM T_C4_WIDGET_P", "{\"name\":\"a\"}");
         assertMessage(() -> executor.runDefinition("def.shape", 500, Map.of()), "입력 조건(params)은 배열이어야 합니다.");
+    }
+
+    @Test
+    @DisplayName("전기일 시스템 변수 이름(bizDate·bizYesterday·baseHour)도 입력 조건 이름으로 쓸 수 없다")
+    void bizDayNamesRejectedAsParamNames() {
+        for (String reserved : List.of("bizDate", "bizYesterday", "baseHour")) {
+            String id = "def.biz-" + reserved;
+            def(id, "SELECT 1 AS A FROM T_C4_WIDGET_P", "[{\"name\":\"" + reserved + "\",\"type\":\"text\"}]");
+            assertMessage(() -> executor.runDefinition(id, 500, Map.of()),
+                    "입력 조건 이름 :" + reserved + " 은(는) 시스템 변수 이름과 같아 쓸 수 없습니다.");
+        }
     }
 
     @Test
@@ -360,6 +371,8 @@ class WidgetQueryParamsTest {
         assertThatThrownBy(() -> executor.preview("mcm", "SELECT 1 AS A FROM T_C4_WIDGET_P", 50, "not json"))
                 .isInstanceOf(BusinessException.class).hasMessageContaining("올바른 JSON 이 아닙니다");
         assertThatThrownBy(() -> executor.preview("mcm", "SELECT 1 AS A FROM T_C4_WIDGET_P", 50, "[{\"name\":\"now\",\"type\":\"text\"}]"))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("시스템 변수 이름");
+        assertThatThrownBy(() -> executor.preview("mcm", "SELECT 1 AS A FROM T_C4_WIDGET_P", 50, "[{\"name\":\"baseHour\",\"type\":\"text\"}]"))
                 .isInstanceOf(BusinessException.class).hasMessageContaining("시스템 변수 이름");
     }
 

@@ -55,7 +55,11 @@ class SqlGuardTest {
                 arguments("SELECT a & b FROM t", "SELECT a & b FROM t", List.of()),
                 arguments("SELECT 1 -- x\r\nFROM t", "SELECT 1 -- x\r\nFROM t", List.of()),
                 arguments("SELECT 1 /* a */ /* b */ FROM t", "SELECT 1 /* a */ /* b */ FROM t", List.of()),
-                arguments("SELECT 1 FROM t WHERE a = &userId", "SELECT 1 FROM t WHERE a = &userId", List.of("userId")));
+                arguments("SELECT 1 FROM t WHERE a = &userId", "SELECT 1 FROM t WHERE a = &userId", List.of("userId")),
+                // 전기일 시스템 변수(07시 기준) — :bizDate 먼저, :bizYesterday 는 전날, :baseHour 는 보조
+                arguments("SELECT :bizDate, :bizYesterday, :baseHour FROM t", "SELECT :bizDate, :bizYesterday, :baseHour FROM t",
+                        List.of("bizDate", "bizYesterday", "baseHour")),
+                arguments("SELECT * FROM t WHERE WORK_DT = :bizDate", "SELECT * FROM t WHERE WORK_DT = :bizDate", List.of("bizDate")));
     }
 
     @ParameterizedTest(name = "[{index}] {0}")
@@ -77,7 +81,7 @@ class SqlGuardTest {
                 arguments("SELECT 1; DROP TABLE t", MULTI),
                 arguments("PRAGMA x", NOT_SELECT),
                 arguments("select :foo",
-                        "알 수 없는 변수입니다: :foo (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now)"),
+                        "알 수 없는 변수입니다: :foo (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now, :bizDate, :bizYesterday, :baseHour)"),
                 arguments("EXEC p", NOT_SELECT),
                 arguments("", EMPTY),
                 arguments("   ", EMPTY),
@@ -94,7 +98,7 @@ class SqlGuardTest {
                 arguments("SELECT q'[ ' ]' FROM t FOR UPDATE --'", SPECIAL),
                 arguments("SELECT ['] FROM t; DELETE FROM t; --']", MULTI),
                 arguments("SELECT :userid FROM t",
-                        "알 수 없는 변수입니다: :userid (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now)"),
+                        "알 수 없는 변수입니다: :userid (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now, :bizDate, :bizYesterday, :baseHour)"),
                 arguments("(SELECT 1)", NOT_SELECT),
                 // 1차 리뷰 뒤 덧붙인 사례 — 겹친 주석(PostgreSQL·MSSQL 과 Oracle·SQLite 가 다르게 읽는다)
                 arguments("SELECT 1 /* a /* b */ */", NESTED),
@@ -104,14 +108,14 @@ class SqlGuardTest {
                 arguments("SELECT [a;b] FROM t", MULTI),
                 arguments("SELECT [update] FROM t", SqlGuard.forbiddenWord("UPDATE")),
                 arguments("SELECT a[:foo] FROM t",
-                        "알 수 없는 변수입니다: :foo (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now)"),
+                        "알 수 없는 변수입니다: :foo (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now, :bizDate, :bizYesterday, :baseHour)"),
                 // Spring 이 변수로 바꾸는 &name·점 붙은 이름도 같은 규칙(검사는 통과하고 실행 때 늘 실패하는 SQL 을 막는다)
                 arguments("SELECT a FROM t WHERE (f &mask) = 1",
-                        "알 수 없는 변수입니다: &mask (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now)"),
+                        "알 수 없는 변수입니다: &mask (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now, :bizDate, :bizYesterday, :baseHour)"),
                 arguments("SELECT :userId.x FROM t",
-                        "알 수 없는 변수입니다: :userId.x (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now)"),
+                        "알 수 없는 변수입니다: :userId.x (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now, :bizDate, :bizYesterday, :baseHour)"),
                 arguments("SELECT :{userId} FROM t",
-                        "알 수 없는 변수입니다: :{userId} (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now)"),
+                        "알 수 없는 변수입니다: :{userId} (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now, :bizDate, :bizYesterday, :baseHour)"),
                 // 방언마다 경계가 갈리는 표기 — 대괄호 식별자 안 ]](MSSQL 만 이스케이프)·줄 주석 안 홀로 \r
                 arguments("SELECT [a]] FROM t", SqlGuard.MSG_BRACKET_ESCAPE),
                 arguments("SELECT 1 -- x\r' \n; DELETE FROM t ; '", SqlGuard.MSG_LONE_CR),
@@ -524,6 +528,17 @@ class SqlGuardTest {
     @Test
     @DisplayName("시스템 변수 목록은 스펙 §7.2 순서다")
     void systemVariables() {
-        assertThat(SqlGuard.SYSTEM_VARIABLES).containsExactly("userId", "deptCd", "today", "yesterday", "monthStart", "now");
+        assertThat(SqlGuard.SYSTEM_VARIABLES).containsExactly("userId", "deptCd", "today", "yesterday", "monthStart", "now",
+                "bizDate", "bizYesterday", "baseHour");
+    }
+
+    @Test
+    @DisplayName("전기일 시스템 변수를 쓰고 모르는 변수의 안내 문구에 세 이름이 함께 보인다")
+    void allowsBizDayVariables() {
+        SqlGuard.Validated v = SqlGuard.check("SELECT * FROM t WHERE WORK_DT = :bizDate AND WORK_DT = :bizYesterday AND H = :baseHour");
+        assertThat(v.variables()).containsExactly("bizDate", "bizYesterday", "baseHour");
+        assertThatThrownBy(() -> SqlGuard.check("select :foo"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining(":bizDate, :bizYesterday, :baseHour");
     }
 }
