@@ -7,7 +7,9 @@
 #   비밀값(토큰)은 어떤 출력·임시 파일 이름·이벤트에도 남기지 않는다. 헤더는 chmod 600 임시 파일로 curl 에 넘긴다.
 #   이 파일에 set -x 를 넣지 않는다.
 set -uo pipefail
-. "$(dirname "$0")/lib/common.sh"
+_SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.
+. "$_SD/lib/js-bridge.sh"; if _jsb_on GLM_PREFLIGHT; then _jsb_exec "$_SD/glm-preflight" "$@"; fi   # node 판(스위치 COORD_JS_GLM_PREFLIGHT)
+. "$_SD/lib/common.sh"
 
 tmpdir=""
 cleanup() { [ -n "$tmpdir" ] && rm -rf "$tmpdir"; }

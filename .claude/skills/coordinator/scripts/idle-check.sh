@@ -14,6 +14,8 @@
 # 화면 신호는 레인 handle 이 있을 때만 읽는다. 후보가 아니거나 거부되면 관측 기록을 지운다.
 # 상태 쓰기(hold 풀기·이벤트)는 coord-state.sh 로만 한다(COORD_DRY=1 이면 DRY 로 찍기만).
 set -uo pipefail
+_SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.
+. "$_SD/lib/js-bridge.sh"; if _jsb_on IDLE_CHECK; then _jsb_exec "$_SD/idle-check" "$@"; fi   # node 판(스위치 COORD_JS_IDLE_CHECK)
 # shellcheck source=lib/common.sh
 . "$(dirname "$0")/lib/common.sh"
 # shellcheck source=lib/term.sh

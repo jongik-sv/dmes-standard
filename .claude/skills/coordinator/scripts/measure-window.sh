@@ -15,6 +15,8 @@
 #                unknown = load 를 얻을 수 없는 환경(Git Bash) — per_core 는 `-`, 호출한 쪽이 판단한다.
 #                2분 유지 판정은 조정자가 두 번 불러 확인한다.
 set -uo pipefail
+_SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.
+. "$_SD/lib/js-bridge.sh"; if _jsb_on MEASURE_WINDOW; then _jsb_exec "$_SD/measure-window" "$@"; fi   # node 판(스위치 COORD_JS_MEASURE_WINDOW)
 . "$(dirname "$0")/lib/common.sh"
 . "$(dirname "$0")/lib/compat.sh"
 

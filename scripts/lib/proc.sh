@@ -4,6 +4,9 @@
 # 부르는 스크립트가 정한다 — 포트 번호만 보고 남의 프로세스를 고르는 판단은 여기 두지 않는다.
 # macOS 기본 /bin/bash 3.2 에서 돌아야 하므로 연관 배열·mapfile 을 쓰지 않는다.
 
+# be-run.sh 가 「맡은 모듈을 다른 be-run 이 모두 이어받아」 끝날 때의 종료 코드. local-run.sh 가 백엔드가 죽은 것과 구분한다.
+BE_RUN_HANDED_OVER_RC=79
+
 # pid 와 그 자손 전체에 신호를 보낸다(자식 먼저). pid 가 비었거나 이미 없으면 아무것도 안 한다.
 #   terminate_pid_tree TERM 1234
 terminate_pid_tree() {
