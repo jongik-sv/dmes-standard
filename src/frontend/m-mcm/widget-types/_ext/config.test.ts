@@ -90,7 +90,7 @@ describe("validateExchangeConfig — 편집기 검사", () => {
   });
 
   it("통화는 10개까지(서버 한도)", () => {
-    const eleven = EXCHANGE_CURRENCIES.slice(0, 11) as string[];
+    const eleven = [...EXCHANGE_CURRENCIES, "THB"] as string[];
     expect(validateExchangeConfig({ base: "KRW", currencies: eleven, days: 30 })).toEqual(["통화는 10개까지 고를 수 있습니다"]);
     expect(validateExchangeConfig({ base: "KRW", currencies: eleven.slice(0, 10), days: 30 })).toEqual([]);
   });
