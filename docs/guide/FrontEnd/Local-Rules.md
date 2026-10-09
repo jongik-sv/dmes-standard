@@ -483,6 +483,8 @@ AgDataGrid 는 사용자별로 컬럼 순서·너비·표시·고정·정렬을 
 
 `GridPanel` 본문(`.grid-panel-content`) 안의 모든 `AgDataGrid` 는 공통 CSS 규칙으로 패널 영역을 절대 배치로 덮고, 설정 메뉴·엑셀 단추를 패널 머리줄로 올린다. 위젯 보드(`WidgetWorkspace`)를 GridPanel 안에 두면 쿼리 표 같은 그리드 위젯이 제목 줄·조건줄·「N행」·그리드 설정 아이콘을 잃고 그리드만 위젯 틀 전체를 덮는다(위젯 관리 기본 배치 탭, 미리보기는 GridPanel 밖이라 정상이어서 늦게 발견). 보드·상세 폼처럼 그리드가 아닌 내용을 담는 우측 패널은 `grid-panel` / `grid-panel-header` 클래스로 머리줄만 같게 그리고 본문은 `grid-panel-content` 없는 상자로 둔다(`LayoutTab.tsx` `BOARD_BODY_STYLE`). 확인: 보드에 쿼리 표 위젯을 놓고 `.cm-data-grid` 의 computed position 이 static 인지, 제목 줄·조건줄이 그리드 위에 있는지 본다.
 
+같은 이유로 안내 문구·배너·잘림 안내(`<p>`)도 `.grid-panel-content` 안에 그리드와 형제로 두지 않는다. 그리드(`.cm-data-grid`)가 `position:absolute; top:0` 으로 본문 전체를 덮어 안내가 그리드 헤더 밑에 가려진다(항목 편집 `item-readonly`, 2026-10-09 실측). 안내는 `GridPanel` 바깥(탭 아래·패널 위)에 두고, 조회 전용 같은 상태 표시가 제목 줄에 어울리면 `titleExtra` 를 쓴다.
+
 ## 46. 목록 조회 조건은 SearchArea 로 만든다 — 자체 조회 폼을 그리지 않는다 (2026-10-08)
 
 확정 4화면(layoutConfirm·codeConfirm·ruleConfirm·ruleSetConfirm)이 패널 안에 `Input`·`Button` 으로 자체 조회 폼을 그려서 조회 기본값(설정 아이콘)과 다른 목록 화면과 같은 모양이 빠졌다.
