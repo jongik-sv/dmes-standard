@@ -16,6 +16,16 @@ description: N단(5~8단) 대형 프로젝트의 wbs.md 를 levels 계약(frontm
 > - **운영: 0089 운영 적용 + main 머지 전까지 금지.**
 > - 업로드 전 `wbs-nlevel-parse.mjs validate` 통과 필수 (§검증·업로드).
 
+## 참조 — 언제 무엇을 Read 하는가
+
+| 문서 (`references/`) | 읽는 때 |
+|---|---|
+| wbs-nlevel-md-contract.md | 생성·검증 전 항상 (계약 정본) |
+| contract-summary.md | wbs.md 를 쓰기 직전 (frontmatter 예·표기·ID 채번·WSF 배치 요약) |
+| skeleton-mode.md | `--skeleton` 모드일 때 (skeleton.yaml·methodology·wsf 골격 구성) |
+| skeleton-sample.md | 골격 모드에서 wbs.md 를 쓸 때 |
+| pl-programs-input.md | PL 모드에서 `programs.*` 를 읽을 때 |
+
 ## 모드 — 인자로 판정
 
 | 모드 | 인자 | 산출물 | 소유 |
@@ -44,169 +54,18 @@ PL 모드 **levels·시스템 키 조회 사슬** (2026-08-22 확정 — 위가 
 
 ## 계약 요약 (정본: 스펙 문서)
 
-### 1. frontmatter — 단계는 여기서만 선언한다
+→ references/contract-summary.md (참조 표 참고)
 
-```yaml
----
-project: MES
-module: mes-op                  # PL 모드 필수 — external_ref 네임스페이스
-attach: PH-03/SYS-OP            # PL 모드 필수 — 골격의 부착점 노드
-levels:                         # 골격이 정본, PL 파일은 복사본(불일치 = 업로드 거부)
-  - { name: Phase,     prefix: PH,  progress: rollup }
-  - { name: System,    prefix: SYS, progress: rollup }
-  - { name: Subsystem, prefix: SUB, progress: rollup }
-  - { name: WP,        prefix: WP,  progress: rollup, report: weekly }
-  - { name: Activity,  prefix: ACT, progress: rollup, optional: true }
-  - { name: Task,      prefix: TSK, progress: input }
-  - { name: SubTask,   prefix: STK, progress: checklist, optional: true, upload: fold }
-credits:
-  default: { 대기: 0, 설계: 20, 구현중: 50, 구현완료: 70, 테스트완료: 90, 검수완료: 100 }
-  if:      { 대기: 0, 구현중: 30, 구현완료: 50, 연동검증: 100 }
-  doc:     { 미착수: 0, 작성중: 30, 제출: 50, 검수완료: 100 }
----
-```
+## 골격 정의 파일 (`skeleton.yaml`)
 
-- 산문 표·본문 절로 단계 선언 금지. 기계 파싱 대상 = frontmatter 뿐.
-- `progress` 4종:
-  - `input`: leaf 입력·발행 대상
-  - `rollup`: 집계 전용 — leaf 면 에러
-  - `checklist`: 완료 ○/× 만, 집계 불개입, leaf 전용
-  - `none`: 마일스톤
-- `upload` 3종: `true`(기본) / `false`(파일 전용) / `fold`(부모 acceptance 로 접힘).
-  - **아래에서 위로만** 끌 수 있음.
-  - `input` 층은 `true` 강제.
-  - 노드 단위 skip 마커 발명 금지.
-
-### 2. 단계 판정 — 접두어가 정본
-
-- `TSK-` 접두 = Task. **ID 세그먼트 수·헤딩 깊이로 층 판정 금지.**
-- 헤딩 깊이·리스트 들여쓰기 = **부모 판정(구조)** 에만 사용.
-- 검증: 자식 단계 순번 > 부모 단계 순번. 건너뛰기 허용 (선택층). 역행·동급 금지.
-- 헤딩 6단 한계는 **리스트 들여쓰기가 흡수**.
-  - Task 이하를 `- [ ]` 리스트로 쓰면 헤딩 캡·중복 깊이 없음.
-  - 같은 헤딩 깊이에 두 단계 겹침 금지.
-- ID = external_ref 매칭 키. 재번호매김 금지, 사라진 ID 재사용 금지 (dflow-wbs 와 동일).
-- **ID 채번 관례** (2026-08-21 확정): `{접두}-{SYS약어}-{경로꼬리}-{순번}`
-  - 예: 조업>입측>화면>1번 = `TSK-OP-IN-UI-01`, 그 SubTask = `STK-OP-IN-UI-01-1`.
-  - PL 파일 SUB·WP 도 시스템 약어 포함 (`SUB-OP-IN`, `WP-OP-IN-UI`).
-  - 골격(전사 항목)은 시스템 없음 → `TSK-AN-RQ-01` 형.
-  - 경로 조각 = **생성 시점 소속 힌트**. 단계·부모 판정 정본 = 접두어+구조. 노드 이동해도 ID 불변 (힌트 낡음 감수).
-  - module 이 네임스페이스라 기술적으론 중복. ID 가 화면·회의에서 단독 유통 → 사람용 자기완결성 위해 시스템 포함.
-  - 개요 번호(1.3.4.12) = ID 아님, **표시 파생값**. 화면·엑셀이 트리 위치에서 자동 계산. 파일에 쓰지 않음.
-
-### 3. 본문 표기 (한 줄 요약 — 전체 표는 스펙)
-
-```markdown
-## PH-03: 구축                       ← 헤딩: 상위 층
-##### WP-IN-PR: 프로세스
-###### ACT-IN-PR-1: 실적 관리
-- [ ] TSK-IN-001: 입측 실적 수집 @홍길동 w:5 ~2026-10-17 credit:default
-  - [ ] STK-IN-001-1: 중복 수신 방어   ← checklist (fold)
-- [M] TSK-AN-IF-90: 분석 완료 보고회 ~2026-09-30   ← 마일스톤 — ID 필수(external_ref)
-```
-
-`@담당` `w:가중치(MD, 생략=1)` `~종료일` 또는 `시작~종료일` `credit:크레딧표키` `if-id:I/F대장ID`.
-- 생성기 = **`시작~종료일` 로 씀**.
-  - 종료만 쓰면 import 가 시작 파생 (선행 종료 다음 영업일 → `start_date`).
-  - 선행이 더 늦게 끝나는 계획 → 시작=종료로 접혀 0일 막대.
-  - 일정 산정했으면 둘 다 적음.
-- 상태는 항상 `[ ]`. 전이 정본 = D'Flow (dflow-wbs 와 동일). 실적 % 를 파일에 쓰지 않음.
-
-**Task 상세 블록** — 한 줄 밑에 들여쓴 `- key: value` 필드.
-- 체크박스 없는 리스트 = 필드, `- [ ]` = SubTask. 둘 공존.
-- import 필드를 여기에 싣는다: category·domain·model·priority·tags·depends·prd-ref·entry-point·requirements·acceptance·spec·note.
-
-```markdown
-- [ ] TSK-IN-001: 입측 실적 수집 프로세스 @홍길동 w:5 ~2026-11-14
-  - category: dev
-  - domain: backend
-  - depends: TSK-L2-221
-  - requirements: L2 인입 통보 수신 시 입고 실적 생성·재고 반영, 불일치는 예외 큐
-  - acceptance: 수신→실적→재고 단일 트랜잭션 / 중복 전문 멱등 처리
-  - [ ] STK-IN-001-1: 중복 수신 방어 로직
-```
-
-- 상세 블록 = **선택**. 골격·초안 단계는 한 줄 유지.
-- **개발 착수 전 input 층 Task 는 requirements·acceptance 필수** (검증기 경고 대상).
-- 명세 재료 = PRD/프로그램 리스트 입력. 입력 없이 명세 창작 금지 (초안은 한 줄로 두고 리포트에 "명세 미충전" 표기).
-
-### 4. WSF 배치 — 모드가 샌드위치를 나눠 갖는다
-
-- `--skeleton` = **빵**:
-  - Water: PH-01 분석 · PH-02 설계 골격 + 전사 아키텍처·공통 계약 Task
-  - Fall: PH-04 통합테스트 · PH-05 적용 골격 + 시스템 관통·컷오버
-- PL 모드 = **속**:
-  - 모듈 Water 꼬리: 모듈 요건분석·상세설계·DB(ERD)·모듈 공유 계약(계약 전용)
-  - Scrum: 프로그램 Task (1 프로그램 = 1 fullstack Task 수직 슬라이스)
-  - 모듈 Fall: 모듈 통합 시나리오
-- depends 사슬·경계 규칙 ("2+ 모듈 공유만 선행", 통테 결함은 defect 되돌림) = dflow-wbs §전체 구조 계승.
-- category 7종 · 수직 슬라이스 · FS 전용 depends 도 동일.
-
-### 5. 분리 업로드 전제
-
-- 골격 먼저, PL 파일들은 무순서.
-- module = 디렉토리 세그먼트 (`docs/mes/조업` → 조업 매핑표 or 영문 코드).
-- PL 파일 최상위 노드 = attach 가 가리키는 골격 노드의 자식. 골격 층(PH·SYS)을 PL 파일 본문에 쓰면 에러.
-- module 1개 = 파일 1개. ID 는 모듈 안에서만 유일하면 됨.
-
-## 골격 정의 파일 (`skeleton.yaml`) — 골격 모드의 입력 정본
-
-```yaml
-project: MES
-start_date: 2026-09-01
-methodology: wsf            # wsf(기본) | waterfall | scrum — 단계 프리셋과 PL 생성 규칙을 결정
-phases:                     # 생략 시 methodology 프리셋. 명시하면 그것이 이김
-  - { key: PH-03, name: 구축, build: true }   # build: true = 시스템 트리가 붙는 Phase
-levels: default             # 'default' = 스펙 정본 7층. 커스텀이면 배열. scrum 은 Phase 층 제거판
-systems:
-  - { key: SYS-OP, name: 조업, module: mes-op, pl: 박PL }
-```
-
-### methodology 3종 — 단계 프리셋 + 생성 규칙
-
-| 값 | phases 프리셋 | levels | PL 모드 규칙 |
-|---|---|---|---|
-| `wsf` (기본) | 분석·설계·구축(build)·통합테스트·적용 | 정본 7층 | 모듈 Water 꼬리 + Scrum + 모듈 Fall (현행) |
-| `waterfall` | 분석·설계·개발(build)·단위테스트·통합테스트·이행 | 정본 7층 | 애자일 반복 없음 — 프로그램 Task 일렬, 계약 Task 는 설계 단계 소속, `credit:doc` 게이트 중심 |
-| `scrum` | **없음** — Phase 층 자체를 levels 에서 제거, System 이 최상위 | Phase 제거 6층 | 선행·후행 공정 없음 — 백로그형. 통테는 횡단 시스템으로 두거나 생략 |
-
-- **파일 있으면 무질문 생성.**
-- 파일 없으면 대화로 수집. 질문은 넷뿐:
-  1. 프로젝트명
-  2. **방법론 (wsf/waterfall/scrum — 기본 wsf)**
-  3. 단계 (방법론 프리셋 제시 후 수정 여부. scrum 이면 생략)
-  4. 시스템 목록 (이름을 받아 키·module 제안 → 사용자 확정)
-- 답으로 **skeleton.yaml 을 생성하고 멈춤** — "파일 검토 후 재실행" 안내.
-- 즉석 골격 생성 금지: 시스템 키 = external_ref 라 불변. 리뷰 없이 확정 안 함.
-- 시스템 목록 창작 금지 — 입력(파일 또는 답변)에 없는 시스템은 만들지 않음.
-- 필수 누락 (project 없음, systems 0개) = 중단. 선택 누락 (pl 미정) = 기본값 + 리포트.
-
-### wsf 골격 표준 구성 (2026-08-21 확정 — 실물 예시: `.claude/skills/dflow-wbs-nlevel/references/skeleton-sample.md`)
-
-- 구축(build Phase)은 System 자리만 둠.
-- 나머지 4 Phase 는 아래 WP 구성을 템플릿으로 생성.
-- 시스템 횡단이라 System·Subsystem 층 건너뜀 (얕은 비대칭 트리).
-
-| Phase | WP 구성 |
-|---|---|
-| 분석 | 현행(AS-IS) 분석 · **요건 정의(시스템별 Task ×N)** · I/F 요건 정의 + 보고회 [M] |
-| 설계 | 아키텍처 설계 · 데이터 설계(ERD·마스터·코드) · **시스템별 상세설계(ACT ×N, 깊은 시스템은 Subsystem 별 Task)** · I/F 상세설계 + 보고회 [M] |
-| 통합테스트 | 계획·환경·데이터 · 시스템 내 통합 · L2 연동(credit:if) · ERP 연동(credit:if) · 결함 관리·회귀 + 완료 [M] |
-| 적용 | 데이터 이행 · 사용자 교육·매뉴얼 · 컷오버·오픈 + 가동 [M] · 안정화 |
-
-- 산출물 Task = `credit:doc`, 연동 Task = `credit:if`. 시스템별 항목은 skeleton.yaml 의 systems 로 전개.
-- 시스템별 요건정의·상세설계 Task = 골격(PMO 파일) 소속.
-- **attach 단일 노드 확정** (b안, 2026-08-22):
-  - 모듈 통테 준비·시나리오도 "모듈 검증까지가 구축" → build Phase 소속.
-  - 선행·후행 Phase = PMO 골격 전유.
-  - 담당 PL 확정 시 @담당 배정으로 소유 이전.
+→ references/skeleton-mode.md (참조 표 참고)
 
 ## 실행 플로우
 
 1. 스펙 문서 Read (계약 로드).
 2. 모드 판정 (`--skeleton` 유무).
 3. **골격 모드**:
-   1. skeleton.yaml 로드 (없으면 위 대화 수집 → 파일 생성 후 종료)
+   1. skeleton.yaml 로드 (없으면 skeleton-mode.md 의 대화 수집 → 파일 생성 후 종료)
    2. PH + System 노드 생성
    3. levels·credits 정본 작성
    4. PL 템플릿 생성 (모듈별, attach·levels 채움)
@@ -219,19 +78,9 @@ systems:
    4. 프로그램 Task + 모듈 Fall 생성 → attach 기입
    - PRD/TRD = 선택. 있으면 requirements·acceptance 인용 보강. 없으면 한 줄 Task 로 두고 리포트에 "명세 미충전" 표기 (창작 금지).
 
-### PL 입력 파일 (`programs.*`) — dflow-wbs 어댑터 준용 + N단 확장
+### PL 입력 파일 (`programs.*`)
 
-공통 스키마·한글 헤더 별칭·포맷별 읽기 = dflow-wbs SKILL.md §프로그램 리스트 입력 어댑터 준용. N단 배치용 키 2개 추가:
-
-| 키 | 필수 | 역할 |
-|---|---|---|
-| `subsystem` | ✅ | SUB 배치 — `입측` → `SUB-{SYS}-IN`. 없으면 에러(N단 필수) |
-| `target` | I/F 만 | 인터페이스 축 판정 — 공정명(`2CGL`)→L2IF 공정 WP, `ERP`→ERPIF(`group` 이 WP) |
-
-- `type` → WP 판정: 프로세스/배치→`-PR`, 화면/리포트→`-UI`, 인터페이스→`target` 축.
-- `id` → Task 의 `prd-ref: program:{id}` 로 보존. 재생성 시 기존 Task ID 복원 키.
-- difficulty→`w:` 환산 (하 2 / 중 3 / 상 5). 인터페이스 Task 는 `credit:if` 자동.
-- subsystem 값→SUB 약어 매핑: 최초 등장 시 제안, programs 파일 머리에 주석으로 고정 (재실행 안정).
+→ references/pl-programs-input.md (참조 표 참고)
 
 5. **검증 게이트** — 파서 스크립트가 정본 (수동 체크리스트 대체, 2026-08-22):
    ```bash
