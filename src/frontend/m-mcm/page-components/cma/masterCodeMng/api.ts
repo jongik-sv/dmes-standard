@@ -29,6 +29,10 @@ const OASIS_BASE = "/api/mcm/oasis/masterCodeMng";
 interface SearchPayload {
   ds_GetCodeMasterList?: MasterRow[];
   ds_GetCodeMasterAllList?: MasterLov[];
+  /** 서버가 `limit` 으로 목록을 잘랐을 때의 전체 건수(R1). 서버가 상한을 적용하지 않으면 오지 않는다. */
+  totalCount?: number;
+  /** 서버가 `limit` 으로 목록을 잘랐는지. */
+  truncated?: boolean;
 }
 
 interface SearchDetailPayload {
@@ -107,11 +111,19 @@ async function callAction<T>(
   return unwrapPayload<T>(res);
 }
 
-/** action=search — Master 그리드 + Master 전체 LoV. */
-export async function searchMaster(filters: MasterCodeFilters): Promise<SearchPayload> {
+/**
+ * 조건 없는 첫 조회의 행 수 상한(화면 성능 가이드 R1·§5 예산 ≤ 1,000건).
+ * 서버가 `limit` 을 받으면 조건이 없을 때만 앞쪽 `limit` 건으로 줄이고 `totalCount`·`truncated` 를 함께 준다.
+ * 화면은 잘리면 `GridLimitNotice` 와 [전체 보기](상한 없이 재조회)를 보인다.
+ */
+export const FIRST_SEARCH_LIMIT = 1000;
+
+/** action=search — Master 그리드 + Master 전체 LoV. `limit` 을 주면 첫 조회 상한(R1), 비우면 전체. */
+export async function searchMaster(filters: MasterCodeFilters, limit?: number): Promise<SearchPayload> {
   return callAction<SearchPayload>("search", {
     pCodeId: filters.pCodeId,
     pCodeNm: filters.pCodeNm,
+    ...(limit !== undefined ? { limit } : {}),
   });
 }
 
