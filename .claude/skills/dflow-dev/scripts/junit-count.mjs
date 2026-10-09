@@ -1,16 +1,13 @@
 #!/usr/bin/env node
-// junit-count.mjs — junit-count.sh 의 합산 본체(python xml.etree 판을 node 로 옮긴 것). 외부 의존성 0, node 18.17 이상.
+// junit-count.mjs — /dflow-dev 게이트 기준선: JUnit XML 결과를 합산한다. junit-count.sh 의 node 판으로, 옛 .sh 와 같은 인자를 그대로 받는다. 외부 의존성 0, node 18.17 이상.
 //
-//   node junit-count.mjs <파일목록> [<실패파일> [<since> [<읽기목록>]]]
+//   node junit-count.mjs [--failed-file <경로>] [--since <epoch 초 | 파일>] [<폴더>…]
 //
-// 호출 계약은 python 판(tests/golden/legacy/junit-count.legacy.sh 안의 heredoc)과 같다. 인자 파싱·find 로 XML 모으기·정렬·
-// JUNIT_SUMMARY_NONE 은 junit-count.sh 가 맡고, 이 파일은 "찾은 파일 목록을 읽어 합산해 한 줄을 낸다" 만 한다.
-//   <파일목록>  한 줄에 XML 하나(비어 있지 않은 줄만 쓴다)
-//   <실패파일>  비어 있지 않으면 failure·error 자식이 있는 testcase 의 `classname.name` 을 정렬·중복 제거해 쓴다
-//   <since>     비어 있지 않으면 숫자(epoch 초)이거나 파일(그 mtime) — 그보다 오래된 XML 은 stderr 에 JUNIT_STALE 을 내고 뺀다
-//   <읽기목록>  (선택) <파일목록>과 줄마다 짝이 맞는 목록. 있으면 파일을 열고 mtime 을 잴 때 이쪽 경로를 쓰고, 출력(JUNIT_SKIP·JUNIT_STALE)은
-//               <파일목록>의 경로 그대로 낸다. 윈도우 Git Bash 에서 find 가 낸 `/c/…` 를 cygpath 로 `C:/…` 로 바꾼 목록을 받는 자리다.
-//               줄 수가 다르거나 읽을 수 없으면 무시한다.
+// 찾는 파일·합산·출력·종료 코드의 정본은 backup/scripts/junit-count.sh 머리 주석이다.
+// 각 <폴더> 아래의 build/test-results/*/TEST-*.xml(Gradle) · target/surefire-reports · failsafe-reports(Maven) 을 합산한다.
+// node_modules·.git·.gradle·.claude/worktrees 아래는 내려가지 않는다. <폴더> 생략 시 현재 폴더.
+// 목록 정렬은 바이트 순(LC_ALL=C sort -u 와 같다). `--help` 는 사용법을 내고 exit 0.
+// 합산 규칙·XML 파서·전체 실패는 아래 주석 그대로(python 판과 같다)다.
 // stdout: `JUNIT_SUMMARY tests=<N> failures=<F> errors=<E> skipped=<S> files=<K>` 정확히 한 줄.
 // stderr: JUNIT_SKIP <파일>(깨진 XML 이거나 루트가 testsuite·testsuites 가 아님), JUNIT_STALE <파일>, JUNIT_SINCE_INVALID <값>(exit 2),
 //         JUNIT_ABORT <파일> <사유>(자원 한계·지원 못 하는 인코딩 — 아래 「전체 실패」, exit 1, stdout 없음).
@@ -61,14 +58,22 @@
 // 검증: tests/junit-count.sh 의 골든 비교(python 판 그대로)와, 변형 입력 약 80만 건을 python xml.etree 와 대조한 결과다. 그 대조에서 나온 차이는 ④ 뿐이었지만
 // 대조 범위(요소·속성 구조) 밖인 인코딩 선언·standalone·자원 한계에는 위 ①·⑦·⑧ 처럼 따로 확인한 차이가 있다.
 
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // ---------------------------------------------------------------- 출력
-const writeFd = (fd, s) => {
-  for (;;) {
-    try { fs.writeSync(fd, s); return; } catch (e) { if (e.code !== 'EAGAIN') return; }
+// fd 에 전부 쓸 때까지 루프한다(64KB 넘는 파이프도 잘리지 않는다).
+const writeFd = (fd, data) => {
+  const buf = typeof data === 'string' ? Buffer.from(data, 'utf8') : data;
+  let off = 0;
+  while (off < buf.length) {
+    let n;
+    try { n = fs.writeSync(fd, buf, off); } catch (e) { if (e.code === 'EAGAIN') continue; return; }
+    if (n <= 0) return;
+    off += n;
   }
 };
 const out = (s) => writeFd(1, s);
@@ -1075,27 +1080,147 @@ const cmpCodePoint = (a, b) => {
 };
 
 export function main(argv) {
-  const fileListPath = argv[0];
-  const failedFile = argv.length > 1 ? argv[1] : '';
-  const sinceArg = argv.length > 2 ? argv[2] : '';
-  const readListPath = argv.length > 3 ? argv[3] : '';
+  if (argv.length === 1 && (argv[0] === '--help' || argv[0] === '-h')) {
+    out('usage: junit-count.sh [--failed-file <경로>] [--since <epoch 초 | 파일>] [<폴더>...]\n');
+    out('stdout: JUNIT_SUMMARY tests=<N> failures=<F> errors=<E> skipped=<S> files=<K> 한 줄. exit 0 정상, 1 셀 게 없음·전체 실패, 2 사용법 오류.\n');
+    return 0;
+  }
+  let failedFile = '';
+  let sinceArg = '';
+  const roots = [];
+  let dd = false;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (!dd && a === '--failed-file') {
+      if (i + 1 >= argv.length) { usageErr(); return 2; }
+      failedFile = argv[++i];
+    } else if (!dd && a === '--since') {
+      if (i + 1 >= argv.length) { usageErr(); return 2; }
+      sinceArg = argv[++i];
+    } else if (!dd && a === '--') {
+      dd = true;
+    } else if (!dd && a.startsWith('-')) {
+      usageErr();
+      return 2;
+    } else {
+      roots.push(a);
+    }
+  }
+  if (roots.length === 0) roots.push('.');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'junit-count.'));
+  try {
+    tables();
+    const errors = [];
+    let list = [];
+    for (const r of roots) {
+      if (r === '') continue;
+      list.push(...discover(r, errors));
+    }
+    for (const e of errors) err(`${e}\n`);
+    list = [...new Set(list)].sort(byBytes);
+    if (list.length === 0) {
+      out(`JUNIT_SUMMARY_NONE ${roots.join(' ').replace(/\s+$/, '')}\n`);
+      return 1;
+    }
+    // 윈도우 Git Bash: cygpath 가 있으면 읽기 경로를 `C:/…` 꼴로 바꿔 읽고 출력은 원래 경로 그대로 낸다.
+    const converted = cygConvert(list, tmp);
+    const entries = list.map((d, i) => [d, converted !== null && converted[i].trim() !== '' ? converted[i] : d]); // [출력용 경로, 여는 경로]
+    return sumEntries(entries, sinceArg, failedFile);
+  } finally {
+    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* 무시 */ }
+  }
+}
+
+function usageErr() {
+  err('usage: junit-count.sh [--failed-file <경로>] [--since <epoch 초 | 파일>] [<폴더>...]\n');
+}
+
+// LC_ALL=C sort -u 와 같은 바이트 순.
+function byBytes(a, b) {
+  return Buffer.compare(Buffer.from(a, 'utf8'), Buffer.from(b, 'utf8'));
+}
+
+const SKIP_NAMES = new Set(['node_modules', '.git', '.gradle']);
+const WORKTREES_RE = /^.*\/\.claude\/worktrees$/;
+// 옛 .sh 의 find 패턴 세 가지(셸 case 패턴 — `*` 는 `/` 도 넘는다).
+const XML_RES = [
+  /^.*\/build\/test-results\/.*\/TEST-.*\.xml$/,
+  /^.*\/target\/surefire-reports\/TEST-.*\.xml$/,
+  /^.*\/target\/failsafe-reports\/TEST-.*\.xml$/,
+];
+
+function findErr(p, e) {
+  const why = e && e.code === 'ENOENT' ? 'No such file or directory'
+    : e && e.code === 'EACCES' ? 'Permission denied' : (e && e.message ? e.message : String(e));
+  return `find: ${p}: ${why}`;
+}
+
+function baseName(p) {
+  const i = p.lastIndexOf('/');
+  return i === -1 ? p : p.slice(i + 1);
+}
+
+// <root> 아래 XML 을 찾아 표시 경로(<root> + / + 상대경로, find 와 같은 모양)로 낸다.
+// 실패한 읽기는 find 의 stderr 줄로 모아 낸다.
+function discover(rootArg, errors) {
+  const found = [];
+  let stripped = rootArg;
+  if (stripped.length > 1) stripped = stripped.replace(/\/+$/, '');
+  if (stripped === '') stripped = '/';
+  const disp = (rel) => (stripped === '/' ? `/${rel}` : `${stripped}/${rel}`);
+  let st;
+  try {
+    st = fs.lstatSync(stripped);
+  } catch (e) {
+    errors.push(findErr(rootArg, e));
+    return found;
+  }
+  // 루트 자체도 prune 판정을 받는다(find 와 같다).
+  if (SKIP_NAMES.has(baseName(stripped)) || WORKTREES_RE.test(stripped)) return found;
+  if (!st.isDirectory()) {
+    if (st.isFile() && XML_RES.some((re) => re.test(rootArg))) found.push(rootArg);
+    return found;
+  }
+  const visit = (dirFs, rel) => {
+    let ents;
+    try {
+      ents = fs.readdirSync(dirFs, { withFileTypes: true });
+    } catch (e) {
+      errors.push(findErr(disp(rel), e));
+      return;
+    }
+    for (const e of ents) {
+      const r = rel === '' ? e.name : `${rel}/${e.name}`;
+      const d = disp(r);
+      if (SKIP_NAMES.has(e.name) || WORKTREES_RE.test(d)) continue;
+      if (e.isDirectory()) visit(path.join(dirFs, e.name), r);
+      else if (e.isFile() && XML_RES.some((re) => re.test(d))) found.push(d);
+    }
+  };
+  visit(stripped, '');
+  return found;
+}
+
+// 표시 경로 목록을 cygpath -m 으로 일괄 변환한다. cygpath 가 없거나 실패·줄 수 불일치면 null(원래 경로로 읽는다).
+function cygConvert(list, tmp) {
+  const f = path.join(tmp, 'list');
+  try {
+    fs.writeFileSync(f, `${list.join('\n')}\n`);
+    const r = spawnSync('cygpath', ['-m', '-f', f], { encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024 });
+    if (r.error || r.status !== 0) return null;
+    const lines = String(r.stdout ?? '').split('\n');
+    if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+    if (lines.length !== list.length) return null;
+    return lines;
+  } catch {
+    return null;
+  }
+}
+
+function sumEntries(entries, sinceArg, failedFile) {
   try {
     tables();
     const since = resolve_since(sinceArg);
-    const listLines = fs.readFileSync(fileListPath, 'utf8').replace(/\r\n?/g, '\n').split('\n');
-    let readLines = null;
-    if (readListPath) {
-      try {
-        const rl = fs.readFileSync(readListPath, 'utf8').replace(/\r\n?/g, '\n').split('\n');
-        if (rl.length === listLines.length) readLines = rl;
-      } catch { readLines = null; }
-    }
-    const entries = []; // [출력용 경로, 여는 경로]
-    for (let k = 0; k < listLines.length; k++) {
-      if (listLines[k].trim() === '') continue;
-      const rp = readLines !== null && readLines[k].trim() !== '' ? readLines[k] : listLines[k];
-      entries.push([listLines[k], rp]);
-    }
 
     let totalTests = 0n;
     let totalFailures = 0n;

@@ -1,0 +1,322 @@
+dflow-dev-background-gate.test.ts:47	['dflow-dev/references/dev-discipline.md', 'dflow-dev/references/orch/phase-common.md']	`kill -0 <PID>` 로 생존을
+dflow-design-first.test.ts:265	['dflow-dev/references/dev-discipline.md']	**설계 선행 재개**(`orch/design-first.md` 「3」)의 선행 반영 머지가 이 허용 한 번이다
+dflow-dev-background-gate.test.ts:36	['dflow-dev/references/dev-discipline.md']	`run_in_background` 로 띄우지 않는다
+dflow-dev-background-gate.test.ts:38	['dflow-dev/references/dev-discipline.md']	무인 러너(`claude -p`)도 같은 위험을 안는다
+dflow-dev-background-gate.test.ts:54	['dflow-dev/references/dev-discipline.md']	하네스가 그 호출을
+dflow-dev-build-parallel.test.ts:129	['dflow-dev/references/dev-discipline.md']	같은 `묶음` 의 단위는 동시에 돈다
+dflow-dev-gate-economy.test.ts:102	['dflow-dev/references/dev-discipline.md']	`branch_base`·`baseline.base` 를 그 sha 로 바꾼다
+dflow-dev-gate-economy.test.ts:103	['dflow-dev/references/dev-discipline.md']	새 기점의 기준선을 **이 작업 트리에서 재지 않는다**
+dflow-dev-gate-economy.test.ts:119	['dflow-dev/references/dev-discipline.md']	**총수는 합계 줄로 읽는다.**
+dflow-dev-gate-economy.test.ts:120	['dflow-dev/references/dev-discipline.md']	리포 스크립트가 합계 줄을 내면 그 줄을 총수·실패 수로 읽고, 합계 줄이 없으면 모든 요약의 수를 더한다
+dflow-dev-gate-economy.test.ts:121	['dflow-dev/references/dev-discipline.md']	기준선(`baseline.sh note --tests`)과 게이트는 같은 방법으로 읽는다
+dflow-dev-gate-economy.test.ts:125	['dflow-dev/references/dev-discipline.md']	**콘솔에 총수가 나오지 않는 러너(Gradle·Maven)는 명령이 끝난 직후 `junit-count.sh [<모듈 폴더>…]` 로 센다.**
+dflow-dev-gate-economy.test.ts:127	['dflow-dev/references/dev-discipline.md']	기준선과 게이트는 같은 폴더 인자로 센다
+dflow-dev-gate-economy.test.ts:128	['dflow-dev/references/dev-discipline.md']	실패 이름은 `--failed-file` 로 뽑아 `baseline.sh note` 에 넘긴다
+dflow-dev-gate-economy.test.ts:135	['dflow-dev/references/dev-discipline.md']	**게이트 명령은 필요한 의존만 빌드한다.**
+dflow-dev-gate-economy.test.ts:139	['dflow-dev/references/dev-discipline.md']	**기준선과 게이트는 같은 명령이고, Task 도중에 바꾸지 않는다.**
+dflow-dev-gate-economy.test.ts:140	['dflow-dev/references/dev-discipline.md']	더 좁은 명령으로 바꾸는 것은 새 Task 부터 한다
+dflow-dev-gate-economy.test.ts:241	['dflow-dev/references/dev-discipline.md']	표가 없으면 단위 하나(B1)이며 종전 Build 와 같다
+dflow-dev-gate-economy.test.ts:29	['dflow-dev/references/dev-discipline.md']	haiku 는 쓰지 않는다
+dflow-dev-gate-economy.test.ts:292	['dflow-dev/references/dev-discipline.md']	**대응표가 없으면 이 절 전체를 건너뛴다**
+dflow-dev-gate-economy.test.ts:294	['dflow-dev/references/dev-discipline.md']	**대응표가 없으면 이 절 전체를 건너뛴다**
+dflow-dev-gate-economy.test.ts:300	['dflow-dev/references/dev-discipline.md']	`prepare<TAB><명령>` — 새 워크트리의 의존성 설치 직후 한 번 돌리는 준비 빌드(예약어
+dflow-dev-gate-economy.test.ts:301	['dflow-dev/references/dev-discipline.md']	**모듈 명령은 그 모듈에 의존하는 모듈의 테스트까지 스스로 포함한다**
+dflow-dev-gate-economy.test.ts:302	['dflow-dev/references/dev-discipline.md']	명령은 리포 최상위에서 돈다
+dflow-dev-gate-economy.test.ts:305	['dflow-dev/references/dev-discipline.md']	게이트는 `heavy.sh bash -c '<명령>'` 으로 감싸 한 슬롯에서 통째로 돈다
+dflow-dev-gate-economy.test.ts:316	['dflow-dev/references/dev-discipline.md']	기준선이 없는 명령이 하나라도 있으면(예측 밖 모듈을 건드렸다) `full` 명령으로 돈다
+dflow-dev-gate-economy.test.ts:317	['dflow-dev/references/dev-discipline.md']	`full` 명령을 **재실행 생략 없이 한 번** 돈다 — 머지 전 최종 증거다
+dflow-dev-gate-economy.test.ts:329	['dflow-dev/references/dev-discipline.md']	`<TASKS>/<TSK>/build-log.md` 의 `## 게이트 기록` 표에 한 줄을 더한다
+dflow-dev-gate-economy.test.ts:382	['dflow-dev/references/dev-discipline.md']	haiku 는 쓰지 않는다
+dflow-dev-gate-economy.test.ts:40	['dflow-dev/references/dev-discipline.md']	무인 모드에서는 이 Phase 를 실행하지 않는다
+dflow-dev-gate-economy.test.ts:417	['dflow-dev/references/dev-discipline.md']	**측정한 경과 시간을 고정 상한과 비교하는 단언**을 가진 것만이다
+dflow-dev-gate-economy.test.ts:418	['dflow-dev/references/dev-discipline.md']	이름만으로 정하지 않고 실패한 메서드의 단언을 읽어 확인한다
+dflow-dev-gate-economy.test.ts:42	['dflow-dev/references/dev-discipline.md']	Refactor 가 커밋을 남기지 않았으면(고칠 것이 없었다) Refactor 게이트를 돌리지 않는다
+dflow-dev-gate-economy.test.ts:423	['dflow-dev/references/dev-discipline.md']	`heavy.sh --exclusive` 로 돌린다
+dflow-dev-gate-economy.test.ts:427	['dflow-dev/references/dev-discipline.md']	**단독에서도 실패하면** 진짜 실패다
+dflow-dev-gate-economy.test.ts:428	['dflow-dev/references/dev-discipline.md']	부하 민감이 아닌 테스트가 하나라도 섞이면 이 절을 쓰지 않는다
+dflow-dev-gate-economy.test.ts:66	['dflow-dev/references/dev-discipline.md']	`--` 뒤 명령에 `heavy.sh` 를 붙이지 않고
+dflow-dev-gate-economy.test.ts:67	['dflow-dev/references/dev-discipline.md']	게이트·Build·변이 검증·E2E 의
+dflow-dev-gate-economy.test.ts:77	['dflow-dev/references/dev-discipline.md']	**10분(600000ms)을 넘기지 않는다**
+dflow-dev-gate-economy.test.ts:79	['dflow-dev/references/dev-discipline.md']	90초 + 측정 시간이면 된다
+dflow-dev-gate-economy.test.ts:80	['dflow-dev/references/dev-discipline.md']	`DFLOW_BASELINE_WAIT` 를 줄인다
+dflow-dev-gate-economy.test.ts:81	['dflow-dev/references/dev-discipline.md']	한 호출의 총 대기는 90초 + 측정 시간 이하다
+dflow-dev-gate-economy.test.ts:95	['dflow-dev/references/dev-discipline.md']	**개발 브랜치를 다시 머지하지 않는다.**
+dflow-dev-gate-economy.test.ts:99	['dflow-dev/references/dev-discipline.md']	한 Task 에서 한 번을 넘기지 않는다
+dflow-dev-model-trial.test.ts:168	['dflow-dev/references/dev-discipline.md']	**이 규칙이 하네스의 일반 advisor 지시(착수 전·완료 전
+dflow-dev-model-trial.test.ts:179	['dflow-dev/references/dev-discipline.md']	작성자·Build 단위 몫과 감사자 몫을 따로 옮긴다
+dflow-dev-model-trial.test.ts:208	['dflow-dev/references/dev-discipline.md']	**판정은 Phase 01 에서 한 번만**
+dflow-dev-model-trial.test.ts:210	['dflow-dev/references/dev-discipline.md']	**목록이 있으면 목록만 보고, 없으면 비율**
+dflow-dev-model-trial.test.ts:211	['dflow-dev/references/dev-discipline.md']	`printf %s <TSK> | cksum` 의 첫 값 mod 100 이 rate 보다 작으면 켠다
+dflow-dev-model-trial.test.ts:212	['dflow-dev/references/dev-discipline.md']	Design·Verify 의 모델 배정은 바꾸지 않는다
+dflow-dev-model-trial.test.ts:221	['dflow-dev/references/dev-discipline.md']	게이트 신규 실패 수는 `## 게이트 기록`·state.json `build_gate.new_failures`
+dflow-dev-model-trial.test.ts:222	['dflow-dev/references/dev-discipline.md']	Verify 지적 수는 state.json `verify_findings`
+dflow-dev-model-trial.test.ts:249	['dflow-dev/references/dev-discipline.md']	opus 단위는 종전대로다 — 둘 다 아닌 보고는 Build 실패이고, 관련 테스트가 빨간 `UNIT_DONE` 도 종전처럼 다룬다
+dflow-dev-model-trial.test.ts:258	['dflow-dev/references/dev-discipline.md']	**모델은 git 으로 정한다(재개 포함)**
+dflow-dev-model-trial.test.ts:304	['dflow-dev/references/dev-discipline.md']	Verify 감사자 셋은 조사가 아니라 감사라 이 규칙 밖이다(sonnet
+dflow-dev-model-trial.test.ts:305	['dflow-dev/references/dev-discipline.md']	이 표의 haiku 금지는 Phase 실행 모델의 규칙이다
+dflow-heavy-semaphore.test.ts:485	['dflow-dev/references/dev-discipline.md']	Bash 도구의 timeout 을 300000~600000 으로 준다(팀원 세션은 가드 훅이 이보다 짧으면 거부한다)
+dflow-heavy-semaphore.test.ts:494	['dflow-dev/references/dev-discipline.md']	`HEAVY_EXCL_NESTED` 와 exit 2
+dflow-merge-decisions.test.ts:383	['dflow-dev/references/dev-discipline.md']	**전역 번호 D-NNN 을 새로 매기지 않는다.**
+dflow-no-docker.test.ts:100	['dflow-dev/references/dev-discipline.md']	**생략 때문에 수용 기준을 확인할 수 없게 되면 조용히 통과시키지 않는다.**
+dflow-no-docker.test.ts:116	['dflow-dev/references/dev-discipline.md']	**교착 불변식: 도커 슬롯을 쥔 쪽은 아무것도 기다리지 않는다.**
+dflow-no-docker.test.ts:180	['dflow-dev/references/dev-discipline.md']	도커 명령은 대상 리포가 제공하는 컨테이너 재사용 방식을 따른다
+dflow-no-docker.test.ts:44	['dflow-dev/references/dev-discipline.md']	**같은 목적으로 각자 도커를 띄우지 않는다. 꼭 필요한
+dflow-no-docker.test.ts:49	['dflow-dev/references/dev-discipline.md']	팀장의 방언
+dflow-no-docker.test.ts:53	['dflow-dev/references/dev-discipline.md']	팀장 판단을 받는다
+dflow-no-docker.test.ts:57	['dflow-dev/references/dev-discipline.md']	**워커는 기본적으로 도커를 쓰지 않는다(인원과 무관).**
+dflow-no-docker.test.ts:58	['dflow-dev/references/dev-discipline.md']	팀원 수 기준은 없어졌다
+dflow-no-docker.test.ts:64	['dflow-dev/references/dev-discipline.md']	**도커 명령은 대상 리포가 제공하는 컨테이너 재사용 방식을 따른다**
+dflow-no-docker.test.ts:68	['dflow-dev/references/dev-discipline.md']	팀장 포인터에 `DOCKER=allow` 가 **없다**
+dflow-no-docker.test.ts:69	['dflow-dev/references/dev-discipline.md']	옛 팀장의 `NO_DOCKER=0` 은 허용이 아니다
+dflow-no-docker.test.ts:71	['dflow-dev/references/dev-discipline.md']	`.dflow.local` 의 `no_docker`(이 PC, `.dflow` 를 덮는다)
+dflow-no-docker.test.ts:72	['dflow-dev/references/dev-discipline.md']	`docker` 태그로 허용된 워커와 수동 `/dflow-dev` 도 막는다
+dflow-no-docker.test.ts:73	['dflow-dev/references/dev-discipline.md']	`0`·빈 값은 아무것도 풀지 않는다
+dflow-no-docker.test.ts:74	['dflow-dev/references/dev-discipline.md']	**판정 결과를 기준선 기록에 한 줄 남긴다.**
+dflow-no-docker.test.ts:76	['dflow-dev/references/dev-discipline.md']	기준선을 다시
+dflow-no-docker.test.ts:84	['dflow-dev/references/dev-discipline.md']	바깥에서 `baseline.sh` 를 `heavy.sh --pool docker` 로
+dflow-no-docker.test.ts:90	['dflow-dev/references/dev-discipline.md']	**명령행 수단만 쓴다.** Gradle `-x <태스크>`
+dflow-no-docker.test.ts:91	['dflow-dev/references/dev-discipline.md']	빌드 파일·테스트 코드를 고쳐 빼지 않는다
+dflow-no-docker.test.ts:92	['dflow-dev/references/dev-discipline.md']	**기준선과 게이트는 같은 제외를 적용한 같은 명령 줄로 돈다.**
+dflow-no-docker.test.ts:95	['dflow-dev/references/dev-discipline.md']	게이트는 생략한 명령을 뺀 나머지로 판정한다
+dflow-deps-prepare.test.ts:196	['dflow-dev/references/e2e.md', 'dflow-dev/references/dev-discipline.md', 'dflow-dev/references/worker-mode.md']	Bash 도구의 timeout 을 300000~600000 으로 준다
+dflow-free-port.test.ts:78	['dflow-dev/references/e2e.md']	기동 **전에** 끝낸다
+dflow-free-port.test.ts:79	['dflow-dev/references/e2e.md']	dev 서버도 다시 띄운다
+dflow-free-port.test.ts:83	['dflow-dev/references/e2e.md']	서버를 다시 띄우지 않고
+dflow-heavy-semaphore.test.ts:539	['dflow-dev/references/e2e.md']	**E2E 가 끝나면 성공·실패·중단과 상관없이 서버를 반드시 종료한다**
+dflow-dev-worker.test.ts:150	['dflow-dev/references/orch/base.md']	`SWEEP_NONE` 으로 `/dflow-merge` SKILL.md 를 읽지 않았으면 먼저 읽는다
+dflow-dev-worker.test.ts:155	['dflow-dev/references/orch/base.md']	show 의 `.order.item.spec` 이 비어 있으면
+dflow-force-progress.test.ts:68	['dflow-dev/references/orch/base.md']	`d.waived === true` 면 **강제 진행 간선**이다
+dflow-force-progress.test.ts:70	['dflow-dev/references/orch/base.md']	기점은 항상 `origin/<기본브랜치>`
+dflow-dev-model-trial.test.ts:206	['dflow-dev/references/orch/baseline.md']	있으면(재개) 다시 판정하지 않는다
+dflow-dev-worker.test.ts:124	['dflow-dev/references/orch/baseline.md']	state.json 에 저장(`api_base` 가 아직 없으면 함께 기록한다. 상태 모델).
+dflow-prepare-phase.test.ts:33	['dflow-dev/references/orch/baseline.md']	`prepare` 이면 `design` 으로 바꾼다
+dflow-dev-build-parallel.test.ts:102	['dflow-dev/references/orch/build.md']	`build_unit`(선택)은 지금 도는 구현 단위
+dflow-dev-build-parallel.test.ts:103	['dflow-dev/references/orch/build.md']	병렬 묶음이면 동시에 도는 단위를 쉼표로 잇는다(`"B1,B2"`)
+dflow-dev-build-parallel.test.ts:106	['dflow-dev/references/orch/build.md']	표의 `묶음` 순서대로 돈다
+dflow-dev-build-parallel.test.ts:107	['dflow-dev/references/orch/build.md']	그 단위들을 한 메시지에 동시에 띄우고, 모두 보고할 때까지 커밋하지 않는다
+dflow-dev-build-parallel.test.ts:110	['dflow-dev/references/orch/build.md']	단위들의 파일 목록이 서로 겹치지 않는다
+dflow-dev-build-parallel.test.ts:111	['dflow-dev/references/orch/build.md']	design.md 표의 그 단위 범위 안이다
+dflow-dev-build-parallel.test.ts:112	['dflow-dev/references/orch/build.md']	`git status --porcelain` 이 Task 문서 밖에서 비어 있어야 한다
+dflow-dev-build-parallel.test.ts:115	['dflow-dev/references/orch/build.md']	단위마다 차례로 그 단위 파일만 stage 해 커밋한다
+dflow-dev-build-parallel.test.ts:119	['dflow-dev/references/orch/build.md']	인계한 단위는 묶음 커밋 뒤 혼자 이어 띄운다
+dflow-dev-build-parallel.test.ts:120	['dflow-dev/references/orch/build.md']	형제의 보고를 기다려 끝난 단위는 커밋한 뒤 Build 실패로 멈춘다
+dflow-dev-build-parallel.test.ts:123	['dflow-dev/references/orch/build.md']	마지막 단위가 아니면 게이트 없이 곧바로
+dflow-dev-build-parallel.test.ts:149	['dflow-dev/references/orch/build.md']	done 트레일러가 없는 묶음 단위에 단위 보고 파일이 있으면 다시 띄우지 않고 그 파일로 위 1~5 를 한다
+dflow-dev-build-parallel.test.ts:157	['dflow-dev/references/orch/build.md']	마지막 단위가 혼자 마지막 묶음인지 본다 — 아니면(phase-design.md 「구현 단위」 위반) `묶음` 열을 무시하고 순차로 돈다
+dflow-dev-build-parallel.test.ts:163	['dflow-dev/references/orch/build.md']	그 단위 커밋이 있는지 확인한다(병렬 묶음의 단위는 아래 「묶음」
+dflow-dev-gate-economy.test.ts:255	['dflow-dev/references/orch/build.md']	단위가 하나면 `<TSK>-build` 그대로다 — 이름·게이트·재시도가 종전과 같다
+dflow-dev-gate-economy.test.ts:257	['dflow-dev/references/orch/build.md']	이어 띄우기는 단위마다 2회까지다
+dflow-dev-gate-economy.test.ts:258	['dflow-dev/references/orch/build.md']	마지막 단위가 아니면 게이트 없이 곧바로
+dflow-dev-gate-economy.test.ts:259	['dflow-dev/references/orch/build.md']	`build_unit`(선택)은 지금 도는 구현 단위
+dflow-dev-gate-economy.test.ts:260	['dflow-dev/references/orch/build.md']	단위가 몇 개든 `phase` 는 Build 동안 `build` 하나다
+dflow-dev-gate-economy.test.ts:261	['dflow-dev/references/orch/build.md']	띄우기 직전 state.json 의 `model` 과 `build_unit` 을 쓴다
+dflow-dev-gate-economy.test.ts:268	['dflow-dev/references/orch/build.md']	git log <기점>..HEAD --grep='DFlow-Unit: <단위> handoff' --format=%h` 줄 수로 센다
+dflow-dev-gate-economy.test.ts:307	['dflow-dev/references/orch/build.md']	`heavy.sh bash -c '<명령>'` 으로 감싸 돌고(복합 명령도 한 슬롯에서)
+dflow-dev-model-trial.test.ts:189	['dflow-dev/references/orch/build.md']	승급한 에이전트와 게이트 재시도 에이전트는 시험 단위가 아니므로 `{ADVISOR_POLICY}` 를 `막혔을 때만` 으로 채운다
+dflow-dev-model-trial.test.ts:241	['dflow-dev/references/orch/build.md']	인계 상한(단위마다 2회)은 그대로이고 승급은 그 자리의 모델만 바꾼다
+dflow-dev-model-trial.test.ts:242	['dflow-dev/references/orch/build.md']	인계가 이미 2회면(이 커밋이 세 번째가 된다) 바꾸지 않고 Build 실패다
+dflow-dev-model-trial.test.ts:243	['dflow-dev/references/orch/build.md']	그 단위가 끝나면 남은 단위는 원래 모델로 돌아간다
+dflow-dev-model-trial.test.ts:244	['dflow-dev/references/orch/build.md']	이어 띄우기는 단위마다 2회까지다
+dflow-dev-model-trial.test.ts:247	['dflow-dev/references/orch/build.md']	둘 다 아닌 보고는 opus 단위면 Build 실패이고, sonnet 단위면 아래 「승급」 이다
+dflow-dev-model-trial.test.ts:254	['dflow-dev/references/orch/build.md']	범위 밖에 커밋되지 않은 변경이 남으면 Build 실패다
+dflow-dev-model-trial.test.ts:266	['dflow-dev/references/orch/build.md']	그 단위의 **가장 최근** `DFlow-Unit` 트레일러가 `done` 이면 끝난 단위다
+dflow-dev-model-trial.test.ts:272	['dflow-dev/references/orch/build.md']	state.json `model` 을 바꾸기 **전에** 보낸다
+dflow-dev-model-trial.test.ts:273	['dflow-dev/references/orch/build.md']	state.json `model` 을 opus 로 쓰고 이어받기 `<TSK>-build-<단위>-c<n>` 을 opus 로 띄운다
+dflow-design-first.test.ts:228	['dflow-dev/references/orch/claim.md']	`dflow.sh contract-ge 2.9` 가 exit 0 이면 늘 `dflow.sh claim <ref> --design-first` 다
+dflow-design-first.test.ts:229	['dflow-dev/references/orch/claim.md']	exit 4 에 stderr `DESIGN_FIRST_TOO_EARLY` 면 아래 재시도를 하지 않는다
+dflow-dev-scope.test.ts:82	['dflow-dev/references/orch/claim.md']	출력의 `CLAIM_SCOPE <범위>` 줄이 서버가 저장한 범위다
+dflow-dev-scope.test.ts:83	['dflow-dev/references/orch/claim.md']	설계 관문 거부다 — 아래 재시도를 하지 않고 원래 위치로 돌아가
+dflow-dev-scope.test.ts:84	['dflow-dev/references/orch/claim.md']	같은 쓰기에서 `scope` 를 적는다 — claim 출력의 `CLAIM_SCOPE` 값이고
+dflow-dev-scope.test.ts:87	['dflow-dev/references/orch/claim.md']	**범위 `build`(구현자동)의 설계 폴더도 예외다**
+dflow-dev-worker.test.ts:123	['dflow-dev/references/orch/claim.md']	`branch_base`(기점 커밋 sha)·`risk`(선행 반려 시 재작업)와 `api_base`(상태 모델)를 기록한다
+dflow-dev-worker.test.ts:157	['dflow-dev/references/orch/claim.md']	기점 이동이 실패하면 claim 하지 않고 중단·보고한다
+dflow-dev-worker.test.ts:160	['dflow-dev/references/orch/claim.md']	`origin/<기본브랜치>` 여도 detach 한다
+dflow-dev-worker.test.ts:165	['dflow-dev/references/orch/claim.md']	`git switch -` 는 쓰지 않는다
+dflow-prepare-phase.test.ts:30	['dflow-dev/references/orch/claim.md']	`phase` 를 `prepare` 로 쓴다
+dflow-prepare-phase.test.ts:31	['dflow-dev/references/orch/claim.md']	반려 재작업 경로(`phase=rejected`)에서는 쓰지 않는다
+dflow-dev-scope.test.ts:171	['dflow-dev/references/orch/close.md']	done 이 exit 12(stderr 끝줄 `RUNNER_ACTIVE <runner>`)면
+dflow-dev-scope.test.ts:172	['dflow-dev/references/orch/close.md']	exit 11(`DESIGN_GATE <code>`)이면 서버가 완료 보고를 거부했다
+dflow-dev-worker.test.ts:179	['dflow-dev/references/orch/close.md']	그 파일을 파일명을 명시해 커밋한 뒤 `git push origin <agent 브랜치>` 한다
+dflow-dev-worker.test.ts:181	['dflow-dev/references/orch/close.md']	둘 다 원격 agent 브랜치까지 본다
+dflow-dev-worker.test.ts:182	['dflow-dev/references/orch/close.md']	현재 작업트리의 state.json 만 보므로
+worker-decide-and-notify.test.ts:36	['dflow-dev/references/orch/close.md']	supervised 모드(플래그 없음)도 넘긴다
+worker-decide-and-notify.test.ts:37	['dflow-dev/references/orch/close.md']	done 이 exit 0 이면 지우고
+dflow-design-first.test.ts:240	['dflow-dev/references/orch/design-first.md']	0. 그 agent 브랜치로 switch 한다
+dflow-design-first.test.ts:243	['dflow-dev/references/orch/design-first.md']	다시 하는 것은 **어느 커밋을 기점으로 삼을지의 판정뿐**이다
+dflow-design-first.test.ts:246	['dflow-dev/references/orch/design-first.md']	`dflow-prepare.done`(준비 빌드 표식)은 늘 지운 뒤 행 H 의 `deps.sh` 를 다시 부른다
+dflow-dev-scope.test.ts:154	['dflow-dev/references/orch/design-first.md']	계약 2.11(`dflow.sh contract-ge 2.11` 이 exit 0)이면 heartbeat 대신 `dflow.sh design-done <ref>` 를 부른다
+dflow-dev-scope.test.ts:160	['dflow-dev/references/orch/design-first.md']	`human` 은 design.md 를 고치지 않고
+dflow-design-first.test.ts:232	['dflow-dev/references/orch/design.md']	Design 게이트가 통과하면 아래 모듈 기준선보다 먼저 `dflow.sh build-start <ref>` 를 부른다
+dflow-dev-scope.test.ts:101	['dflow-dev/references/orch/design.md']	위 호출은 `dflow.sh build-start <ref> --scope <범위>` 다
+dflow-dev-scope.test.ts:102	['dflow-dev/references/orch/design.md']	반려 재작업(`orch/rework.md`)이면 방식과 무관하게 `rework` 다
+dflow-dev-scope.test.ts:112	['dflow-dev/references/orch/design.md']	`build-start` 를 **부르지 않는다**
+dflow-dev-scope.test.ts:123	['dflow-dev/references/orch/design.md']	**이미 `ip` 이상이면**
+dflow-dev-scope.test.ts:124	['dflow-dev/references/orch/design.md']	design-reopen 을 부르지 않는다 — 서버는 설계 상태가 `review` 이거나 `accepted`∧단계 `dd` 일 때만 그 동사를 받는다
+dflow-dev-scope.test.ts:126	['dflow-dev/references/orch/design.md']	**단계가 아직 `ds`·`dd` 면** 빠진 절을 적어
+dflow-dev-scope.test.ts:133	['dflow-dev/references/orch/design.md']	Design 으로 후퇴하려 하면 후퇴하지 않고
+dflow-dev-scope.test.ts:134	['dflow-dev/references/orch/design.md']	「설계 받기」 자체의 게이트 불통도 같다
+dflow-dev-background-gate.test.ts:48	['dflow-dev/references/orch/phase-common.md']	`wait <PID>` 는 그 PID 가 이 Bash 호출의
+dflow-dev-background-gate.test.ts:80	['dflow-dev/references/orch/phase-common.md']	프로세스
+dflow-dev-background-gate.test.ts:81	['dflow-dev/references/orch/phase-common.md']	그 프로세스가 아직 돌고 있으면 알림을 기다리지 말고
+dflow-dev-background-gate.test.ts:82	['dflow-dev/references/orch/phase-common.md']	오케스트레이터가 포그라운드에서 그 프로세스가 끝날 때까지 직접 기다린 뒤
+dflow-dev-background-gate.test.ts:83	['dflow-dev/references/orch/phase-common.md']	오지 않을 알림을 기다리며 입력 대기로 멈추지 않는다
+dflow-dev-background-gate.test.ts:86	['dflow-dev/references/orch/phase-common.md']	"게이트를 돌린다" 를 "그 단위 커밋을 확인하고 다음 단위를 띄운다" 로 읽는다
+dflow-dev-gate-economy.test.ts:146	['dflow-dev/references/orch/phase-common.md']	**Build 게이트가 실패하면 곧바로
+dflow-dev-gate-economy.test.ts:147	['dflow-dev/references/orch/phase-common.md']	SendMessage 가 안 되면(이미 회수됐거나 도구가 없다) 같은 Phase·같은 모델의 새 에이전트를 실패 목록과 함께 띄운다
+dflow-dev-gate-economy.test.ts:213	['dflow-dev/references/orch/phase-common.md']	템플릿을 그대로 보내고 `{…}` 변수만 채운다**
+dflow-dev-gate-economy.test.ts:232	['dflow-dev/references/orch/phase-common.md']	`.claude/skills/dflow-dev/references/phase-prompt.md` 의 템플릿
+dflow-dev-gate-economy.test.ts:275	['dflow-dev/references/orch/phase-common.md']	Build 는 띄울 때 붙인 이름 그대로(`-c<n>` 포함) 회수하고
+dflow-dev-gate-economy.test.ts:334	['dflow-dev/references/orch/phase-common.md']	**게이트 기록**: 위 게이트 명령과 모듈 기준선 측정을 돌릴 때마다 build-log.md `## 게이트 기록`
+dflow-dev-gate-economy.test.ts:364	['dflow-dev/references/orch/phase-common.md']	Verify 작성자의 `VERIFY_EXEC` 는 게이트 시점이 아니다
+dflow-dev-model-trial.test.ts:232	['dflow-dev/references/orch/phase-common.md']	이 opus 재시도가 1회 재시도 자리를 대신한다(횟수는 늘지 않는다)
+dflow-dev-model-trial.test.ts:233	['dflow-dev/references/orch/phase-common.md']	위 부하 민감 단독 재실행이 먼저다(통과하면 재시도도 승급도 없다)
+dflow-dev-model-trial.test.ts:235	['dflow-dev/references/orch/phase-common.md']	(Build 에서 그 모델이 sonnet 이었으면 위대로 opus 새 에이전트다.)
+dflow-row-g-evidence.test.ts:61	['dflow-dev/references/orch/phase-common.md']	워커·수동 경로 모두 예외 없다
+dflow-row-g-evidence.test.ts:66	['dflow-dev/references/orch/phase-common.md']	모든 커밋에 `--trailer "DFlow-Order: <주문 UUID>"` 를 붙이는 것
+dflow-row-g-evidence.test.ts:67	['dflow-dev/references/orch/phase-common.md']	Design·Build·Verify·Refactor·Phase 06 마감 커밋 전부
+dflow-dev-gate-economy.test.ts:51	['dflow-dev/references/orch/refactor.md']	Refactor 가 커밋을 남기지 않았으면 Refactor 게이트를 돌리지 않는다
+dflow-dev-scope.test.ts:164	['dflow-dev/references/orch/rework.md']	서버 `claim_scope` 가 `build` 면
+dflow-dev-scope.test.ts:166	['dflow-dev/references/orch/rework.md']	재작업의 `build-start` 는 방식과 무관하게 `--scope rework` 다
+dflow-dev-split.test.ts:137	['dflow-dev/references/orch/rework.md']	**재개가 아니라 재작업이다.**
+dflow-config-docs-skills.test.ts:13	['dflow-dev/references/orch/start.md', 'dflow-merge/SKILL.md']	`<기본브랜치>` 는 개발 브랜치, 즉 `dflow.sh branch dev` 의 값이다
+dflow-task-dirs-docs.test.ts:24	['dflow-dev/references/orch/start.md', 'dflow-merge/SKILL.md']	작업 폴더 `<TASKS>` 는 `<DOCS_DIR>/tasks` 다
+dflow-dev-scope.test.ts:35	['dflow-dev/references/orch/start.md']	**서버 판단(계약 2.11)** — `dflow.sh contract-ge 2.11` 이 exit 0 이면
+dflow-dev-scope.test.ts:36	['dflow-dev/references/orch/start.md']	계약 2.11 이 아니면(옛 서버) 이 문단을 건너뛰고 종전대로 한다
+dflow-dev-scope.test.ts:40	['dflow-dev/references/orch/start.md']	**빠진 절을 스스로 채우지 않는다**
+dflow-dev-scope.test.ts:43	['dflow-dev/references/orch/start.md']	`action` 이 `wait`·`skip` 이면 착수하지 않고 `"{TSK} 지금은 할 일이 없다 — <action_reason>"`
+dflow-dev-scope.test.ts:46	['dflow-dev/references/orch/start.md']	`mine` 이 거짓이면 이어 가지 않는다
+dflow-dev-scope.test.ts:49	['dflow-dev/references/orch/start.md']	claimed 의 범위는 서버 `claim_scope` 로 정한다
+dflow-dev-scope.test.ts:50	['dflow-dev/references/orch/start.md']	수동 `--scope` 는 무시하고 그 사실을 한 줄 남긴다
+dflow-dev-scope.test.ts:58	['dflow-dev/references/orch/start.md']	로컬이 앞서 있으면 `git push origin <agent 브랜치>` 한다
+dflow-dev-scope.test.ts:63	['dflow-dev/references/orch/start.md']	「3」 0 의 switch 뒤, 1 전에 `orch/design.md` 「설계 받기」 를 한다
+dflow-dev-scope.test.ts:64	['dflow-dev/references/orch/start.md']	`## 선행 기준` 절이 있을 때만 한다
+dflow-dev-scope.test.ts:98	['dflow-dev/references/orch/start.md']	빠진 절을 스스로 채우지 않는다
+dflow-dev-worker.test.ts:149	['dflow-dev/references/orch/start.md']	`SWEEP_NONE` 으로 건너뛰어 아직 읽지 않았으면 먼저 읽는다
+dflow-dev-split.test.ts:118	['dflow-dev/references/orch/sweep.md', 'dflow-dev/references/orch/phase-common.md', 'dflow-dev/references/orch/claim.md', 'dflow-dev/references/orch/base.md', 'dflow-dev/references/orch/verify.md', 'dflow-dev/references/orch/design-first.md', 'dflow-dev/references/orch/close.md', 'dflow-dev/references/orch/baseline.md', 'dflow-dev/references/orch/refactor.md', 'dflow-dev/references/orch/build.md', 'dflow-dev/references/orch/design.md', 'dflow-dev/references/orch/rework.md', 'dflow-dev/references/orch/start.md']	SKILL.md 「단계 지도」 가 가리킬 때 읽는다
+dflow-dev-worker.test.ts:132	['dflow-dev/references/orch/sweep.md']	같은 order 가 로컬과 원격에 모두 있으면 로컬 후보 하나로 합친다
+dflow-dev-worker.test.ts:134	['dflow-dev/references/orch/sweep.md']	`/dflow-merge` SKILL.md(`.claude/skills/dflow-merge/SKILL.md`) 2~5번을 그대로 따른다
+dflow-dev-worker.test.ts:143	['dflow-dev/references/orch/sweep.md']	| `SWEEP_NONE` | `/dflow-merge` 를 읽지 않고 1~5번을 건너뛴다.
+dflow-dev-worker.test.ts:144	['dflow-dev/references/orch/sweep.md']	| `SWEEP_UNKNOWN <사유>`, 빈 출력, 스크립트 없음(옛 킷), `rc` 가 0 이 아님 | **스윕을 돌린다**(fail-open)
+dflow-dev-worker.test.ts:145	['dflow-dev/references/orch/sweep.md']	글자 그대로 `SWEEP_NONE` 일 때만 건너뛴다
+dflow-dev-gate-economy.test.ts:183	['dflow-dev/references/orch/verify.md']	**대응표가 있고 `build_gate.scope` 가 `module` 이면 Verify 게이트는 재실행을 생략하지 않고 `full` 명령을 한 번 돈다**
+dflow-dev-gate-economy.test.ts:191	['dflow-dev/references/orch/verify.md']	research/docs 특례 작업(dev-discipline 「research/docs 작업 특례」)은 표 대신
+dflow-dev-gate-economy.test.ts:231	['dflow-dev/references/orch/verify.md']	**Verify 의 감사 확인**: build-log.md 「변이 검증 기록」 표
+dflow-dev-gate-economy.test.ts:360	['dflow-dev/references/orch/verify.md']	**Verify 는 읽기 전용 감사자 셋과 작성자 하나를 한 메시지에 동시에 띄운다**
+dflow-dev-gate-economy.test.ts:361	['dflow-dev/references/orch/verify.md']	**이름(`name`)을 붙이지 않고 띄운다**
+dflow-dev-gate-economy.test.ts:367	['dflow-dev/references/orch/verify.md']	Verify 재시도(「Phase 02~05 공통」 4번)는 작성자에게만 이어 붙이고 감사자는 다시 띄우지 않는다
+dflow-dev-model-trial.test.ts:224	['dflow-dev/references/orch/verify.md']	같은 때 state.json `verify_findings.<역할>` 에 지적 수를
+dflow-dev-model-trial.test.ts:303	['dflow-dev/references/orch/verify.md']	`model: "sonnet"` 을 준다
+dflow-dev-build-parallel.test.ts:147	['dflow-dev/references/phase-build.md']	`{TASK_DIR}/unit-report-<단위>.md` 에도 쓴다(git 에는 쓰지 않는다)
+dflow-dev-build-parallel.test.ts:66	['dflow-dev/references/phase-build.md']	단위별 하위 폴더라 병렬 단위끼리도 이름이 겹치지 않는다
+dflow-dev-build-parallel.test.ts:70	['dflow-dev/references/phase-build.md']	크기·mtime 이 원본과 같으면 Gradle 이 재컴파일을 건너뛴다
+dflow-dev-build-parallel.test.ts:74	['dflow-dev/references/phase-build.md']	<파일>` 은 쓰지 않는다
+dflow-dev-build-parallel.test.ts:78	['dflow-dev/references/phase-build.md']	`git stash` 는 쓰지
+dflow-dev-build-parallel.test.ts:79	['dflow-dev/references/phase-build.md']	않는다(스택이 워크트리 전체에 공유된다)
+dflow-dev-build-parallel.test.ts:87	['dflow-dev/references/phase-build.md']	「TDD 와 변이 검증 > 되돌리기」의 규칙
+dflow-dev-gate-economy.test.ts:160	['dflow-dev/references/phase-build.md']	vitest
+dflow-dev-gate-economy.test.ts:163	['dflow-dev/references/phase-build.md']	`git stash` 는 쓰지 않는다
+dflow-dev-gate-economy.test.ts:168	['dflow-dev/references/phase-build.md']	**Gradle 변이 스크립트는 데몬을 재사용한다(`--no-daemon` 을 쓰지 않는다).**
+dflow-dev-gate-economy.test.ts:189	['dflow-dev/references/phase-build.md']	research/docs 특례 작업(spec 의 category 가 research/docs. dev-discipline.md 「research/docs 작업 특례」)은 변이할 코드가 없으므로
+dflow-dev-gate-economy.test.ts:242	['dflow-dev/references/phase-build.md']	**마지막 단위가 연결을 맡는다**
+dflow-dev-gate-economy.test.ts:250	['dflow-dev/references/phase-build.md']	Build 전체는 마지막 단위(연결 테스트 포함)가 끝나야 완료다
+dflow-dev-gate-economy.test.ts:274	['dflow-dev/references/phase-build.md']	다른 단위의 파일은 고치지 않는다(Build 게이트 재시도 때는 Build 전체를 고친다)
+dflow-dev-gate-economy.test.ts:325	['dflow-dev/references/phase-build.md']	**강제 재실행(`--rerun-tasks`·`cleanTest`)은 부분 실행 상태가 남았을 때만 쓴다**
+dflow-mutate.test.ts:119	['dflow-dev/references/phase-build.md']	변이 칸은 ID 로 시작한다
+dflow-dev-build-parallel.test.ts:154	['dflow-dev/references/phase-design.md']	공유 자원을 바꾸는 단위는 어느 묶음에도 넣지 않는다(혼자 한 묶음)
+dflow-dev-build-parallel.test.ts:29	['dflow-dev/references/phase-design.md']	같은 묶음 번호의 단위는 같은 워크트리에서 동시에 돈다
+dflow-dev-build-parallel.test.ts:33	['dflow-dev/references/phase-design.md']	서로의 산출물(API·타입·스키마)에 기대지 않는다
+dflow-dev-build-parallel.test.ts:34	['dflow-dev/references/phase-design.md']	단위끼리 같은 파일을 고치지 않게 나눈다
+dflow-dev-build-parallel.test.ts:37	['dflow-dev/references/phase-design.md']	마지막 단위는 혼자 마지막 묶음이다
+dflow-dev-build-parallel.test.ts:38	['dflow-dev/references/phase-design.md']	`묶음` 열이 없거나 비면 단위마다 다른 묶음이다(종전 순차)
+dflow-dev-gate-economy.test.ts:228	['dflow-dev/references/phase-design.md']	design.md 에는 설계만 쓴다
+dflow-dev-gate-economy.test.ts:240	['dflow-dev/references/phase-design.md']	**작업 전체가 도구 호출 약 120회 안에 끝날 것으로 보이면 표를 생략한다** — 단위 하나(B1)이며 종전 Build 와 같다.
+dflow-dev-gate-economy.test.ts:249	['dflow-dev/references/phase-design.md']	design.md 에 `## 구현 단위` 표를 둔다
+dflow-dev-gate-economy.test.ts:400	['dflow-dev/references/phase-design.md']	도구 호출 약 50~100회에 끝날 크기로(50회 미만으로 예상되는 단위는 이웃 단위와 합친다)
+dflow-dev-background-gate.test.ts:56	['dflow-dev/references/phase-prompt.md']	Bash 의 timeout 은 최대 600000ms(10분)
+dflow-dev-background-gate.test.ts:57	['dflow-dev/references/phase-prompt.md']	하네스가 시간 초과로 자동으로 백그라운드로 옮긴 경우도 위 '백그라운드로 띄웠다면'과 똑같이 다룬다
+dflow-dev-build-parallel.test.ts:148	['dflow-dev/references/phase-prompt.md']	자기 단위 보고 파일(unit-report-<단위>.md)만 쓰고
+dflow-dev-gate-economy.test.ts:220	['dflow-dev/references/phase-prompt.md']	design.md 전체는 처음 한 번만 Read 하고
+dflow-dev-gate-economy.test.ts:279	['dflow-dev/references/phase-prompt.md']	`{TSK}`·`{PHASE}`·`{TASK_DIR}`·`{ORDER}` 는 늘 값이 있다
+dflow-dev-model-trial.test.ts:133	['dflow-dev/references/phase-prompt.md']	`{MODEL}`·`{ADVISOR_POLICY}` 도 늘 값이 있다
+dflow-dev-model-trial.test.ts:294	['dflow-dev/references/phase-prompt.md']	파일·선례·위치 찾기 같은 위치 조사는 `haiku`(기본), 조사 결과를 해석·판단해야 하는 조사(설계 대안 비교, 코드 의미 검토)는 `sonnet`
+dflow-dev-gate-economy.test.ts:173	['dflow-dev/references/phase-verify.md', 'dflow-dev/references/orch/build.md']	전체 스위트를 다시 돌리지 않는다
+dflow-dev-gate-economy.test.ts:174	['dflow-dev/references/phase-verify.md']	「변이 검증 기록」 표의 의심 행 전부와 표본 2행만
+dflow-dev-gate-economy.test.ts:175	['dflow-dev/references/phase-verify.md']	**화면 작업이면 E2E 를 돌린다**
+dflow-dev-gate-economy.test.ts:181	['dflow-dev/references/phase-verify.md']	**리포에 게이트 대응표(`.dflow-gates`)가 있으면** Build 게이트는 바꾼 모듈만 돌았을 수 있다
+dflow-dev-gate-economy.test.ts:190	['dflow-dev/references/phase-verify.md']	research/docs 특례 작업은 표 대신 문서 검증 체크리스트를 순회한다
+dflow-dev-gate-economy.test.ts:227	['dflow-dev/references/phase-verify.md']	build-log.md 「변이 검증 기록」 표의 의심 행 전부와 표본 2행만
+dflow-dev-gate-economy.test.ts:352	['dflow-dev/references/phase-verify.md']	**Verify 는 읽기 전용 감사자 셋과 작성자 하나(당신)로 나뉜다.**
+dflow-dev-gate-economy.test.ts:353	['dflow-dev/references/phase-verify.md']	작업 트리를 고치는 것은 당신 혼자다
+dflow-dev-gate-economy.test.ts:355	['dflow-dev/references/phase-verify.md']	`수용`·`기각(사유)` 을 판정하고
+dflow-dev-gate-economy.test.ts:356	['dflow-dev/references/phase-verify.md']	감사 지적을 받아 처리하는 왕복은 재시도에 세지 않는다
+dflow-dev-gate-economy.test.ts:389	['dflow-dev/references/phase-verify.md']	잡은 테스트 칸이 비었거나 `-` 인 행
+dflow-dev-gate-economy.test.ts:390	['dflow-dev/references/phase-verify.md']	`안 잡힘(보강함)` 행(보강한 테스트가 실제로 잡는지)
+dflow-dev-gate-economy.test.ts:391	['dflow-dev/references/phase-verify.md']	서로 다른 불변 규칙의 행 2개를 고른다
+dflow-dev-gate-economy.test.ts:392	['dflow-dev/references/phase-verify.md']	고른 행과 고른 이유를 보고에 적는다
+dflow-dev-gate-economy.test.ts:393	['dflow-dev/references/phase-verify.md']	**표본이 하나라도 기록과 다르게 나오면(안 잡힘) 표본 감사를 버리고 남은 행을 모두 다시 넣는다.**
+dflow-mutate.test.ts:124	['dflow-dev/references/phase-verify.md']	변이 위치를 찾으려고 소스를 다시 읽거나 조사 에이전트를 띄우지 않는다
+dflow-mutate.test.ts:125	['dflow-dev/references/phase-verify.md']	E2E 변이 행(`e2e: yes`)은 다시 넣는 행 전체에서 1행까지다
+dflow-design-first.test.ts:262	['dflow-dev/references/worker-mode.md']	서버 계약이 2.9 이상이면 갈래 1 은 아래 「설계 선행」 이 대신한다
+dflow-design-first.test.ts:264	['dflow-dev/references/worker-mode.md']	agent 브랜치 위의 머지이므로
+dflow-dev-gate-economy.test.ts:48	['dflow-dev/references/worker-mode.md']	**실행하지 않는다.**
+dflow-dev-gate-economy.test.ts:73	['dflow-dev/references/worker-mode.md']	`DEPS_BUSY <폴더>`(exit 75)는 실패가 아니다
+dflow-dev-worker.test.ts:228	['dflow-dev/references/worker-mode.md']	기점을 그 `head_sha` 로 잡고
+dflow-dev-worker.test.ts:231	['dflow-dev/references/worker-mode.md']	AskUserQuestion 을 쓰지 않는다
+dflow-dev-worker.test.ts:242	['dflow-dev/references/worker-mode.md']	생성 또는 재개로 agent 브랜치에 들어온 직후, 4번 기준선과 Phase 02~05 게이트 전
+dflow-lead-worktree.test.ts:346	['dflow-dev/references/worker-mode.md']	`scripts/deps.sh` 머리 주석이 정본이다
+dflow-row-g-evidence.test.ts:31	['dflow-dev/references/worker-mode.md']	판정은 `phase=merged` **AND** (아래 세 증거 중 하나라도 참) 이다
+dflow-row-g-evidence.test.ts:32	['dflow-dev/references/worker-mode.md']	**첫 증거가 가장 강하다**
+dflow-row-g-evidence.test.ts:33	['dflow-dev/references/worker-mode.md']	head_sha` 가 없으면 첫 증거는 판정 불가로 건너뛰고 나머지 둘로 본다
+dflow-row-g-evidence.test.ts:37	['dflow-dev/references/worker-mode.md']	트레일러 패턴(증거 2)의 콜론 뒤 **공백을 반드시 넣고 따옴표로 감싼다.**
+dflow-row-g-evidence.test.ts:39	['dflow-dev/references/worker-mode.md']	팀장의 자동 머지(`automerge=1`)가 승인 전에 머지한 선행도 `phase` 는 `merged` 이고 `unapproved: true` 가
+dflow-row-g-evidence.test.ts:40	['dflow-dev/references/worker-mode.md']	`unapproved` 는 이 판정에서 보지 않는다.
+dflow-row-g-evidence.test.ts:47	['dflow-dev/references/worker-mode.md']	판정 이력(실측 사례)은 `scripts/pred-reflected.sh` 머리 주석에 있다
+dflow-row-g-evidence.test.ts:51	['dflow-dev/references/worker-mode.md']	`REFLECTED` 면 반영이 확인된 것이다
+dflow-row-g-evidence.test.ts:52	['dflow-dev/references/worker-mode.md']	`NOT_REFLECTED`·`UNKNOWN` 은 모두 `skipped 선행 승인 대기` 다
+dflow-team.test.ts:129	['dflow-dev/references/worker-mode.md']	AskUserQuestion 을 쓰지 않는다
+worker-decide-and-notify.test.ts:21	['dflow-dev/references/worker-mode.md']	`blocked` 는 되돌리기 어려운 결정(데이터 삭제·외부 공개·다른 Task 산출물의 대폭 수정·보안·권한 변경)에만 쓴다
+worker-decide-and-notify.test.ts:26	['dflow-dev/references/worker-mode.md']	Phase 06 `done` 요약 끝에 `확인 필요 결정 N건: …` 을 싣는다
+dflow-dev-worker.test.ts:227	['dflow-dev/SKILL.md', 'dflow-dev/references/worker-mode.md']	**팀장 전용, 사람이 직접 쓰지 않는다.**
+dflow-design-first.test.ts:252	['dflow-dev/SKILL.md']	`wait_pred` 는 설계를 마치고 선행을 기다리며 멈춘 상태다
+dflow-dev-gate-economy.test.ts:295	['dflow-dev/SKILL.md']	리포에 `.dflow-gates` 가 있으면 `게이트 범위 대응표`
+dflow-dev-scope.test.ts:18	['dflow-dev/SKILL.md']	`--only` 와 함께 오면 사용법을 알리고 멈춘다
+dflow-dev-scope.test.ts:19	['dflow-dev/SKILL.md']	범위를 정하는 규칙(서버 판단·`claim_scope`·옛 서버)은 `orch/start.md` 「서버 판단」
+dflow-dev-scope.test.ts:22	['dflow-dev/SKILL.md']	사람의 「설계 승인」을 기다리며 멈춘 상태다
+dflow-dev-scope.test.ts:23	['dflow-dev/SKILL.md']	이어 갈지는 서버 설계 상태가 정한다
+dflow-dev-scope.test.ts:24	['dflow-dev/SKILL.md']	exit 12(다른 PC 가 이어받음)도 그 자리에서 멈추되 state.json 은 바꾸지 않는다
+dflow-dev-split.test.ts:125	['dflow-dev/SKILL.md']	압축 요약의 기억으로 단계 절차를 대신하지 않는다
+dflow-dev-split.test.ts:130	['dflow-dev/SKILL.md']	`--worker` 는 `/dflow-team` 팀장 전용 플래그다
+dflow-dev-worker.test.ts:119	['dflow-dev/SKILL.md']	끝 `/` 를 뺀 값
+dflow-dev-worker.test.ts:120	['dflow-dev/SKILL.md']	Phase 01 에서 state.json 을 처음 쓰는 곳
+dflow-dev-worker.test.ts:121	['dflow-dev/SKILL.md']	반려 재작업이 기존 state.json 에 `phase=rejected` 를 쓸 때
+dflow-team-restart-docs.test.ts:19	['dflow-dev/SKILL.md']	`/dflow-team` 팀장이 spawn 직전에 서버 status(`ready`·`claimed`)로 확인하고 지운다
+dflow-merge-resolve.test.ts:52	['dflow-merge/references/resolve.md']	머지 자리는 **호출한 워크트리 자신**
+dflow-merge-resolve.test.ts:59	['dflow-merge/references/resolve.md']	한 세션 안에서 2회까지
+dflow-merge-resolve.test.ts:80	['dflow-merge/references/resolve.md']	커밋 **전에**, stage 한 트리에서
+dflow-merge-resolve.test.ts:88	['dflow-merge/references/resolve.md']	머지 커밋 sha 는 6번에서 기록한 `git rev-parse HEAD` 값이다
+dflow-dialect-check.test.ts:320	['dflow-merge/SKILL.md', 'dflow-merge/references/dialect.md']	머지마다 돌리지 않는다
+dflow-merge-remote.test.ts:159	['dflow-merge/SKILL.md', 'dflow-merge/references/unapproved.md']	절대 다시 머지하지 않는다
+dflow-merge-remote.test.ts:161	['dflow-merge/SKILL.md', 'dflow-merge/references/unapproved.md']	절대 다시 머지하지 않는다
+dflow-dialect-check.test.ts:321	['dflow-merge/SKILL.md']	`--resolve` 는 이 절을 타지 않는다
+dflow-dialect-check.test.ts:323	['dflow-merge/SKILL.md']	「방언 검증」 을 한 번 돈다
+dflow-dialect-check.test.ts:341	['dflow-merge/SKILL.md']	결과 줄(`DIALECT_*`, `DIALECT_SKIP` 제외)과 `DIALECT_UNVERIFIED` 줄을 표 아래에 그대로 싣는다
+dflow-force-progress.test.ts:82	['dflow-merge/SKILL.md']	개발 브랜치와 운영 브랜치가 같으면
+dflow-merge-decisions.test.ts:397	['dflow-merge/SKILL.md']	`merge=union` 을 걸지 않는다
+dflow-merge-remote.test.ts:105	['dflow-merge/SKILL.md']	반려는 로컬 후보도 state.json 을 고치지 않고 보고만 한다
+dflow-merge-remote.test.ts:141	['dflow-merge/SKILL.md']	건너뛰고 보고한다
+dflow-merge-remote.test.ts:151	['dflow-merge/SKILL.md']	승인 전 머지면 같은 커밋에서 `unapproved: true` 를 함께 넣는다
+dflow-merge-remote.test.ts:167	['dflow-merge/SKILL.md']	**approved 확인 전 머지 절대 금지** — 로컬 state 나 기억이 아니라 show 응답이 판정이다.
+dflow-merge-remote.test.ts:168	['dflow-merge/SKILL.md']	예외는 `--on-report` 의 반려되지 않은 `reported` 하나뿐이다
+dflow-merge-remote.test.ts:77	['dflow-merge/SKILL.md']	`git show` 에는 glob 을 쓰지 않는다
+dflow-merge-remote.test.ts:78	['dflow-merge/SKILL.md']	**`phase` 가 `merged` 가 아니면 전부 후보**
+dflow-merge-remote.test.ts:83	['dflow-merge/SKILL.md']	같은 order 가 로컬과 원격에 모두 있으면 로컬 후보 하나로 합쳐 로컬 규칙으로
+dflow-merge-remote.test.ts:84	['dflow-merge/SKILL.md']	`api_base` 는 값이 있는 쪽을 쓰고
+dflow-merge-remote.test.ts:86	['dflow-merge/SKILL.md']	순서는 중복 제거 → `api_base` 필터다
+dflow-merge-remote.test.ts:89	['dflow-merge/SKILL.md']	로컬이든 원격이든 "건너뜀(다른 D'Flow)" 로 보고한다
+dflow-merge-remote.test.ts:90	['dflow-merge/SKILL.md']	원격 후보는 값이 없어도 건너뛴다
+dflow-merge-remote.test.ts:91	['dflow-merge/SKILL.md']	값이 없는 로컬 후보
+dflow-merge-remote.test.ts:96	['dflow-merge/SKILL.md']	서버 조회는 state.json 의 전체 UUID 로 한다
+dflow-row-g-evidence.test.ts:76	['dflow-merge/SKILL.md']	손으로 풀어 `git merge --abort` 대신 직접 `git commit` 으로 머지를 완성하는 경로
+dflow-row-g-evidence.test.ts:79	['dflow-merge/SKILL.md']	어느 경로든 결과 메시지에 이 트레일러가 실려야 하는 것은 같다
+dflow-sweep-check.test.ts:248	['dflow-merge/SKILL.md']	**정본은 이 두 셸 블록이다**
+dflow-design-state-docs.test.ts:14	['dflow-poll/SKILL.md']	`--actions full` 도 표준이다
