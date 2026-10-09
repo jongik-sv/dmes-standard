@@ -88,7 +88,7 @@ sed -n '/^## 2\. 좌석 식별/,/^## 4\. 실행/{/^## 4\. 실행/!p;}' {MAIN_CHE
 | 해소 대상 agent branch tip(`MERGE_HEAD` 될 commit) 단독 | **MERGE_HEAD 단독 총수** | 총수만 |
 | `<BASE>` 와 그 branch 의 merge-base `<MB>` | **merge-base 총수** | 총수만. MERGE_HEAD 단독 − merge-base = 이 branch 가 더한 test 수 |
 
-게이트 하한 = "개발 branch 총수 + 이 branch 가 더한 test 수"(「게이트」). 한 총수만 보면 해소하며 이 branch test 를
+게이트 하한 = "개발 브랜치 총수 + 이 브랜치가 더한 시험 수"(「게이트」). 한 총수만 보면 해소하며 이 branch test 를
 지워도 통과.
 
 **세 수 모두 기준선 캐시(`baseline.mjs`, dev-discipline 「기준선 캐시」)나 기존 기록에서 얻음. 전체 test 를 맨손으로
@@ -174,7 +174,7 @@ Skill 도구가 `dflow-merge` 를 모르면 `.claude/skills/dflow-merge/SKILL.md
 | `RESOLVE_PUSH_FAILED <exit>` | `failed push-other <exit>` |
 | `RESOLVE_NOT_DETACHED` | `failed not-detached` |
 
-`RESOLVE_BASE_MOVED` 는 기준 이동과 push 경합 둘 다에서 옴. 이것으로 다시 하는 횟수 = 이 세션 안 합쳐 **2회**까지.
+`RESOLVE_BASE_MOVED` 는 기준 이동과 push 경합 둘 다에서 옴. 이것으로 다시 하는 횟수 = 이 세션 안에서 합쳐 **2회**까지.
 세 번째 `RESOLVE_BASE_MOVED` → `failed push-race`.
 
 ## 5. 서버 쓰기 없음
