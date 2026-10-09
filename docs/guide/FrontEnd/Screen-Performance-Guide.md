@@ -96,6 +96,7 @@ MDM 화면들에서 실제로 나온 문제만 모았다. 설명은 해당 R 절
 
 - **하지 말 것**: 조회·상세·저장 모두에 쓰는 `busy` 를 화면 루트에 두고 클릭 즉시 켜는 것.
 - **할 것**: 로딩이 필요한 부분만 그 상태를 받게 하고, 큰 상세 영역은 별도 컴포넌트(`memo`)로 나눈다. 목록 그리드 `loading` 은 목록 조회 전용 상태로 켠다([Local-Rules §11](Local-Rules.md#11-목록상세-선택-전환--깜빡임-금지-2026-09-29)).
+- **공통 훅 사용**: 용도별 상태는 `@dk-oasis/shared/form` 의 `useBusy()`(`run("list"|"save", fn)`·`isBusy(key)`)로 키별로 나눈다([useBusy](../../../.claude/skills/mantine-aggrid-ui/references/components/use-busy.md)).
 - **근거**: columnMng 은 클릭 즉시 화면 루트 전체(컴포넌트 261개)가 다시 렌더된다(5.2ms, 단일 렌더 최대. 검증 §5.2 S3, `columnMng/page.tsx:145-147,215-262`).
 - **어기면**: 서버가 빠른 화면에서는 응답 처리 앞에 5ms 대가 놓인다. 서버가 느린 화면에서는 체감에 거의 안 보인다.
 
@@ -152,6 +153,7 @@ MDM 화면들에서 실제로 나온 문제만 모았다. 설명은 해당 R 절
 
 - **하지 말 것**: 상세 폼 state 를 화면 루트에 두는 것. 그리드 `columns`·`data` 의 deps 에 폼 객체 전체를 두는 것.
 - **할 것**: 폼 state 는 **별도 상세 폼 컴포넌트** 안에 둔다. 저장 단추는 화면 루트(`MdmPageLayout buttons`)에 있으므로 루트는 `ref` 핸들로 폼과 대화한다(React 19 이므로 `ref` 를 prop 으로 받는다). 그리드 열 정의는 폼 값이 아니라 안정값(`hasForm` 같은 불리언·고정 콜백)에만 의존시킨다. 일부 칸만 바꾸는 동작(예: 「상세에 적용」)은 핸들에 `apply({ patch, ... })` 를 둔다(columnMng `ColumnDetailHandle`).
+- **공통 훅 사용**: 별도 상세 폼 컴포넌트의 초안·`ref` 핸들은 `@dk-oasis/shared/form` 의 `useDetailDraft(row, { onCommit, rowKey })` 로 만든다(`getDraft()`·`isDirty()`·`commit()`·`reset()`, 행 전환 때 이전 행 자동 반영)([useDetailDraft](../../../.claude/skills/mantine-aggrid-ui/references/components/use-detail-draft.md)).
 - **근거**: 수정 전에는 상세 폼에 한 글자를 칠 때마다(profiling 번들, 재측정 §3.3 수정 전 열. 같은 조건의 §3.2 첫 측정은 7.6ms·5.4ms 로 시간만 흔들렸다) 아래가 다시 그려졌다.
   - columnMng(폼이 루트 state) — 화면 루트 아래 268개 컴포넌트. 한 글자당 1커밋·7.3ms.
   - termMng(추천 그리드 열 `recoColumns` 가 `form` 에 의존) — 루트 171개에 더해 추천 그리드 셀 렌더러가 다시 그려지고, 셀 단독 커밋이 5글자에 100회. 한 글자당 21커밋·6.4ms.

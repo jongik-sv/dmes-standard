@@ -114,6 +114,14 @@ describe("useDetailDraft", () => {
     expect(s.onCommit).not.toHaveBeenCalled();
   });
 
+  it("행 객체가 새로 와도 rowKey 가 같으면 행 전환이 아니다(고치는 중 강제 반영 없음)", () => {
+    const s = setup({ id: 1, name: "가" });
+    type("입력 중");
+    s.setRow({ id: 1, name: "가" });
+    expect(s.onCommit).not.toHaveBeenCalled();
+    expect(input().value).toBe("입력 중");
+  });
+
   it("commit() 은 고친 칸이 없으면 부르지 않고, reset 은 반영 없이 초안을 바꾼다", () => {
     const s = setup({ id: 1, name: "가" });
     act(() => s.handle().commit());

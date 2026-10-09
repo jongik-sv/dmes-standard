@@ -97,3 +97,8 @@ const { validateValue } = useMdmValidation();
 ## 실제 사용 예
 
 - 아직 사용처 없음(`src/frontend/m-*` 에서 `<FormGroup` 검색 결과 0건).
+
+## 렌더 성능
+
+- `memo` 로 감싸져 있다. `children` 이 매 렌더 새 요소이면 효과가 없으므로, 입력 중 다시 그려지는 영역에서는 상세 폼 컴포넌트를 나눠 둔다([useDetailDraft](use-detail-draft.md)).
+- MDM HTML 카드의 스크린리더용 글자 사본은 라벨 hover·필드 focus 를 처음 받을 때 채운다. 그 전에도 `aria-describedby` 대상 span 은 있다.

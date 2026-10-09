@@ -30,8 +30,11 @@ export interface DetailDraftHandle<T extends object> {
 export interface UseDetailDraftOptions<T extends object> {
   /** 초안을 행에 반영할 때 불린다 — blur·`commit()`·행 전환 시. 인자는 반영할 초안과 그 초안이 시작된 행. */
   onCommit?: (draft: T, row: T) => void;
-  /** 행 식별. 기본은 객체 자체(참조). 이 값이 바뀌면 행 전환으로 본다. */
-  rowKey?: (row: T) => unknown;
+  /**
+   * 행 식별(필수). 이 값이 바뀌면 행 전환으로 본다. 참조가 아니라 ID 같은 값을 준다 —
+   * 저장 뒤 다시 읽어 같은 행의 객체가 새로 와도 행 전환으로 오인하지 않게 한다.
+   */
+  rowKey: (row: T) => unknown;
 }
 
 export interface UseDetailDraftResult<T extends object> {
@@ -59,17 +62,18 @@ function shallowEqual(a: object | null, b: object | null): boolean {
 
 export function useDetailDraft<T extends object>(
   row: T | null | undefined,
-  options: UseDetailDraftOptions<T> = {}
+  options: UseDetailDraftOptions<T>
 ): UseDetailDraftResult<T> {
   const current = row ?? null;
   const [draft, setDraftState] = useState<T | null>(current);
+  const [, setVersion] = useState(0);
   const draftRef = useRef<T | null>(current);
   /** 마지막 반영·초기화 시점의 값 — 고친 칸 판정 기준. */
   const baseRef = useRef<T | null>(current);
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
-  const keyOf = (r: T | null) => (r == null ? null : (optionsRef.current.rowKey ?? ((x: T) => x))(r));
+  const keyOf = (r: T | null) => (r == null ? null : optionsRef.current.rowKey(r));
   const lastKeyRef = useRef<unknown>(keyOf(current));
 
   const isDirty = useCallback(() => !shallowEqual(draftRef.current, baseRef.current), []);
@@ -79,6 +83,7 @@ export function useDetailDraft<T extends object>(
     const base = baseRef.current;
     if (cur == null || base == null || shallowEqual(cur, base)) return;
     baseRef.current = cur;
+    setVersion((n) => n + 1); // 렌더용 dirty 를 새로 읽게 한다(onCommit 이 props 를 안 바꿔도).
     optionsRef.current.onCommit?.(cur, base);
   }, []);
 
