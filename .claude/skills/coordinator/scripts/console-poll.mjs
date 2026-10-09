@@ -48,7 +48,8 @@ const mkdirOnly = (d) => { try { mkdirSync(d); return true; } catch { return fal
 const mkdirp = (d) => { try { mkdirSync(d, { recursive: true }); } catch { /* 무시 */ } };
 const rmdirQ = (d) => { try { rmdirSync(d); } catch { /* 무시 */ } };
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-const posint = (v, dflt) => { const s = v ?? ''; if (s === '' || /[^0-9]/.test(s)) return dflt; return Number(s) > 0 ? Number(s) : dflt; };
+// bash 판 posint: 숫자만, 앞자리 0 은 10진수로 읽고, 0 이거나 64비트(2^63-1)를 넘으면 기본값
+export const posint = (v, dflt) => { const s = v ?? ''; if (s === '' || /[^0-9]/.test(s)) return dflt; const b = BigInt(s); return b > 0n && b <= 9223372036854775807n ? Number(b) : dflt; };
 const firstLine = (s) => { const i = s.indexOf('\n'); return i < 0 ? s : s.slice(0, i); };
 const pr = (s) => process.stderr.write(s);
 /** jq -r 로 칸을 읽은 글: 없음·null·false → '' */
@@ -418,7 +419,9 @@ async function handleKeys(d, id, tok, tk, ref) {
   }
 }
 async function handlePrompt(line, ct) {
-  const d = parse1(line);
+  let vals = null; try { vals = J.parseStream(line); } catch { /* 깨진 JSON 은 아래 id 검사가 건너뛴다 */ }
+  if (vals && vals.length > 1) { plog('prompt 형식 오류(JSON 값이 여럿) — 건너뜀'); return; }   // bash 판: jq -s length > 1
+  const d = vals && vals.length === 1 ? vals[0] : undefined;
   const g = (k) => (d === undefined ? '' : jr(J.index(d, k)));
   const id = g('id'); let kind = g('target_kind'); let ref = g('target_ref'); const tok = g('claim_token');
   const rkind = g('kind');
@@ -624,7 +627,7 @@ async function inputDetect(k, ref, scr, h) {
       let fresh = !had || ck !== snap.kind || cf !== snap.full || ch !== h || cr !== run;
       if (!fresh && snap.full === '') {
         const ex = J.alt(J.index(curDoc, 'excerpt'), []);
-        fresh = D.excerptShaJson(J.tojson(ex), shimCtx()) !== snap.sha;
+        fresh = D.excerptShaJson(J.tojson(ex)) !== snap.sha;
       }
       if (!fresh && D.consumedHasSince(mkc(), name, cs)) fresh = true;
       if (fresh) {
@@ -1063,7 +1066,7 @@ async function markHandled(name, by, want) {
     let full = jr(J.index(doc, 'full')); if (!D.hex64(full)) full = '';
     if (want && full !== want) { r.rc = 2; return r; }
     const since = jr(J.index(doc, 'since'));
-    const sha = D.excerptShaJson(J.tojson(J.alt(J.index(doc, 'excerpt'), [])), shimCtx());
+    const sha = D.excerptShaJson(J.tojson(J.alt(J.index(doc, 'excerpt'), [])));
     const nw = new Map(doc); nw.set('handled', new Map([['by', by], ['at', D.nowMsIso()]]));
     if (!D.inputWrite(S.env, name, J.tojson(nw))) return r;
     if (!D.consumedAdd(mkc(), name, since, sha, full)) r.cons = false;

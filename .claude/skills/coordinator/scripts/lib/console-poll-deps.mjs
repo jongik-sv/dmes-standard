@@ -1,11 +1,7 @@
 // console-poll.mjs 가 쓰는 console-input·console-resolve 쪽 보조 함수 모음.
-// W1-a 의 console-input.mjs 가 dev 에 들어오기 전의 임시 이음매다: 아래 두 갈래로 나눈다.
 //   · 직접 옮긴 것(가볍고 호출이 잦은 것): 기록 이름·참조 검사, 소비 목록, 기록 잠금·쓰기, 보낸 표식, 레인 잠금, 시각 변환, 세션 기록 읽기, 살아 있는 회차·팀장 목록
-//   · bash 판을 그대로 부르는 것(무겁고 jq 식이 긴 것): console_input_snapshot·console_excerpt_sha_json·console_full_sha (console-resolve 쪽은 dev 에 들어와 import 로 바꿨다)
-//     → `bash -c` 한 번에 lib 를 source 하고 그 함수를 부른다(shim). 전역(CI_*)은 파일로 돌려받는다.
-// console-input 이 머지되면 이 파일의 해당 함수만 그쪽 import 로 바꿔 끼운다(console-poll.mjs 본문은 그대로).
+//   · 창 판정·발췌·지문(console-input)과 대상 판정(console-resolve)은 dev 의 node 판(console-input.mjs·console-resolve.mjs)을 import 해서 부른다.
 // 레인 잠금의 주인 pid 는 env.COORD_JS_CALLER_PID(없으면 이 프로세스) — 상주 폴러는 자기 pid 로 둔다.
-import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,6 +9,7 @@ import { Ctx, expand, isoToEpoch, pstart, sess8Of, stateRoot } from './common.mj
 import { pidAlive } from './compat.mjs';
 import * as J from './jq-json.mjs';
 import * as CR from './console-resolve.mjs';
+import * as CI from './console-input.mjs';
 
 const LIB = dirname(fileURLToPath(import.meta.url));
 export const SCRIPTS_DIR = dirname(LIB);
@@ -313,53 +310,23 @@ export function liveLeads(c, ident, host) {
   return out;
 }
 
-// ---------- bash 판 이음매 ----------
-const SHIM_SH = join(LIB, 'console-poll-shim.sh');
-
-/** bash lib 함수 하나를 부른다. {out(Buffer), rc, globals} */
-export function shim(fn, args, { env, cwd, tmpd, stdin = null, globals = [], timeoutMs = 0 }) {
-  const e = { ...env };
-  delete e.COORD_JS_ALL;      // 이음매 안은 bash 본문 그대로(명시한 모듈 스위치만 따른다)
-  delete e.COORD_JS_CALLER_PID;
-  let gf = '';
-  if (globals.length) {
-    gf = join(tmpd, `shim-globals.${process.pid}.${Math.random().toString(36).slice(2)}`);
-    e.SHIM_GLOBALS_FILE = gf; e.SHIM_GLOBALS = globals.join(' ');
-  }
-  e.TMPD = tmpd;
-  const r = spawnSync('bash', [SHIM_SH, SCRIPTS_DIR, fn, ...args], {
-    env: e, cwd, input: stdin ?? undefined, stdio: [stdin === null ? 'ignore' : 'pipe', 'pipe', 'inherit'],
-    windowsHide: true, maxBuffer: 64 * 1024 * 1024, ...(timeoutMs > 0 ? { timeout: timeoutMs, killSignal: 'SIGKILL' } : {}),
-  });
-  const out = { out: Buffer.isBuffer(r.stdout) ? r.stdout : Buffer.alloc(0), rc: r.status ?? (r.error?.code === 'ETIMEDOUT' ? 124 : 70), globals: {} };
-  if (gf) {
-    try {
-      for (const kv of readFileSync(gf).toString('utf8').split('\0')) {
-        const k = kv.indexOf('=');
-        if (k > 0) out.globals[kv.slice(0, k)] = kv.slice(k + 1);
-      }
-    } catch { /* 없음 */ }
-    try { rmSync(gf, { force: true }); } catch { /* 무시 */ }
-  }
-  return out;
-}
-
-const CI_GLOBALS = ['CI_KIND', 'CI_EXC', 'CI_SHA', 'CI_FULL', 'CI_WIN'];
-/** console_input_snapshot <화면 파일> → {rc, CI_KIND, CI_EXC, CI_SHA, CI_FULL, CI_WIN} (rc 0 창 있음 · 1 창 없음 · 2 가림·해시 실패) */
+// ---------- console-input (dev 의 node 판을 같은 프로세스에서 부른다) ----------
+/** console_input_snapshot <화면 파일> → {rc, kind, exc, sha, full, win} (rc 0 창 있음 · 1 창 없음 · 2 가림·해시 실패) */
 export function inputSnapshot(file, ctx) {
-  const r = shim('console_input_snapshot', [file], { ...ctx, globals: CI_GLOBALS });
-  return { rc: r.rc, kind: r.globals.CI_KIND ?? '', exc: r.globals.CI_EXC ?? '', sha: r.globals.CI_SHA ?? '', full: r.globals.CI_FULL ?? '', win: r.globals.CI_WIN ?? '' };
+  const r = CI.snapshot(file, ctx.env);
+  const g = r.globals;
+  return { rc: r.rc, kind: g.CI_KIND ?? '', exc: g.CI_EXC ?? '', sha: g.CI_SHA ?? '', full: g.CI_FULL ?? '', win: g.CI_WIN ?? '' };
 }
 /** console_excerpt_sha_json < JSON → sha(소문자 hex 64) 또는 '' */
-export function excerptShaJson(jsonText, ctx) {
-  const r = shim('console_excerpt_sha_json', [], { ...ctx, stdin: Buffer.from(jsonText, 'utf8') });
-  return r.out.toString('utf8').replace(/\n+$/, '');
+export function excerptShaJson(jsonText) {
+  return CI.excerptShaJson(Buffer.from(jsonText, 'utf8')).replace(/\n+$/, '');
 }
 /** console_full_sha < 화면 → 창 지문 또는 '' */
 export function fullSha(buf, ctx) {
-  const r = shim('console_full_sha', [], { ...ctx, stdin: buf });
-  return r.rc === 0 ? r.out.toString('utf8').replace(/\n+$/, '') : '';
+  const r = CI.fullSha(buf, ctx.env);
+  return r.rc === 0 ? r.out.replace(/\n+$/, '') : '';
 }
+
 // console-resolve 는 dev 에 들어온 node 판을 같은 프로세스에서 부른다(CR_IDENT·CR_HOST·CR_LIMIT_S 는 ctx.env 로 받는다).
 // lead-state 시간 초과 경고는 stderr 로 나오므로 ctx.plog 가 있으면 폴러 로그로 옮긴다.
 function crCall(fn, args, ctx) {

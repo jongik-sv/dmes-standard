@@ -100,7 +100,8 @@ OLD_PAUSE_S=600
 ACK_RETRY=3                 # ack 네트워크 실패(rc 6) 때 다시 부르는 수(멈출 때는 0)
 ACK_WINDOW_S=120            # 서버 ack 창(claimed_at + 120초, api-contract §2.12)
 ACK_MAX_S=40                # ack 한 건 최대(DFL_TIMEOUT 10초 × 4번)
-posint() { case "${1:-}" in ''|*[!0-9]*) echo "$2" ;; *) [ "$1" -gt 0 ] && echo "$1" || echo "$2" ;; esac; }
+# 앞자리 0 은 지워 10진수로 돌려준다(그대로 두면 뒤의 $(( )) 가 8진수로 읽어 08·09 에서 오류, 010 은 8이 된다). 64비트를 넘는 수는 기본값
+posint() { case "${1:-}" in ''|*[!0-9]*) echo "$2" ;; *) local n="${1#"${1%%[!0]*}"}"; [ -n "$n" ] && [ "$n" -gt 0 ] 2>/dev/null && echo "$n" || echo "$2" ;; esac; }
 CYCLE_MAX="$(posint "${COORD_CONSOLE_CYCLE_MAX_S:-}" 25)"     # 한 주기 몫(프롬프트 전달 구간 제외)
 NOTIFY_MAX="$(posint "${COORD_CONSOLE_NOTIFY_MAX_S:-}" 45)"   # 「입력 요청 알림」 구간(주기 몫·구간 상한 밖, office.sh 한 번 20초)
 PHASE_MAX="$(posint "${COORD_CONSOLE_PHASE_MAX_S:-}" 10)"     # 생존 감시·화면 읽기·화면 올리기 구간마다
@@ -449,6 +450,8 @@ handle_keys() {  # handle_keys <행 JSON> <id> <claim_token> <target_kind> <targ
 
 handle_prompt() {  # handle_prompt <프롬프트 JSON 한 줄> <claim 시각(poll 직전 epoch)>
   local j="$1" ct="$2" id kind ref tok h rc crc hdr res trc what det rkind rref
+  # 한 줄에 JSON 값이 여럿이면 필드마다 jq 가 여러 줄을 내 id·ref 가 여러 줄 문자열이 된다 — 행 하나는 값 하나여야 하므로 건너뛴다(깨진 JSON 은 아래 id 검사가 건너뜀)
+  [ "$(printf '%s' "$j" | jq -sj 'if length > 1 then "m" else "" end' 2>/dev/null)" != m ] || { plog "prompt 형식 오류(JSON 값이 여럿) — 건너뜀"; return 0; }
   id="$(printf '%s' "$j" | jq -r '.id // empty' 2>/dev/null)"
   kind="$(printf '%s' "$j" | jq -r '.target_kind // empty' 2>/dev/null)"
   ref="$(printf '%s' "$j" | jq -r '.target_ref // empty' 2>/dev/null)"

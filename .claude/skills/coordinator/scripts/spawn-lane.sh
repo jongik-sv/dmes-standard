@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 사용법: spawn-lane.sh --name <n> --kind <claude|glm|opencode> [--worktree <경로|선택자>] [--model m] [--effort e]
-#                       [--autocompact t] [--prompt-file f] [--dry-run]
+#                       [--autocompact t] [--prompt-file f] [--brief "<한 줄>"] [--dry-run]
 #   새 탭에 레인·워커 세션을 띄우고 떴는지 확인한다(설계 §3.e 생성 경로표·GLM 기동 절차·기동 확인).
 #   탭 위치: 기본은 조정자가 있는 워크트리(Orca 가 아는 곳)에 탭을 만든다. --worktree 를 안 주면 세션도 그 폴더에서 시작한다.
 #     (--worktree 를 안 주면 세션은 조정자의 현재 워크트리 폴더에서 시작한다. 상대경로·~ 는 받지 않는다.)
@@ -16,13 +16,15 @@
 #   opencode: claude 와 같은 빈 탭 + send "cd <폴더> && <launch.opencode>" → tui-idle → 화면 확인 → handle 만 낸다(지시는 조정자가 worker-start 로).
 #   stdout: `SPAWNED <n> handle=<h> pid=<pid|-> session_id=<id|->` 또는 `SPAWN_FAIL <n> <wait|process|screen|preflight|glm-cap> <사유>`.
 #   성공하면 회차가 있을 때 coord-state.sh lane-add 로 세션 정보(spawned_by: coordinator)를 남긴다. 레인 worktree 는 세션이 일하는 폴더다.
+#   --brief "<한 줄>": 에이전트 오피스 레인 칸에 보일 지시 요약(lane-add 의 brief). 없으면 --prompt-file 첫 글줄에서 뽑는다:
+#     「— 」 뒤 제목, 그게 없으면 줄 앞 60자(앞쪽 # 와 / ~/ ./ C:/ 로 시작하는 경로 토큰은 뺀다). 이미 그 레인에 brief 가 있으면 건드리지 않는다.
 #   --dry-run: 사전 확인(preflight·상한·설정·Orca 워크트리 목록)은 실제로 하고, 터미널 생성부터는 DRY 로 찍고 `DRY SPAWNED <n> handle=- pid=- session_id=-`.
 set -uo pipefail
 . "$(dirname "$0")/lib/common.sh"
 . "$(dirname "$0")/lib/term.sh"
 SD="$(dirname "$0")"
 
-name="" kind="" sel="" model="" effort="" autoc="" pfile="" dry=0
+name="" kind="" sel="" model="" effort="" autoc="" pfile="" brief_arg="" dry=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --name) name="${2:-}"; shift ;;
@@ -32,8 +34,9 @@ while [ $# -gt 0 ]; do
     --effort) effort="${2:-}"; shift ;;
     --autocompact) autoc="${2:-}"; shift ;;
     --prompt-file) pfile="${2:-}"; shift ;;
+    --brief) brief_arg="${2:-}"; shift ;;
     --dry-run) dry=1 ;;
-    -h|--help) sed -n '2,19p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
     *) coord_die 2 "모르는 인자: $1" ;;
   esac
   shift
@@ -46,6 +49,31 @@ if [ -n "$pfile" ]; then
   [ -f "$pfile" ] || coord_die 2 "지시 파일이 없다: $pfile"
   pfile="$(cd "$(dirname "$pfile")" && pwd)/$(basename "$pfile")"
 fi
+# 에이전트 오피스 레인 칸에 보일 한 줄(lane-add 의 brief). --brief 가 우선, 없으면 --prompt-file 의 첫 글줄: 「— 」 뒤 제목 → 없으면 줄 앞 60자.
+# 경로 토큰(/ ~/ ./ ../ C:/ 로 시작)은 뺀다(office.sh 가 경로를 [경로] 로 가리므로 남기면 칸이 「[경로] 작업 중이다」 가 된다).
+make_brief() {
+  local b="$brief_arg" line t tok out="" cap=60
+  if [ -n "$b" ]; then cap=200; t="$b"
+  elif [ -n "$pfile" ]; then
+    line="$(grep -m1 '[^[:space:]]' "$pfile" 2>/dev/null | tr -d '\r')"
+    line="${line#"${line%%[![:space:]#]*}"}"
+    case "$line" in *"— "*) t="${line#*— }" ;; *) t="$line" ;; esac
+  else return 0; fi
+  set -f
+  for tok in $t; do
+    case "$tok" in /*|"~"/*|./*|../*|[A-Za-z]:[/\\]*) continue ;; esac
+    out="${out:+$out }$tok"
+  done
+  set +f
+  [ -n "$out" ] && printf '%s' "$out" | jq -Rrs --argjson n "$cap" '.[0:$n]'
+}
+BRIEF="$(make_brief)"
+# 이미 그 레인에 brief 가 있으면 덮어쓰지 않는다(lane-add 는 값을 병합하므로 넘기지 않아야 남는다)
+if [ -n "$BRIEF" ] && coord_has_run; then
+  [ -z "$(coord_state ".lanes[\"$name\"].brief // \"\" | tostring" 2>/dev/null)" ] || BRIEF=""
+fi
+# lane-add 에 넣는 dry-run 용 값: 세션 종류와 brief
+dry_lane_json() { jq -cn --arg k "$1" --arg b "$BRIEF" '{session:{kind:$k,spawned_by:"coordinator"},state:"active"} + (if $b != "" then {brief:$b} else {} end)'; }
 [ "$(_term_backend)" = orca ] || coord_die 4 "spawn-lane.sh 는 terminal_backend=orca 만 지원한다"
 [ "$dry" = 1 ] && export COORD_DRY=1
 
@@ -180,11 +208,11 @@ record_lane() {  # record_lane <handle> <pid|-> <sid|-> <addr>
   local wt win=null; wt="${CD_PATH:-$(worktree_of "$1")}"
   case "$model" in *'[1m]'*) win=1000000 ;; esac
   coord_state_call lane-add "$name" "$(jq -cn --arg n "$name" --arg h "$1" --arg pid "$2" --arg sid "$3" --arg addr "$4" \
-    --arg k "$kind" --arg wt "$wt" --argjson win "$win" '
-    {session: ({name:$n, handle:$h, kind:$k, spawned_by:"coordinator",
+    --arg k "$kind" --arg wt "$wt" --argjson win "$win" --arg b "$BRIEF" '
+    ({session: ({name:$n, handle:$h, kind:$k, spawned_by:"coordinator",
                pid:($pid|tonumber? // 0), session_id:(if $sid == "-" then "" else $sid end),
                addr:(if $addr == "" then "" else "uds:" + $addr end)} + (if $win then {window:$win} else {} end)),
-     worktree:$wt, state:"active"}')"
+     worktree:$wt, state:"active"}) + (if $b != "" then {brief:$b} else {} end)')"
   coord_state_call event spawned "$name" "$(jq -cn --arg h "$1" --arg k "$kind" '{handle:$h, kind:$k}')"
   bash "$SD/office.sh" lane-up "$name" >/dev/null 2>&1 || true   # 에이전트 오피스 표시(실패해도 무시)
 }
@@ -208,7 +236,7 @@ claude)
     coord_log "DRY orca terminal wait --terminal <h> --for tui-idle --timeout-ms 60000 (아니면 120000)"
     coord_log "DRY $SESS_DIR/*.json 에서 name==$name 인 새 pid 확인(최대 30초)"
     [ -n "$pfile" ] && coord_log "DRY term-send-safe.sh --handle <h> --text '지시 파일을 읽고 진행해 달라: $pfile'"
-    coord_state_call lane-add "$name" "{\"session\":{\"kind\":\"claude\",\"spawned_by\":\"coordinator\"},\"state\":\"active\"}"
+    coord_state_call lane-add "$name" "$(dry_lane_json claude)"
     echo "DRY SPAWNED $name handle=- pid=- session_id=-"; exit 0
   fi
   launch_in_tab "$name" "$cmd"; rc=$?
@@ -239,7 +267,7 @@ glm)
     coord_log "DRY term_send <h> $(coord_q "$(tab_line "cd $(dry_cd) && $launch -n $name")") --enter (셸 프롬프트가 보인 뒤)"
     coord_log "DRY tui-idle 대기 → 화면에 glm-5·API Usage Billing 확인(Claude Max 면 닫고 SPAWN_FAIL screen anthropic-account) → 세션 확인"
     [ -n "$pfile" ] && coord_log "DRY term-send-safe.sh --handle <h> --text '지시 파일을 읽고 진행해 달라: $pfile'"
-    coord_state_call lane-add "$name" "{\"session\":{\"kind\":\"glm\",\"spawned_by\":\"coordinator\"},\"state\":\"active\"}"
+    coord_state_call lane-add "$name" "$(dry_lane_json glm)"
     echo "DRY SPAWNED $name handle=- pid=- session_id=-"; exit 0
   fi
   launch_in_tab "$name" "$launch -n $name"; rc=$?
@@ -272,7 +300,7 @@ opencode)
     coord_log "DRY $(coord_q orca terminal create --worktree "$TAB_SEL" --title "$name" --json)"
     coord_log "DRY term_send <h> $(coord_q "$(tab_line "cd $(dry_cd) && $cmd")") --enter (셸 프롬프트가 보인 뒤)"
     coord_log "DRY tui-idle 대기 → 화면이 비어 있지 않은지 확인"
-    coord_state_call lane-add "$name" "{\"session\":{\"kind\":\"opencode\",\"spawned_by\":\"coordinator\"},\"state\":\"active\"}"
+    coord_state_call lane-add "$name" "$(dry_lane_json opencode)"
     echo "DRY SPAWNED $name handle=- pid=- session_id=-"; exit 0
   fi
   launch_in_tab "$name" "$cmd"; rc=$?

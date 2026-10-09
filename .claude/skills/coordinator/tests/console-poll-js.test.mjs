@@ -10,6 +10,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeRng } from './js-parity/lib.mjs';
 import { activeWorld, ENV, ID } from './js-parity/specs/console-poll.mjs';
+import { posint } from '../scripts/console-poll.mjs';
 
 const MJS = join(dirname(fileURLToPath(import.meta.url)), '..', 'scripts', 'console-poll.mjs');
 const alive = (pid) => { try { process.kill(Number(pid), 0); return true; } catch { return false; } };
@@ -129,4 +130,20 @@ test('run: 할 일 없는 주기가 2번 이어지면 스스로 끝나고 잠금
     assert.ok(!existsSync(t.lock));
     assert.deepEqual(leftTmp(t.tmp), []);
   } finally { t.done(); }
+});
+
+test('posint: 앞자리 0 은 10진수로 읽고 bash 판과 같은 값을 낸다', () => {
+  const sh = join(dirname(MJS), 'console-poll.sh');
+  const vals = ['', '0', '00', '7', '08', '09', '010', '0025', 'x', '1.5', '-3', ' 5', '9223372036854775807', '9223372036854775808', '99999999999999999999'];
+  const src = readFileSync(sh, 'utf8').split('\n').find((l) => l.startsWith('posint() {'));
+  assert.ok(src, 'console-poll.sh 에 posint 정의가 있어야 한다');
+  for (const v of vals) {
+    const r = spawnSync('bash', ['-c', `${src}\nposint "$1" 25`, '_', v], { encoding: 'utf8' });
+    const want = r.stdout.trim();
+    assert.equal(r.status, 0);
+    // 2^63-1 은 Number 로 정확히 못 나타내므로 자릿수만 같으면 본다
+    if (v === '9223372036854775807') { assert.equal(String(posint(v, 25)).length >= 16, true); continue; }
+    assert.equal(String(posint(v, 25)), want, `입력 [${v}]`);
+  }
+  assert.equal(posint('08', 25) * 10, 80, '08 이어도 산술에서 오류 없이 10진수 8');
 });

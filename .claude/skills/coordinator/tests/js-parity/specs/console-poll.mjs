@@ -155,7 +155,7 @@ function world(rng, { once = true } = {}) {
   files['fake/terms'] = terms.join(' ');
   for (const h of HANDLES) if (rng.chance(0.85)) files[`fake/screens/${h}.txt`] = rng.chance(0.15) ? Buffer.from(screenGen(rng).stdin).toString('latin1') : rng.pick(SCREENS);
   // 대기열(프롬프트 행)
-  const rows = Array.from({ length: rng.pick([0, 0, 1, 1, 2, 3]) }, (_, i) => row(rng, i));
+  const rows = Array.from({ length: rng.pick([0, 0, 1, 1, 2, 3]) }, (_, i) => (rng.chance(0.06) ? row(rng, i) + row(rng, i + 10) : row(rng, i)));   // 가끔 한 줄에 JSON 값이 둘
   files['fake/queue'] = rows.length ? `${rows.join('\n')}\n` : '';
   if (rng.chance(0.08)) files['fake/poll_rc'] = String(rng.pick([7, 6, 1]));
   if (rng.chance(0.06)) files['fake/poll_mode'] = 'forbidden';
@@ -182,10 +182,30 @@ function world(rng, { once = true } = {}) {
   return { files, env, stdin: '' };
 }
 
+/** 무작위를 쓰지 않는 고정 세계용 난수 대역(chance 는 p > 0.5 일 때만 참, pick 은 첫 값) */
+const FLAT = { chance: (p) => p > 0.5, pick: (a) => a[0], int: (lo) => lo };
+/** lead-state 가 CR_LIMIT_S(1초)보다 오래 걸리는 세계: 「lead-state ...초 상한을 넘어 이번 판정에서 뺌」 경고가 폴러 로그에 남는지 본다 */
+function slowLeadState() {
+  const w = world(FLAT);
+  w.files['bin/fake-lead-state.sh'] = exe('#!/bin/sh\necho "$*" >> "$FAKE_DIR/ls.log"\nsleep 3\necho "SLOT w1 aaaa1111 handle=hw1 state=spawn"\n');
+  w.files['console/lead/L1.json'] = JSON.stringify({ agent: `${ID}/${HOST}/lead`, repo: '/repo/main', handle: 'hT', pid: process.pid, at: 'x', slots: 2, busy: 1, until_label: '18:00', project: null });
+  w.files['fake/queue'] = '';
+  w.env.COORD_CONSOLE_LS_TIMEOUT_S = '1';
+  return { label: 'once: lead-state 시간 초과 경고가 폴러 로그에 남는다', args: ['--once'], files: w.files, env: w.env, stdin: '' };
+}
+
+/** 한 줄에 JSON 객체가 둘인 프롬프트 행: 「prompt 형식 오류(JSON 값이 여럿) — 건너뜀」 */
+function multiValueRow() {
+  const w = activeWorld(FLAT);
+  const one = (id) => JSON.stringify({ id, target_kind: 'coord_lane', target_ref: 'kit', claim_token: 'tok-' + id.slice(0, 4), text: '안녕' });
+  w.files['fake/queue'] = `${one('aaaaaaaa-0001')}${one('bbbbbbbb-0002')}\n`;
+  return { label: 'once: 한 줄에 JSON 값이 둘인 행은 건너뛴다', args: ['--once'], files: w.files, env: w.env, stdin: '' };
+}
+
 const once = {
   compareFiles: false,
   gen(rng) { const w = world(rng); return { ...w, args: rng.pick([['--once'], ['--once'], ['--once'], ['--once', '--dry-run'], ['--dry-run', '--once']]) }; },
-  fixed: [],
+  fixed: [slowLeadState(), multiValueRow()],
 };
 
 function lockWorld(rng, alive) {
@@ -254,7 +274,7 @@ export default {
     },
     stop: {
       compareFiles: false,
-      gen(rng) { const w = rng.chance(0.4) ? lockWorld(rng, false) : world(rng); w.env.COORD_CONSOLE_STOP_WAIT_S = '1'; return { ...w, args: ['stop'] }; },
+      gen(rng) { const w = rng.chance(0.4) ? lockWorld(rng, false) : world(rng); w.env.COORD_CONSOLE_STOP_WAIT_S = rng.pick(['1', '1', '01', '001', '08']); return { ...w, args: ['stop'] }; },
       fixed: [],
     },
     start: {
