@@ -61,6 +61,34 @@ class QueryStatementGuardTest {
     }
 
     @Test
+    @DisplayName("허용 — V10 전기일 실행 이력 집계 샘플 SQL(MERGE)은 검사를 통과하고 바인드 변수 bizDay·baseHour·jobId 를 드러낸다")
+    void seedSampleMergePasses() {
+        String sql = """
+                MERGE INTO TB_MCM_JOB_COLLECT_DATA T
+                USING (SELECT TO_CHAR(:bizDay + :baseHour / 24, 'YYYYMMDDHH24MI') AS SLOT
+                            , R.STATUS AS ITEM_KEY
+                            , COUNT(*) AS CNT
+                       FROM   TB_MCM_JOB_RUN R
+                       WHERE  R.SCHED_AT >= :bizDay + :baseHour / 24
+                       AND    R.SCHED_AT < :bizDay + 1 + :baseHour / 24
+                       GROUP BY R.STATUS) S
+                ON (T.JOB_ID = :jobId AND T.SLOT = S.SLOT AND T.ITEM_KEY = S.ITEM_KEY)
+                WHEN MATCHED THEN UPDATE SET T.VALUE_NUM = S.CNT
+                     , T.U_AT = CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS TIMESTAMP)
+                     , T.U_USR_ID = 'SCHEDULER'
+                     , T.U_PGM_ID = 'jobQuery'
+                     , T.VER = T.VER + 1
+                WHEN NOT MATCHED THEN INSERT (JOB_ID, SLOT, ITEM_KEY, VALUE_NUM, C_AT, C_USR_ID, C_PGM_ID, U_AT, U_USR_ID, U_PGM_ID, VER)
+                     VALUES (:jobId, S.SLOT, S.ITEM_KEY, S.CNT
+                          , CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS TIMESTAMP), 'SCHEDULER', 'jobQuery'
+                          , CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS TIMESTAMP), 'SCHEDULER', 'jobQuery'
+                          , 0)""";
+        QueryStatementGuard.Checked c = QueryStatementGuard.check(sql);
+        assertThat(c.procedure()).isFalse();
+        assertThat(c.variables()).containsExactly("bizDay", "baseHour", "jobId");
+    }
+
+    @Test
     @DisplayName("바인드 변수 이름을 처음 나온 순서로 모은다(주석·문자열 속 :이름 제외) — 프로시저 여부 표시")
     void variablesAndProcedureFlag() {
         QueryStatementGuard.Checked dml = QueryStatementGuard.check("UPDATE T SET A = :a, B = ':notvar' WHERE C = :c AND D = :a -- :ignored");
