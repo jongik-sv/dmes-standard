@@ -15,15 +15,15 @@
 | `screens.mjs` | 측정 대상 화면 정의(메뉴 경로·breadcrumb·조회 URL 패턴). **환경 의존 값은 여기 없다** |
 | `measure-screens.mjs` | 측정 본체. Playwright + CDP. login → 메뉴 이동 → 지표 수집 |
 | `summarize.mjs` | `results.json` → 중앙값 요약(마크다운 또는 `--json`) |
-| `run-measure.sh` | 실행기. 사전 확인 + `heavy.sh` 독점 슬롯 |
+| `run-measure.sh` | 실행기. 사전 확인 + `heavy.mjs` 독점 슬롯 |
 | `react-profiler-instrument.example.tsx` | React `<Profiler>` 임시 계측 예제. **제품 코드에 넣지 않는다** |
 
 ## 측정 창 규칙 (중요)
 - **조정 세션이 「측정 시작」을 보내기 전에는 이 하네스를 돌리지 않는다.** 시간 잰 값은
   다른 무거운 작업이 멈춘 상태에서만 신뢰할 수 있다.
-- `run-measure.sh` 는 기본값으로 `heavy.sh --exclusive` 로 감싼다. 슬롯을 90초 안에 못 얻으면
+- `run-measure.sh` 는 기본값으로 `heavy.mjs --exclusive` 로 감싼다. 슬롯을 90초 안에 못 얻으면
   `HEAVY_BUSY`(exit 75)로 끝난다 — 실패가 아니니 **같은 명령을 다시 부른다**.
-- 무거운 명령은 저장소의 `.claude/skills/dflow-dev/scripts/heavy.sh` 를 거친다.
+- 무거운 명령은 저장소의 `.claude/skills/dflow-dev/scripts/heavy.mjs` 를 거친다.
 
 ## 준비물
 - macOS, node, git. **JVM·gradle 은 쓰지 않는다.**
@@ -52,8 +52,8 @@
 | `RENDER_HOME_IDLE` | `1` | 메뉴를 누르기 전에 포털 홈 로딩(`/api/` 호출·50ms 넘는 task)이 `RENDER_HOME_IDLE_QUIET_MS`(500) 동안 멈출 때까지 기다린다(상한 `RENDER_HOME_IDLE_MAX_MS` 10000). `0` 이면 2026-10-04 검증 때와 같은 진입 조건이다(전후 비교용) |
 | `RENDER_WARMUP` | `1` | cold 측정 앞에 예열 회차(round 0)를 돌리고 `keep=0`·`warmup=1` 로 남긴다. `0` 이면 끈다 |
 | `RENDER_FULL_VIEW` | `0` | `1` 이면 첫 조회 뒤 상한 안내 띠의 [전체 보기] 를 눌러 상한 없는 재조회도 잰다(`fullView*` 필드) |
-| `RENDER_NO_EXCLUSIVE` | `0` | `1` 이면 `heavy.sh` 독점을 건너뛴다. 신뢰도 낮음 |
-| `HEAVY_SH` | `$PERF_REPO/.claude/skills/dflow-dev/scripts/heavy.sh` | 줄 세우기 경로 |
+| `RENDER_NO_EXCLUSIVE` | `0` | `1` 이면 `heavy.mjs` 독점을 건너뛴다. 신뢰도 낮음 |
+| `HEAVY_SH` | `$PERF_REPO/.claude/skills/dflow-dev/scripts/heavy.mjs` | 줄 세우기 경로 |
 | `PLAYWRIGHT_PATH` | (비움) | playwright 모듈이 있는 폴더. 비우면 기본 탐색 |
 
 ## 사용법
@@ -61,14 +61,14 @@
    ```
    /usr/bin/git -C <측정 워크트리> merge dev
    ```
-1. **`pnpm install` 과 `shared` 빌드** — 무거우므로 `heavy.sh` 를 거친다(지시 2-4).
+1. **`pnpm install` 과 `shared` 빌드** — 무거우므로 `heavy.mjs` 를 거친다(지시 2-4).
    ```
    cd <측정 워크트리>/src/frontend
-   <저장소>/.claude/skills/dflow-dev/scripts/heavy.sh -- pnpm install --frozen-lockfile
-   <저장소>/.claude/skills/dflow-dev/scripts/heavy.sh -- pnpm --filter @dk-oasis/shared build
+   node <저장소>/.claude/skills/dflow-dev/scripts/heavy.mjs -- pnpm install --frozen-lockfile
+   node <저장소>/.claude/skills/dflow-dev/scripts/heavy.mjs -- pnpm --filter @dk-oasis/shared build
    # m-mcm 번들은 형제 패키지(m-mdm·m-analog 등)의 dist 도 가져온다. 빼먹으면 next build 가
    # "Can't resolve '@dk-oasis/m-mdm/pages/...'" 로 실패한다.
-   LIB_DEV_FORCE_BUILD=1 <저장소>/.claude/skills/dflow-dev/scripts/heavy.sh -- node scripts/lib-dev.mjs build m-mpn m-mpp m-mqc m-mls m-mdm m-analog
+   LIB_DEV_FORCE_BUILD=1 node <저장소>/.claude/skills/dflow-dev/scripts/heavy.mjs -- node scripts/lib-dev.mjs build m-mpn m-mpp m-mqc m-mls m-mdm m-analog
    ```
    `shared` 를 먼저 빌드해야 한다 — 번들에 shared 가 들어가기 때문이다.
 2. **`.env` 사본을 준비한다** (지시 2-4). 메인 체크아웃의 `src/frontend/m-mcm/.env` 을 **워크트리로 복사**하고,
@@ -84,10 +84,10 @@
      **인증이 막히면(OIDC_ISSUER 등) 우회하지 말고 멈추고 report.md 에 보고한다.**
    - 로그인 쿠키는 **포트가 아니라 호스트(`localhost`) 단위**라 5300 로그인이 5100 의 세션 쿠키와
      겹칠 수 있다. 그래서 **admin / admin123 만** 쓴다(지시 2-3). 비밀번호를 틀리면 계정이 잠긴다.
-3. **프로덕션 번들을 만든다** — 무거우므로 `heavy.sh` 를 거친다.
+3. **프로덕션 번들을 만든다** — 무거우므로 `heavy.mjs` 를 거친다.
    ```
    cd <측정 워크트리>/src/frontend/m-mcm
-   LIB_DEV_FORCE_BUILD=1 <저장소>/.claude/skills/dflow-dev/scripts/heavy.sh -- pnpm build
+   LIB_DEV_FORCE_BUILD=1 node <저장소>/.claude/skills/dflow-dev/scripts/heavy.mjs -- pnpm build
    ```
 4. **5300 미리보기 서버를 띄운다.** 5100 dev 서버와 백엔드는 건드리지 않는다.
    ```

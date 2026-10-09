@@ -2,8 +2,8 @@
 # P2 m-mdm 빌드 시간·메모리 측정. 기준 A(BASE_REF) 와 변경 B(CHANGE_REF) 를 콜드·웜으로 번갈아 잰다.
 # 자세한 내용은 같은 폴더의 README.md 를 본다.
 # 실행: bash scripts/perf/frontend/p2-measure.sh [회차 수, 기본 4]
-#       공용 무거운 작업 칸을 독점하려면 이 스크립트를 바깥에서 감싼다: heavy.sh --detach --exclusive bash scripts/perf/frontend/p2-measure.sh
-#       HEAVY_CMD 는 감싸지 않는다. env.txt 에 "heavy.sh status" 한 줄을 적는 데만 쓴다(기본: 저장소의 .claude/skills/dflow-dev/scripts/heavy.sh 가 있으면 그것).
+#       공용 무거운 작업 칸을 독점하려면 이 스크립트를 바깥에서 감싼다: node .claude/skills/dflow-dev/scripts/heavy.mjs --detach --exclusive bash scripts/perf/frontend/p2-measure.sh
+#       HEAVY_CMD 는 감싸지 않는다. env.txt 에 "node heavy.mjs status" 한 줄을 적는 데만 쓴다(기본: 저장소의 .claude/skills/dflow-dev/scripts/heavy.mjs 가 있으면 그것).
 #
 # 순서
 #   0. 준비(재지 않음): 두 워크트리에 pnpm install(오프라인 우선)과 shared 빌드.
@@ -24,9 +24,9 @@ A=${WT_BASE:-$REPO/.claude/worktrees/perf-frontend-base}
 B=${WT_CHANGE:-$REPO/.claude/worktrees/perf-frontend-dev}
 OUT=${PERF_OUT:-${TMPDIR:-/tmp}/dmes-perf/frontend}
 LOAD_LIMIT=${LOAD_LIMIT:-5}
-# env.txt 기록용 heavy.sh 경로(상대 경로는 저장소 기준). 설정하지 않으면 저장소의 heavy.sh 가 있을 때 그것을 쓰고, 명시적으로 비우면 기록하지 않는다.
-if [ "${HEAVY_CMD+set}" != set ] && [ -f "$REPO/.claude/skills/dflow-dev/scripts/heavy.sh" ]; then
-  HEAVY_CMD="$REPO/.claude/skills/dflow-dev/scripts/heavy.sh"
+# env.txt 기록용 heavy.mjs 경로(상대 경로는 저장소 기준). 설정하지 않으면 저장소의 heavy.mjs 가 있을 때 그것을 쓰고, 명시적으로 비우면 기록하지 않는다.
+if [ "${HEAVY_CMD+set}" != set ] && [ -f "$REPO/.claude/skills/dflow-dev/scripts/heavy.mjs" ]; then
+  HEAVY_CMD="$REPO/.claude/skills/dflow-dev/scripts/heavy.mjs"
 fi
 HEAVY_CMD=${HEAVY_CMD-}
 case "${HEAVY_CMD%% *}" in ""|/*) ;; *) [ -e "$REPO/${HEAVY_CMD%% *}" ] && HEAVY_CMD="$REPO/$HEAVY_CMD" ;; esac
@@ -141,7 +141,8 @@ ensure_wt "$B" "$CHANGE_REF" CREATED_B
   echo "# 전원: $(pmset -g batt 2>/dev/null | head -1)"
   if [ -n "$HEAVY_CMD" ]; then
     heavy_bin=${HEAVY_CMD%% *}
-    echo "# heavy: $(bash "$heavy_bin" status 2>/dev/null)"
+    case "$heavy_bin" in *.mjs) heavy_run=node ;; *) heavy_run=bash ;; esac   # 확장자로 실행기를 고른다(.mjs node · .sh bash)
+    echo "# heavy: $("$heavy_run" "$heavy_bin" status 2>/dev/null)"
   fi
 } >"$OUT/env.txt"
 echo "round,wt,kind,sec,maxrss_bytes,load1,load5,rc,keep" >"$CSV"

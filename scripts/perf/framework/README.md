@@ -29,7 +29,7 @@
 | `PERF_RESULTS_DIR` | `${TMPDIR:-/tmp}/dmes-perf/framework` | 결과 폴더(저장소 밖, 절대 경로만. 상대 경로는 거부하고 종료한다. run_all.sh 가 스크립트 폴더로 cd 한 뒤 lib.sh 를 읽기 때문). CSV·로그·jar·합성 로그가 여기에 쌓인다 |
 | `PERF_WT_ROOT` | `$REPO_DIR/.claude/worktrees` | 측정용 detached 워크트리 위치. 이름은 `perf-framework-base`·`-change`·`-<라벨>` |
 | `GRADLE_LOCK` | 빈 값 | 지정하면 `lockf -k` 로 gradle 을 이 잠금 파일 아래 직렬화. 비면 잠금 없이 |
-| `HEAVY_CMD` | 빈 값 | gradle 앞에 붙일 줄 세우기 명령. 예 `HEAVY_CMD=".claude/skills/dflow-dev/scripts/heavy.sh"`(상대 경로는 `REPO_DIR` 기준). 다른 하네스에도 같은 이름이 있지만 뜻이 다르다(frontend 는 상태 기록용) — 셸에 export 해 두고 여러 하네스를 돌리지 않는다 |
+| `HEAVY_CMD` | 빈 값 | gradle 앞에 붙일 줄 세우기 명령. 예 `HEAVY_CMD=".claude/skills/dflow-dev/scripts/heavy.mjs"`(상대 경로는 `REPO_DIR` 기준). 다른 하네스에도 같은 이름이 있지만 뜻이 다르다(frontend 는 상태 기록용) — 셸에 export 해 두고 여러 하네스를 돌리지 않는다 |
 | `BASE_REF` | `refactor-2026-10-base` | 기준(A) 커밋 |
 | `CHANGE_REF` | `HEAD` | 변경(P1·P3 의 B) 커밋 |
 | `TARGETS` | `A:$BASE_REF B:bb8ee036 C:$CHANGE_REF` | P2 대상 `라벨:ref` 목록(왼쪽부터 번갈아 기동). 첫 라벨이 요약의 기준. 모두 detached 워크트리 |
@@ -41,7 +41,7 @@
 | `GIT` | `git` | git 실행 파일 |
 
 잠금(`GRADLE_LOCK`)·줄 세우기(`HEAVY_CMD`)는 선택이고 모든 gradle 은 늘 `--max-workers=2` 로 돈다.
-`run_all.sh` 전체를 `heavy.sh --exclusive` 로 감쌀 때는 `HEAVY_CMD` 를 비워 둔다(독점 실행 안의 `heavy.sh` 는 같은 슬롯을 다시 쓰고 그냥 통과하므로 필요 없다. 안에서 `--exclusive` 를 다시 부르면 HEAVY_EXCL_NESTED 로 거부된다).
+`run_all.sh` 전체를 `heavy.mjs --exclusive` 로 감쌀 때는 `HEAVY_CMD` 를 비워 둔다(독점 실행 안의 `heavy.mjs` 는 같은 슬롯을 다시 쓰고 그냥 통과하므로 필요 없다. 안에서 `--exclusive` 를 다시 부르면 HEAVY_EXCL_NESTED 로 거부된다).
 
 ## 사용법(명령 순서)
 저장소 루트에서:
@@ -54,7 +54,7 @@ $S/p2_run.sh 3           # (4) A B C 번갈아 3라운드
 $S/p2_cleanup.sh         # (5) 남은 측정 워크트리 제거
 for f in "${PERF_RESULTS_DIR:-${TMPDIR:-/tmp}/dmes-perf/framework}"/p*.csv; do python3 $S/summarize.py "$f" --base A; done
 ```
-일괄은 `$S/run_all.sh`(위 (1)~(5) 와 요약). 공용 칸을 독점하려면 `.claude/skills/dflow-dev/scripts/heavy.sh --detach --exclusive $S/run_all.sh` 로 띄우고 출력된 id 로 `heavy.sh wait <id>` 한다. wait 는 한 번에 최대 240초만 기다리므로 HEAVY_JOB_RUNNING(exit 76)인 동안 같은 wait 를 다시 부른다(HEAVY_JOB_BUSY 면 다시 --detach)(10분이 넘는 명령은 --detach 로 돌린다).
+일괄은 `$S/run_all.sh`(위 (1)~(5) 와 요약). 공용 칸을 독점하려면 `node .claude/skills/dflow-dev/scripts/heavy.mjs --detach --exclusive $S/run_all.sh` 로 띄우고 출력된 id 로 `heavy.mjs wait <id>` 한다. wait 는 한 번에 최대 240초만 기다리므로 HEAVY_JOB_RUNNING(exit 76)인 동안 같은 wait 를 다시 부른다(HEAVY_JOB_BUSY 면 다시 --detach)(10분이 넘는 명령은 --detach 로 돌린다).
 각 스크립트는 기준·변경 측정 워크트리(`git worktree add --detach … <ref>`)를 스스로 만들고 끝에(trap) `git worktree remove`(`--force` 없음)로 지운다. 이미 있으면 HEAD 가 요청 ref 와 같을 때만 재사용하고 다르면 종료한다(이전 실행의 잔여물은 `p2_cleanup.sh` 로 지운다). 쓴 커밋은 결과 폴더의 `worktree_commits.txt` 에 남는다. trap 은 **이번 실행이 새로 만든** 워크트리만 지운다(재사용한 것·거부한 것은 남긴다). 그래도 같은 워크트리를 쓰는 스크립트(P1·P3)를 동시에 돌리지 않는다.
 메인 체크아웃과 실행 중 서버는 건드리지 않는다.
 
@@ -109,7 +109,7 @@ for f in "${PERF_RESULTS_DIR:-${TMPDIR:-/tmp}/dmes-perf/framework}"/p*.csv; do p
 ## 측정 요령 (2026-10-04 측정에서 배운 것)
 - 조정 세션 규칙: 1분 load 가 **5 를 넘은 회차는 버리고 다시 잰다**. 재기 전에 `filter_load.py` 로 걸러 남은 회차를 확인하고, 모자란 회차는 `ROUND_START=<다음 번호>` 로 이어서 잰다. 버린 회차는 결과 문서에 적는다.
 - A(기준)는 큰 로그 `/tree` N=16 을 처리한 뒤 스스로 load 를 끌어올린다(바쁜 대기). 그대로 CPU 구간에 들어가면 load 상한을 넘기므로 **`LOAD_WAIT=5`** 로 CPU 구간 전에 load 가 내려가길 기다린다.
-- 공용 무거운 작업 칸을 독점해서 잰다: `.claude/skills/dflow-dev/scripts/heavy.sh --detach --exclusive scripts/perf/framework/run_all.sh` 뒤 `heavy.sh wait <id>` 를 HEAVY_JOB_RUNNING(exit 76)인 동안 되풀이한다(HEAVY_JOB_BUSY 면 다시 --detach, 이때 `HEAVY_CMD` 는 비움).
+- 공용 무거운 작업 칸을 독점해서 잰다: `node .claude/skills/dflow-dev/scripts/heavy.mjs --detach --exclusive scripts/perf/framework/run_all.sh` 뒤 `heavy.mjs wait <id>` 를 HEAVY_JOB_RUNNING(exit 76)인 동안 되풀이한다(HEAVY_JOB_BUSY 면 다시 --detach, 이때 `HEAVY_CMD` 는 비움).
 - 결론은 3회 이상 중앙값으로만 낸다. 같은 설정에서도 이 PC 는 2배 흔들린다.
 - 이 하네스의 2026-10-04 결과 수치와 판정은 `docs/refactor-2026-10/perf-framework.md` 에 있다. 원자료 CSV 는 저장소에 넣지 않았다.
 
