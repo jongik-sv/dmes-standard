@@ -25,7 +25,9 @@ const under = (s) => s.replace(/[ \t]/g, '_');
 export function numOrStr(s) {
   if (s === '-') return null;
   const t = s.replace(/^[ \t\n\r]+|[ \t\n\r]+$/g, '');
-  if (/^nan$/i.test(t)) return null;
+  if (/^[+-]?nan$/i.test(t)) return null;
+  const inf = /^([+-]?)(?:inf|infinity)$/i.exec(t);   // jq 는 inf 를 double 최댓값으로 읽는다
+  if (inf) return new J.JNum(`${inf[1] === '-' ? '-' : ''}1.7976931348623157E+308`);
   const m = /^([+-]?)(\d*\.?\d*)([eE][+-]?\d+)?$/.exec(t);
   if (m && /\d/.test(m[2])) {
     let ip = m[2];
@@ -163,7 +165,10 @@ export async function main(argv, { env = process.env, cwd = process.cwd(), now }
       const pos = awkNum(cpus) !== null ? awkNum(cpus) > 0 : Buffer.compare(Buffer.from(cpus), Buffer.from('0')) > 0;
       if (!pos) perCore = fmtFixed(0, 2);
       else if (awkAtof(cpus) === 0) perCore = '';   // awk: division by zero → 출력 없음
-      else perCore = fmtFixed(awkAtof(load1) / awkAtof(cpus), 2);
+      else {
+        const q = awkAtof(load1) / awkAtof(cpus);
+        perCore = Number.isNaN(q) ? 'nan' : q === Infinity ? 'inf' : q === -Infinity ? '-inf' : fmtFixed(q, 2);   // awk printf %.2f 는 nan·inf 를 글로 낸다
+      }
     } else { load1 = '-'; perCore = '-'; }
     let heavy = '-/-/-';
     if (HEAVY_ON) {
