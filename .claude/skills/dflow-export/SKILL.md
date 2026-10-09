@@ -20,7 +20,7 @@ description: 로컬 wbs.md 를 검증하고 D'Flow /wbs/import 계약 v2.1 JSON 
 `dflow-wbs` 스킬(`.claude/skills/dflow-wbs/SKILL.md` §"D'Flow 프로젝트 바인딩")과 같은 규칙.
 wbs.md 자체에 프로젝트 결합을 넣지 않음. 파일이 git 으로 복제·branch 되므로, 안에 박으면 엉뚱한 프로젝트로 업로드될 위험.
 
-해석 순서 (먼저 맞는 것 우선). 값 확인은 `dflow.sh config project_map`·`dflow.sh config project_id`, 레거시는 `.env` 의 `DFLOW_PROJECT_MAP`·`DFLOW_PROJECT_ID`.
+해석 순서 (먼저 맞는 것 우선). 값 확인은 `node .claude/skills/dflow-work/scripts/dflow.mjs config project_map`·`node .claude/skills/dflow-work/scripts/dflow.mjs config project_id`, 레거시는 `.env` 의 `DFLOW_PROJECT_MAP`·`DFLOW_PROJECT_ID`.
 
 1. CLI 인자 `--project-id`/`--module` — 최우선.
 2. 작업 리포 `.dflow.local` 의 `project_map` 에서 현재 `DOCS_DIR`(= `docs/{SUBPROJECT}`) 키 조회.
