@@ -1,14 +1,14 @@
 # /dflow-merge 스크립트 동작 상세
 
-「결정 번호 매김」·「마이그레이션 버전 관문」 스크립트가 **무엇을 어떻게 바꾸는지** 상세. 출력 줄을 사람에게 설명할 때, 결과가 의외일 때, 대상 리포 설정을 바꿀 때만 읽음. **실행 규칙**은 `merge-exec.md` 「실행 규칙」 에 있음(머지·해소 머지 때 거기서 읽음). 실행 순서·보고 규칙 정본 = SKILL.md 「절차」·`merge-exec.md`.
+「결정 번호 매김」·「마이그레이션 버전 관문」 스크립트가 **무엇을 어떻게 바꾸는지** 상세. 읽는 때: 출력 줄을 사람에게 설명할 때 · 결과가 의외일 때 · 대상 리포 설정을 바꿀 때만. **실행 규칙** = `merge-exec.md` 「실행 규칙」 (merge·해소 merge 때 거기서 읽음). 실행 순서·보고 규칙 정본 = SKILL.md 「절차」·`merge-exec.md`.
 
 ## 결정 번호 매김
 
 **상세**
 
-- `decisions.mjs` (머지 자리 최상위, 임시 머지 워크트리면 `-C "$W"`)
+- `decisions.mjs` (merge 자리 최상위, 임시 merge worktree 면 `-C "$W"`)
 - 결정 기록 형식 = dflow-wbs `decision-log.mjs`. `validate` 는 D-001 부터 끊김 없는 순번 요구
-- 번호 = 개발 브랜치에 들어가는 순서로만 결정
+- 번호 = 개발 branch 에 들어가는 순서로만 결정
 - `decision-log.mjs` 형식·validate 변경 금지 (`Temp ID`·`Renumbered from` 은 선택 필드로 읽힘)
 
 - **머리 줄 규칙·잠금**
@@ -20,20 +20,20 @@
   - `decision-log.mjs append` 도 같은 잠금 사용 → 동시에 쓰는 항목 안 사라짐
 
 - **충돌 풀기**(`merge-conflicts`)
-  - 결과 = 개발 브랜치 쪽 파일 전체 + 머지 대상이 merge-base 에 없던 블록을 순서대로 붙인 것
-  - 머지 대상이 기존 블록을 고쳤거나 (추가만 하는 기록 위반) 한쪽이 파일을 지웠으면 풀지 않고 `DECISIONS_LEFT`
+  - 결과 = 개발 branch 쪽 파일 전체 + merge 대상이 merge-base 에 없던 블록을 순서대로 붙인 것
+  - merge 대상이 기존 블록을 고쳤거나 (추가 전용 기록 위반) 한쪽이 파일을 지웠으면 안 풀고 `DECISIONS_LEFT`
 - **번호 매김**(`renumber`)
   - 트리 전체에서 임시 ID 머리를 그 파일의 다음 전역 번호로 교체 (머리 순서대로)
   - 바로 아래 `- **Temp ID**: <임시 ID>` 줄을 남김
   - 추적 파일 전체 (`.claude/` 제외) 의 같은 임시 ID 참조 교체
-  - 커밋 하나로 남김 (`chore(<TSK>): 결정 번호 매김 (…)`, 트레일러 `DFlow-Order`)
+  - commit 하나로 남김 (`chore(<TSK>): 결정 번호 매김 (…)`, 트레일러 `DFlow-Order`)
   - `Temp ID` 줄 덕분에 스택 후손이 선행의 임시 ID 를 적어 뒀어도 뒤 머지에서 찾아 교체
   - 같은 임시 ID 머리가 둘 이상 → 그 ID 만 건너뛰고 (`RENUMBER_DUP`) 나머지는 매김
   - 실패(`RENUMBER_DIRTY`·`RENUMBER_FAILED`) 시 임시 ID 는 트리에 남고, 다음 머지의 번호 매김이 트리 전체를 다시 훑어 매김
 - **전역 번호 중복**(`renumber` 첫 단계)
-  - 옛 규칙을 읽은 워커나 사람이 전역 번호를 직접 매기면 같은 기점의 두 브랜치가 같은 `## D-050` 을 들고 옴
-  - git 이 두 추가를 다른 위치로 보면 충돌 없이 합쳐지므로, 충돌 여부 무관하게 머지 커밋 뒤에 봄
-  - **HEAD 가 머지 커밋일 때 HEAD^1 = 머지 전 개발 브랜치, HEAD^2 = 머지 대상(그때의 MERGE_HEAD)**. merge-base 는 그 둘에서 구함 (충돌 경로·충돌 없는 경로·해소 머지 모두 이 자리를 지남)
+  - 옛 규칙 읽은 워커나 사람이 전역 번호를 직접 매기면 같은 기점 두 branch 가 같은 `## D-050` 을 들고 옴
+  - git 이 두 추가를 다른 위치로 보면 충돌 없이 합쳐지므로, 충돌 여부 무관하게 merge commit 뒤에 봄
+  - **HEAD 가 merge commit 일 때 HEAD^1 = merge 전 개발 branch, HEAD^2 = merge 대상(그때의 MERGE_HEAD)**. merge-base 는 그 둘에서 구함 (충돌 경로·충돌 없는 경로·해소 merge 모두 이 자리를 지남)
   - 파일마다 따로 봄 (decisions.md 끼리 번호 독립)
   - 개발 브랜치 쪽 블록은 그대로 둠
     - 머지 대상이 더한 블록 (머리 줄이 HEAD^2 판에 있고 merge-base 판·HEAD^1 판에 없는 것) 중 번호가 겹친 것만 그 파일의 다음 전역 번호로 옮겨 파일 끝에 둠 (개발 브랜치 블록 순서 불변)
@@ -62,10 +62,10 @@
 
 **상세**
 
-`migration-check.mjs`. 마이그레이션 폴더는 파일 패턴으로 찾음 (폴더 설정 안 읽음). 폴더별로 두 가지 확인.
+`migration-check.mjs`. migration 폴더는 파일 패턴으로 찾음 (폴더 설정 안 읽음). 폴더별 두 가지 확인.
 
-- **버전 중복**: 같은 폴더에 같은 버전이 둘 이상이고 그중 하나가 이 브랜치가 추가한 파일 (`MIGRATION_DUP`). 개발 브랜치 자체의 중복은 경고(`MIGRATION_DEV_DUP`)만 하고 이 머지를 막지 않음
-- **역순 도착**: 이 브랜치가 추가한 버전 < 그 폴더의 개발 브랜치 최대 버전 (`MIGRATION_ORDER`, 같으면 중복). Flyway 기본값 `outOfOrder=false` 에서는 이미 더 높은 버전을 적용한 개발 DB 가 그 파일을 거부
+- **버전 중복**: 같은 폴더에 같은 버전이 둘 이상이고 그중 하나가 이 브랜치가 추가한 파일 (`MIGRATION_DUP`). 개발 branch 자체 중복은 경고(`MIGRATION_DEV_DUP`)만 하고 이 merge 를 막지 않음
+- **역순 도착**: 이 branch 가 추가한 버전 < 그 폴더의 개발 branch 최대 버전 (`MIGRATION_ORDER`, 같으면 중복). Flyway 기본값 `outOfOrder=false` 에서는 이미 더 높은 버전을 적용한 개발 DB 가 그 파일을 거부
 - 버전 비교 = Flyway 규칙. `_` = `.`, 부분마다 숫자로, 앞의 0 과 끝의 0 부분 무시 (`V04`·`V4_0`·`V4.0` = `V4`)
 - 폴더 단위로 묶음. Flyway 이력은 폴더(location)마다 독립이라 다른 폴더가 같은 버전을 두는 것은 정상 (dmes-standard 는 Oracle 하나라 `oracle/mcmapuser`·`oracle/mcaapuser` 같은 스키마별 폴더)
 - `R__`(반복)·`U`(undo) 파일은 안 봄
@@ -77,5 +77,5 @@
 
 - `scripts/*.mjs` = node 로 macOS·Linux·Windows 에서 같이 돎
 - 필요 도구: node 18.17+, git (Git Bash 는 사용자 bash 문법 명령(게이트·baseline 명령)을 윈도우에서 돌릴 때만 필요)
-- 별도 플랫폼 의존 명령 금지. 새 스크립트에 macOS 전용 명령·perl 금지
+- 플랫폼 의존 명령 금지. 새 스크립트에 macOS 전용 명령·perl 금지
 - 정본·도구 표·한계: `../../_shared/platform-support.md`
