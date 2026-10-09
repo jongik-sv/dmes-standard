@@ -29,7 +29,7 @@ const CLEAN = { COORD_RUN: '', COORD_SESSION_ID: '', CLAUDE_CODE_SESSION_ID: '',
 
 const BASE_ENV = {
   ...CLEAN, COORD_REPO: '<WORK>', COORD_STATE_ROOT: '<WORK>/state', DFLOW_CONSOLE_DIR: '<WORK>/console', FAKE_DIR: '<WORK>/fake',
-  PATH: `<WORK>/bin:${process.env.PATH}`, COORD_JS_TEST: '1', COORD_JS_SLEEP_SCALE: '0', COORD_JS_SLEEP_LOG: '<WORK>/fake/sleep.log',
+  PATH: `<WORK>/bin:${process.env.PATH}`, COORD_CONSOLE_WINDOW_TIMEOUT_S: '30', COORD_JS_TEST: '1', COORD_JS_SLEEP_SCALE: '0', COORD_JS_SLEEP_LOG: '<WORK>/fake/sleep.log',
 };
 
 // ---------- 화면 조립 ----------
