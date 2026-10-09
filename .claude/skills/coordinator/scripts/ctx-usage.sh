@@ -9,6 +9,8 @@
 #      cwd 를 모르면 <claude_projects_dir>/*/<session-id>.jsonl 로 찾는다.
 # 창 크기: --window → (덤프의 context_window_size) → state lanes.<레인>.session.window → compact.default_window.
 set -uo pipefail
+_SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.
+. "$_SD/lib/js-bridge.sh"; if _jsb_on CTX_USAGE; then _jsb_exec "$_SD/ctx-usage" "$@"; fi   # node 판(스위치 COORD_JS_CTX_USAGE)
 # shellcheck source=lib/common.sh
 . "$(dirname "$0")/lib/common.sh"
 coord_default_repo

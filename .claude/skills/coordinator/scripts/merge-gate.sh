@@ -6,6 +6,8 @@
 #   conflict = 충돌 있음, wait = FORBIDDEN·WINDOW·INFLIGHT 있음, 그 밖 ok(OUTSIDE·SHARED_API·RESTART 는 조정자 판단).
 #   --branch 만 주면 소유·금지 대조는 건너뛴다. 회차가 없으면 WINDOW·INFLIGHT 도 건너뛴다.
 set -uo pipefail
+_SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.
+. "$_SD/lib/js-bridge.sh"; if _jsb_on MERGE_GATE; then _jsb_exec "$_SD/merge-gate" "$@"; fi   # node 판(스위치 COORD_JS_MERGE_GATE)
 . "$(dirname "$0")/lib/common.sh"
 
 lane="" branch=""

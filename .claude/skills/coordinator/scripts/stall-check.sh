@@ -12,6 +12,8 @@
 #      그 목록에 든 파일 mtime 최신값, HEAD 커밋 시각). ignore 된 build·scratch 출력은 보지 않는다.
 # pid = 트리 중 누적 CPU 가 가장 큰 프로세스(jstack 대상 후보). heavy = heavy.sh snapshot RUN 줄 cwd 가 레인 워크트리 안인지.
 set -uo pipefail
+_SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.
+. "$_SD/lib/js-bridge.sh"; if _jsb_on STALL_CHECK; then _jsb_exec "$_SD/stall-check" "$@"; fi   # node 판(스위치 COORD_JS_STALL_CHECK)
 # shellcheck source=lib/common.sh
 . "$(dirname "$0")/lib/common.sh"
 . "$(dirname "$0")/lib/compat.sh"

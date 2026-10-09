@@ -14,6 +14,8 @@
 #   opencode 질의에서는 `!`·`@` 를 지운다(TUI·셸 모드 오작동 방지, 사용자 규칙).
 #   설정: search.workers, search.command·tab_command(agy), search.opencode.command·tab_command(자리 {prompt}·{timeout}·{out}), search.timeout_s
 set -uo pipefail
+_SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.
+. "$_SD/lib/js-bridge.sh"; if _jsb_on SEARCH; then _jsb_exec "$_SD/search" "$@"; fi   # node 판(스위치 COORD_JS_SEARCH)
 shopt -u patsub_replacement 2>/dev/null   # bash 5.2 이상: 치환문 안 & 가 일치한 글로 바뀌지 않게
 source "$(dirname "$0")/lib/common.sh"
 source "$(dirname "$0")/lib/compat.sh"

@@ -9,6 +9,8 @@
 #   stdout: `CLOSED <레인> handle=<h>` 또는 `CLOSE_REFUSED <레인> <사유>`.
 #   --dry-run: 판정은 실제로, 닫기 직전에 멈추고 `DRY CLOSED <레인> handle=<h>`.
 set -uo pipefail
+_SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.
+. "$_SD/lib/js-bridge.sh"; if _jsb_on CLOSE_LANE; then _jsb_exec "$_SD/close-lane" "$@"; fi   # node 판(스위치 COORD_JS_CLOSE_LANE)
 . "$(dirname "$0")/lib/common.sh"
 . "$(dirname "$0")/lib/term.sh"
 . "$(dirname "$0")/lib/compat.sh"

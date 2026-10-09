@@ -5,6 +5,8 @@
 #   statusline 을 깨지 않도록 어떤 실패에도 exit 0. common.sh 는 하위 셸에서만 읽는다(그 안의 exit 가 여기까지 오지 않게).
 case "${COMPAT_FORCE_OS:-$(uname -s)}" in windows|MINGW*|MSYS*|CYGWIN*) _sb=$(CDPATH= cd -P -- "$(dirname "$0")/../../_shared/bin" 2>/dev/null && pwd) && PATH="$_sb:$PATH" ;; esac   # 윈도우: 동봉 jq(_shared/bin) 우선
 set -uo pipefail
+_SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.
+. "$_SD/lib/js-bridge.sh"; if _jsb_on STATUSLINE_DUMP; then _jsb_exec "$_SD/statusline-dump" "$@"; fi   # node 판(스위치 COORD_JS_STATUSLINE_DUMP)
 
 in="$(cat 2>/dev/null)"
 {
