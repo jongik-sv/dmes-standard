@@ -15,7 +15,7 @@ description: D'Flow 작업(내 작업 조회·착수·진행 보고·완료 보�
 | 0 | 성공 |
 | 2 | 사용법·설정·push 미완료 |
 | 3 | 인증 실패 |
-| 4 | 선행·상태로 진행 불가: 409 충돌·로컬 선행 차단·선행 미충족(403 바디 `code=dependency_not_met` 재매핑) |
+| 4 | 선행·상태로 인한 진행 불가: 409 충돌·로컬 선행 차단·선행 미충족(403 바디 `code=dependency_not_met` 재매핑) |
 | 5 | 권한 부족 (그 밖의 403) |
 | 6 | 네트워크·서버·로컬 환경 실패 (응답 파싱·파일 쓰기 포함) |
 | 7 | 기능 꺼짐 |
@@ -29,7 +29,7 @@ description: D'Flow 작업(내 작업 조회·착수·진행 보고·완료 보�
    - dflow.sh 가 워크트리 최상위 `.dflow`(프로젝트 공통: `api_base`·`project_id`·`release_branch`)를 스스로 읽음
    - `.dflow.local`(개인: `pats`·`as`·`dev_branch`·`automerge`·`project_map`·`build_model_trial`·`build_model_trial_rate`·`build_model_trial_tasks`)도 스스로 읽음
    - 이미 export 된 env 가 이김
-   - 두 파일 다 없으면 현재 디렉터리 `.env`(`DFLOW_ENV_FILE`) 읽음
+   - 두 파일 다 없으면 종전대로 현재 디렉터리 `.env`(`DFLOW_ENV_FILE`) 읽음
    - 값 확인 = `dflow.sh config <key>`(비밀 제외)·`dflow.sh branch dev`
    - 두 파일이 모두 받는 키 = `no_docker`·`dialect_check` (`.dflow.local` 이 `.dflow` 덮음)
    - 뜻: dflow-dev `references/dev-discipline.md` 「도커 사용 규칙」. `dialect_check` 실행: dflow-merge 「방언 검증」
@@ -109,7 +109,7 @@ dflow.sh show <순번>
 dflow.sh claim <순번>
 ```
 
-- 선행·상태로 진행 불가 → **exit 4 차단**. 로컬 선행 차단이든 서버 거부(403 `code=dependency_not_met`)든 같은 코드
+- 선행·상태로 인한 진행 불가 → **exit 4 차단**. 로컬 선행 차단이든 서버 거부(403 `code=dependency_not_met`)든 같은 코드
 - 이 경우 fetch/merge 후 재시도. 우회 금지
 
 성공 시:
