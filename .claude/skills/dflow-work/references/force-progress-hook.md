@@ -1,6 +1,6 @@
 # 강제 진행 스텁 — 승격 관문 훅 예시
 
-- 운영 브랜치(`.dflow` 의 `release_branch`)로 push 할 때만 스텁 표식 검사
+- 운영 branch(`.dflow` 의 `release_branch`)로 push 할 때만 스텁 표식 검사
 - 위치: 대상 리포 `.githooks/pre-push` (또는 쓰는 훅 관리자)
 
 ```sh
@@ -15,4 +15,4 @@ done
 exit 0
 ```
 
-- 개발 브랜치 = 운영 브랜치인 리포(종전 운영)는 이 훅으로 못 막음. `/dflow-merge` 가 머지 전에 같은 검사
+- 개발 branch = 운영 branch 인 리포(종전 운영)는 이 훅으로 못 막음. `/dflow-merge` 가 merge 전에 같은 검사

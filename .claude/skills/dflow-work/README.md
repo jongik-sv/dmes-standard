@@ -1,6 +1,6 @@
 # D'Flow 작업 처리 스킬 (dflow-work)
 
-D'Flow 작업을 Claude Code 에서 직접 조회·착수·진행 보고·완료 보고하는 스킬.
+Claude Code 에서 D'Flow 작업 직접 조회·착수·진행 보고·완료 보고하는 스킬.
 
 - **SKILL.md** — 워크플로우·금지사항·명령 규약
 - **references/troubleshooting.md** — exit code 별 문제 해결
@@ -44,7 +44,7 @@ chmod 600 .env  # 파일 권한 제한
 - 스킬 위치 = **대상 리포 안 `.claude/skills/`** (`~/.claude/skills/` 아님). dflow-dev 등이 리포 루트 기준 경로로 동작
 - 방법 둘 중 하나:
 
-**A. 배포 킷 dflow-kit — 표준.** wbs-web 클론 없는 PC 는 이 방법:
+**A. 배포 킷 dflow-kit — 표준.** wbs-web clone 없는 PC 는 이 방법:
 
 ```bash
 git clone https://github.com/jongik-sv/dflow-kit.git
@@ -54,7 +54,7 @@ cd dflow-kit && ./install.sh <대상 리포 경로>
 - `install.sh` = `.claude/skills/dflow-*` 6종을 대상 리포에 복사 + `.env` 초안 생성 + `.gitignore` 보강
 - 갱신도 같은 명령 (스킬 폴더 단위로 통째 덮음)
 
-**B. wbs-web 클론 있는 PC.** 정본 `.claude/skills/` 를 심볼릭 링크:
+**B. wbs-web clone 있는 PC.** 정본 `.claude/skills/` 를 심볼릭 링크:
 
 ```bash
 ln -s /path/to/wbs-web/.claude/skills/dflow-work <대상리포>/.claude/skills/dflow-work
@@ -63,14 +63,14 @@ ln -s /path/to/wbs-web/.claude/skills/dflow-work <대상리포>/.claude/skills/d
 **윈도우(Git Bash)는 심링크 대신 복사 배포.**
 - Git Bash 의 `ln -s` = 심링크 아닌 **복사본** 생성 (진짜 심링크는 윈도우 개발자 모드 + `MSYS=winsymlinks:nativestrict` 필요)
 - B 대신 A(`install.sh` 복사)로 설치. 갱신도 같은 명령으로 다시 복사
-- 스킬 폴더만 복사하면 공용 도구가 없음 → **`.claude/skills/_shared/node` 를 `dflow-*` 와 함께 배포**
+- 스킬 폴더만 복사하면 공용 도구 없음 → **`.claude/skills/_shared/node` 를 `dflow-*` 와 함께 배포**
   - 이식된 도구가 `_shared/node` 를 상대 경로로 찾음 (jq 래퍼 불필요)
   - 킷 `install.sh` 가 `_shared` 를 빼면 직접 복사
-- 복사본은 정본 변경을 안 따라감 → 정본 갱신 뒤 다시 복사
+- 복사본은 정본 변경 안 따라감 → 정본 갱신 뒤 다시 복사
 
 ⚠️ 정본 = `wbs-web/.claude/skills/` 뿐.
 - `docs/agent/claude-skill/dflow-work/` 사본은 정본과 갈라져 낡아 2026-08-28 삭제 (포인터 README 만 남김)
-- 옛 안내를 보고 그 경로를 링크 대상으로 쓰지 않음
+- 옛 안내 보고 그 경로를 링크 대상으로 쓰지 않음
 
 ### 4단계: 설치 확인
 
@@ -110,7 +110,7 @@ dflow.mjs claim 1
 - 명세 스냅샷 생성: `<DOCS_DIR>/tasks/TSK-01-01/spec.md`
 - **반드시 spec.md 읽고 구현 시작**
 
-⚠️ 브랜치는 만들어지지 않음 — claim 직후 직접 만듦 (SKILL.md 착수 절 참조):
+⚠️ branch 안 만들어짐 — claim 직후 직접 만듦 (SKILL.md 착수 절 참조):
 
 ```bash
 git fetch origin && git switch -c agent/12345678-task-slug origin/<기본브랜치>
@@ -122,7 +122,7 @@ git fetch origin && git switch -c agent/12345678-task-slug origin/<기본브랜�
 dflow.mjs progress 1 50 "개발 50% 완료, 테스트 예정"
 ```
 
-진행률 **0~99** 범위만 허용 (100 금지).
+진행률 **0-99** 만 허용 (100 금지).
 
 ### 완료 보고
 
@@ -154,7 +154,7 @@ dflow.mjs done 1 "완료·테스트 통과·PR 병합됨" --auto-links --decisio
    └─ 상태 → reported (승인 대기)
 ```
 
-`--auto-links` 빠지면 `evidence` 가 `{}` 로 영구 고정 — 후속 작업의 선행 도달 검사가 그 값을 씀.
+`--auto-links` 빠지면 `evidence` 가 `{}` 로 영구 고정 — 후속 작업의 선행 도달 검사가 그 값 사용.
 
 ## wbs-web 자체 작업 시 유의
 
@@ -171,7 +171,7 @@ git commit -m "feat(feature): 기능 추가"
 
 ### 마이그레이션
 
-마이그레이션과 코드를 **같은 커밋에 담지 않음**:
+migration 과 코드를 **같은 commit 에 담지 않음**:
 
 ```bash
 # ✓ 마이그레이션 먼저 커밋
@@ -191,7 +191,7 @@ git commit -m "feat: 기능 구현"
 - `src/app/(app)/layout.tsx`
 - `src/components/app/*`
 
-이유: 전 화면에 영향, 테스트로 깨짐이 안 잡힘.
+이유: 전 screen 에 영향, test 로 깨짐 안 잡힘.
 
 ```bash
 git switch -c ui/feature-name
@@ -220,7 +220,7 @@ dflow.mjs --as alice@example.com claim 1
 
 ### 다중 PC·세션
 
-로컬 상태 파일에 의존 안 함 → 안전:
+로컬 상태 파일 의존 안 함 → 안전:
 
 ```bash
 # 다른 PC 에서 claimed 상태 복구
@@ -230,9 +230,9 @@ dflow.mjs show <순번>
 
 ## 문제 해결
 
-**설치 후 스킬이 트리거 안 되면** (대상 리포 루트에서):
+**설치 후 스킬 트리거 안 되면** (대상 리포 루트에서):
 1. 경로 재확인: `ls -la .claude/skills/dflow-work/scripts/dflow.mjs`
-2. Claude Code 재시작
+2. Claude Code restart
 
 **명령 실패 시**:
 - `references/troubleshooting.md` 의 exit code 별 절차 참고
@@ -254,7 +254,7 @@ dflow.mjs show <순번>
 
 ## 지원
 
-문제가 계속되면:
+문제 계속되면:
 
 1. `dflow.mjs doctor` 출력 수집
 2. 환경 변수 확인 (토큰 제외): `env | grep DFLOW`
@@ -267,8 +267,8 @@ dflow.mjs show <순번>
 
 ## 지원 환경: macOS · Linux · Windows (node)
 
-- `scripts/dflow.mjs` = node 로 macOS·Linux·Windows 에서 같이 돈다
-- 필요 도구: node 18.17+, git. Git Bash 는 사용자 bash 문법 명령(gate·baseline)을 윈도우에서 돌릴 때만 필요
+- `scripts/dflow.mjs` = node 로 macOS·Linux·Windows 에서 같이 돎
+- 필요 도구: node 18.17+, git. Git Bash = 사용자 bash 문법 명령(gate·baseline)을 윈도우에서 돌릴 때만 필요
 - 사용자 heartbeat 훅(`~/.dflow/hooks/heartbeat.sh`)과 `dflow-config.sh` 는 bash 로 남음. node 스크립트는 `dflow-config.mjs` 를 import
-- 스크립트 새로 쓸 때 macOS 전용 명령·perl 금지 (`stat -f %m` 은 GNU 에서 `?` → `stat -c %Y` 를 앞에 둠)
+- 새 스크립트에 macOS 전용 명령·perl 금지 (`stat -f %m` 은 GNU 에서 `?` → `stat -c %Y` 를 앞에 둠)
 - 정본·도구 표·한계: `../_shared/platform-support.md`
