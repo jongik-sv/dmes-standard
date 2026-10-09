@@ -26,7 +26,7 @@ automerge=0
 # 정본: .claude/skills/dflow-merge/SKILL.md 「방언 검증」.
 # dialect_check=cd <폴더> && JAVA_HOME=<JDK 경로> <DB 마다 다른 검증 시험 명령>   (DB 를 둘 이상 지원하는 리포에서만. dmes-standard 는 안 씀)
 
-# Build 모델 test (기본 꺼짐). 배정표가 opus 로 정한 Build 중 일부를 sonnet(+정해진 시점 advisor)으로 돌려 비교.
+# Build 모델 시험 (기본 꺼짐). 배정표가 opus 로 정한 Build 중 일부를 sonnet(+정해진 시점 advisor)으로 돌려 비교.
 # sonnet 밖의 값 = 꺼짐 (haiku Build 금지). 목록 있으면 목록만, 없으면 비율 (TSK ID 로 결정적 판정 — 재개해도 같음).
 # 판정은 Phase 01 에서 1회, state.json 에 기록. 정본: dflow-dev/references/dev-discipline.md 「Build 모델 시험(build_model_trial)」.
 # build_model_trial=sonnet
