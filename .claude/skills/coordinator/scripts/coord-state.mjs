@@ -66,7 +66,8 @@ function defaultRepo(c) {
 
 // ---------- jq 폴백 ----------
 function jqSpawn(c, args, input) {
-  const r = spawnSync('jq', args, { input, env: c.env, windowsHide: true, maxBuffer: 1 << 28 });
+  const [jq, pre] = C.jqCommand(c.env);
+  const r = spawnSync(jq, [...pre, ...args], { input, env: c.env, windowsHide: true, maxBuffer: 1 << 28 });
   if (r.error) return { out: Buffer.alloc(0), rc: 127, err: 'jq: command not found\n' };
   return { out: r.stdout ?? Buffer.alloc(0), rc: r.status ?? 70, err: r.stderr ? r.stderr.toString('utf8') : '' };
 }

@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { delimiter, dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { cliMain, isMain } from './js-cli.mjs';
 
 // ---------- 플랫폼 판별 (옛 compat.sh 머리의 COMPAT_WIN·COMPAT_GNU) ----------
@@ -10,6 +11,17 @@ export function isWin(env = process.env) {
   if (env.COMPAT_FORCE_OS === 'windows') return true;
   if (env.COMPAT_FORCE_OS === 'unix') return false;
   return /^(msys|cygwin|mingw)/.test(env.OSTYPE || '') || process.platform === 'win32';
+}
+/**
+ * jq 실행 방법 [명령, 앞 인자]. 윈도우(Git Bash)에는 jq 가 없어 동봉본(_shared/bin/win64/jq.exe)을 -b(출력 줄끝을 CRLF 로 바꾸지 않음)로 직접 부른다
+ * (같은 폴더의 `jq` 는 sh 래퍼라 node 가 직접 띄울 수 없다). 시험은 SKILLS_JQ_EXE 로 다른 실행 파일을 가리킬 수 있다. 윈도우가 아니거나 동봉본이 없으면 PATH 의 jq.
+ */
+export function jqCommand(env = process.env) {
+  if (isWin(env)) {
+    const exe = env.SKILLS_JQ_EXE || join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '_shared', 'bin', 'win64', 'jq.exe');
+    if (existsSync(exe)) return [exe, ['-b']];
+  }
+  return ['jq', []];
 }
 /** GNU coreutils 인가. macOS 는 PATH 의 첫 stat 이 /usr/bin/stat 이면 BSD, 아니면 stat -c 가 되는지 본다. */
 export function isGnu(env = process.env) {

@@ -173,7 +173,8 @@ export function cfgLoad(c) {
 const scalarText = (v) => (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' || v instanceof J.JNum ? J.tostring(v) : J.tojson(v));
 
 function spawnJq(c, args, input) {
-  const r = spawnSync('jq', args, { input, env: jqEnv(c), windowsHide: true, maxBuffer: 1 << 28 });
+  const [jq, pre] = C.jqCommand(c.env);
+  const r = spawnSync(jq, [...pre, ...args], { input, env: jqEnv(c), windowsHide: true, maxBuffer: 1 << 28 });
   if (r.error) return { out: '', rc: 4, err: 'jq 가 필요하다\n' };
   return { out: r.stdout, rc: r.status ?? 70, err: r.stderr ? r.stderr.toString('utf8') : '' };
 }
