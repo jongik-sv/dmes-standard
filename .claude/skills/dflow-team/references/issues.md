@@ -41,5 +41,4 @@ SKILL.md 「2-4」 가 가리킨다. 팀원의 SendMessage 이슈 보고가 도�
 **SendMessage 가 닿지 않을 때**:
 - backends.md 는 tmux 팀원의 `CLAUDE_CODE_MESSAGING_SOCKET`·`TOKEN` 을 일부러 벗긴다(「팀원 환경을 벗기는 이유」). 그래서 SendMessage 가 양쪽 다 실패할 수 있다.
 - 팀원 쪽은 실패해도 `.issues` 와 10분 규칙(worker-prompt.md 「9」)으로 넘어간다.
-- 팀장 쪽에서 SendMessage 가 실패하면 1번(저장)은 그대로 한다.
-- 같은 지시를 그 팀원 화면에 직접 넣는다: `send-keys -l --`(tmux, backends.md 「생존·화면·답·회수」) 또는 `orca terminal`.
+- 팀장 쪽에서 SendMessage 가 실패하면 1번(저장)은 그대로 하고, 같은 지시를 그 팀원 화면에 직접 넣는다: `send-keys -l --`(tmux, backends.md 「생존·화면·답·회수」) 또는 `orca terminal`.

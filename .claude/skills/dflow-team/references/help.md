@@ -137,7 +137,7 @@ worker_output_style=default   # 팀원의 출력 스타일
   - 기본은 꺼짐이다.
 - **도커**: 팀원은 인원과 무관하게 docker·Testcontainers 검증을 빼고 돌며, 뺀 것을 완료 보고에 적는다.
   - 꼭 도커가 필요한 Task 는 D'Flow 에서 그 작업에 `docker` 태그를 단다. 그 팀원만 도커를 쓴다. PC 전체에서 도커 명령은 한 번에 하나씩 돈다.
-  - DB 방언 검증처럼 여러 Task 가 같은 목적으로 도는 검증은 `.dflow` 에 `dialect_check=<명령>` 을 적는다. 승인 스윕이 머지 뒤 한 번 돌린다.
+  - DB 방언 검증처럼 여러 Task 가 같은 목적으로 도는 검증은 `.dflow` 에 `dialect_check=<명령>` 을 적으면 승인 스윕이 머지 뒤 한 번 돌린다.
   - PC 전용 값(JAVA_HOME 등)이 든 명령은 `.dflow.local` 에 적는다.
   - 태그가 있어도 막으려면 `no_docker=1` 을 넣는다.
   - 팀원도 팀장도 꺼진 도커 런타임을 스스로 켜지 않는다. 방언 검증은 보류하고 알린다.

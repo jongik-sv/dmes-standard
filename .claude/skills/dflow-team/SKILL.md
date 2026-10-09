@@ -331,14 +331,14 @@ done
   - `failed…` 로 끝난 작업은 자동 재개로 가지 않는다(원인을 사람이 먼저 고친 뒤 `--resume` 이 그 워크트리를 그대로 이어받음).
   - 이 표는 시작 보고와 마감 보고에 모두 낸다.
   - 재시작 명령은 갈래마다 아래 중 하나를 그대로 적는다(사람이 복사해 쓸 수 있게).
-  - 팀장에게 맡긴다: `/dflow-team <종료시각> --resume <id8>`
-  - 사람이 그 워크트리에서 직접 한다(워크트리가 있을 때):
-    ```bash
-    printf '%s\n' '<신원>/<host>/w<slot>' > <워크트리>/.dflow-agent   # parked 를 되돌린다
-    cd <워크트리> && claude   # 그 세션에서 /dflow-dev <TSK>
-    ```
-    - `.dflow-agent` 를 먼저 되돌린다(`dflow.sh heartbeat` 는 값이 `*/parked` 면 exit 2 로 거부).
-    - `<slot>` = `.dflow-prompt` 의 `AGENT_ID=` 에 박힌 번호.
+    - 팀장에게 맡긴다: `/dflow-team <종료시각> --resume <id8>`
+    - 사람이 그 워크트리에서 직접 한다(워크트리가 있을 때):
+      ```bash
+      printf '%s\n' '<신원>/<host>/w<slot>' > <워크트리>/.dflow-agent   # parked 를 되돌린다
+      cd <워크트리> && claude   # 그 세션에서 /dflow-dev <TSK>
+      ```
+      - `.dflow-agent` 를 먼저 되돌린다(`dflow.sh heartbeat` 는 값이 `*/parked` 면 exit 2 로 거부).
+      - `<slot>` = `.dflow-prompt` 의 `AGENT_ID=` 에 박힌 번호.
 - **부트스트랩 실패 정리**(해소 워크트리 `dflow-<id8>-resolve` 는 예외 — 「고아 정리 규칙」 2-1번): `.result` 의 branch 가 `-`(브랜치를 만들기 전에 끝남)이면 backends.md 「고아 정리 규칙」 1번대로 한다.
   - 알려진 부산물만 있을 때만 `--force` 로 정리.
   - 그 밖의 변경이 있으면 보존하고 보고.
@@ -633,7 +633,7 @@ POLL_DIR=$(cd "$(git rev-parse --git-path dflow-team-poll)" && pwd)
 - `--wp` = WP 범위 (`team.start` 의 `wp`), 공백 없는 쉼표 구분. 범위가 전체 (`-`)면 플래그 생략.
 - poll.sh 가 형식 (`WP-<숫자>` 또는 `<모듈>/WP-<숫자>`) 검사, 틀리면 exit 2. 번호 앞 0 은 무시.
 - `--lead` (계약 2.11): 서버가 `mine` 을 팀장 기준으로 계산. 새 서버면 ready 줄에 넷째 칸 `action` 이 붙음.
-- `action` 이 `full`·`design`·`build` 이고 `mine` 인 것만 옴 (12절 Y4). 옛 서버는 종전과 같음.
+- 새 서버면 `action` 이 `full`·`design`·`build` 이고 `mine` 인 것만 옴 (12절 Y4). 옛 서버는 종전과 같음.
 - 대기 큐는 `--exclude` 에 넣지 않음 (압축으로 대기 큐를 잃으면 그 작업들이 보이지 않는 제외에 갇힘).
 
 **재기동 조건**: 아래 넷 모두 만족할 때만 띄운다.
@@ -713,9 +713,7 @@ poll 이 안 떠 있는 구간이 있으므로, 팀장은 기상마다 시각을
 ### 2-3. 기상마다 하는 일
 
 모든 기상은 먼저 아래 한 줄 (`scripts/wake.sh`, 기상 블록)을 돈다. 스크립트 동작:
-1. 잠금 소유 확인. 소유가 맞을 때만 `beat` 갱신, 좌석표에도 같은 신호 (watch) 전송.
-2. lease 갱신 상태 보고.
-3. `references/events.md` 「기록 명령」 절과 압축 뒤 재독 명령 (`COMPACT_REREAD`) 출력.
+잠금 소유 확인 → 소유가 맞을 때만 `beat` 갱신, 좌석표에도 같은 신호 (watch) 전송 → lease 갱신 상태 보고 → 마지막으로 `references/events.md` 「기록 명령」 절과 압축 뒤 재독 명령 (`COMPACT_REREAD`) 출력.
 
 `STALE` 은 그것만 하고 넘김 (출력에 `EVIDENCE` 줄이 있으면 직전 TICK 증거로 갱신).
 잠금을 잃은 팀장은 새 팀장의 잠금을 살아 있게 만들지 않음 (「1. 시작」 잠금 소유 판정).
@@ -894,8 +892,9 @@ jq -c --arg a '<신원>/<host>/lead' --arg r '<MAIN>' 'select(.agent == $a and .
   1. `.result` 있으면 그 줄 처리.
   2. 없으면 backends.md 「결과 줄과 죽은 pane 폴백」 대로 `capture-pane -p -J -S -` 로 죽은 pane 화면 전체를 읽어 `<TSK> <id8> ` 로 시작하는 마지막 줄 처리. `failed not-isolated` 는 워커가 파일을 안 쓰므로 이 폴백으로만 옴.
   3. 그것도 없으면 `#{pane_dead_status}` 읽음(`references/restart.md` 「판정」 블록의 `dead_status`).
-  4. `127`(`claude` 못 찾음) → 곧바로 `failed no-result` 판정(hash `-`. 다시 띄워도 같은 자리에서 죽는 환경 결함).
-  5. 그 밖 → `references/restart.md` 「판정」 으로 감(재시작 후보). 프로세스가 없으므로 기다리지 않음.
+     - `127`(`claude` 못 찾음) → 곧바로 `failed no-result` 판정(hash `-`. 다시 띄워도 같은 자리에서 죽는 환경 결함).
+     - 그 밖 → `references/restart.md` 「판정」 으로 감(재시작 후보).
+  - 프로세스가 없으므로 기다리지 않음.
 - 줄 형식 `<TSK> <id8> <branch|-> <head|-> <done_exit|-> <status> <사유…>`.
 - 줄과 해시는 「팀장 상태」 한 줄 명령으로 함께 읽음. 해시 = 그 경로의 마지막 처리 해시면 처리 안 함.
 
@@ -957,7 +956,7 @@ fi
 | `failed no-result`(pane 죽었는데 결과 줄 없음) | 해제 | 영구 제외 | 고아 정리 규칙 | 서버에 claimed 면 "멈춤" 표에 넣음(사유 = 그 status). 차단기 계산. `pane_dead_status` 127 일 때만 이 행. 127 아닌 죽음은 `references/restart.md` 재시작 판정으로 감(워크트리 안 지움) |
 | `failed not-isolated` | 해제 | 영구 제외 | 없음(워커가 파일을 안 씀) | 백엔드 결함 → 새 spawn 멈추고 「7. 마감」 으로 |
 | `failed project` | 해제 | 영구 제외 | 고아 정리 규칙(claim 전이라 대개 부트스트랩 실패 정리) | 주문이 이 리포의 D'Flow 프로젝트 밖. claim 안 했으므로 "멈춤" 표에 넣지 않음. 바인딩(`.env`)·poll 필터가 새는 결함이므로 사유 그대로 보고. 차단기 계산 |
-| `failed not-assignee` | 해제 | 영구 제외 | 고아 정리 규칙(claim 전이라 대개 부트스트랩 실패 정리) | 다른 멤버 배정 작업을 claim 하려다 서버가 `not_assignee` 로 거부. claim 안 했으므로 "멈춤" 표에 넣지 않음. 차단기 계산에 넣지 않음(배정 불일치, 환경 결함 아님). 사유와 함께 "담당자 변경 여부를 D'Flow 에서 확인하라" 보고 |
+| `failed not-assignee` | 해제 | 영구 제외 | 고아 정리 규칙(claim 전이라 대개 부트스트랩 실패 정리) | 다른 멤버 배정 작업을 claim 하려다 서버가 `not_assignee` 로 거부. claim 안 했으므로 "멈춤" 표에 넣지 않음. **차단기 계산에 넣지 않음**(배정 불일치, 환경 결함 아님). 사유와 함께 "담당자 변경 여부를 D'Flow 에서 확인하라" 보고 |
 | `failed deps` | 해제 | 영구 제외 | 고아 정리 규칙 | 사유 보고, 차단기 계산. 설치는 claim·브랜치 생성 뒤라(`/dflow-dev` 「--worker」 H) 서버에 claimed 로 남으므로 "멈춤" 표에 넣음(사유 = 그 status). 대상 리포 lockfile·패키지 관리자 문제라 사람이 고침 |
 | `cancelled`(사람이 D'Flow 에서 중단 — 주문 `cancelled`·위임 해제) | 해제 | 영구 제외 | 지우지 않음(산출물 보존). 미커밋 변경 있어도 그대로 두고 경로만 보고, `.dflow-agent` 값을 `<신원>/<host>/parked` 로 바꿈 | 사람 알림 한 줄(`<TSK> <id8> 중단됨 — 워크트리 <경로> 보존`). 사람이 멈춘 것이라 "멈춤" 표에 안 넣고, 차단기 계산에도 안 넣음(세지도 끊지도 않음). 다시 맡기려면 사람이 위임 체크를 켬 → 새 주문으로 poll 에 다시 잡힘 |
 
@@ -1101,7 +1100,8 @@ fi
    - 「1. 시작」 첫 스윕과 「7. 마감」 마지막 스윕. 실행마다 한 번뿐이고, 그 보고가 사람이 그 시점에 읽는 현황. 후보 없으면 `/dflow-merge` 가 스스로 0건으로 끝남.
    - `needs-merge` 결과가 온 기상. 워커가 서버 approved 를 확인한 머지 대상이 있어 검사는 어차피 후보를 냄.
    - 사람이 "스윕해"·"머지해" 처럼 직접 요청한 경우.
-   - 예외여도 한 기상 1회는 같음.
+
+   위 예외여도 한 기상에 최대 1회는 같음(1번).
 
 ### 4-1. 머지 충돌 해소
 
@@ -1193,15 +1193,15 @@ cat .claude/skills/dflow-team/references/merge-conflict.md
    - 재구성이 이 기록으로 슬롯과 작업을 이음.
    - id8 을 영구 제외(진행 중)에 넣음. 빠뜨리면 압축 뒤 재구성이 그 작업을 놓침.
 
-같은 작업 재spawn 은 여섯뿐:
-1. poll 이 그 작업을 다시 돌려준 경우 (일시 제외가 풀린 `skipped`, 제외 안 하는 `failed rate-limit`).
-2. 고아 스캔이 "재개 가능" 으로 분류한 중단 작업.
-3. `--resume` 으로 사람이 지목한 작업.
-4. 자동 재시작(`references/restart.md`)이 다시 띄우는 작업.
-5. 「5-2. 해소 spawn」 의 해소 워커. 주문이 `reported`·`approved` 라 개발 재spawn 이 아님. `resolve-decide.sh` 판정 안에서만 띄움.
-6. 「설계 승인」 된 작업의 이어 가기 (계약 2.11, 「2-3」 의 `build`).
+같은 작업 재spawn 은 여섯뿐 (위 0-6 단계 번호와 구별하려고 ①-⑥ 로 적음):
+- ① poll 이 그 작업을 다시 돌려준 경우 (일시 제외가 풀린 `skipped`, 제외 안 하는 `failed rate-limit`).
+- ② 고아 스캔이 "재개 가능" 으로 분류한 중단 작업.
+- ③ `--resume` 으로 사람이 지목한 작업.
+- ④ 자동 재시작(`references/restart.md`)이 다시 띄우는 작업.
+- ⑤ 「5-2. 해소 spawn」 의 해소 워커. 주문이 `reported`·`approved` 라 개발 재spawn 이 아님. `resolve-decide.sh` 판정 안에서만 띄움.
+- ⑥ 「설계 승인」 된 작업의 이어 가기 (계약 2.11, 「2-3」 의 `build`).
 
-- 1 = 이 절 / 5 = 「5-2」 / 2·3·4·6 = 이 절이 아니라 「5-1. 재개 spawn」 절차 (워크트리 새로 안 만들고 claim 도 안 함).
+- ① = 이 절 / ⑤ = 「5-2」 / ②③④⑥ = 이 절이 아니라 「5-1. 재개 spawn」 절차 (워크트리 새로 안 만들고 claim 도 안 함).
 - `blocked` 는 재spawn 안 함. 팀원이 자기 화면에서 답을 기다리므로 그 자리에서 이어 감 (「6. blocked」).
 - 다시 띄울 때 이름·브랜치 충돌은 backends.md 「고아 정리 규칙」 5번(생성 브랜치 정리)과 결과 처리의 워크트리 정리가 맡음.
 

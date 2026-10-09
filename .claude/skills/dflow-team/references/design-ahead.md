@@ -118,5 +118,5 @@ jq -c --arg a '<신원>/<host>/lead' --arg r '<MAIN>' 'select(.agent == $a and .
 - `team.result`(status `design_waiting`, 사유 = 결과 줄 7번째 칸부터 — 미충족 선행 ref) 기록
   - 제외 없음 (주문이 claimed 라 poll 이 안 돌려줌)
   - 차단기 연속 수 → 0
-- 결과 줄 없이 끝난 팀원 (멈춤 절차 3-4 사이 죽음 등)도 워크트리 state.json 이 `wait_pred` 면 같게 처리. restart.md 「재투입」 의 재투입 전 확인이 이 문서 2번을 먼저 봄
+- 결과 줄 없이 끝난 팀원 (멈춤 절차 3~4 사이 죽음 등)도 워크트리 state.json 이 `wait_pred` 면 같게 처리. restart.md 「재투입」 의 재투입 전 확인이 이 문서 2번을 먼저 봄
 - 시작·마감 보고에 설계 완료 대기 목록(1번)을 `<id8> <TSK> 선행 대기: <ref…>` 로 한 줄씩 냄. "멈춤" 표에는 안 넣음 (사람이 할 일 없음)
