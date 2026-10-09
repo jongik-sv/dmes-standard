@@ -24,7 +24,7 @@ import { useWidgetStatus, WidgetTitleExtra, type WidgetProps } from "@dk-oasis/s
 
 import { fetchWeather } from "@/widget-types/_ext/api";
 import { readWeatherConfig, validLocations } from "@/widget-types/_ext/config";
-import { formatHumidity, formatPop, formatRange, formatTemp, formatWind, weekdayLabel } from "@/widget-types/_ext/format";
+import { formatCollectedAt, formatHumidity, formatPop, formatRange, formatTemp, formatWind, weekdayLabel } from "@/widget-types/_ext/format";
 import { EXT_CSS, EXT_STYLE_HREF } from "@/widget-types/_ext/styles";
 import type { WeatherResult } from "@/widget-types/_ext/types";
 import {
@@ -111,15 +111,19 @@ export default function WeatherWidget({ definition, refreshKey }: WidgetProps) {
       </style>
       {result?.stale && (
         <WidgetTitleExtra>
-          <Badge tone="warning" label="갱신 실패" title="날씨를 새로 받지 못해 저장된 값을 보여 줍니다" />
+          <Badge tone="warning" label="갱신 실패" title="날씨를 새로 수집하지 못해 이전에 모은 값을 보여 줍니다" />
         </WidgetTitleExtra>
       )}
       {locations.length > 1 && <Tabs items={tabItems} activeKey={String(idx)} onChange={(k) => setActive(Number(k))} />}
       {!loc ? (
         <div className="mcm-ext__state">표시할 지점이 없습니다</div>
       ) : !result ? null : !current ? (
-        <div className="mcm-ext__state">
-          {result.disabled ? "외부 정보 연결이 꺼져 있어 날씨를 가져올 수 없습니다" : "표시할 날씨 정보가 없습니다"}
+        <div className="mcm-ext__state" data-testid="widget-weather-empty">
+          {result.uncollected
+            ? `${loc.name}은(는) 날씨 수집 대상이 아닙니다. 예약 작업에 날씨 수집 작업(mcm.weather.*)을 추가하세요`
+            : result.empty
+              ? "수집된 날씨가 아직 없습니다. 날씨 수집 작업이 실행되면 표시됩니다"
+              : "표시할 날씨 정보가 없습니다"}
         </div>
       ) : (
         <>
@@ -159,6 +163,11 @@ export default function WeatherWidget({ definition, refreshKey }: WidgetProps) {
               );
             })}
           </ul>
+          {result.collectedAt && (
+            <div className="mcm-wx__desc" data-testid="widget-weather-collected-at">
+              {formatCollectedAt(result.collectedAt)}
+            </div>
+          )}
         </>
       )}
     </div>

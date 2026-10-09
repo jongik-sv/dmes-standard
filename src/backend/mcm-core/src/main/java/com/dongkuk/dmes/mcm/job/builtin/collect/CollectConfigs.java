@@ -104,7 +104,8 @@ public final class CollectConfigs {
     }
 
     private static HttpSource parseHttp(JsonNode node) {
-        URI url = parseUrl(text(node, "url"));
+        String template = text(node, "url");
+        URI url = parseUrl(HttpUrlTemplate.mask(template));   // {{이름}} 자리는 경로·쿼리에만 — 호스트·스킴 자리에 있으면 여기서 거절한다
         JsonNode items = node.get("items");
         if (items == null || !items.isArray() || items.isEmpty() || items.size() > ITEMS_MAX) {
             throw invalid("수집 항목(source.items)은 1~" + ITEMS_MAX + "개여야 합니다.");
@@ -118,13 +119,18 @@ public final class CollectConfigs {
             String path = text(item, "path");
             out.add(new HttpItem(key, path, parsePath(key, path)));
         }
-        return new HttpSource(url, List.copyOf(out));
+        return new HttpSource(url, List.copyOf(out), template.strip());
     }
 
     /** http·https 절대 주소, 호스트 있음, 사용자 정보({@code user:pw@}) 없음. */
     static URI parseUrl(String text) {
+        return parseUrl(text, URL_MAX);
+    }
+
+    /** {@link #parseUrl(String)} 와 같고 길이 상한만 다르다 — 변수를 넣은 실행 주소는 저장 상한({@link #URL_MAX})보다 길 수 있다. */
+    static URI parseUrl(String text, int maxLength) {
         if (text == null || text.isBlank()) throw invalid("수집 주소(source.url)를 입력해 주세요.");
-        if (text.length() > URL_MAX) throw invalid("수집 주소는 " + URL_MAX + "자 이하여야 합니다.");
+        if (text.length() > maxLength) throw invalid("수집 주소는 " + maxLength + "자 이하여야 합니다.");
         URI uri;
         try {
             uri = new URI(text.strip());

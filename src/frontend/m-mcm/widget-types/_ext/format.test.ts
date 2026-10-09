@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatCollectedAt,
   formatDiff,
   formatHumidity,
   formatPop,
@@ -247,5 +248,22 @@ describe("날씨 서식", () => {
   it("날짜가 아니면 빈 문자열", () => {
     expect(weekdayLabel("")).toBe("");
     expect(weekdayLabel("x")).toBe("");
+  });
+});
+
+describe("formatCollectedAt — 날씨 수집 시각", () => {
+  const today = new Date(2026, 9, 9, 13, 0); // 2026-10-09
+
+  it("오늘이면 시각만", () => {
+    expect(formatCollectedAt("2026-10-09T12:30", today)).toBe("기준 12:30");
+  });
+
+  it("오늘이 아니면 월/일을 붙인다", () => {
+    expect(formatCollectedAt("2026-10-08T23:30", today)).toBe("기준 10/8 23:30");
+  });
+
+  it("모양이 틀리면 빈 글자", () => {
+    expect(formatCollectedAt("", today)).toBe("");
+    expect(formatCollectedAt("2026-10-09 12:30", today)).toBe("");
   });
 });

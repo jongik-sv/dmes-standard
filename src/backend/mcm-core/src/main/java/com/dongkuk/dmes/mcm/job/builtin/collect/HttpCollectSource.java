@@ -20,6 +20,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.springframework.http.HttpStatusCode;
@@ -38,6 +39,8 @@ import org.springframework.web.client.RestClientException;
  *       거절한다. 이름 풀이와 실제 연결 사이에 주소가 바뀌는 경우(DNS 재바인딩)까지는 막지 못하므로 허용 호스트는 신뢰하는 곳만 적는다.
  *       시스템 프록시는 쓰지 않는다.</li>
  *   <li>리다이렉트는 따라가지 않는다(3xx 는 실패). 연결 3초·읽기 5초, 응답 본문 1MB 상한, JSON 이 아니면 실패.</li>
+ *   <li>주소의 {@code {{이름}}} 자리는 경로·쿼리에만 있고, 작업 변수 값을 퍼센트 인코딩해 넣는다({@link HttpUrlTemplate}). 정의되지 않은 변수는 거절하고,
+ *       허용 호스트·주소 검사는 변수를 넣은 주소로 한다.</li>
  *   <li>실패 메시지에 주소·질의 문자열을 넣지 않는다(키가 질의에 있을 수 있다).</li>
  * </ul>
  * 값은 숫자(또는 숫자 글자)면 숫자, 그 밖의 글자는 글자(200자까지). 경로에 값이 없는 항목은 건너뛰고, 전부 없으면 호출자가 실패로 기록한다.
@@ -101,7 +104,12 @@ public class HttpCollectSource implements CollectSource<CollectConfig.HttpSource
 
     @Override
     public List<CollectItem> collect(CollectConfig.HttpSource source, LocalDate today) {
-        java.net.URI uri = source.url();
+        return collect(source, today, Map.of());
+    }
+
+    /** 작업 변수를 주소의 {@code {{이름}}} 자리에 넣는 실행 경로 — {@code jobCollect} 가 쓴다. 허용 호스트·주소 검사는 변수를 넣은 뒤의 주소로 한다. */
+    public List<CollectItem> collect(CollectConfig.HttpSource source, LocalDate today, Map<String, Object> vars) {
+        java.net.URI uri = HttpUrlTemplate.render(source, vars, today);
         String host = uri.getHost();
         if (host == null || !hostAllowed.test(host)) throw new CollectException("허용 목록에 없는 호스트라 수집하지 않습니다.");
         requireSafeAddress(host);

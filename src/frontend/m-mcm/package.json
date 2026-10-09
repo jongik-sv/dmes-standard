@@ -6,6 +6,7 @@
     "generate:page-registry": "node scripts/generate-page-registry.mjs",
     "generate:widget-registry": "node scripts/generate-widget-registry.mjs",
     "gen:widget-guide": "node scripts/gen-widget-guide.mjs",
+    "gen:job-sched-guide": "node scripts/gen-job-sched-guide.mjs",
     "predev": "node scripts/generate-page-registry.mjs && node scripts/generate-widget-registry.mjs",
     "prebuild": "node scripts/generate-page-registry.mjs && node scripts/generate-widget-registry.mjs",
     "test:scripts": "node --test scripts/*.test.mjs",
