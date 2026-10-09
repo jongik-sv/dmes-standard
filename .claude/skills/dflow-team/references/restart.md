@@ -146,7 +146,7 @@ esac
 | 조건 | `team.lost` 의 `next` | 처리 |
 |---|---|---|
 | `tries` ≥ 3 | `park` | 「멈춤」(사유 `재시도 상한`). `team.result` 안 씀. 쓰면 다음 팀장 시작의 고아 스캔이 재시도 0 으로 읽고 또 재개함 |
-| 차단기 걸렸거나 rate-limit 보류 중이고, 이번이 그 TICK 의 test 1건 아님 | `wait`(`restart_at` 은 `-`) | 슬롯만 해제. 다음 기상에 `RESTART_DUE` 로 다시 봄. `next=wait` 인 `team.lost` 는 차단기 연속 실패 수에 안 넣음(미룬 것이지 새 실패 아님. 세면 대기 중인 손실이 차단기를 스스로 붙잡음) |
+| 차단기 걸렸거나 rate-limit 보류 중이고, 이번이 그 TICK 의 시험 1건 아님 | `wait`(`restart_at` 은 `-`) | 슬롯만 해제. 다음 기상에 `RESTART_DUE` 로 다시 봄. `next=wait` 인 `team.lost` 는 차단기 연속 실패 수에 안 넣음(미룬 것이지 새 실패 아님. 세면 대기 중인 손실이 차단기를 스스로 붙잡음) |
 | 그 밖 | `restart` | 같은 기상 안에서 「재투입」 |
 
 차례(세 갈래 공통):
@@ -252,7 +252,7 @@ e2=$( (node .claude/skills/dflow-work/scripts/dflow.mjs show "$id8") 2>/dev/null
 e3=$(git -C "$w" status --porcelain 2>/dev/null | cksum | cut -d' ' -f1)
 printf 'evidence=%s\n' "$(printf '%s|%s|%s\n' "$e1" "${e2:-SHOW_FAILED}" "$e3" | cksum | cut -d' ' -f1)"
 ```
-rate-limit 횟수 = **한도 에피소드** 안 `cause=rate-limit` 인 `team.lost` 수.
+rate-limit 횟수 = **한도 에피소드** 안의 `cause=rate-limit` 인 `team.lost` 수.
 - 에피소드 = 첫 rate-limit `team.lost`(`next=wait`)부터 재개 성공까지
 - 끊는 것 = 마지막 `team.result` 또는 `spawn_kind=readopt` 인 `team.spawn`(worker 가 스스로 이어 감)
 - 그래서 worker 가 스스로 이어 간 뒤 새 한도에 서면 새 에피소드 → 다시 1회 재시작
@@ -273,8 +273,8 @@ jq -r --arg a '<신원>/<host>/lead' --arg r '<MAIN>' --arg i "$id8" \
 | `RL_WAIT` 인 기상 | 그 슬롯은 무응답 판정에서 뺌. `PANE_DEAD` 로 와도 거두기만 하고 `restart_at` 까지 기다림 |
 | `RL_DUE` 이고 pane 살아 있음 | `evidence` 다시 잼. **이벤트의 `evidence` 와 다르면** worker 가 스스로 이어 간 것. `team.spawn`(`spawn_kind=readopt`, 같은 `slot`·`worktree`·`handle`)으로 진행 중에 되돌림. `readopt` 는 재시도로 안 셈. **같으면** 아래 "재투입 판정" |
 | `RL_DUE` 이고 pane 죽었거나 `.dflow-agent` 가 `parked` | 증거 안 재고 곧바로 "재투입 판정". 자동 이어 가기 없음 |
-| 재투입 판정 | `rl` ≥ 2 면 거두기 → `team.lost`(`cause=rate-limit`, `next=park`) → 「멈춤」(사유 `rate-limit 반복`). `tries` ≥ 3 이면 같은 차례로 사유 `재시도 상한`. 그 밖이면 거두기 → 「재투입」(차단기 걸렸으면 그 TICK 의 test 1건으로만). 이때 `team.lost` 새로 안 씀(감지 때 이미 씀. 다시 쓰면 `rl` 이 부풀어 한 번 만에 멈춤) |
-| 보류 해제 | `RL_WAIT`·`RL_DUE` 모두 없어지면 보류 풀림. SKILL.md 「2-1」 restart 조건을 다시 봄 |
+| 재투입 판정 | `rl` ≥ 2 면 거두기 → `team.lost`(`cause=rate-limit`, `next=park`) → 「멈춤」(사유 `rate-limit 반복`). `tries` ≥ 3 이면 같은 차례로 사유 `재시도 상한`. 그 밖이면 거두기 → 「재투입」(차단기 걸렸으면 그 TICK 의 시험 1건으로만). 이때 `team.lost` 새로 안 씀(감지 때 이미 씀. 다시 쓰면 `rl` 이 부풀어 한 번 만에 멈춤) |
+| 보류 해제 | `RL_WAIT`·`RL_DUE` 모두 없어지면 보류 풀림. SKILL.md 「2-1」 재기동 조건을 다시 봄 |
 
 ## 중단 표식 정리
 
@@ -309,7 +309,7 @@ esac
 - `team.lost` 기록도 tmux 와 같음(「판정」·「재시작 후보를 띄울지」 그대로)
 - 「판정」 의 6번(`dead_status=127`)은 Orca 에 적용 안 됨. `pane_dead_status` = tmux 전용 값이라 Orca 슬롯은 그 조건에 안 걸리고 7번(pane 죽음, Orca 는 탭 죽음)으로 감
 
-**관문 전에는**(이 리허설 이전 판본, 또는 위 셋 중 하나라도 다시 깨진 것이 확인되면) 이 절 전체 안 쓰고 「판정」 의 1-4번과 9번까지만 함.
+**관문 전에는**(이 리허설 이전 판본, 또는 위 셋 중 하나라도 다시 깨진 것이 확인되면) 이 절 전체 안 쓰고 「판정」 의 1~4번과 9번까지만 함.
 - (나) 2회째 무응답이면 `references/result-handling.md` 의 Orca 무응답 처리를 그대로 한 뒤 한 줄 더함: `<TSK> <id8> 재시작하려면 그 탭을 닫고 /dflow-team <종료시각> --resume <id8>`
 - `team.lost` 는 기록 안 함
 
