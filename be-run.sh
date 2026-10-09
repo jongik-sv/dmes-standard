@@ -41,6 +41,9 @@
 #   KURE 임베딩 인코더를 다시 켜면(application-local.yml.kure-on) mdm 은 힙 밖(ONNX 네이티브)이 약 1GB 더 든다.
 #   -Xmx 로는 막을 수 없으니 그만큼 메모리 여유가 있을 때만 켠다.
 #
+# 이미 돌고 있는 be-run 이 있어도 고른 모듈만 가져온다: 같은 체크아웃의 이전 be-run 은 끝내지 않고 그 모듈의 앱 JVM 만 내린다
+#   (모듈마다 .be-run/<모듈>.own 에 맡은 be-run·앱 JVM pid 를 남긴다). 이전 be-run 이 맡은 다른 모듈은 계속 돈다.
+#   소유 기록 없이 뜬 예전 버전 be-run 만 종전처럼 통째로 끝낸다.
 # 대상 포트를 이미 물고 있는 프로세스가 있으면 정리하고 시작한다.
 #   ./be-run.sh --keep-port  # 회수하지 않고 "점유 중" 으로 중단 (종전 동작)
 #
@@ -469,6 +472,56 @@ be_run_prebuild() {
   return 0
 }
 
+# ── 모듈 소유 기록 ───────────────────────────────────────────
+# 같은 체크아웃에서 be-run 을 여러 번 띄워도 모듈 하나만 다시 띄울 수 있게, 어느 be-run 이 어느 모듈(앱 JVM)을 맡았는지
+# 체크아웃별 폴더에 모듈마다 한 줄로 남긴다: <맡은 be-run pid> <앱 JVM pid 또는 ->.
+# 새 실행은 자기가 고른 모듈의 기록만 가져오고(그 앱 JVM 만 내린다) 이전 be-run 은 끝내지 않는다. 이전 be-run 이 나중에
+# cleanup 을 돌아도 기록이 다른 be-run 으로 넘어간 모듈은 건드리지 않는다. 기록이 없으면 종전처럼 내 것으로 본다.
+BE_STATE_DIR="$ROOT_DIR/.be-run"
+OWN_RUN_PID=""
+OWN_JVM_PID=""
+
+own_file() { printf '%s/%s.own' "$BE_STATE_DIR" "$1"; }
+
+# 모듈($1)의 기록을 OWN_RUN_PID·OWN_JVM_PID 에 읽는다. 없거나 숫자가 아니면 빈 값.
+own_read() {
+  local f
+  OWN_RUN_PID=""; OWN_JVM_PID=""
+  f="$(own_file "$1")"
+  [ -f "$f" ] || return 0
+  read -r OWN_RUN_PID OWN_JVM_PID < "$f" 2>/dev/null || true
+  case "$OWN_RUN_PID" in ''|*[!0-9]*) OWN_RUN_PID="" ;; esac
+  case "$OWN_JVM_PID" in ''|*[!0-9]*) OWN_JVM_PID="" ;; esac
+  return 0
+}
+
+# 이 실행($$)이 모듈($1)의 맡은 쪽으로 기록한다. $2 는 앱 JVM pid, 모르면 -.
+own_write() {
+  local f tmp
+  mkdir -p "$BE_STATE_DIR" 2>/dev/null || return 0
+  f="$(own_file "$1")"
+  tmp="$f.$$.tmp"
+  if printf '%s %s\n' "$$" "${2:--}" > "$tmp" 2>/dev/null; then
+    mv -f "$tmp" "$f" 2>/dev/null || rm -f "$tmp"
+  else
+    rm -f "$tmp"
+  fi
+  return 0
+}
+
+# 모듈($1)을 다른 be-run 이 가져갔는지(기록이 있고 pid 가 내 것이 아님). 참이면 OWN_RUN_PID 에 그 pid.
+own_taken_by_other() {
+  own_read "$1"
+  [ -n "$OWN_RUN_PID" ] && [ "$OWN_RUN_PID" != "$$" ]
+}
+
+# 내가 맡은 모듈의 기록을 지운다(다른 be-run 이 가져간 기록은 그대로 둔다).
+own_release() {
+  own_taken_by_other "$1" && return 0
+  rm -f "$(own_file "$1")" 2>/dev/null || true
+  return 0
+}
+
 # ── 드라이런 ─────────────────────────────────────────────────
 # 이전 인스턴스 종료·포트 회수·종료 트랩보다 앞에서 끝낸다 — 아무 프로세스도 끄거나 띄우지 않는다.
 # 선빌드 태스크 목록을 보이려고 gradlew -m(계획만, 태스크 실행 없음)만 한 번 부른다.
@@ -477,8 +530,18 @@ if [ "$DRY_RUN" = "1" ]; then
   if [ "$KEEP_PORT" = "1" ]; then
     dev_log_print "be" "[dry-run] 포트 점유 시 중단(--keep-port): $(for m in "${SELECTED_MODULES[@]}"; do printf '%s ' "$(be_module_port "$m")"; done)"
   else
-    dev_log_print "be" "[dry-run] 이 체크아웃의 이전 be-run.sh 종료 뒤 포트 회수: $(for m in "${SELECTED_MODULES[@]}"; do printf '%s ' "$(be_module_port "$m")"; done)"
+    dev_log_print "be" "[dry-run] 이전 be-run.sh 는 끝내지 않고 고른 모듈의 앱 JVM 만 내린 뒤 포트 회수: $(for m in "${SELECTED_MODULES[@]}"; do printf '%s ' "$(be_module_port "$m")"; done)"
   fi
+  for m in "${SELECTED_MODULES[@]}"; do
+    own_read "$m"
+    if [ -n "$OWN_RUN_PID" ] && [ -n "$OWN_JVM_PID" ] && kill -0 "$OWN_JVM_PID" 2>/dev/null; then
+      dev_log_print "be" "[dry-run]   be-$m: be-run pid $OWN_RUN_PID 가 맡은 앱 JVM pid $OWN_JVM_PID 만 내린다(그 be-run 의 다른 모듈은 그대로)"
+    elif [ -n "$OWN_RUN_PID" ]; then
+      dev_log_print "be" "[dry-run]   be-$m: 이전 기록(be-run pid $OWN_RUN_PID)은 있으나 살아 있는 앱 JVM 이 없다"
+    else
+      dev_log_print "be" "[dry-run]   be-$m: 이전 기록 없음 — 포트 점유자만 회수한다(기록 없는 예전 버전 be-run 은 종전처럼 종료)"
+    fi
+  done
 
   if ! be_legacy_mode; then
     if be_prebuild_enabled; then
@@ -560,12 +623,13 @@ fi
 # bootRun 의 workingDir 이 모듈 루트라 이 디렉토리가 없으면 SQLITE_CANTOPEN 으로 죽는다.
 mkdir -p "$BACKEND_DIR/data"
 
-# ── 이전 실행 인스턴스 종료 ──────────────────────────────────
-# 포트만 뺏으면 이전 be-run.sh 가 "내 모듈이 다 죽었다" 고 판단해 뒤늦게 cleanup 을 돌린다.
-# 그 cleanup 은 이 체크아웃 모듈 포트의 앱 JVM 을 정리하므로, 방금 새로 띄운 같은 포트의 모듈까지
-# 함께 죽일 수 있다. 그래서 포트를 건드리기 전에 이전 인스턴스를 먼저 끝내고 기다린다.
+# ── 이전 실행 인스턴스 정리 ──────────────────────────────────
+# 이번에 고른 모듈만 이전 실행에서 가져온다(위 「모듈 소유 기록」). 이전 be-run.sh 는 끝내지 않으므로 그 be-run 이 맡은
+# 다른 모듈은 계속 돈다. 포트만 뺏으면 이전 be-run 이 뒤늦게 cleanup 으로 새 모듈을 죽일 수 있으니, 앱 JVM 을 내리기
+# **전에** 기록을 내 것으로 바꿔 둔다 — 이전 be-run 의 cleanup·포트 정리는 다른 be-run 이 맡은 모듈을 건드리지 않는다.
+# 소유 기록 없이 뜬 예전 버전 be-run 은 기록으로 알 수 없으므로 종전처럼 TERM 으로 끝내고 cleanup 을 기다린다.
 #
-# 대상은 **이 체크아웃의** be-run.sh 만이다. 같은 PC 의 다른 체크아웃·워크트리(예: /dflow-team 팀원
+# 대상은 **이 체크아웃의** be-run.sh 뿐이다. 같은 PC 의 다른 체크아웃·워크트리(예: /dflow-team 팀원
 # 워크트리 dflow-<id8>)에서 도는 be-run.sh 까지 잡으면 남의 서버를 죽인다(2026-09-24 사고: 팀원이
 # 워크트리에서 --mdm 을 띄우자 메인 체크아웃의 mcm 8100 이 함께 종료됐다).
 
@@ -600,11 +664,57 @@ is_own_be_run() {
   return 1
 }
 
-terminate_previous_be_runs() {
-  local pid
+# pid 가 이 체크아웃의 모듈($2) bootRun 앱 JVM 인지.
+# bootRun 의 앱 JVM 은 be-run 의 프로세스 트리가 아니라 Gradle 데몬의 자식이다. 그래서 gradlew 실행기만
+# 끊으면 남는다 — 종료 경로에서 모듈 포트의 리스너를 따로 정리하되, 다른 체크아웃(메인 저장소·다른 워크트리)의
+# 같은 포트 서버는 절대 건드리지 않게 여기서 고른다.
+# - 이름이 java 인 프로세스만.
+# - 작업 디렉터리를 알면 그것으로만 판단한다: bootRun 이 workingDir = rootProject.projectDir 이라
+#   이 체크아웃의 모듈 폴더($BACKEND_DIR/<모듈>)와 정확히 같아야 한다(lsof 는 실제 경로를 내므로 pwd -P 도 비교).
+#   워크트리는 $ROOT_DIR/.claude/worktrees/·$ROOT_DIR/dflow-<id8> 아래라 정확 비교로 서로 갈린다.
+# - 작업 디렉터리를 모르면 명령줄(공백·콜론으로 나눈 classpath 항목)이 그 모듈 폴더 아래 경로로 시작할 때만.
+is_own_backend_jvm() {
+  local pid="$1"
+  local m="$2"
+  local mod_dir="$BACKEND_DIR/$m"
+  local mod_dir_phys comm cwd args tok
+  local IFS=$' \t\n'
+
+  mod_dir_phys="$(cd "$mod_dir" 2>/dev/null && pwd -P)"
+  [ -n "$mod_dir_phys" ] || mod_dir_phys="$mod_dir"
+
+  comm="$(ps -o comm= -p "$pid" 2>/dev/null | head -n 1)"
+  [ "${comm##*/}" = "java" ] || return 1
+
+  cwd="$(pid_cwd "$pid")"
+  if [ -n "$cwd" ]; then
+    [ "$cwd" = "$mod_dir" ] || [ "$cwd" = "$mod_dir_phys" ]
+    return
+  fi
+
+  args="$(ps -ww -o command= -p "$pid" 2>/dev/null || true)"
+  IFS=$' \t\n:'
+  for tok in $args; do
+    case "$tok" in
+      "$mod_dir"/*|"$mod_dir_phys"/*) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+# 소유 기록이 한 줄도 없는(예전 버전으로 뜬) 이 체크아웃의 be-run.sh 를 끝낸다. 기록이 있는 be-run 은 건드리지 않는다.
+terminate_unregistered_be_runs() {
+  local pid f
+  local registered=" "
   local victims=()
 
   command -v pgrep >/dev/null 2>&1 || return 0
+
+  for f in "$BE_STATE_DIR"/*.own; do
+    [ -f "$f" ] || continue
+    pid="$(sed -n '1s/ .*//p' "$f" 2>/dev/null)"
+    [ -n "$pid" ] && registered="$registered$pid "
+  done
 
   for pid in $(pgrep -f "be-run.sh" 2>/dev/null || true); do
     [ -n "$pid" ] || continue
@@ -612,12 +722,13 @@ terminate_previous_be_runs() {
     [ "$pid" = "$PPID" ] && continue          # local-run.sh 등 부모는 건드리지 않는다
     kill -0 "$pid" 2>/dev/null || continue
     is_own_be_run "$pid" || continue          # 다른 체크아웃·워크트리의 인스턴스는 건드리지 않는다
+    case "$registered" in *" $pid "*) continue ;; esac   # 소유 기록이 있는 be-run 은 끝내지 않는다
     victims+=("$pid")
   done
 
   [ "${#victims[@]}" -gt 0 ] || return 0
 
-  dev_log_print "be" "이전 be-run.sh 인스턴스 종료 대기 (pid ${victims[*]}) — 그 cleanup 이 끝나야 안전하다"
+  dev_log_print "be" "소유 기록이 없는 이전 be-run.sh 인스턴스 종료 대기 (pid ${victims[*]}) — 그 cleanup 이 끝나야 안전하다"
   for pid in "${victims[@]}"; do
     kill -TERM "$pid" 2>/dev/null || true
   done
@@ -638,7 +749,40 @@ terminate_previous_be_runs() {
   done
 }
 
-terminate_previous_be_runs
+# 이번에 고른 모듈을 이전 be-run 에서 가져온다: 기록을 내 것으로 바꾼 뒤, 이전에 맡았던 앱 JVM 만 내린다.
+take_over_modules() {
+  local m pid prev_run prev_jvm
+  local jvms=()
+
+  terminate_unregistered_be_runs
+
+  for m in "${SELECTED_MODULES[@]}"; do
+    own_read "$m"
+    prev_run="$OWN_RUN_PID"
+    prev_jvm="$OWN_JVM_PID"
+    own_write "$m" "-"                         # 먼저 내 것으로 — 이전 be-run 의 늦은 cleanup 이 이 모듈을 못 건드린다
+    [ -n "$prev_jvm" ] || continue
+    kill -0 "$prev_jvm" 2>/dev/null || continue
+    if is_own_backend_jvm "$prev_jvm" "$m"; then
+      dev_log_print "be" "be-$m 를 이전 be-run(pid ${prev_run:-?})에서 가져온다 — 앱 JVM pid=$prev_jvm 만 내린다(그 be-run 의 다른 모듈은 그대로)"
+      jvms+=("$prev_jvm")
+    else
+      dev_log_print "be" "be-$m 이전 기록의 pid=$prev_jvm 는 이 체크아웃의 앱 JVM 이 아니라 건드리지 않는다 — 포트 회수가 맡는다"
+    fi
+  done
+
+  [ "${#jvms[@]}" -gt 0 ] || return 0
+  for pid in "${jvms[@]}"; do
+    terminate_pid_tree TERM "$pid"
+  done
+  wait_for_exit "${jvms[@]}" || true
+  for pid in "${jvms[@]}"; do
+    kill -0 "$pid" 2>/dev/null && terminate_pid_tree KILL "$pid"
+  done
+  return 0
+}
+
+take_over_modules
 
 # ── 포트 회수 ────────────────────────────────────────────────
 # 이전 실행이 남긴 bootRun JVM 이 포트를 물고 있으면 그냥 정리하고 시작한다
@@ -747,6 +891,7 @@ run_with_prefix() {
   if [ -n "$run_pid" ]; then
     PIDS+=("$run_pid")
     PID_TAGS+=("$tag")
+    own_write "${tag#be-}" "$run_pid"          # 이 모듈의 앱 JVM 을 내가 맡았다고 남긴다
     dev_log_print "be" "$tag 시작 (pid $run_pid, log $log_pid) — cwd=$dir : $*"
   else
     dev_log_error "$tag 실행 PID 확인 실패 — cwd=$dir : $*"
@@ -763,67 +908,34 @@ CLEANUP_DONE=0
 # (예: 메모리 부족으로 한 JVM 이 OOM) 멀쩡한 5개와 프론트까지 동반 종료돼,
 # 정작 사용자에게는 "왜 백엔드가 통째로 사라졌는지" 가 안 보인다.
 # 이제는 죽은 모듈만 이름을 찍어 알리고, 전부 죽었을 때만 빠져나온다.
+# 모듈을 다른 be-run 이 가져갔으면(새 실행이 그 모듈만 다시 띄운 경우) 더 관리하지 않고 알리기만 한다.
 wait_for_backend_exit() {
-  local i pid alive
+  local i pid alive m
 
   while :; do
     alive=0
     for i in "${!PIDS[@]}"; do
       pid="${PIDS[$i]}"
       [ -n "$pid" ] || continue
-      if kill -0 "$pid" 2>/dev/null; then
+      m="${PID_TAGS[$i]#be-}"
+      if own_taken_by_other "$m"; then
+        dev_log_print "be" "${PID_TAGS[$i]} 는 be-run(pid=$OWN_RUN_PID)이 이어받았다 — 이 실행은 더 관리하지 않는다."
+        PIDS[$i]=""
+      elif kill -0 "$pid" 2>/dev/null; then
         alive=1
       else
         dev_log_error "${PID_TAGS[$i]} 프로세스가 종료됐습니다 (pid=$pid). 위 로그에서 원인을 확인하세요."
-        dev_log_error "  다시 띄우려면: ./be-run.sh --${PID_TAGS[$i]#be-}"
+        dev_log_error "  다시 띄우려면: ./be-run.sh --$m"
         PIDS[$i]=""
       fi
     done
 
     [ "$alive" = "0" ] && {
-      dev_log_error "실행 중인 백엔드 모듈이 없습니다 — 정리 후 종료합니다."
+      dev_log_print "be" "이 실행이 맡은 백엔드 모듈이 없습니다 — 정리 후 종료합니다."
       return 0
     }
     sleep 0.5
   done
-}
-
-# pid 가 이 체크아웃의 모듈($2) bootRun 앱 JVM 인지.
-# bootRun 의 앱 JVM 은 be-run 의 프로세스 트리가 아니라 Gradle 데몬의 자식이다. 그래서 gradlew 실행기만
-# 끊으면 남는다 — 종료 경로에서 모듈 포트의 리스너를 따로 정리하되, 다른 체크아웃(메인 저장소·다른 워크트리)의
-# 같은 포트 서버는 절대 건드리지 않게 여기서 고른다.
-# - 이름이 java 인 프로세스만.
-# - 작업 디렉터리를 알면 그것으로만 판단한다: bootRun 이 workingDir = rootProject.projectDir 이라
-#   이 체크아웃의 모듈 폴더($BACKEND_DIR/<모듈>)와 정확히 같아야 한다(lsof 는 실제 경로를 내므로 pwd -P 도 비교).
-#   워크트리는 $ROOT_DIR/.claude/worktrees/·$ROOT_DIR/dflow-<id8> 아래라 정확 비교로 서로 갈린다.
-# - 작업 디렉터리를 모르면 명령줄(공백·콜론으로 나눈 classpath 항목)이 그 모듈 폴더 아래 경로로 시작할 때만.
-is_own_backend_jvm() {
-  local pid="$1"
-  local m="$2"
-  local mod_dir="$BACKEND_DIR/$m"
-  local mod_dir_phys comm cwd args tok
-  local IFS=$' \t\n'
-
-  mod_dir_phys="$(cd "$mod_dir" 2>/dev/null && pwd -P)"
-  [ -n "$mod_dir_phys" ] || mod_dir_phys="$mod_dir"
-
-  comm="$(ps -o comm= -p "$pid" 2>/dev/null | head -n 1)"
-  [ "${comm##*/}" = "java" ] || return 1
-
-  cwd="$(pid_cwd "$pid")"
-  if [ -n "$cwd" ]; then
-    [ "$cwd" = "$mod_dir" ] || [ "$cwd" = "$mod_dir_phys" ]
-    return
-  fi
-
-  args="$(ps -ww -o command= -p "$pid" 2>/dev/null || true)"
-  IFS=$' \t\n:'
-  for tok in $args; do
-    case "$tok" in
-      "$mod_dir"/*|"$mod_dir_phys"/*) return 0 ;;
-    esac
-  done
-  return 1
 }
 
 # 이 실행이 맡은 모듈 포트를 LISTEN 중인 이 체크아웃의 앱 JVM 에 신호를 보낸다.
@@ -838,6 +950,7 @@ terminate_backend_ports() {
   command -v lsof >/dev/null 2>&1 || return 0
 
   for m in "${SELECTED_MODULES[@]}"; do
+    own_taken_by_other "$m" && continue        # 다른 be-run 이 가져간 모듈의 포트는 그 be-run 몫이다
     port="$(be_module_port "$m")"
     tag="be-$m"
     for port_pid in $(lsof -nP -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true); do
@@ -867,6 +980,16 @@ cleanup() {
 
   echo
   dev_log_print "be" "종료 신호 수신, 자식 프로세스 정리 중..."
+  # 다른 be-run 이 가져간 모듈의 pid 는 버린다 — 이미 내려갔고 pid 가 재사용됐을 수 있다.
+  local n i
+  n="${#PIDS[@]}"
+  i=0
+  while [ "$i" -lt "$n" ]; do
+    if [ -n "${PIDS[$i]}" ] && own_taken_by_other "${PID_TAGS[$i]#be-}"; then
+      PIDS[$i]=""
+    fi
+    i=$((i + 1))
+  done
   # 배열이 비어도 bash 3.2 + set -u 에서 죽지 않게 ${arr[@]+"${arr[@]}"} 로 편다.
   if [ "$reason" = "INT" ]; then
     wait_for_exit ${PIDS[@]+"${PIDS[@]}"} || true
@@ -892,6 +1015,11 @@ cleanup() {
     terminate_pid_tree TERM "$pid"
   done
   wait_for_exit ${LOG_PIDS[@]+"${LOG_PIDS[@]}"} || true
+
+  local m
+  for m in "${SELECTED_MODULES[@]}"; do
+    own_release "$m"
+  done
 
   # Gradle 데몬은 멈추지 않는다. gradlew --stop 은 같은 사용자·같은 Gradle 버전의 데몬을 모두 멈춰
   # 다른 워크트리에서 도는 빌드·시험을 "Gradle build daemon has been stopped" 로 깨뜨린다.
