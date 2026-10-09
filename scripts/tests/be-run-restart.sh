@@ -31,6 +31,9 @@ trap 'kill $watchdog 2>/dev/null; wait $watchdog 2>/dev/null; cleanup' EXIT
 mkdir -p "$root/scripts" "$tmp/app"
 cp "${BE_RUN_SRC:-$repo/be-run.sh}" "$root/be-run.sh"   # BE_RUN_SRC: 다른 판(예: 수정 전)으로 시험해 볼 때
 cp -R "$repo/scripts/lib" "$root/scripts/lib"
+cp "${LOCAL_RUN_SRC:-$repo/local-run.sh}" "$root/local-run.sh"   # LOCAL_RUN_SRC: 다른 판으로 시험해 볼 때
+printf '#!/usr/bin/env bash\nexec sleep 300\n' > "$root/fe-run.sh"; chmod +x "$root/fe-run.sh"   # local-run 이 띄울 가짜 프론트
+printf 'BE_RUN_ARGS="--mcm --mdm"\n' > "$root/.run.env"
 sed -i.bak -E 's/^(be +[a-z]+ +)([0-9]+)/\1__\2/' "$root/scripts/lib/modules.conf"
 for p in 8092 8093 8094 8095 8096 8100 8191; do
   sed -i.bak "s/__$p/$((p + 30000))/" "$root/scripts/lib/modules.conf"
@@ -58,7 +61,8 @@ declare_port() { case "$1" in mcm) echo 38100 ;; mdm) echo 38096 ;; analog) echo
 for m in mcm mdm analog; do
   d="$root/src/backend/$m"
   mkdir -p "$d/api/build/be-run"
-  printf 'FakeApp\n%s\n' "$tmp/app" > "$d/api/build/be-run/classpath.txt"
+  # classpath 에 root/src 경로를 하나 넣는다: local-run 의 잔존 프로세스 정리가 명령줄에 이 경로가 든 프로세스를 쓸어 담는다.
+  printf 'FakeApp\n%s\n' "$tmp/app:$root/src/backend/lib" > "$d/api/build/be-run/classpath.txt"
   declare_port "$m" > "$d/port.txt"
   if lsof -nP -tiTCP:"$(declare_port "$m")" -sTCP:LISTEN >/dev/null 2>&1; then
     echo "FAIL: 시험 포트 $(declare_port "$m") 가 이미 쓰이고 있다"; exit 1
@@ -123,6 +127,64 @@ for m in mcm mdm analog; do wait_down "$m" || bad "마무리 뒤 $m 이 남았�
 ls "$root/.be-run"/*.own >/dev/null 2>&1 && bad "소유 기록이 남았다: $(ls "$root/.be-run")"
 note "6) 마무리 OK"
 
+# 앱 JVM 수: 작업 디렉터리가 모듈 폴더인 FakeApp
+count_jvm() {
+  local m="$1" n=0 p cwd
+  for p in $(pgrep -f FakeApp 2>/dev/null || true); do
+    cwd="$(lsof -a -p "$p" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -n 1)"
+    case "$cwd" in */src/backend/"$m") case "$cwd" in "$tmp"/*|"/private$tmp"/*) n=$((n + 1)) ;; esac ;; esac
+  done
+  echo "$n"
+}
+settle_down() { for m in mcm mdm analog; do wait_down "$m" || bad "마무리 뒤 $m 이 남았다"; done; }
+
+# ── 8) local-run 아래 be-run 이 모듈을 전부 빼앗겨 끝나도 프론트·새 JVM 은 산다 ──
+BE_PREBUILD=0 bash -c 'exec bash "$0"' "$root/local-run.sh" >"$tmp/L.log" 2>&1 & L=$!
+pids_to_kill="$pids_to_kill $L"
+wait_up mcm && wait_up mdm || bad "L: local-run 의 백엔드가 뜨지 않았다"
+runbg --mcm --mdm >"$tmp/G.log" 2>&1 & G=$!
+pids_to_kill="$pids_to_kill $G"
+for _ in $(seq 1 60); do grep -q '이어받아 이 be-run 만 끝났습니다\|백엔드(be-run.sh)가 종료됐습니다' "$tmp/L.log" && break; sleep 0.5; done
+sleep 5   # 잘못이면 이 사이 local-run 이 프론트를 내리고 잔존 프로세스(명령줄에 root/src 가 든 새 JVM 포함)를 TERM→KILL 한다
+alive "$L" || bad "local-run 이 끝났다(백엔드가 이어받혔을 뿐인데 전체를 내렸다)"
+fe="$(pgrep -P "$L" 2>/dev/null | head -n 1)"
+[ -n "$fe" ] && alive "$fe" || bad "local-run 의 프론트가 내려갔다"
+up mcm && up mdm || bad "local-run 의 정리가 이어받은 새 JVM(G)을 내렸다"
+kill -TERM "$L" "$G" 2>/dev/null; wait "$L" "$G" 2>/dev/null
+settle_down
+note "8) local-run: 모듈을 전부 빼앗겨도 프론트·새 JVM 유지"
+
+# ── 9) 같은 모듈을 동시에 시작해도 한쪽만 이기고 고아 JVM 이 없다 ──
+for round in 1 2 3 4 5; do
+  runbg --mcm --mdm >"$tmp/RA$round.log" 2>&1 & RA=$!
+  wait_up mcm && wait_up mdm || bad "라운드 $round: 처음 기동 실패"
+  runbg --mcm >"$tmp/RB$round.log" 2>&1 & RB=$!
+  runbg --mcm >"$tmp/RC$round.log" 2>&1 & RC=$!
+  pids_to_kill="$pids_to_kill $RA $RB $RC"
+  sleep 7
+  n="$(count_jvm mcm)"
+  [ "$n" = 1 ] || bad "라운드 $round: mcm 앱 JVM 이 $n 개다(1개여야 한다)"
+  up mcm || bad "라운드 $round: mcm 이 응답하지 않는다"
+  winner_jvm="$(port_pid mcm)"
+  recorded="$(sed -n '1s/^[0-9]* //p' "$root/.be-run/mcm.own" 2>/dev/null)"
+  [ "$recorded" = "$winner_jvm" ] || bad "라운드 $round: 살아 있는 mcm JVM($winner_jvm)이 소유 기록($recorded)과 다르다(관리 밖 고아)"
+  [ "$(port_pid mdm)" = "$(port_pid mdm)" ] && up mdm || bad "라운드 $round: mdm 이 내려갔다"
+  kill -TERM $RA $RB $RC 2>/dev/null; wait $RA $RB $RC 2>/dev/null
+  settle_down
+done
+note "9) 같은 모듈 동시 시작 5회: JVM 1개, 소유 기록과 일치"
+
+# ── 10) 기록한 be-run 이 죽은 낡은 기록은 무시한다 — 살아 있는 be-run 이 자기 모듈을 놓지 않는다 ──
+runbg --mcm --mdm >"$tmp/SA.log" 2>&1 & SA=$!
+pids_to_kill="$pids_to_kill $SA"
+wait_up mcm && wait_up mdm || bad "SA: 기동 실패"
+sleep 0 & dead=$!; wait "$dead" 2>/dev/null
+printf '%s -\n' "$dead" > "$root/.be-run/mcm.own"      # 선빌드 실패·강제 종료로 죽은 be-run 이 남긴 기록
+sleep 3
+kill -TERM "$SA"; wait "$SA" 2>/dev/null
+settle_down
+note "10) 낡은 기록 무시: SA 종료 때 mcm·mdm 모두 정리됨"
+
 # ── 7) 소유 기록 없이 뜬 예전 버전 be-run 은 종전처럼 끝내고 이어받는다 ──
 if [ -n "${OLD_BE_RUN_SRC:-}" ] && [ -f "$OLD_BE_RUN_SRC" ]; then
   new_copy="$tmp/be-run.new.sh"; cp "$root/be-run.sh" "$new_copy"
@@ -131,6 +193,7 @@ if [ -n "${OLD_BE_RUN_SRC:-}" ] && [ -f "$OLD_BE_RUN_SRC" ]; then
   pids_to_kill="$pids_to_kill $E"
   wait_up mdm || bad "E(예전 판): mdm 안 뜸"
   cp "$new_copy" "$root/be-run.sh"
+  sleep 4   # 시작한 지 3초가 안 된 be-run 은 건드리지 않는 규칙을 지난다
   runbg --mdm >"$tmp/F.log" 2>&1 & F=$!
   pids_to_kill="$pids_to_kill $F"
   for _ in $(seq 1 80); do alive "$E" || break; sleep 0.5; done
