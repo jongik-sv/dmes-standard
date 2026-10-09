@@ -1,9 +1,9 @@
 // console-poll.mjs 가 쓰는 console-input·console-resolve 쪽 보조 함수 모음.
-// W1-a 의 console-input.mjs·console-resolve.mjs 가 dev 에 들어오기 전의 임시 이음매다: 아래 두 갈래로 나눈다.
+// W1-a 의 console-input.mjs 가 dev 에 들어오기 전의 임시 이음매다: 아래 두 갈래로 나눈다.
 //   · 직접 옮긴 것(가볍고 호출이 잦은 것): 기록 이름·참조 검사, 소비 목록, 기록 잠금·쓰기, 보낸 표식, 레인 잠금, 시각 변환, 세션 기록 읽기, 살아 있는 회차·팀장 목록
-//   · bash 판을 그대로 부르는 것(무겁고 jq 식이 긴 것): console_input_snapshot·console_excerpt_sha_json·console_resolve·console_header_ref·console_list_targets
+//   · bash 판을 그대로 부르는 것(무겁고 jq 식이 긴 것): console_input_snapshot·console_excerpt_sha_json·console_full_sha (console-resolve 쪽은 dev 에 들어와 import 로 바꿨다)
 //     → `bash -c` 한 번에 lib 를 source 하고 그 함수를 부른다(shim). 전역(CI_*)은 파일로 돌려받는다.
-// 두 모듈이 머지되면 이 파일의 해당 함수만 그쪽 import 로 바꿔 끼운다(console-poll.mjs 본문은 그대로).
+// console-input 이 머지되면 이 파일의 해당 함수만 그쪽 import 로 바꿔 끼운다(console-poll.mjs 본문은 그대로).
 // 레인 잠금의 주인 pid 는 env.COORD_JS_CALLER_PID(없으면 이 프로세스) — 상주 폴러는 자기 pid 로 둔다.
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { Ctx, expand, isoToEpoch, pstart, sess8Of, stateRoot } from './common.mjs';
 import { pidAlive } from './compat.mjs';
 import * as J from './jq-json.mjs';
+import * as CR from './console-resolve.mjs';
 
 const LIB = dirname(fileURLToPath(import.meta.url));
 export const SCRIPTS_DIR = dirname(LIB);
@@ -359,18 +360,19 @@ export function fullSha(buf, ctx) {
   const r = shim('console_full_sha', [], { ...ctx, stdin: buf });
   return r.rc === 0 ? r.out.toString('utf8').replace(/\n+$/, '') : '';
 }
+// console-resolve 는 dev 에 들어온 node 판을 같은 프로세스에서 부른다(CR_IDENT·CR_HOST·CR_LIMIT_S 는 ctx.env 로 받는다).
+// lead-state 시간 초과 경고는 stderr 로 나오므로 ctx.plog 가 있으면 폴러 로그로 옮긴다.
+function crCall(fn, args, ctx) {
+  const r = CR.functions[fn].run({ args, env: ctx.env, cwd: ctx.cwd }) ?? {};
+  if (r.err && ctx.plog) for (const l of String(r.err).split('\n')) if (l !== '') ctx.plog(l);
+  return { rc: r.rc ?? 0, out: String(r.out ?? '').replace(/\n+$/, '') };
+}
 /** console_resolve <kind> <ref> → {rc, out} */
-export function resolve(kind, ref, ctx) {
-  const r = shim('console_resolve', [kind, ref], ctx);
-  return { rc: r.rc, out: r.out.toString('utf8').replace(/\n+$/, '') };
-}
-export function headerRef(kind, ref, ctx) {
-  const r = shim('console_header_ref', [kind, ref], ctx);
-  return r.out.toString('utf8').replace(/\n+$/, '');
-}
+export function resolve(kind, ref, ctx) { return crCall('console_resolve', [kind, ref], ctx); }
+export function headerRef(kind, ref, ctx) { return crCall('console_header_ref', [kind, ref], ctx).out; }
 /** console_list_targets → [{kind, ref, handle}] */
 export function listTargets(ctx) {
-  const r = shim('console_list_targets', [], ctx);
-  return r.out.toString('utf8').split('\n').filter((l) => l !== '').map((l) => { const [kind, ref, handle] = l.split('\t'); return { kind, ref, handle }; });
+  const r = crCall('console_list_targets', [], ctx);
+  return r.out.split('\n').filter((l) => l !== '').map((l) => { const [kind, ref, handle] = l.split('\t'); return { kind, ref, handle }; });
 }
 export { Ctx, existsSync };

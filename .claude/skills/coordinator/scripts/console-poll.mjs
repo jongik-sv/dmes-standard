@@ -303,7 +303,7 @@ function inflightSweep() {
   }
 }
 const inTerms = (h) => S.TL.has(h);
-const shimCtx = () => ({ env: { ...S.env, CR_IDENT: S.IDENT, CR_HOST: S.HOST, CR_LIMIT_S: String(S.LS_TIMEOUT) }, cwd: S.cwd, tmpd: S.tmpd });
+const shimCtx = () => ({ env: { ...S.env, CR_IDENT: S.IDENT, CR_HOST: S.HOST, CR_LIMIT_S: String(S.LS_TIMEOUT) }, cwd: S.cwd, tmpd: S.tmpd, plog });
 
 // ---------- ② 프롬프트 전달 ----------
 async function ack(id, tok, res, rs, dt, what) {
