@@ -8,6 +8,8 @@
 #   재측정(after)이 직전(before)과 같거나 못 읽으면 transcript 가 아직 안 갱신된 것이다: 화면 상태줄의 ctx % 로 after 를 어림하고
 #   (ctx % × 창 크기), 그것도 없으면 화면의 Compacted 문구만 확인한 채 after=- 로 낸다. 보조 경로를 쓰면 stderr 에만 알린다.
 set -uo pipefail
+_SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.
+. "$_SD/lib/js-bridge.sh"; if _jsb_on COMPACT_LANE; then _jsb_exec "$_SD/compact-lane" "$@"; fi   # node 판(스위치 COORD_JS_COMPACT_LANE)
 . "$(dirname "$0")/lib/common.sh"
 . "$(dirname "$0")/lib/term.sh"
 . "$(dirname "$0")/lib/compact-screen.sh"
