@@ -26,7 +26,7 @@
  * 패턴: W3 (commRoleMng) / W4 (commRoleGrpMng) 의 다중 그리드 + Detail 확장.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   PageLayout,
   SearchArea,
@@ -39,17 +39,10 @@ import {
   DETAIL_VALUE_CELL,
 } from "@dk-oasis/shared/layout";
 import { GridPanel, AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
-import { LookupModal, type LookupRow, type LookupFetchFn } from "@dk-oasis/shared/lookup";
 import { Modal } from "@dk-oasis/shared/modal";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
-import {
-  Button,
-  Input,
-  Select,
-  DatePicker,
-  Radio,
-} from "@dk-oasis/shared/form";
+import { Button, useBusy } from "@dk-oasis/shared/form";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import {
   searchCmUser as apiSearchCmUser,
@@ -60,29 +53,18 @@ import {
   searchRoleGrp as apiSearchRoleGrp,
   pwdinit as apiPwdInit,
   saveUserRoleGrpCopy as apiSaveUserRoleGrpCopy,
-  searchDeptLov as apiSearchDeptLov,
 } from "./api";
+import { CommUserDetailForm, type CommUserDetailHandle } from "./CommUserDetailForm";
+import { IN_OUT_OPTIONS, getRowKey, toDateInputValue } from "./detailUtils";
 import type {
   CommUserMngFilters,
+  CommUserMngGridRow,
   CommUserMngRoleGrpListRow,
   CommUserMngRoleGrpRow,
   CommUserMngRow,
+  GridRow,
   RowStatus,
 } from "./types";
-
-interface GridRow extends Record<string, unknown> {
-  __gridTempId?: string;
-  __rowId?: string;
-  nativeeditor_status?: RowStatus;
-}
-
-function getRowKey(row: GridRow): string {
-  return (
-    (row.__gridTempId as string) ||
-    (row.__rowId as string) ||
-    String((row as { USER_ID?: unknown }).USER_ID ?? "")
-  );
-}
 
 /** spread base 이후 PK 명시 (정책 #14). */
 function withSyntheticId<T extends Partial<CommUserMngRow>>(r: T, idx: number): T & { __rowId: string } {
@@ -97,22 +79,6 @@ function stripInternal<T extends GridRow>(row: T): Record<string, unknown> {
     ...rest
   } = row as Record<string, unknown>;
   return rest;
-}
-
-/**
- * BE LocalDateTime ISO / "yyyyMMdd" 8자 / "yyyy-MM-dd" / null → DatePicker (`<input type="date">`)
- * 가 받을 수 있는 "yyyy-MM-dd" 문자열로 정규화. invalid → 빈 문자열.
- * As-Is xfdl Calendar dateformat="yyyy-MM-dd" (xfdl:113 / 125) 정합.
- */
-function toDateInputValue(v: unknown): string {
-  if (v == null) return "";
-  const s = String(v).trim();
-  if (!s || s === "null") return "";
-  // ISO yyyy-MM-dd[Thh:mm:ss...] → 앞 10자
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
-  // yyyyMMdd 8자
-  if (/^\d{8}$/.test(s)) return `${s.substring(0, 4)}-${s.substring(4, 6)}-${s.substring(6, 8)}`;
-  return "";
 }
 
 const DEFAULT_FILTERS: CommUserMngFilters = {
@@ -179,10 +145,6 @@ const IN_OUT_CODES = ["I", "O"] as const;
 const USE_TP_OPTIONS: { value: string; label: string }[] = [
   { value: "Y", label: "Yes" },
   { value: "N", label: "No" },
-];
-const IN_OUT_OPTIONS: { value: string; label: string }[] = [
-  { value: "I", label: "내부" },
-  { value: "O", label: "외부" },
 ];
 /** 검색 필드용 — 빈 값(전체) 옵션 포함. */
 const USE_TP_SEARCH_OPTIONS = [{ value: "", label: "전체" }, ...USE_TP_OPTIONS];
@@ -290,11 +252,13 @@ export default function CommUserMngPage() {
   // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·선택 키는 가볍게, 조회 결과 행은 bulky.
   // 역할그룹 그리드·후보 풀·체크 선택(Set 포함)·초기화 라디오는 선택한 사용자가 정해지면 다시 조회·초기화되므로 이어받지 않는다(useState).
   const [filters, setFilters] = useCarryState<CommUserMngFilters>("filters", DEFAULT_FILTERS);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  // 용도별 busy(R5) — "list": 목록 조회, "save": 저장·역할 저장·복사·초기화·재생성 등 쓰기 작업.
+  const { isBusy, run: runBusy } = useBusy();
+  const isSearching = isBusy("list");
+  const isSaving = isBusy("save");
   const [error, setError] = useState<string | null>(null);
 
-  const [rows, setRows] = useCarryState<(CommUserMngRow & GridRow)[]>("rows", [], { bulky: true });
+  const [rows, setRows] = useCarryState<CommUserMngGridRow[]>("rows", [], { bulky: true });
   const [selectedKey, setSelectedKey] = useCarryState<string | null>("selectedKey", null);
   const restored = useCarryRestored();
 
@@ -312,25 +276,21 @@ export default function CommUserMngPage() {
 
   // 2026-06-04 — 사용자 결정: 정보처리의뢰서 (D-019 INF_REQ_NO / D-020 DESCRIPTION) 전부 제거.
   //   FE state / Input / payload / V-NNN 검증 모두 폐기. BE 도 row 인입 시 null 처리.
-  //   역할 복사 입력 (D-017) 만 유지.
-  const [roleCopyUserId, setRoleCopyUserId] = useState<string>("");
-
-  // D-016 / D-018 — As-Is rdo_PwdReset / rdo_SSOReset (Y/N Radio + 버튼 결합, default "N").
-  // As-Is xfdl:1382 / 1405 로직 — Radio=Y 일 때만 confirm 진입.
-  const [pwdResetFlag, setPwdResetFlag] = useState<string>("N");
-  const [ssoResetFlag, setSsoResetFlag] = useState<string>("N");
-
-  // 2026-06-04 — 사용자 결정: Detail 부서코드 직접 타이핑 ✗ → 검색 버튼 + LoV 모달 (DEPT_CD/DEPT_NM).
-  //   선택 시 DEPT_CD + DEPT_NM 자동 세트 (handleDeptLovPick).
-  //   commRoleMng round-3 의 searchObjectLov + 모달 정합 패턴.
-  const [isDeptLovOpen, setIsDeptLovOpen] = useState<boolean>(false);
+  // 상세 폼의 입력 state(R12) — 역할 복사 대상 ID(D-017)·비밀번호/SSO 초기화 라디오(D-016/D-018)·부서 LoV 열림(D-007)은
+  // CommUserDetailForm 안에 있다. 루트는 ref 핸들로 반영 전 초안만 읽는다.
+  const formRef = useRef<CommUserDetailHandle>(null);
+  // 조회 조건 최신값 — 상세 폼 핸들러가 조건 입력마다 새로 만들어지지 않게 ref 로 읽는다.
+  const filtersRef = useRef(filters);
+  useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
 
   // 2026-09-28 — 비밀번호 초기화 성공 후 발급된 초기 비밀번호 (팝업 표시 + 복사).
   //   null 이면 팝업 닫힘. SSO 일괄 초기화는 BE 가 평문을 주지 않으므로 항상 null 로 둔다.
   const [initPwd, setInitPwd] = useState<InitPwdInfo | null>(null);
   const [isPwdCopied, setIsPwdCopied] = useState<boolean>(false);
 
-  const selected = useMemo<(CommUserMngRow & GridRow) | null>(() => {
+  const selected = useMemo<CommUserMngGridRow | null>(() => {
     if (!selectedKey) return null;
     return rows.find((r) => getRowKey(r) === selectedKey) ?? null;
   }, [rows, selectedKey]);
@@ -355,34 +315,32 @@ export default function CommUserMngPage() {
 
   // ── search ──
   const loadList = useCallback(
-    async (f: CommUserMngFilters) => {
-      setIsSearching(true);
-      setError(null);
-      try {
-        const payload = await apiSearchCmUser(f);
-        const list = (payload.ds_main ?? []).map((r, i) => ({
-          ...withSyntheticId(r, i),
-          nativeeditor_status: "" as RowStatus,
-        }));
-        setRows(list);
-        if (list.length > 0) {
-          setSelectedKey(getRowKey(list[0]));
-        } else {
-          setSelectedKey(null);
+    (f: CommUserMngFilters) =>
+      runBusy("list", async () => {
+        setError(null);
+        try {
+          const payload = await apiSearchCmUser(f);
+          const list = (payload.ds_main ?? []).map((r, i) => ({
+            ...withSyntheticId(r, i),
+            nativeeditor_status: "" as RowStatus,
+          }));
+          setRows(list);
+          if (list.length > 0) {
+            setSelectedKey(getRowKey(list[0]));
+          } else {
+            setSelectedKey(null);
+            setUserRoleGrpRows([]);
+            setAvailRoleGrpRows([]);
+          }
+          showMessage({ message: `${list.length}건 조회 되었습니다.`, toast: true });
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "조회 실패");
+          setRows([]);
           setUserRoleGrpRows([]);
           setAvailRoleGrpRows([]);
         }
-        showMessage({ message: `${list.length}건 조회 되었습니다.`, toast: true });
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "조회 실패");
-        setRows([]);
-        setUserRoleGrpRows([]);
-        setAvailRoleGrpRows([]);
-      } finally {
-        setIsSearching(false);
-      }
-    },
-    [showMessage, setRows, setSelectedKey],
+      }),
+    [showMessage, setRows, setSelectedKey, runBusy],
   );
 
   const handleFilterChange = (k: keyof CommUserMngFilters, v: string) =>
@@ -426,22 +384,16 @@ export default function CommUserMngPage() {
     // 이어받은 선택 키를 먼저 비운다 — 조회 뒤 같은 키가 다시 잡혀도 하위 그리드 effect(selectedKey 변경)가 돌게 한다.
     if (restored && rows.length === 0) {
       setSelectedKey(null);
-      // 조회 결과를 상태에 담는 비동기 호출이라 effect 안 setState 규칙에 걸린다.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       void loadList(filters);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    // As-Is xfdl:1398~1402 (edt_user_id_onchanged) 정합 — row 변경 시 Radio + role 복사 USER_ID 리셋.
+    // As-Is xfdl:1398~1402 (edt_user_id_onchanged) 의 Radio + role 복사 USER_ID 리셋은 상세 폼이 행 key 로 다시 만들어 처리한다.
     // effect 안 상태 갱신(조회·초기화)은 의도된 동작이다.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPwdResetFlag("N");
-    setSsoResetFlag("N");
-    setRoleCopyUserId("");
-
     if (!selectedKey || !selected) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUserRoleGrpRows([]);
       setAvailRoleGrpRows([]);
       return;
@@ -516,6 +468,61 @@ export default function CommUserMngPage() {
     [setRows],
   );
 
+  // ── 상세 폼 초안 반영 (R12) ──
+  // 폼은 입력 초안을 자기 안에 두고, blur·저장 직전·행 전환 때만 여기로 반영한다. 글자마다 rows 를 새로 만들지 않는다.
+  /** 초안에서 바뀐 칸만 행에 얹는다(다른 칸의 최신 값을 덮지 않게). 바뀐 칸이 없으면 같은 행을 돌려준다. */
+  const applyDraft = useCallback((r: CommUserMngGridRow, draft: CommUserMngGridRow, base: CommUserMngGridRow) => {
+    const patch: Record<string, unknown> = {};
+    for (const f of Object.keys(draft)) {
+      if (f === "nativeeditor_status" || f === "__rowId" || f === "__gridTempId") continue;
+      if (Object.is(draft[f], base[f])) continue;
+      // PK 변경은 신규 행만 (Detail D-001 readonly 룰 정합)
+      if (f === "USER_ID" && r.nativeeditor_status !== "inserted") continue;
+      patch[f] = draft[f];
+    }
+    if (Object.keys(patch).length === 0) return r;
+    return {
+      ...r,
+      ...patch,
+      nativeeditor_status: r.nativeeditor_status === "inserted" ? "inserted" : "updated",
+    } as CommUserMngGridRow;
+  }, []);
+
+  const handleDetailCommit = useCallback(
+    (draft: CommUserMngGridRow, base: CommUserMngGridRow) => {
+      const key = getRowKey(draft);
+      setRows((prev) => {
+        let changed = false;
+        const next = prev.map((r) => {
+          if (getRowKey(r) !== key) return r;
+          const merged = applyDraft(r, draft, base);
+          if (merged !== r) changed = true;
+          return merged;
+        });
+        return changed ? next : prev;
+      });
+    },
+    [setRows, applyDraft],
+  );
+
+  /**
+   * 저장·단건 처리 직전에 상세 폼의 반영 전 초안을 행에 확정하고, 그 초안(없으면 null)을 돌려준다.
+   * commit() 이 건 setRows 는 다음 렌더에야 보이므로, 이번 호출의 읽기는 {@link withPending} 으로 초안을 덧입혀 쓴다.
+   */
+  const flushPending = useCallback((): CommUserMngGridRow | null => {
+    const h = formRef.current;
+    if (!h || !h.isDirty()) return null;
+    const draft = h.getDraft();
+    h.commit();
+    return draft;
+  }, []);
+
+  const withPending = useCallback(
+    (r: CommUserMngGridRow, pending: CommUserMngGridRow | null): CommUserMngGridRow =>
+      pending && getRowKey(pending) === getRowKey(r) ? applyDraft(r, pending, r) : r,
+    [applyDraft],
+  );
+
   // 공통 필수 검증 — fn_modify / fn_register / fn_delete 의 gfn_dsRequired (V-002 / V-102 / V-202)
   const validateRequired = (
     row: CommUserMngRow,
@@ -538,7 +545,8 @@ export default function CommUserMngPage() {
   //   - 계정삭제 정합: deleted row 의 END_ACTIVE_DATE 가 99991231 / 9999-12-31 이면 BE 가 today 로 정정.
   //     (FE 에서 END_ACTIVE_DATE 미터치 — BE 가 9999-12-31 sentinel 감지 시 자동 today)
   const handleSave = useCallback(async () => {
-    const changed = rows.filter((r) => r.nativeeditor_status);
+    const pending = flushPending();
+    const changed = rows.map((r) => withPending(r, pending)).filter((r) => r.nativeeditor_status);
     if (changed.length === 0) {
       setError("변경된 데이터가 없습니다.");
       return;
@@ -563,22 +571,21 @@ export default function CommUserMngPage() {
     }
     if (typeof window !== "undefined" && !window.confirm("저장하시겠습니까?")) return;
 
-    setIsSaving(true);
-    setError(null);
-    try {
-      const payload = changed.map((r) => ({
-        ...stripInternal(r),
-        rowStatus: r.nativeeditor_status,
-      })) as unknown as CommUserMngRow[];
-      const res = await apiSaveCmUser(payload);
-      showMessage({ message: `${res.cnt_save ?? 0}건 저장 되었습니다.` });
-      await loadList(filters);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "저장 실패 하였습니다.");
-    } finally {
-      setIsSaving(false);
-    }
-  }, [rows, filters, loadList, showMessage]);
+    await runBusy("save", async () => {
+      setError(null);
+      try {
+        const payload = changed.map((r) => ({
+          ...stripInternal(r),
+          rowStatus: r.nativeeditor_status,
+        })) as unknown as CommUserMngRow[];
+        const res = await apiSaveCmUser(payload);
+        showMessage({ message: `${res.cnt_save ?? 0}건 저장 되었습니다.` });
+        await loadList(filters);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "저장 실패 하였습니다.");
+      }
+    });
+  }, [rows, filters, loadList, showMessage, runBusy, flushPending, withPending]);
 
   // 2026-06-04 — As-Is regCmUser / deleteCmUser 핸들러 제거.
   //   master grid 의 +/-(추가/삭제) 버튼이 row 의 nativeeditor_status 를 inserted/deleted 로 마킹 후
@@ -586,101 +593,103 @@ export default function CommUserMngPage() {
 
   // ── B-016 reRegCmUser (계정 재생성 — 단건 처리) ──
   const handleReRegister = useCallback(async () => {
-    if (!selected) {
+    const pending = flushPending();
+    const live = selected ? withPending(selected, pending) : null;
+    if (!live) {
       setError("선택 후 재생성 해주세요.");
       return;
     }
-    if (!selected.USER_EMP_NO) { setError("사번 저장 후 재생성 해주세요."); return; }
-    if (!selected.USER_NM)     { setError("사용자명 저장 후 재생성 해주세요."); return; }
-    if (!selected.IN_OUT_EMP_TP) { setError("내부 외부 구분 저장 후 재생성 해주세요."); return; }
-    if (!selected.EMAIL) { setError("이메일 저장 후 재생성 해주세요."); return; }
+    if (!live.USER_EMP_NO) { setError("사번 저장 후 재생성 해주세요."); return; }
+    if (!live.USER_NM)     { setError("사용자명 저장 후 재생성 해주세요."); return; }
+    if (!live.IN_OUT_EMP_TP) { setError("내부 외부 구분 저장 후 재생성 해주세요."); return; }
+    if (!live.EMAIL) { setError("이메일 저장 후 재생성 해주세요."); return; }
 
     if (typeof window !== "undefined"
-        && !window.confirm(`[${selected.USER_ID}] 계정을 재생성 하시겠습니까?`)) return;
+        && !window.confirm(`[${live.USER_ID}] 계정을 재생성 하시겠습니까?`)) return;
 
-    setIsSaving(true);
-    setError(null);
-    try {
-      // 2026-06-04 — infReqNo / description 정책 제거. row 그대로 전달.
-      const payload: CommUserMngRow[] = [{
-        ...stripInternal(selected) as CommUserMngRow,
-      } as unknown as CommUserMngRow];
-      const res = await apiReRegCmUser(payload);
-      showMessage({ message: `${res.cnt_save ?? 0}건 저장 되었습니다.` });
-      await loadList(filters);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "재생성 실패");
-    } finally {
-      setIsSaving(false);
-    }
-  }, [selected, filters, loadList, showMessage]);
+    await runBusy("save", async () => {
+      setError(null);
+      try {
+        // 2026-06-04 — infReqNo / description 정책 제거. row 그대로 전달.
+        const payload: CommUserMngRow[] = [{
+          ...stripInternal(live) as CommUserMngRow,
+        } as unknown as CommUserMngRow];
+        const res = await apiReRegCmUser(payload);
+        showMessage({ message: `${res.cnt_save ?? 0}건 저장 되었습니다.` });
+        await loadList(filtersRef.current);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "재생성 실패");
+      }
+    });
+  }, [selected, loadList, showMessage, runBusy, flushPending, withPending]);
 
   // ── B-013 / B-015 pwdinit (비밀번호 / SSO 초기화) ──
   // As-Is xfdl:1382 (btn_PwdReset_onclick) / xfdl:1405 (btn_SSOPwdReset_onclick) 정합:
   //   - rdo_PwdReset / rdo_SSOReset 값이 "Y" 일 때만 confirm 표시 → fn_run("pwdinit")
   //   - 처리 후 Radio 값 강제 "N" 복귀
-  const handlePwdReset = useCallback(async (sso: boolean) => {
-    if (!selected && !sso) {
+  // 반환값 = 상세 폼의 라디오를 "N" 으로 되돌릴지(처리가 진행됐거나 확인을 취소한 경우). 검증에서 막힌 경우는 그대로 둔다.
+  const handlePwdReset = useCallback(async (sso: boolean, flag: string): Promise<boolean> => {
+    const pending = flushPending();
+    const live = selected ? withPending(selected, pending) : null;
+    if (!live && !sso) {
       setError("선택된 사용자가 없습니다.");
-      return;
+      return false;
     }
-    if (!sso && !selected?.EMAIL) {
+    if (!sso && !live?.EMAIL) {
       setError("사용자 이메일 저장 후 진행해주세요.");
-      return;
+      return false;
     }
     // As-Is Radio 게이트 — Y 선택되어 있어야만 진입.
-    if (sso && ssoResetFlag !== "Y") {
+    if (sso && flag !== "Y") {
       setError("SSO 초기화 라디오에서 [Yes] 를 선택한 후 다시 시도해주세요.");
-      return;
+      return false;
     }
-    if (!sso && pwdResetFlag !== "Y") {
+    if (!sso && flag !== "Y") {
       setError("비밀번호 초기화 라디오에서 [Yes] 를 선택한 후 다시 시도해주세요.");
-      return;
+      return false;
     }
     const confirmMsg = sso
       ? "전체 사용자의 SSO 비밀번호를 초기화 하시겠습니까?"
       : "비밀번호를 초기화 하시겠습니까?";
     if (typeof window !== "undefined" && !window.confirm(confirmMsg)) {
       // 취소 시 Radio 도 N 으로 복귀 (As-Is xfdl:1390 / 1413)
-      if (sso) setSsoResetFlag("N"); else setPwdResetFlag("N");
-      return;
+      return true;
     }
 
-    setIsSaving(true);
-    setError(null);
-    try {
-      if (sso) {
-        // SSO 일괄 — 현재 메인 그리드 행 전체 master 전달
-        const master = rows.map((r) => stripInternal(r) as CommUserMngRow);
-        await apiPwdInit(selected?.USER_ID ?? "", selected?.USER_EMP_NO ?? "", "Y", master);
-        showMessage({ message: "SSO 비밀번호가 초기화 되었습니다" });
-      } else {
-        // 2026-09-28 — 초기 비밀번호는 BE 가 bcrypt 해시로만 남기면 관리자가 전달할 값을 알 수 없다.
-        //   응답으로 받은 평문(INIT_PWD)을 팝업으로 띄우고 복사하게 한다 (기능설계서 M-032 To-Be).
-        const res = await apiPwdInit(
-          String(selected!.USER_ID),
-          String(selected!.USER_EMP_NO ?? ""),
-          "N",
-        );
-        if (res.INIT_PWD) {
-          setIsPwdCopied(false);
-          setInitPwd({
-            userId: String(res.INIT_PWD_USER_ID ?? selected!.USER_ID ?? ""),
-            password: res.INIT_PWD,
-          });
+    await runBusy("save", async () => {
+      setError(null);
+      try {
+        if (sso) {
+          // SSO 일괄 — 현재 메인 그리드 행 전체 master 전달
+          const master = rows.map((r) => stripInternal(withPending(r, pending)) as CommUserMngRow);
+          await apiPwdInit(live?.USER_ID ?? "", live?.USER_EMP_NO ?? "", "Y", master);
+          showMessage({ message: "SSO 비밀번호가 초기화 되었습니다" });
         } else {
-          // 초기화는 됐지만 평문이 없으면(예: BE 롤백 후 구버전) 팝업을 띄울 값이 없다 — 기존 메시지로 폴백.
-          showMessage({ message: "비밀번호가 초기화 되었습니다" });
+          // 2026-09-28 — 초기 비밀번호는 BE 가 bcrypt 해시로만 남기면 관리자가 전달할 값을 알 수 없다.
+          //   응답으로 받은 평문(INIT_PWD)을 팝업으로 띄우고 복사하게 한다 (기능설계서 M-032 To-Be).
+          const res = await apiPwdInit(
+            String(live!.USER_ID),
+            String(live!.USER_EMP_NO ?? ""),
+            "N",
+          );
+          if (res.INIT_PWD) {
+            setIsPwdCopied(false);
+            setInitPwd({
+              userId: String(res.INIT_PWD_USER_ID ?? live!.USER_ID ?? ""),
+              password: res.INIT_PWD,
+            });
+          } else {
+            // 초기화는 됐지만 평문이 없으면(예: BE 롤백 후 구버전) 팝업을 띄울 값이 없다 — 기존 메시지로 폴백.
+            showMessage({ message: "비밀번호가 초기화 되었습니다" });
+          }
         }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "비밀번호 초기화 실패");
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "비밀번호 초기화 실패");
-    } finally {
-      setIsSaving(false);
-      // As-Is xfdl:1395 / 1418 — 처리 후 Radio 강제 N 복귀
-      if (sso) setSsoResetFlag("N"); else setPwdResetFlag("N");
-    }
-  }, [selected, rows, showMessage, pwdResetFlag, ssoResetFlag]);
+    });
+    // As-Is xfdl:1395 / 1418 — 처리 후 Radio 강제 N 복귀
+    return true;
+  }, [selected, rows, showMessage, runBusy, flushPending, withPending]);
 
   // ── 초기 비밀번호 팝업 — 복사 (2026-09-28) ──
   const handleCopyInitPwd = useCallback(async () => {
@@ -704,34 +713,35 @@ export default function CommUserMngPage() {
   }, []);
 
   // ── B-014 saveUserRoleGrpCopy (역할그룹 복사) ──
-  const handleRoleCopy = useCallback(async () => {
-    if (!selected) {
+  const handleRoleCopy = useCallback(async (sourceUserId: string) => {
+    const pending = flushPending();
+    const live = selected ? withPending(selected, pending) : null;
+    if (!live) {
       setError("선택된 사용자가 없습니다.");
       return;
     }
-    if (!roleCopyUserId || roleCopyUserId.trim().length === 0) {
+    if (!sourceUserId || sourceUserId.trim().length === 0) {
       setError("복사 출처 USER_ID 를 입력하세요.");
       return;
     }
     if (typeof window !== "undefined"
-        && !window.confirm(`${roleCopyUserId} 사용자의 역할그룹을 등록 하시겠습니까?`)) return;
+        && !window.confirm(`${sourceUserId} 사용자의 역할그룹을 등록 하시겠습니까?`)) return;
 
-    setIsSaving(true);
-    setError(null);
-    try {
-      // 2026-06-04 — infReqNo / description 정책 제거. BE 가 null 처리.
-      const res = await apiSaveUserRoleGrpCopy(
-        String(selected.USER_ID),
-        roleCopyUserId.trim(),
-      );
-      showMessage({ message: `역할그룹이 ${res.cnt_save ?? 0}건 저장 되었습니다.` });
-      if (selected.USER_ID) await loadRoleGrids(String(selected.USER_ID));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "역할 복사 실패");
-    } finally {
-      setIsSaving(false);
-    }
-  }, [selected, roleCopyUserId, loadRoleGrids, showMessage]);
+    await runBusy("save", async () => {
+      setError(null);
+      try {
+        // 2026-06-04 — infReqNo / description 정책 제거. BE 가 null 처리.
+        const res = await apiSaveUserRoleGrpCopy(
+          String(live.USER_ID),
+          sourceUserId.trim(),
+        );
+        showMessage({ message: `역할그룹이 ${res.cnt_save ?? 0}건 저장 되었습니다.` });
+        if (live.USER_ID) await loadRoleGrids(String(live.USER_ID));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "역할 복사 실패");
+      }
+    });
+  }, [selected, loadRoleGrids, showMessage, runBusy, flushPending, withPending]);
 
   // ── B-011 역할추가 (셔틀 → ds_userRolegrp 추가, "inserted" 마킹) ──
   const handleRoleAdd = useCallback(() => {
@@ -743,19 +753,20 @@ export default function CommUserMngPage() {
       setError("사용자를 먼저 선택하세요.");
       return;
     }
+    const live = withPending(selected, flushPending());
     const newRows = availRoleGrpRows
       .filter((r) => selectedArgKeys.has(r.__argId))
       .map((r, i) => ({
         ROLE_GROUP_ID: r.ROLE_GROUP_ID,
         ROLE_GROUP_NM: r.ROLE_GROUP_NM,
-        USER_ID: String(selected.USER_ID),
+        USER_ID: String(live.USER_ID),
         __urgId: `urg-new-${Date.now()}-${i}`,
         nativeeditor_status: "inserted" as RowStatus,
       }));
     setUserRoleGrpRows((prev) => [...prev, ...newRows]);
     setAvailRoleGrpRows((prev) => prev.filter((r) => !selectedArgKeys.has(r.__argId)));
     setSelectedArgKeys(new Set());
-  }, [selectedArgKeys, availRoleGrpRows, selected]);
+  }, [selectedArgKeys, availRoleGrpRows, selected, flushPending, withPending]);
 
   // ── B-009 역할삭제 (선택된 보유 역할 1건 "deleted" 마킹) ──
   const handleRoleDel = useCallback(() => {
@@ -787,26 +798,26 @@ export default function CommUserMngPage() {
       return;
     }
     if (typeof window !== "undefined" && !window.confirm("저장하시겠습니까?")) return;
+    const live = withPending(selected, flushPending());
 
-    setIsSaving(true);
-    setError(null);
-    try {
-      // 2026-06-04 — infReqNo / description 정책 제거. BE 가 null 처리.
-      const payload: CommUserMngRoleGrpRow[] = changed.map((r) => ({
-        USER_ID: String(selected.USER_ID),
-        ROLE_GROUP_ID: r.ROLE_GROUP_ID,
-        ROLE_GROUP_NM: r.ROLE_GROUP_NM,
-        rowStatus: r.nativeeditor_status,
-      } as unknown as CommUserMngRoleGrpRow));
-      const res = await apiSaveUserRoleGrp(payload);
-      showMessage({ message: `역할 ${res.cnt_save ?? 0}건 저장 되었습니다.` });
-      if (selected.USER_ID) await loadRoleGrids(String(selected.USER_ID));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "저장 실패 하였습니다.");
-    } finally {
-      setIsSaving(false);
-    }
-  }, [selected, userRoleGrpRows, loadRoleGrids, showMessage]);
+    await runBusy("save", async () => {
+      setError(null);
+      try {
+        // 2026-06-04 — infReqNo / description 정책 제거. BE 가 null 처리.
+        const payload: CommUserMngRoleGrpRow[] = changed.map((r) => ({
+          USER_ID: String(live.USER_ID),
+          ROLE_GROUP_ID: r.ROLE_GROUP_ID,
+          ROLE_GROUP_NM: r.ROLE_GROUP_NM,
+          rowStatus: r.nativeeditor_status,
+        } as unknown as CommUserMngRoleGrpRow));
+        const res = await apiSaveUserRoleGrp(payload);
+        showMessage({ message: `역할 ${res.cnt_save ?? 0}건 저장 되었습니다.` });
+        if (live.USER_ID) await loadRoleGrids(String(live.USER_ID));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "저장 실패 하였습니다.");
+      }
+    });
+  }, [selected, userRoleGrpRows, loadRoleGrids, showMessage, runBusy, flushPending, withPending]);
 
   // ── B-012 역할조회 (선택 사용자의 추가 가능 역할 새로고침) ──
   const handleRoleSearch = useCallback(async () => {
@@ -821,40 +832,13 @@ export default function CommUserMngPage() {
     ) {
       return;
     }
-    await loadRoleGrids(String(selected.USER_ID));
-  }, [selected, userRoleGrpRows, loadRoleGrids]);
+    await loadRoleGrids(String(withPending(selected, flushPending()).USER_ID));
+  }, [selected, userRoleGrpRows, loadRoleGrids, flushPending, withPending]);
 
-  // ── Detail (D-NNN) ──
-  const updateDetailField = (field: keyof CommUserMngRow, value: string) => {
-    if (!selected) return;
-    handleCellChange({ rowKey: getRowKey(selected), field: String(field), newValue: value });
-  };
-
-  const isNewRow = selected?.nativeeditor_status === "inserted";
-
-  // ── 2026-06-04 — Detail 부서 LoV 모달 (사용자 결정) ──
-  // LookupModal {code, name} 표준에 매핑: code=DEPT_CD, name=DEPT_NM.
-  // 선택 시 selected row 의 DEPT_CD + DEPT_NM 두 컬럼을 동시 세트.
-  // shared LookupFetchFn 계약({keyword,page,size}→LookupPageResult)에 맞춤. DEPT LoV 는 client-side 페이징(slice).
-  const fetchDeptLov = useCallback<LookupFetchFn>(async ({ keyword, page, size }) => {
-    const res = await apiSearchDeptLov(keyword);
-    const all: LookupRow[] = (res.ds_deptLov ?? []).map((r) => ({
-      code: String(r.DEPT_CD ?? ""),
-      name: String(r.DEPT_NM ?? ""),
-    }));
-    return { rows: all.slice(page * size, page * size + size), totalElements: all.length };
-  }, []);
-
-  const handleDeptLovPick = useCallback(
-    (row: LookupRow) => {
-      if (!selected) return;
-      // DEPT_CD + DEPT_NM 두 필드 동시 set — handleCellChange 두 번 호출.
-      // updated/inserted 상태도 동일 핸들러가 자동 마킹.
-      const key = getRowKey(selected);
-      handleCellChange({ rowKey: key, field: "DEPT_CD", newValue: row.code });
-      handleCellChange({ rowKey: key, field: "DEPT_NM", newValue: row.name });
-    },
-    [selected, handleCellChange],
+  // 보유 역할그룹 그리드 표시 행(삭제 표시 제외) — 매 렌더 새 배열이 되지 않게 메모한다(R7).
+  const visibleUserRoleGrpRows = useMemo(
+    () => userRoleGrpRows.filter((r) => r.nativeeditor_status !== "deleted"),
+    [userRoleGrpRows],
   );
 
   return (
@@ -955,341 +939,19 @@ export default function CommUserMngPage() {
           </GridPanel>
         </ContentPanel>
 
-        {/* 중앙 — Detail 폼.
-            2026-06-02 iter#5 — 사용자 검수 최종 의도:
-              "내용 바깥쪽으로 라인이 생겨서 공간이 생긴 것처럼 보이지 않게" =
-              wrapper div 크기를 **내용물(form table) 크기에 맞춰** 자동 조정.
-              즉 form 본문 끝나면 wrapper 도 끝나야 하고, border/라인이 form 끝까지만 그어짐.
-              → wrapper height: auto + 폼 본문 flex:1 제거. ContentPanel 의 나머지 영역은 div 밖이라 라인 ✗. */}
+        {/* 중앙 — Detail 폼 (CommUserDetailForm).
+            입력 초안은 폼 컴포넌트 안에 두고 blur·저장·행 전환 때만 rows 에 반영한다(R12).
+            wrapper 크기는 내용물(form table) 크기에 맞춤 — 2026-06-02 iter#5 사용자 검수(J-015) 정합. */}
         <ContentPanel width={480}>
-          {selected ? (
-            <div style={{
-              marginTop: 32,  // panel-header 자리(행추가/행삭제 라인) 비움 — wrapper 밖이라 라인 ✗ (사용자 검수 J-015)
-              display: "flex",
-              flexDirection: "column",
-              border: "1px solid #d4dae0",
-              background: "#fff",
-              // height: auto — 내용물 크기에 맞춤
-            }}>
-              {/* "상세 정보" 헤더 (28px) — 양 그리드의 column-header (사용자ID*|...) 라인과 정렬 */}
-              <div style={{
-                height: 28,
-                background: "#f4f6f8",
-                borderBottom: "1px solid #d4dae0",
-                padding: "0 10px",
-                display: "flex",
-                alignItems: "center",
-                fontWeight: 600,
-                fontSize: 13,
-                color: "#333",
-                flexShrink: 0,
-              }}>
-                상세 정보
-              </div>
-              {/* 폼 본문 — 내용물 크기에 맞춤 (flex:1 ✗) */}
-              <div style={{ padding: 0, background: "#fff" }}>
-                {/* 2026-06-01 — As-Is xfdl Detail 영역 1:1 정합 (D-001~D-020 / B-013/14/15/16).
-                    shared form 컴포넌트 (Input / Select / DatePicker / Radio / Button) 정합 — 가이드 §11. */}
-                <table style={DETAIL_TABLE_STYLE}>
-              <tbody>
-                {/* D-001 사용자ID (Essential, 신규 행에서만 편집 — As-Is xfdl:1211 readonly 룰) */}
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="USER_ID" label="사용자ID" required /></th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <Input
-                      type="text"
-                      value={selected.USER_ID ?? ""}
-                      maxLength={90}
-                      readOnly={!isNewRow}
-                      onChange={(v) => updateDetailField("USER_ID", v)}
-                    />
-                  </td>
-                </tr>
-                {/* D-002 사번 (Essential, maxlength=10, digit+alpha) */}
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="USER_EMP_NO" label="사번" required /></th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <Input
-                      type="text"
-                      value={selected.USER_EMP_NO ?? ""}
-                      maxLength={10}
-                      onChange={(v) => updateDetailField("USER_EMP_NO", v)}
-                    />
-                  </td>
-                </tr>
-                {/* D-003 SSO ID — displaynulltext="UNI DOS 연동" */}
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="SSO_ID" label="SSO ID" /></th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <Input
-                      type="text"
-                      value={selected.SSO_ID ?? ""}
-                      maxLength={90}
-                      placeholder="UNI DOS 연동"
-                      onChange={(v) => updateDetailField("SSO_ID", v)}
-                    />
-                  </td>
-                </tr>
-                {/* D-004 사용자명 (Essential, maxlength=90) */}
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="USER_NM" label="사용자명" required /></th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <Input
-                      type="text"
-                      value={selected.USER_NM ?? ""}
-                      maxLength={90}
-                      onChange={(v) => updateDetailField("USER_NM", v)}
-                    />
-                  </td>
-                </tr>
-                {/* D-005 유효개시일 — Calendar (yyyy-MM-dd) */}
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="START_ACTIVE_DATE" label="유효개시일" /></th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <DatePicker
-                      value={toDateInputValue(selected.START_ACTIVE_DATE)}
-                      onChange={(v) => updateDetailField("START_ACTIVE_DATE", v)}
-                    />
-                  </td>
-                </tr>
-                {/* D-006 유효기한일 — Calendar (yyyy-MM-dd) */}
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="END_ACTIVE_DATE" label="유효기한일" /></th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <DatePicker
-                      value={toDateInputValue(selected.END_ACTIVE_DATE)}
-                      onChange={(v) => updateDetailField("END_ACTIVE_DATE", v)}
-                    />
-                  </td>
-                </tr>
-                {/* D-007 부서코드 (Essential).
-                    2026-06-04 — 사용자 결정: 직접 타이핑 ✗ → 검색 버튼 + LoV 모달 (DEPT_CD/DEPT_NM 그리드)
-                    → 선택 시 DEPT_CD + DEPT_NM 자동 세트. commRoleMng round-3 searchObjectLov 정합 패턴.
-                    레이아웃: 코드(100px readOnly) + 검색버튼(50px) + 부서명(flex:1 readOnly). */}
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="DEPT_CD" label="부서코드" required /></th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                      <div style={{ width: 100, flexShrink: 0 }}>
-                        <Input
-                          type="text"
-                          value={selected.DEPT_CD ?? ""}
-                          readOnly
-                          placeholder="(검색)"
-                        />
-                      </div>
-                      <div style={{ width: 56, flexShrink: 0 }}>
-                        <Button
-                          style={{ width: "100%" }}
-                          disabled={isSaving}
-                          onClick={() => setIsDeptLovOpen(true)}
-                        >
-                          검색
-                        </Button>
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <Input
-                          type="text"
-                          value={selected.DEPT_NM ?? ""}
-                          readOnly
-                          placeholder="(부서명)"
-                        />
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-                {/* D-008 사용자분류코드 */}
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="USER_CATEGORY_CD" label="사용자분류코드" /></th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <Input
-                      type="text"
-                      value={selected.USER_CATEGORY_CD ?? ""}
-                      maxLength={20}
-                      onChange={(v) => updateDetailField("USER_CATEGORY_CD", v)}
-                    />
-                  </td>
-                </tr>
-                {/* D-009 이메일 (Essential, maxlength=300) */}
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="EMAIL" label="이메일" required /></th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <Input
-                      type="email"
-                      value={selected.EMAIL ?? ""}
-                      maxLength={300}
-                      onChange={(v) => updateDetailField("EMAIL", v)}
-                    />
-                  </td>
-                </tr>
-                {/* D-010 전화 번호 (maxlength=90, digit) */}
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="TEL_NO" label="전화 번호" /></th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <Input
-                      type="text"
-                      value={selected.TEL_NO ?? ""}
-                      maxLength={90}
-                      onChange={(v) => updateDetailField("TEL_NO", v)}
-                    />
-                  </td>
-                </tr>
-                {/* D-011 모바일번호 (maxlength=90, digit) */}
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="MOBILE_TEL_NO" label="모바일번호" /></th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <Input
-                      type="text"
-                      value={selected.MOBILE_TEL_NO ?? ""}
-                      maxLength={90}
-                      onChange={(v) => updateDetailField("MOBILE_TEL_NO", v)}
-                    />
-                  </td>
-                </tr>
-                {/* D-012 내부 외부 구분 (Essential, Combo ds_inOutEmpTp) */}
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="IN_OUT_EMP_TP" label="내부 외부 구분" required /></th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <Select
-                      value={selected.IN_OUT_EMP_TP ?? ""}
-                      onChange={(v) => updateDetailField("IN_OUT_EMP_TP", v)}
-                      options={IN_OUT_OPTIONS}
-                      placeholder="선택"
-                    />
-                  </td>
-                </tr>
-                {/* D-017 사용자 역할그룹 복사 + B-014 역할그룹등록 (xfdl:162~163).
-                    2026-06-02 iter#3 — AsIs 정합 + 사용자 검수 J-009 (3 행 정렬 통일):
-                      입력 영역 flex:1 (좌측 정렬) + 우측 버튼 width=110px 고정 (3 행 모두 동일 너비, 우측 정렬). */}
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="roleCopyUserId" meta={false} label="사용자 역할그룹 복사" /></th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
-                      <div style={{ flex: 1 }}>
-                        <Input
-                          type="text"
-                          value={roleCopyUserId}
-                          placeholder="USER_ID 입력"
-                          onChange={(v) => setRoleCopyUserId(v)}
-                        />
-                      </div>
-                      <div style={{ width: 110, flexShrink: 0 }}>
-                        <Button
-                          style={{ width: "100%" }}
-                          disabled={isSaving}
-                          onClick={() => void handleRoleCopy()}
-                        >
-                          역할그룹등록
-                        </Button>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-                {/* D-016 비밀번호 초기화 Radio (Y/N) + B-013 버튼 (xfdl:143~161).
-                    2026-06-02 iter#3 — 좌측 Radio (flex:1) + 우측 버튼 (width=110, 3 행 동일 정렬). */}
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="pwdResetFlag" meta={false} label="비밀번호 초기화" /></th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
-                      <div style={{ flex: 1 }}>
-                        <Radio
-                          name="rdo_PwdReset"
-                          value={pwdResetFlag}
-                          onChange={(v) => setPwdResetFlag(v)}
-                          options={[
-                            { value: "Y", label: "Yes" },
-                            { value: "N", label: "No" },
-                          ]}
-                        />
-                      </div>
-                      <div style={{ width: 110, flexShrink: 0 }}>
-                        <Button
-                          style={{ width: "100%" }}
-                          disabled={isSaving}
-                          onClick={() => void handlePwdReset(false)}
-                        >
-                          비밀번호 초기화
-                        </Button>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-                {/* D-018 SSO 초기화 Radio (Y/N) + B-015 버튼 (xfdl:167~184).
-                    2026-06-02 iter#3 — 3 행 (역할그룹복사 / 비밀번호초기화 / SSO초기화) 동일 정렬:
-                      좌측 Radio (flex:1) + 우측 버튼 (width=110). */}
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="ssoResetFlag" meta={false} label="SSO 초기화" /></th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
-                      <div style={{ flex: 1 }}>
-                        <Radio
-                          name="rdo_SSOReset"
-                          value={ssoResetFlag}
-                          onChange={(v) => setSsoResetFlag(v)}
-                          options={[
-                            { value: "Y", label: "Yes" },
-                            { value: "N", label: "No" },
-                          ]}
-                        />
-                      </div>
-                      <div style={{ width: 110, flexShrink: 0 }}>
-                        <Button
-                          style={{ width: "100%" }}
-                          disabled={isSaving}
-                          onClick={() => void handlePwdReset(true)}
-                        >
-                          SSO 초기화
-                        </Button>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-                {/* 2026-06-04 — D-019 정보처리의뢰서번호 / D-020 처리사유 UI 전부 제거 (사용자 결정).
-                    BE 도 row 인입 시 null 처리 — 이력 (TB_MCM_SEC_USER_HIS / ROLL_HIS) 의 두 컬럼은 null 적재. */}
-                {/* B-016 계정 재생성 (As-Is enable=false 기본 / USE_TP=Y 면 비활성화 — xfdl:1218~1222).
-                    2026-06-02 — AsIs row-state 기반 비활성 (USE_TP=Y) 유지. 버튼 너비 110px 정렬 + 텍스트 wrap. */}
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="reRegister" meta={false} label="계정 재생성" /></th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <div style={{ width: 110 }}>
-                      <Button
-                        style={{ width: "100%" }}
-                        disabled={isSaving || !selected || selected?.USE_TP === "Y" || isNewRow}
-                        onClick={() => void handleReRegister()}
-                      >
-                        계정 재생성
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : (
-            <div style={{
-              marginTop: 32,
-              display: "flex",
-              flexDirection: "column",
-              border: "1px solid #d4dae0",
-              background: "#fff",
-            }}>
-              <div style={{
-                height: 28,
-                background: "#f4f6f8",
-                borderBottom: "1px solid #d4dae0",
-                padding: "0 10px",
-                display: "flex",
-                alignItems: "center",
-                fontWeight: 600,
-                fontSize: 13,
-                color: "#333",
-              }}>
-                상세 정보
-              </div>
-              <div style={{ padding: 16, color: "#888", background: "#fff" }}>사용자를 선택하세요.</div>
-            </div>
-          )}
+          <CommUserDetailForm
+            ref={formRef}
+            row={selected}
+            saving={isSaving}
+            onCommit={handleDetailCommit}
+            onRoleCopy={handleRoleCopy}
+            onReset={handlePwdReset}
+            onReRegister={handleReRegister}
+          />
         </ContentPanel>
 
         {/* 우측 — 보유 역할그룹 + 추가 가능 역할그룹 (수직 분할).
@@ -1298,7 +960,7 @@ export default function CommUserMngPage() {
         <ContentPanel width={380}>
           <GridPanel
             title="보유 역할그룹"
-            count={userRoleGrpRows.filter((r) => r.nativeeditor_status !== "deleted").length}
+            count={visibleUserRoleGrpRows.length}
             buttons={[
               {
                 id: "btn_rolDel",
@@ -1313,7 +975,7 @@ export default function CommUserMngPage() {
                 disabled: isSaving,
               },
             ]}
-            data={userRoleGrpRows.filter((r) => r.nativeeditor_status !== "deleted")}
+            data={visibleUserRoleGrpRows}
             rowKey="__urgId"
             columns={USER_ROLEGRP_COLUMNS}
             selectedRowKey={selectedUrgKey}
@@ -1322,7 +984,7 @@ export default function CommUserMngPage() {
               gridId="userRoleGrp"
               columnSizing="fit"
               columns={USER_ROLEGRP_COLUMNS}
-              data={userRoleGrpRows.filter((r) => r.nativeeditor_status !== "deleted")}
+              data={visibleUserRoleGrpRows}
               rowKey="__urgId"
               sortable
               highlightedRowKey={selectedUrgKey}
@@ -1380,20 +1042,6 @@ export default function CommUserMngPage() {
           onClose={() => setError(null)}
         />
       )}
-
-      {/* 2026-06-04 — Detail 부서 LoV 모달 (사용자 결정).
-          shared LookupModal {code, name} 표준 사용 → fetchDeptLov 이 DEPT_CD/DEPT_NM 매핑.
-          선택 확정 시 handleDeptLovPick 이 selected row 의 DEPT_CD + DEPT_NM 두 컬럼 동시 set. */}
-      <LookupModal
-        gridId="modal-deptLookup"
-        open={isDeptLovOpen}
-        title="부서 검색"
-        fetchFn={fetchDeptLov}
-        onSelect={handleDeptLovPick}
-        onClose={() => setIsDeptLovOpen(false)}
-        placeholder="부서코드 또는 부서명 입력"
-        searchOnOpen
-      />
 
       {/* 2026-09-28 — 초기 비밀번호 안내 팝업 (기능설계서 M-032 To-Be / As-Is pwdtmp 콜백 대체).
           BE 가 평문 INIT_PWD 를 응답으로 준 경우에만 열린다. 닫으면 값이 화면에서 사라진다.
