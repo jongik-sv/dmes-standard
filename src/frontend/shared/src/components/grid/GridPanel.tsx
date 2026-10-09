@@ -17,6 +17,7 @@ import { memo, useState, useEffect, useCallback, useMemo, useRef, type ReactNode
 import type { GridColumn } from "./grid-types";
 import type { GridHelpConfig } from "./GridHelpButton";
 import { GridHeaderBar } from "./GridHeaderBar";
+import { sameProps } from "./grid-node-equal";
 import { GridPanelContext, type GridPanelGridControls, type GridPanelRegistry } from "./grid-panel-context";
 
 export interface GridButton {
@@ -297,6 +298,33 @@ function GridPanelComponent({
 
   allButtons.push(...buttons);
 
+  // 단추 묶음 노드 — 단추 모양(id·라벨·클래스·비활성)이 같은 동안 같은 요소를 내려 GridHeaderBar 의 memo 가 먹게 한다.
+  // 화면이 단추 onClick 을 렌더마다 새 인라인 함수로 넘겨도 클릭 때 ref 의 최신 함수를 부르므로 모양이 같으면 다시 그리지 않는다.
+  const buttonClicksRef = useRef<Array<(() => void) | undefined>>([]);
+  buttonClicksRef.current = allButtons.map((btn) => btn.onClick);
+  const buttonsSignature = JSON.stringify(
+    allButtons.map((btn) => [btn.id ?? null, btn.label, btn.className ?? "", !!(btn.disabled || loading || !isButtonAllowed(btn.id))])
+  );
+  const buttonsNode = useMemo<ReactNode>(() => {
+    const shapes = JSON.parse(buttonsSignature) as Array<[string | null, string, string, boolean]>;
+    if (shapes.length === 0) return null;
+    return (
+      <div className="grid-panel-buttons">
+        {shapes.map(([id, label, btnClass, disabled], index) => (
+          <button
+            key={id || index}
+            id={id ?? undefined}
+            className={`grid-btn ${btnClass}`.trim()}
+            onClick={() => buttonClicksRef.current[index]?.()}
+            disabled={disabled}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    );
+  }, [buttonsSignature]);
+
   return (
     <GridPanelContext.Provider value={gridRegistry}>
       <div className={`grid-panel ${className}`.trim()} style={style}>
@@ -306,23 +334,7 @@ function GridPanelComponent({
           count={count}
           serverPaged={serverPaged}
           titleExtra={titleExtra}
-          buttons={
-            allButtons.length > 0 ? (
-              <div className="grid-panel-buttons">
-                {allButtons.map((btn, index) => (
-                  <button
-                    key={btn.id || index}
-                    id={btn.id}
-                    className={`grid-btn ${btn.className || ""}`.trim()}
-                    onClick={btn.onClick}
-                    disabled={btn.disabled || loading || !isButtonAllowed(btn.id)}
-                  >
-                    {btn.label}
-                  </button>
-                ))}
-              </div>
-            ) : null
-          }
+          buttons={buttonsNode}
           headerExtra={headerExtra}
           filterControls={filterTarget}
           menuControls={menuControls}
@@ -335,4 +347,6 @@ function GridPanelComponent({
   );
 }
 
-export const GridPanel = memo(GridPanelComponent);
+// children·titleExtra·headerExtra·help·buttons 는 화면이 렌더마다 새로 만드는 JSX·객체라 기본 memo(참조 비교)로는 늘 다르다 —
+// 같은 부품에 같은 props 를 넘긴 요소와 같은 내용의 객체는 같다고 본다(grid-node-equal.ts). 인라인 함수가 섞이면 다르다고 보고 다시 그린다.
+export const GridPanel = memo(GridPanelComponent, sameProps);

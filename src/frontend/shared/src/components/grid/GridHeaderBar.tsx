@@ -19,6 +19,7 @@ import { GridQuickFilter, useGridFilterCount, useGridQuickFilterVisible } from "
 import { GridSettingsMenu } from "./GridSettingsMenu";
 import type { GridPanelGridControls } from "./grid-panel-context";
 import { useGridSettingsMenuProps } from "./useGridSettingsMenu";
+import { sameProps } from "./grid-node-equal";
 
 export interface GridHeaderBarProps {
   /** 그리드명. 없으면 이름 자리를 비운다(건수 배지와 메뉴만 남는다). */
@@ -119,4 +120,5 @@ function GridHeaderBarComponent({
   );
 }
 
-export const GridHeaderBar = memo(GridHeaderBarComponent);
+// 화면이 렌더마다 새로 만드는 titleExtra·headerExtra·help 가 같은 내용이면 다시 그리지 않는다(grid-node-equal.ts).
+export const GridHeaderBar = memo(GridHeaderBarComponent, sameProps);
