@@ -18,6 +18,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *         user-fetch-limit: 10        # 사용자별 외부 호출을 일으키는 요청 수 상한(구간마다)
  *         user-fetch-window-sec: 600  # 위 상한의 구간(초)
  *         retry-after-fail-sec: 600   # 실패·빈 결과·오늘 값 없음 뒤 같은 통화·날짜를 다시 묻기까지(초)
+ *         mdm-schema: MDMAPUSER       # 환율 위젯이 읽는 MDM 환율 마스터(TB_MDM_DATA_ITEM)의 스키마
  *       weather:
  *         base-url: https://api.open-meteo.com/v1/forecast
  * }</pre>
@@ -63,6 +64,12 @@ public class WidgetExtProperties {
          */
         private int retryAfterFailSec = 600;
 
+        /**
+         * 환율 위젯이 읽는 MDM 환율 마스터({@code TB_MDM_DATA_ITEM}, 마스터 {@code FX_RATE})의 스키마 이름(기본 {@code MDMAPUSER}).
+         * 영문 대문자로 시작하는 대문자·숫자·밑줄 30자 이내여야 한다({@link FxMasterReader}).
+         */
+        private String mdmSchema = "MDMAPUSER";
+
         public String getProvider() { return provider; }
         public void setProvider(String provider) { this.provider = provider; }
         public String getFrankfurterBaseUrl() { return frankfurterBaseUrl; }
@@ -77,6 +84,8 @@ public class WidgetExtProperties {
         public void setUserFetchWindowSec(int userFetchWindowSec) { this.userFetchWindowSec = userFetchWindowSec; }
         public int getRetryAfterFailSec() { return retryAfterFailSec; }
         public void setRetryAfterFailSec(int retryAfterFailSec) { this.retryAfterFailSec = retryAfterFailSec; }
+        public String getMdmSchema() { return mdmSchema; }
+        public void setMdmSchema(String mdmSchema) { this.mdmSchema = mdmSchema; }
     }
 
     /** 날씨 제공자 설정. */

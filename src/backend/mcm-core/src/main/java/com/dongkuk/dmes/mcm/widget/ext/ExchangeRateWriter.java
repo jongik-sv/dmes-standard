@@ -15,7 +15,11 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 환율 upsert 의 트랜잭션 경계(서비스 빈에는 {@code @Transactional} 을 두지 않는다 — A 의 SecWidgetTabWriter 방식).
  * 있는 행은 찾아서 고쳐 감사 컬럼(C_AT 등)을 보존한다.
+ *
+ * @deprecated 환율 위젯은 MDM 환율 마스터(FX_RATE)를 읽는다({@link FxMasterReader}). 옛 표 TB_MCM_EXCHANGE_RATE 는
+ *     정리 결정 전까지 보존하므로 이 클래스는 지우지 않지만, 위젯 경로에서는 더 이상 부르지 않는다.
  */
+@Deprecated
 @Component("exchangeRateWriter")
 public class ExchangeRateWriter {
 

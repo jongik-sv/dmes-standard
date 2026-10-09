@@ -13,7 +13,10 @@ import java.math.BigDecimal;
  * RATE 는 대상 통화 1단위의 기준 통화 값(1 USD = 1,380.12 KRW). Frankfurter 는 EUR 기준 값을 「KRW ÷ 외화」로 교차 계산해 넣는다.
  * SOURCE 는 값을 준 제공자(frankfurter·koreaexim, ERD 와 같이 NOT NULL).
  * CHAR 칸(RATE_DATE·BASE_CUR·QUOTE_CUR)은 다른 위젯 표의 CHAR(1) 처럼 길이만 고정한다(값이 늘 꽉 차 방언 차이가 없다).
+ *
+ * @deprecated 환율 위젯은 MDM 환율 마스터(FX_RATE)를 읽는다. 옛 표 TB_MCM_EXCHANGE_RATE 는 정리 결정 전까지 보존한다.
  */
+@Deprecated
 @Entity
 @Table(name = "TB_MCM_EXCHANGE_RATE", schema = "MCMAPUSER")
 @IdClass(ExchangeRateId.class)

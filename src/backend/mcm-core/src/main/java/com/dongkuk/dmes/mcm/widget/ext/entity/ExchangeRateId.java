@@ -3,7 +3,12 @@ package com.dongkuk.dmes.mcm.widget.ext.entity;
 import java.io.Serializable;
 import java.util.Objects;
 
-/** {@link ExchangeRate} 복합키 (RATE_DATE, BASE_CUR, QUOTE_CUR). */
+/**
+ * {@link ExchangeRate} 복합키 (RATE_DATE, BASE_CUR, QUOTE_CUR).
+ *
+ * @deprecated 환율 위젯은 MDM 환율 마스터(FX_RATE)를 읽는다. 옛 표 TB_MCM_EXCHANGE_RATE 는 정리 결정 전까지 보존한다.
+ */
+@Deprecated
 public class ExchangeRateId implements Serializable {
 
     private String rateDate;
