@@ -1,63 +1,77 @@
 # /dflow-merge 스크립트 동작 상세
 
-SKILL.md 「결정 번호 매김」·「마이그레이션 버전 관문」 의 스크립트가 **무엇을 어떻게 바꾸는지** 풀어 쓴 것이다. 출력 줄을 사람에게
-설명하거나, 결과가 의외이거나, 대상 리포 설정을 바꿀 때 읽는다. 실행 순서와 보고 규칙은 SKILL.md 가 정본이다.
+SKILL.md 「결정 번호 매김」·「마이그레이션 버전 관문」 스크립트가 **무엇을 어떻게 바꾸는지** 상세. 출력 줄을 사람에게 설명할 때, 결과가 의외일 때, 대상 리포 설정을 바꿀 때 읽음. 실행 순서·보고 규칙 정본 = SKILL.md.
 
 ## 결정 번호 매김
 
-`decisions.sh`(머지 자리의 최상위, 임시 머지 워크트리면 `-C "$W"`). 결정 기록 형식은 dflow-wbs `decision-log.mjs` 이고, `validate`
-는 D-001 부터 끊김 없는 순번을 요구한다. 번호는 개발 브랜치에 들어가는 순서로만 정해진다. `decision-log.mjs` 의 형식·validate 는
-바꾸지 않는다(`Temp ID`·`Renumbered from` 은 선택 필드로 읽힌다).
+- `decisions.sh` (머지 자리 최상위, 임시 머지 워크트리면 `-C "$W"`)
+- 결정 기록 형식 = dflow-wbs `decision-log.mjs`. `validate` 는 D-001 부터 끊김 없는 순번 요구
+- 번호 = 개발 브랜치에 들어가는 순서로만 결정
+- `decision-log.mjs` 형식·validate 변경 금지 (`Temp ID`·`Renumbered from` 은 선택 필드로 읽힘)
 
-- **머리 줄 규칙·잠금**: 항목 머리는 `decision-log.mjs` 와 같게 `## D-<숫자> (<시각>)` 뒤에 공백만 있고 줄이 끝나는 줄뿐이다(스크립트의
-  `HEAD_ERE`). `## D-002 (ts) 비고` 처럼 글이 더 붙은 줄은 머리가 아니라 앞 항목의 본문이다. 두 스크립트가 `decisions.md` 를 읽고 고쳐 쓰는
-  동안에는 `decisions.md.lock` 디렉터리(mkdir 잠금, 15초 안에 못 잡으면 `RENUMBER_FAILED lock`·`DECISIONS_LEFT <파일> lock`,
-  10분 넘게 남은 잠금은 치움)를 잡는다. `decision-log.mjs append` 가 같은 잠금을 쓰므로 동시에 쓰는 항목이 사라지지 않는다.
+- **머리 줄 규칙·잠금**
+  - 항목 머리 = `decision-log.mjs` 와 같게 `## D-<숫자> (<시각>)` 뒤에 공백만 있고 끝나는 줄뿐 (스크립트 `HEAD_ERE`)
+  - `## D-002 (ts) 비고` 처럼 글이 더 붙은 줄 = 머리 아님, 앞 항목 본문
+  - 두 스크립트가 `decisions.md` 를 읽고 고쳐 쓰는 동안 `decisions.md.lock` 디렉터리 (mkdir 잠금) 를 잡음
+    - 15초 안에 못 잡으면 `RENUMBER_FAILED lock`·`DECISIONS_LEFT <파일> lock`
+    - 10분 넘게 남은 잠금은 치움
+  - `decision-log.mjs append` 도 같은 잠금 사용 → 동시에 쓰는 항목 안 사라짐
 
-- **충돌 풀기**(`merge-conflicts`): 결과는 개발 브랜치 쪽 파일 전체 뒤에, 머지 대상이 merge-base 에 없던 블록을 그 순서대로
-  붙인 것이다. 머지 대상이 기존 블록을 고쳤거나(추가만 하는 기록의 위반) 한쪽이 파일을 지웠으면 풀지 않고 `DECISIONS_LEFT` 로
-  둔다.
-- **번호 매김**(`renumber`): 트리 전체에서 임시 ID 머리를 그 파일의 다음 전역 번호로 바꾸고(머리 순서대로), 바로 아래
-  `- **Temp ID**: <임시 ID>` 줄을 남기며, 추적 파일 전체(`.claude/` 는 제외)의 같은 임시 ID 참조를 바꿔 커밋 하나
-  (`chore(<TSK>): 결정 번호 매김 (…)`, 트레일러 `DFlow-Order`)로 남긴다. `Temp ID` 줄 덕분에 스택 후손이 선행의 임시 ID 를
-  적어 뒀어도 뒤 머지에서 찾아 바꾼다. 같은 임시 ID 머리가 둘 이상이면 그 ID 만 건너뛰고(`RENUMBER_DUP`) 나머지는 매긴다.
-  실패하면(`RENUMBER_DIRTY`·`RENUMBER_FAILED`) 임시 ID 는 트리에 남고 다음 머지의 번호 매김이 트리 전체를 다시 훑어 매긴다.
-- **전역 번호 중복**(`renumber` 의 첫 단계): 옛 규칙을 읽은 워커나 사람이 전역 번호를 직접 매기면 같은 기점의 두 브랜치가 같은
-  `## D-050` 을 들고 온다. git 이 두 추가를 다른 위치로 보면 충돌 없이도 합쳐지므로 충돌 여부와 무관하게 머지 커밋 뒤에 본다.
-  **HEAD 가 머지 커밋일 때 HEAD^1 = 머지 전 개발 브랜치, HEAD^2 = 머지 대상(그때의 MERGE_HEAD)** 으로 읽고 merge-base 는 그
-  둘에서 구한다(충돌 경로·충돌 없는 경로·해소 머지가 모두 이 자리를 지난다). 파일마다 따로 본다(decisions.md 끼리 번호는 독립).
-  - 개발 브랜치 쪽 블록은 그대로 둔다. 머지 대상이 더한 블록(머리 줄이 HEAD^2 판에 있고 merge-base 판·HEAD^1 판에 없는 것)
-    가운데 번호가 겹친 것만 그 파일의 다음 전역 번호로 옮겨 파일 끝에 두고(개발 브랜치 블록의 순서는 바꾸지 않는다), 머리 바로
-    아래 `- **Renumbered from**: D-050 (중복 번호)` 줄을 남긴다. 출력 `DUP_RENUMBERED D-050=D-053 <파일>`, 커밋 제목
-    `D-050→D-053(중복)`.
-  - 같은 파일 안에서는 머지 대상 블록(옮긴 것·안 옮긴 것)의 본문 참조만 새 번호로 바꾼다. 다른 파일은 **리포 전체가 아니라**
-    머지 대상이 더하거나 바꾼 파일(`merge-base..HEAD^2`)만 바꾼다(`DUP_REF_REPLACED <파일> D-050→D-053,…`). 개발 브랜치도 바꾼
-    파일(`dev-changed`)·다른 decisions.md(`decisions`)·merge-base 판에 이미 그 번호가 있던 파일(`base-mention`)·한 번호가 둘로
-    옮겨졌거나 머지 대상의 다른 decisions.md 에도 같은 번호 머리가 있는 경우(`ambiguous`)는 바꾸지 않고
-    `DUP_REF_AMBIGUOUS <파일>:<줄> D-050 <사유>` 로 위치만 알린다 — 사람이 본다.
-  - 바로잡지 못한 중복은 `DUP_LEFT <파일> D-NNN <사유>` 다: `not-a-merge`(HEAD 가 머지 커밋이 아님)·`dev-side`(개발 브랜치에
-    이미 같은 번호가 둘 — 실패한 머지가 남긴 중복은 다음 머지에서 이렇게만 나온다)·`ambiguous-refs`(머지 대상끼리 겹쳐 참조를
-    바꾸지 않음) 등.
-  - 겹치지 않은 직접 번호는 건드리지 않는다. 그 번호가 순번을 건너뛰었거나 앞뒤가 바뀌어 validate 가 실패할 모양이면
-    `DECISIONS_SEQ <파일> at=<i> found=D-NNN want=D-NNN` 으로 알리기만 한다(이번 머지·이번 실행이 바꾼 결정 기록만 본다).
-    사람이 판단해 새 블록으로 정정한다.
-- **`merge=union`**: union 은 블록끼리 같은 필드 줄(`- **Phase**: design` 등)을 공유하면 줄을 맞춰 합치면서 한 블록의 줄이
-  사라지고 두 머리가 붙는다. 충돌을 내게 두고 `merge-conflicts` 가 블록 단위로 푼다.
+- **충돌 풀기**(`merge-conflicts`)
+  - 결과 = 개발 브랜치 쪽 파일 전체 + 머지 대상이 merge-base 에 없던 블록을 순서대로 붙인 것
+  - 머지 대상이 기존 블록을 고쳤거나 (추가만 하는 기록 위반) 한쪽이 파일을 지웠으면 풀지 않고 `DECISIONS_LEFT`
+- **번호 매김**(`renumber`)
+  - 트리 전체에서 임시 ID 머리를 그 파일의 다음 전역 번호로 교체 (머리 순서대로)
+  - 바로 아래 `- **Temp ID**: <임시 ID>` 줄을 남김
+  - 추적 파일 전체 (`.claude/` 제외) 의 같은 임시 ID 참조 교체
+  - 커밋 하나로 남김 (`chore(<TSK>): 결정 번호 매김 (…)`, 트레일러 `DFlow-Order`)
+  - `Temp ID` 줄 덕분에 스택 후손이 선행의 임시 ID 를 적어 뒀어도 뒤 머지에서 찾아 교체
+  - 같은 임시 ID 머리가 둘 이상 → 그 ID 만 건너뛰고 (`RENUMBER_DUP`) 나머지는 매김
+  - 실패(`RENUMBER_DIRTY`·`RENUMBER_FAILED`) 시 임시 ID 는 트리에 남고, 다음 머지의 번호 매김이 트리 전체를 다시 훑어 매김
+- **전역 번호 중복**(`renumber` 첫 단계)
+  - 옛 규칙을 읽은 워커나 사람이 전역 번호를 직접 매기면 같은 기점의 두 브랜치가 같은 `## D-050` 을 들고 옴
+  - git 이 두 추가를 다른 위치로 보면 충돌 없이 합쳐지므로, 충돌 여부 무관하게 머지 커밋 뒤에 봄
+  - **HEAD 가 머지 커밋일 때 HEAD^1 = 머지 전 개발 브랜치, HEAD^2 = 머지 대상(그때의 MERGE_HEAD)**. merge-base 는 그 둘에서 구함 (충돌 경로·충돌 없는 경로·해소 머지 모두 이 자리를 지남)
+  - 파일마다 따로 봄 (decisions.md 끼리 번호 독립)
+  - 개발 브랜치 쪽 블록은 그대로 둠
+    - 머지 대상이 더한 블록 (머리 줄이 HEAD^2 판에 있고 merge-base 판·HEAD^1 판에 없는 것) 중 번호가 겹친 것만 그 파일의 다음 전역 번호로 옮겨 파일 끝에 둠 (개발 브랜치 블록 순서 불변)
+    - 머리 바로 아래 `- **Renumbered from**: D-050 (중복 번호)` 줄을 남김
+    - 출력 `DUP_RENUMBERED D-050=D-053 <파일>`, 커밋 제목 `D-050→D-053(중복)`
+  - 같은 파일 안: 머지 대상 블록 (옮긴 것·안 옮긴 것) 의 본문 참조만 새 번호로 교체
+  - 다른 파일: **리포 전체가 아니라** 머지 대상이 더하거나 바꾼 파일(`merge-base..HEAD^2`)만 교체 (`DUP_REF_REPLACED <파일> D-050→D-053,…`)
+  - 아래는 교체 않고 `DUP_REF_AMBIGUOUS <파일>:<줄> D-050 <사유>` 로 위치만 알림 (사람이 봄)
+    - 개발 브랜치도 바꾼 파일 (`dev-changed`)
+    - 다른 decisions.md (`decisions`)
+    - merge-base 판에 이미 그 번호가 있던 파일 (`base-mention`)
+    - 한 번호가 둘로 옮겨졌거나 머지 대상의 다른 decisions.md 에도 같은 번호 머리가 있는 경우 (`ambiguous`)
+  - 바로잡지 못한 중복 = `DUP_LEFT <파일> D-NNN <사유>`
+    - `not-a-merge`: HEAD 가 머지 커밋 아님
+    - `dev-side`: 개발 브랜치에 이미 같은 번호 둘 (실패한 머지가 남긴 중복은 다음 머지에서 이렇게만 나옴)
+    - `ambiguous-refs`: 머지 대상끼리 겹쳐 참조 교체 안 함
+    - 등
+  - 겹치지 않은 직접 번호는 안 건드림
+    - 순번을 건너뛰었거나 앞뒤가 바뀌어 validate 가 실패할 모양이면 `DECISIONS_SEQ <파일> at=<i> found=D-NNN want=D-NNN` 으로 알리기만 함 (이번 머지·이번 실행이 바꾼 결정 기록만 봄)
+    - 사람이 판단해 새 블록으로 정정
+- **`merge=union`**
+  - union 은 블록끼리 같은 필드 줄 (`- **Phase**: design` 등) 을 공유하면 줄을 맞춰 합쳐서 한 블록의 줄이 사라지고 두 머리가 붙음
+  - 충돌을 내게 두고 `merge-conflicts` 가 블록 단위로 품
 
 ## 마이그레이션 버전 관문
 
-`migration-check.sh`. 마이그레이션 폴더는 파일 패턴으로 찾고(폴더 설정을 읽지 않는다), 폴더별로 두 가지를 본다.
+`migration-check.sh`. 마이그레이션 폴더는 파일 패턴으로 찾음 (폴더 설정 안 읽음). 폴더별로 두 가지 확인.
 
-- **버전 중복**: 같은 폴더에 같은 버전이 둘 이상이고 그중 하나가 이 브랜치가 추가한 파일이다(`MIGRATION_DUP`). 개발 브랜치
-  자체의 중복은 경고(`MIGRATION_DEV_DUP`)만 하고 이 머지를 막지 않는다.
-- **역순 도착**: 이 브랜치가 추가한 버전이 그 폴더의 개발 브랜치 최대 버전보다 작다(`MIGRATION_ORDER`, 같으면 중복). Flyway
-  기본값 `outOfOrder=false` 에서는 이미 더 높은 버전을 적용한 개발 DB 가 그 파일을 거부한다.
-- 버전 비교는 Flyway 규칙이다(`_` 는 `.` 과 같고 부분마다 숫자로, 앞의 0 과 끝의 0 부분은 무시 — `V04`·`V4_0`·`V4.0` 은 `V4`).
-  폴더 단위로 묶는다 — Flyway 이력은 폴더(location)마다 독립이라 다른 폴더가 같은 버전을 두는 것은 정상이다(dmes-standard 는 Oracle 하나라 `oracle/mcmapuser`·`oracle/mcaapuser` 같은 스키마별 폴더). `R__`(반복)·`U`
-  (undo) 파일은 보지 않는다.
-- exit 0 은 `MIGRATION_OK`, exit 1 은 버전 중복·역순 도착이고 걸린 파일(이 브랜치가 추가한 것)은 `MIGRATION_FILES` 로 나온다.
-  exit 2 는 `MIGRATION_CHECK_FAILED <사유>` 다(판정 불가 — 머지하지 않는다).
+- **버전 중복**: 같은 폴더에 같은 버전이 둘 이상이고 그중 하나가 이 브랜치가 추가한 파일 (`MIGRATION_DUP`). 개발 브랜치 자체의 중복은 경고(`MIGRATION_DEV_DUP`)만 하고 이 머지를 막지 않음
+- **역순 도착**: 이 브랜치가 추가한 버전 < 그 폴더의 개발 브랜치 최대 버전 (`MIGRATION_ORDER`, 같으면 중복). Flyway 기본값 `outOfOrder=false` 에서는 이미 더 높은 버전을 적용한 개발 DB 가 그 파일을 거부
+- 버전 비교 = Flyway 규칙. `_` = `.`, 부분마다 숫자로, 앞의 0 과 끝의 0 부분 무시 (`V04`·`V4_0`·`V4.0` = `V4`)
+- 폴더 단위로 묶음. Flyway 이력은 폴더(location)마다 독립이라 다른 폴더가 같은 버전을 두는 것은 정상 (dmes-standard 는 Oracle 하나라 `oracle/mcmapuser`·`oracle/mcaapuser` 같은 스키마별 폴더)
+- `R__`(반복)·`U`(undo) 파일은 안 봄
+- exit 0 = `MIGRATION_OK`
+- exit 1 = 버전 중복·역순 도착. 걸린 파일 (이 브랜치가 추가한 것) 은 `MIGRATION_FILES` 로 나옴
+- exit 2 = `MIGRATION_CHECK_FAILED <사유>` (판정 불가 — 머지 금지)
 
 ## 지원 환경: macOS · Git Bash(윈도우)
 
-`scripts/*.sh` 는 macOS 와 Git for Windows 의 Git Bash 에서 같이 돈다. 필요 도구: bash, git, jq(윈도우는 `_shared/bin` 동봉판), awk·sed·grep. 별도 플랫폼 의존 명령은 쓰지 않는다. 스크립트를 새로 쓸 때는 macOS 전용 명령·perl 을 쓰지 않는다. 정본·도구 표·한계: `../../_shared/platform-support.md`.
+- `scripts/*.sh` = macOS 와 Git for Windows 의 Git Bash 에서 같이 돎
+- 필요 도구: bash, git, jq (윈도우는 `_shared/bin` 동봉판), awk·sed·grep
+- 별도 플랫폼 의존 명령 금지. 새 스크립트에 macOS 전용 명령·perl 금지
+- 정본·도구 표·한계: `../../_shared/platform-support.md`
