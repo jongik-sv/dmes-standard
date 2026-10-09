@@ -22,6 +22,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -38,12 +39,17 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 예약 작업 {@code mdm.exchangeRateSync} 의 본체: 외부 환율을 받아 마루 데이터 {@code FX_RATE} 에 upsert 한다
  * (docs/superpowers/specs/2026-10-09-mdm-fx-master-design.md D3, §6 R2·R7·R9~R11).
  *
- * <p>순서: ① 외부 호출이 꺼져 있으면 0건 ② {@code CUR} 에서 열린 행 중 환율 수집이 Y 인 통화 읽기 ③ {@code FX_RATE} 정의 확인
- * ④ {@code FX_RATE} 항목이 하나도 없으면 90일 백필, 있으면 {@code lookbackDays} ⑤ 제공자 호출(구간당 한 번이고 제한 시간이 짧아,
- * OASIS 실행 트랜잭션 안에서 도는 것을 감수한다) ⑥ {@link UpsertRow} 만들기 ⑦ {@link DataItemSaveCore#upsert} 를 새 트랜잭션으로
- * 먼저 커밋 ⑧ 제공자가 일부만 줬으면 커밋한 뒤에 예외를 던진다(받은 값이 롤백되지 않게).
+ * <p>모양(설계 §7): 기준일 한 행이 키({@code CODE=yyyyMMdd}, NAME={@code yyyy-MM-dd})이고, {@code FX_RATE} 정의의
+ * {@code ATTRnn_NAME} 라벨이 통화 코드이며 그 칼럼 값이 1 통화 단위당 원화 환율이다. 통화→칼럼 대응은 정의에서 읽는다(하드코딩 없음).
+ * 기준통화·출처는 항목 DESCRIPTION 에 남긴다.
  *
- * <p>값은 1 대상 통화당 원화를 소수 8자리 고정 문자열로 저장한다(저장 때 {@code sameAs} 비교가 흔들리지 않게). 예외 메시지에는
+ * <p>순서: ① 외부 호출이 꺼져 있으면 0건 ② {@code CUR} 에서 열린 행 중 환율 수집이 Y 이고 {@code FX_RATE} 칼럼이 있는 통화 읽기
+ * ③ {@code FX_RATE} 열린 항목이 하나도 없으면 90일 백필, 있으면 {@code lookbackDays} ④ 제공자 호출(구간당 한 번이고 제한 시간이
+ * 짧아, OASIS 실행 트랜잭션 안에서 도는 것을 감수한다) ⑤ 날짜별로 기존 열린 행을 읽어 받은 칼럼만 덮어쓴 {@link UpsertRow} 만들기
+ * (같은 날 일부 통화만 받아도 나머지 칼럼은 보존) ⑥ {@link DataItemSaveCore#upsert} 를 새 트랜잭션으로 먼저 커밋 ⑦ 제공자가 일부만
+ * 줬으면 커밋한 뒤에 예외를 던진다(받은 값이 롤백되지 않게).
+ *
+ * <p>값은 소수 8자리 고정 문자열로 저장한다(저장 때 {@code sameAs} 비교가 흔들리지 않게). 예외 메시지에는
  * 요청 주소나 인증키를 싣지 않는다.
  */
 public class ExchangeRateSyncService {
@@ -65,6 +71,7 @@ public class ExchangeRateSyncService {
     private static final String JOB = "[mdm.exchangeRateSync] ";
     private static final DateTimeFormatter YMD = DateTimeFormatter.BASIC_ISO_DATE;
     private static final Pattern CUR_CODE = Pattern.compile("^[A-Z]{3}$");
+    private static final int ATTR_COUNT = DataItemValue.ATTR_COUNT;
     private static final int MAX_ISSUES_IN_MESSAGE = 5;
 
     /** 열린 선분만 읽는다(VALID_TO 가 열린 끝). 칼럼에 함수를 씌우지 않고 DB 시각 함수도 쓰지 않는다. */
@@ -85,7 +92,43 @@ public class ExchangeRateSyncService {
             SELECT COUNT(*)
             FROM   TB_MDM_DATA_ITEM A
             WHERE  A.MARU_DATA_ID = ?
+            AND    A.VALID_TO = TIMESTAMP '9999-12-31 00:00:00'
             AND    ROWNUM <= 1
+            """;
+    /** 통화→칼럼 대응의 근거: FX_RATE 정의의 추가 컬럼 라벨. */
+    private static final String LABELS_SQL = """
+            SELECT A.ATTR01_NAME
+                 , A.ATTR02_NAME
+                 , A.ATTR03_NAME
+                 , A.ATTR04_NAME
+                 , A.ATTR05_NAME
+                 , A.ATTR06_NAME
+                 , A.ATTR07_NAME
+                 , A.ATTR08_NAME
+                 , A.ATTR09_NAME
+                 , A.ATTR10_NAME
+            FROM   TB_MDM_DATA A
+            WHERE  A.MARU_DATA_ID = ?
+            """;
+    /** 기준일 범위의 열린 행(기본 키 범위). 같은 날 다른 통화 칼럼을 보존하려고 읽는다. */
+    private static final String EXISTING_SQL = """
+            SELECT A.CODE
+                 , A.ALTER_NAME
+                 , A.SEQ
+                 , A.ATTR01
+                 , A.ATTR02
+                 , A.ATTR03
+                 , A.ATTR04
+                 , A.ATTR05
+                 , A.ATTR06
+                 , A.ATTR07
+                 , A.ATTR08
+                 , A.ATTR09
+                 , A.ATTR10
+            FROM   TB_MDM_DATA_ITEM A
+            WHERE  A.MARU_DATA_ID = ?
+            AND    A.VALID_TO = TIMESTAMP '9999-12-31 00:00:00'
+            AND    A.CODE BETWEEN ? AND ?
             """;
 
     private final JdbcTemplate jdbc;
@@ -109,7 +152,7 @@ public class ExchangeRateSyncService {
         this.koreaExim = koreaExim;
     }
 
-    /** @return 이번에 INSERT·UPDATE·REOPEN 된 행 수(변하지 않은 행 제외). 새 값이 없으면 0. 실패는 예외로. */
+    /** @return 이번에 INSERT·UPDATE·REOPEN 된 날짜 행 수(변하지 않은 행 제외). 새 값이 없으면 0. 실패는 예외로. */
     public int run(JobContext ctx) {
         if (!properties.isEnabled()) {
             log.info(JOB + "dmes.widget.ext.enabled=false 라 외부 환율을 받지 않습니다");
@@ -117,11 +160,13 @@ public class ExchangeRateSyncService {
         }
         Map<String, Object> vars = ctx == null || ctx.vars() == null ? Map.of() : ctx.vars();
 
-        List<String> symbols = collectSymbols();
-        if (symbols.isEmpty()) {
-            throw new IllegalStateException("환율을 수집할 통화가 없습니다. 통화(CUR)에서 환율 수집이 Y 인 열린 항목을 확인하세요");
-        }
         requireFxMaster();
+        List<String> columns = columnCurrencies();
+        List<String> symbols = collectSymbols(columns);
+        if (symbols.isEmpty()) {
+            throw new IllegalStateException("환율을 수집할 통화가 없습니다. 통화(CUR)에서 환율 수집이 Y 이고 환율(" + FX_RATE
+                    + ") 정의의 추가 컬럼 라벨에 있는 열린 항목을 확인하세요");
+        }
 
         int days = hasFxItems() ? lookbackDays(vars) : BACKFILL_DAYS;
         ExchangeRateProvider provider = provider(vars);
@@ -143,35 +188,85 @@ public class ExchangeRateSyncService {
             throw new IllegalStateException("환율 제공자(" + provider.id() + ") 호출에 실패했습니다: " + e.getClass().getSimpleName());
         }
 
-        List<UpsertRow> rows = toRows(points, symbols, provider.id());
+        List<UpsertRow> rows = toRows(points, columns, symbols, provider.id(), existingByCode(points));
         int changed = rows.isEmpty() ? 0 : save(rows);
-        log.info(JOB + "받은 {}건 중 {}건을 마스터에 반영했습니다", rows.size(), changed);
+        log.info(JOB + "받은 {}일 중 {}일을 마스터에 반영했습니다", rows.size(), changed);
 
         if (partialMessage != null) {
             // 받은 값은 이미 커밋했다. 실패로 남겨 재시도 규칙을 타게 한다.
             throw new IllegalStateException("환율 제공자(" + provider.id() + ")가 일부만 응답했습니다: " + partialMessage
-                    + " (받은 값 " + rows.size() + "건 중 " + changed + "건 반영)");
+                    + " (받은 " + rows.size() + "일 중 " + changed + "일 반영)");
         }
         return changed;
     }
 
     // ── 입력 읽기 ──────────────────────────────────────────────────────────
 
-    /** CUR 에서 열린 행 중 환율 수집이 Y 인 통화 코드(KRW·형식이 다른 코드 제외). */
-    private List<String> collectSymbols() {
+    /** FX_RATE 정의의 추가 컬럼 라벨(인덱스 0 = ATTR01). 라벨이 없는 칼럼은 null. */
+    private List<String> columnCurrencies() {
+        List<String> labels = jdbc.query(LABELS_SQL, rs -> {
+            List<String> out = new ArrayList<>(ATTR_COUNT);
+            if (rs.next()) {
+                for (int i = 1; i <= ATTR_COUNT; i++) {
+                    String v = rs.getString(i);
+                    out.add(v == null || v.isBlank() ? null : v.trim().toUpperCase(Locale.ROOT));
+                }
+            }
+            return out;
+        }, FX_RATE);
+        return labels == null ? List.of() : labels;
+    }
+
+    /** CUR 에서 열린 행 중 환율 수집이 Y 이고 FX_RATE 칼럼이 있는 통화 코드(KRW·형식이 다른 코드 제외). */
+    private List<String> collectSymbols(List<String> columns) {
         List<String> out = new ArrayList<>();
         for (String code : jdbc.queryForList(CURRENCIES_SQL, String.class, CUR)) {
-            if (code != null && CUR_CODE.matcher(code).matches() && !BASE_CURRENCY.equals(code) && !out.contains(code)) {
+            if (code == null || !CUR_CODE.matcher(code).matches() || BASE_CURRENCY.equals(code) || out.contains(code)) {
+                continue;
+            }
+            if (columns.contains(code)) {
                 out.add(code);
+            } else {
+                log.warn(JOB + "통화 {} 는 환율 수집이 Y 지만 {} 정의의 추가 컬럼 라벨에 없어 건너뜁니다", code, FX_RATE);
             }
         }
         return out;
     }
 
+    /** 받은 점의 기준일 범위에서 기존 열린 행을 읽는다. 키는 CODE(yyyyMMdd). */
+    private Map<String, ExistingRow> existingByCode(Collection<ExchangeRatePoint> points) {
+        LocalDate min = null;
+        LocalDate max = null;
+        for (ExchangeRatePoint p : points) {
+            if (p == null || p.date() == null) {
+                continue;
+            }
+            min = min == null || p.date().isBefore(min) ? p.date() : min;
+            max = max == null || p.date().isAfter(max) ? p.date() : max;
+        }
+        if (min == null) {
+            return Map.of();
+        }
+        Map<String, ExistingRow> out = new TreeMap<>();
+        jdbc.query(EXISTING_SQL, rs -> {
+            List<String> attrs = new ArrayList<>(ATTR_COUNT);
+            for (int i = 0; i < ATTR_COUNT; i++) {
+                attrs.add(rs.getString(4 + i));
+            }
+            int seq = rs.getInt(3);
+            out.put(rs.getString(1), new ExistingRow(rs.getString(2), rs.wasNull() ? null : seq, attrs));
+        }, FX_RATE, min.format(YMD), max.format(YMD));
+        return out;
+    }
+
+    /** 같은 날 행의 기존 값(보존할 칼럼). */
+    record ExistingRow(String alterName, Integer seq, List<String> attrs) {
+    }
+
     private void requireFxMaster() {
         Integer n = jdbc.queryForObject(DEFINITION_SQL, Integer.class, FX_RATE);
         if (n == null || n == 0) {
-            throw new IllegalStateException("환율 마스터(" + FX_RATE + ")가 등록되어 있지 않습니다. mdm Flyway V3__fx_master_seed 를 적용하세요");
+            throw new IllegalStateException("환율 마스터(" + FX_RATE + ")가 등록되어 있지 않습니다. mdm Flyway V3__fx_master_seed·V4__fx_rate_by_date 를 적용하세요");
         }
     }
 
@@ -215,17 +310,23 @@ public class ExchangeRateSyncService {
     }
 
     /**
-     * 제공자가 준 점을 upsert 행으로 바꾼다. 요청하지 않은 통화·값이 없거나 0 이하인 점은 버리고, 같은 키(통화+기준일)는 뒤의 것을
-     * 쓴다(한 번의 upsert 에 같은 키가 둘이면 CHK6 으로 거절되기 때문이다). 키 순서로 정렬해 돌려준다.
+     * 제공자가 준 점을 날짜별 upsert 행으로 바꾼다. 요청하지 않은 통화·값이 없거나 0 이하인 점은 버리고, 같은 날짜·통화는 뒤의 것을
+     * 쓴다. 기존 열린 행이 있으면 그 칼럼을 그대로 두고 받은 통화 칼럼만 덮어쓴다. 키(날짜) 순서로 정렬해 돌려준다(한 번의 upsert 에
+     * 같은 키가 둘이면 CHK6 으로 거절되므로 날짜당 한 행이다).
+     *
+     * @param columns 추가 컬럼 라벨(인덱스 0 = ATTR01, 통화 코드 또는 null)
      */
-    static List<UpsertRow> toRows(Collection<ExchangeRatePoint> points, Collection<String> symbols, String providerId) {
-        Map<String, UpsertRow> byCode = new TreeMap<>();
+    static List<UpsertRow> toRows(Collection<ExchangeRatePoint> points, List<String> columns, Collection<String> symbols,
+                                  String providerId, Map<String, ExistingRow> existing) {
+        Map<String, Map<Integer, BigDecimal>> byDate = new TreeMap<>();
+        Map<String, LocalDate> dates = new TreeMap<>();
         for (ExchangeRatePoint p : points) {
             if (p == null || p.date() == null || p.cur() == null || p.rate() == null) {
                 continue;
             }
             String cur = p.cur().trim().toUpperCase(Locale.ROOT);
-            if (!symbols.contains(cur)) {
+            int column = columns.indexOf(cur);
+            if (column < 0 || !symbols.contains(cur)) {
                 continue;
             }
             BigDecimal rate = p.rate().setScale(RATE_SCALE, RoundingMode.HALF_UP);
@@ -233,12 +334,20 @@ public class ExchangeRateSyncService {
                 continue;
             }
             String ymd = p.date().format(YMD);
-            String code = cur + ymd;
-            DataItemValue value = new DataItemValue(cur + " " + p.date(), null, null, null, null,
-                    List.of(cur, ymd, rate.toPlainString(), BASE_CURRENCY, providerId));
-            byCode.put(code, new UpsertRow(code, value));
+            byDate.computeIfAbsent(ymd, k -> new TreeMap<>()).put(column, rate);
+            dates.put(ymd, p.date());
         }
-        return new ArrayList<>(byCode.values());
+        List<UpsertRow> out = new ArrayList<>(byDate.size());
+        for (Map.Entry<String, Map<Integer, BigDecimal>> e : byDate.entrySet()) {
+            ExistingRow old = existing == null ? null : existing.get(e.getKey());
+            List<String> attrs = new ArrayList<>(old == null ? Collections.nCopies(ATTR_COUNT, (String) null) : old.attrs());
+            e.getValue().forEach((column, rate) -> attrs.set(column, rate.toPlainString()));
+            String description = "기준통화 " + BASE_CURRENCY + " · 출처 " + providerId;
+            DataItemValue value = new DataItemValue(dates.get(e.getKey()).toString(), old == null ? null : old.alterName(),
+                    old == null ? null : old.seq(), description, null, attrs);
+            out.add(new UpsertRow(e.getKey(), value));
+        }
+        return out;
     }
 
     // ── 저장 ────────────────────────────────────────────────────────────────
