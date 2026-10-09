@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_jobSchedMng" targetNamespace="http://dongkuk.com/dmes/mcm" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
   <bpmn:process id="jobSchedMng" name="예약 작업 관리 서비스" isExecutable="true">
-    <bpmn:documentation>예약 작업 관리 화면(csa/jobSchedMng) — 작업 정의·이력·처리기 조회와 저장·사용 변경·지금 실행. 설계 2026-10-08-job-scheduler-design §7. 메뉴 권한(RBAC)으로 보호된다.</bpmn:documentation>
+    <bpmn:documentation>예약 작업 관리 화면(csa/jobSchedMng) — 작업 정의·이력·처리기·수집 값 조회와 저장·사용 변경·지금 실행. 설계 2026-10-08-job-scheduler-design §7. 메뉴 권한(RBAC)으로 보호된다.</bpmn:documentation>
     <bpmn:startEvent id="start">
       <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
     </bpmn:startEvent>
@@ -21,6 +21,7 @@
       <bpmn:outgoing>flow_cronPreview</bpmn:outgoing>
       <bpmn:outgoing>flow_handlers</bpmn:outgoing>
       <bpmn:outgoing>flow_delete</bpmn:outgoing>
+      <bpmn:outgoing>flow_collectData</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="listTask" name="작업 목록" camunda:class="jobSchedMngService">
       <bpmn:extensionElements>
@@ -167,6 +168,22 @@
     <bpmn:sequenceFlow id="flow_handlers_end" sourceRef="handlersTask" targetRef="endHandlers" />
     <bpmn:sequenceFlow id="flow_delete" name="delete" sourceRef="actionGateway" targetRef="deleteTask" />
     <bpmn:sequenceFlow id="flow_delete_end" sourceRef="deleteTask" targetRef="endDelete" />
+    <bpmn:serviceTask id="collectDataTask" name="수집 값 조회" camunda:class="jobSchedMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="collectData" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.job.server.dto.JobSchedMngRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_collectData</bpmn:incoming>
+      <bpmn:outgoing>flow_collectData_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endCollectData">
+      <bpmn:incoming>flow_collectData_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_collectData" name="collectData" sourceRef="actionGateway" targetRef="collectDataTask" />
+    <bpmn:sequenceFlow id="flow_collectData_end" sourceRef="collectDataTask" targetRef="endCollectData" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="jobSchedMng">
@@ -341,6 +358,25 @@
         <di:waypoint x="500" y="1220" />
         <di:waypoint x="582" y="1220" />
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="collectDataTask_di" bpmnElement="collectDataTask">
+        <dc:Bounds x="400" y="1320" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endCollectData_di" bpmnElement="endCollectData">
+        <dc:Bounds x="582" y="1342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_collectData_di" bpmnElement="flow_collectData">
+        <di:waypoint x="270" y="685" />
+        <di:waypoint x="270" y="1360" />
+        <di:waypoint x="400" y="1360" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="315" y="1343" width="88" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_collectData_end_di" bpmnElement="flow_collectData_end">
+        <di:waypoint x="500" y="1360" />
+        <di:waypoint x="582" y="1360" />
+      </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>
+

@@ -81,7 +81,7 @@ node scripts/oracle/pdb.mjs clone TPL_EMPTY L_ORA_MDM    # 레인 PDB
 
 - 이 수정(①d)이 들어오기 전 브랜치에서는 **여러 모듈의 Oracle 시험을 모듈별로 따로 건다**(모듈 폴더에서 한 번에 하나). 수정 전 판과 수정 후 판이 같은 PC 에서 동시에 돌면 슬롯·잠금 순서가 달라 서로 붙잡을 수 있으니(슬롯 대기 한도 30분 뒤 풀림) dev 를 합쳐 판을 맞춘다. 이 규칙은 ①d 이전 브랜치에만 해당한다.
 - 한 빌드 안에서 준비가 한 번 실패하면(복제 실패·lock-hold 가 도중에 끝남 등) 같은 빌드의 나머지 모듈도 곧바로 실패한다(모듈마다 복제를 되풀이하지 않게). 모든 모듈이 같은 `-Pdmes.ora.*` 설정을 써야 PDB 를 함께 쓴다.
-- **같은 빌드의 모듈은 시험 PDB 를 겹쳐 쓰지 않는다(①e, 2026-10-07)**: Oracle 을 쓰는 test 태스크는 JVM 안에서 공유하는 「차례」를 받은 쪽만 돌아, `--parallel` 이어도 모듈 사이에서 직렬이다. 모듈 시험 틀이 클래스 시작 때 스키마를 Flyway clean 하므로 예전에는 `:mcm-core:test` 와 `:mcm:api:test` 를 한 실행에 묶으면 서로 표를 지워 oracheck 21건이 `ORA-00942` 로 실패했다. 순서는 차례 → PC 잠금 → 시험 슬롯이다. 로그의 `[dmes-ora] 같은 빌드의 다른 Oracle 시험이 끝나기를 기다린다` 는 정상이다(대기 한도 `DMES_ORA_TURN_WAIT_MS`, 기본 1시간, 넘으면 빌드 실패). 이 수정이 들어오기 전 브랜치에서는 같은 스키마를 쓰는 모듈(mcm-core·mcm 등)의 Oracle 시험을 **따로 건다**(모듈 폴더에서 한 번에 하나).
+- **같은 빌드의 모듈은 시험 PDB 를 겹쳐 쓰지 않는다(①e, 2026-10-07)**: Oracle 을 쓰는 test 태스크는 JVM 안에서 공유하는 「차례」를 받은 쪽만 돌아, `--parallel` 이어도 모듈 사이에서 직렬이다. 모듈 시험 틀이 클래스 시작 때 스키마를 Flyway clean 하므로 예전에는 `:mcm-core:test` 와 `:mcm:api:test` 를 한 실행에 묶으면 서로 표를 지워 oracheck 21건이 `ORA-00942` 로 실패했다. 순서는 차례 → PC 잠금 → 시험 슬롯이다. 로그의 `[dmes-ora] 같은 빌드의 다른 Oracle 시험이 끝나기를 기다린다` 는 정상이다(대기 한도 `DMES_ORA_TURN_WAIT_MS`, 기본 10분, 넘으면 빌드 실패 — 쥔 쪽 태스크가 이미 끝났는데도 멈췄다면 `gradlew --stop` 으로 데몬을 내리고 다시 실행한다). 이 수정이 들어오기 전 브랜치에서는 같은 스키마를 쓰는 모듈(mcm-core·mcm 등)의 Oracle 시험을 **따로 건다**(모듈 폴더에서 한 번에 하나).
 - 회귀 시험(Oracle 접속 없음): `bash src/backend/build-logic/tests/run.sh` — included build 3개가 서비스를 따로 만들어도 잠금·PDB 를 하나만 쓰고 probe 구간(시험 차례)이 겹치지 않는지 본다. `.claude/skills/dflow-dev/scripts/heavy.sh` 를 거쳐 돌린다.
 
 ### 시험 코드에서 직접 만드는 풀

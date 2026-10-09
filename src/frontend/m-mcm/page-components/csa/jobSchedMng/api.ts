@@ -8,6 +8,8 @@ import { createJsonApiClient } from "@/lib/http/json-api-client";
 
 import {
   SCREEN_ID,
+  type CollectDataQuery,
+  type CollectDataResult,
   type CronPreviewResult,
   type HandlerRow,
   type JobDef,
@@ -172,6 +174,27 @@ async function history(jobId: string, limit = 100): Promise<JobRunRow[]> {
     : [];
 }
 
+/** 수집 값(읽기 전용) — 서버가 최대 500행, SLOT 내림차순·항목 키 오름차순으로 돌려준다. */
+async function collectData(query: CollectDataQuery): Promise<CollectDataResult> {
+  const out = await callAction("collectData", { ...query });
+  const rows = Array.isArray(out.rows)
+    ? out.rows.filter(isRecord).map((r) => ({
+        slot: str(r.slot),
+        itemKey: str(r.itemKey),
+        valueNum: r.valueNum === null || r.valueNum === undefined || r.valueNum === "" ? null : num(r.valueNum),
+        valueTxt: str(r.valueTxt),
+        collectedAt: str(r.collectedAt),
+      }))
+    : [];
+  return {
+    rows,
+    truncated: out.truncated === true,
+    nextBeforeSlot: str(out.nextBeforeSlot),
+    latestSlot: str(out.latestSlot),
+    count: out.count === undefined ? rows.length : num(out.count, rows.length),
+  };
+}
+
 /** 서버가 계산한 설명·다음 예정·오류. 유효하지 않은 식은 valid=false + error. */
 async function cronPreview(expr: string): Promise<CronPreviewResult> {
   const out = await callAction("cronPreview", { expr });
@@ -205,4 +228,4 @@ async function remove(jobId: string): Promise<string> {
   return str(out.deleted) || jobId;
 }
 
-export const jobSchedApi = { list, get, save, setUse, runNow, history, cronPreview, handlers, remove };
+export const jobSchedApi = { list, get, save, setUse, runNow, history, collectData, cronPreview, handlers, remove };

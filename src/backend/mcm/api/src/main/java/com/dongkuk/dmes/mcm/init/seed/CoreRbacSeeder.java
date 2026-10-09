@@ -140,7 +140,9 @@ public final class CoreRbacSeeder extends SeedSupport {
                 "query",
                 // 2026-10-09 — 예약 작업 관리(services/csa/jobSchedMng.bpmn) action. save·delete·history 는 위에 있다.
                 //   이미 시드된 DB 는 ensurePermAllActions 가 덧붙인다.
-                "list", "get", "setUse", "runNow", "cronPreview", "handlers"
+                "list", "get", "setUse", "runNow", "cronPreview", "handlers",
+                // 2026-10-09 — 예약 작업 관리 수집 값 읽기(jobSchedMng collectData). 읽기 전용이라도 여기 없으면 SYSADMIN 도 403 이다.
+                "collectData"
 
                 // ── 업무 모듈을 붙일 때 여기에 해당 모듈의 OASIS action 을 추가한다 ──────────────
                 // 본 목록은 PERM_ALL 의 PERMISSION_ACTION 이며, UserPermCache 가 콤마 분할해 PermKey

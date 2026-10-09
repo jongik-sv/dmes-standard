@@ -26,6 +26,8 @@ public class JobDefStore {
     static final int HANDLER_STALE_DAYS = 7;
     private static final Pattern SCHEMA = Pattern.compile("^[A-Za-z][A-Za-z0-9_$#]{0,29}$");
     private static final String NOW = "CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS TIMESTAMP)";
+    /** SLOT(yyyyMMddHHmm) 비교에서 「끝 없음」 을 뜻하는 값 — 어떤 SLOT 보다 크다. */
+    private static final String SLOT_END = "999999999999";
 
     private final JdbcTemplate jdbc;
     private final NamedParameterJdbcTemplate named;
@@ -145,6 +147,38 @@ public class JobDefStore {
                 ORDER BY A.SCHED_AT DESC, A.STARTED_AT DESC
                 FETCH FIRST ? ROWS ONLY
                 """.formatted(schema), jobId, limit);
+    }
+
+    /** 수집 작업의 가장 큰 SLOT(PK 앞 두 칸 min/max 탐색). 값이 없으면 null. */
+    public String latestCollectSlot(String jobId) {
+        return jdbc.queryForObject("""
+                SELECT MAX(A.SLOT)
+                FROM   %s.TB_MCM_JOB_COLLECT_DATA A
+                WHERE  A.JOB_ID = ?
+                """.formatted(schema), String.class, jobId);
+    }
+
+    /**
+     * 수집 값을 SLOT 내림차순·ITEM_KEY 오름차순으로 fetchRows 행까지 읽는다. SLOT 은 문자열 비교라 PK(JOB_ID, SLOT, ITEM_KEY)의 범위 탐색을 탄다.
+     * 정렬 방향이 섞여 있어 범위 안의 행을 모아 정렬한다 — 기간(90일 상한)이 읽는 양을 정한다.
+     * SQL 글자는 늘 같다(선택 조건은 WHERE 의 NULL 검사). null 바인드는 형을 명시한다(OracleParameterMetaDataParser).
+     *
+     * @param fromSlot   SLOT &gt;= 이 값(필수)
+     * @param beforeSlot SLOT &lt; 이 값. null 이면 끝 없음
+     * @param itemKey    ITEM_KEY 정확 일치(대소문자 구분). null 이면 전체
+     */
+    public List<Map<String, Object>> collectData(String jobId, String fromSlot, String beforeSlot, String itemKey, int fetchRows) {
+        return jdbc.queryForList("""
+                SELECT A.SLOT, A.ITEM_KEY, A.VALUE_NUM, A.VALUE_TXT, A.U_AT
+                FROM   %s.TB_MCM_JOB_COLLECT_DATA A
+                WHERE  A.JOB_ID = ?
+                AND    A.SLOT >= ?
+                AND    A.SLOT < ?
+                AND    (? IS NULL OR A.ITEM_KEY = ?)
+                ORDER BY A.SLOT DESC, A.ITEM_KEY
+                FETCH FIRST ? ROWS ONLY
+                """.formatted(schema), new Object[]{jobId, fromSlot, beforeSlot == null ? SLOT_END : beforeSlot, itemKey, itemKey, fetchRows},
+                new int[]{Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR, Types.INTEGER});
     }
 
     public List<Map<String, Object>> handlers() {

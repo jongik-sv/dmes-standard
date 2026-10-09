@@ -70,10 +70,11 @@ class JobSchedMngBpmnTest {
     }
 
     @Test
-    @DisplayName("cronPreview → data.result.valid/desc/next, save → data.result.def, list → data.result.jobs, delete — 9개 action 중 대표 흐름")
+    @DisplayName("cronPreview → data.result.valid/desc/next, save → data.result.def, list → data.result.jobs, delete — 10개 action 중 대표 흐름")
     @SuppressWarnings("unchecked")
     void actionsThroughOasis() {
         new JdbcTemplate(ds).update("DELETE FROM MCMAPUSER.TB_MCM_JOB_RUN");
+        new JdbcTemplate(ds).update("DELETE FROM MCMAPUSER.TB_MCM_JOB_COLLECT_DATA");
         new JdbcTemplate(ds).update("DELETE FROM MCMAPUSER.TB_MCM_JOB_DEF");
 
         CactusResponse preview = executor.execute("jobSchedMng", "cronPreview", request(Map.of("expr", "0 2 * * *")));
@@ -105,5 +106,59 @@ class JobSchedMngBpmnTest {
 
         CactusResponse deleted = executor.execute("jobSchedMng", "delete", request(Map.of("jobId", "mcm.q1")));
         assertThat(deleted.getMeta().success()).as(deleted.getMeta().message()).isTrue();
+    }
+
+    @Test
+    @DisplayName("collectData → data.result.rows/truncated/nextBeforeSlot/latestSlot/count (days·limit·itemKey·latestOnly·beforeSlot 바인딩), 수집 작업이 아니면 거절")
+    @SuppressWarnings("unchecked")
+    void collectDataThroughOasis() {
+        JdbcTemplate jdbc = new JdbcTemplate(ds);
+        jdbc.update("DELETE FROM MCMAPUSER.TB_MCM_JOB_RUN");
+        jdbc.update("DELETE FROM MCMAPUSER.TB_MCM_JOB_COLLECT_DATA");
+        jdbc.update("DELETE FROM MCMAPUSER.TB_MCM_JOB_DEF");
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_DEF (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, SERVICE_ID, ACTION, CRON_EXPR, USE_YN, CONFIG_JSON, TIMEOUT_SEC, OWNER_TP) "
+                + "VALUES ('mcm.col', 'MCM', '수집', 'COLLECT', 'jobCollect', 'run', '*/5 * * * *', 'Y', '{}', 600, 'USER')");
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_DEF (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, SERVICE_ID, ACTION, CRON_EXPR, USE_YN, CONFIG_JSON, TIMEOUT_SEC, OWNER_TP) "
+                + "VALUES ('mcm.q', 'MCM', '쿼리', 'QUERY', 'jobQuery', 'run', '*/10 * * * *', 'Y', '{}', 600, 'USER')");
+        String older = java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmm").format(java.time.LocalDateTime.now().minusHours(2));
+        String newer = java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmm").format(java.time.LocalDateTime.now().minusHours(1));
+        for (String slot : List.of(older, newer)) {
+            jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_COLLECT_DATA (JOB_ID, SLOT, ITEM_KEY, VALUE_NUM, VALUE_TXT) VALUES ('mcm.col', ?, 'USD', 1350.5, NULL)", slot);
+            jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_COLLECT_DATA (JOB_ID, SLOT, ITEM_KEY, VALUE_NUM, VALUE_TXT) VALUES ('mcm.col', ?, 'JPY', NULL, 'n/a')", slot);
+        }
+
+        CactusResponse all = executor.execute("jobSchedMng", "collectData", request(Map.of("jobId", "mcm.col", "days", 7)));
+        assertThat(all.getMeta().success()).as(all.getMeta().message()).isTrue();
+        Map<String, Object> res = (Map<String, Object>) all.getData().get("result");
+        assertThat(res).containsEntry("count", 4).containsEntry("truncated", false);
+        assertThat(((List<Map<String, Object>>) res.get("rows"))).extracting(r -> r.get("slot") + "/" + r.get("itemKey"))
+                .containsExactly(newer + "/JPY", newer + "/USD", older + "/JPY", older + "/USD");
+
+        Map<String, Object> p = new HashMap<>();
+        p.put("jobId", "mcm.col");
+        p.put("limit", 2);
+        p.put("itemKey", "USD");
+        Map<String, Object> page = (Map<String, Object>) executor.execute("jobSchedMng", "collectData", request(p)).getData().get("result");
+        assertThat(page).containsEntry("count", 2).containsEntry("truncated", false);
+
+        p.remove("itemKey");
+        Map<String, Object> first = (Map<String, Object>) executor.execute("jobSchedMng", "collectData", request(p)).getData().get("result");
+        assertThat(first).containsEntry("count", 2).containsEntry("truncated", true).containsEntry("nextBeforeSlot", newer);
+        p.put("beforeSlot", newer);
+        Map<String, Object> second = (Map<String, Object>) executor.execute("jobSchedMng", "collectData", request(p)).getData().get("result");
+        assertThat(second).containsEntry("count", 2).containsEntry("truncated", false);
+
+        Map<String, Object> latest = new HashMap<>();
+        latest.put("jobId", "mcm.col");
+        latest.put("latestOnly", true);
+        Map<String, Object> lres = (Map<String, Object>) executor.execute("jobSchedMng", "collectData", request(latest)).getData().get("result");
+        assertThat(lres).containsEntry("latestSlot", newer).containsEntry("count", 2);
+
+        CactusResponse notCollect = executor.execute("jobSchedMng", "collectData", request(Map.of("jobId", "mcm.q")));
+        assertThat(notCollect.getMeta().success()).isFalse();
+        assertThat(notCollect.getMeta().message()).contains("수집 작업이 아닙니다.");
+
+        jdbc.update("DELETE FROM MCMAPUSER.TB_MCM_JOB_COLLECT_DATA");
+        jdbc.update("DELETE FROM MCMAPUSER.TB_MCM_JOB_DEF");
     }
 }

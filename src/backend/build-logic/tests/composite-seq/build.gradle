@@ -1,0 +1,37 @@
+plugins {
+    id 'java'
+    id 'dmes.test-conventions'
+}
+
+// 하위 프로젝트마다 사소한 JUnit 시험 하나. dmes.test-conventions 의 allprojects 배선(차례·마무리 태스크)이 각 :sN:test 에 붙는다.
+subprojects {
+    apply plugin: 'java'
+    repositories { mavenCentral() }
+    dependencies {
+        testImplementation platform('org.junit:junit-bom:5.11.4')
+        testImplementation 'org.junit.jupiter:junit-jupiter'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    }
+    tasks.withType(Test).configureEach { useJUnitPlatform() }
+}
+
+// releaseTurn 멱등·소유자 구분 확인(Oracle 접속 없음). 실행: gradlew probeRelease — run-seq.sh 가 Oracle 모드 없이 쓰지 않으므로 -Pdmes.ora.pdb 를 준다.
+tasks.register('probeRelease') {
+    doLast {
+        def svc = gradle.sharedServices.registrations.getByName('dmesOraTestPdb').service.get()
+        def owner = { System.getProperty(OraTestPdbService.TURN_OWNER) }
+        svc.acquireTurn('k1', 1000L)
+        assert owner() == 'k1'
+        svc.releaseTurn('k2')              // 쥐지 않은 키는 아무것도 바꾸지 않는다
+        assert owner() == 'k1'
+        svc.releaseTurn('k1')
+        assert owner() == null
+        svc.releaseTurn('k1')              // 두 번 불러도 안전하다
+        assert owner() == null
+        svc.acquireTurn('k3', 1000L)       // 놓은 뒤 다른 키가 곧바로 받는다
+        assert owner() == 'k3'
+        svc.close()                        // 비정상 종료로 놓지 못한 차례는 서비스 close 가 푼다(turnsHeld)
+        assert owner() == null
+        println 'PROBE-RELEASE ok'
+    }
+}

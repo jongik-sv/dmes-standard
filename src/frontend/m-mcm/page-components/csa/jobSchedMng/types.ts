@@ -128,6 +128,43 @@ export interface RunNowResult {
   runId: string;
 }
 
+/** collectData 응답의 한 행 — 수집 값 표 TB_MCM_JOB_COLLECT_DATA 한 칸(회차 SLOT·항목 키). */
+export interface CollectDataRow {
+  /** 수집 회차(yyyyMMddHHmm). */
+  slot: string;
+  itemKey: string;
+  valueNum: number | null;
+  valueTxt: string;
+  /** 서버가 값을 쓴 시각(ISO). */
+  collectedAt: string;
+}
+
+export interface CollectDataResult {
+  rows: CollectDataRow[];
+  truncated: boolean;
+  /** 잘렸을 때 다음 쪽을 읽을 기준 SLOT(이 SLOT 보다 작은 행). */
+  nextBeforeSlot: string;
+  latestSlot: string;
+  count: number;
+}
+
+/** collectData 요청 — 서버 JobSchedMngRequest 의 칸 이름 그대로다. */
+export interface CollectDataQuery {
+  jobId: string;
+  days?: number;
+  itemKey?: string;
+  latestOnly?: boolean;
+  limit?: number;
+  beforeSlot?: string;
+}
+
+/** 수집 값 표의 그리드 행(최신 회차 보기). */
+export type CollectLatestGridRow = {
+  itemKey: string;
+  value: string;
+  collectedAt: string;
+};
+
 export interface JobListFilters {
   moduleCd: string;
   jobKind: string;

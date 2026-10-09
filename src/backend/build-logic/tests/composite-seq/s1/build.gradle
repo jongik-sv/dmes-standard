@@ -1,0 +1,1 @@
+// 시험 본문은 src/test/java — 루트 build.gradle 의 subprojects 블록이 의존성을 건다.

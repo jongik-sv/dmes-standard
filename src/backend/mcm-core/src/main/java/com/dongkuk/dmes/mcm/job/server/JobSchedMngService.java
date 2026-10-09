@@ -119,6 +119,59 @@ public class JobSchedMngService {
         return Map.of("runs", runs);
     }
 
+    /**
+     * 수집(COLLECT) 작업이 쌓은 값 읽기(읽기 전용). 최근 days 일 또는 latestOnly(가장 큰 SLOT 한 회차)에 itemKey·beforeSlot 을 더해 거른다.
+     * 쪽 경계: limit+1 행을 읽어 truncated 를 정하고, 경계 SLOT 이 갈리면 그 SLOT 은 통째로 다음 쪽에 넘긴다(회차가 쪽 사이에서 잘리지 않게 — {@link CollectDataPaging#trim}).
+     */
+    public Map<String, Object> collectData(JobSchedMngRequest req) {
+        String jobId = req.getJobId();
+        if (jobId == null || jobId.isBlank()) throw invalid("작업을 찾을 수 없습니다: " + jobId);
+        Map<String, Object> def = requireExisting(jobId);
+        if (!"COLLECT".equals(def.get("JOB_KIND"))) throw invalid("수집 작업이 아닙니다.");
+        String beforeSlot = blankToNull(req.getBeforeSlot());
+        if (beforeSlot != null && !CollectDataPaging.isSlot(beforeSlot)) throw invalid("beforeSlot 은 yyyyMMddHHmm(숫자 12자)여야 합니다");
+        String itemKey = blankToNull(req.getItemKey());   // 정확 일치 — 다듬거나 대소문자를 바꾸지 않는다
+        int limit = CollectDataPaging.clampLimit(req.getLimit());
+        boolean latestOnly = Boolean.TRUE.equals(req.getLatestOnly());
+
+        String latestSlot = null;
+        String fromSlot;
+        if (latestOnly) {   // days 는 무시한다
+            latestSlot = store.latestCollectSlot(jobId);
+            if (latestSlot == null) return collectResult(List.of(), false, null, null);
+            fromSlot = latestSlot;
+        } else {
+            fromSlot = CollectDataPaging.fromSlot(store.dbNow(), CollectDataPaging.clampDays(req.getDays()));
+        }
+        List<Map<String, Object>> fetched = new ArrayList<>(store.collectData(jobId, fromSlot, beforeSlot, itemKey, limit + 1));
+        if (latestOnly) {   // 두 질의 사이에 새 회차가 들어와도 그 회차만 돌려준다
+            String latest = latestSlot;
+            fetched.removeIf(r -> !latest.equals(r.get("SLOT")));
+        }
+        CollectDataPaging.Trim trim = CollectDataPaging.trim(fetched.stream().map(r -> (String) r.get("SLOT")).toList(), limit);
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map<String, Object> r : fetched.subList(0, trim.keep())) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("slot", r.get("SLOT"));
+            m.put("itemKey", r.get("ITEM_KEY"));
+            m.put("valueNum", r.get("VALUE_NUM"));   // BigDecimal — history 의 숫자 칸처럼 그대로 직렬화한다
+            m.put("valueTxt", r.get("VALUE_TXT"));
+            m.put("collectedAt", iso(r.get("U_AT")));
+            rows.add(m);
+        }
+        return collectResult(rows, trim.truncated(), trim.nextBeforeSlot(), latestSlot);
+    }
+
+    private static Map<String, Object> collectResult(List<Map<String, Object>> rows, boolean truncated, String nextBeforeSlot, String latestSlot) {
+        Map<String, Object> out = new LinkedHashMap<>();   // null 값이 있어 Map.of 를 못 쓴다
+        out.put("rows", rows);
+        out.put("truncated", truncated);
+        out.put("nextBeforeSlot", nextBeforeSlot);
+        out.put("latestSlot", latestSlot);
+        out.put("count", rows.size());
+        return out;
+    }
+
     public Map<String, Object> cronPreview(JobSchedMngRequest req) {
         Map<String, Object> out = new LinkedHashMap<>();
         try {
