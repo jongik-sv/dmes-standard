@@ -1,4 +1,4 @@
-# /dflow-team 선행 대기의 설계 선행 (SKILL.md 「2-3」 4번·「3. 결과 처리」·「팀장 상태」 고아 스캔 0번)
+# /dflow-team 선행 대기의 설계 선행 (SKILL.md 「2-3」 4번·「3. 결과 처리」·`references/lead-state.md` 「고아 스캔」 0번)
 
 > 윈도우: 아래 `jq` 예시를 Bash 로 직접 칠 때는 같은 호출 맨 앞에 `export PATH="$PWD/.claude/skills/_shared/bin:$PATH";` 를 붙인다(`_shared/platform-support.md` 「문서 속 인라인 jq」).
 

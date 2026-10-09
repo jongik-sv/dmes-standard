@@ -32,7 +32,7 @@
   - 옛 줄의 `full`·`design`·`build` 는 재구성이 안 씀.
 - `team.extend`:
   - `until` = `team.start` 의 `until` 과 같은 형식. `until_label` = 좌석표에 싣는 표시 문자열.
-  - 재구성은 마지막 `team.extend` 를 `team.start` 의 `until` 보다 우선(SKILL.md 「팀장 상태」).
+  - 재구성은 마지막 `team.extend` 를 `team.start` 의 `until` 보다 우선(SKILL.md 「팀장 상태」 요약, 전문 `references/lead-state.md` 「복원 규칙」).
 - `team.spawn`:
   - `worktree` = 팀원 worktree 절대경로. 모르면 `-`.
   - `handle` = tmux 백엔드는 `tmux:<pane_id>`(예: `tmux:%3`), Orca 는 터미널 핸들. 없으면 `-`.
@@ -45,7 +45,7 @@
     - `readopt` = 「1. 시작」 5번이 이어받은 슬롯을 다시 기록한 줄.
   - `readopt` 줄은 원래 종류(`new`·`resume`·`resolve`)를 `orig_kind` 필드에 함께 실음(가드가 요구, 2026-09-23 머지 충돌). 재기록 뒤에도 해소 워커로 남게 하기 위함.
   - 판별 정본 = worktree 이름 접미사 `-resolve`(merge-conflict.md 「0」).
-  - 재구성은 마지막 `team.result` 이후 **`resume` 줄 개수**로 재개 재시도 상한을 잼(SKILL.md 「팀장 상태」 고아 스캔 2번).
+  - 재구성은 마지막 `team.result` 이후 **`resume` 줄 개수**로 재개 재시도 상한을 잼(`references/lead-state.md` 「고아 스캔」 2번).
   - 종류를 가르는 이유: 팀장을 다시 띄울 때마다 5번이 살아 있는 슬롯을 `team.spawn` 으로 재기록함. 안 가르면 멀쩡히 도는 팀원의 재기록이 재시도 횟수로 세어져 상한에 금방 닿음.
   - 이 필드 없는 옛 줄은 `new` 로 읽음(`.spawn_kind // "new"`).
 - `team.result`·`team.blocked`:
@@ -60,7 +60,7 @@
   - spec·TSK 부재로 걸러 spawn 안 한 작업 = `slot`·`worktree`·`hash` 를 `-`, `status` 를 `skipped`.
 - `team.lost`:
   - 결과 줄 없이 멈춘 팀원을 자동 재시작 판정(`references/restart.md`)이 처리한 기록.
-  - **이 손실에는 `team.result` 를 쓰지 않음.** 재시도 수가 마지막 `team.result` 에서 0 으로 돌아가므로(SKILL.md 「팀장 상태」 고아 스캔 2번), 쓰면 상한 3 에 영영 안 닿음.
+  - **이 손실에는 `team.result` 를 쓰지 않음.** 재시도 수가 마지막 `team.result` 에서 0 으로 돌아가므로(`references/lead-state.md` 「고아 스캔」 2번), 쓰면 상한 3 에 영영 안 닿음.
   - `cause` = `no-response` · `pane-dead` · `rate-limit` 중 하나.
   - `next` = `restart` · `wait` · `park` 중 하나. `restart` = 같은 기상에 곧바로 재투입, `wait` = 차단기·rate-limit 대기로 미룸, `park` = 멈춤.
   - `restart_at` = 재투입을 다시 볼 시각(epoch 초 문자열). 안 정해졌으면 `-`. `restart`·`park` 는 늘 `-`.
@@ -79,7 +79,7 @@
   - 팀원의 SendMessage 이슈 보고를 저장한 기록(SKILL.md 「2-4. 팀원 이슈 보고 처리」).
   - `summary` = 이슈 보고 첫 줄(`[이슈 <TSK> <id8>] <요약>`)의 요약부.
   - `decision` = 처음 저장할 때 `pending`. 팀장이 지시를 보낸 뒤 다시 기록할 때는 결정 요약(문자열, `pending` 아님).
-  - id8 마다 **마지막** `team.issue` 의 `decision` 이 `pending` 이면 아직 지시 안 보낸 이슈. 재구성이 이 값으로 미답 이슈를 찾음(SKILL.md 「팀장 상태」 「보조」).
+  - id8 마다 **마지막** `team.issue` 의 `decision` 이 `pending` 이면 아직 지시 안 보낸 이슈. 재구성이 이 값으로 미답 이슈를 찾음(SKILL.md 「팀장 상태」 「보조」, 규칙 `references/lead-state.md` 「복원 규칙」).
   - id8 가 `dialect` 인 줄 = 팀원 이슈가 아니라 방언 검증 기록(SKILL.md 「4. 승인 스윕」 방언 검증).
     - `tsk`·`order` 는 `-`. 슬롯·팀원 없음.
     - `decision` 은 처음부터 결정 요약(`사람 판단(자동 되돌리기·재오픈 없음)`)이라 `pending` 이 안 됨.

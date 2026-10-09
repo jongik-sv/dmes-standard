@@ -139,7 +139,7 @@ node .claude/skills/dflow-work/scripts/dflow.mjs heartbeat '<order 전체 UUID>'
 |---|---|---|---|
 | `resolved` | 해제 | 먼저 조상 확인(아래). 참이면 해제 + `team.conflict`(decision `cleared`). 거짓이면 표시 유지, "해소 push 확인 불가: <id8>" 보고 + `team.conflict`(decision `human`) | 조상 참이면 선행 계열 일시 제외 해제(「4. 승인 스윕」 의 일시 제외 해제), 다음 `team.sweep` 의 `resolved` 에 1 더하고, **곧바로 승인 스윕** (따로 한 번 더가 아니라 이 기상의 스윕 1회 — SKILL.md 「4-0. 스윕을 부르는 규칙」. `sweep-check.mjs` 가 `SWEEP_NONE` 이면 안 부름. 해소 워커가 이미 머지했으므로 남은 후보가 없을 수 있음). 보고 "해소됨: <TSK> <id8> (<사유>)". 주문이 `approved` 였으면 "해소 내용은 승인 범위 밖 — 머지 커밋·resolution.md 확인" 추가 |
 | `skipped` | 해제 | `pred-reflected.mjs '<TASKS>' '<TSK>' '<개발브랜치>'` 가 `REFLECTED` 면 해제 + `team.conflict` `cleared`. 아니면 note `해소 건너뜀: <사유>` | "해소 대상 아님: <id8> (<사유>)" 보고 |
-| `blocked` | 유지 | note `해소 결정 대기: <질문>` | SKILL.md 「6. blocked」 통지·답 매칭 그대로. 통지 문구 앞에 "(해소)" 추가 |
+| `blocked` | 유지 | note `해소 결정 대기: <질문>` | SKILL.md 「6. blocked」 통지와 `references/blocked-seat.md` 「답 넣기 (tmux)」 의 답 매칭 그대로. 통지 문구 앞에 "(해소)" 추가 |
 | `failed push-race`·`failed rate-limit`·`failed no-result` | 해제 | note `해소 대기(재시도 가능): <status> <n>/3` | 다음 스윕에서 충돌 다시 나면 「1」 이 재시도 판정 |
 | 그 밖의 `failed …` | 해제 | note `사람 머지 필요: <status> <사유>` | "사람이 머지해야 함: <id8> (해소 실패 <status>)" 보고 + `team.conflict`(decision `human`). `failed permission` 은 거부된 명령을 권한 목록 재료로 함께 보고 |
 
