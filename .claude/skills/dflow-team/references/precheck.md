@@ -37,10 +37,10 @@ SKILL.md 「1. 시작」 1번 전제 검사 블록이 `PRECHECK_OK` 없이 끝�
     3. 여전히 오래됐을 때만 삭제 → `mkdir` 로 다시 획득.
   - 옮긴 잠금이 새로우면 그사이 다른 팀장이 가져간 것 → 옮긴 경로 알리며 거부, 사람이 되돌림.
   - `mv` 나 다시 하는 `mkdir` 실패 → 다른 팀장이 먼저 가져간 것 → 거부.
-  - `mv` 로 옮겨 다시 재는(1-3) 이유: 다시 잰 시각이 여전히 오래됐음을 확인한 뒤 지우기 전에 다른 팀장이 먼저 가져가면 그 잠금까지 지움. 옮긴 디렉터리는 이 팀장만 보므로 확인·삭제 사이에 끼어들 틈 없음.
+  - `mv` 로 옮겨 다시 재는(1~3) 이유: 다시 잰 시각이 여전히 오래됐음을 확인한 뒤 지우기 전에 다른 팀장이 먼저 가져가면 그 잠금까지 지움. 옮긴 디렉터리는 이 팀장만 보므로 확인·삭제 사이에 끼어들 틈 없음.
   - 질문 안 하고 중단(AskUserQuestion 쓰지 않음).
   - `LOCKED` 거부 시 잠금 경로·`owner`·`beat` 시각과 함께 "그 팀장이 끝난 것이 확실하면 잠금 디렉터리를 지우고 다시 시작하라" 안내.
-    - 이유: 세션이 죽은 직후 restart 하면 `beat` 가 아직 새로움.
+    - 이유: 세션이 죽은 직후 재기동하면 `beat` 가 아직 새로움.
   - 잠금 두는 이유: 한 checkout 의 팀장 둘은 슬롯 번호·세대 파일·승인 스윕을 서로 덮어씀.
   - 생존(가져와도 되는지) = PID 아님. `beat`(없으면 잠금 디렉터리 수정 시각)로 봄.
     - 이유: 세션 프로세스가 살아 있어도 permission 확인 등에 멈춘 팀장은 기상 안 해 제 몫을 못 함. `beat` 는 그 멈춤까지 드러냄.
@@ -51,7 +51,7 @@ SKILL.md 「1. 시작」 1번 전제 검사 블록이 `PRECHECK_OK` 없이 끝�
     - 이유: 같은 리포의 두 팀장이 동시에 서버에 가서 같은 holder 로 서로를 밀어내지 않게 로컬 경합을 먼저 끝냄.
   - 결과별 처리:
     - `LEASE_OK <n>`: 계속.
-    - `LEAD_LEASE_HELD <project_id> <host> <agent> <만료 시각>` 줄(exit 4): 잠금 삭제 + 멈춤. 줄마다 "이 프로젝트는 `<host>` 의 `<agent>` 가 쥐고 있다(만료 `<시각>`)" 로 보고하고, "그 팀장이 이미 죽었다면 최대 3분 뒤 풀린다. 지금 넘겨받으려면 `/dflow-team … --takeover` 또는 오피스 screen 의 「팀장 해제」" 덧붙임.
+    - `LEAD_LEASE_HELD <project_id> <host> <agent> <만료 시각>` 줄(exit 4): 잠금 삭제 + 멈춤. 줄마다 "이 프로젝트는 `<host>` 의 `<agent>` 가 쥐고 있다(만료 `<시각>`)" 로 보고하고, "그 팀장이 이미 죽었다면 최대 3분 뒤 풀린다. 지금 넘겨받으려면 `/dflow-team … --takeover` 또는 오피스 화면의 「팀장 해제」" 덧붙임.
     - 그 밖(exit 2·3·5·6·7): 잠금 삭제 + 사유 보고 + 멈춤. 서버에 lease 없는 구버전(exit 7, 404)도 여기.
     - lease 확인 못 한 채 시작 금지(fail-closed).
   - `holder` = `~/.dflow/machine-id`(처음 쓸 때 만듦) + 이 checkout 경로. 같은 자리에서 다시 시작하면 즉시 넘겨받음.
@@ -60,7 +60,7 @@ SKILL.md 「1. 시작」 1번 전제 검사 블록이 `PRECHECK_OK` 없이 끝�
   - `dflow-merge` SKILL.md 에 원격 후보 지원(`origin/agent/*`).
   - fetch 실패 → 검사 불가 → 실패로 침.
   - 이유: 팀원 worktree 는 `origin/<기본브랜치>` 에서 만들어지거나 그리로 detach 해 그 commit 의 스킬 사용. 킷을 설치·commit 만 하고 push 안 하면 작업트리 검사(`OLD_DFLOW_DEV`)는 통과하고 팀원 전원 `failed no-worker-flag` 로 끝남.
-  - 안내에 "킷 commit 을 기본 branch 에 push 한 뒤 다시 시작하라" 포함.
+  - 안내에 "킷 커밋을 기본 브랜치에 push 한 뒤 다시 시작하라" 포함.
   - 심링크 배포 리포는 워커가 메인 checkout 의 스킬을 링크 → 이 검사 안 함.
   - 판정 대상을 `.claude/skills` 전체 아니고 `dflow-dev` 로 좁히는 이유: 일반 스킬만 commit 하고 `dflow-*` 는 심링크로 둔 리포 있음. 킷 복사형으로 읽으면 원격에 없는 `dflow-dev` 찾다가 `KIT_NOT_PUSHED` 오탐(2026-09-23 dmes-standard).
 - `NO_PROJECT`: `.dflow` 의 `project_id` 또는 `.dflow.local` 의 `project_map`(레거시 `.env` 의
@@ -106,7 +106,7 @@ SKILL.md 「1. 시작」 1번 전제 검사 블록이 `PRECHECK_OK` 없이 끝�
 - 공유 `info/exclude` 에 워커 부산물 패턴을 없을 때만 추가. commit 안 하는 로컬 설정, linked worktree 모두 공유.
   - `**/.claude/worktrees/`: 두 백엔드의 팀원 worktree(`dflow-<id8>`). 2026-09-24부터 Orca 도 `git worktree add` 로 이 자리에 만듦.
   - `/dflow-*/`: **옛 방식**(`orca worktree create --name dflow-<id8>`)이 `.claude/worktrees/` 아닌 리포 루트 바로 아래에 만든 Orca 팀원 worktree 를 가림.
-    - 2026-09-19 mdm-dict-v2 실측. 빼면 restart 때 `DIRTY` 에 걸림.
+    - 2026-09-19 mdm-dict-v2 실측. 빼면 재기동 때 `DIRTY` 에 걸림.
     - 새 방식엔 해당 없음. 전환기에 남은 옛 worktree 용으로 패턴 유지.
   - `.vitest/`: 워커가 vitest 돌리면 남는 결과 파일(`.vitest/json/output.json`).
     - 빼면 done 뒤 worktree 가 깨끗하지 않아 「고아 정리 규칙」 과 정리 명령 실패(2026-09-19 mdm-dict-v2 실측).
@@ -123,7 +123,7 @@ SKILL.md 「1. 시작」 1번 전제 검사 블록이 `PRECHECK_OK` 없이 끝�
     - 일반 스킬은 commit 하고 `dflow-*` 만 심링크인 리포 → `/.claude/skills/dflow-*` 추가.
   - 이유: 부산물이 `/dflow-dev` Phase 06 의 "미커밋 잔여물 커밋" 에 섞이면, branch 마다 다른 `.dflow-agent` 가 스윕 merge 를 충돌시키고 절대경로 심링크가 main 에 들어감.
 - `DIRTY`: exclude 넣은 뒤 `git status --porcelain` 이 비어야 함. 팀장 checkout 이 더러우면 승인 스윕이 위험.
-  - 실패 안내에 "미commit `<TASKS>/*/state.json` 은 파일명을 명시해 먼저 commit 하라(수동 `/dflow-dev` 가 남긴 것일 수 있다)" 포함.
+  - 실패 안내에 "미커밋 `<TASKS>/*/state.json` 은 파일명을 명시해 먼저 커밋하라(수동 `/dflow-dev` 가 남긴 것일 수 있다)" 포함.
 - `UNTIL_BAD`·`UNTIL_PAST`·`UNTIL_TOO_FAR`: 종료 시각을 에포크 초로 비교(BSD `date -j` 먼저, 없으면 GNU `date -d`. macOS·Linux 서버 모두 동작).
   - 형식 틀림·이미 지남·7일 초과 → 거부. `none` 은 검사 안 함.
   - 「인자」 가 전제 검사 전에 이미 걸렀음 → 이 검사는 두 번째 방어선.
