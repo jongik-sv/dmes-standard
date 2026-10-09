@@ -17,7 +17,7 @@ description: D'Flow 작업 1건의 전체 개발 사이클 실행 (승인 스윕
 > 「행 G」·「행 H」 = 단계 파일 표지 블록이 가리킬 때, 「설계 선행」 = `orch/design-first.md` 읽을 때 같은 방법으로 읽는다.
 <!-- worker:end -->
 
-> **위치 선언**: 사람이 기동·관찰하는 supervised(L0) 대화형 경로 (무인 루프 = 자율 러너 영역). 이 파일 = 오케스트레이션(순서·게이트 집행·상태·서버 보고) 공통 규칙만. 규율 반복 안 함. 단계별 절차 = 「단계 지도」 의 단계 파일.
+> **위치 선언**: 사람이 start·관찰하는 supervised(L0) 대화형 경로 (무인 루프 = 자율 러너 영역). 이 파일 = 오케스트레이션(순서·게이트 집행·상태·서버 보고) 공통 규칙만. 규율 반복 안 함. 단계별 절차 = 「단계 지도」 의 단계 파일.
 >
 > **규율 읽기**: 구현 규율 정본 `.claude/skills/dflow-dev/references/dev-discipline.md` 는 **통째로 읽지 않는다.**
 > - 「단계 지도」 규율 열의 절 = 그 단계 시작 때 읽음.
@@ -36,9 +36,9 @@ Phase 서브에이전트 `PHASE_RESULT` 자기 신고 = **참고 신호, 게이�
 게이트 판정 = 오케스트레이터(이 스킬 실행 세션)가 **자기 손으로 명령 실행**.
 
 - Design 게이트: `<TASKS>/<TSK>/design.md` Read → dev-discipline 최소 구조 5절(접근·파일 목록·테스트 전략·수용 기준 매핑·불변 규칙) 실재 확인. 없으면 실패.
-- Build/Verify/Refactor 게이트: **오케스트레이터가 테스트 명령 직접 실행** → exit code·출력을 기준선과 차분 비교 (신규 실패 0 + 테스트 총수 미감소). 서브에이전트가 "통과" 해도 직접 실행 결과가 판정.
+- Build/Verify/Refactor 게이트: **오케스트레이터가 test 명령 직접 실행** → exit code·출력을 기준선과 차분 비교 (신규 실패 0 + test 총수 미감소). 서브에이전트가 "통과" 해도 직접 실행 결과가 판정.
   게이트별 명령·범위(대응표)·재실행 생략·기록 = 그 Phase 파일의 「Design 게이트」·「Build 게이트」·「Verify·Refactor 게이트」.
-- 도커: 기준선 전에 금지 모드 판정. 금지면 기준선·게이트·Phase 프롬프트에서 도커 명령 제외. 금지 아니면 도커 슬롯(`heavy.mjs --pool docker`)에서만 실행. 도커 런타임은 켜지 않음. 정본 = dev-discipline.md 「도커 사용 규칙」.
+- 도커: 기준선 전에 금지 모드 판정. 금지면 기준선·게이트·Phase 프롬프트에서 도커 명령 제외. 금지 아니면 도커 슬롯(`heavy.mjs --pool docker`)에서만 실행. 도커 런타임 안 켬. 정본 = dev-discipline.md 「도커 사용 규칙」.
 
 ## 상태 모델
 
@@ -79,7 +79,7 @@ Phase 서브에이전트 `PHASE_RESULT` 자기 신고 = **참고 신호, 게이�
   - 신규 실패가 모두 타이밍·성능 테스트면 `부하 민감 테스트`
   - 명령이 10분 넘을 듯하면 `분리 실행·독점 실행`
   - 결정 번호 필요하면 `공용 결정 기록`
-  - 마이그레이션 더하면 `마이그레이션 버전`
+  - migration 더하면 `마이그레이션 버전`
 - 이전 단계에서 읽은 절은 다음 단계에서도 유효 (예: Build 도 「준비」 에서 읽은 `기준선 캐시`·`무거운 명령` 을 따름).
 
 **모르면 전부 읽는다**(fail-closed): state.json 못 읽음 · `phase` 가 표에 없음 · 어느 행인지 애매 → `orch/` 파일을 sweep·start·rework·base·claim·baseline·design-first·phase-common·design·build·verify·refactor·close 순서로 모두 읽고 dev-discipline.md 도 전체 Read.
@@ -87,10 +87,10 @@ Phase 서브에이전트 `PHASE_RESULT` 자기 신고 = **참고 신호, 게이�
 ## 압축 뒤
 
 컨텍스트 압축 요약 뒤 첫 행동 = 단계 지도 행 다시 찾기.
-- 이 작업 agent 브랜치(`agent/<주문id8>-*`) 위 → `<TASKS>/<TSK>/state.json` 의 `phase` 로 찾음.
-- agent 브랜치 전 → 「수동 착수」·「팀원 착수」 행.
+- 이 작업 agent branch(`agent/<주문id8>-*`) 위 → `<TASKS>/<TSK>/state.json` 의 `phase` 로 찾음.
+- agent branch 전 → 「수동 착수」·「팀원 착수」 행.
 - 그 행의 파일·규율 절 + 지나온 앞 행들의 규율 절을 다시 읽고 진행.
-- 압축 요약의 기억으로 단계 절차 대신 금지.
+- 압축 요약 기억으로 단계 절차 대체 금지.
 <!-- worker:begin -->
 `--worker` 면 `references/worker-mode.md` 의 머리 표와 「그 밖의 워커 규칙」 도 다시 읽는다.
 <!-- worker:end -->
@@ -112,14 +112,14 @@ Phase 서브에이전트 `PHASE_RESULT` 자기 신고 = **참고 신호, 게이�
 ## --only 옵션 · 대상 저장소
 
 → references/rare-cases.md §--only 옵션 (`--only` 가 오면 읽음: Phase 만 실행·서버 보고 없음·덮어쓰기 경고)
-→ references/rare-cases.md §대상 저장소 (wbs-web 이 대상이거나 마이그레이션 포함 작업이면 읽음)
+→ references/rare-cases.md §대상 저장소 (wbs-web 이 대상이거나 migration 포함 작업이면 읽음)
 
 ## 참조
 
 | 문서 | 읽을 때 |
 |---|---|
 | references/state-model.md | state.json 처음 쓰기 · phase 값 판정 · progress/heartbeat/done 이 exit 10·12 |
-| references/rare-cases.md | `--only` 인자 · wbs-web 대상 · 마이그레이션 포함 작업 |
+| references/rare-cases.md | `--only` 인자 · wbs-web 대상 · migration 포함 작업 |
 | references/worker-mode.md | `--worker` 플래그 |
 | references/dev-discipline.md | 단계 지도 규율 열 지정 절만 (통째 금지) |
 | references/phase-prompt.md | Phase 서브에이전트 프롬프트 작성 |
