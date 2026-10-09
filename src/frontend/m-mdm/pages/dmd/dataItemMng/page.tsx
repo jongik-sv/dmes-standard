@@ -777,6 +777,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
                   canSave={canCateSave}
                   onError={setError}
                   errorShown={!!error}
+                  showClosed={filters.showClosed}
                 />
               )}
               <ItemRegForm
