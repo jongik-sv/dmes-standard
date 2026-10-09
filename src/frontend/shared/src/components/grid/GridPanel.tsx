@@ -17,7 +17,7 @@ import { memo, useState, useEffect, useCallback, useMemo, useRef, type ReactNode
 import type { GridColumn } from "./grid-types";
 import type { GridHelpConfig } from "./GridHelpButton";
 import { GridHeaderBar } from "./GridHeaderBar";
-import { sameProps } from "./grid-node-equal";
+import { sameValue } from "./grid-node-equal";
 import { GridPanelContext, type GridPanelGridControls, type GridPanelRegistry } from "./grid-panel-context";
 
 export interface GridButton {
@@ -315,7 +315,7 @@ function GridPanelComponent({
             key={id || index}
             id={id ?? undefined}
             className={`grid-btn ${btnClass}`.trim()}
-            onClick={() => buttonClicksRef.current[index]?.()}
+            onClick={(e) => (buttonClicksRef.current[index] as ((e: unknown) => void) | undefined)?.(e)}
             disabled={disabled}
           >
             {label}
@@ -349,4 +349,17 @@ function GridPanelComponent({
 
 // children·titleExtra·headerExtra·help·buttons 는 화면이 렌더마다 새로 만드는 JSX·객체라 기본 memo(참조 비교)로는 늘 다르다 —
 // 같은 부품에 같은 props 를 넘긴 요소와 같은 내용의 객체는 같다고 본다(grid-node-equal.ts). 인라인 함수가 섞이면 다르다고 보고 다시 그린다.
-export const GridPanel = memo(GridPanelComponent, sameProps);
+// 단, 행 데이터·열 정의·기본값 객체는 참조로만 비교한다 — 내용만 같은 새 행 객체를 같다고 보면 안쪽 그리드와 행추가·복사 클로저가 옛 행 객체를 계속 쓴다.
+const REF_ONLY_PROPS: ReadonlySet<string> = new Set(["data", "columns", "defaultRowValues", "style"]);
+function sameGridPanelProps(prev: GridPanelProps, next: GridPanelProps): boolean {
+  const a = prev as unknown as Record<string, unknown>;
+  const b = next as unknown as Record<string, unknown>;
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  for (const key of keys) {
+    if (!(key in b)) return false;
+    if (!(REF_ONLY_PROPS.has(key) ? Object.is(a[key], b[key]) : sameValue(a[key], b[key]))) return false;
+  }
+  return true;
+}
+export const GridPanel = memo(GridPanelComponent, sameGridPanelProps);

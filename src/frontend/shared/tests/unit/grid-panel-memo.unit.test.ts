@@ -42,6 +42,12 @@ describe("grid-node-equal", () => {
     const f = () => {};
     expect(sameProps({ onClick: f }, { onClick: f })).toBe(true);
   });
+  it("요소 props 안의 일반 객체(행)는 내용이 같아도 새 객체면 다르다", () => {
+    expect(sameValue(createElement(Child, { label: "a", row: { x: 1 } } as never), createElement(Child, { label: "a", row: { x: 1 } } as never))).toBe(false);
+    const row = { x: 1 };
+    expect(sameValue(createElement(Child, { label: "a", row } as never), createElement(Child, { label: "a", row } as never))).toBe(true);
+    expect(sameValue({ x: 1 }, { x: 1 })).toBe(true);
+  });
   it("배열 길이 한도를 넘으면 참조 비교만 한다", () => {
     const big = () => Array.from({ length: 200 }, (_, i) => ({ i }));
     expect(sameValue(big(), big())).toBe(false);
@@ -75,6 +81,15 @@ describe("GridPanel memo", () => {
     expect(renders.extra).toBe(extraBase);
     await act(async () => void (document.getElementById("btn_save") as HTMLButtonElement).click());
     expect(calls).toEqual(["v2"]);
+  });
+
+  it("data 가 내용만 같은 새 배열이면 다시 그린다 (옛 행 객체를 붙들지 않는다)", async () => {
+    const rowsA = [{ code: "A" }];
+    renders.child = 0;
+    await act(async () => void (r = renderWithMantine(panel({ data: rowsA }))));
+    const base = renders.child;
+    await act(async () => rerender(r!, panel({ data: [{ code: "A" }] })));
+    expect(renders.child).toBeGreaterThan(base);
   });
 
   it("단추 모양이 바뀌면(비활성) 머리줄에 반영한다", async () => {
