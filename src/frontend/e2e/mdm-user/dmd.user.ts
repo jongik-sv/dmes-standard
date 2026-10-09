@@ -1552,7 +1552,7 @@ test.describe("D 계층 축소 거부·폐기", () => {
   test("TC-DMD-DEL-05 폐기된 마루 데이터의 항목 편집은 조회 전용이다", async () => {
     await openDmd(page, "항목 편집", "dataItemMng");
     await selectItemMaru(page, MD);
-    await expect(tid(page, "item-readonly")).toHaveText("조회 전용입니다(원천 MDM, 상태 DEPRECATED).");
+    await expect(tid(page, "item-readonly")).toHaveText("이 마루 데이터는 사용 중이 아닌 상태(DEPRECATED)라 여기서 고칠 수 없습니다.");
     await expect(itemRow(page, "KRPUS")).toBeVisible();
     await expect(button(page, "항목 추가")).toBeDisabled();
     await expect(button(page, "CSV 업로드")).toBeDisabled();

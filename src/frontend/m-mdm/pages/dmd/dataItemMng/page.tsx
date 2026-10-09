@@ -58,6 +58,7 @@ import {
   searchDataItems,
   viewDataItems,
 } from "./api";
+import { readonlyNotice } from "./messages";
 import { buildItemColumns, isRowEditable, isRowVersionConflict, toSaveParams } from "./columns";
 import {
   ALL_ITEMS_SIZE,
@@ -678,6 +679,19 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
                 { key: "tree", label: <span data-testid="item-tab-tree">트리</span> },
               ]}
             />
+            {/* 안내 문구는 GridPanel 바깥에 둔다 — 패널 안의 그리드(.cm-data-grid)가 position:absolute 로 패널 내용 전체를
+                덮어, 안쪽에 둔 문구는 그리드 헤더에 가려진다. */}
+            {tab === "grid" && header && !header.editable && (
+              <p data-testid="item-readonly" style={{ color: "var(--color-text-muted)", margin: 0, padding: "var(--spacing-xs) 0" }}>
+                {readonlyNotice(header)}
+              </p>
+            )}
+            {/* 상한에 걸려 일부만 온 경우 — 몇 건 중 몇 건인지를 그대로 말한다(조용히 자르지 않는다). */}
+            {tab === "grid" && truncated && (
+              <p data-testid="item-truncated" style={{ color: "var(--color-text-muted)", margin: 0, padding: "var(--spacing-xs) 0" }}>
+                {`조건에 맞는 항목이 ${total.toLocaleString()}건이어서 ${rows.length.toLocaleString()}건만 표시합니다. 조회조건으로 좁히세요.`}
+              </p>
+            )}
             {tab === "grid" && (
               <>
                 <GridPanel
@@ -716,17 +730,6 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
                 >
                   {/* 안내 문구와 그리드를 한 세로 흐름에 두어 그리드가 남은 높이만 쓰게 한다. */}
                   <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-                    {header && !header.editable && (
-                      <p data-testid="item-readonly" style={{ color: "var(--color-text-muted)", margin: 0 }}>
-                        조회 전용입니다(원천 {header.sourceSystem ?? header.sourceKind}, 상태 {header.status}).
-                      </p>
-                    )}
-                    {/* 상한에 걸려 일부만 온 경우 — 몇 건 중 몇 건인지를 그대로 말한다(조용히 자르지 않는다). */}
-                    {truncated && (
-                      <p data-testid="item-truncated" style={{ color: "var(--color-text-muted)", margin: 0 }}>
-                        {`조건에 맞는 항목이 ${total.toLocaleString()}건이어서 ${rows.length.toLocaleString()}건만 표시합니다. 조회조건으로 좁히세요.`}
-                      </p>
-                    )}
                     <div style={{ flex: 1, minHeight: 0 }}>
                       <AgDataGrid gridId="dataItems" personalize={{ sort: false }}
                         columns={columns}
@@ -774,10 +777,10 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
                   cate={cate}
                   loaded={!!header}
                   editable={editable}
+                  showClosed={filters.showClosed}
                   canSave={canCateSave}
                   onError={setError}
                   errorShown={!!error}
-                  showClosed={filters.showClosed}
                 />
               )}
               <ItemRegForm
