@@ -28,6 +28,7 @@ import { HistoryArea } from "./HistoryArea";
 import { JobListPanel } from "./JobListPanel";
 import { JobDetailForm, checkForm, type JobDetailAction, type JobDetailHandle, type LastFailure } from "./JobDetailForm";
 import { kindLabel } from "./kind-label";
+import { RUN_STATUS_RUNNING, watchRunUntilDone } from "./run-watch";
 import { KindPickerModal } from "./KindPickerModal";
 import {
   EMPTY_FILTERS,
@@ -331,6 +332,38 @@ export default function JobSchedMngPage() {
     }
   }, [showMessage, refreshAfterWrite, fail, loadForm]);
 
+  /** 「지금 실행」 감시 순번 — 새 감시가 시작되거나 화면이 닫히면 앞선 감시가 멈춘다. */
+  const runWatchSeq = useRef(0);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      runWatchSeq.current++;
+    };
+  }, []);
+
+  /**
+   * 실행 요청은 접수만 기다리고 돌아오므로, 요청 직후 조회에서는 그 작업이 아직 RUN 이다. 끝날 때까지(상한 있게) 목록과 이력을 다시 받는다.
+   * 그사이 다른 작업을 열었으면 이력은 건드리지 않고 목록만 갱신한다.
+   */
+  const watchRun = useCallback(
+    (jobId: string, jobNm: string, rows: JobGridRow[]) => {
+      const running = (list: JobGridRow[]) => list.find((r) => r.jobId === jobId)?.lastStatus === RUN_STATUS_RUNNING;
+      if (!running(rows)) return;
+      const seq = ++runWatchSeq.current;
+      void watchRunUntilDone({
+        sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+        isActive: () => mountedRef.current && seq === runWatchSeq.current,
+        poll: async () => {
+          const [next] = await Promise.all([loadList(), selectedIdRef.current === jobId ? loadHistory(jobId, jobNm, true) : Promise.resolve()]);
+          return running(next);
+        },
+      });
+    },
+    [loadList, loadHistory],
+  );
+
   const doRunNow = useCallback(() => {
     const form = detailRef.current?.getForm();
     if (!form || form.isNew) return;
@@ -353,7 +386,8 @@ export default function JobSchedMngPage() {
               showMessage({ message: result.message || "실행하지 못했습니다.", alertType: "warning" });
             }
             // 접수를 기다리는 동안 다른 작업을 열었으면 그 작업의 이력을 덮어쓰지 않는다.
-            await Promise.all([loadList(), selectedIdRef.current === form.jobId ? loadHistory(form.jobId, form.jobNm) : Promise.resolve()]);
+            const [rows] = await Promise.all([loadList(), selectedIdRef.current === form.jobId ? loadHistory(form.jobId, form.jobNm) : Promise.resolve()]);
+            watchRun(form.jobId, form.jobNm, rows);
           } catch (e) {
             fail(e);
           } finally {
@@ -362,7 +396,7 @@ export default function JobSchedMngPage() {
         })();
       },
     });
-  }, [showMessage, loadList, loadHistory, fail]);
+  }, [showMessage, loadList, loadHistory, watchRun, fail]);
 
   const doDelete = useCallback(() => {
     const form = detailRef.current?.getForm();
