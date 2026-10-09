@@ -93,7 +93,7 @@ Phase 파일·worker-mode.md·e2e.md. 여기에는 규칙을 만든 이유·사�
 - **공용 결정 기록의 번호**: 병렬 워커가 같은 기점에서 같은 다음 번호(D-020 부터)를 골라 merge 마다 충돌. 해소 워커를 띄워야
   했음(2026-09-24 dmes-standard TSK-01-02·TSK-02-03).
 - **마이그레이션 버전**: 2026-09-24 dmes-standard mdm 에서 병렬 branch 가 같은 Flyway 번호를 골라 git 충돌 없이 merge 되고
-  개발 branch start 가 깨짐.
+  개발 branch 의 서버 start 가 깨짐.
 - **모델 배정 — Verify 는 처음부터 sonnet**: 실측에서 haiku Verify 의 54% 가 변이 검증·E2E 를 건너뛴 부실 PASS 로 sonnet
   재시도가 됨.
 - **토큰 낭비 금지 목록**: 2026-09-24 토큰 실측에서 나옴.
