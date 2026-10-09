@@ -52,4 +52,5 @@
 | G | heavy.sh 대기 상한·`exit 75` 규약을 호출 쪽이 알게(기본 상한 재검토, 줄 선 상태를 보이게) | heavy.sh js 이식 때 |
 | H | be-run 이 한 모듈 재기동 때 다른 모듈을 내리지 않게(모듈 단위로 이전 인스턴스 정리) | be-run js 이식 때 |
 | J | heavy.sh 로 서버(be-run)를 감싸면 서버가 떠 있는 내내 자리를 쥔다(09:2x 조정자가 겪음). 빌드 구간만 자리를 쓰게(be-run 이 빌드 뒤 자리 반납, 또는 `--build-only` 만 heavy) | heavy.sh·be-run js 이식 때 |
+| K | 일반 자리에는 줄 순서가 없다(독점만 start 순). 09:19 부터 기다린 fx-master pnpm install 이 26분 넘게 못 받는 동안 js 레인 하니스가 연속으로 자리를 받음 → 오래 기다린 순서대로 주기, 대기 시간 상한 넘으면 우선 | heavy.sh js 이식 때 |
 | I | prompt-watch: 진행 표시가 있으면 창 아님, 자동 거부 뒤 「Interrupted」 상태를 감지해 조정자에게 알림 | prompt-watch js 이식(W3) 때 |
