@@ -50,14 +50,14 @@
 - **로컬 브랜치 삭제의 not found·checked out 건너뛰는 이유** (5번 뒷정리): 원격 전용 후보에는 로컬 브랜치가 없고, 팀원 워크트리가 그 브랜치를 잡고 있을 수 있음
 - **트레일러 고정**: 부착이 우연에 맡겨지면 실제 반영된 선행도 후속 워커가 승인 대기로 오판 (2026-09-22 mdm-dict-v2 실측: 선행 4건 TSK-03-07·03-09·03-11·03-12 가 origin/main 에 머지됐는데 트레일러 0건이라 후속 3건 TSK-03-10·03-13·04-01 모두 막힘)
 
-## push 실패 (`references/push-fail.md`)
+## push 실패(`references/push-fail.md`)
 
 - **경합이면 멈추는 이유**: 다른 스윕이 먼저 머지한 것 → fetch 부터 다시 해야 후보가 맞음
 - **훅 거부는 그 작업과 후손만 빼는 이유**: 훅이 막은 작업은 사람이 풀 때까지 매번 막힘 → 그 한 건이 뒤 승인분까지 막으면 안 됨. `/dflow-dev` Phase 01-가 원문도 이 작업만 건너뛰고 스윕 계속. 로컬 pre-push 훅은 고정 문구 없이 훅 출력과 `failed to push some refs` 만 남김
 - **그 밖의 실패에서 멈추는 이유**: 원인 모르는 실패에서 머지를 계속 시도하지 않는 것이 현재 동작
 - **`origin` 으로 리셋 금지 이유**: 수동 사용자의 기본 브랜치에 있던 미push 커밋 보호
 
-## 임시 머지 워크트리 (`references/merge-worktree.md`)
+## 임시 머지 워크트리(`references/merge-worktree.md`)
 
 - **가드 줄 이유**: 빈 `$W` 로 `git -C "" …` 를 부르면 git 은 호출한 체크아웃에서 돎 — 사용자 브랜치에 머지하고, 그것을 `HEAD:<기본브랜치>` 로 push 하고, 실패하면 `reset --hard` 로 그 체크아웃을 되돌림
 - **스크립트를 호출한 체크아웃의 스킬 경로로 부르는 이유**: `<W>` 에 스킬이 없을 수 있음 (gitignore 된 심링크로 배포한 리포)
@@ -94,7 +94,7 @@
 - **2026-09-24 dmes-standard mdm**: TSK-04-02 의 `V4__term_abbr_index_relax` 가 개발 브랜치의 `V4__create_mdm_interface_layout` 과 겹쳤고 (Flyway `more than one migration with version N` 로 기동 실패), 다른 Task 셋도 V5 를 고를 참이었음. 텍스트 충돌이 아니라 해소 워커도 못 잡음
 - **게이트에서 다시 보는 이유**: 재채번 없이 push 못 하게
 
-## 해소 머지 (`references/resolve.md`)
+## 해소 머지(`references/resolve.md`)
 
 - **agent 브랜치를 안 건드리는 이유**: 건드리면 다음 스윕 「승인 뒤 변경 확인」 이 그 작업을 "건너뜀(승인 뒤 변경)" 으로 냄. rebase 는 force push 금지와 `merge-base --is-ancestor <head_sha>` 검사에 모두 걸림
 - **임시 머지 워크트리를 안 쓰는 이유**: 팀장 스윕의 임시 워크트리와 경로 겹침
