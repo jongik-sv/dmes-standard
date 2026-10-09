@@ -444,6 +444,9 @@ const PK_USAGE = [[lat('What do you want to do?'), lat('Wait for limit to reset'
 const PK_PERM = [lat('Do you want to proceed?'), lat('will automatically deny this request'), lat('Esc to cancel · Tab to amend')];
 const PK_QUESTION = [lat('Enter to select'), lat('↑/↓ to navigate'), lat('Arrow keys to navigate')];
 const PK_CHOICE = lat('❯ 1.');
+/** 「지금 진행 중」 표시: `esc to interrupt`, 또는 경과 시간이 붙은 스피너 줄(예 `✶ …ing… (3m 59s ·`). 끝난 턴 표시(`✻ Cooked for 7s · done`)는 아니다. */
+const PK_BUSY_RE = new RegExp(`(?:${['✽', '✶', '✻', '✢', '✳'].map(lat).join('|')})[^\\n]*\\((?:\\d+h )?(?:\\d+m )?\\d+s ${lat('·')}`);
+const screenBusy = (s) => s.includes('esc to interrupt') || PK_BUSY_RE.test(s);
 const hasSeq = (s, a, b) => { const i = s.indexOf(a); return i >= 0 && s.indexOf(b, i + a.length) >= 0; };
 /** 화면 아래 30줄에서 확인 창·질문 창 종류. 없으면 ''. */
 export function screenPromptKind(buf) {
@@ -456,7 +459,7 @@ export function screenPromptKind(buf) {
   if (PK_USAGE.some(([a, b]) => hasSeq(s, a, b))) return 'usage-limit';
   if (PK_PERM.some((p) => s.includes(p))) return 'permission';
   if (PK_QUESTION.some((p) => s.includes(p))) return 'question';
-  if (s.includes(PK_CHOICE)) return 'choice';
+  if (s.includes(PK_CHOICE)) return screenBusy(s) ? '' : 'choice';   // 진행 표시가 보이면 선택 창이 아니다
   return '';
 }
 

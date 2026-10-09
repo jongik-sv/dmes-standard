@@ -327,6 +327,15 @@ coord_load1() {
   else awk '{print $1}' /proc/loadavg 2>/dev/null; fi
 }
 
+# 화면에 「지금 진행 중」 표시가 있으면 0: `esc to interrupt`, 또는 경과 시간이 붙은 스피너 줄(예 `✶ …ing… (3m 59s ·`).
+# 끝난 턴 표시(`✻ Cooked for 7s · done 12:17`)·`Running 1 shell command` 같은 지난 줄은 진행 표시가 아니다.
+_coord_screen_busy() {
+  local re
+  case "$1" in *"esc to interrupt"*) return 0 ;; esac
+  re="(✽|✶|✻|✢|✳)[^"$'\n'"]*\\(([0-9]+h[ ])?([0-9]+m[ ])?[0-9]+s[ ]·"
+  [[ "$1" =~ $re ]]
+}
+
 # 화면 글에서 확인 창·질문 창 종류를 판정(없으면 빈 출력). stdin = 화면.
 coord_screen_prompt_kind() {
   if _jsb_on COMMON; then _jsb_call common coord_screen_prompt_kind "$@"; return; fi
@@ -342,7 +351,7 @@ coord_screen_prompt_kind() {
     *"What do you want to do?"*"Wait for limit to reset"*|*"What do you want to do?"*"Wait here, then continue"*|*"Usage limit reached"*"Stop and wait"*) echo usage-limit ;;
     *"Do you want to proceed?"*|*"will automatically deny this request"*|*"Esc to cancel · Tab to amend"*) echo permission ;;
     *"Enter to select"*|*"↑/↓ to navigate"*|*"Arrow keys to navigate"*) echo question ;;
-    *"❯ 1."*) echo choice ;;
+    *"❯ 1."*) _coord_screen_busy "$s" || echo choice ;;   # 진행 표시가 보이면 선택 창이 아니다(명령 본문에 「❯ 1. Yes」 문자열이 있어도)
     *) ;;
   esac
 }
