@@ -134,3 +134,10 @@
 
 - *.sh 를 *.js 로 변경
 
+### Oracle 시험 잠금 세분화 (2026-10-09 결정 대기)
+
+- 지금: Oracle 시험을 돌리는 빌드가 PC 전체 잠금(`$TMPDIR/dmes-ora-pdb.lock`) 하나를 PDB 복제→시험→삭제 전 구간 동안 쥔다. 다른 레인의 Oracle 시험은 그동안 줄을 선다(10-09 오전 16분 막힘, 사례 기록 [docs/reports/2026-10-09-oracle-test-turn-deadlock-heavy-slots.md](reports/2026-10-09-oracle-test-turn-deadlock-heavy-slots.md)).
+- 안: 잠금을 구간별로 쪼개(복제·삭제만 잠그고 시험은 PDB 별로 동시에) 여러 레인이 함께 시험하게 한다.
+- 걸림: Oracle 컨테이너 VM 메모리가 2~3GB 라 동시 시험이면 ORA-04031 등 메모리 부족이 날 수 있다 → VM 메모리를 늘릴지, 지금처럼 하나씩 둘지 정해야 한다.
+- 함께 볼 것: Oracle 잠금을 기다리는 동안 heavy 슬롯을 쥐지 않게(같은 문서 대책 F), 빌드 안 시험 차례 교착(대책 A, b39ed2edf 로 해결).
+
