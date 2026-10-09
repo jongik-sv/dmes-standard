@@ -370,7 +370,7 @@ async function main() {
       for (const e of ents) {
         if (!e.isDirectory()) continue;
         const p = `${d}/${e.name}`;
-        if (p.endsWith('/node_modules/.bin')) safeRm(p); else stack.push(p);
+        if (p.replace(/\\/g, '/').endsWith('/node_modules/.bin')) safeRm(p); else stack.push(p);
       }
     }
   };
@@ -423,7 +423,7 @@ async function main() {
       const key = String(cksum(Buffer.from(keyText, 'utf8')).crc);
       const C = cacheRoot(abs);
       const E = `${C}/${key}`;
-      if (C && !forced && isFile(`${E}/ok`)) {
+      if (C && !IS_WIN && !forced && isFile(`${E}/ok`)) {
         const t = P(tmpName);
         safeRm(t);
         let okClone = cloneDir(`${E}/node_modules`, t);
@@ -444,7 +444,7 @@ async function main() {
       relinkDone(dir);
       out(`DEPS_INSTALLED npm ci${suffix}`);
       // 캐시 채우기. mkdir 에 성공한 한 팀원만 쓰고, 다 쓴 뒤 ok 를 남긴다. 실패해도 설치 결과는 유효하다.
-      if (C) {
+      if (C && !IS_WIN) {   // 윈도우는 junction 이 절대경로라 복제본이 다른 체크아웃을 가리킨다 — 캐시를 쓰지 않는다
         try { fs.mkdirSync(C, { recursive: true }); } catch { /* 무시 */ }
         let made = false;
         try { fs.mkdirSync(E); made = true; } catch { /* 남이 만들었다 */ }
@@ -465,7 +465,7 @@ async function main() {
     if (isFile(P('pnpm-lock.yaml'))) {
       // 2-b) 메인 체크아웃의 설치본을 복제한 뒤 이 워크트리의 lockfile 로 바로잡는다
       const srcRoot = `${MAIN}/${dir}`;
-      if (!forced && process.env.DFLOW_DEPS_MAIN_CLONE === '1' && MAIN && lstatOf(`${srcRoot}/node_modules`)?.isDirectory()) {
+      if (!forced && !IS_WIN && process.env.DFLOW_DEPS_MAIN_CLONE === '1' && MAIN && lstatOf(`${srcRoot}/node_modules`)?.isDirectory()) {
         let cloned = [];
         let ok = true;
         const t = P(tmpName);
@@ -605,11 +605,11 @@ async function main() {
   return status;
 }
 
-// 윈도우: PATH 의 bash.exe(WSL 런처인 System32 것은 제외), 없으면 Git for Windows 기본 위치. 그 밖은 PATH 의 bash.
+// 윈도우: PATH 의 bash.exe(WSL 런처인 System32·WindowsApps 것은 제외), 없으면 Git for Windows 기본 위치. 그 밖은 PATH 의 bash.
 function findBash() {
   if (!IS_WIN) return 'bash';
   for (const d of (process.env.PATH || '').split(';')) {
-    if (!d || /[\\/]system32([\\/]|$)/i.test(d)) continue;
+    if (!d || /[\\/](system32|WindowsApps)([\\/]|$)/i.test(d)) continue;   // WSL 런처 제외
     const c = path.join(d, 'bash.exe');
     if (isFile(c)) return c;
   }

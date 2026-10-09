@@ -150,6 +150,15 @@ function alive(pid) {
   if (!isDigits(pid) || pid === '0') return false;
   try { process.kill(Number(pid), 0); return true; } catch (e) { return e.code === 'EPERM'; }
 }
+// 기록의 소유 PID 생존. win32 에서 옛 Git Bash heavy.sh 가 쓴 기록(pstart=-)의 pid 는 MSYS pid 라 node 가 못 본다 —
+// 그때만 Git Bash 의 kill -0 으로 한 번 더 본다(살아 있는 옛 보유를 회수하지 않게).
+function aliveRec(pid, ps0) {
+  if (alive(pid)) return true;
+  if (!IS_WIN || (ps0 && ps0 !== '-') || !isDigits(String(pid ?? ''))) return false;
+  const b = gitBash();
+  if (!b) return false;
+  return spawnSync(b, ['-c', `kill -0 ${pid}`], { stdio: 'ignore', windowsHide: true, timeout: 10000 }).status === 0;
+}
 // 후손 pid(깊은 쪽부터). unix ps, win32 CIM
 function descendants(root) {
   const kids = new Map();
@@ -230,8 +239,8 @@ function waitUnmark() { if (WAITF) unlink(WAITF); WAITF = ''; }
 function waitDead(f) {
   const pid = wfield(f, 'pid');
   if (!isDigits(pid)) return olderThanMin(f);
-  if (!alive(pid)) return true;
   const ps0 = wfield(f, 'pstart');
+  if (!aliveRec(pid, ps0)) return true;
   if (ps0 && ps0 !== '-') {
     const ps1 = pstart(pid);
     if (ps1 && ps1 !== ps0) return true; // PID 재사용
@@ -256,8 +265,8 @@ function stale(d) {
   const text = readFileSafe(path.join(d, 'owner'));
   const pid = kv(text, 'pid');
   if (!isDigits(pid)) return true;
-  if (!alive(pid)) return true;
   const ps0 = kv(text, 'pstart');
+  if (!aliveRec(pid, ps0)) return true;
   if (ps0 && ps0 !== '-') {
     const ps1 = pstart(pid);
     if (ps1 && ps1 !== ps0) return true; // PID 재사용
@@ -301,8 +310,8 @@ function exclState(f) {
     if (age > EXCL_TTL) return 'dead';
     return age <= EXCL_OLD_ACTIVE ? 'active' : 'gap';
   }
-  if (!alive(hp)) return 'dead';
   const hps0 = wfield(f, 'hpstart');
+  if (!aliveRec(hp, hps0)) return 'dead';
   if (hps0 && hps0 !== '-') {
     const hps1 = pstart(hp);
     if (hps1 && hps1 !== hps0) return 'dead'; // PID 재사용
@@ -546,7 +555,8 @@ function winWhich(cmd) {
   }
   return cmd;
 }
-const cmdQuote = (a) => (/^[A-Za-z0-9_\-+=.,:/\\@%]+$/.test(a) ? a : `"${a.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1')}"`);
+// cmd.exe 인자 인용: 안전한 글자만이면 그대로, 아니면 큰따옴표로 감싸고 안의 " 는 "" 로. %VAR% 확장은 cmd.exe 명령줄에서 막을 수 없다.
+const cmdQuote = (a) => (/^[A-Za-z0-9_\-+=.,:/\\@]+$/.test(a) ? a : `"${a.replace(/"/g, '""')}"`);
 function prepSpawn(argv) {
   let [cmd, ...args] = argv;
   if (!IS_WIN) return { cmd, args, shell: false };
@@ -557,6 +567,16 @@ function prepSpawn(argv) {
   }
   const full = winWhich(cmd);
   if (/\.(cmd|bat)$/i.test(full)) return { cmd: [full, ...args].map(cmdQuote).join(' '), args: [], shell: true };
+  // 확장자 없는 셸 스크립트(#!, 예 ./gradlew)는 Git Bash 로 돌린다
+  if (!path.extname(full) && isFile(full)) {
+    let head = '';
+    try { const fd = fs.openSync(full, 'r'); const b = Buffer.alloc(2); fs.readSync(fd, b, 0, 2, 0); fs.closeSync(fd); head = b.toString('latin1'); } catch { /* 못 읽음 */ }
+    if (head === '#!') {
+      const b = gitBash();
+      if (!b) return { error: 'Git Bash(bash.exe)를 찾지 못했다 — 셸 스크립트를 돌릴 수 없다' };
+      return { cmd: b, args: [full, ...args], shell: false };
+    }
+  }
   return { cmd: full, args, shell: false };
 }
 let CHILD = null;
@@ -579,11 +599,13 @@ const childGone = (c) => new Promise((r) => (c.exitCode !== null || c.signalCode
 const SIGS = [['SIGINT', 130], ['SIGTERM', 143], ['SIGHUP', 129]];
 function onSignals(fn) { for (const [s, rc] of SIGS) { try { process.on(s, () => fn(rc, s)); } catch { /* 이 OS 에 없음 */ } } }
 // 신호: 자식 트리에 TERM, 자식이 끝나기를 기다린 뒤 extra() 와 exit(정리는 exit 훅)
+let SIG_RC = null;
 function slotSignals(extra) {
   let busy = false;
   onSignals(async (rc) => {
     if (busy) return;
     busy = true;
+    SIG_RC = rc; // 자식 종료가 먼저 잡혀도 신호의 종료 코드(130·143·129)로 끝낸다
     const c = CHILD;
     if (c) { termTree(c.pid); try { c.kill('SIGTERM'); } catch { /* 없음 */ } await childGone(c); }
     if (extra) extra();
@@ -615,7 +637,7 @@ async function cmdRun(argv) {
   const rc = await waitSlot('run', MYPID, argv.join(' '));
   if (rc === 1) process.exit(BUSY_RC);
   if (rc === 0) { err(`HEAVY_SLOT ${path.basename(SLOT)} k=${K} ${waited()}`); ENV.DFLOW_HEAVY_HELD = SLOT; }
-  process.exit(await runChild(argv));
+  { const rc = await runChild(argv); process.exit(SIG_RC ?? rc); }
 }
 
 async function cmdRunDocker(argv) {
@@ -637,7 +659,7 @@ async function cmdRunDocker(argv) {
     ENV.DFLOW_HEAVY_DOCKER_HELD = DSLOT;
     if (SLOT) ENV.DFLOW_HEAVY_HELD = SLOT;
   }
-  process.exit(await runChild(argv));
+  { const rc = await runChild(argv); process.exit(SIG_RC ?? rc); }
 }
 
 // 독점 실행이 잡은 일반 슬롯들
@@ -725,7 +747,7 @@ async function cmdRunExclusive(argv) {
   ENV.DFLOW_HEAVY_HELD = EXSLOTS[0] ?? '';
   const rc = await runChild(argv);
   exclUnmark();
-  process.exit(rc);
+  process.exit(SIG_RC ?? rc);
 }
 
 async function cmdAcquire(name) {
@@ -891,8 +913,9 @@ const readTrim = (f) => readFileSafe(f).split('\n')[0];
 // 명령을 돌리는 손자(runpid, + 시작 시각)가 살아 있으면 true
 function jobRunAlive(jd) {
   const rp = readTrim(path.join(jd, 'runpid'));
-  if (!isDigits(rp) || !alive(rp)) return false;
+  if (!isDigits(rp)) return false;
   const r0 = readTrim(path.join(jd, 'runpstart'));
+  if (!aliveRec(rp, r0)) return false;
   if (r0) { const r1 = pstart(rp); if (r1 && r1 !== r0) return false; }
   return true;
 }
@@ -934,7 +957,7 @@ async function cmdWait(args) {
     const pid = readTrim(path.join(jd, 'pid'));
     if (isDigits(pid)) {
       const ps0 = readTrim(path.join(jd, 'pstart'));
-      const live = alive(pid);
+      const live = aliveRec(pid, ps0);
       const ps1 = live ? pstart(pid) : '';
       if (!live || (ps0 && ps1 && ps0 !== ps1)) {
         if (isFile(path.join(jd, 'rc'))) continue; // 그 사이에 rc 를 쓰고 끝났다
