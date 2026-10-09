@@ -15,7 +15,7 @@ SKILL.md 「4-1. 머지 충돌 해소」·「5-2. 해소 spawn」 이 이 문서
 - **충돌 목록**: 표시를 풀어야 할 id8.
   - `team.conflict` 이벤트로 남김. id8 별 마지막 `decision` ≠ `cleared` (「5」 의 jq).
 - **해소 슬롯**: worktree 이름이 `-resolve` 로 끝나는 슬롯 (`<MAIN>/.claude/worktrees/dflow-<id8>-resolve`, 두 백엔드 공통. 옛 방식 Orca worktree = `<MAIN>/dflow-<id8>-resolve`).
-  - `spawn_kind` 로 가르지 않음 (팀장 restart 시 「1. 시작」 5번이 `spawn_kind: readopt` 로 다시 적음. `orig_kind` 는 옛 줄에 없음).
+  - `spawn_kind` 로 가르지 않음 (팀장 재기동 시 「1. 시작」 5번이 `spawn_kind: readopt` 로 다시 적음. `orig_kind` 는 옛 줄에 없음).
   - 판별 정본 = worktree 이름. 해소 결과 처리(「4」)·차단기(「6」)·동시 해소 상한이 모두 사용.
 - **동시 해소 상한** = `max(1, ⌊인원/2⌋)`.
   - 세는 대상 = 위 판별(worktree 접미사 `-resolve`)로 고른 해소 슬롯. 답 기다리는 `blocked` 해소 워커 포함.
@@ -175,7 +175,7 @@ jq -rs --arg a '<신원>/<host>/lead' --arg r '<MAIN>' '[.[] | select(.agent == 
 - **환경 실패**(`rate-limit`·`no-result`·`deps`·`permission`·부트스트랩 실패 값)만 워커와 같이 셈.
 - 실패 아닌 결과(`resolved`·`skipped`·`blocked`)는 워커와 같이 연속 수를 0으로 되돌림.
 - 재구성에서 해소 워커 여부 = id8 별 마지막 `team.spawn` 의 worktree 이름으로 가름(「0」).
-  `readopt` 줄이 `spawn_kind` 를 덮어도 worktree 와 `orig_kind` 가 남으므로, 팀장 restart 뒤에도 해소 워커의 내용 실패가 차단기에 안 세짐.
+  `readopt` 줄이 `spawn_kind` 를 덮어도 worktree 와 `orig_kind` 가 남으므로, 팀장 재기동 뒤에도 해소 워커의 내용 실패가 차단기에 안 세짐.
 
 해소 워커 id8 목록:
 ```bash
