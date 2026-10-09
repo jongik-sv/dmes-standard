@@ -25,7 +25,8 @@
     "dev:next": "next dev --port 5003",
     "format": "prettier --write .",
     "lint": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:unit": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@dk-oasis/shared": "workspace:*",
