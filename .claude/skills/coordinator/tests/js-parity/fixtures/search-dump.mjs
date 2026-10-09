@@ -20,6 +20,7 @@ const walk = (d, tag) => {
 };
 walk(join(process.cwd(), 'sr'), 'S:');
 walk(join(process.env.TMPDIR ?? '', 'coord-searches'), 'T:');
-const out = entries.sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0)).map((e) => e[1]);
+// 답 파일 이름의 초(<TS>)가 같은 실행 안에서 바뀌면(탭 시도 → --print 재시도가 초 경계를 넘을 때) bash·node 모두 파일이 둘이 될 수 있다 → 이름을 <TS>-<PID> 로 지운 뒤 같은 항목은 하나로 센다.
+const out = [...new Map(entries.sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0)).map((e) => [e[1], e[1]])).values()];
 if (existsSync('sent.log')) out.push(`--- sent.log\n${clean(readFileSync('sent.log', 'latin1'))}`);
 process.stdout.write(`${out.join('\n')}\n`);
