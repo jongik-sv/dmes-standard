@@ -77,11 +77,19 @@ if (oraService != null) {
         t.extensions.extraProperties.set('dmesOraPrepared', true)
         // 같은 빌드의 모듈은 시험 PDB 를 공유하므로 Oracle test 태스크는 한 번에 하나만 돈다(차례 → PC 잠금 → 시험 슬롯). 놓는 일은 태스크 뒤의
         // 마무리 태스크(실패해도 돈다)와 서비스 close 가 한다. 키는 구성 시점에 만든다(아래 withType(Test).all).
-        svc.get().acquireTurn(t.extensions.extraProperties.get('dmesOraTurnKey') as String, oraTurnWaitMs, around)
+        final String turnKey = t.extensions.extraProperties.get('dmesOraTurnKey') as String
+        svc.get().acquireTurn(turnKey, oraTurnWaitMs, around)
         // 모듈 build.gradle 이 maxParallelForks 를 나중에 대입해도 Oracle 시험은 1 로 고정한다(실행 직전 값이 쓰인다).
         t.maxParallelForks = 1
         t.forkEvery = 0
-        String pdb = svc.get().acquire()
+        String pdb
+        try {
+            pdb = svc.get().acquire()
+        } catch (Throwable e) {
+            // 준비가 실패하면 이 태스크의 동작이 여기서 끝난다. 마무리 태스크가 돌기 전에 다른 태스크가 먼저 차례를 기다리지 않게 바로 놓는다.
+            svc.get().releaseTurn(turnKey)
+            throw e
+        }
         String password = System.getenv('DMES_ORA_PASSWORD') ?: 'dmes_password_123'
         String url = OraTestPdbService.jdbcUrl(pdb)
         t.logger.lifecycle("[dmes-ora] ${t.path} 시험 PDB ${pdb} → ${url}")
@@ -138,6 +146,15 @@ allprojects {
                 if (desc.parent == null && result.resultType.toString() == 'FAILURE') svc.get().logVmState('시험 실패')
             }
             doFirst { prepare.call(it) }
+            // 차례는 시험이 끝나는 즉시 이 태스크가 놓는다(마무리 태스크는 보험). 마무리 태스크에만 맡기면 교착한다: 끝난 태스크의 마무리와 다른 Oracle
+            // 시험 태스크가 함께 실행 대기열에 오르는데 Gradle 은 마무리를 먼저 돌린다고 보장하지 않는다. 시험 쪽이 먼저 선택되면 그 태스크가 차례를
+            // 기다리는 동안 프로젝트 잠금을 쥐고(워커 lease 만 놓는다) 있어 마무리 태스크가 시작하지 못한다(2026-10-09 mcm :lib:test → :api:test,
+            // 스레드 덤프로 확인). afterSuite 는 시험이 실패해도 불리고, doLast 는 시험이 없거나 통과했을 때 불린다.
+            final Test self = it
+            afterSuite { desc, result ->
+                if (desc.parent == null) svc.get().releaseTurn(self.extensions.extraProperties.get('dmesOraTurnKey') as String)
+            }
+            doLast { svc.get().releaseTurn(self.extensions.extraProperties.get('dmesOraTurnKey') as String) }
         }
     }
     // 모든 시각은 KST 로 통일한다(docs/oracle-1007/schema-owners.md §3.1). 시험 JVM 과 bootRun 이 PC 시간대와 상관없이 Asia/Seoul 을 쓰게
