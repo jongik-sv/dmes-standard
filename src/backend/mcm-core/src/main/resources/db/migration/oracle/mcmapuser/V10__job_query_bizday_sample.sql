@@ -50,7 +50,7 @@ select 'mcm.sample.bizday-run-summary'
        || '     VALUES (:jobId, S.SLOT, S.ITEM_KEY, S.CNT\n'
        || '          , CAST(SYSTIMESTAMP AT TIME ZONE ''Asia/Seoul'' AS TIMESTAMP), ''SCHEDULER'', ''jobQuery''\n'
        || '          , CAST(SYSTIMESTAMP AT TIME ZONE ''Asia/Seoul'' AS TIMESTAMP), ''SCHEDULER'', ''jobQuery''\n'
-       || '          , 0)}'
+       || '          , 0)"}'
      , '[{"name":"bizDay","type":"DATE","value":":bizYesterday","desc":"집계할 전기일(07시 기준, 실행 때 예정 시각의 전날 전기일로 바뀐다)"},'
        || '{"name":"baseHour","type":"NUMBER","value":"7","desc":"전기일이 바뀌는 시각(시) — 회사 기준 아침 7시"},'
        || '{"name":"jobId","type":"STRING","value":":jobId","desc":"결과를 남길 작업 ID(실행 때 이 작업 ID 로 바뀐다)"}]'
@@ -60,7 +60,7 @@ select 'mcm.sample.bizday-run-summary'
          when N.TS < trunc(N.TS) + interval '7' hour + interval '1' minute then trunc(N.TS) + interval '7' hour + interval '1' minute
          else trunc(N.TS) + 1 + interval '7' hour + interval '1' minute
        end
-     , '전기일(07시 기준, 07:00 ~ 다음 날 07:00) 하루 동안의 예약 작업 실행 이력을 상태별로 세어 수집 값 표에 남긴다(MERGE 한 문장, 지우는 일 없음). 매일 07:01 에 방금 끝난 전기일 하루의 실행 이력을 상태(RUN·OK·FAIL·SKIP·TIMEOUT)별로 세어 TB_MCM_JOB_COLLECT_DATA 에 남긴다. SLOT=전기일 시작 시각(YYYYMMDDHH24MI), ITEM_KEY=상태, VALUE_NUM=건수.'
+     , '전기일(07시 기준, 07:00 ~ 다음 날 07:00) 하루 동안의 예약 작업 실행 이력을 상태(RUN·OK·FAIL·SKIP·TIMEOUT)별로 세어 TB_MCM_JOB_COLLECT_DATA 에 남긴다(MERGE 한 문장, 지우는 일 없음). 매일 07:01 에 방금 끝난 전기일 하루를 집계한다. SLOT=전기일 시작 시각(YYYYMMDDHH24MI), ITEM_KEY=상태, VALUE_NUM=건수.'
      , 'USER'
      , cast(systimestamp at time zone 'Asia/Seoul' as timestamp), 'flyway', 'V10__job_query_bizday_sample', 'V10'
      , cast(systimestamp at time zone 'Asia/Seoul' as timestamp), 'flyway', 'V10__job_query_bizday_sample', 'V10'
