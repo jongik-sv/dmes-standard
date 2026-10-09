@@ -66,20 +66,24 @@ export function visibleCateRows<T extends { open: boolean }>(rows: T[], editable
 }
 
 export function CategoryTab({ cate, loaded, editable, showClosed = false, canSave, onError, errorShown = false }: CategoryTabProps) {
-  const { selectedRow, detail } = cate;
+  const { detail } = cate;
   const canEdit = editable && canSave;
   // 훅 객체 전체가 아니라 안정된 함수만 열 정의에 건다.
   const { close: closeCate, reopen: reopenCate } = cate;
   const [addOpen, setAddOpen] = useState(false);
   const [regexOpen, setRegexOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const visibleRows = useMemo(() => visibleCateRows(cate.rows, editable, showClosed), [cate.rows, editable, showClosed]);
+  // 고른 카테고리가 숨겨지면(닫힌 항목을 안 보기로 바꿈) 이력·소속 패널도 함께 비운다 — 목록에 없는 카테고리를 계속 보이지 않는다.
+  const selectedRow = useMemo(
+    () => visibleRows.find((r) => r.cateId === cate.selectedRow?.cateId) ?? null,
+    [visibleRows, cate.selectedRow],
+  );
   // 다른 카테고리를 고른 뒤 새 상세(view)가 올 때까지는 이전 소속 목록을 잠가 둔다 — 그 사이 [적용]하면 이전 카테고리의
   // 소속으로 낸 diff 가 새 카테고리에 저장된다(Local-Rules §11, 비웠다 다시 그리지 않고 잠근다).
   const detailCurrent = !!detail && detail.cate?.cateId === selectedRow?.cateId;
   // 소속 편집 팝업의 이동·[적용] 조건 — 새 상세가 오기 전에는 이전 카테고리의 소속을 잠근다.
   const transferEditable = canEdit && !!selectedRow?.open && detailCurrent;
-
-  const visibleRows = useMemo(() => visibleCateRows(cate.rows, editable, showClosed), [cate.rows, editable, showClosed]);
 
   const targetOptions = useMemo(() => buildDefTargetOptions(cate.lvlCnt, cate.attrLabels), [cate.lvlCnt, cate.attrLabels]);
 
@@ -193,7 +197,7 @@ export function CategoryTab({ cate, loaded, editable, showClosed = false, canSav
                 columns={categoryColumns}
                 data={visibleRows as unknown as Record<string, unknown>[]}
                 rowKey="cateId"
-                highlightedRowKey={cate.selectedCateId ?? undefined}
+                highlightedRowKey={selectedRow?.cateId}
                 onRowClick={(row) => cate.select(String(row.cateId))}
                 // 목록에 편집 칸이 없어 ↑/↓ 는 기본적으로 선택을 옮기지 않는다. 커서가 옮긴 행을 받아 카테고리 선택을
                 // 따라가게 하면 아래 소속 목록이 같은 카테고리를 계속 보여준다.

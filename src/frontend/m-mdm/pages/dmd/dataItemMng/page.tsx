@@ -144,6 +144,8 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
 
   /** 마지막으로 조회한 조건 — 재조회(F1)와 트리 조회가 쓴다. */
   const applied = useRef<{ filters: DataItemFilters }>({ filters: emptyFilters() });
+  // 마지막으로 조회한 「닫힌 항목」 — 카테고리 탭이 아직 조회하지 않은 입력값이 아니라 항목 그리드와 같은 기준을 따르게 한다.
+  const [appliedShowClosed, setAppliedShowClosed] = useState(false);
   /** 요청 순번 — 늦게 도착한 옛 응답(예: 첫 로드의 자동 선택 조회)이 새 결과를 덮지 않게 한다. */
   const searchSeq = useRef(0);
   const selectSeq = useRef(0);
@@ -197,6 +199,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
       setTruncated(res.truncated === true);
       setDrafts({});
       applied.current = { filters: f };
+      setAppliedShowClosed(f.showClosed);
     } catch (e) {
       if (seq === searchSeq.current) setError(errorMessage(e));
     } finally {
@@ -305,6 +308,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
       // 다른 조건 칸은 SearchArea 가 마루 데이터가 바뀐 것을 보고 비운 뒤 기본값으로 다시 채운다(dependsOn). 트리 노드 거르기는 조건 칸이 아니라 여기서 푼다.
       setFilters((prev) => ({ ...prev, maruDataId, nodeFilter: null }));
       applied.current = { filters: { ...emptyFilters(), maruDataId } };
+      setAppliedShowClosed(false);
       regFormRef.current?.load(null);
       historySeq.current++;
       setHistory(null);
@@ -777,7 +781,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
                   cate={cate}
                   loaded={!!header}
                   editable={editable}
-                  showClosed={filters.showClosed}
+                  showClosed={appliedShowClosed}
                   canSave={canCateSave}
                   onError={setError}
                   errorShown={!!error}
