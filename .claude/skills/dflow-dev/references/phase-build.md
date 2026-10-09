@@ -56,8 +56,8 @@ Build = design.md `## 구현 단위` 표의 단위(B1~Bn)마다 새 서브에이
     - 빨강 하나면 잡힌 것. 나머지를 돌릴 까닭 없음.
     - 대상 테스트로 잡히지 않을 때만 전체 스위트로 넘어간다. 리포에 게이트 대응표 `.dflow-gates` 가 있으면 전체 스위트 대신 프롬프트의 좁힌 명령에 든 모듈 게이트 명령으로 넘어간다.
     - 화면(E2E)으로만 잡히는 규칙이면 대상 = E2E 스펙 하나가 아니라 **E2E 스위트 전체**. 단독 실행은 spec 간 상태 간섭에서 오는 취약성을 감춘다.
-  - **한 번에, `heavy.sh` 안에서**: 변이마다 기록 파일(아래 「기록」)을 먼저 쓰고, 드라이버 `scripts/mutate.sh run` 으로 변이 넣기 → 대상 테스트 → 되돌리기를 한 번에 돌린다.
-    - 드라이버 호출 전체를 `heavy.sh` 로 한 번 감싼다(안쪽 Gradle 호출은 그 슬롯을 다시 씀): `.claude/skills/dflow-dev/scripts/heavy.sh .claude/skills/dflow-dev/scripts/mutate.sh run <TASKS>/<TSK>/mutations
+  - **한 번에, `heavy.mjs` 안에서**: 변이마다 기록 파일(아래 「기록」)을 먼저 쓰고, 드라이버 `scripts/mutate.mjs run` 으로 변이 넣기 → 대상 테스트 → 되돌리기를 한 번에 돌린다.
+    - 드라이버 호출 전체를 `heavy.mjs` 로 한 번 감싼다(안쪽 Gradle 호출은 그 슬롯을 다시 씀): `node .claude/skills/dflow-dev/scripts/heavy.mjs node .claude/skills/dflow-dev/scripts/mutate.mjs run <TASKS>/<TSK>/mutations
       --ids <이 단위의 ID…>`(리포 최상위에서).
     - 드라이버가 백업 사본 되돌리기(아래)를 그대로 한다. 에이전트 호출 수와 슬롯 대기가 준다.
     - 스크립트도 10분 상한(프롬프트 공통 규칙 4)을 지킨다. 길면 나눈다.
@@ -90,7 +90,7 @@ Build = design.md `## 구현 단위` 표의 단위(B1~Bn)마다 새 서브에이
     - Verify 가 이 표를 감사하므로 표에 없는 규칙 = 검증되지 않은 것.
     - **변이는 패치 형태로도 남긴다**: 행마다 변이 기록 파일 `<TASKS>/<TSK>/mutations/<ID>.mut` 을 Task 문서로 커밋한다.
     - 표의 변이 칸은 ID 로 시작(예 `M3 — 경계 < 를 <= 로`). ID = `M<n>`(단위가 여럿이면 `<단위>-M<n>`, 예 `B2-M1`).
-    - 파일 형식 정본 = `scripts/mutate.sh` 머리 주석: `rule:`·`file:`·`test:`(대상 테스트 명령 한 줄)·`e2e: yes|no` 머리 줄 + `--- find`(파일에 정확히 한 번 나오는 원문) · `--- replace`(치환문) 본문.
+    - 파일 형식 정본 = `scripts/mutate.mjs` 머리 주석: `rule:`·`file:`·`test:`(대상 테스트 명령 한 줄)·`e2e: yes|no` 머리 줄 + `--- find`(파일에 정확히 한 번 나오는 원문) · `--- replace`(치환문) 본문.
     - Verify 는 이 파일을 드라이버에 그대로 다시 넣으므로 원문을 줄여 쓰지 않는다.
     - `안 잡힘(보강함)` = 보강한 테스트로 같은 파일을 다시 돌려 잡히는 것까지 확인한 결과.
 - design.md 에서 이탈하면 이탈 사유를 build-log.md `## 설계 이탈` 에 적는다(다음 Phase 와 리뷰어의 기준 문서 유지).
@@ -101,9 +101,9 @@ Build = design.md `## 구현 단위` 표의 단위(B1~Bn)마다 새 서브에이
   - Build 서브에이전트는 전체 스위트를 돌리지 않는다. 전체 회귀는 오케스트레이터의 Build 게이트가 한 번 본다.
   - 리포에 `.dflow-gates` 가 있으면 Build 게이트는 영향 모듈만, 전체는 Verify 게이트가 본다.
   - 관련 테스트: vitest `related <바꾼 파일…> --run`, jest `--findRelatedTests <바꾼 파일…>`, Gradle 은 바뀐 모듈의 `:<모듈>:test` 또는 `--tests <클래스>`.
-  - 명령 = 기준선 명령 줄(같은 cwd·러너·도커 제외)에 좁히는 인자만 더한 것. Gradle·Maven 이면 이것도 `heavy.sh` 로 감싼다.
+  - 명령 = 기준선 명령 줄(같은 cwd·러너·도커 제외)에 좁히는 인자만 더한 것. Gradle·Maven 이면 이것도 `heavy.mjs` 로 감싼다.
   - 구현 단위로 나눴으면 단위마다 이 조건으로 끝난다. Build 전체는 마지막 단위(연결 테스트 포함)가 끝나야 완료.
-- **관련 테스트에서 타이밍·성능 테스트만 빨가면**(측정한 경과 시간을 고정 상한과 비교하는 단언뿐 — dev-discipline 「부하 민감 테스트(타이밍·성능)의 단독 재실행」 의 판별 기준) 그 파일만 `heavy.sh --exclusive` 로 한 번 다시 돌려 본다.
+- **관련 테스트에서 타이밍·성능 테스트만 빨가면**(측정한 경과 시간을 고정 상한과 비교하는 단언뿐 — dev-discipline 「부하 민감 테스트(타이밍·성능)의 단독 재실행」 의 판별 기준) 그 파일만 `heavy.mjs --exclusive` 로 한 번 다시 돌려 본다.
   - 단독에서 통과하면 완료 조건 충족으로 본다. 보고에 "부하 민감, 단독 통과(로그 경로·부하 평균)" 를 적는다.
   - 단독에서도 빨가면 고친다.
 - **Build 게이트 실패는 1회 재시도한다.**

@@ -6,16 +6,16 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 이 단계
 
 > Phase 01 번호는 네 파일에 이어짐: 1 이 파일, 2 `orch/base.md`, 3 `orch/claim.md`, 4-6 `orch/baseline.md`.
 
-- `<기본브랜치>` = 개발 브랜치 = `dflow.sh branch dev` 값 (`.dflow.local` 의 `dev_branch`, 레거시는 `origin/HEAD`).
+- `<기본브랜치>` = 개발 브랜치 = `dflow.mjs branch dev` 값 (`.dflow.local` 의 `dev_branch`, 레거시는 `origin/HEAD`).
 - 팀원 = 팀장이 넘긴 `DEV_BRANCH` 사용.
-- 개발 브랜치가 원격에 없으면 멈추지 말고 먼저 `.claude/skills/dflow-work/scripts/dflow.sh branch ensure-dev` 로 운영 브랜치에서 생성. 실패하면 그 사유로 중단·보고.
+- 개발 브랜치가 원격에 없으면 멈추지 말고 먼저 `node .claude/skills/dflow-work/scripts/dflow.mjs branch ensure-dev` 로 운영 브랜치에서 생성. 실패하면 그 사유로 중단·보고.
 
 - 작업 폴더 `<TASKS>` = `<DOCS_DIR>/tasks` (리포 최상위 기준).
-- 주문 폴더 `<TASKS>/<TSK>` = `dflow.sh taskdir <ref>` 값. `.dflow.local` `project_map` 의 프로젝트 키, 없으면 `docs`.
-- 여러 작업을 훑을 때 = `dflow.sh config tasks-dirs` 가 내는 폴더 전부 확인.
+- 주문 폴더 `<TASKS>/<TSK>` = `dflow.mjs taskdir <ref>` 값. `.dflow.local` `project_map` 의 프로젝트 키, 없으면 `docs`.
+- 여러 작업을 훑을 때 = `dflow.mjs config tasks-dirs` 가 내는 폴더 전부 확인.
 - `<DOCS_DIR>` 를 `docs` 로 박은 고정 경로 금지.
 
-1. `dflow.sh doctor` (세션 첫 호출 시). `dflow.sh show <ref>` 로 상태 확인:
+1. `dflow.mjs doctor` (세션 첫 호출 시). `dflow.mjs show <ref>` 로 상태 확인:
    ready → 착수 가능 판정(2번) 후 claim / claimed → **반려 판정 먼저(아래), 아니면** 재개 판정(SKILL.md 상태 모델) /
    reported → 종료 / approved → Phase 01-가 스윕이 이미 처리했어야 함.
    - 로컬 state.json 없는 작업이라 스윕이 못 봤을 수 있음 → 지금 즉시 같은 머지 절차를 이 ref 하나로 실행 후 종료.
@@ -24,9 +24,9 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 이 단계
    <!-- worker:end -->
    - 이 머지도 `/dflow-merge` SKILL.md 4번 절차. Phase 01-가 가 `SWEEP_NONE` 으로 건너뛰어 아직 안 읽었으면 먼저 읽음.
 
-   **서버 판단(계약 2.11)** — `dflow.sh contract-ge 2.11` exit 0 이면 show 응답 `.order` 의 서버 판단으로 먼저 가른다.
+   **서버 판단(계약 2.11)** — `dflow.mjs contract-ge 2.11` exit 0 이면 show 응답 `.order` 의 서버 판단으로 먼저 가른다.
    - 칸: `action`(`full`·`design`·`build`·`wait`·`skip`)·`action_reason`·`mine`·`design_mode`·`design_state`(`review`·`accepted`·없음)·`claim_scope`·`runner`·`runner_seen_at`.
-   - claimed 주문의 `mine` = "같은 신원이고 이 PC 가 돌려도 된다" (`dflow.sh show` 가 이 세션의 라벨을 보냄).
+   - claimed 주문의 `mine` = "같은 신원이고 이 PC 가 돌려도 된다" (`dflow.mjs show` 가 이 세션의 라벨을 보냄).
    - 계약 2.11 아님(옛 서버) → 이 문단 건너뛰고 종전대로: 모든 작업을 완전자동으로 보고, 수동 `--scope design`·`build` 는 로컬 state.json 으로 돈다(아래 「옛 서버의 설계 검토 대기」·「옛 서버의 범위 build」).
    - 범위 = `--scope` 값, 없으면 state.json `scope`, 그것도 없으면 `full`.
    - ready: 범위 = `--scope` 값(팀장은 늘 넘김). 없으면 `action` 이 `full`·`design`·`build` 일 때 그 값.
@@ -39,7 +39,7 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 이 단계
    - claimed 의 범위 = 서버 `claim_scope`: `design` → `design`, `build` → `build`, 그 밖(`full`·`legacy`·없음) → `full`.
      - 수동 `--scope` 무시하고 그 사실 한 줄 남김.
      - state.json `scope` 가 다르면 이 값으로 고쳐 씀 (다음 커밋에 실림).
-   - 재개하는 state.json `phase` 가 `build`·`verify`·`refactor` → 그 단계로 가기 전에 `dflow.sh build-start <ref> --scope <범위>` 먼저 호출.
+   - 재개하는 state.json `phase` 가 `build`·`verify`·`refactor` → 그 단계로 가기 전에 `dflow.mjs build-start <ref> --scope <범위>` 먼저 호출.
      - 이미 구현 중이라 단계는 그대로, 도는 PC(`runner`)만 이 PC 로 넘겨받음.
      - 결과는 `orch/design.md` 「Design 게이트」 표대로 가르고, exit 0 이면 그 단계로 이어 감.
 
@@ -56,7 +56,7 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 이 단계
       - origin 이 앞서거나 같으면 push 안 함.
       - 갈라졌으면 이어 가지 않고 두 끝 sha 를 적어 알리고 끝.
       - fetch·push 실패 → 사실 알리고 끝 (다시 돌리면 여기부터 이어 감).
-   2. `dflow.sh design-done <ref>` 호출.
+   2. `dflow.mjs design-done <ref>` 호출.
       - 실패(exit 6) → 사실 알리고 끝 (다시 돌리면 이어 감).
       - 그 밖의 exit → `failed design-done <exit>` 알리고 끝.
       - `wait_review` 였으면: 출력의 설계 상태가 `review` 일 때 위 「서버 판단」 의 설계 검토 대기처럼 알리고 끝.
@@ -97,7 +97,7 @@ ready 갈래에서 범위 `build` = 사람이 「설계 확정」 한 구현자�
 - 확정되지 않은 작업이면 서버가 claim 거부 (exit 11 — `orch/claim.md`).
 
 **옛 서버의 범위 build**(계약 < 2.11, 수동 실행) — ready 갈래에서 범위 `build` 면 **claim 전에** 사람이 쓴 설계를 확인 (설계는 사람, 구현은 에이전트).
-1. `git fetch origin` 뒤 `git show origin/<기본브랜치>:<TASKS>/<TSK>/design.md` 로 읽음 (`<TASKS>/<TSK>` = `dflow.sh taskdir <ref>`). 없으면 착수 안 함, "설계 문서 없음" 보고.
+1. `git fetch origin` 뒤 `git show origin/<기본브랜치>:<TASKS>/<TSK>/design.md` 로 읽음 (`<TASKS>/<TSK>` = `dflow.mjs taskdir <ref>`). 없으면 착수 안 함, "설계 문서 없음" 보고.
 2. SKILL.md 「게이트 집행 원칙」 의 Design 게이트 최소 구조 5절이 모두 있는지 확인. 빠진 절 있으면 착수 안 함, 빠진 절을 적어 보고. **빠진 절을 스스로 채우지 않음** — 이 범위의 전제 = 사람이 설계.
 3. 통과하면 종전대로 `orch/base.md` → `orch/claim.md`. design.md 가 든 그 폴더는 재claim 격리 대상 아님 (`orch/claim.md`). Design 단계: Design 서브에이전트 없이 곧바로 Design 게이트 (`orch/design.md`).
 <!-- worker:begin -->

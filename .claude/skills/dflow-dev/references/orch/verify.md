@@ -2,7 +2,7 @@
 
 SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 단계 시작 금지. 모든 단계 공통 규칙(게이트 집행 원칙·상태 모델·서버 통신) = SKILL.md.
 
-감사 템플릿: `.claude/skills/dflow-dev/scripts/sections.sh .claude/skills/dflow-dev/references/phase-prompt.md '감사 템플릿'`.
+감사 템플릿: `node .claude/skills/dflow-dev/scripts/sections.mjs .claude/skills/dflow-dev/references/phase-prompt.md '감사 템플릿'`.
 
 **Verify = 읽기 전용 감사자 셋 + 작성자 하나를 한 메시지에 동시에 띄움**(phase-verify.md). research/docs 특례 작업은 감사자 없이 작성자만 (첫 보고 = `PHASE_RESULT`).
 - 감사자: 역할 spec·review·tests 셋. **`name` 붙이지 않고 띄움**

@@ -13,7 +13,7 @@ description: D'Flow 작업 1건의 전체 개발 사이클 실행 (승인 스윕
 <!-- worker:begin -->
 > `--worker` = `/dflow-team` 팀장 전용 플래그 (사람이 직접 안 씀). 있으면 아래 「--worker 팀원 모드」 절 아홉 행(A~I)만 달라지고, 없으면 이 문서 절차 그대로.
 > `--worker` 면 **지금 `.claude/skills/dflow-dev/references/worker-mode.md` 의 머리(아홉 행 표)와 「그 밖의 워커 규칙」 을 읽는다**:
-> `.claude/skills/dflow-dev/scripts/sections.sh .claude/skills/dflow-dev/references/worker-mode.md '=/dflow-dev --worker' '그 밖의 워커 규칙'`.
+> `node .claude/skills/dflow-dev/scripts/sections.mjs .claude/skills/dflow-dev/references/worker-mode.md '=/dflow-dev --worker' '그 밖의 워커 규칙'`.
 > 「행 G」·「행 H」 = 단계 파일 표지 블록이 가리킬 때, 「설계 선행」 = `orch/design-first.md` 읽을 때 같은 방법으로 읽는다.
 <!-- worker:end -->
 
@@ -23,12 +23,12 @@ description: D'Flow 작업 1건의 전체 개발 사이클 실행 (승인 스윕
 > - 「단계 지도」 규율 열의 절 = 그 단계 시작 때 읽음.
 > - 단계 파일이 dev-discipline 「절 이름」 을 가리키면 그 자리에서 그 절만 읽음.
 > - 같은 세션에서 이미 읽었고 압축 없었으면 다시 안 읽음.
-> - 추출: `.claude/skills/dflow-dev/scripts/sections.sh .claude/skills/dflow-dev/references/dev-discipline.md '<절 제목 앞부분>' …` (제목 앞 `=` → 딸린 절 없이 그 제목 본문만).
+> - 추출: `node .claude/skills/dflow-dev/scripts/sections.mjs .claude/skills/dflow-dev/references/dev-discipline.md '<절 제목 앞부분>' …` (제목 앞 `=` → 딸린 절 없이 그 제목 본문만).
 > - exit 3(`SECTION_MISSING`) → 그 파일 전체 Read.
 > - Phase 서브에이전트에게 주는 문구 = `references/phase-prompt.md`.
 > - 규칙 이유·사고 이력 = `references/rationale.md` (실행 중 안 읽음).
 >
-> 서버 통신 전부 dflow.sh, 산문 파싱 금지 — exit code 로 분기. dflow-work 금지사항 전부 상속. **dflow.sh 경로**: 대상 리포(cwd)의 `.claude/skills/dflow-work/scripts/dflow.sh` (환경변수 `DFLOW_SH` 있으면 우선). 경로는 **대상 리포 기준**. 킷(install.sh)도 리포 안 `.claude/skills/` 에 설치하므로 `~/.claude/skills/...` 추측 금지.
+> 서버 통신 전부 dflow.mjs, 산문 파싱 금지 — exit code 로 분기. dflow-work 금지사항 전부 상속. **dflow.mjs 경로**: 대상 리포(cwd)의 `node .claude/skills/dflow-work/scripts/dflow.mjs` (환경변수 `DFLOW_SH` 있으면 우선). 경로는 **대상 리포 기준**. 킷(install.sh)도 리포 안 `.claude/skills/` 에 설치하므로 `~/.claude/skills/...` 추측 금지.
 
 ## 게이트 집행 원칙 (이 스킬의 존재 이유)
 
@@ -38,7 +38,7 @@ Phase 서브에이전트 `PHASE_RESULT` 자기 신고 = **참고 신호, 게이�
 - Design 게이트: `<TASKS>/<TSK>/design.md` Read → dev-discipline 최소 구조 5절(접근·파일 목록·테스트 전략·수용 기준 매핑·불변 규칙) 실재 확인. 없으면 실패.
 - Build/Verify/Refactor 게이트: **오케스트레이터가 테스트 명령 직접 실행** → exit code·출력을 기준선과 차분 비교 (신규 실패 0 + 테스트 총수 미감소). 서브에이전트가 "통과" 해도 직접 실행 결과가 판정.
   게이트별 명령·범위(대응표)·재실행 생략·기록 = 그 Phase 파일의 「Design 게이트」·「Build 게이트」·「Verify·Refactor 게이트」.
-- 도커: 기준선 전에 금지 모드 판정. 금지면 기준선·게이트·Phase 프롬프트에서 도커 명령 제외. 금지 아니면 도커 슬롯(`heavy.sh --pool docker`)에서만 실행. 도커 런타임은 켜지 않음. 정본 = dev-discipline.md 「도커 사용 규칙」.
+- 도커: 기준선 전에 금지 모드 판정. 금지면 기준선·게이트·Phase 프롬프트에서 도커 명령 제외. 금지 아니면 도커 슬롯(`heavy.mjs --pool docker`)에서만 실행. 도커 런타임은 켜지 않음. 정본 = dev-discipline.md 「도커 사용 규칙」.
 
 ## 상태 모델
 
@@ -49,7 +49,7 @@ Phase 서브에이전트 `PHASE_RESULT` 자기 신고 = **참고 신호, 게이�
   선택 필드(`model`·`build_unit`·`build_model_base`·`build_model_trial`·`verify_findings`·`verify_advisor`·`design_first`·`branch_base`·
   `risk`·게이트 기록 등) 뜻·쓰는 때 = 그 필드를 쓰는 단계 파일.
   `phase` 값: `ready`·`design`·`build`·`verify`·`refactor`·`reported`·**`rejected`**·`merged`.
-  - `ready` = `dflow.sh scaffold` 초기값 (주문 전 폴더 자리). 진행 중 phase 아님 → 스윕·재개 판정 건너뜀.
+  - `ready` = `dflow.mjs scaffold` 초기값 (주문 전 폴더 자리). 진행 중 phase 아님 → 스윕·재개 판정 건너뜀.
   - `rejected` = 서버가 반려 통지한 상태. 승인 대기(reported)와 구분해야 스윕이 안 헛돎.
   - `wait_pred` = 설계 마치고 선행 기다리며 멈춘 상태(「설계 선행」 2). 진행 중 phase 아님, heartbeat 훅도 안 보냄. 재개 = Phase 01 1번이 「설계 선행」 3 으로 보냄.
   - `wait_review` = 설계만(`--scope design`)으로 설계 마치고 사람의 「설계 승인」 기다리며 멈춘 상태. 진행 중 phase 아님, heartbeat 훅도 안 보냄. 이어 갈지 = 서버 설계 상태가 정함 (옛 서버는 `--scope build`, `orch/start.md`). 저절로 재개 안 됨.
@@ -64,7 +64,7 @@ Phase 서브에이전트 `PHASE_RESULT` 자기 신고 = **참고 신호, 게이�
     - `cancelled` = 진행 중 phase 아님 → 스윕·재개 판정 건너뜀.
   - exit 12(다른 PC 가 이어받음)도 그 자리에서 멈춤, state.json 은 안 바꿈 (`orch/start.md` 「서버 판단」).
   - `design-done`·`design-reopen` 도 같은 api_raw 경로 → exit 10·12 처리 동일.
-  - **`api_base` = claim 시점 `DFLOW_API_BASE` 에서 끝 `/` 뺀 값** (dflow.sh `base()` 와 같은 정규화). 스윕이 이 값으로 자기 D'Flow 인스턴스 후보만 고름. Phase 01 에서 state.json 처음 쓰는 곳(3번 `prepare`·스택 기록 또는 4번 기준선)에서 기록. 반려 재작업이 기존 state.json 에 `phase=rejected` 쓸 때 `api_base` 없으면 같은 규칙으로 채움.
+  - **`api_base` = claim 시점 `DFLOW_API_BASE` 에서 끝 `/` 뺀 값** (dflow.mjs `base()` 와 같은 정규화). 스윕이 이 값으로 자기 D'Flow 인스턴스 후보만 고름. Phase 01 에서 state.json 처음 쓰는 곳(3번 `prepare`·스택 기록 또는 4번 기준선)에서 기록. 반려 재작업이 기존 state.json 에 `phase=rejected` 쓸 때 `api_base` 없으면 같은 규칙으로 채움.
 - 실패 시 `phase` 되돌리지 않고 `last.event=*.fail` 만 기록 → 재실행 시 같은 Phase 재개.
 - **재개 판정 = 산출물 교차 확인**:
   - state.json 이 있어도 그 phase 선행 산출물(design.md·Build 커밋)이 현재 트리에 실재하는지 확인.
@@ -73,7 +73,7 @@ Phase 서브에이전트 `PHASE_RESULT` 자기 신고 = **참고 신호, 게이�
 
 ## 단계 지도
 
-이 문서 = 모든 단계 공통 규칙만. 단계별 절차 = `.claude/skills/dflow-dev/references/orch/` 의 단계 파일 (아래 `orch/…` 는 그 폴더 기준). **단계 시작 전 그 행의 파일을 Read 하고 규율 열의 절을 읽는다** — 읽기 전 시작 금지. 같은 세션에서 이미 읽었고 압축 없었으면 다시 안 읽음. 단계 파일 끝 「다음 단계」 = 다음에 읽을 파일. 규율 열 = dev-discipline.md 절 제목 앞부분 (위 「규율 읽기」 `sections.sh` 인자 그대로).
+이 문서 = 모든 단계 공통 규칙만. 단계별 절차 = `.claude/skills/dflow-dev/references/orch/` 의 단계 파일 (아래 `orch/…` 는 그 폴더 기준). **단계 시작 전 그 행의 파일을 Read 하고 규율 열의 절을 읽는다** — 읽기 전 시작 금지. 같은 세션에서 이미 읽었고 압축 없었으면 다시 안 읽음. 단계 파일 끝 「다음 단계」 = 다음에 읽을 파일. 규율 열 = dev-discipline.md 절 제목 앞부분 (위 「규율 읽기」 `sections.mjs` 인자 그대로).
 
 | 지금 | 판별 | 읽을 파일(순서대로) | 규율(dev-discipline 절) |
 |---|---|---|---|

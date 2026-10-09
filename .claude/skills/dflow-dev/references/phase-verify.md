@@ -11,7 +11,7 @@ Verify = 전체 스위트 재실행 Phase 아님. Build 게이트가 이미 본 
 
 1. **입력 = Build 게이트 결과**: 오케스트레이터가 넘긴 sha·명령 줄·통과/실패 수(신규 실패 목록) 수령.
    전체 스위트 재실행 금지. 린트는 실행 (가벼움).
-2. **변이 검증 기록 표본 감사**: build-log.md 「변이 검증 기록」 표의 의심 행 전부 + 표본 2행만 변이를 다시 넣고 표의 대상 테스트가 빨강인지 확인 (Build 의 fail-fast·되돌리기·`heavy.sh` 규칙 그대로 — phase-build.md 「TDD 와 변이 검증」).
+2. **변이 검증 기록 표본 감사**: build-log.md 「변이 검증 기록」 표의 의심 행 전부 + 표본 2행만 변이를 다시 넣고 표의 대상 테스트가 빨강인지 확인 (Build 의 fail-fast·되돌리기·`heavy.mjs` 규칙 그대로 — phase-build.md 「TDD 와 변이 검증」).
    - 의심 행:
      - 잡은 테스트 칸이 비었거나 `-`
      - 결과가 세 값(`잡힘`·`안 잡힘(보강함)`·`안 잡힘(보고)`) 밖
@@ -21,7 +21,7 @@ Verify = 전체 스위트 재실행 Phase 아님. Build 게이트가 이미 본 
    - **표본이 하나라도 기록과 다르면(안 잡힘) 표본 감사를 버리고 남은 행을 모두 다시 넣음.**
    - `안 잡힘(보고)` 행은 다시 안 넣음. 표 서류 감사(「불변 규칙」 에 있는데 표에 없는 규칙, `안 잡힘` 인데 보고 없는 행)는 감사자 tests 담당.
    - **다시 넣는 방법**: 행마다 Build 가 커밋한 변이 기록 파일(`<TASKS>/<TSK>/mutations/<ID>.mut`, 표의 변이 칸 첫머리가 ID)을 드라이버에 그대로 투입.
-     - 리포 최상위에서 `heavy.sh mutate.sh run <TASKS>/<TSK>/mutations --ids <고른 ID>` (두 스크립트 모두 `.claude/skills/dflow-dev/scripts/`).
+     - 리포 최상위에서 `node heavy.mjs node mutate.mjs run <TASKS>/<TSK>/mutations --ids <고른 ID>` (두 스크립트 모두 `.claude/skills/dflow-dev/scripts/`).
      - 결과 줄 `MUTATION_RESULT <ID> caught|survived|anchor …` 가 판정 (caught = 잡힘).
      - 변이 위치 찾으려고 소스를 다시 읽거나 조사 에이전트 띄우기 금지.
      - `anchor`(원문이 파일에 정확히 한 번 있지 않음) = 기록 결함 → 고치지 말고 보고.
@@ -55,4 +55,4 @@ Verify = 전체 스위트 재실행 Phase 아님. Build 게이트가 이미 본 
   - 그러므로 넣은 변이를 되돌리지 않고 끝내지 않음.
   - 재실행 여부는 오케스트레이터가 정함 — 보고에 "생략 조건 충족" 같은 판정 기록 금지.
 - 재시도 1회. 두 번째 실패는 중단하고 사람에게 보고. 감사 지적 처리 왕복은 재시도에 안 셈.
-- 전체 스위트·빌드·E2E 는 `heavy.sh` 로 감쌈 (dev-discipline.md 「무거운 명령 줄 세우기」 정본). `HEAVY_BUSY` 는 재시도에 안 셈.
+- 전체 스위트·빌드·E2E 는 `heavy.mjs` 로 감쌈 (dev-discipline.md 「무거운 명령 줄 세우기」 정본). `HEAVY_BUSY` 는 재시도에 안 셈.

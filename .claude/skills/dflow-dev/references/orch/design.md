@@ -20,7 +20,7 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 이 단계
 - **이미 `ip` 이상**(반려 재작업이거나, build-start 성공 뒤 state.json 만 `design` 에 남아 재개가 여기로 들어옴):
   - design-reopen 호출 금지. 서버는 설계 상태 `review`, 또는 `accepted`∧단계 `dd` 일 때만 그 동사를 받음 (migration 0108_design_state.sql 259~262행).
   - 「승인된 설계 고정」 절의 `"{TSK} 설계 게이트 불통(구현 중) — 사람이 설계를 고친 뒤 --resume 하세요"` 알리고 끝.
-- **단계가 아직 `ds`·`dd`**: 빠진 절을 적어 `dflow.sh design-reopen <ref> --reason "<빠진 절>"` 호출.
+- **단계가 아직 `ds`·`dd`**: 빠진 절을 적어 `dflow.mjs design-reopen <ref> --reason "<빠진 절>"` 호출.
   - exit 0 → 서버가 review 는 설계 검토 대기로, human 은 사람 설계 대기로 되돌림. 빠진 절을 사유로 알리고 끝.
   - exit 6(네트워크) → 다시 부를 수 있는 상태로 알리고 끝.
   - 그 밖의 exit = 서버 거부 → 그 코드를 적어 알리고 끝.
@@ -38,18 +38,18 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 이 단계
 - 옛 서버 → 이미 있는 design.md 로 곧바로 Design 게이트.
 - 게이트 통과 시 design.md 새 커밋 없음 (human 덮어쓰기 커밋은 「설계 받기」 가 이미 함).
 
-   - **Design 게이트 뒤 구현 전환**: 게이트 통과하면 아래 모듈 기준선보다 먼저 `dflow.sh build-start <ref>` 호출 (늘 호출 — 옛 서버는 `BUILD_START_UNSUPPORTED` 로 넘어감).
+   - **Design 게이트 뒤 구현 전환**: 게이트 통과하면 아래 모듈 기준선보다 먼저 `dflow.mjs build-start <ref>` 호출 (늘 호출 — 옛 서버는 `BUILD_START_UNSUPPORTED` 로 넘어감).
      - exit 4 → Build 로 가지 않고 설계 완료·선행 대기로 멈춤. 갈래와 멈춤 절차 = 「설계 선행」 2.
-   - **범위를 붙인다(계약 2.11)**: `dflow.sh contract-ge 2.11` exit 0 이면 위 호출 = `dflow.sh build-start <ref> --scope <범위>`.
+   - **범위를 붙인다(계약 2.11)**: `dflow.mjs contract-ge 2.11` exit 0 이면 위 호출 = `dflow.mjs build-start <ref> --scope <범위>`.
      - 범위 = state.json `scope`(`full`·`build`). 반려 재작업(`orch/rework.md`)이면 방식과 무관하게 `rework`.
      - 범위 `design` 은 build-start 호출 안 함 (아래 「설계만 멈춤」).
    - **Design 게이트 뒤(대응표가 있을 때만)**: 첫 Build 단위를 띄우기 전에 모듈 게이트 명령의 기준선을 잼.
-     - design.md 「변경 파일 목록」 경로를 파일에 적어 `gate-scope.sh --base <기점> --ignore <TASKS>/<TSK>/ --paths-file <파일>` 로 예측 범위를 봄.
-     - `module` 줄의 명령마다 `baseline.sh run --base <기점> --task-dir <TASKS>/<TSK> -- '<명령>'` 으로 잼.
+     - design.md 「변경 파일 목록」 경로를 파일에 적어 `gate-scope.mjs --base <기점> --ignore <TASKS>/<TSK>/ --paths-file <파일>` 로 예측 범위를 봄.
+     - `module` 줄의 명령마다 `baseline.mjs run --base <기점> --task-dir <TASKS>/<TSK> -- '<명령>'` 으로 잼.
      - 트리가 기점과 코드가 같을 때만 잼: `git diff --name-only <기점>..HEAD` 와 `git status --porcelain` 이 Task 문서 밖에서 빔.
      - 결과는 state.json `baseline.cmds` 에 `"scope": "module"` 을 붙여 더함. 정본 = dev-discipline 「게이트 범위 대응표(.dflow-gates)」.
 
-2. **Design 게이트 뒤**(위 「Design 게이트」): `dflow.sh build-start <ref>` 결과로 가름. 모드와 무관하게 늘 호출.
+2. **Design 게이트 뒤**(위 「Design 게이트」): `dflow.mjs build-start <ref>` 결과로 가름. 모드와 무관하게 늘 호출.
 
    | 결과 | 처리 |
    |---|---|
@@ -71,11 +71,11 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 이 단계
 3. `git push origin <agent 브랜치>` 로 설계를 원격에 남김 (사람의 검토와 이어받기가 그 브랜치를 씀).
    - 훅에 거부되면 우회하지 않고 보고.
    - 그 밖의 이유로 실패하면 4 를 하지 않고 사실 알리고 끝. 다시 돌리면 이어 감 (계약 2.11 은 `orch/start.md` 「끝나지 않은 설계 멈춤 이어받기」 가 마저 함).
-4. 계약 2.11(`dflow.sh contract-ge 2.11` exit 0)이면 `dflow.sh design-done <ref>` 호출. 서버가 단계 `dd`, 설계 상태 `review` 로 두고 도는 PC 를 비움 (좌석 「설계 검토 대기」).
+4. 계약 2.11(`dflow.mjs contract-ge 2.11` exit 0)이면 `dflow.mjs design-done <ref>` 호출. 서버가 단계 `dd`, 설계 상태 `review` 로 두고 도는 PC 를 비움 (좌석 「설계 검토 대기」).
    - exit 6(네트워크) → 멈춤 계속 (다시 돌리면 이어받기가 마저 함).
    - exit 11 = 서버 거부 → 그 코드를 적어 보고하고 끝.
    - 그 밖의 exit → `failed design-done <exit>` 알리고 끝.
-   - 옛 서버 → `dflow.sh heartbeat <ref> --phase wait_review` 호출. 실패해도(계약 2.10 전 서버는 400) 멈춤 계속 — 좌석 이름표만 틀리고, 이어 갈지는 로컬 state.json 으로 판정.
+   - 옛 서버 → `dflow.mjs heartbeat <ref> --phase wait_review` 호출. 실패해도(계약 2.10 전 서버는 400) 멈춤 계속 — 좌석 이름표만 틀리고, 이어 갈지는 로컬 state.json 으로 판정.
 5. supervised 는 알리고 끝:
    - 계약 2.11: `"{TSK} 설계 완료·검토 대기 — agent 브랜치의 design.md 를 검토·수정해 push 한 뒤 「설계 승인」을 누르면 팀장이 이어 간다(팀장이 없으면 /dflow-dev {TSK})"`
    - 옛 서버: `"{TSK} 설계 완료·검토 대기 — design.md 를 검토·수정한 뒤 /dflow-dev {TSK} --scope build 로 이어 간다"`

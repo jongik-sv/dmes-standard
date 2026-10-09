@@ -13,7 +13,7 @@ API 시험만으로는 화면 JavaScript(DOM 바인딩·이벤트·fetch 호출)
   - 팀원 워크트리는 lockfile 로만 설치(`/dflow-dev` 「--worker」 H) → 리포에 설치 절차 필요.
   - 스캐폴드가 빠뜨렸는데 화면 작업이 왔으면 그 작업에서 추가 + build-log.md 「설계 이탈」 에 기록.
 - **통합 작업(itest)** 관통 시나리오도 API 아니라 브라우저로 실행.
-- 화면 작업은 시험 중 화면별 스크린샷을 `<TASKS>/<TSK>/screens/*.png`(`<TASKS>/<TSK>` = `dflow.sh taskdir <ref>`) 로 남겨 커밋. 모양은 자동 시험이 판정 못 하므로 승인자가 이 파일로 화면을 봄.
+- 화면 작업은 시험 중 화면별 스크린샷을 `<TASKS>/<TSK>/screens/*.png`(`<TASKS>/<TSK>` = `dflow.mjs taskdir <ref>`) 로 남겨 커밋. 모양은 자동 시험이 판정 못 하므로 승인자가 이 파일로 화면을 봄.
 - 시험은 브라우저 종류·개인 환경에 의존 금지. 사람·에이전트가 눈으로 확인할 때 쓰는 브라우저 = 각자 환경이 정함 (이 문서는 안 정함).
 
 ## 스모크 넷
@@ -30,9 +30,9 @@ API 시험만으로는 화면 JavaScript(DOM 바인딩·이벤트·fetch 호출)
 
 화면 작업·E2E 서버는 **리포의 서버 실행 스크립트 쓰지 않고 직접 띄운다.** `be-run.sh`·`fe-run.sh` 처럼 이름·포트 기준으로 다른 인스턴스·포트 점유 프로세스를 정리하는 스크립트(`pgrep -f`·`pkill`·`killall`·전역 `gradlew --stop` 등)는 같은 머신의 다른 체크아웃 서버까지 죽임.
 
-- 빈 포트 = `.claude/skills/dflow-dev/scripts/free-port.sh` 로 OS 에서 받음. 번호를 눈으로 고르지 않음 (같은 PC 다른 팀원 서버와 충돌).
+- 빈 포트 = `node .claude/skills/dflow-dev/scripts/free-port.mjs` 로 OS 에서 받음. 번호를 눈으로 고르지 않음 (같은 PC 다른 팀원 서버와 충돌).
   - 스크립트 출력 = 포트 번호 한 줄.
-  - Bash 호출 사이에 셸 변수가 안 남음 → 받은 번호를 기록해 그 번호로 띄우거나, 한 호출 안에서 `PORT=$(.claude/skills/dflow-dev/scripts/free-port.sh) && …` 로 이어 씀.
+  - Bash 호출 사이에 셸 변수가 안 남음 → 받은 번호를 기록해 그 번호로 띄우거나, 한 호출 안에서 `PORT=$(node .claude/skills/dflow-dev/scripts/free-port.mjs) && …` 로 이어 씀.
   - 예: `./gradlew :api:bootRun --no-daemon --args='--server.port=<빈 포트>'` (`--no-daemon` = 사용자 전역 Gradle 데몬 공유·접촉 금지), `next dev --port <빈 포트>`.
   - 끝에 `&` 붙여 띄우는 서버 기동은 가드 훅 timeout 검사 면제. 그 밖의 `gradlew` 호출은 Bash 도구 timeout 300000-600000.
   - 받은 포트는 바로 닫히므로 서버 bind 전에 남이 가져갈 수 있음 (드묾). "Address already in use" 로 못 뜨면 포트 다시 받아 기동.
@@ -43,7 +43,7 @@ API 시험만으로는 화면 JavaScript(DOM 바인딩·이벤트·fetch 호출)
   - 리포에 재투입 절차 없으면 시험 준비 단계(beforeAll·beforeEach 등)에 둠.
   - 스키마 변경(마이그레이션 추가) 때만 서버 재기동.
 - 선택지 — Spring Boot 백엔드는 `bootWar`(또는 `bootJar`) 산출물을 `java -jar` 로 띄워도 됨. 서버 도는 동안 Gradle 데몬 JVM 이 없어 E2E 한 건에 약 1GB 절약.
-  - 산출물 빌드 = 무거운 Gradle 호출 → `heavy.sh` 로 감싸고 Bash 도구 timeout 300000-600000 (팀원 세션은 가드 훅이 더 짧으면 거부): `.claude/skills/dflow-dev/scripts/heavy.sh ./gradlew :api:bootWar`. 서버 자체(`java -jar`)는 안 감쌈 — 서버 슬롯은 아래 「E2E 서버 슬롯」 의 `acquire` 가 잡음.
+  - 산출물 빌드 = 무거운 Gradle 호출 → `heavy.mjs` 로 감싸고 Bash 도구 timeout 300000-600000 (팀원 세션은 가드 훅이 더 짧으면 거부): `node .claude/skills/dflow-dev/scripts/heavy.mjs ./gradlew :api:bootWar`. 서버 자체(`java -jar`)는 안 감쌈 — 서버 슬롯은 아래 「E2E 서버 슬롯」 의 `acquire` 가 잡음.
   - `java -jar` 는 상대 경로(파일 DB `jdbc:h2:file:./data/…`, `./logs` 등)를 **실행 폴더(cwd) 기준**으로 풂. 모듈 폴더에서 실행하거나 `--spring.datasource.url=<절대경로 URL>` 전달. 안 그러면 다른 체크아웃(메인·다른 팀원 워크트리) DB 를 잡음. 예: `cd api && java -jar build/libs/<산출물>.war --server.port=<빈 포트>`.
   - 띄운 `java` PID 를 기록, 끝나면 아래 거두기 규칙대로 그 PID 를 죽임.
 - 끝나면 **자기가 띄운 프로세스만** 거둠:
@@ -56,16 +56,16 @@ API 시험만으로는 화면 JavaScript(DOM 바인딩·이벤트·fetch 호출)
 ## E2E 서버 슬롯
 
 **E2E 서버는 띄울 때 슬롯을 붙잡고, 끌 때 푼다** (dev-discipline.md 「무거운 명령 줄 세우기」).
-1. 서버 띄우기 직전 `.claude/skills/dflow-dev/scripts/heavy.sh acquire e2e-<TSK>` 호출.
+1. 서버 띄우기 직전 `node .claude/skills/dflow-dev/scripts/heavy.mjs acquire e2e-<TSK>` 호출.
    - `HEAVY_ACQUIRED` 확인 (`HEAVY_BUSY` 면 다시 호출).
    - Bash 도구 timeout 300000-600000 (팀원 세션은 가드 훅이 더 짧으면 거부 — `release` 는 면제).
    - 소유자 = 이 세션(`CLAUDE_PID`).
    - `acquire` 는 일반 슬롯 아니라 **E2E 풀**(`e2e-<i>`, `DFLOW_HEAVY_E2E_SLOTS`, 기본 1)을 잡음. 서버가 떠 있는 동안에도 다른 팀원 게이트·빌드는 일반 슬롯에서 돎.
    - E2E 풀이 차 있으면(다른 팀원 E2E 서버) `HEAVY_BUSY e2e=<n> …` 로 반환.
 2. 서버는 「서버 프로세스」 규칙대로 빈 포트에 직접 띄움. 백엔드+프런트 함께여도 슬롯 하나.
-   - 이 세션의 시험 명령은 `heavy.sh` 로 감싸도 붙잡은 슬롯 재사용(`HEAVY_REUSE`) — 두 번째 슬롯 대기 없음.
-   - 도커 필요 시험(`heavy.sh --pool docker`)은 도커 슬롯만 추가로 잡음.
-3. **E2E 끝나면 성공·실패·중단 무관하게 서버 반드시 종료** (「서버 프로세스」 거두기 규칙). 이어 `.claude/skills/dflow-dev/scripts/heavy.sh release` 로 슬롯 해제.
+   - 이 세션의 시험 명령은 `heavy.mjs` 로 감싸도 붙잡은 슬롯 재사용(`HEAVY_REUSE`) — 두 번째 슬롯 대기 없음.
+   - 도커 필요 시험(`heavy.mjs --pool docker`)은 도커 슬롯만 추가로 잡음.
+3. **E2E 끝나면 성공·실패·중단 무관하게 서버 반드시 종료** (「서버 프로세스」 거두기 규칙). 이어 `node .claude/skills/dflow-dev/scripts/heavy.mjs release` 로 슬롯 해제.
    - 서버를 켜 둔 채 다음 Phase 로 넘기지 않음.
    - Phase 서브에이전트는 끝나기 전에 자기 서버를 끄고 슬롯 해제.
 4. release 를 잊으면 세션 종료 또는 1시간(`DFLOW_HEAVY_HOLD_TTL`) 뒤에야 회수. 그동안 E2E 풀(기본 한 자리)이 막혀 다른 팀원 E2E 대기.
@@ -73,7 +73,7 @@ API 시험만으로는 화면 JavaScript(DOM 바인딩·이벤트·fetch 호출)
 **E2E 풀의 대가**: E2E 풀은 일반 슬롯 K 와 따로 셈 → PC 전체 동시 무거운 스택 최대 K+1 (E2E 풀 한 자리 추가), RAM 기준 K 초과.
 - 메모리 빠듯한 PC 면 사람이 `DFLOW_HEAVY_E2E_SLOTS=0` 으로 옛 동작 복귀. 그러면 `acquire` 가 일반 슬롯 하나를 붙잡고 E2E 서버가 게이트와 같은 줄에 섬.
 - 이 값 = 사람이 정함 (워커는 안 바꿈).
-- 독점 실행(`heavy.sh --exclusive`)은 일반 풀만 비움 → 떠 있는 E2E 서버는 안 멈춤.
+- 독점 실행(`heavy.mjs --exclusive`)은 일반 풀만 비움 → 떠 있는 E2E 서버는 안 멈춤.
 
 서버를 시험 러너 안에서 띄우고 치우는 리포(globalSetup 등)는 acquire 없이 시험 명령만 감쌈.
 

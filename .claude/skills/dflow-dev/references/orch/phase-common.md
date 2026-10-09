@@ -2,7 +2,7 @@
 
 SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 단계 시작 금지. 모든 단계 공통 규칙(게이트 집행 원칙·상태 모델·서버 통신) = SKILL.md.
 
-**띄울 Phase 의 프롬프트 템플릿만 읽음**: `.claude/skills/dflow-dev/scripts/sections.sh .claude/skills/dflow-dev/references/phase-prompt.md '변수' '템플릿'` (Verify 감사자 = `orch/verify.md` 가 「감사 템플릿」 추가로 읽게 함). 템플릿은 Phase 공통 → 같은 세션에서 읽었고 압축 없었으면 다시 읽지 않음.
+**띄울 Phase 의 프롬프트 템플릿만 읽음**: `node .claude/skills/dflow-dev/scripts/sections.mjs .claude/skills/dflow-dev/references/phase-prompt.md '변수' '템플릿'` (Verify 감사자 = `orch/verify.md` 가 「감사 템플릿」 추가로 읽게 함). 템플릿은 Phase 공통 → 같은 세션에서 읽었고 압축 없었으면 다시 읽지 않음.
 
 ## Phase 02~05 — Design → Build → Verify → Refactor
 
@@ -54,7 +54,7 @@ Phase 종료마다 오케스트레이터가:
    - **pane 자체를 닫는 도구 없음.** TaskStop = 에이전트 종료만. pane 이 화면에서 사라지는지는 실행 하네스(FleetView 등) 몫
    - 종료 후 pane 이 남으면 하네스에 보고할 건이지 이 스킬이 우회할 대상 아님 — 없는 API 지어내기 금지
 4. 실패 → **즉시 중단**: `"{TSK} {Phase} 실패 — {사유}. phase 유지, 재실행 시 같은 Phase 재개."`
-   - 예외: 게이트 신규 실패가 **모두** 타이밍·성능(부하 민감) 테스트면 먼저 그 테스트 파일만 `heavy.sh --exclusive` 로 단독 재실행 — 통과하면 실패 아님 (dev-discipline 「부하 민감 테스트(타이밍·성능)의 단독 재실행」)
+   - 예외: 게이트 신규 실패가 **모두** 타이밍·성능(부하 민감) 테스트면 먼저 그 테스트 파일만 `heavy.mjs --exclusive` 로 단독 재실행 — 통과하면 실패 아님 (dev-discipline 「부하 민감 테스트(타이밍·성능)의 단독 재실행」)
    - Build 게이트와 Verify 만 1회 재시도 (수정 = Build 규율, dev-discipline 참조)
    - **Build 게이트 실패 시 바로 failed 로 끝내지 않음.** 같은 Build 서브에이전트(구현 단위 여럿이면 마지막 단위)에 실패 목록(신규 실패 테스트 이름 + 출력 꼬리)과 "재시도 때는 단위 범위 제한 없이 Build 전체를 고친다" 를 넘겨 고치게 한 뒤 Build 게이트 재실행
    - **그 에이전트가 sonnet 이면 이어 붙이지 않음** — TaskStop 뒤 opus 새 에이전트 `<TSK>-build-retry` 에 같은 두 가지(`{FAILURES}`, `{UNIT}` = 재시도 표기, phase-prompt.md 변수표)를 넘겨 띄움

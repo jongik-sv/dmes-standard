@@ -28,10 +28,10 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 이 단계
    3. `git push origin <agent 브랜치>` 로 설계를 원격에 남김 (다른 PC·새 워크트리가 이어받음).
       - 훅에 거부되면 우회하지 않고 보고.
       - 그 밖의 이유로 실패하면 4·5 를 하지 않고 사실 알리고 끝. 다시 돌리면 이어 감 (계약 2.11 은 `orch/start.md` 「끝나지 않은 설계 멈춤 이어받기」 가 마저 함).
-   4. `dflow.sh heartbeat <ref> --phase wait_pred` 호출. 실패해도(옛 서버는 400) 멈춤 계속.
+   4. `dflow.mjs heartbeat <ref> --phase wait_pred` 호출. 실패해도(옛 서버는 400) 멈춤 계속.
       - heartbeat 훅은 `wait_pred` 를 안 보내므로 이 한 번이 좌석을 「선행 대기」 로 바꿈.
       - 2번 뒤에 호출 — 앞이면 훅의 다음 신호가 `design` 으로 덮음.
-      - 계약 2.11(`dflow.sh contract-ge 2.11` exit 0)이면 heartbeat 대신 `dflow.sh design-done <ref>` 호출. 서버가 단계를 `dd`(설계 완료)로 두고 좌석을 「선행 대기」 로 바꿈 (승인된 설계는 그대로).
+      - 계약 2.11(`dflow.mjs contract-ge 2.11` exit 0)이면 heartbeat 대신 `dflow.mjs design-done <ref>` 호출. 서버가 단계를 `dd`(설계 완료)로 두고 좌석을 「선행 대기」 로 바꿈 (승인된 설계는 그대로).
       - exit 6(네트워크) → 멈춤 계속 (다시 돌리면 이어받기가 마저 함).
       - exit 11 = 서버 거부 → 그 코드를 적어 보고하고 끝.
       - 그 밖의 exit → `failed design-done <exit>` 알리고 끝.
@@ -54,14 +54,14 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 이 단계
       - 재기 전에 의존성을 새 기점에 맞춤. 워커:
         - `git diff --name-only <옛 기점> <새 기점>` 에 lockfile(`package-lock.json`·`pnpm-lock.yaml`·`yarn.lock`)이 있으면 그 폴더의 `node_modules` 삭제.
         - `git rev-parse --absolute-git-dir` 를 단독으로 돌려 나온 폴더의 `dflow-prepare.done`(준비 빌드 표식)은 늘 삭제.
-        - 그 뒤 행 H 의 `deps.sh` 를 다시 호출 (75 면 다시 호출).
+        - 그 뒤 행 H 의 `deps.mjs` 를 다시 호출 (75 면 다시 호출).
         - 이유: 선행이 바꾼 워크스페이스 라이브러리의 dist 가 낡은 채 기준선을 재지 않게.
       - supervised: lockfile 이 바뀌었으면 기준선 전에 사용자에게 설치가 필요하다고 알림 (사람의 체크아웃).
    5. **선행 계약 재확인**: design.md `## 선행 기준` 표의 파일마다 `git diff --name-only <적힌 sha>..<새 기점> -- <파일>` 확인.
       - 적힌 sha 가 없거나(읽을 곳 없음) 로컬에 없으면(`git cat-file -e <sha>^{commit}` 실패 — 선행 브랜치 삭제·squash) 바뀐 것으로 봄.
       - 하나라도 바뀌었으면 Design 을 **검토 모드**로 다시 띄움 (`phase=design`, `{DESIGN_FIRST}` 에 검토 모드임과 종전 design.md 의 `## 선행 기준`·바뀐 파일의 `git diff <적힌 sha>..<새 기점> -- <파일>` 요지). 어긋난 절만 고치고 Design 게이트를 다시 돎.
       - 계약 2.11 에서 서버 `design_state` 가 `accepted`(승인·확정된 설계)면 방식에 따라 다름. 이 지점은 build-start 를 아직 안 불러 단계가 `dd` 이므로 design-reopen 을 받음 (migration 0108_design_state.sql 259~262행).
-        - `design_mode=review`: 위처럼 고친 뒤 게이트를 돌고 design.md 를 커밋·push, Build 로 가지 않고 `dflow.sh design-reopen <ref> --reason "선행 계약 바뀜: <파일…>"` 호출.
+        - `design_mode=review`: 위처럼 고친 뒤 게이트를 돌고 design.md 를 커밋·push, Build 로 가지 않고 `dflow.mjs design-reopen <ref> --reason "선행 계약 바뀜: <파일…>"` 호출.
         - `human`: design.md 를 고치지 않고 같은 사유로 design-reopen 호출.
         - 둘 다 exit 0 → 사람이 다시 검토해 「설계 승인」(review)하거나 개발 브랜치의 설계를 고쳐 다시 「설계 확정」(human)하도록 알리고 끝.
         - exit 6(네트워크) → 다시 부를 수 있는 상태로 알리고 끝.

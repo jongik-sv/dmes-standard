@@ -27,14 +27,14 @@ description 사용법 줄에 노출 안 함. `.dflow-agent` 있다고 워커 모
 
 **실행 = 공용 스크립트 한 줄** (팀장의 선행 반영 사전 검사와 같은 판정, 2026-09-23). 먼저 `git fetch origin` 을 단독 실행한 뒤 호출.
 ```bash
-.claude/skills/dflow-dev/scripts/pred-reflected.sh <TASKS> <선행TSK> <기본브랜치>
+node .claude/skills/dflow-dev/scripts/pred-reflected.mjs <TASKS> <선행TSK> <기본브랜치>
 ```
 - `<TASKS>` = 선행 Task 폴더의 부모. 팀장이 넘긴 `{TASK_DIR}` 의 부모 디렉터리(`$(dirname {TASK_DIR})`) 사용.
   선행은 같은 프로젝트·모듈 안(의존은 프로젝트 경계를 안 넘음) → 같은 `<TASKS>` 아래.
 - 출력 첫 낱말 `REFLECTED` = 반영 확인.
 - `NOT_REFLECTED`·`UNKNOWN` = 모두 `skipped 선행 승인 대기` (지금 동작과 같음).
 - 아래 블록 = 스크립트 동작 설명. 워커가 직접 치지 않음.
-- 스크립트 안의 git 호출은 `deps.sh` 와 같은 방식. 워커 git 호출 규칙(명령 치환 금지)은 워커가 직접 치는 Bash 줄에만 해당.
+- 스크립트 안의 git 호출은 `deps.mjs` 와 같은 방식. 워커 git 호출 규칙(명령 치환 금지)은 워커가 직접 치는 Bash 줄에만 해당.
 
 판정 = `phase=merged` **AND** (아래 세 증거 중 하나라도 참).
 - **첫 증거가 가장 강함**: 선행 산출물이 `origin/<기본브랜치>` 기점에 실재한다는 직접 증거. 커밋 그래프 조상 관계는 git 이 보증 → 트레일러·state.json 값처럼 빠뜨리거나 잘못 쓸 수 있는 경로를 안 거침.
@@ -52,14 +52,14 @@ git log origin/<기본브랜치> --merges --grep='^merge: <선행TSK> ' --format
 - 미반영 = `show` 실패(그 경로에 파일 없음) · `phase` ≠ `merged` · 세 증거 모두 판정 불가/거짓. 그때 `skipped 선행 승인 대기` 로 끝.
 - `phase` 만으로는 부족: state.json `phase` 는 파일 한 줄이라 실제 머지 없이도 쓰일 수 있음. 트레일러는 과거 커밋에 없을 수 있어 증거를 셋으로 넓힘.
 - 확인 통과 = 선행 코드가 기점에 있음 → 스택할 대상도 이유도 없음.
-- 판정 이력(실측 사례) = `scripts/pred-reflected.sh` 머리 주석.
+- 판정 이력(실측 사례) = `scripts/pred-reflected.mjs` 머리 주석.
 - 트레일러 패턴(증거 2)의 콜론 뒤 **공백 필수 + 따옴표로 감쌈.** 실제 트레일러 = `DFlow-Order: <uuid>`. 공백 빼면 매치 0건 → 「반영되지 않음」 과 구분 불가 → 정상 선행까지 `skipped`.
 
 ## 설계 선행 (계약 2.9)
 
 정본 = `orch/design-first.md` 「설계 선행 (계약 2.9)」. 워커에서 달라지는 것만 기록.
 
-- **행 G 갈래 1 대신**: `dflow.sh contract-ge 2.9` exit 0 이면 `reached` 거짓 선행을 `skipped 선행 미승인` 으로 끝내지 않고 `claim --design-first` 로 진행(`orch/base.md` 2번 「v2.9 설계 선행 후보」).
+- **행 G 갈래 1 대신**: `dflow.mjs contract-ge 2.9` exit 0 이면 `reached` 거짓 선행을 `skipped 선행 미승인` 으로 끝내지 않고 `claim --design-first` 로 진행(`orch/base.md` 2번 「v2.9 설계 선행 후보」).
   - 팀장은 선행 대기 작업을 빈 슬롯에만 설계 선행으로 줌(`/dflow-team` 「선행 대기의 설계 선행」).
   - 서버가 `DESIGN_FIRST_TOO_EARLY` 로 거부 → `.result` 에 `skipped 선행 미충족(설계 선행 불가: <ref…>)` (`<ref…>` = 그 JSON `external_ref` 를 공백으로 이은 것).
 - **멈춤**: 멈춤 절차 5번의 `.result` = `{TSK} {ID8} <agent 브랜치> <push 한 head_sha> - design_waiting <미충족 선행 ref…>`.
@@ -76,15 +76,15 @@ git log origin/<기본브랜치> --merges --grep='^merge: <선행TSK> ' --format
 
 행 H 의 설치 블록:
 ```bash
-.claude/skills/dflow-dev/scripts/deps.sh   # 75(DEPS_BUSY)면 잠시 뒤 다시 부른다. 그 밖에 0 이 아니면 .result 에 failed deps <DEPS_FAILED 줄의 명령과 exit>
+node .claude/skills/dflow-dev/scripts/deps.mjs   # 75(DEPS_BUSY)면 잠시 뒤 다시 부른다. 그 밖에 0 이 아니면 .result 에 failed deps <DEPS_FAILED 줄의 명령과 exit>
 ```
 - `DEPS_GRADLE_JAR_MISSING <폴더>` 줄 = 실패 아닌 경고. 그 폴더의 `gradlew` 는 wrapper jar 없어 안 돎.
   - 그 폴더의 Gradle 작업이 이번 작업에 필요하면: jar 커밋·`.gitignore` 수정 금지, 팀장에게 이슈로 보고(수동 실행이면 사용자에게 알림).
   - 필요 없는 폴더(예제·PoC)는 무시.
 - 설치 규칙 = 위 표와 같음(lockfile 로 관리자 선택 · `package.json` 있고 `node_modules` 없을 때만 · lockfile 없으면 설치 안 함).
-  - 세부(공용 캐시 복제(npm, 캐시 없으면 `npm ci`) · 메인 체크아웃 복제(pnpm, `DFLOW_DEPS_MAIN_CLONE=1`) · yarn · postinstall · 캐시 보존) 정본 = `scripts/deps.sh` 머리 주석.
+  - 세부(공용 캐시 복제(npm, 캐시 없으면 `npm ci`) · 메인 체크아웃 복제(pnpm, `DFLOW_DEPS_MAIN_CLONE=1`) · yarn · postinstall · 캐시 보존) 정본 = `scripts/deps.mjs` 머리 주석.
   - 스크립트가 처리 → 워커가 따로 안 함.
-- **준비 빌드**: 설치 끝나면 `deps.sh` 가 리포 루트 `.dflow-gates` 의 `prepare<TAB><명령>` 줄(예: 워크스페이스 라이브러리 빌드)을 워크트리마다 한 번 실행 — 새 워크트리에 dist 없어 첫 게이트가 실패하지 않게.
+- **준비 빌드**: 설치 끝나면 `deps.mjs` 가 리포 루트 `.dflow-gates` 의 `prepare<TAB><명령>` 줄(예: 워크스페이스 라이브러리 빌드)을 워크트리마다 한 번 실행 — 새 워크트리에 dist 없어 첫 게이트가 실패하지 않게.
   - `DEPS_PREPARE_FAIL` = 경고(exit 0). 게이트가 같은 원인으로 실패하면 그 결과로 판정.
   - 이번 호출에서 실제로 설치했으면 준비 빌드는 안 돌고 `DEPS_PREPARE_PENDING` + exit 75 로 끝남. `DEPS_BUSY` 처럼 실패 아님.
   - 다시 부르면 설치는 건너뛰고 준비 빌드만 실행 (한 호출이 10분 초과 금지).
@@ -96,7 +96,7 @@ git log origin/<기본브랜치> --merges --grep='^merge: <선행TSK> ' --format
 ## 그 밖의 워커 규칙
 
 - **도커 금지 모드(워커)**: 워커는 기본적으로 도커 금지.
-  - 팀장 포인터의 `DOCKER` 값(worker-prompt.md 변수표)이 `allow` 일 때만(`docker` 태그 Task) 풀림. 그때도 `dflow.sh config no_docker` 가 `1` 이면 금지.
+  - 팀장 포인터의 `DOCKER` 값(worker-prompt.md 변수표)이 `allow` 일 때만(`docker` 태그 Task) 풀림. 그때도 `dflow.mjs config no_docker` 가 `1` 이면 금지.
   - 옛 포인터의 `NO_DOCKER` 는 안 봄.
   - 기준선 전에 판정, 출처를 기준선 기록에 남김.
   - 판정·제외·도커 슬롯·기록 정본 = dev-discipline.md 「도커 사용 규칙」. 도커 런타임을 켜지 않는 규칙은 금지 모드와 무관하게 항상 지킴.

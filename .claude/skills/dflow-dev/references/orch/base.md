@@ -12,7 +12,7 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 단계 시
      - **v2.8: `d.waived === true` = **강제 진행 간선** (사람이 이 선행을 기다리지 않기로 면제).**
        - 완료 판정·기본 브랜치 반영 확인·스택 안 함
        - 「강제 진행: <선행> 은 스텁으로 대신한다」 한 줄 남김
-       - 그 선행 계약(show 의 선행 spec·acceptance, 없으면 `dflow.sh show <선행 ref>`)을 읽고 아래 「강제 진행 스텁 규칙」대로 스텁/목 배치 (Phase 프롬프트 `{FORCE_STUB}`)
+       - 그 선행 계약(show 의 선행 spec·acceptance, 없으면 `dflow.mjs show <선행 ref>`)을 읽고 아래 「강제 진행 스텁 규칙」대로 스텁/목 배치 (Phase 프롬프트 `{FORCE_STUB}`)
        - 기점 = 항상 `origin/<기본브랜치>`. 면제된 선행에는 `head_sha` 없고, 승인 전 브랜치 위에 쌓으면 선행 반려 시 함께 무너짐
        - 대화형 = 행 G 갈래 1 처럼 로컬 선행 산출물 있으면 스택 가능. 팀원(워커) 모드 = 안 함(행 G)
      - **v2.3 서버는 판정 결과를 `d.reached` 로 줌** (= `stage ∈ {im,xx}` ∨ `order_approved` ∨ `actual_pct ≥ 100`).
@@ -27,7 +27,7 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 단계 시
        - merge 후 이어서 진행
        <!-- worker:begin -->
        `--worker` 면 merge 안 하고 그 `head_sha` 를 기점으로 삼아 아래 claim 절차대로 스택(「--worker」 B).
-       행 B·G 세부 = worker-mode.md 「행 G」 — 처음 닿을 때 `.claude/skills/dflow-dev/scripts/sections.sh .claude/skills/dflow-dev/references/worker-mode.md '행 G'` 로 읽음.
+       행 B·G 세부 = worker-mode.md 「행 G」 — 처음 닿을 때 `node .claude/skills/dflow-dev/scripts/sections.mjs .claude/skills/dflow-dev/references/worker-mode.md '행 G'` 로 읽음.
        <!-- worker:end -->
      - `head_sha` 없으면 갈래 셋으로 나눔 — **"선행 미승인" 하나로 뭉개기 금지** (뭉개면 틀린 전제로 스택을 쌓거나 착수를 포기하고, 오분류가 무음이라 아무도 못 알아챔):
        1. 미승인 + stage 미달 → 진짜 미승인. 선행 산출물이 로컬 `agent/` 브랜치에 실재하는지 확인.
@@ -38,7 +38,7 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 단계 시
           `--worker` 면 갈래 1·2 스택 안 함. 갈래 1 = `skipped` 로 끝. 갈래 2 = 기본 브랜치 반영 확인될 때만 진행, 아니면 `skipped` 로 끝(「--worker」 G).
           <!-- worker:end -->
        3. `order_approved:true` 인데 `head_sha` 없음 → 승인됐으나 evidence 가 비었거나 주문 재발행으로 옛 완료 보고가 가려진 경우. 한 줄 남기고 진행.
-   - **v2.9 설계 선행 후보**: `dflow.sh contract-ge 2.9` exit 0 이면 `reached` 거짓인 선행(위 갈래 1)을 스택·착수 불가로 가르지 않고 **설계 선행 후보**로 둠.
+   - **v2.9 설계 선행 후보**: `dflow.mjs contract-ge 2.9` exit 0 이면 `reached` 거짓인 선행(위 갈래 1)을 스택·착수 불가로 가르지 않고 **설계 선행 후보**로 둠.
      - 아래 claim 을 `--design-first` 로 하고 그 출력으로 모드 결정(「설계 선행」 1)
      - 기점 계산에서 그 선행 제외 (코드 아직 없음)
      - 선행이 구현 전(`as`·`ds`·미착수)인지는 스킬이 판정 안 함 — 서버가 거부 (exit 4 + `DESIGN_FIRST_TOO_EARLY`)
@@ -50,7 +50,7 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 단계 시
      4. 표식: 코드에 `FORCE-STUB: <선행 TSK-ID>` 주석. design.md 와 완료 보고에 「강제 진행 스텁」 절(대신한 선행·대상·가정한 계약).
      5. 완료 보고 뒤 승인은 스텁 제거 하위 Task(`<후행 ref>.stub.<선행 ref 치환>`) 끝날 때까지 잠김 — 정상.
      6. 스텁 제거 하위 Task 를 맡으면: `git grep -n 'FORCE-STUB: <선행 TSK>'` 0건 + 후행 테스트가 실구현 상대로 통과해야 완료. 실구현 상대로 실패하면 계약 어긋남으로 보고 (스텁 고쳐 통과시키기 금지).
-   판정 통과 후 **기점 결정 → 그 기점으로 이동 → claim.** claim 의 선행 도달 검사(dflow.sh `check_depends_local`)가 현재 HEAD 를 보기 때문. 기점 규칙 = 3번과 같음.
+   판정 통과 후 **기점 결정 → 그 기점으로 이동 → claim.** claim 의 선행 도달 검사(dflow.mjs `check_depends_local`)가 현재 HEAD 를 보기 때문. 기점 규칙 = 3번과 같음.
    - 기본 = `origin/<기본브랜치>`
    - 선행이 main 미반영이거나 미승인 스택이면 선행 산출물 있는 agent 브랜치(또는 그 `head_sha`)
    - 선행이 여럿이면 기점이 모든 선행 `head_sha` 를 조상으로 가져야 함 (`git merge-base --is-ancestor <선행 head_sha> <기점>` 전부 참). 그런 기점이 없으면 착수 불가로 스킵하고 사유 "선행을 모두 조상으로 갖는 기점 없음" 보고.

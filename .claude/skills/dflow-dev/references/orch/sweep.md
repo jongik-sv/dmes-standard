@@ -12,7 +12,7 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 단계 시
 
 0. **사전 검사 — 후보 없으면 `/dflow-merge` 안 읽음.** 스크립트로 후보 먼저 확인 (서버 조회 없이, 후보 정의 = 아래 1번과 같음).
    ```bash
-   .claude/skills/dflow-merge/scripts/sweep-check.sh --dev '<기본브랜치>'; echo "rc=$?"
+   node .claude/skills/dflow-merge/scripts/sweep-check.mjs --dev '<기본브랜치>'; echo "rc=$?"
    ```
    | 마지막 줄 | 처리 |
    |---|---|
@@ -25,10 +25,10 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 단계 시
    - 스윕을 돌리면 방언 검증 = `/dflow-merge` 「방언 검증」 이 스윕 끝에 수행
    - 이 판정 = `/dflow-team` SKILL.md 「4-0. 스윕을 부르는 규칙」 과 같음
    ```bash
-   .claude/skills/dflow-merge/scripts/dialect-check.sh run --dev '<기본브랜치>'; echo "rc=$?"
+   node .claude/skills/dflow-merge/scripts/dialect-check.mjs run --dev '<기본브랜치>'; echo "rc=$?"
    ```
 1. **후보 식별**: `/dflow-merge` 1번(`.claude/skills/dflow-merge/SKILL.md`)과 같게 로컬 + 원격으로 봄.
-   - 로컬 후보: 대상 저장소 `dflow.sh config tasks-dirs` 의 각 폴더 아래 `*/state.json` 중 `phase=reported` 전부
+   - 로컬 후보: 대상 저장소 `dflow.mjs config tasks-dirs` 의 각 폴더 아래 `*/state.json` 중 `phase=reported` 전부
    - 원격 후보: 원격 `origin/agent/*` 브랜치 tip 의 state.json 중 브랜치 이름의 id8 과 `order` 가 일치하고 `phase` ≠ `merged`
    - 같은 order 가 로컬·원격 모두 있으면 로컬 후보 하나로 합침
    - `api_base` 가 현재 `DFLOW_API_BASE`(끝 `/` 제거)와 다르면 로컬이든 원격이든 "건너뜀(다른 D'Flow)" 집계. 원격에만 있는 후보는 값이 없어도 건너뜀

@@ -35,26 +35,26 @@ LLM 자기 신고는 게이트 판정에 쓰지 않음.
 명령 하나(백엔드 testAll·마이그레이션 시험·프런트 시험처럼 여럿이면 하나씩)를 아래 캐시 스크립트로 감싸 돌림:
 
 ```bash
-.claude/skills/dflow-dev/scripts/baseline.sh run --base <기점> --task-dir <TASKS>/<TSK> -- '<테스트 명령>' 2>&1 | tail -30
+node .claude/skills/dflow-dev/scripts/baseline.mjs run --base <기점> --task-dir <TASKS>/<TSK> -- '<테스트 명령>' 2>&1 | tail -30
 # 실패 목록과 테스트 총수를 기록해 둔다. 마지막 줄이 BASELINE_MEASURED 또는 BASELINE_REUSED 다
 ```
-**기준선은 `baseline.sh` 가 스스로 `heavy.sh` 슬롯을 잡고 잼.**
-- `--` 뒤 명령에 `heavy.sh` 를 붙이지 않음.
-- 바깥에서 `baseline.sh` 를 `heavy.sh` 로 감싸지 않음.
+**기준선은 `baseline.mjs` 가 스스로 `heavy.mjs` 슬롯을 잡고 잼.**
+- `--` 뒤 명령에 `heavy.mjs` 를 붙이지 않음.
+- 바깥에서 `baseline.mjs` 를 `heavy.mjs` 로 감싸지 않음.
 - `BASELINE_BUSY` 면 같은 명령을 다시 호출.
 
-게이트·Build·변이 검증·E2E 테스트는 `heavy.sh` 로 감싸 돌림(`HEAVY_BUSY` 면 다시 호출) — 「무거운 명령 줄 세우기」(정본).
-도커를 쓰는 명령이면 `baseline.sh run … --pool docker -- '<명령>'` 으로 도커 슬롯에서 잼 — 「도커 사용 규칙」(정본).
+게이트·Build·변이 검증·E2E 테스트는 `heavy.mjs` 로 감싸 돌림(`HEAVY_BUSY` 면 다시 호출) — 「무거운 명령 줄 세우기」(정본).
+도커를 쓰는 명령이면 `baseline.mjs run … --pool docker -- '<명령>'` 으로 도커 슬롯에서 잼 — 「도커 사용 규칙」(정본).
 
 - 게이트 판정 = **기준선 대비 신규 실패 0** + **테스트 총수 미감소**.
   - "exit 0" 단독 판정 금지. 기준선이 빨간 리포에서도 게이트가 성립하려면 차분 판정이어야 함.
 - **총수는 합계 줄로 읽음.**
   - 명령이 러너 요약을 여러 번 내면(리포 스크립트가 스위트를 나눠 차례로 돌리는 경우 등) 첫 요약을 총수로 읽지 않음.
   - 리포 스크립트가 합계 줄을 내면 그 줄 = 총수·실패 수. 합계 줄이 없으면 모든 요약의 수를 더함.
-  - 기준선(`baseline.sh note --tests`)과 게이트는 같은 방법으로 읽음. 첫 요약만 읽으면 총수가 줄었다고 오판.
-- **콘솔에 총수가 안 나오는 러너(Gradle·Maven)는 명령 종료 직후 `junit-count.sh [<모듈 폴더>…]` 로 셈.**
+  - 기준선(`baseline.mjs note --tests`)과 게이트는 같은 방법으로 읽음. 첫 요약만 읽으면 총수가 줄었다고 오판.
+- **콘솔에 총수가 안 나오는 러너(Gradle·Maven)는 명령 종료 직후 `junit-count.mjs [<모듈 폴더>…]` 로 셈.**
   - 모듈 게이트 = 대응표의 그 모듈 폴더만 넘김. full = 리포 최상위에서 셈. 기준선과 게이트는 같은 폴더 인자.
-  - 실패 이름은 `--failed-file` 로 뽑아 `baseline.sh note` 에 넘김.
+  - 실패 이름은 `--failed-file` 로 뽑아 `baseline.mjs note` 에 넘김.
   - `files=0`(XML 없음 또는 모두 깨짐)이면 그 수를 기준선으로 적지 않음 — 총수 0 은 미감소 판정을 늘 통과시킴. 원인 밝히고 다시 잼.
   - 파싱은 node(같은 폴더 `junit-count.mjs`, python 불필요). node 없으면 `JUNIT_SUMMARY_NONODE`(exit 2) — 센 것으로 치지 않음.
   - 크기·인코딩 때문에 못 읽는 XML 이 있으면 합계 줄 없이 `JUNIT_ABORT`(exit 1)로 멈춤 — 이것도 센 것으로 치지 않음.
@@ -71,20 +71,20 @@ LLM 자기 신고는 게이트 판정에 쓰지 않음.
 
 ### 기준선 캐시
 
-같은 커밋 + 같은 명령 = 같은 결과 → 한 번만 잼. `baseline.sh` 가 집행자.
+같은 커밋 + 같은 명령 = 같은 결과 → 한 번만 잼. `baseline.mjs` 가 집행자.
 
 - **키 = (기점 커밋 sha, 명령 문자열과 리포 안 cwd 의 해시).**
   - 결과(exit·출력 전체·잰 시각, `note` 로 더한 총수·실패 목록) = `<git-common-dir>/dflow-baseline/<sha>-<hash>.json` + 그 로그.
   - 같은 키가 있으면 명령을 돌리지 않고 저장된 출력과 exit 를 그대로 냄.
   - 스택 기점(선행 작업의 `head_sha`)도 커밋이라 그대로 맞음.
   - 명령 문자열이 한 글자만 달라도(옵션 순서·`cd` 여부) 다른 키.
-  - 재기 전에 `baseline.sh list --base <기점>` 으로 이미 잰 명령 확인. 같은 일을 재는 명령이 있으면 그 문자열과 cwd 를 글자 그대로 씀.
+  - 재기 전에 `baseline.mjs list --base <기점>` 으로 이미 잰 명령 확인. 같은 일을 재는 명령이 있으면 그 문자열과 cwd 를 글자 그대로 씀.
 - **캐시는 기준선에만. 게이트(Build·Verify·Refactor)에는 절대 쓰지 않음.**
   - 게이트와 Phase 공통 프롬프트의 검증 명령 = `--` 뒤 명령 그대로(감싼 줄을 옮기지 않음).
   - 스크립트도 HEAD ≠ `--base` 이거나 작업 트리가 깨끗하지 않으면(`--task-dir` 아래 state.json·spec.md 는 제외) 캐시를 읽지도 쓰지도 않음.
 - 처음 잰 쪽은 출력에서 읽은 총수·실패 목록을 결과에 더함. 재사용하는 쪽은 `BASELINE_SUMMARY`·`BASELINE_FAILED` 줄(또는 json)로 같은 수를 받음(팀원마다 같은 로그를 다르게 세지 않게).
   ```bash
-  .claude/skills/dflow-dev/scripts/baseline.sh note <key> --tests <총수> --failures <실패 수> [--failed-file <실패 이름 한 줄씩>]
+  node .claude/skills/dflow-dev/scripts/baseline.mjs note <key> --tests <총수> --failures <실패 수> [--failed-file <실패 이름 한 줄씩>]
   ```
 - **재사용 사실은 기준선 기록에 남김**(`.issues` 아님).
   - state.json `baseline` 에 `"source": "cache"`, `"cache_key"`, `"measured_at"` 추가. 새로 쟀으면 `"source": "measured"`.
@@ -92,7 +92,7 @@ LLM 자기 신고는 게이트 판정에 쓰지 않음.
 - **동시 측정**: 같은 키를 둘이 동시에 재려 하면 잠금 잡은 쪽만 재고, 다른 쪽(`BASELINE_WAITING`)은 결과를 기다렸다 재사용.
   - 잰 쪽이 죽었으면(같은 host 에서 pid 없음, 또는 `DFLOW_BASELINE_LOCK_TTL` 초과) 기다리던 쪽이 가져가 직접 잼.
   - `DFLOW_BASELINE_WAIT`(기본 90초)를 넘기면 재지 않고 `BASELINE_BUSY`(exit 75)로 끝남 — 실패 아님. 같은 명령을 다시 호출. 슬롯이 차 있어도 `BASELINE_BUSY`.
-  - **다른 워커의 측정 대기 시간과 안쪽 `heavy.sh` 슬롯 대기 시간은 마감 하나(`DFLOW_BASELINE_WAIT`)를 나눠 씀** — 한 호출 총 대기 ≤ 90초 + 측정 시간.
+  - **다른 워커의 측정 대기 시간과 안쪽 `heavy.mjs` 슬롯 대기 시간은 마감 하나(`DFLOW_BASELINE_WAIT`)를 나눠 씀** — 한 호출 총 대기 ≤ 90초 + 측정 시간.
   - 결과 게시는 원자적. 먼저 쓴 쪽이 남음.
 - **끄기·갈아엎기**:
   - `DFLOW_BASELINE_CACHE=0` = 읽지도 쓰지도 않음.
@@ -111,17 +111,17 @@ LLM 자기 신고는 게이트 판정에 쓰지 않음.
 
 - **형식**: 한 줄에 `<경로 접두 또는 glob><TAB><명령>`. 빈 줄과 `#` 줄은 건너뜀.
   - `full<TAB><명령>` — 전체 게이트 명령(예약어, 한 줄 이상 필수. 여럿이면 모두 돎).
-  - `prepare<TAB><명령>` — 새 워크트리 의존성 설치 직후 한 번 돌리는 준비 빌드(예약어. `deps.sh` 가 읽음. 게이트 범위 판정은 보지 않음).
+  - `prepare<TAB><명령>` — 새 워크트리 의존성 설치 직후 한 번 돌리는 준비 빌드(예약어. `deps.mjs` 가 읽음. 게이트 범위 판정은 보지 않음).
   - `<경로><TAB>-` — 테스트 대상 아닌 경로(문서 등).
   - 경로에 `*`·`?`·`[` 가 있으면 glob(셸 case 패턴 — `*` 가 `/` 도 넘음), 없으면 접두. 폴더는 `/` 로 끝냄.
   - 한 경로에 여러 줄이 맞으면 먼저 나온 줄이 이김. 이름이 `full`·`prepare` 인 폴더는 `full/`·`prepare/` 로 씀.
   - **모듈 명령은 그 모듈에 의존하는 모듈 테스트까지 스스로 포함**(예: Gradle `./gradlew :<모듈>:test :<의존 모듈>:test`, pnpm `pnpm --filter "...<패키지>" test` — `...` 앞붙임이 의존하는 쪽까지 고름). 의존을 따로 적는 문법 없음.
   - 명령은 리포 최상위에서 돎(cwd 도 기준선 캐시 키). 도커 금지 모드면 「도커 사용 규칙」 의 제외 인자를 기준선과 게이트에 똑같이 붙인 줄을 씀.
-  - 명령은 `&&` 로 이은 복합 명령 가능. 게이트는 `heavy.sh bash -c '<명령>'` 으로 감싸 한 슬롯에서 통째로 돎(기준선의 `baseline.sh run -- '<명령>'` 과 같음). 그래서 명령 안에 작은따옴표 금지.
+  - 명령은 `&&` 로 이은 복합 명령 가능. 게이트는 `heavy.mjs bash -c '<명령>'` 으로 감싸 한 슬롯에서 통째로 돎(기준선의 `baseline.mjs run -- '<명령>'` 과 같음). 그래서 명령 안에 작은따옴표 금지.
   - `full` 에는 대응표를 두기 전에 기준선으로 쓰던 명령(마이그레이션 시험 등)을 모두 넣음 — 빠진 명령은 게이트에서도 빠짐.
 - **범위 판정은 스크립트가 함**(결정적):
   ```bash
-  .claude/skills/dflow-dev/scripts/gate-scope.sh --base <기점> --ignore <TASKS>/<TSK>/ [--paths-file <경로 목록>]
+  node .claude/skills/dflow-dev/scripts/gate-scope.mjs --base <기점> --ignore <TASKS>/<TSK>/ [--paths-file <경로 목록>]
   ```
   - 대응표는 **기점 커밋의 것**을 읽음(Task 도중 고친 대응표는 안 씀 — 「게이트 기준선」 의 명령 고정).
   - 바뀐 경로 = 기점 대비 작업 트리 전체(커밋·미커밋·추적 안 된 파일, 이름 변경은 옛 경로와 새 경로 모두). Task 문서 폴더는 제외.
@@ -134,11 +134,11 @@ LLM 자기 신고는 게이트 판정에 쓰지 않음.
   | `GATE_SCOPE invalid <사유>`(exit 2) | 대응표 형식 오류·`full` 줄 없음. 대응표가 없는 것처럼 하고 사유를 한 줄 보고 |
 - **기준선**: Phase 01 4번 = `full` 줄 명령(들)을 기준선으로 잼.
   - **모듈 명령 기준선은 Design 게이트 통과 직후, 첫 Build 단위를 띄우기 전에 잼** — 이때 트리가 아직 기점과 코드가 같음(Build 뒤에 재면 이 Task 변경을 잰 것이라 기준선 아님).
-  - design.md 「변경 파일 목록」 경로를 한 줄에 하나씩 파일에 적어 `--paths-file` 로 예측 범위 확인. `module` 이면 명령마다 `baseline.sh run --base <기점> --task-dir <TASKS>/<TSK> -- '<모듈 명령>'` 으로 잼.
+  - design.md 「변경 파일 목록」 경로를 한 줄에 하나씩 파일에 적어 `--paths-file` 로 예측 범위 확인. `module` 이면 명령마다 `baseline.mjs run --base <기점> --task-dir <TASKS>/<TSK> -- '<모듈 명령>'` 으로 잼.
   - 먼저 `git diff --name-only <기점>..HEAD` 와 `git status --porcelain` 이 Task 문서 밖에서 비었는지 확인. 아니면(Build 뒤 재개 등) 모듈 기준선을 재지 않음.
-  - `baseline.sh` 도 기점 위에 `--task-dir` 아래 문서 커밋만 있을 때만 기점 키로 캐시 사용(같은 기점의 다른 팀원이 재사용).
+  - `baseline.mjs` 도 기점 위에 `--task-dir` 아래 문서 커밋만 있을 때만 기점 키로 캐시 사용(같은 기점의 다른 팀원이 재사용).
   - 예측이 `full` 이면 더 잴 것 없음.
-- **Build 게이트**: `gate-scope.sh --base <기점> --ignore <TASKS>/<TSK>/` 결과별:
+- **Build 게이트**: `gate-scope.mjs --base <기점> --ignore <TASKS>/<TSK>/` 결과별:
   - `module` + 그 명령이 **모두** 모듈 기준선 보유 → 그 명령들만 돎.
   - 기준선 없는 명령이 하나라도 있으면(예측 밖 모듈을 건드림) `full` 명령으로 돎.
   - `full` → `full` 명령. `none`·`invalid` → 기준선 명령 전체.
@@ -165,7 +165,7 @@ LLM 자기 신고는 게이트 판정에 쓰지 않음.
 |---|---|
 | 시각 | 끝난 시각(UTC, `date -u +%FT%TZ`) |
 | Phase | `기준선`·`build`·`build 재시도`·`verify`·`verify 재시도`·`refactor` |
-| 명령 | `heavy.sh`·`baseline.sh` 를 뺀 명령 줄 |
+| 명령 | `heavy.mjs`·`baseline.mjs` 를 뺀 명령 줄 |
 | 범위 | `모듈`·`전체`·`재사용`(재실행 생략하고 앞 게이트 결과 사용) |
 | 경과 | 초(대기 포함, `HEAVY_SLOT` 얻기까지 시간도 포함) |
 | 부하 | 끝났을 때 1분 부하 평균 |
@@ -173,7 +173,7 @@ LLM 자기 신고는 게이트 판정에 쓰지 않음.
 
 ```bash
 t0=$(date +%s)
-.claude/skills/dflow-dev/scripts/heavy.sh bash -c '<게이트 명령>' > "$(git rev-parse --git-dir)/dflow-gate.log" 2>&1; rc=$?
+node .claude/skills/dflow-dev/scripts/heavy.mjs bash -c '<게이트 명령>' > "$(git rev-parse --git-dir)/dflow-gate.log" 2>&1; rc=$?
 la=$(sysctl -n vm.loadavg 2>/dev/null | awk '{print $2; exit}' | grep . || cut -d' ' -f1 /proc/loadavg 2>/dev/null || echo -)
 echo "rc=$rc elapsed=$(( $(date +%s) - t0 ))s load1=$la"; tail -30 "$(git rev-parse --git-dir)/dflow-gate.log"
 ```
@@ -191,7 +191,7 @@ echo "rc=$rc elapsed=$(( $(date +%s) - t0 ))s load1=$la"; tail -30 "$(git rev-pa
   - 예: JUnit `assertTimeout`·`assertTimeoutPreemptively`·`@Timeout`, 경과 시간 변수(`elapsed`·`duration`·`took`·`*Ms`·`*Millis` 등)를 `isLessThan`·`toBeLessThan`·`<` 로 상수와 비교하는 단언.
   - 파일 이름에 `perf`·`Perf`·`performance`·`benchmark` 가 있으면 먼저 의심. 이름만으로 정하지 않고 실패한 메서드 단언을 읽어 확인.
   - 동시성·경합(race) 실패, 타임아웃으로 끝난 통합 테스트, `sleep` 뒤 상태를 보는 테스트는 부하 민감 아님 — 부하가 결함을 드러낸 것일 수 있음.
-- **단독 재실행**: 그 테스트 파일(클래스)만 기준선 명령 줄에 좁히는 인자를 더해(Gradle `:<모듈>:test --tests <클래스>`, vitest `<파일> --run`) `heavy.sh --exclusive` 로 돌림.
+- **단독 재실행**: 그 테스트 파일(클래스)만 기준선 명령 줄에 좁히는 인자를 더해(Gradle `:<모듈>:test --tests <클래스>`, vitest `<파일> --run`) `heavy.mjs --exclusive` 로 돌림.
   - 로그는 게이트 로그처럼 git-dir(`dflow-solo-<클래스>.log`).
   - 돌리기 직전 1분 부하 평균을 적어 둠.
 - **통과하면** 게이트 통과.
@@ -245,7 +245,7 @@ category 가 research/docs 인 작업:
   - D'Flow 작업 tags 에 `docker` 가 있는 Task 의 워커에게만 팀장이 포인터로 `DOCKER=allow` 전달(팀장 SKILL.md 「인자」 의 「도커 허용 태그」).
   - 태그는 사람이 D'Flow 웹(WBS 명세)이나 wbs.md import 의 tags 필드로 단다.
 - **허용된 도커 명령은 PC 전역 도커 슬롯에서 한 번에 하나씩 돎.**
-  - 워커 도커 명령과 팀장 방언 검증이 같은 슬롯(`heavy.sh --pool docker`, 기본 1개)을 나눠 씀 — 「무거운 명령 줄 세우기」.
+  - 워커 도커 명령과 팀장 방언 검증이 같은 슬롯(`heavy.mjs --pool docker`, 기본 1개)을 나눠 씀 — 「무거운 명령 줄 세우기」.
 - **도커 명령은 대상 리포가 제공하는 컨테이너 재사용 방식을 따름**(Testcontainers reuse, 외부 DB 주소 환경변수, 공유 DB 등). 워커가 재사용 설정을 새로 만들거나 바꾸지 않음.
 
 ### 금지 모드 판정 (Phase 01 기준선 전에 한 번)
@@ -255,12 +255,12 @@ category 가 research/docs 인 작업:
 | 출처 | 켜짐 조건 | 누가 정하나 |
 |---|---|---|
 | spawn | 워커·해소 워커인데 팀장 포인터에 `DOCKER=allow` 가 **없음**(키 없음·다른 값·옛 포인터의 `NO_DOCKER` 뿐인 경우 모두) | 워커 기본값. `/dflow-team` 팀장은 `docker` 태그가 있는 Task 에만 `DOCKER=allow` 를 실음(팀장 SKILL.md 「인자」 의 「도커 허용 태그」). 옛 팀장의 `NO_DOCKER=0` 은 허용 아님(태그를 보지 않고 적힌 값) |
-| 설정 | `dflow.sh config no_docker` 가 `1` | 강제 금지 스위치. `.dflow` 의 `no_docker`(리포 전체), `.dflow.local` 의 `no_docker`(이 PC, `.dflow` 를 덮음), export 된 `DFLOW_NO_DOCKER`(둘 다 덮음). `docker` 태그로 허용된 워커와 수동 `/dflow-dev` 도 막음. `0`·빈 값은 아무것도 풀지 않음(워커 기본 금지는 포인터에서 오므로 설정으로 풀 수 없음) |
+| 설정 | `dflow.mjs config no_docker` 가 `1` | 강제 금지 스위치. `.dflow` 의 `no_docker`(리포 전체), `.dflow.local` 의 `no_docker`(이 PC, `.dflow` 를 덮음), export 된 `DFLOW_NO_DOCKER`(둘 다 덮음). `docker` 태그로 허용된 워커와 수동 `/dflow-dev` 도 막음. `0`·빈 값은 아무것도 풀지 않음(워커 기본 금지는 포인터에서 오므로 설정으로 풀 수 없음) |
 
 수동 `/dflow-dev`(포인터 없음)는 설정 출처만 봄 — 금지가 기본 아님. 대신 도커 명령은 워커와 똑같이 도커 슬롯에서만 돌림(아래 「금지 모드가 아닐 때」).
 
 ```bash
-.claude/skills/dflow-work/scripts/dflow.sh config no_docker   # 1 이면 설정 출처 켜짐. 빈 값·0 은 꺼짐
+node .claude/skills/dflow-work/scripts/dflow.mjs config no_docker   # 1 이면 설정 출처 켜짐. 빈 값·0 은 꺼짐
 ```
 - 이 명령이 `UNKNOWN_KEY` 로 exit 2 면 리포 `dflow-config.sh` 가 이 키를 모르는 옛 버전. 설정 출처는 꺼짐으로 보고 그 사실을 기준선 기록에 함께 적음.
 - **판정 결과를 기준선 기록에 한 줄 남김.**
@@ -271,9 +271,9 @@ category 가 research/docs 인 작업:
 
 ### 금지 모드가 아닐 때: 도커 슬롯
 
-- 도커를 쓰는 명령(아래 목록의 명령, 또는 그런 태스크·테스트를 포함하는 명령 줄 — 예 `testAll` 이 DB 컨테이너 시험 태스크 포함)은 일반 `heavy.sh` 가 아니라 `.claude/skills/dflow-dev/scripts/heavy.sh --pool docker <명령>` 으로 감쌈.
+- 도커를 쓰는 명령(아래 목록의 명령, 또는 그런 태스크·테스트를 포함하는 명령 줄 — 예 `testAll` 이 DB 컨테이너 시험 태스크 포함)은 일반 `heavy.mjs` 가 아니라 `node .claude/skills/dflow-dev/scripts/heavy.mjs --pool docker <명령>` 으로 감쌈.
   - 도커 슬롯(PC 전체 1개)과 일반 슬롯을 함께 잡으므로 PC 전체 무거운 명령 수도 안 늘어남.
-- 기준선 = `baseline.sh run … --pool docker -- '<명령>'`. 바깥에서 `baseline.sh` 를 `heavy.sh --pool docker` 로 감싸지 않음(측정 잠금을 도커 슬롯 쥔 채 기다리게 됨 — 「무거운 명령 줄 세우기」 의 교착 불변식).
+- 기준선 = `baseline.mjs run … --pool docker -- '<명령>'`. 바깥에서 `baseline.mjs` 를 `heavy.mjs --pool docker` 로 감싸지 않음(측정 잠금을 도커 슬롯 쥔 채 기다리게 됨 — 「무거운 명령 줄 세우기」 의 교착 불변식).
 - `HEAVY_DOCKER_BUSY`(exit 75) = `HEAVY_BUSY` 와 같음 — 실패 아님. 같은 명령을 다시 호출.
 
 ### 금지 모드에서 돌리지 않는 것
@@ -296,7 +296,7 @@ category 가 research/docs 인 작업:
   Testcontainers 를 쓰는 테스트 클래스)를 돌리지 않고, 도커 런타임을 켜지 않는다. 검증 명령은 기준선 명령 줄(제외
   포함)만 쓴다. 생략한 검증과 그 때문에 확인하지 못한 수용 기준은 보고에 올린다. 정본: dev-discipline.md 「도커 사용
   규칙」." 금지 모드가 아니면 "도커 런타임을 켜지 않는다(`orb start`·`open -a Docker` 등). 도커를 쓰는 명령은
-  `heavy.sh --pool docker` 로 감싸고, 대상 리포의 컨테이너 재사용 방식을 따른다. 꺼져 있어 필요한 검증을 못 하면
+  `heavy.mjs --pool docker` 로 감싸고, 대상 리포의 컨테이너 재사용 방식을 따른다. 꺼져 있어 필요한 검증을 못 하면
   보고에 올린다" 를 넣음.
 
 ### 게이트 판정과 기록
@@ -311,7 +311,7 @@ category 가 research/docs 인 작업:
 - 완료 보고(`done` 요약)에 `도커 금지로 생략: <명령>; …` 과, 있으면 `확인하지 못한 수용 기준 N건: <항목>; …` 을 실음(승인자가 D'Flow 화면에서 이 줄을 보고 판단).
   - 워커는 같은 내용을 `.issues` 에 `env` 분류로도 한 줄 남김(worker-prompt.md 「7-1」).
 - 해소 워커는 design.md·`done` 대신 `resolution.md` 의 그 시도 절에 같은 줄(`- 도커 금지로 생략: <명령>`)을 적음.
-- 이 줄들의 문구(`도커 금지로 생략:`·`확인하지 못한 수용 기준:`)를 바꾸지 않음. 머지 뒤 방언 검증(`dialect-check.sh`)이 design.md·resolution.md 에서 이 문구를 세어 그 Task 를 결과에 함께 적음.
+- 이 줄들의 문구(`도커 금지로 생략:`·`확인하지 못한 수용 기준:`)를 바꾸지 않음. 머지 뒤 방언 검증(`dialect-check.mjs`)이 design.md·resolution.md 에서 이 문구를 세어 그 Task 를 결과에 함께 적음.
 
 ## Phase 정의 (정본은 Phase 파일)
 
@@ -362,10 +362,10 @@ Phase 서브에이전트는 `references/phase-prompt.md` 템플릿으로 띄우�
   - `build_model_trial_rate=<0~100 정수, 비율%>`.
   - `build_model_trial_tasks=<쉼표 목록>` (`TSK-02-05`, 접두 `TSK-02`, `WP-02`, 모듈 접두 `dict/WP-02`).
   - **목록이 있으면 목록만 보고, 없으면 비율.**
-- 판정 = `.claude/skills/dflow-dev/scripts/build-trial.sh <external_ref> <build_model_base>`.
+- 판정 = `node .claude/skills/dflow-dev/scripts/build-trial.mjs <external_ref> <build_model_base>`.
   - 대상 = `build_model_base` 가 opus 인 작업뿐(호출 인자 `--model opus` 로 정해진 opus 도 대상 — 시험을 원치 않으면 설정을 비움).
   - 비율: `printf %s <TSK> | cksum` 첫 값 mod 100 < rate 면 켬(TSK = state.json `tsk`, 모듈 접두 없음). 같은 TSK 는 어느 PC·재개에서도 같은 결과.
-  - 목록의 WP 는 poll.sh `--wp` 와 같은 규칙(번호 앞 0 무시, 모듈 접두는 모듈까지 같아야 함).
+  - 목록의 WP 는 poll.mjs `--wp` 와 같은 규칙(번호 앞 0 무시, 모듈 접두는 모듈까지 같아야 함).
 - **판정은 Phase 01 에서 한 번만.** state.json 에 `build_model_base`(배정표가 정한 Build 모델)와 `build_model_trial`(`true`|`false`) 기록.
   - 재개는 state.json 값을 쓰고 다시 판정하지 않음(설정을 바꿔도 진행 중인 Task 모델은 안 바뀜).
 - Build 단위 모델 = `build_model_trial` 이 true 면 sonnet, 아니면 `build_model_base`. 시험 단위도 아래 승급 규칙을 그대로 받음.
@@ -463,18 +463,18 @@ Flyway `V<버전>__<설명>.sql` 처럼 파일명이 곧 버전인 마이그레�
 
 ## 무거운 명령 줄 세우기 (정본)
 
-메모리를 크게 쓰는 명령은 PC 전역 세마포어 `.claude/skills/dflow-dev/scripts/heavy.sh` 로 감싸 돌림.
+메모리를 크게 쓰는 명령은 PC 전역 세마포어 `node .claude/skills/dflow-dev/scripts/heavy.mjs` 로 감싸 돌림.
 - 같은 PC 에서 동시에 K개까지만 돌고 나머지는 줄을 섬.
 - 리포가 달라도 같은 PC 면 슬롯(`~/.dflow/locks/heavy/`)을 함께 씀.
 
-- **감쌀 명령**: 전체 테스트(게이트·Refactor 재실행, `baseline.sh` 를 안 쓰는 해소 워커의 기준선·게이트), 빌드(`gradlew build`·`npm run build` 등), E2E 시험, E2E 용 서버 기동(아래), 변이 검증(스크립트 전체를 한 번), **모든 `gradlew`·`mvn` 호출(단일 테스트 포함)**, 의존성 설치.
+- **감쌀 명령**: 전체 테스트(게이트·Refactor 재실행, `baseline.mjs` 를 안 쓰는 해소 워커의 기준선·게이트), 빌드(`gradlew build`·`npm run build` 등), E2E 시험, E2E 용 서버 기동(아래), 변이 검증(스크립트 전체를 한 번), **모든 `gradlew`·`mvn` 호출(단일 테스트 포함)**, 의존성 설치.
   - 예외 — **JS 러너(vitest·jest 등)의 단일 테스트 파일 실행과 린트**만 짧고 가벼워 감싸지 않음. Gradle·Maven 은 테스트 하나도 데몬 JVM + 테스트 JVM 2~3개, 약 2.3GB 를 쓰므로 예외 아님.
-  - 기준선은 `baseline.sh` 가 스스로 `heavy.sh` 를 쓰므로 `--` 뒤 명령에 `heavy.sh` 를 붙이지 않음(「게이트 기준선」).
-  - 의존성 설치는 `deps.sh` 가 스스로 `heavy.sh` 로 감쌈. 슬롯이 없으면 `DEPS_BUSY <폴더>` 와 exit 75 로 끝남 — `HEAVY_BUSY` 처럼 실패 아님. 잠시 뒤 같은 명령을 다시 부르면 이어서 설치.
+  - 기준선은 `baseline.mjs` 가 스스로 `heavy.mjs` 를 쓰므로 `--` 뒤 명령에 `heavy.mjs` 를 붙이지 않음(「게이트 기준선」).
+  - 의존성 설치는 `deps.mjs` 가 스스로 `heavy.mjs` 로 감쌈. 슬롯이 없으면 `DEPS_BUSY <폴더>` 와 exit 75 로 끝남 — `HEAVY_BUSY` 처럼 실패 아님. 잠시 뒤 같은 명령을 다시 부르면 이어서 설치.
   - 설치를 마친 호출은 준비 빌드(`.dflow-gates` 의 `prepare`)를 다음 호출로 넘기며 `DEPS_PREPARE_PENDING` 과 exit 75 로 끝남 — 같은 뜻(다시 부름).
 - **쓰는 법**: 명령 앞에 스크립트를 붙임. 경로는 워크트리 루트 기준.
   ```bash
-  .claude/skills/dflow-dev/scripts/heavy.sh ./gradlew testAll 2>&1 | tail -30
+  node .claude/skills/dflow-dev/scripts/heavy.mjs ./gradlew testAll 2>&1 | tail -30
   ```
   - 슬롯을 얻으면 `HEAVY_SLOT slot-<i> k=<K> waited=<초>s` 를 내고 명령을 돌림(`waited` = 슬롯 얻기까지 기다린 초). 도커 풀·acquire·독점의 얻은 줄과 분리 실행 자식의 잡 로그도 같은 꼬리를 붙임 — 부하·슬롯 수 판단 재료.
   - exit 는 명령의 것. 명령이 끝나거나 중단되면 슬롯을 풂. 소유 프로세스가 죽어 남은 슬롯은 다음 대기자가 회수.
@@ -487,16 +487,16 @@ Flyway `V<버전>__<설명>.sql` 처럼 파일명이 곧 버전인 마이그레�
 - **Bash timeout**: Bash 도구 timeout 을 300000~600000 으로 줌(팀원 세션은 가드 훅이 이보다 짧으면 거부).
   - 값 = 대기 상한(90초) + 명령 예상 시간. 단 **10분(600000ms)을 넘기지 않음**(「포그라운드 실행」 3번).
   - timeout 은 도구 인자라 셸 명령 안에 쓰지 않음.
-  - 가드가 보는 것: `heavy.sh`(status·snapshot·release 제외)·`baseline.sh run`·`gradlew`·`mvn`·`playwright test`. 끝에 `&` 를 붙여 띄우는 서버 기동(bootRun 등)은 면제.
+  - 가드가 보는 것: `heavy.mjs`(status·snapshot·release 제외)·`baseline.mjs run`·`gradlew`·`mvn`·`playwright test`. 끝에 `&` 를 붙여 띄우는 서버 기동(bootRun 등)은 면제.
   - 명령이 6분을 넘을 것 같으면 그 호출만 `DFLOW_HEAVY_WAIT` 를 줄여(예: 명령 9분이면 `DFLOW_HEAVY_WAIT=30`) 합이 10분 안에 들게 함 — 못 얻으면 `HEAVY_BUSY` 로 곧 끝나 다시 부르면 됨.
   - **명령이 10분을 넘을 것 같으면 아래 분리 실행(`--detach`)으로 돌림.**
-  - `baseline.sh` 는 측정 대기와 슬롯 대기가 마감 하나를 나눠 씀 → 90초 + 측정 시간이면 충분. 측정이 6분을 넘으면 그 호출만 `DFLOW_BASELINE_WAIT` 를 줄임(못 기다리면 `BASELINE_BUSY` 로 곧 끝나 다시 부르면 됨).
+  - `baseline.mjs` 는 측정 대기와 슬롯 대기가 마감 하나를 나눠 씀 → 90초 + 측정 시간이면 충분. 측정이 6분을 넘으면 그 호출만 `DFLOW_BASELINE_WAIT` 를 줄임(못 기다리면 `BASELINE_BUSY` 로 곧 끝나 다시 부르면 됨).
 ### 분리 실행·독점 실행
 
-- **분리 실행(한 번에 10분 넘는 명령)**: `heavy.sh --detach <명령>` 으로 띄우고 `heavy.sh wait <id>` 로 폴링. `run_in_background` 로 띄우지 않음(「포그라운드 실행」).
+- **분리 실행(한 번에 10분 넘는 명령)**: `heavy.mjs --detach <명령>` 으로 띄우고 `heavy.mjs wait <id>` 로 폴링. `run_in_background` 로 띄우지 않음(「포그라운드 실행」).
   ```bash
-  .claude/skills/dflow-dev/scripts/heavy.sh --detach ./gradlew testAll   # → HEAVY_DETACHED id=<id> pid=<pid> log=<경로>
-  .claude/skills/dflow-dev/scripts/heavy.sh wait <id>
+  node .claude/skills/dflow-dev/scripts/heavy.mjs --detach ./gradlew testAll   # → HEAVY_DETACHED id=<id> pid=<pid> log=<경로>
+  node .claude/skills/dflow-dev/scripts/heavy.mjs wait <id>
   ```
   - 두 호출 모두 Bash 도구 timeout 을 300000~600000 으로 줌.
   - 잡은 워크트리 밖 `~/.dflow/jobs/<id>/`(cmd·cwd·log·pid·rc)에 남음.
@@ -508,12 +508,12 @@ Flyway `V<버전>__<설명>.sql` 처럼 파일명이 곧 버전인 마이그레�
   - 잡 rc 75 → `HEAVY_JOB_BUSY` + exit 77. 자식이 슬롯을 끝내 못 얻은 것(`HEAVY_BUSY` 와 같음) → **다시 `--detach`** (`wait` 를 되풀이하지 않음).
   - 잡 rc 76 → `HEAVY_JOB_FAILED` + exit 78 (명령 자신의 실패 — RUNNING 과 헷갈리지 않게 바꿈).
   - `HEAVY_JOB_LOST`(exit 1) = 자식이 rc 없이 사라짐 → 로그 보고 다시 띄움.
-  - `--pool docker`·`--exclusive` 와 함께 쓸 수 있음(`heavy.sh --detach --exclusive <명령>`).
-- **독점 실행(다른 무거운 명령과 겹치면 안 되는 명령)**: 벽시계 성능 테스트처럼 동시에 도는 명령이 결과를 틀어 버리는 명령은 `heavy.sh --exclusive <명령>` 으로 감쌈.
+  - `--pool docker`·`--exclusive` 와 함께 쓸 수 있음(`heavy.mjs --detach --exclusive <명령>`).
+- **독점 실행(다른 무거운 명령과 겹치면 안 되는 명령)**: 벽시계 성능 테스트처럼 동시에 도는 명령이 결과를 틀어 버리는 명령은 `heavy.mjs --exclusive <명령>` 으로 감쌈.
   - 일반 슬롯 K개를 **한꺼번에** 잡음 — 하나라도 못 잡으면 잡은 것을 모두 돌려주고 다시 시도(쥐고 기다리지 않음).
-  - 기다리는 동안 양보 표식(`~/.dflow/locks/heavy/excl-<세션 PID>-<heavy.sh PID>`)이 다른 세션의 새 무거운 명령을 멈춰 슬롯이 비게 함.
+  - 기다리는 동안 양보 표식(`~/.dflow/locks/heavy/excl-<세션 PID>-<heavy.mjs PID>`)이 다른 세션의 새 무거운 명령을 멈춰 슬롯이 비게 함.
   - 상한 안에 못 잡으면 `HEAVY_BUSY k=<K> wait=90s 독점 대기(순번 n/m, …)` + exit 75. 표식은 남으므로 같은 명령을 다시 부르면 순번이 이어짐. 표식이 여럿이면 가장 오래된 것부터.
-  - 표식이 무시되는 때: 세션 종료, 기다리던 heavy.sh 강제 종료, 마지막 호출 뒤 `DFLOW_HEAVY_EXCL_TTL`(기본 180초) 경과. 독점을 그만두려면 다시 부르지 않으면 됨(최대 3분 뒤 풀림).
+  - 표식이 무시되는 때: 세션 종료, 기다리던 heavy.mjs 강제 종료, 마지막 호출 뒤 `DFLOW_HEAVY_EXCL_TTL`(기본 180초) 경과. 독점을 그만두려면 다시 부르지 않으면 됨(최대 3분 뒤 풀림).
   - **슬롯을 쥔 세션(acquire 한 E2E 세션, 감싼 실행 안)에서 부르면 `HEAVY_EXCL_NESTED` + exit 2 로 거부**(이때와 acquire 성공 때 이 세션의 표식을 지움). 서버를 끄고 `release` 한 뒤 감싼 실행 밖에서 부름.
   - 분리 실행 독점(`--detach --exclusive`)은 세션의 E2E 풀 hold 를 무시하고 돎.
   - 일반 풀에 살아 있는 hold(E2E 풀을 끈 acquire)가 있으면 표식 없이 곧바로 `HEAVY_BUSY … 독점 불가: E2E hold 보유 중`.
@@ -523,35 +523,35 @@ Flyway `V<버전>__<설명>.sql` 처럼 파일명이 곧 버전인 마이그레�
 ### 슬롯 수·부하·오피스 표시
 
 - **K**: 기본 max(1, ⌊RAM_GB / 8⌋) — 16GB 면 2, 32GB 면 4. 사람이 `DFLOW_HEAVY_SLOTS` 로 덮음. 워커는 안 바꿈.
-  - `heavy.sh status` = `HEAVY_STATUS slots=K held=N waiting=M` + 지금 슬롯을 쥔 명령.
+  - `heavy.mjs status` = `HEAVY_STATUS slots=K held=N waiting=M` + 지금 슬롯을 쥔 명령.
 - **부하를 보고 슬롯을 줌**: K 는 RAM 기준이라 CPU 가 바닥나도 슬롯이 남을 수 있음.
-  - `heavy.sh` 는 **새 일반 슬롯**을 줄 때 1분 부하 평균이 코어 수 × `DFLOW_HEAVY_LOAD_MAX`(기본 1.5, `0` 이면 끔)를 넘으면 배정을 미룸.
+  - `heavy.mjs` 는 **새 일반 슬롯**을 줄 때 1분 부하 평균이 코어 수 × `DFLOW_HEAVY_LOAD_MAX`(기본 1.5, `0` 이면 끔)를 넘으면 배정을 미룸.
   - 미루는 것도 같은 대기 상한(90초) 안. 못 얻으면 줄 끝에 ` 부하 대기: load=23.4>cap=15.0` 이 붙은 `HEAVY_BUSY`(exit 75) — 다른 `HEAVY_BUSY` 와 똑같이 다시 호출. 대기 중 `HEAVY_LOAD_WAIT` 줄이 한 번 나옴.
   - 일반 풀 보유자가 0명이면 부하와 무관하게 하나는 줌(기아 방지).
   - 적용 안 함: 이미 쥔 슬롯(빼앗지 않음), `HEAVY_REUSE`·감싼 실행 안, E2E 풀 `acquire`, 독점 실행, 도커 슬롯만 더 잡는 호출.
   - 도커 풀은 도커 슬롯을 잡기 전에 봄(교착 불변식).
   - 부하를 못 읽는 환경(Windows Git Bash 등)은 검사 건너뜀. 값은 사람이 정함(워커는 안 바꿈).
-- **오피스 표시**: `/dflow-team` 팀장의 lease 갱신(`dflow.sh lease keep`, 60초)이 `heavy.sh snapshot` 을 읽어 팀원 워크트리(`dflow-<id8>`)의 실행·대기를 서버에 실음 — 오피스 좌석에 「🔥 무거운 작업 중」 말풍선, 팀장 칩에 슬롯 게이지.
+- **오피스 표시**: `/dflow-team` 팀장의 lease 갱신(`dflow.mjs lease keep`, 60초)이 `heavy.mjs snapshot` 을 읽어 팀원 워크트리(`dflow-<id8>`)의 실행·대기를 서버에 실음 — 오피스 좌석에 「🔥 무거운 작업 중」 말풍선, 팀장 칩에 슬롯 게이지.
   - 워커가 할 일 없음(감싸 돌리기만).
   - 명령 줄은 허용 목록으로 가려 보냄(경로는 마지막 조각만, `a=값`·비밀 류 플래그 뒤 값·URL 은 `***`).
 ### E2E 풀·도커 슬롯
 
-- **E2E 서버는 서버를 띄울 때 슬롯을 붙잡고(`heavy.sh acquire`), 끌 때 풂(`heavy.sh release`).**
+- **E2E 서버는 서버를 띄울 때 슬롯을 붙잡고(`heavy.mjs acquire`), 끌 때 풂(`heavy.mjs release`).**
   - `acquire` 는 일반 슬롯이 아니라 **E2E 풀**(`e2e-<i>`, `DFLOW_HEAVY_E2E_SLOTS`, 기본 1)을 잡음 — E2E 서버가 오래 떠 있어도 다른 팀원 게이트가 굶지 않음.
-  - 그 세션의 `heavy.sh <명령>` 은 E2E 슬롯을 다시 쓰고(`HEAVY_REUSE`), `--pool docker` 는 도커 슬롯만 더 잡음.
+  - 그 세션의 `heavy.mjs <명령>` 은 E2E 슬롯을 다시 쓰고(`HEAVY_REUSE`), `--pool docker` 는 도커 슬롯만 더 잡음.
   - 대가: PC 전체에서 동시에 도는 무거운 스택이 최대 K+1.
   - 메모리가 빠듯하면 사람이 `DFLOW_HEAVY_E2E_SLOTS=0` 으로 옛 동작(acquire 가 일반 슬롯을 씀)으로 돌림.
-  - `HEAVY_STATUS` 와 오피스 게이지의 held 는 일반 풀만 셈(E2E 풀은 `heavy.sh status` 의 `HEAVY_E2E` 줄).
+  - `HEAVY_STATUS` 와 오피스 게이지의 held 는 일반 풀만 셈(E2E 풀은 `heavy.mjs status` 의 `HEAVY_E2E` 줄).
   - 절차 = `references/e2e.md` 「E2E 서버 슬롯」 (E2E 를 도는 Phase 서브에이전트가 읽음).
-- **도커 슬롯**: 도커를 쓰는 명령(허용된 워커·수동 세션의 Testcontainers·docker compose, 팀장의 방언 검증)은 `heavy.sh --pool docker <명령>` 으로 감쌈.
+- **도커 슬롯**: 도커를 쓰는 명령(허용된 워커·수동 세션의 Testcontainers·docker compose, 팀장의 방언 검증)은 `heavy.mjs --pool docker <명령>` 으로 감쌈.
   - PC 전역 도커 슬롯(`DFLOW_HEAVY_DOCKER_SLOTS`, 기본 1)과 일반 슬롯 하나를 **함께** 잡음(도커 명령도 K 에 들어가야 PC 전체 동시 실행이 K 를 안 넘음).
   - 이미 일반·E2E 슬롯을 쥔 세션(acquire 한 E2E 세션, 감싼 실행 안)은 도커 슬롯만 더 잡음.
   - 못 얻으면 `HEAVY_DOCKER_BUSY` + exit 75 — `HEAVY_BUSY` 와 같이 다시 호출.
-  - `heavy.sh status` 의 `HEAVY_DOCKER` 줄이 보유자를 보임. 규칙 정본 = 「도커 사용 규칙」.
+  - `heavy.mjs status` 의 `HEAVY_DOCKER` 줄이 보유자를 보임. 규칙 정본 = 「도커 사용 규칙」.
 - **교착 불변식: 도커 슬롯을 쥔 쪽은 아무것도 기다리지 않음.**
-  - `heavy.sh` 는 도커 슬롯을 마지막에, 필요한 슬롯을 한 번에 잡음. 도커 슬롯을 잡았는데 일반 슬롯이 없으면 그 자리에서 도커 슬롯을 돌려주고 다시 시도.
-  - 이 불변식을 깨는 호출 금지: 도커 슬롯 안에서 다른 잠금을 기다리는 명령을 감싸지 않음(예: `baseline.sh` 를 바깥에서 `--pool docker` 로 감싸지 않고 `baseline.sh run --pool docker` 로 넘김).
-  - 감싼 실행 안에서 부른 `heavy.sh acquire` 는 새 슬롯을 기다리지 않고 그 실행의 슬롯을 씀.
+  - `heavy.mjs` 는 도커 슬롯을 마지막에, 필요한 슬롯을 한 번에 잡음. 도커 슬롯을 잡았는데 일반 슬롯이 없으면 그 자리에서 도커 슬롯을 돌려주고 다시 시도.
+  - 이 불변식을 깨는 호출 금지: 도커 슬롯 안에서 다른 잠금을 기다리는 명령을 감싸지 않음(예: `baseline.mjs` 를 바깥에서 `--pool docker` 로 감싸지 않고 `baseline.mjs run --pool docker` 로 넘김).
+  - 감싼 실행 안에서 부른 `heavy.mjs acquire` 는 새 슬롯을 기다리지 않고 그 실행의 슬롯을 씀.
   - 독점 실행도 같음 — 기다리는 동안 아무 슬롯도 안 쥐고, 슬롯을 쥔 세션은 독점을 못 부름.
 
 ## 포그라운드 실행(백그라운드 게이트 금지)
@@ -583,22 +583,22 @@ Task 브랜치는 기점에서 만든 뒤 **개발 브랜치를 다시 머지하
   - build-log.md `## 설계 이탈` 에 사유 한 줄(`개발 브랜치 재머지: <선행 TSK> 의 <무엇>이 필요`).
   - 머지한 개발 브랜치 커밋을 새 기점으로 삼음: state.json `branch_base`·`baseline.base` 를 그 sha 로 바꿈.
   - 새 기점 기준선을 **이 작업 트리에서 재지 않음** — 이미 Task 코드가 섞여 Task 가 만든 실패가 기준선에 흡수됨.
-    1. 먼저 `baseline.sh list --base <새 기점>` 으로 같은 기점을 잰 캐시(다른 팀원·팀장 스윕)가 있으면 그 명령 문자열 그대로 재사용.
-    2. 없으면 새 기점의 깨끗한 임시 워크트리(`git worktree add --detach <임시 폴더> <새 기점>`)에서 `deps.sh` 뒤 `baseline.sh run --base <새 기점>` 으로 잼(캐시는 git 공용 폴더라 이 작업 트리에서도 보임).
+    1. 먼저 `baseline.mjs list --base <새 기점>` 으로 같은 기점을 잰 캐시(다른 팀원·팀장 스윕)가 있으면 그 명령 문자열 그대로 재사용.
+    2. 없으면 새 기점의 깨끗한 임시 워크트리(`git worktree add --detach <임시 폴더> <새 기점>`)에서 `deps.mjs` 뒤 `baseline.mjs run --base <새 기점>` 으로 잼(캐시는 git 공용 폴더라 이 작업 트리에서도 보임).
     3. 잰 뒤 임시 워크트리를 `git worktree remove` 로 지움.
-  - 게이트는 새 기점 기준으로 돎 — `.dflow-gates` 가 있으면 `gate-scope.sh --base <새 기점>` 의 영향 모듈만.
+  - 게이트는 새 기점 기준으로 돎 — `.dflow-gates` 가 있으면 `gate-scope.mjs --base <새 기점>` 의 영향 모듈만.
   - 한 Task 에서 한 번을 넘기지 않음. 두 번째가 필요하면 멈추고 `.issues` 에 `env` 로 적어 사람에게 넘김.
 - **설계 선행 재개**(`orch/design-first.md` 「3」)의 선행 반영 머지 = 이 허용 한 번.
   - Design 만 끝나 agent 브랜치에 Task 문서 커밋뿐이라 코드가 새 기점과 같음.
   - 기준선을 이 작업 트리에서 재고(임시 워크트리 불필요), 사유는 build-log.md 대신 머지 커밋 메시지에 남김.
   - 그 뒤 재머지는 위 규칙대로 두 번째.
 
-## 지원 환경: macOS · Git Bash(윈도우)
+## 지원 환경: macOS · Linux · Windows
 
-이 스킬 스크립트(`scripts/*.sh`)는 macOS 와 Git for Windows 의 Git Bash 에서 같이 돎.
-- 필요 도구: bash, git, jq(윈도우는 `_shared/bin` 동봉판을 스크립트가 PATH 에 넣음), awk·sed·grep(GNU 또는 BSD), node(변이 검증 `mutate.sh` 의 본체 `mutate.mjs`, `free-port.sh` 첫 선택지, `junit-count.sh` 의 XML 합산, jq 가 없을 때의 `timeout-guard.sh`). python 불필요.
-- Git Bash 에는 `ps -o`·`pgrep`·`pkill`·`lsof`·`sysctl` 없음. `heavy.sh` 는 `ps -W`(WINPID)·`/proc` 로 대신하고 판정 못 하는 값(시작 시각·부하)은 생략.
-- `deps.sh` 의존성 링크: 윈도우에서 심링크가 복사로 만들어짐에 주의.
+이 스킬 스크립트(`scripts/*.mjs`)는 node 로 macOS·Linux·Windows 에서 같이 돎.
+- 필요 도구: node 18.17+ (git 유지). python 불필요. Git Bash 는 사용자 bash 문법 명령(게이트·baseline 명령)을 윈도우에서 돌릴 때만 필요.
+- Git Bash 에는 `ps -o`·`pgrep`·`pkill`·`lsof`·`sysctl` 없음. `heavy.mjs` 는 `ps -W`(WINPID)·`/proc` 로 대신하고 판정 못 하는 값(시작 시각·부하)은 생략.
+- `deps.mjs` 의존성 링크: 윈도우에서 심링크가 복사로 만들어짐에 주의.
 - 스크립트를 새로 쓸 때 macOS 전용 명령·perl 금지.
 - 정본·도구 표·한계: `../../_shared/platform-support.md`.
 

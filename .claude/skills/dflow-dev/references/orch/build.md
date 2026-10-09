@@ -31,7 +31,7 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 이 단계
      - 에이전트가 이미 `done` 커밋을 남겼으면 되돌리지 않고 그 위에 이 커밋을 쌓음 (가장 최근 트레일러가 `handoff` 가 되어 재개가 끝난 단위로 보지 않음).
      - 병렬 묶음의 단위면 「묶음」 2 의 커밋에서 같은 트레일러를 붙임.
   2. TaskStop → build-log.md `## 실행 모델` 에 opus 줄 (승급 칸 `sonnet→opus(<사유>)`).
-     - `dflow.sh progress <ref> <직전 보고 퍼센트, 보통 25> "escalated: sonnet→opus <단위>(<사유>)"` 전송.
+     - `dflow.mjs progress <ref> <직전 보고 퍼센트, 보통 25> "escalated: sonnet→opus <단위>(<사유>)"` 전송.
      - state.json `model` 을 바꾸기 **전에** 보냄 (보고 행이 그 시점의 heartbeat 모델을 남김(0105) → 방금 끝난 sonnet 구간이 그 행에 남음).
      - exit 10 이면 멈춤 (상태 모델).
   3. state.json `model` 을 opus 로 쓰고 이어받기 `<TSK>-build-<단위>-c<n>` 을 opus 로 띄움 (`{HANDOFF}` 에 그 인계 절).
@@ -69,10 +69,10 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 이 단계
 
 ### Build 게이트
 
-   - **Build 게이트**: 전체 스위트를 `heavy.sh` 로 감싸 한 번 돎.
+   - **Build 게이트**: 전체 스위트를 `heavy.mjs` 로 감싸 한 번 돎.
      - 결과(HEAD sha·명령 줄·통과/실패 수·신규 실패 목록)를 state.json `build_gate` 에 적고 Verify 프롬프트에 그대로 넣음. Verify 는 전체 스위트를 다시 안 돎.
-     - 대응표가 있으면 먼저 `gate-scope.sh --base <기점> --ignore <TASKS>/<TSK>/` 호출.
-     - `module` 이고 그 명령이 모두 모듈 기준선을 가졌으면 그 명령들만 `heavy.sh bash -c '<명령>'` 으로 감싸 돎 (복합 명령도 한 슬롯에서).
+     - 대응표가 있으면 먼저 `gate-scope.mjs --base <기점> --ignore <TASKS>/<TSK>/` 호출.
+     - `module` 이고 그 명령이 모두 모듈 기준선을 가졌으면 그 명령들만 `heavy.mjs bash -c '<명령>'` 으로 감싸 돎 (복합 명령도 한 슬롯에서).
      - 아니면(기준선 없는 명령, `full`) `full` 명령을 돎.
      - `none` 이면 위 그대로. `invalid` 면 사유를 한 줄 보고하고 위 그대로.
      - state.json 게이트 기록(`build_gate`·`verify_gate`·`refactor_gate`)에 `"scope":"module"` 또는 `"scope":"full"` 을 더함.
