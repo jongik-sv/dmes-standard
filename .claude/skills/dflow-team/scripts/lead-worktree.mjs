@@ -8,6 +8,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { dflowConfigBranch, dflowConfigLoad } from '../../dflow-work/scripts/dflow-config.mjs';
 
 const USAGE = '사용: lead-worktree.mjs <이름> (소문자·숫자·- 만)';
 const HELP = '같은 리포에서 두 번째 /dflow-team 팀장을 띄울 링크드 워크트리를 만든다.\n'
@@ -18,43 +19,6 @@ const HELP = '같은 리포에서 두 번째 /dflow-team 팀장을 띄울 링크
 function runGit(args, cwd) {
   const r = spawnSync('git', args, { encoding: 'utf8', cwd, windowsHide: true });
   return { status: r.error ? 128 : (r.status ?? 128), stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
-}
-
-// _dfc_parse 와 같은 정규화: CR 제거·앞 공백 제거·주석·빈 줄 버림·첫 = 분리·키 뒤/값 앞뒤 공백과 값 뒤 " #…" 제거
-function parseKv(text) {
-  const out = [];
-  for (const raw of String(text).split('\n')) {
-    let ln = raw.replace(/\r$/, '').replace(/^[ \t]+/, '');
-    if (ln === '' || ln.startsWith('#')) continue;
-    const i = ln.indexOf('=');
-    if (i < 2) continue;
-    let k = ln.slice(0, i).replace(/[ \t]+$/, '');
-    let v = ln.slice(i + 1).replace(/^[ \t]+/, '').replace(/[ \t]+#.*$/, '').replace(/[ \t]+$/, '');
-    if (k === '') continue;
-    out.push([k, v]);
-  }
-  return out;
-}
-
-function readLocalDevBranch(primary, env) {
-  if (env.DFLOW_DEV_BRANCH) return env.DFLOW_DEV_BRANCH;
-  try {
-    const t = fs.readFileSync(path.join(primary, '.dflow.local'), 'utf8');
-    for (const [k, v] of parseKv(t)) {
-      if (k === 'dev_branch' && v !== '') return v;
-    }
-  } catch { /* 없음 */ }
-  return '';
-}
-
-function originHead(cwd) {
-  let r = runGit(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'], cwd);
-  let b = (r.stdout ?? '').trim();
-  if (b.startsWith('origin/')) b = b.slice('origin/'.length);
-  if (b !== '') return b;
-  r = runGit(['ls-remote', '--symref', 'origin', 'HEAD'], cwd);
-  const m = /^ref: refs\/heads\/([^ \t]*)\s*HEAD$/m.exec(r.stdout ?? '');
-  return m ? m[1] : '';
 }
 
 function ensureLine(file, line) {
@@ -94,27 +58,18 @@ function main(argv, env = process.env, cwd = process.cwd()) {
     return 2;
   }
 
-  // 개발 브랜치: .dflow.local 의 dev_branch(환경 DFLOW_DEV_BRANCH 우선), 없으면 origin/HEAD
-  let base = readLocalDevBranch(PRIMARY, env);
-  if (base === '') base = originHead(cwd);
-  if (base === '') {
-    // 옛 dflow_config_branch 실패 때의 2줄 그대로
-    process.stderr.write('NO_DEFAULT_BRANCH origin/HEAD 를 알 수 없다\nFAIL NO_DEFAULT_BRANCH\n');
+  // 설정 읽기: dflow-config.mjs 재사용(옛 . dflow-config.sh + dflow_config_load 와 같게).
+  // NO_DEV_BRANCH·NO_LOCAL·NO_DFLOW·LEGACY_ENV 는 로더가 stderr 에 내고, 실패면 rc 2 다.
+  process.env.DFLOW_CONFIG_DIR = PRIMARY;
+  if (!dflowConfigLoad()) return 2;
+  const isNew = process.env.DFLOW_CONFIG_MODE === 'new';
+  // 개발 브랜치: DFLOW_DEV_BRANCH(환경·.dflow.local·레거시 .env), 없으면 origin/HEAD
+  const base = dflowConfigBranch('dev');
+  if (base === null) {
+    // 옛 dflow_config_branch 실패 때의 2줄 그대로(첫 줄은 로더가 이미 냈다)
+    process.stderr.write('FAIL NO_DEFAULT_BRANCH\n');
     return 2;
   }
-  // 설정 방식: .dflow.local 이 있고 .dflow(파일 또는 git show 예비)가 있으면 new, 아니면 legacy
-  let hasLocal = false;
-  try { hasLocal = fs.statSync(path.join(PRIMARY, '.dflow.local')).isFile(); } catch { hasLocal = false; }
-  let hasDot = false;
-  try { hasDot = fs.statSync(path.join(PRIMARY, '.dflow')).isFile(); } catch { hasDot = false; }
-  if (!hasDot) {
-    const dev = readLocalDevBranch(PRIMARY, env);
-    for (const ref of [...(dev !== '' ? [`origin/${dev}`] : []), 'origin/HEAD']) {
-      const g = runGit(['show', `${ref}:.dflow`], PRIMARY);
-      if (g.status === 0 && g.stdout !== '') { hasDot = true; break; }
-    }
-  }
-  const isNew = hasLocal && hasDot;
 
   const ex = runGit(['rev-parse', '--git-path', 'info/exclude'], cwd);
   const exFile = ex.status === 0 ? ex.stdout.trim() : '.git/info/exclude';
