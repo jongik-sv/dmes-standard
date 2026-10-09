@@ -37,7 +37,8 @@ Verify 는 전체 스위트를 다시 돌리는 Phase 가 아니다. Build 게�
    **프런트 화면(`src/frontend` 의 `m-*` 화면)을 만들거나 바꿨으면 성능 점검도 한다**: `docs/guide/FrontEnd/Screen-Performance-Guide.md`
    §7 점검표를 순회하고, 바꾼 파일에 `node .claude/skills/mantine-aggrid-ui/scripts/aggrid_docs.mjs audit <바꾼 파일·폴더>` 를
    돌려 결과를 보고에 적는다(mantine-aggrid-ui 스킬이 없는 킷이라 `aggrid_docs.mjs` 를 못 돌리면 건너뛰고 보고에
-   `AUDIT_SKIPPED <사유>` 를 적는다). 측정 하네스 실행은 PR 단계 몫이라 Verify 에서 돌리지 않는다.
+   `AUDIT_SKIPPED <사유>` 를 적는다). build-log.md `## 렌더 점검` 이 `references/e2e.md` 「화면 렌더 최적화」 규칙을
+   모두 덮는지 보고, 빠졌거나 `P-*` 경고가 남았으면 고친다. 측정 하네스 실행은 PR 단계 몫이라 Verify 에서 돌리지 않는다.
 4. **실행 보고와 감사 지적 처리**: 1~3 을 끝내면(실패한 것은 아래 규율로 고친 뒤) 첫 줄을 `VERIFY_EXEC done` 또는
    `VERIFY_EXEC fail` 로 보고한다. 오케스트레이터는 이 보고로 당신을 회수하지 않는다. 감사자의 지적이 있으면 오케스트레이터가
    이어서 보낸다 — 지적마다 `수용`·`기각(사유)` 을 판정하고, 수용한 것은 아래 규율로 고쳐 커밋한 뒤 첫 줄을

@@ -93,3 +93,32 @@ API 시험만으로는 화면의 JavaScript(DOM 바인딩·이벤트·fetch 호�
 정한다(워커는 바꾸지 않는다). 독점 실행(`heavy.sh --exclusive`)은 일반 풀만 비우므로 떠 있는 E2E 서버는 멈추지 않는다.
 
 서버를 시험 러너 안에서 띄우고 치우는 리포(globalSetup 등)는 acquire 없이 시험 명령만 감싼다.
+
+## 화면 렌더 최적화
+
+`src/frontend` 의 `m-*` 화면을 만들거나 바꾼 작업에 적용(다른 리포는 `docs/guide/FrontEnd/Screen-Performance-Guide.md` 가 있을 때만).
+규칙 본문의 정본은 이 절. phase-build·phase-verify·감사 프롬프트는 여기를 가리킴.
+
+목표: 반복·이상 렌더링을 Build 안에서 고치고 끝냄(보고만 하고 넘기지 않음).
+
+- **Build(화면 단위) — 구현 직후 자기 diff 를 순회해 고침**
+  - R12: 상세 폼·입력 state 를 화면 루트에 두지 않음 → 별도 폼 컴포넌트(`memo`) + `ref` 핸들
+  - R12: 입력 한 글자마다 목록 `rows`/그리드 `data` 를 새로 만들지 않음
+  - R7: `columns`·`data` 는 모듈 상수 또는 `useMemo`, deps 에 객체 통째(선택 행 등) 대신 쓰는 값만
+  - R7: 변화 없으면 setState 갱신 함수가 `prev` 반환
+  - R5: 화면 루트 공용 `busy` 하나 금지 → 목록 조회·저장 등 용도별 플래그
+  - R8: `onSnapshotChange` 에 선택 행 넣지 않음, 행 클릭마다 부르지 않음
+  - R9: `useUserButtonRbac` 은 화면 루트 1곳, `/api/auth/me` 직접 호출 금지
+  - R16: 외부 스토어는 필드별 훅으로만 구독
+  - R6·R10: 0건이어도 그리드 유지, 숨은 탭(폭 0)에서 다시 그리지 않음
+- **audit 경고(`P-*`)는 고침** — 오탐이면 build-log.md 에 사유 한 줄
+  - `node .claude/skills/mantine-aggrid-ui/scripts/aggrid_docs.mjs audit <바꾼 파일·폴더>`
+- **합격 기준**(가이드 §5 주 기준)
+  - 상세 폼 입력 한 글자: 화면 루트 렌더 0회, 그리드 셀 재렌더 0회
+  - 행 클릭: 포털 셸 재렌더 0회(선택 행 snapshot 이 요구사항이면 1회)
+  - 진입 호출(조회 제외) ≤ 3건, 그중 `/api/auth/me` 0건
+- **렌더 측정(`scripts/perf/render/count-renders.mjs`)은 기본으로 하지 않음**
+  - profiling 빌드·전용 서버·heavy 독점이 필요해 시간이 큼
+  - 새 shared 공통 컴포넌트를 만들었거나, 위 순회로 판단이 안 서는 의심이 남을 때만
+  - 그때도 Verify 가 아니라 사람·조정자가 연 측정 창에서(가이드 §4-5)
+- **보고**: build-log.md `## 렌더 점검` 에 규칙별 「해당 없음 / 고침(파일:줄) / 오탐 사유」 한 줄씩
