@@ -204,7 +204,7 @@ def fold: (if test("\\A[\\s│┃║|]*(?:❯|›|>)\\s+\\S") then sub("\\A(?<a>
            else .go = false end) | .e) as $e
         # 창(머리~끝) 안에 나쁜 줄(제어 문자·너무 긴 줄)이 있으면 창 없음 = 지문 없음
         | if any(range($w.h; $e + 1); $X[.]) then empty else
-        {text: ([$k] + [$L[$w.h:($e + 1)][] | fold] | join("\n")),
+        {text: ([$k] + [$L[$w.h:($e + 1)][] | select(test("automatically deny this request in [0-9]+:[0-9]+") | not) | fold] | join("\n")),   # 자동 거부 카운트다운 줄(m:ss)은 시각마다 바뀌어 지문에서 뺀다
            perm: (if $w.t == null then null else
                     {tool: ($L[$w.t] | bcore), tind: ($L[$w.t] | ind), q: ($L[$w.q] | bcore), qind: ($L[$w.q] | ind),
                      body: [range($w.t + 1; $w.q) | select($L[.] | vacant | not) | {t: ($L[.] | bcore), i: ($L[.] | ind)}],
