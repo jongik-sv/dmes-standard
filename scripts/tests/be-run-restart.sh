@@ -213,7 +213,8 @@ note "11) 빌드 전용 실행 보호: 새 기동 중에도 exit 0 으로 끝남
 
 # ── 12) 살아 있는 소유자의 기록 잠금은 빼앗지 않는다(fail-closed), 소유자가 끝나면 이어서 진행한다 ──
 mkdir -p "$root/.be-run/lock.d"
-sleep 40 & holder=$!
+# 이 체크아웃의 be-run 처럼 보이는 살아 있는 소유자(명령줄에 root/be-run.sh 가 든다). bash -c 의 exec 최적화를 피하려고 `; :` 를 붙인다.
+bash -c 'sleep 40; :' "$root/be-run.sh" & holder=$!
 pids_to_kill="$pids_to_kill $holder"
 printf '%s\n' "$holder" > "$root/.be-run/lock.d/pid"
 runbg --mcm >"$tmp/LK.log" 2>&1 & LK=$!
@@ -224,7 +225,7 @@ wait "$LK" 2>/dev/null; lk_rc=$?
 [ "$lk_rc" != 0 ] || bad "잠금을 못 얻었는데 정상 종료했다"
 [ "$(cat "$root/.be-run/lock.d/pid" 2>/dev/null)" = "$holder" ] || bad "살아 있는 소유자의 잠금이 바뀌었다"
 up mcm && bad "잠금을 못 얻은 실행이 mcm 을 띄웠다"
-kill -TERM "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
+pkill -TERM -P "$holder" 2>/dev/null; kill -TERM "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
 # 소유자가 죽었으면 낡은 잠금을 치우고 진행한다
 runbg --mcm >"$tmp/LK2.log" 2>&1 & LK2=$!
 pids_to_kill="$pids_to_kill $LK2"
@@ -232,6 +233,40 @@ wait_up mcm || bad "죽은 소유자의 잠금을 치우고 진행하지 못했�
 kill -TERM "$LK2" 2>/dev/null; wait "$LK2" 2>/dev/null
 settle_down
 note "12) 기록 잠금: 살아 있는 소유자는 빼앗지 않고 실패, 죽은 소유자는 치우고 진행"
+
+# ── 13) 잠금 소유자 pid 가 다른 프로세스에 재사용돼 살아 있어도(be-run 이 아니면) 낡은 잠금으로 치운다 ──
+mkdir -p "$root/.be-run/lock.d"
+sleep 40 & reused=$!
+pids_to_kill="$pids_to_kill $reused"
+printf '%s\n' "$reused" > "$root/.be-run/lock.d/pid"      # be-run 이 아닌 살아 있는 프로세스
+runbg --mcm >"$tmp/RU.log" 2>&1 & RU=$!
+pids_to_kill="$pids_to_kill $RU"
+wait_up mcm || bad "be-run 이 아닌 살아 있는 pid 가 쥔 잠금 때문에 기동하지 못했다"
+kill -TERM "$RU" 2>/dev/null; wait "$RU" 2>/dev/null
+kill -TERM "$reused" 2>/dev/null; wait "$reused" 2>/dev/null
+settle_down
+note "13) 잠금 소유자 pid 재사용: be-run 이 아니면 치우고 진행"
+
+# ── 14) 잠금이 비어 보인 시간이 누적돼 막 만든 새 잠금을 지우지 않는다 ──
+# 시간표: 0초 빈 잠금 → 4.0초 소유자 pid 기록(살아 있는 be-run 모양) → 4.3초 소유자가 바뀌어 새 잠금(아직 pid 없음) → 7.3초 새 소유자 pid 기록(그 전 3초 동안 pid 없는 잠금).
+# 세던 값이 누적되면 5초대에 새 잠금을 지워(그 사이 B 가 잠금을 쥔다) 새 소유자가 pid 를 못 쓴다.
+bash -c 'sleep 40; :' "$root/be-run.sh" & owner2=$!
+pids_to_kill="$pids_to_kill $owner2"
+rm -rf "$root/.be-run/lock.d"; mkdir -p "$root/.be-run/lock.d"
+runbg --mcm >"$tmp/EM.log" 2>&1 & EM=$!
+pids_to_kill="$pids_to_kill $EM"
+( sleep 4; printf '%s\n' "$owner2" > "$root/.be-run/lock.d/pid"
+  sleep 0.3; rm -rf "$root/.be-run/lock.d"; mkdir "$root/.be-run/lock.d"
+  sleep 3
+  if [ ! -d "$root/.be-run/lock.d" ] || [ -e "$root/.be-run/lock.d/pid" ]; then echo STOLEN > "$tmp/em-flag"; else printf '%s\n' "$owner2" > "$root/.be-run/lock.d/pid"; echo OK > "$tmp/em-flag"; fi ) &
+sleep 10
+[ "$(cat "$tmp/em-flag" 2>/dev/null)" = OK ] || bad "새 잠금이 pid 를 쓰기 전에 지워졌다/빼앗겼다(누적된 빈 잠금 셈): $(cat "$tmp/em-flag" 2>/dev/null)"
+[ -z "${DEBUG14:-}" ] || { echo "--- 14 debug: flag=$(cat "$tmp/em-flag" 2>/dev/null) lock=$(ls "$root/.be-run/lock.d" 2>&1 | tr '\n' ' ') pid=$(cat "$root/.be-run/lock.d/pid" 2>/dev/null)"; sed 's/\x1b\[[0-9;]*m//g' "$tmp/EM.log" | cut -c1-160; }
+pkill -TERM -P "$owner2" 2>/dev/null; kill -TERM "$owner2" 2>/dev/null; wait "$owner2" 2>/dev/null
+wait_up mcm || bad "소유자가 끝난 뒤 B 가 이어서 기동하지 못했다"
+kill -TERM "$EM" 2>/dev/null; wait "$EM" 2>/dev/null
+settle_down
+note "14) 빈 잠금 셈 초기화: 새 잠금을 지우지 않고 소유자가 끝난 뒤 진행"
 
 # ── 7) 소유 기록 없이 뜬 예전 버전 be-run 은 종전처럼 끝내고 이어받는다 ──
 if [ -n "${OLD_BE_RUN_SRC:-}" ] && [ -f "$OLD_BE_RUN_SRC" ]; then
