@@ -18,6 +18,7 @@ import type {
   ColumnState,
 } from "ag-grid-community";
 import { GRID_TEMP_ID_FIELD } from "./GridPanel";
+import { shallowEqualObject, useStableArray } from "./grid-stable-input";
 import { GRID_TOOLTIP_SHOW_DELAY_MS } from "./grid-tooltip";
 import { useGridTooltipOutside } from "./grid-tooltip-parent";
 import { AgDataGridExcelFrame, useGridExcelExport } from "./AgDataGridExcel";
@@ -60,6 +61,14 @@ export const ROW_NUMBER_COL_ID = "__rowNo";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
+/** 이 그리드가 놓인 자리와 GridPanel 이 알려 준 대상 여부. host 가 null 이면 아직 정하지 않았다(첫 렌더). */
+interface GridPlacement {
+  host: "panel" | "dialog" | "standalone" | null;
+  isMenuTarget: boolean;
+  isFilterTarget: boolean;
+}
+const INITIAL_PLACEMENT: GridPlacement = { host: null, isMenuTarget: false, isFilterTarget: false };
+
 /** 요소가 대화 상자(Mantine Modal 등 role="dialog") 안에 있는가. */
 function isInDialog(el: Element): boolean {
   return el.closest('[role="dialog"]') != null;
@@ -69,9 +78,14 @@ export { GRID_TOOLTIP_SHOW_DELAY_MS };
 /** 본체(AgDataGridInner)가 받는 props — 공개 props 에서 머리줄 전용 `count`·`titleExtra` 를 빼고 그 둘이 담긴 저장소를 더한다(바깥 껍데기 AgDataGrid 참고). */
 type AgDataGridInnerProps = Omit<AgDataGridProps, "count" | "titleExtra"> & { headerExtras: GridHeaderExtrasStore };
 
+// 기본값을 렌더마다 새 배열로 만들면 열 정의·행 데이터 참조가 매번 바뀌어 아래 훅들이 헛돈다 — 모듈 상수 하나를 돌려 쓴다.
+const EMPTY_COLUMNS: GridColumn[] = [];
+const EMPTY_ROWS: Record<string, unknown>[] = [];
+const EMPTY_KEYS: string[] = [];
+
 function AgDataGridInner({
-  columns = [],
-  data = [],
+  columns: columnsProp = EMPTY_COLUMNS,
+  data: dataProp = EMPTY_ROWS,
   rowKey = "id",
   height,
   selectable = false,
@@ -101,7 +115,7 @@ function AgDataGridInner({
   ariaLabel,
   getRowHeight,
   enableRowClickSelect = false,
-  selectExcludeColumns = [],
+  selectExcludeColumns = EMPTY_KEYS,
   publishScreenContext = true,
   acceptScreenApply = false,
   rowClickCheck = false,
@@ -129,6 +143,10 @@ function AgDataGridInner({
   header = true,
   headerExtras,
 }: AgDataGridInnerProps) {
+  // 화면이 렌더마다 새 배열로 넘겨도 원소가 그대로면 이전 배열을 쓴다 — 아래 훅·memo 와 ag-grid rowData 가 입력이 같으면 돌지 않는다(grid-stable-input.ts).
+  // 입력 행(상세 입력마다 rows 를 새로 만드는 화면)은 바뀐 행만 새 객체라 그 행만 달라 보이고, ag-grid 는 getRowId 로 바뀐 행만 갱신한다.
+  const columns = useStableArray(columnsProp, shallowEqualObject);
+  const data = useStableArray(dataProp);
   const gridRef = useRef<AgGridReact>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   // 툴팁은 그리드 밖(body)에 띄워 좁은 그리드에서 잘리지 않게 한다 — 툴팁이 뜰 수 있는 동안에만 popupParent 를 바꾼다.
@@ -141,17 +159,18 @@ function AgDataGridInner({
   // GridPanel 안(등록부 있음)이면 GridPanel 머리줄이 이 그리드의 메뉴·검색 칸·건수·칩을 맡으므로 그리지 않는다.
   // GridPanel 안에서 포털로 띄운 대화 상자·떠 있는 창·상세 팝오버는 shared 부품(Modal·FloatingPanel·DetailPopover)이 등록부를 끊어 주므로(GridPanelBoundary) 그 안 그리드는 여기서 자기 머리줄을 그린다.
   const selfHeader = header !== false && gridPanelRegistry === null;
-  const [host, setHost] = useState<"panel" | "dialog" | "standalone" | null>(null);
+  // GridPanel 이 정한 이 그리드의 자리 — 설정 메뉴 대상인가(대상이면 아래 줄 [엑셀] 단추를 뺀다), 걸러 보기 대상인가(filter 생략 그리드는 이것일 때만 켜진다).
+  // 한 패널에 그리드가 하나면 둘 다 그 그리드다. 등록 효과(아래)가 채운다.
+  // 자리(host)와 두 대상 값을 상태 하나로 묶는다 — 마운트 때 세 값이 같은 커밋의 layout effect 에서 정해지므로 한 번의 다시 그리기로 끝나고,
+  // 갱신 함수가 값이 같으면 이전 객체를 돌려주므로 해제 뒤 다시 등록하는 같은 커밋에서도 새 객체가 생기지 않는다.
+  const [placement, setPlacement] = useState<GridPlacement>(INITIAL_PLACEMENT);
+  const { host, isMenuTarget, isFilterTarget } = placement;
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    setHost(isInDialog(el) ? "dialog" : gridPanelRegistry && el.closest(".grid-panel-content") ? "panel" : "standalone");
+    const nextHost = isInDialog(el) ? "dialog" : gridPanelRegistry && el.closest(".grid-panel-content") ? "panel" : "standalone";
+    setPlacement((prev) => (prev.host === nextHost ? prev : { ...prev, host: nextHost }));
   }, [gridPanelRegistry]);
-  // GridPanel 이 정한 이 그리드의 자리 — 설정 메뉴 대상인가(대상이면 아래 줄 [엑셀] 단추를 뺀다), 걸러 보기 대상인가(filter 생략 그리드는 이것일 때만 켜진다).
-  // 한 패널에 그리드가 하나면 둘 다 그 그리드다. 등록 효과(아래)가 채운다.
-  // 값 하나씩 따로 둔다(객체 하나로 두면 해제 뒤 다시 등록하는 같은 커밋에서도 새 객체라 한 번 더 그린다).
-  const [isMenuTarget, setIsMenuTarget] = useState(false);
-  const [isFilterTarget, setIsFilterTarget] = useState(false);
   // 걸러 보기(빠른 검색 + 칸별 입력 줄) — filter 세 상태(true·false·생략)와 꺼진 동안의 비용은 useGridFilter.ts 머리 주석.
   const gridFilter = useGridFilter({
     filter,
@@ -172,9 +191,16 @@ function AgDataGridInner({
   // 행 드래그(TSK-05-02 D6) — onRowOrderChange 가 없으면 핸들러를 만들지 않고 AgGridReact 에 더 넘기는 prop 이 없어 기존 그리드와
   // 렌더가 같다. managed row drag 가 끝나면 화면에 보이는 행 순서대로 행 키를 모아 알린다. 드래그를 켠 그리드와
   // rowDragField 를 준 그리드는 정렬을 끈다.
-  const rowDrag = resolveRowDrag(onRowOrderChange, sortable, (event: RowDragEndEvent) => {
-    onRowOrderChange?.(displayedRowKeys(event.api, rowKey));
-  });
+  // 끝 콜백은 ref 로 읽어 참조를 고정한다 — 호출자가 인라인 함수를 넘겨도 AgGridReact 의 onRowDragEnd prop 이 렌더마다 바뀌지 않는다.
+  const onRowOrderChangeRef = useRef(onRowOrderChange);
+  onRowOrderChangeRef.current = onRowOrderChange;
+  const handleRowDragEnd = useCallback(
+    (event: RowDragEndEvent) => {
+      onRowOrderChangeRef.current?.(displayedRowKeys(event.api, rowKey));
+    },
+    [rowKey]
+  );
+  const rowDrag = resolveRowDrag(onRowOrderChange, sortable, handleRowDragEnd);
   const effectiveSortable = rowDrag.sortable && !rowDragField;
   // isRowDraggable 은 ref 로 읽는다 — 호출자가 인라인 함수를 넘겨도 열 정의를 다시 만들지 않게 한다(열 그룹 정의가 렌더마다
   // 바뀌면 ag-grid 가 머리 그룹 셀을 다시 붙이고, React 개발 모드 효과 재실행에서 null 그룹을 읽어 죽는다 — mdm TSK-08-02 실측).
@@ -495,20 +521,23 @@ function AgDataGridInner({
     // 설정 메뉴 항목(개인화·엑셀·칸별 필터)이 있거나 빠른 검색 칸을 둘 그리드(filter={true})만 올린다. settingsMenu={false} 면 gridControls 에 메뉴 명령이 없다.
     // filter 생략 그리드(mode optional)는 설정 메뉴가 있으면 「칸별 필터 보기」 항목을 가지므로 늘 올린다 — 실제 GridPanel 안 그리드인지는 아래 DOM 검사가 가린다.
     // settingsMenu 가 켜진 그리드는 늘 항목이 있다(개인화 항목 또는 [컬럼 원래대로]). GridPanel 밖 아이콘(showSettingsOverlay)은 [컬럼 원래대로] 하나만으로는 새로 생기지 않는다.
-    if (!gridPanelRegistry || !(settingsMenu || gridFilter.mode !== "off")) return;
+    if (!gridPanelRegistry || !(settingsMenu || gridFilter.mode !== "off")) {
+      setPlacement((prev) => (prev.isMenuTarget || prev.isFilterTarget ? { ...prev, isMenuTarget: false, isFilterTarget: false } : prev));
+      return;
+    }
     // React context 는 포털을 넘어 오므로, GridPanel 안에서 띄운 팝업(룩업 등)의 그리드도 여기로 온다. 실제로 그 패널의
     // 그리드 영역 안에 있고 대화 상자 안이 아닌 그리드만 등록한다 — 개인화가 꺼진 패널에 남의 설정 메뉴가 생기지 않게.
     const el = containerRef.current;
-    if (!el || !el.closest(".grid-panel-content") || isInDialog(el)) return;
+    if (!el || !el.closest(".grid-panel-content") || isInDialog(el)) {
+      setPlacement((prev) => (prev.isMenuTarget || prev.isFilterTarget ? { ...prev, isMenuTarget: false, isFilterTarget: false } : prev));
+      return;
+    }
     const unregister = gridPanelRegistry.register(gridControls, (menu, filterTarget) => {
-      setIsMenuTarget(menu);
-      setIsFilterTarget(filterTarget);
+      setPlacement((prev) => (prev.isMenuTarget === menu && prev.isFilterTarget === filterTarget ? prev : { ...prev, isMenuTarget: menu, isFilterTarget: filterTarget }));
     });
-    return () => {
-      unregister();
-      setIsMenuTarget(false);
-      setIsFilterTarget(false);
-    };
+    // 해제만 한다 — 대상 값을 여기서 false 로 되돌리면 명령 객체가 바뀌어 곧바로 다시 등록하는 경우 false → true 로 두 번 흔들린다.
+    // 다시 등록하면 onTargetChange 가 새 값을 알려 주고, 등록이 끝나는 경우(위 조기 반환·언마운트)는 위 분기가 값을 비운다.
+    return unregister;
   }, [gridPanelRegistry, settingsMenu, personalizeEnabled, hasExcel, gridFilter.mode, gridControls]);
   // 개인화가 꺼지면(탭 비활성·키 충돌로 대기) 열려 있던 창·메뉴를 닫는다. 처음부터 꺼진 그리드는 아무 상태도 건드리지 않는다.
   const wasPersonalizeEnabledRef = useRef(false);
@@ -711,24 +740,36 @@ function AgDataGridInner({
 
   // 행 선택 — 머리글 전체 선택은 보이는 행(걸러진 결과)만 고른다(selectAll "filtered"). 거르지 않을 때는 모든 행이라 전과 같다.
   // 걸러져 숨은 행의 선택은 필터가 바뀔 때 풀린다(useGridFilter 의 handleFilterChanged).
-  const rowSelection = selectable
-    ? multiSelect
+  // isRowSelectable 은 ref 로 감싸지 않고 참조 그대로 의존성에 둔다 — ag-grid 는 이 콜백 참조가 바뀔 때만 모든 행의 선택 가능 여부를 다시 계산하므로,
+  // 행 밖 상태(잠금 플래그 등)에 의존하는 화면이 새 함수를 넘겨 다시 계산시킬 길을 막으면 안 된다. 화면이 useCallback 으로 고정하면 rowSelection 도 고정된다.
+  const rowSelection = useMemo(() => {
+    if (!selectable) return undefined;
+    const rowSelectable = isRowSelectable ? (node: { data?: Record<string, unknown> }) => isRowSelectable(node.data ?? {}) : undefined;
+    return multiSelect
       ? {
           mode: "multiRow" as const,
           enableClickSelection: false,
           checkboxes: true,
           headerCheckbox: true,
           selectAll: "filtered" as const,
-          isRowSelectable: isRowSelectable ? (node: { data?: Record<string, unknown> }) => isRowSelectable(node.data ?? {}) : undefined,
+          isRowSelectable: rowSelectable,
         }
       : {
           mode: "singleRow" as const,
           enableClickSelection: false,
           checkboxes: true,
           headerCheckbox: false,
-          isRowSelectable: isRowSelectable ? (node: { data?: Record<string, unknown> }) => isRowSelectable(node.data ?? {}) : undefined,
-        }
-    : undefined;
+          isRowSelectable: rowSelectable,
+        };
+  }, [selectable, multiSelect, isRowSelectable]);
+  // getRowHeight 는 ag-grid 가 참조 변경에 반응하지 않으므로(행 높이를 다시 재지 않는다) ref 로 읽어 참조를 고정한다.
+  const getRowHeightRef = useRef(getRowHeight);
+  getRowHeightRef.current = getRowHeight;
+  const hasGetRowHeight = !!getRowHeight;
+  const stableGetRowHeight = useCallback(
+    (params: { data?: Record<string, unknown> }) => getRowHeightRef.current?.(params.data ?? {}),
+    []
+  );
 
   const grid = (
     <div
@@ -793,11 +834,7 @@ function AgDataGridInner({
         ensureDomOrder
         headerHeight={28}
         rowHeight={26}
-        getRowHeight={
-          getRowHeight
-            ? (params: { data?: Record<string, unknown> }) => getRowHeight(params.data ?? {})
-            : undefined
-        }
+        getRowHeight={hasGetRowHeight ? stableGetRowHeight : undefined}
         suppressColumnVirtualisation={resolvedColumnSizing === "auto"}
         suppressHorizontalScroll={false}
         // 머리글을 그리드 밖으로 끌어도 컬럼이 숨겨지지 않는다(개인화 여부와 무관) — 실수 숨김이 자동 저장되어 계속 사라지거나,

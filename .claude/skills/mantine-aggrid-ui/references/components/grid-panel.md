@@ -161,6 +161,7 @@ const confirmDeleteRow = () =>
 | `children` 에 안내 문구·배너 `<p>` 를 그리드와 나란히 둔다 | 본문 안 `AgDataGrid` 는 `position:absolute` 로 본문 전체를 덮으므로 안내가 그리드 헤더에 가려진다. 안내는 `GridPanel` 바깥에 둔다 — Local-Rules §45 |
 | `headerExtra` 안에서 `position: absolute`·`fixed` 로 요소를 띄우거나 `order` 로 설정 아이콘 앞에 세우려 한다 | 설정 아이콘 칸은 DOM 마지막·`order: 2147483647` 로 고정이라 `order` 는 통하지 않고, absolute 로 띄운 요소는 순서로 막지 못해 아이콘을 가린다. 일반 흐름(flex 자식)으로만 둔다 |
 | 읽기 전용 작은 표인데 설정 아이콘이 필요 없다고 GridPanel 머리줄 CSS 를 덮는다 | 안쪽 그리드에 `settingsMenu={false}` 를 준다 |
+| 단추 `onClick` 을 인라인으로 주면 머리줄이 매번 다시 그려진다고 `useCallback` 으로 감싼다 | 필요 없다. 단추 묶음은 모양(id·라벨·클래스·비활성)이 같으면 같은 요소를 쓰고 클릭 때 최신 `onClick` 을 부른다. `titleExtra`·`headerExtra`·`help` 도 같은 부품에 같은 값을 넘기면 다시 그리지 않는다(인라인 함수가 들어 있으면 다시 그린다) |
 
 ## 실제 사용 예
 

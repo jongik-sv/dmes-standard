@@ -86,6 +86,9 @@ export function useGridDataManager<T extends Record<string, unknown>>(
   const { rowKey = "id", emptyForm, rowToForm, formFieldToRow, formDefaultsToRow, saveHandler, onSaveSuccess } = options;
 
   const [rows, setRowsState] = useState<Record<string, unknown>[]>([]);
+  /** 마지막으로 그린 행 목록 — 이벤트 처리기가 갱신 함수 밖에서 최신 행을 읽을 때 쓴다. */
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
   const [selectedRowKey, setSelectedRowKey] = useState<string | number | null>(null);
   const [isNewRow, setIsNewRow] = useState(false);
   const [formData, setFormData] = useState<Partial<T>>(emptyForm);
@@ -121,13 +124,9 @@ export function useGridDataManager<T extends Record<string, unknown>>(
       setSelectedRowKey(rowId);
       setIsNewRow(isTemp);
       setScrollToRowKey(null);
-      setRowsState((prev) => {
-        const row = prev.find((r) => resolveRowId(r, rowKey) === rowId);
-        if (row) {
-          setFormData(rowToForm(row) as Partial<T>);
-        }
-        return prev;
-      });
+      // 갱신 함수 안에서 다른 상태를 바꾸지 않는다(갱신 함수는 순수해야 한다 — 개발 모드는 두 번 부른다). 최신 행 목록은 ref 로 읽는다.
+      const row = rowsRef.current.find((r) => resolveRowId(r, rowKey) === rowId);
+      if (row) setFormData(rowToForm(row) as Partial<T>);
     },
     [rowKey, rowToForm]
   );

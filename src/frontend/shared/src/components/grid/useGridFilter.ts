@@ -245,8 +245,11 @@ export function useGridFilter(opts: UseGridFilterOptions): GridFilterState {
   const refreshCount = useCallback(() => {
     const api = gridRef.current?.api;
     if (!api || api.isDestroyed()) return;
+    const filterPresent = api.isAnyFilterPresent();
+    // 필터·검색어가 없고 이미 아무 표시도 없으면 할 일이 없다 — 행이 바뀔 때마다(onModelUpdated) 도는 경로라 바로 끝낸다.
+    if (!filterPresent && quickRef.current === "" && countRef.current === null && chipsRef.current === NO_FILTER_CHIPS) return;
     let next: GridFilterCount | null = null;
-    if (api.isAnyFilterPresent()) {
+    if (filterPresent) {
       let total = 0;
       api.forEachNode(() => {
         total += 1;

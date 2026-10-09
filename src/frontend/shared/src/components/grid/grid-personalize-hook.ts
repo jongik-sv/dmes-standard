@@ -532,6 +532,9 @@ export function useConfirmedUserId(enabled: boolean): string {
 // 번들러가 `process.env.NODE_ENV` 글자 그대로를 바꿔 넣으므로 이 모양을 지킨다(error-boundary.tsx 와 같다).
 const isDev = () => process.env.NODE_ENV !== "production";
 
+const NO_DEFAULT_COLUMNS: GridDefaultColumn[] = [];
+const NO_LOCKED_COLUMNS: ReadonlySet<string> = new Set<string>();
+
 export function useGridPersonalize(opts: UseGridPersonalizeOptions): GridPersonalizeHandle {
   const { gridReady, gridId, personalize, columns, columnDefs, selectable, rowKey, rowDragField } = opts;
   const resolved = resolvePersonalize(personalize);
@@ -542,8 +545,9 @@ export function useGridPersonalize(opts: UseGridPersonalizeOptions): GridPersona
   const gid = gridId || DEFAULT_GRID_ID;
   const regKey = gridPersonalizeRegistryKey(tabId, screenKey, gid);
 
-  const defaults = useMemo(() => defaultColumnsFromDefs(columnDefs, selectable), [columnDefs, selectable]);
-  const locked = useMemo(() => hideLockedColIds(columns, { rowKey, rowDragField }), [columns, rowKey, rowDragField]);
+  // 개인화를 쓰지 않는 그리드(대부분)는 열 정의를 훑는 계산을 건너뛴다 — 꺼진 동안은 이 값을 읽는 경로가 없다(저장·복원·창 열기 모두 enabled 가 먼저 막는다).
+  const defaults = useMemo(() => (enabled ? defaultColumnsFromDefs(columnDefs, selectable) : NO_DEFAULT_COLUMNS), [enabled, columnDefs, selectable]);
+  const locked = useMemo(() => (enabled ? hideLockedColIds(columns, { rowKey, rowDragField }) : NO_LOCKED_COLUMNS), [enabled, columns, rowKey, rowDragField]);
 
   /**
    * 등록부를 차지했는가. 차지 결과는 ref 에 둔다 — 마운트 직후 바로 차지하면 다시 렌더하지 않는다(효과들은 같은 커밋에서 이 ref 를 읽는다).
