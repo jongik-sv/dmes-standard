@@ -161,6 +161,13 @@ describe("toggleCurrency · daysOptions", () => {
     expect(toggleCurrency(["USD", "XYZ"], "EUR", true)).toEqual(["USD", "EUR", "XYZ"]);
   });
 
+  it("저장된 THB(편집기 목록에서 빠진 통화)는 유지되고 해제할 수도 있다", () => {
+    expect(EXCHANGE_CURRENCIES as readonly string[]).not.toContain("THB");
+    expect(toggleCurrency(["USD", "THB"], "EUR", true)).toEqual(["USD", "EUR", "THB"]);
+    expect(toggleCurrency(["USD", "THB"], "THB", false)).toEqual(["USD"]);
+    expect(validateExchangeConfig({ base: "KRW", currencies: ["USD", "THB"], days: 30 })).toEqual([]);
+  });
+
   it("기간 선택지는 7·30·90, 설정값이 그 밖이면 함께 보인다", () => {
     expect(daysOptions(30)).toEqual([7, 30, 90]);
     expect(daysOptions(14)).toEqual([7, 14, 30, 90]);
