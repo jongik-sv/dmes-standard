@@ -12,3 +12,7 @@
 - 새 컴포넌트 등록은 사용자에게 묻지 않고 진행한다. 기존 shared 컴포넌트의 props·동작·모습을 바꾸는 일은 사용자 승인 뒤에 한다.
 - 등록할 때는 같은 작업 안에서 `mantine-aggrid-ui` 스킬의 컴포넌트 문서와 색인까지 갱신한다.
 - 판정 기준과 절차는 [Part B §18](docs/guide/FrontEnd/standard-v2/part-b-shared-policy.md#18-새-공통-컴포넌트-등록) 이 정본이다.
+
+### 문체
+- 사용자 답변은 출력 스타일과 [사람용 작성 규칙](docs/guide/Common/Korean-STE-Writing-Guide.md)을 따른다.
+- 스킬 문서, 레인 보고, 작업 메모는 [LLM 대화 문체](docs/guide/Common/Korean-STE-LLM-Guide.md)를 따른다. 레인 지시(조정자 → 레인)와 서브에이전트 지시·결과는 영어로 쓸 수 있다.

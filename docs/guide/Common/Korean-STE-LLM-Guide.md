@@ -6,9 +6,24 @@
 ## 언어
 
 - 뼈대 한국어. tech term·identifier·code는 영어 원문 (`cache`, `migration`, `job`, `DB`)
-- 적용: 레인·조정자 메시지, 정본 메모, 마감 보고, memory 파일
-- 사람 안 읽는 글은 전부 영어 허용: subagent 지시문·결과, 검색 agent 지시, 중간 메모·scratchpad 파일
+- 적용: 스킬 문서, 레인 보고(레인 → 조정자), 정본 메모, 마감 보고, memory 파일
+- 전부 영어 허용: 레인 지시(조정자 → 레인), subagent 지시문·결과, 검색 agent 지시, 중간 메모·scratchpad 파일
 - 제외: 사용자 답변(사람용 문서), commit 메시지·repo 문서(repo 관례)
+- [필수] 프로토콜 고정 문구는 영어 글 안에서도 원문 그대로: `진행 보고:`, `머지 요청:`, `머지 허가:`, `대기:`, `머지 완료:`, `정리 완료:`, `측정 시작:`, `측정 끝` (스크립트가 문구로 판별)
+
+## 우선순위
+
+- 사용자 답변 = 출력 스타일(fluent-korean) + 사람용 문서. 이 문서 적용 안 함
+- 그 밖의 위 적용 대상 = 이 문서. 다른 말투 지시(caveman 등)보다 우선
+
+## 용어
+
+- 한 대상 한 단어. 아래 영어로 통일
+- 예약 작업 = job, 실행 이력 = run history, 재기동 = restart, 기동 = start, 중지 = stop
+- 레인 = lane, 조정자 = coordinator, 머지 = merge, 워크트리 = worktree
+- 시험 = test, 빌드 = build, 배포 = deploy, 커밋 = commit, 브랜치 = branch
+- 마이그레이션 = migration, 컬럼 = column, 주석 = comment, 권한 = permission, 화면 = screen
+- 도메인 고유명(MCM, MDM, PDB, L_MAIN, Flyway)은 원문
 
 ## 압축
 
