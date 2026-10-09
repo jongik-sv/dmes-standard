@@ -2,7 +2,7 @@
 //   · sh·mjs 는 fixtures/pw-parity.{sh,mjs} 래퍼다: 작업 폴더의 `.cache.json` 으로 화면 캐시(폴더 700·파일 600)를 만든 뒤 스크립트를 돌리고,
 //     가짜 orca 가 받은 호출 줄(orca.log)을 stdout 끝에 덧붙인다(캐시를 썼는지·직접 읽었는지·권한 창 120줄 재읽기가 있었는지가 드러난다).
 //   · 가짜 orca 는 terminal read 에서 --limit N 을 지켜 화면 파일의 마지막 N줄을 낸다. 화면이 없으면 stale 오류, <핸들>.fail 이 있으면 그 밖의 오류.
-//   · 캐시는 읽은 시각을 gen 시점 상대값으로 두고(신선 1초 전 / 낡음 60초 전, 신선 기준 20초에서 멀다) 실행 시각에 기대지 않는다.
+//   · 캐시는 읽은 시각을 gen 시점 상대값으로 두고(신선 1초 전 / 낡음 2시간 전, 신선 기준 600초(또는 120초)에서 멀다 — 부하로 실행이 늦어져도 경계를 넘지 않게) 실행 시각에 기대지 않는다.
 //   · --follow 가 0 이 아닌 사례는 시간이 걸려 드물게만. 읽기 횟수가 초 경계에 흔들리지 않게 늘 --follow 2 --every 3(정확히 2회).
 const RULE = '─'.repeat(30);
 const BODY = ['previous output', 'more output', '> ', '  ? for shortcuts'];
@@ -53,7 +53,7 @@ exit 0
 const LANES = ['a', 'b', 'c'];
 const text = (k) => `${SCREENS[k].join('\n')}\n`;
 
-function base(handles, { run = true, ttl = 20, every } = {}) {
+function base(handles, { run = true, ttl = 600, every } = {}) {
   const files = { 'bin/orca': FAKE_ORCA };
   const lanes = {};
   for (const [lane, h] of Object.entries(handles)) lanes[lane] = { state: 'active', session: { handle: h } };
@@ -71,7 +71,7 @@ const screenFile = (files, h, k) => { files[`screens/${h}.txt`] = text(k); };
 
 function build(rng) {
   const hs = { a: 'ha', b: 'hb', c: rng.chance(0.15) ? '' : 'hc' };
-  const ttl = rng.pick([20, 20, 20, 0, 5]);
+  const ttl = rng.pick([600, 600, 600, 0, 120]);
   const { files, env } = base(hs, { ttl });
   const cache = {};
   for (const h of Object.values(hs)) {
@@ -83,7 +83,7 @@ function build(rng) {
     if (rng.chance(0.45)) {
       // 캐시: 대개 화면 파일과 같은 화면, 가끔 다른 화면(캐시를 믿는 쪽이 보이게)
       const ck = rng.chance(0.7) ? k : rng.pick(SCREEN_KEYS);
-      cache[h] = { screen: SCREENS[ck].join('\n'), ageMs: rng.pick([1000, 1000, 1000, 60000]) };
+      cache[h] = { screen: SCREENS[ck].join('\n'), ageMs: rng.pick([1000, 1000, 1000, 7200000]) };
       if (rng.chance(0.12)) cache[h].corrupt = rng.pick(['kind', 'lines', 'mode', 'nofull']);
     }
   }
@@ -101,7 +101,7 @@ function build(rng) {
   return { args, files, env };
 }
 
-const one = (screens, { args = ['a'], cache, ttl = 20, handles = { a: 'ha', b: 'hb', c: 'hc' }, extra = {} } = {}) => {
+const one = (screens, { args = ['a'], cache, ttl = 600, handles = { a: 'ha', b: 'hb', c: 'hc' }, extra = {} } = {}) => {
   const { files, env } = base(handles, { ttl });
   for (const [h, k] of Object.entries(screens)) screenFile(files, h, k);
   if (cache) files['.cache.json'] = JSON.stringify(cache);
@@ -150,7 +150,7 @@ export default {
         { label: '단일: 화면 읽기 실패(die 4)', ...one({}, { ttl: 0, extra: { 'screens/ha.fail': '' } }) },
         { label: '캐시: 신선하면 orca 를 부르지 않는다(NONE)', ...one({ ha: 'perm' }, { cache: { ha: cacheOf('idle') } }) },
         { label: '캐시: 신선한 permission 은 120줄 재읽기만 직접', ...one({ ha: 'idle' }, { cache: { ha: cacheOf('perm') } }) },
-        { label: '캐시: 낡으면 직접 읽는다', ...one({ ha: 'perm' }, { cache: { ha: cacheOf('idle', { ageMs: 60000 }) } }) },
+        { label: '캐시: 낡으면 직접 읽는다', ...one({ ha: 'perm' }, { cache: { ha: cacheOf('idle', { ageMs: 7200000 }) } }) },
         { label: '캐시: kind 불일치면 직접 읽는다', ...one({ ha: 'perm' }, { cache: { ha: cacheOf('perm', { corrupt: 'kind' }) } }) },
         { label: '캐시: 줄 수 불일치면 직접 읽는다', ...one({ ha: 'perm' }, { cache: { ha: cacheOf('perm', { corrupt: 'lines' }) } }) },
         { label: '캐시: 권한 644 면 직접 읽는다', ...one({ ha: 'perm' }, { cache: { ha: cacheOf('perm', { corrupt: 'mode' }) } }) },
@@ -158,7 +158,7 @@ export default {
         { label: '--lanes: 창 있는 레인만 블록 + 나머지 NONE', ...one({ ha: 'idle', hb: 'perm', hc: 'choice' }, { args: ['--lanes', 'a,b,c'], ttl: 0 }) },
         { label: '--lanes: handle 없는 레인 GONE', ...one({ ha: 'idle' }, { args: ['--lanes', 'a,c'], handles: { a: 'ha', c: '' }, ttl: 0 }) },
         { label: '--lanes: 낡은 handle GONE', ...one({ ha: 'idle' }, { args: ['--lanes', 'a,b'], ttl: 0 }) },
-        { label: '--lanes: 캐시 섞음(신선/낡음/없음)', ...one({ ha: 'idle', hb: 'perm', hc: 'choice' }, { args: ['--lanes', 'a,b,c'], cache: { ha: cacheOf('question'), hb: cacheOf('perm', { ageMs: 60000 }) } }) },
+        { label: '--lanes: 캐시 섞음(신선/낡음/없음)', ...one({ ha: 'idle', hb: 'perm', hc: 'choice' }, { args: ['--lanes', 'a,b,c'], cache: { ha: cacheOf('question'), hb: cacheOf('perm', { ageMs: 7200000 }) } }) },
         { label: '--lanes: interrupted', ...one({ ha: 'interrupted', hb: 'idle' }, { args: ['--lanes', 'a,b'], ttl: 0 }) },
         { label: '--lanes --follow 2 --every 3: 같은 창은 한 번만(지문 같음)', ...one({ ha: 'permCd' }, { args: ['--lanes', 'a', '--follow', '2', '--every', '3'], ttl: 0 }) },
         { label: '--lanes --follow 2 --every 3: 캐시가 신선하면 다시 읽지 않는다', ...one({ ha: 'idle' }, { args: ['--lanes', 'a', '--follow', '2', '--every', '3'], cache: { ha: cacheOf('perm') } }) },
