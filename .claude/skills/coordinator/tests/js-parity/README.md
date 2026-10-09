@@ -11,7 +11,7 @@ node tests/js-parity/run.mjs <모듈> --all --switch        # mjs 를 CLI 로 �
 node tests/js-parity/run.mjs <모듈> <함수> --seed S --index N   # 차이 난 사례 하나만 재현
 node --test tests/js-parity/                               # 모든 명세를 함수당 60건(JS_PARITY_SAMPLE 로 조절)
 ```
-`<모듈>` = `tests/js-parity/specs/<모듈>.mjs` 의 이름. 차이가 있으면 종료 코드 1 이고, 재현 명령과 함께 최대 5건을 보여 준다. 사례 i 의 난수는 (시드, 모듈, 함수, i) 로만 정해지므로 병렬·재실행에서도 같다.
+`<모듈>` = `tests/js-parity/specs/<모듈>.mjs` 의 이름. 차이가 있으면 종료 코드 1 이고, 재현 명령과 함께 최대 5건을 보여 준다. 사례 i 의 난수는 (시드, 모듈, 함수, i) 로만 정해지므로 병렬·재실행에서도 같다. stdout 이 다르면 다른 줄의 원문(최대 12줄)도 함께 찍는다(`JSPARITY_DIFF_LINES=0` 이면 끈다) — 부하 때문에 흔들린 사례인지 가리는 근거가 된다.
 
 ## 명세(specs/<모듈>.mjs) 형식
 
