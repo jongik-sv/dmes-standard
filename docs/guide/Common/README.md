@@ -7,6 +7,6 @@
 | [`Identifier-Glossary.md`](Identifier-Glossary.md) | `Id` / `Code` / `Cd` / `No` / `Seq` 등 식별자 suffix 의미와 UX 라벨 기준 |
 | [`Workspace-Structure.md`](Workspace-Structure.md) | `core` / `app` / `lib` / workspace 역할명과 패키지 경계 |
 | [`표준단어사전.md`](표준단어사전.md) | 물리 컬럼/테이블 명명에 쓰는 표준 단어 사전 |
-| [`Korean-STE-Writing-Guide.md`](Korean-STE-Writing-Guide.md) | 한국어 기술 문서 작성 규칙(KSTE·ste-ko 통합, ASD-STE100 계열) |
+| [`Korean-STE-Writing-Guide.md`](Korean-STE-Writing-Guide.md) | 한국어 기술 문서 작성 규칙 |
 
 전체 작업 분기는 먼저 [`../../../RULE.md`](../../../RULE.md) 와 [`../README.md`](../README.md) 를 따른다.
