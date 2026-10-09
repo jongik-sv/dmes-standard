@@ -316,3 +316,60 @@ Git Bash 가 있는 윈도우 PC 에서 한 번 확인해야 하는 항목이다
 - 스크립트 합계는 sh 외에 `bpmn-skill/install.ps1` 1개를 포함해 107개이다.
 - `_shared/platform-support.md` 는 python3 를 「선택」으로 적었지만 `README.md:119`, `oasis-contract-check/SKILL.md:100`, `junit-count.sh` 는 필수로 취급한다. 이식이 끝나면 표를 정리한다.
   - 현재: 해소되었다. L1(`04b6c524a`)·L6(`b78edcd7e`)로 `oasis-contract-check/SKILL.md`·`junit-count.sh` 가 node 기준이 되었고, 이 레인(W)에서 `README.md` 의 필요 명령과 `platform-support.md` 의 python3·node 행을 현재 사실에 맞췄다. 지금은 `platform-support.md`·`README.md`·`oasis-contract-check/SKILL.md`·`junit-count.sh` 가 모두 「python3 는 스킬 실행에 필요 없다」(남은 예외는 mantine-aggrid-ui 의 문서 조회 스크립트)로 일치한다.
+
+## 10. W4: 조정자 bash 퇴역 계획 (초안, 2026-10-09 js-w3a)
+
+조정자 스킬(`.claude/skills/coordinator/scripts/`)의 스크립트·lib 는 bash 판이 정답이고, node 판(`.mjs`)은 `tests/js-parity` 로 bash 판과 stdout 바이트·종료 코드·남긴 파일을 대조해 옮겼다.
+스위치(`COORD_JS_<이름>`, `COORD_JS_ALL=1`)는 기본 꺼짐이다. 이 절은 bash 판을 지우고 JS 판을 기본으로 바꾸는 W4 의 순서와 조건을 정리한다(문서만, 코드 변경 없음).
+
+### 10.1 bash 판 의심 목록과 JS 판의 현재 처리
+
+JS 판은 대조 하니스를 통과시키려고 대부분의 의심 동작을 bash 판과 **같게 흉내**냈다. 따라서 「JS 판이 이미 해결했다」 가 아니라 「JS 판이 같은 동작을 재현하고 있어, bash 퇴역 때 JS 쪽에서 고칠 수 있다」 가 정확하다.
+
+| # | 의심(bash 판 동작) | JS 판 현재 | W4 처리 안 |
+|---|---|---|---|
+| 1 | `common.sh` 71줄 `COORD_SCRIPTS_DIR` 를 환경 변수와 무관하게 lib 기준으로 덮어씀(지시서의 「환경 변수 우선」과 불일치) | 같게 흉내(`common-ext.mjs scriptsDir()` 는 lib 기준, 환경 무시) | 환경 변수 우선으로 고치고 설계 문서의 문구와 맞춘다. 대조 명세의 기대값을 같이 바꾼다 |
+| 2 | 글롭 순서·`sort` 가 로캘 의존(en_US 에서 b<Z, 동점 때 고르는 파일이 갈림) | 바이트 순서(`Buffer.compare`)로 고정 — **해결됨**(bash 의 C 로캘 동작과 같다) | JS 판 동작을 정본으로 삼고 문서에 「바이트 순서」 를 명시 |
+| 3 | bash 3.2 `$(( ))`: 앞 0 은 8진, `08`·`1 2` 오류는 그 for/while/if 복합 명령만 버리고 계속, 미설정 식별자는 `set -u` 로 스크립트 중단(종료 코드=직전 `$?`) | 같게 흉내(`arithVal`·`ArithAbort`) | 입력 검증으로 바꾼다(십진수만, 아니면 명시 오류 종료 코드). 흉내 코드는 W4 에서 삭제 |
+| 4 | stall tick 파일이 손상돼 비숫자 글이면 `set -u` 로 중단 | 같게 중단(`ArithAbort`), 명세는 숫자·빈 값만 생성 | tick 읽기를 검증해 손상 파일은 무시하고 새로 쓰기(이벤트 1줄) |
+| 5 | 레인 이름에 `"` 또는 `\` 가 있으면 jq 프로그램 컴파일 오류 → die 2(merge-gate·close-lane) | 같은 종료 코드로 흉내 | `lane-add` 에서 이름 형식을 검증(영숫자·`-`·`_`, 40자)하고 JS 판은 jq 를 쓰지 않으니 오류 흉내를 삭제 |
+| 6 | `search.sh`: `--cwd` 가 없는 폴더면 cd 오류(스크립트 경로 포함)가 `.err` 에 들어가고 계속; 옵션 값 누락은 `$2: unbound variable` 종료 코드 1; 탭 시도 뒤 `--print` 로 넘어가며 초가 바뀌면 답 파일이 2개 | 같게 흉내(대조 덤프에서 초 경계 중복만 합친다) | 없는 `--cwd` 는 명시 오류(die 2), 값 누락도 사용법 오류, 답 파일 이름은 한 번만 만든다 |
+| 7 | `idle-check`·`stall-check` 의 레인 목록이 공백 분리 뒤 글롭 확장될 수 있음 | 글롭 확장은 흉내 안 냄 — **해결됨**(공백 분리만) | 그대로 |
+| 8 | `coord-status`: `for L in $lanes` 라 공백이 든 레인 이름이 쪼개짐 | 같게 흉내 | 5 번 검증으로 공백 이름이 없어지면 흉내 삭제 |
+| ⑨ | `tests/screen-cache.sh` 「follow: 바뀌지 않은 캐시는 다시 읽지도 않는다」가 기존 dev 에서 실패 | 코드 결함이 아니라 시험의 고정 sleep 가정(폴러 한 바퀴 1~2.5초) 문제 — **시험 수정으로 해결**(알림이 찍힌 시점을 기다리고, 읽기 횟수는 마지막 알림 시점에 잡음). 끔·켬 108/0 | 완료 |
+| ⑩ | `coord_screen_prompt_kind` 는 진행 표시(`esc to interrupt`·스피너+경과 시간)가 있으면 choice 만 내지 않고 question 은 그대로 낸다 | 같음 | 10.2 의 판정대로 **그대로 둔다** |
+
+### 10.2 ⑩ question 종류에 진행 표시 규칙을 적용하지 않는 이유
+
+- 근거로 삼을 수 있는 화면은 `tests/fixtures/prompt-question.txt` 한 장(진행 표시 없음)뿐이고, 질문 창(AskUserQuestion)이 스피너·`esc to interrupt` 와 같은 화면에 뜨는지 아닌지는 실화면으로 확인하지 못했다. 「뜨지 않는다」 는 주장은 근거가 없다.
+- `question` 의 표지(`Enter to select`·`↑/↓ to navigate`·`Arrow keys to navigate`)는 질문 창 하단의 고유 문구라, 명령 본문에서 `❯ 1.` 같은 흔한 문자열이 나오는 choice 오탐과 달리 우연히 섞일 가능성이 훨씬 낮다.
+- 오류의 비용이 비대칭이다. 거짓 question 알림은 조정자가 화면을 읽어 넘기면 끝나지만, 진짜 질문을 숨기면 레인이 사람 지시를 기다리며 멈춘다(`idle-check` 의 WAIT_USER 가 안전망이긴 하나 늦다).
+- 이 레인의 `workflow.md` 지시는 레인이 AskUserQuestion 을 쓰지 않게 하므로 question 창 자체가 드물다.
+- 실화면에서 거짓 question 이 관찰되면 `common.sh _coord_screen_busy` 호출을 question 분기에도 붙이고(sh·mjs 짝, 명세 고정 사례 추가) 같은 규칙을 적용한다. 관찰 기록은 `decisions.md` 후속에 남긴다.
+
+### 10.3 bash 판 삭제 순서
+
+호출 관계가 얕은 것부터, 상주·핵심 lib 는 마지막에 지운다. 삭제 단위는 「모듈 하나」 이고, 각 단위는 아래 10.5 의 조건을 만족한 뒤에만 지운다.
+
+1. **말단 스크립트(다른 스크립트가 spawn 하지 않는 것)**: `statusline-dump`·`glm-preflight`·`usage-band`·`ctx-usage`·`compact-lane`·`search`·`coord-status`·`measure-window`·`close-lane`·`merge-gate`·`idle-check`·`stall-check`·`prompt-watch`. 호출 문서(SKILL.md·approvals.md·contract.md)와 `tick.sh` 의 `.sh` 이름은 유지한 채 파일 본문을 얇은 실행기(`exec node "<경로>.mjs" "$@"`)로 바꾼다 — 호출처를 한꺼번에 바꾸지 않기 위해서다.
+2. **부수 lib**: `compact-screen`·`common-ext` 대응 bash 함수(이미 JS 가 정본인 함수부터).
+3. **W3-b 몫**: `term-send-safe`·`auto-answer`·`spawn-lane`(별도 레인) — 위 1 과 같은 방식.
+4. **lib**: `screen-cache`·`console-input`·`console-redact`·`console-resolve`·`term`·`compat`·`common` — 이 lib 들은 bash 쪽에서 `_jsb_on` 분기로 JS 를 호출하는 중간 층이라, 이를 부르는 bash 스크립트가 모두 얇은 실행기가 된 뒤에 지운다.
+5. **마지막**: `tick.sh`·`console-poll.sh`·`coord-state.sh`·`office.sh`(상주·상태 핵심, W2/W3 별도 레인)와 `js-bridge.sh`·스위치 변수.
+
+### 10.4 윈도우 영향(스크립트별 요약)
+
+- `statusline-dump`: `NEXT` 를 `bash -c` 로 실행하므로 Git Bash 가 필요하다(JS 판도 같다). 퇴역 뒤에도 Git Bash 의존은 남는다.
+- `glm-preflight`: zsh 별칭이 없으므로 윈도우에서는 fail 별칭 경로로 간다.
+- `stall-check`·`measure-window`·`search`: 프로세스 종료는 트리 방식(`compat_kill_tree` 대응). 실기 확인 항목 8.2 의 9 번과 같이 본다.
+- `coord-status`: swap(`vm.swapusage`·`/proc/meminfo`)과 load 가 없으면 `-` 로 낸다(미지원 처리).
+- 권한·uid 검사(화면 캐시 700/600 등)는 윈도우에서 건너뛴다. 경로는 `node:path` 로 처리한다.
+- 퇴역으로 bash 본문이 없어지면 윈도우에서 bash 3.2 호환·`jq.exe`·gawk 의존이 사라지는 것이 가장 큰 이득이다. 단 `heavy.sh`·`be-run.sh` 같은 리포 쪽 bash 는 이 계획 범위 밖이다.
+
+### 10.5 켬 기본값 전환 조건
+
+1. 모듈별로 대조 하니스(`--all --cases 500`·`--switch 200`) 차이 0, 기존 bash 시험 끔·켬 통과 수 동일을 **연속 2회** 만족한다(부하 탓 실패는 단독 재실행으로 판정).
+2. 윈도우 실기 확인(8.2 항목) 중 해당 모듈의 항목을 한 번 통과한다. 미실측이면 기본값 전환을 미룬다.
+3. 상주·자주 도는 호출(`statusline-dump`·`prompt-watch --follow` 폴러 주변)은 node 기동 비용(statusline-dump 끔 83~94ms → 켬 140~147ms)이 허용 범위인지 본다. 허용되지 않으면 그 호출만 상주 프로세스(W2 의 import 방식)로 옮긴 뒤 전환한다.
+4. 실제 조정 회차 1회 이상을 `COORD_JS_ALL=1` 로 돌려 tick·idle·merge 흐름에 이상이 없다.
+5. 전환 순서: `COORD_JS_ALL` 기본을 켬으로 바꾸고 `=0` 을 탈출구로 둔다 → 1~2 회차 관찰 → bash 본문 삭제(10.3) → 스위치 변수와 `js-bridge.sh` 제거. 켬에서 node 판이 실패하면 bash 로 되돌아가지 않는(fail-closed) 규칙은 전환 전 기간 동안 유지한다.

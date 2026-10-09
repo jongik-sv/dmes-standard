@@ -275,16 +275,25 @@ resetlog
 # 꺼짐(기본)은 예전 값 그대로다.
 if env | grep -q '^COORD_JS_[A-Z_]*=1$'; then T_EV=3; T_FW=45; T_1=5; T_2=5; T_3=8; T_OFF_CACHE=9; T_OFF=4.5
 else T_EV=1; T_FW=9; T_1=1.4; T_2=0.8; T_3=1.2; T_OFF_CACHE=3; T_OFF=1.5; fi
-( env COORD_RUN=r1 bash "$PW" --lanes kit --follow "$T_FW" --every "$T_EV" > "$S/follow.out" 2>/dev/null ) & BG="$BG $!"; fp=$!
+# 폴러의 한 바퀴(lane 조회·캐시 읽기·sleep --every)는 호스트 부하에 따라 1~2.5초까지 늘어나므로, 고정 sleep 으로 「이 시점에 폴러가 이미 읽었다」를 가정하지 않는다.
+# 알림이 찍힐 때까지 기다려 폴러가 그 표본을 소비한 것을 확인한 뒤 다음 단계로 간다. 「다시 읽지 않는다」 단계는 폴러가 한 바퀴 이상 돌 시간(T_CYC)을 기다린다.
+if env | grep -q '^COORD_JS_[A-Z_]*=1$'; then T_FW2=60; T_CYC=7; else T_FW2=26; T_CYC=3.2; fi
+await_prompts() { local n="$1" i=0; while [ "$(grep -c '^kit PROMPT hk permission$' "$S/follow.out")" -lt "$n" ] && [ "$i" -lt 200 ]; do sleep 0.2; i=$((i + 1)); done; }
+( env COORD_RUN=r1 bash "$PW" --lanes kit --follow "$T_FW2" --every "$T_EV" > "$S/follow.out" 2>/dev/null ) & BG="$BG $!"; fp=$!
 sleep "$T_1"; plant hk "$S/perm.txt"                    # 폴러가 권한 창을 읽었다
-sleep "$T_2"; cp "$d/hk.txt" "$S/keep.txt"; printf '%s\n' "가짜 화면" > "$d/hk.txt"   # json 은 그대로 — 다시 판정했다면 짝이 안 맞아 직접 읽는다
-sleep "$T_3"
+await_prompts 1                                         # (알림이 찍혔다 = 캐시를 소비하고 120줄 재읽기까지 끝났다)
+cp "$d/hk.txt" "$S/keep.txt"; printf '%s\n' "가짜 화면" > "$d/hk.txt"   # json 은 그대로 — 다시 판정했다면 짝이 안 맞아 직접 읽는다
+sleep "$T_CYC"                                          # 폴러가 한 바퀴 이상 돈다
 plant hk "$S/perm.txt"                                  # 같은 창을 다시 읽음(read_at 만 새로)
-sleep "$T_1"; plant hk "$S/idle.txt"                    # 창이 사라짐
-sleep "$T_1"; plant hk "$S/perm.txt"                    # 다시 뜸
+sleep "$T_CYC"
+plant hk "$S/idle.txt"                                  # 창이 사라짐
+sleep "$T_CYC"
+plant hk "$S/perm.txt"                                  # 다시 뜸
+await_prompts 2
+r_follow="$(reads) $(grep -c -- '--limit 120 ' "$FAKE_DIR/orca.log")"   # 마지막 알림 시점의 읽기 횟수(그 뒤 캐시가 낡으면 직접 읽기가 시작되는 것은 설계대로다)
 wait "$fp" 2>/dev/null
 eq "follow: 캐시가 바뀐 때만 판정한다(같은 창은 한 번, 사라졌다 다시 뜨면 또 한 번)" "$(grep -c '^kit PROMPT hk permission$' "$S/follow.out")" 2
-eq "follow: 바뀌지 않은 캐시는 다시 읽지도 않는다(직접 읽기는 권한 창 120줄 두 번뿐)" "$(reads) $(grep -c -- '--limit 120 ' "$FAKE_DIR/orca.log")" "2 2"
+eq "follow: 바뀌지 않은 캐시는 다시 읽지도 않는다(직접 읽기는 권한 창 120줄 두 번뿐)" "$r_follow" "2 2"
 eq "follow: 끝줄 NONE 한 줄은 기존대로" "$(grep -c '^kit NONE' "$S/follow.out")" 1
 # 폴러가 꺼짐(캐시가 낡음) → 그때부터 직접 읽기
 setcfg "{\"approvals\":{\"screen_cache_s\":$T_OFF_CACHE}}"
