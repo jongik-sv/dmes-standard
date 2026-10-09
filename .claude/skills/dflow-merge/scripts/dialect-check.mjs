@@ -8,15 +8,32 @@
 // 상태: <git-common-dir>/dflow-dialect/<브랜치>.state (last_pass·last_fail·deferred·docs_only·last_result), 로그 <브랜치>.log.
 // sh 판과 맞춘 점: 인자·dflow 조회(config dialect_check·tasks-dirs)·잠금 절차·고아 워크트리 정리·
 // 문서뿐 이월 판정·도커 프로브·since·tasks·unverified 집계·상태 기록 순서·로그 tail 20줄(stderr).
-// 알고 둔 차이: --help(짧은 도움말, exit 0)는 추가. dflow 호출은
-//   `node <리포>/.claude/skills/dflow-work/scripts/dflow.mjs <같은 인자>` 다(다른 레인이 만드는 중.
-//   DFLOW_SH env 로 오버라이드). heavy 호출은 heavy.mjs(node)가 있으면 그것을, 없으면 heavy.sh(bash),
-//   둘 다 없으면 `bash -c <명령>` 직접 실행이다(전환기 폴백. 윈도우에 bash 가 없으면 명령 실패 경로 rc=127 을 탄다).
+// 알고 둔 차이: --help(짧은 도움말, exit 0)는 추가. dflow 호출은 기본 dflow.mjs,
+// DFLOW_SH 확장자로 실행기 선택(.mjs → node, .sh → bash).
+// heavy 호출은 heavy.mjs(node)가 있으면 그것을, 없으면 heavy.sh, 둘 다 없으면 셸로 <명령> 직접 실행.
+// 사용자 셸 명령·프로브는 unix = bash -c, win32 = Git Bash -c, 둘 다 없으면 명시 오류.
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { OK, USAGE, finish } from '../../_shared/node/args.mjs';
+
+// stdout/stderr 쓰기. writeSync 반환 바이트만큼 루프(64KB 넘는 파이프 잘림 방지).
+function writeFd(fd, s) {
+  const b = Buffer.from(s, 'utf8');
+  for (let off = 0; off < b.length;) {
+    let n = 0;
+    try {
+      n = fs.writeSync(fd, b, off);
+    } catch {
+      break;
+    }
+    if (n <= 0) break;
+    off += n;
+  }
+}
+const writeOut = (s) => writeFd(1, s);
+const writeErr = (s) => writeFd(2, s);
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PROG = path.basename(fileURLToPath(import.meta.url));
@@ -27,12 +44,32 @@ const HEAVY_SH = path.join(HERE, '..', '..', 'dflow-dev', 'scripts', 'heavy.sh')
 
 const USAGE_MSG = `사용법: ${PROG} run --dev <브랜치> [--sweep-base <sha>] | status --dev <브랜치>`;
 function usage() {
-  process.stderr.write(USAGE_MSG + '\n');
+  writeErr(USAGE_MSG + '\n');
   return finish(USAGE);
 }
 function err(msg) {
-  process.stdout.write(`DIALECT_ERROR ${msg}\n`);
+  writeOut(`DIALECT_ERROR ${msg}\n`);
   return finish(2);
+}
+
+// 셸 찾기. unix = bash, win32 = PATH 의 bash.exe, 없으면 Git 기본 경로. 없으면 null.
+function findBash() {
+  if (process.platform !== 'win32') return 'bash';
+  for (const d of String(process.env.PATH || '').split(path.delimiter)) {
+    if (!d) continue;
+    const c = path.join(d, 'bash.exe');
+    try {
+      fs.accessSync(c, fs.constants.X_OK);
+      return c;
+    } catch { /* 없음 */ }
+  }
+  const fb = 'C:/Program Files/Git/bin/bash.exe';
+  try {
+    fs.accessSync(fb, fs.constants.X_OK);
+    return fb;
+  } catch {
+    return null;
+  }
 }
 
 function runCmd(cmd, args, { cwd, input } = {}) {
@@ -41,8 +78,16 @@ function runCmd(cmd, args, { cwd, input } = {}) {
   });
   return { status: r.error ? 127 : (r.status ?? 127), stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
-const git = (cwd, args, opts) => runCmd('git', ['-c', 'core.quotePath=false', ...args], { cwd, ...opts });
-const dflow = (args) => runCmd(process.execPath, [DFLOW, ...args], {});
+// git 호출. longpaths 가 필요하면(윈도우 긴 경로) 같이 켠다.
+function git(cwd, args, { longpaths = false } = {}, opts = {}) {
+  const pre = longpaths ? ['-c', 'core.quotePath=false', '-c', 'core.longpaths=true'] : ['-c', 'core.quotePath=false'];
+  return runCmd('git', [...pre, ...args], { cwd, ...opts });
+}
+// dflow 호출. DFLOW_SH 확장자로 실행기 선택(.mjs → node, .sh → bash).
+function dflow(args) {
+  const mjs = DFLOW.endsWith('.mjs');
+  return runCmd(mjs ? process.execPath : 'bash', mjs ? [DFLOW, ...args] : [DFLOW, ...args], {});
+}
 
 function splitLines(text) {
   if (text === '') return [];
@@ -66,7 +111,7 @@ function pidAlive(pid) {
 
 function main(argv) {
   if (argv.includes('-h') || argv.includes('--help')) {
-    process.stdout.write(USAGE_MSG + '\n방언 검증. 마지막 줄에 DIALECT_* 결과 한 줄을 낸다.\n');
+    writeOut(USAGE_MSG + '\n방언 검증. 마지막 줄에 DIALECT_* 결과 한 줄을 낸다.\n');
     return finish(OK);
   }
   const mode = argv[0] ?? '';
@@ -84,18 +129,7 @@ function main(argv) {
   const cd = git(root, ['rev-parse', '--git-common-dir']);
   if (cd.status !== 0) return err('git-common-dir 를 모른다');
   const rawCd = strip(cd.stdout);
-  // sh 판 `cd <common-dir> && pwd` 는 셸 논리 경로를 쓴다. 심링크 아래 체크아웃에서도
-  // 같은 로그 경로를 내도록 상대 경로면 PWD(유효할 때) 기준 절대경로를 만든다.
-  let cdir;
-  if (path.isAbsolute(rawCd)) cdir = rawCd;
-  else {
-    let base = process.cwd();
-    try {
-      const p = process.env.PWD;
-      if (p && fs.realpathSync(p) === fs.realpathSync(base)) base = p;
-    } catch { /* 무시 */ }
-    cdir = path.join(base, rawCd);
-  }
+  const cdir = path.resolve(root, rawCd);
   const sd = path.join(cdir, 'dflow-dialect');
   try {
     fs.mkdirSync(sd, { recursive: true });
@@ -132,8 +166,8 @@ function main(argv) {
 
   if (mode === 'status') {
     const r = get('last_result'), d = get('deferred');
-    if (d) process.stdout.write(`DIALECT_PENDING deferred ${short(d)}\n`);
-    process.stdout.write((r || 'DIALECT_STATUS none') + '\n');
+    if (d) writeOut(`DIALECT_PENDING deferred ${short(d)}\n`);
+    writeOut((r || 'DIALECT_STATUS none') + '\n');
     return finish(OK);
   }
 
@@ -141,7 +175,7 @@ function main(argv) {
   if (cc.status !== 0) return err('설정을 읽지 못했다(dflow.sh config dialect_check)');
   const cmd = strip(cc.stdout);
   if (!cmd) {
-    process.stdout.write('DIALECT_NONE\n');
+    writeOut('DIALECT_NONE\n');
     return finish(OK);
   }
 
@@ -165,14 +199,14 @@ function main(argv) {
       }
     } catch { /* 없음 */ }
     if (op && pidAlive(op)) {
-      process.stdout.write(`DIALECT_RUNNING ${short(sha)} pid=${op}\n`);
+      writeOut(`DIALECT_RUNNING ${short(sha)} pid=${op}\n`);
       return finish(OK);
     }
     try { fs.rmSync(lk, { recursive: true, force: true }); } catch { /* 무시 */ }
     try {
       fs.mkdirSync(lk);
     } catch {
-      process.stdout.write(`DIALECT_RUNNING ${short(sha)} pid=?\n`);
+      writeOut(`DIALECT_RUNNING ${short(sha)} pid=?\n`);
       return finish(OK);
     }
   }
@@ -221,12 +255,12 @@ function main(argv) {
 
   const lastPass = get('last_pass'), lastFail = get('last_fail');
   if (sha === lastPass) {
-    process.stdout.write(`DIALECT_SKIP passed ${short(sha)}\n`);
+    writeOut(`DIALECT_SKIP passed ${short(sha)}\n`);
     cleanup();
     return finish(OK);
   }
   if (sha === lastFail) {
-    process.stdout.write(`DIALECT_SKIP failed ${short(sha)}\n`);
+    writeOut(`DIALECT_SKIP failed ${short(sha)}\n`);
     cleanup();
     return finish(OK);
   }
@@ -260,18 +294,24 @@ function main(argv) {
     if (df.status === 0 && docsOnly(splitLines(df.stdout), tdirs)) {
       put('docs_only', sha);
       put('deferred', '');
-      process.stdout.write(`DIALECT_SKIP docs-only ${short(sha)} since=${short(lastPass)}\n`);
+      writeOut(`DIALECT_SKIP docs-only ${short(sha)} since=${short(lastPass)}\n`);
       cleanup();
       return finish(OK);
     }
   }
 
-  // 도커 런타임 확인 — 켜지 않는다.
+  // 도커 런타임 확인 — 켜지 않는다. 셸이 없으면 명시 오류(조용한 DEFERRED 금지).
+  const shell = findBash();
+  if (!shell) {
+    writeOut(`DIALECT_ERROR no-bash ${short(sha)} (Git Bash 없음)\n`);
+    cleanup();
+    return finish(2);
+  }
   const probe = process.env.DFLOW_DOCKER_PROBE || 'docker info';
-  if (runCmd('bash', ['-c', probe], {}).status !== 0) {
+  if (runCmd(shell, ['-c', probe], {}).status !== 0) {
     const n = get('deferred') === sha ? '0' : '1';
     put('deferred', sha);
-    process.stdout.write(`DIALECT_DEFERRED docker-off ${short(sha)} notify=${n}\n`);
+    writeOut(`DIALECT_DEFERRED docker-off ${short(sha)} notify=${n}\n`);
     cleanup();
     return finish(3);
   }
@@ -326,13 +366,13 @@ function main(argv) {
     if (!splitLines(cur).includes('**/.claude/worktrees/')) fs.appendFileSync(ex, '**/.claude/worktrees/\n');
   } catch { /* 무시 */ }
   w = path.join(root, '.claude', 'worktrees', `dflow-dialect-${process.pid}`);
-  if (git(root, ['worktree', 'add', '-q', '--detach', w, sha]).status !== 0) {
+  if (git(root, ['worktree', 'add', '-q', '--detach', w, sha], { longpaths: true }).status !== 0) {
     w = '';
     cleanup();
     return err('임시 워크트리를 만들지 못했다');
   }
 
-  // 명령 출력은 상태 로그 파일에 모은다(sh 판 `(…) > LOG 2>&1` 과 같음).
+  // 명령 출력은 상태 로그 파일에 모은다(sh 판 `(…) > LOG 2>&1` 과 같음. stdin 은 상속).
   const runToLog = (cmd, args) => {
     let fd = -1;
     try {
@@ -342,7 +382,7 @@ function main(argv) {
     }
     let status;
     try {
-      const r = spawnSync(cmd, args, { cwd: w, stdio: ['ignore', fd, fd], windowsHide: true });
+      const r = spawnSync(cmd, args, { cwd: w, stdio: ['inherit', fd, fd], windowsHide: true });
       status = r.error ? 127 : (r.status ?? 127);
     } finally {
       try {
@@ -354,15 +394,10 @@ function main(argv) {
   let rc;
   if (fs.existsSync(HEAVY_MJS)) {
     rc = runToLog(process.execPath, [HEAVY_MJS, '--pool', 'docker', 'bash', '-c', cmd]);
+  } else if (fs.existsSync(HEAVY_SH)) {
+    rc = runToLog(shell, [HEAVY_SH, '--pool', 'docker', 'bash', '-c', cmd]);
   } else {
-    let heavySh = false;
-    try {
-      fs.accessSync(HEAVY_SH, fs.constants.X_OK);
-      heavySh = true;
-    } catch { /* 없음 */ }
-    rc = heavySh
-      ? runToLog('bash', [HEAVY_SH, '--pool', 'docker', 'bash', '-c', cmd])
-      : runToLog('bash', ['-c', cmd]);
+    rc = runToLog(shell, ['-c', cmd]);
   }
 
   let logText = '';
@@ -370,7 +405,7 @@ function main(argv) {
     logText = fs.readFileSync(log, 'utf8');
   } catch { /* 없음 */ }
   if (rc === 75 && /(^|\n)HEAVY_(DOCKER_)?BUSY/.test(logText)) {
-    process.stdout.write(`DIALECT_BUSY ${short(sha)}\n`);
+    writeOut(`DIALECT_BUSY ${short(sha)}\n`);
     cleanup();
     return finish(75);
   }
@@ -378,8 +413,8 @@ function main(argv) {
     const n = get('errored') === sha ? '0' : '1';
     put('errored', sha);
     const tail = splitLines(logText).slice(-20);
-    for (const l of tail) process.stderr.write(l + '\n');
-    process.stdout.write(`DIALECT_ERROR exit=${rc} ${short(sha)} notify=${n} log=${log}\n`);
+    for (const l of tail) writeErr(l + '\n');
+    writeOut(`DIALECT_ERROR exit=${rc} ${short(sha)} notify=${n} log=${log}\n`);
     cleanup();
     return finish(2);
   }
@@ -391,8 +426,8 @@ function main(argv) {
     put('deferred', '');
     put('errored', '');
     put('last_result', res);
-    for (const l of unvLines) process.stdout.write(l + '\n');
-    process.stdout.write(res + '\n');
+    for (const l of unvLines) writeOut(l + '\n');
+    writeOut(res + '\n');
     cleanup();
     return finish(OK);
   }
@@ -401,9 +436,9 @@ function main(argv) {
   put('deferred', '');
   put('errored', '');
   put('last_result', res);
-  for (const l of splitLines(logText).slice(-20)) process.stderr.write(l + '\n');
-  for (const l of unvLines) process.stdout.write(l + '\n');
-  process.stdout.write(res + '\n');
+  for (const l of splitLines(logText).slice(-20)) writeErr(l + '\n');
+  for (const l of unvLines) writeOut(l + '\n');
+  writeOut(res + '\n');
   cleanup();
   return finish(1);
 }

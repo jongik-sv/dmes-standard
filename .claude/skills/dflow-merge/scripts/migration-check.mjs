@@ -20,6 +20,22 @@ import { fileURLToPath } from 'node:url';
 import { OK, VIOLATION, USAGE, finish } from '../../_shared/node/args.mjs';
 import { makeTempDir } from '../../_shared/node/proc.mjs';
 
+// stdout/stderr 쓰기. writeSync 반환 바이트만큼 루프(64KB 넘는 파이프 잘림 방지).
+function writeFd(fd, s) {
+  const b = Buffer.from(s, 'utf8');
+  for (let off = 0; off < b.length;) {
+    let n = 0;
+    try {
+      n = fs.writeSync(fd, b, off);
+    } catch {
+      break;
+    }
+    if (n <= 0) break;
+    off += n;
+  }
+}
+const writeOut = (s) => writeFd(1, s);
+
 const PROG = path.basename(fileURLToPath(import.meta.url));
 const USAGE_TEXT = `사용: ${PROG} [-C <dir>] [--allow-out-of-order] (<기준> <대상> | --staged)
 마이그레이션 버전 관문. Flyway V<버전>__<설명>.sql 을 폴더별로 보고
@@ -70,13 +86,13 @@ function parseMig(p) {
 }
 
 function fail(msg) {
-  process.stdout.write(`MIGRATION_CHECK_FAILED ${msg}\n`);
+  writeOut(`MIGRATION_CHECK_FAILED ${msg}\n`);
   return finish(USAGE);
 }
 
 function main(argv, env) {
   if (argv.includes('-h') || argv.includes('--help')) {
-    process.stdout.write(USAGE_TEXT + '\n');
+    writeOut(USAGE_TEXT + '\n');
     return finish(OK);
   }
   let allow = env.DFLOW_MIGRATION_OUT_OF_ORDER ?? '0';
@@ -204,10 +220,10 @@ function main(argv, env) {
   const body = out.filter((l) => !l.startsWith('MIGRATION_FILES '));
   const tails = out.filter((l) => l.startsWith('MIGRATION_FILES '));
   if (!body.some((l) => l === 'MIGRATION_OK') && tails.length === 0) {
-    process.stdout.write('MIGRATION_CHECK_FAILED awk\n');
+    writeOut('MIGRATION_CHECK_FAILED awk\n');
     return finish(USAGE);
   }
-  for (const l of [...body, ...tails]) process.stdout.write(l + '\n');
+  for (const l of [...body, ...tails]) writeOut(l + '\n');
   cleanup();
   return finish(rc);
 }

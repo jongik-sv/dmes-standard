@@ -13,8 +13,7 @@
 // 레거시 .env)·바인딩 검사·필터 캐시(cksum 파일명·TTL·탈락만)·ready·승인·반려 판정·
 // stdout/stderr 줄 형식·종료 코드·주기·재검사 해제.
 // 알고 둔 차이: --help(짧은 도움말, exit 0)는 추가. jq 대신 JSON.parse.
-//   dflow 호출은 `node <리포>/.claude/skills/dflow-work/scripts/dflow.mjs <같은 인자>` 다
-//   (그 파일은 다른 레인이 만드는 중. DFLOW_SH env 로 오버라이드).
+//   dflow 호출은 기본 dflow.mjs, DFLOW_SH 확장자로 실행기 선택(.mjs → node, .sh → bash).
 //   레거시 .env 는 실행(source)하지 않고 KEY=VALUE 줄만 읽는다(따옴표 해제, export 접두 허용).
 //   종료시각 해석은 date 명령 대신 직접 계산한다(이달력 검증 포함).
 //   sleep 은 신호에 바로 죽는다(트랩 없음 — sh 판과 같다).
@@ -25,6 +24,23 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { OK, USAGE, finish } from '../../_shared/node/args.mjs';
 
+// stdout/stderr 쓰기. writeSync 반환 바이트만큼 루프(64KB 넘는 파이프 잘림 방지).
+function writeFd(fd, s) {
+  const b = Buffer.from(s, 'utf8');
+  for (let off = 0; off < b.length;) {
+    let n = 0;
+    try {
+      n = fs.writeSync(fd, b, off);
+    } catch {
+      break;
+    }
+    if (n <= 0) break;
+    off += n;
+  }
+}
+const writeOut = (s) => writeFd(1, s);
+const writeErr = (s) => writeFd(2, s);
+
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PROG = path.basename(fileURLToPath(import.meta.url));
 const SKILLS_DIR = path.resolve(HERE, '..', '..');
@@ -33,7 +49,7 @@ const DFLOW = process.env.DFLOW_SH
 
 const USAGE_MSG = '사용법: poll.mjs [--interval 초] [--until HH:MM|"YYYY-MM-DD HH:MM"|none] [--exclude id8,id8] [--exclude-temp id8,id8] [--recheck-cycles N] [--exclude-wait id8,id8] [--wait-cycles N] [--require-tag 태그] [--wp WP-02,모듈/WP-03] [--tag-cache-cycles N] [--actions full,design,build] [--lead]';
 function usage() {
-  process.stderr.write(USAGE_MSG + '\n');
+  writeErr(USAGE_MSG + '\n');
   return finish(USAGE);
 }
 
@@ -64,7 +80,7 @@ function dfcParse(text) {
     if (line === '' || line.startsWith('#')) return;
     const i = line.indexOf('=');
     if (i < 1) {
-      process.stderr.write(`BAD_LINE ${idx + 1}\n`);
+      writeErr(`BAD_LINE ${idx + 1}\n`);
       return;
     }
     const k = line.slice(0, i).replace(/[ \t]+$/, '');
@@ -92,16 +108,16 @@ function dfcApply(scope, label, rows, env) {
   for (const [k, v] of rows) {
     const name = DFC_ENV[k];
     if (!name) {
-      process.stderr.write(`UNKNOWN_KEY ${label}: ${k} (무시)\n`);
+      writeErr(`UNKNOWN_KEY ${label}: ${k} (무시)\n`);
       continue;
     }
     const both = !DFC_COMMON.has(k) && !DFC_PERSONAL.has(k);
     if (!both && ((scope === 'common') !== DFC_COMMON.has(k))) {
       if (scope === 'common') {
-        process.stderr.write(`PERSONAL_KEY_IN_DFLOW ${k} 는 개인 설정이다. .dflow.local 로 옮겨라\n`);
+        writeErr(`PERSONAL_KEY_IN_DFLOW ${k} 는 개인 설정이다. .dflow.local 로 옮겨라\n`);
         rc = 2;
       } else {
-        process.stderr.write(`COMMON_KEY_IN_LOCAL ${k} 는 프로젝트 공통 설정이다. .dflow.local 의 값은 무시한다\n`);
+        writeErr(`COMMON_KEY_IN_LOCAL ${k} 는 프로젝트 공통 설정이다. .dflow.local 의 값은 무시한다\n`);
       }
       continue;
     }
@@ -127,7 +143,7 @@ function dfcMapKeys(projectMap, quiet) {
     if (badK) {
       bad.push(v);
       if (!quiet) {
-        process.stderr.write(`BAD_DOCS_DIR ${parts[0] === '' ? '(빈 키)' : parts[0]} — project_map 의 키는 리포 최상위 기준 상대경로여야 한다(빈 키·/ 로 시작·.. 금지). 이 항목은 건너뛴다. .dflow.local 을 고쳐라\n`);
+        writeErr(`BAD_DOCS_DIR ${parts[0] === '' ? '(빈 키)' : parts[0]} — project_map 의 키는 리포 최상위 기준 상대경로여야 한다(빈 키·/ 로 시작·.. 금지). 이 항목은 건너뛴다. .dflow.local 을 고쳐라\n`);
       }
       continue;
     }
@@ -222,14 +238,14 @@ function dflowConfigLoad(env) {
     if (dfcApply('personal', '.dflow.local', dfcParse(localText), env) !== 0) return 2;
     if (dfcApply('common', dotPath, dfcParse(dotText), env) !== 0) return 2;
     if (!env.DFLOW_DEV_BRANCH) {
-      process.stderr.write('NO_DEV_BRANCH .dflow.local 에 dev_branch=<내 개발 브랜치> 를 적어라(운영 브랜치에서 직접 개발하면 그 이름을 적는다)\n');
+      writeErr('NO_DEV_BRANCH .dflow.local 에 dev_branch=<내 개발 브랜치> 를 적어라(운영 브랜치에서 직접 개발하면 그 이름을 적는다)\n');
       return 2;
     }
   } else if (dotPath) {
-    process.stderr.write(`NO_LOCAL ${top}/.dflow.local 이 없다. 개인 설정(pats·dev_branch 등)을 만들어라(예시: .claude/skills/dflow-work/dflow.local.example)\n`);
+    writeErr(`NO_LOCAL ${top}/.dflow.local 이 없다. 개인 설정(pats·dev_branch 등)을 만들어라(예시: .claude/skills/dflow-work/dflow.local.example)\n`);
     return 2;
   } else if (localPath) {
-    process.stderr.write('NO_DFLOW .dflow.local 은 있는데 .dflow 를 찾지 못했다(워크트리·origin/<dev_branch>·origin/HEAD). 프로젝트 공통 설정을 커밋하라\n');
+    writeErr('NO_DFLOW .dflow.local 은 있는데 .dflow 를 찾지 못했다(워크트리·origin/<dev_branch>·origin/HEAD). 프로젝트 공통 설정을 커밋하라\n');
     return 2;
   } else {
     env.DFLOW_CONFIG_MODE = 'legacy';
@@ -237,7 +253,7 @@ function dflowConfigLoad(env) {
       let envf = env.DFLOW_ENV_FILE || (env.DFLOW_CONFIG_DIR ? path.join(env.DFLOW_CONFIG_DIR, '.env') : './.env');
       try {
         const t = fs.readFileSync(envf, 'utf8');
-        process.stderr.write(`LEGACY_ENV ${envf} 를 읽었다. .dflow·.dflow.local 로 옮겨라\n`);
+        writeErr(`LEGACY_ENV ${envf} 를 읽었다. .dflow·.dflow.local 로 옮겨라\n`);
         Object.assign(env, parseEnvFile(t));
       } catch { /* 없음 */ }
     }
@@ -335,7 +351,7 @@ function normalizeWp(wp) {
   const out = [];
   for (const w of wp.split(',')) {
     if (!/^([^/\s]+\/)?WP-[0-9]+$/.test(w)) {
-      process.stderr.write(`--wp 형식 오류: ${w} (예: WP-02, dict/WP-02)\n`);
+      writeErr(`--wp 형식 오류: ${w} (예: WP-02, dict/WP-02)\n`);
       return null;
     }
     const cut = w.lastIndexOf('-');
@@ -355,8 +371,10 @@ function jstr(v) {
   return JSON.stringify(v);
 }
 
-function dflowRun(args, { combine = false, quiet = false } = {}) {
-  const r = spawnSync(process.execPath, [DFLOW, ...args], {
+function dflowRun(args, { combine = false } = {}) {
+  // DFLOW_SH 확장자로 실행기 선택(.mjs → node, .sh → bash).
+  const mjs = DFLOW.endsWith('.mjs');
+  const r = spawnSync(mjs ? process.execPath : 'bash', mjs ? [DFLOW, ...args] : [DFLOW, ...args], {
     encoding: 'utf8', windowsHide: true, maxBuffer: 256 * 1024 * 1024,
   });
   if (r.error) return { rc: 127, out: '', err: String(r.error.message ?? r.error) };
@@ -369,7 +387,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function main(argv, env) {
   const o = parseArgs(argv);
   if (o && o.help) {
-    process.stdout.write(USAGE_MSG + '\nready 감시 루프. 종료 코드는 머리말 주석 참고.\n');
+    writeOut(USAGE_MSG + '\nready 감시 루프. 종료 코드는 머리말 주석 참고.\n');
     return finish(OK);
   }
   if (!o) return usage();
@@ -393,7 +411,7 @@ async function main(argv, env) {
   try {
     fs.accessSync(DFLOW, fs.constants.X_OK);
   } catch {
-    process.stderr.write(`dflow.mjs 없음: ${DFLOW}\n`);
+    writeErr(`dflow.mjs 없음: ${DFLOW}\n`);
     return finish(USAGE);
   }
   if (dflowConfigLoad(env) !== 0) return finish(USAGE);
@@ -420,7 +438,7 @@ async function main(argv, env) {
     return files;
   };
   if (!dfcProjects(env, true).length) {
-    process.stderr.write('프로젝트 바인딩 없음: .dflow 의 project_id 또는 .dflow.local 의 project_map(레거시는 .env 의 DFLOW_PROJECT_ID·DFLOW_PROJECT_MAP)을 넣으세요\n');
+    writeErr('프로젝트 바인딩 없음: .dflow 의 project_id 또는 .dflow.local 의 project_map(레거시는 .env 의 DFLOW_PROJECT_ID·DFLOW_PROJECT_MAP)을 넣으세요\n');
     return finish(USAGE);
   }
   dfcTasksDirs(env, false);
@@ -437,7 +455,7 @@ async function main(argv, env) {
       fs.accessSync(cd, fs.constants.W_OK);
       tagCache = path.join(cd, `poll-filter-cache-${key}.tsv`);
     } catch {
-      process.stderr.write(`필터 캐시 끔(쓸 수 없음: ${cd}) — 후보마다 매 주기 show 한다\n`);
+      writeErr(`필터 캐시 끔(쓸 수 없음: ${cd}) — 후보마다 매 주기 show 한다\n`);
     }
   }
   const filterOk = (tags, ref) => {
@@ -498,18 +516,18 @@ async function main(argv, env) {
   for (;;) {
     if (until.epoch !== null && Math.floor(Date.now() / 1000) >= until.epoch) {
       if (watch !== '0') dflowRun(['watch', '--stop']);
-      process.stderr.write(`종료 시각 도달(--until ${o.untilRaw})\n`);
+      writeErr(`종료 시각 도달(--until ${o.untilRaw})\n`);
       return finish(8);
     }
     if (watch !== '0') dflowRun(['watch', '--until', until.label]);
 
     cycle++;
     if (o.excludeTemp && cycle > recheckCycles) {
-      process.stderr.write(`일시성 제외 해제(재검사 유도): ${o.excludeTemp}\n`);
+      writeErr(`일시성 제외 해제(재검사 유도): ${o.excludeTemp}\n`);
       o.excludeTemp = '';
     }
     if (o.excludeWait && cycle > waitCycles) {
-      process.stderr.write(`선행 대기 해제(안전망 재검사): ${o.excludeWait}\n`);
+      writeErr(`선행 대기 해제(안전망 재검사): ${o.excludeWait}\n`);
       o.excludeWait = '';
     }
 
@@ -553,15 +571,15 @@ async function main(argv, env) {
         note = note.replace(/[\n\t]/g, ' ').replace(/ *$/, '');
         rejectHits += `${tsk}\t${ord}\t${note}\n`;
       } else if (!st) {
-        process.stderr.write(`승인 조회 실패: ${tsk} (order=${ord}) — show 해석 불가(전체 UUID 로 기록됐는지 확인)\n`);
+        writeErr(`승인 조회 실패: ${tsk} (order=${ord}) — show 해석 불가(전체 UUID 로 기록됐는지 확인)\n`);
       }
     }
     if (mergeHits) {
-      process.stdout.write(mergeHits);
+      writeOut(mergeHits);
       return finish(9);
     }
     if (rejectHits) {
-      process.stdout.write(rejectHits);
+      writeOut(rejectHits);
       return finish(10);
     }
 
@@ -628,22 +646,22 @@ async function main(argv, env) {
         ready = kept;
       }
       if (ready.length) {
-        process.stdout.write(ready.join('\n') + '\n');
+        writeOut(ready.join('\n') + '\n');
         return finish(OK);
       }
     } else if (rc === 3 || rc === 5 || rc === 7) {
       // sh 판 `printf '%s\n'` 과 같이 개행을 항상 덧붙인다.
-      process.stderr.write(out + '\n');
+      writeErr(out + '\n');
       return finish(rc);
     } else if (rc === 6 || rc === 126 || rc === 127) {
       netFail++;
       if (netFail >= 3) {
-        process.stderr.write(`일시 오류(rc=${rc}) 3회 연속 — 중단\n`);
-        process.stderr.write(out + '\n');
+        writeErr(`일시 오류(rc=${rc}) 3회 연속 — 중단\n`);
+        writeErr(out + '\n');
         return finish(6);
       }
     } else {
-      process.stderr.write(out + '\n');
+      writeErr(out + '\n');
       return finish(rc);
     }
     await sleep(interval * 1000);

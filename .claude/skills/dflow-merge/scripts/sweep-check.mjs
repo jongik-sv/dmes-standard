@@ -8,8 +8,7 @@
 // sh 판과 맞춘 점: 인자(--dev)·dflow 조회 묶음(branch dev·config api_base·tasks-dirs·dialect_check)·
 // 로컬 두 트리+원격 스캔·api_base 필터·id8 집계·방언 대기 알림.
 // 알고 둔 차이: --help(짧은 도움말, exit 0)는 추가. jq 대신 JSON.parse.
-//   dflow 호출은 `node <리포>/.claude/skills/dflow-work/scripts/dflow.mjs <같은 인자>` 다
-//   (그 파일은 다른 레인이 만드는 중. DFLOW_SH env 로 오버라이드).
+//   dflow 호출은 기본 dflow.mjs, DFLOW_SH 확장자로 실행기 선택(.mjs → node, .sh → bash).
 //   id8 자르기는 문자 단위(sh cut -c1-8 은 바이트. agent 브랜치명은 ASCII 라 같다).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -17,24 +16,42 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { OK, USAGE, finish } from '../../_shared/node/args.mjs';
 
+// stdout/stderr 쓰기. writeSync 반환 바이트만큼 루프(64KB 넘는 파이프 잘림 방지).
+function writeFd(fd, s) {
+  const b = Buffer.from(s, 'utf8');
+  for (let off = 0; off < b.length;) {
+    let n = 0;
+    try {
+      n = fs.writeSync(fd, b, off);
+    } catch {
+      break;
+    }
+    if (n <= 0) break;
+    off += n;
+  }
+}
+const writeOut = (s) => writeFd(1, s);
+const writeErr = (s) => writeFd(2, s);
+
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PROG = path.basename(fileURLToPath(import.meta.url));
 const DFLOW = process.env.DFLOW_SH
   || path.join(HERE, '..', '..', 'dflow-work', 'scripts', 'dflow.mjs');
 
 function usage() {
-  process.stderr.write(`사용법: ${PROG} [--dev <개발 브랜치>]\n`);
-  process.stdout.write('SWEEP_UNKNOWN usage\n');
+  writeErr(`사용법: ${PROG} [--dev <개발 브랜치>]\n`);
+  writeOut('SWEEP_UNKNOWN usage\n');
   return finish(USAGE);
 }
 function unknown(reason) {
-  process.stdout.write(`SWEEP_UNKNOWN ${reason}\n`);
+  writeOut(`SWEEP_UNKNOWN ${reason}\n`);
   return finish(OK);
 }
 
-// dflow.mjs 호출. 명령 치환처럼 끝 개행만 뗀다.
+// dflow 호출. DFLOW_SH 확장자로 실행기 선택(.mjs → node, .sh → bash). 끝 개행만 뗀다.
 function dflow(args) {
-  const r = spawnSync(process.execPath, [DFLOW, ...args], {
+  const mjs = DFLOW.endsWith('.mjs');
+  const r = spawnSync(mjs ? process.execPath : 'bash', mjs ? [DFLOW, ...args] : [DFLOW, ...args], {
     encoding: 'utf8', windowsHide: true, maxBuffer: 256 * 1024 * 1024,
   });
   return { status: r.status ?? -1, out: (r.stdout ?? '').replace(/\n+$/, '') };
@@ -54,18 +71,9 @@ function splitLines(text) {
   return a.map((l) => (l.endsWith('\r') ? l.slice(0, -1) : l));
 }
 
-// jq -r 스칼라 읽기: 없음·null → ''.
-function jstr(v) {
-  if (v === null || v === undefined) return '';
-  if (typeof v === 'string') return v;
-  if (typeof v === 'boolean') return v ? 'true' : 'false';
-  if (typeof v === 'number') return String(v);
-  return JSON.stringify(v);
-}
-
 function main(argv) {
   if (argv.includes('-h') || argv.includes('--help')) {
-    process.stdout.write(`사용: ${PROG} [--dev <개발 브랜치>]\n스윕 사전 검사. 마지막 줄에 SWEEP_CANDIDATES·SWEEP_NONE·SWEEP_UNKNOWN 중 하나를 낸다.\n`);
+    writeOut(`사용: ${PROG} [--dev <개발 브랜치>]\n스윕 사전 검사. 마지막 줄에 SWEEP_CANDIDATES·SWEEP_NONE·SWEEP_UNKNOWN 중 하나를 낸다.\n`);
     return finish(OK);
   }
   let dev = '';
@@ -138,7 +146,8 @@ function main(argv) {
       try {
         text = fs.readFileSync(path.join(top, f), 'utf8');
       } catch {
-        continue;
+        // sh 판은 jq 읽기 실패를 unknown 으로 알린다(조용히 건너뛰지 않는다).
+        return unknown(`state.json 을 읽지 못했다: ${f}`);
       }
       let doc;
       try {
@@ -236,10 +245,10 @@ function main(argv) {
     const lp = first('last_pass'), lf = first('last_fail'), ld = first('docs_only');
     if (tip !== lp && tip !== lf && tip !== ld) pending = `SWEEP_DIALECT_PENDING ${tip.slice(0, 12)}`;
   }
-  if (pending) process.stdout.write(pending + '\n');
+  if (pending) writeOut(pending + '\n');
 
-  if (uniq.length) process.stdout.write(`SWEEP_CANDIDATES n=${uniq.length} ${uniq.join(' ')}\n`);
-  else process.stdout.write('SWEEP_NONE\n');
+  if (uniq.length) writeOut(`SWEEP_CANDIDATES n=${uniq.length} ${uniq.join(' ')}\n`);
+  else writeOut('SWEEP_NONE\n');
   return finish(OK);
 }
 

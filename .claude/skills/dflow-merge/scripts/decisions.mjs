@@ -23,10 +23,26 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { OK, USAGE, finish } from '../../_shared/node/args.mjs';
 
-const PROG = path.basename(fileURLToPath(import.meta.url));
-const USAGE_MSG = `usage: ${PROG} merge-conflicts|renumber [-C <dir>] [--tsk <TSK>] [--order <UUID>]`;
+// stdout/stderr 쓰기. writeSync 반환 바이트만큼 루프(64KB 넘는 파이프 잘림 방지).
+function writeFd(fd, s) {
+  const b = Buffer.from(s, 'utf8');
+  for (let off = 0; off < b.length;) {
+    let n = 0;
+    try {
+      n = fs.writeSync(fd, b, off);
+    } catch {
+      break;
+    }
+    if (n <= 0) break;
+    off += n;
+  }
+}
+const writeOut = (s) => writeFd(1, s);
+const writeErr = (s) => writeFd(2, s);
+
+const PROG = path.basename(fileURLToPath(import.meta.url));const USAGE_MSG = `usage: ${PROG} merge-conflicts|renumber [-C <dir>] [--tsk <TSK>] [--order <UUID>]`;
 function dieUsage() {
-  process.stderr.write(USAGE_MSG + '\n');
+  writeErr(USAGE_MSG + '\n');
   return finish(USAGE);
 }
 
@@ -101,7 +117,7 @@ function sleepMs(ms) {
 
 function main(argv) {
   if (argv.includes('-h') || argv.includes('--help')) {
-    process.stdout.write(USAGE_MSG + '\n공용 decisions.md 의 머지 처리. merge-conflicts(충돌 기계 해소) · renumber(임시 ID 번호 매김).\n');
+    writeOut(USAGE_MSG + '\n공용 decisions.md 의 머지 처리. merge-conflicts(충돌 기계 해소) · renumber(임시 ID 번호 매김).\n');
     return finish(OK);
   }
   if (!argv.length) return dieUsage();
@@ -120,12 +136,12 @@ function main(argv) {
   try {
     process.chdir(dir);
   } catch {
-    process.stdout.write(`${errTag} cd ${dir}\n`);
+    writeOut(`${errTag} cd ${dir}\n`);
     return finish(1);
   }
   const t = git(process.cwd(), ['rev-parse', '--show-toplevel']);
   if (t.status !== 0) {
-    process.stdout.write(`${errTag} not-a-repo\n`);
+    writeOut(`${errTag} not-a-repo\n`);
     return finish(1);
   }
   const top = t.stdout.replace(/\n+$/, '');
@@ -135,7 +151,7 @@ function main(argv) {
   try {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dflowdec-'));
   } catch {
-    process.stdout.write(`${errTag} mktemp\n`);
+    writeOut(`${errTag} mktemp\n`);
     return finish(1);
   }
   const locksFile = path.join(tmp, 'locks');
@@ -219,7 +235,7 @@ function main(argv) {
   process.on('SIGINT', sigExit);
   process.on('SIGTERM', sigExit);
   const fail = (step) => {
-    process.stdout.write(`RENUMBER_FAILED ${step}\n`);
+    writeOut(`RENUMBER_FAILED ${step}\n`);
     for (const c of byteSort([...changed])) {
       git(top, ['reset', '-q', '--', c]);
       git(top, ['checkout', '-q', '--', c]);
@@ -231,7 +247,7 @@ function main(argv) {
   if (cmd === 'merge-conflicts') {
     const d = git(top, ['diff', '--name-only', '--diff-filter=U']);
     if (d.status !== 0) {
-      process.stdout.write('DECISIONS_FAILED diff\n');
+      writeOut('DECISIONS_FAILED diff\n');
       cleanup();
       return finish(1);
     }
@@ -243,19 +259,19 @@ function main(argv) {
       if (stages === '123') {
         const rb = git(top, ['show', `:1:${p}`]);
         if (rb.status !== 0) {
-          process.stdout.write(`DECISIONS_LEFT ${p} read-base\n`);
+          writeOut(`DECISIONS_LEFT ${p} read-base\n`);
           continue;
         }
         baseText = rb.stdout;
       } else if (stages === '23') baseText = '';
       else {
-        process.stdout.write(`DECISIONS_LEFT ${p} stages=${stages}\n`);
+        writeOut(`DECISIONS_LEFT ${p} stages=${stages}\n`);
         continue;
       }
       const ro = git(top, ['show', `:2:${p}`]);
       const rt = git(top, ['show', `:3:${p}`]);
       if (ro.status !== 0 || rt.status !== 0) {
-        process.stdout.write(`DECISIONS_LEFT ${p} read-stage\n`);
+        writeOut(`DECISIONS_LEFT ${p} read-stage\n`);
         continue;
       }
       // 그 쪽 블록 중 merge-base 에 없던 머리만 우리 쪽 뒤에 붙인다.
@@ -275,11 +291,11 @@ function main(argv) {
         add += '\n' + o.body + '\n';
       }
       if (edited) {
-        process.stdout.write(`DECISIONS_LEFT ${p} edited-existing-block\n`);
+        writeOut(`DECISIONS_LEFT ${p} edited-existing-block\n`);
         continue;
       }
       if (!dlock(p)) {
-        process.stdout.write(`DECISIONS_LEFT ${p} lock\n`);
+        writeOut(`DECISIONS_LEFT ${p} lock\n`);
         continue;
       }
       const ours = ro.stdout;
@@ -289,7 +305,7 @@ function main(argv) {
         fs.writeFileSync(path.join(top, p), out);
         ok = git(top, ['add', '--', p]).status === 0;
       } catch { /* 무시 */ }
-      process.stdout.write(ok ? `DECISIONS_RESOLVED ${p}\n` : `DECISIONS_LEFT ${p} write\n`);
+      writeOut(ok ? `DECISIONS_RESOLVED ${p}\n` : `DECISIONS_LEFT ${p} write\n`);
       dunlock(p);
     }
     cleanup();
@@ -309,7 +325,7 @@ function main(argv) {
   // -- renumber --
   const lfr = git(top, ['ls-files']);
   if (lfr.status !== 0) {
-    process.stdout.write('RENUMBER_FAILED ls-files\n');
+    writeOut('RENUMBER_FAILED ls-files\n');
     cleanup();
     return finish(1);
   }
@@ -323,7 +339,7 @@ function main(argv) {
   }
   for (const p of dfiles) {
     if (!dlock(p)) {
-      process.stdout.write(`RENUMBER_FAILED lock ${p}\n`);
+      writeOut(`RENUMBER_FAILED lock ${p}\n`);
       cleanup();
       return finish(1);
     }
@@ -332,7 +348,7 @@ function main(argv) {
   const clean2 = git(top, ['diff', '--cached', '--quiet']).status === 0;
   const unmerged = splitRaw(git(top, ['ls-files', '-u']).stdout).length > 0;
   if (!clean1 || !clean2 || unmerged) {
-    process.stdout.write('RENUMBER_DIRTY\n');
+    writeOut('RENUMBER_DIRTY\n');
     cleanup();
     return finish(1);
   }
@@ -369,7 +385,7 @@ function main(argv) {
     if (!dups.length) continue;
     if (!P2 || !MB) {
       const why = !P2 ? 'not-a-merge' : 'no-merge-base';
-      for (const dd of dups) process.stdout.write(`DUP_LEFT ${p} ${dd} ${why}\n`);
+      for (const dd of dups) writeOut(`DUP_LEFT ${p} ${dd} ${why}\n`);
       continue;
     }
     const hv1 = new Set(headsOf(showRev(P1, p)));
@@ -411,7 +427,7 @@ function main(argv) {
       if (!inc.has(b.head)) {
         if ((dev.get(n) ?? 0) > 1 && !devw.has(n)) {
           devw.add(n);
-          process.stdout.write(`DUP_LEFT ${p} ${fmtD(n)} dev-side\n`);
+          writeOut(`DUP_LEFT ${p} ${fmtD(n)} dev-side\n`);
         }
         return;
       }
@@ -432,7 +448,7 @@ function main(argv) {
       dupmap.push([p, t, fmtD(mv.get(i)), amb.has(t) ? 1 : 0]);
     }
     for (const t of ambOrder) {
-      if (to.has(t)) process.stdout.write(`DUP_LEFT ${p} ${t} ambiguous-refs\n`);
+      if (to.has(t)) writeOut(`DUP_LEFT ${p} ${t} ambiguous-refs\n`);
     }
     const toBody = new Map([...to.entries()].filter(([t]) => !amb.has(t)));
     const isin = blocks.map((b) => inc.has(b.head));
@@ -532,7 +548,7 @@ function main(argv) {
           if (!r && inb.has(m)) r = 'base-mention';
           if (!r && toks.get(m) === '-') r = 'ambiguous';
           if (r) {
-            process.stdout.write(`DUP_REF_AMBIGUOUS ${f}:${idx + 1} ${m} ${r}\n`);
+            writeOut(`DUP_REF_AMBIGUOUS ${f}:${idx + 1} ${m} ${r}\n`);
             return m;
           }
           if (!doneSet.has(m)) {
@@ -553,7 +569,7 @@ function main(argv) {
             return fail(`dup refs ${f}`);
           }
           changed.add(f);
-          process.stdout.write(`DUP_REF_REPLACED ${f} ${done.join(',')}\n`);
+          writeOut(`DUP_REF_REPLACED ${f} ${done.join(',')}\n`);
         }
       }
     }
@@ -596,7 +612,7 @@ function main(argv) {
     else if (k === 'OLD') hasOld.add(a);
   }
   const dupIds = byteSort([...cntNew.entries()].filter(([id, c]) => c > 1 || hasOld.has(id)).map(([id]) => id));
-  for (const d of dupIds) process.stdout.write(`RENUMBER_DUP ${d}\n`);
+  for (const d of dupIds) writeOut(`RENUMBER_DUP ${d}\n`);
   const dupSet = new Set(dupIds);
 
   // 2) 번호 배정: 파일마다 그 파일의 최대 전역 번호 + 1 부터 머리 순서대로.
@@ -685,7 +701,7 @@ function main(argv) {
   for (const p of dfiles) {
     const ca = git(top, ['check-attr', 'merge', '--', p]);
     if (ca.status === 0 && splitRaw(ca.stdout).some((l) => l.endsWith(': merge: union'))) {
-      process.stdout.write(`UNION_SET ${p}\n`);
+      writeOut(`UNION_SET ${p}\n`);
     }
   }
 
@@ -703,21 +719,21 @@ function main(argv) {
       i++;
       const n = numOf(line);
       if (n !== i) {
-        process.stdout.write(`DECISIONS_SEQ ${p} at=${i} found=${fmtD(n)} want=${fmtD(i)}\n`);
+        writeOut(`DECISIONS_SEQ ${p} at=${i} found=${fmtD(n)} want=${fmtD(i)}\n`);
         break;
       }
     }
   }
 
   if (!changedU.length) {
-    process.stdout.write('NO_TEMP_IDS\n');
+    writeOut('NO_TEMP_IDS\n');
     cleanup();
     return finish(OK);
   }
 
-  for (const [f, old, nw] of dupmap) process.stdout.write(`DUP_RENUMBERED ${old}=${nw} ${f}\n`);
-  for (const [id, num, f] of renames) process.stdout.write(`RENUMBERED ${id}=${num} ${f}\n`);
-  process.stdout.write(`REFS ${changedU.length}\n`);
+  for (const [f, old, nw] of dupmap) writeOut(`DUP_RENUMBERED ${old}=${nw} ${f}\n`);
+  for (const [id, num, f] of renames) writeOut(`RENUMBERED ${id}=${num} ${f}\n`);
+  writeOut(`REFS ${changedU.length}\n`);
   for (const p of changedU) {
     if (git(top, ['add', '--', p]).status !== 0) return fail(`add ${p}`);
   }
@@ -730,7 +746,7 @@ function main(argv) {
   const cargs = ['commit', '-q', '-m', subject, '-m', body];
   if (order) cargs.push('--trailer', `DFlow-Order: ${order}`);
   if (git(top, cargs).status !== 0) return fail('commit');
-  process.stdout.write(`COMMITTED ${git(top, ['rev-parse', 'HEAD']).stdout.replace(/\n+$/, '')}\n`);
+  writeOut(`COMMITTED ${git(top, ['rev-parse', 'HEAD']).stdout.replace(/\n+$/, '')}\n`);
   cleanup();
   return finish(OK);
 }
