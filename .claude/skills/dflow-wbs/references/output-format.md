@@ -1,8 +1,8 @@
 # 출력 형식 상세 (dflow-wbs 동봉 정본)
 
 플러그인 `dev:wbs-wsf` 원본(dev 1.7.1) 발췌. 원본과 차이:
-**상태 어휘·category 값은 SKILL.md 우선** — 상태는 항상 `[ ]`(전이 정본 = D'Flow), category 는 7종 약어(`dev`/`defect`/`infra`/`feat`/`design`/`research`/`itest`).
-원본의 `development`·`infrastructure`·`integration-test` 표기는 이미 치환함.
+**상태 어휘·category 값 = SKILL.md 우선**. 상태는 항상 `[ ]`(전이 정본 = D'Flow). category 7종 약어: `dev`/`defect`/`infra`/`feat`/`design`/`research`/`itest`.
+원본 `development`·`infrastructure`·`integration-test` 표기는 이미 치환함.
 
 ## Task 속성 목록
 
@@ -14,9 +14,9 @@
 - **리스트 필드 파싱 규칙** (`wbs-parse.mjs` 의 `parse_list_field`):
   - `- field: -` → 빈 리스트
   - `- field: a, b, c` → 인라인 CSV, `["a", "b", "c"]`
-  - `- field:` + 다음 줄의 `  - item` 라인들 → bullet 리스트 (다음 `- name:` 필드나 빈 줄에서 종료)
-- **단일행 필드**는 값에 콤마 있어도 분할 안 함 (`get_field`). 리스트 성격 값은 반드시 리스트 필드로 선언.
-- JSON 출력 키는 하이픈 → 언더스코어 (`blocked-by` → `blocked_by`, `entry-point` → `entry_point`).
+  - `- field:` + 다음 줄 `  - item` 들 → bullet 리스트 (다음 `- name:` 필드나 빈 줄에서 종료)
+- **단일행 필드** = 값에 콤마 있어도 분할 안 함 (`get_field`). 리스트 성격 값은 반드시 리스트 필드로 선언.
+- JSON 출력 키: 하이픈 → 언더스코어 (`blocked-by` → `blocked_by`, `entry-point` → `entry_point`).
 - `entry-point` = domain 이 `fullstack` 또는 `frontend` 인 Task 에서 **필수**.
 
 ## Task 블록 형식 (기능 Task 예)
@@ -60,7 +60,7 @@
   - {UI 구성 요소 (fullstack/frontend 한정)}
 ```
 
-⚠️ 4단계(`#### TSK-`)에서는 명세 블록 헤딩이 `#####` 다 — SKILL.md `### 명세 블록 파싱 계약` 규칙 1.
+⚠️ 4단계(`#### TSK-`)에서 명세 블록 헤딩 = `#####` — SKILL.md `### 명세 블록 파싱 계약` 규칙 1.
 
 ## 통합테스트 Task 형식
 
@@ -91,7 +91,7 @@
 
 ## 의존 그래프 챕터
 
-> 의존 그래프 검증 결과를 이 섹션에 기록. 파일의 **가장 마지막 챕터**로 배치 (모든 WP·Task 블록 뒤). Mermaid 블록은 `mermaid` 펜스 사용.
+> 의존 그래프 검증 결과를 이 섹션에 기록. 파일 **마지막 챕터**로 배치 (모든 WP·Task 블록 뒤). Mermaid 블록은 `mermaid` 펜스 사용.
 
 ### 그래프 (Mermaid)
 
@@ -107,9 +107,9 @@ graph LR
 ```
 
 노드 스타일 규칙:
-- 계약 전용 Task 는 `style TSK-01-02 fill:#e8f5e9,stroke:#2e7d32`
-- 구현 포함 선행 Task 는 `style TSK-01-03 fill:#fff3e0,stroke:#e65100`
-- 리뷰 후보(아래 `review_candidates`)는 `style TSK-XX stroke:#c62828,stroke-width:2px`
+- 계약 전용 Task: `style TSK-01-02 fill:#e8f5e9,stroke:#2e7d32`
+- 구현 포함 선행 Task: `style TSK-01-03 fill:#fff3e0,stroke:#e65100`
+- 리뷰 후보(아래 `review_candidates`): `style TSK-XX stroke:#c62828,stroke-width:2px`
 
 ### 통계
 
@@ -133,7 +133,7 @@ graph LR
 | TSK-03-03 | depends=5 | 유지 | 실제 5개 시스템 상태 변경을 원자적으로 조합해야 함 |
 | TSK-03-07 | fan-in=6 | 분리 | `session` 타입만 공유 → 계약 전용 Task 신설 |
 
-**후보 없으면 "검토 결과 후보 없음" 명시.** 이 섹션을 비워두지 않음.
+**후보 없으면 "검토 결과 후보 없음" 명시.** 이 섹션 비움 금지.
 
 
 ## 출력 형식 예시 골격 (SKILL.md 에서 옮김)
