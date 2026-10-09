@@ -14,14 +14,14 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 단계 시
    - Phase 프롬프트(`{VERIFY_CMDS}`)와 게이트로 옮기는 「기준선에서 실제로 돌린 명령 줄」 = **`--` 뒤 명령**. 감싼 줄을 옮기면 게이트가 캐시된 기준선을 자기 결과로 받음
    - 리포 최상위에 `.dflow-gates` 있으면 기준선 명령 = 그 `full` 줄 명령(들), 리포 최상위에서 측정
    - state.json `baseline` 에 `"base": "<기점 sha>"` 기록 — 재개 세션도 게이트 범위 판정(`gate-scope.mjs --base`)에 같은 기점 사용
-   - module 명령 기준선은 여기서 안 재고 Design 게이트 뒤에 잼(`orch/design.md` 「Design 게이트」)
+   - 모듈 명령 기준선은 여기서 안 재고 Design 게이트 뒤에 잼(`orch/design.md` 「Design 게이트」)
 5. spec.md 읽기(필수) + 복잡도 판정(dev-discipline 점수표) → 설계 모델 결정, 한 줄 출력.
-   이어서 Build 모델: 배정표로 `build_model_base` 결정. state.json 에 `build_model_trial` 없을 때만 `node .claude/skills/dflow-dev/scripts/build-trial.mjs <external_ref> <build_model_base>` 로 test 여부 판정, 두 값을 state.json 에 기록.
+   이어서 Build 모델: 배정표로 `build_model_base` 결정. state.json 에 `build_model_trial` 없을 때만 `node .claude/skills/dflow-dev/scripts/build-trial.mjs <external_ref> <build_model_base>` 로 시험 여부 판정, 두 값을 state.json 에 기록.
    - commit 안 함 (Design 산출물 commit 에 실림)
    - 이미 있으면(재개) 다시 판정 안 함
    - 한 줄 출력: `Build 모델: <sonnet|opus> (배정 <base>, 시험 <BUILD_TRIAL 줄의 on|off·reason>)`
    - 규칙 = dev-discipline 「Build 모델 시험(build_model_trial)」
-   - `build_model_base`·`build_model_trial`(Phase 01 5번) = 배정표가 정한 Build 모델·Build 모델 test 여부(`true`|`false`). 한 번 적으면 재개해도 재판정 안 함
+   - `build_model_base`·`build_model_trial`(Phase 01 5번) = 배정표가 정한 Build 모델·Build 모델 시험 여부(`true`|`false`). 한 번 적으면 재개해도 재판정 안 함
    - 범위 `build` 면 Design 서브에이전트 안 띄움 → 설계 모델 결정 안 함 (복잡도 판정은 Build 모델 배정에 사용)
 6. **준비 끝 표시**: state.json `phase` = `prepare` 면 `design` 으로 변경 (Design 서브에이전트 띄우기 전, commit 안 함). 빠뜨리면 Design 동안 좌석이 계속 「준비」로 보임.
 

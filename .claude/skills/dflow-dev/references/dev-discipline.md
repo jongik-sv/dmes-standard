@@ -448,7 +448,7 @@ advisor 도구가 있을 때만 적용. 이 규칙이 하네스의 일반 adviso
 
 ## 마이그레이션 버전(Flyway 등 파일명이 곧 버전인 경우)
 
-Flyway `V<버전>__<설명>.sql` 처럼 파일명이 곧 버전인 migration은 병렬 branch가 같은 번호를 고르면 git 충돌 없이 merge되고 개발 branch start 깨짐.
+Flyway `V<버전>__<설명>.sql` 처럼 파일명이 곧 버전인 migration은 병렬 branch가 같은 번호를 고르면 git 충돌 없이 merge되고 개발 branch 의 서버 start 가 깨짐.
 - 임시 ID 로 미룰 수 없음(이름이 곧 버전). 아래로 겹칠 확률을 줄임.
 - 겹친 것은 `/dflow-merge` 「마이그레이션 버전 관문」 이 merge 전에 잡고 해소 워커가 재채번.
 
