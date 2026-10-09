@@ -20,7 +20,7 @@
 - `done --decisions` 파일 형식 오류 (`DECISIONS_FILE`·`DECISIONS_JSON`·`DECISIONS_INVALID <사유>`)
 
 **해결**:
-1. 명령 사용법 확인: `dflow.sh <명령> --help` (있으면)
+1. 명령 사용법 확인: `dflow.mjs <명령> --help` (있으면)
 2. env 변수 확인:
    ```bash
    echo "API_BASE: $DFLOW_API_BASE"
@@ -30,7 +30,7 @@
 4. `done` 전에 반드시 push 완료:
    ```bash
    git push origin agent/<주문id>-<slug>
-   dflow.sh done <순번> "<요약>" --auto-links
+   dflow.mjs done <순번> "<요약>" --auto-links
    ```
    `--auto-links` 빠지면 `evidence` 가 `{}` 로 영구 고정 — 후속 작업의 선행 도달 검사가 그 값을 쓰므로 무해하지 않음.
 5. `done --decisions` 경고·오류 뜻 (계약 2.6):
@@ -43,7 +43,7 @@
    - `서버가 결정 목록을 모릅니다(계약 < 2.6) — 요약 접미사로만 전달됐습니다.` — 서버가 옛 버전이라 결정이 버려짐.
      **보고는 됨**(exit 0). 승인자는 요약 접미사로만 봄.
    ```bash
-   dflow.sh done <순번> "<요약> — 확인 필요 결정 2건: …" --auto-links --decisions <DOCS_DIR>/tasks/<TSK>/decisions.json
+   dflow.mjs done <순번> "<요약> — 확인 필요 결정 2건: …" --auto-links --decisions <DOCS_DIR>/tasks/<TSK>/decisions.json
    ```
 
 ### exit 3 — 인증 실패
@@ -85,14 +85,14 @@
 **해결**:
 1. 상태 확인:
    ```bash
-   dflow.sh show <순번>
+   dflow.mjs show <순번>
    ```
 2. 409 conflict 이면 작업 선택 변경 또는 다른 사람과 조율
 3. 선행 미반영·선행 거부 (exit 4):
    ```bash
    git fetch origin
    git merge origin/main  # 또는 해당 브랜치
-   dflow.sh claim <순번>  # 재시도
+   dflow.mjs claim <순번>  # 재시도
    ```
    **우회 시도 금지** — 실패 이유가 있음.
 
@@ -110,7 +110,7 @@
 
 **기본 확인**:
 ```bash
-dflow.sh me
+dflow.mjs me
 ```
 출력 예:
 ```
@@ -153,7 +153,7 @@ projects: Project A (admin), Project B (member)
 
 **진단**:
 ```bash
-dflow.sh me
+dflow.mjs me
 ```
 
 | 결과 | 의미 | 해결 |
@@ -177,7 +177,7 @@ dflow.sh me
 |---|---|---|
 | `DESIGN_GATE design_not_accepted` | 승인·확정된 설계 없이 구현(`--scope build`) 시작 시도 | 사람이 「설계 승인」(설계 검토) 또는 「설계 확정」(구현자동)을 누름 |
 | `DESIGN_GATE design_gate order_changed` | 그 사이 사람이 설계를 되돌렸거나 주문이 바뀜 | 재시도 금지. 다시 확정·승인되면 새로 시작 |
-| `DESIGN_GATE design_gate` | 작업의 설계 방식·상태와 요청 범위 불일치 (예: 설계 검토 작업을 `--scope full` 로) | `dflow.sh show <ref>` 의 `.order.action`·`.order.action_reason` 을 보고 그 범위로 돌림 |
+| `DESIGN_GATE design_gate` | 작업의 설계 방식·상태와 요청 범위 불일치 (예: 설계 검토 작업을 `--scope full` 로) | `dflow.mjs show <ref>` 의 `.order.action`·`.order.action_reason` 을 보고 그 범위로 돌림 |
 
 ### exit 12 — 다른 PC 도는 중(계약 2.11)
 
@@ -208,10 +208,10 @@ claim 때마다 새로 생성 → 별도 갱신 불필요. claim 후 spec.md 를
 
 ```bash
 # 현재 claimed 상태 작업 모두 조회
-dflow.sh list --scope claimed
+dflow.mjs list --scope claimed
 
 # 특정 작업 상태 확인
-dflow.sh show <순번>
+dflow.mjs show <순번>
 ```
 
 ### 프로필 다중 관리
@@ -220,18 +220,18 @@ dflow.sh show <순번>
 
 ```bash
 # 모든 프로필의 작업 조회
-dflow.sh list --all
+dflow.mjs list --all
 
 # 또는 각 프로필별 진단
-dflow.sh doctor
+dflow.mjs doctor
 
 # 특정 프로필로 작업 (--as는 반드시 서브커맨드 앞)
-dflow.sh --as alice@example.com list
-dflow.sh --as alice@example.com claim <순번>
+dflow.mjs --as alice@example.com list
+dflow.mjs --as alice@example.com claim <순번>
 ```
 
 **어느 키로 도는지 모르겠다**:
-- `dflow.sh profiles` = 토큰마다 `prefix`·`name`·`email`·`projects`, 이 리포 바인딩 소속 여부(`bound`), 지금 설정이 고르는 키 여부(`selected`) 출력
+- `dflow.mjs profiles` = 토큰마다 `prefix`·`name`·`email`·`projects`, 이 리포 바인딩 소속 여부(`bound`), 지금 설정이 고르는 키 여부(`selected`) 출력
 - 고정 = `.dflow.local` 의 `as=<prefix>` (레거시 `.env` 의 `DFLOW_AS`)
 - `DFLOW_AS=… 에 맞는 토큰이 없습니다`(exit 2) = 그 값이 어느 토큰 prefix 와도 다름. 이메일·이름은 안 받음
 - heartbeat 훅도 같은 값을 따름. 맞는 토큰 없으면 아무것도 안 보냄
@@ -264,7 +264,7 @@ git commit --amend --trailer "DFlow-Order: <주문 UUID>"
 
 1. 로그 수집:
    ```bash
-   dflow.sh doctor
+   dflow.mjs doctor
    ```
 
 2. 환경 전체 확인:

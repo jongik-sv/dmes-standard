@@ -3,7 +3,7 @@
 # 개인 액세스 토큰 — D'Flow 웹 /account "내 토큰" 에서 발급. 쉼표로 여러 개 (첫 토큰이 기본). 하나면 pat= 도 됨.
 pats=
 
-# 토큰 둘 이상일 때 이 리포가 쓸 키 prefix (토큰의 셋째 '_' 칸). 비우면 첫 토큰. 목록 = dflow.sh profiles.
+# 토큰 둘 이상일 때 이 리포가 쓸 키 prefix (토큰의 셋째 '_' 칸). 비우면 첫 토큰. 목록 = dflow.mjs profiles.
 # /dflow-team 은 비어 있으면 시작 때 정해서 파일 끝에 적음.
 as=
 

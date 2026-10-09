@@ -17,7 +17,7 @@
 
 에이전트 오피스(좌석표)에서 세션에 프롬프트를 보내고, 세션의 최근 화면(끝 40줄)을 봄.
 - 서버 담당 = **대기열과 화면 한 장**
-- 로컬 전달 = PC 마다 도는 폴러(`console-poll.sh`, 30초 주기, Claude 토큰 안 씀)
+- 로컬 전달 = PC 마다 도는 폴러(`console-poll.mjs`, 30초 주기, Claude 토큰 안 씀)
 - 폴러 쪽 규칙 정본 = coordinator 스킬 `references/contract.md` §4.1
 - 전부 additive → `AGENT_CONTRACT_VERSION` 올리지 않음
 - `contract-ge` 로 가르지 않음. 아래 watch 응답에 `console` 칸이 있는지로 지원 여부 판정
@@ -77,7 +77,7 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
 
 **프로젝트 한정 PAT**
 - 프롬프트에 프로젝트가 없음. 한정 토큰이 같은 사용자의 다른 프로젝트 세션 프롬프트를 집어 갈 수 있음.
-- 그래서 poll·ack 는 프로젝트 한정 PAT 에 403 `forbidden_role` (dflow.sh exit 5). screen 은 그 프로젝트의 좌석만 받음.
+- 그래서 poll·ack 는 프로젝트 한정 PAT 에 403 `forbidden_role` (dflow.mjs exit 5). screen 은 그 프로젝트의 좌석만 받음.
 - 폴러가 이 403 을 받으면 콘솔 전달(poll·ack)만 끄고(30분 뒤 한 번 재시도) 생존 감시·화면 올리기는 계속.
 - **한정 PAT 는 같은 owner 의 조정 칸(coord_lead·coord_lane)만 허용**(wbs-web 0112):
   - screen: 열쇠 좌석이 전부 자기 프로젝트이거나 전부 프로젝트 없는 조정 칸일 때
@@ -190,7 +190,7 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
 - 세션이 사용자 입력(선택·확인 창)을 기다리는 동안 로컬이 `until` 을 정확히 `답 대기` 로 보내고, 끝나면 원래 값으로 되돌림.
 - 화면은 이 값(정확히 일치)에 반응해 「사장님 빨리 답해주세요」 같은 말풍선을 띄움.
 - 대상별 원래 값: 팀원(`임시:`) = `작업 중`·`대기`·`머지 중`, 조정 팀장(`coord:`) = `조정 중`, `/dflow-team` 팀장(`…/lead`) = 종료 시각 라벨.
-- 화면 감지 = 로컬 폴러. 조정 세션 좌석의 라벨 판정·전송 = 폴러가 남긴 입력 요청 기록을 읽는 `office.sh` (coordinator `references/contract.md` §4).
+- 화면 감지 = 로컬 폴러. 조정 세션 좌석의 라벨 판정·전송 = 폴러가 남긴 입력 요청 기록을 읽는 `office.mjs` (coordinator `references/contract.md` §4).
 - 옛 키 `…/coord`(식별자 없음)에는 콘솔을 열지 않음.
 
 ### watch 요약 칸 `summary`·`lead_summary`·`input_request` (2026-10-06, 마이그레이션 0110 — 계약 버전 불변)
@@ -207,19 +207,19 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
 - 시각은 시간대 있는 ISO 만. 문자열 제어 문자는 서버도 삭제(킷이 먼저 같은 정리).
 - 보조 감시자 행(`임시:`·`coord:`)의 `project_id` 는 서버가 늘 null 로 저장.
 
-### CLI (`dflow.sh`)
+### CLI (`dflow.mjs`)
 
-- `dflow.sh console-poll --host <슬러그> [--limit n] [--accepts keys]` — poll (kit 폴러는 키 입력 답하기를 켠 경우에만 `--accepts keys`).
+- `dflow.mjs console-poll --host <슬러그> [--limit n] [--accepts keys]` — poll (kit 폴러는 키 입력 답하기를 켠 경우에만 `--accepts keys`).
   - stdout: 프롬프트마다 한 줄 JSON `{id,target_kind,target_ref,text,claim_token,expires_at}`. 키 행은 `text` 대신 `kind`·`keys`·`input_request`.
   - `--accepts keys` 는 본문에 `accepts:['keys']` 를 실음(`keys` 밖의 값은 exit 2).
 - `console-ack … refused --reason prompt_changed` 처럼 `reason` 은 형식 검사 없이 그대로 실음(목록 검사 = 서버 몫).
-- `dflow.sh console-ack <id> <claim_token> <sent|refused|retry> [--reason r] [--detail d]` — stdout `ACK <status>` (멱등 재호출이면 `ACK <status> already`).
+- `dflow.mjs console-ack <id> <claim_token> <sent|refused|retry> [--reason r] [--detail d]` — stdout `ACK <status>` (멱등 재호출이면 `ACK <status> already`).
   - **404 는 본문 `code` 로 가름.**
   - 옛 서버(라우트 없음)의 404: 본문에 `code` 없음 → exit 7.
   - 새 라우트의 `{code:"not_found"}`: `retry` 재호출 때(서버가 이미 `claim_token` 비움)만 이미 반영된 것으로 봄 → `ACK pending already`·exit 0.
   - `sent`·`refused` 의 404 는 그대로 exit 7.
-- `dflow.sh console-screen --host <슬러그>` — stdin 에 `items` 배열 JSON, stdout 은 항목마다 `SCREEN <kind> <ref> <status>`.
-- `dflow.sh watch … [--summary-json <json>] [--lead-summary-json <json>] [--input-request-json <json|null>]` — 본문 `summary`·`lead_summary`·`input_request` 로 그대로 실음(옵션 없으면 칸 없음).
+- `dflow.mjs console-screen --host <슬러그>` — stdin 에 `items` 배열 JSON, stdout 은 항목마다 `SCREEN <kind> <ref> <status>`.
+- `dflow.mjs watch … [--summary-json <json>] [--lead-summary-json <json>] [--input-request-json <json|null>]` — 본문 `summary`·`lead_summary`·`input_request` 로 그대로 실음(옵션 없으면 칸 없음).
   - 값 하나짜리 JSON 객체(input_request 는 null 도)가 아니면 exit 2.
   - 응답에 `summary_error` 있으면 stderr 에 `SUMMARY_ERROR <글>` 한 줄. stdout·종료 코드는 그대로.
   - `--stop` 이면 칸을 싣지 않음.
@@ -261,7 +261,7 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
   - 완료 보고는 도는 PC 에서만, 살아 있는 다른 세션이 없을 때만, 리프면 단계 `ip` 에서만 받음.
   - 완료 보고의 `runner_active` 본문 `runner` = 실제로 막고 있는 라벨 (다른 PC 면 그 runner, 같은 PC 의 다른 세션이면 그 세션의 heartbeat 라벨).
   - release: 설계 상태가 있으면 `design_gate` (웹의 「중단」 사용). 설계만 하던 주문(`claim_scope` `design`)이 단계 `ds`·`dd` 에 있으면 설계 상태가 없어도 `design_gate`.
-- **dflow.sh**: `design_gate`·`design_not_accepted` → exit 11 (stderr `DESIGN_GATE <code> [reason]`), `runner_active` → exit 12 (stderr `RUNNER_ACTIVE <runner>`).
+- **dflow.mjs**: `design_gate`·`design_not_accepted` → exit 11 (stderr `DESIGN_GATE <code> [reason]`), `runner_active` → exit 12 (stderr `RUNNER_ACTIVE <runner>`).
 - 옛 서버(2.11 미만)는 모든 작업을 auto 로 봄. 스킬은 `contract-ge 2.11` 이 거짓이면 design-done·design-reopen 을 부르지 않음(`DESIGN_STATE_UNSUPPORTED`). 옛 서버에서 실제로 벌어지는 일:
   - `claim`·`build-start` 의 `--scope` 는 그대로 실려 가지만 서버가 모르는 필드라 조용히 무시됨(legacy 처럼 처리).
   - 응답에 `claim_scope` 없음 → `claim` 은 `CLAIM_SCOPE` 줄도 안 냄.
@@ -289,14 +289,14 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
   - 선행 미충족이면 403 `dependency_not_met` + `unmet[]`.
   - 옛 서버는 404(본문이 JSON 이 아닐 수 있음).
 - heartbeat `phase` 에 `wait_pred`(설계 완료·선행 대기) 추가. 좌석: claimed ∧ `wait_pred` 면 침묵과 무관하게 WAIT·선행 대기. 옛 서버는 400 으로 거부할 뿐.
-  킷 heartbeat 훅은 진행 중 phase 만 보냄 → `wait_pred` 는 `/dflow-dev` 가 `dflow.sh heartbeat <ref> --phase wait_pred` 로 직접 보냄.
+  킷 heartbeat 훅은 진행 중 phase 만 보냄 → `wait_pred` 는 `/dflow-dev` 가 `dflow.mjs heartbeat <ref> --phase wait_pred` 로 직접 보냄.
 - CLI:
-  - `dflow.sh claim <ref> --design-first`: 미충족 선행이 있으면 `DESIGN_FIRST_UNMET <JSON 배열>` 한 줄. 너무 이르면 exit 4 + stderr `DESIGN_FIRST_TOO_EARLY <JSON>`.
-  - `dflow.sh build-start <ref>`: 403 `dependency_not_met` 은 exit 4.
+  - `dflow.mjs claim <ref> --design-first`: 미충족 선행이 있으면 `DESIGN_FIRST_UNMET <JSON 배열>` 한 줄. 너무 이르면 exit 4 + stderr `DESIGN_FIRST_TOO_EARLY <JSON>`.
+  - `dflow.mjs build-start <ref>`: 403 `dependency_not_met` 은 exit 4.
     - 404 는 `/me` 의 계약이 2.9 미만일 때만 stderr `BUILD_START_UNSUPPORTED` 에 exit 0.
     - 2.9 이상이면 종전 exit 7 — 새 서버도 프로젝트 게이트·PAT 범위로 404 를 내므로, 넘기면 선행 관문을 건너뜀.
     - 버전을 확인하지 못하면 실패로 봄.
-  - `dflow.sh contract-ge <x.y>`: 서버 계약이 그 이상이면 exit 0, 칸마다 숫자 비교.
+  - `dflow.mjs contract-ge <x.y>`: 서버 계약이 그 이상이면 exit 0, 칸마다 숫자 비교.
 - 설계 정본: wbs-web 리포 docs/superpowers/specs/2026-09-26-dflow-parallel-token-design.md §6(킷에는 미동봉).
 
 ## v2.8 변경점 (2026-09-23)
@@ -306,7 +306,7 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
   - 면제된 간선에는 `head_sha` 없는 것이 정상. 서버의 `head_sha` 는 승인된 주문의 완료 보고에서만 오고, 승인된 선행은 면제할 이유가 없음.
 - 스텁 제거 하위 Task 가 주문으로 나옴. `external_ref` = `<후행 ref>.stub.<선행 ref 전체를 [A-Za-z0-9._-] 로 치환>` (예: `m/TSK-02.stub.m_TSK-01`), `depends` = `[선행, 후행]`.
   스텁이 남은 동안 후행의 승인은 서버가 거부(`stub_pending`). 완료 보고(im)까지는 정상 진행.
-- CLI: `check_depends_local` 이 `waived` 간선을 건너뜀. `dflow.sh stub-check [<ref>]` — 승격 관문(표식 있으면 exit 4).
+- CLI: `check_depends_local` 이 `waived` 간선을 건너뜀. `dflow.mjs stub-check [<ref>]` — 승격 관문(표식 있으면 exit 4).
 - 설계 정본: wbs-web 리포 docs/superpowers/specs/2026-09-23-force-progress-design.md(킷에는 미동봉).
 
 ## heartbeat `phase:"prepare"` (2026-09-24 — 계약 버전 불변)
@@ -322,7 +322,7 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
 - `POST /api/v1/agent/work/{id}/heartbeat` 가 선택 필드 `tokens` 를 받음:
   `{session, models:[{model, input, output, cache_creation, cache_read}]}`.
   값 = 그 Claude Code 세션의 **누적** 토큰. 서버는 (주문, 세션, 모델) 행을 upsert (`agent_work_order_tokens`). 옛 서버는 모르는 필드를 무시 → 버전 안 올림.
-- 보내는 쪽 = heartbeat 훅(`kit/hooks/heartbeat.sh`)뿐. 훅이 transcript(서브에이전트 기록 포함)를 jq 로 합쳐 싣고 LLM 은 안 부름. CLI(`dflow.sh heartbeat`)는 안 실음.
+- 보내는 쪽 = heartbeat 훅(`kit/hooks/heartbeat.sh`)뿐. 훅이 transcript(서브에이전트 기록 포함)를 jq 로 합쳐 싣고 LLM 은 안 부름. CLI(`dflow.mjs heartbeat`)는 안 실음.
 - 검증: session `^[A-Za-z0-9-]{1,64}$`, models 20개 이하·모델명 중복 금지, 수는 0 이상 정수(상한 1조).
   - 틀려도 heartbeat 는 기록(200)하고 토큰만 버린 뒤 `tokens_saved:false` 로 알림. 훅이 같은 캐시를 매분 다시 보내므로 400 을 주면 살아 있음 신호가 끊김.
   - 팀장 대리 표시 갈래(merge_conflict 설정·해제)와 함께 보내면 400.
@@ -335,7 +335,7 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
   - 주문 `reported`·`approved` 에 `{agent, phase:"merge_conflict", note}`(note 필수) → 200 `{ok, phase:"merge_conflict"}`. `heartbeat_phase`·`heartbeat_note` 두 열만 씀 — `updated_at`·`last_heartbeat_at`·`heartbeat_agent`·재개 요청 열은 그대로.
   - `{agent, clear:"merge_conflict"}` → 200 `{ok, phase:null, cleared}`. 주문 `claimed`·`reported`·`approved` 에서 받음 — 반려(reject)가 reported→claimed 로 바꾸며 표시를 남기기 때문(0097). 현재 값이 `merge_conflict` 일 때만 지움(`cleared:false` = 지울 것이 없었음).
   - `claimed` 주문에 `merge_conflict` 설정 = 400, 그 밖의 상태 = 409 `conflict`, 중단 = 409 `cancelled`. 워커 phase 는 종전대로 `claimed` 에서만 받음.
-- CLI: `dflow.sh heartbeat <order> --agent <신원>/<host>/lead --phase merge_conflict --note "<…>"`(출력 `MERGE_CONFLICT_SET`), `--clear-merge-conflict`(출력 `MERGE_CONFLICT_CLEARED`·`MERGE_CONFLICT_ABSENT`).
+- CLI: `dflow.mjs heartbeat <order> --agent <신원>/<host>/lead --phase merge_conflict --note "<…>"`(출력 `MERGE_CONFLICT_SET`), `--clear-merge-conflict`(출력 `MERGE_CONFLICT_CLEARED`·`MERGE_CONFLICT_ABSENT`).
 
 ## v2.6 변경점 (2026-09-23)
 
@@ -354,7 +354,7 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
   - `[]` = "0건" 명시로 저장. 필드를 빼면 행은 `null` = "제출 안 됨"(화면은 "결정 목록 미제출").
   - completion 응답에 `decisions_recorded` — 안 보냈으면 `null`, 보냈으면 저장 건수. **이 키가 없으면 서버가 2.6 미만**이라 결정이 버려진 것(요약 접미사 `확인 필요 결정 N건: …` 으로만 전달).
 - `GET /api/v1/agent/work/{id}` PAT 응답의 `reports[]` 에 `decisions` (evidence 와 같은 규칙, 레거시 불변).
-- CLI: `dflow.sh done <ref> <요약> [--auto-links] [--decisions <file>]` — 파일을 서버와 같은 규칙으로 **push 확인·전송 전에** 검사. 위반이면 exit 2 (`DECISIONS_FILE`·`DECISIONS_JSON`·`DECISIONS_INVALID <사유>`).
+- CLI: `dflow.mjs done <ref> <요약> [--auto-links] [--decisions <file>]` — 파일을 서버와 같은 규칙으로 **push 확인·전송 전에** 검사. 위반이면 exit 2 (`DECISIONS_FILE`·`DECISIONS_JSON`·`DECISIONS_INVALID <사유>`).
   - 요약 접미사 N 과 건수가 다르면 `DECISIONS_COUNT_MISMATCH`
   - 목록이 있는데 접미사가 없으면 `DECISIONS_SUFFIX_MISSING`
   - 구 서버면 `서버가 결정 목록을 모릅니다(계약 < 2.6) …` 경고
@@ -368,13 +368,13 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
   - `release` `{holder, leases}` → 200 `{ok, released}`
   - `holder` = `<PC ID uuid>:<리포 경로 cksum>`. TTL 180초. PAT 전용, `work:claim`, acquire 는 프로젝트 멤버만(403 `forbidden_role`).
 - `POST /api/v1/agent/watch` 에 선택 필드 `holder` — 주면 `resume_requests` 를 그 holder 로 쥔 유효 lease 의 프로젝트로 거름. lease 조회 실패는 `resume_requests: null`.
-- CLI: `dflow.sh lease holder|acquire [--takeover]|renew|release|keep`, `dflow.sh watch --holder`.
+- CLI: `dflow.mjs lease holder|acquire [--takeover]|renew|release|keep`, `dflow.mjs watch --holder`.
 
 ## v2.4 변경점 (2026-09-18)
 
 - `GET /agent/me` 응답에 `token_name`(발급할 때 적은 이름)·`token_prefix`(토큰의 셋째 `_` 칸) 추가. 필드 추가뿐이라 minor.
 - 이유: `.env` 에 토큰이 둘 이상이면 어느 키로 도는지 사람이 알아볼 수 없고, 한 계정에 키가 둘이면 이메일로도 안 갈림. prefix 는 토큰 문자열 안에 평문으로 든 조회 키라 응답에 실어도 비밀이 안 늚.
-- 클라이언트: `dflow.sh profiles`(토큰마다 한 줄 JSON) · `.dflow.local` 의 `as=<prefix>`(레거시 `.env` 의 `DFLOW_AS`, 리포가 쓸 키 고정) · `--as <prefix|email>`.
+- 클라이언트: `dflow.mjs profiles`(토큰마다 한 줄 JSON) · `.dflow.local` 의 `as=<prefix>`(레거시 `.env` 의 `DFLOW_AS`, 리포가 쓸 키 고정) · `--as <prefix|email>`.
 - 설계 정본: wbs-web 리포 docs/superpowers/specs/2026-09-18-dflow-key-select-design.md(킷에는 미동봉).
 
 ## v2.3 변경점 (2026-09-15)
@@ -470,7 +470,7 @@ stage 워크플로 재설계(마이그레이션 0082)를 계약에 반영. **엔
   "projects": [{ "id": "<uuid>", "name": "…", "role": "admin|member|superuser" }] }
 ```
 - `contract_version` = `src/lib/agent/externalApi.ts` 의 `AGENT_CONTRACT_VERSION` 상수 값. 현재 `"2.11"`.
-- 스킬은 **major 만** 비교(`dflow.sh` 의 `CONTRACT_VERSION`). 서버의 minor 상향은 additive 라 정상이고, 등호로 보면 상향 때마다 전 세션이 오경보를 봄.
+- 스킬은 **major 만** 비교(`dflow.mjs` 의 `CONTRACT_VERSION`). 서버의 minor 상향은 additive 라 정상이고, 등호로 보면 상향 때마다 전 세션이 오경보를 봄.
 - `projects` = `agent_projects.enabled=true` ∩ 내가 멤버인 프로젝트만.
 - 활성은 **자동**(2026-08-24): WBS 항목의 "에이전트 위임" 체크·dev_workflow ON·task 있는 wbs.md 업로드 중 하나가 처음 일어나면 서버가 활성. 사람이 따로 등록 안 함. 설정에서 "전체 중지"한 프로젝트(enabled=false)만 은닉.
 
@@ -495,9 +495,9 @@ v2.11 목록 셰이프(PAT) — 위 칸에 더해 주문마다 아래가 실림.
 - `mine` 의 뜻은 위 「v2.11 변경점」 따름 — ready 는 태그·WP 만 보고(담당자는 claim 이 막음), 요청에 `agent` 안 보냈고 `lead` 도 아니면 claimed 는 종전 뜻(`claimed_by_user_id` 가 호출자와 같음).
 - 요청 scope에 해당하는 구획만 채움(`available`이면 `available`만). 정렬 = 구획 내 `priority desc, created_at asc`.
 - `limit` 기본 20 최대 100(구획별 적용). 페이지 넘김 없음.
-  - `dflow.sh` 는 모든 호출에 `limit=100` 을 싣고, 한 구획이 100건으로 차면 `LIST_TRUNCATED` 를 stderr 로 알림 (limit 을 빼 20건에서 잘린 2026-09-24 사고).
+  - `dflow.mjs` 는 모든 호출에 `limit=100` 을 싣고, 한 구획이 100건으로 차면 `LIST_TRUNCATED` 를 stderr 로 알림 (limit 을 빼 20건에서 잘린 2026-09-24 사고).
 - 미지원 scope → 400 `unsupported_scope`.
-- `item.external_ref` = import 로 들어온 항목의 `"<module>/<id>"` (웹에서 직접 만든 항목은 null). dflow.sh scaffold 가 작업 폴더 이름(TSK)을 여기서 얻음.
+- `item.external_ref` = import 로 들어온 항목의 `"<module>/<id>"` (웹에서 직접 만든 항목은 null). dflow.mjs scaffold 가 작업 폴더 이름(TSK)을 여기서 얻음.
 
 `POST /wbs/import` 요청( `wbs-parse.mjs --export` 출력 v2 + 2필드) — **계약 v2 확장(결정 E, 두 리포 공통·고정)**:
 ```json
@@ -572,7 +572,7 @@ v2.11 목록 셰이프(PAT) — 위 칸에 더해 주문마다 아래가 실림.
   - 최신 주문이 아니라 "아무 approved 주문" → 재발행을 겪은 선행에서도 승인 사실이 살아남음.
 - **서버 선행 게이트(v2.3)**: claim 시 depends의 선행 항목 중 `reached`(= `stage` ∈ {`im`,`xx`} ∨ `order_approved` ∨ `actual_pct` ≥ 100)가 false 인 것이 하나라도 있으면
   403 `dependency_not_met` + `unmet: [{external_ref, stage}]`. 선행 external_ref가 프로젝트에 없으면 미충족(fail-closed).
-  - dflow.sh 는 이 403 을 바디 `code` 로 판독해 **exit 4**(선행·상태로 인한 진행 불가)로 냄. 권한 403(exit 5)과 처방이 다르기 때문. 구조 필드 판독이므로 "산문 파싱 금지" 위반 아님.
+  - dflow.mjs 는 이 403 을 바디 `code` 로 판독해 **exit 4**(선행·상태로 인한 진행 불가)로 냄. 권한 403(exit 5)과 처방이 다르기 때문. 구조 필드 판독이므로 "산문 파싱 금지" 위반 아님.
 - **클라이언트 하드 차단**:
   1. claim 전 `show`의 depends_evidence로 `git cat-file -e <sha>` + `git merge-base --is-ancestor <sha> HEAD` 검사 — 미도달이면 메시지 출력 후 **실행 거부(exit 4)**.
   2. `done`은 `git ls-remote`로 현재 브랜치 tip이 원격에 도달했는지 확인 — 미도달이면 **보고 거부(exit 2)**.
@@ -639,19 +639,19 @@ UI 라벨 정본(`src/lib/domain/stageLabels.ts`): `as`=할당됨 · `ds`=설계
 | 409 | `apply_failed` | WBS 반영 실패 |
 | 409 | `wbs_item_missing` | 항목 삭제된 주문 |
 | 409 | `lead_lease_held` | 팀장 lease 가 다른 holder 에 있음(v2.5) — `held:[{project_id, host, agent, expires_at}]` 동반 |
-| 409 | `design_gate` | 설계 관문 거부 — 방식·설계 상태·단계(v2.11). `reason: order_changed` 는 판정 뒤 주문이 바뀐 것이다(설계가 되돌려졌거나 다른 PC 가 이어받음 — build-start·design-done·design-reopen). dflow.sh exit 11 |
-| 409 | `design_not_accepted` | 승인·확정된 설계가 없다 — 「설계 승인」·「설계 확정」을 먼저(v2.11). dflow.sh exit 11 |
-| 409 | `runner_active` | 다른 PC 가 이 작업을 돌리는 중(v2.11, 본문 `runner`·`runner_seen_at`). dflow.sh exit 12 |
+| 409 | `design_gate` | 설계 관문 거부 — 방식·설계 상태·단계(v2.11). `reason: order_changed` 는 판정 뒤 주문이 바뀐 것이다(설계가 되돌려졌거나 다른 PC 가 이어받음 — build-start·design-done·design-reopen). dflow.mjs exit 11 |
+| 409 | `design_not_accepted` | 승인·확정된 설계가 없다 — 「설계 승인」·「설계 확정」을 먼저(v2.11). dflow.mjs exit 11 |
+| 409 | `runner_active` | 다른 PC 가 이 작업을 돌리는 중(v2.11, 본문 `runner`·`runner_seen_at`). dflow.mjs exit 12 |
 
 ## 로컬 클라이언트 계약
 
 - env: `DFLOW_API_BASE`(기본값 없음 — 미설정 시 즉시 실패) · `DFLOW_PATS`(쉼표 구분 1~N개) · `DFLOW_PAT`(단일, PATS 미설정 시 폴백).
-- `dflow.sh` exit code: 0 성공 / 2 사용법·설정·push 미완료 / 3 인증(401) / 4 상태 충돌(409)·선행 미반영 로컬 차단·선행 미충족(403 `code=dependency_not_met`) / 5 권한(403, 그 외) / 6 네트워크·서버(5xx)·로컬 환경 실패(파싱·파일 쓰기) / 7 기능 꺼짐(404) / 10 중단됨(409 `code=cancelled`) / 11 설계 관문(409 `code=design_gate`·`design_not_accepted`) / 12 다른 PC 도는 중(409 `code=runner_active`).
+- `dflow.mjs` exit code: 0 성공 / 2 사용법·설정·push 미완료 / 3 인증(401) / 4 상태 충돌(409)·선행 미반영 로컬 차단·선행 미충족(403 `code=dependency_not_met`) / 5 권한(403, 그 외) / 6 네트워크·서버(5xx)·로컬 환경 실패(파싱·파일 쓰기) / 7 기능 꺼짐(404) / 10 중단됨(409 `code=cancelled`) / 11 설계 관문(409 `code=design_gate`·`design_not_accepted`) / 12 다른 PC 도는 중(409 `code=runner_active`).
   - 403 은 body 의 `code` 로 갈라 읽음. 선행 미충족은 권한 문제가 아니라 상태 문제 → 호출부가 할 일 = "선행을 끝내고 다시 와라" ("권한을 얻어라" 아님).
   - 로컬 파싱·파일 쓰기 실패를 4 로 내지 않음 — 호출부가 "선행을 기다린다"로 읽고 영원히 재시도하기 때문.
   - 409 도 body 의 `code` 로 갈라 읽음. `cancelled`(사람이 중단)는 경합이 아니라 끝난 작업 → 호출부가 할 일 = "즉시 멈춤" ("다시 시도" 아님). 그래서 4 와 섞지 않고 10 으로 냄.
   - `design-done`·`design-reopen` 의 exit 7 은 기능 꺼짐(404) 일반과 같은 코드. 옛 서버라 없는 동사인지는 exit 값이 아니라 stderr 끝줄의 `DESIGN_STATE_UNSUPPORTED` 표식으로 가름 (표식 없는 404 = 다른 사유 — 프로젝트 미등록·API 꺼짐 등).
 - 신원 해석: 토큰별 `GET /agent/me` 1회 → `~/.cache/dflow/profiles.json` 캐시.
   - 키 선택: `--as <prefix|email>` → `.dflow.local` 의 `as`(prefix 만, 레거시 `.env` 의 `DFLOW_AS`) → 첫 토큰.
-  - prefix 일치는 `/me` 를 부르지 않음. 목록은 `dflow.sh profiles`.
+  - prefix 일치는 `/me` 를 부르지 않음. 목록은 `dflow.mjs profiles`.
 - evidence 자동 조립: `git rev-parse HEAD`·`git remote get-url origin`·`git branch --show-current`·(`gh` 있으면) PR URL.

@@ -6,11 +6,11 @@
 ```sh
 #!/bin/sh
 # pre-push: 운영 브랜치로 가는 push 에 FORCE-STUB 표식이 있으면 거부한다.
-DFLOW=.claude/skills/dflow-work/scripts/dflow.sh
-REL=$(sh "$DFLOW" branch release 2>/dev/null) || exit 0   # 설정이 없으면 관여하지 않는다
+DFLOW=.claude/skills/dflow-work/scripts/dflow.mjs
+REL=$(node "$DFLOW" branch release 2>/dev/null) || exit 0   # 설정이 없으면 관여하지 않는다
 while read -r _local_ref _local_sha _remote_ref _remote_sha; do
   [ "$_remote_ref" = "refs/heads/${REL#origin/}" ] || continue
-  sh "$DFLOW" stub-check "$_local_sha" || { echo "운영 브랜치에 강제 진행 스텁이 남아 있다 — 스텁 제거 작업을 먼저 끝내라" >&2; exit 1; }
+  node "$DFLOW" stub-check "$_local_sha" || { echo "운영 브랜치에 강제 진행 스텁이 남아 있다 — 스텁 제거 작업을 먼저 끝내라" >&2; exit 1; }
 done
 exit 0
 ```

@@ -63,8 +63,8 @@ ln -s /path/to/wbs-web/.claude/skills/dflow-work <대상리포>/.claude/skills/d
 **윈도우(Git Bash)는 심링크 대신 복사 배포.**
 - Git Bash 의 `ln -s` = 심링크 아닌 **복사본** 생성 (진짜 심링크는 윈도우 개발자 모드 + `MSYS=winsymlinks:nativestrict` 필요)
 - B 대신 A(`install.sh` 복사)로 설치. 갱신도 같은 명령으로 다시 복사
-- 스킬 폴더만 복사하면 동봉 jq 등 공용 도구가 없음 → **`.claude/skills/_shared` 를 `dflow-*` 와 함께 배포**
-  - 각 스크립트가 `../../_shared/bin` 의 jq 래퍼를, 이식된 도구가 `_shared/node` 를 상대 경로로 찾음
+- 스킬 폴더만 복사하면 공용 도구가 없음 → **`.claude/skills/_shared/node` 를 `dflow-*` 와 함께 배포**
+  - 이식된 도구가 `_shared/node` 를 상대 경로로 찾음 (jq 래퍼 불필요)
   - 킷 `install.sh` 가 `_shared` 를 빼면 직접 복사
 - 복사본은 정본 변경을 안 따라감 → 정본 갱신 뒤 다시 복사
 
@@ -77,7 +77,7 @@ ln -s /path/to/wbs-web/.claude/skills/dflow-work <대상리포>/.claude/skills/d
 대상 리포 루트에서:
 
 ```bash
-.claude/skills/dflow-work/scripts/dflow.sh doctor
+node .claude/skills/dflow-work/scripts/dflow.mjs doctor
 ```
 
 - exit 0 이면 base URL 과 프로필별 계약 버전 출력
@@ -85,10 +85,12 @@ ln -s /path/to/wbs-web/.claude/skills/dflow-work <대상리포>/.claude/skills/d
 
 ## 사용법 (예시)
 
+`dflow.mjs <인자>` = `node .claude/skills/dflow-work/scripts/dflow.mjs <인자>` (이하 약식)
+
 ### 내 작업 목록
 
 ```bash
-dflow.sh list
+dflow.mjs list
 ```
 
 출력:
@@ -101,7 +103,7 @@ dflow.sh list
 ### 작업 착수
 
 ```bash
-dflow.sh claim 1
+dflow.mjs claim 1
 ```
 
 성공 시:
@@ -117,7 +119,7 @@ git fetch origin && git switch -c agent/12345678-task-slug origin/<기본브랜�
 ### 진행 보고
 
 ```bash
-dflow.sh progress 1 50 "개발 50% 완료, 테스트 예정"
+dflow.mjs progress 1 50 "개발 50% 완료, 테스트 예정"
 ```
 
 진행률 **0~99** 범위만 허용 (100 금지).
@@ -126,7 +128,7 @@ dflow.sh progress 1 50 "개발 50% 완료, 테스트 예정"
 
 ```bash
 git push origin agent/12345678-task-slug
-dflow.sh done 1 "완료·테스트 통과·PR 병합됨" --auto-links --decisions <DOCS_DIR>/tasks/TSK-01-01/decisions.json
+dflow.mjs done 1 "완료·테스트 통과·PR 병합됨" --auto-links --decisions <DOCS_DIR>/tasks/TSK-01-01/decisions.json
 ```
 
 **중요**: push 후 done 호출. push 없으면 exit 2. `--decisions` 파일 = 확인 필요 결정 목록 (0건이면 `[]`).
@@ -134,21 +136,21 @@ dflow.sh done 1 "완료·테스트 통과·PR 병합됨" --auto-links --decision
 ## 워크플로우 다이어그램
 
 ```
-1. dflow.sh list
+1. dflow.mjs list
    ↓
-2. dflow.sh claim <순번>
+2. dflow.mjs claim <순번>
    ├─ exit 4(선행·상태 진행 불가) → git fetch/merge 후 재시도
    └─ exit 0 → spec.md 읽기, agent/ 브랜치 직접 생성
    ↓
 3. 구현 & 커밋
    ↓
-4. dflow.sh progress <순번> <%> "<요약>"  (선택, 중간 보고)
+4. dflow.mjs progress <순번> <%> "<요약>"  (선택, 중간 보고)
    ↓
 5. git push origin agent/<주문-slug>
    ├─ exit 2 if push 미완료 → git push 후 재시도
    └─ exit 0 if push 완료
    ↓
-6. dflow.sh done <순번> "<요약>" --auto-links --decisions <decisions.json>
+6. dflow.mjs done <순번> "<요약>" --auto-links --decisions <decisions.json>
    └─ 상태 → reported (승인 대기)
 ```
 
@@ -205,14 +207,14 @@ git switch main && git merge ui/feature-name && git push
 
 ```bash
 # 모든 프로필의 작업 조회
-dflow.sh list --all
+dflow.mjs list --all
 
 # alice 계정으로 작업 (--as는 반드시 서브커맨드 앞)
-dflow.sh --as alice@example.com list
-dflow.sh --as alice@example.com claim 1
+dflow.mjs --as alice@example.com list
+dflow.mjs --as alice@example.com claim 1
 ```
 
-- 리포마다 쓸 키 고정 = 그 리포 `.env` 에 `DFLOW_AS=<prefix>`. prefix 확인 = `dflow.sh profiles`
+- 리포마다 쓸 키 고정 = 그 리포 `.env` 에 `DFLOW_AS=<prefix>`. prefix 확인 = `dflow.mjs profiles`
 - `--as` = 한 번만 다른 키로 부를 때. prefix·email 둘 다 받음
 - 한 계정에 키 둘이면 email 로 안 갈림
 
@@ -222,20 +224,19 @@ dflow.sh --as alice@example.com claim 1
 
 ```bash
 # 다른 PC 에서 claimed 상태 복구
-dflow.sh list --scope claimed
-dflow.sh show <순번>
+dflow.mjs list --scope claimed
+dflow.mjs show <순번>
 ```
 
 ## 문제 해결
 
 **설치 후 스킬이 트리거 안 되면** (대상 리포 루트에서):
-1. 경로 재확인: `ls -la .claude/skills/dflow-work/scripts/dflow.sh`
-2. 파일 권한: `chmod 755 .claude/skills/dflow-work/scripts/dflow.sh`
-3. Claude Code 재시작
+1. 경로 재확인: `ls -la .claude/skills/dflow-work/scripts/dflow.mjs`
+2. Claude Code 재시작
 
 **명령 실패 시**:
 - `references/troubleshooting.md` 의 exit code 별 절차 참고
-- `dflow.sh doctor` 로 환경 진단
+- `dflow.mjs doctor` 로 환경 진단
 - `~/.cache/dflow/` 캐시 제거 후 재시도 (드문 경우)
 
 ## 스킬 파일 구조
@@ -245,7 +246,7 @@ dflow.sh show <순번>
 ├── SKILL.md                      ← 워크플로우·금지사항
 ├── README.md                      ← 이 파일
 ├── scripts/
-│   └── dflow.sh                  ← 실행 스크립트 (755 권한)
+│   └── dflow.mjs                  ← 실행 스크립트 (755 권한)
 └── references/
     ├── api-contract.md           ← API 명세
     └── troubleshooting.md         ← 문제 해결 가이드
@@ -255,7 +256,7 @@ dflow.sh show <순번>
 
 문제가 계속되면:
 
-1. `dflow.sh doctor` 출력 수집
+1. `dflow.mjs doctor` 출력 수집
 2. 환경 변수 확인 (토큰 제외): `env | grep DFLOW`
 3. D'Flow 관리자에게 보고 (exit code, 타임스탬프, 위 정보 포함)
 
@@ -264,10 +265,10 @@ dflow.sh show <순번>
 **마지막 업데이트**: 2026-08-28
 **API 계약 버전**: 2.2
 
-## 지원 환경: macOS · Git Bash(윈도우)
+## 지원 환경: macOS · Linux · Windows (node)
 
-- `scripts/dflow.sh` 는 macOS 와 Git for Windows 의 Git Bash 에서 동작
-- 필요 도구: bash, curl, jq, git, awk·sed (GNU 또는 BSD)
-- jq: 윈도우용을 `_shared/bin/` 에 동봉, 스크립트가 PATH 에 넣음 → 따로 설치 안 함 (`_shared` 함께 배포 필요)
+- `scripts/dflow.mjs` = node 로 macOS·Linux·Windows 에서 같이 돈다
+- 필요 도구: node 18.17+, git. Git Bash 는 사용자 bash 문법 명령(gate·baseline)을 윈도우에서 돌릴 때만 필요
+- 사용자 heartbeat 훅(`~/.dflow/hooks/heartbeat.sh`)과 `dflow-config.sh` 는 bash 로 남음. node 스크립트는 `dflow-config.mjs` 를 import
 - 스크립트 새로 쓸 때 macOS 전용 명령·perl 금지 (`stat -f %m` 은 GNU 에서 `?` → `stat -c %Y` 를 앞에 둠)
 - 정본·도구 표·한계: `../_shared/platform-support.md`
