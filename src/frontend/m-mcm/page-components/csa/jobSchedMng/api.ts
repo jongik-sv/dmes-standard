@@ -111,6 +111,7 @@ export function toJobDef(r: Record<string, unknown>): JobDef {
     configJson: str(r.configJson),
     varsJson: str(r.varsJson),
     optsJson: str(r.optsJson),
+    misfireRunYn: str(r.misfireRunYn),
     timeoutSec: num(r.timeoutSec),
     nextRunAt: str(r.nextRunAt),
     jobDesc: str(r.jobDesc),

@@ -37,6 +37,7 @@ const def = (patch: Partial<JobDef> = {}): JobDef => ({
   configJson: '{"sql":"DELETE FROM T WHERE D < :baseDt"}',
   varsJson: '[{"name":"baseDt","type":"DATE","value":":yesterday","desc":"기준일"}]',
   optsJson: "",
+  misfireRunYn: "N",
   timeoutSec: 600,
   nextRunAt: "2026-10-10T02:00:00",
   jobDesc: "",
@@ -345,5 +346,18 @@ describe("그리드 행 변환", () => {
     const run = { schedAt: "2026-10-09T02:00:00", triggerTp: "M", status: "OK", serverNm: "s", serviceTag: "tag", startedAt: "2026-10-09T02:00:01", endedAt: "2026-10-09T02:00:08", itemCnt: 3, msg: "", reqUsrId: "u" };
     expect(toRunGridRow(run)).toMatchObject({ rowId: "2026-10-09T02:00:00|M", trigger: "수동", duration: "7초", serviceTag: "tag", itemCnt: 3 });
     expect(toRunGridRow({ ...run, triggerTp: "S" }).trigger).toBe("일정");
+    expect(toRunGridRow({ ...run, triggerTp: "C" })).toMatchObject({ rowId: "2026-10-09T02:00:00|C", trigger: "놓친 회차" });
+  });
+
+  it("놓친 회차 한 번 실행: 새 작업은 꺼짐, 서버 값 Y 만 켜짐(빈 값·N·옛 서버는 꺼짐), 저장은 Y·N 으로 보내고 복사해도 유지된다", () => {
+    expect(emptyForm("QUERY").misfireRunOnce).toBe(false);
+    expect(toForm(def({ misfireRunYn: "Y" })).misfireRunOnce).toBe(true);
+    expect(toForm(def({ misfireRunYn: "N" })).misfireRunOnce).toBe(false);
+    expect(toForm(def({ misfireRunYn: "" })).misfireRunOnce).toBe(false);
+    const on = toForm(def({ misfireRunYn: "Y" }));
+    expect(toSaveRequest(on).misfireRunYn).toBe("Y");
+    expect(toSaveRequest({ ...on, misfireRunOnce: false }).misfireRunYn).toBe("N");
+    expect(copyForm(on).misfireRunOnce).toBe(true);
+    expect(isFormDirty(on, { ...on, misfireRunOnce: false })).toBe(true);
   });
 });
