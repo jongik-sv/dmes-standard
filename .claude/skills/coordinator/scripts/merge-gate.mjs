@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as J from './lib/jq-json.mjs';
 import { CoordDie, Ctx, cfgSub, hasRun, laneGet, stateFile } from './lib/common.mjs';
-import { cfgAtSegs, cfgLenAt, coordGit, rawOut, stripNl, testInt, walk } from './lib/common-ext.mjs';
+import { cfgAtSegs, cfgLenAt, coordGit, laneType, rawOut, stripNl, testInt, walk } from './lib/common-ext.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -118,15 +118,6 @@ function inFlight(docs, lane, branch) {
       if (!keep) continue;
       out += `${rawOut(J.alt(J.alt(J.index(x, 'lane'), J.index(x, 'branch')), '?'))}\n`;
     } catch (e) { if (!(e instanceof J.JqError)) throw e; }
-  }
-  return stripNl(out);
-}
-
-/** coord_state "(.lanes[\"$lane\"] // null) | type" 의 글 */
-function laneType(docs, lane) {
-  let out = '';
-  for (const d of docs ?? []) {
-    try { out += `${J.typeName(J.alt(J.index(J.index(d, 'lanes'), lane), null))}\n`; } catch (e) { if (!(e instanceof J.JqError)) throw e; }
   }
   return stripNl(out);
 }

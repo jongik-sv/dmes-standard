@@ -452,3 +452,13 @@ export function fmtFixed(secs, digits) {
   const ip = r / scale, fp = r % scale;
   return `${neg ? '-' : ''}${ip}${digits > 0 ? `.${String(fp).padStart(digits, '0')}` : ''}`;
 }
+
+/** coord_state "(.lanes[\"$lane\"] // null) | type" 의 글 */
+export function laneType(docs, lane) {
+  let out = '';
+  for (const d of docs ?? []) {
+    try { out += `${J.typeName(J.alt(J.index(J.index(d, 'lanes'), lane), null))}\n`; } catch (e) { if (!(e instanceof J.JqError)) throw e; }
+  }
+  return stripNl(out);
+}
+
