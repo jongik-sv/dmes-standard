@@ -189,4 +189,29 @@ class JobSchemaOraTest {
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM ALL_TABLES WHERE OWNER = 'MCMAPUSER' AND TABLE_NAME = 'TB_MCM_EXCHANGE_RATE'", Integer.class)).isZero();
     }
+
+    private void insertWeatherJob(String jobId, String cron) {
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_DEF (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, SERVICE_ID, ACTION, CRON_EXPR, TIMEOUT_SEC, OWNER_TP, NEXT_RUN_AT) "
+                + "VALUES (?, 'MCM', '날씨 수집', 'COLLECT', 'jobCollect', 'run', ?, 60, 'USER', TIMESTAMP '2026-10-09 02:00:00')", jobId, cron);
+    }
+
+    @Test
+    @DisplayName("V9: 서울 날씨 cron 0,30 → 10,40 — 다른 작업·다른 값은 그대로, NEXT_RUN_AT 는 다음 10·40분, 재실행해도 같다(멱등)")
+    void v9ShiftsSeoulWeatherCron() throws Exception {
+        insertWeatherJob("mcm.weather.seoul", "0,30 * * * *");   // 시드 그대로의 서울
+        insertWeatherJob("mcm.weather.busan", "0,30 * * * *");   // 같은 cron 이라도 서울이 아니다
+        String sql = new String(new ClassPathResource("db/migration/oracle/mcmapuser/V9__seoul_weather_cron_shift.sql").getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+        jdbc.execute("ALTER SESSION SET CURRENT_SCHEMA = MCMAPUSER");
+        jdbc.execute(sql);
+        jdbc.execute(sql);   // 멱등 — 두 번째 실행은 0행
+
+        Map<String, Object> seoul = jdbc.queryForMap("SELECT CRON_EXPR, NEXT_RUN_AT, VER FROM MCMAPUSER.TB_MCM_JOB_DEF WHERE JOB_ID = 'mcm.weather.seoul'");
+        assertThat(seoul.get("CRON_EXPR")).isEqualTo("10,40 * * * *");
+        Timestamp nextRunAt = (Timestamp) seoul.get("NEXT_RUN_AT");
+        assertThat(nextRunAt.toLocalDateTime().getMinute()).isIn(10, 40);
+        assertThat(nextRunAt).isAfter(Timestamp.from(java.time.Instant.now().minusSeconds(60)));   // 적용 시각 기준 미래(경계 이음새 여유 1분)
+        assertThat(((Number) seoul.get("VER")).intValue()).isEqualTo(1);   // 한 번만 바뀌었다
+        assertThat(jdbc.queryForObject("SELECT CRON_EXPR FROM MCMAPUSER.TB_MCM_JOB_DEF WHERE JOB_ID = 'mcm.weather.busan'", String.class)).isEqualTo("0,30 * * * *");
+    }
 }
