@@ -197,6 +197,7 @@ function fold(s) {
   if (R_FOLD_CUR.test(t)) t = t.replace(R_FOLD_SUB, (m, a) => `${a} `);
   return t.replace(R_WSRUN_G, ' ').replace(/^ /, '').replace(/ $/, '');
 }
+const COUNTDOWN = /automatically deny this request in [0-9]+:[0-9]+/;
 const last = (a) => (a.length ? a[a.length - 1] : null);
 const first = (a) => (a.length ? a[0] : null);
 
@@ -243,7 +244,7 @@ export function windowOf(text, k, opts = {}) {
     if (ishint(L[j])) { e = j; go = false; } else if (blank(L[j])) cont = false; else if (cont && ind(L[j]) > ind(L[l])) e = j; else go = false;
   }
   for (let i = w.h; i < e + 1; i++) if (X[i]) return null;
-  const textOut = [k, ...L.slice(w.h, e + 1).map(fold)].join('\n');
+  const textOut = [k, ...L.slice(w.h, e + 1).filter((l) => !COUNTDOWN.test(l)).map(fold)].join('\n');   // 자동 거부 카운트다운 줄(m:ss)은 시각마다 바뀌어 지문에서 뺀다
   const M = (pairs) => new Map(pairs);
   let perm = null;
   if (w.t !== undefined) {

@@ -113,6 +113,10 @@ const fxScreens = [
   { label: 'console-keys.sh: prompt-permission.txt', args: [], stdin: fx('prompt-permission.txt') },
   { label: 'console-keys.sh: prompt-question.txt', args: [], stdin: fx('prompt-question.txt') },
   { label: '창 없음', args: [], stdin: '그냥 작업 중\n❯ \n' },
+  { label: '지문: 자동 거부 카운트다운 0:09(들여쓴 줄)', args: [], stdin: '╭──────────────────────╮\n Bash command\n   git status\n Do you want to proceed?\n ❯ 1. Yes\n   2. No\n     will automatically deny this request in 0:09\n Esc to cancel · Tab to amend\n' },
+  { label: '지문: 자동 거부 카운트다운 0:04(들여쓴 줄)', args: [], stdin: '╭──────────────────────╮\n Bash command\n   git status\n Do you want to proceed?\n ❯ 1. Yes\n   2. No\n     will automatically deny this request in 0:04\n Esc to cancel · Tab to amend\n' },
+  { label: '지문: 자동 거부 카운트다운 10:00(들여쓴 줄)', args: [], stdin: '╭──────────────────────╮\n Bash command\n   git status\n Do you want to proceed?\n ❯ 1. Yes\n   2. No\n     will automatically deny this request in 10:00\n Esc to cancel · Tab to amend\n' },
+  { label: '지문: 자동 거부 카운트다운 0:09(들여쓰기 없는 줄)', args: [], stdin: '╭──────────────────────╮\n Bash command\n   git status\n Do you want to proceed?\n ❯ 1. Yes\n   2. No\n will automatically deny this request in 0:09\n Esc to cancel · Tab to amend\n' },
   { label: '빈 입력', args: [], stdin: '' },
 ];
 
