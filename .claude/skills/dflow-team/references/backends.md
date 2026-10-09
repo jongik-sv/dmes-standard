@@ -12,7 +12,7 @@ SKILL.md 「0. 환경 감지」 가 백엔드 선택: 팀장이 Orca 안이면 *
 > 윈도우: 아래 `jq` 예시를 Bash 로 직접 칠 때는 같은 호출 맨 앞에 `export PATH="$PWD/.claude/skills/_shared/bin:$PATH";` 추가(`_shared/platform-support.md` 「문서 속 인라인 jq」).
 
 **읽는 법**(필요한 절만 Bash `sed` 로 읽음):
-- spawn = 「입장 제어」~「폴더 신뢰 확인」(tmux). Orca 는 거기에 「pane(Orca)」 추가.
+- spawn = 「입장 제어」-「폴더 신뢰 확인」(tmux). Orca 는 거기에 「pane(Orca)」 추가.
 - 회수·답·결과 줄 폴백 = 「생존·화면·답·회수」「결과 줄과 죽은 pane 폴백」. 정리 = 「고아 정리 규칙」.
 ```bash
 sed -n '/^## 입장 제어/,/^### 팀원 환경을 벗기는 이유/p' .claude/skills/dflow-team/references/backends.md   # spawn(tmux·Orca 공통 준비 블록까지)
@@ -23,34 +23,34 @@ sed -n '/^## pane(Orca)/,/^## 고아 정리 규칙/p' .claude/skills/dflow-team/
 
 | 항목 | pane(tmux) | pane(Orca) |
 |---|---|---|
-| 팀원 정체 | 팀장이 tmux pane 에 띄운 대화형 claude 메인 에이전트(권한 확인 생략 모드) | Orca 탭의 claude 메인 에이전트(권한 확인 생략 모드) |
-| 워크트리 | 팀장이 `git worktree add --detach` 로 `<MAIN>/.claude/worktrees/dflow-<id8>` 생성, 기점 `origin/<기본브랜치>`. 브랜치 안 만듦 | **같음**(「팀원 워크트리 준비」 = 두 백엔드 공통). 옛 방식(`orca worktree create`)이 리포 루트 바로 아래 `<MAIN>/dflow-<id8>` 에 만든 워크트리가 남아 있을 수 있음. 구분 = 「고아 정리 규칙」 전환 규칙(전제 검사 exclude `/dflow-*/` 가 가림) |
+| 팀원 정체 | 팀장이 tmux pane 에 띄운 대화형 claude 메인 에이전트(permission 확인 생략 모드) | Orca 탭의 claude 메인 에이전트(permission 확인 생략 모드) |
+| worktree | 팀장이 `git worktree add --detach` 로 `<MAIN>/.claude/worktrees/dflow-<id8>` 생성, 기점 `origin/<기본브랜치>`. branch 안 만듦 | **같음**(「팀원 워크트리 준비」 = 두 백엔드 공통). 옛 방식(`orca worktree create`)이 리포 루트 바로 아래 `<MAIN>/dflow-<id8>` 에 만든 worktree 남아 있을 수 있음. 구분 = 「고아 정리 규칙」 전환 규칙(전제 검사 exclude `/dflow-*/` 가 가림) |
 | 기상 신호 | 감시 루프의 `RESULT_READY`·`PANE_DEAD` | 감시 루프의 `RESULT_READY` |
 | `blocked` 이후 | 팀원은 pane 에서 멈춰 기다림 | 팀원은 탭에서 멈춰 기다림 |
 | 슬롯 점유 | `blocked` 동안 슬롯 계속 점유 | 같음 |
 | 사람의 답 | 그 pane 에 직접 입력, 또는 팀장이 `send-keys` 로 입력 | 그 팀원 탭에 직접 입력 |
 | 회수 | 결과 줄 처리 뒤 `kill-pane -t <pane>` | 결과 줄 처리 뒤 `orca terminal close --terminal <handle> --tab --json`(핸들 `-` 면 건너뜀) |
 | 팀장 세션이 죽으면 | 팀원 생존(tmux 서버가 따로 돎). 새 팀장이 재구성에서 `.dflow-pane` 과 `#{pane_start_path}` 로 흡수 | 팀원 생존 |
-| 정리 | `git worktree remove --force <경로>` | 새 방식(git worktree add)이면 tmux 와 같음. 옛 방식(`orca worktree create`, 리포 루트 워크트리)만 `orca worktree rm --worktree path:<경로>`(「pane(Orca)」 「정리」 전환 규칙) |
-| 팀원 화면 | `capture-pane -p -t <pane>`(보고용), `-J -S -`(결과 줄 폴백) | `orca terminal read`(보고용). 신뢰 확인 판별에도 사용(「pane(Orca)」) |
+| 정리 | `git worktree remove --force <경로>` | 새 방식(git worktree add)이면 tmux 와 같음. 옛 방식(`orca worktree create`, 리포 루트 worktree)만 `orca worktree rm --worktree path:<경로>`(「pane(Orca)」 「정리」 전환 규칙) |
+| 팀원 screen | `capture-pane -p -t <pane>`(보고용), `-J -S -`(결과 줄 폴백) | `orca terminal read`(보고용). 신뢰 확인 판별에도 사용(「pane(Orca)」) |
 | git 호출 | `command -v git` 절대경로 | 같음(두 백엔드 공통) |
 
 ## 입장 제어
 
-**모든 spawn 의 첫 단계**(두 백엔드 공통). 새 작업·재개·재투입·해소·차단기 시험 spawn 모두 통과.
+**모든 spawn 의 첫 단계**(두 백엔드 공통). 새 작업·재개·재투입·해소·차단기 test spawn 모두 통과.
 - 집행·`CAPACITY_*` 판정 정본 = SKILL.md 「5-3. 입장 제어」, 기준값·알림 문구 = `references/spawn.md` 「5-3. 입장 제어: 알림·기준값」. 집행 = 이 블록 한 곳. 팀장 체크아웃에서 돎.
 ```bash
 CAP=$(node .claude/skills/dflow-team/scripts/capacity.mjs --state "$(git rev-parse --git-path dflow-team.capacity)"); echo "$CAP"
 case "$CAP" in CAPACITY_LOW*) echo SPAWN_DEFERRED_CAPACITY; exit 0 ;; esac
 ```
 - `SPAWN_DEFERRED_CAPACITY` 나오면 **이번 기상에 아무것도 띄우지 않음.**
-  - 블록이 그 자리에서 끝남 → 워크트리·pane·포인터 하나도 안 만듦.
+  - 블록이 그 자리에서 끝남 → worktree·pane·포인터 하나도 안 만듦.
   - 후보는 원래 줄(대기 큐·재개 목록·해소 큐·재시작 대기)에 그대로 둠. `team.spawn`·`team.result` 안 씀.
   - 한 후보가 막히면 같은 기상의 나머지 후보도 안 띄움.
 - `CAPACITY_OK`·`CAPACITY_UNKNOWN` 이면 이어서 띄움. 출력 줄 끝이 `notify=1` 이면 `references/spawn.md` 「5-3. 입장 제어: 알림·기준값」 의 한 줄 알림.
 - 새 작업·해소 spawn 블록(아래 「팀원 워크트리 준비」, 두 백엔드 공통)은 이 두 줄로 시작 → 따로 부르지 않음.
   - merge-conflict.md 「2」 해소 spawn 도 그 블록을 그대로 돌림 → 여기에 걸림(tmux·Orca 모두).
-- 블록을 통째로 안 도는 자리 = 재개(`references/resume.md` 0항)·재투입(restart.md 「재투입」). 이 블록을 먼저 따로 돎(있는 워크트리를 이어 쓰므로 준비 블록 전체 재실행 안 함).
+- 블록을 통째로 안 도는 자리 = 재개(`references/resume.md` 0항)·재투입(restart.md 「재투입」). 이 블록을 먼저 따로 돎(있는 worktree 이어 쓰므로 준비 블록 전체 재실행 안 함).
 - 주간 사용량(`capacity.mjs usage`)은 이 블록이 아님. 새 작업 spawn(SKILL.md 「5」 0항)만 이 블록 전에 따로 확인.
 
 ## pane(tmux)
@@ -81,11 +81,11 @@ find_tmux() {
 
 ### 팀원 워크트리 준비
 
-**spawn**: 워크트리 준비 = 팀장 체크아웃에서 Bash 호출 1회.
+**spawn**: worktree 준비 = 팀장 체크아웃에서 Bash 호출 1회.
 - **이 블록은 `chmod +x "$WT/.dflow-run"` 줄까지 두 백엔드가 글자 그대로 같음.** Orca(「pane(Orca)」)는 같은 블록을 그 줄까지 그대로 돌고 아래만 `orca terminal create` 로 다르게 이음.
 - `<모델 플래그>`: `MODEL` 이 `opus`·`sonnet` 이면 `--model opus`·`--model sonnet`, `default` 면 빈 값.
 - `<EFFORT>`: SKILL.md 「인자」 가 정한 추론 강도(기본 `high`). 팀장 세션의 `CLAUDE_EFFORT` 는 아래에서 벗겨짐 → 플래그 없으면 팀원은 그 PC 의 `effortLevel` 따름.
-- 첫 두 줄 = 「입장 제어」 블록 그대로, 빼지 않음. `SPAWN_DEFERRED_CAPACITY` 로 끝나면 워크트리도 pane 도(Orca 는 탭도) 안 만든 것.
+- 첫 두 줄 = 「입장 제어」 블록 그대로, 빼지 않음. `SPAWN_DEFERRED_CAPACITY` 로 끝나면 worktree도 pane 도(Orca 는 탭도) 안 만든 것.
 
 ```bash
 CAP=$(node .claude/skills/dflow-team/scripts/capacity.mjs --state "$(git rev-parse --git-path dflow-team.capacity)"); echo "$CAP"
@@ -167,7 +167,7 @@ cat "$WT/.dflow-pane"
 ```
 `<id8>`·`<모델 플래그>` 는 팀장이 글자 그대로 치환(heredoc 은 따옴표로 막아 `$S`·`$HOME` 이 팀원 실행 시점에 풀림).
 설정 파일 경로를 실행 시점에 다시 만들고, 없으면 `--settings` 없이 띄움(없는 설정 파일을 받으면 claude 가 곧바로 끝남).
-`.dflow-run` 을 다시 쓸 때(재개·재투입) `LIM` 줄 누락 금지(경로가 비면 재시작한 팀원이 전부 첫 화면에서 죽음).
+`.dflow-run` 을 다시 쓸 때(재개·재투입) `LIM` 줄 누락 금지(경로가 비면 재시작한 팀원이 전부 첫 screen에서 죽음).
 
 - **팀원 전용 설정(플러그인·MCP 끄기)**:
   - spawn 시점에 `~/.claude/settings.json`·`<MAIN>/.claude/settings.json`·`<MAIN>/.claude/settings.local.json` 중 있는 파일의 `enabledPlugins` 에서 값이 `true` 인 키를 모아 전부 `false` 로 덮어 `<id8>.settings.json` 에 합침.
@@ -196,7 +196,7 @@ cat "$WT/.dflow-pane"
   - 사용자 전역 훅(`~/.claude/settings.json` 의 heartbeat·가드 등)은 안 건드림.
   - 근거·실측 = `references/rationale.md` 「팀원 첫 턴 컨텍스트 줄이기」.
 - **timeout 가드 훅**: 같은 설정 파일에 `hooks.PreToolUse`(matcher `Bash`, timeout 5)로 `node .claude/skills/dflow-dev/scripts/timeout-guard.mjs` 를 검.
-  - 팀원과 그 Phase 서브에이전트가 `heavy.mjs`·`baseline.mjs run`·`gradlew`·`mvn`·`playwright test` 를 timeout 없이(또는 300000 미만으로) 부르거나 `run_in_background` 로 부르면 exit 2 로 막고 이유를 모델에게 보임(E2E 서버 기동만 백그라운드 허용. `nohup` 은 예외 아님).
+  - 팀원과 그 Phase 서브에이전트가 `heavy.mjs`·`baseline.mjs run`·`gradlew`·`mvn`·`playwright test` 를 timeout 없이(또는 300000 미만으로) 부르거나 `run_in_background` 로 부르면 exit 2 로 막고 이유를 모델에게 보임(E2E 서버 start만 백그라운드 허용. `nohup` 은 예외 아님).
   - 판정 규칙 정본 = 스크립트 머리말.
   - 훅 명령은 `timeout-guard.mjs` 파일이 있을 때만 `node` 로 부르고, 없으면 입력을 버리고 통과시킴(가드가 조용히 꺼질 수 있으므로 스크립트 이름을 바꿀 때 이 문구도 함께 고침).
   - 이미 만들어 둔 `~/.dflow/limits/*.settings.json` 은 다음 spawn 때 재생성되어야 새 훅 문구가 반영됨.
@@ -204,13 +204,13 @@ cat "$WT/.dflow-pane"
   - 전역 `~/.claude/settings.json` 에는 안 넣음. 근거 = `references/rationale.md`.
 - **statusLine 덤프**: `--settings` 로 붙인 statusLine 이 입력 JSON 의 `.rate_limits`(구독자일 때 `five_hour`·`seven_day` 마다 `used_percentage`·`resets_at`)를 `~/.dflow/limits/<id8>.json` 에 씀.
   - 팀장은 이것으로 한도와 해제 시각을 정함(`references/restart.md` 「한도 판정」).
-  - 워크트리 밖(`~/.dflow/limits`)에 씀(안에 쓰면 `DIRTY` 검사와 「고아 정리 규칙」 2번이 깨짐). 임시 파일에 쓰고 옮김.
+  - worktree 밖(`~/.dflow/limits`)에 씀(안에 쓰면 `DIRTY` 검사와 「고아 정리 규칙」 2번이 깨짐). 임시 파일에 쓰고 옮김.
   - 팀원 pane 의 statusLine 표시 = `dflow`. 두 백엔드·재개·재시작 팀원 모두 덤프를 남김.
   - 파일은 안 지움(같은 id8 을 다시 띄우면 덮어씀).
 - **전용 소켓 `-L dflow`** → 팀장이 tmux 안이든 밖이든 코드 경로 하나, 사람의 tmux 세션을 안 건드림. 서버 없으면 `new-session`, 있으면 `split-window`. `-x 200 -y 60` = detached 동안의 가상 크기(`capture-pane` 이 씀).
 - **pane 이름표**: `select-pane -T` 로 `w<slot> · <TSK> <id8> · <작업 이름>` 을 붙이고, `pane-border-status top`·`pane-border-format`(window 옵션 → `-w`, 세션 만들 때 한 번)으로 테두리에 표시.
 - **`allow-set-title off` 를 `select-pane -T` 보다 먼저 검**(없으면 claude 가 제목을 자기 진행 표시로 덮음). pane 옵션 → `-p` 와 pane id 로 **pane 마다** 검(tmux 3.3 이상).
-- `remain-on-exit on` = 죽은 pane 을 남겨 마지막 화면과 `#{pane_dead_status}` 를 읽게 함.
+- `remain-on-exit on` = 죽은 pane 을 남겨 마지막 screen과 `#{pane_dead_status}` 를 읽게 함.
   - `exec` 로 셸을 claude 로 대체 → `pane_pid` 가 곧 claude.
   - 명령은 `.dflow-run`, 프롬프트는 `.dflow-prompt` 파일 경유(인용 문제 회피).
   - `claude "<프롬프트>"` 는 대화형 세션을 띄우고 그 문자열을 첫 턴으로 제출(`-p` 안 씀).
@@ -219,7 +219,7 @@ cat "$WT/.dflow-pane"
   - 메인 체크아웃에 `.env` 있으면 함께 링크(구버전 heartbeat 훅).
   - 그 밖의 gitignore 된 심링크(예 `docs/mdm/design`)는 워커의 `deps.mjs`(dflow-dev 행 H)가 검(`DEPS_LINK <경로>`).
 - Windows(Git Bash) 에서 `ln -s` 는 링크 대신 복사본을 만듦. 복사본으로도 동작(대가: 이미 뜬 팀원에는 스킬 수정이 반영 안 됨).
-- `git worktree add` 실패(`SPAWN_FAILED_WORKTREE`, 대개 같은 경로 잔존) 시 띄우지 않고 경로 보고. 같은 id8 의 옛 워크트리는 결과 처리가 지웠거나 `parked` 로 남음. `parked` 면 "사람 확인 필요".
+- `git worktree add` 실패(`SPAWN_FAILED_WORKTREE`, 대개 같은 경로 잔존) 시 띄우지 않고 경로 보고. 같은 id8 의 옛 worktree는 결과 처리가 지웠거나 `parked` 로 남음. `parked` 면 "사람 확인 필요".
 - `team.spawn` 의 `worktree` = `$WT`, `handle` = `tmux:<pane_id>`(예: `tmux:%3`).
 - 팀원 프로세스는 팀장 세션 안에 안 나타남(ListAgents 에 팀원도 손자도 없음. 손자는 팀원이 스스로 회수).
 
@@ -233,7 +233,7 @@ Quick safety check: Is this a project you created or one you trust?
   Yes, I trust this folder
 ```
 
-**`--dangerously-skip-permissions` 로 안 넘어감**(그 대화상자는 `-p` 나 비 TTY 에서만 건너뜀). 팀원 워크트리는 매번 새 경로 → **매번** 뜸. spawn 직후 팀장이 화면을 읽어 확인이 보이면 답을 보냄.
+**`--dangerously-skip-permissions` 로 안 넘어감**(그 대화상자는 `-p` 나 비 TTY 에서만 건너뜀). 팀원 worktree는 매번 새 경로 → **매번** 뜸. spawn 직후 팀장이 screen 읽어 확인이 보이면 답을 보냄.
 
 ```bash
 for i in 1 2 3 4 5 6 7 8 9 10; do
@@ -247,15 +247,15 @@ for i in 1 2 3 4 5 6 7 8 9 10; do
 done
 ```
 
-- 이 규칙은 **화면 문자열에 기댐**(확인한 판본 v2.1.273).
-- 깨지면 팀원이 신뢰 확인 화면에서 멈춘 채 생존 → 무응답 자동 정리(`references/result-handling.md` 「중단·무응답·정지·대기 판정·자동 재시작」)가 가려냄.
+- 이 규칙은 **screen 문자열에 기댐**(확인한 판본 v2.1.273).
+- 깨지면 팀원이 신뢰 확인 screen에서 멈춘 채 생존 → 무응답 자동 정리(`references/result-handling.md` 「중단·무응답·정지·대기 판정·자동 재시작」)가 가려냄.
 - `~/.claude.json` 의 `hasTrustDialogAccepted` 는 안 건드림(여러 세션이 동시에 쓰는 파일).
 
 ### 팀원 환경을 벗기는 이유
 
 팀원 pane 은 팀장 환경을 통째로 물려받음.
 - `.dflow-run` 은 `CLAUDE` 로 시작하는 변수를 전부 벗김(`CLAUDE_CONFIG_DIR` 만 남김). 대화 기록 저장이 꺼짐. 팀장의 메시징 채널·세션 ID·PID·에이전트 팀 설정을 팀원이 제 것으로 쓰는 것을 막음.
-- **`ORCA_*`·`TMUX`·`TMUX_PANE` 벗기기와 PATH 의 shim 제거는 `ORCA_AGENT_TEAMS_TEAM_ID` 가 있을 때만 함**(팀장이 Orca 안에서 tmux 백엔드로 팀원을 띄울 때만 새는 값. Orca 가 새로 띄운 탭의 `ORCA_AGENT_HOOK_*` 를 지우면 그 탭이 오피스 화면에서 사라짐).
+- **`ORCA_*`·`TMUX`·`TMUX_PANE` 벗기기와 PATH 의 shim 제거는 `ORCA_AGENT_TEAMS_TEAM_ID` 가 있을 때만 함**(팀장이 Orca 안에서 tmux 백엔드로 팀원을 띄울 때만 새는 값. Orca 가 새로 띄운 탭의 `ORCA_AGENT_HOOK_*` 를 지우면 그 탭이 오피스 screen에서 사라짐).
 - 조건은 `if [ -n "${ORCA_AGENT_TEAMS_TEAM_ID-}" ]; then <벗기기 전부>; fi` 한 블록으로 묶음(줄마다 걸면 먼저 지운 `ORCA_*` 가 판별 변수까지 지움).
 - 변수별로 무엇이 깨지는지 = rationale.md.
 
@@ -265,13 +265,13 @@ done
 |---|---|
 | 생존 | `"$TM" -L dflow list-panes -t <pane> -F '#{pane_dead}' 2>/dev/null` — 빈 출력 = pane 없음, `1` = 죽음, `0` = 생존 |
 | 종료 코드 | `"$TM" -L dflow list-panes -t <pane> -F '#{pane_dead_status}' 2>/dev/null` |
-| 화면(보고용) | `"$TM" -L dflow capture-pane -p -t <pane>` |
+| screen(보고용) | `"$TM" -L dflow capture-pane -p -t <pane>` |
 | 결과 줄 폴백 | `"$TM" -L dflow capture-pane -p -J -S - -t <pane>` |
 | `blocked` 답 | `"$TM" -L dflow send-keys -t <pane> -l -- "$ans"` 뒤에 `"$TM" -L dflow send-keys -t <pane> Enter` |
 | 회수 | `"$TM" -L dflow kill-pane -t <pane>` 뒤에 `"$TM" -L dflow select-layout -t dflow tiled` |
-| 워크트리 대응 | `#{pane_start_path}` |
+| worktree 대응 | `#{pane_start_path}` |
 
-- **화면은 생존 증거로 쓰지 않는다.** 정본 = SKILL.md 「3. 결과 처리」 의 한 줄 원칙과 `references/result-handling.md` 「생존 증거」(브랜치 tip 커밋 시각·서버 progress·미커밋 변경 목록). 화면은 보고용과 신뢰 확인 판별에만 사용.
+- **screen은 생존 증거로 쓰지 않는다.** 정본 = SKILL.md 「3. 결과 처리」 의 한 줄 원칙과 `references/result-handling.md` 「생존 증거」(branch tip commit 시각·서버 progress·미커밋 변경 목록). screen은 보고용과 신뢰 확인 판별에만 사용.
 - 빈 출력과 `1` 을 함께 죽음으로 봄(`remain-on-exit` 를 놓친 pane 은 흔적 없이 사라짐).
 - 답은 `-l --` 로 넣음(없으면 tmux 가 답을 **키 이름으로 먼저 해석함** — `Up`·`Space` 같은 답이 키로 눌림). 신뢰 확인의 `Down`·`Enter` 는 키 이름이 맞음 → `-l` 없이 보냄.
 - 회수 뒤 `select-layout tiled` 를 다시 돌려 남은 pane 이 빈자리를 메우게 함.
@@ -280,7 +280,7 @@ done
 ### 결과 줄과 죽은 pane 폴백
 
 결과 = `<워크트리>/<TASK_DIR>/.result`.
-- pane 이 죽었는데 파일이 없으면 죽은 pane 화면 전체에서 `<TSK> <id8> ` 로 시작하는 마지막 줄을 찾음(워커는 같은 줄을 마지막 응답으로도 출력).
+- pane 이 죽었는데 파일이 없으면 죽은 pane screen 전체에서 `<TSK> <id8> ` 로 시작하는 마지막 줄을 찾음(워커는 같은 줄을 마지막 응답으로도 출력).
 - 그것도 없으면 `failed no-result`(SKILL.md 「3. 결과 처리」).
 
 ```bash
@@ -292,7 +292,7 @@ done
 
 ### 재구성
 
-팀장이 컨텍스트를 잃어도 아래 한 줄로 살아 있는 팀원을 흡수(`pane_start_path` = 워크트리 경로. 워크트리 루트의 `.dflow-agent` 와 `.dflow-pane` 이 교차 확인에 쓰임).
+팀장이 컨텍스트를 잃어도 아래 한 줄로 살아 있는 팀원을 흡수(`pane_start_path` = worktree 경로. worktree 루트의 `.dflow-agent` 와 `.dflow-pane` 이 교차 확인에 쓰임).
 ```bash
 "$TM" -L dflow list-panes -a -F '#{pane_id} #{pane_dead} #{pane_start_path}' 2>/dev/null
 ```
@@ -308,21 +308,21 @@ done
 - 이 소켓은 **사용자 단위**, 리포 단위 아님. 자기 슬롯 표만 보고 `kill-server` 하면 **다른 체크아웃의 살아 있는 팀원이 미커밋 산출물을 안은 채 죽음.**
 - 결과 처리가 끝난 pane 은 `kill-pane` 으로 거둠 → 팀원이 모두 끝나고 다른 팀장도 없으면 목록이 비어 서버를 거둠.
 - 하나라도 남으면 서버를 남김(대가 = 서버 하나). 다음 팀장의 재구성이 그 pane 들을 흡수.
-- `.dflow-agent` 없는 워크트리를 가리키는 pane 은 고아 → 전제 검사가 찾아 보고.
+- `.dflow-agent` 없는 worktree 가리키는 pane 은 고아 → 전제 검사가 찾아 보고.
 
 ### 정리
 
-워크트리가 아직 있을 때만 팀장 체크아웃에서 실행.
+worktree 아직 있을 때만 팀장 체크아웃에서 실행.
 ```bash
 git worktree remove --force "$WT"
 ```
-`--force` 필요 이유 = 미추적 부산물(`.result`·`.dflow-agent`·`.dflow-prompt`·`.dflow-pane`·`.dflow-run`·`.dflow.local`(레거시 `.env`) 링크·`.dflow` 링크·스킬 링크). 먼저 「고아 정리 규칙」 을 따름. 살아 있는 팀원의 워크트리는 안 지움.
+`--force` 필요 이유 = 미추적 부산물(`.result`·`.dflow-agent`·`.dflow-prompt`·`.dflow-pane`·`.dflow-run`·`.dflow.local`(레거시 `.env`) 링크·`.dflow` 링크·스킬 링크). 먼저 「고아 정리 규칙」 을 따름. 살아 있는 팀원의 worktree는 안 지움.
 
 ## pane(Orca)
 
 Orca 안에서 띄운 팀장은 이 백엔드를 먼저 고름(SKILL.md 「0. 환경 감지」).
-- `git worktree add --detach` 로 만든 순수 git 워크트리를 `orca terminal create --worktree path:<WT> --command ./.dflow-run --json` 이 받아들임(핸들 = `.result.terminal.handle`).
-- 새 탭의 claude 는 권한 확인 생략 모드로 포인터를 첫 입력으로 받아 착수.
+- `git worktree add --detach` 로 만든 순수 git worktree를 `orca terminal create --worktree path:<WT> --command ./.dflow-run --json` 이 받아들임(핸들 = `.result.terminal.handle`).
+- 새 탭의 claude 는 permission 확인 생략 모드로 포인터를 첫 입력으로 받아 착수.
 - `orca terminal close --terminal <핸들> --tab --json` 이 `ptyKilled:false` 로 답해도 claude 프로세스는 실제로 끝남.
 - 그래서 Orca 도 tmux 와 같은 방식으로 spawn·회수·재투입(`references/restart.md` 「Orca」).
 
@@ -337,17 +337,17 @@ printf '%s\n' "$R"
 H=$(printf '%s' "$R" | jq -r '.result.terminal.handle // .result.agentTerminalHandle // "-"')
 printf '%s\n' "$H" > "$WT/.dflow-pane"
 ```
-- `<기본브랜치>`(준비 블록 `git worktree add` 의 기점) = SKILL.md 「1. 시작」 전제 검사가 구한 이름(agent 브랜치가 결국 머지될 곳).
+- `<기본브랜치>`(준비 블록 `git worktree add` 의 기점) = SKILL.md 「1. 시작」 전제 검사가 구한 이름(agent branch 결국 merge될 곳).
 - 포인터 = SKILL.md 「5. 팀원 spawn」 의 한 줄 그대로. 준비 블록이 이미 `$WT/.dflow-prompt` 에 씀(큰따옴표·`$`·백틱 없음). 첫 입력으로 자동 제출 → 팀원이 바로 착수. `--title` 로 tmux 와 같은 이름표를 붙임.
 - 핸들 필드는 `result.terminal.handle` 을 먼저 봄.
   - 옛 런타임은 이 필드 대신 `result.agentTerminalHandle` 만 주거나(`result.startupTerminal.handle` 만 주는 더 옛 런타임도 있음) 아무것도 안 줌.
-  - 셋 다 없으면 `handle` 을 `-` 로 두고, 화면 읽기 없이 git·서버 증거만 사용.
+  - 셋 다 없으면 `handle` 을 `-` 로 두고, screen 읽기 없이 git·서버 증거만 사용.
 - **`$WT/.dflow-pane` 에 핸들을 씀**(tmux 가 pane id 를 쓰는 자리와 같게. 재개·재투입·회수가 백엔드 구분 없이 같은 파일에서 대상을 찾음).
 - `team.spawn` 의 `handle` 표기 = events.md 가 이미 정한 형식(raw "Orca 터미널 핸들", `orca:` 접두 없음) 그대로.
-- 이후 이 워크트리를 가리킬 때는 `--worktree "path:$WT"` 선택자 사용.
-- 팀원 화면 보기(보고용): `orca terminal read --terminal <handle>`(생존 증거로는 안 씀).
+- 이후 이 worktree 가리킬 때는 `--worktree "path:$WT"` 선택자 사용.
+- 팀원 screen 보기(보고용): `orca terminal read --terminal <handle>`(생존 증거로는 안 씀).
 
-**폴더 신뢰 확인**: tmux 처럼 spawn 직후 화면을 최대 10 회(1초 간격) 읽어 가려냄. **키를 보내는 방법은 실측하지 않았으므로 보내지 않음.**
+**폴더 신뢰 확인**: tmux 처럼 spawn 직후 screen 최대 10 회(1초 간격) 읽어 가려냄. **키를 보내는 방법은 실측하지 않았으므로 보내지 않음.**
 ```bash
 for i in 1 2 3 4 5 6 7 8 9 10; do
   scr=$(orca terminal read --terminal "$H" 2>/dev/null)
@@ -360,7 +360,7 @@ done
 ```
 - `I trust this folder` 가 보이면 "사람 확인 필요" 로 보고하고 넘어감 — 그 탭에서 사람이 직접 답해야 함.
 - 이미 신뢰된 리포(`<MAIN>`) 아래에서는 안 뜨지만 다른 부모 경로에서는 뜰 수 있어 루프를 남김.
-- `bypass permissions on` 이 보이면 통과. 화면 문자열에 기대는 한계는 tmux 와 같음.
+- `bypass permissions on` 이 보이면 통과. screen 문자열에 기대는 한계는 tmux 와 같음.
 
 **정리**: 전환 규칙을 먼저 봄.
 ```bash
@@ -371,29 +371,29 @@ else
 fi
 orca worktree list        # 누수 확인. 옛 방식 워크트리(dflow-<id8>, 리포 루트)가 남아 있으면 위 첫 갈래로 지운다
 ```
-- 옛 방식(`orca worktree create`)으로 뜬 워크트리만 `orca worktree list --json` 에 나타남.
-  - 그 경로면 `orca worktree rm`(체크아웃된 로컬 브랜치만 삭제를 시도하고, 머지됐음을 입증하지 못하는 브랜치와 워크트리보다 먼저 있던 브랜치는 보존).
+- 옛 방식(`orca worktree create`)으로 뜬 worktree만 `orca worktree list --json` 에 나타남.
+  - 그 경로면 `orca worktree rm`(체크아웃된 로컬 branch만 삭제를 시도하고, merge됐음을 입증하지 못하는 branch와 worktree보다 먼저 있던 branch는 보존).
   - 아니면(새 방식) tmux 와 같은 `git worktree remove --force`.
 - 미커밋분을 잃으므로 먼저 「고아 정리 규칙」 을 따름.
-- 옛 방식의 `orca worktree rm` 에는 `--force` 를 「고아 정리 규칙」 1번(부트스트랩 실패)에서만 붙임. 두 갈래 모두 브랜치 삭제는 강제 안 함.
+- 옛 방식의 `orca worktree rm` 에는 `--force` 를 「고아 정리 규칙」 1번(부트스트랩 실패)에서만 붙임. 두 갈래 모두 branch 삭제는 강제 안 함.
 - `orca worktree list --json` 모양 = `{result:{worktrees:[{path,…}]}}`.
 
 ## 고아 정리 규칙
 
-두 백엔드 공통. 대상 = 루트 `.dflow-agent` 값이 `<신원>/<host>/` 로 시작하는 워크트리(`parked` 포함).
-결과 처리(done·needs-merge·skipped·failed·cancelled), 고아 스캔, 무응답 자동 정리, 마감이 이 규칙으로 팀원 워크트리를 지움.
+두 백엔드 공통. 대상 = 루트 `.dflow-agent` 값이 `<신원>/<host>/` 로 시작하는 worktree(`parked` 포함).
+결과 처리(done·needs-merge·skipped·failed·cancelled), 고아 스캔, 무응답 자동 정리, 마감이 이 규칙으로 팀원 worktree 지움.
 **아래 "Orca 정리 명령" = 「pane(Orca)」 「정리」 전환 규칙의 줄임말**(경로가 `orca worktree list --json` 에 있으면 `orca worktree rm --worktree path:<경로>`, 없으면(새 방식) `git worktree remove --force <경로>`).
 0. **설계 완료 대기**(`<TASKS>/*/state.json` 이 `phase=wait_pred`, `references/design-ahead.md`): 깨끗하고 push 됐어도 **지우지 않음**(결과 처리·고아 스캔·마감 모두).
-   - 선행이 끝나면 같은 워크트리로 이어 구현. 지우면 재개가 의존성 설치·기준선부터 다시 함.
-   - `.dflow-agent` 는 `parked` 로 둠. 아래 1~5번은 보지 않음.
-1. **부트스트랩 실패**(`.result` 의 branch 칸이 `-`, 브랜치 만들기 전에 끝남): 미커밋 목록이 알려진 부산물(`.dflow-agent`, `.dflow-prompt`, `.dflow-pane`, `.dflow-run`, `.result`, `.issues`, `<TASK_DIR>/spec.md` 캐시, `.dflow.local`(레거시 `.env`) 링크, `.dflow` 링크, 스킬 링크(`.claude/skills` 또는 그 안의 `dflow-dev`·`dflow-work`))뿐일 때만 정리.
+   - 선행이 끝나면 같은 worktree로 이어 구현. 지우면 재개가 의존성 설치·기준선부터 다시 함.
+   - `.dflow-agent` 는 `parked` 로 둠. 아래 1-5번은 보지 않음.
+1. **부트스트랩 실패**(`.result` 의 branch 칸이 `-`, branch 만들기 전에 끝남): 미커밋 목록이 알려진 부산물(`.dflow-agent`, `.dflow-prompt`, `.dflow-pane`, `.dflow-run`, `.result`, `.issues`, `<TASK_DIR>/spec.md` 캐시, `.dflow.local`(레거시 `.env`) 링크, `.dflow` 링크, 스킬 링크(`.claude/skills` 또는 그 안의 `dflow-dev`·`dflow-work`))뿐일 때만 정리.
    - tmux 는 `git worktree remove --force`, Orca 는 Orca 정리 명령에 `--force` 추가. 두 백엔드 모두 `--force` 사용(`spec.md` 캐시·스킬 폴더 안 개별 링크는 `info/exclude` 가 안 가림).
-   - Orca 의 `--force` 는 워크트리 강제 제거만 함. 브랜치 삭제는 강제 안 함.
+   - Orca 의 `--force` 는 worktree 강제 제거만 함. branch 삭제는 강제 안 함.
    ```bash
    git -C <워크트리> status --porcelain --untracked-files=all \
      | grep -v -E '^\?\? (\.dflow-(agent|prompt|pane|run)|\.env|\.dflow|\.dflow\.local|\.claude/skills(/dflow-(dev|work)(/.*)?)?|<TASK_DIR>/(spec\.md|\.result|\.issues))$'
    ```
-   출력이 비어야 함. 그 밖의 변경이 있으면 보존하고 경로와 목록을 보고. 이유: 브랜치가 없어도 워커가 무언가 고쳤다면 그것은 사람이 판단할 산출물.
+   출력이 비어야 함. 그 밖의 변경이 있으면 보존하고 경로와 목록을 보고. 이유: branch 없어도 워커가 무언가 고쳤다면 그것은 사람이 판단할 산출물.
 2. **그 밖**: 미커밋 변경이 없어야 하고(첫 줄), 이어서 둘 중 하나가 참이면 정리.
    ```bash
    git -C <워크트리> status --porcelain       # 비어 있어야 한다. 부산물은 info/exclude 로 가려져 있다
@@ -404,10 +404,10 @@ orca worktree list        # 누수 확인. 옛 방식 워크트리(dflow-<id8>, 
      git -C <워크트리> merge-base --is-ancestor HEAD "origin/<기본브랜치>"
    fi
    ```
-   **대안 조건**(둘째 갈래, 2026-09-24 추가): agent 브랜치가 이미 머지되고 원격에서 지워진 뒤에는 첫 갈래(HEAD 비교)를 확인할 원격 ref 자체가 없음.
-   - `/dflow-merge` 는 `--no-ff` 고정 → 머지된 작업의 HEAD 는 기본 브랜치의 조상. 그 조건으로 대신 판정.
-   - 이 대안이 없으면 머지 뒤 원격 agent 브랜치를 지운 워크트리가 영영 정리 안 되고 쌓임.
-2-1. **해소 워크트리**(이름 `dflow-<id8>-resolve`, detached, SKILL.md 「5-2. 해소 spawn」): 1·2번 대신 아래 둘이 모두 참일 때 정리. 결과 줄 branch 칸이 늘 `-` 여도 1번(부트스트랩 실패)을 안 씀.
+   **대안 조건**(둘째 갈래, 2026-09-24 추가): agent branch 이미 merge되고 원격에서 지워진 뒤에는 첫 갈래(HEAD 비교)를 확인할 원격 ref 자체가 없음.
+   - `/dflow-merge` 는 `--no-ff` 고정 → merge된 작업의 HEAD 는 기본 branch 조상. 그 조건으로 대신 판정.
+   - 이 대안이 없으면 merge 뒤 원격 agent branch 지운 worktree 영영 정리 안 되고 쌓임.
+2-1. **해소 worktree**(이름 `dflow-<id8>-resolve`, detached, SKILL.md 「5-2. 해소 spawn」): 1·2번 대신 아래 둘이 모두 참일 때 정리. 결과 줄 branch 칸이 늘 `-` 여도 1번(부트스트랩 실패)을 안 씀.
    ```bash
    git -C <워크트리> status --porcelain --untracked-files=all \
      | grep -v -E '^\?\? (\.dflow-(agent|prompt|pane|run)|\.env|\.dflow|\.dflow\.local|\.claude/skills(/dflow-(dev|work|merge|team)(/.*)?)?|<TASK_DIR>/\.result)$'
@@ -416,22 +416,22 @@ orca worktree list        # 누수 확인. 옛 방식 워크트리(dflow-<id8>, 
    ```
    - 첫 명령 출력이 비고 둘째가 0 이면 지움(push 했거나 `reset --keep` 으로 버림 → 잃을 것 없음). tmux 는 `git worktree remove --force <경로>`, Orca 는 Orca 정리 명령에 `--force` 추가.
    - 아니면 3번으로.
-   - 해소 워크트리는 "재개 가능" 아님 → `parked` 로 바꾸고 "멈춤" 표에 넣음. 사유 = 결과 줄 status(`blocked` 해소 중 멈춤 등).
-   - 살아 있는 해소 워커(`blocked` 포함)의 워크트리는 4번대로 안 지움.
+   - 해소 worktree는 "재개 가능" 아님 → `parked` 로 바꾸고 "멈춤" 표에 넣음. 사유 = 결과 줄 status(`blocked` 해소 중 멈춤 등).
+   - 살아 있는 해소 워커(`blocked` 포함)의 worktree는 4번대로 안 지움.
 
 3. 하나라도 거짓이면 안 지움. 이어서 `references/lead-state.md` 「고아 스캔」 의 **"재개 가능"** 조건으로 가름.
    - 재개 가능이면 `.dflow-agent` 를 **건드리지 않고** 그대로 둠 → 「5-1. 재개 spawn」 이 이어받음(그 절차가 슬롯 값을 다시 씀).
-   - 재개 가능이 아니면 경로와 미커밋 목록(`git -C <워크트리> status --porcelain` 출력)을 **"멈춤" 표**에 붙임. 살아 있는 팀원의 워크트리(4번)가 아니면 `.dflow-agent` 값을 `parked` 로 바꿔 정규 슬롯 스캔에서 뺌.
-   - 이유: 느린 팀원이나 커밋 전에 멈춘 팀원의 산출물을 안 잃음. 보존된 워크트리의 `.dflow-agent` 가 `w<slot>` 값 그대로면, 그 슬롯에 새로 뜬 팀원과 슬롯 표시가 같아 재구성이 충돌.
+   - 재개 가능이 아니면 경로와 미커밋 목록(`git -C <워크트리> status --porcelain` 출력)을 **"멈춤" 표**에 붙임. 살아 있는 팀원의 worktree(4번)가 아니면 `.dflow-agent` 값을 `parked` 로 바꿔 정규 슬롯 스캔에서 뺌.
+   - 이유: 느린 팀원이나 commit 전에 멈춘 팀원의 산출물을 안 잃음. 보존된 worktree `.dflow-agent` 가 `w<slot>` 값 그대로면, 그 슬롯에 새로 뜬 팀원과 슬롯 표시가 같아 재구성이 충돌.
    ```bash
    printf '%s\n' '<신원>/<host>/parked' > <워크트리>/.dflow-agent
    ```
-4. 살아 있는 팀원(SKILL.md 「팀장 상태」 정의)의 워크트리는 조건과 무관하게 안 지움.
-   - 두 백엔드의 `blocked` 워크트리가 모두 여기에 듦(팀원이 pane 이나 탭에서 답을 기다림).
+4. 살아 있는 팀원(SKILL.md 「팀장 상태」 정의)의 worktree는 조건과 무관하게 안 지움.
+   - 두 백엔드의 `blocked` worktree 모두 여기에 듦(팀원이 pane 이나 탭에서 답을 기다림).
    - 예외 = 무응답 자동 정리(`references/result-handling.md`) 하나.
-5. **생성 브랜치 정리**: 워크트리를 지웠으면 그 워크트리를 만들 때 생긴 브랜치를 지움.
-   - 새 방식(`git worktree add --detach`)은 두 백엔드 모두 생성 브랜치가 없음 → 이 항목은 **옛 방식**(`orca worktree create`)이 남긴, 이름에 `dflow-<id8>` 이 든 브랜치에만 해당.
-   - `agent/` 로 시작하는 브랜치는 안 지움(작업 산출물).
+5. **생성 branch 정리**: worktree 지웠으면 그 worktree 만들 때 생긴 branch 지움.
+   - 새 방식(`git worktree add --detach`)은 두 백엔드 모두 생성 branch 없음 → 이 항목은 **옛 방식**(`orca worktree create`)이 남긴, 이름에 `dflow-<id8>` 이 든 branch에만 해당.
+   - `agent/` 로 시작하는 branch는 안 지움(작업 산출물).
    ```bash
    git fetch origin
    git branch --format='%(refname:short)' --list '*dflow-<id8>*' | while IFS= read -r br; do
@@ -439,10 +439,10 @@ orca worktree list        # 누수 확인. 옛 방식 워크트리(dflow-<id8>, 
      git merge-base --is-ancestor "$br" origin/<기본브랜치> && git branch -D "$br"
    done
    ```
-   - `git branch -D` 는 다른 워크트리가 체크아웃한 브랜치를 거부 → 그런 브랜치는 남음.
-   - `origin/<기본브랜치>` 의 조상인 것만 지움(이름만 맞는 브랜치의 고유 커밋을 안 잃음).
+   - `git branch -D` 는 다른 worktree 체크아웃한 branch 거부 → 그런 branch는 남음.
+   - `origin/<기본브랜치>` 의 조상인 것만 지움(이름만 맞는 branch 고유 commit 안 잃음).
    - id8 을 모르면(컨텍스트 압축으로 이름을 잃은 경우) 위 루프의 첫 줄만 `git branch --format='%(refname:short)' --list '*dflow-[0-9a-f]*'` 로 바꿔 돎.
-   - 앞의 `*` = Orca 가 이름 앞에 다른 접두를 붙일 수 있어서. `dflow-` 뒤를 16진수로 한정해 `worktree-dflow-team` 같은 개발 브랜치를 후보에서 뺌.
+   - 앞의 `*` = Orca 가 이름 앞에 다른 접두를 붙일 수 있어서. `dflow-` 뒤를 16진수로 한정해 `worktree-dflow-team` 같은 개발 branch 후보에서 뺌.
    - 세 안전 조건(`agent/` 아님, 체크아웃 안 됨, `origin/<기본브랜치>` 의 조상)은 루프가 그대로 지킴.
 
 ## 플랫폼 차이
