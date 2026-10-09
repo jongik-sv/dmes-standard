@@ -28,7 +28,7 @@
 순서 = **해소·stage → 게이트 → 기록 → 커밋** (4-6번). 게이트는 커밋 **전에** stage 한 트리에서 돌고, 결과(시험 총수)를 `resolution.md` 에 적어 머지 커밋에 함께 담음. `resolve-prompt.md` 「게이트」·「기록」 도 같은 순서.
 
 4. **머지·해소·stage**: 충돌 여부 무관하게 늘 커밋 없이 머지 (`resolution.md` 와 트레일러가 한 커밋에 실리게)
-   - rerere = 명령줄 `-c` 로만 켬. `git config` 금지 (공용 `.git/config` 에 써져 사람 체크아웃까지 바뀜)
+   - rerere = 명령줄 `-c` 로만 켬. `git config` 로 켜지 않음 (공용 `.git/config` 에 써져 사람 체크아웃까지 바뀜)
    - 기록은 커밋 때 남으므로 `commit` 에도 `-c` 붙임
    ```bash
    git -c rerere.enabled=true merge --no-ff --no-commit <머지 대상>

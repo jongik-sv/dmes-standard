@@ -34,7 +34,7 @@ API 시험만으로는 화면 JavaScript(DOM 바인딩·이벤트·fetch 호출)
   - 스크립트 출력 = 포트 번호 한 줄.
   - Bash 호출 사이에 셸 변수가 안 남음 → 받은 번호를 기록해 그 번호로 띄우거나, 한 호출 안에서 `PORT=$(node .claude/skills/dflow-dev/scripts/free-port.mjs) && …` 로 이어 씀.
   - 예: `./gradlew :api:bootRun --no-daemon --args='--server.port=<빈 포트>'` (`--no-daemon` = 사용자 전역 Gradle 데몬 공유·접촉 금지), `next dev --port <빈 포트>`.
-  - 끝에 `&` 붙여 띄우는 서버 기동은 가드 훅 timeout 검사 면제. 그 밖의 `gradlew` 호출은 Bash 도구 timeout 300000-600000.
+  - 끝에 `&` 붙여 띄우는 서버 기동은 가드 훅 timeout 검사 면제. 그 밖의 `gradlew` 호출은 Bash 도구 timeout 300000~600000.
   - 받은 포트는 바로 닫히므로 서버 bind 전에 남이 가져갈 수 있음 (드묾). "Address already in use" 로 못 뜨면 포트 다시 받아 기동.
 - 워크스페이스 라이브러리 빌드는 프런트 dev 서버(`next dev` 등) 기동 **전에** 끝냄.
   - dev 서버는 떠 있는 동안 라이브러리 산출물(dist)을 감시. 기동 뒤 dist 를 지웠다 다시 쓰는 빌드가 돌면 "Module not found" 오류 화면이 클릭을 가로채 모든 시험이 로그인 단계에서 timeout.
@@ -43,7 +43,7 @@ API 시험만으로는 화면 JavaScript(DOM 바인딩·이벤트·fetch 호출)
   - 리포에 재투입 절차 없으면 시험 준비 단계(beforeAll·beforeEach 등)에 둠.
   - 스키마 변경(마이그레이션 추가) 때만 서버 재기동.
 - 선택지 — Spring Boot 백엔드는 `bootWar`(또는 `bootJar`) 산출물을 `java -jar` 로 띄워도 됨. 서버 도는 동안 Gradle 데몬 JVM 이 없어 E2E 한 건에 약 1GB 절약.
-  - 산출물 빌드 = 무거운 Gradle 호출 → `heavy.mjs` 로 감싸고 Bash 도구 timeout 300000-600000 (팀원 세션은 가드 훅이 더 짧으면 거부): `node .claude/skills/dflow-dev/scripts/heavy.mjs ./gradlew :api:bootWar`. 서버 자체(`java -jar`)는 안 감쌈 — 서버 슬롯은 아래 「E2E 서버 슬롯」 의 `acquire` 가 잡음.
+  - 산출물 빌드 = 무거운 Gradle 호출 → `heavy.mjs` 로 감싸고 Bash 도구 timeout 300000~600000 (팀원 세션은 가드 훅이 더 짧으면 거부): `node .claude/skills/dflow-dev/scripts/heavy.mjs ./gradlew :api:bootWar`. 서버 자체(`java -jar`)는 안 감쌈 — 서버 슬롯은 아래 「E2E 서버 슬롯」 의 `acquire` 가 잡음.
   - `java -jar` 는 상대 경로(파일 DB `jdbc:h2:file:./data/…`, `./logs` 등)를 **실행 폴더(cwd) 기준**으로 풂. 모듈 폴더에서 실행하거나 `--spring.datasource.url=<절대경로 URL>` 전달. 안 그러면 다른 체크아웃(메인·다른 팀원 워크트리) DB 를 잡음. 예: `cd api && java -jar build/libs/<산출물>.war --server.port=<빈 포트>`.
   - 띄운 `java` PID 를 기록, 끝나면 아래 거두기 규칙대로 그 PID 를 죽임.
 - 끝나면 **자기가 띄운 프로세스만** 거둠:
@@ -58,7 +58,7 @@ API 시험만으로는 화면 JavaScript(DOM 바인딩·이벤트·fetch 호출)
 **E2E 서버는 띄울 때 슬롯을 붙잡고, 끌 때 푼다** (dev-discipline.md 「무거운 명령 줄 세우기」).
 1. 서버 띄우기 직전 `node .claude/skills/dflow-dev/scripts/heavy.mjs acquire e2e-<TSK>` 호출.
    - `HEAVY_ACQUIRED` 확인 (`HEAVY_BUSY` 면 다시 호출).
-   - Bash 도구 timeout 300000-600000 (팀원 세션은 가드 훅이 더 짧으면 거부 — `release` 는 면제).
+   - Bash 도구 timeout 300000~600000 (팀원 세션은 가드 훅이 더 짧으면 거부 — `release` 는 면제).
    - 소유자 = 이 세션(`CLAUDE_PID`).
    - `acquire` 는 일반 슬롯 아니라 **E2E 풀**(`e2e-<i>`, `DFLOW_HEAVY_E2E_SLOTS`, 기본 1)을 잡음. 서버가 떠 있는 동안에도 다른 팀원 게이트·빌드는 일반 슬롯에서 돎.
    - E2E 풀이 차 있으면(다른 팀원 E2E 서버) `HEAVY_BUSY e2e=<n> …` 로 반환.

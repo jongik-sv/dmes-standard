@@ -19,10 +19,10 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 이 단계
   - 횟수는 기억이 아니라 `git log <기점>..HEAD --grep='DFlow-Unit: <단위> handoff' --format=%h` 줄 수로 셈.
   - 세 번째 인계 = Build 실패 (「Phase 02~05 공통」 4번).
 - 둘 다 아닌 보고: opus 단위면 Build 실패, sonnet 단위면 아래 「승급」.
-- **승급(sonnet 단위)**: sonnet 단위 에이전트가 막히면 이어받기를 opus 새 에이전트로 띄움. 조건:
+- **승급(sonnet 단위)**: sonnet 단위 에이전트가 막히면 이어받기를 opus 새 에이전트로 띄움. 조건(둘 중 하나):
   - 같은 단위의 두 번째 인계(`UNIT_HANDOFF`)
   - 새·관련 테스트 초록 없이 끝남 (보고의 관련 테스트가 빨갛거나 `UNIT_DONE`·`UNIT_HANDOFF` 어느 것도 아닌 보고)
-  - 인계 상한(단위마다 2회) 그대로. 승급은 그 자리의 모델만 바꿈.
+  - (조건 아님) 인계 상한(단위마다 2회)은 그대로. 승급은 그 자리의 모델만 바꿈.
   1. 초록 없이 끝났으면 오케스트레이터가 인계로 바꿈.
      - 보고로 build-log.md `## 인계 <단위>`(한 것·남은 것·실패 중인 테스트) 작성.
      - design.md 표의 그 단위 범위 안 변경과 build-log.md 를 `--trailer "DFlow-Unit: <단위> handoff" --trailer "DFlow-Escalate: <단위> 초록 없이 끝남"`(과 `DFlow-Order`)로 커밋.

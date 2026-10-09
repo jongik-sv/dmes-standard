@@ -88,7 +88,7 @@ node .claude/skills/dflow-dev/scripts/deps.mjs   # 75(DEPS_BUSY)면 잠시 뒤 �
   - `DEPS_PREPARE_FAIL` = 경고(exit 0). 게이트가 같은 원인으로 실패하면 그 결과로 판정.
   - 이번 호출에서 실제로 설치했으면 준비 빌드는 안 돌고 `DEPS_PREPARE_PENDING` + exit 75 로 끝남. `DEPS_BUSY` 처럼 실패 아님.
   - 다시 부르면 설치는 건너뛰고 준비 빌드만 실행 (한 호출이 10분 초과 금지).
-  - 이 호출은 Bash 도구 timeout 을 300000-600000 으로 줌.
+  - 이 호출은 Bash 도구 timeout 을 300000~600000 으로 줌.
 - **행 H 서버 프로세스**: Build·Verify Phase 가 화면 작업의 브라우저 E2E 용 서버를 띄울 때도 행 H 와 같은 자리의 규칙 — `references/e2e.md` 「서버 프로세스」(정본).
   - 리포 서버 실행 스크립트(`be-run.sh`·`fe-run.sh` 류) 금지. 빈 포트로 직접 띄움.
   - 끝나면 자기가 띄운 프로세스만 거둠.
