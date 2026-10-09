@@ -61,6 +61,7 @@
 #   비밀: 프롬프트 본문·claim_token·화면 원문·dflow.sh 오류 본문은 로그·stderr 에 남기지 않는다(시각·대상·결과·사유만).
 set -uo pipefail
 _SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.   # dirname 대신(프로세스 0개)
+. "$_SD/lib/js-bridge.sh"; if _jsb_on CONSOLE_POLL; then _jsb_exec "$_SD/console-poll" "$@"; fi   # node 판(스위치 COORD_JS_CONSOLE_POLL)
 . "$_SD/lib/common.sh"
 . "$_SD/lib/term.sh"
 . "$_SD/lib/console-resolve.sh"

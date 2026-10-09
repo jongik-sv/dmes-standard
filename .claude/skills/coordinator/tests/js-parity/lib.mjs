@@ -141,6 +141,11 @@ export function describeDiff(fnName, index, c, d) {
   lines.push(`  stdin ${preview(Buffer.from(c.stdin ?? ''))}`);
   lines.push(`  sh  rc=${d.sh.rc} out=${preview(d.sh.out)}`);
   lines.push(`  js  rc=${d.js.rc} out=${preview(d.js.out)}`);
+  if (process.env.JSPARITY_DIFF_LINES !== '0' && Buffer.compare(d.sh.out, d.js.out) !== 0) {   // 줄 단위로 다른 곳만 보인다(기본 켬, JSPARITY_DIFF_LINES=0 이면 끔 — 시간에 기대는 사례의 원문 확인용)
+    const A = d.sh.out.toString('latin1').split('\n'), B = d.js.out.toString('latin1').split('\n');
+    const n = Math.max(A.length, B.length); let shown = 0;
+    for (let i = 0; i < n && shown < 12; i++) if (A[i] !== B[i]) { lines.push(`  줄${i + 1} sh=${JSON.stringify(A[i] ?? null)}`); lines.push(`  줄${i + 1} js=${JSON.stringify(B[i] ?? null)}`); shown += 1; }
+  }
   if (!eqFiles(d.sh.files, d.js.files)) {
     const keys = [...new Set([...Object.keys(d.sh.files), ...Object.keys(d.js.files)])].sort();
     for (const k of keys) if (JSON.stringify(d.sh.files[k]) !== JSON.stringify(d.js.files[k])) lines.push(`  파일 ${k}: sh=${JSON.stringify(d.sh.files[k])} js=${JSON.stringify(d.js.files[k])}`);
