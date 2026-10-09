@@ -72,6 +72,11 @@ const OK = { model: ['opus', 'sonnet', 'opus[1m]', 'claude-opus-5-5[1m]'], effor
 const BAD = { name: ['', 'a b', 'a/b', '한글', '-x'], kind: ['bogus', ''], model: ['a b', 'x;y', "it's", 'm$1'], effort: ['h i', 'ef`x`'], autoc: ['a|b'],
   sel: ['./rel', '../rel', '~/x', '.', 'bogus', 'name:', 'C:\\x', 'path:rel', '/does/not/exist', 'path:/does/not/exist'], prompt: ['missing.md'], unknown: ['--bogus', 'positional'] };
 
+// brief(오피스 레인 칸 한 줄): --brief 인자와 --prompt-file 첫 글줄에서 뽑는 규칙 사례
+const BRIEFS = ['관리자 화면 수정', '  앞뒤 공백  ', '경로 /Users/x/a.md 뺀다 ~/m ./a ../b C:/w/z 끝', 'x'.repeat(250), 'ㄱ'.repeat(210), '/only/path', '', '한 줄 — 로 끝'];
+const PF_TEXTS = ['지시', '# 레인 x — 13개 소형 스크립트 이식\n본문', '## 다음 일을 진행해 달라 가나다라마바사아자차카타파하 가나다라마바사아자차카타파하 가나다라마바사아자차카타파하 가나다라마바사아자차카타파하 끝',
+  '\n\n  첫 글줄 — 제목입니다\n', '/Users/x/only/path.md', '지시 /Users/x/b.md ~/memo.md ./a ../b C:/w/z 파일을 읽고', '\r\n# 윈도우 줄 — 제목\r\n', '', '   \n \n', '— 앞에 없는 제목', '#\t탭 제목 — 뒤'];
+
 function gen(rng) {
   const kind = rng.pick(['claude', 'claude', 'claude', 'glm', 'glm', 'opencode', 'opencode']);
   const bad = rng.chance(0.15) ? rng.pick(Object.keys(BAD).concat(['help'])) : null;   // 사용법 오류는 사례마다 한 가지만 섞는다
@@ -82,6 +87,9 @@ function gen(rng) {
   if (rng.chance(0.2) || bad === 'autoc') order.push(['--autocompact', bad === 'autoc' ? rng.pick(BAD.autoc) : rng.pick(OK.autoc)]);
   const pf = rng.chance(0.4) || bad === 'prompt' ? (bad === 'prompt' ? 'missing.md' : rng.pick(['prompt.md', 'prompt.md', 'sub/p q.md'])) : null;
   if (pf) order.push(['--prompt-file', pf]);
+  const briefArg = rng.chance(0.2) ? rng.pick(BRIEFS) : null;
+  if (briefArg !== null) order.push(['--brief', briefArg]);
+  const pfText = rng.pick(PF_TEXTS);
   for (let i = order.length - 1; i > 0; i--) { const j = rng.int(0, i); [order[i], order[j]] = [order[j], order[i]]; }
   const args = [];
   for (const o of order) args.push(...o);
@@ -101,7 +109,7 @@ function gen(rng) {
     cfg: rng.pick([{}, {}, { launch: { claude: 'claude --foo', glm: 'glm2', opencode: 'oc' } }, { terminal_backend: 'tmux' }, { glm: { max_sessions: 2 } }, { launch: { opencode: '' } }]),
     state: kind === 'glm' ? GLM_STATE(rng.pick([0, 0, 1, 2])) : STATE,
     glm: kind === 'glm' ? rng.pick([{}, {}, {}, { alias: '' }, { alias: GLM_ALIAS_OK.replace('api.z.ai', 'evil.example') }, { code: '500 0.1' }, { body: '{"model":"other"}' }, { rc: 7 }, { rc: 28 }, { alias: GLM_ALIAS_OK.replace(' ANTHROPIC_AUTH_TOKEN="tok-AbCdEf0123456789"', '') }]) : null,
-    extra: { 'wt/known/.keep': '', 'wt/unknown/.keep': '', ...(pf ? { 'prompt.md': '지시', 'sub/p q.md': '지시' } : {}) },
+    extra: { 'wt/known/.keep': '', 'wt/unknown/.keep': '', ...(pf ? { 'prompt.md': pfText, 'sub/p q.md': pfText } : {}) },
   });
   return { args, stdin: '', files, env: { ...BASE_ENV, ...(rng.chance(0.9) ? { COORD_RUN: 'r1' } : {}) } };
 }
@@ -147,6 +155,23 @@ function fixedCases() {
   mk('opencode 빈 화면 → SPAWN_FAIL screen blank', ['--name', 'lane-x', '--kind', 'opencode'], { screen: '  \n' });
   mk('opencode --prompt-file 은 보내지 않는다', ['--name', 'lane-x', '--kind', 'opencode', '--prompt-file', 'prompt.md'], { extra: { 'prompt.md': '지시' } });
   mk('opencode --dry-run', ['--name', 'lane-x', '--kind', 'opencode', '--dry-run']);
+  // brief (오피스 레인 칸 한 줄)
+  const pmd = (txt) => ({ extra: { 'prompt.md': txt } });
+  mk('claude --brief', ['--name', 'lane-x', '--kind', 'claude', '--brief', '관리자 화면 수정']);
+  mk('claude --brief 가 지시 파일보다 우선', ['--name', 'lane-x', '--kind', 'claude', '--brief', '직접 준 한 줄', '--prompt-file', 'prompt.md'], pmd('# 레인 x — 파일 제목'));
+  mk('claude 지시 파일 「— 」 뒤 제목', ['--name', 'lane-x', '--kind', 'claude', '--prompt-file', 'prompt.md'], pmd('# 레인 js-w3a — 13개 소형 스크립트 이식\n본문'));
+  mk('claude 지시 파일 앞 60자', ['--name', 'lane-x', '--kind', 'claude', '--prompt-file', 'prompt.md'], pmd('## 다음 일을 진행해 달라 가나다라마바사아자차카타파하 가나다라마바사아자차카타파하 가나다라마바사아자차카타파하 가나다라마바사아자차카타파하 끝'));
+  mk('claude 지시 파일 경로 토큰 제외', ['--name', 'lane-x', '--kind', 'claude', '--prompt-file', 'prompt.md'], pmd('지시 /Users/x/b.md ~/memo.md ./a ../b C:/w/z 파일을 읽고 진행'));
+  mk('claude 지시 파일 빈 줄 뒤 첫 글줄', ['--name', 'lane-x', '--kind', 'claude', '--prompt-file', 'prompt.md'], pmd('\n\n  첫 글줄 — 제목입니다\n'));
+  mk('claude 지시 파일 경로뿐 → brief 없음', ['--name', 'lane-x', '--kind', 'claude', '--prompt-file', 'prompt.md'], pmd('/Users/x/only/path.md'));
+  mk('claude 지시 파일 CRLF', ['--name', 'lane-x', '--kind', 'claude', '--prompt-file', 'prompt.md'], pmd('\r\n# 윈도우 줄 — 제목\r\n'));
+  mk('claude --brief 200자 제한', ['--name', 'lane-x', '--kind', 'claude', '--brief', 'x'.repeat(250)]);
+  mk('claude --brief 빈 값 + 지시 파일', ['--name', 'lane-x', '--kind', 'claude', '--brief', '', '--prompt-file', 'prompt.md'], pmd('# a — 제목'));
+  mk('claude 이미 brief 가 있는 레인은 덮어쓰지 않는다', ['--name', 'lane-x', '--kind', 'claude', '--brief', '새 한 줄'], { state: JSON.stringify({ schema: 1, run: { id: 'r1', coordinator: { name: 'c', session_id: 'aaaa1111-0000', pid: 0 } }, lanes: { 'lane-x': { brief: '먼저 적은 한 줄' } }, approvals: [] }) });
+  mk('claude brief 가 빈 레인은 채운다', ['--name', 'lane-x', '--kind', 'claude', '--brief', '채운 한 줄'], { state: JSON.stringify({ schema: 1, run: { id: 'r1', coordinator: { name: 'c', session_id: 'aaaa1111-0000', pid: 0 } }, lanes: { 'lane-x': { brief: '' } }, approvals: [] }) });
+  mk('claude --brief --dry-run', ['--name', 'lane-x', '--kind', 'claude', '--brief', '드라이런 한 줄', '--dry-run']);
+  mk('opencode --brief', ['--name', 'lane-x', '--kind', 'opencode', '--brief', '오픈코드 한 줄'], { screen: IDLE });
+  mk('glm --brief', ['--name', 'lane-x', '--kind', 'glm', '--brief', '글름 한 줄'], { screen: GLM_SCREEN, glm: {} });
   return cases;
 }
 

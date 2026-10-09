@@ -21,7 +21,7 @@ import { CoordDie, Ctx, cfgSub, expand, hasRun, nowEpoch, q, screenPromptKind, s
 import { coordStateCall, runSync, scriptsDir } from './lib/common-ext.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 import * as J from './lib/jq-json.mjs';
-import { hasNonSpace } from './lib/sh-space.mjs';
+import { hasNonSpace, spaceChars } from './lib/sh-space.mjs';
 import { sleepSec } from './lib/test-sleep.mjs';
 import { functions as T } from './lib/term.mjs';
 
@@ -39,7 +39,7 @@ const tsvEsc = (s) => s.replace(/\\/g, '\\\\').replace(/\t/g, '\\t').replace(/\r
 
 function helpText() {
   const lines = readFileSync(SH_FILE, 'latin1').split('\n');
-  return Buffer.from(`${lines.slice(1, 19).join('\n')}\n`, 'latin1');
+  return Buffer.from(`${lines.slice(1, 22).join('\n')}\n`, 'latin1');
 }
 
 // ---------- 외부 도구 ----------
@@ -84,7 +84,7 @@ export async function main(argv, { env: env0 = process.env, cwd = process.cwd(),
 function die(rc, msg) { throw new CoordDie(rc, msg); }
 
 async function run(argv, env, cwd, c, out0, TO) {
-  let name = '', kind = '', sel = '', model = '', effort = '', autoc = '', pfile = '', dry = 0;
+  let name = '', kind = '', sel = '', model = '', effort = '', autoc = '', pfile = '', briefArg = '', dry = 0;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const nx = () => argv[i + 1] ?? '';
@@ -96,6 +96,7 @@ async function run(argv, env, cwd, c, out0, TO) {
       case '--effort': effort = nx(); i++; break;
       case '--autocompact': autoc = nx(); i++; break;
       case '--prompt-file': pfile = nx(); i++; break;
+      case '--brief': briefArg = nx(); i++; break;
       case '--dry-run': dry = 1; break;
       case '-h': case '--help': out0(helpText()); return 0;
       default: die(2, `모르는 인자: ${a}`);
@@ -113,6 +114,9 @@ async function run(argv, env, cwd, c, out0, TO) {
     if (!isFile) die(2, `지시 파일이 없다: ${pfile}`);
     pfile = absLogical(pfile, env, cwd);
   }
+  // 에이전트 오피스 레인 칸에 보일 한 줄(lane-add 의 brief): --brief 가 우선, 없으면 --prompt-file 첫 글줄(「— 」 뒤 제목, 없으면 앞 60자), 경로 토큰은 뺀다
+  let BRIEF = makeBrief(env, briefArg, pfile);
+  if (BRIEF !== '' && hasRun(c) && existingBrief(c, name) !== '') BRIEF = '';   // 이미 그 레인에 brief 가 있으면 덮어쓰지 않는다
   const be = cfgSub(c, '.terminal_backend') || 'orca';
   if (be !== 'orca') die(4, 'spawn-lane.sh 는 terminal_backend=orca 만 지원한다');
   if (dry === 1) env.COORD_DRY = '1';
@@ -295,7 +299,9 @@ async function run(argv, env, cwd, c, out0, TO) {
       ['pid', /^-?[0-9]+$/.test(pid) ? Number(pid) : 0], ['session_id', sid === '-' ? '' : sid], ['addr', addr === '' ? '' : `uds:${addr}`],
     ]);
     if (model.includes('[1m]')) sess.set('window', 1000000);
-    coordStateCall(c, ['lane-add', name, J.stringify(new Map([['session', sess], ['worktree', wt], ['state', 'active']]), { indent: 0 })]);
+    const lane = new Map([['session', sess], ['worktree', wt], ['state', 'active']]);
+    if (BRIEF !== '') lane.set('brief', BRIEF);
+    coordStateCall(c, ['lane-add', name, J.stringify(lane, { indent: 0 })]);
     coordStateCall(c, ['event', 'spawned', name, J.stringify(new Map([['handle', h], ['kind', kind]]), { indent: 0 })]);
     const r = runSync('bash', [join(scriptsDir(), 'office.sh'), 'lane-up', name], { env: childEnv(), cwd, input: '' });   // 에이전트 오피스 표시(실패해도 무시)
     void r;
@@ -315,7 +321,9 @@ async function run(argv, env, cwd, c, out0, TO) {
     log(`DRY term_send <h> ${q([tabLine(`cd ${dryCd()} && ${cmdWord}`)])} --enter (셸 프롬프트가 보인 뒤)`);
   };
   const dryDone = (k) => {
-    coordStateCall(c, ['lane-add', name, `{"session":{"kind":"${k}","spawned_by":"coordinator"},"state":"active"}`]);
+    const dl = new Map([['session', new Map([['kind', k], ['spawned_by', 'coordinator']])], ['state', 'active']]);
+    if (BRIEF !== '') dl.set('brief', BRIEF);
+    coordStateCall(c, ['lane-add', name, J.stringify(dl, { indent: 0 })]);
     echo(`DRY SPAWNED ${name} handle=- pid=- session_id=-`);
   };
   /** 세션 확인 → 지시 파일 → 기록 (claude·glm 공통). SPAWNED 줄까지 낸다 */
@@ -419,6 +427,35 @@ async function run(argv, env, cwd, c, out0, TO) {
       return stripNl(outs.join('\n'));
     } catch { return ''; }
   }
+}
+
+/** make_brief: --brief(최대 200자) 또는 --prompt-file 첫 글줄(최대 60자)에서 경로 토큰을 뺀 한 줄. 없으면 '' */
+function makeBrief(env, briefArg, pfile) {
+  const sp = spaceChars(env);
+  let cap = 60, t;
+  if (briefArg !== '') { cap = 200; t = briefArg; }
+  else if (pfile !== '') {
+    let text = '';
+    try { text = readFileSync(pfile, 'utf8'); } catch { text = ''; }
+    const first = text.split('\n').find((l) => hasNonSpace(env, l)) ?? '';
+    let line = first.replaceAll('\r', '');
+    line = line.replace(new RegExp(`^[${sp}#]+`), '');
+    const i = line.indexOf('— ');
+    t = i >= 0 ? line.slice(i + 2) : line;
+  } else return '';
+  const out = t.split(/[ \t\n]+/).filter((x) => x !== '' && !/^(?:\/|~\/|\.\/|\.\.\/|[A-Za-z]:[/\\])/.test(x)).join(' ');
+  return out === '' ? '' : Array.from(out).slice(0, cap).join('');
+}
+/** `coord_state '.lanes["<n>"].brief // "" | tostring'` — 못 읽거나 오류면 '' */
+function existingBrief(c, name) {
+  try {
+    const { values } = J.parseStreamPartial(readFileSync(stateFile(c, ''), 'utf8'));
+    const outs = [];
+    for (const d of values) {
+      try { outs.push(J.tostring(J.alt(J.index(J.index(J.index(d, 'lanes'), name), 'brief'), ''))); } catch (e) { if (!(e instanceof J.JqError)) throw e; }
+    }
+    return stripNl(outs.join('\n'));
+  } catch { return ''; }
 }
 
 /** `$(cd "$(dirname "$p")" && pwd)/$(basename "$p")` — 논리 경로(심볼릭 링크를 풀지 않는다) */
