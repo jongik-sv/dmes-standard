@@ -1,7 +1,7 @@
 # dmes-standard 게이트 대응표 — 바뀐 경로 → 돌릴 게이트 명령(wbs-web 형식, 2026-09-26 chore/gradle-tuning).
 # 한 줄에 <경로 접두 또는 glob><TAB><명령>. 먼저 나온 줄이 이긴다(구체적인 경로를 위에). 명령 "-" = 게이트 대상 아님.
 # 대응표 밖 경로·공용 빌드 파일(src/backend/*.gradle·gradle/·src/frontend/package.json·pnpm-lock 등)·이 파일 자신이 바뀌면 full.
-# 명령은 리포 최상위에서 heavy.sh bash -c '<명령>' 으로 돈다. 작은따옴표를 쓰지 않는다.
+# 명령은 리포 최상위에서 node .claude/skills/dflow-dev/scripts/heavy.mjs bash -c '<명령>' 으로 돈다. 작은따옴표를 쓰지 않는다.
 #
 # 모듈 줄 원칙
 # - 백엔드: 바뀐 모듈의 test 와, 그 모듈을 의존하거나 그 파일을 테스트 입력으로 읽는 모듈의 test 를 함께 돌린다.

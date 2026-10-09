@@ -6,7 +6,7 @@
 //
 // bash 판과 맞춘 점 (읽는 사람이 놀라지 않도록)
 //  · 잠금 $DFLOW_CONSOLE_DIR/poller-<신원>.lock/(pid·pstart·since·cycle·tmpd)·로그·탈취 절차·종료 조건(할 일 없는 주기 2번·office.enabled 꺼짐·잠금 잃음·TERM)이 같다.
-//  · 외부 프로세스(dflow.sh·office.mjs·term-send-safe.mjs·lead-state.sh)는 bash 판의 run_limited 처럼 제한 시간 안에서 spawn(셸 없이)하고, 넘으면 후손까지 죽인다(124).
+//  · 외부 프로세스(dflow.mjs·office.mjs·term-send-safe.mjs·lead-state.mjs)는 bash 판의 run_limited 처럼 제한 시간 안에서 spawn(셸 없이)하고, 넘으면 후손까지 죽인다(124).
 //  · 구간(생존 감시·터미널 목록·화면 읽기·화면 올리기·알림·재읽기)의 시간 상한은 같은 값: 구간 안에서 부르는 일마다 남은 시간으로 호출 상한을 줄이고, 다 쓰면 그 구간을 버린다.
 //  · console-input·console-resolve 의 무거운 판정(console_input_snapshot·console_resolve·console_list_targets 등)은 W1-a 가 옮기기 전이라 lib/console-poll-deps.mjs 의 이음매로 bash 판을 부른다.
 // 알려진 차이(고치지 않고 보고): 프롬프트 행 JSON 이 한 줄에 값 여럿이면 jq 는 칸마다 여러 줄을 내지만 여기서는 첫 값이 아니면 빈 칸으로 본다 · lead-state 시간 초과 로그(plog)는 이음매 안에서 남지 않는다.
@@ -162,10 +162,11 @@ function callLimit(per, dl) {
   return Math.min(per, left);
 }
 
-/** dflow.sh 호출: 출력 S.dout, 오류 S.derr(로그에 옮기지 않는다) */
+/** dflow.mjs 호출: 출력 S.dout, 오류 S.derr(로그에 옮기지 않는다) */
 async function dfl(inFile, args, dl) {
   const out = f('out'), err = f('err');
-  const rc = await runLimited(callLimit(S.dflTimeout, dl), { input: inFile, out, err }, 'bash', [S.DFLOW, ...args], { cwd: S.REPO, env: { ...S.env, DFLOW_CONFIG_DIR: S.DCD } });
+  const [xcmd, xargs] = sx(S.DFLOW, args);
+  const rc = await runLimited(callLimit(S.dflTimeout, dl), { input: inFile, out, err }, xcmd, xargs, { cwd: S.REPO, env: { ...S.env, DFLOW_CONFIG_DIR: S.DCD } });
   S.dout = readText(out); S.derr = readText(err);
   return rc;
 }
@@ -191,7 +192,7 @@ function setup() {
   S.REPO = rp;
   let d = cfgSub(c, '.office.dflow_script');
   if (d) { d = expand(d, S.env); if (!d.startsWith('/')) d = `${S.REPO}/${d}`; }
-  else d = `${SCRIPTS_DIR}/../../dflow-work/scripts/dflow.sh`;
+  else d = `${SCRIPTS_DIR}/../../dflow-work/scripts/dflow.mjs`;
   S.DFLOW = d;
   if (!isFile(d)) { S.SKIP = 'no-dflow'; return false; }
   S.DCD = S.env.DFLOW_CONFIG_DIR || S.REPO;
@@ -517,7 +518,7 @@ async function phasePrompts() {
   if (!S.REDACT_OK) { plog('프롬프트 건너뜀: 가림·정리 라이브러리 없음'); return; }
   if (S.TL.size === 0) { plog('프롬프트 건너뜀: 터미널 목록을 못 읽음'); return; }
   if (S.consoleOff !== 0 && nowEpoch() < S.consoleOff) return;
-  if (S.DRY) { drylog(`dflow.sh console-poll --host ${S.HOST}${keysEnabled() ? ' --accepts keys' : ''} --limit 1 (claim 하지 않음)`); return; }
+  if (S.DRY) { drylog(`dflow.mjs console-poll --host ${S.HOST}${keysEnabled() ? ' --accepts keys' : ''} --limit 1 (claim 하지 않음)`); return; }
   S.held = []; S.retriedIds = new Set();
   await pollLoop();
   await flushHeld();
@@ -688,7 +689,7 @@ async function leadWatch() {
   if (b !== '' && !/[^0-9]/.test(b)) args.push('--busy', b);
   args.push('--until', until);
   if (pjt) args.push('--project', pjt);
-  if (S.DRY) { drylog(`dflow.sh watch (team_lead until=${until})`); return 0; }
+  if (S.DRY) { drylog(`dflow.mjs watch (team_lead until=${until})`); return 0; }
   const save = S.dflTimeout; S.dflTimeout = S.LEAD_WATCH_TIMEOUT;
   let rc; try { rc = await dfl('/dev/null', args); } finally { S.dflTimeout = save; }
   rmf(f('out')); rmf(f('err'));
@@ -782,7 +783,7 @@ async function screensUpload(dl) {
   const [full, touch] = S.counts;
   const n = full + touch;
   if (n <= 0) return 0;
-  if (S.DRY) { drylog(`dflow.sh console-screen --host ${S.HOST} (항목 ${n}: 전체 ${full} · touch ${touch})`); return 0; }
+  if (S.DRY) { drylog(`dflow.mjs console-screen --host ${S.HOST} (항목 ${n}: 전체 ${full} · touch ${touch})`); return 0; }
   for (let i = 0; i < S.items.length; i += 20) {
     const b = S.items.slice(i, i + 20);
     writeFileSync(f('batch.json'), J.tojson(b));
@@ -1200,13 +1201,13 @@ const HELP_TEXT = `# 사용법: console-poll.mjs start | stop | status | --once 
 #             같은 화면으로 입력 요청(확인·선택·질문 창)을 판정해 $DFLOW_CONSOLE_DIR/input/<kind>_<ref>.json 을 만들고·고치고·지운다
 #             (coord_lane·coord_lead·team_lead, §4.1 「입력 요청 감지」). 바뀐 대상은 ④ 에서 알린다
 #           ④ 입력 요청 알림: coord_lane → \`COORD_RUN=<회차> office.mjs lane-state <레인> auto\`, coord_lead → \`office.mjs lead-sync\`,
-#             team_lead → 폴러가 직접 \`dflow.sh watch … --until "답 대기"\`(창이 사라지면 기록의 until_label 로 되돌림)
+#             team_lead → 폴러가 직접 \`dflow.mjs watch … --until "답 대기"\`(창이 사라지면 기록의 until_label 로 되돌림)
 #   input-handled  조정자·auto-answer 가 창에 답한 뒤 부른다: 기록의 handled 를 {by,at} 로 바꾸고 (since, sha)·(since, full) 을 소비 목록에
 #           넣은 뒤 office.mjs 를 부른다 · \`OK\` · 기록이 없으면 \`NONE\` · --expect-full <지문> 을 주었는데 기록의 full 이 다르면(기록이 이미
 #           다음 창) 아무것도 하지 않고 \`NONE prompt-changed\`
 #           시간 상한: 프롬프트 전달 구간을 뺀 나머지(생존 감시·터미널 목록·화면 읽기·화면 올리기)는 구간마다
 #             COORD_CONSOLE_PHASE_MAX_S(기본 10초)와 주기 몫 COORD_CONSOLE_CYCLE_MAX_S(기본 25초)의 남은 시간 중 작은 값 안에 끝낸다.
-#             넘으면 그 구간을 버리고(자손까지 죽임) 로그에 경고 한 줄을 남긴다. orca·lead-state·dflow.sh 호출은 모두 시간 제한 안에서 돈다.
+#             넘으면 그 구간을 버리고(자손까지 죽임) 로그에 경고 한 줄을 남긴다. orca·lead-state·dflow.mjs 호출은 모두 시간 제한 안에서 돈다.
 #             ④ 입력 요청 알림은 office.mjs 한 번이 20초(watch 3번 × 5초 + 여유)까지 걸리므로 주기 몫과 따로 COORD_CONSOLE_NOTIFY_MAX_S
 #             (기본 45초) 안에 돈다. 끊긴 office.mjs 의 잠금은 office.mjs trap·coord_lock 탈취가 푼다.
 #           매 주기 office.enabled 를 다시 읽어 false 면 스스로 끝낸다.
@@ -1216,17 +1217,17 @@ const HELP_TEXT = `# 사용법: console-poll.mjs start | stop | status | --once 
 #   handle-record team   /dflow-team 팀장 핸들 기록 $DFLOW_CONSOLE_DIR/lead/<MAIN cksum>.json 을 쓴다(다시 쓰면 갱신) ·
 #           handle=$ORCA_TERMINAL_HANDLE, pid=$CLAUDE_PID(없으면 0, 둘 다 비면 기존 값 유지) · \`OK <경로>\`
 #   handle-clear team    그 기록을 지운다 · \`OK\`
-#   신원: \`dflow.sh me\` 의 user_email 로컬 파트 슬러그(office.mjs 와 같은 규칙). dflow.sh·DFLOW_CONFIG_DIR·cwd 규칙도 office.mjs 와 같다.
+#   신원: \`dflow.mjs me\` 의 user_email 로컬 파트 슬러그(office.mjs 와 같은 규칙). dflow.mjs·DFLOW_CONFIG_DIR·cwd 규칙도 office.mjs 와 같다.
 #   잠금: 폴더 안에 pid·pstart·since·cycle·tmpd(루프의 임시 폴더). stop 은 TERM 뒤 기다려도 안 끝나면 자손까지 KILL 하고
 #         tmpd 를 대신 지운다. 신원을 못 구하면(설정이 꺼진 뒤 등) $DFLOW_CONSOLE_DIR/poller-*.lock 을 훑어 처리한다.
 #   환경: DFLOW_CONSOLE_DIR(기본 ~/.dflow/console) · COORD_STATE_ROOT · COORD_CONSOLE_CYCLE_S · COORD_CONSOLE_CYCLE_MAX_S ·
 #         COORD_CONSOLE_PHASE_MAX_S · COORD_DRY ·
 #         COORD_CONSOLE_KEYS_ENABLED=1(웹 키 입력 답하기 켬 — 설정 console.keys_enabled 와 같다, 기본 꺼짐)
-#         시험용: COORD_TERM_SEND_SAFE(term-send-safe.mjs 경로) · COORD_LEAD_STATE(lead-state.sh 경로) · CONSOLE_POLL_IDENT(신원) ·
+#         시험용: COORD_TERM_SEND_SAFE(term-send-safe.mjs 경로) · COORD_LEAD_STATE(lead-state.mjs 경로) · CONSOLE_POLL_IDENT(신원) ·
 #         COORD_CONSOLE_HELD_MAX_S(retry 를 먼저 보내는 나이, 기본 20) · COORD_CONSOLE_STOP_WAIT_S(stop 이 TERM 뒤 기다리는 초, 기본 10) ·
 #         COORD_CONSOLE_LS_TIMEOUT_S(lead-state 상한, 기본 5) · COORD_OFFICE_SH(office.mjs 경로) ·
 #         COORD_CONSOLE_LANE_LOCK_WAIT_S(레인 잠금 대기, 기본 10) · COORD_CONSOLE_SENT_GRACE_S(보낸 직후 같은 창을 다시 세지 않는 초, 기본 10)
-#   비밀: 프롬프트 본문·claim_token·화면 원문·dflow.sh 오류 본문은 로그·stderr 에 남기지 않는다(시각·대상·결과·사유만).
+#   비밀: 프롬프트 본문·claim_token·화면 원문·dflow.mjs 오류 본문은 로그·stderr 에 남기지 않는다(시각·대상·결과·사유만).
 `;
 function helpText() {
   return HELP_TEXT;

@@ -31,7 +31,7 @@
 | `launch.claude` | `"claude"` | Claude Code 실행 명령 앞부분(예: `orca claude-teams --dangerously-skip-permissions`) |
 | `launch.glm` | `"glm"` | GLM Claude Code 실행 alias |
 | `launch.opencode` | `"opencode --standalone"` | opencode 워커 실행 명령 |
-| `heavy.script` | `null` | heavy.sh 경로(리포 기준 상대 또는 절대). 없으면 통지만 |
+| `heavy.script` | `null` | heavy.mjs 경로(리포 기준 상대 또는 절대, `.mjs` 는 node · `.sh` 는 bash 로 실행). 없으면 통지만 |
 | `heavy.measure_dir` | `"~/.dflow/locks/heavy-measure"` | 측정 레인 전용 칸 DIR |
 | `heavy.load_soft` | `1.2` | load1/코어 가 이 값 이상이면 새 무거운 착수 지시 보류 |
 | `heavy.load_hard` | `2.0` | 두 틱 연속 이 값 이상이면 최저 우선순위 레인에 금지 통지 |
@@ -81,9 +81,9 @@
 | `merge.auto_build` | `true` | 머지 뒤 반영 빌드를 묻지 않고 함(`closing.md` §7). false 면 건너뛰고 마감 보고에 남김. 스크립트가 읽지 않는 문서 규칙 |
 | `merge.auto_push` | `true` | 통합 브랜치 push·릴리스 반영을 묻지 않고 함(`closing.md` §7, 강제 push 금지). false 면 건너뛰고 마감 보고에 남김. 문서 규칙 |
 | `office.enabled` | `true` | 에이전트 오피스 표시(`office-contract.md` §4). false 면 `office.mjs` 는 아무것도 안 함 |
-| `office.project_id` | `null` | 오피스에 표시할 D'Flow 프로젝트 UUID. 있으면 `watch --project` 로 넘김. 비면 생략(`dflow.sh` 가 `.dflow` 의 기본값을 씀) |
+| `office.project_id` | `null` | 오피스에 표시할 D'Flow 프로젝트 UUID. 있으면 `watch --project` 로 넘김. 비면 생략(`dflow.mjs` 가 `.dflow` 의 기본값을 씀) |
 | `office.label_max` | `40` | 팀원 키에 넣는 지시 요약의 최대 글자 수(키 전체는 늘 120자 이내) |
-| `office.dflow_script` | `null` | `dflow.sh` 경로(리포 기준 상대 허용). null 이면 킷 기준 `../../dflow-work/scripts/dflow.sh` |
+| `office.dflow_script` | `null` | `dflow.mjs` 경로(리포 기준 상대 허용, `.mjs` 는 node · `.sh` 는 bash 로 실행). null 이면 킷 기준 `../../dflow-work/scripts/dflow.mjs` |
 | `office.quiet_min` | `30` | 팀장 자리 요약의 `lanes.quiet` 기준: 살아 있는 레인 중 마지막 보고(없으면 지시) 뒤 이 분 넘게 조용한 레인 |
 | `console.keys_enabled` | `false` | 오피스 웹 키 입력 답하기 켬(`office-contract.md` §4.1 「키 입력 답하기」). 환경 변수 `COORD_CONSOLE_KEYS_ENABLED=1` 로도 켬 |
 | `records_check` | `false` | 머지 게이트에서 레인 기록 문서 확인 |
@@ -299,7 +299,7 @@
 ### 지원 환경: macOS · Git Bash(윈도우)
 
 - 필요 도구 = **node 18.17+**(조정자 스크립트 전부), git, orca CLI, **jq**(복잡한 jq 식의 폴백 경로에만)
-  - 오피스(`dflow.sh`)와 `heavy.sh` 호출에는 리포 쪽 bash 3.2+·curl·openssl 이 따로 필요(조정자 밖)
+  - 오피스(`dflow.mjs`)와 `heavy.mjs` 호출은 node 로 돈다(`.sh` 를 설정하면 리포 쪽 bash 3.2+·curl·openssl 이 따로 필요, 조정자 밖)
   - Git Bash = 킷 동봉 jq(`_shared/bin/win64/jq.exe`, `-b`)를 `lib/compat.mjs` 의 `jqCommand` 가 직접 부름. node·orca 는 설치 필요
 - 플랫폼 차이(stat·date·프로세스 표·후손 종료·pgrep/pkill·cwd·sha256) = `scripts/lib/compat.mjs` 한 곳에 모음
   - Git Bash 는 `ps -o`·`pgrep`·`lsof` 가 없어 `/proc/<pid>/{ppid,cmdline,cwd}` 를 읽음

@@ -6,8 +6,8 @@
 # DB 는 Oracle 시험 PDB 의 MDMAPUSER 다(P1~P4). gradle 은 build-logic 의 시험 하니스(-Pdmes.ora.*)로 돌린다 — 기본은 빌드마다
 #   T_<레인> PDB 를 복제했다 지우고, MEASURE_ORA_PDB 를 주면 있는 PDB 를 그대로 쓴다. 이 스크립트는 Oracle 에 직접 접속하지 않는다
 #   (PC 잠금은 하니스가 빌드 전 구간에서 쥔다). P5(엔진 단위 시험)는 DB 가 없어 하니스를 켜지 않는다.
-# 모든 gradle 은 heavy.sh 슬롯(PC 전역 세마포어) 아래에서 한 번에 하나씩 돈다. 커밋하지 않는다. JDK 21, --max-workers=2.
-# --exclusive(정식 측정): 이 스크립트 자신을 heavy.sh --exclusive 로 한 번 다시 실행한다 — 모든 회차가
+# 모든 gradle 은 heavy.mjs 슬롯(PC 전역 세마포어) 아래에서 한 번에 하나씩 돈다. 커밋하지 않는다. JDK 21, --max-workers=2.
+# --exclusive(정식 측정): 이 스크립트 자신을 heavy.mjs --exclusive 로 한 번 다시 실행한다 — 모든 회차가
 #   PC 전역 일반 슬롯 K개를 쥔 한 번의 독점 안에서 돈다(회차 사이에 독점을 풀었다 잡지 않는다). --dry-run 과 함께 쓰지 않는다.
 #
 # 환경변수(자세한 표는 README §3):
@@ -23,7 +23,7 @@
 
 HARNESS=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$HARNESS/../../.." && pwd)
-HEAVY=$REPO_ROOT/.claude/skills/dflow-dev/scripts/heavy.sh
+HEAVY=$REPO_ROOT/.claude/skills/dflow-dev/scripts/heavy.mjs
 GIT=/usr/bin/git
 TMP_ROOT=${TMPDIR:-/tmp}
 TMP_ROOT=${TMP_ROOT%/}
@@ -173,19 +173,19 @@ if [ "$need_ora" = 1 ]; then
     done
   done
 fi
-# heavy.sh 슬롯 아래에서만 돈다(Oracle 쓰는 gradle 은 PC 전체에서 한 번에 하나).
-[ -x "$HEAVY" ] || { echo "heavy.sh 가 없다(저장소 .claude/skills/dflow-dev/scripts/heavy.sh): $HEAVY" >&2; exit 2; }
+# heavy.mjs 슬롯 아래에서만 돈다(Oracle 쓰는 gradle 은 PC 전체에서 한 번에 하나).
+[ -f "$HEAVY" ] || { echo "heavy.mjs 가 없다(저장소 .claude/skills/dflow-dev/scripts/heavy.mjs): $HEAVY" >&2; exit 2; }
 
 # ── 독점 실행 구분 ───────────────────────────────────────────────────
-# 바깥(EXCL=1): heavy.sh --exclusive 로 자기 자신을 자식으로 다시 부른다(exec 아님 — 신호를 바깥이 맡는다).
-# 안쪽(MDM_PERF_EXCL_INNER=1): heavy.sh 가 일반 슬롯 K개를 모두 잡은 뒤 부른 실행. 이 안에서는 gradle 을 heavy.sh 로 다시 감싸지 않는다
+# 바깥(EXCL=1): heavy.mjs --exclusive 로 자기 자신을 자식으로 다시 부른다(exec 아님 — 신호를 바깥이 맡는다).
+# 안쪽(MDM_PERF_EXCL_INNER=1): heavy.mjs 가 일반 슬롯 K개를 모두 잡은 뒤 부른 실행. 이 안에서는 gradle 을 heavy.mjs 로 다시 감싸지 않는다
 # (DFLOW_HEAVY_HELD 가 있으면 슬롯을 이미 쥔 것이다).
 INNER=0
 EXCL_SLOT=-
 if [ "${MDM_PERF_EXCL_INNER:-}" = 1 ]; then
   INNER=1
   unset MDM_PERF_EXCL_INNER
-  # heavy.sh 가 슬롯 폴더를 못 만들면(HEAVY_UNLOCKED) 슬롯 없이 그냥 부른다 — 독점이 아닌 측정을 정식 값으로 남기지 않는다.
+  # heavy.mjs 가 슬롯 폴더를 못 만들면(HEAVY_UNLOCKED) 슬롯 없이 그냥 부른다 — 독점이 아닌 측정을 정식 값으로 남기지 않는다.
   if [ -z "${DFLOW_HEAVY_HELD:-}" ] || [ ! -d "$DFLOW_HEAVY_HELD" ]; then
     echo "독점 슬롯이 확인되지 않는다(DFLOW_HEAVY_HELD 없음 — HEAVY_UNLOCKED?) — 측정하지 않는다" >&2
     exit 2
@@ -196,12 +196,12 @@ elif [ "$EXCL" = 1 ]; then
     echo "--exclusive 는 --dry-run 과 함께 쓰지 않는다(독점은 정식 측정에만)" >&2
     exit 2
   fi
-  [ -x "$HEAVY" ] || { echo "heavy.sh 가 없다(저장소 .claude/skills/dflow-dev/scripts/heavy.sh): $HEAVY — --exclusive 를 쓸 수 없다" >&2; exit 2; }
-  # 슬롯을 쥔 채 독점을 부르면 heavy.sh 가 HEAVY_EXCL_NESTED(exit 2)로 거부한다 — 미리 알아듣게 막는다.
-  # (acquire 로 붙잡은 슬롯은 heavy.sh 가 HEAVY_EXCL_NESTED 줄로 알린다.)
+  [ -f "$HEAVY" ] || { echo "heavy.mjs 가 없다(저장소 .claude/skills/dflow-dev/scripts/heavy.mjs): $HEAVY — --exclusive 를 쓸 수 없다" >&2; exit 2; }
+  # 슬롯을 쥔 채 독점을 부르면 heavy.mjs 가 HEAVY_EXCL_NESTED(exit 2)로 거부한다 — 미리 알아듣게 막는다.
+  # (acquire 로 붙잡은 슬롯은 heavy.mjs 가 HEAVY_EXCL_NESTED 줄로 알린다.)
   if { [ -n "${DFLOW_HEAVY_HELD:-}" ] && [ -d "$DFLOW_HEAVY_HELD" ]; } \
      || { [ -n "${DFLOW_HEAVY_DOCKER_HELD:-}" ] && [ -d "$DFLOW_HEAVY_DOCKER_HELD" ]; }; then
-    echo "이미 heavy.sh 슬롯 안에서 불렸다 — --exclusive 는 run-measure.sh 를 heavy.sh 로 감싸지 않고 직접 부른다(HEAVY_EXCL_NESTED 방지)" >&2
+    echo "이미 heavy.mjs 슬롯 안에서 불렸다 — --exclusive 는 run-measure.sh 를 heavy.mjs 로 감싸지 않고 직접 부른다(HEAVY_EXCL_NESTED 방지)" >&2
     exit 2
   fi
 fi
@@ -211,7 +211,7 @@ wt_of() { if [ "$1" = base ]; then echo "$BASE_WT"; else echo "$DEV_WT"; fi; }
 # ── 정리(한 함수 — 이 실행이 복사한 파일·만든 디렉터리만 지운다) ───────────────────
 COPIED=()      # 이 실행이 복사한 파일(절대경로)
 MADE_DIRS=()   # 이 실행이 만든 디렉터리(만든 순서 — 지울 때는 거꾸로)
-HCHILD=        # 독점 바깥 실행이 띄운 heavy.sh 자식 pid
+HCHILD=        # 독점 바깥 실행이 띄운 heavy.mjs 자식 pid
 remove_copies() {
   local f i
   for f in "${COPIED[@]}"; do rm -f "$f"; done
@@ -223,7 +223,7 @@ cleanup() {
   remove_copies
 }
 trap cleanup EXIT
-# 독점 바깥 실행은 heavy.sh 를 & 로 띄우므로 그 자식(과 손자인 안쪽 실행)은 SIGINT 를 무시한다 — TERM 으로 넘기고, 자식이
+# 독점 바깥 실행은 heavy.mjs 를 & 로 띄우므로 그 자식(과 손자인 안쪽 실행)은 SIGINT 를 무시한다 — TERM 으로 넘기고, 자식이
 # 복사본을 지우고 끝날 때까지 기다린 뒤 끝낸다.
 on_signal() {
   if [ -n "$HCHILD" ]; then
@@ -247,20 +247,20 @@ for side in "${SIDES[@]}"; do
   fi
 done
 
-# ── 독점 바깥 실행: heavy.sh --exclusive 로 자기 자신을 한 번 다시 부르고 그 rc 로 끝난다 ─────────
-# 독점 대기 상한은 heavy.sh 의 DFLOW_HEAVY_WAIT(기본 90초)를 그대로 따른다(환경변수로 넘기면 된다).
+# ── 독점 바깥 실행: heavy.mjs --exclusive 로 자기 자신을 한 번 다시 부르고 그 rc 로 끝난다 ─────────
+# 독점 대기 상한은 heavy.mjs 의 DFLOW_HEAVY_WAIT(기본 90초)를 그대로 따른다(환경변수로 넘기면 된다).
 # 위에서 절대경로로 바꾼 MEASURE_*·MDM_MEASURE_SNAPSHOT_DIR·JAVA_HOME 은 export 돼 안쪽 실행에 그대로 넘어간다.
-# 측정 중복 방지는 heavy.sh 독점(일반 슬롯 K개 전부)과 하니스의 Oracle PC 잠금이 맡는다(이 스크립트는 따로 잠금을 두지 않는다).
+# 측정 중복 방지는 heavy.mjs 독점(일반 슬롯 K개 전부)과 하니스의 Oracle PC 잠금이 맡는다(이 스크립트는 따로 잠금을 두지 않는다).
 if [ "$EXCL" = 1 ] && [ "$INNER" = 0 ]; then
-  echo ">> heavy.sh --exclusive 로 측정 전체를 한 번에 돈다(인자: ${INNER_ARGS[*]})" >&2
+  echo ">> heavy.mjs --exclusive 로 측정 전체를 한 번에 돈다(인자: ${INNER_ARGS[*]})" >&2
   MDM_PERF_EXCL_INNER=1 \
-    "$HEAVY" --exclusive /bin/bash "$HARNESS/run-measure.sh" "${INNER_ARGS[@]}" &
+    node "$HEAVY" --exclusive /bin/bash "$HARNESS/run-measure.sh" "${INNER_ARGS[@]}" &
   HCHILD=$!
   wait "$HCHILD"; rc=$?
   HCHILD=
   case "$rc" in
     75) echo "독점 슬롯을 못 잡았다(HEAVY_BUSY) — 측정하지 않았다. 180초(DFLOW_HEAVY_EXCL_TTL) 안에 같은 명령을 다시 부르면 순번이 이어진다" >&2 ;;
-    2)  echo "heavy.sh 가 독점을 거부했거나(HEAVY_EXCL_NESTED — 위 줄 참고, acquire 한 슬롯이면 release 뒤 다시) 안쪽 실행의 사용법·점검 오류다" >&2 ;;
+    2)  echo "heavy.mjs 가 독점을 거부했거나(HEAVY_EXCL_NESTED — 위 줄 참고, acquire 한 슬롯이면 release 뒤 다시) 안쪽 실행의 사용법·점검 오류다" >&2 ;;
   esac
   exit "$rc"
 fi
@@ -306,7 +306,7 @@ filters() {
   esac
 }
 
-# run_gradle <side> <P> <로그> — heavy.sh 슬롯 아래에서 gradle 한 번. 독점 안쪽이면(DFLOW_HEAVY_HELD) 이미 슬롯을 쥔 것이라 다시 감싸지 않는다.
+# run_gradle <side> <P> <로그> — heavy.mjs 슬롯 아래에서 gradle 한 번. 독점 안쪽이면(DFLOW_HEAVY_HELD) 이미 슬롯을 쥔 것이라 다시 감싸지 않는다.
 # mdm(P1~P4)은 Oracle 시험 하니스를 켠다: MEASURE_ORA_PDB 가 있으면 -Pdmes.ora.pdb(있는 PDB), 없으면 -Pdmes.ora.test=clone(T_<레인> 복제·삭제).
 # 환경에 남은 DMES_ORA_PDB·DMES_ORA_URL·DMES_ORA_TEST 는 치운다 — 하니스는 DMES_ORA_PDB 가 있으면 clone 대신 그 PDB 를 쓴다.
 run_gradle() {
@@ -315,7 +315,7 @@ run_gradle() {
   for t in $(filters "$p"); do targs+=(--tests "$t"); done
   local envs=(MDM_MEASURE=1)
   [ "$DRY" = 1 ] && envs+=(MDM_MEASURE_DRY=1)
-  [ -z "${DFLOW_HEAVY_HELD:-}" ] && runner=("$HEAVY")
+  [ -z "${DFLOW_HEAVY_HELD:-}" ] && runner=(node "$HEAVY")
   if [ "$p" = P5 ]; then
     (cd "$wt/src/backend/maru-mdm-engine" && env "${envs[@]}" "${runner[@]}" ../gradlew test --rerun --console=plain -i --max-workers=2 "${targs[@]}") >"$log" 2>&1
   else
@@ -380,7 +380,7 @@ one_run() {
   remove_copies
   if [ "$rc" -eq 75 ]; then
     rm -f "$out"
-    echo "heavy.sh 슬롯을 못 잡았다(HEAVY_BUSY, 종료 75) — 측정하지 않았다. 같은 명령을 다시 부른다(DFLOW_HEAVY_WAIT 로 대기 상한을 늘릴 수 있다) — $log" >&2
+    echo "heavy.mjs 슬롯을 못 잡았다(HEAVY_BUSY, 종료 75) — 측정하지 않았다. 같은 명령을 다시 부른다(DFLOW_HEAVY_WAIT 로 대기 상한을 늘릴 수 있다) — $log" >&2
     exit 75
   fi
   collect "$log" >>"$out"
