@@ -15,11 +15,11 @@
 
 ## 2. 틱 절차
 
-틱은 `scripts/tick.sh` 한 번이다. 이 스크립트가 `coord-status.sh`·`prompt-watch.sh`(+`auto-answer.sh`)·`idle-check.sh`·`stall-check.sh`·`ctx-usage.sh`·`usage-band.sh` 를 차례로 돌리고 행동 줄만 낸다. 줄별 처리는 SKILL.md 「틱 절차」 표다. 상태표 전체가 필요할 때(사용자가 상태를 물을 때, 판단 근거를 볼 때)만 `coord-status.sh` 를 따로 돌린다. 그 출력 칸은 `contract.md` §3.3 이다. 콘솔 폴러가 돌면 `prompt-watch.sh`(틱·`--follow` Monitor 모두)는 폴러가 남긴 화면 캐시로 판정해 화면을 직접 읽지 않는다(캐시가 없거나 낡으면 직접 읽는다 — `contract.md` §3.3·§4.1). `status=gone` 이고 핸들이 stale 이면 `protocol.md` 3.10 으로 신원을 다시 요청하고, 세션이 죽었으면 사용자에게 알린다.
+틱은 `node scripts/tick.mjs` 한 번이다. 이 스크립트가 `coord-status.mjs`·`prompt-watch.mjs`(+`auto-answer.mjs`)·`idle-check.mjs`·`stall-check.mjs`·`ctx-usage.mjs`·`usage-band.mjs` 를 차례로 돌리고 행동 줄만 낸다. 줄별 처리는 SKILL.md 「틱 절차」 표다. 상태표 전체가 필요할 때(사용자가 상태를 물을 때, 판단 근거를 볼 때)만 `coord-status.mjs` 를 따로 돌린다. 그 출력 칸은 `contract.md` §3.3 이다. 콘솔 폴러가 돌면 `prompt-watch.mjs`(틱·`--follow` Monitor 모두)는 폴러가 남긴 화면 캐시로 판정해 화면을 직접 읽지 않는다(캐시가 없거나 낡으면 직접 읽는다 — `contract.md` §3.3·§4.1). `status=gone` 이고 핸들이 stale 이면 `protocol.md` 3.10 으로 신원을 다시 요청하고, 세션이 죽었으면 사용자에게 알린다.
 
 ## 3. 판정 신호와 규칙
 
-`scripts/idle-check.sh` 가 신호를 모아 판정한다. 조정자가 신호를 직접 모으지 않는다. 레인 상태 판단은 state.json 요약이 기본이고, 터미널 화면(S4)은 `prompt-watch.sh` 가 이상을 판정한 레인 하나만 읽는다. 참고용 신호표:
+`scripts/idle-check.mjs` 가 신호를 모아 판정한다. 조정자가 신호를 직접 모으지 않는다. 레인 상태 판단은 state.json 요약이 기본이고, 터미널 화면(S4)은 `prompt-watch.mjs` 가 이상을 판정한 레인 하나만 읽는다. 참고용 신호표:
 
 | 신호 | 읽는 법 | 의미·한계 |
 |---|---|---|
@@ -44,17 +44,17 @@
 확정 = 후보이고 거부가 없고, 연속 2틱(또는 idle.confirm_gap_min 간격 두 관측) 같은 결과
 ```
 
-## 4. idle-check.sh 출력별 행동
+## 4. idle-check.mjs 출력별 행동
 
 | 출력 | 뜻 | 조정자 행동 |
 |---|---|---|
 | `IDLE <레인> since=<iso>` | 확정 idle | 아래 5 배정 절차 |
 | `CANDIDATE <레인>` | 첫 관측, 확정 전 | 아무것도 하지 않는다. 다음 틱(또는 `idle.confirm_gap_min` 뒤)에 다시 본다 |
 | `BUSY <레인> <사유>` | 일하는 중(백그라운드 포함) | 아무것도 하지 않는다. 지시를 넣지 않는다 |
-| `HOLD <레인> <사유>` | 조정자가 세운 대기(측정 대기·머지 허가 대기·no-work·usage-band 등) | `until` 이 지났으면 `coord-state.sh hold <레인> -` 로 풀고 다음 틱에 재판정한다. 안 지났으면 그대로 둔다. 단 사유가 머지·의존물·Oracle·heavy 슬롯·사용자 결정 대기이고 아직 일을 주지 않았으면 아래 5 「병목 대기 레인」 을 한 번 적용한다 |
+| `HOLD <레인> <사유>` | 조정자가 세운 대기(측정 대기·머지 허가 대기·no-work·usage-band 등) | `until` 이 지났으면 `node scripts/coord-state.mjs hold <레인> -` 로 풀고 다음 틱에 재판정한다. 안 지났으면 그대로 둔다. 단 사유가 머지·의존물·Oracle·heavy 슬롯·사용자 결정 대기이고 아직 일을 주지 않았으면 아래 5 「병목 대기 레인」 을 한 번 적용한다 |
 | `WAIT_USER <레인> <창 종류>` | 사용자 입력 대기(선택 창·질문 창) | **지시를 덮어 보내지 않는다**(입력창에 남은 질문 위에 덮으면 사용자 답이 섞인다). 사용자에게 한 줄 알린다: `<레인> 이 사용자 입력을 기다린다(<창 종류>)`. `permission` 은 `approvals.md` 로 간다. 같은 알림은 반복하지 않는다 |
 | `COMPACTING <레인>` | compact 중 | 아무것도 하지 않는다 |
-| `STALL? <레인> bg=<분>m` | 백그라운드 거부가 `idle.stall_max_min`(기본 90분) 넘음 | idle 이 아니라 **정체 의심**이다. 그 레인에 `상태 한 줄 보고` 만 요청하고 `stall-check.sh <레인>` 을 돌린다(`stall.md`) |
+| `STALL? <레인> bg=<분>m` | 백그라운드 거부가 `idle.stall_max_min`(기본 90분) 넘음 | idle 이 아니라 **정체 의심**이다. 그 레인에 `상태 한 줄 보고` 만 요청하고 `node scripts/stall-check.mjs <레인>` 을 돌린다(`stall.md`) |
 | `GONE <레인>` | 세션이 없다 | 핸들·pid 를 확인하고 신원을 다시 요청한다. 정말 죽었으면 사용자에게 알린다 |
 
 ## 5. 배정
@@ -64,8 +64,8 @@
 1. 레인의 `queue` 첫 항목이 있고 의존(`deps`)이 풀렸으면 그 일을 `protocol.md` 3.2 로 지시한다(`workflow.md` 블록 포함).
 2. 없으면 `backlog` 에서 그 레인 범위(`fits`)에 맞고 `taken_by` 가 비어 있는 것을 `protocol.md` 3.3 으로 준다. 풀의 예: 다른 레인 머지 전 교차 리뷰, 기록 문서와 커밋 대조, 통합 확인 체크리스트 작성, 레인 범위 안 기존 결함 정리(동작 변경 없는 것), SUMMARY 초안. **범위 밖 일은 자동 배정하지 않는다.** 읽기 위주 대기 작업만 준다.
    - **의존물을 기다리는 레인**(`deps` 에 아직 dev 에 안 들어간 항목이 있다)에는 기다리는 동안 할 수 있는 독립 항목·대기 작업을 먼저 준다. 의존물이 다른 항목과 묶여 머지가 늦어지면 짝 레인이 그만큼 논다(grid-adopt 가 약 1시간 기다린 일). 이럴 때는 의존물만 먼저 머지하게 그 레인에 요청한다(`decompose.md` §4).
-3. 풀도 비면 아래 「병목 대기 레인」 (a)~(e) 를 한 번 더 훑고, 그래도 없을 때만 `protocol.md` 3.4 「쉬어라」를 **한 번만** 보내고 `coord-state.sh hold <레인> no-work` 를 건다. 이 레인을 닫을지는 마감 단계에서 정한다. 쉬게 한 사유(어느 항목이 왜 비었는지)는 이벤트에 남긴다.
-4. 배정 때마다 `coord-state.sh instr <레인> <kind>` 로 번호를 받고 이벤트를 남긴다.
+3. 풀도 비면 아래 「병목 대기 레인」 (a)~(e) 를 한 번 더 훑고, 그래도 없을 때만 `protocol.md` 3.4 「쉬어라」를 **한 번만** 보내고 `node scripts/coord-state.mjs hold <레인> no-work` 를 건다. 이 레인을 닫을지는 마감 단계에서 정한다. 쉬게 한 사유(어느 항목이 왜 비었는지)는 이벤트에 남긴다.
+4. 배정 때마다 `node scripts/coord-state.mjs instr <레인> <kind>` 로 번호를 받고 이벤트를 남긴다.
 
 ### 병목 대기 레인 (IDLE 확정을 기다리지 않는다)
 
@@ -94,22 +94,22 @@
 | O | 1 만(대기 작업 2 의 자동 배정만 중단). 일반 구현 항목도 opencode 워커 우선이고, Claude 레인에는 판정·리뷰·어려운 구현만 준다 |
 | R | Claude 레인에는 배정 없음(머지·정리만). opencode·agy 워커의 queue 항목은 계속 배정한다 |
 
-O·R 에서 띠 때문에 2 를 건너뛴 레인에는 3 의 훑기와 「쉬어라」 를 모두 건너뛰고 `coord-state.sh hold <레인> usage-band` 만 건다.
+O·R 에서 띠 때문에 2 를 건너뛴 레인에는 3 의 훑기와 「쉬어라」 를 모두 건너뛰고 `node scripts/coord-state.mjs hold <레인> usage-band` 만 건다.
 
-설정 `usage.relaxed` 가 켜져 있으면 `usage-band.sh` 가 Y·O 를 G 로 내려 주므로 위 표의 G 행을 그대로 쓴다. 약한 워커(opencode)가 막히면 그 단계만 Claude 세션으로 넘긴다(`spawn.md`).
+설정 `usage.relaxed` 가 켜져 있으면 `usage-band.mjs` 가 Y·O 를 G 로 내려 주므로 위 표의 G 행을 그대로 쓴다. 약한 워커(opencode)가 막히면 그 단계만 Claude 세션으로 넘긴다(`spawn.md`).
 
-띠 때문에 일을 안 준 레인은 `coord-state.sh hold <레인> usage-band` 로 표시해 다음 틱에 같은 판단을 반복하지 않는다. load 때문에 보류한 착수 지시(`heavy.load_soft` 초과)도 같다(`heavy.md`).
+띠 때문에 일을 안 준 레인은 `node scripts/coord-state.mjs hold <레인> usage-band` 로 표시해 다음 틱에 같은 판단을 반복하지 않는다. load 때문에 보류한 착수 지시(`heavy.load_soft` 초과)도 같다(`heavy.md`).
 
 ## 6. 반복 지시 방지
 
-- 지시마다 `instr_id` 를 발급하고(`coord-state.sh instr`), 상태에 `{id, sent_at, kind, ack_at, nudges}` 로 남는다.
+- 지시마다 `instr_id` 를 발급하고(`node scripts/coord-state.mjs instr`), 상태에 `{id, sent_at, kind, ack_at, nudges}` 로 남는다.
 - 같은 레인에 같은 종류 지시를 cooldown 안에 다시 보내지 않는다.
 - ack 가 없는 지시가 있으면 새 지시 대신 「`<instr_id>` 받았는지 한 줄 답」만 보낸다(`nudges` 최대 2회). 그 뒤는 화면을 읽어 원인을 확인하고 사용자에게 알린다.
 - 지시는 늘 SendMessage 로 보낸다. Workflow 가 도는 중이면 보내지 않는다.
 
 ## 7. 진도율
 
-- 출처는 레인의 `진행 보고` 의 「끝난 항목/전체(가중치)」다. 보고를 받을 때마다 `coord-state.sh item-done <레인> <항목id>` 로 갱신하고(`PROGRESS <레인> <pct>%`), `coord-state.sh progress` 로 전체를 낸다(`PROGRESS <레인> <pct>% <끝난가중치>/<전체가중치>`, 마지막 `PROGRESS ALL <pct>%`).
+- 출처는 레인의 `진행 보고` 의 「끝난 항목/전체(가중치)」다. 보고를 받을 때마다 `node scripts/coord-state.mjs item-done <레인> <항목id>` 로 갱신하고(`PROGRESS <레인> <pct>%`), `node scripts/coord-state.mjs progress` 로 전체를 낸다(`PROGRESS <레인> <pct>% <끝난가중치>/<전체가중치>`, 마지막 `PROGRESS ALL <pct>%`).
 - 보고 뒤 들어온 커밋으로 보정할 수 있다. 보정한 값은 「추정」이라고 적는다.
 - 사용자가 진도율을 물으면 이 표로 즉시 답한다. 레인에 다시 묻는 것은 마지막 보고가 1시간보다 오래됐을 때만이다.
 - 마감 단계(측정·SUMMARY·정리)도 항목이라 「코드 100%, 측정·정리 남음」 이 구분된다.

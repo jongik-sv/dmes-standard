@@ -27,7 +27,7 @@ Workflow(D4)는 구현 → 리뷰 → 수정이 필요한 M/L 항목이나 같�
 ```
 
 - `{sizing_doc}` 는 `<스킬 경로>/references/sizing.md` 다. 레인이 읽을 수 있게 절대 경로로 채운다.
-- `{search_cmd}` 는 `<스킬 경로>/scripts/search.sh "<질의>"` 다. 설정 `search.command` 와 `search.opencode.command` 가 모두 비어 있으면 그 문장을 「검색은 grep 이나 sonnet/medium agent 로 한다」 로 바꾼다.
+- `{search_cmd}` 는 `node <스킬 경로>/scripts/search.mjs "<질의>"` 다. 설정 `search.command` 와 `search.opencode.command` 가 모두 비어 있으면 그 문장을 「검색은 grep 이나 sonnet/medium agent 로 한다」 로 바꾼다.
 - `{heavy_env}` 는 state `lanes.<레인>.heavy_env` 다. 전용 칸이 없으면 「무거운 명령은 heavy.sh 를 거친다」 만 쓴다. `heavy.script` 가 `null` 이면 그 문장을 빼고 「무거운 명령은 레인당 한 번에 하나」 로 바꾼다.
 - 보고에 「지금 동시 agent 수」 를 넣게 하는 이유는 상한을 강제할 수단이 지시문뿐이기 때문이다.
 - 이 블록은 `templates/brief.md` 의 해당 자리에 들어간다.
@@ -54,7 +54,7 @@ Workflow 를 띄우는 비용(스크립트 작성, agent 기동, 컨텍스트 �
 
 ## 4. idle·compact 와의 관계
 
-- 세션이 백그라운드로 Workflow 를 돌리는 동안은 idle 이 아니다(`idle-check.sh` 의 tasks 출력 mtime 신호). 세션 status 가 idle 로 보여도 일을 넣지 않는다.
+- 세션이 백그라운드로 Workflow 를 돌리는 동안은 idle 이 아니다(`idle-check.mjs` 의 tasks 출력 mtime 신호). 세션 status 가 idle 로 보여도 일을 넣지 않는다.
 - compact 는 Workflow 가 끝난 뒤에 한다(`compact.md`).
 
 ## 5. Workflow 가 없는 워커

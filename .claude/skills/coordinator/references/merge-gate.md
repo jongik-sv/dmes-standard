@@ -11,20 +11,20 @@
 
 ## 2. 절차
 
-1. `머지 요청` 을 받으면 첫 줄 종류를 확인하고 `coord-state.sh report <레인>` 으로 기록한다.
-2. `scripts/merge-gate.sh <레인>` 을 돌린다(브랜치로 직접 부를 땐 `--branch <브랜치>`).
+1. `머지 요청` 을 받으면 첫 줄 종류를 확인하고 `node scripts/coord-state.mjs report <레인>` 으로 기록한다.
+2. `node scripts/merge-gate.mjs <레인>` 을 돌린다(브랜치로 직접 부를 땐 `--branch <브랜치>`).
 3. 출력으로 아래 표대로 행동한다. 「판단 올리기」 표시가 있는 줄이 하나라도 있으면 출력 전체와 요청 메시지를 `opus` / `high` 서브에이전트에 넘겨 판정을 받는다.
-4. 허가면 `coord-state.sh set '.merge.in_flight' '{"lane":…,"branch":…,"expected_tree":"<hash>","granted_at":"<iso>"}'` 로 기록하고 `protocol.md` 3.12 로 `머지 허가` 를 보낸다. 허가 메시지에는 예상 트리, 조건, **머지 뒤 다음 일** 을 넣는다.
+4. 허가면 `node scripts/coord-state.mjs set '.merge.in_flight' '{"lane":…,"branch":…,"expected_tree":"<hash>","granted_at":"<iso>"}'` 로 기록하고 `protocol.md` 3.12 로 `머지 허가` 를 보낸다. 허가 메시지에는 예상 트리, 조건, **머지 뒤 다음 일** 을 넣는다.
 5. `머지 완료` 를 받으면 보고된 머지 커밋의 트리를 `expected_tree` 와 대조한다. 같으면 history 에 `merged`·`tree` 를 적는다. 다르면 사용자 확인 전에 다음 머지를 허가하지 않고 원인(그 사이 dev 가 바뀌었는지)을 확인한다.
 6. `정리 완료` 를 받으면 `cleaned` 를 채우고 닫는다. 남긴 브랜치(squash 로 `-d` 가 거부된 것 등)는 `pending_user` 에 올린다.
 
 ### 2.1 허가 견본 보강
 
-- **대상 SHA**: 레인 브랜치에 다음 항목 커밋이 이미 쌓여 있으면(머지할 것보다 앞서 간 브랜치) 머지 요청에 머지할 SHA(7~12자)를 적게 하고, 게이트도 `merge-gate.sh <레인> --branch <SHA>` 로 그 SHA 를 대조해 허가문에 「이 SHA 까지만 머지」 를 적는다. `expected_tree` 도 그 SHA 기준이다. 브랜치 끝이 아닌 SHA 를 머지하면 쌓인 다음 커밋은 다음 머지 몫으로 남는다.
+- **대상 SHA**: 레인 브랜치에 다음 항목 커밋이 이미 쌓여 있으면(머지할 것보다 앞서 간 브랜치) 머지 요청에 머지할 SHA(7~12자)를 적게 하고, 게이트도 `node scripts/merge-gate.mjs <레인> --branch <SHA>` 로 그 SHA 를 대조해 허가문에 「이 SHA 까지만 머지」 를 적는다. `expected_tree` 도 그 SHA 기준이다. 브랜치 끝이 아닌 SHA 를 머지하면 쌓인 다음 커밋은 다음 머지 몫으로 남는다.
 - **건드리지 말 파일**: 메인 체크아웃에 사용자의 미커밋 파일(예: 메모 문서)이 있으면 허가문에 「<경로> 는 사용자 미커밋 파일이다. 건드리지 말고 커밋에 넣지 말 것(머지 뒤 `git add` 는 경로를 지정한다)」 을 넣는다. 허가 전에 메인 체크아웃의 `git status --short` 로 확인한다.
 - **되돌리는 수단과 함께**: 화면이 바뀌면 사용자 동작이 바뀌는 기능(자동 저장·기본 동작 변경 등)은 되돌리는 수단(기본값 복원 화면·끄는 설정)과 함께 머지한다. 통합 브랜치 push 가 조정자 몫이라 늘 적용한다. 둘이 다른 레인에 있으면 허가를 묶는다(자동 저장 C2 는 기본값 복원 화면 C3 와 묶어 머지했다). 요청에 되돌리는 수단이 없으면 `대기: 되돌리는 수단(복원 화면·설정)과 함께 머지해 달라` 를 보낸다.
 
-## 3. merge-gate.sh 출력별 조정자 행동
+## 3. merge-gate.mjs 출력별 조정자 행동
 
 첫 줄 `GATE <ok|wait|conflict> branch=<b> base=<integration> tree=<hash|-> files=<n>`.
 
@@ -47,4 +47,4 @@
 
 ## 5. 재기동 판단표 형식
 
-설정 `restart_rules` 는 `[{"glob":"src/backend/**","note":"세 서버 내린 뒤 jar 빌드·재기동"}]` 형식이다. `merge-gate.sh` 가 변경 파일을 각 glob 과 대조해 맞으면 `RESTART <note>` 를 낸다. 리포마다 `.coord.json` 에 둔다.
+설정 `restart_rules` 는 `[{"glob":"src/backend/**","note":"세 서버 내린 뒤 jar 빌드·재기동"}]` 형식이다. `merge-gate.mjs` 가 변경 파일을 각 glob 과 대조해 맞으면 `RESTART <note>` 를 낸다. 리포마다 `.coord.json` 에 둔다.
