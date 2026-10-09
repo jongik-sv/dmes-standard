@@ -33,7 +33,7 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 이 단계
   2. TaskStop → build-log.md `## 실행 모델` 에 opus 줄 (승급 칸 `sonnet→opus(<사유>)`).
      - `dflow.mjs progress <ref> <직전 보고 퍼센트, 보통 25> "escalated: sonnet→opus <단위>(<사유>)"` 전송.
      - state.json `model` 을 바꾸기 **전에** 보냄 (보고 행이 그 시점의 heartbeat 모델을 남김(0105) → 방금 끝난 sonnet 구간이 그 행에 남음).
-     - exit 10 이면 멈춤 (상태 모델).
+     - exit 10 이면 멈춤 (`.claude/skills/dflow-dev/references/state-model.md`).
   3. state.json `model` 을 opus 로 쓰고 이어받기 `<TSK>-build-<단위>-c<n>` 을 opus 로 띄움 (`{HANDOFF}` 에 그 인계 절).
      - 그 단위의 뒤 이어받기도 opus. 그 단위가 끝나면 남은 단위는 원래 모델로 복귀.
   - 승급한 에이전트와 게이트 재시도 에이전트는 시험 단위가 아니므로 `{ADVISOR_POLICY}` = `막혔을 때만`.

@@ -2,7 +2,7 @@
 
 > 윈도우: 아래 `jq` 예시를 Bash 로 직접 칠 때는 같은 호출 맨 앞에 `export PATH="$PWD/.claude/skills/_shared/bin:$PATH";` 를 붙인다(`_shared/platform-support.md` 「문서 속 인라인 jq」).
 
-SKILL.md 「절차」 1번 로컬 스캔의 넷째 칸이 `merged` 인 후보 (`--on-report` 가 `unapproved: true` 를 남기고 머지한 작업) 가 **있을 때만** 읽음. 아래 "4번" = SKILL.md 「절차」 4번.
+SKILL.md 「절차」 1번 로컬 스캔(전문 `references/sweep-scan.md`)의 넷째 칸이 `merged` 인 후보 (`--on-report` 가 `unapproved: true` 를 남기고 머지한 작업) 가 **있을 때만** 읽음. 아래 "4번" = `merge-exec.md` 「4번 머지」.
 
 ## 승인 전 머지분 판정
 

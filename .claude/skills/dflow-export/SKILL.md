@@ -17,7 +17,7 @@ description: 로컬 wbs.md 를 검증하고 D'Flow /wbs/import 계약 v2.1 JSON 
 
 ## D'Flow 프로젝트 바인딩
 
-`dflow-wbs` 스킬(`.claude/skills/dflow-wbs/SKILL.md` §"D'Flow 프로젝트 바인딩")과 같은 규칙.
+`dflow-wbs` 스킬(`.claude/skills/dflow-wbs/references/dflow-integration.md` §"D'Flow 프로젝트 바인딩")과 같은 규칙.
 wbs.md 자체에 프로젝트 결합을 넣지 않음. 파일이 git 으로 복제·branch 되므로, 안에 박으면 엉뚱한 프로젝트로 업로드될 위험.
 
 해석 순서 (먼저 맞는 것 우선). 값 확인은 `node .claude/skills/dflow-work/scripts/dflow.mjs config project_map`·`node .claude/skills/dflow-work/scripts/dflow.mjs config project_id`, 레거시는 `.env` 의 `DFLOW_PROJECT_MAP`·`DFLOW_PROJECT_ID`.
@@ -119,10 +119,10 @@ curl -sS -X POST "$DFLOW_API_BASE/api/v1/wbs/import" \
 
 ## 알려진 제약
 
-- E2E 실사는 대상 D'Flow 서버에 `AGENT_API_ENABLED` 켜져 있어야 가능. 꺼져 있으면 `--push` = 404.
-- 테스트: `node --test .claude/skills/dflow-export/tests/` — 통과 = 건강 기준선 (약 3분, 1,100여 건).
-  - python 3 있으면 동결 원본(`tests/golden/legacy/*.legacy.py`)과 출력을 byte 까지 비교하는 golden 시험도 같이 돎.
-  - python 없으면(윈도우) 그 부분만 건너뜀. 미리 계산한 기대값 파일(`tests/golden/expected/`)과 비교.
-  - 기대값 재생성: `tests/make-expected*.mjs --write`.
-- `wbs-envelope.mjs`(import 본문 조립) = 옛 인라인 python 과 byte 까지 같음. 그 python 두 가지는 `.legacy.py` 파일이 아니라 `tests/envelope-cases.mjs` 의 문자열(`PY_V1`·`PY_V2`)로 보관. 같은 폴더 `make-expected-envelope.mjs` 가 기대값 생성.
-- 동봉 회귀 테스트: export·validate·status·md·dep-analysis. test_wbs_md_consistency 는 merge-wbs-status.py(이 스킬 범위 밖) 의존이라 제외. 정본은 dev-workflow 리포.
+→ references/known-constraints.md 「dflow-export — 알려진 제약」 (파일 전체)
+
+## 참조
+
+| 문서 | 읽을 때 |
+|---|---|
+| references/known-constraints.md | `node --test`·golden·기대값 재생성을 다룰 때, `wbs-envelope.mjs` 의 옛 python 동등성을 볼 때, `--push` 404 를 진단할 때 |

@@ -105,7 +105,7 @@ node .claude/skills/dflow-dev/scripts/deps.mjs   # 75(DEPS_BUSY)면 잠시 뒤 �
   - 팀장이 넘긴 `--scope` = 새 claim 의 범위. 이미 잡힌 작업은 서버 `claim_scope` 가 우선(`orch/start.md` 「서버 판단」).
   - 범위·설계 상태 때문에 끝나면 아래 「설계 상태의 결과 줄」 사용.
 - `.result` 형식과 status 뜻 정본 = `.claude/skills/dflow-team/references/worker-prompt.md`. 끝날 때 status·agent 브랜치·head·`done` exit·한 줄 사유를 마지막에 요약 → 워커가 `.result` 로 옮김.
-- 중단(exit 10, 상태 모델) → `.result` 에 `{TSK} {ID8} <branch|-> <head_sha|-> - cancelled <멈춘 Phase 와 호출>` 쓰고 끝.
+- 중단(exit 10, `.claude/skills/dflow-dev/references/state-model.md`) → `.result` 에 `{TSK} {ID8} <branch|-> <head_sha|-> - cancelled <멈춘 Phase 와 호출>` 쓰고 끝.
   - push 안 함 → `<head_sha>` = 로컬 커밋.
   - 팀장이 슬롯을 풀고 pane 을 거두되 워크트리는 남김(산출물 보존).
 - 기본 브랜치를 switch·pull·merge·push 하는 지점 = 행 A·B·C 뿐, 워커는 셋 다 안 함.

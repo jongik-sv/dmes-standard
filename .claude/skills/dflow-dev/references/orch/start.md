@@ -22,7 +22,7 @@ SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 이 단계
    <!-- worker:begin -->
    `--worker` 면 머지하지 않고 `needs-merge` 로 끝낸다(「--worker」 C).
    <!-- worker:end -->
-   - 이 머지도 `/dflow-merge` SKILL.md 4번 절차. Phase 01-가 가 `SWEEP_NONE` 으로 건너뛰어 아직 안 읽었으면 먼저 읽음.
+   - 이 머지도 `/dflow-merge` 4번 절차(`.claude/skills/dflow-merge/references/merge-exec.md`). Phase 01-가 가 `SWEEP_NONE` 으로 건너뛰어 아직 안 읽었으면 먼저 읽음.
 
    **서버 판단(계약 2.11)** — `dflow.mjs contract-ge 2.11` exit 0 이면 show 응답 `.order` 의 서버 판단으로 먼저 가른다.
    - 칸: `action`(`full`·`design`·`build`·`wait`·`skip`)·`action_reason`·`mine`·`design_mode`·`design_state`(`review`·`accepted`·없음)·`claim_scope`·`runner`·`runner_seen_at`.

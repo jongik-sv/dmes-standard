@@ -1,8 +1,8 @@
 # /dflow-merge 해소 머지(`--resolve`)
 
-`/dflow-merge --resolve <ref> --attempt <n>` 일 때만 읽음. SKILL.md 공통부(「절차」·「트레일러 고정」·「결정 번호 매김」·
-「마이그레이션 버전 관문」·「금지」)와 함께 씀. 아래 "1·2단계", "3단계", "4단계 N번", "5번 뒷정리" = SKILL.md 「절차」 번호.
+`/dflow-merge --resolve <ref> --attempt <n>` 일 때만 읽음. SKILL.md 공통부(「절차」·「금지」)와 함께 씀. 아래 "1·2단계", "3단계", "4단계 N번", "5번 뒷정리" = SKILL.md 「절차」 번호.
 「방언 검증」·6번 보고는 안 탐.
+SKILL.md 「절차」 전문이 옮겨진 자리(이 문서가 SKILL.md 의 해당 절을 인용하면 아래로 읽음): 1·2번 = `references/sweep-scan.md`, 3·4번과 「트레일러 고정」 = `references/merge-exec.md`, 「결정 번호 매김」·「마이그레이션 버전 관문」 = `references/merge-exec.md` 「실행 규칙」. 해소 워커는 이 셋을 해당 번호를 따르기 전에 읽음.
 
 ## 해소 머지
 
