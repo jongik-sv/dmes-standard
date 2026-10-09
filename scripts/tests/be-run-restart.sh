@@ -7,7 +7,7 @@ set -uo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$here/../.." && pwd)"
 export JAVA_HOME="${JAVA_HOME:-/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home}"
-tmp="$(mktemp -d)"
+tmp="$(cd "$(mktemp -d)" && pwd -P)"   # 물리 경로: macOS 의 /var 심링크 때문에 lsof 의 cwd 가 ROOT_DIR 와 달라지는 것을 막는다
 root="$tmp/root"
 fail=0
 pids_to_kill=""
@@ -25,7 +25,7 @@ cleanup() {
   rm -rf "$tmp"
 }
 trap cleanup EXIT
-( sleep 300 >/dev/null 2>&1; echo "FAIL: 시험 전체 300초 상한 초과"; kill -TERM $$ ) & watchdog=$!
+( sleep 600 >/dev/null 2>&1; echo "FAIL: 시험 전체 600초 상한 초과"; kill -TERM $$ ) & watchdog=$!
 trap 'kill $watchdog 2>/dev/null; wait $watchdog 2>/dev/null; cleanup' EXIT
 
 mkdir -p "$root/scripts" "$tmp/app"
@@ -213,8 +213,8 @@ note "11) 빌드 전용 실행 보호: 새 기동 중에도 exit 0 으로 끝남
 
 # ── 12) 살아 있는 소유자의 기록 잠금은 빼앗지 않는다(fail-closed), 소유자가 끝나면 이어서 진행한다 ──
 mkdir -p "$root/.be-run/lock.d"
-# 이 체크아웃의 be-run 처럼 보이는 살아 있는 소유자(명령줄에 root/be-run.sh 가 든다). bash -c 의 exec 최적화를 피하려고 `; :` 를 붙인다.
-bash -c 'sleep 40; :' "$root/be-run.sh" & holder=$!
+# 이 체크아웃의 be-run 처럼 보이는 살아 있는 소유자(명령줄이 「bash root/be-run.sh」). exec -a 로 명령줄만 그렇게 꾸민다.
+( exec -a "bash $root/be-run.sh" sleep 40 ) & holder=$!
 pids_to_kill="$pids_to_kill $holder"
 printf '%s\n' "$holder" > "$root/.be-run/lock.d/pid"
 runbg --mcm >"$tmp/LK.log" 2>&1 & LK=$!
@@ -250,7 +250,7 @@ note "13) 잠금 소유자 pid 재사용: be-run 이 아니면 치우고 진행"
 # ── 14) 잠금이 비어 보인 시간이 누적돼 막 만든 새 잠금을 지우지 않는다 ──
 # 시간표: 0초 빈 잠금 → 4.0초 소유자 pid 기록(살아 있는 be-run 모양) → 4.3초 소유자가 바뀌어 새 잠금(아직 pid 없음) → 7.3초 새 소유자 pid 기록(그 전 3초 동안 pid 없는 잠금).
 # 세던 값이 누적되면 5초대에 새 잠금을 지워(그 사이 B 가 잠금을 쥔다) 새 소유자가 pid 를 못 쓴다.
-bash -c 'sleep 40; :' "$root/be-run.sh" & owner2=$!
+( exec -a "bash $root/be-run.sh" sleep 40 ) & owner2=$!
 pids_to_kill="$pids_to_kill $owner2"
 rm -rf "$root/.be-run/lock.d"; mkdir -p "$root/.be-run/lock.d"
 runbg --mcm >"$tmp/EM.log" 2>&1 & EM=$!
@@ -267,6 +267,38 @@ wait_up mcm || bad "소유자가 끝난 뒤 B 가 이어서 기동하지 못했�
 kill -TERM "$EM" 2>/dev/null; wait "$EM" 2>/dev/null
 settle_down
 note "14) 빈 잠금 셈 초기화: 새 잠금을 지우지 않고 소유자가 끝난 뒤 진행"
+
+# ── 15) be-run 을 부른 래퍼 셸(bash -c·zsh -c '… ./be-run.sh …'·bash heavy.sh ./be-run.sh …)은 표식 없는 예전 판 be-run 으로 보고 끝내지 않는다 ──
+# 래퍼의 명령줄에는 be-run.sh 가 들어 있고 cwd 가 체크아웃이며 표식이 없어 예전 판 be-run 으로 오인됐다(2026-10-09: Claude Code 의 zsh -c 래퍼가 exit 144 로 끝남).
+cat > "$tmp/heavy.sh" <<'HV'
+#!/usr/bin/env bash
+# 실제 heavy.sh 처럼 인자로 받은 명령을 자식으로 돌리고 기다린다(exec 하지 않는다).
+"$@"
+HV
+chmod +x "$root/be-run.sh" "$tmp/heavy.sh"
+check_wrapper() {   # $1=이름 $2…=래퍼를 띄우는 명령(cwd=$root). be-run(--mdm)을 자식으로 두고 둘째 be-run(--mcm)이 래퍼를 끄지 않는지 본다.
+  local name="$1" wp; shift
+  ( cd "$root" && exec "$@" ) >"$tmp/W-$name.log" 2>&1 & wp=$!
+  pids_to_kill="$pids_to_kill $wp"
+  wait_up mdm || { bad "15 $name: 래퍼 아래 mdm 안 뜸"; return; }
+  sleep 4   # 시작한 지 3초가 지나 「막 시작한 be-run」 예외에 걸리지 않을 때
+  alive "$wp" || bad "15 $name: 래퍼가 시험 준비 중에 끝났다"
+  runbg --mcm >"$tmp/W2-$name.log" 2>&1 & local b=$!
+  pids_to_kill="$pids_to_kill $b"
+  wait_up mcm || bad "15 $name: mcm 안 뜸"
+  alive "$wp" || bad "15 $name: 새 be-run 이 be-run 을 부른 래퍼 셸을 끝냈다"
+  grep -q '표식 없는 예전 판' "$tmp/W2-$name.log" && bad "15 $name: 래퍼를 예전 판 be-run 으로 보고 종료를 시도했다: $(grep '표식 없는 예전 판' "$tmp/W2-$name.log" | head -n 1)"
+  up mdm || bad "15 $name: 래퍼 아래 be-run 의 mdm 이 내려갔다"
+  kill -TERM "$b" 2>/dev/null; wait "$b" 2>/dev/null
+  pkill -TERM -P "$wp" 2>/dev/null; kill -TERM "$wp" 2>/dev/null; wait "$wp" 2>/dev/null
+  settle_down
+}
+check_wrapper bashc env BE_PREBUILD=0 bash -c 'BE_PREBUILD=0 ./be-run.sh --mdm; :'
+check_wrapper heavy env BE_PREBUILD=0 bash "$tmp/heavy.sh" ./be-run.sh --mdm
+if command -v zsh >/dev/null 2>&1; then
+  check_wrapper zshc env BE_PREBUILD=0 zsh -c 'source /dev/null && BE_PREBUILD=0 ./be-run.sh --mdm > /dev/null 2>&1; :'
+fi
+note "15) 래퍼 셸 보호: bash -c·heavy.sh·zsh -c 아래 be-run 이 있어도 새 be-run 이 래퍼를 끝내지 않음"
 
 # ── 7) 소유 기록 없이 뜬 예전 버전 be-run 은 종전처럼 끝내고 이어받는다 ──
 if [ -n "${OLD_BE_RUN_SRC:-}" ] && [ -f "$OLD_BE_RUN_SRC" ]; then

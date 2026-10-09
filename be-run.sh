@@ -777,21 +777,38 @@ pid_cwd() {
   fi
 }
 
-# pid 가 이 체크아웃($ROOT_DIR)의 be-run.sh 인지.
-# - 명령줄의 be-run.sh 가 절대경로면 그 경로가 이 체크아웃의 것일 때만 참이다.
+# pid 가 이 체크아웃($ROOT_DIR)의 be-run.sh 스크립트를 돌리는 bash 프로세스인지.
+# - 명령줄이 「셸 [옵션…] be-run.sh …」 꼴일 때만 be-run 으로 본다. 셸에 -c 로 넘긴 문자열 안의 토큰(zsh -c '… ./be-run.sh …' 같은
+#   Claude Code 래퍼)이나 다른 스크립트의 인자(bash heavy.sh ./be-run.sh …)는 be-run 이 아니다 — 그것을 끝내면 be-run 을 부른 부모 셸이 죽는다.
+# - be-run.sh 가 절대경로면 그 경로가 이 체크아웃의 것일 때만 참이다.
 # - 상대경로(./be-run.sh)면 cwd 로 본다. 서브셸은 모듈 폴더(src/backend/<m>)로 cd 해 있으므로
 #   $ROOT_DIR 자체이거나 $ROOT_DIR/src/ 아래면 참이다. 워크트리는 $ROOT_DIR/dflow-<id8>·
 #   $ROOT_DIR/.claude/worktrees/ 아래에 생기므로 단순 접두 비교를 쓰지 않는다.
 is_own_be_run() {
-  local pid="$1" args tok cwd found=0
+  local pid="$1" args tok cwd script="" first=1
   args="$(ps -o command= -p "$pid" 2>/dev/null || true)"
+  set -f                                       # 명령줄의 * 같은 토큰이 파일명으로 풀리지 않게
   for tok in $args; do
+    if [ "$first" = "1" ]; then
+      first=0
+      case "${tok##*/}" in
+        bash|sh) continue ;;                   # 인터프리터 — 다음 토큰부터 옵션·스크립트
+        be-run.sh) script="$tok"; break ;;     # 인터프리터 없이 스크립트 자체로 보이는 경우
+        *) set +f; return 1 ;;
+      esac
+    fi
     case "$tok" in
-      /*be-run.sh) [ "$tok" = "$ROOT_DIR/be-run.sh" ]; return ;;
-      *be-run.sh) found=1; break ;;
+      -*c*) set +f; return 1 ;;                # bash -c '문자열' · -lc · -ec : 문자열 안 토큰은 be-run 이 아니다
+      -*) continue ;;
+      *) script="$tok"; break ;;               # 첫 비옵션 인자가 실행 대상 스크립트
     esac
   done
-  [ "$found" = "1" ] || return 1               # 명령줄에 be-run.sh 가 없으면 be-run 이 아니다(pid 재사용 오인 방지)
+  set +f
+  case "$script" in
+    /*be-run.sh) [ "$script" = "$ROOT_DIR/be-run.sh" ]; return ;;
+    *be-run.sh) ;;
+    *) return 1 ;;                              # 실행 대상이 be-run.sh 가 아니다(pid 재사용·래퍼 오인 방지)
+  esac
   cwd="$(pid_cwd "$pid")"
   case "$cwd" in
     "$ROOT_DIR"|"$ROOT_DIR/src/"*) return 0 ;;
@@ -876,10 +893,20 @@ terminate_unregistered_be_runs() {
     fi
   done
 
+  # 나를 부른 조상(Claude Code 의 zsh -c 래퍼·heavy.sh·local-run.sh 등)은 명령줄에 be-run.sh 가 들어 있어도 끝내지 않는다.
+  local ancestors=" " a="$$" depth
+  for depth in 1 2 3 4 5 6 7 8 9 10; do
+    a="$(ps -o ppid= -p "$a" 2>/dev/null | tr -d ' ')"
+    case "$a" in ''|*[!0-9]*) break ;; esac
+    [ "$a" -gt 1 ] || break
+    ancestors="$ancestors$a "
+  done
+
   for pid in $(pgrep -f "be-run.sh" 2>/dev/null || true); do
     [ -n "$pid" ] || continue
     [ "$pid" = "$$" ] && continue
     [ "$pid" = "$PPID" ] && continue          # local-run.sh 등 부모는 건드리지 않는다
+    case "$ancestors" in *" $pid "*) continue ;; esac   # 더 위 조상(부모 셸·래퍼)도 건드리지 않는다
     kill -0 "$pid" 2>/dev/null || continue
     is_own_be_run "$pid" || continue          # 다른 체크아웃·워크트리의 인스턴스는 건드리지 않는다
     case "$registered" in *" $pid "*) continue ;; esac   # 새 판 be-run(표식 있음)은 끝내지 않는다
