@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mcm.job.def;
 
+import com.dongkuk.dmes.mcm.common.util.BizDay;
 import com.dongkuk.dmes.mcm.job.def.JobVar.Type;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -19,7 +20,7 @@ import java.util.regex.Pattern;
 
 /**
  * 작업 변수 목록 — JSON 왕복·검사·실행 변수 확정(설계 §5.0).
- * 날짜 변수({@code :today :yesterday :monthStart :prevMonthStart})는 <b>SCHED_AT 기준</b>이다. DB_NOW 는 {@code :now} 에만 쓴다 —
+ * 날짜 변수({@code :today :yesterday :monthStart :prevMonthStart :bizDate :bizYesterday})는 <b>SCHED_AT 기준</b>이다. DB_NOW 는 {@code :now} 에만 쓴다 —
  * 선점은 30초 일찍 할 수 있어서 자정 작업이 23:59:30 에 잡혀도 날짜가 하루 어긋나지 않게 한다.
  * 확정 값은 HTTP 본문·RUN.VARS_JSON 으로 그대로 나가므로 시각·날짜는 ISO 글자로 돌려준다.
  */
@@ -32,7 +33,7 @@ public final class JobVars {
     /** 변수는 서비스 입력으로 그대로 넘어간다 — 내장 서비스의 입력 이름(sql·handlerId·source·save)과 예약 키 action 을 덮어쓰지 못하게 막는다. */
     static final Set<String> RESERVED = Set.of("action", "sql", "handlerId", "source", "save");
     private static final Set<String> RUNTIME = Set.of(":schedAt", ":now", ":today", ":yesterday", ":monthStart", ":prevMonthStart",
-            ":prevRunAt", ":jobId", ":moduleCd");
+            ":bizDate", ":bizYesterday", ":prevRunAt", ":jobId", ":moduleCd");
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -136,6 +137,8 @@ public final class JobVars {
             case ":today": return sched.toString();
             case ":yesterday": return sched.minusDays(1).toString();
             case ":monthStart": return sched.withDayOfMonth(1).toString();
+            case ":bizDate": return BizDay.bizDate(f.schedAt()).toString();
+            case ":bizYesterday": return BizDay.bizDate(f.schedAt()).minusDays(1).toString();
             case ":prevMonthStart": return sched.withDayOfMonth(1).minusMonths(1).toString();
             case ":prevRunAt": return f.prevRunAt() == null ? null : DATE_TIME.format(f.prevRunAt());
             case ":jobId": return f.jobId();

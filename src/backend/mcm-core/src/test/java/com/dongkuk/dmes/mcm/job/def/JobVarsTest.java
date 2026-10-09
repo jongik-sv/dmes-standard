@@ -44,6 +44,31 @@ class JobVarsTest {
     }
 
     @Test
+    @DisplayName(":bizDate·:bizYesterday 는 예정 시각에서 7시간을 뺀 날짜 — 07시 경계")
+    void bizDates() {
+        List<JobVar> vars = List.of(v("a", Type.DATE, ":bizDate"), v("b", Type.DATE, ":bizYesterday"));
+        Map<String, Object> before = JobVars.resolve(vars, facts("2026-10-09T06:59:59", "2026-10-09T06:59:59", null));
+        assertThat(before.get("a")).isEqualTo("2026-10-08");
+        assertThat(before.get("b")).isEqualTo("2026-10-07");
+        Map<String, Object> at = JobVars.resolve(vars, facts("2026-10-09T07:00:00", "2026-10-09T07:00:00", null));
+        assertThat(at.get("a")).isEqualTo("2026-10-09");
+        assertThat(at.get("b")).isEqualTo("2026-10-08");
+        Map<String, Object> after = JobVars.resolve(vars, facts("2026-10-09T07:01:00", "2026-10-09T07:01:00", null));
+        assertThat(after.get("a")).isEqualTo("2026-10-09");
+        assertThat(after.get("b")).isEqualTo("2026-10-08");
+        // 공장의 전일 = 전기일 기준 전날(달력 전날이 아니다)
+        Map<String, Object> jan3 = JobVars.resolve(vars, facts("2026-01-03T06:59:00", "2026-01-03T06:59:00", null));
+        assertThat(jan3.get("a")).isEqualTo("2026-01-02");
+        assertThat(jan3.get("b")).isEqualTo("2026-01-01");
+        Map<String, Object> jan3At7 = JobVars.resolve(vars, facts("2026-01-03T07:00:00", "2026-01-03T07:00:00", null));
+        assertThat(jan3At7.get("a")).isEqualTo("2026-01-03");
+        assertThat(jan3At7.get("b")).isEqualTo("2026-01-02");
+        Map<String, Object> newYear = JobVars.resolve(vars, facts("2026-01-01T06:59:00", "2026-01-01T06:59:00", null));
+        assertThat(newYear.get("a")).isEqualTo("2025-12-31");
+        assertThat(newYear.get("b")).isEqualTo("2025-12-30");
+    }
+
+    @Test
     @DisplayName(":prevRunAt 은 없으면 null, 있으면 시각 글자. :jobId·:moduleCd 는 사실값")
     void prevRunAtAndIds() {
         List<JobVar> vars = List.of(v("p", Type.DATE, ":prevRunAt"), v("j", Type.STRING, ":jobId"), v("m", Type.STRING, ":moduleCd"));

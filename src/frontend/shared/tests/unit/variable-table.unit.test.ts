@@ -16,7 +16,7 @@ describe("variable-table 순수 부분", () => {
 
   it("실행 변수 안내는 서버가 확정하는 이름과 같다(설계 §5.0)", () => {
     expect(RUNTIME_VARIABLES.map((r) => r.name)).toEqual([
-      ":schedAt", ":now", ":today", ":yesterday", ":monthStart", ":prevMonthStart", ":prevRunAt", ":jobId", ":moduleCd",
+      ":schedAt", ":now", ":today", ":yesterday", ":monthStart", ":prevMonthStart", ":bizDate", ":bizYesterday", ":prevRunAt", ":jobId", ":moduleCd",
     ]);
     expect(Object.keys(VARIABLE_TYPE_LABEL)).toEqual(["STRING", "NUMBER", "DATE", "JSON"]);
   });
