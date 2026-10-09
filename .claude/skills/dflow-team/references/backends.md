@@ -38,7 +38,7 @@ sed -n '/^## pane(Orca)/,/^## 고아 정리 규칙/p' .claude/skills/dflow-team/
 ## 입장 제어
 
 **모든 spawn 의 첫 단계**(두 백엔드 공통). 새 작업·재개·재투입·해소·차단기 시험 spawn 모두 통과.
-- 판정 기준·알림 규칙 정본 = SKILL.md 「5-3. 입장 제어」. 집행 = 이 블록 한 곳. 팀장 체크아웃에서 돎.
+- 집행·`CAPACITY_*` 판정 정본 = SKILL.md 「5-3. 입장 제어」, 기준값·알림 문구 = `references/spawn.md` 「5-3. 입장 제어: 알림·기준값」. 집행 = 이 블록 한 곳. 팀장 체크아웃에서 돎.
 ```bash
 CAP=$(node .claude/skills/dflow-team/scripts/capacity.mjs --state "$(git rev-parse --git-path dflow-team.capacity)"); echo "$CAP"
 case "$CAP" in CAPACITY_LOW*) echo SPAWN_DEFERRED_CAPACITY; exit 0 ;; esac
@@ -47,7 +47,7 @@ case "$CAP" in CAPACITY_LOW*) echo SPAWN_DEFERRED_CAPACITY; exit 0 ;; esac
   - 블록이 그 자리에서 끝남 → 워크트리·pane·포인터 하나도 안 만듦.
   - 후보는 원래 줄(대기 큐·재개 목록·해소 큐·재시작 대기)에 그대로 둠. `team.spawn`·`team.result` 안 씀.
   - 한 후보가 막히면 같은 기상의 나머지 후보도 안 띄움.
-- `CAPACITY_OK`·`CAPACITY_UNKNOWN` 이면 이어서 띄움. 출력 줄 끝이 `notify=1` 이면 SKILL.md 「5-3」 의 한 줄 알림.
+- `CAPACITY_OK`·`CAPACITY_UNKNOWN` 이면 이어서 띄움. 출력 줄 끝이 `notify=1` 이면 `references/spawn.md` 「5-3. 입장 제어: 알림·기준값」 의 한 줄 알림.
 - 새 작업·해소 spawn 블록(아래 「팀원 워크트리 준비」, 두 백엔드 공통)은 이 두 줄로 시작 → 따로 부르지 않음.
   - merge-conflict.md 「2」 해소 spawn 도 그 블록을 그대로 돌림 → 여기에 걸림(tmux·Orca 모두).
 - 블록을 통째로 안 도는 자리 = 재개(`references/resume.md` 0항)·재투입(restart.md 「재투입」). 이 블록을 먼저 따로 돎(있는 워크트리를 이어 쓰므로 준비 블록 전체 재실행 안 함).
@@ -198,6 +198,8 @@ cat "$WT/.dflow-pane"
 - **timeout 가드 훅**: 같은 설정 파일에 `hooks.PreToolUse`(matcher `Bash`, timeout 5)로 `node .claude/skills/dflow-dev/scripts/timeout-guard.mjs` 를 검.
   - 팀원과 그 Phase 서브에이전트가 `heavy.mjs`·`baseline.mjs run`·`gradlew`·`mvn`·`playwright test` 를 timeout 없이(또는 300000 미만으로) 부르거나 `run_in_background` 로 부르면 exit 2 로 막고 이유를 모델에게 보임(E2E 서버 기동만 백그라운드 허용. `nohup` 은 예외 아님).
   - 판정 규칙 정본 = 스크립트 머리말.
+  - 훅 명령은 `timeout-guard.mjs` 파일이 있을 때만 `node` 로 부르고, 없으면 입력을 버리고 통과시킴(가드가 조용히 꺼질 수 있으므로 스크립트 이름을 바꿀 때 이 문구도 함께 고침).
+  - 이미 만들어 둔 `~/.dflow/limits/*.settings.json` 은 다음 spawn 때 재생성되어야 새 훅 문구가 반영됨.
   - 명령은 heartbeat 훅과 같은 가드형 → 스크립트가 없는 킷에서는 stdin 을 비우고 통과.
   - 전역 `~/.claude/settings.json` 에는 안 넣음. 근거 = `references/rationale.md`.
 - **statusLine 덤프**: `--settings` 로 붙인 statusLine 이 입력 JSON 의 `.rate_limits`(구독자일 때 `five_hour`·`seven_day` 마다 `used_percentage`·`resets_at`)를 `~/.dflow/limits/<id8>.json` 에 씀.
@@ -246,7 +248,7 @@ done
 ```
 
 - 이 규칙은 **화면 문자열에 기댐**(확인한 판본 v2.1.273).
-- 깨지면 팀원이 신뢰 확인 화면에서 멈춘 채 생존 → 무응답 자동 정리(SKILL.md 「3. 결과 처리」)가 가려냄.
+- 깨지면 팀원이 신뢰 확인 화면에서 멈춘 채 생존 → 무응답 자동 정리(`references/result-handling.md` 「중단·무응답·정지·대기 판정·자동 재시작」)가 가려냄.
 - `~/.claude.json` 의 `hasTrustDialogAccepted` 는 안 건드림(여러 세션이 동시에 쓰는 파일).
 
 ### 팀원 환경을 벗기는 이유
@@ -269,7 +271,7 @@ done
 | 회수 | `"$TM" -L dflow kill-pane -t <pane>` 뒤에 `"$TM" -L dflow select-layout -t dflow tiled` |
 | 워크트리 대응 | `#{pane_start_path}` |
 
-- **화면은 생존 증거로 쓰지 않는다.** 정본 = SKILL.md 「3. 결과 처리」 생존 증거(브랜치 tip 커밋 시각·서버 progress·미커밋 변경 목록). 화면은 보고용과 신뢰 확인 판별에만 사용.
+- **화면은 생존 증거로 쓰지 않는다.** 정본 = SKILL.md 「3. 결과 처리」 의 한 줄 원칙과 `references/result-handling.md` 「생존 증거」(브랜치 tip 커밋 시각·서버 progress·미커밋 변경 목록). 화면은 보고용과 신뢰 확인 판별에만 사용.
 - 빈 출력과 `1` 을 함께 죽음으로 봄(`remain-on-exit` 를 놓친 pane 은 흔적 없이 사라짐).
 - 답은 `-l --` 로 넣음(없으면 tmux 가 답을 **키 이름으로 먼저 해석함** — `Up`·`Space` 같은 답이 키로 눌림). 신뢰 확인의 `Down`·`Enter` 는 키 이름이 맞음 → `-l` 없이 보냄.
 - 회수 뒤 `select-layout tiled` 를 다시 돌려 남은 pane 이 빈자리를 메우게 함.
@@ -417,7 +419,7 @@ orca worktree list        # 누수 확인. 옛 방식 워크트리(dflow-<id8>, 
    - 해소 워크트리는 "재개 가능" 아님 → `parked` 로 바꾸고 "멈춤" 표에 넣음. 사유 = 결과 줄 status(`blocked` 해소 중 멈춤 등).
    - 살아 있는 해소 워커(`blocked` 포함)의 워크트리는 4번대로 안 지움.
 
-3. 하나라도 거짓이면 안 지움. 이어서 SKILL.md 「팀장 상태」 고아 스캔의 **"재개 가능"** 조건으로 가름.
+3. 하나라도 거짓이면 안 지움. 이어서 `references/lead-state.md` 「고아 스캔」 의 **"재개 가능"** 조건으로 가름.
    - 재개 가능이면 `.dflow-agent` 를 **건드리지 않고** 그대로 둠 → 「5-1. 재개 spawn」 이 이어받음(그 절차가 슬롯 값을 다시 씀).
    - 재개 가능이 아니면 경로와 미커밋 목록(`git -C <워크트리> status --porcelain` 출력)을 **"멈춤" 표**에 붙임. 살아 있는 팀원의 워크트리(4번)가 아니면 `.dflow-agent` 값을 `parked` 로 바꿔 정규 슬롯 스캔에서 뺌.
    - 이유: 느린 팀원이나 커밋 전에 멈춘 팀원의 산출물을 안 잃음. 보존된 워크트리의 `.dflow-agent` 가 `w<slot>` 값 그대로면, 그 슬롯에 새로 뜬 팀원과 슬롯 표시가 같아 재구성이 충돌.
@@ -426,7 +428,7 @@ orca worktree list        # 누수 확인. 옛 방식 워크트리(dflow-<id8>, 
    ```
 4. 살아 있는 팀원(SKILL.md 「팀장 상태」 정의)의 워크트리는 조건과 무관하게 안 지움.
    - 두 백엔드의 `blocked` 워크트리가 모두 여기에 듦(팀원이 pane 이나 탭에서 답을 기다림).
-   - 예외 = 무응답 자동 정리(SKILL.md 「3. 결과 처리」) 하나.
+   - 예외 = 무응답 자동 정리(`references/result-handling.md`) 하나.
 5. **생성 브랜치 정리**: 워크트리를 지웠으면 그 워크트리를 만들 때 생긴 브랜치를 지움.
    - 새 방식(`git worktree add --detach`)은 두 백엔드 모두 생성 브랜치가 없음 → 이 항목은 **옛 방식**(`orca worktree create`)이 남긴, 이름에 `dflow-<id8>` 이 든 브랜치에만 해당.
    - `agent/` 로 시작하는 브랜치는 안 지움(작업 산출물).

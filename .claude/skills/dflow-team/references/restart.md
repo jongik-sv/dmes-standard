@@ -16,7 +16,7 @@
   - **pane 죽음** = tmux, 결과 줄 없음, `pane_dead_status` ≠ 127
   - **rate-limit** = 한도 해제 뒤 1회
 - 재시작 안 하고 사람에게 알림: 권한 거부 · `blocked` · `cancelled` · 그 밖 `failed…`(결과 줄 있는 것 전부) · 127 · 서버가 `claimed`+`mine`+이 PC 아님 · 워크트리 `state.json` 이 `cancelled`
-- 재시도 = 고아 재개와 같은 카운터(상한 3, SKILL.md 「팀장 상태」 고아 스캔 2번)
+- 재시도 = 고아 재개와 같은 카운터(상한 3, `references/lead-state.md` 「고아 스캔」 2번)
 - 손실은 `team.result` 가 아니라 `team.lost` 로 기록. `team.result` 는 카운터를 0 으로 되돌림
 - 재투입 = 「5-1. 재개 spawn」 그대로. 같은 워크트리, 같은 슬롯 번호, claim 안 함
 - 워크트리 `state.json` 이 `wait_pred`(설계 완료·선행 대기)면 재시작 안 함. `references/design-ahead.md` 가 선행이 풀린 뒤에만 재개(「판정」 4-1)
@@ -73,7 +73,7 @@ jq -r --arg a '<신원>/<host>/lead' --arg r '<MAIN>' \
 **먼저**: 그 id8 이 「이벤트로 본 상태」 에서 `RL_WAIT`·`RL_DUE` 면 이 절을 건너뛰고 「rate-limit 대기」 만 따름.
 - 그 사이 pane 이 죽어도 여기서 재시작 안 함 (같은 한도를 두 번 세지 않기 위해)
 
-**정체 슬롯만 가름**: (가) pane 이 죽음, 또는 (나) 생존 증거(SKILL.md 「3. 결과 처리」 의 셋)가 직전 TICK 과 같음.
+**정체 슬롯만 가름**: (가) pane 이 죽음, 또는 (나) 생존 증거(`references/result-handling.md` 「생존 증거」 의 셋)가 직전 TICK 과 같음.
 - 정체 아닌 슬롯은 판정 안 함 (움직이는 워커를 한도나 점유 변동으로 멈추지 않음)
 - 중단(`cancelled`) 처리는 정체와 무관하게 함
 
@@ -96,7 +96,7 @@ fi
 | 순서 | 조건 | 분류 | (나) 1회째 | (가), 또는 (나) 2회째 |
 |---|---|---|---|---|
 | 1 | `gate=SHOW_FAILED` | 측정 실패 | 아무것도 안 함 | (나)는 아무것도 안 함. (가)는 「재시작 후보를 띄울지」 의 거두기 블록만 돌고 감시 루프(`tick.mjs`) 인자에서 뺀다(죽은 pane 이 20초마다 다시 깨우지 않게). 다음 기상의 고아 스캔이 다시 봄. 같은 슬롯이 두 TICK 연속 측정 실패면 「멈춤」 표에 사유 `서버 조회 실패` 로 보고(슬롯 유지) |
-| 2 | `status` 가 `cancelled` | 중단 | SKILL.md 「3. 결과 처리」 의 중단 처리 | 같음. 재시작 없음 |
+| 2 | `status` 가 `cancelled` | 중단 | SKILL.md 「3. 결과 처리」 와 `references/result-handling.md` 의 중단 처리 | 같음. 재시작 없음 |
 | 3 | `status` 가 `claimed` 가 아님, 또는 `mine` 이 거짓, 또는 `same_host` 가 거짓 | 점유 변동 | 보고만 | 거두기 → 슬롯 해제 → 「멈춤」(사유 `서버 <status>` 또는 `다른 PC claim`). **이벤트는 안 씀** |
 | 4 | `local_phase=cancelled` | 표식 불일치 | 보고만 | 거두기 → `team.lost`(`next=park`) → 「멈춤」(사유 `중단 표식 불일치`). 사람이 phase 를 되돌릴지 판단 |
 | 4-1 | `local_phase=wait_pred` | 설계 완료 대기(멈춤 절차 뒤 결과 줄 없이 끝남) | 같음(오른쪽) | 거두기 → `team.result`(status `design_waiting`, hash `-`, 사유는 그 state.json 의 `design_first.unmet`) → 슬롯 해제·`.dflow-agent` 는 `parked`. `team.lost` 를 안 쓰고 재시작 안 함 — 재개는 `references/design-ahead.md` 2번이 선행이 풀린 뒤에 한다 |
@@ -105,7 +105,7 @@ fi
 | 6 | (가)이고 `dead_status=127` | 환경 결함 | — | 현행 `failed no-result`(SKILL.md 「3. 결과 처리」). 재시작 없음. `claude` 를 찾지 못한 것이라 다시 띄워도 같은 자리에서 죽는다 |
 | 7 | (가) 그 밖 | pane 죽음 | — | 재시작 후보(`cause=pane-dead`) |
 | 8 | (나) 2회째 | 무응답 | — | 재시작 후보(`cause=no-response`) |
-| 9 | (나) 1회째 | 무응답 1회 | 현행 "무응답" 보고만 — 단 SKILL.md 「3. 결과 처리」 「서브에이전트 종료 후 정지 패턴」 의 화면 조건에 맞으면 보고 대신 그 절대로 곧바로 지시를 주입한다 | — |
+| 9 | (나) 1회째 | 무응답 1회 | 현행 "무응답" 보고만 — 단 `references/result-handling.md` 「서브에이전트 종료 후 정지 패턴」 의 화면 조건에 맞으면 보고 대신 그 절대로 곧바로 지시를 주입한다 | — |
 
 - 4번의 `team.lost`: (가)면 `cause=pane-dead`, (나)면 `cause=no-response`, `restart_at` = `-`
   - `park` 로 적어야 다음 팀장의 고아 스캔이 같은 작업을 다시 띄우지 않음
@@ -141,7 +141,7 @@ esac
 
 ## 재시작 후보를 띄울지
 
-재시도 수 = SKILL.md 「팀장 상태」 고아 스캔 2번 블록의 `tries=` 로 잼(공식을 바꾸지 않음).
+재시도 수 = `references/lead-state.md` 「고아 스캔」 2번 블록의 `tries=` 로 잼(공식을 바꾸지 않음).
 
 | 조건 | `team.lost` 의 `next` | 처리 |
 |---|---|---|
@@ -185,7 +185,7 @@ esac
    - 거두기를 기록보다 먼저 함 (기록 뒤 거두기 전에 끊기면 다음 기상이 살아 있는 pane 옆에 겹쳐 띄움)
 3. `restart` 면 「재투입」, `wait` 면 슬롯 해제, `park` 면 「멈춤」 표와 「알림 한 줄」 의 상한 줄
 
-**워크트리를 지우지 않는다.** 깨끗하고 push 된 워크트리도 그대로 둠(미추적 `.issues` 를 잃지 않음). 이 절은 재시작 후보에 한해 SKILL.md 「3. 결과 처리」 의 무응답 자동 정리(tmux 갈래)와 `failed no-result` 행의 "고아 정리 규칙을 따른다" 를 대신함.
+**워크트리를 지우지 않는다.** 깨끗하고 push 된 워크트리도 그대로 둠(미추적 `.issues` 를 잃지 않음). 이 절은 재시작 후보에 한해 `references/result-handling.md` 의 무응답 자동 정리(tmux 갈래)와 `failed no-result` 행의 "고아 정리 규칙을 따른다" 를 대신함.
 
 ## 재투입
 
@@ -243,7 +243,7 @@ else echo "REINJECT_OK order=$o st=$st tries=$t"; fi
 
 ## rate-limit 대기
 
-생존 증거 요약(`evidence`) = SKILL.md 「3. 결과 처리」 의 세 증거를 이은 cksum.
+생존 증거 요약(`evidence`) = `references/result-handling.md` 「생존 증거」 의 세 증거를 이은 cksum.
 ```bash
 w='<워크트리>'; id8='<id8>'
 e1=$(git -C "$w" log -1 --format=%ct 2>/dev/null)
@@ -310,7 +310,7 @@ esac
 - 「판정」 의 6번(`dead_status=127`)은 Orca 에 적용 안 됨. `pane_dead_status` = tmux 전용 값이라 Orca 슬롯은 그 조건에 안 걸리고 7번(pane 죽음, Orca 는 탭 죽음)으로 감
 
 **관문 전에는**(이 리허설 이전 판본, 또는 위 셋 중 하나라도 다시 깨진 것이 확인되면) 이 절 전체를 쓰지 않고 「판정」 의 1~4번과 9번까지만 함.
-- (나) 2회째 무응답이면 SKILL.md 「3. 결과 처리」 의 Orca 무응답 처리를 그대로 한 뒤 한 줄을 더함: `<TSK> <id8> 재시작하려면 그 탭을 닫고 /dflow-team <종료시각> --resume <id8>`
+- (나) 2회째 무응답이면 `references/result-handling.md` 의 Orca 무응답 처리를 그대로 한 뒤 한 줄을 더함: `<TSK> <id8> 재시작하려면 그 탭을 닫고 /dflow-team <종료시각> --resume <id8>`
 - `team.lost` 는 기록 안 함
 
 ## 마감·lease·잠금
@@ -332,4 +332,4 @@ esac
 | rate-limit 대기 | `<TSK> <id8> 사용량 한도 — <HH:MM> 이후 다시 봅니다. 그때까지 새 배정 보류` |
 | 상한·반복 | `<TSK> <id8> 멈춤(<재시도 상한|rate-limit 반복>) — 재시작 명령: /dflow-team <종료시각> --resume <id8>` |
 | 표식 정리 | `<TSK> <id8> 낡은 중단 표식을 지웠다(STALE_CANCEL_MARK_REMOVED)` |
-| 그 밖 멈춤 | SKILL.md 「팀장 상태」 의 「멈춤」 표에 사유를 적는다 |
+| 그 밖 멈춤 | `references/lead-state.md` 「고아 스캔」 의 「멈춤」 표에 사유를 적는다 |
