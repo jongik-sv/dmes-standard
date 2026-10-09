@@ -92,6 +92,11 @@ describe("normalizeExchange", () => {
     expect(normalizeExchange({ disabled: true })).toEqual({ latest: [], history: [], stale: false, disabled: true });
     expect(normalizeExchange({})).toEqual({ latest: [], history: [], stale: false, disabled: false });
   });
+
+  it("empty(환율 마스터에 값 없음)는 true 일 때만 결과에 실리고 disabled 와 따로 읽는다", () => {
+    expect(normalizeExchange({ empty: true })).toEqual({ latest: [], history: [], stale: false, disabled: false, empty: true });
+    expect(normalizeExchange({ empty: "true", disabled: true })).toEqual({ latest: [], history: [], stale: false, disabled: true });
+  });
 });
 
 describe("normalizeWeather", () => {

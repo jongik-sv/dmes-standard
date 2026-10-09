@@ -2,7 +2,8 @@
 
 /**
  * 환율 위젯 렌더러 — 최신 값 표(통화·단위·값·전일 대비 ▲▼)와 통화별 추이(Sparkline). 스펙 2026-10-02-widget-admin-generic §6·§8.
- * 데이터는 widgetExt/exchange(서버가 DB·제공자를 맡는다). 제공자 실패로 DB 값만 온 경우(stale)는 제목 줄에 「갱신 실패」 를 보인다.
+ * 데이터는 widgetExt/exchange(서버가 MDM 환율 마스터를 읽는다). 마스터 값이 낡은 경우(stale)는 제목 줄에 「갱신 실패」 를 보이고,
+ * 마스터에 값이 없는 경우(empty)는 예약 작업 확인 안내를 보인다.
  * 읽기·서식·표 행 만들기는 _ext 의 순수 함수가 맡는다.
  */
 import { useEffect, useMemo, useState } from "react";
@@ -19,6 +20,7 @@ import type { ExchangeResult, ExchangeRow } from "@/widget-types/_ext/types";
 import { widgetGridPersonalize } from "@/widgets/widget-grid";
 
 const LOAD_ERROR = "환율 정보를 불러오지 못했습니다";
+const EMPTY_MESSAGE = "환율 마스터에 값이 없습니다. 예약 작업 mdm.exchangeRateSync 를 확인하세요";
 
 const SPARK_COLOR: Record<ExchangeRow["dir"], string> = {
   up: "var(--color-danger)",
@@ -129,6 +131,10 @@ export default function ExchangeWidget({ definition, refreshKey, widgetId, insta
         <div className="mcm-ext__state">표시할 통화가 없습니다</div>
       ) : result === null ? null : result.disabled && !hasAny ? (
         <div className="mcm-ext__state">외부 정보 연결이 꺼져 있어 환율을 가져올 수 없습니다</div>
+      ) : result.empty && !hasAny ? (
+        <div className="mcm-ext__state" data-testid="widget-exchange-empty">
+          {EMPTY_MESSAGE}
+        </div>
       ) : (
         <>
           <AgDataGrid

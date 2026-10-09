@@ -11,8 +11,8 @@ import org.springframework.stereotype.Service;
 
 /**
  * 환율·날씨 위젯 — OASIS {@code widgetExt}(스펙 2026-10-02-widget-admin-generic §5.1, AUTH_ONLY).
- * 사용자 데이터가 없는 공용 정보다. 환율은 외부 호출 속도 제한의 단위로만 인증 사용자 ID 를 쓴다(요청 값이 아니라 인증 컨텍스트).
- * {@code @Transactional} 을 붙이지 않는다(쓰기는 {@link ExchangeRateWriter}).
+ * 사용자 데이터가 없는 공용 정보다. 환율은 MDM 환율 마스터를 읽기만 하며(쓰기 없음), 인증 사용자 ID 는 인증 컨텍스트에서 얻는다.
+ * {@code @Transactional} 을 붙이지 않는다.
  */
 @Service("widgetExtService")
 public class WidgetExtService {
@@ -30,7 +30,7 @@ public class WidgetExtService {
 
     /**
      * {@code { latest: [{cur, rate, diff, date}], history: [{date, cur, rate}] }} (+ stale·disabled).
-     * 통화·기간은 사용 중인 환율 위젯 정의의 범위 안이어야 하고, 외부 호출을 일으키는 요청은 사용자별로 센다({@link ExchangeService}).
+     * 통화·기간은 사용 중인 환율 위젯 정의의 범위 안이어야 한다({@link ExchangeService}). 응답에 값이 없으면 empty 가 붙는다.
      */
     public Map<String, Object> exchange(WidgetExtExchangeRequest request) {
         String userId = securityIdentity.currentUserId();

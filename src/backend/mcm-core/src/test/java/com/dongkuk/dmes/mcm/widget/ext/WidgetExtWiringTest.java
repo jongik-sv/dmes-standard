@@ -19,9 +19,11 @@ import jakarta.persistence.EntityManagerFactory;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import javax.sql.DataSource;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,13 +44,15 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 /**
  * 빈 연결 확인 — mcm 런처처럼 {@code widget.ext} 패키지를 스캔해 설정 바인딩(dmes.widget.ext.*)·생성자 선택·저장소가
  * 함께 뜨는지, OASIS 진입점이 실제 DB(Oracle 시험 PDB)로 끝까지 도는지 본다. 외부 호출은 enabled=false 로 막는다(실제 네트워크 금지).
- * 환율 허용 목록은 실제 정의 표(TB_MCM_WIDGET_DEF)의 exchange 정의로 판정한다.
+ * 환율 허용 목록은 실제 정의 표(TB_MCM_WIDGET_DEF)의 exchange 정의로 판정하고, 환율 값은 MDM 항목 표와 같은 모양의 시험 표
+ * ({@link FxMasterTestTable})에서 읽는다(mdm-schema=MCMAPUSER).
  */
 @SpringJUnitConfig(WidgetExtWiringTest.Config.class)
 @TestPropertySource(properties = {
         "dmes.widget.ext.enabled=false",
         "dmes.widget.ext.exchange.provider=koreaexim",
         "dmes.widget.ext.exchange.koreaexim-key=K",
+        "dmes.widget.ext.exchange.mdm-schema=MCMAPUSER",
         "dmes.widget.ext.weather.base-url=https://wx.test/forecast"
 })
 class WidgetExtWiringTest {
@@ -83,17 +87,24 @@ class WidgetExtWiringTest {
         }
     }
 
+    private static DataSource sharedDataSource;
+
     @Autowired WidgetExtProperties properties;
     @Autowired WidgetExtService service;
-    @Autowired ExchangeRateWriter writer;
+    @Autowired DataSource dataSource;
     @Autowired WidgetDefRepository defRepository;
     @Autowired ApplicationEventPublisher events;
-    @Autowired ExchangeRateRepository rateRepository;
 
     @BeforeEach
     void clean() {
-        rateRepository.deleteAllInBatch();
+        sharedDataSource = dataSource;
+        FxMasterTestTable.createOrClear(dataSource);
         defRepository.deleteAllInBatch();
+    }
+
+    @AfterAll
+    static void dropFxTable() {
+        if (sharedDataSource != null) FxMasterTestTable.drop(sharedDataSource);
     }
 
     @Test
@@ -127,11 +138,11 @@ class WidgetExtWiringTest {
         assertThat(service.exchange(req)).containsEntry("disabled", true);
 
         LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
-        writer.upsert("KRW", "frankfurter", List.of(
-                new ExchangeRatePoint(today.minusDays(1), "USD", new BigDecimal("1380")),
-                new ExchangeRatePoint(today, "USD", new BigDecimal("1382.5"))));
+        DateTimeFormatter ymd = DateTimeFormatter.BASIC_ISO_DATE;
+        FxMasterTestTable.fxRate(dataSource, "USD", today.minusDays(1).format(ymd), "1380.00000000");
+        FxMasterTestTable.fxRate(dataSource, "USD", today.format(ymd), "1382.50000000");
         Map<String, Object> filled = service.exchange(req);
-        assertThat(filled).doesNotContainKey("disabled");
+        assertThat(filled).doesNotContainKeys("disabled", "empty", "stale");
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> latest = (List<Map<String, Object>>) filled.get("latest");
         assertThat(latest).singleElement().satisfies(l -> {

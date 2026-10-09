@@ -104,7 +104,7 @@ export function normalizeExchange(out: Record<string, unknown>): ExchangeResult 
     if (!date || rate === null || typeof r.cur !== "string" || r.cur.trim() === "") continue;
     history.push({ date, cur: r.cur.trim().toUpperCase(), rate });
   }
-  return { latest, history, stale: out.stale === true, disabled: out.disabled === true };
+  return { latest, history, stale: out.stale === true, disabled: out.disabled === true, ...(out.empty === true ? { empty: true } : {}) };
 }
 
 export function normalizeWeather(out: Record<string, unknown>): WeatherResult {
@@ -122,7 +122,7 @@ export function normalizeWeather(out: Record<string, unknown>): WeatherResult {
   return { current, daily, stale: out.stale === true, collectedAt, uncollected: out.uncollected === true, empty: out.empty === true };
 }
 
-/** 원화 기준 환율 — 최근 days 일(스펙 §5.1). 제공자가 실패하면 서버가 DB 값만 + stale 로 돌려준다. */
+/** 원화 기준 환율 — 최근 days 일(스펙 §5.1). 서버가 MDM 환율 마스터를 읽어 주며, 값이 낡았으면 stale·없으면 empty 가 붙는다. */
 export async function fetchExchange(symbols: readonly string[], days: number): Promise<ExchangeResult> {
   return normalizeExchange(await callAction("exchange", exchangeParams(symbols, days)));
 }
