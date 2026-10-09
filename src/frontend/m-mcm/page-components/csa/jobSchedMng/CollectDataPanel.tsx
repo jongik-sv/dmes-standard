@@ -65,6 +65,10 @@ function CollectDataPanelImpl({ jobId, jobNm, onError }: CollectDataPanelProps) 
   useEffect(() => {
     const mine = ++seq.current;
     setLoading(true);
+    // 조건을 바꾼 재조회가 실패해도 이전 조건의 행·이어 받기 기준이 남지 않게 먼저 비운다.
+    setRows([]);
+    setTruncated(false);
+    setNextBeforeSlot("");
     const latest = view === "latest";
     jobSchedApi
       .collectData({ jobId, latestOnly: latest, days, limit: COLLECT_PAGE_LIMIT, itemKey: !latest && itemKey ? itemKey : undefined })
@@ -79,7 +83,9 @@ function CollectDataPanelImpl({ jobId, jobNm, onError }: CollectDataPanelProps) 
         setKnownKeys((prev) => [...new Set([...prev, ...res.rows.map((r) => r.itemKey)])].sort());
       })
       .catch((e) => {
-        if (mine === seq.current) onErrorRef.current(e);
+        if (mine !== seq.current) return;
+        setLoaded(true);
+        onErrorRef.current(e);
       })
       .finally(() => {
         if (mine === seq.current) setLoading(false);
@@ -146,20 +152,20 @@ function CollectDataPanelImpl({ jobId, jobNm, onError }: CollectDataPanelProps) 
         <Button onClick={handleReload} disabled={loading} data-testid="job-collect-reload">
           새로 고침
         </Button>
-        {truncated ? (
+        {truncated && !isLatest ? (
           <Button onClick={loadMore} disabled={loading} data-testid="job-collect-more">
             이전 회차 더 보기
           </Button>
         ) : null}
         {!isLatest && pivot.clipped ? <span style={NOTE_STYLE}>항목이 많아 앞쪽 {pivot.columns.length}개만 열로 보입니다. 항목 키로 좁혀 보세요.</span> : null}
-        {truncated ? <span style={NOTE_STYLE}>{rows.length}행까지 받았습니다.</span> : null}
+        {truncated ? <span style={NOTE_STYLE}>{isLatest ? `이 회차의 항목이 많아 앞쪽 ${rows.length}행만 보입니다.` : `${rows.length}행까지 받았습니다.`}</span> : null}
       </div>
       <div style={{ flex: "1 1 0", minHeight: 0, display: "flex", flexDirection: "column" }}>
         <GridPanel title={title} count={isLatest ? latestRows.length : pivot.rows.length} loading={loading}>
           {isLatest ? (
             <AgDataGrid gridId="jobCollectLatest" rowKey="itemKey" columns={LATEST_COLUMNS} data={latestRows} columnSizing="fixed" loading={loading} emptyMessage={emptyMessage} excelExport={excelExport} />
           ) : (
-            <AgDataGrid gridId="jobCollectHistory" rowKey="slot" columns={pivotColumns} data={pivot.rows} columnSizing="fixed" loading={loading} emptyMessage={emptyMessage} excelExport={excelExport} />
+            <AgDataGrid gridId="jobCollectHistory" personalize={false} rowKey="slot" columns={pivotColumns} data={pivot.rows} columnSizing="fixed" loading={loading} emptyMessage={emptyMessage} excelExport={excelExport} />
           )}
         </GridPanel>
       </div>
