@@ -10,7 +10,7 @@
 import { createJsonApiClient } from "@/lib/http/json-api-client";
 
 import { normalizeDate, toNumber } from "./format";
-import type { WeatherLocation } from "./config";
+import { sameSpot, type WeatherLocation } from "./config";
 import type { ExchangeHistoryPoint, ExchangeLatest, ExchangeResult, WeatherDaily, WeatherResult } from "./types";
 
 const api = createJsonApiClient();
@@ -142,7 +142,7 @@ export interface WidgetOptions {
 
 const CUR_CODE = /^[A-Z]{3}$/;
 
-/** 선택지 응답 정리 — 영문 대문자 3자리(KRW 제외)만 중복 없이, 지점은 이름이 있고 좌표가 범위 안인 것만 이름 중복 없이. */
+/** 선택지 응답 정리 — 영문 대문자 3자리(KRW 제외)만 중복 없이, 지점은 이름이 있고 좌표가 범위 안인 것만(이름·좌표가 모두 같은 것은 하나). */
 export function normalizeOptions(out: Record<string, unknown>): WidgetOptions {
   const currencies: string[] = [];
   if (Array.isArray(out.currencies)) {
@@ -157,8 +157,10 @@ export function normalizeOptions(out: Record<string, unknown>): WidgetOptions {
     const lat = toNumber(r.lat);
     const lon = toNumber(r.lon);
     if (name === "" || lat === null || lon === null || lat < -90 || lat > 90 || lon < -180 || lon > 180) continue;
-    if (places.some((p) => p.name === name)) continue;
-    places.push({ name, lat, lon });
+    const place = { name, lat, lon };
+    // 이름이 같아도 좌표가 다르면 서로 다른 지점이라 둘 다 둔다. 이름과 좌표가 모두 같으면 하나만.
+    if (places.some((p) => p.name === name && sameSpot(p, place))) continue;
+    places.push(place);
   }
   return { currencies, places };
 }
