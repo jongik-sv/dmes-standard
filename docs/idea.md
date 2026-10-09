@@ -109,6 +109,10 @@
 - 업무 모듈 단순 조회를 MyBatis 조회 라우터로(BPMN 없이) — 검토 문서: [docs/superpowers/specs/2026-10-07-query-router-issues-review.md](superpowers/specs/2026-10-07-query-router-issues-review.md)
   - 방침(안): mcm·mdm 은 지금처럼 BPMN+JPA, 그 밖 업무 모듈은 단순 조회만 라우터+MyBatis, 등록·수정·삭제는 BPMN+JPA.
   - 2026-10-09 사용자 방향: **조회 쿼리는 BPMN 에서 뺀다** — 조회는 MyBatis·JPA 를 직접 호출하고(읽기 전용 트랜잭션), BPMN 은 등록·수정·삭제와 업무 흐름만. 근거: 로그로 잰 BPMN 겉비용(서비스 시간 − 태스크 시간)은 중앙 1~~3ms 라 긴 작업엔 무시할 만하지만 5~~10ms 짜리 조회에선 20~30%, 조회 호출이 BPMN 호출의 약 95%. BPMN 이 주던 서비스 태그(MDC)·권한 확인·감사 로그는 조회 경로에서도 따로 챙겨야 한다(검토 문서 문제점 참고).
+  - 2026-10-09 조사: BPMN 없이 조회하는 경로가 이미 있다 — **REST 신경로** `/api/{모듈}/rest/{화면ID}/{액션}/{백엔드경로}`(BFF `src/frontend/m-mcm/app/api/[module]/rest/[objId]/[action]/[...path]/route.ts`, 설계 [docs/framework/BFF-RBAC-REST-신경로규약-상세설계.md](framework/BFF-RBAC-REST-신경로규약-상세설계.md) 2026-07-28). BFF 가 권한 키 `{모듈}/{화면ID}/{액션}` 으로 검사한 뒤 화면ID·액션을 떼고 백엔드의 일반 Spring 컨트롤러로 넘긴다(컨트롤러 변경 없음).
+    - 쓰는 곳: DB 뷰어 `/api/analog/rest/dbViewer/query/…`, 로그 뷰어 `/api/analog/rest/logViewer/search/…`, 미디어 위젯 올리기 `/api/mcm/rest/commWidgetMng/upload/…`, mpn 계획 오더 등([이행 대조표](framework/BFF-RBAC-mpn-REST-이행-대조표.md)).
+    - `/query` 보다 맞는 이유: 권한 연결이 이미 있고, 백엔드가 평범한 컨트롤러라 MyBatis·JPA 직접 호출·읽기 전용 트랜잭션을 걸기 쉽고, 「등록된 쿼리 아무거나 실행」 경로가 아니라 위험이 작다 → `/query` 를 새로 열지 않고 조회를 이 경로로 옮기는 안을 먼저 검토한다.
+    - 빈틈: BFF 는 화면 권한(`dbViewer/query` 등)만 보고 뒤의 백엔드 경로가 그 화면 것인지는 확인하지 않는다 — 한 화면 권한으로 같은 모듈의 다른 백엔드 경로를 부를 수 있다(「BFF permKey↔BE 묶기」, 개발 기간 보류). 옮길 때 추가로 챙길 것: 백엔드 조회 경로에 서비스 태그(MDC)·필요하면 감사 로그.
   - 현황: 시범(mcm masterCodeSelPop) 코드는 dev(d9e119e4)에 있고 라우터 스위치(`cactus.inbound.query-routes`)는 꺼져 있다. 보안 수정(9e55954a)으로 /query·/service 직접 경로는 BFF 403·BE 404.
   - 남은 것: 문서의 문제점 7개·Q2~Q8 답변, 켜는 조건 4가지, BFF 허용 방식, 업무 모듈로 시범 이전, 가이드·ADR. 레인 메모: ~/.coord/notice-fill2/lanes/query-route/memo.md
   - 선행(10-07 결정): 로컬 DB 를 OrbStack 의 Oracle 23ai Free 로 먼저 바꾼다(컨테이너 하나를 전 레인이 스키마로 나눠 공유). 그 뒤 방언 항목(§2·Q4~Q6)을 실제 Oracle 로 시험하며 진행한다.
