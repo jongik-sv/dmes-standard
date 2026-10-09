@@ -5,11 +5,11 @@
 배경 결정 (같은 날 확정):
 
 - 트리 최상단 분해축 = 계약 구조. Program = 트리 층 아님, 우산. 프로젝트별 독립 트리 + PMO 통합관리.
-- Phase 는 Project 안 (분석→설계→구축→통합테스트→적용). 구축 Phase 만 깊은 제품 트리. 선행·후행은 산출물·시나리오 축의 얕은 비대칭 트리.
+- Phase 는 Project 안 (분석→설계→구축→통합테스트→적용). 구축 Phase 만 깊은 제품 트리. 선행·후행 = 산출물·시나리오 축의 얕은 비대칭 트리.
 - L2 I/F = Subsystem 급 승격 (공정 축: PLTCM·2CGL…ACCL). ERP I/F = 업무 축 (생산실적·작업지시). 같은 레벨 형제끼리 다른 축 허용, 한 부모 밑 축 혼합 금지.
 - ERP I/F = 쌍 구현. I/F 1건 = 양쪽 트리에 Task 2개 + PMO 대장 1행(`if-id`). 연동 검증 = 별도 Task.
 - 골격(Phase~System) = PM/PMO 소유·잠금. System 아래 = 담당 PL 소유·업로드. 업로드 시 자동 검증 필수.
-- D'Flow 코어 = N단 준비됨 (parent_id 트리, 0064 에서 level drop). 병목: project_settings 시드(pi 3단 하드코딩), 설정 편집 UI 부재, 레거시 excel export 3열 하드코딩. 혼재 허용 시 노드별 level 저장 필요 (import 계약 `level` 필드 + wbs_items 컬럼).
+- D'Flow 코어 = N단 준비됨 (parent_id 트리, 0064 에서 level drop). 병목: project_settings 시드(pi 3단 하드코딩), 설정 편집 UI 부재, 레거시 excel export 3열 하드코딩. 혼재 허용 시 노드별 level 저장 필요 (import 계약 `level` 필드 + wbs_items column).
 
 ## 계약 요점
 
@@ -44,7 +44,8 @@
 | `false` | 업로드 제외 — 파일 전용 메모 |
 | `fold` | 노드로 안 올리고 부모 노드 필드로 접어 올림 — checklist 층이면 부모 Task 의 `acceptance` 배열로 (import 계약에 acceptance jsonb 이미 존재, 0082 RPC) |
 
-- **아래에서 위로만 끌 수 있음**: 한 층이 `false`/`fold` 면 그보다 깊은 층 전부 동일. 중간층만 빼면 자식의 parent_external_ref 가 끊김. 검증기가 막음.
+- **아래에서 위로만 끌 수 있음**: 한 층이 `false`/`fold` 면 그보다 깊은 층 전부 동일.
+  - 중간층만 빼면 자식의 parent_external_ref 가 끊김. 검증기가 막음.
 - `progress: input` 층 = `upload: true` 강제. 발행·배정 대상이 안 올라가면 모순.
 - checklist 층 기본 권장 = `fold`.
   - STK 를 아예 안 올리면 "Task 완료 전이 시 미체크 경고" 게이트가 은퇴하는 wbs.md 에만 남음.
@@ -60,14 +61,15 @@
   - attach = 모듈 경계를 넘는 참조 (`mes-skel/SYS-OP`) → import v2.2 에 크로스 모듈 해석 규칙 필요.
 - PL 파일 levels = 프로젝트 정본(PMO 골격이 시드한 level_labels)과 일치해야 통과. PL 임의 층 추가 차단.
 - 골격 층은 PL 파일에서 `owner: pmo, upload: false` 로 선언만 (접두어 해석용). 본문에 쓰면 검증 에러.
-- 파일 배치 권장: 디렉토리 분리 `docs/mes/조업/wbs.md` (module = 디렉토리 세그먼트 파생, 현행 dflow-export 관례). 파일명 분리(wbs_조업.md)도 계약상 유효하나 module 매핑 표 추가 필요.
+- 파일 배치 권장: 디렉토리 분리 `docs/mes/조업/wbs.md` (module = 디렉토리 세그먼트 파생, 현행 dflow-export 관례).
+  - 파일명 분리(wbs_조업.md)도 계약상 유효. 단 module 매핑 표 추가 필요.
 - module = 파일 1:1 강제. external_ref 가 `{module}/{ID}` 네임스페이스 → PL 간 ID 채번 조율 불필요, 타 모듈 데이터 침범 구조적 불가.
 
 **확정(2026-08-22 사용자 결정) — attach 단일 노드 유지(b안)**:
 - 모듈 파일은 전부 PH-03/SYS-* 아래. 모듈 통테 준비·시나리오도 "모듈 검증까지가 구축" → 구축 소속.
 - PH-01·02·04·05 = PMO 골격 전유 (전사 시나리오·L2 실통신·ERP 연동은 골격 Task 로 이미 존재).
 - a안(attach 복수) 기각: 파일 구조·검증·서버 로직 복잡도 대비 이득(통테 공수의 PH-04 진도 반영) 작음.
-- 스킬 GREEN 테스트(2026-08-21)에서 실측된 갭 해소.
+- 스킬 GREEN test(2026-08-21)에서 실측된 갭 해소.
 
 업로드 경로 2개, 정본 1개 (2026-08-21 추가):
 
@@ -78,8 +80,8 @@
   - 사람은 노드를 고르지 않고 **확인만**. 잘못된 파일이면 부착점 표시에서 드러남.
   - attach 없는 파일 = 골격 업로드(levels 시드)로 처리.
 - **API 경로(자동화)**: frontmatter `attach` 필수, 확인 없이 적용 (현행 import 동작).
-- 웹 경로에 확인 없는 완전 자동 금지 — API 경로 중복이고, 웹 경로 존재 이유 = "적용 전 사람이 봄".
-- **권한 결정 지점**: 현행 import = 프로젝트 관리자 전용, 노드 단위 소유 개념 없음.
+- 웹 경로에 확인 없는 완전 자동 금지 — API 경로와 중복. 웹 경로 존재 이유 = "적용 전 사람이 봄".
+- **permission 결정 지점**: 현행 import = 프로젝트 관리자 전용, 노드 단위 소유 개념 없음.
   - 1차 = PL 전원 관리자 + attach 검증 (실수 방어, 악의 방어 없음 — 사내 소수 PL 수용).
   - 2차 = System 노드 owner(또는 0071 project_teams 연결) 기반 "자기 서브트리만 import". 노드 소유가 다른 기능(보고·결재)에 필요해질 때 함께.
 
@@ -107,17 +109,22 @@ payload 확장 — `POST /api/v1/wbs/import` (PAT·관리자, 기존 필드는 v
   - levels 없는 payload = v2.0 레거시 경로 (변경 없음).
 - **노드 v2.2 필드**:
   - `level`: levels 배열 인덱스 (wbs_items.level_idx 저장)
-  - `weight`: 롤업 가중, 0001 의 기존 컬럼 재사용, 양수만
+  - `weight`: 롤업 가중, 0001 의 기존 column 재사용, 양수만
   - `milestone`: `[M]` — progress none, 발행 제외
   - `credit`: 크레딧 표 키 (credit_key 저장)
   - `if_id`: PMO I/F 대장 참조
 - **발행 판정 일반화**: levels 있는 payload → `progress: input` 층이면서 milestone 아님 → dev_workflow=true (v2.1 `kind==='task'` 규칙의 일반화). levels 없으면 종전 kind 규칙.
-- **fold / upload:false = 업로더 몫**: 파서가 STK 를 부모 acceptance 로 접거나 제외한 뒤 전송. 서버는 그 노드를 아예 받지 않음 (acceptance jsonb 는 0077부터 수용). 서버 변경 없음.
-- **rollup-leaf = 서버 비차단**: 분리 업로드 특성상 골격 단독 시점의 SYS leaf 는 정상 과도기. 차단하면 골격 선행 불가. 합본 기준 검증 = 스킬 검증기 몫.
-- **마이그레이션 0089**: wbs_items 에 `level_idx smallint`·`milestone boolean`·`credit_key text`·`if_id text` 추가. RPC `import_wbs_upsert` 에 `p_attach_id uuid default null` 파라미터 추가 (구 2인자 시그니처는 drop — PostgREST 오버로드 모호성 방지).
-- **PAT 읽기 엔드포인트** `GET /api/v1/wbs/structure`: PL 스킬의 서버 직조회 원천.
+- **fold / upload:false = 업로더 몫**: 파서가 STK 를 부모 acceptance 로 접거나 제외한 뒤 전송.
+  - 서버는 그 노드를 아예 받지 않음 (acceptance jsonb 는 0077부터 수용). 서버 변경 없음.
+- **rollup-leaf = 서버 비차단**: 분리 업로드 특성상 골격 단독 시점의 SYS leaf 는 정상 과도기.
+  - 차단하면 골격 선행 불가.
+  - 합본 기준 검증 = 스킬 검증기 몫.
+- **migration 0089**: wbs_items 에 `level_idx smallint`·`milestone boolean`·`credit_key text`·`if_id text` 추가.
+  - RPC `import_wbs_upsert` 에 `p_attach_id uuid default null` 파라미터 추가.
+  - 구 2인자 시그니처는 drop (PostgREST 오버로드 모호성 방지).
+- **PAT 읽기 endpoint** `GET /api/v1/wbs/structure`: PL 스킬의 서버 직조회 원천.
   - 반환: levels(level_labels) + 얕은 노드 (기본 max_depth=1(0-base) = Phase·System 두 층; external_ref·name·parent_external_ref·depth·level_idx).
-  - 스코프 work:read, 멤버면 조회 가능 (비멤버 404 존재 은닉).
+  - scope work:read, 멤버면 조회 가능 (비멤버 404 존재 은닉).
   - PL 조회 우선순위 사슬: ① 서버(structure) → ② 골격 파일 폴백 → ③ 에러(골격 선행).
 
 ### Water-Scrum-Fall 매핑 (2026-08-21 추가)
@@ -140,7 +147,7 @@ WSF 는 두 층위에서 반복. 기존 dflow-wbs 의 WP 번호 샌드위치 (WP
 `--skeleton` = 샌드위치의 빵 (Water·Fall 골격), PL 모드 = 속 (모듈 Water 꼬리 + Scrum + 모듈 Fall).
 
 경계 규칙 승계:
-- 선행 분리 = "2+ 모듈 공유 or 마이그레이션 필요"만.
+- 선행 분리 = "2+ 모듈 공유 or migration 필요"만.
 - 통테 결함 → 해당 모듈에 `category: defect` Task 신설 (되돌림).
 - depends 사슬 (스캐폴드→전사설계→전사계약→기능→itest): 전사 계약 Task 의 소속만 PMO 골격으로 옮기고 형태 유지.
 
@@ -151,9 +158,11 @@ WSF 는 두 층위에서 반복. 기존 dflow-wbs 의 WP 번호 샌드위치 (WP
   - 역할 분리 = 스킬 분리 아님, **모드**.
   - `--skeleton`: PMO 골격 + PL 배포 킷.
   - PL 모드 (기본): 골격 파일에서 levels·키를 읽어 정합 강제, attach 자동 기입.
-  - 권한 강제 = 스킬 아닌 서버(import owner 검증) 몫.
+  - permission 강제 = 스킬 아닌 서버(import owner 검증) 몫.
 - WSF 는 두 모드에 나뉨: `--skeleton` = Water·Fall 골격(빵), PL 모드 = 모듈 Water 꼬리 + Scrum + 모듈 Fall(속) — 위 매핑 표 참조.
-- **업로드 게이트**: v2.2(E) 구현 전까지 이 스킬 산출물 = 작성·검수 전용. levels·attach·fold 를 서버가 아직 안 받으므로 업로드는 dflow-export 정합 이후. 스킬 본문에 이 게이트 명시.
+- **업로드 게이트**: v2.2(E) 구현 전까지 이 스킬 산출물 = 작성·검수 전용.
+  - 서버가 levels·attach·fold 를 아직 안 받음 → 업로드는 dflow-export 정합 이후.
+  - 스킬 본문에 이 게이트 명시.
 
 ### 진도율 원칙
 
@@ -280,10 +289,10 @@ credits:
    - buildAoaWithProfile levelLabels 주입, export 라우트 연결.
    - **import 변경 불요**: 위저드 (detect·parseWithProfile·linkByDepth)가 이미 N단 범용 (실사 확인). 3열 고정 parse.ts = 레거시 전용 존치.
 3. ✅ **import 계약 v2.2** (2026-08-22 랜딩)
-   - 서버: 0089 마이그레이션 (level_idx·milestone·credit_key·if_id + RPC p_attach_id, 스테이징 리허설 완료) + import 라우트 (levels 시드/일치 검증·attach 해석·input 층 발행 일반화·종료일 단독 schedule) + `GET /api/v1/wbs/structure` (PL 서버 직조회).
-   - 스킬: `wbs-nlevel-parse.mjs` (validate/export — fold 접기·마일스톤·토큰 파싱, node 시험 `tests/wbs-nlevel-parse.test.mjs`) + SKILL.md 조회 사슬·업로드 절차.
-   - **운영 DB 적용 = main 머지 시점** (그 전까지 업로드는 스테이징만).
-4. ⏸ **stage→크레딧·weight 롤업** — 데이터 (weight·credit_key·level_idx) 는 3에서 랜딩. 계산·표시만 남음.
+   - 서버: 0089 migration (level_idx·milestone·credit_key·if_id + RPC p_attach_id, 스테이징 리허설 완료) + import 라우트 (levels 시드/일치 검증·attach 해석·input 층 발행 일반화·종료일 단독 schedule) + `GET /api/v1/wbs/structure` (PL 서버 직조회).
+   - 스킬: `wbs-nlevel-parse.mjs` (validate/export — fold 접기·마일스톤·토큰 파싱, node test `tests/wbs-nlevel-parse.test.mjs`) + SKILL.md 조회 사슬·업로드 절차.
+   - **운영 DB 적용 = main merge 시점** (그 전까지 업로드는 스테이징만).
+4. ⏸ **stage→크레딧·weight 롤업** — 데이터 (weight·credit_key·level_idx)는 3에서 랜딩. 계산·표시만 남음.
 
 의도적 보류 (실사 결과):
 

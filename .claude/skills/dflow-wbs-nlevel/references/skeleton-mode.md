@@ -1,6 +1,6 @@
 # 골격 모드 입력·표준 구성 (dflow-wbs-nlevel 에서 옮김)
 
-> SKILL.md `## 골격 정의 파일 (skeleton.yaml)` 절 (methodology 3종·wsf 골격 표준 구성 포함) 에서 분리. 원문 그대로.
+> SKILL.md `## 골격 정의 파일 (skeleton.yaml)` 절 (methodology 3종·wsf 골격 표준 구성 포함)에서 분리. 원문 그대로.
 
 ## 골격 정의 파일 (`skeleton.yaml`) — 골격 모드의 입력 정본
 
@@ -28,8 +28,8 @@ systems:
   1. 프로젝트명
   2. **방법론 (wsf/waterfall/scrum — 기본 wsf)**
   3. 단계 (방법론 프리셋 제시 후 수정 여부. scrum 이면 생략)
-  4. 시스템 목록 (이름을 받아 키·module 제안 → 사용자 확정)
-- 답으로 **skeleton.yaml 을 생성하고 멈춤** — "파일 검토 후 재실행" 안내.
+  4. 시스템 목록 (이름 받아 키·module 제안 → 사용자 확정)
+- 답으로 **skeleton.yaml 생성 후 멈춤** — "파일 검토 후 재실행" 안내.
 - 즉석 골격 생성 금지: 시스템 키 = external_ref 라 불변. 리뷰 없이 확정 안 함.
 - 시스템 목록 창작 금지 — 입력(파일 또는 답변)에 없는 시스템은 만들지 않음.
 - 필수 누락 (project 없음, systems 0개) = 중단. 선택 누락 (pl 미정) = 기본값 + 리포트.
