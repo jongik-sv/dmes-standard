@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { readText } from '../../_shared/node/io.mjs';
+import { readText, readStdinTextSync } from '../../_shared/node/io.mjs';
 import { dflowConfigLoad, dflowConfigBranch, dflowConfigProjects, dflowConfigDocsDir, dflowConfigTasksDirs, envOf } from './dflow-config.mjs';
 import { posixCksum, cmdLease } from './dflow-lease.mjs';
 
@@ -59,11 +59,32 @@ exit: 0 성공 / 2 사용법·설정 / 3 인증 / 4 상태충돌 / 5 권한 / 6 
 }
 
 function gitOk(args, cwd) {
-  const r = spawnSync('git', args, { encoding: 'utf8', cwd, windowsHide: true });
+  const r = spawnSync(process.env.DFLOW_GIT || 'git', args, { encoding: 'utf8', cwd, windowsHide: true });
   return r.status === 0 ? (r.stdout ?? '') : null;
 }
 
-function uri(s) { return encodeURIComponent(s); }
+// jq @uri 와 같게 — encodeURIComponent 는 ! ' ( ) * 를 남겨 창구마다 해석이 갈린다.
+function uri(s) { return encodeURIComponent(s).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`); }
+
+// node fetch 는 프록시 환경변수(HTTP(S)_PROXY·NO_PROXY)를 따르지 않는다(curl 은 따랐다) — 사내망이면 전부
+// rc 6 이 된다. 프록시 env 가 있고 node 24+ 면 NODE_USE_ENV_PROXY=1 로 자기 자신을 다시 띄우고,
+// 미지원 node 면 경고만 남기고 직접 연결을 시도한다.
+function proxyReexec() {
+  if (process.env.NODE_USE_ENV_PROXY === '1') return; // 이미 재실행된 쪽 — 무한 재귀 가드
+  const proxyEnv = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'].find((k) => process.env[k]);
+  if (!proxyEnv) return;
+  const major = Number(process.versions.node.split('.')[0]);
+  if (major < 24) {
+    console.error(`⚠ 프록시 환경(${proxyEnv})이 있는데 node ${process.versions.node} 의 fetch 는 프록시를 따르지 않는다(지원: 24+ NODE_USE_ENV_PROXY) — 직접 연결을 시도한다`);
+    return;
+  }
+  const r = spawnSync(process.execPath, [process.argv[1], ...process.argv.slice(2)], {
+    env: { ...process.env, NODE_USE_ENV_PROXY: '1' },
+    stdio: 'inherit',
+    windowsHide: true,
+  });
+  process.exit(r.status ?? 6);
+}
 
 // ---- 설정·프로필 ----------------------------------------------------------
 function base() {
@@ -73,7 +94,7 @@ function base() {
 
 function tokens() {
   if (!process.env.DFLOW_PATS && !process.env.DFLOW_PAT) die(2, 'DFLOW_PATS 또는 DFLOW_PAT 미설정');
-  if (process.env.DFLOW_PATS) return process.env.DFLOW_PATS.split(',').filter((t) => t !== '');
+  if (process.env.DFLOW_PATS) return process.env.DFLOW_PATS.split(',').map((t) => t.trim()).filter((t) => t !== '');
   return [process.env.DFLOW_PAT];
 }
 
@@ -111,19 +132,19 @@ async function profileEmail(token) {
 // 맞는 키가 없을 때 첫 토큰으로 물러서지 않는다. 다른 신원으로 조용히 도는 것이 이 선택이 막으려는 오동작이다.
 // 실패 = 사유 stderr + null(진단 명령은 죽지 않아야 하므로 die 를 호출자에게 맡긴다).
 // exact=true 면 prefix 일치만(DFLOW_AS).
-async function pickToken(want, exact) {
+async function pickToken(want, exact, quiet = false) {
   const toks = tokens();
   if (want === '') return toks[0];
   for (const t of toks) if (tokenPrefix(t) === want) return t;
   if (exact) {
-    console.error(`DFLOW_AS=${want} 에 맞는 토큰이 없습니다 — prefix 만 받습니다(dflow.mjs profiles 로 확인).`);
+    if (!quiet) console.error(`DFLOW_AS=${want} 에 맞는 토큰이 없습니다 — prefix 만 받습니다(dflow.mjs profiles 로 확인).`);
     return null;
   }
   for (const t of toks) {
     const e = await profileEmail(t);
     if (e && e.includes(want)) return t;
   }
-  console.error(`프로필을 찾지 못했습니다: ${want}`);
+  if (!quiet) console.error(`프로필을 찾지 못했습니다: ${want}`);
   return null;
 }
 
@@ -133,22 +154,29 @@ async function apiRaw({ method, p, body, token }) {
   fs.mkdirSync(CACHE_DIR, { recursive: true });
   const url = base() + p;
   let res;
+  let text = '';
   try {
     res = await fetch(url, {
       method,
+      redirect: 'manual', // curl -L 없음과 같다 — 리다이렉트를 따라가면 Authorization 이 대상 서버로 새어나간다
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : body,
     });
-  } catch {
-    return { rc: 6, http: 0, body: '', err: '네트워크 오류\n' };
+    text = await res.text();
+  } catch (e) {
+    // 원인 코드만 싣는다 — e.message 에 요청 URL 이 섞여 토큰이 나갈 수 있다.
+    const causeCode = e?.cause?.code ? String(e.cause.code) : '';
+    const cause = causeCode ? `\n원인: ${causeCode}` : '';
+    const ca = /CERT|TLS|SSL/i.test(causeCode) ? '\n사설 CA 면 NODE_EXTRA_CA_CERTS=<사내 CA 번들 경로> 로 지정한다' : '';
+    return { rc: 6, http: 0, body: '', err: `네트워크 오류${cause}${ca}\n` };
   }
-  const text = await res.text();
   const http = res.status;
   if (http >= 200 && http < 300) return { rc: 0, http, body: text, err: '' };
   let json = null;
   try { json = JSON.parse(text); } catch { /* 본문이 JSON이 아닐 수 있다 */ }
   const code = json ? (json.code ?? '') : '';
-  let err = `${text}\n`; // 실패 본문은 항상 stderr 로 — 디버그 단서를 지우지 않는다.
+  let err = `${text.replace(/\n+$/, '')}\n`; // 실패 본문은 항상 stderr 로 — 디버그 단서를 지우지 않는다. 끝 빈 줄은 하나로 맞춘다.
+  if (http >= 300 && http < 400) return { rc: 6, http, body: text, err }; // 3xx — curl -L 없음과 같이 실패로 본다
   if (http === 401) return { rc: 3, http, body: text, err };
   if (http === 403) {
     // 선행 미충족은 권한 문제가 아니라 상태 문제다 — 호출부가 할 일은 "선행을 끝내고 다시 와라"이다.
@@ -228,7 +256,7 @@ function printList(arr) {
   arr.forEach((v, i) => {
     const name = Array.from(v.item?.name ?? v.instructions ?? '-').slice(0, 40).join('');
     const mine = v.mine === true ? '1' : v.mine === false ? '0' : '';
-    console.log([i + 1, CODE[v.status] ?? '??', v.priority, v.id.slice(0, 8), name, v.action ?? '', mine].map(tsvCell).join('\t'));
+    console.log([i + 1, CODE[v.status] ?? '??', v.priority ?? '', v.id.slice(0, 8), name, v.action ?? '', mine].map(tsvCell).join('\t'));
   });
 }
 
@@ -305,19 +333,18 @@ async function cmdList(argv) {
     fs.writeFileSync(tmp, JSON.stringify(rows, null, 2) + '\n');
     if (label !== undefined) console.log(`== ${label} ==`);
     printList(rows);
+    rememberIds(rows); // --all 은 토큰마다 누적한다 — 마지막 토큰만 남기면 나머지 접두 해석이 죽는다
     return rows;
   };
-  let rows;
   if (all) {
     for (const t of tokens()) {
       const em = await profileEmail(t);
       await runOne(t, em ?? '?');
     }
   } else {
-    rows = await runOne(TOK);
+    await runOne(TOK);
   }
   try { fs.renameSync(tmp, LIST_CACHE); } catch { /* 마지막 list 만 남긴다 */ }
-  rememberIds(parseJsonOr(readText(LIST_CACHE), [], {}));
 }
 
 async function cmdShow(ref) {
@@ -547,7 +574,8 @@ async function cmdDesignReopen(argv) {
 
 // 서버 계약 버전이 인자 이상인가(exit 0/1). 조회 실패는 그 exit, contract_version 이 없으면 exit 6.
 async function cmdContractGe(argv) {
-  if (argv.length !== 1 || !/^\d*\.\d*$/.test(argv[0])) usage();
+  // 종전 셸 패턴 [0-9]*.[0-9]* 와 같게 — 가운데는 임의 한 글자다("2x10" 도 통과).
+  if (argv.length !== 1 || !/^\d*.\d*$/s.test(argv[0])) usage();
   const { rc, cv } = await serverContractVersion();
   if (rc !== 0) die(rc, `계약 버전 확인 불가(exit ${rc}) — /me 조회 실패 또는 contract_version 없음`);
   process.exit(versionGe(cv, argv[0]) ? 0 : 1);
@@ -724,18 +752,15 @@ async function cmdWatch(argv) {
     if (a === '--summary-json') {
       sum = argv[++i];
       if (sum === undefined || sum === '') die(2, '--summary-json 값이 비었다');
-      if (!jsonOneOf(sum, ['object'])) die(2, '--summary-json 은 JSON 객체여야 한다');
     } else if (a === '--lead-summary-json') {
       lsum = argv[++i];
       if (lsum === undefined || lsum === '') die(2, '--lead-summary-json 값이 비었다');
-      if (!jsonOneOf(lsum, ['object'])) die(2, '--lead-summary-json 은 JSON 객체여야 한다');
     } else if (a === '--input-request-json') {
       inreq = argv[++i];
       if (inreq === undefined || inreq === '') die(2, '--input-request-json 값이 비었다');
-      if (!jsonOneOf(inreq, ['object', 'null'])) die(2, '--input-request-json 은 JSON 객체 또는 null 이어야 한다');
     } else if (a === '--agent') i = opt(a, i, (v) => { agent = v; });
-    else if (a === '--slots') i = opt(a, i, (v) => { slots = v; });
-    else if (a === '--busy') i = opt(a, i, (v) => { busy = v; });
+    else if (a === '--slots') i = opt(a, i, (v) => { slots = v; if (v !== '' && !Number.isFinite(Number(v))) usage(); });
+    else if (a === '--busy') i = opt(a, i, (v) => { busy = v; if (v !== '' && !Number.isFinite(Number(v))) usage(); });
     else if (a === '--until') i = opt(a, i, (v) => { until = v; });
     else if (a === '--project') i = opt(a, i, (v) => { project = v; });
     else if (a === '--holder') i = opt(a, i, (v) => { holder = v; });
@@ -744,6 +769,11 @@ async function cmdWatch(argv) {
     else if (a === '--json') raw = true;
     else if (a === '--stop') stop = true;
     else usage();
+  }
+  if (!stop) { // --stop 은 요약 칸을 싣지 않으므로 검증하지 않는다
+    if (sum !== '' && !jsonOneOf(sum, ['object'])) die(2, '--summary-json 은 JSON 객체여야 한다');
+    if (lsum !== '' && !jsonOneOf(lsum, ['object'])) die(2, '--lead-summary-json 은 JSON 객체여야 한다');
+    if (inreq !== '' && !jsonOneOf(inreq, ['object', 'null'])) die(2, '--input-request-json 은 JSON 객체 또는 null 이어야 한다');
   }
   if (agent === '') agent = await watcherIdDefault();
   if (agent === '') die(3, 'watcher 신원을 정하지 못했다(--agent 를 주거나 /me 확인)');
@@ -770,7 +800,7 @@ async function cmdWatch(argv) {
   let serr = '';
   try {
     const b = JSON.parse(bodyText);
-    if (b.summary_error !== undefined && b.summary_error !== null) {
+    if (b.summary_error !== undefined && b.summary_error !== null && b.summary_error !== false) {
       serr = typeof b.summary_error === 'string' ? b.summary_error : JSON.stringify(b.summary_error);
     }
   } catch { /* 요약 없음 */ }
@@ -787,7 +817,7 @@ async function cmdWatch(argv) {
 
 // ---- 에이전트 콘솔(계약 §2.12): 오피스 → 로컬 세션 프롬프트, 로컬 세션 → 오피스 화면 ----------
 function consoleHost(h) { // 인자 없으면 이 PC 슬러그. 형식이 틀리면 exit 2
-  const v = h === undefined ? slug(hostShort()) : h;
+  const v = h === undefined || h === '' ? slug(hostShort()) : h;
   if (v === '' || !/^[a-z0-9-]+$/.test(v)) die(2, `host 는 [a-z0-9-] 슬러그여야 한다: ${v}`);
   return v;
 }
@@ -858,7 +888,7 @@ async function cmdConsoleScreen(argv) {
   host = consoleHost(host);
   let input = '';
   try {
-    input = fs.readFileSync(0, 'utf8');
+    input = readStdinTextSync();
   } catch {
     die(6, 'stdin 읽기 실패');
   }
@@ -1050,7 +1080,7 @@ async function cmdDoctor() {
   console.log(`base: ${base()}`);
   dflowConfigProjects(); // 잘못된 project_map 키(BAD_DOCS_DIR)를 알린다 — 시작 때는 조용히 구했다(DFLOW_CONFIG_QUIET 따름)
   const toks = tokens();
-  const sel = await pickToken(AS, AS_EXACT);
+  const sel = await pickToken(AS, AS_EXACT, true);
   for (let i = 0; i < toks.length; i++) {
     const t = toks[i];
     const n = i + 1;
@@ -1073,11 +1103,11 @@ async function cmdDoctor() {
   }
   // 키 선택 경고 — 토큰이 여럿인데 고정하지 않았거나, 고정한 값이 어느 토큰과도 맞지 않는다.
   if (process.env.DFLOW_AS) {
-    if (!(await pickToken(process.env.DFLOW_AS, true))) {
-      console.error(`⚠ DFLOW_AS=${process.env.DFLOW_AS} 에 맞는 토큰이 없습니다 — dflow.mjs profiles 의 prefix 를 적으세요.`);
+    if (!(await pickToken(process.env.DFLOW_AS, true, true))) {
+      console.log(`⚠ DFLOW_AS=${process.env.DFLOW_AS} 에 맞는 토큰이 없습니다 — dflow.mjs profiles 의 prefix 를 적으세요.`);
     }
   } else if (toks.length >= 2) {
-    console.error(`⚠ 토큰이 ${toks.length}개인데 DFLOW_AS 가 없습니다 — 첫 토큰을 씁니다(.dflow.local 에 as=<prefix>, 레거시는 .env 에 DFLOW_AS=<prefix>).`);
+    console.log(`⚠ 토큰이 ${toks.length}개인데 DFLOW_AS 가 없습니다 — 첫 토큰을 씁니다(.dflow.local 에 as=<prefix>, 레거시는 .env 에 DFLOW_AS=<prefix>).`);
   }
 }
 
@@ -1152,8 +1182,10 @@ function cmdStubCheck(argv) {
     ref = rel;
   }
   if (gitOk(['rev-parse', '-q', '--verify', `${ref}^{commit}`]) === null) die(6, `ref 없음: ${ref}`);
-  const grep = spawnSync('git', ['grep', '-n', '-E', 'FORCE-STUB: [A-Za-z0-9]', ref, '--', '.',
-    ':(exclude).claude/', ':(exclude)docs/', ':(exclude)*.md'], { encoding: 'utf8', windowsHide: true });
+  const grep = spawnSync(process.env.DFLOW_GIT || 'git', ['grep', '-n', '-E', 'FORCE-STUB: [A-Za-z0-9]', ref, '--', '.',
+    ':(exclude).claude/', ':(exclude)docs/', ':(exclude)*.md'], { encoding: 'utf8', windowsHide: true, maxBuffer: 256 * 1024 * 1024 });
+  // status 1 = 일치 없음. 그 밖(실행 실패·버퍼 초과·2 이상)은 「없음」이 아니라 확인 불가이므로 관문을 통과시키지 않는다.
+  if (grep.error || (grep.status !== 0 && grep.status !== 1)) die(6, `git grep 실패: ${grep.error?.code ?? `status ${grep.status}`}`);
   const hits = grep.status === 0
     ? (grep.stdout ?? '').split('\n').filter((l) => l !== '')
       .map((l) => (l.startsWith(`${ref}:`) ? l.slice(ref.length + 1) : l))
@@ -1161,7 +1193,8 @@ function cmdStubCheck(argv) {
   if (hits.length) {
     console.log(`FORCE_STUB_FOUND ${hits.length}`);
     for (const h of hits) console.log(h);
-    process.exit(4);
+    process.exitCode = 4;
+    return;
   }
   console.log('FORCE_STUB_NONE');
 }
@@ -1184,6 +1217,7 @@ function leaseCtx() {
 // ---- main ----------------------------------------------------------------
 async function main() {
   const argv = process.argv.slice(2);
+  if (!['config', 'branch', 'stub-check'].includes(argv[0])) proxyReexec(); // 네트워크를 쓰는 명령만
   // stub-check <ref> 은 설정 로드 전 디스패치 — .dflow.local 이 없는 CI·훅에서도 돈다.
   if (argv[0] === 'stub-check' && argv[1] !== undefined && argv[1] !== '') {
     cmdStubCheck(argv.slice(1));
@@ -1217,7 +1251,8 @@ async function main() {
   }
   let rest = argv;
   if (rest[0] === '--as') {
-    AS = rest[1] ?? '';
+    if (rest[1] === undefined) usage();
+    AS = rest[1];
     AS_EXACT = false;
     rest = rest.slice(2);
   }
@@ -1257,6 +1292,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error(e?.stack ?? String(e));
+  console.error(`dflow.mjs 내부 오류: ${e?.message ?? String(e)}`);
   process.exit(6);
 });
