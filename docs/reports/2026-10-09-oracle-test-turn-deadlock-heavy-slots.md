@@ -51,4 +51,5 @@
 | F | Oracle 잠금을 기다리는 동안 heavy 슬롯을 쥐지 않게(잠금을 먼저 받고 슬롯을 받거나, 대기 중 슬롯 반납) | heavy.sh js 이식 때 |
 | G | heavy.sh 대기 상한·`exit 75` 규약을 호출 쪽이 알게(기본 상한 재검토, 줄 선 상태를 보이게) | heavy.sh js 이식 때 |
 | H | be-run 이 한 모듈 재기동 때 다른 모듈을 내리지 않게(모듈 단위로 이전 인스턴스 정리) | be-run js 이식 때 |
+| J | heavy.sh 로 서버(be-run)를 감싸면 서버가 떠 있는 내내 자리를 쥔다(09:2x 조정자가 겪음). 빌드 구간만 자리를 쓰게(be-run 이 빌드 뒤 자리 반납, 또는 `--build-only` 만 heavy) | heavy.sh·be-run js 이식 때 |
 | I | prompt-watch: 진행 표시가 있으면 창 아님, 자동 거부 뒤 「Interrupted」 상태를 감지해 조정자에게 알림 | prompt-watch js 이식(W3) 때 |
