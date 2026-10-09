@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit
  * PC 잠금은 복제 직전부터 빌드가 끝나 PDB 를 지울 때까지(시험 JVM 이 도는 구간 포함) `pdb.mjs lock-hold` 가 쥔다.
  * 그래서 PC 전체에서 Oracle 을 쓰는 시험 빌드는 한 번에 하나만 돈다. 기존 PDB 를 쓰는 existing 모드도 같다.
  * 잠금 주인은 node 프로세스이고 표준 입력이 닫히면(Gradle 이 죽어도) 스스로 놓는다.
+ * 상위(heavy)가 잠금을 먼저 쥐고 DMES_ORA_LOCK_HELD=<주인 pid> 를 주면 lock-hold 를 띄우지 않고 그 잠금을 쓴다(adoptParentLock) — 이 서비스는 그 잠금을 놓지 않는다.
  *
  * included build 마다 Gradle 이 서비스 인스턴스를 따로 만든다(sharedServices 는 빌드마다 따로다). 그래서 모듈 여러 개를 한 번에 시험하면
  * 서비스가 여러 개 생기고, 각자 lock-hold 를 잡으면 먼저 잡은 쪽이 빌드가 끝날 때까지 쥐고 있어 나머지가 영원히 기다린다(교착, 2026-10-07 21:12).
@@ -132,9 +133,10 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
 
     /** PC 전체 Oracle 잠금을 쥔다(이미 쥐고 있으면 그대로). 기다리는 한도는 DMES_ORA_HARNESS_LOCK_WAIT_SEC(기본 7200초). */
     void holdPcLock() {
-        if (lockHolder != null) return
+        if (lockHolder != null || lockPid > 0) return
         File script = new File(parameters.repoRoot.get(), 'scripts/oracle/pdb.mjs')
         if (!script.isFile()) throw new org.gradle.api.GradleException("PDB 도구가 없다: ${script}")
+        if (adoptParentLock(script)) return
         long waitSec = (System.getenv('DMES_ORA_HARNESS_LOCK_WAIT_SEC') ?: '7200') as long
         Process p = new ProcessBuilder(['node', script.absolutePath, 'lock-hold', '--wait-sec', String.valueOf(waitSec)])
                 .redirectErrorStream(true).start()
@@ -162,6 +164,35 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
         }
         lockHolder = p
         lockPid = p.pid()
+    }
+
+    /**
+     * 상위(heavy 의 oracle 풀 등)가 이미 PC 잠금을 쥐고 환경변수 DMES_ORA_LOCK_HELD=<잠금 주인 pid> 로 알렸으면 그 잠금을 쓴다 —
+     * 잠금을 기다리는 동안 heavy 자리를 쥐지 않게 하려고 heavy 가 잠금을 먼저 잡는다. 주인 pid 가 잠금 owner 와 같고 살아 있는지는
+     * `pdb.mjs lock-held` 가 가린다(pdb.mjs 와 같은 잠금 코드, 임시 폴더 해석도 같다). 유효하지 않으면 false 라 기존대로 직접 잡는다.
+     * 이 서비스는 그 잠금의 주인이 아니므로 놓지 않는다(lockHolder 는 null 로 둔다). 시스템 환경변수가 없으면 아무것도 하지 않는다.
+     */
+    boolean adoptParentLock(File script) {
+        String held = System.getenv('DMES_ORA_LOCK_HELD')
+        if (held == null || !held.trim().isLong() || held.trim().toLong() <= 0) return false
+        long pid = held.trim().toLong()
+        try {
+            ProcessBuilder pb = new ProcessBuilder(['node', script.absolutePath, 'lock-held']).redirectErrorStream(true)
+            pb.environment().put('DMES_ORA_LOCK_HELD', String.valueOf(pid))
+            Process p = pb.start()
+            Thread t = Thread.start { try { p.inputStream.eachLine { } } catch (Exception ignored) { } }
+            if (!p.waitFor(30, TimeUnit.SECONDS)) { p.destroyForcibly(); return false }
+            t.join(1000)
+            if (p.exitValue() != 0) {
+                System.err.println("[dmes-ora] DMES_ORA_LOCK_HELD=${pid} 가 유효한 잠금이 아니라 PC 잠금을 직접 잡는다")
+                return false
+            }
+        } catch (Exception e) {
+            return false
+        }
+        lockPid = pid
+        System.err.println("[dmes-ora] 상위가 쥔 PC 잠금(pid ${pid})을 그대로 쓴다")
+        return true
     }
 
     void releasePcLock() {

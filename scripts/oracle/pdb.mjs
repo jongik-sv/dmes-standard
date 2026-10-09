@@ -6,10 +6,10 @@
 // 사용법은 `node scripts/oracle/pdb.mjs help` 또는 scripts/oracle/README.md 참고.
 
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { LockTimeoutError, acquireLock as acquirePcLock, lockHeldByParent, releaseIfOwned, releaseLock, touchLock } from './pclock.mjs';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -63,14 +63,13 @@ function checkName(name, { needManaged = true, openCloseOnly = false } = {}) {
 // ── sqlplus 실행 ───────────────────────────────────────────────────
 // 살아 있는 자식(podman exec). 신호를 받으면 모두 끊고 나간다(고아 세션이 VM 안에 남지 않게).
 const children = new Set();
-let ownsLock = false;
 function killChildren() {
   for (const c of children) { try { c.kill('SIGTERM'); } catch { /* 이미 끝남 */ } }
 }
 for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
   process.on(sig, () => {
     killChildren();
-    if (ownsLock) { try { rmSync(LOCK_DIR, { recursive: true, force: true }); } catch { /* 무시 */ } }
+    releaseIfOwned();
     process.exit(128 + (sig === 'SIGINT' ? 2 : sig === 'SIGHUP' ? 1 : 15));
   });
 }
@@ -109,51 +108,16 @@ async function sql(text, opts) {
 const sqlTry = (text, opts) => sqlplus(text, opts);
 
 // ── PC 전체 잠금(복제·열기·삭제는 한 번에 하나) ─────────────────────
-const LOCK_DIR = join(tmpdir(), 'dmes-ora-pdb.lock');
-// 시험 하니스(Gradle)가 clone→시험→drop 전 구간 동안 `lock-hold` 로 잠금을 쥐고, 그 아래에서 부르는 명령에
-// DMES_ORA_LOCK_HELD=<잠금 주인 pid> 를 넘긴다. 주인 pid 가 owner 파일과 같고 살아 있을 때만 잠금을 다시 잡지 않는다.
-function lockHeldByParent() {
-  const held = Number(process.env.DMES_ORA_LOCK_HELD || 0);
-  if (!held) return false;
-  try {
-    const pid = Number(readFileSync(join(LOCK_DIR, 'owner'), 'utf8').split(' ')[0]);
-    if (pid !== held) return false;
-    process.kill(held, 0);
-    return true;
-  } catch { return false; }
-}
-
-// 잠금을 잡고 owner 를 적는다. 이미 누가 쥐고 있으면 deadlineMs 까지 기다린다.
+// 잠금 본체(mkdir 폴더·stale 판정·DMES_ORA_LOCK_HELD)는 pclock.mjs — heavy 이식판과 같은 잠금을 쓴다.
+// 기다림 한도를 넘기면 예전처럼 die 한다.
 async function acquireLock(waitSec) {
-  const deadline = Date.now() + waitSec * 1000;
-  for (;;) {
-    try {
-      mkdirSync(LOCK_DIR);
-      ownsLock = true;
-      writeFileSync(join(LOCK_DIR, 'owner'), `${process.pid} ${process.cwd()}\n`);
-      break;
-    } catch (e) {
-      if (e.code !== 'EEXIST') throw e;
-      // 주인 프로세스가 죽었거나 30분 넘은 잠금은 치운다.
-      let stale = false;
-      try {
-        const age = Date.now() - statSync(LOCK_DIR).mtimeMs;
-        const pid = Number(readFileSync(join(LOCK_DIR, 'owner'), 'utf8').split(' ')[0]);
-        let alive = true;
-        try { process.kill(pid, 0); } catch { alive = false; }
-        stale = !alive || age > 30 * 60 * 1000;
-      } catch {
-        // mkdir 직후 owner 를 쓰기 전 찰나일 수 있으니 10초 안이면 기다린다.
-        try { stale = Date.now() - statSync(LOCK_DIR).mtimeMs > 10 * 1000; } catch { stale = true; }
-      }
-      if (stale) { rmSync(LOCK_DIR, { recursive: true, force: true }); continue; }
-      if (Date.now() > deadline) die(`다른 PDB 작업이 끝나지 않는다(잠금 ${LOCK_DIR})`);
-      await new Promise((r) => setTimeout(r, 1500));
-    }
+  try {
+    await acquirePcLock(waitSec);
+  } catch (e) {
+    if (e instanceof LockTimeoutError) die(e.message);
+    throw e;
   }
 }
-
-const releaseLock = () => { ownsLock = false; rmSync(LOCK_DIR, { recursive: true, force: true }); };
 
 async function withLock(fn) {
   if (lockHeldByParent()) return await fn();
@@ -577,7 +541,7 @@ const commands = {
     const i = args.indexOf('--wait-sec');
     const waitSec = i >= 0 ? Number(args[i + 1]) : CFG.lockWaitSec;
     await acquireLock(waitSec);
-    const beat = setInterval(() => { try { utimesSync(LOCK_DIR, new Date(), new Date()); } catch { /* 무시 */ } }, 60 * 1000);
+    const beat = setInterval(touchLock, 60 * 1000);
     const done = () => { clearInterval(beat); releaseLock(); process.exit(0); };
     process.on('SIGTERM', done);
     process.on('SIGINT', done);
@@ -586,6 +550,11 @@ const commands = {
     process.stdin.on('close', done);
     process.stdin.resume();
     process.stdout.write(`LOCKED ${process.pid}\n`);
+  },
+
+  // 상위(Gradle·heavy)가 DMES_ORA_LOCK_HELD 로 알린 잠금이 지금도 유효한가 — 유효하면 exit 0, 아니면 exit 1(출력 없음). 시험 하니스가 쓴다.
+  async 'lock-held'() {
+    process.exit(lockHeldByParent() ? 0 : 1);
   },
 
   // 열린 PDB 의 자동 작업(autotask·AWR 스냅숏)을 끄고 상태를 확인한다. 이미 만든 PDB 에도 쓸 수 있다.
@@ -643,6 +612,7 @@ const commands = {
   quiet <PDB>                   열린 PDB 의 autotask·AWR 자동 스냅숏을 끄고 확인(create·clone 은 자동으로 거친다)
   sessions <PDB>                열린 PDB 의 세션 수(max·limit·cur) 한 줄
   lock-hold [--wait-sec N]      PC 잠금을 쥐고 LOCKED <pid> 를 낸 뒤 표준 입력이 닫힐 때까지 유지(시험 하니스용)
+  lock-held                     DMES_ORA_LOCK_HELD 가 가리키는 잠금이 지금도 유효하면 exit 0, 아니면 1(시험 하니스용)
 
 환경 변수: DMES_ORA_ENGINE·DMES_ORA_CONTAINER·DMES_ORA_SYS_PASSWORD·DMES_ORA_PASSWORD·DMES_ORA_HOST·DMES_ORA_PORT·DMES_ORA_MAX_OPEN
 `);

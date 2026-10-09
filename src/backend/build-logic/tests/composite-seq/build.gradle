@@ -35,3 +35,27 @@ tasks.register('probeRelease') {
         println 'PROBE-RELEASE ok'
     }
 }
+
+// 상위가 쥔 PC 잠금 인정(adoptParentLock) 확인 — ../run-lockheld.sh 가 환경변수·잠금을 준비하고 PROBE_EXPECT 로 기대(adopt|own)를 준다.
+tasks.register('probeLockHeld') {
+    doLast {
+        def svc = gradle.sharedServices.registrations.getByName('dmesOraTestPdb').service.get()
+        String expect = System.getenv('PROBE_EXPECT')
+        // 잠금 폴더는 node 의 os.tmpdir() 기준이다. macOS 의 JVM 은 TMPDIR 를 무시하므로(java.io.tmpdir 이 달라진다) 환경변수 TMPDIR 를 먼저 본다.
+        File owner = new File(System.getenv('TMPDIR') ?: System.getProperty('java.io.tmpdir'), 'dmes-ora-pdb.lock/owner')
+        svc.holdPcLock()
+        if (expect == 'adopt') {
+            long held = System.getenv('DMES_ORA_LOCK_HELD') as long
+            assert svc.lockHolder == null : 'adopt 인데 lock-hold 를 따로 띄웠다'
+            assert svc.lockPid == held
+            svc.releasePcLock()                     // 주인이 아니므로 놓지 않는다
+            assert owner.isFile() && owner.text.startsWith("${held} ") : '상위 잠금이 사라졌다'
+        } else {
+            assert svc.lockHolder != null : 'own 인데 직접 잠금을 잡지 않았다'
+            assert owner.isFile() && owner.text.startsWith("${svc.lockPid} ")
+            svc.releasePcLock()
+            assert !owner.isFile() : '직접 잡은 잠금을 놓지 않았다'
+        }
+        println "PROBE-LOCKHELD ${expect} ok"
+    }
+}
