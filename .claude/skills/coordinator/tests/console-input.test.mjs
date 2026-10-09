@@ -98,6 +98,23 @@ test('rec_lock 의 낡은 잠금 폴더가 비워지지 않아도 30초 안전 �
   } finally { rmSync(w.dir, { recursive: true, force: true }); }
 });
 
+test('bash 판 rec_lock 도 비워지지 않는 낡은 잠금 폴더에서 30초 상한 뒤 rc 1 로 끝난다 (끝없이 돌지 않는다)', { skip: WIN, timeout: 50000 }, () => {
+  const w = world();
+  try {
+    const d = join(w.cons, 'input', '.coord_lane_kit.lock');
+    mkdirSync(d, { recursive: true });
+    writeFileSync(join(d, 'x'), '');   // 안에 파일이 있어 rmdir 이 계속 실패한다
+    const old = new Date(Date.now() - 60000);
+    utimesSync(d, old, old);
+    const script = [`. '${LIB}/compat.sh'`, `. '${LIB}/common.sh'`, `. '${LIB}/console-redact.sh'`, `. '${LIB}/console-input.sh'`, 'console_input_rec_lock coord_lane_kit; echo "rc=$?"'].join('\n');
+    const t0 = Date.now();
+    const r = spawnSync('bash', ['-c', script], { env: { ...w.env, COORD_JS_CONSOLE_INPUT: '0' }, encoding: 'utf8', timeout: 45000 });
+    const took = Date.now() - t0;
+    assert.equal(r.stdout.trim(), 'rc=1', `끝나지 않았다(${took}ms, 신호 ${r.signal})`);
+    assert.ok(took >= 28000 && took < 36000, `${took}ms`);
+  } finally { rmSync(w.dir, { recursive: true, force: true }); }
+});
+
 test('창 계산은 시간 예산이 이미 지났으면 창 없음(null)으로 끝난다', () => {
   const text = readFileSync(join(HERE, 'fixtures', 'prompt-permission.txt'), 'utf8');
   const ok = windowOf(text, 'permission', { deadline: Date.now() + 5000 });

@@ -463,10 +463,16 @@ console_consumed_has_since() {
 # ---- 기록 파일 -------------------------------------------------------------------------------
 console_input_file() { if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_input_file "$@"; return; fi; printf '%s/input/%s.json' "$(_ci_dir)" "$1"; }
 console_input_rec_lock() { if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_input_rec_lock "$@"; return; fi;  # 짧게 쥔다(3초 대기). 10초 넘은 잠금은 죽은 것으로 보고 치운다
-  local d i=0; _ci_name_ok "${1:-}" || return 1
+  local d i=0 t0=$SECONDS; _ci_name_ok "${1:-}" || return 1
   d="$(_ci_dir)/input/.$1.lock"; coord_mkdirp "${d%/*}"
   until mkdir "$d" 2>/dev/null; do
-    if [ $(( $(date +%s) - $(coord_file_mtime "$d" 2>/dev/null || echo 0) )) -ge 10 ]; then rmdir "$d" 2>/dev/null; continue; fi
+    if [ $(( $(date +%s) - $(coord_file_mtime "$d" 2>/dev/null || echo 0) )) -ge 10 ]; then
+      rmdir "$d" 2>/dev/null
+      # 낡은 잠금 폴더가 비워지지 않으면(안에 파일) rmdir 이 계속 실패한다: 30초 상한 뒤 포기하고, 그동안은 0.1초씩 쉰다(CPU 를 붙잡지 않는다)
+      [ $((SECONDS - t0)) -ge 30 ] && return 1
+      [ -d "$d" ] && sleep 0.1
+      continue
+    fi
     i=$((i + 1)); [ "$i" -ge 30 ] && return 1
     sleep 0.1
   done
