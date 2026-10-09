@@ -55,7 +55,7 @@ SKILL.md 「절차」 1번(후보 식별)·2번(판정)에서 옮김. 스윕(`--
      - 중복 제거 뒤 남은 원격 후보는 값 없어도 건너뜀(마지막 칸 `none`·`other`).
      - 값 없는 로컬 후보(옛 state.json)는 그대로 판정.
      - `/dflow-team` 팀장은 그런 후보 있으면 시작 안 함.
-   - **서버 조회**: state.json 전체 UUID 로 조회. show 출력에서 jq 로 `.order.status`, 마지막 `kind=completion` 리포트 `review_action`·`review_note`, 완료 증적 `head_sha`(4번 승인 뒤 변경 확인용)만 뽑음. spec 본문은 안 싣음.
+   - **서버 조회**: state.json 전체 UUID 로 조회. show 출력에서 jq 로 `.order.status`, 마지막 `kind=completion` 리포트 `review_action`·`review_note`, 완료 증적 `head_sha`(4번 승인 뒤 변경 확인용)만 뽑음. spec 본문은 안 실음.
      ```bash
      j=$(node .claude/skills/dflow-work/scripts/dflow.mjs show <order 전체 UUID>); echo "show=$?"
      printf '%s' "$j" | jq -c '{status: .order.status, last: ([.reports[]? | select(.kind == "completion")] | last | {review_action, review_note, head_sha: .evidence.head_sha})}'
