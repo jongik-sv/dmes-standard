@@ -14,7 +14,10 @@
 #     같은 종류의 창이 사이에 「창 없음」 표본 없이 이어져도 창 지문(full — 캐시 json 의 값, 직접 읽은 화면은 lib/console-input.sh 로 같은 방식으로 계산)이
 #     바뀌면 새 창으로 다시 알린다. 상태줄 숫자만 바뀐 같은 창은 지문이 같아 다시 알리지 않는다. 지문이 없는 창(머리를 못 찾음)은 종류로만 비교한다(한계).
 #     --follow 시간이 다하면 레인마다 `<레인> NONE <h>` 를 낸다. 핸들이 없거나 낡은 레인은 `<레인> GONE <사유>` 한 줄을 내고 이후 건너뛴다.
+#   interrupted: 창은 아니지만 자동 거부·Esc 뒤 화면 끝에 `Interrupted · What should Claude do instead?` 가 남아 사람의 지시를 기다리는 상태다(`PROMPT <h> interrupted`). 다른 종류가 없을 때만 낸다.
 set -uo pipefail
+_SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.
+. "$_SD/lib/js-bridge.sh"; if _jsb_on PROMPT_WATCH; then _jsb_exec "$_SD/prompt-watch" "$@"; fi   # node 판(스위치 COORD_JS_PROMPT_WATCH)
 . "$(dirname "$0")/lib/common.sh"
 . "$(dirname "$0")/lib/term.sh"
 . "$(dirname "$0")/lib/screen-cache.sh"
@@ -26,7 +29,7 @@ while [ $# -gt 0 ]; do
     --follow) follow="${2:-0}"; shift ;;
     --every) every="${2:-}"; shift ;;
     --lanes) lanes="${2:-}"; shift ;;
-    -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,19p' "$0"; exit 0 ;;
     -*) coord_die 2 "모르는 옵션: $1" ;;
     *) lane="$1" ;;
   esac
@@ -78,6 +81,10 @@ pw_full() {
   [ "$PW_FULL_LOADED" = 1 ] || return 0
   printf '%s\n' "$1" | console_full_sha 2>/dev/null || true
 }
+# 화면 끝 30줄에 「Interrupted · What should Claude do instead?」 가 있으면 interrupted(자동 거부·Esc 로 끊긴 뒤 지시를 기다리는 상태).
+pw_interrupted() {
+  case "$(printf '%s\n' "$1" | tail -n 30)" in *"Interrupted · What should Claude do instead?"*) echo interrupted ;; esac
+}
 check_once() {
   local screen kind rc sig="" cached=0
   CK_KIND=""; CK_FULL=""
@@ -97,6 +104,7 @@ check_once() {
     coord_die 4 "화면 읽기 실패: $h"
   fi
   kind="$(printf '%s\n' "$screen" | coord_screen_prompt_kind)"
+  [ -n "$kind" ] || kind="$(pw_interrupted "$screen")"
   [ -n "$kind" ] || return 1
   CK_KIND="$kind"
   if [ "$MULTI" = 1 ]; then
