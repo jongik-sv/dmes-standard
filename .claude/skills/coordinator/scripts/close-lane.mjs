@@ -29,7 +29,7 @@ const HELP = `# 사용법: close-lane.mjs <레인> | --handle <h>  [--force-repo
 #   --dry-run: 판정은 실제로, 닫기 직전에 멈추고 \`DRY CLOSED <레인> handle=<h>\`.
 `;
 const HERE = dirname(fileURLToPath(import.meta.url));
-const HEAVY_RE = /GradleWrapperMain|gradlew|vitest|playwright (test|show-report)|\/tsc( |$)|tsup|heavy\.sh|jest|npm (run|test|exec vite)/;
+const HEAVY_RE = /GradleWrapperMain|gradlew|vitest|playwright (test|show-report)|\/tsc( |$)|tsup|heavy\.(sh|mjs)|jest|npm (run|test|exec vite)/;
 const readDocs = (file) => { try { return J.parseStreamPartial(readFileSync(file, 'utf8')).values; } catch { return []; } };
 const isDir = (p) => { try { return statSync(p).isDirectory(); } catch { return false; } };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
