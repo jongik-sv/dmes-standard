@@ -202,6 +202,7 @@ mes-plugin/
 
 dev-local.sh
 .run.env
+.be-run/
 
 # 대용량 외부 참조 엑셀 (LS 외부 자료, read-only)
 docs/external/LS/MLE_믈류_TABLE.xlsx
