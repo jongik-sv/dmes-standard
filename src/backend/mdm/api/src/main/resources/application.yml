@@ -66,3 +66,14 @@ logging:
 dmes:
   job:
     module: mdm
+  # ── 환율 마스터 동기화 작업(mdm.exchangeRateSync)의 외부 환율 제공자 설정 ──
+  # mcm 앱 application.yml 의 dmes.widget.ext 와 같은 키다. 기본은 키 없는 공개 API. 서버가 밖으로 나갈 수 없는 망이면 enabled: false 로 끈다
+  # (작업은 외부 호출 없이 0건으로 끝난다). 운영은 mdm 서버의 외부망 허용이 필요하다. 수집 대상 통화는 마스터 CUR 의 환율 수집(Y)으로 정한다.
+  widget:
+    ext:
+      enabled: true
+      exchange:
+        provider: frankfurter                # frankfurter(유럽중앙은행, 키 없음) | koreaexim(한국수출입은행, 키 필요)
+        frankfurter-base-url: https://api.frankfurter.dev/v1
+        koreaexim-key: ${WIDGET_KOREAEXIM_KEY:}   # 키는 환경변수로만 넣는다(로그·저장소에 남기지 않는다)
+        koreaexim-base-url: https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON
