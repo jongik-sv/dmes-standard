@@ -116,6 +116,27 @@ class FxMasterReaderTest {
     }
 
     @Test
+    @DisplayName("통화 선택지 — 라벨 칼럼 순서대로, 영문 3자리·KRW 아님·중복 없음만 (칼럼 조회 없이 라벨 조회 한 번)")
+    void currenciesFollowLabelOrder() throws Exception {
+        rowsWithLabels(java.util.Arrays.asList("USD", "eur", "KRW", "ABCD", "usd", " JPY ", null, "", "12", "CNY"));
+
+        assertThat(reader.currencies()).containsExactly("USD", "EUR", "JPY", "CNY");
+        verify(jdbc, times(1)).query(anyString(), any(SqlParameterSource.class), any(RowCallbackHandler.class));
+    }
+
+    @Test
+    @DisplayName("통화 선택지 — 표를 못 읽으면 빈 목록, 그 밖의 DB 오류는 그대로 올린다")
+    void currenciesEmptyWhenUnreadable() {
+        doThrow(new BadSqlGrammarException("query", "SQL", new SQLException("ORA-00942", "42000", 942)))
+                .when(jdbc).query(anyString(), any(SqlParameterSource.class), any(RowCallbackHandler.class));
+        assertThat(reader.currencies()).isEmpty();
+
+        doThrow(new CannotGetJdbcConnectionException("down"))
+                .when(jdbc).query(anyString(), any(SqlParameterSource.class), any(RowCallbackHandler.class));
+        assertThatThrownBy(() -> reader.currencies()).isInstanceOf(CannotGetJdbcConnectionException.class);
+    }
+
+    @Test
     @DisplayName("설정한 스키마 이름을 접두로 쓴다")
     void usesConfiguredSchema() throws Exception {
         rows();

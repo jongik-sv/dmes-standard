@@ -127,6 +127,7 @@ node $D/aggrid_docs.mjs recommendations           # 공식 ag-dev 의 LLM 흔한
 | `FloatingPanel`·모달처럼 body 로 포털하는 창 안 내용에 화면 루트 범위 CSS(`.화면-루트 .클래스`)를 기대함(스타일이 통째로 빠짐) | 창 안 루트 클래스를 따로 두고 `:is(.화면-루트, .창-루트) .클래스` 로 선택자를 넓힌다 — [floating-panel](references/components/floating-panel.md) |
 | 화면 루트를 직접 만든 `div` 로 두고 ContentBody·ContentPanel 을 씀(분할 CSS 가 안 먹어 본문이 좁게 쪼그라듦) | 화면 루트는 `PageLayout`. 분할·패널 CSS 는 `.page-layout`·모달 바디 아래에서만 적용된다 — [content-body](references/components/content-body.md) 흔한 실수 |
 | 패널 안을 flex `div` 로 다시 감싸거나 안내 `<p style>` 추가 | 감싸지 않는다. ContentPanel·GridPanel 이 높이를 맡는다 |
+| `GridPanel` 안(그리드 형제)에 안내 문구·배너·잘림 안내 `<p>` 를 둠(`.cm-data-grid` 가 `position:absolute` 로 `.grid-panel-content` 전체를 덮어 문구가 그리드 헤더에 가려짐) | 안내는 `GridPanel` 바깥(탭 아래·패널 위)에 둔다 — [Local-Rules §45](../../../docs/guide/FrontEnd/Local-Rules.md) |
 | `GridPanel headerExtra` 안에서 absolute·fixed 배치를 쓰거나 `order` 로 그리드 설정 아이콘 앞에 서려 함 | 아이콘 칸은 머리줄 맨 끝(DOM 마지막·`order` 최대값)으로 고정이라 `order` 는 통하지 않고 absolute 요소는 아이콘을 가린다. 일반 흐름으로만 둔다 |
 | 행추가·행삭제를 상단 버튼으로 만들고 임시 키를 직접 생성 | `GridPanel showAddButton` + `buttons` 의 확인창 행삭제 + `useGridDataManager` (screen-patterns.md §상단 버튼) |
 | `today()` 값을 `DatePicker` 에 바로 넣음 | `formatDateStr(today())` (`today()` 는 `yyyyMMdd`) |

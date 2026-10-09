@@ -10,6 +10,7 @@
 import { createJsonApiClient } from "@/lib/http/json-api-client";
 
 import { normalizeDate, toNumber } from "./format";
+import type { WeatherLocation } from "./config";
 import type { ExchangeHistoryPoint, ExchangeLatest, ExchangeResult, WeatherDaily, WeatherResult } from "./types";
 
 const api = createJsonApiClient();
@@ -46,12 +47,13 @@ export function unwrapPayload(res: unknown): Record<string, unknown> {
   return out;
 }
 
-type ExtAction = "exchange" | "weather";
+type ExtAction = "exchange" | "weather" | "options";
 
 /** 응답 없이 fetch 가 실패했을 때(네트워크 끊김 등) 보일 문구. */
 export const NETWORK_ERROR_MESSAGE: Record<ExtAction, string> = {
   exchange: "환율 정보를 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
   weather: "날씨 정보를 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
+  options: "선택지를 불러오지 못했습니다. 기본 목록을 보입니다.",
 };
 
 async function callAction(action: ExtAction, params: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -130,4 +132,58 @@ export async function fetchExchange(symbols: readonly string[], days: number): P
 /** 좌표의 현재 날씨 + 3일 예보 — 예약 작업(날씨 수집)이 모아 둔 최신 값. 수집 대상이 아닌 지점은 uncollected, 모인 값이 없으면 empty 로 돌려준다. */
 export async function fetchWeather(lat: number, lon: number): Promise<WeatherResult> {
   return normalizeWeather(await callAction("weather", weatherParams(lat, lon)));
+}
+
+/** 편집기 선택지 — 서버가 환율 마스터·날씨 수집 작업에서 읽어 준 통화 코드와 지점(이름·좌표). */
+export interface WidgetOptions {
+  currencies: string[];
+  places: WeatherLocation[];
+}
+
+const CUR_CODE = /^[A-Z]{3}$/;
+
+/** 선택지 응답 정리 — 영문 대문자 3자리(KRW 제외)만 중복 없이, 지점은 이름이 있고 좌표가 범위 안인 것만 이름 중복 없이. */
+export function normalizeOptions(out: Record<string, unknown>): WidgetOptions {
+  const currencies: string[] = [];
+  if (Array.isArray(out.currencies)) {
+    for (const c of out.currencies) {
+      const cur = typeof c === "string" ? c.trim().toUpperCase() : "";
+      if (CUR_CODE.test(cur) && cur !== "KRW" && !currencies.includes(cur)) currencies.push(cur);
+    }
+  }
+  const places: WeatherLocation[] = [];
+  for (const r of rowsOf(out.places)) {
+    const name = typeof r.name === "string" ? r.name.trim() : "";
+    const lat = toNumber(r.lat);
+    const lon = toNumber(r.lon);
+    if (name === "" || lat === null || lon === null || lat < -90 || lat > 90 || lon < -180 || lon > 180) continue;
+    if (places.some((p) => p.name === name)) continue;
+    places.push({ name, lat, lon });
+  }
+  return { currencies, places };
+}
+
+/** 선택지를 다시 읽기 전까지 두는 시간(ms) — 편집기를 여닫을 때마다 부르지 않게 한다. */
+export const OPTIONS_TTL_MS = 60_000;
+
+let optionsCache: { at: number; value: Promise<WidgetOptions> } | null = null;
+
+/**
+ * 환율 통화·날씨 지점 선택지(서버 값). 성공한 응답은 {@link OPTIONS_TTL_MS} 동안 다시 쓰고, 실패하면 캐시를 비워 다음에 다시 부른다.
+ * 호출하는 쪽은 실패·빈 목록일 때 고정 목록으로 대신한다.
+ */
+export function fetchWidgetOptions(now: number = Date.now()): Promise<WidgetOptions> {
+  if (optionsCache && now - optionsCache.at < OPTIONS_TTL_MS) return optionsCache.value;
+  const value = callAction("options", {}).then(normalizeOptions);
+  const entry = { at: now, value };
+  optionsCache = entry;
+  value.catch(() => {
+    if (optionsCache === entry) optionsCache = null;
+  });
+  return value;
+}
+
+/** 시험용 — 선택지 캐시를 비운다. */
+export function resetWidgetOptionsCache(): void {
+  optionsCache = null;
 }

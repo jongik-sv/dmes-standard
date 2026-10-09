@@ -7,7 +7,7 @@
 
 // ── 환율 ─────────────────────────────────────────────────────────────────
 
-/** 편집기가 보여 주는 통화(스펙 §6 Task 12). 환율 마스터 FX_RATE 의 통화 순서와 같다. VND·THB 는 마스터에 없어 뺐다. */
+/** 편집기가 보여 주는 통화의 고정 목록 — 서버 선택지(widgetExt/options)를 못 읽거나 비었을 때의 대신 값(스펙 §6 Task 12). 환율 마스터 FX_RATE 의 통화 순서와 같다. VND·THB 는 마스터에 없어 뺐다. */
 export const EXCHANGE_CURRENCIES = ["USD", "EUR", "JPY", "CNY", "GBP", "AUD", "CAD", "CHF", "HKD", "SGD"] as const;
 /** 서버가 한 번에 받는 통화 수(widgetExt/exchange symbols 1~10개). */
 export const MAX_EXCHANGE_CURRENCIES = 10;
@@ -87,13 +87,21 @@ export function exchangeRequest(cfg: ExchangeConfig): { symbols: string[]; days:
   return { symbols, days };
 }
 
-/** 통화 체크 — 편집기 목록 순서(USD·EUR·JPY…)로 정렬하고, 목록에 없는 코드는 맨 뒤에 둔다. */
-export function toggleCurrency(current: readonly string[], cur: string, checked: boolean): string[] {
+/**
+ * 통화 체크 — 편집기 목록 순서(`order`, 기본은 고정 목록 USD·EUR·JPY…)로 정렬하고, 목록에 없는 코드는 맨 뒤에 둔다.
+ * 서버가 준 통화 목록을 쓰는 편집기는 그 목록을 `order` 로 넘긴다.
+ */
+export function toggleCurrency(
+  current: readonly string[],
+  cur: string,
+  checked: boolean,
+  order: readonly string[] = EXCHANGE_CURRENCIES,
+): string[] {
   const set = new Set(current);
   if (checked) set.add(cur);
   else set.delete(cur);
-  const known = (EXCHANGE_CURRENCIES as readonly string[]).filter((c) => set.has(c));
-  const extra = [...set].filter((c) => !(EXCHANGE_CURRENCIES as readonly string[]).includes(c));
+  const known = order.filter((c) => set.has(c));
+  const extra = [...set].filter((c) => !order.includes(c));
   return [...known, ...extra];
 }
 
@@ -121,7 +129,7 @@ export const WEATHER_INITIAL: Readonly<WeatherConfig> = {
   locations: [{ name: "서울", lat: 37.5665, lon: 126.978 }],
 };
 
-/** 빠른 추가 버튼(스펙 §6 Task 12). */
+/** 빠른 추가 버튼의 고정 목록 — 서버 선택지(수집 작업 지점)를 못 읽거나 비었을 때의 대신 값(스펙 §6 Task 12). */
 export const QUICK_LOCATIONS: readonly WeatherLocation[] = [
   { name: "서울", lat: 37.5665, lon: 126.978 },
   { name: "인천", lat: 37.4563, lon: 126.7052 },

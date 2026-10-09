@@ -158,6 +158,7 @@ const confirmDeleteRow = () =>
 | 행복사에 훅을 쓰면서 `defaultRowValues` 를 줬는데 복사본이 기본값으로 덮인다 | 훅의 `handleGridDataChange` 가 복사 행에 `defaultRowValues` 를 덮어쓴다. 복사는 `grid.handleCopyRow` 를 직접 부르거나 `showCopyButton` 을 쓰지 않는다 |
 | 라벨에 업무명을 붙인다("단위 행추가") | 기본 라벨을 그대로 쓴다 |
 | `count` 에 선택 건수나 하드코딩 값을 준다 | 목록 전체 건수(`rows.length`)를 준다 |
+| `children` 에 안내 문구·배너 `<p>` 를 그리드와 나란히 둔다 | 본문 안 `AgDataGrid` 는 `position:absolute` 로 본문 전체를 덮으므로 안내가 그리드 헤더에 가려진다. 안내는 `GridPanel` 바깥에 둔다 — Local-Rules §45 |
 | `headerExtra` 안에서 `position: absolute`·`fixed` 로 요소를 띄우거나 `order` 로 설정 아이콘 앞에 세우려 한다 | 설정 아이콘 칸은 DOM 마지막·`order: 2147483647` 로 고정이라 `order` 는 통하지 않고, absolute 로 띄운 요소는 순서로 막지 못해 아이콘을 가린다. 일반 흐름(flex 자식)으로만 둔다 |
 | 읽기 전용 작은 표인데 설정 아이콘이 필요 없다고 GridPanel 머리줄 CSS 를 덮는다 | 안쪽 그리드에 `settingsMenu={false}` 를 준다 |
 

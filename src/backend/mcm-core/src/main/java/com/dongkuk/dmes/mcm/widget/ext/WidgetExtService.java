@@ -5,7 +5,12 @@ import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
 import com.dongkuk.dmes.mcm.widget.ext.dto.WidgetExtExchangeRequest;
 import com.dongkuk.dmes.mcm.widget.ext.dto.WidgetExtWeatherRequest;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -17,15 +22,22 @@ import org.springframework.stereotype.Service;
 @Service("widgetExtService")
 public class WidgetExtService {
 
+    private static final Logger log = LoggerFactory.getLogger(WidgetExtService.class);
+
     private final ExchangeService exchangeService;
     private final WeatherService weatherService;
     private final SecurityIdentity securityIdentity;
+    private final FxMasterReader fxMasterReader;
+    private final WeatherCollectReader weatherCollectReader;
 
     @Autowired
-    public WidgetExtService(ExchangeService exchangeService, WeatherService weatherService, SecurityIdentity securityIdentity) {
+    public WidgetExtService(ExchangeService exchangeService, WeatherService weatherService, SecurityIdentity securityIdentity,
+                            FxMasterReader fxMasterReader, WeatherCollectReader weatherCollectReader) {
         this.exchangeService = exchangeService;
         this.weatherService = weatherService;
         this.securityIdentity = securityIdentity;
+        this.fxMasterReader = fxMasterReader;
+        this.weatherCollectReader = weatherCollectReader;
     }
 
     /**
@@ -45,5 +57,35 @@ public class WidgetExtService {
     public Map<String, Object> weather(WidgetExtWeatherRequest request) {
         WidgetExtWeatherRequest r = request == null ? new WidgetExtWeatherRequest() : request;
         return weatherService.weather(r.getLat(), r.getLon());
+    }
+
+    /**
+     * 위젯 편집기 선택지 — {@code { currencies: ["USD", …], places: [{name, lat, lon}] }}.
+     * 통화는 환율 마스터(FX_RATE)의 칼럼 라벨, 지점은 날씨 수집 작업(mcm.weather.*)의 이름·좌표다. 어느 쪽이든 못 읽거나 비어 있으면
+     * 그 목록만 빈 채로 돌려주고(편집기가 고정 목록으로 대신한다) 다른 쪽 목록과 응답은 막지 않는다.
+     */
+    public Map<String, Object> options() {
+        List<String> currencies = List.of();
+        try {
+            currencies = fxMasterReader.currencies();
+        } catch (RuntimeException e) {
+            log.warn("[widgetExt] 환율 통화 선택지를 읽지 못했다: {}", e.getMessage());
+        }
+        List<Map<String, Object>> places = new ArrayList<>();
+        try {
+            for (WeatherCollectReader.Place p : weatherCollectReader.places()) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("name", p.name());
+                m.put("lat", p.lat().doubleValue());
+                m.put("lon", p.lon().doubleValue());
+                places.add(m);
+            }
+        } catch (RuntimeException e) {
+            log.warn("[widgetExt] 날씨 지점 선택지를 읽지 못했다: {}", e.getMessage());
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("currencies", currencies);
+        result.put("places", places);
+        return result;
     }
 }
