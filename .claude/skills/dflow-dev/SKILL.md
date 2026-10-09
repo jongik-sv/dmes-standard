@@ -28,7 +28,7 @@ description: D'Flow 작업 1건의 전체 개발 사이클 실행 (승인 스윕
 > - Phase 서브에이전트에게 주는 문구 = `references/phase-prompt.md`.
 > - 규칙 이유·사고 이력 = `references/rationale.md` (실행 중 안 읽음).
 >
-> 서버 통신 전부 dflow.mjs, 산문 파싱 금지 — exit code 로 분기. dflow-work 금지사항 전부 상속. **dflow.mjs 경로**: 대상 리포(cwd)의 `node .claude/skills/dflow-work/scripts/dflow.mjs` (환경변수 `DFLOW_SH` 있으면 우선). 경로는 **대상 리포 기준**. 킷(install.sh)도 리포 안 `.claude/skills/` 에 설치하므로 `~/.claude/skills/...` 추측 금지.
+> 서버 통신 전부 dflow.mjs, 산문 파싱 금지 — exit code 로 분기. dflow-work 금지사항 전부 상속. **dflow.mjs 경로**: 대상 리포(cwd)의 `node .claude/skills/dflow-work/scripts/dflow.mjs` (환경변수 `DFLOW_SH` = dflow.mjs 경로. 있으면 우선). 경로는 **대상 리포 기준**. 킷(install.sh)도 리포 안 `.claude/skills/` 에 설치하므로 `~/.claude/skills/...` 추측 금지.
 
 ## 게이트 집행 원칙 (이 스킬의 존재 이유)
 
