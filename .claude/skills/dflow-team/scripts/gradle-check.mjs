@@ -6,7 +6,6 @@
 // node 18.17 이상, 외부 패키지 없음.
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 
 const USAGE = '사용: gradle-check.mjs [<리포 경로>]';
 const HELP = 'Gradle 빌드 루트를 찾아 gradle.properties 의 권장 키 상태를 보고한다(읽기만 한다).\n'
@@ -72,13 +71,8 @@ function main(argv) {
   return 0;
 }
 
-function isMainEntry() {
-  try {
-    if (!process.argv[1]) return false;
-    return import.meta.url === pathToFileURL(process.argv[1]).href;
-  } catch { return false; }
-}
-if (isMainEntry()) {
+// 직접 실행·심링크 경로에서도 늘 main 을 실행한다(진입 가드 없음).
+{
   let rc = 0;
   try { rc = main(process.argv.slice(2)); } catch (e) {
     try { process.stderr.write(`내부 오류: ${(e && e.stack) || e}\n`); } catch { /* 무시 */ }

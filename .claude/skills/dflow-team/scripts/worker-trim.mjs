@@ -7,7 +7,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 
 const USAGE = '사용: worker-trim.mjs <MAIN> [<끌 플러그인 JSON> [<MCP 출력 접두>]]';
 const HELP = '팀원 전용 설정에 합칠 "첫 턴 컨텍스트 줄이기" 조각 JSON 한 줄을 만든다.\n'
@@ -325,13 +324,8 @@ function main(argv, env = process.env) {
   }
 }
 
-function isMainEntry() {
-  try {
-    if (!process.argv[1]) return false;
-    return import.meta.url === pathToFileURL(process.argv[1]).href;
-  } catch { return false; }
-}
-if (isMainEntry()) {
+// 직접 실행·심링크 경로에서도 늘 main 을 실행한다(진입 가드 없음).
+{
   let rc = 0;
   try { rc = main(process.argv.slice(2)); } catch (e) {
     try { process.stdout.write('{}\n'); } catch { /* 무시 */ }

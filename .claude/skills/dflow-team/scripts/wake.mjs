@@ -7,7 +7,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const USAGE = '사용: wake.mjs --owner <신원>/<host>/lead --slots <N> --busy <M> --until-label <표시> [--wp <WP 범위>] [--pid <PID>] [--no-events]';
@@ -188,13 +188,8 @@ function main(argv, env = process.env, cwd = process.cwd()) {
   return 0;
 }
 
-function isMainEntry() {
-  try {
-    if (!process.argv[1]) return false;
-    return import.meta.url === pathToFileURL(process.argv[1]).href;
-  } catch { return false; }
-}
-if (isMainEntry()) {
+// 직접 실행·심링크 경로에서도 늘 main 을 실행한다(진입 가드 없음).
+{
   let rc = 70;
   try { rc = main(process.argv.slice(2)); } catch (e) {
     try { process.stderr.write(`내부 오류: ${(e && e.stack) || e}\n`); } catch { /* 무시 */ }

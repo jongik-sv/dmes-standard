@@ -10,7 +10,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const USAGE = "사용: tick.mjs [--new-tick] [--may-skip] [--until <UNTIL>] [--wp <WP 범위>] --tm <TM> --owner <신원>/<host>/lead --slots <N> --until-label <표시> [--pid <PID>] -- [<경로|해시|pane> …]";
@@ -404,19 +404,12 @@ async function main(argv, env = process.env, cwd = process.cwd()) {
   }
 }
 
-function isMainEntry() {
-  try {
-    if (!process.argv[1]) return false;
-    return import.meta.url === pathToFileURL(process.argv[1]).href;
-  } catch { return false; }
-}
-if (isMainEntry()) {
-  Promise.resolve()
-    .then(() => main(process.argv.slice(2), process.env, process.cwd()))
-    .then((rc) => { process.exitCode = rc ?? 0; })
-    .catch((e) => {
-      try { process.stderr.write(`내부 오류: ${(e && e.stack) || e}\n`); } catch { /* 무시 */ }
-      process.exitCode = 70;
-    });
-}
+// 직접 실행·심링크 경로에서도 늘 main 을 실행한다(진입 가드 없음).
+Promise.resolve()
+  .then(() => main(process.argv.slice(2), process.env, process.cwd()))
+  .then((rc) => { process.exitCode = rc ?? 0; })
+  .catch((e) => {
+    try { process.stderr.write(`내부 오류: ${(e && e.stack) || e}\n`); } catch { /* 무시 */ }
+    process.exitCode = 70;
+  });
 

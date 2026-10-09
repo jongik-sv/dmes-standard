@@ -8,7 +8,6 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
-import { pathToFileURL } from 'node:url';
 
 const USAGE = "사용: lead-state.mjs [--agent <신원>/<host>/lead] [--repo <MAIN>] [--events <경로>] [--hash <worktree>]";
 const HELP = '/dflow-team 재구성의 보조 정본 요약.\n'
@@ -19,15 +18,13 @@ const HELP = '/dflow-team 재구성의 보조 정본 요약.\n'
 const HASH_CAP = 50;
 const RESOLVE_CONTENT = ['failed gate', 'failed push-race', 'failed push-hook', 'failed push-other', 'failed not-detached', 'failed dirty-dev-state'];
 
-// jq `//` 대응: null·false·undefined 이면 기본값
-const alt = (v, d) => (v === null || v === undefined || v === false ? d : v);
-const jstr = (v) => {
-  if (v === null || v === undefined) return 'null';
+// 값 출력 통일: jq `\(…)`·`//` 와 같게. null·undefined·false 는 기본값(없으면 null→'null', false→'false'), 객체는 JSON.
+const val = (v, d) => {
+  if (v === null || v === undefined || v === false) return d === undefined ? (v === false ? 'false' : 'null') : d;
   if (typeof v === 'string') return v;
   if (typeof v === 'number' || typeof v === 'boolean') return String(v);
   try { return JSON.stringify(v); } catch { return 'null'; }
 };
-const f = (v, d) => (v === null || v === undefined || v === false ? d : (typeof v === 'string' ? v : jstr(v)));
 
 function gitOut(args, cwd) {
   try {
@@ -38,17 +35,17 @@ function gitOut(args, cwd) {
 }
 
 function kindOf(s) {
-  if ((s.spawn_kind ?? '') === 'readopt') return 'readopt/' + (s.orig_kind ?? '-');
-  return s.spawn_kind ?? 'new';
+  if (val(s.spawn_kind, '') === 'readopt') return 'readopt/' + val(s.orig_kind, '-');
+  return val(s.spawn_kind, 'new');
 }
 
 function excl(e) {
   if (e.event === 'team.spawn' || e.event === 'team.blocked' || e.event === 'team.lost') return 'perm';
-  const s = e.status ?? '';
+  const s = val(e.status, '');
   if (s === 'done' || s === 'needs-merge' || s === 'resolved' || s === 'failed rate-limit'
     || s === 'design_waiting' || s === 'design_review' || s === 'design_reopened') return 'none';
   if (s === 'skipped') {
-    return String(e.reason ?? '').startsWith('선행 미충족(사전 검사:') ? 'none' : 'temp';
+    return val(e.reason, '').startsWith('선행 미충족(사전 검사:') ? 'none' : 'temp';
   }
   return 'perm';
 }
@@ -57,29 +54,30 @@ function summarize(all, bad, st, w, hw) {
   const out = [];
   if (hw !== '') {
     for (const h of hshowOf(all, w, hw).hshow) {
-      out.push(`HASH ${h.worktree} ${h.tsk ?? '-'} ${h.hash} ${h.status ?? 'blocked'} id8=${h.id8 ?? '-'} slot=${h.slot ?? '-'}`);
+      out.push(`HASH ${h.worktree} ${val(h.tsk, '-')} ${h.hash} ${val(h.status, 'blocked')} id8=${val(h.id8, '-')} slot=${val(h.slot, '-')}`);
     }
     return out;
   }
   const ex = [...w].reverse().find((e) => e.event === 'team.extend');
-  const last = {};
-  const lastq = {};
-  const sp = {};
+  // 삽입순 보존을 위해 Map 을 쓴다(일반 객체는 숫자만인 id8 을 숫자순으로 재배치한다)
+  const last = new Map();
+  const lastq = new Map();
+  const sp = new Map();
   for (const e of w) {
-    const id = e.id8 ?? '';
-    if ((e.event === 'team.spawn' || e.event === 'team.blocked' || e.event === 'team.result' || e.event === 'team.lost') && id !== '' && id !== '-') last[id] = e;
-    if ((e.event === 'team.spawn' || e.event === 'team.blocked' || e.event === 'team.result' || e.event === 'team.lost' || e.event === 'team.answer') && id !== '' && id !== '-') lastq[id] = e;
-    if (e.event === 'team.spawn' && id !== '') sp[id] = e;
+    const id = val(e.id8, '');
+    if ((e.event === 'team.spawn' || e.event === 'team.blocked' || e.event === 'team.result' || e.event === 'team.lost') && id !== '' && id !== '-') last.set(id, e);
+    if ((e.event === 'team.spawn' || e.event === 'team.blocked' || e.event === 'team.result' || e.event === 'team.lost' || e.event === 'team.answer') && id !== '' && id !== '-') lastq.set(id, e);
+    if (e.event === 'team.spawn' && id !== '') sp.set(id, e);
   }
-  const res = Object.values(sp)
-    .filter((s) => /-resolve\/?$/.test(s.worktree ?? '') || (s.spawn_kind ?? '') === 'resolve' || ((s.orig_kind ?? '') === 'resolve'))
+  const res = [...sp.values()]
+    .filter((s) => /-resolve\/?$/.test(val(s.worktree, '')) || val(s.spawn_kind, '') === 'resolve' || val(s.orig_kind, '') === 'resolve')
     .map((s) => s.id8);
-  const slotIds = Object.values(last)
+  const slotIds = [...last.values()]
     .filter((e) => e.event === 'team.spawn' || e.event === 'team.blocked')
     .map((e) => e.id8);
   const { hshow, homit } = hshowOf(all, w, hw, slotIds);
 
-  out.push(`RUN start=${f(st?.ts, '-')} backend=${f(st?.backend, '-')} slots=${f(st?.slots, '-')} until=${ex ? jstr(ex.until) : f(st?.until, '-')} until_label=${ex ? f(ex.until_label, '-') : '-'} wp=${f(st?.wp, '-')} scope=${f(st?.scope, '-')}`);
+  out.push(`RUN start=${val(st?.ts, '-')} backend=${val(st?.backend, '-')} slots=${val(st?.slots, '-')} until=${ex ? val(ex.until) : val(st?.until, '-')} until_label=${ex ? val(ex.until_label, '-') : '-'} wp=${val(st?.wp, '-')} scope=${val(st?.scope, '-')}`);
   out.push(`EVENTS window=${w.length} total=${all.length} bad=${bad}`);
 
   // 차단기: 끝에서부터 연속한 실패 수
@@ -87,10 +85,10 @@ function summarize(all, bad, st, w, hw) {
   for (const e of [...w].reverse()) {
     if (e.event !== 'team.result' && e.event !== 'team.blocked' && e.event !== 'team.lost') continue;
     if (stop) break;
-    if (e.event === 'team.lost') { if ((e.next ?? '') !== 'wait') bn += 1; }
+    if (e.event === 'team.lost') { if (val(e.next, '') !== 'wait') bn += 1; }
     else if (e.event === 'team.blocked') stop = true;
     else {
-      const s = e.status ?? '';
+      const s = val(e.status, '');
       if (s === 'failed not-assignee' || s === 'cancelled') { /* 무시 */ }
       else if (res.includes(e.id8) && RESOLVE_CONTENT.includes(s)) { /* 해소 워커의 예상 실패는 무시 */ }
       else if (s.startsWith('failed')) bn += 1;
@@ -104,70 +102,70 @@ function summarize(all, bad, st, w, hw) {
   for (let k = 0; k < all.length; k++) if (all[k].event === 'team.sweep') swi = k;
   const p = {}; let cr = 0; let co = 0;
   for (const e of (swi === null || swi < 0 ? all : all.slice(swi + 1))) {
-    const i = e.id8 ?? '-';
+    const i = val(e.id8, '-');
     const pv = p[i] ?? '';
-    if (e.event === 'team.result' && (e.status ?? '') === 'resolved') {
+    if (e.event === 'team.result' && val(e.status, '') === 'resolved') {
       if (pv === 'C') { cr += 1; co -= 1; p[i] = ''; } else p[i] = 'R';
-    } else if (e.event === 'team.conflict' && (e.decision ?? '') === 'cleared') {
+    } else if (e.event === 'team.conflict' && val(e.decision, '') === 'cleared') {
       if (pv === 'R') { cr += 1; p[i] = ''; } else { co += 1; p[i] = 'C'; }
     } else if (e.event === 'team.conflict') p[i] = '';
   }
   out.push(`CONFLICT_CLEARED resolved=${cr} other=${co}`);
   out.push(`HASH_OMITTED ${homit}`);
-  const perm = Object.values(last).filter((e) => excl(e) === 'perm').map((e) => e.id8);
-  const temp = Object.values(last).filter((e) => excl(e) === 'temp').map((e) => e.id8);
+  const perm = [...last.values()].filter((e) => excl(e) === 'perm').map((e) => e.id8);
+  const temp = [...last.values()].filter((e) => excl(e) === 'temp').map((e) => e.id8);
   out.push(`EXCLUDE_PERM ${perm.length === 0 ? '-' : perm.join(',')}`);
   out.push(`EXCLUDE_TEMP ${temp.length === 0 ? '-' : temp.join(',')}`);
 
-  const issues = {};
+  const issues = new Map();
   for (const e of w) {
     if (e.event !== 'team.issue') continue;
-    const id = e.id8 ?? '';
+    const id = val(e.id8, '');
     if (id === '' || id === 'dialect') continue;
-    issues[id] = e;
+    issues.set(id, e);
   }
-  for (const e of Object.values(issues)) {
-    if (e.decision === 'pending') out.push(`ISSUE_PENDING ${e.id8} ${e.summary ?? ''}`);
+  for (const e of issues.values()) {
+    if (e.decision === 'pending') out.push(`ISSUE_PENDING ${e.id8} ${val(e.summary, '')}`);
   }
-  for (const e of Object.values(lastq)) {
-    if (e.event === 'team.blocked') out.push(`WAIT_ANSWER ${e.id8} slot=${e.slot ?? '-'} ${e.reason ?? ''}`);
+  for (const e of lastq.values()) {
+    if (e.event === 'team.blocked') out.push(`WAIT_ANSWER ${e.id8} slot=${val(e.slot, '-')} ${val(e.reason, '')}`);
   }
-  for (const e of Object.values(last)) {
-    if (e.event === 'team.lost') out.push(`LOST ${e.id8} cause=${e.cause ?? '-'} next=${e.next ?? '-'}`);
+  for (const e of last.values()) {
+    if (e.event === 'team.lost') out.push(`LOST ${e.id8} cause=${val(e.cause, '-')} next=${val(e.next, '-')}`);
   }
 
   const now = Math.floor(Date.now() / 1000);
   const thr = new Date((now - 1800) * 1000).toISOString().slice(0, 19) + 'Z';
-  for (const e of Object.values(last)) {
-    if (e.event !== 'team.result' || (e.status ?? '') !== 'skipped') continue;
-    const m = /^(fetch|push) 실패/.exec(e.reason ?? '');
+  for (const e of last.values()) {
+    if (e.event !== 'team.result' || val(e.status, '') !== 'skipped') continue;
+    const m = /^(fetch|push) 실패/.exec(val(e.reason, ''));
     if (!m) continue;
-    const seq = w.filter((x) => x.event === 'team.result' && (x.id8 ?? '') === e.id8).reverse();
+    const seq = w.filter((x) => x.event === 'team.result' && val(x.id8, '') === e.id8).reverse();
     let n = 0;
     for (const x of seq) {
-      if ((x.status ?? '') === 'skipped' && /^(fetch|push) 실패/.test(x.reason ?? '')) n += 1;
+      if (val(x.status, '') === 'skipped' && /^(fetch|push) 실패/.test(val(x.reason, ''))) n += 1;
       else break;
     }
     if (n >= 3) out.push(`WARN_RETRY ${e.id8} reason=${m[1]} n=${n}`);
-    else if ((e.ts ?? '') <= thr) out.push(`RETRY_DUE ${e.id8} reason=${m[1]} n=${n}`);
+    else if (val(e.ts, '') <= thr) out.push(`RETRY_DUE ${e.id8} reason=${m[1]} n=${n}`);
   }
-  for (const e of Object.values(last)) {
-    if (e.event !== 'team.result' || (e.status ?? '') !== 'skipped') continue;
-    const rs = e.reason ?? '';
+  for (const e of last.values()) {
+    if (e.event !== 'team.result' || val(e.status, '') !== 'skipped') continue;
+    const rs = val(e.reason, '');
     let why = '';
     if (rs.startsWith('설계 관문(')) why = 'gate';
     else if (rs.startsWith('주문이 바뀜')) why = 'changed';
     else if (rs.startsWith('다른 PC 도는 중(')) why = 'runner';
     else if (rs.startsWith('design-reopen 미확인')) why = 'reopen';
-    if (why !== '' && (e.ts ?? '') <= thr) out.push(`BUILD_RETRY_DUE ${e.id8} reason=${why}`);
+    if (why !== '' && val(e.ts, '') <= thr) out.push(`BUILD_RETRY_DUE ${e.id8} reason=${why}`);
   }
-  for (const e of Object.values(last)) {
+  for (const e of last.values()) {
     if (e.event !== 'team.spawn' && e.event !== 'team.blocked') continue;
-    const s = sp[e.id8] ?? e;
-    out.push(`SLOT ${s.slot ?? '-'} ${e.id8} tsk=${s.tsk ?? '-'} order=${s.order ?? '-'} kind=${kindOf(s)} state=${String(e.event).replace(/^team\./, '')} resolve=${res.includes(e.id8) ? 1 : 0} worktree=${s.worktree ?? '-'} handle=${s.handle ?? '-'}`);
+    const s = sp.get(e.id8) ?? e;
+    out.push(`SLOT ${val(s.slot, '-')} ${e.id8} tsk=${val(s.tsk, '-')} order=${val(s.order, '-')} kind=${kindOf(s)} state=${String(e.event).replace(/^team\./, '')} resolve=${res.includes(e.id8) ? 1 : 0} worktree=${val(s.worktree, '-')} handle=${val(s.handle, '-')}`);
   }
   for (const h of hshow) {
-    out.push(`HASH ${h.worktree} ${h.tsk ?? '-'} ${h.hash} ${h.status ?? 'blocked'} id8=${h.id8 ?? '-'} slot=${h.slot ?? '-'}`);
+    out.push(`HASH ${h.worktree} ${val(h.tsk, '-')} ${h.hash} ${val(h.status, 'blocked')} id8=${val(h.id8, '-')} slot=${val(h.slot, '-')}`);
   }
   return out;
 }
@@ -177,8 +175,8 @@ function hshowOf(all, w, hw, slotIds) {
   const seen = new Map();
   w.forEach((e, k) => {
     if (e.event !== 'team.result' && e.event !== 'team.blocked') return;
-    if ((e.worktree ?? '-') === '-' || (e.hash ?? '-') === '-') return;
-    seen.set(`${e.worktree}	${e.tsk ?? '-'}`, { ...e, _k: k });
+    if (val(e.worktree, '-') === '-' || val(e.hash, '-') === '-') return;
+    seen.set(`${e.worktree}	${val(e.tsk, '-')}`, { ...e, _k: k });
   });
   const hall = [...seen.values()].sort((a, b) => b._k - a._k);
   if (hw !== '') return { hshow: hall.filter((h) => h.worktree === hw), homit: 0 };
@@ -190,7 +188,7 @@ function hshowOf(all, w, hw, slotIds) {
 
 function main(argv, env = process.env, cwd = process.cwd()) {
   let AGENT = ''; let REPO = ''; let HW = '';
-  let EV = env.DFLOW_EVENTS ?? `${env.HOME ?? os.homedir()}/.dflow/events.jsonl`;
+  let EV = env.DFLOW_EVENTS || `${env.HOME ?? os.homedir()}/.dflow/events.jsonl`;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '-h' || a === '--help') { process.stdout.write(HELP); return 0; }
@@ -210,9 +208,13 @@ function main(argv, env = process.env, cwd = process.cwd()) {
   }
   if (AGENT === '') {
     const lp = gitOut(['rev-parse', '--path-format=absolute', '--git-path', 'dflow-team.lock'], cwd);
+    // owner 파일은 줄마다 첫 칸을 cut 처럼 이어 붙인다(끝 줄바꿈 제거)
     let o = '';
     if (lp !== null) {
-      try { o = String(fs.readFileSync(`${lp}/owner`, 'utf8').split('\n')[0] ?? '').split(' ')[0] ?? ''; } catch { o = ''; }
+      try {
+        o = fs.readFileSync(`${lp}/owner`, 'utf8').split('\n')
+          .map((ln) => ln.split(' ')[0] ?? '').join('\n').replace(/\n+$/, '');
+      } catch { o = ''; }
     }
     if (o === '') { process.stderr.write('FAIL NO_AGENT --agent 를 주거나 팀장 잠금을 먼저 잡아라\n'); return 2; }
     AGENT = o;
@@ -253,13 +255,8 @@ function main(argv, env = process.env, cwd = process.cwd()) {
   }
 }
 
-function isMainEntry() {
-  try {
-    if (!process.argv[1]) return false;
-    return import.meta.url === pathToFileURL(process.argv[1]).href;
-  } catch { return false; }
-}
-if (isMainEntry()) {
+// 직접 실행·심링크 경로에서도 늘 main 을 실행한다(진입 가드 없음).
+{
   let rc = 70;
   try { rc = main(process.argv.slice(2)); } catch (e) {
     try { process.stderr.write(`내부 오류: ${(e && e.stack) || e}\n`); } catch { /* 무시 */ }

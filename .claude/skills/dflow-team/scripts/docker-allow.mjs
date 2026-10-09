@@ -6,7 +6,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const USAGE = '사용법: docker-allow.mjs <id8|order> [--reuse-dir <dir>] | --json';
@@ -82,13 +82,8 @@ function main(argv, env = process.env, cwd = process.cwd()) {
   return 0;
 }
 
-function isMainEntry() {
-  try {
-    if (!process.argv[1]) return false;
-    return import.meta.url === pathToFileURL(process.argv[1]).href;
-  } catch { return false; }
-}
-if (isMainEntry()) {
+// 직접 실행·심링크 경로에서도 늘 main 을 실행한다(진입 가드 없음).
+{
   let rc = 0;
   try { rc = main(process.argv.slice(2)); } catch (e) {
     try { process.stdout.write('DOCKER=ban show-failed\n'); } catch { /* 무시 */ }
