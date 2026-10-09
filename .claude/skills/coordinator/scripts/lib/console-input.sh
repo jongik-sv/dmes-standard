@@ -59,12 +59,14 @@
 #   console_input_notify <이름>  폴러가 다음 주기에 office.sh 로 알리게 input/.notify/<이름> 표식을 남긴다
 # <이름> = `<kind>_<ref>`(coord_lane_<레인>·coord_lead_<세션8>·team_lead_lead). ref 는 [A-Za-z0-9._-] 만(경로 이탈 방지).
 # 화면 원문·발췌는 stderr 에 내지 않는다.
+_ci_d="${BASH_SOURCE[0]%/*}"; [ "$_ci_d" != "${BASH_SOURCE[0]}" ] || _ci_d=.
+. "$_ci_d/js-bridge.sh"   # COORD_JS_CONSOLE_INPUT=1 이면 아래 공개 25함수를 scripts/lib/console-input.mjs(node)로 넘긴다(기본 꺼짐; 셸 변수인 DFLOW_CONSOLE_DIR·COORD_CONSOLE_* 는 호출마다 환경으로 넘긴다)
 
 _ci_dir() { coord_expand "${DFLOW_CONSOLE_DIR:-$HOME/.dflow/console}"; }
-console_input_ref_ok() { case "${1:-}" in ''|.*|*[!A-Za-z0-9._-]*) return 1 ;; esac; [ "${#1}" -le 64 ]; }
+console_input_ref_ok() { if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_input_ref_ok "$@"; return; fi; case "${1:-}" in ''|.*|*[!A-Za-z0-9._-]*) return 1 ;; esac; [ "${#1}" -le 64 ]; }
 _ci_name_ok() { case "${1:-}" in coord_lane_?*|coord_lead_?*|team_lead_lead) console_input_ref_ok "${1#*_*_}" ;; *) return 1 ;; esac; }
 
-console_input_kind() { coord_screen_prompt_kind; }
+console_input_kind() { if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_input_kind "$@"; return; fi; coord_screen_prompt_kind; }
 
 # 발췌(계약 보강 (가)): 가린 화면 줄(console_screen_filter, ≤40줄)을 줄마다 정리(제어 문자 삭제·줄 끝 공백 제거·200자 자름)한 뒤
 #   열쇠 줄 = 커서 줄(앞의 상자 테두리·공백을 건너뛰고 ❯·›·> + 공백 + 글) · 선택지 줄(앞에 커서가 있어도 되는 `N.`).
@@ -223,11 +225,12 @@ def fold: (if test("\\A[\\s│┃║|]*(?:❯|›|>)\\s+\\S") then sub("\\A(?<a>
   end'
 
 console_excerpt_json() {
+ if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_excerpt_json "$@"; return; fi
   local f
   f="$(console_screen_filter)" || return 71
   printf '%s\n' "$f" | jq -Rsc "$_CI_EXCERPT_JQ" 2>/dev/null
 }
-console_excerpt() { local j; j="$(console_excerpt_json)" || return $?; printf '%s' "$j" | jq -r '.[]'; }
+console_excerpt() { if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_excerpt "$@"; return; fi; local j; j="$(console_excerpt_json)" || return $?; printf '%s' "$j" | jq -r '.[]'; }
 # openssl → sha256sum → node crypto 순(shasum 은 perl 기반이라 호출당 비용이 5배쯤 들어 쓰지 않는다). 출력은 늘 소문자 hex 64자 한 줄(같은 값).
 _ci_sha256() {
   local h
@@ -238,9 +241,10 @@ _ci_sha256() {
   else return 1; fi
 }
 console_excerpt_sha() {
+ if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_excerpt_sha "$@"; return; fi
   jq -Rsj 'split("\n") | (if length > 0 and .[-1] == "" then .[:-1] else . end) | '"$_CI_SHA_JQ" 2>/dev/null | _ci_sha256
 }
-console_excerpt_sha_json() { jq -j "$_CI_SHA_JQ" 2>/dev/null | _ci_sha256; }
+console_excerpt_sha_json() { if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_excerpt_sha_json "$@"; return; fi; jq -j "$_CI_SHA_JQ" 2>/dev/null | _ci_sha256; }
 
 # 창 지문(위 머리 주석). 폴러 감지·키 행 재판정·judge-sha·term-send-safe --expect-sha·auto-answer 판정과 재확인이 모두
 # console_input_snapshot 을 거쳐 이 함수 하나를 쓴다(입력 줄 수가 달라도 창이 같으면 같은 값).
@@ -267,6 +271,7 @@ _ci_timed() {
   return "$rc"
 }
 console_window_json() {
+ if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_window_json "$@"; return; fi
   local s k
   s="$(cat)"
   k="$(printf '%s\n' "$s" | coord_screen_prompt_kind)"
@@ -285,6 +290,7 @@ _ci_full_of_win() {
   printf '%s\n' "$h"
 }
 console_full_sha() {
+ if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_full_sha "$@"; return; fi
   local w
   w="$(console_window_json)" || return 1
   _ci_full_of_win "$w"
@@ -292,6 +298,7 @@ console_full_sha() {
 
 CI_KIND=""; CI_EXC=""; CI_SHA=""; CI_FULL=""; CI_WIN=""
 console_input_snapshot() {
+ if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_callg console-input console_input_snapshot "CI_KIND CI_EXC CI_SHA CI_FULL CI_WIN" "$@"; return; fi
   local f
   CI_KIND="$(console_input_kind < "$1")"; CI_EXC=""; CI_SHA=""; CI_FULL=""; CI_WIN=""
   [ -n "$CI_KIND" ] || return 1
@@ -309,6 +316,7 @@ console_input_snapshot() {
 # ---- 시각 ------------------------------------------------------------------------------------
 # GNU·macOS date 의 %N → node → 초 단위. 앞 둘은 결과가 ms ISO 꼴일 때만 쓴다(마지막은 예전처럼 검증 없이).
 console_now_ms_iso() {
+ if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_now_ms_iso "$@"; return; fi
   local d n
   d="$(date -u +%Y-%m-%dT%H:%M:%S.%N 2>/dev/null)"
   if [[ "$d" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{9}$ ]]; then printf '%s' "${d:0:23}Z"; return 0; fi
@@ -319,6 +327,7 @@ console_now_ms_iso() {
   date -u +%Y-%m-%dT%H:%M:%S.000Z
 }
 console_iso_to_ms() {
+ if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_iso_to_ms "$@"; return; fi
   local iso="${1:-}" e fr
   [[ "$iso" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?(Z|[+-][0-9]{2}:[0-9]{2})$ ]] || return 1   # grep -Eqx 와 같은 꼴(프로세스 없이)
   e="$(coord_iso_to_epoch "$iso")"
@@ -328,6 +337,7 @@ console_iso_to_ms() {
   printf '%s\n' "$(( e * 1000 + 10#$fr ))"
 }
 console_ms_to_iso() {
+ if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_ms_to_iso "$@"; return; fi
   local ms="${1:-}" s
   case "$ms" in ''|*[!0-9]*) return 1 ;; esac
   s=$(( ms / 1000 ))
@@ -349,6 +359,7 @@ _ci_lock_live() {  # <잠금 폴더> — 산 주인이 쥐고 있으면 0
 }
 _ci_lock_write() { printf '%s\n' "$$" > "$1/pid"; declare -F coord_pstart >/dev/null 2>&1 && coord_pstart "$$" > "$1/pstart" 2>/dev/null; return 0; }
 console_lane_lock() {
+ if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_lane_lock "$@"; return; fi
   local lane="${1:-}" wait="${2:-${COORD_CONSOLE_LANE_LOCK_WAIT_S:-10}}" d m st i=0 n p
   console_input_ref_ok "$lane" || return 1
   case "$wait" in ''|*[!0-9]*) wait=10 ;; esac
@@ -371,17 +382,20 @@ console_lane_lock() {
   done
 }
 console_lane_unlock() {
+ if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_lane_unlock "$@"; return; fi
   local d p; console_input_ref_ok "${1:-}" || return 0
   d="$(_ci_dir)/lock/lane-$1"
   coord_read1 p "$d/pid"; [ "$p" = "$$" ] && rm -rf "$d"
   return 0
 }
 console_lane_mark_sent() {
+ if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_lane_mark_sent "$@"; return; fi
   local d; console_input_ref_ok "${1:-}" || return 0
   d="$(_ci_dir)/lock"; coord_mkdirp "$d"
   printf '%s %s\n' "$(coord_now_epoch)" "${2:--}" > "$d/lane-$1.sent.tmp.$$" && mv -f "$d/lane-$1.sent.tmp.$$" "$d/lane-$1.sent"
 }
 console_lane_recent_send() {
+ if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_lane_recent_send "$@"; return; fi
   local f t s g="${COORD_CONSOLE_SENT_GRACE_S:-10}"
   console_input_ref_ok "${1:-}" || return 1
   case "$g" in ''|*[!0-9]*) g=10 ;; esac
@@ -406,6 +420,7 @@ _ci_list_add() {  # <파일> <since> <값> — 같은 줄이 이미 있으면 �
     while [ "$_i" -lt "$_n" ]; do printf '%s\n' "${_ls[$_i]}"; _i=$((_i + 1)); done > "$1.tmp.$$" && mv -f "$1.tmp.$$" "$1" )
 }
 console_consumed_add() {
+ if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_consumed_add "$@"; return; fi
   _ci_name_ok "${1:-}" || return 1
   _ci_hex64 "${3:-}" || return 1
   console_iso_to_ms "${2:-}" >/dev/null || return 1
@@ -429,6 +444,7 @@ _ci_list_has() {  # <파일> <정규형 since> <값|빈 값=무관>
   return 1
 }
 console_consumed_has() {
+ if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_consumed_has "$@"; return; fi
   local want; _ci_name_ok "${1:-}" || return 1
   want="$(console_iso_to_ms "${2:-}")" || return 1
   want="$(console_ms_to_iso "$want")" || return 1    # 정규형(UTC 밀리초 …Z)으로 한 번 바꾼다
@@ -437,6 +453,7 @@ console_consumed_has() {
   return 1
 }
 console_consumed_has_since() {
+ if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_consumed_has_since "$@"; return; fi
   local want; _ci_name_ok "${1:-}" || return 1
   want="$(console_iso_to_ms "${2:-}")" || return 1
   want="$(console_ms_to_iso "$want")" || return 1
@@ -444,8 +461,8 @@ console_consumed_has_since() {
 }
 
 # ---- 기록 파일 -------------------------------------------------------------------------------
-console_input_file() { printf '%s/input/%s.json' "$(_ci_dir)" "$1"; }
-console_input_rec_lock() {  # 짧게 쥔다(3초 대기). 10초 넘은 잠금은 죽은 것으로 보고 치운다
+console_input_file() { if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_input_file "$@"; return; fi; printf '%s/input/%s.json' "$(_ci_dir)" "$1"; }
+console_input_rec_lock() { if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_input_rec_lock "$@"; return; fi;  # 짧게 쥔다(3초 대기). 10초 넘은 잠금은 죽은 것으로 보고 치운다
   local d i=0; _ci_name_ok "${1:-}" || return 1
   d="$(_ci_dir)/input/.$1.lock"; coord_mkdirp "${d%/*}"
   until mkdir "$d" 2>/dev/null; do
@@ -454,14 +471,16 @@ console_input_rec_lock() {  # 짧게 쥔다(3초 대기). 10초 넘은 잠금은
     sleep 0.1
   done
 }
-console_input_rec_unlock() { _ci_name_ok "${1:-}" && rmdir "$(_ci_dir)/input/.$1.lock" 2>/dev/null; return 0; }
+console_input_rec_unlock() { if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_input_rec_unlock "$@"; return; fi; _ci_name_ok "${1:-}" && rmdir "$(_ci_dir)/input/.$1.lock" 2>/dev/null; return 0; }
 console_input_write() {
+ if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_input_write "$@"; return; fi
   local f; _ci_name_ok "${1:-}" || return 1
   f="$(console_input_file "$1")"
   ( umask 077; mkdir -p "$(dirname "$f")" && printf '%s\n' "$2" > "$f.tmp.$$" && chmod 600 "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f" )
 }
 CI_MH_REC=""; CI_MH_CONS=1
 console_input_mark_handled() {
+ if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_callg console-input console_input_mark_handled "CI_MH_REC CI_MH_CONS" "$@"; return; fi
   local name="${1:-}" by="${2:-}" want="${3:-}" f cur since sha full new
   CI_MH_REC=""; CI_MH_CONS=1
   _ci_name_ok "$name" || return 4
@@ -483,6 +502,7 @@ console_input_mark_handled() {
   return 0
 }
 console_input_notify() {
+ if _jsb_on CONSOLE_INPUT; then DFLOW_CONSOLE_DIR="${DFLOW_CONSOLE_DIR:-}" COORD_CONSOLE_WINDOW_TIMEOUT_S="${COORD_CONSOLE_WINDOW_TIMEOUT_S:-}" COORD_CONSOLE_LANE_LOCK_WAIT_S="${COORD_CONSOLE_LANE_LOCK_WAIT_S:-}" COORD_CONSOLE_SENT_GRACE_S="${COORD_CONSOLE_SENT_GRACE_S:-}" _jsb_call console-input console_input_notify "$@"; return; fi
   local d; _ci_name_ok "${1:-}" || return 1
   d="$(_ci_dir)/input/.notify"; coord_mkdirp "$d"; [ -d "$d" ] && : > "$d/$1"
 }

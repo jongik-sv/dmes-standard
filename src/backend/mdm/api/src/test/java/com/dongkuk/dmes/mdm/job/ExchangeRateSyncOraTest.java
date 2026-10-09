@@ -50,7 +50,7 @@ class ExchangeRateSyncOraTest extends AbstractMdmSharedDbTest {
 
     /** 시계가 가리키는 날(T0 = 2026-09-01 09:00). */
     private static final LocalDate TODAY = T0.toLocalDate();
-    private static final String FX_PATTERN = "^[A-Z]{3}[0-9]{8}$";
+    private static final String FX_PATTERN = "^[0-9]{8}$";
 
     @Autowired
     JdbcTemplate jdbc;
@@ -114,7 +114,7 @@ class ExchangeRateSyncOraTest extends AbstractMdmSharedDbTest {
         currency("JPY", 3, "ASIA", "Y");
         currency("EUR", 4, "EUROPE", "Y");
         currency("GBP", 5, "EUROPE", "N");
-        insertMaruData(jdbc, "FX_RATE", "EXTERNAL", "MDM", "INUSE", FX_PATTERN, 0, "통화", "기준일", "환율", "기준통화", "출처");
+        insertMaruData(jdbc, "FX_RATE", "EXTERNAL", "MDM", "INUSE", FX_PATTERN, 0, "USD", "EUR", "JPY");
 
         properties = new WidgetExtProperties();
         frankfurter = new FakeProvider("frankfurter");
@@ -154,7 +154,7 @@ class ExchangeRateSyncOraTest extends AbstractMdmSharedDbTest {
 
         int written = service.run(ctx(new BigDecimal("5"), ""));
 
-        assertEquals(4, written);
+        assertEquals(2, written);
         assertEquals(1, frankfurter.calls);
         assertEquals(0, koreaExim.calls);
         assertEquals("KRW", frankfurter.lastBase);
@@ -163,28 +163,29 @@ class ExchangeRateSyncOraTest extends AbstractMdmSharedDbTest {
         assertEquals(TODAY.minusDays(90), frankfurter.lastFrom);
         assertEquals(TODAY, frankfurter.lastTo);
 
-        assertEquals(4, fxCount());
-        Map<String, Object> usd = openFx("USD20260901");
-        assertEquals("USD 2026-09-01", usd.get("NAME"));
-        assertEquals("USD", usd.get("ATTR01"));
-        assertEquals("20260901", usd.get("ATTR02"));
-        assertEquals("1390.00000000", usd.get("ATTR03"));
-        assertEquals("KRW", usd.get("ATTR04"));
-        assertEquals("frankfurter", usd.get("ATTR05"));
-        assertEquals("1500.12345679", openFx("EUR20260901").get("ATTR03"));
+        // 날짜 한 행에 통화는 칼럼(USD=ATTR01, EUR=ATTR02, JPY=ATTR03)이다.
+        assertEquals(2, fxCount());
+        Map<String, Object> day = openFx("20260901");
+        assertEquals("2026-09-01", day.get("NAME"));
+        assertEquals("1390.00000000", day.get("ATTR01"));
+        assertEquals("1500.12345679", day.get("ATTR02"));
+        assertEquals("9.31000000", day.get("ATTR03"));
+        assertNull(day.get("ATTR04"));
+        assertEquals("기준통화 KRW · 출처 frankfurter", day.get("DESCRIPTION"));
+        assertEquals("1384.50000000", openFx("20260831").get("ATTR01"));
     }
 
     @Test
     void 같은_값으로_다시_돌리면_0건이고_행은_그대로다() {
         frankfurter.points = List.of(point("2026-09-01", "USD", "1390"), point("2026-09-01", "JPY", "9.31"));
-        assertEquals(2, service.run(ctx(5, "")));
-        Object validFrom = openFx("USD20260901").get("VALID_FROM");
+        assertEquals(1, service.run(ctx(5, "")));
+        Object validFrom = openFx("20260901").get("VALID_FROM");
         clock.setLocal(T0.plusHours(1));
 
         assertEquals(0, service.run(ctx(5, "")));
 
-        assertEquals(2, fxCount());
-        assertEquals(validFrom, openFx("USD20260901").get("VALID_FROM"));
+        assertEquals(1, fxCount());
+        assertEquals(validFrom, openFx("20260901").get("VALID_FROM"));
         // 이력이 생겼으니 이번에는 lookbackDays 로 묻는다.
         assertEquals(TODAY.minusDays(5), frankfurter.lastFrom);
     }
@@ -200,23 +201,59 @@ class ExchangeRateSyncOraTest extends AbstractMdmSharedDbTest {
 
         assertEquals(1, written);
         assertEquals(TODAY.minusDays(2), frankfurter.lastFrom);
-        assertEquals("1391.25000000", openFx("USD20260901").get("ATTR03"));
-        assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = 'FX_RATE' AND CODE = 'USD20260901'",
+        assertEquals("1391.25000000", openFx("20260901").get("ATTR01"));
+        assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = 'FX_RATE' AND CODE = '20260901'",
                 Integer.class));
-        assertEquals("9.31000000", openFx("JPY20260901").get("ATTR03"));
+        assertEquals("9.31000000", openFx("20260901").get("ATTR03"));
+    }
+
+    @Test
+    void 같은_날_일부_통화만_받으면_받은_칼럼만_갱신하고_나머지는_보존한다() {
+        frankfurter.points = List.of(point("2026-09-01", "USD", "1390"), point("2026-09-01", "JPY", "9.31"));
+        service.run(ctx(5, ""));
+        clock.setLocal(T0.plusHours(1));
+        frankfurter.points = List.of(point("2026-09-01", "EUR", "1500"), point("2026-09-01", "USD", "1395"));
+
+        assertEquals(1, service.run(ctx(5, "")));
+
+        Map<String, Object> day = openFx("20260901");
+        assertEquals("1395.00000000", day.get("ATTR01"));
+        assertEquals("1500.00000000", day.get("ATTR02"));
+        assertEquals("9.31000000", day.get("ATTR03"));
+    }
+
+    @Test
+    void 환율_칼럼_라벨이_없는_통화는_수집_대상에서_빠진다() {
+        jdbc.update("UPDATE TB_MDM_DATA_ITEM SET ATTR04 = 'Y' WHERE MARU_DATA_ID = 'CUR' AND CODE = 'GBP'");
+        frankfurter.points = List.of(point("2026-09-01", "USD", "1390"));
+
+        service.run(ctx(5, ""));
+
+        assertEquals(List.of("USD", "JPY", "EUR"), frankfurter.lastSymbols);
+    }
+
+    @Test
+    void 통화_라벨을_바꾸면_칼럼_대응이_따라간다() {
+        jdbc.update("UPDATE TB_MDM_DATA SET ATTR01_NAME = 'EUR', ATTR02_NAME = 'USD' WHERE MARU_DATA_ID = 'FX_RATE'");
+        frankfurter.points = List.of(point("2026-09-01", "USD", "1390"));
+
+        service.run(ctx(5, ""));
+
+        assertEquals("1390.00000000", openFx("20260901").get("ATTR02"));
+        assertNull(openFx("20260901").get("ATTR01"));
     }
 
     @Test
     void 닫힌_키는_다시_열어_건수에_센다() {
         frankfurter.points = List.of(point("2026-09-01", "USD", "1390"));
         service.run(ctx(5, ""));
-        jdbc.update("UPDATE TB_MDM_DATA_ITEM SET VALID_TO = ? WHERE MARU_DATA_ID = 'FX_RATE' AND CODE = 'USD20260901'",
+        jdbc.update("UPDATE TB_MDM_DATA_ITEM SET VALID_TO = ? WHERE MARU_DATA_ID = 'FX_RATE' AND CODE = '20260901'",
                 java.sql.Timestamp.valueOf(T0.plusMinutes(5)));
         clock.setLocal(T0.plusHours(1));
 
         assertEquals(1, service.run(ctx(5, "")));
 
-        assertEquals("1390.00000000", openFx("USD20260901").get("ATTR03"));
+        assertEquals("1390.00000000", openFx("20260901").get("ATTR01"));
     }
 
     @Test
@@ -226,20 +263,20 @@ class ExchangeRateSyncOraTest extends AbstractMdmSharedDbTest {
 
         service.run(ctx(5, "koreaexim"));
         assertEquals(0, koreaExim.calls, "키가 없으면 koreaexim 을 고를 수 없다");
-        assertEquals("frankfurter", openFx("USD20260901").get("ATTR05"));
+        assertTrue(((String) openFx("20260901").get("DESCRIPTION")).contains("frankfurter"));
 
         properties.getExchange().setKoreaeximKey("test-key");
         clock.setLocal(T0.plusHours(1));
         assertEquals(1, service.run(ctx(5, "koreaexim")));
         assertEquals(1, koreaExim.calls);
         // 제공자가 바뀌면 같은 날 키는 UPDATE 로 덮어쓰고 출처가 따라 바뀐다(R11).
-        assertEquals("1388.00000000", openFx("USD20260901").get("ATTR03"));
-        assertEquals("koreaexim", openFx("USD20260901").get("ATTR05"));
+        assertEquals("1388.00000000", openFx("20260901").get("ATTR01"));
+        assertTrue(((String) openFx("20260901").get("DESCRIPTION")).contains("koreaexim"));
 
         // provider 변수가 비면 설정 규칙(provider=frankfurter)을 따른다.
         clock.setLocal(T0.plusHours(2));
         assertEquals(1, service.run(ctx(5, "")));
-        assertEquals("frankfurter", openFx("USD20260901").get("ATTR05"));
+        assertTrue(((String) openFx("20260901").get("DESCRIPTION")).contains("frankfurter"));
     }
 
     @Test
@@ -250,9 +287,9 @@ class ExchangeRateSyncOraTest extends AbstractMdmSharedDbTest {
         IllegalStateException e = assertThrows(IllegalStateException.class, () -> service.run(ctx(5, "")));
 
         assertTrue(e.getMessage().contains("일부만 응답"), e.getMessage());
-        assertTrue(e.getMessage().contains("2건 중 2건 반영"), e.getMessage());
+        assertTrue(e.getMessage().contains("2일 중 2일 반영"), e.getMessage());
         assertEquals(2, fxCount());
-        assertEquals("1384.00000000", openFx("USD20260831").get("ATTR03"));
+        assertEquals("1384.00000000", openFx("20260831").get("ATTR01"));
     }
 
     @Test

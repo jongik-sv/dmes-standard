@@ -38,14 +38,20 @@ class MdmFxMasterSeedOraTest extends AbstractMdmSharedDbTest {
     private static final String OPEN_END = "TIMESTAMP '9999-12-31 00:00:00'";
 
     private static List<String> dml;
+    private static List<String> dml4;
 
     @Autowired
     JdbcTemplate jdbc;
 
-    /** DECLARE/BEGIN 앞까지의 문장만(줄 주석·빈 줄 건너뜀, 끝 {@code ;} 뺌). */
     @BeforeAll
-    static void readV3() throws IOException {
-        String sql = new ClassPathResource("db/migration/mdm/oracle/V3__fx_master_seed.sql").getContentAsString(StandardCharsets.UTF_8);
+    static void readMigrations() throws IOException {
+        dml = readDml("V3__fx_master_seed.sql");
+        dml4 = readDml("V4__fx_rate_by_date.sql");
+    }
+
+    /** DECLARE/BEGIN 앞까지의 문장만(줄 주석·빈 줄 건너뜀, 끝 {@code ;} 뺌). */
+    private static List<String> readDml(String file) throws IOException {
+        String sql = new ClassPathResource("db/migration/mdm/oracle/" + file).getContentAsString(StandardCharsets.UTF_8);
         List<String> out = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         for (String line : sql.split("\\R")) {
@@ -64,7 +70,7 @@ class MdmFxMasterSeedOraTest extends AbstractMdmSharedDbTest {
             }
         }
         assertTrue(current.isEmpty(), "끝나지 않은 문장: " + current);
-        dml = List.copyOf(out);
+        return List.copyOf(out);
     }
 
     /** 앞 시험이 남긴 행(닫은 통화·바꾼 이름)이 섞이지 않게 마루 데이터 표를 비운다. */
@@ -75,6 +81,10 @@ class MdmFxMasterSeedOraTest extends AbstractMdmSharedDbTest {
 
     private void applySeed() {
         dml.forEach(jdbc::execute);
+    }
+
+    private void applyV4() {
+        dml4.forEach(jdbc::execute);
     }
 
     private int count(String sql) {
@@ -183,6 +193,84 @@ class MdmFxMasterSeedOraTest extends AbstractMdmSharedDbTest {
         assertEquals(1, count("SELECT COUNT(*) FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = 'CUR' AND CODE = 'THB' AND VALID_TO <> " + OPEN_END));
         assertEquals("원화", jdbc.queryForObject("SELECT NAME FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = 'CUR' AND CODE = 'KRW'", String.class));
         assertEquals("핵심", jdbc.queryForObject("SELECT CATE_NAME FROM TB_MDM_DATA_CATE WHERE MARU_DATA_ID = 'CUR' AND CATE_ID = 'MAJOR'", String.class));
+    }
+
+    @Test
+    void flyway_V4_가_성공으로_남았다() {
+        assertEquals(1, count("SELECT COUNT(*) FROM \"flyway_schema_history\" WHERE \"version\" = '4' AND \"success\" = 1"));
+    }
+
+    @Test
+    void V4_는_FX_RATE_를_날짜_한_행_통화는_칼럼으로_바꾼다() {
+        applySeed();
+        applyV4();
+
+        Map<String, Object> fx = jdbc.queryForMap("SELECT * FROM TB_MDM_DATA WHERE MARU_DATA_ID = 'FX_RATE'");
+        assertEquals("^[0-9]{8}$", fx.get("CODE_PATTERN"));
+        List<String> labels = new ArrayList<>();
+        for (int i = 1; i <= 10; i++) {
+            labels.add((String) fx.get(String.format("ATTR%02d_NAME", i)));
+        }
+        assertEquals(List.of("USD", "EUR", "JPY", "CNY", "GBP", "AUD", "CAD", "CHF", "HKD", "SGD"), labels);
+        assertEquals(1, ((Number) fx.get("VER")).intValue());
+
+        // 카테고리: MAJOR 는 닫고(삭제 아님) BASE 만 열려 있다.
+        assertEquals(2, count("SELECT COUNT(*) FROM TB_MDM_DATA_CATE WHERE MARU_DATA_ID = 'FX_RATE'"));
+        assertEquals(List.of("BASE"), jdbc.queryForList(
+                "SELECT CATE_ID FROM TB_MDM_DATA_CATE WHERE MARU_DATA_ID = 'FX_RATE' AND VALID_TO = " + OPEN_END, String.class));
+        assertEquals(1, count("SELECT COUNT(*) FROM TB_MDM_DATA_CATE WHERE MARU_DATA_ID = 'FX_RATE' AND CATE_ID = 'MAJOR' "
+                + "AND VALID_TO > VALID_FROM AND VALID_TO < " + OPEN_END));
+    }
+
+    @Test
+    void V4_는_THB_수집을_N_으로_바꾸되_선분_이력으로_남긴다() {
+        applySeed();
+        applyV4();
+
+        assertEquals(2, count("SELECT COUNT(*) FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = 'CUR' AND CODE = 'THB'"));
+        assertEquals("N", jdbc.queryForObject("SELECT ATTR04 FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = 'CUR' AND CODE = 'THB' "
+                + "AND VALID_TO = " + OPEN_END, String.class));
+        Map<String, Object> closed = jdbc.queryForMap("SELECT * FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = 'CUR' AND CODE = 'THB' "
+                + "AND VALID_TO < " + OPEN_END);
+        assertEquals("Y", closed.get("ATTR04"));
+        assertEquals(1, ((Number) closed.get("ROW_VERSION")).intValue());
+        Map<String, Object> open = jdbc.queryForMap("SELECT * FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = 'CUR' AND CODE = 'THB' "
+                + "AND VALID_TO = " + OPEN_END);
+        assertEquals(closed.get("VALID_TO"), open.get("VALID_FROM"));
+        assertEquals(1, ((Number) open.get("ROW_VERSION")).intValue());
+        assertEquals("태국 바트", open.get("NAME"));
+        assertEquals("ASIA", open.get("ATTR01"));
+        // 환율 수집 Y 는 USD EUR JPY CNY GBP AUD CAD CHF HKD SGD 열 개다.
+        assertEquals(10, count("SELECT COUNT(*) FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = 'CUR' AND ATTR04 = 'Y' AND VALID_TO = " + OPEN_END));
+    }
+
+    @Test
+    void V4_는_옛_모양_FX_RATE_행을_삭제하지_않고_닫는다_그리고_다시_적용해도_같다() {
+        applySeed();
+        jdbc.update("INSERT INTO TB_MDM_DATA_ITEM (MARU_DATA_ID, CODE, VALID_FROM, NAME, VALID_TO, ROW_VERSION, CHG_SEQ, ATTR01, ATTR02, ATTR03, ATTR04) "
+                + "VALUES ('FX_RATE', 'USD20261008', TIMESTAMP '2026-10-09 09:00:00', 'USD 2026-10-08', " + OPEN_END
+                + ", 0, 0, 'USD', '20261008', '1384.51000000', 'KRW')");
+        // 이미 새 모양인 행(8자리)은 건드리지 않는다.
+        jdbc.update("INSERT INTO TB_MDM_DATA_ITEM (MARU_DATA_ID, CODE, VALID_FROM, NAME, VALID_TO, ROW_VERSION, CHG_SEQ, ATTR01) "
+                + "VALUES ('FX_RATE', '20261008', TIMESTAMP '2026-10-09 13:00:00', '2026-10-08', " + OPEN_END + ", 0, 0, '1384.51000000')");
+
+        applyV4();
+
+        assertEquals(2, count("SELECT COUNT(*) FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = 'FX_RATE'"));
+        Map<String, Object> old = jdbc.queryForMap("SELECT * FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = 'FX_RATE' AND CODE = 'USD20261008'");
+        assertEquals(1, ((Number) old.get("ROW_VERSION")).intValue());
+        assertEquals("1384.51000000", old.get("ATTR03"));
+        assertEquals(1, count("SELECT COUNT(*) FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = 'FX_RATE' AND CODE = 'USD20261008' "
+                + "AND VALID_TO > VALID_FROM AND VALID_TO < " + OPEN_END));
+        assertEquals(1, count("SELECT COUNT(*) FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = 'FX_RATE' AND CODE = '20261008' "
+                + "AND VALID_TO = " + OPEN_END + " AND ROW_VERSION = 0"));
+
+        Object before = jdbc.queryForObject("SELECT SUM(ROW_VERSION + VER) FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID IN ('FX_RATE', 'CUR')", Object.class);
+        int itemsBefore = count("SELECT COUNT(*) FROM TB_MDM_DATA_ITEM");
+        applyV4();
+        assertEquals(itemsBefore, count("SELECT COUNT(*) FROM TB_MDM_DATA_ITEM"));
+        assertEquals(before, jdbc.queryForObject("SELECT SUM(ROW_VERSION + VER) FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID IN ('FX_RATE', 'CUR')", Object.class));
+        assertEquals(1, ((Number) jdbc.queryForObject("SELECT VER FROM TB_MDM_DATA WHERE MARU_DATA_ID = 'FX_RATE'", Number.class)).intValue());
     }
 
     /** 카테고리 정의(정규식·대상 칸)를 열린 항목에 직접 적용한 소속 코드. 리졸버는 트랜잭션이 필요해 같은 규칙을 JDBC 로 다시 쓴다. */

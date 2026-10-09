@@ -46,80 +46,123 @@ class FxMasterReaderTest {
         reader = new FxMasterReader(jdbc, props);
     }
 
-    private static ResultSet row(String code, String cur, String ymd, String rate) throws SQLException {
+    private static final java.util.List<String> LABELS =
+            java.util.Arrays.asList("USD", "EUR", null, null, null, null, null, null, null, null);
+
+    private static ResultSet labelRow(java.util.List<String> labels) throws SQLException {
         ResultSet rs = mock(ResultSet.class);
-        org.mockito.Mockito.when(rs.getString(1)).thenReturn(code);
-        org.mockito.Mockito.when(rs.getString(2)).thenReturn(cur);
-        org.mockito.Mockito.when(rs.getString(3)).thenReturn(ymd);
-        org.mockito.Mockito.when(rs.getString(4)).thenReturn(rate);
+        for (int i = 0; i < labels.size(); i++) org.mockito.Mockito.when(rs.getString(i + 1)).thenReturn(labels.get(i));
         return rs;
     }
 
-    private void rows(ResultSet... rows) {
+    /** 날짜 행: 조회 칼럼 순서(요청 통화 순서에 따른 칼럼)대로 값을 준다. */
+    private static ResultSet row(String code, String... values) throws SQLException {
+        ResultSet rs = mock(ResultSet.class);
+        org.mockito.Mockito.when(rs.getString(1)).thenReturn(code);
+        for (int i = 0; i < values.length; i++) org.mockito.Mockito.when(rs.getString(i + 2)).thenReturn(values[i]);
+        return rs;
+    }
+
+    /** 라벨 조회에는 라벨 행을, 항목 조회에는 날짜 행들을 준다. */
+    private void rows(ResultSet... rows) throws SQLException {
+        rowsWithLabels(LABELS, rows);
+    }
+
+    private void rowsWithLabels(java.util.List<String> labels, ResultSet... rows) throws SQLException {
+        ResultSet label = labelRow(labels);
         doAnswer(inv -> {
+            String sql = inv.getArgument(0);
             RowCallbackHandler handler = inv.getArgument(2);
-            for (ResultSet rs : rows) handler.processRow(rs);
+            if (sql.contains("ATTR01_NAME")) {
+                handler.processRow(label);
+            } else {
+                for (ResultSet rs : rows) handler.processRow(rs);
+            }
             return null;
         }).when(jdbc).query(anyString(), any(SqlParameterSource.class), any(RowCallbackHandler.class));
     }
 
     @Test
-    @DisplayName("스키마 접두·열린 행·기준 통화·통화마다 키 범위로 한 번 조회하고, 칼럼에 함수를 쓰지 않는다")
-    void queryShape() {
+    @DisplayName("라벨 조회 한 번과 기준일 키 범위 조회 한 번 — 스키마 접두·열린 행, 요청 통화의 칼럼만 고르고 함수를 쓰지 않는다")
+    void queryShape() throws Exception {
         rows();
 
-        reader.read("KRW", List.of("USD", "EUR"), FROM, TO);
+        reader.read("KRW", List.of("EUR", "USD"), FROM, TO);
 
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<SqlParameterSource> params = ArgumentCaptor.forClass(SqlParameterSource.class);
-        verify(jdbc, times(1)).query(sql.capture(), params.capture(), any(RowCallbackHandler.class));
-        assertThat(sql.getValue())
+        verify(jdbc, times(2)).query(sql.capture(), params.capture(), any(RowCallbackHandler.class));
+        assertThat(sql.getAllValues().get(0))
+                .contains("FROM   MDMAPUSER.TB_MDM_DATA A")
+                .contains("A.MARU_DATA_ID = :md")
+                .contains("A.ATTR10_NAME");
+        assertThat(sql.getAllValues().get(1))
                 .contains("FROM   MDMAPUSER.TB_MDM_DATA_ITEM A")
                 .contains("A.MARU_DATA_ID = :md")
                 .contains("A.VALID_TO = :openEnd")
-                .contains("A.ATTR04 = :base")
-                .contains("A.CODE BETWEEN :lo0 AND :hi0")
-                .contains("OR     A.CODE BETWEEN :lo1 AND :hi1")
+                .contains("A.CODE BETWEEN :lo AND :hi")
+                .contains("A.ATTR02")   // EUR (요청 순서 첫째)
+                .contains("A.ATTR01")   // USD
+                .doesNotContain("A.ATTR03")
                 .doesNotContainIgnoringCase("SYSDATE")
                 .doesNotContainIgnoringCase("SYSTIMESTAMP")
                 .doesNotContain("TO_CHAR")
                 .doesNotContain("UPPER(");
-        SqlParameterSource p = params.getValue();
+        SqlParameterSource p = params.getAllValues().get(1);
         assertThat(p.getValue("md")).isEqualTo("FX_RATE");
         assertThat(p.getValue("openEnd")).isEqualTo(java.sql.Timestamp.valueOf("9999-12-31 00:00:00"));
-        assertThat(p.getValue("base")).isEqualTo("KRW");
-        assertThat(p.getValue("lo0")).isEqualTo("USD20260905");
-        assertThat(p.getValue("hi0")).isEqualTo("USD20261005");
-        assertThat(p.getValue("lo1")).isEqualTo("EUR20260905");
-        assertThat(p.getValue("hi1")).isEqualTo("EUR20261005");
+        assertThat(p.getValue("lo")).isEqualTo("20260905");
+        assertThat(p.getValue("hi")).isEqualTo("20261005");
     }
 
     @Test
     @DisplayName("설정한 스키마 이름을 접두로 쓴다")
-    void usesConfiguredSchema() {
+    void usesConfiguredSchema() throws Exception {
         rows();
         props.getExchange().setMdmSchema("MDM_X1");
 
         reader.read("KRW", List.of("USD"), FROM, TO);
 
+        verify(jdbc).query(contains("MDM_X1.TB_MDM_DATA A"), any(SqlParameterSource.class), any(RowCallbackHandler.class));
         verify(jdbc).query(contains("MDM_X1.TB_MDM_DATA_ITEM"), any(SqlParameterSource.class), any(RowCallbackHandler.class));
     }
 
     @Test
-    @DisplayName("행을 점으로 바꾼다 — 요청하지 않은 통화·숫자 아닌 환율·0 이하 환율·읽을 수 없는 기준일·구간 밖 날짜는 건너뛴다")
+    @DisplayName("날짜 행을 통화별 점으로 바꾼다 — 라벨에 없는 통화·숫자 아닌 환율·0 이하·빈 칸·날짜가 아닌 키·구간 밖 날짜는 건너뛴다")
     void parsesRowsAndSkipsBadOnes() throws Exception {
         rows(
-                row("USD20260930", "USD", "20260930", "1380.12345678"),
-                row("EUR20260930", "EUR", "20260930", "1600.50000000"),      // 요청 안 한 통화
-                row("USD20260929", "USD", "20260929", "abc"),                // 숫자 아님
-                row("USD20260928", "USD", "20260928", "0.00000000"),         // 0 이하
-                row("USD20260927", "USD", "2026-09-27", "1370"),             // 기준일 모양이 다름
-                row("USD20260801", "USD", "20260801", "1360"),               // 구간 밖
-                row("USD20261001", "USD", "20261001", null));                // 환율 없음
+                row("20260930", "1380.12345678"),
+                row("20260929", "abc"),                 // 숫자 아님
+                row("20260928", "0.00000000"),          // 0 이하
+                row("2026-09-27", "1370"),              // 키가 기준일 모양이 아님
+                row("20260801", "1360"),                // 구간 밖
+                row("20261001", (String) null));        // 환율 없음
 
-        List<ExchangeRatePoint> points = reader.read("KRW", List.of("USD"), FROM, TO);
+        List<ExchangeRatePoint> points = reader.read("KRW", List.of("USD", "GBP"), FROM, TO);
 
         assertThat(points).containsExactly(new ExchangeRatePoint(LocalDate.of(2026, 9, 30), "USD", new BigDecimal("1380.12345678")));
+    }
+
+    @Test
+    @DisplayName("한 날짜 행에서 여러 통화를 요청 순서대로 읽는다")
+    void readsSeveralCurrenciesFromOneRow() throws Exception {
+        rows(row("20260930", "1600.5", "1380.1"));
+
+        List<ExchangeRatePoint> points = reader.read("KRW", List.of("EUR", "USD"), FROM, TO);
+
+        assertThat(points).containsExactlyInAnyOrder(
+                new ExchangeRatePoint(LocalDate.of(2026, 9, 30), "EUR", new BigDecimal("1600.5")),
+                new ExchangeRatePoint(LocalDate.of(2026, 9, 30), "USD", new BigDecimal("1380.1")));
+    }
+
+    @Test
+    @DisplayName("요청 통화가 모두 라벨에 없으면 항목 조회를 하지 않고 빈 목록")
+    void noMatchingLabelNoItemQuery() throws Exception {
+        rows();
+
+        assertThat(reader.read("KRW", List.of("GBP"), FROM, TO)).isEmpty();
+
+        verify(jdbc, times(1)).query(anyString(), any(SqlParameterSource.class), any(RowCallbackHandler.class));
     }
 
     @Test
@@ -146,7 +189,7 @@ class FxMasterReaderTest {
 
     @Test
     @DisplayName("스키마 이름이 규칙(영문 대문자로 시작·대문자/숫자/밑줄·30자 이내)에 안 맞으면 DB 를 부르지 않고 명확한 예외")
-    void rejectsInvalidSchemaName() {
+    void rejectsInvalidSchemaName() throws Exception {
         for (String bad : new String[] {"mdmapuser", "MDM.APUSER", "MDM APUSER", "1MDM", "MDM;DROP", "", "A".repeat(31)}) {
             props.getExchange().setMdmSchema(bad);
             assertThatThrownBy(() -> reader.read("KRW", List.of("USD"), FROM, TO))

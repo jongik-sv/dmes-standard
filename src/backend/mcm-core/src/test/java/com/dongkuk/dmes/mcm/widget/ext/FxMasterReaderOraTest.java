@@ -53,7 +53,7 @@ class FxMasterReaderOraTest {
     }
 
     @Test
-    @DisplayName("열린 FX_RATE 행만, 요청한 통화·기간·기준 통화에 맞는 것만 읽는다")
+    @DisplayName("열린 FX_RATE 날짜 행만, 요청한 통화(라벨이 가리키는 칼럼)·기간에 맞는 것만 읽는다")
     void readsOnlyOpenMatchingRows() {
         FxMasterTestTable.fxRate(ds, "USD", "20260930", "1380.10000000");
         FxMasterTestTable.fxRate(ds, "USD", "20261001", "1385.51000000");
@@ -61,20 +61,33 @@ class FxMasterReaderOraTest {
         FxMasterTestTable.fxRate(ds, "JPY", "20261001", "9.30000000");                 // 요청 안 한 통화
         FxMasterTestTable.fxRate(ds, "USD", "20260801", "1300.00000000");              // 기간 앞
         FxMasterTestTable.fxRate(ds, "USD", "20261006", "1390.00000000");              // 기간 뒤
-        FxMasterTestTable.fxRate(ds, "EUR", "20260929", "xyz");                         // 숫자 아님 → 건너뜀
-        FxMasterTestTable.insert(ds, "FX_RATE", "USD20260929", Timestamp.valueOf("2026-10-02 00:00:00"),
-                "USD", "20260929", "1111.00000000", "KRW");                             // 닫힌 행
-        FxMasterTestTable.insert(ds, "FX_RATE", "USD20260928", FxMasterTestTable.OPEN_END,
-                "USD", "20260928", "1.00000000", "EUR");                                // 다른 기준 통화
-        FxMasterTestTable.insert(ds, "CUR", "USD20260927", FxMasterTestTable.OPEN_END,
-                "USD", "20260927", "2222.00000000", "KRW");                             // 다른 마스터
+        FxMasterTestTable.fxRate(ds, "EUR", "20260929", "xyz");                         // 숫자 아님 → 그 칼럼만 건너뜀
+        FxMasterTestTable.fxRate(ds, "USD", "20260929", "1380.00000000");              // 같은 날 다른 칼럼은 읽는다
+        FxMasterTestTable.insert(ds, "FX_RATE", "20260928", Timestamp.valueOf("2026-10-02 00:00:00"),
+                "1111.00000000");                                                       // 닫힌 행
+        FxMasterTestTable.insert(ds, "CUR", "20260927", FxMasterTestTable.OPEN_END,
+                "2222.00000000");                                                       // 다른 마스터
+        FxMasterTestTable.insert(ds, "FX_RATE", "OLD20260926", FxMasterTestTable.OPEN_END,
+                "3333.00000000");                                                       // 키가 날짜가 아님
 
         List<ExchangeRatePoint> points = reader.read("KRW", List.of("USD", "EUR"), FROM, TO);
 
         assertThat(points).containsExactlyInAnyOrder(
+                new ExchangeRatePoint(LocalDate.of(2026, 9, 29), "USD", new BigDecimal("1380.00000000")),
                 new ExchangeRatePoint(LocalDate.of(2026, 9, 30), "USD", new BigDecimal("1380.10000000")),
                 new ExchangeRatePoint(LocalDate.of(2026, 10, 1), "USD", new BigDecimal("1385.51000000")),
                 new ExchangeRatePoint(LocalDate.of(2026, 10, 1), "EUR", new BigDecimal("1600.25000000")));
+    }
+
+    @Test
+    @DisplayName("정의의 라벨을 바꾸면 통화 → 칼럼 대응이 따라가고, 라벨에 없는 통화는 값이 없다")
+    void followsLabels() {
+        FxMasterTestTable.fxRate(ds, "USD", "20261001", "1385.51000000");
+        FxMasterTestTable.relabel(ds, List.of("EUR", "USD"));
+
+        assertThat(reader.read("KRW", List.of("USD", "JPY"), FROM, TO)).isEmpty();
+        assertThat(reader.read("KRW", List.of("EUR"), FROM, TO)).containsExactly(
+                new ExchangeRatePoint(LocalDate.of(2026, 10, 1), "EUR", new BigDecimal("1385.51000000")));
     }
 
     @Test
