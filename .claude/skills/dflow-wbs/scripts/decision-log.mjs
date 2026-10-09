@@ -17,7 +17,7 @@
 // 종료 코드: append 성공 0 · 입력 오류(빈 필드) 2 · 잠금 시간 초과 1 · list 0 · validate ok 0 / 위반 1 · 인자 오류 2.
 //
 // 머리 줄 규칙(정본): `## D-<숫자> (<시각>)` 뒤에 공백만 있고 줄이 끝나는 줄만 항목 머리다(ENTRY_RE).
-//   `## D-002 (ts) 비고` 처럼 뒤에 글이 더 붙은 줄은 머리가 아니다. dflow-merge/scripts/decisions.sh 의 HEAD_ERE 가 같은 규칙을 쓴다
+//   `## D-002 (ts) 비고` 처럼 뒤에 글이 더 붙은 줄은 머리가 아니다. dflow-merge/scripts/decisions.mjs 의 HRE 가 같은 규칙을 쓴다
 //   (tests/decision-head-parity.test.mjs 가 두 규칙이 어긋나지 않는지 표로 확인한다).
 //   알고 둔 차이(실제 기록에 없다): 유니코드 숫자 `D-٣`, 끝 공백으로 쓴 유니코드 공백·NBSP, 시각 칸 안의 개행은 mjs 만 받는다.
 //
@@ -90,9 +90,9 @@ export function _write(file, content) {
 // ---------------------------------------------------------------------------
 // 파일 잠금 — 두 프로세스가 동시에 append 하면 번호가 겹치거나 항목이 사라지므로 읽기~쓰기를 한 번에 잠근다.
 // 잠금 = decisions.md 옆의 `decisions.md.lock` 디렉터리. mkdir 은 POSIX·윈도우(Git Bash 포함) 모두 원자적이다.
-// dflow-merge/scripts/decisions.sh 가 같은 이름의 디렉터리를 같은 방식으로 잡으므로 둘이 서로를 기다린다.
+// dflow-merge/scripts/decisions.mjs 가 같은 이름의 디렉터리를 같은 방식으로 잡으므로 둘이 서로를 기다린다.
 // 죽은 프로세스가 남긴 잠금은 mtime 이 LOCK_STALE_MS 보다 오래되면 치운다(치우기도 rename 으로 한 프로세스만 성공한다).
-// decisions.sh renumber 는 잠금을 스크립트 끝까지 쥐므로 기준을 넉넉히(10분) 잡았다. sh 의 `-mmin +10` 과 맞춘다.
+// decisions.mjs renumber 는 잠금을 스크립트 끝까지 쥐므로 기준을 넉넉히(10분) 잡았다. mjs 의 10분 stale 과 맞춘다.
 // 알려진 한계: 죽은 잠금을 여러 프로세스가 동시에 치우려 할 때 아주 좁은 틈에서 상호 배제가 깨질 수 있다(소유자 토큰은 두지 않았다).
 // ---------------------------------------------------------------------------
 

@@ -14,6 +14,7 @@
 // dflow-wbs decision-log.mjs append 와 같은 방식이라 둘이 서로를 기다린다.
 // sh 판과 맞춘 점: 인자·git 조회 묶음·블록 분리(`## ` 머리부터 다음 머리 앞까지)·
 // 머리 판정·치환 앞자리 가드·커밋 문구·출력 줄 형식·종료 코드.
+// 파일 본문은 latin1 로 읽고 쓴다(바이트 보존, 옛 awk LC_ALL=C 와 같게). 경로는 git 출력 그대로(UTF-8) 쓴다.
 // 알고 둔 차이: --help(짧은 도움말, exit 0)는 추가. usage 문구의 스크립트 이름은 mjs.
 //   바이트 의미 연산(LC_ALL=C awk substr/match)은 ASCII 구간 연산과 결과가 같게 정규식 치환으로 구현했다.
 import fs from 'node:fs';
@@ -53,9 +54,9 @@ const isDecisions = (p) => p === 'decisions.md' || p.endsWith('/decisions.md');
 const isClaude = (p) => p.startsWith('.claude/');
 const fmtD = (n) => 'D-' + String(n).padStart(3, '0');
 
-function git(cwd, args, { input } = {}) {
+function git(cwd, args, { input, encoding = 'utf8' } = {}) {
   const r = spawnSync('git', ['-c', 'core.quotePath=false', ...args], {
-    encoding: 'utf8', input, cwd, windowsHide: true, maxBuffer: 256 * 1024 * 1024,
+    encoding, input, cwd, windowsHide: true, maxBuffer: 256 * 1024 * 1024,
   });
   return { status: r.status ?? -1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
@@ -74,6 +75,10 @@ function numOf(head) {
   return m ? parseInt(m[1], 10) : NaN;
 }
 const tokOf = (head) => head.slice(3).split(' ')[0];
+
+// UTF-8 글자를 latin1 본문에 잇기 위한 바이트 직렬화.
+// 파일 본문은 latin1 로 다루므로(바이트 보존), 새로 넣는 한글 줄은 UTF-8 바이트를 latin1 글자로 바꿔 잇는다.
+const u8toLatin = (s) => Buffer.from(s, 'utf8').toString('latin1');
 
 // 토큰 치환. 앞자리가 [A-Za-z0-9_-] 이면 바꾸지 않는다(awk match 루프와 같다).
 function substLine(line, map, tokRe) {
@@ -112,11 +117,12 @@ function tokenize(text) {
 }
 
 function sleepMs(ms) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  return new Promise((r) => setTimeout(r, ms));
 }
 
-function main(argv) {
-  if (argv.includes('-h') || argv.includes('--help')) {
+async function main(argv) {
+  // -h 판정은 첫 인자만 본다(sh 판과 같게. 뒤쪽 -h 는 사용법 오류다).
+  if (argv[0] === '-h' || argv[0] === '--help') {
     writeOut(USAGE_MSG + '\n공용 decisions.md 의 머지 처리. merge-conflicts(충돌 기계 해소) · renumber(임시 ID 번호 매김).\n');
     return finish(OK);
   }
@@ -158,7 +164,9 @@ function main(argv) {
   const changed = new Set();
   let cleaned = false;
 
-  const dlock = (base) => {
+  // dlock 은 비동기다. 대기 중 sleep 이 이벤트 루프를 돌므로 시그널 핸들러가 동작한다
+  // (Atomics.wait 로 막으면 핸들러가 굶어 TERM 에 죽지 않는다).
+  const dlock = async (base) => {
     const l = base + '.lock';
     const end = Date.now() + 15000;
     let none = 0;
@@ -200,7 +208,7 @@ function main(argv) {
         }
       }
       if (Date.now() >= end) return false;
-      sleepMs(200);
+      await sleepMs(200);
     }
   };
   const dunlock = (base) => {
@@ -257,7 +265,7 @@ function main(argv) {
       const stages = [...new Set(splitRaw(u.stdout).map((l) => (l.split(/\s+/)[2] ?? '')))].sort().join('');
       let baseText;
       if (stages === '123') {
-        const rb = git(top, ['show', `:1:${p}`]);
+        const rb = git(top, ['show', `:1:${p}`], { encoding: 'latin1' });
         if (rb.status !== 0) {
           writeOut(`DECISIONS_LEFT ${p} read-base\n`);
           continue;
@@ -268,8 +276,8 @@ function main(argv) {
         writeOut(`DECISIONS_LEFT ${p} stages=${stages}\n`);
         continue;
       }
-      const ro = git(top, ['show', `:2:${p}`]);
-      const rt = git(top, ['show', `:3:${p}`]);
+      const ro = git(top, ['show', `:2:${p}`], { encoding: 'latin1' });
+      const rt = git(top, ['show', `:3:${p}`], { encoding: 'latin1' });
       if (ro.status !== 0 || rt.status !== 0) {
         writeOut(`DECISIONS_LEFT ${p} read-stage\n`);
         continue;
@@ -294,15 +302,16 @@ function main(argv) {
         writeOut(`DECISIONS_LEFT ${p} edited-existing-block\n`);
         continue;
       }
-      if (!dlock(p)) {
+      if (!await dlock(p)) {
         writeOut(`DECISIONS_LEFT ${p} lock\n`);
         continue;
       }
       const ours = ro.stdout;
+      // 파일은 latin1 로 쓰고 읽는다(바이트 보존, 옛 awk LC_ALL=C 와 같게).
       const out = ours + ((ours !== '' && !ours.endsWith('\n')) ? '\n' : '') + add;
       let ok = false;
       try {
-        fs.writeFileSync(path.join(top, p), out);
+        fs.writeFileSync(path.join(top, p), out, 'latin1');
         ok = git(top, ['add', '--', p]).status === 0;
       } catch { /* 무시 */ }
       writeOut(ok ? `DECISIONS_RESOLVED ${p}\n` : `DECISIONS_LEFT ${p} write\n`);
@@ -314,9 +323,10 @@ function main(argv) {
 
   if (cmd !== 'renumber') return dieUsage();
 
+  // 파일은 latin1 로 읽는다(바이트 보존, 옛 awk LC_ALL=C 와 같게).
   const readTop = (p) => {
     try {
-      return fs.readFileSync(path.join(top, p), 'utf8');
+      return fs.readFileSync(path.join(top, p), 'latin1');
     } catch {
       return null;
     }
@@ -338,7 +348,7 @@ function main(argv) {
     } catch { /* 없음 */ }
   }
   for (const p of dfiles) {
-    if (!dlock(p)) {
+    if (!await dlock(p)) {
       writeOut(`RENUMBER_FAILED lock ${p}\n`);
       cleanup();
       return finish(1);
@@ -368,7 +378,7 @@ function main(argv) {
     if (dm.status === 0) mfiles = splitRaw(dm.stdout);
   }
   const showRev = (rev, p) => {
-    const r = git(top, ['show', `${rev}:${p}`]);
+    const r = git(top, ['show', `${rev}:${p}`], { encoding: 'latin1' });
     return r.status === 0 ? r.stdout : '';
   };
   const headsOf = (text) => splitRaw(text).filter((l) => HRE.test(l));
@@ -458,7 +468,7 @@ function main(argv) {
       let body;
       if (mv.has(i)) {
         const t = ot.get(i);
-        body = '## ' + to.get(t) + b.head.slice(3 + t.length) + '\n- **Renumbered from**: ' + t + ' (중복 번호)';
+        body = '## ' + to.get(t) + b.head.slice(3 + t.length) + u8toLatin(`\n- **Renumbered from**: ${t} (중복 번호)`);
         movedIdx.push(i);
       } else body = b.head;
       for (let k = 1; k < b.lines.length; k++) {
@@ -475,7 +485,7 @@ function main(argv) {
     }
     if (o !== text) {
       try {
-        fs.writeFileSync(path.join(top, p), o);
+        fs.writeFileSync(path.join(top, p), o, 'latin1');
       } catch {
         return fail(`dup ${p}`);
       }
@@ -658,7 +668,7 @@ function main(argv) {
       const nt = nl.length ? nl.join('\n') + '\n' : '';
       if (nt !== text) {
         try {
-          fs.writeFileSync(path.join(top, p), nt);
+          fs.writeFileSync(path.join(top, p), nt, 'latin1');
         } catch {
           return fail(`rewrite ${p}`);
         }
@@ -680,7 +690,7 @@ function main(argv) {
         continue;
       }
       if (!pbuf.length || pbuf.includes(0)) continue;
-      const text = pbuf.toString('utf8');
+      const text = pbuf.toString('latin1');
       const nl = splitRaw(text).map((line) => {
         if (/^- \*\*Temp ID\*\*:/.test(line)) return line;
         return substLine(line, refMap, TSK_RE);
@@ -688,7 +698,7 @@ function main(argv) {
       const nt = nl.length ? nl.join('\n') + '\n' : '';
       if (nt !== text) {
         try {
-          fs.writeFileSync(path.join(top, p), nt);
+          fs.writeFileSync(path.join(top, p), nt, 'latin1');
         } catch {
           return fail(`refs ${p}`);
         }
@@ -735,7 +745,11 @@ function main(argv) {
   for (const [id, num, f] of renames) writeOut(`RENUMBERED ${id}=${num} ${f}\n`);
   writeOut(`REFS ${changedU.length}\n`);
   for (const p of changedU) {
-    if (git(top, ['add', '--', p]).status !== 0) return fail(`add ${p}`);
+    const ar = git(top, ['add', '--', p]);
+    if (ar.status !== 0) {
+      writeErr(ar.stderr);
+      return fail(`add ${p}`);
+    }
   }
   const sumParts = [...dupmap.map(([, old, nw]) => `${old}→${nw}(중복)`),
     ...renames.map(([id, num]) => `${id}→${num}`)];
@@ -745,10 +759,14 @@ function main(argv) {
   if (dupmap.length) body += ' 머지 대상이 직접 매겨 개발 브랜치와 겹친 전역 번호는 개발 브랜치 쪽을 두고 머지 대상 쪽을 다음 번호로 옮긴다(옛 번호는 Renumbered from 줄).';
   const cargs = ['commit', '-q', '-m', subject, '-m', body];
   if (order) cargs.push('--trailer', `DFlow-Order: ${order}`);
-  if (git(top, cargs).status !== 0) return fail('commit');
+  const cr = git(top, cargs);
+  if (cr.status !== 0) {
+    writeErr(cr.stderr);
+    return fail('commit');
+  }
   writeOut(`COMMITTED ${git(top, ['rev-parse', 'HEAD']).stdout.replace(/\n+$/, '')}\n`);
   cleanup();
   return finish(OK);
 }
 
-finish(main(process.argv.slice(2)));
+finish(await main(process.argv.slice(2)));
