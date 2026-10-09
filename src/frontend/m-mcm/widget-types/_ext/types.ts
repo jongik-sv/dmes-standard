@@ -26,6 +26,8 @@ export interface ExchangeResult {
   stale: boolean;
   /** 서버가 외부 연결을 끈 경우(dmes.widget.ext.enabled=false). */
   disabled: boolean;
+  /** MDM 환율 마스터(FX_RATE)에 요청 범위의 값이 하나도 없는 경우(예약 작업 mdm.exchangeRateSync 확인). 값이 있으면 생략된다. */
+  empty?: boolean;
 }
 
 export interface WeatherCurrent {
