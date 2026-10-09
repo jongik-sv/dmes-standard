@@ -1,45 +1,45 @@
 # /dflow-team 마감 (SKILL.md 「7. 마감」)
 
-SKILL.md 「7. 마감」 이 가리킨다. 마감에 들어설 때(잠금 상실·lease 상실 마감 포함) Bash `cat` 으로 읽는다.
-아래 번호 1-7 과 「잠금 상실 마감」·「lease 상실 마감」 이 다른 문서가 「7. 마감」 N번으로 가리키는 자리다.
+SKILL.md 「7. 마감」 이 가리킴. 마감 진입 때(잠금·lease 상실 마감 포함) Bash `cat` 으로 읽음.
+아래 번호 1-7 과 「잠금 상실 마감」·「lease 상실 마감」 = 다른 문서가 「7. 마감」 N번으로 가리키는 자리.
 
-마감 진입 조건: poll exit 8, poll 오류 exit, `failed not-isolated`, 기상 때 확인한 종료 시각 경과, 종료 요청(`STOP_REQUESTED` 또는 사람의 말).
-잠금 상실·lease 상실은 1-6 을 안 타고 아래 「잠금 상실 마감」·「lease 상실 마감」 으로 간다.
-1. 새 spawn 을 멈춘다. 대기 큐는 보고만 하고 비운다.
-2. **기다림의 상한**: `blocked` 슬롯과 무응답 슬롯은 기다리지 않는다.
-   - 진행 중 슬롯은 마감에 들어선 뒤 `TICK` 두 번까지만 결과를 기다린다.
-   - 이 동안 poll 은 재기동하지 않는다. 감시 루프만 `--may-skip` 없이 재기동해 결과와 `TICK` 을 계속 받는다(「2-3」 의 일은 spawn·poll 만 빼고 그대로 한다).
-   - 그 뒤에도 남은 슬롯은 TSK·id8·워크트리 경로·마지막 생존 증거를 목록으로 보고한다.
-   - 이유: 사람이 자리를 비운 시간대에 답이 안 오는 슬롯 하나가 팀장을 무한정 붙잡지 않게 한다. 팀원은 팀장이 끝나도 자기 pane 이나 탭에서 계속 돈다.
-   - 해소 워커도 같은 규칙으로 기다린다.
-   - 마감은 남은 `merge_conflict` 표시를 지우지 않는다(사람이 봐야 함).
-3. 집계 표(TSK · id8 · 브랜치 · head · done exit · status · 사유)를 보고하고, 마지막 승인 스윕을 한 번 돈다(사전 검사 없이 — 「4-0」 의 예외).
-   - 대기 큐·남은 슬롯과 **"멈춤" 표**(「팀장 상태」 — 재시작 명령 칸까지)도 함께 적는다.
-   - 이유: 마감 뒤 남는 워크트리는 사람이 이어받는 수밖에 없다. 이어받는 방법이 그 자리에 있어야 한다.
-   - 이번 실행에서 붙인 문제 기록이 있으면 `문제 기록 N건 → <MAIN>/docs/dflow-team/issues.md` 를 한 줄 더 적는다(「3. 결과 처리」 문제 기록).
-   - 재시작 대기와 rate-limit 대기는 `references/restart.md` 「마감·lease·잠금」 대로 사유와 재시작 명령을 적는다(마감 중에는 재시작 안 함).
-4. 남은 팀원 워크트리 중 살아 있는 팀원(「팀장 상태」 정의)이 없는 것만 백엔드별로 정리한다.
-   - tmux: 워크트리가 아직 있을 때만 `git worktree remove --force <경로>`.
-   - Orca: backends.md 「pane(Orca)」 「정리」 의 전환 규칙을 따른다. 경로가 `orca worktree list --json` 에 있으면 `orca worktree rm --worktree path:<경로>`, 없으면 `git worktree remove --force <경로>`.
-   - 두 경우 모두 backends.md 「고아 정리 규칙」 을 따른다. 깨끗하고 HEAD 가 `origin/<agent 브랜치>` 와 같거나 그 머지가 이미 기본 브랜치의 조상일 때만 지운다(생성 브랜치 정리 포함). 나머지는 경로를 보고한다.
-   - **살아 있는 팀원의 워크트리는 조건과 무관하게 지우지 않는다.** 경로(tmux 는 pane id 도)만 보고에 남긴다.
-   - 이유: 팀원은 팀장이 끝나도 계속 돈다. `blocked` 팀원은 pane 이나 탭에서 답을 기다린다. 깨끗하고 push 된 순간에 지우면 도는 팀원의 cwd 가 사라진다.
-   - 살아남은 tmux 팀원은 다음 팀장의 재구성이 `.dflow-pane` 과 `#{pane_start_path}` 로 흡수한다.
-   - tmux 백엔드에서는 **소켓에 pane 이 하나도 없을 때만** 서버를 거둔다(backends.md 「마감」).
+마감 진입 조건: poll exit 8, poll 오류 exit, `failed not-isolated`, 기상 때 확인한 종료 시각 경과, 종료 요청(`STOP_REQUESTED` 또는 사람 말).
+잠금 상실·lease 상실은 1-6 안 타고 아래 「잠금 상실 마감」·「lease 상실 마감」 으로 이동.
+1. 새 spawn stop. 대기 큐는 보고만 하고 비움.
+2. 기다림 상한: `blocked`·무응답 슬롯 대기 안 함.
+   - 진행 중 슬롯은 마감 진입 뒤 `TICK` 두 번까지만 결과 대기.
+   - 이 동안 poll restart 안 함. 감시 루프만 `--may-skip` 없이 restart → 결과와 `TICK` 계속 수신(「2-3」 일은 spawn·poll 만 빼고 그대로).
+   - 그 뒤에도 남은 슬롯 → TSK·id8·worktree 경로·마지막 생존 증거 목록 보고.
+   - 이유: 사람 자리 비운 시간대에 답 안 오는 슬롯 하나가 팀장을 무한정 붙잡지 않게 함. 팀원은 팀장이 끝나도 자기 pane·탭에서 계속 동작.
+   - 해소 워커도 같은 규칙으로 대기.
+   - 마감은 남은 `merge_conflict` 표시 안 지움(사람이 봐야 함).
+3. 집계 표(TSK · id8 · branch · head · done exit · status · 사유) 보고 후, 마지막 승인 스윕 1회 실행(사전 검사 없이 — 「4-0」 예외).
+   - 대기 큐·남은 슬롯·"멈춤" 표(「팀장 상태」 — 재시작 명령 칸까지)도 함께 기록.
+   - 이유: 마감 뒤 남는 worktree = 사람이 이어받는 수밖에 없음. 이어받는 방법이 그 자리에 있어야 함.
+   - 이번 실행에서 붙인 문제 기록 있으면 `문제 기록 N건 → <MAIN>/docs/dflow-team/issues.md` 한 줄 추가(「3. 결과 처리」 문제 기록).
+   - 재시작 대기·rate-limit 대기는 `references/restart.md` 「마감·lease·잠금」 대로 사유와 재시작 명령 기록(마감 중 재시작 안 함).
+4. 남은 팀원 worktree 중 살아 있는 팀원(「팀장 상태」 정의) 없는 것만 백엔드별 정리.
+   - tmux: worktree 가 아직 있을 때만 `git worktree remove --force <경로>`.
+   - Orca: backends.md 「pane(Orca)」 「정리」 전환 규칙 적용. 경로가 `orca worktree list --json` 에 있으면 `orca worktree rm --worktree path:<경로>`, 없으면 `git worktree remove --force <경로>`.
+   - 두 경우 모두 backends.md 「고아 정리 규칙」 적용. 깨끗하고 HEAD 가 `origin/<agent branch>` 와 같거나 그 merge 가 이미 기본 branch 조상일 때만 삭제(생성 branch 정리 포함). 나머지는 경로 보고.
+   - 살아 있는 팀원 worktree 는 조건 무관 삭제 안 함. 경로(tmux 는 pane id 도)만 보고에 기록.
+   - 이유: 팀원은 팀장이 끝나도 계속 동작. `blocked` 팀원 = pane·탭에서 답 대기. 깨끗하고 push 된 순간 삭제하면 도는 팀원 cwd 소실.
+   - 살아남은 tmux 팀원은 다음 팀장 재구성이 `.dflow-pane` 과 `#{pane_start_path}` 로 흡수.
+   - tmux 백엔드: 소켓에 pane 이 하나도 없을 때만 서버 종료(backends.md 「마감」).
    ```bash
    [ -z "$("$TM" -L dflow list-panes -a -F '#{pane_id}' 2>/dev/null)" ] && "$TM" -L dflow kill-server
    ```
-   - 이 소켓은 **사용자 단위**이지 리포 단위가 아니다. 자기 슬롯 표만 보고 거두면 같은 PC 다른 체크아웃에서 도는 팀장의 살아 있는 팀원이 미커밋 산출물을 안은 채 죽는다.
-   - 목록이 비지 않으면 서버를 남긴다. 대가는 서버 하나가 계속 도는 것뿐이다. 다음 팀장의 재구성이 그 pane 들을 흡수한다.
-   - `--force` 는 미추적 부산물 때문에 필요하다: `.result`·`.dflow-agent`·`.dflow-prompt`·`.dflow-pane`·`.dflow-run`·`.dflow.local`(레거시 `.env`) 링크·`.dflow` 링크·스킬 링크.
-5. **agent 브랜치는 남긴다.** 승인은 사람이 D'Flow 웹에서 한다. 승인 뒤 머지는 다음 `/dflow-team` 의 스윕이나 `/dflow-merge` 가 한다.
-6. poll 이 떠 있으면 TaskStop 으로 멈춘다(태스크 id 를 모르면 종료 시각에 스스로 끝남). 세대 파일의 세대를 올려 감시 루프를 끝낸다(`node .claude/skills/dflow-team/scripts/tick.mjs --retire`).
-   - `team.stop` 을 기록한다. 좌석표에 감시 종료를 알린 뒤 팀장 잠금 디렉터리를 지운다.
-   - 지우기 전에 「1. 시작」 의 소유 판정(`owner` 신원 = 자기 `<신원>/<host>/lead` 이고 PID = 현재 `$LEAD_PID`)을 한 번 더 한다. 참일 때만 지운다.
-   - 이유: 이 팀장이 `beat` 를 70분 넘게 놓쳐 다른 팀장이 잠금을 가져갔다면, 그 잠금은 신원·host·리포가 같아도 PID 가 다르다. 지우면 안 된다.
-   - events.jsonl 의 `team.start` 시각과 비교하지 않는 이유: 두 팀장의 이벤트가 같은 `agent`·`repo` 로 섞여, 마지막 `team.start` 가 새 팀장 것일 수 있다.
-   - `owner` 를 읽는 `read` 는 `|| true` 로 감싼다. 이유: 파일이 없으면 `read` 가 0 아닌 값으로 끝난다. 실패에 멈추는 셸 설정에서는 마감의 나머지가 통째로 건너뛰어진다.
-   - 좌석표 종료 신호는 같은 소유 판정이 참일 때만, 잠금을 지우기 전에 보낸다. 신원을 잠금 `owner` 에서 읽으므로 지운 뒤에는 못 보낸다.
+   - 이 소켓 = 사용자 단위, 리포 단위 아님. 자기 슬롯 표만 보고 종료하면 같은 PC 다른 체크아웃 팀장의 살아 있는 팀원이 미 commit 산출물 안은 채 죽음.
+   - 목록이 비지 않으면 서버 유지. 대가 = 서버 하나가 계속 도는 것뿐. 다음 팀장 재구성이 그 pane 들을 흡수.
+   - `--force` 필요 이유 = 미추적 부산물: `.result`·`.dflow-agent`·`.dflow-prompt`·`.dflow-pane`·`.dflow-run`·`.dflow.local`(레거시 `.env`) 링크·`.dflow` 링크·스킬 링크.
+5. agent branch 유지. 승인은 사람이 D'Flow 웹에서 함. 승인 뒤 merge 는 다음 `/dflow-team` 스윕이나 `/dflow-merge` 가 수행.
+6. poll 이 떠 있으면 TaskStop 으로 stop(태스크 id 모르면 종료 시각에 스스로 끝남). 세대 파일 세대를 올려 감시 루프 종료(`node .claude/skills/dflow-team/scripts/tick.mjs --retire`).
+   - `team.stop` 기록. 좌석표에 감시 종료를 알린 뒤 팀장 잠금 디렉터리 삭제.
+   - 삭제 전에 「1. 시작」 소유 판정(`owner` 신원 = 자기 `<신원>/<host>/lead` 이고 PID = 현재 `$LEAD_PID`) 한 번 더 수행. 참일 때만 삭제.
+   - 이유: 이 팀장이 `beat` 를 70분 넘게 놓쳐 다른 팀장이 잠금을 가져갔으면, 그 잠금은 신원·host·리포가 같아도 PID 가 다름. 삭제 금지.
+   - events.jsonl `team.start` 시각과 비교 안 하는 이유: 두 팀장 이벤트가 같은 `agent`·`repo` 로 섞여, 마지막 `team.start` 가 새 팀장 것일 수 있음.
+   - `owner` 읽는 `read` 는 `|| true` 로 감쌈. 이유: 파일 없으면 `read` 가 0 아닌 값으로 종료 → 실패에 멈추는 셸 설정에서 마감 나머지 통째로 건너뜀.
+   - 좌석표 종료 신호: 같은 소유 판정이 참일 때만, 잠금 삭제 전에 전송. 신원을 잠금 `owner` 에서 읽으므로 삭제 뒤 전송 불가.
    ```bash
    LEAD_PID=${CLAUDE_PID:-$PPID}
    LOCK=$(git rev-parse --git-path dflow-team.lock); o_who=; o_ts=; o_pid=
@@ -56,37 +56,37 @@ SKILL.md 「7. 마감」 이 가리킨다. 마감에 들어설 때(잠금 상실
      rm -rf "$LOCK" && echo LOCK_RELEASED
    else echo "LOCK_KEPT owner=$o_who $o_ts $o_pid"; fi
    ```
-   - 종료 파일과 절전 방지도 여기서 거둔다.
-   - 종료 파일을 남겨도 다음 팀장이 전제 검사에서 지우므로 해는 없다. 소유가 맞을 때만 지우는 이유: 잠금을 가져간 새 팀장에게 온 요청을 지우지 않기 위해서다.
-   - lease 는 잠금보다 먼저 반납한다.
-   - `dflow.mjs lease release` 가 성공하면 그 명령이 스스로 상태 파일과 `.beat` 를 지운다. lease 갱신 프로세스는 다음 확인(최대 5초)에서 상태 파일이 없는 것을 보고 스스로 끝난다.
-   - **실패하면(예: 서버 호출 실패) `dflow.mjs lease release` 는 상태 파일을 지우지 않은 채 끝난다. 이 블록이 대신 지운다.**
-   - 지우는 것이 실제로 갱신 프로세스를 멈추는 신호다. 안 지우면 세션이 살아 있는 한 갱신 프로세스가 계속 서버에 renew 를 시도해, "3분 뒤 스스로 풀린다" 는 문장이 거짓이 된다(서버 쪽 lease 는 TTL 로 풀려도 로컬 프로세스는 살아남음).
-   - 반납이 실패해도 마감을 멈추지 않는다.
-7. **남은 에이전트 확인**: ListAgents 를 다시 불러, 이 세션에 `running` 인 이름 붙은 에이전트가 남아 있으면 그 이름으로 TaskStop 하고 보고한다. 정상이면 하나도 없다.
-   - 팀원과 그 Phase 손자는 별도 프로세스라 이 세션 목록에 안 나타난다. 손자는 팀원이 스스로 회수한다.
-   - poll 태스크와 감시 루프는 Bash 태스크라 이 목록에 없다.
+   - 종료 파일과 절전 방지도 여기서 정리.
+   - 종료 파일을 남겨도 다음 팀장이 전제 검사에서 삭제 → 해 없음. 소유 맞을 때만 삭제 이유: 잠금 가져간 새 팀장에게 온 요청 보호.
+   - lease 는 잠금보다 먼저 반납.
+   - `dflow.mjs lease release` 성공하면 그 명령이 상태 파일·`.beat` 삭제. lease 갱신 프로세스는 다음 확인(최대 5초)에서 상태 파일 없음을 보고 종료.
+   - 실패하면(예: 서버 호출 실패) `dflow.mjs lease release` 는 상태 파일을 안 지운 채 종료. 이 블록이 대신 삭제.
+   - 삭제 = 갱신 프로세스 stop 신호. 안 지우면 세션 살아 있는 한 갱신 프로세스가 계속 서버에 renew 시도 → "3분 뒤 스스로 풀린다" 문장이 거짓(서버 lease 는 TTL 로 풀려도 로컬 프로세스 생존).
+   - 반납 실패해도 마감 안 멈춤.
+7. 남은 에이전트 확인: ListAgents 재호출. 이 세션에 `running` 인 이름 붙은 에이전트가 남아 있으면 그 이름으로 TaskStop 후 보고. 정상이면 하나도 없음.
+   - 팀원과 그 Phase 손자 = 별도 프로세스 → 이 세션 목록에 안 나옴. 손자는 팀원이 회수.
+   - poll 태스크와 감시 루프는 Bash 태스크라 이 목록에 없음.
 
-**잠금 상실 마감**(「2-3」 의 `LOCK_LOST`):
-- 위 1-7 중 기다림·마지막 승인 스윕·워크트리 정리·`team.*` 기록·세대 파일 변경·잠금 삭제를 하지 않는다.
-- 떠 있는 poll 을 TaskStop 으로 멈추고 7번을 그대로 수행한다.
-- 집계와 남은 슬롯(TSK·id8·워크트리 경로·pane id)을 "잠금 상실: 이 체크아웃은 다른 팀장이 맡았다" 와 함께 보고한 뒤 끝낸다.
-- 팀원 pane 은 건드리지 않는다. `kill-server` 도 하지 않는다. 새 팀장의 재구성이 `.dflow-pane` 으로 흡수하기 때문이다.
-- 이유: 이 세션의 poll 을 멈추는 것은 공유 상태를 안 건드린다. 남겨 두면 새 팀장의 poll 과 같은 작업을 두 번 돌려준다.
-- 체크아웃과 이 신원의 워크트리·세대 파일은 이제 새 팀장 것이다. 새 팀장의 재구성은 같은 `agent`·`repo` 의 마지막 `team.start` 이후 이벤트를 읽는다. 이 팀장이 기록을 남기면 새 팀장의 슬롯 표와 제외 목록에 섞인다.
+잠금 상실 마감(「2-3」 `LOCK_LOST`):
+- 위 1-7 중 기다림·마지막 승인 스윕·worktree 정리·`team.*` 기록·세대 파일 변경·잠금 삭제 안 함.
+- 떠 있는 poll 을 TaskStop 으로 stop, 7번 그대로 수행.
+- 집계·남은 슬롯(TSK·id8·worktree 경로·pane id)을 "잠금 상실: 이 체크아웃은 다른 팀장이 맡았다" 와 함께 보고한 뒤 종료.
+- 팀원 pane 은 건드리지 않음. `kill-server` 도 안 함. 이유: 새 팀장 재구성이 `.dflow-pane` 으로 흡수.
+- 이유: 이 세션 poll stop = 공유 상태 안 건드림. 남겨 두면 새 팀장 poll 과 같은 작업 두 번 배정.
+- 체크아웃과 이 신원 worktree·세대 파일 = 이제 새 팀장 것. 새 팀장 재구성은 같은 `agent`·`repo` 의 마지막 `team.start` 이후 이벤트를 읽음. 이 팀장이 기록 남기면 새 팀장 슬롯 표·제외 목록에 섞임.
 
-**lease 상실 마감**(「2-3」 의 `LEASE_LOST`): 다른 곳의 같은 신원 팀장이 이 프로젝트를 넘겨받았다. 이 팀장은 즉시 손을 뗀다.
-1. "팀장 lease 상실: <사유>. 이 프로젝트는 다른 곳의 팀장이 맡았다" 를 보고한다.
-2. 새 claim·새 spawn·승인 스윕·머지를 하지 않는다. 대기 큐는 보고만 하고 비운다.
-3. 떠 있는 poll 을 TaskStop 으로 멈추고, 세대 파일의 세대를 올려 감시 루프를 끝낸다(`tick.mjs --retire`). lease 갱신 프로세스는 이미 끝나 있다(표식을 쓰고 끝남).
-4. **떠 있는 워커는 건드리지 않는다.**
-   - 워커는 하던 작업을 끝까지 하고 agent 브랜치 push 와 done 보고를 한다.
-   - 그 결과는 새 팀장의 승인 스윕이 서버에서 이어받는다.
-   - 팀원 pane·탭을 닫지 않는다. `kill-server` 도 하지 않는다.
-5. 위 6번 블록을 그대로 실행한다: 좌석표 감시 종료, `lease release`, 로컬 잠금 삭제(소유 판정이 참일 때).
-   - 그 블록의 `lease release` 는 남의 lease 를 풀지 않는다. 서버가 holder·generation 이 맞는 행만 풀기 때문에, 빼앗긴 lease 에는 0건으로 끝난다.
-   - 서버에 못 닿아 끝난 경우(`LEASE_UNREACHABLE`)에는 아무도 안 가져간 내 lease 를 바로 풀어 준다.
-   - 이유(로컬 잠금 삭제): 같은 체크아웃에서 사람이 나중에 팀장을 다시 띄울 수 있어야 한다.
-   - 표식 파일(`dflow-team.lease-lost`)은 다음 시작의 전제 검사가 지운다.
-6. 7번(남은 에이전트 확인)을 그대로 한다.
-7. 보고에 남은 슬롯(TSK·id8·워크트리 경로·pane id)과 "워커 N명은 하던 작업을 끝낸 뒤 스스로 끝난다" 를 적는다.
+lease 상실 마감(「2-3」 `LEASE_LOST`): 다른 곳의 같은 신원 팀장이 이 프로젝트를 인수. 이 팀장은 즉시 손 뗌.
+1. "팀장 lease 상실: <사유>. 이 프로젝트는 다른 곳의 팀장이 맡았다" 보고.
+2. 새 claim·새 spawn·승인 스윕·merge 금지. 대기 큐는 보고만 하고 비움.
+3. 떠 있는 poll 을 TaskStop 으로 stop, 세대 파일 세대를 올려 감시 루프 종료(`tick.mjs --retire`). lease 갱신 프로세스는 이미 종료됨(표식을 쓰고 끝남).
+4. 떠 있는 워커는 건드리지 않음.
+   - 워커는 하던 작업을 끝까지 수행하고 agent branch push 와 done 보고.
+   - 그 결과는 새 팀장 승인 스윕이 서버에서 이어받음.
+   - 팀원 pane·탭 닫지 않음. `kill-server` 도 안 함.
+5. 위 6번 블록 그대로 실행: 좌석표 감시 종료, `lease release`, 로컬 잠금 삭제(소유 판정이 참일 때).
+   - 그 블록 `lease release` 는 남의 lease 를 안 풂. 이유: 서버가 holder·generation 맞는 행만 풀어서, 빼앗긴 lease 는 0건으로 종료.
+   - 서버에 못 닿아 끝난 경우(`LEASE_UNREACHABLE`): 아무도 안 가져간 내 lease 를 바로 해제.
+   - 이유(로컬 잠금 삭제): 같은 체크아웃에서 사람이 나중에 팀장을 다시 띄울 수 있어야 함.
+   - 표식 파일(`dflow-team.lease-lost`)은 다음 start 전제 검사가 삭제.
+6. 7번(남은 에이전트 확인) 그대로 수행.
+7. 보고에 남은 슬롯(TSK·id8·worktree 경로·pane id)과 "워커 N명은 하던 작업을 끝낸 뒤 스스로 끝난다" 기록.
