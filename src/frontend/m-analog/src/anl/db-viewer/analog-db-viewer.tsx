@@ -43,6 +43,7 @@ import { DbMenuTree } from "./db-menu-tree";
 import DbSqlEditor, { type DbSqlEditorHandle } from "./db-sql-editor";
 import { identifierText, toSqlLiteral } from "./sql-assist";
 import { createSeq } from "./latest-seq";
+import { loadAllChunks } from "./load-more";
 import type { DbColumnInfo, DbQueryResult } from "./types";
 import "./db-viewer.css";
 
@@ -381,37 +382,25 @@ export function AnalogDbViewer() {
     const sql = resultSqlRef.current;
     if (sql === "" || runningRef.current) return;
     const ticket = querySeqRef.current.next();
-    let rows: Record<string, unknown>[] = [];
-    let first: DbQueryResult | null = null;
-    let elapsedMs = 0;
     setMoreCount(0);
     try {
-      for (;;) {
-        const part = await runQuery({ sql, offset: rows.length });
-        if (!querySeqRef.current.isLatest(ticket)) return;
-        rows = rows.concat(part.rows);
-        elapsedMs += part.elapsedMs;
-        // 열 정의가 묶음마다 새로 만들어지지 않게 첫 묶음의 columns·lobColumns 참조를 그대로 쓴다.
-        first ??= part;
-        setResult({
-          ...part,
-          columns: first.columns,
-          lobColumns: first.lobColumns,
-          rows,
-          rowCount: rows.length,
-          elapsedMs,
-        });
-        setMoreCount(rows.length);
-        if (part.capReached) {
-          gfn(
-            `${countText(rows.length)}까지만 볼 수 있습니다. WHERE 로 좁혀 주세요.`,
-            "",
-            "",
-            "warning",
-          );
-        }
-        if (!part.hasMore || part.rows.length === 0) break;
-      }
+      await loadAllChunks({
+        sql,
+        fetchChunk: runQuery,
+        isCurrent: () => querySeqRef.current.isLatest(ticket),
+        onProgress: (merged, part) => {
+          setResult(merged);
+          setMoreCount(merged.rows.length);
+          if (part.capReached) {
+            gfn(
+              `${countText(merged.rows.length)}까지만 볼 수 있습니다. WHERE 로 좁혀 주세요.`,
+              "",
+              "",
+              "warning",
+            );
+          }
+        },
+      });
     } catch (err) {
       if (querySeqRef.current.isLatest(ticket)) {
         gfn(errText(err), "", "", "warning");

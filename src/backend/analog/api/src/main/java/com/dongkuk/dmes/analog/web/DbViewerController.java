@@ -6,6 +6,7 @@ import com.dongkuk.dmes.analog.db.DbViewerService;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -52,9 +53,24 @@ public class DbViewerController {
         return service().listColumns(schema, table);
     }
 
-    /** 자유 SQL 실행 — SELECT 단문만, 서버가 재조립 후 실행한다. */
+    /** 자유 SQL 실행 — SELECT 단문만, 서버가 재조립 후 실행한다. 검사에서 거절되면 감사 로그에 남기고 그대로 던진다. */
     @PostMapping("/query")
-    public DbViewerService.QueryResult query(@RequestBody QueryRequest request) {
+    public DbViewerService.QueryResult query(@RequestBody QueryRequest request,
+                                             @RequestHeader(name = "X-Authenticated-User", required = false)
+                                             String userId) {
+        try {
+            return dispatch(request);
+        } catch (DbViewerException e) {
+            // 서비스가 없거나(503) 서버 쪽 오류(5xx)는 검사 거절이 아니므로 기록하지 않는다.
+            DbViewerService service = serviceProvider.getIfAvailable();
+            if (service != null && e.getStatusCode().is4xxClientError()) {
+                service.auditRejectedQuery(userId, rejectedText(request), e);
+            }
+            throw e;
+        }
+    }
+
+    private DbViewerService.QueryResult dispatch(QueryRequest request) {
         if (request.sql() != null && !request.sql().isBlank()) {
             // offset 이 있으면 「더보기」 묶음 요청이다 — 검사 경로는 첫 조회와 같다.
             if (request.offset() != null) {
@@ -70,6 +86,15 @@ public class DbViewerController {
                     request.limit());
         }
         throw new DbViewerException(400, "sql 또는 schema/table을 지정해 주세요.");
+    }
+
+    /** 거절 기록에 남길 요청 내용 — SQL 이 있으면 SQL, 구조화 요청이면 스키마·표·칸. */
+    private static String rejectedText(QueryRequest request) {
+        if (request.sql() != null && !request.sql().isBlank()) {
+            return request.sql();
+        }
+        return "(structured) schema=" + request.schema() + " table=" + request.table()
+                + " columns=" + request.columns();
     }
 
     /**

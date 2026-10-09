@@ -155,6 +155,91 @@ public class DbViewerService {
         return sb == null ? text : sb.toString();
     }
 
+    /** 거절 기록에 남기는 SQL 앞부분 글자 수. */
+    static final int REJECT_SQL_CHARS = 500;
+    /** 거절 기록에 남기는 사용자 id 최대 글자 수. */
+    private static final int REJECT_USER_CHARS = 64;
+
+    /**
+     * 검사에서 거절된 조회 요청을 감사 로그(WARN)에 남긴다 — 사용자 id·거절 사유 코드·SQL 앞부분(줄바꿈 제거).
+     * 기록이 실패해도 거절은 그대로 나가야 하므로 어떤 예외도 밖으로 내지 않는다.
+     */
+    public void auditRejectedQuery(String userId, String sql, DbViewerException rejected) {
+        try {
+            String reason = rejected == null ? null : rejected.getReason();
+            int status = rejected == null ? 0 : rejected.getStatusCode().value();
+            audit.warn("query-rejected user={} code={} status={} reason={} sql={}",
+                    escapeLog(clip(userId == null || userId.isBlank() ? "-" : userId.trim().replaceAll("\\s+", "_"),
+                            REJECT_USER_CHARS)),
+                    rejectCode(reason), status, escapeLog(reason), escapeLog(sqlHead(sql, REJECT_SQL_CHARS)));
+        } catch (RuntimeException e) {
+            // 기록 실패가 거절 응답을 바꾸지 않는다.
+        }
+    }
+
+    /** 거절 사유 문구 → 고정 코드. 문구가 바뀌어도 로그를 모으는 쪽의 구분이 흔들리지 않게 한다. */
+    static String rejectCode(String reason) {
+        if (reason == null) {
+            return "UNKNOWN";
+        }
+        if (reason.contains("복문")) {
+            return "MULTI_STATEMENT";
+        }
+        if (reason.contains("주석")) {
+            return "COMMENT";
+        }
+        if (reason.contains("SELECT 문만")) {
+            return "NOT_SELECT";
+        }
+        if (reason.contains("키워드")) {
+            return "FORBIDDEN_KEYWORD";
+        }
+        if (reason.contains("민감")) {
+            return "SENSITIVE";
+        }
+        if (reason.contains("조회할 수 없는 표")) {
+            return "DENIED_TABLE";
+        }
+        if (reason.contains("FROM ")) {
+            return "FROM_FORMAT";
+        }
+        if (reason.contains("스키마")) {
+            return "SCHEMA";
+        }
+        if (reason.contains("괄호")) {
+            return "PAREN";
+        }
+        if (reason.contains("너무 ")) {
+            return "TOO_LONG";
+        }
+        if (reason.contains("단일 테이블")) {
+            return "MULTI_TABLE";
+        }
+        if (reason.contains("테이블 또는 컬럼을 찾을 수 없습니다")) {
+            return "NOT_FOUND";
+        }
+        return "INVALID";
+    }
+
+    /** SQL 앞부분 — 줄바꿈·연속 공백을 한 칸으로 줄이고 maxChars 를 넘으면 자른다(서로게이트 쌍은 보존). */
+    static String sqlHead(String sql, int maxChars) {
+        if (sql == null) {
+            return "";
+        }
+        return clip(sql.replaceAll("\\s+", " ").trim(), maxChars);
+    }
+
+    private static String clip(String text, int maxChars) {
+        if (text.length() <= maxChars) {
+            return text;
+        }
+        int end = maxChars;
+        if (end > 0 && Character.isHighSurrogate(text.charAt(end - 1))) {
+            end--;
+        }
+        return text.substring(0, end) + "…";
+    }
+
     /** 차단 표면 400 — 모든 허용 스키마에서 표 이름만 비교한다(대문자 정규화). */
     private void checkTableNotDenied(String table) {
         String normalized = table == null ? "" : table.trim().toUpperCase(Locale.ROOT);
