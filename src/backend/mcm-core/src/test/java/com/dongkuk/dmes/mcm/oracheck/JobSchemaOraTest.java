@@ -167,4 +167,26 @@ class JobSchemaOraTest {
         assertThatThrownBy(() -> insertRun("ID1", Timestamp.valueOf("2026-10-09 04:00:00"), "X", "id-x", "OK")).isInstanceOf(DataIntegrityViolationException.class);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ALL_CONSTRAINTS WHERE OWNER = 'MCMAPUSER' AND CONSTRAINT_NAME IN ('CK_TB_MCM_JOB_DEF_MISFIRE', 'CK_TB_MCM_JOB_RUN_TRG')", Integer.class)).isEqualTo(2);
     }
+
+    @Test
+    @DisplayName("V8: 옛 환율 표 TB_MCM_EXCHANGE_RATE 는 없다 — 다시 만들면 V8 이 지우고, 없어도 오류 없이 지나간다(멱등)")
+    void v8DropsLegacyExchangeRate() throws Exception {
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM ALL_TABLES WHERE OWNER = 'MCMAPUSER' AND TABLE_NAME = 'TB_MCM_EXCHANGE_RATE'", Integer.class)).isZero();
+
+        String sql = new String(new ClassPathResource("db/migration/oracle/mcmapuser/V8__drop_legacy_exchange_rate.sql").getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        String block = sql.substring(0, sql.lastIndexOf("/")).strip();   // 끝의 SQL*Plus 구분자(/)는 JDBC 에 보내지 않는다
+
+        jdbc.execute("ALTER SESSION SET CURRENT_SCHEMA = MCMAPUSER");
+        jdbc.execute(block);   // 표가 없는 상태 — 건너뛴다
+        jdbc.execute(block);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM ALL_TABLES WHERE OWNER = 'MCMAPUSER' AND TABLE_NAME = 'TB_MCM_EXCHANGE_RATE'", Integer.class)).isZero();
+
+        jdbc.execute("CREATE TABLE TB_MCM_EXCHANGE_RATE (RATE_DATE char(8), BASE_CUR char(3), QUOTE_CUR char(3), "
+                + "CONSTRAINT PK_TB_MCM_EXCHANGE_RATE PRIMARY KEY (RATE_DATE, BASE_CUR, QUOTE_CUR))");
+        jdbc.execute(block);   // 표가 있으면 지운다(PURGE 없이 — 휴지통에 남는다)
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM ALL_TABLES WHERE OWNER = 'MCMAPUSER' AND TABLE_NAME = 'TB_MCM_EXCHANGE_RATE'", Integer.class)).isZero();
+    }
 }

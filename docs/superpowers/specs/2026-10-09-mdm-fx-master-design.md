@@ -107,7 +107,7 @@
 | 읽는 방법 | (a) mcm 앱이 `MDMAPUSER.` 접두로 직접 SELECT (b) mcm→mdm OASIS HTTP | **(a)** 읽기 전용 1개 쿼리(`FxMasterReader`, `widget/ext`). 앱 간 런타임 의존이 없고, 스키마 간 접두 읽기는 oracle-1007 연결 규약이 허용한다. 운영은 DBA 가 `MCMAPUSER` 에 `MDMAPUSER.TB_MDM_DATA_ITEM` SELECT 를 부여해야 한다(적용 절차에 명시) |
 | 마스터에 값이 없을 때 | (i) 빈 상태 안내 (ii) 기존 실시간 조회 폴백 | **(i) 빈 상태 + 낡음 표시.** 폴백은 마스터를 우회해 값이 갈리고 작업 실패가 가려진다. 응답 `disabled`(데이터 없음 안내)를 재사용하고, 가장 최근 기준일이 4영업일 넘게 낡았으면 `stale:true` 로 기존 「갱신 실패」 배지를 켠다 |
 | 외부 조회 코드 | 제거 vs 유지 | `ExchangeService` 에서 외부 제공자 호출·사용자 한도·시도 기록 경로를 걷어낸다. `ExchangeRateProvider` 류와 `ExchangeCollectSource`(예약 수집)는 그대로 둔다 |
-| 기존 `TB_MCM_EXCHANGE_RATE` | DROP vs 보존 | **보존(DROP 금지, 지시).** 더 이상 쓰지 않는 표로 두고, 정리는 사용자 결정 후속으로 올린다. `ExchangeRateWriter`·`ExchangeRateRepository` 도 코드는 남기되 위젯 경로에서 호출하지 않는다 |
+| 기존 `TB_MCM_EXCHANGE_RATE` | DROP vs 보존 | 당초 보존했으나 사용자가 삭제를 승인(2026-10-09)해 **V8 에서 삭제.** `ExchangeRateWriter`·`ExchangeRateRepository` 도 함께 지웠다 |
 
 - 응답 모양·위젯 설정·화면은 그대로다: `{latest[{cur,rate,diff,date}], history[{date,cur,rate}], stale?, disabled?}`. `rate`·`diff` 는 지금처럼 double. `latest` 는 통화별 최신 기준일 1건과 직전 기준일 대비 차이.
 - 요청 검증(`ExchangeAllowList`: 허용 통화·기간·개수)은 그대로 둔다.
@@ -160,7 +160,7 @@ B1 이 먼저 끝나야 B2·B3 의 Oracle 시험이 마스터를 볼 수 있다.
 | R11 | 정본 제공자 | 기존 규칙을 그대로 쓴다(수출입은행 키가 있으면 수출입은행 매매기준율, 없으면 Frankfurter). 실제 제공자는 `ATTR05` 에 남긴다. 제공자가 바뀌면 같은 날 키는 UPDATE 로 덮어쓴다 |
 | R12 | D1 모델 | A 유지. C(통화 한 키 + 선분 이력)는 선분 시각이 저장 시각이라 과거 소급이 안 되고 이력 표시가 막힌다. 사용자가 다른 모양을 원하면 후속 |
 
-추가 주의(문서화만): 수집 경로가 둘이 된다(`ExchangeCollectSource`→`TB_MCM_JOB_COLLECT_DATA` 와 이 작업). `TB_MDM_DATA_RECV` 수신 이력은 남지 않는다(수신 API 경로는 보류 상태). `FX_RATE` 는 연 약 2,900행씩 늘며 보관 정책은 후속이다. `FX_RATE` 폐기(deprecate)를 누가 하면 작업이 CHK1 로 실패한다. 쓰지 않게 되는 `ExchangeRateWriter`·`ExchangeRateRepository`·`TB_MCM_EXCHANGE_RATE` 는 삭제하지 않고 `@Deprecated` 와 주석으로 남긴다(조정 지시).
+추가 주의(문서화만): 수집 경로가 둘이 된다(`ExchangeCollectSource`→`TB_MCM_JOB_COLLECT_DATA` 와 이 작업). `TB_MDM_DATA_RECV` 수신 이력은 남지 않는다(수신 API 경로는 보류 상태). `FX_RATE` 는 연 약 2,900행씩 늘며 보관 정책은 후속이다. `FX_RATE` 폐기(deprecate)를 누가 하면 작업이 CHK1 로 실패한다. 쓰지 않게 되는 `ExchangeRateWriter`·`ExchangeRateRepository`·`TB_MCM_EXCHANGE_RATE` 는 당초 `@Deprecated` 와 주석으로 남겼으나, 사용자 삭제 승인(2026-10-09)으로 Flyway V8 에서 삭제했다.
 
 ## 7. 날짜 한 행 전환 (레인 fx-pivot, 지시 fx-pivot-1, 2026-10-09)
 

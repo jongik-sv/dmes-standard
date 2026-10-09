@@ -342,20 +342,6 @@ Table TB_MCM_WIDGET_MEDIA {
   Note: '미디어 위젯 업로드 파일 메타. SVG 금지. 감사 컬럼 9개.'
 }
 
-Table TB_MCM_EXCHANGE_RATE {
-  RATE_DATE char(8)        [note: 'yyyyMMdd']
-  BASE_CUR  char(3)        [note: '기준 통화(KRW)']
-  QUOTE_CUR char(3)        [note: '대상 통화']
-  RATE      numeric(20,8)  [not null, note: '대상 통화 1단위의 기준 통화 값(1 USD = n KRW)']
-  SOURCE    varchar(20)    [not null, note: 'frankfurter · koreaexim']
-
-  indexes {
-    (RATE_DATE, BASE_CUR, QUOTE_CUR) [pk]
-  }
-
-  Note: '일자별 환율(환율 위젯이 빠진 날짜를 제공자에서 채워 쌓는다). 감사 컬럼 9개.'
-}
-
 Table TB_MCM_SEC_USER_WIDGET_CHAT {
   USER_ID    varchar(30)   [note: '→ TB_MCM_SEC_USER']
   INST_ID    varchar(40)   [note: '챗봇 위젯 인스턴스']
@@ -549,7 +535,6 @@ TableGroup "위젯" {
   TB_MCM_WIDGET_DEF
   TB_MCM_WIDGET_DEFAULT_LAYOUT
   TB_MCM_WIDGET_MEDIA
-  TB_MCM_EXCHANGE_RATE
   TB_MCM_SEC_USER_WIDGET_CHAT
   TB_MCM_SEC_USER_WIDGET_MEMO
 }
