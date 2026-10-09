@@ -37,6 +37,19 @@ public class DbViewerProperties {
     /** 「더보기」 한 번(요청 하나)에 읽는 묶음 크기. 요청이 이보다 크게 지정해도 이 값으로 줄인다. */
     private int moreChunk = 5000;
 
+    /** 응답 하나가 담을 수 있는 행 데이터의 대략적인 바이트 상한(UTF-8). 넘기 직전 행에서 끊고 「더 있음」으로 돌려준다. */
+    private int maxResponseBytes = DEFAULT_RESPONSE_BYTES;
+
+    /** 일반 칸(VARCHAR·LONG 등) 값 하나의 표시 길이 상한(글자). 넘으면 자르고 {@code …(전체 N자)} 를 붙인다. */
+    private int maxCellChars = DEFAULT_CELL_CHARS;
+
+    public static final int DEFAULT_RESPONSE_BYTES = 8 * 1024 * 1024;
+    public static final int MIN_RESPONSE_BYTES = 1024 * 1024;
+    public static final int MAX_RESPONSE_BYTES = 64 * 1024 * 1024;
+    public static final int DEFAULT_CELL_CHARS = 4000;
+    public static final int MIN_CELL_CHARS = 100;
+    public static final int MAX_CELL_CHARS = 100_000;
+
     /** 쿼리 타임아웃(초). */
     private int queryTimeoutSeconds = 10;
 
@@ -83,6 +96,40 @@ public class DbViewerProperties {
 
     public void setMoreChunk(int moreChunk) {
         this.moreChunk = moreChunk;
+    }
+
+    public int getMaxResponseBytes() {
+        return maxResponseBytes;
+    }
+
+    public void setMaxResponseBytes(int maxResponseBytes) {
+        this.maxResponseBytes = maxResponseBytes;
+    }
+
+    public int getMaxCellChars() {
+        return maxCellChars;
+    }
+
+    public void setMaxCellChars(int maxCellChars) {
+        this.maxCellChars = maxCellChars;
+    }
+
+    /**
+     * 실제로 쓰는 응답 바이트 상한. 설정이 0 이하이거나 범위를 벗어나면 작은 쪽으로 맞춘다(실패 시 닫는 방향).
+     */
+    public int effectiveMaxResponseBytes() {
+        if (maxResponseBytes <= 0) {
+            return MIN_RESPONSE_BYTES;
+        }
+        return Math.min(MAX_RESPONSE_BYTES, Math.max(MIN_RESPONSE_BYTES, maxResponseBytes));
+    }
+
+    /** 실제로 쓰는 칸 길이 상한. 0 이하이거나 범위를 벗어나면 작은 쪽으로 맞춘다. */
+    public int effectiveMaxCellChars() {
+        if (maxCellChars <= 0) {
+            return MIN_CELL_CHARS;
+        }
+        return Math.min(MAX_CELL_CHARS, Math.max(MIN_CELL_CHARS, maxCellChars));
     }
 
     public int getQueryTimeoutSeconds() {

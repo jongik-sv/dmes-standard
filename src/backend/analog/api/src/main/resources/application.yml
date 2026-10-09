@@ -14,6 +14,9 @@ analog:
     max-rows: 200
     max-rows-all: 30000
     more-chunk: 5000
+    # 응답 하나의 행 데이터 바이트 상한(1~64MB로 맞춤)과 일반 칸 값 하나의 표시 글자 상한(100~100000).
+    max-response-bytes: 8388608
+    max-cell-chars: 4000
     query-timeout-seconds: 10
     url: "${ANALOG_DB_URL:}"
     username: "${ANALOG_DB_USERNAME:}"
