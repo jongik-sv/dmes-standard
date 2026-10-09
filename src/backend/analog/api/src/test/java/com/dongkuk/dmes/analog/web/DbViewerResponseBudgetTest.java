@@ -55,20 +55,25 @@ class DbViewerResponseBudgetTest {
     }
 
     /** 모든 칸이 같은 문자열인 행을 rowCount 건 내놓는 목 ResultSet 을 서비스 추출기로 읽게 한다. */
-    @SuppressWarnings("unchecked")
     private void rows(int rowCount, String cell, String... labels) throws SQLException {
+        rows(rowCount, cell, Types.VARCHAR, labels);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void rows(int rowCount, String cell, int sqlType, String... labels) throws SQLException {
         ResultSetMetaData meta = mock(ResultSetMetaData.class);
         when(meta.getColumnCount()).thenReturn(labels.length);
         for (int i = 0; i < labels.length; i++) {
             when(meta.getColumnLabel(i + 1)).thenReturn(labels[i]);
-            when(meta.getColumnType(i + 1)).thenReturn(Types.VARCHAR);
-            when(meta.getColumnTypeName(i + 1)).thenReturn("VARCHAR2");
+            when(meta.getColumnType(i + 1)).thenReturn(sqlType);
+            when(meta.getColumnTypeName(i + 1)).thenReturn(sqlType == Types.LONGVARCHAR ? "LONG" : "VARCHAR2");
         }
         ResultSet rs = mock(ResultSet.class);
         when(rs.getMetaData()).thenReturn(meta);
         AtomicInteger next = new AtomicInteger();
         when(rs.next()).thenAnswer(inv -> next.getAndIncrement() < rowCount);
         when(rs.getObject(any(Integer.class))).thenReturn(cell);
+        when(rs.getString(any(Integer.class))).thenReturn(cell);
         when(jdbc.query(anyString(), any(ResultSetExtractor.class))).thenAnswer(inv -> {
             ResultSetExtractor<?> extractor = inv.getArgument(1);
             return extractor.extractData(rs);
@@ -168,6 +173,38 @@ class DbViewerResponseBudgetTest {
         String value = (String) service.query("SELECT A FROM MCMAPUSER.TB_BUDGET").rows().get(0).get("A");
         assertThat(value).startsWith(chars(99)).endsWith("…(전체 139자)");
         assertThat(value.substring(0, value.indexOf('…'))).isEqualTo(chars(99));
+    }
+
+    @Test
+    void 한글은_글자당_3바이트로_세어_상한에서_끊는다() throws Exception {
+        table("A");
+        properties.setMaxResponseBytes(1024 * 1024);
+        properties.setMaxCellChars(100_000);
+        // 한글 100,000자 = 300,000바이트 — 3건(900,000)까지 들어가고 4번째에서 끊긴다(글자 수로 세면 10건).
+        rows(50, "가".repeat(100_000), "A");
+        DbViewerService.QueryResult result = service.query("SELECT A FROM MCMAPUSER.TB_BUDGET");
+        assertThat(result.rows()).hasSize(3);
+        assertThat(result.hasMore()).isTrue();
+    }
+
+    @Test
+    void 합계가_상한과_정확히_같으면_담고_다음_행에서_끊는다() throws Exception {
+        table("A");
+        properties.setMaxResponseBytes(1024 * 1024);
+        properties.setMaxCellChars(100_000);
+        // 행 하나 = 값 65,527 + 칸 이름 1 + 칸 몫 6 + 행 몫 2 = 65,536 바이트, 16건이 정확히 1MiB 다.
+        rows(50, chars(65_527), "A");
+        DbViewerService.QueryResult result = service.query("SELECT A FROM MCMAPUSER.TB_BUDGET");
+        assertThat(result.rows()).hasSize(16);
+        assertThat(result.hasMore()).isTrue();
+    }
+
+    @Test
+    void LONG_칸도_길면_자른다() throws Exception {
+        table("A");
+        rows(1, chars(10_000), Types.LONGVARCHAR, "A");
+        assertThat(service.query("SELECT A FROM MCMAPUSER.TB_BUDGET").rows().get(0).get("A"))
+                .isEqualTo(chars(4000) + "…(전체 10,000자)");
     }
 
     @Test
