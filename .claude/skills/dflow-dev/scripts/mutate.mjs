@@ -1,18 +1,51 @@
-// mutate.sh 의 본체(변이 검증 드라이버). 형식·결과 줄·종료 코드의 정본은 mutate.sh 머리 주석이다.
-// perl 이던 것을 옮겼다(macOS·Git Bash 모두 node 만 있으면 돈다). 인자: <git-dir> run 뒤의 인자들(<폴더|파일.mut>… [--ids M1,M3]).
+// mutate.mjs — /dflow-dev 변이 검증 드라이버. mutate.sh 의 node 판으로, 옛 .sh 와 같은 인자를 그대로 받는다.
+// 형식·결과 줄·종료 코드의 정본은 backup/scripts/mutate.sh 머리 주석이다.
+//
+//   node mutate.mjs run <폴더|파일.mut>… [--ids M1,M3]   (리포 최상위에서 부른다)
+//
+// perl 이던 것을 옮겼다(macOS·Git Bash 모두 node 만 있으면 돈다).
 // 파일은 바이트 그대로(latin1) 읽고 써서 인코딩·줄바꿈을 건드리지 않는다.
+// `--help` 는 사용법을 내고 exit 0.
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
-const out = (s) => { for (;;) { try { fs.writeSync(1, s); return; } catch (e) { if (e.code !== 'EAGAIN') return; } } };
-const err = (s) => { for (;;) { try { fs.writeSync(2, s); return; } catch (e) { if (e.code !== 'EAGAIN') return; } } };
+// fd 에 전부 쓸 때까지 루프한다(64KB 넘는 파이프도 잘리지 않는다).
+const writeAll = (fd, data) => {
+  const buf = typeof data === 'string' ? Buffer.from(data, 'utf8') : data;
+  let off = 0;
+  while (off < buf.length) {
+    let n;
+    try { n = fs.writeSync(fd, buf, off); } catch (e) { if (e.code === 'EAGAIN') continue; return; }
+    if (n <= 0) return;
+    off += n;
+  }
+};
+const out = (s) => { writeAll(1, s); };
+const err = (s) => { writeAll(2, s); };
 
-const [gitdir, ...rest] = process.argv.slice(2);
+const USAGE = '사용법: mutate.sh run <폴더|파일.mut>… [--ids M1,M3]\n';
+const argv = process.argv.slice(2);
+if (argv.length === 1 && (argv[0] === '--help' || argv[0] === '-h')) { out(USAGE); process.exit(0); }
+if (argv[0] !== 'run') { err(USAGE); process.exit(2); }
+// git-dir 는 스스로 구한다(옛 .sh 가 구해 넘기던 자리).
+const gd = spawnSync('git', ['rev-parse', '--git-dir'], { encoding: 'utf8', windowsHide: true });
+if (gd.status !== 0) { err('MUTATION_BAD . git 작업 트리 안에서 부른다\n'); process.exit(2); }
+const gitdir = String(gd.stdout ?? '').replace(/\n+$/, '');
+// 옛 .sh 와 같이 리포 최상위에서만 부른다(파일 경로·로그가 최상위 기준이다).
+const topOut = spawnSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8', windowsHide: true });
+const TOP = String(topOut.stdout ?? '').replace(/\n+$/, '');
+let hereP = process.cwd();
+let topP = TOP;
+try { hereP = fs.realpathSync(process.cwd()); } catch { /* 그대로 */ }
+try { topP = fs.realpathSync(TOP); } catch { /* 그대로 */ }
+if (topOut.status !== 0 || hereP !== topP) { err(`MUTATION_BAD . 리포 최상위에서 부른다(${TOP})\n`); process.exit(2); }
+
+const rest = argv.slice(1);
 const inputs = []; let ids;
 for (let i = 0; i < rest.length; i++) { if (rest[i] === '--ids') { ids = rest[++i] ?? ''; } else inputs.push(rest[i]); }
-if (!inputs.length) { err('사용법: mutate.sh run <폴더|파일.mut>… [--ids M1,M3]\n'); process.exit(2); }
+if (!inputs.length) { err(USAGE); process.exit(2); }
 const want = new Set(ids === undefined ? [] : ids.split(',').filter((x) => x.length));
 const bak = `${gitdir}/dflow-bak/mutate`;
 const logs = `${gitdir}/dflow-bak/mutate-logs`;
