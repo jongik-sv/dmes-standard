@@ -224,6 +224,16 @@ OASIS 에서는 서비스에서 다른 서비스를 함수처럼 부를 수 있�
 - OASIS 의 `timeoutSecond` 로는 대신할 수 없습니다. 값이 전역 50초로 고정되어 있고 `createNewService=true` 서브서비스에만 쓰이며, 시간을 넘기면 결과가 null 이어서 오류가 납니다.
 - 시간 초과 값은 작업마다 정합니다(10-86400초). 처리기의 `defaultTimeout()` 은 자동으로 만들어지는 작업의 초기값입니다.
 
+## 놓친 회차 한 번 실행(MISFIRE_RUN_YN)
+
+- 늦은 회차(`DB_NOW - NEXT_RUN_AT` 이 2분 초과)는 기본으로 따라잡지 않고 `SKIP`(놓친 회차를 건너뜀) 한 건만 남깁니다. 작업 정의 칼럼 `TB_MCM_JOB_DEF.MISFIRE_RUN_YN`(`Y`·`N`, 기본 `N`, Flyway V7)이 `Y` 면 건너뛰지 않고 한 번 실행합니다.
+- 판정은 `JobDispatchService.decide(lateness, misfireRunOnce, overlapping)` 한 곳입니다(DB 없이 단위 시험 가능). 결과는 `SKIP_LATE`, `SKIP_OVERLAP`, `RUN`, `RUN_MISSED` 입니다. 옵션이 꺼진 늦은 회차는 겹침을 보지 않고 `SKIP_LATE`, 켜진 늦은 회차는 겹침 검사를 거친 뒤 `RUN_MISSED` 입니다.
+- `RUN_MISSED` 의 실행 기록은 `TRIGGER_TP='C'`(일정은 `S`, 지금 실행은 `M`)입니다. V7 이 `CK_TB_MCM_JOB_RUN_TRG` 를 `('S','M','C')` 로 바꿉니다. `SCHED_AT` 은 놓친 첫 회차(`NEXT_RUN_AT` 초 단위)이고, 같은 회차를 두 MCM 이 동시에 잡아도 PK `(JOB_ID, SCHED_AT, 'C')` 로 한 번만 만들어집니다.
+- 한 번만 실행되는 이유: 다음 시각을 항상 `max(회차, DB_NOW)` 뒤로 계산하므로 놓친 회차는 한 건으로 합쳐집니다. 이력 표시는 MSG 가 아니라 `TRIGGER_TP` 입니다(모듈이 결과를 갱신할 때 MSG 를 덮어쓰기 때문).
+- `:prevRunAt` 은 `TRIGGER_TP IN ('S','C')` 의 직전 정상 회차입니다. `M` 은 구간을 당기지 않습니다.
+- 화면 저장 요청(`jobSchedMng/save`)은 `misfireRunYn`(`Y`·`N`)을 받습니다. 값이 없으면 새 작업은 `N`, 기존 작업은 지금 값을 유지하고, 그 밖의 값은 거절합니다. 상세 응답에도 `misfireRunYn` 이 있습니다.
+- V7 은 멱등입니다(칼럼·제약이 있으면 건너뛰고, `TRIGGER_TP` 제약은 `'C'` 가 없을 때만 다시 만듭니다).
+
 ## 로그와 실행 기록에 남는 것
 
 | 무엇 | 어디에 |
