@@ -15,9 +15,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ContentBody,
   ContentPanel,
-  DETAIL_LABEL_CELL,
-  DETAIL_TABLE_STYLE,
-  DETAIL_VALUE_CELL,
   ErrorModal,
   SearchArea,
   SearchField,
@@ -30,40 +27,23 @@ import {
   GridPanel,
   type GridColumn,
 } from "@dk-oasis/shared/grid";
-import { Button, Input, Select } from "@dk-oasis/shared/form";
-import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
+import { Input, useBusy } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { useCarryRefetch, useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { FIRST_SEARCH_LIMIT } from "@/oasis-screen";
-import { MdmPageLayout, badgeStyle } from "@/shell";
+import { MdmPageLayout } from "@/shell";
 
-import { compareName, saveColumn, searchColumns, loadColumnOptions, viewColumn } from "./api";
+import { saveColumn, searchColumns, loadColumnOptions, viewColumn } from "./api";
 import {
   ColumnDetailForm,
   SYSTEM_ROW_KEY,
   type ColumnDetailHandle,
 } from "./ColumnDetailForm";
 import { formatLabels } from "./labels";
+import { NameGenPanel, type NameGenApply, type NameGenHandle } from "./NameGenPanel";
 import { saveFormError, toSaveParams } from "./save-form";
-import {
-  PLACEHOLDER,
-  composeLogicalName,
-  composePhysName,
-  hasPlaceholder,
-  replaceToken,
-  TOKEN_COLUMN_SIZES,
-} from "./tokens";
-import { mutedText, panelScrollStyle, panelTitleStyle, rowStyle } from "./styles";
-import {
-  emptyForm,
-  type ColumnListRow,
-  type CompareResult,
-  type Direction,
-  type NameToken,
-  type PickedTerm,
-  type SystemOption,
-} from "./types";
-import { TermRegPopModal } from "../termRegPop";
+import { mutedText } from "./styles";
+import { emptyForm, type ColumnListRow, type SystemOption } from "./types";
 import { uiCols } from "@/ui-meta";
 
 const SCREEN_ID = "columnMng";
@@ -78,17 +58,6 @@ const LIST_COLUMNS: GridColumn[] = uiCols([
   { key: "systemFields", header: "시스템 필드", width: 220 },
 ], ["columnName", "physName", "required"]);
 
-const STATUS_TEXT: Record<NameToken["status"], string> = {
-  MATCHED: "등록됨",
-  SYNONYM: "동의어",
-  AMBIGUOUS: "동음이의어",
-  NO_ABBR: "약어 없음",
-  UNKNOWN: "미등록",
-};
-
-/** 사용자가 고른 동음이의어 — compare 를 다시 불러도 seq·surface 가 같으면 되살린다. */
-type Picks = Record<number, { surface: string; term: PickedTerm }>;
-
 export default function ColumnMngPage() {
   const rbac = useUserButtonRbac(true);
   const { showMessage } = useMessage();
@@ -101,19 +70,16 @@ export default function ColumnMngPage() {
   const [systems, setSystems] = useState<SystemOption[]>([]);
   const [selectedColumnId, setSelectedColumnId] = useCarryState<number | null>("selectedColumnId", null);
 
-  const [direction, setDirection] = useState<Direction>("FORWARD");
-  const [genInput, setGenInput] = useState("");
-  const [gen, setGen] = useState<CompareResult | null>(null);
-  const [genTokens, setGenTokens] = useState<NameToken[]>([]);
-  const [genDomain, setGenDomain] = useState("");
-  const [picks, setPicks] = useState<Picks>({});
-  const [popToken, setPopToken] = useState<NameToken | null>(null);
+  /** 컬럼명 자동 생성 영역 — 입력·분해 결과는 NameGenPanel 이 갖는다(R12). */
+  const genRef = useRef<NameGenHandle>(null);
 
   /** 컬럼 상세 — 입력 값은 ColumnDetailForm 이 갖는다(R12: 한 글자마다 루트가 다시 그려지지 않게). */
   const detailRef = useRef<ColumnDetailHandle>(null);
   const [formTerms, setFormTerms] = useState<(number | null)[]>([]);
 
-  const [busy, setBusy] = useState(false);
+  // 용도별 busy(R5) — list·detail·save·compare. 단추·[전체 보기]는 어느 작업이든 진행 중이면 잠근다(isBusy()).
+  const { isBusy, run } = useBusy();
+  const busy = isBusy();
   // 목록 그리드의 로딩 표시는 목록 조회만 켠다 — 상세·분해 호출까지 따라 켜면 행을 누를 때마다 목록이 깜빡인다.
   const [listLoading, setListLoading] = useState(false);
   /** 목록이 상한으로 잘렸을 때의 전체 건수(안 잘렸으면 null). */
@@ -144,23 +110,22 @@ export default function ColumnMngPage() {
   // ── 목록 ──────────────────────────────────────────────────────────────
   // [조회] 는 첫 조회 상한(R1)을 걸고, [전체 보기] 는 상한 없이 받는다. 저장 뒤 재조회는 지금 모드를 따른다.
   const loadList = useCallback(
-    async (kw: string, domainKeyword: string, all = false) => {
-      setBusy(true);
-      setListLoading(true);
-      try {
-        const result = await searchColumns(kw, domainKeyword, all ? undefined : FIRST_SEARCH_LIMIT);
-        setList(result.list ?? []);
-        setListTotal(result.truncated ? (result.totalCount ?? null) : null);
-        setShowAll(all);
-        setSystems(result.systems ?? []);
-      } catch (e) {
-        fail(e);
-      } finally {
-        setBusy(false);
-        setListLoading(false);
-      }
-    },
-    [fail, setList, setListTotal, setShowAll],
+    (kw: string, domainKeyword: string, all = false) =>
+      run("list", async () => {
+        setListLoading(true);
+        try {
+          const result = await searchColumns(kw, domainKeyword, all ? undefined : FIRST_SEARCH_LIMIT);
+          setList(result.list ?? []);
+          setListTotal(result.truncated ? (result.totalCount ?? null) : null);
+          setShowAll(all);
+          setSystems(result.systems ?? []);
+        } catch (e) {
+          fail(e);
+        } finally {
+          setListLoading(false);
+        }
+      }),
+    [fail, run, setList, setListTotal, setShowAll],
   );
 
   // 분리 창이 조회 결과(행)를 못 받았을 때만 이어받은 조건으로 한 번 다시 조회한다(조회 안 한 탭은 재조회하지 않는다).
@@ -194,8 +159,8 @@ export default function ColumnMngPage() {
   );
 
   const openColumn = useCallback(
-    async (columnId: number) => {
-      setBusy(true);
+    (columnId: number) =>
+      run("detail", async () => {
       try {
         const result = await viewColumn(columnId);
         const c = result.column;
@@ -235,11 +200,9 @@ export default function ColumnMngPage() {
         );
       } catch (e) {
         fail(e);
-      } finally {
-        setBusy(false);
       }
-    },
-    [fail, list, setSelectedColumnId],
+      }),
+    [fail, list, run, setSelectedColumnId],
   );
 
   // 분리 창이 이어받은 선택 컬럼이 있으면 마운트 직후 한 번 상세를 서버에서 다시 읽는다(상세는 컬럼 ID 로 읽는다). 목록 도착을 기다리지 않는다 —
@@ -255,127 +218,23 @@ export default function ColumnMngPage() {
     void openColumn(id);
   }, [openColumn]);
 
-  // ── 자동 생성 ─────────────────────────────────────────────────────────
-  const runCompare = useCallback(
-    async (dir: Direction, input: string, keep: Picks) => {
-      setBusy(true);
-      try {
-        const result = await compareName(dir, input);
-        let tokens = result.tokens ?? [];
-        for (const [seq, pick] of Object.entries(keep)) {
-          const t = tokens.find((x) => x.seq === Number(seq));
-          if (t && t.surface === pick.surface && t.status === "AMBIGUOUS") {
-            tokens = replaceToken(tokens, t.seq, pick.term).map((x) =>
-              x.seq === t.seq ? { ...x, status: "AMBIGUOUS" } : x,
-            );
-          }
-        }
-        setGen(result);
-        setGenTokens(tokens);
-        setGenDomain(
-          result.recommendedDomainId != null
-            ? String(result.recommendedDomainId)
-            : "",
-        );
-      } catch (e) {
-        fail(e);
-      } finally {
-        setBusy(false);
-      }
-    },
-    [fail],
-  );
-
-  const handleDecompose = useCallback(() => {
-    setPicks({});
-    void runCompare(direction, genInput, {});
-  }, [direction, genInput, runCompare]);
-
-  const handlePickCandidate = useCallback(
-    (token: NameToken, termId: string) => {
-      const cand = token.candidates.find((c) => String(c.termId) === termId);
-      if (!cand) return;
-      const term: PickedTerm = {
-        termId: cand.termId,
-        termName: cand.termName,
-        senseNo: cand.senseNo,
-        engAbbr: cand.engAbbr ?? null,
-      };
-      setPicks((prev) => ({
-        ...prev,
-        [token.seq]: { surface: token.surface, term },
-      }));
-      setGenTokens((prev) =>
-        replaceToken(prev, token.seq, term).map((x) =>
-          x.seq === token.seq ? { ...x, status: "AMBIGUOUS" } : x,
-        ),
-      );
-    },
-    [],
-  );
-
-  /** 팝업에서 용어를 고르면(새로 등록했든 기존 유사어든) 그 자리를 바꾸고 compare 를 다시 불러 추천·중복·표시명을 새로 받는다. */
-  const handleTermPicked = useCallback(
-    (term: PickedTerm) => {
-      if (!popToken) return;
-      const replaced = replaceToken(genTokens, popToken.seq, term);
-      const logical = composeLogicalName(replaced);
-      setPopToken(null);
-      setGenInput(logical);
-      void runCompare("FORWARD", logical, picks);
-    },
-    [genTokens, picks, popToken, runCompare],
-  );
-
-  const previewPhys = gen
-    ? gen.direction === "FORWARD"
-      ? composePhysName(genTokens)
-      : gen.physName
-    : "";
-
-  const handleApply = useCallback(() => {
-    if (!gen) return;
-    const forward = gen.direction === "FORWARD";
-    const phys = forward ? composePhysName(genTokens) : gen.physName;
-    const logical = forward ? composeLogicalName(genTokens) : gen.logicalName;
-    const rec = genDomain
-      ? gen.domains.find((d) => String(d.domainId) === genDomain)
-      : undefined;
+  // ── 자동 생성 결과 적용 ───────────────────────────────────────────────
+  /** NameGenPanel 의 [상세에 적용] — 상세 폼의 일부 칸을 덮어쓰고 구성 용어를 갱신한다. */
+  const handleApply = useCallback((next: NameGenApply) => {
     detailRef.current?.apply({
-      patch: {
-        columnName: logical,
-        physName: phys,
-        ...(forward && gen.labels
-          ? {
-              labelLong: gen.labels.labelLong,
-              labelMid: gen.labels.labelMid,
-              labelShort: gen.labels.labelShort,
-            }
-          : {}),
-        ...(genDomain ? { domainId: genDomain } : {}),
-      },
-      domainLabel: genDomain
-        ? (rec?.domainName ?? `도메인 ${genDomain}`)
-        : undefined,
-      appliedPhys: hasPlaceholder(genTokens) ? null : phys,
+      patch: next.patch,
+      domainLabel: next.domainLabel,
+      appliedPhys: next.appliedPhys,
     });
-    setFormTerms(
-      genTokens.map((t) =>
-        t.status === "UNKNOWN" || t.status === "NO_ABBR" ? null : t.termId,
-      ),
-    );
-  }, [gen, genDomain, genTokens]);
+    setFormTerms(next.terms);
+  }, []);
 
   // ── 상세·저장 ─────────────────────────────────────────────────────────
   const handleNew = useCallback(() => {
     setSelectedColumnId(null);
     detailRef.current?.load({ form: emptyForm(), domainLabel: "", systemRows: [] });
     setFormTerms([]);
-    setGen(null);
-    setGenTokens([]);
-    setGenInput("");
-    setGenDomain("");
-    setPicks({});
+    genRef.current?.reset();
   }, [setSelectedColumnId]);
 
   const handleSave = useCallback(async () => {
@@ -388,25 +247,24 @@ export default function ColumnMngPage() {
       setErrorMessage(blocked);
       return;
     }
-    setBusy(true);
-    try {
-      const params = toSaveParams(form);
-      const systemsPayload = detail.getSystemRows().map((r) => ({
-        systemCode: String(r.systemCode ?? ""),
-        physName: String(r.physName ?? ""),
-        transform: String(r.transform ?? ""),
-        note: String(r.note ?? ""),
-      }));
-      const termsPayload = formTerms.map((termId) => ({ termId }));
-      const result = await saveColumn(params, systemsPayload, termsPayload);
-      showMessage({ message: "저장했습니다", toast: true });
-      await loadList(keyword, domainFilter, showAll);
-      await openColumn(result.columnId);
-    } catch (e) {
-      fail(e);
-    } finally {
-      setBusy(false);
-    }
+    await run("save", async () => {
+      try {
+        const params = toSaveParams(form);
+        const systemsPayload = detail.getSystemRows().map((r) => ({
+          systemCode: String(r.systemCode ?? ""),
+          physName: String(r.physName ?? ""),
+          transform: String(r.transform ?? ""),
+          note: String(r.note ?? ""),
+        }));
+        const termsPayload = formTerms.map((termId) => ({ termId }));
+        const result = await saveColumn(params, systemsPayload, termsPayload);
+        showMessage({ message: "저장했습니다", toast: true });
+        await loadList(keyword, domainFilter, showAll);
+        await openColumn(result.columnId);
+      } catch (e) {
+        fail(e);
+      }
+    });
   }, [
     domainFilter,
     fail,
@@ -414,75 +272,10 @@ export default function ColumnMngPage() {
     keyword,
     loadList,
     openColumn,
+    run,
     showAll,
     showMessage,
   ]);
-
-  // ── 분해 토큰 그리드 ──────────────────────────────────────────────────
-  // 처리 칸은 ACTION 값으로 그린다 — 행 키로 갱신하는 그리드는 값이 바뀐 칸만 다시 그리므로, 보이는 내용(상태·용어·방향)이
-  // 바뀌면 값도 바뀌게 한다. 동음이의(AMBIGUOUS) 행은 칸을 눌러 후보를 고르며 값은 고른 termId 다.
-  const genDirection = gen?.direction;
-  const tokenRows = useMemo(
-    () =>
-      genTokens.map((t) => ({
-        seq: t.seq,
-        surface: t.surface,
-        status: t.status,
-        MATCH_TEXT: t.termName
-          ? `${t.termName}${t.senseNo && t.senseNo > 1 ? ` (${t.senseNo})` : ""}`
-          : "—",
-        ABBR_TEXT:
-          t.status === "UNKNOWN" || t.status === "NO_ABBR" ? PLACEHOLDER : t.abbr,
-        ACTION:
-          t.status === "AMBIGUOUS"
-            ? t.termId != null
-              ? String(t.termId)
-              : ""
-            : `${t.status}|${t.termId ?? ""}|${t.termName ?? ""}|${genDirection ?? ""}`,
-      })),
-    [genTokens, genDirection],
-  );
-  const tokenColumns = useMemo<GridColumn[]>(
-    () => uiCols([
-      {
-        key: "seq",
-        header: "순서",
-        ...TOKEN_COLUMN_SIZES.seq,
-        align: "right",
-        render: (v) => <span data-testid={`token-row-${v}`}>{String(v)}</span>,
-      },
-      { key: "surface", header: "토큰", ...TOKEN_COLUMN_SIZES.surface },
-      { key: "MATCH_TEXT", header: "매칭", ...TOKEN_COLUMN_SIZES.MATCH_TEXT },
-      { key: "ABBR_TEXT", header: "약어", ...TOKEN_COLUMN_SIZES.ABBR_TEXT },
-      {
-        key: "ACTION",
-        header: "처리",
-        ...TOKEN_COLUMN_SIZES.ACTION,
-        tooltip: false,
-        editable: (row) => row.status === "AMBIGUOUS",
-        cellEditor: "select",
-        cellEditorOptionsGetter: (row) =>
-          (genTokens.find((t) => t.seq === row.seq)?.candidates ?? []).map((c) => ({
-            value: String(c.termId),
-            label: `${c.termName} (${c.senseNo}) ${c.engAbbr ?? ""}`,
-          })),
-        render: (_v, row) => {
-          const t = genTokens.find((x) => x.seq === row.seq);
-          return t ? renderAction(t) : null;
-        },
-      },
-    ]),
-    // renderAction 은 gen 방향·후보 선택 처리기를 읽는다
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [genTokens, genDirection, handlePickCandidate],
-  );
-  const handleTokenCellChange = useCallback(
-    (p: { rowKey: string | number; newValue: unknown }) => {
-      const t = genTokens.find((x) => String(x.seq) === String(p.rowKey));
-      if (t && p.newValue != null && p.newValue !== "") handlePickCandidate(t, String(p.newValue));
-    },
-    [genTokens, handlePickCandidate],
-  );
 
   const canSave = canDoButton(rbac, SCREEN_ID, "save");
   const canCompare = canDoButton(rbac, SCREEN_ID, "compare");
@@ -592,171 +385,20 @@ export default function ColumnMngPage() {
 
         <ContentBody resizable storageKey="mdm.dma.columnMng.bottom">
           <ContentPanel flex="1 1 0">
-            <div style={panelScrollStyle}>
-              <p style={panelTitleStyle}>컬럼명 자동 생성</p>
-              <div style={rowStyle}>
-                <Select
-                  data-testid="gen-direction"
-                  value={direction}
-                  options={[
-                    { value: "FORWARD", label: "한국어 → 물리명" },
-                    { value: "REVERSE", label: "물리명 → 논리명" },
-                  ]}
-                  onChange={(v) => setDirection(v as Direction)}
-                  style={{ width: 160 }}
-                />
-                <Input
-                  data-testid="gen-input"
-                  value={genInput}
-                  placeholder={
-                    direction === "FORWARD"
-                      ? "예: 원재료 코일두께"
-                      : "예: RMTL_COIL_THK"
-                  }
-                  onChange={setGenInput}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && canCompare && genInput.trim())
-                      handleDecompose();
-                  }}
-                  style={{ width: 240 }}
-                />
-                <Button
-                  data-testid="gen-decompose"
-                  variant="primary"
-                  onClick={handleDecompose}
-                  disabled={busy || !canCompare || !genInput.trim()}
-                >
-                  분해
-                </Button>
-              </div>
-
-              {gen ? (
-                <>
-                  <div style={{ marginTop: "var(--spacing-sm)" }}>
-                    <AgDataGrid gridId="nameTokens"
-                      columnSizing="fit"
-                      columns={tokenColumns}
-                      data={tokenRows}
-                      rowKey="seq"
-                      height="auto"
-                      singleClickEdit
-                      stopEditingWhenCellsLoseFocus
-                      onCellValueChanged={handleTokenCellChange}
-                    />
-                  </div>
-
-                  <table
-                    style={{
-                      ...DETAIL_TABLE_STYLE,
-                      marginTop: "var(--spacing-sm)",
-                    }}
-                  >
-                    <tbody>
-                      <tr>
-                        <th style={DETAIL_LABEL_CELL}>
-                          <MdmFieldLabel
-                            name="genPreview"
-                            meta={false}
-                            label={
-                              gen.direction === "FORWARD"
-                                ? "물리명 미리보기"
-                                : "논리명"
-                            }
-                          />
-                        </th>
-                        <td style={DETAIL_VALUE_CELL} data-testid="gen-preview">
-                          {gen.direction === "FORWARD"
-                            ? previewPhys
-                            : gen.logicalName}
-                        </td>
-                      </tr>
-                      <tr>
-                        <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="genDomain" meta={false} label="추천 도메인" /></th>
-                        <td style={DETAIL_VALUE_CELL}>
-                          <Select
-                            data-testid="gen-domain"
-                            value={genDomain}
-                            options={[
-                              {
-                                value: "",
-                                label:
-                                  gen.domains.length === 0
-                                    ? "추천 없음"
-                                    : "선택 안 함",
-                              },
-                              ...gen.domains.map((d) => ({
-                                value: String(d.domainId),
-                                label: `${d.domainName} (${d.stdName})`,
-                              })),
-                            ]}
-                            onChange={setGenDomain}
-                          />
-                        </td>
-                      </tr>
-                      <tr>
-                        <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="genDuplicates" meta={false} label="중복 검사" /></th>
-                        <td
-                          style={DETAIL_VALUE_CELL}
-                          data-testid="gen-duplicates"
-                        >
-                          {gen.duplicates.length === 0 ? (
-                            <span style={badgeStyle("success")}>신규</span>
-                          ) : (
-                            gen.duplicates.map((d, i) => (
-                              <div
-                                key={`${d.columnId}-${d.matchedBy}-${i}`}
-                                style={rowStyle}
-                              >
-                                <span style={badgeStyle("warning")}>
-                                  {d.matchedBy}
-                                </span>
-                                <span>
-                                  {d.systemCode ? `${d.systemCode} · ` : ""}
-                                  {d.columnName} ({d.physName}) —{" "}
-                                  {d.domainName ?? "-"}
-                                </span>
-                                <Button
-                                  size="mini"
-                                  onClick={() => void openColumn(d.columnId)}
-                                >
-                                  열기
-                                </Button>
-                              </div>
-                            ))
-                          )}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <div style={{ ...rowStyle, marginTop: "var(--spacing-sm)" }}>
-                    <Button
-                      data-testid="gen-apply"
-                      onClick={handleApply}
-                      disabled={busy}
-                    >
-                      상세에 적용
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <p style={{ ...mutedText, marginTop: "var(--spacing-sm)" }}>
-                  한국어 논리명을 넣고 [분해]를 누르면 용어로 나눠 표준 물리명을
-                  만듭니다.
-                </p>
-              )}
-            </div>
+            <NameGenPanel
+              ref={genRef}
+              canCompare={canCompare}
+              busy={busy}
+              run={run}
+              onApply={handleApply}
+              onOpenColumn={openColumn}
+              onError={fail}
+            />
           </ContentPanel>
 
           <ColumnDetailForm ref={detailRef} systems={systems} confirm={askConfirm} />
         </ContentBody>
       </ContentBody>
-
-      <TermRegPopModal
-        open={popToken != null}
-        token={popToken?.surface ?? ""}
-        onSelect={handleTermPicked}
-        onClose={() => setPopToken(null)}
-      />
 
       {errorMessage && (
         <ErrorModal
@@ -766,45 +408,4 @@ export default function ColumnMngPage() {
       )}
     </MdmPageLayout>
   );
-
-  // 처리 칸은 render 전용이라 셀 툴팁을 끈다(tooltip:false). 최소 폭(220px)에서 긴 후보 이름·안내가 말줄임돼도 전체를 보도록
-  // 글자·버튼마다 제목(title)을 붙인다(Local-Rules §30, 2026-10-03).
-  function renderAction(t: NameToken) {
-    const titled = (text: string) => <span title={text}>{text}</span>;
-    switch (t.status) {
-      case "MATCHED":
-        return titled("등록됨");
-      case "SYNONYM":
-        return titled(`동의어 → ${t.termName ?? ""}`);
-      case "AMBIGUOUS": {
-        // 칸을 누르면 후보 편집기가 열린다(그리드 인라인 편집)
-        const picked = t.candidates.find((c) => c.termId === t.termId);
-        const text = picked ? `${picked.termName} (${picked.senseNo}) ${picked.engAbbr ?? ""}` : "후보를 고르세요";
-        return (
-          <span data-testid={`token-candidate-${t.seq}`} title={text}>
-            {picked ? text : <span style={mutedText}>{text}</span>}
-          </span>
-        );
-      }
-      case "NO_ABBR":
-        return titled("약어 없음 — 용어 관리에서 약어 등록");
-      case "UNKNOWN":
-        return gen?.direction === "FORWARD" ? (
-          <Button
-            size="mini"
-            data-testid={`token-placeholder-${t.seq}`}
-            title={`${PLACEHOLDER} 용어 등록`}
-            onClick={() => setPopToken(t)}
-          >
-            {PLACEHOLDER} 용어 등록
-          </Button>
-        ) : (
-          <span data-testid={`token-placeholder-${t.seq}`} title={STATUS_TEXT.UNKNOWN}>
-            {STATUS_TEXT.UNKNOWN}
-          </span>
-        );
-      default:
-        return titled(STATUS_TEXT[t.status]);
-    }
-  }
 }

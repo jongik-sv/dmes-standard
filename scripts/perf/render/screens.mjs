@@ -166,6 +166,42 @@ export const SCREENS = [
     searchUrlExclude: /optionsOnly/,
     needsSearch: true,
   },
+  {
+    // 2026-10-09 shared-form-perf-2 등록 — mcm 모듈 화면(공통관리 트리). 호출은 /api/mcm/oasis/* 다.
+    id: "commUserMng",
+    label: "사용자 관리",
+    trail: [/^공통관리$/, /^시스템관리$/, /^사용자 관리$/],
+    breadcrumb: "공통관리 > 시스템관리 > 사용자 관리",
+    listPanelTitle: "사용자 목록",
+    /** count-renders ⑤ 상세 폼 입력 대상(R12, 사용자명 칸). 저장하지 않는다. */
+    formInput: 'tr:has(th:has-text("사용자명")) input',
+    searchUrlPattern: /\/api\/mcm\/oasis\/commUserMng\/search$/,
+    searchUrlExclude: /optionsOnly/,
+    needsSearch: true,
+    /** 진입하면 자동으로 조회한다(2026-10-09 확인). summarize.mjs 가 조회 지표에서 뺀다. */
+    autoSearchAtEntry: true,
+  },
+  {
+    id: "masterCodeMng",
+    label: "Master Code 관리",
+    // 메뉴 트리 글자는 「마스터관리(원장)」, 화면 하단 breadcrumb 은 「Master 관리(원장)」 으로 다르다.
+    trail: [/^공통관리$/, /^마스터관리\(원장\)$/, /^Master Code 관리$/],
+    breadcrumb: "공통관리 > Master 관리(원장) > Master Code 관리",
+    listPanelTitle: "Master Code",
+    searchUrlPattern: /\/api\/mcm\/oasis\/masterCodeMng\/search$/,
+    searchUrlExclude: /optionsOnly/,
+    needsSearch: true,
+  },
+  {
+    // 목록 패널 제목이 「항목 — {마루 데이터명}」 으로 바뀌어 listPanelTitle 을 두지 않는다(보이는 첫 그리드).
+    id: "dataItemMng",
+    label: "항목 편집(데이터 항목 관리)",
+    trail: [/^마루 MDM$/, /^마스터데이터$/, /^항목 편집$/],
+    breadcrumb: "마루 MDM > 마스터데이터 > 항목 편집",
+    searchUrlPattern: /\/api\/mdm\/oasis\/dataItemMng\/search$/,
+    searchUrlExclude: /optionsOnly/,
+    needsSearch: true,
+  },
 ];
 
 /** id 로 화면 정의를 찾는다. 없으면 undefined. */

@@ -26,10 +26,11 @@ import {
   useUserButtonRbac,
   type SearchTrigger,
 } from "@dk-oasis/shared/layout";
-import { GridPanel, AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
+import { GridPanel, AgDataGrid, GridLimitNotice, type GridColumn } from "@dk-oasis/shared/grid";
+import { Select, useBusy } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
-import { searchMaster, searchDetail, saveMaster, saveDetail } from "./api";
+import { searchMaster, searchDetail, saveMaster, saveDetail, FIRST_SEARCH_LIMIT } from "./api";
 import { decideAreaSearch } from "./area-search";
 import {
   MasterCodeUploadFilePopupDialog,
@@ -158,19 +159,22 @@ function buildMasterColumns(masterLov: MasterLov[]): GridColumn[] {
  * Ref1~5 는 동적 — MASTER_CODE_REF == "USER_DEFINE" 이면 text 자유 입력 / 그 외 combo.
  * To-Be 정정: As-Is `"nomal"` (xfdl:829 오타) → `"normal"` (분석 §10.1 ST-006 / §12).
  */
+/** Detail 컬럼이 보는 선택 Master 의 참조 값 5개 — 객체 통째 대신 이 값만 deps 로 쓴다(R7). */
+type MasterRefs = Pick<MasterRow, "MASTER_CODE_REF1" | "MASTER_CODE_REF2" | "MASTER_CODE_REF3" | "MASTER_CODE_REF4" | "MASTER_CODE_REF5">;
+
 function buildDetailColumns(
   categoryLov: CategoryLov[],
   refLovs: { ref1: DetailRefLov[]; ref2: DetailRefLov[]; ref3: DetailRefLov[]; ref4: DetailRefLov[]; ref5: DetailRefLov[] },
-  selectedMaster: MasterRow | null,
+  masterRefs: MasterRefs,
   onChkToggle: (row: Record<string, unknown>) => void,
 ): GridColumn[] {
   const categoryIds = categoryLov.map((c) => String(c.CATEGORY_ID));
   const buildRefCombo = (
-    refKey: keyof Pick<MasterRow, "MASTER_CODE_REF1" | "MASTER_CODE_REF2" | "MASTER_CODE_REF3" | "MASTER_CODE_REF4" | "MASTER_CODE_REF5">,
+    refKey: keyof MasterRefs,
     refLov: DetailRefLov[]
   ): Pick<GridColumn, "editable" | "cellEditor" | "cellEditorValues"> => {
     // MASTER_CODE_REF == "USER_DEFINE" → 자유 텍스트 / 그 외 → combo
-    const masterRefVal = selectedMaster?.[refKey];
+    const masterRefVal = masterRefs[refKey];
     if (masterRefVal === "USER_DEFINE") {
       return { editable: true };
     }
@@ -251,14 +255,19 @@ export default function MasterCodeMngPage() {
   // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·Master 선택 키는 가볍게, Master 조회 결과(행·전체 코드 LOV)는 bulky.
   // Detail 행·카테고리 LOV·카테고리 선택은 이어받지 않는다 — 이어받은 Master 선택이 있으면 새 창이 상세를 한 번 다시 조회해 채운다.
   const [filters, setFilters] = useCarryState<MasterCodeFilters>("filters", DEFAULT_FILTERS);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  // 용도별 busy(R5) — 목록 조회("list")와 저장("save")을 키로 나눈다. 단추 비활성·그리드 loading 판정은 그대로다.
+  const { isBusy, run } = useBusy();
+  const isSearching = isBusy("list");
+  const isSaving = isBusy("save");
   const [error, setError] = useState<string | null>(null);
 
   const [masterRows, setMasterRows] = useCarryState<(MasterRow & GridRow)[]>("masterRows", [], { bulky: true });
   // 전체 코드 LOV 는 Master 조회 응답에 실려 오고 행 없이는 다시 채워지지 않아(자동 조회를 건너뛴다) 행과 함께 옮긴다.
   const [masterLov, setMasterLov] = useCarryState<MasterLov[]>("masterLov", [], { bulky: true });
   const [selectedMasterKey, setSelectedMasterKey] = useCarryState<string | null>("selectedMasterKey", null);
+  // 첫 조회 상한(R1)으로 잘렸을 때의 전체 건수. 잘리지 않았으면 null. [전체 보기] 뒤 저장 재조회도 전체를 받도록 모드를 기억한다.
+  const [masterTotal, setMasterTotal] = useCarryState<number | null>("masterTotal", null);
+  const showAllRef = useRef(false);
   const restored = useCarryRestored();
 
   const [detailRows, setDetailRows] = useState<(DetailRow & GridRow)[]>([]);
@@ -292,36 +301,38 @@ export default function MasterCodeMngPage() {
   // ── load ──
   /** action=search 호출 (fn_search, xfdl:330). */
   const loadMaster = useCallback(
-    async (f: MasterCodeFilters) => {
-      setIsSearching(true);
+    async (f: MasterCodeFilters, all = false) => {
+      showAllRef.current = all;
       setError(null);
-      try {
-        const payload = await searchMaster(f);
-        const rows = (payload.ds_GetCodeMasterList ?? []).map((r) => ({
-          ...r,
-          nativeeditor_status: "" as RowStatus,
-        }));
-        setMasterRows(rows);
-        // V-801 USER_DEFINE prepend (xfdl:576~578).
-        const lov = payload.ds_GetCodeMasterAllList ?? [];
-        const lovWithUserDefine = lov.some((m) => m.CODE_ID === "USER_DEFINE")
-          ? lov
-          : [{ CODE_ID: "USER_DEFINE", CODE_NM: "사용자 정의" }, ...lov];
-        setMasterLov(lovWithUserDefine);
-        if (rows.length > 0 && !rows.find((r) => r.CODE_ID === selectedMasterKey)) {
-          setSelectedMasterKey(rows[0].CODE_ID);
-        } else if (rows.length === 0) {
-          setSelectedMasterKey(null);
+      await run("list", async () => {
+        try {
+          const payload = await searchMaster(f, all ? undefined : FIRST_SEARCH_LIMIT);
+          const rows = (payload.ds_GetCodeMasterList ?? []).map((r) => ({
+            ...r,
+            nativeeditor_status: "" as RowStatus,
+          }));
+          setMasterRows(rows);
+          setMasterTotal(payload.truncated ? (payload.totalCount ?? null) : null);
+          // V-801 USER_DEFINE prepend (xfdl:576~578).
+          const lov = payload.ds_GetCodeMasterAllList ?? [];
+          const lovWithUserDefine = lov.some((m) => m.CODE_ID === "USER_DEFINE")
+            ? lov
+            : [{ CODE_ID: "USER_DEFINE", CODE_NM: "사용자 정의" }, ...lov];
+          setMasterLov(lovWithUserDefine);
+          if (rows.length > 0 && !rows.find((r) => r.CODE_ID === selectedMasterKey)) {
+            setSelectedMasterKey(rows[0].CODE_ID);
+          } else if (rows.length === 0) {
+            setSelectedMasterKey(null);
+          }
+          showMessage({ message: `${rows.length}건 조회 되었습니다.`, toast: true });
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "조회 실패");
+          setMasterRows([]);
+          setMasterTotal(null);
         }
-        showMessage({ message: `${rows.length}건 조회 되었습니다.`, toast: true });
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "조회 실패");
-        setMasterRows([]);
-      } finally {
-        setIsSearching(false);
-      }
+      });
     },
-    [selectedMasterKey, showMessage, setMasterRows, setMasterLov, setSelectedMasterKey]
+    [run, selectedMasterKey, showMessage, setMasterRows, setMasterLov, setSelectedMasterKey, setMasterTotal]
   );
 
   /** action=searchDetail 호출 (fn_searchDetail, xfdl:410). */
@@ -565,6 +576,11 @@ export default function MasterCodeMngPage() {
     );
   }, []);
 
+  const handleDetailRowClick = useCallback(
+    (row: Record<string, unknown>) => setSelectedDetailKey(getDetailRowId(row as DetailRow & GridRow)),
+    []
+  );
+
   const handleDetailCellChange = useCallback(
     (p: { rowKey: string | number; field: string; newValue: unknown }) => {
       setDetailRows((prev) =>
@@ -629,21 +645,20 @@ export default function MasterCodeMngPage() {
       }
     }
 
-    setIsSaving(true);
-    try {
-      const rows = changed.map((r) => ({
-        ...(stripInternal(r) as MasterRow),
-        rowStatus: r.nativeeditor_status === "inserted" ? "inserted" : "updated",
-      }));
-      const payload = await saveMaster(rows as unknown as MasterRow[]);
-      showMessage({ message: `${payload.cnt_merge ?? 0}건 저장 되었습니다.` });
-      await loadMaster(filters);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "저장 실패");
-    } finally {
-      setIsSaving(false);
-    }
-  }, [masterRows, filters, loadMaster, showMessage]);
+    await run("save", async () => {
+      try {
+        const rows = changed.map((r) => ({
+          ...(stripInternal(r) as MasterRow),
+          rowStatus: r.nativeeditor_status === "inserted" ? "inserted" : "updated",
+        }));
+        const payload = await saveMaster(rows as unknown as MasterRow[]);
+        showMessage({ message: `${payload.cnt_merge ?? 0}건 저장 되었습니다.` });
+        await loadMaster(filters, showAllRef.current);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "저장 실패");
+      }
+    });
+  }, [masterRows, filters, loadMaster, showMessage, run]);
 
   // ── 저장 (Detail) — B-013 ──
   const handleSaveDetail = useCallback(async () => {
@@ -689,23 +704,22 @@ export default function MasterCodeMngPage() {
       codeValSet.add(cv);
     }
 
-    setIsSaving(true);
-    try {
-      const rows = chkRows.map((r) => ({
-        ...(stripInternal(r) as DetailRow),
-        rowStatus: r.nativeeditor_status, // "inserted" / "updated" / "deleted"
-      }));
-      const payload = await saveDetail(rows as unknown as DetailRow[]);
-      showMessage({ message: `${payload.cnt_mergeDetail ?? 0}건 저장 되었습니다.` });
-      if (selectedMaster) {
-        await loadDetail(selectedMaster);
+    await run("save", async () => {
+      try {
+        const rows = chkRows.map((r) => ({
+          ...(stripInternal(r) as DetailRow),
+          rowStatus: r.nativeeditor_status, // "inserted" / "updated" / "deleted"
+        }));
+        const payload = await saveDetail(rows as unknown as DetailRow[]);
+        showMessage({ message: `${payload.cnt_mergeDetail ?? 0}건 저장 되었습니다.` });
+        if (selectedMaster) {
+          await loadDetail(selectedMaster);
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "저장 실패");
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "저장 실패");
-    } finally {
-      setIsSaving(false);
-    }
-  }, [detailRows, categoryLov, selectedMaster, loadDetail, showMessage]);
+    });
+  }, [detailRows, categoryLov, selectedMaster, loadDetail, showMessage, run]);
 
   // Detail 그리드 카테고리 필터 (FX-002 onitemchanged, xfdl:582)
   const filteredDetailRows = useMemo(() => {
@@ -714,9 +728,31 @@ export default function MasterCodeMngPage() {
   }, [detailRows, selectedCategoryId]);
 
   const masterColumns = useMemo(() => buildMasterColumns(masterLov), [masterLov]);
+  // 선택 Master 객체 통째가 아니라 참조 값 5개만 의존한다 — Master 셀을 고쳐 객체가 바뀌어도 참조가 같으면 컬럼을 새로 만들지 않는다(R7).
+  const masterRef1 = selectedMaster?.MASTER_CODE_REF1;
+  const masterRef2 = selectedMaster?.MASTER_CODE_REF2;
+  const masterRef3 = selectedMaster?.MASTER_CODE_REF3;
+  const masterRef4 = selectedMaster?.MASTER_CODE_REF4;
+  const masterRef5 = selectedMaster?.MASTER_CODE_REF5;
   const detailColumns = useMemo(
-    () => buildDetailColumns(categoryLov, refLovs, selectedMaster, handleDetailChkToggle),
-    [categoryLov, refLovs, selectedMaster, handleDetailChkToggle]
+    () =>
+      buildDetailColumns(
+        categoryLov,
+        refLovs,
+        {
+          MASTER_CODE_REF1: masterRef1,
+          MASTER_CODE_REF2: masterRef2,
+          MASTER_CODE_REF3: masterRef3,
+          MASTER_CODE_REF4: masterRef4,
+          MASTER_CODE_REF5: masterRef5,
+        },
+        handleDetailChkToggle,
+      ),
+    [categoryLov, refLovs, masterRef1, masterRef2, masterRef3, masterRef4, masterRef5, handleDetailChkToggle]
+  );
+  const categoryOptions = useMemo(
+    () => categoryLov.map((c) => ({ value: String(c.CATEGORY_ID), label: String(c.CATEGORY_NM) })),
+    [categoryLov]
   );
 
   const masterCount = masterRows.filter((r) => r.nativeeditor_status !== "deleted").length;
@@ -926,6 +962,15 @@ export default function MasterCodeMngPage() {
                 selectedRowKey={selectedMasterKey}
                 onDataChange={handleMasterDataChange}
                 loading={isSaving}
+                titleExtra={
+                  <GridLimitNotice
+                    shownCount={masterRows.length}
+                    totalCount={masterTotal}
+                    onShowAll={() => void loadMaster(filters, true)}
+                    disabled={isSearching || isSaving}
+                    testId="master-code-limit"
+                  />
+                }
               >
                 <AgDataGrid
                   gridId="masterCode"
@@ -996,17 +1041,13 @@ highlightedRowKey={selectedMasterKey}
                 titleExtra={
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <span>카테고리:</span>
-                    <select
+                    <Select
                       value={selectedCategoryId}
-                      onChange={(e) => setSelectedCategoryId(e.target.value)}
-                      style={{ padding: 4 }}
-                    >
-                      {categoryLov.map((c) => (
-                        <option key={c.CATEGORY_ID} value={c.CATEGORY_ID}>
-                          {c.CATEGORY_NM}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={setSelectedCategoryId}
+                      options={categoryOptions}
+                      aria-label="카테고리"
+                      style={{ minWidth: 140 }}
+                    />
                   </div>
                 }
               >
@@ -1020,7 +1061,7 @@ highlightedRowKey={selectedMasterKey}
                   singleClickEdit
                   stopEditingWhenCellsLoseFocus={false}
                   highlightedRowKey={selectedDetailKey}
-                  onRowClick={(row) => setSelectedDetailKey(getDetailRowId(row as DetailRow & GridRow))}
+                  onRowClick={handleDetailRowClick}
                   onCellValueChanged={handleDetailCellChange}
                   emptyMessage={
                     effectiveMasterCode

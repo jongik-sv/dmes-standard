@@ -112,3 +112,13 @@ export interface DeptLovRow extends Record<string, unknown> {
 
 /** Nexacro row status (As-Is !nativeeditor_status) — To-Be rowStatus 표준화 (W1·W2·W3·W4 정본 패턴). */
 export type RowStatus = "" | "inserted" | "updated" | "deleted";
+
+/** 그리드 내부 키·행 상태가 붙은 행 (화면 루트와 상세 폼이 공유). */
+export interface GridRow extends Record<string, unknown> {
+  __gridTempId?: string;
+  __rowId?: string;
+  nativeeditor_status?: RowStatus;
+}
+
+/** 메인 그리드 행 = 사용자 행 + 그리드 내부 키·상태. 상세 폼의 초안 단위. */
+export type CommUserMngGridRow = CommUserMngRow & GridRow;
