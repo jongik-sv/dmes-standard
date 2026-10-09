@@ -402,7 +402,7 @@ orca worktree list        # 누수 확인. 옛 방식 워크트리(dflow-<id8>, 
      git -C <워크트리> merge-base --is-ancestor HEAD "origin/<기본브랜치>"
    fi
    ```
-   **대안 조건**(둘째 갈래): agent 브랜치가 이미 머지되고 원격에서 지워진 뒤에는 첫 갈래(HEAD 비교)를 확인할 원격 ref 자체가 없음.
+   **대안 조건**(둘째 갈래, 2026-09-24 추가): agent 브랜치가 이미 머지되고 원격에서 지워진 뒤에는 첫 갈래(HEAD 비교)를 확인할 원격 ref 자체가 없음.
    - `/dflow-merge` 는 `--no-ff` 고정 → 머지된 작업의 HEAD 는 기본 브랜치의 조상. 그 조건으로 대신 판정.
    - 이 대안이 없으면 머지 뒤 원격 agent 브랜치를 지운 워크트리가 영영 정리 안 되고 쌓임.
 2-1. **해소 워크트리**(이름 `dflow-<id8>-resolve`, detached, SKILL.md 「5-2. 해소 spawn」): 1·2번 대신 아래 둘이 모두 참일 때 정리. 결과 줄 branch 칸이 늘 `-` 여도 1번(부트스트랩 실패)을 안 씀.

@@ -63,8 +63,8 @@ done
 ```bash
 sed -n '/^## 2\. 좌석 식별/,/^## 4\. 실행/{/^## 4\. 실행/!p;}' {MAIN_CHECKOUT}/.claude/skills/dflow-team/references/worker-prompt.md
 ```
-- 「2」 그대로 `.dflow-agent` 에 `{AGENT_ID}` 기록. 팀장 재구성이 이 파일로 슬롯을 흡수.
-- 「3」 그대로 링크·doctor·`me`·기점 이동(`git fetch origin && git switch --detach origin/{DEV_BRANCH}`) 수행.
+- `worker-prompt.md` 「2」 그대로 `.dflow-agent` 에 `{AGENT_ID}` 기록. 팀장 재구성이 이 파일로 슬롯을 흡수.
+- `worker-prompt.md` 「3」 그대로 링크·doctor·`me`·기점 이동(`git fetch origin && git switch --detach origin/{DEV_BRANCH}`) 수행.
   - 실패 값(`no-skill`·`doctor-<exit>`·`auth`·`detach`)도 같음.
   - 그 절의 `--worker` 플래그 확인 줄은 건너뜀(팀장이 이미 detached 로 만들어 둠 → 기점 이동도 detached 유지).
 - 스킬 폴더가 실제 폴더로 있으면 해소에 쓰는 두 스킬도 링크.
