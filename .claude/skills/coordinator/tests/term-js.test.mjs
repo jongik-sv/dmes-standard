@@ -1,4 +1,4 @@
-// term.mjs 중 하니스가 못 보는 것: 키 이름 판정(bad-key는 orca를 부르지 않는다), 목록 밖 백엔드 rc 127.
+// term.mjs 단위 시험: 키 이름 판정(bad-key는 orca를 부르지 않는다), 목록 밖 백엔드 rc 127.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';

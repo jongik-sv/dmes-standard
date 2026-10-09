@@ -1,5 +1,4 @@
-// console-input.mjs 의 하니스로 대조할 수 없는 동작 시험: 잠금 소유자·낡은 잠금 치우기·실제 프로세스·bash 판과 node 판 혼용·창 시간 제한.
-// 나머지(발췌·지문·기록 등)는 tests/js-parity/specs/console-input.mjs 가 bash 판과 바이트 단위로 대조한다.
+// console-input.mjs 동작 시험: 잠금 소유자·낡은 잠금 치우기·실제 프로세스·창 시간 제한·기록 잠금.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
@@ -10,7 +9,6 @@ import { fileURLToPath } from 'node:url';
 import { functions, windowOf } from '../scripts/lib/console-input.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const LIB = join(HERE, '..', 'scripts', 'lib');
 const WIN = process.platform === 'win32';
 
 function world() {
@@ -83,7 +81,7 @@ test('rec_lock 은 10초 넘은 빈 잠금을 치우고 새로 잡는다', async
   } finally { rmSync(w.dir, { recursive: true, force: true }); }
 });
 
-test('rec_lock 의 낡은 잠금 폴더가 비워지지 않아도 30초 상한에서 CPU 를 쓰지 않고 끝난다 (bash 판과 같다)', { timeout: 40000 }, async () => {
+test('rec_lock 의 낡은 잠금 폴더가 비워지지 않아도 30초 상한에서 CPU 를 쓰지 않고 끝난다', { timeout: 40000 }, async () => {
   const w = world();
   try {
     const d = join(w.cons, 'input', '.coord_lane_kit.lock');
@@ -102,48 +100,11 @@ test('rec_lock 의 낡은 잠금 폴더가 비워지지 않아도 30초 상한�
   } finally { rmSync(w.dir, { recursive: true, force: true }); }
 });
 
-test('bash 판 rec_lock 도 비워지지 않는 낡은 잠금 폴더에서 30초 상한 뒤 rc 1 로 끝난다 (끝없이 돌지 않는다)', { skip: WIN, timeout: 50000 }, () => {
-  const w = world();
-  try {
-    const d = join(w.cons, 'input', '.coord_lane_kit.lock');
-    mkdirSync(d, { recursive: true });
-    writeFileSync(join(d, 'x'), '');   // 안에 파일이 있어 rmdir 이 계속 실패한다
-    const old = new Date(Date.now() - 60000);
-    utimesSync(d, old, old);
-    const script = [`. '${LIB}/compat.sh'`, `. '${LIB}/common.sh'`, `. '${LIB}/console-redact.sh'`, `. '${LIB}/console-input.sh'`, 'console_input_rec_lock coord_lane_kit; echo "rc=$?"'].join('\n');
-    const t0 = Date.now();
-    const r = spawnSync('bash', ['-c', script], { env: { ...w.env, COORD_JS_CONSOLE_INPUT: '0' }, encoding: 'utf8', timeout: 45000 });
-    const took = Date.now() - t0;
-    assert.equal(r.stdout.trim(), 'rc=1', `끝나지 않았다(${took}ms, 신호 ${r.signal})`);
-    assert.ok(took >= 28000 && took < 36000, `${took}ms`);
-  } finally { rmSync(w.dir, { recursive: true, force: true }); }
-});
-
 test('창 계산은 시간 예산이 이미 지났으면 창 없음(null)으로 끝난다', () => {
   const text = readFileSync(join(HERE, 'fixtures', 'prompt-permission.txt'), 'utf8');
   const ok = windowOf(text, 'permission', { deadline: Date.now() + 5000 });
   assert.ok(ok, '시간이 충분하면 창이 나와야 한다');
   assert.equal(windowOf(text, 'permission', { deadline: Date.now() - 1 }), null);
-});
-
-test('같은 셸에서 bash 판 잠금과 node 판 잠금이 소유자($$)를 공유한다', { skip: WIN }, () => {
-  const w = world();
-  try {
-    const script = [
-      `. '${LIB}/compat.sh'`, `. '${LIB}/common.sh'`, `. '${LIB}/console-redact.sh'`, `. '${LIB}/console-input.sh'`,
-      'console_lane_lock kit 1 || exit 11',
-      'cat "$DFLOW_CONSOLE_DIR/lock/lane-kit/pid" > "$DFLOW_CONSOLE_DIR/bash-pid"',
-      'echo "$$" > "$DFLOW_CONSOLE_DIR/shell-pid"',
-      'COORD_JS_CONSOLE_INPUT=1 console_lane_unlock kit',   // node 판이 $$ 를 소유자로 알아봐야 풀린다
-      '[ ! -d "$DFLOW_CONSOLE_DIR/lock/lane-kit" ] || exit 12',
-      'COORD_JS_CONSOLE_INPUT=1 console_lane_lock kit 1 || exit 13',
-      'console_lane_unlock kit',                              // bash 판이 node 판의 잠금을 풀어야 한다
-      '[ ! -d "$DFLOW_CONSOLE_DIR/lock/lane-kit" ] || exit 14',
-    ].join('\n');
-    const r = spawnSync('bash', ['-c', script], { env: { ...w.env, COORD_JS_CONSOLE_INPUT: '0' }, encoding: 'utf8' });
-    assert.equal(r.status, 0, `rc=${r.status} ${r.stderr}`);
-    assert.equal(readFileSync(join(w.cons, 'bash-pid'), 'utf8').trim(), readFileSync(join(w.cons, 'shell-pid'), 'utf8').trim());
-  } finally { rmSync(w.dir, { recursive: true, force: true }); }
 });
 
 test('input_write 로 쓴 기록에 처리 표시를 달면 rec 잠금이 남지 않는다', async () => {

@@ -1,4 +1,4 @@
-// screen-cache.mjs 중 하니스가 못 보는 것: 시각 대체(at이 숫자 아니면 지금 시각),
+// screen-cache.mjs 단위 시험: 시각 대체(at이 숫자 아니면 지금 시각),
 // 오래된 파일 prune, 심볼릭 링크 불신, 1MB 상한, kind 불일치.
 import test from 'node:test';
 import assert from 'node:assert/strict';

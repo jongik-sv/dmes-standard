@@ -1,5 +1,5 @@
 // 권한 창의 「automatically deny this request in m:ss」 카운트다운 줄이 창 지문에서 빠졌는지 확인한다(node --test).
-//   1) 카운트다운만 다른 두 화면의 지문(console_full_sha)이 같고, 명령이 다르면 다르다(bash 판·node 판 모두).
+//   1) 카운트다운만 다른 두 화면의 지문(console-input.mjs 의 fullSha)이 같고, 명령이 다르면 다르다. 기대 지문은 옛 bash 판(console_full_sha)이 낸 값을 골든으로 박았다.
 //   2) 재현: 판단 시점(0:09) 지문을 --expect-sha 로 주고 지금 화면이 0:04 인 상태에서 term-send-safe --raw --lane 이 SENT 한다(예전엔 prompt-changed).
 // 가짜 orca·임시 HOME 만 쓴다. 실제 orca·~/.coord·~/.dflow 는 건드리지 않는다.
 import test from 'node:test';
@@ -9,7 +9,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { fullSha as ciFullSha } from '../scripts/lib/console-input.mjs';
 
+// 옛 bash 판이 낸 지문(2026-10-09). 카운트다운(0:09·0:04·10:00)이 달라도 같다.
+const SHA_STATUS = '03df8cdc1ac7e26ccea5d799a42768cc7cb5dfc687e64d96ab8d089c9b5c79e2';
+const SHA_FORCE = '30477aade7006a607ad48c311ba4530c6073e0439756ffcf929f64f814291315';
 const SD = join(dirname(fileURLToPath(import.meta.url)), '..', 'scripts');
 const screen = (cmd, cd) => ['╭──────────────────────╮', ' Bash command', `   ${cmd}`, ' Do you want to proceed?', ' ❯ 1. Yes', '   2. No', `     will automatically deny this request in ${cd}`, ' Esc to cancel · Tab to amend'].join('\n') + '\n';
 
@@ -37,35 +41,37 @@ esac
   return { tmp, env };
 }
 const fullSha = (env, text) => {
-  const r = spawnSync('bash', ['-c', '. "$1/lib/common.sh"; . "$1/lib/console-input.sh"; console_full_sha', '_', SD], { env, input: text, encoding: 'utf8' });
-  return r.stdout.trim();
+  const r = ciFullSha(Buffer.from(text, 'utf8'), env);
+  return r.rc === 0 ? r.out.trim() : '';
 };
+const sendSafe = (env, extra) => spawnSync(process.execPath, [join(SD, 'term-send-safe.mjs'), '--lane', 'kit', '--text', '1', '--raw', '--expect-sha', ...extra], { env, encoding: 'utf8' });
 
-for (const [label, extra] of [['bash 판', {}], ['node 판(COORD_JS_CONSOLE_INPUT=1)', { COORD_JS_CONSOLE_INPUT: '1' }]]) {
-  test(`지문: 카운트다운만 달라도 같고 명령이 다르면 다르다 — ${label}`, () => {
+{
+  test('지문: 카운트다운만 달라도 같고 명령이 다르면 다르다 — 골든 지문과 같다', () => {
     const { env } = setup();
-    const e = { ...env, ...extra };
+    const e = { ...env };
     const a = fullSha(e, screen('git status', '0:09'));
     assert.match(a, /^[0-9a-f]{64}$/);
-    assert.equal(fullSha(e, screen('git status', '0:04')), a);
-    assert.equal(fullSha(e, screen('git status', '10:00')), a);
-    assert.notEqual(fullSha(e, screen('git push --force', '0:09')), a);
+    assert.equal(a, SHA_STATUS);
+    assert.equal(fullSha(e, screen('git status', '0:04')), SHA_STATUS);
+    assert.equal(fullSha(e, screen('git status', '10:00')), SHA_STATUS);
+    assert.equal(fullSha(e, screen('git push --force', '0:09')), SHA_FORCE);
   });
-  test(`재현: 카운트다운이 바뀐 화면에서도 term-send-safe --raw --lane --expect-sha 가 SENT — ${label}`, () => {
+  test('재현: 카운트다운이 바뀐 화면에서도 term-send-safe --raw --lane --expect-sha 가 SENT', () => {
     const { tmp, env } = setup();
-    const e = { ...env, ...extra };
+    const e = { ...env };
     const jsha = fullSha(e, screen('git status', '0:09'));
     writeFileSync(join(tmp, 'term/screen.txt'), screen('git status', '0:04'));
-    const r = spawnSync('bash', [join(SD, 'term-send-safe.sh'), '--lane', 'kit', '--text', '1', '--raw', '--expect-sha', jsha], { env: e, encoding: 'utf8' });
+    const r = sendSafe(e, [jsha]);
     assert.match(r.stdout, /^SENT hk /, `stdout=${r.stdout} stderr=${r.stderr}`);
     assert.equal(readFileSync(join(tmp, 'term/send.log'), 'utf8').trim(), 'send');
   });
-  test(`대조: 명령이 바뀐 화면은 여전히 prompt-changed — ${label}`, () => {
+  test('대조: 명령이 바뀐 화면은 여전히 prompt-changed', () => {
     const { tmp, env } = setup();
-    const e = { ...env, ...extra };
+    const e = { ...env };
     const jsha = fullSha(e, screen('git status', '0:09'));
     writeFileSync(join(tmp, 'term/screen.txt'), screen('git push --force', '0:04'));
-    const r = spawnSync('bash', [join(SD, 'term-send-safe.sh'), '--lane', 'kit', '--text', '1', '--raw', '--expect-sha', jsha], { env: e, encoding: 'utf8' });
+    const r = sendSafe(e, [jsha]);
     assert.match(r.stdout, /^REFUSED hk prompt-changed/, `stdout=${r.stdout}`);
   });
 }

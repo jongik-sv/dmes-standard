@@ -1,4 +1,4 @@
-// merge-gate.mjs 순수 로직 단위 시험(node --test). 기대값은 merge-gate.sh 의 MERGE_GATE_SELFTEST 줄과 bash case 패턴에서 가져왔다.
+// merge-gate.mjs 순수 로직 단위 시험(node --test). 기대값은 옛 bash 판(backup/scripts/merge-gate.sh)의 MERGE_GATE_SELFTEST 줄과 case 패턴에서 가져와 고정한 것이다.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { globMatch, globRe, isSharedApi, isUtf8Locale } from '../scripts/merge-gate.mjs';
