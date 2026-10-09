@@ -1,8 +1,8 @@
-// scripts/measure-window.sh 의 node 판(스위치 COORD_JS_MEASURE_WINDOW — js-bridge.sh _jsb_exec).
+// measure-window.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/measure-window.sh 에 퇴역 보관).
 //   사용법: measure-window.mjs open <measure|move|ban> [--lane <레인>] --until <iso> [--hold-heavy] [--dry-run]
 //           measure-window.mjs close [<kind>] [--dry-run] | status | quiet-check
-//   측정·이동·금지 창. 상태 쓰기는 coord-state.sh spawn 으로만, heavy 스크립트·kill 도 spawn 으로.
-// bash 판이 정답이다. 옮기며 같게 만든 것:
+//   측정·이동·금지 창. 상태 쓰기는 coord-state.mjs spawn 으로만, heavy 스크립트·kill 도 spawn 으로.
+// 옮길 때 bash 판이 기준이었고, 같게 만든 것:
 //   · windows_json: 회차가 있고 state.json 이 읽히면 `.windows // []`, 아니면 `[]`. 창 목록은 배열이 정상이고 객체면 값들을 돌며, 문자열·수·true 는 jq 오류와 같이 비어 있는 결과가 된다
 //   · `read -r k j l` 은 IFS=탭이라 연속 탭이 하나로 접힌다(kind 가 null 이면 칸이 밀린다)
 //   · stop_job: 잡 폴더의 runpid·pid 를 lstart(coord_pstart)가 맞을 때만 `kill -TERM`(coord_do), 윈도우는 killTree
@@ -17,6 +17,22 @@ import { isWin, killTree, pidAlive, psTable } from './lib/compat.mjs';
 import { ArithAbort, arithVal, awkAtof, awkNum, coordCpus, coordDo, coordHeavyScript, coordLoad1, coordStateCall, fmtFixed, jqAdd, runSync, stripNl, tsvText } from './lib/common-ext.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 
+/** 도움말(= bash 판 머리말 2~15줄, 이름만 .mjs). */
+const HELP = `# 사용법: measure-window.mjs open <measure|move|ban> [--lane <레인>] --until <iso> [--hold-heavy] [--dry-run]
+#         measure-window.mjs close [<kind>] [--dry-run]
+#         measure-window.mjs status
+#         measure-window.mjs quiet-check
+#   측정·이동·금지 창(설계 §3.d). 정본 출력: references/contract.md §3.5
+#   open       : state windows 에 추가. --hold-heavy 이고 heavy.script 가 있으면 \`<heavy> --detach --exclusive sleep <창 길이초>\` 로
+#                공용 칸을 창 내내 붙잡고 job id 를 hold_job 에 남긴다. → \`WINDOW_OPEN <kind> until=<iso> hold_job=<id|->\`
+#   close      : (kind 를 주면 그 종류만) 붙잡은 job 이 있으면 그 job 의 손자(runpid)·자식(pid)을 lstart 대조 뒤 TERM 으로 끝내고(윈도우는 compat_kill_tree,
+#                시작 시각을 못 얻으면 건너뜀),
+#                windows 에서 빼고 이벤트. 창마다 \`WINDOW_CLOSED <kind>\`, 없으면 \`WINDOW none\`.
+#   status     : 창마다 \`WINDOW <kind> lane=<레인|-> until=<iso>\`, 없으면 \`WINDOW none\`.
+#   quiet-check: heavy snapshot RUN 수 · load1/코어 · ps 의 GradleWrapperMain·vitest·playwright(mcp 제외) 수로
+#                \`QUIET yes|no|unknown run=<n> per_core=<f|-> procs=<n>\`. yes = RUN 0·procs 0·per_core < heavy.measure_quiet.
+#                unknown = load 를 얻을 수 없는 환경(Git Bash) — per_core 는 \`-\`, 호출한 쪽이 판단한다.
+`;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const readText = (p) => { try { return readFileSync(p, 'utf8'); } catch { return null; } };
@@ -114,8 +130,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
       else if (a === '--hold-heavy') hold = true;
       else if (a === '--dry-run') dry = true;
       else if (a === '-h' || a === '--help') {
-        const ls = readFileSync(join(HERE, 'measure-window.sh'), 'latin1').split('\n').slice(1, 15);
-        process.stdout.write(Buffer.from(`${ls.join('\n')}\n`, 'latin1'));
+        process.stdout.write(HELP);
         return 0;
       } else if (a.startsWith('-')) throw new CoordDie(2, `모르는 옵션: ${a}`);
       else kind = a;
@@ -258,7 +273,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
         r = run === '0' && String(procs) === '0' && awkLt(pc, qv) ? 'yes' : 'no';
       }
       out.push(`QUIET ${r} run=${run} per_core=${pc} procs=${procs}`);
-    } else throw new CoordDie(2, '사용법: measure-window.sh open|close|status|quiet-check …');
+    } else throw new CoordDie(2, '사용법: measure-window.mjs open|close|status|quiet-check …');
     flush();
     return 0;
   } catch (e) {

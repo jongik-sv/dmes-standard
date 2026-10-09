@@ -1,6 +1,6 @@
-// scripts/coord-status.sh 의 node 판(스위치 COORD_JS_COORD_STATUS — js-bridge.sh _jsb_exec).
+// coord-status.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/coord-status.sh 에 퇴역 보관).
 //   사용법: coord-status.mjs [--json]   읽기 전용. LANE · PC · UNLINKED · WINDOW 줄(또는 --json 의 객체 배열)을 낸다.
-// bash 판이 정답이다. 다른 스크립트(ctx-usage.sh · usage-band.sh · heavy 스크립트)는 import 하지 않고 spawn 한다.
+// 옮길 때 bash 판이 기준이었다. 다른 스크립트(ctx-usage.mjs · usage-band.mjs · heavy 스크립트)는 import 하지 않고 node 자식 프로세스로 부른다.
 //   · jq 식은 같은 뜻으로 옮겼다(`// empty`, `tostring`, `tonumber? // .` — 입력 글 그대로의 숫자 꼴 보존). --json 은 jq-json.stringify 로 `jq -s .` 와 같은 바이트
 //   · swap_mb: macOS `sysctl -n vm.swapusage`, 없으면 /proc/meminfo, 둘 다 없으면 `-` (윈도우 Git Bash 는 `-`)
 //   · awk 계산(per_core · swap · 비교)은 awk 규칙대로(%d 는 0 쪽 버림, 문자열이면 문자열 비교)
@@ -11,9 +11,23 @@ import { fileURLToPath } from 'node:url';
 import * as J from './lib/jq-json.mjs';
 import { CoordDie, Ctx, cfgSub, expand, functions as commonFns, hasRun, isoToEpoch, laneGet, nowEpoch, repo, sessionFile, stateFile, wtAbs } from './lib/common.mjs';
 import { isWin, normPath, pidAlive } from './lib/compat.mjs';
-import { arithVal, awkAtof, awkInt, awkNum, coordBgSignals, coordCpus, coordDefaultRepo, coordGit, coordHeavyScript, coordLoad1, fmtFixed, rawOut, runSync, stripNl } from './lib/common-ext.mjs';
+import { arithVal, awkAtof, awkInt, awkNum, coordBgSignals, coordCpus, coordDefaultRepo, coordGit, coordHeavyScript, coordLoad1, fmtFixed, rawOut, runScriptFile, runSync, stripNl } from './lib/common-ext.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 
+/** 도움말(= bash 판 머리말 2~13줄, 이름만 .mjs). */
+const HELP = `# 사용법: coord-status.mjs [--json]   (정본: ../references/contract.md §3.3, 설계 §3.c)
+# 읽기 전용. 토큰을 쓰지 않고 한 화면짜리 상태표를 모은다. stdout(줄 형식은 계약 그대로):
+#   LANE <레인> name=<세션> status=<busy|idle|gone> for=<분>m report=<HH:MM|-> commit=<HH:MM|-> ahead=<n|-> bg=<콤마목록|-> ctx=<n|->% hold=<사유|->
+#   PC load1=<f> cpus=<n> per_core=<f> heavy=<held>/<waiting>/<K> swap_mb=<n|-> five=<n|-> week=<n|-> band=<띠>
+#   UNLINKED <이름> pid=<pid> cwd=<경로>        cwd 가 이 리포(메인·워크트리)인 살아 있는 interactive 세션 중 레인·조정자가 아닌 것
+#   WINDOW <kind> lane=<레인|-> until=<iso>
+# --json 은 같은 정보를 객체 배열로 낸다(각 객체에 "type": lane|pc|unlinked|window).
+# 세부: status·for 는 <sessions_dir>/<pid>.json 의 status·statusUpdatedAt(ms), pid 가 죽었거나 파일이 없으면 gone(for 는 알면 그 값, 모르면 -).
+#   bg 는 lib coord_bg_signals(heavy RUN cwd·tasks 출력 mtime·워크트리 cwd 의 빌드·시험 프로세스). ctx 는 ctx-usage.mjs --lane.
+#   heavy.script 가 없으면 heavy=-/-/-, 레인의 heavy 신호는 보지 않는다. 세션 이름의 공백은 _ 로 바꾼다.
+#   closed 레인은 내지 않는다.
+set -uo pipefail
+`;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const readText = (p) => { try { return readFileSync(p, 'utf8'); } catch { return null; } };
 const readDocs = (file) => { const t = readText(file); return t === null ? [] : J.parseStreamPartial(t).values; };
@@ -60,11 +74,10 @@ export async function main(argv, { env = process.env, cwd = process.cwd(), now }
     let JSONM = false;
     if (a0 === '--json') JSONM = true;
     else if (a0 === '-h' || a0 === '--help') {
-      const ls = readFileSync(join(HERE, 'coord-status.sh'), 'latin1').split('\n').slice(1, 13);
-      process.stderr.write(Buffer.from(`${ls.join('\n')}\n`, 'latin1'));
+      process.stderr.write(HELP);
       return 0;
-    } else if (a0 !== '') throw new CoordDie(2, '사용법: coord-status.sh [--json]');
-    if (!hasRun(c)) throw new CoordDie(3, '현재 회차가 없다(coord-state.sh init 먼저)');
+    } else if (a0 !== '') throw new CoordDie(2, '사용법: coord-status.mjs [--json]');
+    if (!hasRun(c)) throw new CoordDie(3, '현재 회차가 없다(coord-state.mjs init 먼저)');
     const SF = stateFile(c, '');
     const REPO = repo(c) ?? '';
     const NOW = now ?? Number(nowEpoch());
@@ -146,7 +159,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd(), now }
       const bg = dash(stripNl(coordBgSignals(c, wta, sid, SNAP).out));
       let ctx = '-';
       if (sid !== '') {
-        const co = stripNl(runSync('bash', [join(HERE, 'ctx-usage.sh'), '--lane', L], { env: c.env, cwd: c.cwd }).out.toString('utf8'));
+        const co = stripNl(runScriptFile(join(HERE, 'ctx-usage.mjs'), ['--lane', L], { env: c.env, cwd: c.cwd }).out.toString('utf8'));
         if (co.includes(' pct=')) ctx = co.split('\n').map((l) => { const m = /^.* pct=([0-9]*).*$/.exec(l); return m ? m[1] : l; }).join('\n');
       }
       hold = under(dash(hold));
@@ -193,7 +206,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd(), now }
       swap = t !== '' ? awkInt((awkAtof(t) - awkAtof(f)) / 1024) : '';
     }
     swap = dash(swap);
-    const ub = stripNl(runSync('bash', [join(HERE, 'usage-band.sh')], { env: c.env, cwd: c.cwd }).out.toString('utf8'));
+    const ub = stripNl(runScriptFile(join(HERE, 'usage-band.mjs'), [], { env: c.env, cwd: c.cwd }).out.toString('utf8'));
     let band = ub.split('\n').map((l) => l.trim().split(/\s+/)[1] ?? '').join('\n');
     if (band === '') band = 'UNKNOWN';
     const grab = (name) => { const o = []; for (const l of ub.split('\n')) { const m = new RegExp(`^.* ${name}=([^ ]*).*$`).exec(l); if (m) o.push(m[1]); } return dash(o.join('\n')); };

@@ -1,15 +1,15 @@
 #!/usr/bin/env node
-// spawn-lane.sh 의 node 판(스위치 COORD_JS_SPAWN_LANE — js-bridge.sh 로 exec). 정답은 bash 판이다(계약: tests/js-parity/README.md, 명세 specs/spawn-lane.mjs).
+// spawn-lane.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/spawn-lane.sh 에 퇴역 보관).
 // 이 스크립트는 새 터미널 탭을 만들고 그 셸에 명령 한 줄을 보내 세션을 띄운다. 그래서 확실하지 않으면 띄우지 않는 쪽(fail-closed)으로만 틀린다:
 //   · 어떤 내부 오류든(예외) 더 진행하지 않고 종료 코드 70 으로 끝난다(bash 본문으로 되돌아가지 않는다).
 //   · 탭을 만든 뒤 실패하면 bash 판이 하던 대로만 정리한다(명령 send 실패 때 탭 닫기, GLM 화면이 Claude Max 면 탭 닫기).
 // 맞춘 bash 동작 (읽는 사람이 놀라지 않도록 적어 둔다)
-//  · 옵션 값 자리에 인자가 없으면 빈 값이다(`${2:-}`). -h/--help 는 .sh 의 2~19번 줄을 그대로 낸다.
+//  · 옵션 값 자리에 인자가 없으면 빈 값이다(`${2:-}`). -h/--help 는 머리말(HELP_TEXT)을 낸다.
 //  · 이름·값 검사의 글자 집합은 ASCII 다. bash 판은 UTF-8 로케일에서 [!A-Za-z0-9…] 글롭이 é 같은 글자를 통과시킨다(의심 후보) — node 판은 거절한다(안전한 쪽).
 //  · git 은 설정 .git_bin 이 아니라 PATH 의 `git` 을 직접 부른다(bash 판이 그렇다).
 //  · 대기: 셸 프롬프트 확인 최대 10번×2초, 새 세션 확인 최대 30초(2초 간격), tui-idle 60초 + (안 되면) 120초는 orca 에 넘기는 값이다.
 //    시험이 줄일 수 있게 main(argv, { timeouts })로 주입한다(운영은 늘 기본값). 환경 변수 훅은 두지 않는다.
-//  · 폴더 신뢰 확인은 bash 판처럼 auto-answer.sh 를, 지시 파일은 term-send-safe.sh 를, 기록은 coord-state.sh·office.sh 를 부른다(각 스크립트의 스위치를 따른다).
+//  · 폴더 신뢰 확인은 bash 판처럼 auto-answer.mjs 를, 지시 파일은 term-send-safe.mjs 를, 기록은 coord-state.mjs·office.mjs 를 부른다(node 자식 프로세스).
 //  · 윈도우: 새 탭의 셸이 PowerShell·cmd 일 수 있어 `cd … && …` 를 임시 .sh 에 쓰고 `bash -l "<경로>"` 한 줄만 보낸다(bash 판과 같다).
 import { randomBytes } from 'node:crypto';
 import { readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
@@ -18,7 +18,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as C from './lib/compat.mjs';
 import { CoordDie, Ctx, cfgSub, expand, hasRun, nowEpoch, q, screenPromptKind, stateFile } from './lib/common.mjs';
-import { coordStateCall, runSync, scriptsDir } from './lib/common-ext.mjs';
+import { coordStateCall, runScriptFile, runSync, scriptsDir } from './lib/common-ext.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 import * as J from './lib/jq-json.mjs';
 import { hasNonSpace, spaceChars } from './lib/sh-space.mjs';
@@ -26,7 +26,6 @@ import { sleepSec } from './lib/test-sleep.mjs';
 import { functions as T } from './lib/term.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SH_FILE = join(HERE, 'spawn-lane.sh');
 
 /** 시험이 줄일 수 있는 대기 값(운영은 기본값). 단위는 이름에 적었다 */
 export const DEFAULT_TIMEOUTS = { shellTries: 10, pollS: 2, newSessionS: 30, idleMs: 60000, idleRetryMs: 120000 };
@@ -37,9 +36,30 @@ const stripNl = (s) => s.replace(/\n+$/, '');
 const noNul = (s) => (s.includes('\0') ? s.replaceAll('\0', '') : s);
 const tsvEsc = (s) => s.replace(/\\/g, '\\\\').replace(/\t/g, '\\t').replace(/\r/g, '\\r').replace(/\n/g, '\\n');
 
+const HELP_TEXT = `# 사용법: spawn-lane.mjs --name <n> --kind <claude|glm|opencode> [--worktree <경로|선택자>] [--model m] [--effort e]
+#                       [--autocompact t] [--prompt-file f] [--brief "<한 줄>"] [--dry-run]
+#   새 탭에 레인·워커 세션을 띄우고 떴는지 확인한다(설계 §3.e 생성 경로표·GLM 기동 절차·기동 확인).
+#   탭 위치: 기본은 조정자가 있는 워크트리(Orca 가 아는 곳)에 탭을 만든다. --worktree 를 안 주면 세션도 그 폴더에서 시작한다.
+#     (--worktree 를 안 주면 세션은 조정자의 현재 워크트리 폴더에서 시작한다. 상대경로·~ 는 받지 않는다.)
+#     --worktree <절대경로|path:경로>: 세션이 일할 폴더. 그 폴더를 Orca 가 알면 그 워크트리에 탭을 만들고, 모르면(git worktree add 로
+#                                    만든 폴더) 조정자의 워크트리에 탭을 만들고 send 로 cd 한다(모르는 폴더에 만든 탭은 화면에 안 보인다).
+#     --worktree <name:·branch:·id: 등 선택자>: 그 Orca 워크트리에 탭을 만들고 그 워크트리 폴더에서 시작한다(current·active 는 조정자 폴더를 Orca 가 알 때만).
+#   claude  : 빈 탭 terminal create → 셸 대기 → send "cd <폴더> && <launch.claude> -n <n> [--model] [--effort] [--autocompact]" → tui-idle(60초, 안 되면 120초)
+#             → ~/.claude/sessions 에 name==<n> 인 새 pid 가 살아 있는지(최대 30초) → --prompt-file 이면 그 경로를 알리는 한 줄을
+#             term-send-safe.mjs 로 보낸다. (terminal create --command 는 \`Timed out waiting for terminal handle\` 로 실패한 적이 있어 쓰지 않는다)
+#   glm     : glm-preflight.mjs 가 ok 여야 하고, 동시 GLM 세션(state kind=glm·state=active) < glm.max_sessions.
+#             claude 와 같은 빈 탭 + send "cd <폴더> && <launch.glm> -n <n>" → tui-idle → 화면에 glm-5·API Usage Billing
+#             (Claude Max 가 보이면 닫고 실패) → 세션 확인 → 지시 파일 경로 send.
+#   opencode: claude 와 같은 빈 탭 + send "cd <폴더> && <launch.opencode>" → tui-idle → 화면 확인 → handle 만 낸다(지시는 조정자가 worker-start 로).
+#   stdout: \`SPAWNED <n> handle=<h> pid=<pid|-> session_id=<id|->\` 또는 \`SPAWN_FAIL <n> <wait|process|screen|preflight|glm-cap> <사유>\`.
+#   성공하면 회차가 있을 때 coord-state.mjs lane-add 로 세션 정보(spawned_by: coordinator)를 남긴다. 레인 worktree 는 세션이 일하는 폴더다.
+#   --brief "<한 줄>": 에이전트 오피스 레인 칸에 보일 지시 요약(lane-add 의 brief). 없으면 --prompt-file 첫 글줄에서 뽑는다:
+#     「— 」 뒤 제목, 그게 없으면 줄 앞 60자(앞쪽 # 와 / ~/ ./ C:/ 로 시작하는 경로 토큰은 뺀다). 이미 그 레인에 brief 가 있으면 건드리지 않는다.
+#   --dry-run: 사전 확인(preflight·상한·설정·Orca 워크트리 목록)은 실제로 하고, 터미널 생성부터는 DRY 로 찍고 \`DRY SPAWNED <n> handle=- pid=- session_id=-\`.
+set -uo pipefail
+`;
 function helpText() {
-  const lines = readFileSync(SH_FILE, 'latin1').split('\n');
-  return Buffer.from(`${lines.slice(1, 22).join('\n')}\n`, 'latin1');
+  return Buffer.from(HELP_TEXT, 'utf8');
 }
 
 // ---------- 외부 도구 ----------
@@ -118,14 +138,14 @@ async function run(argv, env, cwd, c, out0, TO) {
   let BRIEF = makeBrief(env, briefArg, pfile);
   if (BRIEF !== '' && hasRun(c) && existingBrief(c, name) !== '') BRIEF = '';   // 이미 그 레인에 brief 가 있으면 덮어쓰지 않는다
   const be = cfgSub(c, '.terminal_backend') || 'orca';
-  if (be !== 'orca') die(4, 'spawn-lane.sh 는 terminal_backend=orca 만 지원한다');
+  if (be !== 'orca') die(4, 'spawn-lane.mjs 는 terminal_backend=orca 만 지원한다');
   if (dry === 1) env.COORD_DRY = '1';
 
   const fail = (why, msg) => { echo(`SPAWN_FAIL ${name} ${why} ${msg}`); throw new Exit(0); };
   const SESS_DIR = expand(cfgSub(c, '.sessions_dir'), env);
   const childEnv = () => { const e = { ...env }; delete e.COORD_JS_CALLER_PID; return e; };
   const runChild = (script, args) => {
-    const r = runSync('bash', [join(scriptsDir(), script), ...args], { env: childEnv(), cwd, input: '' });
+    const r = runScriptFile(join(scriptsDir(), script), args, { env: childEnv(), cwd, input: '' });
     if (r.err && r.err.length) c.errs.push(r.err.toString('utf8'));
     return stripNl(r.out.toString('utf8'));
   };
@@ -277,7 +297,7 @@ async function run(argv, env, cwd, c, out0, TO) {
     const wait = (ms) => stripNl(termCall('term_wait_idle', [h, String(ms)], env, cwd).out);
     let w = wait(TO.idleMs);
     if (screenPromptKind(Buffer.from(termCall('term_read_screen', [h, '40'], env, cwd).out, 'utf8')) === 'trust') {
-      log(`폴더 신뢰 확인: ${runChild('auto-answer.sh', ['--handle', h])}`);
+      log(`폴더 신뢰 확인: ${runChild('auto-answer.mjs', ['--handle', h])}`);
       w = wait(TO.idleMs);
     }
     if (w === 'satisfied') return true;
@@ -288,7 +308,7 @@ async function run(argv, env, cwd, c, out0, TO) {
   const screenTail = (h, n = 20) => termCall('term_read_screen', [h, String(n)], env, cwd).out;
   function sendPromptFile(h) {
     if (pfile === '') return;
-    const r = runChild('term-send-safe.sh', ['--handle', h, '--text', `지시 파일을 읽고 진행해 달라: ${pfile}`, '--timeout-ms', '60000']);
+    const r = runChild('term-send-safe.mjs', ['--handle', h, '--text', `지시 파일을 읽고 진행해 달라: ${pfile}`, '--timeout-ms', '60000']);
     if (r.startsWith('SENT ')) log(`지시 파일 경로를 보냈다: ${r}`);
     else log(`주의: 지시 파일 경로를 보내지 못했다(${r}) — 조정자가 직접 보낼 것`);
   }
@@ -303,7 +323,7 @@ async function run(argv, env, cwd, c, out0, TO) {
     if (BRIEF !== '') lane.set('brief', BRIEF);
     coordStateCall(c, ['lane-add', name, J.stringify(lane, { indent: 0 })]);
     coordStateCall(c, ['event', 'spawned', name, J.stringify(new Map([['handle', h], ['kind', kind]]), { indent: 0 })]);
-    const r = runSync('bash', [join(scriptsDir(), 'office.sh'), 'lane-up', name], { env: childEnv(), cwd, input: '' });   // 에이전트 오피스 표시(실패해도 무시)
+    const r = runScriptFile(join(scriptsDir(), 'office.mjs'), ['lane-up', name], { env: childEnv(), cwd, input: '' });   // 에이전트 오피스 표시(실패해도 무시)
     void r;
   }
   const claudeFlags = () => {
@@ -356,7 +376,7 @@ async function run(argv, env, cwd, c, out0, TO) {
       dryCommon(cmd);
       log('DRY orca terminal wait --terminal <h> --for tui-idle --timeout-ms 60000 (아니면 120000)');
       log(`DRY ${SESS_DIR}/*.json 에서 name==${name} 인 새 pid 확인(최대 30초)`);
-      if (pfile !== '') log(`DRY term-send-safe.sh --handle <h> --text '지시 파일을 읽고 진행해 달라: ${pfile}'`);
+      if (pfile !== '') log(`DRY term-send-safe.mjs --handle <h> --text '지시 파일을 읽고 진행해 달라: ${pfile}'`);
       dryDone('claude'); return 0;
     }
     finishWithSession(launchOrFail(cmd), pre);
@@ -364,7 +384,7 @@ async function run(argv, env, cwd, c, out0, TO) {
   }
 
   if (kind === 'glm') {
-    const pf = runChildQuiet('glm-preflight.sh').split('\n')[0];
+    const pf = runChildQuiet('glm-preflight.mjs').split('\n')[0];
     if (pf.startsWith('ok ')) log(`GLM 사전 확인: ${pf}`);
     else fail('preflight', pf.startsWith('fail ') ? pf.slice(5) : pf);
     let max = cfgSub(c, '.glm.max_sessions'); if (max === '') max = '1';
@@ -377,7 +397,7 @@ async function run(argv, env, cwd, c, out0, TO) {
     if (dry === 1) {
       dryCommon(`${launch} -n ${name}`);
       log('DRY tui-idle 대기 → 화면에 glm-5·API Usage Billing 확인(Claude Max 면 닫고 SPAWN_FAIL screen anthropic-account) → 세션 확인');
-      if (pfile !== '') log(`DRY term-send-safe.sh --handle <h> --text '지시 파일을 읽고 진행해 달라: ${pfile}'`);
+      if (pfile !== '') log(`DRY term-send-safe.mjs --handle <h> --text '지시 파일을 읽고 진행해 달라: ${pfile}'`);
       dryDone('glm'); return 0;
     }
     const h = launchOrFail(`${launch} -n ${name}`);
@@ -409,7 +429,7 @@ async function run(argv, env, cwd, c, out0, TO) {
 
   /** 자식 스크립트 stdout 만(stderr 는 버린다) */
   function runChildQuiet(script) {
-    const r = runSync('bash', [join(scriptsDir(), script)], { env: childEnv(), cwd, input: '' });
+    const r = runScriptFile(join(scriptsDir(), script), [], { env: childEnv(), cwd, input: '' });
     return stripNl(r.out.toString('utf8'));
   }
   /** `coord_state '[.lanes[]? | select(.session.kind == "glm" and .state == "active")] | length'` */

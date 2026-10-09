@@ -1,9 +1,9 @@
-// scripts/lib/compact-screen.sh 의 node 판(스위치 COORD_JS_COMPACT_SCREEN — js-bridge.sh _jsb_call).
+// scripts/lib/compact-screen.mjs (옛 bash 판은 backup/scripts/lib/compact-screen.sh 에 퇴역 보관, 2026-10-09 W4)
 // compact 직후 화면으로 결과를 확인하는 순수 함수 둘. grep -E 계열의 대응 규칙:
 //   · 줄은 \n 으로만 나눈다(끝 줄바꿈 뒤 빈 조각은 줄이 아니다). tail -n N = 마지막 N줄.
 //   · grep -i 는 ASCII 대소문자만 겹친다고 본다(C 로캘). 제외·추출 패턴은 ERE 를 그대로 옮겼다.
 //   · grep -o 는 줄 안에서 겹치지 않는 왼쪽 일치를 차례로 낸다 — 마지막 일치를 쓴다.
-// node 18.17 이상, 외부 패키지 없음. 정답은 bash 판이다(tests/js-parity/specs/compact-screen.mjs).
+// node 18.17 이상, 외부 패키지 없음.
 import { isMain, cliMain } from './js-cli.mjs';
 
 const EXC = /left|remaining|until/i;

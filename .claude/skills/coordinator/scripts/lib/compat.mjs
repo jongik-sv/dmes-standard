@@ -1,13 +1,11 @@
-// compat.sh 의 node 판. 이 파일은 common.mjs 가 필요로 하는 함수까지만 준비 단계에서 만들어 두었고,
-// 나머지(프로세스 표·후손·kill·pgrep·sha256 등)는 W1-a 레인이 같은 파일에 더한다. 이미 있는 함수의 동작·시그니처는 바꾸지 않는다.
-// 계약: tests/js-parity/README.md. 환경 변수는 env 인자로 받는다(전역을 직접 읽지 않는다).
+// OS 차이 흡수(macOS·Linux·Git Bash). (옛 bash 판은 backup/scripts/lib/compat.sh 에 퇴역 보관, 2026-10-09 W4) 환경 변수는 env 인자로 받는다(전역을 직접 읽지 않는다).
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { delimiter, dirname, join } from 'node:path';
 import { cliMain, isMain } from './js-cli.mjs';
 
-// ---------- 플랫폼 판별 (compat.sh 머리의 COMPAT_WIN·COMPAT_GNU) ----------
+// ---------- 플랫폼 판별 (옛 compat.sh 머리의 COMPAT_WIN·COMPAT_GNU) ----------
 export function isWin(env = process.env) {
   if (env.COMPAT_FORCE_OS === 'windows') return true;
   if (env.COMPAT_FORCE_OS === 'unix') return false;

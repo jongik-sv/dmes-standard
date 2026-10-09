@@ -1,7 +1,6 @@
-// console-resolve.sh 의 node 판. CLI·스위치 대상: console_dir·console_resolve·console_header_ref·
+// 콘솔 대상 판정. (옛 bash 판은 backup/scripts/lib/console-resolve.sh 에 퇴역 보관, 2026-10-09 W4) CLI 대상: console_dir·console_resolve·console_header_ref·
 // console_list_targets·_cr_sess_read(전역 _CR_MINE _CR_PID _CR_HANDLE)·_cr_live_runs·_cr_live_leads·_cr_count.
-// cr_memo_begin·cr_memo_end 와 메모 중 _cr_live_runs 는 bash 본문이 처리한다(스위치 없음).
-// 계약: tests/js-parity/README.md, brief 8.4. 정답은 bash 판.
+// cr_memo_begin·cr_memo_end 와 메모 중 _cr_live_runs 는 옛 bash 판 본문이 처리하던 것이라 여기에는 없다.
 //   · 읽기만 한다(쓰기 없음). 시계·환경·작업 폴더는 Ctx 로 받는다(상주 폴러가 import 해 쓴다).
 //   · jq 가 하던 일은 jq-json.mjs 의 parse/index/alt 로 같은 값·같은 오류 시점을 낸다. jq 는 값을 읽는 대로 처리하므로
 //     파일 한가운데서 오류가 나면 그 앞 값의 출력은 남고 뒤는 없다(jqOutputs).

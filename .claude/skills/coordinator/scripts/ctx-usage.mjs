@@ -1,8 +1,8 @@
-// scripts/ctx-usage.sh 의 node 판(스위치 COORD_JS_CTX_USAGE — js-bridge.sh _jsb_exec).
+// ctx-usage.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/ctx-usage.sh 에 퇴역 보관).
 //   사용법: ctx-usage.mjs <session-id> | --pid <pid> | --lane <레인>  [--window N]
 //   stdout 한 줄: `CTX <session-id> tokens=<n> window=<n> pct=<n> src=transcript|dump at=<iso>` 또는 `CTX <id> unknown <사유>`.
 //   덤프(<state_dir>/ctx/<sid>.json, 30분 안)가 먼저, 없으면 transcript 의 마지막 assistant 사용량. 읽기 전용.
-// bash 판이 정답이다. 옮기며 같게 만든 것:
+// 옮길 때 bash 판이 기준이었고, 같게 만든 것:
 //   · jq 의 `//`·tostring·@tsv·`+`(문자열·배열·객체도 더해진다)·`> 0`(문자열은 0 보다 큼) 과, 줄 하나가 오류면 그 줄만 건너뛰는 동작(jq -R fromjson?)
 //   · tail -c 256KB → 2MB → 16MB → 전체 로 넓혀 가며 마지막 일치를 찾는다(잘린 첫 줄은 파싱이 실패하면 버려질 뿐 따로 자르지 않는다)
 //   · awk printf "%d" · bash 3.2 의 $(( )) 앞 0 8진·오류(그 명령 전체를 버림), 글롭 순서는 C 순서(bash 판은 로캘 순서 — 의심 목록)
@@ -15,8 +15,20 @@ import { CoordDie, Ctx, cfgSub, epochToIso, expand, hasRun, isoToEpoch, laneGet,
 import { ArithAbort, arithVal, awkAtof, awkInt, coordDefaultRepo, cutF, jqAdd, rawOut, step, stripNl, tsvEsc, tsvText, walk } from './lib/common-ext.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 
+/** 도움말(= bash 판 머리말 2~11줄, 이름만 .mjs). */
+const HELP = `# 사용법: ctx-usage.mjs <session-id> | --pid <pid> | --lane <레인>  [--window N]   (정본: ../references/contract.md §3.3, 설계 §3.j-1)
+# stdout 한 줄: \`CTX <session-id> tokens=<n> window=<n> pct=<n> src=transcript|dump at=<iso>\` 또는 \`CTX <id> unknown <사유>\`
+# 읽는 순서
+#   1) <state_dir>/ctx/<session-id>.json 덤프({at,session_id,context_window,rate_limits})가 30분 안이면 그것(src=dump)
+#   2) transcript <claude_projects_dir>/<프로젝트 폴더>/<session-id>.jsonl 에서 isSidechain 이 아닌 마지막 assistant 메시지의
+#      message.usage.input_tokens + cache_read_input_tokens + cache_creation_input_tokens (src=transcript).
+#      파일 끝부분만 tail 로 읽고, 못 찾으면 범위를 넓혀 다시 읽는다. 프로젝트 폴더는 세션 cwd 의 / · . 를 - 로 바꾼 이름,
+#      cwd 를 모르면 <claude_projects_dir>/*/<session-id>.jsonl 로 찾는다.
+# 창 크기: --window → (덤프의 context_window_size) → state lanes.<레인>.session.window → compact.default_window.
+set -uo pipefail
+`;
 const HERE = dirname(fileURLToPath(import.meta.url));
-const USAGE = '사용법: ctx-usage.sh <session-id> | --pid <pid> | --lane <레인> [--window N]';
+const USAGE = '사용법: ctx-usage.mjs <session-id> | --pid <pid> | --lane <레인> [--window N]';
 const isnum = (s) => s !== '' && s !== 'null' && !/[^0-9]/.test(s);
 const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
 
@@ -159,8 +171,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd(), now }
       else if (a === '--lane') { lane = argv[i + 1] ?? ''; if (lane === '') usage(); i++; }
       else if (a === '--window') { win = argv[i + 1] ?? ''; if (win === '' || /[^0-9]/.test(win)) usage(); i++; }
       else if (a === '-h' || a === '--help') {
-        const lines = readFileSync(join(HERE, 'ctx-usage.sh'), 'latin1').split('\n').slice(1, 11);
-        process.stderr.write(Buffer.from(`${lines.join('\n')}\n`, 'latin1'));
+        process.stderr.write(HELP);
         return 0;
       } else if (a.startsWith('-')) usage();
       else { if (sid !== '') usage(); sid = a; }

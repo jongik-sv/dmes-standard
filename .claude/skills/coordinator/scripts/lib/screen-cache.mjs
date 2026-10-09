@@ -1,5 +1,4 @@
-// screen-cache.sh 의 node 판. 공개 12함수만 CLI·스위치, _sc_trusted 는 안에만 둔다.
-// 계약: tests/js-parity/README.md, brief 8.3. 정답은 bash 판.
+// 화면 캐시. (옛 bash 판은 backup/scripts/lib/screen-cache.sh 에 퇴역 보관, 2026-10-09 W4) 공개 12함수만 CLI, _sc_trusted 는 안에만 둔다.
 //   · 의존: coord_expand·coord_cfg·coord_screen_prompt_kind → common.mjs, compat_stat_info → compat.mjs.
 //   · 파일에 쓰는 JSON 은 jq-json.mjs 로 jq 바이트와 같게(compact·키 순서·끝 줄바꿈).
 //   · 시간 의존: sc_now_ms(Date.now) 출력은 명세 normalize 로 N 으로 바꾼다. 경계 근처 시각은 만들지 않는다.
@@ -133,11 +132,10 @@ export function scPrune(mins = '10', env = process.env) {
 
 // ---------- 읽기 쪽 ----------
 function uidOf(env) {
-  // bash `me="$(id -u)"` 와 같게 외부 명령으로 읽는다(process.getuid가 아니다).
-  // 시험이 `id` 함수 가짜로 소유자를 바꿀 때 그 가짜가 보여야 해서 bash 경유로 부른다(export -f 전파).
-  const r = spawnSync('bash', ['-c', 'id -u'], { env, encoding: 'utf8', windowsHide: true });
+  // 현재 사용자 uid 글. 외부 `id -u` 를 부른다(시험이 PATH 의 가짜 `id` 로 소유자를 바꿀 수 있게). 윈도우 등 `id` 가 없으면 process.getuid, 그것도 없으면 빈 글.
+  const r = spawnSync('id', ['-u'], { env, encoding: 'utf8', windowsHide: true });
   if (r.status === 0) return (r.stdout || '').trim();
-  return '';
+  return typeof process.getuid === 'function' ? String(process.getuid()) : '';
 }
 function isWin(env) {
   if (env.COMPAT_FORCE_OS === 'windows') return true;

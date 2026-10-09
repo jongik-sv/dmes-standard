@@ -1,4 +1,4 @@
-// scripts/glm-preflight.sh 의 node 판(스위치 COORD_JS_GLM_PREFLIGHT — js-bridge.sh _jsb_exec).
+// glm-preflight.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/glm-preflight.sh 에 퇴역 보관).
 //   1) zsh -ic 'alias <launch.glm>' 로 alias 를 읽는다  2) ANTHROPIC_BASE_URL 호스트가 api.z.ai 인지
 //   3) curl POST <base>/v1/messages(max_tokens 1, 제한 glm.timeout_s 초) → HTTP 200 · 응답 model 에 glm 이 있는지.
 //   stdout: `ok <host> <model> <초>` 또는 `fail <alias|host|call|model> <사유>`(모두 종료 코드 0). 결과는 회차가 있으면 state `.glm` 에 남긴다.

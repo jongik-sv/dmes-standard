@@ -1,7 +1,7 @@
-// scripts/search.sh 의 node 판(스위치 COORD_JS_SEARCH — js-bridge.sh _jsb_exec).
+// search.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/search.sh 에 퇴역 보관).
 //   사용법: search.mjs [--tab|--print] [--cwd <폴더>] [--timeout <초>] [--worker <agy|opencode>] <질의…>
 //   검색 워커(기본 agy → opencode)에 질의를 한 번 보내고 답을 파일로 남긴다. stdout 한 줄: `SEARCH ok <파일> <초> worker=<이름>` 또는 `SEARCH fail <사유> …`.
-// bash 판이 정답이다. 옮기며 같게 만든 것:
+// 옮길 때 bash 판이 기준이었고, 같게 만든 것:
 //   · --print: 템플릿을 공백으로 나눈 인자 배열로 셸 없이 실행, 제한 시간이 넘으면 자기 자식 트리만 끝낸다(compat killTree)
 //   · --tab: orca 로 새 탭을 만들고 줄을 보낸 뒤 답 파일(또는 opencode 의 .done)을 5초마다 기다린다(term.mjs 어댑터)
 //   · 답 파일 이름 `<폴더>/<날짜-시각>-<pid>-<워커>.md` 의 pid 는 프로세스마다 달라 대조 때 지운다
@@ -20,6 +20,22 @@ import { functions as termFns } from './lib/term.mjs';
 import { cmpInt, coordStateCall, rawOut, runSync, stripNl } from './lib/common-ext.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 
+/** 도움말(= bash 판 머리말 2~15줄, 이름만 .mjs). */
+const HELP = `# 검색·조사 질의를 외부 검색 워커(기본 agy → 실패 시 opencode)에 한 번 보내고 답을 파일로 남긴다. 정본: ../references/contract.md §3.3, ../SKILL.md 「시간·토큰·성능 최적화 원칙」
+# 사용법: search.mjs [--tab|--print] [--cwd <폴더>] [--timeout <초>] [--worker <agy|opencode>] <질의…>
+#   --tab  (설정 search.mode 기본 tab) 새 탭에 검색 워커를 띄워 사용자가 진행을 화면에서 볼 수 있게 한다.
+#          agy 는 대화형(search.tab_command)이 지정 파일에 답을 쓰고, opencode 는 \`opencode run --standalone\` 출력을 tee 로 파일에 남긴다.
+#          파일이 생기면(opencode 는 끝 표지가 생기면) 탭을 닫는다. 탭을 못 띄우면 --print 로 내려간다.
+#   --print 화면 없이 단발 실행(agy: search.command, opencode: search.opencode.command). 빠르지만 사용자에게 안 보인다.
+#   워커 순서는 설정 search.workers(기본 ["agy","opencode"]). 앞 워커가 실패(no-command·timeout·error·empty)하면 다음 워커로 내려간다.
+#   --worker 는 그 워커 하나만 쓴다.
+#   stdout 한 줄: \`SEARCH ok <답 파일> <초> worker=<이름>\` 또는 \`SEARCH fail <no-command|timeout|error|empty> <사유>\`(마지막 워커의 실패)
+#   답 본문은 파일에만 쓴다(조정자는 필요한 만큼만 읽는다). 회차가 있으면 <회차>/searches/, 없으면 $TMPDIR.
+#   질의 앞에 「저장소 파일을 수정하지 말고 읽기만 하라」를 늘 붙인다.
+#   모든 워커가 fail 이면 조정자·레인은 Explore 서브에이전트(sonnet/medium)나 직접 grep 으로 대신한다.
+#   opencode 질의에서는 \`!\`·\`@\` 를 지운다(TUI·셸 모드 오작동 방지, 사용자 규칙).
+#   설정: search.workers, search.command·tab_command(agy), search.opencode.command·tab_command(자리 {prompt}·{timeout}·{out}), search.timeout_s
+`;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
@@ -80,15 +96,14 @@ export async function main(argv, { env = process.env, cwd: cwd0 = process.cwd() 
     let i = 0;
     for (; i < argv.length; i++) {
       const a = argv[i];
-      const need = () => { if (i + 1 >= argv.length) { process.stderr.write(`search.sh: $2: unbound variable\n`); throw new CoordDie(1, ''); } return argv[++i]; };
+      const need = () => { if (i + 1 >= argv.length) { process.stderr.write(`search.mjs: $2: unbound variable\n`); throw new CoordDie(1, ''); } return argv[++i]; };
       if (a === '--tab') mode = 'tab';
       else if (a === '--print') mode = 'print';
       else if (a === '--cwd') cwd = need();
       else if (a === '--timeout') timeout = need();
       else if (a === '--worker') only = need();
       else if (a === '-h' || a === '--help') {
-        const ls = readFileSync(join(HERE, 'search.sh'), 'latin1').split('\n').slice(1, 15);
-        process.stdout.write(Buffer.from(`${ls.join('\n')}\n`, 'latin1'));
+        process.stdout.write(HELP);
         return 0;
       } else if (a === '--') { i++; break; } else break;
     }

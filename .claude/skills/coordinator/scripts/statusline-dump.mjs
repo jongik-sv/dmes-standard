@@ -1,4 +1,4 @@
-// scripts/statusline-dump.sh 의 node 판(스위치 COORD_JS_STATUSLINE_DUMP — js-bridge.sh _jsb_exec).
+// statusline-dump.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/statusline-dump.sh 에 퇴역 보관).
 //   `{at, session_id, context_window, rate_limits}` 를 <state_dir>/ctx/<session_id>.json 에 임시 파일 → mv 로 쓰고,
 //   COORD_STATUSLINE_NEXT 가 있으면 같은 stdin 을 `bash -c` 로 넘겨 출력을 그대로 낸다. 어떤 실패에도 종료 코드 0.
 // 매 갱신마다 불리므로 import 를 최소로 한다(설정 풀이에 필요한 common.mjs 함수만).
@@ -64,7 +64,7 @@ export async function main(_argv, { env, cwd } = {}) {
   const inStr = inBuf.toString('latin1');   // jq 는 바이트열을 다룬다 — 출력도 latin1 로 주고받는다
 
   let sd = '';
-  try { sd = stateRoot(c); } catch { sd = ''; }   // bash: 하위 셸에서 common.sh 를 읽어 coord_state_root — 실패해도 조용히
+  try { sd = stateRoot(c); } catch { sd = ''; }   // 상태 뿌리를 못 구해도 조용히 넘어간다
   if (sd === '') sd = `${env.HOME ?? ''}/.coord`;
 
   const sid = sidOf(inStr);

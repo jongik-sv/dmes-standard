@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// 콘솔 화면 가림·프롬프트 정리의 node 판. console-redact.sh 의 awk 본문을 같은 순서·같은 규칙으로 옮긴 것이다.
-// 규칙의 설명(무엇을 가리는가)은 console-redact.sh 머리말이 정본이고, 여기서는 옮길 때 지킨 약속만 적는다.
+// 콘솔 화면 가림·프롬프트 정리의 node 판. 옛 awk 판(backup/scripts/lib/console-redact.sh, 2026-10-09 퇴역)과 같은 순서·같은 규칙이다.
+// 규칙의 설명(무엇을 가리는가)은 references/contract.md 와 옛 awk 판 머리말에 있다. 여기서는 지킨 약속만 적는다.
 //   · awk 는 LC_ALL=C 바이트 단위로 돈다. 그래서 입력을 latin1 로 읽어 「글자 하나 = 바이트 하나」 인 문자열로 다루고,
 //     결과도 latin1 로 내보낸다(UTF-8 해석을 하지 않으므로 한글·깨진 바이트도 awk 판과 바이트까지 같다).
 //   · 위치는 awk 처럼 1부터 센다(_o·_sub·_index). 대소문자 변환은 ASCII 만(awk C 로캘의 tolower).

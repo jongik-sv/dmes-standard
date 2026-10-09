@@ -1,8 +1,8 @@
-// scripts/idle-check.sh 의 node 판(스위치 COORD_JS_IDLE_CHECK — js-bridge.sh _jsb_exec).
+// idle-check.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/idle-check.sh 에 퇴역 보관).
 //   사용법: idle-check.mjs [레인…]   (없으면 active 레인 전부)
-//   stdout 레인마다 한 줄: IDLE · CANDIDATE · BUSY · HOLD · WAIT_USER · COMPACTING · STALL? · GONE (판정 순서는 idle-check.sh 머리말)
-//   상태 쓰기(hold 풀기·이벤트)는 coord-state.sh spawn 으로만, 관측 기록은 <회차>/ticks/idle-<레인>.
-// bash 판이 정답이다. 다른 스크립트(usage-band.sh · heavy 스크립트 snapshot · coord-state.sh)는 import 하지 않고 spawn 한다.
+//   stdout 레인마다 한 줄: IDLE · CANDIDATE · BUSY · HOLD · WAIT_USER · COMPACTING · STALL? · GONE (판정 순서는 idle-check.mjs 머리말)
+//   상태 쓰기(hold 풀기·이벤트)는 coord-state.mjs spawn 으로만, 관측 기록은 <회차>/ticks/idle-<레인>.
+// 옮길 때 bash 판이 기준이었다. 다른 스크립트(usage-band.mjs · heavy 스크립트 snapshot · coord-state.mjs)는 import 하지 않고 node 자식 프로세스로 부른다.
 //   · jq 식은 JS 로 같은 뜻으로 옮겼다(.lanes | has, 세션 행의 `// ""`, `(…)/1000|floor`). 오류는 bash 처럼 그 줄만 빈 값
 //   · bash 3.2 $(( )) 의 앞 0 8진·오류 동작은 arithVal 로, 오류가 나면 레인 루프 전체를 버린다(스크립트는 exit 0)
 //   · `for L in $lanes` 는 공백으로 갈라진다(글롭 확장은 흉내 내지 않는다: 의심 목록)
@@ -14,9 +14,26 @@ import * as J from './lib/jq-json.mjs';
 import { CoordDie, Ctx, cfgSub, epochToIso, hasRun, isoToEpochLoose, nowEpoch, runDir, screenPromptKind, sessionFile, stateFile, wtAbs } from './lib/common.mjs';
 import { pidAlive } from './lib/compat.mjs';
 import { functions as termFns } from './lib/term.mjs';
-import { ArithAbort, arithVal, cmpInt, coordBgSignals, coordDefaultRepo, coordHeavyScript, coordStateCall, rawOut, runSync, scriptsDir, stripNl, testInt } from './lib/common-ext.mjs';
+import { ArithAbort, arithVal, cmpInt, coordBgSignals, coordDefaultRepo, coordHeavyScript, coordStateCall, rawOut, runScriptFile, runSync, scriptsDir, stripNl, testInt } from './lib/common-ext.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 
+/** 도움말(= bash 판 머리말 2~16줄, 이름만 .mjs). */
+const HELP = `# 사용법: idle-check.mjs [레인…]   (없으면 active 레인 전부. 정본: ../references/contract.md §3.3, 설계 §3.i-2)
+# stdout 레인마다 한 줄:
+#   IDLE <레인> since=<iso>        확정(후보이고 거부 없음, 첫 관측 뒤 idle.confirm_gap_min 이상 지나 다시 후보). since = idle 시작 시각
+#   CANDIDATE <레인>               첫 관측(확정 전). 관측 시각은 <회차>/ticks/idle-<레인>
+#   BUSY <레인> <사유>             busy(세션 status 값) · idle-<n>m(idle_min 미만) · cooldown · bg=<콤마목록>
+#   HOLD <레인> <사유>             hold until 미경과(사유 = hold.reason) · usage-band-R
+#   WAIT_USER <레인> <창 종류>     화면에 확인·선택 창(permission·choice·usage-limit)
+#   COMPACTING <레인>              화면 아래에 Compacting
+#   STALL? <레인> bg=<분>m         bg 거부가 idle.stall_max_min 넘게 이어짐(분 = idle 지속 분: idle 중에는 새 bg 를 띄울 수 없으므로)
+#   GONE <레인>                    세션 파일 없음 또는 pid 죽음
+# 판정 순서: GONE → (until 지난 hold 는 coord-state.mjs hold <레인> - 로 풀고 hold-expired 이벤트) → 후보 아님(BUSY)
+#   → 후보 중 거부: WAIT_USER → COMPACTING → HOLD → HOLD usage-band-R → BUSY cooldown → bg(BUSY/STALL?) → CANDIDATE/IDLE.
+# 화면 신호는 레인 handle 이 있을 때만 읽는다. 후보가 아니거나 거부되면 관측 기록을 지운다.
+# 상태 쓰기(hold 풀기·이벤트)는 coord-state.mjs 로만 한다(COORD_DRY=1 이면 DRY 로 찍기만).
+set -uo pipefail
+`;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const digitsOr = (v, d) => (v === '' || /[^0-9]/.test(v) ? d : v);
 const readDocs = (file) => {
@@ -63,12 +80,11 @@ export async function main(argv, { env = process.env, cwd = process.cwd(), now }
     coordDefaultRepo(c);
     const a0 = argv[0] ?? '';
     if (a0 === '-h' || a0 === '--help') {
-      const ls = readFileSync(join(HERE, 'idle-check.sh'), 'latin1').split('\n').slice(1, 16);
-      process.stderr.write(Buffer.from(`${ls.join('\n')}\n`, 'latin1'));
+      process.stderr.write(HELP);
       return 0;
     }
-    if (a0.startsWith('-')) throw new CoordDie(2, '사용법: idle-check.sh [레인…]');
-    if (!hasRun(c)) throw new CoordDie(3, '현재 회차가 없다(coord-state.sh init 먼저)');
+    if (a0.startsWith('-')) throw new CoordDie(2, '사용법: idle-check.mjs [레인…]');
+    if (!hasRun(c)) throw new CoordDie(3, '현재 회차가 없다(coord-state.mjs init 먼저)');
     const SF = stateFile(c, '');
     const TICKS = `${runDir(c, '')}/ticks`;
     try { mkdirSync(TICKS, { recursive: true }); } catch { throw new CoordDie(4, `ticks 폴더 생성 실패: ${TICKS}`); }
@@ -84,7 +100,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd(), now }
     let BAND = '';
     const band = () => {
       if (BAND === '') {
-        const r = runSync('bash', [join(scriptsDir(), 'usage-band.sh')], { env: c.env, cwd: c.cwd });
+        const r = runScriptFile(join(scriptsDir(), 'usage-band.mjs'), [], { env: c.env, cwd: c.cwd });
         BAND = stripNl(r.out.toString('utf8').split('\n').slice(0, -1).map((l) => l.trim().split(/\s+/)[1] ?? '').join('\n'));
       }
       return BAND === '' ? 'UNKNOWN' : BAND;

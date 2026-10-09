@@ -1,7 +1,7 @@
-// scripts/merge-gate.sh 의 node 판(스위치 COORD_JS_MERGE_GATE — js-bridge.sh _jsb_exec).
+// merge-gate.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/merge-gate.sh 에 퇴역 보관).
 //   사용법: merge-gate.mjs <레인> | --branch <브랜치>
 //   첫 줄 `GATE <ok|wait|conflict> branch=<b> base=<integration> tree=<hash|-> files=<n>` 뒤에 CONFLICT·FORBIDDEN·OUTSIDE·SHARED_API·RESTART·WINDOW·INFLIGHT 사유 줄.
-// bash 판이 정답이다. 옮기며 같게 만든 것:
+// 옮길 때 bash 판이 기준이었고, 같게 만든 것:
 //   · glob_re: `**/`=(.*/)?  `**`=.*  `*`=[^/]*  `?`=[^/]  끝이 / 이면 아래 전부. 글자 단위(UTF-8)로 풀고 정규식도 글자 단위로 맞춘다(bash [[ =~ ]] 의 UTF-8 로캘)
 //   · is_shared_api 는 case 패턴이라 `*` 가 / 까지 맞는다 — glob_re 와 따로 구현
 //   · 상태 파일은 jq 식 그대로의 뜻으로 JS 에서 읽는다: `.lanes[$l].owned[]? // empty`(참인 원소만), `.windows[]? | select(.kind == "measure")`, `.merge.in_flight` 대조
@@ -16,6 +16,14 @@ import { CoordDie, Ctx, cfgSub, hasRun, laneGet, stateFile } from './lib/common.
 import { cfgAtSegs, cfgLenAt, coordGit, laneType, rawOut, stripNl, testInt, walk } from './lib/common-ext.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 
+/** 도움말(= bash 판 머리말 2~7줄, 이름만 .mjs). */
+const HELP = `# 사용법: merge-gate.mjs <레인> | --branch <브랜치>
+#   머지 허가 전 기계적 확인(설계 §3.b). 정본 출력: references/contract.md §3.3
+#   첫 줄 GATE <ok|wait|conflict> branch=<b> base=<integration> tree=<hash|-> files=<n>
+#   이어 CONFLICT·FORBIDDEN·OUTSIDE·SHARED_API·RESTART·WINDOW·INFLIGHT 사유 줄.
+#   conflict = 충돌 있음, wait = FORBIDDEN·WINDOW·INFLIGHT 있음, 그 밖 ok(OUTSIDE·SHARED_API·RESTART 는 조정자 판단).
+#   --branch 만 주면 소유·금지 대조는 건너뛴다. 회차가 없으면 WINDOW·INFLIGHT 도 건너뛴다.
+`;
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 /** 글롭 → 정규식 글(bash glob_re 와 같은 변환; 글자 단위) */
@@ -133,14 +141,13 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
       const a = argv[i];
       if (a === '--branch') { branch = argv[i + 1] ?? ''; i++; }
       else if (a === '-h' || a === '--help') {
-        const ls = readFileSync(join(HERE, 'merge-gate.sh'), 'latin1').split('\n').slice(1, 7);
-        process.stdout.write(Buffer.from(`${ls.join('\n')}\n`, 'latin1'));
+        process.stdout.write(HELP);
         return 0;
       } else if (a.startsWith('-')) throw new CoordDie(2, `모르는 옵션: ${a}`);
       else lane = a;
     }
     const utf8 = isUtf8Locale(env);
-    if (lane === '' && branch === '') throw new CoordDie(2, '사용법: merge-gate.sh <레인> | --branch <브랜치>');
+    if (lane === '' && branch === '') throw new CoordDie(2, '사용법: merge-gate.mjs <레인> | --branch <브랜치>');
 
     if (env.MERGE_GATE_SELFTEST === '1') {
       const t = (p, g, want) => {

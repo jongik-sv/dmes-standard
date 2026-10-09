@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-// office.sh 의 node 판(스위치 COORD_JS_OFFICE — js-bridge.sh 로 exec). 계약·대조 명세: tests/js-parity/specs/office.mjs
-// 정답은 bash 판이다. 에이전트 오피스(wbs-web)에 「표시 전용」 watch 를 `dflow.sh watch`(bash 스크립트, spawn)로 보낸다.
+// office.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/office.sh 에 퇴역 보관).
+// 에이전트 오피스(wbs-web)에 「표시 전용」 watch 를 `dflow.sh watch`(bash 스크립트, spawn)로 보낸다.
 // 순수 로직(요약 칸·키·해시·시각)은 export 함수로 두고 단위 시험(tests/office.test.mjs)이 본다. 시계·환경·작업 폴더는 Ctx 로 받는다.
 //
 // bash 판과 맞춘 점(읽는 사람이 놀라지 않도록):
 //  · 모든 실패는 종료 코드 0(사용법 오류만 2). 경고는 stderr 한 줄, dflow.sh 호출당 5초 제한(초과하면 프로세스 그룹을 TERM → 0.3초 → KILL).
 //  · jq 가 만들던 JSON 글(--summary-json·--input-request-json·--until·--lead-summary-json, 세션 기록)은 jq-json.mjs 로 바이트가 같게 만든다.
 //  · jq 가 오류를 내는 모양(스칼라를 색인하는 등)은 JqError → bash 판에서 `st`/`jq` 가 빈 출력으로 끝난 것과 같게 그 칸을 비운다.
-//  · state.json 쓰기는 늘 coord-state.sh 를 bash 로 spawn 한다(그 스크립트가 state.json 의 유일한 작성자).
+//  · state.json 쓰기는 늘 coord-state.mjs 를 bash 로 spawn 한다(그 스크립트가 state.json 의 유일한 작성자).
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { closeSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -20,19 +20,41 @@ import { Ctx, CoordDie, cfgJson, cfgSub, expand, hasRun, lock, nowEpoch, nowIso,
 import { redactText } from './lib/console-redact.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 
+/** 도움말(= bash 판 머리말 2~26줄, 이름만 .mjs). */
+const HELP = `# 사용법: office.mjs lead-up | lead-sync | lane-up <레인> | lane-state <레인> <상태|auto> | lane-down <레인> | beat | finish | reap [--state-dir <경로>]
+#   조정 세션(팀장)과 레인(팀원)을 wbs-web 에이전트 오피스에 「표시 전용」으로 보인다(정본: ../references/contract.md §4).
+#   표시 경로는 \`dflow.sh watch\`(POST /api/v1/agent/watch) 하나뿐이다. WBS 데이터(작업·lease·진도율)는 건드리지 않는다.
+#   lead-up              팀장 등록: agent \`<신원>/<host>/coord:<세션8>\`(조정 세션당 하나). slots·busy 는 이 세션의 열린 회차 전부에서
+#                        합산한 살아 있는(closed 아닌) 레인 수·작업 중(머지 중 포함) 레인 수
+#   lane-up <레인>       팀원 등록(같은 키여도 늘 보낸다): agent \`<신원>/<host>/임시:<레인>·<지시 요약>\`, until=상태 라벨. 이어 팀장 갱신
+#   lane-state <레인> <상태>  상태 라벨(작업 중|대기|머지 중|답 대기|끝|auto) 갱신. auto = state.json + 입력 요청 기록에서 판정.
+#                        키·라벨·요약 해시가 모두 같으면 보내지 않는다
+#   lead-sync            이 세션의 팀장 watch 를 다시 보낸다(FORCE). 폴러가 입력 요청 기록을 바꾼 직후 부른다
+#   요약 칸(contract §4 「레인 요약·팀장 자리 요약·입력 요청」): 레인 watch 는 늘 --summary-json·--input-request-json, 팀장 watch 는 늘
+#                        --until(조정 중|답 대기)·--lead-summary-json 을 싣는다(빼면 서버가 null 로 덮어쓴다). 모두 state.json·기록 파일만으로 만든다
+#   lane-down <레인>     기록된 키로 \`watch --stop\` 하고 기록을 지운다. 이어 팀장 갱신
+#   beat                 하트비트: 팀장과 살아 있는 레인 전원을 state.json 기준으로 다시 보낸다(키가 바뀌었으면 옛 키 stop 뒤 새 키).
+#                        끝난(closed) 레인·state 에서 사라진 레인은 stop. tick.mjs 끝에서 부른다
+#   finish               이 회차의 팀원 키를 모두 stop 한다(회차 마감). 같은 세션에 다른 열린 회차가 남으면 팀장은 합산만 다시 보내고,
+#                        마지막 열린 회차일 때만 팀장 키를 stop 하고 세션 기록을 지운다. 이후 이 회차의 다른 호출은 무시한다(.office.finished)
+#   reap [--state-dir <경로>]  생존 감시(PC 폴러가 30초마다): 세션 기록의 pid 가 죽었으면 그 세션의 팀장·팀원 키를 stop 하고 기록을 지우며
+#                        키 기록(.office.sent)을 비운다(finished 표식은 남기지 않는다 — 잘못 판정된 살아 있는 세션이 다음 beat 에서 다시 올라오게). 살아 있는 세션의 열린 회차에서는 session.pid 가 죽은 레인의 팀원 키만 stop.
+#                        현재 회차가 없어도 돈다. 상태 뿌리 = --state-dir → COORD_STATE_ROOT → 설정 state_dir
+#   키 기록: 팀원은 state.json \`.office.sent["<레인>"]\`·\`.office.label["<레인>"]\`, 팀장은 \`<state_dir>/_session/<세션8>.json\`
+#            (\`{key,session_id,host,user,pid,handle,sent_at,slots,busy}\`, mkdir 잠금). 옛 \`.office.sent["_lead"]\` 는 옛 키 정리에 읽기만 한다.
+#   설정: office.enabled · office.project_id · office.label_max · office.dflow_script · office.quiet_min (contract §1.2)
+#   입력 요청 기록(읽기만): \${DFLOW_CONSOLE_DIR:-~/.dflow/console}/input/coord_lane_<레인>.json · coord_lead_<세션8>.json (쓰기는 폴러 몫)
+#   실패 정책: 어떤 실패도 종료 코드 0(사용법 오류만 2). 경고는 stderr 한 줄, 호출당 5초 제한.
+#   dflow 설정(PAT)이 로드되지 않거나 dflow.sh 가 없거나 enabled=false 이면 아무 출력 없이 건너뛴다. COORD_DRY=1 이면 보내지 않는다.
+`;
 const SCRIPTS_DIR = path.dirname(fileURLToPath(import.meta.url));
-const SH_FILE = path.join(SCRIPTS_DIR, 'office.sh');
 const IS_WIN = process.platform === 'win32';
 
 /**
- * bash 판 REDACT_OK 와 같은 판정(실패 시 닫힘): lib/console-redact.sh 가 읽히고 console_redact_text 가 동작하는가.
- * bash 가 있으면 한 번만 확인하고, bash 가 없으면(윈도우 등) console-redact.mjs 로 같은 확인을 하며, 그것도 안 되면 실패로 본다.
- * 확인 수단은 시험에서 바꿔 끼울 수 있다(spawn·redact).
+ * 가림 모듈 점검(실패 시 닫힘): lib/console-redact.mjs 의 redactText 가 동작하지 않으면 자유 글 칸을 비운다.
+ * 점검 수단은 시험에서 바꿔 끼울 수 있다(redact).
  */
-export function redactCheck(file = path.join(SCRIPTS_DIR, 'lib', 'console-redact.sh'), spawn = spawnSync, redact = redactText) {
-  if (!isFile(file)) return false;
-  const r = spawn('bash', ['-c', '. "$1" 2>/dev/null && declare -F console_redact_text >/dev/null && printf "a\\n" | console_redact_text >/dev/null 2>&1', 'x', file], { stdio: 'ignore', windowsHide: true, timeout: 10000 });
-  if (!r.error) return r.status === 0;
+export function redactCheck(redact = redactText) {
   try { return redact(Buffer.from('a\n', 'utf8')).rc === 0; } catch { return false; }
 }
 let redactShState = null;
@@ -335,7 +357,7 @@ class Office {
   /** red: 자유 글을 가린다. 실패하면 null(= bash 의 rc 1) */
   red(text) {
     if (text === '') return '';
-    if (!redactShOk()) return null;   // bash 판은 lib/console-redact.sh 를 못 읽거나 함수가 실패하면 그 칸을 비운다(실패 시 닫힘)
+    if (!redactShOk()) return null;   // 가림 모듈이 동작하지 않으면 그 칸을 비운다(실패 시 닫힘)
     let r;
     try { r = redactText(Buffer.from(`${text}\n`, 'utf8')); } catch { return null; }
     if (r.rc !== 0) return null;
@@ -404,9 +426,9 @@ class Office {
     this.activeIn = names;
     return names;
   }
-  // ---- 값 기록(늘 coord-state.sh) ----
+  // ---- 값 기록(늘 coord-state.mjs) ----
   coordState(args, extraEnv = {}) {
-    const r = spawnSync('bash', [path.join(SCRIPTS_DIR, 'coord-state.sh'), ...args], { env: { ...this.c.env, ...extraEnv }, stdio: 'ignore', windowsHide: true });
+    const r = spawnSync(process.execPath, [path.join(SCRIPTS_DIR, 'coord-state.mjs'), ...args], { env: { ...this.c.env, ...extraEnv }, stdio: 'ignore', windowsHide: true });
     return r.status === 0;
   }
   rec(p, v) { if (!this.coordState(['set', p, v])) this.warn(`state 기록 실패: ${p}`); }
@@ -707,7 +729,7 @@ class Office {
     const { sub, args, c } = this;
     c.env = { ...c.env };
     // ---- 사용법 ----
-    const usage = () => { c.log('사용법: office.sh lead-up | lead-sync | lane-up <레인> | lane-state <레인> <상태|auto> | lane-down <레인> | beat | finish | reap [--state-dir <경로>]'); throw new Exit(2); };
+    const usage = () => { c.log('사용법: office.mjs lead-up | lead-sync | lane-up <레인> | lane-state <레인> <상태|auto> | lane-down <레인> | beat | finish | reap [--state-dir <경로>]'); throw new Exit(2); };
     if (sub === undefined) usage();
     switch (sub) {
       case 'lead-up': case 'lead-sync': case 'beat': case 'finish': if (args.length !== 0) usage(); break;
@@ -718,7 +740,7 @@ class Office {
         if (args.length === 2) { if (!(args[0] === '--state-dir' && args[1] !== '')) usage(); c.env.COORD_STATE_ROOT = args[1]; break; }
         usage(); break;
       case '-h': case '--help': case 'help':
-        process.stderr.write(`${readFileSync(SH_FILE, 'utf8').split('\n').slice(1, 26).join('\n')}\n`);
+        process.stderr.write(HELP);
         return 0;
       default: usage();
     }
@@ -727,7 +749,7 @@ class Office {
     let en = '';
     try { en = stripNl(cfgJson(c, '.office.enabled').out.toString()); } catch (e) { if (!(e instanceof CoordDie)) throw e; }
     if (en !== 'true') return 0;
-    if ((c.env.COORD_DRY ?? '0') === '1') { c.log(`DRY office.sh ${sub} ${args.join(' ')}`); return 0; }
+    if ((c.env.COORD_DRY ?? '0') === '1') { c.log(`DRY office.mjs ${sub} ${args.join(' ')}`); return 0; }
     this.root = stateRoot(c); c.env.COORD_STATE_ROOT = this.root;
     this.sessd = path.join(this.root, '_session');
     this.sf = ''; this.rid = ''; let finished = 0;

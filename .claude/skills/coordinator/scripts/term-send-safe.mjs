@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// term-send-safe.sh 의 node 판(스위치 COORD_JS_TERM_SEND_SAFE — js-bridge.sh 로 exec). 정답은 bash 판이다(계약: tests/js-parity/README.md, 명세 specs/term-send-safe.mjs).
+// term-send-safe.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/term-send-safe.sh 에 퇴역 보관).
 // 이 스크립트는 살아 있는 세션 터미널에 글·키를 보낸다. 그래서 확실하지 않으면 보내지 않는 쪽(fail-closed)으로만 틀린다:
 //   · 어떤 내부 오류든(예외) 아무것도 보내지 않고 종료 코드 70 으로 끝난다(bash 본문으로 되돌아가지 않는다).
 //   · 판정 순서는 bash 판 머리말 그대로: handle 존재 → 글에 ! 없음 → tui-idle → esc to interrupt·확인 창·Compacting 없음 → 입력창에 쓰다 만 글 없음 → send.
 // 맞춘 bash 동작 (읽는 사람이 놀라지 않도록 적어 둔다)
 //  · --text-file 은 `$(cat f)` 처럼 끝의 줄바꿈을 모두 지우고 NUL 은 버린다. 글이 비면 사용법 오류(2).
-//  · 옵션 값 자리에 인자가 없으면 빈 값(`${2:-}`)이다. -h/--help 는 .sh 머리말(2번 줄 ~ `set -uo` 앞)을 그대로 낸다.
+//  · 옵션 값 자리에 인자가 없으면 빈 값(`${2:-}`)이다. -h/--help 는 머리말(HELP_TEXT)을 낸다.
 //  · 터미널 목록 확인은 `term_list | cut -f1 | grep -qxF` 에 pipefail 이 걸려 있어, term_list 가 0 이 아니게 끝나면 목록에 있어도 stale 이다.
 //  · 입력창 판정(input_state)·틀 위치 판정(frame_at_end)은 awk 규칙을 옮긴 것이다. `[[:space:]]` 는 awk 가 바이트 단위로 보는 ASCII 공백(SP·TAB·LF·VT·FF·CR)이다
 //    (NBSP 만 앞단 sed 가 공백으로 바꿔 준다). 그 밖의 유니코드 공백(U+2003·U+3000 등)은 공백이 아니라 글자다 — 하니스가 LC_ALL 을 바꿔 가며 확인한다.
@@ -24,7 +24,6 @@ import { sleepSec } from './lib/test-sleep.mjs';
 import { functions as T } from './lib/term.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SH_FILE = join(HERE, 'term-send-safe.sh');
 
 const FRAME_TAIL_MAX = 6;
 // awk 의 [[:space:]] (바이트 단위 ASCII 공백)
@@ -38,7 +37,7 @@ const RE_TRY = /^Try "[^"]*("|…)$/;
 
 class Exit extends Error { constructor(rc) { super(`exit ${rc}`); this.rc = rc; } }
 
-// ---------- 입력창 판정 (term-send-safe.sh 의 input_state·frame_at_end) ----------
+// ---------- 입력창 판정 (term-send-safe.mjs 의 input_state·frame_at_end) ----------
 const isRule = (x) => RE_RULE_HEAD.test(x) && RE_RULE_TAIL.test(x) && (x.match(/─/g) || []).length >= 10;
 /** 입력창 줄(가로줄 바로 아래 ❯ 또는 > 로 시작하는 마지막 줄) 번호(1부터). 없으면 0 */
 function inputLineIndex(line) {
@@ -76,12 +75,39 @@ export function frameAtEnd(screen) {
   return n <= FRAME_TAIL_MAX ? 'ok' : 'no';
 }
 
-// ---------- 도움말: .sh 머리말을 그대로 ----------
+// ---------- 도움말 ----------
+const HELP_TEXT = `# 사용법: term-send-safe.mjs (--handle <h> | --lane <레인>) (--text <글> | --text-file <f>) [--timeout-ms 300000] [--raw [--expect-sha <sha>]] [--allow-busy] [--over-draft] [--dry-run]
+#   다른 세션 터미널에 안전하게 글을 넣는다(설계 §2.1·§3.j-3·§3.l-3). 정본 출력: references/contract.md §3.5
+#   순서: handle 존재 → 글에 ! 없음 → tui-idle(satisfied) → 화면에 esc to interrupt·확인 창·Compacting 없음
+#         → 입력창에 쓰다 만 글 없음(애매하면 보내지 않음) → send --enter --wait-submit 10.
+#   stdout: \`SENT <h> <turn_started|submitted|accepted>\` 또는
+#           \`REFUSED <h> <stale|not-idle|interrupt-visible|prompt-open|compacting|bang-in-text|draft-in-input>\`.
+#   --raw: 확인 창 응답용(글은 1 또는 2). tui-idle 검사 없이 확인 창이 보일 때만 Enter 없이 보내고,
+#          3초 뒤 다시 읽어 창이 사라졌는지 stderr 로 알린다. 창이 없으면 \`REFUSED <h> no-prompt\`.
+#          --raw 와 함께 쓰는 선택 옵션(조정자가 판단 올리기 뒤 직접 답할 때, approvals.md §3):
+#          --lane <레인>  핸들 찾기에 더해 폴러·auto-answer 와 같은 레인 단위 잠금($DFLOW_CONSOLE_DIR/lock/lane-<레인>)을 쥐고 보낸다.
+#                         못 얻으면 \`REFUSED <h> lane-busy\`. 방금 다른 답이 들어간 같은 창(보낸 표식)이면 \`REFUSED <h> prompt-changed\`.
+#                         보낸 직후 잠금을 쥔 채 보낸 표식을 남기고, 입력 요청 기록이 보낸 창(잠금 안에서 확인한 창 지문)과 같으면
+#                         handled(coordinator)·소비 (since, 발췌 sha)·(since, full) 를 직접 남긴다(console_input_mark_handled — 다음 창
+#                         기록은 건드리지 않는다). office 알림은 폴러 다음 주기 또는 부른 쪽의
+#                         \`console-poll.mjs input-handled --lane <레인> --by coordinator --expect-full <지문>\`.
+#          --expect-sha <지문>  판단 시점 화면의 창 지문(\`console-poll.mjs judge-sha --lane <레인>\` 의 JUDGE 셋째 값). **--lane 이 있을 때만**
+#                         받는다(없으면 사용법 오류 종료 코드 2 — 잠금 없이 보내지 않게). 잠금 안에서 다시 읽은 화면의 지문이 다르거나 지문을
+#                         만들지 못하면(창 머리가 밀림) 보내지 않고 \`REFUSED <h> prompt-changed\`.
+#          --lane 을 주면 화면을 41줄 읽는다(judge-sha 와 같은 입력). 옵션이 없을 때의 동작·출력은 그대로다.
+#   --allow-busy: 작업 중인 세션에도 넣는다(Claude Code 가 작업 중 입력을 다음 차례로 받아 둔다). tui-idle 대기와 \`esc to interrupt\` 거절
+#          (not-idle·interrupt-visible)을 건너뛴다. stale·bang-in-text·prompt-open·compacting·draft-in-input 판정은 그대로다.
+#          옵션이 없을 때의 동작·출력은 불변. 바쁜 세션의 입력창은 화면이 계속 바뀌므로 draft 판정은 입력창 모양만 본다.
+#          대신 입력창 틀(가로줄·입력줄·가로줄)이 화면 끝(닫는 가로줄 아래 글 줄 6개 이하, \`claude --resume\` 안내 없음)에
+#          있어야 한다 — 아니면 \`REFUSED <h> draft-in-input\`(셸로 돌아간 탭에 넣지 않게).
+#   --over-draft: 입력창에 글이 있어도(\`draft-in-input\` 중 draft 판정만) 보낸다. 화면은 이스케이프(색·dim)가 지워진 평문이라 Claude Code 의 회색
+#          추천 문구(prompt suggestion)와 사용자가 쓰다 만 글이 같은 \`❯ 글\` 로 읽혀 구분할 수 없다(교훈 17: 추천 문구 때문에 레인이 30분 멈춤).
+#          조정자가 화면을 읽고 추천 문구라고 판단한 때만 쓴다(추천 문구는 글을 치면 대체된다). 입력창을 못 찾은 애매한 화면(unknown)·
+#          stale·prompt-open·compacting·bang-in-text 는 그대로 거절한다. --raw 와는 함께 쓰지 않는다.
+#   --dry-run: 읽기·판정은 실제로 하고, 보내기 직전에 멈춰 stderr 에 DRY 를 찍고 stdout 에 \`DRY SENT <h> -\`(보냈다면 나올 줄에 DRY 를 붙임).
+`;
 function helpText() {
-  const lines = readFileSync(SH_FILE, 'latin1').split('\n');
-  const end = lines.findIndex((l, i) => i >= 2 && l.startsWith('set -uo'));
-  const body = lines.slice(1, end < 0 ? lines.length : end);
-  return Buffer.from(`${body.join('\n')}\n`, 'latin1');
+  return Buffer.from(HELP_TEXT, 'utf8');
 }
 
 // ---------- term 어댑터 ----------
