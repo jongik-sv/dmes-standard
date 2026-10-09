@@ -100,7 +100,7 @@ SKILL.md 「절차」 3번(순서)·4번(머지)에서 옮김. 읽는 때:
 
 ### 마이그레이션 버전 관문
 
-Flyway 처럼 파일명 = 버전인 migration(`V<버전>__<설명>.sql`): 병렬 branch 가 같은 번호 고르면 **git 충돌 없이** merge 되고 개발 branch start 가 깨짐.
+Flyway 처럼 파일명 = 버전인 migration(`V<버전>__<설명>.sql`): 병렬 branch 가 같은 번호 고르면 **git 충돌 없이** merge 되고 개발 branch 의 서버 start 가 깨짐.
 - merge 전 합친 트리를 `node .claude/skills/dflow-merge/scripts/migration-check.mjs` 로 검사.
 - 걸리면 충돌 취급. 해소 워커(`--resolve`, `resolve-prompt.md` 「해소 규약」 R9)가 다음 번호로 재채번.
 - 스윕(4번 2단계) = `migration-check.mjs HEAD <머지 대상>`. 해소 머지(`references/resolve.md` 4·5번) = `migration-check.mjs --staged`.
