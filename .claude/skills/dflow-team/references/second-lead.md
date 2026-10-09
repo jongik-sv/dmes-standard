@@ -5,10 +5,10 @@ SKILL.md 「두 번째 팀장 (링크드 워크트리)」 이 가리킨다. 같�
 같은 리포에서 **다른 신원(다른 PAT)** 의 팀장을 하나 더 돌릴 때는 리포를 다시 clone 하지 않고 링크드 워크트리를 쓴다.
 주 체크아웃 루트에서 아래를 실행한다.
 ```bash
-.claude/skills/dflow-team/scripts/lead-worktree.sh <이름>
+node .claude/skills/dflow-team/scripts/lead-worktree.mjs <이름>
 ```
 - 스크립트 동작:
-  - `<주 체크아웃>/.claude/worktrees/lead-<이름>` 을 개발 브랜치(`dflow.sh branch dev`)에서 detached 로 만든다.
+  - `<주 체크아웃>/.claude/worktrees/lead-<이름>` 을 개발 브랜치(`dflow.mjs branch dev`)에서 detached 로 만든다.
   - `.claude/skills` 를 주 체크아웃 것으로 링크한다.
   - 새 방식이면 주 체크아웃의 `.dflow.local` 을 `as` 줄 빼고 복사한다(값은 출력 안 함). 커밋 안 된 `.dflow` 는 링크한다.
   - 레거시는 `.env` 를 `DFLOW_AS` 줄 빼고 복사한다.

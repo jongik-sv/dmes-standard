@@ -14,7 +14,7 @@
 `<TASKS>/*/state.json` 이 `phase=wait_pred` 인 워크트리 = 설계 완료 대기.
 출력 한 줄: `DESIGNED<TAB><id8><TAB><TSK><TAB><워크트리><TAB><미충족 선행,…>`
 ```bash
-dirs=$(.claude/skills/dflow-work/scripts/dflow.sh config tasks-dirs); rc=$?
+dirs=$(node .claude/skills/dflow-work/scripts/dflow.mjs config tasks-dirs); rc=$?
 { [ "$rc" = 0 ] && [ -n "$dirs" ]; } || { echo "FAIL TASKS_DIRS rc=$rc"; exit 1; }
 git worktree list --porcelain | sed -n 's/^worktree //p' | while IFS= read -r w; do
   case "$(head -n 1 "$w/.dflow-agent" 2>/dev/null)" in '<신원>/<host>/'*) ;; *) continue ;; esac
@@ -39,9 +39,9 @@ done
 0. 계약 2.11 이면 먼저 `references/resume.md` 「서버 판단 확인」 수행.
    - `action` 이 `wait` → 아직. 그대로 둠
    - 표가 띄우지 않는다고 가르면 (다른 PC·다른 신원 등) → 이 목록과 3번 상한에서 빼고 「멈춤」 표에 그 사유로 올림 (설계 상태 스펙 12절 Y8)
-1. `dflow.sh show <id8>` 을 SKILL.md 「2-3」 poll exit 0 show 필터 그대로 줄임 (`deps_unmet`·`deps_nohead`). show 실패 → 이번 기상 재개 안 함 (조회 실패를 풀림으로 보지 않음)
+1. `dflow.mjs show <id8>` 을 SKILL.md 「2-3」 poll exit 0 show 필터 그대로 줄임 (`deps_unmet`·`deps_nohead`). show 실패 → 이번 기상 재개 안 함 (조회 실패를 풀림으로 보지 않음)
 2. `deps_unmet` 비어 있지 않음 → 아직. 그대로 둠
-3. `deps_unmet` 비었으면 `deps_nohead` 마다 「2-3」 「선행 반영 사전 검사」 의 `pred-reflected.sh` 수행.
+3. `deps_unmet` 비었으면 `deps_nohead` 마다 「2-3」 「선행 반영 사전 검사」 의 `pred-reflected.mjs` 수행.
    - `NOT_REFLECTED` 하나라도 있음 → 아직 (띄우면 worker 가 `design_waiting 선행 승인 대기` 로 곧 멈춤)
    - `UNKNOWN` → worker 에 맡김
 4. 통과 → **재개 가능**.

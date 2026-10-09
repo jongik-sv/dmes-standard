@@ -9,9 +9,9 @@ SKILL.md 「인자」 가 가리킴. 아래 때만 Bash `cat` 으로 읽음:
 
 토큰마다 한 줄 JSON 출력: `n`·`prefix`·`name`·`email`·`who`·`expires_at`·`projects`·`bound`·`selected`·`in_use`. `/me` 가 실패한 토큰은 `error`. 토큰 값은 안 나옴.
 - `bound` = 그 키의 프로젝트에 이 리포의 바인딩 프로젝트가 있음
-- `selected` = 지금 설정으로 `dflow.sh` 가 고르는 키
+- `selected` = 지금 설정으로 `dflow.mjs` 가 고르는 키
 - `who` = 그 키의 신원 슬러그 (잠금 `owner` 의 `<신원>` 과 같은 규칙)
-- `in_use` = 같은 리포의 **다른 워크트리에서 살아 있는 팀장**이 그 신원을 쓰면 그 워크트리 경로, 아니면 `null`. 살아 있음 기준 = 전제 검사 `SAME_IDENTITY_LEAD` 와 같음 (`live-leads.sh`)
+- `in_use` = 같은 리포의 **다른 워크트리에서 살아 있는 팀장**이 그 신원을 쓰면 그 워크트리 경로, 아니면 `null`. 살아 있음 기준 = 전제 검사 `SAME_IDENTITY_LEAD` 와 같음 (`live-leads.mjs`)
 
 `in_use` 가 `null` 아닌 키로는 시작 불가.
 - 전제 검사가 어차피 거부하므로, 사람에게 종료 시각까지 물은 뒤가 아니라 묻기 전에 알려고 여기서 봄
@@ -26,7 +26,7 @@ SKILL.md 「인자」 가 가리킴. 아래 때만 Bash `cat` 으로 읽음:
   - `.dflow.local` 이 아직 없으면 새로 만듦
   - 새 방식이 아닌 리포(레거시)는 `.env` 에 `DFLOW_AS` 로 적음
   ```bash
-  if [ "$(.claude/skills/dflow-work/scripts/dflow.sh config --source | sed -n 's/^mode=//p')" = new ]; then
+  if [ "$(node .claude/skills/dflow-work/scripts/dflow.mjs config --source | sed -n 's/^mode=//p')" = new ]; then
     printf '\nas=%s\n' '<prefix>' >> .dflow.local
   else
     printf '\nDFLOW_AS=%s\n' '<prefix>' >> .env
@@ -34,7 +34,7 @@ SKILL.md 「인자」 가 가리킴. 아래 때만 Bash `cat` 으로 읽음:
   ```
   보고: "키: <이름> (<email>, <prefix>). `.dflow.local` 에 `as` 로 저장했습니다(레거시는 `.env` 의 `DFLOW_AS`). 바꾸려면 그 줄을 고치십시오."
   `.dflow.local`(레거시 `.env`)은 gitignore 대상이라 전제 검사의 `DIRTY` 에 안 걸림.
-- `KEY_NOT_FOUND`: "`.dflow.local` 의 `as`(레거시 `.env` 의 `DFLOW_AS`)가 어느 토큰과도 맞지 않는다. `dflow.sh profiles` 의 `prefix` 로 고쳐라" + profiles 출력을 표로 내고 끝.
+- `KEY_NOT_FOUND`: "`.dflow.local` 의 `as`(레거시 `.env` 의 `DFLOW_AS`)가 어느 토큰과도 맞지 않는다. `dflow.mjs profiles` 의 `prefix` 로 고쳐라" + profiles 출력을 표로 내고 끝.
   - `as`·`DFLOW_AS` 는 prefix 만 받음 (이메일·이름 불가). 훅이 네트워크 없이 같은 키를 골라야 하기 때문
 - `KEY_IN_USE`: "이 키의 신원(`<who>`)은 `<in_use 경로>` 의 팀장이 쓰고 있다. 같은 신원으로는 팀장을 둘 띄울 수 없다(`SAME_IDENTITY_LEAD`)" + profiles 출력을 표로 내고 끝.
   - `as`(레거시 `DFLOW_AS`)가 있었다면 덧붙임: "이 워크트리의 `.dflow.local`(레거시 `.env`)에서 그 줄을 지우고 다시 실행하면 남은 키에서 고른다"
@@ -50,7 +50,7 @@ SKILL.md 「인자」 가 가리킴. 아래 때만 Bash `cat` 으로 읽음:
   1. **종료 시각** (필수): 선택지 넷. 오늘 안의 가까운 정시 하나 (없으면 뺌), `내일 09:00`, `다음 월요일 09:00` (오늘이 금·토·일일 때만. 아니면 `내일 18:00`), `종료 요청 전까지`. 사람이 "Other" 로 직접 적을 수 있음.
   2. **인원**: 이번 인자에 없을 때만. `3 (기본)`·`2`·`4`·`6` 순. 1·5 는 "Other" 로 직접 적음 (선택지는 넷까지). 이 PC 인원 상한(아래 「인원」 줄)을 넘는 선택지는 뺌.
   3. **WP 범위**: 이번 인자에 없을 때만. `전체 (기본)` 하나 + 서버 ready 목록에서 뽑은 WP 최대 3개.
-     - 목록 = `dflow.sh list --scope assigned` 의 `RD` 행마다 show 한 `external_ref` 의 TSK 번호 첫 칸 (`TSK-02-05` → `WP-02`)
+     - 목록 = `dflow.mjs list --scope assigned` 의 `RD` 행마다 show 한 `external_ref` 의 TSK 번호 첫 칸 (`TSK-02-05` → `WP-02`)
      - 조회 실패 → `전체 (기본)` 과 "Other 로 직접 적는다" 만 둠
      - `multiSelect` 로 묻기. `전체` 를 함께 고르면 전체로 봄
   - 모델은 안 물음. 기본 모델로 도는 것이 통상이고, 질문이 많으면 답이 늦어지기 때문.

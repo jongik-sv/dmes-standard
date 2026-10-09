@@ -5,7 +5,7 @@
 - **실행 중 연장**: 사람이 팀장 세션에 "내일 9시까지 연장" 처럼 말하면 새 종료 시각을 위 표와 같은 규칙(날짜 절대화, 7일 이내, 지난 시각이면 묻기)으로 정규화한다. `<UNTIL>`·`<UNTIL_LABEL>` 을 바꾸고 아래를 차례로 한다.
   1. `team.extend`(until, until_label)를 기록한다(events.md). **`team.start` 를 새로 쓰지 않는다.** 재구성은 마지막 `team.start` 이후만 읽는다. 새로 쓰면 그 앞의 슬롯·제외 목록·답 대기가 사라진다.
   2. 떠 있는 poll 은 옛 `--until` 로 돌고 있다. 새 `--until` 로 poll 을 다시 띄운다(재기동 조건은 「2-1」). 옛 poll 이 나중에 exit 8 로 끝나도 「2-3」 표의 poll exit 8 행이 지금 `<UNTIL>` 과 대조해 무시한다.
-  3. 좌석표에 새 `<UNTIL_LABEL>` 로 watch 를 보낸다(「2-3」 의 `wake.sh --until-label`). 감시 루프도 새 `--until`·`--until-label` 로 다시 띄운다(「2-2」, `--new-tick` 없이).
+  3. 좌석표에 새 `<UNTIL_LABEL>` 로 watch 를 보낸다(「2-3」 의 `wake.mjs --until-label`). 감시 루프도 새 `--until`·`--until-label` 로 다시 띄운다(「2-2」, `--new-tick` 없이).
   4. 새 `<UNTIL>` 이 오늘이 아니거나 `none` 이고 macOS 인데 절전 방지가 안 떠 있으면 「1. 시작」 6번대로 띄운다.
   5. **마감 중에 연장하면 마감을 취소한다.**
      - 「7. 마감」(`references/closing.md`) 2번의 기다림 중이면: 기다림을 끝내고 평소 기상 절차로 돌아가 poll 을 다시 띄운다.

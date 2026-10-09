@@ -30,12 +30,12 @@ SKILL.md 「5-1. 재개 spawn」 이 가리킴. 재개 대상을 띄울 때 Bash
 
 ## 서버 판단 확인 (계약 2.11)
 
-`dflow.sh contract-ge 2.11` 이 exit 0 이면 대상마다 아래 절차 0항 전에 1회 수행 (옛 서버는 건너뜀 — 종전 판정 그대로).
+`dflow.mjs contract-ge 2.11` 이 exit 0 이면 대상마다 아래 절차 0항 전에 1회 수행 (옛 서버는 건너뜀 — 종전 판정 그대로).
 - 이 표는 기존 안전장치(살아 있는 슬롯·최종 결과·제외·재시도 상한·`PARKED`·선행 반영 검사)를 통과한 대상에만 쓰고 **띄우지 않게 막기만 함**
 - 새로 여는 길 = **승인** 대상의 원격 재개 하나 (설계 상태 스펙 6.2·12절 Y3)
 - 「1. 시작」 3번의 멈춤 사유도 이 표로 적음
 ```bash
-(.claude/skills/dflow-work/scripts/dflow.sh show '<id8>') | jq -r '([.reports[]? | select(.kind == "completion")] | last | .review_action // "-") as $rv
+(node .claude/skills/dflow-work/scripts/dflow.mjs show '<id8>') | jq -r '([.reports[]? | select(.kind == "completion")] | last | .review_action // "-") as $rv
   | .order | [.status, (.mine | tostring), (.action // "-"), (.action_reason // "-"),
   (.design_state // "-"), (.runner // "-"), (.item.stage // "-"), (.claimed_by // "-"), $rv] | @tsv' || echo SHOW_FAILED
 ```
@@ -102,12 +102,12 @@ SKILL.md 「5-1. 재개 spawn」 이 가리킴. 재개 대상을 띄울 때 Bash
    ```bash
    task_dir=$(sed -n 's/.*TASK_DIR=\([^ ]*\).*/\1/p' <워크트리>/.dflow-prompt 2>/dev/null | head -n 1)
    echo "task_dir=${task_dir:-없음}"
-   .claude/skills/dflow-team/scripts/docker-allow.sh '<id8>'   # DOCKER=allow|ban — 6항 포인터에 옮긴다. 옛 포인터 값은 쓰지 않는다
+   node .claude/skills/dflow-team/scripts/docker-allow.mjs '<id8>'   # DOCKER=allow|ban — 6항 포인터에 옮긴다. 옛 포인터 값은 쓰지 않는다
    ```
    비어 있으면 (`TASK_DIR` 이전에 만든 옛 포인터) 다시 구함:
    ```bash
    id8='<id8>'
-   task_dir=$(.claude/skills/dflow-work/scripts/dflow.sh taskdir "$id8"); rc=$?
+   task_dir=$(node .claude/skills/dflow-work/scripts/dflow.mjs taskdir "$id8"); rc=$?
    echo "task_dir=${task_dir:-없음} rc=$rc"
    ```
    `rc` 가 0 아니면 (위 항목 1 과 같은 실패 갈래) **재개 안 함**:
@@ -121,13 +121,13 @@ SKILL.md 「5-1. 재개 spawn」 이 가리킴. 재개 대상을 띄울 때 Bash
    echo "slot=${slot:-없음}"   # 비었거나 이미 찬 번호면 발급 규칙으로 새로 정한 뒤 아래 줄을 쓴다
    printf '%s\n' '<신원>/<host>/w<정한 슬롯>' > <워크트리>/.dflow-agent
    ```
-   - `slot` 이 빈 채로 두 번째 줄 쓰기 금지. `.../w` 로 끝나는 값은 `dflow.sh` 의 `*/parked` 가드에 안 걸려 번호 없는 좌석으로 heartbeat 나감
+   - `slot` 이 빈 채로 두 번째 줄 쓰기 금지. `.../w` 로 끝나는 값은 `dflow.mjs` 의 `*/parked` 가드에 안 걸려 번호 없는 좌석으로 heartbeat 나감
    - 파일이 없어 번호를 못 찾는 경우 = `.dflow-prompt` 를 쓰기 전에 만든 옛 Orca 워크트리뿐 → 새로 발급
-   - **이 되돌리기는 worker 뜨기 전에 수행.** `dflow.sh heartbeat` 는 값이 `*/parked` 면 exit 2 로 거부 → `parked` 인 채 띄우면 그 팀원은 좌석표에 진척을 하나도 못 알림
+   - **이 되돌리기는 worker 뜨기 전에 수행.** `dflow.mjs heartbeat` 는 값이 `*/parked` 면 exit 2 로 거부 → `parked` 인 채 띄우면 그 팀원은 좌석표에 진척을 하나도 못 알림
 6. **포인터를 다시 씀.** 5번 4항 형식 그대로.
    - `AGENT_ID` = 5항에서 정한 슬롯
    - `TASK_DIR` = `<4항에서 출력된 작업 폴더>`
-   - `DOCKER` = 4항 블록의 `docker-allow.sh` 출력
+   - `DOCKER` = 4항 블록의 `docker-allow.mjs` 출력
    - `MODEL` = 이번 실행의 인자
    - 옛 파일을 그대로 두면 안 되는 이유: 슬롯을 새로 발급한 경우 옛 포인터의 `AGENT_ID` 와 어긋나 팀원이 남의 좌석으로 heartbeat 보냄
 7. **띄움.** 먼저 `references/restart.md` 「중단 표식 정리」 블록 수행 (`st` = 재개 판정이 받은 show 의 `status`, 곧 `claimed`).

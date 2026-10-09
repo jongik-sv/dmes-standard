@@ -66,12 +66,12 @@ D'Flow 에서 나에게 배정되고 `agent` 태그가 켜진 ready 작업을 �
   - 그 키를 `.dflow.local` 에 `as=<prefix>`(레거시는 `.env` 에 `DFLOW_AS=<prefix>`)로 적는다.
   - 이 리포의 프로젝트에 속한 키가 하나면 묻지 않고 고른다. 둘 이상이면 묻는다.
   - 바꾸려면 그 줄을 고친다.
-  - 키 목록은 `.claude/skills/dflow-work/scripts/dflow.sh profiles` 로 본다.
+  - 키 목록은 `node .claude/skills/dflow-work/scripts/dflow.mjs profiles` 로 본다.
   - 시작 보고에 `키: <이름> (<email>, <prefix>)` 가 나온다.
 - 팀원이 잡을 작업은 D'Flow 에서 `agent` 태그를 켠다. 태그가 없는 작업은 사람 몫이라 건드리지 않는다.
 - 팀장은 한 체크아웃에 하나만 뜬다. 다른 계정(다른 PAT)으로 동시에 돌리려면 클론 대신 팀장 워크트리를 만든다.
   ```
-  .claude/skills/dflow-team/scripts/lead-worktree.sh <이름>     # 주 체크아웃 루트에서
+  node .claude/skills/dflow-team/scripts/lead-worktree.mjs <이름>     # 주 체크아웃 루트에서
   ```
   - `.claude/worktrees/lead-<이름>` 이 생기고 `.dflow.local`(레거시 `.env`)이 복사된다. `as` 줄(레거시 `DFLOW_AS` 줄)은 빼고 복사한다.
   - 그 폴더에서 `claude` 를 띄워 `/dflow-team …` 을 실행한다.

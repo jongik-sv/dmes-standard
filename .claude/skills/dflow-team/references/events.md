@@ -41,7 +41,7 @@
   - `spawn_kind` = 네 값 중 하나인 문자열:
     - `new` = 「5. 팀원 spawn」 의 새 작업.
     - `resume` = 「5-1. 재개 spawn」.
-    - `resolve` = 「5-2. 해소 spawn」 의 해소 워커. 개수 = 해소 카운터(초기화 안 함, `scripts/resolve-decide.sh`). 재개 재시도 계산은 `resolve` 줄을 세지 않음.
+    - `resolve` = 「5-2. 해소 spawn」 의 해소 워커. 개수 = 해소 카운터(초기화 안 함, `scripts/resolve-decide.mjs`). 재개 재시도 계산은 `resolve` 줄을 세지 않음.
     - `readopt` = 「1. 시작」 5번이 이어받은 슬롯을 다시 기록한 줄.
   - `readopt` 줄은 원래 종류(`new`·`resume`·`resolve`)를 `orig_kind` 필드에 함께 실음(가드가 요구, 2026-09-23 머지 충돌). 재기록 뒤에도 해소 워커로 남게 하기 위함.
   - 판별 정본 = worktree 이름 접미사 `-resolve`(merge-conflict.md 「0」).
@@ -52,7 +52,7 @@
   - `blocked` → `team.blocked`, 나머지 status → `team.result`.
   - `hash` = 결과 줄 cksum 첫 필드. `reason` = 결과 줄 7번째 칸부터(사유 또는 질문).
   - `.result` 정확한 경로 `<worktree>/<TASK_DIR>/.result` 는 `worktree` 와 기본 필드 `tsk` 만으로 안 정해짐. `TASK_DIR` 이 프로젝트의 `DOCS_DIR`(`project_map`)에 따라 달라지기 때문.
-  - 재구성은 SKILL.md 「팀장 상태」 정본 블록처럼 `dflow.sh config tasks-dirs` 로 후보 폴더를 훑어 그 worktree 안 `.result` 를 찾고, 경로별 마지막 처리 해시를 유도.
+  - 재구성은 SKILL.md 「팀장 상태」 정본 블록처럼 `dflow.mjs config tasks-dirs` 로 후보 폴더를 훑어 그 worktree 안 `.result` 를 찾고, 경로별 마지막 처리 해시를 유도.
   - `status` = `.result` 의 status 칸. `failed` 이고 사유 첫 낱말이 팀장이 구분하는 값이면 붙임: `failed rate-limit`·`failed not-isolated`·`failed no-worker-flag`·`failed deps`·`failed permission`·`failed project`.
   - 결과 줄 없이 판정한 것(pane 이 죽었는데 `.result` 도 pane 화면 결과 줄도 없음) = `failed no-result`(hash `-`).
   - 해소 워커(`spawn_kind: resolve`)의 `status` = `resolved`·`skipped`·`failed <첫 낱말>`(첫 낱말 늘 붙임).

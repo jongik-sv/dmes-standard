@@ -22,7 +22,7 @@ git -C '<MAIN>' show "origin/<개발브랜치>:<TASK_DIR>/design.md" 2>/dev/null
 ```
 - `action=build` (구현자동 — 사람이 「설계 확정」 함):
   - 제목 줄만 보고 Design 게이트 최소 구조 5절 전부 있는지 확인: 접근·변경 파일 목록·테스트 전략·수용 기준 매핑·불변 규칙 (번호·덧붙인 말 무시)
-  - `NO_DESIGN` 이거나 절 빠짐 → 안 띄움. `.claude/skills/dflow-work/scripts/dflow.sh design-reopen <id8> --reason "<design.md 없음 | 빠진 절: …>"` 호출
+  - `NO_DESIGN` 이거나 절 빠짐 → 안 띄움. `node .claude/skills/dflow-work/scripts/dflow.mjs design-reopen <id8> --reason "<design.md 없음 | 빠진 절: …>"` 호출
   - 서버가 사람 설계 대기로 되돌리고 사유를 화면에 보임 (사람이 고쳐 다시 확정하면 poll 이 다시 줌). 제외 안 함
   - 보고 한 줄: `<TSK> 사람 설계를 되돌렸습니다 — <사유>`
   - design-reopen 실패 → 안 띄움. 사유 `설계 되돌리기 실패(exit <n>)` 로 일시 제외 + `team.result`(slot `-`, status `skipped`) 기록
@@ -35,7 +35,7 @@ git -C '<MAIN>' show "origin/<개발브랜치>:<TASK_DIR>/design.md" 2>/dev/null
 ## 2. 「설계 승인」 된 작업(`build`)
 
 기상 블록 요약 끝의 `build` 칸 (옛 서버는 칸 없음).
-- 서버가 팀장 lease 프로젝트 + poll 과 같은 거르기(태그 `agent`, `wake.sh` 의 `--wp`)로 좁힌 "이 신원·이 PC 가 띄울 build 주문"
+- 서버가 팀장 lease 프로젝트 + poll 과 같은 거르기(태그 `agent`, `wake.mjs` 의 `--wp`)로 좁힌 "이 신원·이 PC 가 띄울 build 주문"
 - WP 밖 승인 주문은 안 옴 (설계 상태 스펙 D22·Y9)
 - `"NULL"` = 조회 실패. 그 기상에는 처리 안 하고 `build_err` 한 줄 보고 (빈 목록과 뭉개지 않음)
 - 배열이면 `status` 가 `claimed` 인 원소 (「설계 승인」 된 설계 검토 작업, poll 에 안 나옴) 중 슬롯·영구 제외에 없는 것을 재개 대상에 더함 (SKILL.md 「2-3」 4번 순서, 「5-1」 **승인** 대상)
@@ -46,7 +46,7 @@ git -C '<MAIN>' show "origin/<개발브랜치>:<TASK_DIR>/design.md" 2>/dev/null
   - `build_ready` 는 claimed·accepted·dd·mine 주문을 계속 실음
   - worker 가 `skipped fetch 실패`·`skipped push 실패` 로 끝나도 주문은 목록에 남음 → 안 고치면 결과 도착한 같은 기상에 곧바로 다시 뜸
   - `EXCLUDE_TEMP` 는 만료가 없어 가두면 다른 사유(설계 관문 등)까지 영구히 막음 → 쓰지 않음
-  - 대신 `lead-state.sh` 의 id8 별 신호로 가름:
+  - 대신 `lead-state.mjs` 의 id8 별 신호로 가름:
     - `WARN_RETRY` → 재개 대상에 안 넣고 「멈춤」(사유 `fetch·push 3회 연속 실패`)
     - `RETRY_DUE` → 재개 대상에 더함 (고아 스캔과 같은 30분 신호)
     - `BUILD_RETRY_DUE` → 재개 대상에 더함. build 목록 전용 신호: 사유가 `설계 관문(…)`·`주문이 바뀜`·`다른 PC 도는 중(…)`·`design-reopen 미확인` 인 skip 뒤 30분 경과
@@ -55,7 +55,7 @@ git -C '<MAIN>' show "origin/<개발브랜치>:<TASK_DIR>/design.md" 2>/dev/null
   - 셋 다 아니고 `EXCLUDE_TEMP` 에 있으면 이번 기상에는 안 더함 (마지막 결과가 재시도 사유 skip 인데 30분 미경과, 또는 재시도 사유 아닌 skip)
   - 셋 다 아니고 `EXCLUDE_TEMP` 에도 없으면 (실패 이력 없음, 또는 팀장 재시작으로 이력 사라짐) 그대로 더함
 - 이 처리는 **건너뛴 TICK**(「2-2」 `--may-skip`)에서 안 돔:
-  - `tick.sh` 의 깨울지 판정은 `EXCLUDE_TEMP` 에 걸린 claimed 원소를 깨울 이유로 안 침
+  - `tick.mjs` 의 깨울지 판정은 `EXCLUDE_TEMP` 에 걸린 claimed 원소를 깨울 이유로 안 침
   - `RETRY_DUE`·`BUILD_RETRY_DUE` 인 것은 침 → 재시도 기한 되면 그 TICK 은 안 건너뜀
   - 사람이 좌석 「이어서 시작」 누르면 재개 요청이 이번 기상을 강제 (`reqs` 비지 않으면 안 건너뜀)
 - `ready` 원소(구현자동 확정)는 poll(`action=build`)이 가져옴 → 여기서 안 띄움
@@ -65,7 +65,7 @@ git -C '<MAIN>' show "origin/<개발브랜치>:<TASK_DIR>/design.md" 2>/dev/null
 SKILL.md 「3. 결과 처리」 표가 가리키는 보충.
 - **`design_review`**: 실패 아님. 보고 한 줄: `<TSK> 설계 검토 대기(<branch>) — 「설계 승인」을 누르면 다음 TICK 에 팀장이 구현을 이어 간다`
 - **`design-done 미확인`** (`design_review`·`design_waiting` 의 사유): worker 가 push 까지 마쳤으나 design-done 이 네트워크로 실패.
-  - 워크트리 지우기 전에 `.claude/skills/dflow-work/scripts/dflow.sh design-done <id8>` 호출 (설계 멈춤 이어받기, 스펙 6.3)
+  - 워크트리 지우기 전에 `node .claude/skills/dflow-work/scripts/dflow.mjs design-done <id8>` 호출 (설계 멈춤 이어받기, 스펙 6.3)
   - 실패 → 워크트리 안 지우고 `parked` 로 둠. 다음 기상에 다시 호출. 「멈춤」 표에 사유 `설계 멈춤 미완료`
 - **`skipped fetch 실패`·`skipped push 실패`** (잡은 작업):
   - 워크트리 안 지움 (push 못 한 커밋 있을 수 있음)
@@ -75,7 +75,7 @@ SKILL.md 「3. 결과 처리」 표가 가리키는 보충.
   - **팀장 재시작 주의**:
     - 「1. 시작」 5번의 재기록은 **흡수한 슬롯**(살아 있는 팀원)만 다시 씀
     - `skipped fetch·push 실패` 는 이미 슬롯 반납 후라 재시작 뒤 새 창에 이 id8 의 `team.result` 없음
-    - → `lead-state.sh` 가 `RETRY_DUE` 안 냄. 고아 스캔은 `.result` 의 `skipped` 를 최종 판정으로 보아 재개 가능에 안 넣음
+    - → `lead-state.mjs` 가 `RETRY_DUE` 안 냄. 고아 스캔은 `.result` 의 `skipped` 를 최종 판정으로 보아 재개 가능에 안 넣음
     - 재시작 **전** 재구성이 이미 `RETRY_DUE` 로 재개를 시작했을 때만 자동으로 이어짐. 아니면 「멈춤」 으로 남아 사람의 `--resume` 필요
     - **`build` 목록 예외**: 재시작 뒤 build 목록 주문은 영구 제외가 비어 있음 (위 「2」 는 EXCLUDE_PERM 만 최종 차단). 재구성이 재기록 안 한 새 창에는 `RETRY_DUE`·`WARN_RETRY`·`BUILD_RETRY_DUE` 도 없음 (「2」 의 "`EXCLUDE_TEMP` 에도 없으면" 갈래) → 다음 기상에 「2」 가 그대로 다시 띄움. 자동으로 이어지나 30분 대기·3회 상한은 재시작 전 이력만큼 못 지킴
 - **`skipped 다른 PC 도는 중(<runner>)`**: 워크트리 안 지우고 「멈춤」 표에 올림 (다른 PC 세션이 이어 감). 다른 PC 가 물러나 주문이 `build` 목록에 다시 실리면 30분 뒤 `BUILD_RETRY_DUE` 로 「2」 가 다시 띄움

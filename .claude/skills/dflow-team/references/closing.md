@@ -33,7 +33,7 @@ SKILL.md 「7. 마감」 이 가리킨다. 마감에 들어설 때(잠금 상실
    - 목록이 비지 않으면 서버를 남긴다. 대가는 서버 하나가 계속 도는 것뿐이다. 다음 팀장의 재구성이 그 pane 들을 흡수한다.
    - `--force` 는 미추적 부산물 때문에 필요하다: `.result`·`.dflow-agent`·`.dflow-prompt`·`.dflow-pane`·`.dflow-run`·`.dflow.local`(레거시 `.env`) 링크·`.dflow` 링크·스킬 링크.
 5. **agent 브랜치는 남긴다.** 승인은 사람이 D'Flow 웹에서 한다. 승인 뒤 머지는 다음 `/dflow-team` 의 스윕이나 `/dflow-merge` 가 한다.
-6. poll 이 떠 있으면 TaskStop 으로 멈춘다(태스크 id 를 모르면 종료 시각에 스스로 끝남). 세대 파일의 세대를 올려 감시 루프를 끝낸다(`.claude/skills/dflow-team/scripts/tick.sh --retire`).
+6. poll 이 떠 있으면 TaskStop 으로 멈춘다(태스크 id 를 모르면 종료 시각에 스스로 끝남). 세대 파일의 세대를 올려 감시 루프를 끝낸다(`node .claude/skills/dflow-team/scripts/tick.mjs --retire`).
    - `team.stop` 을 기록한다. 좌석표에 감시 종료를 알린 뒤 팀장 잠금 디렉터리를 지운다.
    - 지우기 전에 「1. 시작」 의 소유 판정(`owner` 신원 = 자기 `<신원>/<host>/lead` 이고 PID = 현재 `$LEAD_PID`)을 한 번 더 한다. 참일 때만 지운다.
    - 이유: 이 팀장이 `beat` 를 70분 넘게 놓쳐 다른 팀장이 잠금을 가져갔다면, 그 잠금은 신원·host·리포가 같아도 PID 가 다르다. 지우면 안 된다.
@@ -45,10 +45,10 @@ SKILL.md 「7. 마감」 이 가리킨다. 마감에 들어설 때(잠금 상실
    LOCK=$(git rev-parse --git-path dflow-team.lock); o_who=; o_ts=; o_pid=
    { read -r o_who o_ts o_pid < "$LOCK/owner"; } 2>/dev/null || true
    if [ "$o_who" = '<신원>/<host>/lead' ] && [ "$o_pid" = "$LEAD_PID" ]; then
-     .claude/skills/dflow-work/scripts/dflow.sh watch --agent "$o_who" --stop || :
+     node .claude/skills/dflow-work/scripts/dflow.mjs watch --agent "$o_who" --stop || :
    fi
    if [ "$o_who" = '<신원>/<host>/lead' ] && [ "$o_pid" = "$LEAD_PID" ]; then
-     .claude/skills/dflow-work/scripts/dflow.sh lease release || { rm -f "$(git rev-parse --git-path dflow-team.lease)" "$(git rev-parse --git-path dflow-team.lease).beat"; echo "LEASE_RELEASE_FAILED 3분 뒤 스스로 풀린다"; }
+     node .claude/skills/dflow-work/scripts/dflow.mjs lease release || { rm -f "$(git rev-parse --git-path dflow-team.lease)" "$(git rev-parse --git-path dflow-team.lease).beat"; echo "LEASE_RELEASE_FAILED 3분 뒤 스스로 풀린다"; }
      rm -f "$(git rev-parse --git-path dflow-team.stop)"
      pkill -f "caffeinate -i -w $LEAD_PID" 2>/dev/null || :
      CP=.claude/skills/coordinator/scripts/console-poll.mjs   # 오피스 콘솔: 팀장 핸들 기록을 지운다(폴러는 할 일이 없으면 스스로 끝난다)
@@ -59,8 +59,8 @@ SKILL.md 「7. 마감」 이 가리킨다. 마감에 들어설 때(잠금 상실
    - 종료 파일과 절전 방지도 여기서 거둔다.
    - 종료 파일을 남겨도 다음 팀장이 전제 검사에서 지우므로 해는 없다. 소유가 맞을 때만 지우는 이유: 잠금을 가져간 새 팀장에게 온 요청을 지우지 않기 위해서다.
    - lease 는 잠금보다 먼저 반납한다.
-   - `dflow.sh lease release` 가 성공하면 그 명령이 스스로 상태 파일과 `.beat` 를 지운다. lease 갱신 프로세스는 다음 확인(최대 5초)에서 상태 파일이 없는 것을 보고 스스로 끝난다.
-   - **실패하면(예: 서버 호출 실패) `dflow.sh lease release` 는 상태 파일을 지우지 않은 채 끝난다. 이 블록이 대신 지운다.**
+   - `dflow.mjs lease release` 가 성공하면 그 명령이 스스로 상태 파일과 `.beat` 를 지운다. lease 갱신 프로세스는 다음 확인(최대 5초)에서 상태 파일이 없는 것을 보고 스스로 끝난다.
+   - **실패하면(예: 서버 호출 실패) `dflow.mjs lease release` 는 상태 파일을 지우지 않은 채 끝난다. 이 블록이 대신 지운다.**
    - 지우는 것이 실제로 갱신 프로세스를 멈추는 신호다. 안 지우면 세션이 살아 있는 한 갱신 프로세스가 계속 서버에 renew 를 시도해, "3분 뒤 스스로 풀린다" 는 문장이 거짓이 된다(서버 쪽 lease 는 TTL 로 풀려도 로컬 프로세스는 살아남음).
    - 반납이 실패해도 마감을 멈추지 않는다.
 7. **남은 에이전트 확인**: ListAgents 를 다시 불러, 이 세션에 `running` 인 이름 붙은 에이전트가 남아 있으면 그 이름으로 TaskStop 하고 보고한다. 정상이면 하나도 없다.
@@ -78,7 +78,7 @@ SKILL.md 「7. 마감」 이 가리킨다. 마감에 들어설 때(잠금 상실
 **lease 상실 마감**(「2-3」 의 `LEASE_LOST`): 다른 곳의 같은 신원 팀장이 이 프로젝트를 넘겨받았다. 이 팀장은 즉시 손을 뗀다.
 1. "팀장 lease 상실: <사유>. 이 프로젝트는 다른 곳의 팀장이 맡았다" 를 보고한다.
 2. 새 claim·새 spawn·승인 스윕·머지를 하지 않는다. 대기 큐는 보고만 하고 비운다.
-3. 떠 있는 poll 을 TaskStop 으로 멈추고, 세대 파일의 세대를 올려 감시 루프를 끝낸다(`tick.sh --retire`). lease 갱신 프로세스는 이미 끝나 있다(표식을 쓰고 끝남).
+3. 떠 있는 poll 을 TaskStop 으로 멈추고, 세대 파일의 세대를 올려 감시 루프를 끝낸다(`tick.mjs --retire`). lease 갱신 프로세스는 이미 끝나 있다(표식을 쓰고 끝남).
 4. **떠 있는 워커는 건드리지 않는다.**
    - 워커는 하던 작업을 끝까지 하고 agent 브랜치 push 와 done 보고를 한다.
    - 그 결과는 새 팀장의 승인 스윕이 서버에서 이어받는다.
