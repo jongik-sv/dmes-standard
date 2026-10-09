@@ -5,13 +5,13 @@
  * 입력 state 는 이 컴포넌트에만 있다(화면 성능 가이드 R12). 루트는 ref 핸들(load·getForm·isDirty)로 대화하고, 단추를 누르면 onAction 으로 알린다.
  * 서버 호출은 하지 않는다. 일정 미리보기(cronPreview)만 이 안에서 부른다.
  */
-import { useCallback, useImperativeHandle, useMemo, useRef, useState, type CSSProperties, type ReactNode, type Ref } from "react";
+import { memo, useCallback, useImperativeHandle, useMemo, useRef, useState, type CSSProperties, type ReactNode, type Ref } from "react";
 
 import { CardFrame, CardGroup, MutedText } from "@dk-oasis/shared/card";
 import { CronInput, formatWithDow, validateCron, type CronPreview } from "@dk-oasis/shared/cron-input";
 import { Badge, Button, Input, Radio, Select, Textarea } from "@dk-oasis/shared/form";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
-import { VariableTable } from "@dk-oasis/shared/variable-table";
+import { VariableTable, type JobVarRow } from "@dk-oasis/shared/variable-table";
 
 import { jobSchedApi } from "./api";
 import {
@@ -85,13 +85,98 @@ function Row({ label, required, children }: { label: string; required?: boolean;
   );
 }
 
+/**
+ * 아래 세 카드는 자기 칸이 바뀔 때만 다시 그린다. 상세 폼 state 가 한 글자마다 바뀌어도 CronInput·VariableTable·고급 입력은 props 가 그대로라 건너뛴다
+ * (shared 의 CardFrame·CronInput·VariableTable 이 memo 가 아니므로 화면에서 막는다. 화면 성능 가이드 R12 「함께 할 것」).
+ */
+interface ScheduleCardProps {
+  openSeq: number;
+  value: string;
+  disabled: boolean;
+  minGapMin: number | undefined;
+  preview: CronPreview | null;
+  onRequestPreview: (expr: string) => void;
+  onChange: (value: string) => void;
+}
+
+const ScheduleCard = memo(function ScheduleCard({ openSeq, value, disabled, minGapMin, preview, onRequestPreview, onChange }: ScheduleCardProps) {
+  return (
+    <CardFrame title="일정" testId="job-card-schedule">
+      <CronInput key={openSeq} value={value} disabled={disabled} minGapMin={minGapMin} preview={preview} onRequestPreview={onRequestPreview} onChange={onChange} />
+    </CardFrame>
+  );
+});
+
+interface VariablesCardProps {
+  vars: JobVarRow[];
+  valueOnly: boolean;
+  disabled: boolean;
+  hint: string | undefined;
+  onChange: (vars: JobVarRow[]) => void;
+}
+
+const VariablesCard = memo(function VariablesCard({ vars, valueOnly, disabled, hint, onChange }: VariablesCardProps) {
+  return (
+    <CardFrame title="변수" testId="job-card-variables">
+      <VariableTable value={vars} mode={valueOnly ? "valueOnly" : "full"} disabled={disabled} hint={hint} idPrefix="job-variable" onChange={onChange} />
+    </CardFrame>
+  );
+});
+
+interface AdvancedCardProps {
+  timeoutSec: string;
+  retryCount: string;
+  retryIntervalMin: string;
+  disabled: boolean;
+  onPatch: (patch: Partial<JobForm>) => void;
+}
+
+const AdvancedCard = memo(function AdvancedCard({ timeoutSec, retryCount, retryIntervalMin, disabled, onPatch }: AdvancedCardProps) {
+  return (
+    <CardGroup id="advanced" title="고급 설정" testIdPrefix="job-group" defaultOpen={false}>
+      <CardFrame title="시간 초과 · 재시도" testId="job-card-advanced">
+        <table style={DETAIL_TABLE_STYLE}>
+          <tbody>
+            <Row label="시간 초과(초)" required>
+              <Input type="number" min={10} max={86400} value={timeoutSec} disabled={disabled} data-testid="job-timeout" onChange={(v) => onPatch({ timeoutSec: v })} />
+            </Row>
+            <Row label="실패 시 재시도">
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-xs)" }}>
+                <div style={{ width: 80 }}>
+                  <Input type="number" min={0} max={5} value={retryCount} disabled={disabled} aria-label="재시도 횟수" onChange={(v) => onPatch({ retryCount: v })} />
+                </div>
+                <span>회, 간격</span>
+                <div style={{ width: 80 }}>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={120}
+                    value={retryIntervalMin}
+                    disabled={disabled || Number(retryCount) === 0}
+                    aria-label="재시도 간격(분)"
+                    onChange={(v) => onPatch({ retryIntervalMin: v })}
+                  />
+                </div>
+                <span>분</span>
+              </div>
+            </Row>
+          </tbody>
+        </table>
+        <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)", marginTop: "var(--spacing-xs)" }}>
+          시간 초과를 넘기면 실행 기록이 시간 초과로 남습니다. 재시도는 최대 5회입니다.
+        </div>
+      </CardFrame>
+    </CardGroup>
+  );
+});
+
 /** 저장을 막는 첫 오류 문구(없으면 null) — 일정 식 검사는 shared 의 validateCron 이 맡는다. */
 export function checkForm(form: JobForm): string | null {
   const cronError = form.cronExpr.trim() === "" ? null : validateCron(form.cronExpr, collectMinGapMin(form));
   return validateForm(form, { cronError });
 }
 
-export function JobDetailForm({ ref, handlers, busy, permissions, lastFailure, onAction }: JobDetailFormProps) {
+function JobDetailFormImpl({ ref, handlers, busy, permissions, lastFailure, onAction }: JobDetailFormProps) {
   const [form, setForm] = useState<JobForm | null>(null);
   const [baseline, setBaseline] = useState<JobForm | null>(null);
   const [preview, setPreview] = useState<CronPreview | null>(null);
@@ -144,6 +229,7 @@ export function JobDetailForm({ ref, handlers, busy, permissions, lastFailure, o
         // 서버 미리보기를 못 받아도 브라우저 계산이 남는다.
       });
   }, []);
+  const handleVars = useCallback((vars: JobVarRow[]) => patch({ vars }), [patch]);
   const handlePickHandler = useCallback((h: HandlerRow | null) => setForm((prev) => (prev ? applyHandler(prev, h) : prev)), []);
 
   const error = useMemo(() => (form && dirty ? checkForm(form) : null), [form, dirty]);
@@ -250,67 +336,29 @@ export function JobDetailForm({ ref, handlers, busy, permissions, lastFailure, o
             </table>
           </CardFrame>
 
-          <CardFrame title="일정" testId="job-card-schedule">
-            <CronInput
-              key={openSeq}
-              value={form.cronExpr}
-              disabled={disabled}
-              minGapMin={collectMinGapMin(form)}
-              preview={preview}
-              onRequestPreview={handleRequestPreview}
-              onChange={handleCron}
-            />
-          </CardFrame>
+          <ScheduleCard
+            openSeq={openSeq}
+            value={form.cronExpr}
+            disabled={disabled}
+            minGapMin={collectMinGapMin(form)}
+            preview={preview}
+            onRequestPreview={handleRequestPreview}
+            onChange={handleCron}
+          />
 
           <CardFrame title={`${info.label} 설정`} testId="job-card-kind">
             <KindEditor form={form} handlers={handlers} disabled={disabled} onChange={patch} onPickHandler={handlePickHandler} />
           </CardFrame>
 
-          <CardFrame title="변수" testId="job-card-variables">
-            <VariableTable
-              value={form.vars}
-              mode={isCodeKind ? "valueOnly" : "full"}
-              disabled={disabled}
-              hint={info.variableHint}
-              idPrefix="job-variable"
-              onChange={(vars) => patch({ vars })}
-            />
-          </CardFrame>
+          <VariablesCard vars={form.vars} valueOnly={isCodeKind} disabled={disabled} hint={info.variableHint} onChange={handleVars} />
 
-          <CardGroup id="advanced" title="고급 설정" testIdPrefix="job-group" defaultOpen={false}>
-            <CardFrame title="시간 초과 · 재시도" testId="job-card-advanced">
-              <table style={DETAIL_TABLE_STYLE}>
-                <tbody>
-                  <Row label="시간 초과(초)" required>
-                    <Input type="number" min={10} max={86400} value={form.timeoutSec} disabled={disabled} data-testid="job-timeout" onChange={(v) => patch({ timeoutSec: v })} />
-                  </Row>
-                  <Row label="실패 시 재시도">
-                    <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-xs)" }}>
-                      <div style={{ width: 80 }}>
-                        <Input type="number" min={0} max={5} value={form.retryCount} disabled={disabled} aria-label="재시도 횟수" onChange={(v) => patch({ retryCount: v })} />
-                      </div>
-                      <span>회, 간격</span>
-                      <div style={{ width: 80 }}>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={120}
-                          value={form.retryIntervalMin}
-                          disabled={disabled || Number(form.retryCount) === 0}
-                          aria-label="재시도 간격(분)"
-                          onChange={(v) => patch({ retryIntervalMin: v })}
-                        />
-                      </div>
-                      <span>분</span>
-                    </div>
-                  </Row>
-                </tbody>
-              </table>
-              <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)", marginTop: "var(--spacing-xs)" }}>
-                시간 초과를 넘기면 실행 기록이 시간 초과로 남습니다. 재시도는 최대 5회입니다.
-              </div>
-            </CardFrame>
-          </CardGroup>
+          <AdvancedCard
+            timeoutSec={form.timeoutSec}
+            retryCount={form.retryCount}
+            retryIntervalMin={form.retryIntervalMin}
+            disabled={disabled}
+            onPatch={patch}
+          />
 
           {error ? (
             <div
@@ -361,3 +409,6 @@ export function JobDetailForm({ ref, handlers, busy, permissions, lastFailure, o
     </>
   );
 }
+
+/** 루트가 조회 조건 입력·목록 갱신으로 다시 그려져도 busy·권한·마지막 실패가 그대로면 건너뛴다. */
+export const JobDetailForm = memo(JobDetailFormImpl);

@@ -152,6 +152,6 @@ class WidgetExtWiringTest {
         WidgetExtWeatherRequest w = new WidgetExtWeatherRequest();
         w.setLat(new BigDecimal("37.5665"));
         w.setLon(new BigDecimal("126.978"));
-        assertThat(service.weather(w)).containsEntry("disabled", true);
+        assertThat(service.weather(w)).containsEntry("uncollected", true).containsEntry("current", null); // 날씨는 수집 값만 읽는다 — 수집 작업이 없는 좌표
     }
 }

@@ -18,11 +18,13 @@
 # 시간 제한: CR_LIMIT_S 가 있고 run_limited(console-poll.sh)가 정의돼 있으면 lead-state.sh 호출을 그 초 안에 끊는다
 #   (넘으면 빈 출력 = 슬롯 없음). 단독으로 source 하면 직접 부른다.
 # 시험용 덮어쓰기: COORD_LEAD_STATE = dflow-team lead-state.sh 경로.
+_cr_d="${BASH_SOURCE[0]%/*}"; [ "$_cr_d" != "${BASH_SOURCE[0]}" ] || _cr_d=.
+. "$_cr_d/js-bridge.sh"   # COORD_JS_CONSOLE_RESOLVE=1 이면 아래 공개 함수를 scripts/lib/console-resolve.mjs(node)로 넘긴다(기본 꺼짐; CR_IDENT·CR_HOST·CR_LIMIT_S 는 export 안 된 셸 변수라 호출마다 환경으로 넘긴다). cr_memo_begin·cr_memo_end 는 늘 bash
 
-console_dir() { coord_expand "${DFLOW_CONSOLE_DIR:-$HOME/.dflow/console}"; }
+console_dir() { if _jsb_on CONSOLE_RESOLVE; then _jsb_call console-resolve console_dir "$@"; return; fi; coord_expand "${DFLOW_CONSOLE_DIR:-$HOME/.dflow/console}"; }
 _cr_lead_state() { printf '%s' "${COORD_LEAD_STATE:-$COORD_SCRIPTS_DIR/../../dflow-team/scripts/lead-state.sh}"; }
 _cr_ref_ok() { case "$1" in ''|.*|*[!A-Za-z0-9._-]*) return 1 ;; esac; [ "${#1}" -le 64 ]; }
-_cr_count() { if [ -z "$1" ]; then echo 0; else printf '%s\n' "$1" | grep -c .; fi; }
+_cr_count() { if _jsb_on CONSOLE_RESOLVE; then _jsb_call console-resolve _cr_count "$@"; return; fi; if [ -z "$1" ]; then echo 0; else printf '%s\n' "$1" | grep -c .; fi; }
 
 # _cr_pid_dead <pid> — pid 가 0·빈 값이 아니고 죽었으면 0
 _cr_pid_dead() { case "${1:-}" in ''|0|null) return 1 ;; esac; ! compat_pid_alive "$1"; }
@@ -40,6 +42,7 @@ _cr_sess_mine() {
 #   신원 비교는 jq 안에서 한다(칸 구분자 U+001F 를 칸 값에 넣어 비교를 속이지 못하게). pid·handle 에 U+001F 가 있으면 믿지 않는다(_CR_MINE=0)
 _CR_MINE=0; _CR_PID=""; _CR_HANDLE=""
 _cr_sess_read() {
+  if _jsb_on CONSOLE_RESOLVE; then CR_IDENT="${CR_IDENT:-}" CR_HOST="${CR_HOST:-}" CR_LIMIT_S="${CR_LIMIT_S:-}" _jsb_callg console-resolve _cr_sess_read "_CR_MINE _CR_PID _CR_HANDLE" "$@"; return; fi
   local m=""
   _CR_MINE=0; _CR_PID=""; _CR_HANDLE=""
   _cr_ident_ok || return 0
@@ -73,6 +76,7 @@ _CR_LR_SET=0; _CR_LR=""
 cr_memo_begin() { [ "$_CR_LR_SET" = 1 ] && return 1; _CR_LR="$(_cr_live_runs)"; _CR_LR_SET=1; return 0; }   # 이미 켜져 있으면 rc 1(끄는 것은 켠 쪽 몫)
 cr_memo_end() { _CR_LR_SET=0; _CR_LR=""; }
 _cr_live_runs() {
+  if _jsb_on CONSOLE_RESOLVE && { [ "${_CR_LR_SET:-0}" != 1 ] || [ -n "${1:-}" ]; }; then CR_IDENT="${CR_IDENT:-}" CR_HOST="${CR_HOST:-}" CR_LIMIT_S="${CR_LIMIT_S:-}" _jsb_call console-resolve _cr_live_runs "$@"; return; fi   # 메모 중(인자 없음)은 bash 본문
   local root f line s8 rpid u
   if [ "$_CR_LR_SET" = 1 ] && [ -z "${1:-}" ]; then [ -z "$_CR_LR" ] || printf '%s\n' "$_CR_LR"; return 0; fi
   _cr_ident_ok || return 0
@@ -91,6 +95,7 @@ _cr_live_runs() {
 }
 # pid 가 살아 있는 이 신원·host 의 팀장 핸들 기록: 줄마다 경로
 _cr_live_leads() {
+  if _jsb_on CONSOLE_RESOLVE; then CR_IDENT="${CR_IDENT:-}" CR_HOST="${CR_HOST:-}" CR_LIMIT_S="${CR_LIMIT_S:-}" _jsb_call console-resolve _cr_live_leads "$@"; return; fi
   local f p a
   _cr_ident_ok || return 0
   for f in "$(console_dir)"/lead/*.json; do
@@ -194,6 +199,7 @@ _cr_team_worker() {
 }
 
 console_resolve() {  # console_resolve <target_kind> <target_ref>
+  if _jsb_on CONSOLE_RESOLVE; then CR_IDENT="${CR_IDENT:-}" CR_HOST="${CR_HOST:-}" CR_LIMIT_S="${CR_LIMIT_S:-}" _jsb_call console-resolve console_resolve "$@"; return; fi
   case "${1:-}" in
     coord_lead) _cr_coord_lead "${2:-}" ;;
     coord_lane) _cr_coord_lane "${2:-}" ;;
@@ -204,6 +210,7 @@ console_resolve() {  # console_resolve <target_kind> <target_ref>
 }
 
 console_header_ref() {  # console_header_ref <target_kind> <target_ref>
+  if _jsb_on CONSOLE_RESOLVE; then CR_IDENT="${CR_IDENT:-}" CR_HOST="${CR_HOST:-}" CR_LIMIT_S="${CR_LIMIT_S:-}" _jsb_call console-resolve console_header_ref "$@"; return; fi
   local r="lead" n
   case "${1:-}" in
     coord_lane) r="${2:-}" ;;
@@ -217,6 +224,7 @@ console_header_ref() {  # console_header_ref <target_kind> <target_ref>
 }
 
 console_list_targets() {
+  if _jsb_on CONSOLE_RESOLVE; then CR_IDENT="${CR_IDENT:-}" CR_HOST="${CR_HOST:-}" CR_LIMIT_S="${CR_LIMIT_S:-}" _jsb_call console-resolve console_list_targets "$@"; return; fi
   local root f s8 k h lanes L slots n rc memo=0
   root="$(coord_state_root)"
   cr_memo_begin && memo=1   # 이 순회 안에서는 살아 있는 회차 판정을 한 번만(부른 쪽이 이미 켰으면 그대로)

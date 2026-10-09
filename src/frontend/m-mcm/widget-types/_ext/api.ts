@@ -118,7 +118,8 @@ export function normalizeWeather(out: Record<string, unknown>): WeatherResult {
     if (!date) continue;
     daily.push({ date, min: toNumber(r.min), max: toNumber(r.max), code: toNumber(r.code), pop: toNumber(r.pop) });
   }
-  return { current, daily, stale: out.stale === true, disabled: out.disabled === true };
+  const collectedAt = typeof out.collectedAt === "string" && out.collectedAt.trim() !== "" ? out.collectedAt.trim() : null;
+  return { current, daily, stale: out.stale === true, collectedAt, uncollected: out.uncollected === true, empty: out.empty === true };
 }
 
 /** 원화 기준 환율 — 최근 days 일(스펙 §5.1). 서버가 MDM 환율 마스터를 읽어 주며, 값이 낡았으면 stale·없으면 empty 가 붙는다. */
@@ -126,7 +127,7 @@ export async function fetchExchange(symbols: readonly string[], days: number): P
   return normalizeExchange(await callAction("exchange", exchangeParams(symbols, days)));
 }
 
-/** 좌표의 현재 날씨 + 3일 예보. 실패하면 서버가 「날씨 정보를 불러오지 못했습니다」 로 거절한다(이전 값이 있으면 stale). */
+/** 좌표의 현재 날씨 + 3일 예보 — 예약 작업(날씨 수집)이 모아 둔 최신 값. 수집 대상이 아닌 지점은 uncollected, 모인 값이 없으면 empty 로 돌려준다. */
 export async function fetchWeather(lat: number, lon: number): Promise<WeatherResult> {
   return normalizeWeather(await callAction("weather", weatherParams(lat, lon)));
 }

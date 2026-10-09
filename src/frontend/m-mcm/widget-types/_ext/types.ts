@@ -52,8 +52,14 @@ export interface WeatherDaily {
 export interface WeatherResult {
   current: WeatherCurrent | null;
   daily: WeatherDaily[];
+  /** 수집한 지 90분이 넘어 새로 받지 못한 저장 값을 보여 주는 경우. */
   stale: boolean;
-  disabled: boolean;
+  /** 수집 시각(yyyy-MM-ddTHH:mm, 서울). 수집 값이 없으면 null. */
+  collectedAt: string | null;
+  /** 이 지점을 모으는 날씨 수집 작업(예약 작업 mcm.weather.*)이 없다. */
+  uncollected: boolean;
+  /** 수집 작업은 있으나 모인 값이 아직 없다. */
+  empty: boolean;
 }
 
 /** 표(AgDataGrid) 한 줄 — 서식까지 끝낸 값. type 별칭이라 Record<string, unknown> 로 넘길 수 있다. */
