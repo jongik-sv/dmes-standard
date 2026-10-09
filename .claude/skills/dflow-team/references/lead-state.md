@@ -4,35 +4,6 @@ SKILL.md 「팀장 상태」 에서 옮긴 절 모음(원문 그대로). 재구�
 
 > 윈도우: 아래 `jq` 예시를 Bash 로 직접 칠 때 같은 호출 맨 앞에 `export PATH="$PWD/.claude/skills/_shared/bin:$PATH";` 를 붙임(`_shared/platform-support.md` 「문서 속 인라인 jq」).
 
-## 정본 스캔
-
-**정본**: 이 신원·이 PC 의 팀원 워크트리와 그 결과. `TM` = 「1. 시작」 전제 검사가 출력한 tmux 절대경로.
-```bash
-TM='<진짜 tmux 절대경로>'   # Orca 백엔드면 빈 값
-dirs=$(node .claude/skills/dflow-work/scripts/dflow.mjs config tasks-dirs); rc=$?   # 팀장 체크아웃 기준 값이 정본. 워크트리마다 다시 부르지 않는다 — 팀원 워크트리는 detach 된 옛 커밋에 있어 project_map 이 다르게 나올 수 있다(DEV_BRANCH 와 같은 이유)
-{ [ "$rc" = 0 ] && [ -n "$dirs" ]; } || { echo "FAIL TASKS_DIRS rc=$rc"; exit 1; }
-git worktree list --porcelain | sed -n 's/^worktree //p' | while IFS= read -r w; do
-  [ -f "$w/.dflow-agent" ] || continue
-  a=$(head -n 1 "$w/.dflow-agent")
-  case "$a" in "<신원>/<host>/"*) ;; *) continue ;; esac
-  rf=$(printf '%s\n' "$dirs" | while IFS= read -r dd; do
-    find "$w/$dd" -mindepth 2 -maxdepth 2 -name .result 2>/dev/null; done | head -n 1)
-  r=$([ -n "$rf" ] && head -n 1 "$rf")
-  b=$(git -C "$w" branch --show-current)
-  p=$(head -n 1 "$w/.dflow-pane" 2>/dev/null); alive=-
-  if [ -n "$p" ] && [ -n "$TM" ]; then
-    d=$("$TM" -L dflow list-panes -t "$p" -F '#{pane_dead}' 2>/dev/null | head -n 1)
-    case "$d" in 0) alive=alive ;; *) alive=dead ;; esac
-  fi
-  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$a" "$w" "${b:--}" "${r:--}" "${p:--}" "$alive"
-done
-```
-- `FAIL TASKS_DIRS`(`config tasks-dirs` 실패·빈 값) → 재구성 중단(빈 폴더로 워크트리 전체를 훑어 오판).
-- `.dflow-agent` = `<신원>/<host>/w<slot>` 인 워크트리 = 그 슬롯의 팀원 워크트리.
-- `<신원>/<host>/parked` = 슬롯 아님. 고아 스캔만 본다.
-- 워크트리 안 `<TASKS>/*/.result` = 결과. 브랜치 `agent/<id8>-…`·워크트리 이름 `dflow-<id8>` = 작업 식별.
-- 마지막 칸(`.dflow-pane` 의 tmux pane): `alive` = 살아 있음, `dead` = 죽었거나 사라짐(빈 출력도 `dead`), `-` = Orca 팀원.
-
 ## 복원 규칙 (events.jsonl 에서 다시 만드는 값)
 
 - `RUN` 의 `scope` = 옛 팀장 기록과의 호환 칸. 계약 2.11 팀장은 `server` 를 적고 이 값을 쓰지 않는다(범위는 작업마다 서버 판단).

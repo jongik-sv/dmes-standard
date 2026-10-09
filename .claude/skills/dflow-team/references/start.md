@@ -25,7 +25,7 @@ SKILL.md 「1. 시작」 에서 옮긴 준비 단계 상세(원문 그대로). s
    - 이어서 서버에 claimed 인데 흡수한 슬롯·고아 워크트리·답 기다리는 `blocked`·대기 중인 답 어디에도 없는 id8 → **"멈춤" 표(사유 `워크트리 없음`)** 에 넣고 영구 제외
    - 자동 재착수 안 함: 이 PC 에 워크트리가 없으면 다른 PC·수동 세션에서 도는 것과 구분 불가, `show` 는 생존 신호 안 줌
    - 사람이 `--resume <id8>` 로 지목할 때만 이어받음(「5-1. 재개 spawn」)
-   - **워크트리가 이 PC 에 남은 갈래는 이 조항이 아니라 「팀장 상태」 고아 스캔의 "재개 가능" 이 맡아 자동으로 이어받음**
+   - **워크트리가 이 PC 에 남은 갈래는 이 조항이 아니라 `references/lead-state.md` 「고아 스캔」 의 "재개 가능" 이 맡아 자동으로 이어받음**
    ```bash
    (node .claude/skills/dflow-work/scripts/dflow.mjs list --scope claimed) | awk -F'\t' 'NF>=4 && $2=="CL" {print $4}'
    ```

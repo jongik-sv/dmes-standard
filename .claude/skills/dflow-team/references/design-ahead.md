@@ -35,13 +35,13 @@ done
 ## 2. 재개 판정
 
 설계 완료 대기 워크트리마다 선행이 풀렸는지 확인.
-- 도는 때 = 재구성의 고아 스캔 (「팀장 상태」 0번). 매 기상이지만 대상은 이 목록뿐이고 상한(`DFLOW_DESIGN_AHEAD_MAX`)이 있어 조회 적음
+- 도는 때 = 재구성의 고아 스캔 (`references/lead-state.md` 「고아 스캔」 0번). 매 기상이지만 대상은 이 목록뿐이고 상한(`DFLOW_DESIGN_AHEAD_MAX`)이 있어 조회 적음
 0. 계약 2.11 이면 먼저 `references/resume.md` 「서버 판단 확인」 수행.
    - `action` 이 `wait` → 아직. 그대로 둠
    - 표가 띄우지 않는다고 가르면 (다른 PC·다른 신원 등) → 이 목록과 3번 상한에서 빼고 「멈춤」 표에 그 사유로 올림 (설계 상태 스펙 12절 Y8)
 1. `dflow.mjs show <id8>` 을 SKILL.md 「2-3」 poll exit 0 show 필터 그대로 줄임 (`deps_unmet`·`deps_nohead`). show 실패 → 이번 기상 재개 안 함 (조회 실패를 풀림으로 보지 않음)
 2. `deps_unmet` 비어 있지 않음 → 아직. 그대로 둠
-3. `deps_unmet` 비었으면 `deps_nohead` 마다 「2-3」 「선행 반영 사전 검사」 의 `pred-reflected.mjs` 수행.
+3. `deps_unmet` 비었으면 `deps_nohead` 마다 `references/wake.md` 「선행 반영 사전 검사」 의 `pred-reflected.mjs` 수행.
    - `NOT_REFLECTED` 하나라도 있음 → 아직 (띄우면 worker 가 `design_waiting 선행 승인 대기` 로 곧 멈춤)
    - `UNKNOWN` → worker 에 맡김
 4. 통과 → **재개 가능**.

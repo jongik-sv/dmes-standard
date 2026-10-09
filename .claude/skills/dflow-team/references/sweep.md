@@ -58,13 +58,13 @@ SKILL.md 「4. 승인 스윕」 에서 옮긴 절(원문 그대로). 스윕 보�
 ## 4-0. SWEEP_NONE 갈래·예외
 
 3. `SWEEP_NONE` 이어도 하는 일(스윕에 묶여 있던 일이라 안 불렀다고 빠뜨리지 않음):
-   - 출력에 `SWEEP_DIALECT_PENDING <sha>` 줄이 있으면 방언 검증을 직접 한 번 부르고, 결과 줄은 「4」 방언 검증 규칙대로 처리. `/dflow-merge` 본문을 다시 싣지 않도록 스크립트만 부름.
+   - 출력에 `SWEEP_DIALECT_PENDING <sha>` 줄이 있으면 방언 검증을 직접 한 번 부르고, 결과 줄은 이 문서 「스윕 결과별 처리」 의 방언 검증 규칙대로 처리. `/dflow-merge` 본문을 다시 싣지 않도록 스크립트만 부름.
      ```bash
      node .claude/skills/dflow-merge/scripts/dialect-check.mjs run --dev '<기본브랜치>'; echo "rc=$?"
      ```
    - merge-conflict.md 「5. 사람 머지 감지」. 사람이 손으로 머지하면 agent 브랜치가 지워져 후보가 없으므로, 이것을 스윕에 묶어 두면 `merge_conflict` 표시가 영영 남음.
-   - 「4」 detached HEAD 재-detach 블록. 팀장 체크아웃이 옛 커밋에 머물지 않게 함.
-   - 해소 `resolved` 가 있었으면 「4」 일시 제외 해제(선행 계열)를 함.
+   - SKILL.md 「4」 의 detached HEAD 재-detach 블록. 팀장 체크아웃이 옛 커밋에 머물지 않게 함.
+   - 해소 `resolved` 가 있었으면 이 문서 「스윕 결과별 처리」 의 일시 제외 해제(선행 계열)를 함.
    - `team.sweep` 은 기록 안 함(스윕을 안 했음). `resolved` 개수는 다음에 실제로 도는 스윕의 `team.sweep` 에 실음.
 4. 예외 — 사전 검사 없이 늘 부름:
    - 「1. 시작」 첫 스윕과 「7. 마감」 마지막 스윕. 실행마다 한 번뿐이고, 그 보고가 사람이 그 시점에 읽는 현황. 후보 없으면 `/dflow-merge` 가 스스로 0건으로 끝남.

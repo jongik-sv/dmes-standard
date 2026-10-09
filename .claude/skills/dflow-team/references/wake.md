@@ -1,6 +1,6 @@
 # /dflow-team 기상 상세
 
-SKILL.md 「2-2」·「2-3」 에서 옮긴 절 모음(원문 그대로). 각 절의 요약이 SKILL.md 에 있고, 아래 때 Bash `cat` 으로 읽음: TICK 건너뛰기를 판단할 때, `resume_requests`·`LEASE_KEEP_DEAD` 가 나왔을 때, 선행 대기 블록을 돌리거나 `deps_nohead` 후보가 있을 때.
+SKILL.md 「2-2」·「2-3」 에서 옮긴 절 모음(원문 그대로). 각 절의 요약이 SKILL.md 에 있고, 아래 때 Bash `cat` 으로 읽음: TICK 건너뛰기를 판단할 때, `resume_requests`·`LEASE_KEEP_DEAD` 가 나왔을 때, `deps_nohead` 후보가 있을 때.
 
 > 윈도우: 아래 `jq` 예시를 Bash 로 직접 칠 때 같은 호출 맨 앞에 `export PATH="$PWD/.claude/skills/_shared/bin:$PATH";` 를 붙임(`_shared/platform-support.md` 「문서 속 인라인 jq」).
 
@@ -12,7 +12,7 @@ SKILL.md 「2-2」·「2-3」 에서 옮긴 절 모음(원문 그대로). 각 �
 - 그래서 팀장 기상 간격은 최대 60분.
 
 조건 (모두 참):
-- 진행 중 슬롯 (결과 줄이 `blocked` 인 것 제외)마다 생존 증거 (「3」 의 셋과 heartbeat)가 루프를 띄운 때와 달라졌고 서버 status 는 그대로.
+- 진행 중 슬롯 (결과 줄이 `blocked` 인 것 제외)마다 생존 증거 (`references/result-handling.md` 「생존 증거」 의 셋과 heartbeat)가 루프를 띄운 때와 달라졌고 서버 status 는 그대로.
   - 한 슬롯이라도 증거가 그대로면 (팀원 무응답 30분) 깨움. 재지 못해도 깨움.
 - 승인 후보 (`sweep-check.mjs`)와 그 서버 status 가 그대로 (사람의 승인·반려는 깨움). 판정 불가면 깨움.
 - 종료 시각이 안 지남 (poll 이 안 떠 있을 때의 종료 시각 확인). 형식을 못 읽으면 깨움.
@@ -21,7 +21,7 @@ SKILL.md 「2-2」·「2-3」 에서 옮긴 절 모음(원문 그대로). 각 �
   - 건너뛸 때도 이 호출이 잠금 `beat` 와 좌석표 STANDBY 를 갱신 (대가: 루프를 띄운 뒤 멈춘 팀장은 한 TICK (30분) 늦게 드러남).
 
 건너뛸 때는 진행 슬롯마다 `EVIDENCE <id8> ct=<…> report=<…> heartbeat=<…> phase=<…> dirty=<…> status=<…>` 줄도 남김.
-다음 TICK 에서 이 값 = 그 슬롯의 "직전 TICK" 증거 (「3」 생존 증거).
+다음 TICK 에서 이 값 = 그 슬롯의 "직전 TICK" 증거 (`references/result-handling.md` 「생존 증거」).
 
 `--may-skip` 은 TICK 이 시각으로 할 일이 없을 때만 붙임. 아래 중 하나라도 있으면 안 붙임.
 - 차단기 걸림 (TICK 마다 시험 spawn 1건).
@@ -85,29 +85,7 @@ SKILL.md 「2-2」·「2-3」 에서 옮긴 절 모음(원문 그대로). 각 �
 - poll 이 다시 돌려주면 이 사전 검사를 다시 하고, 여전히 막히면 새 `team.result` 로 다시 선행 대기에 들어감 (2시간 계산도 새로 시작).
 - poll exit 0 의 재대조는 선행 대기도 안 봄 (일시 제외와 같은 이유).
 
-## 선행 대기 블록·선행 반영 사전 검사
-
-선행 대기 블록 — 출력 한 줄 = `<id8><TAB><선행 TSK,…>`. 목록은 기억이 아니라 이 출력이 정본. poll 을 띄울 때마다 돌림.
-```bash
-now=$(date +%s)
-jq -c --arg a '<신원>/<host>/lead' --arg r '<MAIN>' 'select(.agent == $a and .repo == $r)' ~/.dflow/events.jsonl 2>/dev/null \
-  | awk '/"event":"team.start"/{buf=""} {buf=buf $0 "\n"} END{printf "%s", buf}' \
-  | jq -rs --argjson now "$now" '
-      def t: (.ts // "");
-      ($now - 7200 | todate) as $cut
-      | [.[] | select(.event == "team.result" and (.status == "done" or .status == "needs-merge" or .status == "resolved"))
-        | {tsk: (.tsk // ""), t: t}] as $done
-      | reduce (.[] | select((.event == "team.spawn" or .event == "team.blocked" or .event == "team.result" or .event == "team.lost")
-          and (.id8 // "") != "")) as $e ({}; .[$e.id8] = $e)
-      | .[]
-      | select(.event == "team.result" and .status == "skipped" and ((.reason // "") | startswith("선행 미충족(사전 검사:")))
-      | t as $at
-      | [.reason | ltrimstr("선행 미충족(사전 검사:") | rtrimstr(")") | splits("[ ,]+") | select(. != "") | split("/") | last] as $refs
-      | select($at > $cut)
-      | select(any($done[]; .t >= $at and (.tsk as $k | any($refs[]; . == $k))) | not)
-      | "\(.id8)\t\($refs | join(","))"'
-```
-시각 = `ts` (UTC `YYYY-MM-DDTHH:MM:SSZ`) 문자열끼리 비교. 형식이 같아 사전순 = 시간순.
+## 선행 반영 사전 검사
 
 **선행 반영 사전 검사** (`deps_nohead`): `deps_unmet` 이 비고 `deps_nohead` (서버 `reached` 참인데 `head_sha` 없는 선행, 즉 완료 보고 뒤 승인 전)가 비어 있지 않으면, 워커 행 G 갈래 2 의 반영 확인을 여기서 먼저 함.
 - 그대로 띄우면 워커가 `skipped 선행 승인 대기` 로 끝나는 확정 skip.

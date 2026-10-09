@@ -39,14 +39,14 @@ description: D'Flow 에서 내게 배정되고 에이전트 위임(tags:agent)�
 | 문서 | 읽는 때 |
 |---|---|
 | `references/help.md` | 인자가 `help` 일 때만 |
-| `references/args.md` | 인자를 물어야 할 때(종료 시각 누락·오류, 키 후보 둘 이상), 키를 자동 선택해 저장할 때, 키 판정이 `KEY_*`·`NO_*_KEY` 로 끝날 때. 끝의 「인자 전문」 = 키 판정 표, 도커 허용 태그 세부, `--resume`·WP 범위·자동 머지 세부가 필요할 때 |
+| `references/args.md` | 인자를 물어야 할 때(종료 시각 누락·오류, 키 후보 둘 이상), 키를 자동 선택해 저장할 때, 키 판정이 `KEY_*`·`NO_*_KEY` 로 끝날 때. 끝의 「인자 전문」 = 도커 허용 태그 세부, `--resume`·WP 범위·자동 머지 세부가 필요할 때 |
 | `references/start.md` | 「1. 시작」 의 2번 scaffold 블록, 3번 서버 claimed 대조(`list --scope claimed`), 6번 절전 방지(`caffeinate`)를 실행할 때 |
-| `references/lead-state.md` | 재구성 때(시작 3번·압축 뒤 첫 기상): 「정본 스캔」 명령, 「복원 규칙」(제외 목록·차단기·`WAIT_ANSWER`·`ISSUE_PENDING`), 「고아 스캔」(정리·재개·멈춤 판정, "멈춤" 표, 부트스트랩 실패 정리) |
-| `references/wake.md` | `--may-skip` 을 붙일지 판단할 때, `resume_requests`·`WATCH_FAILED`·`LEASE_KEEP_DEAD` 가 나왔을 때, `deps_unmet`·`deps_nohead` 후보를 판정하거나 선행 대기 블록을 돌릴 때 |
-| `references/result-handling.md` | 결과 줄을 처리해 문제 기록을 붙일 때, 표에 없는 status(`design_*`·`failed permission/rate-limit/no-result/not-isolated/project/not-assignee/deps`·`cancelled`)가 나왔을 때, 결과 줄 없는 슬롯을 `TICK` 에서 판정할 때(생존 증거·무응답·정지·대기·재시작) |
-| `references/sweep.md` | 스윕 보고에 반려·push 실패·머지 충돌·`UNION_SET`·`DIALECT_*`·자동 머지 뒤 일시 제외 해제가 있을 때, `SWEEP_NONE` 인데 `SWEEP_DIALECT_PENDING` 이 나왔을 때 |
-| `references/spawn.md` | 「5」 의 tmux·Orca 띄우기 단계를 실행할 때, 해소 spawn 세부(「5-2」), 입장 제어 알림·기준값(「5-3」)을 다룰 때 |
-| `references/blocked-seat.md` | `team.blocked` 에 대한 사람의 답을 팀원 pane 에 넣을 때(「6」), 좌석표 연동을 확인할 때 |
+| `references/lead-state.md` | 「복원 규칙」 = 압축 뒤 첫 기상이나 `lead-state.mjs` 출력(`RUN`·`EXCLUDE_*`·`BREAKER`)이 이해되지 않을 때. 「고아 스캔」 = 시작 3번, 또는 살아 있는 팀원 없는 `.dflow-agent` 워크트리가 보일 때(정리·재개·멈춤 판정, "멈춤" 표, 부트스트랩 실패 정리) |
+| `references/wake.md` | `--may-skip` 을 붙일지 판단할 때, `LOCK_OK` 다음 줄의 `reqs`·`other_project` 가 비어 있지 않거나 `n` 이 `"NULL"` 일 때, `WATCH_FAILED`·`HOLDER_FAILED`·`LEASE_KEEP_DEAD` 가 나왔을 때, `deps_unmet`·`deps_nohead` 후보를 판정할 때(선행 사전 검사·선행 반영 사전 검사) |
+| `references/result-handling.md` | 결과 줄을 처리해 문제 기록을 붙일 때, 「3」 표의 합친 행에 든 status(`design_*`·`failed permission/rate-limit/no-result/not-isolated/project/not-assignee/deps`·`cancelled`)가 나왔을 때, 결과 줄 없는 슬롯을 `TICK` 에서 판정할 때(생존 증거·무응답·정지·대기·재시작) |
+| `references/sweep.md` | 스윕 보고에 반려·push 실패·머지 충돌·`UNION_SET`·`DECISIONS_SEQ`·`DIALECT_*` 가 있을 때, 스윕이 "머지됨"·"머지됨(승인 전)" 을 냈거나 `resolved` 가 있을 때, `SWEEP_NONE` 인데 `SWEEP_DIALECT_PENDING` 이 나왔을 때 |
+| `references/spawn.md` | 「5」 의 tmux·Orca 띄우기 단계를 실행할 때, 해소 spawn 세부(「5-2」), 입장 제어 출력 줄 끝이 `notify=1` 이거나 기준값·환경변수를 바꿀 때(「5-3」) |
+| `references/blocked-seat.md` | `team.blocked` 에 대한 사람의 답을 팀원 pane 에 넣을 때(「6」), `dflow.mjs watch` 호출이 실패했거나 좌석표 STANDBY 가 꺼졌을 때 |
 | `references/precheck.md` | 전제 검사가 `PRECHECK_OK` 없이 끝났을 때, 또는 `WARN GRADLE_TUNING` 이 나왔을 때 |
 | `references/extend.md` | 사람이 실행 중 연장을 말할 때 |
 | `references/second-lead.md` | 같은 리포에서 다른 신원의 팀장을 하나 더 띄울 때 |
@@ -93,8 +93,17 @@ description: D'Flow 에서 내게 배정되고 에이전트 위임(tags:agent)�
   - 출력 = 토큰마다 한 줄 JSON(`prefix`·`name`·`email`·`who`·`bound`·`selected`·`in_use`, 실패한 토큰은 `error`). 필드 뜻 = `references/args.md` 「키 판정 상세」.
   - `in_use` ≠ `null` 인 키(다른 워크트리의 살아 있는 팀장이 쓰는 신원)로는 시작 불가.
 
-  - 후보 판정 표(`as` 있음·토큰 1개·2개 이상 → 후보 0·1·2개 이상), 묻기·저장·끝낼 때 문구 = `references/args.md` 「인자 전문: 키 판정 표·묻기」.
-  - 후보가 2개 이상이면 AskUserQuestion(종료 시각도 물어야 하면 같은 호출에 모음). `bound` = `null` 이면 키 판정을 건너뛰고 전제 검사로 감.
+  | 상태 | 처리 |
+  |---|---|
+  | `as`(레거시 `DFLOW_AS`) 있음(값이 비어 있지 않음) | 안 묻음. `selected` = `true` 인 행이 없으면 `KEY_NOT_FOUND`, 그 행의 `in_use` ≠ `null` 이면 `KEY_IN_USE` 로 끝 |
+  | 없고 토큰 1개 | 그 행의 `in_use` ≠ `null` 이면 `KEY_IN_USE` 로 끝, 아니면 그대로 진행 |
+  | 없고 토큰 2개 이상 | `error` 없음 · `bound` = `true` · `in_use` = `null` 인 행이 후보 |
+  | → 후보 0개 | `bound` = `true` 인 행이 하나도 없으면 `NO_KEY_FOR_PROJECT`, 있는데 모두 `in_use` 면 `NO_FREE_KEY` 로 끝 |
+  | → 후보 1개 | 그 키 자동 선택 |
+  | → 후보 2개 이상 | AskUserQuestion 으로 질문. 종료 시각도 물어야 하면 같은 호출에 모음 |
+
+  - `bound` = `null` 이면(프로젝트 바인딩 없음) 키 판정 건너뛰고 전제 검사로 감.
+  - 묻기·자동 선택한 키의 저장·끝낼 때의 보고 문구 = `references/args.md` 「키 판정 상세」 대로(자동 선택이든 답이든 고른 prefix 를 저장).
 - **종료 시각 = 유일한 필수 인자.** 새 배정을 멈추는 시각. 세 형식 중 하나로 정규화.
   - 정규화한 값 = `<UNTIL>`, 좌석표에 싣는 표시 문자열 = `<UNTIL_LABEL>`.
 
@@ -186,7 +195,32 @@ description: D'Flow 에서 내게 배정되고 에이전트 위임(tags:agent)�
 
 이 절의 접두는 모두 `<신원>/<host>/` 로 시작(같은 신원이 다른 PC 에서 띄운 팀장의 워크트리를 자기 것으로 읽지 않음).
 
-**정본**: 이 신원·이 PC 의 팀원 워크트리(`.dflow-agent`)와 그 안 `<TASKS>/*/.result`. `TM` = 「1. 시작」 전제 검사가 출력한 tmux 절대경로(Orca 면 빈 값). 스캔 명령(`config tasks-dirs` 실패·빈 값이면 `FAIL TASKS_DIRS` 로 재구성 중단)·출력 칸(`.dflow-agent`·워크트리·브랜치·결과 줄·pane·`alive`/`dead`/`-`) 뜻 = `references/lead-state.md` 「정본 스캔」. 재구성 때(시작 3번·압축 뒤 첫 기상) 읽음.
+**정본**: 이 신원·이 PC 의 팀원 워크트리와 그 결과. `TM` = 「1. 시작」 전제 검사가 출력한 tmux 절대경로.
+```bash
+TM='<진짜 tmux 절대경로>'   # Orca 백엔드면 빈 값
+dirs=$(node .claude/skills/dflow-work/scripts/dflow.mjs config tasks-dirs); rc=$?   # 팀장 체크아웃 기준 값이 정본. 워크트리마다 다시 부르지 않는다 — 팀원 워크트리는 detach 된 옛 커밋에 있어 project_map 이 다르게 나올 수 있다(DEV_BRANCH 와 같은 이유)
+{ [ "$rc" = 0 ] && [ -n "$dirs" ]; } || { echo "FAIL TASKS_DIRS rc=$rc"; exit 1; }
+git worktree list --porcelain | sed -n 's/^worktree //p' | while IFS= read -r w; do
+  [ -f "$w/.dflow-agent" ] || continue
+  a=$(head -n 1 "$w/.dflow-agent")
+  case "$a" in "<신원>/<host>/"*) ;; *) continue ;; esac
+  rf=$(printf '%s\n' "$dirs" | while IFS= read -r dd; do
+    find "$w/$dd" -mindepth 2 -maxdepth 2 -name .result 2>/dev/null; done | head -n 1)
+  r=$([ -n "$rf" ] && head -n 1 "$rf")
+  b=$(git -C "$w" branch --show-current)
+  p=$(head -n 1 "$w/.dflow-pane" 2>/dev/null); alive=-
+  if [ -n "$p" ] && [ -n "$TM" ]; then
+    d=$("$TM" -L dflow list-panes -t "$p" -F '#{pane_dead}' 2>/dev/null | head -n 1)
+    case "$d" in 0) alive=alive ;; *) alive=dead ;; esac
+  fi
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$a" "$w" "${b:--}" "${r:--}" "${p:--}" "$alive"
+done
+```
+- `FAIL TASKS_DIRS`(`config tasks-dirs` 실패·빈 값) → 재구성 중단(빈 폴더로 워크트리 전체를 훑어 오판).
+- `.dflow-agent` = `<신원>/<host>/w<slot>` 인 워크트리 = 그 슬롯의 팀원 워크트리.
+- `<신원>/<host>/parked` = 슬롯 아님. 고아 스캔만 본다.
+- 워크트리 안 `<TASKS>/*/.result` = 결과. 브랜치 `agent/<id8>-…`·워크트리 이름 `dflow-<id8>` = 작업 식별.
+- 마지막 칸(`.dflow-pane` 의 tmux pane): `alive` = 살아 있음, `dead` = 죽었거나 사라짐(빈 출력도 `dead`), `-` = Orca 팀원.
 
 **보조**: `~/.dflow/events.jsonl` 에서 마지막 `team.start` 이후이고 `agent` = `<신원>/<host>/lead`, `repo` = 이 리포(`<MAIN>`)인 줄.
 - **줄을 통째로 띄우지 않는다.** 아래 스크립트의 요약만 읽는다(이벤트를 그대로 띄우면 실행이 길수록 불어남).
@@ -559,7 +593,9 @@ node .claude/skills/dflow-team/scripts/wake.mjs --owner '<신원>/<host>/lead' -
 
 **`resume_requests`** = 좌석표 「이어서 시작」 요청(`LOCK_OK` 다음 줄 JSON `{"n","err","reqs","other_project"}`).
 - `n` 이 `"NULL"` = 조회 실패(요청 없음 아님). 그 기상은 요청을 처리하지 않고 사유를 한 줄 보고, 다음 기상에 다시 읽음.
-- `host` 가 이 PC 의 `<host>` 와 글자 그대로 같은 것만 「5-1」 로 보냄. 다른 값은 "멈춤" 표에 `다른 PC claim`. 계약 2.11 은 요청의 `mine` 으로 가름.
+- `host` 가 이 PC 의 `<host>` 와 글자 그대로 같은 것만 「5-1」 로 보냄. 다른 값은 "멈춤" 표에 `다른 PC claim`.
+  - 계약 2.11 은 요청의 `mine` 으로 가름(거짓이면 "멈춤" 사유 `다른 PC 도는 중`).
+  - `design_state` 가 `review` 면 띄우지 않고 "「설계 승인」 뒤에 이어 갑니다" 한 줄 알림. 그 밖에는 서버 판단이 `skip` 이어도 띄움.
 - `other_project` 는 한 줄 보고만. 팀장은 표식을 지우지 않고 확인 응답도 안 보냄.
 - `WATCH_FAILED`·`HOLDER_FAILED` = `beat` 는 갱신됐으니 그 기상의 요청 처리만 건너뜀.
 - 전문 = `references/wake.md` 「resume_requests 처리 전문」.
@@ -621,7 +657,29 @@ show 실패 (dflow.mjs 가 0 아닌 코드로 끝남, 404 로 exit 7, 출력이 
 
 **선행 사전 검사** (`deps_unmet`): 서버 판정 `reached` 가 거짓인 선행이 하나라도 있으면 spawn 안 함(확정 skip). `reached` 키 없는 옛 서버 응답·`depends_evidence` 없는 응답은 걸러내지 않고 워커에 맡김. 사유 `선행 미충족(사전 검사: <ref…>)` 인 작업은 일시 제외가 아니라 **선행 대기**(푸는 길: 선행 완료·선행 머지·2시간 안전망). 푼 작업을 팀장이 직접 띄우지 않고, poll 이 다시 돌려주면 사전 검사를 다시 함. 전문 = `references/wake.md` 「선행 사전 검사·선행 대기 설명」.
 
-**선행 대기 블록**(출력 한 줄 `<id8><TAB><선행 TSK,…>` 이 정본, poll 을 띄울 때마다 돌림)과 **선행 반영 사전 검사**(`deps_nohead` → `pred-reflected.mjs`; `NOT_REFLECTED` 면 사유 `선행 미반영(사전 검사: <ref…>)` 로 일시 제외, `UNKNOWN` 은 워커에 맡김) = `references/wake.md` 「선행 대기 블록·선행 반영 사전 검사」. poll 재기동·`deps_nohead` 가 있을 때 읽음.
+선행 대기 블록 — 출력 한 줄 = `<id8><TAB><선행 TSK,…>`. 목록은 기억이 아니라 이 출력이 정본. poll 을 띄울 때마다 돌림.
+```bash
+now=$(date +%s)
+jq -c --arg a '<신원>/<host>/lead' --arg r '<MAIN>' 'select(.agent == $a and .repo == $r)' ~/.dflow/events.jsonl 2>/dev/null \
+  | awk '/"event":"team.start"/{buf=""} {buf=buf $0 "\n"} END{printf "%s", buf}' \
+  | jq -rs --argjson now "$now" '
+      def t: (.ts // "");
+      ($now - 7200 | todate) as $cut
+      | [.[] | select(.event == "team.result" and (.status == "done" or .status == "needs-merge" or .status == "resolved"))
+        | {tsk: (.tsk // ""), t: t}] as $done
+      | reduce (.[] | select((.event == "team.spawn" or .event == "team.blocked" or .event == "team.result" or .event == "team.lost")
+          and (.id8 // "") != "")) as $e ({}; .[$e.id8] = $e)
+      | .[]
+      | select(.event == "team.result" and .status == "skipped" and ((.reason // "") | startswith("선행 미충족(사전 검사:")))
+      | t as $at
+      | [.reason | ltrimstr("선행 미충족(사전 검사:") | rtrimstr(")") | splits("[ ,]+") | select(. != "") | split("/") | last] as $refs
+      | select($at > $cut)
+      | select(any($done[]; .t >= $at and (.tsk as $k | any($refs[]; . == $k))) | not)
+      | "\(.id8)\t\($refs | join(","))"'
+```
+시각 = `ts` (UTC `YYYY-MM-DDTHH:MM:SSZ`) 문자열끼리 비교. 형식이 같아 사전순 = 시간순.
+
+**선행 반영 사전 검사** (`deps_nohead`): `deps_unmet` 이 비고 `deps_nohead` 가 비어 있지 않을 때만. `node .claude/skills/dflow-dev/scripts/pred-reflected.mjs '<TASKS>' '<선행TSK>' '<개발브랜치>'`: 하나라도 `NOT_REFLECTED`(rc=1) 이면 띄우지 않고 사유 `선행 미반영(사전 검사: <ref…>)` 로 일시 제외 + `team.result`(slot `-`, status `skipped`); `UNKNOWN`(rc=2) 은 워커에 맡김. 명령 전문·해소 중 사유 문구 = `references/wake.md` 「선행 반영 사전 검사」.
 
 **설계 사전 검사** (계약 2.11): `action` 이 있는 후보는 띄우기 전에 `references/design-state.md` 「1」 을 함.
 
@@ -665,7 +723,7 @@ show 실패 (dflow.mjs 가 0 아닌 코드로 끝남, 404 로 exit 7, 출력이 
 | `needs-merge` | 해제 | 없음 | `done` 과 같다 | 승인 스윕을 곧바로 함. 이 기상의 스윕 1회이며, 워커가 approved 확인한 머지 대상이 있으므로 사전 검사 없이 부름(「4-0」 의 예외) |
 | `skipped`(선행 미충족·선행 미승인·선행 승인 대기·claim exit 4·공통 기점 없음·spec 부재, 계약 2.11 의 `설계 관문(<code>)`·`사람 설계 초안 있음`·`주문이 바뀜`·서버 판단 사유) | 해제 | 일시 제외 | branch 가 `-` 면 부트스트랩 실패 정리 규칙, 아니면 `done` 과 같다 | 사유 보고. `사람 설계 초안 있음` 은 「멈춤」 표에도 |
 | `skipped`(`fetch 실패`·`push 실패`·`다른 PC 도는 중(<runner>)`, 계약 2.11) | 해제 | 일시 제외 | 지우지 않음. `parked` 로 | `references/design-state.md` 「3」 |
-| 그 밖 status: `design_waiting`·`design_review`·`design_reopened`·`failed permission`·`failed rate-limit`·`failed no-result`·`failed not-isolated`·`failed project`·`failed not-assignee`·`failed deps`·`cancelled` | | | | 행 전문 = `references/result-handling.md` 「status 표 나머지 행」(해당 status 가 나오면 읽음). 요점: `failed not-isolated` 는 새 spawn 을 멈추고 「7. 마감」, `failed not-assignee`·`cancelled` 는 차단기에 세지 않음, `design_*` 는 실패 아님, `cancelled` 는 "멈춤" 표에 안 넣음 |
+| 그 밖 status: `design_waiting`·`design_review`·`design_reopened`·`failed permission`·`failed rate-limit`·`failed no-result`·`failed not-isolated`·`failed project`·`failed not-assignee`·`failed deps`·`cancelled` | | | | 행 전문 = `references/result-handling.md` 「status 표 나머지 행」(해당 status 가 나오면 읽음). 요점: `failed not-isolated` 는 새 spawn 을 멈추고 「7. 마감」. `failed rate-limit`·`design_*` 는 **제외 없음**(바로 아래 일반 `failed <사유>` 행의 영구 제외를 적용하지 않음), `design_*` 는 실패 아님(차단기 0). `failed not-assignee`·`cancelled` 는 차단기에 세지 않음. `design_waiting`·`cancelled` 는 워크트리를 지우지 않고 `.dflow-agent` 를 `parked` 로, `cancelled` 는 "멈춤" 표에 안 넣음 |
 | `blocked` | 유지 | 진행 중으로 영구 제외에 남김 | 그대로 둠(두 백엔드 공통). 팀원이 pane·탭에서 답을 기다림 | 통지(「6. blocked」) |
 | `failed <사유>` | 해제 | 영구 제외 | 고아 정리 규칙 | 사유 보고, 차단기 계산 |
 
@@ -687,7 +745,7 @@ show 실패 (dflow.mjs 가 0 아닌 코드로 끝남, 404 로 exit 7, 출력이 
   - 걸린 동안의 시험 1건은 재시작 대기가 새 작업보다 먼저.
 - **중단·무응답·정지·대기·재시작**: 결과 줄 없는 진행 슬롯은 `TICK` 마다 생존 증거로 판정.
   - `show` 가 `status=cancelled` 면 `cancelled` 결과로 처리(무응답을 안 기다림, 워크트리는 안 지움).
-  - 생존 증거가 한 `TICK` 안 변하면 "무응답" 보고만, 두 `TICK` 연속이면 자동 정리(영구 제외 + "멈춤" 사유 `무응답`).
+  - 생존 증거가 한 `TICK` 안 변하면 "무응답" 보고만(슬롯 유지). 두 `TICK` 연속 무변화(또는 결과 없는 pane·탭 죽음)면 원인을 가리는 일은 `references/restart.md` 「판정」 이 대신함: 재시작 후보는 워크트리를 지우지 않고 pane·탭만 거둠 → `team.lost`(영구 제외를 대신함). 재시작 후보가 아닌 무응답만 자동 정리(영구 제외 + "멈춤" 사유 `무응답`).
   - 무응답 1회째에 화면이 서브에이전트 종료 알림 뒤 입력 대기(`❯`)면 `[팀장 지시 <id8>]` 를 주입(같은 문구 재주입 금지). 화면이 입력 대기이고 heartbeat 만 살아 있으면 "대기 중인 팀원" 보고만(죽이지 않음).
   - 자동 재시작은 `references/restart.md` 「판정」 이 맡음(`team.lost` 기록 뒤 같은 기상에 「5-1」).
   - 주입 문구·조건 전문 = `references/result-handling.md` 「중단·무응답·정지·대기 판정·자동 재시작」.
@@ -702,12 +760,17 @@ show 실패 (dflow.mjs 가 0 아닌 코드로 끝남, 404 로 exit 7, 출력이 
 - 후보는 state.json 의 `api_base` 가 팀장 `api_base` 설정(`.dflow`, 레거시 `DFLOW_API_BASE`)과 같은 것만 받음. `api_base` 없는 로컬 후보는 전제 검사가 시작 전에 막음(「1. 시작」 `LEGACY_REPORTED`).
 - 결과별 처리(전문 = `references/sweep.md` 「스윕 결과별 처리」, 해당 결과가 보고에 있을 때 읽음):
   - 반려(머지됨)·반려: 보고하고 영구 제외. 팀장이 스스로 revert 하지 않음.
-  - push 실패(경합·연결·권한·훅)·머지 충돌: 스윕을 "중간에 멈춤" 으로 보고(정상 완료로 적지 않음). 충돌은 「4-1」 로.
+  - push 실패 경합(non-fast-forward)·연결·권한 오류: `/dflow-merge` 가 스윕을 멈춤 → "중간에 멈춤" 으로 보고(정상 완료로 적지 않음). 다음 기상 스윕이 fetch 부터 다시 함.
+  - push 훅 거부: 그 작업과 후손만 빼고 스윕은 계속. 그 id8 은 "사람이 머지해야 함" 으로 보고.
+  - 머지 충돌(마이그레이션 버전 포함): 다음 후보로 계속. 그 id8 은 「4-1」 로(해소 못 하면 "사람이 머지해야 함").
   - `decisions.md`: `UNION_SET` 등은 사람에게 넘김. 팀장이 그 파일을 고쳐 commit 하지 않음.
-  - 승인 대기·건너뜀은 보고만. 자동 머지 뒤(또는 해소 `resolved` 뒤) 선행 계열 일시 제외를 풀고 poll 을 줄어든 `--exclude-temp` 로 재기동.
+  - 승인 대기·건너뜀은 보고만. 스윕이 "머지됨"·"머지됨(승인 전)" 을 한 건이라도 냈거나 해소 워커가 `resolved` 로 끝났으면, 일시 제외 중 사유가 선행 계열(선행 미충족·선행 미승인·선행 승인 대기·claim exit 4·공통 기점 없음·선행 미반영)인 id8 을 풀고 poll 을 줄어든 `--exclude-temp` 로 재기동.
   - `team.sweep`(merged, waiting, rejected, resolved 개수) 기록. `resolved` 는 `lead-state.mjs` 의 `CONFLICT_CLEARED resolved=` 값.
-  - 방언 검증 `DIALECT_*` 줄: 자동 되돌리기·재오픈 없음, `DIALECT_FAIL`·`DIALECT_ERROR`·`DIALECT_DEFERRED … notify=1` 만 사람에게 알림.
-  - detached HEAD 팀장은 스윕 뒤 깨끗할 때만 팀장 체크아웃을 `origin/<기본브랜치>` 로 재-detach.
+  - 방언 검증 `DIALECT_*` 줄: 자동 되돌리기·재오픈 없음, `DIALECT_FAIL`·`DIALECT_ERROR`·`DIALECT_DEFERRED … notify=1` 만 사람에게 알림, `DIALECT_PASS` 는 `unverified=` 가 `-` 아니면 그 Task 를 붙여 한 줄. `DIALECT_FAIL` 은 issues.md 에 붙이고 `team.issue` 를 남기되 `decision` 을 `pending` 으로 쓰지 않음(재구성이 팀원 이슈로 읽음). 줄별 처리 = sweep.md.
+  - detached HEAD 팀장은 스윕이 끝나면(깨끗할 때만) 팀장 체크아웃을 최신으로 옮김. `SWEEP_NONE` 기상에도 함:
+    ```bash
+    [ -z "$(git branch --show-current)" ] && [ -z "$(git status --porcelain)" ] && git switch -q --detach origin/<기본브랜치>
+    ```
 
 ### 4-0. 스윕을 부르는 규칙
 
