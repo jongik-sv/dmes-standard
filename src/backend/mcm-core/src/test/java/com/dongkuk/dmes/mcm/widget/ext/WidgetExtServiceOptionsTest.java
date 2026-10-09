@@ -50,4 +50,35 @@ class WidgetExtServiceOptionsTest {
         assertThat(r2.get("currencies")).isEqualTo(List.of("USD"));
         assertThat((List<?>) r2.get("places")).isEmpty();
     }
+
+    @Test
+    @DisplayName("같은 원인의 읽기 실패는 1분 안에 다시 읽어도 경고를 한 번만 남긴다(응답은 늘 빈 목록으로 돌아온다)")
+    void sameFailureWarnsOncePerMinute() {
+        java.util.concurrent.atomic.AtomicLong clock = new java.util.concurrent.atomic.AtomicLong(1_000);
+        WidgetExtService timed = new WidgetExtService(mock(ExchangeService.class), mock(WeatherService.class),
+                mock(SecurityIdentity.class), fx, weather, clock::get);
+        doThrow(new IllegalStateException("표 없음")).when(weather).places();
+        doReturn(List.of()).when(fx).currencies();
+
+        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(WidgetExtService.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender = new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            assertThat((List<?>) timed.options().get("places")).isEmpty();
+            clock.addAndGet(WidgetExtService.WARN_INTERVAL_MS - 1);
+            timed.options();
+            assertThat(appender.list).hasSize(1);
+
+            clock.addAndGet(1);
+            timed.options();
+            assertThat(appender.list).hasSize(2);
+
+            doThrow(new IllegalStateException("다른 원인")).when(weather).places();
+            timed.options();
+            assertThat(appender.list).hasSize(3);
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
 }

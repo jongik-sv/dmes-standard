@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,16 +25,28 @@ import org.springframework.stereotype.Service;
 public class WidgetExtService {
 
     private static final Logger log = LoggerFactory.getLogger(WidgetExtService.class);
+    /** 같은 원인의 경고를 다시 남기기까지 두는 시간(ms) — 편집기를 열 때마다(프런트 캐시는 60초) 같은 줄이 쌓이지 않게 한다. */
+    static final long WARN_INTERVAL_MS = 60_000;
+    private static final int WARN_KEYS_MAX = 50;
 
     private final ExchangeService exchangeService;
     private final WeatherService weatherService;
     private final SecurityIdentity securityIdentity;
     private final FxMasterReader fxMasterReader;
     private final WeatherCollectReader weatherCollectReader;
+    private final LongSupplier nowMillis;
+    /** 경고 원인(선택지 종류+예외)별 마지막으로 남긴 시각. */
+    private final Map<String, Long> lastWarnAt = new ConcurrentHashMap<>();
 
     @Autowired
     public WidgetExtService(ExchangeService exchangeService, WeatherService weatherService, SecurityIdentity securityIdentity,
                             FxMasterReader fxMasterReader, WeatherCollectReader weatherCollectReader) {
+        this(exchangeService, weatherService, securityIdentity, fxMasterReader, weatherCollectReader, System::currentTimeMillis);
+    }
+
+    WidgetExtService(ExchangeService exchangeService, WeatherService weatherService, SecurityIdentity securityIdentity,
+                     FxMasterReader fxMasterReader, WeatherCollectReader weatherCollectReader, LongSupplier nowMillis) {
+        this.nowMillis = nowMillis;
         this.exchangeService = exchangeService;
         this.weatherService = weatherService;
         this.securityIdentity = securityIdentity;
@@ -69,7 +83,7 @@ public class WidgetExtService {
         try {
             currencies = fxMasterReader.currencies();
         } catch (RuntimeException e) {
-            log.warn("[widgetExt] 환율 통화 선택지를 읽지 못했다: {}", e.getMessage());
+            warnThrottled("currencies", "환율 통화 선택지를 읽지 못했다", e);
         }
         List<Map<String, Object>> places = new ArrayList<>();
         try {
@@ -81,11 +95,22 @@ public class WidgetExtService {
                 places.add(m);
             }
         } catch (RuntimeException e) {
-            log.warn("[widgetExt] 날씨 지점 선택지를 읽지 못했다: {}", e.getMessage());
+            warnThrottled("places", "날씨 지점 선택지를 읽지 못했다", e);
         }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("currencies", currencies);
         result.put("places", places);
         return result;
+    }
+
+    /** 같은 선택지·같은 예외(종류+문구)의 경고는 {@link #WARN_INTERVAL_MS} 에 한 번만 남긴다. */
+    private void warnThrottled(String kind, String what, RuntimeException e) {
+        String key = kind + ":" + e.getClass().getName() + ":" + e.getMessage();
+        long now = nowMillis.getAsLong();
+        if (lastWarnAt.size() >= WARN_KEYS_MAX) lastWarnAt.clear();
+        Long last = lastWarnAt.get(key);
+        if (last != null && now - last < WARN_INTERVAL_MS) return;
+        lastWarnAt.put(key, now);
+        log.warn("[widgetExt] {}: {}", what, e.getMessage());
     }
 }
