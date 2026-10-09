@@ -14,7 +14,7 @@ description: PRD/TRD 또는 프로그램 리스트(json/yaml/csv/md/xlsx)로 WBS
 > - WBS 파서·검증·의존 분석(`wbs-parse`·`wbs-validate`·`dep-analysis`) = `/dflow-export` 스킬 node 판 (`.claude/skills/dflow-export/scripts/*.mjs`). 별도 복사본 없음 (2026-10-07 통합).
 > - dev 플러그인 없는 PC 도 리포 clone + node(18.17+)만으로 동작. 상대 경로 = 리포 루트가 cwd 전제.
 > - `decision-log.mjs append`: `decisions.md.lock` 디렉터리(mkdir 잠금)로 동시 기록 방지. 15초 안에 못 잡으면 종료 코드 1.
->   - 항목 머리 = `## D-<숫자> (<시각>)` 로 줄이 끝나는 줄만 인정 (dflow-merge `decisions.sh` 와 같은 규칙).
+>   - 항목 머리 = `## D-<숫자> (<시각>)` 로 줄이 끝나는 줄만 인정 (dflow-merge `decisions.mjs` 와 같은 규칙).
 > - 구조·경계·게이트 규칙 문서 정본 = 대상 리포 `docs/wbs-workflow.md`. 있으면 생성 전 Read. 이 파일과 다르면 그 문서가 이김.
 > - **상태·전이·배정·진척 정본 = D'Flow.** 이 스킬은 상태를 `[ ]` 로만 생성.
 > - wbs.md = 최초 작성·사람 검수·`POST /api/v1/wbs/import` 부트스트랩 전용. import 후 실행 상태는 D'Flow DB 에서 읽음.
@@ -241,7 +241,7 @@ pats=dflow_pat_<prefix>_<secret>[,dflow_pat_...]
 project_map=docs/c10=<uuid>,docs/m30=<uuid>   # .dflow.local — DOCS_DIR 마다 프로젝트가 다를 때
 ```
 
-해석 순서 (먼저 맞는 것이 이김). 값 확인 = `dflow.sh config project_map`·`dflow.sh config project_id`, 레거시는 `.env` 의 `DFLOW_PROJECT_MAP`·`DFLOW_PROJECT_ID`:
+해석 순서 (먼저 맞는 것이 이김). 값 확인 = `node .claude/skills/dflow-work/scripts/dflow.mjs config project_map`·`node .claude/skills/dflow-work/scripts/dflow.mjs config project_id`, 레거시는 `.env` 의 `DFLOW_PROJECT_MAP`·`DFLOW_PROJECT_ID`:
 
 1. `.dflow.local` 의 `project_map` 에 현재 `DOCS_DIR` 키가 있으면 그 값
 2. 없으면 `.dflow` 의 `project_id`
