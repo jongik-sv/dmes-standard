@@ -82,6 +82,9 @@ export const SYSTEM_VARIABLES: readonly { name: string; desc: string }[] = [
   { name: ":yesterday", desc: "어제(yyyyMMdd)" },
   { name: ":monthStart", desc: "이달 1일(yyyyMMdd)" },
   { name: ":now", desc: "현재 시각" },
+  { name: ":bizDate", desc: "전기일(yyyyMMdd, 07시 기준)" },
+  { name: ":bizYesterday", desc: "전일(전기일 기준 전날, yyyyMMdd)" },
+  { name: ":baseHour", desc: "전기일이 바뀌는 시각(7)" },
 ];
 
 export const CHART_TYPE_OPTIONS: readonly { value: ChartType; label: string }[] = [

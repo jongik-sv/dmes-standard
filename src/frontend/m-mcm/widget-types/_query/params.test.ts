@@ -110,6 +110,12 @@ describe("extractBindNames — 사용자 바인드 근사 추출", () => {
     expect(extractBindNames("SELECT a::int, b::text, :x::int FROM T")).toEqual(["x"]);
   });
 
+  it("전기일 시스템 변수(:bizDate·:bizYesterday·:baseHour)도 사용자 바인드가 아니다", () => {
+    expect(extractBindNames("SELECT * FROM T WHERE D = :bizDate AND Y = :bizYesterday AND H = :baseHour AND P = :plant")).toEqual([
+      "plant",
+    ]);
+  });
+
   it("문자열 리터럴·따옴표 식별자·주석 안의 :이름은 뺀다", () => {
     const sql = [
       "SELECT ':no' AS a, 'it''s :no2' AS b, \"col:no3\" -- :no4",
@@ -155,7 +161,7 @@ describe("validateParams / validateQueryConfig 의 조건 검사", () => {
     expect(validateParams({ params: [{ name: "userId", type: "text" }] })).toEqual([
       "조회 조건 1번의 이름 「userId」 은 시스템 변수 이름이라 쓸 수 없습니다",
     ]);
-    for (const reserved of ["deptCd", "today", "yesterday", "monthStart", "now"]) {
+    for (const reserved of ["deptCd", "today", "yesterday", "monthStart", "now", "bizDate", "bizYesterday", "baseHour"]) {
       expect(validateParams({ params: [{ name: reserved, type: "text" }] })).toHaveLength(1);
     }
     expect(validateParams({ params: [ok, { name: "a", type: "date" }] })).toEqual(["조회 조건 2번의 이름 「a」 이 중복됩니다"]);

@@ -51,7 +51,7 @@ describe("문구 상수", () => {
     expect(truncatedNote(50)).toBe("상위 50행만 표시합니다");
   });
 
-  it("시스템 변수 안내는 §7.2 의 여섯 개다", () => {
+  it("시스템 변수 안내는 §7.2 의 아홉 개다", () => {
     expect(SYSTEM_VARIABLES.map((v) => v.name)).toEqual([
       ":userId",
       ":deptCd",
@@ -59,6 +59,9 @@ describe("문구 상수", () => {
       ":yesterday",
       ":monthStart",
       ":now",
+      ":bizDate",
+      ":bizYesterday",
+      ":baseHour",
     ]);
   });
 });
