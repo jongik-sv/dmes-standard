@@ -13,6 +13,7 @@
 // heavy 호출은 heavy.mjs(node)가 있으면 그것을, 없으면 heavy.sh, 둘 다 없으면 셸로 <명령> 직접 실행.
 // 사용자 셸 명령·프로브는 unix = bash -c, win32 = Git Bash -c, 둘 다 없으면 명시 오류.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -383,7 +384,10 @@ function main(argv) {
     let status;
     try {
       const r = spawnSync(cmd, args, { cwd: w, stdio: ['inherit', fd, fd], windowsHide: true });
-      status = r.error ? 127 : (r.status ?? 127);
+      // 시그널로 죽으면 sh 판과 같이 128+신호번호(실행 실패만 127).
+      if (r.error) status = 127;
+      else if (r.signal) status = 128 + (os.constants.signals[r.signal] ?? 0);
+      else status = r.status ?? 127;
     } finally {
       try {
         fs.closeSync(fd);

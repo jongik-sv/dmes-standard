@@ -408,9 +408,12 @@ async function main(argv, env) {
   const waitCycles = parseInt(o.waitCycles, 10);
   const tagCacheCycles = parseInt(o.tagCacheCycles, 10);
 
+  // node 로 실행하므로 실행 비트는 보지 않고 파일 존재만 본다.
+  let dflowIsFile = false;
   try {
-    fs.accessSync(DFLOW, fs.constants.X_OK);
-  } catch {
+    dflowIsFile = fs.statSync(DFLOW).isFile();
+  } catch { /* 없음 */ }
+  if (!dflowIsFile) {
     writeErr(`dflow.mjs 없음: ${DFLOW}\n`);
     return finish(USAGE);
   }
