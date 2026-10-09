@@ -19,7 +19,8 @@ import java.util.regex.Pattern;
  * <ul>
  *   <li>자리는 스킴·호스트·포트({@code scheme://authority}) 뒤, 곧 경로·쿼리에만 둘 수 있다. 앞쪽에 있으면 저장을 거절한다.</li>
  *   <li>값은 영문·숫자와 {@code - . _ ~} 만 그대로 두고 나머지는 모두 퍼센트 인코딩한다 — {@code / ? # & @ :} 와 공백·줄바꿈이 구조를 바꿀 수 없다.
- *       값 전체가 {@code .} 또는 {@code ..} 이면 경로 거슬러 오르기라 거절한다.</li>
+ *       값 전체가 {@code .} 또는 {@code ..} 이면 경로 거슬러 오르기라 거절한다. 경로 자리({@code ?} 앞)는 값에 {@code / \ %} 나 {@code ..} 가 있으면 거절한다
+ *       (인코딩한 %2F·%5C 를 대상 서버가 풀 수 있다). 쿼리 자리는 인코딩만 한다.</li>
  *   <li>이름은 그 작업의 변수에서 찾고, 없으면 위젯 시스템 변수 {@code today·yesterday·monthStart·now}(SQL 원천과 같다)를 쓴다. 둘 다 없으면 실행을 거절한다.</li>
  *   <li>만든 주소를 다시 검사해 스킴·호스트가 자리 없는 주소와 같은지 확인한다. 허용 호스트 검사는 호출자가 이 주소로 한다.</li>
  *   <li>실패 문구에는 주소 원문을 넣지 않는다(키가 질의에 있을 수 있다). 변수 이름(30자 이하 영문·숫자·밑줄)은 넣는다.</li>
@@ -86,18 +87,19 @@ public final class HttpUrlTemplate {
         if (!hasVariables(template)) return source.url();
         Matcher m = PLACEHOLDER.matcher(template);
         StringBuilder out = new StringBuilder(template.length() + 32);
+        int pathEnd = pathEnd(template);   // 이 위치 앞의 자리는 경로, 뒤는 쿼리·프래그먼트
         int last = 0;
         while (m.find()) {
             out.append(template, last, m.start());
-            out.append(encode(m.group(1), valueOf(m.group(1), vars, today)));
+            out.append(encode(m.group(1), valueOf(m.group(1), vars, today), m.start() < pathEnd));
             last = m.end();
-            if (out.length() > RENDERED_MAX) throw new CollectException("변수를 넣은 수집 주소가 너무 깁니다.");
+            if (out.length() > RENDERED_MAX) throw tooLong();
         }
         out.append(template, last, template.length());
-        if (out.length() > RENDERED_MAX) throw new CollectException("변수를 넣은 수집 주소가 너무 깁니다.");
+        if (out.length() > RENDERED_MAX) throw tooLong();
         URI rendered;
         try {
-            rendered = CollectConfigs.parseUrl(out.toString());
+            rendered = CollectConfigs.parseUrl(out.toString(), RENDERED_MAX);
         } catch (BusinessException e) {
             throw new CollectException("변수를 넣은 수집 주소가 올바르지 않습니다.");
         }
@@ -132,8 +134,25 @@ public final class HttpUrlTemplate {
         };
     }
 
-    /** 값을 글자로 바꿔 퍼센트 인코딩한다. 비어 있거나 객체·목록이거나 너무 길면 거절한다. */
-    private static String encode(String name, Object value) {
+    private static CollectException tooLong() {
+        return new CollectException("변수를 넣은 수집 주소가 " + RENDERED_MAX + "자를 넘어 수집하지 않습니다(한글 한 글자는 9자로 늘어납니다).");
+    }
+
+    /** 경로가 끝나는 위치 — 스킴·호스트 뒤 첫 {@code ?} 또는 {@code #}, 없으면 끝. 이 앞의 변수 자리는 경로 안이다. */
+    private static int pathEnd(String template) {
+        for (int i = authorityEnd(template); i < template.length(); i++) {
+            char c = template.charAt(i);
+            if (c == '?' || c == '#') return i;
+        }
+        return template.length();
+    }
+
+    /**
+     * 값을 글자로 바꿔 퍼센트 인코딩한다. 비어 있거나 객체·목록이거나 너무 길면 거절한다.
+     * 경로 자리({@code inPath})는 더 엄격하다: 값에 {@code /}·{@code \}·{@code %}·{@code ..} 가 있으면 거절한다. 인코딩(%2F·%5C)한 값도 대상 서버나
+     * 프록시가 풀면 경로를 거슬러 오르거나 다른 경로로 갈 수 있다. 쿼리 자리는 인코딩만으로 충분하다.
+     */
+    private static String encode(String name, Object value, boolean inPath) {
         if (value == null || value instanceof Map<?, ?> || value instanceof Collection<?> || value.getClass().isArray()) {
             throw new CollectException("변수 {{" + name + "}} 의 값이 없거나 주소에 쓸 수 없는 형식입니다.");
         }
@@ -141,6 +160,9 @@ public final class HttpUrlTemplate {
         if (text.isEmpty()) throw new CollectException("변수 {{" + name + "}} 의 값이 비어 있습니다.");
         if (text.length() > VALUE_MAX) throw new CollectException("변수 {{" + name + "}} 의 값이 " + VALUE_MAX + "자를 넘습니다.");
         if (".".equals(text) || "..".equals(text)) throw new CollectException("변수 {{" + name + "}} 의 값은 . 또는 .. 일 수 없습니다.");
+        if (inPath && (text.indexOf('/') >= 0 || text.indexOf('\\') >= 0 || text.indexOf('%') >= 0 || text.contains(".."))) {
+            throw new CollectException("변수 {{" + name + "}} 는 경로 자리라서 값에 / \\ % .. 를 쓸 수 없습니다.");
+        }
         StringBuilder sb = new StringBuilder(text.length() + 8);
         for (byte b : text.getBytes(StandardCharsets.UTF_8)) {
             int c = b & 0xff;
