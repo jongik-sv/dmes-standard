@@ -1,25 +1,26 @@
 # busy 인데 멈춘 레인(진행 정지) 감지
 
-설계 절: §3.m.
-
-사례: 판정 Workflow 가 busy 로 1시간 지속. 기준선 워크트리의 Gradle 시험은 30분째 CPU 0%. jstack 결과 시험 워커가 출력 전달 스레드 종료 대기(`MessageHub.stop → awaitTermination`)에 걸림(`--info` 출력 과다 추정). 레인 전용 heavy 칸을 쥐어 뒤 단계 전부 막힘. idle 판정은 이 상태를 busy 로 보므로 별도 감지.
+`idle-check.mjs` 는 이 상태를 busy 로 봄 → 별도 감지.
 
 ## 1. 신호와 판정
 
 - 레인 상태 판단 기본 = state.json 요약
-- 터미널 화면은 `prompt-watch.mjs` 가 이상 판정한 레인 하나만 읽음(정지 의심 레인도 전체 화면 훑기 금지)
-- `node scripts/stall-check.mjs [레인…]` 이 틱마다 직전 관측(`ticks/`)과 비교
+- 터미널 화면 = `prompt-watch.mjs` 가 이상 판정한 레인 하나만 읽음
+  - 정지 의심 레인도 전체 화면 훑기 금지
+- `node scripts/stall-check.mjs [레인…]` = 틱마다 직전 관측(`ticks/`)과 비교
 - 출력: `STALL <레인> pid=<pid> cpu_delta=<초> quiet=<분>m heavy=<yes|no>` 또는 `OK <레인>`
-
-세 신호가 겹치면 정지 의심.
-
-1. 레인 산출물 폴더(scratchpad·결과 디렉터리)에서 최근 `stall.quiet_min`(기본 20분) 동안 바뀐 파일 없음
-2. 그 레인이 띄운 gradle·시험 프로세스 트리의 누적 CPU 시간이 두 틱 사이에 거의 불변
-3. 그 레인이 heavy 슬롯 보유(`heavy=yes`)
-
-`idle-check.mjs` 의 `STALL? <레인>`(백그라운드 거부가 `idle.stall_max_min` 초과)도 이 문서로 진입.
-- 먼저 레인에 `상태 한 줄 보고` 요청
-- `node scripts/stall-check.mjs <레인>` 실행
+- 셋 다 맞으면 `STALL`:
+  1. 그 레인의 빌드·시험 프로세스 트리 존재
+  2. 트리의 누적 CPU 시간이 직전 관측보다 합계 2초 미만 증가
+  3. 산출물 무변화가 `stall.quiet_min` 이상
+     - 산출물 = git status·파일 mtime·HEAD 커밋 시각
+- 직전 관측이 없거나 60초 안 → 판정 없이 `OK`(관측만 남김)
+- `pid` = 트리 중 누적 CPU 최대 프로세스(`jstack` 대상 후보)
+- `heavy` = heavy 슬롯 보유 여부(정보 칸)
+- `idle-check.mjs` 의 `STALL? <레인>` 도 이 문서로 진입
+  - 뜻: 백그라운드 거부가 `idle.stall_max_min` 초과
+  - 먼저 레인에 `상태 한 줄 보고` 요청
+  - `node scripts/stall-check.mjs <레인>` 실행
 
 ## 2. 원인 진단(판단 올리기)
 
@@ -35,30 +36,29 @@
 ## 3. 조치
 
 - **조정자는 프로세스를 직접 죽이지 않음**
-- 레인에 근거(pid, 경과 시간, CPU, 대기 위치)와 권고 전송. 권고는 서브에이전트 결론에서 가져옴
+- 레인에 근거(pid, 경과 시간, CPU, 대기 위치)와 권고 전송
+  - 권고 = 서브에이전트 결론에서 가져옴
   - 자기 트리만 종료
   - `--info` 제거, 출력은 파일로
   - 결과는 XML 로 판정
-- 레인이 Workflow 중 → 하위 에이전트가 아니라 세션에 전송(`workflow.md` 금지)
+- 레인이 Workflow 중 → 하위 에이전트가 아니라 세션에 전송(`workflow.md` §6)
   - 세션 무응답 → 화면을 읽어 상태 확인, 사용자에게 알림
-- 같은 정지 반복 → `workflow.md` 블록의 정지 예방 문구 보강을 레인에 요청
+- 같은 정지 반복 → 레인에 지시문 정지 예방 문구 보강 요청
 - 정지로 heavy 칸이 막혀 다른 레인이 대기 → `heavy.md` 우선순위에 따라 통지
-- 진단 결과·조치 기록: `node scripts/coord-state.mjs event stall <레인> '<json>'`
+- 진단 결과·조치 기록:
+  `node scripts/coord-state.mjs event stall <레인> '<json>'`
 
 ## 4. 예방
 
-착수·다음 일 지시의 Workflow 블록(`workflow.md`)에 정지 예방 문구 포함:
-- 무거운 단계마다 시간 상한(모듈당 15분, 전체 빌드 40분 등)
-- 로그가 5분 넘게 불변 + CPU 0% → 자기 트리만 TERM 종료, blocked 보고
-- 긴 gradle 실행에 `--info` 금지
+- 정지 예방 문구 = `templates/brief.md` 「작업 방식」 (시간 상한·정지 줄)
 
 ## 5. 진단을 옮기기 전에 직접 확인
 
-- 레인·다른 세션의 진단(「이게 CPU 주원인」, 「같은 리뷰가 다시 돈다」)을 확인 없이 사용자에게 전달 금지
+- 레인·다른 세션의 진단을 확인 없이 사용자에게 전달 금지
+  - 예: 「이게 CPU 주원인」, 「같은 리뷰가 다시 돈다」
 - 화면 한 줄로 결론 금지
-- 부하·정지: `ps`·`time`·`stall-check.mjs` 로 잰 숫자(pid, CPU, 경과)로 보고(`heavy.md` §4)
-  - 사례: 「3초 간격 감시가 CPU 주원인」 → 실측 코어 0.3개(수 %)
+- 부하·정지 → 잰 숫자(pid, CPU, 경과)로 보고(`heavy.md` §4)
+  - 재는 도구: `ps`·`time`·`stall-check.mjs`
 - 반복·중복: 레인 보고·커밋·보고 시각으로 어느 항목의 일인지 대조
-  - 사례: 「같은 리뷰가 다시 돈다」 → 실제로는 다른 항목(C3)의 리뷰
 - 미확인 → 「추정」 표기, 확인 뒤 결론으로 교체
 - 이미 틀린 진단을 전달했으면 즉시 정정
