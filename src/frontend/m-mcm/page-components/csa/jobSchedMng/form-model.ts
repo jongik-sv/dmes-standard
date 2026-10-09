@@ -17,7 +17,7 @@ const ACTION_PATTERN = /^[A-Za-z][A-Za-z0-9_]{0,49}$/;
 const MAX_VARS = 30;
 const MAX_VAR_VALUE_LENGTH = 1000;
 const RESERVED_VAR_NAMES: readonly string[] = ["action", "sql", "handlerId", "source", "save"];
-const RUNTIME_VAR_VALUES: readonly string[] = [":schedAt", ":now", ":today", ":yesterday", ":monthStart", ":prevMonthStart", ":prevRunAt", ":jobId", ":moduleCd"];
+const RUNTIME_VAR_VALUES: readonly string[] = [":schedAt", ":now", ":today", ":yesterday", ":monthStart", ":prevMonthStart", ":bizDate", ":bizYesterday", ":prevRunAt", ":jobId", ":moduleCd"];
 /** 서버 CollectConfigs 의 한도. */
 const COLLECT_ITEMS_MAX = 20;
 const COLLECT_KEY_MAX = 100;

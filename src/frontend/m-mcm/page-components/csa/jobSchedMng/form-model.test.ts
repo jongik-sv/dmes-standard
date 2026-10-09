@@ -138,7 +138,7 @@ describe("서버 검사와 같은 규칙", () => {
     expect(validateForm(valid({ vars: [{ name: "a", type: "STRING", value: "x".repeat(1001) }] }))).toContain("1000자");
     expect(validateForm(valid({ vars: [{ name: "a", type: "STRING", value: "x".repeat(1000) }] }))).toBeNull();
     expect(validateForm(valid({ vars: [{ name: "a", type: "STRING", value: ":tomorrow" }] }))).toContain("알 수 없는 실행 변수");
-    for (const v of [":schedAt", ":now", ":today", ":yesterday", ":monthStart", ":prevMonthStart", ":prevRunAt", ":jobId", ":moduleCd"]) {
+    for (const v of [":schedAt", ":now", ":today", ":yesterday", ":monthStart", ":prevMonthStart", ":bizDate", ":bizYesterday", ":prevRunAt", ":jobId", ":moduleCd"]) {
       expect(validateForm(valid({ vars: [{ name: "a", type: "NUMBER", value: v }] }))).toBeNull();
     }
   });

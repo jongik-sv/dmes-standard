@@ -23,6 +23,8 @@ export const RUNTIME_VARIABLES: { name: string; desc: string }[] = [
   { name: ":yesterday", desc: "예정 전날" },
   { name: ":monthStart", desc: "예정 달 1일" },
   { name: ":prevMonthStart", desc: "예정 전달 1일" },
+  { name: ":bizDate", desc: "예정 시각의 전기일(07시 기준)" },
+  { name: ":bizYesterday", desc: "예정 시각 전기일의 전날(전일)" },
   { name: ":prevRunAt", desc: "직전 성공 일정 회차의 예정 시각" },
   { name: ":jobId", desc: "작업 ID" },
   { name: ":moduleCd", desc: "실행 모듈" },
