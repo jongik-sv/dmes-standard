@@ -1,6 +1,6 @@
 # wbs.md N단 계층 계약 — 단계 선언·진도 역할·샘플 (2026-08-21 설계 논의)
 
-대형 MES 형 프로젝트(최대 8단: Project→Phase→System→Subsystem→WP→Activity→Task→SubTask)를 wbs.md 한 파일로 표현하는 계약. 설계 정본.
+대형 MES 형 프로젝트(최대 8단: Project→Phase→System→Subsystem→WP→Activity→Task→SubTask)를 wbs.md 한 파일로 표현하는 계약 초안. 코드 구현 전 설계 정본.
 
 배경 결정 (같은 날 확정):
 
@@ -47,7 +47,7 @@
 - **아래에서 위로만 끌 수 있음**: 한 층이 `false`/`fold` 면 그보다 깊은 층 전부 동일. 중간층만 빼면 자식의 parent_external_ref 가 끊김. 검증기가 막음.
 - `progress: input` 층 = `upload: true` 강제. 발행·배정 대상이 안 올라가면 모순.
 - checklist 층 기본 권장 = `fold`.
-  - STK 를 아예 안 올리면 "Task 완료 전이 시 미체크 경고" 게이트가 wbs.md 에만 남음 (은퇴).
+  - STK 를 아예 안 올리면 "Task 완료 전이 시 미체크 경고" 게이트가 은퇴하는 wbs.md 에만 남음.
   - fold 면 게이트가 서버에서 작동, 트리는 깔끔.
   - `false` = 정말 사적인 메모 전용.
 - 부수 이득: import 1회 1,000노드 상한 절약.
