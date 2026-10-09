@@ -180,7 +180,7 @@ const ANSI3 = /\u001b[ -/]*[0-~]/g;
 function prep(line) {
   const long = line.length > 2000 && cpLen(line) > 2000;
   let s = long ? cpSlice(line, 2000) : line;
-  s = s.replace(/\r{1,2}$/, '').replace(ANSI1, '').replace(ANSI2, '').replace(ANSI3, '').replace(/[\t ]/g, ' ');
+  s = s.replace(/\r{1,2}$/, '').replace(ANSI1, '').replace(ANSI2, '').replace(ANSI3, '').replace(/[\t\u00a0]/g, ' ');   // bash 판 jq 는 gsub("[\t<NBSP>]"; " "): 탭과 NBSP 만 공백으로 바꾼다
   const cc = CTRL.test(s);
   return { s: s.replace(CTRL_G, '�').replace(INVIS_G, ''), b: long || cc };
 }
@@ -307,13 +307,13 @@ export function excerptSha(buf) {
   if (parts.length > 0 && parts[parts.length - 1] === '') parts.pop();
   return `${sha256(parts.map(shaClean).join('\n'))}\n`;
 }
-/** JSON 값들 → jq -j 'map(…)|join("\n")' 출력 이어붙임의 sha. 값 하나가 배열/객체가 아니거나 원소가 글이 아니면 거기서 멈춘다 */
+/** JSON 값들 → jq -j 'map(…)|join("\n")' 출력 이어붙임의 sha. 값 하나가 배열/객체가 아니거나 원소가 글이 아니면 그 값만 건너뛴다(jq 는 다음 입력을 계속 처리) */
 export function shaOfValues(values) {
   let out = '';
   for (const v of values) {
     let elems;
-    if (Array.isArray(v)) elems = v; else if (v instanceof Map) elems = [...v.values()]; else break;
-    if (elems.some((x) => typeof x !== 'string')) break;
+    if (Array.isArray(v)) elems = v; else if (v instanceof Map) elems = [...v.values()]; else continue;   // 문서 하나의 오류는 그 문서만 건너뛴다
+    if (elems.some((x) => typeof x !== 'string')) continue;
     out += elems.map(shaClean).join('\n');
   }
   return `${sha256(out)}\n`;
@@ -618,12 +618,12 @@ export function markHandled(c, name, by, want) {
   g.CI_MH_REC = cur;
   return { rc: 0, globals: g };
 }
-/** 글 한 덩이에서 jqOutputs 처럼(오류 시 거기서 멈춤) 출력을 모아 줄로 잇는다 */
+/** 글 한 덩이에서 jq 처럼 출력을 모아 줄로 잇는다. 문서 하나가 런타임 오류를 내면 그 문서만 건너뛰고 다음 문서를 계속한다(구문 오류는 parseStreamPartial 이 거기서 끊는다) */
 function jqOutputsText(text, fn) {
   const outs = [];
   const { values } = J.parseStreamPartial(text);
   for (const d of values) {
-    try { const r = fn(d); if (r !== undefined) outs.push(r); } catch (e) { if (e instanceof J.JqError) break; throw e; }
+    try { const r = fn(d); if (r !== undefined) outs.push(r); } catch (e) { if (e instanceof J.JqError) continue; throw e; }
   }
   return outs.join('\n');
 }
@@ -631,7 +631,7 @@ function valuesOf(text, fn) {
   const out = [];
   const { values } = J.parseStreamPartial(text);
   for (const d of values) {
-    try { out.push(fn(d)); } catch (e) { if (e instanceof J.JqError) break; throw e; }
+    try { out.push(fn(d)); } catch (e) { if (e instanceof J.JqError) continue; throw e; }
   }
   return out;
 }
