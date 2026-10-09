@@ -35,6 +35,24 @@ class JobVarsTest {
     }
 
     @Test
+    @DisplayName("날짜 실행 변수는 형 STRING 이면 yyyyMMdd, 형 DATE 면 yyyy-MM-dd — 시각 값은 형과 상관없이 ISO")
+    void dateVarsByType() {
+        List<JobVar> vars = List.of(
+                v("s1", Type.STRING, ":today"), v("s2", Type.STRING, ":yesterday"), v("s3", Type.STRING, ":monthStart"),
+                v("s4", Type.STRING, ":prevMonthStart"), v("s5", Type.STRING, ":bizDate"), v("s6", Type.STRING, ":bizYesterday"),
+                v("d6", Type.DATE, ":bizYesterday"), v("t", Type.STRING, ":schedAt"), v("j", Type.STRING, ":jobId"));
+        Map<String, Object> r = JobVars.resolve(vars, facts("2026-01-03T06:59:00", "2026-01-03T06:59:00", null));
+        assertThat(r.get("s1")).isEqualTo("20260103");
+        assertThat(r.get("s2")).isEqualTo("20260102");
+        assertThat(r.get("s3")).isEqualTo("20260101");
+        assertThat(r.get("s4")).isEqualTo("20251201");
+        assertThat(r.get("s5")).isEqualTo("20260102");
+        assertThat(r.get("s6")).isEqualTo("20260101");
+        assertThat(r.get("d6")).isEqualTo("2026-01-01");
+        assertThat(r.get("t")).isEqualTo("2026-01-03T06:59:00");
+    }
+
+    @Test
     @DisplayName(":monthStart·:prevMonthStart 는 예정 날짜의 달 기준")
     void monthStarts() {
         Map<String, Object> r = JobVars.resolve(List.of(v("a", Type.DATE, ":monthStart"), v("b", Type.DATE, ":prevMonthStart")),

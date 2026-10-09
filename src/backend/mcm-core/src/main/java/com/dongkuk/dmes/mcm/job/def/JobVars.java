@@ -128,18 +128,23 @@ public final class JobVars {
         return out;
     }
 
+    /** 날짜 실행 변수 값 — 형 DATE 는 yyyy-MM-dd(JobBind 가 SQL 날짜로 묶는다), 그 밖(STRING 등)은 yyyyMMdd 8자리. */
+    private static String day(JobVar v, LocalDate d) {
+        return v.type() == Type.DATE ? d.toString() : d.format(DateTimeFormatter.BASIC_ISO_DATE);
+    }
+
     private static Object resolveOne(JobVar v, RunFacts f) {
         String value = v.value() == null ? "" : v.value();
         LocalDate sched = f.schedAt().toLocalDate();
         switch (value) {
             case ":schedAt": return DATE_TIME.format(f.schedAt());
             case ":now": return DATE_TIME.format(f.now());
-            case ":today": return sched.toString();
-            case ":yesterday": return sched.minusDays(1).toString();
-            case ":monthStart": return sched.withDayOfMonth(1).toString();
-            case ":bizDate": return BizDay.bizDate(f.schedAt()).toString();
-            case ":bizYesterday": return BizDay.bizDate(f.schedAt()).minusDays(1).toString();
-            case ":prevMonthStart": return sched.withDayOfMonth(1).minusMonths(1).toString();
+            case ":today": return day(v, sched);
+            case ":yesterday": return day(v, sched.minusDays(1));
+            case ":monthStart": return day(v, sched.withDayOfMonth(1));
+            case ":bizDate": return day(v, BizDay.bizDate(f.schedAt()));
+            case ":bizYesterday": return day(v, BizDay.bizDate(f.schedAt()).minusDays(1));
+            case ":prevMonthStart": return day(v, sched.withDayOfMonth(1).minusMonths(1));
             case ":prevRunAt": return f.prevRunAt() == null ? null : DATE_TIME.format(f.prevRunAt());
             case ":jobId": return f.jobId();
             case ":moduleCd": return f.moduleCd();
