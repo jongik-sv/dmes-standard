@@ -18,6 +18,7 @@
 #   성공하면 회차가 있을 때 coord-state.sh lane-add 로 세션 정보(spawned_by: coordinator)를 남긴다. 레인 worktree 는 세션이 일하는 폴더다.
 #   --dry-run: 사전 확인(preflight·상한·설정·Orca 워크트리 목록)은 실제로 하고, 터미널 생성부터는 DRY 로 찍고 `DRY SPAWNED <n> handle=- pid=- session_id=-`.
 set -uo pipefail
+. "$(dirname "$0")/lib/js-bridge.sh"; if _jsb_on SPAWN_LANE; then _jsb_exec "$(dirname "$0")/spawn-lane" "$@"; fi   # node 판(스위치 COORD_JS_SPAWN_LANE)
 . "$(dirname "$0")/lib/common.sh"
 . "$(dirname "$0")/lib/term.sh"
 SD="$(dirname "$0")"

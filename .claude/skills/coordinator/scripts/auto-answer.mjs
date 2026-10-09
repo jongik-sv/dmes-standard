@@ -23,6 +23,7 @@ import * as CI from './lib/console-input.mjs';
 import { screenFilter } from './lib/console-redact.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 import * as J from './lib/jq-json.mjs';
+import { spaceChars, utf8Locale } from './lib/sh-space.mjs';
 import { sleepSec } from './lib/test-sleep.mjs';
 import { functions as T } from './lib/term.mjs';
 
@@ -32,11 +33,8 @@ const SH_FILE = join(HERE, 'auto-answer.sh');
 class Exit extends Error { constructor(rc) { super(`exit ${rc}`); this.rc = rc; } }
 
 // ---------- 로케일 ----------
-// grep·sed 의 [[:space:]] 가 UTF-8 로케일에서 더 넓다(측정: macOS grep·sed). awk 는 쓰지 않는다.
-const UNI_SPACE = '\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000';
-export const utf8Locale = (env) => /utf-?8/i.test(env.LC_ALL || env.LC_CTYPE || env.LANG || '');
-/** 대괄호 안에 넣을 [[:space:]] 낱글자들 */
-export const spaceChars = (env) => ` \\t\\n\\v\\f\\r${utf8Locale(env) ? UNI_SPACE : ''}`;
+// grep·sed 의 [[:space:]] 가 UTF-8 로케일에서 더 넓다(lib/sh-space.mjs 머리말). awk 는 쓰지 않는다.
+export { spaceChars, utf8Locale };
 
 // auto-answer.sh 209행의 거부 ERE 원문(`grep -qiE '…'`). 바꾸면 bash 판과 어긋난다 — 명세 specs/auto-answer.mjs 의 DENY_CASES 가 가지마다 걸림·안걸림을 확인한다.
 const DENY_ERE = String.raw`(^|[^a-z0-9_-])(rm|rmdir|unlink|shred|truncate)([[:space:]]|$)|-delete([[:space:]]|$)|-exec([[:space:]]|dir)|(^|[^a-z])xargs[[:space:]]|git[[:space:]]+(branch[[:space:]]+-[dD]|push|reset|clean|checkout[[:space:]]+--|restore|stash[[:space:]]+(drop|clear|pop)|rebase|filter-branch|update-ref[[:space:]]+-d)|worktree[[:space:]]+remove|--force|(^|[^a-z])(DROP|TRUNCATE)[[:space:]]|DELETE[[:space:]]+FROM|UPDATE[[:space:]].*[[:space:]]SET[[:space:]]|(^|[^a-z])(kill|pkill|killall|shutdown|reboot|launchctl)[[:space:]]|(^|[^a-z])(taskkill|Stop-Process)([[:space:]]|$)|(^|[;&|(]|/c)[[:space:]]*(del|rd|Remove-Item)([[:space:]]|$)|chmod|chown|sudo|settings(\.local)?\.json|\.coord(\.local)?\.json|(ANTHROPIC|API|AUTH)_?(KEY|TOKEN)|security[[:space:]]+find-generic-password|curl[[:space:]].*-X[[:space:]]*(POST|PUT|DELETE|PATCH)|bootRun|local-run\.sh|(yarn|pnpm|npm)[[:space:]]+(remove|uninstall|rm|dlx|exec)|npx[[:space:]]+-y`;
