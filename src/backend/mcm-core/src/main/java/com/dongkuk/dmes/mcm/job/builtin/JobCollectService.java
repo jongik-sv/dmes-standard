@@ -46,7 +46,7 @@ public class JobCollectService {
             CollectConfig.Source parsed = CollectConfigs.parseSource(JSON.<JsonNode>valueToTree(rawSource));   // 실행 때 다시 검사
             LocalDate today = scope.schedAt().toLocalDate();
             items = switch (parsed) {
-                case CollectConfig.SqlSource s -> sqlSource.collect(s, today, scope.vars(), scope.varTypes(), scope.queryTimeoutSeconds());
+                case CollectConfig.SqlSource s -> sqlSource.collect(s, scope.schedAt(), scope.vars(), scope.varTypes(), scope.queryTimeoutSeconds());
                 case CollectConfig.HttpSource h -> {
                     HttpCollectSource.Result r = httpSource.collectDetailed(h, today, scope.vars(), scope.deadline());
                     if (r.retryNote() != null) scope.note(r.retryNote());   // 일시 오류를 재시도해 성공 — 이력 MSG 에 남는다

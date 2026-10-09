@@ -206,6 +206,63 @@ class WidgetQueryExecutorTest {
         assertThat(values.get("deptCd")).isEqualTo("D200");
     }
 
+    // ── 전기일 시스템 변수(:bizDate·:bizYesterday·:baseHour, 07시 기준) ──
+
+    @Test
+    @DisplayName("전기일 시스템 변수 — 07시 경계 세 경우(06:59·07:00·연도 경계)와 baseHour=7")
+    void bindsBizDayVariablesAtBoundaries() {
+        // 2026-01-03 06:59 KST(서울) = UTC 2026-01-02 21:59 — 전기일은 전날
+        assertBizDayValues(Instant.parse("2026-01-02T21:59:00Z"), "20260102", "20260101");
+        // 2026-01-03 07:00 KST = UTC 2026-01-02 22:00 — 전기일이 바뀐다
+        assertBizDayValues(Instant.parse("2026-01-02T22:00:00Z"), "20260103", "20260102");
+        // 2026-01-01 06:59 KST = UTC 2025-12-31 21:59 — 연도를 넘긴 전날
+        assertBizDayValues(Instant.parse("2025-12-31T21:59:00Z"), "20251231", "20251230");
+    }
+
+    private void assertBizDayValues(Instant at, String bizDate, String bizYesterday) {
+        WidgetQueryExecutor ex = new WidgetQueryExecutor(defRepository, resolver,
+                WidgetQueryDataSource.shared(recording), new MutableClock(at));
+        assertThat(ex.systemValues(List.of("bizDate", "bizYesterday", "baseHour")))
+                .containsEntry("bizDate", bizDate)
+                .containsEntry("bizYesterday", bizYesterday)
+                .containsEntry("baseHour", 7);
+    }
+
+    @Test
+    @DisplayName(":bizDate·:bizYesterday·:baseHour 바인딩 값을 실제 조회로 확인한다")
+    void bindsBizDayVariablesInQuery() {
+        def("def.biz", "query-number", "SELECT :bizDate AS B, :bizYesterday AS Y, :baseHour AS H FROM T_C4_WIDGET_T WHERE ID = 1");
+        clock = new MutableClock(Instant.parse("2026-01-02T21:59:00Z")); // 01-03 06:59 KST
+        executor = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.shared(recording), clock);
+        Map<String, Object> row = executor.runDefinition("def.biz", 500).rows().get(0);
+        assertThat(row).containsEntry("B", "20260102").containsEntry("Y", "20260101");
+        assertThat(num(row.get("H"))).isEqualTo(7L);
+        verify(resolver, never()).current();
+    }
+
+    @Test
+    @DisplayName("07시를 넘으면 :bizDate 캐시 키가 달라진다 — 옛 전기일 값을 돌려주지 않는다(TTL 30초 안)")
+    void bizDateCacheKeyChangesAfterBaseHour() {
+        MutableClock fixed = new MutableClock(Instant.parse("2026-01-02T21:59:50Z")); // 01-03 06:59:50 KST
+        WidgetQueryExecutor ex = new WidgetQueryExecutor(defRepository, resolver,
+                WidgetQueryDataSource.shared(recording), fixed);
+        Map<String, Object> before = ex.systemValues(List.of("bizDate"));
+        assertThat(WidgetQueryExecutor.cacheKeyValues(before, fixed.instant()))
+                .containsEntry("bizDate", "20260102");
+
+        def("def.bizcount", "query-number",
+                "SELECT COUNT(*) AS CNT FROM T_C4_WIDGET_T WHERE CAST(:bizDate AS VARCHAR2(8)) IS NOT NULL");
+        assertThat(((Number) ex.runDefinition("def.bizcount", 500).rows().get(0).get("CNT")).longValue()).isEqualTo(600L);
+        insertRow(601);
+        fixed.advance(Duration.ofSeconds(20)); // 01-03 07:00:10 KST — TTL(30초) 안, 전기일만 바뀐다
+        Map<String, Object> after = ex.systemValues(List.of("bizDate"));
+        assertThat(WidgetQueryExecutor.cacheKeyValues(after, fixed.instant()))
+                .containsEntry("bizDate", "20260103");
+        assertThat(after).isNotEqualTo(before);
+        // TTL 이 지나지 않았지만 전기일이 바뀌어 캐시를 비껴간다 — 새 조회(601)
+        assertThat(((Number) ex.runDefinition("def.bizcount", 500).rows().get(0).get("CNT")).longValue()).isEqualTo(601L);
+    }
+
     // ── 결과 캐시 ────────────────────────────────────────────────────
 
     @Test

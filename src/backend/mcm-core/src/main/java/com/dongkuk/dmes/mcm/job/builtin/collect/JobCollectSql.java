@@ -1,6 +1,7 @@
 package com.dongkuk.dmes.mcm.job.builtin.collect;
 
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
+import com.dongkuk.dmes.mcm.common.util.BizDay;
 import com.dongkuk.dmes.mcm.job.builtin.JobBind;
 import com.dongkuk.dmes.mcm.widget.query.SqlGuard;
 import com.dongkuk.dmes.mcm.widget.query.WidgetQueryResult;
@@ -34,7 +35,7 @@ import org.springframework.jdbc.support.JdbcUtils;
  * 수집(SQL) 원천의 읽기 전용 실행 — 그 모듈의 기본 DataSource 를 {@link WidgetReadOnlyJdbc}(연결 readOnly·늘 롤백·Oracle {@code SET TRANSACTION READ ONLY})로
  * 읽고 SQL 은 {@link SqlGuard}(한 문장 SELECT·WITH, 금지 낱말·DB 링크 거절)로 검사한다. 위젯 쿼리 실행기({@code WidgetQueryExecutor})는 MCM 에만 있어
  * 쓰지 않는다(계획 D7). 행 상한은 호출자가 정하고(수집 50), 쿼리 시간 초과는 호출자가 min(10초, 남은 시간)으로 준다.
- * 변수: 작업 변수는 {@code :이름} 으로 바인드한다. 위젯 시스템 변수 {@code :today :yesterday :monthStart :now} 는 같은 이름의 작업 변수가 없을 때
+ * 변수: 작업 변수는 {@code :이름} 으로 바인드한다. 위젯 시스템 변수 {@code :today :yesterday :monthStart :now :bizDate :bizYesterday :baseHour} 는 같은 이름의 작업 변수가 없을 때
  * 예정 날짜 기준으로 채운다. {@code :userId·:deptCd} 는 수집에 사용자가 없어 거절한다. 실패 문구에는 DB 메시지를 넣지 않는다.
  */
 public class JobCollectSql {
@@ -67,7 +68,14 @@ public class JobCollectSql {
         requireNoUserVariables(v);
     }
 
+    /** 날짜만 아는 호출 — 전기일 변수는 그날 기준 시각(07시)에 맞춘다(전기일 = today). */
     public WidgetQueryResult run(String sql, Map<String, Object> vars, Map<String, String> varTypes, int timeoutSec, int maxRows, LocalDate today) {
+        return run(sql, vars, varTypes, timeoutSec, maxRows, today.atTime(BizDay.BASE_HOUR, 0));
+    }
+
+    /** schedAt = 실행 회차의 예정 시각(서울) — :today 계열은 그 날짜, :bizDate 계열은 거기서 7시간을 뺀 날짜. */
+    public WidgetQueryResult run(String sql, Map<String, Object> vars, Map<String, String> varTypes, int timeoutSec, int maxRows, LocalDateTime schedAt) {
+        LocalDate today = schedAt.toLocalDate();
         SqlGuard.Validated v;
         try {
             v = SqlGuard.checkDeclared(sql, vars.keySet());
@@ -79,7 +87,8 @@ public class JobCollectSql {
         for (String name : v.userVariables()) bind(params, name, vars.get(name), varTypes.get(name));
         for (String name : v.variables()) {
             if (vars.containsKey(name)) bind(params, name, vars.get(name), varTypes.get(name));
-            else params.addValue(name, systemValue(name, today), "now".equals(name) ? java.sql.Types.TIMESTAMP : java.sql.Types.VARCHAR);
+            else params.addValue(name, systemValue(name, today, schedAt),
+                    "now".equals(name) ? java.sql.Types.TIMESTAMP : "baseHour".equals(name) ? java.sql.Types.NUMERIC : java.sql.Types.VARCHAR);
         }
         int timeout = Math.max(1, Math.min(MAX_TIMEOUT_SEC, timeoutSec));
         try {
@@ -116,12 +125,15 @@ public class JobCollectSql {
         params.addValue(name, b.value(), b.sqlType());
     }
 
-    private static Object systemValue(String name, LocalDate today) {
+    private static Object systemValue(String name, LocalDate today, LocalDateTime schedAt) {
         return switch (name) {
             case "today" -> YMD.format(today);
             case "yesterday" -> YMD.format(today.minusDays(1));
             case "monthStart" -> YMD.format(today.withDayOfMonth(1));
             case "now" -> Timestamp.valueOf(LocalDateTime.now(ZONE));
+            case "bizDate" -> YMD.format(BizDay.bizDate(schedAt));
+            case "bizYesterday" -> YMD.format(BizDay.bizDate(schedAt).minusDays(1));
+            case "baseHour" -> BizDay.BASE_HOUR;
             default -> throw new CollectException("알 수 없는 변수입니다: :" + name);
         };
     }

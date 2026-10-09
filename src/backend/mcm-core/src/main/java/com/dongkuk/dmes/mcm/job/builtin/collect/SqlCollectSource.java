@@ -1,7 +1,9 @@
 package com.dongkuk.dmes.mcm.job.builtin.collect;
 
+import com.dongkuk.dmes.mcm.common.util.BizDay;
 import com.dongkuk.dmes.mcm.widget.query.WidgetQueryResult;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -31,7 +33,13 @@ public class SqlCollectSource implements CollectSource<CollectConfig.SqlSource> 
     /** 작업 변수(바인드 값)와 쿼리 시간 초과(초)를 받는 실행 경로 — {@code jobCollect} 가 쓴다. */
     public List<CollectItem> collect(CollectConfig.SqlSource source, LocalDate today, Map<String, Object> vars, Map<String, String> varTypes,
                                      int timeoutSec) {
-        WidgetQueryResult result = sql.run(source.sql(), vars, varTypes, timeoutSec, MAX_ITEMS, today);
+        return collect(source, today.atTime(BizDay.BASE_HOUR, 0), vars, varTypes, timeoutSec);
+    }
+
+    /** 예정 시각(schedAt)을 받는 경로 — 전기일 변수(:bizDate 계열)가 07시 경계를 따른다. */
+    public List<CollectItem> collect(CollectConfig.SqlSource source, LocalDateTime schedAt, Map<String, Object> vars, Map<String, String> varTypes,
+                                     int timeoutSec) {
+        WidgetQueryResult result = sql.run(source.sql(), vars, varTypes, timeoutSec, MAX_ITEMS, schedAt);
         String valueColumn = column(result.columns(), source.valueField());
         if (valueColumn == null) throw new CollectException("쿼리 결과에 값 열이 없습니다: " + shorten(source.valueField()));
         List<CollectItem> items = new ArrayList<>();

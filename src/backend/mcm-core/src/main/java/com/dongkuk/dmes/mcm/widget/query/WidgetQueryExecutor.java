@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mcm.widget.query;
 
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
+import com.dongkuk.dmes.mcm.common.util.BizDay;
 import com.dongkuk.dmes.mcm.widget.common.WidgetUserContext;
 import com.dongkuk.dmes.mcm.widget.common.WidgetUserContextResolver;
 import com.dongkuk.dmes.mcm.widget.def.WidgetDefSavedEvent;
@@ -306,6 +307,9 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
                 case "yesterday" -> YMD.format(today.minusDays(1));
                 case "monthStart" -> YMD.format(today.withDayOfMonth(1));
                 case "now" -> Timestamp.valueOf(now);
+                case "bizDate" -> YMD.format(BizDay.bizDate(now));
+                case "bizYesterday" -> YMD.format(BizDay.bizDate(now).minusDays(1));
+                case "baseHour" -> BizDay.BASE_HOUR;
                 default -> throw new IllegalArgumentException("알 수 없는 시스템 변수입니다: " + name);
             };
             values.put(name, value);
@@ -330,7 +334,8 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     WidgetQueryResult execute(String sql, Map<String, Object> values, Map<String, QueryParams.Bound> userBinds, int maxRows) {
         MapSqlParameterSource params = new MapSqlParameterSource();
         // 값이 null(부서 없음)이어도 형을 알려 줘야 PostgreSQL·H2 가 받는다.
-        values.forEach((name, value) -> params.addValue(name, value, "now".equals(name) ? Types.TIMESTAMP : Types.VARCHAR));
+        values.forEach((name, value) -> params.addValue(name, value,
+                "now".equals(name) ? Types.TIMESTAMP : "baseHour".equals(name) ? Types.NUMERIC : Types.VARCHAR));
         userBinds.forEach((name, bound) -> params.addValue(name, bound.value(), bound.sqlType()));
         try {
             return readOnlyJdbc.execute(con -> jdbc.queryLimited(con, sql, params, maxRows + 1, rs -> extract(rs, maxRows)));
