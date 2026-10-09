@@ -75,7 +75,8 @@ function limitsDir(rng, now, maxAge, dir, files, mtimes, home) {
     used.add(name);
     const p = `${dir}/${name}`;
     if (name === 'dir.json') { files[prefix(`${p}/inner.json`)] = limitsDoc(rng, now, 10); continue; }
-    const age = rng.pick([5, 30, 120, 600, maxAge * 60 - 120, maxAge * 60 + 120, maxAge * 60 + 3600, 86400]);
+    // 고정 값이 max_age(분)×60 과 같으면 안 된다: max_age_min=10 일 때 600 은 임계 바로 위라, sh·js 가 초 경계를 사이에 두고 따로 돌면 한쪽만 「오래됨」이 된다(2026-10-09 #220 등의 흔들림 원인 — 판의 차이가 아니었다). 그래서 600 대신 900.
+    const age = rng.pick([5, 30, 120, 900, maxAge * 60 - 120, maxAge * 60 + 120, maxAge * 60 + 3600, 86400]);
     files[prefix(p)] = limitsDoc(rng, now, Math.max(age, 1));
   }
   return mtimes;
@@ -125,6 +126,23 @@ function build(rng) {
   return { args: [], files, env: {} };
 }
 
+const STATIC_FIXED = [
+    {
+      label: '출처 없음(UNKNOWN)', args: [], env: {}, files: { '.coord.local.json': '{"usage":{"sources":[]}}' },
+    },
+    { label: '잘못된 인자', args: ['x'], env: {}, files: { '.coord.local.json': '{"usage":{"sources":[]}}' } },
+    { label: '-h', args: ['-h'], env: {}, files: { '.coord.local.json': '{"usage":{"sources":[]}}' } },
+    { label: '--help', args: ['--help'], env: {}, files: { '.coord.local.json': '{"usage":{"sources":[]}}' } },
+    {
+      label: 'cache 단독(최근)', args: [], env: {},
+      files: { '.coord.local.json': '{"usage":{"sources":[{"kind":"cache","path":"c.json"}]}}', 'c.json': '{"five_hour":{"utilization":42.5,"resets_at":"2026-10-09T20:00:00+09:00"},"seven_day":{"utilization":80}}' },
+    },
+    {
+      label: '앞 0 이 붙은 max_age_min(8진 오류로 종료)', args: [], env: {},
+      files: { '.coord.local.json': '{"usage":{"max_age_min":"08","sources":[{"kind":"cache","path":"c.json"}]}}', 'c.json': '{"five_hour":{"utilization":42.5}}' },
+    },
+];
+
 export default {
   module: 'usage-band',
   kind: 'script',
@@ -135,22 +153,23 @@ export default {
   functions: {
     run: {
       gen: build,
-      fixed: [
-        {
-          label: '출처 없음(UNKNOWN)', args: [], env: {}, files: { '.coord.local.json': '{"usage":{"sources":[]}}' },
-        },
-        { label: '잘못된 인자', args: ['x'], env: {}, files: { '.coord.local.json': '{"usage":{"sources":[]}}' } },
-        { label: '-h', args: ['-h'], env: {}, files: { '.coord.local.json': '{"usage":{"sources":[]}}' } },
-        { label: '--help', args: ['--help'], env: {}, files: { '.coord.local.json': '{"usage":{"sources":[]}}' } },
-        {
-          label: 'cache 단독(최근)', args: [], env: {},
-          files: { '.coord.local.json': '{"usage":{"sources":[{"kind":"cache","path":"c.json"}]}}', 'c.json': '{"five_hour":{"utilization":42.5,"resets_at":"2026-10-09T20:00:00+09:00"},"seven_day":{"utilization":80}}' },
-        },
-        {
-          label: '앞 0 이 붙은 max_age_min(8진 오류로 종료)', args: [], env: {},
-          files: { '.coord.local.json': '{"usage":{"max_age_min":"08","sources":[{"kind":"cache","path":"c.json"}]}}', 'c.json': '{"five_hour":{"utilization":42.5}}' },
-        },
-      ],
+      // 시각 상대 고정 사례(함수): 흔들림 사례(#220)의 모양 — limits-dir, at 문자열 에포크, five reset 이 소수(`.5`)라 못 쓰고 week reset 은 밀리초(58741년)로 읽힘 — 을 임계에서 멀리 떨어진 나이로 고정한다.
+      fixed: () => {
+        const now = Math.floor(Date.now() / 1000);
+        const limitsCase = (label, ageSec) => ({
+          label, args: [], env: {},
+          files: {
+            '.coord.local.json': '{"usage":{"max_age_min":10,"bands":{"O":{"five":"abc","week":"zz"},"R":{"five":"0x1e","week":50}},"sources":[{"kind":"limits-dir","path":"d0"}]}}',
+            'd0/b.json': `{"at":${now - ageSec},"session_id":"s8","rate_limits":{"five_hour":{"used_percentage":50,"resets_at":${now + 14000}.5},"seven_day":{"used_percentage":29.5,"resets_at":${(now + 3000) * 1000}}}}`,
+            'd0/a.json': `{"at":"x","rate_limits":{"seven_day":{"used_percentage":49.5,"resets_at":${now + 500000}}}}`,
+          },
+        });
+        return [
+          limitsCase('limits-dir: 신선(at 숫자)·five reset 소수·week reset 밀리초 → five 유지', 30),
+          limitsCase('limits-dir: 오래됨(1시간)·five reset 소수라 five 버림·week reset 밀리초는 미래로 읽혀 week 유지', 3600),
+          ...STATIC_FIXED,
+        ];
+      },
     },
   },
 };
