@@ -80,11 +80,11 @@
 | SAMPLE_MASTER_CODE | SORT_ORDER | 정렬 순서 | 추정 | 물리명 분해 |
 | SAMPLE_MASTER_CODE | USE_YN | 사용 여부 | 사전 | MDM 사전 |
 | SAMPLE_NOTICE | ACTIVE | 활성 여부 | 추정 | 물리명 분해 |
-| SAMPLE_NOTICE | CONTENT | 내용 | 추정 | 물리명 분해 |
+| SAMPLE_NOTICE | CONTENT | 본문 | 화면 | src/frontend/m-mcm/page-components/lsh/noticeMgmt/api.ts:57 |
 | SAMPLE_NOTICE | ID | 아이디 | 사전 | MDM 사전 |
 | SAMPLE_NOTICE | TITLE | 제목 | 사전 | MDM 사전 |
-| TB_MCM_CODE_CATEGORY | CATEGORY_ID | 카테고리 아이디 | 추정 | 물리명 분해 |
-| TB_MCM_CODE_CATEGORY | CATEGORY_NM | 카테고리 이름 | 추정 | 물리명 분해 (동일 물리명 통일) |
+| TB_MCM_CODE_CATEGORY | CATEGORY_ID | 카테고리 아이디 | 화면 | src/frontend/m-mcm/page-components/cma/masterCategoryMng/types.ts:16 |
+| TB_MCM_CODE_CATEGORY | CATEGORY_NM | 카테고리명 | 화면 | src/frontend/m-mcm/page-components/cma/masterCategoryMng/types.ts:18 |
 | TB_MCM_CODE_CATEGORY | C_AT | 생성일시 | 추정 | 공통 칼럼 규칙 (동일 물리명 통일) |
 | TB_MCM_CODE_CATEGORY | C_PGM_ID | 생성 프로그램 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_CODE_CATEGORY | C_SVC_ID | 생성 서비스 아이디 | 추정 | 공통 칼럼 규칙 |
@@ -96,9 +96,9 @@
 | TB_MCM_CODE_CATEGORY | U_SVC_ID | 수정 서비스 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_CODE_CATEGORY | U_USR_ID | 수정자 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_CODE_CATEGORY | VER | 버전 | 사전 | MDM 사전 |
-| TB_MCM_CODE_DETAIL | CATEGORY_ID | 카테고리 아이디 | 추정 | 물리명 분해 |
+| TB_MCM_CODE_DETAIL | CATEGORY_ID | 카테고리 아이디 | 화면 | src/frontend/m-mcm/page-components/cma/masterCategoryMng/types.ts:16 |
 | TB_MCM_CODE_DETAIL | CODE_VAL_DESC | 코드 값 설명 | 추정 | 물리명 분해 |
-| TB_MCM_CODE_DETAIL | CODE_VAL_MEAN | 코드 값 의미 | 추정 | 물리명 분해 |
+| TB_MCM_CODE_DETAIL | CODE_VAL_MEAN | 코드 의미 | 화면 | src/frontend/m-mcm/page-components/cma/masterCodeMng/page.tsx:226 |
 | TB_MCM_CODE_DETAIL | CODE_VAL_REF1 | 코드 값 참조1 | 추정 | 물리명 분해 |
 | TB_MCM_CODE_DETAIL | CODE_VAL_REF2 | 코드 값 참조2 | 추정 | 물리명 분해 |
 | TB_MCM_CODE_DETAIL | CODE_VAL_REF3 | 코드 값 참조3 | 추정 | 물리명 분해 |
@@ -119,7 +119,7 @@
 | TB_MCM_CODE_DETAIL | U_USR_ID | 수정자 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_CODE_DETAIL | VER | 버전 | 사전 | MDM 사전 |
 | TB_MCM_CODE_MASTER | CODE_CHARACTER | 코드 특성 | 추정 | 물리명 분해 |
-| TB_MCM_CODE_MASTER | CODE_DESC | 코드 설명 | 추정 | 물리명 분해 |
+| TB_MCM_CODE_MASTER | CODE_DESC | 코드 설명 | 화면 | src/frontend/m-mcm/page-components/cma/masterCodeMng/page.tsx:103 |
 | TB_MCM_CODE_MASTER | CODE_ID | 코드 아이디 | 추정 | 물리명 분해 |
 | TB_MCM_CODE_MASTER | CODE_NM | 코드 이름 | 추정 | 물리명 분해 (동일 물리명 통일) |
 | TB_MCM_CODE_MASTER | CODE_OWNER_DEPT_NM | 코드 담당 부서명 | 추정 | 물리명 분해 (동일 물리명 통일) |
@@ -136,7 +136,7 @@
 | TB_MCM_CODE_MASTER | MASTER_CODE_REF4 | 마스터 코드 참조4 | 추정 | 물리명 분해 |
 | TB_MCM_CODE_MASTER | MASTER_CODE_REF5 | 마스터 코드 참조5 | 추정 | 물리명 분해 |
 | TB_MCM_CODE_MASTER | MASTER_CODE | 마스터 코드 | 추정 | 물리명 분해 |
-| TB_MCM_CODE_MASTER | START_ACTIVE_DATE | 유효 시작일 | 추정 | 물리명 분해 (동일 물리명 통일) |
+| TB_MCM_CODE_MASTER | START_ACTIVE_DATE | 유효 시작일 | 코드 | src/backend/cactus-core/docs/AS-IS/CACTUS_SECURITY.md:1249 |
 | TB_MCM_CODE_MASTER | USE_TP | 사용 구분 | 사전 | MDM 사전 |
 | TB_MCM_CODE_MASTER | U_AT | 수정일시 | 추정 | 공통 칼럼 규칙 (동일 물리명 통일) |
 | TB_MCM_CODE_MASTER | U_PGM_ID | 수정 프로그램 아이디 | 추정 | 공통 칼럼 규칙 |
@@ -151,8 +151,8 @@
 | TB_MCM_DEPT_INFO | DEPT_NM_EN | 부서 영문 명 | 추정 | 물리명 분해 |
 | TB_MCM_DEPT_INFO | DEPT_NM | 부서 명 | 사전 | MDM 사전 |
 | TB_MCM_DEPT_INFO | END_ACTIVE_DATE | 유효 종료일 | 추정 | 물리명 분해 (동일 물리명 통일) |
-| TB_MCM_DEPT_INFO | START_ACTIVE_DATE | 유효 시작일 | 추정 | 물리명 분해 (동일 물리명 통일) |
-| TB_MCM_DEPT_INFO | UPPER_DEPT_CD | 상위 부서 코드 | 추정 | 물리명 분해 |
+| TB_MCM_DEPT_INFO | START_ACTIVE_DATE | 유효 시작일 | 코드 | src/backend/cactus-core/docs/AS-IS/CACTUS_SECURITY.md:1249 |
+| TB_MCM_DEPT_INFO | UPPER_DEPT_CD | 상위 부서 코드 | 코드 | mcm-core/.../entity/DeptInfo.java:63 |
 | TB_MCM_DEPT_INFO | USE_TP | 사용 구분 | 사전 | MDM 사전 |
 | TB_MCM_DEPT_INFO | U_AT | 수정일시 | 추정 | 공통 칼럼 규칙 (동일 물리명 통일) |
 | TB_MCM_DEPT_INFO | U_PGM_ID | 수정 프로그램 아이디 | 추정 | 공통 칼럼 규칙 |
@@ -170,8 +170,8 @@
 | TB_MCM_JOB_COLLECT_DATA | U_PGM_ID | 수정 프로그램 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_JOB_COLLECT_DATA | U_SVC_ID | 수정 서비스 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_JOB_COLLECT_DATA | U_USR_ID | 수정자 아이디 | 추정 | 공통 칼럼 규칙 |
-| TB_MCM_JOB_COLLECT_DATA | VALUE_NUM | 숫자 값 | 추정 | 물리명 분해 |
-| TB_MCM_JOB_COLLECT_DATA | VALUE_TXT | 문자 값 | 추정 | 물리명 분해 |
+| TB_MCM_JOB_COLLECT_DATA | VALUE_NUM | 숫자 값 | 코드 | m-mcm/page-components/csa/jobSchedMng/collect-data.test.ts:13 |
+| TB_MCM_JOB_COLLECT_DATA | VALUE_TXT | 글자 값 | 코드 | m-mcm/page-components/csa/jobSchedMng/collect-data.test.ts:13 |
 | TB_MCM_JOB_COLLECT_DATA | VER | 버전 | 사전 | MDM 사전 |
 | TB_MCM_JOB_DEF | ACTION | 수행 동작 | 추정 | 물리명 분해 |
 | TB_MCM_JOB_DEF | CONFIG_JSON | 설정 JSON | 추정 | 물리명 분해 |
@@ -242,8 +242,8 @@
 | TB_MCM_MOM_FORMAT_LAYOUT | C_PGM_ID | 생성 프로그램 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_MOM_FORMAT_LAYOUT | C_SVC_ID | 생성 서비스 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_MOM_FORMAT_LAYOUT | C_USR_ID | 생성자 아이디 | 추정 | 공통 칼럼 규칙 |
-| TB_MCM_MOM_FORMAT_LAYOUT | DATA_DECIMAL_PREC | 데이터 소수 자릿수 | 추정 | 물리명 분해 |
-| TB_MCM_MOM_FORMAT_LAYOUT | DATA_LEN | 데이터 길이 | 추정 | 물리명 분해 |
+| TB_MCM_MOM_FORMAT_LAYOUT | DATA_DECIMAL_PREC | 소수점 이하 길이 | 코드 | src/backend/cactus-core/src/main/java/com/dongkuk/dmes/cactus/dmom/format/FormatItem.java:12 |
+| TB_MCM_MOM_FORMAT_LAYOUT | DATA_LEN | 데이터 전체 길이 | 코드 | src/backend/cactus-core/src/main/java/com/dongkuk/dmes/cactus/dmom/format/FormatItem.java:11 |
 | TB_MCM_MOM_FORMAT_LAYOUT | DATA_TP | 데이터 구분 | 사전 | MDM 사전 |
 | TB_MCM_MOM_FORMAT_LAYOUT | FORMAT_ID | 포맷 아이디 | 추정 | 물리명 분해 |
 | TB_MCM_MOM_FORMAT_LAYOUT | FORMAT_VER | 포맷 버전 | 추정 | 물리명 분해 |
@@ -265,7 +265,7 @@
 | TB_MCM_MOM_FORMAT_LIST | FORMAT_ID | 포맷 아이디 | 추정 | 물리명 분해 |
 | TB_MCM_MOM_FORMAT_LIST | FORMAT_NM | 포맷 명 | 추정 | 물리명 분해 |
 | TB_MCM_MOM_FORMAT_LIST | FORMAT_VER | 포맷 버전 | 추정 | 물리명 분해 |
-| TB_MCM_MOM_FORMAT_LIST | START_ACTIVE_DATE | 유효 시작일 | 추정 | 물리명 분해 (동일 물리명 통일) |
+| TB_MCM_MOM_FORMAT_LIST | START_ACTIVE_DATE | 유효 시작일 | 코드 | src/backend/cactus-core/docs/AS-IS/CACTUS_SECURITY.md:1249 |
 | TB_MCM_MOM_FORMAT_LIST | USE_TP | 사용 구분 | 사전 | MDM 사전 |
 | TB_MCM_MOM_FORMAT_LIST | U_AT | 수정일시 | 추정 | 공통 칼럼 규칙 (동일 물리명 통일) |
 | TB_MCM_MOM_FORMAT_LIST | U_PGM_ID | 수정 프로그램 아이디 | 추정 | 공통 칼럼 규칙 |
@@ -286,10 +286,10 @@
 | TB_MCM_MOM_INTERFACES | RECV_TABLE_ID | 수신 테이블 아이디 | 추정 | 물리명 분해 |
 | TB_MCM_MOM_INTERFACES | RECV_WORKS_CD | 수신 작업장 코드 | 추정 | 물리명 분해 |
 | TB_MCM_MOM_INTERFACES | SEND_IF_TP | 송신 인터페이스 구분 | 추정 | 물리명 분해 |
-| TB_MCM_MOM_INTERFACES | SEND_MODULE_ID | 송신 모듈 아이디 | 추정 | 물리명 분해 |
+| TB_MCM_MOM_INTERFACES | SEND_MODULE_ID | 송신 모듈 아이디 | 코드 | caravan-core/README.md:521 |
 | TB_MCM_MOM_INTERFACES | SEND_TABLE_ID | 송신 테이블 아이디 | 추정 | 물리명 분해 |
 | TB_MCM_MOM_INTERFACES | SEND_WORKS_CD | 송신 작업장 코드 | 추정 | 물리명 분해 |
-| TB_MCM_MOM_INTERFACES | START_ACTIVE_DATE | 유효 시작일 | 추정 | 물리명 분해 (동일 물리명 통일) |
+| TB_MCM_MOM_INTERFACES | START_ACTIVE_DATE | 유효 시작일 | 코드 | src/backend/cactus-core/docs/AS-IS/CACTUS_SECURITY.md:1249 |
 | TB_MCM_MOM_INTERFACES | TRANSACTION_CODE | 트랜잭션 코드 | 추정 | 물리명 분해 |
 | TB_MCM_MOM_INTERFACES | USE_TP | 사용 구분 | 사전 | MDM 사전 |
 | TB_MCM_MOM_INTERFACES | U_AT | 수정일시 | 추정 | 공통 칼럼 규칙 (동일 물리명 통일) |
@@ -324,10 +324,10 @@
 | TB_MCM_MOM_TC_LIST | C_USR_ID | 생성자 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_MOM_TC_LIST | END_ACTIVE_DATE | 유효 종료일 | 추정 | 물리명 분해 (동일 물리명 통일) |
 | TB_MCM_MOM_TC_LIST | FORMAT_ID | 포맷 아이디 | 추정 | 물리명 분해 |
-| TB_MCM_MOM_TC_LIST | START_ACTIVE_DATE | 유효 시작일 | 추정 | 물리명 분해 (동일 물리명 통일) |
+| TB_MCM_MOM_TC_LIST | START_ACTIVE_DATE | 유효 시작일 | 코드 | src/backend/cactus-core/docs/AS-IS/CACTUS_SECURITY.md:1249 |
 | TB_MCM_MOM_TC_LIST | TRANSACTION_CODE | 트랜잭션 코드 | 추정 | 물리명 분해 |
-| TB_MCM_MOM_TC_LIST | TRANSACTION_DESC | 트랜잭션 설명 | 추정 | 물리명 분해 |
-| TB_MCM_MOM_TC_LIST | TRANSACTION_NM | 트랜잭션 명 | 추정 | 물리명 분해 |
+| TB_MCM_MOM_TC_LIST | TRANSACTION_DESC | 트랜잭션 설명 | 코드 | mcm-core/.../entity/MomTcList.java:37 |
+| TB_MCM_MOM_TC_LIST | TRANSACTION_NM | 트랜잭션 명 | 코드 | mcm-core/.../entity/MomTcList.java:33 |
 | TB_MCM_MOM_TC_LIST | USE_TP | 사용 구분 | 사전 | MDM 사전 |
 | TB_MCM_MOM_TC_LIST | U_AT | 수정일시 | 추정 | 공통 칼럼 규칙 (동일 물리명 통일) |
 | TB_MCM_MOM_TC_LIST | U_PGM_ID | 수정 프로그램 아이디 | 추정 | 공통 칼럼 규칙 |
@@ -341,7 +341,7 @@
 | TB_MCM_MOM_TC_SEND | ERR_SQ_VAL | 오류 일련 번호 | 추정 | 물리명 분해 |
 | TB_MCM_MOM_TC_SEND | INTERFACE_ID | 인터페이스 아이디 | 추정 | 물리명 분해 |
 | TB_MCM_MOM_TC_SEND | INTERFACE_MSG | 인터페이스 메시지 | 추정 | 물리명 분해 |
-| TB_MCM_MOM_TC_SEND | SEND_RESULT | 송신 결과 | 추정 | 물리명 분해 |
+| TB_MCM_MOM_TC_SEND | SEND_RESULT | 재전송 결과 | 코드 | mcm-core/.../entity/MomTcSend.java:59 |
 | TB_MCM_MOM_TC_SEND | SEND_SQ_VAL | 송신 일련 번호 | 추정 | 물리명 분해 |
 | TB_MCM_MOM_TC_SEND | TRANSACTION_CODE | 트랜잭션 코드 | 추정 | 물리명 분해 |
 | TB_MCM_MOM_TC_SEND | U_AT | 수정일시 | 추정 | 공통 칼럼 규칙 (동일 물리명 통일) |
@@ -355,7 +355,7 @@
 | TB_MCM_MOM_TC_SKIP | C_USR_ID | 생성자 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_MOM_TC_SKIP | END_ACTIVE_DATE | 유효 종료일 | 추정 | 물리명 분해 (동일 물리명 통일) |
 | TB_MCM_MOM_TC_SKIP | SKIP_LEVEL | 건너뛰기 수준 | 추정 | 물리명 분해 |
-| TB_MCM_MOM_TC_SKIP | START_ACTIVE_DATE | 유효 시작일 | 추정 | 물리명 분해 (동일 물리명 통일) |
+| TB_MCM_MOM_TC_SKIP | START_ACTIVE_DATE | 유효 시작일 | 코드 | src/backend/cactus-core/docs/AS-IS/CACTUS_SECURITY.md:1249 |
 | TB_MCM_MOM_TC_SKIP | TRANSACTION_CODE | 트랜잭션 코드 | 추정 | 물리명 분해 |
 | TB_MCM_MOM_TC_SKIP | USE_TP | 사용 구분 | 사전 | MDM 사전 |
 | TB_MCM_MOM_TC_SKIP | U_AT | 수정일시 | 추정 | 공통 칼럼 규칙 (동일 물리명 통일) |
@@ -367,25 +367,25 @@
 | TB_MCM_NOTICE_TARGET | C_PGM_ID | 생성 프로그램 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_NOTICE_TARGET | C_SVC_ID | 생성 서비스 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_NOTICE_TARGET | C_USR_ID | 생성자 아이디 | 추정 | 공통 칼럼 규칙 |
-| TB_MCM_NOTICE_TARGET | NOTICE_ID | 공지 아이디 | 추정 | 물리명 분해 |
+| TB_MCM_NOTICE_TARGET | NOTICE_ID | 공지 번호 | 화면 | src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:637 |
 | TB_MCM_NOTICE_TARGET | ROLE_ID | 직무 아이디 | 사전 | MDM 사전 |
 | TB_MCM_NOTICE_TARGET | U_AT | 수정일시 | 추정 | 공통 칼럼 규칙 (동일 물리명 통일) |
 | TB_MCM_NOTICE_TARGET | U_PGM_ID | 수정 프로그램 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_NOTICE_TARGET | U_SVC_ID | 수정 서비스 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_NOTICE_TARGET | U_USR_ID | 수정자 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_NOTICE_TARGET | VER | 버전 | 사전 | MDM 사전 |
-| TB_MCM_NOTICE | CONTENT_FORMAT | 내용 형식 | 추정 | 물리명 분해 |
-| TB_MCM_NOTICE | CONTENT | 내용 | 추정 | 물리명 분해 |
+| TB_MCM_NOTICE | CONTENT_FORMAT | 본문 형식 | 화면 | src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:794 |
+| TB_MCM_NOTICE | CONTENT | 본문 | 화면 | src/frontend/m-mcm/page-components/lsh/noticeMgmt/api.ts:57 |
 | TB_MCM_NOTICE | C_AT | 생성일시 | 추정 | 공통 칼럼 규칙 (동일 물리명 통일) |
 | TB_MCM_NOTICE | C_PGM_ID | 생성 프로그램 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_NOTICE | C_SVC_ID | 생성 서비스 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_NOTICE | C_USR_ID | 생성자 아이디 | 추정 | 공통 칼럼 규칙 |
-| TB_MCM_NOTICE | NOTICE_CATEGORY | 공지 분류 | 추정 | 물리명 분해 |
-| TB_MCM_NOTICE | NOTICE_ID | 공지 아이디 | 추정 | 물리명 분해 |
-| TB_MCM_NOTICE | NOTICE_STATUS | 공지 상태 | 추정 | 물리명 분해 |
-| TB_MCM_NOTICE | PIN_YN | 상단 고정 여부 | 추정 | 물리명 분해 |
-| TB_MCM_NOTICE | POST_END_DT | 게시 종료 일시 | 추정 | 물리명 분해 |
-| TB_MCM_NOTICE | POST_START_DT | 게시 시작 일시 | 추정 | 물리명 분해 |
+| TB_MCM_NOTICE | NOTICE_CATEGORY | 공지 분류 | 화면 | src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:680 |
+| TB_MCM_NOTICE | NOTICE_ID | 공지 번호 | 화면 | src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:637 |
+| TB_MCM_NOTICE | NOTICE_STATUS | 게시 상태 | 화면 | src/frontend/m-mcm/page-components/lsh/noticeMgmt/notice-columns.tsx:72 |
+| TB_MCM_NOTICE | PIN_YN | 상단 고정 여부 | 화면 | src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:695 |
+| TB_MCM_NOTICE | POST_END_DT | 게시 종료일 | 화면 | src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:739 |
+| TB_MCM_NOTICE | POST_START_DT | 게시 시작일 | 화면 | src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:727 |
 | TB_MCM_NOTICE | TARGET_SCOPE | 대상 범위 | 추정 | 물리명 분해 |
 | TB_MCM_NOTICE | TITLE | 제목 | 사전 | MDM 사전 |
 | TB_MCM_NOTICE | U_AT | 수정일시 | 추정 | 공통 칼럼 규칙 (동일 물리명 통일) |
@@ -419,7 +419,7 @@
 | TB_MCM_SEC_MENU | MENU_VIEW_YN | 메뉴 표시 여부 | 추정 | 물리명 분해 |
 | TB_MCM_SEC_MENU | OBJECT_ID | 오브젝트 아이디 | 사전 | MDM 사전 |
 | TB_MCM_SEC_MENU | PARENT_MENU_ID | 상위 메뉴 아이디 | 추정 | 물리명 분해 |
-| TB_MCM_SEC_MENU | START_ACTIVE_DATE | 유효 시작일 | 추정 | 물리명 분해 (동일 물리명 통일) |
+| TB_MCM_SEC_MENU | START_ACTIVE_DATE | 유효 시작일 | 코드 | src/backend/cactus-core/docs/AS-IS/CACTUS_SECURITY.md:1249 |
 | TB_MCM_SEC_MENU | USE_TP | 사용 구분 | 사전 | MDM 사전 |
 | TB_MCM_SEC_MENU | U_AT | 수정일시 | 추정 | 공통 칼럼 규칙 (동일 물리명 통일) |
 | TB_MCM_SEC_MENU | U_PGM_ID | 수정 프로그램 아이디 | 추정 | 공통 칼럼 규칙 |
@@ -435,12 +435,12 @@
 | TB_MCM_SEC_OBJ | FORM_URL | 화면 URL | 추정 | 물리명 분해 |
 | TB_MCM_SEC_OBJ | OBJECT_ID | 오브젝트 아이디 | 사전 | MDM 사전 |
 | TB_MCM_SEC_OBJ | OBJECT_NM | 오브젝트 명 | 사전 | MDM 사전 |
-| TB_MCM_SEC_OBJ | OBJECT_TYPE | 오브젝트 유형 | 추정 | 물리명 분해 |
-| TB_MCM_SEC_OBJ | OUT_ACCESS_IP | 외부 접근 아이피 | 추정 | 물리명 분해 |
+| TB_MCM_SEC_OBJ | OBJECT_TYPE | 오브젝트 유형 | 화면 | src/frontend/m-mcm/page-components/csa/commObjMng/page.tsx:142 |
+| TB_MCM_SEC_OBJ | OUT_ACCESS_IP | 외부 접속 주소 | 화면 | src/frontend/m-mcm/page-components/csa/commObjMng/page.tsx:163 |
 | TB_MCM_SEC_OBJ | PARAM | 파라미터 | 추정 | 물리명 분해 |
-| TB_MCM_SEC_OBJ | PROGRAM_DESC | 프로그램 설명 | 추정 | 물리명 분해 |
+| TB_MCM_SEC_OBJ | PROGRAM_DESC | 프로그램 설명 | 화면 | src/frontend/m-mcm/page-components/csa/commObjMng/page.tsx:140 |
 | TB_MCM_SEC_OBJ | SERVICE | 서비스 | 추정 | 물리명 분해 |
-| TB_MCM_SEC_OBJ | START_ACTIVE_DATE | 유효 시작일 | 추정 | 물리명 분해 (동일 물리명 통일) |
+| TB_MCM_SEC_OBJ | START_ACTIVE_DATE | 유효 시작일 | 코드 | src/backend/cactus-core/docs/AS-IS/CACTUS_SECURITY.md:1249 |
 | TB_MCM_SEC_OBJ | SYSTEM_CODE | 시스템 코드 | 추정 | 물리명 분해 |
 | TB_MCM_SEC_OBJ | USE_TP | 사용 구분 | 사전 | MDM 사전 |
 | TB_MCM_SEC_OBJ | U_AT | 수정일시 | 추정 | 공통 칼럼 규칙 (동일 물리명 통일) |
@@ -453,14 +453,14 @@
 | TB_MCM_SEC_PERM | C_SVC_ID | 생성 서비스 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_PERM | C_USR_ID | 생성자 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_PERM | END_ACTIVE_DATE | 유효 종료일 | 추정 | 물리명 분해 (동일 물리명 통일) |
-| TB_MCM_SEC_PERM | PERMISSION_ACTION | 권한 동작 | 추정 | 물리명 분해 |
-| TB_MCM_SEC_PERM | PERMISSION_COMMON | 공통 권한 | 추정 | 물리명 분해 |
-| TB_MCM_SEC_PERM | PERMISSION_CUSTOM | 개별 권한 | 추정 | 물리명 분해 |
+| TB_MCM_SEC_PERM | PERMISSION_ACTION | 동작 권한 | 화면 | src/frontend/m-mcm/page-components/csa/commPermMng/page.tsx:191 |
+| TB_MCM_SEC_PERM | PERMISSION_COMMON | 공통 버튼 권한 | 화면 | src/frontend/m-mcm/page-components/csa/commPermMng/page.tsx:188 |
+| TB_MCM_SEC_PERM | PERMISSION_CUSTOM | 개별 버튼 권한 | 화면 | src/frontend/m-mcm/page-components/csa/commPermMng/page.tsx:189 |
 | TB_MCM_SEC_PERM | PERMISSION_DESC | 권한 설명 | 추정 | 물리명 분해 |
 | TB_MCM_SEC_PERM | PERMISSION_ID | 권한 아이디 | 추정 | 물리명 분해 |
 | TB_MCM_SEC_PERM | PERMISSION_NM | 권한 명 | 추정 | 물리명 분해 |
-| TB_MCM_SEC_PERM | POPUP_BTN | 팝업 버튼 | 추정 | 물리명 분해 |
-| TB_MCM_SEC_PERM | START_ACTIVE_DATE | 유효 시작일 | 추정 | 물리명 분해 (동일 물리명 통일) |
+| TB_MCM_SEC_PERM | POPUP_BTN | 팝업 버튼 | 화면 | src/frontend/m-mcm/page-components/csa/commPermMng/page.tsx:190 |
+| TB_MCM_SEC_PERM | START_ACTIVE_DATE | 유효 시작일 | 코드 | src/backend/cactus-core/docs/AS-IS/CACTUS_SECURITY.md:1249 |
 | TB_MCM_SEC_PERM | USE_TP | 사용 구분 | 사전 | MDM 사전 |
 | TB_MCM_SEC_PERM | U_AT | 수정일시 | 추정 | 공통 칼럼 규칙 (동일 물리명 통일) |
 | TB_MCM_SEC_PERM | U_PGM_ID | 수정 프로그램 아이디 | 추정 | 공통 칼럼 규칙 |
@@ -471,7 +471,7 @@
 | TB_MCM_SEC_ROLEGROUP_MAPPING | C_PGM_ID | 생성 프로그램 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_ROLEGROUP_MAPPING | C_SVC_ID | 생성 서비스 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_ROLEGROUP_MAPPING | C_USR_ID | 생성자 아이디 | 추정 | 공통 칼럼 규칙 |
-| TB_MCM_SEC_ROLEGROUP_MAPPING | ROLE_GROUP_ID | 직무 그룹 아이디 | 추정 | 물리명 분해 |
+| TB_MCM_SEC_ROLEGROUP_MAPPING | ROLE_GROUP_ID | 역할 그룹 아이디 | 화면 | src/frontend/m-mcm/page-components/csa/commRoleGrpMng/page.tsx:231 |
 | TB_MCM_SEC_ROLEGROUP_MAPPING | ROLE_ID | 직무 아이디 | 사전 | MDM 사전 |
 | TB_MCM_SEC_ROLEGROUP_MAPPING | U_AT | 수정일시 | 추정 | 공통 칼럼 규칙 (동일 물리명 통일) |
 | TB_MCM_SEC_ROLEGROUP_MAPPING | U_PGM_ID | 수정 프로그램 아이디 | 추정 | 공통 칼럼 규칙 |
@@ -483,10 +483,10 @@
 | TB_MCM_SEC_ROLEGROUP | C_SVC_ID | 생성 서비스 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_ROLEGROUP | C_USR_ID | 생성자 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_ROLEGROUP | END_ACTIVE_DATE | 유효 종료일 | 추정 | 물리명 분해 (동일 물리명 통일) |
-| TB_MCM_SEC_ROLEGROUP | ROLE_GROUP_DESC | 직무 그룹 설명 | 추정 | 물리명 분해 |
-| TB_MCM_SEC_ROLEGROUP | ROLE_GROUP_ID | 직무 그룹 아이디 | 추정 | 물리명 분해 |
-| TB_MCM_SEC_ROLEGROUP | ROLE_GROUP_NM | 직무 그룹 명 | 추정 | 물리명 분해 |
-| TB_MCM_SEC_ROLEGROUP | START_ACTIVE_DATE | 유효 시작일 | 추정 | 물리명 분해 (동일 물리명 통일) |
+| TB_MCM_SEC_ROLEGROUP | ROLE_GROUP_DESC | 역할 그룹 설명 | 화면 | src/frontend/m-mcm/page-components/csa/commRoleGrpMng/page.tsx:175 |
+| TB_MCM_SEC_ROLEGROUP | ROLE_GROUP_ID | 역할 그룹 아이디 | 화면 | src/frontend/m-mcm/page-components/csa/commRoleGrpMng/page.tsx:231 |
+| TB_MCM_SEC_ROLEGROUP | ROLE_GROUP_NM | 역할 그룹 명 | 화면 | src/frontend/m-mcm/page-components/csa/commRoleGrpMng/page.tsx:174 |
+| TB_MCM_SEC_ROLEGROUP | START_ACTIVE_DATE | 유효 시작일 | 코드 | src/backend/cactus-core/docs/AS-IS/CACTUS_SECURITY.md:1249 |
 | TB_MCM_SEC_ROLEGROUP | USE_TP | 사용 구분 | 사전 | MDM 사전 |
 | TB_MCM_SEC_ROLEGROUP | U_AT | 수정일시 | 추정 | 공통 칼럼 규칙 (동일 물리명 통일) |
 | TB_MCM_SEC_ROLEGROUP | U_PGM_ID | 수정 프로그램 아이디 | 추정 | 공통 칼럼 규칙 |
@@ -511,11 +511,11 @@
 | TB_MCM_SEC_ROLE | C_USR_ID | 생성자 아이디 | 추정 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_ROLE | END_ACTIVE_DATE | 유효 종료일 | 추정 | 물리명 분해 (동일 물리명 통일) |
 | TB_MCM_SEC_ROLE | MENU_ID | 메뉴 아이디 | 사전 | MDM 사전 |
-| TB_MCM_SEC_ROLE | PARENT_ROLE_ID | 상위 직무 아이디 | 추정 | 물리명 분해 |
+| TB_MCM_SEC_ROLE | PARENT_ROLE_ID | 부모 역할 아이디 | 화면 | src/frontend/m-mcm/page-components/csa/commRoleGrpMng/page.tsx:206 |
 | TB_MCM_SEC_ROLE | ROLE_DESC | 직무 설명 | 사전 | MDM 사전 |
 | TB_MCM_SEC_ROLE | ROLE_ID | 직무 아이디 | 사전 | MDM 사전 |
 | TB_MCM_SEC_ROLE | ROLE_NM | 직무 명 | 사전 | MDM 사전 |
-| TB_MCM_SEC_ROLE | START_ACTIVE_DATE | 유효 시작일 | 추정 | 물리명 분해 (동일 물리명 통일) |
+| TB_MCM_SEC_ROLE | START_ACTIVE_DATE | 유효 시작일 | 코드 | src/backend/cactus-core/docs/AS-IS/CACTUS_SECURITY.md:1249 |
 | TB_MCM_SEC_ROLE | USE_TP | 사용 구분 | 사전 | MDM 사전 |
 | TB_MCM_SEC_ROLE | U_AT | 수정일시 | 추정 | 공통 칼럼 규칙 (동일 물리명 통일) |
 | TB_MCM_SEC_ROLE | U_PGM_ID | 수정 프로그램 아이디 | 추정 | 공통 칼럼 규칙 |
@@ -534,12 +534,12 @@
 | TB_MCM_SEC_USER | GROUP_ID1 | 그룹 아이디1 | 추정 | 물리명 분해 |
 | TB_MCM_SEC_USER | GROUP_ID2 | 그룹 아이디2 | 추정 | 물리명 분해 |
 | TB_MCM_SEC_USER | GROUP_ID3 | 그룹 아이디3 | 추정 | 물리명 분해 |
-| TB_MCM_SEC_USER | IN_OUT_EMP_TP | 내외부 사원 구분 | 추정 | 물리명 분해 |
+| TB_MCM_SEC_USER | IN_OUT_EMP_TP | 내부 외부 구분 | 화면 | src/frontend/m-mcm/page-components/csa/commUserMng/page.tsx:1149 |
 | TB_MCM_SEC_USER | MENU_TP | 메뉴 구분 | 추정 | 물리명 분해 |
-| TB_MCM_SEC_USER | MOBILE_TEL_NO | 휴대 전화 번호 | 추정 | 물리명 분해 |
+| TB_MCM_SEC_USER | MOBILE_TEL_NO | 휴대 전화 번호 | 화면 | src/frontend/m-mcm/page-components/csa/commUserMng/page.tsx:234 |
 | TB_MCM_SEC_USER | PWD_FAIL_COUNT | 비밀번호 실패 횟수 | 추정 | 물리명 분해 |
 | TB_MCM_SEC_USER | SSO_ID | SSO 아이디 | 사전 | MDM 사전 |
-| TB_MCM_SEC_USER | START_ACTIVE_DATE | 유효 시작일 | 추정 | 물리명 분해 (동일 물리명 통일) |
+| TB_MCM_SEC_USER | START_ACTIVE_DATE | 유효 시작일 | 코드 | src/backend/cactus-core/docs/AS-IS/CACTUS_SECURITY.md:1249 |
 | TB_MCM_SEC_USER | TEL_NO | 전화 번호 | 사전 | MDM 사전 |
 | TB_MCM_SEC_USER | THEME_TP | 테마 구분 | 추정 | 물리명 분해 |
 | TB_MCM_SEC_USER | USER_CATEGORY_CD | 사용자 분류 코드 | 추정 | 물리명 분해 |
@@ -600,7 +600,7 @@
 | TB_MCM_SEC_USER_MAPPING | C_PGM_ID | 생성 프로그램 아이디 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_USER_MAPPING | C_SVC_ID | 생성 서비스 아이디 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_USER_MAPPING | C_USR_ID | 생성자 아이디 | 코드 | 공통 칼럼 규칙 |
-| TB_MCM_SEC_USER_MAPPING | ROLE_GROUP_ID | 직무 그룹 아이디 | 추정 | 물리명 분해 (동일 물리명 통일) |
+| TB_MCM_SEC_USER_MAPPING | ROLE_GROUP_ID | 역할 그룹 아이디 | 화면 | src/frontend/m-mcm/page-components/csa/commRoleGrpMng/page.tsx:231 |
 | TB_MCM_SEC_USER_MAPPING | USER_ID | 사용자 아이디 | 사전 | MDM 사전 |
 | TB_MCM_SEC_USER_MAPPING | U_AT | 수정일시 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_USER_MAPPING | U_PGM_ID | 수정 프로그램 아이디 | 코드 | 공통 칼럼 규칙 |
@@ -612,12 +612,12 @@
 | TB_MCM_SEC_USER_PWD | C_SVC_ID | 생성 서비스 아이디 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_USER_PWD | C_USR_ID | 생성자 아이디 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_USER_PWD | LAST_PWD_CHNG_DATE | 마지막 비밀번호 변경일자 | 추정 | 물리명 분해 |
-| TB_MCM_SEC_USER_PWD | SALT | 솔트 | 추정 | 물리명 분해 |
-| TB_MCM_SEC_USER_PWD | TEMP_PWD_EXPIRATION_DATE | 임시 비밀번호 만료일자 | 추정 | 물리명 분해 |
-| TB_MCM_SEC_USER_PWD | USER_ENC_PWD | 사용자 암호화 비밀번호 | 추정 | 물리명 분해 |
-| TB_MCM_SEC_USER_PWD | USER_ENC_TEMP_PWD | 사용자 암호화 임시 비밀번호 | 추정 | 물리명 분해 |
+| TB_MCM_SEC_USER_PWD | SALT | 비밀번호 솔트 | 코드 | src/backend/cactus-core/docs/AS-IS/CACTUS_SECURITY.md:1260 |
+| TB_MCM_SEC_USER_PWD | TEMP_PWD_EXPIRATION_DATE | 임시 비밀번호 만료일시 | 코드 | src/backend/cactus-core/docs/AS-IS/CACTUS_SECURITY.md:1263 |
+| TB_MCM_SEC_USER_PWD | USER_ENC_PWD | 사용자 암호화 비밀번호 | 코드 | src/backend/cactus-core/docs/AS-IS/CACTUS_SECURITY.md:1259 |
+| TB_MCM_SEC_USER_PWD | USER_ENC_TEMP_PWD | 임시 비밀번호 | 코드 | src/backend/cactus-core/docs/AS-IS/CACTUS_SECURITY.md:1262 |
 | TB_MCM_SEC_USER_PWD | USER_ID | 사용자 아이디 | 사전 | MDM 사전 |
-| TB_MCM_SEC_USER_PWD | USER_SSO_PWD | 사용자 SSO 비밀번호 | 추정 | 물리명 분해 |
+| TB_MCM_SEC_USER_PWD | USER_SSO_PWD | SSO 비밀번호 | 코드 | src/backend/cactus-core/docs/AS-IS/CACTUS_SECURITY.md:1261 |
 | TB_MCM_SEC_USER_PWD | U_AT | 수정일시 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_USER_PWD | U_PGM_ID | 수정 프로그램 아이디 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_USER_PWD | U_SVC_ID | 수정 서비스 아이디 | 코드 | 공통 칼럼 규칙 |
@@ -631,8 +631,8 @@
 | TB_MCM_SEC_USER_ROLL_HIS | INF_REQ_NO | 인터페이스 요청 번호 | 추정 | 물리명 분해 |
 | TB_MCM_SEC_USER_ROLL_HIS | OP_SUMUP_DT | 조업 집계일자 | 추정 | 물리명 분해 |
 | TB_MCM_SEC_USER_ROLL_HIS | RESP_GBN | 응답 구분 | 추정 | 물리명 분해 |
-| TB_MCM_SEC_USER_ROLL_HIS | ROLE_GROUP_ID | 직무 그룹 아이디 | 추정 | 물리명 분해 (동일 물리명 통일) |
-| TB_MCM_SEC_USER_ROLL_HIS | ROLE_GROUP_NM | 직무 그룹 명 | 추정 | 물리명 분해 (동일 물리명 통일) |
+| TB_MCM_SEC_USER_ROLL_HIS | ROLE_GROUP_ID | 역할 그룹 아이디 | 화면 | src/frontend/m-mcm/page-components/csa/commRoleGrpMng/page.tsx:231 |
+| TB_MCM_SEC_USER_ROLL_HIS | ROLE_GROUP_NM | 역할 그룹 명 | 화면 | src/frontend/m-mcm/page-components/csa/commRoleGrpMng/page.tsx:174 |
 | TB_MCM_SEC_USER_ROLL_HIS | USER_ID | 사용자 아이디 | 사전 | MDM 사전 |
 | TB_MCM_SEC_USER_ROLL_HIS | U_AT | 수정일시 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_USER_ROLL_HIS | U_PGM_ID | 수정 프로그램 아이디 | 코드 | 공통 칼럼 규칙 |
@@ -669,7 +669,7 @@
 | TB_MCM_SEC_USER_START_PGM | U_SVC_ID | 수정 서비스 아이디 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_USER_START_PGM | U_USR_ID | 수정자 아이디 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_USER_START_PGM | VER | 버전 | 사전 | MDM 사전 |
-| TB_MCM_SEC_USER_WIDGET_CHAT | CONTENT | 내용 | 추정 | 물리명 분해 |
+| TB_MCM_SEC_USER_WIDGET_CHAT | CONTENT | 본문 | 화면 | src/frontend/m-mcm/page-components/lsh/noticeMgmt/api.ts:57 |
 | TB_MCM_SEC_USER_WIDGET_CHAT | C_AT | 생성일시 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_USER_WIDGET_CHAT | C_PGM_ID | 생성 프로그램 아이디 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_USER_WIDGET_CHAT | C_SVC_ID | 생성 서비스 아이디 | 코드 | 공통 칼럼 규칙 |
@@ -684,7 +684,7 @@
 | TB_MCM_SEC_USER_WIDGET_CHAT | U_SVC_ID | 수정 서비스 아이디 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_USER_WIDGET_CHAT | U_USR_ID | 수정자 아이디 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_USER_WIDGET_CHAT | VER | 버전 | 사전 | MDM 사전 |
-| TB_MCM_SEC_USER_WIDGET_MEMO | CONTENT | 내용 | 추정 | 물리명 분해 |
+| TB_MCM_SEC_USER_WIDGET_MEMO | CONTENT | 본문 | 화면 | src/frontend/m-mcm/page-components/lsh/noticeMgmt/api.ts:57 |
 | TB_MCM_SEC_USER_WIDGET_MEMO | C_AT | 생성일시 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_USER_WIDGET_MEMO | C_PGM_ID | 생성 프로그램 아이디 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_USER_WIDGET_MEMO | C_SVC_ID | 생성 서비스 아이디 | 코드 | 공통 칼럼 규칙 |
@@ -706,7 +706,7 @@
 | TB_MCM_SEC_USER_WIDGET_TAB | LOCK_YN | 잠금 여부 | 사전 | MDM 사전 |
 | TB_MCM_SEC_USER_WIDGET_TAB | TAB_ID | 탭 아이디 | 추정 | 물리명 분해 |
 | TB_MCM_SEC_USER_WIDGET_TAB | TAB_NM | 탭 명 | 추정 | 물리명 분해 |
-| TB_MCM_SEC_USER_WIDGET_TAB | TAB_SEQ | 탭 순번 | 추정 | 물리명 분해 |
+| TB_MCM_SEC_USER_WIDGET_TAB | TAB_SEQ | 탭 표시 순서 | 코드 | mcm-core/.../widget/layout/entity/WidgetDefaultTab.java:36 |
 | TB_MCM_SEC_USER_WIDGET_TAB | USER_ID | 사용자 아이디 | 사전 | MDM 사전 |
 | TB_MCM_SEC_USER_WIDGET_TAB | U_AT | 수정일시 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_SEC_USER_WIDGET_TAB | U_PGM_ID | 수정 프로그램 아이디 | 코드 | 공통 칼럼 규칙 |
@@ -774,35 +774,35 @@
 | TB_MCM_WIDGET_DEFAULT_TAB | LAYOUT_KEY | 레이아웃 키 | 추정 | 물리명 분해 |
 | TB_MCM_WIDGET_DEFAULT_TAB | TAB_ID | 탭 아이디 | 추정 | 물리명 분해 |
 | TB_MCM_WIDGET_DEFAULT_TAB | TAB_NM | 탭 명 | 추정 | 물리명 분해 |
-| TB_MCM_WIDGET_DEFAULT_TAB | TAB_SEQ | 탭 순번 | 추정 | 물리명 분해 |
+| TB_MCM_WIDGET_DEFAULT_TAB | TAB_SEQ | 탭 표시 순서 | 코드 | mcm-core/.../widget/layout/entity/WidgetDefaultTab.java:36 |
 | TB_MCM_WIDGET_DEFAULT_TAB | U_AT | 수정일시 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_WIDGET_DEFAULT_TAB | U_PGM_ID | 수정 프로그램 아이디 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_WIDGET_DEFAULT_TAB | U_SVC_ID | 수정 서비스 아이디 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_WIDGET_DEFAULT_TAB | U_USR_ID | 수정자 아이디 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_WIDGET_DEFAULT_TAB | VER | 버전 | 사전 | MDM 사전 |
-| TB_MCM_WIDGET_DEF | CATEGORY_CD | 분류 코드 | 추정 | 물리명 분해 |
+| TB_MCM_WIDGET_DEF | CATEGORY_CD | 분류 | 화면 | src/frontend/m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:263 |
 | TB_MCM_WIDGET_DEF | CONFIG_JSON | 설정 JSON | 추정 | 물리명 분해 |
 | TB_MCM_WIDGET_DEF | C_AT | 생성일시 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_WIDGET_DEF | C_PGM_ID | 생성 프로그램 아이디 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_WIDGET_DEF | C_SVC_ID | 생성 서비스 아이디 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_WIDGET_DEF | C_USR_ID | 생성자 아이디 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_WIDGET_DEF | DATA_SRC | 데이터 출처 | 사전 | MDM 사전 |
-| TB_MCM_WIDGET_DEF | DEF_H | 기본 세로 | 추정 | 물리명 분해 |
-| TB_MCM_WIDGET_DEF | DEF_W | 기본 가로 | 추정 | 물리명 분해 |
+| TB_MCM_WIDGET_DEF | DEF_H | 기본 세로 | 화면 | src/frontend/m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:190 |
+| TB_MCM_WIDGET_DEF | DEF_W | 기본 가로 | 화면 | src/frontend/m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:190 |
 | TB_MCM_WIDGET_DEF | DESCRIPTION | 설명 | 코드 | 공통 칼럼 규칙 |
-| TB_MCM_WIDGET_DEF | LINK_PAGE_ID | 연결 페이지 아이디 | 추정 | 물리명 분해 |
-| TB_MCM_WIDGET_DEF | MAX_H | 최대 세로 | 추정 | 물리명 분해 |
+| TB_MCM_WIDGET_DEF | LINK_PAGE_ID | 연결 화면 아이디 | 화면 | src/frontend/m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:239 |
+| TB_MCM_WIDGET_DEF | MAX_H | 최대 세로 | 코드 | src/backend/mcm-core/src/main/java/com/dongkuk/dmes/mcm/widget/def/service/WidgetDefMaps.java:14 |
 | TB_MCM_WIDGET_DEF | MAX_W | 최대 가로 | 추정 | 물리명 분해 |
 | TB_MCM_WIDGET_DEF | MIN_H | 최소 세로 | 추정 | 물리명 분해 |
 | TB_MCM_WIDGET_DEF | MIN_W | 최소 가로 | 추정 | 물리명 분해 |
-| TB_MCM_WIDGET_DEF | MULTIPLE_YN | 다중 허용 여부 | 추정 | 물리명 분해 |
-| TB_MCM_WIDGET_DEF | PLACE_TP | 배치 유형 | 추정 | 물리명 분해 |
-| TB_MCM_WIDGET_DEF | PRIVATE_YN | 비공개 여부 | 추정 | 물리명 분해 |
-| TB_MCM_WIDGET_DEF | REFRESH_SEC | 갱신 주기(초) | 추정 | 물리명 분해 |
-| TB_MCM_WIDGET_DEF | SRC_TP | 출처 유형 | 추정 | 물리명 분해 |
-| TB_MCM_WIDGET_DEF | SUBTITLE | 부제목 | 추정 | 물리명 분해 |
+| TB_MCM_WIDGET_DEF | MULTIPLE_YN | 여러 번 놓기 여부 | 화면 | src/frontend/m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:251 |
+| TB_MCM_WIDGET_DEF | PLACE_TP | 배치 유형 | 화면 | src/frontend/m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:276 |
+| TB_MCM_WIDGET_DEF | PRIVATE_YN | 비공개 여부 | 화면 | src/frontend/m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:300 |
+| TB_MCM_WIDGET_DEF | REFRESH_SEC | 새로 고침(초) | 화면 | src/frontend/m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:222 |
+| TB_MCM_WIDGET_DEF | SRC_TP | 위젯 구분 | 화면 | mcm-core/.../widget/admin/service/CommWidgetMngService.java:112 |
+| TB_MCM_WIDGET_DEF | SUBTITLE | 부제 | 화면 | mcm-core/.../widget/admin/service/CommWidgetMngService.java:118 |
 | TB_MCM_WIDGET_DEF | TITLE | 제목 | 사전 | MDM 사전 |
-| TB_MCM_WIDGET_DEF | TYPE_ID | 유형 아이디 | 추정 | 물리명 분해 |
+| TB_MCM_WIDGET_DEF | TYPE_ID | 위젯 유형 아이디 | 화면 | mcm-core/.../widget/admin/service/CommWidgetMngService.java:142 |
 | TB_MCM_WIDGET_DEF | USE_YN | 사용 여부 | 사전 | MDM 사전 |
 | TB_MCM_WIDGET_DEF | U_AT | 수정일시 | 코드 | 공통 칼럼 규칙 |
 | TB_MCM_WIDGET_DEF | U_PGM_ID | 수정 프로그램 아이디 | 코드 | 공통 칼럼 규칙 |
@@ -832,8 +832,8 @@
 | TB_SEC_AUDIT_LOG | OCCURRED_AT | 발생일시 | 추정 | 물리명 분해 |
 | TB_SEC_AUDIT_LOG | TARGET_ID | 대상 아이디 | 추정 | 물리명 분해 |
 | TB_SEC_AUDIT_LOG | TARGET_TYPE | 대상 유형 | 추정 | 물리명 분해 |
-| TB_SEC_CODE_CATEGORY | CATEGORY_CD | 분류 코드 | 추정 | 물리명 분해 |
-| TB_SEC_CODE_CATEGORY | CATEGORY_NM | 카테고리 이름 | 추정 | 물리명 분해 (동일 물리명 통일) |
+| TB_SEC_CODE_CATEGORY | CATEGORY_CD | 분류 | 화면 | src/frontend/m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:263 |
+| TB_SEC_CODE_CATEGORY | CATEGORY_NM | 카테고리명 | 화면 | src/frontend/m-mcm/page-components/cma/masterCategoryMng/types.ts:18 |
 | TB_SEC_CODE_CATEGORY | C_AT | 생성일시 | 코드 | 공통 칼럼 규칙 |
 | TB_SEC_CODE_CATEGORY | C_PGM_ID | 생성 프로그램 아이디 | 코드 | 공통 칼럼 규칙 |
 | TB_SEC_CODE_CATEGORY | C_SVC_ID | 생성 서비스 아이디 | 코드 | 공통 칼럼 규칙 |
@@ -895,8 +895,8 @@
 | TB_SEC_REVOKED_TOKEN | REVOKED_AT | 폐기일시 | 추정 | 물리명 분해 |
 | TB_SEC_REVOKED_TOKEN | USER_ID | 사용자 아이디 | 사전 | MDM 사전 |
 | TB_SEC_SCREEN_USAGE_DAY | DEPT_CD | 부서 코드 | 사전 | MDM 사전 |
-| TB_SEC_SCREEN_USAGE_DAY | DURATION_MS | 소요 시간(ms) | 추정 | 물리명 분해 |
-| TB_SEC_SCREEN_USAGE_DAY | OPEN_CNT | 열기 횟수 | 추정 | 물리명 분해 |
+| TB_SEC_SCREEN_USAGE_DAY | DURATION_MS | 이용 시간(ms) | 화면 | src/frontend/m-mcm/page-components/csa/screenUsageStat/tabs/overview-tab.ts:15 |
+| TB_SEC_SCREEN_USAGE_DAY | OPEN_CNT | 열람 횟수 | 화면 | src/frontend/m-mcm/page-components/csa/screenUsageStat/tabs/overview-tab.ts:13 |
 | TB_SEC_SCREEN_USAGE_DAY | PAGE_ID | 페이지 아이디 | 사전 | MDM 사전 |
 | TB_SEC_SCREEN_USAGE_DAY | SEG_CNT | 구간 수 | 추정 | 물리명 분해 |
 | TB_SEC_SCREEN_USAGE_DAY | USAGE_DT | 사용일자 | 추정 | 물리명 분해 |
@@ -904,11 +904,11 @@
 | TB_SEC_SCREEN_USAGE_LOG | CLIENT_IP | 클라이언트 IP | 사전 | MDM 사전 |
 | TB_SEC_SCREEN_USAGE_LOG | CLIENT_SEG_ID | 클라이언트 구간 아이디 | 추정 | 물리명 분해 |
 | TB_SEC_SCREEN_USAGE_LOG | DEPT_CD | 부서 코드 | 사전 | MDM 사전 |
-| TB_SEC_SCREEN_USAGE_LOG | DURATION_MS | 소요 시간(ms) | 추정 | 물리명 분해 |
-| TB_SEC_SCREEN_USAGE_LOG | ENDED_AT | 종료 일시 | 추정 | 물리명 분해 (동일 물리명 통일) |
+| TB_SEC_SCREEN_USAGE_LOG | DURATION_MS | 이용 시간(ms) | 화면 | src/frontend/m-mcm/page-components/csa/screenUsageStat/tabs/overview-tab.ts:15 |
+| TB_SEC_SCREEN_USAGE_LOG | ENDED_AT | 종료 일시 | 화면 | src/frontend/m-mcm/page-components/csa/screenUsageStat/tabs/HistoryTab.tsx:15 |
 | TB_SEC_SCREEN_USAGE_LOG | PAGE_ID | 페이지 아이디 | 사전 | MDM 사전 |
 | TB_SEC_SCREEN_USAGE_LOG | RECEIVED_AT | 수신일시 | 추정 | 물리명 분해 |
-| TB_SEC_SCREEN_USAGE_LOG | STARTED_AT | 시작 일시 | 추정 | 물리명 분해 (동일 물리명 통일) |
+| TB_SEC_SCREEN_USAGE_LOG | STARTED_AT | 시작 시각 | 코드 | src/backend/cactus-core/docs/12-요청로그DB저장_미개발.md:45 |
 | TB_SEC_SCREEN_USAGE_LOG | START_KIND | 시작 종류 | 추정 | 물리명 분해 |
 | TB_SEC_SCREEN_USAGE_LOG | USAGE_ID | 사용 아이디 | 추정 | 물리명 분해 |
 | TB_SEC_SCREEN_USAGE_LOG | USER_ID | 사용자 아이디 | 사전 | MDM 사전 |
@@ -920,7 +920,7 @@
 | TB_SEC_USER | LOCK_YN | 잠금 여부 | 사전 | MDM 사전 |
 | TB_SEC_USER | PASS_INIT_YN | 비밀번호 초기화 여부 | 추정 | 물리명 분해 |
 | TB_SEC_USER | PASS_SET_DD | 비밀번호 설정일자 | 추정 | 물리명 분해 |
-| TB_SEC_USER | TRY_CNT | 시도 횟수 | 추정 | 물리명 분해 |
+| TB_SEC_USER | TRY_CNT | 로그인 실패 횟수 | 코드 | src/backend/cactus-core/docs/04-인증보안JWT_개발완료.md:101 |
 | TB_SEC_USER | USER_ID | 사용자 아이디 | 사전 | MDM 사전 |
 | TB_SEC_USER | USER_NM | 사용자 명 | 사전 | MDM 사전 |
 | TB_SEC_USER | USER_NO | 사용자 번호 | 사전 | MDM 사전 |
@@ -963,7 +963,7 @@
 | TB_MCA_RULE_COL_LIST | MASTER_CODE_DIV | 코드 여부 | 화면 | src/frontend/m-mcm/page-components/cmb/masterRuleFrame/types.ts:27 |
 | TB_MCA_RULE_COL_LIST | MES_COL_ID | MES 항목 아이디 | 화면 | src/frontend/m-mcm/page-components/cmb/masterRuleFrame/types.ts:44 |
 | TB_MCA_RULE_COL_LIST | OLD_COL_ID | 이전 항목 아이디 | 화면 | src/frontend/m-mcm/page-components/cmb/masterRuleFrame/types.ts:46 |
-| TB_MCA_RULE_COL_LIST | RULE_ID | 업무기준 아이디 | 추정 | 물리명 분해 |
+| TB_MCA_RULE_COL_LIST | RULE_ID | 업무기준 아이디 | 화면 | src/frontend/m-mcm/page-components/cmb/masterRuleList/constants.ts:30 |
 | TB_MCA_RULE_COL_LIST | RULE_VER | 업무기준 버전 | 화면 | src/frontend/m-mcm/page-components/cmb/masterRuleFrame/types.ts:48 |
 | TB_MCA_RULE_COL_LIST | U_AT | 수정일시 | 추정 | 공통 칼럼 규칙(지시) |
 | TB_MCA_RULE_COL_LIST | U_PGM_ID | 수정 프로그램 아이디 | 추정 | 공통 칼럼 규칙(지시) |
@@ -976,10 +976,10 @@
 | TB_MCA_RULE_MASTER | C_USR_ID | 생성자 아이디 | 추정 | 공통 칼럼 규칙(지시) |
 | TB_MCA_RULE_MASTER | OLD_RULE_ID | 이전 업무기준 아이디 | 화면 | src/frontend/m-mcm/page-components/cmb/masterRuleList/types.ts:28 |
 | TB_MCA_RULE_MASTER | RULE_DESC | 업무기준 설명 | 추정 | 물리명 분해 |
-| TB_MCA_RULE_MASTER | RULE_ID | 업무기준 아이디 | 추정 | 물리명 분해 |
-| TB_MCA_RULE_MASTER | RULE_NM | 업무기준 이름 | 추정 | 물리명 분해 |
+| TB_MCA_RULE_MASTER | RULE_ID | 업무기준 아이디 | 화면 | src/frontend/m-mcm/page-components/cmb/masterRuleList/constants.ts:30 |
+| TB_MCA_RULE_MASTER | RULE_NM | 업무기준 명 | 화면 | src/frontend/m-mcm/page-components/cmb/masterRuleList/constants.ts:31 |
 | TB_MCA_RULE_MASTER | RULE_OWNER_DEPT_NM | 업무기준 담당 부서명 | 추정 | 물리명 분해 |
-| TB_MCA_RULE_MASTER | RULE_OWNER_EMP_NO | 업무기준 담당 사원번호 | 추정 | 물리명 분해 |
+| TB_MCA_RULE_MASTER | RULE_OWNER_EMP_NO | 업무기준 담당 사원번호 | 코드 | mcm-core/.../masterRuleList/service/MasterRuleListService.java:80 |
 | TB_MCA_RULE_MASTER | RULE_TP | 업무기준 유형 | 추정 | 물리명 분해 |
 | TB_MCA_RULE_MASTER | RULE_VER | 업무기준 버전 | 화면 | src/frontend/m-mcm/page-components/cmb/masterRuleFrame/types.ts:48 |
 | TB_MCA_RULE_MASTER | USE_TP | 사용 구분 | 사전 |  |
@@ -1004,7 +1004,7 @@
 
 | 테이블 | 칼럼 | 이름 | 근거 | 상세 |
 |---|---|---|---|---|
-| TB_MCM_CODE_CATEGORY | CATEGORY_ID | 카테고리 아이디 | 추정 | 물리명 분해 |
+| TB_MCM_CODE_CATEGORY | CATEGORY_ID | 카테고리 아이디 | 화면 | src/frontend/m-mcm/page-components/cma/masterCategoryMng/types.ts:16 |
 | TB_MCM_CODE_CATEGORY | CATEGORY_NM | 카테고리 이름 | 화면 | src/frontend/m-mcm/page-components/cme/masterCodeMngList/types.ts:51 |
 | TB_MCM_CODE_CATEGORY | C_AT | 생성일시 | 추정 | 공통 칼럼 규칙(지시) |
 | TB_MCM_CODE_CATEGORY | C_PGM_ID | 생성 프로그램 아이디 | 추정 | 공통 칼럼 규칙(지시) |
@@ -1059,7 +1059,7 @@
 
 | 테이블 | 칼럼 | 이름 | 근거 | 상세 |
 |---|---|---|---|---|
-| TB_MCM_CODE_CATEGORY | CATEGORY_ID | 카테고리 아이디 | 추정 | 물리명 분해 |
+| TB_MCM_CODE_CATEGORY | CATEGORY_ID | 카테고리 아이디 | 화면 | src/frontend/m-mcm/page-components/cma/masterCategoryMng/types.ts:16 |
 | TB_MCM_CODE_CATEGORY | CATEGORY_NM | 카테고리 이름 | 화면 | src/frontend/m-mcm/page-components/cme/masterCodeMngList/types.ts:51 |
 | TB_MCM_CODE_CATEGORY | C_AT | 생성일시 | 추정 | 공통 칼럼 규칙(지시) |
 | TB_MCM_CODE_CATEGORY | C_PGM_ID | 생성 프로그램 아이디 | 추정 | 공통 칼럼 규칙(지시) |
@@ -1072,7 +1072,7 @@
 | TB_MCM_CODE_CATEGORY | U_SVC_ID | 수정 서비스 아이디 | 추정 | 공통 칼럼 규칙(지시) |
 | TB_MCM_CODE_CATEGORY | U_USR_ID | 수정자 아이디 | 추정 | 공통 칼럼 규칙(지시) |
 | TB_MCM_CODE_CATEGORY | VER | 버전 | 사전 |  |
-| TB_MCM_CODE_DETAIL | CATEGORY_ID | 카테고리 아이디 | 추정 | 물리명 분해 |
+| TB_MCM_CODE_DETAIL | CATEGORY_ID | 카테고리 아이디 | 화면 | src/frontend/m-mcm/page-components/cma/masterCategoryMng/types.ts:16 |
 | TB_MCM_CODE_DETAIL | CODE_VAL_DESC | 코드 값 설명 | 화면 | src/frontend/m-mcm/page-components/cme/masterCodeMngList/types.ts:56 |
 | TB_MCM_CODE_DETAIL | CODE_VAL_MEAN | 코드 값 의미 | 화면 | src/frontend/m-mcm/page-components/cme/masterCodeMngList/types.ts:55 |
 | TB_MCM_CODE_DETAIL | CODE_VAL_REF1 | 코드 값 참조1 | 추정 | 물리명 분해 |
@@ -1192,9 +1192,9 @@
 | TB_MDM_CODE_CATE | C_PGM_ID | 생성 프로그램 아이디 | 추정 | MCM 공통 칼럼 규칙 |
 | TB_MDM_CODE_CATE | C_SVC_ID | 생성 서비스 아이디 | 추정 | MCM 공통 칼럼 규칙 |
 | TB_MDM_CODE_CATE | C_USR_ID | 생성자 아이디 | 추정 | MCM 공통 칼럼 규칙 |
-| TB_MDM_CODE_CATE | DEF_EXPR | 정의 식 | 추정 | DEF_EXPR; 화면 테스트는 정규식 라벨 |
-| TB_MDM_CODE_CATE | DEF_KIND | 정의 종류 | 추정 | DEF_KIND |
-| TB_MDM_CODE_CATE | DEF_TARGET | 정의 대상 | 추정 | DEF_TARGET |
+| TB_MDM_CODE_CATE | DEF_EXPR | 정규식 | 화면 | src/frontend/m-mdm/pages/dmc/codeItemEdit/fieldLabels.ts:19 |
+| TB_MDM_CODE_CATE | DEF_KIND | 정의 종류 | 화면 | src/frontend/m-mdm/pages/dmc/codeItemEdit/fieldLabels.ts:18 |
+| TB_MDM_CODE_CATE | DEF_TARGET | 대상 칸 | 화면 | src/frontend/m-mdm/pages/dmc/codeItemEdit/fieldLabels.ts:20 |
 | TB_MDM_CODE_CATE | DESCRIPTION | 설명 | 추정 | 공통 칼럼 규칙 |
 | TB_MDM_CODE_CATE | FROM_VER | 시작 버전 | 추정 | FROM_VER |
 | TB_MDM_CODE_CATE | MARU_CODE_ID | 마루 코드 아이디 | 화면 | src/frontend/m-mdm/pages/dmc/codeMng MdmFieldLabel maruCodeId |
@@ -1237,7 +1237,7 @@
 | TB_MDM_CODE_ITEM | U_USR_ID | 수정자 아이디 | 추정 | MCM 공통 칼럼 규칙 |
 | TB_MDM_CODE_ITEM | VER | 버전 | 사전 | MDM 사전 이름 |
 | TB_MDM_CODE_RECV | AUD_VER | 감사 버전 | 추정 | AUD=감사 |
-| TB_MDM_CODE_RECV | BODY | 본문 | 추정 | BODY 수신 본문 |
+| TB_MDM_CODE_RECV | BODY | 본문 | 화면 | src/frontend/m-mcm/page-components/csa/mdmCacheMng/utils.ts:61 |
 | TB_MDM_CODE_RECV | CHG_SEQ | 변경 순번 | 사전 | MDM 사전 이름 |
 | TB_MDM_CODE_RECV | C_AT | 생성일시 | 추정 | MCM 공통 칼럼 규칙 |
 | TB_MDM_CODE_RECV | C_PGM_ID | 생성 프로그램 아이디 | 추정 | MCM 공통 칼럼 규칙 |
@@ -1269,8 +1269,8 @@
 | TB_MDM_CODE_SYSTEM | U_SVC_ID | 수정 서비스 아이디 | 추정 | MCM 공통 칼럼 규칙 |
 | TB_MDM_CODE_SYSTEM | U_USR_ID | 수정자 아이디 | 추정 | MCM 공통 칼럼 규칙 |
 | TB_MDM_CODE_SYSTEM | VER | 버전 | 사전 | MDM 사전 이름 |
-| TB_MDM_CODE_VER | APPLY_FROM | 적용 시작일시 | 추정 | APPLY_FROM (동일 물리명 통일) |
-| TB_MDM_CODE_VER | APPLY_TO | 적용 종료일시 | 추정 | APPLY_TO (동일 물리명 통일) |
+| TB_MDM_CODE_VER | APPLY_FROM | 적용 시작일시 | 화면 | src/frontend/m-mdm/pages/dmb/layoutConfirm/page.tsx:279 |
+| TB_MDM_CODE_VER | APPLY_TO | 적용 종료일시 | 화면 | src/frontend/m-mdm/pages/dmb/layoutConfirm/page.tsx:279 |
 | TB_MDM_CODE_VER | APPROVED_AT | 승인 일시 | 추정 | APPROVED_AT |
 | TB_MDM_CODE_VER | APPROVED_BY | 승인자 | 추정 | APPROVED_BY |
 | TB_MDM_CODE_VER | AUD_VER | 감사 버전 | 추정 | AUD=감사 |
@@ -1284,9 +1284,9 @@
 | TB_MDM_CODE_VER | EMERGENCY_REASON | 긴급 사유 | 추정 | EMERGENCY_REASON |
 | TB_MDM_CODE_VER | EMERGENCY_YN | 긴급 여부 | 추정 | EMERGENCY_YN |
 | TB_MDM_CODE_VER | MARU_CODE_ID | 마루 코드 아이디 | 화면 | src/frontend/m-mdm/pages/dmc/codeMng MdmFieldLabel maruCodeId |
-| TB_MDM_CODE_VER | OWNER_ID | 소유자 아이디 | 추정 | OWNER_ID |
+| TB_MDM_CODE_VER | OWNER_ID | 소유자 아이디 | 화면 | src/frontend/m-mdm/pages/dmc/codeMng/CodeDetail.tsx:70 |
 | TB_MDM_CODE_VER | REJECT_REASON | 반려 사유 | 추정 | REJECT_REASON |
-| TB_MDM_CODE_VER | RELEASED_AT | 확정일시 | 추정 | RELEASED_AT (동일 물리명 통일) |
+| TB_MDM_CODE_VER | RELEASED_AT | 확정 일시 | 화면 | src/frontend/m-mdm/pages/dmc/codeMng/CodeDetail.tsx:68 |
 | TB_MDM_CODE_VER | REQUESTED_AT | 요청일시 | 추정 | REQUESTED_AT (동일 물리명 통일) |
 | TB_MDM_CODE_VER | REQUESTED_BY | 요청자 | 추정 | REQUESTED_BY |
 | TB_MDM_CODE_VER | RESTORED_FROM | 복원 원본 버전 | 추정 | RESTORED_FROM |
@@ -1349,9 +1349,9 @@
 | TB_MDM_COLUMN | DEFAULT_VALUE | 기본값 | 화면 | src/frontend/m-mdm/pages/dma/columnMng MdmFieldLabel defaultValue |
 | TB_MDM_COLUMN | DESCRIPTION | 설명 | 추정 | 공통 칼럼 규칙 |
 | TB_MDM_COLUMN | DOMAIN_ID | 도메인 아이디 | 화면 | src/frontend/m-mdm/pages/dma/columnMng MdmFieldLabel domainId |
-| TB_MDM_COLUMN | LABEL_LONG | 긴 라벨 | 추정 | LABEL_LONG |
-| TB_MDM_COLUMN | LABEL_MID | 중간 라벨 | 추정 | LABEL_MID |
-| TB_MDM_COLUMN | LABEL_SHORT | 짧은 라벨 | 추정 | LABEL_SHORT |
+| TB_MDM_COLUMN | LABEL_LONG | 긴 표시명 | 화면 | src/frontend/m-mdm/pages/dma/columnMng/ColumnDetailForm.tsx:140 |
+| TB_MDM_COLUMN | LABEL_MID | 중간 표시명 | 화면 | src/frontend/m-mdm/pages/dma/columnMng/ColumnDetailForm.tsx:140 |
+| TB_MDM_COLUMN | LABEL_SHORT | 짧은 표시명 | 화면 | src/frontend/m-mdm/pages/dma/columnMng/ColumnDetailForm.tsx:140 |
 | TB_MDM_COLUMN | PHYS_NAME | 물리명 | 화면 | src/frontend/m-mdm/pages/dma/columnMng MdmFieldLabel physName |
 | TB_MDM_COLUMN | REF_CATE_ID | 참조 카테고리 아이디 | 화면 | src/frontend/m-mdm/pages/dma/columnMng MdmFieldLabel refCateId |
 | TB_MDM_COLUMN | REF_KIND | 참조 종류 | 화면 | src/frontend/m-mdm/pages/dma/columnMng/ColumnDetailForm.tsx:204 |
@@ -1386,9 +1386,9 @@
 | TB_MDM_DATA_CATE | C_PGM_ID | 생성 프로그램 아이디 | 추정 | MCM 공통 칼럼 규칙 |
 | TB_MDM_DATA_CATE | C_SVC_ID | 생성 서비스 아이디 | 추정 | MCM 공통 칼럼 규칙 |
 | TB_MDM_DATA_CATE | C_USR_ID | 생성자 아이디 | 추정 | MCM 공통 칼럼 규칙 |
-| TB_MDM_DATA_CATE | DEF_EXPR | 정의 식 | 추정 | DEF_EXPR; 화면 테스트는 정규식 라벨 |
-| TB_MDM_DATA_CATE | DEF_KIND | 정의 종류 | 추정 | DEF_KIND |
-| TB_MDM_DATA_CATE | DEF_TARGET | 정의 대상 | 추정 | DEF_TARGET |
+| TB_MDM_DATA_CATE | DEF_EXPR | 정규식 | 화면 | src/frontend/m-mdm/pages/dmc/codeItemEdit/fieldLabels.ts:19 |
+| TB_MDM_DATA_CATE | DEF_KIND | 정의 종류 | 화면 | src/frontend/m-mdm/pages/dmc/codeItemEdit/fieldLabels.ts:18 |
+| TB_MDM_DATA_CATE | DEF_TARGET | 대상 칸 | 화면 | src/frontend/m-mdm/pages/dmc/codeItemEdit/fieldLabels.ts:20 |
 | TB_MDM_DATA_CATE | DESCRIPTION | 설명 | 추정 | 공통 칼럼 규칙 |
 | TB_MDM_DATA_CATE | MARU_DATA_ID | 마루 데이터 아이디 | 화면 | src/frontend/m-mdm/pages/dmd/dataMng/DataDetail.tsx:52 |
 | TB_MDM_DATA_CATE | U_AT | 수정일시 | 추정 | MCM 공통 칼럼 규칙 |
@@ -1445,7 +1445,7 @@
 | TB_MDM_DATA_RECV_ITEM | U_SVC_ID | 수정 서비스 아이디 | 추정 | MCM 공통 칼럼 규칙 |
 | TB_MDM_DATA_RECV_ITEM | U_USR_ID | 수정자 아이디 | 추정 | MCM 공통 칼럼 규칙 |
 | TB_MDM_DATA_RECV_ITEM | VER | 버전 | 사전 | MDM 사전 이름 |
-| TB_MDM_DATA_RECV | BODY | 본문 | 추정 | BODY 수신 본문 |
+| TB_MDM_DATA_RECV | BODY | 본문 | 화면 | src/frontend/m-mcm/page-components/csa/mdmCacheMng/utils.ts:61 |
 | TB_MDM_DATA_RECV | CHG_SEQ | 변경 순번 | 사전 | MDM 사전 이름 |
 | TB_MDM_DATA_RECV | C_AT | 생성일시 | 추정 | MCM 공통 칼럼 규칙 |
 | TB_MDM_DATA_RECV | C_PGM_ID | 생성 프로그램 아이디 | 추정 | MCM 공통 칼럼 규칙 |
@@ -1488,7 +1488,7 @@
 | TB_MDM_DATA | ATTR09_NAME | 속성 09 이름 | 화면 | src/frontend/m-mdm/tests/dmc/codeMng/code-mng-detail.test.ts:296 attrLabels |
 | TB_MDM_DATA | ATTR10_NAME | 속성 10 이름 | 화면 | src/frontend/m-mdm/tests/dmc/codeMng/code-mng-detail.test.ts:296 attrLabels |
 | TB_MDM_DATA | CHG_SEQ | 변경 순번 | 사전 | MDM 사전 이름 |
-| TB_MDM_DATA | CLOSED_AT | 종료 일시 | 추정 | CLOSED_AT |
+| TB_MDM_DATA | CLOSED_AT | 폐기 일시 | 코드 | src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/code/MasterDataRows.java:14 |
 | TB_MDM_DATA | CODE_PATTERN | 키 패턴 | 화면 | src/frontend/m-mdm/pages/dmd/dataMng/DataDetail.tsx:76 |
 | TB_MDM_DATA | C_AT | 생성일시 | 추정 | MCM 공통 칼럼 규칙 |
 | TB_MDM_DATA | C_PGM_ID | 생성 프로그램 아이디 | 추정 | MCM 공통 칼럼 규칙 |
@@ -1564,7 +1564,7 @@
 | TB_MDM_EAI | U_USR_ID | 수정자 아이디 | 추정 | MCM 공통 칼럼 규칙 |
 | TB_MDM_EAI | VER | 버전 | 사전 | MDM 사전 이름 |
 | TB_MDM_LAYOUT_CONST | AUD_VER | 감사 버전 | 추정 | 물리명 분해 |
-| TB_MDM_LAYOUT_CONST | CONST_VALUE | 상수 값 | 추정 | 물리명 분해 |
+| TB_MDM_LAYOUT_CONST | CONST_VALUE | 이 전문의 값 | 화면 | src/frontend/m-mdm/pages/dmb/layoutMng/fieldLabels.ts:17 |
 | TB_MDM_LAYOUT_CONST | C_AT | 생성일시 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_LAYOUT_CONST | C_PGM_ID | 생성 프로그램 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_LAYOUT_CONST | C_SVC_ID | 생성 서비스 아이디 | 코드 | MCM 공통 칼럼 규칙 |
@@ -1596,13 +1596,13 @@
 | TB_MDM_LAYOUT_ITEM | C_PGM_ID | 생성 프로그램 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_LAYOUT_ITEM | C_SVC_ID | 생성 서비스 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_LAYOUT_ITEM | C_USR_ID | 생성자 아이디 | 코드 | MCM 공통 칼럼 규칙 |
-| TB_MDM_LAYOUT_ITEM | DATA_TYPE | 데이터 타입 | 추정 | 물리명 분해 (동일 물리명 통일) |
-| TB_MDM_LAYOUT_ITEM | DEFAULT_VALUE | 기본값 | 추정 | 물리명 분해 |
+| TB_MDM_LAYOUT_ITEM | DATA_TYPE | 데이터 타입 | 화면 | src/frontend/m-mdm/pages/dma/domainMng/fieldLabels.ts:12 |
+| TB_MDM_LAYOUT_ITEM | DEFAULT_VALUE | 기본값 | 화면 | src/frontend/m-mdm/pages/dma/columnMng/ColumnDetailForm.tsx:196 |
 | TB_MDM_LAYOUT_ITEM | FILLER_LENGTH | 채움 길이 | 추정 | 물리명 분해 |
 | TB_MDM_LAYOUT_ITEM | FILL_KIND | 채움 종류 | 코드 | src/backend/mdm V 파일 주석 |
 | TB_MDM_LAYOUT_ITEM | LAYOUT_ID | 전문 아이디 | 추정 | 물리명 분해 |
 | TB_MDM_LAYOUT_ITEM | LENGTH | 길이 | 사전 | MDM 사전 |
-| TB_MDM_LAYOUT_ITEM | NUM_FORMAT | 숫자 형식 | 추정 | 물리명 분해 |
+| TB_MDM_LAYOUT_ITEM | NUM_FORMAT | 숫자 형식 | 코드 | src/frontend/m-mdm/src/layout/snapshot-export.ts:68 |
 | TB_MDM_LAYOUT_ITEM | OFFSET | 시작 위치 | 추정 | 물리명 분해 |
 | TB_MDM_LAYOUT_ITEM | PINNED_YN | 고정 여부 | 추정 | 물리명 분해 |
 | TB_MDM_LAYOUT_ITEM | SCALE | 소수 자릿수 | 추정 | 물리명 분해 |
@@ -1615,12 +1615,12 @@
 | TB_MDM_LAYOUT_ITEM | U_SVC_ID | 수정 서비스 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_LAYOUT_ITEM | U_USR_ID | 수정자 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_LAYOUT_ITEM | VER | 버전 | 사전 | MDM 사전 |
-| TB_MDM_LAYOUT_VER | APPLY_FROM | 적용 시작일시 | 추정 | 물리명 분해 |
-| TB_MDM_LAYOUT_VER | APPLY_TO | 적용 종료일시 | 추정 | 물리명 분해 |
+| TB_MDM_LAYOUT_VER | APPLY_FROM | 적용 시작일시 | 화면 | src/frontend/m-mdm/pages/dmb/layoutConfirm/page.tsx:279 |
+| TB_MDM_LAYOUT_VER | APPLY_TO | 적용 종료일시 | 화면 | src/frontend/m-mdm/pages/dmb/layoutConfirm/page.tsx:279 |
 | TB_MDM_LAYOUT_VER | AUD_VER | 감사 버전 | 추정 | 물리명 분해 |
 | TB_MDM_LAYOUT_VER | BASE_VER | 기준 버전 | 추정 | 물리명 분해 |
-| TB_MDM_LAYOUT_VER | CHANGE_KINDS | 변경 종류 | 추정 | 물리명 분해 |
-| TB_MDM_LAYOUT_VER | CHANGE_SUMMARY | 변경 요약 | 추정 | 물리명 분해 |
+| TB_MDM_LAYOUT_VER | CHANGE_KINDS | 변경 종류 | 코드 | src/frontend/m-mdm/pages/dmb/layoutConfirm/types.ts:107 |
+| TB_MDM_LAYOUT_VER | CHANGE_SUMMARY | 변경 요약 | 화면 | src/frontend/m-mdm/pages/dmb/layoutMng/components/VersionPanel.tsx:32 |
 | TB_MDM_LAYOUT_VER | C_AT | 생성일시 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_LAYOUT_VER | C_PGM_ID | 생성 프로그램 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_LAYOUT_VER | C_SVC_ID | 생성 서비스 아이디 | 코드 | MCM 공통 칼럼 규칙 |
@@ -1628,9 +1628,9 @@
 | TB_MDM_LAYOUT_VER | EAI_CODE | EAI 코드 | 코드 | src/backend/mdm V 파일 주석 |
 | TB_MDM_LAYOUT_VER | LAYOUT_ID | 전문 아이디 | 추정 | 물리명 분해 |
 | TB_MDM_LAYOUT_VER | LEGACY_SNAPSHOT_YN | 옛 스냅샷 여부 | 코드 | src/backend/mdm V 파일 주석 |
-| TB_MDM_LAYOUT_VER | OWNER_ID | 소유자 아이디 | 추정 | 물리명 분해 |
+| TB_MDM_LAYOUT_VER | OWNER_ID | 소유자 아이디 | 화면 | src/frontend/m-mdm/pages/dmc/codeMng/CodeDetail.tsx:70 |
 | TB_MDM_LAYOUT_VER | OWN_LENGTH | 자기 길이 | 코드 | src/backend/mdm V 파일 주석 |
-| TB_MDM_LAYOUT_VER | RELEASED_AT | 확정일시 | 추정 | 물리명 분해 |
+| TB_MDM_LAYOUT_VER | RELEASED_AT | 확정 일시 | 화면 | src/frontend/m-mdm/pages/dmc/codeMng/CodeDetail.tsx:68 |
 | TB_MDM_LAYOUT_VER | REQUESTED_AT | 요청일시 | 추정 | 물리명 분해 |
 | TB_MDM_LAYOUT_VER | REQUESTED_BY | 요청자 | 추정 | 물리명 분해 |
 | TB_MDM_LAYOUT_VER | ROW_VERSION | 행 버전 | 추정 | 물리명 분해 |
@@ -1649,9 +1649,9 @@
 | TB_MDM_LAYOUT | C_USR_ID | 생성자 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_LAYOUT | LAYOUT_ID | 전문 아이디 | 추정 | 물리명 분해 |
 | TB_MDM_LAYOUT | LAYOUT_KIND | 전문 종류 | 추정 | 물리명 분해 |
-| TB_MDM_LAYOUT | LAYOUT_NAME | 전문 이름 | 추정 | 물리명 분해 |
-| TB_MDM_LAYOUT | RCV_SYSTEM | 수신 시스템 | 추정 | 물리명 분해 |
-| TB_MDM_LAYOUT | SND_SYSTEM | 송신 시스템 | 추정 | 물리명 분해 |
+| TB_MDM_LAYOUT | LAYOUT_NAME | 전문 이름 | 화면 | src/frontend/m-mdm/pages/dmb/layoutMng/components/LayoutBasicForm.tsx:74 |
+| TB_MDM_LAYOUT | RCV_SYSTEM | 수신 시스템 | 화면 | src/frontend/m-mdm/pages/dmb/layoutMng/components/LayoutBasicForm.tsx:100 |
+| TB_MDM_LAYOUT | SND_SYSTEM | 송신 시스템 | 코드 | mdm/lib/.../dmb/layout/LayoutDraftBuilder.java:98 |
 | TB_MDM_LAYOUT | STATUS | 상태 | 추정 | 물리명 분해 |
 | TB_MDM_LAYOUT | U_AT | 수정일시 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_LAYOUT | U_PGM_ID | 수정 프로그램 아이디 | 코드 | MCM 공통 칼럼 규칙 |
@@ -1672,7 +1672,7 @@
 | TB_MDM_META_REV | U_USR_ID | 수정자 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_META_REV | VER | 버전 | 사전 | MDM 사전 |
 | TB_MDM_RULE_RECV | AUD_VER | 감사 버전 | 추정 | 물리명 분해 |
-| TB_MDM_RULE_RECV | BODY | 본문 | 추정 | 물리명 분해 |
+| TB_MDM_RULE_RECV | BODY | 본문 | 화면 | src/frontend/m-mcm/page-components/csa/mdmCacheMng/utils.ts:61 |
 | TB_MDM_RULE_RECV | C_AT | 생성일시 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_RULE_RECV | C_PGM_ID | 생성 프로그램 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_RULE_RECV | C_SVC_ID | 생성 서비스 아이디 | 코드 | MCM 공통 칼럼 규칙 |
@@ -1709,7 +1709,7 @@
 | TB_MDM_RULE_ROW | U_USR_ID | 수정자 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_RULE_ROW | VER | 버전 | 사전 | MDM 사전 |
 | TB_MDM_RULE_SET_TEST_CASE | CASE_ID | 케이스 아이디 | 추정 | 물리명 분해 |
-| TB_MDM_RULE_SET_TEST_CASE | CASE_NAME | 케이스 이름 | 추정 | 물리명 분해 |
+| TB_MDM_RULE_SET_TEST_CASE | CASE_NAME | 케이스 이름 | 화면 | src/frontend/m-mdm/pages/dme/ruleSetEdit/debugger/TestCasePanel.tsx:65 |
 | TB_MDM_RULE_SET_TEST_CASE | C_AT | 생성일시 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_RULE_SET_TEST_CASE | C_PGM_ID | 생성 프로그램 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_RULE_SET_TEST_CASE | C_SVC_ID | 생성 서비스 아이디 | 코드 | MCM 공통 칼럼 규칙 |
@@ -1725,19 +1725,19 @@
 | TB_MDM_RULE_SET_TEST_CASE | U_SVC_ID | 수정 서비스 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_RULE_SET_TEST_CASE | U_USR_ID | 수정자 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_RULE_SET_TEST_CASE | VER | 버전 | 사전 | MDM 사전 |
-| TB_MDM_RULE_SET_VER | APPLY_FROM | 적용 시작일시 | 추정 | 물리명 분해 |
-| TB_MDM_RULE_SET_VER | APPLY_TO | 적용 종료일시 | 추정 | 물리명 분해 |
+| TB_MDM_RULE_SET_VER | APPLY_FROM | 적용 시작일시 | 화면 | src/frontend/m-mdm/pages/dmb/layoutConfirm/page.tsx:279 |
+| TB_MDM_RULE_SET_VER | APPLY_TO | 적용 종료일시 | 화면 | src/frontend/m-mdm/pages/dmb/layoutConfirm/page.tsx:279 |
 | TB_MDM_RULE_SET_VER | AUD_VER | 감사 버전 | 추정 | 물리명 분해 |
 | TB_MDM_RULE_SET_VER | BASE_VER | 기준 버전 | 추정 | 물리명 분해 |
-| TB_MDM_RULE_SET_VER | CALL_SET_IDS | 호출 세트 아이디 목록 | 추정 | 물리명 분해 |
+| TB_MDM_RULE_SET_VER | CALL_SET_IDS | 호출 세트 아이디 목록 | 코드 | src/frontend/m-mdm/pages/dme/ruleSetEdit/flow-model.ts:607 |
 | TB_MDM_RULE_SET_VER | C_AT | 생성일시 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_RULE_SET_VER | C_PGM_ID | 생성 프로그램 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_RULE_SET_VER | C_SVC_ID | 생성 서비스 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_RULE_SET_VER | C_USR_ID | 생성자 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_RULE_SET_VER | FLOW_JSON | 흐름도 JSON | 추정 | 물리명 분해 |
 | TB_MDM_RULE_SET_VER | MARU_RULE_SET_ID | 룰 세트 아이디 | 추정 | 물리명 분해 |
-| TB_MDM_RULE_SET_VER | OWNER_ID | 소유자 아이디 | 추정 | 물리명 분해 |
-| TB_MDM_RULE_SET_VER | RELEASED_AT | 확정일시 | 추정 | 물리명 분해 |
+| TB_MDM_RULE_SET_VER | OWNER_ID | 소유자 아이디 | 화면 | src/frontend/m-mdm/pages/dmc/codeMng/CodeDetail.tsx:70 |
+| TB_MDM_RULE_SET_VER | RELEASED_AT | 확정 일시 | 화면 | src/frontend/m-mdm/pages/dmc/codeMng/CodeDetail.tsx:68 |
 | TB_MDM_RULE_SET_VER | REQUESTED_AT | 요청일시 | 추정 | 물리명 분해 |
 | TB_MDM_RULE_SET_VER | REQUESTED_BY | 요청자 | 추정 | 물리명 분해 |
 | TB_MDM_RULE_SET_VER | ROW_VERSION | 행 버전 | 추정 | 물리명 분해 |
@@ -1776,7 +1776,7 @@
 | TB_MDM_RULE_SYSTEM | U_USR_ID | 수정자 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_RULE_SYSTEM | VER | 버전 | 사전 | MDM 사전 |
 | TB_MDM_RULE_TEST_CASE | CASE_ID | 케이스 아이디 | 추정 | 물리명 분해 |
-| TB_MDM_RULE_TEST_CASE | CASE_NAME | 케이스 이름 | 추정 | 물리명 분해 |
+| TB_MDM_RULE_TEST_CASE | CASE_NAME | 케이스 이름 | 화면 | src/frontend/m-mdm/pages/dme/ruleSetEdit/debugger/TestCasePanel.tsx:65 |
 | TB_MDM_RULE_TEST_CASE | C_AT | 생성일시 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_RULE_TEST_CASE | C_PGM_ID | 생성 프로그램 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_RULE_TEST_CASE | C_SVC_ID | 생성 서비스 아이디 | 코드 | MCM 공통 칼럼 규칙 |
@@ -1797,10 +1797,10 @@
 | TB_MDM_RULE_VAR | C_PGM_ID | 생성 프로그램 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_RULE_VAR | C_SVC_ID | 생성 서비스 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_RULE_VAR | C_USR_ID | 생성자 아이디 | 코드 | MCM 공통 칼럼 규칙 |
-| TB_MDM_RULE_VAR | DATA_TYPE | 데이터 타입 | 추정 | 물리명 분해 (동일 물리명 통일) |
+| TB_MDM_RULE_VAR | DATA_TYPE | 데이터 타입 | 화면 | src/frontend/m-mdm/pages/dma/domainMng/fieldLabels.ts:12 |
 | TB_MDM_RULE_VAR | DESCRIPTION | 설명 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_RULE_VAR | DISP_TYPE | 표시 유형 | 코드 | src/backend/mdm V 파일 주석 |
-| TB_MDM_RULE_VAR | DOMAIN_ID | 도메인 아이디 | 추정 | 물리명 분해 |
+| TB_MDM_RULE_VAR | DOMAIN_ID | 도메인 아이디 | 화면 | src/frontend/m-mdm/pages/dma/columnMng/ColumnDetailForm.tsx:172 |
 | TB_MDM_RULE_VAR | GRP_COND_AST | 그룹 조건 AST | 코드 | src/backend/mdm V 파일 주석 |
 | TB_MDM_RULE_VAR | GRP_COND | 그룹 조건 | 코드 | src/backend/mdm V 파일 주석 |
 | TB_MDM_RULE_VAR | LABEL | 라벨 | 추정 | 물리명 분해 |
@@ -1817,8 +1817,8 @@
 | TB_MDM_RULE_VAR | VAR_KIND | 변수 종류 | 추정 | 물리명 분해 |
 | TB_MDM_RULE_VAR | VAR_NAME | 변수 이름 | 추정 | 물리명 분해 |
 | TB_MDM_RULE_VAR | VER | 버전 | 사전 | MDM 사전 |
-| TB_MDM_RULE_VER | APPLY_FROM | 적용 시작일시 | 추정 | 물리명 분해 |
-| TB_MDM_RULE_VER | APPLY_TO | 적용 종료일시 | 추정 | 물리명 분해 |
+| TB_MDM_RULE_VER | APPLY_FROM | 적용 시작일시 | 화면 | src/frontend/m-mdm/pages/dmb/layoutConfirm/page.tsx:279 |
+| TB_MDM_RULE_VER | APPLY_TO | 적용 종료일시 | 화면 | src/frontend/m-mdm/pages/dmb/layoutConfirm/page.tsx:279 |
 | TB_MDM_RULE_VER | APPROVED_AT | 승인 일시 | 추정 | 물리명 분해 (동일 물리명 통일) |
 | TB_MDM_RULE_VER | APPROVED_BY | 승인자 | 추정 | 물리명 분해 |
 | TB_MDM_RULE_VER | AUD_VER | 감사 버전 | 추정 | 물리명 분해 |
@@ -1832,11 +1832,11 @@
 | TB_MDM_RULE_VER | DESCRIPTION | 설명 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_RULE_VER | EMERGENCY_REASON | 긴급 사유 | 추정 | 물리명 분해 |
 | TB_MDM_RULE_VER | EMERGENCY_YN | 긴급 여부 | 추정 | 물리명 분해 |
-| TB_MDM_RULE_VER | HIT_POLICY | 히트 정책 | 추정 | 물리명 분해 |
+| TB_MDM_RULE_VER | HIT_POLICY | 적중 정책 | 코드 | src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dme/ruleEdit/service/RuleEditService.java:109 |
 | TB_MDM_RULE_VER | MARU_RULE_ID | 룰 아이디 | 추정 | 물리명 분해 |
-| TB_MDM_RULE_VER | OWNER_ID | 소유자 아이디 | 추정 | 물리명 분해 |
+| TB_MDM_RULE_VER | OWNER_ID | 소유자 아이디 | 화면 | src/frontend/m-mdm/pages/dmc/codeMng/CodeDetail.tsx:70 |
 | TB_MDM_RULE_VER | REJECT_REASON | 반려 사유 | 추정 | 물리명 분해 |
-| TB_MDM_RULE_VER | RELEASED_AT | 확정일시 | 추정 | 물리명 분해 |
+| TB_MDM_RULE_VER | RELEASED_AT | 확정 일시 | 화면 | src/frontend/m-mdm/pages/dmc/codeMng/CodeDetail.tsx:68 |
 | TB_MDM_RULE_VER | REQUESTED_AT | 요청일시 | 추정 | 물리명 분해 |
 | TB_MDM_RULE_VER | REQUESTED_BY | 요청자 | 추정 | 물리명 분해 |
 | TB_MDM_RULE_VER | ROW_VERSION | 행 버전 | 추정 | 물리명 분해 |
@@ -1856,7 +1856,7 @@
 | TB_MDM_RULE | LAST_ROW_ID | 마지막 행 아이디 | 추정 | 물리명 분해 |
 | TB_MDM_RULE | LAST_VAR_ID | 마지막 변수 아이디 | 추정 | 물리명 분해 |
 | TB_MDM_RULE | MARU_RULE_ID | 룰 아이디 | 추정 | 물리명 분해 |
-| TB_MDM_RULE | MARU_RULE_NAME | 룰 이름 | 추정 | 물리명 분해 |
+| TB_MDM_RULE | MARU_RULE_NAME | 룰명 | 화면 | src/frontend/m-mdm/pages/dme/ruleMng/RuleDetailPanel.tsx:302 |
 | TB_MDM_RULE | RULE_KIND | 룰 종류 | 추정 | 물리명 분해 |
 | TB_MDM_RULE | SOURCE_KIND | 원천 | 추정 | 물리명 분해 (동일 물리명 통일) |
 | TB_MDM_RULE | SOURCE_SYSTEM | 원천 시스템 | 추정 | 물리명 분해 (동일 물리명 통일) |
@@ -1879,39 +1879,39 @@
 | TB_MDM_SYSTEM | U_SVC_ID | 수정 서비스 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_SYSTEM | U_USR_ID | 수정자 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_SYSTEM | VER | 버전 | 사전 | MDM 사전 |
-| TB_MDM_TERM | ALIASES | 별칭 | 추정 | 물리명 분해 |
-| TB_MDM_TERM | CONTEXT | 사용 맥락 | 추정 | 물리명 분해 |
+| TB_MDM_TERM | ALIASES | 별칭 | 화면 | src/frontend/m-mdm/pages/dma/termMng/TermDetailPane.tsx:191 |
+| TB_MDM_TERM | CONTEXT | 맥락 | 화면 | src/frontend/m-mdm/pages/dma/termMng/page.tsx:33 |
 | TB_MDM_TERM | C_AT | 생성일시 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_TERM | C_PGM_ID | 생성 프로그램 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_TERM | C_SVC_ID | 생성 서비스 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_TERM | C_USR_ID | 생성자 아이디 | 코드 | MCM 공통 칼럼 규칙 |
-| TB_MDM_TERM | DEFINITION | 정의 | 추정 | 물리명 분해 |
+| TB_MDM_TERM | DEFINITION | 정의 | 화면 | src/frontend/m-mdm/pages/dma/termMng/TermDetailPane.tsx:185 |
 | TB_MDM_TERM | EMBEDDING_MODEL | 임베딩 모델 | 추정 | 물리명 분해 |
 | TB_MDM_TERM | EMBEDDING | 임베딩 | 추정 | 물리명 분해 |
 | TB_MDM_TERM | ENG_ABBR | 영문 약어 | 사전 | MDM 사전 |
-| TB_MDM_TERM | ENG_NAME | 영문 이름 | 추정 | 물리명 분해 |
+| TB_MDM_TERM | ENG_NAME | 영문명 | 화면 | src/frontend/m-mdm/pages/dma/termMng/page.tsx:31 |
 | TB_MDM_TERM | OWNER_DEPT | 오너 부서 | 사전 | MDM 사전 |
-| TB_MDM_TERM | OWNER_ID | 소유자 아이디 | 추정 | 물리명 분해 |
+| TB_MDM_TERM | OWNER_ID | 소유자 아이디 | 화면 | src/frontend/m-mdm/pages/dmc/codeMng/CodeDetail.tsx:70 |
 | TB_MDM_TERM | SENSE_NO | 의미 번호 | 추정 | 물리명 분해 |
 | TB_MDM_TERM | SRC_ORIGIN | 출처 기원 | 추정 | 물리명 분해 |
-| TB_MDM_TERM | STD_BASIS | 표준 근거 | 추정 | 물리명 분해 |
-| TB_MDM_TERM | SYNONYMS | 동의어 | 추정 | 물리명 분해 |
+| TB_MDM_TERM | STD_BASIS | 표준 근거 | 화면 | mdm/lib/.../termMng/service/TermMngService.java:200 |
+| TB_MDM_TERM | SYNONYMS | 동의어 | 화면 | mdm/lib/.../termMng/service/TermMngService.java:201 |
 | TB_MDM_TERM | SYSTEMS | 적용 시스템 | 추정 | 물리명 분해 |
 | TB_MDM_TERM | TERM_ID | 용어 아이디 | 추정 | 물리명 분해 |
-| TB_MDM_TERM | TERM_NAME | 용어 이름 | 추정 | 물리명 분해 |
+| TB_MDM_TERM | TERM_NAME | 용어명 | 코드 | cactus-core/src/test/.../ServiceStarterCharTask.java:34 |
 | TB_MDM_TERM | U_AT | 수정일시 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_TERM | U_PGM_ID | 수정 프로그램 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_TERM | U_SVC_ID | 수정 서비스 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_TERM | U_USR_ID | 수정자 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_TERM | VER | 버전 | 사전 | MDM 사전 |
-| TB_MDM_UNIT | BASE_UNIT | 기준 단위 | 추정 | 물리명 분해 |
+| TB_MDM_UNIT | BASE_UNIT | 기준 단위 | 화면 | src/frontend/m-mdm/pages/dma/unitMng/page.tsx:40 |
 | TB_MDM_UNIT | CHG_SEQ | 변경 순번 | 사전 | MDM 사전 |
 | TB_MDM_UNIT | C_AT | 생성일시 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_UNIT | C_PGM_ID | 생성 프로그램 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_UNIT | C_SVC_ID | 생성 서비스 아이디 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_UNIT | C_USR_ID | 생성자 아이디 | 코드 | MCM 공통 칼럼 규칙 |
-| TB_MDM_UNIT | DIMENSION | 차원 | 추정 | 물리명 분해 |
-| TB_MDM_UNIT | FACTOR | 환산 계수 | 추정 | 물리명 분해 |
+| TB_MDM_UNIT | DIMENSION | 차원 | 화면 | src/frontend/m-mdm/pages/dma/unitMng/UnitDetailForm.tsx:95 |
+| TB_MDM_UNIT | FACTOR | 환산 계수 | 화면 | src/frontend/m-mdm/pages/dma/unitMng/UnitDetailForm.tsx:114 |
 | TB_MDM_UNIT | UNIT_CODE | 단위 코드 | 코드 | src/backend/mdm V 파일 주석 |
 | TB_MDM_UNIT | U_AT | 수정일시 | 코드 | MCM 공통 칼럼 규칙 |
 | TB_MDM_UNIT | U_PGM_ID | 수정 프로그램 아이디 | 코드 | MCM 공통 칼럼 규칙 |
