@@ -112,8 +112,21 @@ describe("normalizeWeather", () => {
     expect(r.stale).toBe(true);
   });
 
-  it("current 가 없으면 null(외부 연결 꺼짐 등)", () => {
-    expect(normalizeWeather({ disabled: true })).toEqual({ current: null, daily: [], stale: false, disabled: true });
+  it("수집 시각·수집 대상 아님·값 없음 표지를 읽는다", () => {
+    expect(normalizeWeather({ current: { temp: 1 }, daily: [], collectedAt: "2026-10-09T12:30" }).collectedAt).toBe("2026-10-09T12:30");
+    expect(normalizeWeather({ current: null, daily: [], uncollected: true })).toEqual({
+      current: null,
+      daily: [],
+      stale: false,
+      collectedAt: null,
+      uncollected: true,
+      empty: false,
+    });
+    expect(normalizeWeather({ current: null, daily: [], empty: true })).toMatchObject({ current: null, uncollected: false, empty: true });
+  });
+
+  it("current 가 없고 표지도 없으면 모두 꺼진 빈 결과", () => {
+    expect(normalizeWeather({})).toEqual({ current: null, daily: [], stale: false, collectedAt: null, uncollected: false, empty: false });
   });
 
   it("날짜가 없는 예보 줄은 버린다", () => {

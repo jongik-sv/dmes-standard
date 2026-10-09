@@ -80,7 +80,7 @@ class DataInitializerSeedFingerprintTest {
     private static final Path GOLDEN = Path.of("src/test/resources/init/data-initializer-fingerprint.golden.txt");
 
     /** 실행 시각이 들어가는 컬럼 — 해시에서 뺀다(시드의 SYSTIMESTAMP, McmAuditListener Instant.now()). */
-    static final Set<String> TIME_COLUMNS = Set.of("C_AT", "U_AT", "START_ACTIVE_DATE", "LAST_PWD_CHNG_DATE");
+    static final Set<String> TIME_COLUMNS = Set.of("C_AT", "U_AT", "START_ACTIVE_DATE", "LAST_PWD_CHNG_DATE", "NEXT_RUN_AT");
 
     private static final String SCHEMA_KEY = "__SCHEMA__";
     private static final String FIXED_ENC_PWD = "{fingerprint-stub}fixed-encoded-password";

@@ -227,7 +227,7 @@ dmes:
       mqc: { base-url: "${MQC_WAS_URL:http://localhost:8093}" }
       mpn: { base-url: "${MPN_WAS_URL:http://localhost:8095}" }
     http:
-      allowed-hosts: []          # COLLECT(http) 원천이 부를 수 있는 호스트(정확 일치). 옛 키 dmes.widget.collect.allowed-hosts 도 함께 읽는다(warn)
+      allowed-hosts: [api.open-meteo.com]   # COLLECT(http) 원천이 부를 수 있는 호스트(정확 일치). 날씨 수집 작업(mcm.weather.*)이 쓴다. 옛 키 dmes.widget.collect.allowed-hosts 도 함께 읽는다(warn)
     collect:
       enabled: true              # false 면 COLLECT 작업은 선점 후보에서 빠지고 mcm.collectPurge 는 아무것도 하지 않는다
 
