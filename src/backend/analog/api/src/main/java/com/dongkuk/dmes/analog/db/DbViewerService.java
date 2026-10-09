@@ -255,8 +255,10 @@ public class DbViewerService {
         ColumnPlan plan = plan(parsed.schema(), parsed.table(), requested);
         // 더보기 여부를 알려고 한 건 더 읽고, 화면에는 limit 건만 돌려준다.
         String finalSql = DbViewerValidator.buildSql(parsed, plan.columns(), limit + 1, plan.withRowId());
-        QueryResult read = execute(parsed, plan.columns(), finalSql, plan.withRowId(), limit + 1);
-        boolean hasMore = read.rows().size() > limit;
+        Read got = execute(parsed, plan.columns(), finalSql, plan.withRowId(), limit + 1);
+        QueryResult read = got.result();
+        // 응답 바이트 상한에서 끊겼으면 건수와 무관하게 더 있다.
+        boolean hasMore = read.rows().size() > limit || got.sizeCapped();
         String blocked = null;
         if (hasMore && orderKeys(parsed.schema(), parsed.table(), plan.heapTable()).isEmpty()) {
             blocked = MORE_BLOCKED_NO_KEY;
@@ -284,9 +286,11 @@ public class DbViewerService {
         }
         String finalSql = DbViewerValidator.buildPagedSql(parsed, plan.columns(), plan.withRowId(), keys, off,
                 fetch + 1);
-        QueryResult read = execute(parsed, plan.columns(), finalSql, plan.withRowId(), fetch + 1);
-        boolean more = read.rows().size() > fetch;
-        boolean capReached = more && off + fetch >= all;
+        Read got = execute(parsed, plan.columns(), finalSql, plan.withRowId(), fetch + 1);
+        QueryResult read = got.result();
+        int kept = Math.min(read.rows().size(), fetch);
+        boolean more = read.rows().size() > fetch || got.sizeCapped();
+        boolean capReached = more && off + kept >= all;
         return read.paged(fetch, more && !capReached, null, capReached);
     }
 
@@ -362,22 +366,67 @@ public class DbViewerService {
         return kinds.contains("TABLE") ? ObjectKind.TABLE : ObjectKind.OTHER;
     }
 
-    private QueryResult execute(DbViewerValidator.ParsedQuery parsed, List<String> columns, String finalSql,
-                                boolean withRowId, int readCap) {
+    /** 읽은 결과와 응답 바이트 상한에 걸려 끊겼는지. */
+    private record Read(QueryResult result, boolean sizeCapped) {
+    }
+
+    private Read execute(DbViewerValidator.ParsedQuery parsed, List<String> columns, String finalSql,
+                         boolean withRowId, int readCap) {
         long start = System.currentTimeMillis();
         // FETCH 상한과 별개로 드라이버·추출 단계에서도 상한을 강제한다
         // (SQL 텍스트 우회 시에도 JVM 적재 폭주 방지 — 방어 심화).
         final int hardCap = readCap;
         final Map<String, String> lobColumns = new LinkedHashMap<>();
-        ResultSetExtractor<List<Map<String, Object>>> extractor = rs -> extractRows(rs, hardCap, lobColumns);
+        final long maxBytes = properties.effectiveMaxResponseBytes();
+        final int maxCell = properties.effectiveMaxCellChars();
+        final boolean[] sizeCapped = new boolean[1];
+        ResultSetExtractor<List<Map<String, Object>>> extractor =
+                rs -> extractRows(rs, hardCap, lobColumns, maxBytes, maxCell, sizeCapped);
         List<Map<String, Object>> rows = jdbcTemplate.query(finalSql, extractor);
         long elapsed = System.currentTimeMillis() - start;
         // 감사 로그 값은 모두 이스케이프한다 — sql= 에는 사용자 WHERE 원문이 들어간다.
         audit.info("query {}.{} cols={} rows={} lobs={} ms={} sql={}", escapeLog(parsed.schema()),
                 escapeLog(parsed.table()), columns.size(), rows.size(), lobColumns.size(), elapsed,
                 escapeLog(finalSql));
-        return new QueryResult(columns, rows, rows.size(), elapsed, finalSql, parsed.schema(), parsed.table(),
-                withRowId ? DbViewerValidator.ROWID_KEY : null, lobColumns);
+        return new Read(new QueryResult(columns, rows, rows.size(), elapsed, finalSql, parsed.schema(),
+                parsed.table(), withRowId ? DbViewerValidator.ROWID_KEY : null, lobColumns),
+                sizeCapped[0]);
+    }
+
+    /** 칸 하나가 응답에서 차지하는 대략적 바이트 외 고정 몫(따옴표·구분자). */
+    private static final int CELL_OVERHEAD_BYTES = 6;
+    private static final int ROW_OVERHEAD_BYTES = 2;
+
+    /** 문자열의 UTF-8 바이트 수(할당 없이 센다). 짝 없는 대리 문자는 3바이트로 본다. */
+    static long utf8Length(String s) {
+        long n = 0;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c < 0x80) {
+                n += 1;
+            } else if (c < 0x800) {
+                n += 2;
+            } else if (Character.isHighSurrogate(c) && i + 1 < s.length()
+                    && Character.isLowSurrogate(s.charAt(i + 1))) {
+                n += 4;
+                i++;
+            } else {
+                n += 3;
+            }
+        }
+        return n;
+    }
+
+    /** 일반 칸 값이 maxChars 를 넘으면 앞부분만 두고 {@code …(전체 N자)} 를 붙인다. */
+    static String clipCell(String value, int maxChars) {
+        if (value == null || value.length() <= maxChars) {
+            return value;
+        }
+        int end = maxChars;
+        if (end > 0 && Character.isHighSurrogate(value.charAt(end - 1))) {
+            end--;
+        }
+        return DbViewerLobSupport.summarizeClob(value.substring(0, end), value.length());
     }
 
     /**
@@ -389,7 +438,19 @@ public class DbViewerService {
      */
     static List<Map<String, Object>> extractRows(ResultSet rs, int hardCap, Map<String, String> lobColumns)
             throws SQLException {
+        return extractRows(rs, hardCap, lobColumns, Long.MAX_VALUE, Integer.MAX_VALUE, new boolean[1]);
+    }
+
+    /**
+     * {@link #extractRows(ResultSet, int, Map)} 에 응답 바이트 상한과 칸 길이 상한을 더한 형태.
+     * 다음 행을 넣으면 {@code maxBytes} 를 넘는 순간 그 행을 버리고 끊는다. 첫 행은 항상 넣어
+     * 이어 보기(offset)가 반드시 앞으로 나아가게 한다. 끊었으면 {@code sizeCapped[0]} 을 true 로 둔다.
+     */
+    static List<Map<String, Object>> extractRows(ResultSet rs, int hardCap, Map<String, String> lobColumns,
+                                                 long maxBytes, int maxCellChars, boolean[] sizeCapped)
+            throws SQLException {
         List<Map<String, Object>> out = new ArrayList<>();
+        long usedBytes = 0;
         ResultSetMetaData meta = rs.getMetaData();
         int count = meta.getColumnCount();
         String[] labels = new String[count + 1];
@@ -408,11 +469,15 @@ public class DbViewerService {
         // 응답 하나 전체의 CLOB 미리 보기 글자 예산 — 행·칸이 많아도 응답이 불어나지 않게 한다.
         DbViewerLobSupport.PreviewBudget budget =
                 new DbViewerLobSupport.PreviewBudget(DbViewerLobSupport.RESPONSE_PREVIEW_BUDGET);
+        long fixedRowBytes = ROW_OVERHEAD_BYTES;
+        for (int i = 1; i <= count; i++) {
+            fixedRowBytes += utf8Length(labels[i]) + CELL_OVERHEAD_BYTES;
+        }
         while (out.size() < hardCap && rs.next()) {
             Object[] values = new Object[count + 1];
             for (int i = 1; i <= count; i++) {
                 if (longText[i]) {
-                    values[i] = rs.getString(i);
+                    values[i] = clipCell(rs.getString(i), maxCellChars);
                 }
             }
             for (int i = 1; i <= count; i++) {
@@ -423,9 +488,20 @@ public class DbViewerService {
                     values[i] = DbViewerLobSupport.readSummary(rs, i, kinds[i], budget);
                 } else {
                     Object value = rs.getObject(i);
-                    values[i] = value == null ? null : value.toString();
+                    values[i] = value == null ? null : clipCell(value.toString(), maxCellChars);
                 }
             }
+            long rowBytes = fixedRowBytes;
+            for (int i = 1; i <= count; i++) {
+                if (values[i] != null) {
+                    rowBytes += utf8Length((String) values[i]);
+                }
+            }
+            if (!out.isEmpty() && usedBytes + rowBytes > maxBytes) {
+                sizeCapped[0] = true;
+                break;
+            }
+            usedBytes += rowBytes;
             Map<String, Object> row = new LinkedHashMap<>();
             for (int i = 1; i <= count; i++) {
                 row.put(labels[i], values[i]);
