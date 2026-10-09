@@ -117,8 +117,8 @@ API 시험만으로는 화면의 JavaScript(DOM 바인딩·이벤트·fetch 호�
   - 상세 폼 입력 한 글자: 화면 루트 렌더 0회, 그리드 셀 재렌더 0회
   - 행 클릭: 포털 셸 재렌더 0회(선택 행 snapshot 이 요구사항이면 1회)
   - 진입 호출(조회 제외) ≤ 3건, 그중 `/api/auth/me` 0건
-- **렌더 측정(`scripts/perf/render/count-renders.mjs`)은 기본으로 하지 않음**
+- **프로파일링 측정(`scripts/perf/render/count-renders.mjs`)은 작업마다 하지 않음**
   - profiling 빌드·전용 서버·heavy 독점이 필요해 시간이 큼
-  - 새 shared 공통 컴포넌트를 만들었거나, 위 순회로 판단이 안 서는 의심이 남을 때만
-  - 그때도 Verify 가 아니라 사람·조정자가 연 측정 창에서(가이드 §4-5)
+  - 조정자 회차 마감 때 한 번, 회차에서 바뀐 화면을 모아 측정(coordinator `references/closing.md` 「화면 프로파일링」)
+  - 화면 작업은 바꾼 화면을 `scripts/perf/render/screens.mjs` 에 등록해 둠(상세 폼이 있으면 `formInput` 포함). 공용 파일이라 조정자가 정한 한 레인만 고침
 - **보고**: build-log.md `## 렌더 점검` 에 규칙별 「해당 없음 / 고침(파일:줄) / 오탐 사유」 한 줄씩
