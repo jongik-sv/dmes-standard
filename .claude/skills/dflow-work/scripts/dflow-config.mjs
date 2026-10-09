@@ -47,7 +47,7 @@ export function parseEntries(text, { warn = true } = {}) {
     const line = raw.replace(/\r$/, '').replace(/^[ \t]+/, '');
     if (line === '' || line.startsWith('#')) return;
     const eq = line.indexOf('=');
-    if (eq < 2) {
+    if (eq < 1) { // '=' 이 없거나 키가 빈 칸. 한 글자 키(x=)는 받는다 — 종전 awk index()<2 와 같다.
       if (warn) console.error(`BAD_LINE ${i + 1}`);
       return;
     }
@@ -56,6 +56,18 @@ export function parseEntries(text, { warn = true } = {}) {
     out.push([k, v]);
   });
   return out;
+}
+
+// 레거시 .env 용 전처리 — 종전 source 가 이해하던 형태를 parseEntries 입력으로 맞춘다:
+// 줄 앞 `export ` 를 떼고, 값 전체가 짝 맞는 따옴표로 감싸져 있으면 벗긴다.
+function parseLegacyEnv(text) {
+  return parseEntries(text.replace(/^[ \t]*export[ \t]+/gm, ''))
+    .map(([k, v]) => {
+      if (v.length >= 2 && ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'")))) {
+        return [k, v.slice(1, -1)];
+      }
+      return [k, v];
+    });
 }
 
 // $1=이 파일이 받을 범위(common|personal) $2=표시명. entries=parseEntries 출력.
@@ -89,7 +101,7 @@ export function dflowConfigLoad() {
   if (process.env.DFLOW_CONFIG_DIR) {
     top = process.env.DFLOW_CONFIG_DIR;
   } else {
-    top = (gitOk(['rev-parse', '--show-toplevel']) ?? '').trimEnd() || '';
+    top = (gitOk(['rev-parse', '--show-toplevel']) ?? '').replace(/\n+$/, '') || '';
   }
   let localText = '';
   let dotText = '';
@@ -142,7 +154,7 @@ export function dflowConfigLoad() {
       if (fs.existsSync(envf)) {
         console.error(`LEGACY_ENV ${envf} 를 읽었다. .dflow·.dflow.local 로 옮겨라`);
         // 종전에는 이 파일을 source 했다. node 판은 key=value 파싱으로만 싣는다(값을 실행하지 않는다).
-        for (const [k, v] of parseEntries(readText(envf))) process.env[k] = v;
+        for (const [k, v] of parseLegacyEnv(readText(envf))) process.env[k] = v;
       }
     }
   }
@@ -151,10 +163,11 @@ export function dflowConfigLoad() {
 }
 
 function originHead() {
-  const b = (gitOk(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']) ?? '')
+  const top = process.env.DFLOW_CONFIG_TOP || '.'; // cwd 가 아니라 설정 리포 기준 — 종전 git -C 와 같다
+  const b = (gitOk(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'], top) ?? '')
     .trim().replace(/^origin\//, '');
   if (b) return b;
-  const sym = gitOk(['ls-remote', '--symref', 'origin', 'HEAD']) ?? '';
+  const sym = gitOk(['ls-remote', '--symref', 'origin', 'HEAD'], top) ?? '';
   const m = sym.match(/^ref: refs\/heads\/(\S*)\s+HEAD$/m);
   return m ? m[1] : '';
 }
@@ -165,7 +178,7 @@ export function dflowConfigBranch(kind) {
   if (kind === 'dev' && process.env.DFLOW_DEV_BRANCH) return process.env.DFLOW_DEV_BRANCH;
   if (kind === 'release' && process.env.DFLOW_RELEASE_BRANCH) return process.env.DFLOW_RELEASE_BRANCH;
   if (kind !== 'dev' && kind !== 'release') {
-    console.error('사용: dflowConfigBranch dev|release');
+    console.error('사용: dflow branch dev|release');
     return null;
   }
   const b = originHead();
@@ -178,7 +191,8 @@ export function dflowConfigBranch(kind) {
 // 그런 키는 원격 스캔의 git diff pathspec 을 리포 밖으로 보내 exit 128(후보 조용히 0건)을 내고, claim 이
 // 리포 밖·엉뚱한 곳에 작업 폴더를 만든다. 잘못된 항목은 그 항목만 건너뛴다.
 //   {pairs: [[키, uuid]], bad: [잘못된 항목의 uuid], warnings: [BAD_DOCS_DIR 사유]}
-export function mapKeys({ quiet = false } = {}) {
+// 경고 묵음 여부는 종전처럼 DFLOW_CONFIG_QUIET 환경 변수가 정한다(호출부 quiet 로 덮을 수 있다).
+export function mapKeys({ quiet = process.env.DFLOW_CONFIG_QUIET === '1' } = {}) {
   const pairs = [];
   const bad = [];
   const warnings = [];
@@ -206,10 +220,10 @@ export function mapKeys({ quiet = false } = {}) {
 }
 
 // 리포 ↔ D'Flow 프로젝트 바인딩: project_id 와 project_map 값의 합집합(줄 목록).
-// 키가 잘못된 항목의 UUID 는 바인딩하지 않는다(경고는 quiet=false 일 때만 stderr 로 낸다).
-export function dflowConfigProjects({ quiet = true } = {}) {
-  const { pairs, warnings } = mapKeys({ quiet });
-  if (!quiet) for (const w of warnings) console.error(w);
+// 키가 잘못된 항목의 UUID 는 바인딩하지 않는다. 경고는 mapKeys 의 quiet 규칙(DFLOW_CONFIG_QUIET)을 따른다.
+export function dflowConfigProjects({ quiet } = {}) {
+  const { pairs, warnings } = mapKeys(quiet === undefined ? {} : { quiet });
+  for (const w of warnings) console.error(w);
   const ids = [process.env.DFLOW_PROJECT_ID || '', ...pairs.map(([, u]) => u)]
     .map((u) => u.replace(/[ \r]/g, ''))
     .filter((u) => u !== '');
@@ -221,15 +235,16 @@ export function dflowConfigProjects({ quiet = true } = {}) {
 // 실패 = 사유 stderr + null.
 export function dflowConfigDocsDir(uuid) {
   const u = (uuid || '').replace(/[ \r]/g, '');
-  if (!u) { console.error('사용: dflowConfigDocsDir <project_uuid>'); return null; }
+  if (!u) { console.error('사용: dflow config docs-dir <project_uuid>'); return null; }
   // 이 UUID 가 잘못된 map 항목에 있으면 멈춘다 — project_id 폴백(docs)보다 먼저 본다. 잘못 적은 키가 조용히
   // docs 로 풀리면 작업 폴더가 의도와 다른 곳에 생긴다. 무관한 잘못된 항목은 경고만 하고 건너뛴다.
-  const { pairs, bad, warnings } = mapKeys({ quiet: false });
-  for (const w of warnings) console.error(w);
+  // 판정이 경고보다 먼저다 — 이 요청 자체가 잘못된 항목에 걸렸으면 그 사유만 보여야 한다.
+  const { pairs, bad, warnings } = mapKeys({ quiet: true });
   if (bad.includes(u)) {
     console.error(`BAD_DOCS_DIR 프로젝트 ${u.split('-')[0]} 의 project_map 키가 리포 최상위 기준 상대경로가 아니다(빈 키·/ 로 시작·.. 금지). .dflow.local 을 고쳐라`);
     return null;
   }
+  for (const w of warnings) console.error(w);
   const keys = [...new Set(pairs.filter(([, v]) => v === u).map(([k]) => k))].sort();
   if (keys.length > 1) {
     console.error(`AMBIGUOUS_DOCS_DIR 프로젝트 ${u.split('-')[0]} 가 project_map 에 여러 키로 있다`);
@@ -243,7 +258,7 @@ export function dflowConfigDocsDir(uuid) {
 
 // 바인딩된 작업 폴더 목록(리포 최상위 기준 상대경로). 여러 작업을 훑는 스윕·감지가 쓴다.
 export function dflowConfigTasksDirs() {
-  const { pairs, warnings } = mapKeys({ quiet: false });
+  const { pairs, warnings } = mapKeys();
   for (const w of warnings) console.error(w);
   const dirs = [
     (process.env.DFLOW_PROJECT_ID || '').replace(/[ \r]/g, '') !== '' ? 'docs' : '',

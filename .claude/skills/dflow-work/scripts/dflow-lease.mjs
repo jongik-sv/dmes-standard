@@ -66,7 +66,7 @@ export function leaseHolder() {
   if (!mid) return null;
   const top = gitOk(['rev-parse', '--show-toplevel']);
   if (top === null) return null;
-  return `${mid}:${posixCksum(top.trimEnd())}`;
+  return `${mid}:${posixCksum(top.replace(/\n+$/, ''))}`; // 뒤의 줄바꿈만 떼고 공백은 보존 — cksum 입력이 종전과 같아야 한다
 }
 
 function leaseStateFile() {
@@ -85,7 +85,7 @@ function leasePidAlive(pid) {
   }
 }
 
-// 상태 파일 → [{project_id, generation}]
+// 상태 파일 → [{project_id, generation}] — 깨진 줄의 generation 은 null(종전 jq tonumber 실패와 같다).
 function leaseRefs(file) {
   return fs.readFileSync(file, 'utf8')
     .split('\n')
@@ -93,7 +93,8 @@ function leaseRefs(file) {
     .filter((l) => l !== '')
     .map((l) => {
       const [project_id, g] = l.split(/\s+/);
-      return { project_id, generation: Number(g) };
+      const gen = Number(g);
+      return { project_id, generation: Number.isFinite(gen) ? gen : null };
     });
 }
 
@@ -155,12 +156,15 @@ function leaseHeavyJson() {
   let runner = null;
   if (hv) {
     if (!fs.existsSync(hv)) return null;
-    runner = hv.endsWith('.mjs') ? 'node' : 'bash';
+    if (hv.endsWith('.mjs')) runner = 'node';
+    else if (process.platform === 'win32') return null; // 윈도우에는 bash 가 없을 수 있다 — heavy.mjs 만 쓴다
+    else runner = 'bash';
   } else {
+    // 기본 후보: heavy.mjs(node) 우선, 없으면 heavy.sh(bash). 윈도우는 heavy.mjs 만 본다.
     const mjs = path.join(SCRIPTS_DIR, '..', '..', 'dflow-dev', 'scripts', 'heavy.mjs');
     const sh = path.join(SCRIPTS_DIR, '..', '..', 'dflow-dev', 'scripts', 'heavy.sh');
     if (fs.existsSync(mjs)) { hv = mjs; runner = 'node'; }
-    else if (fs.existsSync(sh)) { hv = sh; runner = 'bash'; }
+    else if (process.platform !== 'win32' && fs.existsSync(sh)) { hv = sh; runner = 'bash'; }
     else return null;
   }
   try {
@@ -242,18 +246,21 @@ async function leaseAcquire(argv, ctx) {
   if (r.rc !== 0) { process.stderr.write(r.err); process.exit(r.rc); }
   let body;
   try { body = JSON.parse(r.body); } catch { ctx.die(6, 'LEASE_STATE lease 응답을 해석하지 못했다'); }
+  const leases = body?.leases ?? [];
   try {
-    writePrivate(sf, (body.leases ?? []).map((l) => `${l.project_id} ${l.generation}`).join('\n') + ((body.leases ?? []).length ? '\n' : ''));
+    writePrivate(sf, leases.map((l) => `${l.project_id} ${l.generation}`).join('\n') + (leases.length ? '\n' : ''));
     writeBeat(sf); // 첫 기상의 LEASE_KEEP_DEAD 오경보를 막는다(keep 이 첫 갱신을 하기 전)
   } catch { ctx.die(6, 'LEASE_STATE 상태 파일을 쓰지 못했다'); }
-  console.log(`LEASE_OK ${(body.leases ?? []).length}`);
+  console.log(`LEASE_OK ${leases.length}`);
 }
 
-// keep 이 쓰는 갱신 본체 — 프로세스를 끝내지 않고 {rc, out} 을 돌려준다.
+// keep 이 쓰는 갱신 본체 — 프로세스를 끝내지 않고 {rc, out, err} 를 돌려준다(keep 은 rc 를 실패 카운터에 흡수한다).
 async function leaseRenewCore(ctx) {
-  const sf = leaseStateFile() || ctx.die(2, 'LEASE_STATE git 리포 안에서 실행하라');
-  if (!fs.existsSync(sf) || fs.statSync(sf).size === 0) return { rc: 2, out: 'LEASE_NONE\n' };
-  const h = leaseHolder() || ctx.die(6, 'LEASE_HOLDER PC ID 나 리포 경로를 정하지 못했다');
+  const sf = leaseStateFile();
+  if (sf === null) return { rc: 2, out: '', err: 'LEASE_STATE git 리포 안에서 실행하라\n' };
+  if (!fs.existsSync(sf) || fs.statSync(sf).size === 0) return { rc: 2, out: 'LEASE_NONE\n', err: '' };
+  const h = leaseHolder();
+  if (!h) return { rc: 6, out: '', err: 'LEASE_HOLDER PC ID 나 리포 경로를 정하지 못했다\n' };
   const heavy = leaseHeavyJson();
   let json = { op: 'renew', holder: h, leases: leaseRefs(sf) };
   if (heavy) json = { ...json, heavy };
@@ -261,7 +268,7 @@ async function leaseRenewCore(ctx) {
   if (r.rc !== 0) return { rc: r.rc, out: '', err: r.err };
   let body;
   try { body = JSON.parse(r.body); } catch { return { rc: 6, out: '', err: '' }; }
-  const lost = (body.lost ?? []).join(' ');
+  const lost = (body?.lost ?? []).join(' ');
   if (lost !== '') return { rc: 4, out: `LEASE_LOST ${lost}\n`, err: '' };
   writeBeat(sf);
   return { rc: 0, out: 'LEASE_OK\n', err: '' };
@@ -270,35 +277,34 @@ async function leaseRenewCore(ctx) {
 async function leaseRenew(ctx) {
   const r = await leaseRenewCore(ctx);
   if (r.out) process.stdout.write(r.out);
-  if (r.rc === 2) process.exit(2);
   if (r.err) process.stderr.write(r.err);
   if (r.rc !== 0) process.exit(r.rc);
 }
 
-// keep·trap 이 조용히 부르는 반납. 프로세스를 끝내지 않는다.
+// keep·trap 이 조용히 부르는 반납. 프로세스를 끝내지 않고 {rc, out, err} 를 돌려준다.
 async function leaseReleaseCore(ctx) {
   const sf = leaseStateFile();
-  if (!sf) return 2;
+  if (sf === null) return { rc: 2, out: '', err: 'LEASE_STATE git 리포 안에서 실행하라\n' };
   if (!fs.existsSync(sf) || fs.statSync(sf).size === 0) {
     try { fs.rmSync(sf, { force: true }); fs.rmSync(`${sf}.beat`, { force: true }); } catch { /* 이미 없음 */ }
-    return 0;
+    return { rc: 0, out: 'LEASE_NONE\n', err: '' };
   }
   const h = leaseHolder();
-  if (!h) return 6;
+  if (!h) return { rc: 6, out: '', err: 'LEASE_HOLDER PC ID 나 리포 경로를 정하지 못했다\n' };
   const json = JSON.stringify({ op: 'release', holder: h, leases: leaseRefs(sf) });
   const r = await ctx.apiRaw({ token: ctx.tok(), method: 'POST', p: '/api/v1/agent/lead/lease', body: json });
-  if (r.rc !== 0) return r.rc;
+  if (r.rc !== 0) return { rc: r.rc, out: '', err: r.err };
   try { fs.rmSync(sf, { force: true }); fs.rmSync(`${sf}.beat`, { force: true }); } catch { /* 이미 없음 */ }
   let released = '';
-  try { released = String(JSON.parse(r.body).released ?? ''); } catch { /* 본문 해석 실패는 빈 값 */ }
-  return released;
+  try { released = String(JSON.parse(r.body)?.released ?? ''); } catch { /* 본문 해석 실패는 빈 값 */ }
+  return { rc: 0, out: `LEASE_RELEASED ${released}\n`, err: '' };
 }
 
 async function leaseRelease(ctx) {
-  const rc = await leaseReleaseCore(ctx);
-  if (rc === 2) ctx.die(2, 'LEASE_STATE git 리포 안에서 실행하라');
-  if (rc === 6) ctx.die(6, 'LEASE_HOLDER PC ID 나 리포 경로를 정하지 못했다');
-  console.log(`LEASE_RELEASED ${rc}`);
+  const r = await leaseReleaseCore(ctx);
+  if (r.out) process.stdout.write(r.out);
+  if (r.err) process.stderr.write(r.err);
+  if (r.rc !== 0) process.exit(r.rc);
 }
 
 // 팀장 PID 에 묶인 갱신 루프. 백그라운드로 띄운다.
@@ -311,8 +317,10 @@ async function leaseKeep(argv, ctx) {
     else ctx.usage();
   }
   if (pid === '' || lf === '') ctx.usage();
-  const iv = Number(process.env.DFLOW_LEASE_INTERVAL || 60);
-  const st = Number(process.env.DFLOW_LEASE_STEP || 5);
+  const ivRaw = Number(process.env.DFLOW_LEASE_INTERVAL || 60);
+  const stRaw = Number(process.env.DFLOW_LEASE_STEP || 5);
+  const iv = Number.isFinite(ivRaw) && ivRaw > 0 ? ivRaw : 60; // 유한 양수가 아니면 기본값
+  const st = Number.isFinite(stRaw) && stRaw > 0 ? stRaw : 5;
   const sf = leaseStateFile() || ctx.die(2, 'LEASE_STATE git 리포 안에서 실행하라');
   // 세션이 끝나며 백그라운드 태스크를 신호로 거두면 kill -0 분기에 닿지 못한다. 그때도 바로 반납한다.
   let signaled = false;

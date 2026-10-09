@@ -1048,7 +1048,7 @@ async function cmdProfiles() {
 
 async function cmdDoctor() {
   console.log(`base: ${base()}`);
-  dflowConfigProjects({ quiet: false }); // 잘못된 project_map 키(BAD_DOCS_DIR)를 알린다 — 시작 때는 조용히 구했다
+  dflowConfigProjects(); // 잘못된 project_map 키(BAD_DOCS_DIR)를 알린다 — 시작 때는 조용히 구했다(DFLOW_CONFIG_QUIET 따름)
   const toks = tokens();
   const sel = await pickToken(AS, AS_EXACT);
   for (let i = 0; i < toks.length; i++) {
@@ -1089,7 +1089,7 @@ function cmdConfig(argv) {
     console.log(`dflow=${process.env.DFLOW_CONFIG_DOT || '-'}`);
     console.log(`local=${process.env.DFLOW_CONFIG_LOCAL || '-'}`);
   } else if (key === 'projects') {
-    for (const p of dflowConfigProjects({ quiet: false })) console.log(p);
+    for (const p of dflowConfigProjects()) console.log(p);
   } else if (key === 'docs-dir') {
     if (!argv[1]) usage();
     const d = dflowConfigDocsDir(argv[1]);
