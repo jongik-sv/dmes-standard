@@ -4,7 +4,7 @@
 
 ## 상태 (2026-10-10)
 
-완료 — 커밋 5개, 머지 요청 전달·대기 중.
+완료 — 커밋 7개. 머지 허가받아 dev 반영·워크트리 정리까지 마침.
 
 | 커밋 | 내용 |
 |---|---|
@@ -13,6 +13,8 @@
 | df7ad9880 | dflow.mjs 이식 (원본 1080줄) |
 | 7b7e8e8c3 | 원본 sh 6개 git mv backup/ + README |
 | ee8612874 | 조정 리뷰 지적 반영 (config 7건·lease 7건) |
+| (메모) | memo-dn-work.md |
+| (허가 조건) | dflow-config.sh 를 scripts/ 로 복귀 — ~/.dflow/hooks/heartbeat.sh 이 source 함. 첫 주석에 heartbeat 호환용 표기, backup/README.md 에 예외 한 줄 |
 
 ## 확인 결과
 
@@ -36,7 +38,7 @@
 | 옛 | 새 |
 |---|---|
 | `bash .claude/skills/dflow-work/scripts/dflow.sh <인자>` | `node .claude/skills/dflow-work/scripts/dflow.mjs <같은 인자>` |
-| `dflow.sh` 가 `. dflow-config.sh` source | `dflow.mjs` 가 `./dflow-config.mjs` import |
+| `dflow.sh` 가 `. dflow-config.sh` source | `dflow.mjs` 가 `./dflow-config.mjs` import. `dflow-config.sh` 자체는 heartbeat 훅 호환용으로 scripts/ 에 잔류 |
 | `dflow.sh` 가 `. dflow-lease.sh` source | `dflow.mjs` 가 `./dflow-lease.mjs` import |
 | `tests/console-cmds.sh`·`lease-refs.sh`·`watch-summary.sh` | `backup/tests/` 이동(퇴역·실행 금지) |
 
@@ -44,8 +46,7 @@
 
 ## 남은 순서
 
-1. 머지 허가 → 메인 체크아웃에서 --no-ff 머지 → 머지 완료 보고
-2. 워크트리 정리(git worktree remove·branch -d) → 정리 완료 보고
+없음 — dev 반영·정리 완료. dflow.mjs 후속 리뷰는 dn-coord-fix 가 진행(지적이 나오면 새 브랜치로 재위임).
 
 ## 후보 후속 (조정 세션 재량)
 
