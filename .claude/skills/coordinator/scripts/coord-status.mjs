@@ -89,7 +89,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd(), now }
 
     let SNAP = '', HEAVY_ON = false;
     const hs = coordHeavyScript(c);
-    if (hs.out) { HEAVY_ON = true; SNAP = stripNl(runSync('bash', [hs.out, 'snapshot'], { env: c.env, cwd: c.cwd }).out.toString('utf8')); }
+    if (hs.out) { HEAVY_ON = true; SNAP = stripNl(runScriptFile(hs.out, ['snapshot'], { env: c.env, cwd: c.cwd }).out.toString('utf8')); }
 
     const items = [];   // --json 객체들(Map)
     const line = (s) => out.push(`${s}\n`);

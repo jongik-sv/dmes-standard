@@ -23,13 +23,13 @@ const HELP = `# 사용법: close-lane.mjs <레인> | --handle <h>  [--force-repo
 #   Q7 순서 중 정본 메모 완료 갱신·산출물 복사는 조정자가 먼저 한다. 이 스크립트는 그 뒤의 기계적 부분:
 #   bg 실행 확인 → 보고 확인 → 워크트리·브랜치 남음 경고 → orca terminal close --tab → handle·세션 파일 사라짐 확인(최대 15초)
 #   → state lanes.<l>.state=closed · 이벤트.
-#   거부: bg-running(세션 자손이나 레인 워크트리에서 도는 빌드·시험, heavy.sh RUN cwd 가 레인 워크트리)
+#   거부: bg-running(세션 자손이나 레인 워크트리에서 도는 빌드·시험, heavy.mjs RUN cwd 가 레인 워크트리)
 #         · not-reported(last_report_at 없음, --force-report 로 통과). worktree·branch 가 남은 것은 stderr 경고만.
 #   stdout: \`CLOSED <레인> handle=<h>\` 또는 \`CLOSE_REFUSED <레인> <사유>\`.
 #   --dry-run: 판정은 실제로, 닫기 직전에 멈추고 \`DRY CLOSED <레인> handle=<h>\`.
 `;
 const HERE = dirname(fileURLToPath(import.meta.url));
-const HEAVY_RE = /GradleWrapperMain|gradlew|vitest|playwright (test|show-report)|\/tsc( |$)|tsup|heavy\.sh|jest|npm (run|test|exec vite)/;
+const HEAVY_RE = /GradleWrapperMain|gradlew|vitest|playwright (test|show-report)|\/tsc( |$)|tsup|heavy\.(sh|mjs)|jest|npm (run|test|exec vite)/;
 const readDocs = (file) => { try { return J.parseStreamPartial(readFileSync(file, 'utf8')).values; } catch { return []; } };
 const isDir = (p) => { try { return statSync(p).isDirectory(); } catch { return false; } };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -148,7 +148,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
         bg.push(...heavyByCwd(c, psAll, wtCheck));
         const hs = coordHeavyScript(c);
         if (hs.out) {
-          const snap = runSync('bash', [hs.out, 'snapshot'], { env: c.env, cwd: c.cwd }).out.toString('latin1');
+          const snap = runScriptFile(hs.out, ['snapshot'], { env: c.env, cwd: c.cwd }).out.toString('latin1');
           for (const line of snap.split('\n')) {
             if (line === '') continue;
             const cols = line.replace(/^\t+/, '').split(/\t+/);   // IFS 탭 읽기: 연속 탭은 하나로

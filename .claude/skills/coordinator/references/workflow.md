@@ -18,7 +18,7 @@
   - 바꿀 문장 = 「검색은 grep 이나 sonnet/medium agent 로 한다」
 - `{heavy_env}` = state `lanes.<레인>.heavy_env`
   - 전용 칸이 없으면 → 「무거운 작업 칸」 줄에서 「{heavy_env} 로」 만 뺌
-  - `heavy.script` 가 `null` 이면 → heavy.sh 언급을 모두 뺌(「무거운 작업 칸」·「시험」)
+  - `heavy.script` 가 `null` 이면 → heavy.mjs 언급을 모두 뺌(「무거운 작업 칸」·「시험」)
 - model 이 `search` 인 표 줄 = 검색 워커(`{search_cmd}`: agy → opencode)
   - 두 워커가 모두 실패 → sonnet/medium
 
@@ -41,7 +41,7 @@ Workflow 기동 비용이 일 자체보다 크면 띄우지 않음.
   - 띠가 바뀌면 `사용량 조정` 메시지로 새 상한 통지
   - 이미 도는 Workflow 는 끝까지 두고 다음 Workflow 부터 적용
 - 「무거운 작업 금지」 상태인 레인 = 시험 단계 agent 를 띄우지 않음(조사·문서 agent 만)
-- Workflow 안 무거운 단계는 레인 안에서 한 번에 하나, heavy.sh 경유
+- Workflow 안 무거운 단계는 레인 안에서 한 번에 하나, heavy.mjs 경유
   - 레인 공용 잠금이 필요하면 레인 scratchpad 의 mkdir 잠금도 허용
 - PC 전체 동시 agent 합 = `레인 수 × 레인 상한`
   - 레인 수는 `usage.md` 「새 레인 상한」 만 봄(띠가 올라도 레인을 줄이지 않음)

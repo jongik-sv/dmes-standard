@@ -81,7 +81,7 @@ agent 단계별 모델 = `workflow.model_table`(`contract.md` §1.3).
   - 첫 기동 때 `-n`·`--model`·`--effort`·`--autocompact` 통과 확인
 - `--autocompact <tokens>` = 백스톱. 주 경로 = 외부 `/compact`(`compact.md`)
 - 레인 수 상한 = `usage.md` §2 「새 레인 상한」
-  - dflow-team 의 `capacity.sh` 가 있는 PC → 그 판정(free·swap·load)도 적용
+  - dflow-team 의 `capacity.mjs` 가 있는 PC → 그 판정(free·swap·load)도 적용
 - 터미널 입력 = `term-send-safe.mjs` 만
 - 레인 이름 40자 이하·첫 `lane-add` 에 `memo` → `decompose.md` §5
 

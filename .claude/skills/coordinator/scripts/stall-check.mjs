@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import * as J from './lib/jq-json.mjs';
 import { CoordDie, Ctx, cfgSub, hasRun, nowEpoch, pathInWt, runDir, sessionFile, stateFile, wtAbs } from './lib/common.mjs';
 import { isWin, procCwds } from './lib/compat.mjs';
-import { ArithAbort, arithVal, awkAtof, awkNum, cmpInt, coordDefaultRepo, coordGit, coordHeavyRunInWt, coordHeavyScript, fmtFixed, rawOut, runSync, stripNl } from './lib/common-ext.mjs';
+import { ArithAbort, arithVal, awkAtof, awkNum, cmpInt, coordDefaultRepo, coordGit, coordHeavyRunInWt, coordHeavyScript, fmtFixed, rawOut, runScriptFile, runSync, stripNl } from './lib/common-ext.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 
 /** 도움말(= bash 판 머리말 2~13줄, 이름만 .mjs). */
@@ -29,7 +29,7 @@ const HELP = `# 사용법: stall-check.mjs [레인…]   (없으면 active 레�
 #      60초 안이면 판정하지 않는다(OK, 관측만 남김).
 #   3) 산출물 무변화가 stall.quiet_min 이상: 마지막 변화 = max(워크트리 git status --porcelain 내용이 바뀐 시각,
 #      그 목록에 든 파일 mtime 최신값, HEAD 커밋 시각). ignore 된 build·scratch 출력은 보지 않는다.
-# pid = 트리 중 누적 CPU 가 가장 큰 프로세스(jstack 대상 후보). heavy = heavy.sh snapshot RUN 줄 cwd 가 레인 워크트리 안인지.
+# pid = 트리 중 누적 CPU 가 가장 큰 프로세스(jstack 대상 후보). heavy = heavy.mjs snapshot RUN 줄 cwd 가 레인 워크트리 안인지.
 `;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const readDocs = (file) => { try { return J.parseStreamPartial(readFileSync(file, 'utf8')).values; } catch { return []; } };
@@ -202,7 +202,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd(), now }
     if (QUIET === '' || /[^0-9]/.test(QUIET)) QUIET = '20';
     let SNAP = '';
     const hs = coordHeavyScript(c);
-    if (hs.out) SNAP = stripNl(runSync('bash', [hs.out, 'snapshot'], { env: c.env, cwd: c.cwd }).out.toString('utf8'));
+    if (hs.out) SNAP = stripNl(runScriptFile(hs.out, ['snapshot'], { env: c.env, cwd: c.cwd }).out.toString('utf8'));
     const cpuObs = !isWin(c.env);
     if (!cpuObs) c.log('Git Bash: 프로세스 누적 CPU 시간을 읽을 수 없어 STALL 판정을 하지 않는다(OK 만 낸다)');
     let rows = [];

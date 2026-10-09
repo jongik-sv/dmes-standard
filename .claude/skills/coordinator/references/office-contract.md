@@ -7,7 +7,7 @@
 
 ## 4. 에이전트 오피스 표시 계약
 
-조정 세션(팀장)과 레인(팀원)을 wbs-web 의 에이전트 오피스에 **표시 전용**으로 보인다. WBS 데이터(작업·lease·진도율)는 건드리지 않는다. 표시 경로는 `dflow.sh watch`(POST `/api/v1/agent/watch`, `agent_watchers`) 하나뿐이다. 구현은 `scripts/office.mjs`, 화면(wbs-web)은 아래 규칙으로 읽는다.
+조정 세션(팀장)과 레인(팀원)을 wbs-web 의 에이전트 오피스에 **표시 전용**으로 보인다. WBS 데이터(작업·lease·진도율)는 건드리지 않는다. 표시 경로는 `dflow.mjs watch`(POST `/api/v1/agent/watch`, `agent_watchers`) 하나뿐이다. 구현은 `scripts/office.mjs`, 화면(wbs-web)은 아래 규칙으로 읽는다.
 
 **agent 키**
 
@@ -16,7 +16,7 @@
 | 팀장 | `<신원>/<host>/coord:<세션8>` | **조정 세션당 하나**다(회차가 아니다). `<세션8>` = 조정 세션 id(`COORD_SESSION_ID` → `CLAUDE_CODE_SESSION_ID`)의 앞 8자를 소문자 `[a-z0-9]` 로 거른 값, 세션 id 를 모르면 `p<조정 세션 pid>`, pid 도 모르면 회차 id(이 경우 키가 회차 단위로 돌아가므로 `init` 이 stderr 경고를 낸다). `slots` = 그 세션의 **열린 회차 전부**(`run.closed_at` 이 null) 에서 합산한 살아 있는 레인 수(state 가 closed 가 아닌 레인), `busy` = 그중 작업 중·머지 중 레인 수. 레인이 0 이어도 `slots 0 busy 0` 을 보낸다. 회차가 열리고 닫혀도 키는 바뀌지 않고, 그 세션의 **마지막 열린 회차를 닫을 때만** 내린다. 서로 다른 세션 id 의 조정 세션 둘은 팀장 둘이다(정상) |
 | 팀원 | `<신원>/<host>/임시:<레인>·<지시 요약>` | `until` 칸에 상태 라벨. `slots`·`busy` 는 보내지 않는다. 레인 이름은 키에서 40자로 잘리므로 `lane-add` 가 40자를 넘는 이름을 거절한다 |
 
-- `<신원>/<host>` 는 `dflow.sh` 의 `watcher_id_default`(`<신원>/<host>/poll`)에서 마지막 토막만 뗀 값이다(신원 = `/me` 의 user_email 로컬 파트, host = hostname 첫 토막, 둘 다 소문자 `[a-z0-9-]` 슬러그). 킷에 PC별 이름을 박지 않는다. 신원은 `state.json` 의 `.office.user` 에 캐시한다.
+- `<신원>/<host>` 는 `dflow.mjs` 의 `watcher_id_default`(`<신원>/<host>/poll`)에서 마지막 토막만 뗀 값이다(신원 = `/me` 의 user_email 로컬 파트, host = hostname 첫 토막, 둘 다 소문자 `[a-z0-9-]` 슬러그). 킷에 PC별 이름을 박지 않는다. 신원은 `state.json` 의 `.office.user` 에 캐시한다.
 - **팀장 토큰(화면 파싱 규칙)**: 마지막 `/` 뒤 토막이 `coord:` 로 시작하면 팀장(조정)이고 `:` 뒤가 조정 세션 식별자(`<세션8>`)다. 화면은 이 값을 해석하지 않고 그대로 식별자로만 쓴다. 옛 형식 `…/coord:<run-id>`·`…/coord`(식별자 없음)도 팀장으로 읽되, 새 호출은 **옛 키를 새 키로 바꾸는 첫 beat 에서** 옛 키를 stop 한 뒤 새 키를 보낸다.
 - **조정 세션 기록**: 팀장은 회차가 아니라 세션에 속하므로 `<state_dir>/_session/<세션8>.json` 에 `{"key","session_id","host","user","pid","handle","sent_at","slots","busy"}` 를 둔다(`office.mjs` 가 `coord-state.mjs` 와 같은 mkdir 잠금으로만 쓴다). `pid`·`handle` 은 조정 세션 프로세스·Orca 핸들이다. 회차의 `.office.sent._lead` 는 더 쓰지 않는다. 이 세션의 열린 회차 집합은 `<state_dir>/*/state.json` 중 `.run.coordinator.session_id` 의 앞 8자가 `<세션8>` 이고 `.run.closed_at` 이 null 인 것이다.
 - **생존 판정은 프로세스 기준**이다(틱 beat 는 보조). PC 단위 폴러(`console-poll.mjs`, §4.1)가 30초마다 `_session/*.json` 의 `pid` 를 `kill -0` 으로 확인해 죽었으면 그 세션의 팀장 키와, 그 세션 회차들의 `.office.sent` 에 남은 팀원 키를 즉시 stop 하고 기록을 지운다. 팀원 키는 레인 세션 pid(`lanes.<레인>.session.pid`)가 죽었을 때도 같은 처리를 한다. pid 를 모르면(0·빈 값) 그 대상은 프로세스 판정에서 제외하고 TTL(70분)에 맡긴다. 마감이 빠진 채 세션이 죽어도 TTL 70분 동안 유령이 남지 않는다.
@@ -39,7 +39,7 @@
 | `node scripts/coord-state.mjs lane-add`(이미 올라간 레인만)·`report`·`item-done`·`hold` | `lane-state <레인> auto` |
 | `node scripts/coord-state.mjs set '.merge…'` 로 `in_flight` 레인이 바뀔 때(머지 허가·완료) | 이전·새 레인에 `lane-state <레인> auto` |
 | `node scripts/coord-state.mjs set '.merge…'` 로 `in_flight` 는 그대로고 `merge.queue` 만 바뀔 때 · `set '.pending_user…'` | `lead-sync`(팀장 자리 요약·라벨) |
-| 폴러가 입력 요청 기록을 쓰거나 지운 직후(§4.1) | 레인 `COORD_RUN=<그 레인의 회차> node scripts/office.mjs lane-state <레인> auto` · 조정 팀장 `COORD_RUN=<그 세션의 열린 회차 하나> node scripts/office.mjs lead-sync`(기록 파일 이름에 회차가 없으므로 회차는 부르는 쪽이 넘긴다. `current` 에 맡기면 다른 회차를 본다). 폴러가 조정 키로 `dflow.sh watch` 를 직접 보내면 요약 칸이 빠져 서버가 null 로 덮으므로 늘 이 경로로 보낸다 |
+| 폴러가 입력 요청 기록을 쓰거나 지운 직후(§4.1) | 레인 `COORD_RUN=<그 레인의 회차> node scripts/office.mjs lane-state <레인> auto` · 조정 팀장 `COORD_RUN=<그 세션의 열린 회차 하나> node scripts/office.mjs lead-sync`(기록 파일 이름에 회차가 없으므로 회차는 부르는 쪽이 넘긴다. `current` 에 맡기면 다른 회차를 본다). 폴러가 조정 키로 `dflow.mjs watch` 를 직접 보내면 요약 칸이 빠져 서버가 null 로 덮으므로 늘 이 경로로 보낸다 |
 | `close-lane.mjs` 가 레인을 closed 로 쓴 뒤 | `lane-down <레인>` |
 | `tick.mjs` 끝(`--dry-run` 제외) | `node scripts/coord-state.mjs set .run.last_tick_at <지금 ISO>` 뒤 `beat` — 팀장과 살아 있는 레인 전원을 같은 키로 재전송(하트비트). 끝난 레인·state 에서 사라진 레인은 stop. 개별 호출이 빠져도 beat 가 state.json 기준으로 바로잡는다. 마감 뒤에는 `.office.sent` 에 남은 키만 stop 한다 |
 | `console-poll.mjs` 생존 감시(§4.1, 30초마다) | `reap` — `_session/*.json` 의 `pid` 가 죽은 세션은 팀장 키와 그 세션 회차들(마감 여부 무관)의 `.office.sent` 팀원 키를 stop 한다. **`.office.finished` 표식은 남기지 않는다**(잘못 죽었다고 판정된 살아 있는 세션이 다음 beat 에서 다시 올라올 수 있어야 한다). 죽은 세션의 회차는 열린 채 남으므로 폴러·대상 해석은 「살아 있는 세션의 열린 회차」(세션 기록이 있고 pid 가 살아 있는 세션)만 센다. 세션 기록은 모든 stop 이 성공했을 때만 지운다(실패분은 다음 주기가 다시 시도). 살아 있는(또는 기록 없는) 세션의 열린 회차에서는 `session.pid` 가 죽은 레인의 팀원 키만 stop 하고 기록을 지운다. pid 0·빈 값은 판정에서 뺀다. 한 호출의 ABORT 는 호출 전체에 걸린다 |
@@ -47,13 +47,13 @@
 
 `lane-state`·`lane-up` 은 키·라벨·요약 해시가 기록과 모두 같으면 보내지 않는다(beat·lead-up·lead-sync 는 늘 보낸다). 사용자가 띄운 세션처럼 `lane-up` 을 거치지 않은 레인은 다음 beat 에서 등록된다.
 
-**실패 정책**: 어떤 실패도 조정자 동작을 막지 않는다(종료 코드 0, 경고는 stderr 한 줄). 호출당 5초 제한(`timeout` 명령이 없어 백그라운드 + kill 로 구현, 후손 프로세스까지 재귀로 죽인다). 시간 초과·네트워크 오류(rc 6)·인증·권한·경로 오류(rc 3·5·7)·설정 없음이면 그 호출의 남은 전송을 건너뛴다. `dflow.sh` rc 2 는 stderr 로 가른다: JSON 본문이면 API 4xx 거절이라 그 건만 경고하고 나머지는 계속 보내고, 글이면 설정 없음이라 무출력으로 남은 전송을 건너뛴다. `enabled=false`, `dflow.sh` 없음, D'Flow 설정(PAT) 미로드(`dflow.sh` 종료 코드 2)는 아무 출력 없이 건너뛴다. `COORD_DRY=1` 이면 보내지 않는다.
+**실패 정책**: 어떤 실패도 조정자 동작을 막지 않는다(종료 코드 0, 경고는 stderr 한 줄). 호출당 5초 제한(`timeout` 명령이 없어 백그라운드 + kill 로 구현, 후손 프로세스까지 재귀로 죽인다). 시간 초과·네트워크 오류(rc 6)·인증·권한·경로 오류(rc 3·5·7)·설정 없음이면 그 호출의 남은 전송을 건너뛴다. `dflow.mjs` rc 2 는 stderr 로 가른다: JSON 본문이면 API 4xx 거절이라 그 건만 경고하고 나머지는 계속 보내고, 글이면 설정 없음이라 무출력으로 남은 전송을 건너뛴다. `enabled=false`, `dflow.mjs` 없음, D'Flow 설정(PAT) 미로드(`dflow.mjs` 종료 코드 2)는 아무 출력 없이 건너뛴다. `COORD_DRY=1` 이면 보내지 않는다.
 
-**D'Flow 설정 로드**: 스킬 폴더(심링크) 경로에서 설정을 읽으면 다른 리포의 PAT 로 404 가 난다. `dflow.sh` 는 항상 리포 루트(`coord_repo`, 곧 `git rev-parse --git-common-dir` 의 부모인 메인 체크아웃)를 cwd 로, 환경 변수 `DFLOW_CONFIG_DIR` 를 지정해 실행한다. 이미 `DFLOW_CONFIG_DIR` 가 있으면 그 값을 쓴다.
+**D'Flow 설정 로드**: 스킬 폴더(심링크) 경로에서 설정을 읽으면 다른 리포의 PAT 로 404 가 난다. `dflow.mjs` 는 항상 리포 루트(`coord_repo`, 곧 `git rev-parse --git-common-dir` 의 부모인 메인 체크아웃)를 cwd 로, 환경 변수 `DFLOW_CONFIG_DIR` 를 지정해 실행한다. 이미 `DFLOW_CONFIG_DIR` 가 있으면 그 값을 쓴다.
 
 **레인 요약·팀장 자리 요약·입력 요청** (오피스·lane-tools 의 「요약만 보기」. 서버 형식 정본은 `dflow-work/references/api-contract.md` §2.12 「watch 요약 칸」)
 
-- 셋 다 watch 본문의 추가 칸이고 `dflow.sh watch --summary-json`·`--lead-summary-json`·`--input-request-json` 으로 싣는다. **칸을 빼면 서버가 그 칸을 null 로 덮어쓰므로, 그 키로 watch 를 보내는 모든 경로(lane-up·lane-state·beat·lead-up·lead-sync·finish 의 팀장 재전송)가 매번 현재 값을 싣는다.** 새 주기 폴링은 없다 — 위 「호출 연결」 시점에만 보낸다.
+- 셋 다 watch 본문의 추가 칸이고 `dflow.mjs watch --summary-json`·`--lead-summary-json`·`--input-request-json` 으로 싣는다. **칸을 빼면 서버가 그 칸을 null 로 덮어쓰므로, 그 키로 watch 를 보내는 모든 경로(lane-up·lane-state·beat·lead-up·lead-sync·finish 의 팀장 재전송)가 매번 현재 값을 싣는다.** 새 주기 폴링은 없다 — 위 「호출 연결」 시점에만 보낸다.
 - 모두 **state.json 최상위·레인 값과 입력 요청 기록 파일만으로** 만든다(터미널·orca 호출 없음). 비밀(토큰)·경로(worktree·memo·rules_doc)·핸들·pid·세션 id 는 싣지 않는다.
 - 문자열 정리(서버와 같은 규칙, 해시 일치용): 제어 문자(U+0000~001F·U+007F~009F)를 지우되 줄바꿈·탭은 공백 하나로(발췌 줄은 탭까지 지운다) → 코드포인트 기준으로 자른다. 시각은 시간대(`Z`·`±HH:MM`) 있는 ISO 만 싣고 그 밖은 null. 숫자는 정수로 내리고 범위로 자른다.
 - **레인 `summary`**(팀원 키): `{v:1, lane(≤60), state(≤20, 기본 active), brief(lanes.<l>.brief ≤200 — goal·memo 로 대체하지 않는다), items_done·items_total(항목 개수, weight 무시, 0~9999), hold(hold.reason ≤100|null), branch(≤120), **lead(이 레인을 가진 조정 팀장 키 `coord:<세션8>` 의 `<세션8>`, ≤40자, 그 회차 `.run.coordinator` 의 session_id 앞 8자 규칙(§4 세션8)·모르면 칸을 뺀다)**, last_report_at·last_instr_at(ISO|null), ctx_pct(.ctx.pct 정수 0~100|null), compact_pending(bool)}`. 전체 2048바이트(UTF-8, `tojson`)를 넘으면 brief → hold → branch 순으로 줄인다(실측: 최대 길이 이모지로 채워도 약 1.9KB).
@@ -61,7 +61,7 @@
 - **`input_request`**(팀원 키): 폴러가 `${DFLOW_CONSOLE_DIR:-~/.dflow/console}/input/<kind>_<ref>.json`(레인 `coord_lane_<레인>.json`, 조정 팀장 `coord_lead_<세션8>.json`)에 쓰는 기록 `{"v":1,"kind":"permission|question|choice|usage-limit|trust|message","since":"<UTC ms ISO>","excerpt":["…"],"handled":null|{"by":"coordinator|auto","at":"<ISO>"}}` 을 읽어 그대로 싣는다(발췌는 아래쪽 10줄·줄당 200자로 다시 자르고, 3072바이트를 넘으면 위 줄부터 버린다). 기록이 없으면 `null` 을 싣는다(창이 사라졌다는 뜻). 파일이 없거나 JSON 이 깨졌거나 kind·since(시간대)·handled 형식이 틀리면 **없는 것**으로 본다. 기록이 있고 `handled` 가 null 이고 kind 가 `usage-limit`·`trust` 가 아니면 「살아 있는 기록」 이고 라벨이 `답 대기` 가 된다(처리됨·자동 처리 종류도 칸에는 싣는다). 쓰기는 폴러 몫이고 `office.mjs` 는 읽기만 한다. **폴러는 발췌를 console-redact 로 가린 뒤 기록을 쓴다** — `office.mjs` 는 다시 가리지 않고 서버도 가리지 않는다. 팀장 기록은 칸으로 싣지 않고 `until` 판정에만 쓴다.
 - **자유 글 가림**: `summary.brief`·`summary.hold`(사유)·`lead_summary` 의 `decision.first_title`·`progress.goal` 과 팀원 키의 지시 요약은 `office.mjs` 가 `console_redact_text`(lib/console-redact.mjs)로 가리고 `/`·`~/` 로 시작하는 절대 경로 토큰을 `[경로]` 로 바꾼 뒤 싣는다. 함수가 없거나 실패하면 그 칸을 비운다(`brief`·`hold` 는 `""`, `first_title`·`goal` 은 빈 글 처리 규칙대로, 키는 요약 없이 머리만 — 실패 시 닫힘).
 - **해시**: 레인은 `summary`+`input_request` 의 sha256 을 `.office.sumhash["<레인>"]`(stop 하면 지움), 조정 팀장은 `until`+`lead_summary` 의 sha256 을 세션 기록 `_session/<세션8>.json` 의 `.sumhash`(`.label` 도 함께)에 둔다. 해시는 「같은 키·같은 라벨(팀장은 같은 slots/busy)인데 요약만 바뀌었을 때 watch 를 추가로 보낼지」 판단에만 쓰고, 칸을 뺄지 정하는 데는 쓰지 않는다.
-- **서버 `summary_error`**: 형식이 틀린 칸은 서버가 그 칸만 null 로 저장하고 응답에 `summary_error`(`칸: 사유 | …`)를 싣는다. `dflow.sh` 는 stderr 에 `SUMMARY_ERROR <글>` 한 줄, `office.mjs` 는 경고 한 줄만 남기고 종료 코드·stdout·ABORT 판정은 그대로다.
+- **서버 `summary_error`**: 형식이 틀린 칸은 서버가 그 칸만 null 로 저장하고 응답에 `summary_error`(`칸: 사유 | …`)를 싣는다. `dflow.mjs` 는 stderr 에 `SUMMARY_ERROR <글>` 한 줄, `office.mjs` 는 경고 한 줄만 남기고 종료 코드·stdout·ABORT 판정은 그대로다.
 - **조정자 읽기 규칙**: 레인 상태 판단은 이 요약(state.json)이 기본이고, 터미널 화면은 `prompt-watch.mjs` 가 이상을 판정한 레인 하나만 읽는다.
 
 ### 4.1 콘솔 폴러 (오피스 → 로컬 세션 · 로컬 세션 → 오피스)
@@ -70,13 +70,13 @@
 구현은 `scripts/console-poll.mjs` 하나이고 조정자(coordinator)와 `/dflow-team` 이 함께 쓴다. LLM 을 부르지 않는다(Claude 토큰 0).
 
 **단위·잠금**: PC 하나 × 신원 하나당 폴러 하나. `~/.dflow/console/poller-<신원>.lock/`(mkdir, 안에 `pid`·`since`)로 단일 실행을 보장한다.
-잠금이 있어도 그 `pid` 가 죽었으면 탈취한다. 신원은 `office.mjs` 와 같은 슬러그(`<신원>/<host>` 의 앞 칸)이고 PAT 는 `dflow.sh` 의 기본 토큰이다. 한 신원에 PAT 가 여럿이거나 기본 토큰이 프로젝트 한정이면 서버가 `forbidden_role` 로 거절해 콘솔 전달이 꺼지고 아래 「프로젝트 한정 PAT」 의 안내 문구를 낸다(`dflow.sh profiles` 에서 `--as` 로 고르는 것은 후속).
+잠금이 있어도 그 `pid` 가 죽었으면 탈취한다. 신원은 `office.mjs` 와 같은 슬러그(`<신원>/<host>` 의 앞 칸)이고 PAT 는 `dflow.mjs` 의 기본 토큰이다. 한 신원에 PAT 가 여럿이거나 기본 토큰이 프로젝트 한정이면 서버가 `forbidden_role` 로 거절해 콘솔 전달이 꺼지고 아래 「프로젝트 한정 PAT」 의 안내 문구를 낸다(`dflow.mjs profiles` 에서 `--as` 로 고르는 것은 후속).
 `DFLOW_CONFIG_DIR`·cwd 규칙은 위 「D'Flow 설정 로드」 와 같다.
 
-**주기**: 환경 변수 `COORD_CONSOLE_CYCLE_S`(기본 30초)로 정한다. watch 응답의 `console.poll_s` 는 읽지 않는다. 서버가 콘솔을 모르는지는 `dflow.sh console-poll`(또는 `console-screen`)의 exit 7 로 판정하고, 그러면 2·3 을 10분 쉰다. 한 주기는 아래 네 일을 순서대로 하고, 한 일의 실패가 나머지를 막지 않는다.
+**주기**: 환경 변수 `COORD_CONSOLE_CYCLE_S`(기본 30초)로 정한다. watch 응답의 `console.poll_s` 는 읽지 않는다. 서버가 콘솔을 모르는지는 `dflow.mjs console-poll`(또는 `console-screen`)의 exit 7 로 판정하고, 그러면 2·3 을 10분 쉰다. 한 주기는 아래 네 일을 순서대로 하고, 한 일의 실패가 나머지를 막지 않는다.
 
 1. **생존 감시(서버 지원과 무관하게 늘 한다)**: `_session/*.json` 의 `pid` 와 열린 회차 레인의 `session.pid` 를 `kill -0` 으로 확인해 죽은 대상의 오피스 키를 stop 한다(§4 「생존 판정」). 확인할 조정 세션 기록(`_session/*.json`)·살아 있는 세션의 열린 회차·팀장 핸들 기록이 하나도 없으면 폴러는 두 주기 연속 빈 채로 보고 스스로 끝난다.
-2. **프롬프트 전달**(watch 응답에 `console` 칸이 있는 서버에서만): `dflow.sh console-poll --host <host> [--accepts keys] --limit 1`(`--accepts keys` 는 키 입력 답하기를 켰을 때만 — 기본은 꺼짐) → 프롬프트마다 대상 해석 → 안전 입력(글 행) 또는 아래 「키 입력 답하기」(키 행, 켰을 때) → `console-ack`.
+2. **프롬프트 전달**(watch 응답에 `console` 칸이 있는 서버에서만): `dflow.mjs console-poll --host <host> [--accepts keys] --limit 1`(`--accepts keys` 는 키 입력 답하기를 켰을 때만 — 기본은 꺼짐) → 프롬프트마다 대상 해석 → 안전 입력(글 행) 또는 아래 「키 입력 답하기」(키 행, 켰을 때) → `console-ack`.
 3. **화면 올리기**(2 와 같은 조건): 해석되는 대상마다 화면 끝 40줄을 읽어 가린 뒤 `console-screen` 으로 올린다. 같은 화면으로 아래 「입력 요청 감지」 를 한다(새 읽기 없음). 조정 레인 화면은 같은 읽기 결과를 아래 「레인 화면 캐시」 로 남긴다(새 읽기 없음).
 4. **입력 요청 알림**: 3 에서 바뀐 입력 요청 기록(과 키 입력 뒤 지운 기록)을 알린다 — 조정 레인·조정 팀장은 `office.mjs`, `/dflow-team` 팀장은 폴러가 직접 `watch`.
 
@@ -87,7 +87,7 @@
 | `coord_lead` | `<state_dir>/_session/<ref>.json` 의 `handle`(없으면 그 세션의 열린 회차 `.run.coordinator.handle`) |
 | `coord_lane` | `<state_dir>/*/state.json` 중 `.run.closed_at` 이 null 인 회차의 `lanes[<ref>].session.handle`(레인 `state` 가 closed 가 아닌 것). 둘 이상의 열린 회차에 같은 레인 이름이 있으면 `ambiguous` |
 | `team_lead` | `~/.dflow/console/lead/*.json`(아래) 중 `pid` 가 살아 있는 것의 `handle`. 둘 이상이면 `ambiguous` |
-| `team_worker` | 위 팀장 기록의 `agent`·`repo` 로 `lead-state.sh --agent … --repo …` 를 읽어 `SLOT` 의 슬롯이 `<ref>`(`w<n>` 의 `n`)인 줄의 `handle` |
+| `team_worker` | 위 팀장 기록의 `agent`·`repo` 로 `lead-state.mjs --agent … --repo …` 를 읽어 `SLOT` 의 슬롯이 `<ref>`(`w<n>` 의 `n`)인 줄의 `handle` |
 
 - 조정 팀장 핸들은 조정 세션이 시작할 때 `_session/<세션8>.json` 의 `handle` 과 `.run.coordinator.handle` 에 자기 Orca 핸들을 적는다(`init` 이 못 채우던 칸이다). 핸들을 알 수 없으면 비워 두고 그 대상은 `target-not-found` 가 된다.
 - **팀장 핸들 기록(`/dflow-team`)**: 팀장이 시작할 때 `~/.dflow/console/lead/<MAIN 경로 cksum>.json` 에 `{"agent":"<신원>/<host>/lead","repo":"<MAIN>","handle":"<h>","pid":<팀장 PID>,"at":"<iso>"}` 를 쓰고 마감할 때 지운다.
@@ -159,7 +159,7 @@ Messages 창(`lane-tools` 의 `mail.tsx`)은 사용자 입력의 첫머리에서
 - **소비 목록** `input/consumed/<이름>.list`: `since sha` 한 줄씩(최근 20줄). 키를 보냈거나(알 수 없는 실패 포함) 조정자·auto-answer 가 답한 (since, sha) 를 넣는다. 같은 모양 창이 다시 뜨면 since 를 새로 정한다(최종 계약 (g)). 창 식별용으로 `input/consumed/<이름>.full` 에 `since full` 도 같은 규칙으로 둔다(커서가 움직여 발췌 sha 가 바뀐 같은 창도 소비된 것으로 본다).
 - **handled 기록**: `node scripts/console-poll.mjs input-handled (--lane <레인> | --lead <세션8>) --by <coordinator|auto>` — 기록이 있으면 handled 를 `{by,at}` 로 바꾸고 (since, 발췌 sha) 를 소비 목록에 넣은 뒤 `office.mjs` 를 부른다(시간 초과·네트워크면 알림 표식을 남겨 폴러가 다시) · stdout `OK`, 기록이 없으면 `NONE`. `auto-answer.mjs` 는 ANSWER·DENY 로 키를 보낸 직후(`--dry-run` 제외) `--by auto` 로 부른다(실패 무시). `--expect-full <창 지문>` 을 주면 기록의 `full` 이 그 값일 때만(답한 창이 아직 기록의 창일 때만) 처리하고, 다르면(기록이 이미 다음 창) 아무것도 바꾸지 않고 `NONE prompt-changed`. `node scripts/term-send-safe.mjs --lane … --raw --expect-sha` 는 `SENT` 직후 레인 잠금 안에서 직접 처리·소비까지 한다.
 - **조정자가 직접 답하기**(판단 올리기 뒤, `approvals.md` §3): ① 판단을 올리기 전에 `node scripts/console-poll.mjs judge-sha --lane <레인>`(→ `JUDGE <h> <kind> <sha>`)으로 그 화면의 `full` 을 기억한다 ② 결론이 나면 `node scripts/term-send-safe.mjs --lane <레인> --text 1|2 --raw --expect-sha <sha>` — 레인 잠금 안에서 다시 읽은 화면의 `full` 이 다르면 `REFUSED <h> prompt-changed`(보내지 않음, 처음부터 다시), 잠금을 못 얻으면 `lane-busy` ③ `SENT` 면 처리됨·소비는 `term-send-safe.mjs` 가 잠금 안에서 이미 남겼으므로 따로 부르지 않는다(키를 다른 경로로 보냈을 때만 `node scripts/console-poll.mjs input-handled --lane <레인> --by coordinator --expect-full <sha>`).
-- **알림**(바뀐 대상만 — 생성·삭제·kind·발췌 변경. 표식 `input/.notify/<이름>` 을 남겨 시간 초과·네트워크 실패면 다음 주기에 다시): 조정 레인 → `COORD_RUN=<그 레인의 회차> node scripts/office.mjs lane-state <레인> auto`, 조정 팀장 → `COORD_RUN=<그 세션의 열린 회차> node scripts/office.mjs lead-sync`(호출당 20초 — `office.mjs` 최악 시간 watch 3번 × 5초 + 여유, 실패 무시. 같은 이름 레인이 둘 이상 회차에 있으면 회차마다 부른다). 이 알림 구간은 주기 몫(`COORD_CONSOLE_CYCLE_MAX_S`)·구간 상한(`COORD_CONSOLE_PHASE_MAX_S`) 밖에서 따로 `COORD_CONSOLE_NOTIFY_MAX_S`(45초) 안에 돌고, 남은 시간에 한 번이 다 들어가지 않으면 남은 표식은 다음 주기로 미룬다. `office.mjs` 가 시간 제한으로 끊겨도 쥔 세션 기록 잠금은 EXIT/TERM trap 이 풀고, KILL 로 남은 잠금(state.json·세션 기록)은 `coord_lock` 이 주인 pid 가 죽었거나 60초 넘게 오래된 것을 탈취한다(§3.1). `/dflow-team` 팀장은 `office.mjs` 를 거치지 않고 폴러가 기록(`lead/*.json` 의 agent·slots·busy·project)으로 `dflow.sh watch --agent … --slots … --busy … --until "답 대기" [--project …]` 를 보내고, 창이 사라지면 같은 인자에 기록의 `until_label` 로 되돌린다(5초 제한·실패 무시). `답 대기` 는 기록이 「살아 있을」 때(handled null·kind 가 `usage-limit`·`trust` 아님)만이고 전환(살아 있음↔아님)이 있을 때만 보낸다 — 자동 처리 창(`usage-limit`·`trust`)은 `답 대기` 를 띄우지 않는다. `until_label` 이 비면 되돌리기를 보내지 않고 로그 한 줄만 남긴다.
+- **알림**(바뀐 대상만 — 생성·삭제·kind·발췌 변경. 표식 `input/.notify/<이름>` 을 남겨 시간 초과·네트워크 실패면 다음 주기에 다시): 조정 레인 → `COORD_RUN=<그 레인의 회차> node scripts/office.mjs lane-state <레인> auto`, 조정 팀장 → `COORD_RUN=<그 세션의 열린 회차> node scripts/office.mjs lead-sync`(호출당 20초 — `office.mjs` 최악 시간 watch 3번 × 5초 + 여유, 실패 무시. 같은 이름 레인이 둘 이상 회차에 있으면 회차마다 부른다). 이 알림 구간은 주기 몫(`COORD_CONSOLE_CYCLE_MAX_S`)·구간 상한(`COORD_CONSOLE_PHASE_MAX_S`) 밖에서 따로 `COORD_CONSOLE_NOTIFY_MAX_S`(45초) 안에 돌고, 남은 시간에 한 번이 다 들어가지 않으면 남은 표식은 다음 주기로 미룬다. `office.mjs` 가 시간 제한으로 끊겨도 쥔 세션 기록 잠금은 EXIT/TERM trap 이 풀고, KILL 로 남은 잠금(state.json·세션 기록)은 `coord_lock` 이 주인 pid 가 죽었거나 60초 넘게 오래된 것을 탈취한다(§3.1). `/dflow-team` 팀장은 `office.mjs` 를 거치지 않고 폴러가 기록(`lead/*.json` 의 agent·slots·busy·project)으로 `dflow.mjs watch --agent … --slots … --busy … --until "답 대기" [--project …]` 를 보내고, 창이 사라지면 같은 인자에 기록의 `until_label` 로 되돌린다(5초 제한·실패 무시). `답 대기` 는 기록이 「살아 있을」 때(handled null·kind 가 `usage-limit`·`trust` 아님)만이고 전환(살아 있음↔아님)이 있을 때만 보낸다 — 자동 처리 창(`usage-limit`·`trust`)은 `답 대기` 를 띄우지 않는다. `until_label` 이 비면 되돌리기를 보내지 않고 로그 한 줄만 남긴다.
 - **`답 대기` 판정은 폴러가 한다**: §4 의 「`답 대기` 판정(k2 폴러, 30초마다)」 문장을 이 절이 구체화한다 — 판정 근거는 위 기록이 있는지(조정 팀장은 여기에 §4 의 `pending_user` 조건이 더해진다)이고, 라벨을 실제로 보내는 일은 조정 레인·조정 팀장은 `office.mjs`, `/dflow-team` 팀장은 폴러가 맡는다.
 
 **키 입력 답하기**: **기본 꺼짐(`console.keys_enabled=false`), 다음 회차에 훅 기반(구조화된 권한 이벤트)으로 재설계.** 꺼져 있으면 폴러는 poll 요청에 `accepts:['keys']` 를 싣지 않아 서버가 키 행을 주지 않고, 그래도 키 행을 받으면(옛 서버·경합·중복) 화면 재판정·`term_send_keys` 앞에서 바로 `refused`·reason `error`·detail `keys_disabled` 로 ack 한다(키 전송 0, 서버 reason 목록은 그대로). 입력 요청 감지(레인 키의 `input_request`)·`답 대기` 라벨·조정자 직접 답하기(`node scripts/term-send-safe.mjs --raw --expect-sha`)·`auto-answer.mjs` 는 이 설정과 무관하다. 켜려면 설정 `console.keys_enabled=true` 또는 환경 변수 `COORD_CONSOLE_KEYS_ENABLED=1`. 아래는 켰을 때의 동작이다.

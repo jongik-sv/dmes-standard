@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // office.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/office.sh 에 퇴역 보관).
-// 에이전트 오피스(wbs-web)에 「표시 전용」 watch 를 `dflow.sh watch`(bash 스크립트, spawn)로 보낸다.
+// 에이전트 오피스(wbs-web)에 「표시 전용」 watch 를 `dflow.mjs watch`(bash 스크립트, spawn)로 보낸다.
 // 순수 로직(요약 칸·키·해시·시각)은 export 함수로 두고 단위 시험(tests/office.test.mjs)이 본다. 시계·환경·작업 폴더는 Ctx 로 받는다.
 //
 // bash 판과 맞춘 점(읽는 사람이 놀라지 않도록):
-//  · 모든 실패는 종료 코드 0(사용법 오류만 2). 경고는 stderr 한 줄, dflow.sh 호출당 5초 제한(초과하면 프로세스 그룹을 TERM → 0.3초 → KILL).
+//  · 모든 실패는 종료 코드 0(사용법 오류만 2). 경고는 stderr 한 줄, dflow.mjs 호출당 5초 제한(초과하면 프로세스 그룹을 TERM → 0.3초 → KILL).
 //  · jq 가 만들던 JSON 글(--summary-json·--input-request-json·--until·--lead-summary-json, 세션 기록)은 jq-json.mjs 로 바이트가 같게 만든다.
 //  · jq 가 오류를 내는 모양(스칼라를 색인하는 등)은 JqError → bash 판에서 `st`/`jq` 가 빈 출력으로 끝난 것과 같게 그 칸을 비운다.
 //  · state.json 쓰기는 늘 coord-state.mjs 를 bash 로 spawn 한다(그 스크립트가 state.json 의 유일한 작성자).
@@ -16,6 +16,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as J from './lib/jq-json.mjs';
 import * as C from './lib/compat.mjs';
+import { execFor } from './lib/common-ext.mjs';
 import { Ctx, CoordDie, cfgJson, cfgSub, expand, hasRun, lock, nowEpoch, nowIso, repo, runsSummary, sess8Of, stateFile, stateRoot, unlock } from './lib/common.mjs';
 import { redactText } from './lib/console-redact.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
@@ -23,7 +24,7 @@ import { isMain, scriptMain } from './lib/js-cli.mjs';
 /** 도움말(= bash 판 머리말 2~26줄, 이름만 .mjs). */
 const HELP = `# 사용법: office.mjs lead-up | lead-sync | lane-up <레인> | lane-state <레인> <상태|auto> | lane-down <레인> | beat | finish | reap [--state-dir <경로>]
 #   조정 세션(팀장)과 레인(팀원)을 wbs-web 에이전트 오피스에 「표시 전용」으로 보인다(정본: ../references/contract.md §4).
-#   표시 경로는 \`dflow.sh watch\`(POST /api/v1/agent/watch) 하나뿐이다. WBS 데이터(작업·lease·진도율)는 건드리지 않는다.
+#   표시 경로는 \`dflow.mjs watch\`(POST /api/v1/agent/watch) 하나뿐이다. WBS 데이터(작업·lease·진도율)는 건드리지 않는다.
 #   lead-up              팀장 등록: agent \`<신원>/<host>/coord:<세션8>\`(조정 세션당 하나). slots·busy 는 이 세션의 열린 회차 전부에서
 #                        합산한 살아 있는(closed 아닌) 레인 수·작업 중(머지 중 포함) 레인 수
 #   lane-up <레인>       팀원 등록(같은 키여도 늘 보낸다): agent \`<신원>/<host>/임시:<레인>·<지시 요약>\`, until=상태 라벨. 이어 팀장 갱신
@@ -45,7 +46,7 @@ const HELP = `# 사용법: office.mjs lead-up | lead-sync | lane-up <레인> | l
 #   설정: office.enabled · office.project_id · office.label_max · office.dflow_script · office.quiet_min (contract §1.2)
 #   입력 요청 기록(읽기만): \${DFLOW_CONSOLE_DIR:-~/.dflow/console}/input/coord_lane_<레인>.json · coord_lead_<세션8>.json (쓰기는 폴러 몫)
 #   실패 정책: 어떤 실패도 종료 코드 0(사용법 오류만 2). 경고는 stderr 한 줄, 호출당 5초 제한.
-#   dflow 설정(PAT)이 로드되지 않거나 dflow.sh 가 없거나 enabled=false 이면 아무 출력 없이 건너뛴다. COORD_DRY=1 이면 보내지 않는다.
+#   dflow 설정(PAT)이 로드되지 않거나 dflow.mjs 가 없거나 enabled=false 이면 아무 출력 없이 건너뛴다. COORD_DRY=1 이면 보내지 않는다.
 `;
 const SCRIPTS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const IS_WIN = process.platform === 'win32';
@@ -435,8 +436,8 @@ class Office {
   recMany(...a) { if (!this.coordState(['set-many', ...a])) this.warn(`state 기록 실패: ${a[0]}`); }
   recRun(rid, p, v) { if (!this.coordState(['set', p, v], { COORD_RUN: rid })) this.warn(`state 기록 실패(${rid}): ${p}`); }
   recRunMany(rid, ...a) { if (!this.coordState(['set-many', ...a], { COORD_RUN: rid })) this.warn(`state 기록 실패(${rid}): ${a[0]}`); }
-  // ---- dflow.sh 호출(5초 제한) ----
-  /** 반환 {rc, out, err} — 0 성공 · 124 시간 초과 · 그 밖 dflow.sh 종료 코드. 출력은 임시 파일에 받는다(파이프를 쓰면 남은 자식이 붙잡는다). */
+  // ---- dflow.mjs 호출(5초 제한) ----
+  /** 반환 {rc, out, err} — 0 성공 · 124 시간 초과 · 그 밖 dflow.mjs 종료 코드. 출력은 임시 파일에 받는다(파이프를 쓰면 남은 자식이 붙잡는다). */
   dfl(args) {
     const outF = path.join(this.tmpd, 'out'), errF = path.join(this.tmpd, 'err');
     return new Promise((resolve) => {
@@ -450,7 +451,8 @@ class Office {
       };
       try {
         fo = openSync(outF, 'w'); fe = openSync(errF, 'w');
-        child = spawn('bash', [this.dflow, ...args], { cwd: this.repo, env: { ...this.c.env, DFLOW_CONFIG_DIR: this.dcd }, stdio: ['ignore', fo, fe], detached: !IS_WIN, windowsHide: true });
+        const [xcmd, xpre] = execFor(this.dflow);
+        child = spawn(xcmd, [...xpre, ...args], { cwd: this.repo, env: { ...this.c.env, DFLOW_CONFIG_DIR: this.dcd }, stdio: ['ignore', fo, fe], detached: !IS_WIN, windowsHide: true });
       } catch { fin(1); return; }
       this.child = child;
       child.on('error', () => fin(1));
@@ -764,7 +766,7 @@ class Office {
     if (!this.repo) return 0;
     let dflow = cfgSub(c, '.office.dflow_script');
     if (dflow !== '') { dflow = expand(dflow, c.env); if (!dflow.startsWith('/')) dflow = `${this.repo}/${dflow}`; }
-    else dflow = path.join(SCRIPTS_DIR, '..', '..', 'dflow-work', 'scripts', 'dflow.sh');
+    else dflow = path.join(SCRIPTS_DIR, '..', '..', 'dflow-work', 'scripts', 'dflow.mjs');
     if (!isFile(dflow)) return 0;
     this.dflow = dflow;
     this.project = cfgSub(c, '.office.project_id');
@@ -783,7 +785,7 @@ class Office {
       return await this.dispatch(finished);
     } finally { this.cleanup(); }
   }
-  /** on_exit: 쥔 세션 기록 잠금을 풀고, 돌던 dflow.sh 와 그 자식을 거두고, 임시 폴더를 지운다 */
+  /** on_exit: 쥔 세션 기록 잠금을 풀고, 돌던 dflow.mjs 와 그 자식을 거두고, 임시 폴더를 지운다 */
   cleanup() {
     if (this.heldLock) { try { unlock(this.c, this.heldLock); } catch { /* 없음 */ } this.heldLock = ''; }
     if (this.child) { try { killTree(this.child.pid, false); } catch { /* 이미 끝남 */ } this.child = null; }
