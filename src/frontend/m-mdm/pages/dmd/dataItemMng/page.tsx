@@ -36,7 +36,7 @@ import {
   useUserButtonRbac,
 } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridBadge, GridPanel } from "@dk-oasis/shared/grid";
-import { Button, Input, Select } from "@dk-oasis/shared/form";
+import { Button, Input, Select, useBusy } from "@dk-oasis/shared/form";
 import { Tabs } from "@dk-oasis/shared/tabs";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { IdPicker, MdmPageLayout, filterIdPicks, useMdmPageParams } from "@/shell";
@@ -130,9 +130,11 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
   /** 등록 폼 — 입력 값은 ItemRegForm 이 갖고, 루트는 `ref` 로 열고 비우고 등록 때 읽는다(R12). */
   const regFormRef = useRef<ItemRegFormHandle>(null);
   const [history, setHistory] = useState<DataHistoryResult | null>(null);
-  const [busy, setBusy] = useState(false);
-  // 목록 조회 전용 — 그리드 로딩 표시는 이것만 본다(행 쓰기·이력 조회로 목록이 깜빡이지 않게, Local-Rules §11).
-  const [listLoading, setListLoading] = useState(false);
+  // 용도별 busy(R5) — "list" 는 목록 조회 전용(그리드 로딩 표시는 이것만 본다: 행 쓰기·이력 조회로 목록이 깜빡이지 않게, Local-Rules §11),
+  // "write" 는 행 저장·닫기·다시 열기·이력 조회·등록.
+  const { isBusy, run: runBusy } = useBusy();
+  const busy = isBusy("write");
+  const listLoading = isBusy("list");
   const [error, setError] = useState<string | null>(null);
 
   const [tab, setTab] = useState<ItemTab>("grid");
@@ -190,22 +192,21 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
   const runSearch = useCallback(async (f: DataItemFilters) => {
     if (!f.maruDataId) return;
     const seq = ++searchSeq.current;
-    setListLoading(true);
-    try {
-      const res = await searchDataItems(f, 0, ALL_ITEMS_SIZE);
-      if (seq !== searchSeq.current) return;
-      setRows(res.list ?? []);
-      setTotal(res.totalCount ?? 0);
-      setTruncated(res.truncated === true);
-      setDrafts({});
-      applied.current = { filters: f };
-      setAppliedShowClosed(f.showClosed);
-    } catch (e) {
-      if (seq === searchSeq.current) setError(errorMessage(e));
-    } finally {
-      if (seq === searchSeq.current) setListLoading(false);
-    }
-  }, []);
+    await runBusy("list", async () => {
+      try {
+        const res = await searchDataItems(f, 0, ALL_ITEMS_SIZE);
+        if (seq !== searchSeq.current) return;
+        setRows(res.list ?? []);
+        setTotal(res.totalCount ?? 0);
+        setTruncated(res.truncated === true);
+        setDrafts({});
+        applied.current = { filters: f };
+        setAppliedShowClosed(f.showClosed);
+      } catch (e) {
+        if (seq === searchSeq.current) setError(errorMessage(e));
+      }
+    });
+  }, [runBusy]);
 
   const reload = useCallback(() => runSearch(applied.current.filters), [runSearch]);
 
@@ -387,27 +388,26 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
       const origin: WriteOrigin = { md, seq: selectSeq.current };
       const code = String(row.code ?? "");
       const rowVersion = Number(row.rowVersion ?? 0);
-      setBusy(true);
-      try {
-        if (action === "save") {
-          await modifyDataItem(toSaveParams(md, row));
-          await afterWrite(origin, code, "저장했습니다");
-        } else if (action === "close") {
-          await closeDataItem(md, code, rowVersion);
-          await afterWrite(origin, code, "닫았습니다");
-        } else if (action === "reopen") {
-          await reopenDataItem(md, code, rowVersion);
-          await afterWrite(origin, code, "다시 열었습니다");
-        } else {
-          await loadHistory(md, code);
+      await runBusy("write", async () => {
+        try {
+          if (action === "save") {
+            await modifyDataItem(toSaveParams(md, row));
+            await afterWrite(origin, code, "저장했습니다");
+          } else if (action === "close") {
+            await closeDataItem(md, code, rowVersion);
+            await afterWrite(origin, code, "닫았습니다");
+          } else if (action === "reopen") {
+            await reopenDataItem(md, code, rowVersion);
+            await afterWrite(origin, code, "다시 열었습니다");
+          } else {
+            await loadHistory(md, code);
+          }
+        } catch (e) {
+          await handleWriteError(e);
         }
-      } catch (e) {
-        await handleWriteError(e);
-      } finally {
-        setBusy(false);
-      }
+      });
     },
-    [afterWrite, handleWriteError, loadHistory],
+    [afterWrite, handleWriteError, loadHistory, runBusy],
   );
 
   const cancelDraft = useCallback((code: string) => {
@@ -515,18 +515,17 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
     if (!form) return;
     const md = applied.current.filters.maruDataId;
     const origin: WriteOrigin = { md, seq: selectSeq.current };
-    setBusy(true);
-    try {
-      const params = toSaveParams(md, form);
-      await registerDataItem(params);
-      if (origin.seq === selectSeq.current) regFormRef.current?.load(null);
-      await afterWrite(origin, String(params.code ?? ""), "등록했습니다");
-    } catch (e) {
-      await handleWriteError(e);
-    } finally {
-      setBusy(false);
-    }
-  }, [afterWrite, handleWriteError]);
+    await runBusy("write", async () => {
+      try {
+        const params = toSaveParams(md, form);
+        await registerDataItem(params);
+        if (origin.seq === selectSeq.current) regFormRef.current?.load(null);
+        await afterWrite(origin, String(params.code ?? ""), "등록했습니다");
+      } catch (e) {
+        await handleWriteError(e);
+      }
+    });
+  }, [afterWrite, handleWriteError, runBusy]);
 
   const formFields = useMemo(() => {
     const fields: ItemRegField[] = [

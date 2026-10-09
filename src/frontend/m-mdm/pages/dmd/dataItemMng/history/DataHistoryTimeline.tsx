@@ -211,6 +211,7 @@ export function DataHistoryTimeline({ result, gridId = "itemHistory" }: DataHist
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
         <AgDataGrid gridId={gridId}
+          title="이력"
           columns={columns}
           data={gridRows}
           rowKey="rowId"
