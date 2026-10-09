@@ -29,18 +29,20 @@ function gitOut(args, cwd) {
   } catch { return null; }
 }
 
-// $1: 잠금 디렉터리. beat 가 70분 안(없으면 잠금 디렉터리 수정 시각이 10분 안)이면 살아 있음.
+// $1: 잠금 디렉터리. beat(trim 뒤 숫자)가 70분 안이면 살아 있음. beat 가 없으면(빈 값)
+// 잠금 디렉터리 수정 시각이 10분 안. beat 가 비숫자면 stale(죽은 잠금으로 본다).
 function isStale(lockDir, nowSec) {
   let b = '';
-  try { b = String(fs.readFileSync(lockDir + '/beat', 'utf8')).replace(/\n+$/, ''); } catch { b = ''; }
-  if (b !== '') {
-    if (/^[0-9]+$/.test(b)) return (nowSec - Number(b)) >= 4200;
-    // beat 가 수가 아니면 mtime 으로 본다(살아 있는 팀장을 빠뜨리지 않게)
+  try { b = String(fs.readFileSync(lockDir + '/beat', 'utf8')); } catch { b = ''; }
+  const t = b.trim();
+  if (t === '') {
+    try {
+      const mt = Math.floor(fs.statSync(lockDir).mtimeMs / 1000);
+      return (nowSec - mt) > 600;
+    } catch { return false; }
   }
-  try {
-    const mt = Math.floor(fs.statSync(lockDir).mtimeMs / 1000);
-    return (nowSec - mt) > 600;
-  } catch { return false; }
+  if (/^[-+]?[0-9]+$/.test(t)) return (nowSec - Number(t)) >= 4200;
+  return true;
 }
 
 function leads(env, cwd) {
@@ -72,17 +74,18 @@ function leads(env, cwd) {
 }
 
 function markLines(text, map) {
-  const hasNl = text.endsWith('\n');
+  if (text === '') return '';
   let rows = text.split('\n');
-  if (hasNl) rows.pop();
-  // 빈 입력이면 출력 없음. 끝 줄바꿈 없는 마지막 줄도 처리한다.
-  if (rows.length === 1 && rows[0] === '') return '';
+  if (text.endsWith('\n')) rows.pop();
+  // 끝 줄바꿈 없는 마지막 줄·빈 줄도 그대로 처리한다(빈 줄은 빈 줄로 낸다).
   return rows.map((line) => {
     if (!line.startsWith('{')) return line;
     try {
       const v = JSON.parse(line);
       if (v === null || typeof v !== 'object' || Array.isArray(v)) return line;
       const who = v.who;
+      // jq `($m[.who] // null)` 는 who 가 수가 불리언 등이면 조회 오류 → 원문을 그대로 낸다
+      if (who !== undefined && who !== null && typeof who !== 'string') return line;
       const use = (typeof who === 'string' && who !== '') ? (map[who] ?? null) : null;
       return JSON.stringify({ ...v, in_use: use });
     } catch { return line; }

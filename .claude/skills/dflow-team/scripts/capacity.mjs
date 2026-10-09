@@ -35,30 +35,39 @@ function runOut(cmd, args) {
   } catch { return null; }
 }
 
+const WIN32 = process.platform === 'win32';
+
 function sysctl(key) {
+  if (WIN32) return null;
   const v = runOut('sysctl', ['-n', key]);
   return v === null || v === '' ? null : v;
 }
 
 function ncpu(env) {
   let n = env.DFLOW_CAP_NCPU ?? '';
-  if (n === '') n = runOut('getconf', ['_NPROCESSORS_ONLN']) ?? '';
-  if (n === '') n = sysctl('hw.ncpu') ?? '';
-  if (n === '') n = runOut('nproc', []) ?? '';
   if (n === '') {
-    try { const c = os.cpus().length; if (c > 0) n = String(c); } catch { /* 없음 */ }
+    if (!WIN32) {
+      n = runOut('getconf', ['_NPROCESSORS_ONLN']) ?? '';
+      if (n === '') n = sysctl('hw.ncpu') ?? '';
+      if (n === '') n = runOut('nproc', []) ?? '';
+    }
+    if (n === '') {
+      try { const c = os.cpus().length; if (c > 0) n = String(c); } catch { /* 없음 */ }
+    }
   }
   return isnum(n) && Number(n) > 0 ? String(n) : null;
 }
 
 function ramGb(proc) {
-  const b = sysctl('hw.memsize');
-  if (b !== null && isint(b)) return String(Math.floor((Number(b) + 536870912) / 1073741824));
-  try {
-    const t = fs.readFileSync(path.join(proc, 'meminfo'), 'utf8');
-    const m = /^MemTotal:\s*(\S+)/m.exec(t);
-    if (m && isint(m[1])) return String(Math.floor((Number(m[1]) + 524288) / 1048576));
-  } catch { /* 없음 */ }
+  if (!WIN32) {
+    const b = sysctl('hw.memsize');
+    if (b !== null && isint(b)) return String(Math.floor((Number(b) + 536870912) / 1073741824));
+    try {
+      const t = fs.readFileSync(path.join(proc, 'meminfo'), 'utf8');
+      const m = /^MemTotal:\s*(\S+)/m.exec(t);
+      if (m && isint(m[1])) return String(Math.floor((Number(m[1]) + 524288) / 1048576));
+    } catch { /* 없음 */ }
+  }
   try {
     const t = os.totalmem();
     if (t > 0) return String(Math.floor((t + 536870912) / 1073741824));
@@ -69,9 +78,9 @@ function ramGb(proc) {
 function detectOs(env) {
   if (env.DFLOW_CAP_OS) return env.DFLOW_CAP_OS;
   if (env.COMPAT_FORCE_OS === 'windows') return 'windows';
+  if (WIN32) return 'windows';
   const u = runOut('uname', ['-s']);
   if (u) return u;
-  if (process.platform === 'win32') return 'windows';
   return 'unknown';
 }
 
@@ -100,10 +109,14 @@ function withNotify(line, mapUnknown, defPrev, stateFile) {
 
 function heavyBin(env) {
   if (env.DFLOW_HEAVY_BIN) return env.DFLOW_HEAVY_BIN;
-  const roots = [path.resolve(HERE, '..', '..')];
+  // 논리 경로(process.argv[1] 기준) 먼저, 그 다음 물리 경로(import.meta.url 기준)
+  const roots = [];
+  try {
+    if (process.argv[1]) roots.push(path.resolve(path.dirname(process.argv[1]), '..', '..'));
+  } catch { /* 없음 */ }
   try {
     const real = fs.realpathSync(path.resolve(HERE, '..', '..'));
-    if (real !== roots[0]) roots.push(real);
+    if (!roots.includes(real)) roots.push(real);
   } catch { /* 없음 */ }
   // 전이 기간: heavy.mjs(정본) 우선, 없으면 heavy.sh(퇴역 전) 예비
   for (const r of roots) {
@@ -117,12 +130,13 @@ function heavyBin(env) {
   return null;
 }
 
+// heavy 하니스 실행기: .mjs → node, .sh → bash. win32 는 .mjs 만(없으면 heavy=? 그대로).
 function heavyStatus(hb) {
   let r;
   try {
-    r = hb.endsWith('.mjs')
-      ? spawnSync(process.execPath, [hb, 'status'], { encoding: 'utf8', windowsHide: true })
-      : spawnSync(hb, ['status'], { encoding: 'utf8', windowsHide: true });
+    if (hb.endsWith('.mjs')) r = spawnSync(process.execPath, [hb, 'status'], { encoding: 'utf8', windowsHide: true });
+    else if (WIN32) return null;
+    else r = spawnSync('bash', [hb, 'status'], { encoding: 'utf8', windowsHide: true });
   } catch { return null; }
   if (!r || r.error || r.status !== 0) return null;
   const line = String(r.stdout ?? '').split('\n')[0] ?? '';
@@ -176,7 +190,7 @@ function doUsage(env, liveRaw, state) {
   const limits = `limits=cap>=${CAPP}%:max${WMAX},stop>=${STOPP}%`;
   let why = ''; let best = null; let nd = 0;
   let names = null;
-  try { names = fs.readdirSync(LIM); } catch { names = null; }
+  try { names = fs.readdirSync(LIM).sort(); } catch { names = null; }
   if (names !== null) {
     for (const nm of names) {
       if (!nm.endsWith('.json')) continue;
@@ -239,11 +253,14 @@ function doCheck(env) {
 
   if (OS === 'Darwin' || OS === 'darwin') {
     osName = 'darwin';
+    // memory_pressure 는 종료 코드를 보지 않고 출력만 파싱한다
     let f = null;
-    const mp = runOut('memory_pressure', ['-Q']);
-    if (mp !== null) {
-      const m = /free percentage:\s*([0-9]+)%/.exec(mp);
-      if (m) f = m[1];
+    if (!WIN32) {
+      try {
+        const r = spawnSync('memory_pressure', ['-Q'], { encoding: 'utf8', windowsHide: true });
+        const m = /free percentage:\s*([0-9]+)%/.exec(r.stdout ?? '');
+        if (m) f = m[1];
+      } catch { /* 없음 */ }
     }
     if (f === null) f = sysctl('kern.memorystatus_level');
     if (f !== null && isnum(f)) free = String(f);
@@ -265,11 +282,7 @@ function doCheck(env) {
         const la = parts[1];
         const n = ncpu(env);
         if (isnum(la) && n !== null) load = (Number(la) / Number(n)).toFixed(1);
-      } else {
-        ncpu(env);
       }
-    } else {
-      ncpu(env);
     }
     const lv = sysctl('kern.memorystatus_vm_pressure_level');
     if (lv === '1') pressure = 'normal';
@@ -293,7 +306,7 @@ function doCheck(env) {
       const la = la1.trim().split(/\s+/)[1] ?? '';
       const n = ncpu(env);
       if (la !== '' && isnum(la) && n !== null) load = (Number(la) / Number(n)).toFixed(1);
-    } catch { ncpu(env); }
+    } catch { /* 없음 */ }
   } else if (OS === 'windows' || /^MINGW/.test(OS) || /^MSYS/.test(OS) || /^CYGWIN/.test(OS)) {
     osName = 'windows';
     try {
@@ -305,15 +318,7 @@ function doCheck(env) {
     } catch { /* 없음 */ }
   } else {
     osName = OS !== '' ? OS : 'unknown';
-    ncpu(env);
   }
-
-  if (osName !== 'darwin' && osName !== 'linux' && osName !== 'windows') {
-    // la·ncpu 판정은 위 갈래에서 이미 처리, 여기서는 추가 처리 없음
-  } else if ((osName === 'darwin' || osName === 'windows') && load === null) {
-    if (osName === 'windows') { /* 부하 측정 불가 */ } else ncpu(env);
-  }
-  // darwin·linux 갈래에서 load 를 못 정했으면 ncpu 호출은 위에서 이미 수행(부작용 없음)
 
   const hb = heavyBin(env);
   if (hb !== null) {
