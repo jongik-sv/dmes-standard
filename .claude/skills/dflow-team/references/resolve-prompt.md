@@ -73,10 +73,10 @@ sed -n '/^## 2\. 좌석 식별/,/^## 4\. 실행/{/^## 4\. 실행/!p;}' {MAIN_CHE
     for s in dflow-merge dflow-team; do [ -e ".claude/skills/$s" ] || ln -s "{MAIN_CHECKOUT}/.claude/skills/$s" ".claude/skills/$s"; done
   fi
   test -e .claude/skills/dflow-merge/SKILL.md || echo NO_MERGE_SKILL
-  .claude/skills/dflow-dev/scripts/deps.sh
+  node .claude/skills/dflow-dev/scripts/deps.mjs
   ```
   - `NO_MERGE_SKILL` → `failed no-skill`
-  - `deps.sh` 가 0 아님 → `failed deps <DEPS_FAILED 줄의 명령과 exit>`
+  - `deps.mjs` 가 0 아님 → `failed deps <DEPS_FAILED 줄의 명령과 exit>`
 
 ## 3. 기준선
 
@@ -91,7 +91,7 @@ sed -n '/^## 2\. 좌석 식별/,/^## 4\. 실행/{/^## 4\. 실행/!p;}' {MAIN_CHE
 게이트 하한 = "개발 브랜치 총수 + 이 브랜치가 더한 시험 수"(「게이트」). 한 총수만 보면 해소하며 이 브랜치 시험을
 지워도 통과.
 
-**세 수 모두 기준선 캐시(`baseline.sh`, dev-discipline 「기준선 캐시」)나 기존 기록에서 얻음. 전체 시험을 맨손으로
+**세 수 모두 기준선 캐시(`baseline.mjs`, dev-discipline 「기준선 캐시」)나 기존 기록에서 얻음. 전체 시험을 맨손으로
 돌리지 않는다.**
 
 - `<MB>` = 대개 원래 워커가 기준선을 잰 커밋.
@@ -104,7 +104,7 @@ sed -n '/^## 2\. 좌석 식별/,/^## 4\. 실행/{/^## 4\. 실행/!p;}' {MAIN_CHE
    git rev-parse --short HEAD                        # <BASE>
    git branch -r --list 'origin/agent/{ID8}-*'      # 한 줄이어야 한다. 그 이름이 <머지 대상>
    git merge-base '<BASE>' '<머지 대상>'              # 출력한 sha 가 <MB>
-   .claude/skills/dflow-dev/scripts/baseline.sh list --base '<MB>'   # 원래 워커가 <MB> 에서 잰 명령
+   node .claude/skills/dflow-dev/scripts/baseline.mjs list --base '<MB>'   # 원래 워커가 <MB> 에서 잰 명령
    ```
    - 기준선 명령 = dev-discipline 「게이트 기준선」 의 전체 시험(「도커」 규칙으로 뺄 명령은 뺌).
    - `list` 에 같은 일을 재는 명령이 있으면 **그 문자열과 cwd 를 글자 그대로** 세 커밋 모두에 사용.
@@ -121,23 +121,23 @@ sed -n '/^## 2\. 좌석 식별/,/^## 4\. 실행/{/^## 4\. 실행/!p;}' {MAIN_CHE
    - 기록에 그 게이트를 돈 커밋(`head` 등)이 있고, 그 커밋에서 머지 대상까지 이 Task 폴더 밖이 안 바뀜(뒤에 붙은
      것은 Phase 06 의 state.json 커밋뿐). 커밋 없는 기록은 어느 트리를 잰 것인지 몰라 쓰지 않음.
 
-   하나라도 아니면(기록 없음 · 커밋 다름) 3번대로 `baseline.sh` 로 잼.
-3. **나머지는 커밋마다 detach 한 뒤 `baseline.sh` 로 잰다.** HEAD 가 `--base` 와 같고 작업 트리가 깨끗해야 캐시를 읽고 씀.
+   하나라도 아니면(기록 없음 · 커밋 다름) 3번대로 `baseline.mjs` 로 잼.
+3. **나머지는 커밋마다 detach 한 뒤 `baseline.mjs` 로 잰다.** HEAD 가 `--base` 와 같고 작업 트리가 깨끗해야 캐시를 읽고 씀.
    끝은 `<BASE>` 여야 함(게이트가 그 위에서 머지).
    ```bash
    git switch --detach '<MB>'
-   .claude/skills/dflow-dev/scripts/baseline.sh run --base '<MB>' --task-dir '{TASK_DIR}' -- '<기준선 명령>' 2>&1 | tail -30   # merge-base 총수
+   node .claude/skills/dflow-dev/scripts/baseline.mjs run --base '<MB>' --task-dir '{TASK_DIR}' -- '<기준선 명령>' 2>&1 | tail -30   # merge-base 총수
    git switch --detach '<머지 대상>'                  # 2번에서 게이트 기록을 썼으면 이 두 줄은 건너뛴다
-   .claude/skills/dflow-dev/scripts/baseline.sh run --base '<머지 대상>' --task-dir '{TASK_DIR}' -- '<기준선 명령>' 2>&1 | tail -30   # MERGE_HEAD 단독 총수
+   node .claude/skills/dflow-dev/scripts/baseline.mjs run --base '<머지 대상>' --task-dir '{TASK_DIR}' -- '<기준선 명령>' 2>&1 | tail -30   # MERGE_HEAD 단독 총수
    git switch --detach '<BASE>'
-   .claude/skills/dflow-dev/scripts/baseline.sh run --base '<BASE>' --task-dir '{TASK_DIR}' -- '<기준선 명령>' 2>&1 | tail -30   # 개발 브랜치 총수·실패 목록
+   node .claude/skills/dflow-dev/scripts/baseline.mjs run --base '<BASE>' --task-dir '{TASK_DIR}' -- '<기준선 명령>' 2>&1 | tail -30   # 개발 브랜치 총수·실패 목록
    ```
    마지막 줄로 가른다.
    - `BASELINE_REUSED …`: 다른 워커나 앞 시도가 잰 결과.
      - `BASELINE_SUMMARY tests=… failures=…`(와 `BASELINE_FAILED` 줄)의 수를 그대로 사용.
      - `BASELINE_SUMMARY` 없음(잰 쪽이 수를 안 더함) → 함께 나온 로그에서 세고 아래 `note` 로 더함.
    - `BASELINE_MEASURED … key=<key>`: 새로 쟀음. 출력에서 읽은 수를
-     `.claude/skills/dflow-dev/scripts/baseline.sh note <key> --tests <총수> --failures <실패 수> [--failed-file <파일>]` 로
+     `node .claude/skills/dflow-dev/scripts/baseline.mjs note <key> --tests <총수> --failures <실패 수> [--failed-file <파일>]` 로
      더함. 다음 해소 시도와 다른 워커가 같은 수를 받음.
    - `BASELINE_MEASURED … cache=off(<사유>)`: 쟀지만 캐시를 못 씀. 수는 그대로 사용.
      - **아무 파일도 지우지 않음.** 미추적 파일은 「2」 의 스킬 링크나 팀장이 쓰는 `.dflow-prompt`·`.dflow-pane`·`.dflow-run` 일 수 있음. 지우면 해소 머지나 팀장의 생존 판정이 깨짐.
@@ -145,7 +145,7 @@ sed -n '/^## 2\. 좌석 식별/,/^## 4\. 실행/{/^## 4\. 실행/!p;}' {MAIN_CHE
        (`env` 분류)에 적음 → 팀장이 공유 `info/exclude` 를 고침.
    - `BASELINE_BUSY exit=75 …`: 실패 아님. 같은 명령을 다시 호출(「7」). 한 번의 Bash 호출로 오래 기다리지 않음.
    - 도커가 허용된 해소(`{DOCKER}` 가 `allow`)에서 도커를 쓰는 명령은 `--` 앞에 `--pool docker` 를 붙임(「도커」).
-4. 두 커밋의 lockfile 이 `<BASE>` 와 다르면 그 커밋의 시험 전에 `.claude/skills/dflow-dev/scripts/deps.sh` 를 다시 돌림.
+4. 두 커밋의 lockfile 이 `<BASE>` 와 다르면 그 커밋의 시험 전에 `node .claude/skills/dflow-dev/scripts/deps.mjs` 를 다시 돌림.
    `<BASE>` 로 돌아온 뒤에도 한 번 더 돌림.
    - 가능하면 총수를 **스위트(또는 모듈·시험 파일)별로도** 적어 둠.
    - 게이트는 전체 총수로 판정. 스위트별로 보면 어느 쪽 시험이 사라졌는지 바로 보임(다른 스위트의 증가가 감소를 가리지 못함).
@@ -180,7 +180,7 @@ Skill 도구가 `dflow-merge` 를 모르면 `.claude/skills/dflow-merge/SKILL.md
 ## 5. 서버 쓰기 없음
 
 - claim·progress·done·heartbeat 안 함. 조회 = `show {ID8}` 뿐.
-- 특히 `worker-prompt.md` 가 blocked 직전에 보내는 `dflow.sh heartbeat --phase blocked` 를 **보내지 않음**. 주문이 `claimed` 가 아니라 409 가 남.
+- 특히 `worker-prompt.md` 가 blocked 직전에 보내는 `dflow.mjs heartbeat --phase blocked` 를 **보내지 않음**. 주문이 `claimed` 가 아니라 409 가 남.
 - 좌석 표시는 팀장이 `merge_conflict` 로 대신.
 
 ## 6. 판단·권한·중단
@@ -195,15 +195,15 @@ Skill 도구가 `dflow-merge` 를 모르면 `.claude/skills/dflow-merge/SKILL.md
 
 ## 7. 무거운 명령 줄 세우기
 
-- 3번 기준선의 세 측정(개발 브랜치·MERGE_HEAD 단독·merge-base)은 `baseline.sh` 가 안에서 PC 전역 세마포어(`heavy.sh`)로 감싸 돌림.
-- **바깥에서 `heavy.sh` 로 다시 감싸지 않음** — 감싸면 바깥이 쥔 슬롯을 안쪽 측정이 기다림.
+- 3번 기준선의 세 측정(개발 브랜치·MERGE_HEAD 단독·merge-base)은 `baseline.mjs` 가 안에서 PC 전역 세마포어(`heavy.mjs`)로 감싸 돌림.
+- **바깥에서 `heavy.mjs` 로 다시 감싸지 않음** — 감싸면 바깥이 쥔 슬롯을 안쪽 측정이 기다림.
 - `BASELINE_BUSY`(exit 75)로 끝나면 실패 아님. 같은 명령을 다시 호출.
-- 「게이트」 의 전체 시험(캐시를 쓰지 않음)만 `.claude/skills/dflow-dev/scripts/heavy.sh <명령>` 으로 감쌈.
+- 「게이트」 의 전체 시험(캐시를 쓰지 않음)만 `node .claude/skills/dflow-dev/scripts/heavy.mjs <명령>` 으로 감쌈.
 - `HEAVY_BUSY` 로 끝나면 실패 아님. 같은 명령을 다시 호출.
 - 규칙 정본 = `dev-discipline.md` 「무거운 명령 줄 세우기」.
 - 도커가 허용된 해소(`{DOCKER}` 가 `allow`)에서 도커를 쓰는 명령:
-  - 게이트 = `heavy.sh --pool docker <명령>` 으로 감쌈(`HEAVY_DOCKER_BUSY` 도 다시 호출).
-  - 기준선 = `baseline.sh run … --pool docker -- '<명령>'` 으로 잼(「도커」).
+  - 게이트 = `heavy.mjs --pool docker <명령>` 으로 감쌈(`HEAVY_DOCKER_BUSY` 도 다시 호출).
+  - 기준선 = `baseline.mjs run … --pool docker -- '<명령>'` 으로 잼(「도커」).
 
 ## 해소 규약
 
@@ -223,11 +223,11 @@ Skill 도구가 `dflow-merge` 를 모르면 `.claude/skills/dflow-merge/SKILL.md
 | R6 | lockfile | 개발 브랜치 판을 받고 패키지 관리자로 다시 만듦(`npm install --package-lock-only` 등). 이 브랜치가 더한 의존만 다시 반영 |
 | R7 | Task 폴더(`{TASKS}/<TSK>/*`) | 이 Task 폴더 = 이 브랜치 판. 다른 Task 폴더 = 개발 브랜치 판 |
 | R8 | 설명 문서·주석 | 양쪽 문장을 모두 살려 합침 |
-| R9 | 마이그레이션 버전 중복·역순 도착(파일명이 곧 버전. `migration-check.sh --staged` 가 exit 1, 텍스트 충돌은 없을 수 있음) | **이 브랜치가 추가한 마이그레이션만** 그 폴더의 개발 브랜치 최대 버전 다음 번호로 옮긴다(`git mv`, 설명 부분은 그대로). 여럿이면 원래 순서대로 이어서 매김. 번호 모양은 그 폴더의 관례(`V5`·`V005`·`V1_2`)를 따름. 번호는 폴더(Flyway location)마다 독립. 다른 폴더에 같은 옛 번호 파일이 있어도 짝이 아니므로 함께 옮기지 않음(방언별 폴더로 같은 버전을 짝지어 둔 리포만 그 짝을 같은 새 번호로 옮김). 이 브랜치가 이미 머지된 V 파일을 고쳤으면(주석 한 줄도 체크섬을 바꿈) 그 수정은 되돌리고 새 번호 파일로 옮겨 씀. 옛 파일명·버전을 가리키는 참조(시험의 파일명 문자열·Flyway `target`·design.md 등)를 `git grep -n '<옛 파일명>'` 으로 찾아 함께 고침. 개발 브랜치 쪽 파일은 건드리지 않음. 끝나면 `migration-check.sh --staged` 가 exit 0 이어야 함 |
+| R9 | 마이그레이션 버전 중복·역순 도착(파일명이 곧 버전. `migration-check.mjs --staged` 가 exit 1, 텍스트 충돌은 없을 수 있음) | **이 브랜치가 추가한 마이그레이션만** 그 폴더의 개발 브랜치 최대 버전 다음 번호로 옮긴다(`git mv`, 설명 부분은 그대로). 여럿이면 원래 순서대로 이어서 매김. 번호 모양은 그 폴더의 관례(`V5`·`V005`·`V1_2`)를 따름. 번호는 폴더(Flyway location)마다 독립. 다른 폴더에 같은 옛 번호 파일이 있어도 짝이 아니므로 함께 옮기지 않음(방언별 폴더로 같은 버전을 짝지어 둔 리포만 그 짝을 같은 새 번호로 옮김). 이 브랜치가 이미 머지된 V 파일을 고쳤으면(주석 한 줄도 체크섬을 바꿈) 그 수정은 되돌리고 새 번호 파일로 옮겨 씀. 옛 파일명·버전을 가리키는 참조(시험의 파일명 문자열·Flyway `target`·design.md 등)를 `git grep -n '<옛 파일명>'` 으로 찾아 함께 고침. 개발 브랜치 쪽 파일은 건드리지 않음. 끝나면 `migration-check.mjs --staged` 가 exit 0 이어야 함 |
 
 공용 결정 기록(`docs/<모듈>/decisions.md` 등, `## D-NNN (…)` 블록 기록)의 충돌:
 
-- 위 규약보다 먼저 `.claude/skills/dflow-merge/scripts/decisions.sh merge-conflicts` 로 푼다(R1 의 기계적 형태 — 양쪽 블록을 모두 남김).
+- 위 규약보다 먼저 `node .claude/skills/dflow-merge/scripts/decisions.mjs merge-conflicts` 로 푼다(R1 의 기계적 형태 — 양쪽 블록을 모두 남김).
 - 임시 ID(`D-<TSK>-<n>`)의 번호를 손으로 매기지 않음 — `/dflow-merge` 「결정 번호 매김」 이 머지 커밋 뒤에 매김.
 - 스크립트가 `DECISIONS_LEFT` 로 남긴 파일(기존 블록 수정 등)만 R8 로 풂.
 
@@ -280,7 +280,7 @@ num dev_total "$dev_total" && num head_total "$head_total" && num base_total "$b
 
 추가 조건:
 
-- 시험과 별도로 `.claude/skills/dflow-merge/scripts/migration-check.sh --staged` 가 exit 0 이어야 함(R9 를 빠뜨리면 `failed gate migration`).
+- 시험과 별도로 `node .claude/skills/dflow-merge/scripts/migration-check.mjs --staged` 가 exit 0 이어야 함(R9 를 빠뜨리면 `failed gate migration`).
 - 빌드·린트·타입 검사가 대상 리포 기준선 명령에 있으면 같이 봄.
 - 기준 이동이나 push 경합으로 다시 머지했으면 기준선부터 다시 잼(merge-base 도 다시 구함).
 
@@ -330,8 +330,8 @@ num dev_total "$dev_total" && num head_total "$head_total" && num base_total "$b
 
 해소 워커도 기준선과 게이트를 돌리므로 `.claude/skills/dflow-dev/references/dev-discipline.md` 「도커 사용 규칙」(정본)을 따른다.
 
-- `{DOCKER}` 가 `allow` 아님(기본) 또는 `dflow.sh config no_docker` 가 `1`:
+- `{DOCKER}` 가 `allow` 아님(기본) 또는 `dflow.mjs config no_docker` 가 `1`:
   - 도커·Testcontainers 명령을 3번 기준선과 게이트에서 같은 방식으로 뺌.
   - 생략한 명령은 `resolution.md` 그 시도 절에 `- 도커 금지로 생략: <명령>` 으로 적음(머지 뒤 팀장 스윕의 방언 검증이 이 줄을 세어 결과에 함께 적음).
-- `allow` 이면: 도커를 쓰는 명령을 「7」 의 `heavy.sh --pool docker` 로 감싸고 대상 리포의 컨테이너 재사용 방식을 따름.
+- `allow` 이면: 도커를 쓰는 명령을 「7」 의 `heavy.mjs --pool docker` 로 감싸고 대상 리포의 컨테이너 재사용 방식을 따름.
 - 꺼진 도커 런타임은 언제나 켜지 않음.

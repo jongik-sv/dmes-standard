@@ -35,7 +35,7 @@ SKILL.md 「4-1. 머지 충돌 해소」·「5-2. 해소 spawn」 이 이 문서
 
 1. **주문 확인**
    ```bash
-   (.claude/skills/dflow-work/scripts/dflow.sh show '<id8>') \
+   (node .claude/skills/dflow-work/scripts/dflow.mjs show '<id8>') \
      | jq -c '{order: .order.id, status: .order.status, mine: .order.mine, ref: .order.item.external_ref}'
    ```
    - show 실패 → "조회 실패: <id8>" 보고, 이번에는 아무것도 안 함. 다음 스윕이 다시 냄.
@@ -47,7 +47,7 @@ SKILL.md 「4-1. 머지 충돌 해소」·「5-2. 해소 spawn」 이 이 문서
    ```bash
    git fetch origin
    dev=$(git rev-parse origin/<개발브랜치>)
-   .claude/skills/dflow-team/scripts/resolve-decide.sh ~/.dflow/events.jsonl '<신원>/<host>/lead' '<MAIN>' '<id8>' "$dev"; echo "rc=$?"
+   node .claude/skills/dflow-team/scripts/resolve-decide.mjs ~/.dflow/events.jsonl '<신원>/<host>/lead' '<MAIN>' '<id8>' "$dev"; echo "rc=$?"
    ```
    | 출력 | 처리 |
    |---|---|
@@ -66,12 +66,12 @@ SKILL.md 「4-1. 머지 충돌 해소」·「5-2. 해소 spawn」 이 이 문서
 2. **작업 폴더**: 아래 출력 = `<TASKS>`, `TASK_DIR = <TASKS>/<TSK>`.
    `TASKDIR_FAILED` 면 안 띄우고 "작업 폴더 해석 실패: <id8>" 보고(해소 큐에서 뺌. 다음 스윕이 다시 냄).
    ```bash
-   if grep -q '^  taskdir <ref>' .claude/skills/dflow-work/scripts/dflow.sh; then
-     td=$(.claude/skills/dflow-work/scripts/dflow.sh taskdir '<order>') && dirname "$td" || echo "TASKDIR_FAILED"
+   if grep -q '^  taskdir <ref>' .claude/skills/dflow-work/scripts/dflow.mjs; then
+     td=$(node .claude/skills/dflow-work/scripts/dflow.mjs taskdir '<order>') && dirname "$td" || echo "TASKDIR_FAILED"
    else
      echo docs/tasks
    fi
-   .claude/skills/dflow-team/scripts/docker-allow.sh '<id8>'   # DOCKER=allow|ban — 4번 해소 포인터에 옮긴다
+   node .claude/skills/dflow-team/scripts/docker-allow.mjs '<id8>'   # DOCKER=allow|ban — 4번 해소 포인터에 옮긴다
    ```
 3. **워크트리**: 남아 있으면 먼저 backends.md 「고아 정리 규칙」 2-1번으로 정리 시도.
    그래도 있으면 안 띄우고 "해소 워크트리 남아 있음: <경로>" 보고. `team.conflict` decision = `human`.
@@ -94,14 +94,14 @@ SKILL.md 「4-1. 머지 충돌 해소」·「5-2. 해소 spawn」 이 이 문서
    ```
    <MAIN_CHECKOUT>/.claude/skills/dflow-team/references/resolve-prompt.md 를 읽고 그 규칙대로 실행하라. TSK=<TSK> ID8=<id8> ORDER=<order 전체 UUID> AGENT_ID=<신원>/<host>/w<slot> MAIN_CHECKOUT=<팀장 체크아웃 절대경로> MODEL=<opus|sonnet|default> DEV_BRANCH=<개발브랜치> TASK_DIR=<TASK_DIR> ATTEMPT=<n> ON_REPORT=<0|1> DOCKER=<allow|ban>
    ```
-   - `DOCKER` = SKILL.md 「인자」 의 「도커 허용 태그」 대로 2번 블록의 `.claude/skills/dflow-team/scripts/docker-allow.sh '<id8>'` 출력값 (개발 워커와 같음. 옛 포인터 값 옮겨 쓰기 금지).
+   - `DOCKER` = SKILL.md 「인자」 의 「도커 허용 태그」 대로 2번 블록의 `node .claude/skills/dflow-team/scripts/docker-allow.mjs '<id8>'` 출력값 (개발 워커와 같음. 옛 포인터 값 옮겨 쓰기 금지).
    - `MODEL` = 이번 실행의 인자 (해소도 같은 모델).
    - `ON_REPORT` = `AUTOMERGE_ON` 이면 `1`.
 5. `team.spawn` 기록. 필드는 「5. 팀원 spawn」 6번과 같고 `spawn_kind` = `resolve`.
    - 이 줄 개수가 해소 카운터이므로 `new` 로 적으면 상한이 동작 안 함.
    - id8 은 진행 중으로 영구 제외에 넣음.
 6. 표시 note → `해소 중 w<slot> <n>/3` (「3」).
-7. 감시 루프(SKILL.md 「2-2」 `tick.sh`)를 새로 띄울 때 이 슬롯의 인자 항목 = `'<워크트리>/<TASK_DIR>/.result|<해시 또는 ->|<pane id 또는 ->'`.
+7. 감시 루프(SKILL.md 「2-2」 `tick.mjs`)를 새로 띄울 때 이 슬롯의 인자 항목 = `'<워크트리>/<TASK_DIR>/.result|<해시 또는 ->|<pane id 또는 ->'`.
    이 리포에서 `TASK_DIR` = `docs/tasks/<TSK>` 라 워커 슬롯과 모양이 같음.
 
 ## 3. 표시 heartbeat 대리 호출
@@ -110,8 +110,8 @@ SKILL.md 「4-1. 머지 충돌 해소」·「5-2. 해소 spawn」 이 이 문서
 - 주문 참조 = **전체 UUID**. `reported`·`approved` 주문은 목록 캐시에 없을 수 있어 id8 해석이 실패하기 때문.
 - `--agent` = 늘 팀장 자신.
 ```bash
-.claude/skills/dflow-work/scripts/dflow.sh heartbeat '<order 전체 UUID>' --agent '<신원>/<host>/lead' --phase merge_conflict --note '<note>' || echo "MC_MARK_FAILED $?"
-.claude/skills/dflow-work/scripts/dflow.sh heartbeat '<order 전체 UUID>' --agent '<신원>/<host>/lead' --clear-merge-conflict || echo "MC_MARK_FAILED $?"
+node .claude/skills/dflow-work/scripts/dflow.mjs heartbeat '<order 전체 UUID>' --agent '<신원>/<host>/lead' --phase merge_conflict --note '<note>' || echo "MC_MARK_FAILED $?"
+node .claude/skills/dflow-work/scripts/dflow.mjs heartbeat '<order 전체 UUID>' --agent '<신원>/<host>/lead' --clear-merge-conflict || echo "MC_MARK_FAILED $?"
 ```
 - 출력 = `MERGE_CONFLICT_SET`·`MERGE_CONFLICT_CLEARED`·`MERGE_CONFLICT_ABSENT` 중 하나. `ABSENT` 는 오류 아님(이미 풀림).
 - note 는 500자 이하. 파일은 첫 하나와 개수만.
@@ -131,14 +131,14 @@ SKILL.md 「4-1. 머지 충돌 해소」·「5-2. 해소 spawn」 이 이 문서
 결과 줄 찾기·해시·`team.result`·`team.blocked` 기록·tmux 회수 = SKILL.md 「3. 결과 처리」 와 같음.
 해소 슬롯(「0」 의 판별 — 워크트리 이름 접미사 `-resolve`)이면 그 절의 status 표 대신 아래 표 사용.
 - `team.result` 의 `status` = `resolved`·`skipped`·`failed <첫 낱말>`.
-- 해소 워커의 실패에는 첫 낱말을 **늘 붙임** (`resolve-decide.sh` 가 그 값으로 가름).
+- 해소 워커의 실패에는 첫 낱말을 **늘 붙임** (`resolve-decide.mjs` 가 그 값으로 가름).
 - 워크트리는 backends.md 「고아 정리 규칙」 2-1번으로 정리. 결과 줄 branch 칸이 `-` 여도 1번(부트스트랩 실패) 쓰지 않음.
 - SKILL.md 「3. 결과 처리」 에 결과 사유를 문제 기록으로 남기는 블록이 있는 판이면, `resolved` 도 `done`·`needs-merge` 처럼 사유를 안 적음.
 
 | status | 슬롯 | 표시 | 그 밖 |
 |---|---|---|---|
-| `resolved` | 해제 | 먼저 조상 확인(아래). 참이면 해제 + `team.conflict`(decision `cleared`). 거짓이면 표시 유지, "해소 push 확인 불가: <id8>" 보고 + `team.conflict`(decision `human`) | 조상 참이면 선행 계열 일시 제외 해제(「4. 승인 스윕」 의 일시 제외 해제), 다음 `team.sweep` 의 `resolved` 에 1 더하고, **곧바로 승인 스윕** (따로 한 번 더가 아니라 이 기상의 스윕 1회 — SKILL.md 「4-0. 스윕을 부르는 규칙」. `sweep-check.sh` 가 `SWEEP_NONE` 이면 안 부름. 해소 워커가 이미 머지했으므로 남은 후보가 없을 수 있음). 보고 "해소됨: <TSK> <id8> (<사유>)". 주문이 `approved` 였으면 "해소 내용은 승인 범위 밖 — 머지 커밋·resolution.md 확인" 추가 |
-| `skipped` | 해제 | `pred-reflected.sh '<TASKS>' '<TSK>' '<개발브랜치>'` 가 `REFLECTED` 면 해제 + `team.conflict` `cleared`. 아니면 note `해소 건너뜀: <사유>` | "해소 대상 아님: <id8> (<사유>)" 보고 |
+| `resolved` | 해제 | 먼저 조상 확인(아래). 참이면 해제 + `team.conflict`(decision `cleared`). 거짓이면 표시 유지, "해소 push 확인 불가: <id8>" 보고 + `team.conflict`(decision `human`) | 조상 참이면 선행 계열 일시 제외 해제(「4. 승인 스윕」 의 일시 제외 해제), 다음 `team.sweep` 의 `resolved` 에 1 더하고, **곧바로 승인 스윕** (따로 한 번 더가 아니라 이 기상의 스윕 1회 — SKILL.md 「4-0. 스윕을 부르는 규칙」. `sweep-check.mjs` 가 `SWEEP_NONE` 이면 안 부름. 해소 워커가 이미 머지했으므로 남은 후보가 없을 수 있음). 보고 "해소됨: <TSK> <id8> (<사유>)". 주문이 `approved` 였으면 "해소 내용은 승인 범위 밖 — 머지 커밋·resolution.md 확인" 추가 |
+| `skipped` | 해제 | `pred-reflected.mjs '<TASKS>' '<TSK>' '<개발브랜치>'` 가 `REFLECTED` 면 해제 + `team.conflict` `cleared`. 아니면 note `해소 건너뜀: <사유>` | "해소 대상 아님: <id8> (<사유>)" 보고 |
 | `blocked` | 유지 | note `해소 결정 대기: <질문>` | SKILL.md 「6. blocked」 통지·답 매칭 그대로. 통지 문구 앞에 "(해소)" 추가 |
 | `failed push-race`·`failed rate-limit`·`failed no-result` | 해제 | note `해소 대기(재시도 가능): <status> <n>/3` | 다음 스윕에서 충돌 다시 나면 「1」 이 재시도 판정 |
 | 그 밖의 `failed …` | 해제 | note `사람 머지 필요: <status> <사유>` | "사람이 머지해야 함: <id8> (해소 실패 <status>)" 보고 + `team.conflict`(decision `human`). `failed permission` 은 거부된 명령을 권한 목록 재료로 함께 보고 |
@@ -160,7 +160,7 @@ git fetch origin && git merge-base --is-ancestor '<결과 줄 head>' origin/<개
 ```bash
 jq -rs --arg a '<신원>/<host>/lead' --arg r '<MAIN>' '[.[] | select(.agent == $a and .repo == $r and .event == "team.conflict")] | group_by(.id8) | map(last) | .[] | select(.decision != "cleared") | [.id8, .tsk, .order] | @tsv' ~/.dflow/events.jsonl 2>/dev/null
 ```
-줄마다 「2」 2번 블록으로 `<TASKS>` 를 구한 뒤 `pred-reflected.sh '<TASKS>' '<TSK>' '<개발브랜치>'` 호출.
+줄마다 「2」 2번 블록으로 `<TASKS>` 를 구한 뒤 `pred-reflected.mjs '<TASKS>' '<TSK>' '<개발브랜치>'` 호출.
 - `REFLECTED` → 표시 해제 + `team.conflict`(decision `cleared`) 기록 + "사람 머지 확인: <id8>" 보고.
 - 그 밖 → 아무것도 안 함.
 

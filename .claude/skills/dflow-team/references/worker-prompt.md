@@ -18,8 +18,8 @@
 | `{BACKEND}` | `BACKEND` | 늘 `pane`. 팀원은 tmux pane 또는 Orca 탭에서 돌고 `blocked` 이후 동작 같음 |
 | `{MODEL_FLAG}` | `MODEL` | `opus` → `--model opus`, `sonnet` → `--model sonnet`, `default` → 빈 값 |
 | `{SCOPE_FLAG}` | `SCOPE` | 값 있으면 늘 `--scope <SCOPE>`(`full`·`design`·`build` — 팀장이 서버 판단 `action` 으로 정함). 키 없으면(옛 팀장) 빈 값. 이미 잡힌 작업은 서버 `claim_scope` 가 이김(`/dflow-dev` `orch/start.md` 「서버 판단」) |
-| `{DEV_BRANCH}` | `DEV_BRANCH` | 개발 브랜치 이름(`origin/` 없음). 팀장이 `dflow.sh branch dev` 로 해석해 넘김 |
-| `{TASK_DIR}` | `TASK_DIR` | 이 작업의 작업 폴더(`<TASKS>/<TSK>`). 팀장이 `dflow.sh taskdir <order>` 로 구해 넘김 |
+| `{DEV_BRANCH}` | `DEV_BRANCH` | 개발 브랜치 이름(`origin/` 없음). 팀장이 `dflow.mjs branch dev` 로 해석해 넘김 |
+| `{TASK_DIR}` | `TASK_DIR` | 이 작업의 작업 폴더(`<TASKS>/<TSK>`). 팀장이 `dflow.mjs taskdir <order>` 로 구해 넘김 |
 | `{DOCKER}` | `DOCKER` | `allow` 일 때만 도커 사용 가능(팀장이 `docker` 태그 Task 에만 넘김). 키 없거나 다른 값 = 도커 금지 모드. 옛 팀장의 `NO_DOCKER` 는 값과 무관하게 금지(「10」) |
 
 - `<기본브랜치>` = 팀장이 넘긴 `{DEV_BRANCH}`
@@ -81,8 +81,8 @@ if [ ! -e .claude/skills/dflow-dev/SKILL.md ]; then
   fi
 fi
 test -e .claude/skills/dflow-dev/SKILL.md || echo NO_SKILL
-.claude/skills/dflow-work/scripts/dflow.sh doctor; echo "doctor=$?"
-.claude/skills/dflow-work/scripts/dflow.sh me >/dev/null || echo AUTH_FAILED
+node .claude/skills/dflow-work/scripts/dflow.mjs doctor; echo "doctor=$?"
+node .claude/skills/dflow-work/scripts/dflow.mjs me >/dev/null || echo AUTH_FAILED
 git fetch origin && git switch --detach origin/<기본브랜치>
 ```
 - 스킬 폴더가 실제 폴더인데 `dflow-dev` 가 없으면 폴더째 링크 안 함. 워커가 쓰는 스킬만 하나씩 링크 (폴더째 걸면 `.claude/skills/skills` 생김)
@@ -103,7 +103,7 @@ git fetch origin && git switch --detach origin/<기본브랜치>
   ```bash
   grep -qE '^<!-- dflow-caps: worker |--worker' .claude/skills/dflow-dev/SKILL.md || echo NO_WORKER_FLAG
   ```
-- dflow.sh 를 부를 때 접두를 붙이지 않음 (워크트리 루트의 `.dflow`·`.dflow.local`(레거시 `.env`)을 스스로 읽음. 격리 가드가 `.` 소싱 접두를 거부)
+- dflow.mjs 를 부를 때 접두를 붙이지 않음 (워크트리 루트의 `.dflow`·`.dflow.local`(레거시 `.env`)을 스스로 읽음. 격리 가드가 `.` 소싱 접두를 거부)
 - 심링크와 `.dflow-agent`·`.result`·`.issues` 는 커밋하지 않음 (`/dflow-dev` 는 파일명을 명시해 stage)
 - 워크트리 루트의 `.dflow-prompt`·`.dflow-pane`·`.dflow-run` = 팀장이 쓰는 파일. 읽지도 고치지도 않음
 
@@ -152,7 +152,7 @@ Skill 도구로 `/dflow-dev {ID8} --worker {MODEL_FLAG} {SCOPE_FLAG}` 실행.
 
 멈출 때는 `.result` 를 쓰기 전에 좌석표에 손 든 상태를 알림. 실패해도 진행을 막지 않음.
 ```bash
-.claude/skills/dflow-work/scripts/dflow.sh heartbeat {ID8} --phase blocked --note "<질문 한 줄>" || :
+node .claude/skills/dflow-work/scripts/dflow.mjs heartbeat {ID8} --phase blocked --note "<질문 한 줄>" || :
 ```
 1. `<질문 한 줄>` = `.result` 의 사유 자리에 쓰는 한 줄과 같음
 2. **현재 산출물을 커밋·push**
@@ -168,7 +168,7 @@ Skill 도구로 `/dflow-dev {ID8} --worker {MODEL_FLAG} {SCOPE_FLAG}` 실행.
 - 현재 산출물을 커밋·push 한 뒤 `.result` 에 `{TSK} {ID8} <branch> <head_sha> - failed permission <거부된 명령의 첫 낱말들>` 을 쓰고 끝냄 (거부된 명령 목록 = 킷 허용 목록의 재료)
 - Phase 서브에이전트에서 난 거부도 워커가 받아 같은 형식으로 보고
 
-**중단(exit 10)**: `dflow.sh` 가 exit 10 을 내면 사람이 D'Flow 에서 이 작업을 멈춘 것. 재시도·우회하지 않음.
+**중단(exit 10)**: `dflow.mjs` 가 exit 10 을 내면 사람이 D'Flow 에서 이 작업을 멈춘 것. 재시도·우회하지 않음.
 - 하던 일을 로컬 커밋으로만 남김 (push·done 금지)
 - `.result` 에 `cancelled` 를 쓰고 끝냄
 - heartbeat 훅이 `continue:false` 로 세션을 세웠다면 결과 줄이 없어도 팀장이 서버의 `cancelled` 를 보고 같은 처리 (SKILL.md 「3. 결과 처리」)
@@ -194,12 +194,12 @@ Skill 도구로 `/dflow-dev {ID8} --worker {MODEL_FLAG} {SCOPE_FLAG}` 실행.
 | `design_reopened` | 구현자동 작업의 사람 설계가 게이트·선행 계약 검사를 통과 못해 사람 설계 대기로 되돌렸거나(design-reopen), build-start 전에 사람이 설계를 되돌림(`order_changed`). 팀장은 실패로 안 보고 슬롯을 풀며 워크트리를 지움 | 빠진 절, `선행 계약 바뀜: <파일…>`, `주문이 바뀜` |
 | `needs-merge` | 재개 판정이 approved(`/dflow-dev` 「--worker」 C) | `approved` |
 | `blocked` | 6번 판단 규칙(되돌리기 어려운 결정만) | 질문과 선택지 |
-| `cancelled` | 사람이 D'Flow 에서 이 작업을 중단. `dflow.sh` 의 progress·heartbeat·done 이 exit 10 이거나, heartbeat 훅이 세션을 세움(`/dflow-dev` 상태 모델) | 멈춘 Phase 와 호출(예 `build progress exit 10`). 산출물은 로컬 커밋만 하고 **push 하지 않음** |
+| `cancelled` | 사람이 D'Flow 에서 이 작업을 중단. `dflow.mjs` 의 progress·heartbeat·done 이 exit 10 이거나, heartbeat 훅이 세션을 세움(`/dflow-dev` 상태 모델) | 멈춘 Phase 와 호출(예 `build progress exit 10`). 산출물은 로컬 커밋만 하고 **push 하지 않음** |
 | `failed` | 그 밖의 중단(push 훅 거부, 게이트 실패, Build 게이트·Verify 재시도 소진, 부트스트랩 실패, 권한 거부) | 자유 문구. 팀장이 구분하는 값은 첫 낱말로 씀: `rate-limit`(사용량 한도·rate limit 오류로 멈춤, 재시도 가능), `not-isolated`(격리 실패, 파일로는 안 씀), `no-worker-flag`(옛 `/dflow-dev`), `deps`(의존성 설치 실패), `permission`(권한 거부, 뒤에 거부된 명령의 첫 낱말들), `project`(claim 이 `PROJECT_MISMATCH` 로 거부됨. 주문이 이 리포에 바인딩된 D'Flow 프로젝트 밖), `not-assignee`(claim 이 `not_assignee` 로 거부됨. 다른 멤버에게 배정된 작업). 설계 상태(계약 2.11)의 실패 — `브랜치 갈라짐 …`·`방식 확인 필요`·`design-done 거부(<code>)`·`design-reopen 거부(<code>)`·`설계 게이트 불통(구현 중)`·`설계 변경 필요 — <이유>`·`원격 agent 브랜치에 사람 커밋 — 받은 뒤 --resume`·`완료 보고 거부(<code>)` — 는 사람이 할 일이 사유에 있음(worker-mode.md 「설계 상태의 결과 줄」) |
 
 - `<branch>` = agent 브랜치 이름. 브랜치를 만들기 전에 끝났으면 `-`
 - `<head_sha>` = push 한 agent 브랜치 tip 의 짧은 sha(`git rev-parse --short HEAD`)
-- `<done_exit>` = `dflow.sh done` 의 exit code
+- `<done_exit>` = `dflow.mjs done` 의 exit code
 - 해당 없는 칸 = `-`
 
 ## 7-1. 문제 기록: `.issues` 파일
@@ -257,10 +257,10 @@ Skill 도구로 `/dflow-dev {ID8} --worker {MODEL_FLAG} {SCOPE_FLAG}` 실행.
 
 정본 = `.claude/skills/dflow-dev/references/dev-discipline.md` 「도커 사용 규칙」 — 규칙 본문 수정은 그 파일에서만. 요지:
 - 워커는 도커를 쓰지 않는 것이 기본 (인원과 무관)
-- `{DOCKER}` 가 `allow` 가 아니거나 `dflow.sh config no_docker` 가 `1` 이면 금지 모드
+- `{DOCKER}` 가 `allow` 가 아니거나 `dflow.mjs config no_docker` 가 `1` 이면 금지 모드
   - 기준선·게이트·Verify 에서 docker·Testcontainers 를 쓰는 명령을 빼고 판정
   - `도커 금지로 생략: <명령>` 을 design.md 와 `done` 요약에 남김 (방언 검증은 머지 뒤 팀장 스윕이 한 번 돌림)
   - 어느 쪽이 켰는지를 기준선 기록에 적음
-- `allow` 면 도커를 쓰는 명령을 PC 전역 도커 슬롯(`heavy.sh --pool docker`, 기준선은 `baseline.sh run … --pool docker`)에서만 돌림. 대상 리포가 제공하는 컨테이너 재사용 방식을 따름
+- `allow` 면 도커를 쓰는 명령을 PC 전역 도커 슬롯(`heavy.mjs --pool docker`, 기준선은 `baseline.mjs run … --pool docker`)에서만 돌림. 대상 리포가 제공하는 컨테이너 재사용 방식을 따름
 - 어느 쪽이든 꺼진 도커 런타임을 켜지 않음 (`orb start`·`open -a Docker`·`open -a OrbStack`·`colima start` 등)
 - 꺼져 있어 필요한 검증을 못 하면 「9」 로 보고

@@ -3,7 +3,7 @@
 > **윈도우 = Orca 백엔드 전제**: 윈도우(Git Bash) 팀장은 **pane(Orca)** 로 돌림(Orca 안에서 시작).
 > - tmux 판은 MSYS2 tmux 가 Git Bash 에서 도는지 검증한 적 없음(「플랫폼 차이」 절, 검증 전까지는 「돌 수도 있다」) → 윈도우 지원 경로 아님.
 > - Orca·tmux 둘 다 없으면 `NO_TMUX` 로 시작 거부.
-> - 윈도우에서는 `CLAUDE_PID`(팀장 세션 PID)도 설정 권장(없으면 `heavy.sh` 가 `HEAVY_WARN` 출력).
+> - 윈도우에서는 `CLAUDE_PID`(팀장 세션 PID)도 설정 권장(없으면 `heavy.mjs` 가 `HEAVY_WARN` 출력).
 
 SKILL.md 「0. 환경 감지」 가 백엔드 선택: 팀장이 Orca 안이면 **pane(Orca)**, 밖이면 **pane(tmux)**.
 - 워커 프롬프트·`.result` 계약·`/dflow-dev --worker` = 두 백엔드 같음. 가르는 것 = 아래 차이표뿐.
@@ -40,7 +40,7 @@ sed -n '/^## pane(Orca)/,/^## 고아 정리 규칙/p' .claude/skills/dflow-team/
 **모든 spawn 의 첫 단계**(두 백엔드 공통). 새 작업·재개·재투입·해소·차단기 시험 spawn 모두 통과.
 - 판정 기준·알림 규칙 정본 = SKILL.md 「5-3. 입장 제어」. 집행 = 이 블록 한 곳. 팀장 체크아웃에서 돎.
 ```bash
-CAP=$(.claude/skills/dflow-team/scripts/capacity.sh --state "$(git rev-parse --git-path dflow-team.capacity)"); echo "$CAP"
+CAP=$(node .claude/skills/dflow-team/scripts/capacity.mjs --state "$(git rev-parse --git-path dflow-team.capacity)"); echo "$CAP"
 case "$CAP" in CAPACITY_LOW*) echo SPAWN_DEFERRED_CAPACITY; exit 0 ;; esac
 ```
 - `SPAWN_DEFERRED_CAPACITY` 나오면 **이번 기상에 아무것도 띄우지 않음.**
@@ -51,7 +51,7 @@ case "$CAP" in CAPACITY_LOW*) echo SPAWN_DEFERRED_CAPACITY; exit 0 ;; esac
 - 새 작업·해소 spawn 블록(아래 「팀원 워크트리 준비」, 두 백엔드 공통)은 이 두 줄로 시작 → 따로 부르지 않음.
   - merge-conflict.md 「2」 해소 spawn 도 그 블록을 그대로 돌림 → 여기에 걸림(tmux·Orca 모두).
 - 블록을 통째로 안 도는 자리 = 재개(`references/resume.md` 0항)·재투입(restart.md 「재투입」). 이 블록을 먼저 따로 돎(있는 워크트리를 이어 쓰므로 준비 블록 전체 재실행 안 함).
-- 주간 사용량(`capacity.sh usage`)은 이 블록이 아님. 새 작업 spawn(SKILL.md 「5」 0항)만 이 블록 전에 따로 확인.
+- 주간 사용량(`capacity.mjs usage`)은 이 블록이 아님. 새 작업 spawn(SKILL.md 「5」 0항)만 이 블록 전에 따로 확인.
 
 ## pane(tmux)
 
@@ -88,7 +88,7 @@ find_tmux() {
 - 첫 두 줄 = 「입장 제어」 블록 그대로, 빼지 않음. `SPAWN_DEFERRED_CAPACITY` 로 끝나면 워크트리도 pane 도(Orca 는 탭도) 안 만든 것.
 
 ```bash
-CAP=$(.claude/skills/dflow-team/scripts/capacity.sh --state "$(git rev-parse --git-path dflow-team.capacity)"); echo "$CAP"
+CAP=$(node .claude/skills/dflow-team/scripts/capacity.mjs --state "$(git rev-parse --git-path dflow-team.capacity)"); echo "$CAP"
 case "$CAP" in CAPACITY_LOW*) echo SPAWN_DEFERRED_CAPACITY; exit 0 ;; esac
 TM=$(find_tmux)
 WT="<MAIN>/.claude/worktrees/dflow-<id8>"
@@ -130,12 +130,12 @@ else
   done
 fi
 LIM="$HOME/.dflow/limits"; mkdir -p "$LIM"
-W=$(sh .claude/skills/dflow-team/scripts/worker-trim.sh "<MAIN>" "$P" "$LIM/<id8>")
+W=$(node .claude/skills/dflow-team/scripts/worker-trim.mjs "<MAIN>" "$P" "$LIM/<id8>")
 printf '%s' "$W" | jq -e 'type == "object"' >/dev/null 2>&1 || W='{}'
 jq -n --arg f "$LIM/<id8>.json" --argjson plugins "$P" --argjson trim "$W" \
   '{statusLine: {type: "command", command: ("jq -c \"{at: (now | floor), rate_limits: (.rate_limits // null)}\" > \"" + $f + ".tmp\" && mv -f \"" + $f + ".tmp\" \"" + $f + "\"; printf dflow")}}
    + {hooks: {PreToolUse: [{matcher: "Bash", hooks: [{type: "command", timeout: 5,
-       command: "if [ -x \"${CLAUDE_PROJECT_DIR-}/.claude/skills/dflow-dev/scripts/timeout-guard.sh\" ]; then /bin/sh \"${CLAUDE_PROJECT_DIR-}/.claude/skills/dflow-dev/scripts/timeout-guard.sh\"; else cat >/dev/null 2>&1 || :; fi"}]}]}}
+       command: "if [ -f \"${CLAUDE_PROJECT_DIR-}/.claude/skills/dflow-dev/scripts/timeout-guard.mjs\" ]; then node \"${CLAUDE_PROJECT_DIR-}/.claude/skills/dflow-dev/scripts/timeout-guard.mjs\"; else cat >/dev/null 2>&1 || :; fi"}]}]}}
    + (if ($plugins | length) > 0 then {enabledPlugins: $plugins} else {} end)
    + $trim' \
   > "$LIM/<id8>.settings.json"
@@ -181,7 +181,7 @@ cat "$WT/.dflow-pane"
   - 전역 `~/.claude/settings.json` 자체는 읽기만 하고 안 건드림.
   - 끄지 않으려면 `DFLOW_WORKER_PLUGINS=keep`(플러그인, 팀장 세션 환경에서 읽음)·`DFLOW_WORKER_MCP=keep`(MCP·`claude-in-chrome`, 팀원 실행 시점에 `.dflow-run` 이 읽음. Orca 새 탭은 로그인 셸 환경 → 셸 프로필에 export)으로 각각 되돌림.
   - 이 설정은 tmux spawn·Orca spawn·재개(`references/resume.md`)·재투입(`references/restart.md` 「재투입」) 모두 이 블록으로 얻음.
-- **첫 턴 컨텍스트 줄이기(PC별 opt-in)**: `W=$(sh .claude/skills/dflow-team/scripts/worker-trim.sh …)` 가 `.dflow.local`(개인 설정. 이미 export 된 `DFLOW_WORKER_*` env 가 이김)의 네 키를 읽어 설정 조각을 냄. 블록이 그것을 맨 뒤에 덮어 합침. **키가 없으면 조각 `{}` → 종전과 똑같음.**
+- **첫 턴 컨텍스트 줄이기(PC별 opt-in)**: `W=$(node .claude/skills/dflow-team/scripts/worker-trim.mjs …)` 가 `.dflow.local`(개인 설정. 이미 export 된 `DFLOW_WORKER_*` env 가 이김)의 네 키를 읽어 설정 조각을 냄. 블록이 그것을 맨 뒤에 덮어 합침. **키가 없으면 조각 `{}` → 종전과 똑같음.**
   | 키 | 설정에 들어가는 것 |
   |---|---|
   | `worker_keep_skills=<쉼표 목록>` | 사용자 스킬(`~/.claude/skills`) 중 목록 밖 것을 `skillOverrides` 에서 `"off"`, claude.ai 동기화 스킬을 `syncClaudeAiSkills: false` 로 숨김. 남길 것 없으면 `none`. **`auto`**(단독 또는 `auto,<이름>`)면 그 PC 의 사용자 전역 지침(`~/.claude/CLAUDE.md` 와 `@` 포함 파일)의 부정문 아닌 문장에 이름이 나오는 사용자 스킬을 남김(`WORKER_SKILLS_AUTO kept=<목록>` 한 줄). 지침을 못 읽으면 사용자 스킬을 하나도 안 끔 |
@@ -195,8 +195,8 @@ cat "$WT/.dflow-pane"
   - **`disableBundledSkills` 사용 금지**(Workflow 도구 설명이 도리어 커짐).
   - 사용자 전역 훅(`~/.claude/settings.json` 의 heartbeat·가드 등)은 안 건드림.
   - 근거·실측 = `references/rationale.md` 「팀원 첫 턴 컨텍스트 줄이기」.
-- **timeout 가드 훅**: 같은 설정 파일에 `hooks.PreToolUse`(matcher `Bash`, timeout 5)로 `.claude/skills/dflow-dev/scripts/timeout-guard.sh` 를 검.
-  - 팀원과 그 Phase 서브에이전트가 `heavy.sh`·`baseline.sh run`·`gradlew`·`mvn`·`playwright test` 를 timeout 없이(또는 300000 미만으로) 부르거나 `run_in_background` 로 부르면 exit 2 로 막고 이유를 모델에게 보임(E2E 서버 기동만 백그라운드 허용. `nohup` 은 예외 아님).
+- **timeout 가드 훅**: 같은 설정 파일에 `hooks.PreToolUse`(matcher `Bash`, timeout 5)로 `node .claude/skills/dflow-dev/scripts/timeout-guard.mjs` 를 검.
+  - 팀원과 그 Phase 서브에이전트가 `heavy.mjs`·`baseline.mjs run`·`gradlew`·`mvn`·`playwright test` 를 timeout 없이(또는 300000 미만으로) 부르거나 `run_in_background` 로 부르면 exit 2 로 막고 이유를 모델에게 보임(E2E 서버 기동만 백그라운드 허용. `nohup` 은 예외 아님).
   - 판정 규칙 정본 = 스크립트 머리말.
   - 명령은 heartbeat 훅과 같은 가드형 → 스크립트가 없는 킷에서는 stdin 을 비우고 통과.
   - 전역 `~/.claude/settings.json` 에는 안 넣음. 근거 = `references/rationale.md`.
@@ -215,7 +215,7 @@ cat "$WT/.dflow-pane"
 - `.dflow.local`(레거시 `.env`)·`.dflow`·스킬 링크는 팀장이 먼저 검(claude 는 시작할 때 cwd 의 `.claude/skills` 를 읽음. 워커 부트스트랩의 같은 명령은 이미 있으면 건너뜀).
   - 스킬 폴더가 실제 폴더인데 `dflow-dev` 가 없으면 스킬만 하나씩 링크(폴더째 걸면 `.claude/skills/skills` 생김).
   - 메인 체크아웃에 `.env` 있으면 함께 링크(구버전 heartbeat 훅).
-  - 그 밖의 gitignore 된 심링크(예 `docs/mdm/design`)는 워커의 `deps.sh`(dflow-dev 행 H)가 검(`DEPS_LINK <경로>`).
+  - 그 밖의 gitignore 된 심링크(예 `docs/mdm/design`)는 워커의 `deps.mjs`(dflow-dev 행 H)가 검(`DEPS_LINK <경로>`).
 - Windows(Git Bash) 에서 `ln -s` 는 링크 대신 복사본을 만듦. 복사본으로도 동작(대가: 이미 뜬 팀원에는 스킬 수정이 반영 안 됨).
 - `git worktree add` 실패(`SPAWN_FAILED_WORKTREE`, 대개 같은 경로 잔존) 시 띄우지 않고 경로 보고. 같은 id8 의 옛 워크트리는 결과 처리가 지웠거나 `parked` 로 남음. `parked` 면 "사람 확인 필요".
 - `team.spawn` 의 `worktree` = `$WT`, `handle` = `tmux:<pane_id>`(예: `tmux:%3`).
@@ -454,9 +454,9 @@ orca worktree list        # 누수 확인. 옛 방식 워크트리(dflow-<id8>, 
 | 호스트 이름 | `hostname` 의 첫 점 앞부분(`hostname \| cut -d. -f1`) | 같음. Windows 의 hostname.exe 에는 `-s` 가 없음 |
 | 팀장 세션 PID | `CLAUDE_PID`(= `$PPID`) | `CLAUDE_PID`(필수. 없으면 전제 검사가 `NO_CLAUDE_PID` 로 중단). `$PPID` 는 부모가 Cygwin 프로세스가 아니면 1 |
 | `.dflow.local`(레거시 `.env`)·스킬 링크 | 심링크 | `ln -s` 가 복사본을 만듦. 복사본으로 동작(「pane(tmux)」 spawn) |
-| 필요한 명령 | bash·coreutils·tmux·git·jq·curl | Git for Windows 의 bash·coreutils 와 MSYS2 tmux·git·curl. jq 는 `_shared/bin` 동봉판을 스크립트가 PATH 에 넣음 |
+| 필요한 명령 | node 18.17+·git·tmux(또는 Orca) | node 18.17+·git. tmux 는 MSYS2(미검증). 사용자 bash 문법 명령(게이트·baseline 명령)을 돌릴 때만 Git Bash |
 
 - **Windows tmux 미검증**: MSYS2 tmux 가 Git Bash 에서 실제로 도는지 확인한 적 없음. Git for Windows 기본 구성이 아니고, tmux 자체의 Windows 제약도 알려져 있음. 검증 전까지 Windows 는 「돌 수도 있다」. WSL 은 Linux 로 취급 → 그대로 돎.
 - **`ln -s`**: 복사본을 만듦(파일·폴더 모두). `MSYS=winsymlinks:nativestrict` 를 주면 진짜 심링크가 되지만 설계는 복사본 전제.
-- **줄끝**: Windows 기본 `core.autocrlf=true` 클론은 스크립트를 CRLF 로 바꿈. 킷과 설치 대상의 `.gitattributes`(install.sh 가 넣음)가 LF 로 고정하고, `dflow.sh`·heartbeat 훅이 `.dflow`·`.dflow.local`(레거시 `.env`) 값의 `\r` 을 걷어냄.
+- **줄끝**: Windows 기본 `core.autocrlf=true` 클론은 스크립트를 CRLF 로 바꿈. 킷과 설치 대상의 `.gitattributes`(install.sh 가 넣음)가 LF 로 고정하고, `dflow.mjs`·heartbeat 훅이 `.dflow`·`.dflow.local`(레거시 `.env`) 값의 `\r` 을 걷어냄.
 - **미확인**: 실제 Windows Claude Code 세션의 Bash 도구가 `CLAUDE_PID` 를 내보내는지는 러너에서 잴 수 없었음(세션 없음). 그래서 전제 검사가 `NO_CLAUDE_PID` 로 막음(SKILL.md 「1. 시작」 전제 검사).

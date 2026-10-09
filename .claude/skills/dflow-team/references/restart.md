@@ -80,7 +80,7 @@ jq -r --arg a '<신원>/<host>/lead' --arg r '<MAIN>' \
 정체 슬롯마다 아래 블록을 한 번 실행(한 번의 Bash 호출). `<TASKS>` = 그 슬롯 포인터(`.dflow-prompt`)의 `TASK_DIR` 부모. 비어 있으면(옛 팀장) `docs/tasks`.
 ```bash
 w='<워크트리>'; id8='<id8>'; tsk='<TSK>'; tasks='<TASKS>'; TM='<진짜 tmux 절대경로 또는 빈 값>'; pane='<pane id 또는 ->'
-g=$( (.claude/skills/dflow-work/scripts/dflow.sh show "$id8") 2>/dev/null \
+g=$( (node .claude/skills/dflow-work/scripts/dflow.mjs show "$id8") 2>/dev/null \
   | jq -c --arg h 'claude-<host>' 'select((.order.id // "") != "") | .order
       | {id, status, mine, same_host: (((.claimed_by // "") | ascii_downcase) as $c | $c == $h or (($c | split("/")) as $p | ($p | length) == 3 and $p[1] == ($h | ltrimstr("claude-"))))}' 2>/dev/null )
 [ -n "$g" ] || g=SHOW_FAILED
@@ -95,12 +95,12 @@ fi
 
 | 순서 | 조건 | 분류 | (나) 1회째 | (가), 또는 (나) 2회째 |
 |---|---|---|---|---|
-| 1 | `gate=SHOW_FAILED` | 측정 실패 | 아무것도 안 함 | (나)는 아무것도 안 함. (가)는 「재시작 후보를 띄울지」 의 거두기 블록만 돌고 감시 루프(`tick.sh`) 인자에서 뺀다(죽은 pane 이 20초마다 다시 깨우지 않게). 다음 기상의 고아 스캔이 다시 봄. 같은 슬롯이 두 TICK 연속 측정 실패면 「멈춤」 표에 사유 `서버 조회 실패` 로 보고(슬롯 유지) |
+| 1 | `gate=SHOW_FAILED` | 측정 실패 | 아무것도 안 함 | (나)는 아무것도 안 함. (가)는 「재시작 후보를 띄울지」 의 거두기 블록만 돌고 감시 루프(`tick.mjs`) 인자에서 뺀다(죽은 pane 이 20초마다 다시 깨우지 않게). 다음 기상의 고아 스캔이 다시 봄. 같은 슬롯이 두 TICK 연속 측정 실패면 「멈춤」 표에 사유 `서버 조회 실패` 로 보고(슬롯 유지) |
 | 2 | `status` 가 `cancelled` | 중단 | SKILL.md 「3. 결과 처리」 의 중단 처리 | 같음. 재시작 없음 |
 | 3 | `status` 가 `claimed` 가 아님, 또는 `mine` 이 거짓, 또는 `same_host` 가 거짓 | 점유 변동 | 보고만 | 거두기 → 슬롯 해제 → 「멈춤」(사유 `서버 <status>` 또는 `다른 PC claim`). **이벤트는 안 씀** |
 | 4 | `local_phase=cancelled` | 표식 불일치 | 보고만 | 거두기 → `team.lost`(`next=park`) → 「멈춤」(사유 `중단 표식 불일치`). 사람이 phase 를 되돌릴지 판단 |
 | 4-1 | `local_phase=wait_pred` | 설계 완료 대기(멈춤 절차 뒤 결과 줄 없이 끝남) | 같음(오른쪽) | 거두기 → `team.result`(status `design_waiting`, hash `-`, 사유는 그 state.json 의 `design_first.unmet`) → 슬롯 해제·`.dflow-agent` 는 `parked`. `team.lost` 를 안 쓰고 재시작 안 함 — 재개는 `references/design-ahead.md` 2번이 선행이 풀린 뒤에 한다 |
-| 4-2 | `local_phase=wait_review` | 설계만 멈춤(멈춤 절차 뒤 결과 줄 없이 끝남) | 같음(오른쪽) | 거두기 → `team.result`(status `design_review`, hash `-`, 사유 `-`) → 슬롯 해제, 워크트리는 SKILL.md 「3. 결과 처리」 `design_review` 행대로. `team.lost` 를 안 쓰고 재시작 안 함 — 「설계 승인」 뒤에는 SKILL.md 「2-3」 의 `build` 가 이어 간다. 계약 2.11 이면 거두기 전에 `dflow.sh show <id8>` 의 `.order.design_state` 를 봄. 비어 있으면 멈춤이 서버에 닿지 않은 것 — `team.result` 를 쓰지 않고 워크트리를 `parked` 로 두며 「멈춤」(사유 `설계 멈춤 미완료 — /dflow-team <종료시각> --resume <id8> 이 마저 한다`)으로 보낸다(워커의 「끝나지 않은 설계 멈춤 이어받기」 가 push·design-done 을 한다) |
+| 4-2 | `local_phase=wait_review` | 설계만 멈춤(멈춤 절차 뒤 결과 줄 없이 끝남) | 같음(오른쪽) | 거두기 → `team.result`(status `design_review`, hash `-`, 사유 `-`) → 슬롯 해제, 워크트리는 SKILL.md 「3. 결과 처리」 `design_review` 행대로. `team.lost` 를 안 쓰고 재시작 안 함 — 「설계 승인」 뒤에는 SKILL.md 「2-3」 의 `build` 가 이어 간다. 계약 2.11 이면 거두기 전에 `dflow.mjs show <id8>` 의 `.order.design_state` 를 봄. 비어 있으면 멈춤이 서버에 닿지 않은 것 — `team.result` 를 쓰지 않고 워크트리를 `parked` 로 두며 「멈춤」(사유 `설계 멈춤 미완료 — /dflow-team <종료시각> --resume <id8> 이 마저 한다`)으로 보낸다(워커의 「끝나지 않은 설계 멈춤 이어받기」 가 push·design-done 을 한다) |
 | 5 | 「한도 판정」 이 `LIMIT_HIT` | rate-limit | 「rate-limit 대기」 의 감지(두 TICK 을 기다리지 않는다) | 같다 |
 | 6 | (가)이고 `dead_status=127` | 환경 결함 | — | 현행 `failed no-result`(SKILL.md 「3. 결과 처리」). 재시작 없음. `claude` 를 찾지 못한 것이라 다시 띄워도 같은 자리에서 죽는다 |
 | 7 | (가) 그 밖 | pane 죽음 | — | 재시작 후보(`cause=pane-dead`) |
@@ -203,7 +203,7 @@ esac
 - `REINJECT_OK` 가 아니면 띄우지 않고 「멈춤」(사유는 출력의 사유: `서버 조회 실패`·`서버 <status>`·`다른 PC claim`·`살아 있는 팀원`·`재시도 상한`)으로 보고
 ```bash
 w='<워크트리>'; id8='<id8>'; TM='<진짜 tmux 절대경로 또는 빈 값>'
-g=$( (.claude/skills/dflow-work/scripts/dflow.sh show "$id8") 2>/dev/null \
+g=$( (node .claude/skills/dflow-work/scripts/dflow.mjs show "$id8") 2>/dev/null \
   | jq -r --arg h 'claude-<host>' 'select((.order.id // "") != "") | .order
       | [.id, .status, (.mine == true | tostring), ((((.claimed_by // "") | ascii_downcase) as $c | $c == $h or (($c | split("/")) as $p | ($p | length) == 3 and $p[1] == ($h | ltrimstr("claude-")))) | tostring)] | join(" ")' 2>/dev/null )
 t=$(jq -r --arg a '<신원>/<host>/lead' --arg r '<MAIN>' --arg i "$id8" \
@@ -247,7 +247,7 @@ else echo "REINJECT_OK order=$o st=$st tries=$t"; fi
 ```bash
 w='<워크트리>'; id8='<id8>'
 e1=$(git -C "$w" log -1 --format=%ct 2>/dev/null)
-e2=$( (.claude/skills/dflow-work/scripts/dflow.sh show "$id8") 2>/dev/null \
+e2=$( (node .claude/skills/dflow-work/scripts/dflow.mjs show "$id8") 2>/dev/null \
   | jq -r '[([.reports[]?] | last | .created_at // "-"), (.order.last_heartbeat_at // "-"), (.order.heartbeat_phase // "-")] | join(",")' 2>/dev/null )
 e3=$(git -C "$w" status --porcelain 2>/dev/null | cksum | cut -d' ' -f1)
 printf 'evidence=%s\n' "$(printf '%s|%s|%s\n' "$e1" "${e2:-SHOW_FAILED}" "$e3" | cksum | cut -d' ' -f1)"
@@ -269,7 +269,7 @@ jq -r --arg a '<신원>/<host>/lead' --arg r '<MAIN>' --arg i "$id8" \
 
 | 때 | 처리 |
 |---|---|
-| 감지(「판정」 5번) | 위 블록으로 `evidence` 를 잰다. `team.lost`(`cause=rate-limit`, `next=wait`, `restart_at`=「한도 판정」 값, `evidence`)를 기록한다. **pane 이 살아 있으면 죽이지 않고 슬롯을 그대로 쥔다**(자동 이어 가기를 없애지 않는다). pane 이 죽어 있으면 거두기 블록을 돌고 감시 루프(`tick.sh`) 인자에서 뺀다. 보류가 시작된다. 「알림 한 줄」 의 rate-limit 줄 |
+| 감지(「판정」 5번) | 위 블록으로 `evidence` 를 잰다. `team.lost`(`cause=rate-limit`, `next=wait`, `restart_at`=「한도 판정」 값, `evidence`)를 기록한다. **pane 이 살아 있으면 죽이지 않고 슬롯을 그대로 쥔다**(자동 이어 가기를 없애지 않는다). pane 이 죽어 있으면 거두기 블록을 돌고 감시 루프(`tick.mjs`) 인자에서 뺀다. 보류가 시작된다. 「알림 한 줄」 의 rate-limit 줄 |
 | `RL_WAIT` 인 기상 | 그 슬롯은 무응답 판정에서 뺀다. `PANE_DEAD` 로 와도 거두기만 하고 `restart_at` 까지 기다린다 |
 | `RL_DUE` 이고 pane 이 살아 있음 | `evidence` 를 다시 잰다. **이벤트의 `evidence` 와 다르면** 워커가 스스로 이어 간 것이다. `team.spawn`(`spawn_kind=readopt`, 같은 `slot`·`worktree`·`handle`)으로 진행 중에 되돌린다. `readopt` 는 재시도로 세지 않는다. **같으면** 아래 "재투입 판정" |
 | `RL_DUE` 이고 pane 이 죽었거나 `.dflow-agent` 가 `parked` | 증거를 재지 않고 곧바로 "재투입 판정". 자동 이어 가기가 없다 |

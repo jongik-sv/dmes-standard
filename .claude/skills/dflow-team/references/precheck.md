@@ -5,10 +5,10 @@ SKILL.md 「1. 시작」 1번 전제 검사 블록이 `PRECHECK_OK` 없이 끝�
 
 - `WARN GRADLE_TUNING <빌드 루트> <빠진 키 또는 "(gradle.properties 없음)">`: `FAIL` 아님. `PRECHECK_OK` 와 함께
   나올 수 있는 **경고**. 시작 안 막음.
-  - 조건: `gradle-check.sh`(아래)가 Gradle 리포로 보는데 빌드 루트 `gradle.properties` 에 권장 3키(`org.gradle.caching`·`org.gradle.workers.max`·
+  - 조건: `gradle-check.mjs`(아래)가 Gradle 리포로 보는데 빌드 루트 `gradle.properties` 에 권장 3키(`org.gradle.caching`·`org.gradle.workers.max`·
     `org.gradle.daemon.idletimeout`) 없음 또는 파일 없음.
   - 시작 보고에 한 줄 안내 + "dflow-kit 의 `install.sh <리포>` 를 다시 돌리면 새 파일은 만들고 기존 파일은 붙일 줄만 안내한다" 덧붙임.
-  - 판정 로직 = `.claude/skills/dflow-team/scripts/gradle-check.sh` 하나뿐. `install.sh` 도 같은 스크립트 호출(중복 방지).
+  - 판정 로직 = `node .claude/skills/dflow-team/scripts/gradle-check.mjs` 하나뿐. `install.sh` 도 같은 스크립트 호출(중복 방지).
   - 이 스크립트는 탐색·판정만 함. 파일 안 고침.
 
 - **팀장 잠금**: 디렉터리, `mkdir` 로 획득.
@@ -44,7 +44,7 @@ SKILL.md 「1. 시작」 1번 전제 검사 블록이 `PRECHECK_OK` 없이 끝�
   - 잠금을 두는 이유: 한 체크아웃의 팀장 둘은 슬롯 번호·세대 파일·승인 스윕을 서로 덮어씀.
   - 생존(가져와도 되는지) = PID 아님. `beat`(없으면 잠금 디렉터리 수정 시각)로 봄.
     - 이유: 세션 프로세스가 살아 있어도 권한 확인 등에 멈춘 팀장은 기상 안 해 제 몫을 못 함. `beat` 는 그 멈춤까지 드러냄.
-  - 살아 있는 팀장은 늦어도 `TICK`(30분)마다 `beat` 갱신. 변화 없어 건너뛴 TICK 은 감시 루프가 `wake.sh` 로 갱신(「2-2」). 70분 = 두 `TICK` 연속 놓침.
+  - 살아 있는 팀장은 늦어도 `TICK`(30분)마다 `beat` 갱신. 변화 없어 건너뛴 TICK 은 감시 루프가 `wake.mjs` 로 갱신(「2-2」). 70분 = 두 `TICK` 연속 놓침.
 - **팀장 lease**: 로컬 잠금은 같은 리포의 워크트리끼리만 봄.
   - 같은 신원이 **다른 clone·다른 PC** 에서 같은 프로젝트 팀장을 띄우는 것은 서버 lease 가 막음(스펙 wbs-web docs/superpowers/specs/2026-09-23-dflow-lead-lease-design.md).
   - 로컬 잠금을 잡은 **뒤** 획득.
@@ -66,18 +66,18 @@ SKILL.md 「1. 시작」 1번 전제 검사 블록이 `PRECHECK_OK` 없이 끝�
 - `NO_PROJECT`: `.dflow` 의 `project_id` 또는 `.dflow.local` 의 `project_map`(레거시 `.env` 의
   `DFLOW_PROJECT_ID`·`DFLOW_PROJECT_MAP`)에 리포 ↔ D'Flow 프로젝트 바인딩 없으면 시작 거부.
   - 이유: 서버 작업 목록(`/work/mine`)은 PAT 주인이 속한 **모든 프로젝트** 주문을 돌려줌.
-  - `dflow.sh list` 가 바인딩으로 거름(poll·"멈춤" 재구성 모두 이 목록 사용). `dflow.sh claim` 은 바인딩 밖 주문을 `PROJECT_MISMATCH` 로 거부.
+  - `dflow.mjs list` 가 바인딩으로 거름(poll·"멈춤" 재구성 모두 이 목록 사용). `dflow.mjs claim` 은 바인딩 밖 주문을 `PROJECT_MISMATCH` 로 거부.
   - 바인딩 없으면 거를 기준이 없어 다른 프로젝트 작업을 이 리포에서 개발하게 됨. 같은 모듈 이름·같은 TSK 번호 체계의 프로젝트끼리는 겉으로 드러나지도 않음.
-- `CONFIG`: `dflow.sh config --source` 실패(`.dflow`·`.dflow.local`·레거시 `.env` 어느 것도 못 읽음, 또는 설정 문제) → 시작 거부.
-  - `dflow.sh` 가 stderr 에 낸 사유 코드(`NO_LOCAL`·`NO_DFLOW`·`NO_DEV_BRANCH`·`PERSONAL_KEY_IN_DFLOW`)대로 파일을 고친 뒤 다시 시작.
+- `CONFIG`: `dflow.mjs config --source` 실패(`.dflow`·`.dflow.local`·레거시 `.env` 어느 것도 못 읽음, 또는 설정 문제) → 시작 거부.
+  - `dflow.mjs` 가 stderr 에 낸 사유 코드(`NO_LOCAL`·`NO_DFLOW`·`NO_DEV_BRANCH`·`PERSONAL_KEY_IN_DFLOW`)대로 파일을 고친 뒤 다시 시작.
 - `SPACE_IN_PATH`: 메인 체크아웃 절대경로에 공백 있으면 시작 거부.
   - 이유: 포인터 한 줄 형식과 워커 부트스트랩의 `ln -s` 링크가 공백을 못 다룸.
-- `NO_DEFAULT_BRANCH`·`NOT_DEFAULT_BRANCH`: 개발 브랜치 = `dflow.sh branch dev` 로 구함(`.dflow.local` 의 `dev_branch`, 레거시는 `origin/HEAD`, 그 ref 없으면 `git ls-remote --symref origin HEAD`).
+- `NO_DEFAULT_BRANCH`·`NOT_DEFAULT_BRANCH`: 개발 브랜치 = `dflow.mjs branch dev` 로 구함(`.dflow.local` 의 `dev_branch`, 레거시는 `origin/HEAD`, 그 ref 없으면 `git ls-remote --symref origin HEAD`).
   - 팀장 체크아웃은 그 개발 브랜치 위 또는 **detached HEAD** 여야 함. 다른 이름 있는 브랜치면 거부.
   - 이유: 개발 브랜치 위 팀장은 그 체크아웃에서 머지. detached HEAD 팀장은 `/dflow-merge` 가 임시 머지 워크트리에서 머지해 `HEAD:<기본브랜치>` 로 push(「4. 승인 스윕」).
   - 이름 있는 다른 브랜치를 허용 안 하는 이유: 사람의 작업 브랜치일 수 있어, 스윕 뒤 최신으로 다시 detach 하면 그 작업을 흔듦.
   - detached HEAD 를 허용하는 이유: 개발 브랜치는 워크트리 하나만 체크아웃 가능. 같은 리포에서 두 번째 팀장을 링크드 워크트리로 띄우려면 개발 브랜치를 잡지 않아야 함(「두 번째 팀장」).
-- `NO_REMOTE_DEV_BRANCH`: 개발 브랜치가 원격에 없으면 먼저 `dflow.sh branch ensure-dev` 가 운영 브랜치에서 만들어 push.
+- `NO_REMOTE_DEV_BRANCH`: 개발 브랜치가 원격에 없으면 먼저 `dflow.mjs branch ensure-dev` 가 운영 브랜치에서 만들어 push.
   - 그것마저 실패(운영 브랜치도 없음·push 권한 없음)했을 때만 이 항목으로 멈춤.
   - 이유: 팀원 워크트리와 「4. 승인 스윕」 머지는 `origin/<기본브랜치>` 를 기점으로 삼음. 로컬에만 있는 개발 브랜치로는 둘 다 동작 안 함.
 - `SAME_IDENTITY_LEAD`: 같은 리포의 다른 워크트리에 잠금 `owner` 가 같은 `<신원>/<host>/lead` 이고 `beat` 가 살아 있는 팀장이 있으면 거부.
@@ -92,7 +92,7 @@ SKILL.md 「1. 시작」 1번 전제 검사 블록이 `PRECHECK_OK` 없이 끝�
   - 옛 `/dflow-dev` → 팀원이 기본 브랜치 switch 에서 죽음. 옛 `/dflow-merge` → 스윕이 팀원 작업을 영영 못 봄.
   - 판정 = 각 SKILL.md 의 `<!-- dflow-caps: … -->` 표식 줄. 본문 문구를 grep 하면 문서 수정 때 소리 없이 깨짐.
   - `KIT_NOT_PUSHED` 는 표식 도입 전에 push 된 킷도 받도록 옛 문구(`--worker`·`origin/agent/*`)를 함께 인정.
-- `AUTH`: 인증 = `dflow.sh me` 성공(`user_email` 나옴)으로 판정. doctor 는 진단 출력용, 종료 코드로 판정 안 함.
+- `AUTH`: 인증 = `dflow.mjs me` 성공(`user_email` 나옴)으로 판정. doctor 는 진단 출력용, 종료 코드로 판정 안 함.
   - 이유: doctor 는 토큰 인증이 실패해도 그 줄만 출력하고 0 으로 끝남.
   - 출력한 `user_email` 로 `DFLOW_PATS` 첫 토큰이 이 신원의 PAT 인지 보임.
   - 그 값으로 `<신원>` 슬러그, `hostname` 의 첫 점 앞부분으로 `<host>` 슬러그 생성(`hostname -s` 는 Windows 의 hostname.exe 에 없음).
@@ -144,10 +144,8 @@ SKILL.md 「1. 시작」 1번 전제 검사 블록이 `PRECHECK_OK` 없이 끝�
 
 ## 지원 환경: macOS · Git Bash(윈도우)
 
-`scripts/*.sh` 는 macOS 와 Git Bash 에서 같이 동작. 필요 도구: bash, git, jq(윈도우는 `_shared/bin` 동봉판), tmux 또는 Orca(터미널 백엔드), curl.
-- Git Bash 에는 `ps -o`·`sysctl`·`memory_pressure` 없음.
-  - `tick.sh`·`wake.sh` = `/proc/$PPID/ppid` 로 팀장 pid 읽음.
-  - `capacity.sh` = 읽을 수 없는 자원 값을 `CAPACITY_UNKNOWN`(막지 않음)으로 처리.
-- 종료 시각 해석 = BSD `date -j` 먼저, 없으면 GNU `date -d`(Git Bash 는 GNU).
+`scripts/*.mjs` 는 node 로 macOS·Linux·Windows 에서 같이 동작. 필요 도구: node 18.17+, git, tmux 또는 Orca(터미널 백엔드).
+- Git Bash 는 사용자 bash 문법 명령(게이트·baseline 명령)을 윈도우에서 돌릴 때만 필요.
+- 팀장 pid·자원 값 읽기는 node 가 OS 별로 처리. 읽을 수 없는 자원 값 = `CAPACITY_UNKNOWN`(막지 않음).
 - 스크립트를 새로 쓸 때 macOS 전용 명령·perl 금지.
 - 정본·도구 표·한계: `../../_shared/platform-support.md`.
