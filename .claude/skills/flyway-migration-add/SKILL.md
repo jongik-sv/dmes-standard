@@ -51,7 +51,8 @@ node .claude/skills/flyway-migration-add/scripts/migration_tool.mjs scaffold --m
 
 - **식별자는 따옴표·백틱 없이 대문자**. 엔티티 `@Column(name = "`OFFSET`")` 처럼 백틱을 쓰면 Hibernate 가 소문자 따옴표로 내보내 `ORA-00904` 가 나고 `ddl-auto=validate` 로는 잡히지 않는다. 예약어가 아니면 백틱을 뺀다.
 - **`''` 는 NULL** 이다: `NOT NULL DEFAULT ''` 를 쓰지 않는다. 문자열은 `VARCHAR2(n CHAR)`.
-- **boolean 은 `NUMBER(1,0)` + `CHECK (… IN (0,1))`**(앱은 `preferred_boolean_jdbc_type: TINYINT`). 시각은 `TIMESTAMP(6)`(KST 로 저장, 앱 JVM 은 `Asia/Seoul`).
+- **boolean 은 `NUMBER(1,0)` + `CHECK (… IN (0,1))`**(앱은 `preferred_boolean_jdbc_type: TINYINT`).
+- **날짜·시각 형은 담는 값에 맞춘다**(규칙은 [Oracle SQL 작성 규칙](../../../docs/guide/Database/oracle-sql-rules.md) §2 「날짜·시각 형」): 날짜만(일자)은 `VARCHAR2(8 CHAR)` 에 `YYYYMMDD` 8자리 글자, 시각까지(초 단위)는 `DATE`, 초보다 자세한 시각은 `TIMESTAMP(6)`(KST 로 저장, 앱 JVM 은 `Asia/Seoul`).
 - **IDENTITY `BY DEFAULT ON NULL` 은 명시한 ID 를 따라가지 않는다**: 시험·골든에서 명시 ID 와 자동 ID 를 섞으면 번호가 어긋나거나 `ORA-00001`.
 - **DDL 은 자동 커밋**: 파일 하나가 중간에 실패하면 앞부분만 적용된 채 남는다. 파일을 작게 나누고 재실행에 안전하게 쓴다.
 - 운영 Oracle 은 23 미만일 수 있다: `BOOLEAN` 열, `IF [NOT] EXISTS` DDL 같은 23ai 전용 구문을 쓰지 않는다.
