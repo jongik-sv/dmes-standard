@@ -11,6 +11,8 @@
 #   heavy.script 가 없으면 heavy=-/-/-, 레인의 heavy 신호는 보지 않는다. 세션 이름의 공백은 _ 로 바꾼다.
 #   closed 레인은 내지 않는다.
 set -uo pipefail
+_SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.
+. "$_SD/lib/js-bridge.sh"; if _jsb_on COORD_STATUS; then _jsb_exec "$_SD/coord-status" "$@"; fi   # node 판(스위치 COORD_JS_COORD_STATUS)
 # shellcheck source=lib/common.sh
 . "$(dirname "$0")/lib/common.sh"
 coord_default_repo
