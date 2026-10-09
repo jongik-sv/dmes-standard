@@ -9,8 +9,19 @@
 // exit: 0 모두 찾음 / 3 하나라도 못 찾음(찾은 절은 이미 냈다) / 2 사용법 오류·파일 없음.
 import fs from 'node:fs';
 
-const out = (s) => { for (;;) { try { fs.writeSync(1, s); return; } catch (e) { if (e.code !== 'EAGAIN') return; } } };
-const err = (s) => { for (;;) { try { fs.writeSync(2, s); return; } catch (e) { if (e.code !== 'EAGAIN') return; } } };
+// fd 에 전부 쓸 때까지 루프한다(64KB 넘는 파이프도 잘리지 않는다).
+const writeAll = (fd, data) => {
+  const buf = typeof data === 'string' ? Buffer.from(data, 'utf8') : data;
+  let off = 0;
+  while (off < buf.length) {
+    let n;
+    try { n = fs.writeSync(fd, buf, off); } catch (e) { if (e.code === 'EAGAIN') continue; return; }
+    if (n <= 0) return;
+    off += n;
+  }
+};
+const out = (s) => { writeAll(1, s); };
+const err = (s) => { writeAll(2, s); };
 
 function help() {
   out('사용: sections.mjs <파일> <제목>...\n');

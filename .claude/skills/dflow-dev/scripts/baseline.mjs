@@ -8,7 +8,8 @@
 //
 // 키·캐시·잠금·마감·출력 줄의 정본은 baseline.sh 머리 주석이다. 요약:
 // 키 = (기점 커밋 sha, 명령 문자열과 리포 안 cwd 의 해시). 결과는 <git-common-dir>/dflow-baseline/<sha>-<hash>.json.
-// 측정 명령은 같은 폴더의 heavy.sh(없으면 heavy.mjs — dn-heavy 레인이 만드는 중)로 감싸 돌린다.
+// 측정 명령은 같은 폴더의 heavy 로 감싸 돌린다. 확장자로 실행기를 고른다(.mjs → node, .sh → bash).
+// 기본은 heavy.mjs. win32 는 heavy.mjs 만 쓴다. 명령의 stdout+stderr 를 합쳐 로그·stdout 에 낸다(2>&1|tee 와 같다).
 // 출력 마지막 줄(`| tail -30` 뒤에도 남는다):
 //   BASELINE_MEASURED exit=<n> key=<key> json=<경로>         새로 쟀고 저장했다
 //   BASELINE_MEASURED exit=<n> cache=off(<사유>)              새로 쟀고 저장하지 않았다
@@ -22,10 +23,22 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const out = (s) => { for (;;) { try { fs.writeSync(1, s); return; } catch (e) { if (e.code !== 'EAGAIN') return; } } };
-const err = (s) => { for (;;) { try { fs.writeSync(2, s); return; } catch (e) { if (e.code !== 'EAGAIN') return; } } };
+// fd 에 전부 쓸 때까지 루프한다(64KB 넘는 파이프도 잘리지 않는다).
+const writeAll = (fd, data) => {
+  const buf = typeof data === 'string' ? Buffer.from(data, 'utf8') : data;
+  let off = 0;
+  while (off < buf.length) {
+    let n;
+    try { n = fs.writeSync(fd, buf, off); } catch (e) { if (e.code === 'EAGAIN') continue; return; }
+    if (n <= 0) return;
+    off += n;
+  }
+};
+const out = (s) => { writeAll(1, s); };
+const err = (s) => { writeAll(2, s); };
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+const isWin = process.platform === 'win32';
 const numOr = (v, dflt) => (/^[0-9]+$/.test(v ?? '') ? Number(v) : dflt);
 const MAX_AGE = numOr(process.env.DFLOW_BASELINE_MAX_AGE, 21600);
 const WAIT = numOr(process.env.DFLOW_BASELINE_WAIT, 90);
@@ -59,22 +72,52 @@ function cacheDir() {
   return `${r.stdout.replace(/\n+$/, '')}/dflow-baseline`;
 }
 
-// 같은 폴더의 heavy 실행체. heavy.mjs 가 있으면(node 판이 정본) 그것을, 없으면 heavy.sh 를 쓴다.
+// 같은 폴더의 heavy 실행체. 확장자로 실행기를 고른다(.mjs → process.execPath, .sh → bash).
+// 기본 경로는 .mjs. win32 는 heavy.mjs 만 쓴다.
 function heavyEntry() {
   const mjs = path.join(HERE, 'heavy.mjs');
   const sh = path.join(HERE, 'heavy.sh');
   try {
     if (fs.statSync(mjs).isFile()) return { cmd: process.execPath, args: [mjs] };
   } catch { /* 없음 */ }
-  try {
-    if (fs.statSync(sh).isFile()) return { cmd: sh, args: [] };
-  } catch { /* 없음 */ }
+  if (!isWin) {
+    try {
+      if (fs.statSync(sh).isFile()) return { cmd: 'bash', args: [sh] };
+    } catch { /* 없음 */ }
+  }
   return null;
 }
-const isWin = process.platform === 'win32';
-// 측정 대상 명령을 감싸는 셸. 유닉스는 원본 그대로 `bash -c`, 윈도우는 cmd.exe.
-// (우리 구현이 직접 부르는 bash·jq·sed 등은 없다 — 사용자 기준선 명령을 돌리는 자리뿐이다.)
-const shellPrefix = () => (isWin ? ['cmd.exe', '/d', '/s', '/c'] : ['bash', '-c']);
+// 사용자가 준 셸 명령(게이트·baseline 명령 등 bash 문법)을 감싸는 셸.
+// unix = bash -c. win32 = Git Bash(PATH 의 bash.exe, 없으면 C:/Program Files/Git/bin/bash.exe) -c.
+// 둘 다 없으면 명시 오류(조용한 127·DEFERRED 금지).
+class NoShell extends Error {}
+let bashCache;
+function gitBash() {
+  if (bashCache !== undefined) return bashCache;
+  bashCache = null;
+  const dirs = (process.env.PATH ?? '').split(path.delimiter);
+  for (const dir of dirs) {
+    if (dir === '') continue;
+    for (const n of ['bash.exe', 'bash']) {
+      try {
+        if (fs.statSync(path.join(dir, n)).isFile()) { bashCache = path.join(dir, n); return bashCache; }
+      } catch { /* 없음 */ }
+    }
+  }
+  const fb = 'C:/Program Files/Git/bin/bash.exe';
+  try {
+    if (fs.statSync(fb).isFile()) bashCache = fb;
+  } catch { /* 없음 */ }
+  return bashCache;
+}
+const shellPrefix = () => {
+  if (!isWin) return ['bash', '-c'];
+  const b = gitBash();
+  if (!b) {
+    throw new NoShell('win32 에서 기준선 명령을 돌리려면 Git Bash(bash.exe)가 필요하다(PATH 또는 C:/Program Files/Git/bin/bash.exe)');
+  }
+  return [b, '-c'];
+};
 
 let lockDir = null; // 우리가 잡은 측정 잠금. 종료 때 푼다.
 function releaseLock() {
@@ -107,8 +150,10 @@ function emitReuse(C, J, KEY) {
   const d = usable(C, J);
   if (!d) return null;
   try {
-    fs.writeSync(1, fs.readFileSync(path.join(C, d.log)));
-  } catch { return null; }
+    // 재기록(로그 통째+뒤 줄들)을 루프로 쓴다. 실패해도 재측정으로 떨어지지 않는다(출력 이중 방지) —
+    // 저장된 exit 로 끝낸다.
+    writeAll(1, fs.readFileSync(path.join(C, d.log)));
+  } catch { /* 읽 실패도 재측정 없이 저장된 값으로 끝낸다 */ }
   const rc = d.exit;
   const tests = d.tests;
   if (tests !== null && tests !== undefined && tests !== '') {
@@ -120,23 +165,24 @@ function emitReuse(C, J, KEY) {
   return rc;
 }
 
-// 명령을 돌려 출력을 그대로 내면서 파일에도 적는다. heavy 경로에서는 stdout+stderr 을 합쳐 stdout 으로 낸다
-// (원본 `2>&1 | tee` 와 같다). 돌려주는 값: { rc, busy } (busy = HEAVY_BUSY 줄이 있음).
-function runStreaming(argv, logPath, { mergeStderr, env } = {}) {
+// 명령을 돌려 출력을 그대로 내면서 파일에도 적는다. stdout+stderr 을 합쳐 stdout 으로 낸다
+// (원본 `2>&1 | tee` 와 같다 — heavy 경로·직접 실행 모두). 돌려주는 값: { rc, busy } (busy = HEAVY_BUSY 줄이 있음).
+// 로그를 열지 못하면(.sh 의 tee 실패 자리) 로그 없이 실행한다(명령은 돌린다).
+function runStreaming(argv, logPath, { env } = {}) {
   return new Promise((resolve) => {
     let fd = null;
-    try { fd = fs.openSync(logPath, 'w'); } catch (e) { resolve({ rc: 127, busy: false, openFail: true }); return; }
+    try { fd = fs.openSync(logPath, 'w'); } catch { fd = null; }
     const child = spawn(argv[0], argv.slice(1), {
       env: env ?? process.env, windowsHide: true,
-      stdio: ['inherit', 'pipe', mergeStderr ? 'pipe' : 'inherit'],
+      stdio: ['inherit', 'pipe', 'pipe'],
     });
     let done = false;
     const finish = (rc) => {
       if (done) return;
       done = true;
-      try { fs.closeSync(fd); } catch { /* 무시 */ }
+      if (fd !== null) { try { fs.closeSync(fd); } catch { /* 무시 */ } }
       let busy = false;
-      if (rc === 75) {
+      if (rc === 75 && fd !== null) {
         try {
           const t = fs.readFileSync(logPath, 'utf8');
           busy = /^HEAVY_(DOCKER_)?BUSY/m.test(t);
@@ -144,39 +190,27 @@ function runStreaming(argv, logPath, { mergeStderr, env } = {}) {
       }
       resolve({ rc, busy });
     };
-    if (mergeStderr && child.stderr) {
-      child.stderr.on('data', (c) => {
-        try { fs.writeSync(fd, c); } catch { /* 무시 */ }
-        out(c);
-      });
-    }
-    if (child.stdout) {
-      child.stdout.on('data', (c) => {
-        if (!mergeStderr) {
-          try { fs.writeSync(fd, c); } catch { /* 무시 */ }
+    const chunk = (c) => {
+      if (fd !== null) {
+        const buf = Buffer.isBuffer(c) ? c : Buffer.from(c);
+        let off = 0;
+        while (off < buf.length) {
+          let n;
+          try { n = fs.writeSync(fd, buf, off); } catch { break; }
+          if (n <= 0) break;
+          off += n;
         }
-        out(c);
-      });
-    }
+      }
+      out(c);
+    };
+    if (child.stderr) child.stderr.on('data', chunk);
+    if (child.stdout) child.stdout.on('data', chunk);
     child.on('error', () => finish(127));
     child.on('close', (code, sig) => {
       if (sig) {
         const n = os.constants.signals[sig] ?? 0;
         finish(128 + n);
       } else finish(code ?? 127);
-    });
-  });
-}
-// heavy 없이 직접 돌린다(원본 `bash -c` 와 같이 stdout·stderr 를 그대로 상속한다).
-function runDirect(shellArgs) {
-  return new Promise((resolve) => {
-    const child = spawn(shellArgs[0], shellArgs.slice(1), { stdio: 'inherit', windowsHide: true });
-    let done = false;
-    const finish = (rc) => { if (!done) { done = true; resolve(rc); } };
-    child.on('error', () => finish(127));
-    child.on('close', (code, sig) => {
-      if (sig) finish(128 + (os.constants.signals[sig] ?? 0));
-      else finish(code ?? 127);
     });
   });
 }
@@ -187,7 +221,6 @@ async function measureNocache(reason, CMD, POOL, heavyWait) {
     const poolArgs = POOL === 'docker' ? ['--pool', 'docker'] : [];
     const tmp = path.join(os.tmpdir(), `dflow-baseline-nocache.${process.pid}.log`);
     const r = await runStreaming([...heavyArgs(heavy, poolArgs), ...shellPrefix(), CMD], tmp, {
-      mergeStderr: true,
       env: { ...process.env, DFLOW_HEAVY_WAIT: String(heavyWait) },
     });
     try { fs.unlinkSync(tmp); } catch { /* 무시 */ }
@@ -198,9 +231,11 @@ async function measureNocache(reason, CMD, POOL, heavyWait) {
     out(`BASELINE_MEASURED exit=${r.rc} cache=off(${reason})\n`);
     return r.rc;
   }
-  const rc = await runDirect([...shellPrefix(), CMD]);
-  out(`BASELINE_MEASURED exit=${rc} cache=off(${reason})\n`);
-  return rc;
+  const tmpDirect = path.join(os.tmpdir(), `dflow-baseline-nocache.${process.pid}.log`);
+  const rDirect = await runStreaming([...shellPrefix(), CMD], tmpDirect);
+  try { fs.unlinkSync(tmpDirect); } catch { /* 무시 */ }
+  out(`BASELINE_MEASURED exit=${rDirect.rc} cache=off(${reason})\n`);
+  return rDirect.rc;
 }
 const heavyArgs = (heavy, poolArgs) => [...[heavy.cmd, ...heavy.args], ...poolArgs];
 
@@ -256,6 +291,10 @@ async function cmdRun(argv) {
   const top = topR.status === 0 ? topR.stdout.replace(/\n+$/, '') : process.cwd();
   let topP = top;
   try { topP = fs.realpathSync(top); } catch { /* 그대로 */ }
+  // win32 realpath 는 역슬래시 — 비교·자르기는 / 로 정규화한다(git 경로도 / 다).
+  const slash = (p) => p.replace(/\\/g, '/');
+  const nTop = slash(top);
+  const nTopP = slash(topP);
   let td = '';
   if (TASK_DIR !== '') {
     let resolved = null;
@@ -267,8 +306,9 @@ async function cmdRun(argv) {
       const stripped = TASK_DIR.startsWith('./') ? TASK_DIR.slice(2) : TASK_DIR;
       resolved = `${top}/${stripped}`;
     }
-    if (resolved === top || resolved.startsWith(`${top}/`)) td = resolved.slice(top.length + 1);
-    else if (resolved === topP || resolved.startsWith(`${topP}/`)) td = resolved.slice(topP.length + 1);
+    const nRes = slash(resolved);
+    if (nRes === nTop || nRes.startsWith(`${nTop}/`)) td = nRes.slice(nTop.length + 1);
+    else if (nRes === nTopP || nRes.startsWith(`${nTopP}/`)) td = nRes.slice(nTopP.length + 1);
     else td = '';
   }
   if (HEAD_SHA !== BASE_SHA) {
@@ -377,7 +417,7 @@ async function cmdRun(argv) {
   let rc;
   if (heavy && POOL === 'docker') {
     const r = await runStreaming([...heavyArgs(heavy, ['--pool', 'docker']), ...shellPrefix(), CMD], `${C}/${LOG}`, {
-      mergeStderr: true, env: { ...process.env, DFLOW_HEAVY_WAIT: String(heavyWait(deadline)) },
+      env: { ...process.env, DFLOW_HEAVY_WAIT: String(heavyWait(deadline)) },
     });
     rc = r.rc;
     if (rc === 75 && r.busy) {
@@ -387,7 +427,7 @@ async function cmdRun(argv) {
     }
   } else if (heavy) {
     const r = await runStreaming([...heavyArgs(heavy, []), ...shellPrefix(), CMD], `${C}/${LOG}`, {
-      mergeStderr: true, env: { ...process.env, DFLOW_HEAVY_WAIT: String(heavyWait(deadline)) },
+      env: { ...process.env, DFLOW_HEAVY_WAIT: String(heavyWait(deadline)) },
     });
     rc = r.rc;
     if (rc === 75 && r.busy) {
@@ -396,7 +436,7 @@ async function cmdRun(argv) {
       return 75;
     }
   } else {
-    const r = await runStreaming([...shellPrefix(), CMD], `${C}/${LOG}`, { mergeStderr: false });
+    const r = await runStreaming([...shellPrefix(), CMD], `${C}/${LOG}`);
     rc = r.rc;
   }
   if (rc === 126 || rc === 127 || rc >= 128) {
@@ -441,10 +481,21 @@ async function cmdRun(argv) {
     try {
       fs.linkSync(T, J);
       try { fs.unlinkSync(T); } catch { /* 무시 */ }
-    } catch {
-      // 먼저 게시된 결과가 있다. 먼저 쓴 쪽을 남긴다
-      try { fs.unlinkSync(T); } catch { /* 무시 */ }
-      try { fs.unlinkSync(`${C}/${LOG}`); } catch { /* 무시 */ }
+    } catch (e) {
+      if (e && e.code === 'EEXIST') {
+        // 먼저 게시된 결과가 있다. 먼저 쓴 쪽을 남긴다
+        try { fs.unlinkSync(T); } catch { /* 무시 */ }
+        try { fs.unlinkSync(`${C}/${LOG}`); } catch { /* 무시 */ }
+      } else {
+        // 경합이 아닌 실패(권한 등)는 복사로 게시를 시도한다.
+        try {
+          fs.copyFileSync(T, J);
+          try { fs.unlinkSync(T); } catch { /* 무시 */ }
+        } catch {
+          try { fs.unlinkSync(T); } catch { /* 무시 */ }
+          try { fs.unlinkSync(`${C}/${LOG}`); } catch { /* 무시 */ }
+        }
+      }
     }
   }
   // 정리: 7일 넘은 결과·로그·임시 파일
@@ -463,7 +514,8 @@ async function cmdRun(argv) {
 
 function pidAlive(pid) {
   if (!/^[0-9]+$/.test(pid ?? '')) return false;
-  try { process.kill(Number(pid), 0); return true; } catch { return false; }
+  try { process.kill(Number(pid), 0); return true; }
+  catch (e) { return e && e.code === 'EPERM'; } // 권한만 없고 살아 있음
 }
 
 function cmdNote(argv) {
@@ -552,6 +604,9 @@ async function main(argv) {
     if (sub === 'note') return cmdNote(argv.slice(1));
     usage();
     return 2;
+  } catch (e) {
+    if (e instanceof NoShell) { err(`${e.message}\n`); return 2; }
+    throw e;
   } finally {
     releaseLock();
   }

@@ -12,7 +12,18 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 
-const out = (s) => { for (;;) { try { fs.writeSync(1, s); return; } catch (e) { if (e.code !== 'EAGAIN') return; } } };
+// fd 에 전부 쓸 때까지 루프한다(64KB 넘는 파이프도 잘리지 않는다).
+const writeAll = (fd, data) => {
+  const buf = typeof data === 'string' ? Buffer.from(data, 'utf8') : data;
+  let off = 0;
+  while (off < buf.length) {
+    let n;
+    try { n = fs.writeSync(fd, buf, off); } catch (e) { if (e.code === 'EAGAIN') continue; return; }
+    if (n <= 0) return;
+    off += n;
+  }
+};
+const out = (s) => { writeAll(1, s); };
 
 function git(args, { input } = {}) {
   const r = spawnSync('git', args, {
@@ -21,7 +32,13 @@ function git(args, { input } = {}) {
   return { status: r.status ?? -1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
 
-const strOf = (v) => (typeof v === 'string' ? v : v === null || v === undefined ? '' : String(v));
+const jqStr = (v) => {
+  // `jq -r '.K // ""'` 와 같다: 없음·null → '', 문자열 그대로, 수·불리언은 텍스트, 객체·배열은 jq pretty 출력.
+  if (v === undefined || v === null) return '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number' || typeof v === 'boolean') return JSON.stringify(v);
+  return JSON.stringify(v, null, 2);
+};
 
 function main(argv) {
   if (argv.length === 1 && (argv[0] === '--help' || argv[0] === '-h')) {
@@ -47,20 +64,36 @@ function main(argv) {
     out('NOT_REFLECTED no-state\n');
     return 1;
   }
-  let st;
-  try {
-    st = JSON.parse(shown.stdout);
-  } catch {
-    out('UNKNOWN bad-state-json\n');
-    return 2;
+  // jq(`jq -r '.phase // ""'` 등)와 같은 판정. 입력 없음(빈 state.json) → 값 없음 exit 0(아래 ''으로),
+  // 배열·불리언·수·문자열을 색인하면 jq 오류(exit 5) → UNKNOWN bad-state-json.
+  const text = shown.stdout;
+  let phase;
+  let order;
+  let head;
+  if (text.trim() === '') {
+    phase = '';
+    order = '';
+    head = '';
+  } else {
+    let st;
+    try {
+      st = JSON.parse(text);
+    } catch {
+      out('UNKNOWN bad-state-json\n');
+      return 2;
+    }
+    if (st !== null && (typeof st !== 'object' || Array.isArray(st))) {
+      out('UNKNOWN bad-state-json\n');
+      return 2;
+    }
+    phase = jqStr(st?.phase);
+    order = jqStr(st?.order);
+    head = jqStr(st?.head_sha);
   }
-  const phase = strOf(st?.phase);
   if (phase !== 'merged') {
     out(`NOT_REFLECTED phase=${phase === '' ? 'none' : phase}\n`);
     return 1;
   }
-  const order = strOf(st?.order);
-  const head = strOf(st?.head_sha);
 
   // 증거 1 — 커밋 그래프의 조상 관계. head_sha 가 없으면 판정 불가로 건너뛴다.
   if (head !== '' && git(['merge-base', '--is-ancestor', head, `origin/${dev}`]).status === 0) {

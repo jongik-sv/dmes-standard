@@ -65,9 +65,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // ---------------------------------------------------------------- 출력
-const writeFd = (fd, s) => {
-  for (;;) {
-    try { fs.writeSync(fd, s); return; } catch (e) { if (e.code !== 'EAGAIN') return; }
+// fd 에 전부 쓸 때까지 루프한다(64KB 넘는 파이프도 잘리지 않는다).
+const writeFd = (fd, data) => {
+  const buf = typeof data === 'string' ? Buffer.from(data, 'utf8') : data;
+  let off = 0;
+  while (off < buf.length) {
+    let n;
+    try { n = fs.writeSync(fd, buf, off); } catch (e) { if (e.code === 'EAGAIN') continue; return; }
+    if (n <= 0) return;
+    off += n;
   }
 };
 const out = (s) => writeFd(1, s);

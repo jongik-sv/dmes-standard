@@ -13,11 +13,21 @@
 // `--help` 는 사용법을 내고 exit 0.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
-const out = (s) => { for (;;) { try { fs.writeSync(1, s); return; } catch (e) { if (e.code !== 'EAGAIN') return; } } };
-const err = (s) => { for (;;) { try { fs.writeSync(2, s); return; } catch (e) { if (e.code !== 'EAGAIN') return; } } };
+// fd 에 전부 쓸 때까지 루프한다(64KB 넘는 파이프도 잘리지 않는다).
+const writeAll = (fd, data) => {
+  const buf = typeof data === 'string' ? Buffer.from(data, 'utf8') : data;
+  let off = 0;
+  while (off < buf.length) {
+    let n;
+    try { n = fs.writeSync(fd, buf, off); } catch (e) { if (e.code === 'EAGAIN') continue; return; }
+    if (n <= 0) return;
+    off += n;
+  }
+};
+const out = (s) => { writeAll(1, s); };
+const err = (s) => { writeAll(2, s); };
 
 const TAB = '\t';
 
@@ -94,7 +104,14 @@ function main(argv) {
   let PATHS_FILE = '';
   const ignores = [];
   // abspath: 상대 경로면 지금 cwd 기준 절대경로로. 셸 `$(pwd)` 와 같이 논리 경로($PWD)를 쓴다.
-  const logicalCwd = (process.env.PWD && path.isAbsolute(process.env.PWD)) ? process.env.PWD : process.cwd();
+  // PWD 는 realpath(PWD)===realpath('.') 일 때만 믿는다.
+  let logicalCwd = process.cwd();
+  const PWD = process.env.PWD;
+  if (PWD && path.isAbsolute(PWD)) {
+    try {
+      if (fs.realpathSync(PWD) === fs.realpathSync(process.cwd())) logicalCwd = PWD;
+    } catch { /* cwd 유지 */ }
+  }
   const abspath = (a) => (path.isAbsolute(a) ? a : `${logicalCwd}/${a}`);
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -125,9 +142,9 @@ function main(argv) {
       return failInvalid(`기점 ${BASE} 를 모름`);
     }
 
-    const W = fs.mkdtempSync(path.join(os.tmpdir(), 'dflow-gate-scope.'));
-    try {
-      // 1) 대응표 읽기
+    // 임시 파일을 쓰지 않는다(대응표·경로 모두 메모리에서 처리한다).
+
+    // 1) 대응표 읽기
       let mapText;
       if (MAP !== '') {
         let isFile = false;
@@ -140,9 +157,7 @@ function main(argv) {
         try {
           mapText = fs.readFileSync(MAP, 'utf8');
         } catch {
-          err(`GATE_SCOPE_REASON 대응표 ${MAP} 없음\n`);
-          out('GATE_SCOPE none\n');
-          return 0;
+          throw new Invalid('대응표를 못 읽음');
         }
       } else {
         const shown = gitRun(['show', `${BASE}:.dflow-gates`], { cwd: TOP });
@@ -201,13 +216,17 @@ function main(argv) {
         pathsText = `${d.stdout}${l.stdout}`;
       }
 
-      // --ignore 가 절대경로면 리포 최상위 기준으로 바꾼다
+      // --ignore 가 절대경로면 리포 최상위 기준으로 바꾼다. 비교는 / 로 정규화한다(win32 역슬래시).
       let TOP_P = TOP;
       try { TOP_P = fs.realpathSync(TOP); } catch { /* 그대로 */ }
+      const slash = (p) => p.replace(/\\/g, '/');
+      const sTop = slash(TOP);
+      const sTopP = slash(TOP_P);
       const ign = ignores.map((g) => {
-        if (g.startsWith(`${TOP}/`)) return g.slice(TOP.length + 1);
-        if (g.startsWith(`${TOP_P}/`)) return g.slice(TOP_P.length + 1);
-        return g;
+        const sg = slash(g);
+        if (sg.startsWith(`${sTop}/`)) return sg.slice(sTop.length + 1);
+        if (sg.startsWith(`${sTopP}/`)) return sg.slice(sTopP.length + 1);
+        return sg;
       });
       const ignored = (p) => {
         for (const g of ign) {
@@ -250,9 +269,6 @@ function main(argv) {
       err('GATE_SCOPE_REASON 모듈 범위\n');
       for (const c of cmds) out(`GATE_SCOPE module ${c}\n`);
       return 0;
-    } finally {
-      try { fs.rmSync(W, { recursive: true, force: true }); } catch { /* 무시 */ }
-    }
   } catch (e) {
     if (e instanceof Invalid) return failInvalid(e.message);
     throw e;
