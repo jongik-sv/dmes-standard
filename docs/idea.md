@@ -127,4 +127,8 @@
 ### 스킬을 OS 중립적으로
 
 - *.sh 를 *.js 로 변경
+  - js 로 옮기면서 함께 고칠 문제(2026-10-09 사례: [docs/reports/2026-10-09-oracle-test-turn-deadlock-heavy-slots.md](reports/2026-10-09-oracle-test-turn-deadlock-heavy-slots.md))
+    1. heavy.sh(무거운 작업 PC 2자리): 명령 안에서 Oracle 잠금을 기다리는 동안에도 자리를 쥔다 → Oracle 과 무관한 재기동·빌드까지 줄 선다. 대기 상한 90초를 넘으면 exit 75 로 끝나 호출 쪽이 실패로 오해한다. → 잠금을 먼저 받고 자리를 받거나 대기 중 자리 반납, 줄 선 상태 표시.
+    2. Oracle 시험 PC 잠금·빌드 안 차례: 끝난 시험의 차례 반납을 마무리 태스크에만 맡겨, 다음 시험이 차례를 기다리며 그 마무리를 막는 교착(16분간 PC Oracle 시험·heavy 전체 정지). → 시험이 끝나는 즉시 반납(jsched-tx tx-5), Gradle BuildService 배타 실행 조사, 동시 PDB 2개 허용 여부는 Oracle Free 한도(CPU 2·SGA 900M·PGA 2G) 측정 뒤.
+    - 같이: be-run.sh 한 모듈 재기동이 같은 체크아웃의 다른 모듈까지 내림, prompt-watch 오탐·자동 거부 뒤 멈춘 레인 감지.
 
