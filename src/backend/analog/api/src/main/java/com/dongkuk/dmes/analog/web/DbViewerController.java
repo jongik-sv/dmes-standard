@@ -58,28 +58,31 @@ public class DbViewerController {
     public DbViewerService.QueryResult query(@RequestBody QueryRequest request,
                                              @RequestHeader(name = "X-Authenticated-User", required = false)
                                              String userId) {
-        DbViewerService service = service();
         try {
-            return dispatch(service, request);
+            return dispatch(request);
         } catch (DbViewerException e) {
-            service.auditRejectedQuery(userId, rejectedText(request), e);
+            // 서비스가 없거나(503) 서버 쪽 오류(5xx)는 검사 거절이 아니므로 기록하지 않는다.
+            DbViewerService service = serviceProvider.getIfAvailable();
+            if (service != null && e.getStatusCode().is4xxClientError()) {
+                service.auditRejectedQuery(userId, rejectedText(request), e);
+            }
             throw e;
         }
     }
 
-    private DbViewerService.QueryResult dispatch(DbViewerService service, QueryRequest request) {
+    private DbViewerService.QueryResult dispatch(QueryRequest request) {
         if (request.sql() != null && !request.sql().isBlank()) {
             // offset 이 있으면 「더보기」 묶음 요청이다 — 검사 경로는 첫 조회와 같다.
             if (request.offset() != null) {
-                return service.queryMore(request.sql(), request.offset(), request.chunk());
+                return service().queryMore(request.sql(), request.offset(), request.chunk());
             }
-            return service.query(request.sql());
+            return service().query(request.sql());
         }
         if (request.offset() != null) {
             throw new DbViewerException(400, "offset 은 sql 조회에서만 쓸 수 있습니다.");
         }
         if (request.table() != null && !request.table().isBlank()) {
-            return service.queryStructured(request.schema(), request.table(), request.columns(),
+            return service().queryStructured(request.schema(), request.table(), request.columns(),
                     request.limit());
         }
         throw new DbViewerException(400, "sql 또는 schema/table을 지정해 주세요.");

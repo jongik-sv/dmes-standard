@@ -169,7 +169,8 @@ public class DbViewerService {
             String reason = rejected == null ? null : rejected.getReason();
             int status = rejected == null ? 0 : rejected.getStatusCode().value();
             audit.warn("query-rejected user={} code={} status={} reason={} sql={}",
-                    escapeLog(clip(userId == null || userId.isBlank() ? "-" : userId.trim(), REJECT_USER_CHARS)),
+                    escapeLog(clip(userId == null || userId.isBlank() ? "-" : userId.trim().replaceAll("\\s+", "_"),
+                            REJECT_USER_CHARS)),
                     rejectCode(reason), status, escapeLog(reason), escapeLog(sqlHead(sql, REJECT_SQL_CHARS)));
         } catch (RuntimeException e) {
             // 기록 실패가 거절 응답을 바꾸지 않는다.
@@ -198,6 +199,9 @@ public class DbViewerService {
         }
         if (reason.contains("조회할 수 없는 표")) {
             return "DENIED_TABLE";
+        }
+        if (reason.contains("FROM ")) {
+            return "FROM_FORMAT";
         }
         if (reason.contains("스키마")) {
             return "SCHEMA";

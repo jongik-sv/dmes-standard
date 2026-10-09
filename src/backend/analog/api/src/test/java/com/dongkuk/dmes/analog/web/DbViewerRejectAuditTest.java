@@ -42,11 +42,13 @@ class DbViewerRejectAuditTest {
     private DbViewerService service;
     private ListAppender<ILoggingEvent> appender;
     private Logger auditLogger;
+    private Level previousLevel;
 
     @BeforeEach
     void setUp() {
         service = new DbViewerService(mock(JdbcTemplate.class), new DbViewerProperties());
         auditLogger = (Logger) LoggerFactory.getLogger("dbViewerAudit");
+        previousLevel = auditLogger.getLevel();
         auditLogger.setLevel(Level.INFO);
         appender = new ListAppender<>();
         appender.start();
@@ -56,6 +58,7 @@ class DbViewerRejectAuditTest {
     @AfterEach
     void tearDown() {
         auditLogger.detachAppender(appender);
+        auditLogger.setLevel(previousLevel);
     }
 
     private String lastMessage() {
@@ -85,6 +88,11 @@ class DbViewerRejectAuditTest {
                 {"SELECT A FROM MCMAPUSER.TB_X -- 주석", "COMMENT"},
                 {"SELECT A FROM MCMAPUSER.TB_X WHERE A IN (SELECT 1 FROM DUAL)", "PAREN"},
                 {"SELECT A FROM OTHERUSER.TB_X", "SCHEMA"},
+                {"SELECT * FROM TB_X", "FROM_FORMAT"},
+                {"SELECT A FROM MCMAPUSER.TB_X FROM MCMAPUSER.TB_Y", "MULTI_TABLE"},
+                {"SELECT USER_PASS FROM MCMAPUSER.TB_X", "SENSITIVE"},
+                {"SELECT A FROM MCMAPUSER.TB_X WHERE A = 1 UNION SELECT 1 FROM DUAL", "FORBIDDEN_KEYWORD"},
+                {"SELECT " + "A, ".repeat(300) + "B FROM MCMAPUSER.TB_X", "TOO_LONG"},
         };
         for (String[] c : cases) {
             appender.list.clear();
@@ -122,7 +130,7 @@ class DbViewerRejectAuditTest {
         service.auditRejectedQuery("u1\nquery-rejected user=admin" + "z".repeat(200), sql, rejectedBy(sql));
         String message = lastMessage();
         assertThat(message).doesNotContain("\n");
-        assertThat(message).contains("user=u1\\nquery-rejected user=admin");
+        assertThat(message).contains("user=u1_query-rejected_user=admin");
         assertThat(message.substring(message.indexOf("user="), message.indexOf(" code="))).hasSizeLessThan(64 + 40);
     }
 
@@ -167,6 +175,22 @@ class DbViewerRejectAuditTest {
                         .content("{\"sql\":\"SELECT A FROM MCMAPUSER.TB_X\",\"offset\":200}"))
                 .andExpect(status().isBadRequest());
         verify(mocked).auditRejectedQuery(eq(null), eq("SELECT A FROM MCMAPUSER.TB_X"), eq(rejected));
+    }
+
+    @Test
+    void 서비스가_없으면_본문이_비어도_예전처럼_400이고_기록은_없다() throws Exception {
+        @SuppressWarnings("unchecked")
+        ObjectProvider<DbViewerService> none = mock(ObjectProvider.class);
+        when(none.getIfAvailable()).thenReturn(null);
+        MockMvc noService = MockMvcBuilders.standaloneSetup(new DbViewerController(none))
+                .setControllerAdvice(new DbViewerExceptionHandler())
+                .setMessageConverters(new MappingJackson2HttpMessageConverter())
+                .build();
+        noService.perform(post("/db/query").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+        noService.perform(post("/db/query").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sql\":\"SELECT A FROM MCMAPUSER.TB_X\"}"))
+                .andExpect(status().isServiceUnavailable());
     }
 
     @Test
