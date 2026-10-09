@@ -5,7 +5,10 @@ import React, {
   Children,
   cloneElement,
   isValidElement,
+  memo,
+  useCallback,
   useId,
+  useState,
   type ReactElement,
   type ReactNode,
   type CSSProperties,
@@ -52,7 +55,7 @@ function mergeIds(...values: Array<unknown>): string | undefined {
   return ids.length > 0 ? [...new Set(ids)].join(" ") : undefined;
 }
 
-export function FormGroup({
+export const FormGroup = memo(function FormGroup({
   label: labelProp,
   required = false,
   children,
@@ -79,8 +82,15 @@ export function FormGroup({
   // MDM HTML 설명 카드(화면이 tip 을 주지 않았을 때만): 마우스가 들어갈 수 있는 넓은 툴팁으로 띄우고, 스크린리더 사본은 글자 설명으로 둔다
   // (HTML 의 링크가 보이지 않는 채 Tab 순서에 들지 않게). 그 밖의 tip 은 예전 그대로다.
   const htmlTipOptions = tipProp == null ? mdmCardTipOptions(mdm.column) : undefined;
-  const srTip: ReactNode =
-    htmlTipOptions && mdm.column ? <MdmMetaCard column={mdm.column} domain={mdm.domain} textOnly /> : tip;
+  // 스크린리더용 글자 사본(MdmMetaCard textOnly)은 칸마다 카드를 한 벌씩 더 그리므로, 라벨 hover·필드 focus 를 처음 받을 때까지 늦춘다.
+  // 그 전에는 빈 span 만 둔다(aria-describedby 대상 id 는 유지). 한 번 켜지면 그대로 둔다.
+  const lazySrTip = !!htmlTipOptions && !!mdm.column;
+  const [srTipReady, setSrTipReady] = useState(false);
+  const srTip: ReactNode = lazySrTip
+    ? srTipReady
+      ? <MdmMetaCard column={mdm.column!} domain={mdm.domain} textOnly />
+      : null
+    : tip;
   const generatedId = useId();
   const labelId = `${generatedId}-label`;
   const controlId = `${generatedId}-control`;
@@ -93,7 +103,14 @@ export function FormGroup({
   const resolvedControlId =
     singleChild && typeof singleChild.props.id === "string" ? singleChild.props.id : controlId;
   // 툴팁은 라벨 박스 기준으로 document.body 포털(position:fixed)에 띄운다 — 위치 판정·포털·Mantine Tooltip 비채택 사유는 useHoverTip.tsx.
-  const { anchorRef: labelRef, tipPos, showTip, hideTip, closeTip, box } = useHoverTip<HTMLLabelElement>(tipIsText, htmlTipOptions);
+  const { anchorRef: labelRef, tipPos, showTip: openTip, hideTip, closeTip, box } = useHoverTip<HTMLLabelElement>(tipIsText, htmlTipOptions);
+  const showTip = useCallback(
+    (e?: Parameters<typeof openTip>[0]) => {
+      if (lazySrTip) setSrTipReady(true);
+      openTip(e);
+    },
+    [lazySrTip, openTip]
+  );
 
   // hover 는 글자가 아니라 라벨 박스(.form-group-label, labelWidth 고정폭) 전체에서 받는다 — 입력칸(.form-group-field)은 걸지 않는다.
   useTipArea(labelRef, !!hoverTip, { showTip, hideTip, closeTip });
@@ -172,4 +189,4 @@ export function FormGroup({
       )}
     </div>
   );
-}
+});
