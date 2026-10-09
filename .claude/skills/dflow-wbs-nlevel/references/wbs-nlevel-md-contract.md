@@ -48,7 +48,7 @@
   - 중간층만 빼면 자식의 parent_external_ref 가 끊김. 검증기가 막음.
 - `progress: input` 층 = `upload: true` 강제. 발행·배정 대상이 안 올라가면 모순.
 - checklist 층 기본 권장 = `fold`.
-  - STK 를 아예 안 올리면 "Task 완료 전이 시 미체크 경고" 게이트가 wbs.md 에만 남아 은퇴.
+  - STK 를 아예 안 올리면 "Task 완료 전이 시 미체크 경고" 게이트가 은퇴하는 wbs.md 에만 남음.
   - fold 면 게이트가 서버에서 작동, 트리는 깔끔.
   - `false` = 정말 사적인 메모 전용.
 - 부수 이득: import 1회 1,000노드 상한 절약.
