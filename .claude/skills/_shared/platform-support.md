@@ -59,7 +59,7 @@ export PATH="$PWD/.claude/skills/_shared/bin:$PATH"; <문서의 jq 예시>
 
 - 프로세스 누적 CPU 시간(`ps -o time=`): `stall-check.sh` 는 STALL 을 내지 않고 `OK` 만 낸다(stderr 에 사유 한 줄).
 - 프로세스 시작 시각(`ps -o lstart=`): pid 재사용 판정을 생략한다(pid 존재만 본다).
-- 1분 부하·스왑·메모리 압력: `capacity.sh` 는 node `os` 로 여유 메모리와 CPU 수만 얻고 스왑·부하는 `?` 로 둔다(전부 못 얻으면 `CAPACITY_UNKNOWN`, 막지 않음). `coord-status.sh` 는 `-` 로 표시한다.
+- 1분 부하·스왑·메모리 압력: `capacity.mjs` 는 node `os` 로 여유 메모리와 CPU 수만 얻고 스왑·부하는 `?` 로 둔다(전부 못 얻으면 `CAPACITY_UNKNOWN`, 막지 않음). `coord-status.sh` 는 `-` 로 표시한다.
 - 네이티브(비 MSYS) 프로세스의 작업 폴더: `/proc/<pid>/cwd` 가 없으면 빈 값이다.
 
 ## 시험
