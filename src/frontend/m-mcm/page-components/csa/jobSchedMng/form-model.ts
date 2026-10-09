@@ -23,7 +23,6 @@ const COLLECT_ITEMS_MAX = 20;
 const COLLECT_KEY_MAX = 100;
 const COLLECT_PATH_MAX = 200;
 const COLLECT_URL_MAX = 500;
-const COLLECT_CURRENCIES_MAX = 10;
 const COLLECT_FIELD_MAX = 100;
 /** 목록 응답의 서버 상한(JobDefStore.LIST_MAX) — 총건수 칸이 없어 이 건수에 닿으면 잘렸을 수 있다. */
 export const JOB_LIST_MAX = 500;
@@ -31,13 +30,13 @@ export const JOB_LIST_MAX = 500;
 export const isJobListTruncated = (count: number): boolean => count >= JOB_LIST_MAX;
 /** 예약 작업이 쓰는 내장 서비스 ID — 서비스 실행 유형에는 쓸 수 없다(쿼리 실행·수집·코드 실행 유형이 대신한다). */
 export const BUILTIN_SERVICE_IDS: readonly string[] = ["jobDispatch", "jobCode", "jobQuery", "jobCollect"];
-const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 const VARIABLE_TYPES: readonly VariableType[] = ["STRING", "NUMBER", "DATE", "JSON"];
 
 /** 유형별 시간 초과 기본값(초) — 설계 §5.1. */
 export const DEFAULT_TIMEOUT_SEC: Record<JobKind, number> = { CODE: 1800, BPMN: 600, QUERY: 600, COLLECT: 120 };
 
-export type CollectSourceKind = "sql" | "http" | "exchange";
+/** unsupported = 저장된 정의의 원천을 이 화면이 모른다(예: 2026-10-09 제거한 exchange) — 고칠 때까지 저장할 수 없다. */
+export type CollectSourceKind = "sql" | "http" | "unsupported";
 
 export interface CollectItemRow {
   key: string;
@@ -83,7 +82,6 @@ export interface JobForm {
   /** HTTP 수집: 일시 오류(503·502·504·429·연결 시간 초과)일 때 몇 초 뒤 한 번 다시 부른다. 저장된 설정에 키가 없으면 끔(기존 작업 동작 그대로). */
   retryTransient: boolean;
   items: CollectItemRow[];
-  currencies: string[];
   /** false 면 읽기만 하고 수집 값 표에 저장하지 않는다(외부 트리거용). */
   save: boolean;
   vars: JobVarRow[];
@@ -119,7 +117,6 @@ export function emptyForm(kind: JobKind, moduleCd = "MCM"): JobForm {
     collectUrl: "",
     retryTransient: true,   // 새 작업의 기본은 켬 — 저장된 기존 작업은 키가 없으면 끔이다(toForm)
     items: [],
-    currencies: ["USD"],
     save: true,
     vars: [],
   };
@@ -146,8 +143,6 @@ export function changeModule(form: JobForm, moduleCd: string): JobForm {
     moduleCd,
     handlerId: form.jobKind === "CODE" ? "" : form.handlerId,
     vars: form.jobKind === "CODE" ? [] : form.vars,
-    // 환율 원천은 MCM 모듈에서만 고를 수 있다 — 다른 모듈로 바꾸면 SQL 원천으로 되돌린다.
-    collectKind: moduleCd !== "MCM" && form.collectKind === "exchange" ? "sql" : form.collectKind,
   };
 }
 
@@ -238,7 +233,7 @@ export function toForm(def: JobDef, codeMissing = false): JobForm {
     case "COLLECT": {
       const source = isRecord(config.source) ? config.source : {};
       const sourceKind = text(source.kind);
-      form.collectKind = sourceKind === "http" || sourceKind === "exchange" ? sourceKind : "sql";
+      form.collectKind = sourceKind === "http" ? "http" : sourceKind === "sql" || sourceKind === "" ? "sql" : "unsupported";
       form.collectSql = text(source.sql);
       form.valueField = text(source.valueField);
       form.keyField = text(source.keyField);
@@ -247,7 +242,6 @@ export function toForm(def: JobDef, codeMissing = false): JobForm {
       form.items = Array.isArray(source.items)
         ? source.items.filter(isRecord).map((i) => ({ key: text(i.key), path: text(i.path) }))
         : [];
-      form.currencies = Array.isArray(source.currencies) ? source.currencies.map(text) : [];
       form.save = config.save !== false;
       break;
     }
@@ -268,7 +262,6 @@ export function copyForm(source: JobForm): JobForm {
     jobId: "",
     jobNm: `${source.jobNm} (사본)`,
     items: source.items.map((i) => ({ ...i })),
-    currencies: [...source.currencies],
     vars: source.vars.map((v) => ({ ...v })),
     extraOpts: { ...source.extraOpts },
   };
@@ -279,10 +272,10 @@ export function isFormDirty(baseline: JobForm | null, form: JobForm | null): boo
   return JSON.stringify(baseline) !== JSON.stringify(form);
 }
 
-/** 수집 작업 실행 간격 하한(분) — SQL·HTTP 5분, 환율 60분. 다른 유형은 없다. */
+/** 수집 작업 실행 간격 하한(분) — SQL·HTTP 5분. 다른 유형은 없다. */
 export function collectMinGapMin(form: Pick<JobForm, "jobKind" | "collectKind">): number | undefined {
   if (form.jobKind !== "COLLECT") return undefined;
-  return form.collectKind === "exchange" ? 60 : 5;
+  return 5;
 }
 
 function collectConfig(form: JobForm): Record<string, unknown> {
@@ -294,8 +287,6 @@ function collectConfig(form: JobForm): Record<string, unknown> {
       retryTransient: form.retryTransient,
       items: form.items.map((i) => ({ key: i.key.trim(), path: i.path.trim() })),
     };
-  } else if (form.collectKind === "exchange") {
-    source = { kind: "exchange", currencies: form.currencies };
   } else {
     source = { kind: "sql", sql: form.collectSql, valueField: form.valueField.trim() };
     if (form.keyField.trim() !== "") source.keyField = form.keyField.trim();
@@ -404,12 +395,7 @@ function validateCollect(form: JobForm): string | null {
     if (new Set(keys).size !== keys.length) return "수집 항목의 키가 겹칩니다.";
     return null;
   }
-  if (form.moduleCd !== "MCM") return "환율 수집은 실행 모듈이 MCM 일 때만 고를 수 있습니다.";
-  if (form.currencies.length === 0) return "통화를 하나 이상 고르세요.";
-  if (form.currencies.length > COLLECT_CURRENCIES_MAX) return `통화는 ${COLLECT_CURRENCIES_MAX}개까지입니다.`;
-  if (form.currencies.some((c) => !CURRENCY_PATTERN.test(c) || c === "KRW")) return "통화는 KRW 를 뺀 영문 대문자 3자리여야 합니다.";
-  if (new Set(form.currencies).size !== form.currencies.length) return "통화가 겹칩니다.";
-  return null;
+  return "지원하지 않는 수집 원천입니다. 원천을 SQL 또는 HTTP JSON 으로 바꿔 저장하세요(환율 수집은 MDM 환율 마스터로 일원화되어 제거됨).";
 }
 
 /**

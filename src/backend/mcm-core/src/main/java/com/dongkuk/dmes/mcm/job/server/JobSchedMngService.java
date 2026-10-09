@@ -5,7 +5,6 @@ import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
 import com.dongkuk.dmes.mcm.job.builtin.QueryStatementGuard;
-import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfig;
 import com.dongkuk.dmes.mcm.job.builtin.collect.CollectConfigs;
 import com.dongkuk.dmes.mcm.job.builtin.collect.CollectException;
 import com.dongkuk.dmes.mcm.job.builtin.collect.JobCollectSql;
@@ -283,15 +282,13 @@ public class JobSchedMngService {
             default -> {
                 serviceId = "jobCollect";
                 JsonNode cfg = readObject(configJson, "수집 설정(configJson)");
-                CollectConfig parsed;
                 try {
-                    parsed = CollectConfigs.check(cfg, moduleCd, sql -> collectSql.validate(sql, varNames), null);
+                    CollectConfigs.check(cfg, sql -> collectSql.validate(sql, varNames), null);
                 } catch (CollectException | BusinessException e) {
                     throw invalid(e.getMessage());
                 }
                 long minGap = cron.minGap().toMinutes();
-                int floor = parsed.source() instanceof CollectConfig.ExchangeSource ? 60 : 5;
-                if (minGap < floor) throw invalid("수집 간격은 " + floor + "분 이상이어야 합니다(지금 최소 " + minGap + "분)");
+                if (minGap < 5) throw invalid("수집 간격은 5분 이상이어야 합니다(지금 최소 " + minGap + "분)");
             }
         }
 

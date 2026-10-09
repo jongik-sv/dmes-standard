@@ -1,5 +1,7 @@
 # 예약 작업 관리(자동 수집관리) 설계
 
+> **2026-10-09 변경**: mcm 의 환율 수집 원천(`exchange`, `ExchangeCollectSource`)은 제거했다. 환율 수집은 mdm 예약 작업 `mdm.exchangeRateSync` 하나로 일원화하고 mcm 위젯은 `FxMasterReader` 로 마스터를 읽는다. 아래 환율 원천 서술은 제거 전 기록이다.
+
 2026-10-08 · 레인 job-sched(지시 job-sched-2) · 상태: **구현 완료(job-sched-3) — 결정 D1~D32**
 
 ## 0. 배경과 사용자 결정

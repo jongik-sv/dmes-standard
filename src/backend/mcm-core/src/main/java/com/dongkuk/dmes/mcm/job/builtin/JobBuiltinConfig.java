@@ -2,18 +2,13 @@ package com.dongkuk.dmes.mcm.job.builtin;
 
 import com.dongkuk.dmes.mcm.job.JobProperties;
 import com.dongkuk.dmes.mcm.job.agent.JobHandlerRegistry;
-import com.dongkuk.dmes.mcm.job.builtin.collect.ExchangeCollectSource;
 import com.dongkuk.dmes.mcm.job.builtin.collect.HttpCollectSource;
 import com.dongkuk.dmes.mcm.job.builtin.collect.JobCollectHosts;
 import com.dongkuk.dmes.mcm.job.builtin.collect.JobCollectSql;
 import com.dongkuk.dmes.mcm.job.builtin.collect.SqlCollectSource;
-import com.dongkuk.dmes.mcm.widget.ext.FrankfurterProvider;
-import com.dongkuk.dmes.mcm.widget.ext.KoreaEximProvider;
-import com.dongkuk.dmes.mcm.widget.ext.WidgetExtProperties;
 import com.dongkuk.dmes.cactus.datasource.CactusDataSourceProperties;
 import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.function.Supplier;
 import javax.sql.DataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,7 +29,6 @@ import org.springframework.core.type.MethodMetadata;
 
 /**
  * 내장 서비스 빈(설계 §2 builtin) — 6개 앱이 모두 싣는다. BPMN {@code camunda:class} 의 이름({@code jobCodeService} 등)과 메서드 이름이 같다.
- * 환율 원천은 제공자 빈이 있는 앱(MCM)에서만 만들어진다.
  * DB 를 쓰는 빈(쿼리·수집 서비스)은 DataSource 를 정할 수 있을 때만 만든다 — 하나뿐이거나 primary 가 하나이거나 이름이 {@code dataSource} 인 빈이 있을 때
  * ({@code cactus-core JobAutoConfiguration} 과 같은 원칙). 정할 수 없으면 기동 실패 대신 그 빈들을 건너뛰고 WARN 한 줄을 남긴다.
  */
@@ -72,25 +66,8 @@ public class JobBuiltinConfig {
 
     @Bean
     @Conditional(DataSourceDecidable.class)
-    public JobCollectService jobCollectService(SqlCollectSource sql, HttpCollectSource http, ObjectProvider<WidgetExtProperties> ext,
-                                               ObjectProvider<FrankfurterProvider> frankfurter, ObjectProvider<KoreaEximProvider> koreaExim) {
-        Supplier<ExchangeCollectSource> exchange = new Supplier<>() {
-            private volatile ExchangeCollectSource cached;
-
-            @Override
-            public ExchangeCollectSource get() {
-                ExchangeCollectSource c = cached;
-                if (c == null) {
-                    WidgetExtProperties p = ext.getIfAvailable();
-                    FrankfurterProvider f = frankfurter.getIfAvailable();
-                    KoreaEximProvider k = koreaExim.getIfAvailable();
-                    if (p == null || f == null || k == null) return null;
-                    c = cached = new ExchangeCollectSource(p, f, k);
-                }
-                return c;
-            }
-        };
-        return new JobCollectService(sql, http, exchange);
+    public JobCollectService jobCollectService(SqlCollectSource sql, HttpCollectSource http) {
+        return new JobCollectService(sql, http);
     }
 
     private static final String DEFAULT_DATA_SOURCE = "dataSource";

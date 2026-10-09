@@ -40,7 +40,7 @@ export const JOB_KIND_INFO: Record<JobKind, JobKindInfo> = {
   },
   COLLECT: {
     label: KIND_LABEL.COLLECT,
-    description: "SQL·HTTP JSON·환율에서 값을 읽어 수집 값 표(TB_MCM_JOB_COLLECT_DATA)에 저장합니다. 저장하지 않고 읽기만 할 수도 있습니다.",
+    description: "SQL·HTTP JSON에서 값을 읽어 수집 값 표(TB_MCM_JOB_COLLECT_DATA)에 저장합니다. 저장하지 않고 읽기만 할 수도 있습니다.",
     icon: <IconCloudDownload size={ICON_SIZE} />,
     variableHint: "원천이 SQL 이면 :이름 바인드 변수가 되고, HTTP 원천에서는 주소의 {{이름}} 자리에 들어갑니다.",
   },

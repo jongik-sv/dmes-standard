@@ -14,7 +14,6 @@ import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
 
 import com.dongkuk.dmes.mcm.widget.ext.dto.WidgetExtExchangeRequest;
 import com.dongkuk.dmes.mcm.widget.ext.dto.WidgetExtWeatherRequest;
-import com.dongkuk.dmes.mcm.widget.ext.repository.ExchangeRateRepository;
 import jakarta.persistence.EntityManagerFactory;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -58,7 +57,7 @@ class WidgetExtWiringTest {
 
     @Configuration
     @EnableTransactionManagement
-    @EnableJpaRepositories(basePackageClasses = {ExchangeRateRepository.class, WidgetDefRepository.class})
+    @EnableJpaRepositories(basePackageClasses = WidgetDefRepository.class)
     @ComponentScan(basePackageClasses = WidgetExtService.class,
             excludeFilters = @ComponentScan.Filter(type = FilterType.REGEX, pattern = ".*Test.*"))
     static class Config {

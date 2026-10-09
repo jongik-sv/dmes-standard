@@ -100,7 +100,7 @@ class WeatherCollectOraTest {
         runSeed();
         Map<String, Object> def = jdbc.queryForMap("SELECT CONFIG_JSON, VARS_JSON FROM MCMAPUSER.TB_MCM_JOB_DEF WHERE JOB_ID = 'mcm.weather.incheon'");
 
-        CollectConfig parsed = CollectConfigs.check(new com.fasterxml.jackson.databind.ObjectMapper().readTree((String) def.get("CONFIG_JSON")), "MCM",
+        CollectConfig parsed = CollectConfigs.check(new com.fasterxml.jackson.databind.ObjectMapper().readTree((String) def.get("CONFIG_JSON")),
                 sql -> { throw new AssertionError("SQL 원천이 아니다"); }, host -> host.equals("api.open-meteo.com"));
         assertThat(parsed.save()).isTrue();
         CollectConfig.HttpSource http = (CollectConfig.HttpSource) parsed.source();

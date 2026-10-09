@@ -167,4 +167,51 @@ class JobSchemaOraTest {
         assertThatThrownBy(() -> insertRun("ID1", Timestamp.valueOf("2026-10-09 04:00:00"), "X", "id-x", "OK")).isInstanceOf(DataIntegrityViolationException.class);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ALL_CONSTRAINTS WHERE OWNER = 'MCMAPUSER' AND CONSTRAINT_NAME IN ('CK_TB_MCM_JOB_DEF_MISFIRE', 'CK_TB_MCM_JOB_RUN_TRG')", Integer.class)).isEqualTo(2);
     }
+
+    @Test
+    @DisplayName("V8: 옛 환율 표 TB_MCM_EXCHANGE_RATE 는 없다 — 다시 만들면 V8 이 지우고, 없어도 오류 없이 지나간다(멱등)")
+    void v8DropsLegacyExchangeRate() throws Exception {
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM ALL_TABLES WHERE OWNER = 'MCMAPUSER' AND TABLE_NAME = 'TB_MCM_EXCHANGE_RATE'", Integer.class)).isZero();
+
+        String sql = new String(new ClassPathResource("db/migration/oracle/mcmapuser/V8__drop_legacy_exchange_rate.sql").getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        String block = sql.substring(0, sql.lastIndexOf("/")).strip();   // 끝의 SQL*Plus 구분자(/)는 JDBC 에 보내지 않는다
+
+        jdbc.execute("ALTER SESSION SET CURRENT_SCHEMA = MCMAPUSER");
+        jdbc.execute(block);   // 표가 없는 상태 — 건너뛴다
+        jdbc.execute(block);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM ALL_TABLES WHERE OWNER = 'MCMAPUSER' AND TABLE_NAME = 'TB_MCM_EXCHANGE_RATE'", Integer.class)).isZero();
+
+        jdbc.execute("CREATE TABLE TB_MCM_EXCHANGE_RATE (RATE_DATE char(8), BASE_CUR char(3), QUOTE_CUR char(3), "
+                + "CONSTRAINT PK_TB_MCM_EXCHANGE_RATE PRIMARY KEY (RATE_DATE, BASE_CUR, QUOTE_CUR))");
+        jdbc.execute(block);   // 표가 있으면 지운다(PURGE 없이 — 휴지통에 남는다)
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM ALL_TABLES WHERE OWNER = 'MCMAPUSER' AND TABLE_NAME = 'TB_MCM_EXCHANGE_RATE'", Integer.class)).isZero();
+    }
+
+    private void insertWeatherJob(String jobId, String cron) {
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_DEF (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, SERVICE_ID, ACTION, CRON_EXPR, TIMEOUT_SEC, OWNER_TP, NEXT_RUN_AT) "
+                + "VALUES (?, 'MCM', '날씨 수집', 'COLLECT', 'jobCollect', 'run', ?, 60, 'USER', TIMESTAMP '2026-10-09 02:00:00')", jobId, cron);
+    }
+
+    @Test
+    @DisplayName("V9: 서울 날씨 cron 0,30 → 10,40 — 다른 작업·다른 값은 그대로, NEXT_RUN_AT 는 다음 10·40분, 재실행해도 같다(멱등)")
+    void v9ShiftsSeoulWeatherCron() throws Exception {
+        insertWeatherJob("mcm.weather.seoul", "0,30 * * * *");   // 시드 그대로의 서울
+        insertWeatherJob("mcm.weather.busan", "0,30 * * * *");   // 같은 cron 이라도 서울이 아니다
+        String sql = new String(new ClassPathResource("db/migration/oracle/mcmapuser/V9__seoul_weather_cron_shift.sql").getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+        jdbc.execute("ALTER SESSION SET CURRENT_SCHEMA = MCMAPUSER");
+        jdbc.execute(sql);
+        jdbc.execute(sql);   // 멱등 — 두 번째 실행은 0행
+
+        Map<String, Object> seoul = jdbc.queryForMap("SELECT CRON_EXPR, NEXT_RUN_AT, VER FROM MCMAPUSER.TB_MCM_JOB_DEF WHERE JOB_ID = 'mcm.weather.seoul'");
+        assertThat(seoul.get("CRON_EXPR")).isEqualTo("10,40 * * * *");
+        Timestamp nextRunAt = (Timestamp) seoul.get("NEXT_RUN_AT");
+        assertThat(nextRunAt.toLocalDateTime().getMinute()).isIn(10, 40);
+        assertThat(nextRunAt).isAfter(Timestamp.from(java.time.Instant.now().minusSeconds(60)));   // 적용 시각 기준 미래(경계 이음새 여유 1분)
+        assertThat(((Number) seoul.get("VER")).intValue()).isEqualTo(1);   // 한 번만 바뀌었다
+        assertThat(jdbc.queryForObject("SELECT CRON_EXPR FROM MCMAPUSER.TB_MCM_JOB_DEF WHERE JOB_ID = 'mcm.weather.busan'", String.class)).isEqualTo("0,30 * * * *");
+    }
 }

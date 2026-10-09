@@ -157,7 +157,7 @@ class JobSchedMngServiceOraTest {
     }
 
     @Test
-    @DisplayName("유형별 입력 — BPMN 은 서비스 ID·Action 필수(내장 jobCode·jobQuery·jobCollect 금지), CODE 는 등록된 처리기, COLLECT 는 원천·간격 하한(5분, 환율 60분)·환율은 MCM 만")
+    @DisplayName("유형별 입력 — BPMN 은 서비스 ID·Action 필수(내장 jobCode·jobQuery·jobCollect 금지), CODE 는 등록된 처리기, COLLECT 는 원천(sql·http)·간격 하한(5분), 제거된 환율 원천은 거절")
     void kindSpecificValidation() {
         JobSchedMngRequest b = req("mdm.b1", "MDM", "BPMN", "0 3 * * *");
         assertThatThrownBy(() -> service.save(b)).isInstanceOf(BusinessException.class).hasMessageContaining("서비스 ID");
@@ -181,12 +181,10 @@ class JobSchedMngServiceOraTest {
         col.setCronExpr("*/5 * * * *");
         service.save(col);
         JobSchedMngRequest ex = req("mdm.ex", "MDM", "COLLECT", "*/30 * * * *");
-        ex.setConfigJson("{\"source\":{\"kind\":\"exchange\",\"currencies\":[\"USD\"]}}");
-        assertThatThrownBy(() -> service.save(ex)).isInstanceOf(BusinessException.class).hasMessageContaining("MCM");
+        ex.setConfigJson("{\"source\":{\"kind\":\"exchange\",\"currencies\":[\"USD\"]}}");   // 환율 수집은 2026-10-09 제거 — mdm 환율 마스터로 일원화
+        assertThatThrownBy(() -> service.save(ex)).isInstanceOf(BusinessException.class).hasMessageContaining("sql·http");
         ex.setModuleCd("MCM");
-        assertThatThrownBy(() -> service.save(ex)).isInstanceOf(BusinessException.class).hasMessageContaining("60분");
-        ex.setCronExpr("0 * * * *");
-        service.save(ex);
+        assertThatThrownBy(() -> service.save(ex)).isInstanceOf(BusinessException.class).hasMessageContaining("sql·http");
     }
 
     @Test

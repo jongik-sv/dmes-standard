@@ -91,7 +91,7 @@ class JobBuiltinServicesOraTest {
             ctx.registerBean("jobCodeService", JobCodeService.class, () -> new JobCodeService(registry));
             ctx.registerBean("jobQueryService", JobQueryService.class, () -> new JobQueryService(ds));
             ctx.registerBean("jobCollectService", JobCollectService.class,
-                    () -> new JobCollectService(new SqlCollectSource(collectSql), new HttpCollectSource(host -> false), () -> null));
+                    () -> new JobCollectService(new SqlCollectSource(collectSql), new HttpCollectSource(host -> false)));
         });
     }
 
@@ -236,14 +236,14 @@ class JobBuiltinServicesOraTest {
     }
 
     @Test
-    @DisplayName("jobCollect — 허용 안 된 호스트·이 모듈에 없는 환율 원천·빈 결과는 USER_ERROR 문구(주소 없음)로 실패")
+    @DisplayName("jobCollect — 허용 안 된 호스트·제거된 환율 원천·빈 결과는 USER_ERROR 문구(주소 없음)로 실패")
     void collectFailuresHaveSafeMessages() throws Exception {
         JobRunReport http = kit.run(request("r1", "j1", "jobCollect", 30, Map.of("source", Map.of("kind", "http", "url", "https://secret-host.example.com/x?key=abc",
                 "items", List.of(Map.of("key", "k", "path", "a")))), Map.of(), Map.of()));
         assertThat(http.status()).isEqualTo("FAIL");
         assertThat(http.msg()).contains("허용 목록에 없는 호스트").doesNotContain("secret-host").doesNotContain("abc");
         JobRunReport ex = kit.run(request("r2", "j2", "jobCollect", 30, Map.of("source", Map.of("kind", "exchange", "currencies", List.of("USD"))), Map.of(), Map.of()));
-        assertThat(ex.msg()).contains("MCM 모듈 전용");
+        assertThat(ex.msg()).contains("sql·http");
         JobRunReport empty = kit.run(request("r3", "j3", "jobCollect", 30, Map.of("source",
                 Map.of("kind", "sql", "sql", "SELECT V, ID FROM T_JOB_Q WHERE 1 = 0", "valueField", "ID", "keyField", "V")), Map.of(), Map.of()));
         assertThat(empty.msg()).contains("수집된 값이 없습니다");
