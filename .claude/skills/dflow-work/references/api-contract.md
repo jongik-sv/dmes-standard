@@ -1,28 +1,40 @@
 # D'Flow Agent API 계약 v2.11
 
-`contract_version: "2.11"` — v1(전역 시크릿) 계약은 불변 유지, v2는 PAT 축 추가. v2.1은 stage 워크플로 재설계(0082) 반영, v2.2는 그 뒤 버전을 안 올린 채 넓혀온 세 필드를 뒤늦게 반영. v2.3은 단계 전이 원자화(0096)·실적 크레딧·선행 충족 세 축을 반영. v2.4는 `/me` 에 토큰 이름·prefix 를 더했다. v2.5는 팀장 lease 를 더했다. v2.6은 완료 보고의 결정 목록(`decisions`)을 더했다. v2.7은 heartbeat 에 팀장의 머지 충돌 표시를 더했다. v2.8은 강제 진행(간선 면제·스텁 제거 작업)을 더했다. v2.9는 설계 단계 `ds` 와 설계 선행(claim `design_first`·`build-start`)을 더했다. v2.10은 heartbeat phase `wait_review`(설계만 멈춤·사람 검토 대기)를 더했다. v2.11은 설계 상태(설계 방식·설계 검토·구현자동)와 도는 PC 를 더했다.
+`contract_version: "2.11"` — v1(전역 시크릿) 계약 불변, v2 = PAT 축 추가.
+- v2.1: stage 워크플로 재설계(0082) 반영
+- v2.2: v2.1 이후 버전 안 올린 채 넓힌 세 필드를 뒤늦게 반영
+- v2.3: 단계 전이 원자화(0096)·실적 크레딧·선행 충족
+- v2.4: `/me` 에 토큰 이름·prefix 추가
+- v2.5: 팀장 lease 추가
+- v2.6: 완료 보고의 결정 목록(`decisions`) 추가
+- v2.7: heartbeat 에 팀장의 머지 충돌 표시 추가
+- v2.8: 강제 진행(간선 면제·스텁 제거 작업) 추가
+- v2.9: 설계 단계 `ds` + 설계 선행(claim `design_first`·`build-start`) 추가
+- v2.10: heartbeat phase `wait_review`(설계만 멈춤·사람 검토 대기) 추가
+- v2.11: 설계 상태(설계 방식·설계 검토·구현자동) + 도는 PC 추가
 
 ## §2.12 에이전트 콘솔 (2026-10-06 — 계약 버전 2.11 불변, 감지는 watch 응답의 `console` 칸)
 
-에이전트 오피스(좌석표)에서 세션에 프롬프트를 보내고, 세션의 최근 화면(끝 40줄)을 본다. 서버는 **대기열과 화면 한 장**만 맡고,
-로컬 전달은 PC 마다 도는 폴러(`console-poll.sh`, 30초 주기, Claude 토큰을 쓰지 않는다)가 맡는다. 폴러 쪽 규칙은
-coordinator 스킬 `references/contract.md` §4.1 이 정본이다. 전부 additive 라 `AGENT_CONTRACT_VERSION` 은 올리지 않는다 —
-`contract-ge` 로 가르지 말고 아래 watch 응답의 `console` 칸이 있는지로 지원 여부를 판정한다.
+에이전트 오피스(좌석표)에서 세션에 프롬프트를 보내고, 세션의 최근 화면(끝 40줄)을 봄.
+- 서버 담당 = **대기열과 화면 한 장**
+- 로컬 전달 = PC 마다 도는 폴러(`console-poll.sh`, 30초 주기, Claude 토큰 안 씀)
+- 폴러 쪽 규칙 정본 = coordinator 스킬 `references/contract.md` §4.1
+- 전부 additive → `AGENT_CONTRACT_VERSION` 올리지 않음
+- `contract-ge` 로 가르지 않음. 아래 watch 응답에 `console` 칸이 있는지로 지원 여부 판정
 
 ### 대상(target)
 
-좌석 키(agent label)를 서버가 읽어 대상 종류와 참조를 정한다. 클라이언트는 `target_kind`·`target_ref` 를 받지만 **host 는 받지 않는다**
-(서버가 좌석에서 파생한다 — 0099 재개 요청의 선례).
+서버가 좌석 키(agent label)를 읽어 대상 종류와 참조를 정함. 클라이언트는 `target_kind`·`target_ref` 를 받지만 **host 는 받지 않음**(서버가 좌석에서 파생 — 0099 재개 요청 선례).
 
 | `target_kind` | 좌석 키 | `target_ref` | 세션 |
 |---|---|---|---|
-| `coord_lead` | `<신원>/<host>/coord:<세션8>` | `<세션8>` | 조정자(coordinator) 팀장 — 조정 **세션**당 하나(회차가 아니다). `<세션8>` 은 조정 세션 id 의 앞 8자 |
+| `coord_lead` | `<신원>/<host>/coord:<세션8>` | `<세션8>` | 조정자(coordinator) 팀장 — 조정 **세션**당 하나(회차 아님). `<세션8>` = 조정 세션 id 앞 8자 |
 | `coord_lane` | `<신원>/<host>/임시:<레인>·<요약>` | `<레인>` | 조정자 레인 |
 | `team_lead` | `<신원>/<host>/lead` | `lead` | `/dflow-team` 팀장 |
 | `team_worker` | `<신원>/<host>/w<슬롯>` | `w<슬롯>` | `/dflow-team` 팀원 |
 
 - `host` = 좌석 키 가운데 칸(`<host>`, `[a-z0-9-]` 슬러그). `owner` = 그 좌석의 주인 사용자(watcher 행의 user, 팀원은 점유자 `claimed_by_user_id`).
-- `target_ref` 는 `^[A-Za-z0-9._:-]{1,64}$`. 같은 owner·host 안에서 대상을 가른다. 키의 한글 칸(`임시:`)과 요약은 ref 에 넣지 않는다.
+- `target_ref` = `^[A-Za-z0-9._:-]{1,64}$`. 같은 owner·host 안에서 대상을 가름. 키의 한글 칸(`임시:`)·요약은 ref 에 넣지 않음.
 
 ### 데이터
 
@@ -31,17 +43,19 @@ coordinator 스킬 `references/contract.md` §4.1 이 정본이다. 전부 addit
 | 칸 | 뜻 |
 |---|---|
 | `id` uuid | |
-| `owner` uuid | 보낸 사람 = 세션 주인(같은 신원). 서버 액션이 `actor.userId` 로 채운다 |
+| `owner` uuid | 보낸 사람 = 세션 주인(같은 신원). 서버 액션이 `actor.userId` 로 채움 |
 | `host`·`target_kind`·`target_ref` | 위 표. host 는 서버 파생 |
 | `text` | 정리된 본문(≤2000자) |
 | `status` | `pending` `claimed` `sent` `refused` `expired` `unknown` |
-| `claim_token` | claim 때 서버가 만드는 무작위 128비트. 응답에 한 번만 싣고 ack 가 되돌려 준다. 로그·이벤트에 남기지 않는다 |
+| `claim_token` | claim 때 서버가 만드는 무작위 128비트. 응답에 한 번만 싣고 ack 가 되돌려 줌. 로그·이벤트에 남기지 않음 |
 | `attempts`·`claimed_at`·`acked_at`·`result_detail`·`reason`·`created_at`·`expires_at` | `expires_at` = 만든 시각 + 10분 |
 
-`agent_console_screens`(화면 한 장): 키 `(owner, host, target_kind, target_ref)` 에 최신 1행. `lines`(문자열 배열 ≤40개) · `sha`(본문 sha256 hex) ·
-`captured_at`(폴러가 읽은 시각) · `updated_at`. 합계 8KB(UTF-8 바이트) 이하. 24시간 갱신이 없으면 지운다.
+`agent_console_screens`(화면 한 장): 키 `(owner, host, target_kind, target_ref)` 에 최신 1행.
+- `lines`(문자열 배열 ≤40개) · `sha`(본문 sha256 hex) · `captured_at`(폴러가 읽은 시각) · `updated_at`
+- 합계 8KB(UTF-8 바이트) 이하
+- 24시간 갱신 없으면 삭제
 
-두 테이블 모두 RLS 를 켜고 정책을 두지 않는다(0095 선례). 읽고 쓰는 길은 서버 코드(서비스 키)뿐이다.
+두 테이블 모두 RLS 켜고 정책 없음(0095 선례). 읽고 쓰는 길 = 서버 코드(서비스 키)뿐.
 
 ### 상태 전이
 
@@ -52,45 +66,61 @@ pending ──poll(원자적 claim)──▶ claimed ──ack sent────�
 pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
 ```
 
-- `sent`·`refused`·`expired`·`unknown` 은 최종이다. 되살리지 않는다(다시 보내려면 사람이 새 프롬프트를 만든다).
-- **ack 전에 폴러가 죽으면 `unknown`** 이다. 입력창에 들어갔는지 알 수 없으므로 **다시 보내지 않는다**(1회 전달 보장).
-- 만료는 읽는 쪽이 게으르게 처리한다(poll·화면 조회가 `expires_at < now` 인 pending 을 `expired` 로 바꾼다). 별도 크론이 없어도 된다.
-- 최종 상태가 된 행은 7일 뒤 지우길 권한다(구현은 web 레인 재량).
+- `sent`·`refused`·`expired`·`unknown` = 최종. 되살리지 않음(다시 보내려면 사람이 새 프롬프트 생성).
+- **ack 전에 폴러가 죽으면 `unknown`**. 입력창에 들어갔는지 알 수 없으므로 **다시 보내지 않음**(1회 전달 보장).
+- 만료는 읽는 쪽이 lazy 처리(poll·화면 조회가 `expires_at < now` 인 pending 을 `expired` 로 변경). 별도 크론 불필요.
+- 최종 상태 행은 7일 뒤 삭제 권장(구현은 web 레인 재량).
 
 ### 엔드포인트 (전부 PAT 전용 · 스코프 `work:claim`)
 
-레거시 호출은 400 `identity_required`, 다른 사람의 행은 404(존재 비구분).
+레거시 호출 = 400 `identity_required`. 다른 사람의 행 = 404(존재 비구분).
 
-**프로젝트 한정 PAT**: 프롬프트에는 프로젝트가 없어서 한정 토큰이 같은 사용자의 다른 프로젝트 세션 프롬프트를 집어 갈 수 있으므로, poll·ack 는 프로젝트로 한정한 PAT 에 403 `forbidden_role` 을 준다(dflow.sh exit 5). screen 은 그 프로젝트의 좌석만 받는다. 폴러는 이 403 을 받으면 콘솔 전달(poll·ack)만 끄고(30분 뒤 한 번 다시 시도) 생존 감시·화면 올리기는 계속한다. **한정 PAT 는 같은 owner 의 조정 칸(coord_lead·coord_lane)만 허용한다**(wbs-web 0112): screen 은 열쇠 좌석이 전부 자기 프로젝트이거나 전부 프로젝트 없는 조정 칸일 때, poll 은 서버가 `p_target_kinds=[coord_lead,coord_lane]` 로 걸러 주고, ack 는 조정 칸 행만 받는다(그 밖은 404).
+**프로젝트 한정 PAT**
+- 프롬프트에 프로젝트가 없음. 한정 토큰이 같은 사용자의 다른 프로젝트 세션 프롬프트를 집어 갈 수 있음.
+- 그래서 poll·ack 는 프로젝트 한정 PAT 에 403 `forbidden_role` (dflow.sh exit 5). screen 은 그 프로젝트의 좌석만 받음.
+- 폴러가 이 403 을 받으면 콘솔 전달(poll·ack)만 끄고(30분 뒤 한 번 재시도) 생존 감시·화면 올리기는 계속.
+- **한정 PAT 는 같은 owner 의 조정 칸(coord_lead·coord_lane)만 허용**(wbs-web 0112):
+  - screen: 열쇠 좌석이 전부 자기 프로젝트이거나 전부 프로젝트 없는 조정 칸일 때
+  - poll: 서버가 `p_target_kinds=[coord_lead,coord_lane]` 로 걸러 줌
+  - ack: 조정 칸 행만 받음(그 밖은 404)
 
-**POST `/api/v1/agent/console/poll`** — 본문 `{host, limit?, accepts?}`(`host` = 폴러가 도는 PC 슬러그, `limit` 기본 5·최대 10,
-`accepts` = 받을 수 있는 행 종류 배열 — 지금은 `['keys']` 뿐. kit 폴러는 `limit:1` 로 부르고, 키 입력 답하기를 켠 경우(`console.keys_enabled=true`·`COORD_CONSOLE_KEYS_ENABLED=1`)에만 `accepts:['keys']` 를 싣는다(기본 꺼짐 — 아래 키 행). `accepts` 에 `keys` 가 없으면
-서버는 키 행을 집지 않고(응답에서 빼고) 그 행은 60초 뒤 만료된다).
-이 PAT 의 사용자가 owner 이고 `host` 가 같은 `pending`(만료 전) 행을 오래된 순으로 `limit` 건 **한 문장(원자적)으로 `claimed` 로 바꾸며**
-`claim_token`·`claimed_at`·`attempts+1` 을 채운다. 같은 행을 두 폴러가 받을 수 없다. 응답:
+**POST `/api/v1/agent/console/poll`** — 본문 `{host, limit?, accepts?}`
+- `host` = 폴러가 도는 PC 슬러그
+- `limit` 기본 5·최대 10
+- `accepts` = 받을 수 있는 행 종류 배열. 지금은 `['keys']` 뿐
+- kit 폴러는 `limit:1` 로 호출. 키 입력 답하기를 켠 경우(`console.keys_enabled=true`·`COORD_CONSOLE_KEYS_ENABLED=1`)에만 `accepts:['keys']` 를 싣음(기본 꺼짐 — 아래 키 행)
+- `accepts` 에 `keys` 없으면 서버는 키 행을 집지 않고(응답에서 뺌) 그 행은 60초 뒤 만료
+
+이 PAT 사용자가 owner 이고 `host` 가 같은 `pending`(만료 전) 행을 오래된 순으로 `limit` 건 **한 문장(원자적)으로 `claimed` 로 바꾸며** `claim_token`·`claimed_at`·`attempts+1` 을 채움. 같은 행을 두 폴러가 받을 수 없음. 응답:
 ```json
 { "ok": true, "prompts": [ { "id": "<uuid>", "target_kind": "coord_lane", "target_ref": "kit", "text": "…",
                               "claim_token": "<hex>", "expires_at": "…" } ] }
 ```
-`host` 가 슬러그 형식이 아니면 400. 호출할 때마다 `claimed_at` 이 120초 지난 `claimed` 행을 `unknown` 으로 바꾼다.
+`host` 가 슬러그 형식이 아니면 400. 호출마다 `claimed_at` 이 120초 지난 `claimed` 행을 `unknown` 으로 바꿈.
 
-**키 행**(오피스의 「키 입력 답하기」, 마이그레이션 0111) — **기본 꺼짐(`console.keys_enabled=false`), 다음 회차에 훅 기반(구조화된 권한 이벤트)으로 재설계.** 꺼진 폴러는 `accepts` 를 보내지 않고, 키 행을 받아도 키를 보내지 않고 `refused`·reason `error`·detail `keys_disabled` 로 ack 한다(reason 표에 새 값을 더하지 않는다). 켰을 때의 계약은 아래와 같다. 글 행 칸(`id`·`target_kind`·`target_ref`·`claim_token`·`expires_at`)에 `kind:"keys"`·`keys`·`input_request` 가 붙고 `text` 칸은 없다(글 행에는 `kind` 칸이 없다).
+**키 행**(오피스의 「키 입력 답하기」, 마이그레이션 0111) — **기본 꺼짐(`console.keys_enabled=false`), 다음 회차에 훅 기반(구조화된 권한 이벤트)으로 재설계.**
+- 꺼진 폴러: `accepts` 안 보냄. 키 행을 받아도 키를 안 보내고 `refused`·reason `error`·detail `keys_disabled` 로 ack (reason 표에 새 값 추가 안 함).
+- 켰을 때의 계약은 아래.
+- 글 행 칸(`id`·`target_kind`·`target_ref`·`claim_token`·`expires_at`)에 `kind:"keys"`·`keys`·`input_request` 가 붙고 `text` 칸 없음(글 행에는 `kind` 칸 없음).
 ```json
 { "id": "<uuid>", "target_kind": "coord_lane", "target_ref": "kit", "claim_token": "<hex>", "expires_at": "…",
   "kind": "keys", "keys": ["Down", "Enter"], "input_request": { "kind": "choice", "since": "2026-10-06T01:02:03.004Z", "sha": "<64 hex>" } }
 ```
-- `target_kind` 는 `coord_lane` 뿐, 만료는 만든 뒤 60초, 보내는 사람은 세션 주인 본인뿐(관리자 불가).
-- `keys`: 1~4개, `^((Up|Down),){0,3}(Up|Down|Tab|[1-9]|Enter|Esc)$` 모양(앞자리 이동 키는 `Up`·`Down` 만, `Tab`·`1~9`·`Enter`·`Esc` 는 마지막 한 자리). 위반 행은 서버가 만들지 않는다.
-- `input_request` = 웹이 보던 입력 요청의 `kind`·`since`(서버가 UTC 밀리초 ISO 로 정규화)·`sha`(서버가 발췌로 계산 — 줄마다 제어 문자 제거 → 줄 끝 U+0020 제거 → `\n` 으로 이은 UTF-8 sha256 소문자 hex). 같은 since+sha 는 서버가 한 번만 받는다.
-- 폴러(coordinator `contract.md` §4.1 「키 입력 답하기」)는 행을 믿지 않고 대상·만료·허용 키를 다시 검사하고, 보내기 직전 화면을 다시 판정해 kind·sha(문자열)·since(시각) 중 하나라도 다르면 보내지 않고 `refused`·`prompt_changed` 로 ack 한다. 키를 하나라도 넣었을 수 있으면 `refused` 로 ack 하지 않는다(`sent` 또는 ack 생략 → `unknown`).
+- `target_kind` = `coord_lane` 뿐. 만료 = 만든 뒤 60초. 보내는 사람 = 세션 주인 본인뿐(관리자 불가).
+- `keys`: 1~4개, `^((Up|Down),){0,3}(Up|Down|Tab|[1-9]|Enter|Esc)$` 모양(앞자리 이동 키는 `Up`·`Down` 만, `Tab`·`1~9`·`Enter`·`Esc` 는 마지막 한 자리). 위반 행은 서버가 만들지 않음.
+- `input_request` = 웹이 보던 입력 요청의 `kind`·`since`(서버가 UTC 밀리초 ISO 로 정규화)·`sha`(서버가 발췌로 계산 — 줄마다 제어 문자 제거 → 줄 끝 U+0020 제거 → `\n` 으로 이은 UTF-8 sha256 소문자 hex). 같은 since+sha 는 서버가 한 번만 받음.
+- 폴러(coordinator `contract.md` §4.1 「키 입력 답하기」)는 행을 믿지 않고 대상·만료·허용 키를 다시 검사함. 보내기 직전 화면을 다시 판정해 kind·sha(문자열)·since(시각) 중 하나라도 다르면 보내지 않고 `refused`·`prompt_changed` 로 ack.
+- 키를 하나라도 넣었을 수 있으면 `refused` 로 ack 안 함(`sent` 또는 ack 생략 → `unknown`).
 
 **POST `/api/v1/agent/console/ack`** — 본문 `{id, claim_token, result, reason?, detail?}`. `result`:
 - `sent` — 입력창에 넣었다. `detail` ∈ `turn_started`·`submitted`·`accepted`. → `sent`
 - `refused` — 최종 거절. `reason` 필수(아래 표). → `refused`
-- `retry` — 지금은 못 넣었으니 다시 시도하게 한다. `reason` 필수. 만료 전이면 `pending`(`claim_token` 비움), 이미 지났으면 `expired`.
+- `retry` — 지금은 못 넣었으니 다시 시도하게 함. `reason` 필수. 만료 전이면 `pending`(`claim_token` 비움), 이미 지났으면 `expired`.
 
-응답 200 `{ok, status}`. 토큰 불일치·다른 사람의 행은 404, `claimed` 가 아닌 행에 다른 결과를 ack 하면 409 `conflict`,
-같은 결과를 다시 ack 하면 200 `{ok, status, already:true}`(멱등).
+응답 200 `{ok, status}`.
+- 토큰 불일치·다른 사람의 행 = 404
+- `claimed` 아닌 행에 다른 결과를 ack = 409 `conflict`
+- 같은 결과를 다시 ack = 200 `{ok, status, already:true}`(멱등)
 
 | `reason`(폴러 → 서버, 표시용) | 쓰이는 `result` | 뜻 |
 |---|---|---|
@@ -101,62 +131,99 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
 | `bang-in-text` | `refused` | 본문에 `!` |
 | `prompt-open` | `refused` | 확인·선택 창이 열려 있음 |
 | `draft-in-input` | `refused` | 입력창에 쓰다 만 글이 있음(찾지 못한 경우 포함) |
-| `error` | `refused` | 그 밖의 보내기 실패. 키 행이 폴러의 `console.keys_enabled=false`(기본) 때문에 거절되면 detail 이 `keys_disabled` 이다 |
-| `prompt_changed` | `refused` | 키 행: 보내기 직전 다시 본 창(kind·발췌 sha·since)이 요청과 다르거나 창이 없음·이미 답한 창·다른 쪽이 답하는 중(`refused` 와만 쓴다) |
+| `error` | `refused` | 그 밖의 보내기 실패. 키 행이 폴러의 `console.keys_enabled=false`(기본) 때문에 거절되면 detail 이 `keys_disabled` |
+| `prompt_changed` | `refused` | 키 행: 보내기 직전 다시 본 창(kind·발췌 sha·since)이 요청과 다르거나 창이 없음·이미 답한 창·다른 쪽이 답하는 중(`refused` 와만 씀) |
 
-서버는 `reason` 을 위 목록으로 검사하고, 어떤 `result`·`reason` 짝을 쓸지는 폴러가 정한다(어느 사유를 재시도로 볼지 폴러 쪽 한 줄로 바꿀 수 있다).
-서버가 `result=retry` 에 허용하는 `reason` 은 `compacting` 뿐이다.
+- 서버는 `reason` 을 위 목록으로 검사. 어떤 `result`·`reason` 짝을 쓸지는 폴러가 정함(어느 사유를 재시도로 볼지 폴러 쪽 한 줄로 변경 가능).
+- 서버가 `result=retry` 에 허용하는 `reason` = `compacting` 뿐.
 
 **POST `/api/v1/agent/console/screen`** — 본문 `{host, items:[…]}`, 항목 ≤20개:
 ```json
 { "target_kind": "coord_lane", "target_ref": "kit", "sha": "<hex>", "captured_at": "…", "lines": ["…", "…"] }
 ```
-`lines` 가 있으면 저장(덮어쓰기), 없으면 **touch**(`sha` 가 저장된 것과 같을 때 `captured_at` 만 갱신). 응답
-`{ok, results:[{target_kind, target_ref, status:"stored"|"touched"|"need_full"|"rejected", reason?}]}` — touch 인데 sha 가 다르거나 행이 없으면
-`need_full`(폴러가 전체를 다시 보낸다). 검증: `lines` ≤40개, 항목 합계 ≤8KB(줄 바이트의 합, 개행은 세지 않는다), 한 줄 ≤400자(코드포인트), `captured_at` 은 ISO 8601 이고 서버 시각보다 5분 넘게 미래면 `rejected`(`invalid_captured_at`), 같은 요청에 같은 대상을 두 번 넣으면 앞의 것이 `rejected`(`duplicate_target`), 제어 문자(탭 제외) 금지, `sha` 는 64자 hex.
-위반 항목만 `rejected` 로 두고 나머지는 처리한다. 폴러는 이 PC 에서 찾은 대상만 올린다 — 서버는 **owner 의 좌석(watcher·점유 주문)에 없는 대상**을 `rejected`(`unknown_target`)로 거른다.
-화면은 **폴러가 비밀 모양 문자열을 가린 뒤** 올린다(§4.1). 서버는 저장·표시 모두 글자 그대로 다루고(HTML 이스케이프는 화면 몫) 로그에 남기지 않는다.
+`lines` 있으면 저장(덮어쓰기), 없으면 **touch**(`sha` 가 저장된 것과 같을 때 `captured_at` 만 갱신). 응답
+`{ok, results:[{target_kind, target_ref, status:"stored"|"touched"|"need_full"|"rejected", reason?}]}` — touch 인데 sha 가 다르거나 행이 없으면 `need_full`(폴러가 전체 재전송).
 
-**watch 응답**(`POST /api/v1/agent/watch`) 에 칸 하나가 는다: `console: {"v":1, "poll_s":30}`. 이 칸이 없는 옛 서버에서는 폴러를 띄우지 않는다.
-`poll_s` 는 서버가 권하는 주기(초)이고 폴러는 15~120 으로 자른다.
+검증:
+- `lines` ≤40개
+- 항목 합계 ≤8KB(줄 바이트의 합, 개행 제외)
+- 한 줄 ≤400자(코드포인트)
+- `captured_at` = ISO 8601. 서버 시각보다 5분 넘게 미래면 `rejected`(`invalid_captured_at`)
+- 같은 요청에 같은 대상 두 번 → 앞의 것 `rejected`(`duplicate_target`)
+- 제어 문자(탭 제외) 금지
+- `sha` = 64자 hex
 
-### 보내기·보기 권한 (웹 서버 액션 — REST 가 아니다)
+위반 항목만 `rejected`, 나머지는 처리. 폴러는 이 PC 에서 찾은 대상만 올림. 서버는 **owner 의 좌석(watcher·점유 주문)에 없는 대상**을 `rejected`(`unknown_target`)로 거름.
+화면은 **폴러가 비밀 모양 문자열을 가린 뒤** 올림(§4.1). 서버는 저장·표시 모두 글자 그대로 다루고(HTML 이스케이프는 화면 몫) 로그에 남기지 않음.
+
+**watch 응답**(`POST /api/v1/agent/watch`)에 칸 하나 추가: `console: {"v":1, "poll_s":30}`.
+- 이 칸 없는 옛 서버에서는 폴러를 띄우지 않음.
+- `poll_s` = 서버 권장 주기(초). 폴러는 15~120 으로 자름.
+
+### 보내기·보기 권한 (웹 서버 액션 — REST 아님)
 
 | 동작 | 누가 |
 |---|---|
-| 프롬프트 보내기 | **세션 주인 본인만**(`actor.userId === owner`). 프로젝트 관리자·슈퍼유저도 남의 세션에는 못 보낸다(403 `not_owner`). `agentHub.ts` 의 stop·resume 게이트(관리자 허용)를 베끼지 않는다 |
-| 화면 보기 | 본인 + 그 좌석이 속한 프로젝트의 관리자. 좌석의 프로젝트는 팀원이면 점유 주문의 `project_id`, 감시자(팀장·조정 레인)이면 `watcher.project_id` 로 정한다. **프로젝트를 정할 수 없으면(`project_id` 가 null — 조정 세션 대부분) 본인만 본다(fail-closed)** |
+| 프롬프트 보내기 | **세션 주인 본인만**(`actor.userId === owner`). 프로젝트 관리자·슈퍼유저도 남의 세션에는 못 보냄(403 `not_owner`). `agentHub.ts` 의 stop·resume 게이트(관리자 허용)를 베끼지 않음 |
+| 화면 보기 | 본인 + 그 좌석이 속한 프로젝트의 관리자. 좌석의 프로젝트: 팀원 = 점유 주문의 `project_id`, 감시자(팀장·조정 레인) = `watcher.project_id`. **프로젝트를 정할 수 없으면(`project_id` null — 조정 세션 대부분) 본인만(fail-closed)** |
 | 전달 상태·프롬프트 본문 보기 | 본인만 |
 
-서버가 본문을 받을 때 이 순서로 정리한다: ① 줄바꿈(CR·LF·U+2028·U+2029)과 탭을 공백 하나로 바꾼다 → ② 나머지 제어 문자(C0·C1·DEL)를 지운다 → ③ 앞뒤 공백을 지운다. 연속 공백은 접지 않는다(줄바꿈을 먼저 지우면 단어가 붙기 때문에 ①이 ②보다 앞선다). 정리한 결과가 비면 400 `empty`,
-`!` 가 들어 있으면 400 `bang_in_text`, 2000자(코드포인트)를 넘으면 400 `too_long`. 보내는 사람마다 1분에 5건(429 `rate_limited`),
-한 대상(owner·host·kind·ref)에 `pending`·`claimed` 가 3건이면 409 `queue_full`. 대상이 owner 의 좌석에 없으면 404 `target_unknown`.
+서버가 본문을 받을 때 이 순서로 정리:
+1. 줄바꿈(CR·LF·U+2028·U+2029)과 탭 → 공백 하나
+2. 나머지 제어 문자(C0·C1·DEL) 삭제
+3. 앞뒤 공백 삭제
 
-폴러는 서버를 믿지 않고 같은 정리를 한 번 더 한다(§4.1).
+- 연속 공백은 접지 않음.
+- ① 이 ② 보다 앞서는 이유: 줄바꿈을 먼저 지우면 단어가 붙음.
+- 정리 결과가 비면 400 `empty`
+- `!` 포함 시 400 `bang_in_text`
+- 2000자(코드포인트) 초과 시 400 `too_long`
+- 보내는 사람마다 1분 5건(429 `rate_limited`)
+- 한 대상(owner·host·kind·ref)에 `pending`·`claimed` 3건이면 409 `queue_full`
+- 대상이 owner 의 좌석에 없으면 404 `target_unknown`
+
+폴러는 서버를 믿지 않고 같은 정리를 한 번 더 함(§4.1).
 
 ### 좌석 `until` 라벨 `답 대기` (watch 의 기존 `until` 칸)
 
-서버는 `until` 을 그대로 저장하는 표시 문자열로만 다룬다(변경 없음). 세션이 사용자 입력(선택·확인 창)을 기다리는 동안 로컬이 `until` 을 정확히 `답 대기` 로 보내고,
-끝나면 원래 값으로 되돌린다. 화면은 이 값(정확히 일치)에 반응해 「사장님 빨리 답해주세요」 같은 말풍선을 띄운다. 대상별 원래 값은 팀원(`임시:`) = `작업 중`·`대기`·`머지 중`,
-조정 팀장(`coord:`) = `조정 중`, `/dflow-team` 팀장(`…/lead`) = 종료 시각 라벨이다. 화면 감지는 로컬 폴러가, 조정 세션 좌석의 라벨 판정·전송은 폴러가 남긴 입력 요청 기록을 읽는 `office.sh` 가 한다(coordinator `references/contract.md` §4). 옛 키 `…/coord`(식별자 없음)에는 콘솔을 열지 않는다.
+- 서버는 `until` 을 그대로 저장하는 표시 문자열로만 다룸(변경 없음).
+- 세션이 사용자 입력(선택·확인 창)을 기다리는 동안 로컬이 `until` 을 정확히 `답 대기` 로 보내고, 끝나면 원래 값으로 되돌림.
+- 화면은 이 값(정확히 일치)에 반응해 「사장님 빨리 답해주세요」 같은 말풍선을 띄움.
+- 대상별 원래 값: 팀원(`임시:`) = `작업 중`·`대기`·`머지 중`, 조정 팀장(`coord:`) = `조정 중`, `/dflow-team` 팀장(`…/lead`) = 종료 시각 라벨.
+- 화면 감지 = 로컬 폴러. 조정 세션 좌석의 라벨 판정·전송 = 폴러가 남긴 입력 요청 기록을 읽는 `office.sh` (coordinator `references/contract.md` §4).
+- 옛 키 `…/coord`(식별자 없음)에는 콘솔을 열지 않음.
 
 ### watch 요약 칸 `summary`·`lead_summary`·`input_request` (2026-10-06, 마이그레이션 0110 — 계약 버전 불변)
 
-`POST /api/v1/agent/watch` 본문의 추가 칸이다. 모두 `v:1`. 형식 정본은 coordinator `references/contract.md` §4 「레인 요약·팀장 자리 요약·입력 요청」.
+`POST /api/v1/agent/watch` 본문의 추가 칸. 모두 `v:1`. 형식 정본 = coordinator `references/contract.md` §4 「레인 요약·팀장 자리 요약·입력 요청」.
 
-- `summary`(팀원 키 `…/임시:`): 레인 요약 객체, 전체 2048바이트 이하. `lead`(선택, ≤40자) = 그 레인을 가진 조정 팀장 키 `…/coord:<세션8>` 의 `<세션8>` — 오피스가 팀장 하나당 경계 하나에 그 팀장의 팀원만 묶는 데 쓴다. 킷이 모르면 칸을 보내지 않는다(서버는 없으면 null 로 둔다). `lead_summary`(조정 팀장 키 `…/coord:`): `{v:1, runs:[≤5]}`, 8192바이트 이하. `input_request`(팀원 키): `{v:1, kind, since, excerpt:[≤10줄, 줄당 ≤200], handled}` 또는 null, 3072바이트 이하(`sha` 는 서버가 계산한다 — 보내지 않는다).
-- **칸을 보내지 않으면 서버는 그 칸을 null 로 덮어쓴다**(이전 값을 두지 않는다). 그래서 로컬은 그 키로 보내는 모든 watch 에 매번 싣는다. 모르는 키는 버린다.
-- 형식이 틀린 칸은 400 으로 거절하지 않고 **그 칸만 null** 로 저장하며 응답에 `summary_error`(`칸: 사유 | 칸: 사유`)를 싣는다. 감시자 생존 신호는 끊기지 않는다. 시각은 시간대 있는 ISO 만, 문자열 제어 문자는 서버도 지운다(킷이 먼저 같은 정리를 한다).
-- 보조 감시자 행(`임시:`·`coord:`)의 `project_id` 는 서버가 늘 null 로 저장한다.
+- `summary`(팀원 키 `…/임시:`): 레인 요약 객체, 전체 2048바이트 이하.
+  - `lead`(선택, ≤40자) = 그 레인을 가진 조정 팀장 키 `…/coord:<세션8>` 의 `<세션8>`. 오피스가 팀장 하나당 경계 하나에 그 팀장의 팀원만 묶는 데 씀.
+  - 킷이 모르면 칸을 보내지 않음(서버는 없으면 null).
+- `lead_summary`(조정 팀장 키 `…/coord:`): `{v:1, runs:[≤5]}`, 8192바이트 이하.
+- `input_request`(팀원 키): `{v:1, kind, since, excerpt:[≤10줄, 줄당 ≤200], handled}` 또는 null, 3072바이트 이하. `sha` 는 서버가 계산 — 보내지 않음.
+- **칸을 보내지 않으면 서버는 그 칸을 null 로 덮어씀**(이전 값 유지 안 함). 그래서 로컬은 그 키로 보내는 모든 watch 에 매번 싣음. 모르는 키는 버림.
+- 형식이 틀린 칸은 400 으로 거절하지 않고 **그 칸만 null** 로 저장. 응답에 `summary_error`(`칸: 사유 | 칸: 사유`)를 실음. 감시자 생존 신호는 끊기지 않음.
+- 시각은 시간대 있는 ISO 만. 문자열 제어 문자는 서버도 삭제(킷이 먼저 같은 정리).
+- 보조 감시자 행(`임시:`·`coord:`)의 `project_id` 는 서버가 늘 null 로 저장.
 
 ### CLI (`dflow.sh`)
 
-- `dflow.sh console-poll --host <슬러그> [--limit n] [--accepts keys]` — poll(kit 폴러는 키 입력 답하기를 켠 경우에만 `--accepts keys`). stdout: 프롬프트마다 한 줄 JSON(`{id,target_kind,target_ref,text,claim_token,expires_at}`, 키 행은 `text` 대신 `kind`·`keys`·`input_request`). `--accepts keys` 는 본문에 `accepts:['keys']` 를 싣는다(`keys` 밖의 값은 exit 2).
-- `console-ack … refused --reason prompt_changed` 처럼 `reason` 은 형식 검사 없이 그대로 싣는다(목록 검사는 서버 몫).
-- `dflow.sh console-ack <id> <claim_token> <sent|refused|retry> [--reason r] [--detail d]` — stdout `ACK <status>`(멱등 재호출이면 `ACK <status> already`). **404 는 본문 `code` 로 가른다**: 옛 서버(라우트 없음)의 404 는 본문에 `code` 가 없어 exit 7 이고, 새 라우트의 `{code:"not_found"}` 는 `retry` 를 다시 부를 때(서버가 이미 `claim_token` 을 비움)만 이미 반영된 것으로 보아 `ACK pending already`·exit 0 이다(`sent`·`refused` 의 404 는 그대로 exit 7).
+- `dflow.sh console-poll --host <슬러그> [--limit n] [--accepts keys]` — poll (kit 폴러는 키 입력 답하기를 켠 경우에만 `--accepts keys`).
+  - stdout: 프롬프트마다 한 줄 JSON `{id,target_kind,target_ref,text,claim_token,expires_at}`. 키 행은 `text` 대신 `kind`·`keys`·`input_request`.
+  - `--accepts keys` 는 본문에 `accepts:['keys']` 를 실음(`keys` 밖의 값은 exit 2).
+- `console-ack … refused --reason prompt_changed` 처럼 `reason` 은 형식 검사 없이 그대로 실음(목록 검사 = 서버 몫).
+- `dflow.sh console-ack <id> <claim_token> <sent|refused|retry> [--reason r] [--detail d]` — stdout `ACK <status>` (멱등 재호출이면 `ACK <status> already`).
+  - **404 는 본문 `code` 로 가름.**
+  - 옛 서버(라우트 없음)의 404: 본문에 `code` 없음 → exit 7.
+  - 새 라우트의 `{code:"not_found"}`: `retry` 재호출 때(서버가 이미 `claim_token` 비움)만 이미 반영된 것으로 봄 → `ACK pending already`·exit 0.
+  - `sent`·`refused` 의 404 는 그대로 exit 7.
 - `dflow.sh console-screen --host <슬러그>` — stdin 에 `items` 배열 JSON, stdout 은 항목마다 `SCREEN <kind> <ref> <status>`.
-- `dflow.sh watch … [--summary-json <json>] [--lead-summary-json <json>] [--input-request-json <json|null>]` — 본문 `summary`·`lead_summary`·`input_request` 로 그대로 싣는다(옵션이 없으면 칸 없음). 값 하나짜리 JSON 객체(input_request 는 null 도)가 아니면 exit 2. 응답에 `summary_error` 가 있으면 stderr 에 `SUMMARY_ERROR <글>` 한 줄을 내고 stdout·종료 코드는 그대로다. `--stop` 이면 칸을 싣지 않는다.
-- exit code 는 위 「로컬 클라이언트 계약」 그대로다. 옛 서버(404)는 7.
+- `dflow.sh watch … [--summary-json <json>] [--lead-summary-json <json>] [--input-request-json <json|null>]` — 본문 `summary`·`lead_summary`·`input_request` 로 그대로 실음(옵션 없으면 칸 없음).
+  - 값 하나짜리 JSON 객체(input_request 는 null 도)가 아니면 exit 2.
+  - 응답에 `summary_error` 있으면 stderr 에 `SUMMARY_ERROR <글>` 한 줄. stdout·종료 코드는 그대로.
+  - `--stop` 이면 칸을 싣지 않음.
+- exit code 는 위 「로컬 클라이언트 계약」 그대로. 옛 서버(404)는 7.
 
 ## v2.11 변경점 (2026-09-27)
 
@@ -164,120 +231,134 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
 
 - **설계 방식**(`wbs_items.design_mode`): `auto`(완전자동, 기본)·`review`(설계 검토 — 에이전트 설계를 사람이 「설계 승인」)·
   `human`(구현자동 — 사람 설계를 「설계 확정」). 수동은 위임 표식 없음.
-- **새 단계** `dd`(설계 완료, 실적 20). 사람의 단계 선택·import 는 `dd` 를 받지 않는다.
+- **새 단계** `dd`(설계 완료, 실적 20). 사람의 단계 선택·import 는 `dd` 를 받지 않음.
 - **목록·상세 응답**(PAT): 주문마다 `design_mode`·`design_state`(null·`review`·`accepted`)·`design_note`·`claim_scope`·
   `runner`·`runner_seen_at`·`action`(`full`·`design`·`build`·`skip`·`wait`)·`action_reason`·`deps_unmet`·`mine`.
-  팀장·워커는 스스로 판정하지 않고 이 값을 따른다. `mine` 은 ready·claimed 주문이면 5.3 판단(같은 신원 ∧ 도는 PC, 목록의
-  `lead=1` 이면 거르기·팀원 라벨까지)이고, 그 밖(reported·approved 등)은 종전처럼 점유 사용자 일치다.
-  - ready 의 `mine` 은 태그·WP 만 본다(담당자는 claim 이 막는다). 남에게 배정된 ready 주문도 `mine=true` 일 수 있고, claim 이 403
-    `not_assignee` 로 거부한다.
-  - 요청에 `agent` 를 보내지 않았고 `lead` 도 아니면, claimed 주문의 `mine` 은 종전 뜻(`claimed_by_user_id` 가 호출자와 같음)이다.
-    상세·목록 공통이고(라벨을 보내지 않는 옛 킷), 상세(show)는 형식이 틀린 `agent` 를 보낸 경우도 이 규칙을 따른다.
-- **목록 응답의 추가 칸**(PAT, 읽기용 — 옛 파서는 무시한다): 주문에 `claimed_by`(점유 라벨), `item` 에 `project_id`·`stage`·
-  `actual_pct`·`tags`·`depends`·`depends_waived`·`design_mode`. 아래 「`GET /agent/work/mine` 200」 셰이프를 보라.
+  팀장·워커는 스스로 판정하지 않고 이 값을 따름.
+  - `mine`, ready·claimed 주문: 5.3 판단(같은 신원 ∧ 도는 PC, 목록의 `lead=1` 이면 거르기·팀원 라벨까지).
+  - `mine`, 그 밖(reported·approved 등): 종전처럼 점유 사용자 일치.
+  - ready 의 `mine` 은 태그·WP 만 봄(담당자는 claim 이 막음). 남에게 배정된 ready 주문도 `mine=true` 일 수 있고, claim 이 403 `not_assignee` 로 거부.
+  - 요청에 `agent` 를 안 보냈고 `lead` 도 아니면, claimed 주문의 `mine` 은 종전 뜻(`claimed_by_user_id` 가 호출자와 같음).
+    상세·목록 공통(라벨 안 보내는 옛 킷). 상세(show)는 형식이 틀린 `agent` 를 보낸 경우도 이 규칙.
+- **목록 응답의 추가 칸**(PAT, 읽기용 — 옛 파서는 무시): 주문에 `claimed_by`(점유 라벨), `item` 에 `project_id`·`stage`·
+  `actual_pct`·`tags`·`depends`·`depends_waived`·`design_mode`. 아래 「`GET /agent/work/mine` 200」 셰이프 참조.
 - **목록 요청**(`GET /work/mine`): `agent=<라벨>`(PC 판정), `require_tag=<태그>`, `wp=<WP 목록>`, `lead=1`(claimed 의 mine 에
-  거르기·팀원 라벨 `/w<n>` 을 요구). 상세(`GET /work/{id}`)는 `agent` 만.
-- **watch**: 본문 `require_tag`·`wp`. 응답에는 주문마다의 판단 칸을 싣지 않고 둘만 더한다 — `build_ready`(이 신원·이 PC 가
-  띄울 build 주문 `{order_id, id8, code, name, status}` 목록, 실패면 null + `build_ready_error`)와 `resume_requests[]` 의
-  `mine`(5.3 판단)·`design_state`.
-- **claim**: 본문 `scope`(`full`·`design`·`build`, 없으면 legacy). 성공 응답(PAT)에 `claim_scope`(서버가 저장한 범위 — `scope` 를
-  보내지 않았으면 `legacy`). **build-start**: 본문 `scope`(`full`·`build`·`rework`). 성공 응답에 `runner`(넘겨받은 호출 라벨).
-- **새 동사**: `POST /work/{id}/design-done`(설계 멈춤 — 점유자), `POST /work/{id}/design-reopen` 본문 `reason`(되돌리기 —
-  claimed 면 점유자, ready 면 그 주문을 후보로 받는 PAT).
-- **새 409**: `design_gate`(설계 관문. 판정 뒤 주문이 바뀌었으면 `reason: order_changed` — build-start·design-done 은 주문이
-  claimed 가 아니거나 CAS 가 어긋날 때, design-reopen 은 CAS 가 어긋날 때), `design_not_accepted`(승인·확정된 설계 없음),
-  `runner_active`(다른 PC 가 도는 중 — 본문 `runner`·`runner_seen_at`).
-  heartbeat 도 다른 PC 가 30분 안에 신호를 냈으면 `runner_active` 다. 완료 보고는 도는 PC 에서만, 살아 있는 다른 세션이
-  없을 때만, 리프면 단계 `ip` 에서만 받는다. 완료 보고의 `runner_active` 본문 `runner` 는 실제로 막고 있는 라벨이다(다른 PC 면
-  그 runner, 같은 PC 의 다른 세션이면 그 세션의 heartbeat 라벨). release 는 설계 상태가 있으면 `design_gate`(웹의 「중단」을 쓴다) — 설계만 하던
-  주문(`claim_scope` `design`)이 단계 `ds`·`dd` 에 있으면 설계 상태가 없어도 마찬가지로 `design_gate` 다.
-- **dflow.sh**: `design_gate`·`design_not_accepted` → exit 11(stderr `DESIGN_GATE <code> [reason]`), `runner_active` → exit 12
-  (stderr `RUNNER_ACTIVE <runner>`). 옛 서버(2.11 미만)는 모든 작업을 auto 로 본다 — 스킬은 `contract-ge 2.11` 이 거짓이면
-  design-done·design-reopen 을 부르지 않는다(`DESIGN_STATE_UNSUPPORTED`). 옛 서버에서 실제로 벌어지는 일: `claim`·`build-start` 의
-  `--scope` 는 그대로 실려 가지만 서버가 모르는 필드라 조용히 무시된다(legacy 처럼 처리됨) — 응답에 `claim_scope` 가 없으므로
-  `claim` 은 `CLAIM_SCOPE` 줄도 내지 않는다. `list` 의 새 두 칸(`action`·`mine`)은 옛 서버 응답에 없어 빈 칸으로 나온다(앞 다섯 칸은
-  그대로라 옛 파서는 깨지지 않는다).
+  거르기·팀원 라벨 `/w<n>` 요구). 상세(`GET /work/{id}`)는 `agent` 만.
+- **watch**: 본문 `require_tag`·`wp`. 응답에 주문마다의 판단 칸은 없고 둘만 추가:
+  - `build_ready`: 이 신원·이 PC 가 띄울 build 주문 `{order_id, id8, code, name, status}` 목록. 실패면 null + `build_ready_error`.
+  - `resume_requests[]` 의 `mine`(5.3 판단)·`design_state`.
+- **claim**: 본문 `scope`(`full`·`design`·`build`, 없으면 legacy). 성공 응답(PAT)에 `claim_scope`(서버가 저장한 범위 — `scope` 안 보냈으면 `legacy`).
+- **build-start**: 본문 `scope`(`full`·`build`·`rework`). 성공 응답에 `runner`(넘겨받은 호출 라벨).
+- **새 동사**:
+  - `POST /work/{id}/design-done` (설계 멈춤 — 점유자)
+  - `POST /work/{id}/design-reopen` 본문 `reason` (되돌리기 — claimed 면 점유자, ready 면 그 주문을 후보로 받는 PAT)
+- **새 409**:
+  - `design_gate`(설계 관문). 판정 뒤 주문이 바뀌었으면 `reason: order_changed` — build-start·design-done 은 주문이 claimed 가 아니거나 CAS 가 어긋날 때, design-reopen 은 CAS 가 어긋날 때.
+  - `design_not_accepted`(승인·확정된 설계 없음)
+  - `runner_active`(다른 PC 가 도는 중 — 본문 `runner`·`runner_seen_at`)
+- `runner_active` 규칙:
+  - heartbeat 도 다른 PC 가 30분 안에 신호를 냈으면 `runner_active`.
+  - 완료 보고는 도는 PC 에서만, 살아 있는 다른 세션이 없을 때만, 리프면 단계 `ip` 에서만 받음.
+  - 완료 보고의 `runner_active` 본문 `runner` = 실제로 막고 있는 라벨 (다른 PC 면 그 runner, 같은 PC 의 다른 세션이면 그 세션의 heartbeat 라벨).
+  - release: 설계 상태가 있으면 `design_gate` (웹의 「중단」 사용). 설계만 하던 주문(`claim_scope` `design`)이 단계 `ds`·`dd` 에 있으면 설계 상태가 없어도 `design_gate`.
+- **dflow.sh**: `design_gate`·`design_not_accepted` → exit 11 (stderr `DESIGN_GATE <code> [reason]`), `runner_active` → exit 12 (stderr `RUNNER_ACTIVE <runner>`).
+- 옛 서버(2.11 미만)는 모든 작업을 auto 로 봄. 스킬은 `contract-ge 2.11` 이 거짓이면 design-done·design-reopen 을 부르지 않음(`DESIGN_STATE_UNSUPPORTED`). 옛 서버에서 실제로 벌어지는 일:
+  - `claim`·`build-start` 의 `--scope` 는 그대로 실려 가지만 서버가 모르는 필드라 조용히 무시됨(legacy 처럼 처리).
+  - 응답에 `claim_scope` 없음 → `claim` 은 `CLAIM_SCOPE` 줄도 안 냄.
+  - `list` 의 새 두 칸(`action`·`mine`)은 옛 서버 응답에 없어 빈 칸으로 나옴(앞 다섯 칸은 그대로라 옛 파서는 안 깨짐).
 
 ## v2.10 변경점 (2026-09-26)
 
-- heartbeat `phase` 에 `wait_review`(설계 완료·검토 대기)를 더한다. `/dflow-dev --scope design`(설계만) 으로 돌다 설계를
-  마치고 사람의 검토를 기다리며 멈춘 작업이 쓴다. 좌석은 claimed ∧ `wait_review` 면 침묵과 무관하게 WAIT 다 — `wait_pred`
-  (선행 대기)와 같은 축이지만 사유가 다르다: 선행이 아니라 사람의 설계 검토를 기다린다. 팀장의 설계 완료 대기 자동 재개
-  (design-ahead, `wait_pred` 선택)는 `wait_review` 를 고르지 않는다 — 사람 검토 없이 구현이 자동으로 시작되면 안 되기
-  때문이다. 옛 서버는 400 으로 거부할 뿐이고, 멈춤 자체는 로컬 state.json 으로 이어진다(좌석 이름표만 틀린다).
+- heartbeat `phase` 에 `wait_review`(설계 완료·검토 대기) 추가. `/dflow-dev --scope design`(설계만)으로 돌다 설계를 마치고 사람의 검토를 기다리며 멈춘 작업이 씀.
+- 좌석: claimed ∧ `wait_review` 면 침묵과 무관하게 WAIT. `wait_pred`(선행 대기)와 같은 축이지만 사유가 다름 — 선행이 아니라 사람의 설계 검토 대기.
+- 팀장의 설계 완료 대기 자동 재개(design-ahead, `wait_pred` 선택)는 `wait_review` 를 고르지 않음. 사람 검토 없이 구현이 자동 시작되면 안 되기 때문.
+- 옛 서버는 400 으로 거부할 뿐. 멈춤 자체는 로컬 state.json 으로 이어짐(좌석 이름표만 틀림).
 - 설계 정본: wbs-web 리포 docs/superpowers/specs/2026-09-26-dflow-dev-skill-router-design.md §14.5.
 
 ## v2.9 변경점 (2026-09-26)
 
-- 단계 `ds`(설계 중, en `Designing`)가 `as` 와 `ip` 사이에 들어간다(`as → ds → ip → im → xx`, 0107). 크레딧 키 `ds` 기본 10.
-  `ds` 는 선행 충족(`reached`)이 아니다(`im`·`xx` 그대로). 사람의 단계 지정·wbs.md import 도 `ds` 를 받는다.
-- claim 본문 `design_first: true`(선택): 선행이 미충족이어도 claim 한다. 단 미충족 선행이 **모두 `ip`** 여야 한다 — `as`·`ds`·미착수
-  선행이 하나라도 있으면 403 `dependency_not_met` 에 `reason: "design_first_too_early"`(`unmet[]` 동반). 성공하면 단계 `ds`·크레딧 ds 이고
-  응답에 `design_first: true`, `unmet: [{external_ref, stage}]` 가 붙는다(선행이 모두 충족이면 `unmet` 은 빈 배열). 플래그 없는 claim 은
-  종전과 글자 그대로 같다(단계 `ip`). 옛 서버는 이 필드를 무시한다.
-- POST `/api/v1/agent/work/{id}/build-start`(신규, 본문 `{agent}`): 점유자 본인·주문 `claimed`. 선행이 모두 `reached` 면 단계 `ds → ip`·
-  크레딧 ip 로 200 `{ok:true,…}`. 이미 `ip` 이상이면 아무것도 바꾸지 않고 `ok`(멱등). 선행 미충족이면 403 `dependency_not_met` + `unmet[]`.
-  옛 서버는 404(본문이 JSON 이 아닐 수 있다).
-- heartbeat `phase` 에 `wait_pred`(설계 완료·선행 대기)를 더한다. 좌석은 claimed ∧ `wait_pred` 면 침묵과 무관하게 WAIT·선행 대기다.
-  옛 서버는 400 으로 거부할 뿐이다. 킷 heartbeat 훅은 진행 중 phase 만 보내므로 `wait_pred` 는 `/dflow-dev` 가
-  `dflow.sh heartbeat <ref> --phase wait_pred` 로 직접 보낸다.
-- CLI: `dflow.sh claim <ref> --design-first`(미충족 선행이 있으면 `DESIGN_FIRST_UNMET <JSON 배열>` 한 줄, 너무 이르면 exit 4 + stderr
-  `DESIGN_FIRST_TOO_EARLY <JSON>`), `dflow.sh build-start <ref>`(403 `dependency_not_met` 은 exit 4. 404 는 `/me` 의 계약이 2.9 미만일 때만 stderr
-  `BUILD_START_UNSUPPORTED` 에 exit 0 이고, 2.9 이상이면 종전 exit 7 — 새 서버도 프로젝트 게이트·PAT 범위로 404 를 내므로 넘기면
-  선행 관문을 건너뛴다. 버전을 확인하지 못하면 실패로 본다), `dflow.sh contract-ge <x.y>`(서버 계약이 그 이상이면 exit 0, 칸마다 숫자 비교).
+- 단계 `ds`(설계 중, en `Designing`)가 `as` 와 `ip` 사이에 들어감(`as → ds → ip → im → xx`, 0107). 크레딧 키 `ds` 기본 10.
+  `ds` 는 선행 충족(`reached`)이 아님(`im`·`xx` 그대로). 사람의 단계 지정·wbs.md import 도 `ds` 를 받음.
+- claim 본문 `design_first: true`(선택): 선행이 미충족이어도 claim. 단 미충족 선행이 **모두 `ip`** 여야 함.
+  - `as`·`ds`·미착수 선행이 하나라도 있으면 403 `dependency_not_met` + `reason: "design_first_too_early"`(`unmet[]` 동반).
+  - 성공하면 단계 `ds`·크레딧 ds. 응답에 `design_first: true`, `unmet: [{external_ref, stage}]` 추가(선행이 모두 충족이면 `unmet` 은 빈 배열).
+  - 플래그 없는 claim 은 종전과 글자 그대로 같음(단계 `ip`). 옛 서버는 이 필드를 무시.
+- POST `/api/v1/agent/work/{id}/build-start`(신규, 본문 `{agent}`): 점유자 본인·주문 `claimed`.
+  - 선행이 모두 `reached` 면 단계 `ds → ip`·크레딧 ip 로 200 `{ok:true,…}`.
+  - 이미 `ip` 이상이면 아무것도 안 바꾸고 `ok`(멱등).
+  - 선행 미충족이면 403 `dependency_not_met` + `unmet[]`.
+  - 옛 서버는 404(본문이 JSON 이 아닐 수 있음).
+- heartbeat `phase` 에 `wait_pred`(설계 완료·선행 대기) 추가. 좌석: claimed ∧ `wait_pred` 면 침묵과 무관하게 WAIT·선행 대기. 옛 서버는 400 으로 거부할 뿐.
+  킷 heartbeat 훅은 진행 중 phase 만 보냄 → `wait_pred` 는 `/dflow-dev` 가 `dflow.sh heartbeat <ref> --phase wait_pred` 로 직접 보냄.
+- CLI:
+  - `dflow.sh claim <ref> --design-first`: 미충족 선행이 있으면 `DESIGN_FIRST_UNMET <JSON 배열>` 한 줄. 너무 이르면 exit 4 + stderr `DESIGN_FIRST_TOO_EARLY <JSON>`.
+  - `dflow.sh build-start <ref>`: 403 `dependency_not_met` 은 exit 4.
+    - 404 는 `/me` 의 계약이 2.9 미만일 때만 stderr `BUILD_START_UNSUPPORTED` 에 exit 0.
+    - 2.9 이상이면 종전 exit 7 — 새 서버도 프로젝트 게이트·PAT 범위로 404 를 내므로, 넘기면 선행 관문을 건너뜀.
+    - 버전을 확인하지 못하면 실패로 봄.
+  - `dflow.sh contract-ge <x.y>`: 서버 계약이 그 이상이면 exit 0, 칸마다 숫자 비교.
 - 설계 정본: wbs-web 리포 docs/superpowers/specs/2026-09-26-dflow-parallel-token-design.md §6(킷에는 미동봉).
 
 ## v2.8 변경점 (2026-09-23)
 
 - `depends_evidence[].waived`(boolean) 추가 — 사람이 그 선행을 「강제 진행」 으로 면제한 간선(0103 `wbs_items.depends_waived`).
-  면제된 간선은 `reached` 가 참이다(claim 게이트도 통과). 면제된 간선에는 `head_sha` 가 없는 것이 정상이다 — 서버의
-  `head_sha` 는 승인된 주문의 완료 보고에서만 오고, 승인된 선행은 면제할 이유가 없다.
-- 스텁 제거 하위 Task 가 주문으로 나온다. `external_ref` 는 `<후행 ref>.stub.<선행 ref 전체를 [A-Za-z0-9._-] 로 치환>`(예: `m/TSK-02.stub.m_TSK-01`)이고 `depends` 는 `[선행, 후행]` 이다.
-  스텁이 남은 동안 후행의 승인은 서버가 거부한다(`stub_pending`) — 완료 보고(im)까지는 정상 진행된다.
-- CLI: `check_depends_local` 이 `waived` 간선을 건너뛴다. `dflow.sh stub-check [<ref>]` — 승격 관문(표식 있으면 exit 4).
+  - 면제된 간선은 `reached` 가 참(claim 게이트도 통과).
+  - 면제된 간선에는 `head_sha` 없는 것이 정상. 서버의 `head_sha` 는 승인된 주문의 완료 보고에서만 오고, 승인된 선행은 면제할 이유가 없음.
+- 스텁 제거 하위 Task 가 주문으로 나옴. `external_ref` = `<후행 ref>.stub.<선행 ref 전체를 [A-Za-z0-9._-] 로 치환>` (예: `m/TSK-02.stub.m_TSK-01`), `depends` = `[선행, 후행]`.
+  스텁이 남은 동안 후행의 승인은 서버가 거부(`stub_pending`). 완료 보고(im)까지는 정상 진행.
+- CLI: `check_depends_local` 이 `waived` 간선을 건너뜀. `dflow.sh stub-check [<ref>]` — 승격 관문(표식 있으면 exit 4).
 - 설계 정본: wbs-web 리포 docs/superpowers/specs/2026-09-23-force-progress-design.md(킷에는 미동봉).
 
 ## heartbeat `phase:"prepare"` (2026-09-24 — 계약 버전 불변)
 
-- 워커 heartbeat 의 `phase` 가 `prepare`(준비)를 더 받는다 — `/dflow-dev` Phase 01(claim 뒤 브랜치·기준선·spec 판정)이다.
-  `/dflow-dev` 가 agent 브랜치에 올라서면 state.json `phase=prepare` 를 쓰고, 훅이 그 값을 보낸다. 좌석표는 「준비」로 보인다.
-- scaffold 자리표 값 `ready` 는 여전히 받지 않는다(400). 훅도 ready 는 보내지 않는다.
-- 좌석표는 점유(claimed) 중인데 `heartbeat_phase` 가 없으면(착수 직후·훅 미설치) 역시 「준비」로 보인다(반려 재작업 제외).
-- 옛 서버는 `prepare` 를 400 으로 거부한다. 훅은 409 `cancelled` 외의 응답을 보지 않으므로 해는 없고 신호만 빠진다 —
-  서버를 먼저 배포하고 훅을 설치한다.
+- 워커 heartbeat 의 `phase` 가 `prepare`(준비)를 더 받음 — `/dflow-dev` Phase 01(claim 뒤 브랜치·기준선·spec 판정).
+  `/dflow-dev` 가 agent 브랜치에 올라서면 state.json `phase=prepare` 를 쓰고, 훅이 그 값을 보냄. 좌석표에 「준비」로 보임.
+- scaffold 자리표 값 `ready` 는 여전히 받지 않음(400). 훅도 ready 는 안 보냄.
+- 좌석표: 점유(claimed) 중인데 `heartbeat_phase` 없으면(착수 직후·훅 미설치) 역시 「준비」 (반려 재작업 제외).
+- 옛 서버는 `prepare` 를 400 으로 거부. 훅은 409 `cancelled` 외의 응답을 안 보므로 해는 없고 신호만 빠짐 → 서버 먼저 배포, 훅 나중 설치.
 
 ## heartbeat `tokens` (2026-09-24, 0104 — 계약 버전 불변)
 
-- `POST /api/v1/agent/work/{id}/heartbeat` 가 선택 필드 `tokens` 를 받는다:
-  `{session, models:[{model, input, output, cache_creation, cache_read}]}`. 값은 그 Claude Code 세션의 **누적** 토큰이고
-  서버는 (주문, 세션, 모델) 행을 upsert 한다(`agent_work_order_tokens`). 옛 서버는 모르는 필드를 무시하므로 버전을 올리지 않는다.
-- 보내는 쪽은 heartbeat 훅(`kit/hooks/heartbeat.sh`)뿐이다. 훅이 transcript(서브에이전트 기록 포함)를 jq 로 합쳐 싣고 LLM 은
-  부르지 않는다. CLI(`dflow.sh heartbeat`)는 싣지 않는다.
-- 검증: session `^[A-Za-z0-9-]{1,64}$`, models 20개 이하·모델명 중복 금지, 수는 0 이상 정수(상한 1조). 틀려도 heartbeat 는
-  기록하고(200) 토큰만 버린 뒤 `tokens_saved:false` 로 알린다 — 훅이 같은 캐시를 매분 다시 보내므로 400 을 주면 살아 있음
-  신호가 끊긴다. 팀장 대리 표시 갈래(merge_conflict 설정·해제)와 함께 보내면 400.
-- 토큰 저장이 실패해도 heartbeat 는 200 이고 응답에 `tokens_saved:false` 가 붙는다(성공이면 `true`, 안 보냈으면 필드 없음).
-- heartbeat 는 `claimed` 에서만 받으므로 마지막 신호 뒤(최대 1분)와 완료 보고 뒤의 사용량은 기록되지 않는다.
+- `POST /api/v1/agent/work/{id}/heartbeat` 가 선택 필드 `tokens` 를 받음:
+  `{session, models:[{model, input, output, cache_creation, cache_read}]}`.
+  값 = 그 Claude Code 세션의 **누적** 토큰. 서버는 (주문, 세션, 모델) 행을 upsert (`agent_work_order_tokens`). 옛 서버는 모르는 필드를 무시 → 버전 안 올림.
+- 보내는 쪽 = heartbeat 훅(`kit/hooks/heartbeat.sh`)뿐. 훅이 transcript(서브에이전트 기록 포함)를 jq 로 합쳐 싣고 LLM 은 안 부름. CLI(`dflow.sh heartbeat`)는 안 실음.
+- 검증: session `^[A-Za-z0-9-]{1,64}$`, models 20개 이하·모델명 중복 금지, 수는 0 이상 정수(상한 1조).
+  - 틀려도 heartbeat 는 기록(200)하고 토큰만 버린 뒤 `tokens_saved:false` 로 알림. 훅이 같은 캐시를 매분 다시 보내므로 400 을 주면 살아 있음 신호가 끊김.
+  - 팀장 대리 표시 갈래(merge_conflict 설정·해제)와 함께 보내면 400.
+- 토큰 저장이 실패해도 heartbeat 는 200, 응답에 `tokens_saved:false` (성공이면 `true`, 안 보냈으면 필드 없음).
+- heartbeat 는 `claimed` 에서만 받음 → 마지막 신호 뒤(최대 1분)와 완료 보고 뒤의 사용량은 기록 안 됨.
 
 ## v2.7 변경점 (2026-09-23)
 
-- `POST /api/v1/agent/work/{id}/heartbeat` 에 팀장 대리 표시 갈래(머지 충돌 설계 §7.2). **PAT 전용**(레거시 400 `identity_required`), 소유 판정은 워커와 같다(`claimed_by_user_id`).
-  - 주문 `reported`·`approved` 에 `{agent, phase:"merge_conflict", note}`(note 필수) → 200 `{ok, phase:"merge_conflict"}`. `heartbeat_phase`·`heartbeat_note` 두 열만 쓴다 — `updated_at`·`last_heartbeat_at`·`heartbeat_agent`·재개 요청 열은 그대로다.
-  - `{agent, clear:"merge_conflict"}` → 200 `{ok, phase:null, cleared}`. 주문 `claimed`·`reported`·`approved` 에서 받는다 — 반려(reject)가 reported→claimed 로 바꾸며 표시를 남기기 때문이다(0097). 현재 값이 `merge_conflict` 일 때만 지운다(`cleared:false` 는 지울 것이 없었다는 뜻).
-  - `claimed` 주문에 `merge_conflict` 설정은 400, 그 밖의 상태는 409 `conflict`, 중단은 409 `cancelled`. 워커 phase 는 종전대로 `claimed` 에서만 받는다.
+- `POST /api/v1/agent/work/{id}/heartbeat` 에 팀장 대리 표시 갈래(머지 충돌 설계 §7.2). **PAT 전용**(레거시 400 `identity_required`), 소유 판정은 워커와 같음(`claimed_by_user_id`).
+  - 주문 `reported`·`approved` 에 `{agent, phase:"merge_conflict", note}`(note 필수) → 200 `{ok, phase:"merge_conflict"}`. `heartbeat_phase`·`heartbeat_note` 두 열만 씀 — `updated_at`·`last_heartbeat_at`·`heartbeat_agent`·재개 요청 열은 그대로.
+  - `{agent, clear:"merge_conflict"}` → 200 `{ok, phase:null, cleared}`. 주문 `claimed`·`reported`·`approved` 에서 받음 — 반려(reject)가 reported→claimed 로 바꾸며 표시를 남기기 때문(0097). 현재 값이 `merge_conflict` 일 때만 지움(`cleared:false` = 지울 것이 없었음).
+  - `claimed` 주문에 `merge_conflict` 설정 = 400, 그 밖의 상태 = 409 `conflict`, 중단 = 409 `cancelled`. 워커 phase 는 종전대로 `claimed` 에서만 받음.
 - CLI: `dflow.sh heartbeat <order> --agent <신원>/<host>/lead --phase merge_conflict --note "<…>"`(출력 `MERGE_CONFLICT_SET`), `--clear-merge-conflict`(출력 `MERGE_CONFLICT_CLEARED`·`MERGE_CONFLICT_ABSENT`).
 
 ## v2.6 변경점 (2026-09-23)
 
-전부 **additive** 다 — `decisions` 를 보내지 않는 요청은 응답의 새 키 하나(`decisions_recorded: null`) 말고는 그대로다.
+전부 **additive** — `decisions` 안 보내는 요청은 응답의 새 키 하나(`decisions_recorded: null`) 말고는 그대로.
 
 - `POST /api/v1/agent/work/{id}/report` 에 선택 필드 `decisions` — 워커가 기본값 없는 분기에서 스스로 고른 결정 목록(0102).
-  - **PAT + `kind=completion` 에서만** 받는다. progress 에 실리면 400 `decisions는 완료 보고(kind=completion)에서만 받습니다.`, 레거시(v1) 호출이면 400 `decisions는 PAT 호출에서만 받습니다.`
-  - 배열 0~20건. 항목 `{key, question, options, chosen, rationale, on_reject}` — `key` `^D[1-9][0-9]?$`(보고 안에서 유일), `question` 1~300자, `options` 2~6개·각 1~200자, `chosen` = 택한 선택지의 **0부터 센 정수 색인**(문구가 아니다), `rationale` 1~1000자, `on_reject` 1~500자. 글자 수는 trim 뒤 코드포인트. 알 수 없는 필드는 400. 사유는 필드 경로를 담는다(예 `decisions[2].chosen이 options 범위를 벗어났습니다.`).
-  - `[]` 는 "0건" 명시로 저장한다. 필드를 빼면 행은 `null` = "제출 안 됨"(화면은 "결정 목록 미제출").
-  - completion 응답에 `decisions_recorded` — 보내지 않았으면 `null`, 보냈으면 저장 건수. **이 키가 없으면 서버가 2.6 미만**이라 결정이 버려진 것이다(요약 접미사 `확인 필요 결정 N건: …` 으로만 전달됨).
-- `GET /api/v1/agent/work/{id}` PAT 응답의 `reports[]` 에 `decisions`(evidence 와 같은 규칙, 레거시 불변).
-- CLI: `dflow.sh done <ref> <요약> [--auto-links] [--decisions <file>]` — 파일을 서버와 같은 규칙으로 **push 확인·전송 전에** 검사해 위반이면 exit 2(`DECISIONS_FILE`·`DECISIONS_JSON`·`DECISIONS_INVALID <사유>`). 요약 접미사 N 과 건수가 다르면 `DECISIONS_COUNT_MISMATCH`, 목록이 있는데 접미사가 없으면 `DECISIONS_SUFFIX_MISSING`, 구 서버면 `서버가 결정 목록을 모릅니다(계약 < 2.6) …` 경고(셋 다 exit 0).
+  - **PAT + `kind=completion` 에서만** 받음. progress 에 실리면 400 `decisions는 완료 보고(kind=completion)에서만 받습니다.`, 레거시(v1) 호출이면 400 `decisions는 PAT 호출에서만 받습니다.`
+  - 배열 0~20건. 항목 `{key, question, options, chosen, rationale, on_reject}`:
+    - `key` `^D[1-9][0-9]?$` (보고 안에서 유일)
+    - `question` 1~300자
+    - `options` 2~6개·각 1~200자
+    - `chosen` = 택한 선택지의 **0부터 센 정수 색인**(문구 아님)
+    - `rationale` 1~1000자
+    - `on_reject` 1~500자
+    - 글자 수는 trim 뒤 코드포인트. 알 수 없는 필드는 400. 사유는 필드 경로를 담음(예 `decisions[2].chosen이 options 범위를 벗어났습니다.`).
+  - `[]` = "0건" 명시로 저장. 필드를 빼면 행은 `null` = "제출 안 됨"(화면은 "결정 목록 미제출").
+  - completion 응답에 `decisions_recorded` — 안 보냈으면 `null`, 보냈으면 저장 건수. **이 키가 없으면 서버가 2.6 미만**이라 결정이 버려진 것(요약 접미사 `확인 필요 결정 N건: …` 으로만 전달).
+- `GET /api/v1/agent/work/{id}` PAT 응답의 `reports[]` 에 `decisions` (evidence 와 같은 규칙, 레거시 불변).
+- CLI: `dflow.sh done <ref> <요약> [--auto-links] [--decisions <file>]` — 파일을 서버와 같은 규칙으로 **push 확인·전송 전에** 검사. 위반이면 exit 2 (`DECISIONS_FILE`·`DECISIONS_JSON`·`DECISIONS_INVALID <사유>`).
+  - 요약 접미사 N 과 건수가 다르면 `DECISIONS_COUNT_MISMATCH`
+  - 목록이 있는데 접미사가 없으면 `DECISIONS_SUFFIX_MISSING`
+  - 구 서버면 `서버가 결정 목록을 모릅니다(계약 < 2.6) …` 경고
+  - 위 셋은 exit 0
 
 ## v2.5 변경점 (2026-09-23)
 
@@ -286,60 +367,58 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
   - `renew` `{holder, leases:[{project_id, generation}]}` → 200 `{ok, expires_at, lost:[project_id]}`
   - `release` `{holder, leases}` → 200 `{ok, released}`
   - `holder` = `<PC ID uuid>:<리포 경로 cksum>`. TTL 180초. PAT 전용, `work:claim`, acquire 는 프로젝트 멤버만(403 `forbidden_role`).
-- `POST /api/v1/agent/watch` 에 선택 필드 `holder` — 주면 `resume_requests` 를 그 holder 로 쥔 유효 lease 의 프로젝트로 거른다. lease 조회 실패는 `resume_requests: null`.
+- `POST /api/v1/agent/watch` 에 선택 필드 `holder` — 주면 `resume_requests` 를 그 holder 로 쥔 유효 lease 의 프로젝트로 거름. lease 조회 실패는 `resume_requests: null`.
 - CLI: `dflow.sh lease holder|acquire [--takeover]|renew|release|keep`, `dflow.sh watch --holder`.
 
 ## v2.4 변경점 (2026-09-18)
 
-- `GET /agent/me` 응답에 `token_name`(발급할 때 적은 이름)·`token_prefix`(토큰의 셋째 `_` 칸)를 더했다. 필드 추가뿐이라
-  minor 다. 이유: `.env` 에 토큰이 둘 이상이면 어느 키로 도는지 사람이 알아볼 수 없었고, 한 계정에 키가 둘이면
-  이메일로도 갈리지 않는다. prefix 는 토큰 문자열 안에 평문으로 든 조회 키라 응답에 실어도 비밀이 늘지 않는다.
-- 클라이언트: `dflow.sh profiles`(토큰마다 한 줄 JSON) · `.dflow.local` 의 `as=<prefix>`(레거시 `.env` 의
-  `DFLOW_AS`, 리포가 쓸 키 고정) · `--as <prefix|email>`. 설계 정본: wbs-web 리포 docs/superpowers/specs/2026-09-18-dflow-key-select-design.md(킷에는 미동봉).
+- `GET /agent/me` 응답에 `token_name`(발급할 때 적은 이름)·`token_prefix`(토큰의 셋째 `_` 칸) 추가. 필드 추가뿐이라 minor.
+- 이유: `.env` 에 토큰이 둘 이상이면 어느 키로 도는지 사람이 알아볼 수 없고, 한 계정에 키가 둘이면 이메일로도 안 갈림. prefix 는 토큰 문자열 안에 평문으로 든 조회 키라 응답에 실어도 비밀이 안 늚.
+- 클라이언트: `dflow.sh profiles`(토큰마다 한 줄 JSON) · `.dflow.local` 의 `as=<prefix>`(레거시 `.env` 의 `DFLOW_AS`, 리포가 쓸 키 고정) · `--as <prefix|email>`.
+- 설계 정본: wbs-web 리포 docs/superpowers/specs/2026-09-18-dflow-key-select-design.md(킷에는 미동봉).
 
 ## v2.3 변경점 (2026-09-15)
 
-단계 전이를 DB 트랜잭션 하나(`apply_workflow_event`, 마이그레이션 0096)로 묶고, 실적%를 사건 크레딧으로 지정한다
+단계 전이를 DB 트랜잭션 하나(`apply_workflow_event`, 마이그레이션 0096)로 묶고, 실적%를 사건 크레딧으로 지정
 (설계 정본: wbs-web 리포 docs/superpowers/specs/2026-09-15-wbs-stage-credit-design.md, 킷에는 미동봉).
-엔드포인트·인증·요청 형식은 v2.2 와 같다.
+엔드포인트·인증·요청 형식은 v2.2 와 같음.
 
 | # | 항목 | v2.2 | v2.3 |
 |---|---|---|---|
-| 1 | stage enum | `as\|fp\|ip\|im\|xx\|null` | `as\|ip\|im\|xx\|null`. 서버는 입력 `fp` 를 `ip` 로 정규화한다(과도기 — import 앱 층·DB RPC 이중). 라벨: as=할당됨 · ip=작업 중 · im=검수 대기 · xx=완료 · null=미착수 |
-| 2 | progress 보고 | `actual_pct` 즉시 반영, 응답 `applied_to_wbs:true` | 보고 행만 기록한다. `actual_pct` 는 바뀌지 않고 응답은 `applied_to_wbs:false`(200 그대로). 항목이 삭제된 주문의 progress 도 기록한다 |
+| 1 | stage enum | `as\|fp\|ip\|im\|xx\|null` | `as\|ip\|im\|xx\|null`. 서버는 입력 `fp` 를 `ip` 로 정규화(과도기 — import 앱 층·DB RPC 이중). 라벨: as=할당됨 · ip=작업 중 · im=검수 대기 · xx=완료 · null=미착수 |
+| 2 | progress 보고 | `actual_pct` 즉시 반영, 응답 `applied_to_wbs:true` | 보고 행만 기록. `actual_pct` 는 안 바뀌고 응답은 `applied_to_wbs:false`(200 그대로). 항목이 삭제된 주문의 progress 도 기록 |
 | 3 | claim | 주문 CAS 뒤 stage `ip` 를 따로 실행 | 한 트랜잭션: 주문 `claimed` + stage `ip` + 실적 = 크레딧 표 IP 값 |
 | 4 | completion 보고 | 주문 `reported` 뒤 stage `im` 을 따로 실행 | 한 트랜잭션: 주문 `reported`(점유자 일치 조건) + stage `im` + 실적 = 크레딧 표 IM 값. 경합·오류면 보고 행을 지우고 409·500 |
 | 5 | release | 주문만 `ready` | 한 트랜잭션: 주문 `ready` + 점유·heartbeat 흔적 삭제 + stage `as` + 실적 = 크레딧 표 AS 값 |
 | 6 | depends_evidence | `{external_ref, stage, branch, head_sha, order_approved}` | `actual_pct`·`reached` 추가. `reached` = stage∈{im,xx} ∨ order_approved ∨ actual_pct≥100 — 서버 claim 게이트와 같은 함수(`predecessorReached`) |
 | 7 | claim 게이트 | stage ≥ im ∨ order_approved | `reached:false` 인 선행이 하나라도 있으면 403 `dependency_not_met` |
 
-⚠️ **`reached` 도 키 존재 여부로 지원을 가른다**(`'reached' in d`). 키가 없으면 v2.2 판정(stage ≥ im ∨ `order_approved`)으로
-폴백하고 그 사실을 한 줄 남긴다 — 실적 100 축이 없는 옛 서버에서는 사람이 끝낸 선행이 여전히 막힌다.
+⚠️ **`reached` 도 키 존재 여부로 지원을 가름**(`'reached' in d`).
+- 키가 없으면 v2.2 판정(stage ≥ im ∨ `order_approved`)으로 폴백하고 그 사실을 한 줄 남김.
+- 실적 100 축이 없는 옛 서버에서는 사람이 끝낸 선행이 여전히 막힘.
 
-크레딧 표는 프로젝트 설정 `project_settings.stage_credits` 의 `default` 하나다(없으면 기본
-`as 0 · ip 30 · rw 50 · im 80 · xx 100`). 항목의 `credit_key` 는 전이 계산에 쓰이지 않는다 — 카테고리별 표는
-2026-09-16(마이그레이션 0097)에 없앴다. 설정 저장은 소급하지 않는다.
+크레딧 표 = 프로젝트 설정 `project_settings.stage_credits` 의 `default` 하나 (없으면 기본 `as 0 · ip 30 · rw 50 · im 80 · xx 100`).
+- 항목의 `credit_key` 는 전이 계산에 안 쓰임. 카테고리별 표는 2026-09-16(마이그레이션 0097)에 없앰.
+- 설정 저장은 소급하지 않음.
 
 ## v2.2 변경점 (2026-08-28)
 
-전부 **additive** 다 — 기존 요청은 응답이 그대로이고 클라이언트를 고칠 필요가 없다.
-세 가지 모두 v2.1 시기에 서버에 들어갔는데 버전을 안 올려 계약이 코드보다 뒤처져 있었다
-(2026-08-27 감사에서 드러남). 이번에 버전을 올리며 문서에 반영한다.
+전부 **additive** — 기존 요청은 응답이 그대로이고 클라이언트를 고칠 필요 없음.
+세 가지 모두 v2.1 시기에 서버에 들어갔는데 버전을 안 올려 계약이 코드보다 뒤처졌음(2026-08-27 감사에서 드러남). 이번에 버전을 올리며 문서에 반영.
 
 | # | 변경 | v2.1 | v2.2 |
 |---|---|---|---|
-| 1 | 목록 status 필터 | `ready` 고정 | `?status=` 로 지정(쉼표로 여럿). 미지정은 종전대로 `ready`. 허용값은 `ready\|claimed\|reported\|approved\|cancelled`, 그 밖은 400 — 조용히 버리면 오타가 "그 상태의 주문이 없다"로 위장한다. **`approved`·`cancelled` 를 돌려주는 첫 목록 경로다**: 종전에는 주문 id 를 이미 알아야만 그 주문을 볼 수 있었다 |
-| 2 | 상세의 보고 evidence | 미노출 | `GET /work/{id}` 의 `reports[]` 에 `evidence` 포함 — **PAT 호출만**(`depends_evidence` 와 같은 규칙). 완료 보고가 증적을 실었는지를 DB 직접 조회 없이 볼 수 있다 |
-| 3 | depends 도달 축 | `stage` 만 | `depends_evidence[]` 에 `order_approved:boolean` 추가. claim 게이트가 `stage ≥ im` **또는** `order_approved` 로 판정한다 — 재발행을 겪은 선행은 현재 주문이 `ready` 여도 과거 승인이 있으면 `true` 다 |
+| 1 | 목록 status 필터 | `ready` 고정 | `?status=` 로 지정(쉼표로 여럿). 미지정은 종전대로 `ready`. 허용값은 `ready\|claimed\|reported\|approved\|cancelled`, 그 밖은 400 — 조용히 버리면 오타가 "그 상태의 주문이 없다"로 위장됨. **`approved`·`cancelled` 를 돌려주는 첫 목록 경로**: 종전에는 주문 id 를 이미 알아야만 그 주문을 볼 수 있었음 |
+| 2 | 상세의 보고 evidence | 미노출 | `GET /work/{id}` 의 `reports[]` 에 `evidence` 포함 — **PAT 호출만**(`depends_evidence` 와 같은 규칙). 완료 보고가 증적을 실었는지를 DB 직접 조회 없이 볼 수 있음 |
+| 3 | depends 도달 축 | `stage` 만 | `depends_evidence[]` 에 `order_approved:boolean` 추가. claim 게이트가 `stage ≥ im` **또는** `order_approved` 로 판정 — 재발행을 겪은 선행은 현재 주문이 `ready` 여도 과거 승인이 있으면 `true` |
 
-⚠️ **`order_approved` 는 여전히 키 존재 여부로 지원을 가른다**(`'order_approved' in d`).
-2.1 서버가 현장에 남아 있고, 그 중에는 이 키를 이미 내려주는 것도 안 내려주는 것도 있다 —
-버전만 보고 단정하면 틀린다. 키가 없으면 `false` 로 단정하지 말고 "판정 불가"로 갈라
-stage 축만으로 판정하고 그 사실을 한 줄 남긴다.
+⚠️ **`order_approved` 는 여전히 키 존재 여부로 지원을 가름**(`'order_approved' in d`).
+- 2.1 서버가 현장에 남아 있고, 이 키를 이미 내려주는 것도 안 내려주는 것도 있음 → 버전만 보고 단정하면 틀림.
+- 키가 없으면 `false` 로 단정하지 말고 "판정 불가"로 갈라 stage 축만으로 판정하고 그 사실을 한 줄 남김.
 
 ## v2.1 변경점 (2026-08-13)
 
-stage 워크플로 재설계(마이그레이션 0082)를 계약에 반영. **엔드포인트·인증·payload 형식은 v2.0과 동일** — 아래 5가지는 전부 stage 어휘·주문 발행 조건·자동 전이에 관한 의미론 변경이다.
+stage 워크플로 재설계(마이그레이션 0082)를 계약에 반영. **엔드포인트·인증·payload 형식은 v2.0과 동일** — 아래 5가지는 전부 stage 어휘·주문 발행 조건·자동 전이에 관한 의미론 변경.
 
 | # | 변경 | v2.0 | v2.1 |
 |---|---|---|---|
@@ -351,14 +430,17 @@ stage 워크플로 재설계(마이그레이션 0082)를 계약에 반영. **엔
 
 ## 인증
 
-- `Authorization: Bearer <값>`. 값이 `AGENT_API_SECRET`과 일치 → legacy principal.
-  값이 `dflow_pat_` 접두 → PAT principal. 그 외 401.
+- `Authorization: Bearer <값>`.
+  - 값이 `AGENT_API_SECRET`과 일치 → legacy principal.
+  - 값이 `dflow_pat_` 접두 → PAT principal.
+  - 그 외 401.
 - PAT 형식: `dflow_pat_<prefix 12자 영숫자>_<secret base64url 43자>`. DB에는 sha256(전체) hex만.
 - 킬스위치: `AGENT_API_ENABLED !== 'true'` → 전 라우트 404. 시크릿 미설정 → legacy 분기만 닫힘.
 - PAT 검사 순서: enabled → revoked_at → expires_at → hash(상수시간).
 - PAT 요청 body의 `user_email`: 없으면 무시, 있는데 소유자와 다르면 400 `identity_mismatch`.
 - 스코프: `work:read`(조회) · `work:claim`(claim/release/report/import). 부족 시 403 `insufficient_scope`. legacy는 스코프 개념 없음(v1 동작).
-  `work:report` 는 폐지됐다(2026-08-25) — claim 할 수 있으면 그 결과도 적을 수 있어야 하고, claim 이 무제한이라 보고만 막는 건 방어선이 아니었다(본인 claim 건만 쓸 수 있다는 강제는 report 라우트가 한다). 신규 발급에는 없고, **옛 토큰의 `work:report` 는 `work:claim` 과 동등하게 수용**한다.
+  - `work:report` 폐지(2026-08-25). claim 할 수 있으면 그 결과도 적을 수 있어야 하고, claim 이 무제한이라 보고만 막는 건 방어선이 아니었음(본인 claim 건만 쓸 수 있다는 강제는 report 라우트가 함).
+  - 신규 발급에는 없고, **옛 토큰의 `work:report` 는 `work:claim` 과 동등하게 수용**.
 - PAT는 `project_id` 지정 시 그 프로젝트만. 멤버십: PAT principal은 모든 조회·쓰기에서 `is_superuser` 또는 `project_roles` 보유 필요, 아니면 404.
 
 ## 엔드포인트 (v1 5개 불변 + 신규 7개)
@@ -387,8 +469,10 @@ stage 워크플로 재설계(마이그레이션 0082)를 계약에 반영. **엔
   "token_expires_at": "2026-11-08T00:00:00Z", "contract_version": "2.11",
   "projects": [{ "id": "<uuid>", "name": "…", "role": "admin|member|superuser" }] }
 ```
-응답의 `contract_version`은 `src/lib/agent/externalApi.ts`의 `AGENT_CONTRACT_VERSION` 상수 값이다 — 현재 `"2.11"`. 스킬은 **major 만** 비교한다(`dflow.sh` 의 `CONTRACT_VERSION`): 서버가 minor 를 올리는 것은 additive 라 정상이고, 등호로 보면 상향 때마다 전 세션이 오경보를 본다.
-`projects`는 `agent_projects.enabled=true` ∩ 내가 멤버인 프로젝트만. 활성은 **자동**이다(2026-08-24) — WBS 항목의 "에이전트 위임" 체크·dev_workflow ON·task 가 있는 wbs.md 업로드 중 하나가 처음 일어나면 서버가 활성한다. 사람이 따로 등록하지 않는다. 설정에서 "전체 중지"한 프로젝트(enabled=false)만 은닉된다.
+- `contract_version` = `src/lib/agent/externalApi.ts` 의 `AGENT_CONTRACT_VERSION` 상수 값. 현재 `"2.11"`.
+- 스킬은 **major 만** 비교(`dflow.sh` 의 `CONTRACT_VERSION`). 서버의 minor 상향은 additive 라 정상이고, 등호로 보면 상향 때마다 전 세션이 오경보를 봄.
+- `projects` = `agent_projects.enabled=true` ∩ 내가 멤버인 프로젝트만.
+- 활성은 **자동**(2026-08-24): WBS 항목의 "에이전트 위임" 체크·dev_workflow ON·task 있는 wbs.md 업로드 중 하나가 처음 일어나면 서버가 활성. 사람이 따로 등록 안 함. 설정에서 "전체 중지"한 프로젝트(enabled=false)만 은닉.
 
 `GET /agent/work/mine` 200:
 ```json
@@ -397,8 +481,7 @@ stage 워크플로 재설계(마이그레이션 0082)를 계약에 반영. **엔
                  "instructions": "…", "claimed_at": "…", "item": { "id": "…", "code": "…", "name": "…", "external_ref": "MDM/TSK-01-01|null" } } ],
   "available": [ …같은 셰이프… ], "assigned": [ …같은 셰이프… ] }
 ```
-v2.11 목록 셰이프(PAT) — 위 칸에 더해 주문마다 아래가 실린다. `wbs_item_id`·`created_at`·`item.planned_start`·`item.planned_end` 는
-전부터 실리던 칸이다.
+v2.11 목록 셰이프(PAT) — 위 칸에 더해 주문마다 아래가 실림. `wbs_item_id`·`created_at`·`item.planned_start`·`item.planned_end` 는 전부터 실리던 칸.
 ```json
 { "id": "…", "project_id": "…", "status": "claimed", "priority": 0, "instructions": "…", "claimed_at": "…",
   "wbs_item_id": "…", "created_at": "…", "claimed_by": "<점유 라벨>|null",
@@ -409,9 +492,12 @@ v2.11 목록 셰이프(PAT) — 위 칸에 더해 주문마다 아래가 실린�
   "runner": "…|null", "runner_seen_at": "…|null", "action": "full|design|build|skip|wait", "action_reason": "…",
   "deps_unmet": false, "mine": true }
 ```
-`mine` 의 뜻은 위 「v2.11 변경점」 을 따른다 — ready 는 태그·WP 만 보고(담당자는 claim 이 막는다), 요청에 `agent` 를 보내지 않았고
-`lead` 도 아니면 claimed 는 종전 뜻(`claimed_by_user_id` 가 호출자와 같음)이다.
-요청 scope에 해당하는 구획만 채운다(`available`이면 `available`만). 정렬은 구획 내 `priority desc, created_at asc`. `limit` 기본 20 최대 100(구획별 적용). 페이지 넘김은 없다 — `dflow.sh` 는 모든 호출에 `limit=100` 을 싣고, 한 구획이 100건으로 차면 `LIST_TRUNCATED` 를 stderr 로 알린다(limit 을 빼 20건에서 잘린 2026-09-24 사고). 미지원 scope → 400 `unsupported_scope`. `item.external_ref`는 import 로 들어온 항목의 `"<module>/<id>"` 다(웹에서 직접 만든 항목은 null). dflow.sh scaffold 가 작업 폴더 이름(TSK)을 여기서 얻는다.
+- `mine` 의 뜻은 위 「v2.11 변경점」 따름 — ready 는 태그·WP 만 보고(담당자는 claim 이 막음), 요청에 `agent` 안 보냈고 `lead` 도 아니면 claimed 는 종전 뜻(`claimed_by_user_id` 가 호출자와 같음).
+- 요청 scope에 해당하는 구획만 채움(`available`이면 `available`만). 정렬 = 구획 내 `priority desc, created_at asc`.
+- `limit` 기본 20 최대 100(구획별 적용). 페이지 넘김 없음.
+  - `dflow.sh` 는 모든 호출에 `limit=100` 을 싣고, 한 구획이 100건으로 차면 `LIST_TRUNCATED` 를 stderr 로 알림 (limit 을 빼 20건에서 잘린 2026-09-24 사고).
+- 미지원 scope → 400 `unsupported_scope`.
+- `item.external_ref` = import 로 들어온 항목의 `"<module>/<id>"` (웹에서 직접 만든 항목은 null). dflow.sh scaffold 가 작업 폴더 이름(TSK)을 여기서 얻음.
 
 `POST /wbs/import` 요청( `wbs-parse.mjs --export` 출력 v2 + 2필드) — **계약 v2 확장(결정 E, 두 리포 공통·고정)**:
 ```json
@@ -428,10 +514,13 @@ v2.11 목록 셰이프(PAT) — 위 칸에 더해 주문마다 아래가 실린�
                  "description": "…|null" } } ] }
 ```
 `external_ref` = `<module>/<id>` (예: `MES/TSK-01-01`).
-- **stage(v2.3)**: `as|ip|im|xx` 또는 미기재·`""`·null → 서버가 null(미착수)로 저장. **`"fp"` 는 `ip` 로 정규화한다**(v2.3 과도기 — 0096 에서 제거된 값). **`"todo"`도 과도기 하위호환으로 수용해 null로 정규화**한다(app 레이어 `toRpcNode` + DB RPC `import_wbs_upsert`의 `case when … in ('', 'todo') then null` 이중 방어 — 부트스트랩이 서버 배포 전후 어느 쪽 export 를 올려도 결과가 같다). `todo`는 언제든 제거될 수 있는 호환 수용이지 정식 값이 아니다.
-- **dev_workflow(v2.1, 자동)**: 클라이언트가 지정하지 않는다. 서버가 `kind:"task"` 노드에는 `dev_workflow=true`, `wp|act|phase` 노드에는 `false`를 자동 설정한다(신규 삽입·기존 행 재업로드 갱신 모두 동일 — RPC의 `on conflict … do update set dev_workflow = excluded.dev_workflow`).
+- **stage(v2.3)**: `as|ip|im|xx` 또는 미기재·`""`·null → 서버가 null(미착수)로 저장.
+  - **`"fp"` 는 `ip` 로 정규화**(v2.3 과도기 — 0096 에서 제거된 값).
+  - **`"todo"`도 과도기 하위호환으로 수용해 null로 정규화**(app 레이어 `toRpcNode` + DB RPC `import_wbs_upsert`의 `case when … in ('', 'todo') then null` 이중 방어 — 부트스트랩이 서버 배포 전후 어느 쪽 export 를 올려도 결과 같음).
+  - `todo`는 언제든 제거될 수 있는 호환 수용이지 정식 값 아님.
+- **dev_workflow(v2.1, 자동)**: 클라이언트가 지정하지 않음. 서버가 `kind:"task"` 노드에는 `dev_workflow=true`, `wp|act|phase` 노드에는 `false` 자동 설정 (신규 삽입·기존 행 재업로드 갱신 모두 동일 — RPC의 `on conflict … do update set dev_workflow = excluded.dev_workflow`).
 - **priority는 문자열 라벨.** 주문 정수 priority 매핑(계약 고정): `critical=100 · high=50 · medium=10 · low=0` (미기재·미지 라벨=0).
-- **spec 조립**: import가 `spec_sections`를 고정 섹션 순서 — 머리말(description, 헤딩 없음) → `## 요구사항` → `## 제약` → `## 테스트 기준` → `## API 스펙` → `## 데이터 모델` — 의 마크다운으로 조립해 `wbs_items.spec`(text)에 저장한다. 빈 섹션은 생략. `acceptance[]`는 최상위 그대로 `acceptance jsonb`로.
+- **spec 조립**: import가 `spec_sections`를 고정 섹션 순서 — 머리말(description, 헤딩 없음) → `## 요구사항` → `## 제약` → `## 테스트 기준` → `## API 스펙` → `## 데이터 모델` — 의 마크다운으로 조립해 `wbs_items.spec`(text)에 저장. 빈 섹션은 생략. `acceptance[]`는 최상위 그대로 `acceptance jsonb`로.
 - `depends[]`는 같은 모듈 내 노드 id — DB에는 external_ref 배열로 저장(선행 판정 키).
 
 응답:
@@ -440,55 +529,73 @@ v2.11 목록 셰이프(PAT) — 위 칸에 더해 주문마다 아래가 실린�
   "unmatched_assignees": [{ "id": "TSK-01-02", "assignee": "x@y.z" }],
   "non_leaf_skipped": [], "orders_created": 4 }
 ```
-멱등: 같은 payload 재업로드 시 upsert 0건 갱신·주문 중복 0건. 삭제는 하지 않는다.
-필드 소유권(미결 ⑫ 권고안): 신규 행 = 파일 값 전부 시드 / 기존 행 = 구조·명세(title·schedule·parent·depends·acceptance·priority·category·domain·model·tags·prd_ref·entry_point·spec·dev_workflow)만 갱신, **stage·assignee·actual_pct는 보존**(RPC의 `on conflict do update`가 `stage`·`assignee_member_id`·`actual_pct`를 갱신 목록에서 제외).
+멱등: 같은 payload 재업로드 시 upsert 0건 갱신·주문 중복 0건. 삭제는 안 함.
+필드 소유권(미결 ⑫ 권고안):
+- 신규 행 = 파일 값 전부 시드.
+- 기존 행 = 구조·명세(title·schedule·parent·depends·acceptance·priority·category·domain·model·tags·prd_ref·entry_point·spec·dev_workflow)만 갱신.
+- **stage·assignee·actual_pct는 보존** (RPC의 `on conflict do update`가 `stage`·`assignee_member_id`·`actual_pct`를 갱신 목록에서 제외).
 
-- **`non_leaf_skipped`(v2.1)**: `kind:"task"`인데 자식이 있는(비정상) 노드만 채워진다. **정상 데이터에서는 항상 빈 배열** — task는 리프라는 전제가 계약이며, 자식을 가진 task 노드가 있는 비정상 WBS에서만 값이 들어간다. 응답 필드 자체는 계약상 항상 유지한다.
-- **`unmatched_assignees`와 `orders_created`는 서로 독립**이다(v2.1 — v2.0은 assignee 매칭 실패 시 주문 발행을 건너뛰었다). assignee 이메일이 로스터에 매칭되지 않아도 `kind:"task"` 노드는 담당자 없이 주문이 발행된다 — 배정은 발행 조건이 아니다(아래 "주문 존재 조건" 참조).
+- **`non_leaf_skipped`(v2.1)**: `kind:"task"`인데 자식이 있는(비정상) 노드만 채워짐. **정상 데이터에서는 항상 빈 배열** — task는 리프라는 전제가 계약. 응답 필드 자체는 계약상 항상 유지.
+- **`unmatched_assignees`와 `orders_created`는 서로 독립**(v2.1 — v2.0은 assignee 매칭 실패 시 주문 발행을 건너뜀). assignee 이메일이 로스터에 매칭되지 않아도 `kind:"task"` 노드는 담당자 없이 주문 발행 — 배정은 발행 조건 아님(아래 "주문 존재 조건" 참조).
 
 ### 주문 존재 조건 (v2.1 재정의)
 
-**"dev_workflow ON인 리프에는 주문이 존재한다"** — 배정 여부는 조건이 아니다(v2.0의 "배정된 리프"에서 변경). import·배정·dev_workflow 토글 등 모든 발행 경로가 공용 함수 `ensureOrderForWorkflowLeaf`를 거치며, 게이트는 다음 순서로 고정이다:
+**"dev_workflow ON인 리프에는 주문이 존재한다"** — 배정 여부는 조건 아님(v2.0의 "배정된 리프"에서 변경). import·배정·dev_workflow 토글 등 모든 발행 경로가 공용 함수 `ensureOrderForWorkflowLeaf`를 거침. 게이트 순서 고정:
 
-1. `agent_projects.enabled = true` — 자동 활성(위임 체크·dev_workflow ON·task 업로드가 처음이면 insert + **백필**: 그 프로젝트의 dev_workflow 리프 전부에 주문 보장). 설정에서 "전체 중지"한 프로젝트만 false 이며 되살리지 않는다
+1. `agent_projects.enabled = true` — 자동 활성(위임 체크·dev_workflow ON·task 업로드가 처음이면 insert + **백필**: 그 프로젝트의 dev_workflow 리프 전부에 주문 보장). 설정에서 "전체 중지"한 프로젝트만 false 이며 되살리지 않음
 2. `dev_workflow = true`(항목 게이트)
 3. 리프(자식 없음) — 아니면 발행하지 않음
 4. 활성 주문(ready·claimed·reported) 존재 여부로 멱등 판정 — 이미 있으면 재발행하지 않음(DB 부분 유니크 인덱스가 2차 방어, 23505 경합은 no-op으로 수렴)
 
-미배정 task도 이 조건만 충족하면 주문이 발행되고, `GET /agent/work/mine?scope=available`은 assignee 유무와 무관하게 `ready` 주문 전체를 노출한다.
+미배정 task도 이 조건만 충족하면 주문 발행. `GET /agent/work/mine?scope=available`은 assignee 유무와 무관하게 `ready` 주문 전체를 노출.
 
-수동 발행 화면은 없다(2026-08-24 제거). **발행 = WBS 명세 패널의 "에이전트 위임"(tags: agent) 체크** — 체크하면 서버가 프로젝트 활성 → dev_workflow ON → 주문 보장을 한 번에 한다. 체크 해제 = 그 항목의 ready 주문 취소(claimed/reported 는 사람이 승인·반려로 정리).
+수동 발행 화면 없음(2026-08-24 제거).
+- **발행 = WBS 명세 패널의 "에이전트 위임"(tags: agent) 체크.** 체크하면 서버가 프로젝트 활성 → dev_workflow ON → 주문 보장을 한 번에 함.
+- 체크 해제 = 그 항목의 ready 주문 취소 (claimed/reported 는 사람이 승인·반려로 정리).
 
-승인·반려도 전용 화면(`/agent-ops`)이 없다(2026-08-24 제거) — WBS 화면(`/p/<id>/wbs`) 항목 클릭 → 상세 패널의 "담당·단계" 섹션 → "진행 상황"에서 한다. `status=reported` 인 주문에만 승인/반려 버튼이 뜨고, 관리자(project admin·슈퍼유저)만 보인다(`editable={isAdmin}`). 반려는 `reported`→`claimed`로 되돌리고 stage `ip`·실적은 크레딧 표의 RW 값으로 한 트랜잭션에 쓴다(v2.3). 담당 에이전트가 같은 주문으로 재작업·재보고한다. 진행 중 작업을 멈추는 **중단**(옛 회수, 2026-09-19)은 에이전트 허브·좌석표에서 관리자·서브트리 관리자가 한다 — 위임 해제와 같은 경로로 태그를 떼고 주문을 `cancelled` 로 끝내며, 워커는 다음 heartbeat 에서 409 `cancelled` 를 받고 선다.
+승인·반려도 전용 화면(`/agent-ops`) 없음(2026-08-24 제거).
+- 위치: WBS 화면(`/p/<id>/wbs`) 항목 클릭 → 상세 패널의 "담당·단계" 섹션 → "진행 상황".
+- `status=reported` 인 주문에만 승인/반려 버튼이 뜨고, 관리자(project admin·슈퍼유저)만 보임(`editable={isAdmin}`).
+- 반려는 `reported`→`claimed`로 되돌리고 stage `ip`·실적은 크레딧 표의 RW 값으로 한 트랜잭션에 씀(v2.3). 담당 에이전트가 같은 주문으로 재작업·재보고.
+- 진행 중 작업을 멈추는 **중단**(옛 회수, 2026-09-19)은 에이전트 허브·좌석표에서 관리자·서브트리 관리자가 함.
+  - 위임 해제와 같은 경로로 태그를 떼고 주문을 `cancelled` 로 끝냄.
+  - 워커는 다음 heartbeat 에서 409 `cancelled` 를 받고 멈춤.
 
 ## claim·show 응답 확장과 선행 게이트 (결정 A·C)
 
-- `GET /work/{id}`(PAT)와 `POST /work/{id}/claim` 200 응답의 `item`에 확장 필드를 포함한다:
+- `GET /work/{id}`(PAT)와 `POST /work/{id}/claim` 200 응답의 `item`에 확장 필드 포함:
   `external_ref·category·domain·priority·model·tags·depends·prd_ref·entry_point·acceptance·spec·stage`.
-  클라이언트는 claim 성공 시 이걸로 `<DOCS_DIR>/tasks/<TSK-ID>/spec.md` 로컬 캐시를 만든다(TSK-ID = external_ref의 `/` 뒤).
-- 두 응답 모두 `depends_evidence: [{ external_ref, stage, branch|null, head_sha|null, order_approved, actual_pct|null, reached }]`
-  포함 — 각 선행 항목의 **approved 주문의 completion 보고 evidence**에서 추출(없으면 null).
-  `order_approved`(v2.2)는 그 선행에 `status='approved'` 주문이 하나라도 있는지다. 최신 주문이
-  아니라 "아무 approved 주문" 이라 재발행을 겪은 선행에서도 승인 사실이 살아남는다.
+  클라이언트는 claim 성공 시 이걸로 `<DOCS_DIR>/tasks/<TSK-ID>/spec.md` 로컬 캐시를 만듦(TSK-ID = external_ref의 `/` 뒤).
+- 두 응답 모두 `depends_evidence: [{ external_ref, stage, branch|null, head_sha|null, order_approved, actual_pct|null, reached }]` 포함
+  — 각 선행 항목의 **approved 주문의 completion 보고 evidence**에서 추출(없으면 null).
+  - `order_approved`(v2.2) = 그 선행에 `status='approved'` 주문이 하나라도 있는지.
+  - 최신 주문이 아니라 "아무 approved 주문" → 재발행을 겪은 선행에서도 승인 사실이 살아남음.
 - **서버 선행 게이트(v2.3)**: claim 시 depends의 선행 항목 중 `reached`(= `stage` ∈ {`im`,`xx`} ∨ `order_approved` ∨ `actual_pct` ≥ 100)가 false 인 것이 하나라도 있으면
   403 `dependency_not_met` + `unmet: [{external_ref, stage}]`. 선행 external_ref가 프로젝트에 없으면 미충족(fail-closed).
-  dflow.sh 는 이 403 을 바디 `code` 로 판독해 **exit 4**(선행·상태로 인한 진행 불가)로 낸다 — 권한 403(exit 5)과 처방이 다르기 때문이다(구조 필드 판독이므로 "산문 파싱 금지" 위반이 아니다).
-- **클라이언트 하드 차단**: ① claim 전 `show`의 depends_evidence로 `git cat-file -e <sha>` + `git merge-base --is-ancestor <sha> HEAD` 검사 — 미도달이면 메시지 출력 후 **실행 거부(exit 4)**. ② `done`은 `git ls-remote`로 현재 브랜치 tip이 원격에 도달했는지 확인 — 미도달이면 **보고 거부(exit 2)**. "완료 = push 완료"가 클라이언트 계약이다.
+  - dflow.sh 는 이 403 을 바디 `code` 로 판독해 **exit 4**(선행·상태로 인한 진행 불가)로 냄. 권한 403(exit 5)과 처방이 다르기 때문. 구조 필드 판독이므로 "산문 파싱 금지" 위반 아님.
+- **클라이언트 하드 차단**:
+  1. claim 전 `show`의 depends_evidence로 `git cat-file -e <sha>` + `git merge-base --is-ancestor <sha> HEAD` 검사 — 미도달이면 메시지 출력 후 **실행 거부(exit 4)**.
+  2. `done`은 `git ls-remote`로 현재 브랜치 tip이 원격에 도달했는지 확인 — 미도달이면 **보고 거부(exit 2)**.
+  - "완료 = push 완료"가 클라이언트 계약.
 
 ## 상태 어휘 매핑 (§7.2-2, v2.3)
 
-파일 `[ ]`/`[as]`/`[ip]`/`[im]`/`[xx]` ↔ DB `stage` `null/as/ip/im/xx`(`[ ]`는 `null`). 옛 파일의 `[fp]` 는 `ip` 로 받는다(0096).
-로컬 state-machine.json 의 `[dd]`·`[ts]` 는 부트스트랩 전용이라 서버 어휘에 없다.
-전이 권한: 사람 전용 = assign/unassign/set_stage/approve/unapprove/reject/rework · 에이전트 = claim/completion/release(본인 점유). 사람의 중단은 전이 사건이 아니라 위임 해제(주문 `cancelled`) + set_stage `as` 다.
+파일 `[ ]`/`[as]`/`[ip]`/`[im]`/`[xx]` ↔ DB `stage` `null/as/ip/im/xx`(`[ ]`는 `null`). 옛 파일의 `[fp]` 는 `ip` 로 받음(0096).
+로컬 state-machine.json 의 `[dd]`·`[ts]` 는 부트스트랩 전용이라 서버 어휘에 없음.
+전이 권한:
+- 사람 전용 = assign/unassign/set_stage/approve/unapprove/reject/rework
+- 에이전트 = claim/completion/release(본인 점유)
+- 사람의 중단은 전이 사건이 아니라 위임 해제(주문 `cancelled`) + set_stage `as`
+
 에이전트 API에 사람 전용 사건 없음(도입 시 403 `human_gate`).
 
 UI 라벨 정본(`src/lib/domain/stageLabels.ts`): `as`=할당됨 · `ds`=설계 중(v2.9) · `ip`=작업 중 · `im`=검수 대기 · `xx`=완료 · 미지정=미착수.
 
 ### 단계 전이 사건 표 (v2.3 — 정본은 설계 §3.4)
 
-모든 사건은 DB 함수 `apply_workflow_event` 하나가 **한 트랜잭션**으로 주문 CAS·단계·실적·`change_logs` 를 쓴다. 주문 사건은
-주문의 존재가 워크플로 증거라 `dev_workflow` 를 보지 않고, 리프가 아니면 단계·실적만 건너뛴다. 실적은 크레딧 표 값으로
-**덮어쓴다**(큰 쪽 유지 규칙 없음).
+모든 사건은 DB 함수 `apply_workflow_event` 하나가 **한 트랜잭션**으로 주문 CAS·단계·실적·`change_logs` 를 씀.
+- 주문 사건은 주문의 존재가 워크플로 증거라 `dev_workflow` 를 안 보고, 리프가 아니면 단계·실적만 건너뜀.
+- 실적은 크레딧 표 값으로 **덮어씀**(큰 쪽 유지 규칙 없음).
 
 | 사건 | 주문 status | stage | 실적% | 누가 |
 |---|---|---|---|---|
@@ -506,11 +613,11 @@ UI 라벨 정본(`src/lib/domain/stageLabels.ts`): `as`=할당됨 · `ds`=설계
 | 중단·위임 해제 | `ready`·`claimed`→`cancelled` | `claimed` 를 취소했을 때만 `as` | 표.as | 사람(허브·좌석표 중단, 위임 체크 해제) |
 | 사람의 단계 지정 | 잠금이 아닐 때만 | 지정값 | 표.<지정값>(해제는 불변) | 사람 |
 
-**잠금** = 위임됨(`tags` ∋ `agent`) ∨ 주문 `claimed`·`reported`. 잠기면 사람의 단계 지정은 거부되고 수기 실적 입력은 99 까지다
-(100 은 승인으로만). `ready` 는 dev_workflow 리프마다 상주하므로 잠금이 아니다.
+**잠금** = 위임됨(`tags` ∋ `agent`) ∨ 주문 `claimed`·`reported`.
+- 잠기면 사람의 단계 지정은 거부, 수기 실적 입력은 99 까지(100 은 승인으로만).
+- `ready` 는 dev_workflow 리프마다 상주하므로 잠금 아님.
 
-`im`/`xx` "처음 도달" 시(역전이·재설정 제외) depends 역참조로 후행 담당자에게 `work.unblocked` 알림이 발행된다
-(§2.10, 다중 depends는 전부 충족(`reached`) 시 1회).
+`im`/`xx` "처음 도달" 시(역전이·재설정 제외) depends 역참조로 후행 담당자에게 `work.unblocked` 알림 발행 (§2.10, 다중 depends는 전부 충족(`reached`) 시 1회).
 
 ## 에러코드 전수
 
@@ -540,13 +647,11 @@ UI 라벨 정본(`src/lib/domain/stageLabels.ts`): `as`=할당됨 · `ds`=설계
 
 - env: `DFLOW_API_BASE`(기본값 없음 — 미설정 시 즉시 실패) · `DFLOW_PATS`(쉼표 구분 1~N개) · `DFLOW_PAT`(단일, PATS 미설정 시 폴백).
 - `dflow.sh` exit code: 0 성공 / 2 사용법·설정·push 미완료 / 3 인증(401) / 4 상태 충돌(409)·선행 미반영 로컬 차단·선행 미충족(403 `code=dependency_not_met`) / 5 권한(403, 그 외) / 6 네트워크·서버(5xx)·로컬 환경 실패(파싱·파일 쓰기) / 7 기능 꺼짐(404) / 10 중단됨(409 `code=cancelled`) / 11 설계 관문(409 `code=design_gate`·`design_not_accepted`) / 12 다른 PC 도는 중(409 `code=runner_active`).
-  - 403 을 body 의 `code` 로 갈라 읽는다: 선행 미충족은 권한 문제가 아니라 상태 문제라
-    호출부가 할 일이 "권한을 얻어라"가 아니라 "선행을 끝내고 다시 와라"이다.
-  - 로컬 파싱·파일 쓰기 실패를 4 로 내지 않는다 — 호출부가 "선행을 기다린다"로 읽고 영원히 재시도한다.
-  - 409 도 body 의 `code` 로 갈라 읽는다: `cancelled`(사람이 중단)는 경합이 아니라 끝난 작업이라 호출부가 할 일이
-    "다시 시도"가 아니라 "즉시 멈춤"이다. 그래서 4 와 섞지 않고 10 으로 낸다.
-  - `design-done`·`design-reopen` 의 exit 7 은 기능 꺼짐(404) 일반과 같은 코드다 — 옛 서버라 없는 동사인지는 exit 값이 아니라
-    stderr 끝줄의 `DESIGN_STATE_UNSUPPORTED` 표식으로 가른다(표식이 없는 404 는 다른 사유 — 프로젝트 미등록·API 꺼짐 등).
-- 신원 해석: 토큰별 `GET /agent/me` 1회 → `~/.cache/dflow/profiles.json` 캐시. 키 선택은 `--as <prefix|email>` →
-  `.dflow.local` 의 `as`(prefix 만, 레거시 `.env` 의 `DFLOW_AS`) → 첫 토큰. prefix 일치는 `/me` 를 부르지 않는다. 목록은 `dflow.sh profiles`.
+  - 403 은 body 의 `code` 로 갈라 읽음. 선행 미충족은 권한 문제가 아니라 상태 문제 → 호출부가 할 일 = "선행을 끝내고 다시 와라" ("권한을 얻어라" 아님).
+  - 로컬 파싱·파일 쓰기 실패를 4 로 내지 않음 — 호출부가 "선행을 기다린다"로 읽고 영원히 재시도하기 때문.
+  - 409 도 body 의 `code` 로 갈라 읽음. `cancelled`(사람이 중단)는 경합이 아니라 끝난 작업 → 호출부가 할 일 = "즉시 멈춤" ("다시 시도" 아님). 그래서 4 와 섞지 않고 10 으로 냄.
+  - `design-done`·`design-reopen` 의 exit 7 은 기능 꺼짐(404) 일반과 같은 코드. 옛 서버라 없는 동사인지는 exit 값이 아니라 stderr 끝줄의 `DESIGN_STATE_UNSUPPORTED` 표식으로 가름 (표식 없는 404 = 다른 사유 — 프로젝트 미등록·API 꺼짐 등).
+- 신원 해석: 토큰별 `GET /agent/me` 1회 → `~/.cache/dflow/profiles.json` 캐시.
+  - 키 선택: `--as <prefix|email>` → `.dflow.local` 의 `as`(prefix 만, 레거시 `.env` 의 `DFLOW_AS`) → 첫 토큰.
+  - prefix 일치는 `/me` 를 부르지 않음. 목록은 `dflow.sh profiles`.
 - evidence 자동 조립: `git rev-parse HEAD`·`git remote get-url origin`·`git branch --show-current`·(`gh` 있으면) PR URL.
