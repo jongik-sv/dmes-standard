@@ -45,7 +45,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p>순서: ① 외부 호출이 꺼져 있으면 0건 ② {@code CUR} 에서 열린 행 중 환율 수집이 Y 이고 {@code FX_RATE} 칼럼이 있는 통화 읽기
  * ③ {@code FX_RATE} 열린 항목이 하나도 없으면 90일 백필, 있으면 {@code lookbackDays} ④ 제공자 호출(구간당 한 번이고 제한 시간이
- * 짧아, OASIS 실행 트랜잭션 안에서 도는 것을 감수한다) ⑤ 날짜별로 기존 열린 행을 읽어 받은 칼럼만 덮어쓴 {@link UpsertRow} 만들기
+ * 짧아, OASIS 실행 트랜잭션 안에서 도는 것을 감수한다) ⑤ 날짜별로 기존 마지막 행을 읽어 받은 칼럼만 덮어쓴 {@link UpsertRow} 만들기
  * (같은 날 일부 통화만 받아도 나머지 칼럼은 보존) ⑥ {@link DataItemSaveCore#upsert} 를 새 트랜잭션으로 먼저 커밋 ⑦ 제공자가 일부만
  * 줬으면 커밋한 뒤에 예외를 던진다(받은 값이 롤백되지 않게).
  *
@@ -110,7 +110,10 @@ public class ExchangeRateSyncService {
             FROM   TB_MDM_DATA A
             WHERE  A.MARU_DATA_ID = ?
             """;
-    /** 기준일 범위의 열린 행(기본 키 범위). 같은 날 다른 통화 칼럼을 보존하려고 읽는다. */
+    /**
+     * 기준일 범위의 키별 마지막 행(열린 행이든 닫힌 행이든, 기본 키 범위). 같은 날 다른 통화 칼럼을 보존하려고 읽는다 —
+     * 닫힌 날짜 키를 upsert 가 다시 열 때도 받지 않은 칼럼이 지워지지 않게 한다.
+     */
     private static final String EXISTING_SQL = """
             SELECT A.CODE
                  , A.ALTER_NAME
@@ -127,8 +130,11 @@ public class ExchangeRateSyncService {
                  , A.ATTR10
             FROM   TB_MDM_DATA_ITEM A
             WHERE  A.MARU_DATA_ID = ?
-            AND    A.VALID_TO = TIMESTAMP '9999-12-31 00:00:00'
             AND    A.CODE BETWEEN ? AND ?
+            AND    A.VALID_FROM = (SELECT MAX(M.VALID_FROM)
+                                   FROM   TB_MDM_DATA_ITEM M
+                                   WHERE  M.MARU_DATA_ID = A.MARU_DATA_ID
+                                   AND    M.CODE = A.CODE)
             """;
 
     private final JdbcTemplate jdbc;
@@ -233,7 +239,7 @@ public class ExchangeRateSyncService {
         return out;
     }
 
-    /** 받은 점의 기준일 범위에서 기존 열린 행을 읽는다. 키는 CODE(yyyyMMdd). */
+    /** 받은 점의 기준일 범위에서 키별 마지막 행을 읽는다. 키는 CODE(yyyyMMdd). */
     private Map<String, ExistingRow> existingByCode(Collection<ExchangeRatePoint> points) {
         LocalDate min = null;
         LocalDate max = null;
@@ -253,8 +259,10 @@ public class ExchangeRateSyncService {
             for (int i = 0; i < ATTR_COUNT; i++) {
                 attrs.add(rs.getString(4 + i));
             }
+            String alterName = rs.getString(2);
             int seq = rs.getInt(3);
-            out.put(rs.getString(1), new ExistingRow(rs.getString(2), rs.wasNull() ? null : seq, attrs));
+            Integer seqOrNull = rs.wasNull() ? null : seq;
+            out.put(rs.getString(1), new ExistingRow(alterName, seqOrNull, attrs));
         }, FX_RATE, min.format(YMD), max.format(YMD));
         return out;
     }
