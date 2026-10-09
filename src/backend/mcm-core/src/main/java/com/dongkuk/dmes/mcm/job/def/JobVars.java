@@ -38,7 +38,7 @@ public final class JobVars {
 
     private JobVars() {}
 
-    /** 확정에 쓰는 사실값. prevRunAt 은 직전 정상 일정 회차(TRIGGER_TP='S')의 예정 시각이며 없으면 null. */
+    /** 확정에 쓰는 사실값. prevRunAt 은 직전 정상 일정 회차(TRIGGER_TP='S'·놓친 회차 'C')의 예정 시각이며 없으면 null. */
     public record RunFacts(LocalDateTime schedAt, LocalDateTime now, LocalDateTime prevRunAt, String jobId, String moduleCd) {}
 
     public static List<JobVar> parse(String json) {

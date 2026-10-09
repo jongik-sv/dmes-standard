@@ -99,6 +99,33 @@ class JobSchedMngServiceOraTest {
     }
 
     @Test
+    @DisplayName("놓친 회차 한 번 실행(misfireRunYn) — 새 작업은 기본 N, Y 로 저장·상세에 보임, 값 없이 고치면 지금 값 유지, N 으로 끄면 꺼짐, Y·N 외 값은 거절")
+    void saveMisfireOption() {
+        service.save(queryReq("mdm.mf0"));
+        assertThat(row("mdm.mf0").get("MISFIRE_RUN_YN")).isEqualTo("N");
+
+        JobSchedMngRequest on = queryReq("mdm.mf1");
+        on.setMisfireRunYn("Y");
+        assertThat(def(service.save(on)).get("misfireRunYn")).isEqualTo("Y");
+        assertThat(row("mdm.mf1").get("MISFIRE_RUN_YN")).isEqualTo("Y");
+
+        JobSchedMngRequest keep = queryReq("mdm.mf1");   // 옵션 칸이 없는 요청(옛 화면)은 지금 값을 건드리지 않는다
+        keep.setVer(((Number) row("mdm.mf1").get("VER")).longValue());
+        keep.setJobNm("이름 바꿈");
+        assertThat(def(service.save(keep)).get("misfireRunYn")).isEqualTo("Y");
+
+        JobSchedMngRequest off = queryReq("mdm.mf1");
+        off.setVer(((Number) row("mdm.mf1").get("VER")).longValue());
+        off.setMisfireRunYn("N");
+        assertThat(def(service.save(off)).get("misfireRunYn")).isEqualTo("N");
+
+        JobSchedMngRequest bad = queryReq("mdm.mf2");
+        bad.setMisfireRunYn("X");
+        assertThatThrownBy(() -> service.save(bad)).isInstanceOf(BusinessException.class).hasMessageContaining("misfireRunYn");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_JOB_DEF WHERE JOB_ID = 'mdm.mf2'", Integer.class)).isZero();
+    }
+
+    @Test
     @DisplayName("저장 검사 — id 형식·중복·모듈·유형·crontab(일+요일 동시)·시간 초과 범위·QUERY 문장(DDL)·선언 안 한 변수·예약 변수 이름")
     void saveValidation() {
         service.save(queryReq("mdm.q1"));
