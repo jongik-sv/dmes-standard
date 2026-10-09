@@ -1,13 +1,13 @@
 # memo dn-split-wbs (지시 dn-split-wbs-1)
 
-상태: 이동·참조 정리 끝, 규칙 보존 리뷰 대기 → 머지 요청.
+상태: 이동·리뷰 반영 끝 → 머지 요청 대기. 리뷰 반영: 번호 예외·금지 규칙 인라인, 트리거 문구 구체화, 참조 수정. 남은 외부 링크: dflow-export/SKILL.md:20 (다른 스킬).
 브랜치 chore/dn-split-wbs · 크기: SKILL.md 2개 수정 + references 신규 10개.
 
 ## 바이트 (전 → 후)
 
 | 대상 | SKILL.md | references 합계 |
 |---|---|---|
-| dflow-wbs | 57,948 → 20,052 | 7,313 → 49,449 |
+| dflow-wbs | 57,948 → 19,982 | 7,313 → 49,173 |
 | dflow-wbs-nlevel | 17,673 → 7,887 | 26,015 → 37,082 |
 
 ## dflow-wbs 절 분류

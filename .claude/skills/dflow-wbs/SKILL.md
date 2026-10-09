@@ -7,7 +7,7 @@ description: PRD/TRD 또는 프로그램 리스트(json/yaml/csv/md/xlsx)로 WBS
 
 > 문체: 산출 문서 → `../_shared/style/Korean-STE-Writing-Guide.md`.
 
-> 상대 경로는 리포 루트 cwd 전제, node 18.17+. 환경 문제 = 참조 표 environment-notes.md.
+> 상대 경로는 리포 루트 cwd 전제, node 18.17+.
 > - 구조·경계·게이트 규칙 문서 정본 = 대상 리포 `docs/wbs-workflow.md`. 있으면 생성 전 Read. 이 파일과 다르면 그 문서가 이김.
 > - **상태·전이·배정·진척 정본 = D'Flow.** 이 스킬은 상태를 `[ ]` 로만 생성.
 > - wbs.md = 최초 작성·사람 검수·`POST /api/v1/wbs/import` 부트스트랩 전용. import 후 실행 상태는 D'Flow DB 에서 읽음.
@@ -160,7 +160,7 @@ Phase → WP → [ACT(4단계만)] → Task → [Sub Task 수동]
 
 ## D'Flow 연동 표기 (정본: 부록 §2.5·§2.6·§7.2)
 
-→ references/dflow-integration.md (참조 표 참고). 요지: 헤딩 ID 는 import 매칭 키라 재번호매김 금지, import 성공 후 wbs.md 재생성 금지, 사라진 ID 재사용·중간 삽입으로 번호 밀기 금지. wbs.md 에 `project_id`·UUID·브랜치·워크트리 경로·`item_owners`·실적% 를 넣지 않는다. `.dflow`·`.dflow.local` 은 생성·수정 금지, 값 출력 금지
+→ references/dflow-integration.md 요지: 헤딩 ID 는 import 매칭 키라 재번호매김 금지, import 성공 후 wbs.md 재생성 금지, 사라진 ID 재사용·중간 삽입으로 번호 밀기 금지. wbs.md 에 `project_id`·UUID·브랜치·워크트리 경로·`item_owners`·실적% 를 넣지 않는다. `.dflow`·`.dflow.local` 은 생성·수정 금지, 값 출력 금지
 
 ## depends 규칙 (정본: wbs-workflow.md §2)
 
