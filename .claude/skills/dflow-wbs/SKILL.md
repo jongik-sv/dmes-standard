@@ -14,7 +14,7 @@ description: PRD/TRD 또는 프로그램 리스트(json/yaml/csv/md/xlsx)로 WBS
 > - WBS 파서·검증·의존 분석(`wbs-parse`·`wbs-validate`·`dep-analysis`) = `/dflow-export` 스킬 node 판 (`.claude/skills/dflow-export/scripts/*.mjs`). 별도 복사본 없음 (2026-10-07 통합).
 > - dev 플러그인 없는 PC 도 리포 clone + node(18.17+)만으로 동작. 상대 경로 = 리포 루트가 cwd 전제.
 > - `decision-log.mjs append`: `decisions.md.lock` 디렉터리(mkdir 잠금)로 동시 기록 방지. 15초 안에 못 잡으면 종료 코드 1.
-> - 항목 머리 = `## D-<숫자> (<시각>)` 로 줄이 끝나는 줄만 인정 (dflow-merge `decisions.sh` 와 같은 규칙).
+>   - 항목 머리 = `## D-<숫자> (<시각>)` 로 줄이 끝나는 줄만 인정 (dflow-merge `decisions.sh` 와 같은 규칙).
 > - 구조·경계·게이트 규칙 문서 정본 = 대상 리포 `docs/wbs-workflow.md`. 있으면 생성 전 Read. 이 파일과 다르면 그 문서가 이김.
 > - **상태·전이·배정·진척 정본 = D'Flow.** 이 스킬은 상태를 `[ ]` 로만 생성.
 > - wbs.md = 최초 작성·사람 검수·`POST /api/v1/wbs/import` 부트스트랩 전용. import 후 실행 상태는 D'Flow DB 에서 읽음.
@@ -546,7 +546,7 @@ C1·C4 = 강제 진행 설계(`2026-09-23-force-progress-design.md`) §3.4 1번�
   - `category` 가 `progress.agile.applies_to` 에 있으면 `progress.agile.state_weights[상태코드]`.
   - `progress.process.applies_to` 에 있으면 `progress.process` 규칙(`pre_accept_cap` 포함) 적용.
   - **환산표를 스킬·스크립트에 하드코딩 금지** — `state-machine.json` 의 `progress._comment` 가 금지.
-- **`docs/state-machine.json` 이 대상 리포에 없으면** 8번 = 상태 코드 그대로, 17번 = `[ ]` 이면 0. 리포트에 그 사실을 남김 (import 전 검수용 스냅샷은 전 Task `[ ]` 라 실질 손실 없음).
+- **`docs/state-machine.json` 이 대상 리포에 없으면** 8번 = 상태 코드 그대로, 17번 = `[ ]` = 0 으로 둠. 리포트에 그 사실을 남김 (import 전 검수용 스냅샷은 전 Task `[ ]` 라 실질 손실 없음).
 - WP/ACT 행:
   - 4~6·9·13~16·18 = 비움.
   - 10·11 = **위 4단계로 귀속된 하위 Task** 의 최소 시작일·최대 종료일.
