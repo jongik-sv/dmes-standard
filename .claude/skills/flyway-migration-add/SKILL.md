@@ -62,12 +62,12 @@ node .claude/skills/flyway-migration-add/scripts/migration_tool.mjs scaffold --m
 
 ## 5. 작성 후 검증
 
-모듈의 시험을 Oracle 하니스로 돌린다(PC 전체에서 하나씩, 무거운 작업은 `heavy.sh` 를 거친다).
+모듈의 시험을 Oracle 하니스로 돌린다(PC 전체에서 하나씩, 무거운 작업은 `heavy.mjs` 를 거친다).
 
 ```bash
 # 모듈 폴더(src/backend/<모듈>)에서. JDK 21 이 JAVA_HOME 으로 잡혀 있어야 한다. 시험 PDB 는 하니스가 템플릿에서 복제·삭제한다.
 # Gradle 경로는 모듈 구조에 따라 :api:test(mdm·mls 등) 또는 :test(mcm-core·aps-core) 다.
-DFLOW_HEAVY_WAIT=1800 ../../../.claude/skills/dflow-dev/scripts/heavy.sh ../gradlew :api:test -Pdmes.ora.test=clone
+DFLOW_HEAVY_WAIT=1800 node ../../../.claude/skills/dflow-dev/scripts/heavy.mjs ../gradlew :api:test -Pdmes.ora.test=clone
 ```
 
 - 템플릿(`TPL_SCHEMA`)은 dev 의 모든 모듈 V 파일을 적용한 것이다. 새 V 파일이 템플릿에 들어가려면 dev 에 머지된 뒤 `node scripts/oracle/pdb.mjs template-schema --rebuild` 가 필요하다. 머지 전에는 레인 PDB 에서 앱을 기동해(앱 Flyway 가 새 V 파일을 적용한다) 확인한다.

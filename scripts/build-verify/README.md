@@ -34,7 +34,7 @@ scripts/build-verify/dump-deps.sh <출력폴더> mpn mdm
 - 환경은 `env -i` 로 비우고 다음만 넘긴다. 그래서 `CI`·`BACKEND_CLIENT_KEY`·`CACTUS_JWT_SECRET`·`MDM_EMBEDDING_MODEL_DIR`·`NEXUS_*` 는 빠진다.
   - 언제나: `HOME PATH USER LOGNAME TMPDIR`, `LANG/LC_ALL=en_US.UTF-8`, `TERM=dumb`, `DMES_TEST_SLOTS`(아래)
   - 호출 환경에 있을 때만: `JAVA_HOME`, `DFLOW_HEAVY_DIR`, `DFLOW_HEAVY_SLOTS`, `GRADLE_USER_HOME`, `CLAUDE_PID`
-  - `JAVA_HOME` 이 없으면 PATH 의 java 를 쓰고, heavy 변수가 없으면 gradlew 가 감싸는 heavy.sh 의 기본값(`~/.dflow/locks/heavy`, 칸 수는 RAM 기준)을 쓴다. 넘긴 `JAVA_HOME` 은 `_meta.txt` 의 `java-home` 줄에 남는다.
+  - `JAVA_HOME` 이 없으면 PATH 의 java 를 쓰고, heavy 변수가 없으면 gradlew 가 감싸는 heavy.mjs 의 기본값(`~/.dflow/locks/heavy`, 칸 수는 RAM 기준)을 쓴다. 넘긴 `JAVA_HOME` 은 `_meta.txt` 의 `java-home` 줄에 남는다.
 - 전용 heavy 칸으로 돌리는 예(값은 PC·작업마다 바꾼다):
   ```bash
   JAVA_HOME=<JDK 21 경로> \
@@ -63,7 +63,7 @@ scripts/build-verify/dump-deps.sh <출력폴더> mpn mdm
 <out>.logs/                            diff 대상 밖: gradle stdout/stderr, _timing.txt, _meta.txt
 ```
 
-`_meta.txt` 에는 date·BACKEND·REPO·HEAD·HEAD^·dirty 수·java-home·Gradle 배포 URL·heavy.sh 와 `~/.gradle` init.d·gradle.properties 해시·`.dflow-agent` 표식·도구 해시(`tools`)·모듈·test-slots·`finished` 줄이 남는다.
+`_meta.txt` 에는 date·BACKEND·REPO·HEAD·HEAD^·dirty 수·java-home·Gradle 배포 URL·heavy.mjs 와 `~/.gradle` init.d·gradle.properties 해시·`.dflow-agent` 표식·도구 해시(`tools`)·모듈·test-slots·`finished` 줄이 남는다.
 
 ## 2. 비교: `compare.sh`
 
@@ -99,7 +99,7 @@ scripts/build-verify/compare.sh <A> <B> [--ignore-file <패턴파일>]... [-I <�
 ## 3. 판정 절차와 2차 판정 기록
 
 1. A 는 B 의 바로 앞 커밋이어야 하고(`_meta.txt` 의 A.HEAD = B.HEAD^), 양쪽 `dirty` 는 0 이어야 한다.
-2. 양쪽 `_meta.txt` 의 `gradle`·`java-home`·`guh-file`·`dflow-agent`·`tools` 가 같아야 한다. `heavy.sh` 는 줄 세우기만 하므로 달라도 된다.
+2. 양쪽 `_meta.txt` 의 `gradle`·`java-home`·`guh-file`·`dflow-agent`·`tools` 가 같아야 한다. `heavy.mjs` 는 줄 세우기만 하므로 달라도 된다.
 3. 처음 한 번은 같은 커밋을 두 번 떠서 `compare.sh A A2` 가 0 인지 본다(결정성).
 4. 단계에 맞는 허용 패턴으로 비교하고, compare.sh 출력(패턴별 걸러낸 줄 수 포함)을 커밋 메시지나 레인 기록에 붙인다.
 5. 실행 순서는 `mpn` 단독, `mdm` 단독, 15개 전체 순서가 안전하다.

@@ -11,7 +11,7 @@
 #   <mod>/settings/_settings.txt              settings 단계 저장소·versionCatalogs
 #   <mod>/configurations/<프로젝트>.txt       모든 구성의 선언 의존성·제약·속성
 #   _projects.txt  _errors.txt
-# gradle 의 stdout/stderr·시간·실행 메타(_meta.txt: 커밋·Gradle 버전·heavy.sh·init.d 해시)는 <출력폴더>.logs/ 에 둔다(diff 대상 밖).
+# gradle 의 stdout/stderr·시간·실행 메타(_meta.txt: 커밋·Gradle 버전·heavy.mjs·init.d 해시)는 <출력폴더>.logs/ 에 둔다(diff 대상 밖).
 # 경로는 BACKEND·그 리포 루트 기준으로 바꾸므로 워크트리가 달라도 같은 내용이면 같은 출력이 나온다.
 #
 # 결과에 영향 줄 수 있는 환경은 고정한다: env -i 로 비우고 필요한 것만 넘긴다
@@ -56,7 +56,7 @@ LOGS="${OUT}.logs"; mkdir -p "$LOGS"
   echo "dirty       $(/usr/bin/git -C "$REPO" status --porcelain -- src/backend 2>/dev/null | wc -l | tr -d ' ') files under src/backend"
   echo "java-home   ${JAVA_HOME:-<unset>}"
   echo "gradle      $(grep '^distributionUrl' "$BACKEND/gradle/wrapper/gradle-wrapper.properties" 2>/dev/null)"
-  echo "heavy.sh    $(shasum -a 256 "$REPO/.claude/skills/dflow-dev/scripts/heavy.sh" 2>/dev/null | cut -c1-16)"
+  echo "heavy.mjs   $(shasum -a 256 "$REPO/.claude/skills/dflow-dev/scripts/heavy.mjs" 2>/dev/null | cut -c1-16)"
   for f in "${GUH:-$HOME/.gradle}"/init.d/* "${GUH:-$HOME/.gradle}"/init.gradle "${GUH:-$HOME/.gradle}"/gradle.properties; do
     [ -f "$f" ] && echo "guh-file    $(shasum -a 256 "$f" | cut -c1-16) ${f#${GUH:-$HOME/.gradle}/}"
   done
