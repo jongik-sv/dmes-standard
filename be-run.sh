@@ -495,13 +495,16 @@ CLAIM_PREV_JVM=""
 own_file() { printf '%s/%s.own' "$BE_STATE_DIR" "$1"; }
 
 # 기록 폴더 잠금. 다른 be-run 이 쥐고 있으면 최대 10초(0.05초 x 200) 기다린다.
-# - 쥔 pid 가 죽었으면(강제 종료) 그 잠금을 치운다. 치우기 직전에 쥔 pid 를 다시 읽어 같은 소유자일 때만 지운다.
-# - 쥔 pid 가 살아 있으면 빼앗지 않는다: 10초가 지나면 실패(1)를 돌려준다(fail-closed). 잠금 구간은 기록 파일 한 줄을 읽고 쓰는 정도로 짧게
-#   유지하므로(ps·lsof 같은 느린 판정은 잠금 밖에서 한다) 정상이라면 10초를 넘기지 않는다.
-# - pid 파일이 아직 없는 잠금(만든 직후이거나 그 사이 죽은 경우)은 3초 안 보이면 낡은 것으로 본다.
+# - 쥔 pid 가 죽었거나, 살아 있어도 이 체크아웃의 be-run 이 아니면(pid 재사용) 그 잠금을 치운다. 치우기 직전에 쥔 pid 를 다시 읽어
+#   같은 소유자일 때만 지운다. be-run 인지 보는 일은 느려서(ps·lsof) 0.5초마다 한 번만 한다.
+# - 쥔 pid 가 살아 있는 be-run 이면 빼앗지 않는다: 10초가 지나면 실패(1)를 돌려준다(fail-closed). 잠금 구간은 기록 파일 한 줄을 읽고
+#   쓰는 정도로 짧게 유지하므로(ps·lsof 같은 느린 판정은 잠금 밖에서 한다) 정상이라면 10초를 넘기지 않는다.
+# - pid 파일이 아직 없는 잠금(만든 직후이거나 그 사이 죽은 경우)은 이어서 3초 안 보이면 낡은 것으로 본다. pid 가 보이면 세던 것을 0으로 되돌린다.
 # - 쥔 pid 가 나 자신이면(종료 트랩이 잠금 구간 안에서 다시 들어온 경우) 재진입을 허용한다.
+# - 한 번 실패하면(BE_STATE_LOCK_FAILED=1) 이 be-run 은 더 기다리지 않는다 — 종료 때 모듈 수만큼 10초씩 기다리지 않게.
 state_lock() {
   local i holder empty=0
+  [ "$BE_STATE_LOCK_FAILED" = "1" ] && return 1
   mkdir -p "$BE_STATE_DIR" 2>/dev/null || return 1
   for i in $(seq 1 200); do
     if mkdir "$BE_STATE_LOCK" 2>/dev/null; then
@@ -520,14 +523,18 @@ state_lock() {
         rm -rf "$BE_STATE_LOCK"
         empty=0
       fi
-    elif ! kill -0 "$holder" 2>/dev/null; then
-      if [ "$(cat "$BE_STATE_LOCK/pid" 2>/dev/null || true)" = "$holder" ]; then
-        rm -rf "$BE_STATE_LOCK"
+    else
+      empty=0                                  # pid 가 보이면 연속으로 비어 있던 셈을 처음부터 다시 센다
+      if ! kill -0 "$holder" 2>/dev/null || { [ $((i % 10)) -eq 1 ] && ! is_own_be_run "$holder"; }; then
+        if [ "$(cat "$BE_STATE_LOCK/pid" 2>/dev/null || true)" = "$holder" ]; then
+          rm -rf "$BE_STATE_LOCK"
+        fi
+        continue
       fi
-      continue
     fi
     sleep 0.05
   done
+  BE_STATE_LOCK_FAILED=1
   return 1
 }
 
