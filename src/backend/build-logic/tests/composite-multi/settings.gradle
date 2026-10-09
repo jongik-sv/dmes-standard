@@ -1,0 +1,5 @@
+rootProject.name = 'composite-multi'
+// included build 마다 Oracle Test 태스크가 하나씩 있는 상황(composite(a,b,c)는 probe 태스크라 Test 경로를 안 탄다). 한 실행에 세 build 의 test 를 건다.
+includeBuild('x')
+includeBuild('y')
+includeBuild('z')

@@ -1,0 +1,6 @@
+pluginManagement {
+    includeBuild('../..')
+}
+rootProject.name = 'composite-seq'
+// 같은 build 의 Oracle Test 태스크가 여럿인 상황(mcm 의 :lib:test·:api:test)을 흉내 낸다. 교착 재현·회귀 시험용(Oracle 접속 없음) — ../run-seq.sh
+include 's1', 's2', 's3', 's4'

@@ -16,7 +16,11 @@ import org.springframework.web.util.UriComponentsBuilder;
  * &daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia/Seoul&forecast_days=3}.
  * 매핑: current.temperature_2m→temp, weather_code→code, wind_speed_10m→wind(km/h), relative_humidity_2m→humidity,
  * daily.time[i]→date, temperature_2m_min/max→min/max, weather_code→code, precipitation_probability_max→pop.
+ *
+ * @deprecated 날씨는 예약 작업 수집으로 옮김(2026-10-09, 설계 2026-10-09-weather-collect-design.md). 더는 쓰는 곳이 없고
+ *             생성 때 외부 호출도 하지 않는다(fetch 를 부를 때만 나간다). 삭제는 사용자 결정 대기.
  */
+@Deprecated
 @Component
 public class OpenMeteoProvider implements WeatherProvider {
 
