@@ -373,3 +373,14 @@ JS 판은 대조 하니스를 통과시키려고 대부분의 의심 동작을 b
 3. 상주·자주 도는 호출(`statusline-dump`·`prompt-watch --follow` 폴러 주변)은 node 기동 비용(statusline-dump 끔 83~94ms → 켬 140~147ms)이 허용 범위인지 본다. 허용되지 않으면 그 호출만 상주 프로세스(W2 의 import 방식)로 옮긴 뒤 전환한다.
 4. 실제 조정 회차 1회 이상을 `COORD_JS_ALL=1` 로 돌려 tick·idle·merge 흐름에 이상이 없다.
 5. 전환 순서: `COORD_JS_ALL` 기본을 켬으로 바꾸고 `=0` 을 탈출구로 둔다 → 1~2 회차 관찰 → bash 본문 삭제(10.3) → 스위치 변수와 `js-bridge.sh` 제거. 켬에서 node 판이 실패하면 bash 로 되돌아가지 않는(fail-closed) 규칙은 전환 전 기간 동안 유지한다.
+
+### 10.6 진행 기록 (2026-10-09)
+
+- 사용자 결정: 관찰 회차(10.5 의 4·5)와 윈도우 실기 선행(10.5 의 2)을 기다리지 않고 bash 판을 퇴역한다. 「.sh 는 백업 받아 두고 안 쓴다」, 모든 플랫폼에서 node 판만 쓴다. 윈도우 실기는 다음 주에 하고, 문제가 나오면 node 판에서 고친다. 실제 확인은 사용자가 다음 조정 회차를 node 판으로 돌리며 한다.
+- 스위치 단계(기본값 켬 전환)는 건너뛰었다. `js-bridge.sh` 와 `COORD_JS_<이름>`·`COORD_JS_ALL` 스위치는 bash 판과 함께 퇴역했다.
+- `tick.sh` 의 node 판 `scripts/tick.mjs` 를 새로 만들었다(유일하게 node 판이 없던 스크립트).
+- node 판 안의 `.sh` 호출(office → coord-state, auto-answer → console-poll, spawn-lane → office·auto-answer·term-send-safe·glm-preflight 등)을 node 호출로 바꾸고, SKILL.md·references·templates 의 실행 지시를 `node scripts/<이름>.mjs` 로, dflow-team 의 `wake.sh`·`closing.md` 호출처를 `console-poll.mjs` 로 바꿨다.
+- 옛 bash 판(`scripts/*.sh`, `scripts/lib/*.sh`), bash 시험(`tests/*.sh`), 대조 하니스(`tests/js-parity/`)는 `.claude/skills/coordinator/backup/` 으로 옮겼다(쓰지 않음, 참고용).
+- 확인: `node --test tests/` 183건 통과, 임시 상태 폴더 스모크(init → lane-add → report → instr → progress → tick → summary → close-run) 통과. 퇴역 직전 대조 하니스 500건 대조는 6개 모듈까지만 돌렸고(차이는 부하 흔들림 3건뿐, 단독 재실행 0건), 너무 오래 걸려 멈췄다.
+- usage-band 대조 차이(#220)는 판의 차이가 아니라 명세의 나이 값 600초가 `max_age_min=10` 임계와 겹친 흔들림이었다(명세 값을 900초로 바꿈).
+- 남은 bash 의존: 다른 스킬(dflow-work `dflow.sh`, dflow-team `lead-state.sh` 등), 리포 쪽 `heavy.sh`·`be-run.sh`, `statusline-dump` 의 `bash -c`. 10.1 의 의심 목록 중 흉내 코드 정리(1·3·4·5·6·8)는 후속이다.
