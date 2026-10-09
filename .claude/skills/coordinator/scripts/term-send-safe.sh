@@ -30,6 +30,7 @@
 #   --dry-run: 읽기·판정은 실제로 하고, 보내기 직전에 멈춰 stderr 에 DRY 를 찍고 stdout 에 `DRY SENT <h> -`(보냈다면 나올 줄에 DRY 를 붙임).
 set -uo pipefail
 _SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.   # dirname 대신(프로세스 0개)
+. "$_SD/lib/js-bridge.sh"; if _jsb_on TERM_SEND_SAFE; then _jsb_exec "$_SD/term-send-safe" "$@"; fi   # node 판(스위치 COORD_JS_TERM_SEND_SAFE)
 . "$_SD/lib/common.sh"
 . "$_SD/lib/term.sh"
 coord_cfg_prime   # 설정을 서브셸 밖에서 한 번 읽어 둔다
