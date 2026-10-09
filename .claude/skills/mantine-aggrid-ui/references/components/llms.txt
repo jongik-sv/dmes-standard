@@ -34,6 +34,8 @@
 - [Spinner · LoadingOverlay · ProgressBar](loading.md): 조회·저장이 진행 중임을 보여 줄 때 쓴다. 그리드 목록의 로딩은 AgDataGrid 의 `loading` 이 먼저이고, 이 컴포넌트들은 그 밖의 영역과 긴 작업에 쓴다.
 - [Badge](badge.md): 그리드 밖(카드·패널 머리·목록 항목)에서 분류·상태·형식을 작은 알약 모양 배지로 보일 때 쓴다. 그리드 셀 안은 GridBadge 다.
 - [SelectOrInput](select-or-input.md): 고를 목록이 있으면 드롭다운으로, 목록이 아직 없으면 직접 입력 칸으로 바뀌는 한 칸 입력을 만들 때 쓴다. 목록이 나중에 채워지는 칸(예: 조회해 본 결과 컬럼 이름)에 맞다.
+- [useDetailDraft](use-detail-draft.md): 상세 폼 입력 중에 화면 루트가 다시 그려지지 않게, 입력 초안을 상세 폼 컴포넌트 안에 두고 blur·저장·행 전환 때만 루트에 알릴 때 쓴다.
+- [useBusy](use-busy.md): 목록 조회·저장·삭제처럼 서로 다른 비동기 작업의 진행 상태를 키별로 나눠, 하나가 끝나는 것이 다른 부품을 다시 그리지 않게 할 때 쓴다.
 
 ## 목록 (`@dk-oasis/shared/grid`)
 

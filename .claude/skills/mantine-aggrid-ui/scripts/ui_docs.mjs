@@ -50,6 +50,7 @@ export const GROUPS = [
   ['입력 (`@dk-oasis/shared/form`)', [
     'button', 'input', 'select', 'combo-box', 'multi-select-combo-box', 'date-picker', 'date-time-picker',
     'checkbox', 'radio', 'segmented-control', 'textarea', 'form-group', 'loading', 'badge', 'select-or-input',
+    'use-detail-draft', 'use-busy',
   ]],
   ['목록 (`@dk-oasis/shared/grid`)', [
     'ag-data-grid', 'grid-panel', 'use-grid-data-manager', 'grid-badge', 'pagination', 'editable-row-list',
