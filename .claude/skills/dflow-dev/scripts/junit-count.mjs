@@ -1081,7 +1081,7 @@ const cmpCodePoint = (a, b) => {
 
 export function main(argv) {
   if (argv.length === 1 && (argv[0] === '--help' || argv[0] === '-h')) {
-    out('usage: junit-count.sh [--failed-file <경로>] [--since <epoch 초 | 파일>] [<폴더>...]\n');
+    out('usage: junit-count.mjs [--failed-file <경로>] [--since <epoch 초 | 파일>] [<폴더>...]\n');
     out('stdout: JUNIT_SUMMARY tests=<N> failures=<F> errors=<E> skipped=<S> files=<K> 한 줄. exit 0 정상, 1 셀 게 없음·전체 실패, 2 사용법 오류.\n');
     return 0;
   }
@@ -1132,7 +1132,7 @@ export function main(argv) {
 }
 
 function usageErr() {
-  err('usage: junit-count.sh [--failed-file <경로>] [--since <epoch 초 | 파일>] [<폴더>...]\n');
+  err('usage: junit-count.mjs [--failed-file <경로>] [--since <epoch 초 | 파일>] [<폴더>...]\n');
 }
 
 // LC_ALL=C sort -u 와 같은 바이트 순.
