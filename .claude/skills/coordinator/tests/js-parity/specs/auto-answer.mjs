@@ -20,7 +20,7 @@ const fxText = (n) => readFileSync(join(FX, n), 'utf8');
 const CLEAN = { COORD_RUN: '', COORD_SESSION_ID: '', CLAUDE_CODE_SESSION_ID: '', CLAUDE_PID: '', ORCA_TERMINAL_HANDLE: '', COORD_DRY: '', COORD_CONSOLE_POLL: '0',
   COORD_STATE_ROOT: '', COORD_LOCK_STALE_S: '', _COORD_CFG: '', _COORD_CFG_MINE: '', _COORD_CFG_SRC: '', COMPAT_FORCE_OS: '', COMPAT_FORCE_USERLAND: '', DFLOW_CONFIG_DIR: '',
   COORD_CONSOLE_LANE_LOCK_WAIT_S: '', COORD_CONSOLE_SENT_GRACE_S: '', COORD_TERM_TIMEOUT_MS: '', COORD_JS_ALL: '', COORD_CONSOLE_WINDOW_TIMEOUT_S: '', LC_ALL: 'C' };
-const BASE_ENV = { ...CLEAN, COORD_REPO: '<WORK>', COORD_STATE_ROOT: '<WORK>/state', DFLOW_CONSOLE_DIR: '<WORK>/console', FAKE_DIR: '<WORK>/fake', PATH: `<WORK>/bin:${process.env.PATH}`, COORD_JS_TEST: '1', COORD_JS_SLEEP_SCALE: '0', COORD_JS_SLEEP_LOG: '<WORK>/fake/sleep.log' };
+const BASE_ENV = { ...CLEAN, COORD_REPO: '<WORK>', COORD_STATE_ROOT: '<WORK>/state', DFLOW_CONSOLE_DIR: '<WORK>/console', FAKE_DIR: '<WORK>/fake', PATH: `<WORK>/bin:${process.env.PATH}`, COORD_CONSOLE_WINDOW_TIMEOUT_S: '29', COORD_JS_TEST: '1', COORD_JS_SLEEP_SCALE: '0', COORD_JS_SLEEP_LOG: '<WORK>/fake/sleep.log' };
 
 // ---------- 창 조립(tests/console-keys.sh §14 의 mkwin 과 같은 모양) ----------
 const RULE = '─'.repeat(60);

@@ -66,7 +66,7 @@ if (a[1] === 'list') {
 } else out({ ok: false, error: { message: 'unknown' } });
 `;
 export const FAKE_DATE = '#!/bin/sh\ncase "$*" in\n  "+%s") echo "$FAKE_NOW_S" ;;\n  "-u +%Y-%m-%dT%H:%M:%S.%N") echo "$FAKE_ISO_NS" ;;\n  "+%Y-%m-%dT%H:%M:%S%z") echo "$FAKE_ISO_TZ" ;;\n  *) exec /bin/date "$@" ;;\nesac\n';
-export const FAKE_SLEEP = '#!/bin/sh\n# 가짜 sleep: 기다리지 않는다. 정수 초(1 이상)만 fake/sleep.log 에 `sleep <초>` 로 남긴다(0.2초 폴링은 console-input 소관이라 남기지 않는다)\ncase "$1" in \'\'|*[!0-9]*|0) ;; *) [ -z "$FAKE_DIR" ] || echo "sleep $1" >> "$FAKE_DIR/sleep.log" ;; esac\nexit 0\n';
+export const FAKE_SLEEP = '#!/bin/sh\n# 가짜 sleep: 기다리지 않는다. 정수 초(1 이상)만 fake/sleep.log 에 `sleep <초>` 로 남긴다(0.2초 폴링은 console-input 소관이라 남기지 않는다). 29 는 남기지 않는다: 명세가 창 판정 시간 상한(COORD_CONSOLE_WINDOW_TIMEOUT_S)을 29 로 두어 bash 판의 감시용 `sleep 29` 가 부하에 따라 흔들리는 것을 막는다(감시 sleep 은 구현 세부라 대조 대상이 아니다)\ncase "$1" in \'\'|*[!0-9]*|0|29) ;; *) [ -z "$FAKE_DIR" ] || echo "sleep $1" >> "$FAKE_DIR/sleep.log" ;; esac\nexit 0\n';
 /** 고정 시각(초 단위 + 123ms)과 그것을 내는 환경 변수 */
 export function clock() {
   const ms = Math.floor(Date.now() / 1000) * 1000 + 123;
