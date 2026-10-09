@@ -269,6 +269,23 @@
   "col|to3|false",
   "col|to4|false"
  ],
+ "m-mcm/page-components/csa/commUserMng/CommUserDetailForm.tsx": [
+  "label|(식:labelName)|(식:label)|false",
+  "label|DEPT_CD|부서코드|-",
+  "label|EMAIL|이메일|-",
+  "label|END_ACTIVE_DATE|유효기한일|-",
+  "label|IN_OUT_EMP_TP|내부 외부 구분|-",
+  "label|MOBILE_TEL_NO|모바일번호|-",
+  "label|SSO_ID|SSO ID|-",
+  "label|START_ACTIVE_DATE|유효개시일|-",
+  "label|TEL_NO|전화 번호|-",
+  "label|USER_CATEGORY_CD|사용자분류코드|-",
+  "label|USER_EMP_NO|사번|-",
+  "label|USER_ID|사용자ID|-",
+  "label|USER_NM|사용자명|-",
+  "label|reRegister|계정 재생성|false",
+  "label|roleCopyUserId|사용자 역할그룹 복사|false"
+ ],
  "m-mcm/page-components/csa/commUserMng/page.tsx": [
   "col|DEPT_CD|-",
   "col|DEPT_NM|-",
@@ -288,24 +305,8 @@
   "col|USER_ID|-",
   "col|USER_NM|-",
   "col|USE_TP|-",
-  "label|DEPT_CD|부서코드|-",
-  "label|EMAIL|이메일|-",
-  "label|END_ACTIVE_DATE|유효기한일|-",
-  "label|IN_OUT_EMP_TP|내부 외부 구분|-",
-  "label|MOBILE_TEL_NO|모바일번호|-",
-  "label|SSO_ID|SSO ID|-",
-  "label|START_ACTIVE_DATE|유효개시일|-",
-  "label|TEL_NO|전화 번호|-",
-  "label|USER_CATEGORY_CD|사용자분류코드|-",
-  "label|USER_EMP_NO|사번|-",
   "label|USER_ID|사용자 ID|-",
-  "label|USER_ID|사용자ID|-",
-  "label|USER_NM|사용자명|-",
-  "label|initPassword|초기 비밀번호|false",
-  "label|pwdResetFlag|비밀번호 초기화|false",
-  "label|reRegister|계정 재생성|false",
-  "label|roleCopyUserId|사용자 역할그룹 복사|false",
-  "label|ssoResetFlag|SSO 초기화|false"
+  "label|initPassword|초기 비밀번호|false"
  ],
  "m-mcm/page-components/csa/commUserRoleCopy/page.tsx": [
   "col|DEPT_NM|-",
@@ -505,22 +506,24 @@
   "label|required|필수|-",
   "label|usageNote|활용처 메모|-"
  ],
- "m-mdm/pages/dma/columnMng/page.tsx": [
+ "m-mdm/pages/dma/columnMng/NameGenPanel.tsx": [
   "col|ABBR_TEXT|false",
   "col|ACTION|false",
   "col|MATCH_TEXT|false",
+  "col|seq|false",
+  "col|surface|false",
+  "label|genDomain|추천 도메인|false",
+  "label|genDuplicates|중복 검사|false",
+  "label|genPreview|(식:gen.direction === \"FORWARD\" ? \"물리명 미리보기\" : \"논리명\")|false"
+ ],
+ "m-mdm/pages/dma/columnMng/page.tsx": [
   "col|columnName|-",
   "col|domain|false",
   "col|labels|false",
   "col|physName|-",
   "col|required|-",
-  "col|seq|false",
-  "col|surface|false",
   "col|systemFields|false",
-  "col|termNames|false",
-  "label|genDomain|추천 도메인|false",
-  "label|genDuplicates|중복 검사|false",
-  "label|genPreview|(식:gen.direction === \"FORWARD\" ? \"물리명 미리보기\" : \"논리명\")|false"
+  "col|termNames|false"
  ],
  "m-mdm/pages/dma/domainMng/components/DomainBasicForm.tsx": [
   "label|dataType|데이터 타입|-",
