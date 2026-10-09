@@ -1,6 +1,6 @@
 # 계약 요약 (dflow-wbs-nlevel 에서 옮김)
 
-> SKILL.md `## 계약 요약` 절 (§1~§5) 에서 분리. 원문 그대로.
+> SKILL.md `## 계약 요약` 절 (§1~§5)에서 분리. 원문 그대로.
 
 ## 계약 요약 (정본: 스펙 문서)
 
@@ -74,7 +74,7 @@ credits:
 
 **Task 상세 블록** — 한 줄 밑에 들여쓴 `- key: value` 필드.
 - 체크박스 없는 리스트 = 필드, `- [ ]` = SubTask. 둘 공존.
-- import 필드를 여기에 싣는다: category·domain·model·priority·tags·depends·prd-ref·entry-point·requirements·acceptance·spec·note.
+- import 필드를 여기에 실음: category·domain·model·priority·tags·depends·prd-ref·entry-point·requirements·acceptance·spec·note.
 
 ```markdown
 - [ ] TSK-IN-001: 입측 실적 수집 프로세스 @홍길동 w:5 ~2026-11-14

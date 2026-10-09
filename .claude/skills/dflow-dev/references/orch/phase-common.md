@@ -2,19 +2,19 @@
 
 SKILL.md 「단계 지도」 가 가리킬 때 읽음. 다 읽기 전 단계 시작 금지. 모든 단계 공통 규칙(게이트 집행 원칙·상태 모델·서버 통신) = SKILL.md.
 
-**띄울 Phase 의 프롬프트 템플릿만 읽음**: `node .claude/skills/dflow-dev/scripts/sections.mjs .claude/skills/dflow-dev/references/phase-prompt.md '변수' '템플릿'` (Verify 감사자 = `orch/verify.md` 가 「감사 템플릿」 추가로 읽게 함). 템플릿은 Phase 공통 → 같은 세션에서 읽었고 압축 없었으면 다시 읽지 않음.
+**띄울 Phase 프롬프트 템플릿만 읽음**: `node .claude/skills/dflow-dev/scripts/sections.mjs .claude/skills/dflow-dev/references/phase-prompt.md '변수' '템플릿'` (Verify 감사자 = `orch/verify.md` 가 「감사 템플릿」 추가로 읽게 함). 템플릿은 Phase 공통 → 같은 세션에서 읽었고 압축 없었으면 다시 읽지 않음.
 
 ## Phase 02~05 — Design → Build → Verify → Refactor
 
-각 Phase = Agent 도구의 서브에이전트. **이름을 붙여 띄움** —
+각 Phase = Agent 도구 서브에이전트. **이름 붙여 띄움** —
 `Agent(name: "<TSK>-design" | "<TSK>-build" | "<TSK>-verify" | "<TSK>-refactor", ...)`.
-이름이 있어야 게이트 판정 뒤 `TaskStop(task_id: "<그 이름>")` 으로 회수 가능(아래 3번).
-Phase 마다 모델이 다름(dev-discipline 모델 배정표) → **한 에이전트를 4 Phase 가 돌려쓰지 않음**. 에이전트 모델 = spawn 시점 고정.
+이름 있어야 게이트 판정 뒤 `TaskStop(task_id: "<그 이름>")` 으로 회수 가능(아래 3번).
+Phase 마다 모델 다름(dev-discipline 모델 배정표) → **한 에이전트를 4 Phase 가 돌려쓰지 않음**. 에이전트 모델 = spawn 시점 고정.
 
-`model`(선택) = **지금 도는 Phase 서브에이전트의 모델**. heartbeat 훅이 서버로 실어 좌석표 명찰이 Phase 마다 바뀜.
+`model`(선택) = **지금 도는 Phase 서브에이전트 모델**. heartbeat 훅이 서버로 실어 좌석표 명찰이 Phase 마다 바뀜.
 **띄우기 직전 state.json `model` 에 그 서브에이전트 모델 기록** — Agent 도구에 넘기는 값 그대로 (`opus`·`sonnet`·`haiku`, 전체 id 넘겼으면 그 id).
 - commit 안 함 (다음 Phase 산출물 commit 에 같이 실림)
-- 재시도를 새 에이전트로 띄워 모델이 바뀌면 다시 기록
+- 재시도를 새 에이전트로 띄워 모델 바뀌면 다시 기록
 - Phase 01·06(오케스트레이터 직접)은 `model` 지우지 않음
 
 공통 프롬프트 필수 포함:
@@ -27,8 +27,8 @@ Phase 마다 모델이 다름(dev-discipline 모델 배정표) → **한 에이�
 
 검증 명령(`{VERIFY_CMDS}`) = **오케스트레이터가 기준선(Phase 01 4번)에서 실제로 돌린 명령 줄을 글자 그대로 옮김.**
 - 돌려 보지 않은 도구 경로 추측 금지
-- Build 의 관련 테스트·변이 검증처럼 **범위 좁힌 명령(`{NARROW_CMDS}`)도 그 기준선 명령 줄에서 만듦** — 안 적어 주면 서브에이전트가 전체 스위트를 다시 돌리거나 도구 경로를 추측
-- 대응표 있으면 Design 뒤 예측 범위의 모듈 게이트 명령(`GATE_SCOPE module` 줄)도 `{NARROW_CMDS}` 에 넣음 — 변이 검증이 대상 테스트로 안 잡힐 때 전체 대신 이 명령으로 넘어감
+- Build 의 관련 test·변이 검증처럼 **범위 좁힌 명령(`{NARROW_CMDS}`)도 그 기준선 명령 줄에서 만듦** — 안 적어 주면 서브에이전트가 전체 스위트를 다시 돌리거나 도구 경로를 추측
+- 대응표 있으면 Design 뒤 예측 범위의 모듈 게이트 명령(`GATE_SCOPE module` 줄)도 `{NARROW_CMDS}` 에 넣음 — 변이 검증이 대상 test 로 안 잡힐 때 전체 대신 이 명령으로 넘어감
 - 도커 문구(`{DOCKER_LINE}`) = 금지 모드 판정(dev-discipline.md 「도커 사용 규칙」)대로 선택
 
 commit 규칙에 **모든 commit 에 `--trailer "DFlow-Order: <주문 UUID>"` 붙이기** 포함 (state.json `order`, phase-prompt.md 공통 규칙 1).
@@ -48,15 +48,15 @@ Phase 종료마다 오케스트레이터가:
    - **강제 재실행**: Gradle `--rerun-tasks`·`cleanTest` = 변이 드라이버가 부분 실행 상태를 남겼을 때(`dflow-bak/` 에 사본 남음)만. 그 밖에는 UP-TO-DATE 신뢰 (dev-discipline 「강제 재실행」).
 2. 통과 → Phase 산출물 commit 확인(없으면 여기서 commit: 파일명 명시) → state.json 전진 → 서버 보고:
    Design `progress 25 "설계 완료"` / Build `progress 60 "구현 완료"` / Verify `progress 85 "검증 완료"`.
-3. **Phase 에이전트 회수** — 게이트 판정(통과·실패 무관, 재시도할 게 아니면) 끝나는 즉시 `TaskStop(task_id: "<TSK>-<phase>")`. 끝난 에이전트가 자기 세션을 붙들어 pane·메모리를 계속 차지.
-   - 회수는 게이트 **뒤** — 판정 전에 죽이면 재질의 대상이 사라짐
+3. **Phase 에이전트 회수** — 게이트 판정(통과·실패 무관, 재시도할 게 아니면) 끝나는 즉시 `TaskStop(task_id: "<TSK>-<phase>")`. 끝난 에이전트가 세션을 붙들어 pane·메모리를 계속 차지.
+   - 회수는 게이트 **뒤** — 판정 전에 죽이면 재질의 대상 사라짐
    - Build = 띄울 때 붙인 이름 그대로(`-c<n>` 포함) 회수. 마지막이 아닌 단위는 위 단위 절차대로 게이트 없이 회수
    - **pane 자체를 닫는 도구 없음.** TaskStop = 에이전트 종료만. pane 이 화면에서 사라지는지는 실행 하네스(FleetView 등) 몫
-   - 종료 후 pane 이 남으면 하네스에 보고할 건이지 이 스킬이 우회할 대상 아님 — 없는 API 지어내기 금지
+   - 종료 후 pane 이 남으면 하네스에 보고할 건. 이 스킬이 우회할 대상 아님 — 없는 API 지어내기 금지
 4. 실패 → **즉시 중단**: `"{TSK} {Phase} 실패 — {사유}. phase 유지, 재실행 시 같은 Phase 재개."`
-   - 예외: 게이트 신규 실패가 **모두** 타이밍·성능(부하 민감) 테스트면 먼저 그 테스트 파일만 `heavy.mjs --exclusive` 로 단독 재실행 — 통과하면 실패 아님 (dev-discipline 「부하 민감 테스트(타이밍·성능)의 단독 재실행」)
+   - 예외: 게이트 신규 실패가 **모두** 타이밍·성능(부하 민감) test 면 먼저 그 test 파일만 `heavy.mjs --exclusive` 로 단독 재실행 — 통과하면 실패 아님 (dev-discipline 「부하 민감 테스트(타이밍·성능)의 단독 재실행」)
    - Build 게이트와 Verify 만 1회 재시도 (수정 = Build 규율, dev-discipline 참조)
-   - **Build 게이트 실패 시 바로 failed 로 끝내지 않음.** 같은 Build 서브에이전트(구현 단위 여럿이면 마지막 단위)에 실패 목록(신규 실패 테스트 이름 + 출력 꼬리)과 "재시도 때는 단위 범위 제한 없이 Build 전체를 고친다" 를 넘겨 고치게 한 뒤 Build 게이트 재실행
+   - **Build 게이트 실패 시 바로 failed 로 끝내지 않음.** 같은 Build 서브에이전트(구현 단위 여럿이면 마지막 단위)에 실패 목록(신규 실패 test 이름 + 출력 꼬리)과 "재시도 때는 단위 범위 제한 없이 Build 전체를 고친다" 를 넘겨 고치게 한 뒤 Build 게이트 재실행
    - **그 에이전트가 sonnet 이면 이어 붙이지 않음** — TaskStop 뒤 opus 새 에이전트 `<TSK>-build-retry` 에 같은 두 가지(`{FAILURES}`, `{UNIT}` = 재시도 표기, phase-prompt.md 변수표)를 넘겨 띄움
      - 이 opus 재시도가 1회 재시도 자리를 대신 (횟수 안 늘어남)
      - 띄우기 전 기록(`## 실행 모델` 줄 `재시도`·승급 칸 `sonnet→opus(게이트 실패)`, progress `escalated: sonnet→opus 재시도(게이트 실패)`, 그 뒤 state.json `model`) = `orch/build.md` 「승급」 2·3 과 같음
@@ -70,14 +70,14 @@ Phase 종료마다 오케스트레이터가:
 
 ### 서브에이전트가 끝났는데 게이트를 안 돌렸을 때
 
-5. **서브에이전트 finished 인데 이 오케스트레이터가 게이트를 아직 직접 안 돌렸으면** — 보고에 게이트 결과 없거나 "백그라운드 완료를 기다린다"고만 한 경우, 그 알림을 기다리지 않음.
+5. **서브에이전트 finished 인데 이 오케스트레이터가 게이트를 아직 직접 안 돌렸으면** — 보고에 게이트 결과 없거나 "백그라운드 완료를 기다린다"고만 한 경우, 그 알림 기다리지 않음.
    - 프로세스(`pgrep` 등)·산출물(commit·파일) 직접 확인
    - 프로세스가 아직 돌면 오케스트레이터가 포그라운드에서 끝날 때까지 직접 대기 뒤 게이트 실행
      - 예: `kill -0 <PID>` 로 생존 확인하며 짧은 간격 재확인, 또는 로그·산출물 파일 폴링
      - `wait <PID>` = 그 PID 가 이 Bash 호출의 자식일 때만 됨 → 다른 호출·다른 서브에이전트가 띄운 프로세스에는 쓰지 않음
    - 이미 끝났고 남은 작업 없으면 SKILL.md 「게이트 집행 원칙」대로 게이트 바로 직접 실행
    - 오지 않을 알림 기다리며 입력 대기로 멈추기 금지
-   - 예외: Verify 작성자의 `VERIFY_EXEC` ≠ 게이트 시점 — 감사 셋 보고를 받아 `orch/verify.md` Verify 절차(지적 전달·최종 `PHASE_RESULT`)를 마친 뒤 게이트
-   - 구현 단위 여럿이면 마지막이 아닌 단위에서 "게이트를 돌린다" = "그 단위 commit 확인 후 다음 단위 띄움"
+   - 예외: Verify 작성자 `VERIFY_EXEC` ≠ 게이트 시점 — 감사 셋 보고를 받아 `orch/verify.md` Verify 절차(지적 전달·최종 `PHASE_RESULT`)를 마친 뒤 게이트
+   - 구현 단위 여럿이면 마지막 아닌 단위에서 "게이트를 돌린다" = "그 단위 commit 확인 후 다음 단위 띄움"
 
 **다음 단계**: 지금 Phase 파일 — `orch/design.md`·`orch/build.md`·`orch/verify.md`·`orch/refactor.md`.

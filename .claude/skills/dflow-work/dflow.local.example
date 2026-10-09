@@ -1,24 +1,24 @@
-# .dflow.local — D'Flow 에이전트 개인 설정. git 에 올리지 않음 (.gitignore). 값을 어디에도 출력·붙여넣지 않음.
+# .dflow.local — D'Flow 에이전트 개인 설정. git 에 안 올림 (.gitignore). 값을 어디에도 출력·붙여넣기 금지.
 
-# 개인 액세스 토큰 — D'Flow 웹 /account "내 토큰" 에서 발급. 쉼표로 여러 개 (첫 토큰이 기본). 하나면 pat= 도 됨.
+# 개인 액세스 토큰 — D'Flow 웹 /account "내 토큰" 에서 발급. 쉼표로 여러 개 (첫 토큰 = 기본). 하나면 pat= 도 됨.
 pats=
 
 # 토큰 둘 이상일 때 이 리포가 쓸 키 prefix (토큰의 셋째 '_' 칸). 비우면 첫 토큰. 목록 = dflow.mjs profiles.
 # /dflow-team 은 비어 있으면 시작 때 정해서 파일 끝에 적음.
 as=
 
-# 내 개발 브랜치 (필수). 에이전트 머지·스택 기점·반영 확인의 기준. 동료와 같은 이름이면 그 브랜치 공유.
-# 운영 브랜치에서 직접 개발하면 그 이름(예 main). 원격에 먼저 push 돼 있어야 함.
+# 내 개발 branch (필수). 에이전트 merge·스택 기점·반영 확인의 기준. 동료와 같은 이름이면 그 branch 공유.
+# 운영 branch 에서 직접 개발하면 그 이름(예 main). 원격에 먼저 push 돼 있어야 함.
 dev_branch=
 
-# 1 이면 팀장이 완료 보고된 작업을 승인 전에 개발 브랜치로 머지. 기본 0.
+# 1 이면 팀장이 완료 보고된 작업을 승인 전에 개발 branch 로 merge. 기본 0.
 automerge=0
 
 # 내가 맡은 서브시스템의 DOCS_DIR=프로젝트 UUID (쉼표 구분). 리포 전체가 한 프로젝트면 비움.
 # project_map=docs/c10=<uuid>
 
 # 1 이면 이 PC 에서 docker 태그 Task 의 워커와 수동 /dflow-dev 도 docker 안 씀 (강제 금지). .dflow 의 no_docker 를
-# 덮음. 워커는 이 값과 무관하게 기본 금지 (0 으로 못 풂 — 허용은 D'Flow 의 docker 태그로만). 정본: dev-discipline.md
+# 덮음. 워커는 이 값과 무관하게 기본 금지 (0 으로 못 풂 — 허용 = D'Flow 의 docker 태그뿐). 정본: dev-discipline.md
 # 「도커 사용 규칙」.
 # no_docker=1
 

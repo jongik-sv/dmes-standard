@@ -15,8 +15,8 @@
 - `done` 호출 때 git push 미완료
 - `BAD_DOCS_DIR <키>` — `.dflow.local` 의 `project_map` 키가 빈 값·`/` 로 시작(절대경로)·`..` 칸 포함
   - 키 = 리포 최상위 기준 상대경로 (예 `docs/mdm`)
-  - 그 항목만 건너뜀. 고치기 전에는 그 프로젝트가 바인딩 안 됨 → 그 프로젝트의 `claim`·`taskdir`·`config docs-dir` 가 exit 2 로 멈춤
-  - 다른 프로젝트는 경고만 보고 그대로 씀
+  - 그 항목만 건너뜀. 고치기 전에는 그 프로젝트 바인딩 안 됨 → 그 프로젝트의 `claim`·`taskdir`·`config docs-dir` 가 exit 2 로 멈춤
+  - 다른 프로젝트는 경고만 보고 그대로 사용
 - `done --decisions` 파일 형식 오류 (`DECISIONS_FILE`·`DECISIONS_JSON`·`DECISIONS_INVALID <사유>`)
 
 **해결**:
@@ -26,21 +26,21 @@
    echo "API_BASE: $DFLOW_API_BASE"
    echo "PAT: $(echo $DFLOW_PATS | head -c 20)..."
    ```
-3. 진행률은 0~99 범위만 허용
+3. 진행률 0-99 만 허용
 4. `done` 전에 반드시 push 완료:
    ```bash
    git push origin agent/<주문id>-<slug>
    dflow.mjs done <순번> "<요약>" --auto-links
    ```
-   `--auto-links` 빠지면 `evidence` 가 `{}` 로 영구 고정 — 후속 작업의 선행 도달 검사가 그 값을 쓰므로 무해하지 않음.
+   `--auto-links` 빠지면 `evidence` 가 `{}` 로 영구 고정 — 후속 작업의 선행 도달 검사가 그 값 사용 → 무해하지 않음.
 5. `done --decisions` 경고·오류 뜻 (계약 2.6):
    - `DECISIONS_FILE …` — 파일 없음. `DECISIONS_JSON …` — JSON 아님 또는 값이 하나 아님 (빈 파일 포함).
    - `DECISIONS_INVALID <사유>` — 서버와 같은 규칙 위반 (사유에 필드 경로 포함, 예 `decisions[0].chosen이 options 범위를 벗어났습니다.`).
      - 보고 안 나감. 파일 고쳐 다시 호출
-     - `chosen` = 선택지 문구가 아니라 0부터 센 색인
+     - `chosen` = 선택지 문구 아님, 0부터 센 색인
    - `DECISIONS_COUNT_MISMATCH …` / `DECISIONS_SUFFIX_MISSING …` — 요약의 `확인 필요 결정 N건` 과 목록 건수 불일치.
      **보고는 됨**(exit 0). design.md 절과 decisions.json 대조 후 다음 보고부터 맞춤.
-   - `서버가 결정 목록을 모릅니다(계약 < 2.6) — 요약 접미사로만 전달됐습니다.` — 서버가 옛 버전이라 결정이 버려짐.
+   - `서버가 결정 목록을 모릅니다(계약 < 2.6) — 요약 접미사로만 전달됐습니다.` — 서버가 옛 버전이라 결정 버려짐.
      **보고는 됨**(exit 0). 승인자는 요약 접미사로만 봄.
    ```bash
    dflow.mjs done <순번> "<요약> — 확인 필요 결정 2건: …" --auto-links --decisions <DOCS_DIR>/tasks/<TSK>/decisions.json
@@ -61,7 +61,7 @@
    export DFLOW_PATS="dflow_pat_..."
    ```
 
-토큰 스코프도 확인: `work:read` + `work:claim` 최소 필요.
+토큰 스코프도 확인: 최소 `work:read` + `work:claim` 필요.
 
 ### exit 4 — 선행·상태로 인한 진행 불가(로컬 차단 포함)
 
@@ -76,11 +76,11 @@
 
 **서버 선행 거부** (403 바디 `code=dependency_not_met`, `unmet[]` 동반):
 - 선행 항목 미충족 (v2.3 `reached:false` — 검수 대기 이상도, 승인도, 실적 100% 도 아님)
-- stderr 로 흘러나온 바디의 `unmet[]` 로 어느 선행인지 확인
+- stderr 로 나온 바디의 `unmet[]` 로 어느 선행인지 확인
 
 **선행 미반영 원인** (로컬 게이트):
 - claim 또는 show 호출 때 선행 작업이 로컬에 merge 안 됨
-- git 히스토리에 선행 커밋 도달 불가
+- git 히스토리에서 선행 commit 도달 불가
 
 **해결**:
 1. 상태 확인:
@@ -94,9 +94,9 @@
    git merge origin/main  # 또는 해당 브랜치
    dflow.mjs claim <순번>  # 재시도
    ```
-   **우회 시도 금지** — 실패 이유가 있음.
+   **우회 시도 금지** — 실패 이유 있음.
 
-### exit 5 — 권한 부족
+### exit 5 — permission 부족
 
 **HTTP 403 원인들**:
 
@@ -119,7 +119,7 @@ scopes: work:read, work:claim
 projects: Project A (admin), Project B (member)
 ```
 
-- 스코프에 필요한 권한 있는지 확인
+- 스코프에 필요한 permission 있는지 확인
 - 프로젝트 멤버십 있는지 확인
 - 필요하면 웹 `/account` → 토큰 재발급 또는 멤버십 요청
 
@@ -127,10 +127,10 @@ projects: Project A (admin), Project B (member)
 
 **HTTP 5xx / 네트워크 불가 / 로컬 환경 실패**
 - 서버 응답 파싱 실패, spec 캐시 파일 쓰기·이동 실패도 여기
-- 선행 문제가 아니므로 exit 4 로 안 냄 ("선행 기다렸다 재시도" 오분기 방지)
-- `BAD_REF` 도 exit 6: 주문 `external_ref` 마지막 칸이 `.`·`..` 이거나 `[A-Za-z0-9._-]` 밖 문자를 가져 작업 폴더 이름으로 못 씀
-  - `claim` 은 claim 요청 전에 거부 → 주문은 안 잡힘
-  - WBS 의 external_ref 를 고침
+- 선행 문제 아님 → exit 4 로 안 냄 ("선행 기다렸다 재시도" 오분기 방지)
+- `BAD_REF` 도 exit 6: 주문 `external_ref` 마지막 칸이 `.`·`..` 이거나 `[A-Za-z0-9._-]` 밖 문자 포함 → 작업 폴더 이름으로 못 씀
+  - `claim` 은 claim 요청 전에 거부 → 주문 안 잡힘
+  - WBS 의 external_ref 수정
 
 **해결**:
 1. 네트워크 연결 확인:
@@ -166,7 +166,7 @@ dflow.mjs me
 
 **HTTP 409 `code=cancelled`** — 사람이 D'Flow 에서 작업 중단 (주문 `cancelled`, 위임 해제).
 - 재시도 금지
-- 하던 일은 로컬 커밋으로만 남기고 push·done 안 함 (`/dflow-dev` SKILL.md 상태 모델)
+- 하던 일은 로컬 commit 으로만 남김. push·done 안 함 (`/dflow-dev` SKILL.md 상태 모델)
 - 다시 맡기려면 사람이 위임 체크를 켬 — 새 주문 생성
 
 ### exit 11 — 설계 관문(계약 2.11)
@@ -182,14 +182,14 @@ dflow.mjs me
 ### exit 12 — 다른 PC 도는 중(계약 2.11)
 
 **HTTP 409 `code=runner_active`** — stderr 끝줄 `RUNNER_ACTIVE <runner>`.
-- 다른 PC(`<runner>`)가 30분 안에 이 작업을 돌림. 이 세션은 멈춤
+- 다른 PC(`<runner>`)가 30분 안에 이 작업을 돌림. 이 세션 멈춤
 - 그 PC 세션이 정말 끝났으면 30분 뒤 다시 돌리면 이어받음 (`mine` 이 참이 됨)
 - 두 PC 가 같은 작업을 구현하지 않게 하는 관문 → 우회 금지
 - 새 heartbeat 훅을 깐 PC 에서는 훅이 먼저 세션을 세움
 
 완료 보고(`done`)의 `runner_active`:
 - 다른 PC 뿐 아니라 **같은 PC 의 다른 세션**이 살아 있을 때도 남 (`designGate.ts` `canReportCompletion` 둘째 갈래: heartbeat 라벨이 다르고 그 세션이 아직 살아 있음)
-- 이 경우 30분 기다리는 게 아니라 **그 세션이 끝나야**(heartbeat 멎어야) 풀림
+- 이 경우 30분 기다림 아님. **그 세션이 끝나야**(heartbeat 멎어야) 풀림
 - 완료 보고의 `RUNNER_ACTIVE <runner>` 라벨 = **실제로 막고 있는 PC·세션**: 다른 PC 면 그 PC 의 runner, 같은 PC 의 다른 세션이면 그 세션의 heartbeat 라벨
 - 그 세션을 끝내거나 heartbeat 가 멎기를 기다림
 
@@ -202,7 +202,7 @@ dflow.mjs me
 
 ### 명세 스냅샷 갱신
 
-claim 때마다 새로 생성 → 별도 갱신 불필요. claim 후 spec.md 를 반드시 읽음.
+claim 때마다 새로 생성 → 별도 갱신 불필요. claim 후 spec.md 반드시 읽음.
 
 ### 상태 로컬 복구
 
@@ -248,7 +248,7 @@ git branch -a
 
 ### 커밋 트레일러 확인
 
-push 전 커밋에 다음이 있는지 확인:
+push 전 commit 에 다음이 있는지 확인:
 ```bash
 git log -1 --format=%B | grep "^DFlow-Order:"
 ```
@@ -260,7 +260,7 @@ git commit --amend --trailer "DFlow-Order: <주문 UUID>"
 
 ## 지속적인 문제
 
-같은 exit code 가 반복되면:
+같은 exit code 반복되면:
 
 1. 로그 수집:
    ```bash
