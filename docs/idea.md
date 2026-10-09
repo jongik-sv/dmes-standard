@@ -20,6 +20,7 @@
 - 아날로그도 제대로된 화면을 만들자.
 - DB 설계 도구
   - 구상 문서: [docs/superpowers/specs/2026-10-09-erd-tool-concept.md](superpowers/specs/2026-10-09-erd-tool-concept.md) (2026-10-09). exERD 방식 편집·MDM 용어·도메인 연동·Claude Code MCP·CLI 편집. 정본(Flyway/ERD)·MDM 버전 객체 여부·exERD 동작 범위 결정 대기.
+  - 연구 보고서: [docs/erd-tool/2026-10-09-erd-tool-research.md](erd-tool/2026-10-09-erd-tool-research.md) (2026-10-09). exERD 가정 6개 중 5개 확인, 논리명→물리명 변환 API 는 이미 있음(0.2~0.3초), MCM 등은 DB FK·코멘트가 0이라 관계 추정 필요, 새 결정 거리 6건.
 - DB 관리 도구
 - ASD-STE100 조사 및 스킬에 적용
 - 에이전트 오피스의 태스크의 상세 내용에 완료작업, 현재 작업, 계획 작업 까지 같이 보이도록...

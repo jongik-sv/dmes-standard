@@ -2,6 +2,7 @@
 
 - 작성일: 2026-10-09
 - 상태: 구상(설계 전). 아래 "설계 전에 정할 것" 3건이 정해지면 brainstorming 으로 설계에 들어간다.
+- 연구 보고서: [docs/erd-tool/2026-10-09-erd-tool-research.md](../../erd-tool/2026-10-09-erd-tool-research.md) (2026-10-09). exERD 가정 판정, 관계선 복원 문제, 포맷·정본·MCP 조사, 새 결정 거리 6건.
 - 출발점: 마음에 드는 ERD 도구가 없다. dbdiagram.io 정도의 화면은 직접 만들 수 있고, 우리 MDM 의 도메인·컬럼·용어를 쓸 수 있으니 다른 도구보다 낫다고 본다. 편집 사용성은 exERD 방식을 따른다. Claude Code 와 연결되어 MCP·CLI 로도 편집할 수 있어야 한다.
 
 ## 0. 처음 생각에서 바뀐 점
@@ -28,15 +29,15 @@
 
 | 기능 | 근거가 되는 표 |
 |---|---|
-| 논리명 → 물리명 자동 변환 | `TB_MDM_TERM`, `TB_MDM_DICT_SYSTEM` |
+| 논리명 → 물리명 자동 변환 | `TB_MDM_TERM`(단어 사전). 변환 로직은 `ColumnNameComposer`, API 는 `columnMng/compare` 로 이미 있다(연구 보고서 3.1절). `TB_MDM_DICT_SYSTEM` 은 단어 사전이 아니라 도메인의 시스템 적용 표다 |
 | 도메인 → 타입·길이 | `TB_MDM_DOMAIN` |
 | 표준 컬럼 재사용, 코멘트 | `TB_MDM_COLUMN`, `TB_MDM_COLUMN_SYSTEM` |
-| 사용자가 확정한 서식으로 Oracle DDL 생성 | oracle-sql-rules 4장 |
+| 사용자가 확정한 서식으로 Oracle DDL 생성 | oracle-sql-rules 4장은 쿼리 서식이다. DDL 서식 규칙은 아직 없다 |
 | 실제 DB 를 거꾸로 읽어 표준 위반 표시 | `ALL_TAB_COLUMNS` 와 MDM 대조 |
 
 - 표준 위반을 나중에 검사하는 데서 그치지 않고 **입력하는 순간 막거나 경고**한다. 상용 도구와 가장 크게 차이 나는 점이다.
 - 사전에 없는 단어를 쓰면 그 자리에서 표준용어 등록 요청으로 이어 붙일 수 있다.
-- 걸리는 점: 2026-10-09 기준 리포 SQL 파일에 `CREATE TABLE` 은 350건(중복 제거 표 136개)인데 `COMMENT ON COLUMN` 은 54건뿐이다. 기존 DB 를 거꾸로 읽어도 논리명은 거의 얻을 수 없다. 논리명은 컬럼 사전과 물리명을 맞춰 보는 방식으로 채우고, 사전에 없는 컬럼은 1단계에서 바로 "표준 위반"으로 드러낸다.
+- 걸리는 점: 2026-10-09 로컬 DB(L_MAIN) 의 표 123개 모두 칼럼 코멘트가 0% 다(리포 SQL 의 `COMMENT ON COLUMN` 54건은 Flyway 밖 `caravan-core/docs/SQL` 에만 있다). FK 도 MDM 스키마에만 53개 있고 MCM 등은 0개다. 기존 DB 를 거꾸로 읽어도 논리명과 관계선은 거의 얻을 수 없다(연구 보고서 4절). 논리명은 컬럼 사전과 물리명을 맞춰 보는 방식으로 채우고, 사전에 없는 컬럼은 1단계에서 바로 "표준 위반"으로 드러낸다.
 
 ## 3. 모델 저장 위치와 동시 편집
 
@@ -62,7 +63,7 @@ CLI (.mjs) ─────────┘
 
 ## 5. 규모
 
-- 2026-10-09 기준 표 136개(MDM 57, MCM 47, SEC 10 등). APS·MES 가 붙으면 수백 개가 된다.
+- 2026-10-09 로컬 DB 기준 표 123개(MCMAPUSER 56, MDMAPUSER 40, CARAVANUSER 5 등 12개 스키마). APS·MES 가 붙으면 수백 개가 된다.
 - 모듈별 주제 영역은 필수다.
 - 컬럼 행마다 관계선 손잡이를 두면 화면 요소가 크게 늘어난다. 축소하면 표 이름만 보이게 하는 처리가 필요하다.
 
@@ -75,8 +76,8 @@ CLI (.mjs) ─────────┘
 | 캔버스, 노드 | `@xyflow/react` (`canvas/react-flow.ts` 진입점) |
 | 자동 배치 | `@dagrejs/dagre` (`flow-layout.ts`), 저장 위치가 자동 배치를 덮는 구조(`view.positions`) |
 | 관계선 꺾기·둥근 모서리 | `canvas/route-path.ts` |
-| 정렬, 찾기, 단축키 | `canvas/align.ts`, `FindWidget.tsx`, `shortcuts.ts` |
-| 우클릭 메뉴, 화면 이탈 방지 | `ContextMenu.tsx`, `ViewportGuard.tsx` |
+| 정렬, 찾기, 단축키 | `canvas/align.ts`, `canvas/FindWidget.tsx`, `canvas/shortcuts.ts` |
+| 우클릭 메뉴, 화면 이탈 방지 | `canvas/ContextMenu.tsx`, `canvas/ViewportGuard.tsx` |
 
 - 새로 만들 것: 컬럼 목록을 보여 주는 표 노드, 컬럼 행끼리 잇는 관계선 손잡이와 1:N 끝 모양.
 - 위 부품은 화면 폴더 안에 있다. 업무와 무관한 부품은 CLAUDE.md 공통 컴포넌트 규칙에 따라 `@dk-oasis/shared` 로 옮겨 함께 쓴다.
@@ -97,3 +98,5 @@ CLI (.mjs) ─────────┘
    - SQL Developer 도입 계획을 접을지도 이 결정에 따른다.
 2. **ERD 모델을 MDM 이 관리하는 버전 객체로 둘 것인가?** 승인·버전 이력을 그대로 쓸 수 있지만 편집 절차가 무거워진다.
 3. **1절 exERD 동작 중 꼭 필요한 것과 뺄 것은?**
+
+조사로 새로 생긴 결정 거리(저장 위치, FK 없는 스키마의 관계, 추정 관계, 가져오기 우선순위, DDL 서식, CLI·MCP 운영 인증)는 연구 보고서 10.2절에 있다.
