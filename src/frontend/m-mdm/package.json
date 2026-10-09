@@ -102,7 +102,8 @@
     "format": "prettier --write .",
     "gen:contract": "node scripts/gen-engine-contract.mjs",
     "lint": "tsc --noEmit",
-    "test": "node scripts/test.mjs"
+    "test": "node scripts/test.mjs",
+    "test:unit": "node scripts/test.mjs"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.1.1",
