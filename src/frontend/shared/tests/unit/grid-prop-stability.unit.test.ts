@@ -103,6 +103,39 @@ describe("AgDataGrid 참조 안정화", () => {
   });
 });
 
+describe("입력 배열 안정화 (화면이 rows·columns 를 렌더마다 새로 만드는 경우)", () => {
+  it("원소가 같으면 rowData·columnDefs 참조가 그대로다", async () => {
+    const make = () => grid({ columns: COLUMNS.map((c) => ({ ...c })), data: DATA.map((row) => row) });
+    await act(async () => void (r = renderWithMantine(make())));
+    await wait(30);
+    const before = seen.at(-1)!;
+    const n = seen.length;
+    await act(async () => rerender(r!, make()));
+    await wait(30);
+    expect(seen.length).toBeGreaterThan(n);
+    const after = seen.at(-1)!;
+    expect(after.rowData).toBe(before.rowData);
+    expect(after.columnDefs).toBe(before.columnDefs);
+  });
+
+  it("한 행만 새 객체로 바뀌면 rowData 는 새 배열이고 그 행의 셀만 갱신된다", async () => {
+    const make = (name: string) => grid({ data: [DATA[0], { code: "B", name }] });
+    await act(async () => void (r = renderWithMantine(make("나"))));
+    await wait(30);
+    const before = seen.at(-1)!;
+    const cell = (id: string) => document.querySelector(`.ag-row[row-id="${id}"] .ag-cell[col-id="name"]`);
+    const cellA = cell("A");
+    expect(cell("B")?.textContent).toBe("나");
+    await act(async () => rerender(r!, make("다")));
+    await wait(30);
+    const after = seen.at(-1)!;
+    expect(after.rowData).not.toBe(before.rowData);
+    expect(after.columnDefs).toBe(before.columnDefs);
+    expect(cell("B")?.textContent).toBe("다");
+    expect(cell("A")).toBe(cellA);
+  });
+});
+
 describe("마운트 다시 그리기", () => {
   it("GridPanel 안 그리드는 마운트 때 AgGridReact 를 3번 넘게 그리지 않는다", async () => {
     // 최소는 첫 렌더 + 자리(host)·대상 정함 + gridReady 세 번이다 — 대상 등록·해제가 더 얹히면 늘어난다.

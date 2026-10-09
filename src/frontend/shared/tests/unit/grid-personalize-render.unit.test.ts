@@ -235,8 +235,18 @@ describe("복원", () => {
     await show(grid());
     const a = api();
     await act(async () => void a.setColumnWidths([{ key: "code", newWidth: 300 }])); // api 변경 — 개인 상태가 아니다
-    await show(grid({ columns: COLUMNS.map((c) => ({ ...c })) }));
+    // 열 정의 내용이 바뀐 재주입(머리글 변경)이면 정의값을 다시 쓴다.
+    await show(grid({ columns: COLUMNS.map((c) => ({ ...c, header: `${c.header}!` })) }));
     expect(a.getColumn("code")!.getActualWidth()).toBe(100);
+  });
+
+  it("내용이 같은 열 배열을 새로 넘기면(인라인 columns) 열 정의를 다시 주입하지 않아 api 로 바꾼 너비가 남는다", async () => {
+    await stubUser("u1");
+    await show(grid());
+    const a = api();
+    await act(async () => void a.setColumnWidths([{ key: "code", newWidth: 300 }]));
+    await show(grid({ columns: COLUMNS.map((c) => ({ ...c })) }));
+    expect(a.getColumn("code")!.getActualWidth()).toBe(300);
   });
 });
 

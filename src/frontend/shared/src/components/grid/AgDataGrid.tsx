@@ -18,6 +18,7 @@ import type {
   ColumnState,
 } from "ag-grid-community";
 import { GRID_TEMP_ID_FIELD } from "./GridPanel";
+import { shallowEqualObject, useStableArray } from "./grid-stable-input";
 import { GRID_TOOLTIP_SHOW_DELAY_MS } from "./grid-tooltip";
 import { useGridTooltipOutside } from "./grid-tooltip-parent";
 import { AgDataGridExcelFrame, useGridExcelExport } from "./AgDataGridExcel";
@@ -83,8 +84,8 @@ const EMPTY_ROWS: Record<string, unknown>[] = [];
 const EMPTY_KEYS: string[] = [];
 
 function AgDataGridInner({
-  columns = EMPTY_COLUMNS,
-  data = EMPTY_ROWS,
+  columns: columnsProp = EMPTY_COLUMNS,
+  data: dataProp = EMPTY_ROWS,
   rowKey = "id",
   height,
   selectable = false,
@@ -142,6 +143,10 @@ function AgDataGridInner({
   header = true,
   headerExtras,
 }: AgDataGridInnerProps) {
+  // 화면이 렌더마다 새 배열로 넘겨도 원소가 그대로면 이전 배열을 쓴다 — 아래 훅·memo 와 ag-grid rowData 가 입력이 같으면 돌지 않는다(grid-stable-input.ts).
+  // 입력 행(상세 입력마다 rows 를 새로 만드는 화면)은 바뀐 행만 새 객체라 그 행만 달라 보이고, ag-grid 는 getRowId 로 바뀐 행만 갱신한다.
+  const columns = useStableArray(columnsProp, shallowEqualObject);
+  const data = useStableArray(dataProp);
   const gridRef = useRef<AgGridReact>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   // 툴팁은 그리드 밖(body)에 띄워 좁은 그리드에서 잘리지 않게 한다 — 툴팁이 뜰 수 있는 동안에만 popupParent 를 바꾼다.
