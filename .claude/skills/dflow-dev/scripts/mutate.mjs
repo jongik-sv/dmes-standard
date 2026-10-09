@@ -62,7 +62,7 @@ const writeAll = (fd, data) => {
 const out = (s) => { writeAll(1, s); };
 const err = (s) => { writeAll(2, s); };
 
-const USAGE = '사용법: mutate.sh run <폴더|파일.mut>… [--ids M1,M3]\n';
+const USAGE = '사용법: mutate.mjs run <폴더|파일.mut>… [--ids M1,M3]\n';
 const argv = process.argv.slice(2);
 if (argv.length === 1 && (argv[0] === '--help' || argv[0] === '-h')) { out(USAGE); process.exit(0); }
 if (argv[0] !== 'run') { err(USAGE); process.exit(2); }

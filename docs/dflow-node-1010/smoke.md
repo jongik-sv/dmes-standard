@@ -50,7 +50,7 @@ for f in .claude/skills/dflow-{work,merge,poll,team,dev}/scripts/*.mjs .claude/s
 | dflow-dev | free-port.mjs · sections.mjs · pred-reflected.mjs | `사용: …` |
 | dflow-dev | gate-scope.mjs | `usage: gate-scope.mjs --base <기점> [--map <파일>] [--ignore <경로 접두>]… [--paths-file <파일>]` |
 | dflow-dev | heavy.mjs | `사용법: heavy.mjs [--pool docker | --exclusive] [--detach] [--] <명령> … | acquire <이름> | release | status | snapshot` |
-| dflow-dev | junit-count.mjs · mutate.mjs | `usage: junit-count.sh …` · `사용법: mutate.sh run …` (관찰 1) |
+| dflow-dev | junit-count.mjs · mutate.mjs | `usage: junit-count.mjs …` · `사용법: mutate.mjs run …` (관찰 1) |
 | dflow-dev | timeout-guard.mjs | `usage: <PreToolUse hook JSON> | node timeout-guard.mjs` |
 
 ## 3. 읽기 전용 명령 (메인 체크아웃에서 실행)
@@ -95,7 +95,7 @@ node --test .claude/skills/coordinator/tests/{office,console-resolve,auto-answer
 
 ## 5. 관찰 (실패 아님, 고치는 일은 조정자가 배분)
 
-1. `.claude/skills/dflow-dev/scripts/junit-count.mjs`·`mutate.mjs` `--help` 사용법 문구가 옛 이름 `junit-count.sh`·`mutate.sh` 를 말한다. 기능은 정상. 문구를 `.mjs` 로 맞춘다.
+1. (수정됨) `junit-count.mjs`·`mutate.mjs` `--help` 사용법 문구가 옛 이름 `junit-count.sh`·`mutate.sh` 를 말해서 `.mjs` 로 고쳤다. node --check·--help 확인.
 2. C16 은 빈 에이전트라 SLOT 줄 출력 경로(handle 포함)는 이번에 확인하지 못했다. 팀장이 도는 회차에서 `lead-state.mjs --agent <실제> --repo <루트>` 1회로 확인한다.
 
 ## 6. 뺀 것
