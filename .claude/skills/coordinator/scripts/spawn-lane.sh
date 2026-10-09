@@ -20,6 +20,7 @@
 #     「— 」 뒤 제목, 그게 없으면 줄 앞 60자(앞쪽 # 와 / ~/ ./ C:/ 로 시작하는 경로 토큰은 뺀다). 이미 그 레인에 brief 가 있으면 건드리지 않는다.
 #   --dry-run: 사전 확인(preflight·상한·설정·Orca 워크트리 목록)은 실제로 하고, 터미널 생성부터는 DRY 로 찍고 `DRY SPAWNED <n> handle=- pid=- session_id=-`.
 set -uo pipefail
+. "$(dirname "$0")/lib/js-bridge.sh"; if _jsb_on SPAWN_LANE; then _jsb_exec "$(dirname "$0")/spawn-lane" "$@"; fi   # node 판(스위치 COORD_JS_SPAWN_LANE)
 . "$(dirname "$0")/lib/common.sh"
 . "$(dirname "$0")/lib/term.sh"
 SD="$(dirname "$0")"

@@ -23,6 +23,7 @@
 #   판단 올리기 기록의 cmd: 권한 창 모양 사유는 창 안 도구 이름 줄 아래 전부, 지문 없음은 화면 아래 30줄을 가린 것.
 set -uo pipefail
 _SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.   # dirname 대신(프로세스 0개)
+. "$_SD/lib/js-bridge.sh"; if _jsb_on AUTO_ANSWER; then _jsb_exec "$_SD/auto-answer" "$@"; fi   # node 판(스위치 COORD_JS_AUTO_ANSWER)
 source "$_SD/lib/common.sh"
 source "$_SD/lib/compat.sh"
 source "$_SD/lib/term.sh"
