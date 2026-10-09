@@ -627,7 +627,7 @@ async function inputDetect(k, ref, scr, h) {
       let fresh = !had || ck !== snap.kind || cf !== snap.full || ch !== h || cr !== run;
       if (!fresh && snap.full === '') {
         const ex = J.alt(J.index(curDoc, 'excerpt'), []);
-        fresh = D.excerptShaJson(J.tojson(ex), shimCtx()) !== snap.sha;
+        fresh = D.excerptShaJson(J.tojson(ex)) !== snap.sha;
       }
       if (!fresh && D.consumedHasSince(mkc(), name, cs)) fresh = true;
       if (fresh) {
@@ -1066,7 +1066,7 @@ async function markHandled(name, by, want) {
     let full = jr(J.index(doc, 'full')); if (!D.hex64(full)) full = '';
     if (want && full !== want) { r.rc = 2; return r; }
     const since = jr(J.index(doc, 'since'));
-    const sha = D.excerptShaJson(J.tojson(J.alt(J.index(doc, 'excerpt'), [])), shimCtx());
+    const sha = D.excerptShaJson(J.tojson(J.alt(J.index(doc, 'excerpt'), [])));
     const nw = new Map(doc); nw.set('handled', new Map([['by', by], ['at', D.nowMsIso()]]));
     if (!D.inputWrite(S.env, name, J.tojson(nw))) return r;
     if (!D.consumedAdd(mkc(), name, since, sha, full)) r.cons = false;
