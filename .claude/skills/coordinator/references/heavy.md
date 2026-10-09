@@ -6,25 +6,25 @@
 
 ## 1. 두 겹 통제
 
-1. **기계 장치**: `heavy.sh`(설정 `heavy.script`)와 Gradle test-slot
+1. **기계 장치**: `heavy.mjs`(설정 `heavy.script`)와 Gradle test-slot
    - 감싼 명령만 막음
-   - 동시 수 = heavy.sh 일반 슬롯 K개 (`max(1, RAM_GB/8)`)
+   - 동시 수 = heavy.mjs 일반 슬롯 K개 (`max(1, RAM_GB/8)`)
    - 기능: 부하 검사(`DFLOW_HEAVY_LOAD_MAX`), `--exclusive`
    - 기능: `--detach`/`wait`, `snapshot`
    - `heavy.script` 가 `null` → 통지만
-2. **통지**: heavy.sh 밖 명령(vitest·tsc·tsup·playwright)은 통지로만 막음
+2. **통지**: heavy.mjs 밖 명령(vitest·tsc·tsup·playwright)은 통지로만 막음
    - 통지는 항상 같이 함
 
-- heavy.sh 는 고치지 않음
+- heavy.mjs 는 고치지 않음
 - 측정 창 = 통지 + `measure-window.mjs open --hold-heavy`
-  - heavy.sh 없음 → `--hold-heavy` 무시됨
+  - heavy.mjs 없음 → `--hold-heavy` 무시됨
 
 ## 2. 레인 우선순위
 
 - state 레인별 `priority` (숫자가 낮을수록 높음)
 - 순서: 머지 임박 > 측정 > 일반 구현 > 대기 작업
 - 슬롯 부족 → 낮은 레인에 `무거운 작업 금지` 전송
-- heavy.sh 자체에는 우선순위 없음 (먼저 잡는 쪽이 이김)
+- heavy.mjs 자체에는 우선순위 없음 (먼저 잡는 쪽이 이김)
 
 ## 3. 측정 창(독점)
 
@@ -42,7 +42,7 @@
    - `QUIET yes run=0 … procs=0` → 4 로 (기준 `heavy.measure_quiet`)
    - `QUIET no` → 계속 기다림
    - `QUIET unknown` = load 를 못 얻는 윈도우(Git Bash)
-     - `heavy.sh status`·프로세스 목록으로 조정자가 직접 판단
+     - `heavy.mjs status`·프로세스 목록으로 조정자가 직접 판단
 4. **측정 시작**: 측정 레인에 `protocol.md` 3.5 `측정 시작` 전송
    - 내용: 항목, 창 끝 예정, 쓸 칸
    - 측정 레인 = 전용 DIR(`heavy.measure_dir`)로 돔
@@ -57,11 +57,11 @@
 - 연장(`open` 을 새 until 로 다시) 또는 중단(`close`) 결정
 
 주의:
-- `heavy.sh --exclusive` = 명령 하나 동안만 K개를 쥠
+- `heavy.mjs --exclusive` = 명령 하나 동안만 K개를 쥠
   - 회차 사이에 슬롯이 풀림 → 통지와 같이 창을 엶
-- heavy.sh 밖 명령과 test-slot 은 보유로 막지 못함
+- heavy.mjs 밖 명령과 test-slot 은 보유로 막지 못함
   - test-slot 형식 = gradle 쪽 사양, 건드리지 않음
-- 창 동안 heavy.sh 밖 명령이 끼어듦 → 그 회차 무효, 측정 레인에 알림
+- 창 동안 heavy.mjs 밖 명령이 끼어듦 → 그 회차 무효, 측정 레인에 알림
 - 창이 열린 동안 머지 허가 = 창 끝 뒤로 미룸 (`merge-gate.md` `WINDOW`)
 
 ## 4. load 기준(틱마다)

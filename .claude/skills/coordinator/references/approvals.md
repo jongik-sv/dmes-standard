@@ -38,7 +38,7 @@
 | `status` | 버전·상태 조회(`git status`·`log`·`ps` 등) |
 | `edit-own` | 레인 워크트리·scratchpad 안 편집 |
 | `commit-own` | 레인 브랜치의 git add·commit |
-| `heavy-build` | heavy.sh 를 거친 빌드·시험 |
+| `heavy-build` | heavy.mjs 를 거친 빌드·시험 |
 
 - **승인**: 그 세션의 허용 범주에 든 명령 → Yes 번호 전송
 - **거부**: 허용 범주와 무관하게 늘 거부 → Esc + 거부 통지

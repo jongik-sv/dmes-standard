@@ -96,7 +96,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd(), now }
 
     let SNAP = '';
     const hs = coordHeavyScript(c);
-    if (hs.out) SNAP = stripNl(runSync('bash', [hs.out, 'snapshot'], { env: c.env, cwd: c.cwd }).out.toString('utf8'));
+    if (hs.out) SNAP = stripNl(runScriptFile(hs.out, ['snapshot'], { env: c.env, cwd: c.cwd }).out.toString('utf8'));
     let BAND = '';
     const band = () => {
       if (BAND === '') {

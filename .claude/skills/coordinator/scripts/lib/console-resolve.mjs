@@ -4,7 +4,7 @@
 //   · 읽기만 한다(쓰기 없음). 시계·환경·작업 폴더는 Ctx 로 받는다(상주 폴러가 import 해 쓴다).
 //   · jq 가 하던 일은 jq-json.mjs 의 parse/index/alt 로 같은 값·같은 오류 시점을 낸다. jq 는 값을 읽는 대로 처리하므로
 //     파일 한가운데서 오류가 나면 그 앞 값의 출력은 남고 뒤는 없다(jqOutputs).
-//   · lead-state.sh 는 bash 로 남는다. spawn 으로 부르고 CR_LIMIT_S 가 있으면 시간 초과를 같게 처리한다(TERM → 0.3초 → KILL).
+//   · lead-state.mjs 는 node 로, COORD_LEAD_STATE 가 .sh 를 주면 bash 로 spawn 한다. 부를 때 CR_LIMIT_S 가 있으면 시간 초과를 같게 처리한다(TERM → 0.3초 → KILL).
 //     시간 초과 때 bash 판이 부르는 plog(폴러 로그)는 JS 에서 부를 수 없어 stderr 에 같은 문구를 쓴다.
 //   · bash 의 서술(awk 숫자 비교·read 의 IFS 공백 처리·$(…) 끝 줄바꿈 제거·grep -c . 의 종료 코드)을 그대로 옮겼다.
 import { spawnSync } from 'node:child_process';
@@ -32,10 +32,10 @@ export function consoleDir(env = process.env) {
   const raw = env.DFLOW_CONSOLE_DIR;
   return expand((raw === '' || raw == null) ? `${env.HOME ?? ''}/.dflow/console` : raw, env);
 }
-/** COORD_LEAD_STATE, 없으면 <스킬>/dflow-team/scripts/lead-state.sh (COORD_SCRIPTS_DIR = 이 lib 의 부모 폴더) */
+/** COORD_LEAD_STATE, 없으면 <스킬>/dflow-team/scripts/lead-state.mjs(COORD_SCRIPTS_DIR = 이 lib 의 부모 폴더) */
 function leadStatePath(env) {
   if ((env.COORD_LEAD_STATE ?? '') !== '') return env.COORD_LEAD_STATE;
-  return join(LIB_DIR, '..', '..', '..', 'dflow-team', 'scripts', 'lead-state.sh');
+  return join(LIB_DIR, '..', '..', '..', 'dflow-team', 'scripts', 'lead-state.mjs');
 }
 /** `case "$1" in ''|.*|*[!A-Za-z0-9._-]*) return 1; esac; [ ${#1} -le 64 ]` */
 export function refOk(s) {
@@ -179,12 +179,14 @@ function liveLeads(c) {
 
 // ---------- lead-state ----------
 const sleepMs = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-/** lead-state.sh 한 번 부르기. CR_LIMIT_S 가 있으면 그 초 안에 끊는다(넘으면 그때까지 나온 출력만, 경고 한 줄). */
+/** lead-state.mjs(node) 또는 COORD_LEAD_STATE 가 준 .sh(bash) 한 번 부르기. CR_LIMIT_S 가 있으면 그 초 안에 끊는다(넘으면 그때까지 나온 출력만, 경고 한 줄). */
 function leadStateCall(c, ls, agent, repo) {
+  const isMjs = /\.mjs$/i.test(ls);
+  const cmd = isMjs ? process.execPath : 'bash';
   const args = [ls, '--agent', agent, '--repo', repo];
   const limit = c.env.CR_LIMIT_S ?? '';
   if (limit === '') {
-    const r = spawnSync('bash', args, { env: c.env, cwd: c.cwd, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true, maxBuffer: 1 << 28 });
+    const r = spawnSync(cmd, args, { env: c.env, cwd: c.cwd, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true, maxBuffer: 1 << 28 });
     return r.error || r.stdout == null ? '' : r.stdout.toString('utf8');
   }
   const dir = mkdtempSync(join(c.env.TMPDIR || tmpdir(), 'cr-ls-'));
@@ -195,7 +197,7 @@ function leadStateCall(c, ls, agent, repo) {
     const secs = Number(limit);
     const opts = { env: c.env, cwd: c.cwd, stdio: ['ignore', fd, 'ignore'], windowsHide: true, detached: process.platform !== 'win32' };
     if (Number.isFinite(secs)) opts.timeout = Math.max(1, Math.round(secs * 1000));
-    const r = spawnSync('bash', args, opts);
+    const r = spawnSync(cmd, args, opts);
     if (r.error && r.error.code === 'ETIMEDOUT') {
       if (process.platform !== 'win32' && r.pid) {
         try { process.kill(-r.pid, 'SIGTERM'); } catch { /* 이미 없음 */ }
