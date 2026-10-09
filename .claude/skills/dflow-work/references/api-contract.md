@@ -107,7 +107,7 @@ pending ──expires_at 지남(또는 retry 때 이미 지남)──▶ expired
   "kind": "keys", "keys": ["Down", "Enter"], "input_request": { "kind": "choice", "since": "2026-10-06T01:02:03.004Z", "sha": "<64 hex>" } }
 ```
 - `target_kind` = `coord_lane` 뿐. 만료 = 만든 뒤 60초. 보내는 사람 = 세션 주인 본인뿐(관리자 불가).
-- `keys`: 1-4개, `^((Up|Down),){0,3}(Up|Down|Tab|[1-9]|Enter|Esc)$` 모양(앞자리 이동 키는 `Up`·`Down` 만, `Tab`·`1-9`·`Enter`·`Esc` 는 마지막 한 자리). 위반 행은 서버가 안 만듦.
+- `keys`: 1-4개, `^((Up|Down),){0,3}(Up|Down|Tab|[1-9]|Enter|Esc)$` 모양(앞자리 이동 키는 `Up`·`Down` 만, `Tab`·`1~9`·`Enter`·`Esc` 는 마지막 한 자리). 위반 행은 서버가 안 만듦.
 - `input_request` = 웹이 보던 입력 요청의 `kind`·`since`(서버가 UTC 밀리초 ISO 로 정규화)·`sha`(서버가 발췌로 계산 — 줄마다 제어 문자 제거 → 줄 끝 U+0020 제거 → `\n` 으로 이은 UTF-8 sha256 소문자 hex). 같은 since+sha 는 서버가 한 번만 받음.
 - 폴러(coordinator `contract.md` §4.1 「키 입력 답하기」)는 행을 안 믿고 대상·만료·허용 키를 다시 검사함. 보내기 직전 screen 을 다시 판정해 kind·sha(문자열)·since(시각) 중 하나라도 다르면 안 보내고 `refused`·`prompt_changed` 로 ack.
 - 키를 하나라도 넣었을 수 있으면 `refused` 로 ack 안 함(`sent` 또는 ack 생략 → `unknown`).
