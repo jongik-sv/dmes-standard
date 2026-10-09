@@ -262,7 +262,7 @@ curl -sS -X POST "$DFLOW_API_BASE/api/v1/wbs/import" \
 - **봉투 완성(2) 실패하면 업로드 안 함**.
   - `wbs-envelope.mjs` 비 0 종료 (1 입력·출력 오류, 2 사용 오류 — `--set` 없음 등) → `curl` 금지.
   - 앞 실행이 남긴 `nlevel-op-import.json` = 옛 파일. 전송 금지.
-  - 셸에서 두 명령을 `&&` 로 잇거나 종료 코드 확인 후 전송.
+  - 셸에서 두 명령을 `&&` 로 잇거나 종료 코드를 확인한 뒤에만 전송.
   - `--set` 값은 `<`·`>` 때문에 반드시 따옴표.
 - **골격 먼저**:
   - 골격 파일 = attach 없이 export (levels 가 project_settings 시드).
