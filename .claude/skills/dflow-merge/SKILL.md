@@ -25,7 +25,7 @@ description: 승인(approved)된 D'Flow 작업의 agent 브랜치를 개발 브�
 
 > **위치 선언**: /dflow-dev 는 done(reported, 승인 대기)에서 끝남. 사람이 D'Flow 웹에서 approve 한 뒤 그 브랜치를 main 에 합치는 것이 이 스킬.
 > 이게 없으면 후속 작업의 선행 게이트(`merge-base --is-ancestor` 검사)가 영원히 거짓, 스택 브랜치가 무한히 깊어짐.
-> 서버 통신 = dflow.sh, exit code 분기, dflow-work 금지사항 상속.
+> 서버 통신 = dflow.mjs, exit code 분기, dflow-work 금지사항 상속.
 
 **분기별 읽을 파일**(그 분기에 들어설 때만 읽음. 경로 기준 `.claude/skills/dflow-merge/`)
 - `--resolve` → `references/resolve.md`
@@ -38,21 +38,21 @@ description: 승인(approved)된 D'Flow 작업의 agent 브랜치를 개발 브�
 
 ## 절차
 
-`<기본브랜치>` = 개발 브랜치 = `dflow.sh branch dev` 값(`.dflow.local` 의 `dev_branch`, 레거시는 `origin/HEAD`). 팀원(`--worker`)은 팀장이 넘긴 `DEV_BRANCH` 사용.
+`<기본브랜치>` = 개발 브랜치 = `dflow.mjs branch dev` 값(`.dflow.local` 의 `dev_branch`, 레거시는 `origin/HEAD`). 팀원(`--worker`)은 팀장이 넘긴 `DEV_BRANCH` 사용.
 
 작업 폴더 `<TASKS>` = `<DOCS_DIR>/tasks` (리포 최상위 기준).
-- 한 주문의 폴더 `<TASKS>/<TSK>` = `dflow.sh taskdir <ref>` 값(`.dflow.local` 의 `project_map`, 없으면 `docs`).
-- 여러 작업을 훑을 때는 `dflow.sh config tasks-dirs` 가 내는 폴더 전부.
+- 한 주문의 폴더 `<TASKS>/<TSK>` = `dflow.mjs taskdir <ref>` 값(`.dflow.local` 의 `project_map`, 없으면 `docs`).
+- 여러 작업을 훑을 때는 `dflow.mjs config tasks-dirs` 가 내는 폴더 전부.
 - `<DOCS_DIR>` 를 `docs` 로 박은 고정 경로 금지.
 
-1. **후보 식별**: 인자 없으면 아래 원격·로컬 두 스캔이 낸 줄이 후보. **정본 = 이 두 셸 블록.** (`scripts/sweep-check.sh` 는 이 1번을 흉내 낸 사전 검사일 뿐 — 이 번호 끝 항목.)
+1. **후보 식별**: 인자 없으면 아래 원격·로컬 두 스캔이 낸 줄이 후보. **정본 = 이 두 셸 블록.** (`scripts/sweep-check.mjs` 는 이 1번을 흉내 낸 사전 검사일 뿐 — 이 번호 끝 항목.)
    - **원격 스캔**: `origin/agent/*` 마다 `origin/<기본브랜치>...<ref>` 차분에서 `tasks-dirs` 폴더별 pathspec(`<그 폴더>/*/state.json`)으로 state.json 을 찾아 `git show <ref>:<경로>` 로 읽음.
      - `git show` 에 glob 금지. 고정 glob `*/tasks/*/state.json` 금지.
      ```bash
      cd "$(git rev-parse --show-toplevel)" || exit 1   # tasks-dirs·pathspec 은 리포 최상위 기준이다
-     api=$(.claude/skills/dflow-work/scripts/dflow.sh config api_base); api=${api%/}
+     api=$(node .claude/skills/dflow-work/scripts/dflow.mjs config api_base); api=${api%/}
      git fetch origin
-     dirs=$(.claude/skills/dflow-work/scripts/dflow.sh config tasks-dirs); rc=$?
+     dirs=$(node .claude/skills/dflow-work/scripts/dflow.mjs config tasks-dirs); rc=$?
      { [ "$rc" = 0 ] && [ -n "$dirs" ]; } || { echo "건너뜀(tasks-dirs 조회 실패, exit $rc)"; exit 1; }
      printf '%s\n' "$dirs" | {
        set --
@@ -69,7 +69,7 @@ description: 승인(approved)된 D'Flow 작업의 agent 브랜치를 개발 브�
      ```
      - `tasks-dirs` 실패(exit≠0)·빈 값 → 후보 식별 **안 함**. "건너뜀(tasks-dirs 조회 실패)" 보고 후 멈춤(블록이 `rc`·빈 값을 먼저 봄).
      - `$dirs` 를 here-doc(`<<EOF`)으로 넘기지 않음.
-     - 여섯째 칸(`$p`) = 그 state.json 의 정확한 경로. 4번이 `<후보 state.json 경로>` 로 그대로 씀. 다시 `dflow.sh taskdir` 부르지 않음.
+     - 여섯째 칸(`$p`) = 그 state.json 의 정확한 경로. 4번이 `<후보 state.json 경로>` 로 그대로 씀. 다시 `dflow.mjs taskdir` 부르지 않음.
      - 브랜치 이름 id8 = state.json `order` 앞 8자 + **`phase` ≠ `merged` 면 전부 후보**. tip 의 phase 에 기대지 않음. 판정은 서버 `show`.
      - 단 `wait_pred`(설계 완료·선행 대기, `/dflow-dev` 「설계 선행」)와 `wait_review`(설계만 하고 검토 대기, `/dflow-dev` 「실행 범위」)는 제외. 완료 보고 전 설계만 push 한 브랜치라 머지할 것이 없음. 넣으면 선행·검토가 끝날 때까지 스윕마다 후보로 잡힘.
      - 일치하는 state.json 없는 브랜치 = 후보 아님.
@@ -77,8 +77,8 @@ description: 승인(approved)된 D'Flow 작업의 agent 브랜치를 개발 브�
    - **로컬 스캔**: `<TASKS>/*/state.json` 중 `phase=reported`, 또는 `phase=merged` + `unapproved=true`.
      ```bash
      cd "$(git rev-parse --show-toplevel)" || exit 1   # tasks-dirs 는 최상위 기준. $f 도 최상위 기준 경로로 나와야 <W>/<경로> 로 재사용된다
-     api=$(.claude/skills/dflow-work/scripts/dflow.sh config api_base); api=${api%/}   # 원격 스캔 블록과 별도 호출이라 다시 구한다
-     .claude/skills/dflow-work/scripts/dflow.sh config tasks-dirs | while IFS= read -r d; do
+     api=$(node .claude/skills/dflow-work/scripts/dflow.mjs config api_base); api=${api%/}   # 원격 스캔 블록과 별도 호출이라 다시 구한다
+     node .claude/skills/dflow-work/scripts/dflow.mjs config tasks-dirs | while IFS= read -r d; do
        find "$d" -mindepth 2 -maxdepth 2 -name state.json 2>/dev/null
      done | while IFS= read -r f; do
        jq -r --arg f "$f" --arg api "$api" 'select(.phase == "reported" or (.phase == "merged" and .unapproved == true))
@@ -98,14 +98,14 @@ description: 승인(approved)된 D'Flow 작업의 agent 브랜치를 개발 브�
      - `/dflow-team` 팀장은 그런 후보가 있으면 시작하지 않음.
    - **서버 조회**: state.json 의 전체 UUID 로 조회. show 출력에서 jq 로 `.order.status`, 마지막 `kind=completion` 리포트의 `review_action`·`review_note`, 완료 증적 `head_sha`(4번 승인 뒤 변경 확인용)만 뽑음. spec 본문은 싣지 않음.
      ```bash
-     j=$(.claude/skills/dflow-work/scripts/dflow.sh show <order 전체 UUID>); echo "show=$?"
+     j=$(node .claude/skills/dflow-work/scripts/dflow.mjs show <order 전체 UUID>); echo "show=$?"
      printf '%s' "$j" | jq -c '{status: .order.status, last: ([.reports[]? | select(.kind == "completion")] | last | {review_action, review_note, head_sha: .evidence.head_sha})}'
      ```
-   - **사전 검사 `scripts/sweep-check.sh`**: 이 1번을 서버 조회 없이 흉내 내는 **상위 집합**. 출력 계약(마지막 줄이 판정):
+   - **사전 검사 `scripts/sweep-check.mjs`**: 이 1번을 서버 조회 없이 흉내 내는 **상위 집합**. 출력 계약(마지막 줄이 판정):
      - `SWEEP_CANDIDATES n=<N> <id8…>`
      - `SWEEP_NONE` (이 스킬 호출 안 함)
      - `SWEEP_UNKNOWN <사유>` (스윕 실행)
-     - 판정 줄 앞의 `SWEEP_DIALECT_PENDING <sha>` (`SWEEP_NONE` 이어도 `dialect-check.sh` 한 번 호출)
+     - 판정 줄 앞의 `SWEEP_DIALECT_PENDING <sha>` (`SWEEP_NONE` 이어도 `dialect-check.mjs` 한 번 호출)
      - 호출자 = `/dflow-team` 「4-0. 스윕을 부르는 규칙」, `/dflow-dev` Phase 01-가.
      - 이 1번을 바꾸면 스크립트도 같이 수정(`tests/skills/dflow-sweep-check.test.ts` 가 두 블록과 스크립트의 후보를 대조).
 2. **판정: approved 만 진행**(`--on-report` 면 승인 대기도). 후보마다 아래 중 하나로 보고. 승인 대기·데이터 없음으로 뭉개지 않음.
@@ -116,7 +116,7 @@ description: 승인(approved)된 D'Flow 작업의 agent 브랜치를 개발 브�
    - 마지막 completion 리포트 `review_action=reject`: "반려: 재작업 필요 (<review_note>)" (dflow-dev Phase 01 1번 반려 판정과 같은 기준). 로컬 후보도 state.json 수정 없이 보고만(`rejected` 로 바꾸지 않음).
    - `status=reported`: "승인 대기".
    - 그 밖의 status: "건너뜀(서버 <status>)".
-   - show 404(dflow.sh exit 7) 또는 그 밖의 실패: "건너뜀(조회 실패)".
+   - show 404(dflow.mjs exit 7) 또는 그 밖의 실패: "건너뜀(조회 실패)".
 
    **승인 전 머지분 판정**(1번 로컬 스캔 넷째 칸이 `merged` 인 후보): 절대 다시 머지하지 않음. 그런 후보가 있으면 `references/unapproved.md` 를 읽고 같은 show 로 분류(승인 반영·반려(머지됨)·승인 대기(머지됨)·건너뜀).
 3. **순서: 스택은 조상 먼저**: 대상이 여럿이면 브랜치 tip 이 아니라 후보 state.json 의 `branch_base` 로 조상 관계를 판정해 조상부터 머지.
@@ -137,7 +137,7 @@ description: 승인(approved)된 D'Flow 작업의 agent 브랜치를 개발 브�
    git merge-base --is-ancestor <증적 head_sha> <머지 대상>   # 증적에 head_sha 가 있을 때만. 0 이 아니면(커밋이 없거나 조상이 아님) 머지하지 않는다
    git diff --name-only <증적 head_sha>..<머지 대상>   # 증적에 head_sha 가 있을 때만. 실패하면 머지하지 않고, 그 작업의 state.json 뿐이거나 비어 있어야 머지한다
    git merge --no-ff <머지 대상> -m "merge: <TSK> <제목> (approved)" -m "DFlow-Order: <order>"   # 로컬 후보 agent/<id8>-<slug>, 원격 전용 후보 origin/agent/<id8>-<slug>. 승인 전 머지는 (reported, 승인 전). <order> 는 그 후보 state.json 의 order. git merge 는 --trailer 를 모른다(git commit 전용) — 둘째 -m 이 빈 줄 뒤 문단이 되어 트레일러로 인식된다
-   .claude/skills/dflow-merge/scripts/decisions.sh renumber --tsk <TSK> --order <order>   # 「결정 번호 매김」. 임시 ID 가 없으면 NO_TEMP_IDS 로 아무것도 하지 않는다
+   node .claude/skills/dflow-merge/scripts/decisions.mjs renumber --tsk <TSK> --order <order>   # 「결정 번호 매김」. 임시 ID 가 없으면 NO_TEMP_IDS 로 아무것도 하지 않는다
    git add "<후보 state.json 경로>" && git commit -m "chore(<TSK>): phase=merged" \
      && git push origin <기본브랜치>   # state.json 을 phase=merged 로 고친 뒤 push. add·commit 이 실패하면(경로 없음 등) && 사슬이 끊겨 push 하지 않는다
    ```
@@ -150,11 +150,11 @@ description: 승인(approved)된 D'Flow 작업의 agent 브랜치를 개발 브�
       - 위 보고 후 다음 후보로.
       - 증적에 `head_sha` 자체가 없는 옛 완료 보고 → 이 확인 건너뛰고 머지, 보고에 "승인 뒤 변경 확인 불가" 추가.
 
-      **강제 진행 스텁 관문**: 개발 브랜치 = 운영 브랜치(`dflow.sh branch dev` 와 `dflow.sh branch release` 가 같은 값)면 머지 전에 `dflow.sh stub-check <머지 대상>` 실행.
+      **강제 진행 스텁 관문**: 개발 브랜치 = 운영 브랜치(`dflow.mjs branch dev` 와 `dflow.mjs branch release` 가 같은 값)면 머지 전에 `dflow.mjs stub-check <머지 대상>` 실행.
       - exit 4 → 머지 안 함. 「스텁 잔존 — 개발 브랜치 미설정 리포라 운영에 스텁이 들어간다」 보고 후 다음 후보로.
       - 두 브랜치가 다르면 이 검사 안 함.
 
-      **마이그레이션 버전 관문**: 머지 전에 `.claude/skills/dflow-merge/scripts/migration-check.sh HEAD <머지 대상>` 실행(「마이그레이션 버전 관문」, 임시 머지 워크트리면 `-C "$W"`).
+      **마이그레이션 버전 관문**: 머지 전에 `node .claude/skills/dflow-merge/scripts/migration-check.mjs HEAD <머지 대상>` 실행(「마이그레이션 버전 관문」, 임시 머지 워크트리면 `-C "$W"`).
       - exit 1(버전 중복·역순 도착) → 머지 안 함. `머지 실패(충돌) <MIGRATION_FILES 의 파일,…> (마이그레이션 버전)` 보고 후 다음 후보로. 팀장은 텍스트 충돌과 똑같이 해소 워커에 넘김.
       - exit 2(판정 불가) → 머지 안 함. "건너뜀(마이그레이션 검사 실패)" 보고.
    3. `git merge --no-ff <머지 대상>`. 충돌하면 먼저 공용 결정 기록(`decisions.md`) 충돌만 스크립트로 해소(「결정 번호 매김」).
@@ -164,24 +164,24 @@ description: 승인(approved)된 D'Flow 작업의 agent 브랜치를 개발 브�
       - 충돌 파일 목록은 `--abort` **전에** 읽음(뒤에는 빔). 보고 줄 = `머지 실패(충돌) <파일,…>` (스크립트가 푼 decisions.md 제외).
       - 임시 머지 워크트리에서는 git 명령을 `git -C "$W"`, 스크립트를 `-C "$W"` 붙여 호출.
       ```bash
-      .claude/skills/dflow-merge/scripts/decisions.sh merge-conflicts   # 공용 decisions.md 충돌만 푼다. DECISIONS_RESOLVED·DECISIONS_LEFT
+      node .claude/skills/dflow-merge/scripts/decisions.mjs merge-conflicts   # 공용 decisions.md 충돌만 푼다. DECISIONS_RESOLVED·DECISIONS_LEFT
       git diff --name-only --diff-filter=U | paste -sd, -   # 남은 충돌 파일 목록(쉼표로 이음). 비었으면 아래 commit, 아니면 --abort
       git merge --abort
       ```
       ```bash
       git commit --no-edit --cleanup=strip   # 남은 충돌이 없을 때만. 머지 완성
       ```
-   3-1. **결정 번호 매김**: 머지 커밋 뒤 `decisions.sh renumber --tsk <TSK> --order <order>` 실행(「결정 번호 매김」).
+   3-1. **결정 번호 매김**: 머지 커밋 뒤 `decisions.mjs renumber --tsk <TSK> --order <order>` 실행(「결정 번호 매김」).
       - `NO_TEMP_IDS` → 커밋 없음.
       - `COMMITTED <sha>` → 번호 매김 커밋이 머지 커밋 위에 생김(5단계 push 에 함께 실림).
       - `RENUMBER_DIRTY`·`RENUMBER_FAILED …` → 머지를 막지 않음(스크립트가 자기 변경을 되돌림). 4단계로 가고 보고에 "결정 번호 매김 실패(<출력>)" 추가.
       - `UNION_SET`·`DUP_*`·`DECISIONS_SEQ` 줄도 머지를 막지 않음(6번대로 싣음).
       - 번호 매김 실패 + 그 머지에 중복 있었음 → "결정 번호 중복 — 사람이 고쳐야 함" 보고.
-   4. state.json 을 `phase=merged` 로 갱신해 기본 브랜치에 커밋(파일명 명시). `<후보 state.json 경로>` = **1번 후보 식별이 이미 찾은 그 경로**(로컬 `$f`, 원격 `$p`). 여기서 `dflow.sh taskdir` 다시 부르지 않음.
+   4. state.json 을 `phase=merged` 로 갱신해 기본 브랜치에 커밋(파일명 명시). `<후보 state.json 경로>` = **1번 후보 식별이 이미 찾은 그 경로**(로컬 `$f`, 원격 `$p`). 여기서 `dflow.mjs taskdir` 다시 부르지 않음.
       - `git add` 실패(경로 빔 / 그 시점 트리에 파일 없음 / stage 안 됨) → **커밋·push 안 함**. "머지 실패(state.json 경로)" 보고 후 다음 후보로.
       - 이 커밋을 **push 전에** 만듦.
       - 승인 전 머지면 같은 커밋에 `unapproved: true` 도 넣음.
-      - `phase` 를 `merged` 아닌 새 값으로 만들지 않음(행 G 의 반영 확인과 `poll.sh` 의 반려 감지가 `merged` 를 봄).
+      - `phase` 를 `merged` 아닌 새 값으로 만들지 않음(행 G 의 반영 확인과 `poll.mjs` 의 반려 감지가 `merged` 를 봄).
    5. `git push origin <기본브랜치>` 로 머지와 `merged` 커밋을 한 번에 올림. push 실패 시 먼저 `git reset --keep <기록한 HEAD>` 로 되돌리고, `references/push-fail.md` 를 읽어 거부 모양(경합·훅·그 밖)으로 분류. `origin` 으로 리셋 금지.
 
    `--no-ff` 고정 — 작업 단위 경계가 머지 커밋으로 남아야 추적 가능. push 가 훅에 거부되면 우회 금지. 되돌리고 보고한 뒤 그 작업과 후손만 빼는 절차 = `references/push-fail.md`.
@@ -211,14 +211,14 @@ description: 승인(approved)된 D'Flow 작업의 agent 브랜치를 개발 브�
 
 같은 목적의 도커 검증(DB 방언 검증 등)은 워커가 하지 않음(정본 dev-discipline 「도커 사용 규칙」). 이 스윕이 **스윕 한 번에 한 번, 마지막 머지 커밋(스윕 끝의 `origin/<기본브랜치>`)에서** 실행. 머지마다 실행 안 함. **도커 런타임을 켜지 않음.** `--resolve` 는 이 절을 타지 않음.
 - 스윕 시작의 `git fetch origin` 직후 `git rev-parse origin/<기본브랜치>` 를 `<스윕 전 sha>` 로 기록.
-- 6번 보고 직전에 `.claude/skills/dflow-work/scripts/dflow.sh config dialect_check` 확인.
+- 6번 보고 직전에 `node .claude/skills/dflow-work/scripts/dflow.mjs config dialect_check` 확인.
 - exit 0 + 빈 값 → 이 단계 없음(`DIALECT_NONE`).
 - 그 밖 → `references/dialect.md` 를 읽고 그 명령을 한 번 호출.
 
 ## 결정 번호 매김
 
 공용 결정 기록(`docs/<모듈>/decisions.md` 등, `## D-NNN (<UTC 타임스탬프>)` 블록을 추가만 하는 기록)의 전역 번호는 머지하는 이 스킬이 매김. agent 브랜치는 Task 범위 임시 ID `D-<TSK>-<n>` 만 사용(dev-discipline 「공용 결정 기록(decisions.md)의 번호」).
-번호는 손으로 매기지 않음. 도구 = `.claude/skills/dflow-merge/scripts/decisions.sh` 하나, 머지 자리의 최상위에서 실행(임시 머지 워크트리면 `-C "$W"`).
+번호는 손으로 매기지 않음. 도구 = `node .claude/skills/dflow-merge/scripts/decisions.mjs` 하나, 머지 자리의 최상위에서 실행(임시 머지 워크트리면 `-C "$W"`).
 
 - **충돌 풀기**(`merge-conflicts`, 4번 3단계·해소 머지 4번): 충돌한 decisions.md 만 블록 단위로 풀음(`DECISIONS_RESOLVED`). 못 푼 `DECISIONS_LEFT` 파일은 다른 충돌과 같이 처리.
 - **번호 매김**(`renumber`, 4번 3-1단계·해소 머지 6번 뒤): 임시 ID 를 다음 전역 번호로 바꾸는 커밋 하나를 남김. 첫 단계에서 **전역 번호 중복**(두 브랜치가 같은 `## D-NNN` 보유)을 충돌 여부와 무관하게 머지 대상 쪽만 옮겨 바로잡음.
@@ -229,9 +229,9 @@ description: 승인(approved)된 D'Flow 작업의 agent 브랜치를 개발 브�
 ## 마이그레이션 버전 관문
 
 Flyway 처럼 파일명이 곧 버전인 마이그레이션(`V<버전>__<설명>.sql`)은 병렬 브랜치가 같은 번호를 고르면 **git 충돌 없이** 머지되고 개발 브랜치 기동이 깨짐.
-- 머지 전에 합친 트리를 `.claude/skills/dflow-merge/scripts/migration-check.sh` 로 검사.
+- 머지 전에 합친 트리를 `node .claude/skills/dflow-merge/scripts/migration-check.mjs` 로 검사.
 - 걸리면 충돌로 취급. 해소 워커(`--resolve`, `resolve-prompt.md` 「해소 규약」 R9)가 다음 번호로 재채번.
-- 스윕(4번 2단계) = `migration-check.sh HEAD <머지 대상>`. 해소 머지(`references/resolve.md` 4·5번) = `migration-check.sh --staged`.
+- 스윕(4번 2단계) = `migration-check.mjs HEAD <머지 대상>`. 해소 머지(`references/resolve.md` 4·5번) = `migration-check.mjs --staged`.
 - 대상 리포가 Flyway `outOfOrder=true` 로 운영하면 팀장 세션 환경에 `DFLOW_MIGRATION_OUT_OF_ORDER=1`(또는 `--allow-out-of-order`) 설정 → 역순 검사만 끔. 중복 검사는 끄지 않음.
 - 출력(`MIGRATION_*`)·버전 비교 규칙 → `references/script-details.md` 「마이그레이션 버전 관문」.
 

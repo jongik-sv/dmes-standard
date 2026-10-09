@@ -19,7 +19,7 @@ SKILL.md 「절차」 4번에서 **호출한 체크아웃이 기본 브랜치에
      W="$(git rev-parse --show-toplevel)/.claude/worktrees/dflow-merge"; [ -e "$W/.git" ] || { echo NO_MERGE_WT; exit 1; }
      ```
      `NO_MERGE_WT` → 그 후보 처리 없이 "머지 워크트리 없음" 으로 보고, 스윕 멈춤
-   - `decisions.sh` (3·3-1단계) = 호출한 체크아웃 최상위에서 그 체크아웃의 스킬 경로로 호출, `-C "$W"` 붙임 (예: `.claude/skills/dflow-merge/scripts/decisions.sh renumber -C "$W" --tsk <TSK> --order <order>`). `migration-check.sh` 도 같음
+   - `decisions.mjs` (3·3-1단계) = 호출한 체크아웃 최상위에서 그 체크아웃의 스킬 경로로 호출, `-C "$W"` 붙임 (예: `node .claude/skills/dflow-merge/scripts/decisions.mjs renumber -C "$W" --tsk <TSK> --order <order>`). `migration-check.mjs` 도 같음
    - 후보마다 위 1~5를 `<W>` 에서 실행. 달라지는 것 셋뿐. 설정 블록과 같은 호출 안에서 이어 돌 때만 가드 없이 `$W` 그대로 사용. 아래 `<W>`·`"$W"` = 가드 줄이 구한 값
      1. 1단계: `git -C "$W" fetch origin && git -C "$W" switch --detach origin/<기본브랜치>` (`pull` 대신 detach). 그 뒤 `git -C "$W" rev-parse HEAD` 를 머지 직전 HEAD 로 기록
      2. 4단계 state.json: `<W>/<후보 state.json 경로>` 를 고쳐 `<W>` 에서 커밋 (같은 경로 재사용 규칙)

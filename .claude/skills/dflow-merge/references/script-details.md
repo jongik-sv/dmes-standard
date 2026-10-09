@@ -4,7 +4,7 @@ SKILL.md 「결정 번호 매김」·「마이그레이션 버전 관문」 스�
 
 ## 결정 번호 매김
 
-- `decisions.sh` (머지 자리 최상위, 임시 머지 워크트리면 `-C "$W"`)
+- `decisions.mjs` (머지 자리 최상위, 임시 머지 워크트리면 `-C "$W"`)
 - 결정 기록 형식 = dflow-wbs `decision-log.mjs`. `validate` 는 D-001 부터 끊김 없는 순번 요구
 - 번호 = 개발 브랜치에 들어가는 순서로만 결정
 - `decision-log.mjs` 형식·validate 변경 금지 (`Temp ID`·`Renumbered from` 은 선택 필드로 읽힘)
@@ -58,7 +58,7 @@ SKILL.md 「결정 번호 매김」·「마이그레이션 버전 관문」 스�
 
 ## 마이그레이션 버전 관문
 
-`migration-check.sh`. 마이그레이션 폴더는 파일 패턴으로 찾음 (폴더 설정 안 읽음). 폴더별로 두 가지 확인.
+`migration-check.mjs`. 마이그레이션 폴더는 파일 패턴으로 찾음 (폴더 설정 안 읽음). 폴더별로 두 가지 확인.
 
 - **버전 중복**: 같은 폴더에 같은 버전이 둘 이상이고 그중 하나가 이 브랜치가 추가한 파일 (`MIGRATION_DUP`). 개발 브랜치 자체의 중복은 경고(`MIGRATION_DEV_DUP`)만 하고 이 머지를 막지 않음
 - **역순 도착**: 이 브랜치가 추가한 버전 < 그 폴더의 개발 브랜치 최대 버전 (`MIGRATION_ORDER`, 같으면 중복). Flyway 기본값 `outOfOrder=false` 에서는 이미 더 높은 버전을 적용한 개발 DB 가 그 파일을 거부
@@ -69,9 +69,9 @@ SKILL.md 「결정 번호 매김」·「마이그레이션 버전 관문」 스�
 - exit 1 = 버전 중복·역순 도착. 걸린 파일 (이 브랜치가 추가한 것) 은 `MIGRATION_FILES` 로 나옴
 - exit 2 = `MIGRATION_CHECK_FAILED <사유>` (판정 불가 — 머지 금지)
 
-## 지원 환경: macOS · Git Bash(윈도우)
+## 지원 환경: macOS · Linux · Windows (node)
 
-- `scripts/*.sh` = macOS 와 Git for Windows 의 Git Bash 에서 같이 돎
-- 필요 도구: bash, git, jq (윈도우는 `_shared/bin` 동봉판), awk·sed·grep
+- `scripts/*.mjs` = node 로 macOS·Linux·Windows 에서 같이 돎
+- 필요 도구: node 18.17+, git (Git Bash 는 사용자 bash 문법 명령(게이트·baseline 명령)을 윈도우에서 돌릴 때만 필요)
 - 별도 플랫폼 의존 명령 금지. 새 스크립트에 macOS 전용 명령·perl 금지
 - 정본·도구 표·한계: `../../_shared/platform-support.md`

@@ -34,10 +34,10 @@
    git -c rerere.enabled=true merge --no-ff --no-commit <머지 대상>
    git diff --name-only --diff-filter=U        # 충돌 파일 목록. 비었으면 텍스트 충돌은 없다(files=0)
    ```
-   - 텍스트 충돌과 별도로 `.claude/skills/dflow-merge/scripts/migration-check.sh --staged` 실행 (「마이그레이션 버전 관문」)
+   - 텍스트 충돌과 별도로 `node .claude/skills/dflow-merge/scripts/migration-check.mjs --staged` 실행 (「마이그레이션 버전 관문」)
      - exit 1 → `resolve-prompt.md` 「해소 규약」 R9 로 이 브랜치가 추가한 마이그레이션 재채번. 스윕이 `(마이그레이션 버전)` 으로 넘긴 작업은 텍스트 충돌 0개일 수 있음 (`files=0 rules=R9`)
      - exit 2 → 해소 없이 `git merge --abort` 뒤 `RESOLVE_SKIPPED 건너뜀(마이그레이션 검사 실패)` 로 끝
-   - 공용 결정 기록(`decisions.md`) 충돌은 먼저 `.claude/skills/dflow-merge/scripts/decisions.sh merge-conflicts` 로 품 (「결정 번호 매김」). 번호 수동 매김 금지. `DECISIONS_LEFT` 로 남은 파일은 아래 규약으로 품
+   - 공용 결정 기록(`decisions.md`) 충돌은 먼저 `node .claude/skills/dflow-merge/scripts/decisions.mjs merge-conflicts` 로 품 (「결정 번호 매김」). 번호 수동 매김 금지. `DECISIONS_LEFT` 로 남은 파일은 아래 규약으로 품
    - 충돌 파일마다 `dflow-team/references/resolve-prompt.md` 「해소 규약」 R1-R9 로 품
      - 그 규약 「blocked 로 멈추는 경우」 에 걸리면 머지를 워크트리에 멈춘 채 두고 `RESOLVE_BLOCKED <질문과 선택지 한 줄>` 로 끝
      - `--abort` 금지. 사람이 답하면 그 자리에서 이어 감
@@ -46,7 +46,7 @@
    - 실행 전 작업 트리 = stage 트리여야 함 (`git diff --quiet` exit 0). 남은 변경은 stage 하거나 되돌려 맞춤
    - 게이트 뒤에도 같은 확인 한 번 더. 시험이 추적 파일을 고쳤으면 `git restore --worktree -- <파일>` 로 index 판으로 되돌림
    - 판정 = `dflow-team/references/resolve-prompt.md` 「게이트」 (기준선 = 호출자가 기준 HEAD·머지 대상 단독·merge-base 에서 잰 총수)
-   - 시험과 함께 `.claude/skills/dflow-merge/scripts/migration-check.sh --staged` exit 0 이어야 통과
+   - 시험과 함께 `node .claude/skills/dflow-merge/scripts/migration-check.mjs --staged` exit 0 이어야 통과
      - exit 1·2 → 아래 실패와 같이 되돌리고 `RESOLVE_GATE_FAILED migration` 으로 끝 (해소 워커 결과 `failed gate migration`)
    - 통과 못 하면 **`git merge --abort`** 로 머지 전 상태 복구 (`reset --keep <기준 HEAD>` 는 머지 도중 거부됨)
      - 복구 뒤 `git status --porcelain` 비어 있고 `git rev-parse HEAD` = 기준 HEAD 여야 함
@@ -62,7 +62,7 @@
    ```
    - 승인 전 머지(`--on-report`)면 제목 괄호 = `(reported, 승인 전)`. `<n>` = `--attempt` 값
    - 트레일러 `DFlow-Order` 빠뜨리지 않음 (SKILL.md 「트레일러 고정」, 행 G 증거 2)
-   - 커밋 뒤 「결정 번호 매김」: `.claude/skills/dflow-merge/scripts/decisions.sh renumber --tsk <TSK> --order <order>`
+   - 커밋 뒤 「결정 번호 매김」: `node .claude/skills/dflow-merge/scripts/decisions.mjs renumber --tsk <TSK> --order <order>`
    - 결과 처리 = SKILL.md 「절차」 4번 3-1단계와 같음 (실패해도 막지 않음). 게이트 재실행 금지
 7. **state.json**: SKILL.md 「절차」 4단계 4번 그대로 `phase=merged` (승인 전이면 `unapproved: true` 도) 커밋 생성. 이 커밋과 머지 커밋 사이 게이트 재실행 금지
 8. **push**: `git push origin HEAD:<기본브랜치>`. 실패하면 먼저 `git reset --keep <기준 HEAD>` 로 되돌리고 (머지·state.json 커밋이 이미 있음) 모양으로 가름

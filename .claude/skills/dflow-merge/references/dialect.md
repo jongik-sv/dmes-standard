@@ -4,7 +4,7 @@
 
 ## 방언 검증
 
-- **명령**: 대상 리포 설정의 `dialect_check` (`dflow.sh config dialect_check`)
+- **명령**: 대상 리포 설정의 `dialect_check` (`dflow.mjs config dialect_check`)
   - `.dflow`(리포 공통) 에 적음. PC 전용 값(JAVA_HOME 등)이 든 명령은 `.dflow.local` 이 덮음 (export 된 `DFLOW_DIALECT_CHECK` 가 둘 다 덮음)
   - 키가 없으면 이 단계 없음 (`DIALECT_NONE`)
   - 값은 임시 워크트리 최상위에서 `bash -c` 로 돌므로 `cd <폴더> && VAR=값 <명령>` 형태 그대로 받음. 예: `dialect_check=cd <폴더> && <DB 마다 다른 검증 시험 명령>`
@@ -13,12 +13,12 @@
   - 임시 워크트리에는 추적 파일만 있음 (`.dflow.local`·`node_modules`·빌드 산출물 없음). 준비가 필요하면 명령 안에 넣음 (예 `npm ci && npm run test:<DB>`)
 - **돌리는 법**: 호출한 체크아웃 최상위에서 한 번 호출 (`<스윕 전 sha>` = SKILL.md 「방언 검증」 대로 기록해 둔 값)
   ```bash
-  .claude/skills/dflow-merge/scripts/dialect-check.sh run --dev <기본브랜치> --sweep-base <스윕 전 sha>; echo "rc=$?"
+  node .claude/skills/dflow-merge/scripts/dialect-check.mjs run --dev <기본브랜치> --sweep-base <스윕 전 sha>; echo "rc=$?"
   ```
   - 스크립트가 origin 을 다시 fetch 해 끝 커밋을 정함
   - 그 커밋에 detach 한 **깨끗한 임시 워크트리** (`<ROOT>/.claude/worktrees/dflow-dialect-<pid>`) 에서 돌린 뒤 지움
   - 호출한 체크아웃 (팀장 체크아웃) 수정 금지
-  - 명령은 `heavy.sh --pool docker` 로 감싸 PC 전역 **도커 슬롯** (도커가 허용된 워커와 같은 슬롯) 과 일반 슬롯을 함께 잡은 동안에만 돎
+  - 명령은 `heavy.mjs --pool docker` 로 감싸 PC 전역 **도커 슬롯** (도커가 허용된 워커와 같은 슬롯) 과 일반 슬롯을 함께 잡은 동안에만 돎
   - 컨테이너 재사용 (Testcontainers reuse·외부 DB 주소 등) = 대상 리포 테스트 설정을 따름
 - **도커 런타임 기동 금지.** `docker info` (`DFLOW_DOCKER_PROBE` 로 변경) 실패 시 실행 없이 `DIALECT_DEFERRED docker-off <sha> notify=<0|1>` 로 보류 기록
   - 같은 커밋은 다음 스윕이 재시도
@@ -38,5 +38,5 @@
   - 자동 되돌리기·Task 재오픈 금지 — 보고만
 - **확인하지 못한 항목 대조**: 같은 범위에서 design.md·resolution.md 에 `도커 금지로 생략:`·`확인하지 못한 수용 기준:` 줄을 남긴 Task 를 결과 줄 앞에 `DIALECT_UNVERIFIED <TSK> 생략=<n> 미확인=<m> <파일>` 로, 결과 줄에 `unverified=` 로 적음
   - 통과든 실패든 싣음 — 워커가 도커 금지로 확인 못 한 수용 기준을 이 결과와 사람이 대조
-- 결과는 출력 전에 상태 파일에 먼저 기록. 호출이 10분을 넘겨 백그라운드로 옮겨졌거나 결과를 놓쳤으면 `dialect-check.sh status --dev <기본브랜치>` 가 마지막 결과 재출력
+- 결과는 출력 전에 상태 파일에 먼저 기록. 호출이 10분을 넘겨 백그라운드로 옮겨졌거나 결과를 놓쳤으면 `dialect-check.mjs status --dev <기본브랜치>` 가 마지막 결과 재출력
 - 결과 줄 (`DIALECT_*`, `DIALECT_SKIP` 제외) 과 `DIALECT_UNVERIFIED` 줄 = 보고 표 아래에 그대로 실음. 호출자 (`/dflow-team` 팀장) 보고·기록 방법 = 그 스킬 「4. 승인 스윕」
