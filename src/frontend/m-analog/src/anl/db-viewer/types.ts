@@ -11,6 +11,8 @@ export interface DbColumnInfo {
   FK_YN: string;
   /** 외래키 참조 대상 "스키마.테이블" — 권한이 없어 못 읽으면 null. */
   FK_REF: string | null;
+  /** Oracle 칼럼 주석(ALL_COL_COMMENTS.COMMENTS) — 주석이 없으면 null. 컬럼명 칸의 갈 곳(사전 이름이 없을 때). */
+  COMMENTS?: string | null;
 }
 
 /** LOB 계열 칸의 데이터 형식. */

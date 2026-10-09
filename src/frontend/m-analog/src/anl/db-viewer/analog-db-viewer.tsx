@@ -17,6 +17,7 @@
  * - shared 컴포넌트만 사용 (AgDataGrid, form, layout). ag-grid·Mantine 직접 import 금지.
  * - 결과 0건이어도 그리드를 유지한다 (성능 가이드 R6).
  * - LOB 칸은 서버 요약 글자 + 「보기」 단추로 그리고, 단추를 누르면 그 한 칸만 다시 읽어 상세 창에 보인다.
+ * - 컬럼 속성 「컬럼명」 칸은 MDM 컬럼 사전 이름을 먼저 보이고, 사전에 없으면 Oracle 칼럼 주석(ALL_COL_COMMENTS)을, 그마저 없으면 비운다.
  * - 컬럼 속성 행을 더블클릭하면 칸 이름을, 조회 결과 셀을 더블클릭하면 셀 값(SQL 리터럴)을 편집창 커서 위치에 넣는다.
  */
 
@@ -30,6 +31,7 @@ import {
 } from "@dk-oasis/shared/layout";
 import { Button, Spinner } from "@dk-oasis/shared/form";
 import { useGfnMessage } from "@dk-oasis/shared/message-provider";
+import { requestColumns } from "@dk-oasis/shared/mdm-meta";
 import {
   ALLOWED_SCHEMAS,
   defaultSql,
@@ -44,6 +46,12 @@ import DbSqlEditor, { type DbSqlEditorHandle } from "./db-sql-editor";
 import { identifierText, toSqlLiteral } from "./sql-assist";
 import { createSeq } from "./latest-seq";
 import { loadAllChunks } from "./load-more";
+import {
+  columnCaptionOf,
+  mdmNamesOf,
+  MDM_META_MODULE,
+  type MdmNameMap,
+} from "./column-caption";
 import type { DbColumnInfo, DbQueryResult } from "./types";
 import "./db-viewer.css";
 
@@ -90,8 +98,9 @@ const COLUMN_PROP_COLUMNS: GridColumn[] = [
     tooltip: false,
     render: renderKeys,
   },
-  { key: "COLUMN_NAME", header: "컬럼", width: 170 },
-  { key: "TYPE_TEXT", header: "타입", width: 120 },
+  { key: "COLUMN_NAME", header: "컬럼", width: 150 },
+  { key: "COLUMN_CAPTION", header: "컬럼명", width: 140 },
+  { key: "TYPE_TEXT", header: "타입", width: 110 },
   { key: "NULLABLE", header: "Null", width: 50, align: "center" },
 ];
 
@@ -179,6 +188,8 @@ export function AnalogDbViewer() {
   const [sqlSeed, setSqlSeed] = useState({ text: INITIAL_SQL, revision: 0 });
   const [columns, setColumns] = useState<DbColumnInfo[]>([]);
   const [columnsLoading, setColumnsLoading] = useState(false);
+  /** 칼럼 물리명 → MDM 사전 이름 — 컬럼명 칸의 첫 출처. 늦게 와도 행(id) 이 그대로라 그리드가 깜빡이지 않는다. */
+  const [mdmNames, setMdmNames] = useState<MdmNameMap>(new Map());
   const [propsOpen, setPropsOpen] = useState(true);
   const [treeOpen, setTreeOpen] = useState(true);
   const [result, setResult] = useState<DbQueryResult | null>(null);
@@ -300,12 +311,36 @@ export function AnalogDbViewer() {
     [gfn],
   );
 
+  /**
+   * 받은 칼럼 목록의 MDM 사전 이름을 한 번에 받는다(store 가 같은 틱의 요청을 묶고 5분 둔다).
+   * 모듈이 세션 동안 꺼져 있으면(404·연결 실패) 빈 Map 이 오므로 조용히 칼럼 주석 출처로 넘어간다.
+   */
+  const loadMdmNames = useCallback(
+    async (cols: DbColumnInfo[], columnsTicket: number) => {
+      const names =
+        cols.length === 0
+          ? new Map<string, string>()
+          : mdmNamesOf(
+              cols,
+              await requestColumns(
+                MDM_META_MODULE,
+                cols.map((c) => c.COLUMN_NAME),
+              ),
+            );
+      if (columnsSeqRef.current.isLatest(columnsTicket)) setMdmNames(names);
+    },
+    [],
+  );
+
   /** 고른 테이블의 컬럼 속성을 받는다. columnsTicket 은 선택한 순간 받은 번호표다. */
   const loadColumns = useCallback(
     async (schema: string, table: string, columnsTicket: number) => {
       try {
         const loaded = await fetchColumns(schema, table);
-        if (columnsSeqRef.current.isLatest(columnsTicket)) setColumns(loaded);
+        if (columnsSeqRef.current.isLatest(columnsTicket)) {
+          setColumns(loaded);
+          void loadMdmNames(loaded, columnsTicket);
+        }
       } catch (err) {
         if (columnsSeqRef.current.isLatest(columnsTicket)) {
           gfn(errText(err), "", "", "warning");
@@ -317,7 +352,7 @@ export function AnalogDbViewer() {
         }
       }
     },
-    [gfn],
+    [gfn, loadMdmNames],
   );
 
   const handleSelectTable = useCallback(
@@ -554,8 +589,13 @@ export function AnalogDbViewer() {
           .filter(Boolean)
           .join(","),
         TYPE_TEXT: typeText(col),
+        // 컬럼명 칸 — MDM 사전 이름 → 칼럼 주석 → 빈칸.
+        COLUMN_CAPTION: columnCaptionOf(
+          mdmNames.get(col.COLUMN_NAME),
+          col.COMMENTS,
+        ),
       })),
-    [columns],
+    [columns, mdmNames],
   );
 
   const tableCount = useMemo(
