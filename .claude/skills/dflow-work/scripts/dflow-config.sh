@@ -1,4 +1,5 @@
 #!/bin/sh
+# heartbeat 훅 호환용(~/.dflow/hooks/heartbeat.sh 이 source). 스킬 스크립트는 dflow-config.mjs 를 씀. 훅이 node 로 바뀌면 backup 으로.
 # dflow-config.sh — D'Flow 에이전트 설정 해석. source 해서 쓴다(단독 실행하지 않는다).
 # .dflow(프로젝트 공통, 커밋)·.dflow.local(개인, gitignore)을 읽어 DFLOW_* env 로 export 한다.
 # 우선순위: 이미 export 된 env > 파일 > 레거시 .env. 설정 파일은 source 하지 않는다 — 값을 실행하지 않는다.

@@ -7,7 +7,7 @@
 | 파일 | 역할 |
 |---|---|
 | `p2-measure.sh` | P2 측정 본체 |
-| `with-heavy.sh` | 선택. 작업 폴더에서 무거운 명령을 저장소의 `heavy.sh`(PC 전역 줄 세우기)로 감싸 돌리는 얇은 도우미다. 옛 레인 전용 도우미(c3-heavy.sh)의 자체 mkdir 잠금을 대신한다(잠금 회수·경쟁 처리는 heavy.sh 가 한다). `p2-measure.sh` 는 쓰지 않는다. 슬롯을 기다리다(기본 90초) 못 얻으면 HEAVY_BUSY(exit 75)로 끝나므로 같은 명령을 다시 부른다. |
+| `with-heavy.sh` | 선택. 작업 폴더에서 무거운 명령을 저장소의 `heavy.mjs`(PC 전역 줄 세우기)로 감싸 돌리는 얇은 도우미다. 옛 레인 전용 도우미(c3-heavy.sh)의 자체 mkdir 잠금을 대신한다(잠금 회수·경쟁 처리는 heavy.mjs 가 한다). `p2-measure.sh` 는 쓰지 않는다. 슬롯을 기다리다(기본 90초) 못 얻으면 HEAVY_BUSY(exit 75)로 끝나므로 같은 명령을 다시 부른다. |
 
 ## 준비물
 - macOS(`/usr/bin/time -l`, `uptime`, `pmset` 사용), bash, git, awk.
@@ -25,9 +25,9 @@
 | `WT_CHANGE` | `$PERF_REPO/.claude/worktrees/perf-frontend-dev` | 변경 측정용 워크트리. 없으면 detached 로 만든다 |
 | `PERF_OUT` | `${TMPDIR:-/tmp}/dmes-perf/frontend` | 결과 폴더(저장소 밖) |
 | `LOAD_LIMIT` | `5` | 직전 load(1분)가 이 값을 넘으면 그 쌍을 버리고 다시 잰다 |
-| `HEAVY_CMD` | 저장소의 `.claude/skills/dflow-dev/scripts/heavy.sh`(있을 때) | **`env.txt` 에 `heavy.sh status` 한 줄을 적는 데만** 쓰는 경로(상대 경로는 저장소 기준). 줄 세우기 래퍼가 아니다. 명시적으로 비우면 기록하지 않는다. 다른 하네스(framework·mcm)의 같은 이름 변수는 gradle 을 감싸는 줄 세우기 명령이라 뜻이 다르니 셸에 공용으로 export 하지 않는다. 독점 실행은 바깥에서 `heavy.sh --detach --exclusive bash scripts/perf/frontend/p2-measure.sh` 처럼 감싼다 |
+| `HEAVY_CMD` | 저장소의 `.claude/skills/dflow-dev/scripts/heavy.mjs`(있을 때) | **`env.txt` 에 `heavy.mjs status` 한 줄을 적는 데만** 쓰는 경로(상대 경로는 저장소 기준). 줄 세우기 래퍼가 아니다. 명시적으로 비우면 기록하지 않는다. 다른 하네스(framework·mcm)의 같은 이름 변수는 gradle 을 감싸는 줄 세우기 명령이라 뜻이 다르니 셸에 공용으로 export 하지 않는다. 독점 실행은 바깥에서 `heavy.mjs --detach --exclusive bash scripts/perf/frontend/p2-measure.sh` 처럼 감싼다 |
 | `PERF_CLEANUP` | `0` | `1` 이면 끝날 때 **스크립트가 만든** 워크트리를 `git worktree remove`(--force 없음)로 지운다 |
-| `HEAVY_SH` | `$PERF_REPO/.claude/skills/dflow-dev/scripts/heavy.sh` | `with-heavy.sh` 가 감쌀 heavy.sh 경로(상대 경로면 실행 위치 기준으로 절대 경로로 바꾼다) |
+| `HEAVY_SH` | `$PERF_REPO/.claude/skills/dflow-dev/scripts/heavy.mjs` | `with-heavy.sh` 가 감쌀 heavy.mjs 경로(상대 경로면 실행 위치 기준으로 절대 경로로 바꾼다) |
 | `VITEST_MAX_WORKERS` | `2` | `with-heavy.sh` 가 export 하는 vitest 작업자 수 |
 
 이 하네스는 JAVA_HOME·gradle 을 쓰지 않는다.
@@ -38,8 +38,8 @@
    ```
    bash scripts/perf/frontend/p2-measure.sh 4
    # 줄 세우기와 함께(독점):
-   .claude/skills/dflow-dev/scripts/heavy.sh --detach --exclusive bash scripts/perf/frontend/p2-measure.sh 4
-   # 출력된 id 로 heavy.sh wait <id> 를 부른다. 한 번에 최대 240초만 기다리므로 HEAVY_JOB_RUNNING(exit 76)인 동안 같은 wait 를 다시 부른다(HEAVY_JOB_BUSY 면 다시 --detach).
+   node .claude/skills/dflow-dev/scripts/heavy.mjs --detach --exclusive bash scripts/perf/frontend/p2-measure.sh 4
+   # 출력된 id 로 heavy.mjs wait <id> 를 부른다. 한 번에 최대 240초만 기다리므로 HEAVY_JOB_RUNNING(exit 76)인 동안 같은 wait 를 다시 부른다(HEAVY_JOB_BUSY 면 다시 --detach).
    ```
 3. 스크립트가 하는 일
    1. 측정용 워크트리 두 개 준비(없으면 생성), 각각 `pnpm install --offline --frozen-lockfile`(실패 시 `--prefer-offline`) 뒤 `shared` 빌드(재지 않음).
