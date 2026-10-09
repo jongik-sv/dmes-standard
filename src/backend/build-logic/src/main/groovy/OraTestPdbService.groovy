@@ -273,6 +273,7 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
             String cur = System.getProperty(TURN_OWNER)
             if (cur != null && cur != key) return false
             System.setProperty(TURN_OWNER, key)
+            synchronized (turnsHeld) { turnsHeld.add(key) }   // 주인 표시와 같은 구간에서 기록한다 — 사이에 취소돼도 close 가 풀 수 있다
             return true
         }
     }
@@ -290,17 +291,19 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
                         if (cur == null || cur == key) break
                         long left = deadline - System.currentTimeMillis()
                         if (left <= 0) {
-                            throw new org.gradle.api.GradleException("Oracle 시험 차례를 ${waitMs / 1000}초 기다려도 받지 못했다(쥔 쪽: ${cur}). 같은 스키마를 쓰는 모듈은 따로 돌린다.")
+                            throw new org.gradle.api.GradleException("Oracle 시험 차례를 ${waitMs / 1000}초 기다려도 받지 못했다(쥔 쪽: ${cur}). " +
+                                    "쥔 쪽 태스크가 이미 끝났다면 그 마무리 태스크(<test>OraTurnRelease)가 돌지 못한 것이니 gradle 데몬을 멈추고(gradlew --stop) 다시 실행한다. " +
+                                    "같은 스키마를 쓰는 모듈은 따로 돌린다.")
                         }
                         JVM_MONITOR.wait(Math.min(left, 5000L))
                     }
                     System.setProperty(TURN_OWNER, key)
+                    synchronized (turnsHeld) { turnsHeld.add(key) }
                 }
             } as Runnable
             System.err.println("[dmes-ora] 같은 빌드의 다른 Oracle 시험이 끝나기를 기다린다: ${key}\n  쥔 쪽: ${System.getProperty(TURN_OWNER)}")
             if (around != null) around.call(waiter) else waiter.run()
         }
-        synchronized (turnsHeld) { turnsHeld.add(key) }
         if (announced) System.err.println("[dmes-ora] 시험 차례를 받았다: ${key}")
     }
 

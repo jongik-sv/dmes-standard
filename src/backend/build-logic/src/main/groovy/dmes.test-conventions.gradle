@@ -59,7 +59,7 @@ if (oraMode == 'clone' || oraExisting) {
 def oraPrepare = null
 if (oraService != null) {
     final def svc = oraService
-    final long oraTurnWaitMs = (System.getenv('DMES_ORA_TURN_WAIT_MS') ?: '3600000') as long
+    final long oraTurnWaitMs = (System.getenv('DMES_ORA_TURN_WAIT_MS') ?: '600000') as long
     // 차례를 기다리는 동안 Gradle worker lease 를 놓는다. 쥔 채 기다리면 workers.max(3) 개를 대기자가 다 차지해 차례 주인의 시험 JVM 이나
     // 마무리 태스크가 lease 를 못 받는다. 내부 API 라 못 얻으면 그냥 기다린다(그때는 한 실행에 넣는 Oracle Test 태스크를 max-workers 보다 적게).
     def leases = null
