@@ -19,11 +19,16 @@ public record CollectConfig(Source source, boolean save) {
      * template 은 주소 원문이고 {@code {{이름}}} 자리를 가질 수 있다(경로·쿼리에만, {@link HttpUrlTemplate}). url 은 그 자리를 자리표시 글자로 바꿔 읽은 주소라
      * 스킴·호스트 검사에만 쓰고 실제 호출 주소는 {@link HttpUrlTemplate#render} 가 만든다.
      */
-    public record HttpSource(URI url, List<HttpItem> items, String template) implements Source {
+    public record HttpSource(URI url, List<HttpItem> items, String template, boolean retryTransient) implements Source {
 
         /** 변수 자리가 없는 주소. */
         public HttpSource(URI url, List<HttpItem> items) {
-            this(url, items, url.toString());
+            this(url, items, url.toString(), false);
+        }
+
+        /** 일시 오류 재시도를 끈 원천(키 {@code retryTransient} 가 없는 기존 설정). */
+        public HttpSource(URI url, List<HttpItem> items, String template) {
+            this(url, items, template, false);
         }
     }
 

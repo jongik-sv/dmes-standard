@@ -33,6 +33,20 @@ public class JobRunTestTask {
         return "done";
     }
 
+    /** 정상 + 이력 메시지 설명(note). */
+    public String okNote() {
+        JobRunScope scope = JobRunScope.require();
+        scope.addItems(3);
+        scope.note("일시 오류 후 재시도 1회로 성공");
+        return "done";
+    }
+
+    /** 설명(note)을 남기고 실패한다 — 실패 문구만 이력에 남아야 한다. */
+    public void failNote() {
+        JobRunScope.require().note("남으면 안 되는 설명");
+        throw new UserException("업무 예외");
+    }
+
     public void userError() {
         throw new UserException("업무 예외");
     }

@@ -185,6 +185,17 @@ function CollectEditor({ form, disabled, onChange }: KindEditorProps) {
               />
             </Row>
           )}
+          {form.collectKind === "http" && (
+            <Row label="재시도">
+              <Checkbox
+                label="일시 오류일 때 몇 초 뒤 한 번 다시 시도"
+                checked={form.retryTransient}
+                disabled={disabled}
+                data-testid="job-collect-retry-transient"
+                onChange={(on) => onChange({ retryTransient: on })}
+              />
+            </Row>
+          )}
           {form.collectKind === "exchange" && (
             <Row label="통화 목록" required>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-md)" }}>
@@ -234,7 +245,8 @@ function CollectEditor({ form, disabled, onChange }: KindEditorProps) {
           ? "모은 항목 값은 수집 값 표(TB_MCM_JOB_COLLECT_DATA)에 저장합니다. 쿼리 위젯 등에서 SQL 로 읽을 수 있습니다."
           : "저장하지 않고 읽기만 합니다(외부 시스템을 깨우는 트리거용). 실행 기록에는 읽은 항목 수가 남습니다."}{" "}
         {form.collectKind === "sql" && "원천 SQL 은 SELECT 만 쓰며 읽기 전용으로 실행합니다."}
-        {form.collectKind === "http" && "응답 JSON 에서 경로(예: data.items[0].price)로 값을 꺼냅니다. 허용 호스트만 호출할 수 있고 GET 만 씁니다."}
+        {form.collectKind === "http" &&
+          "응답 JSON 에서 경로(예: data.items[0].price)로 값을 꺼냅니다. 허용 호스트만 호출할 수 있고 GET 만 씁니다. 「일시 오류 재시도」는 한 번 실행 안에서 503·502·504·429·연결 시간 초과일 때 3초쯤 뒤 한 번만 다시 부르며, 아래 「실패 시 재시도」(실패한 실행을 분 단위로 다시 실행)와 별개입니다."}
         {form.collectKind === "exchange" && "환율 수집은 MCM 모듈에서만 쓸 수 있고 실행 간격이 60분 이상이어야 합니다."}
         {form.collectKind !== "exchange" && " 실행 간격은 5분 이상이어야 합니다."}
       </Hint>

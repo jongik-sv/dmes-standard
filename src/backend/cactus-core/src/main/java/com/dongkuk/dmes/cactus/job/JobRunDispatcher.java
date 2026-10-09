@@ -224,7 +224,7 @@ public class JobRunDispatcher {
         if (result.serviceResultCode() == ServiceResultCode.SUCCESS) {
             Integer cnt = scope.itemCount();
             if (cnt == null) cnt = itemCntOutput(result);
-            return new Outcome("OK", cnt, null, scope.collected());
+            return new Outcome("OK", cnt, scope.note(), scope.collected());   // note 는 성공일 때만 이력 MSG 가 된다(실패는 아래 실패 문구만)
         }
         Throwable ex = result.exception();
         if (isQueryTimeout(ex)) return new Outcome("TIMEOUT", null, "쿼리 시간 초과", List.of());

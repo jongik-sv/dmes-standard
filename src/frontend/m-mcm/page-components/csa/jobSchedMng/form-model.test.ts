@@ -233,7 +233,7 @@ describe("유형별 설정", () => {
   });
 
   it("COLLECT 설정을 읽고 다시 쓴다(source·save)", () => {
-    const cfg = { source: { kind: "http", url: "https://a.b/c", items: [{ key: "t", path: "data.t" }] }, save: false };
+    const cfg = { source: { kind: "http", url: "https://a.b/c", retryTransient: true, items: [{ key: "t", path: "data.t" }] }, save: false };
     const form = toForm(def({ jobKind: "COLLECT", serviceId: "jobCollect", configJson: JSON.stringify(cfg) }));
     expect(form.collectKind).toBe("http");
     expect(form.save).toBe(false);
@@ -241,6 +241,24 @@ describe("유형별 설정", () => {
     const sql = toForm(def({ jobKind: "COLLECT", configJson: '{"source":{"kind":"sql","sql":"SELECT 1 V FROM DUAL","valueField":"V"}}' }));
     expect(sql.save).toBe(true);
     expect(JSON.parse(buildConfigJson(sql)!)).toEqual({ source: { kind: "sql", sql: "SELECT 1 V FROM DUAL", valueField: "V" }, save: true });
+  });
+
+  it("HTTP 일시 오류 재시도: 새 작업은 켬, 저장된 설정에 키가 없으면 끔(기존 작업 동작 불변), 켜고 끈 값은 그대로 왕복한다", () => {
+    expect(emptyForm("COLLECT").retryTransient).toBe(true);
+    const legacy = toForm(def({ jobKind: "COLLECT", serviceId: "jobCollect", configJson: '{"source":{"kind":"http","url":"https://a.b/c","items":[{"key":"t","path":"t"}]}}' }));
+    expect(legacy.retryTransient).toBe(false);
+    expect(JSON.parse(buildConfigJson(legacy)!).source.retryTransient).toBe(false);
+    for (const on of [true, false]) {
+      const cfg = { source: { kind: "http", url: "https://a.b/c", retryTransient: on, items: [{ key: "t", path: "t" }] }, save: true };
+      const form = toForm(def({ jobKind: "COLLECT", serviceId: "jobCollect", configJson: JSON.stringify(cfg) }));
+      expect(form.retryTransient).toBe(on);
+      expect(JSON.parse(buildConfigJson(form)!)).toEqual(cfg);
+    }
+    // SQL·환율 설정에는 이 키를 넣지 않는다
+    const sql = { ...emptyForm("COLLECT"), collectKind: "sql" as const, collectSql: "SELECT 1 V FROM DUAL", valueField: "V" };
+    expect(JSON.parse(buildConfigJson(sql)!).source).not.toHaveProperty("retryTransient");
+    // 복사해도 값이 이어진다
+    expect(copyForm({ ...sql, retryTransient: false }).retryTransient).toBe(false);
   });
 
   it("수집 간격 하한은 SQL·HTTP 5분, 환율 60분, 다른 유형은 없다", () => {

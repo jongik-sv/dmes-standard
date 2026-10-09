@@ -48,6 +48,18 @@ class CollectConfigsTest {
     }
 
     @Test
+    @DisplayName("HTTP 일시 오류 재시도 옵션 retryTransient — 키 없음·null 은 꺼짐, true/false 는 그대로, 불리언이 아니면 거절")
+    void retryTransientOption() {
+        String withKey = HTTP_SOURCE.replace("\"kind\":\"http\",", "\"kind\":\"http\",\"retryTransient\":%s,");
+        assertThat(((HttpSource) parse("{" + HTTP_SOURCE + "}").source()).retryTransient()).isFalse();
+        assertThat(((HttpSource) parse("{" + withKey.formatted("true") + "}").source()).retryTransient()).isTrue();
+        assertThat(((HttpSource) parse("{" + withKey.formatted("false") + "}").source()).retryTransient()).isFalse();
+        assertThat(((HttpSource) parse("{" + withKey.formatted("null") + "}").source()).retryTransient()).isFalse();
+        assertRejected("{" + withKey.formatted("\"yes\"") + "}", "retryTransient");
+        assertRejected("{" + withKey.formatted("1") + "}", "retryTransient");
+    }
+
+    @Test
     @DisplayName("설정 전체·원천 모양 위반")
     void shapeRejected() {
         assertRejected("[]", "JSON 객체");
