@@ -48,7 +48,8 @@ const mkdirOnly = (d) => { try { mkdirSync(d); return true; } catch { return fal
 const mkdirp = (d) => { try { mkdirSync(d, { recursive: true }); } catch { /* 무시 */ } };
 const rmdirQ = (d) => { try { rmdirSync(d); } catch { /* 무시 */ } };
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-const posint = (v, dflt) => { const s = v ?? ''; if (s === '' || /[^0-9]/.test(s)) return dflt; return Number(s) > 0 ? Number(s) : dflt; };
+// bash 판 posint: 숫자만, 앞자리 0 은 10진수로 읽고, 0 이거나 64비트(2^63-1)를 넘으면 기본값
+export const posint = (v, dflt) => { const s = v ?? ''; if (s === '' || /[^0-9]/.test(s)) return dflt; const b = BigInt(s); return b > 0n && b <= 9223372036854775807n ? Number(b) : dflt; };
 const firstLine = (s) => { const i = s.indexOf('\n'); return i < 0 ? s : s.slice(0, i); };
 const pr = (s) => process.stderr.write(s);
 /** jq -r 로 칸을 읽은 글: 없음·null·false → '' */

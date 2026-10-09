@@ -254,7 +254,7 @@ export default {
     },
     stop: {
       compareFiles: false,
-      gen(rng) { const w = rng.chance(0.4) ? lockWorld(rng, false) : world(rng); w.env.COORD_CONSOLE_STOP_WAIT_S = '1'; return { ...w, args: ['stop'] }; },
+      gen(rng) { const w = rng.chance(0.4) ? lockWorld(rng, false) : world(rng); w.env.COORD_CONSOLE_STOP_WAIT_S = rng.pick(['1', '1', '01', '001', '08']); return { ...w, args: ['stop'] }; },
       fixed: [],
     },
     start: {

@@ -100,7 +100,8 @@ OLD_PAUSE_S=600
 ACK_RETRY=3                 # ack 네트워크 실패(rc 6) 때 다시 부르는 수(멈출 때는 0)
 ACK_WINDOW_S=120            # 서버 ack 창(claimed_at + 120초, api-contract §2.12)
 ACK_MAX_S=40                # ack 한 건 최대(DFL_TIMEOUT 10초 × 4번)
-posint() { case "${1:-}" in ''|*[!0-9]*) echo "$2" ;; *) [ "$1" -gt 0 ] && echo "$1" || echo "$2" ;; esac; }
+# 앞자리 0 은 지워 10진수로 돌려준다(그대로 두면 뒤의 $(( )) 가 8진수로 읽어 08·09 에서 오류, 010 은 8이 된다). 64비트를 넘는 수는 기본값
+posint() { case "${1:-}" in ''|*[!0-9]*) echo "$2" ;; *) local n="${1#"${1%%[!0]*}"}"; [ -n "$n" ] && [ "$n" -gt 0 ] 2>/dev/null && echo "$n" || echo "$2" ;; esac; }
 CYCLE_MAX="$(posint "${COORD_CONSOLE_CYCLE_MAX_S:-}" 25)"     # 한 주기 몫(프롬프트 전달 구간 제외)
 NOTIFY_MAX="$(posint "${COORD_CONSOLE_NOTIFY_MAX_S:-}" 45)"   # 「입력 요청 알림」 구간(주기 몫·구간 상한 밖, office.sh 한 번 20초)
 PHASE_MAX="$(posint "${COORD_CONSOLE_PHASE_MAX_S:-}" 10)"     # 생존 감시·화면 읽기·화면 올리기 구간마다
