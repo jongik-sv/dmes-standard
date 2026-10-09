@@ -391,8 +391,9 @@ GridPanel 밖의 AgDataGrid 도 GridPanel 과 같은 머리줄을 스스로 그�
 | 비고·제목 열을 폭 생략하고 남는 폭을 기대한다 | fit 에서는 가중치 1 이라 최소 폭 50px 까지 줄고, fixed 에서는 120px 이 된다. 넓게 보이려면 fit 의 `width` 를 큰 가중치(예: `100`)로 주고 `minWidth`(예: `180`)를 함께 준다. 좁은 목록이면 짧은 열은 가중치 `1` + 내용 폭 `minWidth` 로 둔다([screen-patterns](../screen-patterns.md) §목록 그리드) |
 | 숫자 `height` 로 고정 높이 상자(`height: N`)를 만들고 안에 `height={N - GRID_HEADER_HEIGHT}` 그리드를 넣는다 | 칸별 필터 입력 줄을 펴면 그리드가 28px 커져 상자를 넘고 아래 버튼과 겹친다(룰 의사결정표 결함, 2026-10-08). 높이를 직접 계산하는 화면은 입력 줄 높이를 포함하게: 바깥 상자는 높이를 고정하지 않거나 `height="100%"` 로 채우게 한다 |
 | `useGridDataManager` 의 추가·수정 행에 배경이 자동으로 칠린다고 본다 | 소스는 `nativeeditor_status === "deleted"` 만 `ag-row-deleted` 로 칠하고, 추가·수정 배경은 `_rowState`(`useRowStateManager`)일 때만 칠한다. UI-Visual-Standard §7 과 어긋나는 shared 결함이다. 자세한 내용은 [use-grid-data-manager](use-grid-data-manager.md) |
-| `columns` 를 렌더 안에서 새로 만든다 | 열 상태와 선택이 초기화된다. 모듈 상수로 둔다 |
-| `data` 의 행을 제자리에서 바꾼다 | 참조 비교라 갱신되지 않는다. 새 객체로 교체한다 |
+| `columns` 를 렌더 안에서 새로 만든다 | 열 정의가 한 칸이라도 다르면(인라인 `render`·`options` 등) 열 상태가 초기화된다. 모듈 상수로 둔다. 내용이 모두 같은 새 배열은 이전 배열을 재사용한다(열 정의를 다시 넣지 않는다) |
+| `data` 의 행을 제자리에서 바꾼다 | 참조 비교라 갱신되지 않는다. 새 객체로 교체한다. 행 객체가 모두 같은 새 배열은 이전 배열을 재사용한다(상세 입력마다 `rows.map` 으로 새 배열을 만들어도 바뀐 행만 갱신) |
+| `isRowSelectable` 을 렌더마다 새 함수로 준다 | 참조가 바뀌면 ag-grid 가 모든 행의 선택 가능 여부를 다시 계산한다. 행 데이터만 보고 정하면 `useCallback`/모듈 함수로 고정한다. 행 밖 상태에 의존하면 그 상태가 바뀔 때만 새 함수가 되게 한다 |
 | `rowDragField` 만 주고 `onRowOrderChange` 를 안 준다 | 손잡이만 생기고 정렬만 꺼진다. 항상 함께 준다 |
 | 추가한 행이 맨 앞에 있을 줄 안다 | `nativeeditor_status: "inserted"` 행은 항상 맨 뒤로 정렬되고, `onRowClick` 에는 그 행의 rowKey 칸이 임시 ID(`__new_N`)로 바뀌어 온다 |
 | `onRowSelect` 의 두 번째 인자를 항상 배열로 쓴다 | 1건이면 객체, 그 밖에는 배열이다 |
