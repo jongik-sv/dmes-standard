@@ -182,10 +182,22 @@ function world(rng, { once = true } = {}) {
   return { files, env, stdin: '' };
 }
 
+/** 무작위를 쓰지 않는 고정 세계용 난수 대역(chance 는 p > 0.5 일 때만 참, pick 은 첫 값) */
+const FLAT = { chance: (p) => p > 0.5, pick: (a) => a[0], int: (lo) => lo };
+/** lead-state 가 CR_LIMIT_S(1초)보다 오래 걸리는 세계: 「lead-state ...초 상한을 넘어 이번 판정에서 뺌」 경고가 폴러 로그에 남는지 본다 */
+function slowLeadState() {
+  const w = world(FLAT);
+  w.files['bin/fake-lead-state.sh'] = exe('#!/bin/sh\necho "$*" >> "$FAKE_DIR/ls.log"\nsleep 3\necho "SLOT w1 aaaa1111 handle=hw1 state=spawn"\n');
+  w.files['console/lead/L1.json'] = JSON.stringify({ agent: `${ID}/${HOST}/lead`, repo: '/repo/main', handle: 'hT', pid: process.pid, at: 'x', slots: 2, busy: 1, until_label: '18:00', project: null });
+  w.files['fake/queue'] = '';
+  w.env.COORD_CONSOLE_LS_TIMEOUT_S = '1';
+  return { label: 'once: lead-state 시간 초과 경고가 폴러 로그에 남는다', args: ['--once'], files: w.files, env: w.env, stdin: '' };
+}
+
 const once = {
   compareFiles: false,
   gen(rng) { const w = world(rng); return { ...w, args: rng.pick([['--once'], ['--once'], ['--once'], ['--once', '--dry-run'], ['--dry-run', '--once']]) }; },
-  fixed: [],
+  fixed: [slowLeadState()],
 };
 
 function lockWorld(rng, alive) {
