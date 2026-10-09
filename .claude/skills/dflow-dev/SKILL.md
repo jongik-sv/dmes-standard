@@ -120,7 +120,7 @@ Phase 서브에이전트 `PHASE_RESULT` 자기 신고 = **참고 신호, 게이�
 |---|---|
 | references/state-model.md | state.json 처음 쓰기 · phase 값 판정 · progress/heartbeat/done 이 exit 10·12 |
 | references/rare-cases.md | `--only` 인자 · wbs-web 대상 · migration 포함 작업 |
-| references/worker-mode.md | `--worker` 플래그 |
+| references/worker-mode.md | 팀원 모드(worker) 플래그 |
 | references/dev-discipline.md | 단계 지도 규율 열 지정 절만 (통째 금지) |
 | references/phase-prompt.md | Phase 서브에이전트 프롬프트 작성 |
 | references/rationale.md | 규칙 이유·사고 이력 (실행 중 안 읽음) |

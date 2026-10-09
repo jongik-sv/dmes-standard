@@ -21,6 +21,7 @@ description 사용법 줄에 노출 안 함. `.dflow-agent` 있다고 워커 모
 
 ## 행 G — 기본 브랜치 반영 확인
 
+`<기본브랜치>` 는 개발 브랜치, 즉 `dflow.mjs branch dev` 의 값이다.
 행 G 의 **기본 브랜치 반영 확인**: 선행 산출물이 `origin/<기본브랜치>` 에 실재하는지 git 으로만 확인.
 - `<선행TSK>` = 그 `depends_evidence` 원소 `external_ref` 의 마지막 `/` 뒤 (예 `dict/TSK-02-01` → `TSK-02-01`).
 - 선행 주문 `show` 금지 (워커의 서버 조회는 자기 `{ID8}` 하나로 제한 — worker-prompt.md 「5」).
