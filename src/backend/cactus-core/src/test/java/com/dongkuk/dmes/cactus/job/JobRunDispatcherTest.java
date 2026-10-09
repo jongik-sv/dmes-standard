@@ -84,6 +84,20 @@ class JobRunDispatcherTest {
     }
 
     @Test
+    @DisplayName("성공한 실행의 범위 설명(note)은 실행 이력 MSG 가 되고, 실패한 실행은 설명 없이 실패 문구만 남는다")
+    void noteBecomesMsgOnlyOnSuccess() throws Exception {
+        dispatcher.submit(req("r1", "j1", "jobRunNote", 30, null));
+        JobRunReport ok = reporter.next();
+        assertThat(ok.status()).isEqualTo("OK");
+        assertThat(ok.msg()).isEqualTo("일시 오류 후 재시도 1회로 성공");
+
+        dispatcher.submit(req("r2", "j2", "jobRunNoteFail", 30, null));
+        JobRunReport fail = reporter.next();
+        assertThat(fail.status()).isEqualTo("FAIL");
+        assertThat(fail.msg()).isEqualTo("USER_ERROR: 업무 예외").doesNotContain("설명");
+    }
+
+    @Test
     @DisplayName("실행 스레드의 MDC serviceId 는 대상 서비스 ID(sch. 로 시작하지 않음 → 모듈 업무 로그), service_tag 는 보고의 태그와 같다")
     void mdcIsTheTargetService() throws Exception {
         dispatcher.submit(req("r1", "j1", "jobRunOk", 30, null));

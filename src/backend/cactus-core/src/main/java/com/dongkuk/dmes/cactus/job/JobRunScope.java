@@ -33,6 +33,7 @@ public final class JobRunScope {
     private final AtomicLong items = new AtomicLong();
     private final AtomicBoolean itemsReported = new AtomicBoolean();
     private final List<CollectedValue> collected = new CopyOnWriteArrayList<>();
+    private volatile String note;
 
     public JobRunScope(String runId, String jobId, Map<String, Object> config, Map<String, Object> vars,
                        Map<String, String> varTypes, LocalDateTime schedAt, boolean manual, Instant deadline, Clock clock) {
@@ -102,5 +103,17 @@ public final class JobRunScope {
 
     public List<CollectedValue> collected() {
         return List.copyOf(collected);
+    }
+
+    /**
+     * 성공한 실행의 실행 이력 메시지(MSG)에 남길 한 줄 설명(예: 일시 오류를 재시도해 성공). 비우려면 null.
+     * 실행이 실패하면 쓰지 않는다 — 실패 문구만 이력에 남는다(진입점 {@code JobRunDispatcher.judge} 규칙).
+     */
+    public void note(String text) {
+        this.note = text;
+    }
+
+    public String note() {
+        return note;
     }
 }

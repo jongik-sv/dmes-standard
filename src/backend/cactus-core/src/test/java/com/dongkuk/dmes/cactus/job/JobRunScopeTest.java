@@ -29,6 +29,17 @@ class JobRunScopeTest {
     }
 
     @Test
+    @DisplayName("이력 메시지 설명(note)은 처음엔 비어 있고 넣은 값을 돌려준다 — 비우면 다시 null")
+    void noteRoundTrip() {
+        JobRunScope s = scope(Instant.parse("2026-10-09T00:01:00Z"));
+        assertThat(s.note()).isNull();
+        s.note("재시도 1회로 성공");
+        assertThat(s.note()).isEqualTo("재시도 1회로 성공");
+        s.note(null);
+        assertThat(s.note()).isNull();
+    }
+
+    @Test
     @DisplayName("열기 전에는 current 가 비어 있고 require 는 「예약 실행 밖」 예외를 던진다")
     void notOpen() {
         assertThat(JobRunScope.current()).isEmpty();

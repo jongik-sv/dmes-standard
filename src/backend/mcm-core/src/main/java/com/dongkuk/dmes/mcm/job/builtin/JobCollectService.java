@@ -51,7 +51,11 @@ public class JobCollectService {
             LocalDate today = scope.schedAt().toLocalDate();
             items = switch (parsed) {
                 case CollectConfig.SqlSource s -> sqlSource.collect(s, today, scope.vars(), scope.varTypes(), scope.queryTimeoutSeconds());
-                case CollectConfig.HttpSource h -> httpSource.collect(h, today, scope.vars());
+                case CollectConfig.HttpSource h -> {
+                    HttpCollectSource.Result r = httpSource.collectDetailed(h, today, scope.vars(), scope.deadline());
+                    if (r.retryNote() != null) scope.note(r.retryNote());   // 일시 오류를 재시도해 성공 — 이력 MSG 에 남는다
+                    yield r.items();
+                }
                 case CollectConfig.ExchangeSource e -> {
                     ExchangeCollectSource ex = exchangeSource.get();
                     if (ex == null) throw new CollectException("이 모듈에서는 환율 수집을 쓸 수 없습니다(MCM 모듈 전용).");

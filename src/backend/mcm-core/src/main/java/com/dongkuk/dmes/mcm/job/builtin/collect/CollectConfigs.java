@@ -119,7 +119,13 @@ public final class CollectConfigs {
             String path = text(item, "path");
             out.add(new HttpItem(key, path, parsePath(key, path)));
         }
-        return new HttpSource(url, List.copyOf(out), template.strip());
+        boolean retryTransient = false;
+        JsonNode retry = node.get("retryTransient");
+        if (retry != null && !retry.isNull()) {
+            if (!retry.isBoolean()) throw invalid("일시 오류 재시도(source.retryTransient)는 true 또는 false 여야 합니다.");
+            retryTransient = retry.asBoolean();
+        }
+        return new HttpSource(url, List.copyOf(out), template.strip(), retryTransient);
     }
 
     /** http·https 절대 주소, 호스트 있음, 사용자 정보({@code user:pw@}) 없음. */
