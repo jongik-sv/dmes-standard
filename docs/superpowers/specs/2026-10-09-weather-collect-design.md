@@ -46,7 +46,7 @@
 - 모두 새 글자·시각 표기만 더하고 기존 설정·레이아웃은 유지한다.
 
 ### D6. 외부 호출 스위치
-`dmes.widget.ext.enabled=false`(망 분리) 일 때 날씨는 더 이상 영향을 받지 않는다(위젯이 외부를 부르지 않는다). 수집 호출 가능 여부는 `allowed-hosts` 와 `dmes.job.collect.enabled` 가 정한다. 의미가 바뀌는 점: 기본 `application.yml` 의 허용 호스트에 `api.open-meteo.com` 을 넣었으므로 운영에서도 날씨 수집이 켜진다. 망 분리 환경은 시드 작업 5건을 「사용 안 함」으로 돌리거나 프로필 yml 에서 `dmes.job.http.allowed-hosts` 를 비운다(프로필에서 목록을 정의하면 추가가 아니라 통째로 교체된다). 안 그러면 30분마다 5건의 FAIL 기록이 쌓인다. `OpenMeteoProvider`·`WeatherProvider` 는 쓸 곳이 없어졌다. 프로그램 삭제는 사용자 승인 사항이라 지우지 않고 `@Deprecated` 와 설명을 달아 두며(빈은 남지만 생성 때 외부 호출이 없고 `fetch` 를 부를 때만 나간다), 삭제 여부는 조정이 사용자에게 올린다. 공용 `WidgetExtProperties`(fx-master 와 공유)는 건드리지 않고 `weather.base-url` 속성은 남겨 둔다(후속 정리 대상, 조정에 통지).
+`dmes.widget.ext.enabled=false`(망 분리) 일 때 날씨는 더 이상 영향을 받지 않는다(위젯이 외부를 부르지 않는다). 수집 호출 가능 여부는 `allowed-hosts` 와 `dmes.job.collect.enabled` 가 정한다. 의미가 바뀌는 점: 기본 `application.yml` 의 허용 호스트에 `api.open-meteo.com` 을 넣었으므로 운영에서도 날씨 수집이 켜진다. 망 분리 환경은 시드 작업 5건을 「사용 안 함」으로 돌리거나 프로필 yml 에서 `dmes.job.http.allowed-hosts` 를 비운다(프로필에서 목록을 정의하면 추가가 아니라 통째로 교체된다). 안 그러면 30분마다 5건의 FAIL 기록이 쌓인다. `OpenMeteoProvider`·`WeatherProvider` 는 쓸 곳이 없어졌다. 사용자 승인 뒤 2026-10-09 레인 wx-cleanup 에서 `OpenMeteoProvider`·`WeatherProvider`·시험 `OpenMeteoProviderTest` 를 지우고, 공용 `WidgetExtProperties`(fx-master 와 공유)의 `weather.base-url` 속성(`Weather` 내부 클래스)도 함께 정리했다.
 
 ### D7. 시드 방식 — Flyway `V5__weather_collect_seed.sql` (mcmapuser)
 - 운영은 DBA 가 같은 V 파일을 적용하므로(Flyway 는 운영 앱에서 끔) 코드 시더보다 V 파일이 배포 절차와 맞다. 작업 정의 5행을 `OWNER_TP='USER'` 로 넣는다(화면에서 고치고 지울 수 있다).

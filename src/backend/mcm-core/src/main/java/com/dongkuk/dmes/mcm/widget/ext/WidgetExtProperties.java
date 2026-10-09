@@ -3,7 +3,8 @@ package com.dongkuk.dmes.mcm.widget.ext;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 환율·날씨 외부 정보 설정 — yml prefix {@code dmes.widget.ext}(스펙 2026-10-02-widget-admin-generic §8).
+ * 환율 외부 정보 설정 — yml prefix {@code dmes.widget.ext}(스펙 2026-10-02-widget-admin-generic §8).
+ * 날씨는 위젯이 직접 부르지 않고 수집 작업 값만 읽으므로(2026-10-09-weather-collect-design) 설정이 없다.
  *
  * <pre>{@code
  * dmes:
@@ -19,8 +20,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *         user-fetch-window-sec: 600  # 위 상한의 구간(초)
  *         retry-after-fail-sec: 600   # 실패·빈 결과·오늘 값 없음 뒤 같은 통화·날짜를 다시 묻기까지(초)
  *         mdm-schema: MDMAPUSER       # 환율 위젯이 읽는 MDM 환율 마스터(TB_MDM_DATA_ITEM)의 스키마
- *       weather:
- *         base-url: https://api.open-meteo.com/v1/forecast
  * }</pre>
  * 키 값은 로그에 남기지 않는다.
  */
@@ -32,12 +31,9 @@ public class WidgetExtProperties {
 
     private final Exchange exchange = new Exchange();
 
-    private final Weather weather = new Weather();
-
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
     public Exchange getExchange() { return exchange; }
-    public Weather getWeather() { return weather; }
 
     /** 환율 제공자 설정. */
     public static class Exchange {
@@ -86,14 +82,5 @@ public class WidgetExtProperties {
         public void setRetryAfterFailSec(int retryAfterFailSec) { this.retryAfterFailSec = retryAfterFailSec; }
         public String getMdmSchema() { return mdmSchema; }
         public void setMdmSchema(String mdmSchema) { this.mdmSchema = mdmSchema; }
-    }
-
-    /** 날씨 제공자 설정. */
-    public static class Weather {
-
-        private String baseUrl = "https://api.open-meteo.com/v1/forecast";
-
-        public String getBaseUrl() { return baseUrl; }
-        public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
     }
 }
