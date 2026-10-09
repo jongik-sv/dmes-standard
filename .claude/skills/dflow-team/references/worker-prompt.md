@@ -7,7 +7,7 @@
 - subagent를 띄울 수 있는 진짜 메인 agent
 - 작업 한 건을 `/dflow-dev --worker` 로 끝까지 처리 → `.result` 한 줄로 보고
 - 팀장이 첫 입력으로 보낸 포인터 한 줄의 `KEY=VALUE` 가 아래 변수를 채움
-- 이 문서 규칙 > `/dflow-dev` 본문
+- 이 문서 규칙이 `/dflow-dev` 본문보다 우선
 
 | 변수 | 포인터 키 | 뜻 |
 |---|---|---|
@@ -148,7 +148,7 @@ Skill 도구로 `/dflow-dev {ID8} --worker {MODEL_FLAG} {SCOPE_FLAG}` 실행.
   - 금지: "push 전·done 전 최신화", 충돌 미리 풀기, 버전 재채번, 재개 뒤 따라잡기
   - 맞추는 일 = 팀장 스윕과 해소 워커 몫
   - 유일한 예외와 그때의 기점·기준선·게이트 처리 = dev-discipline 「개발 브랜치 재머지」
-- **`blocked` 로 멈추는 경우 = 되돌리기 어려운 결정뿐**: 데이터 삭제, 외부 공개(deploy·외부 전송), 다른 Task 산출물 대폭 수정, 보안·permission 변경. 잘못 고른 결정은 반려 재작업으로 고칠 수 있음
+- **`blocked` 로 멈추는 경우 = 되돌리기 어려운 결정뿐**: 데이터 삭제, 외부 공개(deploy·외부 전송), 다른 Task 산출물 대폭 수정, 보안·권한 변경. 잘못 고른 결정은 반려 재작업으로 고칠 수 있음
 
 멈출 때 `.result` 쓰기 전에 좌석표에 손 든 상태를 알림. 실패해도 진행을 막지 않음.
 ```bash
@@ -195,7 +195,7 @@ node .claude/skills/dflow-work/scripts/dflow.mjs heartbeat {ID8} --phase blocked
 | `needs-merge` | 재개 판정이 approved(`/dflow-dev` 「--worker」 C) | `approved` |
 | `blocked` | 6번 판단 규칙(되돌리기 어려운 결정만) | 질문과 선택지 |
 | `cancelled` | 사람이 D'Flow 에서 이 작업을 중단. `dflow.mjs` 의 progress·heartbeat·done 이 exit 10 이거나, heartbeat 훅이 세션을 세움(`/dflow-dev` 상태 모델) | 멈춘 Phase 와 호출(예 `build progress exit 10`). 산출물은 로컬 commit 만, **push 안 함** |
-| `failed` | 그 밖의 중단(push 훅 거부, 게이트 실패, Build 게이트·Verify 재시도 소진, 부트스트랩 실패, permission 거부) | 자유 문구. 팀장이 구분하는 값은 첫 낱말로 씀: `rate-limit`(사용량 한도·rate limit 오류로 멈춤, 재시도 가능), `not-isolated`(격리 실패, 파일로는 안 씀), `no-worker-flag`(옛 `/dflow-dev`), `deps`(의존성 설치 실패), `permission`(permission 거부, 뒤에 거부된 명령의 첫 낱말들), `project`(claim 이 `PROJECT_MISMATCH` 로 거부됨. 주문이 이 리포에 바인딩된 D'Flow 프로젝트 밖), `not-assignee`(claim 이 `not_assignee` 로 거부됨. 다른 멤버에게 배정된 작업). 설계 상태(계약 2.11)의 실패 — `브랜치 갈라짐 …`·`방식 확인 필요`·`design-done 거부(<code>)`·`design-reopen 거부(<code>)`·`설계 게이트 불통(구현 중)`·`설계 변경 필요 — <이유>`·`원격 agent 브랜치에 사람 커밋 — 받은 뒤 --resume`·`완료 보고 거부(<code>)` — = 사유에 사람이 할 일 있음(worker-mode.md 「설계 상태의 결과 줄」) |
+| `failed` | 그 밖의 중단(push 훅 거부, 게이트 실패, Build 게이트·Verify 재시도 소진, 부트스트랩 실패, permission 거부) | 자유 문구. 팀장이 구분하는 값은 첫 낱말로 씀: `rate-limit`(사용량 한도·rate limit 오류로 멈춤, 재시도 가능), `not-isolated`(격리 실패, 파일로는 안 씀), `no-worker-flag`(옛 `/dflow-dev`), `deps`(의존성 설치 실패), `permission`(permission 거부, 뒤에 거부된 명령의 첫 낱말들), `project`(claim 이 `PROJECT_MISMATCH` 로 거부됨. 주문이 이 리포에 바인딩된 D'Flow 프로젝트 밖), `not-assignee`(claim 이 `not_assignee` 로 거부됨. 다른 멤버에게 배정된 작업). 설계 상태(계약 2.11)의 실패 — `브랜치 갈라짐 …`·`방식 확인 필요`·`design-done 거부(<code>)`·`design-reopen 거부(<code>)`·`설계 게이트 불통(구현 중)`·`설계 변경 필요 — <이유>`·`원격 agent 브랜치에 사람 커밋 — 받은 뒤 --resume`·`완료 보고 거부(<code>)` — 은 사유에 사람이 할 일 있음(worker-mode.md 「설계 상태의 결과 줄」) |
 
 - `<branch>` = agent branch 이름. branch 만들기 전에 끝났으면 `-`
 - `<head_sha>` = push 한 agent branch tip 의 짧은 sha(`git rev-parse --short HEAD`)
@@ -229,7 +229,7 @@ node .claude/skills/dflow-work/scripts/dflow.mjs heartbeat {ID8} --phase blocked
 ## 8. 서버 프로세스 규칙
 
 정본 = `.claude/skills/dflow-dev/references/e2e.md` 「서버 프로세스」 절 — 규칙 본문 수정은 그 파일에서만. 요지:
-- screen 작업·E2E 서버는 리포의 서버 실행 스크립트(`be-run.sh`·`fe-run.sh` 처럼 다른 인스턴스나 포트 점유 프로세스를 이름·포트 기준으로 정리하는 스크립트) 사용 금지. 빈 포트로 직접 띄움
+- 화면 작업·E2E 서버는 리포의 서버 실행 스크립트(`be-run.sh`·`fe-run.sh` 처럼 다른 인스턴스나 포트 점유 프로세스를 이름·포트 기준으로 정리하는 스크립트) 사용 금지. 빈 포트로 직접 띄움
 - 끝나면 자기가 띄운 프로세스(start 시 기록한 PID, 필요하면 그 포트의 리슨 프로세스)만 거둠
 - 금지: 전역 `gradlew --stop`, 이름 기반 `pkill`·`killall`·`pgrep -f` 종료, 남의 포트 점유 프로세스 종료
 
