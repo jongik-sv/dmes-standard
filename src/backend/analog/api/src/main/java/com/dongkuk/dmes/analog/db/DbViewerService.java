@@ -40,8 +40,8 @@ public class DbViewerService {
     private static final Logger audit = LoggerFactory.getLogger("dbViewerAudit");
 
     /**
-     * 컬럼 속성 + PK·FK 여부. FK_REF 는 참조 대상 {@code 스키마.테이블}(한 컬럼에 FK 가 여럿이면 하나만).
-     * 참조 대상 제약을 볼 권한이 없으면 FK_YN 은 Y 이고 FK_REF 만 비어 있다.
+     * 컬럼 속성 + PK·FK 여부 + 칼럼 주석(ALL_COL_COMMENTS). FK_REF 는 참조 대상 {@code 스키마.테이블}(한 컬럼에 FK 가 여럿이면 하나만).
+     * 참조 대상 제약을 볼 권한이 없으면 FK_YN 은 Y 이고 FK_REF 만 비어 있다. 주석이 없는 칼럼은 COMMENTS 가 NULL 이다.
      * 바인드 순서: 제약 조회(OWNER, TABLE_NAME) → 컬럼 조회(OWNER, TABLE_NAME).
      */
     private static final String COLUMNS_SQL = """
@@ -70,9 +70,14 @@ public class DbViewerService {
                  , NVL(B.PK_YN, 'N') PK_YN
                  , NVL(B.FK_YN, 'N') FK_YN
                  , B.FK_REF
+                 , M.COMMENTS
             FROM   ALL_TAB_COLUMNS A
                  , T_CONS B
+                 , ALL_COL_COMMENTS M
             WHERE  B.COLUMN_NAME(+) = A.COLUMN_NAME
+            AND    M.OWNER(+) = A.OWNER
+            AND    M.TABLE_NAME(+) = A.TABLE_NAME
+            AND    M.COLUMN_NAME(+) = A.COLUMN_NAME
             AND    A.OWNER = ?
             AND    A.TABLE_NAME = ?
             ORDER BY A.COLUMN_ID

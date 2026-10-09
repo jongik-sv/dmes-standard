@@ -137,9 +137,9 @@
   font-weight: 600;
 }
 
-/* 테이블 행은 화살표 폭(12px)+간격만큼 들여 스키마 아이콘 아래에 맞춘다. */
+/* 테이블 행은 스키마 행(화살표 12px+간격)보다 한 단계 더 들여 쓴다 — 스키마 이름 아래에 아이콘이 정렬된다. */
 .anl-db-viewer .anl-db-tree-row--table {
-  padding-left: 24px;
+  padding-left: 38px;
   color: var(--color-text-secondary);
 }
 
