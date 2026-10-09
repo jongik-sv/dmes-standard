@@ -20,7 +20,7 @@ const UTF8 = { LC_ALL: 'en_US.UTF-8' }, CLOC = { LC_ALL: 'C' };
 const denied = (env, t) => denyHit(env, `${t} `) || redirectHit(env, t);
 
 test('거부 정규식: 가지마다 걸림 2 이상·안 걸림 1 이상 (명세 DENY_CASES 와 같은 표)', () => {
-  assert.equal(DENY_CASES.length, 25);
+  assert.ok(DENY_CASES.length >= 25, `가지 ${DENY_CASES.length}개`);   // 정규식 가지 25개 + 리다이렉션·보조 사례
   for (const [name, pos, neg] of DENY_CASES) {
     assert.ok(pos.length >= 2 && neg.length >= 1, name);
     for (const env of [CLOC, UTF8]) {
@@ -166,7 +166,7 @@ test('허용 밖 범주·질문이 proceed 가 아니면 보내지 않고 올린
   try {
     assert.equal(go(w, ['--lane', 'kit']).stdout, 'ESCALATE h1 permission unknown:python3\n');
     assert.equal(sends(w), 0);
-    writeFileSync(join(w.fake, 'screens', 'h1.txt'), permScreen(['git status']).replace('Do you want to proceed?', 'Do you want to make this edit to a.ts?'));
+    writeFileSync(join(w.fake, 'screens', 'h1.txt'), permScreen(['git status']).replace('Do you want to proceed?', 'Do you want to allow this command?'));
     rmSync(join(w.fake, 'screens', 'h1.1.txt'));
     assert.equal(go(w, ['--lane', 'kit']).stdout, 'ESCALATE h1 permission not-proceed\n');
     assert.equal(sends(w), 0);
