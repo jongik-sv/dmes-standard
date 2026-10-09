@@ -24,7 +24,7 @@ SKILL.md 「2-2」·「2-3」 에서 옮긴 절 모음(원문 그대로). 각 �
 다음 TICK 에서 이 값 = 그 슬롯 "직전 TICK" 증거 (`references/result-handling.md` 「생존 증거」).
 
 `--may-skip` = TICK 이 시각으로 할 일 없을 때만 붙임. 아래 중 하나라도 있으면 안 붙임.
-- 차단기 걸림 (TICK 마다 test spawn 1건).
+- 차단기 걸림 (TICK 마다 시험 spawn 1건).
 - 재시작 대기·rate-limit 대기 있음 (`references/restart.md` 「이벤트로 본 상태」 의 `RESTART_DUE`·`RL_WAIT`·`RL_DUE`).
 - 빈 슬롯 있는데 못 띄운 후보 (대기 큐·재개 대상·해소 큐. 입장 제어로 미룬 것 포함) 남음.
 - 「7. 마감」 진입 (마감 기다림 = `TICK` 두 번).

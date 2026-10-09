@@ -13,17 +13,17 @@ SKILL.md 「4. 승인 스윕」 에서 옮긴 절(원문 그대로). 스윕 보�
   - `/dflow-merge` 가 merge 직전 HEAD 로 `git reset --keep` 되돌림 → "push 실패(경합)" 보고 → 스윕 멈춤.
   - 다음 기상 스윕 fetch 부터 다시 함.
 - **그 밖 push 실패**: `/dflow-merge` 가 연결·permission 오류(128 등) "push 실패" 보고 · 스윕 멈춤.
-  - 팀장 = 그 스윕 "중간에 멈춤" 보고. 정상 완료로 적지 않음.
+  - 팀장: 그 스윕 "중간에 멈춤" 보고. 정상 완료로 적지 않음.
   - merge 안 된 후보 = 다음 기상 스윕이 다시 봄.
 - **push 훅 거부**: `/dflow-merge` 가 `git reset --keep` 되돌림 → "push 실패(훅)" 보고. 그 작업과 후손만 빼고 다음 후보로 감.
-  - 팀장 = 그 id8 "사람이 머지해야 함" 보고.
+  - 팀장: 그 id8 "사람이 머지해야 함" 보고.
 - **merge 충돌**: `/dflow-merge` 가 충돌 파일 목록 읽고 `git merge --abort` 로 되돌린 뒤 "머지 실패(충돌)" 보고(파일 목록 `<파일,…>` 동반) → 다음 후보로 감.
   - migration 버전 중복·역순 도착(`/dflow-merge` 「마이그레이션 버전 관문」)도 merge 전에 같은 문구로 보고됨 (끝에 `(마이그레이션 버전)`, 파일 = 이 branch 가 추가한 migration).
-  - 팀장 = 그 id8 → 「4-1. 머지 충돌 해소」.
+  - 팀장: 그 id8 → 「4-1. 머지 충돌 해소」.
   - 해소 못 하는 경우(다른 신원의 주문·상한·재시도 불가)만 "사람이 머지해야 함" 보고.
-- **공용 결정 기록(`decisions.md`)**: 팀원 = 전역 번호 대신 임시 ID `D-<TSK>-<n>` 사용 (dev-discipline 「공용 결정 기록(decisions.md)의 번호」).
+- **공용 결정 기록(`decisions.md`)**: 팀원: 전역 번호 대신 임시 ID `D-<TSK>-<n>` 사용 (dev-discipline 「공용 결정 기록(decisions.md)의 번호」).
   - `/dflow-merge` 가 merge 하며 그 파일 충돌 기계적으로 풀고 번호 매김 (「결정 번호 매김」).
-  - 대상 리포 `merge=union` 금지 — 같은 필드 줄 가진 블록을 섞음.
+  - 대상 리포에 `merge=union` 안 걸음 — 같은 필드 줄 가진 블록을 섞음.
   - 스윕 보고에 `UNION_SET <파일>` 있으면 "대상 리포 `.gitattributes` 에서 decisions.md 의 `merge=union` 을 빼야 함" 으로 사람에게 보고.
   - 팀장 그 파일 직접 고쳐 commit 안 함 (대상 리포 설정 변경 = 사람 몫).
   - "결정 번호 매김 실패" = 보고만 (다음 merge 가 다시 매김).
@@ -34,7 +34,7 @@ SKILL.md 「4. 승인 스윕」 에서 옮긴 절(원문 그대로). 스윕 보�
 - **자동 merge 뒤 일시 제외 해제**: 스윕이 "머지됨(승인 전)"·"머지됨" 을 한 건이라도 냈거나 해소 워커가 `resolved` 로 끝났으면(「5-2」):
   - 일시 제외 중 사유 선행 계열(선행 미충족·선행 미승인·선행 승인 대기·claim exit 4·공통 기점 없음·선행 미반영)인 id8 목록에서 뺌.
   - restart 조건(「2-1」) 맞으면 줄어든 `--exclude-temp` 로 poll 새로 띄움.
-  - 푼 작업 팀장 직접 안 띄움. poll 이 다시 돌려준 것만 띄움 (담당자 변경·다른 팀장 점유 거르는 곳 = poll `--scope assigned` 조회).
+  - 푼 작업은 팀장이 직접 안 띄움. poll 이 다시 돌려준 것만 띄움 (담당자 변경·다른 팀장 점유 거르는 곳 = poll `--scope assigned` 조회).
   - 떠 있던 옛 poll 이 옛 목록으로 한 번 더 돌아도 poll exit 0 처리 대조·spawn 전 확인이 이중 spawn 을 막음 (「2-3」 5번).
 - `team.sweep`(merged, waiting, rejected, resolved 개수) 기록.
   - `resolved` = 직전 스윕 뒤 해소 워커 `resolved` 가 조상 확인까지 통과한 수. 기억으로 세지 않음 — `lead-state.mjs` `CONFLICT_CLEARED resolved=` 사용.
@@ -60,7 +60,7 @@ SKILL.md 「4. 승인 스윕」 에서 옮긴 절(원문 그대로). 스윕 보�
 - merge 자리 = 팀장 checkout 상태로 갈림 (`/dflow-merge` 4번).
   - 기본 branch 위 팀장 → 그 checkout 에서 merge.
   - detached HEAD 팀장 → 임시 merge worktree `<MAIN>/.claude/worktrees/dflow-merge` 에서 merge, `HEAD:<기본브랜치>` 로 push.
-- detached HEAD 팀장 = 스윕 끝나면 팀장 checkout 최신으로 옮김 (옛 commit state.json 이 `LEGACY_REPORTED` 안 부르게). checkout 깨끗할 때만.
+- detached HEAD 팀장: 스윕 끝나면 팀장 checkout 최신으로 옮김 (옛 commit state.json 이 `LEGACY_REPORTED` 안 부르게). checkout 깨끗할 때만.
   ```bash
   [ -z "$(git branch --show-current)" ] && [ -z "$(git status --porcelain)" ] && git switch -q --detach origin/<기본브랜치>
   ```

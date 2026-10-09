@@ -91,7 +91,7 @@ description: D'Flow 에서 내게 배정되고 에이전트 위임(tags:agent)�
     | node .claude/skills/dflow-team/scripts/live-leads.mjs --mark
   ```
   - 출력 = 토큰마다 한 줄 JSON(`prefix`·`name`·`email`·`who`·`bound`·`selected`·`in_use`, 실패한 토큰은 `error`). 필드 뜻 = `references/args.md` 「키 판정 상세」.
-  - `in_use` ≠ `null` 키(다른 worktree 살아 있는 팀장이 쓰는 신원) = 시작 불가.
+  - `in_use` ≠ `null` 키(다른 worktree 살아 있는 팀장이 쓰는 신원)로는 시작 불가.
 
   | 상태 | 처리 |
   |---|---|
@@ -115,7 +115,7 @@ description: D'Flow 에서 내게 배정되고 에이전트 위임(tags:agent)�
 
   - 날짜 붙은 말 = 오늘 날짜(`date +%Y-%m-%d`) 기준 절대 날짜로 변환. "N일 뒤" = 오늘+N일, 요일 = 오늘 이후 가장 가까운 그 요일.
   - 시각만 있고 오늘 이미 지났으면 **내일로 추측하지 않고** 묻음.
-  - 날짜 붙은 종료 시각 = 지금부터 **7일 이내**(`UNTIL_TOO_FAR`). 더 길게 = `종료 요청 전까지` 사용.
+  - 날짜 붙은 종료 시각 = 지금부터 **7일 이내** 필수(초과 = `UNTIL_TOO_FAR`). 더 길게 = `종료 요청 전까지` 사용.
   - 시작 보고 첫 줄 = 정규화 절대 시각(또는 "종료 요청 전까지").
   - **종료 요청**: 종료 시각 전이라도, 또는 `none` 이면 언제든 둘 중 하나로 멈춤. 둘 다 「7. 마감」 으로 감.
     1. 팀장 세션에 말로 함: "팀장 종료", "마감해", "그만" 같은 말.
@@ -129,7 +129,7 @@ description: D'Flow 에서 내게 배정되고 에이전트 위임(tags:agent)�
     - 종료 시각 있으면 나머지 선택 인자 안 묻고 기본값 사용.
   종료 시각 지나면 새 배정 멈춤. 진행 중 팀원은 대기 상한까지 기다린 뒤 남은 것 목록으로 보고(「7. 마감」).
   - **실행 중 연장**: 사람이 "내일 9시까지 연장" 처럼 말하면 `references/extend.md` 대로(`team.extend` 기록, poll·감시 루프·좌석표 갱신, 마감 중이면 마감 취소). **`team.start` 새로 쓰기 금지.**
-- **여러 날·무기한 실행**(`<UNTIL>` ≠ 오늘 또는 `none`): 시작 보고에 "팀원은 권한 확인 생략 모드로 무인으로 돕니다. 답을 기다리는 팀원은 사람이 답할 때까지 슬롯을 잡습니다." 한 줄 더 적음.
+- **여러 날·무기한 실행**(`<UNTIL>` 오늘 아님 또는 `none`): 시작 보고에 "팀원은 권한 확인 생략 모드로 무인으로 돕니다. 답을 기다리는 팀원은 사람이 답할 때까지 슬롯을 잡습니다." 한 줄 더 적음.
   - macOS 면 절전 방지 검(「1. 시작」 6번).
   - 서버(Linux)·Windows = 절전 방지 안 검.
 - 인원 = 동시 팀원 슬롯 수. **기본 3, 인원 상한 = 이 PC `min(6, K+2)`.**
@@ -257,7 +257,7 @@ node .claude/skills/dflow-team/scripts/lead-state.mjs --agent '<신원>/<host>/l
   - 실제 죽은 Orca 팀원 = 무응답 규칙(「3. 결과 처리」)이 가려냄.
   - tmux pane 죽음(`dead`) → 살아 있지 않음. `.result` 있으면 결과 처리, 없으면 죽은 pane screen 폴백과 고아 스캔(「3. 결과 처리」).
   - 팀장 세션 새로 떠도 살아 있는 tmux 팀원은 원래 슬롯 번호로 흡수(tmux 서버는 팀장과 따로 돎).
-- 대기 큐 재구성 안 함(다음 poll 이 같은 ready 다시 찾음). `blocked` 작업은 대기 큐에 안 넣음(그 팀원 슬롯 잡은 채 답 기다림).
+- 대기 큐 재구성 안 함(다음 poll 이 같은 ready 다시 찾음). `blocked` 작업은 대기 큐에 안 넣음(그 팀원이 슬롯 잡은 채 답 기다림).
 - **결과 중복 방지**: 결과 줄 = 그 줄 해시로 식별.
   - `.result` 경로마다 events.jsonl `team.result`·`team.blocked` 에서 마지막 처리 해시(경로별 마지막 처리 해시) 유도.
   - 현재 줄 해시와 비교해 다를 때만 처리.
@@ -280,7 +280,7 @@ node .claude/skills/dflow-team/scripts/lead-state.mjs --agent '<신원>/<host>/l
 
 ## 0. 환경 감지 (시작 맨 처음)
 
-백엔드: Orca **먼저** 확인, Orca 안 아니면 tmux 확인. `TMUX` 환경변수 감지에 안 씀(전용 소켓 사용, Orca 안에서도 채워짐).
+백엔드: Orca **먼저** 확인, Orca 밖이면 tmux 확인. `TMUX` 환경변수 감지에 안 씀(전용 소켓 사용, Orca 안에서도 채워짐).
 
 | 순위 | 조건 | 백엔드 |
 |---|---|---|
@@ -485,7 +485,7 @@ node .claude/skills/dflow-team/scripts/lead-state.mjs --agent '<신원>/<host>/l
    node .claude/skills/dflow-work/scripts/dflow.mjs watch --agent "$lead" \
      --slots <N> --busy <M> --until '<UNTIL_LABEL>' --json || :
    ```
-   **절전 방지**: `<UNTIL>` ≠ 오늘 또는 `none` 이고 `uname -s` = `Darwin` 일 때만 `caffeinate -i -w <LEAD_PID>` 를 Bash `run_in_background` 로 띄움.
+   **절전 방지**: `<UNTIL>` 오늘 아님 또는 `none` 이고 `uname -s` = `Darwin` 일 때만 `caffeinate -i -w <LEAD_PID>` 를 Bash `run_in_background` 로 띄움.
    - 시작 보고에 "전원을 연결하고 뚜껑을 연 채로 두라" 기재.
    - Linux 서버·Windows 는 안 띄움.
    - 세부 = `references/start.md` 「1번 시작: 6번 절전 방지」.
@@ -546,8 +546,8 @@ POLL_DIR=$(cd "$(git rev-parse --git-path dflow-team-poll)" && pwd)
 - rate-limit 보류 없음 (`references/restart.md` 「이벤트로 본 상태」)
 
 poll 은 start 즉시 첫 조회 → 줄 수 없을 때 띄우면 공회전.
-예외 하나: 차단기 걸린 `TICK` 에 대기 큐 비어 test spawn 후보 없으면 poll 한 번 띄움.
-그 poll exit 0 에서 1건만 test spawn, 나머지 대기 큐.
+예외 하나: 차단기 걸린 `TICK` 에 대기 큐 비어 시험 spawn 후보 없으면 poll 한 번 띄움.
+그 poll exit 0 에서 1건만 시험 spawn, 나머지 대기 큐.
 poll 안 떠 있는 구간 있음 → 팀장은 기상마다 시각 보고 종료 시각 지났으면 poll exit 8 과 같이 처리.
 
 일시 제외는 poll.mjs 가 10주기 (30분) 뒤 스스로 풀어 재발견 유도. 팀장은 해제 시각 따로 관리 안 함.
@@ -646,14 +646,14 @@ node .claude/skills/dflow-team/scripts/wake.mjs --owner '<신원>/<host>/lead' -
    - 재시작 대기 목록 (`references/restart.md` 「이벤트로 본 상태」 의 `RESTART_DUE`)도 재개 대상. 재투입 전 확인 (`REINJECT_OK`) 통과할 때만 띄움. 재시작 대기는 새 작업보다 먼저.
    - rate-limit 보류 중에는 재개·새 작업 모두 안 띄움 (`RL_DUE` 슬롯 자신의 재투입만 예외).
    - 기상 블록 요약 `build` 의 claimed 원소 (「설계 승인」 된 작업, 계약 2.11)와 재구성의 `RETRY_DUE` (fetch·push 실패 재시도)도 재개 대상 — 새 작업보다 먼저.
-   - 그래도 빈 슬롯 남으면 선행 대기 작업을 **설계 선행**으로 줌 (`references/design-ahead.md` 3번, `DFLOW_DESIGN_AHEAD_MAX`).
+   - 그 뒤에도 빈 슬롯 남으면 선행 대기 작업을 **설계 선행**으로 줌 (`references/design-ahead.md` 3번, `DFLOW_DESIGN_AHEAD_MAX`).
 5. 끝난 감시 루프 다시 띄움 (`--may-skip` 은 「2-2」 조건일 때만). restart 조건 (「2-1」) 만족하면 poll.mjs 도 다시 띄움.
    - 컨텍스트 압축 뒤 poll 이 떠 있는지 모르면 restart 조건에 따라 새로 띄움.
    - poll 겹쳐 떠도 poll exit 0 처리 대조와 spawn 전 확인 (「5. 팀원 spawn」 1번)이 같은 작업 두 번 띄우는 것 막음.
 
 | 기상 | 처리 |
 |---|---|
-| poll exit 0 (ready N줄) | 각 줄 `순번<TAB>id8<TAB>이름[<TAB>action]` 에서 순번 버리고 id8 과 `action` (계약 2.11, 없으면 `full`) 사용. 먼저 후보를 영구 제외 목록·슬롯 표에만 한 번 더 대조해 걸리는 것 버림 (겹쳐 뜬 옛 poll 은 옛 제외 목록으로 돌 수 있음). 일시 제외는 대조 안 함 (poll.mjs 가 10주기 뒤 풀어 돌려준 것 그대로 다시 판정, 「2-1」). 남은 후보마다 아래 show 필터로 `.order.item.spec` 빈지와 선행 사전 검사 (`deps_unmet`)만 봄 (spec 본문 컨텍스트에 싣지 않음). 비었거나 `ref` 비면 일시 제외에 넣고 사유 (spec 부재·TSK 없음) 보고 + `team.result` (slot `-`, status `skipped`) 남김. `deps_unmet` 비어 있지 않으면 띄우지 않고 사유 `선행 미충족(사전 검사: <ref…>)` 로 보고·`team.result` 는 같게 하되, 일시 제외 아닌 **선행 대기**에 넣음 (아래 「선행 사전 검사」). `deps_unmet` 비고 `deps_nohead` 비어 있지 않으면 아래 「선행 반영 사전 검사」 거침. 남은 것을 빈 슬롯 수만큼 spawn, 나머지 대기 큐 끝. 차단기 걸려 있으면 spawn 안 하고 대기 큐에 넣음 (test spawn 예외는 「2-1」 restart 조건). 대기 큐 잃어도 그 작업은 아직 ready 라 다음 poll 이 다시 찾음. `action` 이 `design` 이면 `deps_unmet` 있어도 선행 대기에 안 넣음 (설계만 함, 스펙 6.6). spawn 전에 아래 「설계 사전 검사」 거침 |
+| poll exit 0 (ready N줄) | 각 줄 `순번<TAB>id8<TAB>이름[<TAB>action]` 에서 순번 버리고 id8 과 `action` (계약 2.11, 없으면 `full`) 사용. 먼저 후보를 영구 제외 목록·슬롯 표에만 한 번 더 대조해 걸리는 것 버림 (겹쳐 뜬 옛 poll 은 옛 제외 목록으로 돌 수 있음). 일시 제외는 대조 안 함 (poll.mjs 가 10주기 뒤 풀어 돌려준 것 그대로 다시 판정, 「2-1」). 남은 후보마다 아래 show 필터로 `.order.item.spec` 빈지와 선행 사전 검사 (`deps_unmet`)만 봄 (spec 본문 컨텍스트에 싣지 않음). 비었거나 `ref` 비면 일시 제외에 넣고 사유 (spec 부재·TSK 없음) 보고 + `team.result` (slot `-`, status `skipped`) 남김. `deps_unmet` 비어 있지 않으면 띄우지 않고 사유 `선행 미충족(사전 검사: <ref…>)` 로 보고·`team.result` 는 같게 하되, 일시 제외 아닌 **선행 대기**에 넣음 (아래 「선행 사전 검사」). `deps_unmet` 비고 `deps_nohead` 비어 있지 않으면 아래 「선행 반영 사전 검사」 거침. 남은 것을 빈 슬롯 수만큼 spawn, 나머지 대기 큐 끝. 차단기 걸려 있으면 spawn 안 하고 대기 큐에 넣음 (시험 spawn 예외는 「2-1」 restart 조건). 대기 큐 잃어도 그 작업은 아직 ready 라 다음 poll 이 다시 찾음. `action` 이 `design` 이면 `deps_unmet` 있어도 선행 대기에 안 넣음 (설계만 함, 스펙 6.6). spawn 전에 아래 「설계 사전 검사」 거침 |
 | `STOP_REQUESTED`, 사람의 종료 요청 ("팀장 종료"·"마감해" 등) | 종료 시각 무관, 「7. 마감」 으로 감. "종료 요청으로 마감합니다" 한 줄 알림. 종료 파일은 이 자리에서 지움 (남기면 마감 중 다시 띄운 감시 루프가 곧바로 다시 끝나 공회전). 마감 기다림 (「7. 마감」 2번) 중 종료 요청이 **한 번 더** 오면 기다림 끝내고 곧바로 3번으로 감 |
 | poll exit 8 (시한) | 먼저 지금 시각이 현재 `<UNTIL>` (연장 반영) 전인지 봄. 전이면 연장 전에 띄운 옛 poll 이 끝난 것 → 무시, restart 조건 (「2-1」)대로 새 `--until` 로 다시 띄움. 지났으면 새 배정 stop, 대기 큐 비우고 (보고만) 「7. 마감」 으로 감 |
 | poll exit 2·3·5·6·7 | 중단 사유 (stderr) 보고 후 「7. 마감」 |
@@ -661,7 +661,7 @@ node .claude/skills/dflow-team/scripts/wake.mjs --owner '<신원>/<host>/lead' -
 | `PANE_DEAD <경로…>` (tmux) | 경로마다 「3. 결과 처리」. `.result` 있으면 그 줄, 없으면 죽은 pane screen 폴백, 그것도 없으면 `references/restart.md` 「판정」 (`pane_dead_status` 127 이면 `failed no-result`) |
 | 팀원의 cross-session 메시지 (이슈 보고) | 「2-4. 팀원 이슈 보고 처리」. 도착한 이 기상 안에서 곧바로 처리 — 사람에게 보고만 하고 턴 끝내지 않음 |
 | 사람의 답 | 「6. blocked」 의 답 매칭 |
-| `TICK` | 감시 루프를 `--new-tick` 으로 다시 띄워 다음 TICK 을 지금+1800초로 새로 정함. 출력에 `TICK_SKIPPED` 있었으면 한 번 건너뛴 뒤의 TICK, 그 `EVIDENCE` 줄 = 직전 TICK 증거 (「3」). 진행 중 슬롯 생존 확인, 무응답 슬롯 생존 증거 잼 (「3. 결과 처리」). 결과 줄 없는 정체 슬롯·재시작 대기 목록은 `references/restart.md` 「판정」·「rate-limit 대기」 를 탐. 차단기 걸려 있으면 test spawn 1건 허용 |
+| `TICK` | 감시 루프를 `--new-tick` 으로 다시 띄워 다음 TICK 을 지금+1800초로 새로 정함. 출력에 `TICK_SKIPPED` 있었으면 한 번 건너뛴 뒤의 TICK, 그 `EVIDENCE` 줄 = 직전 TICK 증거 (「3」). 진행 중 슬롯 생존 확인, 무응답 슬롯 생존 증거 잼 (「3. 결과 처리」). 결과 줄 없는 정체 슬롯·재시작 대기 목록은 `references/restart.md` 「판정」·「rate-limit 대기」 를 탐. 차단기 걸려 있으면 시험 spawn 1건 허용 |
 | `LEASE_LOST <사유>` | 다른 곳이 이 신원+프로젝트 팀장 lease 를 가져갔거나 (`LEASE_LOST <project_id…>`), 서버에 3분 넘게 못 닿음 (`LEASE_UNREACHABLE`). 위 1-5 (재구성·승인 스윕·spawn·poll·감시 루프 restart) 안 함. 같은 `LOCK_OK` 블록이 함께 낸 `LEASE_KEEP_DEAD` 도 무시하고 곧장 「7. 마감」 의 lease 상실 마감 |
 | `STALE` | 잠금 소유 확인과 `beat` 갱신만 하고 나머지 넘김 |
 
@@ -761,9 +761,9 @@ jq -c --arg a '<신원>/<host>/lead' --arg r '<MAIN>' 'select(.agent == $a and .
 - **차단기**: 결과 도착 순서로 `failed` 연속 2건이면 새 spawn 멈추고 보고.
   - `failed` 에 `no-result`·`rate-limit` 포함. `not-assignee`·해소 워커의 내용 실패(`references/merge-conflict.md` 「6. 차단기」) 제외.
   - `failed` 아닌 결과 오면 연속 수 0 으로 되돌림.
-  - 걸린 동안 다음 `TICK` 마다 1건만 test spawn(대기 큐 맨 앞에서, 큐 비었으면 poll 한 번 띄워 얻음). 그 결과가 `failed` 아니면 차단기 풂(한도·환경 결함에 걸린 채 대기 큐 소진하지 않음).
+  - 걸린 동안 다음 `TICK` 마다 1건만 시험 spawn(대기 큐 맨 앞에서, 큐 비었으면 poll 한 번 띄워 얻음). 그 결과가 `failed` 아니면 차단기 풂(한도·환경 결함에 걸린 채 대기 큐 소진하지 않음).
   - 자동 재시작의 `team.lost`(모든 `cause`)도 실패 1건으로 셈(`references/restart.md`). 단 `next=wait` 인 `team.lost` 는 세지 않음.
-  - 걸린 동안의 test 1건은 재시작 대기가 새 작업보다 먼저.
+  - 걸린 동안의 시험 1건은 재시작 대기가 새 작업보다 먼저.
 - **중단·무응답·정지·대기·재시작**: 결과 줄 없는 진행 슬롯은 `TICK` 마다 생존 증거로 판정.
   - `show` 가 `status=cancelled` 면 `cancelled` 결과로 처리(무응답 안 기다림, worktree 안 지움).
   - 생존 증거가 한 `TICK` 안 변하면 "무응답" 보고만(슬롯 유지). 두 `TICK` 연속 무변화(또는 결과 없는 pane·탭 죽음)면 원인 가리는 일은 `references/restart.md` 「판정」 이 대신함: 재시작 후보는 worktree 지우지 않고 pane·탭만 거둠 → `team.lost`(영구 제외 대신함). 재시작 후보 아닌 무응답만 자동 정리(영구 제외 + "멈춤" 사유 `무응답`).
@@ -934,7 +934,7 @@ cat .claude/skills/dflow-team/references/merge-conflict.md
 
 **입장 제어 정본 = 이 절** (「5」 0항·「5-2」·`references/resume.md` 0항·backends.md 「입장 제어」·restart.md 「재투입」 이 이 절을 가리킴).
 - 팀원 세션 새로 띄우기 직전마다 PC 여유 자원 확인.
-- 대상: 새 작업(「5」)·재개와 재투입(「5-1」)·해소(「5-2」)·차단기의 test spawn 모두.
+- 대상: 새 작업(「5」)·재개와 재투입(「5-1」)·해소(「5-2」)·차단기의 시험 spawn 모두.
 - 이미 모자란 PC 에 팀원을 더 얹지 않음.
 - **이미 떠 있는 팀원은 건드리지 않음** (끄거나 멈추지 않음).
 - 무거운 명령 자체의 동시 실행은 워커 쪽 `heavy.mjs`(`dev-discipline.md` 「무거운 명령 줄 세우기」)가 따로 묶음.
@@ -1001,11 +1001,11 @@ cat .claude/skills/dflow-team/references/closing.md
 ## 금지
 
 - 팀원에게 AskUserQuestion 쓰게 하기. 팀장이 사람에게 묻는 곳 = 시작 전 인자 질문(「인자」)과 답 매칭의 id8 되묻기, 둘뿐.
-- 팀장이 작업을 claim·progress·done 하기. 서버 쓰기는 팀원 몫 (스윕의 merge만 팀장).
+- 팀장이 작업을 claim·progress·done 하기. 서버 쓰기는 팀원 몫 (스윕의 merge만 팀장이 함).
   - 재개도 같음: 서버가 이미 `claimed` → 다시 claim 안 함. 끊긴 Phase 잇기 = 이어받은 워커의 `/dflow-dev --worker`.
   - 예외 넷:
     1. merge 충돌 표시 heartbeat(`merge_conflict` 설정·해제, `references/merge-conflict.md` 「3」)는 팀장이 함. 주문 상태 안 바꾸고 표시 열만 씀.
-    2. 팀장이 띄운 해소 워커의 `/dflow-merge --resolve` 가 개발 branch에 한 건을 merge·push. "스윕의 머지만 팀장이 한다" 의 유일한 예외. 경합은 두 쪽 모두 non-fast-forward 거부로 드러남. force push 는 여전히 금지.
+    2. 팀장이 띄운 해소 워커의 `/dflow-merge --resolve` 가 개발 branch에 한 건을 merge·push. "스윕의 merge만 팀장이 함" 의 유일한 예외. 경합은 두 쪽 모두 non-fast-forward 거부로 드러남. force push 는 여전히 금지.
     3. 「2-3」 「설계 사전 검사」 의 `design-reopen` (ready 인 구현자동 작업의 사람 설계를 되돌림 — 주문의 설계 상태만 바꿈).
     4. 「3. 결과 처리」 의 설계 멈춤 이어받기에서 부르는 `design-done` (워커가 push 까지 마친 멈춤을 서버에 기록만 함, 설계 상태 스펙 6.3).
 - 팀장이 대상 리포 소스 고치거나 build·test(gradle·npm test 등) 직접 돌리기 (머리말 「팀장 역할」, 예외 = 「2-4」 5번). 팀원이나 해소 워커에게 넘김.

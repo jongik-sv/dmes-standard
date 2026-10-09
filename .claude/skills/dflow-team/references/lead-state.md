@@ -29,8 +29,8 @@ SKILL.md 「팀장 상태」 에서 옮긴 절 모음(원문 그대로). 재구�
 - **`team.lost`**: id8 마지막 이벤트(`team.spawn`·`team.blocked`·`team.result`·`team.lost` 중)가 `team.lost` → 영구 제외(진행 중).
   - 재시작 대기 목록·rate-limit 대기·보류 = `references/restart.md` 「이벤트로 본 상태」 블록으로 복원.
   - 이 블록 `team.start` 로 안 자름.
-- 답 기다리는 질문 = `team.blocked` 중 뒤에 같은 id8 `team.answer` 없는 것(`WAIT_ANSWER`).
-  - 뒤에 같은 id8 결과·spawn·손실이 온 것 = 끝난 질문 → 뺌.
+- 답 기다리는 질문 = `team.blocked` 중 그 `team.blocked` 뒤에 같은 id8 `team.answer` 없는 것(`WAIT_ANSWER`).
+  - 그 뒤에 같은 id8 결과·spawn·손실이 온 것 = 끝난 질문 → 뺌.
   - 두 백엔드 공통.
 - 지시 안 보낸 이슈 = `team.issue` 중 id8 마다 **마지막** 것 `decision` = `pending`(`ISSUE_PENDING`)(「2-4. 팀원 이슈 보고 처리」).
   - 압축 뒤 첫 기상에 이 목록 복원 → 곧바로 2·3번(판단·추가 지시) 마무리.
@@ -52,7 +52,7 @@ SKILL.md 「팀장 상태」 에서 옮긴 절 모음(원문 그대로). 재구�
      - `.result` 없거나, 있어도 status 가 최종 판정(`done`·`needs-merge`·`skipped`·`failed`·`cancelled`·`resolved`) 아님.
        - 최종 판정 있으면 재개 아닌 「3. 결과 처리」 몫.
        - 단 `RETRY_DUE`(`lead-state.mjs` — fetch·push 실패 뒤 30분)인 `skipped` 는 최종 판정 아님(12절 Y11). `WARN_RETRY` 면 「멈춤」.
-     - 서버 show 에서 `status=claimed`·`mine=true`, `claimed_by` 소문자 값 = `claude-<host>` 또는 팀원 라벨 `<신원>/<host>/w<슬롯>` 가운데 칸 = `<host>`(이 PC 가 claim 함).
+     - 서버 show 에서 `status=claimed`·`mine=true`, `claimed_by` 소문자 값 = `claude-<host>` 또는 그 값이 팀원 라벨 `<신원>/<host>/w<슬롯>` 꼴이고 가운데 칸 = `<host>`(이 PC 가 claim 함).
        - 계약 2.11 이면 `references/resume.md` 「서버 판단 확인」 도 통과해야 함(`same_host` = 옛 서버 대체 판정).
      - 그 id8 재개 재시도가 상한(3)에 안 닿음.
      - 그 id8 이 `references/restart.md` 「이벤트로 본 상태」 에서 `PARKED`·`RL_WAIT`·`RL_DUE` 아님.

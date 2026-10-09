@@ -85,7 +85,7 @@ SKILL.md 「3. 결과 처리」 표가 가리키는 보충.
   - 나중에 사람이 `--resume` 해도 2.11 에서는 build-start 까지 안 감: `resume.md` 「서버 판단 확인」 `mine` 거짓 행이 먼저 막아 사유 `다른 PC 도는 중(<runner>)` 으로 다시 「멈춤」
   - build-start exit 12 = 2.11 서버만 냄. `resume.md` 안 거친 수동 실행만 받아 `skipped 다른 PC 도는 중` 으로 끝남
 - **`design_reopened`** (설계를 사람에게 되돌림): 실패 아님.
-  - worktree = 미commit 변경 있어도 지움 — 설계 원본은 개발 branch 이거나 이미 push 됨
+  - worktree 는 미commit 변경 있어도 지움 — 설계 원본은 개발 branch 이거나 이미 push 됨
   - `git worktree remove --force <워크트리>` (Orca 는 Orca 정리 명령에 `--force`) → backends.md 「고아 정리 규칙」 5번의 생성 branch 정리
   - 보고 한 줄: `<TSK> 설계를 사람에게 되돌렸습니다 — <사유>. 다시 확정·승인되면 새로 띄웁니다`
   - 사유 `주문이 바뀜` (구현 시작 직전에 사람이 설계를 되돌림) → `<TSK> 사람이 설계를 되돌려 구현을 시작하지 않았습니다. 다시 확정되면 새로 띄웁니다`

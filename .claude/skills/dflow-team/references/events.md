@@ -74,7 +74,7 @@
   - 마지막이 `team.spawn` 이나 `team.blocked` → 진행 중(영구 제외).
   - `team.result` → 그 `status` 의 제외 칸(SKILL.md 「3. 결과 처리」).
   - `team.lost` → 진행 중(영구 제외, restart.md 「이벤트로 본 상태」).
-  - `team.answer` = 제외 안 바꿈.
+  - `team.answer` 는 제외 목록 안 바꿈.
 - `team.issue`:
   - 팀원 SendMessage 이슈 보고 저장 기록(SKILL.md 「2-4. 팀원 이슈 보고 처리」).
   - `summary` = 이슈 보고 첫 줄(`[이슈 <TSK> <id8>] <요약>`)의 요약부.
