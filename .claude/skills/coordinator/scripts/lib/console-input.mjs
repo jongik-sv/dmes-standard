@@ -563,7 +563,12 @@ export function recLock(c, name) {
   let i = 0;
   const t0 = Date.now();
   while (!mk(d)) {
-    if (nowSec(c.env) - Number(statMtime(d) ?? '0') >= 10) { rmd(d); if (Date.now() - t0 > 30000) return 1; continue; }   // bash 판은 끝없이 돈다 — 안전 상한 30초(의심 목록)
+    if (nowSec(c.env) - Number(statMtime(d) ?? '0') >= 10) {
+      rmd(d);
+      if (Date.now() - t0 > 30000) return 1;   // 비워지지 않는 낡은 잠금: bash 판과 같은 30초 상한
+      if (isDir(d)) sleepMs(100);              // 그동안은 100ms 씩 쉰다(CPU 를 붙잡지 않는다)
+      continue;
+    }
     i += 1;
     if (i >= 30) return 1;
     sleepMs(100);
