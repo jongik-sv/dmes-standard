@@ -56,7 +56,7 @@ SKILL.md 「5-1. 재개 spawn」 이 가리킴. 재개 대상을 띄울 때 Bash
 | `action` 이 `skip` 이고 워크트리 없음, 단계가 `ip` 이상 | 안 띄움. 「멈춤」 사유는 끝 칸(마지막 완료 보고)으로 가름 (12절 L2). `reject`(반려·재작업 요청)면 `runner` 없을 때 `재작업 대기 — 사람이 /dflow-dev 로 재작업을 돌린다`, 있을 때 `재작업 중(<runner>)` (완료 보고가 `runner` 를 비우고 재작업의 build-start 가 다시 적음). 그 밖 = `워크트리 없음 — 구현 중` (다른 PC 워크트리에 push 안 한 구현이 있을 수 있음) |
 | `action` 이 `skip` (그 밖) | 안 띄움. 「멈춤」 사유 `<action_reason>` |
 | `action` 이 `full`·`design` 이고 워크트리 없음 | 안 띄움. 「멈춤」 사유 `워크트리 없음` (종전 — 사람이 `--resume` 으로 지목하면 띄움) |
-| 그 밖 (`full`·`design`·`build`) | 띄움. 포인터 `SCOPE` = 그 `action`. `action` 이 `full`·`build` 이고 선행 중 `reached` 인데 `head_sha` 없는 것이 있으면 SKILL.md 「2-3」 「선행 반영 사전 검사」 먼저 수행. `NOT_REFLECTED` 면 이번 기상에 안 띄움 (12절 Y5 — 다음 기상에 다시 봄) |
+| 그 밖 (`full`·`design`·`build`) | 띄움. 포인터 `SCOPE` = 그 `action`. `action` 이 `full`·`build` 이고 선행 중 `reached` 인데 `head_sha` 없는 것이 있으면 `references/wake.md` 「선행 반영 사전 검사」 먼저 수행. `NOT_REFLECTED` 면 이번 기상에 안 띄움 (12절 Y5 — 다음 기상에 다시 봄) |
 
 절차:
 0. **입장 제어**: 무엇이든 바꾸기 전에 backends.md 「입장 제어」 블록 수행 (두 백엔드 공통).
