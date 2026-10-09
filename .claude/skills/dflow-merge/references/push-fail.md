@@ -1,6 +1,6 @@
 # /dflow-merge push 실패
 
-SKILL.md 「절차」 4번 5단계의 `git push` 가 **실패했을 때만** 읽는다. 먼저 `git reset --keep <기록한 HEAD>` 로 되돌린 뒤
+SKILL.md 「절차」 4번 5단계(전문 `references/merge-exec.md`)의 `git push` 가 **실패했을 때만** 읽는다. 먼저 `git reset --keep <기록한 HEAD>` 로 되돌린 뒤
 (임시 머지 워크트리면 `references/merge-worktree.md` 의 `reset --hard`) 출력 모양으로 가른다. 승인 반영 커밋
 (`references/unapproved.md`)의 push 실패도 같다. 해소 머지(`--resolve`)는 `references/resolve.md` 8번을 따른다.
 
