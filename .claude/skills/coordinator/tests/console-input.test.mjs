@@ -83,7 +83,7 @@ test('rec_lock 은 10초 넘은 빈 잠금을 치우고 새로 잡는다', async
   } finally { rmSync(w.dir, { recursive: true, force: true }); }
 });
 
-test('rec_lock 의 낡은 잠금 폴더가 비워지지 않아도 30초 안전 상한에서 끝난다 (bash 판은 끝없이 돈다)', { timeout: 40000 }, async () => {
+test('rec_lock 의 낡은 잠금 폴더가 비워지지 않아도 30초 상한에서 CPU 를 쓰지 않고 끝난다 (bash 판과 같다)', { timeout: 40000 }, async () => {
   const w = world();
   try {
     const d = join(w.cons, 'input', '.coord_lane_kit.lock');
@@ -92,9 +92,13 @@ test('rec_lock 의 낡은 잠금 폴더가 비워지지 않아도 30초 안전 �
     const old = new Date(Date.now() - 60000);
     utimesSync(d, old, old);
     const t0 = Date.now();
+    const cpu0 = process.cpuUsage();
     assert.equal((await call(w, 'console_input_rec_lock', ['coord_lane_kit'])).rc, 1);
     const took = Date.now() - t0;
+    const cpu = process.cpuUsage(cpu0);
     assert.ok(took >= 29000 && took < 36000, `${took}ms`);
+    // 기다리는 동안 CPU 를 붙잡지 않는다(쉬지 않고 돌면 30초 가까이 쓴다)
+    assert.ok((cpu.user + cpu.system) / 1000 < 3000, `CPU ${Math.round((cpu.user + cpu.system) / 1000)}ms`);
   } finally { rmSync(w.dir, { recursive: true, force: true }); }
 });
 
