@@ -1,5 +1,5 @@
-// console-input.sh 의 node 판. 입력 요청(확인·선택·질문 창) 판정·발췌·해시·잠금·기록. 정본 설명은 console-input.sh 머리말.
-// CLI·스위치 대상: 공개 25함수(brief 8.5). 내부 `_ci_*` 는 이 파일 안에만 둔다. 계약: tests/js-parity/README.md.
+// 입력 요청(확인·선택·질문 창) 판정·발췌·해시·잠금·기록. (옛 bash 판은 backup/scripts/lib/console-input.sh 에 퇴역 보관, 2026-10-09 W4)
+// CLI 대상: 공개 25함수. 내부 `_ci_*` 는 이 파일 안에만 둔다.
 //   · jq 로 돌던 두 프로그램(_CI_EXCERPT_JQ 발췌·_CI_FULL_JQ 창 판정)을 같은 순서·같은 규칙으로 옮겼다.
 //     jq(Oniguruma) 의 `\s` 는 유니코드 공백(U+0085·NBSP·U+2000-200A…, 단 U+FEFF·U+200B·U+180E 제외)이라 WS 로 따로 정의한다.
 //     길이·자르기는 코드포인트 단위(jq 문자열)이고, 입력은 UTF-8 로 읽는다(깨진 바이트는 U+FFFD).

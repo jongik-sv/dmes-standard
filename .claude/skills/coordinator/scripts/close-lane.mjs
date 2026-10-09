@@ -1,8 +1,8 @@
-// scripts/close-lane.sh 의 node 판(스위치 COORD_JS_CLOSE_LANE — js-bridge.sh _jsb_exec).
+// close-lane.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/close-lane.sh 에 퇴역 보관).
 //   사용법: close-lane.mjs <레인> | --handle <h>  [--force-report] [--dry-run]
 //   끝난 레인·워커 세션의 탭을 닫고 사라졌는지 확인한다: bg 실행 확인 → 보고 확인 → 워크트리·브랜치 경고 → terminal close → 사라짐 확인(최대 15초) → 상태·이벤트.
 //   stdout: `CLOSED <레인> handle=<h>` · `CLOSE_REFUSED <레인> <사유>` · `DRY CLOSED <레인> handle=<h>`.
-// bash 판이 정답이다. 다른 스크립트(coord-state.sh · office.sh · heavy 스크립트)는 import 하지 않고 spawn 한다.
+// 옮길 때 bash 판이 기준이었다. 다른 스크립트(coord-state.mjs · office.mjs · heavy 스크립트)는 import 하지 않고 node 자식 프로세스로 부른다.
 //   · 프로세스 표는 compat.mjs 의 psTable(윈도우는 /proc 스캔), 작업 폴더는 pidCwd, 터미널은 term.mjs 의 어댑터를 쓴다
 //   · awk 가 줄을 다시 조립하는 규칙(필드 사이 공백 하나, 앞 칸 비움)을 그대로 따라 bg 목록 글을 만든다(stderr 에만 나가지만 맞춰 둔다)
 //   · 레인 이름에 `"`·`\` 가 있으면 bash 판은 jq 컴파일 오류 → 「상태에 없는 레인」과 같게 취급(보간 `\(…)` 추적은 안 함: 의심 목록)
@@ -14,9 +14,20 @@ import * as J from './lib/jq-json.mjs';
 import { CoordDie, Ctx, cfgSub, expand, hasRun, laneGet, nowEpoch, repo, stateFile } from './lib/common.mjs';
 import { pidAlive, pidCwd, psTable } from './lib/compat.mjs';
 import { functions as termFns } from './lib/term.mjs';
-import { coordGit, coordHeavyScript, coordStateCall, laneType, rawOut, runSync, scriptsDir, stripNl } from './lib/common-ext.mjs';
+import { coordGit, coordHeavyScript, coordStateCall, laneType, rawOut, runScriptFile, runSync, scriptsDir, stripNl } from './lib/common-ext.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 
+/** 도움말(= bash 판 머리말 2~10줄, 이름만 .mjs). */
+const HELP = `# 사용법: close-lane.mjs <레인> | --handle <h>  [--force-report] [--dry-run]
+#   끝난 레인·워커 세션의 탭을 닫고 사라졌는지 확인한다(설계 §3.e 정리 절차, Q7 결정).
+#   Q7 순서 중 정본 메모 완료 갱신·산출물 복사는 조정자가 먼저 한다. 이 스크립트는 그 뒤의 기계적 부분:
+#   bg 실행 확인 → 보고 확인 → 워크트리·브랜치 남음 경고 → orca terminal close --tab → handle·세션 파일 사라짐 확인(최대 15초)
+#   → state lanes.<l>.state=closed · 이벤트.
+#   거부: bg-running(세션 자손이나 레인 워크트리에서 도는 빌드·시험, heavy.sh RUN cwd 가 레인 워크트리)
+#         · not-reported(last_report_at 없음, --force-report 로 통과). worktree·branch 가 남은 것은 stderr 경고만.
+#   stdout: \`CLOSED <레인> handle=<h>\` 또는 \`CLOSE_REFUSED <레인> <사유>\`.
+#   --dry-run: 판정은 실제로, 닫기 직전에 멈추고 \`DRY CLOSED <레인> handle=<h>\`.
+`;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const HEAVY_RE = /GradleWrapperMain|gradlew|vitest|playwright (test|show-report)|\/tsc( |$)|tsup|heavy\.sh|jest|npm (run|test|exec vite)/;
 const readDocs = (file) => { try { return J.parseStreamPartial(readFileSync(file, 'utf8')).values; } catch { return []; } };
@@ -78,13 +89,12 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
       else if (a === '--force-report') forceReport = true;
       else if (a === '--dry-run') dry = true;
       else if (a === '-h' || a === '--help') {
-        const ls = readFileSync(join(HERE, 'close-lane.sh'), 'latin1').split('\n').slice(1, 10);
-        process.stdout.write(Buffer.from(`${ls.join('\n')}\n`, 'latin1'));
+        process.stdout.write(HELP);
         return 0;
       } else if (a.startsWith('-')) throw new CoordDie(2, `모르는 옵션: ${a}`);
       else lane = a;
     }
-    if (lane === '' && h === '') throw new CoordDie(2, '사용법: close-lane.sh <레인> | --handle <h> [--force-report] [--dry-run]');
+    if (lane === '' && h === '') throw new CoordDie(2, '사용법: close-lane.mjs <레인> | --handle <h> [--force-report] [--dry-run]');
     if (dry) c.env.COORD_DRY = '1';
     return await body();
 
@@ -202,7 +212,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
       if (lane !== '') {
         coordStateCall(c, ['set', `.lanes["${lane}"].state`, '"closed"']);
         coordStateCall(c, ['event', 'lane-closed', lane, J.stringify(new Map([['handle', h], ['verified', ok === 1]]), { indent: 0 })]);
-        runSync('bash', [join(scriptsDir(), 'office.sh'), 'lane-down', lane], { env: c.env, cwd: c.cwd });   // 에이전트 오피스에서 내린다(실패해도 무시)
+        runScriptFile(join(scriptsDir(), 'office.mjs'), ['lane-down', lane], { env: c.env, cwd: c.cwd });   // 에이전트 오피스에서 내린다(실패해도 무시)
       }
       if (wake() !== '') c.log(`wake_targets(${wake()}) 갱신 필요 — 닫은 세션을 빼라`);
       out.push(`CLOSED ${label} handle=${h}`);

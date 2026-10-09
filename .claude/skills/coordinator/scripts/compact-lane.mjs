@@ -1,7 +1,7 @@
-// scripts/compact-lane.sh 의 node 판(스위치 COORD_JS_COMPACT_LANE — js-bridge.sh _jsb_exec).
+// compact-lane.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/compact-lane.sh 에 퇴역 보관).
 //   사용법: compact-lane.mjs <레인> [--force-no-memo] [--over-draft] [--dry-run]
 //   레인 세션에 /compact 를 안전하게 넣고 끝날 때까지 확인한다. stdout: `COMPACT_REFUSED <레인> <사유>` · `COMPACT_DONE <레인> before=<n|-> after=<n|->` · `COMPACT_TIMEOUT <레인>`.
-// bash 판이 정답이다. 다른 스크립트(term-send-safe.sh · ctx-usage.sh · coord-state.sh)는 import 하지 않고 spawn 한다.
+// 옮길 때 bash 판이 기준이었다. 다른 스크립트(term-send-safe.mjs · ctx-usage.mjs · coord-state.mjs)는 import 하지 않고 node 자식 프로세스로 부른다.
 //   · 화면 판정(Compacting·ctx %·Compacted)은 lib/compact-screen.mjs 의 함수, 터미널은 term.mjs 어댑터
 //   · jq 식은 같은 뜻으로 JS 에 옮겼다(`// empty`, `.windows[]?`, `tonumber? // null`). $(( )) 오류는 그 복합 명령(if)만 버리고 계속
 // node 18.17 이상, 외부 패키지 없음.
@@ -12,9 +12,18 @@ import * as J from './lib/jq-json.mjs';
 import { CoordDie, Ctx, cfgSub, hasRun, isoToEpoch, laneGet, nowEpoch, nowIso, stateFile } from './lib/common.mjs';
 import { compacted, ctxPct } from './lib/compact-screen.mjs';
 import { functions as termFns } from './lib/term.mjs';
-import { ArithAbort, arithVal, coordStateCall, jqAdd, rawOut, runSync, stripNl } from './lib/common-ext.mjs';
+import { ArithAbort, arithVal, coordStateCall, jqAdd, rawOut, runScriptFile, runSync, stripNl } from './lib/common-ext.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 
+/** 도움말(= bash 판 머리말 2~8줄, 이름만 .mjs). */
+const HELP = `# 사용법: compact-lane.mjs <레인> [--force-no-memo] [--over-draft] [--dry-run]
+#   레인 세션에 /compact 를 안전하게 넣고 끝날 때까지 확인한다(설계 §3.j-3~5). 정본 출력: references/contract.md §3.5
+#   거부: merge-in-flight(머지 중) · measure-lane(열린 측정 창의 측정 레인) · no-memo(pre_compact 없음, --force-no-memo 로 통과)
+#         · cooldown(compact.cooldown_min 안) · unsupported-kind(opencode·agy 등) · no-handle · term-send-safe 의 거부 사유 그대로.
+#   stdout: \`COMPACT_REFUSED <레인> <사유>\` · \`COMPACT_DONE <레인> before=<n|-> after=<n|->\` · \`COMPACT_TIMEOUT <레인>\`.
+#   --dry-run: 판정·화면 확인은 실제로, 보내기 직전에 멈추고 \`DRY COMPACT_DONE <레인> before=<n|-> after=-\`.
+#   재측정(after)이 직전(before)과 같거나 못 읽으면 transcript 가 아직 안 갱신된 것이다: 화면 상태줄의 ctx % 로 after 를 어림하고
+`;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const readDocs = (file) => { try { return J.parseStreamPartial(readFileSync(file, 'utf8')).values; } catch { return []; } };
@@ -46,13 +55,12 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
       else if (a === '--over-draft') over = true;
       else if (a === '--dry-run') dry = true;
       else if (a === '-h' || a === '--help') {
-        const ls = readFileSync(join(HERE, 'compact-lane.sh'), 'latin1').split('\n').slice(1, 8);
-        process.stdout.write(Buffer.from(`${ls.join('\n')}\n`, 'latin1'));
+        process.stdout.write(HELP);
         return 0;
       } else if (a.startsWith('-')) throw new CoordDie(2, `모르는 옵션: ${a}`);
       else lane = a;
     }
-    if (lane === '') throw new CoordDie(2, '사용법: compact-lane.sh <레인> [--force-no-memo] [--over-draft] [--dry-run]');
+    if (lane === '') throw new CoordDie(2, '사용법: compact-lane.mjs <레인> [--force-no-memo] [--over-draft] [--dry-run]');
     if (dry) c.env.COORD_DRY = '1';
     if (!hasRun(c)) throw new CoordDie(3, '현재 회차가 없다');
     const SF = stateFile(c, '');
@@ -109,8 +117,8 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
 
     const SD = HERE;
     const ctxTokens = () => {
-      if (sid === '' || !readable(join(SD, 'ctx-usage.sh'))) return '-';
-      const o = (runSync('bash', [join(SD, 'ctx-usage.sh'), sid], { env: c.env, cwd: c.cwd }).out.toString('utf8').split('\n')[0] ?? '');
+      if (sid === '' || !readable(join(SD, 'ctx-usage.mjs'))) return '-';
+      const o = (runScriptFile(join(SD, 'ctx-usage.mjs'), [sid], { env: c.env, cwd: c.cwd }).out.toString('utf8').split('\n')[0] ?? '');
       const i = o.indexOf(' tokens=');
       if (i < 0) return '-';
       const rest = o.slice(i + ' tokens='.length);
@@ -119,10 +127,10 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
     };
     const before = ctxTokens();
 
-    const sargs = [join(SD, 'term-send-safe.sh'), '--handle', h, '--text', text, '--timeout-ms', '300000'];
+    const sargs = [join(SD, 'term-send-safe.mjs'), '--handle', h, '--text', text, '--timeout-ms', '300000'];
     if (dry) sargs.push('--dry-run');
     if (over) sargs.push('--over-draft');
-    const sr = runSync('bash', sargs, { env: c.env, cwd: c.cwd });
+    const sr = runScriptFile(sargs[0], sargs.slice(1), { env: c.env, cwd: c.cwd });
     const sres = stripNl(sr.out.toString('utf8'));
     if (sres.startsWith('REFUSED ')) return refuse(sres.slice(sres.lastIndexOf(' ') + 1));
     if (sres.startsWith('DRY SENT ')) {

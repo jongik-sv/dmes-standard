@@ -1,5 +1,5 @@
-// term-send-safe.mjs 중 하니스(bash 판과 바이트 대조)가 못 보는 동작: 입력창 판정 단위, 잠금 해제 보장, 시험 훅 fail-closed, 도움말.
-// 나머지는 tests/js-parity/specs/term-send-safe.mjs 가 bash 판과 대조한다.
+// term-send-safe.mjs 시험: 입력창 판정 단위, 잠금 해제 보장, 시험 훅 fail-closed, 도움말.
+// 옛 bash 판과의 대조 하니스는 backup/tests/js-parity 로 퇴역했다.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
@@ -7,18 +7,17 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { FAKE_ORCA } from './js-parity/fixtures/fake-tools.mjs';
+import { FAKE_ORCA } from './support/fake-tools.mjs';
 import { sleepScale } from '../scripts/lib/test-sleep.mjs';
 import { frameAtEnd, inputState } from '../scripts/term-send-safe.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FX = join(HERE, 'fixtures');
 const MJS = join(HERE, '..', 'scripts', 'term-send-safe.mjs');
-const SH = join(HERE, '..', 'scripts', 'term-send-safe.sh');
 const fx = (n) => readFileSync(join(FX, n), 'utf8');
 const WIN = process.platform === 'win32';
 
-test('inputState: 고정 화면 8종 (term-send-safe-input-state.sh 와 같은 기대값)', () => {
+test('inputState: 고정 화면 8종', () => {
   const want = {
     'claude-empty-placeholder-named.txt': 'empty', 'claude-empty-placeholder-unnamed.txt': 'empty', 'claude-empty-bare-named.txt': 'empty', 'claude-empty-placeholder-ellipsis.txt': 'empty',
     'claude-draft-typed-named.txt': 'draft', 'claude-draft-typed-try-word.txt': 'draft', 'claude-draft-typed-try-quoted.txt': 'draft', 'claude-no-input-box.txt': 'unknown',
@@ -72,11 +71,14 @@ test('sleepScale: 시험 표식(COORD_JS_TEST=1) 없이는 늘 1, 값은 0~1 숫
   assert.equal(sleepScale({ COORD_JS_TEST: '1' }), 1);
 });
 
-test('도움말은 .sh 머리말과 바이트가 같다', () => {
-  const a = spawnSync(process.execPath, [MJS, '-h'], { encoding: 'buffer', windowsHide: true });
-  const b = spawnSync('bash', [SH, '-h'], { encoding: 'buffer', windowsHide: true, env: { ...process.env, COORD_JS_TERM_SEND_SAFE: '0' } });
+test('도움말: -h 는 stdout 에 도움말을 내고 종료 코드 0, term-send-safe.mjs 사용법 줄이 있고 bash 확장자 낱말이 없으며 개행으로 끝난다', () => {
+  const a = spawnSync(process.execPath, [MJS, '-h'], { encoding: 'utf8', windowsHide: true });
   assert.equal(a.status, 0);
-  assert.deepEqual(a.stdout, b.stdout);
+  assert.equal(a.stderr, '');
+  assert.ok(a.stdout.startsWith('# 사용법: term-send-safe.mjs'), a.stdout.split('\n')[0]);
+  assert.ok(a.stdout.split('\n').some((l) => l.startsWith('# 사용법: term-send-safe.mjs')), '사용법 줄');
+  assert.equal(new RegExp(`\\.${'sh'}\\b`).test(a.stdout), false);
+  assert.ok(a.stdout.endsWith('\n'));
 });
 
 // ----- 가짜 orca 로 돌리는 시험(잠금 해제 보장·보내지 않음) -----

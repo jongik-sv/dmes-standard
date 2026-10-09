@@ -60,8 +60,8 @@ poll exit 8, poll 오류 exit, `failed not-isolated`, 기상 때 확인한 종�
      .claude/skills/dflow-work/scripts/dflow.sh lease release || { rm -f "$(git rev-parse --git-path dflow-team.lease)" "$(git rev-parse --git-path dflow-team.lease).beat"; echo "LEASE_RELEASE_FAILED 3분 뒤 스스로 풀린다"; }
      rm -f "$(git rev-parse --git-path dflow-team.stop)"
      pkill -f "caffeinate -i -w $LEAD_PID" 2>/dev/null || :
-     CP=.claude/skills/coordinator/scripts/console-poll.sh   # 오피스 콘솔: 팀장 핸들 기록을 지운다(폴러는 할 일이 없으면 스스로 끝난다)
-     [ -f "$CP" ] && bash "$CP" handle-clear team --repo "$(git rev-parse --show-toplevel)" >/dev/null 2>&1 || :
+     CP=.claude/skills/coordinator/scripts/console-poll.mjs   # 오피스 콘솔: 팀장 핸들 기록을 지운다(폴러는 할 일이 없으면 스스로 끝난다)
+     [ -f "$CP" ] && node "$CP" handle-clear team --repo "$(git rev-parse --show-toplevel)" >/dev/null 2>&1 || :
      rm -rf "$LOCK" && echo LOCK_RELEASED
    else echo "LOCK_KEPT owner=$o_who $o_ts $o_pid"; fi
    ```

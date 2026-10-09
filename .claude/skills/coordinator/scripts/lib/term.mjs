@@ -1,5 +1,4 @@
-// term.sh 의 node 판. 공개 6함수만 CLI·스위치, _term_*·_orca_*·_tmux_* 는 안에만 둔다.
-// 계약: tests/js-parity/README.md, brief 8.2. 정답은 bash 판.
+// 터미널 백엔드(orca·tmux). (옛 bash 판은 backup/scripts/lib/term.sh 에 퇴역 보관, 2026-10-09 W4) 공개 6함수만 CLI, _term_*·_orca_*·_tmux_* 는 안에만 둔다.
 //   · 설정 .terminal_backend(기본 orca)는 common.mjs cfgSub 로 읽는다. 목록 밖이면 bash 판처럼 rc 127.
 //   · orca 호출은 `orca <인자…> --json`, stderr 버림. 네이티브 exe/cmd 면 orca.cmd 로 재시도.
 //   · 원문 글자 탐색(stale·turn_started·submitted)은 파싱 전 원문에 그대로 한다.

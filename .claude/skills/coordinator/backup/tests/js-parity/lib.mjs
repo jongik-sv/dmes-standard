@@ -85,6 +85,7 @@ export async function runSide(spec, fnName, fnSpec, c, side, opts = {}) {
     for (const k of Object.keys(env)) env[k] = sub(env[k]);
     const subArgs = (a) => a.map(sub);
     if (spec.switchEnv) env[spec.switchEnv] = '0';   // bash 쪽이 정답이므로 스위치는 항상 끈다(node 판은 CLI 로 직접 부른다)
+    env.COORD_JS_ALL = '0';   // 기본이 「켬」(2026-10-09)이라, 다른 모듈의 스위치가 비어 있으면 bash 판이 부르는 lib 함수가 node 로 간다 → 정답(= bash 본문 전체)이 흐려지지 않게 항상 끈다(swon 에서도 그 모듈 하나만 켠다)
     let r;
     const gnames = fnSpec.globals || [];
     const gfile = join(tmp, 'globals.bin');

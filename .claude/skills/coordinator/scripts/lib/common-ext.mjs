@@ -1,7 +1,6 @@
-// common.sh 에서 bash 로 남긴 함수들(coord_log·coord_die·coord_do·coord_state_call·coord_git·coord_read1·coord_mkdirp·
+// 공용 보조 함수들(옛 bash 판 common.sh 의 coord_log·coord_die·coord_do·coord_state_call·coord_git·coord_read1·coord_mkdirp·
 // coord_default_repo·coord_cpus·coord_load1·coord_heavy_script·coord_heavy_run_in_wt·coord_wt_procs·coord_bg_signals)의 node 판.
-// bash 스크립트들은 계속 common.sh 의 bash 판을 쓰므로 스위치는 없다(js-bridge 를 거치지 않는다). W3-b·후속 레인과
-// 스크립트 node 판이 import 한다. 계약: tests/js-parity/README.md, 대조 명세 specs/common-ext.mjs(정답은 bash 판).
+// 스크립트 node 판이 import 한다(2026-10-09 W4: bash 판은 backup/ 으로 퇴역, 이 파일이 정본).
 //   · coord_cpus·coord_load1 은 os.cpus()/os.loadavg() 로 바꾸지 않고 bash 판의 출력 규칙(sysctl → /proc → 빈 출력)을 그대로 따른다.
 //   · 외부 명령(sysctl·nproc·awk·find·git·bash)은 모두 아래 runSync/runCmd 를 지난다(spawn, 셸 없이, windowsHide).
 // node 18.17 이상, 외부 패키지 없음.
@@ -15,8 +14,7 @@ import { CoordDie, Ctx, cfgLoad, cfgSub, expand, hasRun, pathInWt, q, repo } fro
 import { cliMain, isMain } from './js-cli.mjs';
 
 const LIB_DIR = dirname(fileURLToPath(import.meta.url));
-/** coord_state_call 이 부를 coord-state.sh 위치: 환경 변수 우선, 없으면 이 파일 기준 scripts/ 폴더 */
-// common.sh 71줄처럼 환경 변수와 무관하게 lib 폴더 기준이다(bash 판이 정답).
+/** 조정자 스크립트 폴더(scripts/): 환경 변수와 무관하게 이 파일(lib/) 기준이다 */
 export const scriptsDir = () => join(LIB_DIR, '..');
 
 const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
@@ -36,6 +34,19 @@ export function runSync(cmd, args, { env, cwd, input = '' } = {}) {
   }
   if (r.error && r.status == null && r.signal == null) return { rc: 127, out: Buffer.alloc(0), err: Buffer.from(String(r.error)) };
   return { rc: r.status ?? (r.signal ? 128 : 70), out: Buffer.from(r.stdout ?? Buffer.alloc(0)), err: Buffer.from(r.stderr ?? Buffer.alloc(0)) };
+}
+/** 스크립트 파일을 어떤 실행기로 부를지: `.mjs` 면 node, 그 밖(리포 쪽 bash 스크립트·시험의 가짜 스크립트)은 bash. [명령, 앞 인자들] */
+export function execFor(file) {
+  return /\.mjs$/i.test(file) ? [process.execPath, [file]] : ['bash', [file]];
+}
+/** 스크립트 파일 한 번 실행(runSync 와 같은 결과). 실행기는 execFor 가 고른다 */
+export function runScriptFile(file, args = [], opts = {}) {
+  const [cmd, pre] = execFor(file);
+  return runSync(cmd, [...pre, ...args], opts);
+}
+/** 조정자 스크립트(scripts/<이름>.mjs)를 node 자식 프로세스로 실행. c 의 env·cwd 를 그대로 준다. stdin 은 비어 있다 */
+export function runScript(c, name, args = [], opts = {}) {
+  return runScriptFile(join(scriptsDir(), `${name}.mjs`), args, { env: c.env, cwd: c.cwd, ...opts });
 }
 /** spawn(비동기) 래퍼: runSync 와 같은 결과. stdout·stderr 를 다 모은 뒤 끝난다. stdin 쓰기 EPIPE 는 무시한다(자식이 일찍 끝난 것). */
 export function runCmd(cmd, args, { env, cwd, input = '' } = {}) {
@@ -73,13 +84,13 @@ export function coordDo(c, args) {
   const r = runSync(args[0] ?? '', args.slice(1), { env: c.env, cwd: c.cwd });
   return { rc: r.rc, out: r.out, err: r.err };
 }
-/** coord_state_call — 상태 쓰기는 늘 coord-state.sh spawn(stdout 버림). DRY·스크립트 없음·회차 없음은 stderr 알림만 */
+/** coord_state_call — 상태 쓰기는 늘 coord-state.mjs 를 node 자식으로 부른다(stdout 버림). DRY·스크립트 없음·회차 없음은 stderr 알림만 */
 export function coordStateCall(c, args) {
-  const cs = join(scriptsDir(), 'coord-state.sh');
-  if ((c.env.COORD_DRY ?? '0') === '1') { c.log(`DRY coord-state.sh ${q(args)}`); return { rc: 0 }; }
-  if (!isFile(cs)) { c.log(`coord-state.sh 없음 — 상태 기록 건너뜀: ${args.join(' ')}`); return { rc: 0 }; }
+  const cs = join(scriptsDir(), 'coord-state.mjs');
+  if ((c.env.COORD_DRY ?? '0') === '1') { c.log(`DRY coord-state.mjs ${q(args)}`); return { rc: 0 }; }
+  if (!isFile(cs)) { c.log(`coord-state.mjs 없음 — 상태 기록 건너뜀: ${args.join(' ')}`); return { rc: 0 }; }
   if (!hasRun(c)) { c.log(`회차 없음 — 상태 기록 건너뜀: ${args.join(' ')}`); return { rc: 0 }; }
-  const r = runSync('bash', [cs, ...args], { env: c.env, cwd: c.cwd });
+  const r = runSync(process.execPath, [cs, ...args], { env: c.env, cwd: c.cwd });
   return { rc: r.rc, err: r.err };
 }
 /** coord_git — 설정 .git_bin(기본 git)으로 실행 */

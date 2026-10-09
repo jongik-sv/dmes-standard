@@ -10,7 +10,7 @@
 2. 조사 결과: 조정자가 Explore 등으로 만든 것(건드릴 파일·모듈·기존 구조).
 3. 레인 수: 사용자가 띄운 세션 수 또는 사용량 띠가 허용하는 수(`usage.md`: 1주 사용률이 `usage.spawn_week_max` 미만이면 띠와 상관없이 허용). 입장 제어가 필요하면 dflow-team 의 `capacity.sh` 가 있는 PC 에서만 부른다(없으면 건너뛴다).
 
-**회차는 조정 세션 하나에 하나만 둔다.** 열린 회차가 있는데 새 업무가 들어오면 `init` 으로 새 회차를 열지 않고, 그 회차에 레인을 `lane-add` 하고 `run.goal` 에 새 업무를 덧붙인다(`coord-state.sh set '.run.goal' '"<기존 목표> / <새 업무>"'`). 회차를 둘 열면 오피스에 팀장이 두 칸으로 보이고 slots·busy 가 합산된다(사용자 지적 2회). 앞 업무가 끝났다면 먼저 `close-run`(`closing.md` §6) 하고 새 회차를 연다.
+**회차는 조정 세션 하나에 하나만 둔다.** 열린 회차가 있는데 새 업무가 들어오면 `init` 으로 새 회차를 열지 않고, 그 회차에 레인을 `lane-add` 하고 `run.goal` 에 새 업무를 덧붙인다(`node scripts/coord-state.mjs set '.run.goal' '"<기존 목표> / <새 업무>"'`). 회차를 둘 열면 오피스에 팀장이 두 칸으로 보이고 slots·busy 가 합산된다(사용자 지적 2회). 앞 업무가 끝났다면 먼저 `close-run`(`closing.md` §6) 하고 새 회차를 연다.
 
 ## 2. 항목 표 만들기
 
@@ -33,7 +33,7 @@
 - 건드릴 파일이 겹치는 항목은 한 레인에 둔다. 겹침을 못 피하면 **소유 레인**을 하나 정하고 다른 레인은 요청만 한다(예: 빌드 설정 파일은 빌드 레인만 고친다).
 - 공용 자원(shared 공개 API, 공용 DB, 메인 서버)은 소유자를 지정하거나 조정자 전용으로 둔다. 서버 기동·브라우저 확인은 조정자만 한다.
 - 레인 크기는 비슷하게 맞춘다. 의존이 긴 레인에는 기다리는 동안 할 수 있는 독립 일을 섞는다.
-- 레인마다 `owned`(소유 글롭)와 `forbidden`(금지 글롭)을 적는다. `merge-gate.sh` 가 이 둘로 범위를 대조한다.
+- 레인마다 `owned`(소유 글롭)와 `forbidden`(금지 글롭)을 적는다. `merge-gate.mjs` 가 이 둘로 범위를 대조한다.
 
 ## 4. 의존 그래프
 
@@ -44,8 +44,8 @@
 ## 5. state 에 넣기
 
 ```text
-scripts/coord-state.sh lane-add <레인> '{"brief":"…","branch":"…","worktree":"…","memo":"<정본 메모 경로>","owned":[…],"forbidden":[…],"priority":2,"items":[{"id":"1","title":"…","weight":2,"done":false}],"queue":[…]}'
-scripts/coord-state.sh set '.deps' '[["a8:3b","a6:menu-cache"]]'
+node scripts/coord-state.mjs lane-add <레인> '{"brief":"…","branch":"…","worktree":"…","memo":"<정본 메모 경로>","owned":[…],"forbidden":[…],"priority":2,"items":[{"id":"1","title":"…","weight":2,"done":false}],"queue":[…]}'
+node scripts/coord-state.mjs set '.deps' '[["a8:3b","a6:menu-cache"]]'
 ```
 
 - 레인 이름은 **40자 이하**다(오피스 팀원 키가 40자로 자른다. 넘으면 `lane-add` 가 거절한다).

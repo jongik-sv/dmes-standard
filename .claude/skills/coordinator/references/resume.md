@@ -6,8 +6,8 @@
 
 ## 1. 재독 세트와 순서
 
-1. `state.json`: `scripts/coord-state.sh get`(전체) 또는 `get '.lanes | keys'` 등으로 필요한 부분. 회차 폴더는 `<state_dir>/current` 의 run-id 로 찾는다.
-2. `summary.md`: 사람이 읽는 현재 상태. 없거나 낡았으면 `coord-state.sh summary` 로 다시 만든다.
+1. `state.json`: `node scripts/coord-state.mjs get`(전체) 또는 `get '.lanes | keys'` 등으로 필요한 부분. 회차 폴더는 `<state_dir>/current` 의 run-id 로 찾는다.
+2. `summary.md`: 사람이 읽는 현재 상태. 없거나 낡았으면 `node scripts/coord-state.mjs summary` 로 다시 만든다.
 3. 사람 정본 메모: state `run` 또는 summary.md 가 가리키는 조정자 메모 하나.
 4. 이 문서 `references/resume.md`.
 
@@ -16,9 +16,9 @@
 ## 2. 복구 절차
 
 1. 위 재독 세트를 읽는다.
-2. `CronList` 로 감시 cron 이 살아 있는지 확인한다. 없으면 `CronCreate`(`tick.cron`, 프롬프트 `[조정자 틱] .claude/skills/coordinator/SKILL.md 의 「틱 절차」 절만 읽고 실행(Skill 재호출 금지)`)로 다시 만들고 `coord-state.sh set '.run.cron_id' '"<새 id>"'` 로 갱신한다.
-3. `scripts/coord-status.sh` 로 현재 상태를 다시 모아 state 와 다른 점(레인 pid 바뀜, handle stale, 머지 진행)을 맞춘다. `events.jsonl` 마지막 이후에 들어온 메시지는 대화에 남은 것으로 처리한다.
-4. 진행 중이던 창(`measure-window.sh status`)·머지(`merge.in_flight`)가 있으면 그 상대 레인에 상태 한 줄 확인을 보낸다.
+2. `CronList` 로 감시 cron 이 살아 있는지 확인한다. 없으면 `CronCreate`(`tick.cron`, 프롬프트 `[조정자 틱] .claude/skills/coordinator/SKILL.md 의 「틱 절차」 절만 읽고 실행(Skill 재호출 금지)`)로 다시 만들고 `node scripts/coord-state.mjs set '.run.cron_id' '"<새 id>"'` 로 갱신한다.
+3. `node scripts/coord-status.mjs` 로 현재 상태를 다시 모아 state 와 다른 점(레인 pid 바뀜, handle stale, 머지 진행)을 맞춘다. `events.jsonl` 마지막 이후에 들어온 메시지는 대화에 남은 것으로 처리한다.
+4. 진행 중이던 창(`node scripts/measure-window.mjs status`)·머지(`merge.in_flight`)가 있으면 그 상대 레인에 상태 한 줄 확인을 보낸다.
 5. 처리하지 않은 `pending_user`·`compact.pending`·`instrs` 의 ack 없는 지시를 확인한다.
 6. 바로 이어 틱 절차를 한 번 돌린다.
 

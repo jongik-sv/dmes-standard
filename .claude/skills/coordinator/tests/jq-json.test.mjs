@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { parse, parseStream, stringify, JNum } from '../scripts/lib/jq-json.mjs';
-import { makeRng } from './js-parity/lib.mjs';
+import { makeRng } from './support/rng.mjs';
 
 const HAS_JQ = spawnSync('jq', ['--version'], { stdio: 'ignore' }).status === 0;
 const jq = (args, input) => spawnSync('jq', args, { input, encoding: 'utf8' });

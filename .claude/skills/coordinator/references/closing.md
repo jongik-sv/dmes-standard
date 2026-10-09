@@ -6,8 +6,8 @@
 
 ## 1. 마감 조건
 
-- 모든 레인 항목 done(마감 단계 항목 포함), 머지·정리 완료, 측정 끝. `coord-state.sh progress` 가 `PROGRESS ALL 100%` 인지 본다.
-- 열린 창이 없다(`measure-window.sh status` 가 `WINDOW none`).
+- 모든 레인 항목 done(마감 단계 항목 포함), 머지·정리 완료, 측정 끝. `node scripts/coord-state.mjs progress` 가 `PROGRESS ALL 100%` 인지 본다.
+- 열린 창이 없다(`node scripts/measure-window.mjs status` 가 `WINDOW none`).
 - `merge.in_flight` 가 비어 있다.
 
 ## 2. 통합 확인
@@ -22,10 +22,10 @@ dev 로 서버를 재기동하고 주요 화면을 확인한다(조정자만). �
 
 - 워크트리·브랜치 목록에 남은 것(`git_bin worktree list`, `git_bin branch`).
 - Orca 터미널 목록과 reclaimable 워커.
-- 끝나지 않은 세션은 `spawn.md` 5 절차로 닫는다(`close-lane.sh`).
+- 끝나지 않은 세션은 `spawn.md` 5 절차로 닫는다(`close-lane.mjs`).
 - 레인의 정리 완료 보고에 「남은 백그라운드 0」 이 있는지(시험 입력·성능 측정·로컬 DB·고아 `awk` 등). 없으면 되묻고 `ps` 로 그 레인 워크트리를 cwd 로 둔 프로세스를 확인한다(`heavy.md` §7).
-- 감시 cron 삭제: state `run.cron_id` 로 `CronDelete`, `coord-state.sh set '.run.cron_id' null`.
-- 측정·금지 창이 모두 닫혔는지(`measure-window.sh status`), `load.banned` 가 비었는지.
+- 감시 cron 삭제: state `run.cron_id` 로 `CronDelete`, `node scripts/coord-state.mjs set '.run.cron_id' null`.
+- 측정·금지 창이 모두 닫혔는지(`node scripts/measure-window.mjs status`), `load.banned` 가 비었는지.
 - `wake_targets` 갱신이 필요한지.
 - 임시 파일·잠금 정리는 스크립트가 만든 것만 한다. 삭제가 필요한 것은 사용자 결정 목록으로 올린다.
 
@@ -42,13 +42,13 @@ dev 로 서버를 재기동하고 주요 화면을 확인한다(조정자만). �
 | 후속 후보 | 남은 개선·미확인·반복 사고(정지, 확인 창) |
 | 대체 사실 | GLM 일을 Sonnet 으로 띄웠거나, 사용량 띠로 일을 줄였거나, 기록이 낮은 근거(추정)였던 것 |
 
-보고는 사용자에게 직접 하고, 요약본을 `summary.md`(`coord-state.sh summary`)에 남긴다. 이 스킬의 개선 후보(스킬 사용 중 관찰한 불편)는 있으면 마감 보고에 한 단락으로 적는다.
+보고는 사용자에게 직접 하고, 요약본을 `summary.md`(`node scripts/coord-state.mjs summary`)에 남긴다. 이 스킬의 개선 후보(스킬 사용 중 관찰한 불편)는 있으면 마감 보고에 한 단락으로 적는다.
 
 ## 6. 닫기
 
-- 마지막으로 `coord-state.sh close-run` 을 부른다(`event run-closed - '{}'` 도 같은 함수를 탄다). run-closed 이벤트를 남기고, `office.sh finish` 로 에이전트 오피스에서 이 회차의 팀원 표시를 내린 뒤, `.run.closed_at` 에 마감 시각을 적는다(`contract.md` §3.4·§4). 팀장 칸은 조정 세션 단위(`coord:<세션8>`)라서 같은 세션에 다른 열린 회차가 남았으면 내리지 않고 slots·busy 만 다시 합산하며, 이 세션의 마지막 열린 회차를 닫을 때만 내린다. 이 명령을 빼면 회차가 열린 채 남아 팀장 칸의 slots·busy 에 계속 합산된다(조정 세션이 죽으면 PC 폴러의 `office.sh reap` 이 표시를 내린다).
+- 마지막으로 `node scripts/coord-state.mjs close-run` 을 부른다(`event run-closed - '{}'` 도 같은 함수를 탄다). run-closed 이벤트를 남기고, `node scripts/office.mjs finish` 로 에이전트 오피스에서 이 회차의 팀원 표시를 내린 뒤, `.run.closed_at` 에 마감 시각을 적는다(`contract.md` §3.4·§4). 팀장 칸은 조정 세션 단위(`coord:<세션8>`)라서 같은 세션에 다른 열린 회차가 남았으면 내리지 않고 slots·busy 만 다시 합산하며, 이 세션의 마지막 열린 회차를 닫을 때만 내린다. 이 명령을 빼면 회차가 열린 채 남아 팀장 칸의 slots·busy 에 계속 합산된다(조정 세션이 죽으면 PC 폴러의 `node scripts/office.mjs reap` 이 표시를 내린다).
 - 끝낸 회차의 `.run.state` 같은 칸을 직접 써서 마감을 표시하지 않는다(계약에 없는 칸이라 아무 동작도 하지 않는다).
-- 마감하지 못한 채 새 회차를 시작했다면 `init` 이 낸 `SESSION_RUNS <세션8> open=<n>` 줄(같은 세션의 열린 회차, 자동 마감하지 않는다)을 보고 끝난 회차를 `COORD_RUN=<회차> coord-state.sh close-run` 으로 직접 닫는다. `STALE_RUN` 줄(init·틱)은 다른 조정 세션의 회차에 대한 경고뿐이라 진행 중이면 그대로 둔다.
+- 마감하지 못한 채 새 회차를 시작했다면 `init` 이 낸 `SESSION_RUNS <세션8> open=<n>` 줄(같은 세션의 열린 회차, 자동 마감하지 않는다)을 보고 끝난 회차를 `COORD_RUN=<회차> node scripts/coord-state.mjs close-run` 으로 직접 닫는다. `STALE_RUN` 줄(init·틱)은 다른 조정 세션의 회차에 대한 경고뿐이라 진행 중이면 그대로 둔다.
 - 조정자 자신의 세션은 사용자가 닫는다. state 폴더는 지우지 않는다(다음 회차 근거).
 
 ## 7. 반영 빌드·push·배포(조정자가 묻지 않고 한다)

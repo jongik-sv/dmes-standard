@@ -1,4 +1,4 @@
-// ctx-usage.mjs 순수 로직 단위 시험(node --test). 정답은 bash 판(jq 프로그램)이고, 기대값은 jq 1.7.1 로 확인한 것이다.
+// ctx-usage.mjs 순수 로직 단위 시험(node --test). 기대값은 옛 bash 판(jq 프로그램)을 jq 1.7.1 로 확인해 고정한 것이다.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as J from '../scripts/lib/jq-json.mjs';

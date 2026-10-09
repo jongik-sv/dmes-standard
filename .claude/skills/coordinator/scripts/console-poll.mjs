@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// console-poll.sh 의 node 판(스위치 COORD_JS_CONSOLE_POLL — console-poll.sh 맨 앞이 js-bridge.sh 로 exec). 정답은 bash 판이다.
+// console-poll.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/console-poll.sh 에 퇴역 보관).
 // 오피스 콘솔 폴러: 한 node 프로세스가 주기마다 ①생존 감시 ②프롬프트 전달 ③화면 올리기 ④입력 요청 알림 ⑤화면 재읽기를 돈다.
 // bash 판은 주기마다 jq·date·sed·node 를 수십 번 띄웠다. 여기서는 common·compat·term·screen-cache·console-redact·jq-json 을 import 해 같은 프로세스에서 부른다.
-// 하위명령: start | stop | status | --once [--dry-run] | run | handle-record team … | handle-clear team … | input-handled … | judge-sha … (머리말은 console-poll.sh 참고)
+// 하위명령: start | stop | status | --once [--dry-run] | run | handle-record team … | handle-clear team … | input-handled … | judge-sha … (머리말은 console-poll.mjs 참고)
 //
 // bash 판과 맞춘 점 (읽는 사람이 놀라지 않도록)
 //  · 잠금 $DFLOW_CONSOLE_DIR/poller-<신원>.lock/(pid·pstart·since·cycle·tmpd)·로그·탈취 절차·종료 조건(할 일 없는 주기 2번·office.enabled 꺼짐·잠금 잃음·TERM)이 같다.
-//  · 외부 프로세스(dflow.sh·office.sh·term-send-safe.sh·lead-state.sh)는 bash 판의 run_limited 처럼 제한 시간 안에서 spawn(셸 없이)하고, 넘으면 후손까지 죽인다(124).
+//  · 외부 프로세스(dflow.sh·office.mjs·term-send-safe.mjs·lead-state.sh)는 bash 판의 run_limited 처럼 제한 시간 안에서 spawn(셸 없이)하고, 넘으면 후손까지 죽인다(124).
 //  · 구간(생존 감시·터미널 목록·화면 읽기·화면 올리기·알림·재읽기)의 시간 상한은 같은 값: 구간 안에서 부르는 일마다 남은 시간으로 호출 상한을 줄이고, 다 쓰면 그 구간을 버린다.
 //  · console-input·console-resolve 의 무거운 판정(console_input_snapshot·console_resolve·console_list_targets 등)은 W1-a 가 옮기기 전이라 lib/console-poll-deps.mjs 의 이음매로 bash 판을 부른다.
 // 알려진 차이(고치지 않고 보고): 프롬프트 행 JSON 이 한 줄에 값 여럿이면 jq 는 칸마다 여러 줄을 내지만 여기서는 첫 값이 아니면 빈 칸으로 본다 · lead-state 시간 초과 로그(plog)는 이음매 안에서 남지 않는다.
@@ -15,6 +15,7 @@ import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, 
 import { hostname, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFor } from './lib/common-ext.mjs';
 import { Ctx, CoordDie, cfgJson, cfgSub, expand, hasRun, isoToEpoch, laneGet, nowIso, pstart, repo as repoOf, sess8Of, stateRoot } from './lib/common.mjs';
 import * as C from './lib/compat.mjs';
 import { cleanPrompt, redactText, screenFilter, screenSha } from './lib/console-redact.mjs';
@@ -24,8 +25,9 @@ import { isMain, scriptMain } from './lib/js-cli.mjs';
 import * as SC from './lib/screen-cache.mjs';
 import { functions as TERM } from './lib/term.mjs';
 
+/** 스크립트 파일 실행기 고르기: runLimited 에 넘길 [명령, 인자들] (.mjs 면 node, 그 밖의 시험용 가짜 스크립트는 bash) */
+const sx = (file, args) => { const [cmd, pre] = execFor(file); return [cmd, [...pre, ...args]]; };
 const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url));
-const SH_FILE = join(SCRIPTS_DIR, 'console-poll.sh');
 const MJS_FILE = fileURLToPath(import.meta.url);
 const sleepMs = D.sleepMs;
 const IS_WIN = process.platform === 'win32';
@@ -102,8 +104,8 @@ function loadEnvConstants() {
   S.OFF_RETRY_S = (() => { const v = e.COORD_CONSOLE_OFF_RETRY_S ?? '1800'; return v === '' || /[^0-9]/.test(v) || Number(v) === 0 ? 1800 : Number(v); })();
   S.HOST = slug(hostname().split('.')[0] ?? '');
   S.CD = D.consoleDir(e);
-  S.TSS = e.COORD_TERM_SEND_SAFE || join(SCRIPTS_DIR, 'term-send-safe.sh');
-  S.OFFICE = e.COORD_OFFICE_SH || join(SCRIPTS_DIR, 'office.sh');
+  S.TSS = e.COORD_TERM_SEND_SAFE || join(SCRIPTS_DIR, 'term-send-safe.mjs');
+  S.OFFICE = e.COORD_OFFICE_SH || join(SCRIPTS_DIR, 'office.mjs');
 }
 
 // ---------- 로그 ----------
@@ -114,7 +116,7 @@ function plog(msg) {
 const coordLog = (m) => pr(`${m}\n`);
 function drylog(m) { coordLog(`DRY ${m}`); plog(`DRY ${m}`); }
 const die = (rc, msg) => { coordLog(msg); throw new Exit(rc); };
-function usage() { coordLog('사용법: console-poll.sh start|stop|status|--once [--dry-run]|run|handle-record team …|handle-clear team --repo <MAIN>|input-handled (--lane L|--lead S8) --by coordinator|auto [--expect-full F]|judge-sha --lane L'); throw new Exit(2); }
+function usage() { coordLog('사용법: console-poll.mjs start|stop|status|--once [--dry-run]|run|handle-record team …|handle-clear team --repo <MAIN>|input-handled (--lane L|--lead S8) --by coordinator|auto [--expect-full F]|judge-sha --lane L'); throw new Exit(2); }
 
 // ---------- 제한 시간 실행 (bash 판 run_limited) ----------
 /** 0 성공 · 124 시간 초과 · 그 밖 종료 코드. io: {input, out, err} = 파일 경로(없으면 /dev/null). 시간 초과면 후손까지 죽인다 */
@@ -452,7 +454,7 @@ async function handlePrompt(line, ct) {
   writeFileSync(f('send.txt'), `[오피스→${hdr}] 프롬프트: ${stripNl(cp.out.toString('utf8'))}`, { mode: 0o600 });
   mkdirp(`${S.CD}/inflight`);
   writeFileSync(`${S.CD}/inflight/${id}`, `${nowIso(mkc())} ${what}\n`);
-  const trc = await runLimited(S.SEND_TIMEOUT, { input: null, out: f('tss.out'), err: f('tss.err') }, 'bash', [S.TSS, '--handle', h, '--allow-busy', '--text-file', f('send.txt')]);
+  const trc = await runLimited(S.SEND_TIMEOUT, { input: null, out: f('tss.out'), err: f('tss.err') }, ...sx(S.TSS, ['--handle', h, '--allow-busy', '--text-file', f('send.txt')]));
   rmf(f('send.txt'));
   const res = firstLine(readText(f('tss.out')));
   const w = res.trim() === '' ? [] : res.trim().split(/\s+/);
@@ -667,8 +669,8 @@ async function inputSweep() {
   }
 }
 async function officeCall(rid, args, dl) {
-  if (S.DRY) { drylog(`COORD_RUN=${rid} office.sh ${args.join(' ')}`); return 0; }
-  return runLimited(callLimit(S.OFFICE_TIMEOUT, dl), {}, 'bash', [S.OFFICE, ...args], { env: { ...S.env, COORD_RUN: rid } });
+  if (S.DRY) { drylog(`COORD_RUN=${rid} office.mjs ${args.join(' ')}`); return 0; }
+  return runLimited(callLimit(S.OFFICE_TIMEOUT, dl), {}, ...sx(S.OFFICE, args), { env: { ...S.env, COORD_RUN: rid } });
 }
 async function leadWatch() {
   const leads = D.liveLeads(S.c ?? mkc(), S.IDENT, S.HOST);
@@ -847,9 +849,9 @@ async function cycle() {
   try { if (statSync(S.LOG).size > 1048576) renameSync(S.LOG, `${S.LOG}.1`); } catch { /* 없음 */ }
   inflightSweep();
   // ① 생존 감시(서버 지원과 무관하게 늘)
-  if (S.DRY) drylog(`office.sh reap --state-dir ${S.ROOT}`);
+  if (S.DRY) drylog(`office.mjs reap --state-dir ${S.ROOT}`);
   else {
-    const rc = await runPhase('생존 감시', S.PHASE_MAX, (dl) => runLimited(callLimit(dl.left(), dl), {}, 'bash', [S.OFFICE, 'reap', '--state-dir', S.ROOT]));
+    const rc = await runPhase('생존 감시', S.PHASE_MAX, (dl) => runLimited(callLimit(dl.left(), dl), {}, ...sx(S.OFFICE, ['reap', '--state-dir', S.ROOT])));
     if (rc !== 0 && rc !== 124) plog(`reap rc=${rc}`);
   }
   if (S.oldUntil > nowEpoch()) return;
@@ -943,8 +945,8 @@ async function cmdStart() {
   if (lockLive()) { process.stdout.write(`CONSOLE_POLLER running pid=${S.HELD}\n`); return 0; }
   if (!hasWork()) { process.stdout.write('CONSOLE_POLLER skipped idle\n'); return 0; }
   if (!await lockTake()) { process.stdout.write(`CONSOLE_POLLER running pid=${S.HELD}\n`); return 0; }
-  // 부른 쪽의 stdout·stderr 를 붙잡지 않게 모두 닫고 새 세션으로 떼어 낸다. 명령줄 끝의 「console-poll.sh run」은 ps·pgrep 으로 폴러를 알아보게 하는 표지(무시된다)
-  const child = spawn(process.execPath, [MJS_FILE, 'run', '--', `${SH_FILE} run`], {
+  // 부른 쪽의 stdout·stderr 를 붙잡지 않게 모두 닫고 새 세션으로 떼어 낸다. 명령줄 끝의 「console-poll.mjs run」은 ps·pgrep 으로 폴러를 알아보게 하는 표지(무시된다)
+  const child = spawn(process.execPath, [MJS_FILE, 'run', '--', `${MJS_FILE} run`], {
     detached: true, stdio: 'ignore', windowsHide: true,
     env: { ...S.env, CONSOLE_POLL_LOCKED: '1', CONSOLE_POLL_IDENT: S.IDENT },
   });
@@ -1151,8 +1153,8 @@ async function cmdJudgeSha(args) {
 /** bash 판 REDACT_OK·INPUT_OK: 가림·입력 요청 라이브러리가 있어야 ②③ 을 한다 */
 function libsOk() {
   const lib = join(SCRIPTS_DIR, 'lib');
-  S.REDACT_OK = isFile(join(lib, 'console-redact.sh')) || isFile(join(lib, 'console-redact.mjs'));
-  S.INPUT_OK = S.REDACT_OK && isFile(join(lib, 'console-input.sh'));
+  S.REDACT_OK = isFile(join(lib, 'console-redact.mjs'));
+  S.INPUT_OK = S.REDACT_OK && isFile(join(lib, 'console-input.mjs'));
 }
 function defaultRepo() {
   if (S.env.COORD_REPO) return;
@@ -1165,11 +1167,69 @@ function defaultRepo() {
   if (!rp) rp = '/';
   S.env.COORD_REPO = rp;
 }
+const HELP_TEXT = `# 사용법: console-poll.mjs start | stop | status | --once [--dry-run] | run
+#         console-poll.mjs handle-record team --agent <신원>/<host>/lead --repo <MAIN> [--slots n] [--busy n] [--until-label 글] [--project id]
+#         console-poll.mjs handle-clear team --repo <MAIN>
+#         console-poll.mjs input-handled (--lane <레인> | --lead <세션8>) --by <coordinator|auto> [--expect-full <창 지문>]
+#         console-poll.mjs judge-sha --lane <레인>   \`JUDGE <h> <kind> <창 지문>\` · \`NONE <h>\` · \`STALE <h>\` · \`NOFP <h>\`(창 머리를 못 찾아
+#                                                  지문 없음 — 직접 답하지 않는다)(조정자가 판단 올리기 전에 기억했다가
+#                                                  term-send-safe.mjs --raw --lane <레인> --expect-sha <지문> 으로 답한다)
+#   오피스 콘솔 폴러(정본: ../references/contract.md §4.1, 서버 쪽 dflow-work/references/api-contract.md §2.12). LLM 을 부르지 않는다.
+#   PC 하나 × 신원 하나당 하나. 잠금 $DFLOW_CONSOLE_DIR/poller-<신원>.lock/(pid·pstart·since·cycle), 로그 poller-<신원>.log.
+#   start   잠금을 잡고 백그라운드 루프(run)를 띄운다 · \`CONSOLE_POLLER started pid=<pid>\` · 이미 돌면 \`CONSOLE_POLLER running pid=<pid>\`
+#           · 못 띄우면 \`CONSOLE_POLLER skipped <disabled|dry|no-repo|no-dflow|no-ident|idle>\`
+#   stop    \`CONSOLE_POLLER stopped\` · \`CONSOLE_POLLER none\`
+#   status  \`CONSOLE_POLLER up pid=<pid> since=<iso> cycle=<초>\` · \`CONSOLE_POLLER down\`
+#   --once  한 주기만 돌고 끝낸다(시험용, 잠금을 그동안만 쥔다). --dry-run(또는 COORD_DRY=1)은 claim·보내기·ack·올리기·reap 을 하지 않고
+#           하려던 일을 stderr 에 \`DRY\` 로 찍는다(claim 하고 ack 하지 않으면 프롬프트가 unknown 으로 버려지므로 poll 도 하지 않는다)
+#   run     루프(내부용). 한 주기(COORD_CONSOLE_CYCLE_S, 기본 30초 — 루프는 직렬이라 주기가 겹치지 않는다):
+#           ① 생존 감시 office.mjs reap(늘) ② 프롬프트 전달 ③ 화면 올리기(②③ 은 서버가 console 을 알 때만 — console-poll 이 exit 7 이면 10분 쉼)
+#           ② 는 \`console-poll --accepts keys --limit 1\` 로 한 건씩 집어 전달·ack 를 끝낸 뒤 다음 건을 집는다(빈 응답까지, 한 주기 최대 20건).
+#             키 입력 답하기는 기본 꺼짐: 꺼져 있으면 --accepts keys 를 보내지 않고, 그래도 받은 키 행은 키를 보내지 않고 refused·reason error·detail keys_disabled 로 ack 한다(서버 reason 목록에 새 값을 더하지 않는다).
+#             키 행(kind:'keys')은 켰을 때 검증(대상·만료·허용 키·화면 재판정·소비·레인 잠금·보내기 직전 재확인) 뒤 term_send_keys 한 번으로 넣는다(§4.1 「키 입력 답하기」).
+#             compacting 의 retry ack 는 그 주기의 poll 이 끝난 뒤 보낸다(retry 행이 바로 다시 나와 맴돌지 않게). 다만 claim(poll 직전) 뒤
+#             120초 ack 창 − 한 건 최대 처리 시간(보내기 60초 + ack 재시도 40초) = 20초가 지나면 다음 poll 전에 먼저 보낸다. 그렇게 돌려보낸
+#             행이 같은 주기에 다시 나오면 보내지 않고 새 토큰으로 다시 붙잡는다(한 주기에 같은 id 를 두 번 넣지 않는다).
+#             poll 이 exit 5 + forbidden_role(프로젝트 한정 PAT)이면 COORD_CONSOLE_OFF_RETRY_S(기본 30분) 동안 poll·ack 만 끈다(reap·화면은 계속), 지나면 한 번 다시 시도
+#           ③ 화면은 \`term_read_screen <h> 41\`(가림 라이브러리가 맨 앞 줄을 줄 이음 판정에만 쓰고 마지막 40줄을 낸다).
+#             captured_at 은 UTC(…Z). 한 요청에 같은 대상을 두 번 넣지 않고, 올리기 실패면 sha 기록을 그대로 둬 다음 주기에 다시 보낸다
+#             조정 레인 화면은 같은 읽기 결과를 $DFLOW_CONSOLE_DIR/screen/<handle>.txt·.json(700/600)에 남긴다 — prompt-watch.mjs 가 폴러가 도는 동안 화면을 직접 읽지 않게 하는 캐시(lib/screen-cache.sh,
+#             설정 approvals.screen_cache_s 가 0 이면 쓰지 않음). 읽기에 실패한 handle 의 캐시는 지우고 10분 넘은 파일은 주기마다 지운다. 자동 응답 직전 재판정은 이 캐시를 쓰지 않는다
+#             상주 폴러(run)는 창(kind≠none)이 보인 레인만 REREAD_S(기본 5)초 뒤 한 번 더 읽어 캐시를 바로 갱신한다(⑤ 화면 재읽기 — 주기당·레인당 한 번, 입력 요청 알림 다음, 구간 상한 안).
+#             폴러가 끝나면(stop·TERM·자동 종료·--once 끝) 잠금 주인으로서 화면 캐시 폴더의 파일을 모두 지운다(원문이 로컬에 남지 않게 — prompt-watch 는 직접 읽기로 물러난다).
+#             같은 화면으로 입력 요청(확인·선택·질문 창)을 판정해 $DFLOW_CONSOLE_DIR/input/<kind>_<ref>.json 을 만들고·고치고·지운다
+#             (coord_lane·coord_lead·team_lead, §4.1 「입력 요청 감지」). 바뀐 대상은 ④ 에서 알린다
+#           ④ 입력 요청 알림: coord_lane → \`COORD_RUN=<회차> office.mjs lane-state <레인> auto\`, coord_lead → \`office.mjs lead-sync\`,
+#             team_lead → 폴러가 직접 \`dflow.sh watch … --until "답 대기"\`(창이 사라지면 기록의 until_label 로 되돌림)
+#   input-handled  조정자·auto-answer 가 창에 답한 뒤 부른다: 기록의 handled 를 {by,at} 로 바꾸고 (since, sha)·(since, full) 을 소비 목록에
+#           넣은 뒤 office.mjs 를 부른다 · \`OK\` · 기록이 없으면 \`NONE\` · --expect-full <지문> 을 주었는데 기록의 full 이 다르면(기록이 이미
+#           다음 창) 아무것도 하지 않고 \`NONE prompt-changed\`
+#           시간 상한: 프롬프트 전달 구간을 뺀 나머지(생존 감시·터미널 목록·화면 읽기·화면 올리기)는 구간마다
+#             COORD_CONSOLE_PHASE_MAX_S(기본 10초)와 주기 몫 COORD_CONSOLE_CYCLE_MAX_S(기본 25초)의 남은 시간 중 작은 값 안에 끝낸다.
+#             넘으면 그 구간을 버리고(자손까지 죽임) 로그에 경고 한 줄을 남긴다. orca·lead-state·dflow.sh 호출은 모두 시간 제한 안에서 돈다.
+#             ④ 입력 요청 알림은 office.mjs 한 번이 20초(watch 3번 × 5초 + 여유)까지 걸리므로 주기 몫과 따로 COORD_CONSOLE_NOTIFY_MAX_S
+#             (기본 45초) 안에 돈다. 끊긴 office.mjs 의 잠금은 office.mjs trap·coord_lock 탈취가 푼다.
+#           매 주기 office.enabled 를 다시 읽어 false 면 스스로 끝낸다.
+#           이 신원·host 의 살아 있는 조정 세션 기록(pid>0)·살아 있음이 확인된 열린 회차·살아 있는 팀장 핸들 기록이 없는 주기가
+#           두 번 이어지면 잠금을 풀고 끝낸다(pid 0·빈 값인 기록·회차는 할 일로 세지 않는다 — 대상 해석에서는 센다).
+#           멈출 때(stop·TERM) 붙잡아 둔 retry ack 를 짧은 제한 시간 안에 보낸다.
+#   handle-record team   /dflow-team 팀장 핸들 기록 $DFLOW_CONSOLE_DIR/lead/<MAIN cksum>.json 을 쓴다(다시 쓰면 갱신) ·
+#           handle=$ORCA_TERMINAL_HANDLE, pid=$CLAUDE_PID(없으면 0, 둘 다 비면 기존 값 유지) · \`OK <경로>\`
+#   handle-clear team    그 기록을 지운다 · \`OK\`
+#   신원: \`dflow.sh me\` 의 user_email 로컬 파트 슬러그(office.mjs 와 같은 규칙). dflow.sh·DFLOW_CONFIG_DIR·cwd 규칙도 office.mjs 와 같다.
+#   잠금: 폴더 안에 pid·pstart·since·cycle·tmpd(루프의 임시 폴더). stop 은 TERM 뒤 기다려도 안 끝나면 자손까지 KILL 하고
+#         tmpd 를 대신 지운다. 신원을 못 구하면(설정이 꺼진 뒤 등) $DFLOW_CONSOLE_DIR/poller-*.lock 을 훑어 처리한다.
+#   환경: DFLOW_CONSOLE_DIR(기본 ~/.dflow/console) · COORD_STATE_ROOT · COORD_CONSOLE_CYCLE_S · COORD_CONSOLE_CYCLE_MAX_S ·
+#         COORD_CONSOLE_PHASE_MAX_S · COORD_DRY ·
+#         COORD_CONSOLE_KEYS_ENABLED=1(웹 키 입력 답하기 켬 — 설정 console.keys_enabled 와 같다, 기본 꺼짐)
+#         시험용: COORD_TERM_SEND_SAFE(term-send-safe.mjs 경로) · COORD_LEAD_STATE(lead-state.sh 경로) · CONSOLE_POLL_IDENT(신원) ·
+#         COORD_CONSOLE_HELD_MAX_S(retry 를 먼저 보내는 나이, 기본 20) · COORD_CONSOLE_STOP_WAIT_S(stop 이 TERM 뒤 기다리는 초, 기본 10) ·
+#         COORD_CONSOLE_LS_TIMEOUT_S(lead-state 상한, 기본 5) · COORD_OFFICE_SH(office.mjs 경로) ·
+#         COORD_CONSOLE_LANE_LOCK_WAIT_S(레인 잠금 대기, 기본 10) · COORD_CONSOLE_SENT_GRACE_S(보낸 직후 같은 창을 다시 세지 않는 초, 기본 10)
+#   비밀: 프롬프트 본문·claim_token·화면 원문·dflow.sh 오류 본문은 로그·stderr 에 남기지 않는다(시각·대상·결과·사유만).
+`;
 function helpText() {
-  const lines = readText(SH_FILE).split('\n');
-  const out = [];
-  for (let i = 1; i < lines.length; i++) { if (lines[i].startsWith('set -uo')) break; out.push(lines[i]); }
-  return `${out.join('\n')}\n`;
+  return HELP_TEXT;
 }
 
 export async function main(argv, { env, cwd } = {}) {

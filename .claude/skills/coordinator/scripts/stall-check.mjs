@@ -1,8 +1,8 @@
-// scripts/stall-check.sh 의 node 판(스위치 COORD_JS_STALL_CHECK — js-bridge.sh _jsb_exec).
+// stall-check.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/stall-check.sh 에 퇴역 보관).
 //   사용법: stall-check.mjs [레인…]   (없으면 active 레인 전부)
 //   stdout 레인마다 한 줄: `STALL <레인> pid=<pid> cpu_delta=<초> quiet=<분>m heavy=<yes|no>` 또는 `OK <레인>`.
 //   읽기 전용(관측 기록 <회차>/ticks/stall-<레인> 만 쓴다). 프로세스를 죽이지 않는다.
-// bash 판이 정답이다. awk·ps·sort·cksum·stat·git 을 부르던 곳을 같은 뜻의 JS 로 옮기고, 바깥 명령(ps · lsof · git)은 spawn 한다.
+// 옮길 때 bash 판이 기준이었다. awk·ps·sort·cksum·stat·git 을 부르던 곳을 같은 뜻의 JS 로 옮기고, 바깥 명령(ps · lsof · git)은 spawn 한다.
 //   · 프로세스 트리의 나열 순서: bash 판은 awk 의 `for (p in 배열)` 순서(구현 의존: bwk awk 해시 순서)다. 이 판은 ps 출력 순서를 쓴다.
 //     판정에 영향이 없다(집합으로만 쓰고, top pid 는 sort 로 정한다). 다만 tick 파일의 `cpu=` 줄 안의 pid 나열 순서는 다를 수 있다(읽을 때 키로만 본다).
 //   · top pid: sort -t<탭> -k2,2nr 은 cpu 큰 순이고 같으면 줄 전체 바이트 오름차순
@@ -17,6 +17,20 @@ import { isWin, procCwds } from './lib/compat.mjs';
 import { ArithAbort, arithVal, awkAtof, awkNum, cmpInt, coordDefaultRepo, coordGit, coordHeavyRunInWt, coordHeavyScript, fmtFixed, rawOut, runSync, stripNl } from './lib/common-ext.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 
+/** 도움말(= bash 판 머리말 2~13줄, 이름만 .mjs). */
+const HELP = `# 사용법: stall-check.mjs [레인…]   (없으면 active 레인 전부. 정본: ../references/contract.md §3.3, 설계 §3.m)
+# stdout 레인마다 한 줄: \`STALL <레인> pid=<pid> cpu_delta=<초> quiet=<분>m heavy=<yes|no>\` 또는 \`OK <레인>\`
+# 읽기 전용(관측 기록 <회차>/ticks/stall-<레인> 만 쓴다). 프로세스를 죽이거나 jstack 을 뜨지 않는다(조정자가 판단).
+# 판정(셋 다 맞으면 STALL)
+#   1) 프로세스 트리: 레인 워크트리를 cwd 로 둔 빌드·시험 프로세스(GradleWrapperMain·GradleMain·gradlew·GradleWorkerMain·
+#      Gradle Test Executor·vitest·playwright·tsc·jest) 와, 레인 세션이 띄운 java·node 를 뿌리로 그 자손까지.
+#      서버(bootRun·\`-Dbe.run.module=\` 로 띄운 앱 JVM)·공용 데몬(GradleDaemon)·MCP 서버·레인 Claude 세션 자신은 뺀다. 트리가 없으면 OK.
+#   2) 누적 CPU(ps -o time=)가 직전 관측보다 합계 2초 미만 늘었다(새 pid 는 전부 증가로 친다). 직전 관측이 없거나
+#      60초 안이면 판정하지 않는다(OK, 관측만 남김).
+#   3) 산출물 무변화가 stall.quiet_min 이상: 마지막 변화 = max(워크트리 git status --porcelain 내용이 바뀐 시각,
+#      그 목록에 든 파일 mtime 최신값, HEAD 커밋 시각). ignore 된 build·scratch 출력은 보지 않는다.
+# pid = 트리 중 누적 CPU 가 가장 큰 프로세스(jstack 대상 후보). heavy = heavy.sh snapshot RUN 줄 cwd 가 레인 워크트리 안인지.
+`;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const readDocs = (file) => { try { return J.parseStreamPartial(readFileSync(file, 'utf8')).values; } catch { return []; } };
 const eachDoc = (docs, fn) => {
@@ -175,12 +189,11 @@ export async function main(argv, { env = process.env, cwd = process.cwd(), now }
     coordDefaultRepo(c);
     const a0 = argv[0] ?? '';
     if (a0 === '-h' || a0 === '--help') {
-      const ls = readFileSync(join(HERE, 'stall-check.sh'), 'latin1').split('\n').slice(1, 13);
-      process.stderr.write(Buffer.from(`${ls.join('\n')}\n`, 'latin1'));
+      process.stderr.write(HELP);
       return 0;
     }
-    if (a0.startsWith('-')) throw new CoordDie(2, '사용법: stall-check.sh [레인…]');
-    if (!hasRun(c)) throw new CoordDie(3, '현재 회차가 없다(coord-state.sh init 먼저)');
+    if (a0.startsWith('-')) throw new CoordDie(2, '사용법: stall-check.mjs [레인…]');
+    if (!hasRun(c)) throw new CoordDie(3, '현재 회차가 없다(coord-state.mjs init 먼저)');
     const SF = stateFile(c, '');
     const TICKS = `${runDir(c, '')}/ticks`;
     try { mkdirSync(TICKS, { recursive: true }); } catch { throw new CoordDie(4, `ticks 폴더 생성 실패: ${TICKS}`); }

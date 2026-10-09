@@ -1,5 +1,4 @@
-// compact-screen.mjs 순수 로직 단위 시험(node --test). 대조 하니스(specs/compact-screen.mjs) 와 겹치는 입력도
-// 있지만, 여기는 회귀를 빨리 잡는 최소 묶음이다. 정답은 bash 판(compact-screen.sh)이다.
+// compact-screen.mjs 순수 로직 단위 시험(node --test). 기대값은 옛 bash 판 동작으로 확인해 고정한 것이다.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ctxPct, compacted } from '../scripts/lib/compact-screen.mjs';

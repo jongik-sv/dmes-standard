@@ -1,17 +1,16 @@
-// spawn-lane.mjs 중 하니스(bash 판과 바이트 대조)가 못 도는 경로: 시간 초과(새 세션 30초·셸 20초)를 주입 timeouts 로 줄여 보는 시험, 탭 정리, 사용법 오류.
-// 정상·GLM·화면 확인 경로는 tests/js-parity/specs/spawn-lane.mjs 가 bash 판과 대조한다. 가짜 orca 를 쓰므로 진짜 터미널·세션을 건드리지 않는다.
+// spawn-lane.mjs 시험: 시간 초과(새 세션 30초·셸 20초)를 주입 timeouts 로 줄여 보는 시험, 탭 정리, 사용법 오류, 도움말.
+// 옛 bash 판과의 대조 하니스는 backup/tests/js-parity 로 퇴역했다. 가짜 orca 를 쓰므로 진짜 터미널·세션을 건드리지 않는다.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { FAKE_ORCA } from './js-parity/fixtures/fake-tools.mjs';
+import { FAKE_ORCA } from './support/fake-tools.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MJS = join(HERE, '..', 'scripts', 'spawn-lane.mjs');
-const SH = join(HERE, '..', 'scripts', 'spawn-lane.sh');
 const WIN = process.platform === 'win32';
 const SCREEN = '╭─────────────╮\n│ ✻ Claude    │\n╰─────────────╯\n❯ \n';
 const SESSION = JSON.stringify({ pid: '@PID', sessionId: 'abcd1234-aaaa-bbbb-cccc-000000000001', name: '@NAME', messagingSocketPath: '/tmp/cc-socks/@PID.sock' });
@@ -139,10 +138,12 @@ test('사용법 오류는 종료 코드 2 이고 orca 를 한 번도 부르지 �
   } finally { rmSync(w.dir, { recursive: true, force: true }); }
 });
 
-test('도움말은 .sh 2~19번 줄과 바이트가 같다', () => {
-  const a = spawnSync(process.execPath, [MJS, '-h'], { encoding: 'buffer', windowsHide: true });
-  const b = spawnSync('bash', [SH, '-h'], { encoding: 'buffer', windowsHide: true, env: { ...process.env, COORD_JS_SPAWN_LANE: '0' } });
+test('도움말: -h 는 stdout 에 도움말을 내고 종료 코드 0, spawn-lane.mjs 사용법 줄이 있고 bash 확장자 낱말이 없으며 개행으로 끝난다', () => {
+  const a = spawnSync(process.execPath, [MJS, '-h'], { encoding: 'utf8', windowsHide: true });
   assert.equal(a.status, 0);
-  assert.deepEqual(a.stdout, b.stdout);
-  assert.equal(existsSync(MJS) && readdirSync(dirname(MJS)).includes('spawn-lane.mjs'), true);
+  assert.equal(a.stderr, '');
+  assert.ok(a.stdout.startsWith('# 사용법: spawn-lane.mjs'), a.stdout.split('\n')[0]);
+  assert.ok(a.stdout.split('\n').some((l) => l.startsWith('# 사용법: spawn-lane.mjs')), '사용법 줄');
+  assert.equal(new RegExp(`\\.${'sh'}\\b`).test(a.stdout), false);
+  assert.ok(a.stdout.endsWith('\n'));
 });

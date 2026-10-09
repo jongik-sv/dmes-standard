@@ -6,8 +6,8 @@
 
 ## 1. 신호와 판정
 
-레인 상태 판단은 state.json 요약이 기본이고, 터미널 화면은 `prompt-watch.sh` 가 이상을 판정한 레인 하나만 읽는다(정지 의심 레인도 화면 전체를 훑지 않는다).
-`scripts/stall-check.sh [레인…]` 이 틱마다 직전 관측(`ticks/`)과 비교해 판정한다. 출력: `STALL <레인> pid=<pid> cpu_delta=<초> quiet=<분>m heavy=<yes|no>` 또는 `OK <레인>`.
+레인 상태 판단은 state.json 요약이 기본이고, 터미널 화면은 `prompt-watch.mjs` 가 이상을 판정한 레인 하나만 읽는다(정지 의심 레인도 화면 전체를 훑지 않는다).
+`node scripts/stall-check.mjs [레인…]` 이 틱마다 직전 관측(`ticks/`)과 비교해 판정한다. 출력: `STALL <레인> pid=<pid> cpu_delta=<초> quiet=<분>m heavy=<yes|no>` 또는 `OK <레인>`.
 
 세 신호가 겹치면 정지 의심이다.
 
@@ -15,7 +15,7 @@
 2. 그 레인이 띄운 gradle·시험 프로세스 트리의 누적 CPU 시간이 두 틱 사이에 거의 늘지 않는다.
 3. heavy 슬롯을 그 레인이 쥐고 있다(`heavy=yes`).
 
-`idle-check.sh` 의 `STALL? <레인>`(백그라운드 거부가 `idle.stall_max_min` 초과)도 이 문서로 온다. 먼저 레인에 `상태 한 줄 보고` 를 요청하고 `stall-check.sh <레인>` 을 돌린다.
+`idle-check.mjs` 의 `STALL? <레인>`(백그라운드 거부가 `idle.stall_max_min` 초과)도 이 문서로 온다. 먼저 레인에 `상태 한 줄 보고` 를 요청하고 `node scripts/stall-check.mjs <레인>` 을 돌린다.
 
 ## 2. 원인 진단(판단 올리기)
 
@@ -34,7 +34,7 @@
 - 레인이 Workflow 중이면 하위 에이전트에 보내지 않고 세션에 보낸다(`workflow.md` 금지). 세션이 응답하지 않으면 화면을 읽어 상태를 확인하고 사용자에게 알린다.
 - 같은 정지가 반복되면 `workflow.md` 블록의 정지 예방 문구를 보강하도록 레인에 요청한다.
 - 정지로 heavy 칸이 막혀 다른 레인이 기다리면 `heavy.md` 로 우선순위에 따라 통지한다.
-- 진단 결과와 조치는 `coord-state.sh event stall <레인> '<json>'` 으로 남긴다.
+- 진단 결과와 조치는 `node scripts/coord-state.mjs event stall <레인> '<json>'` 으로 남긴다.
 
 ## 4. 예방
 
@@ -44,6 +44,6 @@
 
 레인이나 다른 세션이 내놓은 진단(「이게 CPU 주원인」, 「같은 리뷰가 다시 돈다」)을 확인 없이 사용자에게 옮기지 않는다. 화면 한 줄로 결론을 내지 않는다.
 
-- 부하·정지: `ps`·`time`·`stall-check.sh` 로 잰 숫자(pid, CPU, 경과)로 말한다(`heavy.md` §4). 사례: 「3초 간격 감시가 CPU 주원인」 은 실측하니 코어 0.3개(수 %)였다.
+- 부하·정지: `ps`·`time`·`stall-check.mjs` 로 잰 숫자(pid, CPU, 경과)로 말한다(`heavy.md` §4). 사례: 「3초 간격 감시가 CPU 주원인」 은 실측하니 코어 0.3개(수 %)였다.
 - 반복·중복: 레인 보고·커밋·보고 시각으로 어느 항목의 일인지 대조한다. 사례: 「같은 리뷰가 다시 돈다」 는 실제로는 다른 항목(C3)의 리뷰였다.
 - 확인하지 못했으면 「추정」 이라고 적고, 확인한 뒤에 결론으로 바꾼다. 이미 틀린 진단을 전했으면 바로 정정한다.

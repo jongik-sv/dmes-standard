@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// coord-state.sh 의 node 판(스위치 COORD_JS_COORD_STATE — js-bridge.sh 로 exec). 계약·대조 명세: tests/js-parity/specs/coord-state.mjs
-// 정답은 bash 판이다. jq 식 지원 범위는 레인 조사 메모 jq-usage.md: 저장소 안 실제 호출처가 쓰는 경로·식은 전부 순수 JS,
+// coord-state.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/coord-state.sh 에 퇴역 보관).
+// jq 식 지원 범위는 레인 조사 메모 jq-usage.md: 저장소 안 실제 호출처가 쓰는 경로·식은 전부 순수 JS,
 // 그 밖은 jq 프로세스 폴백(stderr 에 한 줄 경고). 시각·환경·작업 폴더는 Ctx 로 받는다(전역을 직접 읽지 않는다).
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -11,10 +11,33 @@ import * as C from './lib/compat.mjs';
 import { Ctx, CoordDie, cfgSub, repo, stateRoot, runDir, stateFile, sess8Of, staleRuns, nowIso, nowEpoch, isoToEpochLoose, lock, unlock } from './lib/common.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 
+/** 도움말(= bash 판 머리말 2~23줄, 이름만 .mjs). */
+const HELP = `# 사용법: coord-state.mjs <하위명령> …   (정본: ../references/contract.md §2·§3.4)
+#   init <run-id> [--goal 글] [--rules-doc 경로]   회차 폴더·빈 state.json 생성, current 지정 · \`RUN <run-id> <폴더>\`
+#   use <run-id>                                   current 바꾸기 · \`OK\`
+#   get [jq식]                                     state.json 에 jq 적용 결과
+#   set <jq경로> <json값>                          값 쓰기 · \`OK\`
+#   set-many <경로> <값> [<경로> <값> …]           값 여러 개를 한 번에(한 번의 잠금·쓰기) · \`OK\`
+#   lane-add <레인> <json>                         기본 레인 골격 * 기존 값 * json 병합 · \`OK\`
+#   event <kind> [레인|-] [json]                   events.jsonl 에 한 줄 · \`OK\`
+#   instr <레인> <kind>                            다음 지시 번호 발급·기록 · \`<레인>-<n>\`
+#   ack <instr-id>                                 ack 시각 기록 · \`OK\`
+#   report <레인> [요약 글] [--question <글>|--answered]  last_report_at 갱신, reports.md 에 한 줄 · \`OK\`
+#                                                  --question: .lanes.<레인>.question = {at, text(첫 줄 200자)} (레인의 문장 질문 —
+#                                                  오피스 입력 요청 kind 'message'), --answered: 그 질문을 지운다
+#   item-done <레인> <항목id>                      항목 완료 · \`PROGRESS <레인> <pct>%\`
+#   progress                                       레인마다 \`PROGRESS <레인> <pct>% <끝>/<전체>\`, 끝에 \`PROGRESS ALL <pct>%\`
+#   hold <레인> <사유|-> [until-iso]               hold 세우기(\`-\` 는 풀기) · \`OK\`
+#   close-run [json]                               회차 마감: run-closed 이벤트 → office finish → \`.run.closed_at\` 기록 · \`OK\`
+#                                                  (\`event run-closed\` 도 같은 길. 이미 마감했으면 closed_at 은 그대로, finish 는 다시 건다)
+#   summary                                        summary.md 재생성 · 경로
+# state.json 은 이 스크립트만 쓴다. 쓰기는 mkdir 잠금(<회차>/.lock) 아래에서 임시 파일 → mv 로 원자적으로 한다.
+# 회차는 COORD_RUN 환경 변수 → <state_dir>/current 순으로 정한다(init 은 인자의 run-id).
+# init 은 조정 세션 id·pid(CLAUDE_PID, 없으면 0 — TTL 에 맡긴다)·Orca 핸들(ORCA_TERMINAL_HANDLE, 없으면 빈 값)을 .run.coordinator 에 적고,
+`;
 const SCRIPTS_DIR = path.dirname(fileURLToPath(import.meta.url));
-const SH_FILE = path.join(SCRIPTS_DIR, 'coord-state.sh');
 
-const USAGE = '사용법: coord-state.sh init|use|get|set|set-many|lane-add|event|instr|ack|report|item-done|progress|hold|close-run|summary … (contract §3.4)';
+const USAGE = '사용법: coord-state.mjs init|use|get|set|set-many|lane-add|event|instr|ack|report|item-done|progress|hold|close-run|summary … (contract §3.4)';
 
 const LANE_SKEL_TEXT = '{"session":{"name":"","addr":"","session_id":"","pid":0,"handle":"","kind":"claude","window":null,"spawned_by":"user"},\n "branch":"","worktree":"","owned":[],"forbidden":[],"heavy_env":null,"priority":2,"items":[],"queue":[],"hold":null,\n "last_report_at":null,"last_instr_at":null,"ctx":null,\n "compact":{"pending":false,"last_at":null,"pre_compact":null,"history":[]},"memo":"","state":"active"}';
 
@@ -43,7 +66,8 @@ function defaultRepo(c) {
 
 // ---------- jq 폴백 ----------
 function jqSpawn(c, args, input) {
-  const r = spawnSync('jq', args, { input, env: c.env, windowsHide: true, maxBuffer: 1 << 28 });
+  const [jq, pre] = C.jqCommand(c.env);
+  const r = spawnSync(jq, [...pre, ...args], { input, env: c.env, windowsHide: true, maxBuffer: 1 << 28 });
   if (r.error) return { out: Buffer.alloc(0), rc: 127, err: 'jq: command not found\n' };
   return { out: r.stdout ?? Buffer.alloc(0), rc: r.status ?? 70, err: r.stderr ? r.stderr.toString('utf8') : '' };
 }
@@ -74,14 +98,14 @@ function die(rc, msg) { throw new CoordDie(rc, msg); }
 /** 직접 호출형 `state_file_checked >/dev/null` — die 가 스크립트를 끝낸다 */
 function stateFileChecked(c) {
   const f = stateFile(c, '');
-  if (!existsSync(f) || !statSync(f).isFile()) die(3, `state.json 없음: ${f} (coord-state.sh init 먼저)`);
+  if (!existsSync(f) || !statSync(f).isFile()) die(3, `state.json 없음: ${f} (coord-state.mjs init 먼저)`);
   return f;
 }
 /** 서브셸 대입형 `f="$(state_file_checked)"` — coord_die 가 서브셸만 끝내므로 메시지는 stderr 에만 남고 빈 값을 돌려준다 */
 function stateFileSub(c) {
   const f = stateFile(c, '');
   if (!f || f === '/state.json' || !existsSync(f) || !statSync(f).isFile()) {
-    c.log(`state.json 없음: ${f || ''} (coord-state.sh init 먼저)`);
+    c.log(`state.json 없음: ${f || ''} (coord-state.mjs init 먼저)`);
     return '';
   }
   return f;
@@ -301,7 +325,7 @@ function lpct(laneV) {
 
 // ---------- office 호출(표시 전용 — 실패해도 계약 불변) ----------
 function officeCall(c, args, extraEnv = {}) {
-  spawnSync('bash', [path.join(SCRIPTS_DIR, 'office.sh'), ...args], { env: { ...c.env, ...extraEnv }, stdio: 'ignore', windowsHide: true });
+  spawnSync(process.execPath, [path.join(SCRIPTS_DIR, 'office.mjs'), ...args], { env: { ...c.env, ...extraEnv }, stdio: 'ignore', windowsHide: true });
 }
 
 // ---------- 하위명령 ----------
@@ -348,7 +372,7 @@ function cmdInit(c, argv) {
   officeCall(c, ['lead-up'], { COORD_RUN: id });
   // 오피스 콘솔 폴러(contract §4.1). 실패해도 init 은 계속한다(stdout 계약 불변).
   if ((c.env.COORD_DRY ?? '0') !== '1' && (c.env.COORD_CONSOLE_POLL ?? '1') !== '0') {
-    spawnSync('bash', [path.join(SCRIPTS_DIR, 'console-poll.sh'), 'start'], { env: c.env, stdio: 'ignore', windowsHide: true, detached: true });
+    spawnSync(process.execPath, [path.join(SCRIPTS_DIR, 'console-poll.mjs'), 'start'], { env: c.env, stdio: 'ignore', windowsHide: true, detached: true });
   }
   process.stdout.write(`RUN ${id} ${dir}\n`);
   const r = readDoc(path.join(dir, 'state.json'));
@@ -371,11 +395,11 @@ function initStaleCheck(c, exclude, myS8) {
     const mt = C.statMtime(path.join(root, rid, 'state.json'));
     const age = mt == null || mt === '' ? '-' : `${Math.trunc((now - Number(mt)) / 60)}m`;
     process.stdout.write(`STALE_RUN ${rid} open session=${sid} idle=${age}\n`);
-    c.log(`STALE_RUN ${rid}: 다른 조정 세션의 회차가 마감 표식 없이 남아 있다(경고만). 끝난 회차라면 COORD_RUN=${rid} coord-state.sh close-run (진행 중인 다른 조정자의 회차면 그대로 둔다)`);
+    c.log(`STALE_RUN ${rid}: 다른 조정 세션의 회차가 마감 표식 없이 남아 있다(경고만). 끝난 회차라면 COORD_RUN=${rid} coord-state.mjs close-run (진행 중인 다른 조정자의 회차면 그대로 둔다)`);
   }
   if (same > 0) {
     process.stdout.write(`SESSION_RUNS ${myS8} open=${same + 1}\n`);
-    c.log(`SESSION_RUNS ${myS8}: 이 조정 세션에 열린 회차가 ${same + 1}개다(앞 회차는 자동 마감하지 않는다). 오피스 팀장 칸 하나를 공유하고 slots·busy 는 합산된다. 끝난 회차는 COORD_RUN=<회차> coord-state.sh close-run 으로 닫는다`);
+    c.log(`SESSION_RUNS ${myS8}: 이 조정 세션에 열린 회차가 ${same + 1}개다(앞 회차는 자동 마감하지 않는다). 오피스 팀장 칸 하나를 공유하고 slots·busy 는 합산된다. 끝난 회차는 COORD_RUN=<회차> coord-state.mjs close-run 으로 닫는다`);
   }
 }
 
@@ -854,7 +878,7 @@ function summaryLines(c, doc) {
   const push = (s) => lines.push(s);
   push(`# 조정 회차 ${asText(ix(run, 'id'))} 요약`);
   push('');
-  push(`- 갱신: ${now} (coord-state.sh summary 자동 생성)`);
+  push(`- 갱신: ${now} (coord-state.mjs summary 자동 생성)`);
   push(`- 목표: ${vTxt(ix(run, 'goal'))}`);
   push(`- 규칙 문서: ${vTxt(ix(run, 'rules_doc'))}`);
   push(`- 통합 브랜치: ${vTxt(ix(run, 'integration_branch'))}`);
@@ -957,7 +981,7 @@ const SUMMARY_FALLBACK = String.raw`
     | ($L | map(.d) | add // 0) as $D | ($L | map(.t) | add // 0) as $T
     | "# 조정 회차 \(.run.id) 요약",
       "",
-      "- 갱신: \($now) (coord-state.sh summary 자동 생성)",
+      "- 갱신: \($now) (coord-state.mjs summary 자동 생성)",
       "- 목표: \(.run.goal | v)",
       "- 규칙 문서: \(.run.rules_doc | v)",
       "- 통합 브랜치: \(.run.integration_branch | v)",
@@ -1030,7 +1054,7 @@ export async function main(argv, { env, cwd } = {}) {
         break;
       case 'summary': cmdSummary(c); break;
       case 'help': case '-h': case '--help':
-        process.stderr.write(`${readFileSync(SH_FILE, 'utf8').split('\n').slice(1, 23).join('\n')}\n`);
+        process.stderr.write(HELP);
         break;
       default: usage();
     }

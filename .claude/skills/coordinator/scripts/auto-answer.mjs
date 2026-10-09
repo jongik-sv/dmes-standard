@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// auto-answer.sh 의 node 판(스위치 COORD_JS_AUTO_ANSWER — js-bridge.sh 로 exec). 정답은 bash 판이다(계약: tests/js-parity/README.md, 명세 specs/auto-answer.mjs).
+// auto-answer.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/auto-answer.sh 에 퇴역 보관).
 // 이 스크립트는 살아 있는 레인 세션에 키(번호·Esc)를 보낸다. 그래서 확실하지 않으면 보내지 않는 쪽(fail-closed)으로만 틀린다:
 //   · 어떤 내부 오류든(예외) 아무것도 보내지 않고 종료 코드 70 으로 끝난다(bash 본문으로 되돌아가지 않는다).
 //   · 보내기 직전(레인 잠금 안)에 화면을 다시 읽어 판정한 창과 같은 창일 때만 보내고, 보낸 뒤에도 예외가 나면 잠금을 푼다.
@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CoordDie, Ctx, cfgJson, hasRun, laneGet, nowIso, repo, screenPromptKind, stateFile, wtAbs } from './lib/common.mjs';
-import { coordStateCall, runSync, scriptsDir } from './lib/common-ext.mjs';
+import { coordStateCall, runScriptFile, runSync, scriptsDir } from './lib/common-ext.mjs';
 import * as CI from './lib/console-input.mjs';
 import { screenFilter } from './lib/console-redact.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
@@ -28,7 +28,6 @@ import { sleepSec } from './lib/test-sleep.mjs';
 import { functions as T } from './lib/term.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SH_FILE = join(HERE, 'auto-answer.sh');
 
 class Exit extends Error { constructor(rc) { super(`exit ${rc}`); this.rc = rc; } }
 
@@ -36,7 +35,7 @@ class Exit extends Error { constructor(rc) { super(`exit ${rc}`); this.rc = rc; 
 // grep·sed 의 [[:space:]] 가 UTF-8 로케일에서 더 넓다(lib/sh-space.mjs 머리말). awk 는 쓰지 않는다.
 export { spaceChars, utf8Locale };
 
-// auto-answer.sh 209행의 거부 ERE 원문(`grep -qiE '…'`). 바꾸면 bash 판과 어긋난다 — 명세 specs/auto-answer.mjs 의 DENY_CASES 가 가지마다 걸림·안걸림을 확인한다.
+// auto-answer.mjs 209행의 거부 ERE 원문(`grep -qiE '…'`). 바꾸면 bash 판과 어긋난다 — 명세 specs/auto-answer.mjs 의 DENY_CASES 가 가지마다 걸림·안걸림을 확인한다.
 const DENY_ERE = String.raw`(^|[^a-z0-9_-])(rm|rmdir|unlink|shred|truncate)([[:space:]]|$)|-delete([[:space:]]|$)|-exec([[:space:]]|dir)|(^|[^a-z])xargs[[:space:]]|git[[:space:]]+(branch[[:space:]]+-[dD]|push|reset|clean|checkout[[:space:]]+--|restore|stash[[:space:]]+(drop|clear|pop)|rebase|filter-branch|update-ref[[:space:]]+-d)|worktree[[:space:]]+remove|--force|(^|[^a-z])(DROP|TRUNCATE)[[:space:]]|DELETE[[:space:]]+FROM|UPDATE[[:space:]].*[[:space:]]SET[[:space:]]|(^|[^a-z])(kill|pkill|killall|shutdown|reboot|launchctl)[[:space:]]|(^|[^a-z])(taskkill|Stop-Process)([[:space:]]|$)|(^|[;&|(]|/c)[[:space:]]*(del|rd|Remove-Item)([[:space:]]|$)|chmod|chown|sudo|settings(\.local)?\.json|\.coord(\.local)?\.json|(ANTHROPIC|API|AUTH)_?(KEY|TOKEN)|security[[:space:]]+find-generic-password|curl[[:space:]].*-X[[:space:]]*(POST|PUT|DELETE|PATCH)|bootRun|local-run\.sh|(yarn|pnpm|npm)[[:space:]]+(remove|uninstall|rm|dlx|exec)|npx[[:space:]]+-y`;
 
 /** 거부 정규식(i 플래그, u 아님). 줄 단위로 부른다 */
@@ -79,11 +78,31 @@ const jlen = (v) => (Array.isArray(v) ? v.length : v && typeof v === 'object' ? 
 const truthy = (v) => v !== null && v !== undefined && v !== false;
 const jlines = (a) => stripNl((Array.isArray(a) ? a : []).map((x) => `${jr(x)}\n`).join(''));
 
+const HELP_TEXT = `# 레인 화면의 확인·선택 창에 판정표대로 자동 응답한다. 정본: ../references/approvals.md, ../references/contract.md §3.5
+# 사용법: auto-answer.mjs (--lane <레인> | --handle <h>) [--dry-run]
+#   stdout 한 줄:
+#     NONE <h>                                   창 없음
+#     ANSWER <h> <kind> <보낸 키> <사유>          자동 응답함(dry-run 이면 앞에 DRY)
+#     DENY <h> <kind> <사유>                      거부(Esc)함
+#     ESCALATE <h> <kind> <사유>                  조정자 판단 필요(판단 올리기 또는 사용자에게). 아무것도 보내지 않음
+#   kind: trust · usage-limit · permission · question · choice
+#   권한 창 범주는 조정자가 띄운 세션(spawned_by=coordinator)이면 approvals.auto_allow_spawned, 아니면 approvals.auto_allow.
+#   거부 칸(삭제·레인 세션의 push·공용 DB 쓰기·서버 종료·권한 설정·비밀값)은 늘 거부한다. 판정은 approvals 기록과 이벤트에 남긴다.
+#   판정에 쓴 화면(80줄 원문)의 창 지문(console_full_sha — 폴러·judge-sha 의 41줄과 같은 창이면 같은 값)을 기억했다가 레인 잠금을 얻은 뒤
+#   다시 읽은 화면(보내기 바로 앞)과 비교해 다르면(같은 kind 의 다른 창 포함) 아무것도 보내지 않고 \`NONE <h>\` 로 끝낸다. 지문을 만들지
+#   못하면(창 머리가 읽은 화면 위로 밀림 등) \`ESCALATE <h> <kind> no-fingerprint\`. 보낸 직후 잠금 안에서 입력 요청 기록이 판정한 창(같은
+#   지문)일 때만 handled(auto)·소비를 남기고(console_input_mark_handled), 잠금을 푼 뒤 \`console-poll.mjs input-handled --expect-full\` 로 알린다.
+#   권한 창의 명령·질문·선택지는 지문과 같은 창 판정(console_window_json)의 창 안에서만 읽는다(창 밖 대화 기록은 보지 않는다).
+#   허용은 질문 줄이 정확히 \`Do you want to proceed?\` 이고 도구 이름 줄이 \`… command\`(뒤 괄호 허용) 인 창만 — 그 밖의 권한 창은 거부 칸이면 DENY,
+#   아니면 \`ESCALATE <h> permission not-proceed|not-command|window-shape\`. 창을 못 잡으면 \`ESCALATE <h> permission no-fingerprint\`.
+#   trust·usage-limit·question·choice 도 같은 창(J_WIN.gen)만 본다: 창이 권한 창 모양(머리 다음 도구 이름 줄)·들여쓴 가로줄 머리·
+#   선택지 블록 사이에 얕은 글 줄·질문 줄 없음이거나, 그 kind 의 확인 문구가 창의 머리~질문 줄(pre)에 없으면(trust 는 끝 쪽에 \`No, exit\`·
+#   \`trust this folder\` 선택지도 필요) \`ESCALATE <h> <kind> window-shape\`. 선택지 번호는 창 블록의 선택지 줄에서만 고른다(trust 의 Yes 번호가
+#   없으면 예전처럼 1 을 보내지 않고 \`ESCALATE <h> trust no-yes-option\`). 창을 못 잡으면 \`ESCALATE <h> <kind> no-fingerprint\`.
+#   판단 올리기 기록의 cmd: 권한 창 모양 사유는 창 안 도구 이름 줄 아래 전부, 지문 없음은 화면 아래 30줄을 가린 것.
+`;
 function helpText() {
-  const lines = readFileSync(SH_FILE, 'latin1').split('\n');
-  const end = lines.findIndex((l, i) => i >= 2 && l.startsWith('set -uo'));
-  const body = lines.slice(1, end < 0 ? lines.length : end);
-  return Buffer.from(`${body.join('\n')}\n`, 'latin1');
+  return Buffer.from(HELP_TEXT, 'utf8');
 }
 
 // ---------- main ----------
@@ -114,7 +133,7 @@ async function run(argv, env, cwd, c, out0, setLock) {
     const a = argv[i];
     switch (a) {
       case '--lane': case '--handle':
-        if (i + 1 >= argv.length) { process.stderr.write(`auto-answer.sh: $2: unbound variable\n`); throw new Exit(1); }   // set -u
+        if (i + 1 >= argv.length) { process.stderr.write(`auto-answer.mjs: $2: unbound variable\n`); throw new Exit(1); }   // set -u
         if (a === '--lane') lane = argv[i + 1]; else h = argv[i + 1];
         i++; break;
       case '--dry-run': dry = 1; break;
@@ -134,7 +153,7 @@ async function run(argv, env, cwd, c, out0, setLock) {
   }
   if (!(h !== '' && h !== 'null')) die(2, 'handle 이 없다(--handle 또는 state 의 session.handle)');
 
-  // 오피스 키 입력(console-poll.sh)과 레인 단위 잠금을 공유한다. --handle 만 주면 현재 회차에서 그 핸들의 레인을 찾는다(정확히 하나일 때)
+  // 오피스 키 입력(console-poll.mjs)과 레인 단위 잠금을 공유한다. --handle 만 주면 현재 회차에서 그 핸들의 레인을 찾는다(정확히 하나일 때)
   let LK = '';
   if (lane !== '') LK = lane;
   else if (hasRun(c)) LK = laneOfHandle(c, h);
@@ -270,10 +289,10 @@ async function run(argv, env, cwd, c, out0, setLock) {
       CI.laneMarkSent(c, LK, sha);
       const m = CI.markHandled(c, `coord_lane_${LK}`, 'auto', J_FULL);
       unlock();
-      // office 알림(잠금 밖 — office.sh 가 오래 걸려도 다른 답을 막지 않게). 실패해도 계속
+      // office 알림(잠금 밖 — office.mjs 가 오래 걸려도 다른 답을 막지 않게). 실패해도 계속
       if (m.rc === 0) {
         const cenv = { ...env }; delete cenv.COORD_JS_CALLER_PID;
-        runSync('bash', [join(scriptsDir(), 'console-poll.sh'), 'input-handled', '--lane', LK, '--by', 'auto', '--expect-full', J_FULL], { env: cenv, cwd, input: '' });
+        runScriptFile(join(scriptsDir(), 'console-poll.mjs'), ['input-handled', '--lane', LK, '--by', 'auto', '--expect-full', J_FULL], { env: cenv, cwd, input: '' });
       }
     }
     sleepSec(env, 3);
@@ -411,7 +430,7 @@ function laneOfHandle(c, h) {
   } catch { return ''; }
 }
 
-/** 첫 단어(실행 파일)별 범주. 모르면 '' (auto-answer.sh 의 case 표) */
+/** 첫 단어(실행 파일)별 범주. 모르면 '' (auto-answer.mjs 의 case 표) */
 function category(w, pathOk) {
   const a = (i) => w[i] ?? '';
   switch (w[0]) {

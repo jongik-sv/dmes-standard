@@ -1,6 +1,6 @@
-// common.sh 의 node 판. bash 함수 이름 그대로 CLI 로 부르고(`node common.mjs coord_cfg .state_dir`), 다른 mjs 모듈은 아래 export 함수를 import 해 쓴다.
-// 정답은 bash 판이다 — 계약: tests/js-parity/README.md, 스위치: COORD_JS_COMMON(js-bridge.sh). bash 에 남기는 함수(coord_log·coord_die·coord_do·coord_state_call·
-// coord_git·coord_read1·coord_mkdirp·coord_default_repo·coord_clock_init·coord_cpus·coord_load1·coord_heavy_*·coord_wt_procs·coord_bg_signals)는 옮기지 않았다.
+// 조정자 공용 lib(설정·회차·상태 경로·시각·잠금). (옛 bash 판은 backup/scripts/lib/common.sh 에 퇴역 보관, 2026-10-09 W4) bash 함수 이름 그대로 CLI 로 부르고(`node common.mjs coord_cfg .state_dir`), 다른 mjs 모듈은 아래 export 함수를 import 해 쓴다.
+// 아래 함수 이름은 옛 bash 판의 이름이다. common-ext.mjs 에 있는 함수(coord_log·coord_die·coord_do·coord_state_call·
+// coord_git·coord_read1·coord_mkdirp·coord_default_repo·coord_clock_init·coord_cpus·coord_load1·coord_heavy_*·coord_wt_procs·coord_bg_signals)는 여기에 없다.
 //
 // 맞춘 bash 동작 (읽는 사람이 놀라지 않도록 적어 둔다)
 //  · 설정 = 기본값 * <repo>/.coord.json * <repo>/.coord.local.json (jq `*` 깊은 병합). 환경 변수 _COORD_CFG 가 있고 _COORD_CFG_MINE 과 다르면 덮어쓴 값이라 그 글을 그대로 쓴다.
@@ -8,8 +8,8 @@
 //    표는 키에 [A-Za-z0-9_] 밖의 글자가 하나라도 있으면 통째로 없다.
 //  · 설정 오류의 die(종료 코드 3)는 bash 에서 호출 맥락을 따른다 — coord_cfg·coord_cfg_all·coord_cfg_json·coord_run_dir 을 서브셸 밖에서 부르면 스크립트가 끝나고,
 //    `$(…)` 안에서 부르면 그 서브셸만 끝난다. 그래서 이 모듈의 내부 호출은 die 를 삼키고(stderr 에 문구, 값은 빈 글) 직접 부르는 네 함수만 die 를 CLI 종료 코드 + 전역 _JSB_DIE=1 로 알린다
-//    (js-bridge.sh 의 _jsb_calld 가 그 경우 exit 한다).
-//  · 잠금의 주인 pid 는 부른 bash 셸의 $$ — 브리지가 COORD_JS_CALLER_PID 로 넘긴다(없으면 부모 pid).
+//    (옛 js-bridge.sh 의 _jsb_calld 가 그 경우 exit 했다).
+//  · 잠금의 주인 pid 는 환경 변수 COORD_JS_CALLER_PID(스크립트 진입점 scriptMain 이 자기 pid 로 채운다), 없으면 부모 pid.
 // node 18.17 이상, 외부 패키지 없음(jq 식을 그대로 받는 곳 — coord_state·복잡한 coord_cfg 식 — 만 jq 를 부른다).
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
@@ -17,7 +17,7 @@ import * as J from './jq-json.mjs';
 import * as C from './compat.mjs';
 import { cliMain, isMain } from './js-cli.mjs';
 
-// 정본은 common.sh 의 COORD_DEFAULTS (tests/common.test.mjs 가 두 글이 같은지 본다)
+// 기본 설정(COORD_DEFAULTS). 값을 바꾸면 references/contract.md §1 도 함께 고친다
 export const COORD_DEFAULTS = `{
   "integration_branch": "dev",
   "git_bin": "git",
@@ -173,7 +173,8 @@ export function cfgLoad(c) {
 const scalarText = (v) => (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' || v instanceof J.JNum ? J.tostring(v) : J.tojson(v));
 
 function spawnJq(c, args, input) {
-  const r = spawnSync('jq', args, { input, env: jqEnv(c), windowsHide: true, maxBuffer: 1 << 28 });
+  const [jq, pre] = C.jqCommand(c.env);
+  const r = spawnSync(jq, [...pre, ...args], { input, env: jqEnv(c), windowsHide: true, maxBuffer: 1 << 28 });
   if (r.error) return { out: '', rc: 4, err: 'jq 가 필요하다\n' };
   return { out: r.stdout, rc: r.status ?? 70, err: r.stderr ? r.stderr.toString('utf8') : '' };
 }
@@ -296,7 +297,7 @@ export function runId(c, arg = '') {
 /** 회차 폴더. 회차가 없으면 CoordDie(3). */
 export function runDir(c, arg = '') {
   const r = runId(c, arg);
-  if (r.rc !== 0) throw new CoordDie(3, '현재 회차가 없다(coord-state.sh init 먼저)');
+  if (r.rc !== 0) throw new CoordDie(3, '현재 회차가 없다(coord-state.mjs init 먼저)');
   return `${stateRoot(c)}/${stripNl(r.out)}`;
 }
 /** state.json 경로. run_dir 가 die 해도(서브셸 exit) `/state.json` 을 낸다. */

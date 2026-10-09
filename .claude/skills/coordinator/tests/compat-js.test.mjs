@@ -1,28 +1,29 @@
-// compat.mjs 중 하니스가 못 보는 비결정 기능: 실제 sleep 자식으로 후손 순서·kill_tree·pgrep 제외·touch_ago mtime.
+// compat.mjs 비결정 기능 시험: 실제 sleep 자식으로 후손 순서·kill_tree·pgrep 제외·touch_ago mtime.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { descendants, killTree, pgrepF, pgrepS, pidOk, touchAgoFn, statMtime, epochFmt, sha256Hex } from '../scripts/lib/compat.mjs';
 
+// 프로세스 트리를 만드는 시험 도구로만 bash 를 쓴다(없으면 해당 시험은 건너뛴다)
+const HAS_BASH = spawnSync('bash', ['--version'], { stdio: 'ignore' }).error === undefined;
+const skipNoBash = HAS_BASH ? false : 'bash 없음';
 const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
 
-test('후손: 깊은 쪽부터, 자기는 제외', async () => {
+test('후손: 깊은 쪽부터, 자기는 제외', { skip: skipNoBash }, async () => {
   const tree = spawn('bash', ['-c', 'sleep 61 & ( sleep 62 & wait ) & wait'], { stdio: 'ignore' });
   await new Promise((r) => setTimeout(r, 500));
   try {
     const list = descendants(String(tree.pid)).split('\n').filter(Boolean);
     assert.equal(list.length, 3);
     assert.ok(!list.includes(String(tree.pid)));
-    // 후위 순서: 부모는 자식보다 뒤
-    const pairs = spawn('bash', ['-c', 'ps -axo pid=,ppid='], {});
   } finally { killTree(String(tree.pid)); try { tree.kill('SIGKILL'); } catch {} }
 });
 
-test('kill_tree: sleep 자손이 모두 사라진다', async () => {
+test('kill_tree: sleep 자손이 모두 사라진다', { skip: skipNoBash }, async () => {
   const tree = spawn('bash', ['-c', 'sleep 63 & sleep 64 & wait'], { stdio: 'ignore' });
   await new Promise((r) => setTimeout(r, 400));
   killTree(String(tree.pid));

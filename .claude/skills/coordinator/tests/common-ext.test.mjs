@@ -28,7 +28,7 @@ test('runCmd: 없는 명령은 127, 큰 입력은 보존한다', async () => {
   assert.equal(r.out.length, input.length);
 });
 
-test('scriptsDir: 환경 변수와 무관하게 lib 의 상위 폴더다(common.sh 71줄)', () => {
+test('scriptsDir: 환경 변수와 무관하게 lib 의 상위 폴더다(COORD_SCRIPTS_DIR 를 무시한다)', () => {
   process.env.COORD_SCRIPTS_DIR = '/nonexistent';
   assert.notEqual(scriptsDir(), '/nonexistent');
   delete process.env.COORD_SCRIPTS_DIR;

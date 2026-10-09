@@ -1,7 +1,7 @@
-// scripts/usage-band.sh 의 node 판(스위치 COORD_JS_USAGE_BAND — js-bridge.sh _jsb_exec).
+// usage-band.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/usage-band.sh 에 퇴역 보관).
 //   stdout 한 줄: `BAND <G|Y|O|R|UNKNOWN> five=… week=… week_allow=… src=… at=… five_reset=… week_reset=… raw=…`
 //   설정 usage.sources 순서대로 읽어 처음으로 유효한 출처 하나를 쓴다(cache · limits-dir · coord-dump). 읽기 전용, 종료 코드 0(잘못된 인자는 2).
-// bash 판이 정답이다. 옮기며 같게 만든 것:
+// 옮길 때 bash 판이 기준이었고, 같게 만든 것:
 //   · jq 의 `// ""`·tostring·@tsv(탭·줄바꿈·역슬래시 이스케이프)와, 문서가 여럿이거나 오류가 있으면 그 파일은 못 쓴 것으로 보는 동작
 //   · awk(onetrue-awk) 의 -v 값 비교: 숫자 꼴이면 수, 아니면 문자열(strcmp)  · printf "%d" 는 0 쪽 버림, 2^63-1 에서 멈춤
 //   · bash 3.2 의 $(( )): 앞에 0 이 붙은 글은 8진수, 틀린 자리는 오류로 그 시점의 최상위 명령(여기서는 출처 while 루프)이 버려진다(스크립트는 계속), 64비트 감김
@@ -18,6 +18,19 @@ import { isMain, scriptMain } from './lib/js-cli.mjs';
 
 export { awkGe, awkInt, arithVal, testInt };
 export { awkNum } from './lib/common-ext.mjs';
+/** 도움말(= bash 판 머리말 2~12줄, 이름만 .mjs). */
+const HELP = `# 사용법: usage-band.mjs   (인자 없음. 정본: ../references/contract.md §3.3, 설계 §3.f)
+# stdout 한 줄: \`BAND <G|Y|O|R|UNKNOWN> five=<n|-> week=<n|-> week_allow=<n|-> src=<kind|-> at=<iso|-> five_reset=<iso|-> week_reset=<iso|-> raw=<G|Y|O|R|->\`
+# 출처는 설정 usage.sources 순서대로 읽어 처음으로 유효한 것 하나만 쓴다(계정 전체 값).
+#   cache      : <path> 의 .five_hour.utilization·.seven_day.utilization·.resets_at(ISO). 시각 = 파일 mtime
+#   limits-dir : <path>/*.json 의 {"at":epoch,"rate_limits":{"five_hour":{"used_percentage","resets_at":epoch},"seven_day":…}} 중 at 이 가장 최근
+#   coord-dump : <path>/*.json 의 {at,session_id,context_window,rate_limits} 중 at 이 가장 최근(rate_limits 형식은 limits-dir 와 같다)
+# 유효 = 시각이 usage.max_age_min 안. 그보다 오래됐으면 reset 시각이 아직 안 지난 값만 남기고(지난 값은 -), 둘 다 없으면 다음 출처.
+# 띠 = five·week 각각의 띠(usage.bands, 이상이면 그 띠) 중 높은 쪽. usage.week_pace(기본 false)가 true 이고 week reset 을 알면
+# week_allow = 100×(7−남은 일수)/7+usage.week_pace_margin(기본 20) 을 계산해 week 가 이를 넘으면 week 의 띠를 한 단계 올린다(G→Y→O→R).
+# usage.relaxed(기본 false)가 true 이면 계정 여유가 있다고 보고 Y·O 를 G 로 내려 BAND 에 낸다(R 은 그대로). raw= 는 내리기 전 띠.
+# 출처가 모두 없으면 BAND UNKNOWN(막지 않는다).
+`;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const isnum = (s) => /^[0-9]+(?:\.[0-9]+)?$/.test(s);
 
@@ -162,11 +175,10 @@ export async function main(argv, { env = process.env, cwd = process.cwd(), now }
     coordDefaultRepo(c);
     const a = argv[0] ?? '';
     if (a === '-h' || a === '--help') {
-      const lines = readFileSync(join(HERE, 'usage-band.sh'), 'latin1').split('\n').slice(1, 12);
-      process.stderr.write(Buffer.from(`${lines.join('\n')}\n`, 'latin1'));
+      process.stderr.write(HELP);
       return 0;
     }
-    if (a !== '') throw new CoordDie(2, '사용법: usage-band.sh (인자 없음)');
+    if (a !== '') throw new CoordDie(2, '사용법: usage-band.mjs (인자 없음)');
     const out = usageBand(c, now ?? Number(nowEpoch()));
     flush();
     process.stdout.write(out);

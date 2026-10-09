@@ -1,8 +1,8 @@
-// bash lib 의 node 판(scripts/lib/<모듈>.mjs)이 함께 쓰는 CLI 틀. 계약 정본은 tests/js-parity/README.md 「CLI 계약」.
+// scripts/lib/<모듈>.mjs 가 함께 쓰는 CLI 틀(옛 bash lib 함수 이름을 그대로 CLI 이름으로 쓴다).
 //   node <모듈>.mjs <bash 함수 이름> [인자…]     stdin → stdout, 종료 코드 = 그 bash 함수의 종료 코드
 //   · stdout 은 bash 함수가 stdout 에 낸 바이트 그대로(끝 줄바꿈 유무 포함). stderr 는 비교하지 않는다.
 //   · 함수가 전역 변수로 값을 돌려주면(예: SC_STORED_KIND) 환경 변수 COORD_JS_GLOBALS_FILE 이 가리키는 파일에
-//     `NAME=값` 을 NUL(\0)로 이어 쓴다(js-bridge.sh 의 _jsb_callg 가 읽어 같은 이름의 전역 변수에 넣는다).
+//     `NAME=값` 을 NUL(\0)로 이어 쓴다(옛 js-bridge.sh 가 읽어 bash 전역 변수에 넣던 형식이다. 지금은 시험 하니스(backup)만 쓴다).
 //   · 모르는 함수 이름은 종료 코드 2, 처리 중 예외는 종료 코드 70(내부 오류 — bash 쪽은 실패로 다룬다). 두 값은 함수의 정상 종료 코드로 쓰지 않는다.
 // node 18.17 이상, 외부 패키지 없음.
 import { writeFileSync } from 'node:fs';
@@ -74,8 +74,10 @@ export function cliMain(functions) {
  *   (bash 스크립트처럼 진행 중에 흘려도 된다). 예외는 종료 코드 70.
  */
 export function scriptMain(main) {
+  // 잠금 주인 pid 는 이 프로세스다(옛 js-bridge.sh 가 exec 하며 COORD_JS_CALLER_PID=<node 가 된 셸의 $$> 를 준 것과 같다). 부모가 물려준 값은 덮어쓴다.
+  const env = { ...process.env, COORD_JS_CALLER_PID: String(process.pid) };
   Promise.resolve()
-    .then(() => main(process.argv.slice(2), { env: process.env, cwd: process.cwd() }))
+    .then(() => main(process.argv.slice(2), { env, cwd: process.cwd() }))
     .then((rc) => { process.exitCode = rc ?? 0; })
     .catch((e) => { process.stderr.write(`js-cli: 내부 오류: ${e && e.stack ? e.stack : e}\n`); process.exitCode = RC_INTERNAL; });
 }

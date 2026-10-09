@@ -1,5 +1,5 @@
-// auto-answer.mjs 중 하니스(bash 판과 바이트 대조)가 못 보는 동작: 거부 정규식 단위(가지마다 걸림 2·안걸림 1 이상), 로케일, 잠금 해제 보장, 보내지 않는 경로, 도움말.
-// 나머지는 tests/js-parity/specs/auto-answer.mjs 가 bash 판과 대조한다.
+// auto-answer.mjs 시험: 거부 정규식 단위(가지마다 걸림 2·안걸림 1 이상), 로케일, 잠금 해제 보장, 보내지 않는 경로, 도움말.
+// 옛 bash 판과의 대조 하니스는 backup/tests/js-parity 로 퇴역했다.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -7,16 +7,15 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { FAKE_ORCA } from './js-parity/fixtures/fake-tools.mjs';
-import { DENY_CASES } from './js-parity/specs/auto-answer.mjs';
+import { FAKE_ORCA } from './support/fake-tools.mjs';
+import { DENY_CASES } from './support/deny-cases.mjs';
 import { denyHit, redirectHit, spaceChars, utf8Locale } from '../scripts/auto-answer.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MJS = join(HERE, '..', 'scripts', 'auto-answer.mjs');
-const SH = join(HERE, '..', 'scripts', 'auto-answer.sh');
 const WIN = process.platform === 'win32';
 const UTF8 = { LC_ALL: 'en_US.UTF-8' }, CLOC = { LC_ALL: 'C' };
-// 거부 칸 전체 판정(auto-answer.sh 209~210행): 정규식 또는 쓰기 리다이렉션. 뒤의 공백은 `$flat $pq` 의 구분이다
+// 거부 칸 전체 판정(auto-answer.mjs 의 deny 판정): 정규식 또는 쓰기 리다이렉션. 뒤의 공백은 `$flat $pq` 의 구분이다
 const denied = (env, t) => denyHit(env, `${t} `) || redirectHit(env, t);
 
 test('거부 정규식: 가지마다 걸림 2 이상·안 걸림 1 이상 (명세 DENY_CASES 와 같은 표)', () => {
@@ -58,11 +57,14 @@ test('쓰기 리다이렉션: /dev/null 로 보내는 형태만 지우고 나머
   for (const bad of ['echo a > f', 'cat x>>y', 'echo a >f', 'echo "a>b"', 'ls >/dev/nullx > f']) assert.equal(redirectHit(CLOC, bad), true, bad);
 });
 
-test('도움말은 .sh 머리말과 바이트가 같다', () => {
-  const a = spawnSync(process.execPath, [MJS, '-h'], { encoding: 'buffer', windowsHide: true });
-  const b = spawnSync('bash', [SH, '-h'], { encoding: 'buffer', windowsHide: true, env: { ...process.env, COORD_JS_AUTO_ANSWER: '0' } });
+test('도움말: -h 는 stdout 에 도움말을 내고 종료 코드 0, auto-answer.mjs 사용법 줄이 있고 bash 확장자 낱말이 없으며 개행으로 끝난다', () => {
+  const a = spawnSync(process.execPath, [MJS, '-h'], { encoding: 'utf8', windowsHide: true });
   assert.equal(a.status, 0);
-  assert.deepEqual(a.stdout, b.stdout);
+  assert.equal(a.stderr, '');
+  assert.ok(a.stdout.startsWith('# 레인 화면의 확인·선택 창에'), a.stdout.split('\n')[0]);
+  assert.ok(a.stdout.split('\n').some((l) => l.startsWith('# 사용법: auto-answer.mjs')), '사용법 줄');
+  assert.equal(new RegExp(`\\.${'sh'}\\b`).test(a.stdout), false);
+  assert.ok(a.stdout.endsWith('\n'));
 });
 
 // ----- 가짜 orca 로 돌리는 시험(잠금 해제·보내지 않음) -----
