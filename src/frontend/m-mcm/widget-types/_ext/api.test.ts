@@ -4,8 +4,12 @@ import {
   NETWORK_ERROR_MESSAGE,
   exchangeParams,
   fetchExchange,
+  fetchWidgetOptions,
   fetchWeather,
   normalizeExchange,
+  normalizeOptions,
+  OPTIONS_TTL_MS,
+  resetWidgetOptionsCache,
   normalizeWeather,
   unwrapPayload,
   weatherParams,
@@ -25,6 +29,7 @@ function sent(i = 0): { url: string; method: string; body: { meta: Record<string
 }
 
 beforeEach(() => {
+  resetWidgetOptionsCache();
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
 });
@@ -204,5 +209,55 @@ describe("네트워크 실패 — 브라우저 영어 문구 대신 한국어", 
     await expect(fetchExchange(["JPY"], 7)).rejects.toThrow("정의에 없는 통화입니다: JPY");
     reply({ message: "요청이 너무 잦습니다. 잠시 뒤 다시 시도하세요." }, 429);
     await expect(fetchExchange(["USD"], 7)).rejects.toThrow("요청이 너무 잦습니다. 잠시 뒤 다시 시도하세요.");
+  });
+});
+
+describe("편집기 선택지(widgetExt/options)", () => {
+  const OK = { meta: { success: true }, data: { result: { currencies: ["USD", "EUR"], places: [{ name: "서울", lat: 37.57, lon: 126.98 }] } } };
+
+  it("normalizeOptions — 통화는 대문자 3자리·KRW 제외·중복 없이, 지점은 이름·좌표 범위를 지킨 것만", () => {
+    expect(
+      normalizeOptions({
+        currencies: ["usd", " EUR ", "KRW", "ABCD", "USD", 3, null],
+        places: [
+          { name: " 서울 ", lat: "37.57", lon: 126.98 },
+          { name: "서울", lat: 1, lon: 1 },
+          { name: "", lat: 1, lon: 1 },
+          { name: "범위밖", lat: 91, lon: 0 },
+          { name: "좌표없음", lat: 1 },
+          "x",
+        ],
+      }),
+    ).toEqual({ currencies: ["USD", "EUR"], places: [{ name: "서울", lat: 37.57, lon: 126.98 }] });
+  });
+
+  it("normalizeOptions — 응답이 비었거나 모양이 틀리면 빈 목록", () => {
+    expect(normalizeOptions({})).toEqual({ currencies: [], places: [] });
+    expect(normalizeOptions({ currencies: "USD", places: { a: 1 } })).toEqual({ currencies: [], places: [] });
+  });
+
+  it("options 호출 — widgetExt/options 에 params 없이 보내고 결과를 정리해 준다", async () => {
+    reply(OK);
+    await expect(fetchWidgetOptions()).resolves.toEqual({ currencies: ["USD", "EUR"], places: [{ name: "서울", lat: 37.57, lon: 126.98 }] });
+    expect(sent().url).toBe("/api/mcm/oasis/widgetExt/options");
+    expect(sent().body).toEqual({ meta: { menuId: "HOME" }, params: {} });
+  });
+
+  it("TTL 안에서는 다시 부르지 않고, 지나면 다시 부른다", async () => {
+    reply(OK);
+    reply(OK);
+    await fetchWidgetOptions(1_000);
+    await fetchWidgetOptions(1_000 + OPTIONS_TTL_MS - 1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await fetchWidgetOptions(1_000 + OPTIONS_TTL_MS);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("실패는 캐시하지 않아 다음 호출이 다시 서버를 부른다", async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    await expect(fetchWidgetOptions(1_000)).rejects.toThrow(NETWORK_ERROR_MESSAGE.options);
+    reply(OK);
+    await expect(fetchWidgetOptions(1_001)).resolves.toMatchObject({ currencies: ["USD", "EUR"] });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

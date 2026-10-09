@@ -161,6 +161,12 @@ describe("toggleCurrency · daysOptions", () => {
     expect(toggleCurrency(["USD", "XYZ"], "EUR", true)).toEqual(["USD", "EUR", "XYZ"]);
   });
 
+  it("서버가 준 통화 순서(order)를 따라 정렬하고 그 밖의 코드는 맨 뒤에 둔다", () => {
+    const order = ["EUR", "USD", "JPY"];
+    expect(toggleCurrency(["JPY", "THB"], "USD", true, order)).toEqual(["USD", "JPY", "THB"]);
+    expect(toggleCurrency(["USD"], "EUR", true, order)).toEqual(["EUR", "USD"]);
+  });
+
   it("저장된 THB(편집기 목록에서 빠진 통화)는 유지되고 해제할 수도 있다", () => {
     expect(EXCHANGE_CURRENCIES as readonly string[]).not.toContain("THB");
     expect(toggleCurrency(["USD", "THB"], "EUR", true)).toEqual(["USD", "EUR", "THB"]);

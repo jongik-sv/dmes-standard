@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 날씨 편집기 — 지점 목록 편집(이름·위도·경도), 빠른 추가 버튼(서울·인천·포항·당진·부산), 범위 검사.
+ * 날씨 편집기 — 지점 목록 편집(이름·위도·경도), 빠른 추가 버튼(날씨 수집 작업의 지점), 범위 검사.
  * 위도·경도 칸은 입력 도중("37.")의 글자를 지키려고 칸 안에 글자를 따로 들고, 값(숫자)은 숫자로 바꿔 올린다.
  * 숫자가 아니면 NaN 으로 올려 검사(validateWeatherConfig)가 저장을 막는다. 오류 문구는 관리 화면이 목록으로 보인다.
  */
@@ -15,7 +15,6 @@ import {
   coordText,
   parseCoord,
   patchConfig,
-  QUICK_LOCATIONS,
   readWeatherConfig,
   sameCoord,
   validateWeatherConfig,
@@ -23,6 +22,7 @@ import {
 } from "@/widget-types/_ext/config";
 import { EXT_CSS, EXT_STYLE_HREF } from "@/widget-types/_ext/styles";
 import { useReportErrors } from "@/widget-types/_ext/use-report-errors";
+import { useWidgetOptions } from "@/widget-types/_ext/use-widget-options";
 
 interface LocationRowProps {
   index: number;
@@ -73,6 +73,8 @@ export default function WeatherEditor({ value, onChange, onValidate }: WidgetTyp
   const cfg = useMemo(() => readWeatherConfig(value), [value]);
   const errors = useMemo(() => validateWeatherConfig(value), [value]);
   useReportErrors(errors, onValidate);
+  // 빠른 추가 지점은 서버(날씨 수집 작업의 이름·좌표)가 주고, 못 읽으면 고정 목록이다 — 수집 좌표와 어긋나지 않게 서버 값을 쓴다.
+  const { places } = useWidgetOptions();
 
   const update = (locations: WeatherLocation[]) => onChange(patchConfig(value, { locations }));
 
@@ -102,7 +104,7 @@ export default function WeatherEditor({ value, onChange, onValidate }: WidgetTyp
       </FormGroup>
       <FormGroup label="빠른 추가" labelWidth={80} className="mcm-fg-block">
         <div className="mcm-extedit__quick">
-          {QUICK_LOCATIONS.map((q) => (
+          {places.map((q) => (
             <Button
               key={q.name}
               size="sm"

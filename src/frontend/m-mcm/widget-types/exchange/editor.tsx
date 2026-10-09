@@ -10,7 +10,6 @@ import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
 
 import {
   daysOptions,
-  EXCHANGE_CURRENCIES,
   MAX_EXCHANGE_CURRENCIES,
   patchConfig,
   readExchangeConfig,
@@ -19,17 +18,17 @@ import {
 } from "@/widget-types/_ext/config";
 import { EXT_CSS, EXT_STYLE_HREF } from "@/widget-types/_ext/styles";
 import { useReportErrors } from "@/widget-types/_ext/use-report-errors";
+import { useWidgetOptions } from "@/widget-types/_ext/use-widget-options";
 
 export default function ExchangeEditor({ value, onChange, onValidate }: WidgetTypeEditorProps) {
   const cfg = useMemo(() => readExchangeConfig(value), [value]);
   const errors = useMemo(() => validateExchangeConfig(value), [value]);
   useReportErrors(errors, onValidate);
+  // 통화 선택지는 서버(환율 마스터 칼럼 라벨)가 주고, 못 읽으면 고정 목록이다.
+  const { currencies: known } = useWidgetOptions();
 
   // 목록에 없는 코드(옛 설정)도 체크 해제할 수 있게 함께 보인다.
-  const options = useMemo(() => {
-    const known = EXCHANGE_CURRENCIES as readonly string[];
-    return [...known, ...cfg.currencies.filter((c) => !known.includes(c))];
-  }, [cfg.currencies]);
+  const options = useMemo(() => [...known, ...cfg.currencies.filter((c) => !known.includes(c))], [known, cfg.currencies]);
   const full = cfg.currencies.length >= MAX_EXCHANGE_CURRENCIES;
   const dayOptions = useMemo(() => daysOptions(cfg.days).map((d) => ({ value: String(d), label: `${d}일` })), [cfg.days]);
 
@@ -48,7 +47,7 @@ export default function ExchangeEditor({ value, onChange, onValidate }: WidgetTy
                 label={cur}
                 checked={checked}
                 disabled={!checked && full}
-                onChange={(on) => onChange(patchConfig(value, { currencies: toggleCurrency(cfg.currencies, cur, on) }))}
+                onChange={(on) => onChange(patchConfig(value, { currencies: toggleCurrency(cfg.currencies, cur, on, known) }))}
               />
             );
           })}
