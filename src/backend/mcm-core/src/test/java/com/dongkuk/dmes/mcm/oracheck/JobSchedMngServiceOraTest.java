@@ -13,7 +13,9 @@ import com.dongkuk.dmes.mcm.job.server.JobSchedMngService;
 import com.dongkuk.dmes.mcm.job.server.dto.JobSchedMngRequest;
 import java.sql.Timestamp;
 import java.time.Duration;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -295,6 +297,189 @@ class JobSchedMngServiceOraTest {
         assertThat(second).containsEntry("accepted", false);
         assertThat(String.valueOf(second.get("message"))).contains("실행 중");
         assertThat(submitted).hasSize(1);
+    }
+
+    // ── collectData(수집 값 읽기) ────────────────────────────────────────
+
+    private static final DateTimeFormatter SLOT_FMT = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
+
+    private static String slotAgo(long days, long hours) {
+        return SLOT_FMT.format(LocalDateTime.now().minusDays(days).minusHours(hours));
+    }
+
+    private void collectJob(String jobId) {
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_DEF (JOB_ID, MODULE_CD, JOB_NM, JOB_KIND, SERVICE_ID, ACTION, CRON_EXPR, USE_YN, CONFIG_JSON, TIMEOUT_SEC, OWNER_TP) "
+                + "VALUES (?, 'MDM', '수집', 'COLLECT', 'jobCollect', 'run', '*/5 * * * *', 'Y', '{}', 600, 'USER')", jobId);
+    }
+
+    private void putValue(String jobId, String slot, String itemKey, Object num, String txt) {
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_JOB_COLLECT_DATA (JOB_ID, SLOT, ITEM_KEY, VALUE_NUM, VALUE_TXT, U_AT) VALUES (?, ?, ?, ?, ?, " + NOW + ")",
+                new Object[]{jobId, slot, itemKey, num, txt},
+                new int[]{java.sql.Types.VARCHAR, java.sql.Types.VARCHAR, java.sql.Types.VARCHAR, java.sql.Types.NUMERIC, java.sql.Types.VARCHAR});   // null 바인드는 형을 명시한다
+    }
+
+    private static JobSchedMngRequest collectReq(String jobId) {
+        JobSchedMngRequest r = new JobSchedMngRequest();
+        r.setJobId(jobId);
+        return r;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> rowsOf(Map<String, Object> result) {
+        return (List<Map<String, Object>>) result.get("rows");
+    }
+
+    @Test
+    @DisplayName("collectData 거절 — 없는 작업, 수집 작업이 아닌 작업, 잘못된 beforeSlot")
+    void collectDataRejects() {
+        assertThatThrownBy(() -> service.collectData(collectReq("no.such"))).isInstanceOf(BusinessException.class).hasMessageContaining("작업을 찾을 수 없습니다");
+        assertThatThrownBy(() -> service.collectData(new JobSchedMngRequest())).isInstanceOf(BusinessException.class).hasMessageContaining("작업을 찾을 수 없습니다");
+        service.save(queryReq("mdm.q1"));
+        assertThatThrownBy(() -> service.collectData(collectReq("mdm.q1"))).isInstanceOf(BusinessException.class).hasMessage("수집 작업이 아닙니다.");
+        collectJob("mdm.col");
+        JobSchedMngRequest bad = collectReq("mdm.col");
+        bad.setBeforeSlot("2026-10-09");
+        assertThatThrownBy(() -> service.collectData(bad)).isInstanceOf(BusinessException.class).hasMessageContaining("beforeSlot");
+    }
+
+    @Test
+    @DisplayName("collectData 빈 결과 — 값이 없으면 rows 비고 truncated=false·nextBeforeSlot·latestSlot=null·count=0 (latestOnly 도 같다)")
+    void collectDataEmpty() {
+        collectJob("mdm.col");
+        Map<String, Object> out = service.collectData(collectReq("mdm.col"));
+        assertThat(rowsOf(out)).isEmpty();
+        assertThat(out).containsEntry("truncated", false).containsEntry("nextBeforeSlot", null).containsEntry("latestSlot", null).containsEntry("count", 0);
+        JobSchedMngRequest latest = collectReq("mdm.col");
+        latest.setLatestOnly(true);
+        Map<String, Object> out2 = service.collectData(latest);
+        assertThat(rowsOf(out2)).isEmpty();
+        assertThat(out2).containsEntry("truncated", false).containsEntry("latestSlot", null).containsEntry("count", 0);
+    }
+
+    @Test
+    @DisplayName("collectData 기간·정렬·값 — days 기본 7(1~90), SLOT 내림차순·ITEM_KEY 오름차순, 숫자·글자·수집 시각, 다른 작업의 값은 안 섞인다")
+    void collectDataDaysAndOrder() {
+        collectJob("mdm.col");
+        collectJob("mdm.other");
+        String s1h = slotAgo(0, 1);
+        String s6d = slotAgo(6, 0);
+        String s8d = slotAgo(8, 0);
+        putValue("mdm.col", s1h, "B", new BigDecimal("2.5"), null);
+        putValue("mdm.col", s1h, "A", new BigDecimal("1.25"), "한글");
+        putValue("mdm.col", s6d, "A", null, "text");
+        putValue("mdm.col", s8d, "A", BigDecimal.TEN, null);
+        putValue("mdm.other", s1h, "X", BigDecimal.ONE, null);
+
+        Map<String, Object> def7 = service.collectData(collectReq("mdm.col"));   // days 기본 7 — 8일 전은 제외(분 경계가 아니라 여유를 두고 확인한다)
+        List<Map<String, Object>> rows = rowsOf(def7);
+        assertThat(rows).extracting(r -> r.get("slot") + "/" + r.get("itemKey")).containsExactly(s1h + "/A", s1h + "/B", s6d + "/A");
+        assertThat(((BigDecimal) rows.get(0).get("valueNum")).compareTo(new BigDecimal("1.25"))).isZero();
+        assertThat(rows.get(0).get("valueTxt")).isEqualTo("한글");
+        assertThat(rows.get(0).get("collectedAt")).isInstanceOf(String.class);
+        assertThat(rows.get(2).get("valueNum")).isNull();
+        assertThat(def7).containsEntry("truncated", false).containsEntry("nextBeforeSlot", null).containsEntry("latestSlot", null).containsEntry("count", 3);
+
+        JobSchedMngRequest r = collectReq("mdm.col");
+        r.setDays(10);
+        assertThat(rowsOf(service.collectData(r))).hasSize(4);
+        r.setDays(1);
+        assertThat(rowsOf(service.collectData(r))).hasSize(2);
+        r.setDays(0);   // 1 로 자른다
+        assertThat(rowsOf(service.collectData(r))).hasSize(2);
+        r.setDays(1000);   // 90 으로 자른다
+        assertThat(rowsOf(service.collectData(r))).hasSize(4);
+    }
+
+    @Test
+    @DisplayName("collectData itemKey — 정확 일치·대소문자 구분, 빈 문자열은 필터 없음")
+    void collectDataItemKey() {
+        collectJob("mdm.col");
+        String s = slotAgo(0, 1);
+        putValue("mdm.col", s, "USD", BigDecimal.ONE, null);
+        putValue("mdm.col", s, "usd", BigDecimal.TEN, null);
+        putValue("mdm.col", s, "USDX", BigDecimal.ONE, null);
+        JobSchedMngRequest r = collectReq("mdm.col");
+        r.setItemKey("USD");
+        assertThat(rowsOf(service.collectData(r))).extracting(x -> x.get("itemKey")).containsExactly("USD");
+        r.setItemKey("usd");
+        assertThat(rowsOf(service.collectData(r))).extracting(x -> x.get("itemKey")).containsExactly("usd");
+        r.setItemKey("US");
+        assertThat(rowsOf(service.collectData(r))).isEmpty();
+        r.setItemKey("");
+        assertThat(rowsOf(service.collectData(r))).hasSize(3);
+    }
+
+    @Test
+    @DisplayName("collectData latestOnly — 작업의 가장 큰 SLOT 한 회차만(days 무시, 90일보다 오래돼도), itemKey·beforeSlot 은 그대로 더해진다")
+    void collectDataLatestOnly() {
+        collectJob("mdm.col");
+        String latest = slotAgo(100, 0);   // 90일 밖이라도 가장 큰 SLOT 이면 읽는다
+        String older = slotAgo(101, 0);
+        putValue("mdm.col", older, "A", BigDecimal.ONE, null);
+        putValue("mdm.col", latest, "B", BigDecimal.TEN, null);
+        putValue("mdm.col", latest, "A", BigDecimal.ONE, null);
+        JobSchedMngRequest r = collectReq("mdm.col");
+        r.setLatestOnly(true);
+        r.setDays(1);
+        Map<String, Object> out = service.collectData(r);
+        assertThat(rowsOf(out)).extracting(x -> x.get("slot") + "/" + x.get("itemKey")).containsExactly(latest + "/A", latest + "/B");
+        assertThat(out).containsEntry("latestSlot", latest).containsEntry("count", 2).containsEntry("truncated", false);
+
+        r.setItemKey("B");
+        Map<String, Object> onlyB = service.collectData(r);
+        assertThat(rowsOf(onlyB)).hasSize(1);
+        assertThat(onlyB).containsEntry("latestSlot", latest);
+        r.setItemKey("none");   // 그 회차에 그 항목이 없으면 비지만 latestSlot 은 알려 준다
+        Map<String, Object> none = service.collectData(r);
+        assertThat(rowsOf(none)).isEmpty();
+        assertThat(none).containsEntry("latestSlot", latest);
+    }
+
+    @Test
+    @DisplayName("collectData limit — 한 행 더 읽어 truncated 를 정하고, 경계 SLOT 이 갈리면 그 SLOT 은 통째로 다음 쪽에 넘기며(beforeSlot 이어 읽기에 빠지는 행 없음), 한 회차가 limit 보다 크면 limit 행에서 자른다")
+    void collectDataLimitAndNext() {
+        collectJob("mdm.col");
+        String s1 = slotAgo(0, 3);
+        String s2 = slotAgo(0, 2);
+        String s3 = slotAgo(0, 1);   // 가장 최근
+        for (String s : List.of(s1, s2, s3)) for (String k : List.of("A", "B", "C")) putValue("mdm.col", s, k, BigDecimal.ONE, null);
+
+        JobSchedMngRequest r = collectReq("mdm.col");
+        r.setLimit(9);   // 정확히 limit 행이면 truncated 가 아니다
+        Map<String, Object> all = service.collectData(r);
+        assertThat(rowsOf(all)).hasSize(9);
+        assertThat(all).containsEntry("truncated", false).containsEntry("nextBeforeSlot", null);
+
+        r.setLimit(4);   // 4번째 행이 s2 의 첫 행 → s2 가 갈린다 → s3 3행만, 다음 쪽 기준은 s3
+        Map<String, Object> p1 = service.collectData(r);
+        assertThat(rowsOf(p1)).extracting(x -> x.get("slot")).containsOnly(s3);
+        assertThat(p1).containsEntry("truncated", true).containsEntry("nextBeforeSlot", s3).containsEntry("count", 3);
+
+        r.setBeforeSlot((String) p1.get("nextBeforeSlot"));   // s2 를 처음부터: 3행 + s1 의 첫 행 → s1 이 갈려 s2 3행만
+        Map<String, Object> p2 = service.collectData(r);
+        assertThat(rowsOf(p2)).extracting(x -> x.get("slot")).containsOnly(s2);
+        assertThat(rowsOf(p2)).hasSize(3);
+        assertThat(p2).containsEntry("truncated", true).containsEntry("nextBeforeSlot", s2);
+
+        r.setBeforeSlot((String) p2.get("nextBeforeSlot"));   // 마지막 쪽: s1 3행, 끝
+        Map<String, Object> p3 = service.collectData(r);
+        assertThat(rowsOf(p3)).extracting(x -> x.get("slot")).containsOnly(s1);
+        assertThat(rowsOf(p3)).hasSize(3);
+        assertThat(p3).containsEntry("truncated", false).containsEntry("nextBeforeSlot", null);
+
+        r.setBeforeSlot(null);   // 경계가 회차와 일치하면 그대로 limit 행: limit 3 → s3 3행, 다음 쪽 s3
+        r.setLimit(3);
+        Map<String, Object> exact = service.collectData(r);
+        assertThat(rowsOf(exact)).hasSize(3);
+        assertThat(exact).containsEntry("truncated", true).containsEntry("nextBeforeSlot", s3);
+
+        r.setLimit(2);   // 한 회차(3행)가 limit(2)보다 크다 → 첫 회차를 limit 행에서 자른다
+        Map<String, Object> cut = service.collectData(r);
+        assertThat(rowsOf(cut)).extracting(x -> x.get("slot") + "/" + x.get("itemKey")).containsExactly(s3 + "/A", s3 + "/B");
+        assertThat(cut).containsEntry("truncated", true).containsEntry("nextBeforeSlot", s3);
+
+        r.setLimit(null);   // 기본 500 — 위 상한 자르기는 단위 시험(CollectDataPagingTest)이 본다
+        assertThat(rowsOf(service.collectData(r))).hasSize(9);
     }
 
     @Test

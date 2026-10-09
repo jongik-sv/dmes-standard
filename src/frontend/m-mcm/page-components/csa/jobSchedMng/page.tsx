@@ -23,7 +23,8 @@ import { useMessage } from "@dk-oasis/shared/message-provider";
 
 import { jobSchedApi } from "./api";
 import { copyForm, emptyForm, formatTimestamp, isJobListTruncated, JOB_LIST_MAX, toForm, toJobGridRow, toRunGridRow, toSaveRequest, type JobForm } from "./form-model";
-import { HistoryPanel } from "./HistoryPanel";
+import { isCollectStored } from "./collect-data";
+import { HistoryArea } from "./HistoryArea";
 import { JobListPanel } from "./JobListPanel";
 import { JobDetailForm, checkForm, type JobDetailAction, type JobDetailHandle, type LastFailure } from "./JobDetailForm";
 import { kindLabel } from "./kind-label";
@@ -95,12 +96,22 @@ export default function JobSchedMngPage() {
   const [historyBusy, setHistoryBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  /** 수집 값 탭을 보일 작업(저장한 수집 작업이고 값을 표에 저장하는 것)의 ID·이름. 보일 대상이 아니면 "". */
+  const [collectJob, setCollectJob] = useState({ id: "", name: "" });
   /** 「도움말」 모달 — 열 때만 마운트해 문서를 닫혀 있는 동안 그리지 않는다. */
   const [helpOpen, setHelpOpen] = useState(false);
   const loadSeq = useRef(0);
   const historySeq = useRef(0);
   /** 이력 패널에 실제로 올라온 작업 ID — 병렬로 부른 이력이 밀려 버려졌는지 openJob 이 알아본다. */
   const historyJobRef = useRef("");
+
+  /** 상세 폼을 열고, 그 작업이 수집 값 탭 대상인지 함께 맞춘다(같으면 새 객체를 만들지 않아 다시 그리지 않는다). */
+  const loadForm = useCallback((form: JobForm | null) => {
+    detailRef.current?.load(form);
+    const id = form && isCollectStored(form) ? form.jobId : "";
+    const name = id && form ? form.jobNm : "";
+    setCollectJob((prev) => (prev.id === id && prev.name === name ? prev : { id, name }));
+  }, []);
 
   const fail = useCallback((e: unknown) => showMessage({ title: "오류", message: errorText(e), alertType: "error" }), [showMessage]);
 
@@ -185,7 +196,7 @@ export default function JobSchedMngPage() {
         if (selectedIdRef.current !== jobId) return;
         shownName = def.jobNm;
         if (def.jobNm !== listName) setHistoryTitle(`실행 이력 · ${def.jobNm}`);
-        detailRef.current?.load(toForm(def, codeMissing));
+        loadForm(toForm(def, codeMissing));
         // 병렬로 부른 이력이 다른 호출에 밀렸거나 실패했으면 상세가 열린 뒤 다시 받는다(그때는 오류도 보인다).
         void history.then(() => {
           if (selectedIdRef.current === jobId && historyJobRef.current !== jobId) void loadHistory(jobId, def.jobNm);
@@ -203,7 +214,7 @@ export default function JobSchedMngPage() {
         setActionBusy(false);
       }
     },
-    [fail, loadHistory, clearHistory, select],
+    [fail, loadHistory, clearHistory, select, loadForm],
   );
 
   const handleSearch = useCallback(async () => {
@@ -236,9 +247,9 @@ export default function JobSchedMngPage() {
       const moduleCd = filtersRef.current.moduleCd || "MCM";
       select("");
       clearHistory();
-      detailRef.current?.load(emptyForm(kind, moduleCd));
+      loadForm(emptyForm(kind, moduleCd));
     },
-    [clearHistory],
+    [clearHistory, select, loadForm],
   );
 
   /**
@@ -252,10 +263,10 @@ export default function JobSchedMngPage() {
       const codeMissing = rows.find((r) => r.jobId === def.jobId)?.codeMissing === true;
       const shown = detailRef.current?.getForm();
       if (selectedIdRef.current === def.jobId && shown && !shown.isNew && shown.codeMissing !== codeMissing && !detailRef.current?.isDirty()) {
-        detailRef.current?.load(toForm(def, codeMissing));
+        loadForm(toForm(def, codeMissing));
       }
     },
-    [loadList, loadHistory],
+    [loadList, loadHistory, loadForm],
   );
 
   const doSave = useCallback(async () => {
@@ -274,7 +285,7 @@ export default function JobSchedMngPage() {
       const stillHere = selectedIdRef.current === expected;
       if (stillHere) {
         select(def.jobId);
-        detailRef.current?.load(toForm(def, form.codeMissing));
+        loadForm(toForm(def, form.codeMissing));
       }
       showMessage({ message: "저장되었습니다. 다음 분부터 새 설정으로 실행합니다.", alertType: "success", toast: true });
       // 목록·이력은 저장 뒤에 다시 받는다. 실패해도 저장은 끝났고 폼은 응답으로 맞춰져 있다.
@@ -285,15 +296,15 @@ export default function JobSchedMngPage() {
     } finally {
       setActionBusy(false);
     }
-  }, [showMessage, refreshAfterWrite, loadList, select, fail]);
+  }, [showMessage, refreshAfterWrite, loadList, select, fail, loadForm]);
 
   const doCopy = useCallback(() => {
     const form = detailRef.current?.getForm();
     if (!form || form.isNew) return;
     select("");
     clearHistory();
-    detailRef.current?.load(copyForm(form));
-  }, [clearHistory]);
+    loadForm(copyForm(form));
+  }, [clearHistory, select, loadForm]);
 
   const doToggleUse = useCallback(async () => {
     const form = detailRef.current?.getForm();
@@ -306,7 +317,7 @@ export default function JobSchedMngPage() {
     setActionBusy(true);
     try {
       const def = await jobSchedApi.setUse(form.jobId, next);
-      if (selectedIdRef.current === form.jobId) detailRef.current?.load(toForm(def, form.codeMissing));
+      if (selectedIdRef.current === form.jobId) loadForm(toForm(def, form.codeMissing));
       await refreshAfterWrite(def);
       showMessage({
         message: next === "Y" ? "사용으로 바꿨습니다." : "사용을 중지했습니다. 일정에 따른 실행이 멈춥니다.",
@@ -318,7 +329,7 @@ export default function JobSchedMngPage() {
     } finally {
       setActionBusy(false);
     }
-  }, [showMessage, refreshAfterWrite, fail]);
+  }, [showMessage, refreshAfterWrite, fail, loadForm]);
 
   const doRunNow = useCallback(() => {
     const form = detailRef.current?.getForm();
@@ -366,7 +377,7 @@ export default function JobSchedMngPage() {
           try {
             await jobSchedApi.remove(form.jobId);
             select("");
-            detailRef.current?.load(null);
+            loadForm(null);
             clearHistory();
             await loadList();
             showMessage({ message: "삭제되었습니다.", alertType: "success", toast: true });
@@ -378,7 +389,7 @@ export default function JobSchedMngPage() {
         })();
       },
     });
-  }, [showMessage, clearHistory, loadList, fail]);
+  }, [showMessage, clearHistory, loadList, fail, select, loadForm]);
 
   const handleAction = useCallback(
     (action: JobDetailAction) => {
@@ -429,7 +440,14 @@ export default function JobSchedMngPage() {
               <JobListPanel jobs={jobs} selectedId={selectedId} loading={listBusy} buttons={listButtons} onRowClick={handleRowClick} onHelp={openHelp} />
             </ContentPanel>
             <ContentPanel height="40%">
-              <HistoryPanel title={historyTitle} rows={runs} loading={historyBusy} />
+              <HistoryArea
+                historyTitle={historyTitle}
+                runs={runs}
+                historyLoading={historyBusy}
+                collectJobId={collectJob.id}
+                collectJobNm={collectJob.name}
+                onError={fail}
+              />
             </ContentPanel>
           </ContentBody>
           <ContentPanel width={560}>

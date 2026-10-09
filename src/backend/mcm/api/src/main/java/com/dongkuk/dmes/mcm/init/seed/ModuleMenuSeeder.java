@@ -113,7 +113,7 @@ public final class ModuleMenuSeeder extends SeedSupport {
      * 예약 작업 관리(csa/jobSchedMng) 메뉴 시드 (2026-10-09, 스펙 2026-10-08-job-scheduler-design §7·§10) —
      * OBJECT 1 + 메뉴 leaf 1 + SYSADMIN × PERM_ALL 1. 폴더는 기존 시스템관리 그룹 {@code csa} 를 쓴다.
      * componentPath={@code csa/jobSchedMng} 는 m-mcm 페이지 레지스트리 키와 같다. 화면이 쓰는 action
-     * (list·get·save·setUse·runNow·history·cronPreview·handlers·delete)은 {@link CoreRbacSeeder} 의 PERM_ALL 에 있다.
+     * (list·get·save·setUse·runNow·history·cronPreview·handlers·delete·collectData)은 {@link CoreRbacSeeder} 의 PERM_ALL 에 있다.
      * FULL_SEQ 1020220 은 기록용 값이고, 시드 끝의 recomputeMenuFullSeq() 가 csa 안 순서(MENU_SEQ → MENU_ID)로 다시 매긴다.
      * 이미 운영 중인 DB 에는 docs/mcm/sql/jobSchedMng-menu.sql 로도 같은 행을 넣을 수 있다(둘 다 멱등이라 겹쳐도 중복이 없다).
      * 모두 insert-if-absent 라 재기동해도 중복 행이 생기지 않는다.

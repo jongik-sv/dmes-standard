@@ -26,6 +26,10 @@ public class JobSchedMngRequest {
     private String lastStatus;
     private String expr;
     private String varOverridesJson;
+    private Integer days;
+    private String itemKey;
+    private Boolean latestOnly;
+    private String beforeSlot;
 
     public JobSchedMngRequest() {}
 
@@ -69,4 +73,12 @@ public class JobSchedMngRequest {
     public void setExpr(String expr) { this.expr = expr; }
     public String getVarOverridesJson() { return varOverridesJson; }
     public void setVarOverridesJson(String varOverridesJson) { this.varOverridesJson = varOverridesJson; }
+    public Integer getDays() { return days; }
+    public void setDays(Integer days) { this.days = days; }
+    public String getItemKey() { return itemKey; }
+    public void setItemKey(String itemKey) { this.itemKey = itemKey; }
+    public Boolean getLatestOnly() { return latestOnly; }
+    public void setLatestOnly(Boolean latestOnly) { this.latestOnly = latestOnly; }
+    public String getBeforeSlot() { return beforeSlot; }
+    public void setBeforeSlot(String beforeSlot) { this.beforeSlot = beforeSlot; }
 }
