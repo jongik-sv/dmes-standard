@@ -13,11 +13,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fullSha } from '../../../scripts/lib/console-input.mjs';
 import { line as junkLine } from '../gen.mjs';
+import { FAKE_DATE, FAKE_ORCA, FAKE_SLEEP, clock, exe } from '../fixtures/fake-tools.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FX = join(HERE, '..', '..', 'fixtures');
 const fxText = (n) => readFileSync(join(FX, n), 'utf8');
-const exe = (data) => ({ data, mode: 0o755 });
 
 const FIXTURES = ['claude-empty-placeholder-named.txt', 'claude-empty-placeholder-unnamed.txt', 'claude-empty-bare-named.txt', 'claude-empty-placeholder-ellipsis.txt',
   'claude-draft-typed-named.txt', 'claude-draft-typed-try-word.txt', 'claude-draft-typed-try-quoted.txt', 'claude-no-input-box.txt'];
@@ -26,54 +26,6 @@ const CLEAN = { COORD_RUN: '', COORD_SESSION_ID: '', CLAUDE_CODE_SESSION_ID: '',
   COORD_STATE_ROOT: '', COORD_LOCK_STALE_S: '', _COORD_CFG: '', _COORD_CFG_MINE: '', _COORD_CFG_SRC: '', COMPAT_FORCE_OS: '', COMPAT_FORCE_USERLAND: '', DFLOW_CONFIG_DIR: '',
   TERM_SEND_SAFE_SELFTEST: '', COORD_CONSOLE_LANE_LOCK_WAIT_S: '', COORD_CONSOLE_SENT_GRACE_S: '', COORD_TERM_TIMEOUT_MS: '', LC_ALL: 'C' };
 
-// 가짜 orca: 받은 인자를 JSON 한 줄로 fake/orca.log 에 덧붙이고, fake/ 의 파일대로 답한다.
-const FAKE_ORCA = `#!/usr/bin/env node
-const fs = require('fs');
-const a = process.argv.slice(2);
-const F = process.env.FAKE_DIR;
-fs.appendFileSync(F + '/orca.log', JSON.stringify(a) + '\\n');
-const rd = (n) => { try { return fs.readFileSync(F + '/' + n, 'utf8'); } catch { return null; } };
-const out = (o) => process.stdout.write(typeof o === 'string' ? o : JSON.stringify(o));
-const opt = (k) => { const i = a.indexOf(k); return i < 0 ? '' : a[i + 1]; };
-const h = opt('--terminal');
-const stale = () => out({ ok: false, error: { message: 'terminal_handle_stale' } });
-if (a[0] !== 'terminal') { out({ ok: false, error: { message: 'unknown' } }); process.exit(0); }
-if (a[1] === 'list') {
-  const t = (rd('terms') || '').split(/\\s+/).filter(Boolean);
-  out({ ok: true, result: { terminals: t.map((x) => ({ handle: x, title: '', worktreePath: '' })) } });
-} else if (a[1] === 'read') {
-  let n = Number(rd('reads/' + h) || 0) + 1;
-  fs.mkdirSync(F + '/reads', { recursive: true });
-  fs.writeFileSync(F + '/reads/' + h, String(n));
-  let t = rd('screens/' + h + '.' + n + '.txt');
-  if (t === null) t = rd('screens/' + h + '.txt');
-  if (t === null) stale();
-  else {
-    const lines = t.split('\\n'); if (lines[lines.length - 1] === '') lines.pop();
-    const lim = Number(opt('--limit'));
-    out({ ok: true, result: { terminal: { tail: lim > 0 ? lines.slice(-lim) : lines } } });
-  }
-} else if (a[1] === 'wait') {
-  const m = (rd('idle') || 'true').trim();
-  if (m === 'stale') stale(); else if (m === 'invalid') out('garbage'); else out({ ok: true, result: { wait: { satisfied: m === 'true' } } });
-} else if (a[1] === 'send') {
-  const m = (rd('send') || 'turn_started').trim();
-  if (m === 'stale') stale();
-  else if (m === 'error') out({ ok: false, error: { message: 'boom' } });
-  else if (m === 'empty') out('');
-  else if (m === 'submitted') out({ ok: true, result: { submitted: true } });
-  else if (m === 'accepted') out({ ok: true, result: {} });
-  else out({ ok: true, result: { phase: 'turn_started' } });
-} else out({ ok: false, error: { message: 'unknown' } });
-`;
-const FAKE_DATE = '#!/bin/sh\ncase "$*" in\n  "+%s") echo "$FAKE_NOW_S" ;;\n  "-u +%Y-%m-%dT%H:%M:%S.%N") echo "$FAKE_ISO_NS" ;;\n  *) exec /bin/date "$@" ;;\nesac\n';
-const FAKE_SLEEP = '#!/bin/sh\nexit 0\n';
-
-function clock() {
-  const ms = Math.floor(Date.now() / 1000) * 1000 + 123;
-  const iso = new Date(ms).toISOString().replace('Z', '');
-  return { ms, env: { COORD_JS_NOW_MS: String(ms), FAKE_NOW_S: String(Math.floor(ms / 1000)), FAKE_ISO_NS: `${iso}000000` } };
-}
 
 const BASE_ENV = {
   ...CLEAN, COORD_REPO: '<WORK>', COORD_STATE_ROOT: '<WORK>/state', DFLOW_CONSOLE_DIR: '<WORK>/console', FAKE_DIR: '<WORK>/fake',
