@@ -26,7 +26,9 @@
 
 기본은 `scripts/spawn-lane.sh`(`--dry-run` 가능)다. 직접 명령으로 풀어 쓸 때의 흐름은 아래 표다. 사용자가 띄운 세션은 생성하지 않고 신원 보고로 연결한다(4).
 
-`scripts/spawn-lane.sh --name <n> --kind <claude|glm|opencode> [--worktree <경로|선택자>] [--model m] [--effort e] [--autocompact t] [--prompt-file f]`
+`scripts/spawn-lane.sh --name <n> --kind <claude|glm|opencode> [--worktree <경로|선택자>] [--model m] [--effort e] [--autocompact t] [--prompt-file f] [--brief "<한 줄>"]`
+
+`--brief "<한 줄>"` 은 에이전트 오피스 레인 칸에 보일 지시 요약(`lane-add` 의 `brief`)이다. 안 주면 `--prompt-file` 의 첫 글줄에서 뽑는다: 「— 」 뒤 제목, 그게 없으면 줄 앞 60자(앞쪽 `#` 와 `/`·`~/`·`./`·`../`·`C:/` 로 시작하는 경로 토큰은 뺀다. office.sh 가 경로를 `[경로]` 로 가리므로 남기면 칸이 「[경로] 작업 중이다」 가 된다). 둘 다 없으면 `brief` 를 넣지 않는다. 그 레인에 이미 `brief` 가 있으면 건드리지 않고, 비어 있을 때만 채운다(`--dry-run` 은 `lane-add` 에 넘기려던 JSON 을 `DRY coord-state.sh lane-add …` 로 보여 준다).
 
 - **탭은 조정자의 워크트리에 만든다**(Orca 가 아는 폴더여야 사용자 화면에 보인다). `--worktree <절대경로|path:경로>` 는 세션이 일할 폴더이고, 스크립트가 빈 탭을 만든 뒤 `cd <그 폴더> && <실행 명령>` 을 send 한다. 그 폴더를 Orca 가 모르면(`git worktree add` 로 만든 레인 워크트리) 탭은 조정자 워크트리에, 알면 그 워크트리에 만든다. `name:`·`branch:`·`id:` 같은 Orca 선택자를 주면 그 워크트리에 탭을 만들고 그 폴더에서 시작한다. 안 주면 조정자의 현재 워크트리 폴더에서 시작한다(탭은 Orca 가 아는 워크트리에 만든다). 상대경로·`~` 는 받지 않는다.
 - `orca worktree create` 는 메인 체크아웃 안에 폴더를 만들어 dev 에 untracked 로 잡히므로 레인 워크트리 용도로 쓰지 않는다. `git worktree add` 로 만든 폴더를 `--worktree <그 폴더>` 로 넘긴다.
