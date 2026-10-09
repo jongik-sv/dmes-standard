@@ -356,6 +356,12 @@
   "col|userCount|\"WIDGET_USER_COUNT\"",
   "col|widgetId|\"WIDGET_ID\""
  ],
+ "m-mcm/page-components/csa/jobSchedMng/CollectDataPanel.tsx": [
+  "col|collectedAt|false",
+  "col|itemKey|false",
+  "col|slotLabel|false",
+  "col|value|false"
+ ],
  "m-mcm/page-components/csa/jobSchedMng/HistoryPanel.tsx": [
   "col|duration|false",
   "col|endedAt|false",
@@ -368,12 +374,7 @@
   "col|status|false",
   "col|trigger|false"
  ],
- "m-mcm/page-components/csa/jobSchedMng/KindEditors.tsx": [
-  "col|key|false",
-  "col|path|false",
-  "col||-"
- ],
- "m-mcm/page-components/csa/jobSchedMng/page.tsx": [
+ "m-mcm/page-components/csa/jobSchedMng/JobListPanel.tsx": [
   "col|cronDesc|false",
   "col|cronExpr|false",
   "col|jobId|false",
@@ -384,6 +385,11 @@
   "col|moduleCd|false",
   "col|nextRun|false",
   "col|useYn|false"
+ ],
+ "m-mcm/page-components/csa/jobSchedMng/KindEditors.tsx": [
+  "col|key|false",
+  "col|path|false",
+  "col||-"
  ],
  "m-mcm/page-components/csa/mdmCacheMng/RegisterModal.tsx": [
   "label|keysText|키|false",

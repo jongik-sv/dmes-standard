@@ -42,6 +42,10 @@ import { flush, typeInto } from "../helpers/render";
 import { byTestId, calls, click, handoff, installServer, ok, openSet, q, renderPage, settle, srv, uninstallServer } from "../helpers/rule-set-page";
 import { activateTab, activeKey, clickIn, inPanel, pickInActive, qPanel, tabKeys } from "./set-tabs-helpers";
 
+// 이 파일의 시험은 탭을 여러 개 열고(8개 상한 시험은 한가할 때도 약 5초, 자동 저장 시험도 5초 안팎) 부하가 있으면 기본 5초를 넘는다.
+// 시간 초과가 나면 그 시험의 남은 비동기 작업이 다음 시험의 화면과 겹쳐 뒤 시험들이 연쇄로 실패하므로 파일 전체 제한을 늘린다.
+vi.setConfig({ testTimeout: 30_000 });
+
 const ioName = (n: string) => ({ name: n, source: "DICT" as const, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
 const rule = (ruleId: string, cond: string, result: string): RuleIo => ({
   ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST",
