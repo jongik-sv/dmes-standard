@@ -23,7 +23,8 @@
     "build": "node ../scripts/lib-dev.mjs pkg-build",
     "dev": "node ../scripts/lib-dev.mjs watch",
     "format": "prettier --write .",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@dk-oasis/shared": "workspace:*",
@@ -44,6 +45,7 @@
     "@types/react-dom": "^19.2.3",
     "prettier": "^3.8.1",
     "tsup": "^8.5.1",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
   }
 }

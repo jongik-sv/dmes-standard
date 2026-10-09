@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "node scripts/lib-dev.mjs build shared m-mpn m-mpp m-mqc m-mls m-mdm m-analog && pnpm --parallel --filter @dk-oasis/shared --filter @dk-oasis/m-mpn --filter @dk-oasis/m-mpp --filter @dk-oasis/m-mqc --filter @dk-oasis/m-mls --filter @dk-oasis/m-mdm --filter @dk-oasis/m-analog --filter @dk-oasis/mcm dev",
-    "test:unit": "pnpm run test:unit:shared && pnpm run test:unit:mpn",
+    "test:unit": "pnpm run test:unit:shared && pnpm run test:unit:mpn && pnpm run test:unit:analog",
     "test:unit:shared": "pnpm --filter @dk-oasis/shared test:unit",
     "test:unit:mpn": "pnpm --filter @dk-oasis/m-mpn test:unit",
+    "test:unit:analog": "pnpm --filter @dk-oasis/m-analog test",
     "test:unit:watch": "pnpm --filter @dk-oasis/shared test:unit:watch",
     "test:unit:coverage": "pnpm --filter @dk-oasis/shared test:unit:coverage",
     "test:api": "pnpm --filter @dk-oasis/shared test:api",
