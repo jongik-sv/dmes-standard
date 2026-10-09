@@ -450,6 +450,8 @@ handle_keys() {  # handle_keys <행 JSON> <id> <claim_token> <target_kind> <targ
 
 handle_prompt() {  # handle_prompt <프롬프트 JSON 한 줄> <claim 시각(poll 직전 epoch)>
   local j="$1" ct="$2" id kind ref tok h rc crc hdr res trc what det rkind rref
+  # 한 줄에 JSON 값이 여럿이면 필드마다 jq 가 여러 줄을 내 id·ref 가 여러 줄 문자열이 된다 — 행 하나는 값 하나여야 하므로 건너뛴다(깨진 JSON 은 아래 id 검사가 건너뜀)
+  [ "$(printf '%s' "$j" | jq -sj 'if length > 1 then "m" else "" end' 2>/dev/null)" != m ] || { plog "prompt 형식 오류(JSON 값이 여럿) — 건너뜀"; return 0; }
   id="$(printf '%s' "$j" | jq -r '.id // empty' 2>/dev/null)"
   kind="$(printf '%s' "$j" | jq -r '.target_kind // empty' 2>/dev/null)"
   ref="$(printf '%s' "$j" | jq -r '.target_ref // empty' 2>/dev/null)"

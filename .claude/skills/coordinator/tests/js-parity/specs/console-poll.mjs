@@ -155,7 +155,7 @@ function world(rng, { once = true } = {}) {
   files['fake/terms'] = terms.join(' ');
   for (const h of HANDLES) if (rng.chance(0.85)) files[`fake/screens/${h}.txt`] = rng.chance(0.15) ? Buffer.from(screenGen(rng).stdin).toString('latin1') : rng.pick(SCREENS);
   // 대기열(프롬프트 행)
-  const rows = Array.from({ length: rng.pick([0, 0, 1, 1, 2, 3]) }, (_, i) => row(rng, i));
+  const rows = Array.from({ length: rng.pick([0, 0, 1, 1, 2, 3]) }, (_, i) => (rng.chance(0.06) ? row(rng, i) + row(rng, i + 10) : row(rng, i)));   // 가끔 한 줄에 JSON 값이 둘
   files['fake/queue'] = rows.length ? `${rows.join('\n')}\n` : '';
   if (rng.chance(0.08)) files['fake/poll_rc'] = String(rng.pick([7, 6, 1]));
   if (rng.chance(0.06)) files['fake/poll_mode'] = 'forbidden';
@@ -194,10 +194,18 @@ function slowLeadState() {
   return { label: 'once: lead-state 시간 초과 경고가 폴러 로그에 남는다', args: ['--once'], files: w.files, env: w.env, stdin: '' };
 }
 
+/** 한 줄에 JSON 객체가 둘인 프롬프트 행: 「prompt 형식 오류(JSON 값이 여럿) — 건너뜀」 */
+function multiValueRow() {
+  const w = activeWorld(FLAT);
+  const one = (id) => JSON.stringify({ id, target_kind: 'coord_lane', target_ref: 'kit', claim_token: 'tok-' + id.slice(0, 4), text: '안녕' });
+  w.files['fake/queue'] = `${one('aaaaaaaa-0001')}${one('bbbbbbbb-0002')}\n`;
+  return { label: 'once: 한 줄에 JSON 값이 둘인 행은 건너뛴다', args: ['--once'], files: w.files, env: w.env, stdin: '' };
+}
+
 const once = {
   compareFiles: false,
   gen(rng) { const w = world(rng); return { ...w, args: rng.pick([['--once'], ['--once'], ['--once'], ['--once', '--dry-run'], ['--dry-run', '--once']]) }; },
-  fixed: [slowLeadState()],
+  fixed: [slowLeadState(), multiValueRow()],
 };
 
 function lockWorld(rng, alive) {

@@ -419,7 +419,9 @@ async function handleKeys(d, id, tok, tk, ref) {
   }
 }
 async function handlePrompt(line, ct) {
-  const d = parse1(line);
+  let vals = null; try { vals = J.parseStream(line); } catch { /* 깨진 JSON 은 아래 id 검사가 건너뛴다 */ }
+  if (vals && vals.length > 1) { plog('prompt 형식 오류(JSON 값이 여럿) — 건너뜀'); return; }   // bash 판: jq -s length > 1
+  const d = vals && vals.length === 1 ? vals[0] : undefined;
   const g = (k) => (d === undefined ? '' : jr(J.index(d, k)));
   const id = g('id'); let kind = g('target_kind'); let ref = g('target_ref'); const tok = g('claim_token');
   const rkind = g('kind');
