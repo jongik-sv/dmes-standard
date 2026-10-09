@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # console-poll.mjs 가 console-input·console-resolve 의 bash 함수를 한 번 부를 때 쓰는 이음매(lib/console-poll-deps.mjs 가 spawn).
 # 사용법: bash console-poll-shim.sh <scripts 폴더> <함수> [인자…]   환경: SHIM_GLOBALS(공백으로 나눈 전역 변수 이름들)·SHIM_GLOBALS_FILE(NAME=값\0 …을 쓸 파일)
-# W1-a 의 console-input.mjs·console-resolve.mjs 가 머지되면 쓰지 않는다.
+# W1-a 의 console-input.mjs 가 머지되면 쓰지 않는다.
 SD="$1"; shift
-. "$SD/lib/common.sh"; . "$SD/lib/term.sh"; . "$SD/lib/console-resolve.sh"; . "$SD/lib/screen-cache.sh"
+. "$SD/lib/common.sh"; . "$SD/lib/term.sh"; . "$SD/lib/console-resolve.sh"
 . "$SD/lib/console-redact.sh"; . "$SD/lib/console-input.sh"
 coord_default_repo
 # run_limited·kill_tree·descendants: console-poll.sh 의 것과 같은 글(console-resolve.sh 의 lead-state 호출이 쓴다)
