@@ -71,6 +71,8 @@ import org.springframework.stereotype.Component;
  *   <li>결과 캐시: 키 (defId, 행 상한, 쓰인 시스템 변수 값들 — {@code :now} 는 30초 구간 시작 — 과 해석을 마친 사용자 조건 값들), 30초.
  *       정의 저장 이벤트가 오면 그 defId 캐시를 비운다. 키가 끝없이 늘어도(조건 값 조합·사용자별 :userId) 정의 하나가 캐시 전체를 채우지 못하게 정의별 상한을 둔다.</li>
  *   <li>DB 오류: 사용자에게는 고정 문구, 서버 로그에는 defId·원인. 관리자 미리보기만 DB 메시지를 보여 준다.</li>
+ *   <li>{@link #run}: 정의 없는 저수준 실행(공용 쿼리 조회, 2026-10-10 스펙 §5) — 같은 검사·바인드·읽기 전용 실행을 캐시 없이.
+ *       오류는 {@link WidgetQueryRunException}(Kind 로 구분, 안전 문구만 담는다)으로 돌리고 원인은 cause 로만 남긴다.</li>
  * </ul>
  * <b>운영 주의</b>: 읽기 전용 트랜잭션을 걸 수 없는 DB(Oracle 이 아닌 갈래 OTHER — {@code readOnly} 는 힌트일 뿐)에서는
  * 전용 DataSource({@code dmes.widget.query.datasource.*})가 없으면 <b>실행·미리보기·저장 검사를 모두 거절한다</b>(실패 닫힘, {@link #validate}).
@@ -167,9 +169,10 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
         String sql = sqlOf(def);
         // 저장 때 검사했어도 실행 때마다 서버가 다시 판정한다 — 정의가 DB 에서 바뀌었거나 검사를 거치지 않고 들어왔을 수 있다.
         List<QueryParam> defs = QueryParams.fromConfig(def.getConfigJson());
-        SqlGuard.Validated validated = validate(sql, QueryParams.names(defs));
-        Map<String, QueryParams.Bound> userBinds = QueryParams.resolve(defs, validated.userVariables(), userValues, false);
-        Map<String, Object> values = systemValues(validated.variables());
+        Prepared prepared = prepare(sql, defs, userValues, false);
+        SqlGuard.Validated validated = prepared.validated();
+        Map<String, QueryParams.Bound> userBinds = prepared.userBinds();
+        Map<String, Object> values = prepared.systemValues();
 
         Instant now = clock.instant();
         CacheKey key = new CacheKey(id, validated.sql(), maxRows, cacheKeyValues(values, userBinds, now));
@@ -196,15 +199,47 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
         requireMaxRows(maxRows);
         requireSupportedSource(dataSrc);
         List<QueryParam> defs = QueryParams.fromDefsJson(paramDefsJson);
-        SqlGuard.Validated validated = validate(sql, QueryParams.names(defs));
         // 관리자 시험 실행 — 각 조건의 기본값을 값으로 쓰고, 값 없는 필수 조건도 형 붙은 null 로 둔다(컬럼 확인이 목적).
-        Map<String, QueryParams.Bound> userBinds = QueryParams.resolve(defs, validated.userVariables(), Map.of(), true);
-        Map<String, Object> values = systemValues(validated.variables());
+        Prepared prepared = prepare(sql, defs, Map.of(), true);
         try {
-            return execute(validated.sql(), values, userBinds, maxRows);
+            return execute(prepared.validated().sql(), prepared.systemValues(), prepared.userBinds(), maxRows);
         } catch (RuntimeException e) {
             // 관리자 SQL 작성 도움 — DB 메시지를 그대로 보여 준다(§7.3).
             throw new BusinessException(ErrorCode.INVALID_VALUE, MSG_PREVIEW_PREFIX + rootMessage(e));
+        }
+    }
+
+    @Override
+    public WidgetQueryResult run(String sql, String paramDefsJson, Map<String, String> values, int maxRows) {
+        requireMaxRows(maxRows);
+        if (maxRows > WidgetQueryRunner.MAX_ROWS) {
+            throw new IllegalArgumentException("행 상한은 " + WidgetQueryRunner.MAX_ROWS + " 이하여야 합니다: " + maxRows);
+        }
+        List<QueryParam> defs;
+        SqlGuard.Validated validated;
+        try {
+            defs = QueryParams.fromDefsJson(paramDefsJson);
+            validated = guard(sql, QueryParams.names(defs)); // 어느 DB 에나 적용하는 정적 검사 — 정의 오류
+        } catch (RuntimeException e) {
+            throw new WidgetQueryRunException(WidgetQueryRunException.Kind.DEFINITION, e);
+        }
+        try {
+            requireRunnableDialect(); // 방언·전용 연결 정책 — DB 쪽 오류라 EXECUTION
+        } catch (RuntimeException e) {
+            throw new WidgetQueryRunException(WidgetQueryRunException.Kind.EXECUTION, e);
+        }
+        // 입력 값 해석 — 사용자에게 보여도 되는 BusinessException(REQUIRED_VALUE·INVALID_VALUE)이 그대로 나간다(§5).
+        Map<String, QueryParams.Bound> userBinds = QueryParams.resolve(defs, validated.userVariables(), values, false);
+        Map<String, Object> systemVals;
+        try {
+            systemVals = systemValues(validated.variables()); // 인증 컨텍스트·사용자 조회 실패도 EXECUTION
+        } catch (RuntimeException e) {
+            throw new WidgetQueryRunException(WidgetQueryRunException.Kind.EXECUTION, e);
+        }
+        try {
+            return execute(validated.sql(), systemVals, userBinds, maxRows);
+        } catch (RuntimeException e) {
+            throw new WidgetQueryRunException(WidgetQueryRunException.Kind.EXECUTION, e);
         }
     }
 
@@ -237,6 +272,22 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
             log.debug("정시 수집 쿼리 실행 실패 상세", e);
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, MSG_LOAD_FAILED);
         }
+    }
+
+    /** 검사 → 입력 값 해석 → 시스템 변수까지의 공통 단계를 마친 결과(스펙 2026-10-10-user-query-program-design §5). */
+    private record Prepared(SqlGuard.Validated validated, Map<String, QueryParams.Bound> userBinds,
+                            Map<String, Object> systemValues) {}
+
+    /** 공통 단계 — SqlGuard 검사 → 입력 값 해석(lenient 여부) → 시스템 변수. runDefinition·preview·run 이 함께 쓴다. */
+    private Prepared prepare(String sql, List<QueryParam> defs, Map<String, String> userValues, boolean lenient) {
+        return prepare(validate(sql, QueryParams.names(defs)), defs, userValues, lenient);
+    }
+
+    /** 검사를 마친 뒤의 공통 단계 — {@link #run} 은 예외 종류별 안전 문구(§5·§7) 때문에 단계를 따로 감싼다. */
+    private Prepared prepare(SqlGuard.Validated validated, List<QueryParam> defs, Map<String, String> userValues,
+                             boolean lenient) {
+        Map<String, QueryParams.Bound> userBinds = QueryParams.resolve(defs, validated.userVariables(), userValues, lenient);
+        return new Prepared(validated, userBinds, systemValues(validated.variables()));
     }
 
     private static void requireNoUserVariables(SqlGuard.Validated validated) {
@@ -421,17 +472,23 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     /**
      * 실행·미리보기·저장 검사가 함께 쓰는 판정(§7.1 + 실패 닫힘). 순서:
      * <ol>
-     *   <li>어느 DB 에나 적용하는 검사 — 여기서 걸리면 연결을 빌리지 않는다.</li>
+     *   <li>어느 DB 에나 적용하는 검사({@link #guard}) — 사전 검사(한 문장 SELECT·WITH·금지 낱말·알려진 변수)와
+     *       사후 검사(Spring 이 이름 붙은 변수를 바꾼 뒤 남은 DB 고유 자리표시자)를 함께 한다. 여기서 걸리면 연결을 빌리지 않는다.</li>
      *   <li>실행 DB 갈래 판정(처음 한 번 연결을 빌려 메타데이터만 읽는다). 읽기 전용 트랜잭션을 걸 수 없는 갈래(OTHER — Oracle 이
      *       아닌 DB)인데 전용 DataSource 가 없으면 거절한다 — 그 DB 고유의 세션·흐름 문장을 낱말 목록이 다 막는다고 기대할 수 없고,
      *       앱 기본 DataSource 는 쓰기 계정이다. {@code require-dedicated} 가 켜져 있으면 갈래와 상관없이 전용 DataSource 를 요구한다.</li>
-     *   <li>사후 검사 — Spring 이 이름 붙은 변수를 바꾼 뒤 남은 DB 고유 자리표시자.</li>
      * </ol>
      * 거절은 {@code BusinessException} 이고 미리보기·실행의 DB 오류 감싸기(쿼리 오류·고정 문구) 밖에서 던진다 — 설정 안내가 그대로 보인다.
      */
     private SqlGuard.Validated validate(String sql, Set<String> declaredNames) {
-        SqlGuard.Validated validated = SqlGuard.checkDeclared(sql, declaredNames);
+        SqlGuard.Validated validated = guard(sql, declaredNames);
         requireRunnableDialect();
+        return validated;
+    }
+
+    /** 어느 DB 에나 적용하는 검사 단계(§7.1) — 연결을 빌리지 않는다. {@link #run} 은 이 단계를 정의 오류로 분류한다. */
+    private static SqlGuard.Validated guard(String sql, Set<String> declaredNames) {
+        SqlGuard.Validated validated = SqlGuard.checkDeclared(sql, declaredNames);
         // 사후 검사 — Spring 이 이름 붙은 변수를 ? 로 바꾼 SQL 에 DB 가 따로 읽을 자리표시자가 남지 않았는지.
         SqlGuard.requireNoLeftoverPlaceholders(NamedParameterUtils.substituteNamedParameters(
                 NamedParameterUtils.parseSqlStatement(validated.sql()), new MapSqlParameterSource()));

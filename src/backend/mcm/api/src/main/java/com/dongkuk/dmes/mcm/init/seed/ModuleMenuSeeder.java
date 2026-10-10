@@ -132,6 +132,45 @@ public final class ModuleMenuSeeder extends SeedSupport {
     }
 
     /**
+     * 공용 쿼리 조회 메뉴 시드 (2026-10-10, 스펙 2026-10-10-user-query-program-design §3) —
+     * 폴더 1 + OBJECT 2 + 메뉴 leaf 2 + SYSADMIN × PERM_ALL 2.
+     * <ul>
+     *   <li>폴더 cmq(공용 조회) — 공통관리 루트 {@code mcm} 아래 일곱 번째 그룹. MENU_SEQ '00000700' 은
+     *       lsh(공지관리 '00000600') 다음이다. FULL_SEQ 1070000 은 기록용 — recomputeMenuFullSeq() 가 다시 매긴다.</li>
+     *   <li>userQueryMng(쿼리 정의 관리) — csa 시스템관리 그룹. FULL_SEQ 1020230 은 jobSchedMng(1020220) 다음(기록용).
+     *       action(search·get·save·delete·previewQuery·validate·searchAssign·saveAssign·searchUserList·searchDepts)은
+     *       PERM_ALL 이 커버한다(CoreRbacSeeder allActions).</li>
+     *   <li>userQuery(공용 쿼리 조회) — cmq 폴더 leaf. 일반 역할은 운영자가 {@code PERM_USRQ_USE}(myList·getDef·run)로
+     *       매핑한다(이 시드는 SYSADMIN × PERM_ALL 만 넣는다 — 미결 2 결정대로).</li>
+     * </ul>
+     * 모두 insert-if-absent 라 재기동해도 중복 행이 생기지 않는다.
+     */
+    public void seedUserQueryMenus() {
+        insertMpnFld("cmq", "00000700", "공용 조회", "mcm", 1070000L);
+
+        final String mngId = "userQueryMng";
+        insertMcmSecObjIfAbsent(mngId, "쿼리 정의 관리", "mcm");
+        insertMcmSecMenuIfAbsent(mngId, "001", "1020230", "쿼리 정의 관리", "csa", mngId);
+        insertIfAbsentComposite(
+                "TB_MCM_SEC_ROLE_MAPPING",
+                new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                new String[]{"SYSADMIN", mngId,       "PERM_ALL"},
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                "VALUES ('SYSADMIN', '" + mngId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+
+        final String userId = "userQuery";
+        insertMcmSecObjIfAbsent(userId, "공용 쿼리 조회", "mcm");
+        insertMcmSecMenuIfAbsent(userId, "001", "1070100", "공용 쿼리 조회", "cmq", userId);
+        insertIfAbsentComposite(
+                "TB_MCM_SEC_ROLE_MAPPING",
+                new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                new String[]{"SYSADMIN", userId,      "PERM_ALL"},
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                "VALUES ('SYSADMIN', '" + userId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+        log.info("[DataInitializer] 공용 쿼리 조회 메뉴 시드 — 폴더 1(cmq) + OBJECT 2(userQueryMng·userQuery) + 메뉴 leaf 2 + RBAC(SYSADMIN 2)");
+    }
+
+    /**
      * 조회 기본값 샘플(csa/searchDefaultsSample) 메뉴 시드 (2026-10-07, 스펙 2026-10-07-search-defaults-design §7.5) —
      * OBJECT 1 + 메뉴 leaf 1 + SYSADMIN × PERM_ALL 1. 기본값 동작을 눈과 e2e 로 확인하는 샘플 화면의 포털 진입점이다.
      * <b>local 프로필에서만</b> 부른다(호출하는 DataInitializer 가 판정 — 운영 메뉴에는 넣지 않는다). componentPath={@code csa/searchDefaultsSample}

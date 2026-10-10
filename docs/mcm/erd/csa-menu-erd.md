@@ -50,6 +50,8 @@ erDiagram
     TB_MCM_SEC_USER              ||--o{ TB_MCM_SEC_USER_FAVORITE_FOLD : "USER_ID"
     TB_MCM_SEC_USER              ||--o{ TB_MCM_SEC_USER_START_PGM : "USER_ID"
     TB_MCM_SEC_MENU              ||--o{ TB_MCM_SEC_USER_START_PGM : "MENU_ID"
+    TB_MCM_USRQ_DEF              ||--o{ TB_MCM_USRQ_ASSIGN : "QUERY_ID (공용 쿼리 할당)"
+    TB_MCM_SEC_USER              ||--o{ TB_MCM_USRQ_ASSIGN : "USER_ID"
 
     TB_MCM_SEC_MENU_FLD {
         varchar30 MENU_ID PK "폴더 ID (모듈 루트 또는 그룹)"
@@ -181,6 +183,24 @@ erDiagram
         integer MENU_SEQ PK "복합 PK 4"
         integer START_SEQ "여는 순서(기본 화면)"
     }
+
+    TB_MCM_USRQ_DEF {
+        varchar40 QUERY_ID PK "쿼리 ID"
+        varchar100 QUERY_NM "쿼리 이름"
+        varchar20 CATEGORY_CD "분류 (공통코드 USRQ_CTG)"
+        varchar500 QUERY_DESC "설명"
+        varchar10 OWNER_DEPT_CD "담당 부서 코드 → DEPT_INFO"
+        clob SQL_TEXT "조회 SQL"
+        clob PARAMS_JSON "입력 정의(JSON)"
+        clob COLUMNS_JSON "출력 정의(JSON)"
+        numeric MAX_ROW_CNT "최대 행 수 (1~5000, 기본 1000)"
+        char1 USE_YN "사용 여부 (기본 Y)"
+    }
+
+    TB_MCM_USRQ_ASSIGN {
+        varchar40 QUERY_ID PK "복합 PK 1 → USRQ_DEF"
+        varchar30 USER_ID PK "복합 PK 2 → SEC_USER"
+    }
 ```
 
 ## 3. 메뉴가 화면에 뜨기까지 — 권한 해석 체인
@@ -239,6 +259,8 @@ flowchart LR
 | `commPermMng` 권한 관리 | `TB_MCM_SEC_PERM` | — |
 | `commUserMng` 사용자 관리 | `TB_MCM_SEC_USER` · `TB_MCM_SEC_USER_PWD` · `TB_MCM_SEC_USER_MAPPING` | `TB_MCM_DEPT_INFO` |
 | `commUserRoleCopy` 권한 일괄 등록 | `TB_MCM_SEC_ROLE_MAPPING` | `TB_MCM_SEC_USER` |
+| `userQueryMng` 쿼리 정의 관리 | `TB_MCM_USRQ_DEF` · `TB_MCM_USRQ_ASSIGN` | `TB_MCM_SEC_USER` · `TB_MCM_DEPT_INFO` |
+| `userQuery` 공용 쿼리 조회 | — | `TB_MCM_USRQ_DEF` · `TB_MCM_USRQ_ASSIGN` |
 
 ## 6. 신규 화면 등록 시 건드리는 순서
 

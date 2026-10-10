@@ -411,6 +411,42 @@ Table TB_MCM_SEC_USER_SRCH_DFLT {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// 공용 쿼리 조회 — 관리자가 등록한 SQL 정의와 사용자 할당. 2026-10-10 신설 (Flyway V13)
+// 긴 문자열(SQL_TEXT·PARAMS_JSON·COLUMNS_JSON)은 Oracle CLOB
+// ────────────────────────────────────────────────────────────────────────────
+
+Table TB_MCM_USRQ_DEF {
+  QUERY_ID      varchar(40)   [pk, note: '쿼리 ID']
+  QUERY_NM      varchar(100)  [not null, note: '쿼리 이름']
+  CATEGORY_CD   varchar(20)   [note: '분류 — 공통코드 USRQ_CTG (처음 값 ETC 기타)']
+  QUERY_DESC    varchar(500)  [note: '설명']
+  OWNER_DEPT_CD varchar(10)   [note: '담당 부서 코드 → TB_MCM_DEPT_INFO (본 다이어그램 범위 밖)']
+  SQL_TEXT      clob          [not null, note: '조회 SQL']
+  PARAMS_JSON   clob          [note: '입력 정의(JSON)']
+  COLUMNS_JSON  clob          [note: '출력 정의(JSON)']
+  MAX_ROW_CNT   number(6)     [not null, default: 1000, note: '최대 행 수 — CK 1~5000']
+  USE_YN        char(1)       [not null, default: 'Y', note: '사용 여부 — CK Y/N']
+
+  indexes {
+    QUERY_ID [pk]
+  }
+
+  Note: '공용 쿼리 정의(스펙 2026-10-10-user-query-program-design §2). 감사 컬럼 9개(McmAuditEntity). DDL = Flyway oracle/mcmapuser/V13. 관리 화면 userQueryMng(쿼리 정의 관리), 사용자 화면 userQuery(공용 쿼리 조회, 서비스 myList·getDef·run). 외래 키 없음 — 정의를 지울 때 서비스가 할당을 먼저 지운다.'
+}
+
+Table TB_MCM_USRQ_ASSIGN {
+  QUERY_ID varchar(40) [note: '→ TB_MCM_USRQ_DEF']
+  USER_ID  varchar(30) [note: '→ TB_MCM_SEC_USER (사용자 단위 할당만)']
+
+  indexes {
+    (QUERY_ID, USER_ID) [pk]
+    (USER_ID, QUERY_ID) [name: 'IX_TB_MCM_USRQ_ASSIGN_USER', note: '사용자 목록(myList)의 USER_ID 조건']
+  }
+
+  Note: '공용 쿼리 정의-사용자 할당(스펙 2026-10-10-user-query-program-design §2). 감사 컬럼 9개(McmAuditEntity). 외래 키 없음 — 없는 사용자의 할당은 할당 탭이 「없는 사용자」로 보여 준다.'
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // 이력 (메뉴와 직접 관계 없음 — 참고용)
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -491,6 +527,10 @@ Ref: TB_MCM_SEC_USER_START_PGM.MENU_ID     > TB_MCM_SEC_MENU.MENU_ID
 // 조회 칸 기본값 (PAGE_ID 는 메뉴 FK 가 아니라 포털 화면 키라 논리 참조는 사용자만)
 Ref: TB_MCM_SEC_USER_SRCH_DFLT.USER_ID > TB_MCM_SEC_USER.USER_ID
 
+// 공용 쿼리 조회 (논리 참조 — V13 에 외래 키 없음, OWNER_DEPT_CD → TB_MCM_DEPT_INFO 는 범위 밖이라 칼럼 note 에만 적는다)
+Ref: TB_MCM_USRQ_ASSIGN.QUERY_ID > TB_MCM_USRQ_DEF.QUERY_ID
+Ref: TB_MCM_USRQ_ASSIGN.USER_ID  > TB_MCM_SEC_USER.USER_ID
+
 // 이력
 Ref: TB_MCM_SEC_USER_HIS.USER_ID            > TB_MCM_SEC_USER.USER_ID
 Ref: TB_MCM_SEC_USER_ROLL_HIS.USER_ID       > TB_MCM_SEC_USER.USER_ID
@@ -529,6 +569,11 @@ TableGroup "즐겨찾기_이력" {
   TB_MCM_SEC_USER_SRCH_DFLT
   TB_MCM_SEC_USER_HIS
   TB_MCM_SEC_USER_ROLL_HIS
+}
+
+TableGroup "공용쿼리" {
+  TB_MCM_USRQ_DEF
+  TB_MCM_USRQ_ASSIGN
 }
 
 TableGroup "위젯" {

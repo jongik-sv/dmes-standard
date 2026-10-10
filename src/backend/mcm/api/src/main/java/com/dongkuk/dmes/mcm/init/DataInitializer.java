@@ -207,11 +207,16 @@ public class DataInitializer implements ApplicationRunner {
         // 2026-10-09 — 예약 작업 관리(csa/jobSchedMng) 메뉴. 시스템관리(csa) 아래 leaf 1 — 사이드바 "시스템관리 > 예약 작업 관리".
         moduleMenus.seedJobSchedMngMenu();
 
+        // 2026-10-10 — 공용 쿼리 조회 메뉴(스펙 2026-10-10-user-query-program-design §3). 폴더 cmq(공용 조회) 1 +
+        //   쿼리 정의 관리(csa/userQueryMng)·공용 쿼리 조회(cmq/userQuery) leaf 2.
+        moduleMenus.seedUserQueryMenus();
+
         // 2026-10-07 — 조회 기본값 샘플 화면(csa/searchDefaultsSample) 메뉴. local 프로필 전용 — 운영·개발계 메뉴에는 넣지 않는다.
         if (environment.acceptsProfiles(Profiles.of("local"))) {
             moduleMenus.seedSearchDefaultsSampleMenu();
         }
         new com.dongkuk.dmes.mcm.init.seed.WidgetCategoryCodeSeeder(support).seedWidgetCategoryCodes();
+        new com.dongkuk.dmes.mcm.init.seed.UserQueryCategoryCodeSeeder(support).seedUserQueryCategoryCodes();
 
         // 확장 지점 — 신규 업무 모듈을 추가할 때 여기에 seed{Module}Menus() 를 호출한다.
 

@@ -71,4 +71,23 @@ public interface WidgetQueryRunner {
      * @param maxRows 행 상한(수집은 50)
      */
     WidgetQueryResult runCollect(String sql, int maxRows);
+
+    /**
+     * 저장된 정의 없이 SQL·입력 정의·값으로 실행한다(공용 쿼리 조회 — 스펙 2026-10-10-user-query-program-design §5). 캐시를 쓰지 않는다.
+     * 검사·바인드·읽기 전용 실행은 {@link #runDefinition(String, int, Map)} 과 같은 단계를 쓴다.
+     * 시스템 변수(:userId·:deptCd 등)는 구현이 인증 컨텍스트에서 채운다 — 사용자는 호출자가 넘기지 않는다.
+     *
+     * <p>예외 정책: 사용자 입력 값 오류는 {@code BusinessException}(REQUIRED_VALUE·INVALID_VALUE, 사용자에게 보여도 되는 문구) 그대로.
+     * SQL·입력 정의 오류는 {@link WidgetQueryRunException.Kind#DEFINITION}, DB 실행·연결·인증 컨텍스트 오류는
+     * {@link WidgetQueryRunException.Kind#EXECUTION} — {@code getMessage()} 는 고정 안전 문구라 원인(SQL·ORA 문구)을 담지 않고,
+     * 원인은 {@code getCause()}·{@code detail()} 로만 읽는다(§7 SQL 노출 방지).
+     *
+     * @param paramDefsJson 입력 조건 정의(CONFIG_JSON 의 params 배열 모양)을 담은 JSON 글자. null·빈 값이면 조건 없음
+     * @param values        입력 조건 이름 → 글자 값. 정의에 선언되지 않은 이름은 읽지 않는다
+     * @param maxRows       행 상한(1~{@value #MAX_ROWS})
+     */
+    WidgetQueryResult run(String sql, String paramDefsJson, Map<String, String> values, int maxRows);
+
+    /** {@link #run} 의 행 상한 — 공용 쿼리 정의 MAX_ROW_CNT 의 CHECK 상한(V13)과 같다. */
+    int MAX_ROWS = 5000;
 }
