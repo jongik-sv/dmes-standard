@@ -5,7 +5,26 @@
   "terminal_backend": "orca",
   "coordinator": {
     "model": "opus",
-    "effort": "medium"
+    "effort": "medium",
+    "model_by_mode": {
+      "time": "opus/medium",
+      "token": "sonnet/medium"
+    }
+  },
+  "mode": {
+    "default": "token",
+    "lanes_max": {
+      "time": 6,
+      "token": 3
+    },
+    "heartbeat_min": {
+      "time": 15,
+      "token": 30
+    },
+    "workflow_min_items": {
+      "time": 2,
+      "token": 4
+    }
   },
   "launch": {
     "claude": "claude",
@@ -16,7 +35,7 @@
     "script": null,
     "measure_dir": "~/.dflow/locks/heavy-measure",
     "load_soft": 1.2,
-    "load_hard": 2.0,
+    "load_hard": 2,
     "load_release": 0.8,
     "measure_quiet": 0.5
   },
@@ -59,17 +78,19 @@
     "threshold_pct": 40,
     "threshold_tokens": null,
     "by_window": {
-      "1000000": {
-        "pct": 40
-      },
       "200000": {
         "pct": 70
+      },
+      "1000000": {
+        "pct": 40
       }
     },
     "hard_pct": 70,
     "cooldown_min": 30,
     "default_window": 200000,
-    "wait_max_min": 10
+    "wait_max_min": 10,
+    "coordinator_max": 200000,
+    "lane_max": 250000
   },
   "idle": {
     "idle_min": 5,
@@ -90,6 +111,20 @@
       "Y": 3,
       "O": 2,
       "R": 0
+    },
+    "agents_by_mode": {
+      "time": {
+        "G": 6,
+        "Y": 5,
+        "O": 3,
+        "R": 0
+      },
+      "token": {
+        "G": 4,
+        "Y": 3,
+        "O": 2,
+        "R": 0
+      }
     },
     "model_table": [
       {
@@ -113,12 +148,28 @@
       {
         "stage": "구현·수정·특성 테스트 작성",
         "size": "S/M",
+        "mode": "token",
+        "model": "sonnet",
+        "effort": "medium"
+      },
+      {
+        "stage": "구현·수정·특성 테스트 작성",
+        "size": "S/M",
+        "mode": "time",
         "model": "sonnet",
         "effort": "high"
       },
       {
         "stage": "구현·수정·특성 테스트 작성",
         "size": "L·동시성·트랜잭션·원인 모를 결함",
+        "mode": "token",
+        "model": "sonnet",
+        "effort": "high"
+      },
+      {
+        "stage": "구현·수정·특성 테스트 작성",
+        "size": "L·동시성·트랜잭션·원인 모를 결함",
+        "mode": "time",
         "model": "opus",
         "effort": "high"
       },
@@ -164,6 +215,63 @@
   "glm": {
     "max_sessions": 1,
     "timeout_s": 10
+  },
+  "pool": {
+    "opencode_max": 3,
+    "glm_max": 1,
+    "order": [
+      "opencode",
+      "glm"
+    ],
+    "timeout_min": {
+      "S": 20,
+      "M": 40
+    },
+    "cooldown_min": 30,
+    "opencode_command": "opencode run --standalone {prompt}",
+    "glm_command": null,
+    "notify": true
+  },
+  "metrics": {
+    "prices": {
+      "claude-opus-5-5": [
+        4,
+        20,
+        0.2
+      ],
+      "claude-sonnet-5-5": [
+        2,
+        10,
+        0.2
+      ],
+      "claude-haiku-5-5": [
+        0.1,
+        0.5,
+        0.01
+      ],
+      "claude-haiku-4-5-20251001": [
+        1,
+        5,
+        0.1
+      ],
+      "claude-opus-4-8": [
+        5,
+        25,
+        0.5
+      ]
+    },
+    "exclude": [
+      "*.md",
+      "*.csv",
+      "*.log",
+      "*golden*",
+      "*V1__baseline.sql",
+      "*lock.yaml",
+      "*lock.json",
+      "*.snap"
+    ],
+    "gap_min": 15,
+    "csv": "metrics.csv"
   },
   "search": {
     "mode": "tab",

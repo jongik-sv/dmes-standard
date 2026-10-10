@@ -28,6 +28,11 @@
 | `terminal_backend` | `"orca"` | `orca` \| `tmux`(tmux 는 뼈대만) |
 | `coordinator.model` | `"opus"` | 조정자 세션 모델(사람이 띄울 때 참고, 스크립트는 안 씀) |
 | `coordinator.effort` | `"medium"` | 조정자 세션 effort. 무거운 판단 = 서브에이전트로(SKILL.md 「판단 올리기」) |
+| `coordinator.model_by_mode` | `{"time":"opus/medium","token":"sonnet/medium"}` | 모드별 조정 세션 model/effort |
+| `mode.default` | `"token"` | 회차 모드 기본값. state `run.mode` 가 없을 때 쓴다(`token`·`time`) |
+| `mode.lanes_max` | `{"time":6,"token":3}` | 모드별 Claude 레인 수 상한. `usage.md` 「새 레인 상한」과 함께 적용 |
+| `mode.heartbeat_min` | `{"time":15,"token":30}` | 모드별 하트비트 cron 간격(분). 이벤트 틱(`tick.mjs --watch`)이 주 경로 |
+| `mode.workflow_min_items` | `{"time":2,"token":4}` | Workflow 를 쓰는 최소 같은 흐름 M/L 항목 수 |
 | `launch.claude` | `"claude"` | Claude Code 실행 명령 앞부분(예: `orca claude-teams --dangerously-skip-permissions`) |
 | `launch.glm` | `"glm"` | GLM Claude Code 실행 alias |
 | `launch.opencode` | `"opencode --standalone"` | opencode 워커 실행 명령 |
@@ -51,6 +56,8 @@
 | `compact.cooldown_min` | `30` | 같은 레인 compact 최소 간격 |
 | `compact.default_window` | `200000` | 창 크기를 모를 때 |
 | `compact.wait_max_min` | `10` | Compacting 사라짐 대기 상한 |
+| `compact.coordinator_max` | `200000` | 조정 세션 컨텍스트 토큰 상한. 넘으면 `CTX_OVER_SELF` |
+| `compact.lane_max` | `250000` | 레인 세션 컨텍스트 토큰 상한. 넘으면 `CTX_OVER` |
 | `idle.idle_min` | `5` | idle 지속 최소 분 |
 | `idle.cooldown_min` | `15` | 마지막 지시 뒤 재지시 금지 분 |
 | `idle.confirm_gap_min` | `2` | 후보 확정에 필요한 두 관측 사이 최소 분 |
@@ -59,6 +66,7 @@
 | `stall.quiet_min` | `20` | 산출물 무변화 + CPU 정지 판정 분 |
 | `tick.cron` | `"7,27,47 * * * *"` | 감시 틱 cron |
 | `workflow.agents_by_band` | `{"G":4,"Y":3,"O":2,"R":0}` | 레인당 동시 agent 상한. R = 새 Workflow 없음 |
+| `workflow.agents_by_mode` | `{"time":{…},"token":{…}}` | 모드별·띠별 레인당 동시 agent 상한. 있으면 `agents_by_band` 대신 씀 |
 | `workflow.model_table` | 아래 1.3 | 지시 템플릿의 단계·크기별 model·effort(최소 충분 등급) |
 | `workflow.escalation.ladder` | `[sonnet/medium, sonnet/high, opus/high]` | 시험 실패 시 수정 agent 등급 사다리(`workflow.md` §7) |
 | `workflow.escalation.allow_xhigh` | `false` | true 면 사다리 끝에 `opus/xhigh` 한 칸 추가 |
@@ -73,6 +81,18 @@
 | `search.timeout_s` | `240` | 워커마다 거는 검색 제한 시간 |
 | `glm.max_sessions` | `1` | 동시 GLM 세션 상한 |
 | `glm.timeout_s` | `10` | 사전 확인 호출 제한 시간 |
+| `pool.opencode_max` | `3` | 풀 opencode 동시 수 |
+| `pool.glm_max` | `1` | 풀 GLM 동시 수. `glm-preflight` 가 `ok` 가 아니면 0 으로 봄 |
+| `pool.order` | `["opencode","glm"]` | 빈 슬롯을 찾는 순서 |
+| `pool.timeout_min` | `{"S":20,"M":40}` | 묶음 크기별 시간 상한(분) |
+| `pool.cooldown_min` | `30` | 한도 오류 뒤 그 워커 종류를 쉬게 하는 시간(분) |
+| `pool.opencode_command` | `"opencode run --standalone {prompt}"` | opencode 단발 실행 틀. `{prompt}` = 인자 하나 |
+| `pool.glm_command` | `null` | GLM 단발 실행 틀(argv 배열 또는 문자열). 빈 값이면 GLM 슬롯 0. PC 전용 값이라 `.coord.local.json` 에 둠 |
+| `pool.notify` | `true` | 묶음이 끝나면 레인 탭에 한 줄 알림(`term-send-safe.mjs`) |
+| `metrics.prices` | `{"claude-opus-5-5":[4,20,0.2],…}` | 모델별 단가 [입력, 출력, 캐시 읽기] $/MTok. 캐시 쓰기 = 입력 × 2(1시간)·× 1.25(5분) |
+| `metrics.exclude` | `["*.md","*.csv",…]` | 변경 줄에서 뺄 경로 패턴(git pathspec exclude) |
+| `metrics.gap_min` | `15` | 활동 시간 계산에서 이어진 것으로 보는 메시지 간격(분) |
+| `metrics.csv` | `"metrics.csv"` | 회차 지표 누적 파일 이름(`state_dir` 아래) |
 | `approvals.auto_allow` | `["read","status"]` | 사용자가 띄운 세션의 확인 창 자동 승인 범주. 가능한 값 = `read`·`status`·`edit-own`·`commit-own`·`heavy-build`. 기본 = 가장 좁게 |
 | `approvals.watch_every_s` | `10` | `prompt-watch.mjs --follow` 의 화면 읽기 간격(초). 읽을 때마다 `orca terminal read` 가 CPU 를 쓰므로 3초보다 길게 둠 |
 | `approvals.screen_cache_s` | `20` | 폴러가 남긴 레인 화면 캐시(`office-contract.md` §4.1 「레인 화면 캐시」)를 `prompt-watch.mjs` 가 믿는 시간(초). 0 = 캐시를 쓰지도 읽지도 않음. 자동 응답 재판정은 늘 직접 읽음 |
@@ -103,14 +123,17 @@
 - `model: "search"` = Claude agent 가 아니라 검색 워커(`search.mjs`, 읽기 전용)
   - 두 워커가 모두 실패할 때만 sonnet/medium agent 가 대신함
 - `size` = 착수 지시 항목 표의 크기(S/M/L)
+- `mode` 열이 있으면 그 모드에서만 쓴다. 없으면 두 모드 공통
 
 ```json
 [
   {"stage":"단순 시험 실행·결과 확인·기계적 치환","size":"*","model":"haiku","effort":"low"},
   {"stage":"조사·위치 찾기·영향 범위·사용처 목록","size":"*","model":"search","effort":"-"},
   {"stage":"문서 갱신","size":"*","model":"sonnet","effort":"medium"},
-  {"stage":"구현·수정·특성 테스트 작성","size":"S/M","model":"sonnet","effort":"high"},
-  {"stage":"구현·수정·특성 테스트 작성","size":"L·동시성·트랜잭션·원인 모를 결함","model":"opus","effort":"high"},
+  {"stage":"구현·수정·특성 테스트 작성","size":"S/M","mode":"token","model":"sonnet","effort":"medium"},
+  {"stage":"구현·수정·특성 테스트 작성","size":"S/M","mode":"time","model":"sonnet","effort":"high"},
+  {"stage":"구현·수정·특성 테스트 작성","size":"L·동시성·트랜잭션·원인 모를 결함","mode":"token","model":"sonnet","effort":"high"},
+  {"stage":"구현·수정·특성 테스트 작성","size":"L·동시성·트랜잭션·원인 모를 결함","mode":"time","model":"opus","effort":"high"},
   {"stage":"리뷰(동작 보존 판정)","size":"S","model":"sonnet","effort":"high"},
   {"stage":"리뷰(동작 보존 판정)","size":"M/L","model":"opus","effort":"high"},
   {"stage":"보안·트랜잭션 정합성 판정","size":"*","model":"opus","effort":"xhigh"}
