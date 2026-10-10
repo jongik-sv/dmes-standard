@@ -67,7 +67,7 @@ public interface SecPermRepository extends JpaRepository<SecPerm, String> {
      * "연결된 역할이 존재합니다. 제외 후 삭제 하세요?" 경고 후 삭제 차단.
      *
      * <p>2026-06-06 — 과거 MSSQL native {@code TOP 1} 이었으나 dialect 독립을 위해 JPQL + {@link Limit} 로 전환
-     * (SQLite local 단독 부팅 호환). SecRoleMapping entity 사용 → TOP/LIMIT 은 Hibernate 가 dialect 별로 생성.
+     * (JPQL + Limit 이라 DB 문법에 묶이지 않는다). SecRoleMapping entity 사용 → 행 제한은 Hibernate 가 dialect 에 맞게 생성한다.
      */
     @Query("SELECT m.roleId FROM SecRoleMapping m WHERE m.permissionId = :permissionId")
     List<String> findRoleIdsByPermissionId(@Param("permissionId") String permissionId, Limit limit);

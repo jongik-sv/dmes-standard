@@ -332,7 +332,7 @@ public class SecMenuNativeRepository {
         //
         // 2026-09-03 — 결과 타입을 CAST(... AS VARCHAR(20)) 대신 addScalar 로 고정한다.
         //   CAST 는 "그 식(expression) 컬럼의 JDBC 타입을 드라이버가 무엇으로 보고하느냐" 에 여전히 의존한다.
-        //   sqlite-jdbc 는 선언타입이 없는 식 컬럼의 타입을 '현재 행의 값 타입' 으로 추론하는데, 본 테이블의
+        //   (옛 SQLite 시절 사례) sqlite-jdbc 는 선언타입이 없는 식 컬럼의 타입을 '현재 행의 값 타입' 으로 추론하는데, 본 테이블의
         //   정렬 첫 행(mcm, FULL_SEQ=1000000)은 MENU_VIEW_YN 이 NULL 이라 numeric 으로 보고됐다.
         //   → Hibernate 가 DecimalJdbcType 을 골랐고, 뒤이어 'N'(cmz 행) 을 만난 순간
         //     "Could not extract column [6] from JDBC ResultSet [Bad value for type BigDecimal : N]" 로

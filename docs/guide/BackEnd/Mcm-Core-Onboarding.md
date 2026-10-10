@@ -26,8 +26,24 @@ dependencies {
     api 'org.springframework.boot:spring-boot-starter-data-jpa'
     api 'org.springframework.boot:spring-boot-starter-security'
     api 'org.springframework.boot:spring-boot-starter-web'
-    runtimeOnly 'org.xerial:sqlite-jdbc:3.45.3.0'
+    runtimeOnly 'com.oracle.database.jdbc:ojdbc11'        // Oracle 드라이버 (버전은 Spring Boot BOM)
+    runtimeOnly 'org.flywaydb:flyway-database-oracle'
 }
+```
+
+데이터소스는 Oracle 로 잡는다. 접속값은 호스트 앱의 `application-*.yml` 에 두고, 아래 값은 자리표시자다.
+
+```yaml
+spring:
+  datasource:
+    url: jdbc:oracle:thin:@//<호스트>:<포트>/<서비스명>
+    username: <스키마 사용자>
+    password: ${DB_PASSWORD}
+    driver-class-name: oracle.jdbc.OracleDriver
+  jpa:
+    database-platform: org.hibernate.dialect.OracleDialect
+    hibernate:
+      ddl-auto: none   # 스키마는 Flyway 가 만든다
 ```
 
 ### 2. 부팅 클래스
@@ -103,7 +119,8 @@ dependencies {
     api 'org.springframework.boot:spring-boot-starter-data-jpa'
     api 'org.springframework.boot:spring-boot-starter-security'
     api 'org.springframework.boot:spring-boot-starter-web'
-    runtimeOnly 'org.xerial:sqlite-jdbc:3.45.3.0'
+    runtimeOnly 'com.oracle.database.jdbc:ojdbc11'        // Oracle 드라이버 (버전은 Spring Boot BOM)
+    runtimeOnly 'org.flywaydb:flyway-database-oracle'
 }
 ```
 
@@ -162,7 +179,7 @@ src/main/resources/db/migration/oracle/mcmapuser/
 └── ...
 ```
 
-옛 SQLite 마이그레이션(`V1~V18`)은 `src/backend/mcm-core/archive/db-migration/sqlite/` 에 보관만 하며 적용되지 않는다.
+DB 는 Oracle 하나다. 옛 SQLite 마이그레이션(`V1~V18`)은 `src/backend/mcm-core/archive/db-migration/sqlite/` 에 보관만 하며 적용되지 않는다.
 
 ---
 

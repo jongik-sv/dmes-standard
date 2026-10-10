@@ -63,7 +63,7 @@ import org.springframework.transaction.event.TransactionalEventListenerFactory;
  * </ol>
  * 남는 한계 — 적재는 호출자의 트랜잭션 안에서 돈다. 트랜잭션 단위 스냅샷 격리(SQLite WAL, PostgreSQL REPEATABLE READ,
  * MSSQL SNAPSHOT)에서는 무효화 뒤 시작한 적재도 그 트랜잭션이 시작될 때의 옛 스냅샷을 현재 세대로 저장할 수 있다(TTL 로만
- * 회복). 운영 Oracle·PostgreSQL 기본(문장 단위 READ COMMITTED)과 로컬 SQLite(WAL 설정 없음)에서는 일어나지 않는다.
+ * 회복). Oracle 기본(문장 단위 READ COMMITTED)에서는 일어나지 않는다.
  * 한 트랜잭션 안에서 카탈로그를 두 번 적재하고 그 사이에 다른 요청이 커밋·무효화하면, 두 번째 적재가 같은 영속성 컨텍스트의
  * 옛 엔티티 인스턴스를 돌려받아 현재 세대로 저장되고 TTL 동안 남을 수 있다. 지금은 BPMN 이 요청당 한 번만 부르고
  * {@code open-in-view=false} 라 이 경로가 열리지 않는다. 근본 해결(엔티티 대신 불변 스칼라 투영 적재)은 호출부 타입 변경이
