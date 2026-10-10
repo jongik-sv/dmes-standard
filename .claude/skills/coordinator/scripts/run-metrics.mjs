@@ -1,7 +1,7 @@
 // run-metrics.mjs — 조정자 스크립트(node). 회차 하나의 Claude 비용·속도·풀·결정 지표를 잰다(설계 2026-10-10 §7).
 //   사용법: run-metrics.mjs [--run <id>] [--stdout] [--no-csv] [--since <iso>] [--until <iso>] [--dry-run]
 //   입력: state(조정·레인 세션 ID, 레인 브랜치, decisions), ~/.claude/projects 세션 로그, git 머지, <회차>/pool/log.jsonl
-//   stdout: `METRICS <run> cost=<$> per1k=<$|-> coord=<%> lines=<n> file=<metrics.md|->`
+//   stdout: `METRICS <run> cost=<$> per1k=<$|-> coord=<%> lines=<n> file=<경로|->`
 //   파일: <회차>/metrics.md, <state_dir>/<metrics.csv> 에 한 줄(헤더는 새 파일일 때만)
 // node 18.17 이상, 외부 패키지 없음.
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';

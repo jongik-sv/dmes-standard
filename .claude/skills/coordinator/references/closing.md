@@ -68,9 +68,10 @@
   - 대상: 시험 입력·성능 측정·로컬 DB·고아 `awk` 등
   - 없음 → 되물음
   - 없음 → `ps` 로 그 레인 워크트리를 cwd 로 둔 프로세스 확인 (`heavy.md` §7)
-- 감시 cron 삭제
-  1. state `run.cron_id` 로 `CronDelete`
-  2. `coord-state.mjs set '.run.cron_id' null`
+- 감시 정리
+  1. `tick.mjs --watch` Monitor 중지(`TaskStop`). `--watch` 는 회차가 없어져도 끝나지만 `close-run` 전에 직접 멈춤
+  2. state `run.cron_id` 로 `CronDelete`
+  3. `coord-state.mjs set '.run.cron_id' null`
 - 측정·금지 창 모두 닫힘 (`measure-window.mjs status`)
 - `load.banned` 비어 있음
 - `wake_targets` 갱신 필요 여부
