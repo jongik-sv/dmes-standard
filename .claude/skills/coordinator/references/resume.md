@@ -7,7 +7,9 @@
 
 1. `state.json`: `node scripts/coord-state.mjs get`(전체) 또는 `get '.lanes | keys'` 등 필요한 부분
    - 회차 폴더 = `<state_dir>/current` 의 run-id
+   - `run.mode` 확인(없으면 `mode.default`): `node scripts/coord-state.mjs mode`
 2. `summary.md`: 현재 상태. 없거나 낡음 → `node scripts/coord-state.mjs summary` 로 재생성
+   - 최근 결정 20개 포함(같은 질문 재판단 금지, `decide` 기록 먼저 확인)
 3. 사람 정본 메모: state `run` 또는 summary.md 가 가리키는 조정자 메모 하나
 4. 이 문서 `references/resume.md`
 
