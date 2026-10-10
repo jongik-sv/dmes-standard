@@ -4,7 +4,7 @@
 - 작성 방식: 구현 후 사후 작성(스펙 D1 면제 후속)
 - 스펙: `docs/superpowers/specs/2026-10-10-user-query-program-design.md`
 
-판정: 일치 / 불일치 / 미확인(be 대기). 구현은 `src/frontend/m-mcm/page-components/csa/userQueryMng/`, `_userq/`, `widget-types/_query/ColumnsEditor.tsx` 를 직접 읽어 확인했다. 백엔드는 이 워크트리에 없어 **be 머지 뒤 대조 필요(미확인)** 이다.
+판정: 일치 / 불일치 / 미확인(be 대기). 구현은 `src/frontend/m-mcm/page-components/csa/userQueryMng/`, `_userq/`, `widget-types/_query/ColumnsEditor.tsx` 를 직접 읽어 확인했다. 백엔드는 2026-10-10 userq-be 레인(`feat/userq-be` @ `75a94dd95`, 아직 dev 에 없음)의 코드를 읽어 대조했다. 아래 「be 대조」 표기는 `src/backend/` 아래 파일:줄 근거다.
 
 ## 1. 식별자·권한
 
@@ -13,11 +13,11 @@
 | screenId, objId | `userQueryMng` | `SCREEN_ID = "userQueryMng"`(form-model.ts), `PageLayout screenId·objId` | 기능 §1 | 일치 |
 | serviceId | `userQueryMng` | `USER_QUERY_MNG_ID`(api.ts), `meta.menuId` 도 같다 | BPMN §1 | 일치 |
 | componentPath | `csa/userQueryMng` | 폴더 `page-components/csa/userQueryMng`, page-registry 등록 | 기능 §1 | 일치 |
-| 메뉴, FULL_SEQ | 시스템관리 > 쿼리 정의 관리, 1020230 | FE 범위 밖 | 기능 §1 | 미확인(be 대기) |
+| 메뉴, FULL_SEQ | 시스템관리 > 쿼리 정의 관리, 1020230 | FE 범위 밖 | 기능 §1 | 일치(be 대조: `mcm/api/.../init/seed/ModuleMenuSeeder.java:153` csa 그룹, FULL_SEQ `1020230`, 이름 「쿼리 정의 관리」) |
 | 버튼 action | `search`, `save`, `delete` | `btn_search`·`btn_new`·`btn_save`·`btn_delete` 의 action 이 `search`, `save`, `save`, `delete` | 기능 §2 | 일치 |
-| 할당 저장 권한 | `saveAssign` | `canDoButton(rbac, "userQueryMng", "saveAssign")` | 기능 §2.2 | 일치(시드는 미확인) |
-| 권한 시드, `allActions` 5토큰 | 스펙 §3 | FE 범위 밖 | BPMN §6 | 미확인(be 대기) |
-| BPMN 파일, 서비스 빈 | `userQueryMng.bpmn`, `userQueryMngService` | 없음 | BPMN §1 | 미확인(be 대기) |
+| 할당 저장 권한 | `saveAssign` | `canDoButton(rbac, "userQueryMng", "saveAssign")` | 기능 §2.2 | 일치(be 대조: 시드 `ModuleMenuSeeder.java:154-159` SYSADMIN × PERM_ALL, `CoreRbacSeeder.java:149` allActions 에 `saveAssign`) |
+| 권한 시드, `allActions` 5토큰 | 스펙 §3 | FE 범위 밖 | BPMN §6 | 일치(be 대조: `CoreRbacSeeder.java:149` 에 `searchAssign`, `saveAssign`, `myList`, `getDef`, `run` 5토큰. `search`, `get`, `save`, `delete`, `previewQuery`, `validate`, `searchUserList`, `searchDepts` 는 기존 토큰, 주석 `CoreRbacSeeder.java:146-149`) |
+| BPMN 파일, 서비스 빈 | `userQueryMng.bpmn`, `userQueryMngService` | 없음 | BPMN §1 | 일치(be 대조: `mcm/api/src/main/resources/services/csa/userQueryMng.bpmn:3` process id `userQueryMng`, serviceTask 10개 모두 `camunda:class="userQueryMngService"`, `UserQueryMngService.java:44` `@Service("userQueryMngService")`, 패키지 `mcm-core/.../mcm/userq`) |
 
 ## 2. 요청·응답 키(api.ts 대 스펙 §4.1)
 
@@ -33,7 +33,7 @@
 | `saveAssign` | `queryId`, `userIdsJson` | `added`, `removed` | 일치 |
 | `searchUserList` | 없음 | `rows`, `truncated` | 일치 |
 | 응답 해제 | `unwrapResult` | `_query/api` 의 `unwrapResult` | 일치 |
-| 서버가 글자 숫자를 읽는지 | `ver`, `maxRowCnt` | 글자 `"3"` 로 싣는다 | 미확인(be 대기) |
+| 서버가 글자 숫자를 읽는지 | `ver`, `maxRowCnt` | 글자 `"3"` 로 싣는다 | 일치(be 대조: DTO `UserQueryMngRequest.java:18,20` 의 `Integer maxRowCnt`, `Long ver` 를 OASIS 가 글자에서 변환한다. `UserQueryBpmnTest.java:179-202` 가 `maxRowCnt="1000"`, `ver="0"` 글자로 save 갱신·delete 를 통과시킨다) |
 | 파일 위치 | `_userq/api.ts`, `_userq/types.ts` | 같은 위치. userq-user 가 같은 내용 사본을 쓰다가 먼저 머지된 쪽이 정본 | 일치 |
 
 ## 3. 화면 요소
@@ -62,7 +62,7 @@
 | 입력 정의 | `QueryParams.parse` 규칙(최대 10개, 이름 형식, 시스템 변수 이름 금지) | `validateParams` 로 화면에서 먼저 검사 | 일치 |
 | 출력 정의 | 서버: 배열·최대 100개·field 1~128·열거값 | 화면은 빈 필드만 검사. 나머지는 서버 | 일치(서버 대기) |
 | SQL | `validateSql` | 화면은 빈 값만 검사 | 일치(서버 대기) |
-| 충돌 문구 | 「다른 사람이 먼저 고쳤습니다. 다시 조회하세요」 | 서버 문구를 그대로 보인다 | 미확인(be 대기) |
+| 충돌 문구 | 「다른 사람이 먼저 고쳤습니다. 다시 조회하세요」 | 서버 문구를 그대로 보인다 | 일치(be 대조: `UserQueryMngService.java:315-317` 문구 「다른 사람이 먼저 고쳤습니다. 다시 조회하세요」, save 갱신 `:182` 와 delete `:202` 에서 던진다) |
 
 ## 5. 스펙과 다른 점(조정자 확인용 목록)
 
@@ -70,7 +70,7 @@
 |---|---|---|
 | 1 | 스펙 §8.3 파일 목록에 없는 파일이 늘었다: `csa/userQueryMng/PreviewGrid.tsx`, `_userq/use-usrq-categories.ts`(분류 LoV 훅), `widget-types/_query/ColumnsEditor.tsx`(추출) | 스펙 §8.3 갱신 필요 |
 | 2 | `ColumnsEditor` 추출로 `widget-types/query-table/editor.tsx` 가 바뀐다(DOM, testId 무변화, widget-types vitest 34파일 1118건 통과) | 머지 요청 「겹칠 수 있는 파일」 |
-| 3 | 담당 부서 팝업(`DeptPicker`)이 `userQueryMng/searchDepts` 를 부른다(조정 결정: be 에 action 추가 요청, 응답 모양은 `commWidgetMng/searchDepts` 와 같다). be 머지 전에는 이 action 이 없어 팝업 조회가 실패한다 | 스펙 §4.1 action 표에 `searchDepts` 추가 필요. be 머지 뒤 대조 |
+| 3 | 담당 부서 팝업(`DeptPicker`)이 `userQueryMng/searchDepts` 를 부른다(조정 결정: be 에 action 추가 요청, 응답 모양은 `commWidgetMng/searchDepts` 와 같다). be 머지 전에는 이 action 이 없어 팝업 조회가 실패한다 | 스펙 §4.1 action 표에 `searchDepts` 추가 필요. be 대조 완료: `UserQueryMngService.java:283-297` 이 `{ depts: [{ deptCd, deptNm, upperDeptCd }] }` 를 돌려주고(코드·이름 앞부분 일치, 최대 `MAX_DEPTS=50`), BPMN `userQueryMng.bpmn` 에 `searchDepts` 분기가 있다 |
 | 4 | `SearchArea` 에 `autoSearch` 를 달아 진입 때 한 번 조회한다. 스펙 무규정(화면 표준 골격 따름) | |
 | 5 | [신규] 는 첫 조회가 끝나기 전에는 비활성이다. 스펙 무규정 | |
 | 6 | 저장 직후 `get` 을 한 번 더 불러 새 `ver` 를 받는다. 이 재조회가 실패해도 저장 응답의 `ver` 로 폼을 연다 | |
@@ -93,7 +93,7 @@
 | 항목 | 결과 |
 |---|---|
 | FE 구현 | 완료. 불일치 없음(S2 반영으로 `runPreview` 임시 차이 해소) |
-| BPMN, 서비스, 시드 | be 머지 뒤 대조 필요(미확인) |
+| BPMN, 서비스, 시드 | be 대조 완료(`75a94dd95`). `tx=txBiz` 표기는 일치(문서 정정: 전역 설정으로 모든 action 이 txBiz 안에서 돈다, BPMN설계서 §4, §6) |
 | 개발 착수 가능 여부 | 이미 구현 완료된 사후 작성 문서다. 착수 판정은 해당 없음. be 대조 대기 |
 
-해소 조건: be 머지 뒤 BPMN설계서 §6 을 대조해 미확인 행을 닫는다.
+해소 조건: be 머지 뒤 BPMN설계서 §6 을 대조해 미확인 행을 닫는다. → 2026-10-10 `75a94dd95` 기준으로 닫았다. be 가 dev 에 머지될 때 커밋이 바뀌면 다시 대조한다.

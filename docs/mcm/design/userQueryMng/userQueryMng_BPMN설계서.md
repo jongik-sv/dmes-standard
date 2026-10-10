@@ -4,7 +4,7 @@
 - 작성 방식: 구현 후 사후 작성(스펙 D1 면제 후속)
 - 스펙: `docs/superpowers/specs/2026-10-10-user-query-program-design.md`
 
-> **be 머지 뒤 대조 필요(미확인).** 이 문서는 스펙 §2, §3, §4.1, §5~§7 에서 썼다. 백엔드 BPMN과 서비스는 이 워크트리에 없다(userq-be 레인). 실제 `userQueryMng.bpmn` 내용은 확인하지 않았고 추측해 적지 않았다.
+> **be 대조 완료(2026-10-10, `feat/userq-be` @ `75a94dd95`, 아직 dev 에 없음).** 이 문서는 스펙 §2, §3, §4.1, §5~§7 에서 썼고, §6 의 대조 항목을 백엔드 코드로 닫았다. 남은 불일치는 없다(`tx=txBiz` 표기는 문서 정정으로 닫았다).
 
 ## 1. 식별
 
@@ -57,12 +57,12 @@
 1. `queryId` 형식 `^[A-Z][A-Z0-9_]{2,39}$` 을 검사한다(신규).
 2. 신규(`ver` 없음)인데 같은 ID 가 있으면 거절한다. 갱신인데 `ver` 가 DB 와 다르면 거절한다(「다른 사람이 먼저 고쳤습니다. 다시 조회하세요」).
 3. SQL 은 `validateSql(sql, 선언 이름)`, 입력 정의는 `QueryParams.parse`, 출력 정의는 스펙 §2.2 로 검사한다.
-4. 저장하고 `{ queryId, ver }` 를 돌려준다. 쓰기 action 이므로 BPMN process 에 `tx=txBiz`.
+4. 저장하고 `{ queryId, ver }` 를 돌려준다. 쓰기 action 이다. 트랜잭션은 전역 설정의 txBiz 안에서 돈다.
 
 ### 3.4 delete
 
 1. `ver` 를 확인한다.
-2. 할당을 먼저 지우고 정의를 지운다. `{ deleted, assignDeleted }`. `tx=txBiz`.
+2. 할당을 먼저 지우고 정의를 지운다. `{ deleted, assignDeleted }`. 전역 설정의 txBiz 안에서 돈다.
 
 ### 3.5 previewQuery, validate
 
@@ -73,12 +73,12 @@
 ### 3.6 searchAssign, saveAssign, searchUserList
 
 1. `searchAssign`: 할당 행에 사용자 표를 외부 조인해 이름·부서를 붙인다. 사용자 표에 없으면 `missingYn='Y'`.
-2. `saveAssign`: `userIdsJson` 을 풀어 최대 2000 을 검사한다. 없는 사용자 ID 는 거절한다. 새 집합과 DB 집합의 차이만 INSERT, DELETE 한다. `tx=txBiz`.
+2. `saveAssign`: `userIdsJson` 을 풀어 최대 2000 을 검사한다. 없는 사용자 ID 는 거절한다. 새 집합과 DB 집합의 차이만 INSERT, DELETE 한다. 전역 설정의 txBiz 안에서 돈다.
 3. `searchUserList`: 사용 중 사용자 최대 5000. 넘으면 `truncated=true`.
 
 ## 4. 트랜잭션
 
-- 쓰기 action(`save`, `delete`, `saveAssign`)만 BPMN process 에 `tx=txBiz` 를 둔다.
+- 모든 action 은 application.yml(oasis.transactional=true, default-manager txBiz) 전역 설정으로 txBiz 안에서 돈다. BPMN 에 tx 속성 없음.
 - `@Service` 에 `@Transactional` 을 붙이지 않는다.
 - 게이트웨이는 sequenceFlow `name` 으로만 가른다.
 
@@ -94,14 +94,16 @@
 
 ## 6. be 머지 뒤 대조 항목
 
-| 항목 | 확인할 것 |
-|---|---|
-| BPMN 파일 경로와 process id | 스펙 경로와 같은지 |
-| action 9종과 output | `output="result"`, 쓰기 3종만 `tx=txBiz` |
-| 숫자 params | `ver`, `maxRowCnt` 가 글자 `"3"` 으로 와도 읽는지(화면이 모든 값을 글자로 싣는다) |
-| 빠진 키 | `categoryCd`, `queryDesc`, `ownerDeptCd`, `paramsJson`, `columnsJson` 이 빠져도 null 로 읽는지 |
-| `allActions` 선언 | `searchAssign`, `saveAssign`, `myList`, `getDef`, `run` 포함 |
-| 권한 시드 | `userQueryMng` OBJECT 가 SYSADMIN × PERM_ALL. 버튼 action(`search`, `save`, `delete`, `saveAssign`)이 모두 허용 |
-| `search` 응답 | `assignCnt`, `ownerDeptNm`, `uAt` 포함 |
-| `get` 응답 | `paramsJson`, `columnsJson` 이 JSON 글자 |
-| `searchDepts` | 담당 부서 팝업이 부른다(조정 2026-10-10, be 에 추가 요청). params `keyword`, result `{ depts: [{ deptCd, deptNm, upperDeptCd }] }` 최대 50건, `commWidgetMng/searchDepts` 와 같은 모양. `allActions` 선언 포함 확인 |
+근거 경로는 `src/backend/` 아래다. BPMN = `mcm/api/src/main/resources/services/csa/userQueryMng.bpmn`, 서비스 = `mcm-core/src/main/java/com/dongkuk/dmes/mcm/userq/service/UserQueryMngService.java`, 시드 = `mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/`.
+
+| 항목 | 확인할 것 | 판정, 근거 |
+|---|---|---|
+| BPMN 파일 경로와 process id | 스펙 경로와 같은지 | 일치. 경로 `services/csa/userQueryMng.bpmn`, process id `userQueryMng`(BPMN:3), 게이트웨이 `input=action`(BPMN:11) |
+| action 10종과 output | `output="result"`, 트랜잭션 | 일치(문서 정정). action 은 10종(9종 + `searchDepts`)이고 sequenceFlow 이름이 `search`, `get`, `save`, `delete`, `previewQuery`, `validate`, `searchAssign`, `saveAssign`, `searchUserList`, `searchDepts`(BPMN:167-185). serviceTask 10개 모두 `output="result"`, dto `UserQueryMngRequest`. 모든 action 은 application.yml(oasis.transactional=true, default-manager txBiz) 전역 설정으로 txBiz 안에서 돈다. BPMN 에 tx 속성 없음(`application.yml:76,128`). 서비스에 `@Transactional` 없음(`UserQueryMngService.java:39`) |
+| 숫자 params | `ver`, `maxRowCnt` 가 글자 `"3"` 으로 와도 읽는지(화면이 모든 값을 글자로 싣는다) | 일치. DTO `Integer maxRowCnt`, `Long ver`(`dto/UserQueryMngRequest.java:18,20`). `UserQueryBpmnTest.java:179-202` 가 글자 `"1000"`, `"2000"`, `"0"`, `"1"` 로 save 신규·갱신·delete 를 BPMN 경로로 통과시킨다 |
+| 빠진 키 | `categoryCd`, `queryDesc`, `ownerDeptCd`, `paramsJson`, `columnsJson` 이 빠져도 null 로 읽는지 | 일치. `save` 가 `optional(...)`, `blankToNull(...)` 로 읽어 null 로 저장한다(전체 교체, `UserQueryMngService.java:165-169`, 주석 `:146-148`). `UserQueryBpmnTest.java:182-188` 가 이 키 없이 save 한다 |
+| `allActions` 선언 | `searchAssign`, `saveAssign`, `myList`, `getDef`, `run` 포함 | 일치. `CoreRbacSeeder.java:149` 에 5토큰 추가(주석 `:146-148`) |
+| 권한 시드 | `userQueryMng` OBJECT 가 SYSADMIN × PERM_ALL. 버튼 action(`search`, `save`, `delete`, `saveAssign`)이 모두 허용 | 일치. `ModuleMenuSeeder.java:151-159` OBJECT `userQueryMng`, 메뉴 leaf FULL_SEQ `1020230`, `TB_MCM_SEC_ROLE_MAPPING` SYSADMIN × PERM_ALL. `search`, `save`, `delete` 는 기존 토큰이고 `saveAssign` 은 위 5토큰에 있어 모두 PERM_ALL 에 포함된다 |
+| `search` 응답 | `assignCnt`, `ownerDeptNm`, `uAt` 포함 | 일치. `UserQueryMngService.java:86-97` 10키(`queryId`, `queryNm`, `categoryCd`, `ownerDeptCd`, `ownerDeptNm`, `useYn`, `maxRowCnt`, `assignCnt`, `uAt`, `uUsrId`), `uAt` 은 ISO 글자(`:420-428`) |
+| `get` 응답 | `paramsJson`, `columnsJson` 이 JSON 글자 | 일치. `UserQueryMngService.java:113-114` 가 저장된 글자를 그대로 `def` 에 담는다. `ver` 포함(`:117`) |
+| `searchDepts` | 담당 부서 팝업이 부른다(조정 2026-10-10, be 에 추가 요청). params `keyword`, result `{ depts: [{ deptCd, deptNm, upperDeptCd }] }` 최대 50건, `commWidgetMng/searchDepts` 와 같은 모양. `allActions` 선언 포함 확인 | 일치. `UserQueryMngService.java:283-297` 가 `keyword` 를 읽고 코드·이름 앞부분 일치로 거르며 최대 `MAX_DEPTS=50`(`:51`), 응답 `{ depts: [{ deptCd, deptNm, upperDeptCd }] }`. BPMN 분기 `searchDepts` 있음. `searchDepts` 토큰은 위젯관리용으로 이미 `allActions` 에 있다(`CoreRbacSeeder.java` 2026-10-02 위젯관리 줄). `UserQueryBpmnTest.java:227-229` 가 BPMN 경로로 호출한다 |

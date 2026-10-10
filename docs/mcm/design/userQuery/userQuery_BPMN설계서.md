@@ -4,7 +4,7 @@
 - 작성 방식: 구현 후 사후 작성(스펙 D1 면제 후속)
 - 스펙: `docs/superpowers/specs/2026-10-10-user-query-program-design.md`
 
-> **be 머지 뒤 대조 필요(미확인).** 이 문서는 스펙 §4.2, §5~§7 에서 썼다. 백엔드 BPMN과 서비스는 이 워크트리에 없다(userq-be 레인). 실제 `userQuery.bpmn` 내용은 확인하지 않았고 추측해 적지 않았다.
+> **be 대조 완료(2026-10-10, `feat/userq-be` @ `75a94dd95`, 아직 dev 에 없음).** 이 문서는 스펙 §4.2, §5~§7 에서 썼고, §8 의 대조 항목을 백엔드 코드로 닫았다. 남은 불일치는 없다(`run` 의 순서는 문서 정정으로 닫았다).
 
 ## 1. 식별
 
@@ -46,8 +46,8 @@
 ### 3.3 run
 
 1. userId 를 얻는다.
-2. 접근 확인(§4)을 한다. 실패하면 거절한다.
-3. 호출 빈도를 확인한다(`WidgetUserQuota`). 넘으면 거절한다.
+2. 호출 빈도를 확인한다(`WidgetUserQuota`, 20회/분). 넘으면 거절한다. 쿼터는 접근 확인보다 먼저 소모된다(미할당·없는 ID 호출도 센다). 존재 여부는 새지 않는다.
+3. 접근 확인(§4)을 한다(존재, 사용, 할당). 실패하면 거절한다.
 4. `paramsJson` 을 값 Map 으로 푼다.
 5. `WidgetQueryRunner.run(sql, paramDefsJson, values, maxRows)` 를 부른다. SQL 은 DB 의 `SQL_TEXT` 만 쓴다.
 6. 결과에 `maxRowCnt` 를 더해 돌려준다.
@@ -93,11 +93,13 @@
 
 ## 8. be 머지 뒤 대조 항목
 
-| 항목 | 확인할 것 |
-|---|---|
-| BPMN 파일 경로와 process id | 스펙 경로와 같은지 |
-| action 3종과 output | `output="result"` |
-| 서비스 메서드 | 접근 확인 순서, 문구 동일 |
-| `allActions` 선언 | `myList`, `getDef`, `run` 포함 |
-| `PERM_USRQ_USE` 시드 | actions `myList,getDef,run` |
-| 응답 키 | 위 계약과 일치, `getDef` 에 SQL 없음 |
+근거 경로는 `src/backend/` 아래다. BPMN = `mcm/api/src/main/resources/services/cmq/userQuery.bpmn`, 서비스 = `mcm-core/src/main/java/com/dongkuk/dmes/mcm/userq/service/UserQueryService.java`, 시드 = `mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/`.
+
+| 항목 | 확인할 것 | 판정, 근거 |
+|---|---|---|
+| BPMN 파일 경로와 process id | 스펙 경로와 같은지 | 일치. 경로 `services/cmq/userQuery.bpmn`, process id `userQuery`(BPMN:3), 게이트웨이 `input=action`(BPMN:11), process 에 `tx` 속성 없음(§7 과 같다) |
+| action 3종과 output | `output="result"` | 일치. sequenceFlow 이름 `myList`, `getDef`, `run`(BPMN:62-66), serviceTask 3개 모두 `camunda:class="userQueryService"`, `output="result"`, dto `UserQueryRequest` |
+| 서비스 메서드 | 접근 확인 순서, 문구 동일 | 일치(문서 정정: §3.3 을 호출 빈도 → 접근 확인으로 고쳤다). `assignedDef`(`UserQueryService.java:140-148`)가 정의 없음, `USE_YN`, 할당 행을 한 문구 「쿼리를 찾을 수 없습니다」(`:150-152`)로 거절하고 `getDef`, `run` 마다 DB 에서 확인한다. 사용자 ID 는 `userResolver.current()` 에서만 얻고(`:133-135`) DTO 에 사용자·SQL 칸이 없다(`dto/UserQueryRequest.java:9-10`). **`run` 은 호출 빈도 확인(`:109-111`)을 접근 확인(`:112`)보다 먼저 한다.** (고친 §3.3 과 같은 순서다.) 미할당·없는 ID 호출도 사용자 쿼터 20회를 쓰고, 한도 초과 사용자는 쿼리 존재와 무관하게 「잠시 후 다시 조회하세요」를 받는다. 존재 여부가 새지는 않는다. |
+| `allActions` 선언 | `myList`, `getDef`, `run` 포함 | 일치. `CoreRbacSeeder.java:149` |
+| `PERM_USRQ_USE` 시드 | actions `myList,getDef,run` | 일치. `CoreRbacSeeder.java:172-181` `PERMISSION_COMMON`, `PERMISSION_ACTION` 모두 `myList,getDef,run`, insert-if-absent. 메뉴는 `ModuleMenuSeeder.java:149` 폴더 `cmq`(「공용 조회」), `:161-163` leaf 「공용 쿼리 조회」(FULL_SEQ 1070100), SYSADMIN × PERM_ALL 만 시드(일반 역할 매핑은 운영자 몫) |
+| 응답 키 | 위 계약과 일치, `getDef` 에 SQL 없음 | 일치. `myList` 4키(`UserQueryService.java:76-82`), `getDef` 7키(`:93-99`, SQL 없음. `UserQueryBpmnTest.java:148` 가 `sqlText` 부재 단언), `run` 4키(`:124-127`). `params[]` 는 `{name,label,type(소문자),default,required,options[{value,label}]}`(`:172-192`, `UserQueryBpmnTest.java:149-154` 단언) |
