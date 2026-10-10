@@ -8,46 +8,104 @@ import com.dongkuk.dmes.mdm.dma.erdEdit.service.ErdCommandService;
 import jakarta.annotation.PreDestroy;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
  * 모델별 실시간 구독자 묶음(스펙 4.4·D16·D17). 서버 1대 가정(스펙 5절) — 구독·접속자는 메모리에, 작업 중 표시는 표에 둔다.
  * 델타는 rev 순서로 빠짐없이 보낸다: 구독 등록 → 재생 → 쌓인 실시간 델타, 그리고 중간이 빈 델타가 오면 명령 기록에서 채운다.
+ *
+ * <p>스레드와 연결(deferred 27):
+ * <ul>
+ *   <li>요청 스레드(커밋 뒤 발행·접속자·작업 중 표시)는 구독자별 상한 큐에 넣기만 한다. DB 를 읽거나 소켓에 쓰지 않는다.</li>
+ *   <li>소켓 쓰기는 보내기 스레드({@code erd-sse-send})만 한다. 구독자 하나는 한 번에 한 스레드만 비운다. 스레드는 {@value #SEND_CORE}개에서
+ *       {@value #SEND_MAX}개까지 늘어나므로 쓰기에 막힌 구독자 몇이 다른 구독자의 전달을 막지 않는다. 한 번의 쓰기가
+ *       {@link #sendDeadlineMs}(기본 {@value #SEND_DEADLINE_MS}ms)를 넘으면 감시({@code erd-sse-ping})가 그 구독을 끊고 스레드를 깨운다.</li>
+ *   <li>허브의 DB 읽기(재생·빈 칸 채우기·작업 중 표시 다시 읽기)는 {@value #DB_READERS}개만 동시에 한다 — Hikari 풀(로컬 3, 시험 2)보다 작게.
+ *       어느 것도 구독자 잠금을 쥔 채 읽지 않는다. 재생·작업 중 표시 읽기는 읽기 스레드({@code erd-sse-read})가 하고 소켓에는 쓰지 않는다.</li>
+ *   <li>큐가 넘치면(구독자가 {@value #QUEUE_CAP}건을 못 따라옴) 쌓인 이벤트를 버리고 {@code reload{rev}} 하나를 보낸 뒤 스트림을 닫는다.
+ *       화면은 모델을 다시 읽고 sinceRev 로 다시 붙는다.</li>
+ * </ul>
  */
 @Component
 public class ErdEventHub {
 
     private static final Logger log = LoggerFactory.getLogger(ErdEventHub.class);
     static final long PING_MS = 15_000;
-    /** 재생 스레드 수. 재생마다 풀 연결 하나를 잠깐 쓰므로 Hikari 풀(로컬 3)보다 작게 고정한다. */
-    static final int REPLAY_THREADS = 2;
+    /** 읽기 스레드 수(재생·작업 중 표시 다시 읽기). 실제 DB 읽기 수는 {@link #DB_READERS} 가 묶는다. */
+    static final int READ_THREADS = 2;
+    /** 허브가 동시에 쓰는 풀 연결 수의 상한. 저장 요청이 연결을 쥐고 모델 행 잠금을 기다릴 때도 풀을 다 가져가지 않게 1. */
+    static final int DB_READERS = 1;
+    /** 보내기 스레드 기본 수와 상한. 상한을 넘으면 그 구독은 다음 넣기·ping 때 다시 예약한다. */
+    static final int SEND_CORE = 4;
+    static final int SEND_MAX = 32;
+    /** 한 번의 소켓 쓰기 상한. 넘으면 읽지 않는 구독자(잠든 노트북, 프록시 역압)로 보고 끊는다. */
+    static final long SEND_DEADLINE_MS = 10_000;
+    /** 구독자별 큐 상한. 넘치면 reload 뒤 스트림을 닫는다. ping(15초)만 쌓여도 약 1시간 뒤에는 닫힌다. */
+    static final int QUEUE_CAP = 256;
 
-    /** 구독 하나. 이 객체로 동기화한다 — SseEmitter 는 동시 send 를 허용하지 않는다. */
+    /** 큐 항목. delta 가 있으면 change(빈 칸 채우기·표시 행 포함), 없으면 이름 붙은 이벤트 하나. */
+    private record Out(String name, Object body, ErdDelta delta) {
+        static Out of(ErdDelta d) {
+            return new Out(null, null, d);
+        }
+
+        static Out event(String name, Object body) {
+            return new Out(name, body, null);
+        }
+    }
+
+    /**
+     * 구독 하나. 보내기는 이 객체로 동기화한다 — SseEmitter 는 동시 send 를 허용하지 않는다. 요청 스레드는 이 잠금을 잡지 않고
+     * {@link #queue} 에 넣기만 한다. 재생 중에는 큐를 비우지 않는다(재생 읽기가 끝나면 비우기 스레드가 재생분부터 보낸다).
+     */
     static final class Sub {
         final String modelId;
         final String session;
         final SseEmitter emitter;
         long lastRev = -1;
-        boolean replaying = true;
-        final List<ErdDelta> pending = new ArrayList<>();
+        volatile boolean replaying = true;
         volatile boolean dropped;
+        /** 재생 읽기 결과. 비우기 스레드가 큐보다 먼저 보낸다. */
+        volatile ErdChangesView replay;
+        long replaySince;
+        final BlockingQueue<Out> queue = new ArrayBlockingQueue<>(QUEUE_CAP);
+        /** 보내기 스레드가 이 구독을 비우는 중인가(한 번에 하나). */
+        final AtomicBoolean draining = new AtomicBoolean();
+        /** 큐가 넘쳤다 — 다음 비우기에서 reload 뒤 닫는다. */
+        volatile boolean overflowed;
+        /** 큐에 넣은 델타의 가장 큰 rev(넘침 때 reload 의 rev). */
+        final AtomicLong maxRev = new AtomicLong(-1);
+        /** 진행 중인 소켓 쓰기의 시작 시각(nanoTime, 0 = 쓰지 않는 중)과 그 스레드 — 감시가 본다. */
+        volatile long sendingSince;
+        volatile Thread sendingThread;
 
         Sub(String modelId, String session, SseEmitter emitter) {
             this.modelId = modelId;
@@ -56,44 +114,72 @@ public class ErdEventHub {
         }
     }
 
+    /** 모델별 작업 중 표시 다시 읽기. 한 모델은 한 번에 하나만 돌고, 도는 동안 들어온 요청은 끝난 뒤 한 번 더 읽는다(순서 보장). */
+    private static final class ClaimRefresh {
+        final AtomicBoolean dirty = new AtomicBoolean();
+        final AtomicBoolean running = new AtomicBoolean();
+    }
+
     private final Map<String, List<Consumer<ErdDelta>>> listeners = new ConcurrentHashMap<>();
     private final Map<String, List<Sub>> subs = new ConcurrentHashMap<>();
     /** 키: modelId + "\u0000" + session. */
     private final Map<String, ErdPresence> presence = new ConcurrentHashMap<>();
+    private final Map<String, ClaimRefresh> claimRefresh = new ConcurrentHashMap<>();
     private final ObjectProvider<ErdCommandService> commandsProvider;
     private final JdbcTemplate jdbc;
     private final ScheduledExecutorService pinger;
-    /** 구독 시작 때의 재생(명령 기록 읽기)을 맡는다. 요청 스레드와 분리 — subscribe 주석 참고. */
-    private final ExecutorService replayer;
+    /** 재생 읽기와 작업 중 표시 다시 읽기. 소켓에는 쓰지 않는다. */
+    private final ExecutorService reader;
+    /** 구독자별 큐를 비우는 보내기 스레드. 소켓 쓰기는 여기서만 한다. */
+    private final ThreadPoolExecutor sender;
+    private final Semaphore dbReads = new Semaphore(DB_READERS, true);
+    /** 소켓 쓰기 상한(ms). 시험이 줄인다. */
+    volatile long sendDeadlineMs = SEND_DEADLINE_MS;
 
     /** ErdCommandService 는 이 허브를 받으므로 ObjectProvider 로 늦게 꺼낸다(순환 의존 회피). */
     public ErdEventHub(ObjectProvider<ErdCommandService> commandsProvider, JdbcTemplate jdbc) {
         this.commandsProvider = commandsProvider;
         this.jdbc = jdbc;
-        // MDM 앱에는 @EnableScheduling 이 없다 — 허브가 스레드 하나를 직접 둔다.
-        this.pinger = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "erd-sse-ping");
-            t.setDaemon(true);
-            return t;
-        });
+        // MDM 앱에는 @EnableScheduling 이 없다 — 허브가 스레드 하나를 직접 둔다(ping·막힌 쓰기 감시·해제).
+        this.pinger = Executors.newSingleThreadScheduledExecutor(daemon("erd-sse-ping"));
         pinger.scheduleAtFixedRate(this::pingAll, PING_MS, PING_MS, TimeUnit.MILLISECONDS);
-        this.replayer = Executors.newFixedThreadPool(REPLAY_THREADS, r -> {
-            Thread t = new Thread(r, "erd-sse-replay");
+        pinger.scheduleAtFixedRate(this::dropStuckSenders, 1, 1, TimeUnit.SECONDS);
+        this.reader = Executors.newFixedThreadPool(READ_THREADS, daemon("erd-sse-read"));
+        this.sender = new ThreadPoolExecutor(SEND_CORE, SEND_MAX, 60, TimeUnit.SECONDS, new SynchronousQueue<>(), daemon("erd-sse-send"));
+    }
+
+    private static ThreadFactory daemon(String name) {
+        return r -> {
+            Thread t = new Thread(r, name);
             t.setDaemon(true);
             return t;
-        });
+        };
     }
 
     @PreDestroy
     void close() {
         pinger.shutdownNow();
-        replayer.shutdownNow();
+        reader.shutdownNow();
+        sender.shutdownNow();
         subs.values().forEach(list -> list.forEach(s -> s.emitter.complete()));
+    }
+
+    /** 허브의 DB 읽기. 동시에 {@value #DB_READERS}개만 — 구독자 잠금을 쥐고 부르지 않는다. */
+    private <T> T dbRead(Supplier<T> read) {
+        dbReads.acquireUninterruptibly();
+        try {
+            return read.get();
+        } finally {
+            dbReads.release();
+        }
     }
 
     // ── 델타 ──────────────────────────────────────────────────────────
 
-    /** 커밋 뒤에 불린다. 구독자 하나의 실패가 다른 구독자와 이미 커밋된 명령 처리에 번지지 않도록 구독자별로 예외를 삼킨다. */
+    /**
+     * 커밋 뒤에 불린다(OASIS 커밋 안의 afterCommit — 요청 스레드가 아직 연결을 쥐고 있다). 그래서 DB 를 읽거나 소켓에 쓰지 않고
+     * 구독자별 큐에 넣기만 한다. 빈 칸 채우기(명령 기록 읽기)와 보내기는 보내기 스레드가 한다.
+     */
     public void publish(ErdDelta delta) {
         for (Consumer<ErdDelta> l : listeners.getOrDefault(delta.modelId(), List.of())) {
             try {
@@ -102,20 +188,7 @@ public class ErdEventHub {
                 log.warn("ERD 델타 구독자 처리 실패 model={} rev={}", delta.modelId(), delta.rev(), e);
             }
         }
-        for (Sub s : subs.getOrDefault(delta.modelId(), List.of())) {
-            try {
-                synchronized (s) {
-                    if (s.replaying) s.pending.add(delta);
-                    else deliver(s, delta);
-                }
-            } catch (RuntimeException e) {
-                // 보내기(IO) 오류는 send 가 이미 처리했다. 여기는 그 밖의 실패(직렬화 등) — 멈춘 채 남지 않게 끊는다.
-                log.warn("ERD SSE 델타 전달 실패 model={} session={} rev={} — 구독 해제", delta.modelId(), s.session, delta.rev(), e);
-                s.dropped = true;
-                s.emitter.completeWithError(e);
-                pinger.execute(() -> drop(s));
-            }
-        }
+        for (Sub s : subs.getOrDefault(delta.modelId(), List.of())) enqueue(s, Out.of(delta));
     }
 
     /** 시험·내부 구독. 돌려준 Runnable 로 해지한다. */
@@ -138,20 +211,34 @@ public class ErdEventHub {
         // 0. 새 구독이면 등록 전에 hello 를 보낸다 — 등록 전이라 다른 스레드(presence·claim·델타)가 이 구독에 먼저 보낼 수 없다.
         //    hello 의 rev 는 등록 전에 읽었으므로, 그 뒤에 커밋된 델타는 아래 재생(helloRev 부터)이 채운다.
         if (sinceRev < 0 && !send(sub, "hello", Map.of("rev", helloRev))) return emitter;
-        subs.computeIfAbsent(modelId, k -> new CopyOnWriteArrayList<>()).add(sub); // 1. 먼저 등록(실시간 델타는 pending 에 쌓인다)
+        subs.computeIfAbsent(modelId, k -> new CopyOnWriteArrayList<>()).add(sub); // 1. 먼저 등록(실시간 델타는 큐에 쌓인다)
         Runnable drop = () -> drop(sub);
         emitter.onCompletion(drop);
         emitter.onTimeout(drop);
         emitter.onError(e -> drop.run());
         presence.put(key(modelId, session), new ErdPresence(session, userId, source, null, List.of(), Instant.now().toString()));
-        // 2·3. 재생(현재 rev 읽기 포함)은 등록 뒤 별도 스레드에서 한다. 그 사이의 실시간 델타는 pending 에 쌓이고, 재생이 끝나면 lastRev 보다 큰 것만 보낸다.
-        replayer.execute(() -> replay(sub, sinceRev >= 0 ? sinceRev : helloRev));
+        // 2·3. 재생 읽기(현재 rev 포함)는 등록 뒤 읽기 스레드에서 한다. 그 사이의 실시간 델타는 큐에 쌓이고, 보내기 스레드가 재생분을
+        //      먼저 보낸 뒤 lastRev 보다 큰 것만 보낸다.
+        reader.execute(() -> replay(sub, sinceRev >= 0 ? sinceRev : helloRev));
         broadcastPresence(modelId);
-        send(sub, "claim", claims(modelId));
+        refreshClaims(modelId); // 작업 중 표시 목록도 모델별 순서대로(모든 구독자에게 최신 목록)
         return emitter;
     }
 
-    /** 시험용: 재생 스레드가 명령 기록을 읽은 뒤, 잠금을 잡기 전에 부른다. 이 사이에 낀 델타가 빠지거나 겹치지 않는지 확인하는 데 쓴다. */
+    /** 시험용: 재생 없이 lastRev 부터 받는 구독을 붙인다(DB 없이 보내기 큐만 시험할 때). */
+    void attachForTest(String modelId, String session, SseEmitter emitter, long lastRev) {
+        Sub sub = new Sub(modelId, session, emitter);
+        sub.lastRev = lastRev;
+        sub.replaying = false;
+        subs.computeIfAbsent(modelId, k -> new CopyOnWriteArrayList<>()).add(sub);
+    }
+
+    /** 시험용: 모델의 구독 수. */
+    int subscriberCount(String modelId) {
+        return subs.getOrDefault(modelId, List.of()).size();
+    }
+
+    /** 시험용: 재생 스레드가 명령 기록을 읽은 뒤, 보내기 전에 부른다. 이 사이에 낀 델타가 빠지거나 겹치지 않는지 확인하는 데 쓴다. */
     private volatile Runnable replayPauseForTest;
 
     public void setReplayPauseForTest(Runnable pause) {
@@ -159,34 +246,39 @@ public class ErdEventHub {
     }
 
     /**
-     * DB 읽기는 모두 sub 잠금 밖에서 한다(R11-1). 잠금 안에서 연결을 기다리면, 연결을 쥔 채 afterCommit 에서 같은 잠금을 기다리는
-     * 발행 스레드와 서로 막혀 풀이 마른다. 구독은 이미 등록되어 있으므로, 읽는 동안 커밋된 델타는 pending 에 쌓였다가 lastRev 보다 큰 것만 나간다.
+     * 재생 읽기(읽기 스레드). 읽은 결과를 구독에 걸어 두고 비우기를 예약한다 — 보내기는 보내기 스레드가 큐보다 먼저 한다.
+     * 구독은 이미 등록되어 있으므로, 읽는 동안 커밋된 델타는 큐에 쌓였다가 lastRev 보다 큰 것만 나간다.
      */
     private void replay(Sub sub, long sinceRev) {
         try {
-            ErdChangesView snapshot = commandsProvider.getObject().changesSince(sub.modelId, sinceRev);
+            ErdChangesView snapshot = dbRead(() -> commandsProvider.getObject().changesSince(sub.modelId, sinceRev));
             Runnable pause = replayPauseForTest;
             if (pause != null) pause.run();
             synchronized (sub) {
-                if (snapshot.reload()) {
-                    if (send(sub, "reload", Map.of("rev", snapshot.rev()))) sub.lastRev = snapshot.rev();
-                } else {
-                    sub.lastRev = Math.max(sub.lastRev, sinceRev);
-                    for (ErdDelta d : snapshot.deltas()) {
-                        if (d.rev() <= sub.lastRev) continue;
-                        if (!send(sub, "change", d)) break;
-                        sub.lastRev = d.rev();
-                    }
-                }
+                sub.replaySince = sinceRev;
+                sub.replay = snapshot;
                 sub.replaying = false;
-                sub.pending.sort(Comparator.comparingLong(ErdDelta::rev));
-                for (ErdDelta d : sub.pending) deliver(sub, d);
-                sub.pending.clear();
             }
+            schedule(sub);
         } catch (RuntimeException e) {
             log.warn("ERD SSE 재생 실패 model={} session={} — 구독 해제", sub.modelId, sub.session, e);
             sub.dropped = true;
-            sub.emitter.completeWithError(e);
+            pinger.execute(() -> drop(sub));
+            completeLater(sub, e);
+        }
+    }
+
+    /** 재생분 보내기. 호출자(보내기 스레드)가 sub 를 잡고 있다. */
+    private void sendReplay(Sub s, ErdChangesView snapshot, long sinceRev) {
+        if (snapshot.reload()) {
+            if (send(s, "reload", Map.of("rev", snapshot.rev()))) s.lastRev = snapshot.rev();
+            return;
+        }
+        s.lastRev = Math.max(s.lastRev, sinceRev);
+        for (ErdDelta d : snapshot.deltas()) {
+            if (d.rev() <= s.lastRev) continue;
+            if (!send(s, "change", d)) return;
+            s.lastRev = d.rev();
         }
     }
 
@@ -197,7 +289,7 @@ public class ErdEventHub {
     }
 
     /**
-     * rev 순서로 하나씩 보낸다. 중간이 비면(다른 트랜잭션의 afterCommit 이 늦게 온 경우) 명령 기록에서 채운다. 호출자가 sub 를 잡고 있다.
+     * 델타 하나를 보낸다(빈 칸은 호출자가 먼저 채웠다). 호출자(보내기 스레드)가 sub 를 잡고 있다.
      * 표시 델타(DRAFT 삭제·새 DRAFT)는 change 대신 {@code reload{rev}} 로 보낸다 — 화면이 모델을 다시 읽으므로 그 앞의 빈 칸은 채우지 않는다.
      */
     private void deliver(Sub s, ErdDelta d) {
@@ -206,26 +298,12 @@ public class ErdEventHub {
             if (send(s, "reload", Map.of("rev", d.rev()))) s.lastRev = d.rev();
             return;
         }
-        if (d.rev() > s.lastRev + 1) {
-            catchUp(s, s.lastRev);
-            if (d.rev() <= s.lastRev) return;
-        }
         if (send(s, "change", d)) s.lastRev = d.rev();
     }
 
-    /** 명령 기록에서 sinceRev 뒤를 읽어 보낸다. 500건을 넘으면 reload 만 보내고 lastRev 를 현재 rev 로 맞춘다. */
-    private void catchUp(Sub s, long sinceRev) {
-        ErdChangesView v = commandsProvider.getObject().changesSince(s.modelId, sinceRev);
-        if (v.reload()) {
-            if (send(s, "reload", Map.of("rev", v.rev()))) s.lastRev = v.rev();
-            return;
-        }
-        s.lastRev = Math.max(s.lastRev, sinceRev);
-        for (ErdDelta d : v.deltas()) {
-            if (d.rev() <= s.lastRev) continue;
-            if (!send(s, "change", d)) return;
-            s.lastRev = d.rev();
-        }
+    /** 빈 칸 채우기가 필요한가 — 다른 트랜잭션의 afterCommit 이 늦게 와서 앞 rev 가 아직 큐에 없다. 표시 델타는 채우지 않는다. */
+    private static boolean needsCatchUp(Sub s, ErdDelta d) {
+        return d.rev() > s.lastRev + 1 && !ErdDelta.isMarker(d);
     }
 
     // ── 접속자 ────────────────────────────────────────────────────────
@@ -248,10 +326,10 @@ public class ErdEventHub {
 
     private void broadcastPresence(String modelId) {
         List<ErdPresence> list = presence(modelId);
-        for (Sub s : subs.getOrDefault(modelId, List.of())) send(s, "presence", list);
+        for (Sub s : subs.getOrDefault(modelId, List.of())) enqueue(s, Out.event("presence", list));
     }
 
-    /** 구독 해제. 여러 번 불려도 한 번만 처리한다(onCompletion·onError·보내기 실패가 겹친다). */
+    /** 구독 해제. 여러 번 불려도 한 번만 처리한다(onCompletion·onError·보내기 실패·감시가 겹친다). */
     private void drop(Sub sub) {
         sub.dropped = true;
         List<Sub> list = subs.getOrDefault(sub.modelId, List.of());
@@ -265,7 +343,10 @@ public class ErdEventHub {
 
     // ── 작업 중 표시(TB_MDM_ERD_CLAIM) ──────────────────────────────────
 
-    /** 표 하나를 작업 중으로 표시한다. 다른 세션이 아직 만료되지 않은 표시를 갖고 있으면 빼앗지 않고 false. */
+    /**
+     * 표 하나를 작업 중으로 표시한다. 다른 세션이 아직 만료되지 않은 표시를 갖고 있으면 빼앗지 않고 false.
+     * 호출자 트랜잭션(OASIS)이 있으면 그 연결로 쓰고, 방송은 커밋 뒤에 한다({@link #afterCommit}).
+     */
     public boolean claim(String modelId, String tableId, String session, String userId, long ttlSeconds) {
         Timestamp now = Timestamp.from(Instant.now());
         Timestamp until = Timestamp.from(Instant.now().plusSeconds(ttlSeconds));
@@ -295,14 +376,59 @@ public class ErdEventHub {
         } catch (DuplicateKeyException e) {
             return false; // 같은 표를 다른 세션이 동시에 처음 표시했다 — 먼저 들어간 쪽이 이긴다
         }
-        if (n > 0) broadcastClaims(modelId);
+        if (n > 0) afterCommit(() -> refreshClaims(modelId));
         return n > 0;
     }
 
+    /** 작업 중 표시를 지운다. 쓰기·방송 시점은 {@link #claim} 과 같다. */
     public void release(String modelId, String tableId, String session) {
         int n = jdbc.update("DELETE FROM TB_MDM_ERD_CLAIM WHERE ERD_MODEL_ID = ? AND TABLE_UUID = ? AND SESSION_NM = ?",
                 modelId, tableId, session);
-        if (n > 0) broadcastClaims(modelId);
+        if (n > 0) afterCommit(() -> refreshClaims(modelId));
+    }
+
+    /** 트랜잭션 안이면 커밋 뒤에, 밖이면(자동 커밋) 바로 돈다. 롤백되면 돌지 않는다. */
+    private static void afterCommit(Runnable r) {
+        if (TransactionSynchronizationManager.isSynchronizationActive() && TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    r.run();
+                }
+            });
+        } else {
+            r.run();
+        }
+    }
+
+    /**
+     * 작업 중 표시 목록을 다시 읽어 방송하도록 예약한다(막지 않는다). 읽기 스레드에서 모델마다 하나씩 돈다 — 돌고 있으면 끝난 뒤 한 번 더
+     * 읽으므로 CLAIM·RELEASE 가 잇달아 커밋돼도 마지막으로 나가는 목록은 마지막 커밋 뒤의 것이다. 구독자가 없으면 읽지 않는다.
+     */
+    private void refreshClaims(String modelId) {
+        ClaimRefresh r = claimRefresh.computeIfAbsent(modelId, k -> new ClaimRefresh());
+        r.dirty.set(true);
+        if (!r.running.compareAndSet(false, true)) return;
+        try {
+            reader.execute(() -> runClaimRefresh(modelId, r));
+        } catch (RejectedExecutionException e) {
+            r.running.set(false); // 종료 중
+        }
+    }
+
+    private void runClaimRefresh(String modelId, ClaimRefresh r) {
+        try {
+            while (r.dirty.getAndSet(false)) {
+                if (subs.getOrDefault(modelId, List.of()).isEmpty()) continue;
+                List<ErdClaimView> list = dbRead(() -> claims(modelId));
+                for (Sub s : subs.getOrDefault(modelId, List.of())) enqueue(s, Out.event("claim", list));
+            }
+        } catch (RuntimeException e) {
+            log.warn("ERD 작업 중 표시 방송 실패 model={}", modelId, e);
+        } finally {
+            r.running.set(false);
+            if (r.dirty.get()) refreshClaims(modelId); // 끝내는 사이에 들어온 요청
+        }
     }
 
     /** 만료가 지나지 않은 표시만. 시각 비교는 애플리케이션 시각으로 한다(쓰기와 같은 시계). */
@@ -320,27 +446,140 @@ public class ErdEventHub {
                 modelId, Timestamp.from(Instant.now()));
     }
 
-    private void broadcastClaims(String modelId) {
-        List<ErdClaimView> list = claims(modelId);
-        for (Sub s : subs.getOrDefault(modelId, List.of())) send(s, "claim", list);
-    }
-
     // ── 보내기 ────────────────────────────────────────────────────────
 
     private void pingAll() {
         Map<String, Object> body = Map.of("at", Instant.now().toString());
+        subs.values().forEach(list -> list.forEach(s -> enqueue(s, Out.event("ping", body))));
+    }
+
+    /**
+     * 감시(1초마다): 소켓 쓰기 하나가 상한을 넘은 구독을 끊는다. 쓰던 스레드를 깨우고(interrupt), 구독 목록·접속자에서 빼고,
+     * 스트림 닫기는 따로 띄운 스레드에서 한다 — 닫기도 막힌 쓰기와 같은 잠금을 기다릴 수 있어 이 스레드가 멈추면 안 된다.
+     */
+    private void dropStuckSenders() {
+        long now = System.nanoTime();
+        long limit = TimeUnit.MILLISECONDS.toNanos(sendDeadlineMs);
         subs.values().forEach(list -> list.forEach(s -> {
-            try {
-                send(s, "ping", body);
-            } catch (RuntimeException e) { // 한 구독자의 오류가 주기 작업 전체를 멈추지 않게 한다
-                log.warn("ERD SSE ping 실패 model={} session={}", s.modelId, s.session, e);
-            }
+            long since = s.sendingSince;
+            if (since == 0 || now - since <= limit || s.dropped) return;
+            log.warn("[erd-sse] {} {} 쓰기가 {}ms 를 넘었다 — 읽지 않는 구독자로 보고 끊는다", s.modelId, s.session, sendDeadlineMs);
+            s.dropped = true;
+            Thread t = s.sendingThread;
+            if (t != null && s.sendingSince == since) t.interrupt(); // 그 쓰기가 아직 진행 중일 때만 깨운다
+            drop(s);
+            completeLater(s, new java.io.IOException("ERD SSE 쓰기 시간 초과"));
         }));
+    }
+
+    /** 막지 않고 스트림을 닫는다(닫기가 진행 중인 쓰기의 잠금을 기다릴 수 있다). */
+    private static void completeLater(Sub s, Throwable cause) {
+        Thread t = new Thread(() -> {
+            try {
+                s.emitter.completeWithError(cause);
+            } catch (RuntimeException ignored) {
+                // 이미 닫혔다
+            }
+        }, "erd-sse-close");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /**
+     * 큐에 넣고 비우기를 예약한다. 막지 않는다 — 요청 스레드가 부른다. 넘치면 쌓인 것을 버리고 넘침 표시만 남긴다
+     * (다음 비우기가 reload 뒤 닫는다). 큐가 다 차 있는 동안 들어온 델타도 reload 가 덮는다.
+     */
+    private void enqueue(Sub s, Out o) {
+        if (s.dropped) return;
+        if (o.delta() != null) s.maxRev.accumulateAndGet(o.delta().rev(), Math::max);
+        if (!s.queue.offer(o)) {
+            if (!s.overflowed) log.info("[erd-sse] {} {} 큐 넘침({}건) — reload 뒤 닫는다", s.modelId, s.session, QUEUE_CAP);
+            s.overflowed = true;
+            s.queue.clear();
+        }
+        schedule(s);
+    }
+
+    /** 이 구독을 비우는 보내기 스레드가 없으면 하나 띄운다. 재생 읽기 중이면 읽기가 끝날 때 띄운다. 스레드가 상한이면 다음 넣기·ping 때. */
+    private void schedule(Sub s) {
+        if (s.replaying || s.dropped || !s.draining.compareAndSet(false, true)) return;
+        try {
+            sender.execute(() -> drain(s));
+        } catch (RejectedExecutionException e) {
+            s.draining.set(false); // 종료 중이거나 보내기 스레드가 모두 막혔다
+        }
+    }
+
+    /**
+     * 보내기 스레드: 재생분, 그다음 큐를 하나씩 보낸다. 항목마다 sub 를 잡는다. 빈 칸 채우기(명령 기록 읽기)는 sub 잠금 밖에서 하고,
+     * 읽은 뒤 다시 잡아 보낸다 — 저장들이 연결을 쥐고 있어 읽기가 늦어도 다른 스레드(감시·재생)가 이 구독에서 막히지 않는다.
+     */
+    private void drain(Sub s) {
+        Thread.interrupted(); // 앞서 끊긴 구독의 감시 interrupt 가 남아 있으면 지운다
+        try {
+            while (!s.dropped) {
+                long gapFrom;
+                synchronized (s) {
+                    if (s.replaying) return;
+                    ErdChangesView replay = s.replay;
+                    if (replay != null) {
+                        s.replay = null;
+                        sendReplay(s, replay, s.replaySince);
+                        continue;
+                    }
+                    if (s.overflowed) {
+                        closeWithReload(s);
+                        return;
+                    }
+                    Out o = s.queue.peek();
+                    if (o == null) return;
+                    if (o.delta() == null || !needsCatchUp(s, o.delta())) {
+                        s.queue.poll();
+                        if (o.delta() != null) deliver(s, o.delta());
+                        else send(s, o.name(), o.body());
+                        continue;
+                    }
+                    gapFrom = s.lastRev;
+                }
+                ErdChangesView v = dbRead(() -> commandsProvider.getObject().changesSince(s.modelId, gapFrom));
+                synchronized (s) {
+                    if (s.overflowed || s.dropped) continue; // 읽는 사이에 넘쳤다 — 다음 바퀴가 reload 뒤 닫는다
+                    if (s.lastRev == gapFrom) sendReplay(s, v, gapFrom); // 사이에 다른 경로가 lastRev 를 옮기지 않았을 때만
+                    // 채운 뒤에도 빈 칸이 남으면(기록이 아직 그 rev 를 모름) 그 델타는 그대로 보낸다 — 다시 읽기를 되풀이하지 않는다.
+                    Out o = s.queue.poll();
+                    if (o != null) {
+                        if (o.delta() != null) deliver(s, o.delta());
+                        else send(s, o.name(), o.body());
+                    }
+                }
+            }
+        } catch (RuntimeException e) {
+            // 보내기(IO) 오류는 send 가 이미 처리했다. 여기는 그 밖의 실패(직렬화·명령 기록 읽기 등) — 멈춘 채 남지 않게 끊는다.
+            log.warn("ERD SSE 전달 실패 model={} session={} — 구독 해제", s.modelId, s.session, e);
+            s.dropped = true;
+            pinger.execute(() -> drop(s));
+            completeLater(s, e);
+        } finally {
+            s.draining.set(false);
+            if (s.overflowed || s.replay != null || !s.queue.isEmpty()) schedule(s); // 비우는 사이에 들어온 항목
+        }
+    }
+
+    /** 넘친 구독: reload{rev} 하나를 보내고 닫는다. 화면은 모델을 다시 읽고 sinceRev 로 다시 붙는다. 호출자가 sub 를 잡고 있다. */
+    private void closeWithReload(Sub s) {
+        long rev = Math.max(0, Math.max(s.lastRev, s.maxRev.get()));
+        s.queue.clear();
+        if (send(s, "reload", Map.of("rev", rev))) {
+            s.dropped = true;
+            s.emitter.complete();
+            pinger.execute(() -> drop(s));
+        }
     }
 
     /**
      * 이벤트 하나를 보낸다. 본문은 ErdModelCodec(Jackson 2)으로 만든 JSON 문자열이다 — Spring 의 Jackson 3 변환기를 거치지 않는다.
-     * 직렬화 오류는 코드 결함이므로 그대로 던진다. 보내기(IO) 오류만 연결 끊김으로 보고 구독을 지운다.
+     * 직렬화 오류는 코드 결함이므로 그대로 던진다. 보내기(IO) 오류만 연결 끊김으로 보고 구독을 지운다. 쓰는 동안 시작 시각을 남겨
+     * 감시({@link #dropStuckSenders})가 막힌 쓰기를 찾는다.
      */
     private boolean send(Sub s, String name, Object body) {
         if (s.dropped) return false;
@@ -352,14 +591,24 @@ public class ErdEventHub {
         }
         try {
             synchronized (s) {
-                s.emitter.send(SseEmitter.event().name(name).data(json));
+                s.sendingThread = Thread.currentThread();
+                long started = System.nanoTime();
+                s.sendingSince = started == 0 ? 1 : started;
+                try {
+                    s.emitter.send(SseEmitter.event().name(name).data(json));
+                } finally {
+                    s.sendingSince = 0;
+                    s.sendingThread = null;
+                }
             }
             return true;
         } catch (Exception e) {
             log.debug("[erd-sse] {} {} 보내기 실패 — 구독 해제: {}", s.modelId, s.session, e.toString());
+            boolean first = !s.dropped;
             s.dropped = true;
-            s.emitter.completeWithError(e);
-            // 해제는 다른 구독자에게 presence 를 보내므로, 지금 잡은 잠금 밖(ping 스레드)에서 한다 — 두 구독의 잠금이 엇갈려 멈추지 않게.
+            Thread.interrupted(); // 감시가 깨운 interrupt 를 이 스레드(풀)에 남기지 않는다
+            if (first) s.emitter.completeWithError(e);
+            // 해제는 다른 구독자에게 presence 를 보내므로, 지금 잡은 잠금 밖(ping 스레드)에서 한다.
             pinger.execute(() -> drop(s));
             return false;
         }

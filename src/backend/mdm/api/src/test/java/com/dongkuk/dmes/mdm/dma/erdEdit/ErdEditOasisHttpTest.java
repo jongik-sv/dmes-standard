@@ -170,7 +170,7 @@ class ErdEditOasisHttpTest extends AbstractMdmSharedDbTest {
                 "[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
         JsonNode c1 = call("execute", "owner", Map.of("modelId", "mcm", "kind", "CLAIM", "tableId", "t-1", "session", "s-a"));
         assertThat(c1.at("/data/result/ok").asBoolean()).as(c1.toString()).isTrue();
-        // 응답 뒤 다른 연결에서 바로 읽힌다 — CLAIM 이 OASIS 트랜잭션 밖(자동 커밋)에서 쓰였다는 최소 확인.
+        // 응답 뒤 다른 연결에서 바로 읽힌다 — CLAIM 이 응답 전에 커밋됐다는 최소 확인(OASIS 트랜잭션에 합류, deferred 27).
         assertThat(jdbc.queryForList("SELECT SESSION_NM FROM TB_MDM_ERD_CLAIM WHERE ERD_MODEL_ID = 'mcm' AND TABLE_UUID = 't-1'", String.class))
                 .containsExactly("s-a");
         // 유효한 표시를 다른 세션이 빼앗지 못한다.

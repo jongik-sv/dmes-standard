@@ -25,14 +25,19 @@ import com.dongkuk.dmes.mdm.entity.MdmErdModelVer;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import jakarta.persistence.EntityManager;
+import java.sql.Connection;
+import java.sql.Savepoint;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.hibernate.Session;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -41,8 +46,12 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 명령 입구(스펙 2.1-2). 화면·MCP·CLI 모두 여기로 들어온다.
  *
  * <p>모델 행을 잠근 채(FOR UPDATE) 한 묶음씩 처리하므로 같은 모델의 묶음은 순서대로 rev 가 하나씩 오른다. 거절은 아무것도 쓰지 않는다
- * (트랜잭션을 버린다). 델타 발행은 커밋 뒤에만 한다. 클라이언트가 보낸 명령은 {@link ErdStrictReader} 로 엄격하게 읽고,
+ * ({@link Discard}). 델타 발행은 커밋 뒤에만 한다. 클라이언트가 보낸 명령은 {@link ErdStrictReader} 로 엄격하게 읽고,
  * {@code restore}·{@code restoreDiagram} 은 직접 보낼 수 없다 — 되돌리기는 {@link #undo} 가 저장된 역명령으로 한다.
+ *
+ * <p>트랜잭션: 호출자 트랜잭션(OASIS 바깥 트랜잭션)이 있으면 합류하고, 없으면 새로 연다. 합류하면 요청 하나가 연결 하나만 쓴다
+ * (deferred 27 — 바깥 트랜잭션을 멈추고 새로 열면 요청마다 연결 2개를 쥐어 동시 저장이 풀 크기에 닿으면 모두 멈췄다).
+ * 합류했을 때 거절은 rollback-only 대신 savepoint 로 되돌린다 — rollback-only 는 바깥 커밋을 UnexpectedRollbackException(S001)으로 만든다.
  */
 @Service
 public class ErdCommandService {
@@ -60,10 +69,12 @@ public class ErdCommandService {
     private final TransactionTemplate tx;
     private final TransactionTemplate readTx;
     private final ErdCoEditors coEditors;
+    private final EntityManager em;
 
     public ErdCommandService(ErdModelStore store, ErdDiagramStore diagrams, ErdCommandLogStore log,
                              ErdDictionaryLoader dictionaries, VersionWriteGuard writeGuard, ErdEventHub hub,
-                             ErdCoEditors coEditors, PlatformTransactionManager transactionManager) {
+                             ErdCoEditors coEditors, PlatformTransactionManager transactionManager, EntityManager em) {
+        this.em = em;
         this.store = store;
         this.diagrams = diagrams;
         this.log = log;
@@ -136,23 +147,24 @@ public class ErdCommandService {
         // 사전은 요청마다 한 번, 모델 명령이 있을 때만 읽는다(I26). 모델 행을 잠그기 전에 읽어 잠금 시간을 줄인다.
         ErdNaming dict = modelCmds.isEmpty() ? null : dictionaries.load();
         return tx.execute(status -> {
+            Discard discard = new Discard(status);
             long rev = store.lockRev(modelId);
             if (baseRev > rev) {
                 // 앞선 rev 를 주장하면 §4.3 의 속성별 충돌 판정(요소 rev > baseRev)이 꺼진다.
-                status.setRollbackOnly();
+                discard.run();
                 return ErdApplyResult.rejected(rev, invalid(0, "baseRev 가 현재 rev(" + rev + ")보다 큽니다", "getChangesSince 로 받은 rev 를 쓰세요"));
             }
             long newRev = rev + 1;
             long engineBase = baseRev < 0 ? rev : baseRev;
             MdmErdModelVer draft = store.draft(modelId).orElse(null);
             if (!modelCmds.isEmpty() && draft == null) {
-                status.setRollbackOnly();
+                discard.run();
                 return ErdApplyResult.rejected(rev, notEditor("DRAFT 가 없습니다", "copy 로 새 버전을 먼저 만드세요", null));
             }
             // 권한은 충돌·검증(엔진)보다 먼저 본다(스펙 2.1 순서: 잠금 → 권한 → 충돌 → 검증). 판정은 쓰기 가드(beginDraftWrite)와
             // 같은 규칙이고, 가드는 아래에서 row_version CAS 를 위해 그대로 부른다.
             if (!modelCmds.isEmpty() && !isEditor(draft, userId)) {
-                status.setRollbackOnly();
+                discard.run();
                 return ErdApplyResult.rejected(rev, notEditor("이 DRAFT 를 고칠 권한이 없습니다",
                         "소유자(" + draft.getOwnerId() + ")에게 공동 편집자 등록(execute kind=ADD_EDITOR)을 요청하세요", draft.getOwnerId()));
             }
@@ -161,7 +173,7 @@ public class ErdCommandService {
             var modelVer = shown.getVer();
             // 다이어그램은 DRAFT 가 없어도 고치지만 편집자(소유자·공동 편집자)만 고친다(R7-1 과 같은 규칙, 보이는 버전 기준).
             if (!diagramCmds.isEmpty() && !isEditor(shown, userId)) {
-                status.setRollbackOnly();
+                discard.run();
                 return ErdApplyResult.rejected(rev, notEditor("이 모델의 다이어그램을 고칠 권한이 없습니다",
                         "소유자(" + shown.getOwnerId() + ")에게 공동 편집자 등록(execute kind=ADD_EDITOR)을 요청하세요", shown.getOwnerId()));
             }
@@ -171,7 +183,7 @@ public class ErdCommandService {
             //  - 클라이언트 명령: baseRev 뒤의 표시 — 낡은 모델을 보고 만든 명령이다.
             long since = undoOf >= 0 ? undoOf : baseRev;
             if (since >= 0 && since < rev && log.markerBetween(modelId, since, rev)) {
-                status.setRollbackOnly();
+                discard.run();
                 return ErdApplyResult.rejected(rev, undoOf >= 0
                         ? invalid(0, "rev " + undoOf + " 뒤에 DRAFT 가 지워지거나 새로 만들어져 되돌릴 수 없습니다",
                                 "지금 DRAFT 에서 한 변경만 되돌리세요. getChangesSince 가 reload 를 주면 모델을 다시 읽으세요")
@@ -182,7 +194,7 @@ public class ErdCommandService {
             boolean needModel = !modelCmds.isEmpty() || diagramCmds.stream().anyMatch(c -> c instanceof ErdDiagramCommand.PlaceTables);
             ErdModel model = needModel ? ErdModelCodec.read(shown.getModelJson()) : null;
             if (requireEmptyModel && !model.tables.isEmpty()) {
-                status.setRollbackOnly();
+                discard.run();
                 return ErdApplyResult.rejected(rev, invalid(0,
                         "이미 표가 있습니다(" + model.tables.size() + "개). 첫 가져오기는 표가 없는 모델에만 합니다",
                         "다시 가져오기 차이는 compare kind=DB_DIFF 로 보세요"));
@@ -193,7 +205,7 @@ public class ErdCommandService {
             if (!modelCmds.isEmpty()) {
                 ApplyOutcome out = new ErdCommandEngine(dict).apply(model, engineBase, newRev, session, modelCmds);
                 if (out instanceof ApplyOutcome.Rejected r) {
-                    status.setRollbackOnly();
+                    discard.run();
                     return ErdApplyResult.rejected(rev, atClientIndex(r.rejection(), modelIdx));
                 }
                 var applied = (ApplyOutcome.Applied) out;
@@ -203,13 +215,16 @@ public class ErdCommandService {
                 } catch (BusinessException e) {
                     // 소유자도 공동 편집자도 아니면 MDM003, DRAFT 가 아니면 MDM002. 그 밖의 오류(MDM001 낡은 row_version 등)는 그대로 던진다.
                     // 위의 권한 검사를 지났으므로 여기서 MDM003 은 드물다(사이에 소유자가 바뀐 경우 등) — 그래도 같은 모양으로 돌려준다.
+                    // 단 OASIS 트랜잭션에 합류했으면 그대로 던진다: 가드의 TransactionTemplate 이 실패하며 바깥 트랜잭션을 이미 rollback-only 로
+                    // 표시했으므로 거절(성공 응답)로 돌려주면 커밋이 S001 이 된다. 던지면 업무 오류(MDM002·MDM003)로 나간다.
+                    if (discard.joined()) throw e;
                     if (isGuardCode(e, MdmErrorCode.NOT_DRAFT)) {
-                        status.setRollbackOnly();
+                        discard.run();
                         return ErdApplyResult.rejected(rev, notEditor("DRAFT 가 아닙니다(" + e.getMessage() + ")", "copy 로 새 버전을 먼저 만드세요",
                                 draft.getOwnerId()));
                     }
                     if (!isGuardCode(e, MdmErrorCode.NOT_DRAFT_OWNER)) throw e;
-                    status.setRollbackOnly();
+                    discard.run();
                     return ErdApplyResult.rejected(rev, notEditor("이 DRAFT 를 고칠 권한이 없습니다(" + e.getMessage() + ")",
                             "소유자(" + draft.getOwnerId() + ")에게 공동 편집자 등록(execute kind=ADD_EDITOR)을 요청하세요", draft.getOwnerId()));
                 }
@@ -226,7 +241,7 @@ public class ErdCommandService {
                     changes.addAll(res.changes());
                     inverse.add(typed(ErdDiagramCommand.class, res.inverse()));
                 } catch (ErdDiagramStore.ErdDiagramReject r) {
-                    status.setRollbackOnly();
+                    discard.run();
                     return ErdApplyResult.rejected(rev, r.rejection);
                 }
             }
@@ -306,6 +321,48 @@ public class ErdCommandService {
             if (c.kind().startsWith("diagram")) expectedAfter.put(c.kind() + "|" + c.id(), c.value());
         }
         return applyInternal(modelId, -1, userId, session, source, raw, true, expectedAfter, rev, false);
+    }
+
+    /**
+     * 거절 때 이 묶음이 쓴 것을 버린다. 새 트랜잭션이면 rollback-only(커밋 때 롤백). 호출자 트랜잭션에 합류했으면 잠그기 전에 잡은
+     * savepoint 로 되돌리고 영속성 컨텍스트를 비운다 — 바깥 트랜잭션은 계속 커밋할 수 있다.
+     * JPA 의 NESTED 는 HibernateJpaDialect 가 savepoint 를 지원하지 않아 쓸 수 없으므로 JDBC savepoint 를 직접 쓴다.
+     *
+     * <p>합류했을 때의 규칙(erdEdit BPMN 이 지킨다 — 액션마다 서비스 단계 하나 뒤 바로 끝):
+     * <ul>
+     *   <li>모델 행 잠금: Oracle 의 ROLLBACK TO SAVEPOINT 는 savepoint 뒤에 잡은 잠금을 풀지만, 이미 그 행을 기다리던 세션은
+     *       트랜잭션 전체가 커밋·롤백될 때까지 계속 기다린다. 그래서 저장·복원·가져오기는 BPMN 프로세스의 마지막 단계여야 한다 —
+     *       뒤에 단계가 있으면 같은 모델의 다른 저장이 그만큼 더 기다린다.</li>
+     *   <li>영속성 컨텍스트: {@code em.clear()} 는 이 OASIS 트랜잭션에서 앞서 읽은 엔티티를 모두 분리한다(성공 경로의
+     *       {@code ErdModelStore.writeJson} 도 같다). 이 서비스 앞에서 엔티티를 읽어 두고 뒤에서 고치는 단계를 두지 않는다.</li>
+     * </ul>
+     */
+    private final class Discard {
+        private final TransactionStatus status;
+        private final Savepoint savepoint;
+
+        Discard(TransactionStatus status) {
+            this.status = status;
+            if (status.isNewTransaction()) {
+                this.savepoint = null;
+            } else {
+                em.flush();
+                this.savepoint = em.unwrap(Session.class).doReturningWork(Connection::setSavepoint);
+            }
+        }
+
+        boolean joined() {
+            return savepoint != null;
+        }
+
+        void run() {
+            if (savepoint == null) {
+                status.setRollbackOnly();
+                return;
+            }
+            em.unwrap(Session.class).doWork(c -> c.rollback(savepoint));
+            em.clear();
+        }
     }
 
     /** 역명령을 op 가 붙은 JSON 으로. 구체 record 로 바로 쓰면 상위 타입의 @JsonTypeInfo(op)가 빠진다. */

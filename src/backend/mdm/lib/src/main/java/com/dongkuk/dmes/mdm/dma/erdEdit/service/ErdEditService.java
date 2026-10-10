@@ -53,11 +53,18 @@ import java.util.Optional;
 import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.support.TransactionTemplate;
 
-/** OASIS {@code erdEdit} 서비스(계획 Task 10 표). 판정은 Task 8·9 서비스와 공통 버전 서비스가 하고, 여기서는 입력을 읽어 넘긴다. */
+/**
+ * OASIS {@code erdEdit} 서비스(계획 Task 10 표). 판정은 Task 8·9 서비스와 공통 버전 서비스가 하고, 여기서는 입력을 읽어 넘긴다.
+ *
+ * <p>트랜잭션: 모든 액션이 OASIS(CactusSpringTransactionHandler)가 프로세스마다 여는 바깥 트랜잭션 안에서 돈다. 저장·복원·가져오기
+ * ({@link ErdCommandService})와 작업 중 표시({@link ErdEventHub#claim})도 그 트랜잭션에 합류해 요청 하나가 연결 하나만 쓴다(deferred 27).
+ * 예전에는 바깥 트랜잭션을 NOT_SUPPORTED 로 멈추고 새로 열어, 멈춘 바깥 연결과 안쪽 연결 2개를 쥐었다 — 동시 저장 수가 풀 크기에 닿으면
+ * 모두 서로의 연결을 기다리다 S001 로 끝났다. 거절의 되돌리기는 ErdCommandService 가 savepoint 로 하고, SSE 방송은 커밋 뒤에 한다.
+ * 그래서 erdEdit BPMN 은 액션마다 이 서비스 단계 하나 뒤에 바로 끝나야 한다 — 모델 행 잠금이 OASIS 커밋까지 가고, 거절 때의 em.clear() 가
+ * 앞 단계의 엔티티를 분리한다(ErdCommandService 의 Discard 주석).
+ * 서비스에 {@code @Transactional} 을 붙이지 않는다 — 프록시가 OASIS 파라미터 이름 바인딩을 깬다.
+ */
 @Service("erdEditService")
 public class ErdEditService {
 
@@ -75,19 +82,11 @@ public class ErdEditService {
     private final ErdEventHub hub;
     private final ErdDbMetaReader metaReader;
     private final ErdHintsLoader hintsLoader;
-    /**
-     * 바깥 트랜잭션을 멈추고 부르는 틀. OASIS(CactusSpringTransactionHandler)는 프로세스 전체를 트랜잭션 하나로 감싸는데,
-     * apply·undo 는 자기 TransactionTemplate 으로 커밋·롤백하고 거절을 예외 없이 결과로 돌려준다. REQUIRED 로 합류하면
-     * 거절 때마다 바깥 트랜잭션이 rollback-only 가 되어 커밋이 UnexpectedRollbackException(S001)이 된다.
-     * 서비스에 {@code @Transactional} 을 붙이면 프록시가 OASIS 파라미터 이름 바인딩을 깨므로 프로그램으로 멈춘다.
-     */
-    private final TransactionTemplate outsideTx;
 
     public ErdEditService(ErdModelStore store, ErdVersionService versions, ErdCommandService commands,
                           ErdConfirmCheck confirmCheck, ErdDictionaryLoader dictionaries, VersionStateService stateService,
                           DraftOwnershipService ownership, MdmCurrentUser currentUser, JdbcTemplate jdbc,
-                          ErdEventHub hub, ErdDbMetaReader metaReader, ErdHintsLoader hintsLoader,
-                          PlatformTransactionManager transactionManager) {
+                          ErdEventHub hub, ErdDbMetaReader metaReader, ErdHintsLoader hintsLoader) {
         this.store = store;
         this.versions = versions;
         this.commands = commands;
@@ -100,8 +99,6 @@ public class ErdEditService {
         this.hub = hub;
         this.metaReader = metaReader;
         this.hintsLoader = hintsLoader;
-        this.outsideTx = new TransactionTemplate(transactionManager);
-        this.outsideTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);
     }
 
     /** 모델 목록 — 모델마다 DRAFT 가 있으면 그 번호와 소유자를 붙인다. */
@@ -328,7 +325,7 @@ public class ErdEditService {
         }
         String session = session(r, me);
         String source = source(r);
-        return plain(outsideTx.execute(status -> commands.apply(modelId, r.getBaseRev(), me, session, source, list)));
+        return plain(commands.apply(modelId, r.getBaseRev(), me, session, source, list));
     }
 
     /** 변경 기록에서 고른 명령 하나를 역명령으로 되돌린다(D14). */
@@ -338,7 +335,7 @@ public class ErdEditService {
         String me = currentUser.userId();
         String session = session(r, me);
         String source = source(r);
-        return plain(outsideTx.execute(status -> commands.undo(modelId, r.getRev(), me, session, source)));
+        return plain(commands.undo(modelId, r.getRev(), me, session, source));
     }
 
     /**
@@ -360,8 +357,8 @@ public class ErdEditService {
         }
         List<InferredRelation> inferred = new ErdRelationInferrer().infer(meta, hintsLoader.load(moduleSchema[0]));
         ErdImportBuilder.Built built = ErdImportBuilder.build(meta, inferred, dictionaries.load(), baseRev);
-        ErdApplyResult res = outsideTx.execute(status -> commands.applyImport(modelId, baseRev, me, session, source,
-                built.restore(), built.diagramCommands()));
+        ErdApplyResult res = commands.applyImport(modelId, baseRev, me, session, source,
+                built.restore(), built.diagramCommands());
         List<ErdWarning> warnings = new ArrayList<>(res.warnings());
         if (res.applied()) warnings.addAll(built.skipped());
         return plain(new ErdImportResult(res.applied(), res.rev(), res.changes(), warnings, res.rejection(),
@@ -399,14 +396,13 @@ public class ErdEditService {
                 String tableId = requireText(r.getTableId(), "tableId", 50);
                 String session = requireMax(session(r, me), "session", 100);
                 store.rev(modelId); // 없는 모델이면 FK 오류 대신 ERD_MODEL_NOT_FOUND
-                // 바깥(OASIS) 트랜잭션 밖에서 부른다 — 허브가 쓰기 직후 SSE 로 알리므로, 쓰기가 커밋된 뒤에 알려야 한다.
-                Boolean claimed = outsideTx.execute(status -> hub.claim(modelId, tableId, session, me, CLAIM_TTL_SECONDS));
-                return Map.of("ok", Boolean.TRUE.equals(claimed));
+                // OASIS 트랜잭션 연결로 쓰고, 허브는 커밋 뒤에 SSE 로 알린다(deferred 27 — 연결 하나).
+                return Map.of("ok", hub.claim(modelId, tableId, session, me, CLAIM_TTL_SECONDS));
             }
             case "RELEASE" -> {
                 String tableId = requireText(r.getTableId(), "tableId");
                 String session = session(r, me);
-                outsideTx.executeWithoutResult(status -> hub.release(modelId, tableId, session)); // CLAIM 과 같은 이유
+                hub.release(modelId, tableId, session); // CLAIM 과 같다
             }
             default -> throw MdmErrors.invalid("지원하지 않는 kind 입니다: " + r.getKind());
         }
