@@ -603,6 +603,11 @@
   "col|status|false",
   "col|type|false"
  ],
+ "m-mdm/pages/dma/erdEdit/panels/ColumnJump.tsx": [
+  "col|column|false",
+  "col|logical|false",
+  "col|table|false"
+ ],
  "m-mdm/pages/dma/erdEdit/panels/DbDiffApply.tsx": [
   "col|after|false",
   "col|before|false",

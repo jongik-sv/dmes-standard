@@ -1,15 +1,27 @@
 "use client";
 
-/** 오른쪽 컬럼 그리드(읽기 전용, 스펙 2.2) — 고른 표의 컬럼: 키|논리명|물리명|도메인|타입|NN|표준. */
-import { useMemo } from "react";
+/**
+ * 오른쪽 컬럼 그리드(단계 2 편집, 스펙 2.2·4.4·8절) — 고른 표의 컬럼: 키|논리명|물리명|도메인|타입|NN|표준.
+ * - 칸 편집은 ag-grid 기본(F2·더블클릭)이다. 칸을 떠날 때 updateColumn 한 건을 보내고, 같은 값이면 보내지 않는다.
+ * - 행 끌기(키 칸 손잡이)는 moveColumn 한 건이다.
+ * - 그리드 키는 그리드와 입력 칸을 감싼 div 의 onKeyDownCapture 로 받는다(S2-6·S2-27). shared AgDataGrid 의 props 는 바꾸지 않는다.
+ *   Ctrl/⌘+Enter 컬럼 추가, Ctrl/⌘+Shift+Enter PK 컬럼 추가. 한글 조합 중·칸 편집 중이면 넘긴다.
+ * - 논리명 입력·미리보기·도메인은 그리드 아래 입력 칸(GridInputBar)에서 한다. 입력 칸은 GridPanel 밖에 둔다(Local-Rules §45).
+ * - 응답 전인 대기 행은 흐리게 그리고 고치지 못하게 한다(S2-18). 화면에서 틀린 값이거나 거절되면 행을 새로 만들어 원래 값으로 돌린다.
+ * - 마지막 거절 칸(ctx.highlight)이 이 표의 컬럼이면 그 칸에 서버 문구를 단다(fieldErrors).
+ * - ctx 는 렌더마다 새 객체일 수 있다. 열 정의는 모듈 상수, 행은 그리는 값만 deps 로, 콜백은 ref 로 최신 ctx 를 읽는다(§16·§20·§31).
+ */
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import { Badge, type BadgeTone } from "@dk-oasis/shared/form";
-import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
+import { AgDataGrid, GridPanel, type AgDataGridFieldError, type GridColumn } from "@dk-oasis/shared/grid";
 
 import { keyMarks } from "../canvas/erd-flow";
 import { typeText } from "../canvas/erd-geometry";
-import type { ErdEditContext } from "../edit-context";
-import type { ErdColumnStatus, ErdModelJson, ErdStatusView } from "../types";
+import type { ErdEditContext, ErdHighlight } from "../edit-context";
+import type { ErdColumnStatus, ErdCommandJson, ErdModelJson, ErdStatusView } from "../types";
+import { GridInputBar, type AddKind, type BarHandle } from "./GridInputBar";
+import { ORACLE_ID_RE } from "./TokenChoiceModal";
 
 export const STATUS_LABEL: Record<ErdColumnStatus, string> = {
   OK: "표준", ALIAS: "별칭", NEW: "새 이름", TYPE: "타입 불일치", DOMAIN: "도메인 다름", MISS: "사전 없음",
@@ -23,17 +35,9 @@ export function statusBadge(value: unknown) {
   return s && STATUS_LABEL[s] ? <Badge label={STATUS_LABEL[s]} tone={STATUS_TONE[s]} /> : null;
 }
 
-/** 칸 정의는 모듈 상수다(Local-Rules §20·§31). meta:false — MDM 컬럼 사전 캡션을 쓰지 않는다. */
-const COLUMNS: GridColumn[] = [
-  { key: "key", header: "키", width: 44, align: "center", meta: false },
-  { key: "logical", header: "논리명", width: 110, meta: false },
-  { key: "phys", header: "물리명", width: 120, meta: false },
-  { key: "domain", header: "도메인", width: 80, meta: false },
-  { key: "type", header: "타입", width: 100, meta: false },
-  { key: "nn", header: "NN", width: 40, align: "center", meta: false },
-  { key: "status", header: "표준", width: 90, align: "center", meta: false, tooltip: false, render: statusBadge },
-];
+// ── 행 ──
 
+/** 단계 1 행 모양 그대로(panel-rows.test 가 toEqual 로 본다). */
 export function columnRows(model: ErdModelJson, tableId: string | null, status: ErdStatusView | null): Record<string, unknown>[] {
   const t = tableId ? model.tables[tableId] : undefined;
   if (!t) return [];
@@ -55,24 +59,280 @@ export function columnRows(model: ErdModelJson, tableId: string | null, status: 
     });
 }
 
+export interface GridRow extends Record<string, unknown> { id: string; pending: boolean; editable: boolean }
+
+/** 편집 그리드 행 — 단계 1 행에 대기 여부와 고칠 수 있는지를 더한다. */
+export function gridRows(model: ErdModelJson, tableId: string | null, status: ErdStatusView | null, pending: ReadonlySet<string>, canEdit: boolean): GridRow[] {
+  return columnRows(model, tableId, status).map((r) => {
+    const id = String(r.id);
+    const isPending = pending.has(id);
+    return { ...r, id, pending: isPending, editable: canEdit && !isPending };
+  });
+}
+
+/** 이 표의 대기 컬럼 id 를 정렬해 이은 글. ctx.pendingIds 가 새 Set 이어도 같은 글이면 행을 다시 만들지 않는다. */
+export function pendingKeyOf(model: ErdModelJson, tableId: string | null, pending: ReadonlySet<string>): string {
+  const t = tableId ? model.tables[tableId] : undefined;
+  if (!t || pending.size === 0) return "";
+  return t.columnOrder.filter((id) => pending.has(id)).sort().join(",");
+}
+
+// ── 칸 정의(모듈 상수, §20·§31). 최소 폭 합 380px ≤ 400px − 세로 스크롤바 17px(§30) ──
+
+const isEditableRow = (row: Record<string, unknown>) => row.editable === true;
+
+export const GRID_COLUMNS: GridColumn[] = [
+  { key: "key", header: "키", width: 44, minWidth: 32, align: "center", meta: false },
+  { key: "logical", header: "논리명", width: 110, minWidth: 70, meta: false, editable: isEditableRow },
+  { key: "phys", header: "물리명", width: 120, minWidth: 80, meta: false, editable: isEditableRow },
+  { key: "domain", header: "도메인", width: 80, minWidth: 50, meta: false },
+  { key: "type", header: "타입", width: 100, minWidth: 60, meta: false, editable: isEditableRow },
+  { key: "nn", header: "NN", width: 40, minWidth: 32, align: "center", meta: false, editable: isEditableRow, cellEditor: "select", cellEditorValues: ["Y", "N"] },
+  { key: "status", header: "표준", width: 90, minWidth: 56, align: "center", meta: false, tooltip: false, render: statusBadge },
+];
+
+// ── 칸 편집 → 명령 ──
+
+export interface TypeSpec { dataType: string | null; length: number | null; scale: number | null }
+
+const TYPE_RE = /^([A-Z][A-Z0-9_]*)(?:\((\d+)(?:,(\d+))?\))?$/;
+const TIMESTAMP_RE = /^TIMESTAMP(?:\(\d\))?$/;
+const TYPE_HINT = "타입은 VARCHAR2(50)·NUMBER(10,2)·DATE·TIMESTAMP(6) 처럼 씁니다.";
+
+/** typeText 의 거꿀. TIMESTAMP(n) 은 가져오기 표현대로 dataType 한 글이다(README S2-3 표). 빈 글은 타입 없음. */
+export function parseTypeText(text: string): TypeSpec | null {
+  const t = text.replace(/\s+/g, "").toUpperCase();
+  if (t === "") return { dataType: null, length: null, scale: null };
+  if (TIMESTAMP_RE.test(t)) return { dataType: t, length: null, scale: null };
+  const m = TYPE_RE.exec(t);
+  if (!m) return null;
+  return { dataType: m[1], length: m[2] === undefined ? null : Number(m[2]), scale: m[3] === undefined ? null : Number(m[3]) };
+}
+
+export type CellEdit = { command: ErdCommandJson } | { error: string } | null;
+
+const update = (id: string, set: Record<string, unknown>): CellEdit => ({ command: { op: "updateColumn", id, set } });
+
+export function cellEditCommand(model: ErdModelJson, columnId: string, field: string, value: unknown): CellEdit {
+  const col = model.columns[columnId];
+  if (!col) return { error: "컬럼이 없습니다. 다른 세션이 지웠을 수 있습니다." };
+  const text = value == null ? "" : String(value).trim();
+  switch (field) {
+    case "logical":
+      if (text === "") return { error: "논리명을 비울 수 없습니다." };
+      return text === col.logical ? null : update(columnId, { logical: text });
+    case "phys": {
+      const phys = text.toUpperCase();
+      if (!ORACLE_ID_RE.test(phys)) return { error: "물리명은 영문 대문자로 시작하고 영문 대문자·숫자·_ 만 씁니다(128자까지)." };
+      if (phys === col.phys) return null;
+      const dup = model.tables[col.table]?.columnOrder.some((id) => id !== columnId && model.columns[id]?.phys === phys);
+      return dup ? { error: `같은 표에 ${phys} 컬럼이 있습니다.` } : update(columnId, { phys });
+    }
+    case "type": {
+      const t = parseTypeText(text);
+      if (!t) return { error: TYPE_HINT };
+      if (t.dataType === col.dataType && t.length === col.length && t.scale === col.scale) return null;
+      return update(columnId, { dataType: t.dataType, length: t.length, scale: t.scale });
+    }
+    case "nn": {
+      const notNull = text === "Y";
+      return notNull === col.notNull ? null : update(columnId, { notNull });
+    }
+    default:
+      return null;
+  }
+}
+
+/** 행 끌기 결과 순서 → 옮긴 한 컬럼의 moveColumn. 서버는 빼고 position 자리에 넣는다. 한 번 옮긴 것으로 설명되지 않으면 null. */
+export function orderChangeCommand(before: readonly string[], after: readonly string[]): ErdCommandJson | null {
+  if (before.length !== after.length) return null;
+  let i = 0;
+  while (i < before.length && before[i] === after[i]) i++;
+  if (i === before.length) return null;
+  let j = before.length - 1;
+  while (j > i && before[j] === after[j]) j--;
+  const cand = after[j] === before[i] ? { id: before[i], position: j } : after[i] === before[j] ? { id: before[j], position: i } : null;
+  if (!cand) return null;
+  const sim = before.filter((x) => x !== cand.id);
+  sim.splice(cand.position, 0, cand.id);
+  return sim.every((x, k) => x === after[k]) ? { op: "moveColumn", id: cand.id, position: cand.position } : null;
+}
+
+// ── 그리드 키 ──
+
+export interface GridKey { key: string; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean; isComposing: boolean; keyCode: number; inEditor: boolean }
+
+export function gridKeyAction(k: GridKey): AddKind | null {
+  if (k.key !== "Enter" || !(k.ctrlKey || k.metaKey) || k.altKey) return null;
+  // 한글 조합 중 Enter 는 마지막 글자를 확정하는 키다. 칸 편집기가 열려 있으면 편집을 먼저 마칠 길이 없어 넘긴다.
+  if (k.isComposing || k.keyCode === 229 || k.inEditor) return null;
+  return k.shiftKey ? "addPk" : "add";
+}
+
+// ── 거절 칸 강조 ──
+
+const NO_ERRORS: AgDataGridFieldError[] = [];
+const PROP_FIELD: Record<string, string> = {
+  logical: "logical", phys: "phys", domainId: "domain", dataType: "type", length: "type", scale: "type", notNull: "nn",
+};
+
+export function highlightErrors(h: ErdHighlight | null, rows: readonly { id: string }[]): AgDataGridFieldError[] {
+  if (!h || !rows.some((r) => r.id === h.elementId)) return NO_ERRORS;
+  return [{ rowKey: h.elementId, field: PROP_FIELD[h.property ?? ""] ?? "logical", message: h.message }];
+}
+
+// ── 컬럼 점프 → 그리드 알림. 표가 바뀐 뒤 그 행에 초점을 주려고 FE3 파일 안에서 잇는다(조정자 판정). ctx.selectedColumnId 도 따라간다. ──
+
+type FocusListener = (columnId: string) => void;
+const focusListeners = new Set<FocusListener>();
+
+export function requestColumnFocus(columnId: string): void {
+  for (const l of [...focusListeners]) l(columnId);
+}
+
+export function subscribeColumnFocus(l: FocusListener): () => void {
+  focusListeners.add(l);
+  return () => {
+    focusListeners.delete(l);
+  };
+}
+
+// ── 화면 ──
+
+export const GRID_STYLE_HREF = "dmes-erd-grid";
+const GRID_CSS = `.erd-grid-row--pending { opacity: 0.55; font-style: italic; }`;
+const CELL_LABEL: Record<string, string> = { logical: "논리명 편집", phys: "물리명 편집", type: "타입 편집", nn: "NN 편집" };
+const pendingRowClass = (row: Record<string, unknown>) => (row.pending === true ? "erd-grid-row--pending" : undefined);
+const WRAP: CSSProperties = { display: "flex", flexDirection: "column", flex: 1, minHeight: 0 };
+const GRID_BOX: CSSProperties = { display: "flex", flexDirection: "column", flex: 1, minHeight: 0, position: "relative" };
+const FILL: CSSProperties = { position: "absolute", inset: 0 };
+
 export interface ColumnGridProps {
-  /** 편집 문맥(Task 9). FE3 Task 14 가 칸 편집·그리드 키를 더한다. */
   ctx: ErdEditContext;
   tableId: string | null;
 }
 
 export function ColumnGrid({ ctx, tableId }: ColumnGridProps) {
+  const ctxRef = useRef(ctx);
+  ctxRef.current = ctx;
+  const tableRef = useRef(tableId);
+  tableRef.current = tableId;
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const barHandle = useRef<BarHandle | null>(null);
+
   const model = ctx.state.model;
   const status = ctx.status;
-  const rows = useMemo(() => columnRows(model, tableId, status), [model, tableId, status]);
+  const canEdit = ctx.rights.model.ok;
+  const pendingKey = pendingKeyOf(model, tableId, ctx.pendingIds);
+  // 거절·틀린 값 뒤 값이 같아도 새 행 객체를 만든다(ag-grid 가 받은 행 객체에 편집 값·끌기 순서를 먼저 써 둔다).
+  const [epoch, setEpoch] = useState(0);
+  const rows = useMemo(
+    () => (epoch >= 0 ? gridRows(model, tableId, status, new Set(pendingKey ? pendingKey.split(",") : []), canEdit) : []),
+    [model, tableId, status, pendingKey, canEdit, epoch],
+  );
+  const fieldErrors = useMemo(() => highlightErrors(ctx.highlight, rows), [ctx.highlight, rows]);
   const table = tableId ? model.tables[tableId] : undefined;
+  const reject = useCallback(() => setEpoch((n) => n + 1), []);
+
+  // ── 고른 행(커서). 컬럼 점프·새 컬럼은 그 행이 나타날 때 고른다. ──
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const wantFocus = useRef<string | null>(null);
+  const [focusTick, setFocusTick] = useState(0);
+  const focusColumn = useCallback((columnId: string) => {
+    wantFocus.current = columnId;
+    setFocusTick((n) => n + 1);
+  }, []);
+  useEffect(() => subscribeColumnFocus(focusColumn), [focusColumn]);
+  useEffect(() => {
+    setFocusId(null);
+  }, [tableId]);
+  // nav.selectColumn(FE1)이 둔 고른 컬럼도 따라간다. 표 바뀜(위 effect) 뒤에 두어 새 표의 행을 고른다.
+  const selectedColumnId = ctx.selectedColumnId;
+  useEffect(() => {
+    if (selectedColumnId) focusColumn(selectedColumnId);
+  }, [selectedColumnId, focusColumn]);
+  useEffect(() => {
+    const want = wantFocus.current;
+    if (want && rows.some((r) => r.id === want)) {
+      wantFocus.current = null;
+      setFocusId(want);
+    }
+  }, [rows, focusTick]);
+  const onRow = useCallback((row: Record<string, unknown>) => setFocusId(String(row.id)), []);
+
+  const onCellValueChanged = useCallback(
+    (p: { rowKey: string | number; field: string; newValue: unknown }) => {
+      const c = ctxRef.current;
+      const edit = cellEditCommand(c.state.model, String(p.rowKey), p.field, p.newValue);
+      if (edit === null) {
+        // 다듬으면 같은 값(대소문자·앞뒤 빈칸 등)이다. ag-grid 가 행에 써 둔 날 글을 모델 값으로 돌린다.
+        reject();
+        return;
+      }
+      if ("error" in edit) {
+        c.notify(edit.error, "warn");
+        reject();
+        return;
+      }
+      c.clearHighlight();
+      void c.apply([edit.command], CELL_LABEL[p.field] ?? "컬럼 편집").then((out) => {
+        if (!out.ok) reject();
+      });
+    },
+    [reject],
+  );
+
+  const onRowOrderChange = useCallback(
+    (keys: (string | number)[]) => {
+      const c = ctxRef.current;
+      const t = tableRef.current;
+      const order = t ? (c.state.model.tables[t]?.columnOrder ?? []).filter((id) => c.state.model.columns[id]) : [];
+      const cmd = orderChangeCommand(order, keys.map(String));
+      if (!cmd) {
+        reject();
+        return;
+      }
+      void c.apply([cmd], "컬럼 순서").then((out) => {
+        if (!out.ok) reject();
+      });
+    },
+    [reject],
+  );
+
+  const onKeyDownCapture = useCallback((e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    // 포털로 뜬 창(토막 고르기·도메인 찾기)의 키도 React 트리로는 여기를 지난다 — DOM 으로 이 칸 안일 때만 받는다.
+    if (!wrapRef.current?.contains(target)) return;
+    const kind = gridKeyAction({
+      key: e.key, ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey, altKey: e.altKey,
+      isComposing: e.nativeEvent.isComposing, keyCode: e.keyCode, inEditor: target.closest(".ag-cell-inline-editing") !== null,
+    });
+    if (!kind) return;
+    e.preventDefault();
+    e.stopPropagation();
+    barHandle.current?.trigger(kind);
+  }, []);
+
   return (
-    <GridPanel title={table ? table.logical || table.phys : "컬럼"} count={rows.length}
-      titleExtra={table ? <span className="erd-mono">{table.phys}</span> : undefined}>
-      <div data-testid="erd-columns" style={{ position: "absolute", inset: 0 }}>
-        <AgDataGrid gridId="erdColumns" columnSizing="fit" columns={COLUMNS} data={rows} rowKey="id"
-          emptyMessage="캔버스나 검토 목록에서 표를 고르세요." emptyTestId="erd-columns-empty" />
+    <div ref={wrapRef} data-testid="erd-colgrid" style={WRAP} onKeyDownCapture={onKeyDownCapture}>
+      {/* 대기 행 흐림 — 포털이 page.css 를 싣지 않으므로 href 로 한 번만 넣는다(Local-Rules §17). */}
+      <style href={GRID_STYLE_HREF} precedence="default">
+        {GRID_CSS}
+      </style>
+      <div style={GRID_BOX}>
+        <GridPanel title={table ? table.logical || table.phys : "컬럼"} count={rows.length}
+          titleExtra={table ? <span className="erd-mono">{table.phys}</span> : undefined}>
+          <div data-testid="erd-columns" style={FILL}>
+            <AgDataGrid gridId="erdColumns" columnSizing="fit" columns={GRID_COLUMNS} data={rows} rowKey="id"
+              emptyMessage="캔버스나 검토 목록에서 표를 고르세요." emptyTestId="erd-columns-empty"
+              onCellValueChanged={onCellValueChanged}
+              rowDragField="key" isRowDraggable={isEditableRow} onRowOrderChange={onRowOrderChange}
+              highlightedRowKey={focusId} scrollToRow={focusId} onRowClick={onRow} onFocusedRowChange={onRow}
+              getRowClassExtra={pendingRowClass} rowClassRefreshToken={pendingKey} fieldErrors={fieldErrors} />
+          </div>
+        </GridPanel>
       </div>
-    </GridPanel>
+      <GridInputBar ctx={ctx} tableId={tableId} focusColumnId={focusId} handle={barHandle} onAdded={focusColumn} renderStatus={statusBadge} />
+    </div>
   );
 }
