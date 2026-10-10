@@ -1,6 +1,8 @@
 // merge-gate.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/merge-gate.sh 에 퇴역 보관).
 //   사용법: merge-gate.mjs <레인> | --branch <브랜치>
-//   첫 줄 `GATE <ok|wait|conflict> branch=<b> base=<integration> tree=<hash|-> files=<n>` 뒤에 CONFLICT·FORBIDDEN·OUTSIDE·SHARED_API·RESTART·WINDOW·INFLIGHT 사유 줄.
+//   첫 줄 `GATE <ok|wait|conflict> branch=<b> base=<integration> tree=<hash|-> files=<n>` 뒤에 CONFLICT·NOT_SQUASHED·NOT_REBASED·FORBIDDEN·OUTSIDE·SHARED_API·RESTART·WINDOW·INFLIGHT 사유 줄.
+//   NOT_SQUASHED <n> = 통합 브랜치 위 commit(merge 포함)이 n(≥2)개 → wait. NOT_REBASED = 브랜치 기점 ≠ 통합 브랜치 tip → wait.
+//   레인이 `squash-branch.mjs --rebase` 로 tip 위 commit 하나로 만든 뒤 다시 요청해야 한다(머지 = git merge --ff-only).
 // 옮길 때 bash 판이 기준이었고, 같게 만든 것:
 //   · glob_re: `**/`=(.*/)?  `**`=.*  `*`=[^/]*  `?`=[^/]  끝이 / 이면 아래 전부. 글자 단위(UTF-8)로 풀고 정규식도 글자 단위로 맞춘다(bash [[ =~ ]] 의 UTF-8 로캘)
 //   · is_shared_api 는 case 패턴이라 `*` 가 / 까지 맞는다 — glob_re 와 따로 구현
@@ -20,8 +22,9 @@ import { isMain, scriptMain } from './lib/js-cli.mjs';
 const HELP = `# 사용법: merge-gate.mjs <레인> | --branch <브랜치>
 #   머지 허가 전 기계적 확인(설계 §3.b). 정본 출력: references/contract.md §3.3
 #   첫 줄 GATE <ok|wait|conflict> branch=<b> base=<integration> tree=<hash|-> files=<n>
-#   이어 CONFLICT·FORBIDDEN·OUTSIDE·SHARED_API·RESTART·WINDOW·INFLIGHT 사유 줄.
-#   conflict = 충돌 있음, wait = FORBIDDEN·WINDOW·INFLIGHT 있음, 그 밖 ok(OUTSIDE·SHARED_API·RESTART 는 조정자 판단).
+#   이어 CONFLICT·NOT_SQUASHED·NOT_REBASED·FORBIDDEN·OUTSIDE·SHARED_API·RESTART·WINDOW·INFLIGHT 사유 줄.
+#   conflict = 충돌 있음, wait = NOT_SQUASHED·NOT_REBASED·FORBIDDEN·WINDOW·INFLIGHT 있음, 그 밖 ok(OUTSIDE·SHARED_API·RESTART 는 조정자 판단).
+#   NOT_SQUASHED <n> = 통합 브랜치 위 commit 이 n(≥2)개, NOT_REBASED = 기점 ≠ 통합 브랜치 tip (레인당 commit 1 + ff-only 규칙).
 #   --branch 만 주면 소유·금지 대조는 건너뛴다. 회차가 없으면 WINDOW·INFLIGHT 도 건너뛴다.
 `;
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -221,6 +224,14 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
     const reasons = [];
     let wait = false;
     for (const p of conflicts) reasons.push(`CONFLICT ${p}`);
+    // 2026-10-10: 통합 브랜치 모양 = 레인당 commit 1, merge commit 없음(git merge --ff-only)
+    //   · NOT_SQUASHED <n>: 통합 브랜치 위 commit(merge 포함)이 둘 이상  · NOT_REBASED: 브랜치의 기점이 통합 브랜치 tip 이 아님
+    const nc = coordGit(c, ['rev-list', '--count', `${base}..${branch}`]);
+    const nCommits = nc.rc === 0 ? Number.parseInt(stripNl(nc.out.toString('utf8')), 10) : 0;
+    if (nCommits > 1) { reasons.push(`NOT_SQUASHED ${nCommits}`); wait = true; }
+    const tipR = coordGit(c, ['rev-parse', `${base}^{commit}`]);
+    const mbR = coordGit(c, ['merge-base', base, branch]);
+    if (tipR.rc === 0 && mbR.rc === 0 && stripNl(tipR.out.toString('utf8')) !== stripNl(mbR.out.toString('utf8'))) { reasons.push('NOT_REBASED'); wait = true; }
     if (files.length > 0) {
       for (const p of files) {
         if (forbidden.length > 0 && globMatch(p, forbidden, utf8)) { reasons.push(`FORBIDDEN ${p}`); wait = true; }

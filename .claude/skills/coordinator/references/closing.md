@@ -82,7 +82,7 @@
 - 넘길 것: `summary.md`, `events.jsonl` 의 결정 이벤트
 - 넘길 것: `merge.history`, `pending_user`, 백로그
 - 정리시킬 칸
-  - 머지 목록: 레인별 머지 커밋 해시와 트리
+  - 머지 목록: 레인별 커밋 해시(ff-only 로 들어온 단일 commit)와 트리
   - 진도 100% 근거: 레인별 완료 항목과 마지막 시험 결과
   - 조정자가 내린 결정: 사용자에게 알릴 것
     - `decisions[]`: 머지 순서, 전용 칸 허용, GLM 대체 등
@@ -145,7 +145,7 @@
 
 형식:
 1. **fast-forward 가 되는 리포**
-   - 통합 브랜치에 머지 → `push origin <통합>`
+   - 통합 브랜치는 이미 레인 commit 이 `merge --ff-only` 로 선형 → `push origin <통합>`
    - `push origin <통합>:<릴리스>` (fast-forward 만)
 2. **릴리스 브랜치에 반영 머지 커밋이 따로 쌓여 fast-forward 불가인 리포**
    - 단계 브랜치 push

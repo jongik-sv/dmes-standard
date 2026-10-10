@@ -26,7 +26,7 @@
    - 기록: `node scripts/coord-state.mjs set '.merge.in_flight' '{"lane":…,"branch":…,"expected_tree":"<hash>","granted_at":"<iso>"}'`
    - 전송: `protocol.md` 3.12 `머지 허가`
    - 허가 내용: 예상 트리, 조건, **머지 뒤 다음 일**
-5. `머지 완료` 수신 → 머지 커밋 트리를 `expected_tree` 와 대조
+5. `머지 완료` 수신 → 머지 뒤 통합 브랜치 tip 의 트리를 `expected_tree` 와 대조(머지 = `git merge --ff-only <SHA>`, merge commit 없음)
    - 같음 → history 에 `merged`·`tree` 기록
    - 다름 → 사용자 확인 전 다음 머지 허가 금지
    - 다름 → 원인(그 사이 dev 변경 여부) 확인
@@ -35,8 +35,8 @@
 
 ### 2.1 허가 견본 보강
 
-**대상 SHA** (레인 브랜치에 다음 항목 커밋이 이미 쌓임):
-- 머지 요청에 SHA(7~12자) 기재
+**대상 SHA** (머지 요청의 합친 커밋. 브랜치에 다음 항목 커밋이 이미 쌓였을 수 있음):
+- 머지 요청에 SHA(7~12자) 기재(필수: 합친 커밋 1개)
 - 게이트: `node scripts/merge-gate.mjs <레인> --branch <SHA>`
 - 허가문에 「이 SHA 까지만 머지」
 - `expected_tree` 도 그 SHA 기준
@@ -56,7 +56,7 @@
 ## 3. merge-gate.mjs 출력별 조정자 행동
 
 - 첫 줄 `GATE <ok|wait|conflict> …` (칸 = `contract.md` §3.3)
-  - `wait` = `FORBIDDEN`·`WINDOW`·`INFLIGHT` 있음
+  - `wait` = `NOT_SQUASHED`·`FORBIDDEN`·`WINDOW`·`INFLIGHT` 있음
 - 이어 사유 줄
 
 줄별 행동:
@@ -66,6 +66,13 @@
 - `GATE conflict` + `CONFLICT <경로>` (병합 충돌)
   - 허가 금지
   - `대기: dev 최신을 합쳐 충돌을 풀고 시험을 다시 돌려 달라(충돌 경로 목록)`
+- `NOT_SQUASHED <n>` (통합 브랜치 위 commit 이 n≥2개, merge commit 포함)
+  - 허가 금지. `대기: 한 커밋으로 합친 뒤 다시 머지 요청`
+  - 레인이 dev 최신을 합치고 `squash-branch.mjs --rebase` 실행 → 새 SHA 로 재요청(레인 지시 = `templates/brief.md` 「보고 방식」)
+  - 요청에 커밋 수 ≠ 1 로 적혀 있어도 같은 처리(게이트 출력과 대조)
+- `NOT_REBASED` (브랜치 기점 ≠ 통합 브랜치 tip)
+  - 허가 금지. `대기: dev 최신 위로 옮겨(squash-branch.mjs --rebase) 다시 머지 요청`
+  - 허가 뒤 `git merge --ff-only` 가 실패(그 사이 dev 가 앞서 감)해도 같은 처리
 - `FORBIDDEN <경로>` (레인 금지 파일 수정)
   - `대기: 금지 파일 <경로> 변경 사유를 설명하거나 되돌려 달라`
   - 사유 타당 → 소유 레인과 조정 후에만 허가

@@ -46,8 +46,9 @@ Phase 파일·worker-mode.md·e2e.md. 여기에는 규칙을 만든 이유·사�
 - **서브에이전트 종료 뒤 오지 않을 알림(종료 5번)**: 2026-09-24 dmes-standard TSK-03-01 사고. 상세 = 아래 Phase 프롬프트 「포그라운드」.
   Build 서브에이전트가 run_in_background 변이 스윕의 알림을 기다리며 턴을 끝냄. 종료와 함께 백그라운드 프로세스도 사라짐.
   오케스트레이터가 47분간 입력 대기로 멈췄다가 TICK 무응답 점검에서 발견됨.
-- **Phase 06 `reported` commit·push**: 원격 agent branch tip 에도 `reported` 를 남기고, 미commit state.json 이 다음 branch 전환을
-  막지 않게 하려는 것.
+- **Phase 06 `reported` 를 squash 이전에 commit**: 원격 agent branch tip 에도 `reported` 를 남기고, 미commit state.json 이 다음 branch 전환을
+  막지 않게 하려는 것. 2026-10-10 부터 별도 commit 이 아니라 합친 commit 에 포함 — head_sha = tip.
+- **마감 squash 범위 = push·보고 전 commit 뿐**: 이미 push 한 설계 commit 과 보고한 head_sha 를 다시 쓰면 설계 선행 후행·승인 뒤 변경 확인(`head_sha` 조상 검사)이 깨지고 강제 push 가 필요해짐. 그래서 원격 tip(없으면 기본 브랜치)을 기점으로 그 뒤 commit 만 접음.
 
 ## dev-discipline.md
 

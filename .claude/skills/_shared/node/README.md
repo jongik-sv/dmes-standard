@@ -72,6 +72,11 @@ python 판과 node 판을 **각자 새 임시 저장소**(realpath)에서 같은
 **저장소에 남은 파일 전체(바이트)** 를 비교한다. `goldenToolTest(name, spec)` 은 `node:test` 용(python 이 없으면 skip).
 `statusOnly:true` 는 argparse 사용 오류처럼 문구가 다른 경우에 종료 코드만 본다. 사용 예: `adr-write/tests/golden.test.mjs`.
 
+**squash-branch.mjs** — CLI. 레인·작업 브랜치를 통합 브랜치 위 commit 하나로 합친다(통합 브랜치 모양 = 레인·작업당 commit 1, merge commit 없음, `git merge --ff-only`; 2026-10-10).
+`node squash-branch.mjs --onto <통합브랜치|ref> --subject "<제목>" [--rebase] [--body-file f] [--trailer "K: v"] [--drop-trailer K] [--dry-run]`.
+출력 `SQUASH_OK <old> → <new> commits=<n> [rebased=<tip>]` · `SQUASH_NOTHING` · `SQUASH_ALREADY_ONE <sha>` · `SQUASH_REBASED <old> → <new> onto=<tip>` · `SQUASH_DIRTY`(2) · `SQUASH_NO_ONTO`(2) · `SQUASH_NEED_SUBJECT`(2) · `SQUASH_TREE_MISMATCH`(1, 원래 HEAD 로 복원) · `SQUASH_REBASE_CONFLICT <파일…>`(3, 원래 HEAD 로 복원).
+`--rebase` = 합친 commit 을 통합 브랜치 tip 위로 옮김(통합 브랜치가 앞서 갔을 때). 통합 브랜치를 먼저 합쳐 두면 merge-base 가 tip 으로 옮겨 가서 레인 변경만 한 commit 에 담긴다. 본문 = 합친 commit 제목 목록 + 메시지 trailer(중복 제거). 시험 = `tests/squash-branch.test.mjs`.
+
 ## 이식 체크리스트
 
 1. **CRLF 정규화**: 읽기는 `readText`(BOM 제거 + `\r\n?`→`\n`), 쓰기는 `writeText`(LF 그대로). 윈도우 python 의 `write_text` 는 CRLF 로 쓰는 함정이 있었다. CSV 입력은 `utf-8-sig` 이므로 같은 `readText` 를 쓴다.

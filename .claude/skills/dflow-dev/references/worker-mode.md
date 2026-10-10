@@ -154,8 +154,9 @@ node .claude/skills/dflow-dev/scripts/deps.mjs   # 75(DEPS_BUSY)면 잠시 뒤 �
 | rework 「범위」: 설계 변경 필요 | `failed` | `설계 변경 필요 — <이유>` |
 | close: push 가 non-fast-forward 로 거부 | `failed` | `원격 agent 브랜치에 사람 커밋 — 받은 뒤 --resume` |
 | close: done 의 exit 11 | `failed` | `완료 보고 거부(<code>)` |
+| close: squash 실패(`SQUASH_DIRTY`·`SQUASH_TREE_MISMATCH` 등) | `failed` | `squash 실패(<SQUASH_ 코드>)` |
 
-- exit 12 로 끝날 때 state.json 변경 금지 (다른 PC 가 이어 감).
+- exit 12 로 끝날 때 state.json 변경 금지 (다른 PC 가 이어 감). 마감에서 미리 쓴 `phase=reported` 는 원래 값으로 되돌림 (`orch/close.md` 4).
 - `design_reopened` = 구현자동 작업의 사람 설계가 게이트·선행 계약 검사를 통과 못 해 사람 설계 대기로 되돌아감. 팀장이 worktree 를 지움.
   - human 방식 = 설계 원본이 개발 branch, review 방식 = 원격 agent branch 에 있음 → 다시 잡아도 잃을 것 없음.
 - `주문이 바뀜`(build-start exit 11 의 `order_changed`)은 범위로 가름 (12절 Y7).

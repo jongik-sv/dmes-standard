@@ -46,10 +46,11 @@ Phase 서브에이전트 `PHASE_RESULT` 자기 신고 = **참고 신호, 게이�
 
 - 필드·`phase` 값·`order` 전체 UUID·`api_base`·exit 10(중단됨)·exit 12 처리 → references/state-model.md §상태 모델 상세 (state.json 필드·phase 값·중단 처리). **progress·heartbeat·done·design-done·design-reopen·build-start 중 exit 10 이나 12 가 나오면 그 자리에서 멈추고 이 파일을 읽는다.** state.json 처음 쓰기·phase 값 판정 때도 읽는다.
   - exit 10 → `phase=cancelled`, 로컬 커밋만 남김(push·done 안 함), 사용자에게 한 줄 통지. exit 12 → state 안 바꿈.
+- Phase 중 commit = 체크포인트. 마감(`orch/close.md`)에서 한 커밋으로 합친 뒤에만 head_sha 가 생김.
 - 기록 순서 고정: **산출물 커밋 → state.json 갱신 → progress 보고.** progress 보고 실패(exit≠0)여도 state 유지, 그 사실만 보고 (성공 Phase 되돌리지 않음). (예외 exit 10·12 → 위 줄)
 - 실패 시 `phase` 되돌리지 않고 `last.event=*.fail` 만 기록 → 재실행 시 같은 Phase 재개.
 - **재개 판정 = 산출물 교차 확인**:
-  - state.json 이 있어도 그 phase 선행 산출물(design.md·Build 커밋)이 현재 트리에 실재하는지 확인.
+  - state.json 이 있어도 그 phase 선행 산출물(design.md·Build 산출물 — 마감 squash 뒤에는 합친 commit 의 트리)이 현재 트리에 실재하는지 확인.
   - 없으면 **산출물 있는 지점까지 후퇴해서 재시작**.
   - 서버 progress 숫자 = 힌트, 복원 정본 아님. progress = "보고 있었다" 증거, "산출물이 이 트리에 있다" 증거 아님 (타 PC 재개·매핑 밖 값 대비).
 

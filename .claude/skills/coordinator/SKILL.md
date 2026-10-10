@@ -120,7 +120,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 | `신원` | `node scripts/coord-state.mjs set '.lanes.<레인>.session' …`(`spawn.md` §4) |
 | `진행 보고` | `item-done`(WBS 자동 갱신) → `progress`(`monitor.md` §7). 「대기」 보고 → 아래 목록 |
 | `질문` | 아래 목록 |
-| `머지 요청` | `merge-gate.md`. 한 번에 하나만 허가, 허가에 「머지 뒤 다음 일」 |
+| `머지 요청` | `merge-gate.md`. 한 번에 하나만 허가, 허가에 「머지 뒤 다음 일」. 레인당 commit 1개·dev tip 위(`NOT_SQUASHED`·`NOT_REBASED` → 합친 뒤 재요청), 머지 = `--ff-only` |
 | `머지 완료`·`정리 완료` | 트리 대조 → `merge.history`, 다음 허가. 남긴 브랜치 = `pending_user` |
 | `측정 끝` | `node scripts/measure-window.mjs close` → 전 레인 `무거운 작업 재개` |
 | `정본 갱신 완료`·재개 답 | `compact.md` |
