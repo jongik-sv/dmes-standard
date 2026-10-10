@@ -246,6 +246,7 @@ flowchart TD
 - `analog/api`는 `analog/core`에만 의존합니다. `localKafka`, `aps-core`, `caravan-core`, `caravan-console`은 다른 내부 모듈에 의존하지 않습니다.
 - `mcm/api`는 게이트웨이가 아닙니다. 다른 모듈로 요청을 나눠 주지 않고, BFF가 모듈마다 자기 포트로 직접 부릅니다.
 - `mcm-core`는 [Mcm-Core-Onboarding.md](guide/BackEnd/Mcm-Core-Onboarding.md)에 따라 cactus 없이도 쓸 수 있게 설계됐습니다(모드 B).
+- `mcm-core`를 앱(`mcm`)과 나눈 이유와 코드를 둘 위치 기준은 [ADR-0003](guide/adr/0003-mcm-core-library-split.md)에 있습니다.
 
 ### 3.4 요청 흐름
 
