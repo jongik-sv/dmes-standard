@@ -156,7 +156,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
       const thr = thrFor(win);
       const laneMax = Number(cfgSub(c, '.compact.lane_max') || '0');
       const tokens = laneTokens(Number(pct), Number(win));
-      if (!ctxOver({ pct: Number(pct), thr: Number(thr), tokens, max: laneMax })) continue;
+      if (!ctxOver({ pct: Number(pct), thr: thr === '' ? NaN : Number(thr), tokens, max: laneMax })) continue;
       const last = stripNl(isoToEpoch(c, stripNl(laneGet(c, L, '.compact.last_at').out)));
       if (last !== '') {
         const li = testInt(last); const ci = testInt(cool);
@@ -175,7 +175,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
         const thr = thrFor(win);
         const selfMax = Number(cfgSub(c, '.compact.coordinator_max') || '0');
         const tokens = tok === '' ? NaN : Number(tok);
-        if (ctxOver({ pct: Number(pct), thr: Number(thr), tokens, max: selfMax })) {
+        if (ctxOver({ pct: Number(pct), thr: thr === '' ? NaN : Number(thr), tokens, max: selfMax })) {
           emit(`CTX_OVER_SELF pct=${pct} thr=${thr} tokens=${Number.isFinite(tokens) ? tokens : '-'} max=${selfMax || '-'}`);
         }
       }
