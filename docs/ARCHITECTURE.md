@@ -167,6 +167,7 @@ flowchart TD
   - 멱등(idempotent)하게 작동하는 초기 시드 적재(`DataInitializer`).
 - **도메인 모듈 (`mcm-core`, `mdm`, `mls`, `mpp`, `mqc`, `aps-core`, `mpn`)**:
   - `mcm-core`: 메뉴/권한, 마스터코드, 업무기준 등 즉시 사용 가능한 표준 공통 기능 제공.
+    - 앱(`mcm`)과 나눈 이유와 코드를 둘 위치 기준: [ADR-0003](guide/adr/0003-mcm-core-library-split.md).
   - `mdm`, `mls`, `mpp`, `mqc`: 고객사 비즈니스 요구사항에 맞춰 확장/대체되는 업무 도메인 모듈.
   - `aps-core`, `mpn`: 생산 계획 수립 및 자원 스케줄링 코어 로직.
 - **플랫폼 엔진 (`cactus-core`, `oasis`, `caravan-*`, `analog`)**:
