@@ -105,7 +105,8 @@ function tab(c, args, cwd) {
 /** 잠금 밖에서 할 일을 모은다: 알림·탭 닫기. */
 const newPost = () => ({ notify: [], close: [] });
 function flush(c, pc, post) {
-  for (const t of post.close) { try { tab(c, ['close', t.handle], t.cwd); } catch { /* 이미 닫힘 */ } }
+  // 핸들이 있으면 그 탭을, 없으면(핸들 기록 전에 실행기가 죽음) 제목으로 찾아 닫는다
+  for (const t of post.close) { try { tab(c, t.handle ? ['close', t.handle] : ['close-id', t.id], t.cwd); } catch { /* 이미 닫힘 */ } }
   for (const r of post.notify) notifyNow(c, pc, r);
 }
 
@@ -131,7 +132,7 @@ function dispatchBody(c, dir, pc, post) {
   const items = readItems(dir);
   for (const r of reapStale(items, (pid) => pidAlive(pid, c.env), nowIso())) {
     writeItem(dir, r); appendLog(dir, logEntry(r)); post.notify.push({ ...r });
-    if (r.handle) post.close.push({ handle: r.handle, cwd: r.cwd }); // 죽은 실행기가 남긴 탭
+    post.close.push({ handle: r.handle || '', id: r.id, cwd: r.cwd }); // 죽은 실행기가 남긴 탭
   }
   const cool = readCool(dir);
   const max = effMaxes(c, pc);
@@ -258,41 +259,49 @@ async function cmdRun(c, argv) {
   let handle = '';
   let result = null;
   let reason = null;
-  const o = tab(c, ['open', '--kind', rec.kind, '--cwd', rec.cwd, '--name', `pool-${id}`], rec.cwd);
-  const m = o.out.match(/^TAB (\S+)/m);
-  if (!m) {
-    result = 'fail'; reason = 'open';
-    try { writeFileSync(outFile, `${o.out}${o.err}`); } catch { /* 진단용 */ }
-  } else {
-    handle = m[1];
-    // 핸들을 기록한다(잠금 안). 취소·정리가 이 탭을 닫을 수 있게. 그사이 취소됐으면 탭만 닫고 끝낸다.
-    let still = false;
-    withLock(c, dir, () => {
-      const f = readItem(dir, id);
-      if (!f || f.state !== 'running' || f.pid !== process.pid) return;
-      f.handle = handle; writeItem(dir, f); still = true;
-    });
-    if (!still) { tab(c, ['close', handle], rec.cwd); return 0; }
-    const s = tab(c, ['send', handle, '--kind', rec.kind, '--text', promptFor(id)], rec.cwd);
-    if (!/^SENT/m.test(s.out)) { result = 'fail'; reason = 'send'; }
-    let prev = null;
-    let lastChange = Date.now();
-    while (result === null) {
-      await sleep(pollMs);
-      if (!mine()) { tab(c, ['close', handle], rec.cwd); return 0; } // 취소·정리됨: 덮어쓰지 않는다
-      const sc = tab(c, ['screen', handle], rec.cwd);
-      if (sc.status === 3) { result = 'fail'; reason = 'tab-gone'; handle = ''; break; }
-      try { writeFileSync(outFile, sc.out); } catch { /* 진단용 */ }
-      const now = Date.now();
-      if (sc.out !== prev) { prev = sc.out; lastChange = now; }
-      // 조용함 = 화면이 두 폴링 동안 그대로 또는 tui-idle(Claude Code·GLM). opencode 2.x 는 tui-idle 이 안 나와 화면으로만 본다.
-      const quiet = now - lastChange >= pollMs * 2 || /^idle/.test(tab(c, ['idle', handle], rec.cwd).out);
-      const report = existsSync(join(rec.cwd, '.pool', `${id}.report.md`));
-      const j = judgeTui({ report, quiet, quietS: (now - lastChange) / 1000, stuckS, screen: sc.out, elapsedS: (now - t0) / 1000, limitS });
-      if (j) { result = j; reason = j === 'ok' ? null : j === 'fail' ? 'stuck' : j; }
+  // 어느 경로로 끝나든 탭을 닫는다: 정상 끝·예외(finally)·종료 신호(SIGTERM·SIGHUP·SIGINT).
+  const closeMine = () => { if (handle) { const h = handle; handle = ''; tab(c, ['close', h], rec.cwd); } };
+  const onSignal = (sig) => { try { closeMine(); } finally { process.exit(sig === 'SIGINT' ? 130 : 143); } };
+  for (const sig of ['SIGTERM', 'SIGHUP', 'SIGINT']) process.once(sig, onSignal);
+  try {
+    const o = tab(c, ['open', '--kind', rec.kind, '--cwd', rec.cwd, '--name', `pool-${id}`, '--id', id], rec.cwd);
+    const m = o.out.match(/^TAB (\S+)/m);
+    if (!m) {
+      result = 'fail'; reason = 'open';
+      try { writeFileSync(outFile, `${o.out}${o.err}`); } catch { /* 진단용 */ }
+      tab(c, ['close-id', id], rec.cwd); // 드라이버가 시간 초과로 죽었으면 만든 탭이 남을 수 있다
+    } else {
+      handle = m[1];
+      // 핸들을 기록한다(잠금 안). 취소·정리가 이 탭을 닫을 수 있게. 그사이 취소됐으면 탭만 닫고 끝낸다.
+      let still = false;
+      withLock(c, dir, () => {
+        const f = readItem(dir, id);
+        if (!f || f.state !== 'running' || f.pid !== process.pid) return;
+        f.handle = handle; writeItem(dir, f); still = true;
+      });
+      if (!still) return 0; // finally 가 닫는다
+      const s = tab(c, ['send', handle, '--kind', rec.kind, '--text', promptFor(id)], rec.cwd);
+      if (!/^SENT/m.test(s.out)) { result = 'fail'; reason = 'send'; }
+      let prev = null;
+      let lastChange = Date.now();
+      while (result === null) {
+        await sleep(pollMs);
+        if (!mine()) return 0; // 취소·정리됨: 덮어쓰지 않는다(finally 가 닫는다)
+        const sc = tab(c, ['screen', handle], rec.cwd);
+        if (sc.status === 3) { result = 'fail'; reason = 'tab-gone'; handle = ''; break; }
+        try { writeFileSync(outFile, sc.out); } catch { /* 진단용 */ }
+        const now = Date.now();
+        if (sc.out !== prev) { prev = sc.out; lastChange = now; }
+        // 조용함 = 화면이 두 폴링 동안 그대로 또는 tui-idle(Claude Code·GLM). opencode 2.x 는 tui-idle 이 안 나와 화면으로만 본다.
+        const quiet = now - lastChange >= pollMs * 2 || /^idle/.test(tab(c, ['idle', handle], rec.cwd).out);
+        const report = existsSync(join(rec.cwd, '.pool', `${id}.report.md`));
+        const j = judgeTui({ report, quiet, quietS: (now - lastChange) / 1000, stuckS, screen: sc.out, elapsedS: (now - t0) / 1000, limitS });
+        if (j) { result = j; reason = j === 'ok' ? null : j === 'fail' ? 'stuck' : j; }
+      }
     }
+  } finally {
+    closeMine();
   }
-  if (handle) tab(c, ['close', handle], rec.cwd); // 어느 경로로 끝나든 탭을 닫는다
   const post = newPost();
   withLock(c, dir, () => {
     const fresh = readItem(dir, id);
@@ -339,8 +348,9 @@ function cmdCancel(c, argv) {
     if (!rec) return `POOL refused ${id} not-found`;
     if (rec.state === 'done') return `POOL refused ${id} already-done`;
     // 실행기는 죽이지 않는다: 탭을 띄우는 중일 수 있어 핸들을 아직 모른다. 실행기가 다음 확인에서 취소를 보고 자기 탭을 닫고 끝난다.
-    // 핸들이 이미 있으면 여기서도 닫는다(워커를 바로 멈춤, 두 번 닫아도 무해).
-    if (rec.state === 'running' && rec.handle) post.close.push({ handle: rec.handle, cwd: rec.cwd });
+    // 여기서도 닫는다: 핸들이 있으면 그 탭, 없으면 제목 검색(워커를 바로 멈춤, 두 번 닫아도 무해).
+    // 띄우는 중에 취소하면 슬롯이 바로 비어 잠깐 상한보다 탭이 하나 많을 수 있다(실행기가 곧 닫음).
+    if (rec.state === 'running') post.close.push({ handle: rec.handle || '', id: rec.id, cwd: rec.cwd });
     finishRec(dir, post, rec, { result: 'cancel', reason: 'cancel', rc: null });
     dispatchBody(c, dir, pc, post);
     return `POOL cancelled ${id}`;

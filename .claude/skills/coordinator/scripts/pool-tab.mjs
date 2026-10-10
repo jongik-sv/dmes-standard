@@ -7,11 +7,14 @@
 //   screen <h>                        → 화면 끝 60줄. 탭이 없으면 rc 3
 //   idle <h>                          → `idle` · `busy`(tui-idle 1.5초 확인)
 //   close <h>                         → `CLOSED` · `CLOSE_FAIL`(rc 1). 닫은 뒤 목록에서 사라졌는지 최대 10초 확인
+//   close-id <id>                     → `CLOSED_ID <n>`. 제목으로 이 묶음의 탭을 찾아 닫는다(핸들을 기록하기 전에 실행기가 죽었을 때)
+//   open 이 실패하면(SPAWN_FAIL·시간 초과) 만들어진 탭을 닫고 TAB_FAIL 을 낸다: SPAWN_FAIL 줄의 handle= 와 제목 검색 둘 다.
 // 시험은 환경 COORD_POOL_TAB 으로 가짜 드라이버를 쓴다(tests/fixtures/pool-tab-fake.mjs).
 import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
+import { titleIsPoolTab } from './lib/pool-core.mjs';
 import { functions as T } from './lib/term.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -27,7 +30,39 @@ function flags(argv) {
 }
 
 const term = (name, args, env, cwd) => T[name].run({ args, env, cwd });
-const listed = (h, env, cwd) => term('term_list', [], env, cwd).out.split('\n').some((l) => l.split('\t')[0] === h);
+/** 목록에 있나: true·false, 목록을 못 읽으면 null(모름 — 닫힘으로 치지 않는다) */
+function listed(h, env, cwd) {
+  const r = term('term_list', [], env, cwd);
+  if (r.rc) return null;
+  return r.out.split('\n').some((l) => l.split('\t')[0] === h);
+}
+/** Orca 는 닫힌 터미널을 목록에 한동안 남긴다(connected:false·exitCause). 그 기록은 닫힌 것으로 본다 */
+function exited(h, env) {
+  const r = spawnSync('orca', ['terminal', 'show', '--terminal', h, '--json'], { env, encoding: 'utf8', windowsHide: true, timeout: 20000 });
+  try {
+    const t = JSON.parse(r.stdout || '').result?.terminal;
+    return !!t && (t.connected === false || !!t.exitCause);
+  } catch { return false; }
+}
+function closeHandle(h, env, cwd) {
+  term('term_close', [h], env, cwd);
+  for (let i = 0; i < 20; i += 1) {
+    const l = listed(h, env, cwd);
+    if (l === false || (l === true && exited(h, env))) return true;
+    sleepMs(500);
+  }
+  return false;
+}
+/** 제목으로 이 묶음의 탭을 모두 닫는다. 돌려줌 = 닫은 수 */
+function closeById(id, env, cwd) {
+  const r = term('term_list', [], env, cwd);
+  let n = 0;
+  for (const l of String(r.out || '').split('\n')) {
+    const [h, title] = l.split('\t');
+    if (h && titleIsPoolTab(title, id) && !exited(h, env) && closeHandle(h, env, cwd)) n += 1;
+  }
+  return n;
+}
 
 export async function main(argv, { env = process.env, cwd = process.cwd() } = {}) {
   const [sub, ...rest] = argv;
@@ -38,13 +73,18 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
       { env, cwd: o.cwd || cwd, encoding: 'utf8', windowsHide: true, timeout: 300000 });
     const m = (r.stdout || '').match(/^SPAWNED \S+ handle=(\S+)/m);
     if (m) { out(`TAB ${m[1]}`); return 0; }
-    const why = ((r.stdout || '').match(/^SPAWN_FAIL \S+ (.*)$/m) || [])[1] || `rc=${r.status}`;
+    // 실패: spawn-lane 은 만든 탭을 닫지 않고 끝나는 경로가 있다(tui-idle·세션·화면 확인 실패). 시간 초과로 죽었으면 핸들도 모른다.
+    const leaked = ((r.stdout || '').match(/^SPAWN_FAIL .*handle=(\S+)/m) || [])[1];
+    if (leaked) closeHandle(leaked, env, cwd);
+    if (o.id) closeById(o.id, env, cwd);
+    const why = ((r.stdout || '').match(/^SPAWN_FAIL \S+ (.*)$/m) || [])[1] || (r.error ? `timeout ${r.error.code || ''}`.trim() : `rc=${r.status}`);
     out(`TAB_FAIL ${why}`);
     if (r.stderr) process.stderr.write(r.stderr);
     return 1;
   }
   const h = o._[0] || '';
   if (h === '') { process.stderr.write('handle 이 필요하다\n'); return 2; }
+  if (sub === 'close-id') { out(`CLOSED_ID ${closeById(h, env, cwd)}`); return 0; }
   if (sub === 'send') {
     if (o.kind === 'glm') {
       const r = spawnSync(process.execPath, [join(HERE, 'term-send-safe.mjs'), '--handle', h, '--text', o.text, '--timeout-ms', '60000'],
@@ -71,11 +111,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
     return 0;
   }
   if (sub === 'close') {
-    term('term_close', [h], env, cwd);
-    for (let i = 0; i < 20; i += 1) {
-      if (!listed(h, env, cwd)) { out('CLOSED'); return 0; }
-      sleepMs(500);
-    }
+    if (closeHandle(h, env, cwd)) { out('CLOSED'); return 0; }
     out('CLOSE_FAIL');
     return 1;
   }

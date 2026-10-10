@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { appendLog, coolAfterRatelimit, effectiveMax, hasAnyWorker, judgeTui, ID_RE, logEntry, pickKind, promptFor, readCool, readItem, readItems, reapStale, writeCool, writeItem } from '../scripts/lib/pool-core.mjs';
+import { appendLog, coolAfterRatelimit, effectiveMax, hasAnyWorker, judgeTui, titleIsPoolTab, ID_RE, logEntry, pickKind, promptFor, readCool, readItem, readItems, reapStale, writeCool, writeItem } from '../scripts/lib/pool-core.mjs';
 
 test('promptFor: opencode 금지 글자가 없다', () => {
   const p = promptFor('T7');
@@ -28,6 +28,7 @@ test('judgeTui: 조용할 때만 판정, 보고 우선, 한도 문구, 멈춤, �
   assert.equal(j({}), null); // 잠깐 조용함 = 아직 판단 안 함
   assert.equal(j({ quietS: 600 }), 'fail'); // 보고 없이 오래 멈춤
   assert.equal(j({ quiet: false, elapsedS: 1201 }), 'timeout');
+  assert.equal(j({ report: true, elapsedS: 1201 }), 'ok'); // 상한 직전에 끝낸 일은 ok
   // 한도 문구는 화면 끝 30줄에서만 본다
   assert.equal(j({ screen: `rate limit\n${'x\n'.repeat(40)}` }), null);
 });
@@ -101,4 +102,14 @@ test('파일 I/O: 기록·쿨다운·로그', () => {
   assert.equal(line.findings, 0);
   assert.equal(line.lines, 0);
   assert.equal(line.fallback, false);
+});
+
+test('titleIsPoolTab: GLM·opencode 가 바꾼 제목도 찾고, id 경계를 지킨다', () => {
+  assert.ok(titleIsPoolTab('pool-a1-T1', 'a1-T1'));
+  assert.ok(titleIsPoolTab('◐ pool-a1-T1', 'a1-T1'));
+  assert.ok(titleIsPoolTab('OC | .pool/a1-T1.md 작업 지시 진행', 'a1-T1'));
+  assert.equal(titleIsPoolTab('◐ pool-a1-T10', 'a1-T1'), false);
+  assert.equal(titleIsPoolTab('OC | .pool/a1-T10.md 작업', 'a1-T1'), false);
+  assert.equal(titleIsPoolTab('Terminal 2', 'a1-T1'), false);
+  assert.equal(titleIsPoolTab('pool-a1xT1', 'a1.T1'), false); // id 의 . 은 글자 그대로
 });

@@ -21,7 +21,9 @@
      - 조용함 + 보고 없음 + 화면 끝 30줄에 한도 문구 → `ratelimit`
      - 보고 없이 `pool.stuck_min`(10분) 동안 화면 그대로 → `fail`(reason `stuck`)
      - `pool.timeout_min` 초과 → `timeout`. 탭이 사라짐 → `fail`(reason `tab-gone`)
-  4. **어느 경로로 끝나든 탭을 닫음.** 탭을 못 띄움 = `fail`(reason `open`), 지시를 못 넣음 = `fail`(reason `send`)
+  4. **어느 경로로 끝나든 탭을 닫음**(정상 끝·예외·종료 신호). 탭을 못 띄움 = `fail`(reason `open`), 지시를 못 넣음 = `fail`(reason `send`)
+     - 띄우기 실패: `spawn-lane` 이 남긴 탭(`SPAWN_FAIL … handle=`)과 제목으로 찾은 탭을 닫음
+     - 제목 검색 = `pool-<id>`(GLM 은 `◐ pool-<id>` 꼴) 또는 `.pool/<id>.md`(opencode 가 바꾼 제목). id 경계 확인
 - TUI 워커는 종료 코드가 없음 → `rc=-`
 - 실행기 시작 직후 기록이 아직 `queued` 이면 최대 5초 기다림
 
@@ -68,5 +70,7 @@
 - `pool.mjs cancel <id>` = 큐·실행 중 묶음 취소(`POOL cancelled <id>`). 실행 중이면 워커 탭을 닫음
 - 진행 보기 = Orca 의 `pool-<id>` 탭. 마지막 화면은 `.pool/<id>.out` 에 남음
 - `.pool/` 은 `.git/info/exclude` 에 자동 등록(git 에 안 잡힘)
-- 탭 정리: 실행기가 끝날 때 닫음. 취소 = `cancel` 이 닫음. 실행기가 죽음 = 다음 `status`·`submit` 의 정리가 기록된 탭을 닫음
+- 탭 정리: 실행기가 끝날 때 닫음. 취소 = `cancel` 이 닫음. 실행기가 죽음 = 다음 `status`·`submit` 의 정리가 닫음
+  - 핸들이 기록돼 있으면 그 탭, 없으면(띄우는 중에 죽음) 제목 검색
+  - 띄우는 중에 취소하면 슬롯이 바로 비어 잠깐 상한보다 탭이 하나 많을 수 있음(실행기가 곧 닫음)
 - 끝난 묶음 한 줄씩 `<풀 폴더>/log.jsonl` 에 남음. `run-metrics.mjs` 가 읽음. `note` 보정 줄은 같은 id 의 마지막 줄이 이김

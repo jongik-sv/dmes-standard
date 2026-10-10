@@ -263,7 +263,7 @@ test('탭을 못 띄우면 fail(open), 닫을 탭 없음', async () => {
   const s = await w.waitDone('a1-O1');
   assert.match(s, /result=fail rc=-/);
   assert.equal(w.log()[0].reason, 'open');
-  assert.deepEqual(w.calls('a1-O1'), []);
+  assert.deepEqual(w.calls('a1-O1'), ['close-id']); // 드라이버가 죽었을 때 남은 탭을 제목으로 찾아 닫음
 });
 
 test('지시를 못 보내면 fail(send) 이고 탭은 닫는다', async () => {
@@ -289,4 +289,13 @@ test('죽은 실행기가 남긴 탭은 status 정리 때 닫는다', () => {
   writeFileSync(join(w.poolDir, 'items', 'a1-Z2.json'), JSON.stringify({ id: 'a1-Z2', lane: 'a1', size: 'S', want: 'auto', kind: 'opencode', cwd: w.work, state: 'running', pid: 999999, handle: 'fake-pool-a1-Z2', submitted_at: '2026-10-10T00:00:00Z' }));
   w.run(['status']);
   assert.deepEqual(w.calls('a1-Z2'), ['close']);
+});
+
+test('핸들을 기록하기 전에 죽은 실행기는 제목 검색으로 탭을 닫는다', () => {
+  const w = world();
+  mkdirSync(join(w.poolDir, 'items'), { recursive: true });
+  mkdirSync(join(w.work, '.pool'), { recursive: true });
+  writeFileSync(join(w.poolDir, 'items', 'a1-Z3.json'), JSON.stringify({ id: 'a1-Z3', lane: 'a1', size: 'S', want: 'auto', kind: 'opencode', cwd: w.work, state: 'running', pid: 999999, submitted_at: '2026-10-10T00:00:00Z' }));
+  w.run(['status']);
+  assert.deepEqual(w.calls('a1-Z3'), ['close-id']);
 });

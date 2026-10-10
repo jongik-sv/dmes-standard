@@ -19,12 +19,22 @@ export function promptFor(id) {
  *   한도 문구는 화면 끝 30줄에서만 찾는다(지난 출력·코드 본문 오판 줄이기). 보고 없이 quietS ≥ stuckS 면 멈춘 것으로 본다.
  */
 export function judgeTui({ report, quiet, quietS, stuckS, screen, elapsedS, limitS }) {
+  if (quiet && report) return 'ok'; // 시간 상한 직전에 끝낸 일을 timeout 으로 버리지 않는다
   if (elapsedS > limitS) return 'timeout';
   if (!quiet) return null;
-  if (report) return 'ok';
   if (RATE_RE.test(String(screen || '').split('\n').slice(-30).join('\n'))) return 'ratelimit';
   if (quietS >= stuckS) return 'fail';
   return null;
+}
+
+/**
+ * 탭 제목이 이 묶음의 워커 탭인가. 핸들을 기록하기 전에 실행기가 죽었을 때 제목으로 찾아 닫는다.
+ *   Claude Code(GLM) 는 제목을 `◐ pool-<id>` 처럼 앞에 기호를 붙여 바꾸고, opencode 는 지시 요약(`.pool/<id>.md …`)으로 바꾼다.
+ *   id 경계를 본다(a1-T1 이 a1-T10 탭을 잡지 않게).
+ */
+export function titleIsPoolTab(title, id) {
+  const esc = String(id).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^A-Za-z0-9._-])pool-${esc}($|[^A-Za-z0-9._-])|\\.pool/${esc}\\.md`).test(String(title || ''));
 }
 
 export function effectiveMax(kind, cfgMax, cool, nowMs) {

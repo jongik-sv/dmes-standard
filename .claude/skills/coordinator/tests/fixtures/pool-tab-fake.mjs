@@ -40,6 +40,9 @@ if (sub === '--lane') {
   process.stdout.write(existsSync(`${base(h)}.screen`) ? readFileSync(`${base(h)}.screen`, 'utf8') : '');
 } else if (sub === 'idle') {
   process.stdout.write(existsSync(`${base(rest[0])}.idle`) ? 'idle\n' : 'busy\n');
+} else if (sub === 'close-id') {
+  note(`fake-pool-${rest[0]}`, 'close-id');
+  process.stdout.write('CLOSED_ID 0\n');
 } else if (sub === 'close') {
   const h = rest[0];
   note(h, 'close');
