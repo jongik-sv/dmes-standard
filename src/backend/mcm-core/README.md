@@ -36,7 +36,7 @@ MES 공통(마스터데이터·공통 서비스) 도메인을 담는 **공유 �
 | `favorite` | 포털 즐겨찾기 |
 | `screenusage` | 포털 화면 사용 구간 기록(`screenUsage/record`, AUTH_ONLY) · 02:00 일별 집계·1년 보관(`ScreenUsageRollup`) · 통계 6종(`screenUsageStat` — 퍼사드 `ScreenUsageStatService` 가 탭별 `ScreenUsage*Query` 로 넘기고 공통 합산은 `ScreenUsageStatSupport`) |
 | `audit` · `common.audit` | 감사 로그 + native SQL 에 audit 9 컬럼을 주입하는 Hibernate StatementInspector |
-| `common` | 예외·이벤트·SQLite temporal 컨버터 등 공통 유틸 |
+| `common` | 예외·이벤트·보안 신원·클라이언트 IP·날짜 유틸 등 공통 부품 |
 | `config` | `McmCoreAutoConfiguration` · `McmSecurityDefaults` (호스트가 쓰는 기본 URL 매처) |
 
 화면 진입점은 REST 컨트롤러가 아니라 **OASIS BPMN** 이다. `mcm/api/src/main/resources/services/{그룹}/{화면}.bpmn`

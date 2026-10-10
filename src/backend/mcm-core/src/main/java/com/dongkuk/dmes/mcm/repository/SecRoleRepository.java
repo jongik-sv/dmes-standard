@@ -67,7 +67,7 @@ public interface SecRoleRepository extends JpaRepository<SecRole, String> {
      * 변환. MSSQL native query 로 {@code TOP 1} 사용.
      *
      * <p>2026-06-06 — 과거 MSSQL native {@code TOP 1} 이었으나 dialect 독립을 위해 JPQL + {@link Limit} 로 전환
-     * (SQLite local 단독 부팅 호환). SecRoleGroupMapping entity 사용 → TOP/LIMIT 은 Hibernate 가 dialect 별로 생성.
+     * (JPQL + Limit 이라 DB 문법에 묶이지 않는다). SecRoleGroupMapping entity 사용 → 행 제한은 Hibernate 가 dialect 에 맞게 생성한다.
      */
     @Query("SELECT m.roleGroupId FROM SecRoleGroupMapping m WHERE m.roleId = :roleId")
     List<String> findRoleGroupIdsByRoleId(@Param("roleId") String roleId, Limit limit);

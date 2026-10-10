@@ -61,7 +61,7 @@ public interface SecObjRepository extends JpaRepository<SecObj, String> {
      * 변환. MSSQL native query 로 {@code TOP 1} 사용 (정합 §11 #3 — As-Is 임의 1행 보존).
      *
      * <p>2026-06-06 — 과거 MSSQL native {@code TOP 1} 이었으나 dialect 독립을 위해 JPQL + {@link Limit} 로 전환
-     * (SQLite local 단독 부팅 호환). SecMenu entity 사용 → TOP/LIMIT 은 Hibernate 가 dialect 별로 생성.
+     * (JPQL + Limit 이라 DB 문법에 묶이지 않는다). SecMenu entity 사용 → 행 제한은 Hibernate 가 dialect 에 맞게 생성한다.
      */
     @Query("SELECT m.menuId FROM SecMenu m WHERE m.objectId = :objectId")
     List<String> findMenuIdsByObjectId(@Param("objectId") String objectId, Limit limit);

@@ -16,7 +16,7 @@ import java.util.Set;
 /**
  * 통계용 메뉴 카탈로그 — pageId({@code PARENT_MENU_ID/OBJECT_ID}) → 메뉴명·메뉴 경로·표시 여부.
  *
- * <p>메뉴 경로는 새 계층 SQL 을 쓰지 않고 기존 {@link SecMenuNativeRepository#searchMenuFld()}(SQLite/MSSQL 방언 분기 CTE)
+ * <p>메뉴 경로는 새 계층 SQL 을 쓰지 않고 기존 {@link SecMenuNativeRepository#searchMenuFld()}(재귀 WITH CTE)
  * 결과의 PARENT_MENU_ID 사슬을 Java 에서 잇는다. 미사용 판정 대상(viewable)은 MENU_VIEW_YN='Y' 이고 USE_TP='Y' 인 화면.
  */
 @Component
