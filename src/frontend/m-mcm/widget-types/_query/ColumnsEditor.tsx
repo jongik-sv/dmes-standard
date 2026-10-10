@@ -5,7 +5,7 @@
  * 결과 열 이름(`fields`)을 알면 필드 칸이 선택 목록이 되고 [결과 컬럼 모두 넣기] 가 켜진다.
  * id·testId·제목은 prop 으로 받는다(기본값 = 쿼리 표 위젯 편집기의 값이라 위젯 동작은 그대로다).
  */
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { EditableRowList, type GridColumn } from "@dk-oasis/shared/grid";
 
 import { ALIGN_LABELS, appendMissingFields, FORMAT_LABELS, intCell, textCell, type TableColumnConfig } from "./format";
@@ -32,7 +32,7 @@ export interface ColumnsEditorProps {
   testId?: string;
 }
 
-export function ColumnsEditor({
+export const ColumnsEditor = memo(function ColumnsEditor({
   columns,
   fields,
   onChange,
@@ -104,4 +104,4 @@ export function ColumnsEditor({
       </span>
     </div>
   );
-}
+});

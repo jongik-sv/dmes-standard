@@ -4,7 +4,7 @@
  * 미리보기 그리드 — [쿼리 시험] 결과(최대 50행)를 출력 정의대로 그린다. 출력 정의가 비면 결과 열 전부(`toColumnDefs` 규칙).
  * 열 정의는 결과·출력 정의가 바뀔 때만 다시 만든다(화면 성능 가이드 R5).
  */
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 
 import { AgDataGrid } from "@dk-oasis/shared/grid";
 
@@ -16,7 +16,7 @@ export interface PreviewGridProps {
   columns: readonly UserQueryColumn[];
 }
 
-export function PreviewGrid({ result, columns }: PreviewGridProps) {
+export const PreviewGrid = memo(function PreviewGrid({ result, columns }: PreviewGridProps) {
   const defs = useMemo(
     () => (result ? toColumnDefs(result.columns, { sql: "", columns: [...columns] }, result.rows) : []),
     [result, columns]
@@ -43,4 +43,4 @@ export function PreviewGrid({ result, columns }: PreviewGridProps) {
       ) : null}
     </div>
   );
-}
+});

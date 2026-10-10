@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { EditableRowList, type GridColumn } from "@dk-oasis/shared/grid";
 import { DETAIL_LABEL_CELL, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
@@ -98,7 +98,7 @@ export interface ParamsEditorProps {
 }
 
 /** 조회 조건 목록 편집 — 이름·라벨·형·기본값·필수·선택지, [SQL 에서 가져오기](SQL 의 `:이름` 중 선언 안 된 것을 글자 형으로 추가). */
-export function ParamsEditor({ sql, params, onChange }: ParamsEditorProps) {
+export const ParamsEditor = memo(function ParamsEditor({ sql, params, onChange }: ParamsEditorProps) {
   const rows = useMemo(() => params.map(toRow), [params]);
   const notes = paramUsageNotes(sql, params);
 
@@ -145,7 +145,7 @@ export function ParamsEditor({ sql, params, onChange }: ParamsEditorProps) {
       </span>
     </div>
   );
-}
+});
 
 export interface ParamsEditorRowProps {
   /** 편집기가 받은 정의 설정 값(sql·params 를 읽는다). */

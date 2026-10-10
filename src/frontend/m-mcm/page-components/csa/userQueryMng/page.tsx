@@ -63,8 +63,15 @@ export default function UserQueryMngPage() {
   const [selectedId, setSelectedId] = useState("");
   const [tab, setTab] = useState<DetailTab>("def");
   const [assignBusy, setAssignBusy] = useState(false);
-  const [defDirty, setDefDirty] = useState(false);
-  const [assignDirty, setAssignDirty] = useState(false);
+  /** 저장하지 않은 고침 여부 — 확인 창(guard)에서만 읽으므로 state 가 아니라 ref 다. state 면 첫 글자에서 화면 루트·목록 그리드가 다시 그려진다(R12). */
+  const defDirtyRef = useRef(false);
+  const assignDirtyRef = useRef(false);
+  const handleDefDirty = useCallback((d: boolean) => {
+    defDirtyRef.current = d;
+  }, []);
+  const handleAssignDirty = useCallback((d: boolean) => {
+    assignDirtyRef.current = d;
+  }, []);
   const defRef = useRef<DefTabHandle>(null);
   /** 조회조건의 최신 값 — 글자를 칠 때마다 load·저장·삭제 콜백이 바뀌어 하위 패널이 다시 그려지지 않게 ref 로 읽는다. */
   const filtersRef = useRef(filters);
@@ -73,7 +80,6 @@ export default function UserQueryMngPage() {
   const listInFlight = useRef(false);
 
   const isBusy = listBusy || detailBusy || assignBusy;
-  const dirty = defDirty || assignDirty;
   const gridRows = useMemo<QueryGridRow[]>(() => toGridRows(rows, categoryTitles), [rows, categoryTitles]);
 
   const showError = useCallback(
@@ -84,13 +90,13 @@ export default function UserQueryMngPage() {
   /** 저장하지 않은 고침이 있으면 확인을 거친다. */
   const guard = useCallback(
     (action: () => void) => {
-      if (!dirty) {
+      if (!defDirtyRef.current && !assignDirtyRef.current) {
         action();
         return;
       }
       showMessage({ title: "확인", message: "저장하지 않은 변경을 버릴까요?", alertType: "confirm", onConfirm: action });
     },
-    [dirty, showMessage]
+    [showMessage]
   );
 
   const load = useCallback(async () => {
@@ -299,7 +305,7 @@ export default function UserQueryMngPage() {
                 isNew={mode === "new"}
                 disabled={detailBusy || !canSave}
                 categoryOptions={categoryOptions}
-                onDirtyChange={setDefDirty}
+                onDirtyChange={handleDefDirty}
               />
             </div>
             <div hidden={tab !== "assign"} style={{ flex: "1 1 0", minHeight: 0, overflowY: "auto" }}>
@@ -307,7 +313,7 @@ export default function UserQueryMngPage() {
                 queryId={selectedId || null}
                 active={tab === "assign"}
                 canSave={canSaveAssign}
-                onDirtyChange={setAssignDirty}
+                onDirtyChange={handleAssignDirty}
                 onBusyChange={setAssignBusy}
                 onSaved={handleAssignSaved}
               />

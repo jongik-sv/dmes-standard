@@ -30,6 +30,36 @@ const LABELS = {
 
 const MISSING_BADGE = { label: "없는 사용자", bg: "var(--color-warning-soft)", color: "var(--color-warning)" };
 
+const getItemGroup = (it: AssignItem) => it.deptNm;
+const getItemBadge = (it: AssignItem) => (it.missing ? MISSING_BADGE : null);
+
+interface TransferPaneProps {
+  items: AssignItem[];
+  value: ReadonlySet<string>;
+  onChange: (next: Set<string>) => void;
+  editable: boolean;
+  active: boolean;
+}
+
+/** 숨은 탭에서는 다시 그리지 않는다(R10) — 둘 다 숨김이면 건너뛰고, 보이게 될 때 최신 props 로 그린다. */
+const TransferPane = memo(
+  function TransferPane({ items, value, onChange, editable }: TransferPaneProps) {
+    return (
+      <TransferList<AssignItem>
+        items={items}
+        value={value}
+        onChange={onChange}
+        editable={editable}
+        testId="userq-assign"
+        getGroup={getItemGroup}
+        getBadge={getItemBadge}
+        labels={LABELS}
+      />
+    );
+  },
+  (prev, next) => !prev.active && !next.active
+);
+
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export interface AssignTabProps {
@@ -177,16 +207,7 @@ export const AssignTab = memo(function AssignTab({ queryId, active, canSave, onD
           사용자가 많아 앞 {candidates.rows.length}명만 후보로 보입니다.
         </span>
       ) : null}
-      <TransferList<AssignItem>
-        items={items}
-        value={value}
-        onChange={setValue}
-        editable={editable}
-        testId="userq-assign"
-        getGroup={(it) => it.deptNm}
-        getBadge={(it) => (it.missing ? MISSING_BADGE : null)}
-        labels={LABELS}
-      />
+      <TransferPane items={items} value={value} onChange={setValue} editable={editable} active={active} />
       <div
         style={{
           flex: "0 0 auto",

@@ -28,6 +28,11 @@ import { PreviewGrid } from "./PreviewGrid";
 /** [쿼리 시험] 을 userQueryMng/previewQuery 로 보낸다(SqlEditor 기본은 위젯 관리 commWidgetMng/previewQuery). */
 const runPreview = (sql: string, params?: QueryParam[]) => previewUserQuery(sql, params);
 
+/** 폼이 비었을 때 자식에 내려주는 빈 값 — 매 렌더 새 배열이면 memo 자식(그리드)이 글자마다 다시 그려진다(R12). */
+const EMPTY_PARAMS: QueryParam[] = [];
+const EMPTY_COLUMNS: UserQueryDef["columns"] = [];
+const EMPTY_FIELDS: readonly string[] = [];
+
 export interface DefTabHandle {
   /**
    * 폼을 채우고 그 값을 기준값(저장된 값)으로 삼는다. null 이면 선택 없음(모든 칸 비활성).
@@ -95,6 +100,10 @@ export const DefTab = memo(function DefTab({ ref, isNew, disabled, categoryOptio
 
   const off = disabled || !form;
 
+  const handleSqlChange = useCallback((sql: string) => patch({ sqlText: sql }), [patch]);
+  const handleParamsChange = useCallback((params: QueryParam[]) => patch({ params }), [patch]);
+  const handleColumnsChange = useCallback((columns: UserQueryDef["columns"]) => patch({ columns }), [patch]);
+
   /** [쿼리 시험] 성공 — 결과를 보관하고 출력 정의에 없는 결과 열만 덧붙인다. 실패하면 이전 결과를 지운다. */
   const handlePreview = useCallback((result: QueryResult | null) => {
     setPreview(result);
@@ -102,6 +111,14 @@ export const DefTab = memo(function DefTab({ ref, isNew, disabled, categoryOptio
       setForm((prev) => (prev ? { ...prev, columns: appendMissingFields(prev.columns, result.columns) } : prev));
     }
   }, []);
+
+  /** 이전 쿼리의 늦은 시험 결과를 버린다 — loadSeq 가 key 로 SqlEditor 를 새로 세우므로 이 함수는 load 마다만 바뀐다. */
+  const handleSqlPreview = useCallback(
+    (result: QueryResult | null) => {
+      if (loadSeq === loadSeqRef.current) handlePreview(result);
+    },
+    [loadSeq, handlePreview]
+  );
 
   /** [SQL 검증] — 선언 안 된 `:이름` 을 글자 형 입력 정의로 더한 뒤 서버 validate 로 바인드 이름을 확인한다. */
   const handleValidate = useCallback(async () => {
@@ -248,10 +265,8 @@ export const DefTab = memo(function DefTab({ ref, isNew, disabled, categoryOptio
                 sql={form?.sqlText ?? ""}
                 params={form?.params}
                 preview={preview}
-                onSqlChange={(sql) => patch({ sqlText: sql })}
-                onPreview={(result) => {
-                  if (loadSeq === loadSeqRef.current) handlePreview(result);
-                }}
+                onSqlChange={handleSqlChange}
+                onPreview={handleSqlPreview}
                 runPreview={runPreview}
               />
               <Button
@@ -267,26 +282,26 @@ export const DefTab = memo(function DefTab({ ref, isNew, disabled, categoryOptio
           <tr>
             <th style={DETAIL_LABEL_CELL}>입력 정의</th>
             <td style={DETAIL_VALUE_CELL}>
-              <ParamsEditor sql={form?.sqlText ?? ""} params={form?.params ?? []} onChange={(params) => patch({ params })} />
+              <ParamsEditor sql={form?.sqlText ?? ""} params={form?.params ?? EMPTY_PARAMS} onChange={handleParamsChange} />
             </td>
           </tr>
           <tr>
             <th style={DETAIL_LABEL_CELL}>출력 정의</th>
             <td style={DETAIL_VALUE_CELL}>
               <ColumnsEditor
-                columns={form?.columns ?? []}
-                fields={preview?.columns ?? []}
+                columns={form?.columns ?? EMPTY_COLUMNS}
+                fields={preview?.columns ?? EMPTY_FIELDS}
                 title="출력 정의"
                 idPrefix="userq-col"
                 testId="userq-columns"
-                onChange={(columns) => patch({ columns })}
+                onChange={handleColumnsChange}
               />
             </td>
           </tr>
           <tr>
             <th style={DETAIL_LABEL_CELL}>미리보기</th>
             <td style={DETAIL_VALUE_CELL}>
-              <PreviewGrid result={preview} columns={form?.columns ?? []} />
+              <PreviewGrid result={preview} columns={form?.columns ?? EMPTY_COLUMNS} />
             </td>
           </tr>
         </tbody>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useRef, useState } from "react";
+import { Fragment, memo, useRef, useState } from "react";
 import { SqlCodeEditor } from "@dk-oasis/shared/code-editor";
 import { Button } from "@dk-oasis/shared/form";
 
@@ -24,7 +24,7 @@ export interface SqlEditorProps {
  * 쿼리 유형 편집기 공용 SQL 칸(스펙 §6 끝·§10.1) — 고정폭 입력 칸 + 시스템 변수 안내 + [쿼리 시험](commWidgetMng/previewQuery, 행 상한 50).
  * 시험이 실패하면 서버 메시지(「쿼리 오류: …」 등)를 그대로 보인다(관리자 SQL 작성 도움 — §7.3).
  */
-export function SqlEditor({ sql, params, preview, onSqlChange, onPreview, runPreview }: SqlEditorProps) {
+export const SqlEditor = memo(function SqlEditor({ sql, params, preview, onSqlChange, onPreview, runPreview }: SqlEditorProps) {
   const [busy, setBusy] = useState(false);
   // 단축키(Ctrl/⌘+Enter, F8)로도 시험하므로 버튼의 disabled 만으로는 겹쳐 부르는 것을 못 막는다 — 렌더 사이에도 보이는 ref 로 막는다.
   const busyRef = useRef(false);
@@ -90,4 +90,4 @@ export function SqlEditor({ sql, params, preview, onSqlChange, onPreview, runPre
       )}
     </div>
   );
-}
+});
