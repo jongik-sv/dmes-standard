@@ -17,7 +17,8 @@
  * - shared 컴포넌트만 사용 (AgDataGrid, form, layout). ag-grid·Mantine 직접 import 금지.
  * - 결과 0건이어도 그리드를 유지한다 (성능 가이드 R6).
  * - LOB 칸은 서버 요약 글자 + 「보기」 단추로 그리고, 단추를 누르면 그 한 칸만 다시 읽어 상세 창에 보인다.
- * - 컬럼 속성 「컬럼명」 칸은 MDM 컬럼 사전 이름을 먼저 보이고, 사전에 없으면 Oracle 칼럼 주석(ALL_COL_COMMENTS)을, 그마저 없으면 비운다.
+ * - 컬럼 속성은 이름 칸 둘을 따로 둔다 — 「MDM 이름」은 MDM 컬럼 사전 이름(사전 로드 전·사전에 없으면 빈칸),
+ *   「DB 주석」은 Oracle 칼럼 주석(ALL_COL_COMMENTS, 앞뒤 공백 제거)을 곧바로 보인다. 서로 대체하지 않아 글자가 바뀌지 않는다.
  * - 컬럼 속성 행을 더블클릭하면 칸 이름을, 조회 결과 셀을 더블클릭하면 셀 값(SQL 리터럴)을 편집창 커서 위치에 넣는다.
  */
 
@@ -47,7 +48,7 @@ import { identifierText, toSqlLiteral } from "./sql-assist";
 import { createSeq } from "./latest-seq";
 import { loadAllChunks } from "./load-more";
 import {
-  columnCaptionOf,
+  dbCommentOf,
   mdmNamesOf,
   MDM_META_MODULE,
   type MdmNameMap,
@@ -99,7 +100,8 @@ const COLUMN_PROP_COLUMNS: GridColumn[] = [
     render: renderKeys,
   },
   { key: "COLUMN_NAME", header: "컬럼", width: 150 },
-  { key: "COLUMN_CAPTION", header: "컬럼명", width: 140 },
+  { key: "MDM_NAME", header: "MDM 이름", width: 140 },
+  { key: "DB_COMMENT", header: "DB 주석", width: 160 },
   { key: "TYPE_TEXT", header: "타입", width: 110 },
   { key: "NULLABLE", header: "Null", width: 50, align: "center" },
 ];
@@ -589,11 +591,9 @@ export function AnalogDbViewer() {
           .filter(Boolean)
           .join(","),
         TYPE_TEXT: typeText(col),
-        // 컬럼명 칸 — MDM 사전 이름 → 칼럼 주석 → 빈칸.
-        COLUMN_CAPTION: columnCaptionOf(
-          mdmNames.get(col.COLUMN_NAME),
-          col.COMMENTS,
-        ),
+        // MDM 이름(사전 로드 전·미등록이면 빈칸)과 DB 주석은 서로 대체하지 않는다.
+        MDM_NAME: mdmNames.get(col.COLUMN_NAME) ?? "",
+        DB_COMMENT: dbCommentOf(col.COMMENTS),
       })),
     [columns, mdmNames],
   );
