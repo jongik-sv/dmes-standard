@@ -8,6 +8,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { COORD_ROOT } from './support/rng.mjs';
+import { ctxOver, laneTokens } from '../scripts/tick.mjs';
 
 const TICK = join(COORD_ROOT, 'scripts', 'tick.mjs');
 const CSTATE = join(COORD_ROOT, 'scripts', 'coord-state.mjs');
@@ -167,5 +168,47 @@ test('--dry-run: state.json·이벤트를 쓰지 않고 DRY 줄만 stderr 로, �
     assert.equal(readFileSync(join(w.stateRoot, 'r1', 'state.json'), 'utf8'), before);
     assert.equal(w.events().length, evBefore);
     assert.equal(existsSync(join(w.stateRoot, 'r1', 'ticks', 'load')), true, 'ticks/load 는 dry-run 에서도 쓴다(옛 판과 같다)');
+  } finally { w.clean(); }
+});
+
+test('ctxOver: pct 임계 또는 토큰 상한', () => {
+  assert.equal(ctxOver({ pct: 45, thr: 40, tokens: 1000, max: 250000 }), true);
+  assert.equal(ctxOver({ pct: 30, thr: 40, tokens: 300000, max: 250000 }), true);
+  assert.equal(ctxOver({ pct: 30, thr: 40, tokens: 100000, max: 250000 }), false);
+  assert.equal(ctxOver({ pct: 30, thr: 40, tokens: NaN, max: 250000 }), false);
+  assert.equal(ctxOver({ pct: 30, thr: 40, tokens: 300000, max: 0 }), false);
+  assert.equal(ctxOver({ pct: NaN, thr: 40, tokens: 300000, max: 250000 }), true);
+});
+
+test('laneTokens: pct × window / 100 반올림', () => {
+  assert.equal(laneTokens(30, 1000000), 300000);
+  assert.equal(laneTokens(33, 200000), 66000);
+  assert.ok(Number.isNaN(laneTokens(30, NaN)));
+});
+
+function selfCtxWorld(cacheRead) {
+  const w = world();
+  w.cs('set', '.run.coordinator.session_id', '"self-sid"');
+  mkdirSync(join(w.stateRoot, 'ctx'), { recursive: true });
+  writeFileSync(join(w.stateRoot, 'ctx', 'self-sid.json'), JSON.stringify({
+    at: Math.floor(Date.now() / 1000), session_id: 'self-sid',
+    context_window: { context_window_size: 1000000, current_usage: { input_tokens: 10000, cache_read_input_tokens: cacheRead, cache_creation_input_tokens: 0 } },
+  }));
+  return w;
+}
+
+test('틱: 조정 세션 토큰이 coordinator_max 를 넘으면 pct 가 임계 아래여도 CTX_OVER_SELF', () => {
+  const w = selfCtxWorld(200000);
+  try {
+    const r = w.tick();
+    assert.match(r.stdout, /^CTX_OVER_SELF pct=21 thr=40 tokens=210000 max=200000$/m);
+  } finally { w.clean(); }
+});
+
+test('틱: 조정 세션 토큰이 상한 아래면 CTX_OVER_SELF 없음', () => {
+  const w = selfCtxWorld(90000);
+  try {
+    const r = w.tick();
+    assert.doesNotMatch(r.stdout, /CTX_OVER_SELF/);
   } finally { w.clean(); }
 });

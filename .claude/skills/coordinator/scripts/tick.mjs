@@ -7,7 +7,7 @@
 //     PROMPT <레인> <kind> · ANSWER/DENY/ESCALATE …(auto-answer 결과 그대로)
 //     IDLE <레인> since=… · WAIT_USER <레인> <kind> · STALL? <레인> … · GONE <레인>     (idle-check)
 //     STALL <레인> …                                                                    (stall-check)
-//     CTX_OVER <레인> pct=<n> thr=<n> · CTX_OVER_SELF pct=<n> thr=<n>
+//     CTX_OVER <레인> pct=<n> thr=<n> tokens=<n|-> max=<n|-> · CTX_OVER_SELF pct=<n> thr=<n> tokens=<n|-> max=<n|->
 //     BAND_CHANGED <이전> <지금> five=<n> week=<n>        (state.usage 를 지금 값으로 갱신해 한 번만 낸다)
 //     LOAD_SOFT|LOAD_HARD|LOAD_RELEASE per_core=<f>      (두 틱 연속일 때만)
 //     WINDOW_DUE <kind> lane=<레인|-> until=<iso>
@@ -28,6 +28,19 @@ import { CoordDie, Ctx, cfgAll, cfgSub, hasRun, isoToEpoch, laneGet, nowEpoch, n
 import { statMtime } from './lib/compat.mjs';
 import { coordStateCall, runScript, scriptsDir, stripNl, testInt } from './lib/common-ext.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
+
+/** 레인 컨텍스트 토큰 어림: pct × window / 100 (반올림). */
+export function laneTokens(pct, win) {
+  const p = Number(pct); const w = Number(win);
+  if (!Number.isFinite(p) || !Number.isFinite(w)) return NaN;
+  return Math.round((p * w) / 100);
+}
+
+/** 컨텍스트 정리 필요: pct 임계 또는 토큰 상한(설계 2026-10-10 §5.1). */
+export function ctxOver({ pct, thr, tokens, max }) {
+  if (Number.isFinite(pct) && Number.isFinite(thr) && pct >= thr) return true;
+  return Number.isFinite(tokens) && Number.isFinite(max) && max > 0 && tokens >= max;
+}
 
 /** bash `read -r a b c rest` — IFS 공백류(기본 공백·탭)로 갈라 앞 n-1 칸 + 나머지(앞뒤 공백 뗌). 모자라면 빈 칸 */
 function readFields(line, n, ifs = /[ \t]+/) {
@@ -141,14 +154,15 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
       let win = stripNl(laneGet(c, L, '.session.window').out);
       if (!(win !== '' && win !== 'null')) win = cfgSub(c, '.compact.default_window');
       const thr = thrFor(win);
-      const ti = testInt(thr);
-      if (ti === null || !(BigInt(pct) >= ti)) continue;
+      const laneMax = Number(cfgSub(c, '.compact.lane_max') || '0');
+      const tokens = laneTokens(Number(pct), Number(win));
+      if (!ctxOver({ pct: Number(pct), thr: Number(thr), tokens, max: laneMax })) continue;
       const last = stripNl(isoToEpoch(c, stripNl(laneGet(c, L, '.compact.last_at').out)));
       if (last !== '') {
         const li = testInt(last); const ci = testInt(cool);
         if (li !== null && ci !== null && BigInt(Math.trunc((now - Number(li)) / 60)) < ci) continue;
       }
-      emit(`CTX_OVER ${L} pct=${pct} thr=${thr}`);
+      emit(`CTX_OVER ${L} pct=${pct} thr=${thr} tokens=${Number.isFinite(tokens) ? tokens : '-'} max=${laneMax || '-'}`);
     }
     let self = '';
     try { const v = J.index(J.index(J.index(readState(), 'run'), 'coordinator'), 'session_id'); self = v === null || v === undefined ? '' : J.tostring(v); } catch { /* 빈 값 */ }
@@ -157,9 +171,13 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
       if (cu.includes(' pct=')) {
         const pct = cu.replace(/^.* pct=([0-9]*).*$/, '$1');
         const win = cu.replace(/^.* window=([0-9]*).*$/, '$1');
+        const tok = cu.includes(' tokens=') ? cu.replace(/^.* tokens=([0-9]*).*$/, '$1') : '';
         const thr = thrFor(win);
-        const pi = testInt(pct); const ti = testInt(thr);
-        if (pi !== null && ti !== null && pi >= ti) emit(`CTX_OVER_SELF pct=${pct} thr=${thr}`);
+        const selfMax = Number(cfgSub(c, '.compact.coordinator_max') || '0');
+        const tokens = tok === '' ? NaN : Number(tok);
+        if (ctxOver({ pct: Number(pct), thr: Number(thr), tokens, max: selfMax })) {
+          emit(`CTX_OVER_SELF pct=${pct} thr=${thr} tokens=${Number.isFinite(tokens) ? tokens : '-'} max=${selfMax || '-'}`);
+        }
       }
     }
 
@@ -294,7 +312,7 @@ const HELP = `# 감시 틱 한 번을 묶어 돌리고, 조정자가 행동해�
 #     PROMPT <레인> <kind> · ANSWER/DENY/ESCALATE …(auto-answer 결과 그대로)
 #     IDLE <레인> since=… · WAIT_USER <레인> <kind> · STALL? <레인> … · GONE <레인>     (idle-check)
 #     STALL <레인> …                                                                    (stall-check)
-#     CTX_OVER <레인> pct=<n> thr=<n> · CTX_OVER_SELF pct=<n> thr=<n>
+#     CTX_OVER <레인> pct=<n> thr=<n> tokens=<n|-> max=<n|-> · CTX_OVER_SELF pct=<n> thr=<n> tokens=<n|-> max=<n|->
 #     BAND_CHANGED <이전> <지금> five=<n> week=<n>        (state.usage 를 지금 값으로 갱신해 한 번만 낸다)
 #     LOAD_SOFT|LOAD_HARD|LOAD_RELEASE per_core=<f>      (두 틱 연속일 때만)
 #     WINDOW_DUE <kind> lane=<레인|-> until=<iso>
