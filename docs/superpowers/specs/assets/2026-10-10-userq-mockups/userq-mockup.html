@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>공용 쿼리 조회 시안</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* 레이아웃: DMES C 고밀도 산업용 톤 — 어두운 셸(헤더·사이드바) + 밝은 작업 영역. 값은 shared variables.css 의미 토큰을 옮겨 적음. 단일 밝은 테마로 고정(제품 화면과 동일). */
+:root {
+  color-scheme: light;
+  --color-primary: #0b62d6;
+  --color-primary-soft: #e3eefc;
+  --color-bg-app: #e9ecf0;
+  --color-bg: #ffffff;
+  --color-bg-header: #f1f3f6;
+  --color-bg-grid-header: #e3e8ee;
+  --color-bg-zebra: #f6f8fa;
+  --color-bg-hover: #eef1f4;
+  --color-border: #c9d0d9;
+  --color-border-strong: #9aa5b3;
+  --color-border-light: #e3e7ec;
+  --color-text: #0f1720;
+  --color-text-secondary: #2b3440;
+  --color-text-muted: #5b6573;
+  --color-selection: #dbe8fb;
+  --color-danger: #d42a2a;
+  --color-danger-soft: #fdeaea;
+  --color-success: #13663a;
+  --color-success-soft: #d8f0e0;
+  --color-warning: #a15c07;
+  --color-edited: #fef3c7;
+  --shell-header-bg: #1c2530;
+  --shell-sidebar-bg: #26313e;
+  --shell-sidebar-fg: #c3ccd7;
+  --shell-tab-bar: #d5dbe2;
+  --note-bg: #fff8e1;
+  --note-border: #e8cf86;
+  --note-fg: #5c4300;
+  --font-family: "Pretendard Variable", Pretendard, "Noto Sans KR", system-ui, sans-serif;
+  --font-family-mono: "JetBrains Mono", D2Coding, ui-monospace, monospace;
+  --font-size-md: 12.5px;
+  --font-size-sm: 12px;
+  --font-size-xs: 11px;
+  --font-size-title: 16px;
+  --form-height: 26px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+}
+html, body { height: 100%; }
+body {
+  background: var(--color-bg-app); color: var(--color-text);
+  font-family: var(--font-family); font-size: var(--font-size-md);
+  font-variant-numeric: tabular-nums;
+}
+* { box-sizing: border-box; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; }
+
+/* ── 셸 ── */
+.app { display: grid; grid-template-rows: 44px 28px 1fr 24px; height: 100%; min-height: 560px; }
+.hdr { background: var(--shell-header-bg); color: #fff; display: flex; align-items: center; gap: 16px; padding-inline: 14px; }
+.logo { font-weight: 700; letter-spacing: .06em; font-size: 15px; }
+.logo b { color: #e0393e; }
+.hdr .mod { color: var(--shell-sidebar-fg); font-size: var(--font-size-sm); }
+.hdr .me { margin-left: auto; font-size: var(--font-size-sm); color: var(--shell-sidebar-fg); display: flex; gap: 8px; align-items: center; }
+.hdr select { background: #2e3a48; border: 1px solid #3c4a5a; color: #fff; height: 24px; border-radius: var(--radius-sm); padding-inline: 6px; }
+.tabbar { background: var(--shell-tab-bar); display: flex; align-items: flex-end; gap: 2px; padding-inline: 8px; }
+.tab { height: 26px; padding-inline: 12px; display: flex; align-items: center; border: 1px solid transparent; border-bottom: 0; border-radius: var(--radius-sm) var(--radius-sm) 0 0; color: var(--color-text-secondary); background: transparent; font-size: var(--font-size-sm); }
+.tab[aria-selected="true"] { background: var(--color-bg); border-color: var(--color-border); font-weight: 700; color: var(--color-text); }
+.body { display: grid; grid-template-columns: 188px 1fr; min-height: 0; }
+.side { background: var(--shell-sidebar-bg); color: var(--shell-sidebar-fg); padding-block: 8px; overflow: auto; }
+.side .grp { font-size: var(--font-size-xs); padding: 8px 14px 4px; color: #8693a3; letter-spacing: .04em; }
+.side .it { height: 28px; display: flex; align-items: center; padding-inline: 22px; font-size: var(--font-size-md); }
+.side .it.on { background: var(--color-primary); color: #fff; }
+.status { background: var(--color-bg-header); border-top: 1px solid var(--color-border); font-size: var(--font-size-xs); color: var(--color-text-muted); display: flex; align-items: center; gap: 16px; padding-inline: 12px; }
+
+/* ── 작업 영역 ── */
+.work { padding: 10px; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+.view { display: flex; flex-direction: column; gap: 8px; min-height: 0; flex: 1; }
+.titlebar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.titlebar h1 { font-size: var(--font-size-title); margin: 0; font-weight: 700; }
+.crumb { font-size: var(--font-size-xs); color: var(--color-text-muted); }
+.btns { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; }
+.btn { height: var(--form-height); padding-inline: 10px; border: 1px solid var(--color-border); background: var(--color-bg); border-radius: var(--radius-sm); font-size: var(--font-size-sm); }
+.btn:hover { background: var(--color-bg-hover); }
+.btn.primary { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+.btn.save { border-color: var(--color-primary); color: var(--color-primary); }
+.btn[disabled] { opacity: .45; cursor: default; }
+.kbd { font-family: var(--font-family-mono); font-size: 10px; opacity: .8; margin-left: 4px; }
+
+.panel { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.ph { height: 32px; background: var(--color-bg-header); border-bottom: 1px solid var(--color-border); display: flex; align-items: center; gap: 8px; padding-inline: 10px; flex-shrink: 0; }
+.ph h2 { font-size: 13px; font-weight: 700; margin: 0; }
+.ph .sub { font-size: var(--font-size-xs); color: var(--color-text-muted); }
+.ph .right { margin-left: auto; display: flex; gap: 4px; align-items: center; }
+
+/* 좌우 분할 */
+.split { display: flex; flex: 1; min-height: 0; gap: 0; }
+.left { flex: 0 0 var(--left-w, 20%); min-width: 0; }
+.gutter { flex: 0 0 8px; cursor: col-resize; display: flex; align-items: center; justify-content: center; touch-action: none; }
+.gutter span { width: 2px; height: 36px; border-radius: 2px; background: var(--color-border); }
+.gutter:hover span, .gutter.drag span, .gutter:focus-visible span { background: var(--color-primary); height: 56px; }
+.right { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.wpct { font-family: var(--font-family-mono); font-size: 10px; color: var(--color-text-muted); }
+
+/* 쿼리 목록 */
+.qfilter { padding: 6px; border-bottom: 1px solid var(--color-border-light); }
+.inp { height: var(--form-height); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding-inline: 7px; background: var(--color-bg); width: 100%; font-size: var(--font-size-md); }
+.inp:focus { border-color: var(--color-primary); outline: none; }
+.qlist { overflow: auto; flex: 1; padding-block: 4px; }
+.qcat { font-size: var(--font-size-xs); color: var(--color-text-muted); padding: 8px 10px 3px; font-weight: 600; display: flex; justify-content: space-between; }
+.qi { width: 100%; text-align: left; border: 0; background: transparent; display: grid; grid-template-columns: 1fr auto; gap: 2px 6px; padding: 5px 10px; border-radius: 0; }
+.qi:hover { background: var(--color-bg-hover); }
+.qi[aria-current="true"] { background: var(--color-primary-soft); color: var(--color-primary); }
+.qi .nm { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qi[aria-current="true"] .nm { font-weight: 700; }
+.qi .id { font-family: var(--font-family-mono); font-size: 10px; color: var(--color-text-muted); grid-column: 1; }
+.qi .star { grid-row: 1 / span 2; grid-column: 2; align-self: center; color: var(--color-border-strong); font-size: 13px; }
+.qi .star.on { color: var(--color-warning); }
+.qfoot { border-top: 1px solid var(--color-border-light); padding: 6px 10px; font-size: var(--font-size-xs); color: var(--color-text-muted); }
+
+/* 조회조건(정의에서 생성) */
+.search { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 8px 10px; align-items: center; }
+.sf { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.sf label { font-size: var(--font-size-sm); color: var(--color-text-secondary); white-space: nowrap; }
+.sf label .req { color: var(--color-danger); margin-left: 2px; }
+.sf .inp { width: auto; min-width: 0; }
+.sf .w-text { width: 130px; } .sf .w-date { width: 124px; } .sf .w-sel { width: 120px; }
+.sf .tilde { color: var(--color-text-muted); }
+.ms { display: flex; gap: 3px; flex-wrap: wrap; }
+.chip { height: 22px; padding-inline: 8px; border: 1px solid var(--color-border); border-radius: 11px; background: var(--color-bg); font-size: var(--font-size-xs); }
+.chip[aria-pressed="true"] { background: var(--color-primary-soft); border-color: var(--color-primary); color: var(--color-primary); font-weight: 600; }
+
+/* 그리드 */
+.gridwrap { overflow: auto; flex: 1; min-height: 120px; }
+table.grid { border-collapse: collapse; width: max-content; min-width: 100%; font-size: var(--font-size-md); }
+.grid th, .grid td { border-right: 1px solid var(--color-border-light); height: 26px; padding-inline: 8px; white-space: nowrap; }
+.grid th { position: sticky; top: 0; background: var(--color-bg-grid-header); height: 28px; font-size: var(--font-size-xs); font-weight: 600; text-align: left; border-bottom: 1px solid var(--color-border); cursor: pointer; user-select: none; }
+.grid th.num, .grid td.num { text-align: right; }
+.grid th.ctr, .grid td.ctr { text-align: center; }
+.grid th .ty { font-family: var(--font-family-mono); font-weight: 400; color: var(--color-text-muted); margin-left: 4px; font-size: 9.5px; }
+.grid tbody tr:nth-child(even) { background: var(--color-bg-zebra); }
+.grid tbody tr:hover { background: var(--color-bg-hover); }
+.grid tbody tr.sel { background: var(--color-selection); }
+.grid td.rn { color: var(--color-text-muted); text-align: right; width: 42px; background: var(--color-bg-header); }
+.grid tfoot td { position: sticky; bottom: 0; background: var(--color-bg-header); border-top: 1px solid var(--color-border); font-weight: 700; }
+.badge { display: inline-block; padding: 0 7px; height: 18px; line-height: 18px; border-radius: 9px; font-size: var(--font-size-xs); font-weight: 600; }
+.b-ok { background: var(--color-success-soft); color: var(--color-success); }
+.b-warn { background: var(--color-edited); color: var(--color-warning); }
+.b-bad { background: var(--color-danger-soft); color: var(--color-danger); }
+.b-info { background: var(--color-primary-soft); color: var(--color-primary); }
+.empty { padding: 36px 16px; text-align: center; color: var(--color-text-muted); }
+.limit { font-size: var(--font-size-xs); color: var(--color-warning); }
+
+/* 설명 메모(시안 주석) */
+.note { background: var(--note-bg); border: 1px dashed var(--note-border); color: var(--note-fg); border-radius: var(--radius-sm); padding: 6px 9px; font-size: var(--font-size-xs); line-height: 1.55; }
+.note b { font-weight: 700; }
+.notes-toggle { font-size: var(--font-size-xs); display: flex; gap: 4px; align-items: center; color: var(--color-text-muted); }
+
+/* 관리 화면 */
+.admin { display: grid; grid-template-columns: minmax(220px, 26%) 1fr; gap: 8px; flex: 1; min-height: 0; }
+.adm-right { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: auto; }
+.fgrid { display: grid; grid-template-columns: 84px 1fr 84px 1fr; gap: 6px 8px; padding: 8px 10px; align-items: center; }
+.fgrid label { font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+.sql { font-family: var(--font-family-mono); font-size: 12px; line-height: 1.6; white-space: pre; padding: 8px 10px; margin: 0; overflow: auto; background: #fbfcfd; border-top: 1px solid var(--color-border-light); max-height: 230px; }
+.sql .kw { color: var(--color-primary); font-weight: 500; }
+.sql .bind { background: var(--color-edited); color: var(--color-warning); border-radius: 2px; padding-inline: 1px; }
+.sql .cm { color: var(--color-text-muted); }
+.twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.mini { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
+.mini th, .mini td { border-bottom: 1px solid var(--color-border-light); padding: 4px 8px; text-align: left; white-space: nowrap; }
+.mini th { background: var(--color-bg-grid-header); font-size: var(--font-size-xs); font-weight: 600; }
+.mini td.mono { font-family: var(--font-family-mono); font-size: 11px; }
+.tblwrap { overflow-x: auto; }
+.assign { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 10px; }
+.who { display: inline-flex; gap: 5px; align-items: center; height: 24px; padding-inline: 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: var(--font-size-sm); background: var(--color-bg); }
+.who .k { font-size: 10px; font-weight: 700; padding: 0 4px; border-radius: 2px; }
+.k-u { background: var(--color-primary-soft); color: var(--color-primary); }
+.k-r { background: var(--color-success-soft); color: var(--color-success); }
+.k-d { background: var(--color-edited); color: var(--color-warning); }
+.guard { display: flex; gap: 6px; flex-wrap: wrap; padding: 6px 10px 8px; }
+
+/* SQL 줄 번호(Monaco 모양 흉내) */
+.sql { counter-reset: ln; padding-left: 0; }
+.sql .line { display: block; }
+.sql .line::before { counter-increment: ln; content: counter(ln); display: inline-block; width: 30px; margin-right: 12px; text-align: right; color: var(--color-border-strong); }
+
+/* 큰 편집 팝업 */
+.modal-back { position: fixed; inset: 0; background: rgba(15,23,32,.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+.modal { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); width: min(1200px, 100%); height: min(86vh, 900px); display: flex; flex-direction: column; box-shadow: 0 12px 40px rgba(15,23,32,.25); min-width: 0; }
+.ed { flex: 1; display: flex; min-height: 0; margin: 8px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); overflow: hidden; background: #fbfcfd; }
+.ed-gut { margin: 0; padding: 8px 8px 8px 4px; width: 46px; text-align: right; color: var(--color-border-strong); font-family: var(--font-family-mono); font-size: 13px; line-height: 1.6; overflow: hidden; background: var(--color-bg-header); border-right: 1px solid var(--color-border-light); flex-shrink: 0; }
+.ed-txt { flex: 1; border: 0; resize: none; padding: 8px 10px; font-family: var(--font-family-mono); font-size: 13px; line-height: 1.6; background: transparent; outline: none; white-space: pre; overflow: auto; min-width: 0; }
+.mfoot { display: flex; align-items: center; gap: 6px; padding: 0 10px 10px; }
+.mfoot .right { margin-left: auto; display: flex; gap: 4px; }
+
+/* 토스트 */
+.toast { position: fixed; right: 16px; bottom: 36px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 8px 12px; display: flex; gap: 8px; align-items: center; box-shadow: 0 4px 14px rgba(15,23,32,.12); font-size: var(--font-size-sm); max-width: calc(100% - 32px); }
+.toast::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--color-primary); flex-shrink: 0; }
+.toast.err::before { background: var(--color-danger); }
+
+/* 좁은 화면 */
+@media (max-width: 860px) {
+  .body { grid-template-columns: 1fr; }
+  .side { display: none; }
+  .admin, .twocol { grid-template-columns: 1fr; }
+  .fgrid { grid-template-columns: 74px 1fr; }
+}
+@media (max-width: 640px) {
+  .app { grid-template-rows: 44px 28px auto 24px; height: auto; }
+  .work { overflow: visible; }
+  .split { flex-direction: column; gap: 8px; }
+  .left { flex-basis: auto; max-height: 240px; }
+  .gutter { display: none; }
+  .hdr .mod { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="hdr">
+    <span class="logo"><b>D</b>MES</span>
+    <span class="mod">공통관리 · MCM</span>
+    <span class="me">
+      <label for="who">시연 사용자</label>
+      <select id="who"></select>
+    </span>
+  </header>
+  <nav class="tabbar" role="tablist">
+    <button class="tab" role="tab" id="tab-run" aria-selected="true">공용 쿼리 조회</button>
+    <button class="tab" role="tab" id="tab-adm" aria-selected="false">쿼리 정의 관리</button>
+  </nav>
+  <div class="body">
+    <aside class="side" aria-label="메뉴">
+      <div class="grp">공통관리</div>
+      <div class="it">공지사항</div>
+      <div class="it">위젯 관리</div>
+      <div class="it" id="m-run">공용 쿼리 조회</div>
+      <div class="it" id="m-adm">쿼리 정의 관리</div>
+      <div class="grp">보안</div>
+      <div class="it">사용자 관리</div>
+      <div class="it">권한 관리</div>
+    </aside>
+
+    <main class="work">
+      <!-- ① 사용자 조회 화면 -->
+      <section class="view" id="v-run">
+        <div class="titlebar">
+          <h1>공용 쿼리 조회</h1>
+          <span class="crumb">공통관리 › 공용 쿼리 조회 · <span id="crumbQ"></span></span>
+          <label class="notes-toggle"><input type="checkbox" id="showNotes" checked> 시안 설명 보기</label>
+          <div class="btns">
+            <button class="btn primary" id="btnSearch">조회<span class="kbd">F8</span></button>
+            <button class="btn" id="btnExcel">엑셀</button>
+          </div>
+        </div>
+        <div class="split" id="split">
+          <div class="panel left" id="left">
+            <div class="ph"><h2>내 쿼리</h2><span class="sub" id="qcount"></span><span class="right wpct" id="wpct">20%</span></div>
+            <div class="qfilter"><input class="inp" id="qq" placeholder="쿼리 이름·ID 검색" aria-label="쿼리 검색"></div>
+            <div class="qlist" id="qlist" role="list"></div>
+            <div class="qfoot">관리자가 나에게 할당한 쿼리만 보입니다</div>
+          </div>
+          <div class="gutter" id="gutter" role="separator" aria-orientation="vertical" aria-label="목록 폭 조절" aria-valuemin="14" aria-valuemax="40" aria-valuenow="20" tabindex="0" title="끌어서 폭 조절 · 더블클릭 20% 복원"><span></span></div>
+          <div class="right">
+            <div class="note" data-note><b>시안 설명</b> · 왼쪽 목록 폭은 기본 20%, 경계를 끌어 14~40% 로 조절합니다(더블클릭 = 20% 복원, 키보드 ←→). 오른쪽의 조회조건과 그리드는 화면 코드가 아니라 <b>쿼리 정의(입력·출력)</b> 에서 그려집니다. 쿼리를 바꾸면 조건 칸과 열이 바뀝니다.</div>
+            <div class="panel">
+              <div class="ph"><h2 id="qtitle"></h2><span class="sub" id="qdesc"></span><span class="right sub" id="qowner"></span></div>
+              <form class="search" id="search" autocomplete="off"></form>
+            </div>
+            <div class="panel" style="flex:1">
+              <div class="ph"><h2>조회 결과</h2><span class="sub" id="rcount">조회 전</span><span class="right"><span class="limit" id="rlimit"></span></span></div>
+              <div class="gridwrap" id="gridwrap"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ② 관리 화면 -->
+      <section class="view" id="v-adm" hidden>
+        <div class="titlebar">
+          <h1>쿼리 정의 관리</h1>
+          <span class="crumb">공통관리 › 쿼리 정의 관리 · 관리자 전용</span>
+          <div class="btns">
+            <button class="btn primary">조회<span class="kbd">F8</span></button>
+            <button class="btn">신규</button>
+            <button class="btn save">저장</button>
+            <button class="btn">삭제</button>
+            <button class="btn" id="btnValidate">SQL 검증</button>
+            <button class="btn" id="btnPreview">미리보기</button>
+          </div>
+        </div>
+        <div class="note" data-note><b>시안 설명</b> · 관리자가 SQL 을 등록하면 <b>SQL 검증</b> 이 바인드 변수(<code>:이름</code>)로 입력 정의 초안을, 결과 컬럼 메타로 출력 정의 초안을 만듭니다. 관리자는 라벨·형식·필수 여부·코드값만 다듬습니다. 실행은 기존 위젯 조회 엔진(SELECT·WITH 만, 읽기 전용 트랜잭션, 최대 행·시간 제한)을 그대로 씁니다.</div>
+        <div class="panel">
+          <form class="search" id="asearch" autocomplete="off">
+            <div class="sf"><label for="s_cat">분류</label><select class="inp w-sel" id="s_cat"><option value="">전체</option><option>생산</option><option>품질</option><option>출하</option></select></div>
+            <div class="sf"><label for="s_nm">쿼리 이름·ID</label><input class="inp w-text" id="s_nm" placeholder="부분 일치"></div>
+            <div class="sf"><label for="s_st">사용 여부</label><select class="inp w-sel" id="s_st"><option value="">전체</option><option>사용</option><option>임시</option></select></div>
+            <div class="sf"><label for="s_own">담당 부서</label><input class="inp w-text" id="s_own" placeholder="부분 일치"></div>
+            <div class="sf"><label for="s_usr">할당 사용자</label><input class="inp w-text" id="s_usr" placeholder="이 사용자에게 할당된 쿼리"></div>
+          </form>
+        </div>
+        <div class="admin">
+          <div class="panel">
+            <div class="ph"><h2>쿼리 목록</h2><span class="sub" id="acount"></span></div>
+            <div class="qlist" id="alist"></div>
+          </div>
+          <div class="adm-right">
+            <div class="panel">
+              <div class="ph"><h2>기본 정보</h2><span class="right" id="astate"></span></div>
+              <div class="fgrid" id="abasic"></div>
+            </div>
+            <div class="panel">
+              <div class="ph"><h2>SQL</h2><span class="sub">Monaco 편집기 · Oracle · 바인드 변수 <code>:이름</code></span><span class="right"><button class="btn" type="button" id="btnExpand" title="큰 팝업 편집기로 열기">⤢ 크게 보기</button></span></div>
+              <pre class="sql" id="asql"></pre>
+              <div class="guard" id="aguard"></div>
+            </div>
+            <div class="twocol">
+              <div class="panel">
+                <div class="ph"><h2>입력 정의</h2><span class="sub">→ 조회조건 Form</span></div>
+                <div class="tblwrap"><table class="mini" id="ain"></table></div>
+              </div>
+              <div class="panel">
+                <div class="ph"><h2>출력 정의</h2><span class="sub">→ 결과 Grid 열</span></div>
+                <div class="tblwrap"><table class="mini" id="aout"></table></div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="ph"><h2>할당 사용자</h2><span class="sub">사용자 단위 할당</span><span class="right"><button class="btn">추가</button></span></div>
+              <div class="assign" id="aassign"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <footer class="status"><span>dev · L_MAIN</span><span id="stat">준비</span><span style="margin-left:auto">시안 · 데이터는 예시값</span></footer>
+</div>
+<div class="toast" id="toast" hidden></div>
+<div class="modal-back" id="sqlModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <div class="ph"><h2 id="mTitle">SQL 편집</h2><span class="sub" id="mSub"></span><span class="right"><button class="btn" type="button" id="mClose" aria-label="닫기">✕</button></span></div>
+    <div class="note" data-note style="margin:8px 10px 0"><b>시안 설명</b> · 실제 화면에서는 shared 공용 부품 <b>SQL 편집기(Monaco)</b> 가 들어갑니다. 구문 강조, 자동 완성, 줄 번호, 찾기·바꾸기, Ctrl/⌘+Enter 시험 실행을 제공합니다. 같은 부품을 <b>예약 작업 관리</b>(실행 SQL·원천 SQL)와 <b>위젯 관리</b>(쿼리 위젯 SQL)에도 적용합니다. Monaco 로더·테마는 shared 한 곳에 두고, 이미 Monaco 를 쓰는 <b>로그 뷰어·DB 뷰어</b>도 같은 로더를 쓰게 맞춥니다.</div>
+    <div class="ed">
+      <pre class="ed-gut" id="mGut" aria-hidden="true"></pre>
+      <textarea class="ed-txt" id="mTxt" spellcheck="false" aria-label="SQL"></textarea>
+    </div>
+    <div class="mfoot"><span class="sub" id="mInfo"></span><span class="right"><button class="btn" type="button" id="mValidate">SQL 검증</button><button class="btn" type="button" id="mCancel">취소</button><button class="btn primary" type="button" id="mApply">적용</button></span></div>
+  </div>
+</div>
+
+<script>
+(() => {
+"use strict";
+// ── 예시 정의 (실제 저장 구조 초안: 쿼리 + 입력 정의 + 출력 정의 + 할당) ──
+const CODES = {
+  PLANT: [["P1","포항"],["P2","인천"],["P3","당진"]],
+  COIL_ST: [["S","정상"],["H","보류"],["R","재검"]],
+  JUDGE: [["OK","합격"],["NG","불합격"],["RE","재검사"]],
+  SHIP_ST: [["10","지시"],["20","상차"],["30","출문"]],
+  LINE: [["CGL1","CGL 1라인"],["CGL2","CGL 2라인"],["PCM","PCM"],["SPM","SPM"]],
+};
+const Q = [
+  { id:"UQ-PRD-001", cat:"생산", name:"라인별 일 생산 실적", desc:"라인·일자별 생산량과 가동률",
+    owner:"생산기술팀", ver:3, state:"사용",
+    sql:`SELECT A.WORK_DT, A.LINE_CD, L.LINE_NM\n     , SUM(A.PROD_WT)  AS PROD_WT\n     , SUM(A.PLAN_WT)  AS PLAN_WT\n     , ROUND(SUM(A.RUN_MIN) / 1440 * 100, 1) AS RUN_RATE\n  FROM TB_MPP_PROD_RSLT A\n     , TB_MCM_LINE L\n WHERE A.LINE_CD = L.LINE_CD\n   AND A.PLANT_CD = :plantCd\n   AND A.WORK_DT BETWEEN :fromDt AND :toDt\n   AND (:lineCd IS NULL OR A.LINE_CD = :lineCd)\n GROUP BY A.WORK_DT, A.LINE_CD, L.LINE_NM\n ORDER BY A.WORK_DT DESC, A.LINE_CD`,
+    inputs:[
+      {key:"plantCd",label:"공장",type:"select",code:"PLANT",req:true,def:"P1"},
+      {key:"fromDt",label:"작업일",type:"daterange",to:"toDt",req:true,def:"-7d"},
+      {key:"lineCd",label:"라인",type:"select",code:"LINE",req:false,def:""},
+    ],
+    outputs:[
+      {key:"WORK_DT",label:"작업일",type:"date",w:96,align:"ctr"},
+      {key:"LINE_CD",label:"라인",type:"text",w:70,align:"ctr"},
+      {key:"LINE_NM",label:"라인명",type:"text",w:110},
+      {key:"PROD_WT",label:"생산량(t)",type:"number",fmt:"#,##0.0",w:96,align:"num",sum:true},
+      {key:"PLAN_WT",label:"계획량(t)",type:"number",fmt:"#,##0.0",w:96,align:"num",sum:true},
+      {key:"RUN_RATE",label:"가동률(%)",type:"number",fmt:"0.0",w:84,align:"num"},
+    ],
+    assign:[["u","김현수"]] },
+  { id:"UQ-PRD-002", cat:"생산", name:"코일 재고 현황", desc:"창고·상태별 코일 재고",
+    owner:"생산관리팀", ver:5, state:"사용",
+    sql:`SELECT C.COIL_NO, C.STEEL_GRD, C.THK, C.WID, C.WT\n     , C.WH_CD, C.STAT_CD, C.IN_DT\n  FROM TB_MLS_COIL_STK C\n WHERE C.PLANT_CD = :plantCd\n   AND C.STAT_CD IN (:statCd)          -- 다중 선택\n   AND C.COIL_NO LIKE :coilNo || '%'\n ORDER BY C.IN_DT`,
+    inputs:[
+      {key:"plantCd",label:"공장",type:"select",code:"PLANT",req:true,def:"P1"},
+      {key:"statCd",label:"상태",type:"multi",code:"COIL_ST",req:false,def:"S,H"},
+      {key:"coilNo",label:"코일번호",type:"text",req:false,def:""},
+    ],
+    outputs:[
+      {key:"COIL_NO",label:"코일번호",type:"text",w:110,mono:true},
+      {key:"STEEL_GRD",label:"강종",type:"text",w:80},
+      {key:"THK",label:"두께(mm)",type:"number",fmt:"0.00",w:76,align:"num"},
+      {key:"WID",label:"폭(mm)",type:"number",fmt:"#,##0",w:70,align:"num"},
+      {key:"WT",label:"중량(t)",type:"number",fmt:"#,##0.000",w:84,align:"num",sum:true},
+      {key:"WH_CD",label:"창고",type:"text",w:60,align:"ctr"},
+      {key:"STAT_CD",label:"상태",type:"code",code:"COIL_ST",w:66,align:"ctr"},
+      {key:"IN_DT",label:"입고일",type:"date",w:96,align:"ctr"},
+    ],
+    assign:[["u","김현수"],["u","박지영"]] },
+  { id:"UQ-QLT-001", cat:"품질", name:"품질 판정 이력", desc:"기간 내 코일 판정 결과",
+    owner:"품질보증팀", ver:2, state:"사용",
+    sql:`SELECT J.JUDGE_DT, J.COIL_NO, J.TEST_ITEM, J.MEAS_VAL\n     , J.SPEC_MIN, J.SPEC_MAX, J.JUDGE_CD, J.JUDGE_USER\n  FROM TB_MQC_JUDGE J\n WHERE J.JUDGE_DT BETWEEN :fromDt AND :toDt\n   AND (:judgeCd IS NULL OR J.JUDGE_CD = :judgeCd)`,
+    inputs:[
+      {key:"fromDt",label:"판정일",type:"daterange",to:"toDt",req:true,def:"-3d"},
+      {key:"judgeCd",label:"판정",type:"select",code:"JUDGE",req:false,def:""},
+    ],
+    outputs:[
+      {key:"JUDGE_DT",label:"판정일",type:"date",w:96,align:"ctr"},
+      {key:"COIL_NO",label:"코일번호",type:"text",w:110,mono:true},
+      {key:"TEST_ITEM",label:"시험항목",type:"text",w:100},
+      {key:"MEAS_VAL",label:"측정값",type:"number",fmt:"0.00",w:76,align:"num"},
+      {key:"SPEC_MIN",label:"하한",type:"number",fmt:"0.00",w:64,align:"num"},
+      {key:"SPEC_MAX",label:"상한",type:"number",fmt:"0.00",w:64,align:"num"},
+      {key:"JUDGE_CD",label:"판정",type:"code",code:"JUDGE",w:70,align:"ctr"},
+      {key:"JUDGE_USER",label:"판정자",type:"text",w:72},
+    ],
+    assign:[["u","박지영"],["u","이도윤"]] },
+  { id:"UQ-SHP-001", cat:"출하", name:"출하 지시 진행", desc:"거래처별 출하 지시와 진행 단계",
+    owner:"영업관리팀", ver:1, state:"사용",
+    sql:`SELECT S.SHIP_NO, S.SHIP_DT, S.CUST_NM, S.CAR_NO\n     , S.ORD_WT, S.LOAD_WT, S.SHIP_ST\n  FROM TB_MLS_SHIP_ORD S\n WHERE S.SHIP_DT = :shipDt\n   AND S.CUST_NM LIKE '%' || :custNm || '%'`,
+    inputs:[
+      {key:"shipDt",label:"출하일",type:"date",req:true,def:"0d"},
+      {key:"custNm",label:"거래처",type:"text",req:false,def:""},
+    ],
+    outputs:[
+      {key:"SHIP_NO",label:"출하번호",type:"text",w:110,mono:true},
+      {key:"SHIP_DT",label:"출하일",type:"date",w:96,align:"ctr"},
+      {key:"CUST_NM",label:"거래처",type:"text",w:120},
+      {key:"CAR_NO",label:"차량번호",type:"text",w:90},
+      {key:"ORD_WT",label:"지시량(t)",type:"number",fmt:"#,##0.000",w:88,align:"num",sum:true},
+      {key:"LOAD_WT",label:"상차량(t)",type:"number",fmt:"#,##0.000",w:88,align:"num",sum:true},
+      {key:"SHIP_ST",label:"단계",type:"code",code:"SHIP_ST",w:66,align:"ctr"},
+    ],
+    assign:[["u","김현수"],["u","박지영"]] },
+  { id:"UQ-PRD-003", cat:"생산", name:"설비 비가동 내역", desc:"설비·사유별 정지 시간",
+    owner:"설비팀", ver:1, state:"임시",
+    sql:`SELECT D.EQP_CD, D.STOP_FR, D.STOP_TO\n     , ROUND((D.STOP_TO - D.STOP_FR) * 1440) AS STOP_MIN\n     , D.REASON_NM\n  FROM TB_MPP_EQP_DOWN D\n WHERE D.STOP_FR >= :fromDt`,
+    inputs:[{key:"fromDt",label:"정지 시작",type:"date",req:true,def:"-1d"}],
+    outputs:[
+      {key:"EQP_CD",label:"설비",type:"text",w:80},
+      {key:"STOP_FR",label:"정지 시작",type:"date",w:96,align:"ctr"},
+      {key:"STOP_TO",label:"정지 종료",type:"date",w:96,align:"ctr"},
+      {key:"STOP_MIN",label:"정지(분)",type:"number",fmt:"#,##0",w:72,align:"num",sum:true},
+      {key:"REASON_NM",label:"사유",type:"text",w:140},
+    ],
+    assign:[["u","이도윤"]] },
+];
+const USERS = [
+  {name:"김현수", roles:["생산관리자"], dept:"포항 생산1팀"},
+  {name:"박지영", roles:["품질담당","물류담당"], dept:"인천 물류팀"},
+  {name:"이도윤", roles:["설비담당"], dept:"당진 설비팀"},
+];
+
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const today = new Date(2026, 9, 10);
+const fmtD = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const rel = (s) => { const n = parseInt(s, 10) || 0; const d = new Date(today); d.setDate(d.getDate() + n); return fmtD(d); };
+const codeNm = (c, v) => (CODES[c].find(x => x[0] === v) || [v, v])[1];
+function fmtNum(v, f) {
+  const dec = (f && f.includes(".")) ? f.split(".")[1].length : 0;
+  return Number(v).toLocaleString("ko-KR", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+let seed = 7;
+const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+
+let me = USERS[0], cur = null, rows = [], sortKey = null, sortDir = 1, selRow = -1;
+const favs = new Set(["UQ-PRD-002"]);
+
+function visibleFor(u) {
+  return Q.filter(q => q.state === "사용" && q.assign.some(([, v]) => v === u.name));
+}
+
+// ── 사용자 선택 ──
+$("#who").innerHTML = USERS.map((u, i) => `<option value="${i}">${esc(u.name)} · ${esc(u.dept)}</option>`).join("");
+$("#who").addEventListener("change", e => { me = USERS[+e.target.value]; renderList(); });
+
+// ── 왼쪽 목록 ──
+function renderList() {
+  const term = $("#qq").value.trim().toLowerCase();
+  const mine = visibleFor(me);
+  const list = mine.filter(q => !term || q.name.toLowerCase().includes(term) || q.id.toLowerCase().includes(term));
+  $("#qcount").textContent = `${mine.length}건`;
+  const groups = [["즐겨찾기", list.filter(q => favs.has(q.id))]];
+  [...new Set(list.map(q => q.cat))].forEach(c => groups.push([c, list.filter(q => q.cat === c)]));
+  $("#qlist").innerHTML = groups.filter(g => g[1].length).map(([g, qs]) =>
+    `<div class="qcat"><span>${esc(g)}</span><span>${qs.length}</span></div>` +
+    qs.map(q => `<button type="button" class="qi" role="listitem" data-id="${q.id}" aria-current="${cur && cur.id === q.id}">
+      <span class="nm">${esc(q.name)}</span><span class="id">${q.id}</span>
+      <span class="star ${favs.has(q.id) ? "on" : ""}" data-star="${q.id}" title="즐겨찾기">★</span></button>`).join("")
+  ).join("") || `<div class="empty">할당된 쿼리가 없습니다.<br>관리자에게 할당을 요청하세요.</div>`;
+  if (!cur || !mine.includes(cur)) select(mine[0] || null);
+}
+$("#qq").addEventListener("input", renderList);
+$("#qlist").addEventListener("click", e => {
+  const st = e.target.closest("[data-star]");
+  if (st) { const id = st.dataset.star; favs.has(id) ? favs.delete(id) : favs.add(id); renderList(); return; }
+  const b = e.target.closest(".qi"); if (b) select(Q.find(q => q.id === b.dataset.id));
+});
+
+// ── 오른쪽: 정의 → Form ──
+function select(q) {
+  cur = q; rows = []; sortKey = null; selRow = -1;
+  document.querySelectorAll(".qi").forEach(b => b.setAttribute("aria-current", String(!!q && b.dataset.id === q.id)));
+  if (!q) { $("#qtitle").textContent = "쿼리를 선택하세요"; $("#qdesc").textContent = ""; $("#qowner").textContent = ""; $("#search").innerHTML = ""; $("#crumbQ").textContent = "-"; renderGrid(); return; }
+  $("#qtitle").textContent = q.name;
+  $("#qdesc").textContent = q.desc;
+  $("#qowner").textContent = `${q.id} · v${q.ver} · 담당 ${q.owner}`;
+  $("#crumbQ").textContent = q.id;
+  $("#search").innerHTML = q.inputs.map(fieldHtml).join("");
+  renderGrid();
+}
+function opt(c, req) { return (req ? "" : `<option value="">전체</option>`) + CODES[c].map(([v, n]) => `<option value="${v}">${esc(n)}</option>`).join(""); }
+function fieldHtml(f) {
+  const id = `f_${f.key}`, lab = `<label for="${id}">${esc(f.label)}${f.req ? '<span class="req">*</span>' : ""}</label>`;
+  if (f.type === "select") return `<div class="sf">${lab}<select class="inp w-sel" id="${id}" name="${f.key}">${opt(f.code, f.req)}</select></div>`.replace(`value="${f.def}"`, `value="${f.def}" selected`);
+  if (f.type === "date") return `<div class="sf">${lab}<input class="inp w-date" type="date" id="${id}" name="${f.key}" value="${rel(f.def)}"></div>`;
+  if (f.type === "daterange") return `<div class="sf">${lab}<input class="inp w-date" type="date" id="${id}" name="${f.key}" value="${rel(f.def)}"><span class="tilde">~</span><input class="inp w-date" type="date" id="f_${f.to}" name="${f.to}" aria-label="${esc(f.label)} 끝" value="${rel("0d")}"></div>`;
+  if (f.type === "multi") { const on = f.def.split(","); return `<div class="sf"><label>${esc(f.label)}</label><div class="ms" id="${id}">${CODES[f.code].map(([v, n]) => `<button type="button" class="chip" data-v="${v}" aria-pressed="${on.includes(v)}">${esc(n)}</button>`).join("")}</div></div>`; }
+  return `<div class="sf">${lab}<input class="inp w-text" id="${id}" name="${f.key}" placeholder="${f.key === "coilNo" ? "앞자리 일치" : "부분 일치"}"></div>`;
+}
+$("#search").addEventListener("click", e => { const c = e.target.closest(".chip"); if (c) c.setAttribute("aria-pressed", String(c.getAttribute("aria-pressed") !== "true")); });
+$("#search").addEventListener("submit", e => { e.preventDefault(); run(); });
+$("#search").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); run(); } });
+
+// ── 조회 실행(예시 데이터 생성) ──
+function run() {
+  if (!cur) return;
+  const miss = cur.inputs.filter(f => f.req && f.type !== "multi" && !$(`#f_${f.key}`).value);
+  if (miss.length) { toast(`필수 조건을 입력하세요: ${miss.map(f => f.label).join(", ")}`, true); return; }
+  seed = cur.id.split("").reduce((a, c) => a + c.charCodeAt(0), 0) + Date.now() % 97;
+  const n = cur.id === "UQ-PRD-002" ? 1000 : 18 + Math.floor(rnd() * 60);
+  rows = Array.from({ length: n }, (_, i) => mkRow(i));
+  sortKey = null; selRow = -1;
+  renderGrid(n >= 1000);
+  toast(`${rows.length.toLocaleString()}건 조회되었습니다.`);
+  $("#stat").textContent = `${cur.id} 실행 · ${(0.12 + rnd() * 0.5).toFixed(2)}초`;
+}
+function mkRow(i) {
+  const r = {};
+  cur.outputs.forEach(o => {
+    if (o.type === "date") { const d = new Date(today); d.setDate(d.getDate() - Math.floor(rnd() * 7)); r[o.key] = fmtD(d); }
+    else if (o.type === "code") { const cs = CODES[o.code]; r[o.key] = cs[Math.floor(rnd() * cs.length * .9) % cs.length][0]; }
+    else if (o.type === "number") r[o.key] = /RATE/.test(o.key) ? 70 + rnd() * 28 : /THK/.test(o.key) ? 0.4 + rnd() * 2.6 : /WID/.test(o.key) ? 900 + Math.floor(rnd() * 700) : /MIN$/.test(o.key) ? Math.floor(rnd() * 180) : /VAL|SPEC/.test(o.key) ? 200 + rnd() * 400 : 5 + rnd() * 30;
+    else r[o.key] = sample(o.key, i);
+  });
+  return r;
+}
+function sample(k, i) {
+  const pick = a => a[Math.floor(rnd() * a.length)];
+  if (k === "COIL_NO") return `C${26100}${String(4000 + i).padStart(5, "0")}`;
+  if (k === "SHIP_NO") return `SH261010${String(i + 1).padStart(3, "0")}`;
+  if (k === "LINE_CD") return pick(["CGL1", "CGL2", "PCM", "SPM"]);
+  if (k === "LINE_NM") return pick(["CGL 1라인", "CGL 2라인", "PCM", "SPM"]);
+  if (k === "STEEL_GRD") return pick(["SGCC", "SGHC", "SPCC", "DX51D"]);
+  if (k === "WH_CD") return pick(["W01", "W02", "W05"]);
+  if (k === "TEST_ITEM") return pick(["인장강도", "항복강도", "연신율", "도금량"]);
+  if (k === "JUDGE_USER" ) return pick(["정민재", "한유진", "오세훈"]);
+  if (k === "CUST_NM") return pick(["대한강건", "세진철강", "한빛스틸", "동해금속"]);
+  if (k === "CAR_NO") return `${80 + Math.floor(rnd() * 19)}가${1000 + Math.floor(rnd() * 8999)}`;
+  if (k === "EQP_CD") return pick(["RM-01", "CT-02", "SK-03", "TL-01"]);
+  if (k === "REASON_NM") return pick(["롤 교체", "계획 정비", "소재 대기", "센서 이상"]);
+  return "-";
+}
+
+// ── 정의 → Grid ──
+function cell(o, v) {
+  if (v == null) return "";
+  if (o.type === "number") return fmtNum(v, o.fmt);
+  if (o.type === "code") { const cls = {S:"b-ok",OK:"b-ok","30":"b-ok",H:"b-warn",RE:"b-warn","20":"b-info","10":"b-info",R:"b-bad",NG:"b-bad"}[v] || "b-info"; return `<span class="badge ${cls}">${esc(codeNm(o.code, v))}</span>`; }
+  return esc(v);
+}
+function renderGrid(truncated) {
+  const w = $("#gridwrap");
+  $("#rlimit").textContent = truncated ? "최대 1,000건까지 표시합니다. 조건을 좁혀 주세요." : "";
+  if (!cur) { w.innerHTML = `<div class="empty">왼쪽에서 쿼리를 선택하세요.</div>`; $("#rcount").textContent = ""; return; }
+  const cols = cur.outputs;
+  const head = `<tr><th class="ctr" style="width:42px">No</th>${cols.map(o => `<th class="${o.align || ""}" style="min-width:${o.w}px" data-k="${o.key}">${esc(o.label)}${sortKey === o.key ? (sortDir > 0 ? " ▲" : " ▼") : ""}</th>`).join("")}</tr>`;
+  if (!rows.length) { w.innerHTML = `<table class="grid"><thead>${head}</thead></table><div class="empty">조건을 정하고 [조회] 를 누르세요. 열은 출력 정의 ${cols.length}개에서 만들어졌습니다.</div>`; $("#rcount").textContent = "조회 전"; return; }
+  const shown = rows.slice(0, 300);
+  const body = shown.map((r, i) => `<tr data-i="${i}" class="${i === selRow ? "sel" : ""}"><td class="rn">${i + 1}</td>${cols.map(o => `<td class="${o.align || ""}" ${o.mono ? 'style="font-family:var(--font-family-mono);font-size:11.5px"' : ""}>${cell(o, r[o.key])}</td>`).join("")}</tr>`).join("");
+  const hasSum = cols.some(o => o.sum);
+  const foot = hasSum ? `<tfoot><tr><td class="rn">합계</td>${cols.map(o => `<td class="${o.align || ""}">${o.sum ? fmtNum(rows.reduce((a, r) => a + r[o.key], 0), o.fmt) : ""}</td>`).join("")}</tr></tfoot>` : "";
+  w.innerHTML = `<table class="grid"><thead>${head}</thead><tbody>${body}</tbody>${foot}</table>`;
+  $("#rcount").textContent = `${rows.length.toLocaleString()}건${rows.length > shown.length ? ` (시안은 앞 ${shown.length}행만 그림)` : ""}`;
+}
+$("#gridwrap").addEventListener("click", e => {
+  const th = e.target.closest("th[data-k]");
+  if (th && rows.length) { const k = th.dataset.k; sortDir = sortKey === k ? -sortDir : 1; sortKey = k; rows.sort((a, b) => (a[k] > b[k] ? 1 : a[k] < b[k] ? -1 : 0) * sortDir); renderGrid(rows.length >= 1000); return; }
+  const tr = e.target.closest("tr[data-i]"); if (tr) { selRow = +tr.dataset.i; document.querySelectorAll(".grid tr.sel").forEach(x => x.classList.remove("sel")); tr.classList.add("sel"); }
+});
+$("#btnSearch").addEventListener("click", run);
+$("#btnExcel").addEventListener("click", () => toast(rows.length ? `${cur.name}.xlsx 내려받기(시안에서는 동작 안 함)` : "먼저 조회하세요.", !rows.length));
+document.addEventListener("keydown", e => { if (e.key === "F8") { e.preventDefault(); if (!$("#v-run").hidden) run(); } });
+
+// ── 분할 경계 ──
+const split = $("#split"), gut = $("#gutter");
+function setW(p) { p = Math.max(14, Math.min(40, p)); split.style.setProperty("--left-w", p + "%"); gut.setAttribute("aria-valuenow", Math.round(p)); $("#wpct").textContent = Math.round(p) + "%"; try { localStorage.setItem("userq.leftW", p); } catch (_) {} }
+try { const s = parseFloat(localStorage.getItem("userq.leftW")); if (s) setW(s); } catch (_) {}
+gut.addEventListener("pointerdown", e => {
+  gut.setPointerCapture(e.pointerId); gut.classList.add("drag");
+  const r = split.getBoundingClientRect();
+  const mv = ev => setW((ev.clientX - r.left) / r.width * 100);
+  const up = () => { gut.classList.remove("drag"); gut.removeEventListener("pointermove", mv); gut.removeEventListener("pointerup", up); };
+  gut.addEventListener("pointermove", mv); gut.addEventListener("pointerup", up);
+});
+gut.addEventListener("dblclick", () => setW(20));
+gut.addEventListener("keydown", e => { const v = +gut.getAttribute("aria-valuenow"); if (e.key === "ArrowLeft") setW(v - 2); if (e.key === "ArrowRight") setW(v + 2); });
+
+// ── 관리 화면 ──
+let adm = Q[0];
+const TY = { select: "코드 선택", multi: "코드 다중", date: "날짜", daterange: "기간", text: "문자" };
+function adminRows() {
+  const v = id => $(id).value.trim().toLowerCase();
+  const cat = $("#s_cat").value, st = $("#s_st").value, nm = v("#s_nm"), own = v("#s_own"), usr = v("#s_usr");
+  return Q.filter(q => (!cat || q.cat === cat) && (!st || q.state === st)
+    && (!nm || q.name.toLowerCase().includes(nm) || q.id.toLowerCase().includes(nm))
+    && (!own || q.owner.toLowerCase().includes(own))
+    && (!usr || q.assign.some(([, n]) => n.toLowerCase().includes(usr))));
+}
+function renderAdmin() {
+  const list = adminRows();
+  if (list.length && !list.includes(adm)) adm = list[0];
+  $("#acount").textContent = `${list.length}건 / 전체 ${Q.length}건`;
+  if (!list.length) { $("#alist").innerHTML = `<div class="empty">조건에 맞는 쿼리가 없습니다.</div>`; return; }
+  $("#alist").innerHTML = list.map(q => `<button type="button" class="qi" data-id="${q.id}" aria-current="${q === adm}"><span class="nm">${esc(q.name)}</span><span class="id">${q.id} · ${q.cat}</span><span class="star"><span class="badge ${q.state === "사용" ? "b-ok" : "b-warn"}">${q.state}</span></span></button>`).join("");
+  $("#astate").innerHTML = `<span class="badge ${adm.state === "사용" ? "b-ok" : "b-warn"}">${adm.state}</span>`;
+  $("#abasic").innerHTML = [["쿼리 ID", adm.id], ["분류", adm.cat], ["이름", adm.name], ["담당 부서", adm.owner], ["설명", adm.desc], ["버전", "v" + adm.ver]]
+    .map(([k, v], i) => `<label for="ab${i}">${k}</label><input class="inp" id="ab${i}" value="${esc(v)}" ${k === "쿼리 ID" || k === "버전" ? "readonly style='background:var(--color-bg-hover)'" : ""}>`).join("");
+  $("#asql").innerHTML = adm.sql.split("\n").map(l => `<span class="line">${hl(l) || " "}</span>`).join("");
+  $("#aguard").innerHTML = ["SELECT·WITH 만", "단일 문장", "읽기 전용 트랜잭션", "최대 1,000행", "제한 30초", "바인드 " + new Set(adm.sql.match(/:\w+/g)).size + "개"].map(t => `<span class="badge b-info">${t}</span>`).join("");
+  $("#ain").innerHTML = `<tr><th>바인드</th><th>라벨</th><th>형식</th><th>코드</th><th>필수</th><th>기본값</th></tr>` + adm.inputs.map(f => `<tr><td class="mono">:${f.key}${f.to ? ` ~ :${f.to}` : ""}</td><td>${esc(f.label)}</td><td>${TY[f.type]}</td><td class="mono">${f.code || ""}</td><td>${f.req ? "예" : ""}</td><td class="mono">${f.def || ""}</td></tr>`).join("");
+  $("#aout").innerHTML = `<tr><th>컬럼</th><th>라벨</th><th>형식</th><th>폭</th><th>합계</th></tr>` + adm.outputs.map(o => `<tr><td class="mono">${o.key}</td><td>${esc(o.label)}</td><td>${o.type === "code" ? "코드 " + o.code : o.type}${o.fmt ? ` <span class="mono">${o.fmt}</span>` : ""}</td><td>${o.w}</td><td>${o.sum ? "예" : ""}</td></tr>`).join("");
+  $("#aassign").innerHTML = adm.assign.map(([, v]) => { const u = USERS.find(x => x.name === v); return `<span class="who">${esc(v)}<span class="k k-u">${esc(u ? u.dept : "")}</span></span>`; }).join("");
+}
+function hl(s) {
+  return esc(s).replace(/(--[^\n]*)/g, '<span class="cm">$1</span>')
+    .replace(/\b(SELECT|FROM|WHERE|AND|OR|IN|IS|NULL|LIKE|BETWEEN|GROUP BY|ORDER BY|AS|SUM|ROUND|DESC)\b/g, '<span class="kw">$1</span>')
+    .replace(/(:\w+)/g, '<span class="bind">$1</span>');
+}
+// ── 큰 SQL 편집 팝업 ──
+const mTxt = $("#mTxt"), mGut = $("#mGut");
+const binds = s => new Set(s.match(/:\w+/g) || []).size;
+function mSync() {
+  const n = mTxt.value.split("\n").length;
+  mGut.textContent = Array.from({ length: n }, (_, i) => i + 1).join("\n");
+  mGut.scrollTop = mTxt.scrollTop;
+  $("#mInfo").textContent = `${n}줄 · 바인드 ${binds(mTxt.value)}개 · Ctrl/⌘+Enter 시험 · Esc 닫기`;
+}
+function mOpen() { mTxt.value = adm.sql; $("#mSub").textContent = `${adm.id} · ${adm.name}`; $("#sqlModal").hidden = false; mSync(); mTxt.focus(); }
+function mHide() { $("#sqlModal").hidden = true; $("#btnExpand").focus(); }
+$("#btnExpand").addEventListener("click", mOpen);
+$("#asql").addEventListener("dblclick", mOpen);
+mTxt.addEventListener("input", mSync);
+mTxt.addEventListener("scroll", () => { mGut.scrollTop = mTxt.scrollTop; });
+$("#mClose").addEventListener("click", mHide);
+$("#mCancel").addEventListener("click", mHide);
+$("#mApply").addEventListener("click", () => { adm.sql = mTxt.value; mHide(); renderAdmin(); toast("SQL 을 적용했습니다. [저장] 을 눌러야 반영됩니다."); });
+$("#mValidate").addEventListener("click", () => toast(/^\s*(SELECT|WITH)\b/i.test(mTxt.value) ? `검증 통과 · 바인드 ${binds(mTxt.value)}개` : "SELECT 또는 WITH 로 시작하는 조회문만 등록할 수 있습니다.", !/^\s*(SELECT|WITH)\b/i.test(mTxt.value)));
+$("#sqlModal").addEventListener("keydown", e => {
+  if (e.key === "Escape") { e.preventDefault(); mHide(); }
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); $("#mValidate").click(); }
+});
+$("#sqlModal").addEventListener("click", e => { if (e.target.id === "sqlModal") mHide(); });
+
+$("#asearch").addEventListener("input", renderAdmin);
+$("#asearch").addEventListener("submit", e => { e.preventDefault(); renderAdmin(); });
+$("#alist").addEventListener("click", e => { const b = e.target.closest(".qi"); if (b) { adm = Q.find(q => q.id === b.dataset.id); renderAdmin(); } });
+$("#btnValidate").addEventListener("click", () => toast(`검증 통과 · 바인드 ${new Set(adm.sql.match(/:\w+/g)).size}개 → 입력 정의, 결과 컬럼 ${adm.outputs.length}개 → 출력 정의`));
+$("#btnPreview").addEventListener("click", () => { cur = null; show("run"); const u = USERS.find(u => visibleFor(u).includes(adm)); if (u) { $("#who").value = USERS.indexOf(u); me = u; } renderList(); select(adm); run(); });
+
+// ── 탭 ──
+function show(v) {
+  $("#v-run").hidden = v !== "run"; $("#v-adm").hidden = v !== "adm";
+  $("#tab-run").setAttribute("aria-selected", v === "run"); $("#tab-adm").setAttribute("aria-selected", v === "adm");
+  $("#m-run").classList.toggle("on", v === "run"); $("#m-adm").classList.toggle("on", v === "adm");
+  if (v === "adm") renderAdmin();
+}
+$("#tab-run").addEventListener("click", () => show("run"));
+$("#tab-adm").addEventListener("click", () => show("adm"));
+$("#m-run").addEventListener("click", () => show("run"));
+$("#m-adm").addEventListener("click", () => show("adm"));
+$("#showNotes").addEventListener("change", e => document.querySelectorAll("[data-note]").forEach(n => n.hidden = !e.target.checked));
+
+let tt;
+function toast(msg, err) { const t = $("#toast"); t.textContent = msg; t.className = "toast" + (err ? " err" : ""); t.hidden = false; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, 3000); }
+
+show("run");
+renderList();
+run();
+})();
+</script>
+</body>
+</html>
