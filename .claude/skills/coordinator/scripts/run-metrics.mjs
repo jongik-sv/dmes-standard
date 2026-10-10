@@ -4,7 +4,7 @@
 //   stdout: `METRICS <run> cost=<$> per1k=<$|-> coord=<%> lines=<n> file=<metrics.md|->`
 //   파일: <회차>/metrics.md, <state_dir>/<metrics.csv> 에 한 줄(헤더는 새 파일일 때만)
 // node 18.17 이상, 외부 패키지 없음.
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { CoordDie, Ctx, cfgAll, cfgSub, expand, runDir, stateFile, stateRoot } from './lib/common.mjs';
 import { runSync } from './lib/common-ext.mjs';
@@ -123,13 +123,16 @@ export function csvRow(m) {
 
 const outText = (r) => String(r && r.out !== undefined ? r.out : '');
 
-/** 레인 브랜치 머지 커밋의 변경 줄(제외 패턴 적용). */
+/** 레인 머지의 변경 줄(제외 패턴 적용).
+ *  주 출처 = merge.history[].merged. 레인 머지는 --ff-only 로 dev 끝에 레인당 squash 커밋 하나가 올라오므로(merge-gate.md §머지, contract.md §2.1)
+ *  `<merged>^1..<merged>` 가 그 레인의 변경 전부다. history 에 base 칸이 없어서 이 가정을 쓴다.
+ *  보조 출처 = --no-ff 머지 커밋(제목에 'Merge branch '<레인 브랜치>''). 같은 sha 는 한 번만 센다. */
 function gitLines(c, st, cfg, since, until) {
   const repo = c.env.COORD_REPO || outText(runSync('git', ['rev-parse', '--show-toplevel'], { env: c.env, cwd: c.cwd })).trim();
   const git = cfgSub(c, '.git_bin') || 'git';
   const branch = (st.run && st.run.integration_branch) || cfgSub(c, '.integration_branch') || 'dev';
   const laneBranches = Object.values(st.lanes || {}).map((l) => l && l.branch).filter(Boolean);
-  const shas = new Set(((st.merge && st.merge.history) || []).map((h) => h && (h.commit || h.sha)).filter(Boolean));
+  const shas = new Set(((st.merge && st.merge.history) || []).map((h) => h && (h.merged || h.commit || h.sha)).filter(Boolean));
   const lg = runSync(git, ['log', '--first-parent', '--merges', `--since=${since}`, `--until=${until}`, '--format=%H%x09%s', branch], { env: c.env, cwd: repo });
   for (const line of outText(lg).split('\n')) {
     const [sha, subj = ''] = line.split('\t');
@@ -157,11 +160,14 @@ export async function main(argv, { env, cwd }) {
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '-h' || a === '--help') { process.stdout.write(HELP); return 0; }
-    if (a === '--run') o.run = argv[++i] ?? '';
+    if (a === '--run' || a === '--since' || a === '--until') {
+      const v = argv[++i];
+      if (v === undefined || v === '' || v.startsWith('--')) { process.stderr.write(`${a} 값이 없다\n`); return 2; }
+      if (a !== '--run' && Number.isNaN(Date.parse(v))) { process.stderr.write(`${a} 값이 날짜가 아니다: ${v}\n`); return 2; }
+      o[a.slice(2)] = v;
+    }
     else if (a === '--stdout') o.stdout = true;
     else if (a === '--no-csv') o.csv = false;
-    else if (a === '--since') o.since = argv[++i] ?? '';
-    else if (a === '--until') o.until = argv[++i] ?? '';
     else if (a === '--dry-run') o.dry = true;
     else { process.stderr.write(`알 수 없는 인자: ${a}\n${HELP}`); return 2; }
   }
@@ -200,6 +206,7 @@ export async function main(argv, { env, cwd }) {
     else { file = join(dir, 'metrics.md'); writeFileSync(file, md); }
     if (o.csv) {
       const csv = join(stateRoot(c), mc.csv || 'metrics.csv');
+      mkdirSync(dirname(csv), { recursive: true });
       if (!existsSync(csv)) writeFileSync(csv, `${CSV_HEADER}\n`);
       appendFileSync(csv, `${csvRow(m)}\n`);
     }

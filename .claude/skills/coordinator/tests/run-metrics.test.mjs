@@ -134,3 +134,50 @@ test('CLI: 알 수 없는 인자는 rc 2, 회차 없음은 rc 3', () => {
   assert.equal(w.runCli(['--bogus']).status, 2);
   assert.equal(w.runCli(['--run', 'nope']).status, 3);
 });
+
+const setState = (w, fn) => {
+  const f = join(w.run, 'state.json');
+  const st = JSON.parse(readFileSync(f, 'utf8'));
+  fn(st);
+  writeFileSync(f, JSON.stringify(st));
+};
+
+test('CLI: ff-only 단일 squash 커밋은 merge.history[].merged 로 센다', () => {
+  const w = world();
+  const git = (...a) => spawnSync('git', a, { cwd: w.repo, encoding: 'utf8' });
+  git('checkout', '-qb', 'feat/y');
+  writeFileSync(join(w.repo, 'c.js'), '1\n2\n3\n4\n5\n');
+  git('add', 'c.js'); git('commit', '-qm', 'lane work');
+  git('checkout', '-q', 'dev');
+  git('merge', '--ff-only', '-q', 'feat/y');
+  const sha = git('rev-parse', 'HEAD').stdout.trim();
+  setState(w, (st) => { st.lanes.a.branch = 'other/none'; st.merge.history = [{ lane: 'a', branch: 'feat/y', merged: sha }]; });
+  const r = w.runCli(['--stdout', '--no-csv']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /METRICS r1 cost=0\.18 per1k=36\.0 coord=22% lines=5 /);
+});
+
+test('CLI: 풀 log 에 같은 id 두 줄이면 마지막 줄을 센다', () => {
+  const w = world();
+  const p = join(w.run, 'pool', 'log.jsonl');
+  writeFileSync(p, `${readFileSync(p, 'utf8')}${JSON.stringify({ id: 'T1', lane: 'a', kind: 'opencode', result: 'ok', fallback: true, findings: 2, lines: 7, note: 'fix' })}\n`);
+  const r = w.runCli(['--stdout', '--no-csv']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /\| 풀 묶음 \(종류별\) \| 1 \(opencode 1\) \|/);
+  assert.match(r.stdout, /\| 풀 → Claude 넘김 · 리뷰 지적 · 풀 변경 줄 \| 1 · 2 · 7 \|/);
+});
+
+test('CLI: 회차 기간 밖 사용량 행은 제외한다', () => {
+  const w = world();
+  setState(w, (st) => { st.run.closed_at = '2026-10-10T12:05:30+09:00'; });
+  const r = w.runCli(['--stdout', '--no-csv']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /METRICS r1 cost=0\.08 /); // c1 0.04 + l1 0.04, 서브·Workflow(03:06 이후) 제외
+});
+
+test('CLI: 값 없는 --run/--since/--until, 날짜 아닌 값은 rc 2', () => {
+  const w = world();
+  assert.equal(w.runCli(['--run']).status, 2);
+  assert.equal(w.runCli(['--since']).status, 2);
+  assert.equal(w.runCli(['--until', 'not-a-date']).status, 2);
+});
