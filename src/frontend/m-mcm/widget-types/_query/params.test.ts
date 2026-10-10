@@ -181,7 +181,7 @@ describe("validateParams / validateQueryConfig 의 조건 검사", () => {
     ]);
     expect(validateParams({ params: [{ name: "a", type: "text", default: "x".repeat(200) }] })).toEqual([]);
     expect(validateParams({ params: [{ name: "a", type: "select" }] })).toEqual([
-      "조회 조건 1번은 선택 형이라 선택지를 하나 이상 넣어야 합니다",
+      "조회 조건 1번은 선택 형이라 선택지 또는 코드 그룹이 필요합니다",
     ]);
     expect(validateParams({ params: [{ name: "a", type: "select", options: [] }] })).toHaveLength(1);
     expect(validateParams({ params: [{ name: "a", type: "select", options: [{ value: "" }] }] })).toEqual([
@@ -251,7 +251,7 @@ describe("date 형 기본값", () => {
     expect(one("2026-10-05")).toEqual([]);
     expect(one("20261005")).toEqual([]);
     expect(one("")).toEqual([]);
-    expect(one("2026-02-30")).toEqual(["조회 조건 1번의 기본값은 yyyy-MM-dd 또는 yyyyMMdd 형식의 실제 날짜로 입력하세요"]);
+    expect(one("2026-02-30")).toEqual(["조회 조건 1번의 기본값은 yyyy-MM-dd·yyyyMMdd 형식의 실제 날짜 또는 상대 날짜(-7d, monthStart 등)로 입력하세요"]);
     expect(one("오늘")).toHaveLength(1);
   });
 });

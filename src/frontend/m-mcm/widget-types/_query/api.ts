@@ -52,7 +52,7 @@ async function post(url: string, menuId: string, params: Record<string, string>)
  * 저장된 쿼리 위젯 정의를 실행한다(행 상한 500 은 서버가 정한다).
  * 입력 조건 값(`{이름: 값}`)이 있으면 `paramsJson`(JSON 글자)으로 싣는다. 값이 없거나 비면 싣지 않는다.
  */
-export async function runWidgetQuery(defId: string, values?: Readonly<Record<string, string>>): Promise<QueryResult> {
+export async function runWidgetQuery(defId: string, values?: Readonly<Record<string, string | string[]>>): Promise<QueryResult> {
   const params: Record<string, string> = { defId };
   if (values && Object.keys(values).length > 0) params.paramsJson = JSON.stringify(values);
   return normalizeQueryResult(await post(WIDGET_DATA_RUN_URL, "HOME", params));

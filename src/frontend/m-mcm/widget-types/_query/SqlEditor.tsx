@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, memo, useRef, useState } from "react";
+import { Fragment, memo, useRef, useState, type ReactNode } from "react";
 import { SqlCodeEditor } from "@dk-oasis/shared/code-editor";
 import { Button } from "@dk-oasis/shared/form";
 
@@ -18,13 +18,18 @@ export interface SqlEditorProps {
   onPreview: (result: QueryResult | null) => void;
   /** [쿼리 시험] 호출 함수. 없으면 위젯 관리의 `commWidgetMng/previewQuery`(`previewWidgetQuery("mcm", …)`)를 부른다. 맞춤 레포트 관리 화면이 자기 미리보기를 넘긴다. */
   runPreview?: (sql: string, params?: QueryParam[]) => Promise<QueryResult>;
+  /** [쿼리 시험] 오른쪽에 같은 줄로 놓을 추가 단추(예: [SQL 검증]). 안정적인 참조로 넘긴다(memo). */
+  extraActions?: ReactNode;
 }
+
+/** 오른쪽 위 개요 눈금에 커서 위치 표시(짧은 줄 «—»)가 남지 않게 한다. 안정적인 참조여야 한다. */
+const EDITOR_OPTIONS = { hideCursorInOverviewRuler: true, overviewRulerBorder: false };
 
 /**
  * 쿼리 유형 편집기 공용 SQL 칸(스펙 §6 끝·§10.1) — 고정폭 입력 칸 + 시스템 변수 안내 + [쿼리 시험](commWidgetMng/previewQuery, 행 상한 50).
  * 시험이 실패하면 서버 메시지(「쿼리 오류: …」 등)를 그대로 보인다(관리자 SQL 작성 도움 — §7.3).
  */
-export const SqlEditor = memo(function SqlEditor({ sql, params, preview, onSqlChange, onPreview, runPreview }: SqlEditorProps) {
+export const SqlEditor = memo(function SqlEditor({ sql, params, preview, onSqlChange, onPreview, runPreview, extraActions }: SqlEditorProps) {
   const [busy, setBusy] = useState(false);
   // 단축키(Ctrl/⌘+Enter, F8)로도 시험하므로 버튼의 disabled 만으로는 겹쳐 부르는 것을 못 막는다 — 렌더 사이에도 보이는 ref 로 막는다.
   const busyRef = useRef(false);
@@ -63,6 +68,7 @@ export const SqlEditor = memo(function SqlEditor({ sql, params, preview, onSqlCh
         ariaLabel="SQL"
         expandTitle="쿼리 SQL"
         testId="wq-sql"
+        editorOptions={EDITOR_OPTIONS}
       />
       <div className="wq-hint">
         조회문(SELECT·WITH) 한 문장만 쓸 수 있습니다. 사용자가 넣는 값은 아래 「조회 조건」 에 선언한 <code>:이름</code> 으로 씁니다. 시스템 변수:{" "}
@@ -77,6 +83,7 @@ export const SqlEditor = memo(function SqlEditor({ sql, params, preview, onSqlCh
         <Button onClick={() => void runTest()} disabled={busy} data-testid="wq-preview-run">
           {busy ? "시험 중…" : "쿼리 시험"}
         </Button>
+        {extraActions}
         {preview && !error && (
           <span className="wq-summary" data-testid="wq-preview-summary">
             {summarizeResult(preview)}

@@ -4,10 +4,12 @@ import { useMemo } from "react";
 import { AgDataGrid } from "@dk-oasis/shared/grid";
 import type { WidgetProps } from "@dk-oasis/shared/widget";
 
-import { QUERY_EMPTY, TABLE_ROW_KEY, tableConfigOf, toColumnDefs, toGridRows, truncatedNote } from "../_query/format";
+import { codeGroupsOf, QUERY_EMPTY, TABLE_ROW_KEY, tableConfigOf, toColumnDefs, toGridRows, truncatedNote } from "../_query/format";
 import { widgetGridPersonalize } from "../../widgets/widget-grid";
+import { renderCodeBadge } from "../_query/code-cells";
 import { QueryShell } from "../_query/ConditionBar";
 import { QueryStyle } from "../_query/parts";
+import { useCodeLabels } from "../_query/use-code-options";
 import { useQueryData } from "../_query/useQueryData";
 
 /** 제목이 없을 때 엑셀 파일 이름 — 「쿼리표_{yyyyMMdd}.xlsx」. */
@@ -21,7 +23,11 @@ const QUERY_TABLE_EXCEL_FALLBACK = "쿼리표";
 export default function QueryTableRenderer({ definition, widgetId, instanceId, refreshKey, title }: WidgetProps) {
   const { data, condition } = useQueryData(definition, widgetId, refreshKey);
   const cfg = useMemo(() => tableConfigOf(definition), [definition]);
-  const columns = useMemo(() => (data ? toColumnDefs(data.columns, cfg, data.rows) : []), [data, cfg]);
+  const codeLabels = useCodeLabels(useMemo(() => codeGroupsOf(cfg.columns), [cfg]));
+  const columns = useMemo(
+    () => (data ? toColumnDefs(data.columns, cfg, data.rows, { codeLabels, renderBadge: renderCodeBadge }) : []),
+    [data, cfg, codeLabels]
+  );
   const rows = useMemo(() => (data ? toGridRows(data.rows) : []), [data]);
   const rowCount = data?.rows.length ?? 0;
   const truncated = data?.truncated ?? false;

@@ -9,6 +9,7 @@ import { createJsonApiClient } from "@/lib/http/json-api-client";
 import { unwrapResult } from "../../widget-types/_query/api";
 import { normalizeQueryResult, paramsOf, tableConfigOf } from "../../widget-types/_query/format";
 
+import { DEFAULT_MODULE, moduleOf } from "./types";
 import type {
   UserQueryAssignRow,
   UserQueryCandidate,
@@ -73,16 +74,17 @@ function jsonArray(v: unknown): unknown[] {
 export const parseParams = (v: unknown): UserQueryParam[] => paramsOf({ params: jsonArray(v) });
 export const parseColumns = (v: unknown): UserQueryColumn[] => tableConfigOf({ columns: jsonArray(v) }).columns;
 
-const useYnOf = (v: unknown): "Y" | "N" => (v === "N" ? "N" : "Y");
+const ynOf = (v: unknown): "Y" | "N" => (v === "N" ? "N" : "Y");
 
 function toListRow(r: Rec): UserQueryListRow {
   return {
     queryId: text(r.queryId),
     queryNm: text(r.queryNm),
     categoryCd: textOrNull(r.categoryCd),
+    moduleCd: moduleOf(r.moduleCd),
     ownerDeptCd: textOrNull(r.ownerDeptCd),
     ownerDeptNm: textOrNull(r.ownerDeptNm),
-    useYn: useYnOf(r.useYn),
+    useYn: ynOf(r.useYn),
     maxRowCnt: numberOr(r.maxRowCnt, 1000),
     assignCnt: numberOr(r.assignCnt, 0),
     uAt: textOrNull(r.uAt),
@@ -95,6 +97,7 @@ function toDef(r: Rec): UserQueryDef {
     queryId: text(r.queryId),
     queryNm: text(r.queryNm),
     categoryCd: textOrNull(r.categoryCd),
+    moduleCd: moduleOf(r.moduleCd) ?? DEFAULT_MODULE,
     queryDesc: textOrNull(r.queryDesc),
     ownerDeptCd: textOrNull(r.ownerDeptCd),
     ownerDeptNm: textOrNull(r.ownerDeptNm),
@@ -102,7 +105,7 @@ function toDef(r: Rec): UserQueryDef {
     params: parseParams(r.paramsJson ?? r.params),
     columns: parseColumns(r.columnsJson ?? r.columns),
     maxRowCnt: numberOr(r.maxRowCnt, 1000),
-    useYn: useYnOf(r.useYn),
+    useYn: ynOf(r.useYn),
     ver: r.ver == null || r.ver === "" ? null : numberOr(r.ver, 0),
   };
 }
@@ -132,6 +135,7 @@ export async function saveUserQuery(def: UserQueryDef): Promise<{ queryId: strin
     queryId: def.queryId,
     queryNm: def.queryNm,
     categoryCd: def.categoryCd,
+    moduleCd: def.moduleCd,
     queryDesc: def.queryDesc,
     ownerDeptCd: def.ownerDeptCd,
     sqlText: def.sqlText,
@@ -215,6 +219,7 @@ export async function listMyUserQueries(): Promise<UserQuerySummary[]> {
     queryNm: text(r.queryNm),
     categoryCd: textOrNull(r.categoryCd),
     queryDesc: textOrNull(r.queryDesc),
+    moduleCd: moduleOf(r.moduleCd),
   }));
 }
 
@@ -226,6 +231,7 @@ export async function getUserQueryRunDef(queryId: string): Promise<UserQueryRunD
     queryNm: text(out.queryNm),
     categoryCd: textOrNull(out.categoryCd),
     queryDesc: textOrNull(out.queryDesc),
+    moduleCd: moduleOf(out.moduleCd),
     params: parseParams(out.params),
     columns: parseColumns(out.columns),
     maxRowCnt: numberOr(out.maxRowCnt, 1000),
@@ -233,7 +239,7 @@ export async function getUserQueryRunDef(queryId: string): Promise<UserQueryRunD
 }
 
 /** 실행 — queryId 와 값만 보낸다(SQL 은 서버가 DB 에서 읽는다). 값이 없으면 paramsJson 을 싣지 않는다. */
-export async function runUserQuery(queryId: string, values?: Readonly<Record<string, string>>): Promise<UserQueryRunResult> {
+export async function runUserQuery(queryId: string, values?: Readonly<Record<string, string | string[]>>): Promise<UserQueryRunResult> {
   const out = await callAction(USER_QUERY_ID, "run", {
     queryId,
     paramsJson: values && Object.keys(values).length > 0 ? JSON.stringify(values) : null,

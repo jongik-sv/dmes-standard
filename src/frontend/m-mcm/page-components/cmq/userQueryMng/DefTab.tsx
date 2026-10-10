@@ -6,14 +6,14 @@
  * SQL: 위젯 SqlEditor(+runPreview 로 userQueryMng/previewQuery) + [SQL 검증]. 입력 정의: ParamsEditor. 출력 정의: ColumnsEditor.
  * 미리보기 성공 → 결과 열 중 출력 정의에 없는 것만 덧붙인다(있는 열은 지우지 않는다). 미리보기 그리드는 출력 정의대로 그린다.
  */
-import { memo, useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
+import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 
 import { Button, Input, Radio, Select, Textarea } from "@dk-oasis/shared/form";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 
 import { previewUserQuery, validateUserQuery } from "../../_userq/api";
-import type { UserQueryDef } from "../../_userq/types";
+import { USRQ_MODULE_OPTIONS, type UserQueryDef, type UsrqModule } from "../../_userq/types";
 import type { UsrqCategoryOption } from "../../_userq/use-usrq-categories";
 import { ColumnsEditor } from "../../../widget-types/_query/ColumnsEditor";
 import { appendMissingFields, appendUndeclaredParams, type QueryParam, type QueryResult } from "../../../widget-types/_query/format";
@@ -145,6 +145,16 @@ export const DefTab = memo(function DefTab({ ref, isNew, disabled, categoryOptio
     }
   }, [patch, showMessage]);
 
+  // [SQL 검증] 은 SqlEditor 의 [쿼리 시험] 줄에 같이 놓는다. memo 편집기가 글자마다 다시 그려지지 않게 참조를 지킨다(R12).
+  const validateButton = useMemo(
+    () => (
+      <Button disabled={off || validating} onClick={() => void handleValidate()} data-testid="userq-admin-validate">
+        {validating ? "검증 중…" : "SQL 검증"}
+      </Button>
+    ),
+    [off, validating, handleValidate]
+  );
+
   return (
     <>
       <QueryStyle />
@@ -188,6 +198,19 @@ export const DefTab = memo(function DefTab({ ref, isNew, disabled, categoryOptio
                 aria-label="분류"
                 data-testid="userq-admin-category"
                 onChange={(v) => patch({ categoryCd: v || null })}
+              />
+            </td>
+          </tr>
+          <tr>
+            <th style={DETAIL_LABEL_CELL}>모듈 *</th>
+            <td style={DETAIL_VALUE_CELL}>
+              <Select
+                value={form?.moduleCd ?? ""}
+                options={USRQ_MODULE_OPTIONS}
+                disabled={off}
+                aria-label="모듈"
+                data-testid="userq-admin-module"
+                onChange={(v) => patch({ moduleCd: v as UsrqModule })}
               />
             </td>
           </tr>
@@ -268,15 +291,8 @@ export const DefTab = memo(function DefTab({ ref, isNew, disabled, categoryOptio
                 onSqlChange={handleSqlChange}
                 onPreview={handleSqlPreview}
                 runPreview={runPreview}
+                extraActions={validateButton}
               />
-              <Button
-                size="sm"
-                disabled={off || validating}
-                onClick={() => void handleValidate()}
-                data-testid="userq-admin-validate"
-              >
-                {validating ? "검증 중…" : "SQL 검증"}
-              </Button>
             </td>
           </tr>
           <tr>
@@ -292,6 +308,7 @@ export const DefTab = memo(function DefTab({ ref, isNew, disabled, categoryOptio
                 columns={form?.columns ?? EMPTY_COLUMNS}
                 fields={preview?.columns ?? EMPTY_FIELDS}
                 title="출력 정의"
+                allowSum
                 idPrefix="userq-col"
                 testId="userq-columns"
                 onChange={handleColumnsChange}

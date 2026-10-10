@@ -17,8 +17,8 @@ describe("toSearchCond", () => {
   it("빈 칸은 빼고 글자 칸은 공백을 자른다", () => {
     expect(toSearchCond(emptyFilters())).toEqual({});
     expect(
-      toSearchCond({ categoryCd: "ETC", keyword: " 생산 ", useYn: "Y", ownerDept: " ", assignUser: "u1" })
-    ).toEqual({ categoryCd: "ETC", keyword: "생산", useYn: "Y", assignUser: "u1" });
+      toSearchCond({ categoryCd: "ETC", moduleCd: "MPP", keyword: " 생산 ", useYn: "Y", ownerDept: " ", assignUser: "u1" })
+    ).toEqual({ categoryCd: "ETC", moduleCd: "MPP", keyword: "생산", useYn: "Y", assignUser: "u1" });
   });
 });
 
@@ -27,13 +27,13 @@ describe("toGridRows·formatDateTime", () => {
     const rows = toGridRows(
       [
         {
-          queryId: "Q1", queryNm: "n", categoryCd: "ETC", ownerDeptCd: "D1", ownerDeptNm: null,
+          queryId: "Q1", queryNm: "n", categoryCd: "ETC", moduleCd: "MPP", ownerDeptCd: "D1", ownerDeptNm: null,
           useYn: "N", maxRowCnt: 10, assignCnt: 3, uAt: "2026-10-10T13:05:09.123", uUsrId: "u",
         },
       ],
       { ETC: "기타" }
     );
-    expect(rows[0]).toMatchObject({ categoryNm: "기타", ownerDeptNm: "D1", uAt: "2026-10-10 13:05", assignCnt: 3 });
+    expect(rows[0]).toMatchObject({ categoryNm: "기타", moduleNm: "MPP 생산", ownerDeptNm: "D1", uAt: "2026-10-10 13:05", assignCnt: 3 });
     expect(formatDateTime(null)).toBe("");
   });
 });

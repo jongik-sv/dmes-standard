@@ -16,7 +16,7 @@ import { useMessage } from "@dk-oasis/shared/message-provider";
 import { Tabs, type TabItem } from "@dk-oasis/shared/tabs";
 
 import { deleteUserQuery, getUserQueryDef, saveUserQuery, searchUserQueries } from "../../_userq/api";
-import type { UserQueryListRow } from "../../_userq/types";
+import { USRQ_MODULE_FILTER_OPTIONS, type UserQueryListRow } from "../../_userq/types";
 import { useUsrqCategories } from "../../_userq/use-usrq-categories";
 
 import { AssignTab } from "./AssignTab";
@@ -62,7 +62,17 @@ export default function UserQueryMngPage() {
   /** 고른(저장된) 쿼리 ID. 신규·선택 없음은 "". */
   const [selectedId, setSelectedId] = useState("");
   const [tab, setTab] = useState<DetailTab>("def");
-  const [assignBusy, setAssignBusy] = useState(false);
+  /** 할당 탭 처리 중 여부 — 행을 고를 때마다 두 번 다시 그려지지 않게 state 가 아니라 ref 다(R12). 단추 비활성에는 쓰지 않고 동작 진입에서만 막는다. */
+  const assignBusyRef = useRef(false);
+  const handleAssignBusy = useCallback((busy: boolean) => {
+    assignBusyRef.current = busy;
+  }, []);
+  /** 할당 탭이 처리 중이면 안내하고 true. 단추는 활성으로 보이므로 조용히 무시하지 않는다. */
+  const blockedByAssign = useCallback(() => {
+    if (!assignBusyRef.current) return false;
+    showMessage({ message: "할당 처리 중입니다. 잠시 뒤 다시 시도하세요.", alertType: "warning", toast: true });
+    return true;
+  }, [showMessage]);
   /** 저장하지 않은 고침 여부 — 확인 창(guard)에서만 읽으므로 state 가 아니라 ref 다. state 면 첫 글자에서 화면 루트·목록 그리드가 다시 그려진다(R12). */
   const defDirtyRef = useRef(false);
   const assignDirtyRef = useRef(false);
@@ -79,7 +89,7 @@ export default function UserQueryMngPage() {
   const listSeq = useRef(0);
   const listInFlight = useRef(false);
 
-  const isBusy = listBusy || detailBusy || assignBusy;
+  const isBusy = listBusy || detailBusy;
   const gridRows = useMemo<QueryGridRow[]>(() => toGridRows(rows, categoryTitles), [rows, categoryTitles]);
 
   const showError = useCallback(
@@ -146,24 +156,25 @@ export default function UserQueryMngPage() {
 
   const handleSelect = useCallback(
     (row: QueryGridRow) => {
-      if (isBusy || (row.queryId === selectedId && mode === "edit")) return;
+      if (isBusy || (row.queryId === selectedId && mode === "edit") || blockedByAssign()) return;
       guard(() => void openDef(row.queryId));
     },
-    [isBusy, selectedId, mode, guard, openDef]
+    [isBusy, selectedId, mode, guard, openDef, blockedByAssign]
   );
 
   const handleNew = useCallback(() => {
+    if (blockedByAssign()) return;
     guard(() => {
       defRef.current?.load(emptyDef());
       setSelectedId("");
       setMode("new");
       setTab("def");
     });
-  }, [guard]);
+  }, [guard, blockedByAssign]);
 
   const handleSave = useCallback(async () => {
     const def = defRef.current?.getForm();
-    if (!def || mode === "none") return;
+    if (!def || mode === "none" || blockedByAssign()) return;
     const problem = validateDef(def, mode === "new");
     if (problem) {
       showMessage({ message: problem, alertType: "warning" });
@@ -190,11 +201,11 @@ export default function UserQueryMngPage() {
     } finally {
       setDetailBusy(false);
     }
-  }, [mode, load, showMessage, showError]);
+  }, [mode, load, showMessage, showError, blockedByAssign]);
 
   const handleDelete = useCallback(() => {
     const def = defRef.current?.getForm();
-    if (mode !== "edit" || !def || def.ver === null) return;
+    if (mode !== "edit" || !def || def.ver === null || blockedByAssign()) return;
     const ver = def.ver;
     showMessage({
       title: "확인",
@@ -216,7 +227,7 @@ export default function UserQueryMngPage() {
         }
       },
     });
-  }, [mode, load, showMessage, showError]);
+  }, [mode, load, showMessage, showError, blockedByAssign]);
 
   const handleAssignSaved = useCallback(() => void load(), [load]);
 
@@ -244,6 +255,15 @@ export default function UserQueryMngPage() {
           options={[{ value: "", label: "전체" }, ...categoryOptions]}
           value={filters.categoryCd}
           onChange={(v) => setFilter("categoryCd", v)}
+        />
+        <SearchField
+          label="모듈"
+          name="moduleCd"
+          meta={false}
+          type="select"
+          options={USRQ_MODULE_FILTER_OPTIONS}
+          value={filters.moduleCd}
+          onChange={(v) => setFilter("moduleCd", v)}
         />
         <SearchField
           label="쿼리 이름·ID"
@@ -314,7 +334,7 @@ export default function UserQueryMngPage() {
                 active={tab === "assign"}
                 canSave={canSaveAssign}
                 onDirtyChange={handleAssignDirty}
-                onBusyChange={setAssignBusy}
+                onBusyChange={handleAssignBusy}
                 onSaved={handleAssignSaved}
               />
             </div>

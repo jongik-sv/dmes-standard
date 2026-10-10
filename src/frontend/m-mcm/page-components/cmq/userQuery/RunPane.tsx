@@ -16,9 +16,11 @@ import { AgDataGrid, GridPanel } from "@dk-oasis/shared/grid";
 import { SearchArea } from "@dk-oasis/shared/layout";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 
-import { ConditionField } from "../../../widget-types/_query/ConditionBar";
-import { QUERY_EMPTY, TABLE_ROW_KEY, type ParamValues } from "../../../widget-types/_query/format";
+import { ConditionField, fieldValues } from "../../../widget-types/_query/ConditionBar";
+import { codeGroupsOf, QUERY_EMPTY, TABLE_ROW_KEY, type ParamValues } from "../../../widget-types/_query/format";
+import { renderCodeBadge } from "../../../widget-types/_query/code-cells";
 import { QueryStyle } from "../../../widget-types/_query/parts";
+import { useCodeLabels } from "../../../widget-types/_query/use-code-options";
 import { getUserQueryRunDef, runUserQuery } from "../../_userq/api";
 import { UserQueryStyle } from "./QueryListPane";
 import {
@@ -30,6 +32,7 @@ import {
   READY_MESSAGE,
   resultColumns,
   resultRows,
+  resultSumRows,
   truncationNote,
   withoutRows,
 } from "./run-model";
@@ -65,12 +68,16 @@ function RunPaneImpl({ ref, queryId, onBusyChange }: RunPaneProps) {
   const [result, setResult] = useState<UserQueryRunResult | null>(null);
   const [running, setRunning] = useState(false);
   const [needInput, setNeedInput] = useState(false);
+  /** needInput 일 때 보일 문구(기간 오류 등). */
+  const [needMessage, setNeedMessage] = useState(NEED_INPUT_MESSAGE);
   /** 늦게 온 응답이 다른 쿼리 화면을 덮지 않게 하는 번호. 쿼리를 바꾸면 올린다. */
   const epoch = useRef(0);
 
   // 쿼리를 고르면 정의를 받는다. 값·결과는 비우고 자동 조회하지 않는다.
   useEffect(() => {
     const mine = ++epoch.current;
+    // 쿼리를 바꾸면 이전 쿼리의 정의·값·결과를 비우고 새 정의를 받는다(effect 안 초기화는 의도한 동작).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDef(null);
     setResult(null);
     setNeedInput(false);
@@ -112,6 +119,7 @@ function RunPaneImpl({ ref, queryId, onBusyChange }: RunPaneProps) {
     if (!decision.run) {
       // 이미 그린 그리드는 언마운트하지 않고 행만 비운다(R6).
       setResult((prev) => (prev ? withoutRows(prev) : prev));
+      setNeedMessage(decision.message);
       setNeedInput(true);
       return;
     }
@@ -135,22 +143,26 @@ function RunPaneImpl({ ref, queryId, onBusyChange }: RunPaneProps) {
   useImperativeHandle(ref, () => ({ search }), [search]);
 
   // 정의 열은 정의(def)에서만 만든다: 조회 결과가 바뀌어도 같은 참조라 그리드가 열을 다시 계산하지 않는다(R6·R12).
-  const definedCols = useMemo(() => (def ? definedColumns(def.columns) : []), [def]);
+  const codeLabels = useCodeLabels(useMemo(() => (def ? codeGroupsOf(def.columns) : []), [def]));
+  const colOpts = useMemo(() => ({ codeLabels, renderBadge: renderCodeBadge }), [codeLabels]);
+  const definedCols = useMemo(() => (def ? definedColumns(def.columns, colOpts) : []), [def, colOpts]);
   const hasDefinedCols = definedCols.length > 0;
   const columns = useMemo(
-    () => (hasDefinedCols ? definedCols : def && result ? resultColumns(result, def.columns) : []),
-    [hasDefinedCols, definedCols, def, result]
+    () => (hasDefinedCols ? definedCols : def && result ? resultColumns(result, def.columns, colOpts) : []),
+    [hasDefinedCols, definedCols, def, result, colOpts]
   );
   const rows = useMemo(() => (result ? resultRows(result) : NO_ROWS), [result]);
   const rowCount = result?.rows.length ?? 0;
   const note = result ? truncationNote(result) : undefined;
+  // 합계 줄 — 그리드 아래 고정 행(pinnedBottomRows). 입력 안내 중이거나 행이 없으면 없다.
+  const sumRows = useMemo(() => (def && result && !needInput ? resultSumRows(result, def.columns) : undefined), [def, result, needInput]);
   // 잘리지 않았으면 note 를 주지 않아 기본 「N행」이 나온다. 객체는 값이 바뀔 때만 새로 만든다.
   const excelExport = useMemo(
     () => ({ title: def?.queryNm || undefined, fallbackName: EXCEL_FALLBACK, note, testId: "uq-excel" }),
     [def?.queryNm, note]
   );
 
-  const setValue = useCallback((name: string, value: string) => setDraft((p) => ({ ...p, [name]: value })), []);
+  const setValue = useCallback((name: string, value: string | string[]) => setDraft((p) => ({ ...p, [name]: value })), []);
 
   let body;
   if (!queryId) {
@@ -175,7 +187,7 @@ function RunPaneImpl({ ref, queryId, onBusyChange }: RunPaneProps) {
     // 출력 열을 모르는 쿼리는 조회 뒤 결과 열로 그린다.
     body = (
       <div className="uq-run__hint" role="status" data-testid={needInput ? "uq-run-need-input" : "uq-run-ready"}>
-        {needInput ? NEED_INPUT_MESSAGE : running ? "조회 중입니다" : READY_MESSAGE}
+        {needInput ? needMessage : running ? "조회 중입니다" : READY_MESSAGE}
       </div>
     );
   } else {
@@ -191,11 +203,12 @@ function RunPaneImpl({ ref, queryId, onBusyChange }: RunPaneProps) {
           rowKey={TABLE_ROW_KEY}
           columns={columns}
           data={rows}
+          pinnedBottomRows={sumRows}
           columnSizing="fit"
           loading={running}
           ariaLabel="쿼리 결과"
           excelExport={excelExport}
-          emptyMessage={result ? QUERY_EMPTY : needInput ? NEED_INPUT_MESSAGE : READY_MESSAGE}
+          emptyMessage={result ? QUERY_EMPTY : needInput ? needMessage : READY_MESSAGE}
           emptyTestId="uq-empty"
         />
       </GridPanel>
@@ -213,8 +226,9 @@ function RunPaneImpl({ ref, queryId, onBusyChange }: RunPaneProps) {
               key={p.name}
               param={p}
               inputId={`${baseId}-${p.name}`}
-              value={draft[p.name] ?? ""}
+              {...fieldValues(p, draft)}
               onChange={(v) => setValue(p.name, v)}
+              onToChange={p.toName ? (v) => setValue(p.toName as string, v) : undefined}
             />
           ))}
         </SearchArea>
@@ -222,10 +236,11 @@ function RunPaneImpl({ ref, queryId, onBusyChange }: RunPaneProps) {
       {def?.queryDesc && <div className="uq-run__desc">{def.queryDesc}</div>}
       {needInput && result && (
         <div className="uq-run__notice" role="status" data-testid="uq-run-need-input">
-          {NEED_INPUT_MESSAGE}
+          {needMessage}
         </div>
       )}
       <div className="uq-run__grid">{body}</div>
+
     </div>
   );
 }

@@ -110,10 +110,7 @@ async function show(editor: typeof ChatEditor, value: unknown) {
   const el = createElement(
     DmesUiProvider,
     null,
-    createElement(MdmMetaProvider, {
-      module: "mcm",
-      children: createElement(editor, { value, onChange: () => undefined }),
-    })
+    createElement(MdmMetaProvider, { module: "mcm" } as { module: string; children: never }, createElement(editor, { value, onChange: () => undefined }))
   );
   await act(async () => root!.render(el));
   // 배치 대기(MDM_META_BATCH_MS)와 응답 처리를 흘려보낸다.
@@ -125,7 +122,7 @@ async function show(editor: typeof ChatEditor, value: unknown) {
 const labels = () => [...host.querySelectorAll("th")].map((el) => el.textContent);
 const headers = () => [...host.querySelectorAll(".ag-header-cell-text")].map((el) => el.textContent);
 /** 「조회 조건」 목록 표 머리글 — 세 쿼리 유형 편집기가 같다. */
-const PARAM_HEADERS = ["이름 *", "라벨", "형", "기본값", "필수", "선택지(값:라벨,…)"];
+const PARAM_HEADERS = ["이름 *", "라벨", "형", "기본값", "필수", "선택지(값:라벨,…)", "코드 그룹", "끝 이름", "끝 기본값", "최대 일수", "개수 이름"];
 const metaCalls = () => f.calls.filter((u) => u.includes("mdmMeta"));
 
 describe("위젯 유형 편집기는 사전 연결 없이 적어 둔 글자 그대로 그린다", () => {
@@ -147,7 +144,7 @@ describe("위젯 유형 편집기는 사전 연결 없이 적어 둔 글자 그�
   it("query-table — 라벨 2개와 표시 컬럼 표 머리글", async () => {
     await show(QueryTableEditor, { sql: "select 1 a", columns: [{ field: "a" }] });
     expect(labels()).toEqual(["SQL *", "조회 조건", "표시 컬럼"]);
-    expect(headers()).toEqual([...PARAM_HEADERS, "필드 *", "머리글", "폭", "정렬", "형식"]);
+    expect(headers()).toEqual([...PARAM_HEADERS, "필드 *", "머리글", "폭", "정렬", "형식", "서식", "코드 그룹", "배지"]);
     expect(host.querySelector(".form-tip-trigger")).toBeNull();
     expect(metaCalls()).toEqual([]);
   });

@@ -6,6 +6,7 @@ import { useWidgetStatus } from "@dk-oasis/shared/widget";
 import { runWidgetQuery } from "./api";
 import {
   initialValues,
+  MULTI_MAX,
   paramsOf,
   planRun,
   PARAM_VALUE_MAX,
@@ -23,11 +24,13 @@ export interface QueryCondition {
   params: QueryParam[];
   /** 입력 중인 값 — [검색] 을 누르기 전에는 서버 호출에 쓰이지 않는다. */
   draft: ParamValues;
-  setDraft: (name: string, value: string) => void;
+  setDraft: (name: string, value: string | string[]) => void;
   /** [검색] — 입력 중인 값을 확정하고 다시 부른다(값이 같아도 다시 부른다). */
   search: () => void;
   /** 필수 값이 비어 서버를 부르지 않는 중 — 「조건을 입력하고 검색하세요」 를 보인다. */
   needInput: boolean;
+  /** needInput 일 때 보일 문구(기간 오류 등). 없으면 기본 안내. */
+  needMessage?: string;
   /**
    * 조회 실패 — 조건이 있는 위젯만 틀에 알리지 않고 여기로 돌려준다(틀이 본문을 감추면 조건 줄이 사라져 값을 못 고치므로).
    * QueryShell 이 조건 줄 아래에 문구와 [다시 시도] 를 그린다. 조건이 없는 위젯은 늘 null(틀의 오류 띠를 쓴다).
@@ -86,8 +89,9 @@ export function useQueryData(definition: unknown, widgetId: string, refreshKey: 
   }
   const { draft, applied } = current;
 
-  const setDraft = useCallback((name: string, value: string) => {
-    setState((s) => ({ ...s, draft: { ...s.draft, [name]: value.slice(0, PARAM_VALUE_MAX) } }));
+  const setDraft = useCallback((name: string, value: string | string[]) => {
+    const next = Array.isArray(value) ? value.slice(0, MULTI_MAX) : value.slice(0, PARAM_VALUE_MAX);
+    setState((s) => ({ ...s, draft: { ...s.draft, [name]: next } }));
   }, []);
   const search = useCallback(() => {
     setState((s) => ({ ...s, applied: { ...s.draft } }));
@@ -141,6 +145,6 @@ export function useQueryData(definition: unknown, widgetId: string, refreshKey: 
 
   return {
     data: preview ?? (runnable && (!plan.run || error) ? null : fetched),
-    condition: { params, draft, setDraft, search, needInput: runnable && !plan.run, error },
+    condition: { params, draft, setDraft, search, needInput: runnable && !plan.run, needMessage: !plan.run ? plan.message : undefined, error },
   };
 }

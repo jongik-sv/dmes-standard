@@ -15,15 +15,23 @@ import {
   sameQueryList,
   toListRows,
   truncationNote,
+  resultSumRows,
   withoutRows,
 } from "./run-model";
 import type { UserQueryParam, UserQueryRunResult, UserQuerySummary } from "../../_userq/types";
 
-const q = (queryId: string, queryNm: string, categoryCd: string | null = null, queryDesc: string | null = null): UserQuerySummary => ({
+const q = (
+  queryId: string,
+  queryNm: string,
+  categoryCd: string | null = null,
+  queryDesc: string | null = null,
+  moduleCd: UserQuerySummary["moduleCd"] = "MCM"
+): UserQuerySummary => ({
   queryId,
   queryNm,
   categoryCd,
   queryDesc,
+  moduleCd,
 });
 
 const result = (over: Partial<UserQueryRunResult> = {}): UserQueryRunResult => ({
@@ -125,7 +133,7 @@ describe("목록", () => {
   const list = [q("Q1", "라인별 생산", "PRD", "일 생산 실적"), q("Q2", "검사 불량", "QLT"), q("Q3", "기타 집계", null), q("Q4", "설비 가동", "PRD")];
 
   it("검색어는 이름·쿼리 ID 부분 일치(대소문자·앞뒤 공백 무시), 설명은 보지 않고, 빈 검색어는 전부", () => {
-    const ids = (keyword: string, categoryCd = "") => filterQueryList(list, { categoryCd, keyword }).map((x) => x.queryId);
+    const ids = (keyword: string, categoryCd = "") => filterQueryList(list, { categoryCd, moduleCd: "", keyword }).map((x) => x.queryId);
     expect(filterQueryList(list, EMPTY_LIST_FILTER).map((x) => x.queryId)).toEqual(["Q1", "Q2", "Q3", "Q4"]);
     expect(ids(" 불량 ")).toEqual(["Q2"]);
     expect(ids("q3")).toEqual(["Q3"]);
@@ -134,11 +142,21 @@ describe("목록", () => {
   });
 
   it("분류를 고르면 그 분류만(분류 없는 쿼리는 빠진다), 검색어와 함께 쓰면 둘 다 맞는 것만, 순서는 입력 그대로", () => {
-    const ids = (categoryCd: string, keyword = "") => filterQueryList(list, { categoryCd, keyword }).map((x) => x.queryId);
+    const ids = (categoryCd: string, keyword = "") => filterQueryList(list, { categoryCd, moduleCd: "", keyword }).map((x) => x.queryId);
     expect(ids("PRD")).toEqual(["Q1", "Q4"]);
     expect(ids("PRD", "설비")).toEqual(["Q4"]);
     expect(ids("QLT", "설비")).toEqual([]);
     expect(ids("NONE")).toEqual([]);
+  });
+
+  it("모듈을 고르면 그 모듈만, 분류·검색어와 함께 쓰면 모두 맞는 것만", () => {
+    const mixed = [q("A1", "생산 A", "PRD", null, "MPP"), q("A2", "생산 B", "PRD", null, "MCM"), q("A3", "품질 C", "QLT", null, "MQC")];
+    const ids = (moduleCd: string, categoryCd = "", keyword = "") => filterQueryList(mixed, { categoryCd, moduleCd, keyword }).map((x) => x.queryId);
+    expect(ids("MPP")).toEqual(["A1"]);
+    expect(ids("MCM", "PRD")).toEqual(["A2"]);
+    expect(ids("MQC", "PRD")).toEqual([]);
+    expect(ids("", "", "생산")).toEqual(["A1", "A2"]);
+    expect(toListRows(mixed, {}).map((r) => r.moduleCd)).toEqual(["MPP", "MCM", "MQC"]);
   });
 
   it("목록 행은 분류 이름을 풀고, 모르는 코드는 코드 그대로, 분류가 없으면 미분류", () => {
@@ -158,7 +176,7 @@ describe("목록", () => {
   });
 
   it("목록 그리드 열의 최소 폭 합이 기본 20% 칸(1280 폭 약 200px − 스크롤바 17px)에 든다", () => {
-    expect(LIST_COLUMNS.map((c) => c.key)).toEqual(["queryNm", "categoryNm", "queryId"]);
+    expect(LIST_COLUMNS.map((c) => c.key)).toEqual(["queryNm", "categoryNm", "queryId", "moduleCd"]);
     expect(LIST_COLUMNS.reduce((sum, c) => sum + (c.minWidth ?? 50), 0)).toBeLessThanOrEqual(190);
   });
 
@@ -167,5 +185,26 @@ describe("목록", () => {
     expect(pickInitialQueryId(list, "GONE")).toBeNull();
     expect(pickInitialQueryId(list, null)).toBeNull();
     expect(pickInitialQueryId([], "Q2")).toBeNull();
+  });
+});
+
+describe("합계 고정 행", () => {
+  const cols = [
+    { field: "NM", header: "이름" },
+    { field: "QTY", format: "number" as const, mask: "#,##0.0", sum: true },
+  ];
+  const res = (over: Partial<UserQueryRunResult> = {}) => result({ columns: ["NM", "QTY"], rows: [{ NM: "a", QTY: 1.5 }, { NM: "b", QTY: 2 }], truncated: false, ...over });
+
+  it("첫 비합계 열에 「합계」, 합계 열에 합", () => {
+    expect(resultSumRows(res(), cols)).toEqual([{ NM: "합계", QTY: 3.5 }]);
+  });
+
+  it("잘렸으면 「표시한 행 합계」", () => {
+    expect(resultSumRows(res({ truncated: true }), cols)?.[0].NM).toBe("표시한 행 합계");
+  });
+
+  it("합계 열이 없거나 행이 없으면 고정 행 없음", () => {
+    expect(resultSumRows(res(), [{ field: "NM" }])).toBeUndefined();
+    expect(resultSumRows(res({ rows: [] }), cols)).toBeUndefined();
   });
 });

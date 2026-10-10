@@ -47,6 +47,7 @@ const DEF: UserQueryDef = {
   queryId: "DAILY_PROD",
   queryNm: "일일 생산",
   categoryCd: "ETC",
+  moduleCd: "MCM",
   queryDesc: null,
   ownerDeptCd: null,
   ownerDeptNm: null,
@@ -66,15 +67,15 @@ describe("cleanParams", () => {
 
 describe("userQueryMng 호출", () => {
   it("search — 조건을 싣고 행을 변환한다", async () => {
-    reply({ rows: [{ queryId: "Q1", queryNm: "이름", useYn: "N", maxRowCnt: 5, assignCnt: 2, ownerDeptNm: "생산" }] });
-    const rows = await searchUserQueries({ keyword: "q", useYn: "Y", ownerDept: "" });
+    reply({ rows: [{ queryId: "Q1", queryNm: "이름", moduleCd: "MPP", useYn: "N", maxRowCnt: 5, assignCnt: 2, ownerDeptNm: "생산" }] });
+    const rows = await searchUserQueries({ keyword: "q", useYn: "Y", ownerDept: "", moduleCd: "MPP" });
     const s = sent();
     expect(s.url).toBe("/api/mcm/oasis/userQueryMng/search");
     expect(s.body.meta).toEqual({ menuId: "userQueryMng" });
-    expect(s.body.params).toEqual({ keyword: "q", useYn: "Y" });
+    expect(s.body.params).toEqual({ keyword: "q", useYn: "Y", moduleCd: "MPP" });
     expect(rows).toEqual([
       {
-        queryId: "Q1", queryNm: "이름", categoryCd: null, ownerDeptCd: null, ownerDeptNm: "생산",
+        queryId: "Q1", queryNm: "이름", categoryCd: null, moduleCd: "MPP", ownerDeptCd: null, ownerDeptNm: "생산",
         useYn: "N", maxRowCnt: 5, assignCnt: 2, uAt: null, uUsrId: null,
       },
     ]);
@@ -109,6 +110,7 @@ describe("userQueryMng 호출", () => {
     expect(JSON.parse(String(p.paramsJson))).toEqual(DEF.params);
     expect(JSON.parse(String(p.columnsJson))).toEqual(DEF.columns);
     expect(p.queryDesc).toBeUndefined();
+    expect(p.moduleCd).toBe("MCM");
     expect(out).toEqual({ queryId: "DAILY_PROD", ver: 0 });
   });
 
@@ -126,6 +128,7 @@ describe("userQueryMng 호출", () => {
     const def = await getUserQueryDef("Q1");
     expect(def.ver).toBeNull();
     expect(def.maxRowCnt).toBe(1000);
+    expect(def.moduleCd).toBe("MCM"); // 모듈이 없거나 모르는 값이면 기본 MCM
   });
 
   it("delete — queryId·ver", async () => {
@@ -181,7 +184,7 @@ describe("userQueryMng 호출", () => {
 describe("userQuery 호출", () => {
   it("myList·getDef·run", async () => {
     reply({ rows: [{ queryId: "Q1", queryNm: "n" }] });
-    expect((await listMyUserQueries())[0]).toEqual({ queryId: "Q1", queryNm: "n", categoryCd: null, queryDesc: null });
+    expect((await listMyUserQueries())[0]).toEqual({ queryId: "Q1", queryNm: "n", categoryCd: null, queryDesc: null, moduleCd: null });
     expect(sent().url).toBe("/api/mcm/oasis/userQuery/myList");
     reply({ queryId: "Q1", queryNm: "n", params: [{ name: "a", type: "number" }], columns: [{ field: "X" }], maxRowCnt: 50 });
     const def = await getUserQueryRunDef("Q1");
@@ -197,5 +200,22 @@ describe("userQuery 호출", () => {
     reply({ columns: [], rows: [], truncated: false, maxRowCnt: 1000 });
     await runUserQuery("Q1");
     expect(sent().body.params).toEqual({ queryId: "Q1" });
+  });
+});
+
+describe("새 조건 값(배열·기간)", () => {
+  it("runUserQuery 는 다중 선택 배열과 기간 두 키를 paramsJson 에 그대로 싣는다", async () => {
+    reply({ columns: [], rows: [], truncated: false, maxRowCnt: 10 });
+    await runUserQuery("Q1", { fromDt: "2026-10-03", toDt: "2026-10-10", statCd: ["S", "H"] });
+    expect(JSON.parse(String(sent().body.params.paramsJson))).toEqual({ fromDt: "2026-10-03", toDt: "2026-10-10", statCd: ["S", "H"] });
+  });
+
+  it("getDef·get 은 새 조건 키를 잃지 않는다", async () => {
+    const p = { name: "fromDt", type: "daterange", toName: "toDt", toDefault: "0d", maxSpanDays: 31 };
+    reply({ queryId: "Q1", queryNm: "n", moduleCd: "MQC", params: [p], columns: [{ field: "A", format: "number", mask: "#,##0", sum: true }], maxRowCnt: 5 });
+    const def = await getUserQueryRunDef("Q1");
+    expect(def.params).toEqual([p]);
+    expect(def.columns).toEqual([{ field: "A", format: "number", mask: "#,##0", sum: true }]);
+    expect(def.moduleCd).toBe("MQC");
   });
 });

@@ -29,6 +29,7 @@ import {
   type QueryListFilter,
 } from "./run-model";
 import type { UserQuerySummary } from "../../_userq/types";
+import { USRQ_MODULES, USRQ_MODULE_LABELS } from "../../_userq/types";
 import { useUsrqCategories } from "../../_userq/use-usrq-categories";
 
 export const LIST_STYLE_HREF = "mcm-cmq-user-query";
@@ -65,6 +66,11 @@ export function UserQueryStyle() {
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 const ALL_CATEGORIES = { value: "", label: "전체" } as const;
+/** 왼쪽 칸이 좁아 짧은 이름(공통·기준정보·생산 …)만 보인다. 값은 코드 그대로. */
+const USRQ_MODULE_FILTER_OPTIONS_SHORT = [
+  { value: "", label: "전체" },
+  ...USRQ_MODULES.map((m) => ({ value: m, label: USRQ_MODULE_LABELS[m] })),
+];
 
 /* ── 조회조건 ── */
 
@@ -82,6 +88,14 @@ const QuerySearch = memo(function QuerySearch({ categoryOptions, onSearch }: Que
 
   return (
     <SearchArea onSearch={() => onSearch(filter)} autoSearch>
+      <SearchField
+        label="모듈"
+        defaultKey="moduleCd"
+        type="select"
+        options={USRQ_MODULE_FILTER_OPTIONS_SHORT}
+        value={filter.moduleCd}
+        onChange={(v) => setField("moduleCd", v)}
+      />
       <SearchField
         label="분류"
         defaultKey="categoryCd"
@@ -145,7 +159,9 @@ function QueryListPaneImpl({ selectedId, onSelect }: QueryListPaneProps) {
   const handleSearch = useCallback(
     (filter: QueryListFilter) => {
       // 같은 값이면 state 를 바꾸지 않아 다시 그리지 않는다(R7).
-      setApplied((prev) => (prev.categoryCd === filter.categoryCd && prev.keyword === filter.keyword ? prev : filter));
+      setApplied((prev) =>
+        prev.categoryCd === filter.categoryCd && prev.moduleCd === filter.moduleCd && prev.keyword === filter.keyword ? prev : filter
+      );
       const mine = ++seq.current;
       setLoading(true);
       listMyUserQueries()
@@ -173,6 +189,8 @@ function QueryListPaneImpl({ selectedId, onSelect }: QueryListPaneProps) {
   );
 
   useEffect(() => {
+    // 새 창으로 분리한 화면은 마운트 때 직접 한 번 조회한다(조회 시작 상태를 켜는 것은 의도한 동작).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (restored) handleSearch(EMPTY_LIST_FILTER);
   }, [restored, handleSearch]);
 

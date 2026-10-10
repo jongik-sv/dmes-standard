@@ -18,7 +18,6 @@ export const QUERY_CSS = `
 .wq-center { display: flex; align-items: center; justify-content: center; height: 100%; min-height: 0; }
 .wq-lines { display: flex; flex-direction: column; }
 .wq-editor { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.wq-editor textarea.wq-sql { font-family: var(--font-family-mono); font-size: var(--font-size-sm); }
 .wq-hint { font-size: var(--font-size-xs); color: var(--color-text-muted); line-height: 1.5; overflow-wrap: anywhere; }
 .wq-hint code { font-family: var(--font-family-mono); color: var(--color-text); }
 .wq-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-sm); }
@@ -30,6 +29,9 @@ export const QUERY_CSS = `
 .wq-cond__label { font-size: var(--font-size-xs); color: var(--color-text-muted); }
 .wq-cond__req { margin-left: 2px; color: var(--color-danger); }
 .wq-cond__ctl { width: 150px; max-width: 100%; }
+.wq-cond--range .wq-cond__ctl { width: auto; }
+.wq-cond--multi .wq-cond__ctl { width: 220px; }
+.wq-cond__range { display: flex; flex-direction: column; gap: 2px; }
 .wq-error { flex-direction: column; gap: var(--spacing-sm); color: var(--color-danger); }
 .wq-params-hint { color: var(--color-danger); }
 `;

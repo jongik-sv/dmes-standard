@@ -4,7 +4,8 @@
  */
 import type { TransferListItem } from "@dk-oasis/shared/transfer-list";
 
-import { validateParams } from "../../../widget-types/_query/format";
+import { validateColumns, validateParams } from "../../../widget-types/_query/format";
+import { DEFAULT_MODULE, USRQ_MODULES, USRQ_MODULE_LABELS } from "../../_userq/types";
 import type {
   UserQueryAssignRow,
   UserQueryCandidate,
@@ -26,13 +27,14 @@ export const ASSIGN_MAX = 2000;
 
 export interface SearchFilters {
   categoryCd: string;
+  moduleCd: string;
   keyword: string;
   useYn: "" | "Y" | "N";
   ownerDept: string;
   assignUser: string;
 }
 
-export const emptyFilters = (): SearchFilters => ({ categoryCd: "", keyword: "", useYn: "", ownerDept: "", assignUser: "" });
+export const emptyFilters = (): SearchFilters => ({ categoryCd: "", moduleCd: "", keyword: "", useYn: "", ownerDept: "", assignUser: "" });
 
 export const USE_FILTER_OPTIONS = [
   { value: "", label: "전체" },
@@ -49,6 +51,7 @@ export const USE_YN_OPTIONS = [
 export function toSearchCond(f: SearchFilters): UserQuerySearchCond {
   const cond: UserQuerySearchCond = {};
   if (f.categoryCd) cond.categoryCd = f.categoryCd;
+  if (f.moduleCd) cond.moduleCd = f.moduleCd;
   if (f.keyword.trim()) cond.keyword = f.keyword.trim();
   if (f.useYn) cond.useYn = f.useYn;
   if (f.ownerDept.trim()) cond.ownerDept = f.ownerDept.trim();
@@ -61,6 +64,7 @@ export interface QueryGridRow extends Record<string, unknown> {
   queryId: string;
   queryNm: string;
   categoryNm: string;
+  moduleNm: string;
   ownerDeptNm: string;
   useYn: "Y" | "N";
   maxRowCnt: number;
@@ -73,6 +77,7 @@ export function toGridRows(rows: readonly UserQueryListRow[], categoryTitles: Re
     queryId: r.queryId,
     queryNm: r.queryNm,
     categoryNm: r.categoryCd ? (categoryTitles[r.categoryCd] ?? r.categoryCd) : "",
+    moduleNm: r.moduleCd ? `${r.moduleCd} ${USRQ_MODULE_LABELS[r.moduleCd]}` : "",
     ownerDeptNm: r.ownerDeptNm ?? r.ownerDeptCd ?? "",
     useYn: r.useYn,
     maxRowCnt: r.maxRowCnt,
@@ -95,6 +100,7 @@ export function emptyDef(): UserQueryDef {
     queryId: "",
     queryNm: "",
     categoryCd: null,
+    moduleCd: DEFAULT_MODULE,
     queryDesc: null,
     ownerDeptCd: null,
     ownerDeptNm: null,
@@ -112,6 +118,7 @@ export function validateDef(def: UserQueryDef, isNew: boolean): string | null {
   if (isNew && !QUERY_ID_RE.test(def.queryId)) return "쿼리 ID는 영문 대문자로 시작하는 대문자·숫자·밑줄 3~40자여야 합니다.";
   if (def.queryNm.trim() === "") return "쿼리 이름을 입력하세요.";
   if (def.queryNm.length > 100) return "쿼리 이름은 100자 이하여야 합니다.";
+  if (!(USRQ_MODULES as readonly string[]).includes(def.moduleCd)) return "모듈을 고르세요.";
   if ((def.queryDesc ?? "").length > 500) return "설명은 500자 이하여야 합니다.";
   if (!Number.isInteger(def.maxRowCnt) || def.maxRowCnt < 1 || def.maxRowCnt > MAX_ROW_LIMIT) {
     return `최대 행은 1~${MAX_ROW_LIMIT} 사이 정수여야 합니다.`;
@@ -120,6 +127,8 @@ export function validateDef(def: UserQueryDef, isNew: boolean): string | null {
   const paramErrors = validateParams({ params: def.params });
   if (paramErrors.length > 0) return paramErrors[0];
   if (def.columns.some((c) => c.field.trim() === "")) return "출력 정의에 필드가 빈 컬럼이 있습니다.";
+  const columnErrors = validateColumns({ columns: def.columns });
+  if (columnErrors.length > 0) return columnErrors[0];
   return null;
 }
 

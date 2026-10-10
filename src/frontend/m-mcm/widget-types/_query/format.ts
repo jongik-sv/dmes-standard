@@ -17,7 +17,7 @@ export interface QueryResult {
 export type QueryTypeId = "query-table" | "query-chart" | "query-number";
 
 export type ColumnAlign = "left" | "center" | "right";
-export type ColumnFormat = "text" | "number" | "date";
+export type ColumnFormat = "text" | "number" | "date" | "code";
 
 export interface TableColumnConfig {
   field: string;
@@ -26,6 +26,14 @@ export interface TableColumnConfig {
   width?: number;
   align?: ColumnAlign;
   format?: ColumnFormat;
+  /** number 전용 서식. 예: "#,##0", "#,##0.0", "0.00". */
+  mask?: string;
+  /** number 전용 — 합계 줄에 넣는다. */
+  sum?: boolean;
+  /** code 전용 — 코드 값을 이름으로 보인다. */
+  codeGroup?: string;
+  /** code 전용 — 이름을 배지 모양으로 보인다. */
+  badge?: boolean;
 }
 
 export interface QueryTableConfig {
@@ -100,14 +108,14 @@ export const NUMBER_FORMAT_OPTIONS: readonly { value: NumberFormat; label: strin
 ];
 
 export const ALIGN_LABELS: Readonly<Record<string, string>> = { "": "자동", left: "왼쪽", center: "가운데", right: "오른쪽" };
-export const FORMAT_LABELS: Readonly<Record<string, string>> = { "": "그대로", text: "글자", number: "숫자", date: "날짜" };
+export const FORMAT_LABELS: Readonly<Record<string, string>> = { "": "그대로", text: "글자", number: "숫자", date: "날짜", code: "코드" };
 
 /** 원 차트 범례 단위 최대 글자 수 — 설정 `unit` 과 계열 이름 끝 괄호 안 글자에 같이 적용한다. */
 export const PIE_UNIT_MAX = 10;
 
 const CHART_TYPES: readonly ChartType[] = ["bar", "line", "area", "pie"];
 const ALIGNS: readonly ColumnAlign[] = ["left", "center", "right"];
-const FORMATS: readonly ColumnFormat[] = ["text", "number", "date"];
+export const FORMATS: readonly ColumnFormat[] = ["text", "number", "date", "code"];
 
 /* ── 작은 도우미 ── */
 
@@ -206,8 +214,27 @@ export function formatDate(v: unknown): string {
   return s;
 }
 
-export function formatCell(v: unknown, format?: ColumnFormat): string {
-  if (format === "number") return formatNumber(v);
+/** 숫자 서식 문법 — 스펙 2차 §2.3. `#,##` 는 천 단위 구분, `.000` 소수 고정, `.###` 소수 최대. */
+export const MASK_RE = /^(#,##)?0(\.(0{1,6}|#{1,6}))?$/;
+export const MASK_MAX = 20;
+
+/** 서식(mask)대로 숫자를 보인다. 숫자가 아니면 글자 그대로, 서식이 문법에 안 맞으면 formatNumber. */
+export function formatMask(v: unknown, mask: string): string {
+  const n = toNumber(v);
+  if (n === null) return plain(v);
+  const m = MASK_RE.exec(mask);
+  if (!m) return formatNumber(v);
+  const frac = m[3] ?? "";
+  const fixed = frac.startsWith("0");
+  return n.toLocaleString("ko-KR", {
+    useGrouping: m[1] !== undefined,
+    minimumFractionDigits: fixed ? frac.length : 0,
+    maximumFractionDigits: frac.length,
+  });
+}
+
+export function formatCell(v: unknown, format?: ColumnFormat, mask?: string): string {
+  if (format === "number") return mask ? formatMask(v, mask) : formatNumber(v);
   if (format === "date") return formatDate(v);
   return plain(v);
 }
@@ -266,6 +293,12 @@ export function tableConfigOf(v: unknown): QueryTableConfig {
       if (align) out.align = align;
       const format = pick(col.format, FORMATS);
       if (format) out.format = format;
+      const mask = str(col.mask);
+      if (mask && format === "number") out.mask = mask;
+      if (col.sum === true && format === "number") out.sum = true;
+      const codeGroup = str(col.codeGroup);
+      if (codeGroup && format === "code") out.codeGroup = codeGroup;
+      if (col.badge === true && format === "code") out.badge = true;
       columns.push(out);
     }
   }
@@ -339,10 +372,18 @@ function firstValue(rows: readonly Record<string, unknown>[], field: string): un
  * 표 컬럼 정의 — columns 설정이 없으면 결과 컬럼 전부. AgDataGrid columnSizing="fit" 기준이라 width 는 비율 가중치다.
  * 폭을 주지 않은 컬럼은 가중치 100·최소 60px, 준 컬럼은 그 폭이 최소 폭이 된다(AgDataGrid fit 규칙).
  */
+export interface ColumnDefOptions {
+  /** 코드 그룹 → (코드 값 → 이름). 없는 값은 글자 그대로 보인다. */
+  codeLabels?: Readonly<Record<string, Readonly<Record<string, string>>>>;
+  /** 배지(badge=true) 열의 이름을 그리는 함수 — 호출한 쪽(tsx)이 shared Badge 로 만든다. 없으면 글자만 보인다. */
+  renderBadge?: (text: string) => unknown;
+}
+
 export function toColumnDefs(
   columns: readonly string[],
   cfg: QueryTableConfig,
-  rows: readonly Record<string, unknown>[] = []
+  rows: readonly Record<string, unknown>[] = [],
+  opts: ColumnDefOptions = {}
 ): GridColumn[] {
   if (cfg.columns.length === 0) {
     return columns.map((field) => {
@@ -357,13 +398,43 @@ export function toColumnDefs(
     const align = c.align ?? (c.format === "number" ? "right" : undefined);
     if (align) col.align = align;
     const format = c.format;
-    if (format) col.render = (value: unknown) => formatCell(value, format);
+    if (format === "code") {
+      const labels = c.codeGroup ? opts.codeLabels?.[c.codeGroup] : undefined;
+      const badge = c.badge === true ? opts.renderBadge : undefined;
+      col.render = ((value: unknown) => {
+        const raw = plain(value);
+        const text = raw === "" ? "" : (labels?.[raw] ?? raw);
+        return badge && text !== "" ? badge(text) : text;
+      }) as GridColumn["render"];
+    } else if (format) {
+      col.render = (value: unknown) => formatCell(value, format, c.mask);
+    }
     return col;
   });
 }
 
+/** 열 설정에서 쓰는 코드 그룹 목록(중복 없이) — 코드 이름 표를 조회할 그룹. */
+export function codeGroupsOf(columns: readonly TableColumnConfig[]): string[] {
+  return [...new Set(columns.filter((c) => c.format === "code" && c.codeGroup).map((c) => c.codeGroup as string))];
+}
+
 export function toGridRows(rows: readonly Record<string, unknown>[]): Record<string, unknown>[] {
   return rows.map((r, i) => ({ ...r, [TABLE_ROW_KEY]: String(i) }));
+}
+
+/** 합계 줄 값 — `sum=true` 숫자 열마다 행의 숫자 합(숫자가 아닌 칸은 건너뜀). */
+export function columnSums(
+  rows: readonly Record<string, unknown>[],
+  columns: readonly TableColumnConfig[]
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const c of columns) {
+    if (c.sum !== true || c.format !== "number") continue;
+    let total = 0;
+    for (const r of rows) total += toNumber(r[c.field]) ?? 0;
+    out[c.field] = total;
+  }
+  return out;
 }
 
 /* ── 차트 ── */
@@ -477,7 +548,7 @@ export function toNumberTiles(rows: readonly Record<string, unknown>[], cfg: Que
 
 /* ── 입력 조건(정의 설정의 `params`) ── */
 
-export type QueryParamType = "text" | "number" | "date" | "select";
+export type QueryParamType = "text" | "number" | "date" | "select" | "daterange" | "multi";
 
 export interface QueryParamOption {
   value: string;
@@ -492,13 +563,37 @@ export interface QueryParam {
   default?: string;
   required?: boolean;
   options?: QueryParamOption[];
+  /** select·multi 공통코드 그룹(options 와 함께 쓸 수 없다). */
+  codeGroup?: string;
+  /** daterange 끝 날짜 바인드 이름(daterange 는 필수). */
+  toName?: string;
+  /** daterange 끝 기본값. */
+  toDefault?: string;
+  /** daterange 최대 일수(1~3660). */
+  maxSpanDays?: number;
+  /** multi 의 고른 개수 바인드 이름(선택). */
+  countName?: string;
 }
 
-export const PARAM_TYPES: readonly QueryParamType[] = ["text", "number", "date", "select"];
-export const PARAM_TYPE_LABELS: Readonly<Record<string, string>> = { text: "글자", number: "숫자", date: "날짜", select: "선택" };
+export const PARAM_TYPES: readonly QueryParamType[] = ["text", "number", "date", "select", "daterange", "multi"];
+export const PARAM_TYPE_LABELS: Readonly<Record<string, string>> = {
+  text: "글자",
+  number: "숫자",
+  date: "날짜",
+  select: "선택",
+  daterange: "기간",
+  multi: "다중 선택",
+};
+/** 코드 그룹 형식(서버와 같다) · multi 고른 수 상한 · 기간 최대 일수 범위 · 값 JSON 전체 상한. */
+export const CODE_GROUP_RE = /^[A-Z][A-Z0-9_]{1,49}$/;
+export const MULTI_MAX = 100;
+export const SPAN_DAYS_MAX = 3660;
+export const VALUES_JSON_MAX = 16000;
 /** 서버와 합의한 이름 형식·개수·값 길이. */
 export const PARAM_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,29}$/;
 export const PARAM_MAX = 10;
+/** 바인드 이름(name·toName·countName) 전체 상한. */
+export const PARAM_BIND_MAX = 20;
 export const PARAM_VALUE_MAX = 200;
 /** 선택 형 선택지 개수·라벨 길이 상한(서버와 같다). 값은 PARAM_VALUE_MAX. */
 export const PARAM_OPTION_MAX = 50;
@@ -542,25 +637,54 @@ export function paramsOf(definition: unknown): QueryParam[] {
       }
       if (options.length > 0) item.options = options;
     }
+    // 키 순서는 ParamsEditor.fromRow 와 같다(저장 전후 JSON 비교가 순서에 걸리지 않게).
+    const codeGroup = str(p.codeGroup);
+    if (codeGroup) item.codeGroup = codeGroup;
+    const toName = str(p.toName);
+    if (toName) item.toName = toName;
+    const toDefault = scalarText(p.toDefault);
+    if (toDefault !== undefined) item.toDefault = toDefault;
+    const maxSpanDays = positiveInt(p.maxSpanDays);
+    if (maxSpanDays !== undefined) item.maxSpanDays = maxSpanDays;
+    const countName = str(p.countName);
+    if (countName) item.countName = countName;
     out.push(item);
   }
   return out;
 }
 
-/** 위젯 위 줄에 그릴 수 있는 조건 — 이름 형식이 맞고 처음 나온 것만(저장 때 검사가 막으므로 평소엔 전부 남는다). */
+/** 조건 하나가 선언하는 바인드 이름 전부(name·toName·countName, 빈 것 제외). */
+export function declaredNames(p: Pick<QueryParam, "name" | "toName" | "countName">): string[] {
+  return [p.name, p.toName, p.countName].filter((n): n is string => typeof n === "string" && n !== "");
+}
+
+/** 위젯 위 줄에 그릴 수 있는 조건 — 이름 형식이 맞고 처음 나온 것만(저장 검사가 막으므로 평소엔 전부 남는다). */
 export function usableParams(params: readonly QueryParam[]): QueryParam[] {
   const seen = new Set<string>();
   const out: QueryParam[] = [];
   for (const p of params) {
     if (!PARAM_NAME_RE.test(p.name) || seen.has(p.name)) continue;
+    if (p.type === "daterange" && !(p.toName && PARAM_NAME_RE.test(p.toName) && !seen.has(p.toName) && p.toName !== p.name)) continue;
     seen.add(p.name);
+    if (p.type === "daterange" && p.toName) seen.add(p.toName);
     out.push(p);
   }
   return out;
 }
 
-/** 조건 입력 값 모음 — 이름 → 글자. */
-export type ParamValues = Record<string, string>;
+/** 조건 입력 값 모음 — 이름 → 글자(multi 는 글자 배열, daterange 는 시작 name·끝 toName 두 키). */
+export type ParamValues = Record<string, string | string[]>;
+
+/** 값을 글자로 — 배열이면 쉼표로 이은 글자(글자 칸용). */
+function textOf(v: string | string[] | undefined): string {
+  return Array.isArray(v) ? v.join(",") : (v ?? "");
+}
+
+/** 값을 글자 배열로 — 글자면 쉼표로 나눈다. */
+export function listOf(v: string | string[] | undefined): string[] {
+  const raw = Array.isArray(v) ? v : (v ?? "").split(",");
+  return raw.map((x) => x.trim()).filter((x) => x !== "");
+}
 
 /** 실제 있는 날짜인지(2026-02-30 같은 값은 아니다). */
 function isRealDate(y: number, m: number, d: number): boolean {
@@ -575,39 +699,152 @@ export function normalizeDateDefault(v: string): string | null {
   return isRealDate(Number(m[1]), Number(m[2]), Number(m[3])) ? `${m[1]}-${m[2]}-${m[3]}` : null;
 }
 
-/** 처음 보이는 값 — 기본값(200자까지), 없으면 빈 글자. date 형의 yyyyMMdd 는 날짜 입력 칸이 읽는 yyyy-MM-dd 로 바꾼다(실제 날짜일 때만). */
-export function initialValues(params: readonly QueryParam[]): ParamValues {
+/** 상대 날짜 낱말(스펙 2차 §2.2). */
+export const RELATIVE_DATE_RE = /^([+-]?)(\d{1,3})([dwMy])$/;
+const DATE_WORDS = ["monthStart", "monthEnd", "prevMonthStart", "prevMonthEnd", "yearStart"];
+
+function ymd(y: number, m: number, d: number): string {
+  return `${String(y).padStart(4, "0")}-${pad2(m)}-${pad2(d)}`;
+}
+
+function daysInMonth(y: number, m: number): number {
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
+
+/** 기준일에서 달 수만큼 옮긴다 — 도착한 달에 그 날이 없으면 그 달 마지막 날(Java plusMonths 규칙). */
+function addMonths(y: number, m: number, d: number, n: number): string {
+  const total = y * 12 + (m - 1) + n;
+  const ny = Math.floor(total / 12);
+  const nm = (total % 12 + 12) % 12 + 1;
+  return ymd(ny, nm, Math.min(d, daysInMonth(ny, nm)));
+}
+
+/**
+ * 날짜 기본값을 yyyy-MM-dd 로 푼다 — 절대 날짜(yyyy-MM-dd·yyyyMMdd) 또는 상대 낱말(`-7d`·`+1w`·`-1M`·`1y`·monthStart …)을 받는다.
+ * 기준일 today 는 브라우저 달력 날짜. 풀 수 없으면 null.
+ */
+export function resolveDateDefault(v: string, today: Date = new Date()): string | null {
+  const t = v.trim();
+  const abs = normalizeDateDefault(t);
+  if (abs !== null) return abs;
+  const y = today.getFullYear();
+  const m = today.getMonth() + 1;
+  const d = today.getDate();
+  const rel = RELATIVE_DATE_RE.exec(t);
+  if (rel) {
+    const n = (rel[1] === "-" ? -1 : 1) * Number(rel[2]);
+    if (rel[3] === "M") return addMonths(y, m, d, n);
+    if (rel[3] === "y") return addMonths(y, m, d, n * 12);
+    const dt = new Date(Date.UTC(y, m - 1, d + n * (rel[3] === "w" ? 7 : 1)));
+    return ymd(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
+  }
+  switch (t) {
+    case "monthStart":
+      return ymd(y, m, 1);
+    case "monthEnd":
+      return ymd(y, m, daysInMonth(y, m));
+    case "prevMonthStart":
+      return addMonths(y, m, 1, -1);
+    case "prevMonthEnd": {
+      const prev = addMonths(y, m, 1, -1);
+      const [py, pm] = prev.split("-").map(Number);
+      return ymd(py, pm, daysInMonth(py, pm));
+    }
+    case "yearStart":
+      return ymd(y, 1, 1);
+    default:
+      return null;
+  }
+}
+
+function isDateDefault(v: string): boolean {
+  return normalizeDateDefault(v) !== null || RELATIVE_DATE_RE.test(v) || DATE_WORDS.includes(v);
+}
+
+/** 처음 보이는 값 — 기본값(200자까지), 없으면 빈 글자. 날짜 기본값은 칸이 읽는 yyyy-MM-dd 로 푼다(풀 수 없으면 그대로). multi 는 쉼표로 나눈 배열. */
+export function initialValues(params: readonly QueryParam[], today: Date = new Date()): ParamValues {
   const out: ParamValues = {};
+  const day = (v: string | undefined) => {
+    const def = (v ?? "").slice(0, PARAM_VALUE_MAX);
+    return resolveDateDefault(def, today) ?? def;
+  };
   for (const p of params) {
     const def = (p.default ?? "").slice(0, PARAM_VALUE_MAX);
-    out[p.name] = p.type === "date" ? (normalizeDateDefault(def) ?? def) : def;
+    if (p.type === "date") out[p.name] = day(p.default);
+    else if (p.type === "daterange") {
+      out[p.name] = day(p.default);
+      if (p.toName) out[p.toName] = day(p.toDefault);
+    } else if (p.type === "multi") out[p.name] = listOf(def);
+    else out[p.name] = def;
   }
   return out;
 }
 
-/** 서버로 보낼 값 — 선언된 이름만, 앞뒤 공백을 지우고 200자까지. 빈 값도 빈 글자로 둔다. */
-export function cleanValues(params: readonly QueryParam[], values: Readonly<Record<string, string | undefined>>): ParamValues {
+type RawValues = Readonly<Record<string, string | string[] | undefined>>;
+
+function cleanList(v: string | string[] | undefined): string[] {
+  const seen = new Set<string>();
+  for (const x of listOf(v)) seen.add(x.slice(0, PARAM_VALUE_MAX));
+  return [...seen].sort().slice(0, MULTI_MAX);
+}
+
+/** 서버로 보낼 값 — 선언된 이름만, 앞뒤 공백을 지우고 200자까지. multi 는 중복을 빼고 정렬한 배열(100개까지). 전체 JSON 이 16000자를 넘는지는 planRun 이 막는다(조용히 줄이지 않는다). countName 은 보내지 않는다. */
+export function cleanValues(params: readonly QueryParam[], values: RawValues): ParamValues {
   const out: ParamValues = {};
-  for (const p of params) out[p.name] = (values[p.name] ?? "").trim().slice(0, PARAM_VALUE_MAX);
+  for (const p of params) {
+    if (p.type === "multi") out[p.name] = cleanList(values[p.name]);
+    else out[p.name] = textOf(values[p.name]).trim().slice(0, PARAM_VALUE_MAX);
+    if (p.type === "daterange" && p.toName) out[p.toName] = textOf(values[p.toName]).trim().slice(0, PARAM_VALUE_MAX);
+  }
   return out;
 }
 
-/** 필수인데 값이 빈 조건의 이름 목록(입력 순서). */
-export function missingRequired(params: readonly QueryParam[], values: Readonly<Record<string, string | undefined>>): string[] {
-  return params.filter((p) => p.required && (values[p.name] ?? "").trim() === "").map((p) => p.name);
+/** 필수인데 값이 빈 조건의 이름 목록(입력 순서). 기간은 시작·끝 중 하나라도 비면, 다중 선택은 하나도 안 골랐으면 빈 것이다. */
+export function missingRequired(params: readonly QueryParam[], values: RawValues): string[] {
+  return params
+    .filter((p) => {
+      if (!p.required) return false;
+      if (p.type === "multi") return listOf(values[p.name]).length === 0;
+      if (p.type === "daterange") return textOf(values[p.name]).trim() === "" || textOf(p.toName ? values[p.toName] : "").trim() === "";
+      return textOf(values[p.name]).trim() === "";
+    })
+    .map((p) => p.name);
 }
 
-export type RunPlan = { run: true; values?: ParamValues } | { run: false; missing: string[] };
+export type RunPlan = { run: true; values?: ParamValues } | { run: false; missing: string[]; message?: string };
+
+export const VALUES_TOO_LONG = "선택한 값이 너무 많습니다. 선택을 줄여 주세요";
 
 /**
  * 확정한(검색을 누른) 값으로 서버를 부를지 정한다 — 조건이 없으면 값 없이 부른다(paramsJson 을 싣지 않는다),
  * 필수가 비었으면 부르지 않는다(서버 거절이 오류 띠로 뜨지 않게 「조건을 입력하고 검색하세요」 를 보인다).
+ * 기간의 순서(시작 > 끝)나 최대 일수를 어긴 값도 부르지 않는다(조회 막음).
  */
-export function planRun(params: readonly QueryParam[], applied: Readonly<Record<string, string | undefined>>): RunPlan {
+export function planRun(params: readonly QueryParam[], applied: RawValues): RunPlan {
   if (params.length === 0) return { run: true };
   const missing = missingRequired(params, applied);
+  const bad = params.filter((p) => p.type === "daterange" && rangeError(p, applied) !== null);
+  // 필수 누락이 먼저고, 없으면 기간 오류 문구를 그대로 알린다.
   if (missing.length > 0) return { run: false, missing };
-  return { run: true, values: cleanValues(params, applied) };
+  if (bad.length > 0) return { run: false, missing: bad.map((p) => p.name), message: rangeError(bad[0], applied) ?? undefined };
+  const values = cleanValues(params, applied);
+  if (JSON.stringify(values).length > VALUES_JSON_MAX) return { run: false, missing: [], message: VALUES_TOO_LONG };
+  return { run: true, values };
+}
+
+/** 기간 값 검사 — 시작 ≤ 끝, 최대 일수. 문제 없거나 둘 중 하나가 비었으면(필수 검사 몫) null. */
+export function rangeError(p: QueryParam, values: RawValues): string | null {
+  const from = textOf(values[p.name]).trim();
+  const to = textOf(p.toName ? values[p.toName] : "").trim();
+  const f = normalizeDateDefault(from);
+  const t = normalizeDateDefault(to);
+  if (!f || !t) return null;
+  if (f > t) return "시작 날짜가 끝 날짜보다 늦습니다";
+  if (p.maxSpanDays !== undefined) {
+    const span = (Date.parse(t) - Date.parse(f)) / 86400000 + 1;
+    if (span > p.maxSpanDays) return `기간은 최대 ${p.maxSpanDays}일까지 고를 수 있습니다`;
+  }
+  return null;
 }
 
 /**
@@ -665,6 +902,16 @@ export function validateParams(cfg: unknown): string[] {
   const errors: string[] = [];
   if (raw.length > PARAM_MAX) errors.push(`조회 조건은 최대 ${PARAM_MAX}개까지 둘 수 있습니다`);
   const seen = new Set<string>();
+  const checkName = (at: string, what: string, name: string, required: boolean) => {
+    if (name === "") {
+      if (required) errors.push(`${at}의 ${what}을 입력하세요`);
+      return;
+    }
+    if (!PARAM_NAME_RE.test(name)) errors.push(`${at}의 ${what}은 영문자로 시작하는 영문·숫자·밑줄 30자 이하로 입력하세요`);
+    else if (RESERVED_PARAM_NAMES.includes(name)) errors.push(`${at}의 ${what} 「${name}」 은 시스템 변수 이름이라 쓸 수 없습니다`);
+    else if (seen.has(name)) errors.push(`${at}의 ${what} 「${name}」 이 중복됩니다`);
+    seen.add(name);
+  };
   raw.forEach((p, idx) => {
     const at = `조회 조건 ${idx + 1}번`;
     if (!isRecord(p)) {
@@ -672,11 +919,7 @@ export function validateParams(cfg: unknown): string[] {
       return;
     }
     const name = typeof p.name === "string" ? p.name.trim() : "";
-    if (name === "") errors.push(`${at}의 이름을 입력하세요`);
-    else if (!PARAM_NAME_RE.test(name)) errors.push(`${at}의 이름은 영문자로 시작하는 영문·숫자·밑줄 30자 이하로 입력하세요`);
-    else if (RESERVED_PARAM_NAMES.includes(name)) errors.push(`${at}의 이름 「${name}」 은 시스템 변수 이름이라 쓸 수 없습니다`);
-    else if (seen.has(name)) errors.push(`${at}의 이름 「${name}」 이 중복됩니다`);
-    if (name !== "") seen.add(name);
+    checkName(at, "이름", name, true);
     const type = pick(p.type, PARAM_TYPES);
     if (!type) errors.push(`${at}의 형을 고르세요`);
     if (typeof p.default === "string" && p.default.length > PARAM_VALUE_MAX) {
@@ -686,13 +929,28 @@ export function validateParams(cfg: unknown): string[] {
     if (type === "number" && def !== "" && !PLAIN_NUMBER_RE.test(def.trim())) {
       errors.push(`${at}의 기본값은 숫자로 입력하세요`);
     }
-    if (type === "date" && def !== "" && normalizeDateDefault(def) === null) {
-      errors.push(`${at}의 기본값은 yyyy-MM-dd 또는 yyyyMMdd 형식의 실제 날짜로 입력하세요`);
+    const dateMsg = `yyyy-MM-dd·yyyyMMdd 형식의 실제 날짜 또는 상대 날짜(-7d, monthStart 등)로 입력하세요`;
+    if (type === "date" && def !== "" && !isDateDefault(def.trim())) errors.push(`${at}의 기본값은 ${dateMsg}`);
+    if (type === "daterange") {
+      checkName(at, "끝 이름", str(p.toName), true);
+      if (def !== "" && !isDateDefault(def.trim())) errors.push(`${at}의 기본값은 ${dateMsg}`);
+      const toDef = typeof p.toDefault === "string" ? p.toDefault : "";
+      if (toDef !== "" && !isDateDefault(toDef.trim())) errors.push(`${at}의 끝 기본값은 ${dateMsg}`);
+      if (p.maxSpanDays !== undefined && p.maxSpanDays !== null) {
+        const n = toNumber(p.maxSpanDays);
+        if (n === null || !Number.isInteger(n) || n < 1 || n > SPAN_DAYS_MAX) errors.push(`${at}의 최대 일수는 1~${SPAN_DAYS_MAX} 사이 정수로 입력하세요`);
+      }
     }
-    if (type === "select") {
+    if (type === "multi") checkName(at, "개수 이름", str(p.countName), false);
+    if (type === "select" || type === "multi") {
+      const group = str(p.codeGroup);
       const options = Array.isArray(p.options) ? p.options.filter(isRecord) : [];
-      if (options.length === 0) errors.push(`${at}은 선택 형이라 선택지를 하나 이상 넣어야 합니다`);
-      else {
+      if (group !== "") {
+        if (!CODE_GROUP_RE.test(group)) errors.push(`${at}의 코드 그룹은 영대문자로 시작하는 영대문자·숫자·밑줄 2~50자로 입력하세요`);
+        if (options.length > 0) errors.push(`${at}은 코드 그룹과 선택지를 함께 쓸 수 없습니다`);
+      } else if (options.length === 0) {
+        errors.push(`${at}은 ${type === "multi" ? "다중 선택" : "선택"} 형이라 선택지 또는 코드 그룹이 필요합니다`);
+      } else {
         const values = options.map((o) => scalarText(o.value));
         if (values.some((v) => v === undefined)) errors.push(`${at}에 값이 빈 선택지가 있습니다`);
         if (options.length > PARAM_OPTION_MAX) errors.push(`${at}의 선택지는 최대 ${PARAM_OPTION_MAX}개까지 둘 수 있습니다`);
@@ -705,9 +963,37 @@ export function validateParams(cfg: unknown): string[] {
         if (options.some((o) => typeof o.label === "string" && o.label.length > PARAM_OPTION_LABEL_MAX)) {
           errors.push(`${at}의 선택지 라벨은 ${PARAM_OPTION_LABEL_MAX}자 이하로 입력하세요`);
         }
-        if (def !== "" && !values.includes(def)) errors.push(`${at}의 기본값은 선택지 값 중 하나여야 합니다`);
+        const defs = type === "multi" ? listOf(def) : def === "" ? [] : [def];
+        if (defs.some((d) => !values.includes(d))) errors.push(`${at}의 기본값은 선택지 값 중 하나여야 합니다`);
+        if (type === "multi" && defs.length > MULTI_MAX) errors.push(`${at}의 기본값은 최대 ${MULTI_MAX}개까지 둘 수 있습니다`);
       }
     }
+  });
+  if (seen.size > PARAM_BIND_MAX) errors.push(`바인드 이름(이름·끝 이름·개수 이름)은 최대 ${PARAM_BIND_MAX}개까지 둘 수 있습니다`);
+  return errors;
+}
+
+/** 출력 열 검사(저장 막기용) — 서식·합계·코드 그룹·배지 제약(스펙 2차 §2.4). */
+export function validateColumns(cfg: unknown): string[] {
+  if (!isRecord(cfg) || !Array.isArray(cfg.columns)) return [];
+  const errors: string[] = [];
+  cfg.columns.forEach((c, idx) => {
+    if (!isRecord(c)) return;
+    const at = `표시 컬럼 ${idx + 1}번`;
+    const format = c.format;
+    const mask = typeof c.mask === "string" ? c.mask : "";
+    if (mask !== "") {
+      if (format !== "number") errors.push(`${at}의 서식은 숫자 형식에서만 쓸 수 있습니다`);
+      else if (mask.length > MASK_MAX || !MASK_RE.test(mask)) errors.push(`${at}의 서식은 #,##0 · #,##0.0 · 0.00 같은 형식으로 입력하세요`);
+    }
+    if (c.sum !== undefined && c.sum !== null && typeof c.sum !== "boolean") errors.push(`${at}의 합계 값이 올바르지 않습니다`);
+    if (c.sum === true && format !== "number") errors.push(`${at}의 합계는 숫자 형식에서만 쓸 수 있습니다`);
+    const group = typeof c.codeGroup === "string" ? c.codeGroup.trim() : "";
+    if (group !== "") {
+      if (format !== "code") errors.push(`${at}의 코드 그룹은 코드 형식에서만 쓸 수 있습니다`);
+      else if (!CODE_GROUP_RE.test(group)) errors.push(`${at}의 코드 그룹은 영대문자로 시작하는 영대문자·숫자·밑줄 2~50자로 입력하세요`);
+    }
+    if (c.badge === true && format !== "code") errors.push(`${at}의 배지는 코드 형식에서만 쓸 수 있습니다`);
   });
   return errors;
 }
@@ -732,14 +1018,14 @@ export function optionsToText(options: readonly QueryParamOption[] | undefined):
 
 /** [SQL 에서 가져오기] — SQL 의 바인드 이름 중 아직 선언 안 된 것을 글자 형 조건으로 뒤에 붙인다. */
 export function appendUndeclaredParams(list: readonly QueryParam[], sql: string): QueryParam[] {
-  const have = new Set(list.map((p) => p.name));
+  const have = new Set(list.flatMap(declaredNames));
   return [...list, ...extractBindNames(sql).filter((name) => !have.has(name)).map((name): QueryParam => ({ name, type: "text" }))];
 }
 
 /** 편집기 안내 — SQL 의 바인드 중 선언 안 된 이름·선언했지만 SQL 에 없는 이름(근사, 저장 때 서버가 정식으로 판정). */
 export function paramUsageNotes(sql: string, params: readonly QueryParam[]): { undeclared: string[]; unused: string[] } {
   const used = extractBindNames(sql);
-  const declared = new Set(params.map((p) => p.name).filter((n) => n !== ""));
+  const declared = new Set(params.flatMap(declaredNames));
   return {
     undeclared: used.filter((name) => !declared.has(name)),
     unused: [...declared].filter((name) => !used.includes(name)),
@@ -755,6 +1041,7 @@ export function validateQueryConfig(typeId: string, cfg: unknown): string[] {
   if (sql.trim() === "") errors.push("SQL 을 입력하세요");
   errors.push(...validateParams(cfg));
   if (typeId === "query-table") {
+    errors.push(...validateColumns(cfg));
     if (tableConfigOf(cfg).columns.some((c) => c.field === "")) errors.push("필드가 빈 컬럼이 있습니다");
   } else if (typeId === "query-chart") {
     const c = chartConfigOf(cfg);

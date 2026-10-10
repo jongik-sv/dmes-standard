@@ -6,6 +6,7 @@
 import type { GridColumn } from "@dk-oasis/shared/grid";
 
 import {
+  columnSums,
   initialValues,
   missingRequired,
   paramsOf,
@@ -14,6 +15,7 @@ import {
   toGridRows,
   truncatedNote,
   usableParams,
+  type ColumnDefOptions,
   type ParamValues,
 } from "../../../widget-types/_query/format";
 import type { UserQueryColumn, UserQueryParam, UserQueryRunResult, UserQuerySummary } from "../../_userq/types";
@@ -29,19 +31,22 @@ export const LAST_QUERY_STORAGE_KEY = "mcm.cmq.userQuery.lastQueryId";
 /** 왼쪽 조회조건 — 분류 코드("" 면 전체)와 이름·쿼리 ID 검색어. */
 export interface QueryListFilter {
   categoryCd: string;
+  /** 모듈 코드("" 면 전체). */
+  moduleCd: string;
   keyword: string;
 }
 
-export const EMPTY_LIST_FILTER: QueryListFilter = { categoryCd: "", keyword: "" };
+export const EMPTY_LIST_FILTER: QueryListFilter = { categoryCd: "", moduleCd: "", keyword: "" };
 
 /**
- * myList 결과를 화면 안에서 거른다(서버 호출 없음). 분류는 코드 일치(빈 값이면 전체, 분류 없는 쿼리는 분류를 고르면 빠진다),
+ * myList 결과를 화면 안에서 거른다(서버 호출 없음). 모듈·분류는 코드 일치(빈 값이면 전체, 분류 없는 쿼리는 분류를 고르면 빠진다),
  * 검색어는 쿼리 이름 또는 쿼리 ID 의 부분 일치(대소문자 무시·앞뒤 공백 무시, 설명은 보지 않는다). 순서는 입력 그대로.
  */
 export function filterQueryList(list: readonly UserQuerySummary[], filter: QueryListFilter): UserQuerySummary[] {
   const k = filter.keyword.trim().toLowerCase();
   return list.filter((q) => {
     if (filter.categoryCd !== "" && q.categoryCd !== filter.categoryCd) return false;
+    if (filter.moduleCd !== "" && q.moduleCd !== filter.moduleCd) return false;
     if (k === "") return true;
     return q.queryNm.toLowerCase().includes(k) || q.queryId.toLowerCase().includes(k);
   });
@@ -52,13 +57,14 @@ export type QueryListRow = {
   queryId: string;
   queryNm: string;
   categoryNm: string;
+  moduleCd: string;
 };
 
 /** 분류 이름을 풀어 그리드 행으로 바꾼다. 분류 이름을 모르는 코드는 코드 그대로, 분류가 없으면 「미분류」. */
 export function toListRows(list: readonly UserQuerySummary[], categoryNames: Readonly<Record<string, string>>): QueryListRow[] {
   return list.map((q) => {
     const cd = q.categoryCd ?? "";
-    return { queryId: q.queryId, queryNm: q.queryNm, categoryNm: cd === "" ? UNCATEGORIZED_LABEL : (categoryNames[cd] ?? cd) };
+    return { queryId: q.queryId, queryNm: q.queryNm, categoryNm: cd === "" ? UNCATEGORIZED_LABEL : (categoryNames[cd] ?? cd), moduleCd: q.moduleCd ?? "" };
   });
 }
 
@@ -66,7 +72,7 @@ export function toListRows(list: readonly UserQuerySummary[], categoryNames: Rea
 export function sameQueryList(a: readonly UserQuerySummary[], b: readonly UserQuerySummary[]): boolean {
   return (
     a.length === b.length &&
-    a.every((q, i) => q.queryId === b[i].queryId && q.queryNm === b[i].queryNm && q.categoryCd === b[i].categoryCd && q.queryDesc === b[i].queryDesc)
+    a.every((q, i) => q.queryId === b[i].queryId && q.queryNm === b[i].queryNm && q.categoryCd === b[i].categoryCd && q.moduleCd === b[i].moduleCd && q.queryDesc === b[i].queryDesc)
   );
 }
 
@@ -77,9 +83,10 @@ export const LIST_ROW_KEY = "queryId";
  * 이름이 남는 폭을 가져가고, 분류·쿼리 ID 는 말줄임으로 둔다.
  */
 export const LIST_COLUMNS: GridColumn[] = [
-  { key: "queryNm", header: "이름", width: 6, minWidth: 80, align: "left" },
-  { key: "categoryNm", header: "분류", width: 4, minWidth: 52, align: "left" },
-  { key: "queryId", header: "쿼리 ID", width: 3, minWidth: 56, align: "left" },
+  { key: "queryNm", header: "이름", width: 6, minWidth: 64, align: "left" },
+  { key: "categoryNm", header: "분류", width: 4, minWidth: 44, align: "left" },
+  { key: "queryId", header: "쿼리 ID", width: 3, minWidth: 48, align: "left" },
+  { key: "moduleCd", header: "모듈", width: 1, minWidth: 34, align: "left" },
 ];
 
 /** 처음 고를 쿼리 — 마지막에 고른 것이 아직 목록에 있으면 그것, 없으면 고르지 않는다(자동 조회도 하지 않는다). */
@@ -121,14 +128,14 @@ export function defaultValues(params: readonly UserQueryParam[]): ParamValues {
 export type RunDecision = { run: true; values?: ParamValues } | { run: false; missing: string[]; message: string };
 
 /** 조회 단추를 눌렀을 때 서버를 부를지 정한다. 필수 값이 비면 부르지 않고 안내 문구를 돌려준다. */
-export function decideRun(params: readonly UserQueryParam[], draft: Readonly<Record<string, string | undefined>>): RunDecision {
+export function decideRun(params: readonly UserQueryParam[], draft: Readonly<Record<string, string | string[] | undefined>>): RunDecision {
   const plan = planRun(params, draft);
   if (plan.run) return plan;
-  return { run: false, missing: plan.missing, message: NEED_INPUT_MESSAGE };
+  return { run: false, missing: plan.missing, message: plan.message ?? NEED_INPUT_MESSAGE };
 }
 
 /** 필수 값이 빈 조건의 이름. 화면이 해당 칸을 알릴 때 쓴다. */
-export function missingNames(params: readonly UserQueryParam[], draft: Readonly<Record<string, string | undefined>>): string[] {
+export function missingNames(params: readonly UserQueryParam[], draft: Readonly<Record<string, string | string[] | undefined>>): string[] {
   return missingRequired(params, draft);
 }
 
@@ -138,17 +145,34 @@ export function missingNames(params: readonly UserQueryParam[], draft: Readonly<
  * 정의(getDef)의 출력 열로 만든 그리드 열 — 조회 전에 빈 그리드를 그릴 때 쓴다. 정의에 열이 없으면 결과 열을 조회 뒤에야 알 수 있으므로 빈 배열이다.
  * 조회 뒤에도 같은 열 정의를 그대로 쓰므로(resultColumns 는 정의에 열이 있으면 결과 열을 보지 않는다) 결과를 채울 때 그리드를 다시 마운트하지 않는다.
  */
-export function definedColumns(columns: readonly UserQueryColumn[]): GridColumn[] {
-  return columns.length === 0 ? [] : toColumnDefs([], { sql: "", columns: [...columns] });
+export function definedColumns(columns: readonly UserQueryColumn[], opts?: ColumnDefOptions): GridColumn[] {
+  return columns.length === 0 ? [] : toColumnDefs([], { sql: "", columns: [...columns] }, [], opts);
 }
 
 /** 그리드 열 — 정의에 열이 있으면 그 규칙(머리글·폭·정렬·형식), 없으면 결과 열 전부. */
-export function resultColumns(result: UserQueryRunResult, columns: readonly UserQueryColumn[]): GridColumn[] {
-  return toColumnDefs(result.columns, { sql: "", columns: [...columns] }, result.rows);
+export function resultColumns(result: UserQueryRunResult, columns: readonly UserQueryColumn[], opts?: ColumnDefOptions): GridColumn[] {
+  return toColumnDefs(result.columns, { sql: "", columns: [...columns] }, result.rows, opts);
 }
 
 export function resultRows(result: UserQueryRunResult): Record<string, unknown>[] {
   return toGridRows(result.rows);
+}
+
+export const SUM_LABEL = "합계";
+export const SUM_LABEL_TRUNCATED = "표시한 행 합계";
+
+/**
+ * 합계 고정 행(AgDataGrid pinnedBottomRows) — 합계 열(`sum`)이 없거나 행이 없으면 undefined.
+ * 첫 열(합계 열이 아닌 첫 열)에 「합계」(잘렸으면 「표시한 행 합계」), 합계 열에 합. 값 서식은 열 정의(mask)가 그대로 입힌다.
+ */
+export function resultSumRows(result: UserQueryRunResult, columns: readonly UserQueryColumn[]): Record<string, unknown>[] | undefined {
+  if (result.rows.length === 0) return undefined;
+  const sums = columnSums(result.rows, columns);
+  if (Object.keys(sums).length === 0) return undefined;
+  const row: Record<string, unknown> = { ...sums };
+  const labelColumn = columns.find((c) => !(c.field in sums));
+  if (labelColumn) row[labelColumn.field] = result.truncated ? SUM_LABEL_TRUNCATED : SUM_LABEL;
+  return [row];
 }
 
 /** 잘렸을 때만 안내 문구(「상위 N행만 표시합니다」). 잘리지 않았으면 undefined 라 기본 「N행」이 나온다. */

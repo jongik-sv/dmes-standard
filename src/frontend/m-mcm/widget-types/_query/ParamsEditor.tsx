@@ -16,6 +16,7 @@ import {
   paramsOf,
   paramUsageNotes,
   parseOptionsText,
+  intCell,
   textCell,
   type QueryParam,
   type QueryParamType,
@@ -29,6 +30,11 @@ interface ParamRow {
   default?: string;
   required: "Y" | "N";
   options?: string;
+  codeGroup?: string;
+  toName?: string;
+  toDefault?: string;
+  maxSpanDays?: number;
+  countName?: string;
 }
 
 const REQUIRED_LABELS: Readonly<Record<string, string>> = { N: "아니오", Y: "예" };
@@ -39,6 +45,11 @@ function toRow(p: QueryParam): ParamRow {
   if (p.default !== undefined) row.default = p.default;
   const options = optionsToText(p.options);
   if (options) row.options = options;
+  if (p.codeGroup) row.codeGroup = p.codeGroup;
+  if (p.toName) row.toName = p.toName;
+  if (p.toDefault) row.toDefault = p.toDefault;
+  if (p.maxSpanDays !== undefined) row.maxSpanDays = p.maxSpanDays;
+  if (p.countName) row.countName = p.countName;
   return row;
 }
 
@@ -49,6 +60,14 @@ function fromRow(r: ParamRow): QueryParam {
   if (r.required === "Y") p.required = true;
   const options = parseOptionsText(r.options ?? "");
   if (options.length > 0) p.options = options;
+  // 형에 맞는 새 키만 남긴다 — 다른 형에 붙은 칸은 저장 때 서버가 거절하므로 형을 바꾸면 함께 정리된다.
+  if (r.codeGroup && (r.type === "select" || r.type === "multi")) p.codeGroup = r.codeGroup;
+  if (r.type === "daterange") {
+    if (r.toName) p.toName = r.toName;
+    if (r.toDefault) p.toDefault = r.toDefault;
+    if (r.maxSpanDays !== undefined) p.maxSpanDays = r.maxSpanDays;
+  }
+  if (r.countName && r.type === "multi") p.countName = r.countName;
   return p;
 }
 
@@ -57,6 +76,7 @@ function normalizeCell(field: string, value: unknown): unknown {
   if (field === "name") return textCell(value) ?? "";
   if (field === "type") return textCell(value) ?? "text";
   if (field === "required") return value === "Y" ? "Y" : "N";
+  if (field === "maxSpanDays") return intCell(value);
   return textCell(value);
 }
 
@@ -89,6 +109,11 @@ const COLUMNS: GridColumn[] = [
     render: labelOf(REQUIRED_LABELS),
   },
   { key: "options", header: "선택지(값:라벨,…)", width: 170, editable: true },
+  { key: "codeGroup", header: "코드 그룹", width: 110, editable: true, hideable: true },
+  { key: "toName", header: "끝 이름", width: 90, editable: true, hideable: true },
+  { key: "toDefault", header: "끝 기본값", width: 90, editable: true, hideable: true },
+  { key: "maxSpanDays", header: "최대 일수", width: 80, align: "right", editable: true, cellEditor: "number", hideable: true },
+  { key: "countName", header: "개수 이름", width: 90, editable: true, hideable: true },
 ];
 
 export interface ParamsEditorProps {
@@ -138,6 +163,12 @@ export const ParamsEditor = memo(function ParamsEditor({ sql, params, onChange }
         SQL 의 <code>:이름</code> 자리에 사용자가 위젯 위 줄에서 입력한 값을 넣습니다. 최대 {PARAM_MAX}개, 값은 {PARAM_VALUE_MAX}자까지입니다.
         선택 형은 선택지를 <code>값:라벨,값:라벨</code> 로 적습니다(값에 쉼표·콜론은 쓸 수 없습니다). 날짜는 yyyy-MM-dd 로 입력합니다.
         기본값은 처음 값이자 [쿼리 시험]에 쓰는 값입니다(날짜는 yyyy-MM-dd 또는 yyyyMMdd). 시스템 변수와 같은 이름은 쓸 수 없습니다.
+      </span>
+      <span className="wq-hint">
+        기간 형은 시작을 「이름」, 끝을 「끝 이름」 바인드로 넘기고(둘 다 yyyyMMdd), 「최대 일수」로 기간 길이를 막습니다. 다중 선택 형은 SQL 의{" "}
+        <code>IN (:이름)</code> 자리에만 쓸 수 있고, 「개수 이름」을 선언하면 고른 개수(0 이면 전체)를 <code>{"(:개수 = 0 OR COL IN (:이름))"}</code> 처럼 쓸 수
+        있습니다. 선택·다중 선택 형은 선택지 대신 「코드 그룹」(공통코드 그룹 ID)을 쓸 수 있습니다. 날짜 기본값에는 <code>-7d</code>·<code>0d</code>·
+        <code>monthStart</code> 같은 상대 날짜를 쓸 수 있습니다(다중 선택 기본값은 쉼표로 구분).
       </span>
       <span className="wq-hint">
         SQL 에는 날짜가 yyyyMMdd 글자로, 숫자는 숫자(NUMERIC)로 들어갑니다(<code>:today</code> 와 같은 형). 날짜 열과 비교할 때는{" "}
