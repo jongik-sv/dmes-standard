@@ -12,7 +12,7 @@ import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { PARAM_VALUE_MAX, QUERY_NEED_INPUT, type QueryParam } from "./format";
 import type { QueryCondition } from "./useQueryData";
 
-function ConditionField({ param, value, inputId, onChange }: { param: QueryParam; value: string; inputId: string; onChange: (value: string) => void }) {
+export function ConditionField({ param, value, inputId, onChange }: { param: QueryParam; value: string; inputId: string; onChange: (value: string) => void }) {
   const label = param.label || param.name;
   const testId = `wq-cond-${param.name}-input`;
   let control: ReactNode;

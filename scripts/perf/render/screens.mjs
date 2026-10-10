@@ -197,6 +197,17 @@ export const SCREENS = [
     autoSearchAtEntry: true,
   },
   {
+    // 2026-10-10 userq-user 등록 — 공용 쿼리 조회(cmq 공용 조회 트리). 진입하면 내 쿼리 목록(myList)만 받고 목록은 버튼이다.
+    // 결과 그리드는 쿼리를 고르고 [조회] 한 뒤에만 나오므로 조회 단계(needsSearch)는 건너뛴다. 상세 폼 입력 칸이 없어 formInput 도 없다.
+    id: "userQuery",
+    label: "공용 쿼리 조회",
+    trail: [/^공통관리$/, /^공용 조회$/, /^공용 쿼리 조회$/],
+    breadcrumb: "공통관리 > 공용 조회 > 공용 쿼리 조회",
+    searchUrlPattern: /\/api\/mcm\/oasis\/userQuery\/myList$/,
+    needsSearch: false,
+    autoSearchAtEntry: true,
+  },
+  {
     id: "masterCodeMng",
     label: "Master Code 관리",
     // 메뉴 트리 글자는 「마스터관리(원장)」, 화면 하단 breadcrumb 은 「Master 관리(원장)」 으로 다르다.

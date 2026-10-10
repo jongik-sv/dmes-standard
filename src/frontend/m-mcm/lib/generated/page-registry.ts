@@ -22,6 +22,7 @@ export const PAGE_REGISTRY: Record<string, () => Promise<{ default: unknown }>> 
   "cmb/masterRuleFrame": () => import("@/page-components/cmb/masterRuleFrame/page"),
   "cmb/masterRuleList": () => import("@/page-components/cmb/masterRuleList/page"),
   "cme/masterCodeMngList": () => import("@/page-components/cme/masterCodeMngList/page"),
+  "cmq/userQuery": () => import("@/page-components/cmq/userQuery/page"),
   "csa/commMenuMng": () => import("@/page-components/csa/commMenuMng/page"),
   "csa/commObjMng": () => import("@/page-components/csa/commObjMng/page"),
   "csa/commPermMng": () => import("@/page-components/csa/commPermMng/page"),
