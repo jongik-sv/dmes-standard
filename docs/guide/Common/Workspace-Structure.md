@@ -2,6 +2,7 @@
 
 이 문서는 저장소 안의 여러 Gradle/NPM 프로젝트를 부르는 명시적 역할명을 정리한다.
 빌드 이름과 경로를 당장 변경하지 않더라도, 설계서/이슈/커밋 메시지에서는 아래 기준으로 `core`, `app`, `lib`, `package`, `workspace` 를 구분한다.
+프로젝트 전체 구조(모듈 의존, 요청 흐름, 라이브러리)는 [ARCHITECTURE.md](../../ARCHITECTURE.md) 를 본다. 이 문서는 이름 규칙만 정한다.
 
 ## 0. 역할명 suffix
 
@@ -25,9 +26,9 @@
 | 영역 | 위치 | 의미 | 공식 역할명 |
 |---|---|---|---|
 | Backend composite | `src/backend` | 여러 독립 Gradle build 를 묶는 집계 진입점. 자체 제품 코드가 아니라 includeBuild 라우터다. | `backend-composite-workspace` |
-| Frontend workspace | `src/frontend` | NPM workspace. 공통 패키지와 모듈별 화면 앱을 포함한다. | `dk-oasis-frontend-workspace` |
+| Frontend workspace | `src/frontend` | pnpm workspace(`pnpm-workspace.yaml`). 공통 패키지, 포털 앱, 모듈별 화면 라이브러리를 포함한다. | `dk-oasis-frontend-workspace` |
 | 문서 | `docs` | APS/MES/공통 플랫폼 설계와 개발 가이드. | `docs` |
-| 데이터/마이그레이션 | `src/backend/data`, `src/backend/data-migration` | 로컬 SQLite, seed, {CLIENT} 원본 변환 자산. | `local data`, `data migration` |
+| 데이터/마이그레이션 | `src/backend/data-migration`, `db-snapshot/`, `scripts/oracle/` | {CLIENT} 원본 변환 예시(Node, Gradle 아님), 시드 CSV, Oracle PDB 도구. 로컬 DB 는 Oracle 하나다(SQLite 폐기, 2026-10-07). | `data migration` |
 
 ## 2. Backend 프로젝트 분류
 
@@ -42,7 +43,10 @@
 | `src/backend/mcm-core` | `mcm-core` | `com.dongkuk.dmes:mcm-core` | `com.dongkuk.dmes.mcm.*` | 권한, 메뉴, 즐겨찾기, 마스터코드 등 MCM 제품 라이브러리 |
 | `src/backend/caravan-core` | `caravan-core` | `com.dongkuk.caravan:caravan-core` | `com.dongkuk.caravan.core.*` | Caravan 메시징 공통 라이브러리 |
 | `src/backend/caravan-hub` | `caravan-hub-app` | `com.dongkuk.caravan:caravan-hub` | `com.dongkuk.caravan.hub.*` | Caravan hub 실행/연동 컴포넌트 |
-| `src/backend/caravan-console` | `caravan-console-app` | `com.dongkuk.caravan:caravan-console` | `com.dongkuk.caravan.console.*` | Caravan 운영 콘솔 컴포넌트 |
+| `src/backend/caravan-console` | `caravan-console-app` | `com.dongkuk.caravan:caravan-console` | `com.dongkuk.caravan.console.*` | Caravan 운영 콘솔 컴포넌트(실행 앱이 아니라 `mcm/lib` 가 포함하는 라이브러리) |
+| `src/backend/oasis` | `oasis-core` | `com.dongkuk:oasis-core`, `oasis-core-api` | `com.dongkuk.oasis.*` | BPMN 2.0 실행 엔진. `cactus-core` 가 포함해 가져온다 |
+| `src/backend/maru-mdm-engine` | `maru-mdm-engine` | `kr.dongkuk.maru.mdm:maru-mdm-engine` | `kr.dongkuk.maru.mdm.engine.*` | MDM 룰 평가 엔진. 그룹이 `com.dongkuk.dmes` 가 아닌 것은 의도다 |
+| `src/backend/build-logic` | `build-logic` | (플러그인 빌드) | - | 공통 Gradle 규약(`dmes.business-module`, `dmes.test-conventions`) |
 
 ### {CLIENT} MES 사이트 모듈
 
@@ -65,6 +69,14 @@ Gradle package/artifact:
 | `mqc` | `com.dongkuk.dmes:mqc` | `com.dongkuk.dmes.mqc.*` |
 | `mls` | `com.dongkuk.dmes:mls` | `com.dongkuk.dmes.mls.*` |
 | `mcm` | `com.dongkuk.dmes:mcm` | `com.dongkuk.dmes.mcm.*` |
+
+### MDM 모듈
+
+`mdm` 은 사이트 모듈과 같은 `lib` + `api` 구조이고, 이름 규칙도 같게 적용한다 (추정).
+
+| 현재 backend root | 내부 lib | 내부 app | Frontend | Gradle package | Java package |
+|---|---|---|---|---|---|
+| `src/backend/mdm` | `mdm/lib` | `mdm/api` | `m-mdm` (`@dk-oasis/m-mdm`) | `com.dongkuk.dmes:mdm` | `com.dongkuk.dmes.mdm.*` |
 
 ### 보조/도구성 프로젝트
 
@@ -121,8 +133,9 @@ Gradle package/artifact:
 | 위치 | 공식 역할명 | NPM package | 의미 |
 |---|---|---|---|
 | `src/frontend` | `dk-oasis-frontend-workspace` | `@dk-oasis/workspace` | NPM workspace root |
-| `src/frontend/shared` | `dk-oasis-shared-lib` | `@dk-oasis/shared` | FE 공통 유틸/HTTP/helper package |
-| `src/frontend/m-{moduleId}` | `ksm-{moduleId}-web-app` | 대체로 `@dk-oasis/m-{moduleId}` | 모듈별 화면 app package |
+| `src/frontend/shared` | `dk-oasis-shared-lib` | `@dk-oasis/shared` | FE 공통 package. UI 부품, 그리드, 포털 셸, 인증, HTTP, OASIS 프록시 |
+| `src/frontend/m-{moduleId}` | `ksm-{moduleId}-web-app` | 대체로 `@dk-oasis/m-{moduleId}` | 모듈별 화면 package. `m-mcm` 만 Next 앱(포털)이고 나머지(`m-mdm`, `m-mls`, `m-mpn`, `m-mpp`, `m-mqc`, `m-analog`)는 tsup 라이브러리다 |
+| `src/frontend/m-design-dummy` | - | `@dk-oasis/m-design-dummy` | 디자인 검토용 Vite SPA. 백엔드 없이 뜬다 |
 
 주의: 현재 `src/frontend/m-mcm/package.json` 의 NPM package name 은 `@dk-oasis/mcm` 이다.
 새 FE 모듈은 app 역할명은 `ksm-{moduleId}-web-app`, NPM package name 은 `@dk-oasis/m-{moduleId}` 규칙으로 맞추고, 기존 불일치는 별도 영향 분석 후 정리한다.
