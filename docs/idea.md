@@ -9,19 +9,18 @@
 - 아날로그도 제대로된 화면을 만들자.
 - DB 설계 도구
   - 구상 문서: [docs/superpowers/specs/2026-10-09-erd-tool-concept.md](superpowers/specs/2026-10-09-erd-tool-concept.md) (2026-10-09). exERD 방식 편집·MDM 용어·도메인 연동·Claude Code MCP·CLI 편집. 정본(Flyway/ERD)·MDM 버전 객체 여부·exERD 동작 범위 결정 대기.
-  - 연구 보고서: [docs/erd-tool/2026-10-09-erd-tool-research.md](erd-tool/2026-10-09-erd-tool-research.md) (2026-10-09). exERD 가정 6개 중 5개 확인, 논리명→물리명 변환 API 는 이미 있음(0.2~0.3초), MCM 등은 DB FK·코멘트가 0이라 관계 추정 필요, 새 결정 거리 6건.
+  - 연구 보고서: [docs/erd-tool/2026-10-09-erd-tool-research.md](erd-tool/2026-10-09-erd-tool-research.md) (2026-10-09). exERD 가정 6개 중 5개 확인, 논리명→물리명 변환 API 는 이미 있음(0.2\~0.3초), MCM 등은 DB FK·코멘트가 0이라 관계 추정 필요, 새 결정 거리 6건.
 - DB 관리 도구
 - ASD-STE100 조사 및 스킬에 적용
 - 에이전트 오피스의 태스크의 상세 내용에 완료작업, 현재 작업, 계획 작업 까지 같이 보이도록...
 - 무인 작업 시 조정자가 사람에게 보고할 내용을 기술하는 모드가 필요, 이제 스크롤 해도 괜찮아.
-
 - skill-doctor 명령어로 안쓰는 스킬 덜어내기
-
 - BPMN 디버거 기능
 - MES 로그인 하면 홈 + 기본화면만 뜨도록 하자.
 - 기본화면 , 즐겨찾기 는 드래그앤 드롭으로 순서를 바꿀 수 있게 하자.
 - 조정자 스킬 이름을 dco(디코)로 바꾸자
-- 조정자 스킬에 WBS 를 만들고 진행 관리를 하도록 하자. 자동으로 파일 열기까지.
+- 조정자 스킬에 WBS 를 만들고 진행 관리를 하도록 하자. 자동으로 파일 열기까지(진행중)
+  -  또 mod 도 만들자.
 
 ---
 
