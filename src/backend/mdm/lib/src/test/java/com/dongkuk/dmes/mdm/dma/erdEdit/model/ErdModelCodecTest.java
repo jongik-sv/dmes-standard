@@ -1,6 +1,7 @@
 package com.dongkuk.dmes.mdm.dma.erdEdit.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
@@ -52,5 +53,13 @@ class ErdModelCodecTest {
         m.relations.get("r-1").candidateRank = 2;
         assertThat(ErdModelCodec.write(m)).contains("\"candidateRank\":2");
         assertThat(ErdModelCodec.read(ErdModelCodec.write(m)).relations.get("r-1").candidateRank).isEqualTo(2);
+    }
+
+    /** deferred 32: 모르는 스키마 버전의 모델 JSON 은 읽지 않는다. */
+    @Test
+    void unknownSchemaVersionIsRejected() {
+        assertThatThrownBy(() -> ErdModelCodec.read(JSON.replace("\"schemaVersion\":1", "\"schemaVersion\":2")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("모델 JSON schemaVersion 을 모릅니다: 2");
     }
 }

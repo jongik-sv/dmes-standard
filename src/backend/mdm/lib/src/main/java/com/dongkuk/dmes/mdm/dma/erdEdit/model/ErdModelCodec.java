@@ -20,15 +20,23 @@ public final class ErdModelCodec {
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true)
             .build();
 
+    /** 이 코드가 아는 모델 JSON 스키마 버전(ErdModel.schemaVersion). 두 번째 버전이 생기면 여기서 옮겨 읽는다(deferred 32). */
+    static final int SCHEMA_VERSION = 1;
+
     private ErdModelCodec() {
     }
 
     public static ErdModel read(String json) {
+        ErdModel m;
         try {
-            return MAPPER.readValue(json, ErdModel.class);
+            m = MAPPER.readValue(json, ErdModel.class);
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("MODEL_JSON 을 읽을 수 없습니다: " + e.getOriginalMessage(), e);
         }
+        if (m.schemaVersion != SCHEMA_VERSION) {
+            throw new IllegalStateException("모델 JSON schemaVersion 을 모릅니다: " + m.schemaVersion);
+        }
+        return m;
     }
 
     public static String write(ErdModel model) {

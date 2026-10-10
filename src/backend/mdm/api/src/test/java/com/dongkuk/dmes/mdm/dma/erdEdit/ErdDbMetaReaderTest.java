@@ -220,6 +220,30 @@ class ErdDbMetaReaderTest extends AbstractMdmSharedDbTest {
         assertThatThrownBy(() -> reader.read(" ")).isInstanceOf(IllegalArgumentException.class);
     }
 
+    /** deferred 51: 보이지 않는(INVISIBLE) 컬럼은 COLUMN_ID 가 null 이다. 0 으로 맨 앞에 오지 않고 보이는 컬럼 뒤에 온다. */
+    @Test
+    void invisibleColumnGoesAfterVisibleColumns() throws Exception {
+        try (Connection con = DriverManager.getConnection(url, OTHER, password); Statement st = con.createStatement()) {
+            dropInvisible(st);
+            try {
+                st.execute("CREATE TABLE TB_ERD_INVISIBLE (A VARCHAR2(1 CHAR), H VARCHAR2(1 CHAR) INVISIBLE, B VARCHAR2(1 CHAR))");
+                Table t = table(reader.read(OTHER), "TB_ERD_INVISIBLE");
+                assertThat(t.columns()).extracting(Column::name).containsExactly("A", "B", "H");
+                assertThat(column(t, "H").position()).isGreaterThan(column(t, "B").position());
+            } finally {
+                dropInvisible(st);
+            }
+        }
+    }
+
+    private static void dropInvisible(Statement st) throws SQLException {
+        try {
+            st.execute("DROP TABLE TB_ERD_INVISIBLE PURGE");
+        } catch (SQLException e) {
+            if (e.getErrorCode() != 942) throw e;
+        }
+    }
+
     /** 휴지통에 남기지 않는다(PURGE). 없으면 넘어간다(ORA-00942). */
     private static void dropOtherTables(Statement st) throws SQLException {
         for (String t : OTHER_TABLES) {

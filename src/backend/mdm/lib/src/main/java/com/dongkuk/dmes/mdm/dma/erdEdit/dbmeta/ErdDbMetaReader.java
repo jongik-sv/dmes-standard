@@ -43,6 +43,9 @@ public class ErdDbMetaReader {
              ORDER BY T.TABLE_NAME
             """;
 
+    /** 보이지 않는 컬럼(COLUMN_ID null)의 자리 시작값. Oracle 표의 컬럼 상한(1000)보다 커서 보이는 컬럼 뒤에 온다(deferred 51). */
+    static final int INVISIBLE_POSITION_BASE = 10_000;
+
     /** 뷰의 컬럼도 나오지만 표 목록에 없는 행은 자바에서 버린다. */
     static final String COLUMNS_SQL = """
             SELECT C.TABLE_NAME
@@ -64,7 +67,7 @@ public class ErdDbMetaReader {
                AND M.OWNER(+) = C.OWNER
                AND M.TABLE_NAME(+) = C.TABLE_NAME
                AND M.COLUMN_NAME(+) = C.COLUMN_NAME
-             ORDER BY C.TABLE_NAME, C.COLUMN_ID
+             ORDER BY C.TABLE_NAME, C.COLUMN_ID NULLS LAST, C.COLUMN_NAME
             """;
 
     /** 부모가 다른 스키마인 FK 는 읽지 않는다(모듈 사이 FK 없음, ADR-0003). R 의 부모 컬럼은 같은 POSITION 으로 짝짓는다. */
@@ -147,7 +150,9 @@ public class ErdDbMetaReader {
             if (list == null) return; // 뺀 표 또는 뷰
             String type = rs.getString("DATA_TYPE");
             String def = "YES".equals(rs.getString("IDENTITY_COLUMN")) ? null : trimToNull(rs.getString("DATA_DEFAULT_VC"));
-            list.add(new ErdDbMeta.Column(rs.getString("COLUMN_NAME"), rs.getInt("COLUMN_ID"), type,
+            Integer columnId = intOrNull(rs, "COLUMN_ID");
+            int position = columnId != null ? columnId : INVISIBLE_POSITION_BASE + list.size();
+            list.add(new ErdDbMeta.Column(rs.getString("COLUMN_NAME"), position, type,
                     length(type, rs.getString("CHAR_USED"), rs.getInt("DATA_LENGTH"), rs.getInt("CHAR_LENGTH")),
                     intOrNull(rs, "DATA_PRECISION"), intOrNull(rs, "DATA_SCALE"),
                     "Y".equals(rs.getString("NULLABLE")), def, rs.getString("COMMENTS")));

@@ -109,55 +109,55 @@ class ErdStandardJudgeTest {
 
     @Test
     void stringDomainMatchesCharTypesWithSameLength() {
-        assertThat(ErdStandardJudge.sameType(col("VARCHAR2", 1, null), "STRING", 1, null)).isTrue();
-        assertThat(ErdStandardJudge.sameType(col("CHAR", 1, null), "STRING", 1, null)).isTrue();
-        assertThat(ErdStandardJudge.sameType(col("NVARCHAR2", 30, null), "STRING", 30, null)).isTrue();
-        assertThat(ErdStandardJudge.sameType(col("VARCHAR2", 255, null), "STRING", null, null)).isTrue(); // 도메인 길이 없음
-        assertThat(ErdStandardJudge.sameType(col("VARCHAR2", 2, null), "STRING", 1, null)).isFalse();     // 길이 다름
-        assertThat(ErdStandardJudge.sameType(col("RAW", 16, null), "STRING", 16, null)).isFalse();
+        assertThat(ErdTypeMapping.sameType(col("VARCHAR2", 1, null), "STRING", 1, null)).isTrue();
+        assertThat(ErdTypeMapping.sameType(col("CHAR", 1, null), "STRING", 1, null)).isTrue();
+        assertThat(ErdTypeMapping.sameType(col("NVARCHAR2", 30, null), "STRING", 30, null)).isTrue();
+        assertThat(ErdTypeMapping.sameType(col("VARCHAR2", 255, null), "STRING", null, null)).isTrue(); // 도메인 길이 없음
+        assertThat(ErdTypeMapping.sameType(col("VARCHAR2", 2, null), "STRING", 1, null)).isFalse();     // 길이 다름
+        assertThat(ErdTypeMapping.sameType(col("RAW", 16, null), "STRING", 16, null)).isFalse();
     }
 
     @Test
     void numberColumnIsNotStringDomain() {
-        assertThat(ErdStandardJudge.sameType(col("NUMBER", 19, 0), "STRING", 20, null)).isFalse();
+        assertThat(ErdTypeMapping.sameType(col("NUMBER", 19, 0), "STRING", 20, null)).isFalse();
     }
 
     @Test
     void numberDomainComparesPrecisionAndScale() {
-        assertThat(ErdStandardJudge.sameType(col("NUMBER", 5, 2), "NUMBER", 5, 2)).isTrue();
-        assertThat(ErdStandardJudge.sameType(col("NUMBER", 5, 1), "NUMBER", 5, 2)).isFalse();
-        assertThat(ErdStandardJudge.sameType(col("NUMBER", 6, 2), "NUMBER", 5, 2)).isFalse();
-        assertThat(ErdStandardJudge.sameType(col("NUMBER", 19, 0), "NUMBER", 19, null)).isTrue();  // NUMBER(p) = NUMBER(p,0)
-        assertThat(ErdStandardJudge.sameType(col("FLOAT", 5, null), "NUMBER", 5, null)).isFalse();
+        assertThat(ErdTypeMapping.sameType(col("NUMBER", 5, 2), "NUMBER", 5, 2)).isTrue();
+        assertThat(ErdTypeMapping.sameType(col("NUMBER", 5, 1), "NUMBER", 5, 2)).isFalse();
+        assertThat(ErdTypeMapping.sameType(col("NUMBER", 6, 2), "NUMBER", 5, 2)).isFalse();
+        assertThat(ErdTypeMapping.sameType(col("NUMBER", 19, 0), "NUMBER", 19, null)).isTrue();  // NUMBER(p) = NUMBER(p,0)
+        assertThat(ErdTypeMapping.sameType(col("FLOAT", 5, null), "NUMBER", 5, null)).isFalse();
     }
 
     @Test
     void unconstrainedNumberDomainMatchesAnyNumber() {
-        assertThat(ErdStandardJudge.sameType(col("NUMBER", 19, 0), "NUMBER", null, null)).isTrue();
-        assertThat(ErdStandardJudge.sameType(col("NUMBER", null, null), "NUMBER", null, null)).isTrue();
-        assertThat(ErdStandardJudge.sameType(col("VARCHAR2", 10, null), "NUMBER", null, null)).isFalse();
+        assertThat(ErdTypeMapping.sameType(col("NUMBER", 19, 0), "NUMBER", null, null)).isTrue();
+        assertThat(ErdTypeMapping.sameType(col("NUMBER", null, null), "NUMBER", null, null)).isTrue();
+        assertThat(ErdTypeMapping.sameType(col("VARCHAR2", 10, null), "NUMBER", null, null)).isFalse();
     }
 
     @Test
     void dateDomainWithoutScaleIsOracleDate() {
-        assertThat(ErdStandardJudge.sameType(col("DATE", null, null), "DATE", null, null)).isTrue();
-        assertThat(ErdStandardJudge.sameType(col("TIMESTAMP(6)", null, null), "DATE", null, null)).isFalse();
+        assertThat(ErdTypeMapping.sameType(col("DATE", null, null), "DATE", null, null)).isTrue();
+        assertThat(ErdTypeMapping.sameType(col("TIMESTAMP(6)", null, null), "DATE", null, null)).isFalse();
     }
 
     @Test
     void dateDomainWithScaleIsTimestamp() {
-        assertThat(ErdStandardJudge.sameType(col("TIMESTAMP(6)", null, null), "DATE", null, 6)).isTrue();
-        assertThat(ErdStandardJudge.sameType(col("TIMESTAMP(3)", null, null), "DATE", null, 6)).isFalse();
-        assertThat(ErdStandardJudge.sameType(col("DATE", null, null), "DATE", null, 6)).isFalse();
-        assertThat(ErdStandardJudge.sameType(col("TIMESTAMP(6) WITH TIME ZONE", null, null), "DATE", null, 6)).isFalse();
+        assertThat(ErdTypeMapping.sameType(col("TIMESTAMP(6)", null, null), "DATE", null, 6)).isTrue();
+        assertThat(ErdTypeMapping.sameType(col("TIMESTAMP(3)", null, null), "DATE", null, 6)).isFalse();
+        assertThat(ErdTypeMapping.sameType(col("DATE", null, null), "DATE", null, 6)).isFalse();
+        assertThat(ErdTypeMapping.sameType(col("TIMESTAMP(6) WITH TIME ZONE", null, null), "DATE", null, 6)).isFalse();
     }
 
     @Test
     void booleanDomainIsYnCharOne() {
-        assertThat(ErdStandardJudge.sameType(col("VARCHAR2", 1, null), "BOOLEAN", null, null)).isTrue();
-        assertThat(ErdStandardJudge.sameType(col("CHAR", 1, null), "BOOLEAN", 1, null)).isTrue();
-        assertThat(ErdStandardJudge.sameType(col("VARCHAR2", 2, null), "BOOLEAN", null, null)).isFalse();
-        assertThat(ErdStandardJudge.sameType(col("NUMBER", 1, 0), "BOOLEAN", null, null)).isFalse();
+        assertThat(ErdTypeMapping.sameType(col("VARCHAR2", 1, null), "BOOLEAN", null, null)).isTrue();
+        assertThat(ErdTypeMapping.sameType(col("CHAR", 1, null), "BOOLEAN", 1, null)).isTrue();
+        assertThat(ErdTypeMapping.sameType(col("VARCHAR2", 2, null), "BOOLEAN", null, null)).isFalse();
+        assertThat(ErdTypeMapping.sameType(col("NUMBER", 1, 0), "BOOLEAN", null, null)).isFalse();
     }
 
     @Test

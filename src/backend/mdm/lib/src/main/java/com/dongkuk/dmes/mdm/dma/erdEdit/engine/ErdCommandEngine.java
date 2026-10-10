@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mdm.dma.erdEdit.engine;
 
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdCommand.*;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.*;
+import com.dongkuk.dmes.mdm.dma.erdEdit.standard.ErdTypeMapping;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -54,6 +55,7 @@ public final class ErdCommandEngine {
         List<ErdChange> changes = new ArrayList<>();
         List<ErdChange> restore = new ArrayList<>();
         List<String> touchedColumns = new ArrayList<>();
+        Set<String> touchedTables = new TreeSet<>();
         for (var e : c.before.entrySet()) {
             String kind = e.getKey().kind(), id = e.getKey().id();
             JsonNode before = e.getValue();
@@ -62,11 +64,33 @@ public final class ErdCommandEngine {
             ErdChange back = inverseOf(kind, id, before, after);
             if (back != null) restore.add(back);
             if (kind.equals("column") && after != null) touchedColumns.add(id);
+            touchedTables(kind, id, before, after, touchedTables);
         }
         List<ErdWarning> warnings = new ArrayList<>(naming.warnings(c.m, touchedColumns));
         warnings.addAll(c.warnings);
         List<ErdCommand> inverse = restore.isEmpty() ? List.of() : List.of(new Restore(newRev, restore));
-        return new ApplyOutcome.Applied(c.m, changes, inverse, warnings);
+        return new ApplyOutcome.Applied(c.m, changes, inverse, warnings, List.copyOf(touchedTables));
+    }
+
+    /** deferred 25: 바뀐 요소가 걸친 표 id. 지운 요소는 지우기 전 값, 만든 요소는 만든 뒤 값으로 본다. 다른 모델 부모(null)는 뺀다. */
+    private static void touchedTables(String kind, String id, JsonNode before, JsonNode after, Set<String> out) {
+        for (JsonNode n : new JsonNode[] {before, after}) {
+            if (n == null) continue;
+            switch (kind) {
+                case "table" -> out.add(id);
+                case "column", "key" -> addText(n, "table", out);
+                case "relation" -> {
+                    addText(n, "child", out);
+                    addText(n, "parent", out);
+                }
+                default -> { }
+            }
+        }
+    }
+
+    private static void addText(JsonNode n, String field, Set<String> out) {
+        JsonNode v = n.get(field);
+        if (v != null && v.isTextual()) out.add(v.asText());
     }
 
     /**
@@ -102,17 +126,17 @@ public final class ErdCommandEngine {
             case AddColumn a -> addColumn(c, a);
             case UpdateColumn u -> updateColumn(c, u);
             case MoveColumn mv -> moveColumn(c, mv);
-            case DeleteColumn d -> deleteColumn(c, d.id(), true);
+            case DeleteColumn d -> deleteColumn(c, d.id());
             case ApplyDomain ad -> applyDomain(c, ad);
             case SetPrimaryKey pk -> setPrimaryKey(c, pk);
             case AddKey a -> addKey(c, a);
             case UpdateKey u -> updateKey(c, u);
-            case DeleteKey d -> deleteKey(c, d.id(), true);
+            case DeleteKey d -> deleteKey(c, d.id());
             case AddRelation a -> ErdRelationOps.add(this, c, a);
             case UpdateRelation u -> ErdRelationOps.update(c, u);
             case ConfirmRelation cr -> ErdRelationOps.setState(c, cr.id(), "CONFIRMED");
             case RejectRelation rr -> ErdRelationOps.setState(c, rr.id(), "REJECTED");
-            case DeleteRelation d -> ErdRelationOps.delete(c, d.id(), true);
+            case DeleteRelation d -> ErdRelationOps.delete(c, d.id());
             case Restore r -> restore(c, r);
         }
     }
@@ -161,11 +185,12 @@ public final class ErdCommandEngine {
     void deleteTable(Ctx c, String id) {
         ErdTable t = c.table(id);
         c.checkConflict(t.rev, t.rev.keySet(), id, c.node(t));
-        for (String colId : List.copyOf(t.columnOrder)) deleteColumn(c, colId, false);
-        for (var e : List.copyOf(c.m.keys.entrySet())) if (id.equals(e.getValue().table)) deleteKey(c, e.getKey(), false);
+        // deferred 31: 딸린 컬럼·키·관계도 지우기 전에 충돌을 본다(deleteColumn·deleteKey·ErdRelationOps.delete 가 늘 검사한다).
+        for (String colId : List.copyOf(t.columnOrder)) deleteColumn(c, colId);
+        for (var e : List.copyOf(c.m.keys.entrySet())) if (id.equals(e.getValue().table)) deleteKey(c, e.getKey());
         for (var e : List.copyOf(c.m.relations.entrySet())) {
             ErdRelation r = e.getValue();
-            if (id.equals(r.child) || id.equals(r.parent)) ErdRelationOps.delete(c, e.getKey(), false);
+            if (id.equals(r.child) || id.equals(r.parent)) ErdRelationOps.delete(c, e.getKey());
         }
         c.touch("table", id);
         c.m.tables.remove(id);
@@ -252,21 +277,25 @@ public final class ErdCommandEngine {
         c.stamp(t.rev, Set.of("columnOrder"));
     }
 
-    void deleteColumn(Ctx c, String id, boolean checkConflict) {
+    /**
+     * 컬럼 삭제. 이 컬럼을 가진 키는 줄이고(비면 지우고), 이 컬럼이 짝에 든 관계는 지운다. deferred 31: 컬럼 자신, 줄이거나 지우는 키,
+     * 지우는 관계의 모든 속성에 충돌 규칙을 쓴다. 표 columnOrder 는 보지 않는다 — 남이 같은 표에 컬럼을 더해도 다른 컬럼 삭제는 통과한다.
+     */
+    void deleteColumn(Ctx c, String id) {
         ErdColumn col = c.column(id);
-        if (checkConflict) c.checkConflict(col.rev, col.rev.keySet(), id, c.node(col));
+        c.checkConflict(col.rev, col.rev.keySet(), id, c.node(col));
         for (var e : List.copyOf(c.m.keys.entrySet())) {
             ErdKey k = e.getValue();
-            if (k.columns.contains(id)) {
-                c.touch("key", e.getKey());
-                k.columns.remove(id);
-                if (k.columns.isEmpty()) deleteKey(c, e.getKey(), false);
-                else c.stamp(k.rev, Set.of("columns"));
-            }
+            if (!k.columns.contains(id)) continue;
+            c.checkConflict(k.rev, k.rev.keySet(), e.getKey(), c.node(k));
+            c.touch("key", e.getKey());
+            k.columns.remove(id);
+            if (k.columns.isEmpty()) deleteKey(c, e.getKey());
+            else c.stamp(k.rev, Set.of("columns"));
         }
         for (var e : List.copyOf(c.m.relations.entrySet())) {
             boolean uses = e.getValue().pairs.stream().anyMatch(p -> p.contains(id));
-            if (uses) ErdRelationOps.delete(c, e.getKey(), false);
+            if (uses) ErdRelationOps.delete(c, e.getKey());
         }
         ErdTable t = c.m.tables.get(col.table);
         c.touch("table", col.table);
@@ -289,10 +318,12 @@ public final class ErdCommandEngine {
         c.stamp(col.rev, props);
     }
 
+    /** 도메인 타입을 물리 타입으로 바꿔 넣는다(S2-3, deferred 42). STRING 을 그대로 넣으면 TYPE 판정·DB 차이·DDL 이 틀린다. */
     static void copyDomain(ErdColumn col, ErdDomainSpec d) {
-        col.dataType = d.dataType();
-        col.length = d.length();
-        col.scale = d.scale();
+        ErdTypeMapping.PhysType p = ErdTypeMapping.physicalOf(d);
+        col.dataType = p.dataType();
+        col.length = p.length();
+        col.scale = p.scale();
     }
 
     // ---- 키 ----
@@ -308,7 +339,7 @@ public final class ErdCommandEngine {
                 .filter(e -> pk.table().equals(e.getValue().table) && "PK".equals(e.getValue().kind))
                 .map(Map.Entry::getKey).findFirst().orElse(null);
         if (pk.columns().isEmpty()) {
-            if (keyId != null) deleteKey(c, keyId, true);
+            if (keyId != null) deleteKey(c, keyId);
             return;
         }
         if (keyId == null) {
@@ -390,9 +421,9 @@ public final class ErdCommandEngine {
         }
     }
 
-    void deleteKey(Ctx c, String id, boolean checkConflict) {
+    void deleteKey(Ctx c, String id) {
         ErdKey k = c.key(id);
-        if (checkConflict) c.checkConflict(k.rev, k.rev.keySet(), id, c.node(k));
+        c.checkConflict(k.rev, k.rev.keySet(), id, c.node(k));
         c.touch("key", id);
         c.m.keys.remove(id);
         c.m.tombstones.put(id, new PropRev(c.newRev, c.session));
@@ -406,6 +437,7 @@ public final class ErdCommandEngine {
      *   <li>delete: 있으면 R 뒤에 고쳐진 속성이 없을 때만 지운다.</li>
      *   <li>upsert(전체): 없으면 R 뒤의 tombstone 이 없을 때만 되살린다. 있으면 patch 처럼 속성별로 되돌린다.</li>
      *   <li>patch: 값이 다르고 R 뒤에 고쳐진(세션 무관) 속성이 있으면 CONFLICT, 아니면 그 속성만 되돌린다.</li>
+     *   <li>바뀐 요소가 하나도 없으면 INVALID(S2-24) — 이미 되돌린 rev 를 다시 되돌릴 때다.</li>
      * </ul>
      * 참조 무결성은 묶음 뒤 {@link ErdIntegrity} 가 판정한다.
      */
@@ -425,6 +457,7 @@ public final class ErdCommandEngine {
                 throw c.invalid("restore 값은 요소 JSON 객체여야 합니다: " + e.id(), "getChangesSince 가 준 값을 그대로 쓰세요", e.id(), "value");
             }
         }
+        boolean changed = false;
         for (ErdChange e : r.elements()) {
             String kind = e.kind(), id = e.id();
             JsonNode now = c.snapshot(kind, id);
@@ -438,6 +471,7 @@ public final class ErdCommandEngine {
                     }
                     c.touch(kind, id);
                     c.put(kind, id, null);
+                    changed = true;
                 }
                 case ErdChange.UPSERT -> {
                     if (now == null) {
@@ -450,12 +484,13 @@ public final class ErdCommandEngine {
                         c.stampNode(node, all);
                         c.touch(kind, id);
                         c.put(kind, id, node);
+                        changed = true;
                     } else {
                         Set<String> props = new LinkedHashSet<>();
                         e.value().fieldNames().forEachRemaining(props::add);
                         now.fieldNames().forEachRemaining(props::add);
                         props.remove(Ctx.REV);
-                        patchExisting(c, r.sinceRev(), kind, id, now, e.value(), props);
+                        changed |= patchExisting(c, r.sinceRev(), kind, id, now, e.value(), props);
                     }
                 }
                 default -> {  // PATCH
@@ -467,13 +502,16 @@ public final class ErdCommandEngine {
                     Set<String> props = new LinkedHashSet<>();
                     e.value().fieldNames().forEachRemaining(props::add);
                     props.remove(Ctx.REV);
-                    patchExisting(c, r.sinceRev(), kind, id, now, e.value(), props);
+                    changed |= patchExisting(c, r.sinceRev(), kind, id, now, e.value(), props);
                 }
             }
         }
+        // S2-24: 이미 되돌렸거나 값이 같아 바뀐 것이 없으면 빈 rev·빈 기록을 만들지 않는다.
+        if (!changed) throw c.invalid("되돌릴 변경이 없습니다. 이미 되돌렸거나 값이 같습니다", "변경 기록에서 다른 rev 를 고르세요", null, null);
     }
 
-    private static void patchExisting(Ctx c, long since, String kind, String id, JsonNode now, JsonNode want,
+    /** @return 바꾼 속성이 있으면 true */
+    private static boolean patchExisting(Ctx c, long since, String kind, String id, JsonNode now, JsonNode want,
                                       Set<String> props) {
         ObjectNode node = ((ObjectNode) now).deepCopy();
         Map<String, PropRev> revs = c.revOf(kind, id);
@@ -487,10 +525,11 @@ public final class ErdCommandEngine {
             node.set(p, w);
             changed.add(p);
         }
-        if (changed.isEmpty()) return;
+        if (changed.isEmpty()) return false;
         c.stampNode(node, changed);
         c.touch(kind, id);
         c.put(kind, id, node);
+        return true;
     }
 
     private static Reject restoreConflict(Ctx c, String id, String prop, PropRev by, JsonNode current) {

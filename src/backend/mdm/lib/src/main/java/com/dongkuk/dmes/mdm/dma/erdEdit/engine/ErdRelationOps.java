@@ -154,9 +154,10 @@ final class ErdRelationOps {
         c.stamp(r.rev, Set.of("state"));
     }
 
-    static void delete(Ctx c, String id, boolean checkConflict) {
+    /** deferred 31: 직접 지울 때도, 표·컬럼 삭제에 딸려 지울 때도 충돌을 본다. */
+    static void delete(Ctx c, String id) {
         ErdRelation r = c.relation(id);
-        if (checkConflict) c.checkConflict(r.rev, r.rev.keySet(), id, c.node(r));
+        c.checkConflict(r.rev, r.rev.keySet(), id, c.node(r));
         c.touch("relation", id);
         c.m.relations.remove(id);
         c.m.tombstones.put(id, new PropRev(c.newRev, c.session));
