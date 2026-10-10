@@ -5,6 +5,7 @@ export { SelectOrInput, type SelectOrInputProps } from "./SelectOrInput";
 export { withCurrentOption } from "./select-or-input-options";
 export { Checkbox, type CheckboxProps } from "./Checkbox";
 export { DatePicker, type DatePickerProps } from "./DatePicker";
+export { DateRangePicker, type DateRangePickerProps } from "./DateRangePicker";
 export { DateTimePicker, parseDateTime, type DateTimePickerProps } from "./DateTimePicker";
 export { Radio, type RadioProps, type RadioOption } from "./Radio";
 export { Textarea, type TextareaProps } from "./Textarea";

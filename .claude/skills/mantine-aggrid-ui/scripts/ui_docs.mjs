@@ -48,7 +48,7 @@ export const SHARED = path.join(FRONT, 'shared', 'src');
 export const GROUPS = [
   ['화면 골격 (`@dk-oasis/shared/layout`)', ['page-layout', 'search-area', 'search-settings-menu', 'content-body', 'detail-form']],
   ['입력 (`@dk-oasis/shared/form`)', [
-    'button', 'input', 'select', 'combo-box', 'multi-select-combo-box', 'date-picker', 'date-time-picker',
+    'button', 'input', 'select', 'combo-box', 'multi-select-combo-box', 'date-picker', 'date-range-picker', 'date-time-picker',
     'checkbox', 'radio', 'segmented-control', 'textarea', 'form-group', 'loading', 'badge', 'select-or-input',
     'use-detail-draft', 'use-busy',
   ]],

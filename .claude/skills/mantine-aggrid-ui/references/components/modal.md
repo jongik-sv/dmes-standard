@@ -65,6 +65,14 @@ export function UnitRegModal({ open, isBusy, onClose, onSubmit }: {
 
 취소(왼쪽, 기본 variant) → 실행(오른쪽, `variant="primary"`). 실행 문구는 동작 그대로("저장"·"적용"·"선택")다. footer 는 오른쪽 정렬이라 DOM 순서가 그대로 왼쪽에서 오른쪽 순서가 된다.
 
+### 겹친 모달과 ESC
+
+모달 위에 모달을 띄워도(예: SQL 큰 창 위의 확인 창) ESC 한 번에 맨 위 하나만 닫힌다. 열린 모달 순서는 `modal-stack.ts` 가 관리하고 `closeOnEscape` 와 Tab 가두기는 맨 위 모달만 처리한다. 화면에서 따로 할 일은 없다. 단, `modals.open*`(Mantine `ModalsProvider`)로 띄운 창은 순서표 밖이다.
+
+### 바깥을 눌러도 닫히지 않게
+
+긴 입력 초안이 있는 창은 `closeOnClickOutside={false}` 로 둔다. X·ESC·[취소]로는 지금처럼 닫힌다.
+
 ### 열 때마다 상태를 새로 시작하기
 
 `open` 만 바꾸면 안쪽 상태가 남는다. 열 때마다 비워야 하면 부모에서 `{isOpen && <Modal open …>}` 로 조건부로 만든다.
@@ -79,13 +87,14 @@ Modal
 | title | `string` | - | 머리 제목. 제목도 닫기 버튼도 없으면 머리가 없다 |
 | children | `ReactNode` | - | 본문 |
 | footer | `ReactNode` | - | 하단 버튼 영역(오른쪽 정렬) |
-| onClose | `() => void` | 아무 일 없음 | X 버튼·ESC·바깥 클릭에서 호출. 안 주면 닫히지 않는다 |
+| onClose | `() => void` | 아무 일 없음 | X 버튼·ESC·바깥 클릭(`closeOnClickOutside`)에서 호출. 안 주면 닫히지 않는다 |
 | size | `"sm" \| "md" \| "lg" \| "xl"` | `"md"` | 폭. 등록 폼 기본은 md |
 | showCloseButton | `boolean` | `true` | 머리의 X 버튼 |
 | toolbar | `ReactNode` | - | 본문 위 도구줄 슬롯 |
 | className | `string` | `""` | 창에 붙일 클래스 |
 | bodyClassName | `string` | `""` | 본문에 붙일 클래스 |
 | descriptionId | `string` | - | 창이 설명으로 참조할 본문 요소 id |
+| closeOnClickOutside | `boolean` | `true` | 바깥(오버레이) 누름으로 닫을지. 초안이 사라지면 곤란한 창(SQL 큰 창 등)만 `false`. X·ESC·[취소]는 영향 없다 |
 
 MessageModal (보통 `MessageProvider` 가 대신 띄운다)
 

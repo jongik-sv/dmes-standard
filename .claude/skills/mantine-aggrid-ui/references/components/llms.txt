@@ -25,6 +25,7 @@
 - [ComboBox](combo-box.md): 선택지가 많거나 검색해서 고르고 싶을 때, 또는 목록에 없는 값을 새로 만들 수 있게 할 때 쓴다.
 - [MultiSelectComboBox](multi-select-combo-box.md): 여러 항목을 검색해서 골라 태그로 보여 줄 때 쓴다.
 - [DatePicker](date-picker.md): 날짜(년-월-일) 하나를 달력으로 고르거나 `yyyy-MM-dd` 로 직접 입력받을 때 쓴다.
+- [DateRangePicker](date-range-picker.md): 기간(시작일 ~ 종료일) 두 칸을 한 부품으로 입력받을 때 쓴다.
 - [DateTimePicker](date-time-picker.md): 날짜와 시각(24시간제, 초까지)을 `yyyy-MM-dd HH:mm:ss` 로 입력받을 때 쓴다.
 - [Checkbox](checkbox.md): 참·거짓 하나를 켜고 끄는 입력(여부 항목, 동의 확인)이 필요할 때 쓴다.
 - [Radio](radio.md): 2~4개의 선택지 중 하나를 모두 펼쳐 보여 주며 고르게 할 때 쓴다.

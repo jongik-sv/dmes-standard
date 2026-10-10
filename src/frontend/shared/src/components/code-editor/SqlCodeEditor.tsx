@@ -274,6 +274,8 @@ const SqlCodeEditorImpl = forwardRef<SqlCodeEditorHandle, SqlCodeEditorProps>(fu
           fontSize: 13,
           lineNumbersMinChars: 3,
           scrollBeyondLastLine: false,
+          // 편집기 끝까지 스크롤한 뒤의 휠은 바깥 영역(화면·모달 본문)으로 넘긴다. 편집기 안 스크롤은 그대로다.
+          scrollbar: { alwaysConsumeMouseWheel: false },
           wordWrap: "on",
           renderLineHighlight: "line",
           padding: { top: 6, bottom: 6 },
@@ -581,6 +583,7 @@ const SqlCodeEditorImpl = forwardRef<SqlCodeEditorHandle, SqlCodeEditorProps>(fu
           title={expandTitle}
           size="xl"
           className="cm-sqled-modal"
+          closeOnClickOutside={false}
           onClose={closeExpand}
           footer={
             readOnly ? (

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { Modal as M, Button } from "@mantine/core";
 import {
   IconAlertTriangle,
@@ -13,12 +13,14 @@ import clsx from "clsx";
 import { CopyTextButton } from "./copy-text-button";
 import { GridPanelBoundary } from "./grid/grid-panel-context";
 import { installHoverTipEscapeGuard } from "./hover-tip-escape-guard";
+import { installEscapeSnapshot, isTopModal, pushModal, removeModal, subscribeModalStack, topModalAtEvent } from "./modal-stack";
 import "./modal.css";
 
 // 모달 안 상호작용 카드(MDM HTML 설명)의 Escape 보호 가드를 이 모듈을 읽을 때 설치한다 — 가드의 window 캡처 리스너가 Mantine 모달 리스너보다
 // 먼저 등록돼야 하고, 루트 레이아웃의 모달(ModalsProvider·MessageModal)은 화면 청크보다 먼저 마운트되기 때문이다(hover-tip-escape-guard.ts).
 // 카드가 없으면 리스너는 아무것도 하지 않는다 — Modal 의 동작은 바뀌지 않는다.
 installHoverTipEscapeGuard();
+installEscapeSnapshot();
 
 const SIZE = { sm: "sm", md: "md", lg: "lg", xl: "xl" } as const;
 
@@ -54,13 +56,16 @@ const FOCUSABLE_SELECTOR = [
  *    주석 참고(이건 Mantine 문제가 아니라 React 자체 문제라 별도로 적었다).
  * 그래서 기존(레거시) 초점 계약 훅을 이 모델로 이식해 Mantine 과 병행 구동한다.
  */
-function useModalA11yCompat(open: boolean, descriptionId?: string) {
+function useModalA11yCompat(open: boolean, descriptionId?: string, isTop = true) {
   const dialogRef = useRef<HTMLElement | null>(null);
   const keydownHandlerRef = useRef<((event: KeyboardEvent) => void) | null>(null);
   const descriptionIdRef = useRef(descriptionId);
   descriptionIdRef.current = descriptionId;
   const openRef = useRef(open);
   openRef.current = open;
+  // 겹친 모달에서는 맨 위 모달만 Tab 을 가둔다(아래 모달이 초점을 자기 첫 칸으로 끌어가지 않게).
+  const isTopRef = useRef(isTop);
+  isTopRef.current = isTop;
 
   // `Modal.Content` 는 `bodyMounted` 컨텍스트가 true 가 될 때 `aria-describedby` 를 자체 계산해
   // 다시 쓴다. `Modal.Body` 를 쓰지 않는 한(아래 ModalImpl 참고) `bodyMounted` 는 계속 false 로
@@ -89,7 +94,7 @@ function useModalA11yCompat(open: boolean, descriptionId?: string) {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       const dialog = dialogRef.current;
-      if (event.key !== "Tab" || !dialog) return;
+      if (event.key !== "Tab" || !dialog || !isTopRef.current) return;
 
       const focusableElements = dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
       if (focusableElements.length === 0) {
@@ -194,19 +199,27 @@ function useModalA11yCompat(open: boolean, descriptionId?: string) {
  * 항상 성립하고, 테스트도 (`modal-a11y.unit.test.ts` 의 `dispatchKey`) 실제 포커스된 요소에
  * dispatch 하도록 맞춰져 있다.
  */
-function useEscapeCompat(open: boolean) {
+function useEscapeCompat(open: boolean, stackId: string, onClose?: () => void) {
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useLayoutEffect(() => {
     if (!open) return;
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
-      // onClose 는 Mantine 자체 핸들러(useWindowEvent, 아래에서 나중에 실행됨)가 호출한다.
+      // 닫기는 Mantine(closeOnEscape)에 맡기지 않고 여기서 한다: Mantine 은 리스너가 돌 때의 최신 closeOnEscape 를 읽어서,
+      // 위 모달이 먼저 닫혀 React 가 갱신되면 아래 모달도 같은 Esc 로 닫힌다. 이벤트 시작 때 맨 위였던 모달만 닫는다.
+      // Mantine 과 같은 조건(조합 중 제외, 드롭다운 등이 표시한 stop-propagation 제외)을 지킨다.
+      if (event.isComposing) return;
+      if ((event.target as Element | null)?.getAttribute?.("data-mantine-stop-propagation") === "true") return;
+      if (topModalAtEvent(event) !== stackId) return;
+      onCloseRef.current?.();
     };
 
     window.addEventListener("keydown", handleEscape, true);
     return () => window.removeEventListener("keydown", handleEscape, true);
-  }, [open]);
+  }, [open, stackId]);
 }
 
 export interface ModalProps {
@@ -225,6 +238,8 @@ export interface ModalProps {
   bodyClassName?: string;
   /** dialog이 설명으로 참조할 소비처 본문 요소 ID. */
   descriptionId?: string;
+  /** 바깥(오버레이) 누름으로 닫을지. 기본 true. 초안이 사라지면 곤란한 창(SQL 큰 창 등)만 false. X·Esc·[취소]는 영향 없다. */
+  closeOnClickOutside?: boolean;
 }
 
 /**
@@ -253,10 +268,23 @@ function ModalCore({
   showCloseButton = true,
   bodyClassName = "",
   descriptionId,
+  closeOnClickOutside = true,
   overlayClassName = "",
 }: ModalProps & { overlayClassName?: string }) {
-  const { setDialogRef } = useModalA11yCompat(open, descriptionId);
-  useEscapeCompat(open);
+  // 열린 모달 순서표(modal-stack.ts). Esc·Tab 가두기는 맨 위 모달만 처리한다.
+  const stackId = useId();
+  useLayoutEffect(() => {
+    if (!open) return;
+    pushModal(stackId);
+    return () => removeModal(stackId);
+  }, [open, stackId]);
+  const isTop = useSyncExternalStore(
+    subscribeModalStack,
+    () => isTopModal(stackId),
+    () => false,
+  );
+  const { setDialogRef } = useModalA11yCompat(open, descriptionId, isTop);
+  useEscapeCompat(open, stackId, onClose);
 
   // e2e 계약(계획 Global Constraints): overlay 계열 클래스는 base 에서 `.cm-modal` 을 **감싸는**
   // 컨테이너에 있었고, e2e 는 이 요소에 두 가지를 동시에 요구한다 —
@@ -288,6 +316,8 @@ function ModalCore({
       onClose={onClose ?? (() => {})}
       size={SIZE[size]}
       centered
+      closeOnEscape={false}
+      closeOnClickOutside={closeOnClickOutside}
       classNames={{ inner: overlayClasses }}
     >
       <M.Overlay />

@@ -25,6 +25,7 @@
 - [ComboBox](combo-box.md): 선택지가 많거나 검색해서 고르고 싶을 때, 또는 목록에 없는 값을 새로 만들 수 있게 할 때 쓴다.
 - [MultiSelectComboBox](multi-select-combo-box.md): 여러 항목을 검색해서 골라 태그로 보여 줄 때 쓴다.
 - [DatePicker](date-picker.md): 날짜(년-월-일) 하나를 달력으로 고르거나 `yyyy-MM-dd` 로 직접 입력받을 때 쓴다.
+- [DateRangePicker](date-range-picker.md): 기간(시작일 ~ 종료일) 두 칸을 한 부품으로 입력받을 때 쓴다.
 - [DateTimePicker](date-time-picker.md): 날짜와 시각(24시간제, 초까지)을 `yyyy-MM-dd HH:mm:ss` 로 입력받을 때 쓴다.
 - [Checkbox](checkbox.md): 참·거짓 하나를 켜고 끄는 입력(여부 항목, 동의 확인)이 필요할 때 쓴다.
 - [Radio](radio.md): 2~4개의 선택지 중 하나를 모두 펼쳐 보여 주며 고르게 할 때 쓴다.
@@ -1454,6 +1455,60 @@ import { DatePicker } from "@dk-oasis/shared/form";
 - `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:336` 상세 폼의 DatePicker(`disabled={!form || isBusy}`).
 - `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx:270` 조회조건 기간. 단, 한 SearchField 안에 `div`·`span "~"` 로 묶여 있어 표준과 다르다.
 - `min`·`max` 는 아직 사용처 없음.
+
+
+<!-- ===== date-range-picker.md ===== -->
+
+# DateRangePicker
+
+기간(시작일 ~ 종료일) 두 칸을 한 부품으로 입력받을 때 쓴다.
+
+- import: `import { DateRangePicker, type DateRangePickerProps } from "@dk-oasis/shared/form";`
+- 소스: `src/frontend/shared/src/components/form/DateRangePicker.tsx`
+- 내부 구현: shared [DatePicker](date-picker.md) 두 개와 `~`
+
+## 언제 쓰나
+
+- 쓴다: 상세 폼·팝업·실행 조건처럼 SearchArea 밖에서 기간 하나를 입력받을 때.
+- 쓰지 않는다: 조회조건 기간 → [search-area](search-area.md) 의 SearchField 두 개(`~` 라벨) 규칙을 따른다.
+- 쓰지 않는다: 날짜 하나 → [DatePicker](date-picker.md). 시각까지 → [DateTimePicker](date-time-picker.md).
+
+## 표준 사용
+
+```tsx
+import { DateRangePicker } from "@dk-oasis/shared/form";
+
+<DateRangePicker
+  from={f.fromDt}
+  to={f.toDt}
+  onChange={(from, to) => setF((p) => ({ ...p, fromDt: from, toDt: to }))}
+  toAriaLabel="종료일"
+/>
+```
+
+값은 `yyyy-MM-dd` 문자열이고 비어 있으면 `""` 이다. 한쪽 칸을 바꾸면 `onChange` 가 바뀐 값과 다른 쪽 현재 값을 함께 넘긴다. 시작이 종료보다 늦으면 시작 칸에 오류 문구가 보이고 종료 칸이 `aria-invalid` 가 된다(값은 막지 않는다. 저장 전 검사는 호출자 몫이다).
+
+## Props
+
+| Prop | 타입 | 기본값 | 설명 |
+|---|---|---|---|
+| from | `string` | 필수 | 시작일 `yyyy-MM-dd` |
+| to | `string` | 필수 | 종료일 `yyyy-MM-dd` |
+| onChange | `(from: string, to: string) => void` | 필수 | 어느 칸이든 바뀌면 두 값을 넘긴다 |
+| id | `string` | 자동 생성 | 바깥 묶음 id. 칸은 `<id>-from`·`<id>-to` |
+| fromAriaLabel | `string` | `"시작일"` | 시작 칸 aria-label |
+| toAriaLabel | `string` | `"종료일"` | 종료 칸 aria-label |
+| required | `boolean` | `false` | 묶음에 `aria-required` |
+| disabled | `boolean` | `false` | 비활성 |
+| readOnly | `boolean` | `false` | 읽기전용 |
+| testId | `string` | - | 묶음의 `data-testid` |
+
+## 흔한 실수
+
+| 실수 | 바로잡기 |
+|---|---|
+| `DatePicker` 두 개와 `~` 를 화면마다 직접 만든다 | 이 부품을 쓴다 |
+| 시작>종료를 부품이 막는다고 가정한다 | 오류 표시만 한다. 저장·조회 전에 호출자가 검사한다 |
 
 
 <!-- ===== date-time-picker.md ===== -->
@@ -3871,6 +3926,14 @@ export function UnitRegModal({ open, isBusy, onClose, onSubmit }: {
 
 취소(왼쪽, 기본 variant) → 실행(오른쪽, `variant="primary"`). 실행 문구는 동작 그대로("저장"·"적용"·"선택")다. footer 는 오른쪽 정렬이라 DOM 순서가 그대로 왼쪽에서 오른쪽 순서가 된다.
 
+### 겹친 모달과 ESC
+
+모달 위에 모달을 띄워도(예: SQL 큰 창 위의 확인 창) ESC 한 번에 맨 위 하나만 닫힌다. 열린 모달 순서는 `modal-stack.ts` 가 관리하고 `closeOnEscape` 와 Tab 가두기는 맨 위 모달만 처리한다. 화면에서 따로 할 일은 없다. 단, `modals.open*`(Mantine `ModalsProvider`)로 띄운 창은 순서표 밖이다.
+
+### 바깥을 눌러도 닫히지 않게
+
+긴 입력 초안이 있는 창은 `closeOnClickOutside={false}` 로 둔다. X·ESC·[취소]로는 지금처럼 닫힌다.
+
 ### 열 때마다 상태를 새로 시작하기
 
 `open` 만 바꾸면 안쪽 상태가 남는다. 열 때마다 비워야 하면 부모에서 `{isOpen && <Modal open …>}` 로 조건부로 만든다.
@@ -3885,13 +3948,14 @@ Modal
 | title | `string` | - | 머리 제목. 제목도 닫기 버튼도 없으면 머리가 없다 |
 | children | `ReactNode` | - | 본문 |
 | footer | `ReactNode` | - | 하단 버튼 영역(오른쪽 정렬) |
-| onClose | `() => void` | 아무 일 없음 | X 버튼·ESC·바깥 클릭에서 호출. 안 주면 닫히지 않는다 |
+| onClose | `() => void` | 아무 일 없음 | X 버튼·ESC·바깥 클릭(`closeOnClickOutside`)에서 호출. 안 주면 닫히지 않는다 |
 | size | `"sm" \| "md" \| "lg" \| "xl"` | `"md"` | 폭. 등록 폼 기본은 md |
 | showCloseButton | `boolean` | `true` | 머리의 X 버튼 |
 | toolbar | `ReactNode` | - | 본문 위 도구줄 슬롯 |
 | className | `string` | `""` | 창에 붙일 클래스 |
 | bodyClassName | `string` | `""` | 본문에 붙일 클래스 |
 | descriptionId | `string` | - | 창이 설명으로 참조할 본문 요소 id |
+| closeOnClickOutside | `boolean` | `true` | 바깥(오버레이) 누름으로 닫을지. 초안이 사라지면 곤란한 창(SQL 큰 창 등)만 `false`. X·ESC·[취소]는 영향 없다 |
 
 MessageModal (보통 `MessageProvider` 가 대신 띄운다)
 
@@ -6538,7 +6602,7 @@ interface SqlCompletionItem {
 - 우상단 [크게 보기]가 화면의 약 90% 크기 `Modal` 에 같은 내용의 두 번째 편집기를 띄운다.
 - [적용]이 값을 돌려준다(`onChange` 또는 `setValue`). [취소]·Esc·창 밖 닫기는 버린다. 큰 창 안 Ctrl/⌘+Enter 는 적용한 뒤 `onRun` 을 부른다(`onRun` 이 있을 때만).
 - `readOnly` 면 [닫기]만 있다.
-- 알려진 제한(shared `Modal` props 변경이 필요해 보류, 사용자 결정 대기): ① 큰 창 바깥 클릭·X 로 닫으면 초안이 버려진다. ② Modal 스택 없음: 다른 Modal 안에 편집기를 두면 큰 창에서 Esc 가 부모 Modal 까지 닫을 수 있다. 지금 소비처(위젯 관리 쿼리 칸, 예약 작업 SQL 칸)는 다른 Modal 안에 있지 않다.
+- 큰 창은 `Modal closeOnClickOutside={false}` 라 바깥을 눌러도 닫히지 않는다(초안 보호). X·Esc·[취소]는 초안을 버린다. 겹친 모달은 ESC 한 번에 맨 위 하나만 닫힌다(`modal-stack.ts`). 편집기 끝까지 스크롤한 뒤의 휠은 바깥 영역으로 넘어간다(`scrollbar.alwaysConsumeMouseWheel: false`).
 
 ## 보조 함수·상수 (같은 진입점에서 export)
 

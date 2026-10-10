@@ -108,7 +108,7 @@ interface SqlCompletionItem {
 - 우상단 [크게 보기]가 화면의 약 90% 크기 `Modal` 에 같은 내용의 두 번째 편집기를 띄운다.
 - [적용]이 값을 돌려준다(`onChange` 또는 `setValue`). [취소]·Esc·창 밖 닫기는 버린다. 큰 창 안 Ctrl/⌘+Enter 는 적용한 뒤 `onRun` 을 부른다(`onRun` 이 있을 때만).
 - `readOnly` 면 [닫기]만 있다.
-- 알려진 제한(shared `Modal` props 변경이 필요해 보류, 사용자 결정 대기): ① 큰 창 바깥 클릭·X 로 닫으면 초안이 버려진다. ② Modal 스택 없음: 다른 Modal 안에 편집기를 두면 큰 창에서 Esc 가 부모 Modal 까지 닫을 수 있다. 지금 소비처(위젯 관리 쿼리 칸, 예약 작업 SQL 칸)는 다른 Modal 안에 있지 않다.
+- 큰 창은 `Modal closeOnClickOutside={false}` 라 바깥을 눌러도 닫히지 않는다(초안 보호). X·Esc·[취소]는 초안을 버린다. 겹친 모달은 ESC 한 번에 맨 위 하나만 닫힌다(`modal-stack.ts`). 편집기 끝까지 스크롤한 뒤의 휠은 바깥 영역으로 넘어간다(`scrollbar.alwaysConsumeMouseWheel: false`).
 
 ## 보조 함수·상수 (같은 진입점에서 export)
 
