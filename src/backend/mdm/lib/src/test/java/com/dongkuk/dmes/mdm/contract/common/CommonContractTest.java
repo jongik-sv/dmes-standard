@@ -42,9 +42,11 @@ class CommonContractTest {
             assertTrue(codes.add(code.code()), code + " 코드 중복: " + code.code());
             assertNotNull(code.transport(), code + " 운반용 cactus ErrorCode");
             assertTrue(code.defaultMessage() != null && !code.defaultMessage().isBlank(), code + " 기본 메시지");
-            assertTrue(Set.of(400, 403, 409, 500).contains(code.httpStatus()), code + " 의미 HTTP 상태");
+            // 404 는 ERD 모델 없음(MDM029)만 쓴다 — 다른 코드가 404 로 새지 않게 그 하나만 연다.
+            Set<Integer> allowed = code == MdmErrorCode.ERD_MODEL_NOT_FOUND ? Set.of(404) : Set.of(400, 403, 409, 500);
+            assertTrue(allowed.contains(code.httpStatus()), code + " 의미 HTTP 상태");
         }
-        assertEquals(28, MdmErrorCode.values().length);
+        assertEquals(29, MdmErrorCode.values().length);
     }
 
     @Test
@@ -125,6 +127,13 @@ class CommonContractTest {
         // D-144 3단계 Ruling P3-22 — 헤더 확정 취소 원장 가드.
         assertCode(MdmErrorCode.CONFIRM_CANCEL_BREAKS_LAYOUTS, "MDM028", 409,
                 com.dongkuk.dmes.cactus.common.ErrorCode.BUSINESS_ERROR, "이 헤더를 쌓은 전문 버전을 합성할 수 없게 되어 확정 취소할 수 없습니다");
+    }
+
+    @Test
+    void ERD_모델이_없으면_404_의미_상태의_코드() {
+        // ERD 도구 단계 0 — 모델·버전 조회 실패. 운반은 다른 업무 오류와 같은 BUSINESS_ERROR, 404 는 의미 상태로만 둔다.
+        assertCode(MdmErrorCode.ERD_MODEL_NOT_FOUND, "MDM029", 404,
+                com.dongkuk.dmes.cactus.common.ErrorCode.BUSINESS_ERROR, "ERD 모델이 없습니다");
     }
 
     private static void assertCode(MdmErrorCode code, String id, int status,

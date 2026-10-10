@@ -29,6 +29,8 @@ public class DefaultVersionTableRegistry implements VersionTableRegistry {
                     "TB_MDM_RULE_SET", "MARU_RULE_SET_ID", AUDIT_COUNTER, PARENT_AUDIT_COUNTER);
             case LAYOUT -> new VersionTableSpec(target.versionTable(), "LAYOUT_ID", "VER",
                     "TB_MDM_LAYOUT", "LAYOUT_ID", AUDIT_COUNTER, PARENT_AUDIT_COUNTER);
+            case ERD_MODEL -> new VersionTableSpec(target.versionTable(), "ERD_MODEL_ID", "VER",
+                    "TB_MDM_ERD_MODEL", "ERD_MODEL_ID", AUDIT_COUNTER, PARENT_AUDIT_COUNTER);
         };
     }
 }

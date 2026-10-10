@@ -37,6 +37,7 @@ wbs entry-point 에서 도출해 원천 화면 절과 대조했다. `독립` 은
 | dma | `domainMng` | 도메인 관리 | 독립 | TSK-04-03 | 02:292-298 |
 | dma | `columnMng` | 컬럼 사전 | 독립 | TSK-04-04 | 01:103 |
 | dma | `termRegPop` | 용어 인라인 등록 | 팝업(columnMng 에서 호출) | TSK-04-04 | 02:521 |
+| dma | `erdEdit` | ERD 설계(모델·다이어그램 편집, 여러 사람·LLM 동시 편집) | 독립 | 2026-10-10 ERD 설계 | 스펙 docs/superpowers/specs/2026-10-10-erd-tool-design.md |
 | dmb | `headerMng` | 전문 헤더 정의 | 독립 | TSK-05-02 | 01:184 |
 | dmb | `layoutMng` | 전문 레이아웃 | 독립 | TSK-05-02·05-03 | 03:104 |
 | dmc | `codeMng` | 마루 코드(조회·등록·수정, D-101 로 codeEdit 합침) | 독립 | TSK-06-02 | 04:812- |
@@ -52,7 +53,7 @@ wbs entry-point 에서 도출해 원천 화면 절과 대조했다. `독립` 은
 | dme | `ruleSetEdit` | 룰 세트 편집 | 독립 | TSK-08-06 | 06 |
 | (보류) | `dictSystemMng` | 사전 수신 시스템 | 보류(PRD §5) — 그룹 `dma` 예약 | — | 02:291 |
 
-- screenId 유일성: 위 24종은 리포의 OBJECT_ID·BPMN·코드 어디와도 겹치지 않는다. mcm `cma`/`cmb` 의 `masterCodeMng` 등과 이름이 다르다.
+- screenId 유일성: 위 19종(보류 1종 포함 20종)은 리포의 OBJECT_ID·BPMN·코드 어디와도 겹치지 않는다. mcm `cma`/`cmb` 의 `masterCodeMng` 등과 이름이 다르다.
 - TSK-01-01 이 만든 샘플 화면 `mdmSample` 은 아직 옛 그룹 경로에 있다. TSK-01-03 이 `dma` 로 옮기거나 샘플을 지운다(메뉴 시드·tsup entry·pages 폴더·스모크 테스트를 함께 맞춘다).
 - 새 화면을 설계하는 Task 는 식별자 사전 §A.3.2 에 화면 행을 등재한다(등재 절차 1).
 

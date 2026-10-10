@@ -11,12 +11,16 @@ import com.dongkuk.dmes.mdm.contract.version.VersionConfirmCheckSpi;
 import com.dongkuk.dmes.mdm.contract.version.VersionDraftDeletionSpi;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import java.time.LocalDateTime;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.objenesis.SpringObjenesis;
+import org.springframework.util.ClassUtils;
 
 /**
  * TSK-01-03 design.md §3.2 — 시나리오 테스트용 @Primary 가짜 빈. {@link VersionTableRegistry} 는 넣지 않는다:
@@ -73,26 +77,46 @@ public class VersionScenarioTestConfig {
         return new FakeDraftDeletion(VersionTarget.BUSINESS_RULE);
     }
 
+    /** 이 설정의 가짜 SPI 가 덮는 대상 — 위 {@code scenario*ConfirmCheck}·{@code scenario*DraftDeletion} 빈과 같아야 한다. */
+    private static final Set<VersionTarget> FAKED_TARGETS = EnumSet.of(VersionTarget.MASTER_CODE, VersionTarget.BUSINESS_RULE);
+
     /**
      * TSK-06-02 공용 부품 P2(design.md §10.2, D-076) — 이 설정의 가짜 SPI 와 같은 대상의 운영 SPI 빈 정의를 지운다
-     * ({@link VersionSpiRegistry} 는 대상 중복이면 기동 실패). 가짜가 두 대상을 모두 덮으므로 가짜({@link VersionScenarioFakes}
-     * 의 중첩 클래스)가 아닌 {@link VersionDraftDeletionSpi}·{@link VersionConfirmCheckSpi} 정의를 모두 지운다. 이 설정을
+     * ({@link VersionSpiRegistry} 는 대상 중복이면 기동 실패). 가짜가 덮는 대상({@link #FAKED_TARGETS})의
+     * {@link VersionDraftDeletionSpi}·{@link VersionConfirmCheckSpi} 정의만 지운다. 가짜가 없는 대상(예: ERD_MODEL 의
+     * ErdConfirmCheck·ErdDraftDeletion)은 운영 빈을 그대로 둔다 — 그 대상의 서비스가 주입받는다. 대상은 빈을 만들기 전이라
+     * 생성자 없이 만든 껍데기 인스턴스의 {@code target()} 으로 읽는다(운영 SPI 의 target() 은 상수를 돌려준다). 이 설정을
      * import 하지 않은 컨텍스트에는 영향이 없다.
      */
     @Bean
     static BeanFactoryPostProcessor removeProductionVersionSpisShadowedByFakes() {
         return beanFactory -> {
             BeanDefinitionRegistry registry = (BeanDefinitionRegistry) beanFactory;
+            SpringObjenesis objenesis = new SpringObjenesis();
             for (Class<?> spi : List.of(VersionDraftDeletionSpi.class, VersionConfirmCheckSpi.class)) {
                 for (String name : beanFactory.getBeanNamesForType(spi, true, false)) {
                     Class<?> type = beanFactory.getType(name, false);
                     String className = type != null ? type.getName()
                             : beanFactory.getBeanDefinition(name).getBeanClassName();
-                    if (className != null && !className.startsWith(VersionScenarioFakes.class.getName())) {
+                    if (className == null || className.startsWith(VersionScenarioFakes.class.getName())) {
+                        continue;
+                    }
+                    if (FAKED_TARGETS.contains(targetOf(objenesis, spi, className))) {
                         registry.removeBeanDefinition(name);
                     }
                 }
             }
         };
+    }
+
+    private static VersionTarget targetOf(SpringObjenesis objenesis, Class<?> spi, String className) {
+        try {
+            Object shell = objenesis.newInstance(ClassUtils.forName(className, VersionScenarioTestConfig.class.getClassLoader()));
+            return spi == VersionDraftDeletionSpi.class
+                    ? ((VersionDraftDeletionSpi) shell).target()
+                    : ((VersionConfirmCheckSpi) shell).target();
+        } catch (ClassNotFoundException | LinkageError | RuntimeException e) {
+            throw new IllegalStateException("운영 SPI 의 대상을 읽지 못했다: " + className, e);
+        }
     }
 }

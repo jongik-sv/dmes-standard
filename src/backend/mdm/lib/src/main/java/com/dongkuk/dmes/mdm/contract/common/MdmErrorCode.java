@@ -73,7 +73,13 @@ public enum MdmErrorCode {
      * 헤더에 그 시각 RELEASED 가 없어진다). 메타 피드가 그 전문 키 전체를 failed 로 내지 않게 원장에서 막는다 — 걸리는 전문 ID·버전을
      * 문구와 이슈 행에 싣고, 그 전문 버전의 확정을 먼저 취소하도록 안내한다.
      */
-    CONFIRM_CANCEL_BREAKS_LAYOUTS("MDM028", 409, ErrorCode.BUSINESS_ERROR, "이 헤더를 쌓은 전문 버전을 합성할 수 없게 되어 확정 취소할 수 없습니다");
+    CONFIRM_CANCEL_BREAKS_LAYOUTS("MDM028", 409, ErrorCode.BUSINESS_ERROR, "이 헤더를 쌓은 전문 버전을 합성할 수 없게 되어 확정 취소할 수 없습니다"),
+
+    /**
+     * ERD 도구 단계 0 — 모델 ID 에 해당하는 ERD 모델(또는 그 버전)이 없다. 운반은 다른 업무 오류와 같은 BUSINESS_ERROR 로 하고 404 는
+     * 의미 상태로만 둔다(OASIS 응답은 meta.code=MDM029). 실시간 채널(ErdStreamController)만 이 코드를 HTTP 404 로 바꾼다.
+     */
+    ERD_MODEL_NOT_FOUND("MDM029", 404, ErrorCode.BUSINESS_ERROR, "ERD 모델이 없습니다");
 
     private final String code;
     private final int httpStatus;

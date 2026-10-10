@@ -129,7 +129,7 @@ A.1.1 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 �
 | `mcm` | `cma` | **영역 코드** (`cm`+`a`) | Master 관리(원장) — 카테고리·마스터코드 | 2026-05-27 | (masterCategoryMng 등재 동시) | `masterCategoryMng` / `masterCodeMng` / `masterCodeSelPop` / `masterCodeUploadFilePopup` |
 | `mcm` | `cmb` | **영역 코드** (`cm`+`b`) | 업무기준 관리(원장) — 업무기준(Rule) 구조·데이터 | 2026-06-04 | (masterRule* 5종 설계확정 등재) | `masterRuleListPop` / `masterRuleList` / `masterRuleFrame` / `masterRuleData` / `masterRuleFrameColListPopup` |
 | `mcm` | `lsh` | **cm? 접두 규칙 예외** (mls 에서 이전, 2026-10-07) | **공지관리** — 전사 공지사항 등록·게시 | 2026-10-07 | (공지 mls→mcm 이전, DEC-001 「재검토 → 이전」) | `noticeMgmt`, `noticeBoard`(서비스 전용) |
-| `mdm` | `dma` | **영역 코드** (`dm`+`a`) | 용어·도메인·컬럼·단위(02) — 표준 원장 사전(마루 MDM) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `unitMng` / `termMng` / `domainMng` / `columnMng` / `termRegPop` (+ TSK-01-01 샘플 `mdmSample` 은 옛 경로에 있으며 TSK-01-03 에서 옮긴다) |
+| `mdm` | `dma` | **영역 코드** (`dm`+`a`) | 용어·도메인·컬럼·단위(02) — 표준 원장 사전(마루 MDM) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `unitMng` / `termMng` / `domainMng` / `columnMng` / `termRegPop` / `erdEdit` (+ TSK-01-01 샘플 `mdmSample` 은 옛 경로에 있으며 TSK-01-03 에서 옮긴다) |
 | `mdm` | `dmb` | **영역 코드** (`dm`+`b`) | 인터페이스 레이아웃(03) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `headerMng` / `layoutMng` |
 | `mdm` | `dmc` | **영역 코드** (`dm`+`c`) | 마스터코드(04) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `codeMng` / `codeItemEdit` / `codeConfirm` (2026-09-28 D-101: `codeEdit`→`codeMng`, `codeCateEdit`→`codeItemEdit` 로 합침. 두 ID 는 서버 서비스·권한 OBJECT 로만 남음) |
 | `mdm` | `dmd` | **영역 코드** (`dm`+`d`) | 마스터데이터(05) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `dataMng` / `dataItemMng` / `dataCsvUploadPop` (2026-09-29 D-104: `dataEdit`→`dataMng`, `dataCateEdit`·`dataHistory`→`dataItemMng` 로 합침. 세 ID 는 서버 서비스·권한 OBJECT 로만 남음) |
@@ -235,6 +235,7 @@ A.1.1 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 �
 | `domainMng` | — (To-Be only) | `mdm` | `dma` | `domainMng` | 2026-09-24 | 도메인 관리 — As-Is 없음, 원천 02 maru03020/03030 계승. 상속 트리·검증식 두 칸·테스트 케이스·영향도(TSK-04-03). 기능설계서 1종(`docs/mdm/screens/domainMng/`) |
 | `columnMng` | — (To-Be only) | `mdm` | `dma` | `columnMng` | 2026-09-24 | 컬럼 사전 — As-Is 없음(신규). TSK-04-04. 기능설계서 1종(`docs/mdm/screens/columnMng/`, 팝업 termRegPop 절 포함) |
 | `termRegPop` | — (To-Be only) | `mdm` | `dma` | `termRegPop` | 2026-09-24 | 용어 인라인 등록 팝업(columnMng 에서 호출, 메뉴 leaf 없음). TSK-04-04 |
+| `erdEdit` | — (To-Be only) | `mdm` | `dma` | `erdEdit` | 2026-10-10 | ERD 설계 — As-Is 없음(신규). 모델·다이어그램 편집, 여러 사람·LLM 동시 편집. 기능설계서 1종(`docs/mdm/screens/erdEdit/`). 정본: `docs/superpowers/specs/2026-10-10-erd-tool-design.md` |
 | `headerMng` | — (To-Be only) | `mdm` | `dmb` | `headerMng` | 2026-09-24 | 전문 헤더 정의 — As-Is 없음(신규). TSK-05-02. 기능설계서 1종(`docs/mdm/screens/headerMng/`) |
 | `layoutMng` | — (To-Be only) | `mdm` | `dmb` | `layoutMng` | 2026-09-24 | 전문 레이아웃 — As-Is 없음(신규). 헤더 적층·상수 재정의·본문 항목·오프셋 자동 계산(TSK-05-02). 기능설계서 1종(`docs/mdm/screens/layoutMng/`) |
 | `codeItemEdit` | — (To-Be only) | `mdm` | `dmc` | `codeItemEdit` | 2026-09-24 | 코드 편집 — As-Is 없음(신규). TSK-06-03. 기능설계서 1종(`docs/mdm/screens/codeItemEdit/`) |

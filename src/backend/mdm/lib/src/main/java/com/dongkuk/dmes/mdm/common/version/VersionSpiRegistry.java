@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.common.version;
 
+import com.dongkuk.dmes.mdm.contract.version.VersionCoEditorSpi;
 import com.dongkuk.dmes.mdm.contract.version.VersionConfirmCancelCheckSpi;
 import com.dongkuk.dmes.mdm.contract.version.VersionConfirmCheckSpi;
 import com.dongkuk.dmes.mdm.contract.version.VersionDraftDeletionSpi;
@@ -8,6 +9,7 @@ import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import org.springframework.stereotype.Component;
 
@@ -20,6 +22,10 @@ import org.springframework.stereotype.Component;
  *
  * <p>확정 취소 검사({@link VersionConfirmCancelCheckSpi}, Ruling P3-23)는 선택이다 — 없으면 아무것도 하지 않는 기본 구현을 돌려준다. 같은
  * target 이 둘이면 마찬가지로 생성이 실패한다.
+ *
+ * <p>공동 편집자 SPI({@link VersionCoEditorSpi}, ERD 설계 스펙 D15)도 선택이다 — 없으면 {@link Optional#empty()} 이고 그 target 의
+ * DRAFT 는 소유자만 쓴다(기존 동작). 이 SPI 는 소유자가 있는 DRAFT 에만 불리고(주인 없는 DRAFT 는 모두 MDM003), 공동 편집자 행은 소유자
+ * 넘기기·재선점 뒤에도 DRAFT 버전에 이어진다(Task 7 판정 R7-1·R7-2).
  */
 @Component
 public class VersionSpiRegistry {
@@ -27,12 +33,19 @@ public class VersionSpiRegistry {
     private final Map<VersionTarget, VersionConfirmCheckSpi> confirmChecks;
     private final Map<VersionTarget, VersionDraftDeletionSpi> draftDeletions;
     private final Map<VersionTarget, VersionConfirmCancelCheckSpi> cancelChecks;
+    private final Map<VersionTarget, VersionCoEditorSpi> coEditors;
 
     public VersionSpiRegistry(List<VersionConfirmCheckSpi> confirmChecks, List<VersionDraftDeletionSpi> draftDeletions,
-                              List<VersionConfirmCancelCheckSpi> cancelChecks) {
+                              List<VersionConfirmCancelCheckSpi> cancelChecks, List<VersionCoEditorSpi> coEditors) {
         this.confirmChecks = byTarget(confirmChecks, VersionConfirmCheckSpi::target, "확정 검사 SPI");
         this.draftDeletions = byTarget(draftDeletions, VersionDraftDeletionSpi::target, "DRAFT 삭제 훅");
         this.cancelChecks = byTarget(cancelChecks, VersionConfirmCancelCheckSpi::target, "확정 취소 검사 SPI");
+        this.coEditors = byTarget(coEditors, VersionCoEditorSpi::target, "공동 편집자 SPI");
+    }
+
+    /** 공동 편집자 판정 — 선택 SPI. 없으면 empty(소유자만 쓴다). */
+    public Optional<VersionCoEditorSpi> coEditor(VersionTarget target) {
+        return Optional.ofNullable(coEditors.get(target));
     }
 
     /** 확정 취소 검사 — 등록이 없으면 아무것도 하지 않는다(선택 SPI). */

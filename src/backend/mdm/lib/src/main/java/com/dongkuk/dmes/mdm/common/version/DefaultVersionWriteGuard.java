@@ -30,14 +30,17 @@ public class DefaultVersionWriteGuard implements VersionWriteGuard {
     private final VersionPreconditions pre;
     private final MdmNativeAuditSupport audit;
     private final Clock clock;
+    private final VersionSpiRegistry spiRegistry;
 
     public DefaultVersionWriteGuard(PlatformTransactionManager transactionManager, VersionRowStore store,
-                                    MdmCurrentUser currentUser, MdmNativeAuditSupport audit, Clock clock) {
+                                    MdmCurrentUser currentUser, MdmNativeAuditSupport audit, Clock clock,
+                                    VersionSpiRegistry spiRegistry) {
         this.tx = new TransactionTemplate(transactionManager);
         this.store = store;
         this.pre = new VersionPreconditions(currentUser, store);
         this.audit = audit;
         this.clock = clock;
+        this.spiRegistry = spiRegistry;
     }
 
     @Override
@@ -57,7 +60,12 @@ public class DefaultVersionWriteGuard implements VersionWriteGuard {
         return tx.execute(status -> {
             LocalDateTime now = now();
             VersionRow row = pre.loadOrConflict(draft);
-            requireOwner(row, userId);
+            // 소유자가 아니어도 그 대상에 공동 편집자 SPI 가 있고 userId 가 공동 편집자면 통과한다(ERD_MODEL, 스펙 D15).
+            // 단 DRAFT 에 소유자가 있을 때만 SPI 를 묻는다 — 주인 없는 DRAFT(해제 뒤)는 먼저 선점해야 하므로 모두에게 MDM003 이다.
+            // 그 밖에는 requireOwner 가 MDM003 을 그대로 던진다. 나머지 검사는 모두에게 같다.
+            if (!isOwner(row, userId) && !(row.ownerId() != null && isCoEditor(draft, userId))) {
+                requireOwner(row, userId);
+            }
             requireRowVersion(row, expectedRowVersion);
             requireDraft(row);
             pre.requireSingleUnapplied(draft, now);
@@ -66,6 +74,14 @@ public class DefaultVersionWriteGuard implements VersionWriteGuard {
             }
             return expectedRowVersion + VersionConventions.ROW_VERSION_STEP;
         });
+    }
+
+    private static boolean isOwner(VersionRow row, String userId) {
+        return row.ownerId() != null && row.ownerId().equals(userId);
+    }
+
+    private boolean isCoEditor(VersionRef draft, String userId) {
+        return spiRegistry.coEditor(draft.target()).map(spi -> spi.isCoEditor(draft, userId)).orElse(false);
     }
 
     private LocalDateTime now() {

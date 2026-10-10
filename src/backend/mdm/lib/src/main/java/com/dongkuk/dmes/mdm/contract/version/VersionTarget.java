@@ -10,7 +10,9 @@ public enum VersionTarget {
     MASTER_CODE("TB_MDM_CODE_VER", 3),
     BUSINESS_RULE("TB_MDM_RULE_VER", 3),
     RULE_SET("TB_MDM_RULE_SET_VER", 3),
-    LAYOUT("TB_MDM_LAYOUT_VER", 3);
+    LAYOUT("TB_MDM_LAYOUT_VER", 3),
+    /** ERD 모델 — 모듈 하나 = 객체 하나(ERD 설계 스펙 D2). */
+    ERD_MODEL("TB_MDM_ERD_MODEL_VER", 3);
 
     private final String versionTable;
     private final int versionScale;

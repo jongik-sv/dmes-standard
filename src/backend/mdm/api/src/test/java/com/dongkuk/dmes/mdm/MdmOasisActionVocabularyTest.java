@@ -104,6 +104,16 @@ class MdmOasisActionVocabularyTest {
         assertEquals(Set.of("search", "view", "validate", "confirm"), actionsFromGateway(path));
     }
 
+    /** ERD 설계 단계 0 — 14개 액션(import 는 단계 1). 모두 어휘 안에 있고, 확정(confirm)이 있어 확정 세트 안에서만 권한이 난다. */
+    @Test
+    void dma_erdEdit_bpmn_의_액션은_어휘_안의_14개다() throws Exception {
+        Path path = bpmnPath("erdEdit.bpmn");
+        assertActionsWithinVocabulary(path);
+        assertEquals(Set.of("search", "view", "compare", "validate", "reg", "save", "restore", "execute", "copy", "delete",
+                "lock", "unlock", "handover", "confirm"), actionsFromGateway(path));
+        assertTrue(new java.util.HashSet<>(MdmPermissions.CONFIRM_ACTIONS).containsAll(actionsFromGateway(path)), actionsFromGateway(path).toString());
+    }
+
     @Test
     void unitMng_는_search_save_delete_compare_4개_액션을_쓴다() throws Exception {
         Set<String> actions = actionsFromGateway(bpmnPath("unitMng.bpmn"));
@@ -170,6 +180,14 @@ class MdmOasisActionVocabularyTest {
         assertTrue(seed.contains("seedMdmObjectRbac(\"layoutConfirm\", \"dmb\")"));
     }
 
+    /** erdEdit 의 잠금·확정은 담당자가 해야 한다 — 담당자에 CONFIRM 을 주는 dmb 매트릭스여야 한다(dma 는 READ 뿐). */
+    @Test
+    void erdEdit_권한은_담당자_CONFIRM_을_주는_dmb_매트릭스다() throws Exception {
+        String seed = Files.readString(MDM_MENU_SEEDER_SOURCE);
+        assertTrue(seed.contains("seedMdmObjectRbac(\"erdEdit\", \"dmb\")"));
+        assertEquals("PERM_MDM_CONFIRM", MdmPermissions.MATRIX.get(MdmScreenGroup.valueOf("DMB")).get("MDM_STEWARD"));
+    }
+
     /**
      * design.md B1 (i)-2 — {@code seedMdmObjectRbac} 의 {@code matrix} 리터럴(그룹 × 역할 → PERM ID)을 정규식으로 파싱해
      * {@link MdmPermissions#MATRIX} 5그룹 모두와 대조한다.
@@ -203,13 +221,13 @@ class MdmOasisActionVocabularyTest {
     }
 
     /**
-     * design.md B1 (i)-3 — BPMN 27개(`find src/main/resources/services -iname "*.bpmn"`, D-144 2단계 ruleSetConfirm·3단계 layoutConfirm·메타 캐시 metaFeed·조업 계산기 ruleCalc 포함) 중
+     * design.md B1 (i)-3 — BPMN 28개(`find src/main/resources/services -iname "*.bpmn"`, D-144 2단계 ruleSetConfirm·3단계 layoutConfirm·메타 캐시 metaFeed·조업 계산기 ruleCalc·ERD 설계 erdEdit 포함) 중
      * metaFeed·ruleCalc 를 뺀 화면 목록과 mcm
      * {@code MdmMenuSeeder} 의 모든 {@code seedMdmObjectRbac(...)} 호출에서 뽑은 objectId 목록을 대조한다.
      * {@code mdmSample} 은 BPMN 없는 샘플 화면이라 예외로 둔다(원천이 원래 다르다).
      */
     @Test
-    void mcm_시드가_BPMN_27개_화면을_모두_커버한다() throws Exception {
+    void mcm_시드가_BPMN_28개_화면을_모두_커버한다() throws Exception {
         String source = Files.readString(MDM_MENU_SEEDER_SOURCE);
         Set<String> bpmnScreens = new LinkedHashSet<>();
         try (var files = Files.walk(Path.of("src/main/resources/services"))) {
@@ -218,7 +236,7 @@ class MdmOasisActionVocabularyTest {
                 bpmnScreens.add(name.substring(0, name.length() - ".bpmn".length()));
             }
         }
-        assertEquals(27, bpmnScreens.size(), "BPMN 수가 27개가 아니다(늘거나 줄었으면 이 상수를 갱신한다): " + bpmnScreens);
+        assertEquals(28, bpmnScreens.size(), "BPMN 수가 28개가 아니다(늘거나 줄었으면 이 상수를 갱신한다): " + bpmnScreens);
         // metaFeed(services/feed) 는 화면이 아니라 업무 모듈 캐시가 부르는 서비스다 — 그룹 RBAC(seedMdmObjectRbac)를 받지 않고
         // SYSADMIN 전용 OBJECT 로만 시드한다(Task 11 의 seedMdmCacheMenus). spec 2026-10-02-mdm-meta-cache-design §5.5·§9.
         bpmnScreens.remove("metaFeed");

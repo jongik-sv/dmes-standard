@@ -36,8 +36,12 @@ class MdmBaselineConstraintsOraTest extends AbstractMdmSharedDbTest {
 
     private static final Pattern CONSTRAINT = Pattern.compile("CONSTRAINT\\s+(\\w+)\\s+(PRIMARY\\s+KEY|UNIQUE|FOREIGN\\s+KEY|CHECK)");
     private static final Pattern INDEX = Pattern.compile("CREATE\\s+(UNIQUE\\s+)?INDEX\\s+(\\w+)");
-    /** 시험 대상에서 뺄 객체 — 휴지통(BIN$)과 Flyway 이력 표(따옴표 붙은 소문자 표 이름, MdmSharedTestDb.HISTORY_TABLE). */
-    private static final String NOT_HOUSEKEEPING = "CONSTRAINT_NAME NOT LIKE 'BIN$%' AND UPPER(TABLE_NAME) <> 'FLYWAY_SCHEMA_HISTORY'";
+    private static final Pattern CREATE_TABLE = Pattern.compile("CREATE\\s+TABLE\\s+(\\w+)", Pattern.CASE_INSENSITIVE);
+    /**
+     * 시험 대상 — V1 이 만든 표의 제약만 본다(후속 마이그레이션이 만든 표 예: V6 ERD 표는 각자 시험이 검사한다).
+     * 휴지통(BIN$)과 Flyway 이력 표(따옴표 붙은 소문자 표 이름)는 V1 표 목록에 없어 자연히 빠진다. readV1 이 채운다.
+     */
+    private static String NOT_HOUSEKEEPING;
     /** V1 원문의 종류 → USER_CONSTRAINTS.CONSTRAINT_TYPE. */
     private static final Map<String, String> TYPE = Map.of("PRIMARY", "P", "UNIQUE", "U", "FOREIGN", "R", "CHECK", "C");
 
@@ -50,6 +54,13 @@ class MdmBaselineConstraintsOraTest extends AbstractMdmSharedDbTest {
     static void readV1() throws IOException {
         v1 = new ClassPathResource("db/migration/mdm/oracle/V1__baseline.sql").getContentAsString(StandardCharsets.UTF_8)
                 .lines().filter(l -> !l.stripLeading().startsWith("--")).reduce("", (a, b) -> a + "\n" + b);
+        Set<String> tables = new TreeSet<>();
+        Matcher t = CREATE_TABLE.matcher(v1);
+        while (t.find()) {
+            tables.add("'" + t.group(1).toUpperCase() + "'");
+        }
+        assertTrue(tables.size() >= 39, "V1 에서 표 이름을 읽지 못했다: " + tables.size());
+        NOT_HOUSEKEEPING = "TABLE_NAME IN (" + String.join(",", tables) + ")";
     }
 
     @Test

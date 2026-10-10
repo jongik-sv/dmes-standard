@@ -222,6 +222,8 @@ public class DefaultVersionStateService implements VersionStateService {
             case MASTER_CODE -> () -> recorder.code(ref.objectId());
             case RULE_SET -> () -> recorder.ruleSet(ref.objectId());
             case LAYOUT -> () -> recorder.layouts(layoutQueries.withStackingMessages(Long.valueOf(ref.objectId())));
+            // ERD 모델은 메타 캐시 대상이 아니다(MetaTargetType 에 없음) — 기록할 것이 없다.
+            case ERD_MODEL -> () -> { };
         };
         write.run();
     }
