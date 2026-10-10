@@ -31,7 +31,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 
 0. **회차 모드.** 기본 = token(토큰 우선). 사용자가 「빠르게」 같은 요청 → time
    - 기록: `node scripts/coord-state.mjs mode time`(되돌림 = `mode token`). 이미 도는 일은 그대로, 다음 배정부터
-   - 모드가 바꾸는 것: 레인 상한(`mode.lanes_max` token 3·time 6), 레인당 동시 agent(`workflow.agents_by_mode`), 풀 우선순위, 모델 표 `mode` 행, Workflow 최소 항목(`mode.workflow_min_items`), 하트비트(`mode.heartbeat_min`)
+   - 모드가 바꾸는 것: 레인 상한(`mode.lanes_max` 두 모드 모두 6), 레인당 동시 agent(`workflow.agents_by_mode`), 풀 우선순위, 모델 표 `mode` 행, Workflow 최소 항목(`mode.workflow_min_items`), 하트비트(`mode.heartbeat_min`)
    - 조정 세션 모델 = `coordinator.model_by_mode`(token sonnet/medium·time opus/medium). 바꿀 때 사용자에게 한 줄: 「`/model sonnet`(또는 `opus`) 입력」
 1. **최소 충분 등급에서 시작.**
    - 근거(시험 실패, 리뷰 지적 반복, 20분 넘게 막힘)가 있을 때만 한 칸 올림
@@ -53,7 +53,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
    - 띄운 것은 바로 닫음
      - 단발 서브에이전트·워커 = `name` 없이 띄움(보고 뒤 스스로 끝남)
      - 조정자가 띄운 이름 있는 agent·레인·pane = 결과가 오면 즉시 닫음. 사람이 띄운 세션은 닫지 않음(`spawn.md` §5)
-     - 동시에 4개 이하. 턴을 끝내기 전 `ListAgents` 확인
+     - 조정 세션·레인 하나에 동시 서브에이전트 10개 이하(`workflow.agents_by_mode` G 값). 턴을 끝내기 전 `ListAgents` 확인
    - 컨텍스트 = `compact.coordinator_max`(200000) 넘으면 `CTX_OVER_SELF` → `compact.md` §8(`/clear` 재개)
    - 사용자가 `/clear` 뒤 재개하면 `node scripts/coord-state.mjs relink self`(새 세션 id 기록)
      - `RELINK self unknown` → `node scripts/coord-state.mjs relink self --sid "$CLAUDE_CODE_SESSION_ID"`

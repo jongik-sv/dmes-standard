@@ -15,7 +15,7 @@
     "default": "token",
     "lanes_max": {
       "time": 6,
-      "token": 3
+      "token": 6
     },
     "heartbeat_min": {
       "time": 15,
@@ -107,22 +107,22 @@
   },
   "workflow": {
     "agents_by_band": {
-      "G": 4,
-      "Y": 3,
-      "O": 2,
+      "G": 10,
+      "Y": 7,
+      "O": 4,
       "R": 0
     },
     "agents_by_mode": {
       "time": {
-        "G": 6,
-        "Y": 5,
-        "O": 3,
+        "G": 10,
+        "Y": 8,
+        "O": 5,
         "R": 0
       },
       "token": {
-        "G": 4,
-        "Y": 3,
-        "O": 2,
+        "G": 10,
+        "Y": 6,
+        "O": 3,
         "R": 0
       }
     },

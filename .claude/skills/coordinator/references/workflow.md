@@ -45,7 +45,7 @@ Workflow 기동 비용이 일 자체보다 크면 띄우지 않음.
 
 - 레인당 동시 agent = 설정 `workflow.agents_by_mode[{mode}][띠]`
   - 이 키가 없으면 `workflow.agents_by_band[띠]`
-  - 기본: token G4·Y3·O2·R0, time G6·Y5·O3·R0
+  - 기본: token G10·Y6·O3·R0, time G10·Y8·O5·R0 (레인·세션당 최대 10)
   - R 띠 = 새 Workflow 없음
 - 세션 밖에서 Workflow 의 동시 agent 수를 강제할 수단 없음 → 상한은 **지시문으로만** 줌
   - 띠가 바뀌면 `사용량 조정` 메시지로 새 상한 통지

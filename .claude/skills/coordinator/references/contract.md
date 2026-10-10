@@ -30,7 +30,7 @@
 | `coordinator.effort` | `"medium"` | 조정자 세션 effort. 무거운 판단 = 서브에이전트로(SKILL.md 「판단 올리기」) |
 | `coordinator.model_by_mode` | `{"time":"opus/medium","token":"sonnet/medium"}` | 모드별 조정 세션 model/effort |
 | `mode.default` | `"token"` | 회차 모드 기본값. state `run.mode` 가 없을 때 쓴다(`token`·`time`) |
-| `mode.lanes_max` | `{"time":6,"token":3}` | 모드별 Claude 레인 수 상한. `usage.md` 「새 레인 상한」과 함께 적용 |
+| `mode.lanes_max` | `{"time":6,"token":6}` | 모드별 Claude 레인 수 상한. `usage.md` 「새 레인 상한」과 함께 적용 |
 | `mode.heartbeat_min` | `{"time":15,"token":30}` | 모드별 하트비트 cron 간격(분). 이벤트 틱(`tick.mjs --watch`)이 주 경로 |
 | `mode.workflow_min_items` | `{"time":2,"token":4}` | Workflow 를 쓰는 최소 같은 흐름 M/L 항목 수 |
 | `launch.claude` | `"claude"` | Claude Code 실행 명령 앞부분(예: `orca claude-teams --dangerously-skip-permissions`) |
@@ -65,7 +65,7 @@
 | `idle.stall_max_min` | `90` | 백그라운드 거부가 이보다 길면 정체 의심 |
 | `stall.quiet_min` | `20` | 산출물 무변화 + CPU 정지 판정 분 |
 | `tick.cron` | `"7,27,47 * * * *"` | 감시 틱 cron |
-| `workflow.agents_by_band` | `{"G":4,"Y":3,"O":2,"R":0}` | 레인당 동시 agent 상한. R = 새 Workflow 없음 |
+| `workflow.agents_by_band` | `{"G":10,"Y":7,"O":4,"R":0}` | 레인·세션당 동시 agent 상한(최대 10). R = 새 Workflow 없음 |
 | `workflow.agents_by_mode` | `{"time":{…},"token":{…}}` | 모드별·띠별 레인당 동시 agent 상한. 있으면 `agents_by_band` 대신 씀 |
 | `workflow.model_table` | 아래 1.3 | 지시 템플릿의 단계·크기별 model·effort(최소 충분 등급) |
 | `workflow.escalation.ladder` | `[sonnet/medium, sonnet/high, opus/high]` | 시험 실패 시 수정 agent 등급 사다리(`workflow.md` §7) |

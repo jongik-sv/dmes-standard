@@ -115,14 +115,14 @@ test('cfgSub: 설정 파일 JSON 오류는 삼키고 빈 글을 돌려주며 std
 test('토큰·시간 개편 설정 키 기본값', () => {
   const d = JSON.parse(COORD_DEFAULTS);
   assert.equal(d.mode.default, 'token');
-  assert.deepEqual(d.mode.lanes_max, { time: 6, token: 3 });
+  assert.deepEqual(d.mode.lanes_max, { time: 6, token: 6 });
   assert.deepEqual(d.mode.heartbeat_min, { time: 15, token: 30 });
   assert.deepEqual(d.mode.workflow_min_items, { time: 2, token: 4 });
   assert.equal(d.compact.coordinator_max, 200000);
   assert.equal(d.compact.lane_max, 250000);
   assert.deepEqual(d.coordinator.model_by_mode, { time: 'opus/medium', token: 'sonnet/medium' });
-  assert.deepEqual(d.workflow.agents_by_mode.token, { G: 4, Y: 3, O: 2, R: 0 });
-  assert.deepEqual(d.workflow.agents_by_mode.time, { G: 6, Y: 5, O: 3, R: 0 });
+  assert.deepEqual(d.workflow.agents_by_mode.token, { G: 10, Y: 6, O: 3, R: 0 });
+  assert.deepEqual(d.workflow.agents_by_mode.time, { G: 10, Y: 8, O: 5, R: 0 });
   assert.equal(d.pool.opencode_max, 3);
   assert.equal(d.pool.glm_max, 1);
   assert.deepEqual(d.pool.order, ['opencode', 'glm']);
