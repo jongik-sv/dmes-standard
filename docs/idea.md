@@ -47,11 +47,6 @@
 
 ### 위젯 관련
 
-- 위젯 칸 설명의 화면 ID 예시 정리(2026-10-07 보류): 공지가 MCM 으로 옮겨져 화면 ID 가 `mcm:lsh/noticeMgmt` 가 됐는데, 메인 mdm.db 의 위젯 linkPageId 칸 설명과 `scripts/mdm-meta/columns-widget-2026-10-05.json` 예시는 아직 `mls:lsh/noticeMgmt` 다. 공용 DB 쓰기라 지금은 그대로 둔다.
-- 
-
----
-
 - PDF 출력 개선
   - 위젯 화면에 제목 추가
   - 위젯 화면만 PDF 대상
