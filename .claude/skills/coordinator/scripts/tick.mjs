@@ -17,7 +17,7 @@
 //                                                         같은 세션의 열린 회차는 팀장 칸을 공유하는 정상 상태라 알리지 않는다)
 //     POOL_DONE <id> lane=<레인> result=<r> fallback=<0|1>   (풀 log.jsonl 의 새 완료 줄마다 한 번. 같은 id 의 보정 줄은 내지 않음)
 //     TICK quiet                                          (위 줄이 하나도 없을 때)
-//   --watch: 틱 본문을 --interval(기본 60)초마다 돌려 줄이 있을 때만 쓴다(TICK quiet 없음). 같은 줄은 --repeat-min(기본 15)분 안에 다시 쓰지 않는다.
+//   --watch: 틱 본문을 --interval(기본 300)초마다 돌려 줄이 있을 때만 쓴다(TICK quiet 없음). 같은 일(종류+대상, repeatKey)은 --repeat-min(기본 15)분 안에 다시 쓰지 않는다.
 //            회차가 없어지면 끝낸다. --max-iter 는 시험용.
 // 종료 코드: 0(경고·실패가 있어도 틱은 늘 0) · 3(현재 회차 없음).
 // 다른 스크립트(coord-status·prompt-watch·auto-answer·idle-check·stall-check·ctx-usage·usage-band·office·console-poll·coord-state)는
@@ -315,24 +315,41 @@ export async function tickOnce(c, { answer = true, dry = false } = {}) {
   return out;
 }
 
-/** 같은 줄을 repeatMin 분 안에 다시 쓰지 않도록 거른다. 오래된 기록은 lastShown 에서 지운다. 쓸 줄만 돌려준다 */
+/** 반복 억제 키(설계 2026-10-10 §5.2·최종 리뷰 F1). 값이 매번 바뀌는 줄(나이·pct·per_core)도 같은 일로 본다.
+ *  종류+대상(둘째 칸): CTX_OVER·STALL·STALL?·IDLE·UNACKED·STALE_RUN·POOL_DONE·PROMPT
+ *  종류만: LOAD_SOFT·LOAD_HARD·LOAD_RELEASE·CTX_OVER_SELF(둘째 칸이 pct=)
+ *  그 밖(BAND_CHANGED·ANSWER·DENY·ESCALATE·WINDOW_DUE·WAIT_USER·GONE·UNLINKED 등) = 줄 전체(바뀌면 새 일) */
+const KEY_SUBJECT = new Set(['CTX_OVER', 'STALL', 'STALL?', 'IDLE', 'UNACKED', 'STALE_RUN', 'POOL_DONE', 'PROMPT']);
+const KEY_KIND = new Set(['LOAD_SOFT', 'LOAD_HARD', 'LOAD_RELEASE', 'CTX_OVER_SELF']);
+export function repeatKey(line) {
+  const f = line.split(/[ \t]+/);
+  if (KEY_KIND.has(f[0])) return f[0];
+  if (KEY_SUBJECT.has(f[0])) return `${f[0]} ${f[1] ?? ''}`;
+  return line;
+}
+
+/** 같은 일(repeatKey)을 repeatMin 분 안에 다시 쓰지 않도록 거른다. 오래된 기록은 lastShown 에서 지운다. 쓸 줄만 돌려준다 */
 export function filterRepeats(lines, lastShown, now, repeatMin) {
   const span = repeatMin * 60000;
   for (const [k, t] of lastShown) if (now - t >= span) lastShown.delete(k);
   const show = [];
   for (const ln of lines) {
-    if (lastShown.has(ln)) continue;
-    lastShown.set(ln, now);
+    const k = repeatKey(ln);
+    if (lastShown.has(k)) continue;
+    lastShown.set(k, now);
     show.push(ln);
   }
   return show;
 }
 
+/** --watch 기본 주기(초). 반복마다 틱 전체(자식 스크립트·후처리)가 도므로 5분 */
+export const WATCH_INTERVAL_DEFAULT = 300;
+
 /** main — 종료 코드 */
 export async function main(argv, { env = process.env, cwd = process.cwd() } = {}) {
   const c = new Ctx({ ...env }, cwd);
   const opts = { answer: true, dry: false };
-  let watch = false; let interval = 60; let maxIter = 0; let repeatMin = 15;
+  let watch = false; let interval = WATCH_INTERVAL_DEFAULT; let maxIter = 0; let repeatMin = 15;
   const bad = (name) => { process.stderr.write(`${name} 값은 0 이상의 수여야 한다\n`); return 2; };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -393,7 +410,8 @@ const HELP = `# 감시 틱 한 번을 묶어 돌리고, 조정자가 행동해�
 #                                                         같은 세션의 열린 회차는 팀장 칸을 공유하는 정상 상태라 알리지 않는다)
 #     POOL_DONE <id> lane=<레인> result=<r> fallback=<0|1>   (풀 log.jsonl 의 새 완료 줄마다 한 번. 같은 id 의 보정 줄은 내지 않음)
 #     TICK quiet                                          (위 줄이 하나도 없을 때)
-#   --watch [--interval 초] [--max-iter n] [--repeat-min 분]: 틱 본문을 주기마다 돌려 줄이 있을 때만 쓴다.
+#   --watch [--interval 초(기본 300)] [--max-iter n] [--repeat-min 분(기본 15)]: 틱 본문을 주기마다 돌려 줄이 있을 때만 쓴다.
+#     같은 일(종류+대상. 값이 바뀌어도)은 --repeat-min 안에 한 번만. LOAD_* 는 종류만, BAND_CHANGED 는 줄 전체로 가린다.
 set -uo pipefail
 `;
 

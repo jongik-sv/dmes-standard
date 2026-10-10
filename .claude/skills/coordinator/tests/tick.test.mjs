@@ -8,7 +8,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { COORD_ROOT } from './support/rng.mjs';
-import { ctxOver, filterRepeats, laneTokens } from '../scripts/tick.mjs';
+import { WATCH_INTERVAL_DEFAULT, ctxOver, filterRepeats, laneTokens, repeatKey } from '../scripts/tick.mjs';
 
 const TICK = join(COORD_ROOT, 'scripts', 'tick.mjs');
 const CSTATE = join(COORD_ROOT, 'scripts', 'coord-state.mjs');
@@ -293,6 +293,35 @@ test('filterRepeats: repeat-min 안의 같은 줄은 거르고 지난 줄은 다
   assert.deepEqual(filterRepeats(['a'], m, 16 * 60000, 15), ['a']);
   assert.equal(m.has('b'), false);
   assert.deepEqual(filterRepeats(['a'], m, 16 * 60000, 0), ['a']);
+});
+
+test('filterRepeats: 값만 바뀐 같은 일(종류+대상)은 repeat-min 안에 다시 쓰지 않는다', () => {
+  const m = new Map();
+  assert.deepEqual(filterRepeats(['CTX_OVER a1 pct=41 thr=40 tokens=82000 max=-'], m, 0, 15), ['CTX_OVER a1 pct=41 thr=40 tokens=82000 max=-']);
+  assert.deepEqual(filterRepeats(['CTX_OVER a1 pct=42 thr=40 tokens=84000 max=-'], m, 5 * 60000, 15), []);
+  assert.deepEqual(filterRepeats(['UNACKED i-1 a1 20m', 'UNACKED i-1 a1 25m'], m, 6 * 60000, 15), ['UNACKED i-1 a1 20m']);
+  assert.deepEqual(filterRepeats(['LOAD_HARD per_core=2.1'], m, 0, 15), ['LOAD_HARD per_core=2.1']);
+  assert.deepEqual(filterRepeats(['LOAD_HARD per_core=2.4'], m, 5 * 60000, 15), []);
+  assert.deepEqual(filterRepeats(['CTX_OVER a1 pct=43 thr=40 tokens=86000 max=-'], m, 16 * 60000, 15), ['CTX_OVER a1 pct=43 thr=40 tokens=86000 max=-']);
+});
+
+test('filterRepeats: 대상이 다르면 거르지 않고, BAND_CHANGED 는 줄마다 새 일', () => {
+  const m = new Map();
+  assert.deepEqual(filterRepeats(['CTX_OVER a1 pct=41 thr=40 tokens=- max=-'], m, 0, 15).length, 1);
+  assert.deepEqual(filterRepeats(['CTX_OVER a2 pct=41 thr=40 tokens=- max=-', 'STALL a1 cpu_delta=0 quiet=12m', 'STALL? a1 bg=3m'], m, 60000, 15).length, 3);
+  assert.deepEqual(filterRepeats(['BAND_CHANGED G Y five=50 week=40'], m, 0, 15).length, 1);
+  assert.deepEqual(filterRepeats(['BAND_CHANGED Y R five=80 week=60'], m, 60000, 15).length, 1);
+  assert.equal(repeatKey('STALE_RUN r9 session=x idle=130m'), 'STALE_RUN r9');
+  assert.equal(repeatKey('POOL_DONE a1-T3 lane=a1 result=ok fallback=0'), 'POOL_DONE a1-T3');
+  assert.equal(repeatKey('CTX_OVER_SELF pct=41 thr=40 tokens=- max=-'), 'CTX_OVER_SELF');
+  assert.equal(repeatKey('LOAD_RELEASE per_core=0.5'), 'LOAD_RELEASE');
+  assert.equal(repeatKey('ESCALATE h1 permission not-proceed lane=a1'), 'ESCALATE h1 permission not-proceed lane=a1');
+});
+
+test('--watch 기본 주기는 300초이고 도움말에도 적혀 있다', () => {
+  assert.equal(WATCH_INTERVAL_DEFAULT, 300);
+  const r = spawnSync(process.execPath, [TICK, '-h'], { env: { PATH: process.env.PATH }, encoding: 'utf8' });
+  assert.match(r.stdout, /--interval 초\(기본 300\)/);
 });
 
 test('--watch: 회차가 없으면 조용히 0 으로 끝난다', () => {

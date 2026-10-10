@@ -94,6 +94,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
    - 원문: `lanes/<레인>/brief.md`
 6. 감시 시작
    - 이벤트 틱: `Monitor` 로 `node .claude/skills/coordinator/scripts/tick.mjs --watch` 를 백그라운드 감시(줄이 나올 때만 깨움)
+     - 주기 기본 300초(`--interval`). 같은 일(종류+대상)은 15분(`--repeat-min`) 안에 한 번만 나옴
    - 하트비트: `CronCreate` 간격 = `mode.heartbeat_min[모드]`분(token 30·time 15), 고정 문구 그대로
    - `set-many` 로 기록(cron_id·조정 세션 이름·주소. session_id·pid·handle = `init` 이 기록)
    - `node scripts/coord-state.mjs set-many '.run.cron_id' '"<id>"' '.run.coordinator.name' '"<이름>"' '.run.coordinator.addr' '"<주소>"'`
