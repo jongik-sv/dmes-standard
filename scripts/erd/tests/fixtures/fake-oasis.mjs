@@ -3,6 +3,8 @@ import { createServer } from "node:http";
 
 export const success = (result) => ({ status: 200, body: { meta: { success: true }, data: { result } } });
 export const failure = (code, message) => ({ status: 200, body: { meta: { success: false, code, message } } });
+/** 목록 결과(search). OASIS 는 List 를 grids.result.rows 로 싣는다. */
+export const gridSuccess = (rows) => ({ status: 200, body: { meta: { success: true }, data: {}, grids: { result: { rows } } } });
 
 /**
  * @param {(action: string, params: object, req: import("node:http").IncomingMessage) => {status:number, body:any, delayMs?:number}} route

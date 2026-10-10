@@ -140,7 +140,7 @@ test("getDbDiff: 항목 id 와 컬럼 변경 전→후", () => {
   };
   assert.equal(
     formatDbDiff(diff),
-    "# DB 차이 2건 (스키마 MCMAPUSER, 모델 rev 12). 반영은 단계 2 에서 합니다.\n" +
+    "# DB 차이 2건 (스키마 MCMAPUSER, 모델 rev 12). 반영은 m-mdm ERD 화면의 DB 차이 탭에서 합니다.\n" +
       "TABLE_ADDED:TB_MCM_NEW\n" +
       "COLUMN_CHANGED:TB_MCM_SEC_MENU.MENU_NM VARCHAR2(100) NN → VARCHAR2(200) NN",
   );

@@ -434,7 +434,7 @@ function colState(s) {
 export function formatDbDiff(diff) {
   const items = diff.items ?? [];
   if (items.length === 0) return `DB(${diff.schema}) 와 모델(rev ${diff.rev})이 같습니다.`;
-  const lines = [`# DB 차이 ${items.length}건 (스키마 ${diff.schema}, 모델 rev ${diff.rev}). 반영은 단계 2 에서 합니다.`];
+  const lines = [`# DB 차이 ${items.length}건 (스키마 ${diff.schema}, 모델 rev ${diff.rev}). 반영은 m-mdm ERD 화면의 DB 차이 탭에서 합니다.`];
   for (const it of items) {
     lines.push(it.kind === "COLUMN_CHANGED" ? `${it.id} ${colState(it.before)} → ${colState(it.after)}` : it.id);
   }

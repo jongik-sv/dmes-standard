@@ -1,5 +1,7 @@
 // MDM 서버 OASIS erdEdit 를 부르는 작은 클라이언트. scripts/mdm-meta/register-columns.mjs 의 oasis() 와 같은 규칙이다.
 // 로컬 전용 인증(스펙 D12): X-Client-Key + 사용자 헤더. node 18.17 내장 fetch·AbortSignal.timeout 만 쓴다.
+// 모든 요청은 session·source 를 싣는다. 서버는 MCP·CLI 세션을 접속자 목록에 시한 항목으로 둔다(README S2-11).
+import { randomUUID } from "node:crypto";
 
 export const DEFAULTS = Object.freeze({
   base: "http://localhost:8096",
@@ -9,15 +11,53 @@ export const DEFAULTS = Object.freeze({
   timeoutMs: 30000,
 });
 
-/** 환경변수 → 설정. ERD_BASE·ERD_USER·ERD_ROLE·BACKEND_CLIENT_KEY·ERD_SESSION, 비면 기본값. */
-export function configFromEnv(env) {
+/** 서버 SESSION_NM 칸 크기(ErdCommandService·ErdEditService 가 1~100자를 검사한다). */
+export const SESSION_MAX = 100;
+
+/** 이 프로세스의 임의 꼬리표. 세션 이름 규칙 3(CLAUDE_CODE_SESSION_ID 가 없을 때)에 쓴다. 프로세스마다 한 번 정한다. */
+const PROCESS_TAG = randomUUID().slice(0, 8);
+
+/**
+ * 세션 이름(README "MCP·CLI", S2-7).
+ * 1. opts.session(CLI --session)이 있으면 그 값.
+ * 2. ERD_SESSION 이 비어 있지 않고 auto 가 아니면 그 값.
+ * 3. kind mcp: CLAUDE_CODE_SESSION_ID 가 있으면 claude- + 그 값에서 - 를 뺀 앞 8글자(소문자), 없으면 mcp- + 프로세스 임의 8글자.
+ * 4. kind cli: cli- + 사용자.
+ * .mcp.json 이 ${CLAUDE_CODE_SESSION_ID} 를 풀면 바깥 셸 값(중첩 실행이면 부모 세션 id)이 들어온다. 그래서 이름은 여기서
+ * 이 프로세스의 env 로 만든다. Claude Code 는 MCP 프로세스에 자기 세션 id 를 넣는다(조사 C 4.2 실측).
+ */
+export function sessionName(env, { kind = "mcp", session, user } = {}) {
+  const text = (v) => (typeof v === "string" ? v.trim() : "");
+  let name = text(session);
+  if (!name) {
+    const fromEnv = text(env.ERD_SESSION);
+    if (fromEnv && fromEnv !== "auto") name = fromEnv;
+  }
+  if (!name && kind === "cli") name = `cli-${user || text(env.ERD_USER) || DEFAULTS.user}`;
+  if (!name) {
+    const claude = text(env.CLAUDE_CODE_SESSION_ID).replace(/-/g, "").toLowerCase();
+    name = claude ? `claude-${claude.slice(0, 8)}` : `mcp-${PROCESS_TAG}`;
+  }
+  if (name.length > SESSION_MAX) {
+    throw new Error(`세션 이름은 1~${SESSION_MAX}자입니다(${name.length}자): ${name.slice(0, 40)}…`);
+  }
+  return name;
+}
+
+/**
+ * 환경변수 → 설정. ERD_BASE·ERD_USER·ERD_ROLE·BACKEND_CLIENT_KEY·ERD_SESSION, 비면 기본값.
+ * opts.kind: "mcp"(기본, source MCP) | "cli"(source CLI). opts.session: CLI --session.
+ */
+export function configFromEnv(env, opts = {}) {
+  const kind = opts.kind === "cli" ? "cli" : "mcp";
   const user = env.ERD_USER || DEFAULTS.user;
   return {
     base: (env.ERD_BASE || DEFAULTS.base).replace(/\/+$/, ""),
     clientKey: env.BACKEND_CLIENT_KEY || DEFAULTS.clientKey,
     user,
     role: env.ERD_ROLE || DEFAULTS.role,
-    session: env.ERD_SESSION || `mcp-${user}`,
+    session: sessionName(env, { kind, session: opts.session, user }),
+    source: kind === "cli" ? "CLI" : "MCP",
     timeoutMs: DEFAULTS.timeoutMs,
   };
 }
@@ -48,9 +88,9 @@ export function compact(o) {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null && v !== undefined));
 }
 
-/** @returns {{config: object, call: (action: string, params: object) => Promise<any>}} */
+/** @returns {{config: object, call: (action: string, params: object) => Promise<any>, rows: (action: string, params: object) => Promise<any[]>}} */
 export function createOasisClient(config, fetchImpl = globalThis.fetch) {
-  async function call(action, params = {}) {
+  async function post(action, params) {
     const url = `${config.base}/api/mdm/oasis/erdEdit/${action}`;
     let res;
     let text;
@@ -64,7 +104,8 @@ export function createOasisClient(config, fetchImpl = globalThis.fetch) {
           "X-Authenticated-User": config.user,
           "X-Authenticated-Role": config.role,
         },
-        body: JSON.stringify({ meta: { menuId: "erdEdit" }, params: compact(params) }),
+        // 세션·출처를 먼저 두고 params 로 덮는다(호출자가 준 값이 이긴다).
+        body: JSON.stringify({ meta: { menuId: "erdEdit" }, params: compact({ session: config.session, source: config.source, ...params }) }),
       });
       text = await res.text(); // 본문 읽기도 같은 시간 제한 안에서
     } catch (e) {
@@ -86,9 +127,19 @@ export function createOasisClient(config, fetchImpl = globalThis.fetch) {
         status: res.status,
       });
     }
+    return body;
+  }
+  async function call(action, params = {}) {
+    const body = await post(action, params);
     return body.data?.result ?? body.data ?? {};
   }
-  return { config, call };
+  /** 목록을 돌려주는 액션(search). OASIS 는 List 결과를 data.result 가 아니라 grids.result.rows 로 싣는다. */
+  async function rows(action, params = {}) {
+    const body = await post(action, params);
+    const list = body.grids?.result?.rows ?? body.data?.result;
+    return Array.isArray(list) ? list : [];
+  }
+  return { config, call, rows };
 }
 
 /** 오류를 LLM 이 다음에 할 일까지 읽을 수 있는 문장으로(스펙 4.5). */
@@ -102,6 +153,9 @@ export function describeError(e, config) {
     }
     if (e.code === "MDM029") {
       return `[MDM029] ${e.message}\n다음: modelId 를 확인하세요. 모델 목록은 m-mdm ERD 화면에서 보거나 OASIS erdEdit/search 로 읽습니다.`;
+    }
+    if (e.code === "MDM003" || e.code === "MDM002") {
+      return `[${e.code}] ${e.message}\n다음: getModelText 머리줄로 DRAFT 인지 보고, 소유자·공동 편집자인지 확인하세요. 둘 다 맞는데 이 오류면 그사이 DRAFT 소유자나 상태가 바뀐 것이니 다시 읽고 한 번만 다시 보내세요. 아니면 사용자에게 DRAFT 선점·공동 편집자 등록을 부탁하세요.`;
     }
     return `[${e.code ?? `HTTP ${e.status}`}] ${e.message}\n다음: 입력을 고쳐 다시 부르세요. 같은 오류가 이어지면 사용자에게 서버 로그 확인을 부탁하세요.`;
   }

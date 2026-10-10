@@ -136,3 +136,25 @@ Ref TB_MCM_SEC_USER_FAVORITE.MENU_ID > TB_MCM_SEC_MENU.MENU_ID INFERRED (NAME_RU
 Ref TB_MCM_SEC_USER_FAVORITE.USER_ID > TB_MCM_SEC_USER.USER_ID CONFIRMED (DOC csa-menu.dbml:512)
 Ref TB_MCM_SEC_USER_WIDGET.(USER_ID, TAB_ID) > TB_MCM_SEC_USER_WIDGET_TAB.(USER_ID, TAB_ID) DB (DB_FK FK_TB_MCM_SEC_USER_WIDGET_TAB)
 Ref TB_MCM_SEC_USER_WIDGET.USER_ID > TB_MCM_SEC_USER.USER_ID INFERRED (SQL_JOIN WidgetRepo.java:41, NAME_RULE)`;
+
+// 단계 2: 변경 델타와 쓰기 결과(README "인터페이스 (정본)" 의 ErdDelta·ErdApplyResult 모양). VIEW 는 rev 12 이고, 아래는 그 뒤를 꾸민다.
+const stamp = (rev, session, ...props) => Object.fromEntries(props.map((p) => [p, { rev, session }]));
+/** 화면 세션이 rev 11 에 TB_MCM_SEC_OBJ 의 논리명을 바꿨다. */
+export const DELTA_UI_11 = {
+  modelId: "mcm", rev: 11, userId: "41000207", session: "ui-41000207", source: "UI", rowVersion: null,
+  changes: [{ kind: "table", id: "t-obj", op: "upsert", value: { ...MODEL.tables["t-obj"], logical: "오브젝트표", _rev: stamp(11, "ui-41000207", "logical") } }],
+};
+/** MCP 세션 claude-test 가 rev 13 에 MENU_NM 논리명을 바꿨다. */
+export const DELTA_ME_13 = {
+  modelId: "mcm", rev: 13, userId: "41000207", session: "claude-test", source: "MCP", rowVersion: null,
+  changes: [{ kind: "column", id: "c-m3", op: "upsert", value: { ...MODEL.columns["c-m3"], logical: "메뉴이름", _rev: stamp(13, "claude-test", "logical") } }],
+};
+/** save 반영 결과: rev 13, MENU_NM 논리명. */
+export const APPLIED_13 = {
+  applied: true, rev: 13, rowVersion: 4, dryRun: false, changes: DELTA_ME_13.changes, warnings: [], rejection: null,
+};
+/** CONFLICT 거절 정본 예(README). byUserId 를 싣는다. */
+export const CONFLICT_REJECTION = {
+  code: "CONFLICT", commandIndex: 0, message: "다른 세션이 먼저 바꾼 값입니다", hint: "getChangesSince(10) 로 바뀐 값을 읽고 다시 보내세요",
+  elementId: "c-m3", property: "logical", byRev: 11, bySession: "ui-41000207", byUserId: "41000207", current: "메뉴명", choices: null, ownerId: null,
+};

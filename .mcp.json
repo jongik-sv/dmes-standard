@@ -8,7 +8,7 @@
         "ERD_USER": "${ERD_USER:-erd-mcp}",
         "ERD_ROLE": "${ERD_ROLE:-MDM_STEWARD}",
         "BACKEND_CLIENT_KEY": "${BACKEND_CLIENT_KEY:-dmes-bff-local-client-key-2026}",
-        "ERD_SESSION": "${ERD_SESSION:-claude-erd}"
+        "ERD_SESSION": "${ERD_SESSION:-auto}"
       }
     }
   }
