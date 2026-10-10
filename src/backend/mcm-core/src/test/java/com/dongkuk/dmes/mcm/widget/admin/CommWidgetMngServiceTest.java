@@ -383,7 +383,7 @@ class CommWidgetMngServiceTest {
     void querySaveWithParams() {
         when(defRepository.existsById(anyString())).thenReturn(false);
         String sql = "select a from t where plant = :plant and dt >= :from_dt";
-        when(queryRunner.validateSql(sql, Set.of("plant", "from_dt"))).thenReturn(List.of("plant", "from_dt"));
+        when(queryRunner.validateSql(sql, Set.of("plant", "from_dt"), Set.of())).thenReturn(List.of("plant", "from_dt"));
         WidgetDefSaveRequest r = defReq("query-table", "{\"sql\":\"" + sql + "\",\"params\":["
                 + "{\"name\":\"plant\",\"type\":\"select\",\"options\":[{\"value\":\"P1\"}],\"default\":\"P1\"},"
                 + "{\"name\":\"from_dt\",\"type\":\"date\",\"label\":\"시작일\",\"required\":true,\"default\":\"2026-10-01\"}]}");
@@ -391,7 +391,7 @@ class CommWidgetMngServiceTest {
 
         service.save(r);
 
-        verify(queryRunner).validateSql(sql, Set.of("plant", "from_dt"));
+        verify(queryRunner).validateSql(sql, Set.of("plant", "from_dt"), Set.of());
         verify(queryRunner, never()).validateSql(anyString());
     }
 
@@ -399,7 +399,7 @@ class CommWidgetMngServiceTest {
     @DisplayName("선언했지만 SQL 에 없는 조건은 거절한다")
     void queryUnusedParamRejected() {
         String sql = "select a from t where plant = :plant";
-        when(queryRunner.validateSql(sql, Set.of("plant", "extra"))).thenReturn(List.of("plant"));
+        when(queryRunner.validateSql(sql, Set.of("plant", "extra"), Set.of())).thenReturn(List.of("plant"));
         WidgetDefSaveRequest r = defReq("query-table", "{\"sql\":\"" + sql + "\",\"params\":["
                 + "{\"name\":\"plant\",\"type\":\"text\"},{\"name\":\"extra\",\"type\":\"text\"}]}");
         r.setDataSrc("mcm");

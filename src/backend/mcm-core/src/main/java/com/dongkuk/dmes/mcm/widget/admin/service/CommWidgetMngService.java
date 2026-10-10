@@ -10,6 +10,7 @@ import com.dongkuk.dmes.mcm.widget.def.entity.WidgetDef;
 import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
 import com.dongkuk.dmes.mcm.widget.def.service.WidgetDefMaps;
 import com.dongkuk.dmes.mcm.widget.query.WidgetQueryResult;
+import com.dongkuk.dmes.mcm.widget.query.QueryCodeLookup;
 import com.dongkuk.dmes.mcm.widget.query.WidgetQueryRunner;
 import java.security.SecureRandom;
 import java.util.ArrayList;
@@ -48,8 +49,15 @@ public class CommWidgetMngService {
     private final WidgetDefRepository defRepository;
     private final WidgetUsageRepository usageRepository;
     private final WidgetQueryRunner queryRunner;
+    /** 코드 그룹 조건(codeGroup) 저장 검사 — 없으면 codeGroup 이 있는 위젯은 저장할 수 없다(실패 닫힘). */
+    private QueryCodeLookup codeLookup;
     private final ApplicationEventPublisher eventPublisher;
     private final SecureRandom random = new SecureRandom();
+
+    @Autowired(required = false)
+    public void setCodeLookup(QueryCodeLookup codeLookup) {
+        this.codeLookup = codeLookup;
+    }
 
     @Autowired
     public CommWidgetMngService(WidgetDefRepository defRepository,
@@ -143,7 +151,7 @@ public class CommWidgetMngService {
             }
             configJson = blankToNull(request.getConfigJson());
             if (configJson == null) configJson = "{}";
-            dataSrc = WidgetDefConfigRules.check(typeId, request.getDataSrc(), configJson, queryRunner);
+            dataSrc = WidgetDefConfigRules.check(typeId, request.getDataSrc(), configJson, queryRunner, codeLookup);
             if (widgetId == null) {
                 row = new WidgetDef();
                 widgetId = newDefinitionId();

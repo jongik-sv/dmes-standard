@@ -75,6 +75,8 @@ public final class SqlGuard {
     static final String MSG_DB_PLACEHOLDER =
             "DB 고유 자리표시자(\\:이름, @이름, $이름, $숫자)는 쓸 수 없습니다. 조건은 :이름 으로만 씁니다";
     static final String MSG_DB_LINK = "DB 링크(이름@링크)는 쓸 수 없습니다";
+    static final String MSG_LIST_POSITION_PREFIX = "다중 선택 조건 :";
+    static final String MSG_LIST_POSITION_SUFFIX = " 은(는) IN (:이름) 또는 NOT IN (:이름) 자리에만 쓸 수 있습니다";
     static final String MSG_INLINE_PLSQL = "WITH 안의 PL/SQL 함수·프로시저 선언은 쓸 수 없습니다";
 
     /**
@@ -236,12 +238,22 @@ public final class SqlGuard {
      * 선언 이름 중 시스템 변수와 같은 것은 시스템 변수로만 읽는다(호출 전에 걸러지지만 여기서도 사용자 바인드로 바꾸지 않는다).
      */
     public static Validated checkDeclared(String sql, Set<String> declaredNames) {
+        return checkDeclared(sql, declaredNames, Set.of());
+    }
+
+    /**
+     * {@link #checkDeclared(String, Set)} + 다중 선택(multi) 이름 제한. listNames 의 이름은 가린 사본에서 {@code IN (:이름)}·
+     * {@code NOT IN (:이름)} 자리에만 쓸 수 있다 — 목록은 {@code ?, ?, …} 로 펼쳐지므로 {@code :x IS NULL}·{@code = :x}·함수 인자 같은
+     * 자리는 문법이 깨지거나 뜻이 바뀐다. 판정은 두 가린 사본(대괄호 식별자 두 해석) 모두에서 하고, 주석·글자 안의 {@code IN (:x)} 는 보지 않는다.
+     */
+    public static Validated checkDeclared(String sql, Set<String> declaredNames, Set<String> listNames) {
         Set<String> declared = declaredNames == null ? Set.of() : declaredNames;
+        Set<String> lists = listNames == null ? Set.of() : listNames;
         if (sql == null || sql.isBlank()) throw invalid(MSG_EMPTY);
 
         // 대괄호를 식(배열 첨자)으로 읽는 쪽(PostgreSQL·Oracle·H2·Spring 변수 해석)과 식별자로 읽는 쪽(SQLite·MSSQL)을 모두 본다.
-        Inspection asExpression = inspect(mask(sql, false), declared);
-        Inspection asIdentifier = inspect(mask(sql, true), declared);
+        Inspection asExpression = inspect(sql, mask(sql, false), declared, lists);
+        Inspection asIdentifier = inspect(sql, mask(sql, true), declared, lists);
         // 두 해석이 지울 끝 ; 자리가 다르면 어느 쪽 문장인지 정할 수 없다 — 여러 문장으로 보고 거절한다.
         if (asExpression.semicolon() != asIdentifier.semicolon()) throw invalid(MSG_MULTI);
 
@@ -274,7 +286,7 @@ public final class SqlGuard {
     private record Inspection(int semicolon, List<String> variables, List<String> userVariables) {}
 
     /** §7.1 2~5단계 — 가린 사본 하나로 판단한다. */
-    private static Inspection inspect(String masked, Set<String> declared) {
+    private static Inspection inspect(String sql, String masked, Set<String> declared, Set<String> lists) {
         // 2. 첫 낱말
         if (!FIRST_WORD.matcher(masked.strip()).find()) throw invalid(MSG_NOT_SELECT);
 
@@ -307,6 +319,9 @@ public final class SqlGuard {
             if (SYSTEM_VARIABLES.contains(name)) {
                 used.add(name);
             } else if (declared.contains(name)) {
+                if (lists.contains(name) && !inListPosition(sql, masked, variable.start(), variable.end())) {
+                    throw invalid(MSG_LIST_POSITION_PREFIX + name + MSG_LIST_POSITION_SUFFIX);
+                }
                 usedUser.add(name);
             } else {
                 String allowed = ":" + String.join(", :", SYSTEM_VARIABLES);
@@ -315,6 +330,31 @@ public final class SqlGuard {
             }
         }
         return new Inspection(semicolon, List.copyOf(new ArrayList<>(used)), List.copyOf(new ArrayList<>(usedUser)));
+    }
+
+    /**
+     * 원문에서 [start, end) 의 변수가 {@code IN (변수)} 한 칸짜리 목록 자리인가 — 바로 앞이 {@code IN (}(공백만 사이), 바로 뒤가 {@code )}.
+     * {@code NOT IN} 은 앞 낱말이 IN 이므로 같이 통과한다. 그 밖(대입 비교·IS NULL·함수 인자·쉼표로 이은 목록·괄호 겹침)은 거절한다.
+     * 판정은 <b>원문</b>으로 한다(가린 사본과 글자 위치가 같다) — 가린 사본에서는 리터럴·식별자·주석이 공백이라 {@code 'x'IN(:x)}·
+     * {@code "A"IN(:x)}·{@code IN(/*c*&#47;:x)} 를 목록 자리로 잘못 읽는다. {@code IN} 은 ASCII 두 글자만 인정한다
+     * ({@code Character.toUpperCase('ı')} 가 {@code I} 가 되는 우회 방지). 앞 글자는 시작·공백·{@code )} 만 허용한다.
+     */
+    private static boolean inListPosition(String sql, String masked, int start, int end) {
+        int after = end;
+        while (after < sql.length() && Character.isWhitespace(sql.charAt(after))) after++;
+        if (after >= sql.length() || sql.charAt(after) != ')') return false;
+        int k = start - 1;
+        while (k >= 0 && Character.isWhitespace(sql.charAt(k))) k--;
+        if (k < 0 || sql.charAt(k) != '(' || masked.charAt(k) != '(') return false;
+        k--;
+        while (k >= 0 && Character.isWhitespace(sql.charAt(k))) k--;
+        if (k < 1) return false;
+        char n = sql.charAt(k);
+        char i = sql.charAt(k - 1);
+        if ((n != 'N' && n != 'n') || (i != 'I' && i != 'i')) return false;
+        // 뒤로 훑을 때 줄 주석 안의 IN·( 를 읽지 않는다 — 가린 사본에서 같은 자리가 가려졌으면(주석·리터럴·식별자 안) 거절한다.
+        if (masked.charAt(k) != n || masked.charAt(k - 1) != i) return false;
+        return k < 2 || Character.isWhitespace(sql.charAt(k - 2)) || sql.charAt(k - 2) == ')';
     }
 
     /**

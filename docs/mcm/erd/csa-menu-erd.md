@@ -188,6 +188,7 @@ erDiagram
         varchar40 QUERY_ID PK "쿼리 ID"
         varchar100 QUERY_NM "쿼리 이름"
         varchar20 CATEGORY_CD "분류 (공통코드 USRQ_CTG)"
+        varchar10 MODULE_CD "모듈 (MCM·MDM·MPP·MLS·MQC·MPN, 기본 MCM)"
         varchar500 QUERY_DESC "설명"
         varchar10 OWNER_DEPT_CD "담당 부서 코드 → DEPT_INFO"
         clob SQL_TEXT "조회 SQL"

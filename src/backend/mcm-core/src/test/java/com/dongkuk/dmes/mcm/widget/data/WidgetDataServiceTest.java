@@ -89,9 +89,9 @@ class WidgetDataServiceTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "[\"a\"]", "\"x\"", "12", "not json", "{\"a\":[\"x\",\"y\"]}", "{\"a\":{\"b\":1}}",
+            "[\"a\"]", "\"x\"", "12", "not json", "{\"a\":[1,2]}", "{\"a\":{\"b\":1}}",
             "{\"a\":\"1\",\"a\":\"2\"}", "{\"a\":\"1\"} junk"})
-    @DisplayName("paramsJson 이 객체가 아니거나 값이 배열·객체이거나 겹친 키·군더더기가 있으면 실행기를 부르지 않고 거절한다")
+    @DisplayName("paramsJson 이 객체가 아니거나 값이 객체·숫자 배열·빈 배열이거나 겹친 키·군더더기가 있으면 실행기를 부르지 않고 거절한다")
     void rejectsNonScalarValues(String paramsJson) {
         WidgetDataRunRequest r = request("def.k3x9q2ab");
         r.setParamsJson(paramsJson);
@@ -101,10 +101,10 @@ class WidgetDataServiceTest {
     }
 
     @Test
-    @DisplayName("paramsJson 이 4000자를 넘으면 거절한다")
+    @DisplayName("paramsJson 이 16000자를 넘으면 거절한다")
     void rejectsTooLongParamsJson() {
         WidgetDataRunRequest r = request("def.k3x9q2ab");
-        r.setParamsJson("{\"a\":\"" + "x".repeat(4000) + "\"}");
+        r.setParamsJson("{\"a\":\"" + "x".repeat(16000) + "\"}");
         assertThatThrownBy(() -> service.run(r)).isInstanceOf(BusinessException.class).hasMessageContaining("너무 깁니다");
         verifyNoInteractions(queryRunner);
     }

@@ -28,7 +28,7 @@ public interface WidgetQueryRunner {
      * @param maxRows 행 상한(위젯 500, 챗봇 도구 50)
      * @param values  입력 조건 이름 → 글자 값. 정의에 선언되지 않은 이름·SQL 이 쓰지 않는 이름은 읽지 않는다
      */
-    WidgetQueryResult runDefinition(String defId, int maxRows, Map<String, String> values);
+    WidgetQueryResult runDefinition(String defId, int maxRows, Map<String, ?> values);
 
     /**
      * 관리자 저장 전 시험 실행(commWidgetMng/previewQuery). 같은 SQL 검사를 거치고 결과 캐시를 쓰지 않는다.
@@ -59,6 +59,12 @@ public interface WidgetQueryRunner {
     List<String> validateSql(String sql, Set<String> declaredNames);
 
     /**
+     * {@link #validateSql(String, Set)} + 다중 선택(multi) 이름 제한 — listNames 의 이름은 {@code IN (:이름)}·{@code NOT IN (:이름)} 자리에만
+     * 쓸 수 있다. 구현이 이 제한을 빠뜨리지 않게 기본 구현을 두지 않는다.
+     */
+    List<String> validateSql(String sql, Set<String> declaredNames, Set<String> listNames);
+
+    /**
      * 정시 수집 SQL 저장 전 검사(스펙 2026-10-05 정시 수집 §2) — {@link #validateSql(String)} 와 같고, 수집에는 사용자가 없으므로
      * {@code :userId}·{@code :deptCd} 를 거절한다. 사용자 입력 조건({@code :name})도 없다.
      */
@@ -86,7 +92,7 @@ public interface WidgetQueryRunner {
      * @param values        입력 조건 이름 → 글자 값. 정의에 선언되지 않은 이름은 읽지 않는다
      * @param maxRows       행 상한(1~{@value #MAX_ROWS})
      */
-    WidgetQueryResult run(String sql, String paramDefsJson, Map<String, String> values, int maxRows);
+    WidgetQueryResult run(String sql, String paramDefsJson, Map<String, ?> values, int maxRows);
 
     /** {@link #run} 의 행 상한 — 공용 쿼리 정의 MAX_ROW_CNT 의 CHECK 상한(V13)과 같다. */
     int MAX_ROWS = 5000;

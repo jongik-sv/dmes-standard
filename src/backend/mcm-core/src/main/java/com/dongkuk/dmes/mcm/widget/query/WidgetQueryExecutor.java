@@ -32,6 +32,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -109,6 +110,7 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     static final String MSG_REQUIRE_DEDICATED =
             "이 서버는 쿼리 위젯에 읽기 전용 계정의 전용 연결(dmes.widget.query.datasource)을 요구합니다(dmes.widget.query.require-dedicated)"
                     + " — 읽기 권한만 가진 계정을 쓰고, 그 계정에 자율 트랜잭션 함수의 EXECUTE 권한과 DB 링크를 주지 마세요";
+    static final String MSG_CODE_LOOKUP_FAILED = "코드 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요";
     static final String MSG_DB_UNAVAILABLE = "쿼리 위젯 DB 에 연결하지 못했습니다";
 
     private static final DateTimeFormatter YMD = DateTimeFormatter.ofPattern("yyyyMMdd");
@@ -123,6 +125,8 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     private final boolean requireDedicated;
     private final LimitedJdbcTemplate jdbc;
     private final Clock clock;
+    /** 코드 그룹 조건(codeGroup)의 항목 확인 — 없으면 codeGroup 값이 있는 실행은 거절한다(실패 닫힘). */
+    private QueryCodeLookup codeLookup;
     private final Map<CacheKey, CachedResult> cache = new ConcurrentHashMap<>();
 
     /**
@@ -154,8 +158,13 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
         this.clock = clock;
     }
 
+    @Autowired(required = false)
+    public void setCodeLookup(QueryCodeLookup codeLookup) {
+        this.codeLookup = codeLookup;
+    }
+
     @Override
-    public WidgetQueryResult runDefinition(String defId, int maxRows, Map<String, String> userValues) {
+    public WidgetQueryResult runDefinition(String defId, int maxRows, Map<String, ?> userValues) {
         requireMaxRows(maxRows);
         String id = defId == null ? null : defId.strip();
         if (id == null || id.isEmpty()) throw new BusinessException(ErrorCode.INVALID_VALUE, MSG_NOT_FOUND);
@@ -210,7 +219,7 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     }
 
     @Override
-    public WidgetQueryResult run(String sql, String paramDefsJson, Map<String, String> values, int maxRows) {
+    public WidgetQueryResult run(String sql, String paramDefsJson, Map<String, ?> values, int maxRows) {
         requireMaxRows(maxRows);
         if (maxRows > WidgetQueryRunner.MAX_ROWS) {
             throw new IllegalArgumentException("행 상한은 " + WidgetQueryRunner.MAX_ROWS + " 이하여야 합니다: " + maxRows);
@@ -219,7 +228,7 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
         SqlGuard.Validated validated;
         try {
             defs = QueryParams.fromDefsJson(paramDefsJson);
-            validated = guard(sql, QueryParams.names(defs)); // 어느 DB 에나 적용하는 정적 검사 — 정의 오류
+            validated = guard(sql, QueryParams.names(defs), QueryParams.listNames(defs)); // 어느 DB 에나 적용하는 정적 검사 — 정의 오류
         } catch (RuntimeException e) {
             throw new WidgetQueryRunException(WidgetQueryRunException.Kind.DEFINITION, e);
         }
@@ -229,7 +238,7 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
             throw new WidgetQueryRunException(WidgetQueryRunException.Kind.EXECUTION, e);
         }
         // 입력 값 해석 — 사용자에게 보여도 되는 BusinessException(REQUIRED_VALUE·INVALID_VALUE)이 그대로 나간다(§5).
-        Map<String, QueryParams.Bound> userBinds = QueryParams.resolve(defs, validated.userVariables(), values, false);
+        Map<String, QueryParams.Bound> userBinds = resolveBinds(defs, validated.userVariables(), values, false);
         Map<String, Object> systemVals;
         try {
             systemVals = systemValues(validated.variables()); // 인증 컨텍스트·사용자 조회 실패도 EXECUTION
@@ -245,23 +254,28 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
 
     @Override
     public void validateSql(String sql) {
-        validate(sql, Set.of());
+        validate(sql, Set.of(), Set.of());
     }
 
     @Override
     public List<String> validateSql(String sql, Set<String> declaredNames) {
-        return validate(sql, declaredNames).userVariables();
+        return validate(sql, declaredNames, Set.of()).userVariables();
+    }
+
+    @Override
+    public List<String> validateSql(String sql, Set<String> declaredNames, Set<String> listNames) {
+        return validate(sql, declaredNames, listNames).userVariables();
     }
 
     @Override
     public void validateCollectSql(String sql) {
-        requireNoUserVariables(validate(sql, Set.of()));
+        requireNoUserVariables(validate(sql, Set.of(), Set.of()));
     }
 
     @Override
     public WidgetQueryResult runCollect(String sql, int maxRows) {
         requireMaxRows(maxRows);
-        SqlGuard.Validated validated = validate(sql, Set.of());
+        SqlGuard.Validated validated = validate(sql, Set.of(), Set.of());
         requireNoUserVariables(validated);
         Map<String, Object> values = systemValues(validated.variables()); // 사용자 변수가 없으니 인증 컨텍스트를 읽지 않는다
         try {
@@ -274,19 +288,50 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
         }
     }
 
+    /** 입력 값 해석 — 기본값의 상대 날짜는 실행기 시계의 Asia/Seoul 오늘, 코드 그룹 값은 {@link QueryCodeLookup} 항목으로 확인한다. */
+    private Map<String, QueryParams.Bound> resolveBinds(List<QueryParam> defs, Collection<String> used, Map<String, ?> values,
+                                                        boolean lenient) {
+        return QueryParams.resolve(defs, used, values, lenient, LocalDate.ofInstant(clock.instant(), ZONE), safeLookup());
+    }
+
+    /**
+     * 코드 조회가 DB 오류로 실패하면 실패 닫힘 — 원인(DB 메시지)은 서버 로그에만 남기고 사용자에게는 안전한 문구의 BusinessException 을 던진다
+     * (그대로 나가면 일반 RuntimeException 이라 호출자가 안전 문구로 바꾸지 못한다).
+     */
+    private QueryCodeLookup safeLookup() {
+        QueryCodeLookup lookup = codeLookup;
+        if (lookup == null) return null;
+        return new QueryCodeLookup() {
+            @Override
+            public Set<String> items(String groupCd) {
+                try {
+                    return lookup.items(groupCd);
+                } catch (RuntimeException e) {
+                    log.warn("코드 그룹 조회 실패 group={} 원인={}", groupCd, rootMessage(e));
+                    throw new BusinessException(ErrorCode.BUSINESS_ERROR, MSG_CODE_LOOKUP_FAILED);
+                }
+            }
+
+            @Override
+            public boolean groupExists(String groupCd) {
+                return lookup.groupExists(groupCd);
+            }
+        };
+    }
+
     /** 검사 → 입력 값 해석 → 시스템 변수까지의 공통 단계를 마친 결과(스펙 2026-10-10-user-query-program-design §5). */
     private record Prepared(SqlGuard.Validated validated, Map<String, QueryParams.Bound> userBinds,
                             Map<String, Object> systemValues) {}
 
     /** 공통 단계 — SqlGuard 검사 → 입력 값 해석(lenient 여부) → 시스템 변수. runDefinition·preview·run 이 함께 쓴다. */
-    private Prepared prepare(String sql, List<QueryParam> defs, Map<String, String> userValues, boolean lenient) {
-        return prepare(validate(sql, QueryParams.names(defs)), defs, userValues, lenient);
+    private Prepared prepare(String sql, List<QueryParam> defs, Map<String, ?> userValues, boolean lenient) {
+        return prepare(validate(sql, QueryParams.names(defs), QueryParams.listNames(defs)), defs, userValues, lenient);
     }
 
     /** 검사를 마친 뒤의 공통 단계 — {@link #run} 은 예외 종류별 안전 문구(§5·§7) 때문에 단계를 따로 감싼다. */
-    private Prepared prepare(SqlGuard.Validated validated, List<QueryParam> defs, Map<String, String> userValues,
+    private Prepared prepare(SqlGuard.Validated validated, List<QueryParam> defs, Map<String, ?> userValues,
                              boolean lenient) {
-        Map<String, QueryParams.Bound> userBinds = QueryParams.resolve(defs, validated.userVariables(), userValues, lenient);
+        Map<String, QueryParams.Bound> userBinds = resolveBinds(defs, validated.userVariables(), userValues, lenient);
         return new Prepared(validated, userBinds, systemValues(validated.variables()));
     }
 
@@ -380,7 +425,8 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
 
     /**
      * 사용자 입력 조건(userBinds)은 형(number=NUMERIC, 그 밖=VARCHAR)을 붙여 바인드 변수로만 넣는다 — null 에도 형이 붙어 PostgreSQL·H2 가 받는다.
-     * 값은 {@link QueryParams} 가 만든 스칼라(BigDecimal·String·null)뿐이라 이름 붙은 변수 처리가 컬렉션·배열로 펼칠 일이 없다.
+     * 값은 {@link QueryParams} 가 만든 스칼라(BigDecimal·String·null)와 multi 의 불변 글자 목록뿐이다. 목록은 SqlGuard 가 {@code IN (:x)} 자리로
+     * 제한했고 비어 있지 않으며(빈 선택은 {@code [null]}), 원소마다 같은 sqlType 이 붙어 펼쳐진다.
      */
     WidgetQueryResult execute(String sql, Map<String, Object> values, Map<String, QueryParams.Bound> userBinds, int maxRows) {
         MapSqlParameterSource params = new MapSqlParameterSource();
@@ -480,15 +526,15 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
      * </ol>
      * 거절은 {@code BusinessException} 이고 미리보기·실행의 DB 오류 감싸기(쿼리 오류·고정 문구) 밖에서 던진다 — 설정 안내가 그대로 보인다.
      */
-    private SqlGuard.Validated validate(String sql, Set<String> declaredNames) {
-        SqlGuard.Validated validated = guard(sql, declaredNames);
+    private SqlGuard.Validated validate(String sql, Set<String> declaredNames, Set<String> listNames) {
+        SqlGuard.Validated validated = guard(sql, declaredNames, listNames);
         requireRunnableDialect();
         return validated;
     }
 
     /** 어느 DB 에나 적용하는 검사 단계(§7.1) — 연결을 빌리지 않는다. {@link #run} 은 이 단계를 정의 오류로 분류한다. */
-    private static SqlGuard.Validated guard(String sql, Set<String> declaredNames) {
-        SqlGuard.Validated validated = SqlGuard.checkDeclared(sql, declaredNames);
+    private static SqlGuard.Validated guard(String sql, Set<String> declaredNames, Set<String> listNames) {
+        SqlGuard.Validated validated = SqlGuard.checkDeclared(sql, declaredNames, listNames);
         // 사후 검사 — Spring 이 이름 붙은 변수를 ? 로 바꾼 SQL 에 DB 가 따로 읽을 자리표시자가 남지 않았는지.
         SqlGuard.requireNoLeftoverPlaceholders(NamedParameterUtils.substituteNamedParameters(
                 NamedParameterUtils.parseSqlStatement(validated.sql()), new MapSqlParameterSource()));

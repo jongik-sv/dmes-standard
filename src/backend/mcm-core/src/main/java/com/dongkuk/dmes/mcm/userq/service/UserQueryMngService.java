@@ -9,6 +9,7 @@ import com.dongkuk.dmes.mcm.userq.entity.UserQueryDef;
 import com.dongkuk.dmes.mcm.userq.repository.UserQueryAssignRepository;
 import com.dongkuk.dmes.mcm.userq.repository.UserQueryDefRepository;
 import com.dongkuk.dmes.mcm.userq.repository.UserQueryStore;
+import com.dongkuk.dmes.mcm.widget.query.QueryCodeLookup;
 import com.dongkuk.dmes.mcm.widget.query.QueryParam;
 import com.dongkuk.dmes.mcm.widget.query.QueryParams;
 import com.dongkuk.dmes.mcm.widget.query.WidgetQueryResult;
@@ -51,7 +52,12 @@ public class UserQueryMngService {
     static final int MAX_DEPTS = 50;
     private static final Pattern QUERY_ID = Pattern.compile("^[A-Z][A-Z0-9_]{2,39}$");
     private static final Set<String> ALIGNS = Set.of("left", "center", "right");
-    private static final Set<String> FORMATS = Set.of("text", "number", "date");
+    private static final Set<String> FORMATS = Set.of("text", "number", "date", "code");
+    /** 모듈 코드 — 예약 작업(JobSchedMngService.MODULES)과 같은 집합. 금지 경로를 건너지 않으려고 따로 둔다. */
+    static final Set<String> MODULES = Set.of("MCM", "MDM", "MPP", "MLS", "MQC", "MPN");
+    /** 출력 서식 mask — 천 단위 구분(#,##) 선택, 정수부 0, 소수 고정(0) 또는 최대(#) 6자리까지. */
+    private static final Pattern MASK = Pattern.compile("^(#,##)?0(\\.(0{1,6}|#{1,6}))?$");
+    private static final Pattern CODE_GROUP = Pattern.compile("^[A-Z][A-Z0-9_]{1,49}$");
     private static final DateTimeFormatter ISO = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
     private static final ObjectMapper JSON = new ObjectMapper();
     /** LIKE 이스케이프 문자 — 스펙 §4.1 SQL 의 ESCAPE '\\' 와 같다. */
@@ -62,6 +68,13 @@ public class UserQueryMngService {
     private final UserQueryStore store;
     private final WidgetQueryRunner queryRunner;
     private final DeptInfoRepository deptRepository;
+    /** 코드 그룹 조건의 그룹·기본값 확인(저장 때) — 없으면 codeGroup 이 있는 정의는 저장할 수 없다. */
+    private QueryCodeLookup codeLookup;
+
+    @Autowired(required = false)
+    public void setCodeLookup(QueryCodeLookup codeLookup) {
+        this.codeLookup = codeLookup;
+    }
 
     @Autowired
     public UserQueryMngService(UserQueryDefRepository defRepository, UserQueryAssignRepository assignRepository,
@@ -75,14 +88,14 @@ public class UserQueryMngService {
 
     // ── 조회 ─────────────────────────────────────────────────────────
 
-    /** 관리 목록 — 조회조건 5개(분류·이름/ID·사용 여부·담당 부서·할당 사용자). LIKE 값은 여기서 이스케이프한다. */
+    /** 관리 목록 — 조회조건 6개(분류·모듈·이름/ID·사용 여부·담당 부서·할당 사용자). LIKE 값은 여기서 이스케이프한다. */
     public Map<String, Object> search(UserQueryMngRequest req) {
         String keyword = escapeLike(blankToNull(req.getKeyword()));
         String ownerDept = escapeLike(blankToNull(req.getOwnerDept()));
         String assignUser = escapeLike(blankToNull(req.getAssignUser()));
         List<Map<String, Object>> rows = new ArrayList<>();
-        for (Object[] r : store.search(blankToNull(req.getCategoryCd()), keyword, blankToNull(req.getUseYn()),
-                ownerDept, assignUser, blankToNull(req.getOwnerDept()))) {
+        for (Object[] r : store.search(blankToNull(req.getCategoryCd()), blankToNull(req.getModuleCd()), keyword,
+                blankToNull(req.getUseYn()), ownerDept, assignUser, blankToNull(req.getOwnerDept()))) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("queryId", r[0]);
             m.put("queryNm", r[1]);
@@ -94,6 +107,7 @@ public class UserQueryMngService {
             m.put("assignCnt", r[7] == null ? 0 : ((Number) r[7]).intValue());
             m.put("uAt", iso(r[8]));
             m.put("uUsrId", r[9]);
+            m.put("moduleCd", r[10]);
             rows.add(m);
         }
         return Map.of("rows", rows);
@@ -106,6 +120,7 @@ public class UserQueryMngService {
         view.put("queryId", def.getQueryId());
         view.put("queryNm", def.getQueryNm());
         view.put("categoryCd", def.getCategoryCd());
+        view.put("moduleCd", def.getModuleCd());
         view.put("queryDesc", def.getQueryDesc());
         view.put("ownerDeptCd", def.getOwnerDeptCd());
         view.put("ownerDeptNm", def.getOwnerDeptCd() == null ? null : store.deptNm(def.getOwnerDeptCd()));
@@ -136,8 +151,8 @@ public class UserQueryMngService {
     /** 저장 전 검사 — SQL 이 쓰는 사용자 바인드 이름(처음 나온 순서). */
     public Map<String, Object> validate(UserQueryMngRequest req) {
         String sqlText = requireText(req.getSqlText(), null, "조회 SQL");
-        Set<String> declared = QueryParams.names(QueryParams.fromDefsJson(blankToNull(req.getParamsJson())));
-        return Map.of("binds", queryRunner.validateSql(sqlText, declared));
+        List<QueryParam> params = QueryParams.fromDefsJson(blankToNull(req.getParamsJson()));
+        return Map.of("binds", queryRunner.validateSql(sqlText, QueryParams.names(params), QueryParams.listNames(params)));
     }
 
     // ── 저장·삭제 ─────────────────────────────────────────────────────
@@ -163,13 +178,19 @@ public class UserQueryMngService {
             throw new BusinessException(ErrorCode.INVALID_VALUE, "사용 여부는 Y·N 이어야 합니다");
         }
         String categoryCd = optional(req.getCategoryCd(), 20, "분류");
+        String moduleCd = blankToNull(req.getModuleCd());
+        if (moduleCd == null) throw new BusinessException(ErrorCode.REQUIRED_VALUE, "모듈 이(가) 없습니다");
+        if (!MODULES.contains(moduleCd)) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE, "모듈은 " + String.join("·", MODULES.stream().sorted().toList()) + " 중 하나여야 합니다");
+        }
         String queryDesc = optional(req.getQueryDesc(), 500, "설명");
         String ownerDeptCd = optional(req.getOwnerDeptCd(), 10, "담당 부서");
         String paramsJson = blankToNull(req.getParamsJson());
         String columnsJson = blankToNull(req.getColumnsJson());
 
-        Set<String> declared = QueryParams.names(QueryParams.fromDefsJson(paramsJson));
-        queryRunner.validateSql(sqlText, declared);
+        List<QueryParam> params = QueryParams.fromDefsJson(paramsJson);
+        QueryParams.requireCodeGroups(params, codeLookup);
+        queryRunner.validateSql(sqlText, QueryParams.names(params), QueryParams.listNames(params));
         validateColumns(columnsJson);
 
         UserQueryDef def = defRepository.findById(queryId).orElse(null);
@@ -183,6 +204,7 @@ public class UserQueryMngService {
         }
         def.setQueryNm(queryNm);
         def.setCategoryCd(categoryCd);
+        def.setModuleCd(moduleCd);
         def.setQueryDesc(queryDesc);
         def.setOwnerDeptCd(ownerDeptCd);
         def.setSqlText(sqlText);
@@ -361,7 +383,47 @@ public class UserQueryMngService {
             if (width != null && !width.canConvertToInt()) {
                 throw new BusinessException(ErrorCode.INVALID_VALUE, "출력 정의의 width 는 숫자여야 합니다");
             }
+            validateFormatKeys(col);
         }
+    }
+
+    /** 서식 칸(2차 스펙 §2.4) — mask·sum 은 number 전용, codeGroup·badge 는 code 전용. 값이 비어 있으면(null) 쓰지 않은 것이다. */
+    private static void validateFormatKeys(JsonNode col) {
+        JsonNode format = col.get("format");
+        String f = format != null && format.isTextual() ? format.asText() : null;
+        JsonNode mask = col.get("mask");
+        if (isSet(mask)) {
+            if (!mask.isTextual() || mask.asText().length() > 20 || !MASK.matcher(mask.asText()).matches()) {
+                throw new BusinessException(ErrorCode.INVALID_VALUE, "출력 정의의 mask 는 #,##0 · #,##0.0 · 0.00 같은 20자 이하 서식이어야 합니다");
+            }
+            if (!"number".equals(f)) throw new BusinessException(ErrorCode.INVALID_VALUE, "출력 정의의 mask 는 number 형식에만 쓸 수 있습니다");
+        }
+        JsonNode sum = col.get("sum");
+        if (isSet(sum)) {
+            if (!sum.isBoolean()) throw new BusinessException(ErrorCode.INVALID_VALUE, "출력 정의의 sum 은 true 또는 false 여야 합니다");
+            if (sum.asBoolean() && !"number".equals(f)) {
+                throw new BusinessException(ErrorCode.INVALID_VALUE, "출력 정의의 sum 은 number 형식에만 쓸 수 있습니다");
+            }
+        }
+        JsonNode codeGroup = col.get("codeGroup");
+        if (isSet(codeGroup)) {
+            // 열의 codeGroup 은 표시용이라 그룹 존재 검사는 하지 않는다(형식만).
+            if (!codeGroup.isTextual() || !CODE_GROUP.matcher(codeGroup.asText()).matches()) {
+                throw new BusinessException(ErrorCode.INVALID_VALUE, "출력 정의의 codeGroup 형식이 올바르지 않습니다");
+            }
+            if (!"code".equals(f)) throw new BusinessException(ErrorCode.INVALID_VALUE, "출력 정의의 codeGroup 은 code 형식에만 쓸 수 있습니다");
+        }
+        JsonNode badge = col.get("badge");
+        if (isSet(badge)) {
+            if (!badge.isBoolean()) throw new BusinessException(ErrorCode.INVALID_VALUE, "출력 정의의 badge 는 true 또는 false 여야 합니다");
+            if (badge.asBoolean() && !"code".equals(f)) {
+                throw new BusinessException(ErrorCode.INVALID_VALUE, "출력 정의의 badge 는 code 형식에만 쓸 수 있습니다");
+            }
+        }
+    }
+
+    private static boolean isSet(JsonNode node) {
+        return node != null && !node.isNull();
     }
 
     private static void checkEnum(JsonNode col, String name, Set<String> allowed) {

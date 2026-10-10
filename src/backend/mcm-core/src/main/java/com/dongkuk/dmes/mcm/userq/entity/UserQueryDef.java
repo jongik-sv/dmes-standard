@@ -32,6 +32,10 @@ public class UserQueryDef extends McmAuditEntity {
     @Column(name = "QUERY_DESC", length = 500)
     private String queryDesc;
 
+    /** 모듈 코드 — MCM·MDM·MPP·MLS·MQC·MPN(예약 작업과 같은 집합). */
+    @Column(name = "MODULE_CD", length = 10, nullable = false)
+    private String moduleCd = "MCM";
+
     /** 담당 부서 — TB_MCM_DEPT_INFO.DEPT_CD 와 같은 길이. 외래 키 없음. */
     @Column(name = "OWNER_DEPT_CD", length = 10)
     private String ownerDeptCd;
@@ -69,6 +73,8 @@ public class UserQueryDef extends McmAuditEntity {
     public void setQueryNm(String queryNm) { this.queryNm = queryNm; }
     public String getCategoryCd() { return categoryCd; }
     public void setCategoryCd(String categoryCd) { this.categoryCd = categoryCd; }
+    public String getModuleCd() { return moduleCd; }
+    public void setModuleCd(String moduleCd) { this.moduleCd = moduleCd; }
     public String getQueryDesc() { return queryDesc; }
     public void setQueryDesc(String queryDesc) { this.queryDesc = queryDesc; }
     public String getOwnerDeptCd() { return ownerDeptCd; }

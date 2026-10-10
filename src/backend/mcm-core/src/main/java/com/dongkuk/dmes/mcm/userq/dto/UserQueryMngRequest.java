@@ -10,6 +10,7 @@ public class UserQueryMngRequest {
     private String queryId;
     private String queryNm;
     private String categoryCd;
+    private String moduleCd;
     private String queryDesc;
     private String ownerDeptCd;
     private String sqlText;
@@ -33,6 +34,8 @@ public class UserQueryMngRequest {
     public void setQueryNm(String queryNm) { this.queryNm = queryNm; }
     public String getCategoryCd() { return categoryCd; }
     public void setCategoryCd(String categoryCd) { this.categoryCd = categoryCd; }
+    public String getModuleCd() { return moduleCd; }
+    public void setModuleCd(String moduleCd) { this.moduleCd = moduleCd; }
     public String getQueryDesc() { return queryDesc; }
     public void setQueryDesc(String queryDesc) { this.queryDesc = queryDesc; }
     public String getOwnerDeptCd() { return ownerDeptCd; }

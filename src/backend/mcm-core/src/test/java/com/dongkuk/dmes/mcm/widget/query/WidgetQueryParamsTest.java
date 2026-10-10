@@ -428,14 +428,14 @@ class WidgetQueryParamsTest {
     }
 
     @Test
-    @DisplayName("QueryParams.parseValues: 스칼라만 받고 배열·객체·잘못된 JSON·겹친 키·군더더기는 거절한다")
+    @DisplayName("QueryParams.parseValues: 스칼라(와 글자 목록)만 받고 객체·잘못된 JSON·겹친 키·군더더기는 거절한다")
     void parseValues() {
         assertThat(QueryParams.parseValues(null)).isEmpty();
         assertThat(QueryParams.parseValues("  ")).isEmpty();
         assertThat(QueryParams.parseValues("null")).isEmpty();
         assertThat(QueryParams.parseValues("{\"a\":\"x\",\"b\":3,\"c\":true,\"d\":null,\"e\":1.50}"))
                 .containsEntry("a", "x").containsEntry("b", "3").containsEntry("c", "true").containsEntry("e", "1.50").doesNotContainKey("d");
-        for (String bad : List.of("[]", "[\"a\"]", "\"s\"", "5", "{\"a\":[1]}", "{\"a\":[]}", "{\"a\":{}}", "{\"a\":\"1\",\"a\":\"2\"}", "{\"a\":1} x", "{", "{\"a\":\"" + "x".repeat(4000) + "\"}")) {
+        for (String bad : List.of("[]", "[\"a\"]", "\"s\"", "5", "{\"a\":[1]}", "{\"a\":{}}", "{\"a\":\"1\",\"a\":\"2\"}", "{\"a\":1} x", "{", "{\"a\":\"" + "x".repeat(16000) + "\"}")) {
             assertThatThrownBy(() -> QueryParams.parseValues(bad)).as(bad.length() > 60 ? "긴 값" : bad)
                     .isInstanceOf(BusinessException.class)
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.INVALID_VALUE));

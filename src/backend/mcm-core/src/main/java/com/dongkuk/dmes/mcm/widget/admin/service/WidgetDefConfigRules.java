@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mcm.widget.admin.service;
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.widget.memo.service.WidgetMemoService;
+import com.dongkuk.dmes.mcm.widget.query.QueryCodeLookup;
 import com.dongkuk.dmes.mcm.widget.query.QueryParam;
 import com.dongkuk.dmes.mcm.widget.query.QueryParams;
 import com.dongkuk.dmes.mcm.widget.query.WidgetQueryRunner;
@@ -36,7 +37,7 @@ final class WidgetDefConfigRules {
      * 쿼리 유형은 config.sql 을 {@link WidgetQueryRunner#validateSql} 로 저장 때도 검사하고, config.params(입력 조건)도 함께 본다(§7.1).
      * 「자동 수집(collect)」 유형은 2026-10-09 부터 저장하지 않는다(예약 작업 COLLECT 로 옮김).
      */
-    static String check(String typeId, String rawDataSrc, String configJson, WidgetQueryRunner queryRunner) {
+    static String check(String typeId, String rawDataSrc, String configJson, WidgetQueryRunner queryRunner, QueryCodeLookup codeLookup) {
         if (configJson.getBytes(StandardCharsets.UTF_8).length > CONFIG_MAX_BYTES) {
             throw invalid("위젯 설정은 200KB 이하로 정합니다.");
         }
@@ -54,7 +55,7 @@ final class WidgetDefConfigRules {
             if (sql == null || !sql.isTextual() || sql.asText().isBlank()) {
                 throw new BusinessException(ErrorCode.REQUIRED_VALUE, "SQL 을 입력해 주세요.");
             }
-            checkQuery(sql.asText(), config.get("params"), queryRunner);
+            checkQuery(sql.asText(), config.get("params"), queryRunner, codeLookup);
             return dataSrc;
         }
         switch (typeId) {
@@ -122,15 +123,17 @@ final class WidgetDefConfigRules {
      * params 모양을 {@link QueryParams#parse} 로 보고, SQL 의 사용자 바인드는 모두 선언되어 있어야 하며(실행기 검사), 선언했지만 SQL 이 쓰지 않는
      * 이름도 거절한다.
      */
-    private static void checkQuery(String sql, JsonNode paramsNode, WidgetQueryRunner queryRunner) {
+    private static void checkQuery(String sql, JsonNode paramsNode, WidgetQueryRunner queryRunner, QueryCodeLookup codeLookup) {
         List<QueryParam> params = QueryParams.parse(paramsNode);
         if (params.isEmpty()) {
             queryRunner.validateSql(sql);
             return;
         }
-        List<String> used = queryRunner.validateSql(sql, QueryParams.names(params));
+        // 코드 그룹(존재·기본값)과 multi 이름의 IN 자리 제한도 저장 때 본다 — 빠지면 저장은 되고 실행마다 실패한다(2차 스펙 §2.6·§3.1).
+        QueryParams.requireCodeGroups(params, codeLookup);
+        List<String> used = queryRunner.validateSql(sql, QueryParams.names(params), QueryParams.listNames(params));
         for (QueryParam param : params) {
-            if (used == null || !used.contains(param.name())) {
+            if (used == null || param.bindNames().stream().noneMatch(used::contains)) {
                 throw invalid("조건 :" + param.name() + " 는 SQL 에서 쓰이지 않습니다. SQL 에 쓰거나 조건을 지워 주세요.");
             }
         }

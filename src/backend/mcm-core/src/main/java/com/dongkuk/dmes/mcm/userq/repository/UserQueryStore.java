@@ -38,6 +38,13 @@ public class UserQueryStore {
     @SuppressWarnings("unchecked")
     public List<Object[]> search(String categoryCd, String keyword, String useYn, String ownerDept, String assignUser,
                                  String ownerDeptCd) {
+        return search(categoryCd, null, keyword, useYn, ownerDept, assignUser, ownerDeptCd);
+    }
+
+    /** {@link #search(String, String, String, String, String, String)} + 모듈 같음 조건(moduleCd). 열 끝에 MODULE_CD 가 더해진다. */
+    @SuppressWarnings("unchecked")
+    public List<Object[]> search(String categoryCd, String moduleCd, String keyword, String useYn, String ownerDept,
+                                 String assignUser, String ownerDeptCd) {
         return em.createNativeQuery("""
                         SELECT A.QUERY_ID
                              , A.QUERY_NM
@@ -51,10 +58,12 @@ public class UserQueryStore {
                                 WHERE  C.QUERY_ID = A.QUERY_ID) ASSIGN_CNT
                              , A.U_AT
                              , A.U_USR_ID
+                             , A.MODULE_CD
                         FROM   MCMAPUSER.TB_MCM_USRQ_DEF A
                              , MCMAPUSER.TB_MCM_DEPT_INFO B
                         WHERE  B.DEPT_CD(+) = A.OWNER_DEPT_CD
                         AND    (:categoryCd IS NULL OR A.CATEGORY_CD = :categoryCd)
+                        AND    (:moduleCd IS NULL OR A.MODULE_CD = :moduleCd)
                         AND    (:useYn IS NULL OR A.USE_YN = :useYn)
                         AND    (:keyword IS NULL
                                 OR UPPER(A.QUERY_ID) LIKE '%' || UPPER(:keyword) || '%' ESCAPE '\\'
@@ -75,6 +84,7 @@ public class UserQueryStore {
                         ORDER BY A.CATEGORY_CD, A.QUERY_NM, A.QUERY_ID
                         """)
                 .setParameter("categoryCd", categoryCd)
+                .setParameter("moduleCd", moduleCd)
                 .setParameter("keyword", keyword)
                 .setParameter("useYn", useYn)
                 .setParameter("ownerDept", ownerDept)
@@ -84,7 +94,7 @@ public class UserQueryStore {
     }
 
     /**
-     * 사용자 목록(§4.2 myList). 열 순서: QUERY_ID, QUERY_NM, CATEGORY_CD, QUERY_DESC. 호출자가 인증 컨텍스트의 사용자만 넘긴다.
+     * 사용자 목록(§4.2 myList). 열 순서: QUERY_ID, QUERY_NM, CATEGORY_CD, QUERY_DESC, MODULE_CD. 호출자가 인증 컨텍스트의 사용자만 넘긴다.
      */
     @SuppressWarnings("unchecked")
     public List<Object[]> myList(String userId) {
@@ -93,6 +103,7 @@ public class UserQueryStore {
                              , B.QUERY_NM
                              , B.CATEGORY_CD
                              , B.QUERY_DESC
+                             , B.MODULE_CD
                         FROM   MCMAPUSER.TB_MCM_USRQ_ASSIGN A
                              , MCMAPUSER.TB_MCM_USRQ_DEF B
                         WHERE  B.QUERY_ID = A.QUERY_ID

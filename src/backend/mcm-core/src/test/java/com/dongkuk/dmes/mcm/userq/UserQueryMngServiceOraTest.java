@@ -87,6 +87,7 @@ class UserQueryMngServiceOraTest {
         r.setSqlText(sqlText);
         r.setUseYn("Y");
         r.setMaxRowCnt(1000);
+        r.setModuleCd("MCM");
         return r;
     }
 
@@ -96,6 +97,7 @@ class UserQueryMngServiceOraTest {
         for (int i = 0; i + 1 < pairs.length; i += 2) {
             switch (pairs[i]) {
                 case "categoryCd" -> r.setCategoryCd(pairs[i + 1]);
+                case "moduleCd" -> r.setModuleCd(pairs[i + 1]);
                 case "keyword" -> r.setKeyword(pairs[i + 1]);
                 case "useYn" -> r.setUseYn(pairs[i + 1]);
                 case "ownerDept" -> r.setOwnerDept(pairs[i + 1]);
@@ -209,6 +211,68 @@ class UserQueryMngServiceOraTest {
         assertThat(deleted).containsEntry("deleted", 1).containsEntry("assignDeleted", 2);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_USRQ_DEF WHERE QUERY_ID = 'PRD_NEW1'", Long.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_USRQ_ASSIGN WHERE QUERY_ID = 'PRD_NEW1'", Long.class)).isZero();
+    }
+
+    @Test
+    @DisplayName("moduleCd: 저장 때 필수·6개 중 하나, get·search 에 나오고 search 조건으로 거른다")
+    void moduleCode() {
+        UserQueryMngRequest noModule = req("MOD_NEW1", "모듈 없음", "SELECT 1 AS A FROM DUAL");
+        noModule.setModuleCd(null);
+        assertThatThrownBy(() -> service.save(noModule)).isInstanceOf(BusinessException.class).hasMessageContaining("모듈");
+        UserQueryMngRequest badModule = req("MOD_NEW2", "모듈 틀림", "SELECT 1 AS A FROM DUAL");
+        badModule.setModuleCd("XXX");
+        assertThatThrownBy(() -> service.save(badModule)).isInstanceOf(BusinessException.class).hasMessageContaining("MCM");
+        UserQueryMngRequest ok = req("MOD_NEW3", "생산 모듈", "SELECT 1 AS A FROM DUAL");
+        ok.setModuleCd("MPP");
+        tx.execute(t -> service.save(ok));
+        tx.execute(t -> service.save(req("MOD_NEW4", "기본 모듈", "SELECT 1 AS A FROM DUAL")));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> def = (Map<String, Object>) service.get(req("MOD_NEW3", null, null)).get("def");
+        assertThat(def).containsEntry("moduleCd", "MPP");
+        assertThat(searchRows("moduleCd", "MPP")).extracting(r -> r.get("queryId")).containsExactly("MOD_NEW3");
+        assertThat(searchRows("moduleCd", "MPP").get(0)).containsEntry("moduleCd", "MPP");
+        assertThat(searchRows("keyword", "MOD_NEW")).hasSize(2);
+        // DB 확인 제약 — 서비스를 거치지 않은 값도 막는다
+        assertThatThrownBy(() -> jdbc.update("UPDATE MCMAPUSER.TB_MCM_USRQ_DEF SET MODULE_CD = 'ZZZ' WHERE QUERY_ID = 'MOD_NEW4'"))
+                .hasMessageContaining("CK_TB_MCM_USRQ_DEF_MOD");
+    }
+
+    private static UserQueryMngRequest withId(UserQueryMngRequest r, String id) {
+        r.setQueryId(id);
+        return r;
+    }
+
+    private static UserQueryMngRequest columnsReq(String columnsJson) {
+        UserQueryMngRequest r = req("COL_V2X", "열 시험", "SELECT 1 AS A FROM DUAL");
+        r.setColumnsJson(columnsJson);
+        return r;
+    }
+
+    @Test
+    @DisplayName("출력 정의 2판: code 형식, mask·sum·codeGroup·badge 형식 제약")
+    void columnsV2() {
+        String[] ok = {
+                "[{\"field\":\"A\",\"format\":\"number\",\"mask\":\"#,##0.0\",\"sum\":true}]",
+                "[{\"field\":\"A\",\"format\":\"number\",\"mask\":\"0.00\"},{\"field\":\"B\",\"format\":\"number\",\"mask\":\"#,##0.###\"}]",
+                "[{\"field\":\"A\",\"format\":\"code\",\"codeGroup\":\"WIDGET_CTG\",\"badge\":true}]",
+                "[{\"field\":\"A\",\"format\":\"number\",\"mask\":null,\"sum\":false,\"badge\":null}]"};
+        for (String json : ok) tx.execute(t -> service.save(withId(columnsReq(json), "COL_" + Math.abs(json.hashCode() % 100000))));
+        String[] bad = {
+                "[{\"field\":\"A\",\"format\":\"text\",\"mask\":\"#,##0\"}]",          // mask 는 number 전용
+                "[{\"field\":\"A\",\"mask\":\"#,##0\"}]",                                  // format 없음
+                "[{\"field\":\"A\",\"format\":\"number\",\"mask\":\"#,##0.0000000\"}]", // 소수 7자리
+                "[{\"field\":\"A\",\"format\":\"number\",\"mask\":\"abc\"}]",
+                "[{\"field\":\"A\",\"format\":\"number\",\"mask\":\"0.0#\"}]",
+                "[{\"field\":\"A\",\"format\":\"number\",\"mask\":1}]",
+                "[{\"field\":\"A\",\"format\":\"date\",\"sum\":true}]",
+                "[{\"field\":\"A\",\"format\":\"number\",\"sum\":\"yes\"}]",
+                "[{\"field\":\"A\",\"format\":\"number\",\"codeGroup\":\"WIDGET_CTG\"}]",
+                "[{\"field\":\"A\",\"format\":\"code\",\"codeGroup\":\"bad group\"}]",
+                "[{\"field\":\"A\",\"format\":\"text\",\"badge\":true}]",
+                "[{\"field\":\"A\",\"format\":\"code\",\"badge\":\"y\"}]"};
+        for (String json : bad) {
+            assertThatThrownBy(() -> service.save(columnsReq(json))).as(json).isInstanceOf(BusinessException.class);
+        }
     }
 
     // ── 미리보기·검증 ────────────────────────────────────────────────

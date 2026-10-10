@@ -97,10 +97,10 @@ class UserQueryServiceOraTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> rows = (List<Map<String, Object>>) service.myList(req(null, null)).get("rows");
         assertThat(rows).extracting(r -> r.get("queryId")).containsExactly("PRD_DAILY");
-        assertThat(rows.get(0)).containsEntry("queryNm", "일일 생산").containsEntry("categoryCd", "PRD");
+        assertThat(rows.get(0)).containsEntry("queryNm", "일일 생산").containsEntry("categoryCd", "PRD").containsEntry("moduleCd", "MCM");
 
         Map<String, Object> def = service.getDef(req("PRD_DAILY", null));
-        assertThat(def).containsEntry("queryId", "PRD_DAILY").containsEntry("maxRowCnt", 1000);
+        assertThat(def).containsEntry("queryId", "PRD_DAILY").containsEntry("maxRowCnt", 1000).containsEntry("moduleCd", "MCM");
         assertThat((List<?>) def.get("params")).hasSize(1);
         assertThat(def).doesNotContainKey("sqlText"); // 응답에 SQL 이 없다(§7)
 
@@ -208,5 +208,32 @@ class UserQueryServiceOraTest {
         when(resolver.current()).thenReturn(USER_B);
         insertAssign("PRD_FAST", "userB");
         assertThat((List<?>) service.run(req("PRD_FAST", null)).get("rows")).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("2판 조건: getDef 가 새 키를 돌려주고, run 은 기간·다중 선택·코드 그룹 값을 바인드한다")
+    void paramsV2() {
+        String defs = "[{\"name\":\"fromDt\",\"type\":\"daterange\",\"toName\":\"toDt\",\"default\":\"-7d\",\"toDefault\":\"0d\",\"maxSpanDays\":31},"
+                + "{\"name\":\"st\",\"type\":\"multi\",\"countName\":\"stCnt\",\"codeGroup\":\"UQ2_TEST_GRP\"}]";
+        insertDef("V2_RUN", "2판", "PRD", "Y", 100,
+                "SELECT :fromDt FROM_DT, :toDt TO_DT, :stCnt CNT FROM DUAL WHERE :stCnt = 0 OR 'S' IN (:st)", defs);
+        insertAssign("V2_RUN", "userA");
+        Map<String, Object> def = service.getDef(req("V2_RUN", null));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> params = (List<Map<String, Object>>) def.get("params");
+        assertThat(params.get(0)).containsEntry("type", "daterange").containsEntry("toName", "toDt").containsEntry("toDefault", "0d")
+                .containsEntry("maxSpanDays", 31).containsEntry("default", "-7d");
+        assertThat(params.get(1)).containsEntry("type", "multi").containsEntry("countName", "stCnt").containsEntry("codeGroup", "UQ2_TEST_GRP");
+        // 코드 그룹을 읽을 수 없는 서버: 값이 있으면 거절(실패 닫힘), 없으면 실행
+        assertThatThrownBy(() -> service.run(req("V2_RUN", "{\"st\":[\"S\"]}"))).isInstanceOf(BusinessException.class)
+                .hasMessageContaining("선택지");
+        Map<String, Object> ran = service.run(req("V2_RUN", "{\"fromDt\":\"2026-10-01\",\"toDt\":\"2026-10-05\"}"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> row = ((List<Map<String, Object>>) ran.get("rows")).get(0);
+        assertThat(row).containsEntry("FROM_DT", "20261001").containsEntry("TO_DT", "20261005");
+        assertThat(((Number) row.get("CNT")).intValue()).isZero();
+        // 기간이 최대 일수를 넘으면 값 오류 문구가 그대로 보인다
+        assertThatThrownBy(() -> service.run(req("V2_RUN", "{\"fromDt\":\"2026-01-01\",\"toDt\":\"2026-12-31\"}")))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("31일 이하");
     }
 }

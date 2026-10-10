@@ -35,8 +35,8 @@ public class WidgetDataService {
         if (defId == null || defId.isEmpty()) {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "위젯 정의 ID 가 없습니다");
         }
-        // 값은 스칼라 글자로만 받는다(배열·객체 거절). 선언·형·길이 판정은 실행기가 정의의 params 로 다시 한다.
-        Map<String, String> values = QueryParams.parseValues(request.getParamsJson());
+        // 값은 스칼라 글자 또는 글자 목록(multi 용)만 받는다(객체 거절). 선언·형·길이 판정은 실행기가 정의의 params 로 다시 한다.
+        Map<String, Object> values = QueryParams.parseValues(request.getParamsJson());
         WidgetQueryResult data = queryRunner.runDefinition(defId, MAX_ROWS, values);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("columns", data.columns());

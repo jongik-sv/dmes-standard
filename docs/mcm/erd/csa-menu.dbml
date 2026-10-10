@@ -418,7 +418,8 @@ Table TB_MCM_SEC_USER_SRCH_DFLT {
 Table TB_MCM_USRQ_DEF {
   QUERY_ID      varchar(40)   [pk, note: '쿼리 ID']
   QUERY_NM      varchar(100)  [not null, note: '쿼리 이름']
-  CATEGORY_CD   varchar(20)   [note: '분류 — 공통코드 USRQ_CTG (처음 값 ETC 기타)']
+  CATEGORY_CD   varchar(20)   [note: '분류 — 공통코드 USRQ_CTG (처음 값 9개)']
+  MODULE_CD     varchar(10)   [not null, default: 'MCM', note: '모듈 — CK MCM·MDM·MPP·MLS·MQC·MPN (V14)']
   QUERY_DESC    varchar(500)  [note: '설명']
   OWNER_DEPT_CD varchar(10)   [note: '담당 부서 코드 → TB_MCM_DEPT_INFO (본 다이어그램 범위 밖)']
   SQL_TEXT      clob          [not null, note: '조회 SQL']
@@ -431,7 +432,7 @@ Table TB_MCM_USRQ_DEF {
     QUERY_ID [pk]
   }
 
-  Note: '공용 쿼리 정의(스펙 2026-10-10-user-query-program-design §2). 감사 컬럼 9개(McmAuditEntity). DDL = Flyway oracle/mcmapuser/V13. 관리 화면 userQueryMng(맞춤 레포트 관리), 사용자 화면 userQuery(맞춤 레포트 조회, 서비스 myList·getDef·run). 외래 키 없음 — 정의를 지울 때 서비스가 할당을 먼저 지운다.'
+  Note: '공용 쿼리 정의(스펙 2026-10-10-user-query-program-design §2). 감사 컬럼 9개(McmAuditEntity). DDL = Flyway oracle/mcmapuser/V13·V14(MODULE_CD). 관리 화면 userQueryMng(맞춤 레포트 관리), 사용자 화면 userQuery(맞춤 레포트 조회, 서비스 myList·getDef·run). 외래 키 없음 — 정의를 지울 때 서비스가 할당을 먼저 지운다.'
 }
 
 Table TB_MCM_USRQ_ASSIGN {

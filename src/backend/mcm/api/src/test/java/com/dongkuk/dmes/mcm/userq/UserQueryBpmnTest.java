@@ -114,6 +114,7 @@ class UserQueryBpmnTest {
         Map<String, Object> save = new HashMap<>();
         save.put("queryId", "PRD_TOP10");
         save.put("queryNm", "상위 조회");
+        save.put("moduleCd", "MCM");
         save.put("categoryCd", "ETC");
         save.put("sqlText", "SELECT LEVEL AS L FROM DUAL CONNECT BY LEVEL <= :cnt");
         save.put("paramsJson", "[{\"name\":\"cnt\",\"label\":\"건수\",\"type\":\"number\",\"default\":\"3\"}]");
@@ -182,6 +183,7 @@ class UserQueryBpmnTest {
         Map<String, Object> save = new HashMap<>();
         save.put("queryId", "PRD_STR01");
         save.put("queryNm", "글자 숫자");
+        save.put("moduleCd", "MCM");
         save.put("sqlText", "SELECT 1 AS A FROM DUAL");
         save.put("maxRowCnt", "1000");
         save.put("useYn", "Y");
@@ -189,6 +191,7 @@ class UserQueryBpmnTest {
 
         Map<String, Object> update = new HashMap<>(save);
         update.put("queryNm", "글자 숫자 갱신");
+        update.put("moduleCd", "MCM");
         update.put("maxRowCnt", "2000");
         update.put("ver", "0");
         assertThat(result(executor.execute("userQueryMng", "save", request(update)))).containsEntry("ver", 1L);
@@ -208,6 +211,7 @@ class UserQueryBpmnTest {
         Map<String, Object> dml = new HashMap<>();
         dml.put("queryId", "PRD_DML01");
         dml.put("queryNm", "쓰기");
+        dml.put("moduleCd", "MCM");
         dml.put("sqlText", "UPDATE MCMAPUSER.TB_MCM_USRQ_DEF SET QUERY_NM = 'x'");
         dml.put("maxRowCnt", 1000);
         dml.put("useYn", "Y");

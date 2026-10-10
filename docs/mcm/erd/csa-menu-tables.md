@@ -214,7 +214,7 @@
 
 ### 맞춤 레포트 조회 — 테이블 2개 (2026-10-10 신설, 스펙 `docs/superpowers/specs/2026-10-10-user-query-program-design.md` §2)
 
-- **`TB_MCM_USRQ_DEF`**: 관리자가 등록한 공용 쿼리 정의. PK = `QUERY_ID`(40). `SQL_TEXT`(CLOB, 필수)가 조회 SQL, `PARAMS_JSON`·`COLUMNS_JSON`(CLOB)이 입력·출력 정의다. `MAX_ROW_CNT`(기본 1000, 1~5000)는 최대 행 수, `USE_YN`(기본 `Y`)은 사용 여부다. `CATEGORY_CD` 는 공통코드 `USRQ_CTG`(처음 값 `ETC` 기타), `OWNER_DEPT_CD` 는 `TB_MCM_DEPT_INFO.DEPT_CD` 와 같은 길이(10)의 담당 부서다. 제약: `CK_TB_MCM_USRQ_DEF_USE`(`USE_YN` in Y/N)·`CK_TB_MCM_USRQ_DEF_MAX`(`MAX_ROW_CNT` 1~5000).
+- **`TB_MCM_USRQ_DEF`**: 관리자가 등록한 공용 쿼리 정의. PK = `QUERY_ID`(40). `SQL_TEXT`(CLOB, 필수)가 조회 SQL, `PARAMS_JSON`·`COLUMNS_JSON`(CLOB)이 입력·출력 정의다. `MAX_ROW_CNT`(기본 1000, 1~5000)는 최대 행 수, `USE_YN`(기본 `Y`)은 사용 여부다. `CATEGORY_CD` 는 공통코드 `USRQ_CTG`(처음 값 9개: 생산·품질·물류·출하·설비·자재·공통·시스템 관리·견본·기타), `MODULE_CD`(V14, 기본 `MCM`)는 정의가 속한 모듈, `OWNER_DEPT_CD` 는 `TB_MCM_DEPT_INFO.DEPT_CD` 와 같은 길이(10)의 담당 부서다. 제약: `CK_TB_MCM_USRQ_DEF_USE`(`USE_YN` in Y/N)·`CK_TB_MCM_USRQ_DEF_MAX`(`MAX_ROW_CNT` 1~5000)·`CK_TB_MCM_USRQ_DEF_MOD`(`MODULE_CD` 6개 중 하나).
 - **`TB_MCM_USRQ_ASSIGN`**: 정의 ↔ 사용자 할당. PK = (`QUERY_ID`, `USER_ID`), 사용자 단위만 있다. `USER_ID`(30)는 `TB_MCM_SEC_USER.USER_ID` 와 같은 길이다. 인덱스 `IX_TB_MCM_USRQ_ASSIGN_USER`(`USER_ID`, `QUERY_ID`)는 사용자 목록(`myList`)의 `USER_ID` 조건에 쓴다.
 - **외래 키는 없다.** 정의를 지울 때 서비스가 할당을 먼저 지운다. 없는 사용자의 할당은 할당 탭이 「없는 사용자」로 보여 준다.
 - 화면·서비스: `userQueryMng`(맞춤 레포트 관리, 새 폴더 `cmq` 맞춤 레포트, `PERM_ALL`)와 `userQuery`(맞춤 레포트 조회, 같은 `cmq` 폴더, 서비스 `myList`·`getDef`·`run`). 일반 역할은 권한 `PERM_USRQ_USE`(`myList,getDef,run`)로 매핑한다. 메뉴·OBJECT·권한·공통코드는 `ModuleMenuSeeder.seedUserQueryMenus`·`CoreRbacSeeder`·`UserQueryCategoryCodeSeeder` 가 시드한다.

@@ -80,6 +80,7 @@ public class UserQueryService {
             m.put("queryNm", r[1]);
             m.put("categoryCd", r[2]);
             m.put("queryDesc", r[3]);
+            m.put("moduleCd", r[4]);
             rows.add(m);
         }
         return Map.of("rows", rows);
@@ -95,6 +96,7 @@ public class UserQueryService {
         out.put("queryId", def.getQueryId());
         out.put("queryNm", def.getQueryNm());
         out.put("categoryCd", def.getCategoryCd());
+        out.put("moduleCd", def.getModuleCd());
         out.put("queryDesc", def.getQueryDesc());
         out.put("params", paramsView(parseParams(def)));
         out.put("columns", parseColumns(def.getColumnsJson()));
@@ -112,7 +114,7 @@ public class UserQueryService {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "잠시 후 다시 조회하세요");
         }
         UserQueryDef def = assignedDef(req.getQueryId());
-        Map<String, String> values = QueryParams.parseValues(req.getParamsJson()); // 값 오류 문구는 그대로 사용자에게
+        Map<String, Object> values = QueryParams.parseValues(req.getParamsJson()); // 값 오류 문구는 그대로 사용자에게
         WidgetQueryResult result;
         long startNanos = System.nanoTime();
         try {
@@ -140,14 +142,14 @@ public class UserQueryService {
      * params 는 사용자가 넣은 조건값만이다(시스템 변수는 러너가 서버에서 채우므로 여기 없다). 값의 줄바꿈은 공백으로 바꿔
      * 로그 줄을 위조하지 못하게 하고 길면 자른다. 응답·예외 메시지에는 아무것도 싣지 않는다(§7).
      */
-    private void logRun(UserQueryDef def, String userId, Map<String, String> values, WidgetQueryResult result, long elapsedMs) {
+    private void logRun(UserQueryDef def, String userId, Map<String, ?> values, WidgetQueryResult result, long elapsedMs) {
         if (!log.isInfoEnabled()) return;
         log.info("맞춤 레포트 실행 queryId={} userId={} rows={} truncated={} ms={} params={}",
                 def.getQueryId(), userId, result.rows().size(), result.truncated(), elapsedMs, paramsForLog(values));
         log.info("맞춤 레포트 실행 SQL queryId={}\n{}", def.getQueryId(), def.getSqlText());
     }
 
-    private static String paramsForLog(Map<String, String> values) {
+    private static String paramsForLog(Map<String, ?> values) {
         String text = String.valueOf(values == null ? Map.of() : values).replaceAll("[\\p{Cntrl}\\u2028\\u2029\\u0085]+", " ");
         return text.length() <= LOG_PARAMS_MAX ? text : text.substring(0, LOG_PARAMS_MAX) + "…";
     }
@@ -189,7 +191,7 @@ public class UserQueryService {
 
     /**
      * 입력 정의 → 응답 모양. enum 을 그대로 직렬화하면 type 이 대문자(NUMBER)로 나가므로 FE 계약의 소문자
-     * (text|number|date|select)로 직접 만든다.
+     * (text|number|date|select|daterange|multi)로 직접 만든다.
      */
     private static List<Map<String, Object>> paramsView(List<QueryParam> params) {
         List<Map<String, Object>> out = new ArrayList<>();
@@ -200,6 +202,11 @@ public class UserQueryService {
             m.put("type", p.type().name().toLowerCase(Locale.ROOT));
             m.put("default", p.defaultValue()); // 스펙 §2.2·§4.2 입력 정의 키 — FE 공용 파서(paramsOf)가 default 만 읽는다
             m.put("required", p.required());
+            m.put("codeGroup", p.codeGroup());
+            m.put("toName", p.toName());
+            m.put("toDefault", p.toDefault());
+            m.put("maxSpanDays", p.maxSpanDays());
+            m.put("countName", p.countName());
             List<Map<String, Object>> options = new ArrayList<>();
             for (QueryParam.Option o : p.options()) {
                 Map<String, Object> om = new LinkedHashMap<>();

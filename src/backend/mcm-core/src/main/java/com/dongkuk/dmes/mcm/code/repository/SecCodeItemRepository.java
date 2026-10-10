@@ -18,6 +18,10 @@ public interface SecCodeItemRepository extends JpaRepository<SecCodeItem, SecCod
     @Query("SELECT i FROM SecCodeItem i WHERE i.id.groupCd = :groupCd AND i.useYn = 'Y' ORDER BY i.sortOrd ASC")
     List<SecCodeItem> findActiveByGroupCd(@Param("groupCd") String groupCd);
 
+    /** 사용 중 항목 코드만 정렬 순서대로 — 조건(codeGroup) 확인용이라 개수를 쿼리에서 제한한다(Pageable). */
+    @Query("SELECT i.id.itemCd FROM SecCodeItem i WHERE i.id.groupCd = :groupCd AND i.useYn = 'Y' ORDER BY i.sortOrd ASC")
+    List<String> findActiveItemCds(@Param("groupCd") String groupCd, org.springframework.data.domain.Pageable pageable);
+
     @Modifying
     @Transactional
     @Query("DELETE FROM SecCodeItem i WHERE i.id.groupCd = :groupCd")

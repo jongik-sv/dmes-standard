@@ -2,7 +2,7 @@ package com.dongkuk.dmes.mcm.userq.dto;
 
 /**
  * userQuery 요청 params(스펙 2026-10-10-user-query-program-design §4.2). 사용자 ID 칸은 아예 없다 — 서비스가 인증 컨텍스트에서만 얻는다(IDOR).
- * SQL 을 담는 칸도 없다 — 실행은 저장된 정의의 SQL 만 쓴다. {@code paramsJson} 은 {"이름":"값"} JSON 글자(4000자 이하)다.
+ * SQL 을 담는 칸도 없다 — 실행은 저장된 정의의 SQL 만 쓴다. {@code paramsJson} 은 {"이름":"값" 또는 ["값",…]} JSON 글자(16000자 이하, 배열은 multi 조건만)다.
  */
 public class UserQueryRequest {
 
