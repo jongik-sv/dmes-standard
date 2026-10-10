@@ -9,16 +9,17 @@ agent 단계별 모델 = `workflow.model_table`(`contract.md` §1.3).
 - **Claude 세션 모델 ID**
   - Opus `claude-opus-5-5` · Sonnet `claude-sonnet-5-5`
   - Haiku `claude-haiku-4-5-20251001`
-- **GLM**: 일반 작업 중 **쉬운 일**
+- **비-Claude 풀(기본 경로)**: S/M 구현·조사·문서 묶음 = `pool.mjs submit`(`pool.md`)
+  - opencode 3·GLM 1 단발 실행. 실패·한도 오류 → 바로 Claude agent
+  - token 모드 = 풀 먼저. time 모드 = 먼저 비는 쪽
+- **GLM 세션(긴 세션이 필요할 때만)**: 쉬운 일 레인 하나를 통째로 맡길 때
   - 대상: 본보기 있는 패턴 반복, 정해진 형식의 문서·표 정리
   - 대상: 시험으로 바로 검증되는 좁은 수정
   - GLM-5.3(Z.ai), **새 탭** Claude Code 세션(`launch.glm`, §3)
   - SendMessage·머지 요청 절차 동일
   - 같은 문제에 20분 넘게 막힘·방향 틀어짐 → 막힌 단계만 Sonnet·Opus 새 탭 세션에
   - `agent()` 의 model 값으로 못 고름 → **세션 단위**로만 맡김
-- **opencode 워커**: 사용량 띠가 오를 때 Claude 몫을 넘김(`usage.md` §2)
-  - 설정 `launch.opencode`, 새 탭(§2)
-  - 막히면 그 단계만 Claude 세션에 넘김
+- **opencode TUI 워커**: 쓰지 않음. 묶음 일은 풀로(지시문 유실·생존 판정 문제)
 - **조사(검색 워커)**: 읽기 전용. 기준 = `sizing.md` D1 행, 설정 `search.*`
   - `node scripts/search.mjs`: 기본 새 탭, `--print` = 화면 없는 단발
   - 감독·병렬·이력이 필요할 때만:
@@ -65,6 +66,7 @@ agent 단계별 모델 = `workflow.model_table`(`contract.md` §1.3).
   - `orca orchestration worker-start --spec "<과제>" --agent claude --model <m> --effort <e> --worktree current --json`
   - 완료(`worker_done`) → `worker-release` → `check --ack`
 - **opencode 워커**
+  - 일 묶음은 풀(`pool.mjs`)로. 아래 TUI 흐름은 사람이 직접 띄운 opencode 세션을 연결할 때만
   1. `orca terminal create --worktree <탭 워크트리> --title <n> --json`
   2. 셸 프롬프트가 보인 뒤 `orca terminal send --terminal <h> --text "cd <폴더> && <launch.opencode>" --enter --json`
      - `--command` 금지(시간 초과로 실패)

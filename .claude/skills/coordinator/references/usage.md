@@ -21,7 +21,8 @@
 
 - 경계 = 설정 `usage.bands` (이상이면 그 띠)
 - 조건 = 5시간·1주 중 높은 쪽
-- 사용량이 오름 → 일을 막지 않고 **Claude 몫을 opencode·agy 로 옮김**
+- 비-Claude 풀은 띠와 상관없이 늘 씀(token 모드 = S/M 구현·조사·문서 풀 먼저, `pool.md`)
+- 사용량이 오름 → 일을 막지 않고 **풀·agy 비중을 더 키움**
 - 동시 agent 상한 = `workflow.agents_by_band`
 
 | 띠 | 5시간 | 1주 |
@@ -35,35 +36,35 @@
 - Y: 제한 없음에 가까움
   - 대기 작업 자동 배정 계속
   - 사다리 끝 opus/high 허용
-  - Claude 몫 중 **조사·문서 정리·쉬운 반복 구현 → opencode·agy**
+  - Claude 몫 중 **조사·문서 정리·쉬운 반복 구현 → 풀(opencode·GLM)·agy**
 - O:
   - 새 Workflow 허용 (agent 마다 model·effort 명시 유지)
   - opus = 판정·L 구현·동시성에 계속 허용
   - 쉬라는 지시는 하지 않음
   - **대기 작업 자동 배정만 중단**
-  - Y 의 이동에 더해 **일반 구현도 opencode 워커 우선**
+  - Y 의 이동에 더해 **일반 구현도 풀(opencode·GLM) 우선**
   - Claude = 판정·리뷰·어려운 구현만
 - R:
   - 모든 Claude 레인에 「지금 단계 끝에서 멈추고 정본 갱신」
   - Claude 세션 = **머지·정리만** 계속
     - 머지 임박 레인의 머지 요청·머지·정리 처리
-  - 남은 일 = opencode·agy 워커로 계속
+  - 남은 일 = 풀·agy 로 계속
   - 한도 초기화 시각에 재개 예약
-- opencode·agy 워커 운영 = `spawn.md` §1 「opencode 워커」
+- 풀 운영 = `pool.md`(`scripts/pool.mjs`), agy = `spawn.md` §1 「조사」
   - 막힌 단계만 Claude 세션으로 넘김
 - **계정 여유 스위치** `usage.relaxed` (기본 꺼짐)
   - 켬(사용자가 다른 계정을 쓸 수 있을 때) → `usage-band.mjs` 가 Y·O 를 G 로 내려 냄
   - R 은 그대로
   - 켜짐 → R 이 아니면 띠와 상관없이 Claude 를 씀
-  - 꺼짐 → 위 규칙대로 opencode·agy 로 옮김
+  - 꺼짐 → 위 규칙대로 풀·agy 로 옮김
 
 **새 레인 상한**:
 - Claude 새 레인·새 Pane = 아래 둘 다 맞을 때만
   - 1주 사용률 < `usage.spawn_week_max`
   - 띠 ≠ R
-- R → opencode·agy 워커만 띄움
+- R → 풀·agy 워커만 띄움
 - 5시간 사용량이 높아도 레인을 막지 않음
-  - 조절 수단 = 모델 등급·동시 agent 수·opus 사용 범위·opencode·agy 이동
+  - 조절 수단 = 모델 등급·동시 agent 수·opus 사용 범위·풀·agy 이동
 
 ## 3. 1주 보정
 
