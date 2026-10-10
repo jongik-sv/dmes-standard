@@ -2,6 +2,7 @@
 //   사용법: pool.mjs submit --lane <L> --id <id> --size <S|M> --packet <파일> [--cwd <폴더>] [--kind auto|opencode|glm] [--dry-run]
 //           pool.mjs status [--lane <L>] [--id <id>] · pool.mjs cancel <id> · pool.mjs note <id> [--findings n] [--lines n]
 //   stdout: POOL started|queued|fallback|refused|cancelled|noted … · POOL <id> <state> kind= lane= result= rc= · POOL slots …
+//   submit 의 id = <레인>-<항목번호>. --id 에 <레인>- 접두가 없으면 붙인다(레인끼리 항목번호가 겹쳐 duplicate 가 나지 않게).
 //   실행기 = `pool.mjs run <id>` 를 분리된 자식으로 띄운다(토큰을 쓰지 않음). 끝나면 다음 큐 묶음을 띄운다.
 // node 18.17 이상, 외부 패키지 없음.
 import { spawn, spawnSync } from 'node:child_process';
@@ -19,6 +20,7 @@ const SELF = fileURLToPath(import.meta.url);
 const HELP = `# 사용법: pool.mjs submit --lane <L> --id <id> --size <S|M> --packet <파일> [--cwd <폴더>] [--kind auto|opencode|glm] [--dry-run]
 #         pool.mjs status [--lane <L>] [--id <id>] · cancel <id> · note <id> [--findings n] [--lines n]
 #   비-Claude 워커 풀. 묶음 파일을 <작업 폴더>/.pool/<id>.md 로 복사하고 opencode·GLM 단발 실행기로 돌린다.
+#   id = <레인>-<항목번호>(예: a1-T3). --id 가 <레인>- 으로 시작하지 않으면 붙인다(출력 줄의 id 가 실제 id).
 #   실패·시간 초과·한도 오류 → 레인이 Claude agent 로 이어받는다(fallback). 절차: references/pool.md
 `;
 const nowIso = () => new Date().toISOString();
@@ -159,9 +161,14 @@ function parseFlags(argv, spec) {
 
 function cmdSubmit(c, argv) {
   const o = parseFlags(argv, { lane: 's', id: 's', size: 's', packet: 's', cwd: 's', kind: 's', 'dry-run': 'bool' });
-  const id = o.id || '';
+  let id = o.id || '';
   const out = (s) => process.stdout.write(`${o['dry-run'] ? 'DRY ' : ''}${s}\n`);
   if (!ID_RE.test(id)) { process.stdout.write(`POOL refused ${id} bad-id\n`); return 0; }
+  // 풀은 회차에 하나라 레인마다 항목번호(T1·T2…)가 겹친다 → id = <레인>-<항목번호>. 접두가 없으면 붙이고, 출력 줄의 id 가 실제 id 다.
+  if (o.lane && o.lane !== '-' && !id.startsWith(`${o.lane}-`)) {
+    id = `${o.lane}-${id}`;
+    if (!ID_RE.test(id)) { process.stdout.write(`POOL refused ${id} bad-id\n`); return 0; }
+  }
   if (o.size === 'L') { process.stdout.write(`POOL refused ${id} size-L\n`); return 0; }
   if (o.size !== 'S' && o.size !== 'M') { process.stdout.write(`POOL refused ${id} bad-size\n`); return 0; }
   if (!o.packet || !existsSync(o.packet)) { process.stdout.write(`POOL refused ${id} no-packet\n`); return 0; }

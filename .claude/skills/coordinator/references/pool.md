@@ -25,10 +25,12 @@
 1. 묶음 파일 작성: `templates/packet.md` 를 채워 임시 파일로
    - 건드릴 파일 = 레인 안 항목 표의 그 항목 파일(파일 소유)
    - 묶음 파일 안은 글자 제한 없음. 풀이 opencode 입력창에 넣는 문장은 고정 문구라 `!`·`/`·`@` 문제가 없음
-2. 제출: `node <스킬>/scripts/pool.mjs submit --lane <레인> --id <항목번호> --size <S|M> --packet <파일> --cwd <레인 워크트리> [--kind auto|opencode|glm] [--dry-run]`
+2. 제출: `node <스킬>/scripts/pool.mjs submit --lane <레인> --id <레인>-<항목번호> --size <S|M> --packet <파일> --cwd <레인 워크트리> [--kind auto|opencode|glm] [--dry-run]`
+   - id = `<레인>-<항목번호>`(예: `a1-T3`). 풀은 회차에 하나라 레인끼리 항목번호가 겹침
+   - `--id` 가 `<레인>-` 으로 시작하지 않으면 스크립트가 붙임. 출력 줄의 id 가 실제 id → `status`·`cancel`·`note` 에 그 id 사용
    - `POOL started <id> kind=<k>` · `POOL queued <id> position=<n>` = 기다림
    - `POOL fallback <id> reason=no-worker` = 바로 Claude agent 로
-   - `POOL refused <id> <사유>` = 사유대로 고쳐 다시(`duplicate` = 새 id, `size-L`·`bad-size`·`bad-id`·`no-packet`)
+   - `POOL refused <id> <사유>` = 사유대로 고쳐 다시(`duplicate` = 새 id(같은 항목 재시도 = `<레인>-<항목번호>-<시도>`), `size-L`·`bad-size`·`bad-id`·`no-packet`)
 3. 완료 알림: 레인 탭에 `[pool] <id> <result> rc=<n>` 한 줄(실패면 뒤에 `→ Claude 로 넘김`)
    - 알림이 없으면 다음 단계 전에 `pool.mjs status --lane <레인>`
 4. `result=ok`
