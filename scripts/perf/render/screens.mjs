@@ -182,6 +182,21 @@ export const SCREENS = [
     autoSearchAtEntry: true,
   },
   {
+    // 2026-10-10 userq-admin 등록 — 공용 쿼리 정의 관리(mcm 공통관리 트리). 호출은 /api/mcm/oasis/userQueryMng/* 다.
+    id: "userQueryMng",
+    label: "쿼리 정의 관리",
+    trail: [/^공통관리$/, /^시스템관리$/, /^쿼리 정의 관리$/],
+    breadcrumb: "공통관리 > 시스템관리 > 쿼리 정의 관리",
+    listPanelTitle: "쿼리 목록",
+    /** count-renders ⑤ 상세 폼 입력 대상(R12, 이름 칸). 저장하지 않는다. */
+    formInput: 'input[data-testid="userq-admin-query-nm"]',
+    searchUrlPattern: /\/api\/mcm\/oasis\/userQueryMng\/search$/,
+    searchUrlExclude: /optionsOnly/,
+    needsSearch: true,
+    /** 진입하면 자동으로 조회한다(SearchArea autoSearch). summarize.mjs 가 조회 지표에서 뺀다. */
+    autoSearchAtEntry: true,
+  },
+  {
     id: "masterCodeMng",
     label: "Master Code 관리",
     // 메뉴 트리 글자는 「마스터관리(원장)」, 화면 하단 breadcrumb 은 「Master 관리(원장)」 으로 다르다.
