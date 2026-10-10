@@ -156,6 +156,7 @@ MDM 에서 `JdbcTemplate` 빈을 쓰는 선례가 없으면 `EntityManager` 네�
 
 Run: Step 2 명령. Expected: 3건 PASS.
 Run: 기존 버전 시험 — `--tests '*Version*'` 와 `--tests '*RuleSetEdit*'` 를 같은 heavy 명령으로 한 번. Expected: PASS(다른 대상의 MDM003 동작이 그대로다).
+Run: `cd src/backend/mdm && ../gradlew :lib:test --max-workers=2 --tests '*VersionContractTest'` (DB 없는 계약 시험, 스펙 6절 4번). Expected: PASS.
 
 - [ ] **Step 5: 커밋**
 
@@ -211,6 +212,7 @@ class ErdVersionServiceTest extends AbstractMdmSharedDbTest {
     @Autowired ErdVersionService versions;
     @Autowired ErdModelStore store;
     @Autowired ErdConfirmCheck confirmCheck;
+    @Autowired VersionStateService stateService;
 
     @BeforeEach
     void clean() {
@@ -261,6 +263,21 @@ class ErdVersionServiceTest extends AbstractMdmSharedDbTest {
         store.writeJson(draft, ErdModelCodec.write(changed));
         var blocked = confirmCheck.check(new ConfirmCheckRequest(draft, java.time.LocalDateTime.now().plusDays(1), null, "owner", java.time.LocalDateTime.now()));
         assertThat(blocked.errors()).extracting(i -> i.itemKey()).contains("c-new");
+    }
+
+    @Test
+    void deleteDraftRemovesEditorsFirst() {
+        versions.createModel("mcm", "mcm", "MCMAPUSER", "MCM", "owner");
+        jdbc.update("UPDATE TB_MDM_ERD_MODEL_VER SET STATUS='RELEASED', APPLY_FROM=SYSTIMESTAMP - 1, APPLY_TO=TIMESTAMP '9999-12-31 00:00:00' WHERE ERD_MODEL_ID='mcm'");
+        BigDecimal next = versions.newVersion("mcm", "MINOR", "owner");
+        versions.addEditor("mcm", "mate", "owner");
+        MdmErdModelVer d = store.draft("mcm").orElseThrow();
+
+        stateService.deleteDraft(new VersionRef(VersionTarget.ERD_MODEL, "mcm", next), d.getRowVersion(), "owner");
+
+        assertThat(store.draft("mcm")).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_ERD_EDITOR WHERE ERD_MODEL_ID='mcm'", Integer.class)).isZero();
+        assertThat(store.latestReleased("mcm")).isPresent(); // RELEASED 는 남는다
     }
 }
 ```
@@ -535,7 +552,7 @@ public class ErdDraftDeletion implements VersionDraftDeletionSpi {
 
 - [ ] **Step 5: 시험 통과 확인**
 
-Run: Step 2 명령. Expected: 3건 PASS.
+Run: Step 2 명령. Expected: 4건 PASS.
 
 - [ ] **Step 6: 커밋**
 

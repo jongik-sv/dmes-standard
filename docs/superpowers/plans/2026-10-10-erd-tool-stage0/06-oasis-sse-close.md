@@ -234,12 +234,14 @@ public record ErdModelView(String modelId, long rev, String ver, String status, 
 // stream/ErdPresence.java
 package com.dongkuk.dmes.mdm.dma.erdEdit.stream;
 
-import java.time.Instant;
 import java.util.List;
 
-/** 접속자 한 세션의 화면 상태(스펙 D16·D18). getCurrentView(MCP, 단계 1)가 이 값을 읽는다. */
+/**
+ * 접속자 한 세션의 화면 상태(스펙 D16·D18). getCurrentView(MCP, 단계 1)가 이 값을 읽는다.
+ * at 은 ISO-8601 문자열이다 — SSE 는 Jackson 2(ErdModelCodec, java.time 모듈 없음), OASIS 응답은 Jackson 3 으로 나가므로 둘 다 그대로 쓰는 형식으로 둔다.
+ */
 public record ErdPresence(String session, String userId, String source, String diagramId, List<String> selectedTables,
-                          Instant at) {
+                          String at) {
 }
 ```
 
@@ -623,7 +625,7 @@ Run: `cd src/backend/mcm && ../gradlew :api:test --max-workers=2 --tests '*MdmMe
 - Produces:
   - `GET {/erd,/mdm/erd,/api/mdm/erd}/stream/{modelId}?session=&sinceRev=` → `text/event-stream`. 사용자는 `X-Authenticated-User` 헤더(ClientKeyFilter 가 만든 인증)에서 읽는다.
   - 이벤트: `change`(ErdDelta JSON), `presence`(접속자 목록), `claim`(작업 중 표시 목록), `reload`(`{rev}`), `ping`(15초마다).
-  - `record ErdPresence(String session, String userId, String source, String diagramId, List<String> selectedTables, Instant at)`(Task 10), `record ErdClaimView(String tableId, String session, String userId, Instant expiresAt)`.
+  - `record ErdPresence(String session, String userId, String source, String diagramId, List<String> selectedTables, String at)`(Task 10), `record ErdClaimView(String tableId, String session, String userId, String expiresAt)`. 시각은 ISO-8601 문자열이다(SSE 의 Jackson 2 매퍼에 java.time 모듈이 없다).
   - `ErdEventHub.subscribe(modelId, session, userId, source, sinceRev) : SseEmitter`, `updateView(modelId, session, diagramId, selectedTables) : boolean`(채널에 붙은 세션만), `presence(modelId) : List<ErdPresence>`, `claim(modelId, tableId, session, userId, ttlSeconds) : boolean`(다른 세션의 유효한 표시는 빼앗지 않음), `release(modelId, tableId, session)`, `claims(modelId) : List<ErdClaimView>`.
   - 연결이 시작되면 `sinceRev` 이후 델타를 먼저 순서대로 보내고, 그 뒤 실시간 델타를 보낸다. 사이에 새 델타가 끼어도 빠지거나 겹치지 않도록, 구독 등록 → 재생 → 재생보다 rev 가 작거나 같은 실시간 델타는 버림 순서로 한다.
   - 접속자는 연결이 끊기면 지운다(`SseEmitter` 의 onCompletion·onTimeout·onError, 그리고 15초마다 보내는 `ping` 의 보내기 실패). SSE 는 클라이언트가 응답하지 않으므로 "응답 없음" 은 보내기 실패로 판단한다.
@@ -807,10 +809,8 @@ public class ErdStreamController {
 // stream/ErdClaimView.java
 package com.dongkuk.dmes.mdm.dma.erdEdit.stream;
 
-import java.time.Instant;
-
-/** 작업 중 표시 한 건(스펙 D17). 권고용이라 다른 세션의 명령을 막지 않고 경고만 붙인다. */
-public record ErdClaimView(String tableId, String session, String userId, Instant expiresAt) {
+/** 작업 중 표시 한 건(스펙 D17). 권고용이라 다른 세션의 명령을 막지 않고 경고만 붙인다. expiresAt 은 ISO-8601 문자열(ErdPresence 와 같은 이유). */
+public record ErdClaimView(String tableId, String session, String userId, String expiresAt) {
 }
 
 // stream/ErdEventHub.java
@@ -927,7 +927,7 @@ public class ErdEventHub {
         emitter.onCompletion(drop);
         emitter.onTimeout(drop);
         emitter.onError(e -> drop.run());
-        presence.put(key(modelId, session), new ErdPresence(session, userId, source, null, List.of(), Instant.now()));
+        presence.put(key(modelId, session), new ErdPresence(session, userId, source, null, List.of(), Instant.now().toString()));
         synchronized (sub) {
             if (sinceRev >= 0) {                                                        // 2. 재생
                 catchUp(sub, sinceRev);
@@ -980,7 +980,8 @@ public class ErdEventHub {
     /** 화면 상태 갱신(SET_VIEW). 실시간 채널에 붙은 세션만 바꿀 수 있다 — 없으면 false. */
     public boolean updateView(String modelId, String session, String diagramId, List<String> selectedTables) {
         ErdPresence updated = presence.computeIfPresent(key(modelId, session),
-                (k, p) -> new ErdPresence(p.session(), p.userId(), p.source(), diagramId, List.copyOf(selectedTables), Instant.now()));
+                (k, p) -> new ErdPresence(p.session(), p.userId(), p.source(), diagramId, List.copyOf(selectedTables),
+                        Instant.now().toString()));
         if (updated == null) return false;
         broadcastPresence(modelId);
         return true;
@@ -1051,7 +1052,7 @@ public class ErdEventHub {
                  WHERE ERD_MODEL_ID = ?
                    AND EXPIRES_AT > ?
                  ORDER BY TABLE_UUID
-                """, (rs, i) -> new ErdClaimView(rs.getString(1), rs.getString(2), rs.getString(3), rs.getTimestamp(4).toInstant()),
+                """, (rs, i) -> new ErdClaimView(rs.getString(1), rs.getString(2), rs.getString(3), rs.getTimestamp(4).toInstant().toString()),
                 modelId, Timestamp.from(Instant.now()));
     }
 
@@ -1069,12 +1070,17 @@ public class ErdEventHub {
 
     /**
      * 이벤트 하나를 보낸다. 본문은 ErdModelCodec(Jackson 2)으로 만든 JSON 문자열이다 — Spring 의 Jackson 3 변환기를 거치지 않는다.
-     * 보내기에 실패하면 구독을 지운다.
+     * 직렬화 오류는 코드 결함이므로 그대로 던진다. 보내기(IO) 오류만 연결 끊김으로 보고 구독을 지운다.
      */
     private boolean send(Sub s, String name, Object body) {
         if (s.dropped) return false;
+        String json;
         try {
-            String json = ErdModelCodec.MAPPER.writeValueAsString(body);
+            json = ErdModelCodec.MAPPER.writeValueAsString(body);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalStateException("ERD SSE 본문 직렬화 실패: " + name, e);
+        }
+        try {
             synchronized (s) {
                 s.emitter.send(SseEmitter.event().name(name).data(json));
             }
