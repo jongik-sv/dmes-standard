@@ -120,10 +120,14 @@ export interface ReviewPanelProps {
   onDecide(relationId: string, op: RelationDecision): void;
   onSelectTable(tableId: string): void;
   locked: boolean;
+  /** 변경 기록 되돌리기(Task 10). */
+  mySession: string;
+  canUndo: boolean;
+  onUndo(rev: number): void;
 }
 
 export function ReviewPanel({
-  ctx, model, status, tab, onTab, diff, history, onReloadDiff, onReloadHistory, onDecide, onSelectTable, locked,
+  ctx, model, status, tab, onTab, diff, history, onReloadDiff, onReloadHistory, onDecide, onSelectTable, locked, mySession, canUndo, onUndo,
 }: ReviewPanelProps) {
   const violations = useMemo(() => (model ? violationRows(model, status) : []), [model, status]);
   const inferred = useMemo(() => (model ? inferredRows(model) : []), [model]);
@@ -166,7 +170,7 @@ export function ReviewPanel({
               emptyMessage="검토할 추정 관계가 없습니다." />
           )}
           {tab === "diff" && ctx && <DbDiffApply ctx={ctx} diff={diff} onReload={onReloadDiff} />}
-          {tab === "history" && <ChangeLog history={history} />}
+          {tab === "history" && <ChangeLog history={history} mySession={mySession} canUndo={canUndo} onUndo={onUndo} />}
         </div>
       </div>
     </div>

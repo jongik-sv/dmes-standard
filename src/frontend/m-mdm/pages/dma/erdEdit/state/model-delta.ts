@@ -5,7 +5,7 @@
  *   서버는 rev 마다 change 하나를 보내고, DRAFT 표지 rev 는 reload 로 보낸다(단계 0). 그래서 rev 는 빈틈없이 이어진다.
  * - 바뀐 모음만 새 객체로 바꾸고 나머지는 참조를 그대로 둔다(캔버스 참조 안정, Local-Rules §19). 입력은 바꾸지 않는다.
  */
-import type { ErdChange, ErdDelta, ErdModelJson, ErdModelView, ErdState, ErdVersionEvent } from "../types";
+import type { ErdChange, ErdDelta, ErdModelJson, ErdModelView, ErdState, ErdVersionEvent, ErdVersionReason } from "../types";
 
 export const nodeKey = (diagram: string, table: string): string => `${diagram}:${table}`;
 
@@ -88,4 +88,14 @@ const sameList = (a: readonly string[], b: readonly string[]): boolean => a.leng
 export function withVersion(s: ErdState, ev: ErdVersionEvent): ErdState {
   if (s.status === ev.status && s.ownerId === ev.ownerId && s.rowVersion === ev.rowVersion && sameList(s.editors, ev.editors)) return s;
   return { ...s, status: ev.status, ownerId: ev.ownerId, editors: ev.editors, rowVersion: ev.rowVersion };
+}
+
+/** 이 화면이 한 버전 동작(선점·해제·편집자)의 결과를 version 이벤트 모양으로 만든다 — onVersion 하나로 반영한다(deferred 39). */
+export function localVersionEvent(
+  s: ErdState, userId: string, reason: ErdVersionReason, over: Partial<Pick<ErdVersionEvent, "ownerId" | "editors" | "rowVersion" | "status">>,
+): ErdVersionEvent {
+  return {
+    modelId: s.modelId, ver: s.ver, status: s.status, ownerId: s.ownerId, editors: s.editors, rowVersion: s.rowVersion,
+    reason, userId, at: new Date().toISOString(), ...over,
+  };
 }

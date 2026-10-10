@@ -3,7 +3,7 @@ import { act, createElement, useMemo } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useErdModel } from "../../../pages/dma/erdEdit/state/useErdModel";
+import { useErdModel, type ErdModelApi } from "../../../pages/dma/erdEdit/state/useErdModel";
 import { ErdStreamClient, backoffDelay, newSession, streamUrl, useErdStream } from "../../../pages/dma/erdEdit/state/useErdStream";
 import type { ErdDelta, ErdModelView } from "../../../pages/dma/erdEdit/types";
 import { FakeEventSource as FakeES, emptyModel, table, viewOf } from "./erd-fixtures";
@@ -115,6 +115,22 @@ describe("ErdStreamClient", () => {
     es.emit("change", addTable(7, "t-2"));
     expect(got).toHaveLength(5);
   });
+
+  it("version 이벤트를 onVersion 으로 넘긴다(S2-12)", () => {
+    const got: string[] = [];
+    const c = new ErdStreamClient({
+      modelId: "mcm", session: "ui-a", factory, lastRev: () => 5, onStatus: () => undefined,
+      handlers: {
+        onHello: () => undefined, onDelta: () => undefined, onReload: () => undefined, onPresence: () => undefined, onClaims: () => undefined,
+        onVersion: (ev) => got.push(`${ev.reason} ${ev.rowVersion}`),
+      },
+    });
+    c.start();
+    FakeES.all[0].emit("version", { modelId: "mcm", ver: "1.000", status: "DRAFT", ownerId: "a", editors: [], rowVersion: 12,
+      reason: "LOCK", userId: "a", at: "2026-10-11T05:10:03Z" });
+    expect(got).toEqual(["LOCK 12"]);
+    c.stop();
+  });
 });
 
 describe("useErdModel + useErdStream", () => {
@@ -207,5 +223,132 @@ describe("useErdModel + useErdStream", () => {
     expect(load).toHaveBeenCalledTimes(2);
     expect(attr("data-rev")).toBe("8");
     expect(attr("data-tables")).toBe("t-a,t-c");
+  });
+
+  it("exclusiveWaitsForOwnEcho", async () => {
+    // S2-29: exclusive 결과의 rev 까지 화면 상태가 따라올 때까지 다음 일을 놓지 않는다. 5초가 지나면 다시 읽는다.
+    const load = vi.fn(async (_id: string) => viewAt(5, "t-a"));
+    let api: ErdModelApi | null = null;
+    function Probe() {
+      const m = useErdModel("mcm", "ui-t", "tester", load);
+      api = m;
+      const handlers = useMemo(() => ({
+        onHello: () => undefined, onDelta: m.applyDelta, onReload: () => void m.reload(), onPresence: m.setPresence, onClaims: m.setClaims,
+      }), [m.applyDelta, m.reload, m.setPresence, m.setClaims]);
+      useErdStream({ modelId: "mcm", session: "ui-t", ready: m.state !== null, lastRev: m.state?.rev ?? null, handlers, factory });
+      return createElement("div", { "data-testid": "h", "data-rev": String(m.state?.rev ?? "") });
+    }
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root!.render(createElement(Probe));
+    });
+    await act(async () => undefined);
+    const ex = <T,>(fn: () => Promise<T>) => (api as unknown as ErdModelApi).exclusive(fn);
+    const order: string[] = [];
+
+    // 응답(rev 6)이 SSE 에코보다 먼저 왔다 — 에코가 올 때까지 다음 일을 놓지 않는다
+    let first: unknown;
+    await act(async () => {
+      void ex(async () => ({ applied: true, rev: 6 })).then((r) => {
+        first = r;
+      });
+      void ex(async () => {
+        order.push("second");
+      });
+    });
+    expect(first).toEqual({ applied: true, rev: 6 }); // 부른 쪽은 결과를 바로 받는다
+    expect(order).toEqual([]);
+    await act(async () => {
+      FakeES.all[0].emit("change", { ...addTable(6, "t-b"), session: "ui-t", source: "UI" });
+    });
+    expect(attr("data-rev")).toBe("6");
+    expect(order).toEqual(["second"]);
+
+    // 에코가 5초 안에 오지 않으면 모델을 다시 읽고 다음 일을 놓는다
+    load.mockImplementationOnce(async () => viewAt(8, "t-a", "t-b"));
+    await act(async () => {
+      void ex(async () => ({ rev: 8 }));
+      void ex(async () => {
+        order.push("third");
+      });
+    });
+    expect(order).toEqual(["second"]);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4999);
+    });
+    expect(order).toEqual(["second"]);
+    expect(load).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(order).toEqual(["second", "third"]);
+    expect(attr("data-rev")).toBe("8");
+  });
+
+  it("되돌리기 요청이 서버에 닿지 않으면(던짐·다시 읽는 중 거절) 그 rev 를 myRevs 에 돌려 둔다", async () => {
+    const load = vi.fn(async (_id: string) => viewAt(5, "t-a"));
+    let restoreFails = true;
+    vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {}, removeItem: () => {}, clear: () => {} });
+    vi.stubGlobal("fetch", vi.fn(async (url: RequestInfo | URL) => {
+      const action = String(url).split("/").pop();
+      if (action === "restore" && restoreFails) throw new TypeError("Failed to fetch");
+      const result = action === "save"
+        ? { applied: true, rev: 6, rowVersion: 1, warnings: [], rejection: null, changes: [{ kind: "table", id: "t-a", op: "patch", value: { logical: "가" } }] }
+        : { applied: true, rev: 7, rowVersion: 2, warnings: [], rejection: null, changes: [{ kind: "table", id: "t-a", op: "patch", value: { logical: "나" } }] };
+      return new Response(JSON.stringify({ meta: { success: true }, data: { result } }), { status: 200 });
+    }));
+    try {
+      let api: ErdModelApi | null = null;
+      function Probe() {
+        api = useErdModel("mcm", "ui-t", "tester", load);
+        return null;
+      }
+      host = document.createElement("div");
+      document.body.appendChild(host);
+      root = createRoot(host);
+      await act(async () => {
+        root!.render(createElement(Probe));
+      });
+      await act(async () => undefined);
+      const m = () => api as unknown as ErdModelApi;
+      await act(async () => {
+        await m().apply([{ op: "updateTable", id: "t-a", set: { logical: "가" } }], "이름");
+      });
+      expect(m().myRevs).toEqual([6]);
+
+      // 던짐 — 요청이 반영되지 않았다
+      let out: unknown;
+      await act(async () => {
+        out = await m().undo(6);
+      });
+      expect(out).toMatchObject({ ok: false });
+      expect(m().myRevs).toEqual([6]);
+
+      // 다시 읽는 중이면 보내지 않고 RELOAD 로 거절한다 — rev 는 그대로 둔다
+      let finish!: (v: ErdModelView) => void;
+      load.mockImplementationOnce(() => new Promise<ErdModelView>((r) => { finish = r; }));
+      restoreFails = false;
+      await act(async () => {
+        void m().reload();
+        out = await m().undo(6);
+      });
+      expect(out).toMatchObject({ ok: false, notice: { code: "RELOAD" } });
+      expect(m().myRevs).toEqual([6]);
+      await act(async () => {
+        finish(viewAt(6, "t-a"));
+      });
+
+      // 서버에 닿으면 꺼낸다
+      await act(async () => {
+        out = await m().undo(6);
+      });
+      expect(out).toMatchObject({ ok: true, rev: 7 });
+      expect(m().myRevs).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

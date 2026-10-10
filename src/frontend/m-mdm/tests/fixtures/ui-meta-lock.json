@@ -591,7 +591,9 @@
   "col|session|false",
   "col|source|false",
   "col|summary|false",
+  "col|undo|false",
   "col|userId|false",
+  "col|who|false",
   "col|키|-"
  ],
  "m-mdm/pages/dma/erdEdit/panels/ColumnGrid.tsx": [

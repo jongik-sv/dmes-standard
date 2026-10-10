@@ -3,7 +3,7 @@
 /**
  * ERD 실시간 채널(SSE) 구독(스펙 4.4, 단계 0 ErdStreamController).
  * 경로는 포털 rest 프록시 `/api/mdm/rest/erdEdit/view/api/mdm/erd/stream/{modelId}`(권한키 mdm/erdEdit/view)다. OASIS 프록시는 응답을
- * 모아서 넘기므로 쓰지 않는다. 이벤트: hello{rev}(sinceRev 없이 처음 구독할 때만)·change(ErdDelta)·reload{rev}·presence·claim·ping.
+ * 모아서 넘기므로 쓰지 않는다. 이벤트: hello{rev}(sinceRev 없이 처음 구독할 때만)·change(ErdDelta)·reload{rev}·presence·claim·version(S2-12)·ping.
  *
  * - 연결은 모델을 읽은 뒤 sinceRev=<읽은 rev> 로 연다. 서버는 그 rev 뒤의 change 를 순서대로 다시 보낸다.
  * - 끊기면(error) 브라우저 자동 재연결을 쓰지 않는다. 자동 재연결은 처음 URL(옛 sinceRev)로 붙고 간격을 고를 수 없다.
@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useTabPage } from "@dk-oasis/shared/portal-shell";
 
-import type { ErdClaim, ErdDelta, ErdPresence } from "../types";
+import type { ErdClaim, ErdDelta, ErdPresence, ErdVersionEvent } from "../types";
 
 export const STREAM_PATH = "/api/mdm/rest/erdEdit/view/api/mdm/erd/stream/";
 export const BACKOFF_MS: readonly number[] = [1000, 2000, 4000, 8000, 15000, 30000];
@@ -36,6 +36,8 @@ export interface ErdStreamHandlers {
   onReload(rev: number): void;
   onPresence(list: ErdPresence[]): void;
   onClaims(list: ErdClaim[]): void;
+  /** 버전 수명 주기(S2-12). 구독 직후 SUBSCRIBE 가 한 번 온다. 단계 1 서버는 보내지 않는다. */
+  onVersion?(ev: ErdVersionEvent): void;
 }
 
 export function streamUrl(modelId: string, session: string, sinceRev: number | null): string {
@@ -144,6 +146,10 @@ export class ErdStreamClient {
       this.opened(false);
       h.onClaims(JSON.parse(String(e.data)) as ErdClaim[]);
     });
+    on("version", (e) => {
+      this.opened(false);
+      h.onVersion?.(JSON.parse(String(e.data)) as ErdVersionEvent);
+    });
   }
 
   private opened(resetBackoff: boolean): void {
@@ -232,6 +238,7 @@ export function useErdStream({ modelId, session, ready, lastRev, handlers, facto
         onReload: (rev) => handlersRef.current.onReload(rev),
         onPresence: (list) => handlersRef.current.onPresence(list),
         onClaims: (list) => handlersRef.current.onClaims(list),
+        onVersion: (ev) => handlersRef.current.onVersion?.(ev),
       },
     });
     clientRef.current = client;

@@ -13,7 +13,8 @@ import { VersionStatusBadge, type MdmVersionStatus } from "@/shell";
 import type { RegInput } from "../api";
 import type { ErdMode, ErdPreset } from "../canvas/erd-flow";
 import type { ErdStreamStatus } from "../state/useErdStream";
-import type { ErdModelRow, ErdPresence, ErdState } from "../types";
+import { LOST_TEXT } from "../state/permissions";
+import type { ErdClaim, ErdModelRow, ErdPresence, ErdState } from "../types";
 
 export const PRESETS: readonly { value: ErdPreset; label: string }[] = [
   { value: "basic", label: "기본" },
@@ -30,6 +31,31 @@ export { readOnlyReason } from "../state/permissions";
 export function avatarLabel(p: ErdPresence, mySession: string): string {
   if (p.session === mySession) return "나";
   return p.source === "UI" ? p.userId : p.session;
+}
+
+export interface Avatar { session: string; label: string; source: "ui" | "llm"; title: string }
+
+const hhmm = (iso: string): string => {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+
+/**
+ * 접속자 동그라미(D17, S2-11) — 나 → 사람 → Claude·CLI 세션 순. 만료 시각이 지난 시한 항목은 뺀다(서버가 15초마다 지우기 전 사이).
+ * 제목에 사용자·세션·출처·만료 시각과 살아 있는 작업 중 표 수를 적는다(작업 중 표시 만료는 방송하지 않는다, S2-26).
+ */
+export function presenceAvatars(list: readonly ErdPresence[], claims: readonly ErdClaim[], mySession: string, now: number): Avatar[] {
+  const rank = (p: ErdPresence) => (p.session === mySession ? 0 : p.source === "UI" ? 1 : 2);
+  return list
+    .filter((p) => !p.expiresAt || Date.parse(p.expiresAt) > now)
+    .sort((a, b) => rank(a) - rank(b) || a.session.localeCompare(b.session))
+    .map((p) => {
+      const held = claims.filter((c) => c.session === p.session && Date.parse(c.expiresAt) > now).length;
+      const parts = [p.userId, p.session, p.source];
+      if (p.expiresAt) parts.push(`${hhmm(p.expiresAt)}까지`);
+      if (held > 0) parts.push(`작업 중 표 ${held}개`);
+      return { session: p.session, label: avatarLabel(p, mySession), source: p.source === "UI" ? "ui" : "llm", title: parts.join(" · ") };
+    });
 }
 
 export interface TopBarProps {
@@ -100,9 +126,9 @@ export function TopBar(p: TopBarProps) {
               rev {s.rev}
             </span>
             <span className="erd-bar__people" data-testid="erd-presence" title="접속자">
-              {s.presence.map((x) => (
-                <span key={x.session} className="erd-avatar" data-source={x.source === "UI" ? "ui" : "llm"} title={`${x.userId} · ${x.session}`}>
-                  {avatarLabel(x, p.mySession)}
+              {presenceAvatars(s.presence, s.claims, p.mySession, Date.now()).map((a) => (
+                <span key={a.session} className="erd-avatar" data-source={a.source} title={a.title} data-testid={`erd-avatar-${a.session}`}>
+                  {a.label}
                 </span>
               ))}
             </span>
@@ -157,7 +183,7 @@ export function TopBar(p: TopBarProps) {
       )}
       {p.streamStatus === "lost" && (
         <div className="erd-banner" data-kind="lost" role="alert" data-testid="erd-banner-lost">
-          연결이 끊겼습니다. 다시 연결하는 중이며, 연결될 때까지 확정·기각·가져오기를 멈춥니다.
+          {LOST_TEXT}
         </div>
       )}
       {p.readOnly && (

@@ -5,7 +5,8 @@
  *
  * 라벨·순서·variant·확인 문구는 이 컴포넌트가 정한다. 활성 조건은 각 화면이 계산해서 `enabled` 로 넘긴다
  * (서버 판정값을 여기서 다시 계산하지 않는다). 버튼은 늘 보이고, 해당하지 않으면 비활성으로 구분한다.
- * 순서: 새 버전(major) · 새 버전(minor) · 삭제 · 확정 · 확정취소 · 선점 · 해제 · 넘기기 (그 뒤 `trailing`).
+ * 순서: 새 버전(major) · 새 버전(minor) · 삭제 · 확정 · 확정취소(넘길 때만) · 선점 · 해제 · 넘기기 (그 뒤 `trailing`).
+ * 확정취소는 그 액션이 있는 화면만 넘긴다. 넘기지 않으면 단추를 그리지 않는다(ERD, 단계 2 S2-10).
  */
 import type { ReactNode } from "react";
 
@@ -26,7 +27,7 @@ export interface VersionActionIds {
   newVersion?: string;
   delete: string;
   confirm: string;
-  cancelConfirm: string;
+  cancelConfirm?: string;
   cancelConfirmWrap?: string;
   lock: string;
   unlock: string;
@@ -43,7 +44,8 @@ export interface VersionActionBarProps {
   newVersion?: VersionAction;
   delete: VersionAction;
   confirm: VersionAction;
-  cancelConfirm: VersionAction;
+  /** 확정취소 — 넘기지 않으면 단추를 그리지 않는다. */
+  cancelConfirm?: VersionAction;
   lock: VersionAction;
   unlock: VersionAction;
   handover: VersionAction;
@@ -52,14 +54,14 @@ export interface VersionActionBarProps {
   onNewVersion?: () => void;
   onDelete: () => void;
   onConfirm: () => void;
-  onCancelConfirm: () => void;
+  onCancelConfirm?: () => void;
   onLock: () => void;
   onUnlock: () => void;
   onHandover: () => void;
   /** 삭제 확인창 본문. */
   deleteMessage: string;
   /** 확정취소 확인창 본문. */
-  cancelConfirmMessage: string;
+  cancelConfirmMessage?: string;
   /** 넘기기 앞에 놓을 입력 칸 등(룰 화면의 인라인 대상 입력). */
   beforeHandover?: ReactNode;
   /** 맨 뒤에 붙는 화면별 버튼·배지(코드 편집, 편집 중 배지). */
@@ -73,7 +75,7 @@ export function VersionActionBar(p: VersionActionBarProps) {
   const confirmDelete = () =>
     showMessage({ title: "확인", message: p.deleteMessage, alertType: "confirm", onConfirm: p.onDelete });
   const confirmCancel = () =>
-    showMessage({ title: "확정취소", message: p.cancelConfirmMessage, alertType: "confirm", onConfirm: p.onCancelConfirm });
+    showMessage({ title: "확정취소", message: p.cancelConfirmMessage ?? "", alertType: "confirm", onConfirm: p.onCancelConfirm ?? noop });
 
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-xs)", alignItems: "center" }}>
@@ -107,11 +109,13 @@ export function VersionActionBar(p: VersionActionBarProps) {
           확정
         </Button>
       </span>
-      <span data-testid={p.ids.cancelConfirmWrap} title={p.cancelConfirm.title}>
-        <Button data-testid={p.ids.cancelConfirm} variant="danger" disabled={!p.cancelConfirm.enabled} onClick={confirmCancel}>
-          확정취소
-        </Button>
-      </span>
+      {p.cancelConfirm && (
+        <span data-testid={p.ids.cancelConfirmWrap} title={p.cancelConfirm.title}>
+          <Button data-testid={p.ids.cancelConfirm} variant="danger" disabled={!p.cancelConfirm.enabled} onClick={confirmCancel}>
+            확정취소
+          </Button>
+        </span>
+      )}
       <span title={p.lock.title}>
         <Button data-testid={p.ids.lock} disabled={!p.lock.enabled} onClick={p.onLock}>
           선점

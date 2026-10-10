@@ -184,6 +184,8 @@ export function ErdViewer() {
   const [tab, setTab] = useState<ReviewTab>("violations");
   const [diff, setDiff] = useState<ErdDbDiffView | null>(null);
   const [history, setHistory] = useState<ErdChangesView | null>(null);
+  const historyRef = useRef(history);
+  historyRef.current = history;
   const [reviewEpoch, setReviewEpoch] = useState(0);
   const diffSeq = useRef(0);
   const historySeq = useRef(0);
@@ -213,8 +215,9 @@ export function ErdViewer() {
       onReload: () => void erd.reload({ dropMine: true }),
       onPresence: erd.setPresence,
       onClaims: erd.setClaims,
+      onVersion: erd.onVersion,
     }),
-    [erd.applyDelta, erd.reload, erd.setPresence, erd.setClaims],
+    [erd.applyDelta, erd.reload, erd.setPresence, erd.setClaims, erd.onVersion],
   );
   const streamStatus = useErdStream({ modelId, session, ready, lastRev: state?.rev ?? null, handlers });
   const connected = streamStatus === "open";
@@ -399,7 +402,10 @@ export function ErdViewer() {
 
   /** 되돌리기(변경 기록·Ctrl+Z). Ctrl+Z 가 CONFLICT 면 다른 변경을 고르라고 붙인다(그 rev 는 이미 myRevs 에서 뺐다). */
   const undoRevision = useCallback(async (rev: number, fromKey: boolean): Promise<ApplyOutcome> => {
-    const blocked = blockedNotice(rightsRef.current, connectedRef.current, false);
+    // 변경 기록에 그 rev 가 있고 다이어그램 밖(표·컬럼·키·관계)을 바꿨으면 모델 권한을 본다. 모르면 다이어그램 권한만 본다.
+    const delta = historyRef.current?.deltas.find((d) => d.rev === rev);
+    const touchesModel = delta?.changes.some((c) => c.kind !== "diagram" && c.kind !== "diagramNode") ?? false;
+    const blocked = blockedNotice(rightsRef.current, connectedRef.current, touchesModel);
     let out: ApplyOutcome = blocked ? { ok: false, notice: blocked } : await erd.undo(rev);
     if (!out.ok && fromKey && out.notice.code === "CONFLICT") {
       out = { ok: false, notice: { ...out.notice, hint: [out.notice.hint, UNDO_CONFLICT_HINT].filter(Boolean).join(" ") } };
@@ -419,6 +425,8 @@ export function ErdViewer() {
     }
     void undoRevision(last, true);
   }, [erd.myRevs, notify, undoRevision]);
+  /** 변경 기록 [되돌리기] — 그 rev 를 restore 로 되돌린다. */
+  const onUndo = useCallback((rev: number) => void undoRevision(rev, false), [undoRevision]);
 
   // ── 전역 키(S2-8·S2-27). 포털 탭이 활성일 때만. 받은 키는 끊어서 캔버스·그리드 처리기가 다시 받지 않게 한다. ──
   const navRef = useRef(nav);
@@ -598,7 +606,8 @@ export function ErdViewer() {
       </div>
       <div className="erd-area-review">
         <ReviewPanel ctx={ctx} model={state?.model ?? null} status={status} tab={tab} onTab={setTab} diff={diff} history={history}
-          onReloadDiff={loadDiff} onReloadHistory={loadHistory} onDecide={onDecide} onSelectTable={selectTable} locked={locked} />
+          onReloadDiff={loadDiff} onReloadHistory={loadHistory} onDecide={onDecide} onSelectTable={selectTable} locked={locked}
+          mySession={session} canUndo={rights.model.ok || rights.diagram.ok} onUndo={onUndo} />
       </div>
     </div>
   );

@@ -1,41 +1,62 @@
 "use client";
 
-/** 변경 기록 탭(view sinceRev). 최근 rev 부터, 변경은 종류별 수로 줄인다. Task 10 이 행마다 [되돌리기] 를 더한다. */
+/**
+ * 변경 기록 탭(view sinceRev, 스펙 4.4 되돌리기). 최근 rev 부터, 변경은 종류별 수로 줄인다. 내 세션 행에 "나" 를 단다.
+ * 행마다 [되돌리기] — 그 rev 의 역명령을 새 rev 로 넣는다(restore). 뒤에 같은 속성을 바꾼 변경이 있으면 CONFLICT 다(S2-5).
+ * 그리드 data 는 history·mySession 이 바뀔 때만, 단추 열은 canUndo·onUndo 가 바뀔 때만 다시 만든다(Screen-Performance R7, Local-Rules §20).
+ */
 import { useMemo } from "react";
 
+import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 
 import type { ErdChangesView } from "../types";
 
 const KIND_LABEL: Record<string, string> = { table: "표", column: "컬럼", key: "키", relation: "관계", diagram: "다이어그램", diagramNode: "배치" };
 
-export function historyRows(view: ErdChangesView | null): Record<string, unknown>[] {
+export function historyRows(view: ErdChangesView | null, mySession = ""): Record<string, unknown>[] {
   if (!view) return [];
   return [...view.deltas].reverse().map((d) => {
     const counts = new Map<string, number>();
     for (const c of d.changes) counts.set(c.kind, (counts.get(c.kind) ?? 0) + 1);
     return {
-      id: String(d.rev), rev: d.rev, userId: d.userId, session: d.session, source: d.source,
+      id: String(d.rev), rev: d.rev, who: d.session === mySession ? "나" : "", userId: d.userId, session: d.session, source: d.source,
       summary: [...counts].map(([k, n]) => `${KIND_LABEL[k] ?? k} ${n}`).join("·"),
     };
   });
 }
 
-const HISTORY_COLUMNS: GridColumn[] = [
-  { key: "rev", header: "rev", width: 70, align: "right", meta: false },
-  { key: "userId", header: "사용자", width: 120, meta: false },
-  { key: "session", header: "세션", width: 160, meta: false },
-  { key: "source", header: "출처", width: 70, align: "center", meta: false },
-  { key: "summary", header: "변경", width: 260, meta: false },
-];
+function historyColumns(canUndo: boolean, onUndo: (rev: number) => void): GridColumn[] {
+  return [
+    { key: "rev", header: "rev", width: 70, align: "right", meta: false },
+    { key: "who", header: "", width: 40, align: "center", meta: false },
+    { key: "userId", header: "사용자", width: 120, meta: false },
+    { key: "session", header: "세션", width: 160, meta: false },
+    { key: "source", header: "출처", width: 70, align: "center", meta: false },
+    { key: "summary", header: "변경", width: 240, meta: false },
+    {
+      key: "undo", header: "", width: 100, meta: false, sortable: false, tooltip: false,
+      render: (_v, row) => (
+        <Button size="mini" data-testid={`erd-undo-${String(row.rev)}`} disabled={!canUndo} onClick={() => onUndo(Number(row.rev))}>
+          되돌리기
+        </Button>
+      ),
+    },
+  ];
+}
 
-export interface ChangeLogProps { history: ErdChangesView | null }
+export interface ChangeLogProps {
+  history: ErdChangesView | null;
+  mySession: string;
+  canUndo: boolean;
+  onUndo(rev: number): void;
+}
 
-export function ChangeLog({ history }: ChangeLogProps) {
-  // 그리드 data 는 history 가 바뀔 때만 새로 만든다(Screen-Performance R7).
-  const rows = useMemo(() => historyRows(history), [history]);
+export function ChangeLog({ history, mySession, canUndo, onUndo }: ChangeLogProps) {
+  const rows = useMemo(() => historyRows(history, mySession), [history, mySession]);
+  const columns = useMemo(() => historyColumns(canUndo, onUndo), [canUndo, onUndo]);
   return (
-    <AgDataGrid gridId="erdHistory" columnSizing="fit" columns={HISTORY_COLUMNS} data={rows} rowKey="id"
+    <AgDataGrid gridId="erdHistory" columnSizing="fit" columns={columns} data={rows} rowKey="id"
       emptyMessage={history ? "변경 기록이 없습니다." : "변경 기록을 읽는 중입니다."} />
   );
 }
