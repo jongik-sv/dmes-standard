@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as J from './lib/jq-json.mjs';
-import { CoordDie, Ctx, cfgSub, hasRun, isoToEpoch, laneGet, nowEpoch, nowIso, stateFile } from './lib/common.mjs';
+import { CoordDie, Ctx, cfgSub, hasRun, isoToEpoch, laneGet, nowEpoch, nowIso, runDir, stateFile } from './lib/common.mjs';
 import { compacted, ctxPct } from './lib/compact-screen.mjs';
 import { functions as termFns } from './lib/term.mjs';
 import { ArithAbort, arithVal, coordStateCall, jqAdd, rawOut, runScriptFile, runSync, stripNl } from './lib/common-ext.mjs';
@@ -20,7 +20,7 @@ import { sleepSec } from './lib/test-sleep.mjs';
 /** 도움말(= bash 판 머리말 2~8줄, 이름만 .mjs). */
 const HELP = `# 사용법: compact-lane.mjs <레인> [--clear] [--force-no-memo] [--over-draft] [--dry-run]
 #   레인 세션에 /compact 를 안전하게 넣고 끝날 때까지 확인한다(설계 §3.j-3~5). 정본 출력: references/contract.md §3.5
-#   --clear: /compact 대신 /clear → 입력창 비는 것(tui-idle) 확인 → 재개 문구(정본 경로·다음 단계) 전송. 정본 메모(pre_compact) 필수: --force-no-memo 로도 통과하지 않는다.
+#   --clear: /compact 대신 /clear → 입력창 비는 것(tui-idle) 확인 → 재개 문구(착수 지시 원문 <회차>/lanes/<레인>/brief.md·정본 경로·다음 단계) 전송. 정본 메모(pre_compact) 필수: --force-no-memo 로도 통과하지 않는다.
 #   거부: merge-in-flight(머지 중) · measure-lane(열린 측정 창의 측정 레인) · no-memo(pre_compact 없음, --force-no-memo 로 통과)
 #         · cooldown(compact.cooldown_min 안) · unsupported-kind(opencode·agy 등) · no-handle · term-send-safe 의 거부 사유 그대로.
 #   stdout: \`COMPACT_REFUSED <레인> <사유>\` · \`COMPACT_DONE <레인> before=<n|-> after=<n|->\`(--clear 면 끝에 \` mode=clear\`) · \`COMPACT_TIMEOUT <레인>\`.
@@ -30,10 +30,11 @@ const HELP = `# 사용법: compact-lane.mjs <레인> [--clear] [--force-no-memo]
 const HERE = dirname(fileURLToPath(import.meta.url));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const readDocs = (file) => { try { return J.parseStreamPartial(readFileSync(file, 'utf8')).values; } catch { return []; } };
-/** /clear 뒤 레인에 보낼 재개 문구(설계 2026-10-10 §5.1). 슬래시로 시작하지 않는다. */
-export function resumeText({ lane, memo, cname, caddr, next }) {
+/** /clear 뒤 레인에 보낼 재개 문구(설계 2026-10-10 §5.1). 슬래시로 시작하지 않는다.
+ *  brief = 착수 지시 원문 경로(<회차>/lanes/<레인>/brief.md, 없으면 '-'). /clear 는 소유·금지 파일·머지 규칙·보고 형식까지 지우므로 정본과 함께 읽힌다. */
+export function resumeText({ lane, memo, brief, cname, caddr, next }) {
   const d = (v) => (v && v !== '' ? v : '-');
-  return `[조정자→${lane}] 재개: 컨텍스트를 비웠다. 정본 ${d(memo)} 를 읽고 이어서 진행한다. 조정 세션 ${d(cname)}(${d(caddr)}). 다음 단계: ${d(next)}`;
+  return `[조정자→${lane}] 재개: 컨텍스트를 비웠다. 착수 지시 원문 ${d(brief)}(소유·금지 파일, 머지 규칙, 보고 형식)과 정본 ${d(memo)} 를 읽고 이어서 진행한다. 조정 세션 ${d(cname)}(${d(caddr)}). 다음 단계: ${d(next)}`;
 }
 const SP = /^[ \t\n\v\f\r]*$/;
 const lstrip = (s) => s.replace(/^[ \t\n\v\f\r]+/, '');
@@ -186,7 +187,9 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
         flush();
         return 0;
       }
-      const rtext = resumeText({ lane, memo, cname, caddr, next }).replace(/[\n\r\t]/g, ' ').split('!').join('');
+      let brief = '-';
+      try { const bp = join(runDir(c), 'lanes', lane, 'brief.md'); if (readable(bp)) brief = bp; } catch { /* 회차 폴더를 못 찾으면 '-' */ }
+      const rtext = resumeText({ lane, memo, brief, cname, caddr, next }).replace(/[\n\r\t]/g, ' ').split('!').join('');
       const rr = runScriptFile(join(SD, 'term-send-safe.mjs'), ['--handle', h, '--text', rtext, '--timeout-ms', '300000'], { env: c.env, cwd: c.cwd });
       const rres = stripNl(rr.out.toString('utf8'));
       if (!rres.startsWith('SENT ')) {

@@ -15,17 +15,20 @@ const EMPTY = readFileSync(join(HERE, 'fixtures', 'claude-empty-placeholder-name
 const WIN = process.platform === 'win32';
 
 test('resumeText: 정본·조정 세션·다음 단계를 담고 슬래시 명령으로 시작하지 않는다', () => {
-  const t = resumeText({ lane: 'a1', memo: '/tmp/memo-a1.md', cname: 'coord', caddr: 'coord@x', next: 'Task 3 리뷰' });
+  const t = resumeText({ lane: 'a1', memo: '/tmp/memo-a1.md', brief: '/s/r1/lanes/a1/brief.md', cname: 'coord', caddr: 'coord@x', next: 'Task 3 리뷰' });
   assert.match(t, /^\[조정자→a1\] 재개:/);
+  assert.match(t, /착수 지시 원문 \/s\/r1\/lanes\/a1\/brief\.md\(소유·금지 파일, 머지 규칙, 보고 형식\)과 정본 \/tmp\/memo-a1\.md 를 읽고/);
   assert.match(t, /\/tmp\/memo-a1\.md/);
   assert.match(t, /coord\(coord@x\)/);
   assert.match(t, /Task 3 리뷰/);
-  const e = resumeText({ lane: 'b', memo: '', cname: '', caddr: '', next: '' });
+  const e = resumeText({ lane: 'b', memo: '', brief: '-', cname: '', caddr: '', next: '' });
   assert.match(e, /정본 - /);
+  assert.match(e, /착수 지시 원문 -\(/);
+  assert.match(resumeText({ lane: 'b', memo: '' }), /착수 지시 원문 -\(/);
 });
 
 /** 가짜 orca + 레인 a1(handle h1) 상태. preCompact 가 있으면 lanes.a1.compact.pre_compact 와 memo 를 채운다. */
-function world({ preCompact = null, memo = '', pid = 0, sid = '', newSid = '', failSecondSend = false } = {}) {
+function world({ preCompact = null, memo = '', pid = 0, sid = '', newSid = '', failSecondSend = false, brief = false, pidDoc = null } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'cl-test-'));
   const bin = join(dir, 'bin'), fake = join(dir, 'fake');
   mkdirSync(join(fake, 'screens'), { recursive: true }); mkdirSync(bin);
@@ -36,7 +39,8 @@ function world({ preCompact = null, memo = '', pid = 0, sid = '', newSid = '', f
   const lane = { session: { handle: 'h1', kind: 'claude', pid, session_id: sid }, compact: { pending: false, last_at: null, pre_compact: preCompact, history: [] }, memo };
   writeFileSync(join(dir, 'state', 'r1', 'state.json'), JSON.stringify({ schema: 1, run: { id: 'r1', coordinator: { name: 'coord', addr: 'coord@x' } }, lanes: { a1: lane } }));
   writeFileSync(join(dir, '.coord.local.json'), JSON.stringify({ state_dir: 'state', terminal_backend: 'orca', sessions_dir: join(dir, 'sessions') }));
-  if (pid) { mkdirSync(join(dir, 'sessions')); writeFileSync(join(dir, 'sessions', `${pid}.json`), JSON.stringify({ sessionId: newSid || sid })); }
+  if (pid) { mkdirSync(join(dir, 'sessions')); writeFileSync(join(dir, 'sessions', `${pid}.json`), JSON.stringify(pidDoc ?? { sessionId: newSid || sid })); }
+  if (brief) { mkdirSync(join(dir, 'state', 'r1', 'lanes', 'a1'), { recursive: true }); writeFileSync(join(dir, 'state', 'r1', 'lanes', 'a1', 'brief.md'), '# 착수 지시\n'); }
   if (failSecondSend) {
     // 두 번째 send(재개 문구)만 실패시키는 감싸개
     renameSync(join(bin, 'orca'), join(bin, 'orca-real'));
@@ -96,6 +100,18 @@ test('--clear 실제 전송: /clear 와 재개 문구를 차례로 보내고 mod
     assert.equal(sent.length, 2, JSON.stringify(sent));
     assert.equal(sent[0], '/clear');
     assert.match(sent[1], /^\[조정자→a1\] 재개:.*\/tmp\/memo-a1\.md.*Task 3 리뷰/);
+  } finally { rmSync(w.dir, { recursive: true, force: true }); }
+});
+
+test('--clear 실제 전송: 착수 지시 원문(brief.md)이 있으면 재개 문구가 그 경로를 가리킨다', { skip: WIN }, () => {
+  const w = world({ preCompact: 'Task 3 리뷰', memo: '/tmp/memo-a1.md', brief: true });
+  try {
+    const r = w.run(['a1', '--clear']);
+    assert.equal(r.status, 0, r.stderr);
+    const sent = readFileSync(join(w.dir, 'fake', 'orca.log'), 'utf8').split('\n').filter((l) => l.includes('"send"')).map((l) => JSON.parse(l)[JSON.parse(l).indexOf('--text') + 1]);
+    assert.equal(sent.length, 2, JSON.stringify(sent));
+    assert.ok(sent[1].includes(`착수 지시 원문 ${join(w.dir, 'state', 'r1', 'lanes', 'a1', 'brief.md')}(`), sent[1]);
+    assert.match(sent[1], /정본 \/tmp\/memo-a1\.md 를 읽고/);
   } finally { rmSync(w.dir, { recursive: true, force: true }); }
 });
 
