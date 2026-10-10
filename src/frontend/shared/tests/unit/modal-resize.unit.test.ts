@@ -59,6 +59,10 @@ describe("Modal resizable", () => {
     expect(content().style.width).toBe("700px");
     expect(content().style.height).toBe("460px");
     expect(content().classList.contains("cm-modal--resized")).toBe(true);
+    // inner(고정 위치 flex 부모)에는 크기가 걸리지 않아야 창이 가운데에 머문다.
+    const inner = document.querySelector<HTMLElement>(".mantine-Modal-inner")!;
+    expect(inner.style.width).toBe("");
+    expect(inner.style.height).toBe("");
     r.unmount();
   });
 

@@ -448,7 +448,9 @@ function ModalCore({
         // 325px, 정상이면 600px). `classNames` 는 selector 별로 분리되므로 `content` 키만 지정해
         // inner 를 건드리지 않는다.
         classNames={{ content: clsx("cm-modal", `cm-modal-${size}`, resizable && "cm-modal--resizable", resize.resized && "cm-modal--resized", className) }}
-        style={resize.style}
+        // `style` prop 은 `className` 처럼 content 와 inner(flex 부모) 둘 다에 전달된다(ModalContent.mjs 의 innerProps). inner 에 width/height 가 걸리면
+        // 위치 고정된 inner 가 줄어들어 창이 왼쪽 위로 붙는다 — 그래서 content 만 가리키는 `styles` 로 넘긴다.
+        styles={resize.style ? { content: resize.style } : undefined}
       >
         {(title || showCloseButton) && (
           <M.Header className="cm-modal-header">
