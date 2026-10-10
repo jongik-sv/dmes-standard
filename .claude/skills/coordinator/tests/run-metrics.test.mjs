@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { COORD_ROOT } from './support/rng.mjs';
 import { collectMetrics, csvRow, CSV_HEADER, renderMarkdown } from '../scripts/run-metrics.mjs';
 
@@ -180,4 +180,14 @@ test('CLI: 값 없는 --run/--since/--until, 날짜 아닌 값은 rc 2', () => {
   assert.equal(w.runCli(['--run']).status, 2);
   assert.equal(w.runCli(['--since']).status, 2);
   assert.equal(w.runCli(['--until', 'not-a-date']).status, 2);
+});
+
+test('CLI: /clear 로 바뀌기 전 세션(prev_ids)의 비용도 센다', () => {
+  const w = world();
+  writeFileSync(join(dirname(w.run), '..', 'projects', 'projB', 'l0.jsonl'), asst(9, '2026-10-10T03:02:00Z', 'claude-opus-5-5', U1));
+  setState(w, (st) => { st.lanes.a.session.prev_ids = ['l0']; });
+  const r = w.runCli(['--stdout', '--no-csv']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /METRICS r1 cost=0\.22 /);
+  assert.match(r.stdout, /\$0\.04 \/ \$0\.08 \/ \$0\.03 \/ \$0\.07/);
 });

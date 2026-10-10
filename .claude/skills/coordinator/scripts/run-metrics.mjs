@@ -182,10 +182,14 @@ export async function main(argv, { env, cwd }) {
     const until = o.until || (st.run && st.run.closed_at) || new Date().toISOString();
     const sessions = [];
     const csid = st.run && st.run.coordinator && st.run.coordinator.session_id;
+    const prev = (x) => (Array.isArray(x && x.prev_ids) ? x.prev_ids.filter((s) => typeof s === 'string' && s) : []);
     if (csid) sessions.push({ sid: csid, role: 'coord' });
+    // /clear 로 바뀌기 전 세션 ID(relink 가 prev_ids 에 남김)도 센다
+    for (const sid of prev(st.run && st.run.coordinator)) sessions.push({ sid, role: 'coord' });
     for (const [name, l] of Object.entries(st.lanes || {})) {
       const sid = l && l.session && l.session.session_id;
       if (sid) sessions.push({ sid, role: 'lane', lane: name });
+      for (const p of prev(l && l.session)) sessions.push({ sid: p, role: 'lane', lane: name });
     }
     const m = collectMetrics({
       projectsDir: expand(cfgSub(c, '.claude_projects_dir') || '~/.claude/projects', c.env),
