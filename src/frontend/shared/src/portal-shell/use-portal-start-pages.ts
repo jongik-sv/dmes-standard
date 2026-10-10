@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { redirectToLoginOn401 } from "../http";
+import { reorderStartPages } from "./reorder";
 import type { PortalStartPageRecord } from "./start-pages";
 import { getCurrentUser } from "./current-user";
 
@@ -15,6 +16,10 @@ export interface PortalStartPagesState {
   errorMessage: string | null;
   /** 등록·해제 후 목록 재조회. 진행 중에도 이전 목록을 그대로 보여 준다(포털을 다시 그리지 않는다). */
   refetch: () => Promise<void>;
+  /**
+   * 끌어서 바꾼 순서를 서버 응답 전에 먼저 화면에 반영한다(낙관적 갱신). 저장이 실패하면 호출자가 `refetch` 로 서버 순서로 되돌린다.
+   */
+  applyOrder: (orderedPageIds: readonly string[]) => void;
 }
 
 export interface PortalStartPagesEndpoint {
@@ -99,7 +104,11 @@ export function usePortalStartPages(config: PortalStartPagesEndpoint): PortalSta
     setReloadKey((prev) => prev + 1);
   }, []);
 
-  return { startPages, isLoaded, errorMessage, refetch };
+  const applyOrder = useCallback((orderedPageIds: readonly string[]) => {
+    setStartPages((prev) => reorderStartPages(prev, orderedPageIds));
+  }, []);
+
+  return { startPages, isLoaded, errorMessage, refetch, applyOrder };
 }
 
 /**

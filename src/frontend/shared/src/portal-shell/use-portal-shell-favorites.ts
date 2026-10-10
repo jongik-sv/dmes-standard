@@ -2,27 +2,9 @@
 
 import { useCallback, useMemo, useState } from "react";
 import type { PortalFavoriteMenuRecord } from "../portal-menu";
-import { composePageName } from "./module";
 import type { FavoriteFolderChoice } from "./FavoriteFolderPickerModal";
+import { type FavoriteReorder, favoriteRecordPageId as toPageIdFromFavoriteMenuItem } from "./reorder";
 import type { FavoriteFolderNode } from "./sidebar/FavoritesTree";
-
-function toPageIdFromFavoriteMenuItem(menuItem: PortalFavoriteMenuRecord): string | null {
-  if (menuItem.type !== "page" || !menuItem.moduleId || !menuItem.pageName) {
-    return null;
-  }
-  // toPageId(메뉴트리 별버튼)와 동기화 — componentPath(${PARENT_MENU_ID}/${OBJECT_ID}) 우선.
-  // 미스매치 시 즐겨찾기 pageId 가 별버튼 pageId 와 달라 하이라이트/탭 라우팅이 깨진다.
-  let composedPageName: string | null;
-  if (menuItem.componentPath && menuItem.componentPath.includes("/")) {
-    composedPageName = menuItem.componentPath;
-  } else {
-    composedPageName = composePageName(menuItem.path, menuItem.pageName);
-  }
-  if (!composedPageName) {
-    return null;
-  }
-  return `${menuItem.moduleId}:${composedPageName}`;
-}
 
 /**
  * PortalShell 내부 훅 — 즐겨찾기 트리·등록 여부·폴더 선택 팝업과 즐겨찾기 콜백.
@@ -36,6 +18,7 @@ export function usePortalShellFavorites({
   onToggleFavorite,
   onAddFavoriteFolder,
   onDeleteFavoriteFolder,
+  onReorderFavorites,
   resolveDisplayText,
   tabs,
 }: {
@@ -43,6 +26,7 @@ export function usePortalShellFavorites({
   onToggleFavorite?: (pageId: string, folder?: FavoriteFolderChoice) => void;
   onAddFavoriteFolder?: (folderName: string) => void;
   onDeleteFavoriteFolder?: (folderId: string) => void;
+  onReorderFavorites?: (change: FavoriteReorder) => void;
   resolveDisplayText: (pageId: string, fallback: string) => string;
   tabs: ReadonlyArray<{ pageId: string; title: string }>;
 }) {
@@ -133,6 +117,23 @@ export function usePortalShellFavorites({
     [onToggleFavorite]
   );
 
+  // 사이드바에서 끌어서 바꾼 순서 — 폴더끼리 또는 한 폴더 안 메뉴끼리. 미지정이면 트리를 끌 수 없다.
+  const handleReorderFavoriteFolders = useMemo(
+    () =>
+      onReorderFavorites
+        ? (folderIds: string[]) => onReorderFavorites({ kind: "folders", folderIds })
+        : undefined,
+    [onReorderFavorites]
+  );
+  const handleReorderFavoriteItems = useMemo(
+    () =>
+      onReorderFavorites
+        ? (folderId: string, pageIds: string[]) =>
+            onReorderFavorites({ kind: "items", folderId, pageIds })
+        : undefined,
+    [onReorderFavorites]
+  );
+
   return {
     favoriteTree,
     favoritePageIdSet,
@@ -144,5 +145,7 @@ export function usePortalShellFavorites({
     handleAddFavoriteFolder,
     handleDeleteFavoriteFolder,
     handleDeleteFavorite,
+    handleReorderFavoriteFolders,
+    handleReorderFavoriteItems,
   };
 }

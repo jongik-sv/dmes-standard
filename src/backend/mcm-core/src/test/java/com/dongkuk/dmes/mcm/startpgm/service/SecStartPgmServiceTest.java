@@ -202,6 +202,76 @@ class SecStartPgmServiceTest {
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.INVALID_VALUE));
     }
 
+    private static Map<String, Object> item(String fullId, String menuId) {
+        return Map.of("fullId", fullId, "menuId", menuId);
+    }
+
+    @Test
+    @DisplayName("순서 저장 — 본인 행의 START_SEQ 를 요청 순서대로 1..n 으로 다시 쓰고, 목록에 없던 본인 행은 뒤에 붙인다")
+    @SuppressWarnings("unchecked")
+    void reorderRewritesSeq() {
+        when(securityIdentity.currentUserId()).thenReturn("userA");
+        SecUserStartPgm a = row("userA", "csa/a", "M_A", 1);
+        SecUserStartPgm b = row("userA", "csa/b", "M_B", 2);
+        SecUserStartPgm c = row("userA", "csa/c", "M_C", 3);
+        SecUserStartPgm d = row("userA", "csa/d", "M_D", 4);
+        when(startPgmRepository.findByUserIdOrderByStartSeqAsc("userA")).thenReturn(List.of(a, b, c, d));
+
+        Map<String, Object> result = service.reorderStartPgms(
+                List.of(item("csa/c", "M_C"), item("csa/a", "M_A"), item("csa/b", "M_B")));
+
+        assertThat(c.getStartSeq()).isEqualTo(1);
+        assertThat(a.getStartSeq()).isEqualTo(2);
+        assertThat(b.getStartSeq()).isEqualTo(3);
+        assertThat(d.getStartSeq()).isEqualTo(4); // 목록에 없던 행은 뒤에, 값이 같아 쓰지 않는다
+        assertThat(result).containsEntry("count", 4).containsEntry("changed", 3);
+        ArgumentCaptor<List<SecUserStartPgm>> saved = ArgumentCaptor.forClass(List.class);
+        verify(startPgmRepository).saveAll(saved.capture());
+        assertThat(saved.getValue()).containsExactlyInAnyOrder(a, b, c);
+    }
+
+    @Test
+    @DisplayName("순서 저장 — 본인 행이 아닌 키가 섞이면 아무것도 쓰지 않고 INVALID_VALUE")
+    void reorderRejectsForeignKey() {
+        when(securityIdentity.currentUserId()).thenReturn("userA");
+        when(startPgmRepository.findByUserIdOrderByStartSeqAsc("userA")).thenReturn(List.of(
+                row("userA", "csa/a", "M_A", 1), row("userA", "csa/b", "M_B", 2)));
+
+        assertThatThrownBy(() -> service.reorderStartPgms(
+                List.of(item("csa/b", "M_B"), item("csa/victim", "M_V"))))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.INVALID_VALUE));
+        verify(startPgmRepository, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("순서 저장 — 같은 행을 두 번 보내면 거부, 인증 사용자 행만 읽는다(요청 userId 없음)")
+    void reorderRejectsDuplicateAndUsesAuthenticatedUser() {
+        when(securityIdentity.currentUserId()).thenReturn("userA");
+        when(startPgmRepository.findByUserIdOrderByStartSeqAsc("userA")).thenReturn(List.of(
+                row("userA", "csa/a", "M_A", 1)));
+
+        assertThatThrownBy(() -> service.reorderStartPgms(List.of(item("csa/a", "M_A"), item("csa/a", "M_A"))))
+                .isInstanceOf(BusinessException.class);
+        verify(startPgmRepository, never()).saveAll(any());
+        verify(startPgmRepository, never()).findByUserIdOrderByStartSeqAsc("victim");
+    }
+
+    @Test
+    @DisplayName("순서 저장 — 이미 같은 순서면 쓰지 않는다, 인증 정보가 없으면 AUTH_FAILED")
+    void reorderNoopAndUnauthenticated() {
+        when(securityIdentity.currentUserId()).thenReturn("userA", (String) null);
+        when(startPgmRepository.findByUserIdOrderByStartSeqAsc("userA")).thenReturn(List.of(
+                row("userA", "csa/a", "M_A", 1), row("userA", "csa/b", "M_B", 2)));
+
+        service.reorderStartPgms(List.of(item("csa/a", "M_A"), item("csa/b", "M_B")));
+        verify(startPgmRepository, never()).saveAll(any());
+
+        assertThatThrownBy(() -> service.reorderStartPgms(List.of()))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.AUTH_FAILED));
+    }
+
     @Test
     @DisplayName("인증 사용자도 요청 userId 도 없으면 AUTH_FAILED")
     void toggleWithoutUser() {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { redirectToLoginOn401 } from "../http";
 import type { PortalFavoriteMenuRecord } from "../portal-menu";
 import { getCurrentUser } from "./current-user";
+import { applyFavoriteReorder, type FavoriteReorder } from "./reorder";
 
 export interface PortalFavoritePagesState {
   favorites: PortalFavoriteMenuRecord[];
@@ -12,6 +13,10 @@ export interface PortalFavoritePagesState {
   errorMessage: string | null;
   /** 즐겨찾기 토글 후 목록 강제 재조회. 호출자가 await 한다. */
   refetch: () => Promise<void>;
+  /**
+   * 끌어서 바꾼 순서를 서버 응답 전에 먼저 화면에 반영한다(낙관적 갱신). 저장이 실패하면 호출자가 `refetch` 로 서버 순서로 되돌린다.
+   */
+  applyOrder: (change: FavoriteReorder) => void;
 }
 
 export interface PortalFavoritesEndpoint {
@@ -97,7 +102,11 @@ export function usePortalFavorites(config: PortalFavoritesEndpoint): PortalFavor
     setReloadKey((prev) => prev + 1);
   }, []);
 
-  return { favorites, isLoading, errorMessage, refetch };
+  const applyOrder = useCallback((change: FavoriteReorder) => {
+    setFavorites((prev) => applyFavoriteReorder(prev, change));
+  }, []);
+
+  return { favorites, isLoading, errorMessage, refetch, applyOrder };
 }
 
 /**
