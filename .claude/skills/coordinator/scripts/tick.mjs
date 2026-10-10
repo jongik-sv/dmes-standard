@@ -86,226 +86,246 @@ function drainErrs(c) { if (c.errs.length) { process.stderr.write(c.errs.join(''
 /** 틱 본문 한 번(후처리 포함). 행동 줄 배열을 돌려준다. 회차가 없으면 CoordDie(3). opts = {answer, dry} */
 export async function tickOnce(c, { answer = true, dry = false } = {}) {
   const drain = () => drainErrs(c);
-  {
-    if (!hasRun(c)) throw new CoordDie(3, '현재 회차가 없다');
-    const RD = runDir(c);
-    mkdirSync(join(RD, 'ticks'), { recursive: true });
-    const out = [];
-    const emit = (s) => out.push(s);
-    const now = Number(nowEpoch());
-    const child = (name, args = []) => runScript(c, name, args);
-    const outOf = (r) => r.out.toString('utf8');
-    const readState = () => {
-      try { const v = J.parseStreamPartial(readFileSync(stateFile(c), 'utf8')).values; return v.length ? v[0] : null; } catch { return null; }
-    };
-    const entries = (v) => (v instanceof Map ? [...v.entries()] : Array.isArray(v) ? v.map((x, i) => [String(i), x]) : []);
+  if (!hasRun(c)) throw new CoordDie(3, '현재 회차가 없다');
+  const RD = runDir(c);
+  mkdirSync(join(RD, 'ticks'), { recursive: true });
+  const out = [];
+  const emit = (s) => out.push(s);
+  const now = Number(nowEpoch());
+  const child = (name, args = []) => runScript(c, name, args);
+  const outOf = (r) => r.out.toString('utf8');
+  const readState = () => {
+    try { const v = J.parseStreamPartial(readFileSync(stateFile(c), 'utf8')).values; return v.length ? v[0] : null; } catch { return null; }
+  };
+  const entries = (v) => (v instanceof Map ? [...v.entries()] : Array.isArray(v) ? v.map((x, i) => [String(i), x]) : []);
 
-    const status = outOf(child('coord-status'));
+  const status = outOf(child('coord-status'));
 
-    // 1. 확인·선택 창(busy·idle 가리지 않고 handle 이 있는 active 레인). 감지는 폴러의 화면 캐시가 신선하면 orca 를 부르지 않는다(prompt-watch).
-    //    응답 직전 재판정(auto-answer)은 캐시를 쓰지 않고 늘 직접 읽는다.
-    const activeLanes = [];
-    try {
-      for (const [k, v] of entries(J.index(readState(), 'lanes'))) {
-        if (J.alt(J.index(v, 'state'), 'active') !== 'active') continue;
-        if (J.alt(J.index(J.index(v, 'session'), 'handle'), '') === '') continue;
-        activeLanes.push(k);
-      }
-    } catch (e) { if (!(e instanceof J.JqError)) throw e; }
-    for (const L of activeLanes.join('\n').split(/[ \t\n]+/).filter((s) => s !== '')) {
-      const pw = outOf(child('prompt-watch', [L])).split('\n')[0];
-      if (!pw.startsWith('PROMPT')) continue;
-      const kind = readFields(pw, 4)[2];
-      if (answer) {
-        const r = outOf(child('auto-answer', ['--lane', L, ...(dry ? ['--dry-run'] : [])])).split('\n')[0];
-        if (!(r === '' || r.startsWith('NONE'))) emit(`${r} lane=${L}`);
-      } else emit(`PROMPT ${L} ${kind}`);
+  // 1. 확인·선택 창(busy·idle 가리지 않고 handle 이 있는 active 레인). 감지는 폴러의 화면 캐시가 신선하면 orca 를 부르지 않는다(prompt-watch).
+  //    응답 직전 재판정(auto-answer)은 캐시를 쓰지 않고 늘 직접 읽는다.
+  const activeLanes = [];
+  try {
+    for (const [k, v] of entries(J.index(readState(), 'lanes'))) {
+      if (J.alt(J.index(v, 'state'), 'active') !== 'active') continue;
+      if (J.alt(J.index(J.index(v, 'session'), 'handle'), '') === '') continue;
+      activeLanes.push(k);
     }
-
-    // 2. idle·정지
-    for (const ln of lines(outOf(child('idle-check')))) {
-      const [kind, L, rest] = readFields(ln, 3);
-      if (kind === 'IDLE' || kind === 'WAIT_USER' || kind === 'STALL?' || kind === 'GONE') emit(`${kind} ${L} ${rest}`);
-    }
-    for (const ln of lines(outOf(child('stall-check')))) {
-      const [kind, L, rest] = readFields(ln, 3);
-      if (kind === 'STALL') emit(`STALL ${L} ${rest}`);
-    }
-
-    // 3. 컨텍스트 임계(레인은 coord-status 의 ctx 칸, 창 크기별 임계)
-    let cfgDoc = null;
-    const thrFor = (win) => { // <window> → pct 임계(jq 식 `.compact as $c | (($c.by_window[$w].pct) // $c.threshold_pct // 40)` 의 글)
-      try {
-        if (cfgDoc === null) cfgDoc = J.parse(cfgAll(c));
-        const cc = J.index(cfgDoc, 'compact');
-        return J.tostring(J.alt(J.alt(J.index(J.index(J.index(cc, 'by_window'), win ?? ''), 'pct'), J.index(cc, 'threshold_pct')), 40));
-      } catch { return ''; }
-    };
-    let cool = cfgSub(c, '.compact.cooldown_min'); if (cool === '') cool = '30';
-    for (const ln of status.split('\n')) {
-      if (!ln.startsWith('LANE ')) continue;
-      const f = readFields(ln, 11);
-      const L = f[1]; const ctxf = f[9];
-      let pct = ctxf.startsWith('ctx=') ? ctxf.slice(4) : ctxf;
-      if (pct.endsWith('%')) pct = pct.slice(0, -1);
-      if (pct === '' || pct === '-' || /[^0-9]/.test(pct)) continue;
-      let win = stripNl(laneGet(c, L, '.session.window').out);
-      if (!(win !== '' && win !== 'null')) win = cfgSub(c, '.compact.default_window');
-      const thr = thrFor(win);
-      const laneMax = Number(cfgSub(c, '.compact.lane_max') || '0');
-      const tokens = laneTokens(Number(pct), Number(win));
-      if (!ctxOver({ pct: Number(pct), thr: thr === '' ? NaN : Number(thr), tokens, max: laneMax })) continue;
-      const last = stripNl(isoToEpoch(c, stripNl(laneGet(c, L, '.compact.last_at').out)));
-      if (last !== '') {
-        const li = testInt(last); const ci = testInt(cool);
-        if (li !== null && ci !== null && BigInt(Math.trunc((now - Number(li)) / 60)) < ci) continue;
-      }
-      emit(`CTX_OVER ${L} pct=${pct} thr=${thr} tokens=${Number.isFinite(tokens) ? tokens : '-'} max=${laneMax || '-'}`);
-    }
-    let self = '';
-    try { const v = J.index(J.index(J.index(readState(), 'run'), 'coordinator'), 'session_id'); self = v === null || v === undefined ? '' : J.tostring(v); } catch { /* 빈 값 */ }
-    if (self !== '') {
-      const cu = outOf(child('ctx-usage', [self])).split('\n')[0];
-      if (cu.includes(' pct=')) {
-        const pct = cu.replace(/^.* pct=([0-9]*).*$/, '$1');
-        const win = cu.replace(/^.* window=([0-9]*).*$/, '$1');
-        const tok = cu.includes(' tokens=') ? cu.replace(/^.* tokens=([0-9]*).*$/, '$1') : '';
-        const thr = thrFor(win);
-        const selfMax = Number(cfgSub(c, '.compact.coordinator_max') || '0');
-        const tokens = tok === '' ? NaN : Number(tok);
-        if (ctxOver({ pct: Number(pct), thr: thr === '' ? NaN : Number(thr), tokens, max: selfMax })) {
-          emit(`CTX_OVER_SELF pct=${pct} thr=${thr} tokens=${Number.isFinite(tokens) ? tokens : '-'} max=${selfMax || '-'}`);
-        }
-      }
-    }
-
-    // 4. 사용량 띠(바뀔 때 한 번)
-    const ub = outOf(child('usage-band')).split('\n')[0];
-    const band = readFields(ub, 3)[1];
-    let old = 'UNKNOWN';
-    try { old = J.tostring(J.alt(J.index(J.index(readState(), 'usage'), 'band'), 'UNKNOWN')); } catch { /* UNKNOWN */ }
-    if (band !== '' && band !== 'UNKNOWN' && band !== old) {
-      const five = ub.replace(/^.* five=([^ ]*).*$/, '$1');
-      const week = ub.replace(/^.* week=([^ ]*).*$/, '$1');
-      emit(`BAND_CHANGED ${old} ${band} five=${five} week=${week}`);
-      coordStateCall(c, ['set', '.usage', JSON.stringify({ band, five: toNumOrNull(five), week: toNumOrNull(week), src: 'tick', at: nowIso(c) })]);
-      drain();
-    }
-
-    // 5. load(두 틱 연속)
-    const pcLine = status.split('\n').find((l) => l.startsWith('PC '));
-    const pc = pcLine === undefined ? '' : pcLine.replace(/^.* per_core=([0-9.]*).*$/, '$1');
-    if (pc !== '') {
-      const soft = cfgSub(c, '.heavy.load_soft') || '1.2';
-      const hard = cfgSub(c, '.heavy.load_hard') || '2.0';
-      const rel = cfgSub(c, '.heavy.load_release') || '0.8';
-      const lvl = awkGe(pc, hard) ? 'hard' : awkGe(pc, soft) ? 'soft' : awkLt(pc, rel) ? 'release' : 'mid';
-      let prev = '';
-      try { prev = stripNl(readFileSync(join(RD, 'ticks', 'load'), 'utf8')); } catch { /* 없음 */ }
-      writeFileSync(join(RD, 'ticks', 'load'), `${lvl}\n`);
-      if (lvl === prev) {
-        if (lvl === 'hard') emit(`LOAD_HARD per_core=${pc}`);
-        else if (lvl === 'soft') emit(`LOAD_SOFT per_core=${pc}`);
-        else if (lvl === 'release') {
-          // `[ "$(coord_state '.load.banned | length')" != 0 ]` — 읽기에 실패해 빈 글이어도 0 이 아니라 알린다
-          let len = '';
-          try {
-            const b = J.index(J.index(readState(), 'load'), 'banned');
-            len = b === null || b === undefined ? '0' : Array.isArray(b) ? String(b.length) : b instanceof Map ? String(b.size) : typeof b === 'string' ? String(Array.from(b).length) : typeof b === 'number' || b instanceof J.JNum ? J.numberText(Math.abs(J.toNumber(b))) : '';
-          } catch { len = ''; }
-          if (len !== '0') emit(`LOAD_RELEASE per_core=${pc}`);
-        }
-      }
-    }
-
-    // 6. 창 끝
-    try {
-      const w = J.index(readState(), 'windows');
-      for (const [, v] of entries(w)) {
-        const row = [J.index(v, 'kind'), J.alt(J.index(v, 'lane'), '-'), J.alt(J.index(v, 'until'), '')].map(tsvCell).join('\t');
-        const [k, l, u] = readFields(row, 3, /\t+/);
-        const ue = stripNl(isoToEpoch(c, u));
-        const uei = testInt(ue);
-        if (ue !== '' && uei !== null && BigInt(now) >= uei) emit(`WINDOW_DUE ${k} lane=${l === '' ? '-' : l} until=${u}`);
-      }
-    } catch (e) { if (!(e instanceof J.JqError)) throw e; }
-
-    // 7. ack 없는 지시(cooldown 넘은 것)
-    let ic = cfgSub(c, '.idle.cooldown_min'); if (ic === '') ic = '15';
-    try {
-      const ins = J.index(readState(), 'instrs');
-      for (const [, v] of entries(ins)) {
-        if (J.index(v, 'ack_at') !== null) continue;
-        const row = [J.index(v, 'id'), J.index(v, 'lane'), J.index(v, 'sent_at')].map(tsvCell).join('\t');
-        const [id, L, sent] = readFields(row, 3, /\t+/);
-        const se = stripNl(isoToEpoch(c, sent));
-        const sei = testInt(se);
-        if (se === '' || sei === null) continue;
-        const age = Math.trunc((now - Number(sei)) / 60);
-        const ici = testInt(ic);
-        if (ici !== null && BigInt(age) >= ici) emit(`UNACKED ${id} ${L} ${age}m`);
-      }
-    } catch (e) { if (!(e instanceof J.JqError)) throw e; }
-
-    // 8. 처음 본 UNLINKED 세션
-    const seen = join(RD, 'ticks', 'unlinked');
-    if (!existsSync(seen)) writeFileSync(seen, ''); else { const t = new Date(); utimesSync(seen, t, t); }
-    for (const ln of status.split('\n')) {
-      if (!ln.startsWith('UNLINKED ')) continue;
-      const [, nm, pidf] = readFields(ln, 4);
-      if (!lines(readFileSync(seen, 'utf8')).includes(nm)) { appendFileSync(seen, `${nm}\n`); emit(`UNLINKED ${nm} ${pidf}`); }
-    }
-
-    // 9. 다른 조정 세션이 연 회차가 마감 표식 없이 살아 있는 레인을 둔 채 남음(contract §2.1·§3.3, 경고만 — 자동 마감하지 않는다).
-    //    팀장 키는 조정 세션 단위라 같은 세션의 다른 열린 회차는 정상(팀장 칸 공유)이므로 알리지 않는다.
-    let me8 = '';
-    try { const d = readState(); me8 = d === null ? '' : sess8Of(d); } catch { me8 = ''; }
-    for (const ln of lines(staleRuns(c, basename(RD)))) {
-      const [rid, sid, s8, alive] = readFields(ln, 4, /\t+/);
-      if (!(rid !== '' && s8 !== me8 && Number(alive === '' ? 0 : alive) > 0)) continue;
-      const mt = statMtime(join(stateRoot(c), rid, 'state.json')) ?? '';
-      let age = '-';
-      // 조정 세션이 둘이면 서로의 회차가 늘 보이므로, state.json 이 STALE_MIN(120)분 넘게 조용한 회차만 알린다(mtime 을 모르면 알린다).
-      if (mt !== '') {
-        const m = Math.trunc((now - Number(mt)) / 60);
-        if (!(m >= 120)) continue;
-        age = `${m}m`;
-      }
-      emit(`STALE_RUN ${rid} session=${sid} idle=${age}`);
-    }
-
-    // 10. 풀 완료(설계 2026-10-10 §5.3). log.jsonl 의 새 줄 중 처음 보는 id 만(같은 id 의 뒤 줄 = note 보정은 내지 않는다)
-    try {
-      const plog = join(RD, 'pool', 'log.jsonl');
-      if (existsSync(plog)) {
-        const pl = readFileSync(plog, 'utf8').split('\n').filter((l) => l.trim() !== '');
-        const mark = join(RD, 'ticks', 'pool');
-        const seenN = existsSync(mark) ? Number(readFileSync(mark, 'utf8').trim()) || 0 : 0;
-        const before = new Set(pl.slice(0, seenN).flatMap((l) => { try { return [JSON.parse(l).id]; } catch { return []; } }));
-        for (const l of pl.slice(seenN)) {
-          let o; try { o = JSON.parse(l); } catch { continue; }
-          if (before.has(o.id)) continue;
-          before.add(o.id);
-          emit(`POOL_DONE ${o.id} lane=${o.lane ?? '-'} result=${o.result ?? '-'} fallback=${o.fallback ? 1 : 0}`);
-        }
-        if (!dry) writeFileSync(mark, `${pl.length}\n`);
-      }
-    } catch { /* 풀 기록을 못 읽으면 건너뜀 */ }
-
-    if (out.length > 0) { coordStateCall(c, ['event', 'tick', '-', JSON.stringify({ actions: out.length })]); c.errs.length = 0; }
-    drain();
-    // 에이전트 오피스 하트비트(팀장·살아 있는 레인 전원을 state.json 기준으로 재전송). 실패·dry-run 이어도 틱 출력은 그대로다.
-    // 그 전에 틱 시각을 남긴다(팀장 자리 요약의 alive.last_tick_at — contract §4).
-    if (!dry) {
-      coordStateCall(c, ['set', '.run.last_tick_at', JSON.stringify(nowIso(c))]); c.errs.length = 0;
-      quiet(c, 'office', ['beat']);
-      // 회차 WBS 를 조용히 다시 만든다(실패·COORD_WBS_AUTO=0 이면 건너뜀 — 틱 출력 불변)
-      if ((c.env.COORD_WBS_AUTO ?? '1') !== '0') quiet(c, 'wbs', ['--quiet']);
-      // 오피스 콘솔 폴러가 죽었으면 다시 띄운다(이미 돌면 아무 일도 하지 않는다 — contract §4.1). COORD_CONSOLE_POLL=0 이면 건너뜀.
-      if ((c.env.COORD_CONSOLE_POLL ?? '1') !== '0') quiet(c, 'console-poll', ['start']);
-    }
-    return out;
+  } catch (e) { if (!(e instanceof J.JqError)) throw e; }
+  for (const L of activeLanes.join('\n').split(/[ \t\n]+/).filter((s) => s !== '')) {
+    const pw = outOf(child('prompt-watch', [L])).split('\n')[0];
+    if (!pw.startsWith('PROMPT')) continue;
+    const kind = readFields(pw, 4)[2];
+    if (answer) {
+      const r = outOf(child('auto-answer', ['--lane', L, ...(dry ? ['--dry-run'] : [])])).split('\n')[0];
+      if (!(r === '' || r.startsWith('NONE'))) emit(`${r} lane=${L}`);
+    } else emit(`PROMPT ${L} ${kind}`);
   }
+
+  // 2. idle·정지
+  for (const ln of lines(outOf(child('idle-check')))) {
+    const [kind, L, rest] = readFields(ln, 3);
+    if (kind === 'IDLE' || kind === 'WAIT_USER' || kind === 'STALL?' || kind === 'GONE') emit(`${kind} ${L} ${rest}`);
+  }
+  for (const ln of lines(outOf(child('stall-check')))) {
+    const [kind, L, rest] = readFields(ln, 3);
+    if (kind === 'STALL') emit(`STALL ${L} ${rest}`);
+  }
+
+  // 3. 컨텍스트 임계(레인은 coord-status 의 ctx 칸, 창 크기별 임계)
+  let cfgDoc = null;
+  const thrFor = (win) => { // <window> → pct 임계(jq 식 `.compact as $c | (($c.by_window[$w].pct) // $c.threshold_pct // 40)` 의 글)
+    try {
+      if (cfgDoc === null) cfgDoc = J.parse(cfgAll(c));
+      const cc = J.index(cfgDoc, 'compact');
+      return J.tostring(J.alt(J.alt(J.index(J.index(J.index(cc, 'by_window'), win ?? ''), 'pct'), J.index(cc, 'threshold_pct')), 40));
+    } catch { return ''; }
+  };
+  let cool = cfgSub(c, '.compact.cooldown_min'); if (cool === '') cool = '30';
+  for (const ln of status.split('\n')) {
+    if (!ln.startsWith('LANE ')) continue;
+    const f = readFields(ln, 11);
+    const L = f[1]; const ctxf = f[9];
+    let pct = ctxf.startsWith('ctx=') ? ctxf.slice(4) : ctxf;
+    if (pct.endsWith('%')) pct = pct.slice(0, -1);
+    if (pct === '' || pct === '-' || /[^0-9]/.test(pct)) continue;
+    let win = stripNl(laneGet(c, L, '.session.window').out);
+    if (!(win !== '' && win !== 'null')) win = cfgSub(c, '.compact.default_window');
+    const thr = thrFor(win);
+    const laneMax = Number(cfgSub(c, '.compact.lane_max') || '0');
+    const tokens = laneTokens(Number(pct), Number(win));
+    if (!ctxOver({ pct: Number(pct), thr: thr === '' ? NaN : Number(thr), tokens, max: laneMax })) continue;
+    const last = stripNl(isoToEpoch(c, stripNl(laneGet(c, L, '.compact.last_at').out)));
+    if (last !== '') {
+      const li = testInt(last); const ci = testInt(cool);
+      if (li !== null && ci !== null && BigInt(Math.trunc((now - Number(li)) / 60)) < ci) continue;
+    }
+    emit(`CTX_OVER ${L} pct=${pct} thr=${thr} tokens=${Number.isFinite(tokens) ? tokens : '-'} max=${laneMax || '-'}`);
+  }
+  let self = '';
+  try { const v = J.index(J.index(J.index(readState(), 'run'), 'coordinator'), 'session_id'); self = v === null || v === undefined ? '' : J.tostring(v); } catch { /* 빈 값 */ }
+  if (self !== '') {
+    const cu = outOf(child('ctx-usage', [self])).split('\n')[0];
+    if (cu.includes(' pct=')) {
+      const pct = cu.replace(/^.* pct=([0-9]*).*$/, '$1');
+      const win = cu.replace(/^.* window=([0-9]*).*$/, '$1');
+      const tok = cu.includes(' tokens=') ? cu.replace(/^.* tokens=([0-9]*).*$/, '$1') : '';
+      const thr = thrFor(win);
+      const selfMax = Number(cfgSub(c, '.compact.coordinator_max') || '0');
+      const tokens = tok === '' ? NaN : Number(tok);
+      if (ctxOver({ pct: Number(pct), thr: thr === '' ? NaN : Number(thr), tokens, max: selfMax })) {
+        emit(`CTX_OVER_SELF pct=${pct} thr=${thr} tokens=${Number.isFinite(tokens) ? tokens : '-'} max=${selfMax || '-'}`);
+      }
+    }
+  }
+
+  // 4. 사용량 띠(바뀔 때 한 번)
+  const ub = outOf(child('usage-band')).split('\n')[0];
+  const band = readFields(ub, 3)[1];
+  let old = 'UNKNOWN';
+  try { old = J.tostring(J.alt(J.index(J.index(readState(), 'usage'), 'band'), 'UNKNOWN')); } catch { /* UNKNOWN */ }
+  if (band !== '' && band !== 'UNKNOWN' && band !== old) {
+    const five = ub.replace(/^.* five=([^ ]*).*$/, '$1');
+    const week = ub.replace(/^.* week=([^ ]*).*$/, '$1');
+    emit(`BAND_CHANGED ${old} ${band} five=${five} week=${week}`);
+    coordStateCall(c, ['set', '.usage', JSON.stringify({ band, five: toNumOrNull(five), week: toNumOrNull(week), src: 'tick', at: nowIso(c) })]);
+    drain();
+  }
+
+  // 5. load(두 틱 연속)
+  const pcLine = status.split('\n').find((l) => l.startsWith('PC '));
+  const pc = pcLine === undefined ? '' : pcLine.replace(/^.* per_core=([0-9.]*).*$/, '$1');
+  if (pc !== '') {
+    const soft = cfgSub(c, '.heavy.load_soft') || '1.2';
+    const hard = cfgSub(c, '.heavy.load_hard') || '2.0';
+    const rel = cfgSub(c, '.heavy.load_release') || '0.8';
+    const lvl = awkGe(pc, hard) ? 'hard' : awkGe(pc, soft) ? 'soft' : awkLt(pc, rel) ? 'release' : 'mid';
+    let prev = '';
+    try { prev = stripNl(readFileSync(join(RD, 'ticks', 'load'), 'utf8')); } catch { /* 없음 */ }
+    writeFileSync(join(RD, 'ticks', 'load'), `${lvl}\n`);
+    if (lvl === prev) {
+      if (lvl === 'hard') emit(`LOAD_HARD per_core=${pc}`);
+      else if (lvl === 'soft') emit(`LOAD_SOFT per_core=${pc}`);
+      else if (lvl === 'release') {
+        // `[ "$(coord_state '.load.banned | length')" != 0 ]` — 읽기에 실패해 빈 글이어도 0 이 아니라 알린다
+        let len = '';
+        try {
+          const b = J.index(J.index(readState(), 'load'), 'banned');
+          len = b === null || b === undefined ? '0' : Array.isArray(b) ? String(b.length) : b instanceof Map ? String(b.size) : typeof b === 'string' ? String(Array.from(b).length) : typeof b === 'number' || b instanceof J.JNum ? J.numberText(Math.abs(J.toNumber(b))) : '';
+        } catch { len = ''; }
+        if (len !== '0') emit(`LOAD_RELEASE per_core=${pc}`);
+      }
+    }
+  }
+
+  // 6. 창 끝
+  try {
+    const w = J.index(readState(), 'windows');
+    for (const [, v] of entries(w)) {
+      const row = [J.index(v, 'kind'), J.alt(J.index(v, 'lane'), '-'), J.alt(J.index(v, 'until'), '')].map(tsvCell).join('\t');
+      const [k, l, u] = readFields(row, 3, /\t+/);
+      const ue = stripNl(isoToEpoch(c, u));
+      const uei = testInt(ue);
+      if (ue !== '' && uei !== null && BigInt(now) >= uei) emit(`WINDOW_DUE ${k} lane=${l === '' ? '-' : l} until=${u}`);
+    }
+  } catch (e) { if (!(e instanceof J.JqError)) throw e; }
+
+  // 7. ack 없는 지시(cooldown 넘은 것)
+  let ic = cfgSub(c, '.idle.cooldown_min'); if (ic === '') ic = '15';
+  try {
+    const ins = J.index(readState(), 'instrs');
+    for (const [, v] of entries(ins)) {
+      if (J.index(v, 'ack_at') !== null) continue;
+      const row = [J.index(v, 'id'), J.index(v, 'lane'), J.index(v, 'sent_at')].map(tsvCell).join('\t');
+      const [id, L, sent] = readFields(row, 3, /\t+/);
+      const se = stripNl(isoToEpoch(c, sent));
+      const sei = testInt(se);
+      if (se === '' || sei === null) continue;
+      const age = Math.trunc((now - Number(sei)) / 60);
+      const ici = testInt(ic);
+      if (ici !== null && BigInt(age) >= ici) emit(`UNACKED ${id} ${L} ${age}m`);
+    }
+  } catch (e) { if (!(e instanceof J.JqError)) throw e; }
+
+  // 8. 처음 본 UNLINKED 세션
+  const seen = join(RD, 'ticks', 'unlinked');
+  if (!existsSync(seen)) writeFileSync(seen, ''); else { const t = new Date(); utimesSync(seen, t, t); }
+  for (const ln of status.split('\n')) {
+    if (!ln.startsWith('UNLINKED ')) continue;
+    const [, nm, pidf] = readFields(ln, 4);
+    if (!lines(readFileSync(seen, 'utf8')).includes(nm)) { appendFileSync(seen, `${nm}\n`); emit(`UNLINKED ${nm} ${pidf}`); }
+  }
+
+  // 9. 다른 조정 세션이 연 회차가 마감 표식 없이 살아 있는 레인을 둔 채 남음(contract §2.1·§3.3, 경고만 — 자동 마감하지 않는다).
+  //    팀장 키는 조정 세션 단위라 같은 세션의 다른 열린 회차는 정상(팀장 칸 공유)이므로 알리지 않는다.
+  let me8 = '';
+  try { const d = readState(); me8 = d === null ? '' : sess8Of(d); } catch { me8 = ''; }
+  for (const ln of lines(staleRuns(c, basename(RD)))) {
+    const [rid, sid, s8, alive] = readFields(ln, 4, /\t+/);
+    if (!(rid !== '' && s8 !== me8 && Number(alive === '' ? 0 : alive) > 0)) continue;
+    const mt = statMtime(join(stateRoot(c), rid, 'state.json')) ?? '';
+    let age = '-';
+    // 조정 세션이 둘이면 서로의 회차가 늘 보이므로, state.json 이 STALE_MIN(120)분 넘게 조용한 회차만 알린다(mtime 을 모르면 알린다).
+    if (mt !== '') {
+      const m = Math.trunc((now - Number(mt)) / 60);
+      if (!(m >= 120)) continue;
+      age = `${m}m`;
+    }
+    emit(`STALE_RUN ${rid} session=${sid} idle=${age}`);
+  }
+
+  // 10. 풀 완료(설계 2026-10-10 §5.3). log.jsonl 의 새 줄 중 처음 보는 id 만(같은 id 의 뒤 줄 = note 보정은 내지 않는다).
+  //     표시 파일 ticks/pool = {"n": 처리한 줄 수, "ids": 이미 낸 id}. 옛 형식(줄 수만 적힌 글)도 읽는다.
+  //     줄바꿈으로 끝난 줄만 센다(쓰는 중인 마지막 줄은 다음 틱에). 파일이 줄어들었으면 새 기록으로 보고 처음부터 읽되, 낸 id 는 다시 내지 않는다.
+  try {
+    const plog = join(RD, 'pool', 'log.jsonl');
+    if (existsSync(plog)) {
+      const pl = readFileSync(plog, 'utf8').split('\n');
+      pl.pop(); // 줄바꿈 뒤의 빈 칸 또는 끝나지 않은 마지막 줄
+      const idOf = (l) => { try { const o = JSON.parse(l); return o !== null && typeof o === 'object' && o.id !== undefined ? [o.id] : []; } catch { return []; } };
+      const mark = join(RD, 'ticks', 'pool');
+      let seenN = 0; let seenIds = null;
+      if (existsSync(mark)) {
+        const raw = readFileSync(mark, 'utf8').trim();
+        try { const m = JSON.parse(raw); if (m !== null && typeof m === 'object') { seenN = Number(m.n) || 0; seenIds = new Set(Array.isArray(m.ids) ? m.ids : []); } else seenN = Number(m) || 0; } catch { seenN = 0; }
+      }
+      if (seenIds === null) seenIds = new Set(pl.slice(0, seenN).flatMap(idOf));
+      if (seenN > pl.length || seenN < 0) seenN = 0;
+      for (const l of pl.slice(seenN)) {
+        let o; try { o = JSON.parse(l); } catch { continue; }
+        if (o === null || typeof o !== 'object' || seenIds.has(o.id)) continue;
+        seenIds.add(o.id);
+        emit(`POOL_DONE ${o.id} lane=${o.lane ?? '-'} result=${o.result ?? '-'} fallback=${o.fallback ? 1 : 0}`);
+      }
+      if (!dry) writeFileSync(mark, `${JSON.stringify({ n: pl.length, ids: [...seenIds] })}\n`);
+    }
+  } catch { /* 풀 기록을 못 읽으면 건너뜀 */ }
+
+  if (out.length > 0) { coordStateCall(c, ['event', 'tick', '-', JSON.stringify({ actions: out.length })]); c.errs.length = 0; }
+  drain();
+  // 에이전트 오피스 하트비트(팀장·살아 있는 레인 전원을 state.json 기준으로 재전송). 실패·dry-run 이어도 틱 출력은 그대로다.
+  // 그 전에 틱 시각을 남긴다(팀장 자리 요약의 alive.last_tick_at — contract §4).
+  if (!dry) {
+    coordStateCall(c, ['set', '.run.last_tick_at', JSON.stringify(nowIso(c))]); c.errs.length = 0;
+    quiet(c, 'office', ['beat']);
+    // 회차 WBS 를 조용히 다시 만든다(실패·COORD_WBS_AUTO=0 이면 건너뜀 — 틱 출력 불변)
+    if ((c.env.COORD_WBS_AUTO ?? '1') !== '0') quiet(c, 'wbs', ['--quiet']);
+    // 오피스 콘솔 폴러가 죽었으면 다시 띄운다(이미 돌면 아무 일도 하지 않는다 — contract §4.1). COORD_CONSOLE_POLL=0 이면 건너뜀.
+    if ((c.env.COORD_CONSOLE_POLL ?? '1') !== '0') quiet(c, 'console-poll', ['start']);
+  }
+  return out;
+}
+
+/** 같은 줄을 repeatMin 분 안에 다시 쓰지 않도록 거른다. 오래된 기록은 lastShown 에서 지운다. 쓸 줄만 돌려준다 */
+export function filterRepeats(lines, lastShown, now, repeatMin) {
+  const span = repeatMin * 60000;
+  for (const [k, t] of lastShown) if (now - t >= span) lastShown.delete(k);
+  const show = [];
+  for (const ln of lines) {
+    if (lastShown.has(ln)) continue;
+    lastShown.set(ln, now);
+    show.push(ln);
+  }
+  return show;
 }
 
 /** main — 종료 코드 */
@@ -313,15 +333,18 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
   const c = new Ctx({ ...env }, cwd);
   const opts = { answer: true, dry: false };
   let watch = false; let interval = 60; let maxIter = 0; let repeatMin = 15;
+  const bad = (name) => { process.stderr.write(`${name} 값은 0 이상의 수여야 한다\n`); return 2; };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--no-answer') opts.answer = false;
     else if (a === '--dry-run') { opts.dry = true; c.env.COORD_DRY = '1'; }
     else if (a === '--watch') watch = true;
-    else if (a === '--interval') interval = Number(argv[++i]);
-    else if (a === '--max-iter') maxIter = Number(argv[++i]);
-    else if (a === '--repeat-min') repeatMin = Number(argv[++i]);
-    else if (a === '-h' || a === '--help') { process.stdout.write(HELP); return 0; }
+    else if (a === '--interval' || a === '--max-iter' || a === '--repeat-min') {
+      const raw = argv[++i];
+      const v = raw === undefined || String(raw).trim() === '' ? NaN : Number(raw);
+      if (!Number.isFinite(v) || v < 0 || (a === '--max-iter' && !Number.isInteger(v))) return bad(a);
+      if (a === '--interval') interval = v; else if (a === '--max-iter') maxIter = v; else repeatMin = v;
+    } else if (a === '-h' || a === '--help') { process.stdout.write(HELP); return 0; }
   }
   try {
     if (!watch) {
@@ -333,15 +356,9 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
     for (let it = 1; maxIter === 0 || it <= maxIter; it += 1) {
       let out;
       try { out = await tickOnce(c, opts); } catch (e) { if (e instanceof CoordDie && e.rc === 3) return 0; throw e; }
-      const now = Date.now();
-      for (const ln of out) {
-        const prev = lastShown.get(ln);
-        if (prev !== undefined && now - prev < repeatMin * 60000) continue;
-        lastShown.set(ln, now);
-        process.stdout.write(`${ln}\n`);
-      }
+      for (const ln of filterRepeats(out, lastShown, Date.now(), repeatMin)) process.stdout.write(`${ln}\n`);
       if (maxIter !== 0 && it === maxIter) break;
-      await new Promise((r) => setTimeout(r, Math.max(0, Number.isFinite(interval) ? interval : 60) * 1000));
+      await new Promise((r) => setTimeout(r, interval * 1000));
     }
     return 0;
   } catch (e) {

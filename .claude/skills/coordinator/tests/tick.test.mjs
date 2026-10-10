@@ -8,7 +8,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { COORD_ROOT } from './support/rng.mjs';
-import { ctxOver, laneTokens } from '../scripts/tick.mjs';
+import { ctxOver, filterRepeats, laneTokens } from '../scripts/tick.mjs';
 
 const TICK = join(COORD_ROOT, 'scripts', 'tick.mjs');
 const CSTATE = join(COORD_ROOT, 'scripts', 'coord-state.mjs');
@@ -250,5 +250,77 @@ test('--watch: 아무 일 없으면 출력 없음', () => {
     const r = w.tick('--watch', '--interval', '0', '--max-iter', '2');
     assert.equal(r.status, 0, r.stderr);
     assert.equal(r.stdout, '');
+  } finally { w.clean(); }
+});
+
+test('POOL_DONE: 로그가 줄거나 바뀌면 처음부터 읽되 낸 id 는 다시 내지 않는다', () => {
+  const w = world();
+  try {
+    const pdir = join(w.stateRoot, 'r1', 'pool'); const log = join(pdir, 'log.jsonl');
+    mkdirSync(pdir, { recursive: true });
+    const line = (o) => `${JSON.stringify(o)}\n`;
+    writeFileSync(log, line({ id: 'A', lane: 'x', result: 'ok' }) + line({ id: 'B', lane: 'x', result: 'ok' }));
+    assert.equal((w.tick().stdout.match(/POOL_DONE/g) || []).length, 2);
+    writeFileSync(log, line({ id: 'C', lane: 'y', result: 'fail', fallback: true }));
+    const r = w.tick();
+    assert.match(r.stdout, /^POOL_DONE C lane=y result=fail fallback=1$/m);
+    writeFileSync(log, line({ id: 'A', lane: 'x', result: 'ok' }));
+    assert.doesNotMatch(w.tick().stdout, /POOL_DONE/);
+  } finally { w.clean(); }
+});
+
+test('POOL_DONE: 옛 형식(줄 수) 표시 파일을 읽고, 끝나지 않은 줄·null 줄은 건너뛴다', () => {
+  const w = world();
+  try {
+    const pdir = join(w.stateRoot, 'r1', 'pool'); const log = join(pdir, 'log.jsonl');
+    mkdirSync(pdir, { recursive: true });
+    mkdirSync(join(w.stateRoot, 'r1', 'ticks'), { recursive: true });
+    writeFileSync(join(w.stateRoot, 'r1', 'ticks', 'pool'), '1\n');
+    writeFileSync(log, `${JSON.stringify({ id: 'O1', lane: 'a', result: 'ok' })}\nnull\n"str"\n${JSON.stringify({ id: 'N1', lane: 'a', result: 'ok' })}\n{"id":"P1","la`);
+    const r1 = w.tick();
+    assert.doesNotMatch(r1.stdout, /POOL_DONE O1/);
+    assert.match(r1.stdout, /^POOL_DONE N1 lane=a result=ok fallback=0$/m);
+    assert.doesNotMatch(r1.stdout, /P1/);
+    appendFileSync(log, 'ne":"a","result":"ok"}\n');
+    assert.match(w.tick().stdout, /^POOL_DONE P1 lane=a result=ok fallback=0$/m);
+  } finally { w.clean(); }
+});
+
+test('filterRepeats: repeat-min 안의 같은 줄은 거르고 지난 줄은 다시 쓰며 기록을 비운다', () => {
+  const m = new Map();
+  assert.deepEqual(filterRepeats(['a', 'b'], m, 0, 15), ['a', 'b']);
+  assert.deepEqual(filterRepeats(['a', 'c'], m, 14 * 60000, 15), ['c']);
+  assert.deepEqual(filterRepeats(['a'], m, 16 * 60000, 15), ['a']);
+  assert.equal(m.has('b'), false);
+  assert.deepEqual(filterRepeats(['a'], m, 16 * 60000, 0), ['a']);
+});
+
+test('--watch: 회차가 없으면 조용히 0 으로 끝난다', () => {
+  const w = world();
+  try {
+    const r = w.tickEnv({ COORD_RUN: 'nope' }, '--watch', '--interval', '0', '--max-iter', '5');
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, '');
+  } finally { w.clean(); }
+});
+
+test('--watch --max-iter 1: 한 번 돌고 기다리지 않고 끝난다', () => {
+  const w = world();
+  try {
+    const t0 = Date.now();
+    const r = w.tick('--watch', '--interval', '3600', '--max-iter', '1');
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(Date.now() - t0 < 60000);
+  } finally { w.clean(); }
+});
+
+test('--interval·--max-iter·--repeat-min: 수가 아니거나 음수면 종료 코드 2', () => {
+  const w = world();
+  try {
+    for (const args of [['--interval', 'x'], ['--max-iter', '-1'], ['--repeat-min', '-5'], ['--interval'], ['--max-iter', '1.5']]) {
+      const r = w.tick('--watch', ...args);
+      assert.equal(r.status, 2, args.join(' '));
+      assert.match(r.stderr, /0 이상의 수/);
+    }
   } finally { w.clean(); }
 });
