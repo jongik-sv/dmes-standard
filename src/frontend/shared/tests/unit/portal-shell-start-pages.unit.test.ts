@@ -7,12 +7,15 @@ import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearStartPagesOpened,
+  DEFAULT_PORTAL_STORAGE_KEY,
   getTabCloseTargets,
   hasOpenedStartPages,
   markStartPagesOpened,
   planStartPageOpen,
+  resetPortalSessionState,
   type PortalStartPageRecord,
 } from "../../src/portal-shell/start-pages";
+import { readSecureJson, writeSecureJson } from "../../src/secure-storage";
 import { adaptStartPageRow } from "../../src/portal-shell/use-portal-start-pages";
 import { PortalShell } from "../../src/portal-shell/portal-shell";
 import { TabsBar } from "../../src/portal-shell/tabs-bar/TabsBar";
@@ -108,6 +111,30 @@ describe("기본 화면 세션 표지", () => {
     expect(hasOpenedStartPages(`${key}-other`)).toBe(false);
     clearStartPagesOpened(key);
     expect(hasOpenedStartPages(key)).toBe(false);
+  });
+});
+
+describe("resetPortalSessionState", () => {
+  it("저장된 탭을 비우고 기본 화면 표지를 지운다(로그인 직후·로그아웃 공용)", () => {
+    const key = `reset-${Math.random()}`;
+    writeSecureJson(key, { tabs: [{ id: "x", title: "X", pageId: "t:g/x", snapshot: null }], activeTabId: "x" });
+    markStartPagesOpened(key);
+    markStartPagesOpened(`${key}-other`);
+
+    resetPortalSessionState(key);
+
+    expect(readSecureJson(key)).toEqual({ tabs: [], activeTabId: null });
+    expect(hasOpenedStartPages(key)).toBe(false);
+    expect(hasOpenedStartPages(`${key}-other`)).toBe(true); // 다른 키는 건드리지 않는다
+  });
+
+  it("키를 생략하면 포털 기본 키를 비운다", () => {
+    expect(DEFAULT_PORTAL_STORAGE_KEY).toBe("oasis.portal.tabs.v1");
+    writeSecureJson(DEFAULT_PORTAL_STORAGE_KEY, { tabs: [{ id: "x", title: "X", pageId: "t:g/x", snapshot: null }], activeTabId: "x" });
+    markStartPagesOpened(DEFAULT_PORTAL_STORAGE_KEY);
+    resetPortalSessionState();
+    expect(readSecureJson(DEFAULT_PORTAL_STORAGE_KEY)).toEqual({ tabs: [], activeTabId: null });
+    expect(hasOpenedStartPages(DEFAULT_PORTAL_STORAGE_KEY)).toBe(false);
   });
 });
 
@@ -601,6 +628,29 @@ describe("PortalShell 기본 화면 자동 열기", () => {
     await flush();
     expect(order()).toEqual(["B 화면", "A 화면", "C 화면"]);
     expect(active()).toBe("A 화면");
+  });
+
+  it("새로 로그인하면(세션 상태 초기화) 이전 세션 탭은 되살리지 않고 홈 + 기본 화면만 연다", async () => {
+    // 이전 세션: b·a 를 열어 둔 채 로그아웃 없이 끝났다(세션 만료) — 저장소와 표지가 그대로 남는다.
+    rendered = renderWithMantine(shell({ startPages: [] }));
+    await flush();
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("portal-open-tab", { detail: { pageId: "t:g/b" } }));
+    });
+    await flush();
+    expect(order()).toEqual(["B 화면"]);
+    rendered.unmount();
+    rendered = null;
+
+    // 로그인 성공 직후 호출 — 새로고침과 달리 복원 대상이 없다.
+    resetPortalSessionState(storageKey);
+
+    rendered = renderWithMantine(
+      shell({ startPages: [record("t:g/c", "C", 1), record("t:g/a", "A", 2)] })
+    );
+    await flush();
+    expect(order()).toEqual(["C 화면", "A 화면"]);
+    expect(active()).toBe("C 화면");
   });
 
   it("같은 세션의 재마운트·목록 재조회 때는 사용자가 닫은 기본 화면을 다시 열지 않는다", async () => {

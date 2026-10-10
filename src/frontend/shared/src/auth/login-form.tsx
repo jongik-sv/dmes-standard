@@ -16,6 +16,7 @@ import {
   Title,
 } from "@mantine/core";
 import { clearCurrentUserCache } from "../portal-shell/current-user";
+import { resetPortalSessionState } from "../portal-shell/start-pages";
 import { PasswordChangeModal } from "./PasswordChangeModal";
 import "./login-form.css";
 
@@ -120,6 +121,8 @@ export function PortalLoginForm({ appName, callbackUrl }: PortalLoginFormProps) 
 
       // 클라이언트 이동이라 이전 화면의 사용자·RBAC 캐시가 남을 수 있다 — 새 사용자로 다시 확인하게 비운다(K3).
       clearCurrentUserCache();
+      // 로그인 직후에는 홈 + 기본 화면만 연다 — 이전 세션에 남은 탭과 기본 화면 표지를 비운다(새로고침은 영향 없음).
+      resetPortalSessionState();
       router.replace(signInResponse.url ?? callbackUrl);
       router.refresh();
     });
