@@ -24,8 +24,8 @@
 
 1. 묶음 파일 작성: `templates/packet.md` 를 채워 임시 파일로
    - 건드릴 파일 = 레인 안 항목 표의 그 항목 파일(파일 소유)
-   - 지시문에 `!`·`/`·`@` 를 넣지 않음(opencode 가 셸 모드로 바뀜)
-2. 제출: `node <스킬>/scripts/pool.mjs submit --lane <레인> --id <항목번호> --size <S|M> --packet <파일> --cwd <레인 워크트리>`
+   - 묶음 파일 안은 글자 제한 없음. 풀이 opencode 입력창에 넣는 문장은 고정 문구라 `!`·`/`·`@` 문제가 없음
+2. 제출: `node <스킬>/scripts/pool.mjs submit --lane <레인> --id <항목번호> --size <S|M> --packet <파일> --cwd <레인 워크트리> [--kind auto|opencode|glm] [--dry-run]`
    - `POOL started <id> kind=<k>` · `POOL queued <id> position=<n>` = 기다림
    - `POOL fallback <id> reason=no-worker` = 바로 Claude agent 로
    - `POOL refused <id> <사유>` = 사유대로 고쳐 다시(`duplicate` = 새 id, `size-L`·`bad-size`·`bad-id`·`no-packet`)
@@ -42,7 +42,7 @@
 ## 4. 한도 오류
 
 - `ratelimit` → 그 종류는 `pool.cooldown_min`(30분) 쉼. 쉬는 동안 그 종류 슬롯 = 0
-  - 쉰 뒤 상한 -1(최소 1). 벌점은 쉬는 중이 아닐 때 한도 오류가 난 경우에만 오름
+  - 쉰 뒤 상한 = `max − 벌점`(최소 1). 벌점은 그 종류가 쉬는 중이 아닐 때 한도 오류가 날 때마다 1 오르고, 회차 동안 쌓임
   - 쉬는 중 다시 한도 오류 = 쉬는 시각만 늘어남(벌점 그대로, 같은 사건의 동시 실패로 봄)
   - 쉬는 동안 새 묶음 = 다른 종류 빈 슬롯, 없으면 `no-worker` → Claude
 - rc=0 이어도 출력 끝에 한도 문구가 있고 보고 파일이 없으면 `ratelimit`

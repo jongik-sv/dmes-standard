@@ -51,11 +51,11 @@
   - 남은 일 = 풀·agy 로 계속
   - 한도 초기화 시각에 재개 예약
 - 풀 운영 = `pool.md`(`scripts/pool.mjs`), agy = `spawn.md` §1 「조사」
-  - 막힌 단계만 Claude 세션으로 넘김
+  - 막힌 단계만 Claude agent 로 넘김
 - **계정 여유 스위치** `usage.relaxed` (기본 꺼짐)
   - 켬(사용자가 다른 계정을 쓸 수 있을 때) → `usage-band.mjs` 가 Y·O 를 G 로 내려 냄
   - R 은 그대로
-  - 켜짐 → R 이 아니면 띠와 상관없이 Claude 를 씀
+  - 켜짐 → R 이 아니면 띠와 상관없이 Claude 를 씀(띠에 따른 Claude 대 풀·agy 판단에만 영향. 풀은 원래 늘 쓰므로 그대로)
   - 꺼짐 → 위 규칙대로 풀·agy 로 옮김
 
 **새 레인 상한**:
