@@ -219,3 +219,20 @@
   background-color: var(--color-bg-hover);
   border-color: var(--color-text-muted-light);
 }
+
+/* 크기 조절(resizable) 창 — 오른쪽 아래 모서리 손잡이. 창이 가운데 놓이므로 손잡이는 창 안쪽 모서리에 붙인다. */
+.cm-modal--resizable {
+  position: relative;
+}
+
+.cm-modal-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  touch-action: none;
+  user-select: none;
+  background: linear-gradient(135deg, transparent 50%, var(--color-border-strong) 50%, var(--color-border-strong) 56%, transparent 56%, transparent 68%, var(--color-border-strong) 68%, var(--color-border-strong) 74%, transparent 74%);
+}

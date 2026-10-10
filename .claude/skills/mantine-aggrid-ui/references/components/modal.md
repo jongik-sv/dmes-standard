@@ -73,6 +73,10 @@ export function UnitRegModal({ open, isBusy, onClose, onSubmit }: {
 
 긴 입력 초안이 있는 창은 `closeOnClickOutside={false}` 로 둔다. X·ESC·[취소]로는 지금처럼 닫힌다.
 
+### 사용자가 크기를 조절하게 하기
+
+긴 내용을 편집하는 창(SQL 큰 창 등)만 `resizable` 을 켠다. 오른쪽 아래 모서리를 끌면 가로·세로가 바뀐다(최소 480×320, 최대는 화면 안 — 여백 16px). 창이 가운데에 놓여 있어 모서리가 포인터를 따라오도록 변화량의 두 배를 적용한다. 조절한 창에는 `cm-modal--resized` 클래스가 붙으므로, 안쪽 내용이 높이를 따라 늘어나야 하면 이 클래스 아래에서 `flex: 1 1 0; min-height: 0` 으로 둔다. `resizeStorageKey` 를 주면 크기를 localStorage 에 남겨 다음에 열 때 복원한다(저장이 안 돼도 기본 크기).
+
 ### 열 때마다 상태를 새로 시작하기
 
 `open` 만 바꾸면 안쪽 상태가 남는다. 열 때마다 비워야 하면 부모에서 `{isOpen && <Modal open …>}` 로 조건부로 만든다.
@@ -95,6 +99,8 @@ Modal
 | bodyClassName | `string` | `""` | 본문에 붙일 클래스 |
 | descriptionId | `string` | - | 창이 설명으로 참조할 본문 요소 id |
 | closeOnClickOutside | `boolean` | `true` | 바깥(오버레이) 누름으로 닫을지. 초안이 사라지면 곤란한 창(SQL 큰 창 등)만 `false`. X·ESC·[취소]는 영향 없다 |
+| resizable | `boolean` | `false` | 오른쪽 아래 모서리 손잡이로 창 크기를 조절한다. 최소 480×320, 최대는 화면 안. 조절하면 창에 `cm-modal--resized` 클래스 |
+| resizeStorageKey | `string` | - | `resizable` 일 때 조절한 크기를 localStorage 에 이 키로 남긴다(없으면 열려 있는 동안만 유지) |
 
 MessageModal (보통 `MessageProvider` 가 대신 띄운다)
 

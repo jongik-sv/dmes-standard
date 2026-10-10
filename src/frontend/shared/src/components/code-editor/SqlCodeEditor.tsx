@@ -110,6 +110,7 @@ const SQL_CODE_EDITOR_CSS = `
 .cm-sqled-bind { color: var(--color-primary); font-weight: 600; }
 .cm-modal.cm-sqled-modal { --modal-size: 90vw; width: 90vw; }
 .cm-sqled-modal-editor { height: calc(90dvh - 190px); min-height: 240px; }
+.cm-modal--resized .cm-sqled-modal-editor { height: auto; flex: 1 1 0; min-height: 0; }
 `;
 
 function SqlCodeEditorStyle() {
@@ -584,6 +585,8 @@ const SqlCodeEditorImpl = forwardRef<SqlCodeEditorHandle, SqlCodeEditorProps>(fu
           size="xl"
           className="cm-sqled-modal"
           closeOnClickOutside={false}
+          resizable
+          resizeStorageKey="dmes.sqlCodeEditor.expandSize"
           onClose={closeExpand}
           footer={
             readOnly ? (

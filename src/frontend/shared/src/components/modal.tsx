@@ -1,6 +1,19 @@
 "use client";
 
-import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import { Modal as M, Button } from "@mantine/core";
 import {
   IconAlertTriangle,
@@ -222,6 +235,90 @@ function useEscapeCompat(open: boolean, stackId: string, onClose?: () => void) {
   }, [open, stackId]);
 }
 
+/** 크기 조절(resizable) 창의 최소 크기(px). */
+const MODAL_MIN_WIDTH = 480;
+const MODAL_MIN_HEIGHT = 320;
+/** 창이 화면 가장자리에서 떨어져 있어야 하는 여백(px) — 최대 크기는 화면에서 이 여백의 두 배를 뺀 값이다. */
+const MODAL_VIEWPORT_MARGIN = 16;
+
+interface ModalBox {
+  w: number;
+  h: number;
+}
+
+/** 크기를 최소~최대(화면 안) 범위로 맞춘다. 최대가 최소보다 작은 작은 화면에서는 최대를 따른다. */
+function clampModalBox(box: ModalBox, viewport: ModalBox): ModalBox {
+  const maxW = Math.max(0, viewport.w - MODAL_VIEWPORT_MARGIN * 2);
+  const maxH = Math.max(0, viewport.h - MODAL_VIEWPORT_MARGIN * 2);
+  return { w: Math.round(Math.min(maxW, Math.max(MODAL_MIN_WIDTH, box.w))), h: Math.round(Math.min(maxH, Math.max(MODAL_MIN_HEIGHT, box.h))) };
+}
+
+function readStoredBox(key: string | undefined): ModalBox | null {
+  if (!key) return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const v = JSON.parse(raw) as Partial<ModalBox>;
+    return typeof v.w === "number" && typeof v.h === "number" && Number.isFinite(v.w) && Number.isFinite(v.h) ? { w: v.w, h: v.h } : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredBox(key: string | undefined, box: ModalBox) {
+  if (!key) return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(box));
+  } catch {
+    /* 저장하지 못해도 이번 창은 그대로 쓴다 */
+  }
+}
+
+/**
+ * 창 크기 조절(opt-in). 창이 화면 가운데에 놓이므로 모서리를 끈 만큼 가로·세로가 두 배로 바뀌어야 모서리가 포인터를 따라온다.
+ * pointer capture 를 손잡이에 걸어 끌기 중 텍스트 선택·바깥 누름 판정이 일어나지 않게 한다. 크기는 같은 페이지 안에서 다시 열 때 유지하고,
+ * storageKey 가 있으면 localStorage 에도 둔다(실패해도 기본 크기).
+ */
+function useModalResize(enabled: boolean, storageKey: string | undefined) {
+  const [box, setBox] = useState<ModalBox | null>(() => (enabled ? readStoredBox(storageKey) : null));
+  const contentRef = useRef<HTMLElement | null>(null);
+  const dragRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+  const boxRef = useRef(box);
+  boxRef.current = box;
+
+  const onPointerDown = useCallback((e: ReactPointerEvent<HTMLElement>) => {
+    const content = contentRef.current;
+    if (!content || e.button !== 0) return;
+    e.preventDefault();
+    const rect = content.getBoundingClientRect();
+    dragRef.current = { x: e.clientX, y: e.clientY, w: rect.width, h: rect.height };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  }, []);
+
+  const onPointerMove = useCallback((e: ReactPointerEvent<HTMLElement>) => {
+    const d = dragRef.current;
+    if (!d) return;
+    setBox(clampModalBox({ w: d.w + (e.clientX - d.x) * 2, h: d.h + (e.clientY - d.y) * 2 }, { w: window.innerWidth, h: window.innerHeight }));
+  }, []);
+
+  const endDrag = useCallback(
+    (e: ReactPointerEvent<HTMLElement>) => {
+      if (!dragRef.current) return;
+      dragRef.current = null;
+      e.currentTarget.releasePointerCapture?.(e.pointerId);
+      if (boxRef.current) writeStoredBox(storageKey, boxRef.current);
+    },
+    [storageKey]
+  );
+
+  const style: CSSProperties | undefined =
+    enabled && box
+      ? { width: box.w, height: box.h, flex: "0 0 auto", minWidth: MODAL_MIN_WIDTH, minHeight: MODAL_MIN_HEIGHT, maxWidth: `calc(100vw - ${MODAL_VIEWPORT_MARGIN * 2}px)`, maxHeight: `calc(100dvh - ${MODAL_VIEWPORT_MARGIN * 2}px)` }
+      : undefined;
+
+  return { contentRef, style, resized: enabled && box !== null, handleProps: { onPointerDown, onPointerMove, onPointerUp: endDrag, onPointerCancel: endDrag } };
+}
+
 export interface ModalProps {
   open: boolean;
   title?: string;
@@ -240,6 +337,13 @@ export interface ModalProps {
   descriptionId?: string;
   /** 바깥(오버레이) 누름으로 닫을지. 기본 true. 초안이 사라지면 곤란한 창(SQL 큰 창 등)만 false. X·Esc·[취소]는 영향 없다. */
   closeOnClickOutside?: boolean;
+  /**
+   * 오른쪽 아래 모서리 손잡이를 끌어 창 크기를 조절한다. 기본 false(지금 그대로). 최소 480×320, 최대는 화면 안.
+   * 조절한 창에는 `cm-modal--resized` 클래스가 붙어 안쪽 내용이 높이를 따라 늘어나게 쓸 수 있다.
+   */
+  resizable?: boolean;
+  /** resizable 일 때 조절한 크기를 localStorage 에 이 키로 남긴다(없으면 같은 화면이 열려 있는 동안만 유지). */
+  resizeStorageKey?: string;
 }
 
 /**
@@ -269,6 +373,8 @@ function ModalCore({
   bodyClassName = "",
   descriptionId,
   closeOnClickOutside = true,
+  resizable = false,
+  resizeStorageKey,
   overlayClassName = "",
 }: ModalProps & { overlayClassName?: string }) {
   // 열린 모달 순서표(modal-stack.ts). Esc·Tab 가두기는 맨 위 모달만 처리한다.
@@ -283,7 +389,16 @@ function ModalCore({
     () => isTopModal(stackId),
     () => false,
   );
-  const { setDialogRef } = useModalA11yCompat(open, descriptionId, isTop);
+  const { setDialogRef: setA11yRef } = useModalA11yCompat(open, descriptionId, isTop);
+  const resize = useModalResize(resizable, resizeStorageKey);
+  const setDialogRef = useCallback(
+    (node: HTMLElement | null) => {
+      resize.contentRef.current = node;
+      setA11yRef(node);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- contentRef 는 안정적인 ref 객체다
+    [setA11yRef]
+  );
   useEscapeCompat(open, stackId, onClose);
 
   // e2e 계약(계획 Global Constraints): overlay 계열 클래스는 base 에서 `.cm-modal` 을 **감싸는**
@@ -332,7 +447,8 @@ function ModalCore({
         // 가 폭이 아니라 높이에 적용되고, 결과적으로 Modal 폭이 붕괴한다(LookupModal md 실측
         // 325px, 정상이면 600px). `classNames` 는 selector 별로 분리되므로 `content` 키만 지정해
         // inner 를 건드리지 않는다.
-        classNames={{ content: clsx("cm-modal", `cm-modal-${size}`, className) }}
+        classNames={{ content: clsx("cm-modal", `cm-modal-${size}`, resizable && "cm-modal--resizable", resize.resized && "cm-modal--resized", className) }}
+        style={resize.style}
       >
         {(title || showCloseButton) && (
           <M.Header className="cm-modal-header">
@@ -350,6 +466,15 @@ function ModalCore({
           {children}
           {footer && <div className="cm-modal-footer">{footer}</div>}
         </div>
+        {resizable && (
+          <div
+            className="cm-modal-resize-handle"
+            role="presentation"
+            data-testid="modal-resize-handle"
+            title="끌어서 창 크기 조절"
+            {...resize.handleProps}
+          />
+        )}
       </M.Content>
     </M.Root>
   );
