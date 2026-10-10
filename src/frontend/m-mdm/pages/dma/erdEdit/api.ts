@@ -1,7 +1,8 @@
 /**
  * erdEdit 화면의 OASIS 호출 — `POST /api/mdm/oasis/erdEdit/{action}`(단계 0 BPMN + 단계 1 의 kind·import).
  * - OASIS params 는 배열을 싣지 못하므로 viewJson·commandsJson 은 JSON 문자열로 보낸다.
- * - search 응답은 목록이라 `data.result` 가 배열이다. 공통 계약(merge "data+result")은 객체만 펴므로 `result` 를 그대로 읽는다.
+ * - search 는 서비스가 목록(List)을 돌려주므로 OASIS 가 `data.result` 가 아니라 `grids.result.rows` 로 싣는다.
+ *   그래서 search 만 `includeGrids` 로 불러 그 행을 `result` 로 올려 읽는다(다른 액션은 객체라 `data.result` 다).
  * - save·import 의 명령 거절(INVALID·CONFLICT·NOT_EDITOR 등)은 성공 응답의 `applied=false`·`rejection` 으로 온다. 던지지 않는다.
  *   업무 오류(MDM0xx, 권한 등)는 `meta.success=false` 라 Error 로 던진다.
  */
@@ -27,12 +28,16 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
 
 const OASIS: OasisCallOptions = { omit: "nullish+blank", merge: "data+result", fieldLabel: mdmFieldLabel(FIELD_LABELS), errorFactory: plainError };
 
+/** 목록 응답(`grids.<이름>.rows`)을 결과의 `<이름>` 으로 올린다. */
+const OASIS_GRIDS: OasisCallOptions = { ...OASIS, includeGrids: true };
+
 function call<T>(action: string, params: object): Promise<T> {
   return callOasisAt<T>(MDM_OASIS_BASE, SCREEN_ID, action, params, undefined, OASIS);
 }
 
+/** 모델 목록 — 서버는 `grids.result.rows` 로 준다(BPMN searchTask output=result, 반환형 List). */
 export async function searchModels(): Promise<ErdModelRow[]> {
-  const out = await call<{ result?: unknown }>("search", {});
+  const out = await callOasisAt<{ result?: unknown }>(MDM_OASIS_BASE, SCREEN_ID, "search", {}, undefined, OASIS_GRIDS);
   return Array.isArray(out.result) ? (out.result as ErdModelRow[]) : [];
 }
 

@@ -11,8 +11,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useBusy } from "@dk-oasis/shared/form";
 import { canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
 import {
-  ReactFlow, ReactFlowProvider, useReactFlow, useStore, type EdgeTypes, type NodeChange, type NodeTypes,
+  ControlButton, Controls, ReactFlow, ReactFlowProvider, getViewportForBounds, useReactFlow, useStore, useStoreApi,
+  type EdgeTypes, type FitViewOptions, type NodeChange, type NodeTypes,
 } from "@dk-oasis/shared/react-flow";
+import { IconArrowsMaximize } from "@tabler/icons-react";
 
 import {
   SCREEN_ID, compareDbDiff, decideRelation, importFromDb, regModel, rejectionText, searchModels, setViewState, viewChanges, viewStatus,
@@ -35,6 +37,14 @@ import type { ErdChangesView, ErdColumnStatus, ErdDbDiffView, ErdModelRow, ErdSt
 const NODE_TYPES: NodeTypes = { erdTable: ErdTableNode };
 const EDGE_TYPES: EdgeTypes = { erdRelation: ErdRelationEdge };
 const PRO_OPTIONS = { hideAttribution: true };
+const MIN_ZOOM = 0.1;
+const MAX_ZOOM = 2;
+/**
+ * 화면 맞춤. `onlyRenderVisibleElements` 라 처음 화면(배율 1) 밖 노드는 그리지 않아 재지도 않는다. React Flow 의 fitView 는
+ * 기본으로 잰 노드만 넣으므로 처음 보이던 몇 개만으로 맞춰 최대 배율(2)에 걸렸다(MCM 57개 중 4개). `includeHiddenNodes` 를
+ * 켜면 잰 크기가 없는 노드도 initialWidth·initialHeight 로 넣는다(ERD 는 hidden 노드를 쓰지 않는다). 맞춤 배율은 1 을 넘지 않는다.
+ */
+const FIT_OPTIONS: FitViewOptions = { includeHiddenNodes: true, padding: 0.1, maxZoom: 1 };
 const STATUS_DEBOUNCE_MS = 500;
 const HISTORY_SPAN = 100;
 const NO_STATUSES: Record<string, ErdColumnStatus> = {};
@@ -75,6 +85,20 @@ function CanvasPane({ state, diagramId, mode, preset, status, selected, session,
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  const storeApi = useStoreApi();
+
+  /**
+   * [화면 맞춤] — 곧바로 옮긴다(Local-Rules §33). rf.fitView 는 다음 노드 갱신까지 미뤄지고, 노드를 새로 만든 뒤(F3 등)에는
+   * 그리지 않은 노드가 잰 크기 없이 남아 무기한 미뤄질 수 있다. 경계 상자는 잰 크기가 없으면 initialWidth·initialHeight 로 잰다.
+   */
+  const fitAll = useCallback(() => {
+    const ids = rf.getNodes().map((n) => n.id);
+    if (ids.length === 0) return;
+    const { width, height, minZoom } = storeApi.getState();
+    const vp = getViewportForBounds(rf.getNodesBounds(ids), width, height, minZoom, FIT_OPTIONS.maxZoom ?? MAX_ZOOM, FIT_OPTIONS.padding ?? 0.1);
+    void rf.setViewport(vp, { duration: 200 });
+  }, [rf, storeApi]);
+
   useEffect(() => {
     if (!reveal) return;
     const n = stateRef.current.nodes[nodeKey(diagramId, reveal.tableId)];
@@ -106,11 +130,19 @@ function CanvasPane({ state, diagramId, mode, preset, status, selected, session,
       deleteKeyCode={null}
       disableKeyboardA11y
       onlyRenderVisibleElements
-      minZoom={0.1}
-      maxZoom={2}
+      minZoom={MIN_ZOOM}
+      maxZoom={MAX_ZOOM}
       fitView={reveal === null} // 다른 다이어그램의 표로 옮겨 가며 새로 그릴 때는 화면 맞춤이 setCenter 를 덮지 않게 한다
+      fitViewOptions={FIT_OPTIONS}
       proOptions={PRO_OPTIONS}
-    />
+    >
+      {/* 확대·축소는 React Flow 기본 단추, 화면 맞춤은 곧바로 옮기는 fitAll 로 바꿔 단다(기본 단추는 rf.fitView 라 미뤄진다). */}
+      <Controls position="bottom-right" orientation="horizontal" showInteractive={false} showFitView={false}>
+        <ControlButton onClick={fitAll} title="화면 맞춤" aria-label="화면 맞춤" data-testid="erd-fit">
+          <IconArrowsMaximize />
+        </ControlButton>
+      </Controls>
+    </ReactFlow>
   );
 }
 
@@ -285,11 +317,14 @@ export function ErdViewer() {
   }, [connected, activeDiagram, selectedKey]);
 
   // ── 단축키: F3 논리·물리, Ctrl+T 표 찾기. 포털 탭이 활성일 때만. ──
+  // 포털 셸은 document 버블 단계에서 F3 으로 메뉴 검색을 연다. window 캡처 단계는 그보다 먼저 돌므로 여기서 F3 을 받아
+  // 전파를 끊는다 — ERD 탭이 활성인 동안 F3 은 논리·물리 전환만 한다(포털 셸 동작은 바꾸지 않는다).
   useEffect(() => {
     if (!active) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "F3") {
+      if (e.key === "F3" && !e.altKey && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
+        e.stopPropagation();
         setMode(nextMode);
         return;
       }
@@ -298,8 +333,8 @@ export function ErdViewer() {
         setFindSeq((s) => s + 1);
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [active]);
 
   // ── 읽기 전용(스펙 4.4) ──

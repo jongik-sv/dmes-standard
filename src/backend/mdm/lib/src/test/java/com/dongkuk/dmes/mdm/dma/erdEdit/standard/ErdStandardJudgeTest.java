@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.*;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdCommand.*;
+import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdColumn;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdModel;
 import com.dongkuk.dmes.mdm.dma.naming.DomainEntry;
 import com.dongkuk.dmes.mdm.dma.naming.TermDictionary;
@@ -94,5 +95,90 @@ class ErdStandardJudgeTest {
         var out = (ApplyOutcome.Applied) engine.apply(m, 1, 2, "s",
                 List.of(new UpdateColumn("c-ok", Map.of("comment", "설명"))));
         assertThat(out.warnings()).isEmpty();
+    }
+
+    // ---- 도메인 논리 타입(STRING·NUMBER·DATE·BOOLEAN) ↔ 모델 물리 타입(Oracle) ----
+
+    static ErdColumn col(String dataType, Integer length, Integer scale) {
+        ErdColumn c = new ErdColumn();
+        c.dataType = dataType;
+        c.length = length;
+        c.scale = scale;
+        return c;
+    }
+
+    @Test
+    void stringDomainMatchesCharTypesWithSameLength() {
+        assertThat(ErdStandardJudge.sameType(col("VARCHAR2", 1, null), "STRING", 1, null)).isTrue();
+        assertThat(ErdStandardJudge.sameType(col("CHAR", 1, null), "STRING", 1, null)).isTrue();
+        assertThat(ErdStandardJudge.sameType(col("NVARCHAR2", 30, null), "STRING", 30, null)).isTrue();
+        assertThat(ErdStandardJudge.sameType(col("VARCHAR2", 255, null), "STRING", null, null)).isTrue(); // 도메인 길이 없음
+        assertThat(ErdStandardJudge.sameType(col("VARCHAR2", 2, null), "STRING", 1, null)).isFalse();     // 길이 다름
+        assertThat(ErdStandardJudge.sameType(col("RAW", 16, null), "STRING", 16, null)).isFalse();
+    }
+
+    @Test
+    void numberColumnIsNotStringDomain() {
+        assertThat(ErdStandardJudge.sameType(col("NUMBER", 19, 0), "STRING", 20, null)).isFalse();
+    }
+
+    @Test
+    void numberDomainComparesPrecisionAndScale() {
+        assertThat(ErdStandardJudge.sameType(col("NUMBER", 5, 2), "NUMBER", 5, 2)).isTrue();
+        assertThat(ErdStandardJudge.sameType(col("NUMBER", 5, 1), "NUMBER", 5, 2)).isFalse();
+        assertThat(ErdStandardJudge.sameType(col("NUMBER", 6, 2), "NUMBER", 5, 2)).isFalse();
+        assertThat(ErdStandardJudge.sameType(col("NUMBER", 19, 0), "NUMBER", 19, null)).isTrue();  // NUMBER(p) = NUMBER(p,0)
+        assertThat(ErdStandardJudge.sameType(col("FLOAT", 5, null), "NUMBER", 5, null)).isFalse();
+    }
+
+    @Test
+    void unconstrainedNumberDomainMatchesAnyNumber() {
+        assertThat(ErdStandardJudge.sameType(col("NUMBER", 19, 0), "NUMBER", null, null)).isTrue();
+        assertThat(ErdStandardJudge.sameType(col("NUMBER", null, null), "NUMBER", null, null)).isTrue();
+        assertThat(ErdStandardJudge.sameType(col("VARCHAR2", 10, null), "NUMBER", null, null)).isFalse();
+    }
+
+    @Test
+    void dateDomainWithoutScaleIsOracleDate() {
+        assertThat(ErdStandardJudge.sameType(col("DATE", null, null), "DATE", null, null)).isTrue();
+        assertThat(ErdStandardJudge.sameType(col("TIMESTAMP(6)", null, null), "DATE", null, null)).isFalse();
+    }
+
+    @Test
+    void dateDomainWithScaleIsTimestamp() {
+        assertThat(ErdStandardJudge.sameType(col("TIMESTAMP(6)", null, null), "DATE", null, 6)).isTrue();
+        assertThat(ErdStandardJudge.sameType(col("TIMESTAMP(3)", null, null), "DATE", null, 6)).isFalse();
+        assertThat(ErdStandardJudge.sameType(col("DATE", null, null), "DATE", null, 6)).isFalse();
+        assertThat(ErdStandardJudge.sameType(col("TIMESTAMP(6) WITH TIME ZONE", null, null), "DATE", null, 6)).isFalse();
+    }
+
+    @Test
+    void booleanDomainIsYnCharOne() {
+        assertThat(ErdStandardJudge.sameType(col("VARCHAR2", 1, null), "BOOLEAN", null, null)).isTrue();
+        assertThat(ErdStandardJudge.sameType(col("CHAR", 1, null), "BOOLEAN", 1, null)).isTrue();
+        assertThat(ErdStandardJudge.sameType(col("VARCHAR2", 2, null), "BOOLEAN", null, null)).isFalse();
+        assertThat(ErdStandardJudge.sameType(col("NUMBER", 1, 0), "BOOLEAN", null, null)).isFalse();
+    }
+
+    @Test
+    void judgeUsesPhysicalMappingForDomain() {
+        TermDictionary terms = TermDictionary.of(List.of());
+        var yn = new ErdDomainSpec(1L, "여부", "STRING", 1, null);
+        var id = new ErdDomainSpec(2L, "아이디", "STRING", 20, null);
+        var dtm = new ErdDomainSpec(3L, "일시", "DATE", null, null);
+        var ts = new ErdDomainSpec(4L, "타임스탬프", "DATE", null, 6);
+        ErdDictionary d = new ErdDictionary(terms, Set.of("USE_YN", "ID", "C_AT", "U_AT"), Set.of(),
+                Map.of(1L, yn, 2L, id, 3L, dtm, 4L, ts), List.of());
+        ErdModel m = model(ErdNaming.NONE,
+                new AddTable("t-1", "TB_A", "에이", ""),
+                new AddColumn("c-yn", "t-1", "USE_YN", "사용여부", 1L, "VARCHAR2", 1, null, false, null, "", null),
+                new AddColumn("c-id", "t-1", "ID", "아이디", 2L, "NUMBER", 19, 0, true, null, "", null),
+                new AddColumn("c-ca", "t-1", "C_AT", "생성일시", 3L, "TIMESTAMP(6)", null, null, false, null, "", null),
+                new AddColumn("c-ua", "t-1", "U_AT", "수정일시", 4L, "TIMESTAMP(6)", null, null, false, null, "", null));
+        Map<String, ErdColumnStatus> s = ErdStandardJudge.judge(m, d);
+        assertThat(s.get("c-yn")).isEqualTo(ErdColumnStatus.OK);
+        assertThat(s.get("c-id")).isEqualTo(ErdColumnStatus.DOMAIN);
+        assertThat(s.get("c-ca")).isEqualTo(ErdColumnStatus.DOMAIN);
+        assertThat(s.get("c-ua")).isEqualTo(ErdColumnStatus.OK);
     }
 }

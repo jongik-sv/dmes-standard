@@ -30,6 +30,11 @@ function ok(result: unknown) {
   return new Response(JSON.stringify({ meta: { success: true }, data: { result } }), { status: 200 });
 }
 
+/** 목록 결과 — 서버는 List 반환을 `grids.result.rows` 로 준다(search). */
+function okRows(rows: unknown[]) {
+  return new Response(JSON.stringify({ meta: { success: true }, data: {}, grids: { result: { rows } } }), { status: 200 });
+}
+
 function stubFetch() {
   calls = [];
   globalThis.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -42,7 +47,7 @@ function stubFetch() {
     const action = u.split("/").pop() ?? "";
     const params = (JSON.parse(String(init?.body ?? "{}")).params ?? {}) as Record<string, unknown>;
     calls.push({ action, params });
-    if (action === "search") return ok([MODEL_ROW]);
+    if (action === "search") return okRows([MODEL_ROW]);
     if (action === "view" && params.kind === "STATUS") return ok(STATUS);
     if (action === "view" && params.kind === "SET_VIEW") return ok({ ok: true });
     if (action === "view" && params.sinceRev !== undefined) return ok({ rev: currentView.rev, reload: false, deltas: [] });
@@ -212,7 +217,7 @@ describe("erdEdit 화면", () => {
       const action = u.split("/").pop() ?? "";
       const params = (JSON.parse(String(init?.body ?? "{}")).params ?? {}) as Record<string, unknown>;
       if (u.startsWith("/api/mdm/oasis/erdEdit/")) {
-        if (action === "search") return ok([MODEL_ROW, { ...MODEL_ROW, modelId: "mes", modelName: "MES 스키마" }]);
+        if (action === "search") return okRows([MODEL_ROW, { ...MODEL_ROW, modelId: "mes", modelName: "MES 스키마" }]);
         if (action === "view" && params.modelId === "mes" && params.kind === undefined && params.sinceRev === undefined) {
           calls.push({ action, params });
           return ok(mesView);
@@ -248,5 +253,23 @@ describe("erdEdit 화면", () => {
     await click(byTestId("erd-tab-diff"));
     await settle();
     expect(calls.filter((c) => c.action === "compare")).toHaveLength(2);
+  });
+
+  it("F3 은 논리·물리를 바꾸고 포털의 document F3(메뉴 검색)까지 가지 않는다", async () => {
+    // 포털 셸은 document 버블 단계에서 F3 을 받아 메뉴 검색을 연다(shared portal-shell). 같은 자리에 듣는 쪽을 둔다.
+    const portalF3 = vi.fn();
+    document.addEventListener("keydown", portalF3);
+    try {
+      await openModel();
+      const canvas = () => host.querySelector<HTMLElement>(".erd-canvas");
+      expect(canvas()?.dataset.mode).toBe("logical");
+      await act(async () => {
+        document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "F3", bubbles: true, cancelable: true }));
+      });
+      expect(canvas()?.dataset.mode).toBe("physical");
+      expect(portalF3).not.toHaveBeenCalled();
+    } finally {
+      document.removeEventListener("keydown", portalF3);
+    }
   });
 });

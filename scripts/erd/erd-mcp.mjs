@@ -10,13 +10,14 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { configFromEnv, createOasisClient, describeError } from "./lib/oasis.mjs";
-import { formatChanges, formatCurrentView, formatDbDiff, formatInferred, formatViolations, getModelText } from "./lib/model-text.mjs";
+import { formatChanges, formatCurrentView, formatDbDiff, formatInferred, formatViolations, getModelText, TEXT_LIMIT } from "./lib/model-text.mjs";
 
 /** 스펙 4.6 "LLM 이 쓰는 순서". 단계 1 서버는 읽기 도구만 있다. */
 export const INSTRUCTIONS = [
   "ERD 모델(모듈 하나 = 모델 하나, 예: mcm·mdm)을 읽는 서버다. 이 서버는 읽기만 한다.",
   "쓰는 순서:",
   "1. getCurrentView 로 사용자가 화면에서 보는 다이어그램과 선택한 표를 확인하거나, getModelText 로 모델을 읽는다.",
+  "   getModelText 는 큰 모델이면 개요(표 목록·컬럼 수·PK)만 준다. 질문에 표 이름이 있으면 처음부터 tables 에 그 표를 넣어 부른다.",
   "2. claimTable 로 작업할 표를 선언한다. (단계 2 에서 추가)",
   "3. apply 로 명령을 묶어 보낸다. (단계 2 에서 추가)",
   "4. CONFLICT 를 받으면 getChangesSince(rev) 로 최신 상태를 확인하고 다시 보낸다.",
@@ -30,8 +31,22 @@ export const TOOLS = {
   getModelText: {
     description:
       "모델을 DBML 비슷한 텍스트로 읽는다. 컬럼 줄: 물리명 논리명 타입 [PK] [NN] [FK>부모표.부모컬럼(?=추정)] [도메인] [!표준상태]. " +
-      "끝에 Ref 줄(관계 상태와 근거)이 붙는다. 순서 1단계: 화면 상태가 없으면 이 도구로 시작한다. diagram 을 주면 그 다이어그램의 표만 쓴다.",
-    inputSchema: { modelId, diagram: z.string().min(1).optional().describe("다이어그램 id, 이름, 또는 '업무영역/이름'") },
+      "끝에 Ref 줄(관계 상태와 근거)이 붙는다. 순서 1단계: 화면 상태가 없으면 이 도구로 시작한다. " +
+      `결과는 ${TEXT_LIMIT}자를 넘지 않는다. 모델 전체가 그보다 크면 tables 없이 부를 때 개요만 온다` +
+      "(표 수, PK 없는 표, 표마다 논리명·컬럼 수·PK 컬럼·관계 수·표준 위반 수). 개요에는 컬럼 줄과 Ref 줄이 없다. " +
+      "질문에 표 이름이 나오면 처음부터 tables 에 그 물리명을 넣어 부른다(예: tables=[\"TB_MCM_SEC_MENU\"]). " +
+      "tables 는 정확한 물리명(대소문자 무관)이고, 끝에 * 를 붙이면 접두사다(예: TB_MCM_SEC_*). " +
+      "tables 를 주면 Ref 줄은 고른 표가 자식이든 부모든 나온다. diagram 을 주면 그 다이어그램의 표만 쓴다.",
+    inputSchema: {
+      modelId,
+      tables: z
+        .union([z.array(z.string().min(1)).min(1), z.string().min(1)])
+        .optional()
+        .describe("읽을 표의 물리명 목록. 끝이 * 면 접두사. 쉼표로 이은 글도 받는다"),
+      diagram: z.string().min(1).optional().describe("다이어그램 id, 이름, 또는 '업무영역/이름'"),
+    },
+    // Claude Code 가 큰 결과를 파일로 빼는 기준을 올리는 힌트. 결과는 TEXT_LIMIT 안이라 이 값에 기대지 않는다.
+    _meta: { "anthropic/maxResultSizeChars": 100000 },
   },
   getCurrentView: {
     description:
@@ -82,10 +97,10 @@ const needDiff = (diff) => {
 /** 도구 처리기. OASIS 오류는 던지지 않고 isError 결과로 돌려준다. */
 export function handlers(client) {
   return {
-    async getModelText({ modelId, diagram }) {
+    async getModelText({ modelId, diagram, tables }) {
       const view = await client.call("view", { modelId });
       const status = needStatus(await client.call("view", { modelId, kind: "STATUS", ver: view.ver }));
-      return ok(getModelText(view, status, { diagram }));
+      return ok(getModelText(view, status, { diagram, tables }));
     },
     async getCurrentView({ modelId, session }) {
       return ok(formatCurrentView(await client.call("view", { modelId }), { session }));

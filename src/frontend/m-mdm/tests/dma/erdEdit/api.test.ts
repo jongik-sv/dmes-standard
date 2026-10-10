@@ -7,13 +7,19 @@ import {
 const originalFetch = globalThis.fetch;
 let calls: Array<{ url: string; body: { meta: { menuId: string }; params: Record<string, unknown> } }> = [];
 
-function stub(result: unknown, success = true) {
+/** 응답 본문을 그대로 돌려주는 fetch. */
+function stubBody(body: unknown) {
   calls = [];
   globalThis.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     calls.push({ url: String(url), body: JSON.parse(String(init?.body)) });
-    const meta = success ? { success: true } : { success: false, message: "이미 표가 있습니다" };
-    return new Response(JSON.stringify({ meta, data: { result } }), { status: 200 });
+    return new Response(JSON.stringify(body), { status: 200 });
   }) as typeof fetch;
+}
+
+/** 객체 결과 — 서버는 `data.result` 로 준다. */
+function stub(result: unknown, success = true) {
+  const meta = success ? { success: true } : { success: false, message: "이미 표가 있습니다" };
+  stubBody({ meta, data: { result } });
 }
 
 afterEach(() => {
@@ -21,10 +27,12 @@ afterEach(() => {
 });
 
 describe("erdEdit api", () => {
-  it("search 는 data.result 배열을 돌려준다", async () => {
-    stub([{ modelId: "mcm", moduleId: "mcm", schemaName: "MCMAPUSER", modelName: "MCM 스키마", rev: 3, draftVer: "1.000", ownerId: "tester" }]);
+  it("search 는 서버가 grids.result.rows 로 준 목록을 돌려준다", async () => {
+    // 실제 서버 모양: 서비스가 List 를 돌려주면 OASIS 는 data 가 아니라 grids.<output>.rows 로 싣는다(data 는 빈 객체).
+    const row = { modelId: "mcm", moduleId: "mcm", schemaName: "MCMAPUSER", modelName: "MCM 스키마", rev: 3, draftVer: "1.000", ownerId: "tester" };
+    stubBody({ meta: { success: true }, data: {}, grids: { result: { rows: [row, { ...row, modelId: "mdm", modelName: "MDM 스키마" }] } } });
     const rows = await searchModels();
-    expect(rows.map((r) => r.modelId)).toEqual(["mcm"]);
+    expect(rows.map((r) => r.modelId)).toEqual(["mcm", "mdm"]);
     expect(calls[0].url).toBe("/api/mdm/oasis/erdEdit/search");
     expect(calls[0].body.meta.menuId).toBe("erdEdit");
   });

@@ -882,3 +882,19 @@ Expected: 커밋 하나가 만들어지고 `status` 가 깨끗하다. Step 1 에
 - SDD 원장(`.superpowers/sdd/…/progress.md`)은 워크트리마다 따로 있고 git 에 없다. 단계 1 원장의 정확한 폴더 이름은 실행 때 `ls` 로 찾는다. 원장이 없으면 "단계 1 구현 결정" 의 Rulings 행은 채울 수 없다.
 - `next start` 는 `output: "standalone"` 설정에서 경고를 낸다. 배포는 `standalone/server.js` 이지만 압축 기본값이 같아 `next start` 결과를 대표로 쓴다(Step 3-7b).
 - 스펙 5절의 "다른 스키마 읽기 권한" 은 로컬 확인만 한다. 운영 권한(deferred 17)은 닫지 않는다.
+
+### 마감 실행에서 확인한 계획 결함 (2026-10-11)
+
+마감 실행(L_ERD12, TPL_DATA 복제)에서 이 계획대로는 되지 않았던 곳이다. 다음 단계 마감 계획을 쓸 때 반영한다.
+
+- Step 1-5: m-mcm build 는 계획 명령만으로 되지 않는다. `pnpm --filter "@dk-oasis/mcm^..." build`(m-analog·m-mdm dist)와 `AUTH_SECRET` 환경변수(값은 임의)가 먼저 있어야 한다.
+- Step 2: L_MAIN 대신 TPL_DATA 복제 PDB L_ERD12 를 썼다(사용자 위임 2026-10-11, L_MAIN 등록 금지).
+- 2-6 jq: 한글 객체 키에 따옴표가 없어 compile error 가 난다. 키를 따옴표로 감싸야 한다.
+- 2-7: "MISS 가 대부분" 이라는 기대는 TPL_DATA 사전 기준으로 낡았다. MCM 891 컬럼 중 642 컬럼이 사전 도메인을 받는다.
+- 3-3·3-6 `waitForSelector('.react-flow__node')`: ego-browser 는 선택자가 한 개만 맞아야 한다. 노드가 57개라 ambiguity 오류가 난다. `waitForFunction`(`querySelectorAll` 길이 > 0)으로 바꿔야 한다.
+- 3-3·3-6 모델 단추: `click('text=MCM 스키마')` 대신 `[data-testid=erd-model-mcm]` 을 쓴다. 메뉴는 `마루 MDM > 용어·도메인 > ERD 설계` 이고 leaf `ERD 설계` 를 직접 누른다.
+- 3-5·3-6 검토 탭: 탭 글자는 `검토` 가 아니라 `추정 관계 검토(n)`(`data-testid=erd-tab-inferred`)다. 확정·기각 단추는 `data-testid=erd-confirm-<relId>`·`erd-reject-<relId>` 다.
+- 3-3~3-6 점선 수: React Flow 는 화면 밖 노드·선을 그리지 않는다. 확대율 0.1 로 전체를 보이게 한 뒤 세야 한다.
+- 3-7b: dev 서버를 내리지 않아도 된다. 같은 빌드를 `next start --port 5101` 로 띄우면 같은 host 라 로그인 쿠키도 공유된다.
+- 4-1 `.mcp.json`: `ERD_USER` 기본값은 `erd-mcp` 다. 키 환경변수 이름은 `ERD_KEY` 가 아니라 `BACKEND_CLIENT_KEY` 다. `--max-turns` 는 `claude --help` 에 없지만 동작한다.
+- 4-3 `--allowedTools`: 자동 승인 목록일 뿐 화이트리스트가 아니다. 나머지 erd 도구와 `Read` 를 `--disallowedTools` 에 넣고 `--permission-mode default` 를 줘야 실제로 막힌다(사용자 기본 모드가 auto 다).

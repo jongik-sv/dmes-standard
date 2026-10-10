@@ -206,7 +206,7 @@ public record InferredRelation(String childTable, List<String> childColumns, Str
 
 | 도구 | 입력 | 부르는 OASIS | 출력 |
 |---|---|---|---|
-| `getModelText` | `modelId`, `diagram?` | `view` + `view kind=STATUS` | 아래 텍스트 |
+| `getModelText` | `modelId`, `diagram?`, `tables?` | `view` + `view kind=STATUS` | 아래 텍스트. 40,000자 상한, 넘으면 개요 |
 | `getCurrentView` | `modelId`, `session?` | `view`(모델 대신 `presence` 만 씀) | 화면 세션(`source=UI`)마다 다이어그램 이름·선택한 표 물리명·논리명 |
 | `getChangesSince` | `modelId`, `rev` | `view` + `sinceRev` | `{rev, reload, deltas}` 요약 텍스트 + JSON |
 | `listViolations` | `modelId`, `status?` | `view` + `view kind=STATUS` | 상태가 OK·ALIAS 가 아닌 컬럼 목록 |
@@ -225,6 +225,7 @@ Ref TB_MCM_SEC_MENU.OBJECT_ID > TB_MCM_SEC_OBJ.OBJECT_ID INFERRED (DOC csa-menu.
 ```
 
 - 컬럼 줄: `물리명 논리명 타입(길이[,스케일]) [PK] [NN] [FK>부모표.부모컬럼[?]] [도메인이름] [!상태]`. `?` 는 추정 관계, `!상태` 는 OK·ALIAS 가 아닐 때만. `diagram` 을 주면 그 다이어그램의 표만 쓴다. 기각한 관계와 `candidateRank`>1 인 후보는 쓰지 않는다.
+- 크기(마감에서 더함, "마감-MCP 크기"): 결과는 40,000자(`TEXT_LIMIT`)를 넘지 않는다. `tables` 없이 불렀는데 전체 글이 상한을 넘으면 개요(표 수·컬럼 수·관계 상태별 수·PK 없는 표·표마다 컬럼 수와 PK)를 준다. `tables` 는 정확한 물리명(대소문자·앞의 스키마 무시)이고 끝 `*` 는 접두사다. `tables` 를 주면 Ref 줄은 고른 표가 자식이든 부모든 나온다.
 
 ---
 
@@ -259,6 +260,28 @@ Ref TB_MCM_SEC_MENU.OBJECT_ID > TB_MCM_SEC_OBJ.OBJECT_ID INFERRED (DOC csa-menu.
 - 직접 연 pane·레인·이름 붙인 에이전트는 작업이 끝나면 바로 닫는다. 머지한 워크트리는 `git worktree remove`(`--force` 금지), 브랜치는 `git branch -d` 로 정리한다.
 - Task 9 와 Task 11 은 백엔드 새 경로(Task 1·4·5)를 쓴다. 단위 시험은 가짜 응답으로 하고, 실제 연결은 Task 12 에서 확인한다.
 - Task 9 는 mcm 시더와 지문 골든을 고친다. 레인 BE 는 mcm 을 고치지 않는다.
+
+## 단계 1 구현 결정
+
+구현 중 검토와 마감 확인에서 나온 판정이다. 스펙 결정(D1~D20)과 "단계 1 에서 정한 점"(S1~S17)은 바꾸지 않았다. 레인 워크트리를 정리해서 SDD 원장이 남지 않았다. 그래서 SDD 원장 대신 조정 기록(decisions)·레인 보고에서 옮겼다. "조정-n" 은 조정 기록의 결정 번호(0부터)다. 마감 측정 값은 L_ERD12(TPL_DATA 복제, L_MAIN 아님)에서 쟀다.
+
+| # | 결정 | 이유 | 틀렸을 때 비용 |
+|---|---|---|---|
+| 마감-복제 PDB | 실제 가져오기는 TPL_DATA 를 복제한 PDB L_ERD12 에서 했다. `mcm`·`mdm` 모델은 L_ERD12 에만 등록했다(모델 ID 는 모듈 ID 와 같다). L_MAIN 은 건드리지 않았다. L_MAIN 등록은 사용자 결정으로 남는다. | 사용자가 마감을 위임하면서 L_MAIN 등록을 멈춤 조건으로 정했다(조정-0, 10-11 00:20). | L_MAIN 에서는 다시 가져와야 한다. 모델 삭제 액션이 없어서(deferred 40) L_MAIN 에 잘못 등록하면 TB_MDM_ERD_* 행을 손으로 지워야 한다. |
+| 마감-판정 시간 | 표준 일괄 판정은 가운데 648ms(MCM)·617ms(MDM)이다. 요청마다 사전을 읽는 방식을 유지한다. | 스펙 5절 기준 3000ms 보다 작다. 사전 규모는 컬럼 사전 7951행, 별칭 11250행이다. | 사전이 커지면 화면이 느려진다(deferred 33). |
+| 마감-허브 접기 | 허브 접기 뒤 MCM 점선은 67쌍이다(접기 전 108쌍, 접힌 후보 행 43개). MDM 은 34쌍 중 31쌍을 그린다. | deferred 16. | 접힌 후보는 검토 패널에서 찾아야 한다. |
+| 마감-포털 SSE | dev 서버와 `next start` 모두 압축 없이 흐른다. 125초 동안 재접속 0회, change 지연 787ms(dev)·901ms(`next start`)다. | S15, 스펙 5절. | 끊기면 `sinceRev` 재접속으로 이어진다. |
+| 마감-표준 타입 대응 | 표준 판정이 도메인 논리 타입(STRING·NUMBER·DATE·BOOLEAN)을 Oracle 물리 타입과 대응 규칙으로 비교한다(기능설계서 5절). 판정·미리보기·확정 검사·엔진 경고가 같은 규칙을 쓴다. | 두 타입을 그대로 비교해서 거의 모든 컬럼이 DOMAIN 이었다(MCM 891개 중 629개, MDM 855개 중 799개). 조정-9(10-11 01:45)가 결함으로 보고 마감 안에서 고치게 했다. | 대응 규칙이 사전 관례와 다르면 DOMAIN 판정이 틀린다. 남은 차이는 deferred 41, 논리 타입을 모델에 복사하는 `copyDomain` 은 deferred 42. |
+| 마감-MCP 크기 | `getModelText` 결과를 40,000자 안으로 묶는다. 넘으면 개요를 주고, `tables` 인자로 표를 고르게 했다. `getCurrentView` 는 시각을 지역 시각과 지난 시간으로 적는다. | mcm 전체 글(51.6KB)이 Claude Code 도구 결과 상한(약 50,000자)을 넘어 파일로 빠졌다. 첫 시험은 2/10, 고친 뒤 엄격 조건에서 10/10 이다. 조정-10(10-11 02:20). | 모델이 더 커지면 `tables` 로 나눠 부르는 횟수가 늘어난다. |
+| 마감-화면 목록·F3·맞춤 | 모델 목록은 `search` 응답의 `grids.result.rows` 를 읽는다. ERD 화면은 window 캡처 단계에서 F3 을 받아 전파를 끊는다. 포털 셸(shared `portal-shell.tsx`)은 고치지 않았다. 첫 화면 맞춤은 숨은 노드까지 재고(`includeHiddenNodes`, maxZoom 1), 확대·축소·화면 맞춤 단추를 달았다. | 마감 브라우저 확인에서 모델 목록이 0개였고, F3 이 포털 메뉴 검색 창도 열었고, 첫 맞춤이 확대율 2 에서 표 4개만 보였다. shared 동작을 바꾸는 일은 사용자 승인 사항이다(조정-10, 10-11 02:20). | 포털 단축키와 화면 단축키가 다른 화면에서도 겹칠 수 있다(deferred 48). |
+| 마감-근거 파일 재생성 | `erd/hints/mdm.json` 을 다시 만들어 커밋했다. | `erd-hints --check` 가 줄 번호와 생성 시각 차이로 실패했다. | 코드가 바뀌면 근거 파일이 다시 낡는다. |
+| 조정-1 SQL_JOIN 방향 | SQL_JOIN 근거에 양쪽 키가 없으면 이번 단계는 이름순으로 방향을 정한다. | 계획 시험이 이 규칙을 고정했다. 레인 S1 이 리뷰 지적을 보류했다(10-11 00:26). | 방향이 거꾸로 된 추정 관계가 나온다(deferred 44). |
+| 조정-2 MCP 의존·세션 이름 | MCP SDK 전이 의존 5개가 공개 14일 미만이고 `.mcp.json` 의 `ERD_SESSION` 기본값이 공용이지만, 그대로 머지했다. | 단계 1 은 읽기만 한다(10-11 00:28). | 의존 고정은 deferred 46, 단계 2 쓰기에서 세션이 섞이는 문제는 deferred 47. |
+| 조정-5 shared react-flow 추가 | shared 에 `react-flow` 서브패스와 의존성만 더했다(계획 Task 6 Produces 그대로, +7줄). 잠금 파일은 shared 두 항목 6줄만 넣었다. 머지 뒤 메인 `src/frontend` 에서 `pnpm install --frozen-lockfile` 을 돌렸다. | 10-11 00:51. 레인 FE1 에서 `pnpm install` 이 무관한 peer 변형 49줄을 바꿔서 되돌렸다. | 레인 보고에 적지 않았다. |
+| 조정-6 react-flow 재내보내기 | `shared/src/components/react-flow/index.ts` 에 `export * from "@xyflow/react"` 와 `import "./react-flow"` 를 넣었다. 공개 API 는 계획 그대로다. | esbuild 가 `dist` 에서 `@xyflow/react` 재내보내기를 잃었다(10-11 00:55). | 단위 시험이 `src` 를 읽어서 같은 누락을 잡지 못한다(deferred 45). |
+| 조정-7 ui-meta-lock | `ui-meta-lock.json` 에 erdEdit 항목만 더했다. m-mcm cmq 어긋남은 손대지 않았다. | m-mcm cmq 어긋남은 dev 에서도 같은 실패다(10-11 01:09). | m-mdm 시험 1건이 계속 실패한다(deferred 50). |
+| 진행 판정(요약) | 조정-3: t9 를 메뉴·골든(t9a)과 화면(t9b)으로 나누고, t8·t9b 를 FE1 머지 전에 미리 썼다(00:32). 조정-4: Task 2 경계 확인(Oracle 2회)은 부하가 풀리거나 BE1 이 머지된 뒤에 돌렸다(00:46). 조정-8: 머지 게이트의 FORBIDDEN·SHARED_API 경고는 조정-6·7 범위와 diff 가 같아서 허가했다(01:12). | 레인 병렬 작업과 Oracle 시험 잠금 순서 때문이다. | 진행 순서 판정이라 결과물에 남지 않는다. |
+| 레인 구현 차이(요약) | S1: 리뷰 지적 4건 중 3건을 반영했다(`.sql` 문장 분할, bin·generated 폴더 제외, Flyway 버전 형식). S2: `getModelText` 는 `candidateRank` 가 null·1 인 관계를 쓰고 2 이상을 접는다. 단독 시험 기대값은 14개다(계획의 28 은 Task 10 시험 14개를 포함한 수). FE1: `CANVAS_SHORTCUTS` 에 Shift+Esc → escape 를 더했다(원본 동작). FE2: 후보 접기는 INFERRED 만 대상이고, 묶음 대표는 남은 추정 후보 중 가장 작은 순위이며, 자기 참조 선의 끝 위치를 정했다. page-render 시험에 `localStorage` stubGlobal 을 넣었다(Node 26). 리뷰 지적 8건을 반영했다. audit P-S2 4건(검토 패널 탭 안 그리드에 title 없음)은 탭 줄이 그리드 이름·건수·[다시 읽기]를 보여서 오탐으로 판정했다. BE2: 사전 대소문자 처리, `COLUMN_ID` 최소값, `view` STATUS 분기, 다이어그램 id `d-<UUID>` 가 계획과 다르다. 리뷰 지적 2건은 보류했다(deferred 51). | 레인 메모와 조정 메모에 적힌 리뷰 반영과 계획 차이다. | 레인 보고에 적지 않았다. |
 
 ---
 

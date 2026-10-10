@@ -66,6 +66,117 @@ function tableIds(view, m, diagram) {
 }
 
 /**
+ * 한 번에 돌려주는 글자 수 상한. Claude Code 는 약 50,000자를 넘는 MCP 결과를 파일로 빼므로 그보다 작게 둔다.
+ * getModelText 는 어떤 모델 크기에서도 이 값을 넘지 않는다.
+ */
+export const TEXT_LIMIT = 40000;
+
+const columnIds = (m, t) => (t.columnOrder ?? []).filter((cid) => m.columns[cid]);
+const pkColumns = (m, tid) =>
+  Object.values(m.keys)
+    .filter((k) => k.table === tid && k.kind === "PK")
+    .flatMap((k) => k.columns);
+
+/** tables 인자를 이름 목록으로. 배열·쉼표 구분 글·JSON 배열 글을 받는다. */
+export function tableArgs(tables) {
+  if (tables == null) return [];
+  let list = tables;
+  if (typeof list === "string") {
+    const s = list.trim();
+    if (s.startsWith("[")) {
+      try {
+        list = JSON.parse(s);
+      } catch {
+        list = [s];
+      }
+    } else list = s.split(/[\s,]+/);
+  }
+  return (Array.isArray(list) ? list : [list]).map((x) => String(x).trim()).filter(Boolean);
+}
+
+/**
+ * 이름으로 표를 고른다. 물리명은 대소문자를 가리지 않고, 앞의 '스키마.' 는 뗀다.
+ * 끝이 * 이면 접두사, 아니면 정확히 같은 이름만. 못 찾은 이름은 missing 에 담는다.
+ */
+function pickTables(m, ids, names) {
+  const picked = new Set();
+  const missing = [];
+  for (const raw of names) {
+    const key = raw.toUpperCase().replace(/^[A-Z0-9_$#]+\./, "");
+    const prefix = key.endsWith("*") ? key.replace(/\*+$/, "") : null;
+    const hit = ids.filter((id) => {
+      const p = String(m.tables[id].phys).toUpperCase();
+      return prefix != null ? p.startsWith(prefix) : p === key;
+    });
+    if (hit.length === 0) missing.push(raw);
+    hit.forEach((id) => picked.add(id));
+  }
+  return { ids: ids.filter((id) => picked.has(id)), missing };
+}
+
+/** 못 찾은 이름마다 비슷한 물리명(이름을 품은 것) 몇 개. */
+function missingLine(m, ids, missing) {
+  const all = ids.map((id) => m.tables[id].phys);
+  const hints = missing.map((raw) => {
+    const k = raw.toUpperCase().replace(/^[A-Z0-9_$#]+\./, "").replace(/\*+$/, "");
+    const near = all.filter((p) => String(p).toUpperCase().includes(k)).slice(0, 5);
+    return near.length ? `${raw}(비슷한 표: ${near.join(", ")})` : raw;
+  });
+  return `없는 표: ${namesWithin(hints, 2000)}. 물리명을 확인하거나, 접두사로 찾으려면 끝에 * 를 붙인다(예: TB_MCM_SEC_*).`;
+}
+
+function tableBlock(m, tid, rels, statuses, domains) {
+  const t = m.tables[tid];
+  const out = [t.logical ? `${t.phys} ${t.logical} {` : `${t.phys} {`];
+  const pk = new Set(pkColumns(m, tid));
+  for (const cid of columnIds(m, t)) {
+    const c = m.columns[cid];
+    const parts = [c.phys, c.logical || "-", typeText(c)];
+    if (pk.has(cid)) parts.push("PK");
+    if (c.notNull) parts.push("NN");
+    const fks = [];
+    for (const [, r] of rels) {
+      if (r.child !== tid) continue;
+      for (const [childCol, parentCol] of r.pairs ?? []) {
+        if (childCol !== cid) continue;
+        const mark = r.state === "INFERRED" ? "?" : "";
+        if (r.parentRef) fks.push(`FK>@${r.parentRef.model}${mark}`);
+        else fks.push(`FK>${m.tables[r.parent]?.phys ?? "?"}.${m.columns[parentCol]?.phys ?? "?"}${mark}`);
+      }
+    }
+    parts.push(...fks.sort(cmp));
+    if (c.domainId != null) parts.push(`[${domains[String(c.domainId)]?.name ?? `도메인 ${c.domainId}`}]`);
+    const st = statuses[cid];
+    if (st && !QUIET.has(st)) parts.push(`!${st}`);
+    out.push(`  ${parts.join(" ")}`);
+  }
+  out.push("}");
+  return out.join("\n");
+}
+
+function refLine(m, r) {
+  const child = `${m.tables[r.child].phys}.${colsText(m, (r.pairs ?? []).map((p) => p[0]))}`;
+  const parent = r.parentRef
+    ? `@${r.parentRef.model}`
+    : `${m.tables[r.parent]?.phys ?? "?"}.${colsText(m, (r.pairs ?? []).map((p) => p[1]))}`;
+  const ev = evidenceText(r.evidence);
+  return `Ref ${child} > ${parent} ${r.state}${ev ? ` (${ev})` : ""}`;
+}
+
+/** 이름 목록을 budget 글자 안에서 잇는다. 넘치면 "외 n개". */
+function namesWithin(names, budget) {
+  const out = [];
+  let used = 0;
+  for (const n of names) {
+    if (used + n.length + 2 > budget) break;
+    out.push(n);
+    used += n.length + 2;
+  }
+  const rest = names.length - out.length;
+  return out.join(", ") + (rest > 0 ? ` 외 ${rest}개` : "");
+}
+
+/**
  * getModelText 형식(README "MCP 도구"):
  *   # MCM 모델 (MCMAPUSER) ver 1.000 DRAFT rev 12[ 다이어그램 업무영역/이름]
  *   표물리명 표논리명 {
@@ -76,71 +187,162 @@ function tableIds(view, m, diagram) {
  * - FK 토큰은 컬럼마다 관계 하나에 하나(부모표·부모컬럼 순). 추정(INFERRED)은 끝에 "?". 다른 모델 부모(parentRef)는 "FK>@모델".
  * - 기각(REJECTED)과 candidateRank>1 관계는 쓰지 않는다.
  * - Ref 줄: 복합은 (A, B). diagram 을 주면 양 끝 표가 모두 그 다이어그램에 있을 때만 쓴다.
+ *   tables 를 주면 한쪽 끝(자식 또는 부모)이 고른 표면 쓴다. 그래서 부모 표만 골라도 자식 쪽 관계가 보인다.
  * - 근거: NAME_RULE 은 종류만, 나머지는 "종류 파일이름:줄"(ref 의 마지막 / 뒤).
+ * 크기(TEXT_LIMIT, opts.limit 로 바꿀 수 있다):
+ * - tables 없이 전체 글이 상한을 넘으면 개요(표 수·컬럼 수·관계 상태별 수·PK 없는 표·표마다 컬럼 수와 PK)를 준다.
+ * - tables 로 고른 글이 상한을 넘으면 들어가는 표까지만 싣고, 나머지 표 이름과 다시 부르라는 줄을 붙인다.
  */
 export function getModelText(view, status, opts = {}) {
+  const limit = opts.limit ?? TEXT_LIMIT;
   const m = modelOf(view);
   const diagram = opts.diagram ? findDiagram(view, opts.diagram) : null;
-  const ids = tableIds(view, m, diagram);
+  const scope = tableIds(view, m, diagram);
+  const names = tableArgs(opts.tables);
+  const { ids, missing } = names.length ? pickTables(m, scope, names) : { ids: scope, missing: [] };
   const inSet = new Set(ids);
   const statuses = status?.statuses ?? {};
   const domains = status?.domains ?? {};
   const rels = Object.entries(m.relations).filter(([, r]) => isShown(r));
 
-  const out = [];
-  const head = `# ${String(m.info.module ?? view.modelId).toUpperCase()} 모델 (${m.info.schema ?? "-"}) ver ${view.ver} ${view.status} rev ${view.rev}`;
-  out.push(diagram ? `${head} 다이어그램 ${diagram.areaName}/${diagram.diagramName}` : head);
-  if (ids.length === 0) out.push("(표 없음)");
+  const headBase = `# ${String(m.info.module ?? view.modelId).toUpperCase()} 모델 (${m.info.schema ?? "-"}) ver ${view.ver} ${view.status} rev ${view.rev}`;
+  const head = diagram ? `${headBase} 다이어그램 ${diagram.areaName}/${diagram.diagramName}` : headBase;
 
-  for (const tid of ids) {
-    const t = m.tables[tid];
-    out.push(t.logical ? `${t.phys} ${t.logical} {` : `${t.phys} {`);
-    const pk = new Set(
-      Object.values(m.keys)
-        .filter((k) => k.table === tid && k.kind === "PK")
-        .flatMap((k) => k.columns),
-    );
-    for (const cid of t.columnOrder ?? []) {
-      const c = m.columns[cid];
-      if (!c) continue;
-      const parts = [c.phys, c.logical || "-", typeText(c)];
-      if (pk.has(cid)) parts.push("PK");
-      if (c.notNull) parts.push("NN");
-      const fks = [];
-      for (const [, r] of rels) {
-        if (r.child !== tid) continue;
-        for (const [childCol, parentCol] of r.pairs ?? []) {
-          if (childCol !== cid) continue;
-          const mark = r.state === "INFERRED" ? "?" : "";
-          if (r.parentRef) fks.push(`FK>@${r.parentRef.model}${mark}`);
-          else fks.push(`FK>${m.tables[r.parent]?.phys ?? "?"}.${m.columns[parentCol]?.phys ?? "?"}${mark}`);
-        }
-      }
-      parts.push(...fks.sort(cmp));
-      if (c.domainId != null) parts.push(`[${domains[String(c.domainId)]?.name ?? `도메인 ${c.domainId}`}]`);
-      const st = statuses[cid];
-      if (st && !QUIET.has(st)) parts.push(`!${st}`);
-      out.push(`  ${parts.join(" ")}`);
-    }
-    out.push("}");
-  }
-
-  const refLines = [];
+  // Ref 줄과 그 양 끝 표.
+  const refs = [];
   for (const [, r] of rels) {
-    if (!inSet.has(r.child)) continue;
-    if (diagram && !r.parentRef && !inSet.has(r.parent)) continue;
-    const child = `${m.tables[r.child].phys}.${colsText(m, (r.pairs ?? []).map((p) => p[0]))}`;
-    const parent = r.parentRef
-      ? `@${r.parentRef.model}`
-      : `${m.tables[r.parent]?.phys ?? "?"}.${colsText(m, (r.pairs ?? []).map((p) => p[1]))}`;
-    const ev = evidenceText(r.evidence);
-    refLines.push(`Ref ${child} > ${parent} ${r.state}${ev ? ` (${ev})` : ""}`);
+    if (!m.tables[r.child]) continue;
+    if (names.length) {
+      if (!inSet.has(r.child) && !(r.parent && inSet.has(r.parent))) continue;
+    } else {
+      if (!inSet.has(r.child)) continue;
+      if (diagram && !r.parentRef && !inSet.has(r.parent)) continue;
+    }
+    refs.push({ line: refLine(m, r), child: r.child, parent: r.parent });
   }
-  out.push(...refLines.sort(cmp));
-  return out.join("\n");
+  refs.sort((a, b) => cmp(a.line, b.line));
+  const blocks = new Map(ids.map((tid) => [tid, tableBlock(m, tid, rels, statuses, domains)]));
+  const pre = [head];
+  if (missing.length) pre.push(missingLine(m, scope, missing));
+  if (ids.length === 0) pre.push("(표 없음)");
+  const full = [...pre, ...blocks.values(), ...refs.map((r) => r.line)].join("\n");
+  if (full.length <= limit) return full;
+  if (!names.length) return overview(m, ids, rels, statuses, { head, limit, size: full.length, diagram });
+
+  // tables 로 골랐는데도 넘친다: 들어가는 표까지만 싣는다.
+  const reserve = Math.min(3000, Math.floor(limit / 4));
+  let used = pre.join("\n").length + 400;
+  const kept = [];
+  const keptRefs = new Set();
+  for (const tid of ids) {
+    const extra = refs.filter((r) => !keptRefs.has(r) && (r.child === tid || r.parent === tid));
+    const add = blocks.get(tid).length + 1 + extra.reduce((s, r) => s + r.line.length + 1, 0);
+    if (used + add > limit - reserve) break;
+    used += add;
+    kept.push(tid);
+    extra.forEach((r) => keptRefs.add(r));
+  }
+  // 표 하나가 혼자 상한을 넘으면(컬럼 수백 개) 그 표의 컬럼 줄을 들어가는 데까지만 싣는다.
+  if (kept.length === 0 && ids.length > 0) {
+    const rows = blocks.get(ids[0]).split("\n");
+    const room = limit - reserve - used;
+    const shown = [];
+    let size = 0;
+    for (const row of rows.slice(0, -1)) {
+      if (size + row.length + 1 > room) break;
+      shown.push(row);
+      size += row.length + 1;
+    }
+    shown.push(`  … 컬럼 ${rows.length - 1 - shown.length}개를 더 싣지 못했다(상한 ${limit}자).`, "}");
+    blocks.set(ids[0], shown.join("\n"));
+    kept.push(ids[0]);
+  }
+  const left = ids.slice(kept.length).map((tid) => m.tables[tid].phys);
+  const note =
+    `고른 표 ${ids.length}개의 글이 ${full.length}자로 상한 ${limit}자를 넘어 앞의 ${kept.length}개만 싣는다. ` +
+    `나머지 ${left.length}개는 tables 에 더 좁게 나눠 다시 부른다: `;
+  return [
+    ...pre,
+    note + namesWithin(left, reserve - note.length - 50),
+    ...kept.map((tid) => blocks.get(tid)),
+    ...refs.filter((r) => keptRefs.has(r)).map((r) => r.line),
+  ].join("\n");
 }
 
-/** getCurrentView: 화면 세션(source=UI)마다 다이어그램과 선택한 표. session 을 주면 그 세션만. */
+/** 전체 글이 상한을 넘을 때의 개요. 표 수·컬럼 수·관계 수와 표마다 컬럼 수·PK 를 준다. 그 자체도 limit 안에 맞춘다. */
+function overview(m, ids, rels, statuses, { head, limit, size, diagram }) {
+  const inSet = new Set(ids);
+  const touching = rels.filter(([, r]) => inSet.has(r.child) || (r.parent && inSet.has(r.parent)));
+  const byState = {};
+  for (const [, r] of touching) byState[r.state] = (byState[r.state] ?? 0) + 1;
+  const all = Object.values(m.relations).filter((r) => inSet.has(r.child) || (r.parent && inSet.has(r.parent)));
+  const rejected = all.filter((r) => r.state === "REJECTED").length;
+  const folded = all.filter((r) => r.state !== "REJECTED" && r.candidateRank != null && r.candidateRank > 1).length;
+  const stateText = Object.keys(byState)
+    .sort(cmp)
+    .map((k) => `${k} ${byState[k]}`)
+    .join(", ");
+  const colCount = ids.reduce((s, tid) => s + columnIds(m, m.tables[tid]).length, 0);
+  const noPk = ids.filter((tid) => pkColumns(m, tid).length === 0).map((tid) => m.tables[tid].phys);
+  const fk = new Map();
+  const refd = new Map();
+  for (const [, r] of touching) {
+    fk.set(r.child, (fk.get(r.child) ?? 0) + 1);
+    if (r.parent) refd.set(r.parent, (refd.get(r.parent) ?? 0) + 1);
+  }
+
+  const lines = [
+    head,
+    `개요만 보인다: 이 모델${diagram ? "(다이어그램)" : ""}의 전체 글이 ${size}자로 한 번에 돌려주는 상한 ${limit}자를 넘는다. ` +
+      "컬럼(타입·PK·NN·FK·도메인·표준 상태)과 Ref 줄은 이 개요에 없다. tables 인자로 표를 골라 다시 부른다. " +
+      '예: tables=["TB_MCM_SEC_MENU"]. 접두사는 끝에 * 를 붙인다(예: ["TB_MCM_SEC_*"]). Ref 줄은 고른 표가 자식이든 부모든 나온다.',
+    `표 ${ids.length}개 · 컬럼 ${colCount}개 · 관계 ${touching.length}개(${stateText || "없음"}) · 기각 ${rejected}개 · 접힌 후보 ${folded}개(관계 수에 없음)`,
+    `PK 없는 표 ${noPk.length}개${noPk.length ? `: ${namesWithin(noPk, Math.floor(limit / 8))}` : ""}`,
+    "표 목록(물리명 논리명 · 컬럼 수 · PK 컬럼 · FK 관계 수(이 표가 자식) · 참조됨(이 표가 부모) · 표준 위반 컬럼 수):",
+  ];
+  let used = lines.join("\n").length;
+  const tail = (n) => `… 표 ${n}개를 더 싣지 못했다(상한 ${limit}자). tables 에 접두사(끝에 *)를 주어 나눠 본다.`;
+  for (let i = 0; i < ids.length; i++) {
+    const tid = ids[i];
+    const t = m.tables[tid];
+    const cols = columnIds(m, t);
+    const pk = pkColumns(m, tid).map((cid) => m.columns[cid]?.phys ?? "?");
+    const bad = cols.filter((cid) => statuses[cid] && !QUIET.has(statuses[cid])).length;
+    const line =
+      `${t.phys}${t.logical ? ` ${t.logical}` : ""} · 컬럼 ${cols.length} · ${pk.length ? `PK ${pk.join(", ")}` : "PK 없음"}` +
+      ` · FK ${fk.get(tid) ?? 0} · 참조됨 ${refd.get(tid) ?? 0} · 위반 ${bad}`;
+    if (used + line.length + 1 + tail(ids.length).length + 1 > limit) {
+      lines.push(tail(ids.length - i));
+      break;
+    }
+    lines.push(line);
+    used += line.length + 1;
+  }
+  return lines.join("\n");
+}
+
+const pad = (n, w = 2) => String(n).padStart(w, "0");
+
+/**
+ * 시각을 지역 시각(오프셋 붙은 ISO)과 지난 시간으로. 예: 2026-10-11T02:21:05+09:00 (12초 전).
+ * opts.now(ms)·opts.offsetMin(UTC 에서 동쪽으로 몇 분)은 시험용. 못 읽는 값은 그대로 둔다.
+ */
+export function formatAt(at, opts = {}) {
+  const t = Date.parse(at);
+  if (Number.isNaN(t)) return String(at);
+  const off = opts.offsetMin ?? -new Date(t).getTimezoneOffset();
+  const d = new Date(t + off * 60000);
+  const sign = off >= 0 ? "+" : "-";
+  const iso =
+    `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}` +
+    `${sign}${pad(Math.floor(Math.abs(off) / 60))}:${pad(Math.abs(off) % 60)}`;
+  const sec = Math.floor(((opts.now ?? Date.now()) - t) / 1000);
+  const ago =
+    sec < 1 ? "방금" : sec < 60 ? `${sec}초 전` : sec < 3600 ? `${Math.floor(sec / 60)}분 전` : sec < 86400 ? `${Math.floor(sec / 3600)}시간 전` : `${Math.floor(sec / 86400)}일 전`;
+  return `${iso} (${ago})`;
+}
+
+/** getCurrentView: 화면 세션(source=UI)마다 다이어그램과 선택한 표. session 을 주면 그 세션만. 시각은 지역 시각과 지난 시간. */
 export function formatCurrentView(view, opts = {}) {
   const m = modelOf(view);
   const ui = (view.presence ?? []).filter((p) => p.source === "UI" && (!opts.session || p.session === opts.session));
@@ -157,7 +359,7 @@ export function formatCurrentView(view, opts = {}) {
       const t = m.tables[id];
       return t ? (t.logical ? `${t.phys} ${t.logical}` : t.phys) : `${id}(모델에 없음)`;
     });
-    lines.push(`- ${p.session} (${p.userId}) ${where} · 선택 ${sel.length}개${sel.length ? `: ${sel.join(", ")}` : ""} · ${p.at}`);
+    lines.push(`- ${p.session} (${p.userId}) ${where} · 선택 ${sel.length}개${sel.length ? `: ${sel.join(", ")}` : ""} · 마지막 알림 ${formatAt(p.at, opts)}`);
   }
   return lines.join("\n");
 }

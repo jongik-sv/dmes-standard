@@ -982,7 +982,7 @@ EOF
 | 응답 | `meta.success === true` 면 `data.result ?? data ?? {}`. 아니면 `OasisError(code=meta.code, message=meta.message)`. 본문이 JSON 이 아니면 `OasisError(status)`. 연결 실패·시간 초과는 `OasisUnreachableError` |
 | 도구 오류 | 던지지 않고 `{isError:true, content:[{type:"text", text}]}` 로 돌려준다. 글에는 코드·메시지와 "다음:" 한 줄(스펙 4.5)을 쓴다. 닿지 못함 → `ERD_BASE`, HTTP 401·403 → `BACKEND_CLIENT_KEY`·`ERD_USER`·`ERD_ROLE`, `MDM029`(모델 없음) → `modelId` 확인 |
 | LLM 순서(스펙 4.6) | 서버 `instructions` 에 5단계를 모두 적고, 단계 2 에서 생길 도구(`claimTable`·`apply`·`releaseTable`)는 "(단계 2 에서 추가)" 로 표시한다. 도구 설명마다 그 도구가 몇 단계에 쓰이는지 적는다 |
-| `getModelText` | `view` 로 모델을 읽고, 같은 `ver` 로 `view kind=STATUS` 를 읽는다. 표는 물리명 순, 컬럼은 `columnOrder` 순, 논리명이 비면 `-`. 타입은 길이가 없으면 괄호 없이, 스케일이 null 이 아니면 `(길이,스케일)`. FK 토큰은 관계 하나에 하나, 부모 글 순으로 공백 구분, 추정은 끝에 `?`, 다른 모델 부모(`parentRef`)는 `FK>@모델`. 도메인 이름이 STATUS 의 `domains` 에 없으면 `[도메인 <id>]`. Ref 줄: 복합은 `(A, B)`, 근거는 `NAME_RULE` 만 종류, 나머지는 `종류 <ref 의 마지막 / 뒤>`. `diagram` 은 id·이름·`업무영역/이름` 으로 찾고, 그때 Ref 줄은 양 끝 표가 모두 그 다이어그램에 있을 때만 쓴다. 기각과 `candidateRank`>1 은 쓰지 않는다 |
+| `getModelText` | `view` 로 모델을 읽고, 같은 `ver` 로 `view kind=STATUS` 를 읽는다. 표는 물리명 순, 컬럼은 `columnOrder` 순, 논리명이 비면 `-`. 타입은 길이가 없으면 괄호 없이, 스케일이 null 이 아니면 `(길이,스케일)`. FK 토큰은 관계 하나에 하나, 부모 글 순으로 공백 구분, 추정은 끝에 `?`, 다른 모델 부모(`parentRef`)는 `FK>@모델`. 도메인 이름이 STATUS 의 `domains` 에 없으면 `[도메인 <id>]`. Ref 줄: 복합은 `(A, B)`, 근거는 `NAME_RULE` 만 종류, 나머지는 `종류 <ref 의 마지막 / 뒤>`. `diagram` 은 id·이름·`업무영역/이름` 으로 찾고, 그때 Ref 줄은 양 끝 표가 모두 그 다이어그램에 있을 때만 쓴다. 기각과 `candidateRank`>1 은 쓰지 않는다. (마감에서 더함) 결과는 40,000자(`TEXT_LIMIT`)를 넘지 않는다. `tables` 없이 전체 글이 상한을 넘으면 개요(표 수·컬럼 수·관계 상태별 수·PK 없는 표·표마다 컬럼 수와 PK)를 준다. `tables` 는 정확한 물리명(대소문자·앞의 스키마 무시), 끝 `*` 는 접두사이고, 그때 Ref 줄은 고른 표가 자식이든 부모든 쓴다 |
 | 다른 도구 | `getCurrentView`: `view` 의 `presence` 중 `source=UI` 만. `getChangesSince`: `view`+`sinceRev`, 요약 텍스트와 JSON 두 덩이. `listViolations`: `view`+STATUS 에서 OK·ALIAS 가 아닌 컬럼. `listInferredRelations`: `INFERRED` 만, 관계 id 를 앞에 둔다. `getDbDiff`: `compare kind=DB_DIFF` |
 
 **Files:**
@@ -994,9 +994,9 @@ EOF
 **Interfaces:**
 - Consumes: 단계 0 `view`(`ErdModelView`: `modelId, rev, ver, status, ownerId, editors, rowVersion, model(MODEL_JSON 문자열), diagrams, nodes, presence`)·`view`+`sinceRev`(`ErdChangesView`); Task 5 `view kind=STATUS`(`ErdStatusView`)·`compare kind=DB_DIFF`(`ErdDbDiffView`); Task 3 `ErdRelation.candidateRank`. 모양은 README "인터페이스" 그대로.
 - Produces:
-  - `.mcp.json` 서버 키 `erd`(Task 12 가 `mcp__erd__<도구>` 로 부른다), 도구 6개: `getModelText{modelId, diagram?}`, `getCurrentView{modelId, session?}`, `getChangesSince{modelId, rev}`, `listViolations{modelId, status?: NEW|TYPE|DOMAIN|MISS}`, `listInferredRelations{modelId, includeFolded?}`, `getDbDiff{modelId}`.
+  - `.mcp.json` 서버 키 `erd`(Task 12 가 `mcp__erd__<도구>` 로 부른다), 도구 6개: `getModelText{modelId, diagram?, tables?}`, `getCurrentView{modelId, session?}`, `getChangesSince{modelId, rev}`, `listViolations{modelId, status?: NEW|TYPE|DOMAIN|MISS}`, `listInferredRelations{modelId, includeFolded?}`, `getDbDiff{modelId}`.
   - `lib/oasis.mjs`: `DEFAULTS`, `configFromEnv(env)`, `createOasisClient(config, fetchImpl?) → {config, call(action, params)}`, `OasisError`, `OasisUnreachableError`, `compact`, `describeError(e, config)`. 단계 2 의 `erd-cli.mjs`·쓰기 도구가 다시 쓴다.
-  - `lib/model-text.mjs`: `getModelText(view, status, {diagram?})`, `formatCurrentView`, `formatChanges`, `formatViolations`, `formatInferred`, `formatDbDiff`, `findDiagram`, `isShown`.
+  - `lib/model-text.mjs`: `getModelText(view, status, {diagram?, tables?})`, `TEXT_LIMIT`(40000), `formatCurrentView`, `formatChanges`, `formatViolations`, `formatInferred`, `formatDbDiff`, `findDiagram`, `isShown`.
   - `erd-mcp.mjs`: `INSTRUCTIONS`, `TOOLS`, `handlers(client)`, `createErdServer(client)`(시험이 import 해도 서버를 띄우지 않는다).
 
 - [ ] **Step 1: MCP 의존성 버전 고르기와 설치(S16)**

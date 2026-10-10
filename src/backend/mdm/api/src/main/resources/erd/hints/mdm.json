@@ -1,14 +1,14 @@
 {
   "module": "mdm",
   "generatedBy": "scripts/erd/erd-hints.mjs",
-  "generatedAt": "2026-10-10T15:20:40Z",
+  "generatedAt": "2026-10-10T16:38:44Z",
   "refs": [
     {"kind":"SQL_JOIN","child":{"table":"TB_MDM_RULE_ROW","columns":["MARU_RULE_ID","VER"]},"parent":{"table":"TB_MDM_RULE_VER","columns":["MARU_RULE_ID","VER"]},"ref":"src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/rule/RuleQueries.java:97"},
     {"kind":"SQL_JOIN","child":{"table":"TB_MDM_RULE_VER","columns":["MARU_RULE_ID"]},"parent":{"table":"TB_MDM_RULE","columns":["MARU_RULE_ID"]},"ref":"src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/rule/RuleQueries.java:131"},
     {"kind":"SQL_JOIN","child":{"table":"TB_MDM_RULE_VAR","columns":["MARU_RULE_ID","VER"]},"parent":{"table":"TB_MDM_RULE_VER","columns":["MARU_RULE_ID","VER"]},"ref":"src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/rule/RuleQueries.java:316"},
     {"kind":"SQL_JOIN","child":{"table":"TB_MDM_RULE_SET_VER","columns":["MARU_RULE_SET_ID"]},"parent":{"table":"TB_MDM_RULE_SET","columns":["MARU_RULE_SET_ID"]},"ref":"src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/rule/RuleSetVersionQueries.java:85"},
-    {"kind":"SQL_JOIN","child":{"table":"TB_MDM_ERD_MODEL_VER","columns":["ERD_MODEL_ID"]},"parent":{"table":"TB_MDM_ERD_MODEL","columns":["ERD_MODEL_ID"]},"ref":"src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dma/erdEdit/service/ErdEditService.java:102"},
-    {"kind":"SQL_JOIN","child":{"table":"TB_MDM_ERD_DIAGRAM_NODE","columns":["DIAGRAM_ID"]},"parent":{"table":"TB_MDM_ERD_DIAGRAM","columns":["DIAGRAM_ID"]},"ref":"src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dma/erdEdit/service/ErdEditService.java:156"},
+    {"kind":"SQL_JOIN","child":{"table":"TB_MDM_ERD_MODEL_VER","columns":["ERD_MODEL_ID"]},"parent":{"table":"TB_MDM_ERD_MODEL","columns":["ERD_MODEL_ID"]},"ref":"src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dma/erdEdit/service/ErdEditService.java:119"},
+    {"kind":"SQL_JOIN","child":{"table":"TB_MDM_ERD_DIAGRAM_NODE","columns":["DIAGRAM_ID"]},"parent":{"table":"TB_MDM_ERD_DIAGRAM","columns":["DIAGRAM_ID"]},"ref":"src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dma/erdEdit/service/ErdEditService.java:185"},
     {"kind":"SQL_JOIN","child":{"table":"TB_MDM_COLUMN","columns":["DOMAIN_ID"]},"parent":{"table":"TB_MDM_DOMAIN","columns":["DOMAIN_ID"]},"ref":"src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dmb/layout/LayoutQueries.java:40"},
     {"kind":"SQL_JOIN","child":{"table":"TB_MDM_LAYOUT_VER","columns":["LAYOUT_ID"]},"parent":{"table":"TB_MDM_LAYOUT","columns":["LAYOUT_ID"]},"ref":"src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dmb/layout/LayoutQueries.java:116"},
     {"kind":"SQL_JOIN","child":{"table":"TB_MDM_LAYOUT_ITEM","columns":["LAYOUT_ID"]},"parent":{"table":"TB_MDM_LAYOUT","columns":["LAYOUT_ID"]},"ref":"src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dmb/layout/LayoutQueries.java:156"},

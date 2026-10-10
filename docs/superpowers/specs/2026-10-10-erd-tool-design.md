@@ -261,13 +261,13 @@ MCP 도구 설명에 아래 순서를 적어 둔다.
 
 ## 5. 확인 항목 (구현 중에 확인)
 
-| 항목 | 확인 방법 | 안 될 때 | 단계 0 결과 |
-|---|---|---|---|
-| 포털(Next.js BFF)을 거쳐 SSE 를 넘겨줄 수 있는가 | 단계 0 의 시험 6. 2026-10-10 에 코드를 읽어 확인했다. | 짧은 주기의 폴링(`getChangesSince`)으로 대신한다 | 스트림은 통과한다. m-mcm `lib/http/be-proxy.ts` 가 `res.body` 를 조각 단위로 넘기고, `content-type`·`cache-control` 은 유지하며 `x-accel-buffering` 은 버리고, 클라이언트가 끊으면 백엔드 요청도 끊는다. 다만 GET 에 고정 120초 프록시 제한(`backendTimeoutMs`·`DEFAULT_TIMEOUT_MS`)이 걸려 2분마다 스트림이 끊긴다. 허브는 `sinceRev` 재연결을 받으므로 데이터는 잃지 않는다. 단계 1 에서 `/erd/stream/` 을 이 제한에서 빼고, `next start` 의 gzip 버퍼링과 함께 브라우저로 확인한다. |
-| 다른 스키마를 읽을 권한(운영) | 로컬은 `SELECT ANY TABLE`. 운영은 deferred 17번 | 로컬에서만 가져오기를 한다 | 아직 확인하지 않았다. |
-| 표준 검사기의 일괄 판정 시간 | 시험 2 에서 MCM 전체를 잰다. | 판정을 표 단위로 나눠 비동기로 채운다 | 재지 못했다. 시험용 PDB 의 사전이 비어 있다. 단계 1 에서 L_MAIN 으로 가져온 뒤 잰다. |
-| MDM 서버를 여러 대로 띄우는 경우의 접속자·선택 상태 | 이 스펙은 서버 1대를 가정한다 | 접속자 상태를 DB 나 공유 저장소로 옮긴다 | 아직 확인하지 않았다. |
-| `getModelText` 형식의 정확도 | 시험 10 | 형식을 고친다(DDL·DBML 비교) | 아직 확인하지 않았다. |
+| 항목 | 확인 방법 | 안 될 때 | 단계 0 결과 | 단계 1 결과 |
+|---|---|---|---|---|
+| 포털(Next.js BFF)을 거쳐 SSE 를 넘겨줄 수 있는가 | 단계 0 의 시험 6. 2026-10-10 에 코드를 읽어 확인했다. | 짧은 주기의 폴링(`getChangesSince`)으로 대신한다 | 스트림은 통과한다. m-mcm `lib/http/be-proxy.ts` 가 `res.body` 를 조각 단위로 넘기고, `content-type`·`cache-control` 은 유지하며 `x-accel-buffering` 은 버리고, 클라이언트가 끊으면 백엔드 요청도 끊는다. 다만 GET 에 고정 120초 프록시 제한(`backendTimeoutMs`·`DEFAULT_TIMEOUT_MS`)이 걸려 2분마다 스트림이 끊긴다. 허브는 `sinceRev` 재연결을 받으므로 데이터는 잃지 않는다. 단계 1 에서 `/erd/stream/` 을 이 제한에서 빼고, `next start` 의 gzip 버퍼링과 함께 브라우저로 확인한다. | 단계 1 에서 `be-proxy.ts` 의 GET `/erd/stream/` 제한을 24시간으로 늘렸다(S15). 2026-10-11 에 로컬에서 포털 경로로 프로브 연결을 열어 125초씩 확인했다. dev 서버: `content-encoding` 이 없다. 재접속 0회, 오류 0건, change 지연 787ms, ping 8개. `next start`(포트 5101, 같은 빌드): `content-encoding` 이 없다. 재접속 0회, 오류 0건, change 지연 901ms, ping 8개가 15.0초 간격으로 고르게 왔다. gzip 버퍼링 지연은 없다. change 지연 0.8~0.9초는 기준 1000ms 안이지만 관찰로 남겼다(deferred 48). |
+| 다른 스키마를 읽을 권한(운영) | 로컬은 `SELECT ANY TABLE`. 운영은 deferred 17번 | 로컬에서만 가져오기를 한다 | 아직 확인하지 않았다. | 로컬에서만 확인했다. MDM 서버(MDMAPUSER)가 `ALL_*` 뷰로 MCMAPUSER 의 표 57개와 FK 0개를 읽었다(로컬 권한 `SELECT ANY TABLE`). 운영 권한은 확인하지 않았다. deferred 17번에 남는다. |
+| 표준 검사기의 일괄 판정 시간 | 시험 2 에서 MCM 전체를 잰다. | 판정을 표 단위로 나눠 비동기로 채운다 | 재지 못했다. 시험용 PDB 의 사전이 비어 있다. 단계 1 에서 L_MAIN 으로 가져온 뒤 잰다. | L_ERD12(TPL_DATA 복제, L_MAIN 아님)에서 `view kind=STATUS` 의 `elapsedMs`(사전 적재 + 판정)를 쟀다. 사전 규모는 컬럼 사전 7951행, 별칭 11250행이다. 도메인 타입 대응을 고친 뒤(계획 README "마감-표준 타입 대응") MCM: 첫 670ms, 가운데 648ms, 최대 743ms. MDM: 첫 774ms, 가운데 617ms, 최대 774ms. 고치기 전 가운데 값은 MCM 511ms, MDM 510ms 였다. 가운데 값이 3000ms 보다 작아 요청마다 사전을 읽는 지금 방식을 유지한다(deferred 33). 판정 결과(고친 뒤) MCM: OK 7, ALIAS 82, NEW 65, TYPE 27, DOMAIN 550, MISS 160. MDM: OK 13, ALIAS 171, NEW 14, TYPE 0, DOMAIN 634, MISS 23. 고치기 전 DOMAIN 은 MCM 629개, MDM 799개였다. 남은 DOMAIN 은 사전 표준과 스키마의 실제 차이다(deferred 41). |
+| MDM 서버를 여러 대로 띄우는 경우의 접속자·선택 상태 | 이 스펙은 서버 1대를 가정한다 | 접속자 상태를 DB 나 공유 저장소로 옮긴다 | 아직 확인하지 않았다. | 확인하지 않았다. 단계 1 도 서버 1대로만 확인했다. 접속자·선택 상태는 서버 메모리의 `ErdEventHub` 에 있다. |
+| `getModelText` 형식의 정확도 | 시험 10 | 형식을 고친다(DDL·DBML 비교) | 아직 확인하지 않았다. | MCM 에 대한 질문 10개에 10/10 으로 답했다. 조건: `getModelText`·`getCurrentView` 만 허용, `Read` 와 나머지 erd 도구 금지, `--permission-mode default`, `--max-turns 6`. 첫 실행은 2/10 이었다. 원인은 형식이 아니라 결과 크기였다. mcm 전체 글(51.6KB)이 Claude Code 도구 결과 상한(약 50,000자)을 넘어 파일로 빠졌다. `getModelText` 에 40,000자 상한, 개요, `tables` 필터를 넣어 고쳤다(계획 README "마감-MCP 크기"). 고친 뒤 가장 큰 출력은 mcm `tables=[*]` 36,292자이고 파일로 빠지지 않았다. 화면 선택 상태(`getCurrentView`, Q10): 맞음. 엄격 재시험의 선택은 브라우저 대신 백엔드(SSE 구독 + `view kind=SET_VIEW`)로 만들었다. 브라우저에서 고른 선택은 고치기 전 조건(결과 파일 Read 허용)에서 확인했다. 이때 `selectedTables` 가 TB_MCM_SEC_USER 를 가리켰고, 선택을 지운 뒤에는 "선택 0개라 답할 수 없음" 으로 답했다. 결론: 형식은 고치지 않는다(크기만 고쳤다). |
 
 ## 6. 시험
 

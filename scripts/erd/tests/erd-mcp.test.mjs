@@ -44,6 +44,9 @@ test("stdio MCP 서버: 도구 6개, getModelText 골든, OASIS 오류는 isErro
     const gm = tools.find((t) => t.name === "getModelText");
     assert.deepEqual(gm.inputSchema.required, ["modelId"]);
     assert.ok(gm.inputSchema.properties.diagram);
+    assert.ok(gm.inputSchema.properties.tables);
+    assert.match(gm.description, /tables/);
+    assert.equal(gm._meta?.["anthropic/maxResultSizeChars"], 100000);
 
     const text = await client.callTool({ name: "getModelText", arguments: { modelId: "mcm" } });
     assert.equal(text.isError ?? false, false);
@@ -51,6 +54,11 @@ test("stdio MCP 서버: 도구 6개, getModelText 골든, OASIS 오류는 isErro
     const statusReq = fake.requests.find((r) => r.params.kind === "STATUS");
     assert.deepEqual(statusReq.params, { modelId: "mcm", kind: "STATUS", ver: "1.000" });
     assert.equal(statusReq.headers["x-authenticated-user"], "41000207");
+
+    const one = await client.callTool({ name: "getModelText", arguments: { modelId: "mcm", tables: ["TB_MCM_SEC_OBJ"] } });
+    assert.match(one.content[0].text, /^TB_MCM_SEC_OBJ 오브젝트 \{\n {2}OBJECT_ID .*\n\}\nRef TB_MCM_SEC_MENU\.OBJECT_ID > TB_MCM_SEC_OBJ\.OBJECT_ID /m);
+    const csv = await client.callTool({ name: "getModelText", arguments: { modelId: "mcm", tables: "TB_MCM_SEC_OBJ,TB_MCM_SEC_MENU" } });
+    assert.equal(csv.isError ?? false, false);
 
     const since = await client.callTool({ name: "getChangesSince", arguments: { modelId: "mcm", rev: 12 } });
     assert.equal(since.content.length, 2);
