@@ -3,7 +3,7 @@
 - 스킬이 만들거나 지시하는 세션의 착수 지시에 지시 블록(§1)을 늘 넣음
   - 다음 일 지시 = 블록 대신 「착수 지시 규칙 그대로」 한 줄(`protocol.md` 3.2)
 - 표는 설정 `workflow.model_table` 에서 읽어 채움(기본값 `references/contract.md` 1.3)
-- 동시 agent 수 `{N}` = 현재 띠의 `workflow.agents_by_band` 값
+- 동시 agent 수 `{N}` = `workflow.agents_by_mode[{mode}]` 의 현재 띠 값(키가 없으면 `workflow.agents_by_band`)
 
 ## 1. 지시 블록 원문
 
@@ -16,6 +16,12 @@
 - `{search_cmd}` = `node <스킬 경로>/scripts/search.mjs "<질의>"`
   - 설정 `search.command`·`search.opencode.command` 가 모두 빔 → 검색 줄을 바꿈
   - 바꿀 문장 = 「검색은 grep 이나 sonnet/medium agent 로 한다」
+- `{mode}` = state `run.mode`(없으면 설정 `mode.default`). `coord-state.mjs mode` 출력의 두 번째 칸
+- `{wf_min}` = 설정 `mode.workflow_min_items[{mode}]`
+- `{pool_cmd}` = `node <스킬 경로>/scripts/pool.mjs`
+- `{pool_doc}` = `<스킬 경로>/references/pool.md` 절대 경로
+- `{lane_max}` = 설정 `compact.lane_max`
+- 모델 표 줄 = `mode` 칸이 없거나 `{mode}` 와 같은 행만
 - `{heavy_env}` = state `lanes.<레인>.heavy_env`
   - 전용 칸이 없으면 → 「무거운 작업 칸」 줄에서 「{heavy_env} 로」 만 뺌
   - `heavy.script` 가 `null` 이면 → heavy.mjs 언급을 모두 뺌(「무거운 작업 칸」·「시험」)
@@ -30,12 +36,16 @@
 - 머지·정리 같은 짧은 git 작업
 - 측정 실행(사람이 정한 절차를 그대로 돌리는 것)
 - compact·재개 확인 답
+- agent 2개 이하로 끝나는 일(Agent 도구 D2·D3 로)
+- 풀에 맡길 S/M 항목(레인이 `pool.mjs submit` 으로)
 
 Workflow 기동 비용이 일 자체보다 크면 띄우지 않음.
 
-## 3. 동시 agent 상한(띠별)
+## 3. 동시 agent 상한(모드·띠별)
 
-- 레인당 동시 agent = 설정 `workflow.agents_by_band` 의 현재 띠 값
+- 레인당 동시 agent = 설정 `workflow.agents_by_mode[{mode}][띠]`
+  - 이 키가 없으면 `workflow.agents_by_band[띠]`
+  - 기본: token G4·Y3·O2·R0, time G6·Y5·O3·R0
   - R 띠 = 새 Workflow 없음
 - 세션 밖에서 Workflow 의 동시 agent 수를 강제할 수단 없음 → 상한은 **지시문으로만** 줌
   - 띠가 바뀌면 `사용량 조정` 메시지로 새 상한 통지
@@ -45,6 +55,19 @@ Workflow 기동 비용이 일 자체보다 크면 띄우지 않음.
   - 레인 공용 잠금이 필요하면 레인 scratchpad 의 mkdir 잠금도 허용
 - PC 전체 동시 agent 합 = `레인 수 × 레인 상한`
   - 레인 수는 `usage.md` 「새 레인 상한」 만 봄(띠가 올라도 레인을 줄이지 않음)
+
+### 3.1 모델 규율
+
+- `agent()` 마다 model·effort 기재. opus 는 근거 한 줄(L·동시성·판정)
+- token 모드: opus = 판정 리뷰·L 구현만
+  - 실패 사다리에서 sonnet/high 를 한 번 더 시도한 뒤 opus
+- 근거(2026-10-04 refactor 회차): Workflow agent 호출의 72% 가 opus, 모델 표 기본은 sonnet
+
+### 3.2 캐시 재사용
+
+- 같은 단계 agent = 같은 모델로 함께 띄움
+- 지시문 = 공통 부분 먼저, 항목별 내용 뒤
+- 근거: Workflow 비용의 50% 가 캐시 쓰기(agent 마다 새 컨텍스트). 앞부분이 같아야 캐시를 나눠 씀(추정, `run-metrics.mjs` 의 Workflow 캐시 쓰기 비중으로 확인)
 
 ## 4. idle·compact 와의 관계
 

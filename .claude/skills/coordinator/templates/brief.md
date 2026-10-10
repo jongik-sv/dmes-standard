@@ -42,10 +42,14 @@
 - 실행 수단 = 항목마다 업무 크기로 고름(기준표 {sizing_doc})
   - D0 직접 · D1 검색 워커 · D2 agent 하나 · D3 병렬 agent · D4 Workflow
   - 진행 보고에 고른 단계 기재(예: 실행: D2)
-- Workflow(D4) = 구현→리뷰→수정이 필요한 M/L 항목, 같은 흐름 반복일 때만
+- Workflow(D4) = 같은 흐름(구현→리뷰→수정) M/L 항목이 {wf_min}개 이상일 때만
+  - agent 2개 이하로 끝나는 일 → Agent 도구 직접(D2·D3)
+  - Workflow 안에서 풀 호출 금지(풀은 레인이 Workflow 밖에서)
   - 먼저 workflow-authoring 스킬 읽기
   - 조회·한 파일 수정 = Workflow 없이 직접
 - 모든 agent() 에 model·effort 기재(크기 S/M/L = 항목 표 기준):
+  - opus 를 쓰면 근거 한 줄(L·동시성·판정 중 무엇). token 모드 opus = 판정 리뷰·L 구현만
+  - 같은 단계 agent = 같은 모델로 함께 띄움. 지시문은 공통 부분 먼저, 항목별 내용 뒤(캐시 재사용)
 {workflow.model_table 항목마다 한 줄: - {stage} [{size}]: {model} / {effort}}
 - 시험 실패 → 실패 사다리: {workflow.escalation.ladder 를 「model/effort → …」 로}
   - 시간 초과·부하 연쇄 실패 → load 확인 뒤 같은 등급 1회만 재실행
@@ -57,10 +61,28 @@
   - 두 워커 모두 실패 → grep 또는 sonnet/medium agent
   - model 이 search 인 단계 = 위 순서대로
 - 항목마다 구현 → 리뷰 1회 → 지적 수정 → 수정분만 확인
-  - 수정분 확인이 clean 이 아니면 다음 항목 금지
+  - 수정분 확인이 clean 이 아니면 그 항목에 의존하는 항목만 대기(다른 항목은 계속)
   - 보안 리뷰 수정분 확인 = opus 로 1회
   - 몇 줄 수정·리팩토링 이동 단계 = 리뷰는 마지막 1회
-- 동시 agent = {N}개까지
+- 회차 모드 = {mode} (token = 토큰 우선, time = 시간 우선)
+- 병렬 배정(레인 안)
+  - 착수 때 항목 표에 항목마다 `선행 항목`·`건드릴 파일` 기재({sizing_doc} 옆 decompose 형식)
+  - 선행이 끝났고 진행 중 항목과 건드릴 파일이 안 겹치는 항목 → 동시 상한까지 한꺼번에 시작
+  - 동시 agent = {N}개까지(구현·리뷰·수정 합)
+  - 구현 agent = 자기 항목 파일만 수정, 커밋 금지
+  - 컨트롤러 = 그 항목 파일만 `git add <파일…>` 로 커밋
+    - 커밋 전 `git status` 로 소유 밖 변경 확인 → 있으면 그 항목 멈추고 보고
+  - 구현 끝난 항목 → 바로 커밋·리뷰 시작. 다른 항목 구현은 계속
+  - 리뷰가 clean 될 때까지 그 항목 파일 = 그 항목 소유
+  - 웨이브(함께 진행한 묶음) 끝 → 컨트롤러가 모듈 시험 1회(heavy.mjs)
+- agent 보고 = `task-<번호>-report.md` 파일 + 컨트롤러에게 5줄 이하 요약
+- 비-Claude 풀(절차 {pool_doc})
+  - token 모드: S/M 구현·조사·문서 → 풀 먼저(`{pool_cmd} submit …`)
+  - time 모드: Claude agent 와 풀 중 먼저 비는 쪽
+  - 풀 결과 → 완료 조건 시험 1회 → Claude 리뷰
+  - 풀 실패·리뷰 지적 → Claude agent 가 처리(풀에 다시 맡기지 않음)
+  - 풀 금지: L·동시성·트랜잭션·보안·공유 API·원인 모를 결함
+- 컨텍스트 {lane_max} 토큰 넘음 → 조정자의 정본 갱신 요청에 답하고 `/clear` 재개 대기
 - 셸 명령 = 짧게 나눔
   - heredoc·sh -c·변수·$(…) 섞은 복합 명령 금지
   - 파일 수정 = Edit·Write 도구
