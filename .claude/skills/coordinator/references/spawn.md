@@ -145,7 +145,15 @@ GLM 세션 전에 `node scripts/glm-preflight.mjs` 실행.
 
 ## 5. 정리 절차
 
-끝난 세션·Pane = 조정자가 알아서 즉시 닫음. 임시 Pane·사용자가 띄운 세션도 같음.
+닫을지는 누가 띄웠는지로 정함(사용자 결정 2026-10-10).
+- 조정자가 띄운 것(`lanes.<L>.session.spawned_by = "coordinator"`, 임시 워커, 풀 실행기) → 끝나면 조정자가 알아서 즉시 닫음
+  - 풀 실행기 = 스스로 끝나는 단발 프로세스. 닫을 pane 없음
+- 사람이 띄운 세션(`spawned_by = "user"`, 신원 보고로 연결) → **닫지 않음**
+  - 끝나면 회차에서 뗌: `node scripts/coord-state.mjs set '.lanes.<L>.state' '"closed"'`(탭은 그대로) + `node scripts/coord-state.mjs event lane-released <L> '{"by":"user-session"}'`
+  - 사용자에게 한 줄: 「<L> 끝남. 사람이 띄운 세션이라 열어 둠」
+  - `close-lane.mjs` 도 이 세션은 `CLOSE_REFUSED <L> user-session` 으로 거부(`--force-user` = 사용자가 닫으라고 할 때만)
+
+아래 절차 = 조정자가 띄운 것.
 
 1. **조건** 확인
    - 레인: 마지막 산출물(커밋·보고) 수신, 머지·정리 끝
@@ -155,7 +163,8 @@ GLM 세션 전에 `node scripts/glm-preflight.mjs` 실행.
 4. 백그라운드 0 확인(`idle-check.mjs`)
    - 그 세션이 연 브라우저 작업 공간·로컬 서버 → 먼저 닫게 함
 5. **닫기**: `node scripts/close-lane.mjs <레인>`(또는 `--handle <h>`, `--dry-run` 가능)
-   - 출력: `CLOSED <레인> handle=<h>` 또는 `CLOSE_REFUSED <레인> <bg-running|not-reported>`
+   - 출력: `CLOSED <레인> handle=<h>` 또는 `CLOSE_REFUSED <레인> <user-session|bg-running|not-reported>`
+   - `user-session` → 닫지 않음. 위 「사람이 띄운 세션」 처리
    - `bg-running` → 백그라운드 종료까지 대기
    - `not-reported` → 마지막 보고 수신 뒤 닫음
      - 보고 없이 닫을 사유가 타당할 때만 `--force-report`(`not-reported` 만 통과)
