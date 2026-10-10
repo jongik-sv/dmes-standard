@@ -77,6 +77,11 @@ export interface SqlCodeEditorProps {
   completionProvider?: SqlCompletionProvider;
   /** 기본 true. */
   highlightBinds?: boolean;
+  /**
+   * Monaco 생성 옵션 덮어쓰기(만들 때 한 번 적용, 이후 바꿔도 반영하지 않는다). 기본 설정(DB 뷰어 값)과 다르게 써야 하는 화면용 —
+   * 예: 로그 뷰어 바인드 편집기가 옛 기본값(줄바꿈 없음·글자 14)을 유지할 때. `theme`·`language`·`value` 는 덮어쓰지 않는다.
+   */
+  editorOptions?: Monaco.editor.IStandaloneEditorConstructionOptions;
   /** 기본 false. 오른쪽 미니맵. */
   minimap?: boolean;
   /** 기본 true. 바깥 테두리. 부모가 이미 테두리를 두른 자리(패널 안 꽉 채움)에서는 false. */
@@ -151,6 +156,7 @@ const SqlCodeEditorImpl = forwardRef<SqlCodeEditorHandle, SqlCodeEditorProps>(fu
     completionProvider,
     highlightBinds = true,
     minimap = false,
+    editorOptions,
     bordered = true,
     placeholder,
     ariaLabel,
@@ -173,7 +179,8 @@ const SqlCodeEditorImpl = forwardRef<SqlCodeEditorHandle, SqlCodeEditorProps>(fu
   const versionRef = useRef(0);
   /** 프로그램이 값을 바꾸는 동안 Monaco 의 내용 변경 알림이 onChange 로 새지 않게 한다. */
   const applyingRef = useRef(false);
-  const pendingSelectionRef = useRef<[number, number] | null>(null);
+  /** 대체 칸에 적용을 미룬 선택. 세 번째 값은 초점도 옮길지(글을 끼운 경우만 true, setSelection 은 초점을 빼앗지 않는다). */
+  const pendingSelectionRef = useRef<[number, number, boolean] | null>(null);
 
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -187,6 +194,8 @@ const SqlCodeEditorImpl = forwardRef<SqlCodeEditorHandle, SqlCodeEditorProps>(fu
   minimapRef.current = minimap;
   const readOnlyRef = useRef(readOnly);
   readOnlyRef.current = readOnly;
+  const editorOptionsRef = useRef(editorOptions);
+  editorOptionsRef.current = editorOptions;
   const onEscapeRef = useRef(onEscape);
   onEscapeRef.current = onEscape;
   /** 대체 칸에서 Monaco 로 바뀔 때 대체 칸에 있던 초점·선택을 넘기려고 잠시 담아 둔다. */
@@ -257,9 +266,6 @@ const SqlCodeEditorImpl = forwardRef<SqlCodeEditorHandle, SqlCodeEditorProps>(fu
         // 위젯이 틀 안에 머무르므로 제안 목록이 잘리지 않게 틀의 넘침 가림을 푼다.
         if (inDialog && wrapRef.current) wrapRef.current.style.overflow = "visible";
         created = monaco.editor.create(hostRef.current, {
-          theme: DMES_CODE_THEME_ID,
-          value: textRef.current,
-          language: "sql",
           readOnly,
           ariaLabel,
           placeholder,
@@ -278,6 +284,11 @@ const SqlCodeEditorImpl = forwardRef<SqlCodeEditorHandle, SqlCodeEditorProps>(fu
           // Enter 는 제안을 고른 경우에만 수락하고, 그 밖에는 줄바꿈을 그대로 둔다.
           acceptSuggestionOnEnter: "smart",
           suggestOnTriggerCharacters: true,
+          ...editorOptionsRef.current,
+          // 아래 셋은 공용 편집기가 정한다.
+          theme: DMES_CODE_THEME_ID,
+          language: "sql",
+          value: textRef.current,
         });
         const model = created.getModel();
         if (model) {
@@ -383,7 +394,7 @@ const SqlCodeEditorImpl = forwardRef<SqlCodeEditorHandle, SqlCodeEditorProps>(fu
     pendingSelectionRef.current = null;
     const ta = textareaOf();
     if (!ta) return;
-    ta.focus();
+    if (sel[2]) ta.focus();
     ta.setSelectionRange(sel[0], sel[1]);
   }, [text, textareaOf]);
 
@@ -413,7 +424,7 @@ const SqlCodeEditorImpl = forwardRef<SqlCodeEditorHandle, SqlCodeEditorProps>(fu
             pendingSelectionRef.current = null;
           } else {
             // 새 값이 아직 칸에 반영되기 전이거나 칸이 없으면 다음 그리기 뒤로 미룬다.
-            pendingSelectionRef.current = [start, end];
+            pendingSelectionRef.current = [start, end, false];
           }
         }
       },
@@ -465,7 +476,7 @@ const SqlCodeEditorImpl = forwardRef<SqlCodeEditorHandle, SqlCodeEditorProps>(fu
         const start = usable ? at.start : ta.selectionStart;
         const end = usable ? at.end : ta.selectionEnd;
         const inserted = insertedText(full, start, end, insert, kind);
-        pendingSelectionRef.current = [start + inserted.length, start + inserted.length];
+        pendingSelectionRef.current = [start + inserted.length, start + inserted.length, true];
         emitChange(full.slice(0, start) + inserted + full.slice(end));
         return true;
       },

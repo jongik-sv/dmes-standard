@@ -199,4 +199,18 @@ describe("SqlCodeEditor — 실행 키·읽기 전용", () => {
     expect(ok).toBe(false);
     expect(ref.current!.getValue()).toBe("SELECT");
   });
+
+  it("setSelection 은 대체 칸의 초점을 빼앗지 않고, 새 값이 반영된 뒤 선택을 맞춘다", async () => {
+    const ref = createRef<SqlCodeEditorHandle>();
+    const props = { ref, testId: "sql-o" };
+    await mount({ ...props, defaultValue: "SELECT 1", revision: 0 });
+    const ta = () => q<HTMLTextAreaElement>('[data-testid="sql-o"]')!;
+    await rerender({ ...props, defaultValue: "SELECT * FROM T", revision: 1 } as SqlCodeEditorProps);
+    await act(async () => ref.current!.setSelection(7, 8));
+    expect(ta().value).toBe("SELECT * FROM T");
+    expect([ta().selectionStart, ta().selectionEnd]).toEqual([7, 8]);
+    expect(document.activeElement).not.toBe(ta());
+    await act(async () => void ref.current!.insertAtCursor("X", "raw"));
+    expect(document.activeElement).toBe(ta());
+  });
 });

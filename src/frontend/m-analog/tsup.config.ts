@@ -9,9 +9,8 @@ const external = [
   "next-auth/react",
   "@dk-oasis/shared",
   /^@dk-oasis\/shared\/.*/,
-  // monaco-editor 는 대용량 — 번들에 넣지 않고 런타임(m-mcm Next)에서 동적 import 로 해석한다.
+  // monaco-editor 는 이제 공용 편집기(@dk-oasis/shared/code-editor)가 로드한다 — m-analog 는 직접 의존하지 않는다(Part B §18-3).
   // react18-json-view 컴포넌트도 dependencies 자동 external 로 남는다.
-  "monaco-editor",
   "react18-json-view",
 ];
 

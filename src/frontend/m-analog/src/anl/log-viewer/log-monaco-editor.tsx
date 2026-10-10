@@ -3,7 +3,7 @@
 /**
  * 로그 분석 (anl/logViewer) — LOG 뷰 Monaco 에디터.
  * 원본: analog-express-ui-plate LogMonacoEditor.js 이식.
- *  - readOnly + minimap + 커스텀 'log' 언어/'logview' 테마.
+ *  - readOnly + minimap + 커스텀 'log' 언어/전역 테마 dmes-code(공용 편집기, 로그 토큰 색 포함).
  *  - value 갱신은 model.setValue (원본 동일).
  *  - 리사이즈: 원본 EventEmitter 버스 대신 automaticLayout(내장 ResizeObserver)으로 단순화 —
  *    사이드바 접힘 CSS transition(300ms) 후에도 자동 재배치된다.
@@ -18,9 +18,9 @@ import {
   useRef,
   useState,
 } from "react";
-import type * as Monaco from "monaco-editor";
+import { DMES_CODE_THEME_ID, type Monaco } from "@dk-oasis/shared/code-editor";
 import { loadMonaco } from "./monaco-loader";
-import { LOG_LANGUAGE_ID, LOG_THEME_ID } from "./log-language";
+import { LOG_LANGUAGE_ID } from "./log-language";
 
 export interface LogMonacoEditorHandle {
   /** 에디터에서 현재 선택된 텍스트 반환 (선택 없으면 빈 문자열). */
@@ -60,7 +60,7 @@ const LogMonacoEditor = forwardRef<LogMonacoEditorHandle, LogMonacoEditorProps>(
       void loadMonaco().then((monaco) => {
         if (disposed || !hostRef.current) return;
         created = monaco.editor.create(hostRef.current, {
-          theme: LOG_THEME_ID,
+          theme: DMES_CODE_THEME_ID,
           value: valueRef.current,
           readOnly: true,
           language: LOG_LANGUAGE_ID,

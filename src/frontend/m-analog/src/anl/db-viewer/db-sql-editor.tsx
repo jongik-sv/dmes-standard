@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * DB 뷰어 (anl/dbViewer) — SQL 편집창 (Monaco).
- * 로그 뷰어의 monaco 로더·테마를 그대로 쓴다(monaco 테마는 전역이라 같은 'logview' 를 써야 로그 하이라이트가 유지된다).
+ * DB 뷰어 (anl/dbViewer) — SQL 편집창. 공용 `SqlCodeEditor`(@dk-oasis/shared/code-editor) 위의 얇은 어댑터다.
+ * Monaco 로더·전역 테마(dmes-code)·키 연결·표/칸 끼우기는 shared 가 맡고, 여기는 DB 뷰어 데이터만 끼운다.
  *
  * 비제어 방식 — 타이핑마다 부모(그리드가 있는 화면 루트)를 다시 그리지 않는다.
  *  - 부모는 ref 의 getValue 로 실행 직전에만 현재 SQL 을 읽는다.
- *  - 테이블 선택처럼 부모가 SQL 을 바꿀 때만(value·revision 변경) 에디터 내용을 바꾼다.
+ *  - 테이블 선택처럼 부모가 SQL 을 바꿀 때만(value·revision 변경) 편집기 내용을 바꾼다.
  *  - Ctrl/⌘+Enter 와 F8 은 onRun 을 부른다.
- *  - 자동 완성은 SQL 키워드·표·칸만 낸다(단어 기반 제안은 끈다). 후보 제공자는 sql-completion.ts.
+ *  - 자동 완성은 SQL 키워드·표·칸만 낸다(단어 기반 제안은 끈다). 후보 공급자는 sql-completion.ts.
  *  - 화면이 칸 이름·셀 값을 넣을 때는 핸들의 insertAtCursor 를 쓴다(실행 취소 가능, 초점은 편집창으로).
  */
 
@@ -17,22 +17,18 @@ import {
   memo,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
-  useState,
 } from "react";
-import type * as Monaco from "monaco-editor";
-import { loadMonaco } from "../log-viewer/monaco-loader";
-import { LOG_THEME_ID } from "../log-viewer/log-language";
+import {
+  SqlCodeEditor,
+  type InsertPoint,
+  type SqlCodeEditorHandle,
+} from "@dk-oasis/shared/code-editor";
 import { fetchColumns } from "./db-viewer-api";
-import { columnAffixes, statementRange, valueAffixes } from "./sql-assist";
-import { attachSqlAssist, cachedColumnLoader } from "./sql-completion";
+import { cachedColumnLoader, createDbSqlCompletion } from "./sql-completion";
 
-/** 어느 자리에 끼울지 미리 잡아 둔 위치 — 글자 오프셋과, 잡은 때의 편집창 내용 버전. */
-export interface InsertPoint {
-  start: number;
-  end: number;
-  version: number;
-}
+export type { InsertPoint };
 
 export interface DbSqlEditorHandle {
   getValue: () => string;
@@ -61,173 +57,68 @@ interface DbSqlEditorProps {
   onRun: () => void;
 }
 
-/** 오프셋 구간을 Monaco 범위로 바꾼다. */
-function monacoRangeOf(
-  model: Monaco.editor.ITextModel,
-  start: number,
-  end: number,
-): Monaco.IRange {
-  const from = model.getPositionAt(start);
-  const to = model.getPositionAt(end);
-  return {
-    startLineNumber: from.lineNumber,
-    startColumn: from.column,
-    endLineNumber: to.lineNumber,
-    endColumn: to.column,
-  };
-}
-
 const DbSqlEditor = forwardRef<DbSqlEditorHandle, DbSqlEditorProps>(
   function DbSqlEditor({ value, revision, tablesBySchema, onRun }, ref) {
-    const hostRef = useRef<HTMLDivElement>(null);
-    const [editor, setEditor] =
-      useState<Monaco.editor.IStandaloneCodeEditor | null>(null);
-    const valueRef = useRef(value);
-    valueRef.current = value;
-    // 단축키 등록을 다시 하지 않도록 콜백을 ref 로 유지한다.
-    const onRunRef = useRef(onRun);
-    onRunRef.current = onRun;
+    const editorRef = useRef<SqlCodeEditorHandle>(null);
 
     // 자동 완성이 호출 때마다 최신 표 목록을 읽도록 ref 로 둔다.
     const tablesRef = useRef(tablesBySchema);
     tablesRef.current = tablesBySchema;
     // 표 단위 칸 목록 캐시 — 편집창이 살아 있는 동안 유지한다.
-    const columnLoaderRef = useRef(
-      cachedColumnLoader(async (schema, table) =>
+    const completionProvider = useMemo(() => {
+      const loadColumns = cachedColumnLoader(async (schema, table) =>
         (await fetchColumns(schema, table)).map((c) => c.COLUMN_NAME),
-      ),
-    );
+      );
+      return createDbSqlCompletion({
+        getTables: () => tablesRef.current,
+        loadColumns,
+      });
+    }, []);
 
     useImperativeHandle(
       ref,
       () => ({
-        getValue: () => editor?.getValue() ?? valueRef.current,
-        captureInsertPoint: () => {
-          const model = editor?.getModel();
-          const selection = editor?.getSelection();
-          if (!editor || !model || !selection) return null;
-          return {
-            start: model.getOffsetAt(selection.getStartPosition()),
-            end: model.getOffsetAt(selection.getEndPosition()),
-            version: model.getVersionId(),
-          };
-        },
-        insertAtCursor: (text, kind, at) => {
-          const model = editor?.getModel();
-          const selection = editor?.getSelection();
-          if (!editor || !model || !selection) return false;
-          const full = model.getValue();
-          const usable = !!at && at.version === model.getVersionId();
-          const start = usable
-            ? at.start
-            : model.getOffsetAt(selection.getStartPosition());
-          const end = usable
-            ? at.end
-            : model.getOffsetAt(selection.getEndPosition());
-          const range = usable
-            ? monacoRangeOf(model, start, end)
-            : selection;
-          const [from, to] = statementRange(full, start);
-          const before = full.slice(from, start);
-          const after = full.slice(end, Math.max(to, end));
-          const { prefix, suffix } =
-            kind === "column"
-              ? columnAffixes(before, after)
-              : valueAffixes(before, after);
-          const inserted = `${prefix}${text}${suffix}`;
-          editor.executeEdits(
-            "db-viewer-assist",
-            [{ range, text: inserted, forceMoveMarkers: true }],
-            () => {
-              const cursor = model.getPositionAt(start + inserted.length);
-              return [
-                {
-                  selectionStartLineNumber: cursor.lineNumber,
-                  selectionStartColumn: cursor.column,
-                  positionLineNumber: cursor.lineNumber,
-                  positionColumn: cursor.column,
-                } as Monaco.Selection,
-              ];
-            },
-          );
-          editor.focus();
-          return true;
-        },
+        getValue: () => editorRef.current?.getValue() ?? value,
+        captureInsertPoint: () =>
+          editorRef.current?.captureInsertPoint() ?? null,
+        insertAtCursor: (text, kind, at) =>
+          editorRef.current?.insertAtCursor(text, kind, at) ?? false,
       }),
-      [editor],
+      [value],
     );
 
+    // 표를 고르면 SQL 이 `SELECT * FROM …` 으로 바뀐다 — `*` 를 선택해 두면 칸 이름을 더블클릭해 넣을 때
+    // 커서가 문서 맨 앞(1:1)이라 SQL 이 깨지는 대신 `*` 자리를 칸 이름이 대신한다.
+    // (SqlCodeEditor 의 값 되돌리기 효과가 먼저 돌고, 이 효과가 그 뒤에 선택을 맞춘다.)
+    const firstRef = useRef(true);
     useEffect(() => {
-      let disposed = false;
-      let created: Monaco.editor.IStandaloneCodeEditor | null = null;
-      let detachAssist: (() => void) | null = null;
-
-      void loadMonaco().then((monaco) => {
-        if (disposed || !hostRef.current) return;
-        created = monaco.editor.create(hostRef.current, {
-          theme: LOG_THEME_ID,
-          value: valueRef.current,
-          language: "sql",
-          automaticLayout: true,
-          minimap: { enabled: false },
-          fontSize: 13,
-          lineNumbersMinChars: 3,
-          scrollBeyondLastLine: false,
-          wordWrap: "on",
-          renderLineHighlight: "line",
-          padding: { top: 6, bottom: 6 },
-          // 단어 기반 제안은 문서 안 아무 단어(예: 표 이름 조각)를 후보로 내서 헷갈린다 — 끄고 키워드·표·칸만 낸다.
-          wordBasedSuggestions: "off",
-          quickSuggestions: { other: true, comments: false, strings: false },
-          // Enter 는 제안을 고른 경우에만 수락하고, 그 밖에는 줄바꿈을 그대로 둔다.
-          acceptSuggestionOnEnter: "smart",
-          suggestOnTriggerCharacters: true,
-        });
-        const model = created.getModel();
-        if (model) {
-          detachAssist = attachSqlAssist(monaco, model, {
-            getTables: () => tablesRef.current,
-            loadColumns: (schema, table) =>
-              columnLoaderRef.current(schema, table),
-          });
-        }
-        created.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () =>
-          onRunRef.current(),
-        );
-        // F8 은 Monaco 기본 키(다음 문제로 이동)라 편집창 포커스 중에는 PageLayout 까지 가지 않는다 — 여기서 실행으로 잇는다.
-        created.addCommand(monaco.KeyCode.F8, () => onRunRef.current());
-        setEditor(created);
-      });
-
-      return () => {
-        disposed = true;
-        detachAssist?.();
-        created?.dispose();
-      };
-    }, []);
-
-    useEffect(() => {
-      if (!editor) return;
-      if (editor.getValue() !== value) {
-        editor.setValue(value);
-        // 표를 고르면 SQL 이 `SELECT * FROM …` 으로 바뀐다 — `*` 를 선택해 두면 칸 이름을 더블클릭해 넣을 때
-        // 커서가 문서 맨 앞(1:1)이라 SQL 이 깨지는 대신 `*` 자리를 칸 이름이 대신한다.
-        const star = /^SELECT (\*) FROM\b/i.exec(value);
-        const model = editor.getModel();
-        if (star && model) {
-          const from = model.getPositionAt(star[0].indexOf("*"));
-          const to = model.getPositionAt(star[0].indexOf("*") + 1);
-          editor.setSelection({
-            selectionStartLineNumber: from.lineNumber,
-            selectionStartColumn: from.column,
-            positionLineNumber: to.lineNumber,
-            positionColumn: to.column,
-          });
-        }
+      if (firstRef.current) {
+        firstRef.current = false;
+        return;
       }
-    }, [editor, value, revision]);
+      const star = /^SELECT (\*) FROM\b/i.exec(value);
+      if (star) {
+        const at = star[0].indexOf("*");
+        editorRef.current?.setSelection(at, at + 1);
+      }
+    }, [value, revision]);
 
-    return <div className="anl-db-sql-host" ref={hostRef} />;
+    return (
+      <div className="anl-db-sql-host">
+        <SqlCodeEditor
+          ref={editorRef}
+          defaultValue={value}
+          revision={revision}
+          onRun={onRun}
+          completionProvider={completionProvider}
+          height="100%"
+          bordered={false}
+          expandable={false}
+          ariaLabel="SQL"
+          highlightBinds={false}
+        />
+      </div>
+    );
   },
 );
 

@@ -30,9 +30,6 @@ importers:
       '@dk-oasis/shared':
         specifier: workspace:*
         version: link:../shared
-      monaco-editor:
-        specifier: ^0.55.1
-        version: 0.55.1
       next:
         specifier: ^16.3.8
         version: 16.3.8(@playwright/test@1.62.1)(@types/node@25.3.5)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)

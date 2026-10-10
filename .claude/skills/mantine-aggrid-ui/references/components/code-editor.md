@@ -67,6 +67,7 @@ const editor = useRef<SqlCodeEditorHandle>(null);
 | `completionProvider` | `SqlCompletionProvider` | — | 키워드에 더할 후보(표·칸·바인드 등) |
 | `highlightBinds` | `boolean` | `true` | `:이름` 강조(주석·문자열 안은 제외) |
 | `minimap` | `boolean` | `false` | 오른쪽 미니맵 |
+| `editorOptions` | `Monaco.editor.IStandaloneEditorConstructionOptions` | — | Monaco 생성 옵션 덮어쓰기(만들 때 한 번만 적용). 기본값(DB 뷰어 값: 줄바꿈 켬·글자 13·단어 제안 끔)과 달라야 하는 화면용. `theme`·`language`·`value` 는 덮어쓰지 않는다 |
 | `bordered` | `boolean` | `true` | 바깥 테두리. 부모 패널이 이미 테두리를 두른 자리(꽉 채움)에서는 `false` |
 | `placeholder` | `string` | — | 빈 칸 안내 글 |
 | `ariaLabel` | `string` | — | 접근성 이름. 대체 칸에도 같은 값이 붙는다 |
