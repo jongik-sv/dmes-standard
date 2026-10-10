@@ -129,7 +129,8 @@ export function MultiSelectComboBox({
       aria-labelledby={ariaLabelledBy}
       aria-invalid={resolvedAriaInvalid}
       aria-describedby={resolvedAriaDescribedBy}
-      className={clsx("form-combobox", "form-multiselect", error && "form-error", className)}
+      classNames={{ input: "form-multiselect-box" }}
+      className={clsx("form-multiselect", error && "form-error", className)}
       style={style}
     />
   );

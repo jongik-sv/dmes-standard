@@ -74,6 +74,7 @@ import { MultiSelectComboBox } from "@dk-oasis/shared/form";
 |---|---|
 | `value` 에 숫자 배열을 넘긴다 | `value={ids.map(String)}` 로 문자열 배열을 준다. |
 | 옵션에 없는 값이 태그로만 남는 것을 오류로 본다 | 선택값 중 옵션에 없는 것은 값 글자가 그대로 태그가 된다. 옵션 로딩 뒤에 값을 넣는다. |
+| 사용 화면에서 `.form-multiselect` 뿌리를 덮어써 테두리를 지운다 | 뿌리에는 상자가 없다. 상자는 안쪽 input(`.form-multiselect-box`) 하나이므로 덮어쓰지 않는다. 겹쳐 보이면 shared 를 고친다. |
 | `data` 를 렌더마다 새로 만든다 | `useMemo` 로 고정한다. |
 | `value` 를 `undefined` 로 넘긴다 | 기본값 `[]` 이 적용되지만 `?? []` 로 명시하는 편이 안전하다. |
 

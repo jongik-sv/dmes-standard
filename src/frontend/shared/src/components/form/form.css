@@ -408,93 +408,41 @@
    MultiSelectComboBox
    ============================================================ */
 
+/* 뿌리(Mantine MultiSelect root)에는 상자를 그리지 않는다. 상자 한 벌은 안쪽 input(.form-multiselect-box)에만 둔다. */
 .form-multiselect {
-  cursor: pointer;
-  padding: 2px 0 2px 4px;
-}
-
-.form-multiselect-tags {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 3px;
-  flex: 1;
-  min-width: 0;
-  padding: 1px 0;
-}
-
-.form-multiselect-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 1px 4px 1px 6px;
-  background-color: var(--color-primary-soft);
-  border: 1px solid var(--color-primary-soft-hover);
-  border-radius: 2px;
-  font-size: var(--font-size-xs);
-  color: var(--color-primary-active);
-  line-height: 1.4;
-  max-width: 140px;
-  white-space: nowrap;
-}
-
-.form-multiselect-tag-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.form-multiselect-tag-remove {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
+  display: block;
+  width: 100%;
+  height: auto;
   padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: 13px;
-  font-weight: bold;
-  cursor: pointer;
-  line-height: 1;
-  border-radius: 2px;
-  flex-shrink: 0;
+  border: 0;
+  cursor: default;
 }
 
-.form-multiselect-tag-remove:hover {
-  background-color: var(--color-primary-soft-hover);
-  color: var(--color-text);
+.form-multiselect .form-multiselect-box,
+.form-multiselect .mantine-MultiSelect-input {
+  min-height: var(--form-height);
+  height: auto;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--form-border-radius);
+  background-color: var(--color-bg);
+  box-sizing: border-box;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
-.form-multiselect-input {
-  flex: 1;
-  min-width: 40px;
-  height: 20px;
-  border: none;
-  padding: 0 2px;
-  font-size: var(--font-size-md);
-  color: var(--color-text);
-  background: transparent;
-  outline: none;
-  font-family: inherit;
+.form-multiselect .form-multiselect-box:focus-within {
+  border-color: var(--color-focus);
+  box-shadow: var(--shadow-focus);
 }
 
-.form-multiselect-input:disabled {
-  cursor: not-allowed;
+.form-multiselect.form-error .form-multiselect-box {
+  border-color: var(--color-error);
 }
 
-.form-multiselect-option {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.form-multiselect-checkbox {
-  width: 13px;
-  height: 13px;
-  margin: 0;
-  pointer-events: none;
-  flex-shrink: 0;
+.form-multiselect.form-error .form-multiselect-box:focus-within {
+  border-color: var(--color-error);
+  box-shadow: var(--shadow-error-focus);
 }
 
 /* page-layout 내 ComboBox (border 제거, form-value와 통합) */
@@ -518,28 +466,14 @@
   min-height: var(--form-height);
 }
 
-.page-layout .form-value .form-multiselect {
+.page-layout .form-value .form-multiselect .form-multiselect-box {
   border: none;
   border-radius: 0;
   min-height: 24px;
 }
 
-.page-layout .form-value .form-multiselect:focus-within {
+.page-layout .form-value .form-multiselect .form-multiselect-box:focus-within {
   box-shadow: none;
-}
-
-/* MultiSelect 내부 filter input — page-layout의 input 스타일 override */
-.page-layout .form-value .form-multiselect-input {
-  width: auto;
-  height: 20px;
-  padding: 0 2px;
-  border: none;
-}
-
-/* MultiSelect 내부 checkbox — page-layout의 input 스타일 override */
-.page-layout .form-value .form-multiselect-checkbox {
-  width: 13px;
-  height: 13px;
 }
 
 @media (max-width: 768px) {

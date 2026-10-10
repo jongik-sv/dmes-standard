@@ -53,8 +53,11 @@ describe("다중 선택 조건 칸", () => {
     expect(inputs[0].getAttribute("placeholder")).toBe("선택");
   });
 
-  it("뿌리 상자 겹침을 지우는 규칙과 빈 select 흐림 규칙이 스타일에 있다", () => {
-    expect(QUERY_CSS).toContain(".wq-cond--multi .form-multiselect");
+  it("뿌리에는 상자 클래스가 없고 안쪽 상자가 하나이며, 빈 select 흐림 규칙이 스타일에 있다", async () => {
+    const h = await show(multi, []);
+    expect(h.querySelectorAll(".form-combobox")).toHaveLength(0);
+    expect(h.querySelectorAll(".form-multiselect-box")).toHaveLength(1);
+    expect(QUERY_CSS).not.toContain(".form-multiselect");
     expect(QUERY_CSS).toContain('select:has(option[value=""]:checked)');
   });
 });

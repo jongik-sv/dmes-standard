@@ -519,3 +519,11 @@ DB 뷰어는 왼쪽 목록에서 테이블을 골라도 조회 결과 그리드�
 - Monaco 편집기는 `scrollbar: { alwaysConsumeMouseWheel: false }` 를 준다. 기본값(true)이면 편집기 끝에서도 휠이 바깥으로 넘어가지 않는다.
 - 패널보다 길 수 있는 비그리드 내용(상세 폼·트리·보드)이 `ContentPanel` 본문이면 `<ContentPanel scrollY>` 를 쓴다(본문 `overflowY: auto`·`overflowX: hidden`, 기본 false). 그 밖의 상자는 그 화면 안에서 `overflowY: auto` 를 준다. `.content-panel`·`.page-layout` 의 전역 `overflow` 는 바꾸지 않는다(이중 스크롤 위험).
 - 의도된 휠 처리(Mermaid 확대, ruleSetEdit 캔버스, DetailPopover)는 그대로 둔다.
+
+## 50. Mantine 컴포넌트 뿌리에 상자 클래스를 달지 않는다 (2026-10-10)
+
+Mantine `MultiSelect` 같은 컴포넌트는 뿌리 `div` 안에 자기 input 상자(테두리·chevron)를 따로 그린다. 뿌리에 `.form-combobox`처럼 테두리·고정 높이를 주는 클래스를 달면 상자가 두 겹으로 보인다(맞춤 레포트 조회 조건 줄 실측).
+
+- 상자 클래스·테두리·높이는 `classNames={{ input: "..." }}` 로 안쪽 input 에 준다. 뿌리 `className` 에는 폭·배치·`form-error` 같은 상태만 둔다.
+- `MultiSelectComboBox` 는 뿌리에 `.form-multiselect`, 안쪽 input 에 `.form-multiselect-box` 를 단다. 높이·테두리색은 단일 `ComboBox` 와 같다.
+- 사용 화면에서 `.form-multiselect` 를 덮어써 상자를 지우지 않는다. 겹침이 보이면 shared 를 고친다.
