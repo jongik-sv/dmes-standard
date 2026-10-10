@@ -1,0 +1,119 @@
+/**
+ * ERD 설계(erdEdit) 화면 타입 — 서버 응답·모델 JSON·SSE 본문의 모양.
+ * 정본: 단계 1 계획 README "인터페이스", 단계 0 DTO(ErdModelView·ErdChangesView·ErdApplyResult·ErdDelta·ErdChange·ErdPresence·ErdClaimView),
+ * 모델 JSON(스펙 3.1, ErdModel). 시각 필드는 ISO 문자열이다(Local-Rules §48).
+ */
+export type ErdColumnStatus = "OK" | "ALIAS" | "NEW" | "TYPE" | "DOMAIN" | "MISS";
+export type ErdRelationState = "DB" | "INFERRED" | "CONFIRMED" | "REJECTED";
+export type ErdFoldMode = "NONE" | "KEYS" | "NAME";
+export type ErdSource = "UI" | "MCP" | "CLI" | "SYSTEM";
+
+/** 속성마다 마지막으로 바꾼 [rev, 세션](스펙 4.3). */
+export interface PropRev { rev: number; session: string }
+type Revs = Record<string, PropRev>;
+
+export interface ErdTable { phys: string; logical: string; comment: string | null; columnOrder: string[]; _rev?: Revs }
+
+export interface ErdColumn {
+  table: string; phys: string; logical: string; domainId: number | null;
+  dataType: string | null; length: number | null; scale: number | null; notNull: boolean;
+  default: string | null; comment: string | null; _rev?: Revs;
+}
+
+export interface ErdKey { table: string; kind: "PK" | "UK" | "IX"; name: string; columns: string[]; _rev?: Revs }
+
+export interface ErdEvidence { kind: "DB_FK" | "DOC" | "SQL_JOIN" | "NAME_RULE"; ref: string }
+
+export interface ErdRelation {
+  child: string;
+  parent: string;
+  /** [자식 컬럼 id, 부모 컬럼 id] 쌍. */
+  pairs: [string, string][];
+  identifying: boolean;
+  cardinality: { parent: string; child: string };
+  state: ErdRelationState;
+  dbFk: boolean;
+  evidence: ErdEvidence[];
+  parentRef: { model: string; table: string; columns: string[] } | null;
+  /** 허브 후보 순위(S7). 허브가 아니면 null, 가장 가까운 후보 1, 나머지 2..n. 단계 0 모델에는 없다. */
+  candidateRank?: number | null;
+  _rev?: Revs;
+}
+
+export interface ErdModelJson {
+  schemaVersion: number;
+  model: { module: string; schema: string };
+  tables: Record<string, ErdTable>;
+  columns: Record<string, ErdColumn>;
+  keys: Record<string, ErdKey>;
+  relations: Record<string, ErdRelation>;
+  _tombstones?: Record<string, PropRev>;
+}
+
+export interface ErdDiagram { id: string; areaName: string; diagramName: string; sortSeq: number }
+export interface ErdDiagramNode { diagram: string; table: string; x: number; y: number; foldMode: ErdFoldMode }
+export interface ErdPresence { session: string; userId: string; source: ErdSource; diagramId: string | null; selectedTables: string[]; at: string }
+export interface ErdClaim { tableId: string; session: string; userId: string; expiresAt: string }
+
+/** search 응답 행. */
+export interface ErdModelRow {
+  modelId: string; moduleId: string; schemaName: string; modelName: string; rev: number; draftVer: string | null; ownerId: string | null;
+}
+
+/** view(kind 없음) 응답. model 은 MODEL_JSON 문자열이다. */
+export interface ErdModelView {
+  modelId: string; rev: number; ver: string; status: string; ownerId: string | null; editors: string[]; rowVersion: number;
+  model: string; diagrams: ErdDiagram[]; nodes: ErdDiagramNode[]; presence: ErdPresence[];
+}
+
+export type ErdChangeKind = "table" | "column" | "key" | "relation" | "diagram" | "diagramNode";
+
+/** 델타 한 건. upsert 면 요소 JSON 전체, delete 면 null, patch 면 바뀐 속성만(되돌리기). diagramNode id 는 "다이어그램:표". */
+export interface ErdChange { kind: ErdChangeKind; id: string; op: "upsert" | "delete" | "patch"; value: Record<string, unknown> | null }
+export interface ErdDelta { modelId: string; rev: number; userId: string; session: string; source: ErdSource; changes: ErdChange[] }
+export interface ErdChangesView { rev: number; reload: boolean; deltas: ErdDelta[] }
+
+export interface ErdRejection {
+  code: string; commandIndex: number; message: string; hint: string | null; elementId: string | null; property: string | null;
+  byRev: number | null; bySession: string | null; current: unknown; choices: unknown; ownerId: string | null;
+}
+export interface ErdWarning { code: string; elementId: string | null; message: string; claimedBy: string | null; expiresAt: string | null }
+export interface ErdApplyResult { applied: boolean; rev: number; changes: ErdChange[]; warnings: ErdWarning[]; rejection: ErdRejection | null }
+
+export interface ErdImportSummary {
+  tables: number; columns: number; keys: number; relations: Partial<Record<"DB" | "INFERRED", number>>; diagramId: string;
+}
+/** import 응답 = ErdApplyResult + summary(거절이면 null). */
+export interface ErdImportResult extends ErdApplyResult { summary: ErdImportSummary | null }
+
+export interface ErdStatusView {
+  modelId: string;
+  ver: string;
+  rev: number;
+  statuses: Record<string, ErdColumnStatus>;
+  /** 모델에 쓰인 domainId 만. 키는 domainId 문자열. */
+  domains: Record<string, { name: string; dataType: string | null; length: number | null; scale: number | null }>;
+  counts: Record<ErdColumnStatus, number>;
+  elapsedMs: number;
+}
+
+export type ErdDbDiffKind =
+  | "TABLE_ADDED" | "TABLE_REMOVED" | "COLUMN_ADDED" | "COLUMN_REMOVED" | "COLUMN_CHANGED" | "FK_ADDED" | "FK_REMOVED";
+export interface ErdColumnSpec { dataType: string | null; length: number | null; scale: number | null; notNull: boolean }
+export interface ErdDbDiffItem {
+  id: string; kind: ErdDbDiffKind; table: string; column: string | null; before: ErdColumnSpec | null; after: ErdColumnSpec | null;
+}
+export interface ErdDbDiffView { modelId: string; rev: number; schema: string; items: ErdDbDiffItem[] }
+
+/** SET_VIEW 본문(viewJson). */
+export interface ErdViewState { diagramId: string | null; selectedTables: string[] }
+
+/** 화면이 들고 있는 모델(스펙 4.4 아래층). nodes 키는 "다이어그램:표"(ErdChange diagramNode id 와 같다). */
+export interface ErdState {
+  modelId: string; rev: number; ver: string; status: string; ownerId: string | null; editors: string[]; rowVersion: number;
+  model: ErdModelJson;
+  diagrams: Record<string, ErdDiagram>;
+  nodes: Record<string, ErdDiagramNode>;
+  presence: ErdPresence[];
+  claims: ErdClaim[];
+}

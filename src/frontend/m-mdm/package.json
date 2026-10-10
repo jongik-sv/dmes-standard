@@ -22,6 +22,10 @@
       "types": "./dist/types/pages/dma/domainMng/page.d.ts",
       "import": "./dist/pages/dma/domainMng/page.js"
     },
+    "./pages/dma/erdEdit/page": {
+      "types": "./dist/types/pages/dma/erdEdit/page.d.ts",
+      "import": "./dist/pages/dma/erdEdit/page.js"
+    },
     "./pages/dma/mdmSample/page": {
       "types": "./dist/types/pages/dma/mdmSample/page.d.ts",
       "import": "./dist/pages/dma/mdmSample/page.js"

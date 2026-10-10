@@ -40,6 +40,7 @@ export const PAGE_REGISTRY: Record<string, () => Promise<{ default: unknown }>> 
   "dashboard-overview": () => import("@/page-components/dashboard-overview/page"),
   "dma/columnMng": () => import("@dk-oasis/m-mdm/pages/dma/columnMng/page"),
   "dma/domainMng": () => import("@dk-oasis/m-mdm/pages/dma/domainMng/page"),
+  "dma/erdEdit": () => import("@dk-oasis/m-mdm/pages/dma/erdEdit/page"),
   "dma/mdmSample": () => import("@dk-oasis/m-mdm/pages/dma/mdmSample/page"),
   "dma/termMng": () => import("@dk-oasis/m-mdm/pages/dma/termMng/page"),
   "dma/unitMng": () => import("@dk-oasis/m-mdm/pages/dma/unitMng/page"),

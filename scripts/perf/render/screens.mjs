@@ -231,6 +231,16 @@ export const SCREENS = [
     searchUrlExclude: /optionsOnly/,
     needsSearch: true,
   },
+  {
+    // 2026-10-11 erd1-fe2 등록 — ERD 설계(dma/erdEdit, MdmMenuSeeder 메뉴 leaf). 캔버스 화면이라 목록 그리드 firstRow 모델에
+    // 맞지 않는다(진입 때 모델 목록만 읽고, 모델을 골라야 캔버스가 선다). 그래서 셸 신호만 잰다(needsSearch false).
+    id: "erdEdit",
+    label: "ERD 설계",
+    trail: [/^마루 MDM$/, /^용어·도메인$/, /^ERD 설계$/],
+    breadcrumb: "마루 MDM > 용어·도메인 > ERD 설계",
+    searchUrlPattern: /\/api\/mdm\/oasis\/erdEdit\/search$/,
+    needsSearch: false,
+  },
 ];
 
 /** id 로 화면 정의를 찾는다. 없으면 undefined. */

@@ -48,6 +48,7 @@ export default defineConfig([
       "pages/dma/termMng/page": "pages/dma/termMng/page.tsx",
       "pages/dma/domainMng/page": "pages/dma/domainMng/page.tsx",
       "pages/dma/columnMng/page": "pages/dma/columnMng/page.tsx",
+      "pages/dma/erdEdit/page": "pages/dma/erdEdit/page.tsx",
       "pages/dmb/headerMng/page": "pages/dmb/headerMng/page.tsx",
       "pages/dmb/layoutMng/page": "pages/dmb/layoutMng/page.tsx",
       "pages/dmb/layoutConfirm/page": "pages/dmb/layoutConfirm/page.tsx",

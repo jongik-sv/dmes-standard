@@ -162,10 +162,13 @@ public final class MdmMenuSeeder extends SeedSupport {
         seedMdmErdObject();
     }
 
-    /** ERD 설계(erdEdit) — 단계 0 은 OBJECT·권한만. 메뉴 leaf 는 화면과 함께 단계 1 에서 넣는다. */
+    /** ERD 설계(erdEdit) — 단계 0 의 OBJECT·권한에, 단계 1 에서 화면과 함께 메뉴 leaf(dma 폴더, 계획 S11)를 더했다. */
     private void seedMdmErdObject() {
         String objectId = "erdEdit";
         insertMcmSecObjIfAbsent(objectId, "ERD 설계", "mdm");
+        // 메뉴 leaf — componentPath 'dma/erdEdit'(FE pages/dma/erdEdit/page.tsx). MENU_SEQ 005·FULL_SEQ 5010150 은 dma 에서 비어 있다.
+        // FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+        insertMcmSecMenuIfAbsent("erdEdit", "005", "5010150", "ERD 설계", "dma", "erdEdit");
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
@@ -175,7 +178,7 @@ public final class MdmMenuSeeder extends SeedSupport {
         // 메뉴(단계 1)는 어느 폴더에 놓이든, 잠금·확정은 담당자(MDM_STEWARD)가 해야 하므로 CONFIRM 을 주는 dmb 매트릭스를 쓴다.
         // (dma 는 담당자에 READ 만 줘 잠금·확정 주체가 없다.) 시험(MdmOasisActionVocabularyTest)이 리터럴 인자를 읽는다.
         seedMdmObjectRbac("erdEdit", "dmb");
-        log.info("[DataInitializer] ERD 설계(erdEdit) 시드 — OBJECT 1 + RBAC(SYSADMIN 1 + MDM 역할 2)");
+        log.info("[DataInitializer] ERD 설계(erdEdit) 시드 — OBJECT 1 + 메뉴 leaf 1 + RBAC(SYSADMIN 1 + MDM 역할 2)");
     }
 
     /**
