@@ -1,7 +1,7 @@
 // tests/pool-core.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { appendLog, classify, coolAfterRatelimit, effectiveMax, fillArgs, hasAnyWorker, ID_RE, logEntry, pickKind, promptFor, readCool, readItem, readItems, reapStale, writeCool, writeItem } from '../scripts/lib/pool-core.mjs';
@@ -46,10 +46,21 @@ test('effectiveMax·pickKind·쿨다운 벌점', () => {
   assert.equal(cool.opencode.penalty, 1);
   assert.equal(effectiveMax('opencode', 3, cool, now + 60000), 0);          // 쉬는 중
   assert.equal(effectiveMax('opencode', 3, cool, now + 31 * 60000), 2);     // 쉰 뒤 상한 -1
-  const cool2 = coolAfterRatelimit(cool, 'opencode', now, 30);
-  assert.equal(effectiveMax('opencode', 3, cool2, now + 31 * 60000), 1);
-  const cool3 = coolAfterRatelimit(coolAfterRatelimit(cool2, 'opencode', now, 30), 'opencode', now, 30);
-  assert.equal(effectiveMax('opencode', 3, cool3, now + 31 * 60000), 1);    // 최소 1
+  // 쉬는 중에 같은 종류가 또 한도에 걸려도(동시 실패) 벌점은 그대로
+  const coolSame = coolAfterRatelimit(cool, 'opencode', now, 30);
+  assert.equal(coolSame.opencode.penalty, 1);
+  assert.equal(effectiveMax('opencode', 3, coolSame, now + 31 * 60000), 2);
+  const coolLater = coolAfterRatelimit(cool, 'opencode', now + 10 * 60000, 30);   // 쉬는 시각만 늘어남
+  assert.equal(coolLater.opencode.penalty, 1);
+  assert.equal(effectiveMax('opencode', 3, coolLater, now + 31 * 60000), 0);
+  assert.equal(effectiveMax('opencode', 3, coolLater, now + 41 * 60000), 2);
+  // 쉰 뒤 다시 걸리면 벌점 +1
+  const cool2 = coolAfterRatelimit(cool, 'opencode', now + 31 * 60000, 30);
+  assert.equal(cool2.opencode.penalty, 2);
+  assert.equal(effectiveMax('opencode', 3, cool2, now + 62 * 60000), 1);
+  const cool3 = coolAfterRatelimit(cool2, 'opencode', now + 62 * 60000, 30);
+  assert.equal(cool3.opencode.penalty, 3);
+  assert.equal(effectiveMax('opencode', 3, cool3, now + 93 * 60000), 1);    // 최소 1
   assert.equal(effectiveMax('glm', 0, {}, now), 0);
   assert.equal(hasAnyWorker({ order: ['opencode', 'glm'], max: { opencode: 3, glm: 0 }, cool, nowMs: now + 60000, want: 'auto' }), false);
   assert.equal(hasAnyWorker({ order: ['opencode', 'glm'], max: { opencode: 3, glm: 1 }, cool, nowMs: now + 60000, want: 'auto' }), true);
@@ -76,6 +87,10 @@ test('파일 I/O: 기록·쿨다운·로그', () => {
   assert.deepEqual(readCool(dir), {});
   writeCool(dir, { opencode: { until: 'x', penalty: 1 } });
   assert.equal(readCool(dir).opencode.penalty, 1);
+  writeFileSync(join(dir, 'cool.json'), 'null');
+  assert.deepEqual(readCool(dir), {});
+  writeFileSync(join(dir, 'cool.json'), '[1]');
+  assert.deepEqual(readCool(dir), {});
   appendLog(dir, logEntry({ id: 'a', lane: 'L', kind: 'opencode', size: 'S', result: 'ok', fallback: false }));
   const line = JSON.parse(readFileSync(join(dir, 'log.jsonl'), 'utf8').trim());
   assert.equal(line.id, 'a');

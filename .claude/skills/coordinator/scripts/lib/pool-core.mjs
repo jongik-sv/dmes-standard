@@ -49,7 +49,13 @@ export function hasAnyWorker({ order, max, cool, nowMs, want = 'auto' }) {
 
 export function coolAfterRatelimit(cool, kind, nowMs, cooldownMin) {
   const prev = cool[kind] || { penalty: 0 };
-  return { ...cool, [kind]: { until: new Date(nowMs + Number(cooldownMin) * 60000).toISOString(), penalty: (Number(prev.penalty) || 0) + 1 } };
+  const prevUntil = Date.parse(prev.until);
+  const cooling = Number.isFinite(prevUntil) && prevUntil > nowMs;
+  const newUntil = nowMs + Number(cooldownMin) * 60000;
+  const until = new Date(cooling ? Math.max(prevUntil, newUntil) : newUntil).toISOString();
+  // 이미 쉬는 중이면 같은 한도 사건의 동시 실패로 보고 벌점은 올리지 않는다.
+  const penalty = (Number(prev.penalty) || 0) + (cooling ? 0 : 1);
+  return { ...cool, [kind]: { until, penalty } };
 }
 
 export function reapStale(records, isAlive, nowIso) {
@@ -100,7 +106,10 @@ export function writeItem(dir, rec) {
 export function readCool(dir) {
   const f = join(dir, 'cool.json');
   if (!existsSync(f)) return {};
-  try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return {}; }
+  try {
+    const v = JSON.parse(readFileSync(f, 'utf8'));
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  } catch { return {}; }
 }
 
 export function writeCool(dir, cool) {
