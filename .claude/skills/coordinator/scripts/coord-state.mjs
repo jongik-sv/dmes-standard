@@ -8,7 +8,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as J from './lib/jq-json.mjs';
 import * as C from './lib/compat.mjs';
-import { Ctx, CoordDie, cfgSub, repo, stateRoot, runDir, stateFile, sess8Of, staleRuns, nowIso, nowEpoch, isoToEpochLoose, lock, unlock } from './lib/common.mjs';
+import { Ctx, CoordDie, expand, cfgSub, repo, stateRoot, runDir, stateFile, sess8Of, staleRuns, nowIso, nowEpoch, isoToEpochLoose, lock, unlock } from './lib/common.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 
 /** 도움말(= bash 판 머리말 2~23줄, 이름만 .mjs). */
@@ -28,6 +28,10 @@ const HELP = `# 사용법: coord-state.mjs <하위명령> …   (정본: ../refe
 #   item-done <레인> <항목id>                      항목 완료 · \`PROGRESS <레인> <pct>%\`
 #   progress                                       레인마다 \`PROGRESS <레인> <pct>% <끝>/<전체>\`, 끝에 \`PROGRESS ALL <pct>%\`
 #   hold <레인> <사유|-> [until-iso]               hold 세우기(\`-\` 는 풀기) · \`OK\`
+#   mode [token|time]                              회차 모드 보기·기록(state .run.mode, 없으면 설정 mode.default) · \`MODE <m> src=<state|default>\` / \`OK mode=<m>\`
+#   decide <레인|-> <질문> <결정> [--esc] [--reverse]  레인 질문 결정 기록(.decisions) · \`OK decision=<번호>\`
+#   decisions [--last n] [--grep 글]                결정 기록 찾기(같은 질문 재판단 금지용) · \`DECISION <번호> …\`
+#   relink <레인|self> [--sid 새id]                 /clear 뒤 새 세션 id 로 갈아끼움(옛 id 는 prev_ids 에) · \`RELINK <누구> <옛|-> -> <새>\` | same | unknown
 #   close-run [json]                               회차 마감: run-closed 이벤트 → office finish → \`.run.closed_at\` 기록 · \`OK\`
 #                                                  (\`event run-closed\` 도 같은 길. 이미 마감했으면 closed_at 은 그대로, finish 는 다시 건다)
 #   summary                                        summary.md 재생성 · 경로
@@ -41,7 +45,7 @@ const HELP = `# 사용법: coord-state.mjs <하위명령> …   (정본: ../refe
 `;
 const SCRIPTS_DIR = path.dirname(fileURLToPath(import.meta.url));
 
-const USAGE = '사용법: coord-state.mjs init|use|get|set|set-many|lane-add|event|instr|ack|report|item-done|progress|hold|close-run|summary|wbs-phase|wbs-done|wbs-issue … (contract §3.4)';
+const USAGE = '사용법: coord-state.mjs init|use|get|set|set-many|lane-add|event|instr|ack|report|item-done|progress|hold|mode|decide|decisions|relink|close-run|summary|wbs-phase|wbs-done|wbs-issue … (contract §3.4)';
 
 const LANE_SKEL_TEXT = '{"session":{"name":"","addr":"","session_id":"","pid":0,"handle":"","kind":"claude","window":null,"spawned_by":"user"},\n "branch":"","worktree":"","owned":[],"forbidden":[],"heavy_env":null,"priority":2,"items":[],"queue":[],"hold":null,\n "last_report_at":null,"last_instr_at":null,"ctx":null,\n "compact":{"pending":false,"last_at":null,"pre_compact":null,"history":[]},"memo":"","state":"active"}';
 
@@ -847,6 +851,149 @@ function cmdHold(c, argv) {
   process.stdout.write('OK\n');
 }
 
+// ---------- mode·decide·decisions(설계 2026-10-10 §2.1·§5.5) ----------
+function readStateDoc(c) {
+  const r = readDoc(stateFileChecked(c));
+  if (r.doc === undefined) die(4, 'state.json 읽기 실패');
+  return r.doc;
+}
+function cmdMode(c, argv) {
+  if (argv.length > 1) usage();
+  const [m] = argv;
+  if (m === undefined) {
+    const doc = readStateDoc(c);
+    const run = doc instanceof Map ? doc.get('run') : null;
+    const v = run instanceof Map ? run.get('mode') : null;
+    if (v !== null && v !== undefined && v !== '') { process.stdout.write(`MODE ${asText(v)} src=state\n`); return; }
+    process.stdout.write(`MODE ${cfgSub(c, '.mode.default') || 'token'} src=default\n`);
+    return;
+  }
+  if (m !== 'token' && m !== 'time') die(2, `mode 는 token 또는 time: ${m}`);
+  stateFileChecked(c);
+  if (stUpdate(c, {
+    jqExpr: '.run.mode = $m',
+    jqArgs: (file) => ['--arg', 'm', m, '.run.mode = $m', file],
+    apply(doc) { return assignPath(doc, ['run', 'mode'], m); },
+  }) !== 0) exitNow(4);
+  evAppend(c, runDirSub(c), 'mode', '-', J.tojson(new Map([['mode', m]])));
+  process.stdout.write(`OK mode=${m}\n`);
+}
+
+function cmdDecide(c, argv) {
+  const flags = { esc: false, reverse: false };
+  const pos = [];
+  for (const a of argv) {
+    if (a === '--esc') flags.esc = true;
+    else if (a === '--reverse') flags.reverse = true;
+    else pos.push(a);
+  }
+  if (pos.length !== 3) die(2, '사용법: coord-state.mjs decide <레인|-> <질문 요약> <결정> [--esc] [--reverse]');
+  const [lane, q, text] = pos;
+  stateFileChecked(c);
+  if (lane !== '-') laneExists(c, lane);
+  const at = nowIso(c);
+  const entry = { at, lane, q, text, ...(flags.esc ? { esc: true } : {}), ...(flags.reverse ? { reverse: true } : {}) };
+  let idx = -1;
+  const expr = '.decisions = ((.decisions // []) + [$d])';
+  if (stUpdate(c, {
+    jqExpr: expr,
+    jqArgs: (file) => ['--argjson', 'd', JSON.stringify(entry), expr, file],
+    apply(doc) {
+      if (!(doc instanceof Map)) throw new J.JqError('state 가 객체가 아님', 5);
+      let arr = doc.get('decisions');
+      if (!Array.isArray(arr)) { arr = []; doc.set('decisions', arr); }
+      const e = new Map([['at', at], ['lane', lane], ['q', q], ['text', text]]);
+      if (flags.esc) e.set('esc', true);
+      if (flags.reverse) e.set('reverse', true);
+      arr.push(e);
+      idx = arr.length - 1;
+      return doc;
+    },
+  }) !== 0) exitNow(4);
+  if (idx < 0) {
+    const d = readStateDoc(c);
+    const a = d instanceof Map ? d.get('decisions') : null;
+    idx = (Array.isArray(a) ? a.length : 1) - 1;
+  }
+  evAppend(c, runDirSub(c), 'decide', lane, J.tojson(new Map([['q', q], ['text', text]])));
+  process.stdout.write(`OK decision=${idx}\n`);
+}
+
+function cmdDecisions(c, argv) {
+  let last = 20; let grep = '';
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === '--last') last = Number(argv[++i]);
+    else if (argv[i] === '--grep') grep = String(argv[++i] ?? '').toLowerCase();
+    else die(2, '사용법: coord-state.mjs decisions [--last <n>] [--grep <글>]');
+  }
+  if (!Number.isInteger(last) || last < 1) die(2, '--last 는 1 이상 정수');
+  const doc = readStateDoc(c);
+  const arr = doc instanceof Map ? doc.get('decisions') : null;
+  const list = (Array.isArray(arr) ? arr : []).map((d, i) => ({ i, d }));
+  const s = (d, k) => { const v = d instanceof Map ? d.get(k) : null; return v === null || v === undefined ? '' : asText(v); };
+  const hit = list.filter(({ d }) => grep === '' || `${s(d, 'q')} ${s(d, 'text')}`.toLowerCase().includes(grep)).slice(-last);
+  if (hit.length === 0) { process.stdout.write('DECISION none\n'); return; }
+  for (const { i, d } of hit) {
+    const get = (k) => (d instanceof Map ? d.get(k) : null);
+    const tail = `${get('esc') === true ? ' esc' : ''}${get('reverse') === true ? ' reverse' : ''}`;
+    process.stdout.write(`DECISION ${i} ${s(d, 'at')} ${s(d, 'lane') || '-'} ${s(d, 'q') || '-'} => ${s(d, 'text')}${tail}\n`);
+  }
+}
+
+/** relink <레인|self> [--sid 새id] — /clear 로 바뀐 세션 id 를 <sessions_dir>/<pid>.json 또는 --sid 로 갱신 */
+function cmdRelink(c, argv) {
+  let who = ''; let sid = '';
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === '--sid') { sid = String(argv[++i] ?? ''); if (sid === '') die(2, '--sid 값 없음'); }
+    else if (who === '') who = argv[i];
+    else die(2, '사용법: coord-state.mjs relink <레인|self> [--sid <새 id>]');
+  }
+  if (who === '') die(2, '사용법: coord-state.mjs relink <레인|self> [--sid <새 id>]');
+  stateFileChecked(c);
+  const self = who === 'self';
+  if (!self) laneExists(c, who);
+  const doc = readStateDoc(c);
+  const sub = (d, k) => (d instanceof Map ? d.get(k) : null);
+  const holder = self ? sub(sub(doc, 'run'), 'coordinator') : sub(sub(sub(doc, 'lanes'), who), 'session');
+  const pidV = sub(holder, 'pid');
+  const pid = pidV === null || pidV === undefined ? '' : asText(pidV);
+  const curV = sub(holder, 'session_id');
+  const cur = curV === null || curV === undefined ? '' : asText(curV);
+  let next = sid;
+  if (next === '' && pid !== '' && pid !== '0') {
+    try {
+      const f = `${expand(cfgSub(c, '.sessions_dir'), c.env)}/${pid}.json`;
+      const v = JSON.parse(readFileSync(f, 'utf8'));
+      if (v && typeof v.sessionId === 'string') next = v.sessionId;
+    } catch { /* pid 파일 없음 → unknown */ }
+  }
+  if (next === '') { process.stdout.write(`RELINK ${who} unknown\n`); return; }
+  if (next === cur) { process.stdout.write(`RELINK ${who} same\n`); return; }
+  const segs = self ? ['run', 'coordinator'] : ['lanes', who, 'session'];
+  const expr = self
+    ? '.run.coordinator.prev_ids = ((.run.coordinator.prev_ids // []) + (if $o == "" then [] else [$o] end)) | .run.coordinator.session_id = $n'
+    : '.lanes[$l].session.prev_ids = ((.lanes[$l].session.prev_ids // []) + (if $o == "" then [] else [$o] end)) | .lanes[$l].session.session_id = $n';
+  if (stUpdate(c, {
+    jqExpr: expr,
+    jqArgs: (file) => ['--arg', 'l', who, '--arg', 'o', cur, '--arg', 'n', next, expr, file],
+    apply(d) {
+      let h = d;
+      for (const k of segs) {
+        if (!(h instanceof Map)) throw new J.JqError('경로 없음', 5);
+        h = h.get(k);
+      }
+      if (!(h instanceof Map)) throw new J.JqError('경로 없음', 5);
+      let prev = h.get('prev_ids');
+      if (!Array.isArray(prev)) { prev = []; h.set('prev_ids', prev); }
+      if (cur !== '') prev.push(cur);
+      h.set('session_id', next);
+      return d;
+    },
+  }) !== 0) exitNow(4);
+  evAppend(c, runDirSub(c), 'relink', self ? '-' : who, J.tojson(new Map([['who', who], ['old', cur], ['new', next]])));
+  process.stdout.write(`RELINK ${who} ${cur === '' ? '-' : cur} -> ${next}\n`);
+}
+
 // ---------- summary(cmd_summary 의 jq 서식 재현) ----------
 // jq 가 오류를 낼 모양(스칼라를 색인하거나 배열이 아닌 것을 순회하는 등)은 전부 JqError 를 던져 jq 폴백이 같은 부분 출력·종료 코드를 내게 한다.
 const ix = J.index;   // `.key` — null 이면 null, 객체면 값, 그 밖은 JqError
@@ -964,7 +1111,12 @@ function summaryLines(c, doc) {
   push('');
   const decisions = arrOf(ix(doc, 'decisions'));
   if (decisions.length === 0) push('- 없음');
-  else for (const d of decisions.slice(-10)) push(`- ${vTxt(ix(d, 'at'))} ${asText(ix(d, 'text'))}`);
+  else {
+    for (const d of decisions.slice(-20)) {
+      const q = asText(J.alt(ix(d, 'q'), ''));
+      push(q !== '' ? `- ${vTxt(ix(d, 'at'))} [${asText(J.alt(ix(d, 'lane'), '-')) || '-'}] ${q} → ${asText(ix(d, 'text'))}` : `- ${vTxt(ix(d, 'at'))} ${asText(ix(d, 'text'))}`);
+    }
+  }
   return `${lines.join('\n')}\n`;
 }
 function cmdSummary(c) {
@@ -1037,7 +1189,7 @@ const SUMMARY_FALLBACK = String.raw`
       "",
       "## 최근 결정",
       "",
-      (if (.decisions // []) == [] then "- 없음" else (.decisions[-10:][] | "- \(.at | v) \(.text)") end)
+      (if (.decisions // []) == [] then "- 없음" else (.decisions[-20:][] | if (.q // "") != "" then "- \(.at | v) [\(.lane // "-")] \(.q) → \(.text)" else "- \(.at | v) \(.text)" end) end)
   `;
 
 // ---------- WBS(조정자 단계·이슈) — state .wbs = {phases:[{name, items:[{title, weight, done, note?}]}], issues:[글], opened_at} ----------
@@ -1160,6 +1312,10 @@ export async function main(argv, { env, cwd } = {}) {
       case 'item-done': cmdItemDone(c, rest); break;
       case 'progress': cmdProgress(c); break;
       case 'hold': cmdHold(c, rest); break;
+      case 'mode': cmdMode(c, rest); break;
+      case 'decide': cmdDecide(c, rest); break;
+      case 'decisions': cmdDecisions(c, rest); break;
+      case 'relink': cmdRelink(c, rest); break;
       case 'close-run':
         if (rest.length > 1) usage();
         closeRun(c, '-', rest[0] ?? '');

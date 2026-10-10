@@ -9,16 +9,17 @@ agent 단계별 모델 = `workflow.model_table`(`contract.md` §1.3).
 - **Claude 세션 모델 ID**
   - Opus `claude-opus-5-5` · Sonnet `claude-sonnet-5-5`
   - Haiku `claude-haiku-4-5-20251001`
-- **GLM**: 일반 작업 중 **쉬운 일**
+- **비-Claude 풀(기본 경로)**: S/M 구현·조사·문서 묶음 = `pool.mjs submit`(`pool.md`)
+  - opencode 3·GLM 1 단발 실행. 실패·한도 오류 → 바로 Claude agent
+  - token 모드 = 풀 먼저. time 모드 = 먼저 비는 쪽
+- **GLM 세션(긴 세션이 필요할 때만)**: 쉬운 일 레인 하나를 통째로 맡길 때
   - 대상: 본보기 있는 패턴 반복, 정해진 형식의 문서·표 정리
   - 대상: 시험으로 바로 검증되는 좁은 수정
   - GLM-5.3(Z.ai), **새 탭** Claude Code 세션(`launch.glm`, §3)
   - SendMessage·머지 요청 절차 동일
   - 같은 문제에 20분 넘게 막힘·방향 틀어짐 → 막힌 단계만 Sonnet·Opus 새 탭 세션에
   - `agent()` 의 model 값으로 못 고름 → **세션 단위**로만 맡김
-- **opencode 워커**: 사용량 띠가 오를 때 Claude 몫을 넘김(`usage.md` §2)
-  - 설정 `launch.opencode`, 새 탭(§2)
-  - 막히면 그 단계만 Claude 세션에 넘김
+- **opencode TUI 워커**: 쓰지 않음. 묶음 일은 풀로(지시문 유실·생존 판정 문제)
 - **조사(검색 워커)**: 읽기 전용. 기준 = `sizing.md` D1 행, 설정 `search.*`
   - `node scripts/search.mjs`: 기본 새 탭, `--print` = 화면 없는 단발
   - 감독·병렬·이력이 필요할 때만:
@@ -65,6 +66,7 @@ agent 단계별 모델 = `workflow.model_table`(`contract.md` §1.3).
   - `orca orchestration worker-start --spec "<과제>" --agent claude --model <m> --effort <e> --worktree current --json`
   - 완료(`worker_done`) → `worker-release` → `check --ack`
 - **opencode 워커**
+  - 일 묶음은 풀(`pool.mjs`)로. 아래 TUI 흐름은 사람이 직접 띄운 opencode 세션을 연결할 때만
   1. `orca terminal create --worktree <탭 워크트리> --title <n> --json`
   2. 셸 프롬프트가 보인 뒤 `orca terminal send --terminal <h> --text "cd <폴더> && <launch.opencode>" --enter --json`
      - `--command` 금지(시간 초과로 실패)
@@ -135,6 +137,8 @@ GLM 세션 전에 `node scripts/glm-preflight.mjs` 실행.
   - 기록: 이름·주소·세션ID·pid·핸들·`spawned_by":"user"`
 - 스킬이 띄운 세션: 회차가 있으면 `spawn-lane.mjs` 가 `lane-add` 로 기록
   - `spawned_by":"coordinator"`
+  - `spawn-lane.mjs` 없이 조정자가 직접 띄우고 `lane-add` 만 한 세션 → `set '.lanes.<레인>.session.spawned_by' '"coordinator"'` 도 기록
+    - 안 하면 기본값 `user` → 끝나도 자동으로 닫지 않음(§5)
 - 연결에 사용 금지: 터미널 제목(Claude 가 덮어씀), 세션 json 의 tmux 칸
 - 핸들 = Orca 재시작 뒤 바뀔 수 있음(`terminal_handle_stale`)
   - `coord-status.mjs` 의 `status=gone` → 신원 재요청
@@ -143,7 +147,15 @@ GLM 세션 전에 `node scripts/glm-preflight.mjs` 실행.
 
 ## 5. 정리 절차
 
-끝난 세션·Pane = 조정자가 알아서 즉시 닫음. 임시 Pane·사용자가 띄운 세션도 같음.
+닫을지는 누가 띄웠는지로 정함(사용자 결정 2026-10-10).
+- 조정자가 띄운 것(`lanes.<L>.session.spawned_by = "coordinator"`, 임시 워커, 풀 실행기) → 끝나면 조정자가 알아서 즉시 닫음
+  - 풀 실행기 = 스스로 끝나는 단발 프로세스. 닫을 pane 없음
+- 사람이 띄운 세션(`spawned_by = "user"`, 신원 보고로 연결) → **닫지 않음**
+  - 끝나면 회차에서 뗌: `node scripts/coord-state.mjs set '.lanes.<L>.state' '"closed"'`(탭은 그대로) + `node scripts/coord-state.mjs event lane-released <L> '{"by":"user-session"}'`
+  - 사용자에게 한 줄: 「<L> 끝남. 사람이 띄운 세션이라 열어 둠」
+  - `close-lane.mjs` 도 이 세션은 `CLOSE_REFUSED <L> user-session` 으로 거부(`--force-user` = 사용자가 닫으라고 할 때만)
+
+아래 절차 = 조정자가 띄운 것.
 
 1. **조건** 확인
    - 레인: 마지막 산출물(커밋·보고) 수신, 머지·정리 끝
@@ -153,7 +165,8 @@ GLM 세션 전에 `node scripts/glm-preflight.mjs` 실행.
 4. 백그라운드 0 확인(`idle-check.mjs`)
    - 그 세션이 연 브라우저 작업 공간·로컬 서버 → 먼저 닫게 함
 5. **닫기**: `node scripts/close-lane.mjs <레인>`(또는 `--handle <h>`, `--dry-run` 가능)
-   - 출력: `CLOSED <레인> handle=<h>` 또는 `CLOSE_REFUSED <레인> <bg-running|not-reported>`
+   - 출력: `CLOSED <레인> handle=<h>` 또는 `CLOSE_REFUSED <레인> <user-session|bg-running|not-reported>`
+   - `user-session` → 닫지 않음. 위 「사람이 띄운 세션」 처리
    - `bg-running` → 백그라운드 종료까지 대기
    - `not-reported` → 마지막 보고 수신 뒤 닫음
      - 보고 없이 닫을 사유가 타당할 때만 `--force-report`(`not-reported` 만 통과)

@@ -1,5 +1,6 @@
 // close-lane.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/close-lane.sh 에 퇴역 보관).
-//   사용법: close-lane.mjs <레인> | --handle <h>  [--force-report] [--dry-run]
+//   사용법: close-lane.mjs <레인> | --handle <h>  [--force-report] [--force-user] [--dry-run]
+//   사람이 띄운 세션(session.spawned_by=user)은 닫지 않는다: `CLOSE_REFUSED <레인> user-session`(--force-user 로만 통과).
 //   끝난 레인·워커 세션의 탭을 닫고 사라졌는지 확인한다: bg 실행 확인 → 보고 확인 → 워크트리·브랜치 경고 → terminal close → 사라짐 확인(최대 15초) → 상태·이벤트.
 //   stdout: `CLOSED <레인> handle=<h>` · `CLOSE_REFUSED <레인> <사유>` · `DRY CLOSED <레인> handle=<h>`.
 // 옮길 때 bash 판이 기준이었다. 다른 스크립트(coord-state.mjs · office.mjs · heavy 스크립트)는 import 하지 않고 node 자식 프로세스로 부른다.
@@ -18,13 +19,14 @@ import { coordGit, coordHeavyScript, coordStateCall, laneType, rawOut, runScript
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 
 /** 도움말(= bash 판 머리말 2~10줄, 이름만 .mjs). */
-const HELP = `# 사용법: close-lane.mjs <레인> | --handle <h>  [--force-report] [--dry-run]
+const HELP = `# 사용법: close-lane.mjs <레인> | --handle <h>  [--force-report] [--force-user] [--dry-run]
 #   끝난 레인·워커 세션의 탭을 닫고 사라졌는지 확인한다(설계 §3.e 정리 절차, Q7 결정).
 #   Q7 순서 중 정본 메모 완료 갱신·산출물 복사는 조정자가 먼저 한다. 이 스크립트는 그 뒤의 기계적 부분:
 #   bg 실행 확인 → 보고 확인 → 워크트리·브랜치 남음 경고 → orca terminal close --tab → handle·세션 파일 사라짐 확인(최대 15초)
 #   → state lanes.<l>.state=closed · 이벤트.
 #   거부: bg-running(세션 자손이나 레인 워크트리에서 도는 빌드·시험, heavy.mjs RUN cwd 가 레인 워크트리)
 #         · not-reported(last_report_at 없음, --force-report 로 통과). worktree·branch 가 남은 것은 stderr 경고만.
+#         · user-session(lanes.<l>.session.spawned_by=user — 사람이 띄운 세션은 닫지 않음, --force-user 로 통과). 맨 먼저 판정.
 #   stdout: \`CLOSED <레인> handle=<h>\` 또는 \`CLOSE_REFUSED <레인> <사유>\`.
 #   --dry-run: 판정은 실제로, 닫기 직전에 멈추고 \`DRY CLOSED <레인> handle=<h>\`.
 `;
@@ -82,11 +84,12 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
     if (out.length) process.stdout.write(`${out.join('\n')}\n`);
   };
   try {
-    let lane = '', h = '', forceReport = false, dry = false;
+    let lane = '', h = '', forceReport = false, forceUser = false, dry = false;
     for (let i = 0; i < argv.length; i++) {
       const a = argv[i];
       if (a === '--handle') { h = argv[i + 1] ?? ''; i++; }
       else if (a === '--force-report') forceReport = true;
+      else if (a === '--force-user') forceUser = true;
       else if (a === '--dry-run') dry = true;
       else if (a === '-h' || a === '--help') {
         process.stdout.write(HELP);
@@ -94,7 +97,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
       } else if (a.startsWith('-')) throw new CoordDie(2, `모르는 옵션: ${a}`);
       else lane = a;
     }
-    if (lane === '' && h === '') throw new CoordDie(2, '사용법: close-lane.mjs <레인> | --handle <h> [--force-report] [--dry-run]');
+    if (lane === '' && h === '') throw new CoordDie(2, '사용법: close-lane.mjs <레인> | --handle <h> [--force-report] [--force-user] [--dry-run]');
     if (dry) c.env.COORD_DRY = '1';
     return await body();
 
@@ -122,13 +125,17 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
         lane = first;
       }
       const label = lane !== '' ? lane : '-';
-      let pid = '', wt = '', br = '', rep = '';
+      let pid = '', wt = '', br = '', rep = '', spawnedBy = '';
       if (lane !== '') {
         const lg = (sub) => stripNl(laneGet(c, lane, sub).out ?? '');
         pid = lg('.session.pid'); if (pid === '0') pid = '';
         wt = lg('.worktree'); br = lg('.branch'); rep = lg('.last_report_at');
+        spawnedBy = lg('.session.spawned_by');
       }
       const refuse = (reason, msg) => { out.push(`CLOSE_REFUSED ${label} ${reason}`); if (msg) c.log(msg); flush(); return 0; };
+
+      // 0. 사람이 띄운 세션은 닫지 않는다(사용자 결정 2026-10-10). 조정자는 회차에서 떼고 사용자에게 알린다(spawn.md §5).
+      if (spawnedBy === 'user' && !forceUser) return refuse('user-session', `레인 ${label} 은 사람이 띄운 세션(spawned_by=user)이다 — 닫지 않는다. 끝났으면 회차에서 떼고 사용자에게 한 줄 알릴 것(강제 = --force-user)`);
 
       // 레인 워크트리가 메인 체크아웃이면 cwd 대조를 하지 않는다
       const mainRepo = repo(c) ?? '';

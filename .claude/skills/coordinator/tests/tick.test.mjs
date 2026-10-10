@@ -4,10 +4,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync, existsSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { COORD_ROOT } from './support/rng.mjs';
+import { WATCH_INTERVAL_DEFAULT, ctxOver, filterRepeats, laneTokens, repeatKey } from '../scripts/tick.mjs';
 
 const TICK = join(COORD_ROOT, 'scripts', 'tick.mjs');
 const CSTATE = join(COORD_ROOT, 'scripts', 'coord-state.mjs');
@@ -167,5 +168,206 @@ test('--dry-run: state.json·이벤트를 쓰지 않고 DRY 줄만 stderr 로, �
     assert.equal(readFileSync(join(w.stateRoot, 'r1', 'state.json'), 'utf8'), before);
     assert.equal(w.events().length, evBefore);
     assert.equal(existsSync(join(w.stateRoot, 'r1', 'ticks', 'load')), true, 'ticks/load 는 dry-run 에서도 쓴다(옛 판과 같다)');
+  } finally { w.clean(); }
+});
+
+test('ctxOver: pct 임계 또는 토큰 상한', () => {
+  assert.equal(ctxOver({ pct: 45, thr: 40, tokens: 1000, max: 250000 }), true);
+  assert.equal(ctxOver({ pct: 30, thr: 40, tokens: 300000, max: 250000 }), true);
+  assert.equal(ctxOver({ pct: 30, thr: 40, tokens: 100000, max: 250000 }), false);
+  assert.equal(ctxOver({ pct: 30, thr: 40, tokens: NaN, max: 250000 }), false);
+  assert.equal(ctxOver({ pct: 30, thr: 40, tokens: 300000, max: 0 }), false);
+  assert.equal(ctxOver({ pct: NaN, thr: 40, tokens: 300000, max: 250000 }), true);
+});
+
+test('laneTokens: pct × window / 100 반올림', () => {
+  assert.equal(laneTokens(30, 1000000), 300000);
+  assert.equal(laneTokens(33, 200000), 66000);
+  assert.ok(Number.isNaN(laneTokens(30, NaN)));
+});
+
+function selfCtxWorld(cacheRead) {
+  const w = world();
+  w.cs('set', '.run.coordinator.session_id', '"self-sid"');
+  mkdirSync(join(w.stateRoot, 'ctx'), { recursive: true });
+  writeFileSync(join(w.stateRoot, 'ctx', 'self-sid.json'), JSON.stringify({
+    at: Math.floor(Date.now() / 1000), session_id: 'self-sid',
+    context_window: { context_window_size: 1000000, current_usage: { input_tokens: 10000, cache_read_input_tokens: cacheRead, cache_creation_input_tokens: 0 } },
+  }));
+  return w;
+}
+
+test('틱: 조정 세션 토큰이 coordinator_max 를 넘으면 pct 가 임계 아래여도 CTX_OVER_SELF', () => {
+  const w = selfCtxWorld(200000);
+  try {
+    const r = w.tick();
+    assert.match(r.stdout, /^CTX_OVER_SELF pct=21 thr=40 tokens=210000 max=200000$/m);
+  } finally { w.clean(); }
+});
+
+test('틱: 조정 세션 pid 가 있으면 pid 파일의 새 세션 id 로 잰다(/clear 뒤 relink 를 빠뜨려도)', () => {
+  const w = selfCtxWorld(200000);
+  try {
+    const sdir = join(w.dir, 'sessions');
+    mkdirSync(sdir);
+    writeFileSync(join(sdir, '4242.json'), JSON.stringify({ pid: 4242, sessionId: 'self-sid' }));
+    const cfg = JSON.parse(readFileSync(join(w.dir, 'repo', '.coord.local.json'), 'utf8'));
+    writeFileSync(join(w.dir, 'repo', '.coord.local.json'), JSON.stringify({ ...cfg, sessions_dir: sdir }));
+    w.cs('set', '.run.coordinator.session_id', '"stale-sid"');
+    w.cs('set', '.run.coordinator.pid', '4242');
+    assert.match(w.tick().stdout, /^CTX_OVER_SELF pct=21 thr=40 tokens=210000 max=200000$/m);
+    // pid 파일이 없으면 session_id 로 다시 잰다
+    w.cs('set', '.run.coordinator.session_id', '"self-sid"');
+    w.cs('set', '.run.coordinator.pid', '9999');
+    assert.match(w.tick().stdout, /^CTX_OVER_SELF pct=21 /m);
+  } finally { w.clean(); }
+});
+
+test('틱: 조정 세션 토큰이 상한 아래면 CTX_OVER_SELF 없음', () => {
+  const w = selfCtxWorld(90000);
+  try {
+    const r = w.tick();
+    assert.doesNotMatch(r.stdout, /CTX_OVER_SELF/);
+  } finally { w.clean(); }
+});
+
+test('틱: 풀 완료 줄은 POOL_DONE 으로 한 번만, note 보정 줄은 무시', () => {
+  const w = world();
+  try {
+    const pdir = join(w.stateRoot, 'r1', 'pool');
+    mkdirSync(pdir, { recursive: true });
+    const line = (o) => `${JSON.stringify(o)}\n`;
+    writeFileSync(join(pdir, 'log.jsonl'), line({ id: 'T1', lane: 'a1', result: 'ok', fallback: false }) + line({ id: 'T2', lane: 'a1', result: 'ratelimit', fallback: true }));
+    const r1 = w.tick();
+    assert.match(r1.stdout, /^POOL_DONE T1 lane=a1 result=ok fallback=0$/m);
+    assert.match(r1.stdout, /^POOL_DONE T2 lane=a1 result=ratelimit fallback=1$/m);
+    appendFileSync(join(pdir, 'log.jsonl'), line({ id: 'T1', lane: 'a1', result: 'ok', fallback: false, findings: 2 }));
+    const r2 = w.tick();
+    assert.doesNotMatch(r2.stdout, /POOL_DONE/);
+    appendFileSync(join(pdir, 'log.jsonl'), line({ id: 'T3', lane: 'b', result: 'fail', fallback: true }));
+    assert.match(w.tick().stdout, /^POOL_DONE T3 lane=b result=fail fallback=1$/m);
+  } finally { w.clean(); }
+});
+
+test('--watch: 줄이 있을 때만 쓰고 같은 줄은 반복하지 않는다', () => {
+  const w = world();
+  try {
+    const pdir = join(w.stateRoot, 'r1', 'pool');
+    mkdirSync(pdir, { recursive: true });
+    writeFileSync(join(pdir, 'log.jsonl'), `${JSON.stringify({ id: 'W1', lane: 'a1', result: 'ok', fallback: false })}\n`);
+    const r = w.tick('--watch', '--interval', '0', '--max-iter', '3');
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal((r.stdout.match(/POOL_DONE W1/g) || []).length, 1);
+    assert.doesNotMatch(r.stdout, /TICK quiet/);
+  } finally { w.clean(); }
+});
+
+test('--watch: 아무 일 없으면 출력 없음', () => {
+  const w = world({ heavy: { load_hard: 1000000, load_soft: 100000, load_release: 0.0000001 } });
+  try {
+    const r = w.tick('--watch', '--interval', '0', '--max-iter', '2');
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, '');
+  } finally { w.clean(); }
+});
+
+test('POOL_DONE: 로그가 줄거나 바뀌면 처음부터 읽되 낸 id 는 다시 내지 않는다', () => {
+  const w = world();
+  try {
+    const pdir = join(w.stateRoot, 'r1', 'pool'); const log = join(pdir, 'log.jsonl');
+    mkdirSync(pdir, { recursive: true });
+    const line = (o) => `${JSON.stringify(o)}\n`;
+    writeFileSync(log, line({ id: 'A', lane: 'x', result: 'ok' }) + line({ id: 'B', lane: 'x', result: 'ok' }));
+    assert.equal((w.tick().stdout.match(/POOL_DONE/g) || []).length, 2);
+    writeFileSync(log, line({ id: 'C', lane: 'y', result: 'fail', fallback: true }));
+    const r = w.tick();
+    assert.match(r.stdout, /^POOL_DONE C lane=y result=fail fallback=1$/m);
+    writeFileSync(log, line({ id: 'A', lane: 'x', result: 'ok' }));
+    assert.doesNotMatch(w.tick().stdout, /POOL_DONE/);
+  } finally { w.clean(); }
+});
+
+test('POOL_DONE: 옛 형식(줄 수) 표시 파일을 읽고, 끝나지 않은 줄·null 줄은 건너뛴다', () => {
+  const w = world();
+  try {
+    const pdir = join(w.stateRoot, 'r1', 'pool'); const log = join(pdir, 'log.jsonl');
+    mkdirSync(pdir, { recursive: true });
+    mkdirSync(join(w.stateRoot, 'r1', 'ticks'), { recursive: true });
+    writeFileSync(join(w.stateRoot, 'r1', 'ticks', 'pool'), '1\n');
+    writeFileSync(log, `${JSON.stringify({ id: 'O1', lane: 'a', result: 'ok' })}\nnull\n"str"\n${JSON.stringify({ id: 'N1', lane: 'a', result: 'ok' })}\n{"id":"P1","la`);
+    const r1 = w.tick();
+    assert.doesNotMatch(r1.stdout, /POOL_DONE O1/);
+    assert.match(r1.stdout, /^POOL_DONE N1 lane=a result=ok fallback=0$/m);
+    assert.doesNotMatch(r1.stdout, /P1/);
+    appendFileSync(log, 'ne":"a","result":"ok"}\n');
+    assert.match(w.tick().stdout, /^POOL_DONE P1 lane=a result=ok fallback=0$/m);
+  } finally { w.clean(); }
+});
+
+test('filterRepeats: repeat-min 안의 같은 줄은 거르고 지난 줄은 다시 쓰며 기록을 비운다', () => {
+  const m = new Map();
+  assert.deepEqual(filterRepeats(['a', 'b'], m, 0, 15), ['a', 'b']);
+  assert.deepEqual(filterRepeats(['a', 'c'], m, 14 * 60000, 15), ['c']);
+  assert.deepEqual(filterRepeats(['a'], m, 16 * 60000, 15), ['a']);
+  assert.equal(m.has('b'), false);
+  assert.deepEqual(filterRepeats(['a'], m, 16 * 60000, 0), ['a']);
+});
+
+test('filterRepeats: 값만 바뀐 같은 일(종류+대상)은 repeat-min 안에 다시 쓰지 않는다', () => {
+  const m = new Map();
+  assert.deepEqual(filterRepeats(['CTX_OVER a1 pct=41 thr=40 tokens=82000 max=-'], m, 0, 15), ['CTX_OVER a1 pct=41 thr=40 tokens=82000 max=-']);
+  assert.deepEqual(filterRepeats(['CTX_OVER a1 pct=42 thr=40 tokens=84000 max=-'], m, 5 * 60000, 15), []);
+  assert.deepEqual(filterRepeats(['UNACKED i-1 a1 20m', 'UNACKED i-1 a1 25m'], m, 6 * 60000, 15), ['UNACKED i-1 a1 20m']);
+  assert.deepEqual(filterRepeats(['LOAD_HARD per_core=2.1'], m, 0, 15), ['LOAD_HARD per_core=2.1']);
+  assert.deepEqual(filterRepeats(['LOAD_HARD per_core=2.4'], m, 5 * 60000, 15), []);
+  assert.deepEqual(filterRepeats(['CTX_OVER a1 pct=43 thr=40 tokens=86000 max=-'], m, 16 * 60000, 15), ['CTX_OVER a1 pct=43 thr=40 tokens=86000 max=-']);
+});
+
+test('filterRepeats: 대상이 다르면 거르지 않고, BAND_CHANGED 는 줄마다 새 일', () => {
+  const m = new Map();
+  assert.deepEqual(filterRepeats(['CTX_OVER a1 pct=41 thr=40 tokens=- max=-'], m, 0, 15).length, 1);
+  assert.deepEqual(filterRepeats(['CTX_OVER a2 pct=41 thr=40 tokens=- max=-', 'STALL a1 cpu_delta=0 quiet=12m', 'STALL? a1 bg=3m'], m, 60000, 15).length, 3);
+  assert.deepEqual(filterRepeats(['BAND_CHANGED G Y five=50 week=40'], m, 0, 15).length, 1);
+  assert.deepEqual(filterRepeats(['BAND_CHANGED Y R five=80 week=60'], m, 60000, 15).length, 1);
+  assert.equal(repeatKey('STALE_RUN r9 session=x idle=130m'), 'STALE_RUN r9');
+  assert.equal(repeatKey('POOL_DONE a1-T3 lane=a1 result=ok fallback=0'), 'POOL_DONE a1-T3');
+  assert.equal(repeatKey('CTX_OVER_SELF pct=41 thr=40 tokens=- max=-'), 'CTX_OVER_SELF');
+  assert.equal(repeatKey('LOAD_RELEASE per_core=0.5'), 'LOAD_RELEASE');
+  assert.equal(repeatKey('ESCALATE h1 permission not-proceed lane=a1'), 'ESCALATE h1 permission not-proceed lane=a1');
+});
+
+test('--watch 기본 주기는 300초이고 도움말에도 적혀 있다', () => {
+  assert.equal(WATCH_INTERVAL_DEFAULT, 300);
+  const r = spawnSync(process.execPath, [TICK, '-h'], { env: { PATH: process.env.PATH }, encoding: 'utf8' });
+  assert.match(r.stdout, /--interval 초\(기본 300\)/);
+});
+
+test('--watch: 회차가 없으면 조용히 0 으로 끝난다', () => {
+  const w = world();
+  try {
+    const r = w.tickEnv({ COORD_RUN: 'nope' }, '--watch', '--interval', '0', '--max-iter', '5');
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, '');
+  } finally { w.clean(); }
+});
+
+test('--watch --max-iter 1: 한 번 돌고 기다리지 않고 끝난다', () => {
+  const w = world();
+  try {
+    const t0 = Date.now();
+    const r = w.tick('--watch', '--interval', '3600', '--max-iter', '1');
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(Date.now() - t0 < 60000);
+  } finally { w.clean(); }
+});
+
+test('--interval·--max-iter·--repeat-min: 수가 아니거나 음수면 종료 코드 2', () => {
+  const w = world();
+  try {
+    for (const args of [['--interval', 'x'], ['--max-iter', '-1'], ['--repeat-min', '-5'], ['--interval'], ['--max-iter', '1.5']]) {
+      const r = w.tick('--watch', ...args);
+      assert.equal(r.status, 2, args.join(' '));
+      assert.match(r.stderr, /0 이상의 수/);
+    }
   } finally { w.clean(); }
 });

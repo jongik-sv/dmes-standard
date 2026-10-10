@@ -63,23 +63,36 @@
 
 - 워크트리·브랜치 잔존: `git_bin worktree list`, `git_bin branch`
 - Orca 터미널 목록, reclaimable 워커
-- 안 끝난 세션 → `spawn.md` §5 절차로 닫음 (`close-lane.mjs`)
+- 안 끝난 세션
+  - 조정자가 띄운 것(`spawned_by = "coordinator"`) → `spawn.md` §5 절차로 닫음 (`close-lane.mjs`)
+  - 사람이 띄운 것(`spawned_by = "user"`) → 닫지 않음. 회차에서 떼고 사용자에게 한 줄(`spawn.md` §5)
 - 레인 정리 완료 보고에 「남은 백그라운드 0」 있는지 확인
   - 대상: 시험 입력·성능 측정·로컬 DB·고아 `awk` 등
   - 없음 → 되물음
   - 없음 → `ps` 로 그 레인 워크트리를 cwd 로 둔 프로세스 확인 (`heavy.md` §7)
-- 감시 cron 삭제
-  1. state `run.cron_id` 로 `CronDelete`
-  2. `coord-state.mjs set '.run.cron_id' null`
+- 감시 정리
+  1. `tick.mjs --watch` Monitor 중지(`TaskStop`). `--watch` 는 회차가 없어져도 끝나지만 `close-run` 전에 직접 멈춤
+  2. state `run.cron_id` 로 `CronDelete`
+  3. `coord-state.mjs set '.run.cron_id' null`
 - 측정·금지 창 모두 닫힘 (`measure-window.mjs status`)
 - `load.banned` 비어 있음
 - `wake_targets` 갱신 필요 여부
 - 임시 파일·잠금 정리 = 스크립트가 만든 것만. 삭제가 필요한 것은 사용자 결정 목록으로
 
+## 4.5 측정
+
+- `node scripts/run-metrics.mjs` 실행 → `METRICS …` 한 줄 확인
+  - `<회차>/metrics.md` 생성, `<state_dir>/metrics.csv` 에 한 줄 추가
+  - 실패해도 마감은 계속. 사용자에게 한 줄 알림
+- §5 최종 보고 입력에 `metrics.md` 추가
+- 목표값(설계 2026-10-10 §7.2)과 비교한 한 줄을 SUMMARY 에 기재
+  - 예: `1천 줄당 $6.2(목표 $7) · 조정 9%(목표 10%) · 풀 줄 34%`
+
 ## 5. 마감 보고(판단 올리기)
 
 - 결정·후속 정리 = `opus` / `high` 서브에이전트
 - 넘길 것: `summary.md`, `events.jsonl` 의 결정 이벤트
+- 넘길 것: `metrics.md`(§4.5)
 - 넘길 것: `merge.history`, `pending_user`, 백로그
 - 정리시킬 칸
   - 머지 목록: 레인별 커밋 해시(ff-only 로 들어온 단일 commit)와 트리

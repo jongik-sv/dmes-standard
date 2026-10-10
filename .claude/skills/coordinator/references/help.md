@@ -8,15 +8,15 @@
 - 조정 세션 하나(이 세션)의 일
   - 분해·머지 허가·idle 감시와 자동 배정
   - 고부하 조절·사용량 조절·compact·마감
-- 조정 세션 = effort medium. 무거운 판단 = opus/high 서브에이전트
+- 조정 세션 = token 모드 sonnet/medium, time 모드 opus/medium. 무거운 판단 = opus/high 서브에이전트
 
 ## 명령
 
 - `/coordinator start <run-id> [목표]`: 새 회차 시작
-  - 설정 확인, 상태 폴더 생성, 업무 분해, 레인 확보, 착수 지시, 감시 cron 생성
+  - 설정 확인, 상태 폴더 생성, 업무 분해, 레인 확보, 착수 지시, 감시 시작(`tick.mjs --watch` Monitor + 하트비트 cron)
   - `<run-id>` = 상태 폴더 이름(예: `refactor-2026-10`)
 - `/coordinator tick`: 감시 틱 1회. 변화 없으면 말 없이 끝
-  - 감시 cron(`tick.cron`) = 이 명령 대신 SKILL.md 머리의 고정 문구 사용
+  - 이벤트 틱 = Monitor 가 `tick.mjs --watch` 를 감시, 하트비트 cron(`mode.heartbeat_min`) = 이 명령 대신 SKILL.md 머리의 고정 문구 사용
 - `/coordinator status`: 레인별 상태표(busy/idle, 마지막 보고, ctx %)
   - 진도율, PC 부하, 사용량 띠 포함. 레인에 다시 묻지 않음
 - `/coordinator merge <레인>`: 그 레인의 머지 요청을 `merge-gate.mjs` 로 검사 → 허가 또는 대기 전송
@@ -25,7 +25,10 @@
   - `<분>` 뒤 닫음
 - `/coordinator close <레인>`: 끝난 레인 세션 정리·종료(`close-lane.mjs`)
   - 백그라운드가 돌거나 마지막 보고가 없으면 거절
-- `/coordinator finish`: 마감. 통합 확인, SUMMARY, 정리 확인, 마감 보고, 감시 cron 삭제
+- `/coordinator finish`: 마감. 통합 확인, SUMMARY, 정리 확인, 마감 보고, 감시 정리(Monitor 중지·cron 삭제)
+- `/coordinator metrics`: 이 회차 지표(Claude 비용·1천 줄당 비용·조정 세션 비중·풀·결정)
+  - `run-metrics.mjs --stdout --no-csv`. 마감 때는 자동(`metrics.md`·누적 CSV)
+- `/coordinator mode <token|time>`: 회차 모드 바꾸기. 기본 token, 「빠르게」 요청 = time
 - `/coordinator help`: 이 문서
 
 ## 설정

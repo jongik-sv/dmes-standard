@@ -29,7 +29,8 @@ test('COORD_DEFAULTS: contract.md §1.2 설정 표의 키를 모두 가지고, �
   // 문서 규칙 키(스크립트가 읽지 않아 기본값 글에 없다) · wbs.* 는 wbs.mjs 가 키가 없을 때의 값(auto_open=true, metrics_cmd 없음)을 직접 쓴다: 표에는 있으나 COORD_DEFAULTS 에는 없는 것
   const DOC_ONLY = ['merge.auto_build', 'merge.auto_push', 'wbs.auto_open', 'wbs.metrics_cmd'];
   assert.deepEqual(keys.filter((k) => !has(d, k) && !DOC_ONLY.includes(k)), [], 'contract.md 에는 있는데 COORD_DEFAULTS 에 없는 키');
-  const OPAQUE = ['by_window', 'bands', 'agents_by_band', 'opencode'];   // 객체째 한 줄로 적힌 값 또는 하위 키가 별도 행인 부모
+  const OPAQUE = ['by_window', 'bands', 'agents_by_band', 'opencode',
+    'lanes_max', 'heartbeat_min', 'workflow_min_items', 'model_by_mode', 'agents_by_mode', 'timeout_min', 'prices'];   // 객체째 한 줄로 적힌 값 또는 하위 키가 별도 행인 부모
   const leaves = (o, pre = '') => Object.entries(o).flatMap(([k, v]) => (v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length && !OPAQUE.includes(k) ? leaves(v, `${pre}${k}.`) : [`${pre}${k}`]));
   assert.deepEqual(leaves(d).filter((k) => !keys.includes(k) && k !== 'search.opencode'), [], 'COORD_DEFAULTS 에는 있는데 contract.md 에 없는 키');
 });
@@ -109,4 +110,32 @@ test('cfgSub: 설정 파일 JSON 오류는 삼키고 빈 글을 돌려주며 std
     assert.equal(cfgSub(c, '.state_dir'), '');
     assert.match(c.err, /설정 파일 JSON 오류/);
   } finally { rmSync(d, { recursive: true, force: true }); }
+});
+
+test('토큰·시간 개편 설정 키 기본값', () => {
+  const d = JSON.parse(COORD_DEFAULTS);
+  assert.equal(d.mode.default, 'token');
+  assert.deepEqual(d.mode.lanes_max, { time: 6, token: 3 });
+  assert.deepEqual(d.mode.heartbeat_min, { time: 15, token: 30 });
+  assert.deepEqual(d.mode.workflow_min_items, { time: 2, token: 4 });
+  assert.equal(d.compact.coordinator_max, 200000);
+  assert.equal(d.compact.lane_max, 250000);
+  assert.deepEqual(d.coordinator.model_by_mode, { time: 'opus/medium', token: 'sonnet/medium' });
+  assert.deepEqual(d.workflow.agents_by_mode.token, { G: 4, Y: 3, O: 2, R: 0 });
+  assert.deepEqual(d.workflow.agents_by_mode.time, { G: 6, Y: 5, O: 3, R: 0 });
+  assert.equal(d.pool.opencode_max, 3);
+  assert.equal(d.pool.glm_max, 1);
+  assert.deepEqual(d.pool.order, ['opencode', 'glm']);
+  assert.deepEqual(d.pool.timeout_min, { S: 20, M: 40 });
+  assert.equal(d.pool.cooldown_min, 30);
+  assert.equal(d.pool.opencode_command, 'opencode run --standalone {prompt}');
+  assert.equal(d.pool.glm_command, null);
+  assert.equal(d.pool.notify, true);
+  assert.deepEqual(d.metrics.prices['claude-opus-5-5'], [4, 20, 0.2]);
+  assert.ok(d.metrics.exclude.includes('*.csv'));
+  assert.equal(d.metrics.gap_min, 15);
+  assert.equal(d.metrics.csv, 'metrics.csv');
+  const rows = d.workflow.model_table;
+  assert.ok(rows.some((r) => r.mode === 'token' && r.model === 'sonnet' && r.effort === 'medium'));
+  assert.ok(rows.some((r) => r.mode === 'time' && r.model === 'opus'));
 });
