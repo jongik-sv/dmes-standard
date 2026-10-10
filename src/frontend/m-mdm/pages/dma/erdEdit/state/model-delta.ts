@@ -5,7 +5,7 @@
  *   서버는 rev 마다 change 하나를 보내고, DRAFT 표지 rev 는 reload 로 보낸다(단계 0). 그래서 rev 는 빈틈없이 이어진다.
  * - 바뀐 모음만 새 객체로 바꾸고 나머지는 참조를 그대로 둔다(캔버스 참조 안정, Local-Rules §19). 입력은 바꾸지 않는다.
  */
-import type { ErdChange, ErdDelta, ErdModelJson, ErdModelView, ErdState } from "../types";
+import type { ErdChange, ErdDelta, ErdModelJson, ErdModelView, ErdState, ErdVersionEvent } from "../types";
 
 export const nodeKey = (diagram: string, table: string): string => `${diagram}:${table}`;
 
@@ -73,10 +73,19 @@ export function applyDelta(state: ErdState, d: ErdDelta): DeltaOutcome {
       if (!put(nodes as unknown as Record<string, unknown>, c)) return { kind: "gap" };
     }
   }
-  return { kind: "applied", state: { ...state, rev: d.rev, model, diagrams, nodes } };
+  // rowVersion 은 값이 있을 때만(재전송·다이어그램만은 null, S2-16)
+  return { kind: "applied", state: { ...state, rev: d.rev, rowVersion: d.rowVersion ?? state.rowVersion, model, diagrams, nodes } };
 }
 
 /** 표준 상태를 다시 읽어야 하는 델타인가(표·컬럼이 바뀜). */
 export function touchesColumns(d: ErdDelta): boolean {
   return d.changes.some((c) => c.kind === "column" || c.kind === "table");
+}
+
+const sameList = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
+
+/** version 이벤트(S2-12) — 버전 칸만 바꾼다. 같으면 같은 객체. ver 가 다르면 부르는 쪽이 모델을 다시 읽는다. */
+export function withVersion(s: ErdState, ev: ErdVersionEvent): ErdState {
+  if (s.status === ev.status && s.ownerId === ev.ownerId && s.rowVersion === ev.rowVersion && sameList(s.editors, ev.editors)) return s;
+  return { ...s, status: ev.status, ownerId: ev.ownerId, editors: ev.editors, rowVersion: ev.rowVersion };
 }

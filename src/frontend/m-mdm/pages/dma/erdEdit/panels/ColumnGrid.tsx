@@ -8,6 +8,7 @@ import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 
 import { keyMarks } from "../canvas/erd-flow";
 import { typeText } from "../canvas/erd-geometry";
+import type { ErdEditContext } from "../edit-context";
 import type { ErdColumnStatus, ErdModelJson, ErdStatusView } from "../types";
 
 export const STATUS_LABEL: Record<ErdColumnStatus, string> = {
@@ -55,14 +56,16 @@ export function columnRows(model: ErdModelJson, tableId: string | null, status: 
 }
 
 export interface ColumnGridProps {
-  model: ErdModelJson | null;
+  /** 편집 문맥(Task 9). FE3 Task 14 가 칸 편집·그리드 키를 더한다. */
+  ctx: ErdEditContext;
   tableId: string | null;
-  status: ErdStatusView | null;
 }
 
-export function ColumnGrid({ model, tableId, status }: ColumnGridProps) {
-  const rows = useMemo(() => (model ? columnRows(model, tableId, status) : []), [model, tableId, status]);
-  const table = model && tableId ? model.tables[tableId] : undefined;
+export function ColumnGrid({ ctx, tableId }: ColumnGridProps) {
+  const model = ctx.state.model;
+  const status = ctx.status;
+  const rows = useMemo(() => columnRows(model, tableId, status), [model, tableId, status]);
+  const table = tableId ? model.tables[tableId] : undefined;
   return (
     <GridPanel title={table ? table.logical || table.phys : "컬럼"} count={rows.length}
       titleExtra={table ? <span className="erd-mono">{table.phys}</span> : undefined}>

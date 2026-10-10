@@ -52,7 +52,10 @@ export interface ErdModelJson {
 
 export interface ErdDiagram { id: string; areaName: string; diagramName: string; sortSeq: number }
 export interface ErdDiagramNode { diagram: string; table: string; x: number; y: number; foldMode: ErdFoldMode }
-export interface ErdPresence { session: string; userId: string; source: ErdSource; diagramId: string | null; selectedTables: string[]; at: string }
+/** 접속자. expiresAt: SSE 구독자는 null, MCP·CLI 시한 항목은 만료 시각(S2-11). 단계 1 서버는 이 칸을 싣지 않는다. */
+export interface ErdPresence {
+  session: string; userId: string; source: ErdSource; diagramId: string | null; selectedTables: string[]; at: string; expiresAt?: string | null;
+}
 export interface ErdClaim { tableId: string; session: string; userId: string; expiresAt: string }
 
 /** search 응답 행. */
@@ -70,15 +73,23 @@ export type ErdChangeKind = "table" | "column" | "key" | "relation" | "diagram" 
 
 /** 델타 한 건. upsert 면 요소 JSON 전체, delete 면 null, patch 면 바뀐 속성만(되돌리기). diagramNode id 는 "다이어그램:표". */
 export interface ErdChange { kind: ErdChangeKind; id: string; op: "upsert" | "delete" | "patch"; value: Record<string, unknown> | null }
-export interface ErdDelta { modelId: string; rev: number; userId: string; session: string; source: ErdSource; changes: ErdChange[] }
+/** rowVersion: 실시간 발행만 값이 있다. 재전송·getChangesSince·다이어그램만 바꾼 델타는 null 이거나 없다(S2-16). */
+export interface ErdDelta {
+  modelId: string; rev: number; userId: string; session: string; source: ErdSource; rowVersion?: number | null; changes: ErdChange[];
+}
 export interface ErdChangesView { rev: number; reload: boolean; deltas: ErdDelta[] }
 
 export interface ErdRejection {
   code: string; commandIndex: number; message: string; hint: string | null; elementId: string | null; property: string | null;
-  byRev: number | null; bySession: string | null; current: unknown; choices: unknown; ownerId: string | null;
+  /** byUserId: byRev 의 명령 기록 USER_ID(S2-13). 단계 1 서버는 싣지 않는다 — 읽을 때 `?? null`. */
+  byRev: number | null; bySession: string | null; byUserId: string | null; current: unknown; choices: unknown; ownerId: string | null;
 }
 export interface ErdWarning { code: string; elementId: string | null; message: string; claimedBy: string | null; expiresAt: string | null }
-export interface ErdApplyResult { applied: boolean; rev: number; changes: ErdChange[]; warnings: ErdWarning[]; rejection: ErdRejection | null }
+/** save·restore 응답. rowVersion 은 DRAFT 행 ROW_VERSION 을 올렸을 때만 값이 있다(다이어그램만·거절·dryRun 은 null). */
+export interface ErdApplyResult {
+  applied: boolean; rev: number; rowVersion: number | null; dryRun?: boolean;
+  changes: ErdChange[]; warnings: ErdWarning[]; rejection: ErdRejection | null;
+}
 
 export interface ErdImportSummary {
   tables: number; columns: number; keys: number; relations: Partial<Record<"DB" | "INFERRED", number>>; diagramId: string;
@@ -117,3 +128,33 @@ export interface ErdState {
   presence: ErdPresence[];
   claims: ErdClaim[];
 }
+
+// ── 단계 2(README "화면 내부 계약") ──
+export type ErdVersionReason = "SUBSCRIBE" | "CONFIRM" | "LOCK" | "UNLOCK" | "HANDOVER" | "ADD_EDITOR" | "REMOVE_EDITOR";
+/** SSE version(S2-12) — rev 를 올리지 않는다. 값은 그 시점 view(ver 없음)가 돌려줄 값과 같다. */
+export interface ErdVersionEvent {
+  modelId: string; ver: string; status: string; ownerId: string | null; editors: string[];
+  rowVersion: number; reason: ErdVersionReason; userId: string; at: string;
+}
+/** execute kind=CLAIM 응답(S2-26). ok 와 상관없이 지금 그 표를 쥔 세션을 준다. */
+export interface ErdClaimResult { ok: boolean; claimedBy: string | null; userId: string | null; expiresAt: string | null }
+export interface ErdDiffApplySummary {
+  items: number; tablesAdded: number; tablesRemoved: number; columnsAdded: number; columnsRemoved: number;
+  columnsChanged: number; relationsAdded: number; dbFkSet: number; dbFkCleared: number; removedIds: string[];
+}
+/** import kind=APPLY_DIFF 응답(S2-14). summary 는 거절이면 null. */
+export interface ErdDiffApplyResult extends ErdApplyResult { summary: ErdDiffApplySummary | null }
+export interface ErdTermRef { termId: number; termName: string; engAbbr: string | null }
+export interface ErdNameToken {
+  seq: number; surface: string; status: "MATCHED" | "SYNONYM" | "AMBIGUOUS" | "NO_ABBR" | "UNKNOWN";
+  selected: ErdTermRef | null; abbr: string; candidates: { term: ErdTermRef; via: "NAME" | "SYNONYM" | "ALIAS" }[];
+}
+/** compare(kind 없음) 응답 — 논리명·물리명 미리보기. */
+export interface ErdNamePreview {
+  physName: string; logicalName: string; tokens: ErdNameToken[]; recommendedDomainId: number | null; status: ErdColumnStatus;
+}
+export interface ErdCheckIssue { code: string; message: string; field: string | null; itemKey: string | null }
+/** validate 응답(ConfirmCheckResult). errors 가 비면 확정할 수 있다. */
+export interface ErdConfirmCheck { errors: ErdCheckIssue[]; warnings: ErdCheckIssue[] }
+/** 명령 JSON 한 건(스펙 4.1). 모양은 서버가 판정한다. */
+export type ErdCommandJson = { op: string } & Record<string, unknown>;

@@ -135,7 +135,7 @@ describe("useErdModel + useErdStream", () => {
   });
 
   function Harness({ load }: { load: (id: string) => Promise<ErdModelView> }) {
-    const m = useErdModel("mcm", load);
+    const m = useErdModel("mcm", "ui-t", "tester", load);
     const handlers = useMemo(() => ({
       onHello: () => undefined, onDelta: m.applyDelta, onReload: () => void m.reload(), onPresence: m.setPresence, onClaims: m.setClaims,
     }), [m.applyDelta, m.reload, m.setPresence, m.setClaims]);

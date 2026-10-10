@@ -3,6 +3,8 @@
  * (Local-Rules §17). 색은 의미 토큰만 쓴다(§8). 논리 모드 배경은 푸른 계열, 물리 모드 배경은 붉은 계열이다(스펙 8절 F3).
  * xyflow 스타일시트(.react-flow__handle·.react-flow__edge-path)와 겨루는 규칙은 선택자를 한 단계 높인다. 두 스타일의 순서가 정해지지 않아서다.
  */
+import { CORE_CSS } from "../panels/core-styles";
+
 export const ERD_STYLE_HREF = "dmes-erd-edit";
 
 export const ERD_CSS = `
@@ -83,4 +85,4 @@ export const ERD_CSS = `
   .erd-app { grid-template-columns: 200px minmax(0, 1fr); grid-template-rows: auto minmax(360px, 1fr) 280px 260px;
     grid-template-areas: "bar bar" "side center" "grid grid" "review review"; }
 }
-`;
+` + CORE_CSS;

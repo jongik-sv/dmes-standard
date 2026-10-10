@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 아래 검토 패널(스펙 2.2) — 표준 위반 / 추정 관계 검토(확정·기각, 접힌 후보 포함, S7) / DB 차이(읽기, S4) / 변경 기록(view sinceRev).
+ * 아래 검토 패널(스펙 2.2) — 표준 위반 / 추정 관계 검토(확정·기각, 접힌 후보 포함, S7) / DB 차이(DbDiffApply) / 변경 기록(ChangeLog).
  * 확정·기각 단추는 읽기 전용·연결 끊김·처리 중이면 막는다(locked). 단추 열 정의는 locked·onDecide 가 바뀔 때만 새로 만든다(Local-Rules §20).
  * 행을 누르면 그 표를 고른다(컬럼 그리드·캔버스가 따라간다).
  */
@@ -12,9 +12,11 @@ import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Tabs, type TabItem } from "@dk-oasis/shared/tabs";
 
 import type { RelationDecision } from "../api";
-import { typeText } from "../canvas/erd-geometry";
-import type { ErdChangesView, ErdColumnSpec, ErdColumnStatus, ErdDbDiffItem, ErdDbDiffView, ErdModelJson, ErdStatusView } from "../types";
+import type { ErdEditContext } from "../edit-context";
+import type { ErdChangesView, ErdColumnStatus, ErdDbDiffView, ErdModelJson, ErdStatusView } from "../types";
+import { ChangeLog } from "./ChangeLog";
 import { statusBadge } from "./ColumnGrid";
+import { DbDiffApply } from "./DbDiffApply";
 
 export type ReviewTab = "violations" | "inferred" | "diff" | "history";
 
@@ -76,33 +78,6 @@ export function inferredRows(model: ErdModelJson): InferredRow[] {
     .map(({ order: _order, ...row }) => row);
 }
 
-const DIFF_LABEL: Record<ErdDbDiffItem["kind"], string> = {
-  TABLE_ADDED: "DB 에 생긴 표", TABLE_REMOVED: "DB 에서 사라진 표", COLUMN_ADDED: "DB 에 생긴 컬럼", COLUMN_REMOVED: "DB 에서 사라진 컬럼",
-  COLUMN_CHANGED: "컬럼 다름", FK_ADDED: "DB 에 생긴 FK", FK_REMOVED: "DB 에서 사라진 FK",
-};
-
-const specText = (s: ErdColumnSpec | null): string => (s ? `${typeText(s)}${s.notNull ? " NN" : ""}` : "");
-
-export function diffRows(view: ErdDbDiffView | null): Record<string, unknown>[] {
-  if (!view) return [];
-  return view.items.map((i) => ({ id: i.id, kind: DIFF_LABEL[i.kind], table: i.table, column: i.column ?? "", before: specText(i.before), after: specText(i.after) }));
-}
-
-const KIND_LABEL: Record<string, string> = { table: "표", column: "컬럼", key: "키", relation: "관계", diagram: "다이어그램", diagramNode: "배치" };
-
-/** 최근 rev 부터. 변경은 종류별 수로 줄인다. */
-export function historyRows(view: ErdChangesView | null): Record<string, unknown>[] {
-  if (!view) return [];
-  return [...view.deltas].reverse().map((d) => {
-    const counts = new Map<string, number>();
-    for (const c of d.changes) counts.set(c.kind, (counts.get(c.kind) ?? 0) + 1);
-    return {
-      id: String(d.rev), rev: d.rev, userId: d.userId, session: d.session, source: d.source,
-      summary: [...counts].map(([k, n]) => `${KIND_LABEL[k] ?? k} ${n}`).join("·"),
-    };
-  });
-}
-
 const VIOLATION_COLUMNS: GridColumn[] = [
   { key: "table", header: "표", width: 200, meta: false },
   { key: "column", header: "컬럼", width: 180, meta: false },
@@ -110,21 +85,6 @@ const VIOLATION_COLUMNS: GridColumn[] = [
   { key: "status", header: "상태", width: 110, align: "center", meta: false, tooltip: false, render: statusBadge },
   { key: "domain", header: "도메인", width: 140, meta: false },
 ];
-const DIFF_COLUMNS: GridColumn[] = [
-  { key: "kind", header: "종류", width: 150, meta: false },
-  { key: "table", header: "표", width: 200, meta: false },
-  { key: "column", header: "컬럼", width: 160, meta: false },
-  { key: "before", header: "모델", width: 160, meta: false },
-  { key: "after", header: "DB", width: 160, meta: false },
-];
-const HISTORY_COLUMNS: GridColumn[] = [
-  { key: "rev", header: "rev", width: 70, align: "right", meta: false },
-  { key: "userId", header: "사용자", width: 120, meta: false },
-  { key: "session", header: "세션", width: 160, meta: false },
-  { key: "source", header: "출처", width: 70, align: "center", meta: false },
-  { key: "summary", header: "변경", width: 260, meta: false },
-];
-
 function inferredColumns(onDecide: (relationId: string, op: RelationDecision) => void, locked: boolean): GridColumn[] {
   return [
     { key: "child", header: "자식(FK 쪽)", width: 240, meta: false },
@@ -148,6 +108,7 @@ function inferredColumns(onDecide: (relationId: string, op: RelationDecision) =>
 }
 
 export interface ReviewPanelProps {
+  ctx: ErdEditContext | null;
   model: ErdModelJson | null;
   status: ErdStatusView | null;
   tab: ReviewTab;
@@ -162,12 +123,10 @@ export interface ReviewPanelProps {
 }
 
 export function ReviewPanel({
-  model, status, tab, onTab, diff, history, onReloadDiff, onReloadHistory, onDecide, onSelectTable, locked,
+  ctx, model, status, tab, onTab, diff, history, onReloadDiff, onReloadHistory, onDecide, onSelectTable, locked,
 }: ReviewPanelProps) {
   const violations = useMemo(() => (model ? violationRows(model, status) : []), [model, status]);
   const inferred = useMemo(() => (model ? inferredRows(model) : []), [model]);
-  const diffList = useMemo(() => diffRows(diff), [diff]);
-  const historyList = useMemo(() => historyRows(history), [history]);
   const inferredCols = useMemo(() => inferredColumns(onDecide, locked), [onDecide, locked]);
   const onRow = useCallback((row: Record<string, unknown>) => {
     if (typeof row.tableId === "string") onSelectTable(row.tableId);
@@ -206,14 +165,8 @@ export function ReviewPanel({
             <AgDataGrid gridId="erdInferred" columnSizing="fit" columns={inferredCols} data={inferred} rowKey="id" onRowClick={onRow}
               emptyMessage="검토할 추정 관계가 없습니다." />
           )}
-          {tab === "diff" && (
-            <AgDataGrid gridId="erdDbDiff" columnSizing="fit" columns={DIFF_COLUMNS} data={diffList} rowKey="id"
-              emptyMessage={diff ? "DB 와 모델이 같습니다." : "DB 차이를 읽는 중입니다."} />
-          )}
-          {tab === "history" && (
-            <AgDataGrid gridId="erdHistory" columnSizing="fit" columns={HISTORY_COLUMNS} data={historyList} rowKey="id"
-              emptyMessage={history ? "변경 기록이 없습니다." : "변경 기록을 읽는 중입니다."} />
-          )}
+          {tab === "diff" && ctx && <DbDiffApply ctx={ctx} diff={diff} onReload={onReloadDiff} />}
+          {tab === "history" && <ChangeLog history={history} />}
         </div>
       </div>
     </div>

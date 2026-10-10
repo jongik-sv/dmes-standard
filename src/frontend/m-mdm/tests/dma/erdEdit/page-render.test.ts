@@ -23,6 +23,7 @@ const STATUS = {
 
 let calls: Array<{ action: string; params: Record<string, unknown> }> = [];
 let currentView: ErdModelView;
+let restoreResult: unknown;
 let host: HTMLDivElement;
 let root: Root | null = null;
 
@@ -57,6 +58,7 @@ function stubFetch() {
       return ok({ applied: true, rev: currentView.rev + 1, warnings: [], rejection: null,
         changes: [{ kind: "relation", id: "r-1", op: "patch", value: { state: "CONFIRMED" } }] });
     }
+    if (action === "restore") return ok(restoreResult);
     if (action === "import") {
       return ok({ applied: true, rev: 4, changes: [], warnings: [], rejection: null,
         summary: { tables: 2, columns: 4, keys: 2, relations: { DB: 0, INFERRED: 1 }, diagramId: "d-all" } });
@@ -126,6 +128,8 @@ beforeEach(() => {
   // 다른 화면 렌더 시험(dmb/layoutMng/page-render.test.ts)과 같이 갈음한다.
   vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {}, removeItem: () => {}, clear: () => {} });
   currentView = viewOf(menuModel(), MENU_DIAGRAMS);
+  restoreResult = { applied: true, rev: 5, rowVersion: 2, warnings: [], rejection: null,
+    changes: [{ kind: "relation", id: "r-1", op: "patch", value: { state: "INFERRED" } }] };
   stubFetch();
 });
 
@@ -271,5 +275,44 @@ describe("erdEdit 화면", () => {
     } finally {
       document.removeEventListener("keydown", portalF3);
     }
+  });
+
+  const key = (target: EventTarget, init: KeyboardEventInit) =>
+    act(async () => {
+      target.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init }));
+    });
+
+  it("Ctrl+Z 는 내 마지막 반영을 restore 로 되돌리고, 되돌리기 rev 는 다시 되돌리지 않으며, 입력 칸 안에서는 넘긴다", async () => {
+    await openModel();
+    await click(byTestId("erd-tab-inferred"));
+    await click(await waitFor(() => byTestId("erd-confirm-r-1")));
+    expect(byTestId("erd-rev")?.textContent).toBe("rev 4");
+    const input = document.createElement("input");
+    host.appendChild(input);
+    await key(input, { key: "z", ctrlKey: true });
+    expect(calls.filter((c) => c.action === "restore")).toHaveLength(0);
+    await key(document.body, { key: "z", ctrlKey: true });
+    await settle();
+    expect(calls.filter((c) => c.action === "restore").map((c) => c.params)).toEqual([
+      { modelId: "mcm", rev: 4, session: expect.stringMatching(/^ui-/), source: "UI" },
+    ]);
+    expect(byTestId("erd-rev")?.textContent).toBe("rev 5");
+    await key(document.body, { key: "z", metaKey: true });
+    await settle();
+    expect(calls.filter((c) => c.action === "restore")).toHaveLength(1);
+    expect(byTestId("erd-message")?.textContent).toBe("되돌릴 내 변경이 없습니다.");
+  });
+
+  it("Ctrl+K 는 표 찾기 칸을 열고 Alt+O(물리 키 KeyO)는 컬럼 점프를 연다. 입력 칸 안 Ctrl+K 는 넘긴다", async () => {
+    await openModel();
+    const input = document.createElement("input");
+    host.appendChild(input);
+    await key(input, { key: "k", ctrlKey: true });
+    expect(byTestId("erd-find-widget")).toBeNull();
+    await key(document.body, { key: "k", ctrlKey: true });
+    expect(byTestId("erd-find-widget")).not.toBeNull();
+    expect(byTestId("erd-column-jump")).toBeNull();
+    await key(document.body, { key: "ø", code: "KeyO", altKey: true }); // macOS Option+O 는 key 가 바뀐다
+    expect(byTestId("erd-column-jump")).not.toBeNull();
   });
 });

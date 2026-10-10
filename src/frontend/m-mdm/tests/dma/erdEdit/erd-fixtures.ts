@@ -1,4 +1,7 @@
 // ERD 화면 시험 공용 모델. 시험 파일이 아니다(vitest 는 *.test.ts 만 모은다).
+import { vi } from "vitest";
+
+import type { ApplyOutcome, ErdEditContext } from "../../../pages/dma/erdEdit/edit-context";
 import { fromView } from "../../../pages/dma/erdEdit/state/model-delta";
 import type {
   ErdColumn, ErdDiagram, ErdDiagramNode, ErdModelJson, ErdModelView, ErdRelation, ErdState, ErdTable,
@@ -93,4 +96,25 @@ export class FakeEventSource {
     const e = { data: data === undefined ? "" : JSON.stringify(data) } as MessageEvent;
     for (const fn of this.listeners.get(type) ?? []) fn(e);
   }
+}
+
+const OK_RIGHT = { ok: true, reason: null } as const;
+
+/**
+ * 패널·캔버스 시험용 편집 문맥(FE2·FE3 공용). apply 는 vi.fn 이고 기본은 반영(rev+1)이다. over 로 칸을 바꾼다.
+ * 예: fakeEditContext(s, { apply: vi.fn(async () => ({ ok: false, notice })) }).
+ */
+export function fakeEditContext(state: ErdState, over: Partial<ErdEditContext> = {}): ErdEditContext {
+  const applied: ApplyOutcome = { ok: true, rev: state.rev + 1, warnings: [] };
+  return {
+    modelId: state.modelId, session: "ui-test0001", me: "tester", state, status: null,
+    rights: { model: OK_RIGHT, diagram: OK_RIGHT, confirm: OK_RIGHT, manageEditors: OK_RIGHT, owner: true },
+    diagramId: Object.keys(state.diagrams)[0] ?? null, selectedTableId: null, selectedColumnId: null, highlight: null,
+    pendingIds: new Set<string>(),
+    apply: vi.fn(async () => applied),
+    exclusive: (<T,>(fn: () => Promise<T>) => fn()) as ErdEditContext["exclusive"],
+    clearHighlight: vi.fn(), notify: vi.fn(),
+    nav: { selectTable: vi.fn(), selectColumn: vi.fn(), openTableFind: vi.fn(), openColumnJump: vi.fn() },
+    ...over,
+  };
 }

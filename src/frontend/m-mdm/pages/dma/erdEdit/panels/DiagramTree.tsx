@@ -12,6 +12,7 @@ import {
 } from "@dk-oasis/shared/react-flow";
 
 import { BAD_STATUSES } from "../canvas/erd-flow";
+import type { ErdEditContext } from "../edit-context";
 import type { ErdColumnStatus, ErdDiagram, ErdState, ErdTable } from "../types";
 
 export interface DiagramItem {
@@ -102,6 +103,8 @@ function useTableFind(tables: Readonly<Record<string, ErdTable>>, onReveal: (tab
 const isMac = (): boolean => typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
 export interface DiagramTreeProps {
+  /** 편집 문맥(모델을 읽기 전에는 null). FE2 Task 13 이 마법사·다이어그램 편집에 쓴다. */
+  ctx: ErdEditContext | null;
   state: ErdState | null;
   statuses: Readonly<Record<string, ErdColumnStatus>>;
   activeDiagram: string | null;

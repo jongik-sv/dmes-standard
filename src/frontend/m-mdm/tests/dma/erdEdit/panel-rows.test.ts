@@ -4,7 +4,9 @@ import { DEFAULT_FIND_OPTIONS } from "@dk-oasis/shared/react-flow";
 
 import { columnRows } from "../../../pages/dma/erdEdit/panels/ColumnGrid";
 import { diagramGroups, findTables, unplacedCount } from "../../../pages/dma/erdEdit/panels/DiagramTree";
-import { diffRows, historyRows, inferredRows, violationRows } from "../../../pages/dma/erdEdit/panels/ReviewPanel";
+import { historyRows } from "../../../pages/dma/erdEdit/panels/ChangeLog";
+import { diffRows } from "../../../pages/dma/erdEdit/panels/DbDiffApply";
+import { inferredRows, violationRows } from "../../../pages/dma/erdEdit/panels/ReviewPanel";
 import { nextMode, readOnlyReason } from "../../../pages/dma/erdEdit/panels/TopBar";
 import type { ErdStatusView } from "../../../pages/dma/erdEdit/types";
 import { MENU_DIAGRAMS, menuModel, relation, stateOf, table } from "./erd-fixtures";

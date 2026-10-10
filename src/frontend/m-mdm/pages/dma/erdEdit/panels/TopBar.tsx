@@ -23,15 +23,8 @@ export const PRESETS: readonly { value: ErdPreset; label: string }[] = [
 
 export const nextMode = (m: ErdMode): ErdMode => (m === "logical" ? "physical" : "logical");
 
-/** 읽기 전용 이유(스펙 4.4). null 이면 확정·기각·가져오기를 할 수 있다. 문구에 다음에 할 일을 적는다(스펙 4.5). */
-export function readOnlyReason(state: ErdState, me: string | null, canEdit: boolean): string | null {
-  if (!canEdit) return "이 화면의 편집 권한이 없어 읽기만 할 수 있습니다. 권한은 시스템 관리자에게 요청하세요.";
-  if (state.status !== "DRAFT") return "확정된 버전을 보고 있어 읽기만 할 수 있습니다. 고치려면 새 버전(DRAFT)을 만드세요.";
-  if (!me || (me !== state.ownerId && !state.editors.includes(me))) {
-    return `공동 편집자가 아니어서 읽기만 할 수 있습니다. 소유자(${state.ownerId ?? "없음"})에게 공동 편집자 등록을 요청하세요.`;
-  }
-  return null;
-}
+/** 읽기 전용 이유 — state/permissions.ts 로 옮겼다(S2-20). 단계 1 경로를 남긴다. */
+export { readOnlyReason } from "../state/permissions";
 
 /** 접속자 동그라미 글자 — 내 세션은 "나", 사람은 사용자 ID, LLM 은 세션 이름. */
 export function avatarLabel(p: ErdPresence, mySession: string): string {
@@ -52,6 +45,8 @@ export interface TopBarProps {
   streamStatus: ErdStreamStatus;
   readOnly: string | null;
   message: string | null;
+  /** 메시지 줄 색(ctx.notify 의 tone). */
+  messageTone?: "info" | "warn" | "error";
   canReg: boolean;
   canImport: boolean;
   /** 읽기 전용·연결 끊김·처리 중 — 쓰기 단추를 막는다. */
@@ -170,7 +165,7 @@ export function TopBar(p: TopBarProps) {
           {p.readOnly}
         </div>
       )}
-      <div className="erd-message" role="status" data-testid="erd-message">
+      <div className="erd-message" role="status" data-testid="erd-message" data-tone={p.messageTone ?? "info"}>
         {p.message ?? ""}
       </div>
     </div>

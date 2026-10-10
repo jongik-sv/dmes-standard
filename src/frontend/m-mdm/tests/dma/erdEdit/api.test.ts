@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  compareDbDiff, decideRelation, importFromDb, rejectionText, searchModels, setViewState, viewChanges, viewStatus,
+  addEditor, applyCommands, applyDbDiff, claimTable, compareDbDiff, confirmVersion, decideRelation, deleteDraft, importFromDb,
+  lockDraft, newVersion, previewName, rejectionText, releaseTable, removeEditor, searchModels, setViewState, undoRev, unlockDraft,
+  validateConfirm, viewChanges, viewStatus,
 } from "../../../pages/dma/erdEdit/api";
 
 const originalFetch = globalThis.fetch;
@@ -78,5 +80,40 @@ describe("erdEdit api", () => {
     expect(calls[0].body.params).toEqual({ modelId: "mcm", baseRev: 0, session: "ui-abc", source: "UI", kind: "FROM_DB" });
     stub(null, false);
     await expect(importFromDb("mcm", 0, "ui-abc")).rejects.toThrow("이미 표가 있습니다");
+  });
+
+  it("단계 2 함수는 README 정본 params 로 보낸다(배열은 JSON 문자열, false·0 은 그대로)", async () => {
+    stub({});
+    await applyCommands("mcm", 212, "ui-a", [{ op: "updateColumn", id: "c-1", set: { logical: "메뉴명" } }]);
+    await undoRev("mcm", 215, "ui-a");
+    await previewName({ logical: "메뉴명" });
+    await applyDbDiff("mcm", 230, "ui-a", ["COLUMN_CHANGED:TB_A.B", "FK_ADDED:TB_A(X)>TB_B(X)"]);
+    await claimTable("mcm", "t-1", "ui-a");
+    await releaseTable("mcm", "t-1", "ui-a");
+    await addEditor("mcm", "erd-mcp-a");
+    await removeEditor("mcm", "erd-mcp-a");
+    await newVersion("mcm", "MINOR");
+    await deleteDraft("mcm", "1.001", 0);
+    await lockDraft("mcm", "1.001", 3);
+    await unlockDraft("mcm", "1.001", 4);
+    await validateConfirm("mcm");
+    await confirmVersion("mcm", "1.001", 5, false, "2026-10-11 14:20:00");
+    expect(calls.map((c) => [c.url.split("/").pop(), c.body.params])).toEqual([
+      ["save", { modelId: "mcm", baseRev: 212, session: "ui-a", source: "UI", commandsJson: '[{"op":"updateColumn","id":"c-1","set":{"logical":"메뉴명"}}]' }],
+      ["restore", { modelId: "mcm", rev: 215, session: "ui-a", source: "UI" }],
+      ["compare", { logical: "메뉴명" }],
+      ["import", { modelId: "mcm", baseRev: 230, session: "ui-a", source: "UI", kind: "APPLY_DIFF",
+        itemsJson: '["COLUMN_CHANGED:TB_A.B","FK_ADDED:TB_A(X)>TB_B(X)"]' }],
+      ["execute", { modelId: "mcm", kind: "CLAIM", tableId: "t-1", session: "ui-a", source: "UI" }],
+      ["execute", { modelId: "mcm", kind: "RELEASE", tableId: "t-1", session: "ui-a", source: "UI" }],
+      ["execute", { modelId: "mcm", kind: "ADD_EDITOR", userId: "erd-mcp-a" }],
+      ["execute", { modelId: "mcm", kind: "REMOVE_EDITOR", userId: "erd-mcp-a" }],
+      ["copy", { modelId: "mcm", verKind: "MINOR" }],
+      ["delete", { modelId: "mcm", ver: "1.001", rowVersion: 0 }],
+      ["lock", { modelId: "mcm", ver: "1.001", rowVersion: 3 }],
+      ["unlock", { modelId: "mcm", ver: "1.001", rowVersion: 4 }],
+      ["validate", { modelId: "mcm" }],
+      ["confirm", { modelId: "mcm", ver: "1.001", rowVersion: 5, warningsAcknowledged: false, applyFrom: "2026-10-11 14:20:00" }],
+    ]);
   });
 });
