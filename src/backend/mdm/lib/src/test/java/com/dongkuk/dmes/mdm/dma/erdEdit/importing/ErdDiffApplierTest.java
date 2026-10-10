@@ -221,6 +221,16 @@ class ErdDiffApplierTest {
         assertThat(built.summary().removedIds()).containsExactlyInAnyOrder(columnId(m, "TB_C", "P_ID"), rid);
     }
 
+    /** 감사 컬럼 자동 추가는 addTable 명령만의 일이다 — 다시 가져오기 TABLE_ADDED 는 DB 모양 그대로(감사 컬럼 없음)다. */
+    @Test
+    void tableAddedDoesNotAppendAuditColumns() {
+        ErdModel m = imported(before(false), List.of());
+        var built = ErdDiffApplier.build(m, after(), DICT, List.of("TABLE_ADDED:TB_NEW"), 1, seq());
+        ErdModel next = apply(m, 1, 2, "s-a", built.restore());
+        var t = next.tables.get(tableId(next, "TB_NEW"));
+        assertThat(t.columnOrder.stream().map(id -> next.columns.get(id).phys).toList()).containsExactly("N_ID", "P_ID");
+    }
+
     /** 부모가 새 표인 FK_ADDED 는 그 표의 TABLE_ADDED 를 함께 골라야 들어간다. */
     @Test
     void foreignKeyToUnselectedNewTableIsStale() {

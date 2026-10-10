@@ -9,6 +9,7 @@
  * - 거절이면 묶음을 빼고 알림을 만든다. 다시 읽으면 모든 묶음·보관 델타를 버린다(보내지 않은 queued 수를 센다).
  * - mine: 반영 응답의 rev(되돌리기 제외). 화면은 이 값만 myRevs 에 넣는다. SSE 에코로는 넣지 않는다.
  */
+import { landingIndex } from "../audit-columns";
 import { noticeFromRejection, type ErdNotice } from "../edit-context";
 import type { ErdApplyResult, ErdColumn, ErdCommandJson, ErdDelta, ErdDiagram, ErdFoldMode, ErdModelJson, ErdState, ErdTable } from "../types";
 import { applyDelta, nodeKey } from "./model-delta";
@@ -130,7 +131,8 @@ export function projectCommand(state: ErdState, cmd: ErdCommandJson): ErdState {
       const t = c ? m.tables[c.table] : undefined;
       if (!id || !c || !t || typeof cmd.position !== "number") return state;
       const order = t.columnOrder.filter((x) => x !== id);
-      order.splice(Math.max(0, Math.min(cmd.position, order.length)), 0, id); // 엔진 moveColumn 과 같은 자리 계산
+      // 엔진 moveColumn 과 같은 자리 계산 — 끝 자리는 표 끝의 감사 컬럼 덩어리 앞이다(결정 23, audit-columns landingIndex).
+      order.splice(landingIndex(order, cmd.position, c.phys, (x) => m.columns[x]?.phys), 0, id);
       return withModel(state, { ...m, tables: { ...m.tables, [c.table]: { ...t, columnOrder: order } } });
     }
     case "deleteTable":

@@ -63,6 +63,22 @@ class ErdDbDiffTest {
         assertThat(ErdDbDiff.diff(imported(before()), before())).isEmpty();
     }
 
+    /** 감사 컬럼 불변식: addTable 이 만든 8개 컬럼은 같은 모양의 DB 컬럼과 비교해 COLUMN_CHANGED 가 없다. */
+    @Test
+    void addTableAuditColumnsMatchDbShape() {
+        var created = ((ApplyOutcome.Applied) new ErdCommandEngine(ErdNaming.NONE).apply(ErdModel.empty("m", "S"), 0, 1, "s",
+                List.of(new com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdCommand.AddTable(null, "TB_A", "에이", "")))).next();
+        List<Column> cols = new java.util.ArrayList<>();
+        int pos = 1;
+        for (String n : List.of("C_USR_ID", "C_AT", "C_SVC_ID", "C_PGM_ID", "U_USR_ID", "U_AT", "U_SVC_ID", "U_PGM_ID")) {
+            boolean ts = n.endsWith("_AT");
+            // DB 사실: VARCHAR2(100 CHAR) nullable, TIMESTAMP(6) nullable(DATA_LENGTH 11, scale 6)
+            cols.add(ts ? col(n, pos++, "TIMESTAMP(6)", 11, null, 6, true) : col(n, pos++, "VARCHAR2", 100, null, null, true));
+        }
+        ErdDbMeta meta = new ErdDbMeta("S", List.of(tb("TB_A", null, cols.toArray(new Column[0]))), List.of(), List.of());
+        assertThat(ErdDbDiff.diff(created, meta)).isEmpty();
+    }
+
     static ErdDbMeta composite(List<String> childCols, List<String> parentCols) {
         return new ErdDbMeta("S", List.of(
                 tb("TB_P", null, col("X", 1, "VARCHAR2", 10, null, null, false), col("Y", 2, "VARCHAR2", 10, null, null, false)),

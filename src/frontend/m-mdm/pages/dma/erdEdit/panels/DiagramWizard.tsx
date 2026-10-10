@@ -95,7 +95,7 @@ export function DiagramWizard({ open, ctx, onClose, onCreated }: DiagramWizardPr
     const start = ctx.modelId;
     try {
       const id = newElementId("d");
-      const nodes = wizardPlacement(model, [...picked], layout);
+      const nodes = wizardPlacement(model, [...picked], layout, ctx.audit.show);
       const out = await ctx.apply(wizardCommands({ id, areaName: a, diagramName: n, sortSeq: nextSortSeq(ctx.state.diagrams), nodes }), "다이어그램 만들기");
       // 응답을 기다리는 동안 모델이 바뀌었으면 그 모델의 다이어그램을 열지 않는다(Local-Rules §37).
       if (ctxRef.current.modelId !== start) return;

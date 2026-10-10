@@ -5,6 +5,9 @@
  * - 기각 관계는 그리지 않는다. 추정 후보는 묶음마다 남은 후보 가운데 순위가 가장 앞선 것만 그리고 접힌 후보 수를 단다(S7).
  *   확정·DB 관계는 순위가 남아 있어도 그린다.
  * - 다른 모델 표를 부모로 둔 관계(parentRef)는 단계 1 에서 그리지 않는다. 회색 참조 노드(스펙 D8)는 단계 2 이고 가져오기는 이런 관계를 만들지 않는다.
+ * - 감사 컬럼(audit-columns.ts)은 showAudit 가 꺼지면 접기와 따로 행에서 뺀다. 접기가 가린 행(hiddenCount)과 감사 보기가 가린 행(auditHidden)은
+ *   서로 세지 않는다 — 접기로 안 보일 감사 컬럼은 auditHidden 이 아니라 hiddenCount 몫이라 「감사 n」과 「접힘」이 겹쳐 뜨지 않는다.
+ *   감사 컬럼 쪽을 짝으로 둔 관계는 그 행이 없으므로 아래 "행이 안 보이면" 규칙대로 표 머리 손잡이에 붙는다.
  * - 컬럼 행이 안 보이면(축소·개요·접기) 선은 표 머리 손잡이에 붙는다. 컬럼 손잡이는 선이 쓰는 것만 행 데이터에 싣는다.
  *   행 데이터는 확대율과 무관하게 만든다. 그래서 확대율이 경계를 넘어도 노드 객체는 그대로이고 선만 바뀐다.
  * - 이름표(단계 2): 접속자가 고른 표와 작업 중 표시를 따로 모은다(조사 A GAP-2). 만료 시각(until·claimUntil)을 실어 두고, now 를 주면 지난 것을 뺀다.
@@ -14,6 +17,7 @@ import { useMemo, useRef } from "react";
 
 import type { Edge, Node } from "@dk-oasis/shared/react-flow";
 
+import { isAuditColumnId } from "../audit-columns";
 import type { ErdClaim, ErdColumnStatus, ErdModelJson, ErdPresence, ErdRelation, ErdRelationState, ErdState } from "../types";
 import { NODE_WIDTH, nodeHeight, relationSides, typeText, type NodeSide } from "./erd-geometry";
 
@@ -55,7 +59,10 @@ export interface ErdNodeData extends Record<string, unknown> {
   title: string;
   subtitle: string;
   rows: ErdRowView[];
+  /** 접기(KEYS·NAME)로 가린 컬럼 수. 감사 컬럼 보기와 무관하다. */
   hiddenCount: number;
+  /** 감사 컬럼 보기가 꺼져 가린 감사 컬럼 수 — 접기가 이미 가린 행은 세지 않는다(그건 hiddenCount). 보기가 켜져 있으면 0. */
+  auditHidden: number;
   violations: number;
   viewers: ErdNodeViewer[];
   /** 관계 도구(4·5) 동안 노드 전체를 덮는 잇기 손잡이를 단다(useCanvasEditing 이 꾸민다). */
@@ -141,6 +148,8 @@ export interface BuildFlowInput {
   preset: ErdPreset;
   /** 확대율 50% 미만 — 선을 표 머리 손잡이에 붙인다. */
   namesOnly: boolean;
+  /** 감사 컬럼(C_/U_ 8개)을 그린다. 꺼져 있으면 노드 행에서 빼고 머리에 「감사 n」을 단다. */
+  showAudit: boolean;
   statuses: Readonly<Record<string, ErdColumnStatus>>;
   domains: Readonly<Record<string, { name: string }>>;
   selected: ReadonlySet<string>;
@@ -251,14 +260,17 @@ export function buildFlow(i: BuildFlowInput): ErdFlow {
   const marks = keyMarks(m);
   const ukCols = new Set(Object.values(m.keys).filter((k) => k.kind === "UK").flatMap((k) => k.columns));
 
-  // 1. 표마다 그릴 컬럼(확대율과 무관)
+  // 1. 표마다 그릴 컬럼(확대율과 무관). 접기를 먼저 적용하고(foldRows), 감사 보기가 꺼져 있으면 감사 컬럼을 뺀다.
   const shown = new Map<string, string[]>();
+  const auditHiddenOf = new Map<string, number>();
   for (const n of placed) {
     const order = m.tables[n.table].columnOrder.filter((c) => m.columns[c]);
-    const rows = i.preset === "overview" || n.foldMode === "NAME" ? []
+    const foldRows = i.preset === "overview" || n.foldMode === "NAME" ? []
       : n.foldMode === "KEYS" ? order.filter((c) => (marks.get(c) ?? "") !== "" || ukCols.has(c))
       : order;
+    const rows = i.showAudit ? foldRows : foldRows.filter((c) => !isAuditColumnId(m, c));
     shown.set(n.table, rows);
+    auditHiddenOf.set(n.table, foldRows.length - rows.length);
   }
   const visible = new Map([...shown].map(([t, rows]) => [t, new Set(rows)] as const));
 
@@ -319,13 +331,15 @@ export function buildFlow(i: BuildFlowInput): ErdFlow {
         handles: handles.get(cid) ?? NO_HANDLES,
       };
     });
-    const hiddenCount = i.preset === "overview" ? 0 : total - rows.length;
+    const auditHidden = auditHiddenOf.get(n.table) ?? 0;
+    // 접기로 가린 수 = 전체 - 접기 뒤 행(= 지금 행 + 감사로 뺀 행). 감사 보기 전환에 흔들리지 않는다.
+    const hiddenCount = i.preset === "overview" ? 0 : total - (rows.length + auditHidden);
     const violations = t.columnOrder.filter((cid) => BAD_STATUSES.has(i.statuses[cid] as string)).length;
     return {
       id: n.table, type: "erdTable", position: { x: n.x, y: n.y },
       data: {
         title: physical ? t.phys : t.logical || t.phys, subtitle: physical ? t.logical : t.phys,
-        rows, hiddenCount, violations, viewers: viewers.get(n.table) ?? NO_VIEWERS,
+        rows, hiddenCount, auditHidden, violations, viewers: viewers.get(n.table) ?? NO_VIEWERS,
       },
       selected: i.selected.has(n.table),
       initialWidth: NODE_WIDTH, initialHeight: nodeHeight(rows.length, hiddenCount > 0),

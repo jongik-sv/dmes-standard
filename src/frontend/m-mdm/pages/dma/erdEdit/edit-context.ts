@@ -27,6 +27,12 @@ export interface ErdHighlight { code: ErdNotice["code"]; elementId: string; prop
 
 export type MessageTone = "info" | "warn" | "error";
 
+/** 감사 컬럼 보기(사람마다 다른 보기 상태, audit-columns.ts). 켜면 캔버스 노드·컬럼 그리드에 감사 컬럼 8개가 보인다. */
+export interface AuditView {
+  show: boolean;
+  setShow(show: boolean): void;
+}
+
 export interface ErdEditContext {
   modelId: string; session: string; me: string; state: ErdState; status: ErdStatusView | null;
   rights: EditRights; diagramId: string | null; selectedTableId: string | null;
@@ -43,6 +49,7 @@ export interface ErdEditContext {
   clearHighlight(): void;
   notify(message: string, tone?: MessageTone): void;
   nav: ErdNav;
+  audit: AuditView;
 }
 
 export const NOTICE_LABEL: Readonly<Record<ErdNoticeCode, string>> = {

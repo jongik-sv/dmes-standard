@@ -68,7 +68,7 @@ class ErdStage2ContractTest extends AbstractMdmSharedDbTest {
     /** owner 가 t-1(TB_A) 을 만들고(rev 1, 세션 s-o) kim 을 공동 편집자로 넣은 뒤, kim 이 논리명을 바꾼다(rev 2, 세션 s-k). */
     void seedPeerEdit() throws Exception {
         assertThat(commands.apply("mcm", 0, "owner", "s-o", "UI",
-                c.cmd("[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]")).applied()).isTrue();
+                c.cmd("[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]")).applied()).isTrue();
         versions.addEditor("mcm", "kim", "owner");
         assertThat(commands.apply("mcm", 1, "kim", "s-k", "UI",
                 c.cmd("[{\"op\":\"updateTable\",\"id\":\"t-1\",\"set\":{\"logical\":\"비\"}}]")).applied()).isTrue();
@@ -79,7 +79,7 @@ class ErdStage2ContractTest extends AbstractMdmSharedDbTest {
         var q = c.open("mcm", "ui-a", 0, "owner");
         c.next(q, "presence", l -> ErdTestClient.entry(l, "ui-a") != null);       // 구독이 살아 있다
         JsonNode res = c.call("save", "owner", Map.of("modelId", "mcm", "baseRev", 0, "session", "s-o", "source", "UI",
-                "commandsJson", "[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]")).at("/data/result");
+                "commandsJson", "[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]")).at("/data/result");
         assertThat(res.path("applied").asBoolean()).as(res.toString()).isTrue();
         assertThat(res.path("dryRun").asBoolean()).isFalse();
         assertThat(res.path("rowVersion").asLong()).isEqualTo(rowVersion());
@@ -191,7 +191,7 @@ class ErdStage2ContractTest extends AbstractMdmSharedDbTest {
 
     @Test
     void claimResultNamesHolder() throws Exception {
-        commands.apply("mcm", 0, "owner", "s-o", "UI", c.cmd("[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
+        commands.apply("mcm", 0, "owner", "s-o", "UI", c.cmd("[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
         JsonNode a = c.call("execute", "erd-mcp-a", Map.of("modelId", "mcm", "kind", "CLAIM", "tableId", "t-1",
                 "session", "claude-a", "source", "MCP")).at("/data/result");
         assertThat(a.path("ok").asBoolean()).as(a.toString()).isTrue();
@@ -231,7 +231,7 @@ class ErdStage2ContractTest extends AbstractMdmSharedDbTest {
     /** S2-12. 구독 직후(재전송 뒤) SUBSCRIBE 하나, 동작마다 커밋 뒤 하나. 값은 그때 view 와 같고 rev·명령 기록은 그대로다. */
     @Test
     void versionEventsFollowLifecycle() throws Exception {
-        commands.apply("mcm", 0, "owner", "s-o", "UI", c.cmd("[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
+        commands.apply("mcm", 0, "owner", "s-o", "UI", c.cmd("[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
         var q = c.open("mcm", "ui-a", 0, "owner");
         List<String> head = c.until(q, "version");
         assertThat(head.stream().filter(s -> s.startsWith("change|")).count()).as(head.toString()).isEqualTo(1); // 재전송이 먼저
@@ -301,7 +301,7 @@ class ErdStage2ContractTest extends AbstractMdmSharedDbTest {
     /** deferred 25: 표·컬럼 델타가 없는 변경(키)도 다른 세션이 작업 중인 표면 CLAIMED 경고를 붙인다. */
     @Test
     void claimedWarnsOnKeyChange() throws Exception {
-        commands.apply("mcm", 0, "owner", "s-o", "UI", c.cmd("[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"},"
+        commands.apply("mcm", 0, "owner", "s-o", "UI", c.cmd("[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"},"
                 + "{\"op\":\"addColumn\",\"id\":\"c-1\",\"table\":\"t-1\",\"phys\":\"COL_A\",\"logical\":\"가\",\"dataType\":\"VARCHAR2\",\"length\":10}]"));
         assertThat(hub.claim("mcm", "t-1", "claude-b", "erd-mcp-b", 600)).isTrue();
         ErdApplyResult r = commands.apply("mcm", 1, "owner", "s-o", "UI",
@@ -314,7 +314,7 @@ class ErdStage2ContractTest extends AbstractMdmSharedDbTest {
     /** 다이어그램 명령만 있는 묶음은 모델 요소를 건드리지 않으므로 다른 세션이 쥔 표여도 CLAIMED 경고가 없다. */
     @Test
     void claimedDoesNotWarnOnDiagramOnlyBatch() throws Exception {
-        commands.apply("mcm", 0, "owner", "s-o", "UI", c.cmd("[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"},"
+        commands.apply("mcm", 0, "owner", "s-o", "UI", c.cmd("[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"},"
                 + "{\"op\":\"addDiagram\",\"id\":\"d-1\",\"areaName\":\"a\",\"diagramName\":\"b\"},"
                 + "{\"op\":\"placeTables\",\"diagram\":\"d-1\",\"nodes\":[{\"table\":\"t-1\",\"x\":10,\"y\":10}]}]"));
         assertThat(hub.claim("mcm", "t-1", "claude-b", "erd-mcp-b", 600)).isTrue();
@@ -327,7 +327,7 @@ class ErdStage2ContractTest extends AbstractMdmSharedDbTest {
     /** 컬럼 삭제도 그 표를 건드린 것으로 본다 — 지운 컬럼은 지우기 전 값의 table 로 센다(deferred 25). */
     @Test
     void claimedWarnsOnDeleteColumn() throws Exception {
-        commands.apply("mcm", 0, "owner", "s-o", "UI", c.cmd("[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"},"
+        commands.apply("mcm", 0, "owner", "s-o", "UI", c.cmd("[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"},"
                 + "{\"op\":\"addColumn\",\"id\":\"c-1\",\"table\":\"t-1\",\"phys\":\"COL_A\",\"logical\":\"가\",\"dataType\":\"VARCHAR2\",\"length\":10},"
                 + "{\"op\":\"addColumn\",\"id\":\"c-2\",\"table\":\"t-1\",\"phys\":\"COL_B\",\"logical\":\"나\",\"dataType\":\"VARCHAR2\",\"length\":10}]"));
         assertThat(hub.claim("mcm", "t-1", "claude-b", "erd-mcp-b", 600)).isTrue();

@@ -8,7 +8,7 @@ import { MENU_DIAGRAMS, menuModel, relation, stateOf } from "./erd-fixtures";
 
 function input(over: Partial<BuildFlowInput> = {}): BuildFlowInput {
   return {
-    state: stateOf(menuModel(), MENU_DIAGRAMS), diagramId: "d-all", mode: "logical", preset: "basic", namesOnly: false,
+    state: stateOf(menuModel(), MENU_DIAGRAMS), diagramId: "d-all", mode: "logical", preset: "basic", namesOnly: false, showAudit: true,
     statuses: {}, domains: { "12": { name: "아이디" } }, selected: new Set(), mySession: "ui-me", ...over,
   };
 }

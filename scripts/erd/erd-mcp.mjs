@@ -58,7 +58,8 @@ export const TOOLS = {
       "(표 수, PK 없는 표, 표마다 논리명·컬럼 수·PK 컬럼·관계 수·표준 위반 수). 개요에는 컬럼 줄과 Ref 줄이 없다. " +
       "질문에 표 이름이 나오면 처음부터 tables 에 그 물리명을 넣어 부른다(예: tables=[\"TB_MCM_SEC_MENU\"]). " +
       "tables 는 정확한 물리명(대소문자 무관)이고, 끝에 * 를 붙이면 접두사다(예: TB_MCM_SEC_*). " +
-      "tables 를 주면 Ref 줄은 고른 표가 자식이든 부모든 나온다. diagram 을 주면 그 다이어그램의 표만 쓴다.",
+      "tables 를 주면 Ref 줄은 고른 표가 자식이든 부모든 나온다. diagram 을 주면 그 다이어그램의 표만 쓴다. " +
+      "감사 컬럼 8개(C_USR_ID C_AT C_SVC_ID C_PGM_ID U_USR_ID U_AT U_SVC_ID U_PGM_ID)는 표마다 한 줄('감사 컬럼 n개: …')로 접는다. audit=true 면 보통 컬럼 줄로 펼친다.",
     inputSchema: {
       modelId,
       tables: z
@@ -66,6 +67,7 @@ export const TOOLS = {
         .optional()
         .describe("읽을 표의 물리명 목록. 끝이 * 면 접두사. 쉼표로 이은 글도 받는다"),
       diagram: z.string().min(1).optional().describe("다이어그램 id, 이름, 또는 '업무영역/이름'"),
+      audit: z.boolean().optional().describe("true 면 감사 컬럼 8개를 보통 컬럼 줄로 펼친다(기본: 표마다 한 줄로 접는다)"),
     },
     // Claude Code 가 큰 결과를 파일로 빼는 기준을 올리는 힌트. 결과는 TEXT_LIMIT 안이라 이 값에 기대지 않는다.
     _meta: { "anthropic/maxResultSizeChars": 100000 },
@@ -113,7 +115,10 @@ export const TOOLS = {
       "명령 예: {\"op\":\"updateColumn\",\"id\":\"TB_X.COL\",\"set\":{\"logical\":\"…\"}}, {\"op\":\"addColumn\",\"table\":\"TB_X\",\"logical\":\"사용여부\"}, " +
       "{\"op\":\"addRelation\",\"child\":\"TB_C\",\"parent\":\"TB_P\",\"pairs\":[[\"TB_C.P_ID\",\"TB_P.P_ID\"]],\"identifying\":false}, {\"op\":\"moveNodes\",\"diagram\":\"업무영역/이름\",\"nodes\":[{\"table\":\"TB_X\",\"x\":0,\"y\":0}]}. " +
       "요소는 id 대신 이름으로 써도 된다: 표 = 물리명, 컬럼 = '표.컬럼', 관계 = '자식표.컬럼 > 부모표.컬럼', 키 = 키 이름 또는 '표:PK', 다이어그램 = '업무영역/이름'. " +
-      "같은 묶음에서 앞에서 만든 표·컬럼은 뒤 명령이 물리명으로 가리킬 수 있다. 결과 끝의 '다음 baseRev' 를 다음 apply 에 쓴다. " +
+      "같은 묶음에서 앞에서 만든 표·컬럼은 뒤 명령이 물리명으로 가리킬 수 있다. " +
+      "addTable 은 감사 컬럼 8개(C_USR_ID C_AT C_SVC_ID C_PGM_ID U_USR_ID U_AT U_SVC_ID U_PGM_ID)를 표 끝에 자동으로 붙인다(끄려면 audit:false, 가져오기는 붙이지 않는다). " +
+      "position 없는 addColumn·끝으로 가는 moveColumn 은 표 끝이 감사 컬럼 블록이면 그 블록 바로 앞에 넣는다(넣는 컬럼이 감사 컬럼이면 맨 끝. 컬럼 수 이상의 position 도 끝으로 보고, 안쪽 position 은 그대로). " +
+      "결과 끝의 '다음 baseRev' 를 다음 apply 에 쓴다. " +
       "거절(CONFLICT·NOT_FOUND·INVALID·NEEDS_CHOICE·NOT_EDITOR)은 오류 결과이고 '다음:' 줄에 할 일이 있다. dryRun=true 면 저장하지 않고 판정만 본다.",
     inputSchema: {
       modelId,
@@ -176,10 +181,10 @@ const needDiff = (diff) => {
 /** 도구 처리기. OASIS 오류는 던지고 createErdServer 가 isError 결과로 바꾼다. state 는 프로세스 동안 하나다. */
 export function handlers(client, state = newState()) {
   return {
-    async getModelText({ modelId, diagram, tables }) {
+    async getModelText({ modelId, diagram, tables, audit }) {
       const view = await client.call("view", { modelId });
       const status = needStatus(await client.call("view", { modelId, kind: "STATUS", ver: view.ver }));
-      return ok(getModelText(view, status, { diagram, tables }));
+      return ok(getModelText(view, status, { diagram, tables, audit: audit === true }));
     },
     async getCurrentView({ modelId, session }) {
       return ok(formatCurrentView(await client.call("view", { modelId }), { session }));

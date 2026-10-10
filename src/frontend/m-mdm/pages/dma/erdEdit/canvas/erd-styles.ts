@@ -21,6 +21,9 @@ export const ERD_CSS = `
 .erd-node__sub { min-width: 0; font-family: var(--font-family-mono); font-weight: 400; color: var(--color-text-muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .erd-node__warn { margin-left: auto; color: var(--color-danger); }
+.erd-node__audit { flex: none; margin-left: auto; padding: 0 var(--spacing-xs); border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+  font-weight: 400; color: var(--color-text-muted); white-space: nowrap; }
+.erd-node__audit + .erd-node__warn { margin-left: 0; }
 .erd-node[data-names-only] .erd-node__hd { border-bottom: 0; }
 .erd-col { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: var(--spacing-xs);
   height: 20px; padding: 0 var(--spacing-sm); }

@@ -57,6 +57,7 @@ S2-1~S2-10 은 조정자 판정(조정 메모 "조정자 판정")이고, S2-11 �
 | S2-27 | 키 처리 위치: 포털 키와 겹치는 키(F3, Ctrl+T·K, Ctrl+O·Alt+O, Ctrl+Z)는 지금처럼 window 캡처에서 받고 입력 칸(`isTypingTarget`)이면 넘긴다. 캔버스 키는 캔버스 host 의 `onKeyDown`, 그리드 키는 그리드를 감싼 div 에서 받는다. Ctrl/⌘+F(표 찾기)는 캔버스에 초점이 있을 때만 받는다. 브라우저의 페이지 찾기를 가로채는 범위를 줄이려는 것이다 | 단계 1 F3 방식과 룰 세트 편집기 방식(조사 A 4.2 권고). 초점 범위가 생겨 그리드 입력과 겹치지 않는다 |
 | S2-28 | 확정 대화상자는 검사 결과를 코드별로 묶어 수와 코드마다 처음 50건만 보인다. MCP·CLI 도 같은 방식으로 줄인다 | 첫 확정은 경고가 약 700건이다(MCM 737, MDM 657). 서버는 상한 없이 준다 |
 | S2-29 | `exclusive`(apply 밖의 쓰기) 는 fn 결과의 rev 까지 화면 상태가 따라올 때(최대 5초) 다음 묶음을 놓는다 | 응답이 SSE 에코보다 먼저 오면 다음 묶음이 늦은 에코를 자기 에코로 잘못 읽어 투영이 잠깐 흔들린다(정합 검토). 5초 상한은 `HOLD_LIMIT_MS` 와 같다 |
+| S2-30 | 감사 컬럼은 정확히 8개다: `C_USR_ID`·`C_AT`·`C_SVC_ID`·`C_PGM_ID`·`U_USR_ID`·`U_AT`·`U_SVC_ID`·`U_PGM_ID`(물리명, 대소문자 무시). `VER` 는 감사 컬럼이 아니다. 엔진이 `addTable` 에 이 8개를 자동으로 붙인다(화면·MCP·CLI 모든 경로 공통). `addTable` 의 `audit:false` 로 끈다(없으면 true). 가져오기(`FROM_DB`·`APPLY_DIFF` 의 TABLE_ADDED)는 DB 모양 그대로 두고 붙이지 않는다. 화면은 감사 컬럼을 기본으로 숨기고 도구 막대 토글(localStorage)로 보인다. `getModelText` 는 감사 컬럼을 표마다 한 줄로 접고 `audit:true` 면 펼친다. 표준 판정은 그대로다. 위치: `position` 없는 `addColumn`·끝으로 가는 `moveColumn` 은 표 끝이 감사 컬럼 블록이면 그 블록 바로 앞에 넣는다(넣는 컬럼이 감사 컬럼이면 맨 끝). 컬럼 수 이상의 `position` 도 끝으로 본다. 안쪽 `position` 은 그대로 | 사용자 결정. 8개 컬럼은 모든 표가 똑같이 갖는 이력 칸이라 표를 만들 때마다 손으로 넣게 하지 않고, 화면에서는 보통 필요 없어 숨긴다. `C_AT` 는 DOMAIN 경고가 나올 수 있으나 받아들인다(표준 판정 불변). 새 컬럼이 감사 블록 뒤로 가지 않게 위치 규칙을 둔다(조정자 판정 23) |
 
 ## Global Constraints
 
@@ -468,6 +469,17 @@ export interface CanvasEditing {
 - 화면 스타일: FE1 부품 규칙은 `panels/core-styles.ts` 의 `CORE_CSS` 다. Task 9 가 `canvas/erd-styles.ts`(FE2 소유) 끝에 한 번 붙이고 그 뒤 FE1 은 그 파일을 고치지 않는다. FE2 편집 CSS 는 `canvas/erd-edit-styles.ts` 를, FE3 은 인라인 토큰과 `ColumnGrid` 의 `<style href="dmes-erd-grid" precedence>` 를 쓴다(Local-Rules §17).
 - 화면 `data-testid` 정본은 각 Task 문서의 표다: FE1 = 04 끝 "화면 testid", FE2 = 05 Task 13 "`data-testid` 정본", FE3 = 06 앞 "`data-testid` (정본)". 마감(07)은 이 이름을 쓴다. 이름을 바꾸면 07 도 함께 고친다.
 - 그리드 키(그리드를 감싼 div `onKeyDownCapture`, FE3): Ctrl/⌘+Enter = 컬럼 추가, Ctrl/⌘+Shift+Enter = PK 컬럼 추가. F2·더블클릭 편집은 ag-grid 기본 동작이다.
+
+### 감사 컬럼 (S2-30)
+
+- 감사 컬럼 8개(물리명, 대소문자 무시): `C_USR_ID`, `C_AT`, `C_SVC_ID`, `C_PGM_ID`, `U_USR_ID`, `U_AT`, `U_SVC_ID`, `U_PGM_ID`. `VER` 는 아니다. scripts 의 판정은 `scripts/erd/lib/audit.mjs` 의 `AUDIT_COLUMNS`·`isAuditColumn` 하나다(서버 `ErdAuditColumns` 와 같은 목록).
+- `addTable`: `{ op:"addTable", id?, phys, logical?, comment?, audit?: boolean }`. `audit` 의 기본은 true(없으면 true). true 면 묶음 끝에서 표 끝에 감사 컬럼 8개를 붙인다(`*_ID` 는 `VARCHAR2(100)`, `C_AT`·`U_AT` 는 `TIMESTAMP(6)`, 모두 NULL 허용). 표에 이미 있는 물리명은 건너뛰고, 같은 묶음에서 표를 지웠으면 붙이지 않는다. `audit:false` 면 붙이지 않는다. 가져오기(`import kind=FROM_DB`·`APPLY_DIFF` 의 TABLE_ADDED)는 붙이지 않는다.
+- `addColumn`: `position` 이 없거나 컬럼 수 이상이면 끝으로 보고, 표 끝이 감사 컬럼 블록일 때 그 블록 바로 앞에 넣는다. 넣는 컬럼이 감사 컬럼이면 맨 끝이다. 안쪽 `position` 은 그대로 쓴다.
+- 감사 컬럼의 논리명은 컬럼 사전·별칭에 있으면 그 논리명, 없으면 고정 이름이다. 주석은 늘 고정 이름이다(기존 DDL 주석과 같다): 생성자 아이디, 생성일시, 생성 서비스 아이디, 생성 프로그램 아이디, 수정자 아이디, 수정일시, 수정 서비스 아이디, 수정 프로그램 아이디.
+- `moveColumn`: 끝으로 옮길 때(위치가 컬럼 수 이상) 같은 규칙을 쓴다. 명시한 안쪽 위치는 그대로 쓴다.
+- `getModelText`: `audit?: boolean`(기본 false). 기본은 표마다 끝에 `감사 컬럼 n개: C_USR_ID C_AT …` 한 줄(표에 실제로 있는 것만, 표 순서). `audit:true` 면 보통 컬럼 줄로 펼친다. CLI 는 `text --audit`. 40,000자 상한은 그대로다.
+- 결과 글(`apply`): 새 표와 함께 생긴 감사 컬럼 `column upsert` 줄은 `column upsert TB_X.(감사 컬럼 n개 추가)` 한 줄로 접는다.
+- scripts 는 `addColumn` 위치를 미리 계산하지 않는다(서버가 정한다). 감사 컬럼이 표 끝에 온다고 가정하는 코드도 없다.
 
 ### MCP·CLI (`scripts/erd/`)
 

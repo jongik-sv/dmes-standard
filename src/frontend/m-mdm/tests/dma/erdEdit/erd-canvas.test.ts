@@ -24,7 +24,7 @@ afterEach(() => {
 /** 표 60개 × 컬럼 9개 = 컬럼 540개 모델을 주어진 확대율로 그린다. */
 async function renderAt(zoom: number) {
   const flow = buildFlow({
-    state: bigState(60, 9), diagramId: "d-all", mode: "logical", preset: "basic", namesOnly: zoom < 0.5,
+    state: bigState(60, 9), diagramId: "d-all", mode: "logical", preset: "basic", namesOnly: zoom < 0.5, showAudit: true,
     statuses: {}, domains: {}, selected: new Set(), mySession: "ui-me",
   });
   host = document.createElement("div");

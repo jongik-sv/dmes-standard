@@ -53,7 +53,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
         List<ErdDelta> seen = new CopyOnWriteArrayList<>();
         hub.addListenerForTest("mcm", seen::add);
         ErdApplyResult r = commands.apply("mcm", 0, "owner", "ui-owner", "UI", cmds("""
-                [{"op":"addTable","id":"t-1","phys":"TB_A","logical":"에이"}]"""));
+                [{"op":"addTable","audit":false,"id":"t-1","phys":"TB_A","logical":"에이"}]"""));
         assertThat(r.applied()).isTrue();
         assertThat(r.rev()).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT REV FROM TB_MDM_ERD_MODEL WHERE ERD_MODEL_ID='mcm'", Long.class)).isEqualTo(1);
@@ -64,7 +64,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
     @Test
     void rejectionWritesNothing() throws Exception {
         ErdApplyResult r = commands.apply("mcm", 0, "owner", "ui-owner", "UI", cmds("""
-                [{"op":"addTable","id":"t-1","phys":"bad name","logical":"x"}]"""));
+                [{"op":"addTable","audit":false,"id":"t-1","phys":"bad name","logical":"x"}]"""));
         assertThat(r.applied()).isFalse();
         assertThat(r.rejection().code()).isEqualTo("INVALID");
         assertThat(jdbc.queryForObject("SELECT REV FROM TB_MDM_ERD_MODEL WHERE ERD_MODEL_ID='mcm'", Long.class)).isZero();
@@ -73,17 +73,17 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
     @Test
     void strangerIsNotEditorButCoEditorWrites() throws Exception {
         assertThat(commands.apply("mcm", 0, "stranger", "s", "MCP", cmds("""
-                [{"op":"addTable","phys":"TB_A","logical":"에이"}]""")).rejection().code()).isEqualTo("NOT_EDITOR");
+                [{"op":"addTable","audit":false,"phys":"TB_A","logical":"에이"}]""")).rejection().code()).isEqualTo("NOT_EDITOR");
         versions.addEditor("mcm", "mate", "owner");
         assertThat(commands.apply("mcm", 0, "mate", "claude-a", "MCP", cmds("""
-                [{"op":"addTable","phys":"TB_A","logical":"에이"}]""")).applied()).isTrue();
+                [{"op":"addTable","audit":false,"phys":"TB_A","logical":"에이"}]""")).applied()).isTrue();
     }
 
     @Test
     void modelCommandWithoutDraftIsNotEditor() throws Exception {
         jdbc.update("UPDATE TB_MDM_ERD_MODEL_VER SET STATUS='RELEASED', APPLY_FROM=SYSTIMESTAMP - 1, APPLY_TO=TIMESTAMP '9999-12-31 00:00:00'");
         var r = commands.apply("mcm", 0, "owner", "ui", "UI", cmds("""
-                [{"op":"addTable","phys":"TB_A","logical":"에이"}]"""));
+                [{"op":"addTable","audit":false,"phys":"TB_A","logical":"에이"}]"""));
         assertThat(r.rejection().code()).isEqualTo("NOT_EDITOR");
         assertThat(r.rejection().hint()).contains("copy");
     }
@@ -91,7 +91,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
     @Test
     void diagramCommandWithoutDraftApplies() throws Exception {
         commands.apply("mcm", 0, "owner", "ui", "UI", cmds("""
-                [{"op":"addTable","id":"t-1","phys":"TB_A","logical":"에이"}]"""));
+                [{"op":"addTable","audit":false,"id":"t-1","phys":"TB_A","logical":"에이"}]"""));
         jdbc.update("UPDATE TB_MDM_ERD_MODEL_VER SET STATUS='RELEASED', APPLY_FROM=SYSTIMESTAMP - 1, APPLY_TO=TIMESTAMP '9999-12-31 00:00:00'");
         var r = commands.apply("mcm", 1, "owner", "ui-o", "UI", cmds("""
                 [{"op":"addDiagram","id":"d-1","areaName":"시스템관리","diagramName":"메뉴·권한"},
@@ -103,7 +103,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
     @Test
     void changesSinceAndTooFar() throws Exception {
         for (int i = 0; i < 3; i++) {
-            commands.apply("mcm", i, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"phys\":\"TB_A" + i + "\",\"logical\":\"x\"}]"));
+            commands.apply("mcm", i, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A" + i + "\",\"logical\":\"x\"}]"));
         }
         var v = commands.changesSince("mcm", 1);
         assertThat(v.deltas()).extracting(ErdDelta::rev).containsExactly(2L, 3L);
@@ -115,13 +115,29 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
     @Test
     void undoRestoresPreviousState() throws Exception {
         commands.apply("mcm", 0, "owner", "ui", "UI", cmds("""
-                [{"op":"addTable","id":"t-1","phys":"TB_A","logical":"에이"}]"""));
+                [{"op":"addTable","audit":false,"id":"t-1","phys":"TB_A","logical":"에이"}]"""));
         commands.apply("mcm", 1, "owner", "ui", "UI", cmds("""
                 [{"op":"updateTable","id":"t-1","set":{"logical":"바뀜"}}]"""));
         var r = commands.undo("mcm", 2, "owner", "ui", "UI");
         assertThat(r.applied()).isTrue();
         String json = jdbc.queryForObject("SELECT MODEL_JSON FROM TB_MDM_ERD_MODEL_VER WHERE STATUS='DRAFT'", String.class);
         assertThat(json).contains("\"logical\":\"에이\"");
+    }
+
+    /** audit 를 생략한 addTable 은 감사 컬럼 8개를 함께 만들고, undo 는 표와 8개를 모두 지운다. */
+    @Test
+    void addTableWithoutAuditFieldAddsEightAuditColumnsAndUndoRemovesThem() throws Exception {
+        var r = commands.apply("mcm", 0, "owner", "ui", "UI", cmds("""
+                [{"op":"addTable","id":"t-1","phys":"TB_A","logical":"에이"}]"""));
+        assertThat(r.applied()).isTrue();
+        assertThat(r.changes().stream().filter(c -> c.kind().equals("column")).count()).isEqualTo(8);
+        String json = jdbc.queryForObject("SELECT MODEL_JSON FROM TB_MDM_ERD_MODEL_VER WHERE STATUS='DRAFT'", String.class);
+        for (String n : List.of("C_USR_ID", "C_AT", "C_SVC_ID", "C_PGM_ID", "U_USR_ID", "U_AT", "U_SVC_ID", "U_PGM_ID")) {
+            assertThat(json).contains("\"" + n + "\"");
+        }
+        assertThat(commands.undo("mcm", 1, "owner", "ui", "UI").applied()).isTrue();
+        String after = jdbc.queryForObject("SELECT MODEL_JSON FROM TB_MDM_ERD_MODEL_VER WHERE STATUS='DRAFT'", String.class);
+        assertThat(after).doesNotContain("C_USR_ID").doesNotContain("TB_A");
     }
 
     @Test
@@ -131,7 +147,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
         for (int i = 0; i < 12; i++) {
             int n = i;
             fs.add(pool.submit(() -> commands.apply("mcm", 0, "owner", "s" + (n % 3), "UI",
-                    cmds("[{\"op\":\"addTable\",\"phys\":\"TB_C" + n + "\",\"logical\":\"x\"}]"))));
+                    cmds("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_C" + n + "\",\"logical\":\"x\"}]"))));
         }
         for (var f : fs) assertThat(f.get(60, TimeUnit.SECONDS).applied()).isTrue();
         pool.shutdown();
@@ -147,7 +163,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
     void restoreCannotBeSentDirectly() throws Exception {
         for (String op : List.of("restore", "restoreDiagram")) {
             ErdApplyResult r = commands.apply("mcm", 0, "owner", "ui", "UI", cmds(
-                    "[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"},{\"op\":\"" + op + "\",\"elements\":[]}]"));
+                    "[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"},{\"op\":\"" + op + "\",\"elements\":[]}]"));
             assertThat(r.applied()).isFalse();
             assertThat(r.rejection().code()).isEqualTo("INVALID");
             assertThat(r.rejection().commandIndex()).isEqualTo(1);
@@ -159,7 +175,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
 
     private void addTableAndColumn() throws Exception {
         assertThat(commands.apply("mcm", 0, "owner", "ui", "UI", cmds("""
-                [{"op":"addTable","id":"t-1","phys":"TB_A","logical":"에이"},
+                [{"op":"addTable","audit":false,"id":"t-1","phys":"TB_A","logical":"에이"},
                  {"op":"addColumn","id":"c-1","table":"t-1","phys":"COL_A","logical":"에이","dataType":"VARCHAR2","length":10}]""")).applied()).isTrue();
     }
 
@@ -202,7 +218,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
 
     @Test
     void unknownOpAndNonObjectAreInvalidAtTheirIndex() throws Exception {
-        var r = commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"phys\":\"TB_A\",\"logical\":\"에이\"},{\"op\":\"nope\"}]"));
+        var r = commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A\",\"logical\":\"에이\"},{\"op\":\"nope\"}]"));
         assertThat(r.rejection().code()).isEqualTo("INVALID");
         assertThat(r.rejection().commandIndex()).isEqualTo(1);
         var r2 = commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[\"addTable\"]"));
@@ -215,12 +231,12 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
         String jsonBefore = jdbc.queryForObject("SELECT MODEL_JSON FROM TB_MDM_ERD_MODEL_VER WHERE STATUS='DRAFT'", String.class);
         var r = commands.apply("mcm", 0, "owner", "ui", "UI", cmds("""
                 [{"op":"addDiagram","id":"d-1","areaName":"a","diagramName":"b"},
-                 {"op":"addTable","phys":"bad name","logical":"x"}]"""));
+                 {"op":"addTable","audit":false,"phys":"bad name","logical":"x"}]"""));
         assertThat(r.rejection().code()).isEqualTo("INVALID");
         assertThat(r.rejection().commandIndex()).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_ERD_DIAGRAM", Integer.class)).isZero();
         var r2 = commands.apply("mcm", 0, "owner", "ui", "UI", cmds("""
-                [{"op":"addTable","id":"t-1","phys":"TB_A","logical":"에이"},
+                [{"op":"addTable","audit":false,"id":"t-1","phys":"TB_A","logical":"에이"},
                  {"op":"placeTables","diagram":"d-none","nodes":[{"table":"t-1","x":1,"y":1}]}]"""));
         assertThat(r2.rejection().commandIndex()).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT REV FROM TB_MDM_ERD_MODEL WHERE ERD_MODEL_ID='mcm'", Long.class)).isZero();
@@ -245,7 +261,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
 
     @Test
     void undoRevertsDiagramChange() throws Exception {
-        commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
+        commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
         commands.apply("mcm", 1, "owner", "ui", "UI", cmds("""
                 [{"op":"addDiagram","id":"d-1","areaName":"a","diagramName":"b"},
                  {"op":"placeTables","diagram":"d-1","nodes":[{"table":"t-1","x":40,"y":40}]}]"""));
@@ -259,7 +275,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
 
     @Test
     void undoConflictsWhenLaterChangeTouchedSameProperty() throws Exception {
-        commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
+        commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
         commands.apply("mcm", 1, "owner", "ui", "UI", cmds("[{\"op\":\"updateTable\",\"id\":\"t-1\",\"set\":{\"logical\":\"둘\"}}]"));
         commands.apply("mcm", 2, "owner", "other", "MCP", cmds("[{\"op\":\"updateTable\",\"id\":\"t-1\",\"set\":{\"logical\":\"셋\"}}]"));
         var r = commands.undo("mcm", 2, "owner", "ui", "UI");
@@ -276,7 +292,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
 
     @Test
     void invalidSourceIsRejectedNotThrown() throws Exception {
-        var r = commands.apply("mcm", 0, "owner", "ui", "WEB", cmds("[{\"op\":\"addTable\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
+        var r = commands.apply("mcm", 0, "owner", "ui", "WEB", cmds("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
         assertThat(r.rejection().code()).isEqualTo("INVALID");
     }
 
@@ -285,7 +301,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < 200; i++) {
             if (i > 0) sb.append(',');
-            sb.append("{\"op\":\"addTable\",\"phys\":\"TB_L").append(i).append("\",\"logical\":\"큰묶음").append(i)
+            sb.append("{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_L").append(i).append("\",\"logical\":\"큰묶음").append(i)
                     .append("\",\"comment\":\"").append("설명".repeat(60)).append("\"}");
         }
         var r = commands.apply("mcm", 0, "owner", "ui", "UI", cmds(sb.append(']').toString()));
@@ -328,7 +344,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
 
     @Test
     void baseRevAboveCurrentRevIsInvalid() throws Exception {
-        var r = commands.apply("mcm", 5, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
+        var r = commands.apply("mcm", 5, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
         assertThat(r.applied()).isFalse();
         assertThat(r.rejection().code()).isEqualTo("INVALID");
         assertThat(r.rejection().message()).contains("현재 rev(0)");
@@ -336,10 +352,10 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
     }
 
     private static final String PARENT_CHILD = """
-            [{"op":"addTable","id":"t-r","phys":"TB_ROLE","logical":"역할"},
+            [{"op":"addTable","audit":false,"id":"t-r","phys":"TB_ROLE","logical":"역할"},
              {"op":"addColumn","id":"c-r1","table":"t-r","phys":"ROLE_ID","logical":"역할아이디","dataType":"VARCHAR2","length":30,"notNull":true},
              {"op":"setPrimaryKey","table":"t-r","columns":["c-r1"]},
-             {"op":"addTable","id":"t-m","phys":"TB_MAPPING","logical":"매핑"}]""";
+             {"op":"addTable","audit":false,"id":"t-m","phys":"TB_MAPPING","logical":"매핑"}]""";
 
     @Test
     void addRelationWithoutIdentifyingDefaultsToFalse() throws Exception {
@@ -356,7 +372,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
     }
 
     private void placeNode() throws Exception {
-        commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
+        commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
         commands.apply("mcm", 1, "owner", "ui", "UI", cmds("""
                 [{"op":"addDiagram","id":"d-1","areaName":"a","diagramName":"b"},
                  {"op":"placeTables","diagram":"d-1","nodes":[{"table":"t-1","x":10,"y":10}]}]"""));
@@ -389,12 +405,12 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
     @Test
     void restoreNeverTouchesAnotherModelsDiagram() throws Exception {
         versions.createModel("mls", "mls", "MLSAPUSER", "MLS", "owner");
-        commands.apply("mls", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
+        commands.apply("mls", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
         commands.apply("mls", 1, "owner", "ui", "UI", cmds("""
                 [{"op":"addDiagram","id":"d-m","areaName":"a","diagramName":"b"},
                  {"op":"placeTables","diagram":"d-m","nodes":[{"table":"t-1","x":7,"y":7}]}]"""));
         // mcm 의 기록 한 건을 mls 의 다이어그램을 가리키도록 손댄다(로그 변조·id 재사용 가정)
-        commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"phys\":\"TB_B\",\"logical\":\"비\"}]"));
+        commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_B\",\"logical\":\"비\"}]"));
         for (String el : List.of("{\"kind\":\"diagramNode\",\"id\":\"d-m:t-1\",\"op\":\"delete\",\"value\":null}",
                 "{\"kind\":\"diagram\",\"id\":\"d-m\",\"op\":\"delete\",\"value\":null}")) {
             jdbc.update("UPDATE TB_MDM_ERD_CMD_LOG SET INVERSE_JSON = ? WHERE ERD_MODEL_ID='mcm' AND REV=1",
@@ -417,7 +433,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
 
     @Test
     void changesSinceAheadOfServerReloads() throws Exception {
-        commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
+        commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
         var ahead = commands.changesSince("mcm", 5);
         assertThat(ahead.reload()).isTrue();
         assertThat(ahead.rev()).isEqualTo(1);
@@ -427,8 +443,8 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
 
     @Test
     void preLockRejectionReturnsCurrentRev() throws Exception {
-        commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
-        var r = commands.apply("mcm", 0, "owner", "ui", "WEB", cmds("[{\"op\":\"addTable\",\"phys\":\"TB_B\",\"logical\":\"비\"}]"));
+        commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
+        var r = commands.apply("mcm", 0, "owner", "ui", "WEB", cmds("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_B\",\"logical\":\"비\"}]"));
         assertThat(r.rejection().code()).isEqualTo("INVALID");
         assertThat(r.rev()).isEqualTo(1);
     }
@@ -439,7 +455,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
     @Test
     void strangerIsNotEditorBeforeEngineValidation() throws Exception {
         var r = commands.apply("mcm", 0, "stranger", "s", "MCP", cmds("""
-                [{"op":"addTable","phys":"bad name","logical":"x"}]"""));
+                [{"op":"addTable","audit":false,"phys":"bad name","logical":"x"}]"""));
         assertThat(r.applied()).isFalse();
         assertThat(r.rejection().code()).isEqualTo("NOT_EDITOR");
         assertThat(r.rejection().ownerId()).isEqualTo("owner");
@@ -470,7 +486,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
         versions.newVersion("mcm", "MINOR", "owner");                                                    // rev 1 (표시)
         List<ErdDelta> seen = new CopyOnWriteArrayList<>();
         Runnable off = hub.addListenerForTest("mcm", seen::add);
-        assertThat(commands.apply("mcm", 1, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"phys\":\"TB_A\",\"logical\":\"x\"}]")).applied()).isTrue(); // rev 2
+        assertThat(commands.apply("mcm", 1, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A\",\"logical\":\"x\"}]")).applied()).isTrue(); // rev 2
         deleteDraft();                                                                                   // rev 3 (표시)
         off.run();
         assertThat(jdbc.queryForObject("SELECT REV FROM TB_MDM_ERD_MODEL WHERE ERD_MODEL_ID='mcm'", Long.class)).isEqualTo(3);
@@ -487,7 +503,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
     /** I1: 확정 버전이 없는 모델의 첫 DRAFT 는 지울 수 없다 — 지우면 모델에 버전이 하나도 없어 모듈이 막힌다(B6 모듈 유일). */
     @Test
     void firstDraftOfNeverReleasedModelCannotBeDeleted() throws Exception {
-        commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"phys\":\"TB_A\",\"logical\":\"x\"}]"));
+        commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A\",\"logical\":\"x\"}]"));
         org.assertj.core.api.Assertions.assertThatThrownBy(this::deleteDraft)
                 .isInstanceOf(com.dongkuk.dmes.cactus.common.BusinessException.class)
                 .satisfies(e -> assertThat(((com.dongkuk.dmes.cactus.common.BusinessException) e).getErrors().get(0).code())
@@ -502,7 +518,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
     void applyWithBaseRevBeforeMarkerIsInvalid() throws Exception {
         released();
         versions.newVersion("mcm", "MINOR", "owner");                                                    // rev 1 (표시)
-        var r = commands.apply("mcm", 0, "owner", "mcp", "MCP", cmds("[{\"op\":\"addTable\",\"phys\":\"TB_A\",\"logical\":\"x\"}]"));
+        var r = commands.apply("mcm", 0, "owner", "mcp", "MCP", cmds("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A\",\"logical\":\"x\"}]"));
         assertThat(r.applied()).isFalse();
         assertThat(r.rejection().code()).isEqualTo("INVALID");
         assertThat(r.rejection().hint()).contains("getChangesSince");
@@ -510,7 +526,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
         // 다이어그램 명령도 같다(같은 baseRev 계약)
         var d = commands.apply("mcm", 0, "owner", "mcp", "MCP", cmds("[{\"op\":\"addDiagram\",\"id\":\"d-1\",\"areaName\":\"a\",\"diagramName\":\"b\"}]"));
         assertThat(d.rejection().code()).isEqualTo("INVALID");
-        assertThat(commands.apply("mcm", 1, "owner", "mcp", "MCP", cmds("[{\"op\":\"addTable\",\"phys\":\"TB_A\",\"logical\":\"x\"}]")).applied()).isTrue();
+        assertThat(commands.apply("mcm", 1, "owner", "mcp", "MCP", cmds("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A\",\"logical\":\"x\"}]")).applied()).isTrue();
     }
 
     /** M4: 표시 행 USER_ID(50자)를 넘는 사용자 id 는 SYSTEM 으로 남긴다(S001 이 아니다). */
@@ -527,14 +543,14 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
     /** B2: 새 DRAFT(copy)도 같은 표시를 남긴다. */
     @Test
     void newVersionBumpsRevAndChangesSinceReloads() throws Exception {
-        commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"phys\":\"TB_A\",\"logical\":\"x\"}]"));
+        commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A\",\"logical\":\"x\"}]"));
         released();
         versions.newVersion("mcm", "MINOR", "owner");
         assertThat(jdbc.queryForObject("SELECT REV FROM TB_MDM_ERD_MODEL WHERE ERD_MODEL_ID='mcm'", Long.class)).isEqualTo(2);
         assertThat(commands.changesSince("mcm", 1).reload()).isTrue();
         assertThat(commands.changesSince("mcm", 2).reload()).isFalse();
         // 표시 뒤의 명령은 평소처럼 델타로 받는다
-        commands.apply("mcm", 2, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"phys\":\"TB_B\",\"logical\":\"x\"}]"));
+        commands.apply("mcm", 2, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_B\",\"logical\":\"x\"}]"));
         var after = commands.changesSince("mcm", 2);
         assertThat(after.reload()).isFalse();
         assertThat(after.deltas()).extracting(ErdDelta::rev).containsExactly(3L);
@@ -546,7 +562,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
         released();
         versions.newVersion("mcm", "MINOR", "owner");                                                    // rev 1 (표시)
         assertThat(commands.apply("mcm", 1, "owner", "ui", "UI", cmds("""
-                [{"op":"addTable","id":"t-1","phys":"TB_A","logical":"에이"}]""")).applied()).isTrue();  // rev 2
+                [{"op":"addTable","audit":false,"id":"t-1","phys":"TB_A","logical":"에이"}]""")).applied()).isTrue();  // rev 2
         deleteDraft();                                                                                   // rev 3 (표시)
         versions.newVersion("mcm", "MINOR", "owner");                                                    // rev 4 (표시), 같은 번호 1.001
         var r = commands.undo("mcm", 2, "owner", "ui", "UI");
@@ -556,7 +572,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
         assertThat(commands.undo("mcm", 2, "stranger", "s", "UI").rejection().code()).isEqualTo("NOT_EDITOR");
         assertThat(jdbc.queryForObject("SELECT REV FROM TB_MDM_ERD_MODEL WHERE ERD_MODEL_ID='mcm'", Long.class)).isEqualTo(4);
         assertThat(commands.apply("mcm", 4, "owner", "ui", "UI", cmds("""
-                [{"op":"addTable","id":"t-2","phys":"TB_B","logical":"비"}]""")).applied()).isTrue();    // rev 5
+                [{"op":"addTable","audit":false,"id":"t-2","phys":"TB_B","logical":"비"}]""")).applied()).isTrue();    // rev 5
         assertThat(commands.undo("mcm", 5, "owner", "ui", "UI").applied()).isTrue();
         assertThat(draftRef().ver()).isEqualByComparingTo(new BigDecimal("1.001"));
     }
@@ -564,7 +580,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
     /** 표시 행은 SYSTEM 출처 전용이다 — 명령은 SYSTEM 으로 보낼 수 없다. */
     @Test
     void systemSourceIsReservedForMarkers() throws Exception {
-        var r = commands.apply("mcm", 0, "owner", "ui", "SYSTEM", cmds("[{\"op\":\"addTable\",\"phys\":\"TB_A\",\"logical\":\"x\"}]"));
+        var r = commands.apply("mcm", 0, "owner", "ui", "SYSTEM", cmds("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A\",\"logical\":\"x\"}]"));
         assertThat(r.rejection().code()).isEqualTo("INVALID");
     }
 
@@ -572,7 +588,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
     @Test
     void undoAcrossCopyMarkerIsInvalid() throws Exception {
         assertThat(commands.apply("mcm", 0, "owner", "ui", "UI", cmds("""
-                [{"op":"addTable","id":"t-1","phys":"TB_A","logical":"에이"}]""")).applied()).isTrue();  // rev 1 (1.000)
+                [{"op":"addTable","audit":false,"id":"t-1","phys":"TB_A","logical":"에이"}]""")).applied()).isTrue();  // rev 1 (1.000)
         released();
         versions.newVersion("mcm", "MINOR", "owner");                                                    // rev 2 (표시)
         var r = commands.undo("mcm", 1, "owner", "ui", "UI");

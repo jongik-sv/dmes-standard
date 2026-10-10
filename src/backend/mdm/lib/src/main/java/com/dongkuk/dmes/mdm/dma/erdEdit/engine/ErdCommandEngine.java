@@ -46,6 +46,15 @@ public final class ErdCommandEngine {
                         null, null, null, null, null, null));
             }
         }
+        try {
+            appendAuditColumns(c);
+        } catch (Reject r) {
+            return new ApplyOutcome.Rejected(r.rejection);
+        } catch (RuntimeException e) {
+            return new ApplyOutcome.Rejected(new ErdRejection(ErdRejection.INVALID, c.index,
+                    "감사 컬럼을 붙일 수 없습니다: " + e.getMessage(), "명령 JSON 의 모양과 값 형식을 확인하세요",
+                    null, null, null, null, null, null));
+        }
         c.index = Math.max(0, commands.size() - 1);
         try {
             ErdIntegrity.check(c, hasRestore);
@@ -70,6 +79,40 @@ public final class ErdCommandEngine {
         warnings.addAll(c.warnings);
         List<ErdCommand> inverse = restore.isEmpty() ? List.of() : List.of(new Restore(newRev, restore));
         return new ApplyOutcome.Applied(c.m, changes, inverse, warnings, List.copyOf(touchedTables));
+    }
+
+    /**
+     * 묶음 끝에서 addTable 로 만든 표마다 감사 컬럼 8개({@link ErdAuditColumns})를 컬럼 순서 맨 끝에 붙인다.
+     * 묶음이 끝난 뒤에 붙이므로 같은 묶음에서 사용자가 더한 컬럼은 감사 블록 앞에 놓이고, 같은 물리명(대소문자 무시)을 사용자가 이미
+     * 더했으면 그 컬럼을 두고 나머지만 붙인다. 묶음 안에서 지워진 표는 건너뛴다. 타입은 DB 사실로 고정하고 도메인은 복사하지 않으며,
+     * 논리명·도메인 id 만 사전(fillByPhys)에서 채운다(없으면 고정 논리명).
+     */
+    private void appendAuditColumns(Ctx c) {
+        for (var e : c.auditTables.entrySet()) {
+            ErdTable t = c.m.tables.get(e.getKey());
+            if (t == null) continue;
+            c.index = e.getValue();
+            Set<String> have = new HashSet<>();
+            for (String cid : t.columnOrder) {
+                String ph = physOf(c, cid);
+                if (ph != null) have.add(ph.toUpperCase(Locale.ROOT));
+            }
+            for (ErdAuditColumns.Spec s : ErdAuditColumns.SPECS) {
+                if (have.contains(s.phys())) continue;
+                ErdNaming.PhysFill fill = naming.fillByPhys(s.phys());
+                String logical = fill == null || fill.logical() == null || fill.logical().isBlank() ? s.fallbackLogical() : fill.logical();
+                Long domainId = fill == null ? null : fill.domainId();
+                // dataType 를 넣어 addColumn 이 도메인 타입을 복사하지 않게 한다(감사 컬럼 타입은 DB 사실).
+                addColumn(c, new AddColumn(null, e.getKey(), s.phys(), logical, domainId, s.dataType(), s.length(), s.scale(),
+                        false, null, s.fallbackLogical(), null));  // comment 는 기존 표 DDL 과 같은 고정 글
+            }
+        }
+    }
+
+    /** 컬럼 id → 물리명. 없는 컬럼은 null(감사 컬럼으로 보지 않는다). */
+    private static String physOf(Ctx c, String cid) {
+        ErdColumn x = c.m.columns.get(cid);
+        return x == null ? null : x.phys;
     }
 
     /** deferred 25: 바뀐 요소가 걸친 표 id. 지운 요소는 지우기 전 값, 만든 요소는 만든 뒤 값으로 본다. 다른 모델 부모(null)는 뺀다. */
@@ -157,6 +200,9 @@ public final class ErdCommandEngine {
         c.m.tables.put(id, t);
         c.m.tombstones.remove(id);
         c.stamp(t.rev, TABLE_PROPS);
+        // 지웠다 audit:false 로 다시 만든 같은 id 가 앞 기록으로 감사 컬럼을 받지 않게, false 면 기록을 지운다.
+        if (Boolean.FALSE.equals(a.audit())) c.auditTables.remove(id);
+        else c.auditTables.put(id, c.index);
     }
 
     private void updateTable(Ctx c, UpdateTable u) {
@@ -193,6 +239,7 @@ public final class ErdCommandEngine {
             if (id.equals(r.child) || id.equals(r.parent)) ErdRelationOps.delete(c, e.getKey());
         }
         c.touch("table", id);
+        c.auditTables.remove(id);
         c.m.tables.remove(id);
         c.m.tombstones.put(id, new PropRev(c.newRev, c.session));
     }
@@ -230,7 +277,13 @@ public final class ErdCommandEngine {
         if (col.dataType == null && domainId != null) naming.domain(domainId).ifPresent(d -> copyDomain(col, d));
         c.m.columns.put(id, col);
         c.m.tombstones.remove(id);
-        int pos = a.position() == null ? t.columnOrder.size() : Math.max(0, Math.min(a.position(), t.columnOrder.size()));
+        // 위치를 안 주면 맨 끝 — 단 감사 컬럼 블록으로 끝난 표에서는 그 블록 앞이다(감사 컬럼 자신은 맨 끝).
+        // 위치가 목록 끝 이상이어도 "끝"으로 본다(moveColumn 과 같은 규칙). 범위 안 명시 위치는 그대로다.
+        boolean atEnd = a.position() == null || a.position() >= t.columnOrder.size();
+        int pos = atEnd
+                ? (ErdAuditColumns.isAudit(phys) ? t.columnOrder.size()
+                        : ErdAuditColumns.endInsertIndex(t.columnOrder, cid -> physOf(c, cid)))
+                : Math.max(0, a.position());
         t.columnOrder.add(pos, id);
         c.stamp(col.rev, COLUMN_PROPS);
         c.stamp(t.rev, Set.of("columnOrder"));
@@ -273,7 +326,11 @@ public final class ErdCommandEngine {
         c.checkConflict(t.rev, Set.of("columnOrder"), col.table, c.node(t));
         c.touch("table", col.table);
         t.columnOrder.remove(mv.id());
-        t.columnOrder.add(Math.max(0, Math.min(mv.position(), t.columnOrder.size())), mv.id());
+        // 끝으로 보내면(제자리 뺀 크기 이상) 감사 컬럼 블록 앞에 둔다. 감사 컬럼 자신은 맨 끝이다.
+        int at = mv.position() >= t.columnOrder.size() && !ErdAuditColumns.isAudit(col.phys)
+                ? ErdAuditColumns.endInsertIndex(t.columnOrder, cid -> physOf(c, cid))
+                : Math.max(0, Math.min(mv.position(), t.columnOrder.size()));
+        t.columnOrder.add(at, mv.id());
         c.stamp(t.rev, Set.of("columnOrder"));
     }
 

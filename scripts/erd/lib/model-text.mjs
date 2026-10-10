@@ -2,6 +2,10 @@
 // 입력: OASIS erdEdit view 응답(ErdModelView, model 은 MODEL_JSON 문자열), view kind=STATUS 응답(ErdStatusView),
 //       view sinceRev 응답(ErdChangesView), compare kind=DB_DIFF 응답(ErdDbDiffView).
 
+import { AUDIT_COLUMNS, isAuditColumn } from "./audit.mjs";
+
+export { AUDIT_COLUMNS, isAuditColumn };
+
 const QUIET = new Set(["OK", "ALIAS"]);
 const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
@@ -125,10 +129,15 @@ function missingLine(m, ids, missing) {
   return `없는 표: ${namesWithin(hints, 2000)}. 물리명을 확인하거나, 접두사로 찾으려면 끝에 * 를 붙인다(예: TB_MCM_SEC_*).`;
 }
 
-function tableBlock(m, tid, rels, statuses, domains) {
+/** 접은 감사 컬럼 줄의 머리. 이름 뒤에 표시를 괄호로(PK·NN·FK>…), 표준 상태를 !상태로 붙인다: C_AT!DOMAIN U_USR_ID(PK,NN). */
+const FOLD_HEAD = "감사 컬럼 ";
+const isFoldRow = (row) => row.startsWith(`  ${FOLD_HEAD}`) && /^ {2}감사 컬럼 \d+개: /.test(row);
+
+function tableBlock(m, tid, rels, statuses, domains, audit = false) {
   const t = m.tables[tid];
   const out = [t.logical ? `${t.phys} ${t.logical} {` : `${t.phys} {`];
   const pk = new Set(pkColumns(m, tid));
+  const folded = [];
   for (const cid of columnIds(m, t)) {
     const c = m.columns[cid];
     const parts = [c.phys, c.logical || "-", typeText(c)];
@@ -148,8 +157,15 @@ function tableBlock(m, tid, rels, statuses, domains) {
     if (c.domainId != null) parts.push(`[${domains[String(c.domainId)]?.name ?? `도메인 ${c.domainId}`}]`);
     const st = statuses[cid];
     if (st && !QUIET.has(st)) parts.push(`!${st}`);
+    // 감사 컬럼은 기본으로 한 줄에 접는다(audit=true 면 보통 컬럼 줄). 접어도 표시(PK·NN·FK)와 표준 상태는 이름 뒤에 남긴다.
+    if (!audit && isAuditColumn(c.phys)) {
+      const marks = parts.slice(3).filter((p) => !p.startsWith("[") && !p.startsWith("!"));
+      folded.push(`${c.phys}${marks.length ? `(${marks.join(",")})` : ""}${st && !QUIET.has(st) ? `!${st}` : ""}`);
+      continue;
+    }
     out.push(`  ${parts.join(" ")}`);
   }
+  if (folded.length) out.push(`  ${FOLD_HEAD}${folded.length}개: ${folded.join(" ")}`);
   out.push("}");
   return out.join("\n");
 }
@@ -189,6 +205,8 @@ function namesWithin(names, budget) {
  * - Ref 줄: 복합은 (A, B). diagram 을 주면 양 끝 표가 모두 그 다이어그램에 있을 때만 쓴다.
  *   tables 를 주면 한쪽 끝(자식 또는 부모)이 고른 표면 쓴다. 그래서 부모 표만 골라도 자식 쪽 관계가 보인다.
  * - 근거: NAME_RULE 은 종류만, 나머지는 "종류 파일이름:줄"(ref 의 마지막 / 뒤).
+ * - 감사 컬럼(C_USR_ID C_AT C_SVC_ID C_PGM_ID U_USR_ID U_AT U_SVC_ID U_PGM_ID, 물리명 대소문자 무시)은 표마다 끝에
+ *   "감사 컬럼 n개: 이름 …" 한 줄로 접는다(표준 상태·FK 는 이 줄에 없다). opts.audit=true 면 보통 컬럼 줄로 낸다.
  * 크기(TEXT_LIMIT, opts.limit 로 바꿀 수 있다):
  * - tables 없이 전체 글이 상한을 넘으면 개요(표 수·컬럼 수·관계 상태별 수·PK 없는 표·표마다 컬럼 수와 PK)를 준다.
  * - tables 로 고른 글이 상한을 넘으면 들어가는 표까지만 싣고, 나머지 표 이름과 다시 부르라는 줄을 붙인다.
@@ -221,7 +239,7 @@ export function getModelText(view, status, opts = {}) {
     refs.push({ line: refLine(m, r), child: r.child, parent: r.parent });
   }
   refs.sort((a, b) => cmp(a.line, b.line));
-  const blocks = new Map(ids.map((tid) => [tid, tableBlock(m, tid, rels, statuses, domains)]));
+  const blocks = new Map(ids.map((tid) => [tid, tableBlock(m, tid, rels, statuses, domains, opts.audit === true)]));
   const pre = [head];
   if (missing.length) pre.push(missingLine(m, scope, missing));
   if (ids.length === 0) pre.push("(표 없음)");
@@ -244,16 +262,22 @@ export function getModelText(view, status, opts = {}) {
   }
   // 표 하나가 혼자 상한을 넘으면(컬럼 수백 개) 그 표의 컬럼 줄을 들어가는 데까지만 싣는다.
   if (kept.length === 0 && ids.length > 0) {
+    // 접은 감사 컬럼 줄은 항상 싣는다(한 줄이고 짧다). 못 실은 수에는 보통 컬럼만 센다.
     const rows = blocks.get(ids[0]).split("\n");
-    const room = limit - reserve - used;
+    const foldRow = rows.slice(1, -1).find(isFoldRow);
+    const body = rows.slice(0, -1).filter((r) => r !== foldRow);
+    const room = limit - reserve - used - (foldRow ? foldRow.length + 1 : 0);
     const shown = [];
     let size = 0;
-    for (const row of rows.slice(0, -1)) {
+    for (const row of body) {
       if (size + row.length + 1 > room) break;
       shown.push(row);
       size += row.length + 1;
     }
-    shown.push(`  … 컬럼 ${rows.length - 1 - shown.length}개를 더 싣지 못했다(상한 ${limit}자).`, "}");
+    const left = body.length - shown.length;
+    if (left > 0) shown.push(`  … 컬럼 ${left}개를 더 싣지 못했다(상한 ${limit}자).`);
+    if (foldRow) shown.push(foldRow);
+    shown.push("}");
     blocks.set(ids[0], shown.join("\n"));
     kept.push(ids[0]);
   }

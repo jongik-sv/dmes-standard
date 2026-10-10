@@ -18,6 +18,7 @@ import { DomainField, type DomainRow } from "@/domain";
 import { MDM_OASIS_BASE, plainError } from "@/oasis-screen";
 
 import { previewName } from "../api";
+import { isAuditColumn } from "../audit-columns";
 import type { ErdEditContext } from "../edit-context";
 import type { ErdColumnStatus, ErdCommandJson, ErdModelJson, ErdNamePreview } from "../types";
 import { TOKEN_STATUS_LABEL, TokenChoiceModal, toTokenChoices, tokenTone, type TokenChoice } from "./TokenChoiceModal";
@@ -254,7 +255,8 @@ export function GridInputBar({ ctx, tableId, focusColumnId, handle, onAdded, ren
       ctx.notify("바뀐 값이 없습니다.", "info");
       return;
     }
-    void send([{ op: "updateColumn", id: focusColumnId, set }], "논리명 바꾸기", null, logical);
+    // 감사 컬럼 이름으로 바뀌면 행이 숨겨지지 않게 onAdded(그리드의 focusColumn)로 보기를 켜고 초점을 준다.
+    void send([{ op: "updateColumn", id: focusColumnId, set }], "논리명 바꾸기", isAuditColumn(set.phys as string | undefined) ? focusColumnId : null, logical);
   };
 
   const onDomain = (row: DomainRow | null) => {

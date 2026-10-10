@@ -15,6 +15,7 @@ import { useCanvasEditing, type CanvasEditing } from "../../../pages/dma/erdEdit
 import type { ApplyOutcome, ErdEditContext } from "../../../pages/dma/erdEdit/edit-context";
 import { flush, typeInto } from "../../dme/helpers/render";
 import { deny, fakeCtx, notice, type FakeCtx } from "./erd-canvas-fixtures";
+import { MENU_DIAGRAMS, column, menuModel, stateOf } from "./erd-fixtures";
 
 const NODE_TYPES: NodeTypes = { erdTable: ErdTableNode };
 const EDGE_TYPES: EdgeTypes = { erdRelation: ErdRelationEdge };
@@ -30,10 +31,10 @@ function Harness({ ctx, selected }: { ctx: ErdEditContext; selected: readonly st
   editing = e;
   const flow = useMemo(
     () => buildFlow({
-      state: ctx.state, diagramId: ctx.diagramId, mode: "logical", preset: "basic", namesOnly: false,
+      state: ctx.state, diagramId: ctx.diagramId, mode: "logical", preset: "basic", namesOnly: false, showAudit: ctx.audit.show,
       statuses: {}, domains: {}, selected: new Set(selected), mySession: ctx.session,
     }),
-    [ctx.state, ctx.diagramId, ctx.session, selected],
+    [ctx.state, ctx.diagramId, ctx.session, ctx.audit.show, selected],
   );
   raw = flow.nodes;
   return h("div", { tabIndex: 0, "data-testid": "erd-host", onKeyDown: e.onKeyDown, style: { position: "relative", width: 1200, height: 800 } },
@@ -303,5 +304,49 @@ describe("캔버스 편집 — 끌기·관계·표 추가·배치·꾸밈", () =
     const b = editing.decorateNodes(raw);
     expect(b[0]).toBe(a[0]);
     expect(b[1]).toBe(a[1]);
+  });
+});
+
+/** 메뉴 표(t-1)에 감사 컬럼 둘(C_USR_ID·u_at)을 더한 상태. */
+function withAudit() {
+  const m = menuModel();
+  m.tables["t-1"].columnOrder.push("c-a1", "c-a2");
+  m.columns["c-a1"] = column("t-1", "C_USR_ID", "생성자");
+  m.columns["c-a2"] = column("t-1", "u_at", "수정일시");
+  return stateOf(m, MENU_DIAGRAMS);
+}
+
+describe("감사 컬럼 보기", () => {
+  it("도구 막대 단추는 꺼진 채 시작하고(aria-pressed=false) 누르면 켜라고 알린다", async () => {
+    const ctx = fakeCtx();
+    await mount(ctx);
+    const btn = document.querySelector('[data-testid="erd-audit-toggle"]')!;
+    expect(btn.getAttribute("aria-pressed")).toBe("false");
+    await click('[data-testid="erd-audit-toggle"]');
+    expect(ctx.audit.setShow).toHaveBeenCalledWith(true);
+  });
+
+  it("켜져 있으면 눌림 상태이고 끄라고 알린다", async () => {
+    const ctx = fakeCtx({ audit: { show: true, setShow: vi.fn() } });
+    await mount(ctx);
+    expect(document.querySelector('[data-testid="erd-audit-toggle"]')?.getAttribute("aria-pressed")).toBe("true");
+    await click('[data-testid="erd-audit-toggle"]');
+    expect(ctx.audit.setShow).toHaveBeenCalledWith(false);
+  });
+
+  it("숨김: 노드 행에서 감사 컬럼을 빼고 머리에 「감사 n」 배지를 단다. 감사 컬럼이 없는 표에는 배지가 없다", async () => {
+    await mount(fakeCtx({ state: withAudit() }));
+    expect(host.querySelector('[data-testid="erd-col-c-1"]')).not.toBeNull();
+    expect(host.querySelector('[data-testid="erd-col-c-a1"]')).toBeNull();
+    expect(host.querySelector('[data-testid="erd-col-c-a2"]')).toBeNull();
+    expect(host.querySelector('[data-testid="erd-audit-badge-t-1"]')?.textContent).toBe("감사 2");
+    expect(host.querySelector('[data-testid="erd-audit-badge-t-2"]')).toBeNull();
+  });
+
+  it("보기 켬: 감사 행이 보이고 배지는 사라진다", async () => {
+    await mount(fakeCtx({ state: withAudit(), audit: { show: true, setShow: vi.fn() } }));
+    expect(host.querySelector('[data-testid="erd-col-c-a1"]')).not.toBeNull();
+    expect(host.querySelector('[data-testid="erd-col-c-a2"]')).not.toBeNull();
+    expect(host.querySelector('[data-testid="erd-audit-badge-t-1"]')).toBeNull();
   });
 });

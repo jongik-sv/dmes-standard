@@ -32,7 +32,15 @@ import java.util.Map;
 })
 public sealed interface ErdCommand {
 
-    record AddTable(String id, String phys, String logical, String comment) implements ErdCommand {}
+    /**
+     * audit: 감사 컬럼 8개({@link ErdAuditColumns})를 묶음 끝에서 자동으로 덧붙일지. null 이면 true, false 면 붙이지 않는다.
+     * 4인자 생성자는 audit=null 이다(기존 호출·시험 호환). JSON 은 정규 생성자로 읽는다.
+     */
+    record AddTable(String id, String phys, String logical, String comment, Boolean audit) implements ErdCommand {
+        public AddTable(String id, String phys, String logical, String comment) {
+            this(id, phys, logical, comment, null);
+        }
+    }
     record UpdateTable(String id, Map<String, Object> set) implements ErdCommand {}
     record DeleteTable(String id) implements ErdCommand {}
 

@@ -50,7 +50,7 @@ class ErdPresenceTouchTest extends AbstractMdmSharedDbTest {
     /** Review Focus 4. */
     @Test
     void mcpWriteAppearsInPresenceAndExpires() throws Exception {
-        commands.apply("mcm", 0, "owner", "ui-owner", "UI", c.cmd("[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
+        commands.apply("mcm", 0, "owner", "ui-owner", "UI", c.cmd("[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
         versions.addEditor("mcm", "erd-mcp-a", "owner");
         var q = c.open("mcm", "ui-a", 1, "owner");
         c.next(q, "presence", l -> ErdTestClient.entry(l, "ui-a") != null);
@@ -77,8 +77,8 @@ class ErdPresenceTouchTest extends AbstractMdmSharedDbTest {
 
     @Test
     void readsExtendAndClaimsShapeSelectedTables() throws Exception {
-        commands.apply("mcm", 0, "owner", "ui-owner", "UI", c.cmd("[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"},"
-                + "{\"op\":\"addTable\",\"id\":\"t-2\",\"phys\":\"TB_B\",\"logical\":\"비\"}]"));
+        commands.apply("mcm", 0, "owner", "ui-owner", "UI", c.cmd("[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"},"
+                + "{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-2\",\"phys\":\"TB_B\",\"logical\":\"비\"}]"));
         Map<String, Object> read = Map.of("modelId", "mcm", "session", "claude-r", "source", "MCP");
         c.call("view", "erd-mcp-a", read);
         ErdPresence first = presence("claude-r");
@@ -119,7 +119,7 @@ class ErdPresenceTouchTest extends AbstractMdmSharedDbTest {
     /** deferred 25: 키·관계·컬럼 삭제처럼 표 델타가 없는 변경도 그 표를 접속자 표시에 넣는다(엔진 touchedTables). */
     @Test
     void mcpKeyChangeTouchesItsTable() throws Exception {
-        commands.apply("mcm", 0, "owner", "ui-owner", "UI", c.cmd("[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"},"
+        commands.apply("mcm", 0, "owner", "ui-owner", "UI", c.cmd("[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"},"
                 + "{\"op\":\"addColumn\",\"id\":\"c-1\",\"table\":\"t-1\",\"phys\":\"COL_A\",\"logical\":\"가\",\"dataType\":\"VARCHAR2\",\"length\":10}]"));
         versions.addEditor("mcm", "erd-mcp-a", "owner");
         JsonNode saved = c.call("save", "erd-mcp-a", Map.of("modelId", "mcm", "baseRev", 1, "session", "claude-k", "source", "MCP",

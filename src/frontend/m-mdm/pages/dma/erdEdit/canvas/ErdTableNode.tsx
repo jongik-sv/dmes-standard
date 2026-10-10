@@ -4,6 +4,7 @@
  * ERD 표 노드 — 머리(이름·위반 수)와 컬럼 행. 확대율이 50% 미만이면 표 이름 한 줄만 그린다(스펙 8절, Review Focus 5) —
  * 컬럼 행·작은 이름·위반 수·이름표를 만들지 않는다(Task 12 가 노드 글자가 한 줄인지 본다).
  * 확대율은 "50% 미만인가" 만 구독한다. 확대·축소할 때마다가 아니라 경계를 넘을 때만 다시 그린다(Local-Rules §19).
+ * 머리의 「감사 n」은 감사 컬럼 보기가 꺼져 가린 감사 컬럼 수다(auditHidden, 접기로 가린 수와 따로 센다).
  * 손잡이: 머리에 표 손잡이 4개(늘), 행에는 선이 쓰는 것만. 행이 바뀌면 React Flow 가 손잡이 자리를 다시 재게 한다.
  */
 import { memo, useEffect, useRef } from "react";
@@ -70,6 +71,11 @@ export const ErdTableNode = memo(function ErdTableNode({ id, data, selected, isC
         <Handles list={TABLE_HANDLES} />
         <span className="erd-node__title">{data.title}</span>
         {!namesOnly && data.subtitle && <span className="erd-node__sub">{data.subtitle}</span>}
+        {!namesOnly && data.auditHidden > 0 && (
+          <span className="erd-node__audit" data-testid={`erd-audit-badge-${id}`} title={`감사 컬럼 ${data.auditHidden}개 숨김`}>
+            감사 {data.auditHidden}
+          </span>
+        )}
         {!namesOnly && data.violations > 0 && (
           <span className="erd-node__warn" title={`표준 위반 ${data.violations}건`}>
             {data.violations}

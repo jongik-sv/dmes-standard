@@ -8,7 +8,7 @@ import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import ErdEditPage from "../../../pages/dma/erdEdit/page";
 import { LOST_TEXT } from "../../../pages/dma/erdEdit/state/permissions";
 import type { ErdModelView } from "../../../pages/dma/erdEdit/types";
-import { FakeEventSource as FakeES, MENU_DIAGRAMS, emptyModel, menuModel, viewOf } from "./erd-fixtures";
+import { FakeEventSource as FakeES, MENU_DIAGRAMS, column, emptyModel, menuModel, viewOf } from "./erd-fixtures";
 
 const RBAC_STORE_KEY = "__dkOasisButtonRbacStore__";
 const originalFetch = globalThis.fetch;
@@ -330,6 +330,41 @@ describe("erdEdit 화면", () => {
     expect(byTestId("erd-column-jump")).toBeNull();
     await key(document.body, { key: "ø", code: "KeyO", altKey: true }); // macOS Option+O 는 key 가 바뀐다
     expect(byTestId("erd-column-jump")).not.toBeNull();
+  });
+
+  it("감사 컬럼 보기 단추는 꺼진 채 열리고, 켜면 저장하며(localStorage), 가려진 감사 컬럼을 컬럼 점프로 고르면 저절로 켜진다", async () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal("localStorage", { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: () => {}, clear: () => {} });
+    const m = menuModel();
+    m.tables["t-1"].columnOrder.push("c-a1");
+    m.columns["c-a1"] = column("t-1", "C_AT", "생성일시");
+    currentView = viewOf(m, MENU_DIAGRAMS);
+    await openModel();
+    const toggle = () => byTestId("erd-audit-toggle");
+    expect(toggle()?.getAttribute("aria-pressed")).toBe("false");
+    await click(toggle());
+    expect(toggle()?.getAttribute("aria-pressed")).toBe("true");
+    expect(store.get("dmes.erdEdit.showAudit")).toBe("1");
+    await click(toggle());
+    expect(toggle()?.getAttribute("aria-pressed")).toBe("false");
+    expect(store.get("dmes.erdEdit.showAudit")).toBe("0");
+    // 컬럼 점프(Alt+O) — 가려진 C_AT 도 찾고, 고르면 보기가 켜진다
+    await key(document.body, { key: "ø", code: "KeyO", altKey: true });
+    const box = await waitFor(() => docTestId("erd-jump-input"));
+    await typeInto(box, "c_at");
+    await key(box, { key: "Enter" });
+    expect(toggle()?.getAttribute("aria-pressed")).toBe("true");
+    expect(store.get("dmes.erdEdit.showAudit")).toBe("1");
+    // 그 컬럼의 표가 열리고 행이 나타나며 초점(입력 칸 대상)이 그 행이다
+    await waitFor(() => byTestId("erd-columns")?.querySelector('.ag-row[row-id="c-a1"]'));
+    await waitFor(() => (byTestId("erd-grid-target")?.textContent === "C_AT" ? byTestId("erd-grid-target") : null));
+    expect(byTestId("erd-audit-hint")).toBeNull();
+  });
+
+  it("다음에 열면 저장해 둔 보기 상태로 시작한다", async () => {
+    vi.stubGlobal("localStorage", { getItem: (k: string) => (k === "dmes.erdEdit.showAudit" ? "1" : null), setItem: () => {}, removeItem: () => {}, clear: () => {} });
+    await openModel();
+    expect(byTestId("erd-audit-toggle")?.getAttribute("aria-pressed")).toBe("true");
   });
 
   it("version 이벤트는 버전 칸만 바꿔 다시 읽지 않고, ver 가 바뀌면 모델을 다시 읽는다", async () => {

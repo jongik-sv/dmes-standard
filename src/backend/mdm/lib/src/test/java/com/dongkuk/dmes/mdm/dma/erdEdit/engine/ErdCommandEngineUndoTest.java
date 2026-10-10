@@ -21,7 +21,7 @@ class ErdCommandEngineUndoTest {
 
     ErdModel base() {
         var r = (ApplyOutcome.Applied) engine.apply(ErdModel.empty("mcm", "MCMAPUSER"), 0, 1, "s-a", List.of(
-                new AddTable("t-1", "TB_MCM_SEC_ROLE", "역할", ""),
+                new AddTable("t-1", "TB_MCM_SEC_ROLE", "역할", "", false),
                 new AddColumn("c-1", "t-1", "ROLE_ID", "역할아이디", null, "VARCHAR2", 30, null, true, null, "", null),
                 new AddColumn("c-2", "t-1", "ROLE_NM", "역할명", null, "VARCHAR2", 100, null, false, null, "", null),
                 new SetPrimaryKey("t-1", List.of("c-1"), null)));
@@ -129,7 +129,7 @@ class ErdCommandEngineUndoTest {
     @Test
     void setPrimaryKeyCreatingKeyRoundTrip() {
         ErdModel noPk = ok(ErdModel.empty("mcm", "S"), 0, 1, "s-a",
-                new AddTable("t-1", "TB_X", "엑스", ""), col("c-1", "X_ID")).next();
+                new AddTable("t-1", "TB_X", "엑스", "", false), col("c-1", "X_ID")).next();
         var change = ok(noPk, 1, 2, "s-a", new SetPrimaryKey("t-1", List.of("c-1"), null));
         var back = ok(change.next(), 2, 3, "s-a", change.inverse().toArray(new ErdCommand[0])).next();
         assertThat(plain(back)).isEqualTo(plain(noPk));
@@ -138,7 +138,7 @@ class ErdCommandEngineUndoTest {
     @Test
     void addTableRoundTrip() {
         ErdModel m = base();
-        var add = ok(m, 1, 2, "s-a", new AddTable("t-2", "TB_OTHER", "다른", ""), col("c-9", "X"));
+        var add = ok(m, 1, 2, "s-a", new AddTable("t-2", "TB_OTHER", "다른", "", false), col("c-9", "X"));
         // c-9 는 t-1 에 붙는다 — 표와 컬럼이 모두 되돌려져야 한다.
         var back = ok(add.next(), 2, 3, "s-a", add.inverse().toArray(new ErdCommand[0])).next();
         assertThat(plain(back)).isEqualTo(plain(m));
@@ -155,7 +155,7 @@ class ErdCommandEngineUndoTest {
 
     @Test
     void createdElementsAppearInDeltaAndInverse() {
-        var add = ok(base(), 1, 2, "s-a", new AddTable("t-2", "TB_OTHER", "다른", ""));
+        var add = ok(base(), 1, 2, "s-a", new AddTable("t-2", "TB_OTHER", "다른", "", false));
         assertThat(add.changes()).extracting(ErdChange::kind, ErdChange::id, ErdChange::op)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("table", "t-2", "upsert"));
         assertThat(((Restore) add.inverse().get(0)).elements()).extracting(ErdChange::id, ErdChange::op)
@@ -233,7 +233,7 @@ class ErdCommandEngineUndoTest {
 
     @Test
     void keyColumnFromOtherTableIsInvalid() {
-        ErdModel m = ok(base(), 1, 2, "s-a", new AddTable("t-2", "TB_OTHER", "다른", ""),
+        ErdModel m = ok(base(), 1, 2, "s-a", new AddTable("t-2", "TB_OTHER", "다른", "", false),
                 new AddColumn("c-5", "t-2", "OTHER_ID", "다른아이디", null, "VARCHAR2", 10, null, false, null, "", null)).next();
         var r = rej(engine.apply(m, 2, 3, "s-a", List.of(new AddKey("k-9", "t-1", "UK", "UK_X", List.of("c-5")))));
         assertThat(r.code()).isEqualTo("INVALID");

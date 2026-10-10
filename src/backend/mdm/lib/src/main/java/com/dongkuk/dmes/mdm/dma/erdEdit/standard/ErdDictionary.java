@@ -94,6 +94,13 @@ public final class ErdDictionary implements ErdNaming {
     }
 
     @Override
+    public PhysFill fillByPhys(String phys) {
+        // 컬럼 사전·별칭 적중만 돌려준다. 역분해(*** 자리표시)로 채우면 고정 논리명이 쓰이지 못한다.
+        ColumnEntry e = phys == null ? null : columnsByPhys.get(phys.toUpperCase(Locale.ROOT));
+        return e == null ? new PhysFill(null, null) : new PhysFill(e.logical(), e.domainId());
+    }
+
+    @Override
     public Optional<ErdDomainSpec> domain(Long domainId) {
         return Optional.ofNullable(domains.get(domainId));
     }

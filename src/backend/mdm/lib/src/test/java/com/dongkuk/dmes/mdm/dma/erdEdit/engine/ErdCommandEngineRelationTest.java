@@ -18,10 +18,10 @@ class ErdCommandEngineRelationTest {
     /** ROLE(PK ROLE_ID) · MAPPING(OBJECT_ID, childHasRoleId 면 ROLE_ID 도 있다) */
     ErdModel base(boolean childHasRoleId) {
         var cmds = new java.util.ArrayList<ErdCommand>(List.of(
-                new AddTable("t-r", "TB_MCM_SEC_ROLE", "역할", ""),
+                new AddTable("t-r", "TB_MCM_SEC_ROLE", "역할", "", false),
                 new AddColumn("c-r1", "t-r", "ROLE_ID", "역할아이디", null, "VARCHAR2", 30, null, true, null, "", null),
                 new SetPrimaryKey("t-r", List.of("c-r1"), null),
-                new AddTable("t-m", "TB_MCM_SEC_ROLE_MAPPING", "역할권한매핑", ""),
+                new AddTable("t-m", "TB_MCM_SEC_ROLE_MAPPING", "역할권한매핑", "", false),
                 new AddColumn("c-m1", "t-m", "OBJECT_ID", "객체아이디", null, "VARCHAR2", 50, null, true, null, "", null),
                 new SetPrimaryKey("t-m", List.of("c-m1"), null)));
         if (childHasRoleId) {

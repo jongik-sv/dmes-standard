@@ -2,6 +2,7 @@
 // 쓰기·거절·변경 글은 WRITE_TEXT_LIMIT 를 넘지 않는다. 넘치면 몸통 줄(변경 줄)을 자르고 마지막 줄(다음 baseRev·다음 할 일)은 남긴다.
 // 서버가 아직 싣지 않을 수 있는 칸(byUserId·rowVersion·dryRun·summary)은 없으면 null 로 읽는다(S2-1).
 import { describeTargets, modelOf, pickTableIds, tablesOfChange } from "./commands.mjs";
+import { isAuditColumn } from "./audit.mjs";
 import { tableArgs } from "./model-text.mjs";
 
 /** 쓰기·변경 결과 글 상한(S2-21). getModelText 의 TEXT_LIMIT(40,000)보다 작다 — 한글이 많아 같은 글자 수에 토큰이 더 든다. */
@@ -111,6 +112,61 @@ function changeText(c, labels, before, rev) {
   let name = labels.get(c.id) ?? c.id;
   if (c.op === "delete" && name === c.id) name = `${c.id}(지움)`;
   return `${c.kind} ${c.op} ${name}${c.op === "delete" ? "" : propsText(c, before, rev)}`;
+}
+
+/** 값의 모든 속성이 이 rev 에서 정해졌나(_rev 가 비면 알 수 없으므로 참). 이름만 바꾼 표·논리명만 고친 컬럼은 거짓이다. */
+const createdAt = (value, rev) => Object.values(value?._rev ?? {}).every((pr) => pr?.rev === rev);
+
+/**
+ * 변경 목록 → 줄 목록. 새 표(addTable)와 같이 생긴 감사 컬럼 upsert 2건 이상은 표마다 한 줄로 접는다(S2-30):
+ * "column upsert TB_X.(감사 컬럼 8개 추가)".
+ * - before(보내기 전 모델)가 있으면: 보내기 전에 없던 표.
+ * - before 가 없으면(getChangesSince): 같은 목록에 표 upsert 가 있고, 그 표의 columnOrder 끝이 이 감사 컬럼들이고,
+ *   표와 컬럼의 모든 속성이 이 rev 에서 정해진 경우만. 이름만 바꾼 표나 감사 컬럼의 값만 고친 경우는 접지 않는다.
+ */
+export function changeLinesOf(changes, labels, before, rev) {
+  const auditOf = (c) => (c.kind === "column" && c.op === "upsert" && isAuditColumn(c.value?.phys) ? c.value.table : null);
+  const newTables = new Set(
+    changes
+      .filter((c) => c.kind === "table" && c.op === "upsert" && !(before && before.tables[c.id]))
+      .map((c) => c.id),
+  );
+  if (!before) {
+    for (const tc of changes) {
+      if (!newTables.has(tc.id) || tc.kind !== "table") continue;
+      const mine = changes.filter((c) => auditOf(c) === tc.id);
+      const order = tc.value?.columnOrder;
+      const tail = Array.isArray(order) ? order.slice(Math.max(0, order.length - mine.length)) : [];
+      const ok =
+        mine.length >= 2 &&
+        createdAt(tc.value, rev) &&
+        mine.every((c) => createdAt(c.value, rev)) &&
+        mine.length === tail.length &&
+        mine.every((c) => tail.includes(c.id));
+      if (!ok) newTables.delete(tc.id);
+    }
+  }
+  const fold = (c) => {
+    const t = auditOf(c);
+    return t && newTables.has(t) ? t : null;
+  };
+  const counts = new Map();
+  for (const c of changes) {
+    const t = fold(c);
+    if (t) counts.set(t, (counts.get(t) ?? 0) + 1);
+  }
+  const done = new Set();
+  const out = [];
+  for (const c of changes) {
+    const t = fold(c);
+    if (t && counts.get(t) >= 2) {
+      if (!done.has(t)) {
+        done.add(t);
+        out.push(`column upsert ${labels.get(t) ?? t}.(감사 컬럼 ${counts.get(t)}개 추가)`);
+      }
+    } else out.push(changeText(c, labels, before, rev));
+  }
+  return out;
 }
 
 /** 접속자 목록에서 세션 → 사용자. CLAIMED 경고에는 사용자 칸이 없다(claimedBy 는 세션이다). */
@@ -276,7 +332,7 @@ export function formatWriteResult(result, ctx) {
     );
   }
 
-  const changeLines = rej ? [] : changes.map((c) => changeText(c, labels, before, r.rev));
+  const changeLines = rej ? [] : changeLinesOf(changes, labels, before, r.rev);
   const w = warningBlocks(warnings, labels, ctx.view?.presence, ctx);
   const others = othersLine(ctx.others, ctx.baseRev, ctx.view);
   const moreFrom = ctx.baseRev ?? (r.rev ?? 1) - 1;
@@ -369,8 +425,9 @@ export function formatChangesText(cv, ctx) {
   const labels = describeTargets(ctx.view, [...new Set(allChanges.map((c) => c.id))], allChanges);
   const lines = shown.map((d) => {
     const cs = d.changes ?? [];
-    const what = cs.slice(0, CHANGES_PER_DELTA).map((c) => changeText(c, labels, null, d.rev));
-    const rest = cs.length > CHANGES_PER_DELTA ? ` 외 ${cs.length - CHANGES_PER_DELTA}건` : "";
+    const parts = changeLinesOf(cs, labels, null, d.rev);
+    const what = parts.slice(0, CHANGES_PER_DELTA);
+    const rest = parts.length > CHANGES_PER_DELTA ? ` 외 ${parts.length - CHANGES_PER_DELTA}건` : "";
     return `rev ${q(d.rev)} ${q(d.userId)}/${q(d.session)} ${q(d.source)}: ${what.join(", ") || "(변경 없음)"}${rest}`;
   });
   const full = [...head, ...lines, `다음 baseRev: ${q(cv?.rev)}`].join("\n");

@@ -9,6 +9,7 @@ import {
   APPLIED, NO_MODEL_RIGHTS, READ_ONLY, conflict, fakeCtx, inDoc, installStorage, key, mount, needsChoice, previewOf, stubOasis, wait,
   type Mounted,
 } from "./grid-fixtures";
+import { MENU_DIAGRAMS, column, menuModel, stateOf } from "./erd-fixtures";
 
 const originalFetch = globalThis.fetch;
 let view: Mounted | null = null;
@@ -198,5 +199,74 @@ describe("컬럼 그리드 편집", () => {
     }));
     await flush();
     expect(cell("c-4", "logical")!.classList.contains("cell-mdm-invalid")).toBe(true);
+  });
+});
+
+describe("감사 컬럼 보기 — 컬럼 그리드", () => {
+  /** 메뉴 표에 감사 컬럼 하나(C_AT)를 끝에 더한 상태. */
+  const auditState = () => {
+    const m = menuModel();
+    m.tables["t-1"].columnOrder.push("c-a1");
+    m.columns["c-a1"] = column("t-1", "C_AT", "생성일시");
+    return stateOf(m, MENU_DIAGRAMS);
+  };
+  const rowIds = () => [...view!.host.querySelectorAll(".ag-center-cols-container .ag-row")].map((r) => r.getAttribute("row-id"));
+
+  it("숨김이 기본 — 감사 컬럼 행을 그리지 않는다. 켜면 보인다", async () => {
+    const f = fakeCtx({ state: auditState(), audit: { show: false, setShow: vi.fn() } });
+    await open(f.ctx);
+    expect(rowIds()).toEqual(["c-1", "c-2", "c-4"]);
+    await view!.rerender(createElement(ColumnGrid, { ctx: { ...f.ctx, audit: { show: true, setShow: vi.fn() } }, tableId: "t-1" }));
+    await settleGrid(inDoc("erd-columns")!);
+    expect(rowIds()).toEqual(["c-1", "c-2", "c-4", "c-a1"]);
+  });
+
+  it("숨긴 감사 컬럼이 있으면 제목 옆에 「감사 n 숨김」 힌트를 단다. 켜면 사라진다", async () => {
+    const f = fakeCtx({ state: auditState(), audit: { show: false, setShow: vi.fn() } });
+    await open(f.ctx);
+    expect(inDoc("erd-audit-hint")?.textContent).toBe("감사 1 숨김");
+    await view!.rerender(createElement(ColumnGrid, { ctx: { ...f.ctx, audit: { show: true, setShow: vi.fn() } }, tableId: "t-1" }));
+    await settleGrid(inDoc("erd-columns")!);
+    expect(inDoc("erd-audit-hint")).toBeNull();
+  });
+
+  it("감사 행에 초점이 있다가 보기를 끄면 초점을 풀어 입력 칸이 안 보이는 컬럼을 고치지 않는다", async () => {
+    const f = fakeCtx({ state: auditState(), audit: { show: true, setShow: vi.fn() } });
+    await open(f.ctx);
+    await act(async () => requestColumnFocus("c-a1"));
+    await flush();
+    expect(inDoc("erd-grid-target")!.textContent).toBe("C_AT");
+    await view!.rerender(createElement(ColumnGrid, { ctx: { ...f.ctx, audit: { show: false, setShow: vi.fn() } }, tableId: "t-1" }));
+    await settleGrid(inDoc("erd-columns")!);
+    await flush();
+    expect(rowIds()).toEqual(["c-1", "c-2", "c-4"]);
+    expect(inDoc("erd-grid-target")).toBeNull();
+  });
+
+  it("숨겨진 감사 컬럼으로 초점 요청이 오면(점프·새 컬럼·감사 이름으로 바꾼 칸) 보기를 켜고, 켜지면 그 행에 초점을 준다", async () => {
+    const setShow = vi.fn();
+    const f = fakeCtx({ state: auditState(), audit: { show: false, setShow } });
+    await open(f.ctx);
+    await act(async () => requestColumnFocus("c-a1"));
+    await flush();
+    expect(setShow).toHaveBeenCalledWith(true);
+    expect(inDoc("erd-grid-target")).toBeNull(); // 아직 안 보이는 동안은 초점을 주지 않는다
+    await view!.rerender(createElement(ColumnGrid, { ctx: { ...f.ctx, audit: { show: true, setShow } }, tableId: "t-1" }));
+    await settleGrid(inDoc("erd-columns")!);
+    await flush();
+    expect(rowIds()).toContain("c-a1");
+    expect(inDoc("erd-grid-target")!.textContent).toBe("C_AT");
+  });
+
+  it("다른 표의 컬럼 초점 요청은 보기를 켜지 않는다", async () => {
+    const setShow = vi.fn();
+    const m = menuModel();
+    m.columns["c-b1"] = column("t-2", "U_AT", "수정일시");
+    m.tables["t-2"].columnOrder.push("c-b1");
+    const f = fakeCtx({ state: stateOf(m, MENU_DIAGRAMS), audit: { show: false, setShow } });
+    await open(f.ctx);
+    await act(async () => requestColumnFocus("c-b1"));
+    await flush();
+    expect(setShow).not.toHaveBeenCalled();
   });
 });

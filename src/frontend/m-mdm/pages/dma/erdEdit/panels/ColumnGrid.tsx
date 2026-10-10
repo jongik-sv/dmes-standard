@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { Badge, type BadgeTone } from "@dk-oasis/shared/form";
 import { AgDataGrid, GridPanel, type AgDataGridFieldError, type GridColumn } from "@dk-oasis/shared/grid";
 
+import { hiddenAuditCount, isAuditColumn, landingIndex, toRealPosition, visibleColumnIds } from "../audit-columns";
 import { keyMarks } from "../canvas/erd-flow";
 import { typeText } from "../canvas/erd-geometry";
 import type { ErdEditContext, ErdHighlight } from "../edit-context";
@@ -37,13 +38,12 @@ export function statusBadge(value: unknown) {
 
 // ── 행 ──
 
-/** 단계 1 행 모양 그대로(panel-rows.test 가 toEqual 로 본다). */
-export function columnRows(model: ErdModelJson, tableId: string | null, status: ErdStatusView | null): Record<string, unknown>[] {
+/** 단계 1 행 모양 그대로(panel-rows.test 가 toEqual 로 본다). showAudit=false 면 감사 컬럼 행을 뺀다(화면은 ctx.audit.show 를 넘긴다). */
+export function columnRows(model: ErdModelJson, tableId: string | null, status: ErdStatusView | null, showAudit = true): Record<string, unknown>[] {
   const t = tableId ? model.tables[tableId] : undefined;
-  if (!t) return [];
+  if (!t || !tableId) return [];
   const marks = keyMarks(model);
-  return t.columnOrder
-    .filter((cid) => model.columns[cid])
+  return visibleColumnIds(model, tableId, showAudit)
     .map((cid) => {
       const c = model.columns[cid];
       return {
@@ -62,8 +62,10 @@ export function columnRows(model: ErdModelJson, tableId: string | null, status: 
 export interface GridRow extends Record<string, unknown> { id: string; pending: boolean; editable: boolean }
 
 /** 편집 그리드 행 — 단계 1 행에 대기 여부와 고칠 수 있는지를 더한다. */
-export function gridRows(model: ErdModelJson, tableId: string | null, status: ErdStatusView | null, pending: ReadonlySet<string>, canEdit: boolean): GridRow[] {
-  return columnRows(model, tableId, status).map((r) => {
+export function gridRows(
+  model: ErdModelJson, tableId: string | null, status: ErdStatusView | null, pending: ReadonlySet<string>, canEdit: boolean, showAudit = true,
+): GridRow[] {
+  return columnRows(model, tableId, status, showAudit).map((r) => {
     const id = String(r.id);
     const isPending = pending.has(id);
     return { ...r, id, pending: isPending, editable: canEdit && !isPending };
@@ -143,7 +145,11 @@ export function cellEditCommand(model: ErdModelJson, columnId: string, field: st
   }
 }
 
-/** 행 끌기 결과 순서 → 옮긴 한 컬럼의 moveColumn. 서버는 빼고 position 자리에 넣는다. 한 번 옮긴 것으로 설명되지 않으면 null. */
+/**
+ * 행 끌기 결과 순서 → 옮긴 한 컬럼의 moveColumn. 서버는 빼고 position 자리에 넣는다. 한 번 옮긴 것으로 설명되지 않으면 null.
+ * before·after 는 그리드에 보이는 행의 순서다. 감사 컬럼이 가려져 있으면 position 이 columnOrder 의 인덱스가 아니므로
+ * orderChangeCommandIn 으로 실제 인덱스를 구한다.
+ */
 export function orderChangeCommand(before: readonly string[], after: readonly string[]): ErdCommandJson | null {
   if (before.length !== after.length) return null;
   let i = 0;
@@ -156,6 +162,23 @@ export function orderChangeCommand(before: readonly string[], after: readonly st
   const sim = before.filter((x) => x !== cand.id);
   sim.splice(cand.position, 0, cand.id);
   return sim.every((x, k) => x === after[k]) ? { op: "moveColumn", id: cand.id, position: cand.position } : null;
+}
+
+/**
+ * 보이는 행(visibleBefore → visibleAfter)의 끌기를 columnOrder(full) 기준 moveColumn 으로 바꾼다.
+ * 감사 컬럼 등으로 걸러져 있으면 보이는 행의 인덱스를 full 의 실제 인덱스로 옮긴다(toRealPosition).
+ * 끝으로 옮기면 서버가 끝 감사 덩어리 앞에 넣는다(결정 23) — 그래서 끝 자리는 감사 덩어리 시작으로 맞춰 둔다(미리보기와 서버가 같다).
+ */
+export function orderChangeCommandIn(
+  full: readonly string[], visibleBefore: readonly string[], visibleAfter: readonly string[], physOf: (id: string) => string | undefined,
+): ErdCommandJson | null {
+  const cmd = orderChangeCommand(visibleBefore, visibleAfter);
+  if (!cmd || typeof cmd.id !== "string") return cmd;
+  const real = toRealPosition(full, cmd.id, visibleAfter);
+  if (real === null) return cmd;
+  const rest = full.filter((c) => c !== cmd.id);
+  // 서버의 "끝" 규칙(결정 23)은 landingIndex 하나가 정한다 — 미리보기(pending.ts)와 같은 함수다.
+  return { ...cmd, position: landingIndex(rest, real, physOf(cmd.id), physOf) };
 }
 
 // ── 그리드 키 ──
@@ -205,6 +228,7 @@ const CELL_LABEL: Record<string, string> = { logical: "논리명 편집", phys: 
 const pendingRowClass = (row: Record<string, unknown>) => (row.pending === true ? "erd-grid-row--pending" : undefined);
 const WRAP: CSSProperties = { display: "flex", flexDirection: "column", flex: 1, minHeight: 0 };
 const GRID_BOX: CSSProperties = { display: "flex", flexDirection: "column", flex: 1, minHeight: 0, position: "relative" };
+const AUDIT_HINT: CSSProperties = { marginLeft: "var(--spacing-xs)", fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" };
 const FILL: CSSProperties = { position: "absolute", inset: 0 };
 
 export interface ColumnGridProps {
@@ -224,15 +248,17 @@ export function ColumnGrid({ ctx, tableId }: ColumnGridProps) {
   const status = ctx.status;
   const canEdit = ctx.rights.model.ok;
   const pendingKey = pendingKeyOf(model, tableId, ctx.pendingIds);
+  const showAudit = ctx.audit.show;
   // 거절·틀린 값 뒤 값이 같아도 새 행 객체를 만든다(ag-grid 가 받은 행 객체에 편집 값·끌기 순서를 먼저 써 둔다).
   const [epoch, setEpoch] = useState(0);
   const rows = useMemo(
-    () => (epoch >= 0 ? gridRows(model, tableId, status, new Set(pendingKey ? pendingKey.split(",") : []), canEdit) : []),
-    [model, tableId, status, pendingKey, canEdit, epoch],
+    () => (epoch >= 0 ? gridRows(model, tableId, status, new Set(pendingKey ? pendingKey.split(",") : []), canEdit, showAudit) : []),
+    [model, tableId, status, pendingKey, canEdit, showAudit, epoch],
   );
   const fieldErrors = useMemo(() => highlightErrors(ctx.highlight, rows), [ctx.highlight, rows]);
   const table = tableId ? model.tables[tableId] : undefined;
   const reject = useCallback(() => setEpoch((n) => n + 1), []);
+  const hiddenAudit = hiddenAuditCount(model, tableId, showAudit);
 
   // ── 고른 행(커서). 컬럼 점프·새 컬럼은 그 행이 나타날 때 고른다. ──
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -253,11 +279,20 @@ export function ColumnGrid({ ctx, tableId }: ColumnGridProps) {
   }, [selectedColumnId, focusColumn]);
   useEffect(() => {
     const want = wantFocus.current;
-    if (want && rows.some((r) => r.id === want)) {
+    if (!want) return;
+    if (rows.some((r) => r.id === want)) {
       wantFocus.current = null;
       setFocusId(want);
+      return;
     }
-  }, [rows, focusTick]);
+    // 이 표의 감사 컬럼인데 보기가 꺼져 행이 없다 — 보기를 켜서 나타나게 한다(점프·새 컬럼·감사 이름으로 바꾼 칸). 켜지면 위 갈래가 초점을 준다.
+    const c = model.columns[want];
+    if (c && c.table === tableId && isAuditColumn(c.phys) && !showAudit) ctxRef.current.audit.setShow(true);
+  }, [rows, focusTick, model, tableId, showAudit]);
+  // 고른 행이 사라지면(감사 컬럼 보기를 끔·삭제) 초점을 푼다 — 입력 칸이 안 보이는 컬럼을 고치지 않게.
+  useEffect(() => {
+    if (focusId !== null && !rows.some((r) => r.id === focusId)) setFocusId(null);
+  }, [rows, focusId]);
   const onRow = useCallback((row: Record<string, unknown>) => setFocusId(String(row.id)), []);
 
   const onCellValueChanged = useCallback(
@@ -275,19 +310,23 @@ export function ColumnGrid({ ctx, tableId }: ColumnGridProps) {
         return;
       }
       c.clearHighlight();
+      const revealAudit = p.field === "phys" && isAuditColumn(String(p.newValue ?? "").trim());
       void c.apply([edit.command], CELL_LABEL[p.field] ?? "컬럼 편집").then((out) => {
         if (!out.ok) reject();
+        else if (revealAudit) focusColumn(String(p.rowKey)); // 감사 이름으로 바꾼 행이 숨겨지지 않게 보기를 켜고 초점을 준다
       });
     },
-    [reject],
+    [reject, focusColumn],
   );
 
   const onRowOrderChange = useCallback(
     (keys: (string | number)[]) => {
       const c = ctxRef.current;
       const t = tableRef.current;
-      const order = t ? (c.state.model.tables[t]?.columnOrder ?? []).filter((id) => c.state.model.columns[id]) : [];
-      const cmd = orderChangeCommand(order, keys.map(String));
+      const m = c.state.model;
+      const full = t ? (m.tables[t]?.columnOrder ?? []).filter((id) => m.columns[id]) : [];
+      const shown = t ? visibleColumnIds(m, t, c.audit.show) : [];
+      const cmd = orderChangeCommandIn(full, shown, keys.map(String), (id) => m.columns[id]?.phys);
       if (!cmd) {
         reject();
         return;
@@ -321,7 +360,12 @@ export function ColumnGrid({ ctx, tableId }: ColumnGridProps) {
       </style>
       <div style={GRID_BOX}>
         <GridPanel title={table ? table.logical || table.phys : "컬럼"} count={rows.length}
-          titleExtra={table ? <span className="erd-mono">{table.phys}</span> : undefined}>
+          titleExtra={table ? (
+            <>
+              <span className="erd-mono">{table.phys}</span>
+              {hiddenAudit > 0 && <span data-testid="erd-audit-hint" style={AUDIT_HINT} title="도구 막대의 「감사 컬럼 보기」로 볼 수 있습니다">감사 {hiddenAudit} 숨김</span>}
+            </>
+          ) : undefined}>
           <div data-testid="erd-columns" style={FILL}>
             <AgDataGrid gridId="erdColumns" columnSizing="fit" columns={GRID_COLUMNS} data={rows} rowKey="id"
               emptyMessage="캔버스나 검토 목록에서 표를 고르세요." emptyTestId="erd-columns-empty"

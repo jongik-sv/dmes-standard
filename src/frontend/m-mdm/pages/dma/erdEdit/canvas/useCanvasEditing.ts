@@ -294,7 +294,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
         height: m?.height || (n.initialHeight ?? nodeHeight(0, false)),
       }] as const;
     }));
-    const cmd = autoLayoutCommand(c.state, c.diagramId, measured);
+    const cmd = autoLayoutCommand(c.state, c.diagramId, measured, c.audit.show);
     if (!cmd) {
       c.notify("이미 자동 배치대로 놓여 있습니다.", "info");
       return;
@@ -454,13 +454,17 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
 
   // 파일이 .ts(README 계약 이름)라 JSX 대신 createElement 로 그린다. 끄는 동안(setDrag) 다시 그려도 막대·창은 같은 요소를 넘겨
   // 아래 부품이 다시 그리지 않게 실제 입력으로만 다시 만든다.
+  const showAudit = ctx.audit.show;
+  const setShowAudit = ctx.audit.setShow;
+  const onToggleAudit = useCallback(() => setShowAudit(!showAudit), [setShowAudit, showAudit]);
   const rightModel = ctx.rights.model;
   const rightDiagram = ctx.rights.diagram;
   const toolbar = useMemo(() => h(ErdToolbar, {
     tool, mac, model: rightModel, diagram: rightDiagram, selection,
     onTool: chooseTool, onFold: (m: ErdFoldMode) => fold(m), onRemove: () => void removeTables(), onDelete: () => void askDelete(),
     onAutoLayout: () => void layout(),
-  }), [tool, mac, rightModel, rightDiagram, selection, chooseTool, fold, removeTables, askDelete, layout]);
+    showAudit, onToggleAudit,
+  }), [tool, mac, rightModel, rightDiagram, selection, chooseTool, fold, removeTables, askDelete, layout, showAudit, onToggleAudit]);
 
   const model = ctx.state.model;
   const closeMenu = useCallback(() => setMenu(null), []);

@@ -53,7 +53,7 @@ class ErdVersionServiceTest extends AbstractMdmSharedDbTest {
     void newVersionCopiesJsonAndKeepsIds() {
         versions.createModel("mcm", "mcm", "MCMAPUSER", "MCM", "owner");
         ErdModel m = ((ApplyOutcome.Applied) new ErdCommandEngine(ErdNaming.NONE).apply(ErdModel.empty("mcm", "MCMAPUSER"),
-                0, 1, "s", List.of(new AddTable("t-1", "TB_A", "에이", "")))).next();
+                0, 1, "s", List.of(new AddTable("t-1", "TB_A", "에이", "", false)))).next();
         store.writeJson(new VersionRef(VersionTarget.ERD_MODEL, "mcm", new BigDecimal("1.000")), ErdModelCodec.write(m));
         jdbc.update("UPDATE TB_MDM_ERD_MODEL_VER SET STATUS='RELEASED', APPLY_FROM=SYSTIMESTAMP - 1, APPLY_TO=TIMESTAMP '9999-12-31 00:00:00' WHERE ERD_MODEL_ID='mcm'");
         BigDecimal next = versions.newVersion("mcm", "MINOR", "owner");
@@ -68,7 +68,7 @@ class ErdVersionServiceTest extends AbstractMdmSharedDbTest {
         versions.createModel("mcm", "mcm", "MCMAPUSER", "MCM", "owner");
         var engine = new ErdCommandEngine(ErdNaming.NONE);
         ErdModel released = ((ApplyOutcome.Applied) engine.apply(ErdModel.empty("mcm", "MCMAPUSER"), 0, 1, "s", List.of(
-                new AddTable("t-1", "TB_A", "에이", ""),
+                new AddTable("t-1", "TB_A", "에이", "", false),
                 new AddColumn("c-old", "t-1", "BIZ_CD", "***코드", null, "VARCHAR2", 10, null, false, null, "", null)))).next();
         store.writeJson(new VersionRef(VersionTarget.ERD_MODEL, "mcm", new BigDecimal("1.000")), ErdModelCodec.write(released));
         jdbc.update("UPDATE TB_MDM_ERD_MODEL_VER SET STATUS='RELEASED', APPLY_FROM=SYSTIMESTAMP - 1, APPLY_TO=TIMESTAMP '9999-12-31 00:00:00' WHERE ERD_MODEL_ID='mcm'");
@@ -166,7 +166,7 @@ class ErdVersionServiceTest extends AbstractMdmSharedDbTest {
         versions.createModel("mcm", "mcm", "MCMAPUSER", "MCM", "owner");
         VersionRef draft = new VersionRef(VersionTarget.ERD_MODEL, "mcm", new BigDecimal("1.000"));
         ErdModel m = ((ApplyOutcome.Applied) new ErdCommandEngine(ErdNaming.NONE).apply(ErdModel.empty("mcm", "MCMAPUSER"),
-                0, 1, "s", List.of(new AddTable("t-1", "TB_A", "에이", ""),
+                0, 1, "s", List.of(new AddTable("t-1", "TB_A", "에이", "", false),
                         new AddColumn("c-1", "t-1", "ZZ_QQ", "***", null, "VARCHAR2", 1, null, false, null, "", null)))).next();
         store.writeJson(draft, ErdModelCodec.write(m));
 

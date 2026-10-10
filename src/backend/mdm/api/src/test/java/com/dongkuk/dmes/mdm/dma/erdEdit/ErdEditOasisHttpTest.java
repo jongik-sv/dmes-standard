@@ -62,7 +62,7 @@ class ErdEditOasisHttpTest extends AbstractMdmSharedDbTest {
         assertThat(call("reg", "owner", Map.of("modelId", "mcm", "moduleId", "mcm", "schemaName", "MCMAPUSER", "modelName", "MCM"))
                 .at("/meta/success").asBoolean()).isTrue();
         JsonNode saved = call("save", "owner", Map.of("modelId", "mcm", "baseRev", 0, "session", "ui-owner", "source", "UI",
-                "commandsJson", "[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
+                "commandsJson", "[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
         assertThat(saved.at("/data/result/applied").asBoolean()).isTrue();
         assertThat(saved.at("/data/result/changes/0/value/phys").asText()).isEqualTo("TB_A"); // JsonNode 가 Jackson 3 응답에서도 객체로 나온다
         JsonNode view = call("view", "viewer", Map.of("modelId", "mcm"));
@@ -76,7 +76,7 @@ class ErdEditOasisHttpTest extends AbstractMdmSharedDbTest {
     void rejectionIsSuccessResponseWithRejection() throws Exception {
         call("reg", "owner", Map.of("modelId", "mcm", "moduleId", "mcm", "schemaName", "MCMAPUSER", "modelName", "MCM"));
         JsonNode r = call("save", "stranger", Map.of("modelId", "mcm", "baseRev", 0, "session", "x", "source", "MCP",
-                "commandsJson", "[{\"op\":\"addTable\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
+                "commandsJson", "[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
         assertThat(r.at("/meta/success").asBoolean()).as(r.toString()).isTrue();
         assertThat(r.at("/data/result/rejection/code").asText()).isEqualTo("NOT_EDITOR");
     }
@@ -105,7 +105,7 @@ class ErdEditOasisHttpTest extends AbstractMdmSharedDbTest {
         assertThat(draftRowVersion()).isEqualTo(rv);
         // 사전에 없는 토막의 컬럼(MISS) — 첫 확정은 경고로만 알린다(R8-1). 확인 없이 확정하면 MDM014.
         JsonNode setup = call("save", "owner", Map.of("modelId", "mcm", "baseRev", 0, "commandsJson",
-                "[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"},"
+                "[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"},"
                         + "{\"op\":\"addColumn\",\"id\":\"c-1\",\"table\":\"t-1\",\"phys\":\"ZZQX_QWV\",\"logical\":\"모름\",\"dataType\":\"VARCHAR2\",\"length\":10}]"));
         assertThat(setup.at("/data/result/applied").asBoolean()).as(setup.toString()).isTrue();
         Map<String, Object> confirm = new HashMap<>(Map.of("modelId", "mcm", "ver", ver, "rowVersion", draftRowVersion(),
@@ -152,7 +152,7 @@ class ErdEditOasisHttpTest extends AbstractMdmSharedDbTest {
         JsonNode view = call("view", "kim", Map.of("modelId", "mcm"));
         assertThat(view.at("/data/result/editors/0").asText()).isEqualTo("kim");
         JsonNode saved = call("save", "kim", Map.of("modelId", "mcm", "baseRev", 0, "commandsJson",
-                "[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
+                "[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
         assertThat(saved.at("/data/result/applied").asBoolean()).as(saved.toString()).isTrue();
         JsonNode removed = call("execute", "owner", Map.of("modelId", "mcm", "kind", "REMOVE_EDITOR", "userId", "kim"));
         assertThat(removed.at("/data/result/ok").asBoolean()).as(removed.toString()).isTrue();
@@ -202,7 +202,7 @@ class ErdEditOasisHttpTest extends AbstractMdmSharedDbTest {
     void confirmThenCopyNewVersion() throws Exception {
         reg();
         call("save", "owner", Map.of("modelId", "mcm", "baseRev", 0, "commandsJson",
-                "[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
+                "[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
         JsonNode view = call("view", "owner", Map.of("modelId", "mcm"));
         JsonNode confirm = call("confirm", "owner", Map.of("modelId", "mcm", "ver", view.at("/data/result/ver").asText(),
                 "rowVersion", view.at("/data/result/rowVersion").asLong(), "applyFrom", "2030-01-01 00:00:00",
@@ -220,7 +220,7 @@ class ErdEditOasisHttpTest extends AbstractMdmSharedDbTest {
     void claimReleaseAndPresenceThroughOasis() throws Exception {
         reg();
         call("save", "owner", Map.of("modelId", "mcm", "baseRev", 0, "commandsJson",
-                "[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
+                "[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
         JsonNode c1 = call("execute", "owner", Map.of("modelId", "mcm", "kind", "CLAIM", "tableId", "t-1", "session", "s-a"));
         assertThat(c1.at("/data/result/ok").asBoolean()).as(c1.toString()).isTrue();
         // 응답 뒤 다른 연결에서 바로 읽힌다 — CLAIM 이 응답 전에 커밋됐다는 최소 확인(OASIS 트랜잭션에 합류, deferred 27).

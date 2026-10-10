@@ -5,6 +5,7 @@
  */
 import { autoLayout, type FlowPos, type LayoutEdge } from "@dk-oasis/shared/react-flow";
 
+import { isAuditColumnId } from "../audit-columns";
 import { nodeKey } from "../state/model-delta";
 import type { ErdCommandJson, ErdFoldMode, ErdModelJson, ErdState } from "../types";
 import { moveNodesCommand, type PlacedNode } from "./erd-commands";
@@ -28,14 +29,20 @@ export function keyColumns(model: ErdModelJson): Set<string> {
   return out;
 }
 
-/** 그리기 전 노드 크기 어림(buildFlow 의 initialHeight 와 같다). 모르는 표는 머리만. */
-export function estimatedSize(model: ErdModelJson, tableId: string, foldMode: ErdFoldMode = "NONE", keys?: ReadonlySet<string>): Size {
+/**
+ * 그리기 전 노드 크기 어림(buildFlow 의 initialHeight 와 같다). 모르는 표는 머리만.
+ * showAudit=false 면 감사 컬럼 행을 뺀다(노드에 빈 자리가 남지 않게). 「접힘」 줄은 접기로 가린 행이 있을 때만이다(buildFlow hiddenCount 와 같다).
+ */
+export function estimatedSize(
+  model: ErdModelJson, tableId: string, foldMode: ErdFoldMode = "NONE", keys?: ReadonlySet<string>, showAudit = true,
+): Size {
   const t = model.tables[tableId];
   if (!t) return { width: NODE_WIDTH, height: nodeHeight(0, false) };
   const cols = t.columnOrder.filter((c) => model.columns[c]);
   const ks = keys ?? keyColumns(model);
-  const rows = foldMode === "NAME" ? 0 : foldMode === "KEYS" ? cols.filter((c) => ks.has(c)).length : cols.length;
-  return { width: NODE_WIDTH, height: nodeHeight(rows, rows < cols.length) };
+  const fold = foldMode === "NAME" ? [] : foldMode === "KEYS" ? cols.filter((c) => ks.has(c)) : cols;
+  const rows = showAudit ? fold.length : fold.filter((c) => !isAuditColumnId(model, c)).length;
+  return { width: NODE_WIDTH, height: nodeHeight(rows, fold.length < cols.length) };
 }
 
 /** 고른 표 안의 그리는 관계(기각·다른 모델 부모·자기 참조 제외)를 부모 → 자식 선으로. id 순이라 결과가 흔들리지 않는다. */
@@ -59,21 +66,21 @@ export function layoutTables(model: ErdModelJson, tables: readonly string[], siz
  * 지금 다이어그램의 표 전부를 다시 놓는 moveNodes(바뀐 표만). 그림의 왼쪽 위(지금 노드들의 최소 x·y)를 지킨다.
  * measured 는 캔버스가 잰 크기(없으면 접기 모드로 어림). 옮길 것이 없으면 null.
  */
-export function autoLayoutCommand(state: ErdState, diagramId: string, measured: ReadonlyMap<string, Size>): ErdCommandJson | null {
+export function autoLayoutCommand(state: ErdState, diagramId: string, measured: ReadonlyMap<string, Size>, showAudit = true): ErdCommandJson | null {
   const placed = Object.values(state.nodes).filter((n) => n.diagram === diagramId && state.model.tables[n.table]);
   if (placed.length === 0) return null;
   const keys = keyColumns(state.model);
   const origin = { x: Math.min(...placed.map((n) => n.x)), y: Math.min(...placed.map((n) => n.y)) };
-  const size = (id: string): Size => measured.get(id) ?? estimatedSize(state.model, id, state.nodes[nodeKey(diagramId, id)].foldMode, keys);
+  const size = (id: string): Size => measured.get(id) ?? estimatedSize(state.model, id, state.nodes[nodeKey(diagramId, id)].foldMode, keys, showAudit);
   const pos = layoutTables(state.model, placed.map((n) => n.table), size, origin);
   return moveNodesCommand(diagramId, Object.entries(pos).map(([table, p]) => ({ table, x: p.x, y: p.y })), state.nodes);
 }
 
 /** 마법사가 고른 표의 자리(물리명 순). auto 는 관계를 따르고, grid 는 관계를 보지 않는 격자다. */
-export function wizardPlacement(model: ErdModelJson, tables: readonly string[], mode: WizardLayout): PlacedNode[] {
+export function wizardPlacement(model: ErdModelJson, tables: readonly string[], mode: WizardLayout, showAudit = true): PlacedNode[] {
   const keys = keyColumns(model);
   const list = tables.filter((t) => model.tables[t]).sort(byPhys(model));
-  const size = (id: string) => estimatedSize(model, id, "NONE", keys);
+  const size = (id: string) => estimatedSize(model, id, "NONE", keys, showAudit);
   const pos = mode === "auto"
     ? layoutTables(model, list, size)
     : autoLayout(list.map((id) => ({ id, ...size(id) })), [], { ...ERD_LAYOUT, isolated: "grid" });

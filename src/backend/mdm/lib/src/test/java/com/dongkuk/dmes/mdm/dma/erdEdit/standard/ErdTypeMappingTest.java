@@ -112,7 +112,7 @@ class ErdTypeMappingTest {
 
         // 엔진이 도메인으로 컬럼을 만들고(copyDomain), 같은 타입으로 만든 DB 표와 비교하면 차이가 없고 판정도 모두 OK 다.
         List<ErdCommand> cmds = new ArrayList<>();
-        cmds.add(new AddTable("t-1", "TB_TYPE_MAP", "타입 대응", ""));
+        cmds.add(new AddTable("t-1", "TB_TYPE_MAP", "타입 대응", "", false));
         for (ErdDomainSpec d : DOMAINS) {
             cmds.add(new AddColumn("c-" + d.domainId(), "t-1", "COL_" + d.domainId(), "컬럼" + d.domainId(), d.domainId(),
                     null, null, null, d.domainId() % 2 == 0, null, "", null));
@@ -140,7 +140,7 @@ class ErdTypeMappingTest {
     void applyDomainWritesPhysicalTypeAndGivenTypeIsKept() {
         var engine = new ErdCommandEngine(dict(Set.of()));
         ErdModel m = ((ApplyOutcome.Applied) engine.apply(ErdModel.empty("m", "S"), 0, 1, "s", List.of(
-                new AddTable("t-1", "TB_A", "에이", ""),
+                new AddTable("t-1", "TB_A", "에이", "", false),
                 new AddColumn("c-a", "t-1", "A_DT", "에이일시", null, "VARCHAR2", 8, null, false, null, "", null),
                 new AddColumn("c-b", "t-1", "B_NO", "비번호", 3L, "NUMBER", 5, 0, false, null, "", null)))).next();
         assertThat(m.columns.get("c-b").length).isEqualTo(5);   // 타입을 준 addColumn 은 도메인을 복사하지 않는다(단계 0 그대로)

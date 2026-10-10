@@ -40,13 +40,13 @@ class ErdStandardJudgeTest {
     void statusesForEachKind() {
         ErdDictionary d = dict();
         ErdModel m = model(ErdNaming.NONE,
-                new AddTable("t-1", "TB_A", "에이", ""),
+                new AddTable("t-1", "TB_A", "에이", "", false),
                 new AddColumn("c-ok", "t-1", "ROLE_ID", "역할아이디", 10L, "VARCHAR2", 30, null, true, null, "", null),
                 new AddColumn("c-al", "t-1", "ROLE_NM", "역할명", null, "VARCHAR2", 100, null, false, null, "", null),
                 new AddColumn("c-new", "t-1", "ROLE_DT", "역할일자", 30L, "VARCHAR2", 8, null, false, null, "", null),
                 new AddColumn("c-dom", "t-1", "ID", "아이디", 10L, "VARCHAR2", 255, null, false, null, "", null),
                 new AddColumn("c-miss", "t-1", "BIZ_CD", "업무코드", null, "VARCHAR2", 10, null, false, null, "", null),
-                new AddTable("t-2", "TB_B", "비", ""),
+                new AddTable("t-2", "TB_B", "비", "", false),
                 new AddColumn("c-ty", "t-2", "ROLE_DT", "역할일자", null, "NUMBER", 8, null, false, null, "", null));
         Map<String, ErdColumnStatus> s = ErdStandardJudge.judge(m, d);
         assertThat(s.get("c-ok")).isEqualTo(ErdColumnStatus.OK);
@@ -59,7 +59,7 @@ class ErdStandardJudgeTest {
 
     @Test
     void addColumnFromLogicalFillsPhysAndDomain() {
-        ErdModel m = model(dict(), new AddTable("t-1", "TB_A", "에이", ""),
+        ErdModel m = model(dict(), new AddTable("t-1", "TB_A", "에이", "", false),
                 new AddColumn("c-1", "t-1", null, "역할아이디", null, null, null, null, true, null, "", null));
         assertThat(m.columns.get("c-1").phys).isEqualTo("ROLE_ID");
         assertThat(m.columns.get("c-1").domainId).isEqualTo(10L);
@@ -69,7 +69,7 @@ class ErdStandardJudgeTest {
     @Test
     void ambiguousTokenNeedsChoice() {
         var out = new ErdCommandEngine(dict()).apply(ErdModel.empty("mcm", "S"), 0, 1, "s", List.of(
-                new AddTable("t-1", "TB_A", "에이", ""),
+                new AddTable("t-1", "TB_A", "에이", "", false),
                 new AddColumn("c-1", "t-1", null, "주문일자", null, null, null, null, false, null, "", null)));
         var rej = ((ApplyOutcome.Rejected) out).rejection();
         assertThat(rej.code()).isEqualTo("NEEDS_CHOICE");
@@ -79,7 +79,7 @@ class ErdStandardJudgeTest {
     @Test
     void addColumnWithUnknownTokenNeedsChoice() {
         var out = new ErdCommandEngine(dict()).apply(ErdModel.empty("mcm", "S"), 0, 1, "s", List.of(
-                new AddTable("t-1", "TB_A", "에이", ""),
+                new AddTable("t-1", "TB_A", "에이", "", false),
                 new AddColumn("c-1", "t-1", null, "역할 (예비)", null, null, null, null, false, null, "", null)));
         var rej = ((ApplyOutcome.Rejected) out).rejection();
         assertThat(rej.code()).isEqualTo("NEEDS_CHOICE");
@@ -89,7 +89,7 @@ class ErdStandardJudgeTest {
     @Test
     void engineWarnsOnlyForTouchedColumns() {
         var engine = new ErdCommandEngine(dict());
-        ErdModel m = model(ErdNaming.NONE, new AddTable("t-1", "TB_A", "에이", ""),
+        ErdModel m = model(ErdNaming.NONE, new AddTable("t-1", "TB_A", "에이", "", false),
                 new AddColumn("c-miss", "t-1", "BIZ_CD", "업무코드", null, "VARCHAR2", 10, null, false, null, "", null),
                 new AddColumn("c-ok", "t-1", "ROLE_ID", "역할아이디", 10L, "VARCHAR2", 30, null, true, null, "", null));
         var out = (ApplyOutcome.Applied) engine.apply(m, 1, 2, "s",
@@ -170,7 +170,7 @@ class ErdStandardJudgeTest {
         ErdDictionary d = new ErdDictionary(terms, Set.of("USE_YN", "ID", "C_AT", "U_AT"), Set.of(),
                 Map.of(1L, yn, 2L, id, 3L, dtm, 4L, ts), List.of());
         ErdModel m = model(ErdNaming.NONE,
-                new AddTable("t-1", "TB_A", "에이", ""),
+                new AddTable("t-1", "TB_A", "에이", "", false),
                 new AddColumn("c-yn", "t-1", "USE_YN", "사용여부", 1L, "VARCHAR2", 1, null, false, null, "", null),
                 new AddColumn("c-id", "t-1", "ID", "아이디", 2L, "NUMBER", 19, 0, true, null, "", null),
                 new AddColumn("c-ca", "t-1", "C_AT", "생성일시", 3L, "TIMESTAMP(6)", null, null, false, null, "", null),

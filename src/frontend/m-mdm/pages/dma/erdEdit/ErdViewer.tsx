@@ -22,6 +22,7 @@ import {
   SCREEN_ID, compareDbDiff, importFromDb, regModel, rejectionText, searchModels, setViewState, viewChanges, viewStatus,
   type RegInput, type RelationDecision,
 } from "./api";
+import { loadShowAudit, needsAuditReveal, saveShowAudit } from "./audit-columns";
 import { ErdRelationEdge } from "./canvas/ErdRelationEdge";
 import { ErdTableNode, namesOnlySelector } from "./canvas/ErdTableNode";
 import { buildFlow, useStableById, type ErdFlowEdge, type ErdFlowNode, type ErdMode, type ErdPreset } from "./canvas/erd-flow";
@@ -81,12 +82,13 @@ interface CanvasPaneProps {
  */
 function CanvasPane({ ctx, diagramId, mode, preset, selected, reveal, onSelect }: CanvasPaneProps) {
   const { state, status, session } = ctx;
+  const showAudit = ctx.audit.show;
   const namesOnly = useStore(namesOnlySelector);
   const statuses = status?.statuses ?? NO_STATUSES;
   const domains = status?.domains ?? NO_DOMAINS;
   const raw = useMemo(
-    () => buildFlow({ state, diagramId, mode, preset, namesOnly, statuses, domains, selected, mySession: session }),
-    [state, diagramId, mode, preset, namesOnly, statuses, domains, selected, session],
+    () => buildFlow({ state, diagramId, mode, preset, namesOnly, showAudit, statuses, domains, selected, mySession: session }),
+    [state, diagramId, mode, preset, namesOnly, showAudit, statuses, domains, selected, session],
   );
   const stableNodes = useStableById(raw.nodes);
   const edges = useStableById(raw.edges);
@@ -179,6 +181,15 @@ export function ErdViewer() {
   const [selectedColumnId, setSelectedColumnId] = useState<string | null>(null);
   const [reveal, setReveal] = useState<Reveal | null>(null);
   const [findSeq, setFindSeq] = useState(0);
+  // 감사 컬럼 보기 — 사람마다 다른 보기 상태라 localStorage 에 둔다(막혀도 동작, 기본은 숨김).
+  const [showAudit, setShowAuditState] = useState(loadShowAudit);
+  const showAuditRef = useRef(showAudit);
+  showAuditRef.current = showAudit;
+  const setShowAudit = useCallback((show: boolean) => {
+    setShowAuditState(show);
+    saveShowAudit(show);
+  }, []);
+  const audit = useMemo(() => ({ show: showAudit, setShow: setShowAudit }), [showAudit, setShowAudit]);
   const [jumpOpen, setJumpOpen] = useState(false);
   const [status, setStatus] = useState<ErdStatusView | null>(null);
   const [tab, setTab] = useState<ReviewTab>("violations");
@@ -335,15 +346,18 @@ export function ErdViewer() {
   const nav = useMemo<ErdNav>(() => ({
     selectTable,
     selectColumn: (columnId: string) => {
-      const c = stateRef.current?.model.columns[columnId];
-      if (!c) return;
+      const model = stateRef.current?.model;
+      const c = model?.columns[columnId];
+      if (!model || !c) return;
+      // 가려진 감사 컬럼을 고르면(컬럼 점프 등) 보기를 켜서 그 행이 보이게 한 뒤 고른다.
+      if (needsAuditReveal(model, columnId, showAuditRef.current)) setShowAudit(true);
       selectTable(c.table);
       setSelectedColumnId(columnId);
     },
     openTableFind: () => setFindSeq((s) => s + 1),
     // 모델을 읽기 전에는 열지 않는다(읽은 뒤 저절로 열리지 않게).
     openColumnJump: () => { if (stateRef.current) setJumpOpen(true); },
-  }), [selectTable]);
+  }), [selectTable, setShowAudit]);
   const closeJump = useCallback(() => setJumpOpen(false), []);
 
   // ── 화면 상태 알리기(SET_VIEW, 1초에 한 번 이하). 다시 연결되면 서버 화면 상태가 비므로 같은 값도 다시 보낸다. ──
@@ -553,9 +567,9 @@ export function ErdViewer() {
   // ── 편집 문맥 — 모델을 다 읽은 뒤에만 만든다 ──
   const ctx = useMemo<ErdEditContext | null>(() => (ready && state && modelId ? {
     modelId, session, me: me ?? "", state, status, rights, diagramId: activeDiagram, selectedTableId: focusTable, selectedColumnId,
-    highlight, pendingIds: erd.pendingIds, apply, exclusive: erd.exclusive, clearHighlight, notify, nav,
+    highlight, pendingIds: erd.pendingIds, apply, exclusive: erd.exclusive, clearHighlight, notify, nav, audit,
   } : null), [ready, state, modelId, session, me, status, rights, activeDiagram, focusTable, selectedColumnId, highlight,
-    erd.pendingIds, apply, erd.exclusive, clearHighlight, notify, nav]);
+    erd.pendingIds, apply, erd.exclusive, clearHighlight, notify, nav, audit]);
 
   const emptyText = !modelId
     ? "위 막대에서 모델을 고르거나 등록하세요."

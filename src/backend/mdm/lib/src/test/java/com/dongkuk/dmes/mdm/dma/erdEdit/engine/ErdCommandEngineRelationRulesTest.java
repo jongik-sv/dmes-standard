@@ -32,10 +32,10 @@ class ErdCommandEngineRelationRulesTest {
      */
     ErdModel base(boolean withChildPk) {
         List<ErdCommand> cmds = new ArrayList<>(List.of(
-                new AddTable("t-r", "TB_ROLE", "역할", ""),
+                new AddTable("t-r", "TB_ROLE", "역할", "", false),
                 new AddColumn("c-r1", "t-r", "ROLE_ID", "역할아이디", null, "VARCHAR2", 30, null, true, null, "", null),
                 new SetPrimaryKey("t-r", List.of("c-r1"), null),
-                new AddTable("t-m", "TB_ROLE_MAP", "역할매핑", ""),
+                new AddTable("t-m", "TB_ROLE_MAP", "역할매핑", "", false),
                 new AddColumn("c-m1", "t-m", "OBJECT_ID", "객체아이디", null, "VARCHAR2", 50, null, true, null, "", null),
                 new AddColumn("c-m2", "t-m", "ROLE_ID", "역할아이디", null, "VARCHAR2", 30, null, false, null, "", null)));
         if (withChildPk) cmds.add(new SetPrimaryKey("t-m", List.of("c-m1"), null));
@@ -101,7 +101,7 @@ class ErdCommandEngineRelationRulesTest {
     @Test
     void identifyingOffKeepsColumnNeededByAnotherIdentifyingRelation() {
         ErdModel m = ok(base(true), 1, 2, "s-a",
-                new AddTable("t-b", "TB_ROLE_B", "역할비", ""),
+                new AddTable("t-b", "TB_ROLE_B", "역할비", "", false),
                 new AddColumn("c-b1", "t-b", "ROLE_ID", "역할아이디", null, "VARCHAR2", 30, null, true, null, "", null),
                 new UpdateRelation("r-1", Map.of("identifying", true)),
                 new AddRelation("r-2", "t-m", "t-b", null, true, List.of(List.of("c-m2", "c-b1")), null, null)).next();

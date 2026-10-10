@@ -105,7 +105,7 @@ class ErdConcurrentSaveHttpTest extends AbstractMdmSharedDbTest {
 
     private JsonNode addTable(String modelId, long baseRev, String id, String phys) throws Exception {
         return erd("save", Map.of("modelId", modelId, "baseRev", baseRev, "session", "ui-" + id, "source", "UI",
-                "commandsJson", "[{\"op\":\"addTable\",\"id\":\"" + id + "\",\"phys\":\"" + phys + "\",\"logical\":\"에이\"}]"));
+                "commandsJson", "[{\"op\":\"addTable\",\"audit\":false,\"id\":\"" + id + "\",\"phys\":\"" + phys + "\",\"logical\":\"에이\"}]"));
     }
 
     private long rev(String modelId) {
@@ -206,7 +206,7 @@ class ErdConcurrentSaveHttpTest extends AbstractMdmSharedDbTest {
         String json0 = jdbc.queryForObject("SELECT MODEL_JSON FROM TB_MDM_ERD_MODEL_VER WHERE ERD_MODEL_ID = 'm1'", String.class);
         long rv0 = jdbc.queryForObject("SELECT ROW_VERSION FROM TB_MDM_ERD_MODEL_VER WHERE ERD_MODEL_ID = 'm1'", Long.class);
         JsonNode r = erd("save", Map.of("modelId", "m1", "baseRev", 0, "session", "ui-owner", "source", "UI", "commandsJson", """
-                [{"op":"addTable","id":"t-1","phys":"TB_A","logical":"에이"},
+                [{"op":"addTable","audit":false,"id":"t-1","phys":"TB_A","logical":"에이"},
                  {"op":"addDiagram","id":"d-1","areaName":"a","diagramName":"b"},
                  {"op":"moveNodes","diagram":"d-1","nodes":[{"table":"t-1","x":1,"y":1}]}]"""));
         assertThat(r.at("/meta/success").asBoolean()).as(r.toString()).isTrue();

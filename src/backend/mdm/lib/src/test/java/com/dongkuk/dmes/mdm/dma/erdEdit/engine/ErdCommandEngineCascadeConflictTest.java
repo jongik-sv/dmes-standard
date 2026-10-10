@@ -28,10 +28,10 @@ class ErdCommandEngineCascadeConflictTest {
     /** rev 1(s-a): 부모 TB_P(P_ID PK) · 자식 TB_C(C_ID PK, P_ID, NOTE, UK(NOTE, P_ID)) · 관계 r-1(TB_C.P_ID > TB_P.P_ID). */
     ErdModel base() {
         return ok(ErdModel.empty("mcm", "S"), 0, 1, "s-a",
-                new AddTable("t-p", "TB_P", "부모", ""),
+                new AddTable("t-p", "TB_P", "부모", "", false),
                 new AddColumn("c-p1", "t-p", "P_ID", "부모아이디", null, "VARCHAR2", 10, null, true, null, "", null),
                 new SetPrimaryKey("t-p", List.of("c-p1"), null),
-                new AddTable("t-c", "TB_C", "자식", ""),
+                new AddTable("t-c", "TB_C", "자식", "", false),
                 new AddColumn("c-c1", "t-c", "C_ID", "자식아이디", null, "VARCHAR2", 10, null, true, null, "", null),
                 new AddColumn("c-c2", "t-c", "P_ID", "부모아이디", null, "VARCHAR2", 10, null, false, null, "", null),
                 new AddColumn("c-c3", "t-c", "NOTE", "비고", null, "VARCHAR2", 100, null, false, null, "", null),
@@ -105,7 +105,7 @@ class ErdCommandEngineCascadeConflictTest {
         assertThat(r.message()).isEqualTo("되돌릴 변경이 없습니다. 이미 되돌렸거나 값이 같습니다");
         assertThat(r.hint()).isEqualTo("변경 기록에서 다른 rev 를 고르세요");
 
-        var add = ok(base(), 1, 2, "s-a", new AddTable("t-x", "TB_X", "엑스", ""));
+        var add = ok(base(), 1, 2, "s-a", new AddTable("t-x", "TB_X", "엑스", "", false));
         var gone = ok(add.next(), 2, 3, "s-a", add.inverse().toArray(new ErdCommand[0]));
         assertThat(rej(engine.apply(gone.next(), 3, 4, "s-a", add.inverse())).code()).isEqualTo("INVALID");
     }
@@ -119,6 +119,6 @@ class ErdCommandEngineCascadeConflictTest {
         assertThat(ok(base(), 1, 2, "s-a", new UpdateRelation("r-1",
                 Map.of("cardinality", Map.of("parent", "ZERO_OR_ONE")))).touchedTables()).containsExactly("t-c", "t-p");
         assertThat(ok(base(), 1, 2, "s-a", new DeleteTable("t-p")).touchedTables()).containsExactly("t-c", "t-p");
-        assertThat(ok(base(), 1, 2, "s-a", new AddTable("t-x", "TB_X", "엑스", "")).touchedTables()).containsExactly("t-x");
+        assertThat(ok(base(), 1, 2, "s-a", new AddTable("t-x", "TB_X", "엑스", "", false)).touchedTables()).containsExactly("t-x");
     }
 }

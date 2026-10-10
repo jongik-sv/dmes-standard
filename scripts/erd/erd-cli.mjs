@@ -12,7 +12,7 @@ import { configFromEnv, createOasisClient, describeError } from "./lib/oasis.mjs
 
 export const USAGE = `사용: node scripts/erd/erd-cli.mjs <명령> --model mcm [옵션]
   models                                     모델 목록(search)
-  text      [--tables A,B*] [--diagram D]    getModelText 와 같은 글
+  text      [--tables A,B*] [--diagram D] [--audit]   getModelText 와 같은 글(감사 컬럼 8개는 표마다 한 줄로 접는다. --audit 이면 펼친다)
   changes   --since R [--session S]          getChangesSince 와 같은 글. 여기의 --session 은 "그 세션의 변경만" 거르기다
   violations [--status NEW|TYPE|DOMAIN|MISS]
   inferred  [--include-folded]
@@ -25,6 +25,7 @@ export const USAGE = `사용: node scripts/erd/erd-cli.mjs <명령> --model mcm 
 
 묶음 파일: {"modelId":"mcm","baseRev":212,"commands":[...]} 또는 명령 배열(이때 --base-rev 필수). --file - 는 표준 입력이다.
   명령 모양은 MCP apply 와 같다. 요소는 id 나 이름(표 물리명, "표.컬럼", "자식표.컬럼 > 부모표.컬럼", "표:PK", "업무영역/이름")으로 쓴다.
+  addTable 은 감사 컬럼 8개(C_USR_ID C_AT C_SVC_ID C_PGM_ID U_USR_ID U_AT U_SVC_ID U_PGM_ID)를 표 끝에 자동으로 붙인다. 끄려면 "audit":false 를 준다.
   baseRev 는 마지막으로 읽은 rev 다(text 머리줄, changes 끝 줄, 마지막 --apply 결과). 더 큰 rev 를 짐작하지 않는다.
 쓰기(apply·confirm·reject·undo)의 기본은 서버 시험 실행(dryRun)이다. 서버가 잠금·편집자·충돌·표준 검사를 모두 하고 저장하지 않는다.
   시험 실행도 서버가 편집자 검사를 한다. ERD_USER(또는 --user)가 그 DRAFT 의 소유자나 공동 편집자여야 "통과" 가 나온다.
@@ -54,7 +55,7 @@ const STATUSES = new Set(["NEW", "TYPE", "DOMAIN", "MISS"]);
 
 /** argv → 옵션. 손으로 짠 고리다(node 18 의 내장 인자 해석기는 안정판이 아니다. scripts/mdm-meta/register-columns.mjs 선례). */
 export function readArgs(argv) {
-  const opt = { cmd: null, pos: [], apply: false, json: false, includeFolded: false, help: false };
+  const opt = { cmd: null, pos: [], apply: false, json: false, includeFolded: false, audit: false, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (Object.hasOwn(VALUE_OPTS, a)) {
@@ -64,6 +65,7 @@ export function readArgs(argv) {
     } else if (a === "--apply") opt.apply = true;
     else if (a === "--json") opt.json = true;
     else if (a === "--include-folded") opt.includeFolded = true;
+    else if (a === "--audit") opt.audit = true;
     else if (a === "-h" || a === "--help") opt.help = true;
     else if (a.startsWith("--")) throw new UsageError(`알 수 없는 인자: ${a}`);
     else if (opt.cmd === null) opt.cmd = a;
@@ -84,6 +86,7 @@ export function checkArgs(opt, env) {
   if (!COMMANDS.includes(opt.cmd)) throw new UsageError(`모르는 명령: ${opt.cmd}`);
   const c = opt.cmd;
   if (c !== "models" && c !== "apply" && !opt.model) throw new UsageError("--model 이 필요합니다");
+  if (opt.audit && c !== "text") throw new UsageError("--audit 는 text 에만 씁니다");
   if (opt.apply && !WRITES.has(c)) {
     throw new UsageError(`--apply 는 apply·confirm·reject·undo 에만 씁니다(${c === "claim" || c === "release" ? "작업 중 표시는 모델을 바꾸지 않아 --apply 없이 보낸다" : `${c} 는 읽기다`})`);
   }
@@ -146,7 +149,7 @@ const RUN = {
   async text(client, opt) {
     const view = await client.call("view", { modelId: opt.model });
     const status = needStatus(await client.call("view", { modelId: opt.model, kind: "STATUS", ver: view.ver }));
-    return { text: getModelText(view, status, { tables: opt.tables, diagram: opt.diagram }), json: { view, status }, isError: false };
+    return { text: getModelText(view, status, { tables: opt.tables, diagram: opt.diagram, audit: opt.audit === true }), json: { view, status }, isError: false };
   },
   async changes(client, opt) {
     const r = await changesFlow(client, { modelId: opt.model, rev: Number(opt.since), session: opt.session });

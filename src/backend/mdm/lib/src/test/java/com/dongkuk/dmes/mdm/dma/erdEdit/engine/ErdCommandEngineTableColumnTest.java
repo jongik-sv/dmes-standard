@@ -15,7 +15,7 @@ class ErdCommandEngineTableColumnTest {
     ErdModel base() {
         ErdModel m = ErdModel.empty("mcm", "MCMAPUSER");
         var r = (ApplyOutcome.Applied) engine.apply(m, 0, 1, "s-a", List.of(
-                new AddTable("t-1", "TB_MCM_SEC_ROLE", "역할", ""),
+                new AddTable("t-1", "TB_MCM_SEC_ROLE", "역할", "", false),
                 new AddColumn("c-1", "t-1", "ROLE_ID", "역할아이디", null, "VARCHAR2", 30, null, true, null, "", null),
                 new AddColumn("c-2", "t-1", "ROLE_NM", "역할명", null, "VARCHAR2", 100, null, false, null, "", null),
                 new SetPrimaryKey("t-1", List.of("c-1"), null)));
@@ -36,7 +36,7 @@ class ErdCommandEngineTableColumnTest {
     @Test
     void batchRefersToElementCreatedEarlier() {
         var out = engine.apply(ErdModel.empty("mcm", "S"), 0, 1, "s-a", List.of(
-                new AddTable("t-9", "TB_X", "엑스", ""),
+                new AddTable("t-9", "TB_X", "엑스", "", false),
                 new AddColumn("c-9", "t-9", "X_ID", "엑스아이디", null, "VARCHAR2", 10, null, true, null, "", null)));
         assertThat(out).isInstanceOf(ApplyOutcome.Applied.class);
     }

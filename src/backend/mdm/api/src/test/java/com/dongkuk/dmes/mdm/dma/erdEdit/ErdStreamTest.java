@@ -87,14 +87,14 @@ class ErdStreamTest extends AbstractMdmSharedDbTest {
         var b = open("b", 0);
         next(a, "presence");
         next(b, "presence");
-        commands.apply("mcm", 0, "owner", "ui-owner", "UI", cmd("[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"x\"}]"));
+        commands.apply("mcm", 0, "owner", "ui-owner", "UI", cmd("[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"x\"}]"));
         assertThat(om.readTree(next(a, "change")).get("rev").asLong()).isEqualTo(1);
         assertThat(om.readTree(next(b, "change")).get("rev").asLong()).isEqualTo(1);
     }
 
     @Test
     void reconnectReplaysMissedDeltas() throws Exception {
-        for (int i = 0; i < 3; i++) commands.apply("mcm", i, "owner", "ui", "UI", cmd("[{\"op\":\"addTable\",\"phys\":\"TB_A" + i + "\",\"logical\":\"x\"}]"));
+        for (int i = 0; i < 3; i++) commands.apply("mcm", i, "owner", "ui", "UI", cmd("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A" + i + "\",\"logical\":\"x\"}]"));
         var q = open("late", 1);
         assertThat(om.readTree(next(q, "change")).get("rev").asLong()).isEqualTo(2);
         assertThat(om.readTree(next(q, "change")).get("rev").asLong()).isEqualTo(3);
@@ -136,7 +136,7 @@ class ErdStreamTest extends AbstractMdmSharedDbTest {
 
     @Test
     void claimByOtherSessionWarnsButDoesNotBlock() throws Exception {
-        commands.apply("mcm", 0, "owner", "ui-owner", "UI", cmd("[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"x\"}]"));
+        commands.apply("mcm", 0, "owner", "ui-owner", "UI", cmd("[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"x\"}]"));
         assertThat(hub.claim("mcm", "t-1", "claude-b", "owner", 600)).isTrue();
         assertThat(hub.claim("mcm", "t-1", "ui-owner", "owner", 600)).isFalse(); // 유효한 표시는 빼앗지 않는다
         ErdApplyResult r = commands.apply("mcm", 1, "owner", "ui-owner", "UI",
@@ -166,7 +166,7 @@ class ErdStreamTest extends AbstractMdmSharedDbTest {
     /** 재생이 명령 기록을 읽은 뒤 잠금을 잡기 전에 멈춘 사이에 커밋된 델타는 pending 에 쌓였다가 한 번씩, 순서대로 나간다. */
     @Test
     void deltaCommittedDuringReplayWindowIsDeliveredOnceInOrder() throws Exception {
-        for (int i = 0; i < 2; i++) commands.apply("mcm", i, "owner", "ui", "UI", cmd("[{\"op\":\"addTable\",\"phys\":\"TB_A" + i + "\",\"logical\":\"x\"}]"));
+        for (int i = 0; i < 2; i++) commands.apply("mcm", i, "owner", "ui", "UI", cmd("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A" + i + "\",\"logical\":\"x\"}]"));
         CountDownLatch reached = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         hub.setReplayPauseForTest(() -> {
@@ -180,7 +180,7 @@ class ErdStreamTest extends AbstractMdmSharedDbTest {
         try {
             var q = open("win", 0);
             assertThat(reached.await(10, TimeUnit.SECONDS)).isTrue();   // 기록은 rev 2 까지 읽었다
-            commands.apply("mcm", 2, "owner", "ui", "UI", cmd("[{\"op\":\"addTable\",\"phys\":\"TB_A2\",\"logical\":\"x\"}]")); // 3 은 pending
+            commands.apply("mcm", 2, "owner", "ui", "UI", cmd("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A2\",\"logical\":\"x\"}]")); // 3 은 pending
             release.countDown();
             for (long rev = 1; rev <= 3; rev++) assertThat(om.readTree(next(q, "change")).get("rev").asLong()).isEqualTo(rev);
             long until = System.currentTimeMillis() + 1500;              // 겹쳐 오는 델타가 없어야 한다
@@ -210,7 +210,7 @@ class ErdStreamTest extends AbstractMdmSharedDbTest {
     void draftDeleteSendsReloadToSubscribers() throws Exception {
         released();
         versions.newVersion("mcm", "MINOR", "owner");                                                     // rev 1 (표시)
-        commands.apply("mcm", 1, "owner", "ui", "UI", cmd("[{\"op\":\"addTable\",\"phys\":\"TB_A\",\"logical\":\"x\"}]")); // rev 2
+        commands.apply("mcm", 1, "owner", "ui", "UI", cmd("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A\",\"logical\":\"x\"}]")); // rev 2
         var q = open("a", 2);
         next(q, "presence");
         deleteDraft();                                                                                    // rev 3 (표시)
@@ -222,7 +222,7 @@ class ErdStreamTest extends AbstractMdmSharedDbTest {
     void replayAcrossDraftDeleteSendsReload() throws Exception {
         released();
         versions.newVersion("mcm", "MINOR", "owner");                                                     // rev 1 (표시)
-        commands.apply("mcm", 1, "owner", "ui", "UI", cmd("[{\"op\":\"addTable\",\"phys\":\"TB_A\",\"logical\":\"x\"}]")); // rev 2
+        commands.apply("mcm", 1, "owner", "ui", "UI", cmd("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A\",\"logical\":\"x\"}]")); // rev 2
         deleteDraft();                                                                                    // rev 3 (표시)
         var q = open("late", 2);
         assertThat(om.readTree(next(q, "reload")).get("rev").asLong()).isEqualTo(3);
@@ -236,19 +236,19 @@ class ErdStreamTest extends AbstractMdmSharedDbTest {
         next(q, "presence");
         versions.newVersion("mcm", "MINOR", "owner");
         assertThat(om.readTree(next(q, "reload")).get("rev").asLong()).isEqualTo(1);
-        commands.apply("mcm", 1, "owner", "ui", "UI", cmd("[{\"op\":\"addTable\",\"phys\":\"TB_A\",\"logical\":\"x\"}]"));
+        commands.apply("mcm", 1, "owner", "ui", "UI", cmd("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A\",\"logical\":\"x\"}]"));
         assertThat(om.readTree(next(q, "change")).get("rev").asLong()).isEqualTo(2);
     }
 
     /** B4: sinceRev 없이(새로) 붙으면 첫 이벤트가 hello{rev} 다. */
     @Test
     void freshSubscribeSendsHelloFirst() throws Exception {
-        commands.apply("mcm", 0, "owner", "ui", "UI", cmd("[{\"op\":\"addTable\",\"phys\":\"TB_A\",\"logical\":\"x\"}]"));
+        commands.apply("mcm", 0, "owner", "ui", "UI", cmd("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A\",\"logical\":\"x\"}]"));
         var q = open("fresh", -1);
         String first = q.poll(10, TimeUnit.SECONDS);
         assertThat(first).as("첫 이벤트").isNotNull().startsWith("hello|");
         assertThat(om.readTree(first.substring("hello|".length())).get("rev").asLong()).isEqualTo(1);
-        commands.apply("mcm", 1, "owner", "ui", "UI", cmd("[{\"op\":\"addTable\",\"phys\":\"TB_B\",\"logical\":\"x\"}]"));
+        commands.apply("mcm", 1, "owner", "ui", "UI", cmd("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_B\",\"logical\":\"x\"}]"));
         assertThat(om.readTree(next(q, "change")).get("rev").asLong()).isEqualTo(2);
     }
 

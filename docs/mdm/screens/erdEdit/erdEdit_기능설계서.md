@@ -61,3 +61,4 @@
   - 추정 표 짝: MCM 은 108쌍 중 67쌍을 그린다(접힌 후보 행 43개). MDM 은 34쌍 중 31쌍을 그린다(접힌 후보 행 5개).
   - `view kind=STATUS`(타입 대응을 고친 뒤): MCM 가운데 648ms(첫 670ms, 최대 743ms). MDM 가운데 617ms(첫 774ms, 최대 774ms).
   - 같은 모델에 두 번째로 `import` 하면 `INVALID`(이미 표가 있다)이고 rev 는 그대로다. 가져온 직후 `DB_DIFF` 는 MCM 0건, MDM 0건이다.
+- 감사 컬럼 8개(`C_USR_ID`·`C_AT`·`C_SVC_ID`·`C_PGM_ID`·`U_USR_ID`·`U_AT`·`U_SVC_ID`·`U_PGM_ID`, 대소문자 무시, `VER` 제외): `addTable` 이 표 끝에 자동으로 붙이고(`audit:false` 로 끈다, 가져오기는 붙이지 않는다), 화면은 기본으로 숨기고 도구 막대 [감사 컬럼 보기] 토글로 보인다. `position` 없는 `addColumn`·끝으로 가는 `moveColumn` 은 감사 블록 앞에 넣는다. `getModelText` 는 한 줄로 접고 `audit:true` 면 펼친다. 정본은 단계 2 계획 README S2-30.

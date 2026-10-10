@@ -20,6 +20,8 @@ final class Ctx {
     final LinkedHashMap<Key, JsonNode> before = new LinkedHashMap<>();
     final List<ErdWarning> warnings = new ArrayList<>();
     int index;
+    /** 감사 컬럼을 묶음 끝에서 붙일 표(addTable 명령 순서 그대로: 표 id → 명령 index). */
+    final LinkedHashMap<String, Integer> auditTables = new LinkedHashMap<>();
 
     Ctx(ErdModel m, long baseRev, long newRev, String session) {
         this.m = m;
