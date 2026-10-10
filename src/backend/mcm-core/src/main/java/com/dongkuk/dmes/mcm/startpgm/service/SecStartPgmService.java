@@ -15,9 +15,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 기본 화면 도메인 서비스 — {@code TB_MCM_SEC_USER_START_PGM}. 포털을 처음 시작할 때 자동으로 여는 사용자별 화면 목록.
@@ -27,11 +29,12 @@ import java.util.Map;
  * <ul>
  *   <li>{@code search} — 본인 기본 화면을 START_SEQ 순으로 반환 (menu/obj enrich).</li>
  *   <li>{@code toggle} — 탭 우클릭 '기본 화면 등록/해제'·사이드바 해제 버튼. 미등록이면 맨 뒤에 추가, 등록돼 있으면 제거.</li>
+ *   <li>{@code reorder} — 사이드바에서 끌어서 바꾼 순서 저장. 본인 행만 START_SEQ 를 1..n 으로 다시 매긴다.</li>
  * </ul>
  *
  * <p>매칭 키 = {@code componentPath}({@code ${parentMenuId}/${objectId}}) — {@link PortalPageMenuMatcher} 공용 규칙.
  *
- * <p>userId 는 두 액션 모두 인증 컨텍스트({@link SecurityIdentity#currentUserId()})로 강제한다(IDOR 차단).
+ * <p>userId 는 세 액션 모두 인증 컨텍스트({@link SecurityIdentity#currentUserId()})로 강제한다(IDOR 차단).
  * request body 의 userId 는 인증 컨텍스트가 없을 때(단위 테스트)만 쓴다.
  *
  * <p>{@code @Transactional} 미부착(클래스): 붙이면 CGLIB 프록시가 javac {@code -parameters} 메타데이터를 잃어
@@ -139,6 +142,72 @@ public class SecStartPgmService {
 
         result.put("registered", true);
         return result;
+    }
+
+    // ──────────────────────────────────────────────────────────── reorder
+
+    /**
+     * 끌어서 바꾼 순서 저장 — {@code items} = 사용자가 본 순서대로의 {@code {fullId, menuId}} 목록
+     * (OASIS grids {@code items.rows}). 목록에 있는 행이 START_SEQ 1..n 을 받고, 목록에 없는 본인 행
+     * (다른 창에서 막 추가된 것 등)은 기존 순서대로 그 뒤에 이어 붙인다.
+     *
+     * <p>userId 는 인증 컨텍스트만 쓴다. 본인 행에 없는 키(남의 행·없는 행)가 하나라도 있으면 아무것도 쓰지 않고
+     * INVALID_VALUE 로 거부한다. 쓰기는 {@code saveAll} 한 번(= 한 트랜잭션)이다.
+     */
+    public Map<String, Object> reorderStartPgms(List<Map<String, Object>> items) {
+        String userId = securityIdentity.currentUserId();
+        if (userId == null || userId.isBlank()) {
+            throw new BusinessException(ErrorCode.AUTH_FAILED, "인증 정보가 없습니다.");
+        }
+        List<SecUserStartPgm> owned = startPgmRepository.findByUserIdOrderByStartSeqAsc(userId);
+        Map<String, SecUserStartPgm> byKey = new LinkedHashMap<>();
+        for (SecUserStartPgm row : owned) {
+            byKey.put(rowKey(row.getFullId(), row.getMenuId()), row);
+        }
+
+        List<SecUserStartPgm> ordered = new ArrayList<>(owned.size());
+        Set<String> seen = new HashSet<>();
+        for (Map<String, Object> item : items == null ? List.<Map<String, Object>>of() : items) {
+            String k = rowKey(asString(item.get("fullId")), asString(item.get("menuId")));
+            SecUserStartPgm row = byKey.get(k);
+            if (row == null) {
+                throw new BusinessException(ErrorCode.INVALID_VALUE, "본인의 기본 화면이 아닙니다: " + k);
+            }
+            if (!seen.add(k)) {
+                throw new BusinessException(ErrorCode.INVALID_VALUE, "중복된 기본 화면입니다: " + k);
+            }
+            ordered.add(row);
+        }
+        for (Map.Entry<String, SecUserStartPgm> e : byKey.entrySet()) {
+            if (!seen.contains(e.getKey())) {
+                ordered.add(e.getValue()); // 목록에 없던 본인 행 — 기존 순서대로 뒤에
+            }
+        }
+
+        List<SecUserStartPgm> changed = new ArrayList<>();
+        for (int i = 0; i < ordered.size(); i++) {
+            SecUserStartPgm row = ordered.get(i);
+            int seq = i + 1;
+            if (row.getStartSeq() == null || row.getStartSeq() != seq) {
+                row.setStartSeq(seq);
+                changed.add(row);
+            }
+        }
+        if (!changed.isEmpty()) {
+            startPgmRepository.saveAll(changed);
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("count", ordered.size());
+        result.put("changed", changed.size());
+        return result;
+    }
+
+    private static String rowKey(String fullId, String menuId) {
+        return fullId + "|" + menuId;
+    }
+
+    private static String asString(Object o) {
+        return o == null ? null : String.valueOf(o);
     }
 
     // ──────────────────────────────────────────────────────────── helpers

@@ -19,9 +19,12 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 즐겨찾기 도메인 서비스 — DMES Section 정본 2테이블 모델
@@ -31,6 +34,7 @@ import java.util.Map;
  * <ul>
  *   <li>{@code search} — 폴더 + 메뉴를 FE 가 기대하는 병합 행(lvl 0=폴더 / 1=메뉴)으로 반환 (menu/obj enrich).</li>
  *   <li>{@code save}   — 그리드 다건 C/U/D (폴더 관리 + 메뉴 순서). lvl/menuId 로 두 테이블에 분기.</li>
+ *   <li>{@code reorder} — 사이드바에서 끌어서 바꾼 순서 저장 (폴더 순서 FVT_FOLD_SEQ · 폴더 안 순서 FVT_SEQ, 본인 행만).</li>
  *   <li>{@code toggle} — portal-shell 별 버튼. 미등록이면 (폴더 선택/신규/기본) 후 추가, 등록돼 있으면 제거.</li>
  * </ul>
  *
@@ -102,8 +106,14 @@ public class SecFavoriteService {
         }
 
         // 메뉴 행 (lvl=1) — 폴더/순서 정렬.
+        // 폴더는 폴더 순서(FVT_FOLD_SEQ)로 — 끌어서 바꾼 폴더 순서가 폴더를 가로질러 펼친 목록(홈 바로가기 위젯)에도 반영된다.
+        Map<String, Integer> foldRank = new HashMap<>();
+        for (int i = 0; i < folders.size(); i++) {
+            foldRank.putIfAbsent(folders.get(i).getFvtFoldId(), i);
+        }
         favorites.sort(Comparator
-                .comparing(SecUserFavorite::getFvtFoldId, Comparator.nullsLast(Comparator.naturalOrder()))
+                .comparing((SecUserFavorite f) -> foldRank.getOrDefault(f.getFvtFoldId(), Integer.MAX_VALUE))
+                .thenComparing(SecUserFavorite::getFvtFoldId, Comparator.nullsLast(Comparator.naturalOrder()))
                 .thenComparing(SecUserFavorite::getFvtSeq, Comparator.nullsLast(Comparator.naturalOrder())));
         for (SecUserFavorite f : favorites) {
             Map<String, Object> row = new LinkedHashMap<>();
@@ -359,6 +369,122 @@ public class SecFavoriteService {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "입력값을 확인해주세요.", errors);
         }
         return count;
+    }
+
+    // ──────────────────────────────────────────────────────────── reorder (끌어서 순서 바꾸기)
+
+    /**
+     * 끌어서 바꾼 순서 저장 — {@code items} = 사용자가 본 순서대로의 행 목록(OASIS grids {@code items.rows}).
+     * <ul>
+     *   <li>폴더 행 = {@code menuId} 없이 {@code fvtFoldId} 만 → 폴더 순서(FVT_FOLD_SEQ 1..n).</li>
+     *   <li>메뉴 행 = {@code fvtFoldId + fullId + menuId} → 그 폴더 안 순서(FVT_SEQ 1..m). 폴더 사이 이동은 하지 않는다
+     *       (FVT_FOLD_ID 가 PK 라서) — 본인 행의 폴더와 다르면 거부한다.</li>
+     * </ul>
+     * 목록에 없는 본인 행은 기존 순서대로 뒤에 이어 붙는다. userId 는 인증 컨텍스트만 쓰고, 본인 행에 없는 키가
+     * 하나라도 있으면 아무것도 쓰지 않고 INVALID_VALUE 로 거부한다. 쓰기는 {@code saveAll} 두 번(각각 한 트랜잭션)이다.
+     */
+    public Map<String, Object> reorderFavorites(List<Map<String, Object>> items) {
+        String userId = securityIdentity.currentUserId();
+        if (userId == null || userId.isBlank()) {
+            throw new BusinessException(ErrorCode.AUTH_FAILED, "인증 정보가 없습니다.");
+        }
+        List<SecUserFavoriteFold> folders = folderRepository.findByUserIdOrderByFvtFoldSeq(userId);
+        List<SecUserFavorite> favorites = new ArrayList<>(favoriteRepository.findByUserId(userId));
+        Map<String, SecUserFavoriteFold> foldById = new LinkedHashMap<>();
+        for (SecUserFavoriteFold f : folders) {
+            foldById.put(f.getFvtFoldId(), f);
+        }
+        Map<String, SecUserFavorite> favByKey = new HashMap<>();
+        for (SecUserFavorite f : favorites) {
+            favByKey.put(favKey(f.getFvtFoldId(), f.getFullId(), f.getMenuId()), f);
+        }
+
+        // 1) 요청 검증 + 분류 — 쓰기 전에 전부 확인한다.
+        List<String> folderOrder = new ArrayList<>();
+        Map<String, List<SecUserFavorite>> itemOrder = new LinkedHashMap<>();
+        Set<String> seen = new HashSet<>();
+        for (Map<String, Object> item : items == null ? List.<Map<String, Object>>of() : items) {
+            String foldId = asString(item.get("fvtFoldId"));
+            String menuId = asString(item.get("menuId"));
+            if (foldId == null || foldId.isBlank()) {
+                throw new BusinessException(ErrorCode.REQUIRED_VALUE, "fvtFoldId 는 필수입니다.");
+            }
+            if (menuId == null || menuId.isBlank()) { // 폴더 행
+                if (!foldById.containsKey(foldId)) {
+                    throw new BusinessException(ErrorCode.INVALID_VALUE, "본인의 즐겨찾기 폴더가 아닙니다: " + foldId);
+                }
+                if (!seen.add("F|" + foldId)) {
+                    throw new BusinessException(ErrorCode.INVALID_VALUE, "중복된 폴더입니다: " + foldId);
+                }
+                folderOrder.add(foldId);
+                continue;
+            }
+            String k = favKey(foldId, asString(item.get("fullId")), menuId);
+            SecUserFavorite fav = favByKey.get(k);
+            if (fav == null) {
+                throw new BusinessException(ErrorCode.INVALID_VALUE, "본인의 즐겨찾기가 아닙니다: " + k);
+            }
+            if (!seen.add("M|" + k)) {
+                throw new BusinessException(ErrorCode.INVALID_VALUE, "중복된 즐겨찾기입니다: " + k);
+            }
+            itemOrder.computeIfAbsent(foldId, x -> new ArrayList<>()).add(fav);
+        }
+
+        // 2) 새 순서 계산 — 목록에 있던 것 먼저, 나머지는 기존 순서로 뒤에.
+        List<SecUserFavoriteFold> changedFolders = new ArrayList<>();
+        if (!folderOrder.isEmpty()) {
+            List<SecUserFavoriteFold> ordered = new ArrayList<>();
+            for (String id : folderOrder) {
+                ordered.add(foldById.get(id));
+            }
+            for (SecUserFavoriteFold f : folders) {
+                if (!folderOrder.contains(f.getFvtFoldId())) {
+                    ordered.add(f);
+                }
+            }
+            for (int i = 0; i < ordered.size(); i++) {
+                SecUserFavoriteFold f = ordered.get(i);
+                if (f.getFvtFoldSeq() == null || f.getFvtFoldSeq() != i + 1) {
+                    f.setFvtFoldSeq(i + 1);
+                    changedFolders.add(f);
+                }
+            }
+        }
+        List<SecUserFavorite> changedItems = new ArrayList<>();
+        for (Map.Entry<String, List<SecUserFavorite>> e : itemOrder.entrySet()) {
+            List<SecUserFavorite> ordered = new ArrayList<>(e.getValue());
+            List<SecUserFavorite> rest = new ArrayList<>();
+            for (SecUserFavorite f : favorites) {
+                if (e.getKey().equals(f.getFvtFoldId()) && !ordered.contains(f)) {
+                    rest.add(f);
+                }
+            }
+            rest.sort(Comparator.comparing(SecUserFavorite::getFvtSeq, Comparator.nullsLast(Comparator.naturalOrder())));
+            ordered.addAll(rest);
+            for (int i = 0; i < ordered.size(); i++) {
+                SecUserFavorite f = ordered.get(i);
+                if (f.getFvtSeq() == null || f.getFvtSeq() != i + 1) {
+                    f.setFvtSeq(i + 1);
+                    changedItems.add(f);
+                }
+            }
+        }
+
+        // 3) 쓰기
+        if (!changedFolders.isEmpty()) {
+            folderRepository.saveAll(changedFolders);
+        }
+        if (!changedItems.isEmpty()) {
+            favoriteRepository.saveAll(changedItems);
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("folders", changedFolders.size());
+        result.put("items", changedItems.size());
+        return result;
+    }
+
+    private static String favKey(String foldId, String fullId, String menuId) {
+        return foldId + "|" + fullId + "|" + menuId;
     }
 
     // ──────────────────────────────────────────────────────────── helpers

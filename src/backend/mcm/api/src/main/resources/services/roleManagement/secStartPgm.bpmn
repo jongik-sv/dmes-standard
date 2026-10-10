@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_secStartPgm" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-tool" exporterVersion="1.2.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
   <bpmn:process id="secStartPgm" name="기본 화면 서비스" isExecutable="true">
-    <bpmn:documentation>포털 기본 화면(처음 시작할 때 자동으로 여는 화면) 조회·토글. userId 는 서비스가 인증 컨텍스트로 강제한다.</bpmn:documentation>
+    <bpmn:documentation>포털 기본 화면(처음 시작할 때 자동으로 여는 화면) 조회·토글·순서 저장. userId 는 서비스가 인증 컨텍스트로 강제한다.</bpmn:documentation>
     <bpmn:startEvent id="start">
       <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
     </bpmn:startEvent>
@@ -14,6 +14,7 @@
       <bpmn:incoming>flow_to_gw</bpmn:incoming>
       <bpmn:outgoing>flow_search</bpmn:outgoing>
       <bpmn:outgoing>flow_toggle</bpmn:outgoing>
+      <bpmn:outgoing>flow_reorder</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="searchTask" name="기본 화면 조회" camunda:class="secStartPgmService">
       <bpmn:extensionElements>
@@ -43,11 +44,26 @@
     <bpmn:endEvent id="endToggle">
       <bpmn:incoming>flow_toggle_end</bpmn:incoming>
     </bpmn:endEvent>
+    <bpmn:serviceTask id="reorderTask" name="기본 화면 순서 저장" camunda:class="secStartPgmService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="reorderStartPgms" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_reorder</bpmn:incoming>
+      <bpmn:outgoing>flow_reorder_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endReorder">
+      <bpmn:incoming>flow_reorder_end</bpmn:incoming>
+    </bpmn:endEvent>
     <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
     <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
     <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
     <bpmn:sequenceFlow id="flow_toggle" name="toggle" sourceRef="actionGateway" targetRef="toggleTask" />
     <bpmn:sequenceFlow id="flow_toggle_end" sourceRef="toggleTask" targetRef="endToggle" />
+    <bpmn:sequenceFlow id="flow_reorder" name="reorder" sourceRef="actionGateway" targetRef="reorderTask" />
+    <bpmn:sequenceFlow id="flow_reorder_end" sourceRef="reorderTask" targetRef="endReorder" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="secStartPgm">
@@ -96,6 +112,24 @@
       <bpmndi:BPMNEdge id="flow_toggle_end_di" bpmnElement="flow_toggle_end">
         <di:waypoint x="470" y="300" />
         <di:waypoint x="542" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="reorderTask_di" bpmnElement="reorderTask">
+        <dc:Bounds x="370" y="440" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endReorder_di" bpmnElement="endReorder">
+        <dc:Bounds x="542" y="462" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_reorder_di" bpmnElement="flow_reorder">
+        <di:waypoint x="270" y="235" />
+        <di:waypoint x="270" y="480" />
+        <di:waypoint x="370" y="480" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="462" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_reorder_end_di" bpmnElement="flow_reorder_end">
+        <di:waypoint x="470" y="480" />
+        <di:waypoint x="542" y="480" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
