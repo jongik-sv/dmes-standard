@@ -137,6 +137,8 @@ GLM 세션 전에 `node scripts/glm-preflight.mjs` 실행.
   - 기록: 이름·주소·세션ID·pid·핸들·`spawned_by":"user"`
 - 스킬이 띄운 세션: 회차가 있으면 `spawn-lane.mjs` 가 `lane-add` 로 기록
   - `spawned_by":"coordinator"`
+  - `spawn-lane.mjs` 없이 조정자가 직접 띄우고 `lane-add` 만 한 세션 → `set '.lanes.<레인>.session.spawned_by' '"coordinator"'` 도 기록
+    - 안 하면 기본값 `user` → 끝나도 자동으로 닫지 않음(§5)
 - 연결에 사용 금지: 터미널 제목(Claude 가 덮어씀), 세션 json 의 tmux 칸
 - 핸들 = Orca 재시작 뒤 바뀔 수 있음(`terminal_handle_stale`)
   - `coord-status.mjs` 의 `status=gone` → 신원 재요청
