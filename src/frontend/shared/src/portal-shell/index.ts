@@ -5,6 +5,7 @@ export * from "./use-portal-menu";
 export * from "./use-portal-favorites";
 export * from "./use-portal-start-pages";
 export * from "./start-pages";
+export * from "./reorder";
 export * from "./use-user-button-rbac";
 export * from "./tab-page-context";
 export * from "./usage-tracker";

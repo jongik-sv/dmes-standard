@@ -420,6 +420,32 @@
 .favorites-tree .fav-row {
   position: relative;
 }
+/* 끌어서 순서 바꾸기 — 끌 수 있는 행은 잡는 손 모양, 놓을 자리는 행 위/아래 파랑 선으로 보인다. */
+.favorites-tree .fav-row--draggable {
+  cursor: grab;
+}
+.favorites-tree .fav-row--draggable:active {
+  cursor: grabbing;
+}
+.favorites-tree .fav-row--dragging {
+  opacity: 0.4;
+}
+.favorites-tree .fav-row--drop-before::before,
+.favorites-tree .fav-row--drop-after::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--color-primary);
+  pointer-events: none;
+}
+.favorites-tree .fav-row--drop-before::before {
+  top: 0;
+}
+.favorites-tree .fav-row--drop-after::after {
+  bottom: 0;
+}
 .favorites-tree .fav-delete-btn {
   margin-left: auto;
   border: none;

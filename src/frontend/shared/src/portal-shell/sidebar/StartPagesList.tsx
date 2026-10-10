@@ -1,6 +1,9 @@
 "use client";
 
+import { useCallback } from "react";
+import { moveRelative } from "../reorder";
 import { PageIcon } from "./FavoritesTree";
+import { useRowReorder } from "./use-row-reorder";
 
 /** 사이드바 '기본 화면' 목록 한 줄. */
 export interface StartPageLeaf {
@@ -16,6 +19,8 @@ export interface StartPagesListProps {
   onMenuItemClick: (pageId: string) => void;
   /** 항목의 해제 버튼 → 기본 화면 등록 해제. 미지정 시 버튼을 숨긴다. */
   onRemove?: (pageId: string) => void;
+  /** 끌어서 순서를 바꿨다 — 바뀐 전체 순서(pageId 목록). 미지정 시 끌 수 없다. */
+  onReorder?: (orderedPageIds: string[]) => void;
 }
 
 /**
@@ -27,10 +32,32 @@ export function StartPagesList({
   activePageId,
   onMenuItemClick,
   onRemove,
+  onReorder,
 }: StartPagesListProps) {
+  const canDrop = useCallback(() => true, []);
+  const handleDrop = useCallback(
+    (dragKey: string, targetKey: string, place: "before" | "after") => {
+      const next = moveRelative(
+        pages.map((page) => page.pageId),
+        dragKey,
+        targetKey,
+        place
+      );
+      if (next) onReorder?.(next);
+    },
+    [pages, onReorder]
+  );
+  const { rowProps, rowClassName } = useRowReorder({
+    enabled: !!onReorder,
+    canDrop,
+    onDrop: handleDrop,
+  });
+
   return (
     <div className="favorites-tree start-pages-list">
-      <div className="start-pages-hint">처음 시작할 때 이 순서대로 자동으로 열립니다.</div>
+      <div className="start-pages-hint">
+        처음 시작할 때 이 순서대로 자동으로 열립니다.{onReorder ? " 끌어서 순서를 바꿀 수 있습니다." : ""}
+      </div>
       {pages.length === 0 ? (
         <div className="no-results">탭을 우클릭해 기본 화면으로 등록하세요.</div>
       ) : (
@@ -38,8 +65,9 @@ export function StartPagesList({
           {pages.map((page) => (
             <li key={page.pageId}>
               <div
-                className={`tree-item tree-item--page fav-row ${activePageId === page.pageId ? "selected-menu" : ""}`}
+                className={`tree-item tree-item--page fav-row ${activePageId === page.pageId ? "selected-menu" : ""} ${rowClassName(page.pageId)}`}
                 onClick={() => onMenuItemClick(page.pageId)}
+                {...rowProps(page.pageId)}
               >
                 <span className="menu-icon">
                   <PageIcon />

@@ -35,6 +35,7 @@ import { getCurrentUser } from "./current-user";
 import { preloadSearchDefaults } from "../layout/search-defaults/store";
 import { clearCurrentUserCache } from "./current-user";
 import { usePortalShellFavorites } from "./use-portal-shell-favorites";
+import type { FavoriteReorder } from "./reorder";
 import {
   UsageTracker,
   toUsagePageId,
@@ -119,6 +120,12 @@ export interface PortalShellProps {
   onAddFavoriteFolder?: (folderName: string) => void;
   /** 사이드바 즐겨찾기 그룹 삭제 (폴더 + 하위 즐겨찾기). */
   onDeleteFavoriteFolder?: (folderId: string) => void;
+  /**
+   * 사이드바 즐겨찾기를 끌어서 순서를 바꿨다 — 그룹끼리({@link FavoriteReorder} kind=folders) 또는 한 그룹 안
+   * (kind=items). 그룹 사이 이동은 없다. 미지정이면 즐겨찾기 트리를 끌 수 없다.
+   * 낙관적 갱신(favoriteMenus 즉시 교체)과 서버 저장·실패 시 되돌림은 호출부 몫이다.
+   */
+  onReorderFavorites?: (change: FavoriteReorder) => void;
   onBeforeLogout?: (doLogout: () => void) => void;
   /**
    * 페이지(탭) 열림/활성화 hook — 메뉴 클릭 또는 즐겨찾기 클릭으로 탭이 활성화될 때 호출.
@@ -134,6 +141,11 @@ export interface PortalShellProps {
   isStartPagesLoaded?: boolean;
   /** 기본 화면 등록/해제 토글 — 탭 우클릭 메뉴와 사이드바 해제 버튼이 부른다. 미지정 시 등록 메뉴를 숨긴다. */
   onToggleStartPage?: (pageId: string) => void;
+  /**
+   * 사이드바 기본 화면을 끌어서 순서를 바꿨다 — 바뀐 전체 순서(pageId 목록). 미지정이면 목록을 끌 수 없다.
+   * 낙관적 갱신(startPages 즉시 교체)과 서버 저장·실패 시 되돌림은 호출부 몫이다.
+   */
+  onReorderStartPages?: (orderedPageIds: string[]) => void;
   /**
    * 화면 사용 구간 수집 — 탭(홈 제외)에서 첫 업무 호출이 나간 순간부터 그 탭을 실제로 보고 있던 시간을 탭 단위로
    * 누적하고, 구간을 내보낼 때(탭 닫기·15분 경과·무입력 30분·pagehide·로그아웃)마다 호출한다.
@@ -234,11 +246,13 @@ export function PortalShell({
   onToggleFavorite,
   onAddFavoriteFolder,
   onDeleteFavoriteFolder,
+  onReorderFavorites,
   onBeforeLogout,
   onPageOpen,
   startPages,
   isStartPagesLoaded = true,
   onToggleStartPage,
+  onReorderStartPages,
   onUsageSegments,
   widgetDock,
   popout,
@@ -516,11 +530,14 @@ export function PortalShell({
     handleAddFavoriteFolder,
     handleDeleteFavoriteFolder,
     handleDeleteFavorite,
+    handleReorderFavoriteFolders,
+    handleReorderFavoriteItems,
   } = usePortalShellFavorites({
     favoriteMenus,
     onToggleFavorite,
     onAddFavoriteFolder,
     onDeleteFavoriteFolder,
+    onReorderFavorites,
     resolveDisplayText,
     tabs,
   });
@@ -767,6 +784,9 @@ export function PortalShell({
             onDeleteFavorite={handleDeleteFavorite}
             startPages={startPageLeaves}
             onRemoveStartPage={onToggleStartPage}
+            onReorderStartPages={onReorderStartPages}
+            onReorderFavoriteFolders={handleReorderFavoriteFolders}
+            onReorderFavoriteItems={handleReorderFavoriteItems}
           />
           <div className="portal-shell__main">
             <div className="portal-shell__content-wrapper">

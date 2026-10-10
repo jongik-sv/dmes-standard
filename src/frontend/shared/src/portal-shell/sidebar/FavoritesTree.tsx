@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActionIcon, Button, Group, TextInput } from "@mantine/core";
 import { Modal } from "../../components/modal";
+import { moveRelative, type DropPlace } from "../reorder";
+import { useRowReorder } from "./use-row-reorder";
 
 /** 확정 버튼은 공통 primary 토큰을 그대로 쓴다(레거시 파랑 하드코딩 금지). */
 const CONFIRM_BUTTON_STYLES = {
@@ -32,6 +34,18 @@ export interface FavoritesTreeProps {
   onDeleteFolder?: (folderId: string) => void;
   /** 즐겨찾기(leaf) 삭제 = 별 해제(토글 off). */
   onDeleteFavorite?: (pageId: string) => void;
+  /** 끌어서 그룹 순서를 바꿨다 — 바뀐 전체 그룹 순서(folderId 목록). 미지정 시 그룹을 끌 수 없다. */
+  onReorderFolders?: (folderIds: string[]) => void;
+  /** 끌어서 한 그룹 안 즐겨찾기 순서를 바꿨다 — 그 그룹의 전체 순서. 그룹 사이 이동은 지원하지 않는다. */
+  onReorderItems?: (folderId: string, pageIds: string[]) => void;
+}
+
+/** 끌기 키 — 그룹 행과 즐겨찾기 행을 한 훅에서 구분한다(둘의 ID 가 겹쳐도 키는 다르다). */
+const folderRowKey = (folderId: string) => `F\u0000${folderId}`;
+const leafRowKey = (folderId: string, pageId: string) => `L\u0000${folderId}\u0000${pageId}`;
+function parseRowKey(key: string): { kind: "folder"; folderId: string } | { kind: "leaf"; folderId: string; pageId: string } {
+  const [kind, folderId, pageId] = key.split("\u0000");
+  return kind === "F" ? { kind: "folder", folderId } : { kind: "leaf", folderId, pageId };
 }
 
 // 메뉴 트리(TreeItem)와 동일한 폴더/페이지 아이콘 — 시각 일관성 보장.
@@ -88,6 +102,8 @@ export function FavoritesTree({
   onAddFolder,
   onDeleteFolder,
   onDeleteFavorite,
+  onReorderFolders,
+  onReorderItems,
 }: FavoritesTreeProps) {
   // 폴더 펼침 상태 — 기본 펼침(undefined=open). collapse-all 시 false 로 세팅.
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -110,6 +126,62 @@ export function FavoritesTree({
   };
   const toggleFolder = (folderId: string) =>
     setCollapsed((prev) => ({ ...prev, [folderId]: !prev[folderId] }));
+
+  // 끌어서 순서 바꾸기 — 그룹은 그룹끼리, 즐겨찾기는 같은 그룹 안에서만(그룹 사이 이동은 하지 않는다).
+  const canDrop = useCallback((dragKey: string, targetKey: string) => {
+    const drag = parseRowKey(dragKey);
+    const target = parseRowKey(targetKey);
+    if (drag.kind === "folder") return target.kind === "folder";
+    return target.kind === "leaf" && target.folderId === drag.folderId;
+  }, []);
+  const handleDrop = useCallback(
+    (dragKey: string, targetKey: string, place: DropPlace) => {
+      const drag = parseRowKey(dragKey);
+      const target = parseRowKey(targetKey);
+      if (drag.kind === "folder") {
+        const next = moveRelative(
+          folders.map((f) => folderRowKey(f.folderId)),
+          dragKey,
+          targetKey,
+          place
+        );
+        if (next) onReorderFolders?.(next.map((key) => parseRowKey(key).folderId));
+        return;
+      }
+      const folder = folders.find((f) => f.folderId === drag.folderId);
+      if (!folder) return;
+      const next = moveRelative(
+        folder.children.map((c) => leafRowKey(folder.folderId, c.pageId)),
+        dragKey,
+        targetKey,
+        place
+      );
+      if (next && target.kind === "leaf") {
+        onReorderItems?.(
+          folder.folderId,
+          next.map((key) => {
+            const parsed = parseRowKey(key);
+            return parsed.kind === "leaf" ? parsed.pageId : "";
+          })
+        );
+      }
+    },
+    [folders, onReorderFolders, onReorderItems]
+  );
+  const folderReorder = useRowReorder({
+    enabled: !!onReorderFolders || !!onReorderItems,
+    canDrop,
+    onDrop: handleDrop,
+  });
+  // 그룹 행·즐겨찾기 행 중 해당 콜백이 있는 쪽만 끌 수 있다.
+  const folderRowProps = (folderId: string) =>
+    onReorderFolders ? folderReorder.rowProps(folderRowKey(folderId)) : {};
+  const folderRowClass = (folderId: string) =>
+    onReorderFolders ? folderReorder.rowClassName(folderRowKey(folderId)) : "";
+  const leafRowProps = (folderId: string, pageId: string) =>
+    onReorderItems ? folderReorder.rowProps(leafRowKey(folderId, pageId)) : {};
+  const leafRowClass = (folderId: string, pageId: string) =>
+    onReorderItems ? folderReorder.rowClassName(leafRowKey(folderId, pageId)) : "";
 
   const submitAdd = () => {
     const name = newName.trim();
@@ -174,8 +246,9 @@ export function FavoritesTree({
             return (
               <li key={folder.folderId}>
                 <div
-                  className="tree-item tree-item--folder fav-row"
+                  className={`tree-item tree-item--folder fav-row ${folderRowClass(folder.folderId)}`}
                   onClick={() => toggleFolder(folder.folderId)}
+                  {...folderRowProps(folder.folderId)}
                 >
                   <span className="folder-icon">
                     <FolderIcon open={open} />
@@ -211,9 +284,10 @@ export function FavoritesTree({
                       folder.children.map((leaf) => (
                         <li key={leaf.pageId}>
                           <div
-                            className={`tree-item tree-item--page fav-row ${activePageId === leaf.pageId ? "selected-menu" : ""}`}
+                            className={`tree-item tree-item--page fav-row ${activePageId === leaf.pageId ? "selected-menu" : ""} ${leafRowClass(folder.folderId, leaf.pageId)}`}
                             style={{ paddingLeft: 28 }}
                             onClick={() => onMenuItemClick(leaf.pageId)}
+                            {...leafRowProps(folder.folderId, leaf.pageId)}
                           >
                             <span className="menu-icon">
                               <PageIcon />

@@ -35,6 +35,12 @@ export interface SidebarProps {
   startPages?: StartPageLeaf[];
   /** 기본 화면 해제. */
   onRemoveStartPage?: (pageId: string) => void;
+  /** 기본 화면을 끌어서 순서를 바꿨다 — 바뀐 전체 순서(pageId 목록). */
+  onReorderStartPages?: (orderedPageIds: string[]) => void;
+  /** 즐겨찾기 그룹을 끌어서 순서를 바꿨다 — 바뀐 전체 그룹 순서. */
+  onReorderFavoriteFolders?: (folderIds: string[]) => void;
+  /** 한 즐겨찾기 그룹 안에서 끌어서 순서를 바꿨다 — 그 그룹의 전체 순서. */
+  onReorderFavoriteItems?: (folderId: string, pageIds: string[]) => void;
 }
 
 export function Sidebar({
@@ -52,6 +58,9 @@ export function Sidebar({
   onDeleteFavorite,
   startPages,
   onRemoveStartPage,
+  onReorderStartPages,
+  onReorderFavoriteFolders,
+  onReorderFavoriteItems,
 }: SidebarProps) {
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
   const [searchTerm, setSearchTerm] = useState("");
@@ -367,6 +376,7 @@ export function Sidebar({
               activePageId={activePageId}
               onMenuItemClick={onMenuItemClick}
               onRemove={onRemoveStartPage}
+              onReorder={onReorderStartPages}
             />
           ) : (
             <FavoritesTree
@@ -376,6 +386,8 @@ export function Sidebar({
               onAddFolder={onAddFavoriteFolder}
               onDeleteFolder={onDeleteFavoriteFolder}
               onDeleteFavorite={onDeleteFavorite}
+              onReorderFolders={onReorderFavoriteFolders}
+              onReorderItems={onReorderFavoriteItems}
             />
           )}
         </ScrollArea>

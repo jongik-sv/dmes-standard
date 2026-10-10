@@ -1,8 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
+  buildFavoriteReorderRows,
+  buildStartPageReorderRows,
   type FavoriteFolderChoice,
+  type FavoriteReorder,
   getCurrentUser,
   PortalShell,
   resolvePortalHomePageId,
@@ -31,6 +34,8 @@ const FAVORITE_DELETE_FOLDER_ENDPOINT = "/api/mcm/oasis/secFavorite/deleteFolder
 // 기본 화면(포털을 처음 시작할 때 자동으로 여는 화면) — 즐겨찾기와 같은 방식(사용자별 서버 저장).
 const START_PAGES_ENDPOINT = { endpoint: "/api/mcm/oasis/secStartPgm/search" };
 const START_PAGE_TOGGLE_ENDPOINT = "/api/mcm/oasis/secStartPgm/toggle";
+const START_PAGE_REORDER_ENDPOINT = "/api/mcm/oasis/secStartPgm/reorder";
+const FAVORITE_REORDER_ENDPOINT = "/api/mcm/oasis/secFavorite/reorder";
 // 페이지 접근 이력(RECORD_ACCESS) 엔드포인트는 legacy secMenu.bpmn / secMenuService 빈 제거(2026-06-01)와 함께 폐기됨.
 // commMenuMng 신규 자산에 대응 action 미도입 — onPageOpen 콜백 자체를 PortalShell 에 전달하지 않는다.
 const DEFAULT_HOME_PAGE_ID = resolvePortalHomePageId(MODULE_ID, "home");
@@ -39,16 +44,20 @@ function PortalShellWithMessage({
   menu,
   favorites,
   refetchFavorites,
+  applyFavoriteOrder,
   startPages,
   isStartPagesLoaded,
   refetchStartPages,
+  applyStartPageOrder,
 }: {
   menu: NonNullable<ReturnType<typeof usePortalMenu>["menu"]>;
   favorites: ReturnType<typeof usePortalFavorites>["favorites"];
   refetchFavorites: ReturnType<typeof usePortalFavorites>["refetch"];
+  applyFavoriteOrder: ReturnType<typeof usePortalFavorites>["applyOrder"];
   startPages: ReturnType<typeof usePortalStartPages>["startPages"];
   isStartPagesLoaded: boolean;
   refetchStartPages: ReturnType<typeof usePortalStartPages>["refetch"];
+  applyStartPageOrder: ReturnType<typeof usePortalStartPages>["applyOrder"];
 }) {
   const gfn_message = useGfnMessage();
   const { onUsageSegments, flushUsageForLogout } = usePortalUsageReporter();
@@ -197,6 +206,68 @@ function PortalShellWithMessage({
     [gfn_message, refetchStartPages]
   );
 
+  // 사이드바에서 끌어서 바꾼 순서 저장 — 화면은 먼저 바꾸고(낙관적) 서버에 저장한다. 실패하면 서버 순서로 되돌린다.
+  // 빠르게 연달아 끌면 요청이 엇갈려 앞 순서가 뒤에 도착할 수 있어, 한 줄로 이어서 보낸다.
+  const reorderQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const saveReorder = useCallback(
+    (endpoint: string, rows: unknown[], refetch: () => Promise<void>, label: string) => {
+      const run = async () => {
+        try {
+          const me = await getCurrentUser(); // 공유 사용자 확인(세션 캐시, K3)
+          const userId: string = me.ok ? me.user.id : "";
+          if (!userId) throw new Error("로그인 세션이 만료되었습니다. 다시 로그인해 주세요.");
+          const res = await fetch(endpoint, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            // 순서 목록은 params 배열로 못 보낸다(OASIS) — grids.items.rows 로 보낸다. userId 는 BE 가 인증 사용자로 강제한다.
+            body: JSON.stringify({
+              meta: { userId, menuId: "PORTAL_SHELL" },
+              params: { userId },
+              grids: { items: { rows } },
+            }),
+          });
+          if (!res.ok) {
+            const text = await res.text().catch(() => "");
+            throw new Error(`${label} 순서 저장 실패 (${res.status}) ${text}`);
+          }
+          const body = await res.json();
+          if (!body.meta?.success) {
+            throw new Error(body.meta?.message ?? `${label} 순서 저장 실패`);
+          }
+        } catch (err) {
+          gfn_message(
+            err instanceof Error ? err.message : `${label} 순서를 저장하지 못했습니다.`,
+            "",
+            "",
+            "error"
+          );
+          await refetch(); // 서버 순서로 되돌린다
+        }
+      };
+      reorderQueueRef.current = reorderQueueRef.current.then(run);
+    },
+    [gfn_message]
+  );
+
+  const handleReorderStartPages = useCallback(
+    (orderedPageIds: string[]) => {
+      const rows = buildStartPageReorderRows(startPages, orderedPageIds);
+      applyStartPageOrder(orderedPageIds);
+      saveReorder(START_PAGE_REORDER_ENDPOINT, rows, refetchStartPages, "기본 화면");
+    },
+    [startPages, applyStartPageOrder, saveReorder, refetchStartPages]
+  );
+
+  const handleReorderFavorites = useCallback(
+    (change: FavoriteReorder) => {
+      const rows = buildFavoriteReorderRows(favorites, change);
+      applyFavoriteOrder(change);
+      saveReorder(FAVORITE_REORDER_ENDPOINT, rows, refetchFavorites, "즐겨찾기");
+    },
+    [favorites, applyFavoriteOrder, saveReorder, refetchFavorites]
+  );
+
   // 탭 「새 창으로 분리」 — 팝업이 차단되면 안내만 하고 탭은 그대로 둔다(설계 2026-10-06 §5.3).
   const popout = useMemo(
     () => ({
@@ -227,9 +298,11 @@ function PortalShellWithMessage({
       onToggleFavorite={handleToggleFavorite}
       onAddFavoriteFolder={handleAddFavoriteFolder}
       onDeleteFavoriteFolder={handleDeleteFavoriteFolder}
+      onReorderFavorites={handleReorderFavorites}
       startPages={startPages}
       isStartPagesLoaded={isStartPagesLoaded}
       onToggleStartPage={handleToggleStartPage}
+      onReorderStartPages={handleReorderStartPages}
       onUsageSegments={onUsageSegments}
       widgetDock={widgetDock}
       popout={popout}
@@ -255,6 +328,7 @@ export default function PortalPage() {
     isLoading: isFavoritesLoading,
     errorMessage: favoritesErrorMessage,
     refetch: refetchFavorites,
+    applyOrder: applyFavoriteOrder,
   } = usePortalFavorites(FAVORITES_ENDPOINT);
 
   // 받은 즐겨찾기를 홈 바로가기 위젯이 다시 조회하지 않고 쓰게 올려 둔다(진입 때 같은 목록 중복 요청 방지).
@@ -269,6 +343,7 @@ export default function PortalPage() {
     startPages,
     isLoaded: isStartPagesLoaded,
     refetch: refetchStartPages,
+    applyOrder: applyStartPageOrder,
   } = usePortalStartPages(START_PAGES_ENDPOINT);
 
   if (isMenuLoading || isFavoritesLoading) {
@@ -313,9 +388,11 @@ export default function PortalPage() {
       menu={menu}
       favorites={favorites}
       refetchFavorites={refetchFavorites}
+      applyFavoriteOrder={applyFavoriteOrder}
       startPages={startPages}
       isStartPagesLoaded={isStartPagesLoaded}
       refetchStartPages={refetchStartPages}
+      applyStartPageOrder={applyStartPageOrder}
     />
   );
 }
