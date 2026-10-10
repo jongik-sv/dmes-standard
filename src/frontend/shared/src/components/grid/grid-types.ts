@@ -164,6 +164,11 @@ export interface AgDataGridProps {
    * - 값을 넘기다가 `undefined` 로 바꾸면(`selectedId ?? undefined` 처럼) 커서를 지우고 자체 관리로 돌아간다.
    */
   highlightedRowKey?: string | number | null;
+  /**
+   * 표 아래에 고정되는 행(합계 줄 등). AG Grid `pinnedBottomRowData` 로 그대로 넘긴다. 기본 없음.
+   * 고정 행은 선택·편집·정렬·필터 대상이 아니고(AG 기본), 엑셀 출력에도 들어가지 않는다. 열은 `columns` 의 field 로 값을 읽는다.
+   */
+  pinnedBottomRows?: Record<string, unknown>[];
   scrollToRow?: string | number | null;
   loading?: boolean;
   loadingMessage?: string;

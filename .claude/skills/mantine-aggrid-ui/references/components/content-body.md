@@ -96,6 +96,7 @@ ContentPanelProps
 | width | `string \| number` | 없음 | 고정 폭(숫자는 px). |
 | height | `string \| number` | 없음 | 고정 높이(숫자는 px). |
 | minSize | `number` | row 200 / column 120 | 최소 주축 크기(px). |
+| scrollY | `boolean` | `false` | 본문을 세로 스크롤(`overflowY: auto`·`overflowX: hidden`). 패널보다 길 수 있는 비그리드 내용(상세 폼·보드·미리보기)용이다. 그리드는 자기 스크롤이 있어 켜지 않는다. |
 
 LayoutContextBoundary 는 `children: React.ReactNode`(필수) 하나만 받는다. 화면 DOM 을 만들지 않고 context 만 끊는다.
 

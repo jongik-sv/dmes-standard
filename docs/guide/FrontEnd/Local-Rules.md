@@ -517,5 +517,5 @@ DB 뷰어는 왼쪽 목록에서 테이블을 골라도 조회 결과 그리드�
 
 - 그리드·안쪽 스크롤 영역에는 세로 `overscroll-behavior: contain` 을 쓰지 않는다. 가로(`overscroll-behavior-x`)만 격리해 트랙패드 스와이프로 뒤로가기가 되는 것을 막는다.
 - Monaco 편집기는 `scrollbar: { alwaysConsumeMouseWheel: false }` 를 준다. 기본값(true)이면 편집기 끝에서도 휠이 바깥으로 넘어가지 않는다.
-- 패널보다 길 수 있는 비그리드 내용(상세 폼·트리·보드)은 그 화면 안의 상자에 `overflowY: auto` 를 준다. `.content-panel`·`.page-layout` 의 전역 `overflow` 는 바꾸지 않는다(이중 스크롤 위험).
+- 패널보다 길 수 있는 비그리드 내용(상세 폼·트리·보드)이 `ContentPanel` 본문이면 `<ContentPanel scrollY>` 를 쓴다(본문 `overflowY: auto`·`overflowX: hidden`, 기본 false). 그 밖의 상자는 그 화면 안에서 `overflowY: auto` 를 준다. `.content-panel`·`.page-layout` 의 전역 `overflow` 는 바꾸지 않는다(이중 스크롤 위험).
 - 의도된 휠 처리(Mermaid 확대, ruleSetEdit 캔버스, DetailPopover)는 그대로 둔다.

@@ -12,10 +12,12 @@ export interface ContentPanelProps {
   height?: string | number;
   /** resizable ContentBody 안에서의 최소 주축 크기(px). 기본 row 200 / column 120. */
   minSize?: number;
+  /** 본문을 세로로 스크롤한다(기본 false = 넘치면 잘림). 패널보다 길 수 있는 비그리드 내용(상세 폼·보드·미리보기)용. 그리드는 자기 스크롤이 있으니 켜지 않는다. */
+  scrollY?: boolean;
   children: React.ReactNode;
 }
 
-export function ContentPanel({ panelId, flex, width, height, minSize, children }: ContentPanelProps) {
+export function ContentPanel({ panelId, flex, width, height, minSize, scrollY = false, children }: ContentPanelProps) {
   const { maximizedId } = useContentMaximize();
   const sizeStyle = useLayoutItemStyle({ flex, width, height, minSize });
 
@@ -24,6 +26,10 @@ export function ContentPanel({ panelId, flex, width, height, minSize, children }
   const isHidden = hasMaximize && maximizedId !== null && maximizedId !== panelId;
 
   const style: React.CSSProperties = { position: "relative" };
+  if (scrollY) {
+    style.overflowY = "auto";
+    style.overflowX = "hidden";
+  }
 
   if (isHidden) {
     style.display = "none";

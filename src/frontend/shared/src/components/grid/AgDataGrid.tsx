@@ -106,6 +106,7 @@ function AgDataGridInner({
   // 기본값을 `null` 이 아니라 `undefined` 로 둔다 — "화면이 넘기지 않았다"와 "화면이 커서를 지냈다"를 구분해야
   // 커서를 자체 관리하는 기본 동작과 controlled 계약을 동시에 살릴 수 있다.
   highlightedRowKey,
+  pinnedBottomRows,
   scrollToRow = null,
   loading = false,
   loadingMessage = "조회 중...",
@@ -796,6 +797,7 @@ function AgDataGridInner({
       <AgGridReact
         ref={gridRef}
         rowData={sortedData}
+        pinnedBottomRowData={pinnedBottomRows}
         columnDefs={columnDefs}
         defaultColDef={defaultColDef}
         getRowId={getRowId}
