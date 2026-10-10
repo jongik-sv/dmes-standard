@@ -183,7 +183,7 @@ test('알림이 켜져 있어도 submit·cancel 은 바로 돌아오고, 알림�
   assert.ok(Date.now() - t0 < 5000, `submit took ${Date.now() - t0}ms`);
   for (let i = 0; i < 50 && !existsSync(mark); i += 1) await sleep(100);
   const m = readFileSync(mark, 'utf8');
-  assert.match(m, /--lane a1 --text \[pool\] N1 no-worker rc=- → Claude 로 넘김.*--timeout-ms 5000/);
+  assert.match(m, /--lane a1 --text \[pool\] N1 no-worker rc=- → Claude 로 넘김.*--timeout-ms 300000/);
 });
 
 test('큐 묶음: 종류가 쉬는 중이고 다른 종류가 없으면 no-worker fallback', async () => {

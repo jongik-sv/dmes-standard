@@ -83,7 +83,7 @@ function notifyNow(c, pc, rec) {
   const text = `[pool] ${rec.id} ${rec.result} rc=${rec.rc ?? '-'}${tail}. 보고 .pool 폴더 ${rec.id}.report.md`;
   try {
     const script = fake || join(dirname(SELF), 'term-send-safe.mjs');
-    const ch = spawn(process.execPath, [script, '--lane', rec.lane, '--text', text, '--timeout-ms', '5000'], { env: c.env, cwd: c.cwd, detached: true, stdio: 'ignore', windowsHide: true });
+    const ch = spawn(process.execPath, [script, '--lane', rec.lane, '--text', text, '--timeout-ms', '300000'], { env: c.env, cwd: c.cwd, detached: true, stdio: 'ignore', windowsHide: true });
     ch.on('error', () => {});
     ch.unref();
   } catch { /* 알림 실패는 무시 */ }
