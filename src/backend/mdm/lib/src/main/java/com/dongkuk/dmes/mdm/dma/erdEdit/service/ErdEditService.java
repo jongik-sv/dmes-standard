@@ -117,11 +117,20 @@ public class ErdEditService {
     }
 
     /**
-     * sinceRev 가 있으면 그 뒤 델타(ErdChangesView 를 plain 으로), 없으면 모델 전체(ErdModelView).
+     * kind 가 없으면 단계 0 그대로다. sinceRev 가 있으면 그 뒤 델타(ErdChangesView 를 plain 으로), 없으면 모델 전체(ErdModelView).
+     * kind=SET_VIEW 면 화면 상태(보는 다이어그램·선택한 표)를 알린다. view 는 READ 권한 액션이라 읽기 전용 사용자도 자기 화면을
+     * 알릴 수 있다(단계 1 S1, deferred 38). 모르는 kind 는 입력 오류다.
      * rev 를 MODEL_JSON 보다 먼저 읽는다 — 사이에 명령이 끼면 화면이 같은 델타를 한 번 더 받을 뿐 빠지지는 않는다(델타는 upsert·delete 라 두 번 적용해도 같다).
      */
     public Object view(ErdEditRequest r) {
         String modelId = requireModelId(r);
+        switch (kind(r)) {
+            case "" -> { }
+            case "SET_VIEW" -> {
+                return setView(modelId, r);
+            }
+            default -> throw MdmErrors.invalid("view 가 지원하지 않는 kind 입니다: " + r.getKind());
+        }
         if (r.getSinceRev() != null) return plain(commands.changesSince(modelId, r.getSinceRev()));
         long rev = store.rev(modelId);
         MdmErdModelVer v = r.getVer() == null ? store.current(modelId)
@@ -166,6 +175,21 @@ public class ErdEditService {
         }, modelId);
         return new ErdModelView(modelId, rev, VersionNumbers.plain(v.getVer()), v.getStatus(), v.getOwnerId(), editors,
                 v.getRowVersion(), v.getModelJson(), diagrams, nodes, hub.presence(modelId));
+    }
+
+    /**
+     * 화면 상태 공유(D14). viewJson = {"diagramId":"d-1","selectedTables":["t-1"]}.
+     * 접속자 목록은 SSE 구독이 만든다. 구독하지 않은 세션이면 거절한다(접속자가 없으면 알릴 곳이 없다).
+     */
+    private Map<String, Object> setView(String modelId, ErdEditRequest r) {
+        String session = session(r, currentUser.userId());
+        JsonNode v = readJson(r.getViewJson(), "viewJson");
+        List<String> tables = new ArrayList<>();
+        v.path("selectedTables").forEach(t -> tables.add(t.asText()));
+        if (!hub.updateView(modelId, session, v.path("diagramId").asText(null), tables)) {
+            throw MdmErrors.invalid("실시간 채널에 연결된 세션만 화면 상태를 보낼 수 있습니다: " + session);
+        }
+        return Map.of("ok", true);
     }
 
     /** 논리명 → 물리명(또는 반대) 미리보기. 사전은 이 요청에서 한 번만 읽는다(계획 P3). */
@@ -256,23 +280,16 @@ public class ErdEditService {
 
     static final long CLAIM_TTL_SECONDS = 600;
 
-    /** 공동 편집자 관리(ADD/REMOVE_EDITOR), 화면 상태(SET_VIEW), 작업 중 표시(CLAIM·RELEASE). */
+    /**
+     * 공동 편집자 관리(ADD/REMOVE_EDITOR), 작업 중 표시(CLAIM·RELEASE). 편집자 전용이라 EDIT 권한 액션에 둔다.
+     * 화면 상태 공유(SET_VIEW)는 단계 1 에서 읽기 액션 view 의 kind 로 옮겼다(S1).
+     */
     public Map<String, Object> execute(ErdEditRequest r) {
         String modelId = requireModelId(r);
         String me = currentUser.userId();
-        String kind = r.getKind() == null ? "" : r.getKind().trim().toUpperCase(Locale.ROOT);
-        switch (kind) {
+        switch (kind(r)) {
             case "ADD_EDITOR" -> versions.addEditor(modelId, requireText(r.getUserId(), "userId", 50), me); // USER_ID 50자
             case "REMOVE_EDITOR" -> versions.removeEditor(modelId, requireText(r.getUserId(), "userId"), me);
-            case "SET_VIEW" -> {
-                // viewJson = {"diagramId":"d-1","selectedTables":["t-1"]}
-                JsonNode v = readJson(r.getViewJson(), "viewJson");
-                List<String> tables = new ArrayList<>();
-                v.path("selectedTables").forEach(t -> tables.add(t.asText()));
-                if (!hub.updateView(modelId, session(r, me), v.path("diagramId").asText(null), tables)) {
-                    throw MdmErrors.invalid("실시간 채널에 연결된 세션만 화면 상태를 보낼 수 있습니다: " + session(r, me));
-                }
-            }
             case "CLAIM" -> {
                 // 칸 크기(TABLE_UUID 50, SESSION_NM 100)를 넘으면 ORA-12899(S001) 대신 입력 오류. DB 를 읽기 전에 본다.
                 String tableId = requireText(r.getTableId(), "tableId", 50);
@@ -374,6 +391,11 @@ public class ErdEditService {
 
     private static String session(ErdEditRequest r, String me) {
         return notBlank(r.getSession()) ? r.getSession().trim() : "ui-" + me;
+    }
+
+    /** kind 를 대문자로. 없으면 빈 문자열(각 액션의 기본 동작). */
+    private static String kind(ErdEditRequest r) {
+        return r.getKind() == null ? "" : r.getKind().trim().toUpperCase(Locale.ROOT);
     }
 
     private static String source(ErdEditRequest r) {

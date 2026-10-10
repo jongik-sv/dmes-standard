@@ -117,17 +117,19 @@ class ErdStreamTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void setViewThroughOasisBroadcastsPresence() throws Exception {
+    void setViewThroughViewActionBroadcastsPresence() throws Exception {
         var a = open("a", 0);
         next(a, "presence");
         String body = om.writeValueAsString(Map.of("meta", Map.of("menuId", "erdEdit"), "params", Map.of(
                 "modelId", "mcm", "kind", "SET_VIEW", "session", "a",
                 "viewJson", "{\"diagramId\":\"d-9\",\"selectedTables\":[\"t-1\"]}")));
-        var req = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/oasis/erdEdit/execute"))
+        // 단계 1 S1: 읽기 액션 view 로 보낸다. 모델 소유자·공동 편집자가 아닌 사용자(u-a)다.
+        var req = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/oasis/erdEdit/view"))
                 .header("Content-Type", "application/json").header("X-Client-Key", KEY).header("X-Authenticated-User", "u-a")
                 .header("X-Authenticated-Role", "MDM_STEWARD").POST(HttpRequest.BodyPublishers.ofString(body)).build();
         var res = om.readTree(HttpClient.newHttpClient().send(req, HttpResponse.BodyHandlers.ofString()).body());
         assertThat(res.at("/meta/success").asBoolean()).as(res.toString()).isTrue();
+        assertThat(res.at("/data/result/ok").asBoolean()).as(res.toString()).isTrue();
         String p = next(a, "presence");
         assertThat(p).contains("d-9").contains("t-1");
     }

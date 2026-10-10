@@ -9,13 +9,13 @@
 | 액션 | 뜻 | 권한 세트 |
 |---|---|---|
 | search | 모델 목록 | READ |
-| view | 모델 하나(JSON·다이어그램·rev·편집자·접속자) 또는 `sinceRev` 이후 델타 | READ |
+| view | 모델 하나(JSON·다이어그램·rev·편집자·접속자) 또는 `sinceRev` 이후 델타. `kind=SET_VIEW` 면 내 화면 상태(보는 다이어그램·선택한 표)를 알린다. 읽기 전용 사용자도 부를 수 있다 | READ |
 | compare | 논리명·물리명 미리보기(표준 판정) | READ |
 | validate | 확정 검사 미리보기 | EDIT |
 | reg | 빈 모델 만들기 | EDIT |
 | save | 명령 묶음 적용(`apply`) | EDIT |
 | restore | 명령 되돌리기 | EDIT |
-| execute | 세션 명령(선택 상태·작업 중 표시)과 공동 편집자 등록·해제. `kind` 값은 ADD_EDITOR·REMOVE_EDITOR·SET_VIEW·CLAIM·RELEASE | EDIT |
+| execute | 작업 중 표시와 공동 편집자 등록·해제. `kind` 값은 ADD_EDITOR·REMOVE_EDITOR·CLAIM·RELEASE | EDIT |
 | copy | 새 버전(DRAFT) | EDIT |
 | delete | DRAFT 삭제 | EDIT |
 | lock / unlock / handover | DRAFT 선점·해제·넘기기 | EDIT |

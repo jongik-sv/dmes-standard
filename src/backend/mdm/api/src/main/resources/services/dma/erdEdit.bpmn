@@ -5,7 +5,7 @@
 정본: docs/superpowers/specs/2026-10-10-erd-tool-design.md, 계획 docs/superpowers/plans/2026-10-10-erd-tool-stage0 Task 10.
 
 모든 액션이 erdEditService 의 같은 이름 메서드를 부른다. action(RBAC 키)은 MdmActions 16개 어휘 안에서만 고른다(I14).
-execute 는 kind(ADD_EDITOR·REMOVE_EDITOR, 이어서 SET_VIEW·CLAIM·RELEASE)로 갈린다. import 는 단계 1 에서 더한다.</bpmn:documentation>
+execute 는 kind(ADD_EDITOR·REMOVE_EDITOR·CLAIM·RELEASE)로 갈린다. 화면 상태 공유(SET_VIEW)는 읽기 액션 view 의 kind 다(단계 1 S1). import 는 단계 1 에서 더한다.</bpmn:documentation>
     <bpmn:startEvent id="start" name="시작">
       <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
     </bpmn:startEvent>

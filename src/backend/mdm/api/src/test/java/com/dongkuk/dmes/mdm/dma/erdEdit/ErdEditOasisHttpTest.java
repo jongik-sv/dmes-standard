@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm.dma.erdEdit;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
+import com.dongkuk.dmes.mdm.contract.security.MdmPermissions;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
@@ -188,16 +189,33 @@ class ErdEditOasisHttpTest extends AbstractMdmSharedDbTest {
         assertThat(view.at("/data/result/presence").isArray()).as(view.toString()).isTrue();
     }
 
+    /** 단계 1 S1: 화면 상태 공유는 읽기 액션 view 의 kind 다. execute 는 더 이상 SET_VIEW 를 받지 않는다. */
     @Test
     void setViewNeedsConnectedSessionAndValidJson() throws Exception {
         reg();
-        JsonNode noSse = call("execute", "owner", Map.of("modelId", "mcm", "kind", "SET_VIEW", "session", "no-sse",
+        // RBAC 키는 OASIS 액션 이름이다. view 가 READ 세트에 있으므로 읽기 전용 사용자도 부를 수 있다.
+        assertThat(MdmPermissions.READ_ACTIONS).contains("view");
+        JsonNode noSse = call("view", "viewer", Map.of("modelId", "mcm", "kind", "SET_VIEW", "session", "no-sse",
                 "viewJson", "{\"diagramId\":\"d-1\",\"selectedTables\":[\"t-1\"]}"));
         assertThat(noSse.at("/meta/code").asText()).as(noSse.toString()).isEqualTo("MDM021");
-        JsonNode bad = call("execute", "owner", Map.of("modelId", "mcm", "kind", "SET_VIEW", "session", "no-sse", "viewJson", "{oops"));
+        assertThat(noSse.at("/meta/message").asText() + noSse).contains("실시간 채널");
+        JsonNode bad = call("view", "viewer", Map.of("modelId", "mcm", "kind", "SET_VIEW", "session", "no-sse", "viewJson", "{oops"));
         assertThat(bad.at("/meta/code").asText()).as(bad.toString()).isEqualTo("MDM021");
-        JsonNode notObj = call("execute", "owner", Map.of("modelId", "mcm", "kind", "SET_VIEW", "session", "no-sse", "viewJson", "[1]"));
+        JsonNode notObj = call("view", "viewer", Map.of("modelId", "mcm", "kind", "SET_VIEW", "session", "no-sse", "viewJson", "[1]"));
         assertThat(notObj.at("/meta/code").asText()).as(notObj.toString()).isEqualTo("MDM021");
+
+        JsonNode old = call("execute", "owner", Map.of("modelId", "mcm", "kind", "SET_VIEW", "session", "no-sse",
+                "viewJson", "{\"diagramId\":\"d-1\",\"selectedTables\":[\"t-1\"]}"));
+        assertThat(old.at("/meta/code").asText()).as(old.toString()).isEqualTo("MDM021");
+        assertThat(old.at("/meta/message").asText() + old).contains("지원하지 않는 kind");
+
+        JsonNode unknown = call("view", "viewer", Map.of("modelId", "mcm", "kind", "BOGUS"));
+        assertThat(unknown.at("/meta/code").asText()).as(unknown.toString()).isEqualTo("MDM021");
+        assertThat(unknown.at("/meta/message").asText() + unknown).contains("지원하지 않는 kind");
+
+        // kind 가 없으면 단계 0 그대로 모델 전체를 돌려준다.
+        JsonNode plain = call("view", "viewer", Map.of("modelId", "mcm"));
+        assertThat(plain.at("/data/result/model").isTextual()).as(plain.toString()).isTrue();
     }
 
     // ---- 최종 검토 B5·B6 ----
