@@ -75,7 +75,7 @@ export function UnitRegModal({ open, isBusy, onClose, onSubmit }: {
 
 ### 사용자가 크기를 조절하게 하기
 
-긴 내용을 편집하는 창(SQL 큰 창 등)만 `resizable` 을 켠다. 오른쪽 아래 모서리를 끌면 가로·세로가 바뀐다(최소 480×320, 최대는 화면 안 — 여백 16px). 창이 가운데에 놓여 있어 모서리가 포인터를 따라오도록 변화량의 두 배를 적용한다. 조절한 창에는 `cm-modal--resized` 클래스가 붙으므로, 안쪽 내용이 높이를 따라 늘어나야 하면 이 클래스 아래에서 `flex: 1 1 0; min-height: 0` 으로 둔다. `resizeStorageKey` 를 주면 크기를 localStorage 에 남겨 다음에 열 때 복원한다(저장이 안 돼도 기본 크기).
+긴 내용을 편집하는 창(SQL 큰 창 등)만 `resizable` 을 켠다. 오른쪽 아래 모서리를 끌면 가로·세로가 바뀐다(최소 480×320, 최대는 화면 안 — 여백 16px). 왼쪽 위를 고정한 채 모서리가 포인터를 1:1 로 따라온다. 조절한 창에는 `cm-modal--resized` 클래스가 붙으므로, 안쪽 내용이 높이를 따라 늘어나야 하면 이 클래스 아래에서 `flex: 1 1 0; min-height: 0` 으로 둔다. `draggable` 을 켜면 제목 줄을 끌어 창을 옮길 수 있다(머리줄이 화면 안에 남도록 막고, 머리줄 안 단추·입력에서 시작한 누름은 끌기가 아니며, 제목 줄을 두 번 누르면 가운데·기본 크기로 돌아간다). `resizeStorageKey` 를 주면 크기·위치를 localStorage 에 남겨 다음에 열 때 복원한다(화면이 바뀌어 머리줄이 밖이면 가운데로, 저장이 안 돼도 기본 모양).
 
 ### 열 때마다 상태를 새로 시작하기
 
@@ -100,7 +100,8 @@ Modal
 | descriptionId | `string` | - | 창이 설명으로 참조할 본문 요소 id |
 | closeOnClickOutside | `boolean` | `true` | 바깥(오버레이) 누름으로 닫을지. 초안이 사라지면 곤란한 창(SQL 큰 창 등)만 `false`. X·ESC·[취소]는 영향 없다 |
 | resizable | `boolean` | `false` | 오른쪽 아래 모서리 손잡이로 창 크기를 조절한다. 최소 480×320, 최대는 화면 안. 조절하면 창에 `cm-modal--resized` 클래스 |
-| resizeStorageKey | `string` | - | `resizable` 일 때 조절한 크기를 localStorage 에 이 키로 남긴다(없으면 열려 있는 동안만 유지) |
+| draggable | `boolean` | `false` | 제목 줄을 끌어 창 위치를 옮긴다. 머리줄은 항상 화면 안, 두 번 누르면 가운데·기본 크기로 복귀 |
+| resizeStorageKey | `string` | - | `resizable`·`draggable` 일 때 조절한 크기·위치를 localStorage 에 이 키로 남긴다(없으면 열려 있는 동안만 유지) |
 
 MessageModal (보통 `MessageProvider` 가 대신 띄운다)
 

@@ -1357,6 +1357,7 @@ import { MultiSelectComboBox } from "@dk-oasis/shared/form";
 |---|---|
 | `value` 에 숫자 배열을 넘긴다 | `value={ids.map(String)}` 로 문자열 배열을 준다. |
 | 옵션에 없는 값이 태그로만 남는 것을 오류로 본다 | 선택값 중 옵션에 없는 것은 값 글자가 그대로 태그가 된다. 옵션 로딩 뒤에 값을 넣는다. |
+| 사용 화면에서 `.form-multiselect` 뿌리를 덮어써 테두리를 지운다 | 뿌리에는 상자가 없다. 상자는 안쪽 input(`.form-multiselect-box`) 하나이므로 덮어쓰지 않는다. 겹쳐 보이면 shared 를 고친다. |
 | `data` 를 렌더마다 새로 만든다 | `useMemo` 로 고정한다. |
 | `value` 를 `undefined` 로 넘긴다 | 기본값 `[]` 이 적용되지만 `?? []` 로 명시하는 편이 안전하다. |
 
@@ -3938,7 +3939,7 @@ export function UnitRegModal({ open, isBusy, onClose, onSubmit }: {
 
 ### 사용자가 크기를 조절하게 하기
 
-긴 내용을 편집하는 창(SQL 큰 창 등)만 `resizable` 을 켠다. 오른쪽 아래 모서리를 끌면 가로·세로가 바뀐다(최소 480×320, 최대는 화면 안 — 여백 16px). 창이 가운데에 놓여 있어 모서리가 포인터를 따라오도록 변화량의 두 배를 적용한다. 조절한 창에는 `cm-modal--resized` 클래스가 붙으므로, 안쪽 내용이 높이를 따라 늘어나야 하면 이 클래스 아래에서 `flex: 1 1 0; min-height: 0` 으로 둔다. `resizeStorageKey` 를 주면 크기를 localStorage 에 남겨 다음에 열 때 복원한다(저장이 안 돼도 기본 크기).
+긴 내용을 편집하는 창(SQL 큰 창 등)만 `resizable` 을 켠다. 오른쪽 아래 모서리를 끌면 가로·세로가 바뀐다(최소 480×320, 최대는 화면 안 — 여백 16px). 왼쪽 위를 고정한 채 모서리가 포인터를 1:1 로 따라온다. 조절한 창에는 `cm-modal--resized` 클래스가 붙으므로, 안쪽 내용이 높이를 따라 늘어나야 하면 이 클래스 아래에서 `flex: 1 1 0; min-height: 0` 으로 둔다. `draggable` 을 켜면 제목 줄을 끌어 창을 옮길 수 있다(머리줄이 화면 안에 남도록 막고, 머리줄 안 단추·입력에서 시작한 누름은 끌기가 아니며, 제목 줄을 두 번 누르면 가운데·기본 크기로 돌아간다). `resizeStorageKey` 를 주면 크기·위치를 localStorage 에 남겨 다음에 열 때 복원한다(화면이 바뀌어 머리줄이 밖이면 가운데로, 저장이 안 돼도 기본 모양).
 
 ### 열 때마다 상태를 새로 시작하기
 
@@ -3963,7 +3964,8 @@ Modal
 | descriptionId | `string` | - | 창이 설명으로 참조할 본문 요소 id |
 | closeOnClickOutside | `boolean` | `true` | 바깥(오버레이) 누름으로 닫을지. 초안이 사라지면 곤란한 창(SQL 큰 창 등)만 `false`. X·ESC·[취소]는 영향 없다 |
 | resizable | `boolean` | `false` | 오른쪽 아래 모서리 손잡이로 창 크기를 조절한다. 최소 480×320, 최대는 화면 안. 조절하면 창에 `cm-modal--resized` 클래스 |
-| resizeStorageKey | `string` | - | `resizable` 일 때 조절한 크기를 localStorage 에 이 키로 남긴다(없으면 열려 있는 동안만 유지) |
+| draggable | `boolean` | `false` | 제목 줄을 끌어 창 위치를 옮긴다. 머리줄은 항상 화면 안, 두 번 누르면 가운데·기본 크기로 복귀 |
+| resizeStorageKey | `string` | - | `resizable`·`draggable` 일 때 조절한 크기·위치를 localStorage 에 이 키로 남긴다(없으면 열려 있는 동안만 유지) |
 
 MessageModal (보통 `MessageProvider` 가 대신 띄운다)
 
@@ -6610,7 +6612,7 @@ interface SqlCompletionItem {
 - 우상단 [크게 보기]가 화면의 약 90% 크기 `Modal` 에 같은 내용의 두 번째 편집기를 띄운다.
 - [적용]이 값을 돌려준다(`onChange` 또는 `setValue`). [취소]·Esc·창 밖 닫기는 버린다. 큰 창 안 Ctrl/⌘+Enter 는 적용한 뒤 `onRun` 을 부른다(`onRun` 이 있을 때만).
 - `readOnly` 면 [닫기]만 있다.
-- 큰 창은 `Modal closeOnClickOutside={false}` 라 바깥을 눌러도 닫히지 않는다(초안 보호). 오른쪽 아래 모서리를 끌어 크기를 조절할 수 있다(`resizable`, 최소 480×320·화면 안, 크기는 localStorage `dmes.sqlCodeEditor.expandSize` 에 남는다). X·Esc·[취소]는 초안을 버린다. 겹친 모달은 ESC 한 번에 맨 위 하나만 닫힌다(`modal-stack.ts`). 편집기 끝까지 스크롤한 뒤의 휠은 바깥 영역으로 넘어간다(`scrollbar.alwaysConsumeMouseWheel: false`).
+- 큰 창은 `Modal closeOnClickOutside={false}` 라 바깥을 눌러도 닫히지 않는다(초안 보호). 오른쪽 아래 모서리를 끌어 크기를, 제목 줄을 끌어 위치를 바꿀 수 있다(`resizable`·`draggable`, 최소 480×320·화면 안, 크기·위치는 localStorage `dmes.sqlCodeEditor.expandSize` 에 남는다). X·Esc·[취소]는 초안을 버린다. 겹친 모달은 ESC 한 번에 맨 위 하나만 닫힌다(`modal-stack.ts`). 편집기 끝까지 스크롤한 뒤의 휠은 바깥 영역으로 넘어간다(`scrollbar.alwaysConsumeMouseWheel: false`).
 
 ## 보조 함수·상수 (같은 진입점에서 export)
 

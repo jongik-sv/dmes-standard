@@ -586,6 +586,7 @@ const SqlCodeEditorImpl = forwardRef<SqlCodeEditorHandle, SqlCodeEditorProps>(fu
           className="cm-sqled-modal"
           closeOnClickOutside={false}
           resizable
+          draggable
           resizeStorageKey="dmes.sqlCodeEditor.expandSize"
           onClose={closeExpand}
           footer={

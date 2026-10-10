@@ -236,3 +236,15 @@
   user-select: none;
   background: linear-gradient(135deg, transparent 50%, var(--color-border-strong) 50%, var(--color-border-strong) 56%, transparent 56%, transparent 68%, var(--color-border-strong) 68%, var(--color-border-strong) 74%, transparent 74%);
 }
+
+/* 위치 이동(draggable) 창 — 머리줄을 끌어 옮긴다. 머리줄 안 단추·입력은 그대로 동작한다. */
+.cm-modal--draggable .cm-modal-header {
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+}
+
+.cm-modal--draggable .cm-modal-header button,
+.cm-modal--draggable .cm-modal-header input {
+  cursor: pointer;
+}

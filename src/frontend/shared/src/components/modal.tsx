@@ -11,6 +11,7 @@ import {
   useState,
   useSyncExternalStore,
   type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
@@ -240,17 +241,40 @@ const MODAL_MIN_WIDTH = 480;
 const MODAL_MIN_HEIGHT = 320;
 /** 창이 화면 가장자리에서 떨어져 있어야 하는 여백(px) — 최대 크기는 화면에서 이 여백의 두 배를 뺀 값이다. */
 const MODAL_VIEWPORT_MARGIN = 16;
+/** 끌어 옮길 때 창 머리줄이 화면 안에 남아 있어야 하는 가로 폭·세로 높이(px). */
+const HEADER_VISIBLE_W = 80;
+const HEADER_VISIBLE_H = 36;
 
+/** 창 크기(w·h)와, 가운데 놓인 자리에서 옮긴 정도(tx·ty). */
 interface ModalBox {
+  w: number;
+  h: number;
+  tx: number;
+  ty: number;
+}
+
+interface Viewport {
   w: number;
   h: number;
 }
 
+const clampNumber = (v: number, min: number, max: number) => Math.min(Math.max(v, min), Math.max(min, max));
+
 /** 크기를 최소~최대(화면 안) 범위로 맞춘다. 최대가 최소보다 작은 작은 화면에서는 최대를 따른다. */
-function clampModalBox(box: ModalBox, viewport: ModalBox): ModalBox {
-  const maxW = Math.max(0, viewport.w - MODAL_VIEWPORT_MARGIN * 2);
-  const maxH = Math.max(0, viewport.h - MODAL_VIEWPORT_MARGIN * 2);
-  return { w: Math.round(Math.min(maxW, Math.max(MODAL_MIN_WIDTH, box.w))), h: Math.round(Math.min(maxH, Math.max(MODAL_MIN_HEIGHT, box.h))) };
+function clampSize(w: number, h: number, vp: Viewport, maxW = vp.w - MODAL_VIEWPORT_MARGIN * 2, maxH = vp.h - MODAL_VIEWPORT_MARGIN * 2) {
+  return {
+    w: Math.round(Math.min(Math.max(0, maxW), Math.max(MODAL_MIN_WIDTH, w))),
+    h: Math.round(Math.min(Math.max(0, maxH), Math.max(MODAL_MIN_HEIGHT, h))),
+  };
+}
+
+/** 저장해 둔 값을 지금 화면에 맞춘다 — 크기는 범위 안으로, 머리줄이 화면 밖이면 가운데로 되돌린다. */
+function fitBox(box: ModalBox, vp: Viewport): ModalBox {
+  const { w, h } = clampSize(box.w, box.h, vp);
+  const left = (vp.w - w) / 2 + box.tx;
+  const top = (vp.h - h) / 2 + box.ty;
+  const visible = left >= -(w - HEADER_VISIBLE_W) && left <= vp.w - HEADER_VISIBLE_W && top >= 0 && top <= vp.h - HEADER_VISIBLE_H;
+  return visible ? { w, h, tx: box.tx, ty: box.ty } : { w, h, tx: 0, ty: 0 };
 }
 
 function readStoredBox(key: string | undefined): ModalBox | null {
@@ -259,64 +283,122 @@ function readStoredBox(key: string | undefined): ModalBox | null {
     const raw = window.localStorage.getItem(key);
     if (!raw) return null;
     const v = JSON.parse(raw) as Partial<ModalBox>;
-    return typeof v.w === "number" && typeof v.h === "number" && Number.isFinite(v.w) && Number.isFinite(v.h) ? { w: v.w, h: v.h } : null;
+    const ok = [v.w, v.h].every((n) => typeof n === "number" && Number.isFinite(n));
+    if (!ok) return null;
+    const num = (n: unknown) => (typeof n === "number" && Number.isFinite(n) ? n : 0);
+    return fitBox({ w: v.w as number, h: v.h as number, tx: num(v.tx), ty: num(v.ty) }, { w: window.innerWidth, h: window.innerHeight });
   } catch {
     return null;
   }
 }
 
-function writeStoredBox(key: string | undefined, box: ModalBox) {
+function writeStoredBox(key: string | undefined, box: ModalBox | null) {
   if (!key) return;
   try {
-    window.localStorage.setItem(key, JSON.stringify(box));
+    if (box) window.localStorage.setItem(key, JSON.stringify(box));
+    else window.localStorage.removeItem(key);
   } catch {
     /* 저장하지 못해도 이번 창은 그대로 쓴다 */
   }
 }
 
+type DragState =
+  | { kind: "resize"; x: number; y: number; left: number; top: number; box: ModalBox }
+  | { kind: "move"; x: number; y: number; left: number; top: number; box: ModalBox };
+
 /**
- * 창 크기 조절(opt-in). 창이 화면 가운데에 놓이므로 모서리를 끈 만큼 가로·세로가 두 배로 바뀌어야 모서리가 포인터를 따라온다.
- * pointer capture 를 손잡이에 걸어 끌기 중 텍스트 선택·바깥 누름 판정이 일어나지 않게 한다. 크기는 같은 페이지 안에서 다시 열 때 유지하고,
- * storageKey 가 있으면 localStorage 에도 둔다(실패해도 기본 크기).
+ * 창 크기 조절(resizable)·위치 이동(draggable) — opt-in. 창은 화면 가운데에 놓이고, 사용자가 바꾼 값은 가운데 기준 옮김(`translate`)과 크기로 둔다.
+ * 크기 조절은 왼쪽 위 모서리를 고정하고 오른쪽 아래 모서리가 포인터를 1:1 로 따른다(옮김을 변화량의 절반만큼 함께 바꾼다).
+ * 이동은 머리줄이 화면 안(가로 80px·세로 36px)에 남도록 막는다. pointer capture 로 끌기 중 텍스트 선택·바깥 누름 판정이 일어나지 않게 한다.
+ * 같은 페이지 안에서 다시 열 때 값을 유지하고, storageKey 가 있으면 localStorage 에도 둔다(저장이 안 돼도 기본 모양).
  */
-function useModalResize(enabled: boolean, storageKey: string | undefined) {
+function useModalBox(enabled: boolean, storageKey: string | undefined) {
   const [box, setBox] = useState<ModalBox | null>(() => (enabled ? readStoredBox(storageKey) : null));
   const contentRef = useRef<HTMLElement | null>(null);
-  const dragRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+  const dragRef = useRef<DragState | null>(null);
   const boxRef = useRef(box);
   boxRef.current = box;
 
-  const onPointerDown = useCallback((e: ReactPointerEvent<HTMLElement>) => {
+  const begin = useCallback((kind: DragState["kind"], e: ReactPointerEvent<HTMLElement>) => {
     const content = contentRef.current;
-    if (!content || e.button !== 0) return;
+    if (!content || e.button !== 0) return false;
     e.preventDefault();
     const rect = content.getBoundingClientRect();
-    dragRef.current = { x: e.clientX, y: e.clientY, w: rect.width, h: rect.height };
+    // 아직 손대지 않은 창은 지금 보이는 크기를 시작 값으로 삼는다.
+    const start: ModalBox = boxRef.current ?? { w: Math.round(rect.width), h: Math.round(rect.height), tx: 0, ty: 0 };
+    dragRef.current = { kind, x: e.clientX, y: e.clientY, left: rect.left, top: rect.top, box: start };
     e.currentTarget.setPointerCapture?.(e.pointerId);
+    return true;
   }, []);
 
-  const onPointerMove = useCallback((e: ReactPointerEvent<HTMLElement>) => {
+  const onMove = useCallback((e: ReactPointerEvent<HTMLElement>) => {
     const d = dragRef.current;
     if (!d) return;
-    setBox(clampModalBox({ w: d.w + (e.clientX - d.x) * 2, h: d.h + (e.clientY - d.y) * 2 }, { w: window.innerWidth, h: window.innerHeight }));
+    const vp = { w: window.innerWidth, h: window.innerHeight };
+    const dx = e.clientX - d.x;
+    const dy = e.clientY - d.y;
+    if (d.kind === "resize") {
+      const size = clampSize(d.box.w + dx, d.box.h + dy, vp, Math.min(vp.w - MODAL_VIEWPORT_MARGIN * 2, vp.w - MODAL_VIEWPORT_MARGIN - d.left), Math.min(vp.h - MODAL_VIEWPORT_MARGIN * 2, vp.h - MODAL_VIEWPORT_MARGIN - d.top));
+      setBox({ w: size.w, h: size.h, tx: d.box.tx + (size.w - d.box.w) / 2, ty: d.box.ty + (size.h - d.box.h) / 2 });
+    } else {
+      const left = clampNumber(d.left + dx, -(d.box.w - HEADER_VISIBLE_W), vp.w - HEADER_VISIBLE_W);
+      const top = clampNumber(d.top + dy, 0, vp.h - HEADER_VISIBLE_H);
+      setBox({ ...d.box, tx: d.box.tx + (left - d.left), ty: d.box.ty + (top - d.top) });
+    }
   }, []);
 
-  const endDrag = useCallback(
+  const end = useCallback(
     (e: ReactPointerEvent<HTMLElement>) => {
       if (!dragRef.current) return;
       dragRef.current = null;
       e.currentTarget.releasePointerCapture?.(e.pointerId);
-      if (boxRef.current) writeStoredBox(storageKey, boxRef.current);
+      writeStoredBox(storageKey, boxRef.current);
     },
     [storageKey]
   );
 
+  const reset = useCallback(() => {
+    setBox(null);
+    writeStoredBox(storageKey, null);
+  }, [storageKey]);
+
+  const handleProps = {
+    onPointerDown: (e: ReactPointerEvent<HTMLElement>) => void begin("resize", e),
+    onPointerMove: onMove,
+    onPointerUp: end,
+    onPointerCancel: end,
+  };
+  const headerProps = {
+    onPointerDown: (e: ReactPointerEvent<HTMLElement>) => {
+      // 머리줄 안 단추·입력 칸에서 시작한 누름은 끌기가 아니다.
+      if ((e.target as HTMLElement).closest("button, input, textarea, select, a, [role='button']")) return;
+      begin("move", e);
+    },
+    onPointerMove: onMove,
+    onPointerUp: end,
+    onPointerCancel: end,
+    onDoubleClick: (e: ReactMouseEvent<HTMLElement>) => {
+      if ((e.target as HTMLElement).closest("button, input, textarea, select, a, [role='button']")) return;
+      reset();
+    },
+  };
+
   const style: CSSProperties | undefined =
     enabled && box
-      ? { width: box.w, height: box.h, flex: "0 0 auto", minWidth: MODAL_MIN_WIDTH, minHeight: MODAL_MIN_HEIGHT, maxWidth: `calc(100vw - ${MODAL_VIEWPORT_MARGIN * 2}px)`, maxHeight: `calc(100dvh - ${MODAL_VIEWPORT_MARGIN * 2}px)` }
+      ? {
+          width: box.w,
+          height: box.h,
+          flex: "0 0 auto",
+          minWidth: MODAL_MIN_WIDTH,
+          minHeight: MODAL_MIN_HEIGHT,
+          maxWidth: `calc(100vw - ${MODAL_VIEWPORT_MARGIN * 2}px)`,
+          maxHeight: `calc(100dvh - ${MODAL_VIEWPORT_MARGIN * 2}px)`,
+          // `translate` 는 Mantine 전환이 쓰는 `transform` 과 따로 적용된다.
+          translate: box.tx || box.ty ? `${box.tx}px ${box.ty}px` : undefined,
+        }
       : undefined;
 
-  return { contentRef, style, resized: enabled && box !== null, handleProps: { onPointerDown, onPointerMove, onPointerUp: endDrag, onPointerCancel: endDrag } };
+  return { contentRef, style, sized: enabled && box !== null, handleProps, headerProps };
 }
 
 export interface ModalProps {
@@ -342,7 +424,12 @@ export interface ModalProps {
    * 조절한 창에는 `cm-modal--resized` 클래스가 붙어 안쪽 내용이 높이를 따라 늘어나게 쓸 수 있다.
    */
   resizable?: boolean;
-  /** resizable 일 때 조절한 크기를 localStorage 에 이 키로 남긴다(없으면 같은 화면이 열려 있는 동안만 유지). */
+  /**
+   * 제목 줄을 끌어 창을 옮긴다. 기본 false(지금 그대로). 머리줄이 화면 안(가로 80px·세로 36px)에 남도록 막고, 제목 줄을 두 번 누르면 가운데·기본 크기로 돌아간다.
+   * 머리줄 안 단추·입력 칸에서 시작한 누름은 끌기가 아니다.
+   */
+  draggable?: boolean;
+  /** resizable·draggable 일 때 조절한 크기·위치를 localStorage 에 이 키로 남긴다(없으면 같은 화면이 열려 있는 동안만 유지). */
   resizeStorageKey?: string;
 }
 
@@ -374,6 +461,7 @@ function ModalCore({
   descriptionId,
   closeOnClickOutside = true,
   resizable = false,
+  draggable = false,
   resizeStorageKey,
   overlayClassName = "",
 }: ModalProps & { overlayClassName?: string }) {
@@ -390,7 +478,7 @@ function ModalCore({
     () => false,
   );
   const { setDialogRef: setA11yRef } = useModalA11yCompat(open, descriptionId, isTop);
-  const resize = useModalResize(resizable, resizeStorageKey);
+  const resize = useModalBox(resizable || draggable, resizeStorageKey);
   const setDialogRef = useCallback(
     (node: HTMLElement | null) => {
       resize.contentRef.current = node;
@@ -447,13 +535,13 @@ function ModalCore({
         // 가 폭이 아니라 높이에 적용되고, 결과적으로 Modal 폭이 붕괴한다(LookupModal md 실측
         // 325px, 정상이면 600px). `classNames` 는 selector 별로 분리되므로 `content` 키만 지정해
         // inner 를 건드리지 않는다.
-        classNames={{ content: clsx("cm-modal", `cm-modal-${size}`, resizable && "cm-modal--resizable", resize.resized && "cm-modal--resized", className) }}
+        classNames={{ content: clsx("cm-modal", `cm-modal-${size}`, (resizable || draggable) && "cm-modal--resizable", draggable && "cm-modal--draggable", resize.sized && "cm-modal--resized", className) }}
         // `style` prop 은 `className` 처럼 content 와 inner(flex 부모) 둘 다에 전달된다(ModalContent.mjs 의 innerProps). inner 에 width/height 가 걸리면
         // 위치 고정된 inner 가 줄어들어 창이 왼쪽 위로 붙는다 — 그래서 content 만 가리키는 `styles` 로 넘긴다.
         styles={resize.style ? { content: resize.style } : undefined}
       >
         {(title || showCloseButton) && (
-          <M.Header className="cm-modal-header">
+          <M.Header className="cm-modal-header" {...(draggable ? resize.headerProps : {})}>
             <M.Title className="cm-modal-title">{title}</M.Title>
             {showCloseButton && <M.CloseButton aria-label="닫기" />}
           </M.Header>

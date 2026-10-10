@@ -108,7 +108,7 @@ interface SqlCompletionItem {
 - 우상단 [크게 보기]가 화면의 약 90% 크기 `Modal` 에 같은 내용의 두 번째 편집기를 띄운다.
 - [적용]이 값을 돌려준다(`onChange` 또는 `setValue`). [취소]·Esc·창 밖 닫기는 버린다. 큰 창 안 Ctrl/⌘+Enter 는 적용한 뒤 `onRun` 을 부른다(`onRun` 이 있을 때만).
 - `readOnly` 면 [닫기]만 있다.
-- 큰 창은 `Modal closeOnClickOutside={false}` 라 바깥을 눌러도 닫히지 않는다(초안 보호). 오른쪽 아래 모서리를 끌어 크기를 조절할 수 있다(`resizable`, 최소 480×320·화면 안, 크기는 localStorage `dmes.sqlCodeEditor.expandSize` 에 남는다). X·Esc·[취소]는 초안을 버린다. 겹친 모달은 ESC 한 번에 맨 위 하나만 닫힌다(`modal-stack.ts`). 편집기 끝까지 스크롤한 뒤의 휠은 바깥 영역으로 넘어간다(`scrollbar.alwaysConsumeMouseWheel: false`).
+- 큰 창은 `Modal closeOnClickOutside={false}` 라 바깥을 눌러도 닫히지 않는다(초안 보호). 오른쪽 아래 모서리를 끌어 크기를, 제목 줄을 끌어 위치를 바꿀 수 있다(`resizable`·`draggable`, 최소 480×320·화면 안, 크기·위치는 localStorage `dmes.sqlCodeEditor.expandSize` 에 남는다). X·Esc·[취소]는 초안을 버린다. 겹친 모달은 ESC 한 번에 맨 위 하나만 닫힌다(`modal-stack.ts`). 편집기 끝까지 스크롤한 뒤의 휠은 바깥 영역으로 넘어간다(`scrollbar.alwaysConsumeMouseWheel: false`).
 
 ## 보조 함수·상수 (같은 진입점에서 export)
 
