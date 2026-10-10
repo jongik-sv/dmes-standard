@@ -47,7 +47,7 @@
 | `usage.bands` | `{"Y":{"five":75,"week":85},"O":{"five":90,"week":93},"R":{"five":98,"week":98}}` | 띠 경계(이상이면 그 띠) |
 | `usage.week_pace` | `false` | 켜면 1주 남은 날 보정(설계 §3.f)으로 1주 사용률이 `week_allow` 를 넘을 때 띠를 한 단계 올림 |
 | `usage.week_pace_margin` | `20` | `week_pace` 를 켰을 때 `week_allow = 100×(7−남은 일수)/7 + 이 값` 의 여유(%p) |
-| `usage.relaxed` | `false` | 계정 여유 스위치(사용자가 다른 계정을 쓸 수 있을 때 켬). 켜면 `usage-band.mjs` 가 Y·O 를 G 로 내려 냄(R 그대로). 끄면 띠가 오를 때 Claude 몫을 opencode·agy 로 옮김(`usage.md` §2) |
+| `usage.relaxed` | `false` | 계정 여유 스위치(사용자가 다른 계정을 쓸 수 있을 때 켬). 켜면 `usage-band.mjs` 가 Y·O 를 G 로 내려 냄(R 그대로). 끄면 띠가 오를 때 풀(opencode·GLM)·agy 비중을 키움. 풀은 띠와 상관없이 늘 씀(`usage.md` §2, `pool.md`) |
 | `usage.spawn_week_max` | `95` | 새 레인·새 Pane 을 띄울 수 있는 1주 사용률 상한(%). Claude 새 레인 = 이 값 미만 **그리고** 띠 ≠ R. 5시간 사용량이 높을 때는 모델 등급·동시 agent 수로만 조절 |
 | `compact.threshold_pct` | `40` | 기본 임계 % |
 | `compact.threshold_tokens` | `null` | 토큰 임계(둘 다 있으면 먼저 닿는 쪽) |
@@ -152,7 +152,9 @@
 | `lanes/<레인>/reports.md` | 받은 보고 요약 누적 |
 | `summary.md` | `node scripts/coord-state.mjs summary` 가 만든 사람용 요약 |
 | `WBS.md` | `node scripts/wbs.mjs` 가 만든 WBS(레인 묶음 표·조정자 단계·이슈·지표). 내용이 시각 줄만 다르면 다시 쓰지 않음 |
-| `ticks/` | 스크립트 전용 직전 관측: `idle-check.mjs`·`stall-check.mjs` 의 관측 기록, `tick.mjs` 의 직전 부하 단계(`load`) |
+| `ticks/` | 스크립트 전용 직전 관측: `idle-check.mjs`·`stall-check.mjs` 의 관측 기록, `tick.mjs` 의 직전 부하 단계(`load`)·`POOL_DONE` 표시 파일(`pool`) |
+| `pool/` | 풀 기록(`pool.mjs`): `items/<id>.json`(묶음 기록)·`cool.json`(종류별 쉬는 시각)·`log.jsonl`(끝난 묶음 한 줄씩). 절차 = `pool.md` |
+| `metrics.md` | `run-metrics.mjs` 가 만든 회차 지표(마감 때 `closing.md` §4.5). 누적 = `<state_dir>/metrics.csv` |
 
 - 시각 = ISO 8601 + 시간대(`date +%Y-%m-%dT%H:%M:%S%z` 를 `+09:00` 꼴로)
 - 스크립트 내부 비교 = epoch 초
@@ -164,7 +166,7 @@
   "schema": 1,
   "run": {"id": "", "goal": "", "rules_doc": "", "integration_branch": "dev", "created_at": "",
           "coordinator": {"name": "", "addr": "", "session_id": "", "handle": "", "pid": 0},
-          "cron_id": null, "usage_band_notified": null, "closed_at": null, "last_tick_at": null},
+          "mode": null, "cron_id": null, "usage_band_notified": null, "closed_at": null, "last_tick_at": null},
   "lanes": {
     "<레인>": {
       "session": {"name": "", "addr": "", "session_id": "", "pid": 0, "handle": "",
@@ -187,7 +189,7 @@
   "backlog": [{"id": "", "kind": "", "fits": [], "desc": "", "taken_by": null}],
   "approvals": [{"at": "", "lane": "", "decision": "allow|deny|user", "category": "", "cmd": "", "why": ""}],
   "glm": {"status": null, "at": null, "detail": null},
-  "decisions": [{"at": "", "text": ""}],
+  "decisions": [{"at": "", "lane": "", "q": "", "text": ""}],
   "pending_user": [{"at": "", "text": ""}],
   "office": {"sent": {}, "label": {}, "sumhash": {}, "user": "", "finished": false},
   "wbs": {"phases": [{"name": "", "items": [{"title": "", "weight": 1, "done": false, "note": ""}]}],
@@ -218,6 +220,12 @@
   - 항목 `weight` 기본 1, 진도는 레인 항목과 같은 가중치 합산. `progress` 명령은 레인만 셈
 - `glm` = `glm-preflight.mjs` 가 기록
 - `run.coordinator` = `init` 이 `session_id`·`pid`·`handle` 을 기록. 조정자는 `name`·`addr` 만 씀
+  - `prev_ids` = `/clear` 뒤 `relink self` 가 옛 `session_id` 를 쌓는 배열(`run-metrics.mjs` 가 옛 세션 로그도 셈)
+- `lanes.<l>.session.prev_ids` = 같은 방식으로 레인 세션의 옛 id(`compact-lane.mjs --clear` 가 `relink` 를 호출)
+- `run.mode` = `"token"|"time"`(선택). `coord-state.mjs mode` 가 씀. 없으면 설정 `mode.default`
+- `decisions` = `[{at, lane, q, text, esc?, reverse?}]`. `decide` 가 씀(옛 항목은 `{at, text}`)
+  - `esc` = 판단 올리기로 정한 결정, `reverse` = 앞 결정을 뒤집음
+- `lanes.<l>.compact.pending` = `--clear` 뒤 재개 문구 전송이 실패했을 때 `true`(이벤트 `compact-resume-pending`). 수동 재개 = `compact.md`
 - `run.closed_at` = 회차를 마감한 시각(ISO). 열린 회차 = `null`
   - 쓰기 = `node scripts/coord-state.mjs close-run`(또는 `event run-closed`)만
   - 이 칸이 비고 다른 조정 세션이 연 회차 → `init` 은 조건 없이 `STALE_RUN` 으로 알림
@@ -278,7 +286,7 @@
 
 | 스크립트 | 인자 | stdout |
 |---|---|---|
-| `tick.mjs` | `[--no-answer] [--dry-run]` | 틱 한 번을 묶어 행동 줄만 냄: `ANSWER/DENY/ESCALATE … lane=<레인>`(확인 창 자동 응답) · `PROMPT <레인> <kind>`(`--no-answer`) · `IDLE`·`WAIT_USER`·`STALL?`·`GONE`(idle-check) · `STALL`(stall-check) · `CTX_OVER <레인> pct=<n> thr=<n>` · `CTX_OVER_SELF pct=<n> thr=<n>` · `BAND_CHANGED <이전> <지금> five=<n> week=<n>`(state.usage 갱신, 한 번만) · `LOAD_SOFT\|LOAD_HARD\|LOAD_RELEASE per_core=<f>`(두 틱 연속) · `WINDOW_DUE <kind> lane=<레인\|-> until=<iso>` · `UNACKED <instr-id> <레인> <분>m` · `UNLINKED <이름> pid=<pid>`(처음 본 것만) · `STALE_RUN <run-id> session=<id\|-> idle=<분>m`(다른 조정 세션 회차만, 경고만). 하나도 없으면 `TICK quiet` |
+| `tick.mjs` | `[--no-answer] [--dry-run] [--watch [--interval 초] [--max-iter n] [--repeat-min 분]]` | 틱 한 번을 묶어 행동 줄만 냄: `ANSWER/DENY/ESCALATE … lane=<레인>`(확인 창 자동 응답) · `PROMPT <레인> <kind>`(`--no-answer`) · `IDLE`·`WAIT_USER`·`STALL?`·`GONE`(idle-check) · `STALL`(stall-check) · `CTX_OVER <레인> pct=<n> thr=<n> tokens=<n\|-> max=<n\|->` · `CTX_OVER_SELF pct=<n> thr=<n> tokens=<n\|-> max=<n\|->` · `BAND_CHANGED <이전> <지금> five=<n> week=<n>`(state.usage 갱신, 한 번만) · `LOAD_SOFT\|LOAD_HARD\|LOAD_RELEASE per_core=<f>`(두 틱 연속) · `WINDOW_DUE <kind> lane=<레인\|-> until=<iso>` · `UNACKED <instr-id> <레인> <분>m` · `UNLINKED <이름> pid=<pid>`(처음 본 것만) · `STALE_RUN <run-id> session=<id\|-> idle=<분>m`(다른 조정 세션 회차만, 경고만) · `POOL_DONE <id> lane=<레인> result=<r> fallback=<0\|1>`(풀 `log.jsonl` 의 새 완료 줄마다 한 번). 하나도 없으면 `TICK quiet`. `--watch [--interval 초] [--max-iter n] [--repeat-min 분]` = 틱 본문을 주기(기본 60초)마다 돌려 줄이 있을 때만 씀(같은 줄은 `--repeat-min` 기본 15분 안에 다시 안 씀, 회차가 없어지면 끝, 잘못된 값 = 종료 코드 2) |
 | `ctx-usage.mjs` | `<session-id>` \| `--pid <pid>` \| `--lane <레인>` `[--window N]` | `CTX <session-id> tokens=<n> window=<n> pct=<n> src=transcript\|dump at=<iso>` 또는 `CTX <id> unknown <사유>` |
 | `usage-band.mjs` | 없음 | `BAND <G\|Y\|O\|R\|UNKNOWN> five=<n\|-> week=<n\|-> week_allow=<n\|-> src=<kind\|-> at=<iso\|-> five_reset=<iso\|-> week_reset=<iso\|-> raw=<G\|Y\|O\|R\|->`. `raw` = `usage.relaxed` 로 내리기 전 띠 |
 | `coord-status.mjs` | `[--json]` | 레인마다 `LANE <레인> name=<세션> status=<busy\|idle\|gone> for=<분>m report=<HH:MM\|-> commit=<HH:MM\|-> ahead=<n\|-> bg=<콤마목록\|-> ctx=<n\|->% hold=<사유\|->`, 이어 `PC load1=<f\|-> cpus=<n> per_core=<f\|-> heavy=<held>/<waiting>/<K> swap_mb=<n\|-> five=<n\|-> week=<n\|-> band=<띠>`, 상태에 없는 Claude 세션마다 `UNLINKED <이름> pid=<pid> cwd=<경로>`, 회차의 창마다 `WINDOW <kind> lane=<레인\|-> until=<iso>`. `--json` = 같은 정보를 객체 배열로(`"type"`: lane\|pc\|unlinked\|window) |
@@ -314,7 +322,11 @@
 | `progress` | 레인마다 `PROGRESS <레인> <pct>% <끝난가중치>/<전체가중치>`, 마지막 `PROGRESS ALL <pct>%` |
 | `hold <레인> <사유\|-> [until-iso]` | hold 세우기(`-` = 풀기) · `OK` |
 | `close-run [json]` | 회차 마감: `run-closed` 이벤트 → `node scripts/office.mjs finish` → `.run.closed_at` 기록(이미 있으면 처음 값 유지, finish 는 다시 검) → 최종 `WBS.md` 재생성·열기 · `OK`. `event run-closed` 도 같은 길 |
-| `summary` | summary.md 재생성 · 경로 |
+| `summary` | summary.md 재생성(결정은 최근 20개) · 경로 |
+| `mode [token\|time]` | 회차 모드 보기·기록(`.run.mode`, 없으면 `mode.default`) · `MODE <m> src=<state\|default>` · `OK mode=<m>` |
+| `decide <레인\|-> <질문> <결정> [--esc] [--reverse]` | 레인 질문 결정 기록(`.decisions`) · `OK decision=<n>` |
+| `decisions [--last n] [--grep 글]` | 결정 조회 · `DECISION <번호> <at> <레인|-> <질문|-> => <결정>[ esc][ reverse]` 줄들 또는 `DECISION none` |
+| `relink <레인\|self> [--sid 새id]` | `/clear` 뒤 새 세션 id 로 갈아끼움. `<sessions_dir>/<pid>.json` 의 sessionId 를 읽고, 옛 id 는 `prev_ids` 에 쌓음 · `RELINK <누구> <옛\|-> -> <새>` \| `RELINK <누구> same` \| `RELINK <누구> unknown` |
 | `wbs-phase <단계> <제목> [--weight n]` | 조정자 단계에 항목 추가(단계 없으면 만듦, weight 기본 1) · `OK` |
 | `wbs-done <단계> <제목 앞부분\|번호> [--note 글]` | 항목 완료(번호는 1부터, 앞부분은 안 끝난 항목 먼저). 없으면 종료 코드 2 · `OK` |
 | `wbs-issue <글>` | `.wbs.issues` 에 한 줄 추가 · `OK` |
@@ -324,7 +336,9 @@
 | 스크립트 | 인자 | stdout |
 |---|---|---|
 | `term-send-safe.mjs` | `--handle <h>` \| `--lane <레인>`, `--text <글>` \| `--text-file <f>`, `[--timeout-ms 300000] [--raw [--expect-sha <sha>]] [--allow-busy] [--over-draft]` | `SENT <h> <turn_started\|submitted\|accepted>` 또는 `REFUSED <h> <stale\|not-idle\|interrupt-visible\|prompt-open\|compacting\|bang-in-text\|draft-in-input\|no-prompt\|lane-busy\|prompt-changed>`. `--raw` = 확인 창 응답용(`1`·`2`). `--expect-sha` = `--raw --lane` 필수. `--allow-busy` = 작업 중 세션에도 넣음. `--over-draft` = 입력창 글이 회색 추천 문구일 때만 조정자가 씀. 옵션 상세 = `office-contract.md` §4.3 |
-| `compact-lane.mjs` | `<레인> [--force-no-memo] [--over-draft] [--dry-run]` | `COMPACT_REFUSED <레인> <merge-in-flight\|measure-lane\|no-memo\|cooldown\|unsupported-kind\|no-handle\|term-send-safe 거부 사유>` · `COMPACT_DONE <레인> before=<n\|-> after=<n\|->` · `COMPACT_TIMEOUT <레인>` |
+| `compact-lane.mjs` | `<레인> [--clear] [--force-no-memo] [--over-draft] [--dry-run]` | `COMPACT_REFUSED <레인> <merge-in-flight\|measure-lane\|no-memo\|cooldown\|unsupported-kind\|no-handle\|term-send-safe 거부 사유>` · `COMPACT_DONE <레인> before=<n\|-> after=<n\|->`(`--clear` 면 끝에 ` mode=clear`) · `COMPACT_TIMEOUT <레인>`. `--clear` = `/clear` 뒤 재개 문구 전송 + `relink`. 재개 전송 실패 → `compact.pending` 켬 |
+| `pool.mjs` | `submit --lane L --id id --size S\|M --packet f [--cwd d] [--kind auto\|opencode\|glm] [--dry-run]` · `status [--lane L] [--id id]` · `cancel <id>` · `note <id> [--findings n] [--lines n]` | `POOL started <id> kind=<k>` · `POOL queued <id> position=<n>` · `POOL fallback <id> reason=no-worker` · `POOL refused <id> <사유>` · `POOL <id> <state> kind= lane= result= rc=` · `POOL slots opencode=<n>/<max> glm=<n>/<max> queued=<n>` · `POOL cancelled\|noted <id>` |
+| `run-metrics.mjs` | `[--run id] [--stdout] [--no-csv] [--since iso] [--until iso] [--dry-run]` | `METRICS <run> cost=<$> per1k=<$\|-> coord=<%> lines=<n> file=<경로\|->` |
 | `spawn-lane.mjs` | `--name <n> --kind <claude\|glm\|opencode> [--worktree <경로\|선택자>] [--model m] [--effort e] [--autocompact t] [--prompt-file f] [--brief "<한 줄>"]` | `SPAWNED <n> handle=<h> pid=<pid\|-> session_id=<id\|->` 또는 `SPAWN_FAIL <n> <wait\|process\|screen\|preflight\|glm-cap> <사유>`. glm 은 preflight 실패 시 `SPAWN_FAIL … preflight`(대체 여부는 조정자가 정함) |
 | `close-lane.mjs` | `<레인>` \| `--handle <h>` `[--force-report]` | `CLOSED <레인> handle=<h>` 또는 `CLOSE_REFUSED <레인> <bg-running\|not-reported>`. 워크트리·브랜치 남음 = stderr 경고만. `--force-report` = `not-reported` 만 통과 |
 | `measure-window.mjs` | `open <measure\|move\|ban> [--lane <레인>] --until <iso> [--hold-heavy]` · `close [<kind>]` · `status` · `quiet-check` | `WINDOW_OPEN <kind> until=<iso> hold_job=<id\|->` · `WINDOW_CLOSED <kind>` · `WINDOW <kind> lane=… until=…` / `WINDOW none` · `QUIET yes\|no\|unknown run=<n> per_core=<f\|-> procs=<n>`(unknown = load 를 얻을 수 없는 환경, per_core 는 `-`) |

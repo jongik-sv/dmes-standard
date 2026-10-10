@@ -1,6 +1,6 @@
 ---
 name: coordinator
-description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 워커에 나눠 맡기고, 조정 세션 하나가 분해·머지 허가·idle 감시와 자동 배정·고부하 조절·사용량 조절·compact·마감을 맡는 조정자 스킬. 트리거 - "/coordinator", "조정자 시작", "레인 조정", "여러 세션 조정", "머지 조정", "조정 종료". 사용법 - /coordinator start <run-id> [목표] · tick · status · merge <레인> · measure <레인> <분> · close <레인> · finish · help
+description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 워커에 나눠 맡기고, 조정 세션 하나가 분해·머지 허가·idle 감시와 자동 배정·고부하 조절·사용량 조절·compact·마감을 맡는 조정자 스킬. 트리거 - "/coordinator", "조정자 시작", "레인 조정", "여러 세션 조정", "머지 조정", "조정 종료". 사용법 - /coordinator start <run-id> [목표] · tick · status · merge <레인> · measure <레인> <분> · close <레인> · finish · help · metrics · mode <token|time>
 ---
 
 # /coordinator: 레인 조정자
@@ -19,6 +19,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
   - `status` = `coord-status.mjs`(`monitor.md` §2) · `merge` = `merge-gate.md`
   - `measure` = `heavy.md` §3 · `close` = `spawn.md` §5
   - `finish` = `closing.md` · `help` = `references/help.md`
+  - `metrics` = `node scripts/run-metrics.mjs --stdout --no-csv`(마감 때는 `closing.md` §4.5) · `mode` = `coord-state.mjs mode`
 
 > **압축 뒤 Skill 재호출 금지.** `references/resume.md` 의 재독 세트만 Bash `cat` 으로 읽음
 > 감시 cron 고정 문구: `[조정자 틱] .claude/skills/coordinator/SKILL.md 의 「틱 절차」 절만 읽고 실행(Skill 재호출 금지)`
@@ -28,6 +29,10 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 
 적용 대상: 조정자와 지시받는 모든 세션·Workflow. 레인용 원문 = `templates/brief.md` 「작업 방식」
 
+0. **회차 모드.** 기본 = token(토큰 우선). 사용자가 「빠르게」 같은 요청 → time
+   - 기록: `node scripts/coord-state.mjs mode time`(되돌림 = `mode token`). 이미 도는 일은 그대로, 다음 배정부터
+   - 모드가 바꾸는 것: 레인 상한(`mode.lanes_max` token 3·time 6), 레인당 동시 agent(`workflow.agents_by_mode`), 풀 우선순위, 모델 표 `mode` 행, Workflow 최소 항목(`mode.workflow_min_items`), 하트비트(`mode.heartbeat_min`)
+   - 조정 세션 모델 = `coordinator.model_by_mode`(token sonnet/medium·time opus/medium). 바꿀 때 사용자에게 한 줄: 「`/model sonnet`(또는 `opus`) 입력」
 1. **최소 충분 등급에서 시작.**
    - 근거(시험 실패, 리뷰 지적 반복, 20분 넘게 막힘)가 있을 때만 한 칸 올림
 2. **모델 등급** = `workflow.model_table`(`contract.md` §1.3, `spawn.md` §1). 기본 sonnet
@@ -43,9 +48,12 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 7. **조정자는 적게 읽고 적게 말함.** 레인에 다시 묻기 전에 state·보고 확인
    - 상태 판단 = state.json 요약(`coord-state.mjs get`·`summary`)
    - 터미널 화면 = `prompt-watch.mjs` 가 이상을 판정한 레인 하나만 읽음
-8. **사용량 띠가 오르면 일을 막지 않고 Claude 몫을 opencode·agy 로 이동**(`usage.md` §2).
+   - 조정 세션이 직접 하는 일 = D0(git·상태·짧은 확인)만. 조사 = 검색 워커, 구현 = 레인·풀
+   - 진행표 요청 = `node scripts/coord-status.mjs` 출력 그대로 + `WBS.md`·오피스 위치. 레인 화면 다시 읽지 않음
+   - 컨텍스트 = `compact.coordinator_max`(200000) 넘으면 `CTX_OVER_SELF` → `compact.md` §8(`/clear` 재개). 사용자가 `/clear` 뒤 재개하면 `node scripts/coord-state.mjs relink self`(새 세션 id 기록)
+8. **사용량 띠가 오르면 일을 막지 않고 풀(opencode·GLM)·agy 비중을 키움.** 풀은 띠와 상관없이 늘 씀(`references/pool.md`, `usage.md` §2).
    - 새 Claude 레인 = 1주 사용률 < `usage.spawn_week_max` **그리고** 띠 ≠ R
-   - R 에서는 opencode·agy 워커만
+   - R 에서는 풀(opencode·GLM)·agy 워커만
 9. **같은 일을 두 번 하지 않음.**
    - 금지: 재개 캐시를 깨는 지시 수정, 도는 Workflow 와 겹치는 지시, 같은 질문 반복
 10. **남의 진단은 직접 재 보고 옮김.** 확인 없이 사용자에게 전하지 않음
@@ -58,6 +66,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 - 대상: `merge-gate.mjs` 의 `SHARED_API`·`OUTSIDE`(`merge-gate.md`)
 - 대상: `auto-answer.mjs` 의 권한 창 `ESCALATE`(`approvals.md`)
 - 대상: `STALL` 원인(`stall.md`), `start` 분해 초안(`decompose.md`), `finish` 결정·후속 정리(`closing.md`)
+- 대상: 레인 `질문` 중 설계·정합성(공유 API·스키마·다른 레인과 겹치는 결정·트랜잭션). 아래 「`질문` 처리」 2단계
 
 ## 시작 절차 (`start <run-id> [목표]`)
 
@@ -68,6 +77,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
    - PC별 값(`launch.claude`·`integration_check`·`git_bin` 등) = 사용자에게 1회 확인
 2. `node scripts/coord-state.mjs init <run-id> --goal "<목표>" [--rules-doc <경로>]`
    - 출력 `SESSION_RUNS`·`STALE_RUN` 처리 = `closing.md` §6
+   - 사용자가 빠르게를 요청했으면 `node scripts/coord-state.mjs mode time`
    - `WBS.md` 자동 생성·열기(`wbs.auto_open`). 묶음 = `lane-add` 의 `group`, 조정자 단계 = `wbs-phase`·`wbs-done`·`wbs-issue`
 3. 분해: `decompose.md`(초안 = 판단 올리기). 사용자 확정
    - 레인 공통 규칙 문서 = `templates/lane-rules-README.md`
@@ -75,18 +85,23 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
    - 사용자 세션 = 신원 보고로 연결
    - 스킬이 띄우는 세션 = `spawn-lane.mjs`
    - 띄운 세션에 `prompt-watch.mjs` 부착 = `approvals.md` §1
+   - 레인 수 상한 = `mode.lanes_max[모드]` 와 `usage.md` 「새 레인 상한」 중 작은 쪽
    - 레인마다 `node scripts/coord-state.mjs lane-add`
      - 지시 한 줄(오피스 슬롯 이름) = `"brief"` 로 함께 입력
    - 오피스 표시 = 스크립트 자동 전송, 실패 무시(`office-contract.md` §4)
 5. 착수 지시: `templates/brief.md` 자리표시자를 채워 SendMessage
    - 번호: `node scripts/coord-state.mjs instr <레인> start`
    - 원문: `lanes/<레인>/brief.md`
-6. `CronCreate`(`tick.cron`, 위 고정 문구) 후 `set-many` 로 기록(session_id·pid·handle = `init` 이 기록)
+6. 감시 시작
+   - 이벤트 틱: `Monitor` 로 `node .claude/skills/coordinator/scripts/tick.mjs --watch` 를 백그라운드 감시(줄이 나올 때만 깨움)
+   - 하트비트: `CronCreate` 간격 = `mode.heartbeat_min[모드]`분(token 30·time 15), 고정 문구 그대로
+   - `set-many` 로 기록(cron_id·조정 세션 이름·주소. session_id·pid·handle = `init` 이 기록)
    - `node scripts/coord-state.mjs set-many '.run.cron_id' '"<id>"' '.run.coordinator.name' '"<이름>"' '.run.coordinator.addr' '"<주소>"'`
 
 ## 틱 절차
 
 1. `node scripts/tick.mjs` 실행(확인·선택 창 자동 응답 포함, `WBS.md` 자동 갱신)
+   - Monitor 로 받은 --watch 줄도 같은 표로 처리. 하트비트 틱은 tick.mjs 1회
 2. `TICK quiet` 이고 처리할 메시지 없음 → **말 없이 턴 종료.**
 3. 나온 줄만 아래 표대로 처리
 4. 바뀐 것이 있었으면 `node scripts/coord-state.mjs summary`
@@ -100,8 +115,9 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 | `IDLE <레인>` | → `monitor.md` §5 |
 | `STALL?`·`STALL` | → `stall.md`. 프로세스 직접 종료 금지 |
 | `GONE` | 화면 확인 뒤 레인 정리 또는 재기동 여부를 사용자에게 |
-| `CTX_OVER` | → `compact.md` |
-| `CTX_OVER_SELF` | 정본 메모·state 갱신 뒤 사용자에게 「조정자 compact 필요」 |
+| `POOL_DONE …` | 기록만. `fallback=1` 이 한 레인에서 3번 넘음 → 그 레인 지시의 풀 몫 낮출지 판단 |
+| `CTX_OVER`(`tokens=`·`max=` 포함) | → `compact.md`(`compact-lane.mjs <레인> --clear`) |
+| `CTX_OVER_SELF` | 정본 메모·`summary` 갱신 뒤 사용자에게 「`/clear` 뒤 재개 문구」 한 줄(`compact.md` §8). 재개 뒤 `coord-state.mjs relink self` |
 | `BAND_CHANGED` | → `usage.md` §4. 전 레인에 `사용량 조정` 1회 |
 | `LOAD_SOFT`·`LOAD_HARD`·`LOAD_RELEASE` | → `heavy.md` §4 |
 | `WINDOW_DUE` | → `heavy.md` §3 |
@@ -131,8 +147,14 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 
 `질문` 처리
 1. `node scripts/coord-state.mjs report <레인> "<요약>" --question "<첫 줄>"` 기록
-2. 근거 확인 뒤 직접 답함 → `report <레인> --answered` (화면 창 답 = `approvals.md` §3)
-3. 삭제·shared 기존 API 변경·사용자 결정 → `pending_user` 에 올려 사용자에게
+2. 같은 질문 확인: `node scripts/coord-state.mjs decisions --grep "<핵심어>"` → 있으면 그 답 그대로
+3. 종류별 처리(화면 창 답 = `approvals.md` §3)
+   - 사실·절차(규칙 문서·머지 순서·시험 범위) → 직접 답
+   - 영향 작은 선택(기본안 있음, 레인 안에서 끝남) → 「기본안대로」
+   - 설계·정합성(공유 API·스키마·다른 레인과 겹침·트랜잭션) → 「판단 올리기」(opus/high)
+   - 제품 결정·삭제·shared 기존 API 변경 → `pending_user` 에 올려 사용자에게. 레인은 기본안으로 계속할 수 있으면 계속
+4. 답한 뒤: `report <레인> --answered` + `node scripts/coord-state.mjs decide <레인> "<질문 요약>" "<결정>"`
+   - 판단 올리기로 정함 → `--esc`. 앞 결정을 뒤집음 → `--reverse`
 
 ## 금지
 

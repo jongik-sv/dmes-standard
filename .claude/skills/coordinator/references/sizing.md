@@ -64,7 +64,7 @@ D1 세부 (검색 워커 정본):
    - 사용량 띠 O → D4 동시 agent 를 `workflow.agents_by_mode[모드]` 상한으로 축소(키가 없으면 `workflow.agents_by_band`)
    - 사용량 띠 Y 이하 → 단계를 낮추지 않음
    - 사용량 띠 R → Claude 로 D4·D5 신규 시작 금지
-     - opencode·agy 워커 일은 계속 (`usage.md` §2 「새 레인 상한」)
+     - 풀(opencode·GLM)·agy 워커 일은 계속 (`usage.md` §2 「새 레인 상한」)
 4. 고른 단계를 지시·보고에 한 단어로 기재(예: `실행: D1`)
 
 ## 4. 흔한 과잉
