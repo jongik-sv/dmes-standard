@@ -35,6 +35,21 @@ test('classify', () => {
   assert.equal(classify({ rc: 0, timedOut: false, outTail: 'quota field added', reportExists: true }), 'ok');
 });
 
+test('classify: 한도 문맥이 없는 429·quota 는 ratelimit 이 아니다(F5)', () => {
+  const c = (outTail, rc = 1) => classify({ rc, timedOut: false, outTail, reportExists: false });
+  assert.equal(c('    at foo (x.js:429:12)'), 'fail');
+  assert.equal(c('quota field added'), 'fail');
+  assert.equal(c('ran 429 tests, 3 failed'), 'fail');
+  assert.equal(c('Error 429 Too Many Requests'), 'ratelimit');
+  assert.equal(c('free quota exceeded'), 'ratelimit');
+  assert.equal(c('HTTP 429'), 'ratelimit');
+  assert.equal(c('status: 429'), 'ratelimit');
+  assert.equal(c('Error: 429 rate limit'), 'ratelimit');
+  assert.equal(c('You have exceeded your quota'), 'ratelimit');
+  assert.equal(c('Rate limit reached for requests'), 'ratelimit');
+  assert.equal(c('usage limit reached'), 'ratelimit');
+});
+
 test('effectiveMax·pickKind·쿨다운 벌점', () => {
   const now = Date.parse('2026-10-10T00:00:00Z');
   const max = { opencode: 3, glm: 1 };

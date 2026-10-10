@@ -5,7 +5,8 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renam
 import { join } from 'node:path';
 
 export const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
-export const RATE_RE = /\b429\b|rate[ _-]?limit|quota|too many requests|usage limit/i;
+// 한도 오류 문구. 맨 429(스택 줄 번호 x.js:429:12)·맨 quota(일반 낱말)는 받지 않고 한도 문맥이 붙은 것만(최종 리뷰 F5).
+export const RATE_RE = /\b429\b[^\n]{0,40}(too many|rate|limit)|(status|http|code|error)[^\n]{0,20}\b429\b|rate[ _-]?limit|too many requests|usage limit|quota[^\n]{0,20}(exceed|exhaust|reach)|exceed[^\n]{0,20}quota/i;
 
 /** opencode 지시문(`!`·`/`·`@` 금지). 묶음 파일은 작업 폴더의 .pool/<id>.md */
 export function promptFor(id) {
