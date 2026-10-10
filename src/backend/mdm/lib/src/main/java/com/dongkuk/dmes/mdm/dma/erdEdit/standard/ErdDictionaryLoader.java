@@ -40,10 +40,16 @@ public class ErdDictionaryLoader {
                 d -> new ErdDomainSpec(d.getDomainId(), d.getDomainName(), d.getDataType(), d.getLength(), d.getScale())));
         List<DomainEntry> entries = domainList.stream()
                 .map(d -> new DomainEntry(d.getDomainId(), d.getDomainName(), d.getStdName())).toList();
-        Set<String> phys = columns.findAll().stream().map(c -> c.getPhysName()).filter(Objects::nonNull)
+        var columnList = columns.findAll();
+        var aliasList = aliases.findAll();
+        Set<String> phys = columnList.stream().map(c -> c.getPhysName()).filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-        Set<String> alias = aliases.findAll().stream().map(a -> a.getPhysName()).filter(Objects::nonNull)
+        Set<String> alias = aliasList.stream().map(a -> a.getPhysName()).filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-        return new ErdDictionary(TermDictionaryLoader.load(terms), phys, alias, specs, entries);
+        Map<String, ErdDictionary.ColumnEntry> byPhys = ErdDictionary.index(
+                columnList.stream().map(c -> new ErdDictionary.ColumnRow(c.getColumnId(), c.getPhysName(),
+                        c.getColumnName(), c.getDomainId())).toList(),
+                aliasList.stream().map(a -> new ErdDictionary.AliasRow(a.getColumnId(), a.getPhysName())).toList());
+        return new ErdDictionary(TermDictionaryLoader.load(terms), phys, alias, specs, entries, byPhys);
     }
 }

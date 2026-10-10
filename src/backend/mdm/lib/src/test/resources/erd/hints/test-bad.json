@@ -1,0 +1,3 @@
+{ "module": "test-bad", "refs": [
+    { "kind": "GUESS", "child": { "table": "TB_A", "columns": ["A_ID"] },
+      "parent": { "table": "TB_B", "columns": ["A_ID"] }, "ref": "x:1" } ] }

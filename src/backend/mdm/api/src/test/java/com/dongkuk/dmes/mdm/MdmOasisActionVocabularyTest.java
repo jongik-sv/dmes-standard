@@ -104,13 +104,13 @@ class MdmOasisActionVocabularyTest {
         assertEquals(Set.of("search", "view", "validate", "confirm"), actionsFromGateway(path));
     }
 
-    /** ERD 설계 단계 0 — 14개 액션(import 는 단계 1). 모두 어휘 안에 있고, 확정(confirm)이 있어 확정 세트 안에서만 권한이 난다. */
+    /** ERD 설계 단계 1 — 15개 액션(단계 0 의 14개에 import 를 더했다). 모두 어휘 안에 있고, 확정(confirm)이 있어 확정 세트 안에서만 권한이 난다. */
     @Test
-    void dma_erdEdit_bpmn_의_액션은_어휘_안의_14개다() throws Exception {
+    void dma_erdEdit_bpmn_의_액션은_어휘_안의_15개다() throws Exception {
         Path path = bpmnPath("erdEdit.bpmn");
         assertActionsWithinVocabulary(path);
         assertEquals(Set.of("search", "view", "compare", "validate", "reg", "save", "restore", "execute", "copy", "delete",
-                "lock", "unlock", "handover", "confirm"), actionsFromGateway(path));
+                "lock", "unlock", "handover", "confirm", "import"), actionsFromGateway(path));
         assertTrue(new java.util.HashSet<>(MdmPermissions.CONFIRM_ACTIONS).containsAll(actionsFromGateway(path)), actionsFromGateway(path).toString());
     }
 

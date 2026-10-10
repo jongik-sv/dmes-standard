@@ -39,4 +39,18 @@ class ErdModelCodecTest {
         ErdModel m = ErdModel.empty("mcm", "MCMAPUSER");
         assertThat(ErdModelCodec.write(m)).contains("\"schemaVersion\":1").contains("\"_tombstones\":{}");
     }
+
+    @Test
+    void candidateRankIsOptional() {
+        String withRelation = JSON.replace("\"relations\":{}", """
+                "relations":{"r-1":{"child":"t-1","parent":"t-1","pairs":[],"identifying":false,
+                  "cardinality":{"parent":"ONE","child":"ZERO_OR_MORE"},"state":"INFERRED","dbFk":false,
+                  "evidence":[],"parentRef":null,"_rev":{}}}""");
+        ErdModel m = ErdModelCodec.read(withRelation);
+        assertThat(m.relations.get("r-1").candidateRank).isNull();
+        assertThat(ErdModelCodec.write(m)).doesNotContain("candidateRank");
+        m.relations.get("r-1").candidateRank = 2;
+        assertThat(ErdModelCodec.write(m)).contains("\"candidateRank\":2");
+        assertThat(ErdModelCodec.read(ErdModelCodec.write(m)).relations.get("r-1").candidateRank).isEqualTo(2);
+    }
 }

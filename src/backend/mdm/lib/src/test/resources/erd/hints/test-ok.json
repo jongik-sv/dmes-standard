@@ -1,0 +1,6 @@
+{ "module": "test-ok", "generatedBy": "scripts/erd/erd-hints.mjs", "generatedAt": "2026-10-11T10:00:00Z",
+  "refs": [
+    { "kind": "DOC", "child": { "table": "TB_MCM_SEC_MENU", "columns": ["OBJECT_ID"] },
+      "parent": { "table": "TB_MCM_SEC_OBJ", "columns": ["OBJECT_ID"] }, "ref": "docs/mcm/erd/csa-menu.dbml:494" },
+    { "kind": "SQL_JOIN", "child": { "table": "tb_mcm_sec_user_widget", "columns": ["user_id", "tab_id"] },
+      "parent": { "table": "TB_MCM_SEC_USER_WIDGET_TAB", "columns": ["USER_ID", "TAB_ID"] }, "ref": "src/backend/mcm/X.java:12" } ] }

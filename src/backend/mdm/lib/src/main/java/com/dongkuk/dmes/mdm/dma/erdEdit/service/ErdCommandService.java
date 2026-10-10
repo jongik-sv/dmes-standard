@@ -79,17 +79,18 @@ public class ErdCommandService {
     /** 클라이언트 명령 묶음 적용. {@code restore}·{@code restoreDiagram} 은 거절한다(R4-3). */
     public ErdApplyResult apply(String modelId, long baseRev, String userId, String session, String source, List<JsonNode> raw) {
         if (baseRev < 0) return rejectedNow(modelId, invalid(0, "baseRev 는 0 이상이어야 합니다", "getChangesSince 가 준 rev 를 쓰세요"));
-        return applyInternal(modelId, baseRev, userId, session, source, raw, false, null, -1);
+        return applyInternal(modelId, baseRev, userId, session, source, raw, false, null, -1, false);
     }
 
     /**
      * @param baseRev 음수면 잠근 뒤의 현재 rev 를 쓴다(되돌리기 — 잠그기 전에 rev 를 읽으면 사이에 낡을 수 있다)
      * @param expectedAfter 되돌리기일 때만: 되돌릴 rev 의 변경 후 다이어그램 행(충돌 판정용). 클라이언트 명령이면 null.
      * @param undoOf 되돌리기일 때만: 되돌릴 rev. 그 뒤에 표시 행(DRAFT 삭제·새 DRAFT)이 있으면 INVALID. 클라이언트 명령이면 -1.
+     * @param requireEmptyModel 첫 가져오기일 때만 true: 잠근 뒤 모델에 표가 있으면 INVALID.
      */
     private ErdApplyResult applyInternal(String modelId, long baseRev, String userId, String session, String source,
                                          List<JsonNode> raw, boolean allowRestore,
-                                         Map<String, JsonNode> expectedAfter, long undoOf) {
+                                         Map<String, JsonNode> expectedAfter, long undoOf, boolean requireEmptyModel) {
         if (userId == null || userId.isBlank() || userId.length() > 50) {
             return rejectedNow(modelId, invalid(0, "userId 는 1~50자여야 합니다", "로그인한 사용자 id 를 넣으세요"));
         }
@@ -180,6 +181,12 @@ public class ErdCommandService {
             // 모델 JSON 은 엔진이나 placeTables(표 존재 확인)가 쓸 때만 읽는다 — 표를 끌어 옮기는 moveNodes 는 자주 오므로 파싱을 아낀다.
             boolean needModel = !modelCmds.isEmpty() || diagramCmds.stream().anyMatch(c -> c instanceof ErdDiagramCommand.PlaceTables);
             ErdModel model = needModel ? ErdModelCodec.read(shown.getModelJson()) : null;
+            if (requireEmptyModel && !model.tables.isEmpty()) {
+                status.setRollbackOnly();
+                return ErdApplyResult.rejected(rev, invalid(0,
+                        "이미 표가 있습니다(" + model.tables.size() + "개). 첫 가져오기는 표가 없는 모델에만 합니다",
+                        "다시 가져오기 차이는 compare kind=DB_DIFF 로 보세요"));
+            }
             List<ErdChange> changes = new ArrayList<>();
             List<ErdWarning> warnings = new ArrayList<>();
             ArrayNode inverse = ErdModelCodec.MAPPER.createArrayNode();
@@ -261,6 +268,21 @@ public class ErdCommandService {
     }
 
     /**
+     * 첫 가져오기(README S2). 서비스 안에서만 부른다 — 공개 {@link #apply} 는 restore 를 계속 거절한다(R4-3).
+     * 단계 0 apply 와 같은 순서(잠금 → baseRev → DRAFT·편집자 → 표지 → 엔진 → CAS → 기록 → 커밋 뒤 발행)를 거친다.
+     * 묶음은 [restore, addDiagram, placeTables] 3건이고 rev 는 1 오른다. 모델에 표가 있으면 잠근 뒤 엔진 전에 INVALID 다
+     * (restore upsert 는 물리명 중복을 보지 않으므로 여기서 막지 않으면 표가 두 벌 생긴다).
+     */
+    public ErdApplyResult applyImport(String modelId, long baseRev, String userId, String session, String source,
+                                      ErdCommand.Restore restore, List<JsonNode> diagramCommands) {
+        if (baseRev < 0) return rejectedNow(modelId, invalid(0, "baseRev 는 0 이상이어야 합니다", "view 가 준 rev 를 쓰세요"));
+        List<JsonNode> raw = new ArrayList<>();
+        raw.add(typed(ErdCommand.class, restore));
+        raw.addAll(diagramCommands);
+        return applyInternal(modelId, baseRev, userId, session, source, raw, true, null, -1, true);
+    }
+
+    /**
      * 명령 하나 되돌리기(스펙 D18). 저장된 역명령을 새 명령으로 보낸다 — 충돌 판정은 엔진 Restore 가 한다(그 뒤에 같은 속성을 고친
      * 변경이 있으면 CONFLICT). 역명령은 {@code restore}·{@code restoreDiagram} 을 담으므로 직접 보내기 금지를 풀고 보낸다.
      */
@@ -283,7 +305,7 @@ public class ErdCommandService {
         for (ErdChange c : log.changes(modelId, rev).orElse(List.of())) {
             if (c.kind().startsWith("diagram")) expectedAfter.put(c.kind() + "|" + c.id(), c.value());
         }
-        return applyInternal(modelId, -1, userId, session, source, raw, true, expectedAfter, rev);
+        return applyInternal(modelId, -1, userId, session, source, raw, true, expectedAfter, rev, false);
     }
 
     /** 역명령을 op 가 붙은 JSON 으로. 구체 record 로 바로 쓰면 상위 타입의 @JsonTypeInfo(op)가 빠진다. */

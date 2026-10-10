@@ -12,7 +12,19 @@ import com.dongkuk.dmes.mdm.contract.version.DraftOwnershipService;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionStateService;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
+import com.dongkuk.dmes.mdm.dma.erdEdit.dbmeta.ErdDbMeta;
+import com.dongkuk.dmes.mdm.dma.erdEdit.dbmeta.ErdDbMetaReader;
+import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdApplyResult;
+import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDbDiffView;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdEditRequest;
+import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdStatusView;
+import com.dongkuk.dmes.mdm.dma.erdEdit.importing.ErdDbDiff;
+import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdImportResult;
+import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdWarning;
+import com.dongkuk.dmes.mdm.dma.erdEdit.importing.ErdImportBuilder;
+import com.dongkuk.dmes.mdm.dma.erdEdit.infer.ErdHintsLoader;
+import com.dongkuk.dmes.mdm.dma.erdEdit.infer.ErdRelationInferrer;
+import com.dongkuk.dmes.mdm.dma.erdEdit.infer.InferredRelation;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdModelView;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdColumn;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdModel;
@@ -61,6 +73,8 @@ public class ErdEditService {
     private final MdmCurrentUser currentUser;
     private final JdbcTemplate jdbc;
     private final ErdEventHub hub;
+    private final ErdDbMetaReader metaReader;
+    private final ErdHintsLoader hintsLoader;
     /**
      * 바깥 트랜잭션을 멈추고 부르는 틀. OASIS(CactusSpringTransactionHandler)는 프로세스 전체를 트랜잭션 하나로 감싸는데,
      * apply·undo 는 자기 TransactionTemplate 으로 커밋·롤백하고 거절을 예외 없이 결과로 돌려준다. REQUIRED 로 합류하면
@@ -72,7 +86,8 @@ public class ErdEditService {
     public ErdEditService(ErdModelStore store, ErdVersionService versions, ErdCommandService commands,
                           ErdConfirmCheck confirmCheck, ErdDictionaryLoader dictionaries, VersionStateService stateService,
                           DraftOwnershipService ownership, MdmCurrentUser currentUser, JdbcTemplate jdbc,
-                          ErdEventHub hub, PlatformTransactionManager transactionManager) {
+                          ErdEventHub hub, ErdDbMetaReader metaReader, ErdHintsLoader hintsLoader,
+                          PlatformTransactionManager transactionManager) {
         this.store = store;
         this.versions = versions;
         this.commands = commands;
@@ -83,6 +98,8 @@ public class ErdEditService {
         this.currentUser = currentUser;
         this.jdbc = jdbc;
         this.hub = hub;
+        this.metaReader = metaReader;
+        this.hintsLoader = hintsLoader;
         this.outsideTx = new TransactionTemplate(transactionManager);
         this.outsideTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);
     }
@@ -128,6 +145,9 @@ public class ErdEditService {
             case "" -> { }
             case "SET_VIEW" -> {
                 return setView(modelId, r);
+            }
+            case "STATUS" -> {
+                return status(r);
             }
             default -> throw MdmErrors.invalid("view 가 지원하지 않는 kind 입니다: " + r.getKind());
         }
@@ -194,6 +214,10 @@ public class ErdEditService {
 
     /** 논리명 → 물리명(또는 반대) 미리보기. 사전은 이 요청에서 한 번만 읽는다(계획 P3). */
     public Map<String, Object> compare(ErdEditRequest r) {
+        if (notBlank(r.getKind())) {
+            if (isKind(r, "DB_DIFF")) return dbDiff(r);
+            throw MdmErrors.invalid("지원하지 않는 kind 입니다: " + r.getKind());
+        }
         ErdDictionary d = dictionaries.load();
         NameComposition nc;
         if (notBlank(r.getLogical())) nc = d.forward(r.getLogical().trim()).orElseThrow();
@@ -210,6 +234,45 @@ public class ErdEditService {
     }
 
     /** 컬럼 하나짜리 임시 모델로 표준 판정을 부른다. 타입은 추천 도메인 것을 쓴다(아직 타입을 고르지 않은 입력이므로). */
+    /**
+     * 컬럼별 표준 상태(README S5). 사전을 이 요청에서 한 번 읽어 모델 전체를 판정한다(P3, 캐시 없음).
+     * elapsedMs 는 사전 적재 + 판정 시간이다 — 단계 1 마감(Task 12)이 L_MAIN 에서 이 값으로 판정 시간을 잰다.
+     */
+    private Map<String, Object> status(ErdEditRequest r) {
+        String modelId = requireModelId(r);
+        long rev = store.rev(modelId);
+        MdmErdModelVer v = r.getVer() == null ? store.current(modelId)
+                : store.find(ref(modelId, r.getVer())).orElseThrow(() -> MdmErrors.of(MdmErrorCode.ERD_MODEL_NOT_FOUND));
+        ErdModel m = ErdModelCodec.read(v.getModelJson());
+        long started = System.nanoTime();
+        ErdDictionary d = dictionaries.load();
+        Map<String, ErdColumnStatus> judged = ErdStandardJudge.judge(m, d);
+        long elapsedMs = (System.nanoTime() - started) / 1_000_000;
+        Map<String, String> statuses = new LinkedHashMap<>();
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        for (ErdColumnStatus s : ErdColumnStatus.values()) counts.put(s.name(), 0);
+        judged.forEach((id, s) -> {
+            statuses.put(id, s.name());
+            counts.merge(s.name(), 1, Integer::sum);
+        });
+        Map<String, ErdStatusView.Domain> domainsUsed = new LinkedHashMap<>();
+        for (ErdColumn c : m.columns.values()) {
+            if (c.domainId == null || domainsUsed.containsKey(String.valueOf(c.domainId))) continue;
+            d.domain(c.domainId).ifPresent(x -> domainsUsed.put(String.valueOf(c.domainId),
+                    new ErdStatusView.Domain(x.domainName(), x.dataType(), x.length(), x.scale())));
+        }
+        return plain(new ErdStatusView(modelId, VersionNumbers.plain(v.getVer()), rev, statuses, domainsUsed, counts, elapsedMs));
+    }
+
+    /** DB 와 지금 보이는 버전(DRAFT 우선)의 차이(README S4). 읽기만 한다 — 반영은 단계 2 의 import kind=APPLY_DIFF 다. */
+    private Map<String, Object> dbDiff(ErdEditRequest r) {
+        String modelId = requireModelId(r);
+        long rev = store.rev(modelId);
+        String schema = moduleAndSchema(modelId)[1];
+        ErdModel m = ErdModelCodec.read(store.current(modelId).getModelJson());
+        return plain(new ErdDbDiffView(modelId, rev, schema, ErdDbDiff.diff(m, metaReader.read(schema))));
+    }
+
     private static ErdColumnStatus previewStatus(ErdDictionary d, String phys, Optional<ErdDomainSpec> dom) {
         ErdModel m = ErdModel.empty("preview", "preview");
         ErdTable t = new ErdTable();
@@ -276,6 +339,47 @@ public class ErdEditService {
         String session = session(r, me);
         String source = source(r);
         return plain(outsideTx.execute(status -> commands.undo(modelId, r.getRev(), me, session, source)));
+    }
+
+    /**
+     * 첫 가져오기(S2·S3). 메타 읽기·관계 추정·요소 만들기는 모델 행을 잠그기 전에 하고, 쓰기는 applyImport 한 번이다.
+     * 사전은 여기(논리명)와 applyImport(엔진 경고)에서 두 번 읽는다. 거절은 성공 응답에 rejection 을 담는다(save 와 같다).
+     */
+    public Map<String, Object> importModel(ErdEditRequest r) {
+        String modelId = requireModelId(r);
+        if (!isKind(r, "FROM_DB")) throw MdmErrors.invalid("import 의 kind 는 FROM_DB 입니다: " + r.getKind());
+        if (r.getBaseRev() == null) throw MdmErrors.invalid("baseRev 는 필수입니다");
+        long baseRev = r.getBaseRev();
+        String me = currentUser.userId();
+        String session = session(r, me);
+        String source = source(r);
+        String[] moduleSchema = moduleAndSchema(modelId);
+        ErdDbMeta meta = metaReader.read(moduleSchema[1]);
+        if (meta.tables().isEmpty()) {
+            throw MdmErrors.invalid("스키마 " + moduleSchema[1] + " 에 가져올 표가 없습니다(스키마 이름과 읽기 권한을 확인하세요)");
+        }
+        List<InferredRelation> inferred = new ErdRelationInferrer().infer(meta, hintsLoader.load(moduleSchema[0]));
+        ErdImportBuilder.Built built = ErdImportBuilder.build(meta, inferred, dictionaries.load(), baseRev);
+        ErdApplyResult res = outsideTx.execute(status -> commands.applyImport(modelId, baseRev, me, session, source,
+                built.restore(), built.diagramCommands()));
+        List<ErdWarning> warnings = new ArrayList<>(res.warnings());
+        if (res.applied()) warnings.addAll(built.skipped());
+        return plain(new ErdImportResult(res.applied(), res.rev(), res.changes(), warnings, res.rejection(),
+                res.applied() ? built.summary() : null));
+    }
+
+    /** 모델 행의 [MODULE_ID, SCHEMA_NAME]. 없으면 ERD_MODEL_NOT_FOUND. */
+    private String[] moduleAndSchema(String modelId) {
+        List<String[]> rows = jdbc.query("SELECT MODULE_ID, SCHEMA_NAME FROM TB_MDM_ERD_MODEL WHERE ERD_MODEL_ID = ?",
+                (rs, i) -> new String[]{rs.getString(1), rs.getString(2)}, modelId);
+        if (rows.isEmpty()) throw MdmErrors.of(MdmErrorCode.ERD_MODEL_NOT_FOUND);
+        if (rows.get(0)[1] == null || rows.get(0)[1].isBlank()) throw MdmErrors.invalid("모델에 스키마 이름이 없습니다: " + modelId);
+        return rows.get(0);
+    }
+
+    /** 요청 kind 가 k 인가(앞뒤 공백·대소문자 무시). */
+    private static boolean isKind(ErdEditRequest r, String k) {
+        return r.getKind() != null && k.equals(r.getKind().trim().toUpperCase(Locale.ROOT));
     }
 
     static final long CLAIM_TTL_SECONDS = 600;

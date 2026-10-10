@@ -18,7 +18,7 @@ public class ErdEditRequest {
     private String commandsJson;
     private String logical;
     private String phys;
-    /** execute 종류: ADD_EDITOR·REMOVE_EDITOR·SET_VIEW·CLAIM·RELEASE. */
+    /** 액션별 종류 — view: SET_VIEW·STATUS, compare: DB_DIFF, import: FROM_DB, execute: ADD_EDITOR·REMOVE_EDITOR·CLAIM·RELEASE. */
     private String kind;
     private String userId;
     private String viewJson;

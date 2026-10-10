@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.dma.erdEdit.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -17,6 +18,12 @@ public final class ErdRelation {
     public boolean dbFk;
     public List<ErdEvidence> evidence = new ArrayList<>();
     public ErdParentRef parentRef;
+    /**
+     * 허브 칼럼 후보 순위(단계 1 S7). 허브가 아니거나 DB 관계면 null, 그릴 후보 1, 접는 후보 2..n.
+     * 엔진 명령은 이 값을 쓰지 않는다. null 이면 JSON 에 쓰지 않아 단계 0 모델 JSON 이 바뀌지 않는다.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public Integer candidateRank;
     @JsonProperty("_rev")
     public LinkedHashMap<String, PropRev> rev = new LinkedHashMap<>();
 }
