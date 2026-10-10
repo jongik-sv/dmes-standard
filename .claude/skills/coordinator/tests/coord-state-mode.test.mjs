@@ -84,3 +84,51 @@ test('summary: 최근 결정 20개, q 가 있으면 [레인] q → text', () => 
   assert.match(text, /\[-\] 질문2 → 답2/);
   assert.doesNotMatch(text, /\[-\] 질문1 → 답1\b/);
 });
+
+// ---- relink ----
+function relinkWorld() {
+  const w = world();
+  const sdir = join(w.stateRoot, '..', 'sessions');
+  mkdirSync(sdir, { recursive: true });
+  const cfg = join(w.stateRoot, '..', 'repo', '.coord.local.json');
+  const c = JSON.parse(readFileSync(cfg, 'utf8'));
+  c.sessions_dir = sdir;
+  writeFileSync(cfg, JSON.stringify(c));
+  const pidFile = (pid, sid) => writeFileSync(join(sdir, `${pid}.json`), JSON.stringify({ sessionId: sid }));
+  return { ...w, pidFile };
+}
+
+test('relink self: unknown·changed·same', () => {
+  const w = relinkWorld();
+  assert.equal(w.cs('set', '.run.coordinator.pid', '4242').status, 0);
+  assert.equal(w.cs('set', '.run.coordinator.session_id', '"old1"').status, 0);
+  assert.equal(w.cs('relink', 'self').stdout, 'RELINK self unknown\n');
+  assert.equal(w.state().run.coordinator.prev_ids, undefined);
+  w.pidFile(4242, 'old1');
+  assert.equal(w.cs('relink', 'self').stdout, 'RELINK self same\n');
+  w.pidFile(4242, 'new1');
+  assert.equal(w.cs('relink', 'self').stdout, 'RELINK self old1 -> new1\n');
+  const co = w.state().run.coordinator;
+  assert.equal(co.session_id, 'new1');
+  assert.deepEqual(co.prev_ids, ['old1']);
+});
+
+test('init 은 prev_ids 를 쓰지 않는다', () => {
+  const w = relinkWorld();
+  assert.equal(w.state().run.coordinator.prev_ids, undefined);
+});
+
+test('relink lane: pid 파일·--sid·prev_ids 누적·없는 레인', () => {
+  const w = relinkWorld();
+  assert.equal(w.cs('lane-add', 'a', JSON.stringify({ session: { pid: 777, session_id: 's0' } })).status, 0);
+  assert.notEqual(w.cs('relink', 'nolane').status, 0);
+  w.pidFile(777, 's1');
+  assert.equal(w.cs('relink', 'a').stdout, 'RELINK a s0 -> s1\n');
+  assert.equal(w.cs('relink', 'a', '--sid', 's2').stdout, 'RELINK a s1 -> s2\n');
+  const s = w.state().lanes.a.session;
+  assert.equal(s.session_id, 's2');
+  assert.deepEqual(s.prev_ids, ['s0', 's1']);
+  assert.equal(w.cs('relink', 'a', '--sid', 's2').stdout, 'RELINK a same\n');
+  const ev = readFileSync(join(w.stateRoot, 'r1', 'events.jsonl'), 'utf8');
+  assert.match(ev, /"kind":"relink"/);
+});

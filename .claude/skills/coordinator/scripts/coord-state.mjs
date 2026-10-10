@@ -8,7 +8,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as J from './lib/jq-json.mjs';
 import * as C from './lib/compat.mjs';
-import { Ctx, CoordDie, cfgSub, repo, stateRoot, runDir, stateFile, sess8Of, staleRuns, nowIso, nowEpoch, isoToEpochLoose, lock, unlock } from './lib/common.mjs';
+import { Ctx, CoordDie, expand, cfgSub, repo, stateRoot, runDir, stateFile, sess8Of, staleRuns, nowIso, nowEpoch, isoToEpochLoose, lock, unlock } from './lib/common.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
 
 /** 도움말(= bash 판 머리말 2~23줄, 이름만 .mjs). */
@@ -31,6 +31,7 @@ const HELP = `# 사용법: coord-state.mjs <하위명령> …   (정본: ../refe
 #   mode [token|time]                              회차 모드 보기·기록(state .run.mode, 없으면 설정 mode.default) · \`MODE <m> src=<state|default>\` / \`OK mode=<m>\`
 #   decide <레인|-> <질문> <결정> [--esc] [--reverse]  레인 질문 결정 기록(.decisions) · \`OK decision=<번호>\`
 #   decisions [--last n] [--grep 글]                결정 기록 찾기(같은 질문 재판단 금지용) · \`DECISION <번호> …\`
+#   relink <레인|self> [--sid 새id]                 /clear 뒤 새 세션 id 로 갈아끼움(옛 id 는 prev_ids 에) · \`RELINK <누구> <옛|-> -> <새>\` | same | unknown
 #   close-run [json]                               회차 마감: run-closed 이벤트 → office finish → \`.run.closed_at\` 기록 · \`OK\`
 #                                                  (\`event run-closed\` 도 같은 길. 이미 마감했으면 closed_at 은 그대로, finish 는 다시 건다)
 #   summary                                        summary.md 재생성 · 경로
@@ -44,7 +45,7 @@ const HELP = `# 사용법: coord-state.mjs <하위명령> …   (정본: ../refe
 `;
 const SCRIPTS_DIR = path.dirname(fileURLToPath(import.meta.url));
 
-const USAGE = '사용법: coord-state.mjs init|use|get|set|set-many|lane-add|event|instr|ack|report|item-done|progress|hold|mode|decide|decisions|close-run|summary|wbs-phase|wbs-done|wbs-issue … (contract §3.4)';
+const USAGE = '사용법: coord-state.mjs init|use|get|set|set-many|lane-add|event|instr|ack|report|item-done|progress|hold|mode|decide|decisions|relink|close-run|summary|wbs-phase|wbs-done|wbs-issue … (contract §3.4)';
 
 const LANE_SKEL_TEXT = '{"session":{"name":"","addr":"","session_id":"","pid":0,"handle":"","kind":"claude","window":null,"spawned_by":"user"},\n "branch":"","worktree":"","owned":[],"forbidden":[],"heavy_env":null,"priority":2,"items":[],"queue":[],"hold":null,\n "last_report_at":null,"last_instr_at":null,"ctx":null,\n "compact":{"pending":false,"last_at":null,"pre_compact":null,"history":[]},"memo":"","state":"active"}';
 
@@ -939,6 +940,60 @@ function cmdDecisions(c, argv) {
   }
 }
 
+/** relink <레인|self> [--sid 새id] — /clear 로 바뀐 세션 id 를 <sessions_dir>/<pid>.json 또는 --sid 로 갱신 */
+function cmdRelink(c, argv) {
+  let who = ''; let sid = '';
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === '--sid') { sid = String(argv[++i] ?? ''); if (sid === '') die(2, '--sid 값 없음'); }
+    else if (who === '') who = argv[i];
+    else die(2, '사용법: coord-state.mjs relink <레인|self> [--sid <새 id>]');
+  }
+  if (who === '') die(2, '사용법: coord-state.mjs relink <레인|self> [--sid <새 id>]');
+  stateFileChecked(c);
+  const self = who === 'self';
+  if (!self) laneExists(c, who);
+  const doc = readStateDoc(c);
+  const sub = (d, k) => (d instanceof Map ? d.get(k) : null);
+  const holder = self ? sub(sub(doc, 'run'), 'coordinator') : sub(sub(sub(doc, 'lanes'), who), 'session');
+  const pidV = sub(holder, 'pid');
+  const pid = pidV === null || pidV === undefined ? '' : asText(pidV);
+  const curV = sub(holder, 'session_id');
+  const cur = curV === null || curV === undefined ? '' : asText(curV);
+  let next = sid;
+  if (next === '' && pid !== '' && pid !== '0') {
+    try {
+      const f = `${expand(cfgSub(c, '.sessions_dir'), c.env)}/${pid}.json`;
+      const v = JSON.parse(readFileSync(f, 'utf8'));
+      if (v && typeof v.sessionId === 'string') next = v.sessionId;
+    } catch { /* pid 파일 없음 → unknown */ }
+  }
+  if (next === '') { process.stdout.write(`RELINK ${who} unknown\n`); return; }
+  if (next === cur) { process.stdout.write(`RELINK ${who} same\n`); return; }
+  const segs = self ? ['run', 'coordinator'] : ['lanes', who, 'session'];
+  const expr = self
+    ? '.run.coordinator.prev_ids = ((.run.coordinator.prev_ids // []) + (if $o == "" then [] else [$o] end)) | .run.coordinator.session_id = $n'
+    : '.lanes[$l].session.prev_ids = ((.lanes[$l].session.prev_ids // []) + (if $o == "" then [] else [$o] end)) | .lanes[$l].session.session_id = $n';
+  if (stUpdate(c, {
+    jqExpr: expr,
+    jqArgs: (file) => ['--arg', 'l', who, '--arg', 'o', cur, '--arg', 'n', next, expr, file],
+    apply(d) {
+      let h = d;
+      for (const k of segs) {
+        if (!(h instanceof Map)) throw new J.JqError('경로 없음', 5);
+        h = h.get(k);
+      }
+      if (!(h instanceof Map)) throw new J.JqError('경로 없음', 5);
+      let prev = h.get('prev_ids');
+      if (!Array.isArray(prev)) { prev = []; h.set('prev_ids', prev); }
+      if (cur !== '') prev.push(cur);
+      h.set('session_id', next);
+      return d;
+    },
+  }) !== 0) exitNow(4);
+  evAppend(c, runDirSub(c), 'relink', self ? '-' : who, J.tojson(new Map([['who', who], ['old', cur], ['new', next]])));
+  process.stdout.write(`RELINK ${who} ${cur === '' ? '-' : cur} -> ${next}\n`);
+}
+
 // ---------- summary(cmd_summary 의 jq 서식 재현) ----------
 // jq 가 오류를 낼 모양(스칼라를 색인하거나 배열이 아닌 것을 순회하는 등)은 전부 JqError 를 던져 jq 폴백이 같은 부분 출력·종료 코드를 내게 한다.
 const ix = J.index;   // `.key` — null 이면 null, 객체면 값, 그 밖은 JqError
@@ -1260,6 +1315,7 @@ export async function main(argv, { env, cwd } = {}) {
       case 'mode': cmdMode(c, rest); break;
       case 'decide': cmdDecide(c, rest); break;
       case 'decisions': cmdDecisions(c, rest); break;
+      case 'relink': cmdRelink(c, rest); break;
       case 'close-run':
         if (rest.length > 1) usage();
         closeRun(c, '-', rest[0] ?? '');
