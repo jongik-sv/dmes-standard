@@ -45,6 +45,7 @@ export default defineConfig((options) => ({
     card: "src/components/card/index.ts",
     "transfer-list": "src/components/transfer-list/index.ts",
     dashboard: "src/components/dashboard/index.ts",
+    "code-editor": "src/components/code-editor/index.ts",
     "floating-panel": "src/components/floating-panel/index.ts",
     widget: "src/widget/index.ts",
     "screen-context": "src/screen-context/index.ts",
@@ -85,6 +86,8 @@ export default defineConfig((options) => ({
     "@tabler/icons-react",
     "clsx",
     "xlsx",
+    // 대용량 — 번들에 넣지 않고 소비 앱(Next)에서 동적 import 로 해석한다(m-analog tsup.config.ts 와 같은 규칙). 로더는 import("monaco-editor") 동적 호출만 쓴다.
+    "monaco-editor",
     // widget 도움말 모달이 지연 import 하는 문서 보기(tiptap·marked). widget 번들에 넣으면 포털 모든 화면이 「?」 를 누르기 전에 받는다.
     // 소비 앱(Next)이 이 경로를 따로 청크로 나눈다. 소스 쪽 해석은 tsconfig paths·vitest alias 가 맡는다.
     "@dk-oasis/shared/markdown-editor",

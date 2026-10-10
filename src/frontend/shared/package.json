@@ -182,6 +182,10 @@
       "types": "./dist/types/components/dashboard/index.d.ts",
       "import": "./dist/dashboard.js"
     },
+    "./code-editor": {
+      "types": "./dist/types/components/code-editor/index.d.ts",
+      "import": "./dist/code-editor.js"
+    },
     "./floating-panel": {
       "types": "./dist/types/components/floating-panel/index.d.ts",
       "import": "./dist/floating-panel.js"
@@ -242,6 +246,7 @@
     "html-to-image": "^1.11.13",
     "marked": "^17.0.6",
     "mermaid": "^11.17.2",
+    "monaco-editor": "^0.55.1",
     "next": "16.3.8",
     "next-auth": "^4.24.13",
     "react-grid-layout": "2.2.4"

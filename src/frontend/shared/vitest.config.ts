@@ -4,7 +4,11 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   resolve: {
     // widget 의 도움말 모달이 번들 밖 진입점으로 지연 import 하는 자기 패키지 경로(tsup external)를 소스로 돌린다.
-    alias: { "@dk-oasis/shared/markdown-editor": fileURLToPath(new URL("./src/components/markdown-editor/index.ts", import.meta.url)) },
+    alias: {
+      "@dk-oasis/shared/markdown-editor": fileURLToPath(new URL("./src/components/markdown-editor/index.ts", import.meta.url)),
+      // SqlCodeEditor 시험 — monaco-editor 를 불러오지 못하게 막아 Textarea 대체 칸으로 돌게 한다(스펙 §9.2). jsdom 에서 Monaco 는 돌지 않는다.
+      "monaco-editor": fileURLToPath(new URL("./tests/stubs/monaco-editor-unavailable.ts", import.meta.url)),
+    },
   },
   test: {
     environment: "node",
