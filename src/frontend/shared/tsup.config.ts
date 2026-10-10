@@ -40,6 +40,7 @@ export default defineConfig((options) => ({
     "detail-popover": "src/components/detail-popover/index.ts",
     "grid-resize-box": "src/components/grid-resize-box/index.ts",
     "json-view": "src/components/json-view/index.ts",
+    "react-flow": "src/components/react-flow/index.ts",
     "cron-input": "src/components/cron-input/index.ts",
     "variable-table": "src/components/variable-table/index.ts",
     card: "src/components/card/index.ts",

@@ -22,6 +22,18 @@ if (typeof window !== "undefined") {
     (window as unknown as { ResizeObserver: typeof RO }).ResizeObserver = RO;
   }
   if (!window.scrollTo) window.scrollTo = () => {};
+
+  // React Flow(@xyflow/react) — transform 배율(m22)을 DOMMatrixReadOnly 로 읽는다. happy-dom 에 없으면 최소 구현을 둔다(m-mdm tests/setup.ts 와 같다).
+  if (!("DOMMatrixReadOnly" in globalThis)) {
+    class DMR {
+      m22 = 1;
+      constructor(transform?: string) {
+        const m = /scale\(([-\d.]+)/.exec(transform ?? "") ?? /matrix\([^,]+,[^,]+,[^,]+,\s*([-\d.]+)/.exec(transform ?? "");
+        if (m) this.m22 = Number(m[1]);
+      }
+    }
+    (globalThis as unknown as { DOMMatrixReadOnly: typeof DMR }).DOMMatrixReadOnly = DMR;
+  }
 }
 
 // Mantine `Popover`(DateTimePicker 등)는 열릴 때 `useFocusTrap` 이 포커스 가능한 칸을 찾는데, 그 시점에

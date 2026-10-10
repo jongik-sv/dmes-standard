@@ -39,8 +39,18 @@ const LONG_RUNNING_TIMEOUT_MS = 30 * 60 * 1000;
 const MEDIA_UPLOAD_PATH = /\/commWidgetMng\/upload(?:\/|$)/;
 /** 미디어 위젯 파일 내려받기(GET·HEAD) — 동영상 구간 스트림. */
 const MEDIA_FILE_PATH = /\/widgetMedia\/file\//;
+/** ERD 실시간 반영 SSE(GET, 단계 1 S15) — 화면을 연 동안 이어지는 스트림. */
+const ERD_STREAM_PATH = /\/erd\/stream\/[^/]+$/;
+/**
+ * SSE 타이머 상한 24시간. 타이머는 응답 스트림이 끝날 때까지 돈다. Node setTimeout 은 2^31-1ms(약 24.8일)를 넘는 값(Infinity 포함)을
+ * 1ms 로 줄여 바로 끊으므로 유한값을 쓴다. 24시간에 끊기면 화면이 sinceRev 로 다시 붙는다.
+ */
+const STREAM_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 
 export function backendTimeoutMs(method: string, backendPath: string): number {
+  if (method === "GET" && ERD_STREAM_PATH.test(backendPath)) {
+    return STREAM_TIMEOUT_MS;
+  }
   if (
     /(?:\/export(?:\/|$)|\/download(?:\/|$))/.test(backendPath)
   ) {
@@ -291,7 +301,7 @@ export async function forwardToBackend(
   const body =
     req.method !== "GET" && req.method !== "HEAD" ? (options.body ?? req.body) : undefined;
 
-  // 일반 JSON은 2분, export/download·미디어 올리기/내려받기는 5분, 실제 장기 실행 mutation만 30분을 허용한다.
+  // 일반 JSON은 2분, export/download·미디어 올리기/내려받기는 5분, 실제 장기 실행 mutation만 30분을 허용한다, ERD SSE 는 24시간.
   // 원 요청이 끊기면 같은 controller를 abort해 backend fetch에도 취소를 전파한다.
   const controller = new AbortController();
   const abortForClientDisconnect = () => controller.abort();

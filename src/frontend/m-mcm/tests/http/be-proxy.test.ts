@@ -64,6 +64,19 @@ describe("backendTimeoutMs", () => {
     expect(backendTimeoutMs("POST", "/api/mpn/planning-runs")).toBe(30 * MIN);
     expect(backendTimeoutMs("GET", "/api/mpn/planning-runs")).toBe(2 * MIN);
   });
+
+  it("ERD SSE(GET …/erd/stream/{모델})는 24시간 — setTimeout 상한(2^31-1ms) 안의 유한값", () => {
+    const ms = backendTimeoutMs("GET", "/api/mdm/erd/stream/mcm");
+    expect(ms).toBe(24 * 60 * MIN);
+    expect(Number.isFinite(ms)).toBe(true);
+    expect(ms).toBeLessThanOrEqual(2 ** 31 - 1); // 넘으면 Node 가 1ms 로 줄여 바로 끊는다
+  });
+
+  it("ERD 스트림 경로라도 GET 이 아니거나 비슷한 이름이면 기본 2분", () => {
+    expect(backendTimeoutMs("POST", "/api/mdm/erd/stream/mcm")).toBe(2 * MIN);
+    expect(backendTimeoutMs("GET", "/api/mdm/erd/streams/mcm")).toBe(2 * MIN);
+    expect(backendTimeoutMs("GET", "/api/mdm/erd/stream")).toBe(2 * MIN);
+  });
 });
 
 describe("pickRequestHeaders", () => {
@@ -195,5 +208,31 @@ describe("forwardToBackend", () => {
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(res.headers.get("content-disposition")).toBe("inline; filename*=UTF-8''clip.mp4");
     expect(new Uint8Array(await res.arrayBuffer())).toEqual(part);
+  });
+
+  it("ERD SSE 는 응답 스트림이 열린 채 3분이 지나도 BE 요청을 끊지 않고, 24시간에 끊는다", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      let signal: AbortSignal | null | undefined;
+      fetchMock.mockImplementation(async (_url: string, init: RequestInit) => {
+        signal = init.signal;
+        const body = new ReadableStream<Uint8Array>({
+          start(c) {
+            c.enqueue(new TextEncoder().encode('event: hello\ndata: {"rev":3}\n\n'));
+          },
+        });
+        return new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } });
+      });
+      const req = new NextRequest("http://bff.test/api/mdm/rest/erdEdit/view/api/mdm/erd/stream/mcm?session=s1&source=UI");
+      const res = await forwardToBackend(req, "mdm", "/api/mdm/erd/stream/mcm");
+      expect(res.headers.get("content-type")).toBe("text/event-stream");
+      vi.advanceTimersByTime(3 * 60 * 1000);
+      expect(signal!.aborted).toBe(false);
+      vi.advanceTimersByTime(24 * 60 * 60 * 1000);
+      expect(signal!.aborted).toBe(true);
+      await res.body?.cancel();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

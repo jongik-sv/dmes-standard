@@ -452,6 +452,9 @@ importers:
 
   shared:
     dependencies:
+      '@dagrejs/dagre':
+        specifier: 3.1.1
+        version: 3.1.1
       '@tiptap/extension-hard-break':
         specifier: ^3.31.4
         version: 3.31.4(@tiptap/core@3.31.4(@tiptap/pm@3.31.4))
@@ -470,6 +473,9 @@ importers:
       '@tiptap/starter-kit':
         specifier: ^3.31.4
         version: 3.31.4
+      '@xyflow/react':
+        specifier: 12.12.0
+        version: 12.12.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       ag-grid-community:
         specifier: ^33.0.0
         version: 33.3.2

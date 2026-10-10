@@ -162,6 +162,10 @@
       "types": "./dist/types/components/json-view/index.d.ts",
       "import": "./dist/json-view.js"
     },
+    "./react-flow": {
+      "types": "./dist/types/components/react-flow/index.d.ts",
+      "import": "./dist/react-flow.js"
+    },
     "./cron-input": {
       "types": "./dist/types/components/cron-input/index.d.ts",
       "import": "./dist/cron-input.js"
@@ -235,6 +239,8 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@dagrejs/dagre": "3.1.1",
+    "@xyflow/react": "12.12.0",
     "@tiptap/extension-hard-break": "^3.31.4",
     "@tiptap/extension-list": "^3.31.4",
     "@tiptap/markdown": "^3.31.4",

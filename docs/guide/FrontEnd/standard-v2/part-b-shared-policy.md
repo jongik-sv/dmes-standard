@@ -40,6 +40,7 @@ UI(폼·모달·메시지·탭·트리·레이아웃·portal-shell·로그인 �
 | `@dk-oasis/shared/detail-popover`             | SHOULD                 | 클릭으로 여는 큰 상세 팝오버         | §18              |
 | `@dk-oasis/shared/grid-resize-box`            | SHOULD                 | 24열 격자 단위로 끌어 크기를 바꾸는 틀·칸↔픽셀 계산 | §18              |
 | `@dk-oasis/shared/json-view`                  | SHOULD                 | JSON 값 읽기 전용 트리(접기·복사)    | §18              |
+| `@dk-oasis/shared/react-flow`                 | SHOULD                 | React Flow 캔버스 공통 부품(진입점·선 경로·스냅·화면 길잡이·우클릭 메뉴·단축키·찾기 위젯) | §18              |
 | `@dk-oasis/shared/code-editor`                | SHOULD                 | SQL 입력용 Monaco 편집기(`SqlCodeEditor`)·전역 테마 `dmes-code`·큰 팝업 편집 | §18              |
 | `@dk-oasis/shared/cron-input`                 | SHOULD                 | crontab 5칸 식 입력(쉬운 설정·직접 입력·미리보기) | §18              |
 | `@dk-oasis/shared/variable-table`             | SHOULD                 | 이름·형식·값 변수 표(실행 변수 안내)  | §18              |
