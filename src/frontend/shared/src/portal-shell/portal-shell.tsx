@@ -18,7 +18,11 @@ import { MenuSearchDialog } from "./MenuSearchDialog";
 import { Header } from "./header/Header";
 import { Sidebar, type SidebarNavigationViewMode } from "./sidebar/Sidebar";
 import type { StartPageLeaf } from "./sidebar/StartPagesList";
-import { clearStartPagesOpened, type PortalStartPageRecord } from "./start-pages";
+import {
+  DEFAULT_PORTAL_STORAGE_KEY,
+  resetPortalSessionState,
+  type PortalStartPageRecord,
+} from "./start-pages";
 import { TabsBar } from "./tabs-bar/TabsBar";
 import { clearPopoutHandoffs, openPagePopout } from "./popout";
 import { numberDuplicateTitles } from "./tab-duplicates";
@@ -56,7 +60,7 @@ const USAGE_LOGOUT_WAIT_MS = 1500;
 import "./portal-shell.css";
 
 const PORTAL_HEADER_HEIGHT = 44;
-const DEFAULT_STORAGE_KEY = "oasis.portal.tabs.v1";
+const DEFAULT_STORAGE_KEY = DEFAULT_PORTAL_STORAGE_KEY;
 const RECENT_MENU_STORAGE_SUFFIX = ".recent-menu";
 
 type NavigationViewMode = SidebarNavigationViewMode;
@@ -449,11 +453,10 @@ export function PortalShell({
     }
     popoutWindowsRef.current.clear();
     clearPopoutHandoffs(); // 새 창이 아직 가져가지 않은 snapshot 이 localStorage 에 남지 않게
-    writeSecureJson(storageKey, { tabs: [], activeTabId: null });
+    // 저장된 탭을 비우고, 다시 로그인하면 처음 시작이다 — 기본 화면을 다시 연다.
+    resetPortalSessionState(storageKey);
     // 공유 사용자·RBAC 캐시를 비운다 — 다음 로그인 사용자에게 남지 않게(K3). signOut 은 전체 이동이지만 실패 대비로도 비운다.
     clearCurrentUserCache();
-    // 다시 로그인하면 처음 시작이다 — 기본 화면을 다시 연다.
-    clearStartPagesOpened(storageKey);
     if (typeof window !== "undefined") {
       localStorage.removeItem("oasis.sidebar.width");
     }

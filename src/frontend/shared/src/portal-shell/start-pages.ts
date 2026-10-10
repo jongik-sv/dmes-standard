@@ -1,3 +1,5 @@
+import { writeSecureJson } from "../secure-storage";
+
 /**
  * 포털 기본 화면(처음 시작할 때 자동으로 여는 화면)과 탭 컨텍스트 메뉴의 순수 계산.
  * portal-shell.tsx·TabsBar.tsx 가 쓰고, 단위 테스트가 직접 검증한다.
@@ -110,4 +112,18 @@ export function clearStartPagesOpened(storageKey: string): void {
   } catch {
     /* ignore */
   }
+}
+
+/** 포털 탭 저장소 기본 키. PortalShell 의 storageKey 기본값이며 로그인·로그아웃이 같은 키로 비운다. */
+export const DEFAULT_PORTAL_STORAGE_KEY = "oasis.portal.tabs.v1";
+
+/**
+ * 포털 세션 상태를 처음으로 되돌린다 — 저장된 탭을 비우고 기본 화면 표지를 지운다.
+ * 로그아웃과 로그인 성공 직후에 부른다. 다음 포털 기동은 홈 + 기본 화면만 연다
+ * (세션 만료로 로그아웃 없이 다시 로그인해도 이전 세션 탭이 되살아나지 않는다).
+ * 새로고침은 부르지 않으므로 복원 동작은 그대로다.
+ */
+export function resetPortalSessionState(storageKey: string = DEFAULT_PORTAL_STORAGE_KEY): void {
+  writeSecureJson(storageKey, { tabs: [], activeTabId: null });
+  clearStartPagesOpened(storageKey);
 }
