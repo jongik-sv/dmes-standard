@@ -162,10 +162,12 @@ function parseFlags(argv, spec) {
 function cmdSubmit(c, argv) {
   const o = parseFlags(argv, { lane: 's', id: 's', size: 's', packet: 's', cwd: 's', kind: 's', 'dry-run': 'bool' });
   let id = o.id || '';
+  let rawId = '';
   const out = (s) => process.stdout.write(`${o['dry-run'] ? 'DRY ' : ''}${s}\n`);
   if (!ID_RE.test(id)) { process.stdout.write(`POOL refused ${id} bad-id\n`); return 0; }
   // 풀은 회차에 하나라 레인마다 항목번호(T1·T2…)가 겹친다 → id = <레인>-<항목번호>. 접두가 없으면 붙이고, 출력 줄의 id 가 실제 id 다.
   if (o.lane && o.lane !== '-' && !id.startsWith(`${o.lane}-`)) {
+    rawId = id;
     id = `${o.lane}-${id}`;
     if (!ID_RE.test(id)) { process.stdout.write(`POOL refused ${id} bad-id\n`); return 0; }
   }
@@ -201,7 +203,14 @@ function cmdSubmit(c, argv) {
     mkdirSync(join(cwd, '.pool'), { recursive: true });
     ensureExclude(cwd);
     const dest = join(cwd, '.pool', `${id}.md`);
-    if (resolve(o.packet) !== dest) copyFileSync(o.packet, dest);
+    if (rawId !== '') {
+      // 접두를 붙였으면 묶음 안의 옛 id(제목·보고 경로 .pool/<옛 id>.)를 실제 id 로 바꿔 쓴다. 워커가 옛 경로에 보고를 쓰면 실행기가 못 찾는다.
+      const esc = rawId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const txt = readFileSync(o.packet, 'utf8')
+        .split(`.pool/${rawId}.`).join(`.pool/${id}.`)
+        .replace(new RegExp(`^(# 작업 묶음 )${esc}[ \\t]*$`, 'm'), `$1${id}`);
+      writeFileSync(dest, txt);
+    } else if (resolve(o.packet) !== dest) copyFileSync(o.packet, dest);
     writeItem(dir, { id, lane, size: o.size, want, kind: null, cwd, state: 'queued', pid: null, submitted_at: nowIso() });
     const started = dispatchBody(c, dir, pc, post);
     const me = started.find((r) => r.id === id);

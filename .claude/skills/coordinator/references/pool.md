@@ -28,6 +28,7 @@
 2. 제출: `node <스킬>/scripts/pool.mjs submit --lane <레인> --id <레인>-<항목번호> --size <S|M> --packet <파일> --cwd <레인 워크트리> [--kind auto|opencode|glm] [--dry-run]`
    - id = `<레인>-<항목번호>`(예: `a1-T3`). 풀은 회차에 하나라 레인끼리 항목번호가 겹침
    - `--id` 가 `<레인>-` 으로 시작하지 않으면 스크립트가 붙임. 출력 줄의 id 가 실제 id → `status`·`cancel`·`note` 에 그 id 사용
+     - 이때 복사한 묶음 안의 제목(`# 작업 묶음 <id>`)·보고 경로(`.pool/<id>.`)도 실제 id 로 바꿈
    - `POOL started <id> kind=<k>` · `POOL queued <id> position=<n>` = 기다림
    - `POOL fallback <id> reason=no-worker` = 바로 Claude agent 로
    - `POOL refused <id> <사유>` = 사유대로 고쳐 다시(`duplicate` = 새 id(같은 항목 재시도 = `<레인>-<항목번호>-<시도>`), `size-L`·`bad-size`·`bad-id`·`no-packet`)

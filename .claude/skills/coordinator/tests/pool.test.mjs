@@ -71,6 +71,16 @@ test('id 접두: <레인>- 이 없으면 붙이고 출력 줄에 실제 id, 다�
   await w.waitDone('a1-T3');
   await w.waitDone('b2-T3');
   assert.deepEqual(w.log().map((x) => x.id).sort(), ['a1-T3', 'b2-T3']);
+  // 접두를 붙이면 묶음 안의 제목·보고 경로도 실제 id 로
+  const pk = join(w.dir, 'raw-T7.md');
+  writeFileSync(pk, '# 작업 묶음 T7\n\n보고: `.pool/T7.report.md` 에 쓴다. T7 그대로 남는 글\n');
+  assert.equal(w.run(['submit', '--lane', 'a1', '--id', 'T7', '--size', 'S', '--packet', pk, '--cwd', w.work], { FAKE_POOL_MODE: 'ok' }).stdout, 'POOL started a1-T7 kind=opencode\n');
+  const copied = readFileSync(join(w.work, '.pool', 'a1-T7.md'), 'utf8');
+  assert.match(copied, /^# 작업 묶음 a1-T7$/m);
+  assert.match(copied, /`\.pool\/a1-T7\.report\.md`/);
+  assert.doesNotMatch(copied, /\.pool\/T7\./);
+  assert.match(readFileSync(pk, 'utf8'), /\.pool\/T7\.report\.md/);
+  await w.waitDone('a1-T7');
   const p = w.packet('x');
   assert.equal(w.run(['submit', '--lane', 'a1', '--id', 'X'.repeat(63), '--size', 'S', '--packet', p, '--cwd', w.work]).stdout, `POOL refused a1-${'X'.repeat(63)} bad-id\n`);
 });
