@@ -6,7 +6,8 @@
  */
 import { useMemo, type ReactNode } from "react";
 
-import { Checkbox, Input, Radio, Select, Textarea } from "@dk-oasis/shared/form";
+import { SqlCodeEditor } from "@dk-oasis/shared/code-editor";
+import { Checkbox, Input, Radio, Select } from "@dk-oasis/shared/form";
 import { EditableRowList, type GridColumn } from "@dk-oasis/shared/grid";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 
@@ -101,13 +102,14 @@ function BpmnEditor({ form, disabled, onChange }: KindEditorProps) {
 function QueryEditor({ form, disabled, onChange }: KindEditorProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-xs)" }}>
-      <Textarea
-        rows={6}
+      <SqlCodeEditor
         value={form.sql}
-        disabled={disabled}
+        readOnly={disabled}
+        height={150}
         placeholder={"UPDATE TB_XXX\n   SET STATUS = 'C'\n WHERE BASE_DT = :baseDt"}
-        aria-label="실행할 SQL"
-        data-testid="job-query-sql"
+        ariaLabel="실행할 SQL"
+        expandTitle="실행할 SQL"
+        testId="job-query-sql"
         onChange={(v) => onChange({ sql: v })}
       />
       <Hint>
@@ -147,12 +149,14 @@ function CollectEditor({ form, disabled, onChange }: KindEditorProps) {
           {form.collectKind === "sql" && (
             <>
               <Row label="SQL" required>
-                <Textarea
-                  rows={6}
+                <SqlCodeEditor
                   value={form.collectSql}
-                  disabled={disabled}
+                  readOnly={disabled}
+                  height={150}
                   placeholder={"SELECT LINE_CD AS ITEM_KEY\n     , RUN_RATE AS ITEM_VALUE\n  FROM TB_XXX"}
-                  aria-label="원천 SQL"
+                  ariaLabel="원천 SQL"
+                  expandTitle="원천 SQL"
+                  testId="job-collect-sql"
                   onChange={(v) => onChange({ collectSql: v })}
                 />
               </Row>

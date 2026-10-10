@@ -8,7 +8,11 @@ import { defineConfig } from "vitest/config";
  */
 export default defineConfig({
   resolve: {
-    alias: [{ find: /^@\//, replacement: fileURLToPath(new URL("./", import.meta.url)) }],
+    alias: [
+      { find: /^@\//, replacement: fileURLToPath(new URL("./", import.meta.url)) },
+      // SqlCodeEditor(shared/code-editor) 시험 — monaco-editor 를 불러오지 못하게 막아 Textarea 대체 칸으로 돌게 한다(스펙 §9.2). jsdom 에서 Monaco 는 돌지 않는다.
+      { find: /^monaco-editor$/, replacement: fileURLToPath(new URL("./tests/stubs/monaco-editor-unavailable.ts", import.meta.url)) },
+    ],
   },
   test: {
     environment: "node",
