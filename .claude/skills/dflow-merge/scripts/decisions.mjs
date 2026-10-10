@@ -5,9 +5,11 @@
 // 사용:
 //   decisions.mjs merge-conflicts [-C <dir>]
 //     머지 도중 충돌한 decisions.md 만 기계적으로 푼다. 출력 DECISIONS_RESOLVED·DECISIONS_LEFT. 늘 exit 0(사용 오류 2).
-//   decisions.mjs renumber [-C <dir>] [--tsk <TSK>] [--order <주문 UUID>]
+//   decisions.mjs renumber [-C <dir>] [--tsk <TSK>] [--order <주문 UUID>] [--no-commit]
 //     임시 ID(`## D-TSK-…-<n>`)를 다음 전역 번호로 바꾸고 참조를 치환해 커밋 하나로 남긴다.
-//     출력 RENUMBERED·REFS·COMMITTED·NO_TEMP_IDS(exit 0) · DUP_RENUMBERED·DUP_REF_*·DUP_LEFT·
+//     --no-commit: `git merge --no-commit` 로 멈춘 머지 안에서 쓴다. 고친 파일을 stage 만 하고 커밋하지 않는다
+//       (P1=HEAD · P2=MERGE_HEAD 로 중복을 본다. 호출자가 머지 커밋 하나로 완성한다). 출력 COMMITTED 대신 STAGED.
+//     출력 RENUMBERED·REFS·COMMITTED|STAGED·NO_TEMP_IDS(exit 0) · DUP_RENUMBERED·DUP_REF_*·DUP_LEFT·
 //     DECISIONS_SEQ·RENUMBER_DUP·UNION_SET(경고) · RENUMBER_DIRTY·RENUMBER_FAILED(exit 1) · usage(exit 2).
 //
 // 파일 잠금(`<decisions.md>.lock` 디렉터리, 15초 대기·10분 stale)은
@@ -41,7 +43,7 @@ function writeFd(fd, s) {
 const writeOut = (s) => writeFd(1, s);
 const writeErr = (s) => writeFd(2, s);
 
-const PROG = path.basename(fileURLToPath(import.meta.url));const USAGE_MSG = `usage: ${PROG} merge-conflicts|renumber [-C <dir>] [--tsk <TSK>] [--order <UUID>]`;
+const PROG = path.basename(fileURLToPath(import.meta.url));const USAGE_MSG = `usage: ${PROG} merge-conflicts|renumber [-C <dir>] [--tsk <TSK>] [--order <UUID>] [--no-commit]`;
 function dieUsage() {
   writeErr(USAGE_MSG + '\n');
   return finish(USAGE);
@@ -128,10 +130,11 @@ async function main(argv) {
   }
   if (!argv.length) return dieUsage();
   const cmd = argv[0];
-  let dir = '.', tsk = '', order = '';
+  let dir = '.', tsk = '', order = '', noCommit = false;
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
-    if ((a === '-C' || a === '--tsk' || a === '--order') && i + 1 < argv.length) {
+    if (a === '--no-commit' && cmd === 'renumber') noCommit = true;
+    else if ((a === '-C' || a === '--tsk' || a === '--order') && i + 1 < argv.length) {
       const v = argv[++i];
       if (a === '-C') dir = v;
       else if (a === '--tsk') tsk = v;
@@ -242,9 +245,14 @@ async function main(argv) {
   process.on('SIGHUP', sigExit);
   process.on('SIGINT', sigExit);
   process.on('SIGTERM', sigExit);
+  let snap = ''; // --no-commit: 시작 때 index 트리. 실패 되돌림이 머지 내용을 잃지 않게 이 트리에서 복원한다.
   const fail = (step) => {
     writeOut(`RENUMBER_FAILED ${step}\n`);
     for (const c of byteSort([...changed])) {
+      if (noCommit && snap) {
+        git(top, ['checkout', '-q', snap, '--', c]);
+        continue;
+      }
       git(top, ['reset', '-q', '--', c]);
       git(top, ['checkout', '-q', '--', c]);
     }
@@ -355,7 +363,8 @@ async function main(argv) {
     }
   }
   const clean1 = git(top, ['diff', '--quiet']).status === 0;
-  const clean2 = git(top, ['diff', '--cached', '--quiet']).status === 0;
+  // --no-commit 은 머지 도중이라 index 가 HEAD 와 다른 것이 정상이다(작업 트리 = index 만 요구한다).
+  const clean2 = noCommit || git(top, ['diff', '--cached', '--quiet']).status === 0;
   const unmerged = splitRaw(git(top, ['ls-files', '-u']).stdout).length > 0;
   if (!clean1 || !clean2 || unmerged) {
     writeOut('RENUMBER_DIRTY\n');
@@ -363,18 +372,31 @@ async function main(argv) {
     return finish(1);
   }
 
-  // 0) 전역 번호 중복 바로잡기(HEAD 가 머지 커밋일 때만).
+  // 0) 전역 번호 중복 바로잡기(HEAD 가 머지 커밋일 때, --no-commit 이면 머지 도중일 때만).
+  //    머지 커밋: P1=HEAD^1 · P2=HEAD^2 · 머지가 바꾼 파일 = P1..HEAD. 머지 도중: P1=HEAD · P2=MERGE_HEAD · 바꾼 파일 = index 대 HEAD.
   const dupmap = []; // [파일, 옛번호, 새번호, 모호0|1]
   let P1 = '', P2 = '', MB = '';
   let mfiles = [];
-  if (git(top, ['rev-parse', '-q', '--verify', 'HEAD^2']).status === 0) {
-    const r1 = git(top, ['rev-parse', 'HEAD^1']);
-    const r2 = git(top, ['rev-parse', 'HEAD^2']);
+  const rev1 = noCommit ? 'HEAD' : 'HEAD^1';
+  const rev2 = noCommit ? 'MERGE_HEAD' : 'HEAD^2';
+  if (noCommit) {
+    if (git(top, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']).status !== 0) {
+      writeOut('RENUMBER_FAILED no-merge-head\n');
+      cleanup();
+      return finish(1);
+    }
+    const wt = git(top, ['write-tree']);
+    if (wt.status !== 0) return fail('write-tree');
+    snap = wt.stdout.replace(/\n+$/, '');
+  }
+  if (git(top, ['rev-parse', '-q', '--verify', rev2]).status === 0) {
+    const r1 = git(top, ['rev-parse', rev1]);
+    const r2 = git(top, ['rev-parse', rev2]);
     if (r1.status !== 0 || r2.status !== 0) return fail('rev-parse');
     P1 = r1.stdout.replace(/\n+$/, '');
     P2 = r2.stdout.replace(/\n+$/, '');
     MB = git(top, ['merge-base', P1, P2]).stdout.split('\n')[0] ?? '';
-    const dm = git(top, ['diff', '--name-only', P1, 'HEAD']);
+    const dm = noCommit ? git(top, ['diff', '--cached', '--name-only', P1]) : git(top, ['diff', '--name-only', P1, 'HEAD']);
     if (dm.status === 0) mfiles = splitRaw(dm.stdout);
   }
   const showRev = (rev, p) => {
@@ -757,6 +779,11 @@ async function main(argv) {
   const subject = `chore${tsk ? `(${tsk})` : ''}: 결정 번호 매김 (${summary})`;
   let body = '공용 decisions.md 의 임시 ID 를 머지 시점의 다음 전역 번호로 바꾼다(/dflow-merge 결정 번호 매김).';
   if (dupmap.length) body += ' 머지 대상이 직접 매겨 개발 브랜치와 겹친 전역 번호는 개발 브랜치 쪽을 두고 머지 대상 쪽을 다음 번호로 옮긴다(옛 번호는 Renumbered from 줄).';
+  if (noCommit) {
+    writeOut(`STAGED ${changedU.length}\n`);
+    cleanup();
+    return finish(OK);
+  }
   const cargs = ['commit', '-q', '-m', subject, '-m', body];
   if (order) cargs.push('--trailer', `DFlow-Order: ${order}`);
   const cr = git(top, cargs);

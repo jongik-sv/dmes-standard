@@ -26,14 +26,17 @@
   - 트리 전체에서 임시 ID 머리를 그 파일의 다음 전역 번호로 교체 (머리 순서대로)
   - 바로 아래 `- **Temp ID**: <임시 ID>` 줄을 남김
   - 추적 파일 전체 (`.claude/` 제외) 의 같은 임시 ID 참조 교체
-  - commit 하나로 남김 (`chore(<TSK>): 결정 번호 매김 (…)`, 트레일러 `DFlow-Order`)
+  - 기본 모드: commit 하나로 남김 (`chore(<TSK>): 결정 번호 매김 (…)`, 트레일러 `DFlow-Order`)
+  - `--no-commit` 모드 (`/dflow-merge` 가 쓰는 모드): `git merge --no-commit` 로 멈춘 머지 안에서 고친 파일을 stage 만 하고 `STAGED <n>` 을 냄. 커밋은 호출자의 머지 커밋 하나. 머지 도중이 아니면 `RENUMBER_FAILED no-merge-head`
+    - 머지 도중에는 index 가 HEAD 와 다른 것이 정상이라 `diff --cached` 검사를 건너뛰고 (작업 트리 = index 와 충돌 없음만 요구) 중복 판정은 P1=`HEAD`·P2=`MERGE_HEAD` 로 함
+    - 실패 되돌림은 시작 때 `git write-tree` 로 잡은 index 트리에서 복원 (머지 내용을 잃지 않음)
   - `Temp ID` 줄 덕분에 스택 후손이 선행의 임시 ID 를 적어 뒀어도 뒤 머지에서 찾아 교체
   - 같은 임시 ID 머리가 둘 이상 → 그 ID 만 건너뛰고 (`RENUMBER_DUP`) 나머지는 매김
   - 실패(`RENUMBER_DIRTY`·`RENUMBER_FAILED`) 시 임시 ID 는 트리에 남고, 다음 머지의 번호 매김이 트리 전체를 다시 훑어 매김
 - **전역 번호 중복**(`renumber` 첫 단계)
   - 옛 규칙 읽은 워커나 사람이 전역 번호를 직접 매기면 같은 기점 두 branch 가 같은 `## D-050` 을 들고 옴
   - git 이 두 추가를 다른 위치로 보면 충돌 없이 합쳐지므로, 충돌 여부 무관하게 merge commit 뒤에 봄
-  - **HEAD 가 merge commit 일 때 HEAD^1 = merge 전 개발 branch, HEAD^2 = merge 대상(그때의 MERGE_HEAD)**. merge-base 는 그 둘에서 구함 (충돌 경로·충돌 없는 경로·해소 merge 모두 이 자리를 지남)
+  - **HEAD 가 merge commit 일 때 HEAD^1 = merge 전 개발 branch, HEAD^2 = merge 대상(그때의 MERGE_HEAD)** (`--no-commit` 이면 머지 도중의 HEAD·MERGE_HEAD). merge-base 는 그 둘에서 구함 (충돌 경로·충돌 없는 경로·해소 merge 모두 이 자리를 지남)
   - 파일마다 따로 봄 (decisions.md 끼리 번호 독립)
   - 개발 브랜치 쪽 블록은 그대로 둠
     - 머지 대상이 더한 블록 (머리 줄이 HEAD^2 판에 있고 merge-base 판·HEAD^1 판에 없는 것) 중 번호가 겹친 것만 그 파일의 다음 전역 번호로 옮겨 파일 끝에 둠 (개발 브랜치 블록 순서 불변)

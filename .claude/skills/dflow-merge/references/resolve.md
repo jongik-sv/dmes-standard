@@ -29,7 +29,7 @@ SKILL.md 「절차」 전문이 옮겨진 자리 (이 문서가 SKILL.md 해당 
    - 통과하면 `git rev-parse HEAD` 를 **기준 HEAD** 로 기록
 3. **승인 뒤 변경 확인**: SKILL.md 「절차」 4단계 2번 그대로. 걸리면 `RESOLVE_SKIPPED 건너뜀(승인 뒤 변경)` 또는 `RESOLVE_SKIPPED 건너뜀(승인 뒤 변경 확인 불가)` 로 끝
 
-순서 = **해소·stage → 게이트 → 기록 → 커밋** (4-6번). 게이트는 commit **전** stage 한 트리에서 돌고, 결과(test 총수)를 `resolution.md` 에 적어 merge commit 에 함께 담음. `resolve-prompt.md` 「게이트」·「기록」 도 같은 순서.
+순서 = **해소·stage → 게이트 → 기록 → 번호 매김·state.json → 커밋 한 번** (4-7번). 게이트는 commit **전** stage 한 트리에서 돌고, 결과(test 총수)를 `resolution.md` 에 적어 merge commit 에 함께 담음. 번호 매김과 `phase=merged` 도 같은 merge commit 에 담음(별도 커밋 없음). `resolve-prompt.md` 「게이트」·「기록」 도 같은 순서.
 
 4. **머지·해소·stage**: 충돌 여부 무관하게 늘 commit 없이 merge (`resolution.md` 와 트레일러가 한 commit 에 실리게)
    - rerere = 명령줄 `-c` 로만 켬. `git config` 로 켜지 않음 (공용 `.git/config` 에 써져 사람 체크아웃까지 바뀜)
@@ -55,10 +55,14 @@ SKILL.md 「절차」 전문이 옮겨진 자리 (이 문서가 SKILL.md 해당 
    - 통과 못 하면 **`git merge --abort`** 로 merge 전 상태 복구 (`reset --keep <기준 HEAD>` 는 merge 도중 거부됨)
      - 복구 뒤 `git status --porcelain` 비어 있고 `git rev-parse HEAD` = 기준 HEAD 여야 함
      - 그다음 `RESOLVE_GATE_FAILED <신규 실패 수>` 로 끝
-6. **기록·커밋**: 게이트 결과를 해소 기록 `<TASKS>/<TSK>/resolution.md` 의 `## 시도 <n>` 절에 덧붙임
+6. **기록**: 게이트 결과를 해소 기록 `<TASKS>/<TSK>/resolution.md` 의 `## 시도 <n>` 절에 덧붙임
    - 내용 = 파일마다 적용한 규약 번호와 판단 한 줄, 게이트 줄. 형식 = `resolve-prompt.md` 「기록」
    - `<TASKS>/<TSK>` = 호출자가 넘긴 작업 폴더
-   - `resolution.md` 파일명으로 stage → commit. 둘째 `-m` = 요약 (충돌 파일 수·규약 번호)
+   - `resolution.md` 파일명으로 stage. 아직 commit 금지
+7. **번호 매김·state.json·커밋**: 게이트 뒤 아래 순서로 merge commit **하나**를 만듦. 이 사이 게이트 재실행 금지
+   - 「결정 번호 매김」: `node .claude/skills/dflow-merge/scripts/decisions.mjs renumber --no-commit --tsk <TSK> --order <order>` (stage 만 함). 결과 처리 = SKILL.md 「절차」 4번 3-1단계와 같음 (실패해도 막지 않음)
+   - state.json: SKILL.md 「절차」 4단계 4번 그대로 `phase=merged` (승인 전이면 `unapproved: true` 도) 갱신 후 파일명으로 stage
+   - 둘째 `-m` = 요약 (충돌 파일 수·규약 번호)
    ```bash
    git -c rerere.enabled=true commit -m "merge: <TSK> <제목> (approved) — 충돌 해소" -m "충돌 <N>개 · 규약 <R…>" \
      --trailer "DFlow-Order: <order>" --trailer "DFlow-Resolve: <n>/3"
@@ -66,10 +70,7 @@ SKILL.md 「절차」 전문이 옮겨진 자리 (이 문서가 SKILL.md 해당 
    ```
    - 승인 전 머지(`--on-report`)면 제목 괄호 = `(reported, 승인 전)`. `<n>` = `--attempt` 값
    - 트레일러 `DFlow-Order` 누락 금지 (SKILL.md 「트레일러 고정」, 행 G 증거 2)
-   - commit 뒤 「결정 번호 매김」: `node .claude/skills/dflow-merge/scripts/decisions.mjs renumber --tsk <TSK> --order <order>`
-   - 결과 처리 = SKILL.md 「절차」 4번 3-1단계와 같음 (실패해도 막지 않음). 게이트 재실행 금지
-7. **state.json**: SKILL.md 「절차」 4단계 4번 그대로 `phase=merged` (승인 전이면 `unapproved: true` 도) commit 생성. 이 commit 과 merge commit 사이 게이트 재실행 금지
-8. **push**: `git push origin HEAD:<기본브랜치>`. 실패하면 먼저 `git reset --keep <기준 HEAD>` 로 되돌리고 (머지·state.json 커밋이 이미 있음) 모양으로 가름
+8. **push**: `git push origin HEAD:<기본브랜치>`. 실패하면 먼저 `git reset --keep <기준 HEAD>` 로 되돌리고 (머지 커밋이 이미 있음) 모양으로 가름
    - `non-fast-forward`·`fetch first` = 경합. `git fetch origin && git switch -q --detach origin/<기본브랜치>` 뒤 `RESOLVE_BASE_MOVED <새 origin 짧은 sha>` 로 끝
      - 호출자가 기준선 재측정 → 이 절 1번부터 재호출 (rerere 가 앞서 푼 덩어리 복원)
      - 기준 이동과 합친 **이 재시도는 한 세션 안 2회까지**, 호출자가 셈. 넘으면 호출자가 `failed push-race` 로 끝
@@ -80,4 +81,4 @@ SKILL.md 「절차」 전문이 옮겨진 자리 (이 문서가 SKILL.md 해당 
    `RESOLVE_PUSHED <머지 커밋 전체 sha> base=<기준 HEAD 짧은 sha> files=<충돌 파일 수> rules=<R번호,…|-> tests=<통과/총수> need=<하한>`.
    - `총수` = 머지 결과 총수
    - `하한` = 게이트 판정의 `need` (개발 브랜치 총수 + (머지 대상 단독 총수 − merge-base 총수) − 계획 삭제 수)
-   - merge commit sha = 6번에서 기록한 `git rev-parse HEAD` 값. `HEAD~1` 처럼 뒤 commit 수로 세지 않음. 짧은 sha 아닌 전체 sha 로 넘김
+   - merge commit sha = 7번에서 기록한 `git rev-parse HEAD` 값 (이 commit 이 tip 이고 번호 매김·`phase=merged` 도 담음). `HEAD~1` 처럼 뒤 commit 수로 세지 않음. 짧은 sha 아닌 전체 sha 로 넘김

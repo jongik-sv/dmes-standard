@@ -64,6 +64,10 @@
   - 수동이면 사람이 치워야 함
 - state.json 경로를 다시 안 구하는 이유: 서버 호출이 실패하거나 예상 밖 빈 값을 주면 `git add "/state.json"` 처럼 저장소 루트 바로 아래 엉뚱한 경로를 stage 하는 사고로 번질 수 있음 — 이미 아는 값을 그대로 쓰면 안 생김
 - `phase` 에 새 값을 안 만드는 이유: `/dflow-dev` 「--worker」 행 G 의 기본 branch 반영 확인이 `phase` = `merged` 인지 보고, `poll.mjs` 반려 감지도 `reported|merged` 만 훑음. 새 값을 쓰면 후속이 여전히 `skipped` 로 끝나고 반려도 감지 안 됨
+- 머지 커밋 하나에 번호 매김·`phase=merged` 를 접는 이유 (2026-10-10 사용자 결정): 작업 하나가 통합 브랜치에 작업 커밋 1개 + 머지 커밋 1개만 남아야 이력을 읽고 되돌리기 쉬움. `chore(<TSK>): phase=merged`·번호 매김 커밋을 따로 두면 작업당 3-4개가 됨.
+  - 그래서 `git merge --no-commit` 으로 멈춘 채 `renumber --no-commit`(stage 만)·state.json 갱신을 하고 `git commit --no-edit` 한 번으로 완성
+  - 반영 확인(행 G)은 tip 의 state.json 내용(`phase`), `DFlow-Order` 트레일러, 머지 커밋 제목 `merge: <TSK> ` 을 보므로 별도 커밋이 없어도 같은 증거가 남음
+  - 승인 전 머지분의 사후 승인 반영(`unapproved.md`)은 머지·push 뒤에 일어나는 별개 사건이라 접지 않고 별도 커밋으로 남음
 - 번호 매김 실패가 merge 를 안 막는 이유: 스크립트가 자기 변경을 되돌린 채 끝나고, 임시 ID 는 트리에 남아 다음 merge 의 번호 매김이 트리 전체를 다시 훑어 매김.
   - 단 전역 번호 중복 바로잡기는 다음 merge 가 다시 안 해 줌
   - 실패한 merge 가 남긴 중복은 다음 merge 에서 둘 다 개발 branch 쪽이 되어 `DUP_LEFT … dev-side` 로만 나옴

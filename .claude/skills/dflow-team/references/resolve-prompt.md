@@ -228,7 +228,7 @@ Skill 도구가 `dflow-merge` 를 모르면 `.claude/skills/dflow-merge/SKILL.md
 공용 결정 기록(`docs/<모듈>/decisions.md` 등, `## D-NNN (…)` 블록 기록)의 충돌:
 
 - 위 규약보다 먼저 `node .claude/skills/dflow-merge/scripts/decisions.mjs merge-conflicts` 로 푼다(R1 의 기계적 형태 — 양쪽 블록 모두 남김).
-- 임시 ID(`D-<TSK>-<n>`) 번호를 손으로 안 매김 — `/dflow-merge` 「결정 번호 매김」 이 merge commit 뒤에 매김.
+- 임시 ID(`D-<TSK>-<n>`) 번호를 손으로 안 매김 — `/dflow-merge` 「결정 번호 매김」 이 같은 merge commit 안에서 매김(별도 커밋 없음).
 - 스크립트가 `DECISIONS_LEFT` 로 남긴 파일(기존 블록 수정 등)만 R8 로 풂.
 
 ### blocked 로 멈추는 경우

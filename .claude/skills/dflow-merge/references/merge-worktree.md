@@ -19,10 +19,10 @@ SKILL.md 「절차」 4번(전문 `references/merge-exec.md`)에서 호출한 �
      W="$(git rev-parse --show-toplevel)/.claude/worktrees/dflow-merge"; [ -e "$W/.git" ] || { echo NO_MERGE_WT; exit 1; }
      ```
      `NO_MERGE_WT` → 그 후보 처리 없이 "머지 워크트리 없음" 으로 보고, 스윕 멈춤
-   - `decisions.mjs` (3·3-1단계) = 호출한 체크아웃 최상위에서 그 체크아웃의 스킬 경로로 호출, `-C "$W"` 붙임 (예: `node .claude/skills/dflow-merge/scripts/decisions.mjs renumber -C "$W" --tsk <TSK> --order <order>`). `migration-check.mjs` 도 같음
+   - `decisions.mjs` (3·3-1단계) = 호출한 체크아웃 최상위에서 그 체크아웃의 스킬 경로로 호출, `-C "$W"` 붙임 (예: `node .claude/skills/dflow-merge/scripts/decisions.mjs renumber --no-commit -C "$W" --tsk <TSK> --order <order>`). `migration-check.mjs` 도 같음
    - 후보마다 위 1-5를 `<W>` 에서 실행. 달라지는 것 셋뿐. 설정 블록과 같은 호출 안에서 이어 돌 때만 가드 없이 `$W` 그대로 사용. 아래 `<W>`·`"$W"` = 가드 줄이 구한 값
      1. 1단계: `git -C "$W" fetch origin && git -C "$W" switch --detach origin/<기본브랜치>` (`pull` 대신 detach). 그 뒤 `git -C "$W" rev-parse HEAD` 를 merge 직전 HEAD 로 기록
-     2. 4단계 state.json: `<W>/<후보 state.json 경로>` 를 고쳐 `<W>` 에서 commit (같은 경로 재사용 규칙)
+     2. 4단계 state.json: `<W>/<후보 state.json 경로>` 를 고쳐 `<W>` 에서 stage 하고 머지 커밋 하나에 담음 (`git -C "$W" commit --no-edit --cleanup=strip`, 같은 경로 재사용 규칙). 실패하면 `git -C "$W" merge --abort`
      3. 5단계: `git -C "$W" push origin HEAD:<기본브랜치>`. 실패 시 `git -C "$W" reset --hard <기록한 HEAD>` 로 되돌리고 같은 규칙 (경합·훅·그 밖, `references/push-fail.md`) 으로 가름
    - 5번 뒷정리의 로컬 `git branch -d` 도 `git -C "$W"` 로 실행 (merge commit 은 `<W>` HEAD 에만 있음)
    - 스윕 끝나면 (멈춘 경우 포함) `git worktree remove --force "$W"` 로 지움 (merge·삭제 결과는 공용 저장소에 남음)

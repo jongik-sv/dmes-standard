@@ -63,10 +63,10 @@ description: 승인(approved)된 D'Flow 작업의 agent 브랜치를 개발 브�
 4. 머지: merge 자리 = 호출한 체크아웃의 현재 branch 가 `<기본브랜치>` 면 그 체크아웃, 아니면 임시 머지 워크트리 `<W>`(`references/merge-worktree.md`). 후보마다 아래 순서.
    1. 블록 첫 줄(fetch·switch·pull) 뒤 merge 직전 HEAD 기록.
    2. 승인 뒤 변경 확인 → 강제 진행 스텁 관문 → migration 버전 관문. 걸리면 merge 안 하고 보고 후 다음 후보.
-   3. `git merge --no-ff`. 충돌하면 decisions.md 만 스크립트로 풀고, 남은 충돌 있으면 파일 목록 읽은 뒤 `--abort` → `머지 실패(충돌) <파일,…>`. 3-1: 결정 번호 매김.
-   4. state.json 을 `phase=merged` 로 commit (push 전, 승인 전 merge 면 `unapproved: true` 도). 경로는 1번이 찾은 그대로.
+   3. `git merge --no-ff --no-commit`(머지 커밋은 4번에서 한 번에 만듦). 충돌하면 decisions.md 만 스크립트로 풀고, 남은 충돌 있으면 파일 목록 읽은 뒤 `--abort` → `머지 실패(충돌) <파일,…>`. 3-1: 결정 번호 매김(`renumber --no-commit`, stage 만).
+   4. state.json 을 `phase=merged` 로 갱신(승인 전 merge 면 `unapproved: true` 도)하고 stage 한 뒤 머지 커밋 **하나**를 만듦(`git commit --no-edit --cleanup=strip`). 번호 매김·phase=merged 별도 커밋 없음. 경로는 1번이 찾은 그대로. add 실패면 `--abort`.
    5. `git push origin <기본브랜치>`. 실패하면 `git reset --keep <기록한 HEAD>` 후 `references/push-fail.md`. `origin` 으로 리셋 금지.
-   - `--no-ff` 고정. 모든 merge commit 에 `DFlow-Order: <order>` 트레일러(트레일러 고정). push 가 훅에 거부돼도 우회 금지.
+   - `--no-ff` 고정. 한 작업 = 작업 커밋 1개 + 머지 커밋 1개. 모든 merge commit 에 `DFlow-Order: <order>` 트레일러(트레일러 고정). push 가 훅에 거부돼도 우회 금지.
    - → references/merge-exec.md §4번 머지
 5. 뒷정리 (merge 된 작업마다):
    - merge 된 `agent/` branch 삭제.
