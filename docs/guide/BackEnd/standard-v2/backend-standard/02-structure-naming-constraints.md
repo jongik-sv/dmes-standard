@@ -5,6 +5,9 @@
 ## 3. 표준 구조
 
 ### 3-1. 디렉토리 구조
+
+> 이 절은 한 모듈 안의 패키지 배치다. 코드를 어느 모듈(`mcm-core`·`lib`·`api` 등)에 둘지는 [3-3. 코드 배치 기준](#3-3-코드-배치-기준)을 먼저 본다.
+
 ```text
 src/main/java/{base-package}/
 ├── entity/                              # 모듈 단위 공유 (모든 도메인·화면이 재사용)
@@ -82,6 +85,39 @@ MES 4 모듈 (`mls` / `mqc` / `mpp` / `mas`) 은 한 화면을 식별하는 모�
 | 조회 + 저장 | Entity, Repository, SearchRequest, Response, Service, BPMN |
 | 복잡 조회(MyBatis) | Entity(선택), Mapper, mapper.xml, SearchRequest/Response, Service, BPMN |
 | Master-Detail 저장 | Master/Detail Entity, Repository, Service, BPMN |
+
+### 3-3. 코드 배치 기준
+
+새 클래스를 만들기 전에 어느 모듈에 둘지 먼저 정한다. 아래 표가 이 저장소의 정본이다. 결정 근거는 [ADR-0003](../../../adr/0003-mcm-core-library-split.md)에 있다.
+
+| 넣을 것 | 위치 | 이유 |
+|---|---|---|
+| cactus·oasis 없이 짜는 공통 업무 로직, 엔티티, 리포지토리, 서비스 | `mcm-core` | mcm·mls·mqc·mpp 와 모드 B 사이트가 함께 쓴다. `McmCoreArchitectureTest`(ArchUnit)가 cactus·oasis 의존을 막는다. 예외는 예약 작업 패키지 `mcm.job..` 하나이며 ADR-0003 D2 가 정한다 |
+| cactus 가 필요한 코드: `CactusAuditEntity`, `MdmValidator`, `BusinessException`, cactus 보안 어댑터 | `mcm/lib` | `mcm-core` 는 cactus 를 의존할 수 없다. `mcm/lib` 는 `cactus-core` 를 선언한다. 선례는 공지(2026-10-07)다 |
+| BPMN 서비스 정의, `SecurityConfig`, `McmApplication`, 앱 전용 설정 | `mcm/api` | 모드 A 호스트만 가진다. BPMN 을 `mcm-core` 리소스에 두면 `mcm-core` 를 쓰는 모든 호스트가 그 BPMN 을 로드한다 |
+| mls·mqc·mpp·mpn 의 업무 코드 | 그 모듈의 `lib`(서비스·엔티티·리포지토리)와 `api`(BPMN·설정) | 모듈마다 lib/api 로 나눈 구조가 같다. 위 두 행과 같은 이유로 BPMN 은 `api` 에 둔다 |
+| MDM 정의 관리(용어·도메인·컬럼·코드·룰·레이아웃, 버전, 배치) | `mdm`(`lib`·`api`) | MDM 서버는 서비스 하나이고, 다른 앱은 HTTP 로 쓴다 |
+| 다른 앱 안에서 MDM 정의를 조회하거나 검증하는 코드 | `cactus-core` 의 MDM 클라이언트(`com.dongkuk.dmes.cactus.mdm`) | 모든 cactus 앱이 같은 클라이언트를 쓴다. 앱마다 따로 만들지 않는다 |
+| 룰 평가 로직(식 계산, 판정) | `maru-mdm-engine` | 프레임워크를 모르는 순수 라이브러리다. Spring·cactus 를 넣지 않는다 |
+| 모드 B 의 REST 컨트롤러 | 호스트(사이트) 프로젝트 | `mcm-core` 는 컨트롤러를 갖지 않는다 ([Onboarding](../../Mcm-Core-Onboarding.md) 모드 B) |
+
+APS(`mpn`·`aps-core`)는 [APS 진입점](../../../../aps/README.md)을 따른다.
+
+**빠른 판정 — 세 가지를 순서대로 묻는다**
+
+1. cactus 나 oasis 를 쓰는가? 쓰면 `mcm-core` 에 넣지 않는다. `lib`(코드)나 `api`(BPMN·설정)에 둔다.
+2. 여러 앱이 함께 쓰는가? 쓰고 1번이 아니오이면 `mcm-core` 다. 한 앱만 쓰면 그 앱의 `lib` 다.
+3. 화면 액션이나 URL 로 노출하는가? 그렇다면 BPMN 과 노출 설정은 `api` 에 둔다. 서비스 클래스는 1~2번 결과를 따른다.
+
+기능 하나가 두 모듈에 걸릴 수 있다. 서비스는 `mcm-core` 에 두고 BPMN 액션은 `mcm/api` 에 두는 경우다. 이때는 두 모듈을 한 변경으로 함께 고친다.
+
+**왜 나눴나**
+
+- 공통 기능(로그인·권한·메뉴·마스터 코드)은 복제한 첫날부터 동작해야 한다. 그래서 단독 실행되지 않는 `mcm-core` 와 실행 앱 `mcm` 을 나눴다.
+- 고객사에 따라 cactus·oasis 를 쓰기도 하고(모드 A), 외부 업체가 REST 로 붙기도 한다(모드 B). `mcm-core` 가 엔진에 묶이지 않아야 두 경우가 같은 코어를 쓴다.
+- 이 경계를 사람의 주의에 맡기지 않는다. 어기면 ArchUnit 이 실패한다.
+- MDM 은 `mdm-core` 로 나누지 않았다. 여러 프로세스 안에서 돌아야 하는 부분(룰 평가)이 이미 `maru-mdm-engine` 으로 나뉘어 있고, 나머지는 HTTP 로 쓰기 때문이다. 나눠야 하는 조건은 ADR-0003 의 「MDM 은 왜 같은 방식으로 나누지 않았나」에 있다.
+- 비용도 있다. 지금 `mcm-core` 를 실제로 구동하는 앱은 `mcm` 뿐이고, 기능 하나를 고칠 때 두 모듈을 함께 고쳐야 할 수 있다. 자세한 내용은 ADR-0003 이 설명한다.
 
 ---
 

@@ -12,6 +12,8 @@
 
 mcm-core 자체는 동일하다. 사이트 통합 방식만 다름.
 
+이 저장소에서 새 코드를 `mcm-core` 에 둘지 `mcm/lib`·`mcm/api` 에 둘지는 [코드 배치 기준](standard-v2/backend-standard/02-structure-naming-constraints.md#3-3-코드-배치-기준)을 따른다. 모듈을 나눈 이유는 [ADR-0003](../adr/0003-mcm-core-library-split.md)에 있다.
+
 ---
 
 ## 모드 A — cactus + oasis 사용

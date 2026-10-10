@@ -16,6 +16,7 @@
 - 고객사에 따라 우리 실행 엔진(cactus·oasis)을 쓰기도 하고, 외부 업체가 자기 방식(REST)으로 붙이기도 합니다.
   공통 기능 부분이 엔진에 묶여 있지 않아야 두 경우 모두 같은 기능을 쓸 수 있습니다.
 - 이 경계를 사람의 주의에 맡기지 않고, 어기면 자동 검사가 실패하도록 했습니다.
+- 기준정보(MDM)는 같은 방식으로 나누지 않았습니다. 여러 프로그램 안에서 돌아야 하는 부분(규칙 계산)은 이미 따로 떼어져 있고, 나머지는 각 프로그램이 MDM 서버에 물어보는 방식이라 더 나눌 필요가 없습니다. 나눠야 하는 조건은 아래 「MDM 은 왜 같은 방식으로 나누지 않았나」에 적었습니다.
 
 비용도 있습니다. 지금은 mcm 만 이 공통 기능을 실제로 쓰고, 기능 하나를 고칠 때 두 곳을 함께
 고쳐야 할 때가 있습니다. 엔진이 필요한 코드는 공통 기능 부분에 넣을 수 없다는 규칙도, 자동 검사가
@@ -95,6 +96,33 @@
   줄어든다. 그러나 모드 B 가 쓸 수 없는 클래스가 코어에 섞이고, 금지 규칙이 사실상 사라진다.
   필요한 예외는 `mcm.job..` 처럼 패키지 단위로 좁게 두는 방식을 쓴다.
 
+## MDM 은 왜 같은 방식으로 나누지 않았나
+
+질문: mcm 은 mcm-core 와 앱으로 나눴다. MDM 도 `mdm-core` 와 앱으로 나눠야 하지 않나?
+
+답: 지금은 나누지 않는다 (판단). 여러 프로세스 안에서 돌아야 하는 부분은 이미 라이브러리로 나뉘어 있고, 나머지는 라이브러리로 끼워 넣지 않고 HTTP 로 쓰기 때문이다.
+
+MDM 은 이미 네 조각이다.
+
+| 조각 | 위치 | 성격 | 쓰는 곳 |
+|---|---|---|---|
+| 룰 평가 엔진 | `src/backend/maru-mdm-engine` | 프레임워크 없는 라이브러리. 의존은 EvalEx 하나. 그룹 `kr.dongkuk.maru.mdm` | `mdm/lib` 이 `api libs.maru.mdm.engine.unversioned` 로, `cactus-core` 가 `api libs.maru.mdm.engine.versioned` 로 선언한다 (`cactus-core/build.gradle`). 그래서 cactus 기반 앱(mcm·mls·mqc·mpp·mpn·mdm)은 모두 런타임에 엔진을 가진다 |
+| MDM 클라이언트 | `cactus-core/.../cactus/mdm/` (`MdmMetaClient`·`MdmMetaCache`·`MdmValidator`·`MdmValueChecks`·`MdmDefinitionLookup` 등) | 앱이 HTTP(`/oasis/metaFeed/…`)로 정의를 받아 캐시하고, 엔진으로 규칙을 로컬에서 평가한다. `cactus.mdm.enabled=true` 일 때 켜진다 | cactus 기반 앱 전부 |
+| MDM 서버 | `mdm/lib` + `mdm/api` (포트 8096) | 정의 관리, 버전 관리, 배치, KURE 임베딩. `mdm/lib` main 파일 84개가 cactus 를 import 한다 | 서비스 하나 |
+| 화면 쪽 | `src/frontend/shared/src/evalex` (`@dk-oasis/m-mdm/evalex` 가 다시 내보낸다) | 화면 검증용 TypeScript 평가기. 즉시 피드백용이고 기준은 서버다 | 프런트엔드 |
+
+- 규칙 평가는 앱마다 자기 프로세스 안에서 해야 한다. 그 부분이 `maru-mdm-engine` 이고, 이미 `mcm-core` 와 같은 모양의 순수 라이브러리다. cactus 도 Spring 도 모른다.
+- 정의를 관리하는 서버 로직은 다른 앱에 끼워 넣지 않는다. 다른 앱은 HTTP 로 받는다. 끼워 넣을 일이 없으므로 `mdm-core` 로 뽑아도 쓰는 곳이 하나뿐이다. 구조 비용만 생긴다.
+- 서버 코드가 cactus 에 깊이 묶여 있다 (84개 파일). `mcm-core` 와 같이 cactus 를 막으면 서버 코드 대부분을 옮길 수 없다.
+- analog 는 엔진을 의존하지 않는다. `analog/build.gradle` 주석이 엔진 코퍼스 파일 이름을 말할 뿐이다.
+
+나눠야 하는 조건은 둘이다 (판단).
+
+1. 모드 B 사이트(cactus 없음)가 MDM 검증이나 메타 조회를 써야 할 때. 클라이언트가 `cactus-core` 안에 있어 쓸 수 없다. 이때 클라이언트를 `cactus-core` 에서 `mdm-client` 같은 별도 라이브러리로 뺀다. 엔진은 이미 cactus 를 모르므로 그대로 쓴다.
+2. MDM 정의 관리 기능을 다른 앱 안에 넣어야 할 때. 이때 서버 로직을 `mdm-core` 로 나눈다.
+
+둘 다 지금은 요구가 없다. 요구가 생기면 이 ADR 을 SUPERSEDED 로 두고 새 ADR 을 낸다.
+
 ## References
 
 - `src/backend/mcm-core/README.md` (「모듈 성격」)
@@ -102,4 +130,8 @@
 - `docs/guide/BackEnd/Mcm-Core-Onboarding.md` (「두 가지 모드」, 모드 B 「자체 REST Controller」)
 - `docs/superpowers/specs/2026-10-07-notice-to-mcm-design.md` (공지 이전: 위치 결정 선례)
 - `src/backend/{mls,mqc,mpp,mcm}/lib/build.gradle` (`api libs.mcm.core`)
+- `src/backend/maru-mdm-engine/build.gradle`, `src/backend/cactus-core/build.gradle` (`api libs.maru.mdm.engine.versioned`), `src/backend/mdm/lib/build.gradle`
+- `src/backend/cactus-core/src/main/java/com/dongkuk/dmes/cactus/mdm/` (MDM 클라이언트)
+- `src/frontend/shared/src/evalex/` (화면 평가기)
+- [BackEnd 표준 02 §3-3 코드 배치 기준](../BackEnd/standard-v2/backend-standard/02-structure-naming-constraints.md#3-3-코드-배치-기준) (D4 표를 개발자용으로 옮긴 것)
 - `docs/ARCHITECTURE.md` §3

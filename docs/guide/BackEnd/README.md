@@ -9,6 +9,7 @@ Backend 구현과 Spring/OASIS/MCM core 관련 가이드는 이 폴더에서 시
 | MES OASIS/BPMN Backend 구현 | [`BackEnd_표준_통합_개발가이드_v2.md`](BackEnd_표준_통합_개발가이드_v2.md) | 화면별 BPMN설계서 |
 | Backend 공통 구현 패턴·영속성·테스트·DB/Seed | [`Backend-Implementation-Guide.md`](Backend-Implementation-Guide.md) | [`Business-Logic-Guide.md`](Business-Logic-Guide.md) |
 | 비즈니스 로직 구현 | [`Business-Logic-Guide.md`](Business-Logic-Guide.md) | 설계서/ADR |
+| 새 코드를 둘 모듈 정하기 (`mcm-core` / `mcm/lib` / `mcm/api` / `mdm`) | [`02 §3-3 코드 배치 기준`](standard-v2/backend-standard/02-structure-naming-constraints.md#3-3-코드-배치-기준) | [ADR-0003](../adr/0003-mcm-core-library-split.md) |
 | mcm-core 사이트 도입·확장 | [`Mcm-Core-Onboarding.md`](Mcm-Core-Onboarding.md) | mcm-core 모듈 소스 |
 
 ## 배치 기준

@@ -12,4 +12,4 @@
 |---|---|---|---|---|
 | [0001](0001-ui-library-mantine9-aggrid.md) | 공통 UI 기반 Mantine 9 채택과 그리드 ag-grid-community 유지 | ACCEPTED | 2026-09-07 | 화면 코드 계약을 바꾸지 않는 선에서 `@dk-oasis/shared` 공통 UI 를 Mantine 9 로 재구현하고, 그리드는 ag-grid-community v33 유지, MUI·MuiDataGrid 제거. |
 | [0002](0002-analog-readonly-db-viewer.md) | analog 읽기전용 DB 뷰어 분리 (MES 밖 관리자 전용) | ACCEPTED | 2026-10-08 | mcm 업무 화면 대신 analog에 화이트리스트·SELECT-only·200건 상한·감사로그 조건으로 테이블 브라우저 분리. |
-| [0003](0003-mcm-core-library-split.md) | mcm-core 를 라이브러리로 나눈 이유 (mcm 앱과 분리) | ACCEPTED | 2026-10-10 | 공통 코어를 cactus·oasis 비의존 라이브러리로 두고 mcm 앱과 나눈다. ArchUnit 이 경계를 강제하고, 넣을 위치는 mcm-core / mcm/lib / mcm/api / 호스트 표로 정한다. 소급 기록. |
+| [0003](0003-mcm-core-library-split.md) | mcm-core 를 라이브러리로 나눈 이유 (mcm 앱과 분리) | ACCEPTED | 2026-10-10 | 공통 코어를 cactus·oasis 비의존 라이브러리로 두고 mcm 앱과 나눈다. ArchUnit 이 경계를 강제하고, 넣을 위치는 mcm-core / mcm/lib / mcm/api / 호스트 표로 정한다. MDM 은 엔진이 이미 라이브러리라 나누지 않았고, 나눌 조건 둘을 적었다. 소급 기록. |

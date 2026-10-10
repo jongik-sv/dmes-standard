@@ -12,6 +12,7 @@
 | 상황 | 읽을 문서 |
 |---|---|
 | 문서 사용 규칙, 작업 순서, 시작 전 결정 항목 | [01. 규칙과 결정 항목](standard-v2/backend-standard/01-rules-and-decisions.md) |
+| **코드를 어느 모듈에 둘지** (`mcm-core` / `lib` / `api` / `mdm`) | [02 §3-3 코드 배치 기준](standard-v2/backend-standard/02-structure-naming-constraints.md#3-3-코드-배치-기준) |
 | 표준 구조, 선택 기준, 명명 규칙, 금지 사항 | [02. 구조, 명명, 금지 사항](standard-v2/backend-standard/02-structure-naming-constraints.md) |
 | Entity/Repository/DTO/Service/MyBatis 템플릿, 작성 규칙, BPMN 연계 | [03. 템플릿, 작성 규칙, BPMN 연계](standard-v2/backend-standard/03-templates-writing-bpmn.md) |
 | 케이스 선택, 범위 외 시나리오, 완료 체크리스트, 동적 메뉴 인프라 | [04. 케이스, 체크리스트, 메뉴 인프라](standard-v2/backend-standard/04-cases-checklist-menu.md) |
