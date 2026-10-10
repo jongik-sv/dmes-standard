@@ -63,7 +63,9 @@
 
 - 워크트리·브랜치 잔존: `git_bin worktree list`, `git_bin branch`
 - Orca 터미널 목록, reclaimable 워커
-- 안 끝난 세션 → `spawn.md` §5 절차로 닫음 (`close-lane.mjs`)
+- 안 끝난 세션
+  - 조정자가 띄운 것(`spawned_by = "coordinator"`) → `spawn.md` §5 절차로 닫음 (`close-lane.mjs`)
+  - 사람이 띄운 것(`spawned_by = "user"`) → 닫지 않음. 회차에서 떼고 사용자에게 한 줄(`spawn.md` §5)
 - 레인 정리 완료 보고에 「남은 백그라운드 0」 있는지 확인
   - 대상: 시험 입력·성능 측정·로컬 DB·고아 `awk` 등
   - 없음 → 되물음

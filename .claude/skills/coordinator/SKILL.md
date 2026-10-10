@@ -50,6 +50,10 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
    - 터미널 화면 = `prompt-watch.mjs` 가 이상을 판정한 레인 하나만 읽음
    - 조정 세션이 직접 하는 일 = D0(git·상태·짧은 확인)만. 조사 = 검색 워커, 구현 = 레인·풀
    - 진행표 요청 = `node scripts/coord-status.mjs` 출력 그대로 + `WBS.md`·오피스 위치. 레인 화면 다시 읽지 않음
+   - 띄운 것은 바로 닫음
+     - 단발 서브에이전트·워커 = `name` 없이 띄움(보고 뒤 스스로 끝남)
+     - 조정자가 띄운 이름 있는 agent·레인·pane = 결과가 오면 즉시 닫음. 사람이 띄운 세션은 닫지 않음(`spawn.md` §5)
+     - 동시에 4개 이하. 턴을 끝내기 전 `ListAgents` 확인
    - 컨텍스트 = `compact.coordinator_max`(200000) 넘으면 `CTX_OVER_SELF` → `compact.md` §8(`/clear` 재개)
    - 사용자가 `/clear` 뒤 재개하면 `node scripts/coord-state.mjs relink self`(새 세션 id 기록)
      - `RELINK self unknown` → `node scripts/coord-state.mjs relink self --sid "$CLAUDE_CODE_SESSION_ID"`
@@ -64,6 +68,9 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 ## 판단 올리기
 
 조정자(medium)는 아래 판단을 **opus/high 서브에이전트**에 위임하고 결론을 그대로 집행.
+- 띄울 때 `name` 없이 띄움 → 결론을 보고하면 스스로 끝남
+  - `name` = 다시 메시지를 보내야 하는(SendMessage) agent 에만. 이름 있는 agent 는 끝나는 즉시 닫음: `shutdown_request` → 안 끝나면 `TaskStop <이름>`
+  - 이유: 이 환경에서 이름 있는 agent = 따로 남는 pane. 안 닫으면 레인처럼 남아 보임
 - 넘길 것: 원문(게이트 출력·명령 전문·jstack 발췌·분해 입력) + 해당 reference 절
 - 대상: `merge-gate.mjs` 의 `SHARED_API`·`OUTSIDE`(`merge-gate.md`)
 - 대상: `auto-answer.mjs` 의 권한 창 `ESCALATE`(`approvals.md`)
@@ -115,7 +122,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 | `DENY …` | 레인에 `확인 창 거부` 통지(`protocol.md` 3.11) |
 | `ESCALATE … permission` | → `approvals.md` §3 |
 | `ESCALATE …`(그 밖)·`WAIT_USER` | 사용자에게 한 줄 알림. 덮어 보내지 않음 |
-| `IDLE <레인>` | → `monitor.md` §5 |
+| `IDLE <레인>` | → `monitor.md` §5. `queue`·`backlog` 없음 + 마지막 보고 `정리 완료` + `spawned_by = "coordinator"` → `close-lane.mjs <레인>`(`user` 면 회차에서 떼고 한 줄 알림) |
 | `STALL?`·`STALL` | → `stall.md`. 프로세스 직접 종료 금지 |
 | `GONE` | 화면 확인 뒤 레인 정리 또는 재기동 여부를 사용자에게 |
 | `POOL_DONE …` | 기록만. `fallback=1` 이 한 레인에서 3번 넘음 → 그 레인 지시의 풀 몫 낮출지 판단 |
@@ -140,10 +147,16 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 | `진행 보고` | `item-done`(WBS 자동 갱신) → `progress`(`monitor.md` §7). 「대기」 보고 → 아래 목록 |
 | `질문` | 아래 목록 |
 | `머지 요청` | `merge-gate.md`. 한 번에 하나만 허가, 허가에 「머지 뒤 다음 일」. 레인당 commit 1개·dev tip 위(`NOT_SQUASHED`·`NOT_REBASED` → 합친 뒤 재요청), 머지 = `--ff-only` |
-| `머지 완료`·`정리 완료` | 트리 대조 → `merge.history`, 다음 허가. 남긴 브랜치 = `pending_user` |
+| `머지 완료`·`정리 완료` | 트리 대조 → `merge.history`, 다음 허가. 남긴 브랜치 = `pending_user`. 아래 「끝난 레인 닫기」 |
 | `측정 끝` | `node scripts/measure-window.mjs close` → 전 레인 `무거운 작업 재개` |
 | `정본 갱신 완료`·재개 답 | `compact.md` |
 | 대신 승인 요청 | 받지 않음(권한 우회 방지) |
+
+끝난 레인 닫기(사용자 요청 없이, 같은 턴에)
+- 조건: `정리 완료` 수신(트리 대조·`merge.history` 기록 뒤), 그 레인에 다음 항목(`queue`·`backlog`) 없음
+- `lanes.<레인>.session.spawned_by = "coordinator"` → `node scripts/close-lane.mjs <레인>`(`spawn.md` §5)
+- `spawned_by = "user"`(사람이 띄운 세션) → 닫지 않음. 회차에서 떼고 사용자에게 한 줄(`spawn.md` §5)
+- 다음 항목을 받은 레인 → 그 항목의 `정리 완료` 때 다시 판단
 
 `진행 보고` 의 「대기」「기다린다」(원인 = 다른 레인 머지·의존물·Oracle·heavy 슬롯·사용자 결정)
 - IDLE 확정을 기다리지 않음. **같은 답장에** 병목과 무관한 일을 줌(`monitor.md` 「병목 대기 레인」)

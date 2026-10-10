@@ -57,4 +57,5 @@
 - `pool.mjs cancel <id>` = 큐·실행 중 묶음 취소(`POOL cancelled <id>`)
 - 진행 보기 = `tail -f <작업 폴더>/.pool/<id>.out`
 - `.pool/` 은 `.git/info/exclude` 에 자동 등록(git 에 안 잡힘)
+- 실행기 = 스스로 끝나는 단발 프로세스. 닫을 pane 없음
 - 끝난 묶음 한 줄씩 `<풀 폴더>/log.jsonl` 에 남음. `run-metrics.mjs` 가 읽음. `note` 보정 줄은 같은 id 의 마지막 줄이 이김
