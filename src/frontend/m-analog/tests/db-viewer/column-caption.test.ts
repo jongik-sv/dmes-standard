@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  columnCaptionOf,
+  dbCommentOf,
   mdmNamesOf,
 } from "../../src/anl/db-viewer/column-caption";
 import type { MdmScreenColumn } from "@dk-oasis/shared/mdm-meta";
@@ -33,21 +33,16 @@ function meta(overrides: Partial<MdmScreenColumn> = {}): MdmScreenColumn {
   };
 }
 
-describe("columnCaptionOf", () => {
-  it("MDM 사전 이름이 있으면 그 이름을 쓴다", () => {
-    expect(columnCaptionOf("코드 ID", "주석")).toBe("코드 ID");
+describe("dbCommentOf", () => {
+  it("칼럼 주석을 앞뒤 공백을 떼고 보인다", () => {
+    expect(dbCommentOf("  코드 식별자 ")).toBe("코드 식별자");
+    expect(dbCommentOf("코드 식별자")).toBe("코드 식별자");
   });
 
-  it("사전 이름이 없으면 칼럼 주석을 앞뒤 공백을 떼고 보인다", () => {
-    expect(columnCaptionOf(undefined, "  코드 식별자 ")).toBe("코드 식별자");
-    expect(columnCaptionOf(undefined, "코드 식별자")).toBe("코드 식별자");
-  });
-
-  it("둘 다 없거나 주석이 공백뿐이면 빈칸이다", () => {
-    expect(columnCaptionOf(undefined, null)).toBe("");
-    expect(columnCaptionOf(undefined, undefined)).toBe("");
-    expect(columnCaptionOf(undefined, "   ")).toBe("");
-    expect(columnCaptionOf("", "  ")).toBe("");
+  it("주석이 없거나 공백뿐이면 빈칸이다", () => {
+    expect(dbCommentOf(null)).toBe("");
+    expect(dbCommentOf(undefined)).toBe("");
+    expect(dbCommentOf("   ")).toBe("");
   });
 });
 
