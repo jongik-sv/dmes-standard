@@ -104,6 +104,8 @@ class ErdImportTest extends AbstractMdmSharedDbTest {
         JsonNode res = r.at("/data/result");
         assertThat(res.path("applied").asBoolean()).as(res.path("rejection").toString()).isTrue();
         assertThat(res.path("rev").asLong()).isEqualTo(1);
+        assertThat(res.path("rowVersion").asLong())
+                .isEqualTo(jdbc.queryForObject("SELECT ROW_VERSION FROM TB_MDM_ERD_MODEL_VER WHERE ERD_MODEL_ID = 'mdm' AND STATUS = 'DRAFT'", Long.class));
         assertThat(res.at("/summary/tables").asInt()).isEqualTo(tables);
         assertThat(res.at("/summary/columns").asInt()).isEqualTo(columns);
         assertThat(res.at("/summary/keys").asInt()).isGreaterThanOrEqualTo(pks);

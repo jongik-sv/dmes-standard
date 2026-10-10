@@ -16,9 +16,11 @@ public class ErdEditRequest {
     private String source;
     /** 명령 배열 JSON 문자열 — OASIS params 는 배열을 담지 못한다. */
     private String commandsJson;
+    /** import kind=APPLY_DIFF 의 고른 차이 항목 id(compare kind=DB_DIFF 의 items[].id) JSON 배열 문자열. */
+    private String itemsJson;
     private String logical;
     private String phys;
-    /** 액션별 종류 — view: SET_VIEW·STATUS, compare: DB_DIFF, import: FROM_DB, execute: ADD_EDITOR·REMOVE_EDITOR·CLAIM·RELEASE. */
+    /** 액션별 종류 — view: SET_VIEW·STATUS, compare: DB_DIFF, import: FROM_DB·APPLY_DIFF, execute: ADD_EDITOR·REMOVE_EDITOR·CLAIM·RELEASE. */
     private String kind;
     private String userId;
     private String viewJson;
@@ -27,6 +29,8 @@ public class ErdEditRequest {
     private String newOwnerId;
     private String applyFrom;
     private Boolean warningsAcknowledged;
+    /** save·restore 시험 실행(S2-15). true 면 판정만 하고 아무것도 쓰지 않는다. 없으면 false. import 는 받지 않는다. */
+    private Boolean dryRun;
 
     public String getModelId() { return modelId; }
     public String getModuleId() { return moduleId; }
@@ -40,6 +44,7 @@ public class ErdEditRequest {
     public String getSession() { return session; }
     public String getSource() { return source; }
     public String getCommandsJson() { return commandsJson; }
+    public String getItemsJson() { return itemsJson; }
     public String getLogical() { return logical; }
     public String getPhys() { return phys; }
     public String getKind() { return kind; }
@@ -50,6 +55,7 @@ public class ErdEditRequest {
     public String getNewOwnerId() { return newOwnerId; }
     public String getApplyFrom() { return applyFrom; }
     public Boolean getWarningsAcknowledged() { return warningsAcknowledged; }
+    public Boolean getDryRun() { return dryRun; }
 
     public void setModelId(String v) { this.modelId = v; }
     public void setModuleId(String v) { this.moduleId = v; }
@@ -63,6 +69,7 @@ public class ErdEditRequest {
     public void setSession(String v) { this.session = v; }
     public void setSource(String v) { this.source = v; }
     public void setCommandsJson(String v) { this.commandsJson = v; }
+    public void setItemsJson(String v) { this.itemsJson = v; }
     public void setLogical(String v) { this.logical = v; }
     public void setPhys(String v) { this.phys = v; }
     public void setKind(String v) { this.kind = v; }
@@ -73,4 +80,5 @@ public class ErdEditRequest {
     public void setNewOwnerId(String v) { this.newOwnerId = v; }
     public void setApplyFrom(String v) { this.applyFrom = v; }
     public void setWarningsAcknowledged(Boolean v) { this.warningsAcknowledged = v; }
+    public void setDryRun(Boolean v) { this.dryRun = v; }
 }

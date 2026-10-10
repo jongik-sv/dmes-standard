@@ -1,16 +1,26 @@
 package com.dongkuk.dmes.mdm.dma.erdEdit.stream;
 
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdChangesView;
+import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdClaimResult;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdModelCodec;
 import com.dongkuk.dmes.mdm.dma.erdEdit.service.ErdCommandService;
 import jakarta.annotation.PreDestroy;
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -70,6 +80,8 @@ public class ErdEventHub {
     static final long SEND_DEADLINE_MS = 10_000;
     /** 구독자별 큐 상한. 넘치면 reload 뒤 스트림을 닫는다. ping(15초)만 쌓여도 약 1시간 뒤에는 닫힌다. */
     static final int QUEUE_CAP = 256;
+    /** MCP·CLI 시한 접속자의 수명(S2-11). 작업 중 표시 TTL(ErdEditService.CLAIM_TTL_SECONDS)과 같다. */
+    static final long PRESENCE_TTL_SECONDS = 600;
 
     /** 큐 항목. delta 가 있으면 change(빈 칸 채우기·표시 행 포함), 없으면 이름 붙은 이벤트 하나. */
     private record Out(String name, Object body, ErdDelta delta) {
@@ -89,12 +101,16 @@ public class ErdEventHub {
     static final class Sub {
         final String modelId;
         final String session;
+        /** 구독한 사용자(SUBSCRIBE version 의 userId). 시험용 구독은 null. */
+        final String userId;
         final SseEmitter emitter;
         long lastRev = -1;
         volatile boolean replaying = true;
         volatile boolean dropped;
         /** 재생 읽기 결과. 비우기 스레드가 큐보다 먼저 보낸다. */
         volatile ErdChangesView replay;
+        /** 재생과 같이 읽은 버전 상태(SUBSCRIBE). 재생분 바로 뒤에 보낸다. */
+        volatile ErdVersionEvent replayVersion;
         long replaySince;
         final BlockingQueue<Out> queue = new ArrayBlockingQueue<>(QUEUE_CAP);
         /** 보내기 스레드가 이 구독을 비우는 중인가(한 번에 하나). */
@@ -107,9 +123,10 @@ public class ErdEventHub {
         volatile long sendingSince;
         volatile Thread sendingThread;
 
-        Sub(String modelId, String session, SseEmitter emitter) {
+        Sub(String modelId, String session, String userId, SseEmitter emitter) {
             this.modelId = modelId;
             this.session = session;
+            this.userId = userId;
             this.emitter = emitter;
         }
     }
@@ -124,6 +141,13 @@ public class ErdEventHub {
     private final Map<String, List<Sub>> subs = new ConcurrentHashMap<>();
     /** 키: modelId + "\u0000" + session. */
     private final Map<String, ErdPresence> presence = new ConcurrentHashMap<>();
+
+    /** MCP·CLI 시한 항목의 재료(S2-11). written = 마지막 반영 쓰기가 건드린 표, claimed = 그 세션의 작업 중 표시(표 → 만료 시각). */
+    private record Timed(List<String> written, Map<String, Instant> claimed) {}
+
+    /** 키는 presence 와 같다. 시한 항목을 만들고 지우는 일은 {@link #timedLock} 안에서 한다. */
+    private final Map<String, Timed> timed = new ConcurrentHashMap<>();
+    private final Object timedLock = new Object();
     private final Map<String, ClaimRefresh> claimRefresh = new ConcurrentHashMap<>();
     private final ObjectProvider<ErdCommandService> commandsProvider;
     private final JdbcTemplate jdbc;
@@ -207,7 +231,7 @@ public class ErdEventHub {
         // 비동기 응답이 끝날 때까지 JDBC 연결을 쥐어, 구독자 하나마다 풀 연결 하나가 묶인다. 재생도 그래서 별도 스레드에서 한다.
         long helloRev = currentRev(modelId);
         SseEmitter emitter = new SseEmitter(0L); // 0 = 시간 제한 없음. 끊김은 ping 보내기 실패로 잡는다
-        Sub sub = new Sub(modelId, session, emitter);
+        Sub sub = new Sub(modelId, session, userId, emitter);
         // 0. 새 구독이면 등록 전에 hello 를 보낸다 — 등록 전이라 다른 스레드(presence·claim·델타)가 이 구독에 먼저 보낼 수 없다.
         //    hello 의 rev 는 등록 전에 읽었으므로, 그 뒤에 커밋된 델타는 아래 재생(helloRev 부터)이 채운다.
         if (sinceRev < 0 && !send(sub, "hello", Map.of("rev", helloRev))) return emitter;
@@ -216,7 +240,10 @@ public class ErdEventHub {
         emitter.onCompletion(drop);
         emitter.onTimeout(drop);
         emitter.onError(e -> drop.run());
-        presence.put(key(modelId, session), new ErdPresence(session, userId, source, null, List.of(), Instant.now().toString()));
+        synchronized (timedLock) { // 시한 항목이 있었으면 SSE 항목으로 바꾼다(touchTimed 는 잠금 안에서 구독을 다시 본다)
+            timed.remove(key(modelId, session));
+            presence.put(key(modelId, session), new ErdPresence(session, userId, source, null, List.of(), Instant.now().toString()));
+        }
         // 2·3. 재생 읽기(현재 rev 포함)는 등록 뒤 읽기 스레드에서 한다. 그 사이의 실시간 델타는 큐에 쌓이고, 보내기 스레드가 재생분을
         //      먼저 보낸 뒤 lastRev 보다 큰 것만 보낸다.
         reader.execute(() -> replay(sub, sinceRev >= 0 ? sinceRev : helloRev));
@@ -227,7 +254,7 @@ public class ErdEventHub {
 
     /** 시험용: 재생 없이 lastRev 부터 받는 구독을 붙인다(DB 없이 보내기 큐만 시험할 때). */
     void attachForTest(String modelId, String session, SseEmitter emitter, long lastRev) {
-        Sub sub = new Sub(modelId, session, emitter);
+        Sub sub = new Sub(modelId, session, null, emitter);
         sub.lastRev = lastRev;
         sub.replaying = false;
         subs.computeIfAbsent(modelId, k -> new CopyOnWriteArrayList<>()).add(sub);
@@ -251,12 +278,16 @@ public class ErdEventHub {
      */
     private void replay(Sub sub, long sinceRev) {
         try {
-            ErdChangesView snapshot = dbRead(() -> commandsProvider.getObject().changesSince(sub.modelId, sinceRev));
+            record Read(ErdChangesView snapshot, ErdVersionEvent version) {}
+            // 구독마다 버전 상태 하나(S2-12 SUBSCRIBE). 보내기는 재생분 바로 뒤, 큐(presence·claim·실시간 델타)보다 먼저다.
+            Read read = dbRead(() -> new Read(commandsProvider.getObject().changesSince(sub.modelId, sinceRev),
+                    versionNow(sub.modelId, "SUBSCRIBE", sub.userId)));
             Runnable pause = replayPauseForTest;
             if (pause != null) pause.run();
             synchronized (sub) {
                 sub.replaySince = sinceRev;
-                sub.replay = snapshot;
+                sub.replay = read.snapshot();
+                sub.replayVersion = read.version();
                 sub.replaying = false;
             }
             schedule(sub);
@@ -278,6 +309,29 @@ public class ErdEventHub {
         for (ErdDelta d : snapshot.deltas()) {
             if (d.rev() <= s.lastRev) continue;
             if (!send(s, "change", d)) return;
+            s.lastRev = d.rev();
+        }
+    }
+
+    /**
+     * 빈 칸 채우기 — 큐 맨 앞 델타보다 앞 rev 만 명령 기록에서 보낸다. 같은 rev 의 실시간 델타가 이미 큐에 있으면 그것을 보낸다.
+     * 명령 기록의 델타는 rowVersion 이 없으므로(S2-16), 큐 맨 앞과 그 뒤 rev 는 큐에서 rowVersion 을 실은 채 나가게 한다.
+     * 표시 델타(reload)면 sendReplay 와 같다. 호출자(보내기 스레드)가 sub 를 잡고 있다.
+     */
+    private void sendGap(Sub s, ErdChangesView snapshot, long sinceRev) {
+        Out head = s.queue.peek();
+        if (snapshot.reload() || head == null || head.delta() == null) {
+            sendReplay(s, snapshot, sinceRev);
+            return;
+        }
+        long below = head.delta().rev();
+        Map<Long, ErdDelta> live = new HashMap<>();
+        for (Out o : s.queue) if (o.delta() != null && o.delta().rev() < below) live.putIfAbsent(o.delta().rev(), o.delta());
+        s.lastRev = Math.max(s.lastRev, sinceRev);
+        for (ErdDelta d : snapshot.deltas()) {
+            if (d.rev() <= s.lastRev) continue;
+            if (d.rev() >= below) continue;
+            if (!send(s, "change", live.getOrDefault(d.rev(), d))) return;
             s.lastRev = d.rev();
         }
     }
@@ -306,6 +360,42 @@ public class ErdEventHub {
         return d.rev() > s.lastRev + 1 && !ErdDelta.isMarker(d);
     }
 
+    // ── 버전 이벤트(S2-12) ─────────────────────────────────────────────
+
+    /**
+     * 지금 버전 상태 — view(ver 없음)가 돌려줄 값과 같다: DRAFT 가 있으면 그것, 없으면 가장 높은 RELEASED. 버전 행이 없으면 null.
+     * JdbcTemplate 으로 읽는다. 동작 뒤 이벤트는 호출자(ErdEditService)가 같은 트랜잭션 안에서 영속성 문맥을 내보낸 뒤 부른다 —
+     * 엔티티는 네이티브 CAS 뒤에 낡은 값을 가질 수 있다. 구독 직후 이벤트는 읽기 스레드가 {@link #dbRead} 안에서 부른다.
+     */
+    public ErdVersionEvent versionNow(String modelId, String reason, String userId) {
+        record Row(BigDecimal ver, String status, String ownerId, long rowVersion) {}
+        List<Row> rows = jdbc.query("""
+                SELECT VER
+                     , STATUS
+                     , OWNER_ID
+                     , ROW_VERSION
+                  FROM TB_MDM_ERD_MODEL_VER
+                 WHERE ERD_MODEL_ID = ?
+                   AND STATUS IN ('DRAFT', 'RELEASED')
+                 ORDER BY CASE STATUS WHEN 'DRAFT' THEN 0 ELSE 1 END
+                        , VER DESC
+                """, (rs, i) -> new Row(rs.getBigDecimal(1), rs.getString(2), rs.getString(3), rs.getLong(4)), modelId);
+        if (rows.isEmpty()) return null;
+        Row v = rows.get(0);
+        List<String> editors = jdbc.queryForList(
+                "SELECT USER_ID FROM TB_MDM_ERD_EDITOR WHERE ERD_MODEL_ID = ? AND VER = ? ORDER BY USER_ID",
+                String.class, modelId, v.ver());
+        return new ErdVersionEvent(modelId, VersionNumbers.plain(v.ver()), v.status(), v.ownerId(), List.copyOf(editors),
+                v.rowVersion(), reason, userId, Instant.now().toString());
+    }
+
+    /** 버전 이벤트를 커밋 뒤에(트랜잭션 밖이면 바로) 그 모델의 구독자 큐에 넣는다. 소켓 쓰기는 보내기 스레드가 한다. */
+    public void publishVersion(ErdVersionEvent event) {
+        afterCommit(() -> {
+            for (Sub s : subs.getOrDefault(event.modelId(), List.of())) enqueue(s, Out.event("version", event));
+        });
+    }
+
     // ── 접속자 ────────────────────────────────────────────────────────
 
     public List<ErdPresence> presence(String modelId) {
@@ -314,12 +404,16 @@ public class ErdEventHub {
                 .sorted(Comparator.comparing(ErdPresence::session)).toList();
     }
 
-    /** 화면 상태 갱신(SET_VIEW). 실시간 채널에 붙은 세션만 바꿀 수 있다 — 없으면 false. */
+    /** 화면 상태 갱신(SET_VIEW). 실시간 채널에 붙은 세션만 바꿀 수 있다 — 없거나 시한 항목(MCP·CLI)이면 false. */
     public boolean updateView(String modelId, String session, String diagramId, List<String> selectedTables) {
-        ErdPresence updated = presence.computeIfPresent(key(modelId, session),
-                (k, p) -> new ErdPresence(p.session(), p.userId(), p.source(), diagramId, List.copyOf(selectedTables),
-                        Instant.now().toString()));
-        if (updated == null) return false;
+        boolean[] hit = {false};
+        presence.computeIfPresent(key(modelId, session), (k, p) -> {
+            if (p.expiresAt() != null) return p;
+            hit[0] = true;
+            return new ErdPresence(p.session(), p.userId(), p.source(), diagramId, List.copyOf(selectedTables),
+                    Instant.now().toString());
+        });
+        if (!hit[0]) return false;
         broadcastPresence(modelId);
         return true;
     }
@@ -329,6 +423,77 @@ public class ErdEventHub {
         for (Sub s : subs.getOrDefault(modelId, List.of())) enqueue(s, Out.event("presence", list));
     }
 
+    /** 시한 접속자를 만드는 출처. UI 는 SSE 구독이 접속자를 만든다. */
+    public static boolean isTimedSource(String source) {
+        return "MCP".equals(source) || "CLI".equals(source);
+    }
+
+    /**
+     * MCP·CLI 요청의 시한 접속자(S2-11). touchedTables 가 null 이면 읽기다 — 표 목록은 그대로 두고 만료만 늘린다. 반영된 쓰기는
+     * 커밋 뒤 콜백에서 건드린 표를 넘긴다(DB 를 읽지 않는다). 같은 모델·세션의 SSE 구독이 있으면 아무것도 하지 않는다.
+     */
+    public void touch(String modelId, String session, String userId, String source, List<String> touchedTables) {
+        touchTimed(modelId, session, userId, source,
+                touchedTables == null ? null : List.copyOf(new TreeSet<>(touchedTables)), null);
+    }
+
+    /**
+     * CLAIM·RELEASE 뒤: 그 세션의 작업 중 표시 부분을 다시 정한다. claims 는 호출자가 같은 트랜잭션 연결로 읽은 그 모델의 목록이다.
+     * 반영은 커밋 뒤에 한다 — claim 이벤트 뒤에 presence 가 가고, 되돌린 트랜잭션은 접속자 표시를 바꾸지 않는다.
+     */
+    public void touchClaims(String modelId, String session, String userId, String source, List<ErdClaimView> claims) {
+        Map<String, Instant> mine = new TreeMap<>();
+        for (ErdClaimView cl : claims) {
+            if (cl.session().equals(session)) mine.put(cl.tableId(), Instant.parse(cl.expiresAt()));
+        }
+        afterCommit(() -> touchTimed(modelId, session, userId, source, null, mine));
+    }
+
+    /** 새로 생기거나 selectedTables 가 바뀌면 방송한다. 만료만 늘면 방송하지 않는다. */
+    private void touchTimed(String modelId, String session, String userId, String source,
+                            List<String> written, Map<String, Instant> claimed) {
+        if (session == null || session.isBlank() || !isTimedSource(source)) return;
+        if (subs.getOrDefault(modelId, List.of()).stream().anyMatch(s -> !s.dropped && s.session.equals(session))) return;
+        String k = key(modelId, session);
+        Instant now = Instant.now();
+        boolean changed;
+        synchronized (timedLock) {
+            // 잠금 밖 검사와 여기 사이에 같은 세션이 구독했으면 SSE 항목을 덮지 않는다(subscribe 는 등록 뒤 이 잠금 안에서 항목을 둔다)
+            if (subs.getOrDefault(modelId, List.of()).stream().anyMatch(s -> !s.dropped && s.session.equals(session))) return;
+            Timed old = timed.getOrDefault(k, new Timed(List.of(), Map.of()));
+            Timed t = new Timed(written != null ? written : old.written(), claimed != null ? claimed : old.claimed());
+            timed.put(k, t);
+            TreeSet<String> tables = new TreeSet<>(t.written());
+            t.claimed().forEach((table, until) -> {
+                if (until.isAfter(now)) tables.add(table);
+            });
+            List<String> selected = List.copyOf(tables);
+            ErdPresence prev = presence.put(k, new ErdPresence(session, userId, source, null, selected, now.toString(),
+                    now.plusSeconds(PRESENCE_TTL_SECONDS).toString()));
+            changed = prev == null || prev.expiresAt() == null || !prev.selectedTables().equals(selected);
+        }
+        if (changed) broadcastPresence(modelId);
+    }
+
+    /**
+     * 시한 접속자 정리(S2-11). 핑 주기(15초)가 지금 시각으로 부른다. expiresAt 이 now 이전인 항목을 지우고, 지운 것이 있는 모델에만
+     * presence 를 다시 방송한다(지운 것이 없으면 아무것도 보내지 않는다). 시험은 600초 뒤 시각을 넣어 부른다.
+     */
+    public void sweepPresence(Instant now) {
+        Set<String> models = new HashSet<>();
+        synchronized (timedLock) {
+            for (Map.Entry<String, ErdPresence> e : presence.entrySet()) {
+                String exp = e.getValue().expiresAt();
+                if (exp == null || Instant.parse(exp).isAfter(now)) continue;
+                if (presence.remove(e.getKey(), e.getValue())) {
+                    timed.remove(e.getKey());
+                    models.add(e.getKey().substring(0, e.getKey().indexOf('\u0000')));
+                }
+            }
+        }
+        models.forEach(this::broadcastPresence);
+    }
+
     /** 구독 해제. 여러 번 불려도 한 번만 처리한다(onCompletion·onError·보내기 실패·감시가 겹친다). */
     private void drop(Sub sub) {
         sub.dropped = true;
@@ -336,7 +501,10 @@ public class ErdEventHub {
         if (!list.remove(sub)) return;
         // 같은 세션이 다시 붙어 있으면(재연결이 겹친 경우) 접속자 표시는 남긴다.
         if (list.stream().noneMatch(s -> s.session.equals(sub.session))) {
-            presence.remove(key(sub.modelId, sub.session));
+            synchronized (timedLock) {
+                timed.remove(key(sub.modelId, sub.session));
+                presence.remove(key(sub.modelId, sub.session));
+            }
             broadcastPresence(sub.modelId);
         }
     }
@@ -344,12 +512,15 @@ public class ErdEventHub {
     // ── 작업 중 표시(TB_MDM_ERD_CLAIM) ──────────────────────────────────
 
     /**
-     * 표 하나를 작업 중으로 표시한다. 다른 세션이 아직 만료되지 않은 표시를 갖고 있으면 빼앗지 않고 false.
-     * 호출자 트랜잭션(OASIS)이 있으면 그 연결로 쓰고, 방송은 커밋 뒤에 한다({@link #afterCommit}).
+     * 표 하나를 작업 중으로 표시하고 지금 그 표를 쥔 세션을 돌려준다(S2-26). 다른 세션이 아직 만료되지 않은 표시를 갖고 있으면 빼앗지 않고
+     * ok=false 와 그 세션을 준다. 같은 표를 다른 세션이 동시에 처음 표시해 키가 겹치면 Oracle 은 상대 커밋까지 기다린 뒤 키 위반을 내고,
+     * 그 뒤 커밋된 상대 행을 읽는다. 그 사이에 상대 표시가 만료·해제되어 읽을 행이 없을 때만 셋 다 null 이다. 호출자 트랜잭션(OASIS)이 있으면 그 연결로 쓰고 읽으며, 방송은 커밋 뒤에 한다({@link #afterCommit}).
      */
-    public boolean claim(String modelId, String tableId, String session, String userId, long ttlSeconds) {
-        Timestamp now = Timestamp.from(Instant.now());
-        Timestamp until = Timestamp.from(Instant.now().plusSeconds(ttlSeconds));
+    public ErdClaimResult claimFor(String modelId, String tableId, String session, String userId, long ttlSeconds) {
+        Instant at = Instant.now().truncatedTo(ChronoUnit.MICROS); // EXPIRES_AT 은 TIMESTAMP(6) — 돌려주는 글과 저장 값을 같게
+        Timestamp now = Timestamp.from(at);
+        Instant until = at.plusSeconds(ttlSeconds);
+        Timestamp untilTs = Timestamp.from(until);
         int n;
         try {
             n = jdbc.update("""
@@ -371,13 +542,39 @@ public class ErdEventHub {
                  WHEN NOT MATCHED THEN INSERT
                        (ERD_MODEL_ID, TABLE_UUID, SESSION_NM, USER_ID, EXPIRES_AT, C_USR_ID, C_AT, U_USR_ID, U_AT, VER)
                        VALUES (S.ERD_MODEL_ID, S.TABLE_UUID, ?, ?, ?, ?, ?, ?, ?, 0)
-                """, modelId, tableId, session, userId, until, userId, now, session, now,
-                session, userId, until, userId, now, userId, now);
+                """, modelId, tableId, session, userId, untilTs, userId, now, session, now,
+                    session, userId, untilTs, userId, now, userId, now);
         } catch (DuplicateKeyException e) {
-            return false; // 같은 표를 다른 세션이 동시에 처음 표시했다 — 먼저 들어간 쪽이 이긴다
+            n = 0; // 같은 표를 다른 세션이 동시에 처음 표시했다 — 먼저 들어간 쪽이 이긴다
         }
-        if (n > 0) afterCommit(() -> refreshClaims(modelId));
-        return n > 0;
+        if (n > 0) {
+            afterCommit(() -> refreshClaims(modelId));
+            return new ErdClaimResult(true, session, userId, until.toString());
+        }
+        return holder(modelId, tableId)
+                .map(h -> new ErdClaimResult(false, h.session(), h.userId(), h.expiresAt()))
+                .orElseGet(() -> new ErdClaimResult(false, null, null, null));
+    }
+
+    /** 단계 1 모양(성공 여부만). */
+    public boolean claim(String modelId, String tableId, String session, String userId, long ttlSeconds) {
+        return claimFor(modelId, tableId, session, userId, ttlSeconds).ok();
+    }
+
+    /** 지금 그 표를 쥔 살아 있는 표시. 호출자 트랜잭션 연결로 읽는다. */
+    private Optional<ErdClaimView> holder(String modelId, String tableId) {
+        return jdbc.query("""
+                SELECT TABLE_UUID
+                     , SESSION_NM
+                     , USER_ID
+                     , EXPIRES_AT
+                  FROM TB_MDM_ERD_CLAIM
+                 WHERE ERD_MODEL_ID = ?
+                   AND TABLE_UUID = ?
+                   AND EXPIRES_AT > ?
+                """, (rs, i) -> new ErdClaimView(rs.getString(1), rs.getString(2), rs.getString(3),
+                        rs.getTimestamp(4).toInstant().toString()), modelId, tableId, Timestamp.from(Instant.now()))
+                .stream().findFirst();
     }
 
     /** 작업 중 표시를 지운다. 쓰기·방송 시점은 {@link #claim} 과 같다. */
@@ -449,6 +646,11 @@ public class ErdEventHub {
     // ── 보내기 ────────────────────────────────────────────────────────
 
     private void pingAll() {
+        try {
+            sweepPresence(Instant.now());
+        } catch (RuntimeException e) {
+            log.warn("ERD 시한 접속자 정리 실패", e);
+        }
         Map<String, Object> body = Map.of("at", Instant.now().toString());
         subs.values().forEach(list -> list.forEach(s -> enqueue(s, Out.event("ping", body))));
     }
@@ -525,6 +727,9 @@ public class ErdEventHub {
                     if (replay != null) {
                         s.replay = null;
                         sendReplay(s, replay, s.replaySince);
+                        ErdVersionEvent version = s.replayVersion;
+                        s.replayVersion = null;
+                        if (version != null && !s.dropped) send(s, "version", version);
                         continue;
                     }
                     if (s.overflowed) {
@@ -544,7 +749,7 @@ public class ErdEventHub {
                 ErdChangesView v = dbRead(() -> commandsProvider.getObject().changesSince(s.modelId, gapFrom));
                 synchronized (s) {
                     if (s.overflowed || s.dropped) continue; // 읽는 사이에 넘쳤다 — 다음 바퀴가 reload 뒤 닫는다
-                    if (s.lastRev == gapFrom) sendReplay(s, v, gapFrom); // 사이에 다른 경로가 lastRev 를 옮기지 않았을 때만
+                    if (s.lastRev == gapFrom) sendGap(s, v, gapFrom); // 사이에 다른 경로가 lastRev 를 옮기지 않았을 때만
                     // 채운 뒤에도 빈 칸이 남으면(기록이 아직 그 rev 를 모름) 그 델타는 그대로 보낸다 — 다시 읽기를 되풀이하지 않는다.
                     Out o = s.queue.poll();
                     if (o != null) {

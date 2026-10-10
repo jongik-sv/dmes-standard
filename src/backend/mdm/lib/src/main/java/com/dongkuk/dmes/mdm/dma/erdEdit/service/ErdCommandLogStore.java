@@ -89,6 +89,16 @@ public class ErdCommandLogStore {
         return n.longValue() > 0;
     }
 
+    /**
+     * 그 rev 를 남긴 사용자(S2-13 — 충돌·삭제 거절의 byUserId). 쓰기 트랜잭션 안(거절 직후)에서 부르므로 readOnly 를 붙이지 않는다
+     * ({@link #markerBetween} 과 같다).
+     */
+    public Optional<String> userAt(String modelId, long rev) {
+        List<?> rows = em.createNativeQuery("SELECT USER_ID FROM TB_MDM_ERD_CMD_LOG WHERE ERD_MODEL_ID = ? AND REV = ?")
+                .setParameter(1, modelId).setParameter(2, rev).getResultList();
+        return rows.stream().findFirst().map(String.class::cast);
+    }
+
     /** 되돌리기 재료: [inverseJson, session]. */
     @Transactional(readOnly = true)
     public Optional<String[]> inverse(String modelId, long rev) {

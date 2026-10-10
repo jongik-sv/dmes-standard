@@ -10,6 +10,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,10 +45,14 @@ class ErdEditOasisHttpTest extends AbstractMdmSharedDbTest {
     }
 
     JsonNode call(String action, String user, Map<String, Object> params) throws Exception {
+        return call(action, user, "MDM_STEWARD", params);
+    }
+
+    JsonNode call(String action, String user, String role, Map<String, Object> params) throws Exception {
         String body = om.writeValueAsString(Map.of("meta", Map.of("menuId", "erdEdit"), "params", params));
         var req = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/oasis/erdEdit/" + action))
                 .header("Content-Type", "application/json").header("X-Client-Key", effectiveClientKey())
-                .header("X-Authenticated-User", user).header("X-Authenticated-Role", "MDM_STEWARD")
+                .header("X-Authenticated-User", user).header("X-Authenticated-Role", role)
                 .POST(HttpRequest.BodyPublishers.ofString(body)).build();
         return om.readTree(http.send(req, HttpResponse.BodyHandlers.ofString()).body());
     }
@@ -81,6 +86,54 @@ class ErdEditOasisHttpTest extends AbstractMdmSharedDbTest {
         JsonNode r = call("compare", "owner", Map.of("logical", "역할아이디"));
         assertThat(r.at("/meta/success").asBoolean()).isTrue();
         assertThat(r.at("/data/result").has("tokens")).isTrue();
+    }
+
+    long draftRowVersion() {
+        return jdbc.queryForObject("SELECT ROW_VERSION FROM TB_MDM_ERD_MODEL_VER WHERE ERD_MODEL_ID = 'mcm' AND STATUS = 'DRAFT'", Long.class);
+    }
+
+    /** deferred 36 — 실패 경로가 S001 이 아니라 업무 오류 코드로 오고, 실패한 동작은 아무것도 바꾸지 않는다. */
+    @Test
+    void failurePathsAreBusinessErrors() throws Exception {
+        reg();
+        assertThat(call("view", "owner", Map.of("modelId", "mcm", "ver", "9.999")).at("/meta/code").asText()).isEqualTo("MDM029");
+        JsonNode view = call("view", "owner", Map.of("modelId", "mcm"));
+        String ver = view.at("/data/result/ver").asText();
+        long rv = view.at("/data/result/rowVersion").asLong();
+        assertThat(call("unlock", "owner", Map.of("modelId", "mcm", "ver", ver, "rowVersion", rv + 5)).at("/meta/code").asText())
+                .isEqualTo("MDM001");
+        assertThat(draftRowVersion()).isEqualTo(rv);
+        // 사전에 없는 토막의 컬럼(MISS) — 첫 확정은 경고로만 알린다(R8-1). 확인 없이 확정하면 MDM014.
+        JsonNode setup = call("save", "owner", Map.of("modelId", "mcm", "baseRev", 0, "commandsJson",
+                "[{\"op\":\"addTable\",\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"},"
+                        + "{\"op\":\"addColumn\",\"id\":\"c-1\",\"table\":\"t-1\",\"phys\":\"ZZQX_QWV\",\"logical\":\"모름\",\"dataType\":\"VARCHAR2\",\"length\":10}]"));
+        assertThat(setup.at("/data/result/applied").asBoolean()).as(setup.toString()).isTrue();
+        Map<String, Object> confirm = new HashMap<>(Map.of("modelId", "mcm", "ver", ver, "rowVersion", draftRowVersion(),
+                "applyFrom", "2030-01-01 00:00:00"));
+        long rv1 = draftRowVersion();
+        assertThat(call("confirm", "kim", confirm).at("/meta/code").asText()).isEqualTo("MDM003");               // 소유자가 아니다
+        assertThat(draftRowVersion()).isEqualTo(rv1);
+        assertThat(call("confirm", "owner", "MDM_STD_ADMIN", confirm).at("/meta/code").asText()).isEqualTo("MDM013"); // 담당자 역할이 없다
+        assertThat(draftRowVersion()).isEqualTo(rv1);
+        JsonNode noAck = call("confirm", "owner", confirm);
+        assertThat(noAck.at("/meta/code").asText()).as(noAck.toString()).isEqualTo("MDM014");
+        assertThat(draftRowVersion()).isEqualTo(rv1);
+        confirm.put("warningsAcknowledged", true);
+        assertThat(call("confirm", "owner", confirm).at("/data/result/ok").asBoolean()).isTrue();
+        // 두 번째 버전에서 새로 더한 위반 컬럼은 확정을 막는다(D19) → MDM010
+        jdbc.update("UPDATE TB_MDM_ERD_MODEL_VER SET APPLY_FROM = ADD_MONTHS(APPLY_FROM, -240) WHERE ERD_MODEL_ID = 'mcm'");
+        String ver2 = call("copy", "owner", Map.of("modelId", "mcm", "verKind", "MINOR")).at("/data/result/ver").asText();
+        long rev = jdbc.queryForObject("SELECT REV FROM TB_MDM_ERD_MODEL WHERE ERD_MODEL_ID = 'mcm'", Long.class);
+        JsonNode added = call("save", "owner", Map.of("modelId", "mcm", "baseRev", rev, "commandsJson",
+                "[{\"op\":\"addColumn\",\"id\":\"c-2\",\"table\":\"t-1\",\"phys\":\"ZZQX_QWZ\",\"logical\":\"모름2\",\"dataType\":\"VARCHAR2\",\"length\":10}]"));
+        assertThat(added.at("/data/result/applied").asBoolean()).as(added.toString()).isTrue();
+        long rv2 = draftRowVersion();
+        JsonNode blocked = call("confirm", "owner", Map.of("modelId", "mcm", "ver", ver2, "rowVersion", rv2,
+                "applyFrom", "2031-01-01 00:00:00", "warningsAcknowledged", true));
+        assertThat(blocked.at("/meta/code").asText()).as(blocked.toString()).isEqualTo("MDM010");
+        assertThat(draftRowVersion()).isEqualTo(rv2);
+        assertThat(jdbc.queryForObject("SELECT STATUS FROM TB_MDM_ERD_MODEL_VER WHERE ERD_MODEL_ID = 'mcm' AND VER = ?", String.class,
+                new java.math.BigDecimal(ver2))).isEqualTo("DRAFT");
     }
 
     private void reg() throws Exception {

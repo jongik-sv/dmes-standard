@@ -15,6 +15,7 @@ import org.hibernate.query.NativeQuery;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * ERD 모델·버전 읽기와 네이티브 쓰기({@code RuleSetWrites} 선례). 상태·REV·JSON 은 엔티티에서 {@code updatable=false} 라 네이티브로만 쓴다.
@@ -53,6 +54,11 @@ public class ErdModelStore {
                 .setParameter(1, modelId).getResultList();
         if (rows.isEmpty()) throw MdmErrors.of(MdmErrorCode.ERD_MODEL_NOT_FOUND);
         return ((Number) rows.get(0)).longValue();
+    }
+
+    /** 영속성 문맥의 쓰기를 DB 로 내보낸다. 같은 트랜잭션의 값을 JdbcTemplate 으로 읽기 전에 부른다(버전 이벤트 S2-12). */
+    public void flush() {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) em.flush();
     }
 
     @Transactional

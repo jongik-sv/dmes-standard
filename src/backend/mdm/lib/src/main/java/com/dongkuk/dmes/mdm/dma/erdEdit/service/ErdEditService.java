@@ -16,6 +16,7 @@ import com.dongkuk.dmes.mdm.dma.erdEdit.dbmeta.ErdDbMeta;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dbmeta.ErdDbMetaReader;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdApplyResult;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDbDiffView;
+import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiffApplyResult;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdEditRequest;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdStatusView;
 import com.dongkuk.dmes.mdm.dma.erdEdit.importing.ErdDbDiff;
@@ -34,6 +35,7 @@ import com.dongkuk.dmes.mdm.dma.erdEdit.standard.ErdColumnStatus;
 import com.dongkuk.dmes.mdm.dma.erdEdit.standard.ErdDictionary;
 import com.dongkuk.dmes.mdm.dma.erdEdit.standard.ErdDictionaryLoader;
 import com.dongkuk.dmes.mdm.dma.erdEdit.standard.ErdStandardJudge;
+import com.dongkuk.dmes.mdm.dma.erdEdit.standard.ErdTypeMapping;
 import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdEventHub;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdDomainSpec;
 import com.dongkuk.dmes.mdm.dma.naming.NameComposition;
@@ -46,6 +48,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -138,6 +141,12 @@ public class ErdEditService {
      */
     public Object view(ErdEditRequest r) {
         String modelId = requireModelId(r);
+        Object out = viewOf(modelId, r);
+        touch(modelId, r, currentUser.userId());
+        return out;
+    }
+
+    private Object viewOf(String modelId, ErdEditRequest r) {
         switch (kind(r)) {
             case "" -> { }
             case "SET_VIEW" -> {
@@ -227,10 +236,9 @@ public class ErdEditService {
         out.put("tokens", nc.tokens());
         out.put("recommendedDomainId", dom.map(ErdDomainSpec::domainId).orElse(null));
         out.put("status", nc.placeholder() ? ErdColumnStatus.MISS.name() : previewStatus(d, nc.physName(), dom).name());
-        return out;
+        return plain(out);
     }
 
-    /** 컬럼 하나짜리 임시 모델로 표준 판정을 부른다. 타입은 추천 도메인 것을 쓴다(아직 타입을 고르지 않은 입력이므로). */
     /**
      * 컬럼별 표준 상태(README S5). 사전을 이 요청에서 한 번 읽어 모델 전체를 판정한다(P3, 캐시 없음).
      * elapsedMs 는 사전 적재 + 판정 시간이다 — 단계 1 마감(Task 12)이 L_MAIN 에서 이 값으로 판정 시간을 잰다.
@@ -267,24 +275,33 @@ public class ErdEditService {
         long rev = store.rev(modelId);
         String schema = moduleAndSchema(modelId)[1];
         ErdModel m = ErdModelCodec.read(store.current(modelId).getModelJson());
-        return plain(new ErdDbDiffView(modelId, rev, schema, ErdDbDiff.diff(m, metaReader.read(schema))));
+        ErdDbDiffView out = new ErdDbDiffView(modelId, rev, schema, ErdDbDiff.diff(m, metaReader.read(schema)));
+        touch(modelId, r, currentUser.userId());
+        return plain(out);
     }
 
+    /** 미리보기용 컬럼. 타입은 추천 도메인을 물리 타입으로 바꾼 값이다(S2-3 — copyDomain 과 같은 대응). 도메인이 없으면 타입도 없다. */
+    static ErdColumn previewColumn(String phys, Optional<ErdDomainSpec> dom) {
+        ErdColumn c = new ErdColumn();
+        c.table = "t-preview";
+        c.phys = phys;
+        dom.ifPresent(x -> {
+            ErdTypeMapping.PhysType p = ErdTypeMapping.physicalOf(x.dataType(), x.length(), x.scale());
+            c.domainId = x.domainId();
+            c.dataType = p.dataType();
+            c.length = p.length();
+            c.scale = p.scale();
+        });
+        return c;
+    }
+
+    /** 컬럼 하나짜리 임시 모델로 표준 판정을 부른다. 아직 타입을 고르지 않은 입력이므로 추천 도메인의 물리 타입을 쓴다. */
     private static ErdColumnStatus previewStatus(ErdDictionary d, String phys, Optional<ErdDomainSpec> dom) {
         ErdModel m = ErdModel.empty("preview", "preview");
         ErdTable t = new ErdTable();
         t.phys = "TB_PREVIEW";
         m.tables.put("t-preview", t);
-        ErdColumn c = new ErdColumn();
-        c.table = "t-preview";
-        c.phys = phys;
-        dom.ifPresent(x -> {
-            c.domainId = x.domainId();
-            c.dataType = x.dataType();
-            c.length = x.length();
-            c.scale = x.scale();
-        });
-        m.columns.put("c-preview", c);
+        m.columns.put("c-preview", previewColumn(phys, dom));
         t.columnOrder.add("c-preview");
         return ErdStandardJudge.judge(m, d).get("c-preview");
     }
@@ -325,7 +342,9 @@ public class ErdEditService {
         }
         String session = session(r, me);
         String source = source(r);
-        return plain(commands.apply(modelId, r.getBaseRev(), me, session, source, list));
+        ErdApplyResult res = commands.apply(modelId, r.getBaseRev(), me, session, source, list, dryRun(r));
+        if (!res.applied()) touch(modelId, r, me);
+        return plain(res);
     }
 
     /** 변경 기록에서 고른 명령 하나를 역명령으로 되돌린다(D14). */
@@ -335,7 +354,9 @@ public class ErdEditService {
         String me = currentUser.userId();
         String session = session(r, me);
         String source = source(r);
-        return plain(commands.undo(modelId, r.getRev(), me, session, source));
+        ErdApplyResult res = commands.undo(modelId, r.getRev(), me, session, source, dryRun(r));
+        if (!res.applied()) touch(modelId, r, me);
+        return plain(res);
     }
 
     /**
@@ -344,7 +365,9 @@ public class ErdEditService {
      */
     public Map<String, Object> importModel(ErdEditRequest r) {
         String modelId = requireModelId(r);
-        if (!isKind(r, "FROM_DB")) throw MdmErrors.invalid("import 의 kind 는 FROM_DB 입니다: " + r.getKind());
+        if (dryRun(r)) throw MdmErrors.invalid("import 는 dryRun 을 받지 않습니다. 차이는 compare kind=DB_DIFF 로 먼저 보세요");
+        if (isKind(r, "APPLY_DIFF")) return applyDiff(modelId, r);
+        if (!isKind(r, "FROM_DB")) throw MdmErrors.invalid("import 의 kind 는 FROM_DB·APPLY_DIFF 입니다: " + r.getKind());
         if (r.getBaseRev() == null) throw MdmErrors.invalid("baseRev 는 필수입니다");
         long baseRev = r.getBaseRev();
         String me = currentUser.userId();
@@ -359,10 +382,53 @@ public class ErdEditService {
         ErdImportBuilder.Built built = ErdImportBuilder.build(meta, inferred, dictionaries.load(), baseRev);
         ErdApplyResult res = commands.applyImport(modelId, baseRev, me, session, source,
                 built.restore(), built.diagramCommands());
+        if (!res.applied()) touch(modelId, r, me);
         List<ErdWarning> warnings = new ArrayList<>(res.warnings());
         if (res.applied()) warnings.addAll(built.skipped());
-        return plain(new ErdImportResult(res.applied(), res.rev(), res.changes(), warnings, res.rejection(),
+        return plain(new ErdImportResult(res.applied(), res.rev(), res.rowVersion(), res.changes(), warnings, res.rejection(),
                 res.applied() ? built.summary() : null));
+    }
+
+    static final int MAX_DIFF_ITEMS = 500;
+
+    /**
+     * 다시 가져오기 반영(S2-14). 스키마 메타와 사전은 잠그기 전에 읽는다(사전 뷰 읽기는 길다). 잠금 안의 판정은 ErdCommandService 가 한다.
+     * 거절도 성공 응답에 rejection 을 담는다(save 와 같다).
+     */
+    private Map<String, Object> applyDiff(String modelId, ErdEditRequest r) {
+        if (r.getBaseRev() == null) throw MdmErrors.invalid("baseRev 는 필수입니다");
+        // 스키마 메타·사전을 읽기(느림) 전에 막는다 — 서비스 쪽 검사까지 가면 그 읽기가 헛수고다.
+        if (r.getBaseRev() < 0) throw MdmErrors.invalid("baseRev 는 0 이상이어야 합니다");
+        List<String> ids = itemIds(r.getItemsJson());
+        String me = currentUser.userId();
+        String session = session(r, me);
+        String source = source(r);
+        ErdDbMeta meta = metaReader.read(moduleAndSchema(modelId)[1]);
+        ErdDiffApplyResult res = commands.applyDiff(modelId, r.getBaseRev(), me, session, source, meta, dictionaries.load(), ids);
+        if (!res.applied()) touch(modelId, r, me);
+        return plain(res);
+    }
+
+    /** itemsJson = 차이 항목 id 의 JSON 배열 문자열(OASIS params 는 배열을 싣지 못한다). 1~500개, 빈 글자 없음, 겹치면 하나로. */
+    static List<String> itemIds(String json) {
+        JsonNode arr;
+        try {
+            arr = ErdModelCodec.MAPPER.readTree(json == null ? "" : json);
+        } catch (JsonProcessingException e) {
+            throw MdmErrors.invalid("itemsJson 을 읽을 수 없습니다: " + e.getOriginalMessage());
+        }
+        if (arr == null || !arr.isArray()) throw MdmErrors.invalid("itemsJson 은 차이 항목 id 배열 JSON 이어야 합니다");
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        for (JsonNode n : arr) {
+            if (!n.isTextual() || n.asText().isBlank()) {
+                throw MdmErrors.invalid("itemsJson 의 항목은 빈 글자가 아닌 문자열이어야 합니다(compare kind=DB_DIFF 의 items[].id)");
+            }
+            ids.add(n.asText().trim());
+        }
+        if (ids.isEmpty() || ids.size() > MAX_DIFF_ITEMS) {
+            throw MdmErrors.invalid("고른 차이 항목은 1~" + MAX_DIFF_ITEMS + "개여야 합니다(지금 " + ids.size() + "개)");
+        }
+        return List.copyOf(ids);
     }
 
     /** 모델 행의 [MODULE_ID, SCHEMA_NAME]. 없으면 ERD_MODEL_NOT_FOUND. */
@@ -389,23 +455,33 @@ public class ErdEditService {
         String modelId = requireModelId(r);
         String me = currentUser.userId();
         switch (kind(r)) {
-            case "ADD_EDITOR" -> versions.addEditor(modelId, requireText(r.getUserId(), "userId", 50), me); // USER_ID 50자
-            case "REMOVE_EDITOR" -> versions.removeEditor(modelId, requireText(r.getUserId(), "userId"), me);
+            case "ADD_EDITOR" -> {
+                versions.addEditor(modelId, requireText(r.getUserId(), "userId", 50), me); // USER_ID 50자
+                announce(modelId, "ADD_EDITOR");
+            }
+            case "REMOVE_EDITOR" -> {
+                versions.removeEditor(modelId, requireText(r.getUserId(), "userId"), me);
+                announce(modelId, "REMOVE_EDITOR");
+            }
             case "CLAIM" -> {
                 // 칸 크기(TABLE_UUID 50, SESSION_NM 100)를 넘으면 ORA-12899(S001) 대신 입력 오류. DB 를 읽기 전에 본다.
                 String tableId = requireText(r.getTableId(), "tableId", 50);
                 String session = requireMax(session(r, me), "session", 100);
                 store.rev(modelId); // 없는 모델이면 FK 오류 대신 ERD_MODEL_NOT_FOUND
-                // OASIS 트랜잭션 연결로 쓰고, 허브는 커밋 뒤에 SSE 로 알린다(deferred 27 — 연결 하나).
-                return Map.of("ok", hub.claim(modelId, tableId, session, me, CLAIM_TTL_SECONDS));
+                // S2-26: ok 와 상관없이 지금 그 표를 쥔 세션을 준다. OASIS 트랜잭션 연결로 쓰고, 허브는 커밋 뒤에 SSE 로 알린다(deferred 27).
+                var res = hub.claimFor(modelId, tableId, session, me, CLAIM_TTL_SECONDS);
+                touchClaims(modelId, r, me);
+                return plain(res);
             }
             case "RELEASE" -> {
                 String tableId = requireText(r.getTableId(), "tableId");
                 String session = session(r, me);
                 hub.release(modelId, tableId, session); // CLAIM 과 같다
+                touchClaims(modelId, r, me);
             }
             default -> throw MdmErrors.invalid("지원하지 않는 kind 입니다: " + r.getKind());
         }
+        touch(modelId, r, me);
         return Map.of("ok", true);
     }
 
@@ -432,25 +508,68 @@ public class ErdEditService {
     }
 
     public Map<String, Object> lock(ErdEditRequest r) {
-        return Map.of("rowVersion", ownership.acquire(ref(requireModelId(r), r.getVer()), rowVersion(r), currentUser.userId()));
+        String modelId = requireModelId(r);
+        long rv = ownership.acquire(ref(modelId, r.getVer()), rowVersion(r), currentUser.userId());
+        announce(modelId, "LOCK");
+        return Map.of("rowVersion", rv);
     }
 
     public Map<String, Object> unlock(ErdEditRequest r) {
-        return Map.of("rowVersion", ownership.release(ref(requireModelId(r), r.getVer()), rowVersion(r), currentUser.userId()));
+        String modelId = requireModelId(r);
+        long rv = ownership.release(ref(modelId, r.getVer()), rowVersion(r), currentUser.userId());
+        announce(modelId, "UNLOCK");
+        return Map.of("rowVersion", rv);
     }
 
     public Map<String, Object> handover(ErdEditRequest r) {
-        return Map.of("rowVersion", ownership.handover(ref(requireModelId(r), r.getVer()), rowVersion(r), currentUser.userId(),
-                requireText(r.getNewOwnerId(), "newOwnerId")));
+        String modelId = requireModelId(r);
+        long rv = ownership.handover(ref(modelId, r.getVer()), rowVersion(r), currentUser.userId(),
+                requireText(r.getNewOwnerId(), "newOwnerId"));
+        announce(modelId, "HANDOVER");
+        return Map.of("rowVersion", rv);
     }
 
-    /** 소유자 직접 확정(계획 P8). 확정 검사는 공통 서비스가 ErdConfirmCheck 를 부른다. */
+    /** 소유자 직접 확정(계획 P8). 확정 검사는 공통 서비스가 ErdConfirmCheck 를 부른다. applyFrom 은 필수다(yyyy-MM-dd HH:mm:ss). */
     public Map<String, Object> confirm(ErdEditRequest r) {
-        VersionRef ref = ref(requireModelId(r), r.getVer());
+        String modelId = requireModelId(r);
+        VersionRef ref = ref(modelId, r.getVer());
         LocalDateTime applyFrom = RuleConfirmService.parseApplyFrom(r.getApplyFrom());
         stateService.confirm(new ConfirmCommand(ref, rowVersion(r), applyFrom, currentUser.userId(),
                 Boolean.TRUE.equals(r.getWarningsAcknowledged())));
+        announce(modelId, "CONFIRM");
         return Map.of("ok", true);
+    }
+
+    /**
+     * 버전 수명 주기 이벤트(S2-12). 동작이 끝난 같은 OASIS 트랜잭션 안에서 영속성 문맥을 내보내고 지금 상태를 읽어,
+     * 커밋 뒤에 허브 전달 실행기로 보낸다. 동작이 예외로 끝나면 여기까지 오지 않으므로 보내지 않는다.
+     */
+    private void announce(String modelId, String reason) {
+        store.flush();
+        var event = hub.versionNow(modelId, reason, currentUser.userId());
+        if (event != null) hub.publishVersion(event);
+    }
+
+    /**
+     * MCP·CLI 요청의 시한 접속자(S2-11). 세션 이름을 실어 온 요청만, 시험 실행(dryRun)은 빼고. 읽기라 표 목록은 바꾸지 않는다 —
+     * 반영된 쓰기의 표는 ErdCommandService 가 커밋 뒤에 넣는다. UI 출처는 허브가 거른다.
+     */
+    private void touch(String modelId, ErdEditRequest r, String me) {
+        if (!notBlank(r.getSession()) || dryRun(r)) return;
+        hub.touch(modelId, r.getSession().trim(), me, sourceOrNull(r), null);
+    }
+
+    /** CLAIM·RELEASE 뒤: 같은 트랜잭션 연결로 그 모델의 표시 목록을 읽어(방금 쓴 행이 보인다) 작업 중 표시 부분을 다시 정한다. */
+    private void touchClaims(String modelId, ErdEditRequest r, String me) {
+        String source = sourceOrNull(r);
+        if (!notBlank(r.getSession()) || !ErdEventHub.isTimedSource(source)) return;
+        hub.touchClaims(modelId, r.getSession().trim(), me, source, hub.claims(modelId));
+    }
+
+    /** 접속자 표시용 출처. 읽기 액션은 source 를 검사하지 않으므로 모르는 값이면 null(시한 항목을 만들지 않는다). */
+    private static String sourceOrNull(ErdEditRequest r) {
+        String s = notBlank(r.getSource()) ? r.getSource().trim().toUpperCase(Locale.ROOT) : "UI";
+        return SOURCES.contains(s) ? s : null;
     }
 
     /**
@@ -491,6 +610,10 @@ public class ErdEditService {
 
     private static String session(ErdEditRequest r, String me) {
         return notBlank(r.getSession()) ? r.getSession().trim() : "ui-" + me;
+    }
+
+    private static boolean dryRun(ErdEditRequest r) {
+        return Boolean.TRUE.equals(r.getDryRun());
     }
 
     /** kind 를 대문자로. 없으면 빈 문자열(각 액션의 기본 동작). */
