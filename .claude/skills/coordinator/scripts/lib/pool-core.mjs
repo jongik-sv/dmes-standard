@@ -8,22 +8,23 @@ export const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 // 한도 오류 문구. 맨 429(스택 줄 번호 x.js:429:12)·맨 quota(일반 낱말)는 받지 않고 한도 문맥이 붙은 것만(최종 리뷰 F5).
 export const RATE_RE = /\b429\b[^\n]{0,40}(too many|rate|limit)|(status|http|code|error)[^\n]{0,20}\b429\b|rate[ _-]?limit|too many requests|usage limit|quota[^\n]{0,20}(exceed|exhaust|reach)|exceed[^\n]{0,20}quota/i;
 
-/** opencode 지시문(`!`·`/`·`@` 금지). 묶음 파일은 작업 폴더의 .pool/<id>.md */
+/** 워커 TUI 입력창에 넣는 지시문(opencode 는 `!`·`/`·`@` 금지). 묶음 파일은 작업 폴더의 .pool/<id>.md */
 export function promptFor(id) {
   return `작업 지시 파일 .pool 폴더의 ${id}.md 를 읽고 그대로 진행해`;
 }
 
-export function fillArgs(tmpl, prompt) {
-  if (Array.isArray(tmpl)) return tmpl.map((a) => (a === '{prompt}' ? prompt : String(a).split('{prompt}').join(prompt)));
-  return String(tmpl).trim().split(/\s+/).map((a) => (a === '{prompt}' ? prompt : a.split('{prompt}').join(prompt)));
-}
-
-export function classify({ rc, timedOut, outTail, reportExists }) {
-  if (timedOut) return 'timeout';
-  if (RATE_RE.test(outTail || '') && (rc !== 0 || !reportExists)) return 'ratelimit';
-  if (rc !== 0) return 'fail';
-  if (!reportExists) return 'fail';
-  return 'ok';
+/**
+ * TUI 워커 판정(폴링 한 번). 돌려줌 = 'ok'·'ratelimit'·'fail'·'timeout' 또는 null(계속 본다).
+ *   quiet = 화면이 한동안 안 바뀜 또는 tui-idle. 보고 파일이 있어도 쓰는 중일 수 있어 quiet 까지 기다린다.
+ *   한도 문구는 화면 끝 30줄에서만 찾는다(지난 출력·코드 본문 오판 줄이기). 보고 없이 quietS ≥ stuckS 면 멈춘 것으로 본다.
+ */
+export function judgeTui({ report, quiet, quietS, stuckS, screen, elapsedS, limitS }) {
+  if (elapsedS > limitS) return 'timeout';
+  if (!quiet) return null;
+  if (report) return 'ok';
+  if (RATE_RE.test(String(screen || '').split('\n').slice(-30).join('\n'))) return 'ratelimit';
+  if (quietS >= stuckS) return 'fail';
+  return null;
 }
 
 export function effectiveMax(kind, cfgMax, cool, nowMs) {

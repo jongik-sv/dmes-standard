@@ -128,8 +128,9 @@ test('토큰·시간 개편 설정 키 기본값', () => {
   assert.deepEqual(d.pool.order, ['opencode', 'glm']);
   assert.deepEqual(d.pool.timeout_min, { S: 20, M: 40 });
   assert.equal(d.pool.cooldown_min, 30);
-  assert.equal(d.pool.opencode_command, 'opencode run --standalone {prompt}');
-  assert.equal(d.pool.glm_command, null);
+  assert.equal(d.pool.poll_s, 10);
+  assert.equal(d.pool.stuck_min, 10);
+  assert.equal(d.pool.opencode_command, undefined); // 단발 실행 틀은 없앰(TUI 탭, launch.* 사용)
   assert.equal(d.pool.notify, true);
   assert.deepEqual(d.metrics.prices['claude-opus-5-5'], [4, 20, 0.2]);
   assert.ok(d.metrics.exclude.includes('*.csv'));

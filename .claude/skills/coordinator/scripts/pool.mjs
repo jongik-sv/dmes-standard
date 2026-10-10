@@ -3,23 +3,24 @@
 //           pool.mjs status [--lane <L>] [--id <id>] · pool.mjs cancel <id> · pool.mjs note <id> [--findings n] [--lines n]
 //   stdout: POOL started|queued|fallback|refused|cancelled|noted … · POOL <id> <state> kind= lane= result= rc= · POOL slots …
 //   submit 의 id = <레인>-<항목번호>. --id 에 <레인>- 접두가 없으면 붙인다(레인끼리 항목번호가 겹쳐 duplicate 가 나지 않게).
-//   실행기 = `pool.mjs run <id>` 를 분리된 자식으로 띄운다(토큰을 쓰지 않음). 끝나면 다음 큐 묶음을 띄운다.
+//   실행기 = `pool.mjs run <id>` 를 분리된 자식으로 띄운다(토큰을 쓰지 않음). 실행기는 워커를 보이는 TUI 탭으로 띄우고(pool-tab.mjs),
+//   지시를 보낸 뒤 화면·보고 파일을 폴링해 판정하고, 어느 경로로 끝나든 탭을 닫는다. 끝나면 다음 큐 묶음을 띄운다.
 // node 18.17 이상, 외부 패키지 없음.
 import { spawn, spawnSync } from 'node:child_process';
-import { appendFileSync, closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CoordDie, Ctx, cfgAll, hasRun, laneGet, lock, runDir, stateFile, unlock } from './lib/common.mjs';
 import { runScript, stripNl } from './lib/common-ext.mjs';
-import { killTree, pidAlive } from './lib/compat.mjs';
+import { pidAlive } from './lib/compat.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
-import { appendLog, classify, coolAfterRatelimit, fillArgs, hasAnyWorker, ID_RE, logEntry, pickKind, promptFor, readCool, readItem, readItems, reapStale, writeCool, writeItem } from './lib/pool-core.mjs';
+import { appendLog, coolAfterRatelimit, hasAnyWorker, ID_RE, judgeTui, logEntry, pickKind, promptFor, readCool, readItem, readItems, reapStale, writeCool, writeItem } from './lib/pool-core.mjs';
 
 const SELF = fileURLToPath(import.meta.url);
 const HELP = `# 사용법: pool.mjs submit --lane <L> --id <id> --size <S|M> --packet <파일> [--cwd <폴더>] [--kind auto|opencode|glm] [--dry-run]
 #         pool.mjs status [--lane <L>] [--id <id>] · cancel <id> · note <id> [--findings n] [--lines n]
-#   비-Claude 워커 풀. 묶음 파일을 <작업 폴더>/.pool/<id>.md 로 복사하고 opencode·GLM 단발 실행기로 돌린다.
+#   비-Claude 워커 풀. 묶음 파일을 <작업 폴더>/.pool/<id>.md 로 복사하고 opencode·GLM 을 보이는 TUI 탭으로 띄워 돌린다(끝나면 탭을 닫음).
 #   id = <레인>-<항목번호>(예: a1-T3). --id 가 <레인>- 으로 시작하지 않으면 붙인다(출력 줄의 id 가 실제 id).
 #   실패·시간 초과·한도 오류 → 레인이 Claude agent 로 이어받는다(fallback). 절차: references/pool.md
 `;
@@ -33,33 +34,36 @@ function poolDir(c) {
 }
 
 function poolCfg(c) {
-  const p = JSON.parse(cfgAll(c)).pool || {};
+  const all = JSON.parse(cfgAll(c));
+  const p = all.pool || {};
+  const launch = all.launch || {};
   return {
     order: p.order || ['opencode', 'glm'],
     max: { opencode: Number(p.opencode_max ?? 3), glm: Number(p.glm_max ?? 1) },
     timeoutMin: p.timeout_min || { S: 20, M: 40 },
     cooldownMin: Number(p.cooldown_min ?? 30),
-    cmd: { opencode: p.opencode_command, glm: p.glm_command },
+    launch: { opencode: launch.opencode, glm: launch.glm },
+    pollS: Number(p.poll_s ?? 10),
+    stuckMin: Number(p.stuck_min ?? 10),
     notify: p.notify !== false,
   };
 }
 
-/** GLM 슬롯 = 명령이 있고 사전 확인이 ok 일 때만. 아니면 상한 0. */
+/** GLM 슬롯 = 실행 명령(launch.glm)이 있고 사전 확인이 ok 일 때만. 아니면 상한 0. GLM = 모델만 GLM 인 Claude Code. */
 function glmUsable(c, pc) {
-  const cmd = pc.cmd.glm;
-  if (!cmd || (Array.isArray(cmd) && cmd.length === 0)) return false;
+  if (!cmdOk(pc.launch.glm)) return false;
   if (c.env.COORD_POOL_GLM_OK === '1') return true;
   if (!hasRun(c)) return false;
   try { return (JSON.parse(readFileSync(stateFile(c), 'utf8')).glm || {}).status === 'ok'; } catch { return false; }
 }
 
 function cmdOk(cmd) {
-  return !!cmd && !(Array.isArray(cmd) && cmd.length === 0) && String(cmd).trim() !== '';
+  return !!cmd && String(cmd).trim() !== '';
 }
 
 /** 명령이 없는 종류는 상한 0(실행 불가 → no-worker). GLM 은 사전 확인까지 통과해야 한다. */
 function effMaxes(c, pc) {
-  return { opencode: cmdOk(pc.cmd.opencode) ? pc.max.opencode : 0, glm: glmUsable(c, pc) ? pc.max.glm : 0 };
+  return { opencode: cmdOk(pc.launch.opencode) ? pc.max.opencode : 0, glm: glmUsable(c, pc) ? pc.max.glm : 0 };
 }
 
 function ensureExclude(cwd) {
@@ -91,10 +95,17 @@ function notifyNow(c, pc, rec) {
   } catch { /* 알림 실패는 무시 */ }
 }
 
-/** 잠금 밖에서 할 일을 모은다: 알림·프로세스 종료. */
-const newPost = () => ({ notify: [], kill: [] });
+/** 탭 드라이버(pool-tab.mjs). 시험은 COORD_POOL_TAB 으로 가짜를 쓴다. 돌려줌 = { out, status } */
+function tab(c, args, cwd) {
+  const drv = c.env.COORD_POOL_TAB || join(dirname(SELF), 'pool-tab.mjs');
+  const r = spawnSync(process.execPath, [drv, ...args], { env: c.env, cwd, encoding: 'utf8', windowsHide: true, timeout: 330000 });
+  return { out: r.stdout || '', err: r.stderr || '', status: r.status };
+}
+
+/** 잠금 밖에서 할 일을 모은다: 알림·탭 닫기. */
+const newPost = () => ({ notify: [], close: [] });
 function flush(c, pc, post) {
-  for (const pid of post.kill) { try { if (pidAlive(pid, c.env)) killTree(pid, c.env); } catch { /* 이미 끝남 */ } }
+  for (const t of post.close) { try { tab(c, ['close', t.handle], t.cwd); } catch { /* 이미 닫힘 */ } }
   for (const r of post.notify) notifyNow(c, pc, r);
 }
 
@@ -120,6 +131,7 @@ function dispatchBody(c, dir, pc, post) {
   const items = readItems(dir);
   for (const r of reapStale(items, (pid) => pidAlive(pid, c.env), nowIso())) {
     writeItem(dir, r); appendLog(dir, logEntry(r)); post.notify.push({ ...r });
+    if (r.handle) post.close.push({ handle: r.handle, cwd: r.cwd }); // 죽은 실행기가 남긴 탭
   }
   const cool = readCool(dir);
   const max = effMaxes(c, pc);
@@ -225,18 +237,6 @@ function cmdSubmit(c, argv) {
   return 0;
 }
 
-function tail(file, n) {
-  if (!existsSync(file)) return '';
-  const size = statSync(file).size;
-  const fd = openSync(file, 'r');
-  try {
-    const len = Math.min(size, n);
-    const buf = Buffer.alloc(len);
-    readSync(fd, buf, 0, len, size - len);
-    return buf.toString('utf8');
-  } finally { closeSync(fd); }
-}
-
 async function cmdRun(c, argv) {
   const id = argv[0];
   const dir = poolDir(c);
@@ -249,40 +249,68 @@ async function cmdRun(c, argv) {
     await sleep(50);
   }
   if (!rec || rec.state !== 'running' || rec.pid !== process.pid) return 0; // 내 묶음이 아니다(취소·정리·중복)
-  const args = fillArgs(pc.cmd[rec.kind], promptFor(id));
+  const mine = () => { const f = readItem(dir, id); return !!f && f.state === 'running' && f.pid === process.pid; };
   const outFile = join(rec.cwd, '.pool', `${id}.out`);
-  const fd = openSync(outFile, 'a');
   const limitS = Number(c.env.COORD_POOL_TIMEOUT_S) || Number(pc.timeoutMin[rec.size] || 40) * 60;
-  let timedOut = false;
-  const rc = await new Promise((res) => {
-    let child;
-    try { child = spawn(args[0], args.slice(1), { cwd: rec.cwd, env: c.env, stdio: ['ignore', fd, fd], windowsHide: true }); } catch { res(127); return; }
-    const t = setTimeout(() => { timedOut = true; killTree(child.pid, c.env); }, limitS * 1000);
-    child.on('error', () => { clearTimeout(t); res(127); });
-    child.on('exit', (code) => { clearTimeout(t); res(code === null ? 137 : code); });
-  });
-  closeSync(fd);
-  const report = existsSync(join(rec.cwd, '.pool', `${id}.report.md`));
-  const result = classify({ rc, timedOut, outTail: tail(outFile, 4096), reportExists: report });
-  const post = newPost();
-  let attempt = 0;
-  for (;;) {
-    try {
-      locked(c, dir, () => {
-        const fresh = readItem(dir, id);
-        if (!fresh || fresh.state !== 'running' || fresh.pid !== process.pid) return; // 취소·정리됨: 덮어쓰지 않는다
-        writeFileSync(join(rec.cwd, '.pool', `${id}.done`), `${rc}\n${result}\n`);
-        if (result === 'ratelimit') writeCool(dir, coolAfterRatelimit(readCool(dir), rec.kind, Date.now(), pc.cooldownMin));
-        finishRec(dir, post, fresh, { rc, result, reason: result === 'ok' ? null : result });
-        dispatchBody(c, dir, pc, post);
-      });
-      break;
-    } catch (e) {
-      if (!(e instanceof CoordDie) || (attempt += 1) >= 5) throw e;
+  const pollMs = (Number(c.env.COORD_POOL_POLL_S) || pc.pollS) * 1000;
+  const stuckS = Number(c.env.COORD_POOL_STUCK_S) || pc.stuckMin * 60;
+  const t0 = Date.now();
+  let handle = '';
+  let result = null;
+  let reason = null;
+  const o = tab(c, ['open', '--kind', rec.kind, '--cwd', rec.cwd, '--name', `pool-${id}`], rec.cwd);
+  const m = o.out.match(/^TAB (\S+)/m);
+  if (!m) {
+    result = 'fail'; reason = 'open';
+    try { writeFileSync(outFile, `${o.out}${o.err}`); } catch { /* 진단용 */ }
+  } else {
+    handle = m[1];
+    // 핸들을 기록한다(잠금 안). 취소·정리가 이 탭을 닫을 수 있게. 그사이 취소됐으면 탭만 닫고 끝낸다.
+    let still = false;
+    withLock(c, dir, () => {
+      const f = readItem(dir, id);
+      if (!f || f.state !== 'running' || f.pid !== process.pid) return;
+      f.handle = handle; writeItem(dir, f); still = true;
+    });
+    if (!still) { tab(c, ['close', handle], rec.cwd); return 0; }
+    const s = tab(c, ['send', handle, '--kind', rec.kind, '--text', promptFor(id)], rec.cwd);
+    if (!/^SENT/m.test(s.out)) { result = 'fail'; reason = 'send'; }
+    let prev = null;
+    let lastChange = Date.now();
+    while (result === null) {
+      await sleep(pollMs);
+      if (!mine()) { tab(c, ['close', handle], rec.cwd); return 0; } // 취소·정리됨: 덮어쓰지 않는다
+      const sc = tab(c, ['screen', handle], rec.cwd);
+      if (sc.status === 3) { result = 'fail'; reason = 'tab-gone'; handle = ''; break; }
+      try { writeFileSync(outFile, sc.out); } catch { /* 진단용 */ }
+      const now = Date.now();
+      if (sc.out !== prev) { prev = sc.out; lastChange = now; }
+      // 조용함 = 화면이 두 폴링 동안 그대로 또는 tui-idle(Claude Code·GLM). opencode 2.x 는 tui-idle 이 안 나와 화면으로만 본다.
+      const quiet = now - lastChange >= pollMs * 2 || /^idle/.test(tab(c, ['idle', handle], rec.cwd).out);
+      const report = existsSync(join(rec.cwd, '.pool', `${id}.report.md`));
+      const j = judgeTui({ report, quiet, quietS: (now - lastChange) / 1000, stuckS, screen: sc.out, elapsedS: (now - t0) / 1000, limitS });
+      if (j) { result = j; reason = j === 'ok' ? null : j === 'fail' ? 'stuck' : j; }
     }
   }
+  if (handle) tab(c, ['close', handle], rec.cwd); // 어느 경로로 끝나든 탭을 닫는다
+  const post = newPost();
+  withLock(c, dir, () => {
+    const fresh = readItem(dir, id);
+    if (!fresh || fresh.state !== 'running' || fresh.pid !== process.pid) return; // 취소·정리됨: 덮어쓰지 않는다
+    writeFileSync(join(rec.cwd, '.pool', `${id}.done`), `-\n${result}\n`);
+    if (result === 'ratelimit') writeCool(dir, coolAfterRatelimit(readCool(dir), rec.kind, Date.now(), pc.cooldownMin));
+    finishRec(dir, post, fresh, { rc: null, result, reason });
+    dispatchBody(c, dir, pc, post);
+  });
   flush(c, pc, post);
   return 0;
+}
+
+/** 잠금 재시도(최대 5번). 실행기는 오래 살아 잠금 경합을 만날 수 있다. */
+function withLock(c, dir, fn) {
+  for (let attempt = 1; ; attempt += 1) {
+    try { return locked(c, dir, fn); } catch (e) { if (!(e instanceof CoordDie) || attempt >= 5) throw e; }
+  }
 }
 
 function cmdStatus(c, argv) {
@@ -310,7 +338,9 @@ function cmdCancel(c, argv) {
     const rec = readItem(dir, id);
     if (!rec) return `POOL refused ${id} not-found`;
     if (rec.state === 'done') return `POOL refused ${id} already-done`;
-    if (rec.state === 'running' && rec.pid) post.kill.push(rec.pid);
+    // 실행기는 죽이지 않는다: 탭을 띄우는 중일 수 있어 핸들을 아직 모른다. 실행기가 다음 확인에서 취소를 보고 자기 탭을 닫고 끝난다.
+    // 핸들이 이미 있으면 여기서도 닫는다(워커를 바로 멈춤, 두 번 닫아도 무해).
+    if (rec.state === 'running' && rec.handle) post.close.push({ handle: rec.handle, cwd: rec.cwd });
     finishRec(dir, post, rec, { result: 'cancel', reason: 'cancel', rc: null });
     dispatchBody(c, dir, pc, post);
     return `POOL cancelled ${id}`;

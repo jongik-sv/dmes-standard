@@ -8,10 +8,10 @@ import { join } from 'node:path';
 import { COORD_ROOT } from './support/rng.mjs';
 
 const POOL = join(COORD_ROOT, 'scripts', 'pool.mjs');
-const WORKER = join(COORD_ROOT, 'tests', 'fixtures', 'pool-worker.mjs');
+const TAB = join(COORD_ROOT, 'tests', 'fixtures', 'pool-tab-fake.mjs');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function world({ pool = {}, env: extraEnv = {} } = {}) {
+function world({ pool = {}, cfg = {}, env: extraEnv = {} } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pool-'));
   const repo = join(dir, 'repo');
   const work = join(dir, 'work');
@@ -21,9 +21,9 @@ function world({ pool = {}, env: extraEnv = {} } = {}) {
   spawnSync('git', ['init', '-q'], { cwd: work });
   writeFileSync(join(repo, '.coord.local.json'), JSON.stringify({
     state_dir: join(dir, 'state'), office: { enabled: false }, usage: { sources: [] },
-    pool: { opencode_command: [process.execPath, WORKER, '{prompt}'], glm_command: null, opencode_max: 3, glm_max: 1, notify: false, ...pool },
+    pool: { opencode_max: 3, glm_max: 1, notify: false, ...pool }, ...cfg,
   }));
-  const env = { PATH: process.env.PATH, HOME: process.env.HOME, TMPDIR: tmpdir(), TZ: 'Asia/Seoul', COORD_REPO: repo, COORD_STATE_ROOT: join(dir, 'state'), COORD_POOL_DIR: poolDir, COORD_WBS_OPENER: 'none', ...extraEnv };
+  const env = { PATH: process.env.PATH, HOME: process.env.HOME, TMPDIR: tmpdir(), TZ: 'Asia/Seoul', COORD_REPO: repo, COORD_STATE_ROOT: join(dir, 'state'), COORD_POOL_DIR: poolDir, COORD_WBS_OPENER: 'none', COORD_POOL_TAB: TAB, COORD_POOL_POLL_S: '0.1', COORD_POOL_STUCK_S: '3', ...extraEnv };
   const run = (args, more = {}) => spawnSync(process.execPath, [POOL, ...args], { env: { ...env, ...more }, cwd: repo, encoding: 'utf8', timeout: 60000 });
   const packet = (id) => { const p = join(dir, `${id}.md`); writeFileSync(p, `# ${id}\n할 일\n`); return p; };
   const submit = (id, more = {}, extra = []) => run(['submit', '--lane', 'a1', '--id', id, '--size', 'S', '--packet', packet(id), '--cwd', work, ...extra], more);
@@ -38,7 +38,8 @@ function world({ pool = {}, env: extraEnv = {} } = {}) {
   };
   const log = () => (existsSync(join(poolDir, 'log.jsonl')) ? readFileSync(join(poolDir, 'log.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l)) : []);
   const env0 = env;
-  return { dir, work, poolDir, run, submit, waitDone, log, packet, env: env0, repo };
+  const calls = (id) => { const f = join(work, '.pool', `tab-fake-pool-${id}.calls`); return existsSync(f) ? readFileSync(f, 'utf8').trim().split('\n') : []; };
+  return { dir, work, poolDir, run, submit, waitDone, log, packet, calls, env: env0, repo };
 }
 
 test('submit → 실행 → 보고·done·로그 (ok)', async () => {
@@ -48,8 +49,11 @@ test('submit → 실행 → 보고·done·로그 (ok)', async () => {
   assert.equal(r.stdout, 'POOL started a1-T1 kind=opencode\n');
   assert.ok(existsSync(join(w.work, '.pool', 'a1-T1.md')));
   const s = await w.waitDone('a1-T1');
-  assert.match(s, /^POOL a1-T1 done kind=opencode lane=a1 result=ok rc=0$/m);
-  assert.equal(readFileSync(join(w.work, '.pool', 'a1-T1.done'), 'utf8'), '0\nok\n');
+  assert.match(s, /^POOL a1-T1 done kind=opencode lane=a1 result=ok rc=-$/m);
+  assert.equal(readFileSync(join(w.work, '.pool', 'a1-T1.done'), 'utf8'), '-\nok\n');
+  // 보이는 탭으로 띄우고, 지시를 보내고, 끝나면 탭을 닫는다. 화면은 .out 에 남는다
+  assert.deepEqual(w.calls('a1-T1'), ['open', 'send opencode', 'close']);
+  assert.ok(existsSync(join(w.work, '.pool', 'a1-T1.out')));
   assert.ok(existsSync(join(w.work, '.pool', 'a1-T1.report.md')));
   const l = w.log();
   assert.equal(l.length, 1);
@@ -96,8 +100,10 @@ test('fail → fallback, 이유 기록', async () => {
   const w = world();
   w.submit('a1-T2', { FAKE_POOL_MODE: 'fail' });
   const s = await w.waitDone('a1-T2');
-  assert.match(s, /result=fail rc=3/);
+  assert.match(s, /result=fail rc=-/);
   assert.equal(w.log()[0].fallback, true);
+  assert.equal(w.log()[0].reason, 'stuck');
+  assert.equal(w.calls('a1-T2').at(-1), 'close');
 });
 
 test('ratelimit → 쉬는 중이면 다음 묶음은 no-worker fallback', async () => {
@@ -106,15 +112,16 @@ test('ratelimit → 쉬는 중이면 다음 묶음은 no-worker fallback', async
   await w.waitDone('a1-T3');
   const cool = JSON.parse(readFileSync(join(w.poolDir, 'cool.json'), 'utf8'));
   assert.equal(cool.opencode.penalty, 1);
+  assert.equal(w.calls('a1-T3').at(-1), 'close');
   assert.equal(w.submit('a1-T4').stdout, 'POOL fallback a1-T4 reason=no-worker\n');
   assert.equal(w.log().find((x) => x.id === 'a1-T4').fallback, true);
 });
 
-test('rc 0 인데 quota 문구·보고 없음 → ratelimit (Review Focus 4)', async () => {
+test('화면에 quota 문구·보고 없음 → ratelimit (Review Focus 4)', async () => {
   const w = world();
   w.submit('a1-T5', { FAKE_POOL_MODE: 'quota0' });
   const s = await w.waitDone('a1-T5');
-  assert.match(s, /result=ratelimit rc=0/);
+  assert.match(s, /result=ratelimit rc=-/);
 });
 
 test('시간 상한 → timeout', async () => {
@@ -122,6 +129,7 @@ test('시간 상한 → timeout', async () => {
   w.submit('a1-T6', { FAKE_POOL_MODE: 'sleep:5', COORD_POOL_TIMEOUT_S: '1' });
   const s = await w.waitDone('a1-T6');
   assert.match(s, /result=timeout/);
+  assert.equal(w.calls('a1-T6').at(-1), 'close');
 });
 
 test('슬롯이 차면 큐, 앞 묶음이 끝나면 다음 묶음 시작', async () => {
@@ -133,12 +141,13 @@ test('슬롯이 차면 큐, 앞 묶음이 끝나면 다음 묶음 시작', async
   assert.match(s, /POOL a1-Q2 done kind=opencode .* result=ok/);
 });
 
-test('GLM: 명령·사전 확인이 있으면 opencode 가 찼을 때 GLM 으로', async () => {
-  const w = world({ pool: { opencode_max: 1, glm_command: [process.execPath, WORKER, '{prompt}'] }, env: { COORD_POOL_GLM_OK: '1' } });
+test('GLM: 사전 확인이 ok 면 opencode 가 찼을 때 GLM(Claude Code TUI)으로', async () => {
+  const w = world({ pool: { opencode_max: 1 }, env: { COORD_POOL_GLM_OK: '1' } });
   w.submit('a1-G1', { FAKE_POOL_MODE: 'sleep:1' });
   assert.equal(w.submit('a1-G2', { FAKE_POOL_MODE: 'ok' }).stdout, 'POOL started a1-G2 kind=glm\n');
   await w.waitDone('a1-G1');
   await w.waitDone('a1-G2');
+  assert.deepEqual(w.calls('a1-G2'), ['open', 'send glm', 'close']);
 });
 
 test('죽은 실행기의 running 은 status 가 fail/lost 로 정리 (Review Focus 2)', () => {
@@ -176,13 +185,14 @@ test('cancel 과 note', async () => {
   assert.equal(w.run(['cancel', 'nope']).stdout, 'POOL refused nope not-found\n');
 });
 
-test('실행 중 묶음 cancel: 실행기·워커가 죽고 결과는 cancel 로 남는다', async () => {
+test('실행 중 묶음 cancel: 탭이 닫혀 워커가 멈추고 결과는 cancel 로 남는다', async () => {
   const w = world();
   w.submit('a1-K1', { FAKE_POOL_MODE: 'sleep:3' });
   assert.equal(w.run(['cancel', 'a1-K1']).stdout, 'POOL cancelled a1-K1\n');
   await sleep(4500);
   assert.match(w.run(['status', '--id', 'a1-K1']).stdout, /POOL a1-K1 done .* result=cancel/);
   assert.equal(existsSync(join(w.work, '.pool', 'a1-K1.report.md')), false);
+  assert.ok(w.calls('a1-K1').includes('close'), w.calls('a1-K1').join(','));
   assert.deepEqual(w.log().filter((x) => x.id === 'a1-K1').map((x) => x.result), ['cancel']);
   assert.equal(w.run(['cancel', 'a1-K1']).stdout, 'POOL refused a1-K1 already-done\n');
 });
@@ -197,11 +207,13 @@ test('취소·정리된 묶음은 늦게 끝난 실행기가 덮어쓰지 않는
   const after = JSON.parse(readFileSync(f, 'utf8'));
   assert.equal(after.result, 'cancel');
   assert.equal(w.log().length, 0);
+  const k2 = w.calls('a1-K2'); // 실행기가 탭을 띄우기 전에 취소를 봤으면 탭이 없고, 띄웠으면 닫았어야 한다
+  assert.ok(k2.length === 0 || k2.at(-1) === 'close', k2.join(','));
 });
 
 test('알림이 켜져 있어도 submit·cancel 은 바로 돌아오고, 알림은 분리된 자식이 보낸다', async () => {
   const mark = join(tmpdir(), `pool-mark-${process.pid}-${Date.now()}`);
-  const w = world({ pool: { opencode_command: null, notify: true }, env: { COORD_POOL_NOTIFY_SCRIPT: WORKER, NOTIFY_MARK: mark } });
+  const w = world({ pool: { opencode_max: 0, notify: true }, env: { COORD_POOL_NOTIFY_SCRIPT: TAB, NOTIFY_MARK: mark } });
   const t0 = Date.now();
   const r = w.submit('a1-N1');
   assert.equal(r.stdout, 'POOL fallback a1-N1 reason=no-worker\n');
@@ -223,8 +235,8 @@ test('큐 묶음: 종류가 쉬는 중이고 다른 종류가 없으면 no-worke
   await w.waitDone('a1-R1');
 });
 
-test('opencode 명령이 없고 GLM 도 없으면 no-worker', () => {
-  const w = world({ pool: { opencode_command: null } });
+test('opencode 실행 명령(launch.opencode)이 없고 GLM 도 없으면 no-worker', () => {
+  const w = world({ cfg: { launch: { opencode: '' } } });
   assert.equal(w.submit('a1-U1').stdout, 'POOL fallback a1-U1 reason=no-worker\n');
 });
 
@@ -243,4 +255,38 @@ test('같은 id 를 동시에 submit 해도 하나만 받는다', async () => {
   assert.equal(outs.filter((o) => o === 'POOL refused a1-S1 duplicate\n').length, 1, outs.join('|'));
   await w.waitDone('a1-S1');
   assert.equal(readdirSync(join(w.poolDir, 'items')).filter((f) => f === 'a1-S1.json').length, 1);
+});
+
+test('탭을 못 띄우면 fail(open), 닫을 탭 없음', async () => {
+  const w = world();
+  w.submit('a1-O1', { FAKE_TAB_OPEN: 'fail' });
+  const s = await w.waitDone('a1-O1');
+  assert.match(s, /result=fail rc=-/);
+  assert.equal(w.log()[0].reason, 'open');
+  assert.deepEqual(w.calls('a1-O1'), []);
+});
+
+test('지시를 못 보내면 fail(send) 이고 탭은 닫는다', async () => {
+  const w = world();
+  w.submit('a1-O2', { FAKE_TAB_SEND: 'fail' });
+  await w.waitDone('a1-O2');
+  assert.equal(w.log()[0].reason, 'send');
+  assert.deepEqual(w.calls('a1-O2'), ['open', 'send opencode', 'close']);
+});
+
+test('보고가 있어도 화면이 바뀌는 동안은 기다린다(쓰는 중)', async () => {
+  const w = world();
+  w.submit('a1-W1', { FAKE_POOL_MODE: 'sleep:1' });
+  const s = await w.waitDone('a1-W1');
+  assert.match(s, /result=ok/);
+  assert.ok(existsSync(join(w.work, '.pool', 'a1-W1.report.md')));
+});
+
+test('죽은 실행기가 남긴 탭은 status 정리 때 닫는다', () => {
+  const w = world();
+  mkdirSync(join(w.poolDir, 'items'), { recursive: true });
+  mkdirSync(join(w.work, '.pool'), { recursive: true });
+  writeFileSync(join(w.poolDir, 'items', 'a1-Z2.json'), JSON.stringify({ id: 'a1-Z2', lane: 'a1', size: 'S', want: 'auto', kind: 'opencode', cwd: w.work, state: 'running', pid: 999999, handle: 'fake-pool-a1-Z2', submitted_at: '2026-10-10T00:00:00Z' }));
+  w.run(['status']);
+  assert.deepEqual(w.calls('a1-Z2'), ['close']);
 });

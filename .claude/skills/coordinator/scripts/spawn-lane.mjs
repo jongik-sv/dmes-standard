@@ -37,7 +37,7 @@ const noNul = (s) => (s.includes('\0') ? s.replaceAll('\0', '') : s);
 const tsvEsc = (s) => s.replace(/\\/g, '\\\\').replace(/\t/g, '\\t').replace(/\r/g, '\\r').replace(/\n/g, '\\n');
 
 const HELP_TEXT = `# 사용법: spawn-lane.mjs --name <n> --kind <claude|glm|opencode> [--worktree <경로|선택자>] [--model m] [--effort e]
-#                       [--autocompact t] [--prompt-file f] [--brief "<한 줄>"] [--dry-run]
+#                       [--autocompact t] [--prompt-file f] [--brief "<한 줄>"] [--no-record] [--dry-run]
 #   새 탭에 레인·워커 세션을 띄우고 떴는지 확인한다(설계 §3.e 생성 경로표·GLM 기동 절차·기동 확인).
 #   탭 위치: 기본은 조정자가 있는 워크트리(Orca 가 아는 곳)에 탭을 만든다. --worktree 를 안 주면 세션도 그 폴더에서 시작한다.
 #     (--worktree 를 안 주면 세션은 조정자의 현재 워크트리 폴더에서 시작한다. 상대경로·~ 는 받지 않는다.)
@@ -55,6 +55,7 @@ const HELP_TEXT = `# 사용법: spawn-lane.mjs --name <n> --kind <claude|glm|ope
 #   성공하면 회차가 있을 때 coord-state.mjs lane-add 로 세션 정보(spawned_by: coordinator)를 남긴다. 레인 worktree 는 세션이 일하는 폴더다.
 #   --brief "<한 줄>": 에이전트 오피스 레인 칸에 보일 지시 요약(lane-add 의 brief). 없으면 --prompt-file 첫 글줄에서 뽑는다:
 #     「— 」 뒤 제목, 그게 없으면 줄 앞 60자(앞쪽 # 와 / ~/ ./ C:/ 로 시작하는 경로 토큰은 뺀다). 이미 그 레인에 brief 가 있으면 건드리지 않는다.
+#   --no-record: 풀 워커용(pool-tab.mjs). lane-add·이벤트·오피스 기록과 GLM 동시 세션 상한(glm-cap)을 건너뛴다. 탭·세션 확인은 같다.
 #   --dry-run: 사전 확인(preflight·상한·설정·Orca 워크트리 목록)은 실제로 하고, 터미널 생성부터는 DRY 로 찍고 \`DRY SPAWNED <n> handle=- pid=- session_id=-\`.
 set -uo pipefail
 `;
@@ -104,7 +105,7 @@ export async function main(argv, { env: env0 = process.env, cwd = process.cwd(),
 function die(rc, msg) { throw new CoordDie(rc, msg); }
 
 async function run(argv, env, cwd, c, out0, TO) {
-  let name = '', kind = '', sel = '', model = '', effort = '', autoc = '', pfile = '', briefArg = '', dry = 0;
+  let name = '', kind = '', sel = '', model = '', effort = '', autoc = '', pfile = '', briefArg = '', dry = 0, noRec = 0;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const nx = () => argv[i + 1] ?? '';
@@ -118,6 +119,7 @@ async function run(argv, env, cwd, c, out0, TO) {
       case '--prompt-file': pfile = nx(); i++; break;
       case '--brief': briefArg = nx(); i++; break;
       case '--dry-run': dry = 1; break;
+      case '--no-record': noRec = 1; break;
       case '-h': case '--help': out0(helpText()); return 0;
       default: die(2, `모르는 인자: ${a}`);
     }
@@ -313,6 +315,7 @@ async function run(argv, env, cwd, c, out0, TO) {
     else log(`주의: 지시 파일 경로를 보내지 못했다(${r}) — 조정자가 직접 보낼 것`);
   }
   function recordLane(h, pid, sid, addr) {
+    if (noRec) return;   // 풀 워커: 레인이 아니다(상한·오피스·close-lane 대상 아님)
     const wt = CD_PATH !== '' ? CD_PATH : worktreeOf(h);
     const sess = new Map([
       ['name', name], ['handle', h], ['kind', kind], ['spawned_by', 'coordinator'],
@@ -343,6 +346,7 @@ async function run(argv, env, cwd, c, out0, TO) {
     log(`DRY term_send <h> ${q([tabLine(`cd ${dryCd()} && ${cmdWord}`)])} --enter (셸 프롬프트가 보인 뒤)`);
   };
   const dryDone = (k) => {
+    if (noRec) { echo(`DRY SPAWNED ${name} handle=- pid=- session_id=-`); return; }
     const dl = new Map([['session', new Map([['kind', k], ['spawned_by', 'coordinator']])], ['state', 'active']]);
     if (BRIEF !== '') dl.set('brief', BRIEF);
     coordStateCall(c, ['lane-add', name, J.stringify(dl, { indent: 0 })]);
@@ -391,7 +395,7 @@ async function run(argv, env, cwd, c, out0, TO) {
     else fail('preflight', pf.startsWith('fail ') ? pf.slice(5) : pf);
     let max = cfgSub(c, '.glm.max_sessions'); if (max === '') max = '1';
     let cnt = '0';
-    if (hasRun(c)) cnt = activeGlm();
+    if (hasRun(c) && !noRec) cnt = activeGlm();   // 풀 GLM 은 pool.glm_max 가 상한
     const cntN = cnt === '' ? '0' : cnt;
     if (!/^[+-]?[0-9]+$/.test(cntN) || !/^[+-]?[0-9]+$/.test(max) || !(BigInt(cntN) < BigInt(max))) fail('glm-cap', `active=${cnt} max=${max}`);
     let launch = cfgSub(c, '.launch.glm'); if (launch === '') launch = 'glm';

@@ -35,7 +35,7 @@
 | `mode.workflow_min_items` | `{"time":2,"token":4}` | Workflow 를 쓰는 최소 같은 흐름 M/L 항목 수 |
 | `launch.claude` | `"claude"` | Claude Code 실행 명령 앞부분(예: `orca claude-teams --dangerously-skip-permissions`) |
 | `launch.glm` | `"glm"` | GLM Claude Code 실행 alias |
-| `launch.opencode` | `"opencode --standalone"` | opencode 워커 실행 명령 |
+| `launch.opencode` | `"opencode --standalone"` | opencode 워커 실행 명령(풀 워커 탭도 이것으로 띄움. 비면 풀 opencode 슬롯 0) |
 | `heavy.script` | `null` | heavy.mjs 경로(리포 기준 상대 또는 절대, `.mjs` 는 node · `.sh` 는 bash 로 실행). 없으면 통지만 |
 | `heavy.measure_dir` | `"~/.dflow/locks/heavy-measure"` | 측정 레인 전용 칸 DIR |
 | `heavy.load_soft` | `1.2` | load1/코어 가 이 값 이상이면 새 무거운 착수 지시 보류 |
@@ -82,12 +82,12 @@
 | `glm.max_sessions` | `1` | 동시 GLM 세션 상한 |
 | `glm.timeout_s` | `10` | 사전 확인 호출 제한 시간 |
 | `pool.opencode_max` | `3` | 풀 opencode 동시 수 |
-| `pool.glm_max` | `1` | 풀 GLM 동시 수. `glm-preflight` 가 `ok` 가 아니면 0 으로 봄 |
+| `pool.glm_max` | `1` | 풀 GLM 동시 수. `launch.glm` 이 비었거나 `glm-preflight` 가 `ok` 가 아니면 0 으로 봄 |
 | `pool.order` | `["opencode","glm"]` | 빈 슬롯을 찾는 순서 |
 | `pool.timeout_min` | `{"S":20,"M":40}` | 묶음 크기별 시간 상한(분) |
 | `pool.cooldown_min` | `30` | 한도 오류 뒤 그 워커 종류를 쉬게 하는 시간(분) |
-| `pool.opencode_command` | `"opencode run --standalone {prompt}"` | opencode 단발 실행 틀. `{prompt}` = 인자 하나 |
-| `pool.glm_command` | `null` | GLM 단발 실행 틀(argv 배열 또는 문자열). 빈 값이면 GLM 슬롯 0. PC 전용 값이라 `.coord.local.json` 에 둠 |
+| `pool.poll_s` | `10` | 실행기가 워커 탭 화면·보고 파일을 보는 간격(초). 화면이 두 간격 동안 그대로이거나 tui-idle 이면 「조용함」 |
+| `pool.stuck_min` | `10` | 보고 없이 화면이 이만큼(분) 그대로면 멈춘 것으로 보고 `fail`(reason `stuck`) |
 | `pool.notify` | `true` | 묶음이 끝나면 레인 탭에 한 줄 알림(`term-send-safe.mjs`) |
 | `metrics.prices` | `{"claude-opus-5-5":[4,20,0.2],…}` | 모델별 단가 [입력, 출력, 캐시 읽기] $/MTok. 캐시 쓰기 = 입력 × 2(1시간)·× 1.25(5분) |
 | `metrics.exclude` | `["*.md","*.csv",…]` | 변경 줄에서 뺄 경로 패턴(git pathspec exclude) |
@@ -337,9 +337,10 @@
 |---|---|---|
 | `term-send-safe.mjs` | `--handle <h>` \| `--lane <레인>`, `--text <글>` \| `--text-file <f>`, `[--timeout-ms 300000] [--raw [--expect-sha <sha>]] [--allow-busy] [--over-draft]` | `SENT <h> <turn_started\|submitted\|accepted>` 또는 `REFUSED <h> <stale\|not-idle\|interrupt-visible\|prompt-open\|compacting\|bang-in-text\|draft-in-input\|no-prompt\|lane-busy\|prompt-changed>`. `--raw` = 확인 창 응답용(`1`·`2`). `--expect-sha` = `--raw --lane` 필수. `--allow-busy` = 작업 중 세션에도 넣음. `--over-draft` = 입력창 글이 회색 추천 문구일 때만 조정자가 씀. 옵션 상세 = `office-contract.md` §4.3 |
 | `compact-lane.mjs` | `<레인> [--clear] [--force-no-memo] [--over-draft] [--dry-run]` | `COMPACT_REFUSED <레인> <merge-in-flight\|measure-lane\|no-memo\|cooldown\|unsupported-kind\|no-handle\|term-send-safe 거부 사유>` · `COMPACT_DONE <레인> before=<n\|-> after=<n\|->`(`--clear` 면 끝에 ` mode=clear relink=<changed\|same\|unknown>`) · `COMPACT_TIMEOUT <레인>`. `--clear` = `/clear` 뒤 재개 문구(착수 지시 원문 `<회차>/lanes/<레인>/brief.md`·정본·다음 단계) 전송 + `relink`. `relink=unknown` = stderr `COMPACT_WARN` 한 줄. 재개 전송 실패 → `compact.pending` 켬(relink 안 함) |
-| `pool.mjs` | `submit --lane L --id id --size S\|M --packet f [--cwd d] [--kind auto\|opencode\|glm] [--dry-run]` · `status [--lane L] [--id id]` · `cancel <id>` · `note <id> [--findings n] [--lines n]` | `POOL started <id> kind=<k>` · `POOL queued <id> position=<n>` · `POOL fallback <id> reason=<no-worker\|…>` · `POOL refused <id> <bad-id\|size-L\|bad-size\|no-packet\|duplicate\|not-found\|already-done>` · `POOL <id> <state> kind= lane= result= rc=` · `POOL slots opencode=<n>/<max> glm=<n>/<max> queued=<n>` · `POOL cancelled\|noted <id>`. `cancel` = 큐·실행 중 묶음을 `result=cancel` 로 끝냄(실행 중이면 실행기를 종료, `already-done` 이면 거절). `submit` id = `<레인>-<항목번호>`: `--id` 가 `<레인>-` 으로 시작하지 않으면 붙이고 출력 줄에 실제 id 를 씀. 같은 id(끝난 기록 포함) = `duplicate` |
+| `pool.mjs` | `submit --lane L --id id --size S\|M --packet f [--cwd d] [--kind auto\|opencode\|glm] [--dry-run]` · `status [--lane L] [--id id]` · `cancel <id>` · `note <id> [--findings n] [--lines n]` | `POOL started <id> kind=<k>` · `POOL queued <id> position=<n>` · `POOL fallback <id> reason=<no-worker\|…>` · `POOL refused <id> <bad-id\|size-L\|bad-size\|no-packet\|duplicate\|not-found\|already-done>` · `POOL <id> <state> kind= lane= result= rc=` · `POOL slots opencode=<n>/<max> glm=<n>/<max> queued=<n>` · `POOL cancelled\|noted <id>`. `cancel` = 큐·실행 중 묶음을 `result=cancel` 로 끝냄(실행 중이면 워커 탭을 닫음. 실행기는 다음 확인에서 취소를 보고 끝남. `already-done` 이면 거절). 실행 중 묶음 `rc=-`(TUI 워커는 종료 코드 없음). `submit` id = `<레인>-<항목번호>`: `--id` 가 `<레인>-` 으로 시작하지 않으면 붙이고 출력 줄에 실제 id 를 씀. 같은 id(끝난 기록 포함) = `duplicate` |
+| `pool-tab.mjs` | `open --kind <opencode\|glm> --cwd d --name n` · `send <h> --kind k --text t` · `screen <h>` · `idle <h>` · `close <h>` | `TAB <h>` · `TAB_FAIL <사유>` · `SENT` · `SEND_FAIL <사유>` · 화면 끝 60줄(탭 없음 rc 3) · `idle`\|`busy` · `CLOSED`\|`CLOSE_FAIL`. 풀 실행기 전용 탭 드라이버. `open` = `spawn-lane.mjs --no-record`, `send` = GLM 은 `term-send-safe.mjs`, opencode 는 `terminal send --enter`. 시험은 `COORD_POOL_TAB` 으로 가짜 드라이버 |
 | `run-metrics.mjs` | `[--run id] [--stdout] [--no-csv] [--since iso] [--until iso] [--dry-run]` | `METRICS <run> cost=<$> per1k=<$\|-> coord=<%> lines=<n> file=<경로\|->` |
-| `spawn-lane.mjs` | `--name <n> --kind <claude\|glm\|opencode> [--worktree <경로\|선택자>] [--model m] [--effort e] [--autocompact t] [--prompt-file f] [--brief "<한 줄>"]` | `SPAWNED <n> handle=<h> pid=<pid\|-> session_id=<id\|->` 또는 `SPAWN_FAIL <n> <wait\|process\|screen\|preflight\|glm-cap> <사유>`. glm 은 preflight 실패 시 `SPAWN_FAIL … preflight`(대체 여부는 조정자가 정함) |
+| `spawn-lane.mjs` | `--name <n> --kind <claude\|glm\|opencode> [--worktree <경로\|선택자>] [--model m] [--effort e] [--autocompact t] [--prompt-file f] [--brief "<한 줄>"] [--no-record]` (`--no-record` = 풀 워커용: 레인 기록·오피스·glm-cap 없음) | `SPAWNED <n> handle=<h> pid=<pid\|-> session_id=<id\|->` 또는 `SPAWN_FAIL <n> <wait\|process\|screen\|preflight\|glm-cap> <사유>`. glm 은 preflight 실패 시 `SPAWN_FAIL … preflight`(대체 여부는 조정자가 정함) |
 | `close-lane.mjs` | `<레인>` \| `--handle <h>` `[--force-report] [--force-user] [--dry-run]` | `CLOSED <레인> handle=<h>` 또는 `CLOSE_REFUSED <레인> <user-session\|bg-running\|not-reported>`. `user-session` = `lanes.<l>.session.spawned_by` 가 `user`(사람이 띄운 세션은 닫지 않음, 맨 먼저 판정), `--force-user` 로만 통과. 워크트리·브랜치 남음 = stderr 경고만. `--force-report` = `not-reported` 만 통과 |
 | `measure-window.mjs` | `open <measure\|move\|ban> [--lane <레인>] --until <iso> [--hold-heavy]` · `close [<kind>]` · `status` · `quiet-check` | `WINDOW_OPEN <kind> until=<iso> hold_job=<id\|->` · `WINDOW_CLOSED <kind>` · `WINDOW <kind> lane=… until=…` / `WINDOW none` · `QUIET yes\|no\|unknown run=<n> per_core=<f\|-> procs=<n>`(unknown = load 를 얻을 수 없는 환경, per_core 는 `-`) |
 | `auto-answer.mjs` | `--lane <레인>` \| `--handle <h>` | `NONE <h>` · `ANSWER <h> <kind> <키> <사유>` · `DENY <h> <kind> <사유>`(Esc) · `ESCALATE <h> <kind> <사유>`(아무것도 안 보냄, 조정자가 판단 올리기 또는 사용자에게). 판정표 = `approvals.md` §5. 창 판정 상세 = `office-contract.md` §4.4 |

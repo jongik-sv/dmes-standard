@@ -228,8 +228,8 @@
       "M": 40
     },
     "cooldown_min": 30,
-    "opencode_command": "opencode run --standalone {prompt}",
-    "glm_command": null,
+    "poll_s": 10,
+    "stuck_min": 10,
     "notify": true
   },
   "metrics": {

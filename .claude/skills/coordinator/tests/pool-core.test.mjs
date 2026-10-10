@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { appendLog, classify, coolAfterRatelimit, effectiveMax, fillArgs, hasAnyWorker, ID_RE, logEntry, pickKind, promptFor, readCool, readItem, readItems, reapStale, writeCool, writeItem } from '../scripts/lib/pool-core.mjs';
+import { appendLog, coolAfterRatelimit, effectiveMax, hasAnyWorker, judgeTui, ID_RE, logEntry, pickKind, promptFor, readCool, readItem, readItems, reapStale, writeCool, writeItem } from '../scripts/lib/pool-core.mjs';
 
 test('promptFor: opencode 금지 글자가 없다', () => {
   const p = promptFor('T7');
@@ -18,36 +18,25 @@ test('ID_RE: 경로·공백·빈 값 거부', () => {
   for (const bad of ['', '../x', 'a b', 'a/b', '-x', 'x'.repeat(65)]) assert.equal(ID_RE.test(bad), false, bad);
 });
 
-test('fillArgs: 문자열 틀과 배열 틀', () => {
-  assert.deepEqual(fillArgs('opencode run --standalone {prompt}', 'a b c'), ['opencode', 'run', '--standalone', 'a b c']);
-  assert.deepEqual(fillArgs(['zsh', '-ic', 'glm -p "$0"', '{prompt}'], 'x y'), ['zsh', '-ic', 'glm -p "$0"', 'x y']);
+test('judgeTui: 조용할 때만 판정, 보고 우선, 한도 문구, 멈춤, 시간 상한', () => {
+  const j = (o) => judgeTui({ report: false, quiet: true, quietS: 30, stuckS: 600, screen: '', elapsedS: 10, limitS: 1200, ...o });
+  assert.equal(j({ quiet: false, report: true }), null); // 보고가 있어도 화면이 바뀌는 중이면 쓰는 중일 수 있다
+  assert.equal(j({ report: true }), 'ok');
+  assert.equal(j({ report: true, screen: 'Error 429 Too Many Requests' }), 'ok'); // 보고가 있으면 한도 문구는 무시
+  assert.equal(j({ screen: 'Error 429 Too Many Requests' }), 'ratelimit');
+  assert.equal(j({ screen: 'free quota exceeded' }), 'ratelimit');
+  assert.equal(j({}), null); // 잠깐 조용함 = 아직 판단 안 함
+  assert.equal(j({ quietS: 600 }), 'fail'); // 보고 없이 오래 멈춤
+  assert.equal(j({ quiet: false, elapsedS: 1201 }), 'timeout');
+  // 한도 문구는 화면 끝 30줄에서만 본다
+  assert.equal(j({ screen: `rate limit\n${'x\n'.repeat(40)}` }), null);
 });
 
-test('classify', () => {
-  assert.equal(classify({ rc: 0, timedOut: false, outTail: 'done', reportExists: true }), 'ok');
-  assert.equal(classify({ rc: 0, timedOut: false, outTail: 'done', reportExists: false }), 'fail');
-  assert.equal(classify({ rc: 1, timedOut: false, outTail: 'boom', reportExists: true }), 'fail');
-  assert.equal(classify({ rc: 0, timedOut: true, outTail: '', reportExists: false }), 'timeout');
-  assert.equal(classify({ rc: 1, timedOut: false, outTail: 'Error 429 Too Many Requests', reportExists: false }), 'ratelimit');
-  // Review Focus 4: rc 0 인데 한도 문구, 보고 없음
-  assert.equal(classify({ rc: 0, timedOut: false, outTail: 'free quota exceeded', reportExists: false }), 'ratelimit');
-  // 보고가 있고 rc 0 이면 본문에 quota 단어가 있어도 ok
-  assert.equal(classify({ rc: 0, timedOut: false, outTail: 'quota field added', reportExists: true }), 'ok');
-});
-
-test('classify: 한도 문맥이 없는 429·quota 는 ratelimit 이 아니다(F5)', () => {
-  const c = (outTail, rc = 1) => classify({ rc, timedOut: false, outTail, reportExists: false });
-  assert.equal(c('    at foo (x.js:429:12)'), 'fail');
-  assert.equal(c('quota field added'), 'fail');
-  assert.equal(c('ran 429 tests, 3 failed'), 'fail');
-  assert.equal(c('Error 429 Too Many Requests'), 'ratelimit');
-  assert.equal(c('free quota exceeded'), 'ratelimit');
-  assert.equal(c('HTTP 429'), 'ratelimit');
-  assert.equal(c('status: 429'), 'ratelimit');
-  assert.equal(c('Error: 429 rate limit'), 'ratelimit');
-  assert.equal(c('You have exceeded your quota'), 'ratelimit');
-  assert.equal(c('Rate limit reached for requests'), 'ratelimit');
-  assert.equal(c('usage limit reached'), 'ratelimit');
+test('judgeTui: 한도 문맥이 없는 429·quota 는 ratelimit 이 아니다(F5)', () => {
+  const c = (screen) => judgeTui({ report: false, quiet: true, quietS: 30, stuckS: 600, screen, elapsedS: 10, limitS: 1200 });
+  for (const s of ['    at foo (x.js:429:12)', 'quota field added', 'ran 429 tests, 3 failed']) assert.equal(c(s), null, s);
+  for (const s of ['Error 429 Too Many Requests', 'free quota exceeded', 'HTTP 429', 'status: 429', 'Error: 429 rate limit',
+    'You have exceeded your quota', 'Rate limit reached for requests', 'usage limit reached']) assert.equal(c(s), 'ratelimit', s);
 });
 
 test('effectiveMax·pickKind·쿨다운 벌점', () => {

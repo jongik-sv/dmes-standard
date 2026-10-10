@@ -62,7 +62,7 @@ export const COORD_DEFAULTS = `{
                               "allow_xhigh": false, "max_attempts": 3, "env_retry": 1}},
   "glm": {"max_sessions": 1, "timeout_s": 10},
   "pool": {"opencode_max": 3, "glm_max": 1, "order": ["opencode", "glm"], "timeout_min": {"S": 20, "M": 40}, "cooldown_min": 30,
-           "opencode_command": "opencode run --standalone {prompt}", "glm_command": null, "notify": true},
+           "poll_s": 10, "stuck_min": 10, "notify": true},
   "metrics": {"prices": {"claude-opus-5-5": [4, 20, 0.2], "claude-sonnet-5-5": [2, 10, 0.2], "claude-haiku-5-5": [0.1, 0.5, 0.01],
                          "claude-haiku-4-5-20251001": [1, 5, 0.1], "claude-opus-4-8": [5, 25, 0.5]},
               "exclude": ["*.md", "*.csv", "*.log", "*golden*", "*V1__baseline.sql", "*lock.yaml", "*lock.json", "*.snap"],
