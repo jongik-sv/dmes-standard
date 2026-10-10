@@ -42,7 +42,7 @@ class SecCodeItemServiceLookupTest {
     }
 
     @Test
-    @DisplayName("items: 활성 항목 코드를 60초 보관하고, 빈 결과는 보관하지 않으며, 그룹 이름이 이상하면 읽지 않는다")
+    @DisplayName("items: 활성 항목 코드를 60초 보관하고, 빈 결과도 같은 시간 보관하며, 그룹 이름이 이상하면 읽지 않는다")
     void itemsCache() {
         SecCodeItemRepository items = mock(SecCodeItemRepository.class);
         MutableClock clock = new MutableClock();
@@ -59,7 +59,10 @@ class SecCodeItemServiceLookupTest {
 
         assertThat(service.items("EMPTY")).isEmpty();
         service.items("EMPTY");
-        verify(items, times(2)).findActiveItemCds(eq("EMPTY"), any(Pageable.class)); // 빈 결과는 보관하지 않는다
+        verify(items, times(1)).findActiveItemCds(eq("EMPTY"), any(Pageable.class)); // 빈 결과도 보관한다
+        clock.now = clock.now.plus(Duration.ofSeconds(61));
+        service.items("EMPTY");
+        verify(items, times(2)).findActiveItemCds(eq("EMPTY"), any(Pageable.class));
 
         assertThat(service.items(null)).isEmpty();
         assertThat(service.items("X".repeat(51))).isEmpty();

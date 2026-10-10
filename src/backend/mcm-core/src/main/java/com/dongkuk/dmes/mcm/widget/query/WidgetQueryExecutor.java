@@ -110,7 +110,7 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     static final String MSG_REQUIRE_DEDICATED =
             "이 서버는 쿼리 위젯에 읽기 전용 계정의 전용 연결(dmes.widget.query.datasource)을 요구합니다(dmes.widget.query.require-dedicated)"
                     + " — 읽기 권한만 가진 계정을 쓰고, 그 계정에 자율 트랜잭션 함수의 EXECUTE 권한과 DB 링크를 주지 마세요";
-    static final String MSG_CODE_LOOKUP_FAILED = "코드 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요";
+    static final String MSG_CODE_LOOKUP_FAILED = QueryParams.MSG_CODE_LOOKUP_FAILED;
     static final String MSG_DB_UNAVAILABLE = "쿼리 위젯 DB 에 연결하지 못했습니다";
 
     private static final DateTimeFormatter YMD = DateTimeFormatter.ofPattern("yyyyMMdd");

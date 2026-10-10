@@ -292,4 +292,16 @@ class QueryParamsV2Test {
         SqlGuard.checkDeclared("SELECT 1 FROM T WHERE S NOT IN ( :st )", declared, lists);
         SqlGuard.checkDeclared("SELECT 1 FROM T -- note\nWHERE S IN (:st)", declared, lists);
     }
+
+    @Test
+    @DisplayName("저장 때 코드 그룹 확인 중 DB 오류는 안전한 문구의 BusinessException 으로 닫는다")
+    void requireCodeGroupsFailsClosedOnLookupError() {
+        QueryCodeLookup broken = new QueryCodeLookup() {
+            public Set<String> items(String groupCd) { throw new IllegalStateException("ORA-00942 secret"); }
+            public boolean groupExists(String groupCd) { throw new IllegalStateException("ORA-00942 secret"); }
+        };
+        List<QueryParam> defs = parse("[{\"name\":\"c\",\"type\":\"select\",\"codeGroup\":\"WIDGET_CTG\"}]");
+        assertThatThrownBy(() -> QueryParams.requireCodeGroups(defs, broken)).isInstanceOf(BusinessException.class)
+                .hasMessage(QueryParams.MSG_CODE_LOOKUP_FAILED);
+    }
 }

@@ -66,8 +66,8 @@ public class SecCodeItemService implements QueryCodeLookup {
         items.addAll(secCodeItemRepository.findActiveItemCds(groupCd, PageRequest.of(0, LOOKUP_MAX_ITEMS)));
         Set<String> frozen = Collections.unmodifiableSet(items);
         lookupCache.values().removeIf(c -> !now.isBefore(c.expiresAt()));
-        // 비어 있는 결과(그룹이 없음)는 보관하지 않는다 — 그룹을 막 만든 직후에도 곧바로 보인다.
-        if (!frozen.isEmpty() && lookupCache.size() < LOOKUP_MAX_GROUPS) {
+        // 빈 결과(없는 그룹)도 같은 60초 보관한다 — 없는 그룹을 가리키는 정의가 실행마다 DB 를 치지 않게. 새 그룹은 최대 60초 뒤에 보인다.
+        if (lookupCache.size() < LOOKUP_MAX_GROUPS) {
             lookupCache.put(groupCd, new Cached(frozen, now.plus(LOOKUP_TTL)));
         }
         return frozen;

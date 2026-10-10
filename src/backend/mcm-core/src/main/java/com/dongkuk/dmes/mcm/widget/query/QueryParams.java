@@ -46,6 +46,10 @@ import java.util.regex.Pattern;
  */
 public final class QueryParams {
 
+    /** 코드 그룹 조회가 DB 오류로 실패했을 때 사용자에게 보이는 문구. */
+    public static final String MSG_CODE_LOOKUP_FAILED = "코드 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요";
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(QueryParams.class);
+
     public static final int MAX_PARAMS = 10;
     /** 조건 하나가 SQL 에 노출하는 바인드 이름(name·toName·countName)을 합친 전체 상한. */
     public static final int MAX_BIND_NAMES = 20;
@@ -291,10 +295,18 @@ public final class QueryParams {
     public static void requireCodeGroups(Collection<QueryParam> params, QueryCodeLookup lookup) {
         for (QueryParam p : params) {
             if (p.codeGroup() == null) continue;
-            if (lookup == null || !lookup.groupExists(p.codeGroup())) {
-                throw invalid("입력 조건 " + p.display() + " 의 코드 그룹을 찾을 수 없습니다: " + p.codeGroup());
+            try {
+                if (lookup == null || !lookup.groupExists(p.codeGroup())) {
+                    throw invalid("입력 조건 " + p.display() + " 의 코드 그룹을 찾을 수 없습니다: " + p.codeGroup());
+                }
+                if (p.defaultValue() != null) checkDefault(p, p.defaultValue(), false, lookup);
+            } catch (BusinessException e) {
+                throw e;
+            } catch (RuntimeException e) {
+                // 조회 DB 오류는 실패 닫힘 — 원인은 서버 로그에만, 사용자에게는 안전한 문구(일반 500 으로 새지 않게)
+                LOG.warn("코드 그룹 확인 실패 group={} 원인={}", p.codeGroup(), e.toString());
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR, MSG_CODE_LOOKUP_FAILED);
             }
-            if (p.defaultValue() != null) checkDefault(p, p.defaultValue(), false, lookup);
         }
     }
 

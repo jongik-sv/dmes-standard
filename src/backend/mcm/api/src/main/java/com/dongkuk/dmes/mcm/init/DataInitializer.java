@@ -217,6 +217,7 @@ public class DataInitializer implements ApplicationRunner {
         }
         new com.dongkuk.dmes.mcm.init.seed.WidgetCategoryCodeSeeder(support).seedWidgetCategoryCodes();
         new com.dongkuk.dmes.mcm.init.seed.UserQueryCategoryCodeSeeder(support).seedUserQueryCategoryCodes();
+        new com.dongkuk.dmes.mcm.init.seed.UserQuerySampleSeeder(support).seedUserQuerySamples();
 
         // 확장 지점 — 신규 업무 모듈을 추가할 때 여기에 seed{Module}Menus() 를 호출한다.
 

@@ -1,7 +1,7 @@
 package com.dongkuk.dmes.mcm.widget.ext;
 
-import com.dongkuk.dmes.mcm.job.def.JobVar;
-import com.dongkuk.dmes.mcm.job.def.JobVars;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
@@ -143,21 +143,36 @@ public class WeatherCollectReader {
         return out;
     }
 
-    /** 작업의 변수 lat·lon(소수 둘째 자리) — 하나라도 없거나 변수를 못 읽으면 null(경고 한 줄). */
-    private static BigDecimal[] coords(Map<String, Object> row) {
+    /**
+     * 작업의 변수 lat·lon(소수 둘째 자리) — 하나라도 없거나 변수를 못 읽으면 null(경고 한 줄).
+     * VARS_JSON({@code [{"name":…,"value":…}]})을 직접 읽는다. 예약 작업의 {@code JobVars} 를 부르면 widget→job 패키지 의존이 생겨
+     * job→widget 의존과 사이클이 되므로 이름·값 두 칸만 같은 해석(값이 없으면 빈 글자)으로 읽는다.
+     */
+    static BigDecimal[] coords(Map<String, Object> row) {
         String jobId = (String) row.get("JOB_ID");
         BigDecimal jobLat = null;
         BigDecimal jobLon = null;
         try {
-            for (JobVar v : JobVars.parse((String) row.get("VARS_JSON"))) {
-                if ("lat".equals(v.name())) jobLat = coord(v.value());
-                if ("lon".equals(v.name())) jobLon = coord(v.value());
+            String json = (String) row.get("VARS_JSON");
+            JsonNode vars = json == null || json.isBlank() ? null : VARS_JSON.readTree(json);
+            if (vars != null && !vars.isArray()) throw new IllegalArgumentException("변수 목록이 배열이 아닙니다");
+            if (vars != null) {
+                for (JsonNode v : vars) {
+                    String name = text(v.get("name"));
+                    String value = text(v.get("value"));
+                    if ("lat".equals(name)) jobLat = coord(value == null ? "" : value);
+                    if ("lon".equals(name)) jobLon = coord(value == null ? "" : value);
+                }
             }
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
             log.warn("[widgetExt] 날씨 수집 작업의 변수를 읽지 못해 건너뜁니다: {}", jobId);
             return null;
         }
         return jobLat == null || jobLon == null ? null : new BigDecimal[] {jobLat, jobLon};
+    }
+
+    private static String text(JsonNode node) {
+        return node == null || node.isNull() ? null : node.asText();
     }
 
     /** 좌표 허용 거리 안의 작업을 가까운 순(같으면 작업 ID 순)으로. 변수를 못 읽는 작업 하나가 다른 지점의 조회를 막지 않게 그 작업만 건너뛴다. */
@@ -176,6 +191,8 @@ public class WeatherCollectReader {
         out.sort(Comparator.comparingDouble(Candidate::dist).thenComparing(Candidate::jobId));
         return out;
     }
+
+    private static final ObjectMapper VARS_JSON = new ObjectMapper();
 
     private static BigDecimal coord(String text) {
         try {
