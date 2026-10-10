@@ -32,6 +32,11 @@ export const QUERY_CSS = `
 .wq-cond--range .wq-cond__ctl { width: auto; }
 .wq-cond--multi .wq-cond__ctl { width: 220px; }
 .wq-cond__range { display: flex; flex-direction: column; gap: 2px; }
+/* shared MultiSelectComboBox 는 Mantine 뿌리에 .form-combobox(테두리·고정 높이)를 달아 안쪽 입력 테두리와 상자가 겹친다. 조건 줄에서는 뿌리 상자를 없애고 안쪽 입력 하나만 보인다. */
+.wq-cond--multi .form-multiselect { display: block; height: auto; padding: 0; border: 0; background: transparent; box-shadow: none; cursor: default; }
+.wq-cond--multi .form-multiselect:focus-within { border: 0; box-shadow: none; }
+/* 값이 빈 칸(선택 안 함) 은 placeholder 처럼 흐린 글자로 보인다. */
+.wq-cond__ctl select:has(option[value=""]:checked) { color: var(--color-text-muted); }
 .wq-error { flex-direction: column; gap: var(--spacing-sm); color: var(--color-danger); }
 .wq-params-hint { color: var(--color-danger); }
 `;
