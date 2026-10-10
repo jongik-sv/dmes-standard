@@ -678,7 +678,7 @@ export default function CommPermMngPage() {
             >
               상세 정보
             </div>
-            <div style={{ padding: 0, background: "#fff", flex: 1, minHeight: 0, overflowY: "hidden" }}>
+            <div style={{ padding: 0, background: "#fff", flex: 1, minHeight: 0, overflowY: "auto" }}>
               {selected ? (
                 <DetailForm
                   selected={selected}

@@ -510,3 +510,12 @@ DB 뷰어는 왼쪽 목록에서 테이블을 골라도 조회 결과 그리드�
 
 - 서버 시각(ISO, 시간대 표기 없음)은 `new Date(iso)` 로 읽고(브라우저 시간대에서 같은 벽시계 시각이 된다) `formatWithDow`(`@dk-oasis/shared/cron-input`)나 화면의 시각 포맷터로 「날짜(요일) 시:분」 글자로 만들어 넘긴다. 목록·이력·실패 사유 상자의 시각도 같은 규칙이다(`formatTimestamp`).
 - 백엔드 없이 화면을 확인할 때는 `m-mcm/app/<임시>/page.tsx`(커밋하지 않음)에 `MessageProvider` 와 `window.fetch` 목(`/api/…/<화면>/<action>`·`myButtonEndpoints`(`grids.buttons.rows`)·`/api/auth/me`(`{ authenticated, user }`))을 두고 워크트리에서 `next dev` 를 다른 포트로 띄운다. `/portal`·`/api` 가 아닌 경로라 인증을 거치지 않는다. 확인이 끝나면 하니스를 지우고 서버를 내린다.
+
+## 49. 안쪽 스크롤 영역 — 휠은 바깥으로 넘어가야 한다 (2026-10-10)
+
+안쪽 스크롤 영역이 휠을 가두면 사용자가 그리드·편집기 끝에서 페이지를 내릴 수 없다. 포털의 `.page-layout`·`.content-panel` 은 `overflow: hidden` 이므로, 패널보다 긴 내용은 화면이 직접 스크롤 상자를 만들어야 닿을 수 있다.
+
+- 그리드·안쪽 스크롤 영역에는 세로 `overscroll-behavior: contain` 을 쓰지 않는다. 가로(`overscroll-behavior-x`)만 격리해 트랙패드 스와이프로 뒤로가기가 되는 것을 막는다.
+- Monaco 편집기는 `scrollbar: { alwaysConsumeMouseWheel: false }` 를 준다. 기본값(true)이면 편집기 끝에서도 휠이 바깥으로 넘어가지 않는다.
+- 패널보다 길 수 있는 비그리드 내용(상세 폼·트리·보드)은 그 화면 안의 상자에 `overflowY: auto` 를 준다. `.content-panel`·`.page-layout` 의 전역 `overflow` 는 바꾸지 않는다(이중 스크롤 위험).
+- 의도된 휠 처리(Mermaid 확대, ruleSetEdit 캔버스, DetailPopover)는 그대로 둔다.

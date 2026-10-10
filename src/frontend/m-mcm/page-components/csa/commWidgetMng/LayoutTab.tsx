@@ -60,7 +60,7 @@ const BOARD_TEST_ID = "widget-layout-board";
 
 /** 보드 위 도움말 — 홈과 기본 탭의 차이(색은 의미 토큰만). */
 /** GridPanel 본문(`.grid-panel-content`)과 같은 상자 — 클래스를 쓰면 안쪽 그리드가 절대 배치로 바뀌므로 인라인으로 둔다. */
-const BOARD_BODY_STYLE = { flex: 1, overflow: "hidden", minHeight: 0, position: "relative" } as const;
+const BOARD_BODY_STYLE = { flex: 1, overflowX: "hidden", overflowY: "auto", minHeight: 0, position: "relative" } as const;
 
 const HELP_STYLE = {
   margin: 0,

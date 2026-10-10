@@ -12,7 +12,7 @@ export const PARAGRAPH_GAP = "0.25em";
 const CONTENT = `
 .cm-md { position: relative; box-sizing: border-box; width: 100%; height: 100%; display: flex; flex-direction: column; min-height: 0; }
 .cm-md-view, .cm-md-rich { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
-.cm-md-view { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.cm-md-view { flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; }
 /* 표(읽기 모습 전용) 틀 — 아래 첫·끝 요소 여백 0 규칙보다 앞에 둬서 같은 우선순위에서 그 규칙이 이긴다. 문서 읽기(.cm-doc-body)는 더 넓힌다. */
 .cm-md-view .cm-md-table { margin: 4px 0; }
 .cm-md-view > :first-child, .cm-md-rich > :first-child { margin-top: 0; }

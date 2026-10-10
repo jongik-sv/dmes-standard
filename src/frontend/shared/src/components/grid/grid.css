@@ -7,7 +7,7 @@
   border-radius: var(--radius-sm);
   background-color: var(--color-bg);
   overflow: hidden;
-  overscroll-behavior: contain;
+  overscroll-behavior-x: contain;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -26,14 +26,11 @@
 }
 
 /*
- * 트랙패드 스크롤이 그리드 경계에서 페이지로 이어져 브라우저 뒤로가기/앞으로가기
- * 제스처가 되는 것을 막는다. 다만 중앙 열 viewport 는 가로 스크롤만 담당하므로
- * x축만 격리해야 한다. 양축을 contain 하면 중앙 셀 위의 세로 휠이 이 요소에 갇혀
- * 실제 세로 스크롤 컨테이너(.ag-body-viewport)까지 전달되지 않는다.
+ * 트랙패드 가로 스와이프가 그리드 경계에서 페이지로 이어져 브라우저 뒤로가기/앞으로가기
+ * 제스처가 되는 것을 막는다. 가로(x)만 격리하고 세로(y)는 격리하지 않는다:
+ * 그리드 끝까지 스크롤하면 휠이 바깥 영역으로 이어져야 한다.
+ * 중앙 열 viewport 는 가로 스크롤만 담당하므로 x축만 격리한다.
  */
-.cm-data-grid .ag-body-viewport {
-  overscroll-behavior-y: contain;
-}
 
 .cm-data-grid .ag-center-cols-viewport {
   overscroll-behavior-x: contain;

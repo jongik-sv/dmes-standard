@@ -66,6 +66,7 @@ const LogMonacoEditor = forwardRef<LogMonacoEditorHandle, LogMonacoEditorProps>(
           language: LOG_LANGUAGE_ID,
           minimap: { enabled: true },
           automaticLayout: true,
+          scrollbar: { alwaysConsumeMouseWheel: false },
         });
         setEditor(created);
       });
