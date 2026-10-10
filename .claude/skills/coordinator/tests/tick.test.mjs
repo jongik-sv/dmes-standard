@@ -205,6 +205,24 @@ test('틱: 조정 세션 토큰이 coordinator_max 를 넘으면 pct 가 임계 
   } finally { w.clean(); }
 });
 
+test('틱: 조정 세션 pid 가 있으면 pid 파일의 새 세션 id 로 잰다(/clear 뒤 relink 를 빠뜨려도)', () => {
+  const w = selfCtxWorld(200000);
+  try {
+    const sdir = join(w.dir, 'sessions');
+    mkdirSync(sdir);
+    writeFileSync(join(sdir, '4242.json'), JSON.stringify({ pid: 4242, sessionId: 'self-sid' }));
+    const cfg = JSON.parse(readFileSync(join(w.dir, 'repo', '.coord.local.json'), 'utf8'));
+    writeFileSync(join(w.dir, 'repo', '.coord.local.json'), JSON.stringify({ ...cfg, sessions_dir: sdir }));
+    w.cs('set', '.run.coordinator.session_id', '"stale-sid"');
+    w.cs('set', '.run.coordinator.pid', '4242');
+    assert.match(w.tick().stdout, /^CTX_OVER_SELF pct=21 thr=40 tokens=210000 max=200000$/m);
+    // pid 파일이 없으면 session_id 로 다시 잰다
+    w.cs('set', '.run.coordinator.session_id', '"self-sid"');
+    w.cs('set', '.run.coordinator.pid', '9999');
+    assert.match(w.tick().stdout, /^CTX_OVER_SELF pct=21 /m);
+  } finally { w.clean(); }
+});
+
 test('틱: 조정 세션 토큰이 상한 아래면 CTX_OVER_SELF 없음', () => {
   const w = selfCtxWorld(90000);
   try {

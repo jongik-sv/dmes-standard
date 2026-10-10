@@ -61,15 +61,18 @@
      - `<brief>` = `<회차>/lanes/<레인>/brief.md`(SKILL 시작 절차 5 의 원문). 없으면 `-`
      - 이유: `/clear` 는 대화 전체를 지움. 정본 메모만으로는 소유·금지 파일·머지 절차·보고 형식을 잃음
    - 이유: `/compact` 는 큰 컨텍스트를 한 번 더 읽고 요약을 씀. `/clear` 는 재독 세트만 읽음
-   - `/clear` 는 세션 id 를 바꾼다: 스크립트가 재개 문구를 보낸 뒤 `coord-state.mjs relink <레인>` 으로 state 를 갱신(옛 id 는 `session.prev_ids`)
+   - `/clear` 는 세션 id 를 바꾼다: 스크립트가 `/clear` 처리 증거를 기다릴 때와 재개 문구를 보낸 뒤 `coord-state.mjs relink <레인>` 으로 state 를 갱신(옛 id 는 `session.prev_ids`)
+     - 결과 = `COMPACT_DONE` 끝의 `relink=<changed|same|unknown>`
+     - `relink=unknown`(stderr `COMPACT_WARN`) → 레인에 신원 요청(`protocol.md` 3.10) → 답의 세션ID 로 `node scripts/coord-state.mjs relink <레인> --sid <id>`
    - `/clear` 처리 증거(새 세션 id)를 최대 10초 기다리고, 못 얻으면 3초 뒤 진행. `after` 를 못 읽으면 `-`
    - 재개 전송 실패(exit 4) 또는 idle 대기 시간 초과 → `compact.pending` 이 켜진 채 남음 → term-send-safe 로 재개 문구 다시 보내기
+     - 수동 재개 끝에 `node scripts/coord-state.mjs relink <레인>`(스크립트가 이 경로에서는 relink 를 하지 않음). `unknown` 이면 위 신원 요청 절차
    - 옵션 없는 호출(`/compact` 경로)은 정본 메모를 받을 수 없을 때만
      - 순서: 안전 확인 → 문구 전송 → Compacting 사라짐 대기 → 재측정
      - 문구: `/compact <레인> 진행 중. 정본은 <경로>. 조정 세션 <이름>(<주소>). 다음 단계: <한 줄>`
    - 스크립트가 `compact.history`·`last_at` 기록, `compact.pending` 해제
    - `COMPACT_REFUSED <레인> <사유>`(사유 목록 = `contract.md` §3.5)
-   - `COMPACT_DONE <레인> before=<n|-> after=<n|->`(`--clear` 면 끝에 ` mode=clear`)
+   - `COMPACT_DONE <레인> before=<n|-> after=<n|->`(`--clear` 면 끝에 ` mode=clear relink=<changed|same|unknown>`)
    - `COMPACT_TIMEOUT <레인>`
    - `no-memo` → 3 단계 먼저
      - `--force-no-memo` = 정본 갱신 확인 없이 강행할 때만
@@ -114,4 +117,6 @@ Workflow·agent 가 도는 중 임계 초과 → compact 보류:
   2. 사용자에게 **한 줄 알림**: 「`/clear` 입력 뒤 `[조정자 재개] .claude/skills/coordinator/references/resume.md 의 재독 세트만 읽고 이어서` 를 입력」
   3. 같은 알림을 틱마다 반복하지 않음(`run` 이벤트에 알림 사실 기록)
 - `/clear` 와 재개 뒤 `node scripts/coord-state.mjs relink self` 로 조정 세션 id 갈아끼움
+  - `RELINK self unknown`(pid 파일을 못 읽음) → `node scripts/coord-state.mjs relink self --sid "$CLAUDE_CODE_SESSION_ID"`(`init` 과 같은 변수)
+  - 틱은 `run.coordinator.pid` 가 있으면 pid 파일을 따라 새 세션을 잼. relink 는 측정(`run-metrics`)·state 정합용
 - 재개 뒤 `CronList` 로 감시 cron 확인(`resume.md` §2)

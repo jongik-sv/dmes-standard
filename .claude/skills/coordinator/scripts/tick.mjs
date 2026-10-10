@@ -161,10 +161,17 @@ export async function tickOnce(c, { answer = true, dry = false } = {}) {
     }
     emit(`CTX_OVER ${L} pct=${pct} thr=${thr} tokens=${Number.isFinite(tokens) ? tokens : '-'} max=${laneMax || '-'}`);
   }
-  let self = '';
-  try { const v = J.index(J.index(J.index(readState(), 'run'), 'coordinator'), 'session_id'); self = v === null || v === undefined ? '' : J.tostring(v); } catch { /* 빈 값 */ }
-  if (self !== '') {
-    const cu = outOf(child('ctx-usage', [self])).split('\n')[0];
+  let self = ''; let selfPid = 0;
+  try {
+    const co = J.index(J.index(readState(), 'run'), 'coordinator');
+    const v = J.index(co, 'session_id'); self = v === null || v === undefined ? '' : J.tostring(v);
+    const p = J.index(co, 'pid'); selfPid = p === null || p === undefined ? 0 : Number(J.tostring(p));
+  } catch { /* 빈 값 */ }
+  // pid 가 있으면 pid 파일(<sessions_dir>/<pid>.json)을 따라간다 → /clear 로 세션 id 가 바뀌고 relink self 를 빠뜨려도 새 세션을 잰다.
+  // pid 파일이 없어 pct 를 못 얻으면 session_id 로 다시 잰다.
+  if (self !== '' || (Number.isInteger(selfPid) && selfPid > 0)) {
+    let cu = Number.isInteger(selfPid) && selfPid > 0 ? outOf(child('ctx-usage', ['--pid', String(selfPid)])).split('\n')[0] : '';
+    if (!cu.includes(' pct=') && self !== '') cu = outOf(child('ctx-usage', [self])).split('\n')[0];
     if (cu.includes(' pct=')) {
       const pct = cu.replace(/^.* pct=([0-9]*).*$/, '$1');
       const win = cu.replace(/^.* window=([0-9]*).*$/, '$1');

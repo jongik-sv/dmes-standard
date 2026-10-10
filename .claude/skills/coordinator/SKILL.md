@@ -50,7 +50,9 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
    - 터미널 화면 = `prompt-watch.mjs` 가 이상을 판정한 레인 하나만 읽음
    - 조정 세션이 직접 하는 일 = D0(git·상태·짧은 확인)만. 조사 = 검색 워커, 구현 = 레인·풀
    - 진행표 요청 = `node scripts/coord-status.mjs` 출력 그대로 + `WBS.md`·오피스 위치. 레인 화면 다시 읽지 않음
-   - 컨텍스트 = `compact.coordinator_max`(200000) 넘으면 `CTX_OVER_SELF` → `compact.md` §8(`/clear` 재개). 사용자가 `/clear` 뒤 재개하면 `node scripts/coord-state.mjs relink self`(새 세션 id 기록)
+   - 컨텍스트 = `compact.coordinator_max`(200000) 넘으면 `CTX_OVER_SELF` → `compact.md` §8(`/clear` 재개)
+   - 사용자가 `/clear` 뒤 재개하면 `node scripts/coord-state.mjs relink self`(새 세션 id 기록)
+     - `RELINK self unknown` → `node scripts/coord-state.mjs relink self --sid "$CLAUDE_CODE_SESSION_ID"`
 8. **사용량 띠가 오르면 일을 막지 않고 풀(opencode·GLM)·agy 비중을 키움.** 풀은 띠와 상관없이 늘 씀(`references/pool.md`, `usage.md` §2).
    - 새 Claude 레인 = 1주 사용률 < `usage.spawn_week_max` **그리고** 띠 ≠ R
    - R 에서는 풀(opencode·GLM)·agy 워커만
@@ -117,8 +119,8 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 | `STALL?`·`STALL` | → `stall.md`. 프로세스 직접 종료 금지 |
 | `GONE` | 화면 확인 뒤 레인 정리 또는 재기동 여부를 사용자에게 |
 | `POOL_DONE …` | 기록만. `fallback=1` 이 한 레인에서 3번 넘음 → 그 레인 지시의 풀 몫 낮출지 판단 |
-| `CTX_OVER`(`tokens=`·`max=` 포함) | → `compact.md`(`compact-lane.mjs <레인> --clear`) |
-| `CTX_OVER_SELF` | 정본 메모·`summary` 갱신 뒤 사용자에게 「`/clear` 뒤 재개 문구」 한 줄(`compact.md` §8). 재개 뒤 `coord-state.mjs relink self` |
+| `CTX_OVER`(`tokens=`·`max=` 포함) | → `compact.md`(`compact-lane.mjs <레인> --clear`). 결과 `relink=unknown` → 신원 요청 뒤 `relink <레인> --sid <id>`(`compact.md` §5) |
+| `CTX_OVER_SELF` | 정본 메모·`summary` 갱신 뒤 사용자에게 「`/clear` 뒤 재개 문구」 한 줄(`compact.md` §8). 재개 뒤 `coord-state.mjs relink self`. `RELINK self unknown` → `relink self --sid "$CLAUDE_CODE_SESSION_ID"` |
 | `BAND_CHANGED` | → `usage.md` §4. 전 레인에 `사용량 조정` 1회 |
 | `LOAD_SOFT`·`LOAD_HARD`·`LOAD_RELEASE` | → `heavy.md` §4 |
 | `WINDOW_DUE` | → `heavy.md` §3 |

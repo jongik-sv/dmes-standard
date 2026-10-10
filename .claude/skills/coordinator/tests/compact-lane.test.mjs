@@ -95,7 +95,7 @@ test('--clear 실제 전송: /clear 와 재개 문구를 차례로 보내고 mod
   try {
     const r = w.run(['a1', '--clear']);
     assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, /^COMPACT_DONE a1 before=\S+ after=\S+ mode=clear\n$/);
+    assert.match(r.stdout, /^COMPACT_DONE a1 before=\S+ after=\S+ mode=clear relink=unknown\n$/);
     const sent = readFileSync(join(w.dir, 'fake', 'orca.log'), 'utf8').split('\n').filter((l) => l.includes('"send"')).map((l) => JSON.parse(l)[JSON.parse(l).indexOf('--text') + 1]);
     assert.equal(sent.length, 2, JSON.stringify(sent));
     assert.equal(sent[0], '/clear');
@@ -120,11 +120,23 @@ test('--clear 실제 전송: relink 로 새 세션 id 를 state 에 반영하고
   try {
     const r = w.run(['a1', '--clear']);
     assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, /^COMPACT_DONE a1 before=\S+ after=\S+ mode=clear\n$/);
+    assert.match(r.stdout, /^COMPACT_DONE a1 before=\S+ after=\S+ mode=clear relink=changed\n$/);
+    assert.doesNotMatch(r.stderr, /COMPACT_WARN/);
     const ses = w.state().lanes.a1.session;
     assert.equal(ses.session_id, 'new-sid');
     assert.deepEqual(ses.prev_ids, ['old-sid']);
     assert.equal(w.state().lanes.a1.compact.pending, false);
+  } finally { rmSync(w.dir, { recursive: true, force: true }); }
+});
+
+test('--clear: pid 파일에 sessionId 가 없으면 relink=unknown 과 stderr 경고 한 줄, state 의 id 는 그대로', { skip: WIN }, () => {
+  const w = world({ preCompact: 'Task 3 리뷰', memo: '/tmp/memo-a1.md', pid: 4242, sid: 'old-sid', pidDoc: { pid: 4242 } });
+  try {
+    const r = w.run(['a1', '--clear']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /^COMPACT_DONE a1 before=\S+ after=- mode=clear relink=unknown\n$/);
+    assert.equal((r.stderr.match(/^COMPACT_WARN a1 relink=unknown: .*relink a1 --sid <id>$/gm) || []).length, 1, r.stderr);
+    assert.equal(w.state().lanes.a1.session.session_id, 'old-sid');
   } finally { rmSync(w.dir, { recursive: true, force: true }); }
 });
 

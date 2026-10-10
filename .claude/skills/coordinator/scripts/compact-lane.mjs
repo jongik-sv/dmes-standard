@@ -1,7 +1,8 @@
 // compact-lane.mjs — 조정자 스크립트(node). 2026-10-09 W4 부터 이 파일이 유일한 구현이다(옛 bash 판은 backup/scripts/compact-lane.sh 에 퇴역 보관).
 //   사용법: compact-lane.mjs <레인> [--clear] [--force-no-memo] [--over-draft] [--dry-run]
 //   레인 세션에 /compact 를 안전하게 넣고 끝날 때까지 확인한다. --clear 는 /clear 뒤 정본 메모로 재개한다(설계 2026-10-10 §5.1).
-//   stdout: `COMPACT_REFUSED <레인> <사유>` · `COMPACT_DONE <레인> before=<n|-> after=<n|->[ mode=clear]` · `COMPACT_TIMEOUT <레인>`.
+//   stdout: `COMPACT_REFUSED <레인> <사유>` · `COMPACT_DONE <레인> before=<n|-> after=<n|->[ mode=clear relink=<changed|same|unknown>]` · `COMPACT_TIMEOUT <레인>`.
+//   relink=unknown 이면 stderr 에 COMPACT_WARN 한 줄(새 세션 id 를 못 읽음 → 신원 보고 뒤 relink --sid).
 // 옮길 때 bash 판이 기준이었다. 다른 스크립트(term-send-safe.mjs · ctx-usage.mjs · coord-state.mjs)는 import 하지 않고 node 자식 프로세스로 부른다.
 //   · 화면 판정(Compacting·ctx %·Compacted)은 lib/compact-screen.mjs 의 함수, 터미널은 term.mjs 어댑터
 //   · jq 식은 같은 뜻으로 JS 에 옮겼다(`// empty`, `.windows[]?`, `tonumber? // null`). $(( )) 오류는 그 복합 명령(if)만 버리고 계속
@@ -23,7 +24,8 @@ const HELP = `# 사용법: compact-lane.mjs <레인> [--clear] [--force-no-memo]
 #   --clear: /compact 대신 /clear → 입력창 비는 것(tui-idle) 확인 → 재개 문구(착수 지시 원문 <회차>/lanes/<레인>/brief.md·정본 경로·다음 단계) 전송. 정본 메모(pre_compact) 필수: --force-no-memo 로도 통과하지 않는다.
 #   거부: merge-in-flight(머지 중) · measure-lane(열린 측정 창의 측정 레인) · no-memo(pre_compact 없음, --force-no-memo 로 통과)
 #         · cooldown(compact.cooldown_min 안) · unsupported-kind(opencode·agy 등) · no-handle · term-send-safe 의 거부 사유 그대로.
-#   stdout: \`COMPACT_REFUSED <레인> <사유>\` · \`COMPACT_DONE <레인> before=<n|-> after=<n|->\`(--clear 면 끝에 \` mode=clear\`) · \`COMPACT_TIMEOUT <레인>\`.
+#   stdout: \`COMPACT_REFUSED <레인> <사유>\` · \`COMPACT_DONE <레인> before=<n|-> after=<n|->\`(--clear 면 끝에 \` mode=clear relink=<changed|same|unknown>\`) · \`COMPACT_TIMEOUT <레인>\`.
+#     relink=unknown = 새 세션 id 를 못 읽음(stderr 에 COMPACT_WARN). 레인 신원 보고를 받아 coord-state.mjs relink <레인> --sid <id>.
 #   --dry-run: 판정·화면 확인은 실제로, 보내기 직전에 멈추고 \`DRY COMPACT_DONE <레인> before=<n|-> after=-\`(--clear 면 끝에 \` mode=clear\`).
 #   재측정(after)이 직전(before)과 같거나 못 읽으면 transcript 가 아직 안 갱신된 것이다: 화면 상태줄의 ctx % 로 after 를 어림하고
 `;
@@ -164,6 +166,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
     const readScreen = () => Buffer.from(termFns.term_read_screen.run({ args: [h, '40'], env: c.env, cwd: c.cwd }).out ?? '').toString('latin1');
     const hasCompacting = () => `${readScreen()}`.split('\n').filter((l, i, a) => !(i === a.length - 1 && l === '')).slice(-20).some((l) => l.includes('Compacting'));
     let afterOverride = null;
+    let relinkRes = '';
     if (clear) {
       // 1) /clear 가 처리됐다는 증거를 먼저 기다린다. 입력창이 이미 비어 있어 tui-idle 이 바로 만족되면
       //    재개 문구가 /clear 보다 먼저 들어가 사라질 수 있다. 증거 = relink 가 새 세션 id 를 읽어 옴(최대 10초, 1초 간격).
@@ -197,7 +200,13 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
         throw new CoordDie(4, `재개 문구 전송 실패(rc=${rr.rc}): ${rres} — /clear 는 이미 들어갔다. term-send-safe 로 재개 문구를 다시 보낼 것(정본 ${memo !== '' ? memo : '-'})`);
       }
       // 3) 새 세션 id 로 갈아끼운다(증거 단계에서 못 바꿨으면 지금 한 번 더). 새 id 로 잰 after 가 before 와 같거나 못 읽으면 '-'.
-      if (!relinked) { const rl = relinkNow(); if (rl.startsWith('RELINK ') && rl.includes(' -> ')) { relinked = true; sid = rl.slice(rl.lastIndexOf(' -> ') + 4).trim(); } }
+      //    결과를 출력 줄의 relink=<changed|same|unknown> 으로 드러낸다(마지막 relink 출력 기준. 그 밖의 출력·오류 = unknown).
+      if (!relinked) {
+        const rl = relinkNow();
+        if (rl.startsWith('RELINK ') && rl.includes(' -> ')) { relinked = true; sid = rl.slice(rl.lastIndexOf(' -> ') + 4).trim(); relinkRes = 'changed'; }
+        else relinkRes = rl.startsWith('RELINK ') && rl.endsWith(' same') ? 'same' : 'unknown';
+      } else relinkRes = 'changed';
+      if (relinkRes === 'unknown') c.log(`COMPACT_WARN ${lane} relink=unknown: 새 세션 id 를 못 읽었다. 레인에 신원 보고를 요청하고 coord-state.mjs relink ${lane} --sid <id>`);
       const a2 = relinked ? ctxTokens() : '-';
       afterOverride = a2 === before ? '-' : a2;
     } else {
@@ -257,7 +266,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
     coordStateCall(c, ['set', `${LP}.compact.last_at`, `"${now}"`]);
     coordStateCall(c, ['set', `${LP}.compact.pending`, 'false']);
     coordStateCall(c, ['event', 'compact-done', lane, J.tojson(rec)]);
-    out.push(`COMPACT_DONE ${lane} before=${before} after=${after}${clear ? ' mode=clear' : ''}`);
+    out.push(`COMPACT_DONE ${lane} before=${before} after=${after}${clear ? ` mode=clear relink=${relinkRes}` : ''}`);
     if (!clear) c.log('다음: 레인에 「재개 확인: 정본을 읽고 남은 일 3줄로 답한 뒤 이어서 진행해 달라.」 를 보내 pre_compact 와 대조');
     flush();
     return 0;
