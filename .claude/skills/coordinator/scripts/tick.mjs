@@ -1,5 +1,5 @@
 // 감시 틱 한 번을 묶어 돌리고, 조정자가 행동해야 할 줄만 낸다. 정본: ../references/contract.md §3.3, ../SKILL.md 「틱 절차」
-// 사용법: node tick.mjs [--no-answer] [--dry-run]
+// 사용법: node tick.mjs [--no-answer] [--dry-run] [--watch [--interval 초] [--max-iter n] [--repeat-min 분]]
 //   (옛 bash 판 tick.sh 를 node 로 옮긴 것. 2026-10-09 W4 에서 bash 판은 backup/scripts/ 로 퇴역했다.)
 //   수집·판정을 모두 스크립트로 해서 조정자는 결과 몇 줄만 읽는다(조용한 틱은 `TICK quiet` 한 줄).
 //   확인·선택 창은 판정표대로 바로 응답한다(auto-answer.mjs). --no-answer 면 PROMPT 줄만 낸다.
@@ -15,7 +15,10 @@
 //     UNLINKED <이름> pid=<pid>                          (처음 본 것만)
 //     STALE_RUN <run-id> session=<id|-> idle=<분>m       (다른 조정 세션이 연 회차가 마감 표식 없이 살아 있는 레인을 둔 채 남음 — 경고만.
 //                                                         같은 세션의 열린 회차는 팀장 칸을 공유하는 정상 상태라 알리지 않는다)
+//     POOL_DONE <id> lane=<레인> result=<r> fallback=<0|1>   (풀 log.jsonl 의 새 완료 줄마다 한 번. 같은 id 의 보정 줄은 내지 않음)
 //     TICK quiet                                          (위 줄이 하나도 없을 때)
+//   --watch: 틱 본문을 --interval(기본 60)초마다 돌려 줄이 있을 때만 쓴다(TICK quiet 없음). 같은 줄은 --repeat-min(기본 15)분 안에 다시 쓰지 않는다.
+//            회차가 없어지면 끝낸다. --max-iter 는 시험용.
 // 종료 코드: 0(경고·실패가 있어도 틱은 늘 0) · 3(현재 회차 없음).
 // 다른 스크립트(coord-status·prompt-watch·auto-answer·idle-check·stall-check·ctx-usage·usage-band·office·console-poll·coord-state)는
 // 모두 node 자식 프로세스로 부른다(각자 stdout 에 직접 쓰므로 import 로는 출력을 잡을 수 없다). 자식의 stderr 는 버린다.
@@ -77,18 +80,13 @@ function awkLt(a, b) {
 /** jq `tonumber? // null` */
 const toNumOrNull = (s) => (/^-?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$/.test(s) ? Number(s) : null);
 
-/** main — 종료 코드 */
-export async function main(argv, { env = process.env, cwd = process.cwd() } = {}) {
-  const c = new Ctx({ ...env }, cwd);
-  let answer = true;
-  let dry = false;
-  const drain = () => { if (c.errs.length) { process.stderr.write(c.errs.join('')); c.errs.length = 0; } };
-  for (const a of argv) {
-    if (a === '--no-answer') answer = false;
-    else if (a === '--dry-run') { dry = true; c.env.COORD_DRY = '1'; }
-    else if (a === '-h' || a === '--help') { process.stdout.write(HELP); return 0; }
-  }
-  try {
+/** drain — 자식이 남긴 stderr 를 내보낸다 */
+function drainErrs(c) { if (c.errs.length) { process.stderr.write(c.errs.join('')); c.errs.length = 0; } }
+
+/** 틱 본문 한 번(후처리 포함). 행동 줄 배열을 돌려준다. 회차가 없으면 CoordDie(3). opts = {answer, dry} */
+export async function tickOnce(c, { answer = true, dry = false } = {}) {
+  const drain = () => drainErrs(c);
+  {
     if (!hasRun(c)) throw new CoordDie(3, '현재 회차가 없다');
     const RD = runDir(c);
     mkdirSync(join(RD, 'ticks'), { recursive: true });
@@ -276,7 +274,24 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
       emit(`STALE_RUN ${rid} session=${sid} idle=${age}`);
     }
 
-    await new Promise((res) => process.stdout.write(out.length === 0 ? 'TICK quiet\n' : `${out.join('\n')}\n`, res));
+    // 10. 풀 완료(설계 2026-10-10 §5.3). log.jsonl 의 새 줄 중 처음 보는 id 만(같은 id 의 뒤 줄 = note 보정은 내지 않는다)
+    try {
+      const plog = join(RD, 'pool', 'log.jsonl');
+      if (existsSync(plog)) {
+        const pl = readFileSync(plog, 'utf8').split('\n').filter((l) => l.trim() !== '');
+        const mark = join(RD, 'ticks', 'pool');
+        const seenN = existsSync(mark) ? Number(readFileSync(mark, 'utf8').trim()) || 0 : 0;
+        const before = new Set(pl.slice(0, seenN).flatMap((l) => { try { return [JSON.parse(l).id]; } catch { return []; } }));
+        for (const l of pl.slice(seenN)) {
+          let o; try { o = JSON.parse(l); } catch { continue; }
+          if (before.has(o.id)) continue;
+          before.add(o.id);
+          emit(`POOL_DONE ${o.id} lane=${o.lane ?? '-'} result=${o.result ?? '-'} fallback=${o.fallback ? 1 : 0}`);
+        }
+        if (!dry) writeFileSync(mark, `${pl.length}\n`);
+      }
+    } catch { /* 풀 기록을 못 읽으면 건너뜀 */ }
+
     if (out.length > 0) { coordStateCall(c, ['event', 'tick', '-', JSON.stringify({ actions: out.length })]); c.errs.length = 0; }
     drain();
     // 에이전트 오피스 하트비트(팀장·살아 있는 레인 전원을 state.json 기준으로 재전송). 실패·dry-run 이어도 틱 출력은 그대로다.
@@ -289,9 +304,48 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
       // 오피스 콘솔 폴러가 죽었으면 다시 띄운다(이미 돌면 아무 일도 하지 않는다 — contract §4.1). COORD_CONSOLE_POLL=0 이면 건너뜀.
       if ((c.env.COORD_CONSOLE_POLL ?? '1') !== '0') quiet(c, 'console-poll', ['start']);
     }
+    return out;
+  }
+}
+
+/** main — 종료 코드 */
+export async function main(argv, { env = process.env, cwd = process.cwd() } = {}) {
+  const c = new Ctx({ ...env }, cwd);
+  const opts = { answer: true, dry: false };
+  let watch = false; let interval = 60; let maxIter = 0; let repeatMin = 15;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--no-answer') opts.answer = false;
+    else if (a === '--dry-run') { opts.dry = true; c.env.COORD_DRY = '1'; }
+    else if (a === '--watch') watch = true;
+    else if (a === '--interval') interval = Number(argv[++i]);
+    else if (a === '--max-iter') maxIter = Number(argv[++i]);
+    else if (a === '--repeat-min') repeatMin = Number(argv[++i]);
+    else if (a === '-h' || a === '--help') { process.stdout.write(HELP); return 0; }
+  }
+  try {
+    if (!watch) {
+      const out = await tickOnce(c, opts);
+      await new Promise((res) => process.stdout.write(out.length === 0 ? 'TICK quiet\n' : `${out.join('\n')}\n`, res));
+      return 0;
+    }
+    const lastShown = new Map();
+    for (let it = 1; maxIter === 0 || it <= maxIter; it += 1) {
+      let out;
+      try { out = await tickOnce(c, opts); } catch (e) { if (e instanceof CoordDie && e.rc === 3) return 0; throw e; }
+      const now = Date.now();
+      for (const ln of out) {
+        const prev = lastShown.get(ln);
+        if (prev !== undefined && now - prev < repeatMin * 60000) continue;
+        lastShown.set(ln, now);
+        process.stdout.write(`${ln}\n`);
+      }
+      if (maxIter !== 0 && it === maxIter) break;
+      await new Promise((r) => setTimeout(r, Math.max(0, Number.isFinite(interval) ? interval : 60) * 1000));
+    }
     return 0;
   } catch (e) {
-    if (e instanceof CoordDie) { drain(); process.stderr.write(`${e.message}\n`); return e.rc; }
+    if (e instanceof CoordDie) { drainErrs(c); process.stderr.write(`${e.message}\n`); return e.rc; }
     throw e;
   }
 }
@@ -320,7 +374,9 @@ const HELP = `# 감시 틱 한 번을 묶어 돌리고, 조정자가 행동해�
 #     UNLINKED <이름> pid=<pid>                          (처음 본 것만)
 #     STALE_RUN <run-id> session=<id|-> idle=<분>m       (다른 조정 세션이 연 회차가 마감 표식 없이 살아 있는 레인을 둔 채 남음 — 경고만.
 #                                                         같은 세션의 열린 회차는 팀장 칸을 공유하는 정상 상태라 알리지 않는다)
+#     POOL_DONE <id> lane=<레인> result=<r> fallback=<0|1>   (풀 log.jsonl 의 새 완료 줄마다 한 번. 같은 id 의 보정 줄은 내지 않음)
 #     TICK quiet                                          (위 줄이 하나도 없을 때)
+#   --watch [--interval 초] [--max-iter n] [--repeat-min 분]: 틱 본문을 주기마다 돌려 줄이 있을 때만 쓴다.
 set -uo pipefail
 `;
 

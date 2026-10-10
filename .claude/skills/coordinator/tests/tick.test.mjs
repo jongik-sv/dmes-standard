@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync, existsSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { COORD_ROOT } from './support/rng.mjs';
@@ -210,5 +210,45 @@ test('틱: 조정 세션 토큰이 상한 아래면 CTX_OVER_SELF 없음', () =>
   try {
     const r = w.tick();
     assert.doesNotMatch(r.stdout, /CTX_OVER_SELF/);
+  } finally { w.clean(); }
+});
+
+test('틱: 풀 완료 줄은 POOL_DONE 으로 한 번만, note 보정 줄은 무시', () => {
+  const w = world();
+  try {
+    const pdir = join(w.stateRoot, 'r1', 'pool');
+    mkdirSync(pdir, { recursive: true });
+    const line = (o) => `${JSON.stringify(o)}\n`;
+    writeFileSync(join(pdir, 'log.jsonl'), line({ id: 'T1', lane: 'a1', result: 'ok', fallback: false }) + line({ id: 'T2', lane: 'a1', result: 'ratelimit', fallback: true }));
+    const r1 = w.tick();
+    assert.match(r1.stdout, /^POOL_DONE T1 lane=a1 result=ok fallback=0$/m);
+    assert.match(r1.stdout, /^POOL_DONE T2 lane=a1 result=ratelimit fallback=1$/m);
+    appendFileSync(join(pdir, 'log.jsonl'), line({ id: 'T1', lane: 'a1', result: 'ok', fallback: false, findings: 2 }));
+    const r2 = w.tick();
+    assert.doesNotMatch(r2.stdout, /POOL_DONE/);
+    appendFileSync(join(pdir, 'log.jsonl'), line({ id: 'T3', lane: 'b', result: 'fail', fallback: true }));
+    assert.match(w.tick().stdout, /^POOL_DONE T3 lane=b result=fail fallback=1$/m);
+  } finally { w.clean(); }
+});
+
+test('--watch: 줄이 있을 때만 쓰고 같은 줄은 반복하지 않는다', () => {
+  const w = world();
+  try {
+    const pdir = join(w.stateRoot, 'r1', 'pool');
+    mkdirSync(pdir, { recursive: true });
+    writeFileSync(join(pdir, 'log.jsonl'), `${JSON.stringify({ id: 'W1', lane: 'a1', result: 'ok', fallback: false })}\n`);
+    const r = w.tick('--watch', '--interval', '0', '--max-iter', '3');
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal((r.stdout.match(/POOL_DONE W1/g) || []).length, 1);
+    assert.doesNotMatch(r.stdout, /TICK quiet/);
+  } finally { w.clean(); }
+});
+
+test('--watch: 아무 일 없으면 출력 없음', () => {
+  const w = world({ heavy: { load_hard: 1000000, load_soft: 100000, load_release: 0.0000001 } });
+  try {
+    const r = w.tick('--watch', '--interval', '0', '--max-iter', '2');
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, '');
   } finally { w.clean(); }
 });
