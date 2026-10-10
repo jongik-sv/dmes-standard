@@ -7,12 +7,14 @@
  * - 다른 모델 표를 부모로 둔 관계(parentRef)는 단계 1 에서 그리지 않는다. 회색 참조 노드(스펙 D8)는 단계 2 이고 가져오기는 이런 관계를 만들지 않는다.
  * - 컬럼 행이 안 보이면(축소·개요·접기) 선은 표 머리 손잡이에 붙는다. 컬럼 손잡이는 선이 쓰는 것만 행 데이터에 싣는다.
  *   행 데이터는 확대율과 무관하게 만든다. 그래서 확대율이 경계를 넘어도 노드 객체는 그대로이고 선만 바뀐다.
+ * - 이름표(단계 2): 접속자가 고른 표와 작업 중 표시를 따로 모은다(조사 A GAP-2). 만료 시각(until·claimUntil)을 실어 두고, now 를 주면 지난 것을 뺀다.
+ *   끌기·잇기는 노드가 아니라 캔버스 flowProps 가 정한다(useCanvasEditing).
  */
 import { useMemo, useRef } from "react";
 
 import type { Edge, Node } from "@dk-oasis/shared/react-flow";
 
-import type { ErdColumnStatus, ErdModelJson, ErdRelation, ErdRelationState, ErdState } from "../types";
+import type { ErdClaim, ErdColumnStatus, ErdModelJson, ErdPresence, ErdRelation, ErdRelationState, ErdState } from "../types";
 import { NODE_WIDTH, nodeHeight, relationSides, typeText, type NodeSide } from "./erd-geometry";
 
 export type ErdMode = "logical" | "physical";
@@ -43,6 +45,10 @@ export interface ErdNodeViewer {
   source: string;
   /** 이 세션이 이 표에 작업 중 표시(claim)를 걸었다. */
   claimed: boolean;
+  /** 이름표가 사라지는 시각 — MCP·CLI 시한 접속자의 expiresAt(작업 중이면 그 만료와 견줘 늦은 쪽), 작업 중 표시만 있으면 그 만료 시각. SSE 접속자는 null. */
+  until: string | null;
+  /** 작업 중 표시 만료 시각. 작업 중이 아니면 null. */
+  claimUntil: string | null;
 }
 
 export interface ErdNodeData extends Record<string, unknown> {
@@ -52,6 +58,8 @@ export interface ErdNodeData extends Record<string, unknown> {
   hiddenCount: number;
   violations: number;
   viewers: ErdNodeViewer[];
+  /** 관계 도구(4·5) 동안 노드 전체를 덮는 잇기 손잡이를 단다(useCanvasEditing 이 꾸민다). */
+  pickable?: boolean;
 }
 export type ErdFlowNode = Node<ErdNodeData, "erdTable">;
 
@@ -137,6 +145,8 @@ export interface BuildFlowInput {
   domains: Readonly<Record<string, { name: string }>>;
   selected: ReadonlySet<string>;
   mySession: string;
+  /** 주면 이 시각에 지난 작업 중 표시·시한 접속자를 뺀다(시험용. 화면은 decorateNodes 가 시계로 거른다). */
+  now?: number;
 }
 
 export interface ErdFlow {
@@ -148,18 +158,87 @@ const NO_HANDLES: HandleSpec[] = [];
 const NO_VIEWERS: ErdNodeViewer[] = [];
 const EMPTY_FLOW: ErdFlow = { nodes: [], edges: [] };
 
-function viewersByTable(state: ErdState, mySession: string): Map<string, ErdNodeViewer[]> {
-  const claimed = new Set(state.claims.map((c) => `${c.tableId}|${c.session}`));
+const isPast = (iso: string | null | undefined, now: number | undefined): boolean =>
+  now !== undefined && !!iso && Date.parse(iso) <= now;
+
+/** 두 ISO 시각 가운데 늦은 것. */
+const laterIso = (a: string, b: string): string => (Date.parse(b) > Date.parse(a) ? b : a);
+
+/** 작업 중 표시만 있고 접속자 목록에 없는 세션의 출처 — 화면 세션은 ui-, CLI 는 cli-, 나머지(claude-·mcp-·직접 준 이름)는 MCP. */
+export function sourceOfSession(session: string): string {
+  if (session.startsWith("ui-")) return "UI";
+  if (session.startsWith("cli-")) return "CLI";
+  return "MCP";
+}
+
+/**
+ * 표마다 이름표. 접속자 목록에서 다른 세션이 고른 표(MCP·CLI 시한 항목은 서버가 건드린 표를 selectedTables 로 준다, S2-11),
+ * 그리고 작업 중 표시를 따로 단다 — 그 세션이 목록에 없거나 그 표를 고르지 않았어도 단다. 내 세션은 달지 않는다.
+ */
+function viewersByTable(state: ErdState, mySession: string, now: number | undefined): Map<string, ErdNodeViewer[]> {
+  const claimOf = new Map<string, ErdClaim>();
+  for (const c of state.claims) if (!isPast(c.expiresAt, now)) claimOf.set(`${c.tableId}|${c.session}`, c);
   const out = new Map<string, ErdNodeViewer[]>();
+  const seen = new Set<string>();
+  const add = (table: string, v: ErdNodeViewer) => {
+    const key = `${table}|${v.session}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const list = out.get(table) ?? [];
+    list.push(v);
+    out.set(table, list);
+  };
+  const bySession = new Map<string, ErdPresence>();
   for (const p of state.presence) {
-    if (p.session === mySession) continue;
+    bySession.set(p.session, p);
+    if (p.session === mySession || isPast(p.expiresAt, now)) continue;
     for (const t of p.selectedTables) {
-      const list = out.get(t) ?? [];
-      list.push({ session: p.session, userId: p.userId, source: p.source, claimed: claimed.has(`${t}|${p.session}`) });
-      out.set(t, list);
+      const c = claimOf.get(`${t}|${p.session}`);
+      // 작업 중 표시는 접속과 따로 산다(규칙 6). 시한 접속이 먼저 끝나도 작업 중 표시가 끝날 때까지 이름표를 남긴다.
+      const until = p.expiresAt && c ? laterIso(p.expiresAt, c.expiresAt) : p.expiresAt ?? null;
+      add(t, { session: p.session, userId: p.userId, source: p.source, claimed: !!c, until, claimUntil: c?.expiresAt ?? null });
     }
   }
+  for (const c of claimOf.values()) {
+    if (c.session === mySession) continue;
+    add(c.tableId, {
+      session: c.session, userId: c.userId, source: bySession.get(c.session)?.source ?? sourceOfSession(c.session),
+      claimed: true, until: c.expiresAt, claimUntil: c.expiresAt,
+    });
+  }
   return out;
+}
+
+/** now 에 지난 이름표를 뺀다. 작업 중 표시만 지났으면 이름표는 남기고 작업 중을 끈다. 바뀐 것이 없으면 같은 배열(참조 안정). */
+export function viewersAt(viewers: ErdNodeViewer[], now: number): ErdNodeViewer[] {
+  let changed = false;
+  const out: ErdNodeViewer[] = [];
+  for (const v of viewers) {
+    if (v.until && Date.parse(v.until) <= now) {
+      changed = true;
+      continue;
+    }
+    if (v.claimed && v.claimUntil && Date.parse(v.claimUntil) <= now) {
+      changed = true;
+      out.push({ ...v, claimed: false, claimUntil: null });
+      continue;
+    }
+    out.push(v);
+  }
+  return changed ? out : viewers;
+}
+
+/** now 뒤의 가장 이른 만료 시각(작업 중 표시·시한 접속자). 없으면 null. 화면은 이때 시계를 올려 이름표를 다시 거른다(S2-26). */
+export function nextExpiry(state: Pick<ErdState, "claims" | "presence">, now: number): number | null {
+  let next: number | null = null;
+  const consider = (iso: string | null | undefined) => {
+    if (!iso) return;
+    const t = Date.parse(iso);
+    if (Number.isFinite(t) && t > now && (next === null || t < next)) next = t;
+  };
+  for (const c of state.claims) consider(c.expiresAt);
+  for (const p of state.presence) consider(p.expiresAt);
+  return next;
 }
 
 export function buildFlow(i: BuildFlowInput): ErdFlow {
@@ -221,7 +300,7 @@ export function buildFlow(i: BuildFlowInput): ErdFlow {
   }
 
   // 3. 노드
-  const viewers = viewersByTable(i.state, i.mySession);
+  const viewers = viewersByTable(i.state, i.mySession, i.now);
   const physical = i.mode === "physical";
   const both = i.preset === "both";
   const nodes = placed.map((n): ErdFlowNode => {
@@ -248,7 +327,7 @@ export function buildFlow(i: BuildFlowInput): ErdFlow {
         title: physical ? t.phys : t.logical || t.phys, subtitle: physical ? t.logical : t.phys,
         rows, hiddenCount, violations, viewers: viewers.get(n.table) ?? NO_VIEWERS,
       },
-      selected: i.selected.has(n.table), draggable: false, connectable: false,
+      selected: i.selected.has(n.table),
       initialWidth: NODE_WIDTH, initialHeight: nodeHeight(rows.length, hiddenCount > 0),
     };
   });

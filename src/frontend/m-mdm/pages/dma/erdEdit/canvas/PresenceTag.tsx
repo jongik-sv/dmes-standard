@@ -11,6 +11,7 @@ export function PresenceTag({ viewer }: { viewer: ErdNodeViewer }) {
   return (
     <span
       className="erd-viewer"
+      data-testid={`erd-tag-${viewer.session}`}
       data-source={viewer.source === "UI" ? "ui" : "llm"}
       data-claimed={viewer.claimed ? "" : undefined}
       title={`${viewer.userId} · ${viewer.session}${viewer.claimed ? " · 작업 중" : ""}`}

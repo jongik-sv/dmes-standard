@@ -18,6 +18,9 @@ import { PresenceTag } from "./PresenceTag";
 
 export const namesOnlySelector = (s: ReactFlowState): boolean => s.transform[2] < ZOOM_NAMES_ONLY;
 
+/** 관계 도구(4·5) 동안 노드 전체를 덮는 잇기 손잡이 id. 부모 표를 누르고 자식 표를 누르거나(connectOnClick), 부모에서 자식으로 끈다. */
+export const PICK_HANDLE = "pick";
+
 const NO_ROWS: ErdRowView[] = [];
 
 function Handles({ list }: { list: readonly HandleSpec[] }) {
@@ -37,7 +40,7 @@ function Handles({ list }: { list: readonly HandleSpec[] }) {
   );
 }
 
-export const ErdTableNode = memo(function ErdTableNode({ id, data, selected }: NodeProps<ErdFlowNode>) {
+export const ErdTableNode = memo(function ErdTableNode({ id, data, selected, isConnectable }: NodeProps<ErdFlowNode>) {
   const namesOnly = useStore(namesOnlySelector);
   const rows = namesOnly ? NO_ROWS : data.rows;
   const updateInternals = useUpdateNodeInternals();
@@ -52,6 +55,10 @@ export const ErdTableNode = memo(function ErdTableNode({ id, data, selected }: N
 
   return (
     <div className="erd-node" data-testid={`erd-node-${id}`} data-selected={selected ? "" : undefined} data-names-only={namesOnly ? "" : undefined}>
+      {data.pickable && (
+        <Handle id={PICK_HANDLE} type="source" position={Position.Top} isConnectable={isConnectable}
+          className="erd-pick nodrag" data-testid={`erd-pick-${id}`} />
+      )}
       {!namesOnly && data.viewers.length > 0 && (
         <div className="erd-node__viewers">
           {data.viewers.map((v) => (

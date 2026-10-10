@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { buildFlow, keyMarks, reuseById, type BuildFlowInput } from "../../../pages/dma/erdEdit/canvas/erd-flow";
+import {
+  buildFlow, keyMarks, nextExpiry, reuseById, sourceOfSession, viewersAt, type BuildFlowInput, type ErdNodeViewer,
+} from "../../../pages/dma/erdEdit/canvas/erd-flow";
 import type { ErdColumnStatus, ErdState } from "../../../pages/dma/erdEdit/types";
 import { MENU_DIAGRAMS, menuModel, relation, stateOf } from "./erd-fixtures";
 
@@ -26,7 +28,9 @@ describe("buildFlow", () => {
     const gone = { diagram: "d-all", table: "t-gone", x: 0, y: 300, foldMode: "NONE" as const };
     const f = buildFlow(input({ state: stateOf(menuModel(), { ...MENU_DIAGRAMS, nodes: [...MENU_DIAGRAMS.nodes, gone] }) }));
     expect(f.nodes.map((n) => n.id)).toEqual(["t-1", "t-2"]);
-    expect(f.nodes[0]).toMatchObject({ type: "erdTable", position: { x: 0, y: 0 }, draggable: false, initialWidth: 240 });
+    expect(f.nodes[0]).toMatchObject({ type: "erdTable", position: { x: 0, y: 0 }, initialWidth: 240 });
+    expect(f.nodes[0].draggable).toBeUndefined();
+    expect(f.nodes[0].connectable).toBeUndefined();
     expect(buildFlow(input({ diagramId: null })).nodes).toEqual([]);
   });
 
@@ -119,7 +123,80 @@ describe("buildFlow", () => {
       claims: [{ tableId: "t-1", session: "claude-a", userId: "tester", expiresAt: at }],
     };
     const f = buildFlow(input({ state: s }));
-    expect(f.nodes[0].data.viewers).toEqual([{ session: "claude-a", userId: "tester", source: "MCP", claimed: true }]);
+    expect(f.nodes[0].data.viewers).toEqual([
+      { session: "claude-a", userId: "tester", source: "MCP", claimed: true, until: null, claimUntil: at },
+    ]);
     expect(f.nodes[1].data.viewers).toEqual([]);
+  });
+});
+
+describe("이름표 — 작업 중 표시·시한 접속자(단계 2, S2-11·S2-26)", () => {
+  const past = "2026-10-11T05:00:00Z";
+  const later = "2026-10-11T05:10:00Z";
+  const now = Date.parse("2026-10-11T05:05:00Z");
+
+  it("claimWithoutPresenceShowsTag — 접속자 목록에 없는 세션의 작업 중 표시도 이름표를 단다", () => {
+    const s: ErdState = { ...stateOf(menuModel(), MENU_DIAGRAMS), claims: [{ tableId: "t-2", session: "claude-b", userId: "erd-mcp-b", expiresAt: later }] };
+    const f = buildFlow(input({ state: s }));
+    expect(f.nodes[1].data.viewers).toEqual([
+      { session: "claude-b", userId: "erd-mcp-b", source: "MCP", claimed: true, until: later, claimUntil: later },
+    ]);
+  });
+
+  it("MCP 시한 접속자는 건드린 표에 세션 이름표를 단다. 내 세션의 작업 중 표시는 달지 않는다", () => {
+    const s: ErdState = {
+      ...stateOf(menuModel(), MENU_DIAGRAMS),
+      presence: [{ session: "claude-a", userId: "erd-mcp-a", source: "MCP", diagramId: null, selectedTables: ["t-1", "t-2"], at: past, expiresAt: later }],
+      claims: [{ tableId: "t-1", session: "ui-me", userId: "tester", expiresAt: later }],
+    };
+    const f = buildFlow(input({ state: s }));
+    expect(f.nodes[0].data.viewers).toEqual([{ session: "claude-a", userId: "erd-mcp-a", source: "MCP", claimed: false, until: later, claimUntil: null }]);
+    expect(f.nodes[1].data.viewers.map((v) => v.session)).toEqual(["claude-a"]);
+  });
+
+  it("시한 접속이 작업 중 표시보다 먼저 끝나도 작업 중 이름표는 작업 중 표시 만료까지 남는다(규칙 6)", () => {
+    const s: ErdState = {
+      ...stateOf(menuModel(), MENU_DIAGRAMS),
+      presence: [{ session: "claude-a", userId: "erd-mcp-a", source: "MCP", diagramId: null, selectedTables: ["t-1"], at: past, expiresAt: past }],
+      claims: [{ tableId: "t-1", session: "claude-a", userId: "erd-mcp-a", expiresAt: later }],
+    };
+    const v = buildFlow(input({ state: s })).nodes[0].data.viewers;
+    expect(v).toEqual([{ session: "claude-a", userId: "erd-mcp-a", source: "MCP", claimed: true, until: later, claimUntil: later }]);
+    expect(viewersAt(v, now)).toBe(v);
+    expect(viewersAt(v, Date.parse(later))).toEqual([]);
+  });
+
+  it("now 를 주면 지난 작업 중 표시·지난 시한 접속자를 뺀다", () => {
+    const s: ErdState = {
+      ...stateOf(menuModel(), MENU_DIAGRAMS),
+      presence: [{ session: "claude-a", userId: "erd-mcp-a", source: "MCP", diagramId: null, selectedTables: ["t-1"], at: past, expiresAt: past }],
+      claims: [{ tableId: "t-2", session: "claude-b", userId: "erd-mcp-b", expiresAt: past }],
+    };
+    expect(buildFlow(input({ state: s })).nodes.map((n) => n.data.viewers.length)).toEqual([1, 1]);
+    expect(buildFlow(input({ state: s, now })).nodes.map((n) => n.data.viewers.length)).toEqual([0, 0]);
+  });
+
+  it("viewersAt — 작업 중만 지나면 이름표는 남기고 작업 중 표시를 끈다. 바뀐 것이 없으면 같은 배열", () => {
+    const list: ErdNodeViewer[] = [
+      { session: "ui-b", userId: "u2", source: "UI", claimed: true, until: null, claimUntil: past },
+      { session: "claude-b", userId: "erd-mcp-b", source: "MCP", claimed: true, until: past, claimUntil: past },
+    ];
+    expect(viewersAt(list, now)).toEqual([{ session: "ui-b", userId: "u2", source: "UI", claimed: false, until: null, claimUntil: null }]);
+    const fresh: ErdNodeViewer[] = [{ session: "ui-b", userId: "u2", source: "UI", claimed: true, until: null, claimUntil: later }];
+    expect(viewersAt(fresh, now)).toBe(fresh);
+  });
+
+  it("nextExpiry — now 뒤의 가장 이른 만료 시각, 없으면 null", () => {
+    const s = {
+      claims: [{ tableId: "t-1", session: "claude-a", userId: "a", expiresAt: later }, { tableId: "t-2", session: "claude-b", userId: "b", expiresAt: past }],
+      presence: [{ session: "claude-c", userId: "c", source: "MCP" as const, diagramId: null, selectedTables: [], at: past, expiresAt: "2026-10-11T05:07:00Z" }],
+    };
+    expect(nextExpiry(s, now)).toBe(Date.parse("2026-10-11T05:07:00Z"));
+    expect(nextExpiry({ claims: [], presence: [] }, now)).toBeNull();
+  });
+
+  it("sourceOfSession — ui- 는 화면, cli- 는 CLI, 나머지는 MCP", () => {
+    expect([sourceOfSession("ui-ab12cd34"), sourceOfSession("cli-admin"), sourceOfSession("claude-1a2b3c4d"), sourceOfSession("mcp-9f8e")])
+      .toEqual(["UI", "CLI", "MCP", "MCP"]);
   });
 });
