@@ -60,7 +60,8 @@ Workflow 기동 비용이 일 자체보다 크면 띄우지 않음.
 
 - `agent()` 마다 model·effort 기재. opus 는 근거 한 줄(L·동시성·판정)
 - token 모드: opus = 판정 리뷰·L 구현만
-  - 실패 사다리에서 sonnet/high 를 한 번 더 시도한 뒤 opus
+  - 예외 = 실패 사다리: sonnet/high 를 한 번 더 시도한 뒤 opus
+  - 이 예외는 판정 리뷰·L 구현이 아니어도 적용
 - 근거(2026-10-04 refactor 회차): Workflow agent 호출의 72% 가 opus, 모델 표 기본은 sonnet
 
 ### 3.2 캐시 재사용
