@@ -92,6 +92,8 @@
 | `sessions_dir` | `"~/.claude/sessions"` | 세션 상태 json 폴더 |
 | `tasks_root` | `null` | 세션 tasks 출력 뿌리(macOS 는 `/private/tmp/claude-<uid>` 꼴). null 이면 S7(다) 생략 |
 | `wake_targets` | `null` | 한도 초기화 깨우기 대상 파일(있으면 레인 증감 때 갱신 알림) |
+| `wbs.auto_open` | `true`(키 없음 = true) | init·마감 때 `WBS.md` 를 OS 기본 앱으로 엶. false 면 열지 않음(생성은 함). 기본값 표(`COORD_DEFAULTS`)에는 없음 |
+| `wbs.metrics_cmd` | `null` | 문자열 또는 argv 배열(셸 없이 실행, 리포 루트 기준, 30초 제한). stdout 마크다운을 `WBS.md` 의 `## 지표` 아래에 붙임. 실패는 한 줄 알림만 |
 
 ### 1.3 `workflow.model_table` 기본값
 
@@ -126,6 +128,7 @@
 | `lanes/<레인>/brief.md` | 착수 지시 원문 |
 | `lanes/<레인>/reports.md` | 받은 보고 요약 누적 |
 | `summary.md` | `node scripts/coord-state.mjs summary` 가 만든 사람용 요약 |
+| `WBS.md` | `node scripts/wbs.mjs` 가 만든 WBS(레인 묶음 표·조정자 단계·이슈·지표). 내용이 시각 줄만 다르면 다시 쓰지 않음 |
 | `ticks/` | 스크립트 전용 직전 관측: `idle-check.mjs`·`stall-check.mjs` 의 관측 기록, `tick.mjs` 의 직전 부하 단계(`load`) |
 
 - 시각 = ISO 8601 + 시간대(`date +%Y-%m-%dT%H:%M:%S%z` 를 `+09:00` 꼴로)
@@ -163,7 +166,9 @@
   "glm": {"status": null, "at": null, "detail": null},
   "decisions": [{"at": "", "text": ""}],
   "pending_user": [{"at": "", "text": ""}],
-  "office": {"sent": {}, "label": {}, "sumhash": {}, "user": "", "finished": false}
+  "office": {"sent": {}, "label": {}, "sumhash": {}, "user": "", "finished": false},
+  "wbs": {"phases": [{"name": "", "items": [{"title": "", "weight": 1, "done": false, "note": ""}]}],
+          "issues": [""], "opened_at": null}
 }
 ```
 
@@ -184,6 +189,10 @@
   - `user` = 신원 캐시
   - `finished` = 이 회차의 팀원 키를 모두 내렸다는 마감 표식
   - 상세 = `office-contract.md` §4
+- `lanes.<l>.group` = WBS 묶음 이름(`lane-add` json 으로 설정, 없으면 기본 묶음 「레인」). `lanes.<l>.runner` = WBS 실행 칸 글(없으면 `session.kind`·`model`·`effort` 로 만듦)
+- `wbs` = 조정자 몫 단계·이슈(WBS 전용, 키 없어도 됨)
+  - 쓰기 = `coord-state.mjs wbs-phase`·`wbs-done`·`wbs-issue`. `opened_at` = `wbs.mjs --open` 이 엶 성공 때 기록
+  - 항목 `weight` 기본 1, 진도는 레인 항목과 같은 가중치 합산. `progress` 명령은 레인만 셈
 - `glm` = `glm-preflight.mjs` 가 기록
 - `run.coordinator` = `init` 이 `session_id`·`pid`·`handle` 을 기록. 조정자는 `name`·`addr` 만 씀
 - `run.closed_at` = 회차를 마감한 시각(ISO). 열린 회차 = `null`
@@ -256,6 +265,7 @@
 | `prompt-watch.mjs` | `<레인>` \| `--handle <h>` \| `--lanes a,b,c` `[--follow <초>] [--every <초>]` | `NONE <h>` 또는 `PROMPT <h> <trust\|usage-limit\|permission\|question\|choice\|interrupted>` 다음 줄부터 `---` 로 감싼 화면 발췌. `--lanes` = 줄 앞에 `<레인> ` 이 붙음(`<레인> PROMPT <h> <kind>`·`<레인> NONE <h>`·`<레인> GONE <사유>`). 판정·캐시·지문 규칙 = `office-contract.md` §4.2 |
 | `search.mjs` | `[--tab\|--print] [--cwd <폴더>] [--timeout <초>] [--worker <agy\|opencode>] <질의…>` | `SEARCH ok <답 파일> <초> worker=<이름>` 또는 `SEARCH fail <no-command\|timeout\|error\|empty> <사유>`. 답 파일 = 회차 `searches/` 폴더(회차가 없으면 `$TMPDIR/coord-searches/`) |
 | `glm-preflight.mjs` | 없음 | `ok <host> <model> <초>` 또는 `fail <alias\|host\|call\|model> <사유>`(모두 종료 코드 0). 회차가 있으면 결과를 state `.glm` 에 기록 |
+| `wbs.mjs` | `[--open] [--print] [--quiet]` | `<회차 폴더>/WBS.md` 생성 · `WBS <pct>% <경로>` 한 줄. `--open` = OS 기본 앱으로 열기(darwin `open` · win32 `cmd /c start` · linux `xdg-open`, 분리 실행·오류 무시, `wbs.auto_open=false` 면 안 엶). 자동 호출: `init`(생성+열기) · `tick.mjs`(조용히 재생성, 틱 출력 불변) · `item-done`·`wbs-*`(조용히 재생성) · `close-run`(재생성+열기). 환경 변수 `COORD_WBS_AUTO=0` = 자동 호출 끔, `COORD_WBS_OPENER=<명령>` = 여는 명령 바꿈(`none` = 안 엶, 시험용) |
 
 ### 3.4 상태 쓰기
 
@@ -279,8 +289,11 @@
 | `item-done <레인> <항목id>` | 항목 완료 · `PROGRESS <레인> <pct>%` |
 | `progress` | 레인마다 `PROGRESS <레인> <pct>% <끝난가중치>/<전체가중치>`, 마지막 `PROGRESS ALL <pct>%` |
 | `hold <레인> <사유\|-> [until-iso]` | hold 세우기(`-` = 풀기) · `OK` |
-| `close-run [json]` | 회차 마감: `run-closed` 이벤트 → `node scripts/office.mjs finish` → `.run.closed_at` 기록(이미 있으면 처음 값 유지, finish 는 다시 검) · `OK`. `event run-closed` 도 같은 길 |
+| `close-run [json]` | 회차 마감: `run-closed` 이벤트 → `node scripts/office.mjs finish` → `.run.closed_at` 기록(이미 있으면 처음 값 유지, finish 는 다시 검) → 최종 `WBS.md` 재생성·열기 · `OK`. `event run-closed` 도 같은 길 |
 | `summary` | summary.md 재생성 · 경로 |
+| `wbs-phase <단계> <제목> [--weight n]` | 조정자 단계에 항목 추가(단계 없으면 만듦, weight 기본 1) · `OK` |
+| `wbs-done <단계> <제목 앞부분\|번호> [--note 글]` | 항목 완료(번호는 1부터, 앞부분은 안 끝난 항목 먼저). 없으면 종료 코드 2 · `OK` |
+| `wbs-issue <글>` | `.wbs.issues` 에 한 줄 추가 · `OK` |
 
 ### 3.5 부작용 있는 스크립트(모두 `--dry-run`)
 

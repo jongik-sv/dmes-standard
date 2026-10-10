@@ -266,6 +266,8 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
     if (!dry) {
       coordStateCall(c, ['set', '.run.last_tick_at', JSON.stringify(nowIso(c))]); c.errs.length = 0;
       quiet(c, 'office', ['beat']);
+      // 회차 WBS 를 조용히 다시 만든다(실패·COORD_WBS_AUTO=0 이면 건너뜀 — 틱 출력 불변)
+      if ((c.env.COORD_WBS_AUTO ?? '1') !== '0') quiet(c, 'wbs', ['--quiet']);
       // 오피스 콘솔 폴러가 죽었으면 다시 띄운다(이미 돌면 아무 일도 하지 않는다 — contract §4.1). COORD_CONSOLE_POLL=0 이면 건너뜀.
       if ((c.env.COORD_CONSOLE_POLL ?? '1') !== '0') quiet(c, 'console-poll', ['start']);
     }

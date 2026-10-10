@@ -47,7 +47,7 @@ function runOne(c) {
       writeFileSync(p, dec(v));
     }
     const sub = (v) => (typeof v === 'string' ? v.split('<WORK>').join(work).split('<HOME>').join(home).split('<TMP>').join(tmp) : v);
-    const env = { ...process.env, HOME: home, USERPROFILE: home, TMPDIR: tmp, TZ: 'UTC', ...c.env };
+    const env = { ...process.env, HOME: home, USERPROFILE: home, TMPDIR: tmp, TZ: 'UTC', COORD_WBS_AUTO: '0', ...c.env };   // 골든은 옛 판 기대값 — WBS 자동 생성(init·item-done·close-run)은 끈다
     delete env.ORCA_TAB_ID;
     for (const k of Object.keys(env)) env[k] = sub(env[k]);
     const r = spawnSync(process.execPath, [MJS, ...c.args.map(sub)], { cwd: work, env, input: dec(c.stdin), timeout: 60000 });
