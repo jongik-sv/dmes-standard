@@ -80,7 +80,7 @@
 
 ## React Flow 캔버스 (`@dk-oasis/shared/react-flow`)
 
-- [React Flow 캔버스 부품](react-flow.md): 노드·선을 그리는 캔버스 화면(React Flow)에서 업무와 무관한 부품을 함께 쓸 때 쓴다. `@xyflow/react` 전부와 선 경로 계산·끌기 스냅·화면 길잡이·우클릭 메뉴·단축키 판정·찾기 위젯을 한 서브패스로 준다.
+- [React Flow 캔버스 부품](react-flow.md): 노드·선을 그리는 캔버스 화면(React Flow)에서 업무와 무관한 부품을 함께 쓸 때 쓴다. `@xyflow/react` 전부와 선 경로 계산·끌기 스냅·화면 길잡이·우클릭 메뉴·단축키 판정·찾기 위젯·자동 배치(dagre)를 한 서브패스로 준다.
 
 ## MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)
 

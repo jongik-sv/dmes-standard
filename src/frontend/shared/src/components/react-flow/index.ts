@@ -8,6 +8,8 @@ export {
   simplifyRoute, smoothStepPoints, snapRoutePoint, snapSegmentDelta,
 } from "./route-path";
 export type { FlowPos, RoutePointGuide, SegmentAxis, SegmentHandle, Side, SmoothStepInput } from "./route-path";
+export { AUTO_LAYOUT_DEFAULTS, autoLayout } from "./auto-layout";
+export type { AutoLayoutOptions, LayoutDirection, LayoutEdge, LayoutNode } from "./auto-layout";
 export { SNAP_THRESHOLD_PX, boundsOf, snapHitIn, snapIndex, snapMove, snapMoveIn, snapThreshold } from "./snap";
 export type { Box as SnapBox, Guide, GuideAxis, SnapHit, SnapIndex, SnapResult } from "./snap";
 export { SnapGuideStyle } from "./SnapGuideStyle";

@@ -72,7 +72,7 @@ node $D/aggrid_docs.mjs recommendations           # 공식 ag-dev 의 LLM 흔한
 | 모달·트리·탭·룩업 | `modal`, `tree`, `tabs`, `lookup` |
 | 여러 문서를 열어 두고 오가는 닫을 수 있는 탭(숨은 탭 상태·효과 유지) | `closable-tabs`: `ClosableTabs`(탭 머리 제목·● 변경 점·닫기 단추, 모든 패널 마운트 유지, ←/→·Delete, 닫기 확인은 화면이 `onClose` 에서). 닫지 않는 고정 보기 전환이면 `tabs` |
 | 모양이 정해지지 않은 JSON 값 보기(캐시 값·설정·응답 본문) | `json-view`: `JsonView`(읽기 전용 접는 트리, `fill` 로 패널 남은 높이 채움) |
-| 노드·선을 그리는 캔버스 화면(React Flow) | `react-flow`: `@xyflow/react` 전부 + 선 경로(`routePath`·`smoothStepPoints`)·스냅·`ViewportGuard`·`ContextMenu`·`shortcutOf`/`dispatchShortcut`·`FindWidget`. `@xyflow/react` 를 직접 import 하지 않는다 |
+| 노드·선을 그리는 캔버스 화면(React Flow) | `react-flow`: `@xyflow/react` 전부 + 선 경로(`routePath`·`smoothStepPoints`)·스냅·`ViewportGuard`·`ContextMenu`·`shortcutOf`/`dispatchShortcut`·`FindWidget`·자동 배치 `autoLayout`. `@xyflow/react`·`@dagrejs/dagre` 를 직접 import 하지 않는다 |
 | crontab 5칸 식 입력(쉬운 설정·직접 입력·설명·다음 예정) | `cron-input`: `CronInput`(`preview`·`onRequestPreview` 로 서버 cronPreview 결과를 보인다), 순수 함수 `describeCron`·`validateCron`·`buildCron`·`toEasy` |
 | 이름·형식·값 변수 표(실행 변수 안내 포함) | `variable-table`: `VariableTable`(`mode="valueOnly"` 는 값만 편집) |
 | 24열 격자 단위 크기(위젯 가로×세로)를 미리 보면서 마우스로 끌어 정하기 | `grid-resize-box`: `GridResizeBox`(제어형 `size`·`areaWidth`·`onResizeEnd`, 오른쪽·아래·모서리 손잡이, 끄는 중 「12×8」 표시), 순수 함수 `gridBoxPx`·`snapGridSize` |

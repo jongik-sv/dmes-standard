@@ -1,6 +1,6 @@
 # React Flow 캔버스 부품
 
-노드·선을 그리는 캔버스 화면(React Flow)에서 업무와 무관한 부품을 함께 쓸 때 쓴다. `@xyflow/react` 전부와 선 경로 계산·끌기 스냅·화면 길잡이·우클릭 메뉴·단축키 판정·찾기 위젯을 한 서브패스로 준다.
+노드·선을 그리는 캔버스 화면(React Flow)에서 업무와 무관한 부품을 함께 쓸 때 쓴다. `@xyflow/react` 전부와 선 경로 계산·끌기 스냅·화면 길잡이·우클릭 메뉴·단축키 판정·찾기 위젯·자동 배치(dagre)를 한 서브패스로 준다.
 
 - import: `import { ReactFlow, ReactFlowProvider, ViewportGuard, ContextMenu, FindWidget, shortcutOf, CANVAS_SHORTCUTS } from "@dk-oasis/shared/react-flow";` (CSS import 없음 — xyflow 스타일시트는 이 서브패스가 불러오고, 부품은 자기 `<style>` 을 넣는다)
 - 소스: `src/frontend/shared/src/components/react-flow/` (`index.ts` 배럴)
@@ -52,11 +52,35 @@ export function Canvas({ find, onFit }: { find: FindState; onFit(): void }) {
 | React Flow | `@xyflow/react` 의 모든 export(`ReactFlow`, `useStore`, `Position` …). xyflow 의 `Box` 는 그대로 xyflow 뜻이다 |
 | 선 경로(순수) | `routePath`, `routeMidpoint`, `insertRoutePoint`, `smoothStepPoints`, `autoRoute`, `finishRoute`, `simplifyRoute`, `roundPoint`, `segmentAxis`, `segmentHandles`, `isClear`, `moveSegment`, `snapRoutePoint`, `snapSegmentDelta`, 상수 `ROUTE_RADIUS`, `AUTO_ROUTE_OFFSET`, `ROUTE_STUB`, `SEGMENT_MIN_PX`, `SEGMENT_CLEAR_PX`, `SEGMENT_SNAP_PX`, `ROUTE_GUIDE_OVERHANG`, 형 `FlowPos`, `Side`, `SmoothStepInput`, `SegmentAxis`, `SegmentHandle`, `RoutePointGuide` |
 | 끌기 스냅(순수) | `snapIndex`, `snapHitIn`, `snapMoveIn`, `snapMove`, `snapThreshold`, `boundsOf`, `SNAP_THRESHOLD_PX`, 형 `SnapBox`(xyflow `Box` 와 겹쳐 이름을 바꿨다), `Guide`, `GuideAxis`, `SnapResult`, `SnapIndex`, `SnapHit`. 안내선 규칙은 `SnapGuideStyle` |
+| 자동 배치(순수) | `autoLayout`, `AUTO_LAYOUT_DEFAULTS`, 형 `LayoutNode`, `LayoutEdge`, `LayoutDirection`, `AutoLayoutOptions`. dagre 로 층을 나눠 왼쪽 위 좌표(정수)를 준다 |
 | 화면 길잡이 | `ViewportGuard`, `RECHECK_MS`(400), `LOST_DELAY_MS`(300), 계산 `boundsOfRects`, `panExtentOf`, `sameExtent`, `visibleRect`, `insideExtent`, `allOutside`, `KEEP_VISIBLE_PX`(80), `NO_EXTENT` |
 | 우클릭 메뉴 | `ContextMenu`, 형 `MenuItem`, `MenuSwatch` |
 | 단축키 | `shortcutOf`, `dispatchShortcut`, `UNHANDLED`, `CANVAS_SHORTCUTS`, `isMacPlatform`, `isTypingTarget`, `isShown`, 형 `KeyLike`, `ShortcutBinding`, `ShortcutHandlers`, `ShortcutHelpRow`, `CanvasShortcutId` |
 | 찾기 | `FindWidget`, `findCountText`, `FIND_NO_RESULT`, `compileFind`, `escapeRegExp`, `INVALID_FIND`, `DEFAULT_FIND_OPTIONS`, 형 `FindOptions`, `FindState`, `FindMatcher` |
 | 단추·공통 | `ToolButton`(26×26 아이콘 단추 + CSS 툴팁), `keepFocusOffButtons`(단추 mousedown 초점 이동 막기), `DEFAULT_CLASS_PREFIX` |
+
+## 자동 배치
+
+```ts
+import { autoLayout, type LayoutEdge, type LayoutNode } from "@dk-oasis/shared/react-flow";
+
+const nodes: LayoutNode[] = rf.getNodes().map((n) => ({ id: n.id, width: n.measured?.width ?? 240, height: n.measured?.height ?? 80 }));
+const edges: LayoutEdge[] = rf.getEdges().map((e) => ({ source: e.source, target: e.target }));
+const pos = autoLayout(nodes, edges, { direction: "LR", rankGap: 100, isolated: "grid" });
+// pos[id] 는 node.position(왼쪽 위)에 그대로 넣는다. 서버에 저장하는 화면은 이 값으로 명령을 만든다.
+```
+
+| 옵션 | 기본 | 설명 |
+|---|---|---|
+| `direction` | `"TB"` | 층을 쌓는 방향(`TB`·`BT`·`LR`·`RL`) |
+| `nodeGap` | `40` | 같은 층 노드 사이. 격자 칸 사이도 이 값 |
+| `rankGap` | `60` | 층 사이. 격자를 선 묶음 아래에 둘 때 띄우는 거리도 이 값 |
+| `origin` | `{x:0, y:0}` | 결과의 가장 왼쪽 위. 지금 그림 자리를 지키려면 지금 노드들의 최소 x·y 를 준다 |
+| `isolated` | `"rank"` | 선이 없는 노드. `"grid"` 면 선 묶음 아래 격자(관계 없는 표가 많은 ERD) |
+| `gridColumns` | `ceil(sqrt(n))` | `"grid"` 의 열 수 |
+
+- 같은 id 는 처음 것만 쓴다. 자기 선·모르는 끝·같은 선 반복은 무시한다. 크기가 0·NaN 이면 1 로 본다.
+- 같은 입력이면 같은 결과다. 노드·선 순서를 정해서(예: 이름 순) 넘기면 다시 눌러도 그림이 흔들리지 않는다.
 
 ## Props
 
@@ -87,3 +111,5 @@ export function Canvas({ find, onFit }: { find: FindState; onFit(): void }) {
 | 화면에 `.css` 를 만들어 메뉴·찾기 위젯 모양을 덮음 | 화면 노드·선 규칙은 화면이 `<style href precedence>` 로 넣는다(Local-Rules §17). 부품 모양을 바꿔야 하면 shared 를 고친다(승인 뒤) |
 | `import { Box } from "@dk-oasis/shared/react-flow"` 로 스냅 상자를 기대함 | 스냅 상자는 `SnapBox` 다. `Box` 는 xyflow 형식이다 |
 | 단축키 표를 화면마다 처음부터 씀 | `[...CANVAS_SHORTCUTS, …화면 전용]` 로 잇는다 |
+| 화면에서 `@dagrejs/dagre` 를 직접 import 해 배치를 짬 | 업무와 무관한 배치는 `autoLayout` 을 쓴다. 노드 크기·선 고르기만 화면이 정한다 |
+| dagre 결과(가운데 좌표)를 `node.position` 에 그대로 넣음 | `autoLayout` 은 이미 왼쪽 위 좌표를 준다 |
