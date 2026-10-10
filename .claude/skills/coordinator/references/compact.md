@@ -59,6 +59,9 @@
    - `--clear` = `/clear` → 입력창 빈 것 확인(tui-idle) → 재개 문구(정본 경로·다음 단계) 전송. 정본 메모 필수(`--force-no-memo` 무시, 메모 없으면 `no-memo`)
    - 재개 문구: `[조정자→<레인>] 재개: 컨텍스트를 비웠다. 정본 <경로> 를 읽고 이어서 진행한다. 조정 세션 <이름>(<주소>). 다음 단계: <한 줄>`
    - 이유: `/compact` 는 큰 컨텍스트를 한 번 더 읽고 요약을 씀. `/clear` 는 재독 세트만 읽음
+   - `/clear` 는 세션 id 를 바꾼다: 스크립트가 재개 문구를 보낸 뒤 `coord-state.mjs relink <레인>` 으로 state 를 갱신(옛 id 는 `session.prev_ids`)
+   - `/clear` 처리 증거(새 세션 id)를 최대 10초 기다리고, 못 얻으면 3초 뒤 진행. `after` 를 못 읽으면 `-`
+   - 재개 전송 실패(exit 4) 또는 idle 대기 시간 초과 → `compact.pending` 이 켜진 채 남음 → term-send-safe 로 재개 문구 다시 보내기
    - 옵션 없는 호출(`/compact` 경로)은 정본 메모를 받을 수 없을 때만
      - 순서: 안전 확인 → 문구 전송 → Compacting 사라짐 대기 → 재측정
      - 문구: `/compact <레인> 진행 중. 정본은 <경로>. 조정 세션 <이름>(<주소>). 다음 단계: <한 줄>`
@@ -108,4 +111,5 @@ Workflow·agent 가 도는 중 임계 초과 → compact 보류:
   1. 정본 메모와 `node scripts/coord-state.mjs summary` 갱신
   2. 사용자에게 **한 줄 알림**: 「`/clear` 입력 뒤 `[조정자 재개] .claude/skills/coordinator/references/resume.md 의 재독 세트만 읽고 이어서` 를 입력」
   3. 같은 알림을 틱마다 반복하지 않음(`run` 이벤트에 알림 사실 기록)
+- `/clear` 와 재개 뒤 `node scripts/coord-state.mjs relink self` 로 조정 세션 id 갈아끼움
 - 재개 뒤 `CronList` 로 감시 cron 확인(`resume.md` §2)

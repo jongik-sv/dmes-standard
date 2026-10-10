@@ -15,6 +15,7 @@ import { compacted, ctxPct } from './lib/compact-screen.mjs';
 import { functions as termFns } from './lib/term.mjs';
 import { ArithAbort, arithVal, coordStateCall, jqAdd, rawOut, runScriptFile, runSync, stripNl } from './lib/common-ext.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
+import { sleepSec } from './lib/test-sleep.mjs';
 
 /** 도움말(= bash 판 머리말 2~8줄, 이름만 .mjs). */
 const HELP = `# 사용법: compact-lane.mjs <레인> [--clear] [--force-no-memo] [--over-draft] [--dry-run]
@@ -85,7 +86,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
     if (!['claude', 'glm', ''].includes(kind)) return refuse('unsupported-kind', `kind=${kind} 는 /compact 대상이 아니다(설계 §3.j-6)`);
     const h = lg('.session.handle');
     if (h === '') return refuse('no-handle', 'handle 이 상태에 없다 — 신원 보고를 다시 받을 것');
-    const sid = lg('.session.session_id');
+    let sid = lg('.session.session_id');
 
     // j-3 머지 중·측정 레인
     if (rawAt(docs, (d) => path(d, 'merge', 'in_flight', 'lane')) === lane) return refuse('merge-in-flight');
@@ -136,6 +137,14 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
     };
     const before = ctxTokens();
 
+    // 레인 세션 id 를 pid 파일에서 다시 읽어 state 에 갈아끼운다(coord-state relink). 출력 첫 줄을 돌려준다.
+    const relinkNow = () => stripNl(runSync(process.execPath, [join(SD, 'coord-state.mjs'), 'relink', lane], { env: c.env, cwd: c.cwd }).out.toString('utf8')).split('\n')[0] ?? '';
+    // /clear 는 들어갔는데 재개 못 함 → 조정자가 알 수 있게 compact.pending 을 켜고 이벤트를 남긴다.
+    const markClearedNotResumed = (why) => {
+      coordStateCall(c, ['set', `${LP}.compact.pending`, 'true']);
+      coordStateCall(c, ['event', 'compact-resume-pending', lane, `{"mode":"clear","why":"${why}"}`]);
+    };
+
     const sargs = [join(SD, 'term-send-safe.mjs'), '--handle', h, '--text', text, '--timeout-ms', '300000'];
     if (dry) sargs.push('--dry-run');
     if (over) sargs.push('--over-draft');
@@ -153,10 +162,25 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
 
     const readScreen = () => Buffer.from(termFns.term_read_screen.run({ args: [h, '40'], env: c.env, cwd: c.cwd }).out ?? '').toString('latin1');
     const hasCompacting = () => `${readScreen()}`.split('\n').filter((l, i, a) => !(i === a.length - 1 && l === '')).slice(-20).some((l) => l.includes('Compacting'));
+    let afterOverride = null;
     if (clear) {
-      // /clear 는 입력창이 다시 비어(tui-idle) 재개 문구를 받을 수 있을 때까지 기다린다.
+      // 1) /clear 가 처리됐다는 증거를 먼저 기다린다. 입력창이 이미 비어 있어 tui-idle 이 바로 만족되면
+      //    재개 문구가 /clear 보다 먼저 들어가 사라질 수 있다. 증거 = relink 가 새 세션 id 를 읽어 옴(최대 10초, 1초 간격).
+      //    pid·옛 id 가 없어 증거를 못 얻거나 시간 안에 안 바뀌면 고정 3초 뒤 진행하고 로그에 남긴다.
+      let relinked = false;
+      if (sid !== '') {
+        for (let i = 0; i < 10 && !relinked; i++) {
+          const rl = relinkNow();
+          if (rl.startsWith('RELINK ') && rl.includes(' -> ')) { relinked = true; sid = rl.slice(rl.lastIndexOf(' -> ') + 4).trim(); break; }
+          if (rl.endsWith(' unknown')) break;
+          sleepSec(c.env, 1);
+        }
+      }
+      if (!relinked) { c.log(`COMPACT_NOTE ${lane} /clear 처리 증거(새 세션 id)를 못 얻어 고정 3초 뒤 진행한다`); sleepSec(c.env, 3); }
+      // 2) 입력창이 다시 비어(tui-idle) 재개 문구를 받을 수 있을 때까지 기다린다.
       const w = termFns.term_wait_idle.run({ args: [h, '60000'], env: c.env, cwd: c.cwd });
       if (stripNl(Buffer.from(w.out ?? '').toString('utf8')) !== 'satisfied') {
+        markClearedNotResumed('idle-timeout');
         out.push(`COMPACT_TIMEOUT ${lane}`);
         coordStateCall(c, ['event', 'compact-timeout', lane, '{"mode":"clear","phase":"idle"}']);
         flush();
@@ -165,25 +189,32 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
       const rtext = resumeText({ lane, memo, cname, caddr, next }).replace(/[\n\r\t]/g, ' ').split('!').join('');
       const rr = runScriptFile(join(SD, 'term-send-safe.mjs'), ['--handle', h, '--text', rtext, '--timeout-ms', '300000'], { env: c.env, cwd: c.cwd });
       const rres = stripNl(rr.out.toString('utf8'));
-      if (!rres.startsWith('SENT ')) throw new CoordDie(4, `재개 문구 전송 실패(rc=${rr.rc}): ${rres} — /clear 는 이미 들어갔다. 정본 ${memo !== '' ? memo : '-'} 를 읽고 이어가라고 직접 보낼 것`);
-    } else {
-    for (let i = 0; i < 12; i++) { if (hasCompacting()) break; await sleep(5000); }
-    let maxm = cfgSub(c, '.compact.wait_max_min');
-    if (maxm === '') maxm = '10';
-    let end;
-    try { end = BigInt(Number(nowEpoch())) + arithVal(maxm) * 60n; } catch (e) { if (!(e instanceof ArithAbort)) throw e; c.log(`bash: ${e.message}`); end = 0n; }
-    while (hasCompacting()) {
-      if (BigInt(Number(nowEpoch())) >= end) {
-        out.push(`COMPACT_TIMEOUT ${lane}`);
-        coordStateCall(c, ['event', 'compact-timeout', lane, `{"wait_max_min":${maxm}}`]);
-        flush();
-        return 0;
+      if (!rres.startsWith('SENT ')) {
+        markClearedNotResumed('resume-send-failed');
+        throw new CoordDie(4, `재개 문구 전송 실패(rc=${rr.rc}): ${rres} — /clear 는 이미 들어갔다. term-send-safe 로 재개 문구를 다시 보낼 것(정본 ${memo !== '' ? memo : '-'})`);
       }
-      await sleep(10000);
+      // 3) 새 세션 id 로 갈아끼운다(증거 단계에서 못 바꿨으면 지금 한 번 더). 새 id 로 잰 after 가 before 와 같거나 못 읽으면 '-'.
+      if (!relinked) { const rl = relinkNow(); if (rl.startsWith('RELINK ') && rl.includes(' -> ')) { relinked = true; sid = rl.slice(rl.lastIndexOf(' -> ') + 4).trim(); } }
+      const a2 = relinked ? ctxTokens() : '-';
+      afterOverride = a2 === before ? '-' : a2;
+    } else {
+      for (let i = 0; i < 12; i++) { if (hasCompacting()) break; await sleep(5000); }
+      let maxm = cfgSub(c, '.compact.wait_max_min');
+      if (maxm === '') maxm = '10';
+      let end;
+      try { end = BigInt(Number(nowEpoch())) + arithVal(maxm) * 60n; } catch (e) { if (!(e instanceof ArithAbort)) throw e; c.log(`bash: ${e.message}`); end = 0n; }
+      while (hasCompacting()) {
+        if (BigInt(Number(nowEpoch())) >= end) {
+          out.push(`COMPACT_TIMEOUT ${lane}`);
+          coordStateCall(c, ['event', 'compact-timeout', lane, `{"wait_max_min":${maxm}}`]);
+          flush();
+          return 0;
+        }
+        await sleep(10000);
+      }
     }
-    }
-    let after = ctxTokens();
-    if (after === before || after === '-') {
+    let after = afterOverride ?? ctxTokens();
+    if (afterOverride === null && (after === before || after === '-')) {
       const scr = stripNl(readScreen());
       const sbuf = Buffer.from(`${scr}\n`, 'latin1');
       const pct = stripNl(ctxPct(sbuf).out ?? '');
