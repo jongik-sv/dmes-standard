@@ -8,6 +8,8 @@ import java.util.*;
 /** 한 묶음을 처리하는 작업 사본과 상태. */
 final class Ctx {
     static final String REV = "_rev";
+    /** 명령이 고치지 않는 속성 — restore 가 값을 써도 _rev 를 찍지 않는다(deferred 51). */
+    static final Set<String> UNSTAMPED = Set.of("candidateRank");
 
     record Key(String kind, String id) {}
 
@@ -96,10 +98,11 @@ final class Ctx {
         }
     }
 
-    /** 요소 JSON 의 {@code _rev} 에 속성별 이번 rev·세션을 적는다(restore 가 JSON 단계에서 고칠 때 쓴다). */
+    /** 요소 JSON 의 {@code _rev} 에 속성별 이번 rev·세션을 적는다(restore 가 JSON 단계에서 고칠 때 쓴다). UNSTAMPED 는 건너뛴다. */
     void stampNode(ObjectNode node, Collection<String> props) {
         ObjectNode revs = node.get(REV) instanceof ObjectNode o ? o : node.putObject(REV);
         for (String p : props) {
+            if (UNSTAMPED.contains(p)) continue;
             ObjectNode pr = revs.putObject(p);
             pr.put("rev", newRev);
             pr.put("session", session);

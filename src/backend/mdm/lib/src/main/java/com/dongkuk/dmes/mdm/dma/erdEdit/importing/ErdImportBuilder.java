@@ -9,6 +9,7 @@ import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdIds;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdWarning;
 import com.dongkuk.dmes.mdm.dma.erdEdit.infer.InferredRelation;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdColumn;
+import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdEvidence;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdKey;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdModelCodec;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdRelation;
@@ -48,18 +49,18 @@ public final class ErdImportBuilder {
     public record Built(ErdCommand.Restore restore, List<JsonNode> diagramCommands, ErdImportResult.Summary summary,
                         List<ErdWarning> skipped) {}
 
+    /** APPLY_DIFF 의 TABLE_ADDED 용 표 하나. columnIds 는 컬럼 이름 → 컬럼 id(DB 순서). skipped 는 뺀 키의 경고. */
+    public record TablePart(String tableId, Map<String, String> columnIds, List<ErdChange> elements, List<ErdWarning> skipped) {}
+
+    /** 관계 하나의 식별 여부와 기수(가져오기 규칙). 첫 가져오기와 APPLY_DIFF 가 같이 쓴다. */
+    public record Shape(boolean identifying, String parentCardinality, String childCardinality) {}
+
     private final Function<Character, String> ids;
     private final ErdDictionary dict;
     /** 표 이름 → 표 id(이름순). */
     private final Map<String, String> tableIds = new LinkedHashMap<>();
     /** 표 이름 → 컬럼 이름 → 컬럼 id. */
     private final Map<String, Map<String, String>> columnIds = new HashMap<>();
-    /** 표 이름 → 컬럼 이름 → DB 컬럼. */
-    private final Map<String, Map<String, ErdDbMeta.Column>> dbColumns = new HashMap<>();
-    /** 표 이름 → PK 컬럼 이름. */
-    private final Map<String, List<String>> pkOf = new HashMap<>();
-    /** 표 이름 → 유일한 컬럼 집합들(PK·UK·유일 인덱스). 1:1 판정에 쓴다. */
-    private final Map<String, List<Set<String>>> uniqueSetsOf = new HashMap<>();
     private final List<ErdChange> tables = new ArrayList<>();
     private final List<ErdChange> columns = new ArrayList<>();
     private final List<ErdChange> keys = new ArrayList<>();
@@ -93,7 +94,7 @@ public final class ErdImportBuilder {
         ErdImportBuilder b = new ErdImportBuilder(ids, dict);
         meta.tables().stream().sorted(Comparator.comparing(ErdDbMeta.Table::name)).forEach(b::table);
         b.keys(meta);
-        b.relations(inferred);
+        b.relations(meta, inferred);
         String diagramId = ids.apply('d');
         List<ErdChange> elements = new ArrayList<>(b.tables);
         elements.addAll(b.columns);
@@ -113,28 +114,27 @@ public final class ErdImportBuilder {
         return new Built(new ErdCommand.Restore(sinceRev, elements), diagramCommands, summary, List.copyOf(b.skipped));
     }
 
-    private void table(ErdDbMeta.Table t) {
-        String tid = ids.apply('t');
-        tableIds.put(t.name(), tid);
-        ErdTable et = new ErdTable();
-        et.phys = t.name();
-        et.logical = tableLogical(t);
-        et.comment = t.comment();
-        Map<String, String> cids = new LinkedHashMap<>();
-        Map<String, ErdDbMeta.Column> byName = new HashMap<>();
-        for (ErdDbMeta.Column c : t.columns().stream().sorted(Comparator.comparingInt(ErdDbMeta.Column::position)).toList()) {
-            String cid = ids.apply('c');
-            cids.put(c.name(), cid);
-            byName.put(c.name(), c);
-            et.columnOrder.add(cid);
-            columns.add(upsert("column", cid, column(tid, c)));
-        }
-        columnIds.put(t.name(), cids);
-        dbColumns.put(t.name(), byName);
-        tables.add(upsert("table", tid, et));
+    /**
+     * 표 하나와 그 컬럼·PK·UK·IX 요소를 첫 가져오기와 같은 규칙으로 만든다(README "다시 가져오기 반영" TABLE_ADDED).
+     * 다이어그램·관계·이름 규칙 추정은 하지 않는다. 요소 순서는 build 와 같다(표 → 컬럼 → 키).
+     */
+    public static TablePart oneTable(ErdDbMeta meta, String tableName, ErdDictionary dict, Function<Character, String> ids) {
+        ErdDbMeta.Table t = meta.tables().stream().filter(x -> x.name().equals(tableName)).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("DB 메타에 없는 표입니다: " + tableName));
+        ErdImportBuilder b = new ErdImportBuilder(ids, dict);
+        b.table(t);
+        b.keys(new ErdDbMeta(meta.owner(), List.of(t),
+                meta.constraints().stream().filter(k -> k.table().equals(tableName)).toList(),
+                meta.indexes().stream().filter(ix -> ix.table().equals(tableName)).toList()));
+        List<ErdChange> elements = new ArrayList<>(b.tables);
+        elements.addAll(b.columns);
+        elements.addAll(b.keys);
+        return new TablePart(b.tableIds.get(tableName), new LinkedHashMap<>(b.columnIds.get(tableName)), elements,
+                List.copyOf(b.skipped));
     }
 
-    private ErdColumn column(String tableId, ErdDbMeta.Column c) {
+    /** DB 컬럼 → 모델 컬럼(논리명·도메인은 사전, 타입은 typeOf). */
+    public static ErdColumn columnOf(String tableId, ErdDbMeta.Column c, ErdDictionary dict) {
         ErdColumn e = new ErdColumn();
         e.table = tableId;
         e.phys = c.name();
@@ -149,6 +149,61 @@ public final class ErdImportBuilder {
         e.defaultValue = c.defaultValue() == null || c.defaultValue().isBlank() ? null : c.defaultValue().strip();
         e.comment = c.comment();
         return e;
+    }
+
+    /**
+     * 관계 하나의 식별·기수(단계 1 Task 4 규칙). 자식 표에 PK 가 있고 자식 컬럼이 모두 PK 안이면 식별. 부모 쪽은 자식 컬럼이 모두
+     * NOT NULL 이면 ONE, 아니면 ZERO_OR_ONE. 자식 쪽은 자식 컬럼 집합이 자식 표의 PK·UK·유일 인덱스와 같으면 ZERO_OR_ONE(1:1).
+     */
+    public static Shape shape(ErdDbMeta meta, String childTable, List<String> childColumns) {
+        List<String> pk = meta.constraints().stream().filter(k -> "P".equals(k.type()) && k.table().equals(childTable))
+                .findFirst().map(ErdDbMeta.Constraint::columns).orElse(List.of());
+        boolean identifying = !pk.isEmpty() && pk.containsAll(childColumns);
+        Map<String, ErdDbMeta.Column> cols = new HashMap<>();
+        meta.tables().stream().filter(t -> t.name().equals(childTable)).findFirst()
+                .ifPresent(t -> t.columns().forEach(c -> cols.put(c.name(), c)));
+        boolean allNotNull = childColumns.stream().allMatch(c -> cols.containsKey(c) && !cols.get(c).nullable());
+        Set<String> want = new HashSet<>(childColumns);
+        boolean unique = meta.constraints().stream().anyMatch(k -> ("P".equals(k.type()) || "U".equals(k.type()))
+                        && k.table().equals(childTable) && new HashSet<>(k.columns()).equals(want))
+                || meta.indexes().stream().anyMatch(ix -> ix.unique() && ix.table().equals(childTable)
+                        && new HashSet<>(ix.columns()).equals(want));
+        return new Shape(identifying, allNotNull ? "ONE" : "ZERO_OR_ONE", unique ? "ZERO_OR_ONE" : "ZERO_OR_MORE");
+    }
+
+    /** DB FK 하나의 관계 요소(state DB, dbFk, 근거 DB_FK + 제약 이름). APPLY_DIFF 의 FK_ADDED·새 표의 FK 가 쓴다. */
+    public static ErdRelation dbRelation(ErdDbMeta meta, ErdDbMeta.Constraint fk, String childId, String parentId,
+                                         List<List<String>> pairIds) {
+        ErdRelation e = new ErdRelation();
+        e.child = childId;
+        e.parent = parentId;
+        pairIds.forEach(p -> e.pairs.add(List.of(p.get(0), p.get(1))));
+        Shape s = shape(meta, fk.table(), fk.columns());
+        e.identifying = s.identifying();
+        e.cardinality.parent = s.parentCardinality();
+        e.cardinality.child = s.childCardinality();
+        e.state = "DB";
+        e.dbFk = true;
+        e.evidence = new ArrayList<>(List.of(new ErdEvidence("DB_FK", fk.name())));
+        return e;
+    }
+
+    private void table(ErdDbMeta.Table t) {
+        String tid = ids.apply('t');
+        tableIds.put(t.name(), tid);
+        ErdTable et = new ErdTable();
+        et.phys = t.name();
+        et.logical = tableLogical(t);
+        et.comment = t.comment();
+        Map<String, String> cids = new LinkedHashMap<>();
+        for (ErdDbMeta.Column c : t.columns().stream().sorted(Comparator.comparingInt(ErdDbMeta.Column::position)).toList()) {
+            String cid = ids.apply('c');
+            cids.put(c.name(), cid);
+            et.columnOrder.add(cid);
+            columns.add(upsert("column", cid, columnOf(tid, c, dict)));
+        }
+        columnIds.put(t.name(), cids);
+        tables.add(upsert("table", tid, et));
     }
 
     /** 표 논리명: 주석 첫 줄, 주석이 비었으면 물리명. */
@@ -170,8 +225,6 @@ public final class ErdImportBuilder {
                 continue;
             }
             addKey(k.table(), "P".equals(k.type()) ? "PK" : "UK", k.name(), cids);
-            uniqueSetsOf.computeIfAbsent(k.table(), x -> new ArrayList<>()).add(new HashSet<>(k.columns()));
-            if ("P".equals(k.type())) pkOf.put(k.table(), k.columns());
         }
         for (ErdDbMeta.Index ix : meta.indexes()) {
             // PK·UK 제약이 만든 인덱스: 이름이 같거나(사용자 이름) 컬럼 목록이 같다(SYS_C… 이름).
@@ -183,7 +236,6 @@ public final class ErdImportBuilder {
                 continue;
             }
             addKey(ix.table(), ix.unique() ? "UK" : "IX", ix.name(), cids);
-            if (ix.unique()) uniqueSetsOf.computeIfAbsent(ix.table(), x -> new ArrayList<>()).add(new HashSet<>(ix.columns()));
         }
     }
 
@@ -196,7 +248,7 @@ public final class ErdImportBuilder {
         keys.add(upsert("key", ids.apply('k'), k));
     }
 
-    private void relations(List<InferredRelation> inferred) {
+    private void relations(ErdDbMeta meta, List<InferredRelation> inferred) {
         Set<String> seen = new HashSet<>();
         for (InferredRelation r : inferred) {
             String sig = r.childTable() + r.childColumns() + ">" + r.parentTable() + r.parentColumns();
@@ -214,12 +266,10 @@ public final class ErdImportBuilder {
             e.child = tableIds.get(r.childTable());
             e.parent = tableIds.get(r.parentTable());
             for (int i = 0; i < child.size(); i++) e.pairs.add(List.of(child.get(i), parent.get(i)));
-            List<String> pk = pkOf.getOrDefault(r.childTable(), List.of());
-            e.identifying = !pk.isEmpty() && pk.containsAll(r.childColumns());
-            Map<String, ErdDbMeta.Column> cols = dbColumns.get(r.childTable());
-            e.cardinality.parent = r.childColumns().stream().noneMatch(c -> cols.get(c).nullable()) ? "ONE" : "ZERO_OR_ONE";
-            e.cardinality.child = uniqueSetsOf.getOrDefault(r.childTable(), List.of()).contains(new HashSet<>(r.childColumns()))
-                    ? "ZERO_OR_ONE" : "ZERO_OR_MORE";
+            Shape s = shape(meta, r.childTable(), r.childColumns());
+            e.identifying = s.identifying();
+            e.cardinality.parent = s.parentCardinality();
+            e.cardinality.child = s.childCardinality();
             e.state = r.state();
             e.dbFk = "DB".equals(r.state());
             e.evidence = new ArrayList<>(r.evidence() == null ? List.of() : r.evidence());

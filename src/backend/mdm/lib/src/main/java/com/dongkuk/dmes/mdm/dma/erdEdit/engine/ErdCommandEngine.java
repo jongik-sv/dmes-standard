@@ -133,7 +133,7 @@ public final class ErdCommandEngine {
             case UpdateKey u -> updateKey(c, u);
             case DeleteKey d -> deleteKey(c, d.id());
             case AddRelation a -> ErdRelationOps.add(this, c, a);
-            case UpdateRelation u -> ErdRelationOps.update(c, u);
+            case UpdateRelation u -> ErdRelationOps.update(this, c, u);
             case ConfirmRelation cr -> ErdRelationOps.setState(c, cr.id(), "CONFIRMED");
             case RejectRelation rr -> ErdRelationOps.setState(c, rr.id(), "REJECTED");
             case DeleteRelation d -> ErdRelationOps.delete(c, d.id());

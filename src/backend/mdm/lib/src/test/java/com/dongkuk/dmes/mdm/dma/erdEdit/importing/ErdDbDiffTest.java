@@ -63,6 +63,28 @@ class ErdDbDiffTest {
         assertThat(ErdDbDiff.diff(imported(before()), before())).isEmpty();
     }
 
+    static ErdDbMeta composite(List<String> childCols, List<String> parentCols) {
+        return new ErdDbMeta("S", List.of(
+                tb("TB_P", null, col("X", 1, "VARCHAR2", 10, null, null, false), col("Y", 2, "VARCHAR2", 10, null, null, false)),
+                tb("TB_C", null, col("ID", 1, "NUMBER", 22, 19, 0, false),
+                        col("A", 2, "VARCHAR2", 10, null, null, true), col("B", 3, "VARCHAR2", 10, null, null, true))),
+            List.of(
+                new Constraint("PK_TB_P", "TB_P", "P", List.of("X", "Y"), null, null),
+                new Constraint("PK_TB_C", "TB_C", "P", List.of("ID"), null, null),
+                new Constraint("FK_TB_C_P", "TB_C", "R", childCols, "TB_P", parentCols)),
+            List.of());
+    }
+
+    /** 짝 순서만 다른 복합 FK 는 같은 FK 다(짝 집합). 짝 자체가 다르면 추가·삭제로 보인다. id 는 각자 순서를 그대로 쓴다. */
+    @Test
+    void compositeFkMatchesByPairSetNotOrder() {
+        ErdModel model = imported(composite(List.of("A", "B"), List.of("X", "Y")));
+        assertThat(ErdDbDiff.diff(model, composite(List.of("B", "A"), List.of("Y", "X")))).isEmpty();
+        assertThat(ErdDbDiff.diff(model, composite(List.of("A", "B"), List.of("Y", "X"))))
+                .extracting(ErdDbDiffItem::id)
+                .containsExactly("FK_ADDED:TB_C(A,B)>TB_P(Y,X)", "FK_REMOVED:TB_C(A,B)>TB_P(X,Y)");
+    }
+
     @Test
     void reportsEveryKindByPhysicalNameInIdOrder() {
         ErdModel model = imported(before());

@@ -67,24 +67,28 @@ public final class ErdDbDiff {
         for (String phys : modelTables.keySet()) {
             if (!dbTables.contains(phys)) out.add(item(TABLE_REMOVED, phys, null, null, null, phys));
         }
+        // 짝 순서만 다른 FK 는 같은 FK 다(deferred 30 의 짝 집합, ErdDiffApplier.findRelation 과 같은 규칙).
+        // 맞춰 보기는 짝 집합 키로 하고, 항목 id 는 그쪽(DB·모델)의 순서 그대로 쓴다.
         Map<String, Fk> dbFks = new LinkedHashMap<>();
         for (ErdDbMeta.Constraint k : meta.constraints()) {
-            if ("R".equals(k.type())) dbFks.put(fkKey(k.table(), k.columns(), k.refTable(), k.refColumns()),
-                    new Fk(k.table(), k.columns(), k.refTable(), k.refColumns()));
+            if ("R".equals(k.type())) {
+                Fk fk = new Fk(k.table(), k.columns(), k.refTable(), k.refColumns());
+                dbFks.put(fk.matchKey(), fk);
+            }
         }
         Map<String, Fk> modelFks = new LinkedHashMap<>();
         for (ErdRelation r : model.relations.values()) {
             Fk fk = modelFk(model, r);
-            if (fk != null) modelFks.put(fkKey(fk.child(), fk.childColumns(), fk.parent(), fk.parentColumns()), fk);
+            if (fk != null) modelFks.put(fk.matchKey(), fk);
         }
-        dbFks.forEach((key, fk) -> {
-            if (!modelFks.containsKey(key) && modelTables.containsKey(fk.child())) {
-                out.add(item(FK_ADDED, fk.child(), null, null, fk.json(), key));
+        dbFks.forEach((match, fk) -> {
+            if (!modelFks.containsKey(match) && modelTables.containsKey(fk.child())) {
+                out.add(item(FK_ADDED, fk.child(), null, null, fk.json(), fk.key()));
             }
         });
-        modelFks.forEach((key, fk) -> {
-            if (!dbFks.containsKey(key) && dbTables.contains(fk.child())) {
-                out.add(item(FK_REMOVED, fk.child(), null, fk.json(), null, key));
+        modelFks.forEach((match, fk) -> {
+            if (!dbFks.containsKey(match) && dbTables.contains(fk.child())) {
+                out.add(item(FK_REMOVED, fk.child(), null, fk.json(), null, fk.key()));
             }
         });
         out.sort(Comparator.comparing(ErdDbDiffItem::id));
@@ -92,6 +96,19 @@ public final class ErdDbDiff {
     }
 
     private record Fk(String child, List<String> childColumns, String parent, List<String> parentColumns) {
+        /** 항목 id 꼬리. 짝 순서를 그대로 둔다. */
+        String key() {
+            return fkKey(child, childColumns, parent, parentColumns);
+        }
+
+        /** 맞춰 보기 키. 짝(자식=부모)을 정렬해 순서를 지운다. */
+        String matchKey() {
+            List<String> pairs = new ArrayList<>();
+            for (int i = 0; i < childColumns.size(); i++) pairs.add(childColumns.get(i) + "=" + parentColumns.get(i));
+            pairs.sort(Comparator.naturalOrder());
+            return child + ">" + parent + "{" + String.join(",", pairs) + "}";
+        }
+
         Map<String, Object> json() {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("parentTable", parent);

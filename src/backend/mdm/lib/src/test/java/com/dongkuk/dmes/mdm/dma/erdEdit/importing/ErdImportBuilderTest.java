@@ -8,6 +8,7 @@ import com.dongkuk.dmes.mdm.dma.erdEdit.dbmeta.ErdDbMeta.Constraint;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dbmeta.ErdDbMeta.Index;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dbmeta.ErdDbMeta.Table;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ApplyOutcome;
+import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdChange;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdCommandEngine;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdNaming;
 import com.dongkuk.dmes.mdm.dma.erdEdit.infer.InferredRelation;
@@ -274,5 +275,28 @@ class ErdImportBuilderTest {
         assertThat(place.at("/nodes/8/y").asInt()).isEqualTo(220);
         assertThat(built.restore().sinceRev()).isEqualTo(4);
         assertThat(built.summary().relations()).containsExactly(Map.entry("DB", 0), Map.entry("INFERRED", 0));
+    }
+
+    /** APPLY_DIFF 의 표 하나 만들기: 첫 가져오기와 같은 키 규칙, 표 → 컬럼 → 키 순서, 관계 없음. */
+    @Test
+    void oneTableBuildsTableColumnsAndKeysOnly() {
+        var part = ErdImportBuilder.oneTable(meta(), "TB_HEAD", emptyDict(), seqIds());
+        assertThat(part.tableId()).isEqualTo("t-1");
+        assertThat(part.columnIds()).containsOnlyKeys("LAYOUT_ID", "VER", "HEADER_ID", "SEQ");
+        assertThat(part.elements()).extracting(ErdChange::kind)
+                .containsExactly("table", "column", "column", "column", "column", "key", "key");
+        assertThat(part.elements()).filteredOn(e -> e.kind().equals("key")).extracting(e -> e.value().path("name").asText())
+                .containsExactlyInAnyOrder("PK_TB_HEAD", "UX_TB_HEAD_HDR");
+        assertThat(part.skipped()).isEmpty();
+        assertThat(ErdImportBuilder.oneTable(meta(), "TB_TREE", emptyDict(), seqIds()).skipped()).hasSize(1);   // 함수 기반 인덱스
+    }
+
+    /** deferred 51: restore 는 명령이 고치지 않는 candidateRank 에 _rev 를 찍지 않는다. */
+    @Test
+    void restoreDoesNotStampCandidateRank() {
+        ErdModel m = apply(ErdImportBuilder.build(meta(), rels(), emptyDict(), 0, seqIds()));
+        ErdRelation folded = relation(m, "TB_CONST", "TB_LAYOUT", "INFERRED");
+        assertThat(folded.candidateRank).isEqualTo(2);
+        assertThat(folded.rev).containsKey("state").doesNotContainKey("candidateRank");
     }
 }

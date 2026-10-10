@@ -143,10 +143,10 @@ class ErdCommandEngineRelationTest {
                 List.of(new AddRelation("r-1", "t-m", "t-r", null, false, null, "REUSE", null)))).next();
         var upd = (ApplyOutcome.Applied) engine.apply(m, 2, 3, "s-a", List.of(new UpdateRelation("r-1",
                 Map.of("identifying", true))));
-        assertThat(upd.changes()).hasSize(1);
-        assertThat(upd.inverse()).hasSize(1);
+        // deferred 29: 식별로 바꾸면 자식 짝 컬럼(c-m2)이 자식 PK 에 들어가고 NOT NULL 이 된다.
+        assertThat(upd.changes()).extracting(ErdChange::kind).containsExactlyInAnyOrder("relation", "key", "column");
         Restore back = (Restore) upd.inverse().get(0);
-        assertThat(back.elements()).singleElement().satisfies(e -> {
+        assertThat(back.elements()).filteredOn(e -> e.kind().equals("relation")).singleElement().satisfies(e -> {
             assertThat(e.op()).isEqualTo(ErdChange.PATCH);
             assertThat(e.value().fieldNames()).toIterable().containsExactly("identifying");
         });
@@ -156,6 +156,8 @@ class ErdCommandEngineRelationTest {
         // 되돌리면 원래 값
         ErdModel undone = ((ApplyOutcome.Applied) engine.apply(upd.next(), 3, 4, "s-a", upd.inverse())).next();
         assertThat(undone.relations.get("r-1").identifying).isFalse();
+        assertThat(undone.keys.values()).filteredOn(k -> "t-m".equals(k.table) && "PK".equals(k.kind))
+                .singleElement().satisfies(k -> assertThat(k.columns).containsExactly("c-m1"));
     }
 
     @Test
