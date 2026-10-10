@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 표 열 편집 표 — 필드·머리글·폭·정렬·형식. 쿼리 표 위젯 편집기(query-table/editor.tsx)와 공용 쿼리 정의 관리(csa/userQueryMng)가 함께 쓴다.
+ * 표 열 편집 표 — 필드·머리글·폭·정렬·형식. 쿼리 표 위젯 편집기(query-table/editor.tsx)와 맞춤 레포트 관리(cmq/userQueryMng)가 함께 쓴다.
  * 결과 열 이름(`fields`)을 알면 필드 칸이 선택 목록이 되고 [결과 컬럼 모두 넣기] 가 켜진다.
  * id·testId·제목은 prop 으로 받는다(기본값 = 쿼리 표 위젯 편집기의 값이라 위젯 동작은 그대로다).
  */

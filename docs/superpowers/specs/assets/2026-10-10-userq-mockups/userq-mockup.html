@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>공용 쿼리 조회 시안</title>
+<title>맞춤 레포트 조회 시안</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
@@ -232,16 +232,16 @@ table.grid { border-collapse: collapse; width: max-content; min-width: 100%; fon
     </span>
   </header>
   <nav class="tabbar" role="tablist">
-    <button class="tab" role="tab" id="tab-run" aria-selected="true">공용 쿼리 조회</button>
-    <button class="tab" role="tab" id="tab-adm" aria-selected="false">쿼리 정의 관리</button>
+    <button class="tab" role="tab" id="tab-run" aria-selected="true">맞춤 레포트 조회</button>
+    <button class="tab" role="tab" id="tab-adm" aria-selected="false">맞춤 레포트 관리</button>
   </nav>
   <div class="body">
     <aside class="side" aria-label="메뉴">
       <div class="grp">공통관리</div>
       <div class="it">공지사항</div>
       <div class="it">위젯 관리</div>
-      <div class="it" id="m-run">공용 쿼리 조회</div>
-      <div class="it" id="m-adm">쿼리 정의 관리</div>
+      <div class="it" id="m-run">맞춤 레포트 조회</div>
+      <div class="it" id="m-adm">맞춤 레포트 관리</div>
       <div class="grp">보안</div>
       <div class="it">사용자 관리</div>
       <div class="it">권한 관리</div>
@@ -251,8 +251,8 @@ table.grid { border-collapse: collapse; width: max-content; min-width: 100%; fon
       <!-- ① 사용자 조회 화면 -->
       <section class="view" id="v-run">
         <div class="titlebar">
-          <h1>공용 쿼리 조회</h1>
-          <span class="crumb">공통관리 › 공용 쿼리 조회 · <span id="crumbQ"></span></span>
+          <h1>맞춤 레포트 조회</h1>
+          <span class="crumb">공통관리 › 맞춤 레포트 › 맞춤 레포트 조회 · <span id="crumbQ"></span></span>
           <label class="notes-toggle"><input type="checkbox" id="showNotes" checked> 시안 설명 보기</label>
           <div class="btns">
             <button class="btn primary" id="btnSearch">조회<span class="kbd">F8</span></button>
@@ -284,8 +284,8 @@ table.grid { border-collapse: collapse; width: max-content; min-width: 100%; fon
       <!-- ② 관리 화면 -->
       <section class="view" id="v-adm" hidden>
         <div class="titlebar">
-          <h1>쿼리 정의 관리</h1>
-          <span class="crumb">공통관리 › 쿼리 정의 관리 · 관리자 전용</span>
+          <h1>맞춤 레포트 관리</h1>
+          <span class="crumb">공통관리 › 맞춤 레포트 › 맞춤 레포트 관리 · 관리자 전용</span>
           <div class="btns">
             <button class="btn primary">조회<span class="kbd">F8</span></button>
             <button class="btn">신규</button>

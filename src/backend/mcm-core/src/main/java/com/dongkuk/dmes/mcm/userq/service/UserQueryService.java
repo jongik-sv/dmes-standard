@@ -27,7 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
- * 공용 쿼리 조회 OASIS 서비스 {@code userQuery}(스펙 2026-10-10-user-query-program-design §4.2·§6·§7). BPMN services/cmq/userQuery 가 부른다.
+ * 맞춤 레포트 조회 OASIS 서비스 {@code userQuery}(스펙 2026-10-10-user-query-program-design §4.2·§6·§7). BPMN services/cmq/userQuery 가 부른다.
  * {@code @Transactional} 을 붙이지 않는다(BackEnd 표준 §6-B-1).
  * <ul>
  *   <li>사용자 ID 는 늘 {@link WidgetUserContextResolver}(인증 컨텍스트)에서 얻는다 — 요청에 사용자 칸이 있어도 읽지 않는다(IDOR).
@@ -46,6 +46,8 @@ public class UserQueryService {
 
     static final int RUN_LIMIT_PER_MIN = 20;
     static final int QUOTA_MAX_USERS = 5000;
+    /** 실행 기록 한 줄에 싣는 조건값 글자 수 상한 — 긴 값이 로그를 부풀리지 않게 한다. */
+    private static final int LOG_PARAMS_MAX = 500;
 
     private static final Logger log = LoggerFactory.getLogger(UserQueryService.class);
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -112,6 +114,7 @@ public class UserQueryService {
         UserQueryDef def = assignedDef(req.getQueryId());
         Map<String, String> values = QueryParams.parseValues(req.getParamsJson()); // 값 오류 문구는 그대로 사용자에게
         WidgetQueryResult result;
+        long startNanos = System.nanoTime();
         try {
             result = queryRunner.run(def.getSqlText(), def.getParamsJson(), values, def.getMaxRowCnt());
         } catch (WidgetQueryRunException e) {
@@ -120,6 +123,7 @@ public class UserQueryService {
             log.debug("공용 쿼리 실행 실패 상세 queryId={}", def.getQueryId(), e);
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, WidgetQueryRunException.safeMessage(e.kind()));
         }
+        logRun(def, userId, values, result, (System.nanoTime() - startNanos) / 1_000_000L);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("columns", result.columns());
         out.put("rows", result.rows());
@@ -129,6 +133,24 @@ public class UserQueryService {
     }
 
     // ── 도우미 ────────────────────────────────────────────────────────
+
+    /**
+     * 실행 기록 — 별도 표 없이 서버 로그(INFO)로 남겨 로그 뷰어(m-analog)에서 본다(2026-10-10 사용자 결정).
+     * 한 줄 요약 뒤에 실행한 SQL 본문을 같은 logger 로 줄바꿈 그대로 잇는다(로그 뷰어가 SQL 로 강조한다).
+     * params 는 사용자가 넣은 조건값만이다(시스템 변수는 러너가 서버에서 채우므로 여기 없다). 값의 줄바꿈은 공백으로 바꿔
+     * 로그 줄을 위조하지 못하게 하고 길면 자른다. 응답·예외 메시지에는 아무것도 싣지 않는다(§7).
+     */
+    private void logRun(UserQueryDef def, String userId, Map<String, String> values, WidgetQueryResult result, long elapsedMs) {
+        if (!log.isInfoEnabled()) return;
+        log.info("맞춤 레포트 실행 queryId={} userId={} rows={} truncated={} ms={} params={}",
+                def.getQueryId(), userId, result.rows().size(), result.truncated(), elapsedMs, paramsForLog(values));
+        log.info("맞춤 레포트 실행 SQL queryId={}\n{}", def.getQueryId(), def.getSqlText());
+    }
+
+    private static String paramsForLog(Map<String, String> values) {
+        String text = String.valueOf(values == null ? Map.of() : values).replaceAll("[\\p{Cntrl}\\u2028\\u2029\\u0085]+", " ");
+        return text.length() <= LOG_PARAMS_MAX ? text : text.substring(0, LOG_PARAMS_MAX) + "…";
+    }
 
     private String currentUserId() {
         return userResolver.current().userId();

@@ -1,13 +1,13 @@
-# 공용 쿼리 조회 레인 공통 규칙
+# 맞춤 레포트 조회 레인 공통 규칙
 
-2026-10-10 공용 쿼리 조회(쿼리 정의 관리·사용자 조회 화면)와 공용 SQL 편집기(Monaco)를 레인 네 개로 나눠 진행한다.
+2026-10-10 맞춤 레포트 조회(맞춤 레포트 관리·사용자 조회 화면)와 공용 SQL 편집기(Monaco)를 레인 네 개로 나눠 진행한다.
 조정 세션은 **dmes-standard-3b** 이다. 질문·승인 요청·머지 요청은 모두 이 세션에 SendMessage 로 보낸다(사용자 화면에 묻지 않는다).
 
 | 세션 | 레인 | 브랜치 | 워크트리 |
 |---|---|---|---|
 | userq-be (GLM) | 표·실행 엔진·서비스·BPMN·시드 (B1) | `feat/userq-be` | `/Users/jji/project/dmes-standard-wt/userq-be` |
 | userq-shared (Sonnet) | shared `SqlCodeEditor`, 위젯·예약 작업·로그 뷰어·DB 뷰어 적용 (S1~S3) | `feat/userq-shared` | `/Users/jji/project/dmes-standard-wt/userq-shared` |
-| userq-admin (Sonnet) | 관리 화면 `csa/userQueryMng` (A1·A2) | `feat/userq-admin` | `/Users/jji/project/dmes-standard-wt/userq-admin` |
+| userq-admin (Sonnet) | 관리 화면 `cmq/userQueryMng` (A1·A2) | `feat/userq-admin` | `/Users/jji/project/dmes-standard-wt/userq-admin` |
 | userq-user (Sonnet) | 사용자 화면 `cmq/userQuery` (U1) | `feat/userq-user` | `/Users/jji/project/dmes-standard-wt/userq-user` |
 
 - 설계 정본: `/Users/jji/project/dmes-standard/docs/superpowers/specs/2026-10-10-user-query-program-design.md` (메인 체크아웃, 아직 dev 미커밋. 워크트리에 없으면 이 절대경로로 읽는다)

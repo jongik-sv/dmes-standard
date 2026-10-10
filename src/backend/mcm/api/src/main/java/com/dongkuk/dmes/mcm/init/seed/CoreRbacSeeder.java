@@ -143,7 +143,7 @@ public final class CoreRbacSeeder extends SeedSupport {
                 "list", "get", "setUse", "runNow", "cronPreview", "handlers",
                 // 2026-10-09 — 예약 작업 관리 수집 값 읽기(jobSchedMng collectData). 읽기 전용이라도 여기 없으면 SYSADMIN 도 403 이다.
                 "collectData",
-                // 2026-10-10 — 공용 쿼리 조회(services/csa/userQueryMng.bpmn·cmq/userQuery.bpmn, 스펙 2026-10-10 §3).
+                // 2026-10-10 — 맞춤 레포트(services/cmq/userQueryMng.bpmn·cmq/userQuery.bpmn, 스펙 2026-10-10 §3).
                 //   search·get·save·delete·previewQuery·validate·searchUserList·searchDepts 는 위에 있다.
                 //   myList·getDef·run 은 일반 역할용 PERM_USRQ_USE 에도 같이 들어 있다(아래 insertIfAbsent).
                 "searchAssign", "saveAssign", "myList", "getDef", "run"
@@ -169,17 +169,22 @@ public final class CoreRbacSeeder extends SeedSupport {
                 "'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
         ensurePermAllActions(allActions);
 
-        // TB_MCM_SEC_PERM — PERM_USRQ_USE (공용 쿼리 사용, 스펙 2026-10-10-user-query-program-design §3).
-        // 일반 역할이 공용 쿼리 조회(cmq/userQuery)를 쓰는 세트다 — 운영자가 역할에 매핑한다(이 시드는 SYSADMIN 만 PERM_ALL 로 둔다).
+        // TB_MCM_SEC_PERM — PERM_USRQ_USE (맞춤 레포트 사용, 스펙 2026-10-10-user-query-program-design §3).
+        // 일반 역할이 맞춤 레포트 조회(cmq/userQuery)를 쓰는 세트다 — 운영자가 역할에 매핑한다(이 시드는 SYSADMIN 만 PERM_ALL 로 둔다).
         // insert-if-absent 라 이미 있는 DB 의 값을 덮어쓰지 않는다.
         insertIfAbsent(
                 "TB_MCM_SEC_PERM", "PERMISSION_ID", "PERM_USRQ_USE",
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_PERM " +
                 "(PERMISSION_ID, PERMISSION_NM, PERMISSION_DESC, PERMISSION_COMMON, PERMISSION_ACTION, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
-                "VALUES ('PERM_USRQ_USE', N'공용 쿼리 사용', N'공용 쿼리 조회 화면 실행', " +
+                "VALUES ('PERM_USRQ_USE', N'맞춤 레포트 사용', N'맞춤 레포트 조회 화면 실행', " +
                 "'myList,getDef,run', " +
                 "'myList,getDef,run', " +
                 "'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+        // 2026-10-10 화면 이름 변경(공용 쿼리 조회 → 맞춤 레포트 조회)을 이미 시드된 DB 에도 — 옛 시드 값 그대로인 행만 고친다(멱등).
+        nq("UPDATE MCMAPUSER.TB_MCM_SEC_PERM SET PERMISSION_NM = N'맞춤 레포트 사용' "
+         + " WHERE PERMISSION_ID = 'PERM_USRQ_USE' AND PERMISSION_NM = N'공용 쿼리 사용'").executeUpdate();
+        nq("UPDATE MCMAPUSER.TB_MCM_SEC_PERM SET PERMISSION_DESC = N'맞춤 레포트 조회 화면 실행' "
+         + " WHERE PERMISSION_ID = 'PERM_USRQ_USE' AND PERMISSION_DESC = N'공용 쿼리 조회 화면 실행'").executeUpdate();
 
         // TB_MCM_SEC_OBJ — 13 화면 OBJECT 시드 (W1~W9 9 화면 + cma 4 화면).
         insertMcmSecObjIfAbsent("commObjMng",          "OBJECT 관리",                  "mcm");

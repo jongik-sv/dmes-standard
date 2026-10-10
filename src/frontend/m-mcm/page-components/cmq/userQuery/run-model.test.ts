@@ -3,13 +3,17 @@ import { describe, expect, it } from "vitest";
 import {
   conditionParams,
   decideRun,
+  definedColumns,
   defaultValues,
-  filterQueries,
-  groupByCategory,
+  EMPTY_LIST_FILTER,
+  filterQueryList,
+  LIST_COLUMNS,
   NEED_INPUT_MESSAGE,
   pickInitialQueryId,
   resultColumns,
   resultRows,
+  sameQueryList,
+  toListRows,
   truncationNote,
   withoutRows,
 } from "./run-model";
@@ -79,6 +83,21 @@ describe("결과 열 규칙", () => {
     expect(cols[0]).toMatchObject({ key: "QTY", header: "수량", width: 80, align: "right" });
   });
 
+  it("정의 열이 있으면 조회 전에도 그 열로 빈 그리드 열을 만들고, 조회 뒤 열과 같다. 정의 열이 없으면 빈 배열", () => {
+    const defined = [
+      { field: "ITEM", header: "품목", width: 120 },
+      { field: "QTY", header: "수량", format: "number" as const },
+    ];
+    const cols = definedColumns(defined);
+    expect(cols.map((c) => [c.key, c.header])).toEqual([
+      ["ITEM", "품목"],
+      ["QTY", "수량"],
+    ]);
+    expect(cols.find((c) => c.key === "QTY")?.align).toBe("right");
+    expect(resultColumns(result(), defined).map((c) => [c.key, c.header, c.width])).toEqual(cols.map((c) => [c.key, c.header, c.width]));
+    expect(definedColumns([])).toEqual([]);
+  });
+
   it("행에 행 키를 달아 준다", () => {
     expect(resultRows(result({ rows: [{ ITEM: "A" }, { ITEM: "B" }] })).map((r) => r.__rowKey)).toEqual(["0", "1"]);
   });
@@ -105,20 +124,42 @@ describe("withoutRows", () => {
 describe("목록", () => {
   const list = [q("Q1", "라인별 생산", "PRD", "일 생산 실적"), q("Q2", "검사 불량", "QLT"), q("Q3", "기타 집계", null), q("Q4", "설비 가동", "PRD")];
 
-  it("이름·ID·설명 부분 일치로 거르고 빈 검색어는 전부", () => {
-    expect(filterQueries(list, "").map((x) => x.queryId)).toEqual(["Q1", "Q2", "Q3", "Q4"]);
-    expect(filterQueries(list, " 불량 ").map((x) => x.queryId)).toEqual(["Q2"]);
-    expect(filterQueries(list, "q3").map((x) => x.queryId)).toEqual(["Q3"]);
-    expect(filterQueries(list, "실적").map((x) => x.queryId)).toEqual(["Q1"]);
+  it("검색어는 이름·쿼리 ID 부분 일치(대소문자·앞뒤 공백 무시), 설명은 보지 않고, 빈 검색어는 전부", () => {
+    const ids = (keyword: string, categoryCd = "") => filterQueryList(list, { categoryCd, keyword }).map((x) => x.queryId);
+    expect(filterQueryList(list, EMPTY_LIST_FILTER).map((x) => x.queryId)).toEqual(["Q1", "Q2", "Q3", "Q4"]);
+    expect(ids(" 불량 ")).toEqual(["Q2"]);
+    expect(ids("q3")).toEqual(["Q3"]);
+    expect(ids("Q")).toEqual(["Q1", "Q2", "Q3", "Q4"]);
+    expect(ids("실적")).toEqual([]); // Q1 의 설명에만 있는 글자
   });
 
-  it("분류 이름으로 묶고 순서는 입력 그대로, 모르는 코드는 코드 그대로, 분류가 없으면 미분류", () => {
-    const groups = groupByCategory(list, { PRD: "생산" });
-    expect(groups.map((g) => [g.label, g.items.map((x) => x.queryId)])).toEqual([
-      ["생산", ["Q1", "Q4"]],
-      ["QLT", ["Q2"]],
-      ["미분류", ["Q3"]],
+  it("분류를 고르면 그 분류만(분류 없는 쿼리는 빠진다), 검색어와 함께 쓰면 둘 다 맞는 것만, 순서는 입력 그대로", () => {
+    const ids = (categoryCd: string, keyword = "") => filterQueryList(list, { categoryCd, keyword }).map((x) => x.queryId);
+    expect(ids("PRD")).toEqual(["Q1", "Q4"]);
+    expect(ids("PRD", "설비")).toEqual(["Q4"]);
+    expect(ids("QLT", "설비")).toEqual([]);
+    expect(ids("NONE")).toEqual([]);
+  });
+
+  it("목록 행은 분류 이름을 풀고, 모르는 코드는 코드 그대로, 분류가 없으면 미분류", () => {
+    expect(toListRows(list, { PRD: "생산" }).map((r) => [r.queryId, r.categoryNm])).toEqual([
+      ["Q1", "생산"],
+      ["Q2", "QLT"],
+      ["Q3", "미분류"],
+      ["Q4", "생산"],
     ]);
+    expect(toListRows([], {})).toEqual([]);
+  });
+
+  it("같은 목록인지 값까지 비교한다", () => {
+    expect(sameQueryList(list, list.map((x) => ({ ...x })))).toBe(true);
+    expect(sameQueryList(list, list.slice(1))).toBe(false);
+    expect(sameQueryList(list, [{ ...list[0], queryNm: "바뀜" }, ...list.slice(1)])).toBe(false);
+  });
+
+  it("목록 그리드 열의 최소 폭 합이 기본 20% 칸(1280 폭 약 200px − 스크롤바 17px)에 든다", () => {
+    expect(LIST_COLUMNS.map((c) => c.key)).toEqual(["queryNm", "categoryNm", "queryId"]);
+    expect(LIST_COLUMNS.reduce((sum, c) => sum + (c.minWidth ?? 50), 0)).toBeLessThanOrEqual(190);
   });
 
   it("마지막에 고른 쿼리가 목록에 있을 때만 처음부터 고른다", () => {

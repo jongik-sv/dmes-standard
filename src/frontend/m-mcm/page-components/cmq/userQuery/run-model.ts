@@ -1,5 +1,5 @@
 /**
- * 공용 쿼리 조회 화면의 순수 로직 — 목록 거르기·분류 묶기, 실행 가능 판정(필수 값), 결과 열 규칙, 잘림 안내, 마지막 쿼리 기억.
+ * 맞춤 레포트 조회 화면의 순수 로직 — 목록 거르기·목록 행·열, 실행 가능 판정(필수 값), 결과 열 규칙, 잘림 안내, 마지막 쿼리 기억.
  * @dk-oasis/shared 는 타입만 import 한다(m-mcm vitest 가 shared dist 없이 시험한다).
  * 스펙 2026-10-10-user-query-program-design §6·§8.1.
  */
@@ -20,39 +20,67 @@ import type { UserQueryColumn, UserQueryParam, UserQueryRunResult, UserQuerySumm
 
 export const NO_ASSIGNED_QUERY = "할당된 쿼리가 없습니다. 관리자에게 요청하세요";
 export const NEED_INPUT_MESSAGE = "조건을 입력하고 조회하세요";
+export const READY_MESSAGE = "조건을 확인하고 조회하세요";
 export const UNCATEGORIZED_LABEL = "미분류";
 export const LAST_QUERY_STORAGE_KEY = "mcm.cmq.userQuery.lastQueryId";
 
 /* ── 목록 ── */
 
-export interface QueryGroup {
-  /** 분류 코드, 없으면 "" */
+/** 왼쪽 조회조건 — 분류 코드("" 면 전체)와 이름·쿼리 ID 검색어. */
+export interface QueryListFilter {
   categoryCd: string;
-  label: string;
-  items: UserQuerySummary[];
+  keyword: string;
 }
 
-/** 이름·ID·설명 부분 일치(대소문자 무시). 화면 안에서만 거른다. 빈 검색어는 전부. */
-export function filterQueries(list: readonly UserQuerySummary[], keyword: string): UserQuerySummary[] {
-  const k = keyword.trim().toLowerCase();
-  if (k === "") return [...list];
-  return list.filter((q) => [q.queryNm, q.queryId, q.queryDesc ?? ""].some((s) => s.toLowerCase().includes(k)));
+export const EMPTY_LIST_FILTER: QueryListFilter = { categoryCd: "", keyword: "" };
+
+/**
+ * myList 결과를 화면 안에서 거른다(서버 호출 없음). 분류는 코드 일치(빈 값이면 전체, 분류 없는 쿼리는 분류를 고르면 빠진다),
+ * 검색어는 쿼리 이름 또는 쿼리 ID 의 부분 일치(대소문자 무시·앞뒤 공백 무시, 설명은 보지 않는다). 순서는 입력 그대로.
+ */
+export function filterQueryList(list: readonly UserQuerySummary[], filter: QueryListFilter): UserQuerySummary[] {
+  const k = filter.keyword.trim().toLowerCase();
+  return list.filter((q) => {
+    if (filter.categoryCd !== "" && q.categoryCd !== filter.categoryCd) return false;
+    if (k === "") return true;
+    return q.queryNm.toLowerCase().includes(k) || q.queryId.toLowerCase().includes(k);
+  });
 }
 
-/** 분류 이름으로 묶는다. 묶음·항목 순서는 입력(서버 정렬) 그대로, 분류 이름을 모르는 코드는 코드를 그대로 보인다. */
-export function groupByCategory(list: readonly UserQuerySummary[], categoryNames: Readonly<Record<string, string>>): QueryGroup[] {
-  const groups = new Map<string, QueryGroup>();
-  for (const q of list) {
+/** 목록 그리드 한 행 — 분류 이름을 미리 풀어 열 정의가 분류 목록 도착과 무관하게 한다. */
+export type QueryListRow = {
+  queryId: string;
+  queryNm: string;
+  categoryNm: string;
+};
+
+/** 분류 이름을 풀어 그리드 행으로 바꾼다. 분류 이름을 모르는 코드는 코드 그대로, 분류가 없으면 「미분류」. */
+export function toListRows(list: readonly UserQuerySummary[], categoryNames: Readonly<Record<string, string>>): QueryListRow[] {
+  return list.map((q) => {
     const cd = q.categoryCd ?? "";
-    let g = groups.get(cd);
-    if (!g) {
-      g = { categoryCd: cd, label: cd === "" ? UNCATEGORIZED_LABEL : (categoryNames[cd] ?? cd), items: [] };
-      groups.set(cd, g);
-    }
-    g.items.push(q);
-  }
-  return [...groups.values()];
+    return { queryId: q.queryId, queryNm: q.queryNm, categoryNm: cd === "" ? UNCATEGORIZED_LABEL : (categoryNames[cd] ?? cd) };
+  });
 }
+
+/** 두 목록이 값까지 같은가 — 다시 조회해도 그대로면 state 를 바꾸지 않으려는 비교(R7). */
+export function sameQueryList(a: readonly UserQuerySummary[], b: readonly UserQuerySummary[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((q, i) => q.queryId === b[i].queryId && q.queryNm === b[i].queryNm && q.categoryCd === b[i].categoryCd && q.queryDesc === b[i].queryDesc)
+  );
+}
+
+export const LIST_ROW_KEY = "queryId";
+
+/**
+ * 목록 그리드 열(모듈 상수, 화면 성능 가이드 R12). 왼쪽 칸이 좁아(기본 20%) 가로 스크롤이 생기지 않게 minWidth 합을 작게 둔다(Local-Rules §30).
+ * 이름이 남는 폭을 가져가고, 분류·쿼리 ID 는 말줄임으로 둔다.
+ */
+export const LIST_COLUMNS: GridColumn[] = [
+  { key: "queryNm", header: "이름", width: 6, minWidth: 80, align: "left" },
+  { key: "categoryNm", header: "분류", width: 4, minWidth: 52, align: "left" },
+  { key: "queryId", header: "쿼리 ID", width: 3, minWidth: 56, align: "left" },
+];
 
 /** 처음 고를 쿼리 — 마지막에 고른 것이 아직 목록에 있으면 그것, 없으면 고르지 않는다(자동 조회도 하지 않는다). */
 export function pickInitialQueryId(list: readonly UserQuerySummary[], lastQueryId: string | null): string | null {
@@ -105,6 +133,14 @@ export function missingNames(params: readonly UserQueryParam[], draft: Readonly<
 }
 
 /* ── 결과 ── */
+
+/**
+ * 정의(getDef)의 출력 열로 만든 그리드 열 — 조회 전에 빈 그리드를 그릴 때 쓴다. 정의에 열이 없으면 결과 열을 조회 뒤에야 알 수 있으므로 빈 배열이다.
+ * 조회 뒤에도 같은 열 정의를 그대로 쓰므로(resultColumns 는 정의에 열이 있으면 결과 열을 보지 않는다) 결과를 채울 때 그리드를 다시 마운트하지 않는다.
+ */
+export function definedColumns(columns: readonly UserQueryColumn[]): GridColumn[] {
+  return columns.length === 0 ? [] : toColumnDefs([], { sql: "", columns: [...columns] });
+}
 
 /** 그리드 열 — 정의에 열이 있으면 그 규칙(머리글·폭·정렬·형식), 없으면 결과 열 전부. */
 export function resultColumns(result: UserQueryRunResult, columns: readonly UserQueryColumn[]): GridColumn[] {

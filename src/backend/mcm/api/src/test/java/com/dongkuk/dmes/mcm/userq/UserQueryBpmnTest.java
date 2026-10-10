@@ -52,7 +52,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 /**
- * 실제 services/csa/userQueryMng.bpmn·services/cmq/userQuery.bpmn 을 OASIS 실행기로 돌려 action 분기·DTO 바인딩·
+ * 실제 services/cmq/userQueryMng.bpmn·services/cmq/userQuery.bpmn 을 OASIS 실행기로 돌려 action 분기·DTO 바인딩·
  * 응답 data.result 를 확인한다(스펙 2026-10-10 §4·§11). {@code JobSchedMngBpmnTest} 의 JPA 판 — 저장소·서비스만 올린
  * 컨텍스트에 실행기를 직접 조립한다. 사용자 문맥은 {@link WidgetUserContextResolver} 대역({@link #CURRENT_USER}).
  */

@@ -138,6 +138,40 @@ class UserQueryServiceOraTest {
     }
 
     @Test
+    @DisplayName("run 성공은 INFO 요약 한 줄(queryId·userId·rows·truncated·ms·params)과 SQL 본문 줄을 로그로 남기고 응답에는 아무것도 더하지 않는다")
+    void runLogsExecutionRecord() {
+        insertDef("PRD_LOG", "기록 시험", "PRD", "Y", 1000,
+                "SELECT LEVEL AS L FROM DUAL\nCONNECT BY LEVEL <= :cnt", "[{\"name\":\"cnt\",\"type\":\"number\"}]");
+        insertAssign("PRD_LOG", "userA");
+
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(UserQueryService.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                new ch.qos.logback.core.read.ListAppender<>();
+        ch.qos.logback.classic.Level before = logger.getLevel();
+        logger.setLevel(ch.qos.logback.classic.Level.INFO);
+        appender.start();
+        logger.addAppender(appender);
+        Map<String, Object> result;
+        try {
+            result = service.run(req("PRD_LOG", "{\"cnt\":\"3\"}"));
+        } finally {
+            logger.detachAppender(appender);
+            logger.setLevel(before);
+        }
+
+        List<String> infos = appender.list.stream()
+                .filter(e -> e.getLevel() == ch.qos.logback.classic.Level.INFO)
+                .map(ch.qos.logback.classic.spi.ILoggingEvent::getFormattedMessage).toList();
+        assertThat(infos).hasSize(2);
+        assertThat(infos.get(0)).startsWith("맞춤 레포트 실행 queryId=PRD_LOG userId=userA rows=3 truncated=false ms=")
+                .contains("params={cnt=3}");
+        assertThat(infos.get(1)).startsWith("맞춤 레포트 실행 SQL queryId=PRD_LOG\n")
+                .contains("SELECT LEVEL AS L FROM DUAL\nCONNECT BY LEVEL <= :cnt");
+        assertThat(result.keySet()).containsExactlyInAnyOrder("columns", "rows", "truncated", "maxRowCnt");
+    }
+
+    @Test
     @DisplayName("run 오류는 스펙 §6 안전 문구로 가린다(정의 오류·DB 오류 구분)")
     void runMasksErrors() {
         // DB 오류 — 없는 표(저장 검사는 SELECT 문장이라 통과)

@@ -136,6 +136,7 @@ function AgDataGridInner({
   fieldErrors,
   excelExport,
   settingsMenu = true,
+  resetColumnsMenu = true,
   gridId,
   personalize,
   filter,
@@ -504,12 +505,12 @@ function AgDataGridInner({
             },
           }
         : {}),
-      ...(!personalizeEnabled && settingsMenu ? { resetColumns } : {}),
+      ...(!personalizeEnabled && settingsMenu && resetColumnsMenu ? { resetColumns } : {}),
       ...(hasExcel
         ? { exportExcel: () => exportExcelRef.current(), canExportExcel: () => rowCountRef.current > 0 }
         : {}),
     }),
-    [personalizeEnabled, settingsMenu, hasExcel, openSettings, requestReset, resetColumns],
+    [personalizeEnabled, settingsMenu, resetColumnsMenu, hasExcel, openSettings, requestReset, resetColumns],
   );
   // GridPanel 에 올리는 명령 = 기본 명령 + 걸러 보기 명령. 머리글 줄 설정 아이콘(overlay, header={false})에는 filter={true} 의 걸러 보기만 보인다(filter 생략의 걸러 보기는 머리줄이 있는 그리드 전용).
   // 스스로 머리줄을 그리는 그리드의 머리줄 메뉴·검색 칸은 이 gridControls 전체를 쓴다.

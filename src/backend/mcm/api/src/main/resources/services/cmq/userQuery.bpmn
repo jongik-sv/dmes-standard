@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_userQuery" targetNamespace="http://dongkuk.com/dmes/mcm" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
-  <bpmn:process id="userQuery" name="공용 쿼리 조회 서비스" isExecutable="true">
-    <bpmn:documentation>공용 쿼리 조회 화면(cmq/userQuery) — 내 쿼리 목록·정의·실행. 스펙 2026-10-10-user-query-program-design §4.2. 실행은 queryId 와 입력 값만 받고 할당을 DB 에서 다시 확인한다. 응답에 SQL 을 싣지 않는다.</bpmn:documentation>
+  <bpmn:process id="userQuery" name="맞춤 레포트 조회 서비스" isExecutable="true">
+    <bpmn:documentation>맞춤 레포트 조회 화면(cmq/userQuery) — 내 쿼리 목록·정의·실행. 스펙 2026-10-10-user-query-program-design §4.2. 실행은 queryId 와 입력 값만 받고 할당을 DB 에서 다시 확인한다. 응답에 SQL 을 싣지 않는다.</bpmn:documentation>
     <bpmn:startEvent id="start">
       <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
     </bpmn:startEvent>

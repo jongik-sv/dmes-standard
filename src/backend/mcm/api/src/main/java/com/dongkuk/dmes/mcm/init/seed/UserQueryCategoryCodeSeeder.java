@@ -3,7 +3,7 @@ package com.dongkuk.dmes.mcm.init.seed;
 /**
  * 공용 쿼리 분류 공통코드(USRQ_CTG) 시드 — 스펙 2026-10-10-user-query-program-design §3(미결 3, 처음 값 ETC 하나).
  *
- * <p>쿼리 정의 관리·사용자 조회의 분류가 가리키는 코드그룹. {@link WidgetCategoryCodeSeeder} 와 같은 방식으로
+ * <p>맞춤 레포트 관리·조회의 분류가 가리키는 코드그룹. {@link WidgetCategoryCodeSeeder} 와 같은 방식으로
  * 그룹 1 + 항목 1(ETC 기타)을 없을 때만 넣는다(멱등 — 재기동해도 중복 행이 생기지 않는다).
  * 운영·개발계는 마스터코드 관리 화면에서 등록·수정한다.
  */

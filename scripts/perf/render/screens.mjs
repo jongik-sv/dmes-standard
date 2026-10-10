@@ -182,11 +182,11 @@ export const SCREENS = [
     autoSearchAtEntry: true,
   },
   {
-    // 2026-10-10 userq-admin 등록 — 공용 쿼리 정의 관리(mcm 공통관리 트리). 호출은 /api/mcm/oasis/userQueryMng/* 다.
+    // 2026-10-10 userq-admin 등록 — 맞춤 레포트 관리(mcm 공통관리 > 맞춤 레포트 트리, 10-10 csa 에서 cmq 로 이동). 호출은 /api/mcm/oasis/userQueryMng/* 다.
     id: "userQueryMng",
-    label: "쿼리 정의 관리",
-    trail: [/^공통관리$/, /^시스템관리$/, /^쿼리 정의 관리$/],
-    breadcrumb: "공통관리 > 시스템관리 > 쿼리 정의 관리",
+    label: "맞춤 레포트 관리",
+    trail: [/^공통관리$/, /^맞춤 레포트$/, /^맞춤 레포트 관리$/],
+    breadcrumb: "공통관리 > 맞춤 레포트 > 맞춤 레포트 관리",
     listPanelTitle: "쿼리 목록",
     /** count-renders ⑤ 상세 폼 입력 대상(R12, 이름 칸). 저장하지 않는다. */
     formInput: 'input[data-testid="userq-admin-query-nm"]',
@@ -197,14 +197,17 @@ export const SCREENS = [
     autoSearchAtEntry: true,
   },
   {
-    // 2026-10-10 userq-user 등록 — 공용 쿼리 조회(cmq 공용 조회 트리). 진입하면 내 쿼리 목록(myList)만 받고 목록은 버튼이다.
-    // 결과 그리드는 쿼리를 고르고 [조회] 한 뒤에만 나오므로 조회 단계(needsSearch)는 건너뛴다. 상세 폼 입력 칸이 없어 formInput 도 없다.
+    // 2026-10-10 userq-user 등록 — 맞춤 레포트 조회(cmq 맞춤 레포트 트리). 진입하면 내 쿼리 목록(myList)을 자동 조회하고,
+    // 왼쪽은 조회조건 Form + 목록 Grid("쿼리 목록") 다. 행 클릭(③)은 오른쪽 쿼리 화면을 바꾸고, 목록 거르기 입력(⑤)은 화면 안에서만 거른다.
+    // 결과 그리드는 쿼리를 고르고 [조회] 한 뒤에만 행이 찬다(열은 고르는 즉시 정의대로 선다).
     id: "userQuery",
-    label: "공용 쿼리 조회",
-    trail: [/^공통관리$/, /^공용 조회$/, /^공용 쿼리 조회$/],
-    breadcrumb: "공통관리 > 공용 조회 > 공용 쿼리 조회",
+    label: "맞춤 레포트 조회",
+    trail: [/^공통관리$/, /^맞춤 레포트$/, /^맞춤 레포트 조회$/],
+    breadcrumb: "공통관리 > 맞춤 레포트 > 맞춤 레포트 조회",
+    listPanelTitle: "쿼리 목록",
+    formInput: 'input[data-testid="uq-list-filter"]',
     searchUrlPattern: /\/api\/mcm\/oasis\/userQuery\/myList$/,
-    needsSearch: false,
+    needsSearch: true,
     autoSearchAtEntry: true,
   },
   {

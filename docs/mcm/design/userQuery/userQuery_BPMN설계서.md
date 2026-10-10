@@ -1,4 +1,4 @@
-# userQuery BPMN설계서 (공용 쿼리 조회)
+# userQuery BPMN설계서 (맞춤 레포트 조회)
 
 - 날짜: 2026-10-10
 - 작성 방식: 구현 후 사후 작성(스펙 D1 면제 후속)
@@ -101,5 +101,5 @@
 | action 3종과 output | `output="result"` | 일치. sequenceFlow 이름 `myList`, `getDef`, `run`(BPMN:62-66), serviceTask 3개 모두 `camunda:class="userQueryService"`, `output="result"`, dto `UserQueryRequest` |
 | 서비스 메서드 | 접근 확인 순서, 문구 동일 | 일치(문서 정정: §3.3 을 호출 빈도 → 접근 확인으로 고쳤다). `assignedDef`(`UserQueryService.java:140-148`)가 정의 없음, `USE_YN`, 할당 행을 한 문구 「쿼리를 찾을 수 없습니다」(`:150-152`)로 거절하고 `getDef`, `run` 마다 DB 에서 확인한다. 사용자 ID 는 `userResolver.current()` 에서만 얻고(`:133-135`) DTO 에 사용자·SQL 칸이 없다(`dto/UserQueryRequest.java:9-10`). **`run` 은 호출 빈도 확인(`:109-111`)을 접근 확인(`:112`)보다 먼저 한다.** (고친 §3.3 과 같은 순서다.) 미할당·없는 ID 호출도 사용자 쿼터 20회를 쓰고, 한도 초과 사용자는 쿼리 존재와 무관하게 「잠시 후 다시 조회하세요」를 받는다. 존재 여부가 새지는 않는다. |
 | `allActions` 선언 | `myList`, `getDef`, `run` 포함 | 일치. `CoreRbacSeeder.java:149` |
-| `PERM_USRQ_USE` 시드 | actions `myList,getDef,run` | 일치. `CoreRbacSeeder.java:172-181` `PERMISSION_COMMON`, `PERMISSION_ACTION` 모두 `myList,getDef,run`, insert-if-absent. 메뉴는 `ModuleMenuSeeder.java:149` 폴더 `cmq`(「공용 조회」), `:161-163` leaf 「공용 쿼리 조회」(FULL_SEQ 1070100), SYSADMIN × PERM_ALL 만 시드(일반 역할 매핑은 운영자 몫) |
+| `PERM_USRQ_USE` 시드 | actions `myList,getDef,run` | 일치. `CoreRbacSeeder.java:172-181` `PERMISSION_COMMON`, `PERMISSION_ACTION` 모두 `myList,getDef,run`, insert-if-absent. 메뉴는 `ModuleMenuSeeder.java:149` 폴더 `cmq`(「맞춤 레포트」), `:161-163` leaf 「맞춤 레포트 조회」(FULL_SEQ 1070100), SYSADMIN × PERM_ALL 만 시드(일반 역할 매핑은 운영자 몫) |
 | 응답 키 | 위 계약과 일치, `getDef` 에 SQL 없음 | 일치. `myList` 4키(`UserQueryService.java:76-82`), `getDef` 7키(`:93-99`, SQL 없음. `UserQueryBpmnTest.java:148` 가 `sqlText` 부재 단언), `run` 4키(`:124-127`). `params[]` 는 `{name,label,type(소문자),default,required,options[{value,label}]}`(`:172-192`, `UserQueryBpmnTest.java:149-154` 단언) |

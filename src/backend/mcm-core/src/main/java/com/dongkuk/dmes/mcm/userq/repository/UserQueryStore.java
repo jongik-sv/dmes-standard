@@ -8,7 +8,7 @@ import java.util.List;
 import org.springframework.stereotype.Repository;
 
 /**
- * 공용 쿼리 조회의 정적 SQL(스펙 2026-10-10-user-query-program-design §4.1·§4.2). 조회조건 5개 search·사용자 myList·할당 탭·
+ * 맞춤 레포트 조회의 정적 SQL(스펙 2026-10-10-user-query-program-design §4.1·§4.2). 조회조건 5개 search·사용자 myList·할당 탭·
  * 사용자 목록. Spring Data 인터페이스가 아니라 EntityManager 클래스다 — {@code (+)} 외부 조인·EXISTS 조건이 JSQ 표현보다 직접적이고,
  * 이 패키지 시험 구성이 사용자 엔티티를 올리지 않아도 컨텍스트가 뜨게 한다({@code WidgetUserLookupRepository} 와 같은 이유).
  * LIKE 값의 이스케이프는 서비스가 마친 값을 받는.

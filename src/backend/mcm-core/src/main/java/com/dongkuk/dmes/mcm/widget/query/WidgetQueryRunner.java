@@ -73,7 +73,7 @@ public interface WidgetQueryRunner {
     WidgetQueryResult runCollect(String sql, int maxRows);
 
     /**
-     * 저장된 정의 없이 SQL·입력 정의·값으로 실행한다(공용 쿼리 조회 — 스펙 2026-10-10-user-query-program-design §5). 캐시를 쓰지 않는다.
+     * 저장된 정의 없이 SQL·입력 정의·값으로 실행한다(맞춤 레포트 조회 — 스펙 2026-10-10-user-query-program-design §5). 캐시를 쓰지 않는다.
      * 검사·바인드·읽기 전용 실행은 {@link #runDefinition(String, int, Map)} 과 같은 단계를 쓴다.
      * 시스템 변수(:userId·:deptCd 등)는 구현이 인증 컨텍스트에서 채운다 — 사용자는 호출자가 넘기지 않는다.
      *

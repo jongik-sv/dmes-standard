@@ -132,42 +132,77 @@ public final class ModuleMenuSeeder extends SeedSupport {
     }
 
     /**
-     * 공용 쿼리 조회 메뉴 시드 (2026-10-10, 스펙 2026-10-10-user-query-program-design §3) —
+     * 맞춤 레포트 메뉴 시드 (2026-10-10, 스펙 2026-10-10-user-query-program-design §3) —
      * 폴더 1 + OBJECT 2 + 메뉴 leaf 2 + SYSADMIN × PERM_ALL 2.
      * <ul>
-     *   <li>폴더 cmq(공용 조회) — 공통관리 루트 {@code mcm} 아래 일곱 번째 그룹. MENU_SEQ '00000700' 은
+     *   <li>폴더 cmq(맞춤 레포트) — 공통관리 루트 {@code mcm} 아래 일곱 번째 그룹. MENU_SEQ '00000700' 은
      *       lsh(공지관리 '00000600') 다음이다. FULL_SEQ 1070000 은 기록용 — recomputeMenuFullSeq() 가 다시 매긴다.</li>
-     *   <li>userQueryMng(쿼리 정의 관리) — csa 시스템관리 그룹. FULL_SEQ 1020230 은 jobSchedMng(1020220) 다음(기록용).
-     *       action(search·get·save·delete·previewQuery·validate·searchAssign·saveAssign·searchUserList·searchDepts)은
-     *       PERM_ALL 이 커버한다(CoreRbacSeeder allActions).</li>
-     *   <li>userQuery(공용 쿼리 조회) — cmq 폴더 leaf. 일반 역할은 운영자가 {@code PERM_USRQ_USE}(myList·getDef·run)로
+     *   <li>userQuery(맞춤 레포트 조회) — cmq 폴더 첫째 leaf. 일반 역할은 운영자가 {@code PERM_USRQ_USE}(myList·getDef·run)로
      *       매핑한다(이 시드는 SYSADMIN × PERM_ALL 만 넣는다 — 미결 2 결정대로).</li>
+     *   <li>userQueryMng(맞춤 레포트 관리) — cmq 폴더 둘째 leaf. componentPath 가 {@code PARENT_MENU_ID/OBJECT_ID} 로 조립되므로
+     *       FE 경로는 {@code cmq/userQueryMng} 다. action(search·get·save·delete·previewQuery·validate·searchAssign·saveAssign·
+     *       searchUserList·searchDepts)은 PERM_ALL 이 커버한다(CoreRbacSeeder allActions).</li>
      * </ul>
+     *
+     * <p><b>경과</b> — 처음(10-10 오전)에는 폴더 이름이 「공용 조회」, 화면 이름이 「공용 쿼리 조회」·「쿼리 정의 관리」였고 관리 화면은
+     * 시스템관리 {@code csa} 아래에 있었다. 같은 날 사용자 결정으로 이름을 바꾸고 관리 화면을 cmq 로 옮겼다. insert-if-absent 는
+     * 이미 시드된 행을 고치지 않으므로 {@link #renameUserQueryMenus()} 가 옛 값인 행만 멱등 보정한다.
      * 모두 insert-if-absent 라 재기동해도 중복 행이 생기지 않는다.
      */
     public void seedUserQueryMenus() {
-        insertMpnFld("cmq", "00000700", "공용 조회", "mcm", 1070000L);
-
-        final String mngId = "userQueryMng";
-        insertMcmSecObjIfAbsent(mngId, "쿼리 정의 관리", "mcm");
-        insertMcmSecMenuIfAbsent(mngId, "001", "1020230", "쿼리 정의 관리", "csa", mngId);
-        insertIfAbsentComposite(
-                "TB_MCM_SEC_ROLE_MAPPING",
-                new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
-                new String[]{"SYSADMIN", mngId,       "PERM_ALL"},
-                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
-                "VALUES ('SYSADMIN', '" + mngId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+        insertMpnFld("cmq", "00000700", "맞춤 레포트", "mcm", 1070000L);
 
         final String userId = "userQuery";
-        insertMcmSecObjIfAbsent(userId, "공용 쿼리 조회", "mcm");
-        insertMcmSecMenuIfAbsent(userId, "001", "1070100", "공용 쿼리 조회", "cmq", userId);
+        insertMcmSecObjIfAbsent(userId, "맞춤 레포트 조회", "mcm");
+        insertMcmSecMenuIfAbsent(userId, "001", "1070100", "맞춤 레포트 조회", "cmq", userId);
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
                 new String[]{"SYSADMIN", userId,      "PERM_ALL"},
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
                 "VALUES ('SYSADMIN', '" + userId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
-        log.info("[DataInitializer] 공용 쿼리 조회 메뉴 시드 — 폴더 1(cmq) + OBJECT 2(userQueryMng·userQuery) + 메뉴 leaf 2 + RBAC(SYSADMIN 2)");
+
+        final String mngId = "userQueryMng";
+        insertMcmSecObjIfAbsent(mngId, "맞춤 레포트 관리", "mcm");
+        insertMcmSecMenuIfAbsent(mngId, "002", "1070200", "맞춤 레포트 관리", "cmq", mngId);
+        insertIfAbsentComposite(
+                "TB_MCM_SEC_ROLE_MAPPING",
+                new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                new String[]{"SYSADMIN", mngId,       "PERM_ALL"},
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                "VALUES ('SYSADMIN', '" + mngId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+        renameUserQueryMenus();
+        log.info("[DataInitializer] 맞춤 레포트 메뉴 시드 — 폴더 1(cmq) + OBJECT 2(userQuery·userQueryMng) + 메뉴 leaf 2(cmq) + RBAC(SYSADMIN 2)");
+    }
+
+    /**
+     * 맞춤 레포트 메뉴 이름·위치 보정 (2026-10-10, 멱등) — 이미 옛 이름·옛 위치로 시드된 DB(로컬 L_MAIN 등)를 맞춘다.
+     *
+     * <p>{@code insertIfAbsent} 는 있는 행을 고치지 않는다. 그래서 값이 <b>옛 시드 값 그대로인 행만</b> 바꾼다 — 메뉴 관리 화면에서
+     * 사용자가 이름·부모·순서를 직접 바꾼 행은 조건에 걸리지 않아 보존된다.
+     * <ul>
+     *   <li>폴더 cmq: 「공용 조회」 → 「맞춤 레포트」</li>
+     *   <li>OBJECT·메뉴 leaf 이름: 「공용 쿼리 조회」 → 「맞춤 레포트 조회」, 「쿼리 정의 관리」 → 「맞춤 레포트 관리」</li>
+     *   <li>관리 leaf userQueryMng: 부모 {@code csa} → {@code cmq}, MENU_SEQ '00000002'(조회 leaf 다음). FULL_SEQ 는 부팅 끝
+     *       recomputeMenuFullSeq() 가 다시 매긴다.</li>
+     * </ul>
+     */
+    private void renameUserQueryMenus() {
+        int n = nq("UPDATE MCMAPUSER.TB_MCM_SEC_MENU_FLD SET MENU_NM = N'맞춤 레포트' "
+                 + " WHERE MENU_ID = 'cmq' AND MENU_NM = N'공용 조회'").executeUpdate();
+        n += nq("UPDATE MCMAPUSER.TB_MCM_SEC_OBJ SET OBJECT_NM = N'맞춤 레포트 조회' "
+              + " WHERE OBJECT_ID = 'userQuery' AND OBJECT_NM = N'공용 쿼리 조회'").executeUpdate();
+        n += nq("UPDATE MCMAPUSER.TB_MCM_SEC_OBJ SET OBJECT_NM = N'맞춤 레포트 관리' "
+              + " WHERE OBJECT_ID = 'userQueryMng' AND OBJECT_NM = N'쿼리 정의 관리'").executeUpdate();
+        n += nq("UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET MENU_NM = N'맞춤 레포트 조회' "
+              + " WHERE MENU_ID = 'userQuery' AND MENU_NM = N'공용 쿼리 조회'").executeUpdate();
+        n += nq("UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET MENU_NM = N'맞춤 레포트 관리' "
+              + " WHERE MENU_ID = 'userQueryMng' AND MENU_NM = N'쿼리 정의 관리'").executeUpdate();
+        n += nq("UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET PARENT_MENU_ID = 'cmq', MENU_SEQ = '00000002' "
+              + " WHERE MENU_ID = 'userQueryMng' AND PARENT_MENU_ID = 'csa'").executeUpdate();
+        if (n > 0) {
+            log.info("[DataInitializer] 맞춤 레포트 메뉴 이름·위치 보정 — rows={}", n);
+        }
     }
 
     /**

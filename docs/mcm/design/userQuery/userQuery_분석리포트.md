@@ -1,4 +1,4 @@
-# userQuery 분석리포트 (공용 쿼리 조회, 사용자 화면)
+# userQuery 분석리포트 (맞춤 레포트 조회, 사용자 화면)
 
 - 날짜: 2026-10-10
 - 작성 방식: 구현 후 사후 작성(스펙 D1 면제 후속)
@@ -18,7 +18,7 @@
 | 재사용(BE) | `WidgetQueryRunner.run`(스펙 §5), `SqlGuard`, `WidgetReadOnlyJdbc`, `WidgetUserQuota` | 실행 엔진 |
 | 표 | `TB_MCM_USRQ_DEF`(정의), `TB_MCM_USRQ_ASSIGN`(사용자 할당) | userQuery 는 읽기만 한다 |
 | 코드 그룹 | `USRQ_CTG` | 목록 분류 이름 |
-| 관련 화면 | `csa/userQueryMng`(관리, 별도 레인) | 정의·할당 등록 |
+| 관련 화면 | `cmq/userQueryMng`(관리, 별도 레인) | 정의·할당 등록 |
 
 ## 3. 게이트 G1~G7
 

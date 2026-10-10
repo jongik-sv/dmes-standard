@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * userQueryMng — 공용 쿼리 정의 관리(SYSADMIN). 스펙 2026-10-10-user-query-program-design §8.2.
+ * userQueryMng — 맞춤 레포트 관리(SYSADMIN). 스펙 2026-10-10-user-query-program-design §8.2.
  * 상단 버튼(조회 F8·신규·저장·삭제) → 조회조건 5개 → 왼쪽 목록(40%) + 오른쪽 탭 [정의] [할당].
  * - 정의 폼 state 는 DefTab 에만 있다(R12). 화면 루트는 ref 핸들(load·getForm)과 단추 활성용 mode·dirty 만 쥔다.
  * - 저장하지 않은 고침(정의·할당)이 있을 때 다른 행·신규를 고르면 확인 창을 띄운다.
@@ -229,8 +229,8 @@ export default function UserQueryMngPage() {
 
   return (
     <PageLayout
-      title="쿼리 정의 관리"
-      breadcrumb="공통관리 > 시스템관리 > 쿼리 정의 관리"
+      title="맞춤 레포트 관리"
+      breadcrumb="공통관리 > 맞춤 레포트 > 맞춤 레포트 관리"
       screenId={SCREEN_ID}
       objId={SCREEN_ID}
       buttons={buttons}

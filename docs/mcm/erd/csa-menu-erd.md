@@ -259,8 +259,8 @@ flowchart LR
 | `commPermMng` 권한 관리 | `TB_MCM_SEC_PERM` | — |
 | `commUserMng` 사용자 관리 | `TB_MCM_SEC_USER` · `TB_MCM_SEC_USER_PWD` · `TB_MCM_SEC_USER_MAPPING` | `TB_MCM_DEPT_INFO` |
 | `commUserRoleCopy` 권한 일괄 등록 | `TB_MCM_SEC_ROLE_MAPPING` | `TB_MCM_SEC_USER` |
-| `userQueryMng` 쿼리 정의 관리 | `TB_MCM_USRQ_DEF` · `TB_MCM_USRQ_ASSIGN` | `TB_MCM_SEC_USER` · `TB_MCM_DEPT_INFO` |
-| `userQuery` 공용 쿼리 조회 | — | `TB_MCM_USRQ_DEF` · `TB_MCM_USRQ_ASSIGN` |
+| `userQueryMng` 맞춤 레포트 관리 | `TB_MCM_USRQ_DEF` · `TB_MCM_USRQ_ASSIGN` | `TB_MCM_SEC_USER` · `TB_MCM_DEPT_INFO` |
+| `userQuery` 맞춤 레포트 조회 | — | `TB_MCM_USRQ_DEF` · `TB_MCM_USRQ_ASSIGN` |
 
 ## 6. 신규 화면 등록 시 건드리는 순서
 

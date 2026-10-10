@@ -33,7 +33,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
- * 쿼리 정의 관리 OASIS 서비스 {@code userQueryMng}(스펙 2026-10-10-user-query-program-design §4.1). BPMN services/csa/userQueryMng 이 부른다.
+ * 맞춤 레포트 관리 OASIS 서비스 {@code userQueryMng}(스펙 2026-10-10-user-query-program-design §4.1). BPMN services/cmq/userQueryMng 이 부른다.
  * SYSADMIN 만 호출한다(메뉴 RBAC). SQL 원문·입력 정의·출력 정의를 그대로 다루는 관리자 서비스다.
  * <ul>
  *   <li>{@code @Transactional} 을 붙이지 않는다(BackEnd 표준 §6-B-1) — 트랜잭션은 OASIS 가 BPMN process 단위로 감싼다(txBiz).</li>

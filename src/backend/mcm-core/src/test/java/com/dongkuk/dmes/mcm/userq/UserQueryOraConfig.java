@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 공용 쿼리 조회(userq) 서비스 Oracle 시험의 공용 스프링 구성 — {@code OraCheckJpaConfig} 와 같은 방식.
+ * 맞춤 레포트(userq) 서비스 Oracle 시험의 공용 스프링 구성 — {@code OraCheckJpaConfig} 와 같은 방식.
  * 접속은 앱 사용자(MCMAPUSER)이고 스키마는 기준선·V13 이 만든다({@link McmCoreOraTestDb}).
  * 저장소는 쓰는 것만 올리고 {@code @PersistenceContext} 를 쓰는 {@link UserQueryStore} 는 빈으로 직접 만든다.
  * 쓰기 경로(save·delete·saveAssign)는 운영의 OASIS 가 프로세스 하나를 트랜잭션 하나로 감싸는 것과 같게

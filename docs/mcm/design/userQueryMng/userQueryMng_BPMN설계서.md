@@ -1,4 +1,4 @@
-# userQueryMng BPMN설계서 (공용 쿼리 정의 관리)
+# userQueryMng BPMN설계서 (맞춤 레포트 관리)
 
 - 날짜: 2026-10-10
 - 작성 방식: 구현 후 사후 작성(스펙 D1 면제 후속)
@@ -13,7 +13,7 @@
 | serviceId | `userQueryMng` |
 | 경로 | `POST /api/mcm/oasis/userQueryMng/{action}` |
 | 본문 | `{ meta: { menuId: "userQueryMng" }, params: { … } }`. params 는 평평한 글자 값만(숫자도 글자로 싣는다). 배열·객체는 `…Json` 글자 |
-| BPMN 파일(스펙 기준) | `mcm/api/src/main/resources/services/csa/userQueryMng.bpmn` |
+| BPMN 파일(스펙 기준) | `mcm/api/src/main/resources/services/cmq/userQueryMng.bpmn` |
 | 서비스 빈 | `userQueryMngService`, 패키지 `com.dongkuk.dmes.mcm.userq`(mcm-core) |
 | API 패턴 | OASIS BPMN + `@Service`(스펙 D5) |
 | 권한 | 메뉴 OBJECT 권한. 권한키 `userQueryMng/{action}`. AUTH_ONLY 아님. 기본 SYSADMIN × PERM_ALL |
@@ -94,16 +94,16 @@
 
 ## 6. be 머지 뒤 대조 항목
 
-근거 경로는 `src/backend/` 아래다. BPMN = `mcm/api/src/main/resources/services/csa/userQueryMng.bpmn`, 서비스 = `mcm-core/src/main/java/com/dongkuk/dmes/mcm/userq/service/UserQueryMngService.java`, 시드 = `mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/`.
+근거 경로는 `src/backend/` 아래다. BPMN = `mcm/api/src/main/resources/services/cmq/userQueryMng.bpmn`, 서비스 = `mcm-core/src/main/java/com/dongkuk/dmes/mcm/userq/service/UserQueryMngService.java`, 시드 = `mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/`.
 
 | 항목 | 확인할 것 | 판정, 근거 |
 |---|---|---|
-| BPMN 파일 경로와 process id | 스펙 경로와 같은지 | 일치. 경로 `services/csa/userQueryMng.bpmn`, process id `userQueryMng`(BPMN:3), 게이트웨이 `input=action`(BPMN:11) |
+| BPMN 파일 경로와 process id | 스펙 경로와 같은지 | 일치. 경로 `services/cmq/userQueryMng.bpmn`, process id `userQueryMng`(BPMN:3), 게이트웨이 `input=action`(BPMN:11) |
 | action 10종과 output | `output="result"`, 트랜잭션 | 일치(문서 정정). action 은 10종(9종 + `searchDepts`)이고 sequenceFlow 이름이 `search`, `get`, `save`, `delete`, `previewQuery`, `validate`, `searchAssign`, `saveAssign`, `searchUserList`, `searchDepts`(BPMN:167-185). serviceTask 10개 모두 `output="result"`, dto `UserQueryMngRequest`. 모든 action 은 application.yml(oasis.transactional=true, default-manager txBiz) 전역 설정으로 txBiz 안에서 돈다. BPMN 에 tx 속성 없음(`application.yml:76,128`). 서비스에 `@Transactional` 없음(`UserQueryMngService.java:39`) |
 | 숫자 params | `ver`, `maxRowCnt` 가 글자 `"3"` 으로 와도 읽는지(화면이 모든 값을 글자로 싣는다) | 일치. DTO `Integer maxRowCnt`, `Long ver`(`dto/UserQueryMngRequest.java:18,20`). `UserQueryBpmnTest.java:179-202` 가 글자 `"1000"`, `"2000"`, `"0"`, `"1"` 로 save 신규·갱신·delete 를 BPMN 경로로 통과시킨다 |
 | 빠진 키 | `categoryCd`, `queryDesc`, `ownerDeptCd`, `paramsJson`, `columnsJson` 이 빠져도 null 로 읽는지 | 일치. `save` 가 `optional(...)`, `blankToNull(...)` 로 읽어 null 로 저장한다(전체 교체, `UserQueryMngService.java:165-169`, 주석 `:146-148`). `UserQueryBpmnTest.java:182-188` 가 이 키 없이 save 한다 |
 | `allActions` 선언 | `searchAssign`, `saveAssign`, `myList`, `getDef`, `run` 포함 | 일치. `CoreRbacSeeder.java:149` 에 5토큰 추가(주석 `:146-148`) |
-| 권한 시드 | `userQueryMng` OBJECT 가 SYSADMIN × PERM_ALL. 버튼 action(`search`, `save`, `delete`, `saveAssign`)이 모두 허용 | 일치. `ModuleMenuSeeder.java:151-159` OBJECT `userQueryMng`, 메뉴 leaf FULL_SEQ `1020230`, `TB_MCM_SEC_ROLE_MAPPING` SYSADMIN × PERM_ALL. `search`, `save`, `delete` 는 기존 토큰이고 `saveAssign` 은 위 5토큰에 있어 모두 PERM_ALL 에 포함된다 |
+| 권한 시드 | `userQueryMng` OBJECT 가 SYSADMIN × PERM_ALL. 버튼 action(`search`, `save`, `delete`, `saveAssign`)이 모두 허용 | 일치. `ModuleMenuSeeder.java:151-159` OBJECT `userQueryMng`, 메뉴 leaf 폴더 `cmq`·FULL_SEQ `1070200`(10-10 csa 에서 이동), `TB_MCM_SEC_ROLE_MAPPING` SYSADMIN × PERM_ALL. `search`, `save`, `delete` 는 기존 토큰이고 `saveAssign` 은 위 5토큰에 있어 모두 PERM_ALL 에 포함된다 |
 | `search` 응답 | `assignCnt`, `ownerDeptNm`, `uAt` 포함 | 일치. `UserQueryMngService.java:86-97` 10키(`queryId`, `queryNm`, `categoryCd`, `ownerDeptCd`, `ownerDeptNm`, `useYn`, `maxRowCnt`, `assignCnt`, `uAt`, `uUsrId`), `uAt` 은 ISO 글자(`:420-428`) |
 | `get` 응답 | `paramsJson`, `columnsJson` 이 JSON 글자 | 일치. `UserQueryMngService.java:113-114` 가 저장된 글자를 그대로 `def` 에 담는다. `ver` 포함(`:117`) |
 | `searchDepts` | 담당 부서 팝업이 부른다(조정 2026-10-10, be 에 추가 요청). params `keyword`, result `{ depts: [{ deptCd, deptNm, upperDeptCd }] }` 최대 50건, `commWidgetMng/searchDepts` 와 같은 모양. `allActions` 선언 포함 확인 | 일치. `UserQueryMngService.java:283-297` 가 `keyword` 를 읽고 코드·이름 앞부분 일치로 거르며 최대 `MAX_DEPTS=50`(`:51`), 응답 `{ depts: [{ deptCd, deptNm, upperDeptCd }] }`. BPMN 분기 `searchDepts` 있음. `searchDepts` 토큰은 위젯관리용으로 이미 `allActions` 에 있다(`CoreRbacSeeder.java` 2026-10-02 위젯관리 줄). `UserQueryBpmnTest.java:227-229` 가 BPMN 경로로 호출한다 |

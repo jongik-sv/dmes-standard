@@ -16,7 +16,7 @@ export interface SqlEditorProps {
   onSqlChange: (sql: string) => void;
   /** [쿼리 시험] 성공 — 편집기가 `__preview` 로 value 에 얹는다(관리 화면 미리보기가 이 결과로 그린다). 실패하면 null — 이전 결과를 지운다. */
   onPreview: (result: QueryResult | null) => void;
-  /** [쿼리 시험] 호출 함수. 없으면 위젯 관리의 `commWidgetMng/previewQuery`(`previewWidgetQuery("mcm", …)`)를 부른다. 공용 쿼리 관리 화면이 자기 미리보기를 넘긴다. */
+  /** [쿼리 시험] 호출 함수. 없으면 위젯 관리의 `commWidgetMng/previewQuery`(`previewWidgetQuery("mcm", …)`)를 부른다. 맞춤 레포트 관리 화면이 자기 미리보기를 넘긴다. */
   runPreview?: (sql: string, params?: QueryParam[]) => Promise<QueryResult>;
 }
 

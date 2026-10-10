@@ -119,6 +119,15 @@ describe("[컬럼 원래대로] 가 없는 그리드", () => {
     expect(tid("grid-settings-overlay")).toBeNull();
   });
 
+  it("resetColumnsMenu={false} 면 [컬럼 원래대로] 만 빠지고 나머지 항목은 그대로이며, 생략하면 있다", async () => {
+    await show(panel(gridEl({ personalize: false, resetColumnsMenu: false })));
+    await openMenu();
+    expect(tid("grid-columns-reset-button")).toBeNull();
+    expect(menuLabels()).toEqual(["칸별 필터 보기", "|", "엑셀 출력"]);
+    await show(panel(gridEl({ personalize: false })));
+    expect(tid("grid-columns-reset-button")).not.toBeNull();
+  });
+
   it("개인화가 켜진 그리드에는 없고 [설정 초기화…] 가 있다", async () => {
     await show(panel(gridEl({ gridId: "main" })));
     await openMenu();

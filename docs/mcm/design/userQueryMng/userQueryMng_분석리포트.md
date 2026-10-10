@@ -1,9 +1,9 @@
-# userQueryMng 분석리포트 (공용 쿼리 정의 관리)
+# userQueryMng 분석리포트 (맞춤 레포트 관리)
 
 - 날짜: 2026-10-10
 - 작성 방식: 구현 후 사후 작성(스펙 D1 면제 후속)
 - 스펙: `docs/superpowers/specs/2026-10-10-user-query-program-design.md`
-- 구현: `src/frontend/m-mcm/page-components/csa/userQueryMng/`, `src/frontend/m-mcm/page-components/_userq/`
+- 구현: `src/frontend/m-mcm/page-components/cmq/userQueryMng/`, `src/frontend/m-mcm/page-components/_userq/`
 
 ## 1. As-Is
 

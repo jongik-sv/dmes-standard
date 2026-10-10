@@ -1,4 +1,4 @@
-# userQueryMng 기능설계서 (공용 쿼리 정의 관리)
+# userQueryMng 기능설계서 (맞춤 레포트 관리)
 
 - 날짜: 2026-10-10
 - 작성 방식: 구현 후 사후 작성(스펙 D1 면제 후속)
@@ -9,9 +9,9 @@
 | 항목 | 값 |
 |---|---|
 | screenId = objId = serviceId | `userQueryMng` |
-| componentPath | `csa/userQueryMng` |
-| 메뉴 | 공통관리 > 시스템관리 > 쿼리 정의 관리(폴더 `csa`, FULL_SEQ 1020230) |
-| 화면 제목 | 쿼리 정의 관리 |
+| componentPath | `cmq/userQueryMng` |
+| 메뉴 | 공통관리 > 맞춤 레포트 > 맞춤 레포트 관리(폴더 `cmq`, MENU_SEQ 002, FULL_SEQ 1070200. 처음에는 csa 시스템관리 1020230 이었고 2026-10-10 사용자 결정으로 옮겼다) |
+| 화면 제목 | 맞춤 레포트 관리 |
 | 기본 권한 | SYSADMIN × PERM_ALL |
 | 최초 진입 | 조회조건 칸에 사용자 기본값을 넣은 다음 커밋에서 한 번 자동 조회한다(`SearchArea autoSearch`) |
 

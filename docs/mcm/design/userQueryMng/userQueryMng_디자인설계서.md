@@ -1,4 +1,4 @@
-# userQueryMng 디자인설계서 (공용 쿼리 정의 관리)
+# userQueryMng 디자인설계서 (맞춤 레포트 관리)
 
 - 날짜: 2026-10-10
 - 작성 방식: 구현 후 사후 작성(스펙 D1 면제 후속)
@@ -7,7 +7,7 @@
 ## 1. 레이아웃
 
 ```
-PageLayout (title 쿼리 정의 관리, breadcrumb 공통관리 > 시스템관리 > 쿼리 정의 관리)
+PageLayout (title 맞춤 레포트 관리, breadcrumb 공통관리 > 맞춤 레포트 > 맞춤 레포트 관리)
   buttons: 조회(F8) · 신규 · 저장 · 삭제
   SearchArea autoSearch   분류 · 쿼리 이름·ID · 사용 여부 · 담당 부서 · 할당 사용자
   ContentBody root resizable storageKey="mcm.csa.userQueryMng"
@@ -33,7 +33,7 @@ PageLayout (title 쿼리 정의 관리, breadcrumb 공통관리 > 시스템관�
 | `ParamsEditor` | `widget-types/_query/ParamsEditor` | 입력 정의 |
 | `ColumnsEditor` | `widget-types/_query/ColumnsEditor` | 출력 정의. idPrefix `userq-col`, testId `userq-columns` |
 | `QueryStyle` | `widget-types/_query/parts` | `wq-*` CSS 주입 |
-| `DeptPicker` | `csa/userQueryMng/DeptPicker`(shared `LookupModal` + `userQueryMng/searchDepts`) | 담당 부서 팝업 |
+| `DeptPicker` | `cmq/userQueryMng/DeptPicker`(shared `LookupModal` + `userQueryMng/searchDepts`) | 담당 부서 팝업 |
 | `TransferList` | `@dk-oasis/shared/transfer-list` | testId `userq-assign`, 부서 분류 필터, 배지 「없는 사용자」 |
 
 - 색은 의미 토큰(`var(--color-…)`)만 쓴다. 화면 CSS 파일은 없다.

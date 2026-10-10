@@ -1,4 +1,4 @@
-# userQuery 정합체크 (공용 쿼리 조회)
+# userQuery 정합체크 (맞춤 레포트 조회)
 
 - 날짜: 2026-10-10
 - 작성 방식: 구현 후 사후 작성(스펙 D1 면제 후속)
@@ -61,7 +61,7 @@
 
 | 문서 §5 의 testid | 코드 | 판정 |
 |---|---|---|
-| `uq-list`, `uq-list-filter`, `uq-list-empty`, `uq-list-nomatch`, `uq-item-{id}` | QueryListPane.tsx | 일치 |
+| `uq-list`, `uq-list-filter`, `uq-list-empty`, `uq-list-nomatch`, `uq-item-{id}` | QueryListPane.tsx | 일치(2026-10-10 이전 기록. 지금 testid 는 §7-1) |
 | `uq-run`, `uq-run-idle`, `uq-run-loading`, `uq-run-error`, `uq-run-ready`, `uq-run-need-input`, `uq-empty`, `uq-excel` | RunPane.tsx | 일치 |
 
 스펙에는 testid 규정이 없다. 이 문서가 코드를 기준으로 정한다.
@@ -75,6 +75,19 @@
 - `run` 응답에 `maxRowCnt` 가 없으면 0 으로 읽고, `getDef` 에서는 1000 으로 읽는다. 화면은 `maxRowCnt` 를 표시하지 않는다.
 - 정의 오류 상태는 다른 쿼리를 고르기 전까지 재시도 수단이 없다.
 - `getDef` 의 `params[]` 는 FE 공용 파서(`paramsOf`)가 읽는 키 `default` 로 내려와야 한다. be 초기 구현은 `defaultValue` 였고(2026-10-10 대조에서 발견) be 가 스펙 모양으로 맞추기로 했다. be 머지 뒤 `params[].default` 단언 시험으로 닫는다. → 닫음(be 대조: `UserQueryService.java:179` 가 `default` 키를 내리고 `UserQueryBpmnTest.java:152-154` 가 `default`=`"3"` 단언과 `defaultValue` 부재 단언을 한다).
+
+## 7-1. 2026-10-10 이름 변경·N3~N6 반영
+
+옛 이름(공용 쿼리 조회, 쿼리 정의 관리, 공용 조회)은 이 문서 묶음에서 모두 「맞춤 레포트 조회」 계열로 바꿨다. 아래 항목은 코드(`page-components/cmq/userQuery/`, `UserQueryService.java`)를 다시 읽어 대조했다. 위 표의 옛 행은 그대로 둔다.
+
+| 항목 | 코드 | 문서 | 판정 |
+|---|---|---|---|
+| N3 왼쪽 | 조회조건 Form(`SearchArea autoSearch`: 분류 select 전체 포함, 이름 text, [조회]·Enter) + 목록 Grid(`GridPanel` 「쿼리 목록」, 이름·분류·쿼리 ID). `myList` 결과를 client-side 로 거른다. 20% 폭에서 세로로 쌓는다 | 디자인 §1·§2·§5, 기능 §3·§5 | 일치 |
+| N3 testid | `uq-list`, `uq-list-filter`, `uq-list-search`, `uq-list-empty`. 옛 `uq-item-{id}`, `uq-list-nomatch` 는 없다 | 디자인 §5 | 일치(위 §5 는 갱신 전 기록이다. 이 행이 우선한다) |
+| N5 빈 그리드 | 쿼리를 고르면 `definedColumns(getDef.columns)` 로 0행 그리드를 바로 그린다. 열 정의 참조가 안정적이라 조회 때 행만 바뀐다. 출력 열이 없으면 조회 뒤 그린다. 빈 문구는 「조건을 확인하고 조회하세요」·「조건을 입력하고 조회하세요」. 쿼리를 바꾸면 이전 행을 비운다 | 디자인 §2~§4, 기능 §4·§5 | 일치 |
+| N4 설정 메뉴 | 결과 그리드 `personalize={false}`, `resetColumnsMenu={false}`. 메뉴는 「칸별 필터 보기」와 「엑셀 출력」뿐. `resetColumnsMenu` 는 shared `AgDataGrid` 의 새 선택 prop(기본 `true`) | 디자인 §2, 기능 §2 | 일치 |
+| N6 실행 로그 | 성공 때 INFO 두 줄(요약 + SQL 본문). 별도 표 없음. 실패는 WARN. 응답·예외 문구 불변 | 기능 §7 | 일치(`UserQueryService.java:145-147`) |
+| 시험 | `run-model.test.ts` 케이스를 다시 세면 16개다(`definedColumns`, 목록 거르기 등 추가). 위 §6 의 12건은 당시 기록이다 | 정합체크 §6 | 미확인(이번에 시험을 돌리지 않았다) |
 
 ## 8. 판정
 

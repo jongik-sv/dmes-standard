@@ -1,5 +1,5 @@
 /**
- * 공용 쿼리 조회 OASIS 호출 — `POST /api/mcm/oasis/{userQueryMng|userQuery}/{action}` (스펙 2026-10-10-user-query-program-design §4).
+ * 맞춤 레포트 조회 OASIS 호출 — `POST /api/mcm/oasis/{userQueryMng|userQuery}/{action}` (스펙 2026-10-10-user-query-program-design §4).
  * 본문 `{ meta: { menuId: <serviceId> }, params }`. params 는 평평한 글자 값만 싣는다(배열·객체는 `…Json` 글자). 응답은 data.result 를 풀어 읽는다.
  * 봉투 해제는 위젯과 같은 `unwrapResult`(meta.success=false 거절, data·data.result 펼침)를 쓴다.
  * @dk-oasis/shared 를 런타임 import 하지 않는다(m-mcm vitest 가 shared dist 없이 시험한다).

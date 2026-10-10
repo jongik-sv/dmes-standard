@@ -34,8 +34,8 @@
 | `TB_MCM_EXCHANGE_RATE` | 일자별 환율 | 삭제(Flyway V8, 2026-10-09) | 환율은 MDM 마스터 `FX_RATE` 로 이동 |
 | `TB_MCM_SEC_USER_WIDGET_CHAT` | 개인 AI 챗봇 대화 기록 | 신규(2026-10-02) | 포털 홈 챗봇 위젯 |
 | `TB_MCM_SEC_USER_WIDGET_MEMO` | 개인 메모(메모장 위젯) | 신규(2026-10-03) | 포털 홈 메모장 위젯 |
-| `TB_MCM_USRQ_DEF` | 공용 쿼리 정의(SQL·입력·출력 정의) | 신규(2026-10-10) | 쿼리 정의 관리 |
-| `TB_MCM_USRQ_ASSIGN` | 공용 쿼리 ↔ 사용자 할당 | 신규(2026-10-10) | 쿼리 정의 관리 → 할당 탭 |
+| `TB_MCM_USRQ_DEF` | 공용 쿼리 정의(SQL·입력·출력 정의) | 신규(2026-10-10) | 맞춤 레포트 관리 |
+| `TB_MCM_USRQ_ASSIGN` | 공용 쿼리 ↔ 사용자 할당 | 신규(2026-10-10) | 맞춤 레포트 관리 → 할당 탭 |
 | `TB_MCM_SEC_USER_HIS` | 사용자 변경 이력 | 0행 | (배치·인터페이스) |
 | `TB_MCM_SEC_USER_ROLL_HIS` | 역할 부여 이력 | 0행 | (배치·인터페이스) |
 
@@ -212,12 +212,12 @@
 - **`TB_MCM_SEC_USER_WIDGET_MEMO`**: 메모장 위젯의 개인 메모(`scope=personal` 정의만). 사용자·배치 칸(`INST_ID`)마다 하나이고 `FMT` 는 `text`·`md`·`html`, 본문은 20,000자까지다. `TITLE`(2026-10-03 추가, NULL 허용)은 사용자가 붙인 메모장 제목(40자 이하, NULL = 위젯 정의 이름)이다 — 개발계·운영계는 앱 배포 전에 `ALTER TABLE … ADD TITLE`(Oracle `VARCHAR2(100 CHAR)`, PostgreSQL `varchar(100)`)을 먼저 실행한다(스펙 widget-admin-generic §17.2). 사용자당 100개(새 칸을 저장할 때만 센다). 공용 메모(`scope=shared`)는 이 테이블이 아니라 `TB_MCM_WIDGET_DEF.CONFIG_JSON` 에 있다. 사용자가 위젯을 빼도 행은 남는다.
 - 서비스: 사용자용 `widgetDef/list`·`widgetData/run`·`widgetExt/*`·`widgetChat/*`·`widgetMemo/*`·미디어 내려받기는 AUTH_ONLY, 관리자용 `commWidgetMng/*`(정의 저장·SQL 미리보기·기본 배치·미디어 올리기)는 위젯 관리 메뉴 권한(RBAC). 여섯 테이블 모두 Flyway 없이 로컬 `ddl-auto: update` 로 생기므로 개발계·운영계는 DDL 을 미리 만든다(`csa-menu.dbml` 참고, 긴 문자열은 Oracle CLOB·PostgreSQL TEXT).
 
-### 공용 쿼리 조회 — 테이블 2개 (2026-10-10 신설, 스펙 `docs/superpowers/specs/2026-10-10-user-query-program-design.md` §2)
+### 맞춤 레포트 조회 — 테이블 2개 (2026-10-10 신설, 스펙 `docs/superpowers/specs/2026-10-10-user-query-program-design.md` §2)
 
 - **`TB_MCM_USRQ_DEF`**: 관리자가 등록한 공용 쿼리 정의. PK = `QUERY_ID`(40). `SQL_TEXT`(CLOB, 필수)가 조회 SQL, `PARAMS_JSON`·`COLUMNS_JSON`(CLOB)이 입력·출력 정의다. `MAX_ROW_CNT`(기본 1000, 1~5000)는 최대 행 수, `USE_YN`(기본 `Y`)은 사용 여부다. `CATEGORY_CD` 는 공통코드 `USRQ_CTG`(처음 값 `ETC` 기타), `OWNER_DEPT_CD` 는 `TB_MCM_DEPT_INFO.DEPT_CD` 와 같은 길이(10)의 담당 부서다. 제약: `CK_TB_MCM_USRQ_DEF_USE`(`USE_YN` in Y/N)·`CK_TB_MCM_USRQ_DEF_MAX`(`MAX_ROW_CNT` 1~5000).
 - **`TB_MCM_USRQ_ASSIGN`**: 정의 ↔ 사용자 할당. PK = (`QUERY_ID`, `USER_ID`), 사용자 단위만 있다. `USER_ID`(30)는 `TB_MCM_SEC_USER.USER_ID` 와 같은 길이다. 인덱스 `IX_TB_MCM_USRQ_ASSIGN_USER`(`USER_ID`, `QUERY_ID`)는 사용자 목록(`myList`)의 `USER_ID` 조건에 쓴다.
 - **외래 키는 없다.** 정의를 지울 때 서비스가 할당을 먼저 지운다. 없는 사용자의 할당은 할당 탭이 「없는 사용자」로 보여 준다.
-- 화면·서비스: `userQueryMng`(쿼리 정의 관리, csa 폴더, `PERM_ALL`)와 `userQuery`(공용 쿼리 조회, 새 폴더 `cmq` 공용 조회, 서비스 `myList`·`getDef`·`run`). 일반 역할은 권한 `PERM_USRQ_USE`(`myList,getDef,run`)로 매핑한다. 메뉴·OBJECT·권한·공통코드는 `ModuleMenuSeeder.seedUserQueryMenus`·`CoreRbacSeeder`·`UserQueryCategoryCodeSeeder` 가 시드한다.
+- 화면·서비스: `userQueryMng`(맞춤 레포트 관리, 새 폴더 `cmq` 맞춤 레포트, `PERM_ALL`)와 `userQuery`(맞춤 레포트 조회, 같은 `cmq` 폴더, 서비스 `myList`·`getDef`·`run`). 일반 역할은 권한 `PERM_USRQ_USE`(`myList,getDef,run`)로 매핑한다. 메뉴·OBJECT·권한·공통코드는 `ModuleMenuSeeder.seedUserQueryMenus`·`CoreRbacSeeder`·`UserQueryCategoryCodeSeeder` 가 시드한다.
 - DDL 은 Flyway `mcm-core` `db/migration/oracle/mcmapuser/V13` 이다. 칼럼 주석은 DDL 에 있고, 감사 9 칼럼은 두 표에 모두 붙는다(`csa-menu.dbml` 에서는 생략).
 
 ---

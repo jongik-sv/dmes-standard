@@ -1,6 +1,6 @@
 /**
- * 공용 쿼리 조회 공용 타입(스펙 2026-10-10-user-query-program-design §8.3).
- * 관리 화면(csa/userQueryMng)과 사용자 화면(cmq/userQuery)이 함께 쓴다. `page.tsx` 를 두지 않는다(페이지 등록부가 화면으로 올리지 않게).
+ * 맞춤 레포트 조회 공용 타입(스펙 2026-10-10-user-query-program-design §8.3).
+ * 관리 화면(cmq/userQueryMng)과 사용자 화면(cmq/userQuery)이 함께 쓴다. `page.tsx` 를 두지 않는다(페이지 등록부가 화면으로 올리지 않게).
  */
 import type { QueryParam, QueryResult, TableColumnConfig } from "../../widget-types/_query/format";
 

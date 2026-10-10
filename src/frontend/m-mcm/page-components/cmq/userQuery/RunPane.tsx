@@ -4,6 +4,8 @@
  * 오른쪽 실행 영역 — 고른 쿼리의 정의(getDef)대로 조회조건(SearchArea)과 결과 그리드를 그린다. 스펙 §8.1.
  * 입력 값·결과·로딩 상태는 이 컴포넌트가 가진다. 화면 루트는 상단 [조회] 를 `search()` 핸들로만 부르고 값을 모른다(화면 성능 가이드 R12).
  * - 쿼리를 고르면 getDef 를 받아 조건을 기본값(initialValues)으로 되돌리고 결과를 비운다. 자동 조회하지 않는다.
+ * - 정의에 출력 열이 있으면 조회 전에도 그 열로 빈 그리드를 그리고(안내 문구는 그리드의 빈 결과 문구), 조회 뒤에는 같은 열 정의·같은 그리드에 행만 채운다.
+ *   출력 열이 없는 쿼리는 열을 알 수 없으므로 조회 뒤 결과 열로 그린다.
  * - 필수 값이 비면 서버를 부르지 않고 「조건을 입력하고 조회하세요」 를 보인다.
  * - 조건 칸이 쿼리마다 바뀌므로 SearchArea 의 사용자 기본값 저장은 끈다(`defaults={false}`).
  * - 엑셀은 그리드 설정 메뉴의 「엑셀 출력」이 맡는다(받은 행·보이는 열 그대로, 파일 이름 「{쿼리 이름}_{yyyyMMdd}.xlsx」).
@@ -19,8 +21,22 @@ import { QUERY_EMPTY, TABLE_ROW_KEY, type ParamValues } from "../../../widget-ty
 import { QueryStyle } from "../../../widget-types/_query/parts";
 import { getUserQueryRunDef, runUserQuery } from "../../_userq/api";
 import { UserQueryStyle } from "./QueryListPane";
-import { conditionParams, decideRun, defaultValues, NEED_INPUT_MESSAGE, resultColumns, resultRows, truncationNote, withoutRows } from "./run-model";
+import {
+  conditionParams,
+  decideRun,
+  defaultValues,
+  definedColumns,
+  NEED_INPUT_MESSAGE,
+  READY_MESSAGE,
+  resultColumns,
+  resultRows,
+  truncationNote,
+  withoutRows,
+} from "./run-model";
 import type { UserQueryRunDef, UserQueryRunResult } from "../../_userq/types";
+
+/** 조회 전 빈 그리드의 행. 새 배열을 만들지 않는다(R12). */
+const NO_ROWS: Record<string, unknown>[] = [];
 
 /** 쿼리 이름이 없을 때 엑셀 파일 이름 — 「쿼리_{yyyyMMdd}.xlsx」. */
 const EXCEL_FALLBACK = "쿼리";
@@ -118,8 +134,14 @@ function RunPaneImpl({ ref, queryId, onBusyChange }: RunPaneProps) {
 
   useImperativeHandle(ref, () => ({ search }), [search]);
 
-  const columns = useMemo(() => (def && result ? resultColumns(result, def.columns) : []), [def, result]);
-  const rows = useMemo(() => (result ? resultRows(result) : []), [result]);
+  // 정의 열은 정의(def)에서만 만든다: 조회 결과가 바뀌어도 같은 참조라 그리드가 열을 다시 계산하지 않는다(R6·R12).
+  const definedCols = useMemo(() => (def ? definedColumns(def.columns) : []), [def]);
+  const hasDefinedCols = definedCols.length > 0;
+  const columns = useMemo(
+    () => (hasDefinedCols ? definedCols : def && result ? resultColumns(result, def.columns) : []),
+    [hasDefinedCols, definedCols, def, result]
+  );
+  const rows = useMemo(() => (result ? resultRows(result) : NO_ROWS), [result]);
   const rowCount = result?.rows.length ?? 0;
   const note = result ? truncationNote(result) : undefined;
   // 잘리지 않았으면 note 를 주지 않아 기본 「N행」이 나온다. 객체는 값이 바뀔 때만 새로 만든다.
@@ -149,26 +171,23 @@ function RunPaneImpl({ ref, queryId, onBusyChange }: RunPaneProps) {
         불러오는 중입니다
       </div>
     );
-  } else if (needInput && !result) {
+  } else if (!result && !hasDefinedCols) {
+    // 출력 열을 모르는 쿼리는 조회 뒤 결과 열로 그린다.
     body = (
-      <div className="uq-run__hint" role="status" data-testid="uq-run-need-input">
-        {NEED_INPUT_MESSAGE}
-      </div>
-    );
-  } else if (!result) {
-    body = (
-      <div className="uq-run__hint" role="status" data-testid="uq-run-ready">
-        {running ? "조회 중입니다" : "조건을 확인하고 조회하세요"}
+      <div className="uq-run__hint" role="status" data-testid={needInput ? "uq-run-need-input" : "uq-run-ready"}>
+        {needInput ? NEED_INPUT_MESSAGE : running ? "조회 중입니다" : READY_MESSAGE}
       </div>
     );
   } else {
-    // 0건이어도 그리드를 언마운트하지 않는다(R6). excelExport 도 늘 준다: 객체를 줬다 뺐다 하면 그리드 뿌리가 바뀌어 다시 마운트된다.
-    // 안내는 그리드의 빈 결과 문구가 맡는다.
+    // 0건이어도, 조회 전이어도 그리드를 언마운트하지 않는다(R6). excelExport 도 늘 준다: 객체를 줬다 뺐다 하면 그리드 뿌리가 바뀌어 다시 마운트된다.
+    // 조회 전 안내는 그리드의 빈 결과 문구가 맡는다.
     body = (
       <GridPanel title={def.queryNm || def.queryId} count={rowCount}>
         <AgDataGrid
           key={def.queryId}
           gridId={`query-${def.queryId}`}
+          personalize={false}
+          resetColumnsMenu={false}
           rowKey={TABLE_ROW_KEY}
           columns={columns}
           data={rows}
@@ -176,7 +195,7 @@ function RunPaneImpl({ ref, queryId, onBusyChange }: RunPaneProps) {
           loading={running}
           ariaLabel="쿼리 결과"
           excelExport={excelExport}
-          emptyMessage={QUERY_EMPTY}
+          emptyMessage={result ? QUERY_EMPTY : needInput ? NEED_INPUT_MESSAGE : READY_MESSAGE}
           emptyTestId="uq-empty"
         />
       </GridPanel>

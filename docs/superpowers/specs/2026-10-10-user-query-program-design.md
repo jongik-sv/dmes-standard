@@ -1,4 +1,4 @@
-# 공용 쿼리 조회 — 쿼리 정의 관리 · 사용자 조회 화면 · 공용 SQL 편집기
+# 맞춤 레포트 조회 — 맞춤 레포트 관리 · 사용자 조회 화면 · 공용 SQL 편집기
 
 - 날짜: 2026-10-10
 - 출처: 2026-10-10 사용자 문답(D1~D5), 조정자 추가 요구 4건(관리 조회조건, Monaco 편집기, 로그 뷰어 테마 통합, DB 뷰어 편집기 기반)
@@ -11,7 +11,7 @@
 |---|---|
 | D1 | 이 스펙이 설계 정본이다. 5종 산출물은 구현 뒤 작성한다 |
 | D2 | 새 표 `TB_MCM_USRQ_DEF`·`TB_MCM_USRQ_ASSIGN`. 입력 정의는 위젯 `QueryParam` 모양, 출력 정의는 위젯 `TableColumnConfig` 모양. 실행은 `WidgetQueryExecutor` 에서 정의 없는 저수준 `run` 을 뽑아 쓴다(위젯 동작 변화 없음) |
-| D3 | 관리 화면 `csa/userQueryMng`(정의 탭 + 할당 탭)도 이번 범위다 |
+| D3 | 관리 화면 `cmq/userQueryMng`(정의 탭 + 할당 탭)도 이번 범위다 |
 | D4 | 할당은 사용자 단위만. 키 (QUERY_ID, USER_ID) |
 | D5 | 두 화면 모두 OASIS BPMN + `@Service`. 실행 요청은 queryId 와 값만 받는다(SQL 안 받음). 서버가 할당을 DB 에서 다시 확인한다. `AUTH_ONLY`·`EndpointPermissionFilter`·`proxy.ts` 는 고치지 않는다 |
 | D6 | SQL 편집 칸은 공용 Monaco 편집기 `SqlCodeEditor`(shared)로 통일한다. 기반은 DB 뷰어 편집기다. 위젯 관리·예약 작업 관리·로그 뷰어·DB 뷰어도 옮긴다(§9) |
@@ -81,12 +81,12 @@ create index IX_TB_MCM_USRQ_ASSIGN_USER on TB_MCM_USRQ_ASSIGN (USER_ID, QUERY_ID
 
 | 화면 | OBJECT_ID = serviceId | componentPath | 메뉴 폴더 | FULL_SEQ(기록용) | 기본 권한 |
 |---|---|---|---|---|---|
-| 쿼리 정의 관리 | `userQueryMng` | `csa/userQueryMng` | `csa` 시스템관리 | 1020230 (jobSchedMng 1020220 다음) | SYSADMIN × PERM_ALL |
-| 공용 쿼리 조회 | `userQuery` | `cmq/userQuery` | **`cmq` 공용 조회(신규, 사용자 확인 필요)** | 1070100 (폴더 1070000, MENU_SEQ `00000700`, lsh 600 다음) | SYSADMIN × PERM_ALL. 일반 역할은 운영자가 `PERM_USRQ_USE` 로 매핑 |
+| 맞춤 레포트 관리 | `userQueryMng` | `cmq/userQueryMng` | **`cmq` 맞춤 레포트**(2026-10-10 사용자 결정으로 csa 에서 옮김) | 1070200 (MENU_SEQ `00000002`, 조회 leaf 다음) | SYSADMIN × PERM_ALL |
+| 맞춤 레포트 조회 | `userQuery` | `cmq/userQuery` | **`cmq` 맞춤 레포트(신규, 사용자 확인 필요)** | 1070100 (폴더 1070000, MENU_SEQ `00000700`, lsh 600 다음) | SYSADMIN × PERM_ALL. 일반 역할은 운영자가 `PERM_USRQ_USE` 로 매핑 |
 
 - 권한키는 `{objId}/{action}` 이고 OASIS 경로의 serviceId 가 objId 가 된다. 그래서 serviceId 와 OBJECT_ID 를 같게 둔다.
-- 시드: `ModuleMenuSeeder` 에 `seedUserQueryMenus()` 하나를 더하고 `DataInitializer` 의 `seedJobSchedMngMenu()` 다음에 부른다. 폴더 `cmq` 는 `insertMpnFld("cmq", "00000700", "공용 조회", "mcm", 1070000L)` 로 만든다. FULL_SEQ 는 부팅 끝 `recomputeMenuFullSeq()` 가 다시 매긴다.
-- 권한 세트: `CoreRbacSeeder` 에 `PERM_USRQ_USE`(이름 `공용 쿼리 사용`, PERMISSION_ACTION `myList,getDef,run`)를 insert-if-absent 로 더한다. 지금 일반 역할이 쓸 mcm 권한 세트가 없어서(PERM_ALL·PERM_MDM_* 뿐) 새로 둔다.
+- 시드: `ModuleMenuSeeder` 에 `seedUserQueryMenus()` 하나를 더하고 `DataInitializer` 의 `seedJobSchedMngMenu()` 다음에 부른다. 폴더 `cmq` 는 `insertMpnFld("cmq", "00000700", "맞춤 레포트", "mcm", 1070000L)` 로 만든다. FULL_SEQ 는 부팅 끝 `recomputeMenuFullSeq()` 가 다시 매긴다.
+- 권한 세트: `CoreRbacSeeder` 에 `PERM_USRQ_USE`(이름 `맞춤 레포트 사용`(10-10 이름 변경 전: 공용 쿼리 사용), PERMISSION_ACTION `myList,getDef,run`)를 insert-if-absent 로 더한다. 지금 일반 역할이 쓸 mcm 권한 세트가 없어서(PERM_ALL·PERM_MDM_* 뿐) 새로 둔다.
 - `allActions` 에 새 토큰 5개를 덧붙인다: `searchAssign`, `saveAssign`, `myList`, `getDef`, `run`. 선언 모양(`String.join` 한 덩어리)은 바꾸지 않는다. `ScreenUsageOasisContractTest`·`MdmOasisActionVocabularyTest` 가 이 선언을 글자로 읽는다. 나머지 action(`search`, `get`, `save`, `delete`, `previewQuery`, `validate`, `searchUserList`)은 이미 있다.
 - 분류 코드: 새 공통코드 그룹 `USRQ_CTG`(공용 쿼리 분류)를 `WidgetCategoryCodeSeeder` 와 같은 방식으로 시드한다. 처음 값은 `ETC 기타` 하나다(미결 3). 화면은 위젯 관리의 `use-widget-categories.ts` 와 같은 LoV 호출로 이름을 얻는다.
 
@@ -97,7 +97,7 @@ create index IX_TB_MCM_USRQ_ASSIGN_USER on TB_MCM_USRQ_ASSIGN (USER_ID, QUERY_ID
 - 경로 `POST /api/mcm/oasis/{serviceId}/{action}`, 본문 `{ meta: { menuId: "<OBJECT_ID>" }, params: { … } }`. `params` 는 평평한 글자 값만 담는다. 배열·객체는 JSON 글자(`…Json`)로 싣는다(oasis-contract-check 6-E-2).
 - serviceTask 는 모두 `output="result"` 이고 Map 을 돌려준다. 응답은 `data.result.{키}` 에 실린다. 화면은 `widget-types/_query/api.ts` 의 `unwrapResult` 규칙(meta.success=false 거절, data·data.result 펼침)으로 푼다. 위젯 관리와 같은 모양이다(6-D-2 INFO, 짝 unwrap 있음).
 - `@Service` 에 `@Transactional` 을 붙이지 않는다(6-B-1). 쓰기 action(save·delete·saveAssign)만 BPMN process 에 `tx=txBiz` 를 둔다. 게이트웨이는 sequenceFlow `name` 으로만 가른다(6-C-3).
-- BPMN: `mcm/api/src/main/resources/services/csa/userQueryMng.bpmn`, `…/services/cmq/userQuery.bpmn`. 서비스 빈: `userQueryMngService`, `userQueryService`(패키지 `com.dongkuk.dmes.mcm.userq`, mcm-core).
+- BPMN: `mcm/api/src/main/resources/services/cmq/userQueryMng.bpmn`, `…/services/cmq/userQuery.bpmn`. 서비스 빈: `userQueryMngService`, `userQueryService`(패키지 `com.dongkuk.dmes.mcm.userq`, mcm-core).
 - 응답 키는 camelCase 다. 날짜시각은 ISO 글자다.
 
 ### 4.1 `userQueryMng`(관리, SYSADMIN)
@@ -241,7 +241,7 @@ WidgetQueryResult run(String sql, String paramDefsJson, Map<String, String> valu
 - `query-table/renderer.tsx`·`useQueryData` 는 그대로 쓸 수 없다. 위젯 틀 상태(`useWidgetStatus`)와 `widgetData/run` 에 묶여 있기 때문이다. 순수 함수와 부품만 가져다 쓴다.
 - 마지막으로 고른 queryId 는 `localStorage` 에 보관해 다시 열 때 고른다(try/catch, 실패해도 동작한다).
 
-### 8.2 관리 화면 `csa/userQueryMng`
+### 8.2 관리 화면 `cmq/userQueryMng`
 
 - 뼈대: `PageLayout`(버튼: 조회 F8, 신규, 저장, 삭제) → `SearchArea`(분류 select, 쿼리 이름·ID text, 사용 여부 select 전체·사용·미사용, 담당 부서 text, 할당 사용자 text) → `ContentBody root resizable storageKey="mcm.csa.userQueryMng"` → 왼쪽 목록 그리드(`ContentPanel width="40%"`), 오른쪽 탭 [정의] [할당].
 - 목록 열: 쿼리 ID, 이름, 분류, 담당 부서, 사용, 최대 행, 할당 수, 수정일시.
@@ -261,7 +261,7 @@ WidgetQueryResult run(String sql, String paramDefsJson, Map<String, String> valu
 m-mcm/page-components/_userq/types.ts   공용 타입(아래)
 m-mcm/page-components/_userq/api.ts     userQueryMng·userQuery 호출 + unwrapResult
 m-mcm/page-components/_userq/use-usrq-categories.ts   분류 코드(USRQ_CTG) 목록 훅, 두 화면 공용
-m-mcm/page-components/csa/userQueryMng/{page.tsx, QueryListPanel.tsx, DefTab.tsx, AssignTab.tsx, PreviewGrid.tsx, DeptPicker.tsx, form-model.ts, *.test.ts}
+m-mcm/page-components/cmq/userQueryMng/{page.tsx, QueryListPanel.tsx, DefTab.tsx, AssignTab.tsx, PreviewGrid.tsx, DeptPicker.tsx, form-model.ts, *.test.ts}
 m-mcm/page-components/cmq/userQuery/{page.tsx, QueryListPane.tsx, RunPane.tsx, run-model.ts, *.test.ts}
 m-mcm/widget-types/_query/ColumnsEditor.tsx   출력 열 편집 표. query-table/editor.tsx 에서 뽑아 위젯과 관리 화면이 함께 쓴다
 ```
@@ -384,7 +384,7 @@ export interface SqlCodeEditorProps {
 
 ## 12. 미결(사용자 확인 필요)
 
-1. 사용자 화면 메뉴 폴더: 새 폴더 `cmq` 「공용 조회」(공통관리 아래 7번째)로 둘지.
+1. 사용자 화면 메뉴 폴더: 새 폴더 `cmq` 「맞춤 레포트」(공통관리 아래 7번째)로 둘지.
 2. 일반 역할 권한: 새 권한 세트 `PERM_USRQ_USE` 를 어느 역할에 기본 매핑할지(이번 시드는 SYSADMIN 만).
 3. 분류 코드: 새 그룹 `USRQ_CTG` 와 처음 값(생산·품질·출하·기타 등). 위젯 `WIDGET_CTG` 를 같이 쓸지.
 4. 다른 모듈 표 조회: 실행 계정에 MPP·MLS·MQC 표 SELECT 권한을 줄지, 운영 읽기 전용 계정을 어떻게 둘지.

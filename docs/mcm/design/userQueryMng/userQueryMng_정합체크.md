@@ -1,10 +1,10 @@
-# userQueryMng 정합체크 (공용 쿼리 정의 관리)
+# userQueryMng 정합체크 (맞춤 레포트 관리)
 
 - 날짜: 2026-10-10
 - 작성 방식: 구현 후 사후 작성(스펙 D1 면제 후속)
 - 스펙: `docs/superpowers/specs/2026-10-10-user-query-program-design.md`
 
-판정: 일치 / 불일치 / 미확인(be 대기). 구현은 `src/frontend/m-mcm/page-components/csa/userQueryMng/`, `_userq/`, `widget-types/_query/ColumnsEditor.tsx` 를 직접 읽어 확인했다. 백엔드는 2026-10-10 userq-be 레인(`feat/userq-be` @ `75a94dd95`, 아직 dev 에 없음)의 코드를 읽어 대조했다. 아래 「be 대조」 표기는 `src/backend/` 아래 파일:줄 근거다.
+판정: 일치 / 불일치 / 미확인(be 대기). 구현은 `src/frontend/m-mcm/page-components/cmq/userQueryMng/`, `_userq/`, `widget-types/_query/ColumnsEditor.tsx` 를 직접 읽어 확인했다. 백엔드는 2026-10-10 userq-be 레인(`feat/userq-be` @ `75a94dd95`, 아직 dev 에 없음)의 코드를 읽어 대조했다. 아래 「be 대조」 표기는 `src/backend/` 아래 파일:줄 근거다.
 
 ## 1. 식별자·권한
 
@@ -12,12 +12,12 @@
 |---|---|---|---|---|
 | screenId, objId | `userQueryMng` | `SCREEN_ID = "userQueryMng"`(form-model.ts), `PageLayout screenId·objId` | 기능 §1 | 일치 |
 | serviceId | `userQueryMng` | `USER_QUERY_MNG_ID`(api.ts), `meta.menuId` 도 같다 | BPMN §1 | 일치 |
-| componentPath | `csa/userQueryMng` | 폴더 `page-components/csa/userQueryMng`, page-registry 등록 | 기능 §1 | 일치 |
-| 메뉴, FULL_SEQ | 시스템관리 > 쿼리 정의 관리, 1020230 | FE 범위 밖 | 기능 §1 | 일치(be 대조: `mcm/api/.../init/seed/ModuleMenuSeeder.java:153` csa 그룹, FULL_SEQ `1020230`, 이름 「쿼리 정의 관리」) |
+| componentPath | `cmq/userQueryMng` | 폴더 `page-components/cmq/userQueryMng`, page-registry 등록 | 기능 §1 | 일치 |
+| 메뉴, FULL_SEQ | 맞춤 레포트 > 맞춤 레포트 관리, 1070200 | FE 범위 밖 | 기능 §1 | 일치(be 대조: `mcm/api/.../init/seed/ModuleMenuSeeder.java` seedUserQueryMenus cmq 폴더, MENU_SEQ `002`, FULL_SEQ `1070200`(2026-10-10 이름 변경 때 csa 에서 옮김), 이름 「맞춤 레포트 관리」) |
 | 버튼 action | `search`, `save`, `delete` | `btn_search`·`btn_new`·`btn_save`·`btn_delete` 의 action 이 `search`, `save`, `save`, `delete` | 기능 §2 | 일치 |
 | 할당 저장 권한 | `saveAssign` | `canDoButton(rbac, "userQueryMng", "saveAssign")` | 기능 §2.2 | 일치(be 대조: 시드 `ModuleMenuSeeder.java:154-159` SYSADMIN × PERM_ALL, `CoreRbacSeeder.java:149` allActions 에 `saveAssign`) |
 | 권한 시드, `allActions` 5토큰 | 스펙 §3 | FE 범위 밖 | BPMN §6 | 일치(be 대조: `CoreRbacSeeder.java:149` 에 `searchAssign`, `saveAssign`, `myList`, `getDef`, `run` 5토큰. `search`, `get`, `save`, `delete`, `previewQuery`, `validate`, `searchUserList`, `searchDepts` 는 기존 토큰, 주석 `CoreRbacSeeder.java:146-149`) |
-| BPMN 파일, 서비스 빈 | `userQueryMng.bpmn`, `userQueryMngService` | 없음 | BPMN §1 | 일치(be 대조: `mcm/api/src/main/resources/services/csa/userQueryMng.bpmn:3` process id `userQueryMng`, serviceTask 10개 모두 `camunda:class="userQueryMngService"`, `UserQueryMngService.java:44` `@Service("userQueryMngService")`, 패키지 `mcm-core/.../mcm/userq`) |
+| BPMN 파일, 서비스 빈 | `userQueryMng.bpmn`, `userQueryMngService` | 없음 | BPMN §1 | 일치(be 대조: `mcm/api/src/main/resources/services/cmq/userQueryMng.bpmn:3` process id `userQueryMng`, serviceTask 10개 모두 `camunda:class="userQueryMngService"`, `UserQueryMngService.java:44` `@Service("userQueryMngService")`, 패키지 `mcm-core/.../mcm/userq`) |
 
 ## 2. 요청·응답 키(api.ts 대 스펙 §4.1)
 
@@ -68,7 +68,7 @@
 
 | 번호 | 내용 | 영향 |
 |---|---|---|
-| 1 | 스펙 §8.3 파일 목록에 없는 파일이 늘었다: `csa/userQueryMng/PreviewGrid.tsx`, `_userq/use-usrq-categories.ts`(분류 LoV 훅), `widget-types/_query/ColumnsEditor.tsx`(추출) | 스펙 §8.3 갱신 필요 |
+| 1 | 스펙 §8.3 파일 목록에 없는 파일이 늘었다: `cmq/userQueryMng/PreviewGrid.tsx`, `_userq/use-usrq-categories.ts`(분류 LoV 훅), `widget-types/_query/ColumnsEditor.tsx`(추출) | 스펙 §8.3 갱신 필요 |
 | 2 | `ColumnsEditor` 추출로 `widget-types/query-table/editor.tsx` 가 바뀐다(DOM, testId 무변화, widget-types vitest 34파일 1118건 통과) | 머지 요청 「겹칠 수 있는 파일」 |
 | 3 | 담당 부서 팝업(`DeptPicker`)이 `userQueryMng/searchDepts` 를 부른다(조정 결정: be 에 action 추가 요청, 응답 모양은 `commWidgetMng/searchDepts` 와 같다). be 머지 전에는 이 action 이 없어 팝업 조회가 실패한다 | 스펙 §4.1 action 표에 `searchDepts` 추가 필요. be 대조 완료: `UserQueryMngService.java:283-297` 이 `{ depts: [{ deptCd, deptNm, upperDeptCd }] }` 를 돌려주고(코드·이름 앞부분 일치, 최대 `MAX_DEPTS=50`), BPMN `userQueryMng.bpmn` 에 `searchDepts` 분기가 있다 |
 | 4 | `SearchArea` 에 `autoSearch` 를 달아 진입 때 한 번 조회한다. 스펙 무규정(화면 표준 골격 따름) | |
@@ -83,7 +83,7 @@
 | 파일 | 건수 | 내용 |
 |---|---|---|
 | `_userq/api.test.ts` | 12 | 9개 action 요청·응답 변환, 빈 값 제거, 업무 거절, 사용자 action 3종 |
-| `csa/userQueryMng/form-model.test.ts` | 9 | 조회조건 변환, 목록 행 변환, `validateDef`, dirty, 할당 후보 합치기, 집합 비교 |
+| `cmq/userQueryMng/form-model.test.ts` | 9 | 조회조건 변환, 목록 행 변환, `validateDef`, dirty, 할당 후보 합치기, 집합 비교 |
 | `widget-types` 전체 | 1118(34파일; dev 합류 뒤 36파일 1144건) | `ColumnsEditor` 추출 뒤 위젯 동작 무변화 확인 |
 
 2026-10-10 `vitest run` 통과, 내 파일의 tsc 오류 0건, audit 의심 0건(P-R1 1건 오탐). 브라우저 확인은 조정자가 be·이 레인 머지 뒤 메인 서버에서 한다(미실시).

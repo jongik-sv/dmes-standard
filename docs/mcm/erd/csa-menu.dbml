@@ -411,7 +411,7 @@ Table TB_MCM_SEC_USER_SRCH_DFLT {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// 공용 쿼리 조회 — 관리자가 등록한 SQL 정의와 사용자 할당. 2026-10-10 신설 (Flyway V13)
+// 맞춤 레포트 조회 — 관리자가 등록한 SQL 정의와 사용자 할당. 2026-10-10 신설 (Flyway V13)
 // 긴 문자열(SQL_TEXT·PARAMS_JSON·COLUMNS_JSON)은 Oracle CLOB
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -431,7 +431,7 @@ Table TB_MCM_USRQ_DEF {
     QUERY_ID [pk]
   }
 
-  Note: '공용 쿼리 정의(스펙 2026-10-10-user-query-program-design §2). 감사 컬럼 9개(McmAuditEntity). DDL = Flyway oracle/mcmapuser/V13. 관리 화면 userQueryMng(쿼리 정의 관리), 사용자 화면 userQuery(공용 쿼리 조회, 서비스 myList·getDef·run). 외래 키 없음 — 정의를 지울 때 서비스가 할당을 먼저 지운다.'
+  Note: '공용 쿼리 정의(스펙 2026-10-10-user-query-program-design §2). 감사 컬럼 9개(McmAuditEntity). DDL = Flyway oracle/mcmapuser/V13. 관리 화면 userQueryMng(맞춤 레포트 관리), 사용자 화면 userQuery(맞춤 레포트 조회, 서비스 myList·getDef·run). 외래 키 없음 — 정의를 지울 때 서비스가 할당을 먼저 지운다.'
 }
 
 Table TB_MCM_USRQ_ASSIGN {
@@ -527,7 +527,7 @@ Ref: TB_MCM_SEC_USER_START_PGM.MENU_ID     > TB_MCM_SEC_MENU.MENU_ID
 // 조회 칸 기본값 (PAGE_ID 는 메뉴 FK 가 아니라 포털 화면 키라 논리 참조는 사용자만)
 Ref: TB_MCM_SEC_USER_SRCH_DFLT.USER_ID > TB_MCM_SEC_USER.USER_ID
 
-// 공용 쿼리 조회 (논리 참조 — V13 에 외래 키 없음, OWNER_DEPT_CD → TB_MCM_DEPT_INFO 는 범위 밖이라 칼럼 note 에만 적는다)
+// 맞춤 레포트 조회 (논리 참조 — V13 에 외래 키 없음, OWNER_DEPT_CD → TB_MCM_DEPT_INFO 는 범위 밖이라 칼럼 note 에만 적는다)
 Ref: TB_MCM_USRQ_ASSIGN.QUERY_ID > TB_MCM_USRQ_DEF.QUERY_ID
 Ref: TB_MCM_USRQ_ASSIGN.USER_ID  > TB_MCM_SEC_USER.USER_ID
 
