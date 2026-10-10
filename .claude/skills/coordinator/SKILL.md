@@ -68,6 +68,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
    - PC별 값(`launch.claude`·`integration_check`·`git_bin` 등) = 사용자에게 1회 확인
 2. `node scripts/coord-state.mjs init <run-id> --goal "<목표>" [--rules-doc <경로>]`
    - 출력 `SESSION_RUNS`·`STALE_RUN` 처리 = `closing.md` §6
+   - `WBS.md` 자동 생성·열기(`wbs.auto_open`). 묶음 = `lane-add` 의 `group`, 조정자 단계 = `wbs-phase`·`wbs-done`·`wbs-issue`
 3. 분해: `decompose.md`(초안 = 판단 올리기). 사용자 확정
    - 레인 공통 규칙 문서 = `templates/lane-rules-README.md`
 4. 레인 확보: `spawn.md`
@@ -85,7 +86,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 
 ## 틱 절차
 
-1. `node scripts/tick.mjs` 실행(확인·선택 창 자동 응답 포함)
+1. `node scripts/tick.mjs` 실행(확인·선택 창 자동 응답 포함, `WBS.md` 자동 갱신)
 2. `TICK quiet` 이고 처리할 메시지 없음 → **말 없이 턴 종료.**
 3. 나온 줄만 아래 표대로 처리
 4. 바뀐 것이 있었으면 `node scripts/coord-state.mjs summary`
@@ -117,7 +118,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 | 종류 | 처리 |
 |---|---|
 | `신원` | `node scripts/coord-state.mjs set '.lanes.<레인>.session' …`(`spawn.md` §4) |
-| `진행 보고` | `item-done` → `progress`(`monitor.md` §7). 「대기」 보고 → 아래 목록 |
+| `진행 보고` | `item-done`(WBS 자동 갱신) → `progress`(`monitor.md` §7). 「대기」 보고 → 아래 목록 |
 | `질문` | 아래 목록 |
 | `머지 요청` | `merge-gate.md`. 한 번에 하나만 허가, 허가에 「머지 뒤 다음 일」 |
 | `머지 완료`·`정리 완료` | 트리 대조 → `merge.history`, 다음 허가. 남긴 브랜치 = `pending_user` |

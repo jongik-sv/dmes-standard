@@ -31,13 +31,17 @@ const HELP = `# 사용법: coord-state.mjs <하위명령> …   (정본: ../refe
 #   close-run [json]                               회차 마감: run-closed 이벤트 → office finish → \`.run.closed_at\` 기록 · \`OK\`
 #                                                  (\`event run-closed\` 도 같은 길. 이미 마감했으면 closed_at 은 그대로, finish 는 다시 건다)
 #   summary                                        summary.md 재생성 · 경로
+#   wbs-phase <단계> <제목> [--weight n]           조정자 단계에 항목 추가(단계는 없으면 만듦) → state .wbs.phases · \`OK\`
+#   wbs-done <단계> <제목 앞부분|번호> [--note 글]  그 단계 항목 완료(번호는 1부터) · \`OK\`
+#   wbs-issue <글>                                 WBS 이슈·결정 칸에 한 줄 추가 · \`OK\`
+#   (WBS.md 는 wbs.mjs 가 만든다. init·틱·item-done·wbs-*·close-run 이 자동으로 다시 만든다 — 환경 변수 COORD_WBS_AUTO=0 이면 건너뜀)
 # state.json 은 이 스크립트만 쓴다. 쓰기는 mkdir 잠금(<회차>/.lock) 아래에서 임시 파일 → mv 로 원자적으로 한다.
 # 회차는 COORD_RUN 환경 변수 → <state_dir>/current 순으로 정한다(init 은 인자의 run-id).
 # init 은 조정 세션 id·pid(CLAUDE_PID, 없으면 0 — TTL 에 맡긴다)·Orca 핸들(ORCA_TERMINAL_HANDLE, 없으면 빈 값)을 .run.coordinator 에 적고,
 `;
 const SCRIPTS_DIR = path.dirname(fileURLToPath(import.meta.url));
 
-const USAGE = '사용법: coord-state.mjs init|use|get|set|set-many|lane-add|event|instr|ack|report|item-done|progress|hold|close-run|summary … (contract §3.4)';
+const USAGE = '사용법: coord-state.mjs init|use|get|set|set-many|lane-add|event|instr|ack|report|item-done|progress|hold|close-run|summary|wbs-phase|wbs-done|wbs-issue … (contract §3.4)';
 
 const LANE_SKEL_TEXT = '{"session":{"name":"","addr":"","session_id":"","pid":0,"handle":"","kind":"claude","window":null,"spawned_by":"user"},\n "branch":"","worktree":"","owned":[],"forbidden":[],"heavy_env":null,"priority":2,"items":[],"queue":[],"hold":null,\n "last_report_at":null,"last_instr_at":null,"ctx":null,\n "compact":{"pending":false,"last_at":null,"pre_compact":null,"history":[]},"memo":"","state":"active"}';
 
@@ -328,6 +332,15 @@ function officeCall(c, args, extraEnv = {}) {
   spawnSync(process.execPath, [path.join(SCRIPTS_DIR, 'office.mjs'), ...args], { env: { ...c.env, ...extraEnv }, stdio: 'ignore', windowsHide: true });
 }
 
+/** WBS.md 를 조용히 다시 만든다(실패·dry-run·COORD_WBS_AUTO=0 이면 아무 일도 안 함). 출력·종료 코드 불변 */
+function wbsRefresh(c, { open = false, runId = '' } = {}) {
+  if ((c.env.COORD_WBS_AUTO ?? '1') === '0' || (c.env.COORD_DRY ?? '0') === '1') return;
+  try {
+    spawnSync(process.execPath, [path.join(SCRIPTS_DIR, 'wbs.mjs'), '--quiet', ...(open ? ['--open'] : [])],
+      { env: { ...c.env, ...(runId ? { COORD_RUN: runId } : {}) }, stdio: 'ignore', windowsHide: true, timeout: 60000 });
+  } catch { /* WBS 실패가 본 작업을 막지 않는다 */ }
+}
+
 // ---------- 하위명령 ----------
 function cmdInit(c, argv) {
   const id = argv[0] ?? '';
@@ -374,6 +387,7 @@ function cmdInit(c, argv) {
   if ((c.env.COORD_DRY ?? '0') !== '1' && (c.env.COORD_CONSOLE_POLL ?? '1') !== '0') {
     spawnSync(process.execPath, [path.join(SCRIPTS_DIR, 'console-poll.mjs'), 'start'], { env: c.env, stdio: 'ignore', windowsHide: true, detached: true });
   }
+  wbsRefresh(c, { open: true, runId: id });
   process.stdout.write(`RUN ${id} ${dir}\n`);
   const r = readDoc(path.join(dir, 'state.json'));
   const s8 = r.doc !== undefined ? sess8Of(r.doc) : '';
@@ -415,6 +429,7 @@ function closeRun(c, lane, data) {
     apply(doc) { return assignPath(doc, ['run', 'closed_at'], J.alt(indexOrNull(doc, ['run', 'closed_at']), now)); },
   });
   if (rc !== 0) exitNow(4);
+  wbsRefresh(c, { open: true });
 }
 function indexOrNull(doc, segs) {
   let v = doc;
@@ -760,6 +775,7 @@ function cmdItemDone(c, argv) {
   }) !== 0) exitNow(4);
   evAppend(c, runDirSub(c), 'item-done', lane, J.tojson(new Map([['item', item]])));
   officeCall(c, ['lane-state', lane, 'auto']);
+  wbsRefresh(c);
   const r1 = readDoc(f);
   try {
     if (r1.doc === undefined) throw new J.JqError('read', 5);
@@ -1024,6 +1040,103 @@ const SUMMARY_FALLBACK = String.raw`
       (if (.decisions // []) == [] then "- 없음" else (.decisions[-10:][] | "- \(.at | v) \(.text)") end)
   `;
 
+// ---------- WBS(조정자 단계·이슈) — state .wbs = {phases:[{name, items:[{title, weight, done, note?}]}], issues:[글], opened_at} ----------
+/** doc.wbs 를 Map 으로 보장(없으면 만듦). 객체가 아닌 값이면 JqError(= jq 폴백) */
+function wbsMap(doc) {
+  if (!(doc instanceof Map)) throw new J.JqError(`Cannot index ${J.typeName(doc)} with "wbs"`, 5);
+  let w = doc.get('wbs');
+  if (w === undefined || w === null) { w = new Map(); doc.set('wbs', w); }
+  if (!(w instanceof Map)) throw new J.JqError(`Cannot index ${J.typeName(w)} with "phases"`, 5);
+  return w;
+}
+function wbsList(w, key) {
+  let a = w.get(key);
+  if (a === undefined || a === null) { a = []; w.set(key, a); }
+  if (!Array.isArray(a)) throw new J.JqError(`Cannot iterate over ${J.typeName(a)}`, 5);
+  return a;
+}
+const nameOf = (m) => (m instanceof Map && typeof m.get('name') === 'string' ? m.get('name') : null);
+/** 단계 이름 + 선택자(번호 1부터 | 제목 앞부분, 안 끝난 항목 먼저) → 항목 Map 또는 null */
+function wbsFind(doc, phase, sel) {
+  const w = doc instanceof Map ? doc.get('wbs') : null;
+  const phases = w instanceof Map && Array.isArray(w.get('phases')) ? w.get('phases') : [];
+  const ph = phases.find((p) => nameOf(p) === phase);
+  const items = ph instanceof Map && Array.isArray(ph.get('items')) ? ph.get('items').filter((i) => i instanceof Map) : [];
+  if (/^[0-9]+$/.test(sel)) return items[Number(sel) - 1] ?? null;
+  const hit = items.filter((i) => typeof i.get('title') === 'string' && i.get('title').startsWith(sel));
+  return hit.find((i) => i.get('done') !== true) ?? hit[0] ?? null;
+}
+
+function cmdWbsPhase(c, argv) {
+  let weight = 1;
+  const pos = [];
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--weight') {
+      const n = Number(argv[i + 1]);
+      if (!(argv[i + 1] !== undefined && /^[0-9]+(\.[0-9]+)?$/.test(argv[i + 1]) && n > 0)) die(2, `--weight 는 0 보다 큰 수: ${argv[i + 1] ?? ''}`);
+      weight = n; i++;
+    } else pos.push(argv[i]);
+  }
+  if (pos.length !== 2 || pos[0] === '' || pos[1] === '') usage();
+  const [phase, title] = pos;
+  stateFileChecked(c);
+  const item = () => new Map([['title', title], ['weight', weight], ['done', false]]);
+  if (stUpdate(c, {
+    jqExpr: 'wbs-phase',
+    jqArgs: (file) => ['--arg', 'p', phase, '--arg', 't', title, '--argjson', 'w', String(weight),
+      '.wbs = (.wbs // {}) | .wbs.phases = (.wbs.phases // []) | ({title: $t, weight: $w, done: false}) as $it | if any(.wbs.phases[]; .name == $p) then (.wbs.phases[] | select(.name == $p) | .items) += [$it] else .wbs.phases += [{name: $p, items: [$it]}] end', file],
+    apply(doc) {
+      const phases = wbsList(wbsMap(doc), 'phases');
+      let ph = phases.find((p) => nameOf(p) === phase);
+      if (!ph) { ph = new Map([['name', phase], ['items', []]]); phases.push(ph); }
+      wbsList(ph, 'items').push(item());
+      return doc;
+    },
+  }) !== 0) exitNow(4);
+  wbsRefresh(c);
+  process.stdout.write('OK\n');
+}
+
+function cmdWbsDone(c, argv) {
+  let note = null;
+  const pos = [];
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--note') { if (i + 1 >= argv.length) usage(); note = argv[i + 1]; i++; } else pos.push(argv[i]);
+  }
+  if (pos.length !== 2 || pos[1] === '') usage();
+  const [phase, sel] = pos;
+  const f = stateFileChecked(c);
+  const r0 = readDoc(f);
+  if (r0.doc === undefined || !wbsFind(r0.doc, phase, sel)) die(2, `없는 WBS 항목: ${phase} / ${sel}`);
+  if (stUpdate(c, {
+    jqExpr: 'wbs-done',
+    jqArgs: (file) => ['--arg', 'p', phase, '--arg', 's', sel, '--arg', 'n', note ?? '',
+      '(.wbs.phases[] | select(.name == $p) | .items) |= (if ($s | test("^[0-9]+$")) then (.[($s | tonumber) - 1].done) = true else ((map(.title | startswith($s)) | index(true)) as $i | if $i == null then . else (.[$i].done) = true end) end)', file],
+    apply(doc) {
+      const it = wbsFind(doc, phase, sel);
+      if (!it) throw new J.JqError('no wbs item', 5);
+      it.set('done', true);
+      if (note !== null) it.set('note', note);
+      return doc;
+    },
+  }) !== 0) exitNow(4);
+  wbsRefresh(c);
+  process.stdout.write('OK\n');
+}
+
+function cmdWbsIssue(c, argv) {
+  if (argv.length !== 1 || argv[0].trim() === '') usage();
+  const text = argv[0];
+  stateFileChecked(c);
+  if (stUpdate(c, {
+    jqExpr: 'wbs-issue',
+    jqArgs: (file) => ['--arg', 't', text, '.wbs = (.wbs // {}) | .wbs.issues = ((.wbs.issues // []) + [$t])', file],
+    apply(doc) { wbsList(wbsMap(doc), 'issues').push(text); return doc; },
+  }) !== 0) exitNow(4);
+  wbsRefresh(c);
+  process.stdout.write('OK\n');
+}
+
 // ---------- 진입 ----------
 function usage() { die(2, USAGE); }
 
@@ -1053,6 +1166,9 @@ export async function main(argv, { env, cwd } = {}) {
         process.stdout.write('OK\n');
         break;
       case 'summary': cmdSummary(c); break;
+      case 'wbs-phase': cmdWbsPhase(c, rest); break;
+      case 'wbs-done': cmdWbsDone(c, rest); break;
+      case 'wbs-issue': cmdWbsIssue(c, rest); break;
       case 'help': case '-h': case '--help':
         process.stderr.write(HELP);
         break;

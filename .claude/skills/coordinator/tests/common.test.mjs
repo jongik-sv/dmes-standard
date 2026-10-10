@@ -26,8 +26,8 @@ test('COORD_DEFAULTS: contract.md §1.2 설정 표의 키를 모두 가지고, �
   const keys = [...sec.matchAll(/^\| `([a-z_.]+)` \|/gm)].map((m) => m[1]);
   assert.ok(keys.length >= 60, `표에서 키를 ${keys.length}개만 찾음`);
   const has = (o, path) => path.split('.').every((k) => o !== null && typeof o === 'object' && k in o && ((o = o[k]), true));
-  // 문서 규칙 키(스크립트가 읽지 않아 기본값 글에 없다): 표에는 있으나 COORD_DEFAULTS 에는 없는 것
-  const DOC_ONLY = ['merge.auto_build', 'merge.auto_push'];
+  // 문서 규칙 키(스크립트가 읽지 않아 기본값 글에 없다) · wbs.* 는 wbs.mjs 가 키가 없을 때의 값(auto_open=true, metrics_cmd 없음)을 직접 쓴다: 표에는 있으나 COORD_DEFAULTS 에는 없는 것
+  const DOC_ONLY = ['merge.auto_build', 'merge.auto_push', 'wbs.auto_open', 'wbs.metrics_cmd'];
   assert.deepEqual(keys.filter((k) => !has(d, k) && !DOC_ONLY.includes(k)), [], 'contract.md 에는 있는데 COORD_DEFAULTS 에 없는 키');
   const OPAQUE = ['by_window', 'bands', 'agents_by_band', 'opencode'];   // 객체째 한 줄로 적힌 값 또는 하위 키가 별도 행인 부모
   const leaves = (o, pre = '') => Object.entries(o).flatMap(([k, v]) => (v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length && !OPAQUE.includes(k) ? leaves(v, `${pre}${k}.`) : [`${pre}${k}`]));

@@ -21,7 +21,7 @@ function world(cfgExtra = {}) {
   const cfg = { state_dir: stateRoot, office: { enabled: false }, usage: { sources: [] }, ...cfgExtra };
   writeFileSync(join(dir, 'repo', '.coord.local.json'), JSON.stringify(cfg));
   const env = { PATH: process.env.PATH, HOME: join(dir, 'home'), USERPROFILE: join(dir, 'home'), TMPDIR: join(dir, 'tmp'), TZ: 'Asia/Seoul', COORD_REPO: join(dir, 'repo'),
-    COORD_STATE_ROOT: stateRoot, COORD_CONSOLE_POLL: '0', COORD_SESSION_ID: 'tick-test-sess', CLAUDE_PID: '0', COORD_RUN: 'r1' };
+    COORD_STATE_ROOT: stateRoot, COORD_CONSOLE_POLL: '0', COORD_SESSION_ID: 'tick-test-sess', CLAUDE_PID: '0', COORD_RUN: 'r1', COORD_WBS_OPENER: 'none' };
   const run = (script, args, extra = {}) => spawnSync(process.execPath, [script, ...args], { env: { ...env, ...extra }, cwd: join(dir, 'repo'), encoding: 'utf8', timeout: 120000 });
   const w = {
     dir, env, stateRoot,

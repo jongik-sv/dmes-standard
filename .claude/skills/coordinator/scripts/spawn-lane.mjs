@@ -319,6 +319,8 @@ async function run(argv, env, cwd, c, out0, TO) {
       ['pid', /^-?[0-9]+$/.test(pid) ? Number(pid) : 0], ['session_id', sid === '-' ? '' : sid], ['addr', addr === '' ? '' : `uds:${addr}`],
     ]);
     if (model.includes('[1m]')) sess.set('window', 1000000);
+    if (model !== '') sess.set('model', model);   // WBS 의 runner 칸이 읽는다(wbs.mjs)
+    if (effort !== '') sess.set('effort', effort);
     const lane = new Map([['session', sess], ['worktree', wt], ['state', 'active']]);
     if (BRIEF !== '') lane.set('brief', BRIEF);
     coordStateCall(c, ['lane-add', name, J.stringify(lane, { indent: 0 })]);
