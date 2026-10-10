@@ -128,6 +128,8 @@ Gradle package/artifact:
 - {CLIENT} 사이트에만 필요한 조립/확장/seed/config: 사이트 lib (`ksm-{moduleId}-lib`)
 - 실행/배포/엔드포인트 wiring: API app (`ksm-{moduleId}-api-app`)
 
+이 저장소 안에서 새 클래스를 어느 모듈에 둘지는 [코드 배치 기준](../BackEnd/standard-v2/backend-standard/02-structure-naming-constraints.md#3-3-코드-배치-기준)을 따른다.
+
 ## 5. Frontend 명칭
 
 | 위치 | 공식 역할명 | NPM package | 의미 |

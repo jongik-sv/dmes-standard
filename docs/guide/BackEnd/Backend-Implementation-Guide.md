@@ -8,10 +8,12 @@
 
 이 문서는 Spring backend 구현에서 공통으로 반복되는 Entity, Repository, DTO, Service, REST Controller, 응답, DB, 보안, 테스트 패턴을 다룬다.
 
+새 코드를 어느 모듈(`mcm-core`·`lib`·`api` 등)에 둘지는 이 문서가 아니라 [코드 배치 기준](standard-v2/backend-standard/02-structure-naming-constraints.md#3-3-코드-배치-기준)을 따른다.
+
 우선순위:
 
 1. `RULE.md`
-2. 작업 분기별 정본 가이드: APS 는 `docs/aps/Aps-Guide.md`, MES 는 `docs/guide/MES/Mes-Guide.md`
+2. 작업 분기별 정본 가이드: APS 는 `docs/aps/README.md`, MES 는 `docs/guide/MES/Mes-Guide.md`
 3. MES OASIS/BPMN 구현: `BackEnd_표준_통합_개발가이드_v2.md`
 4. 이 문서의 공통 구현 패턴
 5. 모듈별 델타 문서
