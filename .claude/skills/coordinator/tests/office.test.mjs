@@ -114,3 +114,23 @@ test('redactCheck: bash 가 PATH 에 없는 프로세스에서도 JS 가림이 �
     assert.equal(r.stdout.trim(), 'true false', r.stderr);
   } finally { rmSync(empty, { recursive: true, force: true }); }
 });
+
+test('office: /clear 로 조정 세션 id 가 바뀌면(relink self) 옛 id 의 팀장 칸을 내리고 기록을 지운다', { skip: !HAS_BASH || process.platform === 'win32', timeout: 60000 }, async () => {
+  const base = mkdtempSync(join(tmpdir(), 'office-relink-'));
+  try {
+    mkdirSync(join(base, 'state', 'r1'), { recursive: true });
+    mkdirSync(join(base, 'state', '_session'), { recursive: true });
+    const log = join(base, 'calls.log');
+    writeFileSync(join(base, 'fake-dflow.sh'), `#!/bin/sh\necho "$*" >> '${log}'\nexit 0\n`);
+    writeFileSync(join(base, '.coord.local.json'), '{"state_dir":"state","office":{"enabled":true,"project_id":"p","label_max":40,"dflow_script":"fake-dflow.sh"}}');
+    writeFileSync(join(base, 'state', 'r1', 'state.json'), JSON.stringify({ run: { id: 'r1', coordinator: { session_id: 'newsess1-aaaa', pid: 0, prev_ids: ['oldsess1-bbbb'] } }, office: { user: 'u' }, lanes: {} }));
+    writeFileSync(join(base, 'state', '_session', 'oldsess1.json'), JSON.stringify({ key: 'u/h/coord:oldsess1', session_id: 'oldsess1-bbbb', pid: process.pid }));
+    const env = { ...process.env, COORD_REPO: base, COORD_STATE_ROOT: join(base, 'state'), COORD_RUN: 'r1', COORD_SESSION_ID: 'newsess1-aaaa', HOME: base, DFLOW_CONSOLE_DIR: join(base, 'console'), COORD_DRY: '', COORD_CONSOLE_POLL: '0' };
+    const rc = await new Promise((res) => spawn(process.execPath, [join(COORD_ROOT, 'scripts', 'office.mjs'), 'beat'], { env, cwd: base, stdio: 'ignore' }).on('exit', res));
+    assert.equal(rc, 0);
+    const calls = readFileSync(log, 'utf8');
+    assert.match(calls, /--agent u\/h\/coord:oldsess1 --stop/, calls);
+    assert.match(calls, /coord:newsess1 /, calls);
+    assert.equal(spawnSync('test', ['-e', join(base, 'state', '_session', 'oldsess1.json')]).status, 1, '옛 세션 기록이 남았다');
+  } finally { rmSync(base, { recursive: true, force: true }); }
+});

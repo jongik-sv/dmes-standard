@@ -573,6 +573,26 @@ class Office {
     }
     return true;
   }
+  /**
+   * /clear 뒤 relink self 로 조정 세션 id 가 바뀌면 팀장 키(coord:<세션8>)도 바뀐다. 같은 프로세스(pid)라 reap 이 옛 칸을 못 거두므로
+   * run.coordinator.prev_ids 의 세션 기록이 남아 있으면 그 키를 내리고 기록을 지운다.
+   */
+  async dropPrevSessionLeads(key) {
+    let prev = [];
+    try {
+      const d = this.doc();
+      const v = d === undefined ? null : ix(ix(ix(d, 'run'), 'coordinator'), 'prev_ids');
+      if (Array.isArray(v)) prev = v.map(asText);
+    } catch (e) { if (!(e instanceof J.JqError)) throw e; }
+    for (const sid of prev) {
+      const p8 = Array.from(sid).slice(0, 8).join('').toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (p8 === '' || p8 === this.myS8 || !isFile(this.sessFile(p8))) continue;
+      const k = this.sessGet(p8, 'key');
+      if (k !== '' && k !== key && !(await this.stop(k))) return false;
+      this.sessRm(p8);
+    }
+    return true;
+  }
   // ---- 팀장 ----
   leadInfo(runs, excl) {
     const files = [];
@@ -626,6 +646,7 @@ class Office {
     for (const [rid, a, b] of runs) { if (rid === '') continue; slots += Number(a || 0); busy += Number(b || 0); }
     const old = this.sessGet(this.myS8, 'key');
     if (!(await this.dropOldLeads(key, [...runs.map((r) => r[0]), this.rid]))) return false;
+    if (!(await this.dropPrevSessionLeads(key))) return false;
     this.leadInfo(runs, excl);
     const lhash = sha256Hex(`${this.leadLabel}\n${this.lsum}`);
     if (this.force === 0 && old === key && this.sessGet(this.myS8, 'slots') === String(slots) && this.sessGet(this.myS8, 'busy') === String(busy) && this.sessGet(this.myS8, 'sumhash') === lhash) return true;
