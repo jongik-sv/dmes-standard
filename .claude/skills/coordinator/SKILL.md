@@ -170,7 +170,9 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
   - 레인은 push 하지 않음
 - 레인 소유 파일 수정, 같은 지시를 cooldown 안에 반복
 - PC별 이름을 문서·지시문에 박기(설정으로만)
-- **회차 마감 때 `finish`(`closing.md`) 건너뛰기.** 마감 정리 = `--watch` Monitor 중지·cron 삭제 포함(`closing.md` §4) 최소 = `close-run`(`closing.md` §6)
+- **회차 마감 때 `finish`(`closing.md`) 건너뛰기.**
+  - 마감 정리 = `--watch` Monitor 중지·cron 삭제 포함(`closing.md` §4)
+  - 최소 = `close-run`(`closing.md` §6)
 - 계약 밖 state 칸(`.run.state` 등)을 `set` 해 마감 흉내 내기. 상태 칸 = `contract.md` §2.1 뿐
 - **실제 개발 작업**(제품 코드·시험 수정, 개발 커밋). 몇 줄이라도 레인을 띄워 맡김.
   - 조정자 몫 = 위치 조사·분해·지시·머지 게이트·반영 빌드·push·재기동·화면 확인·보고
