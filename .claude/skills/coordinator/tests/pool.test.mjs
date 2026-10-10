@@ -1,8 +1,8 @@
 // tests/pool.test.mjs — pool.mjs submit·status·cancel·note·run(설계 2026-10-10 §4)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { COORD_ROOT } from './support/rng.mjs';
@@ -37,7 +37,8 @@ function world({ pool = {}, env: extraEnv = {} } = {}) {
     throw new Error(`timeout waiting ${id}: ${run(['status']).stdout}`);
   };
   const log = () => (existsSync(join(poolDir, 'log.jsonl')) ? readFileSync(join(poolDir, 'log.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l)) : []);
-  return { dir, work, poolDir, run, submit, waitDone, log };
+  const env0 = env;
+  return { dir, work, poolDir, run, submit, waitDone, log, packet, env: env0, repo };
 }
 
 test('submit → 실행 → 보고·done·로그 (ok)', async () => {
@@ -148,4 +149,73 @@ test('cancel 과 note', async () => {
   assert.equal(last.findings, 2);
   assert.equal(last.lines, 40);
   assert.equal(w.run(['cancel', 'nope']).stdout, 'POOL refused nope not-found\n');
+});
+
+test('실행 중 묶음 cancel: 실행기·워커가 죽고 결과는 cancel 로 남는다', async () => {
+  const w = world();
+  w.submit('K1', { FAKE_POOL_MODE: 'sleep:3' });
+  assert.equal(w.run(['cancel', 'K1']).stdout, 'POOL cancelled K1\n');
+  await sleep(4500);
+  assert.match(w.run(['status', '--id', 'K1']).stdout, /POOL K1 done .* result=cancel/);
+  assert.equal(existsSync(join(w.work, '.pool', 'K1.report.md')), false);
+  assert.deepEqual(w.log().filter((x) => x.id === 'K1').map((x) => x.result), ['cancel']);
+  assert.equal(w.run(['cancel', 'K1']).stdout, 'POOL refused K1 already-done\n');
+});
+
+test('취소·정리된 묶음은 늦게 끝난 실행기가 덮어쓰지 않는다', async () => {
+  const w = world();
+  w.submit('K2', { FAKE_POOL_MODE: 'sleep:2' });
+  const f = join(w.poolDir, 'items', 'K2.json');
+  const rec = JSON.parse(readFileSync(f, 'utf8'));
+  writeFileSync(f, JSON.stringify({ ...rec, state: 'done', result: 'cancel', reason: 'cancel', fallback: true }));
+  await sleep(3500);
+  const after = JSON.parse(readFileSync(f, 'utf8'));
+  assert.equal(after.result, 'cancel');
+  assert.equal(w.log().length, 0);
+});
+
+test('알림이 켜져 있어도 submit·cancel 은 바로 돌아오고, 알림은 분리된 자식이 보낸다', async () => {
+  const mark = join(tmpdir(), `pool-mark-${process.pid}-${Date.now()}`);
+  const w = world({ pool: { opencode_command: null, notify: true }, env: { COORD_POOL_NOTIFY_SCRIPT: WORKER, NOTIFY_MARK: mark } });
+  const t0 = Date.now();
+  const r = w.submit('N1');
+  assert.equal(r.stdout, 'POOL fallback N1 reason=no-worker\n');
+  assert.ok(Date.now() - t0 < 5000, `submit took ${Date.now() - t0}ms`);
+  for (let i = 0; i < 50 && !existsSync(mark); i += 1) await sleep(100);
+  const m = readFileSync(mark, 'utf8');
+  assert.match(m, /--lane a1 --text \[pool\] N1 no-worker rc=- → Claude 로 넘김.*--timeout-ms 5000/);
+});
+
+test('큐 묶음: 종류가 쉬는 중이고 다른 종류가 없으면 no-worker fallback', async () => {
+  const w = world({ pool: { opencode_max: 1 } });
+  w.submit('R1', { FAKE_POOL_MODE: 'sleep:3' });
+  assert.equal(w.submit('R2').stdout, 'POOL queued R2 position=1\n');
+  mkdirSync(w.poolDir, { recursive: true });
+  writeFileSync(join(w.poolDir, 'cool.json'), JSON.stringify({ opencode: { until: new Date(Date.now() + 600000).toISOString(), penalty: 1 } }));
+  const s = w.run(['status', '--id', 'R2']).stdout;
+  assert.match(s, /^POOL R2 done kind=- lane=a1 result=no-worker rc=-$/m);
+  assert.equal(w.log().find((x) => x.id === 'R2').fallback, true);
+  await w.waitDone('R1');
+});
+
+test('opencode 명령이 없고 GLM 도 없으면 no-worker', () => {
+  const w = world({ pool: { opencode_command: null } });
+  assert.equal(w.submit('U1').stdout, 'POOL fallback U1 reason=no-worker\n');
+});
+
+test('같은 id 를 동시에 submit 해도 하나만 받는다', async () => {
+  const w = world();
+  const p = w.packet('S1');
+  const args = ['submit', '--lane', 'a1', '--id', 'S1', '--size', 'S', '--packet', p, '--cwd', w.work];
+  const go = () => new Promise((res) => {
+    const ch = spawn(process.execPath, [POOL, ...args], { env: { ...w.env, FAKE_POOL_MODE: 'sleep:1' }, cwd: w.repo });
+    let out = '';
+    ch.stdout.on('data', (d) => { out += d; });
+    ch.on('close', () => res(out));
+  });
+  const outs = await Promise.all([go(), go()]);
+  assert.equal(outs.filter((o) => /^POOL (started|queued) S1/.test(o)).length, 1, outs.join('|'));
+  assert.equal(outs.filter((o) => o === 'POOL refused S1 duplicate\n').length, 1, outs.join('|'));
+  await w.waitDone('S1');
+  assert.equal(readdirSync(join(w.poolDir, 'items')).filter((f) => f === 'S1.json').length, 1);
 });
