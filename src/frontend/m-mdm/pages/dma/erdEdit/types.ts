@@ -76,6 +76,8 @@ export interface ErdChange { kind: ErdChangeKind; id: string; op: "upsert" | "de
 /** rowVersion: 실시간 발행만 값이 있다. 재전송·getChangesSince·다이어그램만 바꾼 델타는 null 이거나 없다(S2-16). */
 export interface ErdDelta {
   modelId: string; rev: number; userId: string; session: string; source: ErdSource; rowVersion?: number | null; changes: ErdChange[];
+  /** 쓴 시각(yyyy-MM-ddTHH:mm:ss, 서버 지역 시각). UX 1차 U28. 옛 서버는 없다 — 읽을 때 `?? null`. */
+  at?: string | null;
 }
 /**
  * view sinceRev 응답. fromRev: 요청 구간 앞에 다시 읽기 지점(새 DRAFT·DRAFT 삭제)이 있거나 500건을 넘어 reload 일 때, 기록을 줄 수 있는
@@ -87,6 +89,8 @@ export interface ErdRejection {
   code: string; commandIndex: number; message: string; hint: string | null; elementId: string | null; property: string | null;
   /** byUserId: byRev 의 명령 기록 USER_ID(S2-13). 단계 1 서버는 싣지 않는다 — 읽을 때 `?? null`. */
   byRev: number | null; bySession: string | null; byUserId: string | null; current: unknown; choices: unknown; ownerId: string | null;
+  /** 사람이 읽는 안내(UX 1차 U27·U28). 옛 서버는 없다 — 읽을 때 `?? null`. */
+  userHint?: string | null;
 }
 export interface ErdWarning { code: string; elementId: string | null; message: string; claimedBy: string | null; expiresAt: string | null }
 /** save·restore 응답. rowVersion 은 DRAFT 행 ROW_VERSION 을 올렸을 때만 값이 있다(다이어그램만·거절·dryRun 은 null). */

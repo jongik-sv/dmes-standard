@@ -7,8 +7,8 @@ import { localNotice, type EditRights, type ErdNotice, type Right } from "../edi
 import type { ErdState } from "../types";
 
 export const NO_RIGHT_TEXT = "이 화면의 편집 권한이 없어 읽기만 할 수 있습니다. 권한은 시스템 관리자에게 요청하세요.";
-export const RELEASED_TEXT = "확정된 버전이라 모델을 고칠 수 없습니다. [새 버전]으로 DRAFT 를 만드세요.";
-export const NO_OWNER_DIAGRAM_TEXT = "이 버전에 소유자가 없어 아무도 다이어그램을 고칠 수 없습니다. DRAFT 를 [선점]하거나 [새 버전]을 만드세요.";
+export const RELEASED_TEXT = "확정된 버전이라 모델을 고칠 수 없습니다. [버전 ▾] 의 [새 버전] 으로 DRAFT 를 만드세요.";
+export const NO_OWNER_DIAGRAM_TEXT = "이 버전에 소유자가 없어 아무도 다이어그램을 고칠 수 없습니다. DRAFT 를 [버전 ▾] 에서 [선점] 하거나 [새 버전] 을 만드세요.";
 export const LOST_TEXT = "실시간 연결이 끊겨 편집을 멈췄습니다. 다시 연결되면 이어서 고칠 수 있습니다.";
 
 export const notEditorText = (ownerId: string | null): string =>
@@ -59,6 +59,30 @@ export function readOnlyBanner(r: EditRights): string | null {
   if (r.model.ok || r.model.reason === null || r.model.reason === LOST_TEXT) return null;
   if (r.model.reason !== NO_RIGHT_TEXT && r.diagram.reason === NO_OWNER_DIAGRAM_TEXT) return NO_OWNER_DIAGRAM_TEXT;
   return r.model.reason;
+}
+
+/** 긴 이유 → 짧은 이유(툴팁·입력 칸용, UX 1차 U19). 모르는 글은 그대로. */
+export function shortReason(reason: string | null): string {
+  if (reason === null) return "";
+  if (reason === NO_RIGHT_TEXT) return "권한 없음";
+  if (reason === RELEASED_TEXT) return "확정된 버전";
+  if (reason.startsWith("공동 편집자가 아니어서")) return "공동 편집자 아님";
+  if (reason === NO_OWNER_DIAGRAM_TEXT) return "소유자 없음";
+  if (reason === LOST_TEXT) return "연결 끊김";
+  return reason;
+}
+
+export type ReadOnlyKind = "noRight" | "released" | "notEditor" | "noOwner";
+
+/** readOnlyBanner 와 같은 판정을 종류로. 읽기 전용 칩·seenReadOnly 키에 쓴다. 안내할 것이 없으면 null. */
+export function readOnlyKind(r: EditRights): ReadOnlyKind | null {
+  const text = readOnlyBanner(r);
+  if (text === null) return null;
+  if (text === NO_RIGHT_TEXT) return "noRight";
+  if (text === RELEASED_TEXT) return "released";
+  if (text === NO_OWNER_DIAGRAM_TEXT) return "noOwner";
+  if (text.startsWith("공동 편집자가 아니어서")) return "notEditor";
+  return null;
 }
 
 /** 보내기 전 판정. model: 묶음에 모델 명령이 하나라도 있다. null 이면 보내도 된다. */

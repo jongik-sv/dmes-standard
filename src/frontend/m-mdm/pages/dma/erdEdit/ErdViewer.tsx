@@ -180,6 +180,10 @@ export function ErdViewer() {
   const [selected, setSelected] = useState<ReadonlySet<string>>(NO_SELECTION);
   const [selectedColumnId, setSelectedColumnId] = useState<string | null>(null);
   const [reveal, setReveal] = useState<Reveal | null>(null);
+  // 컬럼 추가 요청(nav.startColumnAdd) — ColumnGrid 가 seq 가 바뀔 때 입력 칸에 초점을 준다.
+  const [addRequest, setAddRequest] = useState<{ seq: number; tableId: string; pk: boolean } | null>(null);
+  // seq 는 요청을 지워도 줄지 않게 따로 센다(ColumnGrid 가 같은 seq 를 다시 받으면 돌지 않는다).
+  const addSeqRef = useRef(0);
   const [findSeq, setFindSeq] = useState(0);
   // 감사 컬럼 보기 — 사람마다 다른 보기 상태라 localStorage 에 둔다(막혀도 동작, 기본은 숨김).
   const [showAudit, setShowAuditState] = useState(loadShowAudit);
@@ -312,6 +316,10 @@ export function ErdViewer() {
   const activeRef = useRef(activeDiagram);
   activeRef.current = activeDiagram;
   const focusTable = selected.size > 0 ? [...selected][0] : null;
+  // 다른 표로 옮기면 남은 컬럼 추가 요청을 지운다(나중에 그 표를 다시 골라 그리드가 새로 붙을 때 다시 돌지 않게).
+  useEffect(() => {
+    setAddRequest((r) => (r && r.tableId !== focusTable ? null : r));
+  }, [focusTable]);
 
   const onSelect = useCallback((changes: { id: string; selected: boolean }[]) => {
     setSelected((cur) => {
@@ -357,7 +365,16 @@ export function ErdViewer() {
     openTableFind: () => setFindSeq((s) => s + 1),
     // 모델을 읽기 전에는 열지 않는다(읽은 뒤 저절로 열리지 않게).
     openColumnJump: () => { if (stateRef.current) setJumpOpen(true); },
-  }), [selectTable, setShowAudit]);
+    // 표를 고르고 그 표의 입력 칸에 컬럼 추가를 요청한다(속성 패널 열기는 화면 틀 Task 에서 더한다).
+    startColumnAdd: (tableId: string, pk: boolean) => {
+      selectTable(tableId);
+      addSeqRef.current += 1;
+      setAddRequest({ seq: addSeqRef.current, tableId, pk });
+    },
+    selectDiagram: (diagramId: string) => {
+      if (stateRef.current?.diagrams[diagramId]) onSelectDiagram(diagramId);
+    },
+  }), [selectTable, setShowAudit, onSelectDiagram]);
   const closeJump = useCallback(() => setJumpOpen(false), []);
 
   // ── 화면 상태 알리기(SET_VIEW, 1초에 한 번 이하). 다시 연결되면 서버 화면 상태가 비므로 같은 값도 다시 보낸다. ──
@@ -620,7 +637,7 @@ export function ErdViewer() {
       </div>
       <div className="erd-area-grid">
         {ctx ? (
-          <ColumnGrid ctx={ctx} tableId={focusTable} />
+          <ColumnGrid ctx={ctx} tableId={focusTable} addRequest={addRequest} />
         ) : (
           <div className="erd-empty" data-testid="erd-columns-empty">
             캔버스나 검토 목록에서 표를 고르세요.

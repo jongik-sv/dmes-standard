@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { isDiagramOp, noticeFromRejection } from "../../../pages/dma/erdEdit/edit-context";
 import { applyDelta, withVersion } from "../../../pages/dma/erdEdit/state/model-delta";
 import {
-  LOST_TEXT, NO_OWNER_DIAGRAM_TEXT, NO_RIGHT_TEXT, RELEASED_TEXT, blockedNotice, editRights, readOnlyBanner,
+  LOST_TEXT, NO_OWNER_DIAGRAM_TEXT, NO_RIGHT_TEXT, RELEASED_TEXT, blockedNotice, editRights, notEditorText, readOnlyBanner, readOnlyKind, shortReason,
 } from "../../../pages/dma/erdEdit/state/permissions";
 import type { ErdRejection } from "../../../pages/dma/erdEdit/types";
 import { MENU_DIAGRAMS, menuModel, stateOf } from "./erd-fixtures";
@@ -69,6 +69,30 @@ describe("화면 권한 나누기(S2-20)", () => {
     expect(blockedNotice(released, true, true)).toMatchObject({ code: "NOT_EDITOR", message: RELEASED_TEXT });
     expect(blockedNotice(released, true, false)).toBeNull(); // 다이어그램 명령만이면 통과
     expect(editRights(draft, "tester", { ...ALL, loading: true }, true).model).toEqual({ ok: false, reason: null });
+  });
+});
+
+describe("짧은 이유·읽기 전용 종류(UX 1차 U19)", () => {
+  const draft = stateOf(menuModel(), MENU_DIAGRAMS);
+
+  it("긴 이유를 짧게 줄이고, 모르는 글은 그대로 둔다", () => {
+    expect(shortReason(NO_RIGHT_TEXT)).toBe("권한 없음");
+    expect(shortReason(RELEASED_TEXT)).toBe("확정된 버전");
+    expect(shortReason(notEditorText("tester"))).toBe("공동 편집자 아님");
+    expect(shortReason(NO_OWNER_DIAGRAM_TEXT)).toBe("소유자 없음");
+    expect(shortReason(LOST_TEXT)).toBe("연결 끊김");
+    expect(shortReason(null)).toBe("");
+    expect(shortReason("다른 글")).toBe("다른 글");
+  });
+
+  it("readOnlyKind 는 readOnlyBanner 와 같은 분기로 종류를 돌려준다", () => {
+    expect(readOnlyKind(editRights(draft, "tester", { ...ALL, save: false }, true))).toBe("noRight");
+    expect(readOnlyKind(editRights({ ...draft, status: "RELEASED" }, "tester", ALL, true))).toBe("released");
+    expect(readOnlyKind(editRights(draft, "stranger", ALL, true))).toBe("notEditor");
+    expect(readOnlyKind(editRights({ ...draft, status: "RELEASED", ownerId: null, editors: ["tester"] }, "tester", ALL, true))).toBe("noOwner");
+    // 고칠 수 있거나 끊김뿐이면 칩이 없다
+    expect(readOnlyKind(editRights(draft, "tester", ALL, true))).toBeNull();
+    expect(readOnlyKind(editRights(draft, "tester", ALL, false))).toBeNull();
   });
 });
 

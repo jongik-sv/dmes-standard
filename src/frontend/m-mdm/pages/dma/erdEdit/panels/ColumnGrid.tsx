@@ -234,9 +234,11 @@ const FILL: CSSProperties = { position: "absolute", inset: 0 };
 export interface ColumnGridProps {
   ctx: ErdEditContext;
   tableId: string | null;
+  /** seq 가 바뀌고 tableId 가 같으면 입력 칸 trigger(pk ? "addPk" : "add") — nav.startColumnAdd(UX 1차). */
+  addRequest?: { seq: number; tableId: string; pk: boolean } | null;
 }
 
-export function ColumnGrid({ ctx, tableId }: ColumnGridProps) {
+export function ColumnGrid({ ctx, tableId, addRequest }: ColumnGridProps) {
   const ctxRef = useRef(ctx);
   ctxRef.current = ctx;
   const tableRef = useRef(tableId);
@@ -269,6 +271,10 @@ export function ColumnGrid({ ctx, tableId }: ColumnGridProps) {
     setFocusTick((n) => n + 1);
   }, []);
   useEffect(() => subscribeColumnFocus(focusColumn), [focusColumn]);
+  // 컬럼 추가 요청(도구 막대·메뉴) — seq 만 의존해 같은 요청을 두 번 돌지 않는다. 글자가 비면 모드를 바꾸고 입력 칸에 초점.
+  useEffect(() => {
+    if (addRequest && addRequest.tableId === tableRef.current) barHandle.current?.trigger(addRequest.pk ? "addPk" : "add");
+  }, [addRequest?.seq]);
   useEffect(() => {
     setFocusId(null);
   }, [tableId]);

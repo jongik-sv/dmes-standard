@@ -114,7 +114,10 @@ export function fakeEditContext(state: ErdState, over: Partial<ErdEditContext> =
     apply: vi.fn(async () => applied),
     exclusive: (<T,>(fn: () => Promise<T>) => fn()) as ErdEditContext["exclusive"],
     clearHighlight: vi.fn(), notify: vi.fn(),
-    nav: { selectTable: vi.fn(), selectColumn: vi.fn(), openTableFind: vi.fn(), openColumnJump: vi.fn() },
+    nav: {
+      selectTable: vi.fn(), selectColumn: vi.fn(), openTableFind: vi.fn(), openColumnJump: vi.fn(),
+      startColumnAdd: vi.fn(), selectDiagram: vi.fn(),
+    },
     audit: { show: false, setShow: vi.fn() },
     ...over,
   };

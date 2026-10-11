@@ -70,6 +70,17 @@ describe("컬럼 그리드 편집", () => {
     expect(document.activeElement).toBe(input()); // 이어서 다음 컬럼을 넣는다
   });
 
+  it("addRequest(nav.startColumnAdd) 가 오면 입력 칸을 PK 모드로 바꾸고 초점을 준다. 다른 표 요청은 무시한다", async () => {
+    const f = fakeCtx();
+    view = await mount(createElement(ColumnGrid, { ctx: f.ctx, tableId: "t-1", addRequest: { seq: 1, tableId: "t-2", pk: true } }));
+    await settleGrid(inDoc("erd-columns")!);
+    expect(input().placeholder).not.toContain("PK 컬럼");
+    await view.rerender(createElement(ColumnGrid, { ctx: f.ctx, tableId: "t-1", addRequest: { seq: 2, tableId: "t-1", pk: true } }));
+    await flush();
+    expect(input().placeholder).toContain("PK 컬럼 논리명");
+    expect(document.activeElement).toBe(input());
+  });
+
   it("Ctrl+Shift+Enter 는 [addColumn, setPrimaryKey] 한 묶음을 같은 새 id 로 보낸다", async () => {
     stubOasis({ "erdEdit/compare": () => previewOf("MENU_SEQ") });
     const f = fakeCtx();

@@ -22,6 +22,10 @@ export interface ErdNav {
   selectColumn(columnId: string): void;
   openTableFind(): void;
   openColumnJump(): void;
+  /** 그 표를 고르고 속성 패널을 연 뒤 컬럼 입력 칸에 초점을 준다. pk 면 PK 모드. 권한은 부른 쪽이 본다. */
+  startColumnAdd(tableId: string, pk: boolean): void;
+  /** 그 다이어그램을 연다(왼쪽 목록 누르기와 같다). 모르는 id 면 아무것도 안 함. 주제별 나누기 뒤 FE2 가 부른다(U53). */
+  selectDiagram(diagramId: string): void;
 }
 export interface ErdHighlight { code: ErdNotice["code"]; elementId: string; property: string | null; message: string; mine: unknown }
 
