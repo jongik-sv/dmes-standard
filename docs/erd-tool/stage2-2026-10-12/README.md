@@ -104,14 +104,14 @@
 ### 7.1 경유점 계약 (erd2-be b1 이 만들고 erd2-panels p0·erd2-canvas c5·erd2-be t2 가 따른다)
 
 - 표 `TB_MDM_ERD_DIAGRAM_ROUTE`(mdm V7)
-  - 컬럼 순서 = `DIAGRAM_ID`·`REL_UUID`(PK) → `POINTS_JSON` → 감사 컬럼 8개
+  - 컬럼 순서 = `DIAGRAM_ID`·`REL_UUID`(PK) → `POINTS_JSON` → 감사 컬럼 9개(VER 포함, DIAGRAM_NODE 와 같음)
   - `POINTS_JSON` = CLOB, `IS JSON STRICT`, `[{"x":int,"y":int},…]`, 1~50개
   - FK → `TB_MDM_ERD_DIAGRAM`. 관계는 버전 JSON 안에 있어 관계 FK 는 없다
   - 모든 컬럼에 `COMMENT ON`(V5 관례)
 - 다이어그램 명령(save 묶음, 버전 밖)
-  - `{"op":"setRoute","diagram":"<d>","relation":"<r>","points":[…]}` — 빈 목록은 거절
-  - `{"op":"clearRoutes","diagram":"<d>","relations":["<r>",…]}`
-- 델타 kind `diagramRoute`, id `"<diagram>:<relation>"`, 값 `{diagram, relation, points}`. view 응답에 `routes` 목록
+  - `{"op":"setRoute","diagram":"<d>","relation":"<r>","points":[…]}` — 빈 목록은 거절. 그 DRAFT(없으면 현재 버전)에 없는 관계 = INVALID(기준은 화면이 보는 ver 가 아님)
+  - `{"op":"clearRoutes","diagram":"<d>","relations":["<r>",…]}` — 빈 목록 = no-op(거절 안 함, rev 는 올림). null 목록·null 원소는 거절
+- 델타 kind `diagramRoute`, id `"<diagram>:<relation>"`, 값 `{diagram, relation, points}`(지움 = null). view 응답 `routes` = `[{diagram, relation, points:[{x,y}]}]`
 - 연쇄 삭제(같은 rev. 역명령에 함께 들어가 되돌리기 1번으로 모두 돌아온다)
   - `deleteRelation`·`deleteTable`(걸린 관계도 지움) → 모든 다이어그램의 그 관계 꺾임점. `ErdCommandService` 가 `Restore` 와 `RestoreDiagram` 을 함께 만든다
   - `deleteDiagram` → 그 다이어그램의 꺾임점(`remember()` 가 route 행도 잡는다)
