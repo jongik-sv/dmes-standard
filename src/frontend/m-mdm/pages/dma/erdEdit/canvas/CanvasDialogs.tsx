@@ -1,7 +1,7 @@
 "use client";
 
 /** 캔버스 대화상자 — 모델에서 표 삭제 확인(Alt+Delete), 새 표(도구 2). shared Modal·form 을 쓴다. */
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 
 import { Button, Input } from "@dk-oasis/shared/form";
 import { Modal } from "@dk-oasis/shared/modal";
@@ -157,6 +157,11 @@ export function NewTableModal({ open, model, onSubmit, onClose }: NewTableModalP
   };
 
   const shown = preview !== null && preview.forText === want ? preview : null;
+  // "물리명을 직접 넣으세요" 안내는 사용자가 물리명을 넣은 뒤에는 감춘다(UX 1.5 newTableEnterPhys). 칸을 비우면 다시 보인다.
+  const hint = shown && !(shown.value === null && physTouched.current && phys !== "") ? shown : null;
+  const onEnter = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.nativeEvent.isComposing) void submit();
+  };
 
   return (
     <Modal
@@ -178,9 +183,7 @@ export function NewTableModal({ open, model, onSubmit, onClose }: NewTableModalP
             setLogical(v);
             setServerError(null);
           }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.nativeEvent.isComposing) void submit();
-          }} />
+          onKeyDown={onEnter} />
       </div>
       <div className="erd-dialog__row">
         <label htmlFor="erd-newtable-phys">물리명</label>
@@ -190,13 +193,14 @@ export function NewTableModal({ open, model, onSubmit, onClose }: NewTableModalP
             setPhys(v.toUpperCase());
             setServerError(null);
           }}
+          onKeyDown={onEnter}
           error={localError ?? undefined} />
       </div>
-      {shown && (
-        <div role="status" data-testid="erd-newtable-preview" style={shown.value === null ? PREVIEW_WARN : PREVIEW_LINE}>
-          {shown.value !== null
-            ? `물리명 미리보기 ${shown.value} — 사전 기준, 고칠 수 있습니다`
-            : shown.failed ? NEWTABLE_FAILED_TEXT : NEWTABLE_UNKNOWN_TEXT}
+      {hint && (
+        <div role="status" data-testid="erd-newtable-preview" style={hint.value === null ? PREVIEW_WARN : PREVIEW_LINE}>
+          {hint.value !== null
+            ? `물리명 미리보기 ${hint.value} — 사전 기준, 고칠 수 있습니다`
+            : hint.failed ? NEWTABLE_FAILED_TEXT : NEWTABLE_UNKNOWN_TEXT}
         </div>
       )}
       {serverError && (

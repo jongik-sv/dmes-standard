@@ -155,6 +155,30 @@ describe("새 표 창 — 논리명 먼저(U40)", () => {
     expect(physInput().value).toBe("");
   });
 
+  it("newTableEnterPhys — 물리명을 직접 넣으면 '사전에 없는 단어' 안내를 감추고, 칸을 비우면 다시 보인다", async () => {
+    preview.mockResolvedValue(unknownTokens("***"));
+    await open();
+    await typeInto(logicalInput(), "ㅋㅋ");
+    await tick(300);
+    expect(previewLine()?.textContent).toBe(NEWTABLE_UNKNOWN_TEXT);
+    await typeInto(physInput(), "tb_mcm_kk");
+    expect(previewLine()).toBeNull();
+    await typeInto(physInput(), "");
+    expect(previewLine()?.textContent).toBe(NEWTABLE_UNKNOWN_TEXT);
+  });
+
+  it("newTableEnterPhys — 물리명 칸에서 Enter 는 [만들기] 와 같다(켜졌을 때만 보낸다)", async () => {
+    preview.mockResolvedValue(unknownTokens("***"));
+    await open();
+    await typeInto(logicalInput(), "ㅋㅋ");
+    await tick(300);
+    await key(physInput(), { key: "Enter" });
+    expect(onSubmit).not.toHaveBeenCalled();
+    await typeInto(physInput(), "tb_mcm_kk");
+    await key(physInput(), { key: "Enter" });
+    expect(onSubmit).toHaveBeenCalledWith("TB_MCM_KK", "ㅋㅋ");
+  });
+
   it("논리명에서 Enter — 물리명이 맞으면 onSubmit(물리명, 논리명), 비었으면 보내지 않는다", async () => {
     preview.mockResolvedValue(found("MENU_AUTH"));
     await open();
