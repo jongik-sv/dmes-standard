@@ -183,3 +183,66 @@
 - 코드는 그대로 `ERD_STD_*` 다. 화면 확정 창은 그 행에 "감사 컬럼" 을 붙인다. 사전과 DB 는 바꾸지 않았다. 다른 컬럼의 규칙(deferred 52)도 그대로다.
 - 사용자 결정(2026-10-11): "감사 컬럼 8개는 확정 검사에서 제외한다. 표준 위반이 있어도 경고만 하고 확정을 막지 않는다." 두 문장을 함께 읽어 "경고에는 남기고 막지는 않는다" 로 해석했다. 검사에서 아예 빼려면 `classify` 의 한 줄을 `return` 으로 바꾼다.
 - 화면 쪽 문구는 `labels.ts` 가 모은다(U30). 확정 코드(`ERD_STD_TYPE` → 타입 불일치, `ERD_STD_DOMAIN` → 도메인 다름, `ERD_STD_MISS` → 사전 없음, `ERD_INFERRED_LEFT` → 검토 안 한 추정 관계), 근거 종류(`DOC` → 설계 문서, `SQL_JOIN` → SQL 조인, `NAME_RULE` → 이름 규칙), 출처(`UI` → 화면, `MCP` → Claude, `CLI`, `SYSTEM` → 시스템), 변경 종류(`diagramNode` → 표 자리)이다. 모르는 코드는 원문을 그대로 보인다.
+
+## 8. UX 정비 1.5 — 여러 표 동시 처리
+
+여러 표를 한 번에 다루는 동작과 추정 점선 누르기를 더한 회차다(2026-10-11). 정본은 UX 정비 1.5 계획 README(`docs/superpowers/plans/2026-10-11-erd-ux15-multiselect/README.md`)의 U55-U73 과 Task 6 이다. 화면 파일만 바뀌었다. 서버·MCP·Flyway 는 바꾸지 않았다(U55). 모든 명령이 이미 표 목록을 받고, apply 한 번이 rev 하나이기 때문이다. 마감 값은 계획 README "1.5 구현 결정" 에 있다.
+
+### 8.1 고르기
+
+- 고르기는 xyflow 기본 키를 그대로 쓴다. ⌘+클릭(Windows Ctrl+클릭, `multiSelectionKeyCode` 기본값)으로 더하고, Shift+빈 곳 끌기(`selectionKeyCode` 기본값)로 사각형 안 표를 고른다. `ErdViewer` 의 ReactFlow 에는 두 키를 지정하지 않는다.
+- `Ctrl/⌘+A` = 이 다이어그램 표 모두 고르기(U67). ERD 키 표 `selectAll` 은 `key: "a"` 와 물리 키 `code: "KeyA"` 를 함께 본다(한글 자판). 캔버스 초점일 때만 받고, 입력 칸이면 shared `dispatchShortcut` 이 넘긴다. 표가 없으면 넘긴다.
+- 함께 끌기, 접기(도구 막대 `FOLDS`·표 메뉴 `targets` → `setFoldCommand`), 다이어그램에서 빼기, 모델에서 삭제는 1.5 전부터 `selectedIds()` 를 넘겼다(U56). 이 회차에서는 시험만 더했다.
+- Delete 키는 그대로다(U57). `Delete`·`⌫` = 고른 표 모두 이 다이어그램에서 빼기, `⌥⌫` = 모델에서 삭제(확인 창, 200개 상한).
+- 속성 패널은 여러 개를 골라도 첫 표(살아 있는 선택의 첫 값)를 보인다. 머리 글만 `속성 · 고른 표 n개 중 <물리명>`(`erd-props-multi`)으로 바꾼다(U65).
+- 선택 비우기(U66): `onSelectDiagram` 이 다른 다이어그램으로 갈 때 `selected` 와 `selectedColumnId` 를 비운다. 같은 다이어그램이면 그대로 둔다. 늘 거르는 방식은 쓰지 않는다. 컬럼 점프와 표 찾기가 다이어그램에 없는 표를 `selected` 에 두는 길이 있기 때문이다. 모델에서 지운 표는 `focusTable` 계산에서 뺀다(파생 값, 새 상태 없음). 1차 마감 결함 후보 `staleSelectionAcrossDiagram` 을 고친 것이다.
+
+### 8.2 정렬(U58·U59·U60)
+
+- 순수 함수는 `canvas/erd-multi.ts` 의 `alignBoxes`·`distributeBoxes` 다. 결과는 `moveNodesCommand` 한 건이고, 안 바뀐 표는 뺀다. 모두 그대로면 apply 하지 않고 "이미 맞춰져 있습니다." 를 알린다.
+- 맞춤 6 = 왼쪽·가운데·오른쪽·위쪽·중간·아래쪽(PowerPoint 한국어 이름). 기준은 고른 표 경계 상자다. 2개 이상이면 켠다.
+- 간격 2 = 가로 간격 같게·세로 간격 같게. 3개 이상이면 켠다. 축 좌표, 다음 표 id 순으로 늘어놓고 양 끝 표를 고정해 표 사이 빈 칸을 같게 한다. 빈 칸이 40(`DISTRIBUTE_MIN_GAP`) 보다 작으면 40 으로 첫 표부터 펼친다. 이때 마지막 표도 옮겨진다.
+- 좌표는 정수 반올림만 한다. 격자 10 맞춤을 하지 않는 이유는 가운데 맞춤이 어긋나지 않게 하려는 것이다.
+- 크기와 자리는 누를 때 읽는다(U59). `measuredSizes()` 를 자동 배치와 함께 쓴다. 크기는 React Flow 가 잰 값이고, 이름만 배율(`ZOOM_NAMES_ONLY` 0.5 미만)이면 잰 높이에 컬럼 행이 빠져 있어 `initialHeight` 를 쓴다. 그래서 이름만 배율에서 정렬하면 화면의 머리 상자끼리는 줄이 안 맞아 보이고, 확대하면 맞는다(마감 M4). 자리는 `rf.getNode(id).position`(끄는 중 덮개 포함)이다. 도구 막대는 자리를 구독하지 않는다(Local-Rules §19).
+- 진입점은 도구 막대 [정렬 ▾](`erd-tool-align`, shared `TextToolButton menu` + `ContextMenu`)와 표 메뉴 "정렬" 묶음이다. 단축키는 없다. 권한은 `rights.diagram` 이라 확정된 버전에서도 소유자·공동 편집자가 쓸 수 있다. apply 라벨은 `왼쪽 맞춤(표 3개)` 꼴이다.
+
+### 8.3 다른 다이어그램에 넣기(U61)
+
+- 창은 `canvas/MultiDialogs.tsx` 의 `PlaceIntoDialog` 다. 대상 목록은 shared `Select` 이고 지금 다이어그램은 뺀다. 명령은 `placeTables` 한 건이다.
+- 대상에 이미 있는 표는 화면이 걸러서 보내지 않는다. 서버 `ErdDiagramStore.mergeNode` 가 `MERGE … WHEN MATCHED THEN UPDATE SET POS_X, POS_Y` 라서 다시 보내면 대상의 자리를 덮어쓰기 때문이다. 서버에 "있으면 건너뛰기" 칸을 더하는 안은 서버·MCP 계약 변경이라 쓰지 않았다.
+- 자리는 고른 표끼리의 상대 배치를 유지하고, 대상 경계 상자 오른쪽 + 80, 위 = 대상 최소 y 에 놓는다. 대상이 비면 (0,0) 이다. 넣은 뒤 지금 다이어그램에 머문다.
+- 알림은 `표 n개를 「업무영역 / 이름」에 넣었습니다(이미 있던 m개 뺌).` 이고, apply 라벨은 `다른 다이어그램에 넣기(표 n개)` 다. 다른 다이어그램이 없으면 단추와 메뉴 항목이 꺼진다. 권한은 `rights.diagram` 이다.
+- 고른 표로 새 다이어그램 만들기는 하지 않았다(U62). [새 다이어그램] 마법사가 있다.
+
+### 8.4 같은 컬럼 여러 표에(U63·U64)
+
+- [컬럼 추가] 가 고른 표 2개 이상이면 창 `BulkColumnModal` 을 연다. 표 메뉴의 "표 n개에 같은 컬럼 추가…" 도 같다.
+- 논리명을 넣으면 300ms 뒤 `previewName({logical})` 로 물리명 칸을 채운다. 사용자가 고칠 수 있고, 사전에 없는 토막이면 직접 넣는다. 물리명은 trim 하고 대문자로 바꾼다.
+- 보낼 때 물리명이 미리보기와 다르면 `previewName({phys})` 로 추천 도메인을 받는다(실패면 null). 제출 중에 늦게 온 미리보기 응답은 버린다(Local-Rules §37). 모든 `addColumn` 에 `phys` 와 `domainId` 를 넣어 보내므로 서버 NEEDS_CHOICE(토막 고르기)가 표마다 오지 않는다. 토막 고르기 창을 이 창에 넣는 안은 비용이 커서 "물리명 직접 넣기" 로 갈음했다.
+- 대상은 고른 표 가운데 같은 물리명(대소문자 무시) 컬럼이 없는 표다. 있는 표는 "건너뜀" 목록에 보인다. 같은 이름 하나가 묶음 전체를 거절시키므로 미리 거른다. 감사 컬럼 이름은 막는다. 대상이 0 이면 [추가] 를 끈다. 표 수 상한은 `MAX_BATCH`(200)다.
+- 위치는 끝이다(서버 규칙: 감사 블록 앞). PK 는 아니다. apply 한 번이고 라벨은 `컬럼 추가(표 n개)` 다. 거절이면 창 안에 문구를 보이고, 묶음 전체가 거절되므로 아무것도 바뀌지 않는다.
+- 다른 세션이 그 표의 다른 컬럼을 먼저 고쳐도 거절되지 않는다(마감 M7). `addColumn` 은 새 요소라 rev 충돌이 없다.
+- 새 컬럼 id 는 `erd-commands` 의 `newElementId("c")` 다(U71).
+- [PK 추가] 는 표 하나만 받는다(U64). PK 바꾸기는 관계와 자식 표에 번지기 때문이다.
+
+### 8.5 도구 막대 툴팁(U68)
+
+- 꺼진 접기 3·넣기·빼기·삭제 단추의 툴팁은 `tipOf` 가 `"… — 표를 먼저 고르세요"` 를 붙이고, shared `ToolButton` 을 감싼 `span[data-tip]` 의 CSS `::after` 로 보인다. 1차 마감 `disabledNoReason` 은 title·aria-label 을 읽은 판정 잘못이었다(마감 M9 에서 보임 확인).
+- 고른 표가 2개 이상이면 켜진 접기 3·넣기·빼기·삭제 툴팁 끝에 ` (표 n개)` 를 붙인다. [컬럼 추가] 는 `컬럼 추가 — 고른 표 n개에 같은 컬럼`, [정렬 ▾] 는 `정렬 (표 n개)` 다.
+
+### 8.6 추정 점선 누르기(Task 6)
+
+- 추정(INFERRED) 관계선만 누를 수 있다. `ErdRelationEdge` 가 `RelationPickContext` 를 받으면 본선 위에 투명한 12px stroke 경로(`erd-rel__hit`, `pointer-events: stroke`)를 얹는다. 확정 관계선에는 이 경로가 없어 지금처럼 누르지 않는다. 관계선의 `selectable: false` 는 그대로다.
+- 누르면 `ErdViewer.onPickRelation` 이 관계 id 를 작은 외부 저장소 `InferredPick`(`panels/ReviewPanel.tsx`)에 넣고, prefs 를 `reviewTab: "inferred"`·`reviewOpen: true` 로 바꾼다. 이미 그 상태면 prefs 를 바꾸지 않아 화면 루트가 다시 그려지지 않는다. 노드 선택은 건드리지 않는다.
+- 추정 그리드는 `InferredPick` 을 구독해 `highlightedRowKey` 로 그 행을 강조하고 그 행으로 굴린다. `scrollToRow` 는 쓰지 않는다. 행을 누를 때마다 가운데로 튀기 때문이다. 그리드의 `onFocusedRowChange` 는 저장소에 다시 쓴다(↑/↓ 이동 유지, 표 선택은 행을 누를 때만).
+- Provider 값 `onPickRelation` 은 안정 콜백이라 선·노드가 다시 그려지지 않는다(Screen-Performance R7·R16).
+- 알려진 한계(deferred): 같은 점선을 다시 누르면 저장소 값이 같아 다시 굴리지 않는다. 12px 띠 위에서는 빈 곳 끌기와 우클릭 캔버스 메뉴가 되지 않는다. 최대화 중에는 검토 패널이 없어 prefs 와 저장소만 바뀌고, 최대화를 끄면 그 행이 강조되어 있다.
+
+### 8.7 새 표 창 물리명 Enter
+
+- 새 표 창(`CanvasDialogs.tsx` `NewTableModal`)의 물리명 칸에서 Enter 를 누르면 [만들기] 와 같다. 물리명을 직접 넣으면 "사전에 없는 단어가 있어 물리명을 직접 넣으세요." 줄을 숨긴다. 1차 마감 결함 후보 `newTableEnterPhys` 를 사용자 결정(2026-10-11)으로 이 회차에 넣었다.
+- 알려진 한계(deferred): 만들기가 성공한 직후 창이 닫히기 전 2~4초 동안 "같은 물리명의 표가 이미 있습니다: …" 가 보인다. 방금 만든 자기 표와 다시 견주는 것으로 추정하며, 원인은 확인하지 않았다. 표는 하나만 만들어진다.
+
+### 8.8 성능
+
+- 화면 루트에 새 상태가 없다. `selected` 만 쓴다(U70). 창 입력 상태는 창 안에 있고, 창 열림 상태는 `useCanvasEditing` 안에 있다. 창은 열린 동안만 모델을 받는다(`SplitDialog` 방식). 도구 막대의 새 props 는 숫자·불리언·안정 콜백이다.
