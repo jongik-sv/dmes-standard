@@ -21,6 +21,8 @@ import java.util.function.Predicate;
 /** 단계 2 서버 시험 공용 — OASIS 호출과 SSE 구독(ErdStreamTest·ErdEditOasisHttpTest 방식). 기본 역할은 MDM_STEWARD 다. */
 final class ErdTestClient {
 
+    /** 스트림이 끝나면(서버가 닫음) 큐에 넣는 표시 이벤트 이름. 본문은 {}. */
+    static final String END = "__end__";
     final ObjectMapper om = new ObjectMapper();
     private final HttpClient http = HttpClient.newHttpClient();
     private final int port;
@@ -67,6 +69,7 @@ final class ErdTestClient {
             } catch (Exception ignored) {
                 // 시험이 끝나면 연결이 닫힌다
             }
+            q.add(END + "|{}");
         });
         return q;
     }

@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.dma.erdEdit.service;
 
+import com.dongkuk.dmes.mdm.common.rule.RuleVersions;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
@@ -45,6 +46,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -85,11 +87,14 @@ public class ErdEditService {
     private final ErdEventHub hub;
     private final ErdDbMetaReader metaReader;
     private final ErdHintsLoader hintsLoader;
+    private final ErdModelDeletion modelDeletion;
+    private final Clock clock;
 
     public ErdEditService(ErdModelStore store, ErdVersionService versions, ErdCommandService commands,
                           ErdConfirmCheck confirmCheck, ErdDictionaryLoader dictionaries, VersionStateService stateService,
                           DraftOwnershipService ownership, MdmCurrentUser currentUser, JdbcTemplate jdbc,
-                          ErdEventHub hub, ErdDbMetaReader metaReader, ErdHintsLoader hintsLoader) {
+                          ErdEventHub hub, ErdDbMetaReader metaReader, ErdHintsLoader hintsLoader,
+                          ErdModelDeletion modelDeletion, Clock clock) {
         this.store = store;
         this.versions = versions;
         this.commands = commands;
@@ -102,16 +107,38 @@ public class ErdEditService {
         this.hub = hub;
         this.metaReader = metaReader;
         this.hintsLoader = hintsLoader;
+        this.modelDeletion = modelDeletion;
+        this.clock = clock;
     }
 
-    /** 모델 목록 — 모델마다 DRAFT 가 있으면 그 번호와 소유자를 붙인다. */
+    /**
+     * kind 없음 = 모델 목록. 모델마다 DRAFT 가 있으면 그 번호와 소유자, 모델 상태, 최신 확정본(RELEASED 중 가장 큰 번호, 없으면 null),
+     * 만든 사람(C_USR_ID)을 붙인다(ERD 2차 §7.2). 상태는 저장값이 아니라 룰 화면과 같은 계산값이다({@link RuleVersions#effectiveStatus} —
+     * 저장 CREATED 이고 적용 시각이 지난 RELEASED 가 있으면 INUSE. 미래 적용으로 확정하면 저장값은 CREATED 로 남는다, D8-8).
+     * kind=SCHEMAS = 등록 화면의 스키마 후보. 모르는 kind 는 입력 오류다.
+     */
     public List<Map<String, Object>> search(ErdEditRequest r) {
+        switch (kind(r)) {
+            case "" -> { }
+            case "SCHEMAS" -> {
+                return schemas();
+            }
+            default -> throw MdmErrors.invalid("search 가 지원하지 않는 kind 입니다: " + r.getKind());
+        }
+        Map<String, List<ErdModelStore.ReleasedRow>> released = store.releasedByModel();
+        LocalDateTime now = LocalDateTime.now(clock);
         return jdbc.query("""
                 SELECT M.ERD_MODEL_ID
                      , M.MODULE_ID
                      , M.SCHEMA_NAME
                      , M.MODEL_NAME
                      , M.REV
+                     , M.STATUS AS MODEL_STATUS
+                     , M.C_USR_ID
+                     , (SELECT MAX(R.VER)
+                          FROM TB_MDM_ERD_MODEL_VER R
+                         WHERE R.ERD_MODEL_ID = M.ERD_MODEL_ID
+                           AND R.STATUS = 'RELEASED') AS RELEASED_VER
                      , D.VER
                      , D.OWNER_ID
                   FROM TB_MDM_ERD_MODEL M
@@ -129,6 +156,28 @@ public class ErdEditService {
             BigDecimal draftVer = rs.getBigDecimal("VER");
             row.put("draftVer", draftVer == null ? null : VersionNumbers.plain(draftVer));
             row.put("ownerId", rs.getString("OWNER_ID"));
+            row.put("status", RuleVersions.effectiveStatus(rs.getString("MODEL_STATUS"),
+                    released.getOrDefault(rs.getString("ERD_MODEL_ID"), List.of()), now));
+            BigDecimal releasedVer = rs.getBigDecimal("RELEASED_VER");
+            row.put("releasedVer", releasedVer == null ? null : VersionNumbers.plain(releasedVer));
+            row.put("createdBy", rs.getString("C_USR_ID"));
+            return row;
+        });
+    }
+
+    /**
+     * 스키마 후보(ERD 2차 §7.2) — {@code ALL_USERS} 중 Oracle 이 관리하지 않는 사용자({@code ORACLE_MAINTAINED='N'}) 이름, 이름 순.
+     * 행 = {@code {schemaName}}. 비거나 실패하면 화면은 직접 입력을 받는다.
+     */
+    private List<Map<String, Object>> schemas() {
+        return jdbc.query("""
+                SELECT USERNAME
+                  FROM ALL_USERS
+                 WHERE ORACLE_MAINTAINED = 'N'
+                 ORDER BY USERNAME
+                """, (rs, i) -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("schemaName", rs.getString("USERNAME"));
             return row;
         });
     }
@@ -526,9 +575,17 @@ public class ErdEditService {
         return Map.of("ver", VersionNumbers.plain(next));
     }
 
-    /** DRAFT 삭제 — 소유자·상태·row_version·삭제 SPI(ErdDraftDeletion)는 공통 서비스가 본다. */
+    /**
+     * kind 없음 = DRAFT 삭제 — 소유자·상태·row_version·삭제 SPI(ErdDraftDeletion)는 공통 서비스가 본다.
+     * kind=MODEL = 모델 완전 삭제(ERD 2차 §7.2, ver·rowVersion 없음). 권한·잠금·연쇄 삭제·구독자 알림은 {@link ErdModelDeletion} 이 한다.
+     * 거절은 업무 오류(meta.success=false, MDM003·MDM029)다.
+     */
     public Map<String, Object> delete(ErdEditRequest r) {
-        stateService.deleteDraft(ref(requireModelId(r), r.getVer()), rowVersion(r), currentUser.userId());
+        switch (kind(r)) {
+            case "" -> stateService.deleteDraft(ref(requireModelId(r), r.getVer()), rowVersion(r), currentUser.userId());
+            case "MODEL" -> modelDeletion.delete(requireModelId(r), currentUser.userId(), currentUser.roleIds());
+            default -> throw MdmErrors.invalid("delete 가 지원하지 않는 kind 입니다: " + r.getKind());
+        }
         return Map.of("ok", true);
     }
 

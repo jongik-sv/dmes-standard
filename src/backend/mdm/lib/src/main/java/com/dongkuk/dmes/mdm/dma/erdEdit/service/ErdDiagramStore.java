@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm.dma.erdEdit.service;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.AddDiagram;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.ClearRoutes;
+import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.CopyDiagram;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.DeleteDiagram;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.MoveNodes;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.Node;
@@ -88,6 +89,7 @@ public class ErdDiagramStore {
                     remember(before, modelId, "diagram", id);
                     insertDiagram(id, modelId, a.areaName(), a.diagramName(), a.sortSeq() == null ? 0 : a.sortSeq(), userId);
                 }
+                case CopyDiagram cp -> copyDiagram(before, modelId, cp, userId, index);
                 case PlaceTables p -> {
                     requireDiagram(modelId, p.diagram(), index);
                     requireList(p.nodes(), "nodes", p.diagram(), index);
@@ -223,6 +225,63 @@ public class ErdDiagramStore {
             restore.add(new ErdChange(kind, id, prev == null ? ErdChange.DELETE : ErdChange.UPSERT, prev));
         });
         return new Result(changes, new RestoreDiagram(restore));
+    }
+
+    /**
+     * 다이어그램 복사(ERD 2차 §7.2). 원본 노드(위치·접기)와 꺾임점을 새 id 로 한 번씩(INSERT … SELECT) 복사한다. 새 id 는 어느 모델에도
+     * 없으므로(PK 전역) 고치기 전 행은 모두 null 이다 — 노드·꺾임점 키는 읽지 않고 null 로 기억한다. 그래서 델타는 upsert, 역명령은
+     * 복사본 지우기(diagram·노드·꺾임점 delete)이고, 되돌리기의 FK 순서는 RestoreDiagram 이 맞춘다. 원본에 남은 "지금 버전에 없는 표·관계"의
+     * 행도 그대로 복사한다(그리지 않는 행, §7.1).
+     */
+    @SuppressWarnings("unchecked")
+    private void copyDiagram(Map<String, JsonNode> before, String modelId, CopyDiagram cp, String userId, int index) {
+        requireDiagram(modelId, cp.from(), index);
+        String id = cp.id() == null ? ErdIds.newId('d') : cp.id();
+        if (!ErdIds.isElementId(id)) throw reject(index, "다이어그램 id 형식이 맞지 않습니다: " + id, id);
+        JsonNode src = row(modelId, "diagram", cp.from());
+        String area = cp.areaName() == null ? src.path("areaName").asText() : cp.areaName();
+        String name = cp.diagramName() == null ? copyName(src.path("diagramName").asText()) : cp.diagramName();
+        requireName(area, "areaName", id, index);
+        requireName(name, "diagramName", id, index);
+        if (diagramExists(id)) throw reject(index, "이미 있는 다이어그램 id 입니다: " + id, id);
+        remember(before, modelId, "diagram", id);
+        insertDiagram(id, modelId, area, name, src.path("sortSeq").asInt(), userId);
+        List<Object> tables = em.createNativeQuery("SELECT TABLE_UUID FROM TB_MDM_ERD_DIAGRAM_NODE WHERE DIAGRAM_ID = ?")
+                .setParameter(1, cp.from()).getResultList();
+        List<Object> relations = em.createNativeQuery("SELECT REL_UUID FROM TB_MDM_ERD_DIAGRAM_ROUTE WHERE DIAGRAM_ID = ?")
+                .setParameter(1, cp.from()).getResultList();
+        for (Object t : tables) {
+            if (!before.containsKey("diagramNode|" + id + ":" + t)) before.put("diagramNode|" + id + ":" + t, null);
+        }
+        for (Object rel : relations) {
+            if (!before.containsKey("diagramRoute|" + id + ":" + rel)) before.put("diagramRoute|" + id + ":" + rel, null);
+        }
+        if (!tables.isEmpty()) {
+            em.createNativeQuery("""
+                    INSERT INTO TB_MDM_ERD_DIAGRAM_NODE (DIAGRAM_ID, TABLE_UUID, POS_X, POS_Y, FOLD_MODE,
+                      C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER)
+                    SELECT ?, TABLE_UUID, POS_X, POS_Y, FOLD_MODE, ?, SYSTIMESTAMP, 'erdEdit', 'erdEdit', ?, SYSTIMESTAMP, 'erdEdit', 'erdEdit', 0
+                      FROM TB_MDM_ERD_DIAGRAM_NODE
+                     WHERE DIAGRAM_ID = ?""")
+                    .setParameter(1, id).setParameter(2, userId).setParameter(3, userId).setParameter(4, cp.from()).executeUpdate();
+        }
+        if (!relations.isEmpty()) {
+            em.createNativeQuery("""
+                    INSERT INTO TB_MDM_ERD_DIAGRAM_ROUTE (DIAGRAM_ID, REL_UUID, POINTS_JSON,
+                      C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER)
+                    SELECT ?, REL_UUID, POINTS_JSON, ?, SYSTIMESTAMP, 'erdEdit', 'erdEdit', ?, SYSTIMESTAMP, 'erdEdit', 'erdEdit', 0
+                      FROM TB_MDM_ERD_DIAGRAM_ROUTE
+                     WHERE DIAGRAM_ID = ?""")
+                    .setParameter(1, id).setParameter(2, userId).setParameter(3, userId).setParameter(4, cp.from()).executeUpdate();
+        }
+    }
+
+    /** 기본 복사 이름 「<원본> 복사」. 원본이 길면 잘라 {@value #NAME_MAX}자 안에 맞춘다(이름을 주지 않은 요청이 거절되지 않게). */
+    static String copyName(String source) {
+        String suffix = " 복사";
+        int keep = NAME_MAX - suffix.length();
+        String base = source.length() > keep ? source.substring(0, keep) : source;
+        return base + suffix;
     }
 
     private void remember(Map<String, JsonNode> before, String modelId, String kind, String id) {

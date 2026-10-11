@@ -10,6 +10,7 @@ import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import com.dongkuk.dmes.mdm.contract.version.VersionWriteGuard;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdModel;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdModelCodec;
+import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdEventHub;
 import com.dongkuk.dmes.mdm.entity.MdmErdEditor;
 import com.dongkuk.dmes.mdm.entity.MdmErdEditorId;
 import com.dongkuk.dmes.mdm.entity.MdmErdModel;
@@ -44,11 +45,12 @@ public class ErdVersionService {
     private final Clock clock;
     private final ErdReloadMarker marker;
     private final TransactionTemplate tx;
+    private final ErdEventHub hub;
 
     public ErdVersionService(VersionWriteGuard writeGuard, VersionRowStore versionStore, ErdModelStore store,
                              MdmErdModelRepository models, MdmErdModelVerRepository vers, MdmErdEditorRepository editors,
                              MdmNativeAuditSupport audit, Clock clock, ErdReloadMarker marker,
-                             PlatformTransactionManager transactionManager) {
+                             PlatformTransactionManager transactionManager, ErdEventHub hub) {
         this.writeGuard = writeGuard;
         this.versionStore = versionStore;
         this.store = store;
@@ -59,6 +61,7 @@ public class ErdVersionService {
         this.clock = clock;
         this.marker = marker;
         this.tx = new TransactionTemplate(transactionManager);
+        this.hub = hub;
     }
 
     /** 빈 모델과 1.000 DRAFT 를 만든다. 소유자 = {@code me}. 같은 ID 나 같은 모듈의 모델이 있으면 입력 오류다. */
@@ -95,6 +98,12 @@ public class ErdVersionService {
             models.saveAndFlush(new MdmErdModel(modelId, module, schema, name));
             vers.saveAndFlush(new MdmErdModelVer(modelId, new BigDecimal("1.000"), VersionKind.MAJOR.name(), me,
                     ErdModelCodec.write(ErdModel.empty(module, schema))));
+            // 이 서버가 같은 id 의 모델을 지운 적이 있으면(ERD 2차 §7.2) rev 를 0 이 아니라 지운 모델 뒤에서 잇고 표시 행(DRAFT_CREATED)을 남긴다.
+            // 지울 때 reload 를 못 받은 화면·CLI 가 옛 sinceRev·baseRev 로 오면 표시 행을 건너므로 reload·거절을 받는다(옛 모델에 이어 붙지 않는다).
+            hub.deletedRev(modelId).ifPresent(last -> {
+                store.setRev(modelId, last);
+                marker.mark(modelId, new BigDecimal("1.000"), me, ErdReloadMarker.DRAFT_CREATED);
+            });
         });
     }
 
@@ -126,14 +135,18 @@ public class ErdVersionService {
         });
     }
 
-    /** DRAFT 에 공동 편집자를 더한다. 소유자만 한다. 소유자 본인과 이미 있는 편집자는 그대로 둔다. */
+    /**
+     * DRAFT 에 공동 편집자를 더한다. 소유자만 한다. 소유자 본인과 이미 있는 편집자는 그대로 둔다.
+     * 모델 행을 먼저 잠근다(저장·새 버전·DRAFT 삭제·모델 삭제와 같은 첫 잠금) — 모델 삭제와 겹치면 FK 오류 대신 ERD_MODEL_NOT_FOUND 다.
+     */
     public void addEditor(String modelId, String userId, String me) {
-        MdmErdModelVer d = requireOwnedDraft(modelId, me);
         if (userId == null || userId.isBlank()) {
             throw MdmErrors.of(MdmErrorCode.INVALID_INPUT, "편집자 ID 는 필수입니다", List.of());
         }
-        if (userId.equals(d.getOwnerId())) return;
         tx.executeWithoutResult(s -> {
+            marker.lock(modelId);                                                 // 없으면 MDM029
+            MdmErdModelVer d = requireOwnedDraft(modelId, me);
+            if (userId.equals(d.getOwnerId())) return;
             if (!editors.existsById(new MdmErdEditorId(modelId, d.getVer(), userId))) {
                 editors.saveAndFlush(new MdmErdEditor(modelId, d.getVer(), userId));
             }

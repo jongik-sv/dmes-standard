@@ -8,8 +8,14 @@ import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.common.MdmNativeAuditSupport;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.entity.MdmErdModelVer;
+import com.dongkuk.dmes.mdm.common.version.VersionedRow;
 import jakarta.persistence.EntityManager;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.hibernate.query.NativeQuery;
 import org.springframework.stereotype.Component;
@@ -84,6 +90,42 @@ public class ErdModelStore {
         return em.createQuery("SELECT v FROM MdmErdModelVer v WHERE v.erdModelId = :id AND v.status = 'RELEASED' ORDER BY v.ver DESC",
                         MdmErdModelVer.class)
                 .setParameter("id", modelId).setMaxResults(1).getResultList().stream().findFirst();
+    }
+
+    /** RELEASED 버전의 번호·적용 기간(모델 JSON 은 읽지 않는다). 모델 목록의 계산 상태(RuleVersions.effectiveStatus)용. */
+    public record ReleasedRow(String modelId, BigDecimal ver, LocalDateTime applyFrom, LocalDateTime applyTo) implements VersionedRow {
+        @Override
+        public BigDecimal getVer() {
+            return ver;
+        }
+
+        @Override
+        public String getStatus() {
+            return "RELEASED";
+        }
+
+        @Override
+        public LocalDateTime getApplyFrom() {
+            return applyFrom;
+        }
+
+        @Override
+        public LocalDateTime getApplyTo() {
+            return applyTo;
+        }
+    }
+
+    /** 모든 모델의 RELEASED 버전, 모델별. JPQL 이라 적용 시각 변환이 엔티티와 같다. */
+    public Map<String, List<ReleasedRow>> releasedByModel() {
+        List<Object[]> rows = em.createQuery(
+                        "SELECT v.erdModelId, v.ver, v.applyFrom, v.applyTo FROM MdmErdModelVer v WHERE v.status = 'RELEASED'", Object[].class)
+                .getResultList();
+        Map<String, List<ReleasedRow>> out = new HashMap<>();
+        for (Object[] r : rows) {
+            out.computeIfAbsent((String) r[0], k -> new ArrayList<>())
+                    .add(new ReleasedRow((String) r[0], (BigDecimal) r[1], (LocalDateTime) r[2], (LocalDateTime) r[3]));
+        }
+        return out;
     }
 
     /** DRAFT 우선, 없으면 최신 RELEASED. 둘 다 없으면 ERD_MODEL_NOT_FOUND. */

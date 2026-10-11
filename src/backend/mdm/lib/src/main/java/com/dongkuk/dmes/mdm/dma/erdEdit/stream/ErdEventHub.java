@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.dma.erdEdit.stream;
 
+import com.dongkuk.dmes.cactus.common.ResponseCodeAware;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
@@ -41,6 +42,7 @@ import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -117,6 +119,8 @@ public class ErdEventHub {
         final AtomicBoolean draining = new AtomicBoolean();
         /** 큐가 넘쳤다 — 다음 비우기에서 reload 뒤 닫는다. */
         volatile boolean overflowed;
+        /** 모델이 지워졌다(ERD 2차 §7.2) — 0 이상이면 다음 비우기에서 쌓인 것을 버리고 reload{이 rev} 뒤 닫는다. */
+        volatile long closeRev = -1;
         /** 큐에 넣은 델타의 가장 큰 rev(넘침 때 reload 의 rev). */
         final AtomicLong maxRev = new AtomicLong(-1);
         /** 진행 중인 소켓 쓰기의 시작 시각(nanoTime, 0 = 쓰지 않는 중)과 그 스레드 — 감시가 본다. */
@@ -149,6 +153,8 @@ public class ErdEventHub {
     private final Map<String, Timed> timed = new ConcurrentHashMap<>();
     private final Object timedLock = new Object();
     private final Map<String, ClaimRefresh> claimRefresh = new ConcurrentHashMap<>();
+    /** 지운 모델의 마지막 rev(reload 로 보낸 값). 같은 id 를 다시 등록하면 rev 를 여기서 잇는다 — 서버 1대·메모리(스펙 5절)라 재시작하면 잊는다. */
+    private final Map<String, Long> deletedRevs = new ConcurrentHashMap<>();
     private final ObjectProvider<ErdCommandService> commandsProvider;
     private final JdbcTemplate jdbc;
     private final ScheduledExecutorService pinger;
@@ -230,12 +236,12 @@ public class ErdEventHub {
         // 없는 모델이면 ERD_MODEL_NOT_FOUND(컨트롤러가 404 로 바꾼다). EntityManager 를 요청 스레드에서 쓰지 않는다 — open-in-view 가
         // 비동기 응답이 끝날 때까지 JDBC 연결을 쥐어, 구독자 하나마다 풀 연결 하나가 묶인다. 재생도 그래서 별도 스레드에서 한다.
         long helloRev = currentRev(modelId);
-        SseEmitter emitter = new SseEmitter(0L); // 0 = 시간 제한 없음. 끊김은 ping 보내기 실패로 잡는다
+        SseEmitter emitter = newEmitter();
         Sub sub = new Sub(modelId, session, userId, emitter);
         // 0. 새 구독이면 등록 전에 hello 를 보낸다 — 등록 전이라 다른 스레드(presence·claim·델타)가 이 구독에 먼저 보낼 수 없다.
         //    hello 의 rev 는 등록 전에 읽었으므로, 그 뒤에 커밋된 델타는 아래 재생(helloRev 부터)이 채운다.
         if (sinceRev < 0 && !send(sub, "hello", Map.of("rev", helloRev))) return emitter;
-        subs.computeIfAbsent(modelId, k -> new CopyOnWriteArrayList<>()).add(sub); // 1. 먼저 등록(실시간 델타는 큐에 쌓인다)
+        register(sub); // 1. 먼저 등록(실시간 델타는 큐에 쌓인다)
         Runnable drop = () -> drop(sub);
         emitter.onCompletion(drop);
         emitter.onTimeout(drop);
@@ -252,12 +258,26 @@ public class ErdEventHub {
         return emitter;
     }
 
+    /** 구독 스트림. 0 = 시간 제한 없음 — 끊김은 ping 보내기 실패로 잡는다. 시험이 보낸 이벤트를 모으려고 바꾼다. */
+    SseEmitter newEmitter() {
+        return new SseEmitter(0L);
+    }
+
     /** 시험용: 재생 없이 lastRev 부터 받는 구독을 붙인다(DB 없이 보내기 큐만 시험할 때). */
     void attachForTest(String modelId, String session, SseEmitter emitter, long lastRev) {
         Sub sub = new Sub(modelId, session, null, emitter);
         sub.lastRev = lastRev;
         sub.replaying = false;
-        subs.computeIfAbsent(modelId, k -> new CopyOnWriteArrayList<>()).add(sub);
+        register(sub);
+    }
+
+    /** 구독 목록에 넣는다. 목록 만들기와 넣기를 키 단위로 한 번에 한다 — 빈 목록을 지우는 {@link #drop} 과 겹쳐도 구독이 사라지지 않는다. */
+    private void register(Sub sub) {
+        subs.compute(sub.modelId, (k, list) -> {
+            List<Sub> l = list != null ? list : new CopyOnWriteArrayList<>();
+            l.add(sub);
+            return l;
+        });
     }
 
     /** 시험용: 모델의 구독 수. */
@@ -292,6 +312,16 @@ public class ErdEventHub {
             }
             schedule(sub);
         } catch (RuntimeException e) {
+            if (sub.closeRev >= 0 || isModelNotFound(e)) {
+                // 재생 읽기 중에 모델이 지워졌다(ERD 2차 §7.2). 오류로 끊지 않고 reload 뒤 닫는다 — 화면은 다시 읽고 MDM029 를 받는다.
+                // rev = 삭제가 정한 값(아직 커밋 뒤 콜백 전이면 허브가 아는 값, 그것도 없으면 sinceRev + 1).
+                synchronized (sub) {
+                    if (sub.closeRev < 0) sub.closeRev = deletedRevs.getOrDefault(sub.modelId, Math.max(0, sinceRev + 1));
+                    sub.replaying = false;
+                }
+                schedule(sub);
+                return;
+            }
             log.warn("ERD SSE 재생 실패 model={} session={} — 구독 해제", sub.modelId, sub.session, e);
             sub.dropped = true;
             pinger.execute(() -> drop(sub));
@@ -358,6 +388,46 @@ public class ErdEventHub {
     /** 빈 칸 채우기가 필요한가 — 다른 트랜잭션의 afterCommit 이 늦게 와서 앞 rev 가 아직 큐에 없다. 표시 델타는 채우지 않는다. */
     private static boolean needsCatchUp(Sub s, ErdDelta d) {
         return d.rev() > s.lastRev + 1 && !ErdDelta.isMarker(d);
+    }
+
+    // ── 모델 삭제(ERD 2차 §7.2) ─────────────────────────────────────────
+
+    /**
+     * 모델 완전 삭제 뒤 알림. 커밋 뒤(트랜잭션 밖이면 바로) 그 모델의 구독자마다 쌓인 이벤트를 버리고 {@code reload{rev}} 하나를 보낸 뒤
+     * 스트림을 닫는다 — 화면은 이미 아는 reload 로 모델을 다시 읽고, ERD_MODEL_NOT_FOUND 를 받아 시작 화면으로 간다. 새 이벤트 이름은
+     * 화면이 모르면 버려지므로 쓰지 않는다. 소켓 쓰기는 보내기 스레드가 한다(요청 스레드는 표시만 한다). 접속자(시한 항목 포함)와
+     * 작업 중 표시 다시 읽기 상태도 지운다. 롤백되면 돌지 않는다. 이 뒤에 붙는 구독은 rev 읽기에서 ERD_MODEL_NOT_FOUND(404)다.
+     *
+     * @param rev 삭제 직전 rev + 1(화면이 지금 rev 보다 큰 값을 받게)
+     */
+    public void modelDeleted(String modelId, long rev) {
+        afterCommit(() -> {
+            deletedRevs.merge(modelId, Math.max(0, rev), Math::max);
+            for (Sub s : subs.getOrDefault(modelId, List.of())) {
+                s.closeRev = Math.max(0, rev);
+                schedule(s);
+            }
+            String prefix = modelId + "\u0000";
+            synchronized (timedLock) {
+                presence.keySet().removeIf(k -> k.startsWith(prefix));
+                timed.keySet().removeIf(k -> k.startsWith(prefix));
+            }
+            claimRefresh.remove(modelId);
+        });
+    }
+
+    /** 이 서버가 지운 같은 id 모델의 마지막 rev. 다시 등록할 때 rev 를 이어 쓰는 데 쓴다(ErdVersionService.createModel). */
+    public Optional<Long> deletedRev(String modelId) {
+        return Optional.ofNullable(deletedRevs.get(modelId));
+    }
+
+    /** 응답 코드가 ERD_MODEL_NOT_FOUND 인 예외인가(원인 사슬 포함). */
+    static boolean isModelNotFound(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof ResponseCodeAware r && MdmErrorCode.ERD_MODEL_NOT_FOUND.code().equals(r.responseCode())) return true;
+            if (t.getCause() == t) break;
+        }
+        return false;
     }
 
     // ── 버전 이벤트(S2-12) ─────────────────────────────────────────────
@@ -497,8 +567,14 @@ public class ErdEventHub {
     /** 구독 해제. 여러 번 불려도 한 번만 처리한다(onCompletion·onError·보내기 실패·감시가 겹친다). */
     private void drop(Sub sub) {
         sub.dropped = true;
+        boolean[] removed = {false};
+        // 지우고 비면 키도 지운다(지운 모델의 빈 목록이 남지 않게). register 와 같은 키 단위 원자 동작이다.
+        subs.computeIfPresent(sub.modelId, (k, l) -> {
+            removed[0] = l.remove(sub);
+            return l.isEmpty() ? null : l;
+        });
+        if (!removed[0]) return;
         List<Sub> list = subs.getOrDefault(sub.modelId, List.of());
-        if (!list.remove(sub)) return;
         // 같은 세션이 다시 붙어 있으면(재연결이 겹친 경우) 접속자 표시는 남긴다.
         if (list.stream().noneMatch(s -> s.session.equals(sub.session))) {
             synchronized (timedLock) {
@@ -546,6 +622,11 @@ public class ErdEventHub {
                     session, userId, untilTs, userId, now, userId, now);
         } catch (DuplicateKeyException e) {
             n = 0; // 같은 표를 다른 세션이 동시에 처음 표시했다 — 먼저 들어간 쪽이 이긴다
+        } catch (DataIntegrityViolationException e) {
+            // 모델 삭제(ERD 2차 §7.2)와 겹쳤다 — 부모 모델 행이 사라져 FK 위반(ORA-02291). 원시 오류(S001) 대신 ERD_MODEL_NOT_FOUND.
+            // 이 경로는 저장 잠금(모델 행)을 기다리지 않는다 — 풀 연결을 아끼려고 잠그지 않고 FK 로 판정한다.
+            if (!String.valueOf(e.getMostSpecificCause().getMessage()).contains("FK_TB_MDM_ERD_CLAIM_MODEL")) throw e;
+            throw MdmErrors.of(MdmErrorCode.ERD_MODEL_NOT_FOUND);
         }
         if (n > 0) {
             afterCommit(() -> refreshClaims(modelId));
@@ -732,7 +813,7 @@ public class ErdEventHub {
                         if (version != null && !s.dropped) send(s, "version", version);
                         continue;
                     }
-                    if (s.overflowed) {
+                    if (s.overflowed || s.closeRev >= 0) {
                         closeWithReload(s);
                         return;
                     }
@@ -748,7 +829,7 @@ public class ErdEventHub {
                 }
                 ErdChangesView v = dbRead(() -> commandsProvider.getObject().changesSince(s.modelId, gapFrom));
                 synchronized (s) {
-                    if (s.overflowed || s.dropped) continue; // 읽는 사이에 넘쳤다 — 다음 바퀴가 reload 뒤 닫는다
+                    if (s.overflowed || s.closeRev >= 0 || s.dropped) continue; // 읽는 사이에 넘쳤다(모델이 지워졌다) — 다음 바퀴가 reload 뒤 닫는다
                     if (s.lastRev == gapFrom) sendGap(s, v, gapFrom); // 사이에 다른 경로가 lastRev 를 옮기지 않았을 때만
                     // 채운 뒤에도 빈 칸이 남으면(기록이 아직 그 rev 를 모름) 그 델타는 그대로 보낸다 — 다시 읽기를 되풀이하지 않는다.
                     Out o = s.queue.poll();
@@ -766,13 +847,16 @@ public class ErdEventHub {
             completeLater(s, e);
         } finally {
             s.draining.set(false);
-            if (s.overflowed || s.replay != null || !s.queue.isEmpty()) schedule(s); // 비우는 사이에 들어온 항목
+            if (s.overflowed || s.closeRev >= 0 || s.replay != null || !s.queue.isEmpty()) schedule(s); // 비우는 사이에 들어온 항목
         }
     }
 
-    /** 넘친 구독: reload{rev} 하나를 보내고 닫는다. 화면은 모델을 다시 읽고 sinceRev 로 다시 붙는다. 호출자가 sub 를 잡고 있다. */
+    /**
+     * 넘친 구독: reload{rev} 하나를 보내고 닫는다. 화면은 모델을 다시 읽고 sinceRev 로 다시 붙는다. 지워진 모델의 구독({@link #modelDeleted})도
+     * 같은 길로 닫는다 — 그때 rev 는 삭제가 정한 값이다. 호출자가 sub 를 잡고 있다.
+     */
     private void closeWithReload(Sub s) {
-        long rev = Math.max(0, Math.max(s.lastRev, s.maxRev.get()));
+        long rev = s.closeRev >= 0 ? s.closeRev : Math.max(0, Math.max(s.lastRev, s.maxRev.get()));
         s.queue.clear();
         if (send(s, "reload", Map.of("rev", rev))) {
             s.dropped = true;
