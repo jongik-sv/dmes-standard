@@ -272,9 +272,28 @@ class ErdImportBuilderTest {
         assertThat(place.at("/nodes/7/y").asInt()).isZero();
         assertThat(place.at("/nodes/8/table").asText()).isEqualTo(tableId(m, "TB_09"));
         assertThat(place.at("/nodes/8/x").asInt()).isZero();
-        assertThat(place.at("/nodes/8/y").asInt()).isEqualTo(220);
+        // 행 높이 = 그 행 가장 큰 표의 어림 높이(머리 30 + 컬럼 1개 20) + 간격 60 (UX 1차 U24)
+        assertThat(place.at("/nodes/8/y").asInt()).isEqualTo(30 + 20 * 1 + 60);
         assertThat(built.restore().sinceRev()).isEqualTo(4);
         assertThat(built.summary().relations()).containsExactly(Map.entry("DB", 0), Map.entry("INFERRED", 0));
+    }
+
+    /** U24: 다음 행의 y 는 앞 행에서 가장 큰 표의 어림 높이를 따른다(감사 컬럼은 화면 기본이 숨김이라 세지 않는다). */
+    @Test
+    void gridRowHeightFollowsTallestTable() {
+        List<Table> tables = new ArrayList<>();
+        List<Column> tall = new ArrayList<>();
+        for (int i = 1; i <= 10; i++) tall.add(col("C" + i, i, "NUMBER", 22, null, null, true));
+        tall.add(col("C_AT", 11, "TIMESTAMP(6)", null, null, null, true)); // 감사 컬럼 — 높이에 안 센다
+        tables.add(new Table("TB_01", null, tall));
+        for (int i = 2; i <= 9; i++) tables.add(new Table("TB_0" + i, null, List.of(col("A", 1, "NUMBER", 22, null, null, true))));
+        tables.add(new Table("TB_10", null, List.of(col("A", 1, "NUMBER", 22, null, null, true))));
+        var built = ErdImportBuilder.build(new ErdDbMeta("S", tables, List.of(), List.of()), List.of(), emptyDict(), 4, seqIds());
+        JsonNode place = built.diagramCommands().get(1);
+        // 표 이름순 TB_01, TB_02 … TB_09, TB_10 — 8번째(index 8)가 둘째 행 첫 칸
+        assertThat(place.at("/nodes/8/y").asInt()).isEqualTo(30 + 200 + 60);
+        assertThat(place.at("/nodes/9/y").asInt()).isEqualTo(30 + 200 + 60);
+        assertThat(place.at("/nodes/0/y").asInt()).isZero();
     }
 
     /** APPLY_DIFF 의 표 하나 만들기: 첫 가져오기와 같은 키 규칙, 표 → 컬럼 → 키 순서, 관계 없음. */

@@ -330,7 +330,9 @@ public class ErdCommandService {
             store.setRev(modelId, newRev);
             log.insert(modelId, newRev, modelVer, userId, session, source,
                     ErdCommandLogStore.write(logged), ErdCommandLogStore.write(inverse), changes);
-            ErdDelta delta = new ErdDelta(modelId, newRev, userId, session, source, rowVersion, List.copyOf(changes));
+            // 기록 INSERT 의 C_AT 이 SYSTIMESTAMP 라 초 단위로 같은 시각이다(DB 를 다시 읽지 않는다).
+            ErdDelta delta = new ErdDelta(modelId, newRev, userId, session, source, rowVersion, List.copyOf(changes),
+                    ErdDelta.atOf(java.time.LocalDateTime.now()));
             List<String> touchedTables = touched;
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override

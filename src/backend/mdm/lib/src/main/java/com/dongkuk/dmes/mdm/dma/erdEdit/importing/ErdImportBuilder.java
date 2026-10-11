@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm.dma.erdEdit.importing;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dbmeta.ErdDbMeta;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdImportResult;
+import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdAuditColumns;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdChange;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdCommand;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdIds;
@@ -41,7 +42,10 @@ public final class ErdImportBuilder {
     public static final String DIAGRAM = "전체";
     static final int GRID_COLS = 8;
     static final int GRID_DX = 280;
-    static final int GRID_DY = 220;
+    /** 노드 높이 어림(머리 30 + 컬럼 한 줄 20)과 행 사이 간격 — 격자 행 높이를 가장 큰 표에 맞춘다(UX 1차 U24). */
+    static final int NODE_HEAD = 30;
+    static final int NODE_ROW = 20;
+    static final int GRID_GAP_Y = 60;
     private static final Set<String> CHAR_TYPES = Set.of("VARCHAR2", "NVARCHAR2", "CHAR", "NCHAR", "VARCHAR", "RAW");
 
     public record ColumnType(String dataType, Integer length, Integer scale) {}
@@ -61,6 +65,8 @@ public final class ErdImportBuilder {
     private final Map<String, String> tableIds = new LinkedHashMap<>();
     /** 표 이름 → 컬럼 이름 → 컬럼 id. */
     private final Map<String, Map<String, String>> columnIds = new HashMap<>();
+    /** 표 이름 → 어림 노드 높이(감사 컬럼을 뺀 컬럼 수 기준 — 화면 기본이 감사 컬럼 숨김). */
+    private final Map<String, Integer> heights = new HashMap<>();
     private final List<ErdChange> tables = new ArrayList<>();
     private final List<ErdChange> columns = new ArrayList<>();
     private final List<ErdChange> keys = new ArrayList<>();
@@ -101,10 +107,17 @@ public final class ErdImportBuilder {
         elements.addAll(b.keys);
         elements.addAll(b.relations);
         List<ErdDiagramCommand.Node> nodes = new ArrayList<>();
-        int i = 0;
-        for (String tid : b.tableIds.values()) {
-            nodes.add(new ErdDiagramCommand.Node(tid, (i % GRID_COLS) * GRID_DX, (i / GRID_COLS) * GRID_DY));
-            i++;
+        // 행마다 그 행 가장 큰 표의 높이 + 간격만큼 내려 놓는다(고정 간격이면 컬럼 많은 표가 다음 행과 겹친다).
+        List<String> names = new ArrayList<>(b.tableIds.keySet());
+        int y = 0;
+        for (int row = 0; row * GRID_COLS < names.size(); row++) {
+            int tallest = 0;
+            for (int i = row * GRID_COLS; i < Math.min(names.size(), (row + 1) * GRID_COLS); i++) {
+                String name = names.get(i);
+                tallest = Math.max(tallest, b.heights.get(name));
+                nodes.add(new ErdDiagramCommand.Node(b.tableIds.get(name), (i % GRID_COLS) * GRID_DX, y));
+            }
+            y += tallest + GRID_GAP_Y;
         }
         List<JsonNode> diagramCommands = List.of(
                 diagramJson(new ErdDiagramCommand.AddDiagram(diagramId, AREA, DIAGRAM, 0)),
@@ -203,6 +216,8 @@ public final class ErdImportBuilder {
             columns.add(upsert("column", cid, columnOf(tid, c, dict)));
         }
         columnIds.put(t.name(), cids);
+        long shown = t.columns().stream().filter(c -> !ErdAuditColumns.isAudit(c.name())).count();
+        heights.put(t.name(), NODE_HEAD + NODE_ROW * (int) shown);
         tables.add(upsert("table", tid, et));
     }
 

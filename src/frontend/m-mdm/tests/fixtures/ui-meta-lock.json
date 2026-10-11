@@ -586,6 +586,13 @@
   "label|PARENT_DOMAIN_ID|지금 부모|-",
   "label|guide|안내|false"
  ],
+ "m-mdm/pages/dma/erdEdit/canvas/SplitDialog.tsx": [
+  "col|count|false",
+  "col|head|false",
+  "col|make|false",
+  "col|name|false",
+  "col|state|false"
+ ],
  "m-mdm/pages/dma/erdEdit/panels/ChangeLog.tsx": [
   "col|rev|false",
   "col|session|false",

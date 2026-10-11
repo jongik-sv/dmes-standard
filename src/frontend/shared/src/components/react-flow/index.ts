@@ -28,4 +28,6 @@ export { FIND_NO_RESULT, FindWidget, findCountText } from "./FindWidget";
 export type { FindWidgetProps } from "./FindWidget";
 export { ToolButton, keepFocusOffButtons } from "./ToolButton";
 export type { ToolButtonProps } from "./ToolButton";
+export { TextToolButton } from "./TextToolButton";
+export type { TextToolButtonProps } from "./TextToolButton";
 export { DEFAULT_CLASS_PREFIX } from "./styles";

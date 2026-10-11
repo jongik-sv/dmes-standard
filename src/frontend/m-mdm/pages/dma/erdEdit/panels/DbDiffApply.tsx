@@ -19,6 +19,7 @@ import { useMessage } from "@dk-oasis/shared/message-provider";
 import { applyDbDiff } from "../api";
 import { typeText } from "../canvas/erd-geometry";
 import type { ErdEditContext } from "../edit-context";
+import { shortReason } from "../state/permissions";
 import type { ErdColumnSpec, ErdDbDiffItem, ErdDbDiffView, ErdDiffApplySummary, ErdRejection } from "../types";
 
 export const DIFF_LABEL: Record<ErdDbDiffItem["kind"], string> = {
@@ -95,23 +96,25 @@ const SUMMARY_LABEL: [CountKey, string][] = [
   ["columnsChanged", "컬럼 바뀜"], ["relationsAdded", "관계 추가"], ["dbFkSet", "DB FK 표시"], ["dbFkCleared", "DB FK 해제"],
 ];
 
-export function applySummaryText(rev: number, s: ErdDiffApplySummary): string {
+/** 가져온 결과 글. 사람 글에는 rev 를 넣지 않는다(rev 는 결과 줄 title 에만). */
+export function applySummaryText(s: ErdDiffApplySummary): string {
   const parts = SUMMARY_LABEL.filter(([k]) => s[k] > 0).map(([k, label]) => `${label} ${s[k]}`);
   if (s.removedIds.length > 0) parts.push(`지운 요소 ${s.removedIds.length}개`);
-  return `rev ${rev} 에 ${s.items}건을 반영했습니다${parts.length > 0 ? ` — ${parts.join(" · ")}` : ""}`;
+  return `${s.items}건을 가져왔습니다${parts.length > 0 ? ` — ${parts.join(" · ")}` : ""}`;
 }
 
 export function applyBlockReason(ctx: Pick<ErdEditContext, "rights" | "pendingIds">, count: number): string | null {
-  if (!ctx.rights.model.ok) return ctx.rights.model.reason ?? "모델을 고칠 수 없습니다.";
-  if (count === 0) return "반영할 항목을 고르세요.";
-  if (count > APPLY_LIMIT) return `한 번에 ${APPLY_LIMIT}건까지 반영합니다. 나눠서 고르세요.`;
-  if (ctx.pendingIds.size > 0) return "보내는 중인 변경이 끝난 뒤 반영하세요.";
+  if (!ctx.rights.model.ok) return `읽기 전용 — ${shortReason(ctx.rights.model.reason ?? "모델을 고칠 수 없습니다.")}`; // 긴 이유는 위 막대 칩이 맡는다(U19)
+  if (count === 0) return "항목을 먼저 고르세요.";
+  if (count > APPLY_LIMIT) return `한 번에 ${APPLY_LIMIT}건까지 가져옵니다. 나눠서 고르세요.`;
+  if (ctx.pendingIds.size > 0) return "보내는 중인 변경이 끝난 뒤 가져오세요.";
   return null;
 }
 
 export function rejectionLine(r: ErdRejection | null): string {
-  if (!r) return "반영이 거절되었습니다.";
-  return r.hint ? `${r.message} — ${r.hint}` : r.message;
+  if (!r) return "가져오기가 거절되었습니다.";
+  // 기계용 hint 는 화면에 보이지 않는다(U27) — 사람이 읽는 userHint 만 쓴다.
+  return r.userHint ? `${r.message} — ${r.userHint}` : r.message;
 }
 
 /** 낡은 항목 거절(README: INVALID, property itemsJson, choices = 낡은 id 전부)이면 그 id. */
@@ -149,7 +152,7 @@ export function DbDiffApply({ ctx, diff, onReload }: DbDiffApplyProps) {
   const seq = useRef(0);
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
+  const [result, setResult] = useState<{ text: string; rev: number } | null>(null);
   const [stale, setStale] = useState(0);
   const rows = useMemo(() => diffRows(diff), [diff]);
 
@@ -177,7 +180,7 @@ export function DbDiffApply({ ctx, diff, onReload }: DbDiffApplyProps) {
   // 확인창이 떠 있는 동안 단추를 막는다(두 번 눌러 확인창 둘 → 두 번 보내기 방지).
   const [confirming, setConfirming] = useState(false);
   const inFlight = useRef(false);
-  const block = busy ? "반영하는 중입니다." : confirming ? "확인창에서 고르세요." : applyBlockReason(ctx, ids.length);
+  const block = busy ? "가져오는 중입니다." : confirming ? "확인창에서 고르세요." : applyBlockReason(ctx, ids.length);
   const onRowSelect = useCallback((keys: (string | number)[]) => {
     setSelected(keys.map(String));
     setStale(0); // 다시 고르기 시작하면 낡은 항목 안내를 내린다
@@ -196,7 +199,7 @@ export function DbDiffApply({ ctx, diff, onReload }: DbDiffApplyProps) {
       const r = await c.exclusive(() => applyDbDiff(c.modelId, ctxRef.current.state.rev, c.session, itemIds));
       if (seq.current !== mine) return;
       if (r.applied) {
-        setResult(r.summary ? applySummaryText(r.rev, r.summary) : `rev ${r.rev} 에 반영했습니다`);
+        setResult({ text: r.summary ? applySummaryText(r.summary) : "가져왔습니다.", rev: r.rev });
         setSelected([]);
         reloadRef.current();
         return;
@@ -229,8 +232,8 @@ export function DbDiffApply({ ctx, diff, onReload }: DbDiffApplyProps) {
     setConfirming(true);
     showMessage({
       alertType: "confirm",
-      title: "다시 가져오기 반영",
-      message: `고른 항목 중 ${n}건은 모델에서 표·컬럼을 지웁니다. 그 표·컬럼에 걸린 키·관계도 함께 지워집니다. 반영할까요?`,
+      title: "DB 다시 가져오기",
+      message: `고른 항목 중 ${n}건은 모델에서 표·컬럼을 지웁니다. 그 표·컬럼에 걸린 키·관계도 함께 지워집니다. 가져올까요?`,
       onConfirm: () => {
         setConfirming(false);
         const c = ctxRef.current;
@@ -241,6 +244,8 @@ export function DbDiffApply({ ctx, diff, onReload }: DbDiffApplyProps) {
     });
   };
 
+  // 꺼진 이유는 note 와 같은 글이다(U34)
+  const runTip = block ?? undefined;
   const note = ids.length > 0
     ? `고른 ${ids.length}건${extra > 0 ? `(FK 에 딸린 ${extra}건 포함)` : ""}: ${selectionSummary(diff, ids)}${block ? ` — ${block}` : ""}`
     : block ?? "";
@@ -248,16 +253,19 @@ export function DbDiffApply({ ctx, diff, onReload }: DbDiffApplyProps) {
   return (
     <div data-testid="erd-diff-apply" style={WRAP}>
       <div style={BAR}>
-        <Button size="sm" variant="primary" data-testid="erd-diff-apply-run" disabled={block !== null} onClick={onApply}>
-          고른 항목 반영
-        </Button>
+        {/* 꺼진 단추는 title 이 안 보이므로 감싼 span 에 이유를 단다(U34) */}
+        <span data-testid="erd-diff-apply-tip" title={runTip}>
+          <Button size="sm" variant="primary" data-testid="erd-diff-apply-run" disabled={block !== null} onClick={onApply}>
+            고른 항목 가져오기
+          </Button>
+        </span>
       </div>
       <div data-testid="erd-diff-apply-note" style={NOTE}>
         {note}
       </div>
       {result && (
-        <div data-testid="erd-diff-apply-result" role="status" style={RESULT}>
-          {result}
+        <div data-testid="erd-diff-apply-result" role="status" style={RESULT} title={`변경 번호 ${result.rev}`}>
+          {result.text}
         </div>
       )}
       {stale > 0 && (

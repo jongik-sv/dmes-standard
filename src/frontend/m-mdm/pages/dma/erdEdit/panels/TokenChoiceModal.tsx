@@ -29,6 +29,11 @@ export const TOKEN_STATUS_LABEL: Record<string, string> = {
   MATCHED: "일치", SYNONYM: "동의어", AMBIGUOUS: "후보 여럿", NO_ABBR: "약어 없음", UNKNOWN: "사전 없음",
 };
 
+/** 사전에 없는 토막인가 — 후보가 하나도 없어 약어를 직접 넣어야 하는 상태(NO_ABBR·UNKNOWN). tokenTone 의 danger 와 같은 판정이다. */
+export function isUnknownToken(status: string): boolean {
+  return status === "NO_ABBR" || status === "UNKNOWN";
+}
+
 export function tokenTone(status: string): BadgeTone {
   if (status === "MATCHED" || status === "SYNONYM") return "success";
   return status === "AMBIGUOUS" ? "warning" : "danger";

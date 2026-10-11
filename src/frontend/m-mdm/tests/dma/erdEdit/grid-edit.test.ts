@@ -1,14 +1,17 @@
-import { describe, expect, it } from "vitest";
+/** @vitest-environment happy-dom */
+import { act, createElement } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { typeText } from "../../../pages/dma/erdEdit/canvas/erd-geometry";
 import {
   GRID_COLUMNS, cellEditCommand, columnRows, gridKeyAction, gridRows, highlightErrors, orderChangeCommand, parseTypeText, pendingKeyOf,
   type GridKey,
 } from "../../../pages/dma/erdEdit/panels/ColumnGrid";
-import { addColumnBatch, newElementId, withPhys } from "../../../pages/dma/erdEdit/panels/GridInputBar";
+import { GridInputBar, addColumnBatch, newElementId, withPhys } from "../../../pages/dma/erdEdit/panels/GridInputBar";
 import { composePhys, toTokenChoices } from "../../../pages/dma/erdEdit/panels/TokenChoiceModal";
 import { menuModel } from "./erd-fixtures";
-import { DESC_CHOICES, previewOf } from "./grid-fixtures";
+import { flush, typeInto } from "../../dme/helpers/render";
+import { DESC_CHOICES, fakeCtx, inDoc, installStorage, mount, previewOf, stubOasis, wait, type Mounted } from "./grid-fixtures";
 
 describe("그리드 칸 정의", () => {
   it("열 최소 폭 합은 오른쪽 칸 400px 에서 세로 스크롤바 몫 17px 을 뺀 383px 이하다(Local-Rules §30)", () => {
@@ -161,5 +164,65 @@ describe("토막 고르기", () => {
     expect(composePhys(["1X", "Y"])).toBeNull();
     expect(composePhys(["MENU", "DE SC"])).toBeNull();
     expect(composePhys([])).toBeNull();
+  });
+});
+
+describe("입력 칸 [물리명도] — 기본 끔·물리명 바뀜 경고(U37)", () => {
+  const originalFetch = globalThis.fetch;
+  let view: Mounted | null = null;
+  beforeEach(() => installStorage());
+  afterEach(() => {
+    view?.unmount();
+    view = null;
+    globalThis.fetch = originalFetch;
+    vi.unstubAllGlobals();
+  });
+
+  const bar = (ctx: ReturnType<typeof fakeCtx>["ctx"], focusColumnId: string | null) =>
+    createElement(GridInputBar, { ctx, tableId: "t-1", focusColumnId, handle: { current: null }, onAdded: () => {}, renderStatus: () => null });
+  const check = () => inDoc<HTMLInputElement>("erd-grid-bar")!.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+  async function openWith(phys: string, focusColumnId = "c-4") {
+    stubOasis({ "erdEdit/compare": () => previewOf(phys, { logicalName: "메뉴 이름" }) });
+    const f = fakeCtx();
+    view = await mount(bar(f.ctx, focusColumnId));
+    await typeInto(inDoc<HTMLInputElement>("erd-grid-input")!, "메뉴이름");
+    await wait(400);
+    return f;
+  }
+
+  it("컬럼을 고르면 [물리명도] 가 꺼져 있고, [논리명 바꾸기] 는 phys 없이 보낸다", async () => {
+    const f = await openWith("MENU_NAME");
+    expect(check().checked).toBe(false);
+    expect(inDoc("erd-grid-phys-warn")).toBeNull();
+    await act(async () => inDoc<HTMLButtonElement>("erd-grid-rename")!.click());
+    await flush();
+    expect(f.apply).toHaveBeenCalledWith([{ op: "updateColumn", id: "c-4", set: { logical: "메뉴이름" } }], "논리명 바꾸기");
+  });
+
+  it("켜고 미리보기 물리명이 지금과 다르면 경고 글을 보이고 phys 도 보낸다", async () => {
+    const f = await openWith("MENU_NAME");
+    await act(async () => check().click());
+    expect(check().checked).toBe(true);
+    expect(inDoc("erd-grid-phys-warn")!.textContent).toBe("물리명도 MENU_NM → MENU_NAME 으로 바뀝니다(DB 와 달라짐)");
+    await act(async () => inDoc<HTMLButtonElement>("erd-grid-rename")!.click());
+    await flush();
+    expect(f.apply).toHaveBeenCalledWith([{ op: "updateColumn", id: "c-4", set: { logical: "메뉴이름", phys: "MENU_NAME" } }], "논리명 바꾸기");
+  });
+
+  it("켰어도 미리보기 물리명이 지금과 같으면 경고가 없다", async () => {
+    await openWith("MENU_NM");
+    await act(async () => check().click());
+    expect(check().checked).toBe(true);
+    expect(inDoc("erd-grid-phys-warn")).toBeNull();
+  });
+
+  it("다른 컬럼을 고르면 [물리명도] 가 다시 꺼지고 경고도 사라진다", async () => {
+    const f = await openWith("MENU_NAME");
+    await act(async () => check().click());
+    expect(inDoc("erd-grid-phys-warn")).not.toBeNull();
+    await view!.rerender(bar(f.ctx, "c-1"));
+    await flush();
+    expect(check().checked).toBe(false);
+    expect(inDoc("erd-grid-phys-warn")).toBeNull();
   });
 });

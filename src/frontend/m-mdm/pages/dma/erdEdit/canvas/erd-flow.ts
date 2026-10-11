@@ -8,6 +8,8 @@
  * - 감사 컬럼(audit-columns.ts)은 showAudit 가 꺼지면 접기와 따로 행에서 뺀다. 접기가 가린 행(hiddenCount)과 감사 보기가 가린 행(auditHidden)은
  *   서로 세지 않는다 — 접기로 안 보일 감사 컬럼은 auditHidden 이 아니라 hiddenCount 몫이라 「감사 n」과 「접힘」이 겹쳐 뜨지 않는다.
  *   감사 컬럼 쪽을 짝으로 둔 관계는 그 행이 없으므로 아래 "행이 안 보이면" 규칙대로 표 머리 손잡이에 붙는다.
+ * - 선이 붙는 변은 두 표의 가로 위치로 정한다(relationSides): 떨어져 있으면 마주 보는 변, 겹치면 둘 다 오른쪽. 끄는 동안은 손잡이 id 가 옛 위치 기준이라
+ *   ErdRelationEdge 가 덮개 위치로 변을 다시 정해 그린다(이 함수는 저장 위치로만 짠다).
  * - 컬럼 행이 안 보이면(축소·개요·접기) 선은 표 머리 손잡이에 붙는다. 컬럼 손잡이는 선이 쓰는 것만 행 데이터에 싣는다.
  *   행 데이터는 확대율과 무관하게 만든다. 그래서 확대율이 경계를 넘어도 노드 객체는 그대로이고 선만 바뀐다.
  * - 이름표(단계 2): 접속자가 고른 표와 작업 중 표시를 따로 모은다(조사 A GAP-2). 만료 시각(until·claimUntil)을 실어 두고, now 를 주면 지난 것을 뺀다.
@@ -18,6 +20,7 @@ import { useMemo, useRef } from "react";
 import type { Edge, Node } from "@dk-oasis/shared/react-flow";
 
 import { isAuditColumnId } from "../audit-columns";
+import { countTableViolations } from "../state/violations";
 import type { ErdClaim, ErdColumnStatus, ErdModelJson, ErdPresence, ErdRelation, ErdRelationState, ErdState } from "../types";
 import { NODE_WIDTH, nodeHeight, relationSides, typeText, type NodeSide } from "./erd-geometry";
 
@@ -58,6 +61,11 @@ export interface ErdNodeViewer {
 export interface ErdNodeData extends Record<string, unknown> {
   title: string;
   subtitle: string;
+  /** 개요 단계(U50) 두 줄 — 논리명(없으면 빈 글)·물리명. 보기 모드와 상관없다. */
+  logicalName: string;
+  physName: string;
+  /** 상세 단계 노드 높이(= initialHeight). 개요 단계는 이 높이 상자로 남는다. */
+  boxHeight: number;
   rows: ErdRowView[];
   /** 접기(KEYS·NAME)로 가린 컬럼 수. 감사 컬럼 보기와 무관하다. */
   hiddenCount: number;
@@ -334,15 +342,19 @@ export function buildFlow(i: BuildFlowInput): ErdFlow {
     const auditHidden = auditHiddenOf.get(n.table) ?? 0;
     // 접기로 가린 수 = 전체 - 접기 뒤 행(= 지금 행 + 감사로 뺀 행). 감사 보기 전환에 흔들리지 않는다.
     const hiddenCount = i.preset === "overview" ? 0 : total - (rows.length + auditHidden);
-    const violations = t.columnOrder.filter((cid) => BAD_STATUSES.has(i.statuses[cid] as string)).length;
+    // 고칠 위반 수 = 요약 줄·왼쪽 목록·[표준 위반] 탭과 같은 규칙(U25, 감사 컬럼은 감사 보기일 때만)
+    const violations = countTableViolations(m, n.table, i.statuses, i.showAudit);
+    // 행은 namesOnly 와 상관없이 만든다 — 높이는 늘 상세 단계 높이다(개요 단계 상자 높이 = boxHeight, U50).
+    const boxHeight = nodeHeight(rows.length, hiddenCount > 0);
     return {
       id: n.table, type: "erdTable", position: { x: n.x, y: n.y },
       data: {
         title: physical ? t.phys : t.logical || t.phys, subtitle: physical ? t.logical : t.phys,
+        logicalName: t.logical, physName: t.phys, boxHeight,
         rows, hiddenCount, auditHidden, violations, viewers: viewers.get(n.table) ?? NO_VIEWERS,
       },
       selected: i.selected.has(n.table),
-      initialWidth: NODE_WIDTH, initialHeight: nodeHeight(rows.length, hiddenCount > 0),
+      initialWidth: NODE_WIDTH, initialHeight: boxHeight,
     };
   });
   return { nodes, edges };

@@ -8,7 +8,7 @@ import {
 } from "../../../pages/dma/erdEdit/panels/DbDiffApply";
 import type { ErdDbDiffView, ErdDiffApplyResult, ErdRejection } from "../../../pages/dma/erdEdit/types";
 import { flush, settleGrid } from "../../dme/helpers/render";
-import { ALL_RIGHTS, NO_MODEL_RIGHTS, READ_ONLY, confirmButton, fakeCtx, inDoc, installStorage, mount, stubOasis, type Mounted } from "./grid-fixtures";
+import { ALL_RIGHTS, NO_MODEL_RIGHTS, READ_ONLY_SHORT, confirmButton, fakeCtx, inDoc, installStorage, mount, stubOasis, type Mounted } from "./grid-fixtures";
 
 const COL = "COLUMN_CHANGED:TB_MCM_SEC_MENU.MENU_NM";
 const DROP = "TABLE_REMOVED:TB_MCM_SEC_OBJ";
@@ -27,7 +27,7 @@ const SUMMARY = { items: 2, tablesAdded: 0, tablesRemoved: 0, columnsAdded: 0, c
 const APPLY_OK: ErdDiffApplyResult = { applied: true, rev: 4, rowVersion: 2, changes: [], warnings: [], rejection: null, summary: SUMMARY };
 const STALE: ErdRejection = { code: "INVALID", commandIndex: 0, message: "차이 목록에 없거나 함께 골라야 할 항목이 빠진 항목 1개가 있습니다",
   hint: "compare kind=DB_DIFF 로 차이를 다시 읽고 고르세요", elementId: COL, property: "itemsJson", byRev: null, bySession: null,
-  byUserId: null, current: null, choices: [COL], ownerId: null };
+  byUserId: null, current: null, choices: [COL], ownerId: null, userHint: "차이를 다시 읽은 뒤 항목을 다시 고르세요." };
 
 const originalFetch = globalThis.fetch;
 let view: Mounted | null = null;
@@ -86,25 +86,31 @@ describe("다시 가져오기 반영 — 순수 함수", () => {
   });
 
   it("결과 요약은 0 이 아닌 칸만 적고, 지운 요소 수를 붙인다", () => {
-    expect(applySummaryText(4, SUMMARY)).toBe("rev 4 에 2건을 반영했습니다 — 컬럼 바뀜 1 · DB FK 표시 1");
-    expect(applySummaryText(9, { ...SUMMARY, items: 1, columnsChanged: 0, dbFkSet: 0, tablesRemoved: 1, removedIds: ["t-2", "c-3", "k-2"] }))
-      .toBe("rev 9 에 1건을 반영했습니다 — 표 삭제 1 · 지운 요소 3개");
+    expect(applySummaryText(SUMMARY)).toBe("2건을 가져왔습니다 — 컬럼 바뀜 1 · DB FK 표시 1");
+    expect(applySummaryText({ ...SUMMARY, items: 1, columnsChanged: 0, dbFkSet: 0, tablesRemoved: 1, removedIds: ["t-2", "c-3", "k-2"] }))
+      .toBe("1건을 가져왔습니다 — 표 삭제 1 · 지운 요소 3개");
   });
 
   it("단추를 막는 이유는 권한 → 고른 수 → 상한 → 대기 묶음 순서다", () => {
     const none = new Set<string>();
-    expect(applyBlockReason({ rights: NO_MODEL_RIGHTS, pendingIds: none }, 3)).toBe(READ_ONLY);
-    expect(applyBlockReason({ rights: ALL_RIGHTS, pendingIds: none }, 0)).toBe("반영할 항목을 고르세요.");
-    expect(applyBlockReason({ rights: ALL_RIGHTS, pendingIds: none }, APPLY_LIMIT + 1)).toBe("한 번에 500건까지 반영합니다. 나눠서 고르세요.");
-    expect(applyBlockReason({ rights: ALL_RIGHTS, pendingIds: new Set(["c-1"]) }, 1)).toBe("보내는 중인 변경이 끝난 뒤 반영하세요.");
+    expect(applyBlockReason({ rights: NO_MODEL_RIGHTS, pendingIds: none }, 3)).toBe(`읽기 전용 — ${READ_ONLY_SHORT}`);
+    expect(applyBlockReason({ rights: ALL_RIGHTS, pendingIds: none }, 0)).toBe("항목을 먼저 고르세요.");
+    expect(applyBlockReason({ rights: ALL_RIGHTS, pendingIds: none }, APPLY_LIMIT + 1)).toBe("한 번에 500건까지 가져옵니다. 나눠서 고르세요.");
+    expect(applyBlockReason({ rights: ALL_RIGHTS, pendingIds: new Set(["c-1"]) }, 1)).toBe("보내는 중인 변경이 끝난 뒤 가져오세요.");
     expect(applyBlockReason({ rights: ALL_RIGHTS, pendingIds: none }, 1)).toBeNull();
   });
 
-  it("거절 문구는 message — hint 이고, 낡은 항목 거절이면 낡은 id 를 꺼낸다", () => {
-    expect(rejectionLine(STALE)).toBe("차이 목록에 없거나 함께 골라야 할 항목이 빠진 항목 1개가 있습니다 — compare kind=DB_DIFF 로 차이를 다시 읽고 고르세요");
+  it("거절 문구는 message — userHint 이고 기계용 hint 는 보이지 않는다", () => {
+    const r: ErdRejection = { ...STALE, hint: "getChangesSince(3) 로 다시 읽으세요", userHint: "화면이 낡았습니다. 새로 읽은 뒤 다시 하세요." };
+    expect(rejectionLine(r)).toContain("화면이 낡았습니다");
+    expect(rejectionLine(r)).not.toContain("getChangesSince");
+  });
+
+  it("거절 문구는 userHint 가 없으면 message 뿐이고, 낡은 항목 거절이면 낡은 id 를 꺼낸다", () => {
+    expect(rejectionLine({ ...STALE, userHint: null })).toBe("차이 목록에 없거나 함께 골라야 할 항목이 빠진 항목 1개가 있습니다");
     expect(staleIdsOf(STALE)).toEqual([COL]);
     expect(staleIdsOf({ ...STALE, code: "CONFLICT" })).toEqual([]);
-    expect(rejectionLine(null)).toBe("반영이 거절되었습니다.");
+    expect(rejectionLine(null)).toBe("가져오기가 거절되었습니다.");
   });
 });
 
@@ -114,7 +120,9 @@ describe("다시 가져오기 반영 — 화면", () => {
     const f = fakeCtx();
     const onReload = await open(f.ctx);
     expect(runBtn().disabled).toBe(true);
-    expect(inDoc("erd-diff-apply-note")!.textContent).toBe("반영할 항목을 고르세요.");
+    expect(inDoc("erd-diff-apply-note")!.textContent).toBe("항목을 먼저 고르세요.");
+    expect(runBtn().textContent).toBe("고른 항목 가져오기");
+    expect(inDoc("erd-diff-apply-tip")!.title).toBe("항목을 먼저 고르세요.");
     await check(FK);
     await check(COL);
     expect(inDoc("erd-diff-apply-note")!.textContent).toBe("고른 2건: 컬럼 다름 1 · DB 에 생긴 FK 1");
@@ -124,7 +132,8 @@ describe("다시 가져오기 반영 — 화면", () => {
     const req = calls.find((c) => c.action === "import")!.params;
     expect(req).toMatchObject({ modelId: "mcm", kind: "APPLY_DIFF", baseRev: 3, session: "ui-test0001", source: "UI" });
     expect(JSON.parse(String(req.itemsJson))).toEqual([COL, FK]);
-    expect(inDoc("erd-diff-apply-result")!.textContent).toBe("rev 4 에 2건을 반영했습니다 — 컬럼 바뀜 1 · DB FK 표시 1");
+    expect(inDoc("erd-diff-apply-result")!.textContent).toBe("2건을 가져왔습니다 — 컬럼 바뀜 1 · DB FK 표시 1");
+    expect(inDoc("erd-diff-apply-result")!.title).toBe("변경 번호 4");
     expect(onReload).toHaveBeenCalledTimes(1);
     expect(box(COL).checked).toBe(false);
   });
@@ -165,7 +174,7 @@ describe("다시 가져오기 반영 — 화면", () => {
     await act(async () => runBtn().click());
     await flush();
     await flush();
-    expect(f.notify).toHaveBeenCalledWith("차이 목록에 없거나 함께 골라야 할 항목이 빠진 항목 1개가 있습니다 — compare kind=DB_DIFF 로 차이를 다시 읽고 고르세요", "error");
+    expect(f.notify).toHaveBeenCalledWith("차이 목록에 없거나 함께 골라야 할 항목이 빠진 항목 1개가 있습니다 — 차이를 다시 읽은 뒤 항목을 다시 고르세요.", "error");
     expect(inDoc("erd-diff-apply-stale")!.textContent).toBe("고른 항목 중 1건을 넣을 수 없습니다(차이 목록에 없거나 함께 고를 항목이 빠짐). 차이를 다시 읽었으니 다시 고르세요.");
     expect(inDoc("erd-diff-apply-result")).toBeNull();
     expect(onReload).toHaveBeenCalledTimes(1);
@@ -176,12 +185,13 @@ describe("다시 가져오기 반영 — 화면", () => {
     await open(fakeCtx({ pendingIds: new Set(["c-1"]) }).ctx);
     await check(COL);
     expect(runBtn().disabled).toBe(true);
-    expect(inDoc("erd-diff-apply-note")!.textContent).toBe("고른 1건: 컬럼 다름 1 — 보내는 중인 변경이 끝난 뒤 반영하세요.");
+    expect(inDoc("erd-diff-apply-note")!.textContent).toBe("고른 1건: 컬럼 다름 1 — 보내는 중인 변경이 끝난 뒤 가져오세요.");
     view!.unmount();
     view = null;
     await open(fakeCtx({ rights: NO_MODEL_RIGHTS }).ctx);
     expect(runBtn().disabled).toBe(true);
-    expect(inDoc("erd-diff-apply-note")!.textContent).toBe(READ_ONLY);
+    expect(inDoc("erd-diff-apply-note")!.textContent).toBe(`읽기 전용 — ${READ_ONLY_SHORT}`);
+    expect(inDoc("erd-diff-apply-tip")!.title).toBe(`읽기 전용 — ${READ_ONLY_SHORT}`);
   });
 
   it("모델을 바꾼 뒤 늦게 온 응답은 버린다", async () => {

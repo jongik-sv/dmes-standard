@@ -45,7 +45,8 @@ public class ErdReloadMarker {
         // 표시 행 USER_ID 는 50자다(감사 칼럼은 100자). 넘거나 비면 SYSTEM 으로 남긴다 — 표시 때문에 삭제·copy 가 S001 이 되지 않게.
         String who = userId == null || userId.isBlank() || userId.length() > MAX_USER_ID ? ErdDelta.MARKER_SOURCE : userId;
         log.insertMarker(modelId, rev, ver, who, reason);
-        ErdDelta marker = new ErdDelta(modelId, rev, who, ErdDelta.MARKER_SESSION, ErdDelta.MARKER_SOURCE, List.of());
+        ErdDelta marker = new ErdDelta(modelId, rev, who, ErdDelta.MARKER_SESSION, ErdDelta.MARKER_SOURCE, null, List.of(),
+                ErdDelta.atOf(java.time.LocalDateTime.now()));
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {

@@ -20,6 +20,7 @@ import { MDM_OASIS_BASE, plainError } from "@/oasis-screen";
 import { previewName } from "../api";
 import { isAuditColumn } from "../audit-columns";
 import type { ErdEditContext } from "../edit-context";
+import { shortReason } from "../state/permissions";
 import type { ErdColumnStatus, ErdCommandJson, ErdModelJson, ErdNamePreview } from "../types";
 import { TOKEN_STATUS_LABEL, TokenChoiceModal, toTokenChoices, tokenTone, type TokenChoice } from "./TokenChoiceModal";
 
@@ -113,6 +114,7 @@ const ROW: CSSProperties = { display: "flex", alignItems: "center", gap: "var(--
 const GROW: CSSProperties = { flex: 1, minWidth: 0 };
 const LINE: CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "var(--spacing-xs)", minHeight: 20,
   fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" };
+const WARN: CSSProperties = { fontSize: "var(--font-size-xs)", color: "var(--color-warning)" };
 const MUTED: CSSProperties = { fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" };
 const ERROR: CSSProperties = { fontSize: "var(--font-size-xs)", color: "var(--color-danger)" };
 const TARGET: CSSProperties = { ...GROW, fontSize: "var(--font-size-sm)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
@@ -134,7 +136,10 @@ export function GridInputBar({ ctx, tableId, focusColumnId, handle, onAdded, ren
   ctxRef.current = ctx;
   const [text, setText] = useState("");
   const [kind, setKind] = useState<AddKind>("add");
-  const [withPhysName, setWithPhysName] = useState(true);
+  // [물리명도] 는 기본 끔이다 — 컬럼을 고를 때마다 끔으로 돌아간다(U37). 조용히 물리명이 바뀌어 DB 와 달라지는 일을 막는다.
+  // 켠 컬럼 id 를 기억한다 — 다른 컬럼으로 옮기면 값이 달라져 저절로 꺼지므로 한 프레임도 옛 켜짐이 남지 않는다.
+  const [physFor, setPhysFor] = useState<string | null>(null);
+  const withPhysName = physFor !== null && physFor === focusColumnId;
   const [busy, setBusy] = useState(false);
   const [choice, setChoice] = useState<Choice | null>(null);
   const lastNewId = useRef<string | null>(null);
@@ -291,7 +296,7 @@ export function GridInputBar({ ctx, tableId, focusColumnId, handle, onAdded, ren
     domainId == null ? "" : ctx.status?.domains[String(domainId)]?.name ?? `도메인 ${domainId}`;
   const h = ctx.highlight;
   const hText = h && (model.columns[h.elementId]?.table === tableId || h.elementId === lastNewId.current) ? h.message : null;
-  const reason = tableId === null ? "표를 고르면 컬럼을 더할 수 있습니다." : ctx.rights.model.ok ? null : ctx.rights.model.reason ?? "모델을 고칠 수 없습니다.";
+  const reason = tableId === null ? "표를 고르면 컬럼을 더할 수 있습니다." : ctx.rights.model.ok ? null : `읽기 전용 — ${shortReason(ctx.rights.model.reason ?? "모델을 고칠 수 없습니다.")}`;
   const needTokens = shown?.preview?.tokens.some((t) => !settledStatus(t.status)) ?? false;
 
   return (
@@ -339,6 +344,11 @@ export function GridInputBar({ ctx, tableId, focusColumnId, handle, onAdded, ren
           {hText}
         </div>
       )}
+      {withPhysName && settled && focusCol && settled.physName !== focusCol.phys && (
+        <div data-testid="erd-grid-phys-warn" style={WARN}>
+          물리명도 {focusCol.phys} → {settled.physName} 으로 바뀝니다(DB 와 달라짐)
+        </div>
+      )}
       {reason && (
         <div data-testid="erd-grid-reason" style={MUTED}>
           {reason}
@@ -351,7 +361,7 @@ export function GridInputBar({ ctx, tableId, focusColumnId, handle, onAdded, ren
             <Button size="sm" data-testid="erd-grid-rename" disabled={focusLocked || busy || text.trim() === ""} onClick={rename}>
               논리명 바꾸기
             </Button>
-            <Checkbox aria-label="물리명도 바꾸기" label="물리명도" checked={withPhysName} disabled={focusLocked} onChange={setWithPhysName} />
+            <Checkbox aria-label="물리명도 바꾸기" label="물리명도" checked={withPhysName} disabled={focusLocked} onChange={(on) => setPhysFor(on ? focusColumnId : null)} />
           </div>
           <div style={ROW}>
             <span style={MUTED}>도메인</span>

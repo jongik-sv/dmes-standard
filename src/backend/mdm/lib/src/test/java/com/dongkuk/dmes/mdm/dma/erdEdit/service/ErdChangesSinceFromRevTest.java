@@ -55,6 +55,19 @@ class ErdChangesSinceFromRevTest {
         verify(log, never()).lastMarker(anyString(), anyLong(), anyLong());
     }
 
+    /** U22: 기록 저장소가 at 을 준 델타는 변경 기록 응답에 그 시각 그대로 실린다. */
+    @Test
+    void deltaAtPassesThroughToView() {
+        when(store.rev(MODEL)).thenReturn(40L);
+        ErdDelta d = new ErdDelta(MODEL, 40, "admin", "ui-a", "UI", null, List.of(), "2026-10-11T14:03:00");
+        when(log.since(MODEL, 38, 40)).thenReturn(Optional.of(List.of(d)));
+
+        ErdChangesView v = service.changesSince(MODEL, 38);
+
+        assertThat(v.deltas()).hasSize(1);
+        assertThat(v.deltas().get(0).at()).isEqualTo("2026-10-11T14:03:00");
+    }
+
     @Test
     void markerInsideSpanGivesMarkerRev() {
         // copy 로 만든 DRAFT: 표시 행 rev 38, 지금 rev 40. sinceRev 0 은 표시 행을 넘으므로 reload, fromRev=38.

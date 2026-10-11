@@ -4,8 +4,8 @@
 import { vi } from "vitest";
 
 import type { ApplyOutcome, ErdEditContext, ErdNotice, Right } from "../../../pages/dma/erdEdit/edit-context";
-import type { ErdCommandJson } from "../../../pages/dma/erdEdit/types";
-import { MENU_DIAGRAMS, fakeEditContext, menuModel, stateOf } from "./erd-fixtures";
+import type { ErdCommandJson, ErdModelJson, ErdState } from "../../../pages/dma/erdEdit/types";
+import { MENU_DIAGRAMS, emptyModel, fakeEditContext, menuModel, relation, stateOf, table } from "./erd-fixtures";
 
 export const OK: Right = { ok: true, reason: null };
 export const deny = (reason: string): Right => ({ ok: false, reason });
@@ -44,4 +44,37 @@ export function fakeCtx(over: Partial<ErdEditContext> = {}): FakeCtx {
     ...over,
   });
   return { ...ctx, applied, outcomes };
+}
+
+/**
+ * MCM 모양 모델 표 57개(주제별 나누기 시험용). TB_MCM_SEC_* 12(관계 없음), TB_MCM_CODE_* 3(SEC 와 관계 2개), TB_MCM_JOB_* 25(관계 묶음 15 + 10),
+ * 기타 17(각자 다른 첫 토막, 관계 없음). 표 id 는 `t-<물리명 접미>` 소문자.
+ */
+export function mcmModel(): ErdModelJson {
+  const m = emptyModel();
+  const add = (phys: string) => {
+    const id = `t-${phys.slice("TB_MCM_".length).toLowerCase()}`;
+    m.tables[id] = table(phys, phys, []);
+    return id;
+  };
+  const two = (n: number) => String(n).padStart(2, "0");
+  let rel = 0;
+  const link = (parent: string, child: string) => {
+    m.relations[`r-${++rel}`] = relation(child, parent, []);
+  };
+  const sec = Array.from({ length: 12 }, (_, i) => add(`TB_MCM_SEC_${two(i + 1)}`));
+  const code = Array.from({ length: 3 }, (_, i) => add(`TB_MCM_CODE_${two(i + 1)}`));
+  link(sec[0], code[0]);
+  link(sec[0], code[1]);
+  const jobA = Array.from({ length: 15 }, (_, i) => add(`TB_MCM_JOB_A${two(i + 1)}`));
+  for (let i = 1; i < jobA.length; i++) link(jobA[i - 1], jobA[i]);
+  const jobB = Array.from({ length: 10 }, (_, i) => add(`TB_MCM_JOB_B${two(i + 1)}`));
+  for (let i = 1; i < jobB.length; i++) link(jobB[i - 1], jobB[i]);
+  for (let i = 0; i < 17; i++) add(`TB_MCM_X${two(i + 1)}`);
+  return m;
+}
+
+/** mcmModel 을 담은 상태. 다이어그램 d-all(표 없음) 하나. */
+export function mcmState(): ErdState {
+  return stateOf(mcmModel(), { diagrams: [{ id: "d-all", areaName: "기본", diagramName: "전체", sortSeq: 0 }], nodes: [] });
 }

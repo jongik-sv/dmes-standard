@@ -6,7 +6,7 @@ import type { ErdEditContext } from "../../../pages/dma/erdEdit/edit-context";
 import { ColumnGrid, requestColumnFocus } from "../../../pages/dma/erdEdit/panels/ColumnGrid";
 import { flush, selectValue, settleGrid, typeInto } from "../../dme/helpers/render";
 import {
-  APPLIED, NO_MODEL_RIGHTS, READ_ONLY, conflict, fakeCtx, inDoc, installStorage, key, mount, needsChoice, previewOf, stubOasis, wait,
+  APPLIED, NO_MODEL_RIGHTS, READ_ONLY_SHORT, conflict, fakeCtx, inDoc, installStorage, key, mount, needsChoice, previewOf, stubOasis, wait,
   type Mounted,
 } from "./grid-fixtures";
 import { MENU_DIAGRAMS, column, menuModel, stateOf } from "./erd-fixtures";
@@ -144,7 +144,7 @@ describe("컬럼 그리드 편집", () => {
     expect(inDoc("erd-grid-phys")!.textContent).toBe("MENU_NM");
   });
 
-  it("고른 컬럼의 논리명을 바꾸면서 미리보기 물리명도 함께 바꾼다", async () => {
+  it("고른 컬럼의 논리명을 바꾸면서 [물리명도] 를 켜면 미리보기 물리명도 함께 바꾼다", async () => {
     stubOasis({ "erdEdit/compare": () => previewOf("MENU_NAME", { logicalName: "메뉴 이름" }) });
     const f = fakeCtx();
     await open(f.ctx);
@@ -153,6 +153,8 @@ describe("컬럼 그리드 편집", () => {
     expect(inDoc("erd-grid-target")!.textContent).toBe("MENU_NM");
     await typeInto(input(), "메뉴이름");
     await wait(400);
+    // [물리명도] 는 기본 끔이다(U37) — 켜야 물리명도 함께 바뀐다.
+    await act(async () => view!.host.querySelector<HTMLInputElement>('[data-testid="erd-grid-bar"] input[type="checkbox"]')!.click());
     await act(async () => inDoc<HTMLButtonElement>("erd-grid-rename")!.click());
     await flush();
     expect(f.apply).toHaveBeenCalledWith([{ op: "updateColumn", id: "c-4", set: { logical: "메뉴이름", phys: "MENU_NAME" } }], "논리명 바꾸기");
@@ -187,7 +189,7 @@ describe("컬럼 그리드 편집", () => {
     const f = fakeCtx({ rights: NO_MODEL_RIGHTS });
     await open(f.ctx);
     expect(input().disabled).toBe(true);
-    expect(inDoc("erd-grid-reason")!.textContent).toBe(READ_ONLY);
+    expect(inDoc("erd-grid-reason")!.textContent).toBe(`읽기 전용 — ${READ_ONLY_SHORT}`);
     await key(inDoc("erd-columns")!, { key: "Enter", ctrlKey: true });
     expect(f.apply).not.toHaveBeenCalled();
   });

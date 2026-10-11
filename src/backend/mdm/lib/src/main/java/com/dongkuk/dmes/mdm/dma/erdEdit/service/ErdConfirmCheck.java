@@ -11,6 +11,7 @@ import com.dongkuk.dmes.mdm.contract.version.VersionDiff;
 import com.dongkuk.dmes.mdm.contract.version.VersionDiffEntry;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
+import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdAuditColumns;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdColumn;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdModel;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdModelCodec;
@@ -26,8 +27,8 @@ import java.util.Set;
 import org.springframework.stereotype.Component;
 
 /**
- * ERD_MODEL 확정 검사(스펙 D19) — 직전 RELEASED 와 견줘 추가·변경한 컬럼의 표준 위반(TYPE·DOMAIN·MISS)만 막는다. 옛 위반과 검토하지
- * 않은 추정(INFERRED) 관계는 경고다. 사전은 검사 한 번에 한 번만 읽는다(I26).
+ * ERD_MODEL 확정 검사(스펙 D19) — 직전 RELEASED 와 견줘 추가·변경한 컬럼의 표준 위반(TYPE·DOMAIN·MISS)만 막는다. 옛 위반·감사
+ * 컬럼 위반과 검토하지 않은 추정(INFERRED) 관계는 경고다. 사전은 검사 한 번에 한 번만 읽는다(I26).
  */
 @Component
 public class ErdConfirmCheck implements VersionConfirmCheckSpi {
@@ -87,7 +88,14 @@ public class ErdConfirmCheck implements VersionConfirmCheckSpi {
         // D19 + 판정 R8-1: RELEASED 가 없으면(가져온 모델의 첫 버전) 비교 기준이 없어 모든 컬럼이 "추가" 로 잡힌다. 옛 위반이 첫 확정을
         // 막지 않도록 이때는 표준 위반을 전부 경고로만 알린다. 막는 규칙은 두 번째 버전부터 적용한다.
         boolean firstVersion = diff.base() == null;
-        Map<String, ErdColumnStatus> statuses = ErdStandardJudge.judge(now, dictionaries.load());
+        return classify(now, ErdStandardJudge.judge(now, dictionaries.load()), changed, firstVersion);
+    }
+
+    /**
+     * 확정 검사 판정(순수). D19: 첫 버전은 모두 경고. 감사 컬럼(ErdAuditColumns) 위반은 늘 경고다 — 표를 만들 때 자동으로 붙는 컬럼이라
+     * 사용자가 고칠 수 없어 확정을 막지 않는다(UX 1차 U29, 사용자 결정 10-11).
+     */
+    static ConfirmCheckResult classify(ErdModel now, Map<String, ErdColumnStatus> statuses, Set<String> changed, boolean firstVersion) {
         List<MdmCheckIssue> errors = new ArrayList<>();
         List<MdmCheckIssue> warnings = new ArrayList<>();
         statuses.forEach((id, st) -> {
@@ -96,7 +104,8 @@ public class ErdConfirmCheck implements VersionConfirmCheckSpi {
             ErdTable t = now.tables.get(c.table);
             String where = (t == null ? c.table : t.phys) + "." + c.phys;
             MdmCheckIssue issue = new MdmCheckIssue("ERD_STD_" + st.name(), where + " 표준 위반(" + st.name() + ")", "column", id);
-            (!firstVersion && changed.contains(id) ? errors : warnings).add(issue);
+            boolean blocks = !firstVersion && changed.contains(id) && !ErdAuditColumns.isAudit(c.phys);
+            (blocks ? errors : warnings).add(issue);
         });
         long inferred = now.relations.values().stream().filter(r -> "INFERRED".equals(r.state)).count();
         if (inferred > 0) {

@@ -63,6 +63,15 @@ describe("buildFlow", () => {
     expect(n.violations).toBe(2);
   });
 
+  it("노드 위반 수는 U25 규칙 — 감사 컬럼 위반은 감사 보기를 켰을 때만 센다", () => {
+    const m = menuModel();
+    m.columns["c-4"].phys = "C_AT";
+    const statuses: Record<string, ErdColumnStatus> = { "c-2": "MISS", "c-4": "DOMAIN" };
+    const state = stateOf(m, MENU_DIAGRAMS);
+    expect(buildFlow(input({ state, statuses, showAudit: false })).nodes[0].data.violations).toBe(1);
+    expect(buildFlow(input({ state, statuses, showAudit: true })).nodes[0].data.violations).toBe(2);
+  });
+
   it("기각·접힌 후보·다른 모델 부모는 그리지 않고, 1순위 후보에 접힌 후보 수를 단다", () => {
     const f = buildFlow(input({ state: hubState() }));
     expect(f.edges.map((e) => e.id)).toEqual(["r-1", "r-3"]);
@@ -101,6 +110,29 @@ describe("buildFlow", () => {
     expect(f.nodes[0].data.rows[0].handles).toEqual([]);
     expect(buildFlow(input({ namesOnly: true })).edges[0]).toMatchObject({ sourceHandle: "tbl|R|s", targetHandle: "tbl|L|t" });
     expect(buildFlow(input({ preset: "overview" })).edges[0]).toMatchObject({ sourceHandle: "tbl|R|s", targetHandle: "tbl|L|t" });
+  });
+
+  /** menuModel 의 t-2(부모)를 (x, y) 로 옮긴 상태. t-1(자식)은 (0, 0). */
+  const parentAt = (x: number, y: number): ErdState => stateOf(menuModel(), {
+    ...MENU_DIAGRAMS,
+    nodes: MENU_DIAGRAMS.nodes.map((n) => (n.table === "t-2" ? { ...n, x, y } : n)),
+  });
+
+  it("위아래로 쌓인(가로로 겹친) 표는 둘 다 오른쪽 변에 붙는다 — 컬럼 손잡이·표 머리 손잡이 모두", () => {
+    const f = buildFlow(input({ state: parentAt(20, 300) }));
+    expect(f.edges[0]).toMatchObject({ sourceHandle: "c-2|R|s", targetHandle: "c-3|R|t" });
+    expect(f.nodes[0].data.rows[1].handles).toEqual([{ id: "c-2|R|s", type: "source", side: "R" }]);
+    expect(f.nodes[1].data.rows[0].handles).toEqual([{ id: "c-3|R|t", type: "target", side: "R" }]);
+    expect(buildFlow(input({ state: parentAt(20, 300), namesOnly: true })).edges[0]).toMatchObject({ sourceHandle: "tbl|R|s", targetHandle: "tbl|R|t" });
+    expect(buildFlow(input({ state: parentAt(20, 300), preset: "overview" })).edges[0]).toMatchObject({ sourceHandle: "tbl|R|s", targetHandle: "tbl|R|t" });
+  });
+
+  it("부모가 자식 왼쪽 멀리면 자식 왼쪽 → 부모 오른쪽, 경계(빈 폭 8)에서는 같은 변이고 10px 더 멀면 마주 본다", () => {
+    expect(buildFlow(input({ state: parentAt(-400, 0) })).edges[0]).toMatchObject({ sourceHandle: "c-2|L|s", targetHandle: "c-3|R|t" });
+    expect(buildFlow(input({ state: parentAt(248, 0) })).edges[0]).toMatchObject({ sourceHandle: "c-2|R|s", targetHandle: "c-3|R|t" });
+    expect(buildFlow(input({ state: parentAt(258, 0) })).edges[0]).toMatchObject({ sourceHandle: "c-2|R|s", targetHandle: "c-3|L|t" });
+    // 좁은 틈(빈 폭 40)도 마주 본다 — 같은 변 ㄷ 모양이 옆 표를 가로지르지 않게.
+    expect(buildFlow(input({ state: parentAt(280, 0) })).edges[0]).toMatchObject({ sourceHandle: "c-2|R|s", targetHandle: "c-3|L|t" });
   });
 
   it("축소 여부만 바뀌면 노드는 모두 이전 참조를 쓰고, 선택이 바뀐 노드만 새 참조다", () => {

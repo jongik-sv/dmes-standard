@@ -8,11 +8,14 @@ import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 
 import type { ApplyOutcome, EditRights, ErdEditContext, ErdNotice } from "../../../pages/dma/erdEdit/edit-context";
 import type { ErdCommandJson, ErdNamePreview } from "../../../pages/dma/erdEdit/types";
+import { RELEASED_TEXT } from "../../../pages/dma/erdEdit/state/permissions";
 import { MENU_DIAGRAMS, fakeEditContext, menuModel, stateOf } from "./erd-fixtures";
 
 const OK = { ok: true, reason: null };
 export const ALL_RIGHTS: EditRights = { model: OK, diagram: OK, confirm: OK, manageEditors: OK, owner: true };
-export const READ_ONLY = "확정된 버전이라 모델을 고칠 수 없습니다. [새 버전]으로 DRAFT 를 만드세요.";
+/** 서버·권한 판정이 주는 긴 이유(state/permissions RELEASED_TEXT) — 화면은 shortReason 으로 줄여 쓴다(U19). */
+export const READ_ONLY = RELEASED_TEXT;
+export const READ_ONLY_SHORT = "확정된 버전";
 export const NO_MODEL_RIGHTS: EditRights = { ...ALL_RIGHTS, model: { ok: false, reason: READ_ONLY } };
 
 export const APPLIED: ApplyOutcome = { ok: true, rev: 4, warnings: [] };

@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.dma.erdEdit.engine;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
@@ -26,6 +27,12 @@ public record ErdRejection(String code, int commandIndex, String message, String
     public ErdRejection(String code, int commandIndex, String message, String hint, String elementId,
                         String property, Long byRev, String bySession, JsonNode current, JsonNode choices) {
         this(code, commandIndex, message, hint, elementId, property, byRev, bySession, null, current, choices, null);
+    }
+
+    /** 사람용 다음 할 일(UX 1차 U27). JSON 에만 나간다(읽기 전용) — 생성자·hint 는 그대로. 맞는 글이 없으면 null. */
+    @JsonProperty(value = "userHint", access = JsonProperty.Access.READ_ONLY)
+    public String userHint() {
+        return ErdUserHints.of(code, hint, ownerId);
     }
 
     public ErdRejection withByUserId(String userId) {

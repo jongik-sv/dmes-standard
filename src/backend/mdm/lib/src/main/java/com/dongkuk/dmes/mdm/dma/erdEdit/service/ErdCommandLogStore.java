@@ -67,16 +67,23 @@ public class ErdCommandLogStore {
         if (currentRev - sinceRev > MAX_REPLAY) return Optional.empty();
         @SuppressWarnings("unchecked")
         List<Object[]> rows = em.createNativeQuery("""
-                SELECT REV, USER_ID, SESSION_NM, SOURCE, CHANGES_JSON FROM TB_MDM_ERD_CMD_LOG
+                SELECT REV, USER_ID, SESSION_NM, SOURCE, CHANGES_JSON, C_AT FROM TB_MDM_ERD_CMD_LOG
                  WHERE ERD_MODEL_ID = ? AND REV > ? AND REV <= ? ORDER BY REV""")
                 .setParameter(1, modelId).setParameter(2, sinceRev).setParameter(3, currentRev).getResultList();
         List<ErdDelta> out = new ArrayList<>();
         for (Object[] r : rows) {
             if (ErdDelta.MARKER_SOURCE.equals(r[3])) return Optional.empty();
             out.add(new ErdDelta(modelId, ((Number) r[0]).longValue(), (String) r[1], (String) r[2], (String) r[3],
-                    read(clob(r[4]))));
+                    null, read(clob(r[4])), atOf(r[5])));
         }
         return Optional.of(out);
+    }
+
+    /** C_AT(네이티브 조회는 보통 java.sql.Timestamp, 설정에 따라 LocalDateTime) → 델타 시각 문자열. 비었거나 모르는 형이면 null. */
+    private static String atOf(Object v) {
+        if (v instanceof java.sql.Timestamp t) return ErdDelta.atOf(t.toLocalDateTime());
+        if (v instanceof java.time.LocalDateTime t) return ErdDelta.atOf(t);
+        return null;
     }
 
     /** afterRev 뒤 currentRev 까지 사이 마지막 표시 행의 rev(변경 기록 fromRev — 그 rev 를 sinceRev 로 주면 표시 행을 넘는다). */

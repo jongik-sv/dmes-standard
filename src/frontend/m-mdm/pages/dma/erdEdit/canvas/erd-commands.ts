@@ -85,6 +85,30 @@ export function tablePhysError(model: ErdModelJson, phys: string): string | null
   return null;
 }
 
+const TABLE_PREFIX = /^TB_[A-Z0-9]+_/;
+
+/**
+ * 모델의 표 접두(U40·U52 공용). 물리명이 `TB_<X>_` 로 시작하는 표를 세어, 가장 흔한 접두가 표 수의 절반을 넘으면 그것, 아니면 "".
+ * 같은 수면 접두 글자순으로 앞선 것을 고른다(같은 모델이면 같은 결과).
+ */
+export function tablePrefix(model: ErdModelJson): string {
+  const tables = Object.values(model.tables);
+  const count = new Map<string, number>();
+  for (const t of tables) {
+    const m = TABLE_PREFIX.exec(t.phys);
+    if (m) count.set(m[0], (count.get(m[0]) ?? 0) + 1);
+  }
+  let best = "";
+  let bestCount = 0;
+  for (const [prefix, n] of count) {
+    if (n > bestCount || (n === bestCount && prefix < best)) {
+      best = prefix;
+      bestCount = n;
+    }
+  }
+  return bestCount * 2 > tables.length ? best : "";
+}
+
 export type NameClashMode = "ASK" | "REUSE" | "RENAME";
 
 /** 관계 추가. pairs 를 싣지 않으면 서버가 부모 PK 를 자식에 복사하고, 식별이면 자식 PK 에 넣는다(스펙 4.1·D7). */
