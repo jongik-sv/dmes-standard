@@ -220,6 +220,10 @@ try {
     // ⑤ 상세 폼 입력(R12): ③ 에서 고른 행의 상세 폼 칸에 글자를 친다. 저장 단추는 누르지 않는다.
     let inputChars = 0;
     if (screen.formInput) {
+      for (const sel of screen.formPrepare ?? []) {
+        const el = page.locator(`${VISIBLE_GRID}${sel}`).first();
+        if (await el.isVisible().catch(() => false)) { await el.click(); await settle(page); }
+      }
       const input = page.locator(`${VISIBLE_GRID}${screen.formInput}`).first();
       if (await input.isEditable().catch(() => false)) {
         await input.click();

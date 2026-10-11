@@ -12,7 +12,7 @@ export function isCountedViolation(
   model: ErdModelJson, columnId: string, statuses: Record<string, ErdColumnStatus>, showAudit: boolean,
 ): boolean {
   const s = statuses[columnId];
-  return s !== undefined && BLOCKING_STATUSES.has(s) && (showAudit || !isAuditColumnId(model, columnId));
+  return s !== undefined && model.columns[columnId] !== undefined && BLOCKING_STATUSES.has(s) && (showAudit || !isAuditColumnId(model, columnId));
 }
 
 export function countTableViolations(

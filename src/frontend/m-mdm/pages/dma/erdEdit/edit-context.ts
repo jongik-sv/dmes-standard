@@ -13,6 +13,8 @@ export interface ErdNotice {
   label: string; message: string; hint: string | null; commandIndex: number | null; elementId: string | null;
   property: string | null; byRev: number | null; byUserId: string | null; bySession: string | null;
   current: unknown; mine: unknown; choices: unknown;
+  /** 알림 띠 title(마우스를 올리면 보임). byRev 가 있으면 "번호 N" — 화면 글에서는 rev 를 빼고 여기에만 둔다(U32). 없어도 된다. */
+  title?: string | null;
 }
 export type ApplyOutcome = { ok: true; rev: number; warnings: ErdWarning[] } | { ok: false; notice: ErdNotice };
 
@@ -89,6 +91,8 @@ export function localNotice(code: ErdNoticeCode, message: string, hint: string |
 /**
  * 서버 거절 → 알림(스펙 4.5). 바꾼 사람은 사용자 ID(byUserId), 없으면 세션 이름이다(S2-13).
  * mine 은 거절된 명령의 set[property] — CONFLICT 의 [내 값 복사] 가 쓴다.
+ * 안내(hint)는 사람용 userHint 만 쓴다. 서버 hint 는 LLM 용(getChangesSince 등 기계 용어)이라 화면에 보이지 않는다(U27).
+ * CONFLICT·NOT_FOUND 글에서 rev 를 빼고 번호는 title 로만 둔다(U32).
  */
 export function noticeFromRejection(r: ErdRejection | null, commands: readonly ErdCommandJson[]): ErdNotice {
   if (!r) return localNotice("INVALID", "서버가 묶음을 받아들이지 않았습니다.", "다시 보내 보세요. 계속되면 모델을 다시 읽으세요.");
@@ -98,11 +102,14 @@ export function noticeFromRejection(r: ErdRejection | null, commands: readonly E
   const mine = r.property && set && r.property in set ? set[r.property] : null;
   const byUserId = r.byUserId ?? null;
   const who = byUserId ?? r.bySession ?? null;
+  const hint = r.userHint ?? null; // r.hint 는 쓰지 않는다(LLM 용)
+  const byRev = r.byRev ?? null;
   let message = r.message;
-  if (code === "CONFLICT" && r.byRev != null && who) message = `${who} 님이 rev ${r.byRev} 에서 먼저 바꿨습니다. 지금 값: ${valueText(r.current)}`;
-  if (code === "NOT_FOUND" && r.byRev != null && who) message = `${who} 님이 rev ${r.byRev} 에서 지웠습니다.`;
+  if (code === "CONFLICT" && who) message = `${who} 님이 먼저 바꿨습니다. 지금 값: ${valueText(r.current)}`;
+  if (code === "NOT_FOUND" && who) message = `${who} 님이 지웠습니다.`;
   return {
-    code, label: NOTICE_LABEL[code], message, hint: r.hint, commandIndex: r.commandIndex, elementId: r.elementId, property: r.property,
-    byRev: r.byRev ?? null, byUserId, bySession: r.bySession ?? null, current: r.current, mine, choices: r.choices,
+    code, label: NOTICE_LABEL[code], message, hint, commandIndex: r.commandIndex, elementId: r.elementId, property: r.property,
+    byRev, byUserId, bySession: r.bySession ?? null, current: r.current, mine, choices: r.choices,
+    title: byRev != null ? `번호 ${byRev}` : null,
   };
 }

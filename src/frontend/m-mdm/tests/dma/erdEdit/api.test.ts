@@ -62,6 +62,7 @@ describe("erdEdit api", () => {
 
   it("관계 확정은 save 에 commandsJson 문자열을 보내고, 거절은 던지지 않고 applied=false 로 돌려준다", async () => {
     const rejection = { code: "NOT_EDITOR", commandIndex: 0, message: "이 DRAFT 를 고칠 권한이 없습니다", hint: "소유자에게 공동 편집자 등록을 요청하세요",
+      userHint: "소유자에게 공동 편집자 등록을 요청하세요",
       elementId: null, property: null, byRev: null, bySession: null, current: null, choices: null, ownerId: "owner" };
     stub({ applied: false, rev: 0, changes: [], warnings: [], rejection });
     const r = await decideRelation("mcm", 0, "ui-abc", "confirmRelation", "r-1");

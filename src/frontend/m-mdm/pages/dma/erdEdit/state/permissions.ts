@@ -89,5 +89,5 @@ export function readOnlyKind(r: EditRights): ReadOnlyKind | null {
 export function blockedNotice(r: EditRights, connected: boolean, model: boolean): ErdNotice | null {
   if (!connected) return localNotice("NETWORK", LOST_TEXT);
   const right = model ? r.model : r.diagram;
-  return right.ok ? null : localNotice("NOT_EDITOR", right.reason ?? "지금은 고칠 수 없습니다.", "위 띠의 안내를 따르세요.");
+  return right.ok ? null : localNotice("NOT_EDITOR", right.reason ?? "지금은 고칠 수 없습니다.", "[읽기 전용] 표시를 눌러 이유를 보세요.");
 }

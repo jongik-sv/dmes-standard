@@ -17,7 +17,8 @@ export default function ErdEditPage() {
       <style href={ERD_STYLE_HREF} precedence="default">
         {ERD_CSS}
       </style>
-      <MdmPageLayout group="dma" screenId={SCREEN_ID} title="ERD 설계">
+      {/* 화면 제목 줄은 포털 탭 이름과 같아 숨긴다(U18, core-styles 의 .erd-page 규칙). 아래 꼬리(breadcrumb·화면 ID)는 그대로. */}
+      <MdmPageLayout group="dma" screenId={SCREEN_ID} title="ERD 설계" className="erd-page">
         <ErdViewer />
       </MdmPageLayout>
     </>

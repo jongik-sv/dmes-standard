@@ -164,8 +164,8 @@ export function confirmVersion(
   return erdCall("confirm", { modelId, ver, rowVersion, warningsAcknowledged, applyFrom });
 }
 
-/** 거절 문구 — 다음에 할 일(hint)까지 붙인다(스펙 4.5). */
+/** 거절 문구 — 사람용 안내(userHint)가 있으면 붙인다(스펙 4.5, U27). LLM 용 hint 는 보이지 않는다. */
 export function rejectionText(r: ErdRejection | null): string {
   if (!r) return "요청이 거절되었습니다.";
-  return r.hint ? `${r.message} — ${r.hint}` : r.message;
+  return r.userHint ? `${r.message} — ${r.userHint}` : r.message;
 }

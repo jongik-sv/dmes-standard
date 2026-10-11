@@ -15,16 +15,24 @@ const conflict: ErdRejection = {
 };
 
 describe("거절 → 알림(스펙 4.5, S2-13)", () => {
-  it("CONFLICT 는 바꾼 사용자·rev·지금 값을 문구로 쓰고, 거절된 명령의 set[property] 를 내 값으로 둔다", () => {
-    const n = noticeFromRejection(conflict, [{ op: "updateTable", id: "t-1", set: { logical: "메뉴" } }, { op: "updateColumn", id: "c-4", set: { logical: "메뉴이름" } }]);
+  it("CONFLICT 는 바꾼 사용자·지금 값을 문구로 쓰고(번호는 title 로만, U32), 거절된 명령의 set[property] 를 내 값으로 둔다", () => {
+    const n = noticeFromRejection({ ...conflict, userHint: "화면이 최신 값으로 바뀌었습니다. 확인한 뒤 다시 고치세요." },
+      [{ op: "updateTable", id: "t-1", set: { logical: "메뉴" } }, { op: "updateColumn", id: "c-4", set: { logical: "메뉴이름" } }]);
     expect(n).toMatchObject({ code: "CONFLICT", label: "충돌", elementId: "c-4", property: "logical", byRev: 215, byUserId: "41000207", mine: "메뉴이름" });
-    expect(n.message).toBe('41000207 님이 rev 215 에서 먼저 바꿨습니다. 지금 값: "역할설명"');
-    expect(n.hint).toBe(conflict.hint);
+    expect(n.message).toBe('41000207 님이 먼저 바꿨습니다. 지금 값: "역할설명"');
+    expect(n.title).toBe("번호 215");
+    expect(n.hint).toBe("화면이 최신 값으로 바뀌었습니다. 확인한 뒤 다시 고치세요.");
+  });
+
+  it("hint 만 있고 userHint 가 없으면(LLM 용 글뿐) 안내를 보이지 않는다(U27)", () => {
+    const n = noticeFromRejection(conflict, []);
+    expect(n.hint).toBeNull();
+    expect(noticeFromRejection({ ...conflict, byRev: null }, []).title).toBeNull();
   });
 
   it("byUserId 가 없으면(단계 1 서버) 세션 이름을 쓰고, 모르는 코드는 INVALID, 거절 본문이 없어도 알림을 만든다", () => {
     const old = { ...conflict, code: "NOT_FOUND", byUserId: undefined } as unknown as ErdRejection;
-    expect(noticeFromRejection(old, []).message).toBe("ui-ab12cd34 님이 rev 215 에서 지웠습니다.");
+    expect(noticeFromRejection(old, []).message).toBe("ui-ab12cd34 님이 지웠습니다.");
     expect(noticeFromRejection({ ...conflict, code: "WHATEVER" }, []).code).toBe("INVALID");
     expect(noticeFromRejection(null, []).code).toBe("INVALID");
     expect(isDiagramOp("moveNodes")).toBe(true);
@@ -66,7 +74,7 @@ describe("화면 권한 나누기(S2-20)", () => {
     expect(readOnlyBanner(lost)).toBeNull();
     expect(blockedNotice(lost, false, true)?.code).toBe("NETWORK");
     const released = editRights({ ...draft, status: "RELEASED" }, "tester", ALL, true);
-    expect(blockedNotice(released, true, true)).toMatchObject({ code: "NOT_EDITOR", message: RELEASED_TEXT });
+    expect(blockedNotice(released, true, true)).toMatchObject({ code: "NOT_EDITOR", message: RELEASED_TEXT, hint: "[읽기 전용] 표시를 눌러 이유를 보세요." });
     expect(blockedNotice(released, true, false)).toBeNull(); // 다이어그램 명령만이면 통과
     expect(editRights(draft, "tester", { ...ALL, loading: true }, true).model).toEqual({ ok: false, reason: null });
   });

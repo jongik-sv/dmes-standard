@@ -17,7 +17,7 @@ export function NoticeBar({ notice, onClose }: NoticeBarProps) {
   if (!notice) return null;
   const hasMine = notice.code === "CONFLICT" && notice.mine !== null && notice.mine !== undefined;
   return (
-    <div className="erd-notice" data-code={notice.code} role="alert" data-testid="erd-notice">
+    <div className="erd-notice" data-code={notice.code} role="alert" data-testid="erd-notice" title={notice.title ?? undefined}>
       <strong className="erd-notice__label">{notice.label}</strong>
       <span data-testid="erd-notice-message">{notice.message}</span>
       {notice.hint && <span className="erd-notice__hint" data-testid="erd-notice-hint">{notice.hint}</span>}

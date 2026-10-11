@@ -240,6 +240,9 @@ export const SCREENS = [
     breadcrumb: "마루 MDM > 용어·도메인 > ERD 설계",
     searchUrlPattern: /\/api\/mdm\/oasis\/erdEdit\/search$/,
     needsSearch: false,
+    /** ⑤ 입력 — 컬럼 논리명 입력 칸(R12). 모델·표를 골라야 켜진다. 복제 PDB 에서 admin 이 DRAFT 소유자일 때만 편집 가능(L_MAIN admin 은 읽기 전용 → 건너뜀). */
+    formPrepare: ['[data-testid^="erd-model-"]', '.react-flow__node'],
+    formInput: 'input[data-testid="erd-grid-input"]',
   },
 ];
 

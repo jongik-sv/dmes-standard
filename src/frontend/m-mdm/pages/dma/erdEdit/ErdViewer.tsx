@@ -2,21 +2,24 @@
 
 /**
  * ERD 설계 화면(단계 2 편집). 정본: 스펙 2.2·4.4·4.5·8절, 단계 2 README "화면 내부 계약".
- * 위 막대·버전 막대·알림 띠 · 왼쪽 다이어그램 목록 · 가운데 캔버스 · 오른쪽 컬럼 그리드 · 아래 검토 패널.
+ * 위 막대(한 줄, [버전 ▾] 포함)·알림 띠 · 왼쪽 다이어그램 목록 · 가운데 캔버스(빈 상태면 시작 화면) · 오른쪽 컬럼 그리드 · 아래 검토 패널.
+ * 메시지는 shared toast + 숨은 live region(erd-message)이다(UX 1차 U20).
  * - 패널·캔버스는 편집 문맥(ErdEditContext) 하나를 받는다. 쓰기는 ctx.apply 하나다(연결·권한 판정 → 쓰기 줄 → 거절 알림·칸 강조).
  * - 권한은 모델 편집과 다이어그램 편집으로 나눈다(S2-20). 연결이 끊기면 편집을 멈춘다(스펙 4.4).
  * - 전역 키는 window 캡처 단계에서 받는다(S2-27): F3 논리·물리, Ctrl/⌘+T·K 표 찾기, Ctrl/⌘+O·Alt+O 컬럼 점프, Ctrl/⌘+Z 내 마지막 변경 되돌리기.
  *   포털 셸의 document 버블 단계 F3 보다 먼저 받아 끊는다. 입력 칸이면 F3 밖의 키는 넘긴다.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent } from "react";
 
-import { useBusy } from "@dk-oasis/shared/form";
-import { canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
+import { FloatingPanel } from "@dk-oasis/shared/floating-panel";
+import { Button, useBusy } from "@dk-oasis/shared/form";
+import { ContentBody, ContentPanel, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
+import { useMessage } from "@dk-oasis/shared/message-provider";
 import {
   ControlButton, Controls, ReactFlow, ReactFlowProvider, getViewportForBounds, isTypingTarget, useReactFlow, useStore, useStoreApi,
-  type EdgeTypes, type FitViewOptions, type NodeChange, type NodeTypes,
+  type EdgeTypes, type FitViewOptions, type NodeChange, type NodeTypes, type ReactFlowState, type Viewport,
 } from "@dk-oasis/shared/react-flow";
-import { IconArrowsMaximize } from "@tabler/icons-react";
+import { IconArrowsMaximize, IconMaximize, IconMinimize, IconMinus, IconPlus } from "@tabler/icons-react";
 
 import {
   SCREEN_ID, compareDbDiff, importFromDb, regModel, rejectionText, searchModels, setViewState, viewChanges, viewStatus,
@@ -27,6 +30,7 @@ import { ErdRelationEdge } from "./canvas/ErdRelationEdge";
 import { ErdTableNode, namesOnlySelector } from "./canvas/ErdTableNode";
 import { buildFlow, useStableById, type ErdFlowEdge, type ErdFlowNode, type ErdMode, type ErdPreset } from "./canvas/erd-flow";
 import { NODE_WIDTH } from "./canvas/erd-geometry";
+import { estimatedSize, keyColumns } from "./canvas/erd-layout";
 import { useCanvasEditing } from "./canvas/useCanvasEditing";
 import {
   isDiagramOp, type ApplyOutcome, type ErdEditContext, type ErdHighlight, type ErdNav, type ErdNotice, type MessageTone,
@@ -34,16 +38,21 @@ import {
 import { ColumnGrid } from "./panels/ColumnGrid";
 import { ColumnJump } from "./panels/ColumnJump";
 import { DiagramTree, sortedDiagrams } from "./panels/DiagramTree";
+import { ModelRegisterModal } from "./panels/ModelRegisterModal";
 import { NoticeBar } from "./panels/NoticeBar";
 import { ReviewPanel, type ReviewTab } from "./panels/ReviewPanel";
-import { TopBar, nextMode } from "./panels/TopBar";
+import { StartPanel } from "./panels/StartPanel";
+import { TopBar, nextMode, type ReadOnlyInfo } from "./panels/TopBar";
 import { VersionBar } from "./panels/VersionBar";
 import { nodeKey } from "./state/model-delta";
-import { blockedNotice, editRights, readOnlyBanner } from "./state/permissions";
+import { blockedNotice, editRights, readOnlyBanner, readOnlyKind, shortReason } from "./state/permissions";
+import { useErdPrefs, withSeen, withViewport, type ErdViewport } from "./state/prefs";
+import { modelSummary, summaryText } from "./state/violations";
 import { useErdModel } from "./state/useErdModel";
 import { newSession, useErdStream, useTabActive } from "./state/useErdStream";
 import { createViewSync, type ViewSync } from "./state/view-sync";
-import type { ErdChangesView, ErdColumnStatus, ErdCommandJson, ErdDbDiffView, ErdModelRow, ErdStatusView } from "./types";
+import { firstDiagram, initialViewport, nodeOutside, type Rect } from "./state/viewport";
+import type { ErdChangesView, ErdColumnStatus, ErdCommandJson, ErdDbDiffView, ErdModelRow, ErdState, ErdStatusView } from "./types";
 
 const NODE_TYPES: NodeTypes = { erdTable: ErdTableNode };
 const EDGE_TYPES: EdgeTypes = { erdRelation: ErdRelationEdge };
@@ -58,8 +67,30 @@ const NO_STATUSES: Record<string, ErdColumnStatus> = {};
 const NO_DOMAINS: Record<string, { name: string }> = {};
 const NO_SELECTION: ReadonlySet<string> = new Set();
 const UNDO_CONFLICT_HINT = "변경 기록에서 다른 변경을 고르세요.";
+/** 첫 렌더 때 캔버스 크기를 모르면 쓰는 크기. 실제 크기를 알면 한 번 더 맞춘다(U22). */
+const DEFAULT_PANE = { width: 1000, height: 600 };
+/** 최대화 때 떠 있는 속성 카드의 처음 크기(저장값이 없을 때). */
+const FLOAT_RECT = { width: 440, height: 420 };
+const MAXIMIZE_TITLE = "캔버스 최대화 (Alt+M)";
+const RESTORE_TITLE = "캔버스 최대화 풀기 (Alt+M)";
+const paneWidthSelector = (s: ReactFlowState): number => s.width;
+/** 메시지 toast(U20) — 톤별 자동 닫힘 시간과 shared 알림 유형. */
+const TOAST_MS: Record<MessageTone, number> = { info: 3000, warn: 5000, error: 8000 };
+const ALERT: Record<MessageTone, "info" | "warning" | "error"> = { info: "info", warn: "warning", error: "error" };
 
 const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+
+/** 이 다이어그램의 살아 있는 노드 상자(그리기 전 어림 크기, buildFlow 의 initialHeight 와 같은 규칙). 첫 viewport 계산용. */
+function diagramRects(state: ErdState, diagramId: string, showAudit: boolean): Rect[] {
+  const keys = keyColumns(state.model);
+  const out: Rect[] = [];
+  for (const n of Object.values(state.nodes)) {
+    if (n.diagram !== diagramId || !state.model.tables[n.table]) continue;
+    const s = estimatedSize(state.model, n.table, n.foldMode, keys, showAudit);
+    out.push({ x: n.x, y: n.y, width: s.width, height: s.height });
+  }
+  return out;
+}
 
 interface Reveal {
   tableId: string;
@@ -74,13 +105,22 @@ interface CanvasPaneProps {
   selected: ReadonlySet<string>;
   reveal: Reveal | null;
   onSelect(changes: { id: string; selected: boolean }[]): void;
+  /** 이 다이어그램의 저장 viewport(없으면 null). 마운트 때 한 번만 읽는다. */
+  getSavedViewport(diagramId: string): ErdViewport | null;
+  /** 이동·확대가 끝날 때(onMoveEnd) 그 viewport 를 저장한다. */
+  onViewport(diagramId: string, vp: Viewport): void;
+  maximized: boolean;
+  onToggleMaximize(): void;
 }
 
 /**
  * 캔버스(React Flow 문맥 안). 선택은 여기서 처리하고, 편집(끌기·잇기·도구·캔버스 키)은 useCanvasEditing(FE2)이 맡는다.
  * flowProps 는 정한 키만 받아 아래 다른 props 를 덮지 않는다. 확대율은 "50% 미만인가" 만 구독한다.
+ * 첫 viewport 는 fitView 대신 initialViewport(U22) — ReactFlowProvider 가 다이어그램마다 key 로 다시 마운트되므로 마운트 때 한 번 정한다.
  */
-function CanvasPane({ ctx, diagramId, mode, preset, selected, reveal, onSelect }: CanvasPaneProps) {
+function CanvasPane({
+  ctx, diagramId, mode, preset, selected, reveal, onSelect, getSavedViewport, onViewport, maximized, onToggleMaximize,
+}: CanvasPaneProps) {
   const { state, status, session } = ctx;
   const showAudit = ctx.audit.show;
   const namesOnly = useStore(namesOnlySelector);
@@ -116,6 +156,62 @@ function CanvasPane({ ctx, diagramId, mode, preset, selected, reveal, onSelect }
     void rf.setCenter(n.x + NODE_WIDTH / 2, n.y + 60, { zoom: Math.max(rf.getZoom(), 0.8), duration: 200 });
   }, [reveal, diagramId, rf]);
 
+  // ── 첫 viewport(U22). 마운트 때 한 번 정한다. 저장값이 없고 reveal 도 없으면 실제 캔버스 크기를 안 뒤 한 번 더 맞춘다. ──
+  const [first] = useState(() => {
+    const saved = getSavedViewport(diagramId);
+    return {
+      viewport: initialViewport(diagramRects(state, diagramId, showAudit), DEFAULT_PANE, saved),
+      // 저장 viewport 나 reveal(setCenter)이 첫 화면을 정하면 다시 맞추지 않는다.
+      settled: saved !== null || reveal !== null,
+    };
+  });
+  const showAuditRef = useRef(showAudit);
+  showAuditRef.current = showAudit;
+  const fitted = useRef(first.settled);
+  /** 실제 캔버스 크기로 첫 viewport 를 다시 정한다(Local-Rules §33: setViewport 는 바로 옮긴다). 크기를 모르면 다음에. */
+  const refitFirst = useCallback(() => {
+    if (fitted.current) return;
+    const { width, height } = storeApi.getState();
+    if (width <= 0 || height <= 0) return;
+    fitted.current = true;
+    void rf.setViewport(initialViewport(diagramRects(stateRef.current, diagramId, showAuditRef.current), { width, height }, null));
+  }, [rf, storeApi, diagramId]);
+
+  // ── 캔버스 폭이 바뀌면(속성 패널 열림·닫힘, 최대화) 고른 노드가 밖으로 나갔을 때 배율을 지키며 그 노드로 옮긴다(U12). ──
+  const paneW = useStore(paneWidthSelector);
+  const prevPaneW = useRef(0);
+  const focusRef = useRef(ctx.selectedTableId);
+  focusRef.current = ctx.selectedTableId;
+  useEffect(() => {
+    const before = prevPaneW.current;
+    prevPaneW.current = paneW;
+    if (paneW <= 0) return;
+    if (before <= 0) {
+      refitFirst(); // 처음 크기를 안 때
+      return;
+    }
+    const tableId = focusRef.current;
+    const n = tableId ? stateRef.current.nodes[nodeKey(diagramId, tableId)] : undefined;
+    if (!tableId || !n) return;
+    const live = rf.getNode(tableId);
+    const est = estimatedSize(stateRef.current.model, tableId, n.foldMode, undefined, showAuditRef.current);
+    const rect: Rect = {
+      x: live?.position.x ?? n.x, y: live?.position.y ?? n.y,
+      width: live?.measured?.width ?? est.width, height: live?.measured?.height ?? est.height,
+    };
+    const vp = rf.getViewport();
+    if (!nodeOutside(vp, { width: paneW, height: storeApi.getState().height }, rect)) return;
+    void rf.setCenter(rect.x + rect.width / 2, rect.y + Math.min(rect.height / 2, 60), { zoom: vp.zoom, duration: 150 });
+  }, [paneW, diagramId, rf, storeApi, refitFirst]);
+
+  const onMoveEnd = useCallback(
+    (_e: unknown, vp: Viewport) => onViewport(diagramId, vp),
+    [onViewport, diagramId],
+  );
+  const zoomIn = useCallback(() => void rf.zoomIn(), [rf]);
+  const zoomOut = useCallback(() => void rf.zoomOut(), [rf]);
+  const maximizeTitle = maximized ? RESTORE_TITLE : MAXIMIZE_TITLE;
+
   const onNodesChange = useCallback(
     (changes: NodeChange<ErdFlowNode>[]) => {
       const picks: { id: string; selected: boolean }[] = [];
@@ -142,13 +238,25 @@ function CanvasPane({ ctx, diagramId, mode, preset, selected, reveal, onSelect }
         onlyRenderVisibleElements
         minZoom={MIN_ZOOM}
         maxZoom={MAX_ZOOM}
-        fitView={reveal === null}
-        fitViewOptions={FIT_OPTIONS}
+        defaultViewport={first.viewport}
+        onInit={refitFirst}
+        onMoveEnd={onMoveEnd}
         proOptions={PRO_OPTIONS}
       >
-        <Controls position="bottom-right" orientation="horizontal" showInteractive={false} showFitView={false}>
+        {/* 기본 확대·축소 단추는 영어 툴팁이라 끄고 우리 단추로 둔다(U46). */}
+        <Controls position="bottom-right" orientation="horizontal" showZoom={false} showInteractive={false} showFitView={false}>
+          <ControlButton onClick={zoomIn} title="확대" aria-label="확대" data-testid="erd-zoom-in">
+            <IconPlus />
+          </ControlButton>
+          <ControlButton onClick={zoomOut} title="축소" aria-label="축소" data-testid="erd-zoom-out">
+            <IconMinus />
+          </ControlButton>
           <ControlButton onClick={fitAll} title="화면 맞춤" aria-label="화면 맞춤" data-testid="erd-fit">
             <IconArrowsMaximize />
+          </ControlButton>
+          <ControlButton onClick={onToggleMaximize} title={maximizeTitle} aria-label={maximizeTitle} aria-pressed={maximized}
+            data-testid="erd-maximize">
+            {maximized ? <IconMinimize /> : <IconMaximize />}
           </ControlButton>
         </Controls>
       </ReactFlow>
@@ -174,8 +282,29 @@ export function ErdViewer() {
   const [notice, setNotice] = useState<ErdNotice | null>(null);
   const [highlight, setHighlight] = useState<ErdHighlight | null>(null);
   const { isBusy, run } = useBusy(); // 가져오기 진행 상태(R5)
-  const [mode, setMode] = useState<ErdMode>("logical");
-  const [preset, setPreset] = useState<ErdPreset>("basic");
+  // 작업 상태(U21) — 마지막 모델·다이어그램·모드·프리셋·패널 열림·viewport. 크기는 ContentBody 가 따로 저장한다(U10).
+  // 모든 update 는 값이 같으면 prefs 를 그대로 돌려 다시 그리지 않는다.
+  const { prefs, loaded, update, updateQuiet, peek } = useErdPrefs(me);
+  const mode = prefs.mode;
+  const preset = prefs.preset;
+  /** F3 의 setMode(nextMode) 처럼 함수도 받는다. */
+  const setMode = useCallback((m: ErdMode | ((cur: ErdMode) => ErdMode)) => update((p) => {
+    const next = typeof m === "function" ? m(p.mode) : m;
+    return next === p.mode ? p : { ...p, mode: next };
+  }), [update]);
+  const setPreset = useCallback((v: ErdPreset) => update((p) => (p.preset === v ? p : { ...p, preset: v })), [update]);
+  // 사용자가 모델을 직접 골랐는지 — 골랐으면 저장한 마지막 모델을 저절로 열지 않는다(U21, Review Focus 3).
+  const touched = useRef(false);
+  const autoOpenDone = useRef(false);
+  const pickModel = useCallback((id: string) => {
+    touched.current = true;
+    setModelId(id);
+  }, []);
+  // 캔버스 최대화(U14) — 기억하지 않는다. 최대화 중 속성 카드를 닫아도 선택은 그대로 둔다(floatClosed).
+  const [maximized, setMaximized] = useState(false);
+  const maximizedRef = useRef(maximized);
+  maximizedRef.current = maximized;
+  const [floatClosed, setFloatClosed] = useState(false);
   const [diagramId, setDiagramId] = useState<string | null>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(NO_SELECTION);
   const [selectedColumnId, setSelectedColumnId] = useState<string | null>(null);
@@ -196,7 +325,9 @@ export function ErdViewer() {
   const audit = useMemo(() => ({ show: showAudit, setShow: setShowAudit }), [showAudit, setShowAudit]);
   const [jumpOpen, setJumpOpen] = useState(false);
   const [status, setStatus] = useState<ErdStatusView | null>(null);
-  const [tab, setTab] = useState<ReviewTab>("violations");
+  // 속성 패널 안에 초점이 있는 동안은 선택이 풀려도 마지막 표로 패널을 남긴다(U12).
+  const [propsFocused, setPropsFocused] = useState(false);
+  const lastFocusTable = useRef<string | null>(null);
   const [diff, setDiff] = useState<ErdDbDiffView | null>(null);
   const [history, setHistory] = useState<ErdChangesView | null>(null);
   const historyRef = useRef(history);
@@ -215,10 +346,13 @@ export function ErdViewer() {
   modelIdRef.current = modelId;
   const ready = state !== null && state.modelId === modelId;
 
+  // 메시지(U20) — shared toast 로 띄우고, 같은 글을 숨은 live region(erd-message)에도 둔다(화면 높이 0, 스크린리더·시험용).
+  const { showMessage } = useMessage();
   const notify = useCallback((text: string, tone: MessageTone = "info") => {
     setMessage(text);
     setMessageTone(tone);
-  }, []);
+    showMessage({ message: text, alertType: ALERT[tone], toast: true, toastDuration: TOAST_MS[tone] });
+  }, [showMessage]);
 
   // ── 실시간 채널 ──
   const handlers = useMemo(
@@ -261,6 +395,20 @@ export function ErdViewer() {
     void loadModels();
   }, [loadModels]);
 
+  // ── 마지막 모델(U21): me(prefs)와 목록이 둘 다 온 뒤 한 번만 판단한다. 그 사이 사용자가 골랐거나 목록에 없으면 열지 않는다. ──
+  useEffect(() => {
+    if (autoOpenDone.current || !loaded || models.length === 0) return;
+    autoOpenDone.current = true;
+    const last = prefs.lastModelId;
+    if (touched.current || modelIdRef.current !== null || !last || !models.some((m) => m.modelId === last)) return;
+    setModelId(last);
+  }, [loaded, models, prefs.lastModelId]);
+  // 고른 모델을 기억한다. loaded 도 보아, prefs 를 읽기 전에 고른 모델이 읽은 값에 덮이지 않게 읽은 뒤 다시 쓴다. null 은 쓰지 않는다.
+  useEffect(() => {
+    if (!loaded || !modelId) return;
+    update((p) => (p.lastModelId === modelId ? p : { ...p, lastModelId: modelId }));
+  }, [loaded, modelId, update]);
+
   // 모델이 바뀌면 모델에 묶인 화면 상태를 비운다.
   useEffect(() => {
     setStatus(null);
@@ -269,10 +417,13 @@ export function ErdViewer() {
     setSelected(NO_SELECTION);
     setSelectedColumnId(null);
     setDiagramId(null);
+    pendingDiagram.current = null;
     setReveal(null);
     setNotice(null);
     setHighlight(null);
     setJumpOpen(false);
+    setPropsFocused(false);
+    lastFocusTable.current = null;
     statusReadKey.current = null;
     diffSeq.current += 1;
     historySeq.current += 1;
@@ -312,14 +463,80 @@ export function ErdViewer() {
 
   // ── 다이어그램·선택 ──
   const diagrams = useMemo(() => (state ? sortedDiagrams(state.diagrams) : []), [state]);
-  const activeDiagram = diagramId && state?.diagrams[diagramId] ? diagramId : diagrams[0]?.id ?? null;
+  // 첫 다이어그램(U53) — 다이어그램마다 살아 있는 표 수를 붙여 고른다.
+  const diagramRows = useMemo(() => {
+    if (!state) return [];
+    const counts = new Map<string, number>();
+    for (const n of Object.values(state.nodes)) if (state.model.tables[n.table]) counts.set(n.diagram, (counts.get(n.diagram) ?? 0) + 1);
+    return diagrams.map((d) => ({ id: d.id, sortSeq: d.sortSeq, tables: counts.get(d.id) ?? 0 }));
+  }, [state, diagrams]);
+  const rememberedDiagram = modelId ? prefs.lastDiagram[modelId] ?? null : null;
+  const defaultDiagram = useMemo(() => firstDiagram(diagramRows, rememberedDiagram), [diagramRows, rememberedDiagram]);
+  const activeDiagram = diagramId && state?.diagrams[diagramId] ? diagramId : defaultDiagram;
   const activeRef = useRef(activeDiagram);
   activeRef.current = activeDiagram;
+  // 연 다이어그램을 모델별로 기억한다. ready 일 때만 — 모델이 바뀐 직후의 옛 state 다이어그램을 새 모델 칸에 쓰지 않게.
+  useEffect(() => {
+    if (!loaded || !ready || !modelId || !activeDiagram) return;
+    update((p) => (p.lastDiagram[modelId] === activeDiagram ? p : { ...p, lastDiagram: { ...p.lastDiagram, [modelId]: activeDiagram } }));
+  }, [loaded, ready, modelId, activeDiagram, update]);
+  // viewport — 마운트 때 저장값을 읽고, 이동이 끝나면 저장한다(prefs 의 300ms 미룸이 묶음 저장). 같은 값이면 그대로 둔다.
+  const getSavedViewport = useCallback((d: string): ErdViewport | null => {
+    const m = modelIdRef.current;
+    return m ? peek().viewports[`${m}/${d}`] ?? null : null;
+  }, [peek]);
+  // 화면에 그리지 않는 칸이라 조용히 쓴다 — 이동이 끝날 때마다 화면 루트를 다시 그리지 않는다.
+  const onViewport = useCallback((d: string, vp: Viewport) => {
+    const m = modelIdRef.current;
+    if (!m) return;
+    updateQuiet((p) => {
+      const cur = p.viewports[`${m}/${d}`];
+      return cur && cur.x === vp.x && cur.y === vp.y && cur.zoom === vp.zoom ? p : withViewport(p, m, d, vp);
+    });
+  }, [updateQuiet]);
   const focusTable = selected.size > 0 ? [...selected][0] : null;
   // 다른 표로 옮기면 남은 컬럼 추가 요청을 지운다(나중에 그 표를 다시 골라 그리드가 새로 붙을 때 다시 돌지 않게).
   useEffect(() => {
     setAddRequest((r) => (r && r.tableId !== focusTable ? null : r));
+    if (focusTable) lastFocusTable.current = focusTable;
   }, [focusTable]);
+  // 속성 패널에 보일 표 — 실제 선택(focusTable)은 ctx·동기화에 그대로 쓰고, 이 값은 패널·그리드에만 쓴다.
+  const keptTable = !focusTable && propsFocused ? lastFocusTable.current : null;
+  const propsTable = focusTable ?? (keptTable && state?.model.tables[keptTable] ? keptTable : null);
+
+  // ── 패널 접기·펼치기(U11-U13). 값이 같으면 prefs 를 그대로 돌려 다시 그리지 않는다. ──
+  const collapseSide = useCallback(() => update((p) => (p.sideOpen ? { ...p, sideOpen: false } : p)), [update]);
+  const openSide = useCallback(() => update((p) => (p.sideOpen ? p : { ...p, sideOpen: true })), [update]);
+  const collapseProps = useCallback(() => {
+    setPropsFocused(false); // 접기 단추를 누르면 초점이 패널 안이므로 초점 표시를 먼저 푼다
+    setAddRequest(null); // 다시 펼칠 때 그리드가 새로 붙으며 지난 컬럼 추가 요청을 또 돌리지 않게
+    update((p) => (p.propsOpen ? { ...p, propsOpen: false } : p));
+  }, [update]);
+  // 남긴 표가 지워져 패널이 blur 없이 사라지면 초점 표시를 푼다(다음 선택 해제 때 패널이 남지 않게).
+  useEffect(() => {
+    if (propsFocused && !propsTable) setPropsFocused(false);
+  }, [propsFocused, propsTable]);
+  // 최대화를 켜고 끄면 패널이 바뀌어(속성 패널 ↔ 떠 있는 카드) 초점 표시를 풀고, 닫았던 카드는 다시 연다.
+  useEffect(() => {
+    setPropsFocused(false);
+    setFloatClosed(false);
+  }, [maximized]);
+  // 다른 표를 고르면 닫았던 속성 카드를 다시 연다.
+  useEffect(() => {
+    setFloatClosed(false);
+  }, [focusTable]);
+  const toggleMaximize = useCallback(() => setMaximized((v) => !v), []);
+  const closeFloat = useCallback(() => setFloatClosed(true), []);
+  const openProps = useCallback(() => update((p) => (p.propsOpen ? p : { ...p, propsOpen: true })), [update]);
+  const onPropsFocus = useCallback(() => setPropsFocused(true), []);
+  const onPropsBlur = useCallback((e: FocusEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setPropsFocused(false);
+  }, []);
+  const onReviewTab = useCallback((t: ReviewTab) => update((p) => (p.reviewTab === t ? p : { ...p, reviewTab: t })), [update]);
+  const onReviewToggle = useCallback(
+    (open: boolean) => update((p) => (p.reviewOpen === open ? p : { ...p, reviewOpen: open })),
+    [update],
+  );
 
   const onSelect = useCallback((changes: { id: string; selected: boolean }[]) => {
     setSelected((cur) => {
@@ -341,15 +558,26 @@ export function ErdViewer() {
     const here = activeRef.current;
     if (!here || !s.nodes[nodeKey(here, tableId)]) {
       const other = Object.values(s.nodes).find((n) => n.table === tableId);
-      if (other) setDiagramId(other.diagram);
+      if (other) {
+        pendingDiagram.current = null;
+        setDiagramId(other.diagram);
+      }
     }
     setReveal((r) => ({ tableId, seq: (r?.seq ?? 0) + 1 }));
   }, []);
 
+  // nav.selectDiagram 이 아직 state 에 없는 다이어그램(방금 apply 한 addDiagram)을 부르면 여기 두었다가 나타날 때 연다.
+  // 사용자가 다른 다이어그램·표를 고르거나 모델을 바꾸면 버린다.
+  const pendingDiagram = useRef<string | null>(null);
   const onSelectDiagram = useCallback((id: string) => {
+    pendingDiagram.current = null;
     setDiagramId(id);
     setReveal(null);
   }, []);
+  useEffect(() => {
+    const id = pendingDiagram.current;
+    if (id && state?.diagrams[id]) onSelectDiagram(id);
+  }, [state, onSelectDiagram]);
 
   const nav = useMemo<ErdNav>(() => ({
     selectTable,
@@ -365,16 +593,20 @@ export function ErdViewer() {
     openTableFind: () => setFindSeq((s) => s + 1),
     // 모델을 읽기 전에는 열지 않는다(읽은 뒤 저절로 열리지 않게).
     openColumnJump: () => { if (stateRef.current) setJumpOpen(true); },
-    // 표를 고르고 그 표의 입력 칸에 컬럼 추가를 요청한다(속성 패널 열기는 화면 틀 Task 에서 더한다).
+    // 표를 고르고 속성 패널(최대화 중이면 떠 있는 카드)을 연 뒤 그 표의 입력 칸에 컬럼 추가를 요청한다.
     startColumnAdd: (tableId: string, pk: boolean) => {
       selectTable(tableId);
+      if (maximizedRef.current) setFloatClosed(false);
+      else update((p) => (p.propsOpen ? p : { ...p, propsOpen: true }));
       addSeqRef.current += 1;
       setAddRequest({ seq: addSeqRef.current, tableId, pk });
     },
+    // 모르는 id 면 기다렸다가 state 에 나타날 때 연다(apply 직후 부르는 주제별 나누기, U53).
     selectDiagram: (diagramId: string) => {
       if (stateRef.current?.diagrams[diagramId]) onSelectDiagram(diagramId);
+      else pendingDiagram.current = diagramId;
     },
-  }), [selectTable, setShowAudit, onSelectDiagram]);
+  }), [selectTable, setShowAudit, onSelectDiagram, update]);
   const closeJump = useCallback(() => setJumpOpen(false), []);
 
   // ── 화면 상태 알리기(SET_VIEW, 1초에 한 번 이하). 다시 연결되면 서버 화면 상태가 비므로 같은 값도 다시 보낸다. ──
@@ -443,7 +675,7 @@ export function ErdViewer() {
     }
     if (out.ok) {
       invalidateReview();
-      notify(`rev ${rev} 를 되돌렸습니다(rev ${out.rev}).`);
+      notify("변경을 되돌렸습니다."); // 번호(rev)는 화면 글에 쓰지 않는다(U32)
     } else showNotice(out.notice);
     return out;
   }, [erd.undo, invalidateReview, notify, showNotice]);
@@ -478,6 +710,13 @@ export function ErdViewer() {
         return;
       }
       if (isTypingTarget(e.target)) return;
+      // Alt+M 캔버스 최대화(U14). macOS Option+M 은 e.key 가 "µ" 라 물리 키로 본다.
+      // 모델을 읽기 전에는 켜지 않는다(풀 [최대화] 단추가 캔버스에 없다). 켜져 있으면 늘 끌 수 있다.
+      if (e.altKey && !mod && !e.shiftKey && e.code === "KeyM" && (stateRef.current || maximizedRef.current)) {
+        stop(e);
+        setMaximized((v) => !v);
+        return;
+      }
       // 한글 등 비라틴 자판이면 e.key 가 글자가 아니므로 물리 키(e.code)도 본다.
       const k = e.key.toLowerCase();
       const is = (c: string) => k === c || e.code === `Key${c.toUpperCase()}`;
@@ -495,11 +734,22 @@ export function ErdViewer() {
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [active]);
+  }, [active, setMode]);
 
-  // ── 읽기 전용 띠·쓰기 단추 막기 ──
-  const roBanner = state ? readOnlyBanner(rights) : null;
+  // ── 읽기 전용 칩(U19)·쓰기 단추 막기 ──
+  // 칩은 지금 모델을 다 읽은 뒤에만(모델을 바꾼 직후의 옛 state 로 판정하지 않게). 글이 같으면 같은 객체를 돌려 위 막대를 다시 그리지 않는다.
+  const roText = ready ? readOnlyBanner(rights) : null;
+  const roKind = ready ? readOnlyKind(rights) : null;
+  const readOnly = useMemo<ReadOnlyInfo | null>(() => (roText ? { short: shortReason(roText), text: roText } : null), [roText]);
+  const roKey = modelId && roKind ? `${modelId}:${roKind}` : null;
+  // 모델·이유별 처음 한 번만 저절로 연다 — prefs 를 읽은 뒤에만 판단한다(읽기 전이면 본 적 있는지 모른다).
+  const readOnlyAutoKey = loaded && roKey && !prefs.seenReadOnly.includes(roKey) ? roKey : null;
+  const onReadOnlySeen = useCallback((key: string) => update((p) => withSeen(p, key)), [update]);
   const locked = rbac.isLoading || !rights.model.ok || isBusy("import");
+  // 꺼진 단추의 짧은 이유(U34). 긴 글(readOnlyBanner)은 읽기 전용 칩 팝오버 한 곳에만 둔다(U19).
+  const lockReason = !rights.model.ok && rights.model.reason ? shortReason(rights.model.reason)
+    : isBusy("import") ? "가져오는 중" : null;
+  const undoReason = rights.model.ok || rights.diagram.ok ? null : shortReason(rights.model.reason ?? rights.diagram.reason) || null;
 
   const onDecide = useCallback(async (relationId: string, op: RelationDecision) => {
     const out = await apply([{ op, id: relationId }], op === "confirmRelation" ? "관계 확정" : "관계 기각");
@@ -536,21 +786,25 @@ export function ErdViewer() {
     [erd.exclusive, erd.reload, session, run, invalidateReview, notify],
   );
 
-  /** 등록이 끝나면 true. 단추 쪽이 true 일 때만 입력 칸을 닫는다. */
+  // 모델 등록 창 — 위 막대 [+ 모델] 과 시작 화면 [새 모델 등록] 이 함께 연다.
+  const [regOpen, setRegOpen] = useState(false);
+  const openRegister = useCallback(() => setRegOpen(true), []);
+  const closeRegister = useCallback(() => setRegOpen(false), []);
+  /** 등록이 끝나면 true. 창은 true 일 때만 닫는다. */
   const onRegister = useCallback(async (input: RegInput): Promise<boolean> => {
     const before = modelIdRef.current;
     try {
       const r = await regModel(input);
-      notify(`모델 ${r.modelId} 를 등록했습니다. [DB 가져오기] 로 스키마를 가져오세요.`);
+      notify(`모델 ${r.modelId} 를 등록했습니다. [DB 에서 가져오기] 로 스키마를 가져오세요.`);
       const listed = await loadModels();
       // 등록을 기다리는 동안 다른 모델을 골랐으면 그 선택을 둔다.
-      if (listed && modelIdRef.current === before) setModelId(r.modelId);
+      if (listed && modelIdRef.current === before) pickModel(r.modelId);
       return true;
     } catch (e) {
       notify(errText(e), "error");
       return false;
     }
-  }, [loadModels, notify]);
+  }, [loadModels, notify, pickModel]);
 
   // ── 검토 패널의 DB 차이·변경 기록: 탭을 처음 열 때 읽는다. ──
   const loadDiff = useCallback(async () => {
@@ -585,11 +839,14 @@ export function ErdViewer() {
       if (historySeq.current === seq) notify(errText(e), "error");
     }
   }, [notify]);
+  // 검토 패널이 펼쳐졌을 때만 읽는다. 접어도 읽은 값은 남겨 다시 펼칠 때 두 번 읽지 않는다(Review Focus 1).
+  const tab = prefs.reviewTab;
+  const reviewOpen = prefs.reviewOpen;
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !reviewOpen) return;
     if (tab === "diff" && diff === null) void loadDiff();
     if (tab === "history" && history === null) void loadHistory();
-  }, [tab, ready, diff, history, reviewEpoch, loadDiff, loadHistory]);
+  }, [tab, reviewOpen, ready, diff, history, reviewEpoch, loadDiff, loadHistory]);
 
   // ── 편집 문맥 — 모델을 다 읽은 뒤에만 만든다 ──
   const ctx = useMemo<ErdEditContext | null>(() => (ready && state && modelId ? {
@@ -598,58 +855,119 @@ export function ErdViewer() {
   } : null), [ready, state, modelId, session, me, status, rights, activeDiagram, focusTable, selectedColumnId, highlight,
     erd.pendingIds, apply, erd.exclusive, clearHighlight, notify, nav, audit]);
 
-  const emptyText = !modelId
-    ? "위 막대에서 모델을 고르거나 등록하세요."
-    : !ready
-      ? erd.error ?? "모델을 읽는 중입니다."
-      : Object.keys(state!.model.tables).length === 0
-        ? "표가 없습니다. [DB 가져오기] 로 스키마를 가져오세요."
-        : "다이어그램이 없습니다.";
+  // 위 막대 — 요약 줄(U26)과 [버전 ▾] 는 값이 같으면 같은 것을 넘겨 위 막대(memo)를 다시 그리지 않는다.
+  const summary = useMemo(
+    () => (ready && state ? summaryText(modelSummary(state.model, status?.statuses ?? null, showAudit)) : null),
+    [ready, state, status, showAudit],
+  );
+  const versionSlot = useMemo(
+    () => (ctx ? <VersionBar ctx={ctx} onReload={erd.reload} onVersion={erd.onVersion} /> : null),
+    [ctx, erd.reload, erd.onVersion],
+  );
+  const emptyModel = ready && Object.keys(state!.model.tables).length === 0;
+
+  /** 검토 패널 — 펼침은 ContentBody 안 패널, 접힘은 ContentBody 밖 탭 줄(U11). 같은 탭 testid 를 쓴다. */
+  const review = (collapsed: boolean) => (
+    <ReviewPanel ctx={ctx} model={state?.model ?? null} status={status} tab={tab} onTab={onReviewTab} diff={diff} history={history}
+      onReloadDiff={loadDiff} onReloadHistory={loadHistory} onDecide={onDecide} onSelectTable={selectTable} locked={locked} lockReason={lockReason}
+      mySession={session} canUndo={rights.model.ok || rights.diagram.ok} undoReason={undoReason} onUndo={onUndo}
+      collapsed={collapsed} onToggle={onReviewToggle} />
+  );
 
   return (
-    <div className="erd-app" data-testid="erd-viewer">
+    <div className="erd-app" data-testid="erd-viewer" data-maximized={maximized ? "" : undefined}>
       <div className="erd-area-bar">
         <TopBar
-          models={models} modelId={modelId} onModelChange={setModelId} state={state} mySession={session}
+          models={models} modelId={modelId} onModelChange={pickModel} state={state} mySession={session}
+          summary={summary} versionSlot={versionSlot}
+          readOnly={readOnly} readOnlyAutoKey={readOnlyAutoKey} onReadOnlySeen={onReadOnlySeen}
           mode={mode} onModeChange={setMode} preset={preset} onPresetChange={setPreset}
-          streamStatus={streamStatus} readOnly={roBanner} message={message} messageTone={messageTone}
-          canReg={canReg} canImport={canImport} locked={locked} onRegister={onRegister} onImport={onImport}
+          streamStatus={streamStatus} canReg={canReg} canImport={canImport} locked={locked}
+          onOpenRegister={openRegister} onImport={onImport}
         />
-        {ctx && <VersionBar ctx={ctx} onReload={erd.reload} onVersion={erd.onVersion} />}
         <NoticeBar notice={notice} onClose={closeNotice} />
       </div>
-      <div className="erd-area-side">
-        <DiagramTree ctx={ctx} state={state} statuses={status?.statuses ?? NO_STATUSES} activeDiagram={activeDiagram}
-          onSelectDiagram={onSelectDiagram} onRevealTable={selectTable} findSeq={findSeq} />
+      <div className="erd-sr-only" role="status" aria-live="polite" data-testid="erd-message" data-tone={messageTone}>
+        {message ?? ""}
       </div>
-      <div className="erd-area-center">
-        {ctx && activeDiagram ? (
-          <ReactFlowProvider key={activeDiagram}>
-            <div className="erd-canvas" data-mode={mode}>
-              <CanvasPane ctx={ctx} diagramId={activeDiagram} mode={mode} preset={preset} selected={selected} reveal={reveal} onSelect={onSelect} />
+      {/* 분할(U10): 바깥 column = [main row, 검토]. 레일·접힘 줄은 레이아웃 자식이 아니라 막대가 붙지 않는다.
+          캔버스 패널은 늘 key="canvas" 라 다른 패널이 빠져도 React Flow 가 다시 마운트되지 않는다. */}
+      <ContentBody direction="column" resizable storageKey="mdm.dma.erdEdit">
+        <ContentBody key="main" direction="row" resizable storageKey="mdm.dma.erdEdit.main" flex="1 1 0" minSize={240}>
+          {!maximized && (prefs.sideOpen ? (
+            <ContentPanel key="side" width={220} minSize={160}>
+              <div className="erd-area-side">
+                <DiagramTree ctx={ctx} state={state} statuses={status?.statuses ?? NO_STATUSES} showAudit={showAudit} activeDiagram={activeDiagram}
+                  onSelectDiagram={onSelectDiagram} onRevealTable={selectTable} findSeq={findSeq} onCollapse={collapseSide} />
+              </div>
+            </ContentPanel>
+          ) : (
+            <div key="side-rail" className="erd-area-side erd-rail" data-testid="erd-side-rail">
+              <Button size="mini" data-testid="erd-side-toggle" title="다이어그램 목록 펼치기" aria-label="다이어그램 목록 펼치기" onClick={openSide}>
+                ›
+              </Button>
             </div>
-          </ReactFlowProvider>
-        ) : (
-          <div className="erd-empty" data-testid="erd-canvas-empty">
-            {emptyText}
-          </div>
+          ))}
+          <ContentPanel key="canvas" flex="1 1 0" minSize={320}>
+            <div className="erd-area-center">
+              {ctx && activeDiagram ? (
+                <ReactFlowProvider key={activeDiagram}>
+                  <div className="erd-canvas" data-mode={mode}>
+                    <CanvasPane ctx={ctx} diagramId={activeDiagram} mode={mode} preset={preset} selected={selected} reveal={reveal} onSelect={onSelect}
+                      getSavedViewport={getSavedViewport} onViewport={onViewport} maximized={maximized} onToggleMaximize={toggleMaximize} />
+                  </div>
+                </ReactFlowProvider>
+              ) : (
+                <div className="erd-start-host" data-testid="erd-canvas-empty">
+                  <StartPanel models={models} modelId={modelId} loading={!!modelId && !ready && !erd.error} error={modelId ? erd.error : null}
+                    empty={emptyModel} canReg={canReg} canImport={canImport} importLocked={locked}
+                    onPick={pickModel} onRegister={openRegister} onImport={onImport} />
+                </div>
+              )}
+            </div>
+          </ContentPanel>
+          {!maximized && ctx && propsTable && (prefs.propsOpen || propsFocused ? (
+            <ContentPanel key="props" width={400} minSize={320}>
+              <div className="erd-area-grid" onFocusCapture={onPropsFocus} onBlurCapture={onPropsBlur}>
+                <div className="erd-panel-head">
+                  <span className="erd-panel-head__title">속성</span>
+                  <Button size="mini" data-testid="erd-props-toggle" title="속성 접기" aria-label="속성 접기" onClick={collapseProps}>
+                    ›
+                  </Button>
+                </div>
+                <ColumnGrid ctx={ctx} tableId={propsTable} addRequest={addRequest} />
+              </div>
+            </ContentPanel>
+          ) : (
+            <div key="props-rail" className="erd-area-grid erd-rail" data-testid="erd-props-rail">
+              <Button size="mini" data-testid="erd-props-toggle" title="속성 펼치기" aria-label="속성 펼치기" onClick={openProps}>
+                ‹
+              </Button>
+            </div>
+          ))}
+        </ContentBody>
+        {!maximized && reviewOpen && (
+          <ContentPanel key="review" height={260} minSize={120}>
+            <div className="erd-area-review">{review(false)}</div>
+          </ContentPanel>
         )}
-      </div>
-      <div className="erd-area-grid">
-        {ctx ? (
-          <ColumnGrid ctx={ctx} tableId={focusTable} addRequest={addRequest} />
-        ) : (
-          <div className="erd-empty" data-testid="erd-columns-empty">
-            캔버스나 검토 목록에서 표를 고르세요.
+      </ContentBody>
+      {!maximized && !reviewOpen && (
+        <div className="erd-area-review erd-review-strip" data-testid="erd-review-strip">
+          {review(true)}
+        </div>
+      )}
+      {/* 최대화 중 속성(U14) — body 로 포털되는 떠 있는 카드. 초점 잡기·풀기는 React 이벤트라 포털을 건너 이 div 로 온다. */}
+      {maximized && ctx && propsTable && (
+        <FloatingPanel title={state?.model.tables[propsTable]?.phys ?? propsTable} open={!floatClosed} onClose={closeFloat}
+          storageKey="mdm.dma.erdEdit.props" defaultRect={FLOAT_RECT} minWidth={320} testId="erd-props-float">
+          <div className="erd-float-body" onFocusCapture={onPropsFocus} onBlurCapture={onPropsBlur}>
+            <ColumnGrid ctx={ctx} tableId={propsTable} addRequest={addRequest} />
           </div>
-        )}
-        {ctx && <ColumnJump ctx={ctx} opened={jumpOpen} onClose={closeJump} />}
-      </div>
-      <div className="erd-area-review">
-        <ReviewPanel ctx={ctx} model={state?.model ?? null} status={status} tab={tab} onTab={setTab} diff={diff} history={history}
-          onReloadDiff={loadDiff} onReloadHistory={loadHistory} onDecide={onDecide} onSelectTable={selectTable} locked={locked}
-          mySession={session} canUndo={rights.model.ok || rights.diagram.ok} onUndo={onUndo} />
-      </div>
+        </FloatingPanel>
+      )}
+      {ctx && <ColumnJump ctx={ctx} opened={jumpOpen} onClose={closeJump} />}
+      <ModelRegisterModal opened={regOpen} onClose={closeRegister} onRegister={onRegister} />
     </div>
   );
 }

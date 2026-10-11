@@ -124,7 +124,13 @@ export function withSeen(p: ErdPrefs, key: string): ErdPrefs {
  * userId 가 null 이면 기본값을 주고 저장하지 않는다. userId 가 처음 정해질 때 한 번 읽고 loaded=true,
  * 바뀌면(로그인 바뀜) 다시 읽는다. 쓰기는 300ms 미뤄 묶고, 사용자가 바뀌거나 화면이 사라질 때 남은 저장을 바로 한다.
  */
-export function useErdPrefs(userId: string | null): { prefs: ErdPrefs; loaded: boolean; update(fn: (p: ErdPrefs) => ErdPrefs): void } {
+export function useErdPrefs(userId: string | null): {
+  prefs: ErdPrefs; loaded: boolean; update(fn: (p: ErdPrefs) => ErdPrefs): void;
+  /** 화면을 다시 그리지 않고 저장만 한다(viewport 처럼 렌더에 안 쓰는 칸). 읽기는 peek(). */
+  updateQuiet(fn: (p: ErdPrefs) => ErdPrefs): void;
+  /** 조용히 쓴 값까지 든 지금 값. */
+  peek(): ErdPrefs;
+} {
   const [prefs, setPrefs] = useState<ErdPrefs>(DEFAULT_PREFS);
   const [loaded, setLoaded] = useState(false);
   const prefsRef = useRef(prefs);
@@ -153,16 +159,19 @@ export function useErdPrefs(userId: string | null): { prefs: ErdPrefs; loaded: b
     return flush; // 사용자가 바뀌거나 언마운트될 때 이전 사용자의 남은 저장을 바로 한다.
   }, [userId, flush]);
 
-  const update = useCallback((fn: (p: ErdPrefs) => ErdPrefs) => {
+  const write = useCallback((fn: (p: ErdPrefs) => ErdPrefs, render: boolean) => {
     const next = fn(prefsRef.current);
     if (next === prefsRef.current) return;
     prefsRef.current = next;
-    setPrefs(next);
+    if (render) setPrefs(next);
     if (!userRef.current) return;
     dirty.current = true;
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = setTimeout(flush, PREFS_SAVE_DELAY_MS);
   }, [flush]);
+  const update = useCallback((fn: (p: ErdPrefs) => ErdPrefs) => write(fn, true), [write]);
+  const updateQuiet = useCallback((fn: (p: ErdPrefs) => ErdPrefs) => write(fn, false), [write]);
+  const peek = useCallback(() => prefsRef.current, []);
 
-  return { prefs, loaded, update };
+  return { prefs, loaded, update, updateQuiet, peek };
 }

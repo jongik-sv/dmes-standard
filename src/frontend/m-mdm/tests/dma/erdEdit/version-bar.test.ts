@@ -20,6 +20,18 @@ describe("버전 막대 단추(스펙 4.7)", () => {
     expect([rel.newVersion.enabled, rel.delete.enabled, rel.lock.enabled]).toEqual([true, false, false]);
     expect(versionButtons(fakeEditContext({ ...draft, status: "RELEASED" }), (a) => a !== "copy").newVersion.enabled).toBe(false);
   });
+
+  it("켜진 단추에도 무엇을 하는지 title 을 준다", () => {
+    const draft = stateOf(menuModel(), MENU_DIAGRAMS);
+    const rel = versionButtons(fakeEditContext({ ...draft, status: "RELEASED" }), all);
+    expect(rel.newVersion).toEqual({ enabled: true, title: "확정본을 복사해 새 DRAFT 를 만듭니다(major = 큰 변경, minor = 작은 변경)" });
+    const own = versionButtons(fakeEditContext(draft), all);
+    expect([own.delete.title, own.confirm.title, own.unlock.title]).toEqual([
+      "이 DRAFT 를 지웁니다", "검사 뒤 이 DRAFT 를 확정본으로 만듭니다", "소유를 내려놓습니다",
+    ]);
+    const orphan = fakeEditContext({ ...draft, ownerId: null });
+    expect(versionButtons({ ...orphan, rights: { ...orphan.rights, owner: false } }, all).lock.title).toBe("이 DRAFT 의 소유자가 됩니다");
+  });
 });
 
 describe("확정 검사 묶음(S2-28)", () => {

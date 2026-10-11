@@ -179,6 +179,7 @@ columnMng 는 실제 ≈380ms 가 ≈820ms 로, termMng 는 ≈167ms 가 ≈210m
 
 - ⑤ 상세 폼 입력: `screens.mjs` 에 `formInput` 이 있는 화면(columnMng 표시명 긴, termMng 맥락)은 탭 복귀 뒤 그 칸에
   `RENDER_INPUT_TEXT`(기본 `ABCDE`)를 150ms 간격으로 친다. **저장하지 않고** 컨텍스트를 닫는다. 요약에 한 글자당 커밋·렌더 시간이 나온다.
+- `formPrepare`(선택): ⑤ 앞에 차례로 누를 선택자 배열. 보이는 첫 요소만 누르고 없으면 건너뛴다(erdEdit: 모델 단추 → 표 노드를 눌러야 입력 칸이 선다).
 
 ## 응답 뒤 CPU 배분 — `cpu-profile-search.mjs`
 조회 응답이 온 뒤 첫 행까지의 CPU 를 함수·청크(AG Grid·React·Mantine·화면 코드·엔진)별로 나눈다. 행 가공이 무거운지(가이드 R11) 볼 때 쓴다.

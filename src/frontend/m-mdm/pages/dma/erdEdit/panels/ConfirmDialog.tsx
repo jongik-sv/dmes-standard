@@ -13,8 +13,10 @@ import { Button, Checkbox, Input } from "@dk-oasis/shared/form";
 import { Modal } from "@dk-oasis/shared/modal";
 
 import { confirmVersion, validateConfirm } from "../api";
+import { isAuditColumn } from "../audit-columns";
 import type { ErdEditContext } from "../edit-context";
-import type { ErdCheckIssue, ErdConfirmCheck } from "../types";
+import { issueLabel } from "../labels";
+import type { ErdCheckIssue, ErdConfirmCheck, ErdModelJson } from "../types";
 
 export const ISSUE_LIMIT = 50;
 
@@ -46,16 +48,31 @@ export function isValidApplyFrom(text: string): boolean {
   return applyFromText(new Date(y, mo - 1, d, h, mi, s)) === text;
 }
 
-function IssueList({ title, groups, testId }: { title: string; groups: IssueGroup[]; testId: string }) {
+/** 요약 줄에 따로 세는 묶음 — 목록에는 그리지 않는다(U30). */
+export const INFERRED_LEFT = "ERD_INFERRED_LEFT";
+
+/**
+ * 항목 글(U29·U30). itemKey 가 모델의 컬럼 id 면 `표.컬럼 (논리명)` + 감사 컬럼이면 " · 감사 컬럼". 모르는 키면 서버 message 그대로.
+ */
+export function issueText(i: ErdCheckIssue, model: ErdModelJson): string {
+  const c = i.itemKey ? model.columns[i.itemKey] : undefined;
+  if (!c) return i.message;
+  const t = model.tables[c.table]?.phys ?? c.table;
+  return `${t}.${c.phys}${c.logical ? ` (${c.logical})` : ""}${isAuditColumn(c.phys) ? " · 감사 컬럼" : ""}`;
+}
+
+export function IssueList({ title, groups, testId, model }: { title: string; groups: IssueGroup[]; testId: string; model: ErdModelJson }) {
+  const shown = groups.filter((g) => g.code !== INFERRED_LEFT);
+  if (shown.length === 0) return null;
   return (
     <div data-testid={testId}>
       <div className="erd-confirm__summary">{title}</div>
-      {groups.map((g) => (
+      {shown.map((g) => (
         <div key={g.code} className="erd-confirm__group" data-testid={`${testId}-${g.code}`}>
-          <div className="erd-confirm__code">{g.code} · {g.count}건</div>
+          <div className="erd-confirm__code" title={g.code}>{issueLabel(g.code)} · {g.count}건</div>
           <ul className="erd-confirm__list">
             {g.items.map((i, n) => (
-              <li key={`${i.itemKey ?? ""}:${n}`}>{i.itemKey ? `${i.itemKey} — ${i.message}` : i.message}</li>
+              <li key={`${i.itemKey ?? ""}:${n}`}>{issueText(i, model)}</li>
             ))}
           </ul>
           {g.count > g.items.length && <div className="erd-confirm__more">… {g.count - g.items.length}건 더 있습니다.</div>}
@@ -104,7 +121,8 @@ export function ConfirmDialog({ ctx, opened, onClose, onConfirmed }: ConfirmDial
   const warnings = useMemo(() => groupIssues(check?.warnings ?? []), [check]);
   const inferred = useMemo(() => Object.values(ctx.state.model.relations).filter((r) => r.state === "INFERRED").length, [ctx.state.model.relations]);
   const nErr = check?.errors.length ?? 0;
-  const nWarn = check?.warnings.length ?? 0;
+  const nWarn = check?.warnings.length ?? 0; // 서버 확인(MDM014)은 ERD_INFERRED_LEFT 까지 센다 — 확인 표시·전송은 이 수로
+  const leftInferred = useMemo(() => (check?.warnings ?? []).filter((w) => w.code === INFERRED_LEFT).length, [check]);
   const applyOk = isValidApplyFrom(applyFrom);
   const future = applyOk && applyFrom > applyFromText(new Date());
   const canSend = !!check && nErr === 0 && (nWarn === 0 || ack) && applyOk && !sending && ctx.rights.confirm.ok;
@@ -147,18 +165,21 @@ export function ConfirmDialog({ ctx, opened, onClose, onConfirmed }: ConfirmDial
         {!check && !error && <div className="erd-confirm__summary">확정 전 검사를 하는 중입니다.</div>}
         {check && (
           <div className="erd-confirm__summary" data-testid="erd-confirm-summary">
-            오류 {nErr}건 · 경고 {nWarn}건 · 남은 추정 관계 {inferred}건(확정을 막지 않습니다)
+            확정을 막는 문제 {nErr}건 · 확인할 경고 {nWarn - leftInferred}건 · 검토 안 한 추정 관계 {inferred}건(확정을 막지 않음)
           </div>
         )}
         {nErr > 0 && (
-          <IssueList title="새로 넣거나 바꾼 컬럼이 표준에 맞지 않아 확정할 수 없습니다. 고친 뒤 다시 확정하세요." groups={errors} testId="erd-confirm-errors" />
+          <IssueList title="이번 버전에서 넣거나 바꾼 컬럼이 표준에 맞지 않아 확정할 수 없습니다. 고친 뒤 다시 확정하세요."
+            groups={errors} testId="erd-confirm-errors" model={ctx.state.model} />
         )}
         {nWarn > 0 && (
-          <IssueList title="기존 위반입니다. 확인했으면 아래를 고르고 확정하세요." groups={warnings} testId="erd-confirm-warnings" />
+          <IssueList title="기존 위반과 감사 컬럼 위반입니다. 확정을 막지 않습니다. 확인했으면 아래를 고르세요."
+            groups={warnings} testId="erd-confirm-warnings" model={ctx.state.model} />
         )}
         {nWarn > 0 && nErr === 0 && (
           <span data-testid="erd-confirm-ack">
-            <Checkbox checked={ack} onChange={setAck} label={`경고 ${nWarn}건을 확인했습니다`} />
+            <Checkbox checked={ack} onChange={setAck}
+              label={nWarn > leftInferred ? `경고 ${nWarn - leftInferred}건을 확인했습니다` : "검토 안 한 추정 관계를 확인했습니다"} />
           </span>
         )}
         <div className="erd-editors__row">
@@ -168,7 +189,7 @@ export function ConfirmDialog({ ctx, opened, onClose, onConfirmed }: ConfirmDial
         </div>
         {future && (
           <div className="erd-confirm__more" data-testid="erd-confirm-future">
-            미래 시각입니다. 그 시각 전까지는 이 모델의 새 버전을 만들 수 없습니다(MDM006).
+            미래 시각입니다. 그 시각 전까지는 이 모델의 새 버전을 만들 수 없습니다.
           </div>
         )}
         {error && <div className="erd-confirm__error" role="alert" data-testid="erd-confirm-error">{error}</div>}
