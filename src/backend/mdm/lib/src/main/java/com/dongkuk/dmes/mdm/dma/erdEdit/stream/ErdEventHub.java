@@ -191,7 +191,7 @@ public class ErdEventHub {
         pinger.shutdownNow();
         reader.shutdownNow();
         sender.shutdownNow();
-        subs.values().forEach(list -> list.forEach(s -> s.emitter.complete()));
+        subs.values().forEach(list -> list.forEach(s -> completeQuietly(s)));
     }
 
     /** 허브의 DB 읽기. 동시에 {@value #DB_READERS}개만 — 구독자 잠금을 쥐고 부르지 않는다. */
@@ -755,6 +755,27 @@ public class ErdEventHub {
         }));
     }
 
+    /**
+     * 스트림을 닫는다. 컨테이너가 onError 를 이미 처리했으면 complete 가 IllegalStateException 을 던진다("non-container thread … after an error") —
+     * 이미 닫힌 것이므로 삼킨다. 새면 {@link #drain} 의 catch 가 "전달 실패" WARN 을 스택째 남겨 로그가 넘친다.
+     */
+    private static void completeQuietly(Sub s) {
+        try {
+            s.emitter.complete();
+        } catch (RuntimeException e) {
+            log.debug("[erd-sse] {} {} 이미 닫힌 스트림 — complete 무시: {}", s.modelId, s.session, e.toString());
+        }
+    }
+
+    /** {@link #completeQuietly} 와 같은 이유로, 오류로 닫을 때 던지는 예외를 삼킨다. */
+    private static void completeWithErrorQuietly(Sub s, Throwable cause) {
+        try {
+            s.emitter.completeWithError(cause);
+        } catch (RuntimeException e) {
+            log.debug("[erd-sse] {} {} 이미 닫힌 스트림 — completeWithError 무시: {}", s.modelId, s.session, e.toString());
+        }
+    }
+
     /** 막지 않고 스트림을 닫는다(닫기가 진행 중인 쓰기의 잠금을 기다릴 수 있다). */
     private static void completeLater(Sub s, Throwable cause) {
         Thread t = new Thread(() -> {
@@ -860,7 +881,7 @@ public class ErdEventHub {
         s.queue.clear();
         if (send(s, "reload", Map.of("rev", rev))) {
             s.dropped = true;
-            s.emitter.complete();
+            completeQuietly(s);
             pinger.execute(() -> drop(s));
         }
     }
@@ -896,7 +917,7 @@ public class ErdEventHub {
             boolean first = !s.dropped;
             s.dropped = true;
             Thread.interrupted(); // 감시가 깨운 interrupt 를 이 스레드(풀)에 남기지 않는다
-            if (first) s.emitter.completeWithError(e);
+            if (first) completeWithErrorQuietly(s, e);
             // 해제는 다른 구독자에게 presence 를 보내므로, 지금 잡은 잠금 밖(ping 스레드)에서 한다.
             pinger.execute(() -> drop(s));
             return false;
