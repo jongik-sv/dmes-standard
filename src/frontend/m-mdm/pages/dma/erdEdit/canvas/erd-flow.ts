@@ -20,6 +20,7 @@ import { useMemo, useRef } from "react";
 import type { Edge, Node } from "@dk-oasis/shared/react-flow";
 
 import { isAuditColumnId } from "../audit-columns";
+import { placeholderName } from "../placeholder-name";
 import { countTableViolations } from "../state/violations";
 import type { ErdClaim, ErdColumnStatus, ErdModelJson, ErdPresence, ErdRelation, ErdRelationState, ErdState } from "../types";
 import { NODE_WIDTH, nodeHeight, relationSides, typeText, type NodeSide } from "./erd-geometry";
@@ -39,10 +40,16 @@ export interface ErdRowView {
   id: string;
   key: KeyMark;
   name: string;
+  /** name 을 공백으로 나눈 단어 중 사전에 없는 단어(`***` 자리에 물리 토막을 넣은 것)의 자리 번호. 2차 §7.3. */
+  unknown: number[];
+  /** `***` 자리를 맞추지 못했을 때 이름 툴팁(물리명 전체). 아니면 null. */
+  nameTip: string | null;
   /** 논리+물리 프리셋에서 함께 쓰는 물리명. 아니면 null. */
   nameSub: string | null;
   sub: string;
   tone: RowTone;
+  /** PK 행 다음 첫 행 — 위에 구분선을 긋는다(exERD 식). PK 가 없거나 PK 뿐이면 모두 false. */
+  sepAbove: boolean;
   handles: HandleSpec[];
 }
 
@@ -60,6 +67,10 @@ export interface ErdNodeViewer {
 
 export interface ErdNodeData extends Record<string, unknown> {
   title: string;
+  /** title 이 논리명일 때 사전에 없는 단어 자리 번호(2차 §7.3). 물리명이면 빈 목록. */
+  titleUnknown: number[];
+  /** title 의 `***` 자리를 맞추지 못했을 때 툴팁(물리명 전체). 아니면 null. */
+  titleTip: string | null;
   subtitle: string;
   /** 개요 단계(U50) 두 줄 — 논리명(없으면 빈 글)·물리명. 보기 모드와 상관없다. */
   logicalName: string;
@@ -172,6 +183,7 @@ export interface ErdFlow {
 }
 
 const NO_HANDLES: HandleSpec[] = [];
+const NO_WORDS: number[] = [];
 const NO_VIEWERS: ErdNodeViewer[] = [];
 const EMPTY_FLOW: ErdFlow = { nodes: [], edges: [] };
 
@@ -272,7 +284,9 @@ export function buildFlow(i: BuildFlowInput): ErdFlow {
   const shown = new Map<string, string[]>();
   const auditHiddenOf = new Map<string, number>();
   for (const n of placed) {
-    const order = m.tables[n.table].columnOrder.filter((c) => m.columns[c]);
+    // PK 컬럼을 맨 위로(안정 분할). 손잡이는 컬럼 id 기준이라 순서가 바뀌어도 선은 그대로 붙는다.
+    const cols = m.tables[n.table].columnOrder.filter((c) => m.columns[c]);
+    const order = [...cols.filter((c) => marks.get(c) === "PK"), ...cols.filter((c) => marks.get(c) !== "PK")];
     const foldRows = i.preset === "overview" || n.foldMode === "NAME" ? []
       : n.foldMode === "KEYS" ? order.filter((c) => (marks.get(c) ?? "") !== "" || ukCols.has(c))
       : order;
@@ -326,16 +340,22 @@ export function buildFlow(i: BuildFlowInput): ErdFlow {
   const nodes = placed.map((n): ErdFlowNode => {
     const t = m.tables[n.table];
     const total = t.columnOrder.filter((c) => m.columns[c]).length;
-    const rows = shown.get(n.table)!.map((cid): ErdRowView => {
+    const shownRows = shown.get(n.table)!;
+    const rows = shownRows.map((cid, k): ErdRowView => {
       const c = m.columns[cid];
       const st = i.statuses[cid] as ErdColumnStatus | undefined;
+      // 논리명 자리는 `***` 에 물리 토막을 넣은 표시 이름(2차 §7.3). 저장 값은 바꾸지 않는다.
+      const pn = physical && !both ? null : placeholderName(c.logical, c.phys);
       return {
         id: cid,
         key: marks.get(cid) ?? "",
-        name: physical && !both ? c.phys : c.logical || c.phys,
+        name: pn ? pn.display || c.phys : c.phys,
+        unknown: pn?.display ? pn.unknownWords : NO_WORDS,
+        nameTip: pn?.mismatch ? c.phys : null,
         nameSub: both ? c.phys : null,
         sub: !physical && !both ? (c.domainId != null ? i.domains[String(c.domainId)]?.name ?? "" : "") : typeText(c),
         tone: st === "MISS" ? "miss" : st === "TYPE" || st === "DOMAIN" ? "warn" : null,
+        sepAbove: k > 0 && marks.get(shownRows[k - 1]) === "PK" && marks.get(cid) !== "PK",
         handles: handles.get(cid) ?? NO_HANDLES,
       };
     });
@@ -346,11 +366,15 @@ export function buildFlow(i: BuildFlowInput): ErdFlow {
     const violations = countTableViolations(m, n.table, i.statuses, i.showAudit);
     // 행은 namesOnly 와 상관없이 만든다 — 높이는 늘 상세 단계 높이다(개요 단계 상자 높이 = boxHeight, U50).
     const boxHeight = nodeHeight(rows.length, hiddenCount > 0);
+    const tn = placeholderName(t.logical, t.phys);
     return {
       id: n.table, type: "erdTable", position: { x: n.x, y: n.y },
       data: {
-        title: physical ? t.phys : t.logical || t.phys, subtitle: physical ? t.logical : t.phys,
-        logicalName: t.logical, physName: t.phys, boxHeight,
+        title: physical ? t.phys : tn.display || t.phys,
+        titleUnknown: !physical && tn.display ? tn.unknownWords : NO_WORDS,
+        titleTip: !physical && tn.mismatch ? t.phys : null,
+        subtitle: physical ? tn.display : t.phys,
+        logicalName: tn.display, physName: t.phys, boxHeight,
         rows, hiddenCount, auditHidden, violations, viewers: viewers.get(n.table) ?? NO_VIEWERS,
       },
       selected: i.selected.has(n.table),

@@ -11,7 +11,8 @@ import { ErdRelationEdge } from "../../../pages/dma/erdEdit/canvas/ErdRelationEd
 import { ErdTableNode } from "../../../pages/dma/erdEdit/canvas/ErdTableNode";
 import { buildFlow, type ErdFlowNode } from "../../../pages/dma/erdEdit/canvas/erd-flow";
 import { ZOOM_NAMES_ONLY, ZOOM_OVERVIEW, lodTier } from "../../../pages/dma/erdEdit/canvas/erd-geometry";
-import { bigState } from "./erd-fixtures";
+import type { ErdState } from "../../../pages/dma/erdEdit/types";
+import { MENU_DIAGRAMS, bigState, menuModel, stateOf } from "./erd-fixtures";
 
 const NODE_TYPES: NodeTypes = { erdTable: ErdTableNode };
 const EDGE_TYPES: EdgeTypes = { erdRelation: ErdRelationEdge };
@@ -39,9 +40,9 @@ afterEach(() => {
 });
 
 /** 표 60개 × 컬럼 9개 = 컬럼 540개 모델을 주어진 확대율로 그린다. */
-async function renderAt(zoom: number, nodeTypes: NodeTypes = NODE_TYPES) {
+async function renderAt(zoom: number, nodeTypes: NodeTypes = NODE_TYPES, state: ErdState = bigState(60, 9)) {
   const flow = buildFlow({
-    state: bigState(60, 9), diagramId: "d-all", mode: "logical", preset: "basic", namesOnly: zoom < 0.5, showAudit: true,
+    state, diagramId: "d-all", mode: "logical", preset: "basic", namesOnly: zoom < 0.5, showAudit: true,
     statuses: {}, domains: {}, selected: new Set(), mySession: "ui-me",
   });
   host = document.createElement("div");
@@ -78,6 +79,26 @@ describe("ERD 캔버스", () => {
     expect(host.querySelectorAll("[data-names-only]")).toHaveLength(0);
     expect(host.querySelectorAll(".erd-node__sub")).toHaveLength(60);
     expect(host.querySelector('[data-testid="erd-col-c-0-0"] .erd-col__key')?.textContent).toBe("PK");
+  });
+});
+
+describe("사전에 없는 단어 표시(2차 §7.3, c0)", () => {
+  it("노드 논리명은 *** 자리에 물리 토막을 넣고, 그 단어를 기울임·「사전에 없는 단어」 툴팁으로 그린다", async () => {
+    const m = menuModel();
+    m.tables["t-1"].logical = "*** 메뉴";
+    m.tables["t-1"].phys = "TB_MENU";
+    m.columns["c-4"].logical = "메뉴 ***"; // MENU_NM
+    m.columns["c-2"].logical = "*** *** ***"; // OBJECT_ID — 토막 수가 달라 맞추지 못함
+    await renderAt(1, NODE_TYPES, stateOf(m, MENU_DIAGRAMS));
+    const t1 = host.querySelector('[data-testid="erd-node-t-1"]')!;
+    expect(t1.querySelector(".erd-node__title")?.textContent).toBe("TB 메뉴"); // 표 토막 수(TB·MENU 2) = 단어 2
+    const col = host.querySelector('[data-testid="erd-col-c-4"] .erd-col__name')!;
+    expect(col.textContent).toBe("메뉴 NM");
+    const unknown = col.querySelectorAll("i.erd-unknown");
+    expect([...unknown].map((u) => [u.textContent, u.getAttribute("title")])).toEqual([["NM", "사전에 없는 단어"]]);
+    const bad = host.querySelector('[data-testid="erd-col-c-2"] .erd-col__name')!;
+    expect(bad.textContent).toBe("*** *** ***");
+    expect(bad.getAttribute("title")).toBe("OBJECT_ID");
   });
 });
 

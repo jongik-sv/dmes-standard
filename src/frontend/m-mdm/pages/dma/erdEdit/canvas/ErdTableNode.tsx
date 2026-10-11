@@ -9,7 +9,7 @@
  * 머리의 「감사 n」은 감사 컬럼 보기가 꺼져 가린 감사 컬럼 수다(auditHidden, 접기로 가린 수와 따로 센다).
  * 손잡이: 머리에 표 손잡이 4개(늘), 행에는 선이 쓰는 것만. 행이 바뀌면 React Flow 가 손잡이 자리를 다시 재게 한다.
  */
-import { memo, useEffect, useRef } from "react";
+import { Fragment, memo, useEffect, useRef } from "react";
 
 import {
   Handle, Position, useStore, useUpdateNodeInternals, type NodeProps, type ReactFlowState,
@@ -27,6 +27,25 @@ export const overviewSelector = (s: ReactFlowState): boolean => s.transform[2] <
 export const PICK_HANDLE = "pick";
 
 const NO_ROWS: ErdRowView[] = [];
+
+/** 사전에 없는 단어 툴팁(2차 §7.3). */
+export const UNKNOWN_WORD_TIP = "사전에 없는 단어";
+
+/** 이름을 단어로 나눠 사전에 없는 단어(unknown 자리)만 기울임·회색으로 그린다. 없으면 글 그대로. */
+function NameText({ text, unknown }: { text: string; unknown: readonly number[] }) {
+  if (unknown.length === 0) return <>{text}</>;
+  const words = text.split(" ");
+  return (
+    <>
+      {words.map((w, k) => (
+        <Fragment key={k}>
+          {k > 0 && " "}
+          {unknown.includes(k) ? <i className="erd-unknown" title={UNKNOWN_WORD_TIP}>{w}</i> : w}
+        </Fragment>
+      ))}
+    </>
+  );
+}
 
 function Handles({ list }: { list: readonly HandleSpec[] }) {
   return (
@@ -92,7 +111,7 @@ export const ErdTableNode = memo(function ErdTableNode({ id, data, selected, isC
       )}
       <div className="erd-node__hd">
         <Handles list={TABLE_HANDLES} />
-        <span className="erd-node__title">{data.title}</span>
+        <span className="erd-node__title" title={data.titleTip ?? undefined}><NameText text={data.title} unknown={data.titleUnknown} /></span>
         {!namesOnly && data.subtitle && <span className="erd-node__sub">{data.subtitle}</span>}
         {!namesOnly && data.auditHidden > 0 && (
           <span className="erd-node__audit" data-testid={`erd-audit-badge-${id}`} title={`감사 컬럼 ${data.auditHidden}개 숨김`}>
@@ -106,12 +125,12 @@ export const ErdTableNode = memo(function ErdTableNode({ id, data, selected, isC
         )}
       </div>
       {rows.map((r) => (
-        <div key={r.id} className="erd-col" data-tone={r.tone ?? undefined} data-testid={`erd-col-${r.id}`}>
+        <div key={r.id} className="erd-col" data-tone={r.tone ?? undefined} data-sep={r.sepAbove ? "" : undefined} data-testid={`erd-col-${r.id}`}>
           <span className="erd-col__key" data-key={r.key || undefined}>
             {r.key}
           </span>
-          <span className="erd-col__name">
-            {r.name}
+          <span className="erd-col__name" title={r.nameTip ?? undefined}>
+            <NameText text={r.name} unknown={r.unknown} />
             {r.nameSub && <span className="erd-col__name-sub">{r.nameSub}</span>}
           </span>
           <span className="erd-col__sub">{r.sub}</span>

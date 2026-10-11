@@ -29,11 +29,13 @@ export const ERD_CSS = `
 .erd-node[data-names-only] .erd-node__hd { border-bottom: 0; }
 .erd-col { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: var(--spacing-xs);
   height: 20px; padding: 0 var(--spacing-sm); }
+.erd-col[data-sep] { box-shadow: inset 0 1px 0 var(--color-border-strong); }
 .erd-col[data-tone="miss"] { background: var(--color-danger-soft); }
 .erd-col[data-tone="warn"] { background: var(--color-warning-soft); }
 .erd-col__key { font-weight: 600; color: var(--color-text-muted); }
 .erd-col__key[data-key="PK"] { color: var(--color-primary); }
 .erd-col__name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.erd-unknown { font-style: italic; color: var(--color-text-muted); }
 .erd-col__name-sub { margin-left: var(--spacing-xs); font-family: var(--font-family-mono); color: var(--color-text-muted); }
 .erd-col__sub { font-family: var(--font-family-mono); color: var(--color-text-muted); white-space: nowrap; }
 .erd-node__more { height: 20px; line-height: 20px; padding: 0 var(--spacing-sm); border-top: 1px dashed var(--color-border); color: var(--color-text-muted); }

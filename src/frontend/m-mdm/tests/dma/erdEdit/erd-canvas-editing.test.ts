@@ -9,6 +9,7 @@ import {
 } from "@dk-oasis/shared/react-flow";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 
+import { clearClip, copyTables, readClip, writeClip } from "../../../pages/dma/erdEdit/canvas/erd-clipboard";
 import { ErdRelationEdge } from "../../../pages/dma/erdEdit/canvas/ErdRelationEdge";
 import { HANDLE_REACH, NODE_WIDTH } from "../../../pages/dma/erdEdit/canvas/erd-geometry";
 import { ErdTableNode } from "../../../pages/dma/erdEdit/canvas/ErdTableNode";
@@ -116,6 +117,36 @@ afterEach(() => {
   act(() => root?.unmount());
   root = null;
   host?.remove();
+});
+
+describe("캔버스 편집 — 표 복사·붙이기(c3)", () => {
+  afterEach(() => clearClip());
+  const mod = (k: string): KeyboardEventInit => ({ key: k, code: `Key${k.toUpperCase()}`, ctrlKey: !isMacPlatform(), metaKey: isMacPlatform() });
+
+  it("Ctrl/⌘+C 는 고른 표를 복사하고, Ctrl/⌘+V 는 한 묶음으로 붙인다(마우스 없으면 원래 자리 + 간격)", async () => {
+    const ctx = fakeCtx({ selectedTableId: "t-2" });
+    await mount(ctx, ["t-2"]);
+    await press(mod("c"));
+    expect(readClip()).toMatchObject({ kind: "tables", tables: [{ id: "t-2" }] });
+    expect(ctx.applied).toEqual([]);
+    await press(mod("v"));
+    expect(ctx.applied).toHaveLength(1);
+    const { commands, label } = ctx.applied[0];
+    expect(label).toBe("표 붙이기");
+    expect(commands[0]).toMatchObject({ op: "addTable", phys: "TB_MCM_SEC_OBJ_COPY", logical: "오브젝트 복사", audit: false });
+    expect(commands.at(-1)).toMatchObject({ op: "placeTables", diagram: "d-all", nodes: [{ x: 440, y: 40 }] });
+  });
+
+  it("고른 표가 없으면 복사하지 않고, 모델 편집 권한이 없으면 붙이지 않는다", async () => {
+    const ctx = fakeCtx({ rights: { ...fakeCtx().rights, model: deny("확정된 버전이라 모델을 고칠 수 없습니다.") } });
+    await mount(ctx);
+    await press(mod("c"));
+    expect(readClip()).toBeNull();
+    writeClip(copyTables(ctx.state, "d-all", ["t-1"])!);
+    await press(mod("v"));
+    expect(ctx.applied).toEqual([]);
+    expect(ctx.notify).toHaveBeenCalledWith("확정된 버전이라 모델을 고칠 수 없습니다.", "warn");
+  });
 });
 
 describe("캔버스 편집 — 키", () => {

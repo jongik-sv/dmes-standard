@@ -46,6 +46,22 @@ describe("buildFlow", () => {
     expect(both.rows[0]).toMatchObject({ name: "메뉴아이디", nameSub: "MENU_ID", sub: "VARCHAR2(30)" });
   });
 
+  it("PK 컬럼을 맨 위에 두고 첫 비 PK 행에 구분선(sepAbove)을 단다. 손잡이 id 는 컬럼 id 그대로다", () => {
+    const m = menuModel();
+    m.tables["t-1"].columnOrder = ["c-2", "c-4", "c-1"];
+    const n = buildFlow(input({ state: stateOf(m, MENU_DIAGRAMS) })).nodes[0].data;
+    expect(n.rows.map((r) => r.id)).toEqual(["c-1", "c-2", "c-4"]);
+    expect(n.rows.map((r) => r.sepAbove)).toEqual([false, true, false]);
+    expect(n.rows[1].handles.map((h) => h.id)).toEqual(["c-2|R|s"]);
+    // PK 가 없거나 PK 뿐이면 구분선이 없다
+    const obj = buildFlow(input()).nodes[1].data;
+    expect(obj.rows.map((r) => r.sepAbove)).toEqual([false]);
+    delete m.keys["k-1"];
+    const noPk = buildFlow(input({ state: stateOf(m, MENU_DIAGRAMS) })).nodes[0].data;
+    expect(noPk.rows.map((r) => r.id)).toEqual(["c-2", "c-4", "c-1"]);
+    expect(noPk.rows.every((r) => !r.sepAbove)).toBe(true);
+  });
+
   it("접기 KEYS 는 키 컬럼만 그리고 숨긴 수를 단다. E-R 개요는 행도 숨긴 수도 없다", () => {
     const keys = stateOf(menuModel(), { ...MENU_DIAGRAMS, nodes: [{ ...MENU_DIAGRAMS.nodes[0], foldMode: "KEYS" }, MENU_DIAGRAMS.nodes[1]] });
     const n = buildFlow(input({ state: keys })).nodes[0].data;

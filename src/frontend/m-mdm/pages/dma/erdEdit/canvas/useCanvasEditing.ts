@@ -5,7 +5,8 @@
  * Alt+Delete(모델에서 삭제), 접기, 자동 배치, 우클릭 메뉴, 부모·자식 표(Ctrl/⌘+↑↓·Alt+↑↓), 표 찾기(Ctrl/⌘+F), 이름표 만료,
  * 맞춤(Shift+1 전체·Shift+2 고른 표, U38), 자기 참조 알림(U42), 단계별 그리기의 --erd-zoom·data-lod(U50), 미니맵(U51), 주제별로 나누기(U52),
  * 정렬·간격 [정렬 ▾]·표 메뉴 정렬(U58-U60)·Ctrl/⌘+A 모두 고르기(U67), 다른 다이어그램에 넣기(U61)·같은 컬럼 여러 표에(U63) 창,
- * 도구 막대 [컬럼 추가]·[PK 추가](U43), 표 메뉴 컬럼 추가·PK 컬럼 추가·관계 시작(U44), 관계 도구 안내 줄(U41).
+ * 도구 막대 [컬럼 추가]·[PK 추가](U43), 표 메뉴 컬럼 추가·PK 컬럼 추가·관계 시작(U44), 관계 도구 안내 줄(U41),
+ * 표 복사·붙이기(Ctrl/⌘+C·V, 2차 c3 — 붙이는 자리 = 캔버스 위 마우스 자리, 없으면 원래 자리 + 간격).
  * - 안내 줄의 "시작 뒤" 상태(connecting·fromTable)는 도구 막대에만 간다. 노드 꾸밈·flowProps 는 이 상태를 보지 않는다(Local-Rules §19).
  * ErdViewer 의 CanvasPane(ReactFlowProvider 안)이 부른다(README "화면 내부 계약"). rf 는 CanvasPane 의 useReactFlow() 값이다.
  * - 쓰기는 모두 ctx.apply 로 보낸다. 거절 알림·칸 강조는 apply 가 올린다. 여기서는 NEEDS_CHOICE(onNameClash)만 받아 선택 창을 띄운다.
@@ -32,6 +33,7 @@ import {
   MAX_BATCH, addRelationCommand, addTableCommands, deleteTablesCommands, moveNodesCommand, newElementId, nextNeighbor, parseClashChoices,
   removeFromDiagramCommand, setFoldCommand, tableOfElement, type ClashChoice, type NameClashMode,
 } from "./erd-commands";
+import { PASTE_GAP, copyTables, nextPasteRound, pasteTablesPlan, readClip, writeClip } from "./erd-clipboard";
 import { nextExpiry, viewersAt, type ErdFlowEdge, type ErdFlowNode } from "./erd-flow";
 import { NODE_WIDTH, ZOOM_NAMES_ONLY, lodTier, nodeHeight, type LodTier } from "./erd-geometry";
 import { autoLayoutCommand, type Size } from "./erd-layout";
@@ -49,7 +51,7 @@ type FlowProps = ReactFlowProps<ErdFlowNode, ErdFlowEdge>;
 export interface CanvasEditing {
   flowProps: Pick<FlowProps, "nodesDraggable" | "nodesConnectable" | "deleteKeyCode" | "onNodeDragStop" | "onConnect" | "isValidConnection"
     | "connectionMode" | "onPaneClick" | "onNodeContextMenu" | "onPaneContextMenu" | "snapToGrid" | "snapGrid"
-    | "onConnectStart" | "onConnectEnd" | "onClickConnectStart" | "onClickConnectEnd" | "onNodeClick">;
+    | "onConnectStart" | "onConnectEnd" | "onClickConnectStart" | "onClickConnectEnd" | "onNodeClick" | "onMouseMove" | "onMouseLeave">;
   onNodesChange(changes: NodeChange<ErdFlowNode>[]): void;
   decorateNodes(nodes: ErdFlowNode[]): ErdFlowNode[];
   onKeyDown(e: KeyboardEvent): void;
@@ -695,6 +697,66 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
     void rf.setViewport(vp, { duration: 200 });
   }, [rf, storeApi]);
 
+  // ── 표 복사·붙이기(2차 c3) — 붙이는 자리는 캔버스 위 마지막 마우스 자리(상태가 아니라 ref, 움직여도 다시 그리지 않는다) ──
+  const pointer = useRef<{ x: number; y: number } | null>(null);
+  const onMouseMove = useCallback((e: { clientX: number; clientY: number }) => {
+    pointer.current = { x: e.clientX, y: e.clientY };
+  }, []);
+  const onMouseLeave = useCallback(() => {
+    pointer.current = null;
+  }, []);
+
+  const copySelected = useCallback((tables?: readonly string[]) => {
+    const c = ctxRef.current;
+    const clip = copyTables(c.state, c.diagramId, tables ?? selectedIds());
+    if (!clip) return UNHANDLED;
+    writeClip(clip);
+    c.notify(`표 ${clip.tables.length}개를 복사했습니다. ${mac ? "⌘V" : "Ctrl+V"} 로 붙입니다.`, "info");
+    return undefined;
+  }, [selectedIds, mac]);
+
+  /** 붙이기 요청이 오가는 중(앞 응답 전 두 번째 붙이기가 같은 이름을 쓰지 않게). */
+  const pasteBusy = useRef(false);
+  /** 마지막으로 마우스 자리에 붙인 화면 점과 그 자리 거듭 횟수 — 마우스를 안 움직이고 거듭 붙이면 간격만큼 비켜 놓는다. */
+  const lastPaste = useRef<{ x: number; y: number; n: number } | null>(null);
+  const paste = useCallback(async (at?: XYPosition | null) => {
+    const c = ctxRef.current;
+    const clip = readClip();
+    if (!clip || clip.kind !== "tables" || !c.diagramId || pasteBusy.current) return;
+    if (!c.rights.model.ok) {
+      deny(c.rights.model);
+      return;
+    }
+    const p = at === undefined ? pointer.current : null;
+    let where = at ?? (p ? rf.screenToFlowPosition(p) : null);
+    if (p && where) {
+      const last = lastPaste.current;
+      const n = last && last.x === p.x && last.y === p.y ? last.n + 1 : 0;
+      lastPaste.current = { x: p.x, y: p.y, n };
+      where = { x: where.x + PASTE_GAP * n, y: where.y + PASTE_GAP * n };
+    }
+    pasteBusy.current = true;
+    const plan = pasteTablesPlan({
+      model: c.state.model, modelId: c.modelId, clip, diagramId: c.diagramId, at: where,
+      round: where ? 1 : nextPasteRound(), newId: (prefix) => newElementId(prefix),
+    });
+    if (plan.error) {
+      pasteBusy.current = false;
+      c.notify(plan.error, "warn");
+      return;
+    }
+    let res: { out: ApplyOutcome; current: boolean };
+    try {
+      res = await send(plan.commands, plan.tableIds.length > 1 ? `표 ${plan.tableIds.length}개 붙이기` : "표 붙이기");
+    } finally {
+      pasteBusy.current = false;
+    }
+    const { out, current } = res;
+    if (!out.ok || !current) return;
+    storeApi.getState().unselectNodesAndEdges();
+    storeApi.getState().addSelectedNodes(plan.tableIds); // 붙인 표를 고른 상태로(이어서 끌어 옮기기)
+  }, [deny, rf, send, storeApi]);
+
   // ── 키 ──
   const onKeyDown = useCallback((e: KeyboardEvent) => {
     if (inDialog(e.target)) return;
@@ -709,6 +771,13 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
         const ids = rf.getNodes().map((n) => n.id);
         if (ids.length === 0) return UNHANDLED;
         storeApi.getState().addSelectedNodes(ids); // select 변경 → CanvasPane → ErdViewer 선택
+        return undefined;
+      },
+      // 캔버스 안 글을 끌어 고른 채면 브라우저 복사를 막지 않는다.
+      copy: () => (globalThis.getSelection?.()?.toString() ? UNHANDLED : copySelected()),
+      paste: () => {
+        if (readClip()?.kind !== "tables") return UNHANDLED;
+        void paste();
         return undefined;
       },
       parentTable: () => goNeighbor("parent"),
@@ -727,7 +796,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       },
     };
     dispatchShortcut(e, handlers, mac, ERD_CANVAS_SHORTCUTS);
-  }, [chooseTool, removeTables, askDelete, goNeighbor, escape, fitTo, rf, storeApi, selectedIds, mac]);
+  }, [chooseTool, removeTables, askDelete, goNeighbor, escape, fitTo, rf, storeApi, selectedIds, mac, copySelected, paste]);
 
   // ── 누르기·우클릭 ──
   const onPaneClick = useCallback<NonNullable<FlowProps["onPaneClick"]>>((e) => {
@@ -786,6 +855,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       id: "place", label: `${what} 다른 다이어그램에 넣기…`, run: () => openPlace(targets),
       ...(noOther ? { disabled: true, title: "다른 다이어그램이 없습니다" } : off(r.diagram)),
     });
+    items.push({ id: "copy", label: `${what} 복사 (${mac ? "⌘C" : "Ctrl+C"})`, run: () => void copySelected(targets) });
     if (targets.length > 1) {
       items.push({ id: "bulkcol", label: `${what}에 같은 컬럼 추가…`, run: () => openBulkColumn(targets), ...off(r.model) });
     }
@@ -800,7 +870,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       );
     }
     setMenu({ at: { x: e.clientX, y: e.clientY }, items });
-  }, [selectedIds, storeApi, fold, arrange, openPlace, openBulkColumn, removeTables, askDelete, goNeighbor, startRelationFrom, mac]);
+  }, [selectedIds, storeApi, fold, arrange, openPlace, openBulkColumn, removeTables, askDelete, goNeighbor, startRelationFrom, mac, copySelected]);
 
   const onPaneContextMenu = useCallback<NonNullable<FlowProps["onPaneContextMenu"]>>((e) => {
     e.preventDefault();
@@ -811,11 +881,14 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       at: { x: e.clientX, y: e.clientY },
       items: [
         { id: "add-table", label: "여기에 표 추가", run: () => setNewTableAt(at), ...off(r.model) },
+        ...(readClip()?.kind === "tables"
+          ? [{ id: "paste", label: `여기에 붙이기 (${mac ? "⌘V" : "Ctrl+V"})`, run: () => void paste(at), ...off(r.model) }]
+          : []),
         { id: "layout", label: "자동 배치", run: () => void layout(), ...off(r.diagram) },
         { id: "split", label: "주제별로 나누기…", run: openSplit, ...off(r.diagram) },
       ],
     });
-  }, [rf, layout, openSplit]);
+  }, [rf, layout, openSplit, paste, mac]);
 
   // ── 새 표 ──
   const submitNewTable = useCallback(async (phys: string, logical: string): Promise<string | null> => {
@@ -863,10 +936,10 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
     deleteKeyCode: null,
     connectionMode: ConnectionMode.Loose,
     isValidConnection, onConnect, onConnectStart, onConnectEnd, onClickConnectStart, onClickConnectEnd, onNodeDragStop, onPaneClick,
-    onNodeContextMenu, onPaneContextMenu, onNodeClick,
+    onNodeContextMenu, onPaneContextMenu, onNodeClick, onMouseMove, onMouseLeave,
     snapToGrid: true, snapGrid: SNAP_GRID,
   }), [canDiagram, canModel, tool, relationTool, isValidConnection, onConnect, onConnectStart, onConnectEnd, onClickConnectStart,
-    onClickConnectEnd, onNodeDragStop, onPaneClick, onNodeContextMenu, onPaneContextMenu, onNodeClick]);
+    onClickConnectEnd, onNodeDragStop, onPaneClick, onNodeContextMenu, onPaneContextMenu, onNodeClick, onMouseMove, onMouseLeave]);
 
   // 파일이 .ts(README 계약 이름)라 JSX 대신 createElement 로 그린다. 끄는 동안(setDrag) 다시 그려도 막대·창은 같은 요소를 넘겨
   // 아래 부품이 다시 그리지 않게 실제 입력으로만 다시 만든다.
