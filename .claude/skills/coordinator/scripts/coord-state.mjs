@@ -8,8 +8,9 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as J from './lib/jq-json.mjs';
 import * as C from './lib/compat.mjs';
-import { Ctx, CoordDie, expand, cfgSub, repo, stateRoot, runDir, stateFile, sess8Of, staleRuns, nowIso, nowEpoch, isoToEpochLoose, lock, unlock } from './lib/common.mjs';
+import { Ctx, CoordDie, expand, cfgJson, cfgSub, repo, stateRoot, runDir, stateFile, sess8Of, staleRuns, nowIso, nowEpoch, isoToEpochLoose, lock, unlock } from './lib/common.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
+import { parseBriefTodo } from './lib/wbs-ahead.mjs';
 
 /** 도움말(= bash 판 머리말 2~23줄, 이름만 .mjs). */
 const HELP = `# 사용법: coord-state.mjs <하위명령> …   (정본: ../references/contract.md §2·§3.4)
@@ -38,6 +39,8 @@ const HELP = `# 사용법: coord-state.mjs <하위명령> …   (정본: ../refe
 #   wbs-phase <단계> <제목> [--weight n]           조정자 단계에 항목 추가(단계는 없으면 만듦) → state .wbs.phases · \`OK\`
 #   wbs-done <단계> <제목 앞부분|번호> [--note 글]  그 단계 항목 완료(번호는 1부터) · \`OK\`
 #   wbs-issue <글>                                 WBS 이슈·결정 칸에 한 줄 추가 · \`OK\`
+#   items-from-brief <레인> [--force]              <회차>/lanes/<레인>/brief.md 「## 할 일」 → .lanes.<레인>.items · \`ITEMS <레인> <n>\` | \`ITEMS <레인> skip <사유>\`
+#                                                  (--force 없으면 state=active·항목 0개일 때만. lane-add·instr <레인> start 뒤 자동 — 설정 wbs.auto_items=false 면 끔)
 #   (WBS.md 는 wbs.mjs 가 만든다. init·틱·item-done·wbs-*·close-run 이 자동으로 다시 만든다 — 환경 변수 COORD_WBS_AUTO=0 이면 건너뜀)
 # state.json 은 이 스크립트만 쓴다. 쓰기는 mkdir 잠금(<회차>/.lock) 아래에서 임시 파일 → mv 로 원자적으로 한다.
 # 회차는 COORD_RUN 환경 변수 → <state_dir>/current 순으로 정한다(init 은 인자의 run-id).
@@ -45,7 +48,7 @@ const HELP = `# 사용법: coord-state.mjs <하위명령> …   (정본: ../refe
 `;
 const SCRIPTS_DIR = path.dirname(fileURLToPath(import.meta.url));
 
-const USAGE = '사용법: coord-state.mjs init|use|get|set|set-many|lane-add|event|instr|ack|report|item-done|progress|hold|mode|decide|decisions|relink|close-run|summary|wbs-phase|wbs-done|wbs-issue … (contract §3.4)';
+const USAGE = '사용법: coord-state.mjs init|use|get|set|set-many|lane-add|event|instr|ack|report|item-done|progress|hold|mode|decide|decisions|relink|close-run|summary|wbs-phase|wbs-done|wbs-issue|items-from-brief … (contract §3.4)';
 
 const LANE_SKEL_TEXT = '{"session":{"name":"","addr":"","session_id":"","pid":0,"handle":"","kind":"claude","window":null,"spawned_by":"user"},\n "branch":"","worktree":"","owned":[],"forbidden":[],"heavy_env":null,"priority":2,"items":[],"queue":[],"hold":null,\n "last_report_at":null,"last_instr_at":null,"ctx":null,\n "compact":{"pending":false,"last_at":null,"pre_compact":null,"history":[]},"memo":"","state":"active"}';
 
@@ -577,6 +580,7 @@ function cmdLaneAdd(c, argv) {
     const sent = J.alt(indexOrNull(r.doc, ['office', 'sent', name]) ?? null, undefined);
     if (sent !== undefined && sent !== '') officeCall(c, ['lane-state', name, 'auto']);
   }
+  autoItems(c, name);
   process.stdout.write('OK\n');
 }
 function laneAddApply(doc, name, j) {
@@ -655,6 +659,7 @@ function cmdInstr(c, argv) {
     if (rc !== 0) exitNow(4);
   } finally { stUnlock(c, dir); }
   evAppend(c, dir, 'instr', lane, J.tojson(new Map([['id', id], ['kind', kind]])));
+  if (kind === 'start') autoItems(c, lane);
   process.stdout.write(`${id}\n`);
 }
 
@@ -1289,6 +1294,78 @@ function cmdWbsIssue(c, argv) {
   process.stdout.write('OK\n');
 }
 
+/**
+ * brief.md 「## 할 일」 → .lanes.<레인>.items. 결과 한 줄(쓰지 않음): `ITEMS <레인> <n>` | `ITEMS <레인> skip <사유>`.
+ * force 가 아니면 레인 state=active·항목 0개일 때만 쓴다(닫힌 레인·이미 등록한 레인 보호). 확인은 잠금 안에서 다시 한다.
+ */
+function itemsFromBrief(c, lane, { force = false } = {}) {
+  const dir = runDirSub(c);
+  const f = stateFileSub(c);
+  if (dir === '' || f === '') return `ITEMS ${lane} skip no-run`;
+  let text;
+  try { text = readFileSync(`${dir}/lanes/${lane}/brief.md`, 'utf8'); } catch { return `ITEMS ${lane} skip no-brief`; }
+  const items = parseBriefTodo(text);
+  if (items.length === 0) return `ITEMS ${lane} skip no-todo`;
+  const why = (doc) => {
+    const l = doc instanceof Map && doc.get('lanes') instanceof Map ? doc.get('lanes').get(lane) : null;
+    if (!(l instanceof Map)) return 'no-lane';
+    if (force) return '';
+    const s = l.has('state') ? l.get('state') : null;
+    if (s !== 'active') return `state=${asText(s)}`;
+    const cur = l.get('items');
+    if (Array.isArray(cur) && cur.length > 0) return 'has-items';
+    return '';
+  };
+  const r0 = readDoc(f);
+  if (r0.doc === undefined) return `ITEMS ${lane} skip state-read`;
+  const w0 = why(r0.doc);
+  if (w0 !== '') return `ITEMS ${lane} skip ${w0}`;
+  const json = JSON.stringify(items.map((i) => ({ id: i.id, title: i.title, weight: i.weight, done: false })));
+  let skipped = '';
+  if (stUpdate(c, {
+    jqExpr: 'items-from-brief',
+    // jq 폴백에도 같은 보호 조건(잠금 안 재확인)
+    jqArgs: (file) => ['--arg', 'l', lane, '--argjson', 'it', json, '--argjson', 'f', force ? 'true' : 'false',
+      'if ($f or ((.lanes[$l].state == "active") and (((.lanes[$l].items // []) | length) == 0))) then .lanes[$l].items = $it else . end', file],
+    apply(doc) {
+      skipped = why(doc);
+      if (skipped === '') laneOf(doc, lane).set('items', J.parse(json));
+      return doc;
+    },
+  }) !== 0) exitNow(4);
+  if (skipped !== '') return `ITEMS ${lane} skip ${skipped}`;
+  const r1 = readDoc(f);   // jq 폴백이면 skipped 를 모른다: 실제로 쓰였는지 다시 본다
+  const got = r1.doc instanceof Map && r1.doc.get('lanes') instanceof Map && r1.doc.get('lanes').get(lane) instanceof Map ? r1.doc.get('lanes').get(lane).get('items') : null;
+  if (!Array.isArray(got) || J.tojson(got) !== J.tojson(J.parse(json))) return `ITEMS ${lane} skip changed`;
+  evAppend(c, dir, 'items-from-brief', lane, J.tojson(new Map([['n', items.length]])));
+  return `ITEMS ${lane} ${items.length}`;
+}
+
+function cmdItemsFromBrief(c, argv) {
+  const force = argv.includes('--force');
+  const rest = argv.filter((a) => a !== '--force');
+  if (rest.length !== 1) usage();
+  laneExists(c, rest[0]);
+  const out = itemsFromBrief(c, rest[0], { force });
+  if (!out.includes(' skip ')) wbsRefresh(c);
+  process.stdout.write(`${out}\n`);
+}
+
+/** lane-add·instr start 뒤 자동 등록(설정 wbs.auto_items=false·dry-run 이면 안 함). 출력·종료 코드 불변, 실패는 무시 */
+function autoItems(c, lane) {
+  if ((c.env.COORD_DRY ?? '0') === '1') return;
+  try {
+    let v = null;
+    try { v = JSON.parse(String(cfgJson(c, '.wbs.auto_items').out).trim() || 'null'); } catch { v = null; }   // raw 는 false 를 빈 글로 바꾼다
+    if (v === false || v === 'false' || v === 0) return;
+    const out = itemsFromBrief(c, lane);
+    if (!out.includes(' skip ')) wbsRefresh(c);
+  } catch (e) {
+    if (e instanceof ExitNow || e instanceof CoordDie) return;
+    throw e;
+  }
+}
+
 // ---------- 진입 ----------
 function usage() { die(2, USAGE); }
 
@@ -1325,6 +1402,7 @@ export async function main(argv, { env, cwd } = {}) {
       case 'wbs-phase': cmdWbsPhase(c, rest); break;
       case 'wbs-done': cmdWbsDone(c, rest); break;
       case 'wbs-issue': cmdWbsIssue(c, rest); break;
+      case 'items-from-brief': cmdItemsFromBrief(c, rest); break;
       case 'help': case '-h': case '--help':
         process.stderr.write(HELP);
         break;

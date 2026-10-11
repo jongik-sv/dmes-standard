@@ -19,6 +19,9 @@
   - 이벤트 틱 = Monitor 가 `tick.mjs --watch` 를 감시, 하트비트 cron(`mode.heartbeat_min`) = 이 명령 대신 SKILL.md 머리의 고정 문구 사용
 - `/coordinator status`: 레인별 상태표(busy/idle, 마지막 보고, ctx %)
   - 진도율, PC 부하, 사용량 띠 포함. 레인에 다시 묻지 않음
+- `/coordinator status ahead`: 진행 상황과 앞으로 할 것(`wbs.mjs --ahead`)
+  - 레인별 남은 항목(항목 미등록 레인 = 착수 지시 「할 일」 로 추정, 표시함), 머지 대기, 조정자 마감 단계, 사용자 결정 대기
+  - 같은 내용이 `WBS.md` 의 `## 앞으로` 절에 늘 있음
 - `/coordinator merge <레인>`: 그 레인의 머지 요청을 `merge-gate.mjs` 로 검사 → 허가 또는 대기 전송
 - `/coordinator measure <레인> <분>`: 측정 창 열기
   - 나머지 레인에 무거운 작업 금지 통지 → 정숙 확인 → 측정 시작 통지

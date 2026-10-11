@@ -1,6 +1,6 @@
 ---
 name: coordinator
-description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 워커에 나눠 맡기고, 조정 세션 하나가 분해·머지 허가·idle 감시와 자동 배정·고부하 조절·사용량 조절·compact·마감을 맡는 조정자 스킬. 트리거 - "/coordinator", "조정자 시작", "레인 조정", "여러 세션 조정", "머지 조정", "조정 종료". 사용법 - /coordinator start <run-id> [목표] · tick · status · merge <레인> · measure <레인> <분> · close <레인> · finish · help · metrics · mode <token|time>
+description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 워커에 나눠 맡기고, 조정 세션 하나가 분해·머지 허가·idle 감시와 자동 배정·고부하 조절·사용량 조절·compact·마감을 맡는 조정자 스킬. 트리거 - "/coordinator", "조정자 시작", "레인 조정", "여러 세션 조정", "머지 조정", "조정 종료". 사용법 - /coordinator start <run-id> [목표] · tick · status [ahead] · merge <레인> · measure <레인> <분> · close <레인> · finish · help · metrics · mode <token|time>
 ---
 
 # /coordinator: 레인 조정자
@@ -17,6 +17,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 - 설계: `docs/superpowers/specs/2026-10-04-coordinator-skill-design.md`. 역할 표 = `references/protocol.md` §0
 - 명령별 문서(`start`·`tick` = 아래 절)
   - `status` = `coord-status.mjs`(`monitor.md` §2) · `merge` = `merge-gate.md`
+  - `status ahead`(사람 말 「진행 상황·앞으로 할 것」) = `node scripts/wbs.mjs --ahead` 출력 그대로(레인 남은 항목·머지·마감 단계·사용자 결정)
   - `measure` = `heavy.md` §3 · `close` = `spawn.md` §5
   - `finish` = `closing.md` · `help` = `references/help.md`
   - `metrics` = `node scripts/run-metrics.mjs --stdout --no-csv`(마감 때는 `closing.md` §4.5) · `mode` = `coord-state.mjs mode`
@@ -50,6 +51,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
    - 터미널 화면 = `prompt-watch.mjs` 가 이상을 판정한 레인 하나만 읽음
    - 조정 세션이 직접 하는 일 = D0(git·상태·짧은 확인)만. 조사 = 검색 워커, 구현 = 레인·풀
    - 진행표 요청 = `node scripts/coord-status.mjs` 출력 그대로 + `WBS.md`·오피스 위치. 레인 화면 다시 읽지 않음
+   - 「앞으로 할 것」 요청 = `node scripts/wbs.mjs --ahead` 출력 그대로. 메모·보고를 손으로 모으지 않음
    - 띄운 것은 바로 닫음
      - 단발 서브에이전트·워커 = `name` 없이 띄움(보고 뒤 스스로 끝남)
      - 조정자가 띄운 이름 있는 agent·레인·pane = 결과가 오면 즉시 닫음. 사람이 띄운 세션은 닫지 않음(`spawn.md` §5)
@@ -88,6 +90,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
    - 출력 `SESSION_RUNS`·`STALE_RUN` 처리 = `closing.md` §6
    - 사용자가 빠르게를 요청했으면 `node scripts/coord-state.mjs mode time`
    - `WBS.md` 자동 생성·열기(`wbs.auto_open`). 묶음 = `lane-add` 의 `group`, 조정자 단계 = `wbs-phase`·`wbs-done`·`wbs-issue`
+   - 레인 항목 = 착수 지시 `<회차>/lanes/<레인>/brief.md` 「## 할 일」(`{n}. {id} {제목} (크기 S|M|L)`). brief 를 `lane-add`·`instr <레인> start` 전에 쓰면 자동 등록(`wbs.auto_items`). 늦게 쓴 brief = `coord-state.mjs items-from-brief <레인>`
 3. 분해: `decompose.md`(초안 = 판단 올리기). 사용자 확정
    - 레인 공통 규칙 문서 = `templates/lane-rules-README.md`
 4. 레인 확보: `spawn.md`
@@ -144,7 +147,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 | 종류 | 처리 |
 |---|---|
 | `신원` | `node scripts/coord-state.mjs set '.lanes.<레인>.session' …`(`spawn.md` §4) |
-| `진행 보고` | `item-done`(WBS 자동 갱신) → `progress`(`monitor.md` §7). 「대기」 보고 → 아래 목록 |
+| `진행 보고` | 끝난 항목마다 `item-done <레인> <항목id>`(id = brief 「할 일」 id, WBS 자동 갱신) → `progress`(`monitor.md` §7). 「대기」 보고 → 아래 목록 |
 | `질문` | 아래 목록 |
 | `머지 요청` | `merge-gate.md`. 한 번에 하나만 허가, 허가에 「머지 뒤 다음 일」. 레인당 commit 1개·dev tip 위(`NOT_SQUASHED`·`NOT_REBASED` → 합친 뒤 재요청), 머지 = `--ff-only` |
 | `머지 완료`·`정리 완료` | 트리 대조 → `merge.history`, 다음 허가. 남긴 브랜치 = `pending_user`. 아래 「끝난 레인 닫기」 |

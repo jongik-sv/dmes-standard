@@ -113,6 +113,7 @@
 | `tasks_root` | `null` | 세션 tasks 출력 뿌리(macOS 는 `/private/tmp/claude-<uid>` 꼴). null 이면 S7(다) 생략 |
 | `wake_targets` | `null` | 한도 초기화 깨우기 대상 파일(있으면 레인 증감 때 갱신 알림) |
 | `wbs.auto_open` | `true`(키 없음 = true) | init·마감 때 `WBS.md` 를 OS 기본 앱으로 엶. false 면 열지 않음(생성은 함). 기본값 표(`COORD_DEFAULTS`)에는 없음 |
+| `wbs.auto_items` | `true`(키 없음 = true) | `lane-add`·`instr <레인> start` 뒤 `<회차>/lanes/<레인>/brief.md` 「## 할 일」 을 `.lanes.<레인>.items` 로 자동 등록(레인 state=active·항목 0개·brief 항목 1개 이상일 때만). false 면 끔(수동 `items-from-brief` 는 그대로). 기본값 표(`COORD_DEFAULTS`)에는 없음 |
 | `wbs.metrics_cmd` | `null` | 문자열 또는 argv 배열(셸 없이 실행, 리포 루트 기준, 30초 제한). stdout 마크다운을 `WBS.md` 의 `## 지표` 아래에 붙임. 실패는 한 줄 알림만 |
 
 ### 1.3 `workflow.model_table` 기본값
@@ -151,7 +152,7 @@
 | `lanes/<레인>/brief.md` | 착수 지시 원문 |
 | `lanes/<레인>/reports.md` | 받은 보고 요약 누적 |
 | `summary.md` | `node scripts/coord-state.mjs summary` 가 만든 사람용 요약 |
-| `WBS.md` | `node scripts/wbs.mjs` 가 만든 WBS(레인 묶음 표·조정자 단계·이슈·지표). 내용이 시각 줄만 다르면 다시 쓰지 않음 |
+| `WBS.md` | `node scripts/wbs.mjs` 가 만든 WBS(레인 묶음 표·조정자 단계·이슈·`## 앞으로`·지표). 내용이 시각 줄만 다르면 다시 쓰지 않음 |
 | `ticks/` | 스크립트 전용 직전 관측: `idle-check.mjs`·`stall-check.mjs` 의 관측 기록, `tick.mjs` 의 직전 부하 단계(`load`)·`POOL_DONE` 표시 파일(`pool`) |
 | `pool/` | 풀 기록(`pool.mjs`): `items/<id>.json`(묶음 기록)·`cool.json`(종류별 쉬는 시각)·`log.jsonl`(끝난 묶음 한 줄씩). 절차 = `pool.md` |
 | `metrics.md` | `run-metrics.mjs` 가 만든 회차 지표(마감 때 `closing.md` §4.5). 누적 = `<state_dir>/metrics.csv` |
@@ -297,7 +298,23 @@
 | `prompt-watch.mjs` | `<레인>` \| `--handle <h>` \| `--lanes a,b,c` `[--follow <초>] [--every <초>]` | `NONE <h>` 또는 `PROMPT <h> <trust\|usage-limit\|permission\|question\|choice\|interrupted>` 다음 줄부터 `---` 로 감싼 화면 발췌. `--lanes` = 줄 앞에 `<레인> ` 이 붙음(`<레인> PROMPT <h> <kind>`·`<레인> NONE <h>`·`<레인> GONE <사유>`). 판정·캐시·지문 규칙 = `office-contract.md` §4.2 |
 | `search.mjs` | `[--tab\|--print] [--cwd <폴더>] [--timeout <초>] [--worker <agy\|opencode>] <질의…>` | `SEARCH ok <답 파일> <초> worker=<이름>` 또는 `SEARCH fail <no-command\|timeout\|error\|empty> <사유>`. 답 파일 = 회차 `searches/` 폴더(회차가 없으면 `$TMPDIR/coord-searches/`) |
 | `glm-preflight.mjs` | 없음 | `ok <host> <model> <초>` 또는 `fail <alias\|host\|call\|model> <사유>`(모두 종료 코드 0). 회차가 있으면 결과를 state `.glm` 에 기록 |
-| `wbs.mjs` | `[--open] [--print] [--quiet]` | `<회차 폴더>/WBS.md` 생성 · `WBS <pct>% <경로>` 한 줄. `--open` = OS 기본 앱으로 열기(darwin `open` · win32 `cmd /c start` · linux `xdg-open`, 분리 실행·오류 무시, `wbs.auto_open=false` 면 안 엶). 자동 호출: `init`(생성+열기) · `tick.mjs`(조용히 재생성, 틱 출력 불변) · `item-done`·`wbs-*`(조용히 재생성) · `close-run`(재생성+열기). 환경 변수 `COORD_WBS_AUTO=0` = 자동 호출 끔, `COORD_WBS_OPENER=<명령>` = 여는 명령 바꿈(`none` = 안 엶, 시험용) |
+| `wbs.mjs` | `[--open] [--print] [--quiet] [--ahead]` | `<회차 폴더>/WBS.md` 생성 · `WBS <pct>% <경로>[ (<덧말>)]` 한 줄. `<pct>` = 등록 항목 기준(`progress` 와 같은 셈, 등록 항목 0개면 0). 덧말 = 추정·미등록이 있을 때만(`등록 항목 0개`·`추정 포함 <n>%`·`항목 미등록 레인 <n>개`). `--ahead` = 한 줄 뒤에 전체 진도 줄·`## 진행`(레인별 한 줄)·`## 앞으로` 절. 항목 0개 레인 = brief 추정(아래 「앞으로 절」). `--open` = OS 기본 앱으로 열기(darwin `open` · win32 `cmd /c start` · linux `xdg-open`, 분리 실행·오류 무시, `wbs.auto_open=false` 면 안 엶). 자동 호출: `init`(생성+열기) · `tick.mjs`(조용히 재생성, 틱 출력 불변) · `item-done`·`wbs-*`(조용히 재생성) · `close-run`(재생성+열기). 환경 변수 `COORD_WBS_AUTO=0` = 자동 호출 끔, `COORD_WBS_OPENER=<명령>` = 여는 명령 바꿈(`none` = 안 엶, 시험용) |
+
+#### `WBS.md` 「앞으로」 절
+
+- 위치 = 이슈·결정 뒤, 지표 앞. 늘 붙음. 시각이 흐르기만 해서 바뀌는 값은 넣지 않음
+- 전체 줄 = 등록 기준 %(등록 항목 0개 → `-`, 「진도 계산 불가」) · `추정 포함 <n>%`(brief 추정 레인이 있을 때) · `항목·brief 모두 없음: <레인…>`
+- 항목 0개 레인 = `<회차>/lanes/<레인>/brief.md` 「## 할 일」 맨 앞 번호 목록으로 추정
+  - 형식 = `{n}. {id} {제목} (크기 S|M|L)`(`templates/brief.md`). 절 안 첫 번호 목록만(목록 뒤 들여 쓰지 않은 줄·제목 줄에서 끝, 코드 블록 무시)
+  - id = 첫 낱말이 영문자로 시작(12자 이하, 끝 `:` 허용)하고 숫자를 포함하거나 소문자 4자 이하면 그것, 아니면 번호. `(S)` 도 크기. 크기 → weight 1·2·3
+  - 끝남 = 레인 state=closed 또는 `merge.history` 에 레인 있음 → 모두. 아니면 `reports.md` 줄(앞 시각 뗌)의 마디(`,;·|` 앞) 안에서 id 낱말 뒤 4낱말 안에 `완료`·`끝`·`done`(다른 id 꼴 낱말에서 멈춤, 바로 앞 not·안·아직·미 = 아님, `끝나면` = 아님) 또는 `☑ <id>`. 한 글자 id 는 바로 다음 낱말만
+  - 표 progress 칸 = `추정 <막대> <n>%`, items 칸 머리 = `(brief 추정)`. brief 도 없으면 `항목 미등록`
+- `### 레인` = 레인별 남은 항목 · 마지막 보고 · 메모 「다음」(`## 다음` 절 첫 줄 또는 `다음:` 줄) · 보류 · 질문. 등록 항목인데 보고상 끝 = `보고상 끝, item-done 필요`
+- `### 머지` = `merge.in_flight`·`merge.queue`
+- `### 조정자 마감 단계` = `closing.md` 0~6. 끝남 판정
+  - 공통: 이벤트 `close-step`(data `{"step":"<번호>"}`). 쓰기 = `node scripts/coord-state.mjs event close-step - '{"step":"2"}'`
+  - 0 = `window-close` 이벤트(kind measure), 해당 없으면 「해당 시」 · 1 = 계산(남은 항목 0·항목 모르는 열린 레인 0·머지도 닫힘도 아닌 레인 0·`in_flight` 없음·`queue` 빔·창 없음) · 3 = `<회차>/run-report.md` 있음 · 4 = 레인 모두 closed 그리고 `run.cron_id` 없음 · 4.5 = `<회차>/metrics.md` 있음 · 6 = `run.closed_at`. 2·5 = `close-step` 만
+- `### 사용자 결정 대기` = `pending_user` + 질문이 있는 레인
 
 ### 3.4 상태 쓰기
 
@@ -313,9 +330,9 @@
 | `get [jq식]` | state.json 에 jq 적용 결과 |
 | `set <jq경로> <json값>` | 값 쓰기(예: `set '.lanes.a8.priority' 3`) · `OK` |
 | `set-many <경로> <값> [<경로> <값> …]` | 값 여러 개를 한 번의 잠금·쓰기로 · `OK` |
-| `lane-add <레인> <json>` | 기본 레인 골격 * 기존 값 * json 병합(기존 값 유지) · `OK` |
+| `lane-add <레인> <json>` | 기본 레인 골격 * 기존 값 * json 병합(기존 값 유지) · `OK`. 뒤이어 `items-from-brief` 자동(조건 충족 때만) |
 | `event <kind> [레인\|-] [json]` | events.jsonl 에 한 줄 · `OK` |
-| `instr <레인> <kind>` | 다음 지시 번호 발급·기록, `last_instr_at` 갱신 · `<레인>-<n>` |
+| `instr <레인> <kind>` | 다음 지시 번호 발급·기록, `last_instr_at` 갱신 · `<레인>-<n>`. kind `start` 면 뒤이어 `items-from-brief` 자동(조건 충족 때만) |
 | `ack <instr-id>` | ack 시각 기록 · `OK` |
 | `report <레인> [요약 글] [--question <글>\|--answered]` | `last_report_at` 갱신, reports.md 에 한 줄 · `OK`. `--question` = `.lanes.<레인>.question` 기록(`text` = 첫 줄 200자), `--answered` = 그 질문 삭제 |
 | `item-done <레인> <항목id>` | 항목 완료 · `PROGRESS <레인> <pct>%` |
@@ -330,6 +347,7 @@
 | `wbs-phase <단계> <제목> [--weight n]` | 조정자 단계에 항목 추가(단계 없으면 만듦, weight 기본 1) · `OK` |
 | `wbs-done <단계> <제목 앞부분\|번호> [--note 글]` | 항목 완료(번호는 1부터, 앞부분은 안 끝난 항목 먼저). 없으면 종료 코드 2 · `OK` |
 | `wbs-issue <글>` | `.wbs.issues` 에 한 줄 추가 · `OK` |
+| `items-from-brief <레인> [--force]` | `<회차>/lanes/<레인>/brief.md` 「## 할 일」 → `.lanes.<레인>.items`(done false) · `ITEMS <레인> <n>` 또는 `ITEMS <레인> skip <no-brief\|no-todo\|has-items\|state=<s>\|…>`. `--force` 없으면 state=active·항목 0개일 때만. 등록하면 이벤트 `items-from-brief`. 자동 호출 = `lane-add`·`instr <레인> start` 뒤(출력·종료 코드 불변, `wbs.auto_items=false` 면 끔) |
 
 ### 3.5 부작용 있는 스크립트(모두 `--dry-run`)
 
