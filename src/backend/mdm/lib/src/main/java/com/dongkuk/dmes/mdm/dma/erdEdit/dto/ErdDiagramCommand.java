@@ -16,6 +16,8 @@ import java.util.Map;
         @JsonSubTypes.Type(value = ErdDiagramCommand.MoveNodes.class, name = "moveNodes"),
         @JsonSubTypes.Type(value = ErdDiagramCommand.SetFold.class, name = "setFold"),
         @JsonSubTypes.Type(value = ErdDiagramCommand.RemoveFromDiagram.class, name = "removeFromDiagram"),
+        @JsonSubTypes.Type(value = ErdDiagramCommand.SetRoute.class, name = "setRoute"),
+        @JsonSubTypes.Type(value = ErdDiagramCommand.ClearRoutes.class, name = "clearRoutes"),
         @JsonSubTypes.Type(value = ErdDiagramCommand.RestoreDiagram.class, name = "restoreDiagram")
 })
 public sealed interface ErdDiagramCommand {
@@ -28,13 +30,23 @@ public sealed interface ErdDiagramCommand {
     record MoveNodes(String diagram, List<Node> nodes) implements ErdDiagramCommand {}
     record SetFold(String diagram, List<String> tables, String foldMode) implements ErdDiagramCommand {}
     record RemoveFromDiagram(String diagram, List<String> tables) implements ErdDiagramCommand {}
-    /** 되돌리기 전용(직접 보낼 수 없다). elements 는 ErdChange(kind diagram|diagramNode). */
+    /** 관계선 꺾임점 한 개(캔버스 절대 좌표, ERD 2차 §7.1). */
+    record Point(int x, int y) {}
+    /** 그 다이어그램에서 그 관계의 꺾임점을 통째로 바꾼다(없으면 만든다). points 1~50개. */
+    record SetRoute(String diagram, String relation, List<Point> points) implements ErdDiagramCommand {}
+    /** 그 다이어그램에서 관계들의 꺾임점을 지운다. 빈 목록과 꺾임점이 없는 관계는 건너뛴다(거절하지 않는다). null 목록·null 항목은 거절. */
+    record ClearRoutes(String diagram, List<String> relations) implements ErdDiagramCommand {}
+    /**
+     * 되돌리기 전용(직접 보낼 수 없다). elements 는 ErdChange(kind diagram|diagramNode|diagramRoute).
+     * diagramRoute 되살리기는 관계가 모델에 있는지 보지 않는다 — 관계가 그 사이에 지워졌으면 그리지 않는 행으로 남는다(§7.1 허용).
+     * 꺾임점의 다이어그램이 그 사이에 지워졌으면 그 꺾임점만 건너뛴다.
+     */
     record RestoreDiagram(List<ErdChange> elements) implements ErdDiagramCommand {}
 
     static boolean isDiagramOp(String op) {
         return switch (op) {
             case "addDiagram", "updateDiagram", "deleteDiagram", "placeTables", "moveNodes", "setFold",
-                 "removeFromDiagram", "restoreDiagram" -> true;
+                 "removeFromDiagram", "setRoute", "clearRoutes", "restoreDiagram" -> true;
             default -> false;
         };
     }

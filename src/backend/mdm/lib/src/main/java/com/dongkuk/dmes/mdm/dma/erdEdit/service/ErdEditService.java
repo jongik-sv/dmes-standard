@@ -199,8 +199,33 @@ public class ErdEditService {
             n.put("foldMode", rs.getString("FOLD_MODE"));
             return n;
         }, modelId);
+        // 관계선 꺾임점(ERD 2차 §7.1). points 는 [{x, y}, …] 를 맵 목록으로 풀어 싣는다(OASIS 가 평범한 값으로 직렬화한다).
+        List<Map<String, Object>> routes = jdbc.query("""
+                SELECT R.DIAGRAM_ID
+                     , R.REL_UUID
+                     , R.POINTS_JSON
+                  FROM TB_MDM_ERD_DIAGRAM_ROUTE R
+                     , TB_MDM_ERD_DIAGRAM D
+                 WHERE D.DIAGRAM_ID = R.DIAGRAM_ID
+                   AND D.ERD_MODEL_ID = ?
+                 ORDER BY R.DIAGRAM_ID, R.REL_UUID
+                """, (rs, i) -> {
+            Map<String, Object> o = new LinkedHashMap<>();
+            o.put("diagram", rs.getString("DIAGRAM_ID"));
+            o.put("relation", rs.getString("REL_UUID"));
+            o.put("points", routePoints(rs.getString("POINTS_JSON")));
+            return o;
+        }, modelId);
         return new ErdModelView(modelId, rev, VersionNumbers.plain(v.getVer()), v.getStatus(), v.getOwnerId(), editors,
-                v.getRowVersion(), v.getModelJson(), diagrams, nodes, hub.presence(modelId));
+                v.getRowVersion(), v.getModelJson(), diagrams, nodes, routes, hub.presence(modelId));
+    }
+
+    private static List<Map<String, Object>> routePoints(String json) {
+        try {
+            return ErdModelCodec.MAPPER.readValue(json, new TypeReference<List<Map<String, Object>>>() { });
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("POINTS_JSON 을 읽을 수 없습니다", e);
+        }
     }
 
     /**

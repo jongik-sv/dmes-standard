@@ -30,7 +30,7 @@ class ErdCoEditorGuardTest extends AbstractMdmSharedDbTest {
     @BeforeEach
     void seed() {
         // 다른 ERD 시험이 남긴 행(명령 기록·다이어그램·작업 중 표시)도 지운다 — 모델 행을 FK 로 붙잡는다.
-        for (String t : java.util.List.of("TB_MDM_ERD_CLAIM", "TB_MDM_ERD_DIAGRAM_NODE", "TB_MDM_ERD_DIAGRAM", "TB_MDM_ERD_CMD_LOG",
+        for (String t : java.util.List.of("TB_MDM_ERD_CLAIM", "TB_MDM_ERD_DIAGRAM_NODE", "TB_MDM_ERD_DIAGRAM_ROUTE", "TB_MDM_ERD_DIAGRAM", "TB_MDM_ERD_CMD_LOG",
                 "TB_MDM_ERD_EDITOR", "TB_MDM_ERD_MODEL_VER", "TB_MDM_ERD_MODEL")) jdbc.update("DELETE FROM " + t);
         jdbc.update("INSERT INTO TB_MDM_ERD_MODEL (ERD_MODEL_ID, MODULE_ID, SCHEMA_NAME, MODEL_NAME) VALUES ('mcm','mcm','MCMAPUSER','MCM')");
         jdbc.update("INSERT INTO TB_MDM_ERD_MODEL_VER (ERD_MODEL_ID, VER, OWNER_ID, MODEL_JSON) VALUES ('mcm', 1, 'owner', '{}')");

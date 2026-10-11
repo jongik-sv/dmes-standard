@@ -2,13 +2,16 @@ package com.dongkuk.dmes.mdm.dma.erdEdit.service;
 
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.AddDiagram;
+import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.ClearRoutes;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.DeleteDiagram;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.MoveNodes;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.Node;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.PlaceTables;
+import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.Point;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.RemoveFromDiagram;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.RestoreDiagram;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.SetFold;
+import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.SetRoute;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.UpdateDiagram;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdChange;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdIds;
@@ -18,9 +21,13 @@ import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdModelCodec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,6 +41,10 @@ import org.springframework.stereotype.Component;
 public class ErdDiagramStore {
 
     private static final int NAME_MAX = 200;
+    /** 관계선 하나의 꺾임점 상한(ERD 2차 §7.1). */
+    static final int MAX_POINTS = 50;
+    /** 꺾임점 묶음 조회·삭제의 IN 목록 크기(Oracle IN 목록 상한 1000). */
+    static final int IN_CHUNK = 1000;
 
     public record Result(List<ErdChange> changes, ErdDiagramCommand inverse) {}
 
@@ -57,9 +68,12 @@ public class ErdDiagramStore {
      * @param rawIndexes  cmds 각각이 클라이언트 묶음에서 가지는 자리(거절의 commandIndex 에 쓴다)
      * @param expectedAfter 되돌리기일 때만: 되돌릴 rev 가 남긴 변경 후 값("kind|id" → 행 JSON, 지운 행은 null 값). RestoreDiagram 의 요소마다
      *                    지금 행이 이 값과 같아야 한다 — 그 뒤에 다른 변경이 있으면 CONFLICT(D18). 클라이언트 명령이면 null.
+     * @param droppedRelations 같은 묶음의 모델 명령(엔진)이 지운 관계 id. 이 모델의 모든 다이어그램에서 그 관계의 꺾임점을 지운다(ERD 2차 §7.1).
+     *                    명령을 다 처리한 뒤에 지운다 — 먼저 지우면 같은 묶음 RestoreDiagram 의 충돌 판정이 지워진 행을 보고 거짓 CONFLICT 를 낸다.
+     *                    지운 행은 같은 before 에 들어가 역명령 RestoreDiagram 하나로 되돌아온다.
      */
     public Result apply(String modelId, ErdModel model, List<ErdDiagramCommand> cmds, List<Integer> rawIndexes, String userId,
-                        Map<String, JsonNode> expectedAfter) {
+                        Map<String, JsonNode> expectedAfter, Collection<String> droppedRelations) {
         // 고치기 전 행. 없던 행은 null 로 남겨 역명령이 "지우기" 가 되게 한다(computeIfAbsent 는 null 을 저장하지 않으므로 쓰지 않는다).
         LinkedHashMap<String, JsonNode> before = new LinkedHashMap<>();
         for (int i = 0; i < cmds.size(); i++) {
@@ -118,6 +132,30 @@ public class ErdDiagramStore {
                                 .setParameter(1, r.diagram()).setParameter(2, t).executeUpdate();
                         if (deleted == 0) throw reject(index, "다이어그램에 없는 표입니다: " + t, t);
                     }
+                    // 그 다이어그램에서 뺀 표에 걸린 관계의 꺾임점도 뺀다(§7.1). 다른 다이어그램의 꺾임점은 그대로다. 조회·삭제는 한 번에 한다.
+                    Set<String> removed = new HashSet<>(r.tables());
+                    List<String> attached = new ArrayList<>();
+                    for (var e : model.relations.entrySet()) {
+                        if (removed.contains(e.getValue().child) || removed.contains(e.getValue().parent)) attached.add(e.getKey());
+                    }
+                    dropRoutes(before, modelId, r.diagram(), attached);
+                }
+                case SetRoute s -> {
+                    requireDiagram(modelId, s.diagram(), index);
+                    if (s.relation() == null || s.relation().isBlank()) throw reject(index, "relation 이 비었습니다", s.diagram());
+                    if (!model.relations.containsKey(s.relation())) throw reject(index, "모델에 없는 관계입니다: " + s.relation(), s.relation());
+                    requireList(s.points(), "points", s.relation(), index);
+                    if (s.points().size() > MAX_POINTS) throw reject(index, "points 는 " + MAX_POINTS + "개 이하여야 합니다", s.relation());
+                    remember(before, modelId, "diagramRoute", s.diagram() + ":" + s.relation());
+                    mergeRoute(s.diagram(), s.relation(), pointsJson(s.points()), userId);
+                }
+                case ClearRoutes cr -> {
+                    requireDiagram(modelId, cr.diagram(), index);
+                    // [자동 배치]는 옮긴 표에 걸린 관계를 모두 보낸다 — 빈 목록(걸린 관계가 없다)과 꺾임점이 없는 관계는 거절하지 않고 건너뛴다
+                    // (조정 결정 10-12). null 목록·null 항목은 모양이 틀린 것이라 거절한다.
+                    if (cr.relations() == null) throw reject(index, "relations 가 없습니다", cr.diagram());
+                    if (cr.relations().stream().anyMatch(x -> x == null)) throw reject(index, "relations 에 빈 항목이 있습니다", cr.diagram());
+                    dropRoutes(before, modelId, cr.diagram(), cr.relations());
                 }
                 case UpdateDiagram u -> {
                     requireDiagram(modelId, u.id(), index);
@@ -143,6 +181,7 @@ public class ErdDiagramStore {
                 case DeleteDiagram d -> {
                     requireDiagram(modelId, d.id(), index);
                     for (String nodeKey : nodeKeys(d.id())) remember(before, modelId, "diagramNode", nodeKey);
+                    dropRoutes(before, modelId, d.id(), null);  // 꺾임점을 기억하고 지운다(FK — 다이어그램보다 먼저)
                     remember(before, modelId, "diagram", d.id());
                     em.createNativeQuery("DELETE FROM TB_MDM_ERD_DIAGRAM_NODE WHERE DIAGRAM_ID = ?").setParameter(1, d.id()).executeUpdate();
                     em.createNativeQuery("DELETE FROM TB_MDM_ERD_DIAGRAM WHERE DIAGRAM_ID = ?").setParameter(1, d.id()).executeUpdate();
@@ -151,7 +190,7 @@ public class ErdDiagramStore {
                     if (rd.elements() == null) throw reject(index, "elements 가 없습니다", null);
                     for (ErdChange e : rd.elements()) {
                         if (e == null || e.kind() == null || e.id() == null || e.op() == null
-                                || !Set.of("diagram", "diagramNode").contains(e.kind())) {
+                                || !Set.of("diagram", "diagramNode", "diagramRoute").contains(e.kind())) {
                             throw reject(index, "restoreDiagram 요소의 kind·id·op 가 맞지 않습니다", null);
                         }
                     }
@@ -159,7 +198,7 @@ public class ErdDiagramStore {
                     if (expectedAfter != null) {
                         for (ErdChange e : rd.elements()) requireUnchangedSince(modelId, e, expectedAfter, index);
                     }
-                    // FK 순서: 다이어그램 되살리기 → 노드 → 다이어그램 지우기
+                    // FK 순서: 다이어그램 되살리기 → 노드·꺾임점 → 다이어그램 지우기
                     List<ErdChange> ordered = new ArrayList<>(rd.elements());
                     ordered.sort(Comparator.comparingInt(e -> e.kind().equals("diagram")
                             ? (ErdChange.DELETE.equals(e.op()) ? 2 : 0) : 1));
@@ -170,10 +209,16 @@ public class ErdDiagramStore {
                 }
             }
         }
+        // 엔진이 지운 관계의 꺾임점(이 모델의 모든 다이어그램). 명령 처리 뒤라 같은 묶음에서 이미 기억한 행은 다시 기억하지 않는다.
+        // 마지막 단계라 여기서 지운 키는 묶음 끝에도 없다 — 아래에서 다시 읽지 않는다.
+        Set<String> gone = droppedRelations == null || droppedRelations.isEmpty()
+                ? Set.of() : new HashSet<>(dropRoutes(before, modelId, null, droppedRelations));
         List<ErdChange> changes = new ArrayList<>(), restore = new ArrayList<>();
         before.forEach((key, prev) -> {
             String kind = key.substring(0, key.indexOf('|')), id = key.substring(key.indexOf('|') + 1);
-            JsonNode after = row(modelId, kind, id);
+            JsonNode after = gone.contains(key) ? null : row(modelId, kind, id);
+            // 없던 행이 끝에도 없다(같은 묶음에서 만들고 지움, 이미 지워진 다이어그램의 꺾임점 되살리기를 건너뜀) — 델타·역명령에 넣지 않는다.
+            if (prev == null && after == null) return;
             changes.add(new ErdChange(kind, id, after == null ? ErdChange.DELETE : ErdChange.UPSERT, after));
             restore.add(new ErdChange(kind, id, prev == null ? ErdChange.DELETE : ErdChange.UPSERT, prev));
         });
@@ -185,7 +230,10 @@ public class ErdDiagramStore {
         if (!before.containsKey(key)) before.put(key, row(modelId, kind, id));
     }
 
-    /** 행 JSON. diagram: {id, areaName, diagramName, sortSeq}, diagramNode: {diagram, table, x, y, foldMode}. 없으면 null. */
+    /**
+     * 행 JSON. diagram: {id, areaName, diagramName, sortSeq}, diagramNode: {diagram, table, x, y, foldMode},
+     * diagramRoute: {diagram, relation, points:[{x, y}, …]}. 없으면 null.
+     */
     @SuppressWarnings("unchecked")
     JsonNode row(String modelId, String kind, String id) {
         ObjectNode o = ErdModelCodec.MAPPER.createObjectNode();
@@ -200,6 +248,14 @@ public class ErdDiagramStore {
         }
         String[] k = id.split(":", 2);
         if (k.length < 2) return null;
+        if (kind.equals("diagramRoute")) {
+            List<Object> points = em.createNativeQuery(
+                            "SELECT POINTS_JSON FROM TB_MDM_ERD_DIAGRAM_ROUTE WHERE DIAGRAM_ID = ? AND REL_UUID = ? "
+                                    + "AND DIAGRAM_ID IN (SELECT DIAGRAM_ID FROM TB_MDM_ERD_DIAGRAM WHERE ERD_MODEL_ID = ?)")
+                    .setParameter(1, k[0]).setParameter(2, k[1]).setParameter(3, modelId).getResultList();
+            if (points.isEmpty()) return null;
+            return routeRow(k[0], k[1], ErdCommandLogStore.clob(points.get(0)));
+        }
         List<Object[]> rows = em.createNativeQuery(
                         "SELECT POS_X, POS_Y, FOLD_MODE FROM TB_MDM_ERD_DIAGRAM_NODE WHERE DIAGRAM_ID = ? AND TABLE_UUID = ? "
                                 + "AND DIAGRAM_ID IN (SELECT DIAGRAM_ID FROM TB_MDM_ERD_DIAGRAM WHERE ERD_MODEL_ID = ?)")
@@ -247,6 +303,78 @@ public class ErdDiagramStore {
         return tables.stream().map(t -> diagramId + ":" + t).toList();
     }
 
+    /**
+     * 꺾임점을 지운다. diagram 이 null 이면 이 모델의 모든 다이어그램, relations 가 null 이면 그 다이어그램의 모든 관계다.
+     * 지우기 전 행을 before 에 넣고(이미 기억한 키는 그대로 둔다) 지운 행의 before 키를 돌려준다. 꺾임점이 없는 관계는 건너뛴다 — 없던 행을
+     * 델타·역명령에 넣지 않는다. 관계 {@value #IN_CHUNK}개마다 조회 1번·삭제 1번이다(표 하나에 관계가 많아도 왕복이 늘지 않는다).
+     * 다른 모델이 같은 관계 id 를 써도 이 모델의 다이어그램만 본다.
+     */
+    @SuppressWarnings("unchecked")
+    private List<String> dropRoutes(Map<String, JsonNode> before, String modelId, String diagram, Collection<String> relations) {
+        List<List<String>> chunks = new ArrayList<>();
+        if (relations == null) {
+            chunks.add(null);
+        } else {
+            List<String> rels = List.copyOf(new LinkedHashSet<>(relations));
+            for (int i = 0; i < rels.size(); i += IN_CHUNK) chunks.add(rels.subList(i, Math.min(rels.size(), i + IN_CHUNK)));
+        }
+        List<String> keys = new ArrayList<>();
+        for (List<String> chunk : chunks) {
+            String where = " WHERE R.DIAGRAM_ID IN (SELECT DIAGRAM_ID FROM TB_MDM_ERD_DIAGRAM WHERE ERD_MODEL_ID = :m)"
+                    + (diagram == null ? "" : " AND R.DIAGRAM_ID = :d") + (chunk == null ? "" : " AND R.REL_UUID IN (:rels)");
+            Query q = bindRoutes(em.createNativeQuery("SELECT R.DIAGRAM_ID, R.REL_UUID, R.POINTS_JSON FROM TB_MDM_ERD_DIAGRAM_ROUTE R"
+                    + where + " ORDER BY R.DIAGRAM_ID, R.REL_UUID"), modelId, diagram, chunk);
+            List<Object[]> rows = q.getResultList();
+            if (rows.isEmpty()) continue;
+            for (Object[] r : rows) {
+                String d = (String) r[0], rel = (String) r[1], key = "diagramRoute|" + d + ":" + rel;
+                if (!before.containsKey(key)) before.put(key, routeRow(d, rel, ErdCommandLogStore.clob(r[2])));
+                keys.add(key);
+            }
+            bindRoutes(em.createNativeQuery("DELETE FROM TB_MDM_ERD_DIAGRAM_ROUTE R" + where), modelId, diagram, chunk).executeUpdate();
+        }
+        return keys;
+    }
+
+    private static Query bindRoutes(Query q, String modelId, String diagram, List<String> relations) {
+        q.setParameter("m", modelId);
+        if (diagram != null) q.setParameter("d", diagram);
+        if (relations != null) q.setParameter("rels", relations);
+        return q;
+    }
+
+    /** diagramRoute 행 JSON {diagram, relation, points}. row() 와 dropRoutes 가 같은 모양을 쓴다(되돌리기 충돌 판정이 JsonNode 로 비교한다). */
+    private static JsonNode routeRow(String diagram, String relation, String pointsJson) {
+        ObjectNode o = ErdModelCodec.MAPPER.createObjectNode().put("diagram", diagram).put("relation", relation);
+        return o.set("points", readPoints(pointsJson));
+    }
+
+    /** 꺾임점 JSON — [{"x":정수,"y":정수},…]. 같은 값이면 같은 글이 되어 되돌리기 충돌 판정(JsonNode 비교)이 흔들리지 않는다. */
+    private static String pointsJson(List<Point> points) {
+        return ErdCommandLogStore.write(points);
+    }
+
+    private static JsonNode readPoints(String json) {
+        try {
+            return ErdModelCodec.MAPPER.readTree(json);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private void mergeRoute(String diagram, String relation, String pointsJson, String userId) {
+        em.createNativeQuery("""
+                MERGE INTO TB_MDM_ERD_DIAGRAM_ROUTE t
+                USING (SELECT ? DIAGRAM_ID, ? REL_UUID FROM DUAL) s
+                   ON (t.DIAGRAM_ID = s.DIAGRAM_ID AND t.REL_UUID = s.REL_UUID)
+                 WHEN MATCHED THEN UPDATE SET t.POINTS_JSON = ?, t.U_USR_ID = ?, t.U_AT = SYSTIMESTAMP
+                 WHEN NOT MATCHED THEN INSERT (DIAGRAM_ID, REL_UUID, POINTS_JSON,
+                      C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER)
+                      VALUES (s.DIAGRAM_ID, s.REL_UUID, ?, ?, SYSTIMESTAMP, 'erdEdit', 'erdEdit', ?, SYSTIMESTAMP, 'erdEdit', 'erdEdit', 0)""")
+                .setParameter(1, diagram).setParameter(2, relation).setParameter(3, pointsJson).setParameter(4, userId)
+                .setParameter(5, pointsJson).setParameter(6, userId).setParameter(7, userId).executeUpdate();
+    }
+
     private void insertDiagram(String id, String modelId, String area, String name, int sortSeq, String userId) {
         em.createNativeQuery("""
                 INSERT INTO TB_MDM_ERD_DIAGRAM (DIAGRAM_ID, ERD_MODEL_ID, AREA_NAME, DIAGRAM_NAME, SORT_SEQ,
@@ -268,6 +396,7 @@ public class ErdDiagramStore {
                     return;  // 이미 없다
                 }
                 em.createNativeQuery("DELETE FROM TB_MDM_ERD_DIAGRAM_NODE WHERE DIAGRAM_ID = ?").setParameter(1, e.id()).executeUpdate();
+                em.createNativeQuery("DELETE FROM TB_MDM_ERD_DIAGRAM_ROUTE WHERE DIAGRAM_ID = ?").setParameter(1, e.id()).executeUpdate();
                 em.createNativeQuery("DELETE FROM TB_MDM_ERD_DIAGRAM WHERE DIAGRAM_ID = ? AND ERD_MODEL_ID = ?")
                         .setParameter(1, e.id()).setParameter(2, modelId).executeUpdate();
                 return;
@@ -283,19 +412,34 @@ public class ErdDiagramStore {
             }
             return;
         }
+        boolean route = e.kind().equals("diagramRoute");
         String[] k = e.id().split(":", 2);
-        if (k.length < 2) throw reject(index, "diagramNode id 는 다이어그램:표 형식입니다: " + e.id(), e.id());
+        if (k.length < 2) throw reject(index, e.kind() + " id 는 " + (route ? "다이어그램:관계" : "다이어그램:표") + " 형식입니다: " + e.id(), e.id());
         if (delete) {
             if (!diagramInModel(modelId, k[0])) {
                 if (diagramExists(k[0])) throw reject(index, "다른 모델의 다이어그램입니다: " + k[0], e.id());
-                return;  // 다이어그램이 이미 없으면 노드도 없다
+                return;  // 다이어그램이 이미 없으면 노드·꺾임점도 없다
             }
-            em.createNativeQuery("DELETE FROM TB_MDM_ERD_DIAGRAM_NODE WHERE DIAGRAM_ID = ? AND TABLE_UUID = ?")
+            em.createNativeQuery(route
+                            ? "DELETE FROM TB_MDM_ERD_DIAGRAM_ROUTE WHERE DIAGRAM_ID = ? AND REL_UUID = ?"
+                            : "DELETE FROM TB_MDM_ERD_DIAGRAM_NODE WHERE DIAGRAM_ID = ? AND TABLE_UUID = ?")
                     .setParameter(1, k[0]).setParameter(2, k[1]).executeUpdate();
+            return;
+        }
+        if (route && !diagramInModel(modelId, k[0])) {
+            // 관계·표 삭제를 되돌리는데 그 사이에 꺾임점의 다이어그램이 지워졌다 — 꺾임점만 건너뛰고 관계 되살리기는 막지 않는다(b1 검토 major).
+            // 다이어그램이 다른 모델 것이면 거절한다(기록 변조·id 재사용).
+            if (diagramExists(k[0])) throw reject(index, "다른 모델의 다이어그램입니다: " + k[0], e.id());
             return;
         }
         // 다이어그램이 그 사이에 지워졌으면 노드를 되살릴 수 없다(FK).
         requireDiagram(modelId, k[0], index);
+        if (route) {
+            JsonNode pts = v.get("points");
+            if (pts == null || !pts.isArray() || pts.isEmpty()) throw reject(index, "restoreDiagram 꺾임점 값에 points 가 없습니다: " + e.id(), e.id());
+            mergeRoute(k[0], k[1], pts.toString(), userId);
+            return;
+        }
         mergeNode(k[0], new Node(k[1], v.path("x").asInt(), v.path("y").asInt()), userId);
         em.createNativeQuery("UPDATE TB_MDM_ERD_DIAGRAM_NODE SET FOLD_MODE = ? WHERE DIAGRAM_ID = ? AND TABLE_UUID = ?")
                 .setParameter(1, v.path("foldMode").asText("NONE")).setParameter(2, k[0]).setParameter(3, k[1]).executeUpdate();

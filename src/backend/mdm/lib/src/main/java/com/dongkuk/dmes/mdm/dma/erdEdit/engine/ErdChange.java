@@ -2,7 +2,7 @@ package com.dongkuk.dmes.mdm.dma.erdEdit.engine;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
-/** 델타 한 건(스펙 4.4). kind: table|column|key|relation|diagram|diagramNode. value 는 upsert 면 요소 JSON, delete 면 null. */
+/** 델타 한 건(스펙 4.4). kind: table|column|key|relation|diagram|diagramNode|diagramRoute. value 는 upsert 면 요소 JSON, delete 면 null. */
 public record ErdChange(String kind, String id, String op, JsonNode value) {
     public static final String UPSERT = "upsert";
     public static final String DELETE = "delete";

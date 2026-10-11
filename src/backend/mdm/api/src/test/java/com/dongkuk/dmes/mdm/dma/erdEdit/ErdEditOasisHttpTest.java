@@ -35,7 +35,7 @@ class ErdEditOasisHttpTest extends AbstractMdmSharedDbTest {
 
     @BeforeEach
     void clean() {
-        for (String t : List.of("TB_MDM_ERD_CLAIM", "TB_MDM_ERD_DIAGRAM_NODE", "TB_MDM_ERD_DIAGRAM", "TB_MDM_ERD_CMD_LOG",
+        for (String t : List.of("TB_MDM_ERD_CLAIM", "TB_MDM_ERD_DIAGRAM_NODE", "TB_MDM_ERD_DIAGRAM_ROUTE", "TB_MDM_ERD_DIAGRAM", "TB_MDM_ERD_CMD_LOG",
                 "TB_MDM_ERD_EDITOR", "TB_MDM_ERD_MODEL_VER", "TB_MDM_ERD_MODEL")) jdbc.update("DELETE FROM " + t);
     }
 
@@ -70,6 +70,33 @@ class ErdEditOasisHttpTest extends AbstractMdmSharedDbTest {
         assertThat(view.at("/data/result/model").asText()).contains("TB_A");
         JsonNode changes = call("view", "viewer", Map.of("modelId", "mcm", "sinceRev", 0));
         assertThat(changes.at("/data/result/deltas/0/changes/0/id").asText()).isEqualTo("t-1");
+    }
+
+    /** ERD 2차 §7.1 — view 응답의 routes 목록과 diagramRoute 델타가 OASIS 응답까지 그 모양으로 나온다. */
+    @Test
+    void viewHasRoutesAndChangesHaveDiagramRoute() throws Exception {
+        call("reg", "owner", Map.of("modelId", "mcm", "moduleId", "mcm", "schemaName", "MCMAPUSER", "modelName", "MCM"));
+        JsonNode saved = call("save", "owner", Map.of("modelId", "mcm", "baseRev", 0, "session", "ui-owner", "source", "UI",
+                "commandsJson", "[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"},"
+                        + "{\"op\":\"addColumn\",\"id\":\"c-1\",\"table\":\"t-1\",\"phys\":\"ROLE_ID\",\"logical\":\"역할아이디\",\"dataType\":\"VARCHAR2\",\"length\":30,\"notNull\":true},"
+                        + "{\"op\":\"setPrimaryKey\",\"table\":\"t-1\",\"columns\":[\"c-1\"]},"
+                        + "{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-2\",\"phys\":\"TB_B\",\"logical\":\"비\"},"
+                        + "{\"op\":\"addRelation\",\"id\":\"r-1\",\"child\":\"t-2\",\"parent\":\"t-1\"},"
+                        + "{\"op\":\"addDiagram\",\"id\":\"d-1\",\"areaName\":\"a\",\"diagramName\":\"b\"},"
+                        + "{\"op\":\"setRoute\",\"diagram\":\"d-1\",\"relation\":\"r-1\",\"points\":[{\"x\":10,\"y\":20},{\"x\":30,\"y\":40}]}]"));
+        assertThat(saved.at("/data/result/applied").asBoolean()).as(saved.toString()).isTrue();
+        JsonNode view = call("view", "viewer", Map.of("modelId", "mcm"));
+        assertThat(view.at("/data/result/routes").size()).as(view.toString()).isEqualTo(1);
+        assertThat(view.at("/data/result/routes/0/diagram").asText()).isEqualTo("d-1");
+        assertThat(view.at("/data/result/routes/0/relation").asText()).isEqualTo("r-1");
+        assertThat(view.at("/data/result/routes/0/points/1/x").asInt()).isEqualTo(30);
+        assertThat(view.at("/data/result/routes/0/points/1/y").asInt()).isEqualTo(40);
+        JsonNode changes = call("view", "viewer", Map.of("modelId", "mcm", "sinceRev", 0));
+        JsonNode route = null;
+        for (JsonNode c : changes.at("/data/result/deltas/0/changes")) if (c.path("kind").asText().equals("diagramRoute")) route = c;
+        assertThat(route).as(changes.toString()).isNotNull();
+        assertThat(route.path("id").asText()).isEqualTo("d-1:r-1");
+        assertThat(route.at("/value/points/0/y").asInt()).isEqualTo(20);
     }
 
     @Test

@@ -31,7 +31,7 @@ class ErdApplyDiffTest extends AbstractMdmSharedDbTest {
 
     @BeforeEach
     void clean() throws Exception {
-        for (String t : List.of("TB_MDM_ERD_CLAIM", "TB_MDM_ERD_DIAGRAM_NODE", "TB_MDM_ERD_DIAGRAM", "TB_MDM_ERD_CMD_LOG",
+        for (String t : List.of("TB_MDM_ERD_CLAIM", "TB_MDM_ERD_DIAGRAM_NODE", "TB_MDM_ERD_DIAGRAM_ROUTE", "TB_MDM_ERD_DIAGRAM", "TB_MDM_ERD_CMD_LOG",
                 "TB_MDM_ERD_EDITOR", "TB_MDM_ERD_MODEL_VER", "TB_MDM_ERD_MODEL")) jdbc.update("DELETE FROM " + t);
         c = new ErdTestClient(port, KEY);
         assertThat(c.call("reg", "owner", Map.of("modelId", "mdm", "moduleId", "mdm", "schemaName", "MDMAPUSER", "modelName", "MDM"))
@@ -133,6 +133,52 @@ class ErdApplyDiffTest extends AbstractMdmSharedDbTest {
         JsonNode undone = c.call("restore", "owner", Map.of("modelId", "mdm", "rev", 3, "session", "ui-owner", "source", "UI"));
         assertThat(undone.at("/data/result/applied").asBoolean()).as(undone.toString()).isTrue();
         assertThat(model().at("/columns/" + cid + "/length").asInt()).isEqualTo(len - 1);
+    }
+
+    static String tableId(JsonNode model, String table) {
+        for (var it = model.path("tables").fields(); it.hasNext(); ) {
+            var e = it.next();
+            if (e.getValue().path("phys").asText().equals(table)) return e.getKey();
+        }
+        throw new AssertionError("표 없음: " + table);
+    }
+
+    int routes() {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_ERD_DIAGRAM_ROUTE WHERE DIAGRAM_ID = 'd-zz'", Integer.class);
+    }
+
+    /** ERD 2차 §7.1 — 다시 가져오기 반영(TABLE_REMOVED)이 관계를 지우면 그 꺾임점도 같은 rev 에 지우고, 되돌리기 1번으로 함께 돌아온다. */
+    @Test
+    void applyDiffRemovingRelationDropsItsRouteAndUndoRestores() throws Exception {
+        JsonNode imported = c.call("import", "owner", Map.of("modelId", "mdm", "kind", "FROM_DB", "baseRev", 0,
+                "session", "ui-owner", "source", "UI"));
+        assertThat(imported.at("/data/result/applied").asBoolean()).as(imported.toString()).isTrue();      // rev 1
+        JsonNode m = model();
+        String parent = tableId(m, "TB_MDM_ERD_MODEL");
+        String parentPk = columnId(m, "TB_MDM_ERD_MODEL", "ERD_MODEL_ID");
+        JsonNode saved = c.call("save", "owner", Map.of("modelId", "mdm", "baseRev", 1, "session", "ui-owner", "source", "UI",
+                "commandsJson", "[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-zz\",\"phys\":\"TB_ZZ_ROUTE\",\"logical\":\"꺾임시험\"},"
+                        + "{\"op\":\"addColumn\",\"id\":\"c-zz1\",\"table\":\"t-zz\",\"phys\":\"ERD_MODEL_ID\",\"logical\":\"모델아이디\",\"dataType\":\"VARCHAR2\",\"length\":50},"
+                        + "{\"op\":\"addRelation\",\"id\":\"r-zz\",\"child\":\"t-zz\",\"parent\":\"" + parent + "\",\"pairs\":[[\"c-zz1\",\"" + parentPk + "\"]]},"
+                        + "{\"op\":\"addDiagram\",\"id\":\"d-zz\",\"areaName\":\"a\",\"diagramName\":\"b\"},"
+                        + "{\"op\":\"setRoute\",\"diagram\":\"d-zz\",\"relation\":\"r-zz\",\"points\":[{\"x\":1,\"y\":2}]}]"));
+        assertThat(saved.at("/data/result/applied").asBoolean()).as(saved.toString()).isTrue();             // rev 2
+        assertThat(routes()).isEqualTo(1);
+        String item = "TABLE_REMOVED:TB_ZZ_ROUTE";
+        assertThat(diffIds()).contains(item);
+        JsonNode applied = applyDiff(2, List.of(item)).at("/data/result");
+        assertThat(applied.path("applied").asBoolean()).as(applied.toString()).isTrue();                      // rev 3
+        assertThat(routes()).isZero();
+        boolean routeDeleted = false;
+        for (JsonNode ch : applied.path("changes")) {
+            if (ch.path("kind").asText().equals("diagramRoute") && ch.path("id").asText().equals("d-zz:r-zz")
+                    && ch.path("op").asText().equals("delete")) routeDeleted = true;
+        }
+        assertThat(routeDeleted).as(applied.toString()).isTrue();
+        JsonNode undone = c.call("restore", "owner", Map.of("modelId", "mdm", "rev", 3, "session", "ui-owner", "source", "UI"));
+        assertThat(undone.at("/data/result/applied").asBoolean()).as(undone.toString()).isTrue();
+        assertThat(routes()).isEqualTo(1);
+        assertThat(model().at("/relations/r-zz").isMissingNode()).isFalse();
     }
 
     /** restore 의 sinceRev 는 요청 baseRev 다 — 차이를 읽은 뒤의 편집을 조용히 덮지 않는다. */

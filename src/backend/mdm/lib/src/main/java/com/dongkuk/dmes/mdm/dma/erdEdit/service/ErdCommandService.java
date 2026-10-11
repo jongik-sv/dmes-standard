@@ -238,8 +238,10 @@ public class ErdCommandService {
                         : invalid(0, "baseRev(" + baseRev + ") 뒤에 DRAFT 가 지워지거나 새로 만들어졌습니다",
                                 "getChangesSince 가 reload 를 주면 모델을 다시 읽고(view) 새 rev 를 baseRev 로 다시 보내세요"));
             }
-            // 모델 JSON 은 엔진이나 placeTables(표 존재 확인)가 쓸 때만 읽는다 — 표를 끌어 옮기는 moveNodes 는 자주 오므로 파싱을 아낀다.
-            boolean needModel = modelBatch || diagramCmds.stream().anyMatch(c -> c instanceof ErdDiagramCommand.PlaceTables);
+            // 모델 JSON 은 엔진이나 placeTables(표 존재 확인)·setRoute(관계 존재 확인)·removeFromDiagram(표에 걸린 관계의 꺾임점)이 쓸 때만
+            // 읽는다 — 표를 끌어 옮기는 moveNodes 는 자주 오므로 파싱을 아낀다.
+            boolean needModel = modelBatch || diagramCmds.stream().anyMatch(c -> c instanceof ErdDiagramCommand.PlaceTables
+                    || c instanceof ErdDiagramCommand.SetRoute || c instanceof ErdDiagramCommand.RemoveFromDiagram);
             ErdModel model = needModel ? ErdModelCodec.read(shown.getModelJson()) : null;
             if (o.requireEmptyModel() && !model.tables.isEmpty()) {
                 discard.run();
@@ -274,6 +276,8 @@ public class ErdCommandService {
             ArrayNode inverse = ErdModelCodec.MAPPER.createArrayNode();
             Long rowVersion = null;
             List<String> touched = List.of();
+            // 엔진이 지운 관계(deleteRelation·deleteTable·deleteColumn 의 연쇄, restore). 그 관계의 꺾임점을 같은 rev 에 지운다(ERD 2차 §7.1).
+            List<String> droppedRelations = new ArrayList<>();
             if (modelBatch) {
                 ApplyOutcome out = new ErdCommandEngine(dict).apply(model, engineBase, newRev, session, modelCmds);
                 if (out instanceof ApplyOutcome.Rejected r) {
@@ -309,12 +313,18 @@ public class ErdCommandService {
                 warnings.addAll(applied.warnings());
                 for (ErdCommand inv : applied.inverse()) inverse.add(typed(ErdCommand.class, inv));
                 touched = applied.touchedTables(); // 엔진 값(키·관계·컬럼 삭제도 그 표를 낸다)
+                for (ErdChange c : applied.changes()) {
+                    if (c.kind().equals("relation") && ErdChange.DELETE.equals(c.op())) droppedRelations.add(c.id());
+                }
             }
-            if (!diagramCmds.isEmpty()) {
+            if (!diagramCmds.isEmpty() || !droppedRelations.isEmpty()) {
+                // 꺾임점 연쇄 삭제도 다이어그램 명령과 같은 before 로 모아 역명령 RestoreDiagram 하나가 된다 — 역명령 [Restore, RestoreDiagram] 을
+                // 되돌리기 1번이 함께 보낸다.
                 try {
-                    var res = diagrams.apply(modelId, model, diagramCmds, diagramIdx, userId, o.expectedAfter());
+                    var res = diagrams.apply(modelId, model, diagramCmds, diagramIdx, userId, o.expectedAfter(), droppedRelations);
                     changes.addAll(res.changes());
-                    inverse.add(typed(ErdDiagramCommand.class, res.inverse()));
+                    // 연쇄로 지운 꺾임점이 없으면(모델 명령만) 빈 RestoreDiagram 을 남기지 않는다 — 역명령 모양이 지금과 같다.
+                    if (!diagramCmds.isEmpty() || !res.changes().isEmpty()) inverse.add(typed(ErdDiagramCommand.class, res.inverse()));
                 } catch (ErdDiagramStore.ErdDiagramReject r) {
                     discard.run();
                     return ErdApplyResult.rejected(rev, withUser(modelId, r.rejection));
