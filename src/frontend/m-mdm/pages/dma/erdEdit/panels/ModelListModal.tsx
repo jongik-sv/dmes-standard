@@ -19,10 +19,10 @@ export interface ModelListRow extends Record<string, unknown> {
 }
 
 const STATUS_LABEL: Readonly<Record<string, string>> = {
-  DRAFT: "작성 중", REQUESTED: "확정 요청", APPROVED: "승인", RELEASED: "확정",
+  CREATED: "생성", INUSE: "사용 중", DEPRECATED: "사용 중지",
 };
 
-/** 옛 서버는 status·releasedVer·createdBy 가 없다 — 빈 칸으로 보인다. 소유자 = 작성 중 소유자, 없으면 만든 사람. */
+/** status(모델 STATUS) 글은 STATUS_LABEL 로 바꾸고 모르는 값은 그대로 보인다. 옛 서버는 status·releasedVer·createdBy 가 없다 — 빈 칸으로 보인다. 소유자 = 작성 중 소유자, 없으면 만든 사람. */
 export function modelListRows(models: readonly ErdModelRow[]): ModelListRow[] {
   return models.map((m) => ({
     id: m.modelId,

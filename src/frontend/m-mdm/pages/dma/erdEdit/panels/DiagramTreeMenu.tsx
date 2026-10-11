@@ -18,8 +18,8 @@ import type { ErdCommandJson, ErdDiagram } from "../types";
 import type { ErdEditContext } from "../edit-context";
 import { shortReason } from "../state/permissions";
 
-/** 서버 copyDiagram(erd2-be b2)이 머지돼 있는가. 머지 전에는 메뉴에서 복사를 감춘다. */
-export const DIAGRAM_COPY_ENABLED = false;
+/** 서버 copyDiagram(erd2-be b2, dev ea092909f)이 머지돼 있는가. 거짓이면 메뉴에서 복사를 감춘다. */
+export const DIAGRAM_COPY_ENABLED = true;
 
 export const renameDiagramCommand = (id: string, diagramName: string): ErdCommandJson => ({ op: "updateDiagram", id, set: { diagramName } });
 export const deleteDiagramCommand = (id: string): ErdCommandJson => ({ op: "deleteDiagram", id });

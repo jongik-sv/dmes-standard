@@ -110,12 +110,28 @@ describe("다이어그램 목록 오른쪽 클릭 메뉴(p1 렌더)", () => {
     expect(document.querySelector('[data-testid="erd-diagram-undo-offer"]')).toBeNull();
   });
 
-  it("권한이 없으면 메뉴 항목이 꺼지고, 지금은 복사 항목이 없다(b2 전)", async () => {
+  it("복사 → 기본 이름 「<이름> 복사」 → copyDiagram 한 묶음, 끝나면 새 다이어그램을 연다", async () => {
+    const ctx = fakeCtx();
+    ctx.outcomes.push({ ok: true, rev: 8, warnings: [] });
+    const onSelectDiagram = vi.fn();
+    await render(h(DiagramTree, props(ctx, { onSelectDiagram })));
+    await rightClick('[data-testid="erd-diagram-d-all"]');
+    await click('[data-testid="erd-diagram-menu-item-copy"]');
+    expect($<HTMLInputElement>('[data-testid="erd-diagram-dialog-name"]').value).toBe("전체 복사");
+    await click('[data-testid="erd-diagram-dialog-ok"]');
+    expect(ctx.applied).toHaveLength(1);
+    expect(ctx.applied[0].label).toBe("다이어그램 복사");
+    const cmd = ctx.applied[0].commands[0] as { op: string; from: string; id: string; diagramName: string };
+    expect(cmd).toMatchObject({ op: "copyDiagram", from: "d-all", diagramName: "전체 복사" });
+    expect(onSelectDiagram).toHaveBeenCalledWith(cmd.id);
+  });
+
+  it("권한이 없으면 이름 바꾸기·지우기·복사 항목이 모두 꺼진다", async () => {
     const ctx = fakeCtx({ rights: { ...fakeCtx().rights, diagram: deny("공동 편집자가 아닙니다.") } });
     await render(h(DiagramTree, props(ctx)));
     await rightClick('[data-testid="erd-diagram-d-all"]');
     expect($<HTMLButtonElement>('[data-testid="erd-diagram-menu-item-rename"]').disabled).toBe(true);
     expect($<HTMLButtonElement>('[data-testid="erd-diagram-menu-item-delete"]').disabled).toBe(true);
-    expect(document.querySelector('[data-testid="erd-diagram-menu-item-copy"]')).toBeNull();
+    expect($<HTMLButtonElement>('[data-testid="erd-diagram-menu-item-copy"]').disabled).toBe(true);
   });
 });

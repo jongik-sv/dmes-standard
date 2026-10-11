@@ -20,7 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { HttpError } from "@dk-oasis/shared/http";
 
-import { applyCommands, undoRev, viewModel } from "../api";
+import { applyCommands, errorCode as errorCodeOf, undoRev, viewModel } from "../api";
 import { localNotice, noticeFromRejection, type ApplyOutcome, type ErdNotice } from "../edit-context";
 import type { ErdApplyResult, ErdClaim, ErdCommandJson, ErdDelta, ErdModelView, ErdPresence, ErdState, ErdVersionEvent } from "../types";
 import { applyDelta, fromView, touchesColumns, withVersion } from "./model-delta";
@@ -39,6 +39,8 @@ export interface ErdModelApi {
   myRevs: readonly number[];
   loading: boolean;
   error: string | null;
+  /** error 의 서버 업무 코드(모델 없음 MDM029 등). 코드가 없으면 null. */
+  errorCode: string | null;
   /** 표·컬럼이 바뀔 때(전체 읽기 포함)마다 1 오른다. 화면은 이 값으로 표준 상태(view kind=STATUS)를 다시 읽는다. */
   columnsSeq: number;
   reload(opts?: { dropMine?: boolean }): Promise<void>;
@@ -98,6 +100,7 @@ export function useErdModel(
   const [layers, setLayers] = useState<Layers | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [columnsSeq, setColumnsSeq] = useState(0);
   const [myRevs, setMyRevs] = useState<readonly number[]>(NO_REVS);
   const layersRef = useRef<Layers | null>(null);
@@ -147,6 +150,7 @@ export function useErdModel(
       // 앞선 읽기의 finally 는 세대가 바뀌어 loading 을 내리지 않으므로 여기서 내린다.
       setLoading(false);
       setError(null);
+      setErrorCode(null);
       return;
     }
     bufferRef.current = [];
@@ -178,11 +182,13 @@ export function useErdModel(
         commit(initLayers(server));
       }
       setError(null);
+      setErrorCode(null);
       setColumnsSeq((s) => s + 1);
     } catch (e) {
       if (gen !== genRef.current) return;
       bufferRef.current = null;
       setError(e instanceof Error ? e.message : String(e));
+      setErrorCode(errorCodeOf(e));
     } finally {
       if (gen === genRef.current) setLoading(false);
     }
@@ -379,9 +385,9 @@ export function useErdModel(
 
   return useMemo(
     () => ({
-      state, server, pending, pendingIds: ids, myRevs, loading, error, columnsSeq, reload,
+      state, server, pending, pendingIds: ids, myRevs, loading, error, errorCode, columnsSeq, reload,
       applyDelta: applyDeltaCb, setPresence, setClaims, onVersion, apply, undo, exclusive,
     }),
-    [state, server, pending, ids, myRevs, loading, error, columnsSeq, reload, applyDeltaCb, setPresence, setClaims, onVersion, apply, undo, exclusive],
+    [state, server, pending, ids, myRevs, loading, error, errorCode, columnsSeq, reload, applyDeltaCb, setPresence, setClaims, onVersion, apply, undo, exclusive],
   );
 }

@@ -22,7 +22,7 @@ import {
 import { IconArrowsMaximize, IconMaximize, IconMinimize, IconMinus, IconPlus } from "@tabler/icons-react";
 
 import {
-  SCREEN_ID, compareDbDiff, deleteModel, importFromDb, newVersion, regModel, rejectionText, searchModels, setViewState, viewChanges, viewStatus,
+  MODEL_GONE, SCREEN_ID, compareDbDiff, deleteModel, errorCode, importFromDb, newVersion, regModel, rejectionText, searchModels, searchSchemas, setViewState, viewChanges, viewStatus,
   type RegInput, type RelationDecision,
 } from "./api";
 import { loadShowAudit, needsAuditReveal, saveShowAudit } from "./audit-columns";
@@ -375,7 +375,18 @@ export function ErdViewer() {
     }),
     [erd.applyDelta, erd.reload, erd.setPresence, erd.setClaims, erd.onVersion],
   );
-  const streamStatus = useErdStream({ modelId, session, ready, lastRev: state?.rev ?? null, handlers });
+  // 모델이 지워졌는가(MDM029): reload 뒤 다시 읽기 실패나 끊긴 연결의 확인(viewStatus)이 알린다. 알면 연결을 멈추고 시작 화면으로 간다.
+  const [goneId, setGoneId] = useState<string | null>(null);
+  const gone = erd.errorCode === MODEL_GONE || (goneId !== null && goneId === modelId);
+  const streamHandlers = useMemo(() => ({
+    ...handlers,
+    onLost: () => {
+      const id = modelIdRef.current;
+      if (!id) return;
+      viewStatus(id).then(undefined, (e: unknown) => { if (errorCode(e) === MODEL_GONE) setGoneId(id); });
+    },
+  }), [handlers]);
+  const streamStatus = useErdStream({ modelId, session, ready: ready && !gone, lastRev: state?.rev ?? null, handlers: streamHandlers });
   const connected = streamStatus === "open";
 
   // ── 권한(S2-20) ──
@@ -401,6 +412,13 @@ export function ErdViewer() {
   useEffect(() => {
     void loadModels();
   }, [loadModels]);
+  // 지금 연 모델이 서버에서 사라졌으면(다른 사용자가 삭제) 알리고 시작 화면으로 돌아가 목록을 다시 읽는다.
+  useEffect(() => {
+    if (!gone || !modelId) return;
+    notify(`모델 ${modelId} 가 삭제되어 시작 화면으로 돌아갑니다.`, "warn");
+    setModelId(null);
+    void loadModels();
+  }, [gone, modelId, loadModels, notify]);
 
   // ── 마지막 모델(U21): me(prefs)와 목록이 둘 다 온 뒤 한 번만 판단한다. 그 사이 사용자가 골랐거나 목록에 없으면 열지 않는다. ──
   useEffect(() => {
@@ -1060,7 +1078,7 @@ export function ErdViewer() {
         </FloatingPanel>
       )}
       {ctx && <ColumnJump ctx={ctx} opened={jumpOpen} onClose={closeJump} />}
-      <ModelRegisterModal opened={regOpen} onClose={closeRegister} onRegister={onRegister} />
+      <ModelRegisterModal opened={regOpen} onClose={closeRegister} onRegister={onRegister} loadSchemas={searchSchemas} />
       <ModelListModal opened={modelsOpen} models={models} currentModelId={modelId} onClose={closeModels} onOpenModel={pickModel}
         onDelete={onDeleteModel} />
       <ErdTour open={tourOpen} onClose={closeTour} />

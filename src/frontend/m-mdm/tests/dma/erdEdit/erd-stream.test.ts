@@ -72,6 +72,22 @@ describe("ErdStreamClient", () => {
     expect(backoffDelay(9)).toBe(30000);
   });
 
+  it("끊길 때마다 onLost 를 부른다 — 화면이 모델이 있는지 확인해 연결을 멈출 수 있다", () => {
+    const lost = vi.fn();
+    const c = new ErdStreamClient({
+      modelId: "mcm", session: "ui-a", factory, lastRev: () => 5, onStatus: () => undefined,
+      handlers: { onHello: vi.fn(), onDelta: vi.fn(), onReload: vi.fn(), onPresence: vi.fn(), onClaims: vi.fn(), onLost: lost },
+    });
+    c.start();
+    FakeES.all[0].emit("error");
+    expect(lost).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(1000);
+    FakeES.all[1].emit("error");
+    expect(lost).toHaveBeenCalledTimes(2);
+    c.stop();
+    expect(lost).toHaveBeenCalledTimes(2);
+  });
+
   it("open·claim 만 받고 끊기면 다시 연결 간격을 처음으로 돌리지 않는다", () => {
     const { c } = client();
     c.start();
@@ -400,5 +416,25 @@ describe("useErdModel + useErdStream", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("다시 읽기가 코드 달린 오류(MDM029)로 실패하면 errorCode 로 알린다", async () => {
+    const gone = Object.assign(new Error("모델이 없습니다"), { code: "MDM029" });
+    const load = vi.fn(async (_id: string) => viewAt(5, "t-a"));
+    let api: ErdModelApi | null = null;
+    function Probe() {
+      api = useErdModel("mcm", "ui-t", "tester", load);
+      return createElement("div");
+    }
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => { root!.render(createElement(Probe)); });
+    await act(async () => undefined);
+    expect((api as unknown as ErdModelApi).errorCode).toBeNull();
+    load.mockRejectedValueOnce(gone);
+    await act(async () => { await (api as unknown as ErdModelApi).reload({ dropMine: true }); });
+    expect((api as unknown as ErdModelApi).error).toBe("모델이 없습니다");
+    expect((api as unknown as ErdModelApi).errorCode).toBe("MDM029");
   });
 });

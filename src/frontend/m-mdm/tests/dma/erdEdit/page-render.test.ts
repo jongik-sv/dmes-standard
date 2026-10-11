@@ -54,6 +54,8 @@ let historyDeltas: Array<Record<string, unknown> & { rev: number }> = [];
 /** 다시 읽기 지점(표시 행) rev. 서버 규칙대로 sinceRev 가 이보다 작으면 reload·fromRev 를 준다(ErdCommandService.changesSince). */
 let historyMarker = 0;
 let validateResult: unknown;
+/** true 면 view 호출을 모두 「모델 없음(MDM029)」으로 거절한다 — 다른 사용자가 모델을 지운 상황. */
+let modelGone = false;
 /** 버튼 권한 행. 기본은 전부 허용, 시험이 copy 를 뺄 수 있다(자동 DRAFT 가 꺼진 확정본 시험). */
 let buttonRows: Array<{ objId: string; action: string }> = [{ objId: "*", action: "*" }];
 const NO_COPY_ROWS = ["save", "confirm", "execute", "import", "reg", "delete", "lock", "unlock"].map((action) => ({ objId: "erdEdit", action }));
@@ -85,6 +87,9 @@ function stubFetch() {
     const params = (JSON.parse(String(init?.body ?? "{}")).params ?? {}) as Record<string, unknown>;
     calls.push({ action, params });
     if (action === "search") return okRows(searchRows);
+    if (action === "view" && modelGone && params.kind !== "SET_VIEW") {
+      return new Response(JSON.stringify({ meta: { success: false, code: "MDM029", message: "모델이 없습니다" }, data: {} }), { status: 200 });
+    }
     if (action === "view" && params.kind === "STATUS") return ok(statusResult);
     if (action === "view" && params.kind === "SET_VIEW") return ok({ ok: true });
     if (action === "view" && params.sinceRev !== undefined) {
@@ -202,6 +207,7 @@ beforeEach(() => {
   });
   currentView = viewOf(menuModel(), MENU_DIAGRAMS);
   searchRows = [MODEL_ROW];
+  modelGone = false;
   statusResult = STATUS;
   historyDeltas = [];
   historyMarker = 0;
@@ -1017,5 +1023,29 @@ describe("erdEdit 화면", () => {
     expect(docTestId("erd-model-delete")).toBeNull();
     expect(byTestId("erd-start-reg")).not.toBeNull(); // 시작 화면(등록된 모델이 없습니다)
     expect(byTestId("erd-model-mcm")).toBeNull();
+  });
+
+  it("모델 삭제 알림(p2 b2): reload 뒤 다시 읽기가 MDM029 면 시작 화면으로 가고 연결을 다시 열지 않는다", async () => {
+    await openModel();
+    modelGone = true;
+    searchRows = [];
+    await act(async () => {
+      FakeES.all[0].emit("reload", { rev: 9 });
+    });
+    await waitFor(() => byTestId("erd-start-reg"));
+    await settle(2500); // 처음 재연결 간격(1초)을 지나도 새 연결이 없다
+    expect(FakeES.all).toHaveLength(1);
+  });
+
+  it("연결이 끊겼을 때 모델이 없으면(MDM029) 재연결을 멈추고 시작 화면으로 간다", async () => {
+    await openModel();
+    modelGone = true;
+    searchRows = [];
+    await act(async () => {
+      FakeES.all[0].emit("error");
+    });
+    await waitFor(() => byTestId("erd-start-reg"));
+    await settle(2500);
+    expect(FakeES.all).toHaveLength(1);
   });
 });

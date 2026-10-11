@@ -11,17 +11,17 @@ import { flush, settleGrid, typeInto } from "../../dme/helpers/render";
 
 const MODELS: ErdModelRow[] = [
   { modelId: "mcm", moduleId: "mcm", schemaName: "MCMAPUSER", modelName: "MCM 스키마", rev: 12, draftVer: "1.001", ownerId: "kim",
-    status: "DRAFT", releasedVer: "1.000", createdBy: "lee" },
+    status: "CREATED", releasedVer: "1.000", createdBy: "lee" },
   { modelId: "mls", moduleId: "mls", schemaName: "MLSAPUSER", modelName: "MLS 스키마", rev: 3, draftVer: null, ownerId: null,
-    status: "RELEASED", releasedVer: "2.000", createdBy: "park" },
+    status: "INUSE", releasedVer: "2.000", createdBy: "park" },
   { modelId: "old", moduleId: "old", schemaName: "OLD", modelName: "옛 서버", rev: 1, draftVer: null, ownerId: null },
 ];
 
 describe("모델 목록 행(p2)", () => {
   it("상태 글·소유자(없으면 만든 사람)·확정본을 칸에 담고, 옛 서버 행은 빈 칸이다", () => {
     expect(modelListRows(MODELS)).toEqual([
-      { id: "mcm", name: "MCM 스키마", moduleId: "mcm", schemaName: "MCMAPUSER", status: "작성 중", ownerId: "kim", rev: 12, released: "1.000" },
-      { id: "mls", name: "MLS 스키마", moduleId: "mls", schemaName: "MLSAPUSER", status: "확정", ownerId: "park", rev: 3, released: "2.000" },
+      { id: "mcm", name: "MCM 스키마", moduleId: "mcm", schemaName: "MCMAPUSER", status: "생성", ownerId: "kim", rev: 12, released: "1.000" },
+      { id: "mls", name: "MLS 스키마", moduleId: "mls", schemaName: "MLSAPUSER", status: "사용 중", ownerId: "park", rev: 3, released: "2.000" },
       { id: "old", name: "옛 서버", moduleId: "old", schemaName: "OLD", status: "", ownerId: "", rev: 1, released: "" },
     ]);
   });

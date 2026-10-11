@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   addEditor, applyCommands, applyDbDiff, claimTable, compareDbDiff, confirmVersion, decideRelation, deleteDraft, deleteModel, importFromDb,
   lockDraft, newVersion, previewName, rejectionText, releaseTable, removeEditor, searchModels, searchSchemas, setViewState, undoRev, unlockDraft,
-  validateConfirm, viewChanges, viewStatus,
+  errorCode, validateConfirm, viewChanges, viewStatus,
 } from "../../../pages/dma/erdEdit/api";
 
 const originalFetch = globalThis.fetch;
@@ -48,6 +48,18 @@ describe("erdEdit api", () => {
     expect(await searchSchemas()).toEqual([]);
     stubBody({ meta: { success: true }, data: {}, grids: { result: { rows: [] } } });
     expect(await searchSchemas()).toEqual([]);
+  });
+
+  it("서버 거절은 meta.message 를 문구로, meta.code 를 code 로 던진다(모델 삭제 MDM003·모델 없음 MDM029)", async () => {
+    stubBody({ meta: { success: false, code: "MDM003", message: "확정된 버전이 있어 모델을 지울 수 없습니다" }, data: {} });
+    const e1 = await deleteModel("mcm").catch((e: unknown) => e);
+    expect(e1).toBeInstanceOf(Error);
+    expect((e1 as Error).message).toContain("확정된 버전이 있어 모델을 지울 수 없습니다");
+    expect(errorCode(e1)).toBe("MDM003");
+    stubBody({ meta: { success: false, code: "MDM029", message: "모델이 없습니다" }, data: {} });
+    const e2 = await viewStatus("gone").catch((e: unknown) => e);
+    expect(errorCode(e2)).toBe("MDM029");
+    expect(errorCode(new Error("x"))).toBeNull();
   });
 
   it("SET_VIEW 는 view 액션에 viewJson 문자열로 보낸다", async () => {

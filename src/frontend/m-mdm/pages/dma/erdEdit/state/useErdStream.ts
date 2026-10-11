@@ -38,6 +38,11 @@ export interface ErdStreamHandlers {
   onClaims(list: ErdClaim[]): void;
   /** 버전 수명 주기(S2-12). 구독 직후 SUBSCRIBE 가 한 번 온다. 단계 1 서버는 보내지 않는다. */
   onVersion?(ev: ErdVersionEvent): void;
+  /**
+   * 연결이 끊길 때마다(다시 열기 전에) 부른다. EventSource 는 404 같은 HTTP 상태를 알려 주지 않으므로, 화면이 여기서 모델이 아직 있는지 확인하고
+   * 없으면(MDM029) `ready` 를 내려 연결을 멈춘다(끝없는 재시도 방지). 던지지 않게 쓴다.
+   */
+  onLost?(): void;
 }
 
 export function streamUrl(modelId: string, session: string, sinceRev: number | null): string {
@@ -162,6 +167,7 @@ export class ErdStreamClient {
     this.es = null;
     this.setStatus("lost");
     if (this.stopped) return;
+    this.o.handlers.onLost?.();
     this.waiting = true;
     if (!this.allowed) return;
     const delay = backoffDelay(this.attempt);
@@ -239,6 +245,7 @@ export function useErdStream({ modelId, session, ready, lastRev, handlers, facto
         onPresence: (list) => handlersRef.current.onPresence(list),
         onClaims: (list) => handlersRef.current.onClaims(list),
         onVersion: (ev) => handlersRef.current.onVersion?.(ev),
+        onLost: () => handlersRef.current.onLost?.(),
       },
     });
     clientRef.current = client;

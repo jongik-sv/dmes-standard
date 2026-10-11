@@ -193,6 +193,24 @@ describe("모델 등록 창 예시·모듈 기본값(p3)", () => {
   });
 });
 
+describe("모델 등록 창 스키마 고르기(p3)", () => {
+  const schemaEl = () => document.querySelector<HTMLElement>('[data-testid="erd-reg-schemaName"]')!;
+  const flush = () => act(async () => { await Promise.resolve(); });
+
+  it("목록이 있으면 고르는 칸, 비면 직접 입력 칸", async () => {
+    await render(createElement(ModelRegisterModal, { opened: true, onClose: vi.fn(), onRegister: vi.fn(async () => false), loadSchemas: async () => ["MCMAPUSER", "MDMUSER"] }));
+    await flush();
+    expect(schemaEl().tagName).toBe("SELECT");
+    expect([...schemaEl().querySelectorAll("option")].map((o) => o.textContent)).toEqual(["스키마 선택", "MCMAPUSER", "MDMUSER"]);
+  });
+
+  it("목록이 비면 직접 입력 칸을 그대로 둔다", async () => {
+    await render(createElement(ModelRegisterModal, { opened: true, onClose: vi.fn(), onRegister: vi.fn(async () => false), loadSchemas: async () => [] }));
+    await flush();
+    expect(schemaEl().tagName).toBe("INPUT");
+  });
+});
+
 describe("변경 기록 행", () => {
   it("최근 rev 부터 쓰고 내 세션 행에 '나' 를 단다", () => {
     const d = (rev: number, session: string): ErdDelta => ({ modelId: "mcm", rev, userId: "u", session, source: "UI", changes: [] });

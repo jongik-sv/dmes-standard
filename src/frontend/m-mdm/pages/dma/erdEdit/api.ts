@@ -9,7 +9,7 @@
  */
 import { callOasisAt, type OasisCallOptions } from "@dk-oasis/shared/http";
 
-import { MDM_OASIS_BASE, mdmFieldLabel, plainError } from "@/oasis-screen";
+import { MDM_OASIS_BASE, mdmFieldLabel } from "@/oasis-screen";
 
 import type {
   ErdApplyResult, ErdChangesView, ErdClaimResult, ErdCommandJson, ErdConfirmCheck, ErdDbDiffView, ErdDiffApplyResult, ErdImportResult,
@@ -31,7 +31,19 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   TABLE_ID: "표",
 };
 
-const OASIS: OasisCallOptions = { omit: "nullish+blank", merge: "data+result", fieldLabel: mdmFieldLabel(FIELD_LABELS), errorFactory: plainError };
+/** 서버 업무 코드(`MDMnnn`)를 `code` 로 달아 던지는 일반 Error — 화면은 message 로 보이고 code 로만 갈라 처리한다. */
+const codedError = (message: string, code: string | null): Error => Object.assign(new Error(message), { code });
+
+/** 서버 오류 코드(없으면 null). */
+export function errorCode(e: unknown): string | null {
+  const c = (e as { code?: unknown } | null)?.code;
+  return typeof c === "string" && c !== "" ? c : null;
+}
+
+/** 모델 없음(MDM029) — 다른 사용자가 지운 모델을 읽을 때. 화면은 시작 화면으로 돌아간다. */
+export const MODEL_GONE = "MDM029";
+
+const OASIS: OasisCallOptions = { omit: "nullish+blank", merge: "data+result", fieldLabel: mdmFieldLabel(FIELD_LABELS), errorFactory: codedError };
 
 /** 목록 응답(`grids.<이름>.rows`)을 결과의 `<이름>` 으로 올린다. */
 const OASIS_GRIDS: OasisCallOptions = { ...OASIS, includeGrids: true };
