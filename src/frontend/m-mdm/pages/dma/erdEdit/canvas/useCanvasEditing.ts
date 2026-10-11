@@ -40,7 +40,7 @@ import { PASTE_GAP, copyTables, nextPasteRound, pasteTablesPlan, readClip, write
 import { nextExpiry, viewersAt, type ErdFlowEdge, type ErdFlowNode, type InlineEdit } from "./erd-flow";
 import { NODE_WIDTH, ZOOM_NAMES_ONLY, ZOOM_OVERVIEW, lodTier, nodeHeight, type LodTier } from "./erd-geometry";
 import { autoLayoutCommand, type Size } from "./erd-layout";
-import { routeBusOf, selectRoute, setRouteHandlers } from "./erd-route";
+import { handlePressedRecently, routeBusOf, selectRoute, setRouteHandlers } from "./erd-route";
 import {
   ALIGN_LABEL, ALIGN_MIN, ALIGN_MODES, DISTRIBUTE_LABEL, DISTRIBUTE_MIN, alignBoxes, alreadyIn, arrangeLabel, bulkColumnCommands, bulkColumnPlan,
   distributeBoxes, placeIntoCommand, type ArrangeKind, type BulkColumnInput, type NodeBox,
@@ -1006,7 +1006,8 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
   // ── 누르기·우클릭 ──
   const onPaneClick = useCallback<NonNullable<FlowProps["onPaneClick"]>>((e) => {
     setMenu(null);
-    selectRoute(routeBus, null);
+    // 꺾임점·마디 손잡이를 누른 직후의 click 이 빈 곳으로 와도 고른 선을 풀지 않는다(두 번 누르기 지우기).
+    if (!handlePressedRecently(routeBus)) selectRoute(routeBus, null);
     if (toolRef.current !== "table") return;
     const rights = ctxRef.current.rights;
     if (!rights.model.ok) {

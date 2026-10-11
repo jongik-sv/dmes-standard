@@ -41,9 +41,9 @@ export const ERD_EDIT_CSS = `
 .erd-props__cell:not(.erd-props__cell--center) > * { flex: 1 1 0; min-width: 0; }
 .erd-props__cell--center { justify-content: center; }
 .erd-props__cell[data-deleted] { opacity: 0.5; text-decoration: line-through; }
-/* 키 컬럼 칸의 고르기 목록은 포털 없이 칸 안에 열린다(MultiSelectComboBox) — 그리드 칸·행이 자르지 않게 한다. */
-.erd-props__keys :is(.ag-root-wrapper, .ag-root, .ag-body, .ag-body-viewport, .ag-center-cols-clipper, .ag-center-cols-viewport, .ag-center-cols-container, .ag-row, .ag-cell) { overflow: visible; }
-.erd-props__keys .ag-row:focus-within { z-index: 10; }
+.erd-props__keypick { position: relative; display: flex; align-items: center; gap: var(--spacing-sm); margin-top: var(--spacing-xs); }
+.erd-props__keypick-label { flex: 0 0 auto; font-size: var(--font-size-sm); color: var(--color-text-muted); }
+.erd-props__keypick > .form-multiselect { flex: 1 1 auto; min-width: 0; }
 .erd-wizard__steps { display: flex; gap: var(--spacing-sm); margin-bottom: var(--spacing-sm); font-size: var(--font-size-sm); color: var(--color-text-muted); }
 .erd-wizard__steps [data-current] { font-weight: 600; color: var(--color-text); }
 .erd-wizard__tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-sm); margin-bottom: var(--spacing-xs); }

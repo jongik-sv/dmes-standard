@@ -56,11 +56,15 @@ interface PropsActions {
   patchRel(id: string, p: Partial<DraftRelation>): void;
   pickDomain(col: string, row: DomainRow | null): void;
   setFinding(open: boolean): void;
+  /** 컬럼을 고를 키 자리(null = 접힘). 고르기 목록은 그리드 밖 칸(키 영역 아래)에 연다. */
+  pickKey(k: number | null): void;
 }
 
 interface PropsView extends PropsActions {
   draft: PropsDraft;
   locked: boolean;
+  /** 지금 컬럼을 고르는 키 자리(null = 없음). */
+  pickedKey: number | null;
   columnOptions: readonly { value: string; label: string }[];
   domainLabel(d: number | null): string;
   physOf(t: string): string;
@@ -191,14 +195,19 @@ function KeyName({ i }: { i: number }) {
   );
 }
 
+/** 키 컬럼 칸 — 고른 컬럼을 보이고, 누르면 키 영역 아래의 고르기 칸을 연다(목록이 그리드 칸에 잘리지 않게). */
 function KeyColumns({ i }: { i: number }) {
-  const { draft, locked, columnOptions, patchKey } = usePropsView();
+  const { draft, locked, columnOptions, pickedKey, pickKey } = usePropsView();
   const k = draft.keys[i];
   if (!k) return null;
+  const label = k.columns.map((id) => columnOptions.find((o) => o.value === id)?.label ?? id).join(", ");
+  const open = pickedKey === i;
   return (
     <Cell deleted={k.deleted}>
-      <MultiSelectComboBox aria-label="키 컬럼" data={columnOptions as { value: string; label: string }[]} value={k.columns}
-        disabled={locked || k.deleted} onChange={(v) => patchKey(i, { columns: v })} />
+      <Button size="mini" aria-label="키 컬럼 고르기" aria-expanded={open} disabled={locked || k.deleted}
+        variant={open ? "primary" : undefined} onClick={() => pickKey(open ? null : i)}>
+        {label || "컬럼 고르기"}
+      </Button>
     </Cell>
   );
 }
@@ -307,6 +316,7 @@ export function PropsWindow({ tableId, model, domains, readOnly, onSubmit, newKe
   /** 이 창에서 새로 고른 도메인 이름(모델에 아직 없는 도메인). */
   const [picked, setPicked] = useState<Readonly<Record<string, string>>>({});
   const [finding, setFinding] = useState(false);
+  const [pickedKey, setPickedKey] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const modelRef = useRef(model);
@@ -319,6 +329,7 @@ export function PropsWindow({ tableId, model, domains, readOnly, onSubmit, newKe
     setDraft(d);
     setPicked({});
     setFinding(false);
+    setPickedKey(null);
     setError(null);
     setBusy(false);
   }, [tableId]);
@@ -345,17 +356,18 @@ export function PropsWindow({ tableId, model, domains, readOnly, onSubmit, newKe
         patchCol(col, { domainId: row ? row.domainId : null });
       },
       setFinding,
+      pickKey: setPickedKey,
     };
   }, []);
 
   const tables = model.tables;
   const view = useMemo<PropsView | null>(
     () => (draft ? {
-      ...actions, draft, locked, columnOptions,
+      ...actions, draft, locked, pickedKey, columnOptions,
       domainLabel: (d) => (d == null ? "" : picked[String(d)] ?? domains[String(d)]?.name ?? `도메인 ${d}`),
       physOf: (t) => tables[t]?.phys ?? t,
     } : null),
-    [actions, draft, locked, columnOptions, picked, domains, tables],
+    [actions, draft, locked, pickedKey, columnOptions, picked, domains, tables],
   );
 
   const colRows = useRows(draft ? draft.columns.map((c) => c.id) : NO_IDS);
@@ -368,7 +380,11 @@ export function PropsWindow({ tableId, model, domains, readOnly, onSubmit, newKe
     setDraft((d) => (d ? { ...d, ...p } : d));
     setError(null);
   };
-  const addKey = () => setDraft((d) => (d ? { ...d, keys: [...d.keys, { id: null, kind: "UK", name: "", columns: [], deleted: false }] } : d));
+  const addKey = () => {
+    setPickedKey(draft.keys.length); // 새 키의 컬럼 고르기 칸을 바로 연다
+    setDraft((d) => (d ? { ...d, keys: [...d.keys, { id: null, kind: "UK", name: "", columns: [], deleted: false }] } : d));
+  };
+  const pickKey = pickedKey !== null ? draft.keys[pickedKey] : undefined;
   const close = () => {
     if (!finding) onClose();
   };
@@ -435,6 +451,13 @@ export function PropsWindow({ tableId, model, domains, readOnly, onSubmit, newKe
             <h4 className="erd-props__h">키 <span className="erd-props__sub">PK 는 컬럼의 PK 칸으로 정합니다.</span></h4>
             <AgDataGrid gridId="erdPropsKeys" ariaLabel="키" {...SMALL_GRID} columns={KEY_GRID_COLUMNS} data={keyRows} rowKey="rid" />
             <Button size="mini" data-testid="erd-props-add-key" disabled={locked} onClick={addKey}>키 추가</Button>
+            {pickedKey !== null && pickKey && !pickKey.deleted && (
+              <div className="erd-props__keypick" data-testid="erd-props-key-picker">
+                <span className="erd-props__keypick-label">키 {pickKey.name || "(새 키)"} 의 컬럼</span>
+                <MultiSelectComboBox aria-label="키 컬럼" data={view.columnOptions as { value: string; label: string }[]} value={pickKey.columns}
+                  disabled={locked} onChange={(v) => actions.patchKey(pickedKey, { columns: v })} />
+              </div>
+            )}
           </section>
 
           <section className="erd-props__sec">

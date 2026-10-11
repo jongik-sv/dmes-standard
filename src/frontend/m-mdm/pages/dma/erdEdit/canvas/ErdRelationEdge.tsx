@@ -24,7 +24,7 @@ import type { ErdRoutePoint } from "../types";
 import type { ErdFlowEdge } from "./erd-flow";
 import { END_STUB, crowFootPath, endStub, liveEnds, oneBarsPath, zeroCirclePos, type LiveEnd } from "./erd-geometry";
 import {
-  MAX_ROUTE_POINTS, insertPoint, movePoint, polylinePath, removePoint, segmentMids, selectRoute, tidyPoints, useRouteSelection, type Pt,
+  MAX_ROUTE_POINTS, insertPoint, markHandlePress, movePoint, polylinePath, removePoint, segmentMids, selectRoute, tidyPoints, useRouteSelection, type Pt,
 } from "./erd-route";
 
 /** 이만큼(px, 화면) 넘게 움직여야 끌기로 본다 — 손잡이를 누르기만 하면 보내지 않는다. */
@@ -92,6 +92,7 @@ export const ErdRelationEdge = memo(function ErdRelationEdge({
     if (e.button !== 0) return;
     e.stopPropagation();
     e.preventDefault();
+    markHandlePress(bus);
     stopDrag.current?.();
     (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     const start = { x: e.clientX, y: e.clientY };
@@ -115,6 +116,7 @@ export const ErdRelationEdge = memo(function ErdRelationEdge({
     };
     function up() {
       detach();
+      markHandlePress(bus);
       const h = bus.handlers;
       if (!moved || !h) {
         setDrag(null);
@@ -153,10 +155,12 @@ export const ErdRelationEdge = memo(function ErdRelationEdge({
         <path className="erd-rel__end" d={oneBarsPath(parentEnd, parentInner)} fill="none" />
         {mids.map((m, k) => m && (
           <rect key={`m${k}`} className="erd-rel__mid nodrag nopan" data-testid={`erd-rel-mid-${id}-${k}`} x={m.x - 4} y={m.y - 4} width={8} height={8}
+            onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => (auto ? begin(e, [{ x: Math.round(m.x), y: Math.round(m.y) }], 0) : begin(e, insertPoint(bends ?? [], k, m), k))} />
         ))}
         {handles && bends?.map((b, k) => (
           <circle key={`b${k}`} className="erd-rel__bend nodrag nopan" data-testid={`erd-rel-bend-${id}-${k}`} cx={b.x} cy={b.y} r={5}
+            onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => begin(e, bends, k)}
             onDoubleClick={(e) => {
               e.stopPropagation();

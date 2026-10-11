@@ -169,6 +169,43 @@ describe("관계선 꺾임점 편집(c5)", () => {
     expect(ctx.applied[1]).toEqual({ commands: [{ op: "clearRoutes", diagram: "d-all", relations: ["r-1"] }], label: "자동 경로로 되돌리기" });
   });
 
+  it("실제 마우스 순서(누름·뗌·click ×2 → dblclick)로 꺾임점을 두 번 눌러도 첫 click 에 선택이 풀리지 않고 지워진다(f1)", async () => {
+    const ctx = fakeCtx({ state: withRoutes([{ diagram: "d-all", relation: "r-1", points: [{ x: 300, y: 200 }] }]) });
+    await mount(ctx);
+    await pickLine();
+    const bend = '[data-testid="erd-rel-bend-r-1-0"]';
+    // 실제 브라우저는 손잡이를 누른 뒤의 click 을 빈 곳(pane)으로 보내 onPaneClick 이 선택을 풀 수 있다.
+    const press = async () => {
+      await act(async () => {
+        const el = q<SVGElement>(bend);
+        if (!el) throw new Error("꺾임점 손잡이가 사라졌다");
+        el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, button: 0, clientX: 5, clientY: 5 }));
+        window.dispatchEvent(new PointerEvent("pointerup", { clientX: 5, clientY: 5 }));
+        q<HTMLElement>(".react-flow__pane")!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, clientX: 5, clientY: 5 }));
+      });
+      await flush();
+    };
+    await press();
+    expect(q(bend)).not.toBeNull();
+    await press();
+    await act(async () => {
+      q(bend)!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true }));
+    });
+    await flush();
+    expect(ctx.applied).toEqual([{ commands: [{ op: "clearRoutes", diagram: "d-all", relations: ["r-1"] }], label: "자동 경로로 되돌리기" }]);
+  });
+
+  it("손잡이를 누르지 않은 빈 곳 누르기는 여전히 선택을 푼다", async () => {
+    const ctx = fakeCtx({ state: withRoutes([{ diagram: "d-all", relation: "r-1", points: [{ x: 300, y: 200 }] }]) });
+    await mount(ctx);
+    await pickLine();
+    await act(async () => {
+      q<HTMLElement>(".react-flow__pane")!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+    await flush();
+    expect(rel().hasAttribute("data-selected")).toBe(false);
+  });
+
   it("자동 경로 선의 가운데 손잡이를 끌면 꺾임점 하나로 setRoute. 누르기만 하면 보내지 않는다", async () => {
     const ctx = fakeCtx();
     await mount(ctx);

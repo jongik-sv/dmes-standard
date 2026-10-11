@@ -880,7 +880,11 @@ export function ErdViewer() {
   }, [update]);
   // ── 모델 목록 관리(p2): 삭제 뒤 목록을 다시 읽고, 지금 연 모델이면 시작 화면으로 간다. ──
   const [modelsOpen, setModelsOpen] = useState(false);
-  const openModels = useCallback(() => setModelsOpen(true), []);
+  // 창을 열 때마다 목록을 다시 읽는다 — 등록·가져오기·확정으로 상태·rev·확정본이 바뀌어도 새로고침 없이 맞는다.
+  const openModels = useCallback(() => {
+    setModelsOpen(true);
+    void loadModels();
+  }, [loadModels]);
   const closeModels = useCallback(() => setModelsOpen(false), []);
   const onDeleteModel = useCallback(async (id: string): Promise<DeleteOutcome> => {
     try {

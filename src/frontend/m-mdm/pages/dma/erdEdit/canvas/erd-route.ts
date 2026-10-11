@@ -91,6 +91,8 @@ export interface RouteBus {
   handlers: RouteHandlers | null;
   /** 선에 마지막으로 알린 「고칠 수 있음」. 콜백을 갈아 끼우는 사이(effect 정리 → 다시 설정)에는 알리지 않는다. */
   editable: boolean;
+  /** 손잡이를 마지막으로 누르거나 뗀 시각(ms). 그 직후 click 이 빈 곳(pane)으로 가도 고른 선을 풀지 않는다. */
+  pressedAt: number;
   listeners: Set<() => void>;
 }
 
@@ -104,7 +106,7 @@ export function routeBusOf(store: { getState: unknown }): RouteBus {
   const key = store.getState as object;
   let b = buses.get(key);
   if (!b) {
-    b = { selected: null, handlers: null, editable: false, listeners: new Set() };
+    b = { selected: null, handlers: null, editable: false, pressedAt: 0, listeners: new Set() };
     buses.set(key, b);
   }
   return b;
@@ -115,6 +117,19 @@ export function selectRoute(bus: RouteBus, relation: string | null): void {
   if (bus.selected === relation) return;
   bus.selected = relation;
   for (const l of bus.listeners) l();
+}
+
+/** 이 시간(ms) 안의 빈 곳 click 은 손잡이 누르기의 뒤따르는 click 으로 본다. */
+export const HANDLE_CLICK_WINDOW = 400;
+
+/** 손잡이를 누르거나 뗐다고 적는다. */
+export function markHandlePress(bus: RouteBus): void {
+  bus.pressedAt = Date.now();
+}
+
+/** 손잡이를 방금 누르거나 뗐는가 — 그 직후의 빈 곳 click 이면 선택을 풀지 않는다. */
+export function handlePressedRecently(bus: RouteBus): boolean {
+  return Date.now() - bus.pressedAt < HANDLE_CLICK_WINDOW;
 }
 
 /** 손잡이 콜백·권한을 바꾼다. 권한이 바뀌면 구독자(선)에게 알린다. silent = 갈아 끼우기 전 비우기(알리지 않음). */

@@ -192,3 +192,46 @@ describe("Space 속성 창(c4)", () => {
     expect(ctx.applied[0].commands).toEqual([{ op: "updateColumn", id: "c-4", set: { logical: "메뉴 이름2" } }]);
   });
 });
+
+describe("속성 창 키 컬럼 고르기(f2)", () => {
+  it("[키 추가] 뒤 컬럼 고르기 목록은 그리드 칸 밖에 열리고, 고른 컬럼으로 addKey 를 보낸다", async () => {
+    polyfillLayout();
+    const ctx = fakeCtx({ selectedTableId: "t-1" });
+    await mount(ctx, ["t-1"]);
+    await space();
+    await settleGrid(win()!);
+    expect(document.querySelector('[data-testid="erd-props-key-picker"]')).toBeNull();
+    await act(async () => {
+      document.querySelector<HTMLButtonElement>('[data-testid="erd-props-add-key"]')!.click();
+    });
+    await settleGrid(win()!);
+    const picker = document.querySelector<HTMLElement>('[data-testid="erd-props-key-picker"]');
+    expect(picker).not.toBeNull();
+    const input = picker!.querySelector<HTMLInputElement>('input[aria-label="키 컬럼"]');
+    expect(input).not.toBeNull();
+    // 그리드 칸(overflow:hidden)이 목록을 자르지 않도록 그리드 밖에 둔다.
+    expect(input!.closest(".ag-root-wrapper, .ag-cell, [role=\"grid\"]")).toBeNull();
+    await act(async () => {
+      input!.focus();
+      input!.click();
+    });
+    await flush();
+    const option = picker!.querySelector<HTMLElement>('[role="option"]');
+    expect(option).not.toBeNull();
+    await act(async () => {
+      option!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+      option!.click();
+    });
+    await flush();
+    const name = document.querySelector<HTMLInputElement>('input[aria-label="키 이름"]')!;
+    await typeInto(name, "uk_f2");
+    await flush();
+    await act(async () => {
+      document.querySelector<HTMLButtonElement>('[data-testid="erd-props-ok"]')!.click();
+    });
+    await flush();
+    const add = ctx.applied[0]?.commands.find((c) => c.op === "addKey");
+    expect(add).toMatchObject({ op: "addKey", table: "t-1", kind: "UK", name: "UK_F2" });
+    expect((add as { columns: string[] }).columns).toHaveLength(1);
+  });
+});

@@ -1025,6 +1025,19 @@ describe("erdEdit 화면", () => {
     expect(byTestId("erd-model-mcm")).toBeNull();
   });
 
+  it("모델 관리(f3): 같은 화면 세션에서 모델 상태가 바뀌었으면 창을 열 때 목록을 다시 읽어 보인다", async () => {
+    await openModel();
+    const before = calls.filter((c) => c.action === "search").length;
+    searchRows = [{ ...(MODEL_ROW as object), status: "INUSE", rev: 7, releasedVer: "1.000" }]; // 등록·가져오기·확정 뒤 서버 값
+    await click(await waitFor(() => byTestId("erd-models-manage")));
+    await settleGrid(await waitFor(() => docTestId("erd-models")));
+    await waitFor(() => (calls.filter((c) => c.action === "search").length > before ? true : null));
+    const cell = (col: string) => document.querySelector('.ag-row[row-id="mcm"] [col-id="' + col + '"]')?.textContent;
+    await waitFor(() => (cell("status") === "사용 중" ? true : null));
+    expect(cell("rev")).toBe("7");
+    expect(cell("released")).toBe("1.000");
+  });
+
   it("모델 삭제 알림(p2 b2): reload 뒤 다시 읽기가 MDM029 면 시작 화면으로 가고 연결을 다시 열지 않는다", async () => {
     await openModel();
     modelGone = true;
