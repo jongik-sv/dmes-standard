@@ -62,3 +62,15 @@
   - `view kind=STATUS`(타입 대응을 고친 뒤): MCM 가운데 648ms(첫 670ms, 최대 743ms). MDM 가운데 617ms(첫 774ms, 최대 774ms).
   - 같은 모델에 두 번째로 `import` 하면 `INVALID`(이미 표가 있다)이고 rev 는 그대로다. 가져온 직후 `DB_DIFF` 는 MCM 0건, MDM 0건이다.
 - 감사 컬럼 8개(`C_USR_ID`·`C_AT`·`C_SVC_ID`·`C_PGM_ID`·`U_USR_ID`·`U_AT`·`U_SVC_ID`·`U_PGM_ID`, 대소문자 무시, `VER` 제외): `addTable` 이 표 끝에 자동으로 붙이고(`audit:false` 로 끈다, 가져오기는 붙이지 않는다), 화면은 기본으로 숨기고 도구 막대 [감사 컬럼 보기] 토글로 보인다. `position` 없는 `addColumn`·끝으로 가는 `moveColumn` 은 감사 블록 앞에 넣는다. `getModelText` 는 한 줄로 접고 `audit:true` 면 펼친다. 정본은 단계 2 계획 README S2-30.
+
+## 6. 단계 2 — 편집·동시 편집
+
+- 쓰기: `save`(명령 묶음)·`restore`(되돌리기)에 `dryRun` 이 있다. 결과와 SSE `change` 에 `rowVersion` 이 있다. 바뀐 것이 없는 되돌리기는 INVALID 다.
+- 버전 이벤트: SSE `version`(SUBSCRIBE·CONFIRM·LOCK·UNLOCK·HANDOVER·ADD_EDITOR·REMOVE_EDITOR). `copy`·DRAFT 삭제는 `reload` 다.
+- 변경 기록: `view sinceRev` 가 다시 읽기 지점 앞을 물으면 `reload:true` 와 `fromRev`(기록을 줄 수 있는 가장 이른 sinceRev)를 준다. 화면 변경 기록과 MCP·CLI 의 rev 없는 되돌리기는 `fromRev` 부터 한 번 더 읽는다.
+- 접속자: MCP·CLI 요청은 600초 시한 항목으로 보인다. `selectedTables` 는 마지막 쓰기가 건드린 표와 작업 중 표시 표다.
+- 충돌·삭제 거절에 `byUserId` 가 있다. `execute kind=CLAIM` 은 쥔 세션·사용자·만료 시각을 돌려준다.
+- 다시 가져오기 반영: `import kind=APPLY_DIFF`(`itemsJson` = `compare kind=DB_DIFF` 의 항목 id). 낡은 id 가 있으면 INVALID 다.
+- 화면: 캔버스 편집(끌기·표 추가·관계 도구·Delete/Alt+Delete·자동 배치·마법사), 그리드 편집(논리명 미리보기·토막 고르기·도메인 적용), 버전 막대·확정 대화상자·공동 편집자 관리, 알림 막대·변경 기록 되돌리기·Ctrl+Z.
+- Claude: MCP 쓰기 도구 6개(`apply`·`confirmRelation`·`rejectRelation`·`undo`·`claimTable`·`releaseTable`), CLI `scripts/erd/erd-cli.mjs`(기본 시험 실행).
+- 마감 확인(L_ERD2C, 2026-10-11): CONFLICT(byUserId erd-mcp-b, 세션 claude-b, rev 3) → getChangesSince → 다시 보내 rev 4 반영, 델타 2개(3 claude-b, 4 claude-a), 값 동시편집A, SSE change rowVersion 2. p1 그리드 C5 논리명 사람A논리(rev 18 admin UI) → claude-b 클로드B논리(rev 19) → p1 Ctrl+Z → CONFLICT 알림 'erd-mcp-b 님이 rev 19 에서 먼저 바꿨습니다. 지금 값: "클로드B논리"', 안내에 '변경 기록에서 다른 변경을 고르세요', rev 19 불변. mine/copy 없음(되돌리기 묶음은 set 이 없어 내 값이 없다 — edit-context mine=set[property], 설계대로). ui/66-notice.png. 화면 확정 한 번에 통과(MDM001 없음, 대화상자 오류 null), 서버 1.001 RELEASED rowVersion 30, SSE version CONFIRM. B 창(p2) 새로 고침 없이 548ms 뒤 읽기 전용 띠 '확정된 버전이라 모델을 고칠 수 없습니다. [새 버전]으로 DRAFT 를 만드세요.' 대화상자 요약 '오류 0건 · 경고 738건 · 남은 추정 관계 113건', 경고 ERD_STD_DOMAIN:550·ERD_STD_MISS:160·ERD_STD_TYPE:27·ERD_INFERRED_LEFT:1, applyFrom 08:53:45(대화상자 연 시각). ui/74-b-released.png. 화면 반영 2항목(COLUMN_CHANGED:SAMPLE_NOTICE.TITLE·TABLE_ADDED:SAMPLE_MASTER_CODE), 안내 '고른 2건: DB 에 생긴 표 1 · 컬럼 다름 1', 요약 'rev 40 에 2건을 반영했습니다 — 표 추가 1 · 컬럼 바뀜 1', 델타 rev 40 admin UI, SSE rowVersion 2, DB_DIFF 0, 새 표 id t-236a17c3…(same:false) 컬럼 6개 그대로(감사 컬럼 자동 추가 없음 — S2-30 가져오기 예외 확인), TITLE 길이 200 복귀. 새 DRAFT 1.002 owner admin(선점 불필요), copy 는 7-4 applyFrom 지난 뒤 MDM006 없음. ui/82-diff-apply.png.

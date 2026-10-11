@@ -958,3 +958,19 @@ Expected: 커밋 하나가 생기고 `status` 가 깨끗하다. Step 1 에서 `f
 - 단계 2 화면의 `data-testid` 는 FE 레인 계획이 정한다. 이 계획을 쓸 때 04~06 이 함께 쓰이고 있어 단계 1 의 testid 와 `snapshot` 확인 절차로 썼다. 정합 검토에서 04·05·06 의 정본 testid 표로 선택자를 바꿨다(0-4·6-5·6-6·6-7·7-2~7-4·8-2).
 - 이 문서는 약 900줄로 작성 지시의 700줄 상한을 넘는다. 단계 1 마감(900줄)보다 확인 항목(사람 2명, Claude 2세션, CLI, D19, APPLY_DIFF, 크기)이 많다. 반복 코드는 `env.sh` 도우미로 모았다. Task 를 나누지 않은 것은 README 가 마감을 Task 하나로 정했기 때문이다.
 - CLI 기본 시험 실행도 서버가 편집자 검사를 하므로 `ERD_USER` 가 편집자여야 "통과" 가 나온다(6-8). 기본 사용자 `erd-mcp` 로 돌리면 NOT_EDITOR 거절이다. README 의 "`--apply` 만 사용자 필수" 규칙과 어긋나지는 않지만 사용 안내에 적을 만하다.
+
+### 마감 실행에서 찾은 계획 결함(2026-10-11)
+
+마감 결과 기록의 `plan.defect.*`·`plan.note.*` 와 Step 1·3~9 보고에서 옮겼다. 다음 단계 마감 계획을 쓸 때 반영한다(deferred 79).
+
+- `plan.defect.permCol`: 2-4 권한 조회 SQL 의 `PERM_ID` 는 `TB_MCM_SEC_ROLE_MAPPING` 에 없다(ORA-00904). 칼럼 이름은 `PERMISSION_ID` 다.
+- `plan.defect.claimAcrossProcess`: 6-3 은 `claude -p` 로 잡은 표가 프로세스가 끝난 뒤에도 잡혀 있다고 가정했다. `erd-mcp.mjs` 는 stdin 이 닫히면 잡은 표를 모두 놓는다(설계). 마감은 잡기를 HTTP `execute kind=CLAIM`(erd-mcp-a, 세션 claude-a, 출처 MCP)으로 하고 B 만 `cl` 로 보냈다.
+- `plan.defect.undoNoticeMine`: 6-6 은 Ctrl+Z 거절 알림에 내 값(`mine`)과 [내 값 복사] 를 기대했다. 되돌리기 묶음에는 `set` 이 없어 내 값이 없다(설계). 내 값·복사는 `apply` 거절에서만 나온다. 브라우저로 그 경쟁을 만들기 어려워 vitest 가 맡는다.
+- `plan.defect.canvasFindKeyMac`: 6-7 의 캔버스 Ctrl+F 는 macOS 에서 ⌘F 다. shared `shortcutOf` 는 macOS 에서 metaKey 만 mod 로 본다. Ctrl+↑/↓ 도 macOS 에서는 반응하지 않는다(⌘·Alt 로 확인).
+- `plan.note.targetsAudit`: 3-4 의 시험 대상 원식은 감사 컬럼(`U_AT`)을 C1·C7 로 골랐다. S2-30 으로 화면에서 숨기고 `getModelText` 에서 접는 컬럼이다. 감사 컬럼 8개 물리명을 후보에서 빼고 고른다.
+- `env.sh` 가 `BACKEND_CLIENT_KEY` 를 내보내서 Gradle 시험 JVM 에 샌다. 그러면 시험이 정한 클라이언트 키를 덮어 `ErdStreamTest`·`JobRunHttpSecurityTest` 가 401 로 실패한다(첫 실행 17건). Gradle 을 돌리기 전에 이 변수를 지운다(`env -u BACKEND_CLIENT_KEY`).
+- 5-1: `cl` 의 `--disallowedTools` 로 막은 도구는 자식 `claude` 에 아예 보이지 않는다. 도구 목록 질문은 허용한 도구만 본다. 도구 12개는 MCP SDK `listTools` 로 확인한다.
+- 6-5: 끌기 반영 시간의 첫 측정(9982ms)은 ego 커서 애니메이션 이동 시간을 포함했다. 두 번째 끌기를 mouseup 기준으로 잰다(273ms).
+- 7-2: 오류가 있으면 확정 단추가 꺼져서 MDM010 을 볼 수 없다. 기대값은 "단추가 꺼짐" 하나로 둔다.
+- 7-3: copy 로 만든 DRAFT 에서 변경 기록이 비는 결함을 찾았다(`defect.historyEmptyBeforeSpan`, dev `08f20794b` 에서 고침). 다음 마감은 변경 기록 탭의 안내문(`erd-history-note`)과 `fromRev` 재요청을 확인한다.
+- 9-2: `nodes[0].table` 이 지운 표를 가리킬 수 있다. `deleteTable` 은 다이어그램 노드를 지우지 않는다(deferred 61). 살아 있는 표의 노드를 고른다.

@@ -237,7 +237,8 @@ docs/mdm/screens/erdEdit/erdEdit_기능설계서.md, 이 README "단계 2 구현
 // ErdClaimResult — execute kind=CLAIM 응답. ok 와 상관없이 지금 그 표를 쥔 세션을 준다.
 { "ok": false, "claimedBy": "claude-9c8d7e6f", "userId": "erd-mcp-b", "expiresAt": "2026-10-11T05:20:00Z" }
 { "ok": true,  "claimedBy": "claude-1a2b3c4d", "userId": "erd-mcp-a", "expiresAt": "2026-10-11T05:21:40Z" }
-// 두 세션이 같은 표를 동시에 처음 표시해 키가 겹쳤다. 상대 행이 아직 커밋 전이라 쥔 세션을 읽지 못한다.
+// 셋 다 null: 쥔 표시를 읽기 전에 상대 표시가 만료됐거나 해제됐다. 두 세션이 같은 표를 동시에 처음 표시하면
+// Oracle 은 늦은 쪽의 INSERT 를 상대 커밋까지 기다리게 한다. 그래서 그때는 상대 세션을 읽어 돌려준다.
 { "ok": false, "claimedBy": null, "userId": null, "expiresAt": null }
 ```
 
@@ -541,7 +542,7 @@ baseRev 뒤 다른 세션 변경 2건: ui-ab12cd34 rev 213~214, TB_MCM_SEC_MENU.
 ```
 
 - `dryRun` 결과의 첫 줄은 `시험 실행(저장 안 함) · 통과` 다. 거절이면 `시험 실행(저장 안 함) · 거절 CONFLICT` 처럼 끝에 거절 코드를 쓴다.
-- `WRITE_TEXT_LIMIT = 25000`. 넘치면 줄을 자르고 `… n줄 더 있습니다. getChangesSince(B) 로 나눠 읽으세요.` 를 붙인다. 경고는 코드별 수로 묶고, `STD_*` 는 처음 20건만 이름을 적는다. `CLAIMED` 는 모두 적는다.
+- `WRITE_TEXT_LIMIT = 25000`. 넘치면 줄을 자르고 `… n줄 더 있습니다. getChangesSince(B) 로 나눠 읽으세요.` 를 붙인다. 경고는 코드별 수로 묶고, 코드마다 처음 50건만 이름을 적는다(S2-28, `GROUP_LIMIT`). `CLAIMED` 도 같다.
 - NOT_FOUND 는 지운 사람·세션·rev, NEEDS_CHOICE 는 `choices`(20건까지)와 고칠 칸(`onNameClash` REUSE·RENAME, 또는 `phys`), NOT_EDITOR 는 `ownerId` 와 "소유자에게 execute kind=ADD_EDITOR 로 `ERD_USER` 값을 등록해 달라고 하세요" 를 적는다.
 
 CLI(`erd-cli.mjs`, S2-23):
@@ -662,6 +663,41 @@ FE3 :          Task 14 ─ Task 15 ◀── FE1 Task 9 머지
 
 - FE2 의 t13a·t13b·t13c 는 조정자가 기능 이름(t13a 편집 기반·끌기·삭제·접기, t13b 관계 도구·표 추가·이름 겹침, t13c 자동 배치·마법사·찾기·이름표)으로 나눴다. 05-frontend-canvas.md 의 Task 13 은 파일 층(순수 모듈 → 렌더 시험·훅 → 마법사)으로 Step 을 나눴고, 끌기·삭제·접기·관계 도구·표 추가·자동 배치·찾기 키가 모두 Step 16 의 `useCanvasEditing.ts` 한 파일에 있다. 그래서 기능 경계로는 자를 수 없고, 위의 가장 가까운 Step 경계를 쓴다. 기능으로 보면 t13a 에 이름표·배치 순수 함수가, t13b 에 끌기·삭제·접기·관계 도구·표 추가·자동 배치·찾기 키가, t13c 에 마법사가 들어간다.
 - FE1 의 t9a 는 조정자 경계(타입·API·편집 문맥·권한, 순수) 그대로다. 다만 Task 9 는 시험을 Step 2~4 에 먼저 모아 써서, 화면 시험(Step 4)을 t9b 로 옮겼다.
+
+---
+
+## 단계 2 구현 결정
+
+구현 중 검토와 마감 확인에서 나온 판정이다. 스펙 결정(D1~D20)과 "단계 2 에서 정한 점"(S2-1~S2-30)은 바꾸지 않았다. 출처는 조정 기록(decisions)과 레인 메모·보고다. "조정-n" 은 조정 기록의 결정 번호(0부터)다. 마감 값은 L_ERD2C(TPL_DATA 복제, L_MAIN 아님)에서 쟀다.
+
+| # | 결정 | 이유 | 틀렸을 때 비용 |
+|---|---|---|---|
+| 마감-복제 PDB | 마감 시험은 새 TPL_DATA 복제 L_ERD2C 에서 했다. 사람 계정은 e2e 픽스처 SQL 로 이 복제본에만 넣었다. 끝난 뒤 L_ERD2C 는 닫고 지우지 않았다(지우기는 사용자 판단). | TPL_DATA 에는 로그인할 수 있는 사람이 admin 하나뿐이다(S2-9). L_MAIN 에는 쓰지 않는다. | L_MAIN 에서 다시 확인해야 한다. |
+| 마감-두 사람 | 대체 — 사람 B 는 BFF 헤더 HTTP(8096, e2e_mdm_stdadmin MDM_STD_ADMIN), 이유: 127.0.0.1:5100 로그인 칸이 disabled 로 남음(하이드레이션 안 됨). fe-run.log: Next dev 가 127.0.0.1 의 dev 리소스 요청을 막음(allowedDevOrigins 미설정). p2 는 localhost admin 두 번째 창 | 두 번째 프로필은 사용자 승인이 필요하다(S2-9). | 대체 경로라 사람 B 의 편집은 포털 RBAC 를 지나지 않았다. 브라우저 두 사용자 확인은 deferred 67 로 남았다. |
+| 마감-확정 순서 | 가져오기 → 확정(경고 확인) → `copy` → 공동 편집 → 확정. 확정 검사: 화면 확정 단추 막힘(erd-confirm-send disabled, 오류 때문) — MDM010 은 누르지 못해 안 봄. 요약 '오류 1건 · 경고 739건 · 남은 추정 관계 113건(확정을 막지 않습니다)', 오류 ERD_STD_TYPE:1(c-close-d19 — TB_MCM_WIDGET_DEF.JOB_NM), 경고 코드별 ERD_STD_DOMAIN:550(50행 보임)·ERD_STD_MISS:160(50행)·ERD_STD_TYPE:28(28행)·ERD_INFERRED_LEFT:1. 서버 DRAFT 그대로. ui/72-confirm-blocked.png. | S2-2(R8-1 유지). `confirm` 은 `applyFrom` 이 필수이고, 적용 시각이 미래면 `copy` 가 MDM006 이다. | 첫 DRAFT 에서는 D19 가 막지 않는다(deferred 52). |
+| 마감-MCP 크기 | 17407자·20422B·315줄, 잘림 없음(…더 있습니다 줄 없음), 첫 줄 '반영 rev 41 (baseRev 40) · 변경 200 · 경고 186 · 세션 claude-size', 끝 줄 '다음 baseRev: 41'. 같은 묶음 dryRun 17478자·316줄(경고: STD_DOMAIN 125, STD_MISS 38, STD_NEW 16, STD_TYPE 7) / 24930자, 파일로 빠짐 0, 잘림 줄 '… 139줄 더 있습니다. getChangesSince(402) 로 나눠 읽으세요.'(rev 42~402 보임), reload:false n:500, 루프 103초(rev 41→541) / 410자(지금 값 줄을 잘라 보임), 파일로 빠짐 0, CONFLICT(byUserId admin, 세션 close-long, rev 542), 24,000자 한글 주석 저장 rev 542 | S2-21. | 상한을 넘으면 Claude 가 결과를 파일로만 받는다. |
+| 마감-변경 기록 fromRev | `view sinceRev` 가 `reload:true` 일 때 `fromRev`(기록을 줄 수 있는 가장 이른 sinceRev)를 함께 준다. 화면 변경 기록과 MCP·CLI 의 rev 없는 되돌리기는 `fromRev` 부터 한 번 더 읽는다. dev `08f20794b`. | 마감 7-3 에서 copy 로 만든 DRAFT 의 변경 기록이 비었다(`defect.historyEmptyBeforeSpan`). 화면은 `sinceRev = rev - 100` 을 물어서 다시 읽기 지점 앞을 가리켰다. 조정-25·26 이 안 1(칸 추가)을 골랐다. 안 2(이분 탐색 7회)는 버렸다. | 옛 서버는 `fromRev` 를 주지 않는다. 그때 화면은 전처럼 빈 기록과 안내문을 보인다. |
+| 마감-근거 파일 재생성 | `erd/hints/mdm.json` 을 다시 만들어 커밋했다(dev `08f20794b` 에 합침). | `erd-hints --check` 가 1 로 실패했다(알려진 기존 실패 5번, 줄 번호 차이). | 코드가 바뀌면 근거 파일이 다시 낡는다. |
+| 마감-시험 대상 고르기 | 3-4 의 시험 대상 고르기에서 감사 컬럼 8개 물리명을 후보에서 뺐다. T1 `TB_MCM_CODE_DETAIL`, T2 `TB_MCM_CODE_MASTER`, D19 `TB_MCM_WIDGET_DEF.JOB_NM` 이다. | 계획 원식 그대로면 C1·C7 이 `U_AT`(감사 컬럼)였다. S2-30 으로 화면에서 숨기고 `getModelText` 에서 접는 컬럼이다. | 다음 마감 계획도 감사 컬럼을 빼고 골라야 한다(07-close.md 작성자 메모). |
+| 마감-작업 중 표시 확인 경로 | 6-3 의 잡기(claim-a)는 HTTP `execute kind=CLAIM`(erd-mcp-a, 세션 claude-a, 출처 MCP)으로 대신했다. | `erd-mcp.mjs` 는 stdin 이 닫히면 잡은 표를 놓는다(설계). 그래서 `claude -p` 가 끝나면 잡힘이 남지 않는다. | MCP 프로세스가 살아 있는 동안의 잡힘은 HTTP 로만 확인했다. |
+| 조정-0 쪼개기(S2-1) | 회차 하나로 하고 README 계약을 동결했다. 화면·스크립트는 가짜 응답으로 먼저 만들고, 서버 머지 뒤 마감에서 연결했다. | S2-1. | 계약이 어긋나면 마감에서야 드러난다. 마감 Step 3~9 에서 서버와 화면·MCP·CLI 연결은 통과했다. |
+| 조정-1 첫 확정 기준(S2-2) | R8-1 을 유지했다(첫 확정 위반은 경고). 안 A·B 는 사용자 판단으로 남겼다. | S2-2. 스펙 D19 의 글자 그대로다. | deferred 52. |
+| 조정-2 copyDomain(S2-3) | 도메인 → 물리 타입 대응을 `ErdTypeMapping` 한 곳에 두고 판정과 왕복 시험을 했다. | S2-3, deferred 42. | 대응과 판정이 다시 갈라지면 TYPE 판정·DB_DIFF 가 틀린다. 왕복 시험 `physicalOfRoundTripsThroughJudgeAndImport` 가 지킨다. |
+| 조정-3 deferred 처리(S2-4) | 31·29·30·39·32 를 넣었다. 40(모델 삭제)은 넣지 않았다. 34 는 처리 칸만 채웠다. | S2-4. 40 은 되돌릴 수 없는 기능이라 사용자가 정한다. | 잘못 등록한 모델을 지울 수 없다(deferred 40). |
+| 조정-4 되돌리기 규칙(S2-5) | 단계 0 규칙을 유지했다. | S2-5. 규칙 변경은 사용자 판단이다. | deferred 53. |
+| 조정-5 AgDataGrid props(S2-6) | shared `AgDataGrid` props 를 바꾸지 않고 화면 쪽 키 처리와 입력 칸으로 갈음했다. | S2-6. 기존 shared props 변경은 사용자 승인 사항이다. | 그리드 F2 가 편집기를 열지 않는다(deferred 54·55). |
+| 조정-6 MCP 세션·dryRun·접속자(S2-7) | `ERD_SESSION` → `claude-<세션 id 8>` → 임의 순으로 이름을 정한다. 백엔드 `dryRun`(savepoint 롤백), 서버 시한 접속자(600초). | S2-7·S2-11. 마감: claude-c3e9663b, claude-ca8d0e43 (서로 다름, erd-mcp-a), expiresAt 있음(호출 뒤 약 600초). | `ERD_SESSION` 을 `ui-` + 사용자로 주면 접속자 항목이 생기지 않는다(deferred 74). |
+| 조정-7 단축키(S2-8) | Ctrl+T → Ctrl/⌘+K, Ctrl+O → Alt+O, macOS Ctrl+↑↓ → Alt+↑↓ 를 함께 걸었다. | S2-8. 마감: CDP 입력(macOS): Ctrl+K 열림, Ctrl+T 열림, Alt+O 열림, Ctrl+O 열림(전역 키는 ctrl\|meta 둘 다), 캔버스 Ctrl+F 안 열림 / ⌘F 열림 — 캔버스 키는 mac 에서 ⌘ 만 mod(shared shortcutOf, 설계대로; 계획의 Control+f 는 mac 에서 맞지 않음). Chrome 의 Ctrl/⌘+T·O 가로채기는 자동으로 확인할 수 없어 사람 확인 항목(아침 보고의 사용자 확인 목록). | 실제 Chrome 차단은 사람 확인 항목이다(deferred 66). |
+| 조정-8 마감 두 사람(S2-9) | e2e 픽스처 사용자를 복제에만 넣었다. 쿠키 분리를 먼저 보고, 안 되면 HTTP 클라이언트로 대신한다. | S2-9. | 마감은 대체 경로였다(마감-두 사람 행). |
+| 조정-9 VersionActionBar(S2-10) | 확정취소 props 를 선택으로만 바꿨다. 기존 화면 동작은 그대로다. | S2-10. | props 가 "전부 또는 없음" 유니온이 아니다(deferred 78). |
+| 조정-10 exclusive 대기(S2-29) | `exclusive` 는 결과 rev 까지 화면 상태가 따라올 때(최대 5초) 다음 묶음을 놓는다. 계획 Task 10 코드에 없어 레인 FE1 이 더했다(시험 `exclusiveWaitsForOwnEcho`). | S2-29. | 늦은 에코를 자기 에코로 잘못 읽어 투영이 잠깐 흔들린다. |
+| 조정-11 deferred 27 선행 | dev `25bc64ff3` 로 머지했다(검토 high 0, med 2 고침). | "착수 전" 절. | 동시 저장이 연결 풀을 막는다. |
+| 조정-12 03 계획 지연 | README·01·02·04~07 을 먼저 커밋했다(`037fd1ffe`). S 레인은 03 커밋(`cb9ca9ce8`) 뒤 시작했다. | 03 작성이 늦었다. 대체 작성본을 썼다. | S 레인 시작이 늦어진다. |
+| 조정-15 S 레인 알림 | rev 없는 CLI `undo --apply` 반복과 25,000자를 넘는 델타 하나는 deferred 후보로 두고 사용법 계약을 유지했다. 결과 글 상한 줄은 S2-28(코드마다 50건)로 고쳤다(이 절 위 결과 글 절). | 레인 S 리뷰. | deferred 75·76. |
+| 조정-19~22 감사 컬럼(사용자) | 감사 컬럼은 `C_USR_ID`·`C_AT`·`C_SVC_ID`·`C_PGM_ID`·`U_USR_ID`·`U_AT`·`U_SVC_ID`·`U_PGM_ID` 8개다(`VER` 제외). 캔버스·그리드에서 기본으로 숨기고 토글로 보인다. 엔진 `addTable` 이 모든 경로에서 붙이고 `audit:false` 로 끈다. 가져오기는 DB 그대로다. 표준 판정은 지금처럼 한다. | 사용자 요청(10-11 아침). S2-30. | C_AT 등이 DOMAIN 위반이면 확정을 막을 수 있다(사용자 인지). 마감: 통과 — 화면으로 만든 새 표 TB_MCM_CLOSE_P·C(rev 22·23) 각각 감사 8개 자동(C_USR_ID…U_PGM_ID). 확대 시 노드 배지 erd-audit-badge '감사 8', 노드 컬럼 행 0. erd-audit-toggle(aria-pressed false→true) 누르면 노드 행 8·그리드 행 8, 다시 누르면 숨김·배지 복귀. 그리드 숨김 안내 erd-audit-hint '감사 8 숨김'. ui/69-audit-node-shown.png·69-audit-node-hidden.png |
+| 조정-23·24 감사 블록 앞 위치 | `position` 없는 `addColumn` 은 표 끝이 감사 블록이면 그 앞에 넣는다. 컬럼 수 이상의 `position` 도 끝으로 본다. | DMES 표는 감사 컬럼으로 끝난다. 레인 audit 이 확장을 제안했고 조정자가 받았다. | 명시한 안쪽 `position` 은 그대로라 감사 블록 사이에 넣을 수 있다. |
+| 머지 게이트 허가(요약) | 조정-13: fe2 t12 의 Part B §1 한 줄과 shared 새 export 2줄. 조정-14·16: `ui-meta-lock.json` 은 erdEdit 항목만(m-mcm cmq 어긋남은 dev 기존 실패). 조정-17: be1 묶음 1 SHA 직접 확인(부모 = dev tip, be1 소유 파일만). 조정-18: `engine/ErdRejection.java` 는 README 레인 표상 BE2 소유(지시 생성 결함). | 게이트 경고가 계획 범위와 diff 가 같았다. | m-mdm `ui-meta-lock` 시험 1건이 계속 실패한다(deferred 50). |
+| 레인 구현 차이(요약) | BE1: dev tip 이 움직이면 `merge-tree`·`commit-tree` 로 다시 만들었다. 리뷰 지적으로 `ErdDbDiff` 가 복합 FK 를 짝 집합으로 맞춘다. deferred 51 의 `COLUMN_ID` 부분을 BE1 이 맡았다. BE2: Task 4·5 를 한 번에 머지했다. 빈 칸 채우기에서 실시간 `rowVersion` 을 보존한다. 기본값 세션 `ui-<사용자>` 는 시한 접속자를 만들지 않는다. deferred 28 은 허브 DB 읽기 3곳이 잠금 밖인지 확인했다. S: Task 7 Step 5(중첩 `claude -p` 도구 12개)를 건너뛰고 마감 5-1 이 확인했다. FE1: 화면 감사(P-S2 4건)는 탭 안 그리드라 오탐으로 봤다. FE2: `useCanvasEditing.ts` 는 `.ts` 를 유지하고 JSX 대신 `createElement` 를 쓴다. DiagramTree `ctx` prop 중복을 지웠다. FE3: 칸 편집은 더블클릭으로 연다. ag-grid 가 row-id 를 HTML 이스케이프해서 07 의 차이 선택자도 이스케이프한다. audit: 논리명은 사전·별칭에 있으면 그것, 없으면 고정 이름이다. | 계획 코드와 실제 코드의 차이, 리뷰 지적. | 레인 메모에 있다(`~/.coord/erd-stage2-1011/lanes/*/memo.md`). |
 
 ---
 
