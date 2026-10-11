@@ -518,26 +518,12 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
     return width > 0 && height > 0 ? width / height : 1.6;
   }, [storeApi]);
   const splitApply = useCallback((commands: ErdCommandJson[], label: string) => ctxRef.current.apply(commands, label), []);
-  // 만든 첫 다이어그램으로 간다. 응답 직후엔 화면 상태에 아직 새 다이어그램이 없을 수 있어(nav 는 모르는 id 를 무시한다), 나타나면 한 번 더 부른다.
-  const jumpTo = useRef<string | null>(null);
+  // 만든 첫 다이어그램으로 간다. 응답 직후 화면 상태에 아직 없으면 nav.selectDiagram 이 두었다가 나타날 때 연다(ErdViewer).
   const onSplitCreated = useCallback((firstId: string, count: number) => {
     const c = ctxRef.current;
     c.nav.selectDiagram(firstId);
-    jumpTo.current = c.state.diagrams[firstId] ? null : firstId;
     c.notify(`다이어그램 ${count}개를 만들었습니다.`, "info");
   }, []);
-  const diagrams = ctx.state.diagrams;
-  useEffect(() => {
-    const id = jumpTo.current;
-    if (id && diagrams[id]) {
-      jumpTo.current = null;
-      ctxRef.current.nav.selectDiagram(id);
-    }
-  }, [diagrams]);
-  const modelIdNow = ctx.modelId;
-  useEffect(() => {
-    jumpTo.current = null;
-  }, [modelIdNow]);
 
   const goNeighbor = useCallback((dir: "parent" | "child", from?: string | null) => {
     const c = ctxRef.current;
