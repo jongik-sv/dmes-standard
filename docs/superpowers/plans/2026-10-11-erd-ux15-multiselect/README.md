@@ -261,7 +261,20 @@ otherDiagrams: number;
 | 2 | [01-multiselect.md](01-multiselect.md) | 정렬 연결: `measuredSizes`, [정렬 ▾], 표 메뉴 정렬, Ctrl/⌘+A, 툴팁 개수, 이미 되는 일괄 동작 고정 시험 | UX15 | Task 1 |
 | 3 | [01-multiselect.md](01-multiselect.md) | 창 2개: 다른 다이어그램에 넣기, 같은 컬럼 여러 표에 + 연결 | UX15 | Task 1·2 |
 | 4 | [01-multiselect.md](01-multiselect.md) | `ErdViewer` 선택: 다이어그램 바꾸면 비움, 지운 표 뺌, 머리 글 | UX15 | 없음(언제든) |
-| 5 | [02-close.md](02-close.md) | 마감: 전체 시험, 복제 PDB 브라우저 확인, 도움말·기능설계서·deferred·결정 기록 | 마감 | Task 1-4 머지 |
+| 5 | [02-close.md](02-close.md) | 마감: 전체 시험, 복제 PDB 브라우저 확인, 도움말·기능설계서·deferred·결정 기록 | 마감 | Task 1-4·6 머지 |
+| 6 | 이 README "Task 6" 절 | 추정 관계 점선 클릭 → 검토 패널 [추정 관계 검토] 탭의 그 행 고름(사용자 10-11 추가 요청) | UX15 | 없음(언제든) |
+
+### Task 6: 추정 관계 점선 클릭 → 추정 관계 행 고르기 (10-11 사용자 추가 요청)
+
+- 요청 원문: "점선을 누르면 추정관계에서 선택이 되도록 해줘."
+- 지금: 관계선은 `canvas/erd-flow.ts:314` 에서 `selectable: false, focusable: false` 다. 이름표 층은 `pointer-events:none`(Local-Rules §19). 점선 = `state` 가 추정(INFERRED)인 관계(`erd-rel` 의 `data-state`).
+- 할 일:
+  1. 추정 관계선만 누를 수 있게 한다. 선이 가늘어 누르기 어려우므로 보이지 않는 넓은 누름 경로(예: 투명 stroke 12px)를 본선 위에 겹친다. 확정 관계선은 지금처럼 누르지 않는다(이번 범위 밖).
+  2. 누르면: 검토 패널이 접혀 있으면 펼치고, 탭을 `inferred`(`panels/ReviewPanel.tsx` `ReviewTab`)로 바꾸고, 그 관계 id 행(`AgDataGrid gridId="erdInferred" rowKey="id"`)을 고르고 보이게 굴린다. 같은 후보 묶음(`isRankedCandidate`·`candidateGroup`)의 1순위 선을 누르면 그 1순위 행을 고른다.
+  3. 표 선택·끌기와 겹치지 않게 한다: 선 누름은 노드 선택을 바꾸지 않는다. 캔버스 빈 곳 누름(선택 해제) 동작은 그대로.
+  4. 탭 바꾸기·행 고르기 상태는 ErdViewer 루트를 다시 그리지 않는 경로로(화면 성능 규칙 R7·R16 — 관계선은 노드 x 숫자만 구독하는 지금 구조 유지).
+- 시험: 추정 선 클릭 → 탭 `inferred`·그 행 선택(실제 ErdEditPage 띄우는 시험), 확정 선 클릭 → 변화 없음, 접힌 검토 패널 → 펼침. 마감 Task 5 브라우저 확인에 한 항목(M14) 추가.
+- 도움말: §4.1 추정 관계 검토에 "캔버스의 점선을 누르면 그 관계 행이 골라집니다" 한 줄.
 
 ## 레인
 
