@@ -26,6 +26,7 @@ import {
 
 import { isAuditColumn } from "../audit-columns";
 import type { ApplyOutcome, ErdEditContext, Right } from "../edit-context";
+import { routeKey } from "../state/model-delta";
 import { shortReason } from "../state/permissions";
 import type { ErdCommandJson, ErdFoldMode } from "../types";
 import { DeleteTablesModal, NewTableModal, PropsWindow } from "./CanvasDialogs";
@@ -39,6 +40,7 @@ import { PASTE_GAP, copyTables, nextPasteRound, pasteTablesPlan, readClip, write
 import { nextExpiry, viewersAt, type ErdFlowEdge, type ErdFlowNode, type InlineEdit } from "./erd-flow";
 import { NODE_WIDTH, ZOOM_NAMES_ONLY, ZOOM_OVERVIEW, lodTier, nodeHeight, type LodTier } from "./erd-geometry";
 import { autoLayoutCommand, type Size } from "./erd-layout";
+import { routeBusOf, selectRoute, setRouteHandlers } from "./erd-route";
 import {
   ALIGN_LABEL, ALIGN_MIN, ALIGN_MODES, DISTRIBUTE_LABEL, DISTRIBUTE_MIN, alignBoxes, alreadyIn, arrangeLabel, bulkColumnCommands, bulkColumnPlan,
   distributeBoxes, placeIntoCommand, type ArrangeKind, type BulkColumnInput, type NodeBox,
@@ -54,7 +56,7 @@ export interface CanvasEditing {
   flowProps: Pick<FlowProps, "nodesDraggable" | "nodesConnectable" | "deleteKeyCode" | "onNodeDragStop" | "onConnect" | "isValidConnection"
     | "connectionMode" | "onPaneClick" | "onNodeContextMenu" | "onPaneContextMenu" | "snapToGrid" | "snapGrid"
     | "onConnectStart" | "onConnectEnd" | "onClickConnectStart" | "onClickConnectEnd" | "onNodeClick" | "onMouseMove" | "onMouseLeave"
-    | "onNodeDoubleClick" | "panActivationKeyCode">;
+    | "onNodeDoubleClick" | "panActivationKeyCode" | "onEdgeClick" | "onEdgeContextMenu">;
   onNodesChange(changes: NodeChange<ErdFlowNode>[]): void;
   decorateNodes(nodes: ErdFlowNode[]): ErdFlowNode[];
   onKeyDown(e: KeyboardEvent): void;
@@ -136,6 +138,8 @@ const inDialog = (t: EventTarget | null): boolean => !!(t as Element | null)?.cl
 
 export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdFlowNode, ErdFlowEdge>): CanvasEditing {
   const storeApi = useStoreApi<ErdFlowNode, ErdFlowEdge>();
+  /** 고른 관계선·꺾임점 손잡이 콜백을 선 부품과 나누는 버스(2차 c5, erd-route.ts). */
+  const routeBus = useMemo(() => routeBusOf(storeApi), [storeApi]);
   const mac = useMemo(() => isMacPlatform(), []);
   const [tool, setTool] = useState<ErdTool>("select");
   const [drag, setDrag] = useState<ReadonlyMap<string, XYPosition>>(NO_DRAG);
@@ -435,6 +439,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
   // 표 누르기 — [관계 시작] 뒤면 같은 표는 자기 참조 알림(U42) 후 그대로 기다리고, 다른 표면 관계를 보낸다.
   // 관계 도구에서는 노드를 덮은 잇기 손잡이가 먼저 누르기 잇기를 시작하므로 여기서 지운다(관계가 두 번 가지 않게).
   const onNodeClick = useCallback<NonNullable<FlowProps["onNodeClick"]>>((_e, node) => {
+    selectRoute(routeBus, null);
     const from = fromRef.current;
     if (!from) return;
     dropClickConnect();
@@ -452,7 +457,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
     if (relationBusy.current) return;
     setFrom(null);
     void addRelation(from, node.id, t === "identifying", "ASK");
-  }, [dropClickConnect, setFrom, addRelation]);
+  }, [dropClickConnect, setFrom, addRelation, routeBus]);
 
   // ── 빼기·삭제·접기·배치 ──
   const removeTables = useCallback((tables?: readonly string[]): boolean => {
@@ -623,7 +628,13 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       c.notify("이미 자동 배치대로 놓여 있습니다.", "info");
       return;
     }
-    const { out, current } = await send([cmd], "자동 배치");
+    // 옮긴 표에 걸린 관계의 꺾임점은 함께 지운다(2차 c6, §7.1) — moveNodes 와 한 묶음 = 되돌리기 1번.
+    const moved = new Set((cmd.nodes as { table: string }[]).map((n) => n.table));
+    const stale = Object.entries(c.state.model.relations)
+      .filter(([rid, r]) => (moved.has(r.child) || (r.parent != null && moved.has(r.parent))) && c.state.routes[routeKey(c.diagramId!, rid)])
+      .map(([rid]) => rid);
+    const commands = stale.length > 0 ? [cmd, { op: "clearRoutes", diagram: c.diagramId, relations: stale }] : [cmd];
+    const { out, current } = await send(commands, "자동 배치");
     if (!out.ok || !current) return;
     ctxRef.current.notify(`자동 배치했습니다. ${undoKeyLabel(mac)} 로 되돌릴 수 있습니다.`, "info");
     void rf.fitView({ includeHiddenNodes: true, padding: 0.1, maxZoom: 1, duration: 200 });
@@ -671,6 +682,12 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       setMenu(null);
       return undefined;
     }
+    if (routeBus.selected) {
+      // 남이 지운 관계를 고른 채면 조용히 놓고 Esc 를 다음 일(표 선택 풀기)에 넘긴다.
+      const live = !!ctxRef.current.state.model.relations[routeBus.selected];
+      selectRoute(routeBus, null);
+      if (live) return undefined;
+    }
     if (toolRef.current !== "select") {
       // 시작한 잇기([관계 시작]의 부모 표·누르기 잇기)도 함께 버린다(안내 줄 "Esc 취소").
       dropClickConnect();
@@ -684,7 +701,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       return undefined;
     }
     return UNHANDLED;
-  }, [selectedIds, storeApi, dropClickConnect, setFrom]);
+  }, [selectedIds, storeApi, dropClickConnect, setFrom, routeBus]);
 
   // 도구 막대 [컬럼 추가]·[PK 추가](U43) — 고른 표가 하나일 때 그 표에 컬럼 추가를 시작한다(그리드 쪽은 FE1 nav).
   const addColumn = useCallback((pk: boolean) => {
@@ -946,9 +963,50 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
     dispatchShortcut(e, handlers, mac, ERD_CANVAS_SHORTCUTS);
   }, [chooseTool, removeTables, askDelete, goNeighbor, escape, fitTo, rf, storeApi, selectedIds, mac, copySelected, paste, renameSelected, openProps]);
 
+  // ── 관계선 경유점(2차 c5) — 선 누르기 = 고르기, 손잡이 끌기·두 번 누르기 = setRoute / clearRoutes(한 번 = 되돌리기 1번) ──
+  const commitRoute = useCallback(async (relation: string, points: { x: number; y: number }[]) => {
+    const c = ctxRef.current;
+    if (!c.diagramId) return;
+    if (!c.rights.diagram.ok) {
+      deny(c.rights.diagram);
+      return;
+    }
+    if (points.length === 0) {
+      if (!c.state.routes[routeKey(c.diagramId, relation)]) return;
+      await send([{ op: "clearRoutes", diagram: c.diagramId, relations: [relation] }], "자동 경로로 되돌리기");
+      return;
+    }
+    await send([{ op: "setRoute", diagram: c.diagramId, relation, points }], "꺾임점 바꾸기");
+  }, [deny, send]);
+  const onEdgeClick = useCallback<NonNullable<FlowProps["onEdgeClick"]>>((_e, edge) => {
+    setMenu(null);
+    selectRoute(routeBus, edge.id);
+  }, [routeBus]);
+  const onEdgeContextMenu = useCallback<NonNullable<FlowProps["onEdgeContextMenu"]>>((e, edge) => {
+    e.preventDefault();
+    selectRoute(routeBus, edge.id);
+    const c = ctxRef.current;
+    const routed = !!c.diagramId && !!c.state.routes[routeKey(c.diagramId, edge.id)];
+    setMenu({
+      at: { x: e.clientX, y: e.clientY },
+      items: [{
+        id: "route-reset", label: "자동 경로로 되돌리기", run: () => void commitRoute(edge.id, []),
+        ...(routed ? offIf(c.rights.diagram) : { disabled: true, title: "꺾임점이 없습니다" }),
+      }],
+    });
+  }, [routeBus, commitRoute]);
+  useEffect(() => {
+    setRouteHandlers(routeBus, {
+      commit: commitRoute,
+      canEdit: canDiagram,
+    });
+    return () => setRouteHandlers(routeBus, null, true);
+  }, [routeBus, commitRoute, canDiagram]);
+
   // ── 누르기·우클릭 ──
   const onPaneClick = useCallback<NonNullable<FlowProps["onPaneClick"]>>((e) => {
     setMenu(null);
+    selectRoute(routeBus, null);
     if (toolRef.current !== "table") return;
     const rights = ctxRef.current.rights;
     if (!rights.model.ok) {
@@ -956,7 +1014,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       return;
     }
     setNewTableAt(rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }));
-  }, [rf, deny]);
+  }, [rf, deny, routeBus]);
 
   const onNodeContextMenu = useCallback<NonNullable<FlowProps["onNodeContextMenu"]>>((e, node) => {
     e.preventDefault();
@@ -1088,11 +1146,12 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
     deleteKeyCode: null,
     connectionMode: ConnectionMode.Loose,
     isValidConnection, onConnect, onConnectStart, onConnectEnd, onClickConnectStart, onClickConnectEnd, onNodeDragStop, onPaneClick,
-    onNodeContextMenu, onPaneContextMenu, onNodeClick, onMouseMove, onMouseLeave, onNodeDoubleClick,
+    onNodeContextMenu, onPaneContextMenu, onNodeClick, onMouseMove, onMouseLeave, onNodeDoubleClick, onEdgeClick, onEdgeContextMenu,
     snapToGrid: true, snapGrid: SNAP_GRID,
     panActivationKeyCode: null, // Space = 속성 창(c4). 빈 곳 끌기로 이동은 그대로다
   }), [canDiagram, canModel, tool, relationTool, isValidConnection, onConnect, onConnectStart, onConnectEnd, onClickConnectStart,
-    onClickConnectEnd, onNodeDragStop, onPaneClick, onNodeContextMenu, onPaneContextMenu, onNodeClick, onMouseMove, onMouseLeave, onNodeDoubleClick]);
+    onClickConnectEnd, onNodeDragStop, onPaneClick, onNodeContextMenu, onPaneContextMenu, onNodeClick, onMouseMove, onMouseLeave, onNodeDoubleClick,
+    onEdgeClick, onEdgeContextMenu]);
 
   // 파일이 .ts(README 계약 이름)라 JSX 대신 createElement 로 그린다. 끄는 동안(setDrag) 다시 그려도 막대·창은 같은 요소를 넘겨
   // 아래 부품이 다시 그리지 않게 실제 입력으로만 다시 만든다.

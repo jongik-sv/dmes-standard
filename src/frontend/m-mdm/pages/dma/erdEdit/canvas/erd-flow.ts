@@ -21,8 +21,9 @@ import type { Edge, Node } from "@dk-oasis/shared/react-flow";
 
 import { isAuditColumnId } from "../audit-columns";
 import { placeholderName } from "../placeholder-name";
+import { routeKey } from "../state/model-delta";
 import { countTableViolations } from "../state/violations";
-import type { ErdClaim, ErdColumnStatus, ErdModelJson, ErdPresence, ErdRelation, ErdRelationState, ErdState } from "../types";
+import type { ErdClaim, ErdColumnStatus, ErdModelJson, ErdPresence, ErdRelation, ErdRelationState, ErdRoutePoint, ErdState } from "../types";
 import { NODE_WIDTH, nodeHeight, relationSides, typeText, type NodeSide } from "./erd-geometry";
 
 export type ErdMode = "logical" | "physical";
@@ -116,6 +117,8 @@ export interface ErdEdgeData extends Record<string, unknown> {
   folded: number;
   /** 자식 쪽 기수가 0 을 포함하는가(ZERO_OR_MORE·ZERO_OR_ONE). */
   zeroChild: boolean;
+  /** 이 다이어그램에 저장된 꺾임점(2차 c5, 캔버스 절대 좌표). 없으면 null = 자동 경로. */
+  route: readonly ErdRoutePoint[] | null;
 }
 export type ErdFlowEdge = Edge<ErdEdgeData, "erdRelation">;
 
@@ -350,6 +353,8 @@ export function buildFlow(i: BuildFlowInput): ErdFlow {
       data: {
         state: r.state, folded: head ? head.folded : 0,
         zeroChild: r.cardinality.child.startsWith("ZERO"),
+        // 선은 모델 관계에서만 만든다 — 그 버전에 없는 관계의 route 는 저절로 그리지 않는다(§7.1).
+        route: i.state.routes[routeKey(i.diagramId, id)]?.points ?? null,
       },
     });
   }

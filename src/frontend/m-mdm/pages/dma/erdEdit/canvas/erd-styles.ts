@@ -52,6 +52,10 @@ export const ERD_CSS = `
 .erd-rel[data-state="INFERRED"] .erd-rel__end { stroke: var(--color-warning); }
 .erd-rel .erd-rel__zero { fill: var(--color-bg); stroke: var(--color-text); stroke-width: 1.2; }
 .erd-rel[data-state="INFERRED"] .erd-rel__zero { stroke: var(--color-warning); }
+.erd-rel__sel { cursor: pointer; }
+.erd-rel[data-selected] .erd-rel__line, .erd-rel[data-selected] .erd-rel__end { stroke: var(--color-primary); stroke-width: 2.4; }
+.erd-rel__bend, .erd-rel__mid { fill: var(--color-bg); stroke: var(--color-primary); stroke-width: 1.5; cursor: move; pointer-events: all; }
+.erd-rel__mid { fill: var(--color-primary-soft); cursor: copy; }
 .erd-rel__label { position: absolute; padding: 0 var(--spacing-xs); font-size: var(--font-size-xs); color: var(--color-warning);
   background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
 .erd-app { display: flex; flex-direction: column; height: 100%; min-height: 560px; border: 1px solid var(--color-border); background: var(--color-bg); }
