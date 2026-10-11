@@ -92,7 +92,7 @@ describe("FlowCanvas", () => {
     expect(onSelect).toHaveBeenCalledWith("r1");
     onSelect.mockClear();
     await click(q("flow-rule-open-r1")!);
-    expect(onOpenRule).toHaveBeenCalledWith("R_A");
+    expect(onOpenRule).toHaveBeenCalledWith("R_A", { nodeId: "r1" });
     expect(onSelect).not.toHaveBeenCalled();
   });
 

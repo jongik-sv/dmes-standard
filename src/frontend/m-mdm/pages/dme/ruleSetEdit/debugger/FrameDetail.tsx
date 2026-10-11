@@ -13,6 +13,7 @@ import { debugStatus, endedBranchText } from "./debug-model";
 import { NodeDescNote, TraceDetail } from "./TraceDetail";
 import { NOT_RUN_NOTE } from "./VariablePanel";
 import type { CallFrame } from "./call-stack";
+import type { RuleLinkFrom } from "./rule-link";
 import type { CalledFlow, DraftVersions } from "../types";
 
 export interface FrameDetailProps {
@@ -20,7 +21,7 @@ export interface FrameDetailProps {
   selectedId: string | null;
   /** 실행 응답의 하위 세트 흐름 — 손주 세트로 다시 들어갈 수 있는지 본다. */
   calledFlows: Readonly<Record<string, CalledFlow | undefined>>;
-  onOpenRule(ruleId: string): void;
+  onOpenRule(ruleId: string, from?: RuleLinkFrom): void;
   onEnter(nodeId: string): void;
   /** DRAFT 로 실행한 룰·세트(spec 2026-10-06). 없으면 표시하지 않는다. */
   draftVersions?: DraftVersions;

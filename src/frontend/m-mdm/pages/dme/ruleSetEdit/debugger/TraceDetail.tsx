@@ -27,6 +27,7 @@ import { catchValues } from "../trace-view";
 import { NO_DRAFTS, type CalledFlow, type DraftVersions } from "../types";
 import { caughtCount } from "./call-stack";
 import { isDraftNode } from "./debug-model";
+import type { RuleLinkFrom } from "./rule-link";
 import { cellText } from "./ValueTable";
 
 const KIND_TEXT: Record<NodeTrace["kind"], string> = {
@@ -104,7 +105,8 @@ export interface TraceDetailProps {
   traceViolations: readonly Violation[];
   /** 이 노드의 설명(`view.descs`). 없으면 보이지 않는다. */
   desc?: string;
-  onOpenRule: (ruleId: string) => void;
+  /** [룰 편집 열기] — 이 실행이 읽은 값을 함께 넘긴다(룰 화면 값 테스트 칸을 채운다). */
+  onOpenRule: (ruleId: string, from?: RuleLinkFrom) => void;
   /** END 노드에 보일 끝낸 갈래 문장(R18). */
   endedBranch?: string | null;
   /** SET 노드 [안으로 들어가기](하위 세트 spec §11). 없으면 단추를 그리지 않는다. */
@@ -232,7 +234,7 @@ export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenR
             )}
           </p>
           {node.ruleId && (
-            <Button size="sm" data-testid="sim-detail-open-rule" onClick={() => onOpenRule(node.ruleId!)}>
+            <Button size="sm" data-testid="sim-detail-open-rule" onClick={() => onOpenRule(node.ruleId!, { inputs: node.reads })}>
               <IconExternalLink size={14} aria-hidden="true" style={{ marginRight: "var(--spacing-xs)" }} />
               룰 편집 열기
             </Button>

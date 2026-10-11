@@ -50,7 +50,7 @@ moduleGroup: dme
 | 주요 API path | UI→BFF `POST /api/mdm/oasis/ruleEdit/{action}`, BFF→BE `POST /oasis/ruleEdit/{action}` | design §6.1 |
 | Frontend 파일 | `m-mdm/pages/dme/ruleEdit/page.tsx`, `cards.ts`, `cards/*`, `decision-table/*`, `state/useRuleEdit.ts` | design §2.1-FE·FT |
 | action 어휘 | `search`·`view`(READ), `save`·`delete`·`copy`·`lock`·`unlock`·`handover`·`validate`·`execute`(EDIT, `execute` 는 TSK-08-04 값 테스트) | design §6.1, TSK-08-04 design D3 |
-| 화면 간 이동 | `@/dme/rule-handoff`(`openRuleEdit`·`takeRuleEditTarget`) | design D9·I28 |
+| 화면 간 이동 | `@/dme/rule-handoff`(`openRuleEdit`·`takeRuleEditTarget`). 룰 세트 디버깅에서 오면 대상에 `inputs`(읽은 값) — §5.5 값 채우기 | design D9·I28 |
 
 ## 2. 화면 영역 정의
 
@@ -198,6 +198,7 @@ row_version 을 서버 값으로 맞춘다. 거부가 MDM001 이면 "다른 창�
 | 대상(`vt-target`) | 편집할 수 있고 고른 버전이 DRAFT 면 첫 항목 `편집본 · 버전 N 저장 전`(기본값, 값 `BODY`), 그 뒤 `버전 N · 상태`(값 `V:N`) 전부 |
 | 모드 설명(`vt-mode`) | "본문 정의"(표 카드의 저장 안 한 행·적중 정책으로 돌린다, 변수는 그 DRAFT 의 저장된 열) / "저장된 버전"(서버가 원장에서 읽어 판정). 열 설정 초안이 dirty 면 "열 설정 초안은 반영하지 않습니다"(`vt-col-draft`) |
 | 입력 표(`AgDataGrid`, 행 키 = 변수명) | 입력 계약(`always` ∪ 행별 필수·선택)의 이름마다 한 행: 변수(라벨·물리명, `vt-field-<NAME>`)·타입 배지·계약 배지("조건·키 필수"/"N행 필수"/"N행 선택")·**키 보냄** 확인란(`vt-key-<NAME>`, 기본 켬)·값 칸(`col-id=value`, 누르면 편집·Enter 로 확정, 비었으면 "NULL", 키 보냄 끔이면 "(키 없음)" 으로 보이고 편집 불가)·설명·도메인. 키 보냄 끔 = 레코드에 키 없음(MISSING_KEY), 빈 칸 = 키 있고 값 null(필수면 REQUIRED_NULL) |
+| 룰 세트 디버깅 값 채우기(`vt-prefilled`) | 룰 세트 편집 디버그 모드의 룰 링크로 넘어오면(handoff 대상 `inputs`·`from: "ruleSetDebug"`, 새 탭·이미 열린 탭 모두) 그 룰 노드가 읽은 값(`reads`)으로 입력 칸을 채우고 "룰 세트 디버깅 값으로 채웠습니다." 한 줄을 보인다. 규칙: 읽은 값에 있는 이름(대소문자 무시)은 값을 넣고 키 보냄 켬, 없는 칸은 빈 칸(NULL)·키 보냄 켬, 입력 줄에 없는 이름은 버린다. 값 변환은 케이스 불러오기와 같다(NULL → 빈 칸, 목록 → JSON). 열린 버전이 실행한 버전과 달라도 이름으로 채운다. 한 이동에서 한 이름은 한 번만 채우므로 고친 값은 덮지 않고, 식 파싱이 늦어 나중에 생긴 칸만 더 채운다. 탭을 다시 열면 지난 값을 채우지 않는다. 다른 룰로 바꾸기·케이스 불러오기·값 없는 이동이면 알림을 감춘다(값 없는 이동은 칸을 그대로 둔다) |
 | 실행 (`vt-run`) | `execute{maruRuleId, target, ver, hitPolicy?, inputJson}` + BODY 면 `grids.rows`. 서버 오류(요청 상한 등 MDM021)는 카드 안 `vt-error` 에 보인다 |
 | 케이스로 저장 | 이름(`vt-case-name`)이 있어야 켜진다. 같은 대상·같은 입력으로 방금 돌린 결과가 있으면 그 결과를 기대값으로 싣는다(`save` part `CASE`) |
 

@@ -5,7 +5,7 @@
  * 레코드는 `buildInputJson` 이 만든다 — 키 보냄 끔 = 키 없음(MISSING_KEY), 빈 칸 = 키 있고 null(필수면 REQUIRED_NULL), 값은
  * 문자열 그대로(타입 변환은 서버 엔진 몫, I21).
  */
-import type { InputContract, VarType } from "@/contract/engine-contract.generated";
+import type { InputContract, TypedValue, VarType } from "@/contract/engine-contract.generated";
 
 import { typeBadge } from "../decision-table/columns";
 import { computeContract, type AstByText, type ContractSource } from "../sections/contract/contract-view";
@@ -146,10 +146,42 @@ export function inputFromCase(
     const has = byKey.has(key(f.name));
     keySent[f.name] = has;
     if (!has) continue;
-    const v = byKey.get(key(f.name));
-    values[f.name] = v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : String(v);
+    values[f.name] = cellOf(byKey.get(key(f.name)));
   }
   return { values, keySent };
+}
+
+/** 입력 칸 글자 — null 은 빈 칸, 객체·배열은 JSON, 나머지는 문자열(케이스 불러오기와 디버깅 값 채우기가 같이 쓴다). */
+function cellOf(v: unknown): string {
+  return v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : String(v);
+}
+
+/** 타입 붙은 값 → JSON 값(NULL 은 null, LIST 는 배열, 나머지는 값 문자열). */
+function plainOf(v: TypedValue): unknown {
+  if (v.type === "NULL") return null;
+  if (v.type === "LIST") return v.items.map(plainOf);
+  return v.value;
+}
+
+/**
+ * 룰 세트 디버깅에서 그 룰 노드가 읽은 값 → 입력 칸. 읽은 값에 있는 이름(대소문자 무시)은 값을 채우고, 없는 칸은 빈 칸(NULL)이다.
+ * 둘 다 키 보냄이다. 입력 줄에 없는 이름은 버린다. `matched` = 채운 칸 수.
+ */
+export function inputFromReads(
+  fields: readonly Pick<InputField, "name">[],
+  reads: Readonly<Record<string, TypedValue>>,
+): { values: Record<string, string>; keySent: Record<string, boolean>; matched: number } {
+  const byKey = new Map(Object.entries(reads).map(([k, v]) => [key(k), v] as const));
+  const values: Record<string, string> = {};
+  const keySent: Record<string, boolean> = {};
+  let matched = 0;
+  for (const f of fields) {
+    const v = byKey.get(key(f.name));
+    keySent[f.name] = true;
+    values[f.name] = v === undefined ? "" : cellOf(plainOf(v));
+    if (v !== undefined) matched++;
+  }
+  return { values, keySent, matched };
 }
 
 /**

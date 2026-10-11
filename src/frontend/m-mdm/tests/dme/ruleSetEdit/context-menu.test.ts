@@ -59,7 +59,7 @@ describe("viewMenu", () => {
       expect(rule.map((i) => i.id)).toEqual(["open-rule"]);
       expect(rule[0].label).toBe("룰 편집 열기");
       rule[0].run!();
-      expect(c.act.openRule).toHaveBeenCalledWith("R_A");
+      expect(c.act.openRule).toHaveBeenCalledWith("R_A", { nodeId: "r1" });
 
       expect(viewMenu({ kind: "node", nodeId: "if1" }, c)).toEqual([]);
       expect(viewMenu({ kind: "edge", edgeId: "e1", via: "context" }, c)).toEqual([]);

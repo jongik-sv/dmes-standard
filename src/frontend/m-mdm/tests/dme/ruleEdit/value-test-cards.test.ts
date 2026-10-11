@@ -15,6 +15,7 @@ import { ValueTestCard } from "../../../pages/dme/ruleEdit/cards/ValueTestCard";
 import { DecisionTableCard } from "../../../pages/dme/ruleEdit/decision-table/DecisionTableCard";
 import { RuleWorkbenchProvider, useRuleWorkbench } from "../../../pages/dme/ruleEdit/state/workbench-context";
 import type { RuleEditView, ValueTestResult } from "../../../pages/dme/ruleEdit/types";
+import { clearDebugPrefill, offerDebugPrefill } from "../../../pages/dme/ruleEdit/value-test/debug-prefill";
 import { clearVersionViewCache } from "../../../pages/dme/ruleEdit/value-test/run-request";
 import { RBAC_STORE_KEY, findButton, flush, installDomStorage, jsonResponse, selectValue, typeInto, visibleText } from "../helpers/render";
 import { ast } from "../../helpers/parse-expr";
@@ -243,6 +244,7 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     root = null;
     container?.remove();
     globalThis.fetch = originalFetch;
+    clearDebugPrefill();
   });
 
   // D-105 — ① 헤더·② 버전 카드는 ruleMng 화면으로 옮겨 갔다. 이 화면은 내용 편집만 한다.
@@ -502,6 +504,43 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     expect((byTestId("vt-key-COIL_WID")!.querySelector("input") as HTMLInputElement).checked).toBe(false);
     await click(byTestId("rule-card-value-test")!, "실행");
     expect(JSON.parse(String(last("execute")!.params.inputJson))).toEqual({ COIL_THK: "2.0", SURF_GRD: null });
+  });
+
+  it("룰 세트 디버깅 값이 오면 읽은 이름 칸을 채우고 없는 칸은 NULL·계약 밖 이름은 버리며 한 줄로 알린다. 카드를 다시 열면 다시 채우지 않는다", async () => {
+    responses.execute = ok(okResult());
+    offerDebugPrefill("QLTY_GRD_JDG", { coil_thk: { type: "NUMBER", value: "2.0" }, SURF_GRD: { type: "STRING", value: "A" }, EXTRA_X: { type: "STRING", value: "x" } });
+    await render(draftView("e2e_mdm_steward"));
+    expect(byTestId("vt-prefilled")?.textContent).toBe("룰 세트 디버깅 값으로 채웠습니다.");
+    expect(vtValueCell("COIL_THK").textContent).toBe("2.0");
+    expect(vtValueCell("COIL_WID").textContent).toBe("NULL");
+    await click(byTestId("rule-card-value-test")!, "실행");
+    expect(JSON.parse(String(last("execute")!.params.inputJson))).toEqual({ COIL_THK: "2.0", COIL_WID: null, SURF_GRD: "A" });
+
+    // 탭을 닫았다 다시 연 것처럼 카드를 새로 그리면 지난 디버깅 값을 다시 채우지 않는다.
+    act(() => root!.unmount());
+    root = createRoot(container);
+    await render(draftView("e2e_mdm_steward"));
+    expect(byTestId("vt-prefilled")).toBeNull();
+    expect(vtValueCell("COIL_THK").textContent).toBe("NULL");
+  });
+
+  it("이미 열린 카드도 디버깅 값을 받으면 채우고, 값 없는 이동은 칸을 두고 알림만 감춘다", async () => {
+    responses.execute = ok(okResult());
+    await render(draftView("e2e_mdm_steward"));
+    await setVtValue("COIL_WID", "1500");
+    await act(async () => offerDebugPrefill("QLTY_GRD_JDG", { COIL_THK: { type: "NUMBER", value: "3.5" } }));
+    await flush();
+    expect(byTestId("vt-prefilled")).not.toBeNull();
+    expect(vtValueCell("COIL_THK").textContent).toBe("3.5");
+    expect(vtValueCell("COIL_WID").textContent).toBe("NULL");
+    // 다른 룰 값은 채우지 않는다.
+    await act(async () => offerDebugPrefill("OTHER_RULE", { COIL_THK: { type: "NUMBER", value: "9" } }));
+    await flush();
+    expect(vtValueCell("COIL_THK").textContent).toBe("3.5");
+    await act(async () => offerDebugPrefill("QLTY_GRD_JDG", null));
+    await flush();
+    expect(byTestId("vt-prefilled")).toBeNull();
+    expect(vtValueCell("COIL_THK").textContent).toBe("3.5");
   });
 
   it("기대값 갱신은 마지막 케이스 결과로 기대 JSON 을 고치고(rowVersion 조건), 삭제는 확인창을 거쳐 보낸다", async () => {

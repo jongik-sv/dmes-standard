@@ -81,4 +81,18 @@ describe("rule-handoff", () => {
     expect(takeRuleEditTarget()).toBeNull();
     expect(window.sessionStorage.getItem(RULE_EDIT_TARGET_KEY)).toBeNull();
   });
+
+  it("룰 세트 디버깅 값은 inputs·from 으로 저장·이벤트에 같이 실리고, 읽을 때도 그대로다", () => {
+    const inputs = { GT_THK: { type: "NUMBER" as const, value: "12" } };
+    openRuleEdit("GT_GRADE", undefined, { inputs });
+    expect(events[0].detail).toMatchObject({ ruleId: "GT_GRADE", inputs, from: "ruleSetDebug" });
+    expect(takeRuleEditTarget()).toMatchObject({ ruleId: "GT_GRADE", inputs, from: "ruleSetDebug" });
+  });
+
+  it("값 없는 이동은 inputs·from 칸이 없다", () => {
+    openRuleEdit("A_RULE");
+    const t = takeRuleEditTarget()!;
+    expect("inputs" in t || "from" in t).toBe(false);
+  });
 });
+

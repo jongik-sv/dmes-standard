@@ -4,7 +4,8 @@
  * ruleEdit — 룰 화면 골격(TSK-08-02). 정본: docs/mdm/screens/ruleEdit/ruleEdit_기능설계서.md.
  *
  * 조회 영역(`SearchArea` — 룰 고르기 `RulePicker`·버전 고르기), 그 아래 정보 줄(잠금 배지·알림)과 `cards.ts` 의 카드를 순서대로 그린다. 룰 조회 화면에서 넘어오면
- * handoff 대상(`@/dme/rule-handoff`)을 한 번 읽어 그 룰을 연다. 이미 열린 탭은 대상 이벤트를 듣고 바꾼다(D9·I28).
+ * handoff 대상(`@/dme/rule-handoff`)을 한 번 읽어 그 룰을 연다. 이미 열린 탭은 대상 이벤트를 듣고 바꾼다(D9·I28). 대상에 룰 세트 디버깅이
+ * 읽은 값(`inputs`)이 있으면 값 테스트 카드에 넘긴다(`value-test/debug-prefill`).
  * 편집 여부는 서버 판정(`editable`·`headerEditable`)만 따른다(I7). 카드 목록은 카드 사이 공유 상태(`RuleWorkbenchProvider` — 편집 중인 표·
  * 값 테스트 결과, TSK-08-04)로 감싼다.
  */
@@ -20,6 +21,7 @@ import { RULE_EDIT_CARDS, cardSegments, type RuleEditCardProps } from "./cards";
 import { RulePicker } from "./RulePicker";
 import { useRuleEdit } from "./state/useRuleEdit";
 import { RuleWorkbenchProvider } from "./state/workbench-context";
+import { offerDebugPrefill } from "./value-test/debug-prefill";
 
 const SCREEN_ID = "ruleEdit";
 
@@ -29,13 +31,19 @@ export default function RuleEditPage() {
   const { open } = state;
 
   // handoff — 마운트할 때 남은 대상을 읽고, 열린 뒤에는 이벤트로 받는다(읽은 대상은 지운다).
+  // 디버깅 값은 열기 전에 올린다 — 값 테스트 카드가 그 룰을 그릴 때 받는다.
   useEffect(() => {
     const target = takeRuleEditTarget();
-    if (target) void open(target.ruleId, target.ver);
+    if (target) {
+      offerDebugPrefill(target.ruleId, target.inputs);
+      void open(target.ruleId, target.ver);
+    }
     const onTarget = (e: Event) => {
       const detail = (e as CustomEvent<RuleEditTarget>).detail;
       takeRuleEditTarget();
-      if (detail?.ruleId) void open(detail.ruleId, detail.ver);
+      if (!detail?.ruleId) return;
+      offerDebugPrefill(detail.ruleId, detail.inputs);
+      void open(detail.ruleId, detail.ver);
     };
     window.addEventListener(RULE_EDIT_TARGET_EVENT, onTarget);
     return () => window.removeEventListener(RULE_EDIT_TARGET_EVENT, onTarget);

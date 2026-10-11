@@ -15,6 +15,7 @@ import { HANDOVER_AVAILABLE, HANDOVER_PENDING_TEXT, takeMdmPageParams } from "@/
 import RuleEditPage from "../../../pages/dme/ruleEdit/page";
 import { RULE_EDIT_GROUPS } from "../../../pages/dme/ruleEdit/cards";
 import { RULE_EDIT_TARGET_EVENT, RULE_EDIT_TARGET_KEY } from "../../../src/dme/rule-handoff";
+import { clearDebugPrefill } from "../../../pages/dme/ruleEdit/value-test/debug-prefill";
 import type { RuleEditView } from "../../../pages/dme/ruleEdit/types";
 import {
   RBAC_STORE_KEY,
@@ -101,6 +102,7 @@ describe("RuleEditPage", () => {
     container?.remove();
     globalThis.fetch = originalFetch;
     delete (globalThis as Record<string, unknown>)[RBAC_STORE_KEY];
+    clearDebugPrefill();
   });
 
   it("룰을 고르기 전에는 룰 고르기 칸과 빈 상태만 보인다", async () => {
@@ -198,6 +200,27 @@ describe("RuleEditPage", () => {
 
 
   // D-105 — ② 버전 카드(표)를 뺀 뒤 버전 고르는 곳은 상단 [버전] Select 다. 표에서 고르는 것은 헤더·버전 화면 몫이다.
+  it("룰 세트 디버깅에서 넘어온 대상(inputs)은 값 테스트 칸을 채우고 알린다 — 새 탭(저장소)·이미 열린 탭(이벤트) 모두", async () => {
+    const inputs = { COIL_THK: { type: "NUMBER", value: "2.0" } };
+    window.sessionStorage.setItem(RULE_EDIT_TARGET_KEY, JSON.stringify({ ruleId: "QLTY_GRD_JDG", at: Date.now(), inputs, from: "ruleSetDebug" }));
+    await render();
+    await flush();
+    expect(byTestId("vt-prefilled")?.textContent).toBe("룰 세트 디버깅 값으로 채웠습니다.");
+
+    // 디버그가 아닌 이동은 알림을 감춘다.
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(RULE_EDIT_TARGET_EVENT, { detail: { ruleId: "QLTY_GRD_JDG", at: Date.now() } }));
+    });
+    await flush();
+    expect(byTestId("vt-prefilled")).toBeNull();
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(RULE_EDIT_TARGET_EVENT, { detail: { ruleId: "QLTY_GRD_JDG", at: Date.now(), inputs, from: "ruleSetDebug" } }));
+    });
+    await flush();
+    expect(byTestId("vt-prefilled")).not.toBeNull();
+  });
+
   it("상단 버전 고르기로 다른 버전을 열면 그 버전으로 다시 불러온다", async () => {
     await openByHandoff();
     const sel = byTestId<HTMLSelectElement>("rule-ver-select")!;

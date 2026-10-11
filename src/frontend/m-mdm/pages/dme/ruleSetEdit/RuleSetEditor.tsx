@@ -69,6 +69,7 @@ import { flowSetIds } from "./flow-model";
 import { autoArrange, restyleNode, shiftSpace, type NodeLayoutSource, type SpaceAxis, type SpaceBlocks } from "./flow-layout";
 import type { NodeColor, NodeSize } from "./node-style";
 import { openRule } from "./links";
+import type { DebugLinkSource, RuleLinkFrom } from "./debugger/rule-link";
 import { BottomPanel, type BottomTab } from "./panels/BottomPanel";
 import { ChecksPanel } from "./panels/ChecksPanel";
 import { useSectionMemory } from "./panels/Section";
@@ -373,6 +374,10 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
   }, [editing]);
   useEffect(() => setPickEdge(undefined), [setId]);
 
+  // 캔버스 룰 링크·우클릭 [룰 편집 열기] — 디버그 기록·커서는 누를 때 ref 로 읽는다(값은 아래 겹침 계산 옆에서 넣는다).
+  // 콜백이 고정이라 커서가 움직여도 캔버스 노드 데이터·메뉴 동작을 다시 만들지 않는다.
+  const linkSourceRef = useRef<DebugLinkSource | null>(null);
+  const openCanvasRule = useCallback((ruleId: string, from?: RuleLinkFrom) => openRule(ruleId, from, linkSourceRef.current), []);
   const editActions = useEditActions({
     state,
     flow,
@@ -386,6 +391,7 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
     openRuleAssign,
     openSetPick,
     openSet: tabsApi.openSet,
+    openRule: openCanvasRule,
     fit,
     setEditingCond,
     setEditingLabel,
@@ -767,6 +773,7 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
     () => (top ? debugOverlay(top.trace, top.flow, top.cursor) : debugging && fresh && last ? debugOverlay(last.trace, last.flow, sim.cursor) : null),
     [top, debugging, fresh, last, sim.cursor],
   );
+  linkSourceRef.current = top ? { trace: top.trace, cursor: top.cursor } : debugging && fresh && last ? { trace: last.trace, cursor: sim.cursor } : null;
   const frameValue = useMemo(() => (top ? frameValueAt(top) : null), [top]);
   const frameVarLabels = useMemo(() => (top ? varLabelsOf(top.rules) : null), [top]);
   const framePath = useMemo(() => stack.frames.map((f) => f.nodeId), [stack.frames]);
@@ -974,7 +981,7 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
                       onEditLabelClose={onEditLabelClose}
                       onSelect={select}
                       onSelectEdge={selectEdge}
-                      onOpenRule={openRule}
+                      onOpenRule={openCanvasRule}
                       calls={top ? undefined : state.calls}
                       callsFailed={top ? undefined : state.callsFailed}
                       onOpenSet={tabsApi.openSet}

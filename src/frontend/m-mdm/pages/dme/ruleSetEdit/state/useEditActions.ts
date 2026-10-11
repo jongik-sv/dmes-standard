@@ -44,6 +44,7 @@ import {
 } from "../flow-edit";
 import { collapseView } from "../canvas/collapse";
 import { autoArrange, drawnPositions, nodeSizeOf } from "../flow-layout";
+import type { RuleLinkFrom } from "../debugger/rule-link";
 import { openRule } from "../links";
 import type { RuleIo } from "../types";
 import type { RuleSetEditState } from "./useRuleSetEdit";
@@ -78,6 +79,8 @@ export interface EditActionsDeps {
   openSetPick?(edgeId: string | null): void;
   /** 하위 세트를 같은 화면의 탭으로 연다(우클릭 「세트 탭으로 열기」, spec §10.3). */
   openSet?(setId: string): void;
+  /** 룰 편집 열기(우클릭) — 없으면 `links.openRule`. page 는 디버그 기록을 읽는 고정 콜백을 넘긴다. */
+  openRule?(ruleId: string, from?: RuleLinkFrom): void;
   fit(): void;
   setEditingCond(edgeId: string | null): void;
   /** 선 라벨 즉석 편집 칸 열기·닫기(Task 9). */
@@ -165,7 +168,7 @@ function centerOf(f: EditFlow, collapsed: ReadonlySet<string>): FlowPos {
 }
 
 export function useEditActions(deps: EditActionsDeps): EditActions {
-  const { state, flow, editing, selectedId, selectedEdgeId, multiSel, select, selectEdge, openRuleAssign, fit, setEditingCond, setEditingLabel, closeMenu, clearSelection } = deps;
+  const { state, flow, editing, selectedId, selectedEdgeId, multiSel, select, selectEdge, openRuleAssign, fit, setEditingCond, setEditingLabel, closeMenu, clearSelection, openRule: openRuleDep } = deps;
   const collapsed = deps.collapsed ?? NO_COLLAPSED;
   const openSetPick = deps.openSetPick ?? noop;
   const openSet = deps.openSet ?? noop;
@@ -375,7 +378,7 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
 
   const actions = useMemo<EditActions["actions"]>(
     () => ({
-      openRule,
+      openRule: openRuleDep ?? openRule,
       fit,
       autoLayout: () => {
         if (editing) edit((f) => autoArrange(f));
@@ -432,7 +435,7 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
         if (editing) edit((f) => dissolveSplit(f, splitId, keepEdgeId));
       },
     }),
-    [editing, edit, fit, placeNote, placeTask, openSetPick, openSet, insertAt, setEditingCond, setEditingLabel, copy, paste, openRuleAssign],
+    [editing, edit, fit, placeNote, placeTask, openSetPick, openSet, insertAt, setEditingCond, setEditingLabel, copy, paste, openRuleAssign, openRuleDep],
   );
 
   return {

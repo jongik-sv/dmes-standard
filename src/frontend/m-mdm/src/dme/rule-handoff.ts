@@ -6,7 +6,11 @@
  * page-registry 스캔 대상이 아니다. 화면 간 이동은 이 모듈로만 한다.
  *
  * 버전은 소수 셋째 자리 문자열이다(`"1.001"`, D-144). 읽을 때 `normVer` 로 맞춰 옛 숫자 저장값(`2`)도 `"2.000"` 으로 받는다.
+ *
+ * 룰 세트 디버깅에서 넘어오면 그 룰 노드가 읽은 값(`NodeTrace.reads`)을 `inputs` 에 싣는다(`from: "ruleSetDebug"`). 룰 화면은 이 값으로
+ * 값 테스트 입력 칸을 채운다. 값이 없는 이동은 지금처럼 두 칸이 없다.
  */
+import type { TypedValue } from "@/contract/engine-contract.generated";
 import { normVer } from "@/shell/version-format";
 
 export const RULE_EDIT_TARGET_KEY = "mdm.dme.ruleEdit.target";
@@ -19,6 +23,18 @@ export interface RuleEditTarget {
   /** `"1.001"` 형식. */
   ver?: string;
   at: number;
+  /** 룰 세트 디버깅에서 그 룰 노드가 읽은 값. 있으면 `from` 이 `"ruleSetDebug"` 다. */
+  inputs?: Record<string, TypedValue>;
+  from?: "ruleSetDebug";
+}
+
+/** 이동할 때 함께 넘기는 값(룰 세트 디버깅). */
+export interface RuleEditInputs {
+  inputs: Record<string, TypedValue>;
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
 }
 
 function storage(): Storage | null {
@@ -29,9 +45,13 @@ function storage(): Storage | null {
   }
 }
 
-/** 룰 화면 탭을 열고 그 룰(버전)을 보이게 한다. */
-export function openRuleEdit(ruleId: string, ver?: string): void {
+/** 룰 화면 탭을 열고 그 룰(버전)을 보이게 한다. `debug` 가 있으면 값 테스트 입력 칸을 그 값으로 채운다. */
+export function openRuleEdit(ruleId: string, ver?: string, debug?: RuleEditInputs): void {
   const target: RuleEditTarget = ver == null ? { ruleId, at: Date.now() } : { ruleId, ver, at: Date.now() };
+  if (debug) {
+    target.inputs = debug.inputs;
+    target.from = "ruleSetDebug";
+  }
   try {
     storage()?.setItem(RULE_EDIT_TARGET_KEY, JSON.stringify(target));
   } catch {
@@ -55,12 +75,16 @@ export function takeRuleEditTarget(): RuleEditTarget | null {
   }
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as { ruleId?: unknown; ver?: string | number | null; at?: unknown };
+    const parsed = JSON.parse(raw) as { ruleId?: unknown; ver?: string | number | null; at?: unknown; inputs?: unknown };
     if (typeof parsed?.ruleId !== "string" || !parsed.ruleId) return null;
     const ver = normVer(parsed.ver);
-    return ver == null
-      ? { ruleId: parsed.ruleId, at: Number(parsed.at) || 0 }
-      : { ruleId: parsed.ruleId, ver, at: Number(parsed.at) || 0 };
+    const target: RuleEditTarget =
+      ver == null ? { ruleId: parsed.ruleId, at: Number(parsed.at) || 0 } : { ruleId: parsed.ruleId, ver, at: Number(parsed.at) || 0 };
+    if (isRecord(parsed.inputs)) {
+      target.inputs = parsed.inputs as Record<string, TypedValue>;
+      target.from = "ruleSetDebug";
+    }
+    return target;
   } catch {
     return null;
   }

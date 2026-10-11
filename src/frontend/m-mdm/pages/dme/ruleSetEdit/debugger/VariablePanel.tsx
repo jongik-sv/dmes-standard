@@ -32,6 +32,7 @@ import type { RuleIoMap, SetCallIoMap } from "../types";
 import { LIST_REJECT, NULL_VALUE, catchEditText, editKindOfVar, endedBranchText, parseEditText, reservedKeyText, type EditKind } from "./debug-model";
 import { declaredTypes, FALLBACK_TEXT, SERVER_JUDGES_TEXT, type ExprResult } from "./expr-eval";
 import { loadStrings, saveStrings, storeKeys } from "./local-store";
+import type { RuleLinkFrom } from "./rule-link";
 import { NodeDescNote, TraceDetail } from "./TraceDetail";
 import { useExprEval } from "./useExprEval";
 import type { Simulation } from "./useSimulation";
@@ -44,7 +45,7 @@ export interface VariablePanelProps {
   selectedId: string | null;
   /** 식 파싱(validate) 권한 — 없으면 식 평가 칸이 꺼진다(P-D1). */
   canParse: boolean;
-  onOpenRule(ruleId: string): void;
+  onOpenRule(ruleId: string, from?: RuleLinkFrom): void;
   /** SET 노드 상세의 [안으로 들어가기](하위 세트 spec §11) — 노드 상세(`TraceDetail`)로 넘긴다. */
   onEnterSet?: (nodeId: string) => void;
   /** 하위 세트 겉모양 — 조사식 "없는 변수" 판정이 SET 노드의 입력·출력 이름도 흐름 이름으로 센다(하위 세트 spec §9). */

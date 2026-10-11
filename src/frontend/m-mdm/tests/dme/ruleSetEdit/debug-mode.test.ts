@@ -600,6 +600,32 @@ describe("디버그 모드 — 변수·조사식·식 평가·입력", () => {
     expect(visibleText(byTestId("sim-detail"))).toContain("아직 실행하지 않은 노드다");
   });
 
+  it("13-1. 디버깅 중 룰 링크는 그 룰 노드가 읽은 값을 넘긴다 — 상세 [룰 편집 열기]·캔버스 링크·우클릭(커서 앞에서 실행). 아직 실행하지 않은 노드는 값 없이", async () => {
+    await firstStep();
+    await run("dbg-step");
+    await run("dbg-step");
+    expect(status()).toBe("3/6 · if1 실행 전");
+    const reads = FIRST.trace.nodes.find((n) => n.nodeId === "r1")!.reads;
+    expect(Object.keys(reads ?? {}).length).toBeGreaterThan(0);
+
+    await click("flow-node-r1");
+    await click("sim-detail-open-rule");
+    expect(mocks.openRuleEdit).toHaveBeenLastCalledWith("GT_GRADE", undefined, { inputs: reads });
+
+    await click("flow-rule-open-r1");
+    expect(mocks.openRuleEdit).toHaveBeenLastCalledWith("GT_GRADE", undefined, { inputs: reads });
+
+    // 우클릭 [룰 편집 열기]도 링크 아이콘과 같다.
+    mocks.openRuleEdit.mockClear();
+    await nodeMenu("r1");
+    await click("flow-menu-item-open-rule");
+    expect(mocks.openRuleEdit).toHaveBeenLastCalledWith("GT_GRADE", undefined, { inputs: reads });
+
+    // r2 는 커서(if1) 앞에서 실행되지 않았다 — 디버그가 아닐 때처럼 룰만 연다.
+    await click("flow-rule-open-r2");
+    expect(mocks.openRuleEdit).toHaveBeenLastCalledWith("GT_FAST");
+  });
+
   it("기록이 없으면 변수 자리에 '실행하면 커서 시점 값이 보인다'", async () => {
     await openDebug();
     expect(visibleText(byTestId("var-panel"))).toContain("실행하면 커서 시점 값이 보인다");

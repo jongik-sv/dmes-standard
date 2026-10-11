@@ -7,7 +7,7 @@ import type { AstNode } from "../../../src/contract/engine-contract.generated";
 import type { ContractSource } from "../../../pages/dme/ruleEdit/sections/contract/contract-view";
 import { contractSourceOfView } from "../../../pages/dme/ruleEdit/sections/contract/contract-view";
 import type { ResolvedVar } from "../../../pages/dme/ruleEdit/types";
-import { buildInputJson, fieldsOfContract, inputFields, inputFromCase } from "../../../pages/dme/ruleEdit/value-test/test-input";
+import { buildInputJson, fieldsOfContract, inputFields, inputFromCase, inputFromReads } from "../../../pages/dme/ruleEdit/value-test/test-input";
 import { INPUT_CONTRACT_CORPUS_PATH } from "../../helpers/engine-paths";
 import { draftView } from "./fixtures";
 
@@ -133,5 +133,19 @@ describe("buildInputJson", () => {
     expect(r.values).toEqual({ COIL_THK: "1.05", COIL_WID: "" });
     expect(r.keySent).toEqual({ COIL_THK: true, COIL_WID: true, SURF_GRD: false });
     expect(buildInputJson(fields, r.values, r.keySent)).toBe('{"COIL_THK":"1.05","COIL_WID":null}');
+  });
+
+  it("디버깅 값 채우기 — 읽은 값 이름(대소문자 무시)은 채우고, 없는 칸은 빈 칸(NULL)·키 보냄, 입력 줄 밖 이름은 버린다", () => {
+    const fields = [{ name: "COIL_THK" }, { name: "COIL_WID" }, { name: "SURF_GRD" }, { name: "TAGS" }];
+    const r = inputFromReads(fields, {
+      coil_thk: { type: "NUMBER", value: "1.05" },
+      SURF_GRD: { type: "NULL" },
+      TAGS: { type: "LIST", items: [{ type: "STRING", value: "a" }, { type: "NULL" }] },
+      EXTRA: { type: "STRING", value: "x" },
+    });
+    expect(r.values).toEqual({ COIL_THK: "1.05", COIL_WID: "", SURF_GRD: "", TAGS: '["a",null]' });
+    expect(r.keySent).toEqual({ COIL_THK: true, COIL_WID: true, SURF_GRD: true, TAGS: true });
+    expect(r.matched).toBe(3);
+    expect(buildInputJson(fields, r.values, r.keySent)).toBe('{"COIL_THK":"1.05","COIL_WID":null,"SURF_GRD":null,"TAGS":"[\\"a\\",null]"}');
   });
 });

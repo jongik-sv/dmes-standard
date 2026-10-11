@@ -21,6 +21,7 @@ import type { FlowNode } from "@/contract/engine-contract.generated";
 
 import { catchTitle } from "../catch-text";
 import { storeKeys } from "../debugger/local-store";
+import type { RuleLinkFrom } from "../debugger/rule-link";
 import { TASK_LABEL, type CatchSide, type FlowNote } from "../flow-edit";
 import { NODE_SIZE } from "../flow-layout";
 import { CATCHABLE } from "../flow-model";
@@ -49,7 +50,8 @@ export type FlowNodeData = {
   overlay: NodeOverlay | undefined;
   selected: boolean;
   flash: boolean;
-  onOpenRule: (ruleId: string) => void;
+  /** 링크 아이콘 — 노드 ID 를 함께 넘겨 디버그 중이면 그 노드가 읽은 값으로 룰 화면 값 테스트 칸을 채운다. */
+  onOpenRule: (ruleId: string, from?: RuleLinkFrom) => void;
   /** 중단점이 걸렸는가(3단계 E2, 그리기는 Task 11). */
   breakpoint: boolean;
   /** 중단점을 걸 수 있는가 — RULE·IF·PARALLEL·MERGE 이고 디버그 모드. */
@@ -184,7 +186,7 @@ function RuleBody({ data }: { data: FlowNodeData }) {
   const missing = !io || !io.exists;
   const open = (e: MouseEvent) => {
     e.stopPropagation();
-    onOpenRule(ruleId);
+    onOpenRule(ruleId, { nodeId: node.id });
   };
   // ID 모드: 제목=룰 ID, 작은 줄=룰명(없으면 생략). 그 밖·없는 룰은 제목=룰명(없으면 ID), 작은 줄=ID.
   // 사용자 이름(label)이 있으면 제목=이름(모드와 상관없이)이고, 작은 줄은 이름이 없을 때 제목이던 값이다(Task 8, N1).

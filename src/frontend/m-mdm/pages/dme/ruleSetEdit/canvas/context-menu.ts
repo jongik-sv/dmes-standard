@@ -8,6 +8,7 @@ import type { AlignKind, DistributeAxis } from "./align";
 import type { FlowMode } from "../state/useRuleSetEdit";
 import type { NodeColor } from "../node-style";
 import type { RuleIoMap } from "../types";
+import type { RuleLinkFrom } from "../debugger/rule-link";
 
 /**
  * 메뉴를 연 자리 — 흐름 노드, 선(우클릭 또는 [+] 단추), 빈 곳(메모·그룹 우클릭도 빈 곳, 흐름 좌표).
@@ -49,7 +50,8 @@ export interface MenuItem {
 
 /** 메뉴 항목이 부르는 캔버스 동작 — page 가 편집 훅(`useEditActions`)·접기·디버거 훅을 모아 만든다. */
 export interface CanvasActions {
-  openRule(ruleId: string): void;
+  /** `from` 이 노드 ID 면 디버그 중 그 노드가 읽은 값을 함께 넘긴다(`debugger/rule-link`). */
+  openRule(ruleId: string, from?: RuleLinkFrom): void;
   fit(): void;
   autoLayout(): void;
   addNote(at: FlowPos): void;

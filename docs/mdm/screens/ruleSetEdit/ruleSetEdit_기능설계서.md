@@ -285,7 +285,7 @@ moduleGroup: dme
 
 | 버튼ID | 버튼명 | 소속 | 핸들러 | 설명 |
 |---|---|---|---|---|
-| GB-001 | 룰 박스 링크 아이콘(`flow-rule-open-{nodeId}`) | 캔버스 RULE 노드 | `openRuleEdit(ruleId)`(`@/dme/rule-handoff`, 버전 없음) | 룰 화면 탭을 연다. **박스 누르기는 선택 + 속성 패널만 열고 룰 화면을 열지 않는다.** 두 번 누르기는 아무것도 하지 않는다 |
+| GB-001 | 룰 박스 링크 아이콘(`flow-rule-open-{nodeId}`) | 캔버스 RULE 노드 | `openRuleEdit(ruleId)`(`@/dme/rule-handoff`, 버전 없음) | 룰 화면 탭을 연다. **박스 누르기는 선택 + 속성 패널만 열고 룰 화면을 열지 않는다.** 두 번 누르기는 아무것도 하지 않는다. 디버그 모드에서는 커서 앞에서 그 노드가 마지막으로 실행된 기록의 읽은 값(`reads`)을 함께 넘겨 룰 화면 값 테스트 칸을 채운다(커서 노드는 노드 상세처럼 아직 실행하지 않은 것으로 보아 값 없이). 우클릭 [룰 편집 열기]도 같다 |
 | GB-002 | (변수 링크 `set-var-link-{이름}`) | 세트 입출력 표 | DICT → `openMdmPage("dma/columnMng")`(파라미터 없음, D13), 결과 변수 → 만드는 첫 룰의 `openRuleEdit` | PROG·NONE 은 링크 없음(title "컬럼 사전 밖 이름이라 갈 곳이 없다") |
 | GB-003 | 룰 박스 누르기 | 캔버스 | 선택 → 속성 패널 | 룰 노드의 속성 패널은 입력 변수(`flow-prop-input-{이름}`)의 출처·앞 룰 결과 여부, 결과 변수(`flow-prop-result-{이름}`), 그 노드에 걸린 검사 문구를 보인다 |
 | GB-004 | 선 위 [+](`flow-edge-add-{edgeId}`) | 캔버스 선(편집 모드) | 메뉴 열기(`{kind:"edge", via:"plus"}`) | 룰 넣기·IF 넣기·병렬 넣기·(클립보드가 있으면) 붙여넣기. 누른 자리 화면 좌표에 뜬다 |
@@ -570,7 +570,7 @@ moduleGroup: dme
 | 룰 세트 노드·부르는 세트 목록·메시지 링크 → 세트 탭 | 같은 화면 안(`tabsApi.openSet`, §2.1) | 세트 ID |
 | 룰 화면(`ruleEdit`) | `@/dme/rule-handoff` `openRuleEdit(ruleId)` | 룰 ID |
 | 컬럼 사전(`columnMng`) | `openMdmPage("dma/columnMng")` | 없음(D13) |
-| 룰 화면(`ruleEdit`) — 디버그 모드 | `openRuleEdit(ruleId)` (변수 패널 노드 상세 [룰 편집 열기]) | 룰 ID |
+| 룰 화면(`ruleEdit`) — 디버그 모드 | `openRuleEdit(ruleId, undefined, {inputs})` (변수 패널·하위 프레임 노드 상세 [룰 편집 열기], 캔버스 링크·우클릭 — GB-001) | 룰 ID + 누른 실행이 읽은 값(`reads`, 없으면 룰 ID 만). 룰 화면은 값 테스트 입력 칸을 채운다(ruleEdit §5.5) |
 
 ## 10. 기타 열거형 (LoV)
 

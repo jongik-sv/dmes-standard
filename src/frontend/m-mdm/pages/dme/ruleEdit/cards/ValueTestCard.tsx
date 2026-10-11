@@ -8,6 +8,7 @@
  * 계산한다. 식 변수·열 조건과 편집해 `ast` 가 없는 식 칸의 AST 는 서버 `parseExpr` 로 받는다(못 받으면 그 식이 읽는 변수는 빠진다). 키 보냄을 끄면 레코드에서 키를 빼고,
  * 빈 칸은 null 로 싣는다(I21). 값 테스트는 원장에 쓰지 않으므로 `runWrite`(쓰기 뒤 다시 불러오기)를 쓰지 않고, 서버 오류는 이 카드에 보인다.
  * "케이스로 저장" 은 방금 같은 대상·입력으로 돌린 결과가 있으면 그것을 기대값으로 싣는다.
+ * 룰 세트 디버깅의 룰 링크로 넘어오면 그 룰 노드가 읽은 값으로 입력 칸을 채우고 한 줄로 알린다(`value-test/debug-prefill`).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -25,7 +26,8 @@ import { contractSourceOfView, exprSlotsOf, type AstByText, type ContractSource 
 import { useRuleWorkbench } from "../state/workbench-context";
 import { expectedFromResult } from "../value-test/case-model";
 import { bodyTable, defaultRowIdOf, prepareRun, resolveTarget, targetKey, targetOptions, useTargetView } from "../value-test/run-request";
-import { buildInputJson, inputFields, inputFromCase } from "../value-test/test-input";
+import { claimDebugPrefill, useDebugPrefill } from "../value-test/debug-prefill";
+import { buildInputJson, inputFields, inputFromCase, inputFromReads } from "../value-test/test-input";
 
 interface FieldRow {
   name: string;
@@ -115,6 +117,7 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRun, setLastRun] = useState<{ key: string; inputJson: string } | null>(null);
+  const [prefilled, setPrefilled] = useState(false);
   const ruleRef = useRef(ruleId);
   useEffect(() => {
     if (ruleRef.current === ruleId) return;
@@ -124,6 +127,7 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
     setPickedKey(null);
     setError(null);
     setLastRun(null);
+    setPrefilled(false);
   }, [ruleId]);
 
   // 계약 원본은 편집본(BODY) 대상일 때만 표 카드가 올린 표(행·적중 정책)에 기댄다. tableDraft 객체 자체에 기대면 저장된 버전 대상이거나
@@ -195,10 +199,35 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
       setValues(filled.values);
       setKeySent(filled.keySent);
       setError(null);
+      setPrefilled(false);
     } catch (e) {
       setError(`케이스 입력을 읽지 못했습니다: ${e instanceof Error ? e.message : String(e)}`);
     }
   }, [caseLoad, ruleId]);
+
+  // 룰 세트 디버깅 값 채우기 — 한 채우기(seq)에서 한 이름은 한 번만 채운다. 그래서 사용자가 고친 값이나 표 편집으로 다시 계산된 칸은
+  // 덮지 않고, 식 AST 가 늦게 와 새로 생긴 칸만 채운다. 값 없는 이동(null)은 칸을 그대로 두고 알림만 감춘다.
+  const prefill = useDebugPrefill();
+  const prefillDone = useRef<{ seq: number; mine: boolean; names: Set<string> }>({ seq: 0, mine: false, names: new Set() });
+  useEffect(() => {
+    if (!prefill) {
+      setPrefilled(false);
+      return;
+    }
+    if (prefill.ruleId !== ruleId || !def) return;
+    if (prefillDone.current.seq !== prefill.seq) {
+      prefillDone.current = { seq: prefill.seq, mine: claimDebugPrefill(prefill.seq), names: new Set() };
+    }
+    const { mine, names } = prefillDone.current;
+    if (!mine) return;
+    const fresh = fields.filter((f) => !names.has(f.name.toUpperCase()));
+    if (fresh.length === 0) return;
+    for (const f of fresh) names.add(f.name.toUpperCase());
+    const filled = inputFromReads(fresh, prefill.inputs);
+    setValues((prev) => ({ ...prev, ...filled.values }));
+    setKeySent((prev) => ({ ...prev, ...filled.keySent }));
+    if (filled.matched > 0) setPrefilled(true);
+  }, [prefill, ruleId, def, fields]);
 
   const handleRun = useCallback(async () => {
     if (!choice) return;
@@ -253,6 +282,11 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
           </span>
         )}
       </div>
+      {prefilled && (
+        <p data-testid="vt-prefilled" role="status" style={{ margin: "var(--spacing-xs) 0", color: "var(--color-text-secondary)" }}>
+          룰 세트 디버깅 값으로 채웠습니다.
+        </p>
+      )}
       {choice && (
         <p data-testid="vt-mode" style={{ margin: "var(--spacing-xs) 0", color: "var(--color-text-secondary)" }}>
           <span style={badgeStyle("neutral")}>{choice.target === "BODY" ? "본문 정의" : "저장된 버전"}</span> {MODE_DESC[choice.target]}
