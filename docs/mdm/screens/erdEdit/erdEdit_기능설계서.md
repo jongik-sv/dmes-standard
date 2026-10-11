@@ -8,23 +8,23 @@
 
 | 액션 | 뜻 | 권한 세트 |
 |---|---|---|
-| search | 모델 목록 | READ |
+| search | 모델 목록. 칸에 `status`(모델 STATUS)·`releasedVer`(최신 확정본, 없으면 null)·`createdBy`(등록자)가 있다. `kind=SCHEMAS` 는 `ALL_USERS` 중 `ORACLE_MAINTAINED='N'` 인 DB 사용자 이름 목록이다(2차 7절) | READ |
 | view | 모델 하나(JSON·다이어그램·rev·편집자·접속자) 또는 `sinceRev` 이후 델타. `kind=SET_VIEW` 면 내 화면 상태(보는 다이어그램·선택한 표)를 알린다. 읽기 전용 사용자도 부를 수 있다 | READ |
 | compare | 논리명·물리명 미리보기(표준 판정) | READ |
 | validate | 확정 검사 미리보기 | EDIT |
 | reg | 빈 모델 만들기 | EDIT |
-| save | 명령 묶음 적용(`apply`) | EDIT |
+| save | 명령 묶음 적용(`apply`). 다이어그램 명령 `setRoute`·`clearRoutes`·`copyDiagram` 이 있다(2차 7절) | EDIT |
 | restore | 명령 되돌리기 | EDIT |
 | execute | 작업 중 표시와 공동 편집자 등록·해제. `kind` 값은 ADD_EDITOR·REMOVE_EDITOR·CLAIM·RELEASE | EDIT |
 | copy | 새 버전(DRAFT) | EDIT |
-| delete | DRAFT 삭제 | EDIT |
+| delete | DRAFT 삭제. `kind=MODEL` 이면 모델 완전 삭제(2차 7.3절) | EDIT |
 | lock / unlock / handover | DRAFT 선점·해제·넘기기 | EDIT |
 | confirm | 확정 | CONFIRM |
 | import | DB 가져오기(`kind=FROM_DB`). 단계 1 에서 추가했다(5절) | EDIT |
 
 ## 2. 데이터
 
-스펙 3절. 표는 `TB_MDM_ERD_MODEL`, `_MODEL_VER`, `_EDITOR`, `_CMD_LOG`, `_DIAGRAM`, `_DIAGRAM_NODE`, `_CLAIM`.
+스펙 3절. 표는 `TB_MDM_ERD_MODEL`, `_MODEL_VER`, `_EDITOR`, `_CMD_LOG`, `_DIAGRAM`, `_DIAGRAM_NODE`, `_CLAIM`, `_DIAGRAM_ROUTE`(2차, Flyway mdm V7, 7.1절).
 
 ## 3. 판정과 오류
 
@@ -246,3 +246,93 @@
 ### 8.8 성능
 
 - 화면 루트에 새 상태가 없다. `selected` 만 쓴다(U70). 창 입력 상태는 창 안에 있고, 창 열림 상태는 `useCanvasEditing` 안에 있다. 창은 열린 동안만 모델을 받는다(`SplitDialog` 방식). 도구 막대의 새 props 는 숫자·불리언·안정 콜백이다.
+
+## 9. 2차 — 경유점·목록 관리·캔버스 편집·CLI·MCP
+
+2차 회차(erd-2nd-1012, 2026-10-12)다. 정본은 [2차 레인 공통 규칙](../../../erd-tool/stage2-2026-10-12/README.md) §7 이다. 서버·CLI·MCP·화면이 모두 바뀌었다. Flyway V 파일은 mdm V7 하나다. 새 권한 액션은 만들지 않았다(`MdmActions` 16종 그대로, 기존 액션의 `kind` 로 넓혔다).
+
+### 9.1 관계선 경유점(꺾임점)
+
+- 표 `TB_MDM_ERD_DIAGRAM_ROUTE`(V7): `DIAGRAM_ID`·`REL_UUID`(PK) → `POINTS_JSON` → 감사 컬럼 9개(VER 포함). `POINTS_JSON` 은 CLOB `IS JSON STRICT`, `[{"x":int,"y":int},…]`, 1~50개다. FK 는 `TB_MDM_ERD_DIAGRAM` 만 있다(관계는 버전 JSON 안에 있다). 모든 컬럼에 `COMMENT ON` 이 있다.
+- 다이어그램 명령(save 묶음, 버전 밖):
+  - `{"op":"setRoute","diagram","relation","points":[…]}` — 빈 목록은 거절. 그 DRAFT(없으면 현재 버전)에 없는 관계는 `INVALID`. 화면이 보는 ver 가 기준이 아니다.
+  - `{"op":"clearRoutes","diagram","relations":[…]}` — 빈 목록은 no-op(거절하지 않고 rev 는 올린다). null 목록·null 원소는 거절한다.
+- 델타 kind `diagramRoute`, id `"<diagram>:<relation>"`, 값 `{diagram, relation, points}`(지움 = null). `view` 응답의 `routes` 는 `[{diagram, relation, points:[{x,y}]}]` 다.
+- 연쇄 삭제(같은 rev, 역명령에 함께 들어가 되돌리기 1번으로 모두 돌아온다):
+  - `deleteRelation`·`deleteTable`(걸린 관계도 지움): 모든 다이어그램의 그 관계 꺾임점.
+  - `deleteDiagram`: 그 다이어그램의 꺾임점(`remember()` 가 route 행도 잡는다).
+  - `removeFromDiagram`(표): 그 다이어그램에서 그 표에 걸린 관계의 꺾임점.
+- 되돌리기: `RestoreDiagram` 요소 kind 검사에 `diagramRoute` 를 더했다. FK 순서는 다이어그램 되살리기 → 노드·route → 다이어그램 지우기다.
+- 처리 규칙(사용자 결정 10-12):
+  - 표 손 이동(`moveNodes`)·정렬은 꺾임점을 유지한다. 좌표는 캔버스 절대 좌표이고 표가 움직여도 꺾임점은 옮기지 않는다.
+  - [자동 배치] 는 화면이 `moveNodes` 와 `clearRoutes`(옮긴 표에 걸린 관계)를 한 묶음으로 보낸다(되돌리기 1번).
+  - 그 버전에 없는 관계의 route 행은 지우지 않고 화면이 그리지 않는다.
+  - 권한은 다른 다이어그램 명령과 같다.
+- 선 모양은 꺾임점을 지나는 꺾은선이다(직각 강제 없음, `canvas/erd-route.ts`). 끝 모양은 끝 마디 방향을 따른다.
+- 화면: 선을 누르면 고르고(강조), 선 가운데 손잡이를 끌면 꺾임점이 생기고, 꺾임점 손잡이를 끌면 옮기고 두 번 누르면 지운다. 선을 오른쪽 단추로 누르면 [자동 경로로 되돌리기] 가 있다. 앞뒤와 한 줄이거나 4px 안에 겹친 점은 지운다. 개요 단계(0.35 미만)에서는 손잡이를 그리지 않는다.
+- 알려진 한계(deferred 133·134): `onlyRenderVisibleElements` 가 꺾임점을 보지 않아 표 둘이 모두 화면 밖이면 선이 안 보인다. [자동 배치] 결과가 지금과 같으면 꺾임점이 남는다(계약대로).
+
+### 9.2 모델 관리·다이어그램 목록 관리
+
+- `search`(kind 없음): `status`·`releasedVer`·`createdBy` 칸을 더했다. `search kind=SCHEMAS` 는 `ALL_USERS` 중 `ORACLE_MAINTAINED='N'` 사용자 이름 목록이다. 실패하거나 비면 화면은 직접 입력을 받는다.
+- `copyDiagram`: `{"op":"copyDiagram","from","id"(선택),"areaName","diagramName"}`. 노드(위치·접기)와 꺾임점을 함께 복사하고 rev 1 이다. 화면 기본 이름은 「<이름> 복사」(겹치면 번호)다.
+- 화면: 위 막대 [모델 관리](`ModelListModal`)에서 목록(상태·확정본·등록자)을 보고 [열기]·[삭제] 한다. 왼쪽 다이어그램 목록의 오른쪽 단추 메뉴(`DiagramTreeMenu`, shared `ContextMenu` 재사용)에 이름 바꾸기·복사·지우기가 있고 지운 뒤 [되돌리기] 를 제안한다. 새 모델 등록 창(`ModelRegisterModal`)은 칸마다 예시(`mcm`·`mcm`·`MCMAPUSER`·`MCM 스키마`)를 보이고, 모듈은 모델 ID 를 따라가며(직접 고치면 멈춤), 스키마는 `SCHEMAS` 목록에서 고른다.
+- 모델 상태 글: 생성·사용 중·사용 중지(모델 STATUS).
+
+### 9.3 모델 완전 삭제
+
+- `delete kind=MODEL`(kind 없음 = 기존 DRAFT 삭제). 모델 행을 잠근 뒤 `_CLAIM`·`_EDITOR`·`_CMD_LOG`·`_DIAGRAM_ROUTE`·`_DIAGRAM_NODE`·`_DIAGRAM`·`_MODEL_VER`·`_MODEL` 순으로 지운다.
+- 구독자에게 알린다. 새로 읽으면 `ERD_MODEL_NOT_FOUND`(MDM029)다. 화면은 알림 뒤 시작 화면으로 간다. 끊긴 연결은 `viewStatus` 로 확인해 MDM029 면 재연결을 멈춘다.
+- 완전 삭제이고 되돌리기가 없다. 화면 확인 창에서 모델 ID 를 입력해야 [삭제] 가 켜진다.
+- 권한: 관리자(역할 `MDM_STD_ADMIN` 또는 `SYSADMIN`)는 확정본 유무와 무관하게 지운다. 비관리자는 DRAFT 소유자(`_VER.OWNER_ID`)이고 RELEASED·REQUESTED·APPROVED 버전이 하나도 없을 때만 지운다. 그 밖은 거절한다. 거절 코드: MDM016(DRAFT 없음, 관리자만)·MDM003(소유자 아님·확정류 있음)·MDM029(모델 없음)·MDM001(다시 시도). 문구는 서버 `meta.message` 를 그대로 보인다.
+- MCP 에는 모델 삭제를 넣지 않았다(CLI `delete-model --yes` 만).
+- 알려진 한계(deferred 135·136): 지운 모델을 다시 등록하면 rev 가 메모리 한정으로 이어진다. SCHEMAS 범위는 `ALL_USERS` 전체다(MDM 서버 계정이 볼 수 있는 모든 사용자).
+
+### 9.4 캔버스 편집(화면)
+
+- 사전에 없는 단어(`***`) 표시: 순수 함수 `placeholder-name.ts` 가 `{display, reconstructed, unknownWords}` 를 만든다. 자리 맞춤은 논리명에 `***` 가 있고 논리명 단어 수와 물리명 `_` 토막 수가 같을 때다(예: `EXCEL_TP` 「*** 구분」 → 「EXCEL 구분」). 맞지 않으면 `display = reconstructed`, `unknownWords = []`, 툴팁에 물리명 전체. 저장 값과 「사전 없음」 위반은 바뀌지 않는다.
+  - 컬럼 그리드(속성 패널 안 그리드 포함): 칸 순서 = 논리명(`display`, 채운 단어는 기울임·회색, 툴팁 「사전에 없는 단어」) | 사전 재구성(`reconstructed`, 읽기 전용) | 물리명 | …. 편집기는 저장 값(`***` 포함)으로 시작한다.
+  - 캔버스 표 노드: `display` 만(추가 칸 없음).
+- PK 맨 위: 표 노드 컬럼 행은 PK 가 먼저(안정 분할)이고 구분선은 `.erd-col[data-sep]` inset box-shadow 다(높이 안 바뀜). 손잡이 id 는 그대로다.
+- 그 자리 편집: 표 이름·컬럼 줄 두 번 누르기 또는 `F2`(shortcut `rename`). `data-field`(logical|phys)·`data-col` 속성으로 대상을 판정하고 `InlineEdit` 를 `decorateNodes` 가 `data.inline` 으로 싣는다. Enter·밖 누르기 = 저장, Esc = 그만. 물리명은 대문자로 저장하고 틀린 값은 입력을 유지한다(빨간 테두리). 개요 단계의 `F2` 는 「확대」 안내만 한다.
+- Space 속성 창(`PropsWindow`): 고른 표 하나. `propsCommands(model, base, draft, newKeyId)` 의 base 는 열 때의 초안이다. 판정은 `rights.model`. [적용] 한 번이 한 묶음이다. 순서는 표 → 컬럼(도메인 붙일 때 `applyDomain`) → `setPrimaryKey` → 키(지우기·고치기·더하기) → 관계(지우기·고치기·확정/기각). 연 뒤 남이 바꾼 칸은 그대로 두고, 내가 고친 칸을 남도 바꿨으면 「다시 여세요」 다. 바깥 누르기로 닫히지 않는다. 캔버스 Space 끌어 이동(`panActivationKeyCode`)은 없앴다(`null`).
+- 표 복사·붙여넣기: `ErdClip`(`ErdTablesClip`|`ErdColumnsClip`) 공용 클립보드(`erd-clipboard.ts`, 화면 메모리 한 칸, 같은 모델 안). 붙이기는 `addTable audit:false` + 컬럼 전부 거꾸로 position 0, `setPrimaryKey`(이름 지정)·`addKey`, 고른 표끼리의 확정·DB 관계(pairs 빈 것 제외, dbFk 원래 값, REUSE), cardinality 가 다르면 `updateRelation`, `placeTables` 로 한 묶음(되돌리기 1번)이다. 이름은 `<원래>_COPY`(겹치면 `_COPY2`…)·「… 복사」다.
+- 컬럼 복사(`state/column-clip.ts`): 그리드에서 고른 한 행의 값만 담고(키·관계 없음) `addColumn` 한 묶음으로 붙인다. 같은 물리명이 있으면 `_COPY`·「… 복사」, 자리는 고른 컬럼 바로 뒤다.
+- 입력 칸 모드(`GridInputBar`): [추가]·[이름 바꾸기]. 컬럼을 고르면 이름 바꾸기가 기본이고 다른 컬럼으로 옮기면 다시 기본이다. `Ctrl/⌘+Enter` 는 추가 모드로 바꾼다. 입력 칸 `Enter` 는 지금 모드의 동작이다.
+
+### 9.5 버전 숨기기와 DRAFT 자동 만들기
+
+- 확정본(RELEASED)을 보고 있고 새 버전을 만들 수 있으면(`autoDraftEligible`) 첫 편집 때 화면이 `copy MINOR` 로 DRAFT 를 만든 뒤 변경을 적용한다. 만들 때 서버가 막으면 그 거절을 그대로 보인다. 소유자 판정은 내 DRAFT 가 된다.
+- 위 막대에는 DRAFT 일 때 [기준본으로 저장](= 확정) 단추 하나만 둔다. 이력·새 버전·선점·공동 편집자는 [버전 ▾] 안에 있다.
+- 알려진 한계(deferred 137): `import`(`FROM_DB`)·`APPLY_DIFF` 는 `ctx.apply` 가 아닌 exclusive 경로라 자동 DRAFT 를 타지 않는다.
+
+### 9.6 처음 둘러보기
+
+- shared 새 부품 `tour`(`@dk-oasis/shared/tour`, `components/tour/**`)를 쓴다. `Tour` 는 비모달이고 강조 층은 `pointer-events: none` 이다. 닫기 결과 `finish`·`skip` 과 「다시 보지 않기」 값(`neverShow`)을 `onClose` 로 넘기고 저장은 화면이 정한다.
+- 4단계: 모델 고르기(`.erd-bar__models`) → 표 추가(`erd-tool-table`) → 관계 긋기(`erd-tool-relmenu`) → Space 속성 창(가운데 놓음). 대상이 없으면 가운데에 보인다.
+- 모델을 읽은 뒤 `prefs.tourSeen` 이 false 면 저절로 열린다. [완료]·「다시 보지 않기」 는 `tourSeen` 을 저장하고, [건너뛰기]·`Esc` 는 이번 세션만 닫는다. 위 막대 [둘러보기] 로 다시 본다.
+
+### 9.7 CLI·MCP
+
+- CLI `scripts/erd/erd-cli.mjs` 새 명령:
+
+| 명령 | 하는 일 | 서버 호출 |
+|---|---|---|
+| `models` | 모델 목록(상태·확정본 버전·만든 사람 포함) | `search` |
+| `diagrams --model M` | 다이어그램 목록(id·업무영역/이름·표 수·꺾임점 수) | `view` |
+| `diagram-rename`·`diagram-delete`·`diagram-copy` | 다이어그램 이름 바꾸기·지우기·복사(`--base-rev` 필수, 기본은 시험 실행) | `save` |
+| `register --module --schema --name [--model]` | 모델 등록 | `reg` |
+| `import --model [--base-rev]` | 표가 없는 모델에 DB 첫 가져오기 | `import kind=FROM_DB` |
+| `delete-model --model --yes` | 모델 완전 삭제 | `delete kind=MODEL` |
+
+  - `register`·`import` 는 서버에 시험 실행이 없다. `--apply` 가 없으면 서버에 보내지 않고 읽기(`search`·`view`)로 겹침·표 유무만 확인해 "시험 실행: 서버에 보내지 않음" 을 낸다. 거절될 것이면 종료 1, 아니면 0(서버 검사를 통과했다는 뜻은 아니다).
+  - `delete-model` 은 `--yes` 와 사용자(`--user`·`ERD_USER`)가 모두 있어야 보낸다.
+  - `text --diagram` 은 관계 꺾임점을 Ref 줄 아래 `  via (x,y) → (x,y)` 로 붙인다.
+  - 꺾임점 명령 `setRoute`·`clearRoutes`·`copyDiagram` 은 묶음 파일의 `commands` 에 넣는다. 같은 묶음에서 `addRelation` 으로 만든 관계도 글로 가리킬 수 있다.
+- MCP `scripts/erd/erd-mcp.mjs` 새 도구 4개(도구 16개):
+  - `listModels`: 모델 목록(ID·모듈·스키마·이름·rev·DRAFT 버전·소유자·상태·최신 확정본·만든 사람). 확정 칸이 `확정 없음` 이면 확정본이 없고 `확인 불가` 면 서버가 칸을 주지 않은 것이다.
+  - `listDiagrams{modelId}`: 다이어그램 목록(id·업무영역/이름·표 수·꺾임점 수).
+  - `registerModel{moduleId, schemaName, modelName, modelId?}`: 시험 실행 없음. 사용자가 등록을 요청했을 때만 부른다.
+  - `importModel{modelId, baseRev?}`: 첫 가져오기(`FROM_DB`). 시험 실행 없음. `baseRev` 를 빼면 지금 rev 를 읽어 쓴다.
+  - `getCurrentView`·`getModelText(diagram)` 는 그 다이어그램의 꺾임점을 덧붙인다.
+  - 모델 삭제 도구는 없다.
