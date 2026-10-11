@@ -11,6 +11,8 @@ import { isUnknownToken } from "../panels/TokenChoiceModal";
 import type { ErdModelJson, ErdNamePreview } from "../types";
 import { tablePhysError, tablePrefix } from "./erd-commands";
 
+export { PropsWindow, type PropsWindowProps } from "./PropsWindow";
+
 /** 확인 창에 이름을 적는 표 수. 나머지는 "외 n개". */
 const SHOWN = 10;
 

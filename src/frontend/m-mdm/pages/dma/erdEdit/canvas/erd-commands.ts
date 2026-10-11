@@ -172,3 +172,35 @@ export function parseClashChoices(choices: unknown): ClashChoice[] {
     && typeof (c as ClashChoice).childColumn === "string"
     && typeof (c as ClashChoice).phys === "string");
 }
+
+export type RenameField = "logical" | "phys";
+
+export interface RenamePlan {
+  /** 보낼 명령. 값이 같으면 null(고칠 것 없음). */
+  command: ErdCommandJson | null;
+  /** 받을 수 없는 값의 이유. 있으면 command 는 null. */
+  error: string | null;
+}
+
+const COLUMN_PHYS = /^[A-Z][A-Z0-9_$#]{0,127}$/;
+
+/**
+ * 캔버스 그 자리 편집(2차 c2) — 표 이름(column null) 또는 컬럼 이름 한 칸을 바꾸는 명령. 앞뒤 공백은 뺀다.
+ * 물리명은 서버 규칙(대문자 Oracle 이름·같은 모델 표 / 같은 표 컬럼 물리명 겹침 금지)을 먼저 본다. 논리명은 빈 값도 받는다.
+ */
+export function renameCommand(model: ErdModelJson, table: string, column: string | null, field: RenameField, raw: string): RenamePlan {
+  const value = raw.trim();
+  const target = column ? model.columns[column] : model.tables[table];
+  if (!target) return { command: null, error: null };
+  if ((target[field] ?? "") === value) return { command: null, error: null };
+  if (field === "phys") {
+    if (!value) return { command: null, error: "물리명을 넣으세요." };
+    if (!COLUMN_PHYS.test(value)) return { command: null, error: "물리명은 영문 대문자로 시작하고 대문자·숫자·_·$·# 만 씁니다(128자 이내)." };
+    const clash = column
+      ? (model.tables[table]?.columnOrder ?? []).some((c) => c !== column && model.columns[c]?.phys === value)
+      : Object.entries(model.tables).some(([id, t]) => id !== table && t.phys === value);
+    if (clash) return { command: null, error: column ? `같은 표에 같은 물리명의 컬럼이 있습니다: ${value}` : `같은 물리명의 표가 이미 있습니다: ${value}` };
+  }
+  const set = { [field]: value };
+  return { command: column ? { op: "updateColumn", id: column, set } : { op: "updateTable", id: table, set }, error: null };
+}

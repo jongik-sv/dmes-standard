@@ -29,6 +29,21 @@ export type ErdMode = "logical" | "physical";
 export type ErdPreset = "basic" | "overview" | "both";
 export type KeyMark = "PK" | "FK" | "FK?" | "";
 export type RowTone = "miss" | "warn" | null;
+export type NameField = "logical" | "phys";
+
+/**
+ * 노드 안 그 자리 편집(c2). target = "title" 또는 컬럼 id. value = 편집을 시작할 때의 저장 값(`***` 포함).
+ * placeholder = 논리명이 비어 표시를 물리명으로 대신할 때 그 물리명. refocus = 캔버스 host 로 초점을 돌릴지(키로 끝냈거나 초점 갈 곳이 없을 때).
+ * onCommit 이 false 를 돌리면 값이 거절된 것 — 입력을 열어 둔다(쓴 글 유지).
+ */
+export interface InlineEdit {
+  target: string;
+  field: NameField;
+  value: string;
+  placeholder: string | null;
+  onCommit(value: string, refocus: boolean): boolean;
+  onCancel(refocus: boolean): void;
+}
 
 export interface HandleSpec {
   id: string;
@@ -44,6 +59,8 @@ export interface ErdRowView {
   unknown: number[];
   /** `***` 자리를 맞추지 못했을 때 이름 툴팁(물리명 전체). 아니면 null. */
   nameTip: string | null;
+  /** name 이 보여 주는 칸(그 자리 편집이 고칠 칸, c2). */
+  nameField: NameField;
   /** 논리+물리 프리셋에서 함께 쓰는 물리명. 아니면 null. */
   nameSub: string | null;
   sub: string;
@@ -71,6 +88,10 @@ export interface ErdNodeData extends Record<string, unknown> {
   titleUnknown: number[];
   /** title 의 `***` 자리를 맞추지 못했을 때 툴팁(물리명 전체). 아니면 null. */
   titleTip: string | null;
+  /** title 이 보여 주는 칸(그 자리 편집이 고칠 칸, c2). */
+  titleField: NameField;
+  /** 그 자리 편집 중인 이름(useCanvasEditing 이 꾸민다). 없으면 편집 중이 아니다. */
+  inline?: InlineEdit;
   subtitle: string;
   /** 개요 단계(U50) 두 줄 — 논리명(없으면 빈 글)·물리명. 보기 모드와 상관없다. */
   logicalName: string;
@@ -352,6 +373,7 @@ export function buildFlow(i: BuildFlowInput): ErdFlow {
         name: pn ? pn.display || c.phys : c.phys,
         unknown: pn?.display ? pn.unknownWords : NO_WORDS,
         nameTip: pn?.mismatch ? c.phys : null,
+        nameField: pn ? "logical" : "phys",
         nameSub: both ? c.phys : null,
         sub: !physical && !both ? (c.domainId != null ? i.domains[String(c.domainId)]?.name ?? "" : "") : typeText(c),
         tone: st === "MISS" ? "miss" : st === "TYPE" || st === "DOMAIN" ? "warn" : null,
@@ -373,6 +395,7 @@ export function buildFlow(i: BuildFlowInput): ErdFlow {
         title: physical ? t.phys : tn.display || t.phys,
         titleUnknown: !physical && tn.display ? tn.unknownWords : NO_WORDS,
         titleTip: !physical && tn.mismatch ? t.phys : null,
+        titleField: physical ? "phys" : "logical",
         subtitle: physical ? tn.display : t.phys,
         logicalName: tn.display, physName: t.phys, boxHeight,
         rows, hiddenCount, auditHidden, violations, viewers: viewers.get(n.table) ?? NO_VIEWERS,

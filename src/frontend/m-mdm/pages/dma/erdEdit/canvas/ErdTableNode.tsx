@@ -9,13 +9,13 @@
  * 머리의 「감사 n」은 감사 컬럼 보기가 꺼져 가린 감사 컬럼 수다(auditHidden, 접기로 가린 수와 따로 센다).
  * 손잡이: 머리에 표 손잡이 4개(늘), 행에는 선이 쓰는 것만. 행이 바뀌면 React Flow 가 손잡이 자리를 다시 재게 한다.
  */
-import { Fragment, memo, useEffect, useRef } from "react";
+import { Fragment, memo, useEffect, useRef, useState } from "react";
 
 import {
   Handle, Position, useStore, useUpdateNodeInternals, type NodeProps, type ReactFlowState,
 } from "@dk-oasis/shared/react-flow";
 
-import { TABLE_HANDLES, type ErdFlowNode, type ErdRowView, type HandleSpec } from "./erd-flow";
+import { TABLE_HANDLES, type ErdFlowNode, type ErdRowView, type HandleSpec, type InlineEdit } from "./erd-flow";
 import { ZOOM_NAMES_ONLY, ZOOM_OVERVIEW } from "./erd-geometry";
 import { PresenceTag } from "./PresenceTag";
 
@@ -44,6 +44,75 @@ function NameText({ text, unknown }: { text: string; unknown: readonly number[] 
         </Fragment>
       ))}
     </>
+  );
+}
+
+/** 초점이 갈 곳 없이 빠졌는지(입력이 사라져 body 로 떨어짐). 그때만 캔버스 host 로 돌린다. */
+const focusLost = (): boolean => !document.activeElement || document.activeElement === document.body;
+
+/**
+ * 그 자리 편집 입력(c2). 저장 값으로 시작하고 Enter·초점 잃음 = 고치기, Esc = 그만두기. 한 번만 끝낸다(Enter 뒤 blur 가 다시 부르지 않게).
+ * 거절된 값이면 입력을 열어 둔다(aria-invalid). 키로 끝낼 때만 초점을 캔버스로 돌린다 — blur 때 돌리면 사용자가 누른 다른 칸의 초점을 빼앗는다.
+ * 고치지 않고 사라지면(축소로 행이 빠짐·화면 밖·대상 지움) 그만두기로 닫는다. StrictMode 의 이중 마운트는 다음 마운트가 예약을 지운다.
+ * 키는 캔버스 host 로 올리지 않는다(Delete·숫자 키가 도구로 가지 않게). nodrag·nopan·nowheel 이라 입력 안 끌기·휠이 캔버스를 움직이지 않는다.
+ */
+function InlineInput({ edit }: { edit: InlineEdit }) {
+  const done = useRef(false);
+  const [invalid, setInvalid] = useState(false);
+  const editRef = useRef(edit);
+  editRef.current = edit;
+  const input = useRef<HTMLInputElement>(null);
+  const gone = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (gone.current) clearTimeout(gone.current);
+    gone.current = null;
+    // blur 는 네이티브로 듣는다 — 줄 순서가 바뀌어 React 가 입력 DOM 을 옮길 때 나는 blur 를 React 는 버린다.
+    const el = input.current;
+    const onOut = (e: FocusEvent) => finishRef.current(el?.value ?? "", !e.relatedTarget);
+    el?.addEventListener("focusout", onOut);
+    return () => {
+      el?.removeEventListener("focusout", onOut);
+      gone.current = setTimeout(() => {
+        if (done.current) return;
+        done.current = true;
+        editRef.current.onCancel(focusLost());
+      }, 0);
+    };
+  }, []);
+  const finish = (value: string | null, refocus: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    if (value === null) {
+      editRef.current.onCancel(refocus);
+      return;
+    }
+    if (!editRef.current.onCommit(value, refocus)) {
+      done.current = false;
+      setInvalid(true);
+    }
+  };
+  const finishRef = useRef(finish);
+  finishRef.current = finish;
+  return (
+    <input
+      ref={input} className="erd-inline nodrag nopan nowheel" data-testid="erd-inline" aria-label={edit.field === "phys" ? "물리명" : "논리명"}
+      aria-invalid={invalid || undefined}
+      defaultValue={edit.value} placeholder={edit.placeholder ?? undefined} autoFocus spellCheck={false}
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={() => invalid && setInvalid(false)}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.nativeEvent.isComposing) return;
+        if (e.key === "Enter") {
+          e.preventDefault();
+          finish(e.currentTarget.value, true);
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          finish(null, true);
+        }
+      }}
+      onDoubleClick={(e) => e.stopPropagation()}
+    />
   );
 }
 
@@ -111,7 +180,11 @@ export const ErdTableNode = memo(function ErdTableNode({ id, data, selected, isC
       )}
       <div className="erd-node__hd">
         <Handles list={TABLE_HANDLES} />
-        <span className="erd-node__title" title={data.titleTip ?? undefined}><NameText text={data.title} unknown={data.titleUnknown} /></span>
+        {data.inline?.target === "title" ? <InlineInput edit={data.inline} /> : (
+          <span className="erd-node__title nopan" data-field={data.titleField} title={data.titleTip ?? undefined}>
+            <NameText text={data.title} unknown={data.titleUnknown} />
+          </span>
+        )}
         {!namesOnly && data.subtitle && <span className="erd-node__sub">{data.subtitle}</span>}
         {!namesOnly && data.auditHidden > 0 && (
           <span className="erd-node__audit" data-testid={`erd-audit-badge-${id}`} title={`감사 컬럼 ${data.auditHidden}개 숨김`}>
@@ -125,14 +198,16 @@ export const ErdTableNode = memo(function ErdTableNode({ id, data, selected, isC
         )}
       </div>
       {rows.map((r) => (
-        <div key={r.id} className="erd-col" data-tone={r.tone ?? undefined} data-sep={r.sepAbove ? "" : undefined} data-testid={`erd-col-${r.id}`}>
+        <div key={r.id} className="erd-col" data-col={r.id} data-tone={r.tone ?? undefined} data-sep={r.sepAbove ? "" : undefined} data-testid={`erd-col-${r.id}`}>
           <span className="erd-col__key" data-key={r.key || undefined}>
             {r.key}
           </span>
-          <span className="erd-col__name" title={r.nameTip ?? undefined}>
-            <NameText text={r.name} unknown={r.unknown} />
-            {r.nameSub && <span className="erd-col__name-sub">{r.nameSub}</span>}
-          </span>
+          {data.inline?.target === r.id ? <InlineInput edit={data.inline} /> : (
+            <span className="erd-col__name nopan" data-field={r.nameField} title={r.nameTip ?? undefined}>
+              <NameText text={r.name} unknown={r.unknown} />
+              {r.nameSub && <span className="erd-col__name-sub" data-field="phys">{r.nameSub}</span>}
+            </span>
+          )}
           <span className="erd-col__sub">{r.sub}</span>
           <Handles list={r.handles} />
         </div>

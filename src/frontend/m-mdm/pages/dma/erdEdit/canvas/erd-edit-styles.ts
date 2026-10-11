@@ -32,6 +32,18 @@ export const ERD_EDIT_CSS = `
 .erd-dialog__list { margin: var(--spacing-xs) 0; padding-left: var(--spacing-lg); font-family: var(--font-family-mono); font-size: var(--font-size-sm); }
 .erd-dialog__note { font-size: var(--font-size-xs); color: var(--color-text-muted); }
 .erd-dialog__error { font-size: var(--font-size-sm); color: var(--color-danger); }
+.erd-props { display: flex; flex-direction: column; gap: var(--spacing-md); }
+.erd-props__note { font-size: var(--font-size-sm); color: var(--color-text-muted); }
+.erd-props__h { margin: 0 0 var(--spacing-xs); font-size: var(--font-size-sm); font-weight: 600; }
+.erd-props__sub { margin-left: var(--spacing-xs); font-weight: 400; font-size: var(--font-size-xs); color: var(--color-text-muted); }
+.erd-props__grid2 { display: grid; grid-template-columns: max-content 1fr; align-items: center; gap: var(--spacing-xs) var(--spacing-sm); }
+.erd-props__cell { display: flex; align-items: center; gap: var(--spacing-xs); width: 100%; height: 100%; min-width: 0; }
+.erd-props__cell:not(.erd-props__cell--center) > * { flex: 1 1 0; min-width: 0; }
+.erd-props__cell--center { justify-content: center; }
+.erd-props__cell[data-deleted] { opacity: 0.5; text-decoration: line-through; }
+/* 키 컬럼 칸의 고르기 목록은 포털 없이 칸 안에 열린다(MultiSelectComboBox) — 그리드 칸·행이 자르지 않게 한다. */
+.erd-props__keys :is(.ag-root-wrapper, .ag-root, .ag-body, .ag-body-viewport, .ag-center-cols-clipper, .ag-center-cols-viewport, .ag-center-cols-container, .ag-row, .ag-cell) { overflow: visible; }
+.erd-props__keys .ag-row:focus-within { z-index: 10; }
 .erd-wizard__steps { display: flex; gap: var(--spacing-sm); margin-bottom: var(--spacing-sm); font-size: var(--font-size-sm); color: var(--color-text-muted); }
 .erd-wizard__steps [data-current] { font-weight: 600; color: var(--color-text); }
 .erd-wizard__tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-sm); margin-bottom: var(--spacing-xs); }

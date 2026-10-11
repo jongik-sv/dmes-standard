@@ -6,7 +6,8 @@
  * 맞춤(Shift+1 전체·Shift+2 고른 표, U38), 자기 참조 알림(U42), 단계별 그리기의 --erd-zoom·data-lod(U50), 미니맵(U51), 주제별로 나누기(U52),
  * 정렬·간격 [정렬 ▾]·표 메뉴 정렬(U58-U60)·Ctrl/⌘+A 모두 고르기(U67), 다른 다이어그램에 넣기(U61)·같은 컬럼 여러 표에(U63) 창,
  * 도구 막대 [컬럼 추가]·[PK 추가](U43), 표 메뉴 컬럼 추가·PK 컬럼 추가·관계 시작(U44), 관계 도구 안내 줄(U41),
- * 표 복사·붙이기(Ctrl/⌘+C·V, 2차 c3 — 붙이는 자리 = 캔버스 위 마우스 자리, 없으면 원래 자리 + 간격).
+ * 표 복사·붙이기(Ctrl/⌘+C·V, 2차 c3 — 붙이는 자리 = 캔버스 위 마우스 자리, 없으면 원래 자리 + 간격),
+ * 그 자리 편집(표 이름·컬럼 줄 두 번 누르기 / F2, 2차 c2 — 보이는 칸(논리명·물리명)을 고친다).
  * - 안내 줄의 "시작 뒤" 상태(connecting·fromTable)는 도구 막대에만 간다. 노드 꾸밈·flowProps 는 이 상태를 보지 않는다(Local-Rules §19).
  * ErdViewer 의 CanvasPane(ReactFlowProvider 안)이 부른다(README "화면 내부 계약"). rf 는 CanvasPane 의 useReactFlow() 값이다.
  * - 쓰기는 모두 ctx.apply 로 보낸다. 거절 알림·칸 강조는 apply 가 올린다. 여기서는 NEEDS_CHOICE(onNameClash)만 받아 선택 창을 띄운다.
@@ -23,19 +24,20 @@ import {
   type XYPosition,
 } from "@dk-oasis/shared/react-flow";
 
+import { isAuditColumn } from "../audit-columns";
 import type { ApplyOutcome, ErdEditContext, Right } from "../edit-context";
 import { shortReason } from "../state/permissions";
 import type { ErdCommandJson, ErdFoldMode } from "../types";
-import { DeleteTablesModal, NewTableModal } from "./CanvasDialogs";
+import { DeleteTablesModal, NewTableModal, PropsWindow } from "./CanvasDialogs";
 import { BulkColumnModal, PLACE_ALL_PRESENT_TEXT, PlaceIntoDialog, type PlaceTarget } from "./MultiDialogs";
 import { ErdToolbar } from "./ErdToolbar";
 import {
   MAX_BATCH, addRelationCommand, addTableCommands, deleteTablesCommands, moveNodesCommand, newElementId, nextNeighbor, parseClashChoices,
-  removeFromDiagramCommand, setFoldCommand, tableOfElement, type ClashChoice, type NameClashMode,
+  removeFromDiagramCommand, renameCommand, setFoldCommand, tableOfElement, type ClashChoice, type NameClashMode, type RenameField,
 } from "./erd-commands";
 import { PASTE_GAP, copyTables, nextPasteRound, pasteTablesPlan, readClip, writeClip } from "./erd-clipboard";
-import { nextExpiry, viewersAt, type ErdFlowEdge, type ErdFlowNode } from "./erd-flow";
-import { NODE_WIDTH, ZOOM_NAMES_ONLY, lodTier, nodeHeight, type LodTier } from "./erd-geometry";
+import { nextExpiry, viewersAt, type ErdFlowEdge, type ErdFlowNode, type InlineEdit } from "./erd-flow";
+import { NODE_WIDTH, ZOOM_NAMES_ONLY, ZOOM_OVERVIEW, lodTier, nodeHeight, type LodTier } from "./erd-geometry";
 import { autoLayoutCommand, type Size } from "./erd-layout";
 import {
   ALIGN_LABEL, ALIGN_MIN, ALIGN_MODES, DISTRIBUTE_LABEL, DISTRIBUTE_MIN, alignBoxes, alreadyIn, arrangeLabel, bulkColumnCommands, bulkColumnPlan,
@@ -51,7 +53,8 @@ type FlowProps = ReactFlowProps<ErdFlowNode, ErdFlowEdge>;
 export interface CanvasEditing {
   flowProps: Pick<FlowProps, "nodesDraggable" | "nodesConnectable" | "deleteKeyCode" | "onNodeDragStop" | "onConnect" | "isValidConnection"
     | "connectionMode" | "onPaneClick" | "onNodeContextMenu" | "onPaneContextMenu" | "snapToGrid" | "snapGrid"
-    | "onConnectStart" | "onConnectEnd" | "onClickConnectStart" | "onClickConnectEnd" | "onNodeClick" | "onMouseMove" | "onMouseLeave">;
+    | "onConnectStart" | "onConnectEnd" | "onClickConnectStart" | "onClickConnectEnd" | "onNodeClick" | "onMouseMove" | "onMouseLeave"
+    | "onNodeDoubleClick" | "panActivationKeyCode">;
   onNodesChange(changes: NodeChange<ErdFlowNode>[]): void;
   decorateNodes(nodes: ErdFlowNode[]): ErdFlowNode[];
   onKeyDown(e: KeyboardEvent): void;
@@ -102,6 +105,9 @@ const NO_CHOICES: ClashChoice[] = [];
 const NO_NAMES: string[] = [];
 const NO_TARGETS: PlaceTarget[] = [];
 const NO_TABLES: string[] = [];
+/** Space 를 스스로 쓰는 요소(누르기·고르기). */
+const SPACE_OWNERS = "button,a[href],summary,[role=button],[role=menuitem],[role=checkbox],[role=switch],[role=tab],[role=option]";
+const NO_DOMAINS: Readonly<Record<string, { name: string }>> = {};
 const FOLD_LABEL: Readonly<Record<ErdFoldMode, string>> = { NONE: "접기 풀기", KEYS: "키만 보이기", NAME: "이름만 보이기" };
 
 interface ClashState {
@@ -109,6 +115,15 @@ interface ClashState {
   child: string;
   identifying: boolean;
   choices: ClashChoice[];
+}
+
+/** 그 자리 편집 대상(c2). target = "title" 또는 컬럼 id. initial = 시작할 때의 저장 값(고치지 않았는지 이 값과 비교한다). */
+interface InlineState {
+  table: string;
+  target: string;
+  field: RenameField;
+  initial: string;
+  placeholder: string | null;
 }
 
 interface MenuState {
@@ -133,6 +148,8 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
   /** 같은 컬럼 창의 대상 표(U63). null = 닫힘. */
   const [bulkCol, setBulkCol] = useState<string[] | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
+  /** Space 속성 창(2차 c4)에 연 표 id. */
+  const [propsFor, setPropsFor] = useState<string | null>(null);
   const [clock, setClock] = useState(() => Date.now());
   const selection = useStore((s) => s.nodes.reduce((k, n) => (n.selected ? k + 1 : k), 0));
 
@@ -757,6 +774,134 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
     storeApi.getState().addSelectedNodes(plan.tableIds); // 붙인 표를 고른 상태로(이어서 끌어 옮기기)
   }, [deny, rf, send, storeApi]);
 
+  // ── 그 자리 편집(2차 c2) — 표 이름·컬럼 줄 두 번 누르기 또는 F2. 입력은 저장 값(`***` 포함)으로 시작한다(§7.3). ──
+  const [inline, setInline] = useState<InlineState | null>(null);
+  const startInline = useCallback((table: string, target: string, field: RenameField) => {
+    const c = ctxRef.current;
+    if (!c.rights.model.ok) {
+      deny(c.rights.model);
+      return;
+    }
+    const src = target === "title" ? c.state.model.tables[table] : c.state.model.columns[target];
+    if (!src) return;
+    const initial = src[field] ?? "";
+    // 논리명이 비어 물리명을 대신 보이던 자리 — 빈 입력 대신 물리명을 흐리게 보인다(논리명 채우기).
+    const placeholder = field === "logical" && !initial ? src.phys : null;
+    setMenu(null);
+    setInline({ table, target, field, initial, placeholder });
+  }, [deny]);
+
+  const onNodeDoubleClick = useCallback<NonNullable<FlowProps["onNodeDoubleClick"]>>((e, node) => {
+    if (toolRef.current !== "select") return;
+    const el = (e.target as Element | null)?.closest?.("[data-field]");
+    const field = el?.getAttribute("data-field");
+    if (field !== "logical" && field !== "phys") return;
+    const col = el!.closest("[data-col]")?.getAttribute("data-col");
+    startInline(node.id, col ?? "title", field);
+  }, [startInline]);
+
+  const renameSelected = useCallback(() => {
+    if (toolRef.current !== "select") return UNHANDLED;
+    const ids = selectedIds();
+    if (ids.length !== 1) return UNHANDLED;
+    const n = rf.getNode(ids[0]);
+    if (!n) return UNHANDLED;
+    const { transform: [tx, ty, zoom], width, height } = storeApi.getState();
+    // 개요 단계는 이름 입력을 그리지 않는다 — 입력 없이 편집 상태만 남지 않게 막는다.
+    if (zoom < ZOOM_OVERVIEW) {
+      ctxRef.current.notify("크게 확대한 뒤 이름을 고치세요.", "info");
+      return undefined;
+    }
+    // 화면 밖 노드는 그려지지 않는다(onlyRenderVisibleElements) — 같은 배율로 가운데에 데려온다.
+    const view = { x: -tx / zoom, y: -ty / zoom, width: width / zoom, height: height / zoom };
+    if (width > 0 && height > 0 && !rf.isNodeIntersecting({ id: n.id }, view, true)) {
+      const w = n.measured?.width ?? NODE_WIDTH;
+      const hgt = n.measured?.height ?? 0;
+      void rf.setCenter(n.position.x + w / 2, n.position.y + hgt / 2, { zoom });
+    }
+    startInline(n.id, "title", n.data.titleField);
+    return undefined;
+  }, [selectedIds, rf, storeApi, startInline]);
+
+  const cancelInline = useCallback((st: InlineState, refocus: boolean) => {
+    setInline((cur) => (cur === st ? null : cur));
+    if (refocus) focusHost();
+  }, [focusHost]);
+  /** 고치기. 받을 수 없는 값이면 false(입력을 열어 둔다). 시작 값 그대로면 보내지 않는다 — 편집 중 남이 바꾼 이름을 옛 값으로 덮지 않게. */
+  const commitInline = useCallback((st: InlineState, raw: string, refocus: boolean): boolean => {
+    const c = ctxRef.current;
+    const column = st.target === "title" ? null : st.target;
+    const value = st.field === "phys" ? raw.trim().toUpperCase() : raw.trim();
+    const plan = value === st.initial.trim()
+      ? { command: null, error: null }
+      : renameCommand(c.state.model, st.table, column, st.field, value);
+    if (plan.error) {
+      c.notify(plan.error, "warn");
+      return false;
+    }
+    cancelInline(st, refocus);
+    if (!plan.command) return true;
+    const what = column ? "컬럼" : "표";
+    const revealAudit = !!column && st.field === "phys" && isAuditColumn(value);
+    void c.apply([plan.command], `${what} ${st.field === "phys" ? "물리명" : "논리명"} 바꾸기`).then((out) => {
+      // 감사 컬럼 이름으로 바꾸면 보기가 꺼져 있을 때 줄이 숨는다 — 그리드처럼 보기를 켠다.
+      if (out.ok && revealAudit && !ctxRef.current.audit.show) ctxRef.current.audit.setShow(true);
+    });
+    return true;
+  }, [cancelInline]);
+
+  // 꾸밈에 실을 편집 값 — 대상이 바뀔 때만 새로 만든다(노드는 이 객체 참조로 다시 그린다).
+  // 값은 편집을 시작할 때의 저장 값이다. 편집 중 모델이 바뀌어도 입력을 다시 만들지 않는다.
+  const inlineEdit = useMemo<InlineEdit | null>(() => {
+    if (!inline) return null;
+    return {
+      target: inline.target, field: inline.field, value: inline.initial, placeholder: inline.placeholder,
+      onCommit: (value, refocus) => commitInline(inline, value, refocus),
+      onCancel: (refocus) => cancelInline(inline, refocus),
+    };
+  }, [inline, commitInline, cancelInline]);
+  // 대상이 사라지면(남이 지움) 닫는다. 입력이 사라지며 초점이 빠지면 InlineInput 이 host 로 돌린다.
+  const inlineModel = ctx.state.model;
+  useEffect(() => {
+    if (!inline) return;
+    const gone = inline.target === "title" ? !inlineModel.tables[inline.table] : !inlineModel.columns[inline.target];
+    if (gone) setInline(null);
+  }, [inline, inlineModel]);
+  const inlineRef = useRef(inline);
+  inlineRef.current = inline;
+  useEffect(() => {
+    if (canModel || !inlineRef.current) return;
+    setInline(null);
+    deny(ctxRef.current.rights.model); // 쓴 글을 말없이 버리지 않게 알린다
+  }, [canModel, deny]);
+
+  // ── Space 속성 창(2차 c4) — 고른 표 하나. 권한이 없어도 읽기 전용으로 연다. ──
+  const openProps = useCallback((table?: string) => {
+    const ids = table ? [table] : selectedIds();
+    if (ids.length !== 1) {
+      if (!table) ctxRef.current.notify(ids.length === 0 ? "표를 먼저 고르세요." : "표를 하나만 고르세요.", "info");
+      return;
+    }
+    setMenu(null);
+    setPropsFor(ids[0]);
+  }, [selectedIds]);
+  const closeProps = useCallback(() => {
+    setPropsFor(null);
+    focusHost();
+  }, [focusHost]);
+  const submitProps = useCallback(async (commands: ErdCommandJson[], table: string): Promise<string | null> => {
+    const phys = ctxRef.current.state.model.tables[table]?.phys ?? table;
+    const { out, current } = await send(commands, `표 속성 바꾸기: ${phys}`);
+    if (!current) {
+      closeProps(); // 응답 사이 다른 모델로 바뀌었다 — 창이 다른 모델의 같은 id 표를 가리키지 않게 닫는다
+      return null;
+    }
+    if (!out.ok) return out.notice?.message ?? "적용하지 못했습니다.";
+    closeProps();
+    return null;
+  }, [send, closeProps]);
+  const newKeyId = useCallback(() => newElementId("k"), []);
+
   // ── 키 ──
   const onKeyDown = useCallback((e: KeyboardEvent) => {
     if (inDialog(e.target)) return;
@@ -780,6 +925,9 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
         void paste();
         return undefined;
       },
+      rename: () => renameSelected(),
+      // 단추·메뉴 등에 초점이 있으면 Space 는 그 요소를 누르는 키다. 눌러 둔 반복 키는 창을 다시 열지 않는다. 선택 도구에서만(F2 와 같음).
+      props: () => (e.repeat || toolRef.current !== "select" || (e.target as Element | null)?.closest?.(SPACE_OWNERS) ? UNHANDLED : openProps()),
       parentTable: () => goNeighbor("parent"),
       childTable: () => goNeighbor("child"),
       escape,
@@ -796,7 +944,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       },
     };
     dispatchShortcut(e, handlers, mac, ERD_CANVAS_SHORTCUTS);
-  }, [chooseTool, removeTables, askDelete, goNeighbor, escape, fitTo, rf, storeApi, selectedIds, mac, copySelected, paste]);
+  }, [chooseTool, removeTables, askDelete, goNeighbor, escape, fitTo, rf, storeApi, selectedIds, mac, copySelected, paste, renameSelected, openProps]);
 
   // ── 누르기·우클릭 ──
   const onPaneClick = useCallback<NonNullable<FlowProps["onPaneClick"]>>((e) => {
@@ -830,6 +978,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
             { id: "rel-start-i", label: "식별 관계", run: () => startRelationFrom(node.id, true), ...off(r.model) },
           ],
         },
+        { id: "props", label: "속성 (Space)", run: () => openProps(node.id) },
       );
     }
     items.push({
@@ -870,7 +1019,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       );
     }
     setMenu({ at: { x: e.clientX, y: e.clientY }, items });
-  }, [selectedIds, storeApi, fold, arrange, openPlace, openBulkColumn, removeTables, askDelete, goNeighbor, startRelationFrom, mac, copySelected]);
+  }, [selectedIds, storeApi, fold, arrange, openPlace, openBulkColumn, removeTables, askDelete, goNeighbor, startRelationFrom, mac, copySelected, openProps]);
 
   const onPaneContextMenu = useCallback<NonNullable<FlowProps["onPaneContextMenu"]>>((e) => {
     e.preventDefault();
@@ -910,6 +1059,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
   const hlTable = ctx.highlight ? tableOfElement(ctx.state.model, ctx.highlight.elementId) : null;
   const pickable = relationTool && canModel;
   const pendingIds = ctx.pendingIds;
+  const inlineFor = inline?.table ?? null;
   const decorateNodes = useCallback((nodes: ErdFlowNode[]): ErdFlowNode[] => {
     let changed = false;
     const out = nodes.map((n) => {
@@ -917,18 +1067,20 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       const viewers = viewersAt(n.data.viewers, clock);
       const pending = pendingIds.has(n.id); // pendingIds 키는 요소 id 다. 다이어그램 명령의 노드도 표 id 로 든다(README "pendingIds 키")
       const cls = [pending ? "erd-pending" : "", hlTable === n.id ? "erd-hl" : ""].filter(Boolean).join(" ");
-      if (!pos && viewers === n.data.viewers && !cls && !pickable) return n;
+      const edit = inlineEdit && inlineFor === n.id ? inlineEdit : null;
+      if (!pos && viewers === n.data.viewers && !cls && !pickable && !edit) return n;
       changed = true;
       const key = `${pos ? `${pos.x},${pos.y}` : "-"}|${viewers.map((v) => `${v.session}${v.claimed ? "*" : ""}`).join(",")}|${cls}|${pickable ? 1 : 0}`;
       const hit = cache.current.get(n);
-      if (hit?.key === key) return hit.out;
-      const data = viewers !== n.data.viewers || pickable ? { ...n.data, viewers, ...(pickable ? { pickable: true } : {}) } : n.data;
+      if (hit?.key === key && hit.out.data.inline === (edit ?? undefined)) return hit.out;
+      const data = viewers !== n.data.viewers || pickable || edit
+        ? { ...n.data, viewers, ...(pickable ? { pickable: true } : {}), ...(edit ? { inline: edit } : {}) } : n.data;
       const d: ErdFlowNode = { ...n, ...(pos ? { position: pos } : {}), ...(cls ? { className: cls } : {}), data };
       cache.current.set(n, { key, out: d });
       return d;
     });
     return changed ? out : nodes;
-  }, [drag, clock, pendingIds, hlTable, pickable]);
+  }, [drag, clock, pendingIds, hlTable, pickable, inlineEdit, inlineFor]);
 
   const flowProps = useMemo<CanvasEditing["flowProps"]>(() => ({
     nodesDraggable: canDiagram && tool === "select",
@@ -936,10 +1088,11 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
     deleteKeyCode: null,
     connectionMode: ConnectionMode.Loose,
     isValidConnection, onConnect, onConnectStart, onConnectEnd, onClickConnectStart, onClickConnectEnd, onNodeDragStop, onPaneClick,
-    onNodeContextMenu, onPaneContextMenu, onNodeClick, onMouseMove, onMouseLeave,
+    onNodeContextMenu, onPaneContextMenu, onNodeClick, onMouseMove, onMouseLeave, onNodeDoubleClick,
     snapToGrid: true, snapGrid: SNAP_GRID,
+    panActivationKeyCode: null, // Space = 속성 창(c4). 빈 곳 끌기로 이동은 그대로다
   }), [canDiagram, canModel, tool, relationTool, isValidConnection, onConnect, onConnectStart, onConnectEnd, onClickConnectStart,
-    onClickConnectEnd, onNodeDragStop, onPaneClick, onNodeContextMenu, onPaneContextMenu, onNodeClick, onMouseMove, onMouseLeave]);
+    onClickConnectEnd, onNodeDragStop, onPaneClick, onNodeContextMenu, onPaneContextMenu, onNodeClick, onMouseMove, onMouseLeave, onNodeDoubleClick]);
 
   // 파일이 .ts(README 계약 이름)라 JSX 대신 createElement 로 그린다. 끄는 동안(setDrag) 다시 그려도 막대·창은 같은 요소를 넘겨
   // 아래 부품이 다시 그리지 않게 실제 입력으로만 다시 만든다.
@@ -985,6 +1138,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
     focusHost();
   }, [focusHost]);
   const runConfirmDelete = useCallback(() => void confirmDelete(), [confirmDelete]);
+  const propsDomains = ctx.status?.domains ?? NO_DOMAINS;
 
   const overlay = useMemo(() => {
     const phys = (id: string): string => model.tables[id]?.phys ?? id;
@@ -1005,6 +1159,10 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       h(PlaceIntoDialog, {
         open: placing !== null, count: placing?.length ?? 0, targets: placeTargets, onSubmit: submitPlace, onClose: closePlace,
       }),
+      h(PropsWindow, {
+        tableId: propsFor, model, domains: propsDomains, readOnly: rightModel.ok ? null : (rightModel.reason ?? "지금은 고칠 수 없습니다."),
+        onSubmit: submitProps, newKeyId, onClose: closeProps,
+      }),
       h(BulkColumnModal, {
         open: bulkCol !== null, model, tables: bulkCol ?? NO_TABLES, onSubmit: submitBulkColumn, onClose: closeBulkColumn,
       }),
@@ -1017,7 +1175,8 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
     );
   }, [model, menu, clash, relationPending, deleting, newTableAt, mac, closeMenu, pickClash, closeClash, runConfirmDelete, closeDelete,
     submitNewTable, closeNewTable, miniMap, splitState, rightDiagram, showAudit, splitAspect, splitApply, closeSplit, onSplitCreated,
-    placing, placeTargets, submitPlace, closePlace, bulkCol, submitBulkColumn, closeBulkColumn]);
+    placing, placeTargets, submitPlace, closePlace, bulkCol, submitBulkColumn, closeBulkColumn,
+    propsFor, propsDomains, rightModel, submitProps, newKeyId, closeProps]);
 
   return { flowProps, onNodesChange, decorateNodes, onKeyDown, toolbar, overlay };
 }

@@ -35,6 +35,9 @@ export const ERD_CSS = `
 .erd-col__key { font-weight: 600; color: var(--color-text-muted); }
 .erd-col__key[data-key="PK"] { color: var(--color-primary); }
 .erd-col__name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.erd-inline { min-width: 0; width: 100%; height: 18px; box-sizing: border-box; padding: 0 2px; font: inherit; color: var(--color-text);
+  background: var(--color-bg); border: 1px solid var(--color-primary); border-radius: var(--radius-sm); outline: none; }
+.erd-inline[aria-invalid="true"] { border-color: var(--color-danger); background: var(--color-danger-soft); }
 .erd-unknown { font-style: italic; color: var(--color-text-muted); }
 .erd-col__name-sub { margin-left: var(--spacing-xs); font-family: var(--font-family-mono); color: var(--color-text-muted); }
 .erd-col__sub { font-family: var(--font-family-mono); color: var(--color-text-muted); white-space: nowrap; }
