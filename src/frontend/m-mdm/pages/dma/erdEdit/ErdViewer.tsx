@@ -22,7 +22,7 @@ import {
 import { IconArrowsMaximize, IconMaximize, IconMinimize, IconMinus, IconPlus } from "@tabler/icons-react";
 
 import {
-  SCREEN_ID, compareDbDiff, importFromDb, regModel, rejectionText, searchModels, setViewState, viewChanges, viewStatus,
+  SCREEN_ID, compareDbDiff, deleteModel, importFromDb, newVersion, regModel, rejectionText, searchModels, setViewState, viewChanges, viewStatus,
   type RegInput, type RelationDecision,
 } from "./api";
 import { loadShowAudit, needsAuditReveal, saveShowAudit } from "./audit-columns";
@@ -33,11 +33,13 @@ import { NODE_WIDTH } from "./canvas/erd-geometry";
 import { estimatedSize, keyColumns } from "./canvas/erd-layout";
 import { useCanvasEditing } from "./canvas/useCanvasEditing";
 import {
-  isDiagramOp, type ApplyOutcome, type ErdEditContext, type ErdHighlight, type ErdNav, type ErdNotice, type MessageTone,
+  isDiagramOp, localNotice, type ApplyOutcome, type ErdEditContext, type ErdHighlight, type ErdNav, type ErdNotice, type MessageTone,
 } from "./edit-context";
 import { ColumnGrid } from "./panels/ColumnGrid";
 import { ColumnJump } from "./panels/ColumnJump";
 import { DiagramTree, sortedDiagrams } from "./panels/DiagramTree";
+import { ErdTour } from "./panels/ErdTour";
+import { ModelListModal, type DeleteOutcome } from "./panels/ModelListModal";
 import { ModelRegisterModal } from "./panels/ModelRegisterModal";
 import { NoticeBar } from "./panels/NoticeBar";
 import { ReviewPanel, createInferredPick, type InferredPick, type ReviewTab } from "./panels/ReviewPanel";
@@ -45,8 +47,8 @@ import { StartPanel } from "./panels/StartPanel";
 import { TopBar, nextMode, type ReadOnlyInfo } from "./panels/TopBar";
 import { VersionBar } from "./panels/VersionBar";
 import { nodeKey } from "./state/model-delta";
-import { blockedNotice, editRights, readOnlyBanner, readOnlyKind, shortReason } from "./state/permissions";
-import { useErdPrefs, withSeen, withViewport, type ErdViewport } from "./state/prefs";
+import { autoDraftEligible, blockedNotice, editRights, readOnlyBanner, readOnlyKind, shortReason } from "./state/permissions";
+import { useErdPrefs, withSeen, withTourSeen, withViewport, type ErdViewport } from "./state/prefs";
 import { modelSummary, summaryText } from "./state/violations";
 import { useErdModel } from "./state/useErdModel";
 import { newSession, useErdStream, useTabActive } from "./state/useErdStream";
@@ -275,6 +277,7 @@ export function ErdViewer() {
   const canReg = canDoButton(rbac, SCREEN_ID, "reg");
   const canConfirm = canDoButton(rbac, SCREEN_ID, "confirm");
   const canExecute = canDoButton(rbac, SCREEN_ID, "execute");
+  const canCopy = !rbac.isLoading && canDoButton(rbac, SCREEN_ID, "copy");
   const active = useTabActive();
   const [session] = useState(() => newSession());
   const [models, setModels] = useState<ErdModelRow[]>([]);
@@ -377,8 +380,8 @@ export function ErdViewer() {
 
   // ── 권한(S2-20) ──
   const rights = useMemo(
-    () => editRights(state, me, { loading: rbac.isLoading, save: canSave, confirm: canConfirm, execute: canExecute }, connected),
-    [state, me, rbac.isLoading, canSave, canConfirm, canExecute, connected],
+    () => editRights(state, me, { loading: rbac.isLoading, save: canSave, confirm: canConfirm, execute: canExecute, copy: canCopy }, connected),
+    [state, me, rbac.isLoading, canSave, canConfirm, canExecute, canCopy, connected],
   );
   const rightsRef = useRef(rights);
   rightsRef.current = rights;
@@ -686,12 +689,38 @@ export function ErdViewer() {
   }, []);
 
   // ── 쓰기(ctx.apply) — 연결·권한 판정 → 쓰기 줄 → 거절 알림 ──
+  // 자동 DRAFT(버전 숨기기, p4): 확정본을 보는 채 첫 편집을 하면 copy MINOR 로 DRAFT 를 만들고 다시 읽은 뒤 적용한다.
+  // 거의 동시에 들어온 편집이 둘이어도 copy 는 한 번만 부른다(같은 약속을 기다린다).
+  const draftingRef = useRef<Promise<ErdNotice | null> | null>(null);
+  const copyRef = useRef(canCopy);
+  copyRef.current = canCopy;
+  const ensureDraft = useCallback((): Promise<ErdNotice | null> => {
+    if (draftingRef.current) return draftingRef.current;
+    const s = stateRef.current;
+    if (!s || !autoDraftEligible(s, copyRef.current)) return Promise.resolve(null);
+    const job = (async (): Promise<ErdNotice | null> => {
+      try {
+        const r = await newVersion(s.modelId, "MINOR");
+        await erd.reload();
+        notify(`편집을 시작해 새 버전 ${r.ver} DRAFT 를 만들었습니다.`);
+        return null;
+      } catch (e) {
+        return localNotice("INVALID", `새 버전(DRAFT)을 만들지 못했습니다: ${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        draftingRef.current = null;
+      }
+    })();
+    draftingRef.current = job;
+    return job;
+  }, [erd.reload, notify]);
+
   const apply = useCallback(async (commands: ErdCommandJson[], label: string): Promise<ApplyOutcome> => {
-    const blocked = blockedNotice(rightsRef.current, connectedRef.current, commands.some((c) => !isDiagramOp(c.op)));
+    let blocked = blockedNotice(rightsRef.current, connectedRef.current, commands.some((c) => !isDiagramOp(c.op)));
+    if (!blocked) blocked = await ensureDraft();
     const out: ApplyOutcome = blocked ? { ok: false, notice: blocked } : await erd.apply(commands, label);
     if (!out.ok) showNotice(out.notice);
     return out;
-  }, [erd.apply, showNotice]);
+  }, [erd.apply, ensureDraft, showNotice]);
 
   /** 되돌리기(변경 기록·Ctrl+Z). Ctrl+Z 가 CONFLICT 면 다른 변경을 고르라고 붙인다(그 rev 는 이미 myRevs 에서 뺐다). */
   const undoRevision = useCallback(async (rev: number, fromKey: boolean): Promise<ApplyOutcome> => {
@@ -820,6 +849,32 @@ export function ErdViewer() {
   const [regOpen, setRegOpen] = useState(false);
   const openRegister = useCallback(() => setRegOpen(true), []);
   const closeRegister = useCallback(() => setRegOpen(false), []);
+
+  // ── 처음 둘러보기(p6): 모델을 읽은 뒤 한 번 저절로 연다. [둘러보기] 로 다시 연다. 끝냈거나 「다시 보지 않기」 면 prefs 에 적는다. ──
+  const [tourForced, setTourForced] = useState(false);
+  const [tourDismissed, setTourDismissed] = useState(false);
+  const tourOpen = tourForced || (loaded && ready && !prefs.tourSeen && !tourDismissed);
+  const openTour = useCallback(() => setTourForced(true), []);
+  const closeTour = useCallback((r: { reason: "finish" | "skip"; neverShow: boolean }) => {
+    setTourForced(false);
+    setTourDismissed(true);
+    if (r.neverShow || r.reason === "finish") update(withTourSeen);
+  }, [update]);
+  // ── 모델 목록 관리(p2): 삭제 뒤 목록을 다시 읽고, 지금 연 모델이면 시작 화면으로 간다. ──
+  const [modelsOpen, setModelsOpen] = useState(false);
+  const openModels = useCallback(() => setModelsOpen(true), []);
+  const closeModels = useCallback(() => setModelsOpen(false), []);
+  const onDeleteModel = useCallback(async (id: string): Promise<DeleteOutcome> => {
+    try {
+      await deleteModel(id);
+    } catch (e) {
+      return { ok: false, message: errText(e) };
+    }
+    await loadModels();
+    if (modelIdRef.current === id) setModelId(null);
+    notify(`모델 ${id} 를 삭제했습니다.`);
+    return { ok: true };
+  }, [loadModels, notify]);
   /** 등록이 끝나면 true. 창은 true 일 때만 닫는다. */
   const onRegister = useCallback(async (input: RegInput): Promise<boolean> => {
     const before = modelIdRef.current;
@@ -913,7 +968,7 @@ export function ErdViewer() {
           readOnly={readOnly} readOnlyAutoKey={readOnlyAutoKey} onReadOnlySeen={onReadOnlySeen}
           mode={mode} onModeChange={setMode} preset={preset} onPresetChange={setPreset}
           streamStatus={streamStatus} canReg={canReg} canImport={canImport} locked={locked}
-          onOpenRegister={openRegister} onImport={onImport}
+          onOpenRegister={openRegister} onImport={onImport} onTour={openTour} onManageModels={openModels}
         />
         <NoticeBar notice={notice} onClose={closeNotice} />
       </div>
@@ -928,7 +983,7 @@ export function ErdViewer() {
             <ContentPanel key="side" width={220} minSize={160}>
               <div className="erd-area-side">
                 <DiagramTree ctx={ctx} state={state} statuses={status?.statuses ?? NO_STATUSES} showAudit={showAudit} activeDiagram={activeDiagram}
-                  onSelectDiagram={onSelectDiagram} onRevealTable={selectTable} findSeq={findSeq} onCollapse={collapseSide} />
+                  onSelectDiagram={onSelectDiagram} onRevealTable={selectTable} findSeq={findSeq} onCollapse={collapseSide} onUndo={onUndo} />
               </div>
             </ContentPanel>
           ) : (
@@ -953,7 +1008,7 @@ export function ErdViewer() {
                 <div className="erd-start-host" data-testid="erd-canvas-empty">
                   <StartPanel models={models} modelId={modelId} loading={!!modelId && !ready && !erd.error} error={modelId ? erd.error : null}
                     empty={emptyModel} canReg={canReg} canImport={canImport} importLocked={locked}
-                    onPick={pickModel} onRegister={openRegister} onImport={onImport} />
+                    onPick={pickModel} onRegister={openRegister} onImport={onImport} onManageModels={openModels} />
                 </div>
               )}
             </div>
@@ -1006,6 +1061,9 @@ export function ErdViewer() {
       )}
       {ctx && <ColumnJump ctx={ctx} opened={jumpOpen} onClose={closeJump} />}
       <ModelRegisterModal opened={regOpen} onClose={closeRegister} onRegister={onRegister} />
+      <ModelListModal opened={modelsOpen} models={models} currentModelId={modelId} onClose={closeModels} onOpenModel={pickModel}
+        onDelete={onDeleteModel} />
+      <ErdTour open={tourOpen} onClose={closeTour} />
     </div>
   );
 }

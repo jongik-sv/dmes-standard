@@ -16,6 +16,7 @@ import type { ErdEditContext } from "../edit-context";
 import { shortReason } from "../state/permissions";
 import { countTableViolations } from "../state/violations";
 import type { ErdColumnStatus, ErdDiagram, ErdState, ErdTable } from "../types";
+import { DiagramMenu, type DiagramMenuTarget, type UndoOffer } from "./DiagramTreeMenu";
 import { DiagramWizard } from "./DiagramWizard";
 
 export interface DiagramItem {
@@ -153,13 +154,17 @@ export interface DiagramTreeProps {
   ctx: ErdEditContext | null;
   /** 있으면 머리에 [‹] 접기 단추(erd-side-toggle)를 둔다(UX 1차 U13). */
   onCollapse?(): void;
+  /** 지운 다이어그램을 되돌린다(알림 [되돌리기], 변경 기록 되돌리기와 같은 restore). 없으면 되돌리기 제안을 보이지 않는다. */
+  onUndo?(rev: number): void;
 }
 
 export function DiagramTree({
-  state, statuses, showAudit, activeDiagram, onSelectDiagram, onRevealTable, findSeq, ctx, onCollapse,
+  state, statuses, showAudit, activeDiagram, onSelectDiagram, onRevealTable, findSeq, ctx, onCollapse, onUndo,
 }: DiagramTreeProps) {
   const [openSeq, setOpenSeq] = useState(0); // 0 = 닫힘, 오를 때마다 입력 칸에 초점
   const [wizard, setWizard] = useState(false);
+  const [menu, setMenu] = useState<DiagramMenuTarget | null>(null);
+  const [offer, setOffer] = useState<UndoOffer | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const mac = useMemo(() => isMacPlatform(), []);
   const find = useTableFind(state?.model.tables ?? NO_TABLES, onRevealTable);
@@ -211,6 +216,10 @@ export function DiagramTree({
               aria-current={d.id === activeDiagram ? "true" : undefined}
               data-testid={`erd-diagram-${d.id}`}
               onClick={() => onSelectDiagram(d.id)}
+              onContextMenu={ctx ? (e) => {
+                e.preventDefault();
+                setMenu({ id: d.id, x: e.clientX, y: e.clientY });
+              } : undefined}
             >
               <span>{d.name}</span>
               <span className="erd-tree__count">{d.tables}</span>
@@ -231,6 +240,21 @@ export function DiagramTree({
       <div className="erd-tree__legend">
         <Legend testId="erd-tree-legend" />
       </div>
+      {offer && (
+        <div className="erd-tree__note" role="status" data-testid="erd-diagram-undo-offer">
+          <span>{offer.text}</span>{" "}
+          {onUndo && (
+            <Button size="mini" data-testid="erd-diagram-undo" onClick={() => {
+              onUndo(offer.rev);
+              setOffer(null);
+            }}>
+              되돌리기
+            </Button>
+          )}{" "}
+          <Button size="mini" data-testid="erd-diagram-undo-close" onClick={() => setOffer(null)}>닫기</Button>
+        </div>
+      )}
+      {ctx && <DiagramMenu ctx={ctx} target={menu} onClose={() => setMenu(null)} onDeleted={setOffer} onCopied={onSelectDiagram} />}
       {ctx && <DiagramWizard open={wizard} ctx={ctx} onClose={() => setWizard(false)} onCreated={onSelectDiagram} />}
     </div>
   );

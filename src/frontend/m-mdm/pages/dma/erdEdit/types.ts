@@ -52,6 +52,9 @@ export interface ErdModelJson {
 
 export interface ErdDiagram { id: string; areaName: string; diagramName: string; sortSeq: number }
 export interface ErdDiagramNode { diagram: string; table: string; x: number; y: number; foldMode: ErdFoldMode }
+/** 관계 선의 경유점(2차 §7.1). 좌표는 캔버스 절대 좌표, 1~50개. 다이어그램마다 따로 둔다. */
+export interface ErdRoutePoint { x: number; y: number }
+export interface ErdDiagramRoute { diagram: string; relation: string; points: ErdRoutePoint[] }
 /** 접속자. expiresAt: SSE 구독자는 null, MCP·CLI 시한 항목은 만료 시각(S2-11). 단계 1 서버는 이 칸을 싣지 않는다. */
 export interface ErdPresence {
   session: string; userId: string; source: ErdSource; diagramId: string | null; selectedTables: string[]; at: string; expiresAt?: string | null;
@@ -61,17 +64,25 @@ export interface ErdClaim { tableId: string; session: string; userId: string; ex
 /** search 응답 행. */
 export interface ErdModelRow {
   modelId: string; moduleId: string; schemaName: string; modelName: string; rev: number; draftVer: string | null; ownerId: string | null;
+  /** 모델 STATUS(2차 §7.2). 옛 서버는 없다 — 읽을 때 `?? null`. */
+  status?: string | null;
+  /** 최신 확정본 버전, 없으면 null(옛 서버는 없다). */
+  releasedVer?: string | null;
+  /** 만든 사람(C_USR_ID). 옛 서버는 없다. */
+  createdBy?: string | null;
 }
 
 /** view(kind 없음) 응답. model 은 MODEL_JSON 문자열이다. */
 export interface ErdModelView {
   modelId: string; rev: number; ver: string; status: string; ownerId: string | null; editors: string[]; rowVersion: number;
   model: string; diagrams: ErdDiagram[]; nodes: ErdDiagramNode[]; presence: ErdPresence[];
+  /** 관계 경유점 목록(2차 §7.1). 옛 서버는 없다 — 읽을 때 `?? []`. */
+  routes?: ErdDiagramRoute[];
 }
 
-export type ErdChangeKind = "table" | "column" | "key" | "relation" | "diagram" | "diagramNode";
+export type ErdChangeKind = "table" | "column" | "key" | "relation" | "diagram" | "diagramNode" | "diagramRoute";
 
-/** 델타 한 건. upsert 면 요소 JSON 전체, delete 면 null, patch 면 바뀐 속성만(되돌리기). diagramNode id 는 "다이어그램:표". */
+/** 델타 한 건. upsert 면 요소 JSON 전체, delete 면 null, patch 면 바뀐 속성만(되돌리기). diagramNode id 는 "다이어그램:표", diagramRoute id 는 "다이어그램:관계". */
 export interface ErdChange { kind: ErdChangeKind; id: string; op: "upsert" | "delete" | "patch"; value: Record<string, unknown> | null }
 /** rowVersion: 실시간 발행만 값이 있다. 재전송·getChangesSince·다이어그램만 바꾼 델타는 null 이거나 없다(S2-16). */
 export interface ErdDelta {
@@ -133,6 +144,8 @@ export interface ErdState {
   model: ErdModelJson;
   diagrams: Record<string, ErdDiagram>;
   nodes: Record<string, ErdDiagramNode>;
+  /** 경유점. 키는 "다이어그램:관계"(ErdChange diagramRoute id 와 같다). */
+  routes: Record<string, ErdDiagramRoute>;
   presence: ErdPresence[];
   claims: ErdClaim[];
 }

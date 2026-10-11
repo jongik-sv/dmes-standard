@@ -4,7 +4,7 @@ import { vi } from "vitest";
 import type { ApplyOutcome, ErdEditContext } from "../../../pages/dma/erdEdit/edit-context";
 import { fromView } from "../../../pages/dma/erdEdit/state/model-delta";
 import type {
-  ErdColumn, ErdDiagram, ErdDiagramNode, ErdModelJson, ErdModelView, ErdRelation, ErdState, ErdTable,
+  ErdColumn, ErdDiagram, ErdDiagramNode, ErdDiagramRoute, ErdModelJson, ErdModelView, ErdRelation, ErdState, ErdTable,
 } from "../../../pages/dma/erdEdit/types";
 
 export function table(phys: string, logical: string, columnOrder: string[] = []): ErdTable {
@@ -57,6 +57,11 @@ export const MENU_DIAGRAMS: { diagrams: ErdDiagram[]; nodes: ErdDiagramNode[] } 
     { diagram: "d-all", table: "t-1", x: 0, y: 0, foldMode: "NONE" },
     { diagram: "d-all", table: "t-2", x: 400, y: 0, foldMode: "NONE" },
   ],
+};
+
+/** 경유점 고정물(2차 §7.1). 다이어그램 d-all 의 관계 r-1 이 (200,-40)·(200,120) 을 지난다. */
+export const MENU_ROUTES: { routes: ErdDiagramRoute[] } = {
+  routes: [{ diagram: "d-all", relation: "r-1", points: [{ x: 200, y: -40 }, { x: 200, y: 120 }] }],
 };
 
 /** 표 n 개 × 컬럼 m 개. 다이어그램 d-all 에 가로 8개 격자(280×220, S8)로 놓는다. 첫 컬럼이 PK 다. */

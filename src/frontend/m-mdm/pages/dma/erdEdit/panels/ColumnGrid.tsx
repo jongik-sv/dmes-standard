@@ -7,6 +7,7 @@
  * - 행 끌기(키 칸 손잡이)는 moveColumn 한 건이다.
  * - 그리드 키는 그리드와 입력 칸을 감싼 div 의 onKeyDownCapture 로 받는다(S2-6·S2-27). shared AgDataGrid 의 props 는 바꾸지 않는다.
  *   Ctrl/⌘+Enter 컬럼 추가, Ctrl/⌘+Shift+Enter PK 컬럼 추가. 한글 조합 중·칸 편집 중이면 넘긴다.
+ *   Ctrl/⌘+C·V 는 고른 컬럼을 공용 클립보드(canvas/erd-clipboard)에 복사·붙인다(p7, state/column-clip). 칸·입력 칸 안이면 브라우저 몫이다.
  * - 논리명 입력·미리보기·도메인은 그리드 아래 입력 칸(GridInputBar)에서 한다. 입력 칸은 GridPanel 밖에 둔다(Local-Rules §45).
  * - 응답 전인 대기 행은 흐리게 그리고 고치지 못하게 한다(S2-18). 화면에서 틀린 값이거나 거절되면 행을 새로 만들어 원래 값으로 돌린다.
  * - 마지막 거절 칸(ctx.highlight)이 이 표의 컬럼이면 그 칸에 서버 문구를 단다(fieldErrors).
@@ -18,10 +19,13 @@ import { Badge, type BadgeTone } from "@dk-oasis/shared/form";
 import { AgDataGrid, GridPanel, type AgDataGridFieldError, type GridColumn } from "@dk-oasis/shared/grid";
 
 import { hiddenAuditCount, isAuditColumn, landingIndex, toRealPosition, visibleColumnIds } from "../audit-columns";
+import { readClip, writeClip } from "../canvas/erd-clipboard";
+import { newElementId } from "../canvas/erd-commands";
 import { keyMarks } from "../canvas/erd-flow";
 import { typeText } from "../canvas/erd-geometry";
 import type { ErdEditContext, ErdHighlight } from "../edit-context";
 import { placeholderName, type PlaceholderName } from "../placeholder-name";
+import { copyColumns, pasteColumnsPlan } from "../state/column-clip";
 import type { ErdColumnStatus, ErdCommandJson, ErdModelJson, ErdStatusView } from "../types";
 import { GridInputBar, type AddKind, type BarHandle } from "./GridInputBar";
 import { ORACLE_ID_RE } from "./TokenChoiceModal";
@@ -374,10 +378,58 @@ export function ColumnGrid({ ctx, tableId, addRequest }: ColumnGridProps) {
     [reject],
   );
 
+  const focusIdRef = useRef(focusId);
+  focusIdRef.current = focusId;
+  const copyFocused = useCallback(() => {
+    const c = ctxRef.current;
+    const t = tableRef.current;
+    const id = focusIdRef.current;
+    const clip = t && id ? copyColumns(c.state.model, c.modelId, t, [id]) : null;
+    if (!clip) {
+      c.notify("복사할 컬럼을 먼저 고르세요.", "warn");
+      return;
+    }
+    writeClip(clip);
+    c.notify(`컬럼 ${clip.columns.length}개를 복사했습니다. 붙일 표에서 ⌘/Ctrl+V.`);
+  }, []);
+  const pasteIntoTable = useCallback(async () => {
+    const c = ctxRef.current;
+    const t = tableRef.current;
+    if (!t) {
+      c.notify("붙일 표를 먼저 고르세요.", "warn");
+      return;
+    }
+    if (!c.rights.model.ok) {
+      c.notify(c.rights.model.reason ?? "지금은 고칠 수 없습니다.", "warn");
+      return;
+    }
+    const plan = pasteColumnsPlan({
+      model: c.state.model, modelId: c.modelId, tableId: t, clip: readClip(), afterColumnId: focusIdRef.current, newId: () => newElementId("c"),
+    });
+    if (plan.error) {
+      c.notify(plan.error, "warn");
+      return;
+    }
+    const start = c.modelId;
+    const out = await c.apply(plan.commands, "컬럼 붙여넣기");
+    if (out.ok && ctxRef.current.modelId === start && plan.columnIds.length > 0) focusColumn(plan.columnIds[plan.columnIds.length - 1]);
+  }, [focusColumn]);
+
   const onKeyDownCapture = useCallback((e: ReactKeyboardEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     // 포털로 뜬 창(토막 고르기·도메인 찾기)의 키도 React 트리로는 여기를 지난다 — DOM 으로 이 칸 안일 때만 받는다.
     if (!wrapRef.current?.contains(target)) return;
+    // 컬럼 복사·붙여넣기(p7) — 칸·입력 칸을 고치는 중이거나 글을 고른 채면 브라우저 몫이다.
+    const copyPaste = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === "c" || e.key === "v");
+    if (copyPaste) {
+      if (e.nativeEvent.isComposing || target.closest("input, textarea, select, [contenteditable='true'], .ag-cell-inline-editing") !== null) return;
+      if (e.key === "c" && (window.getSelection()?.toString() ?? "") !== "") return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === "c") copyFocused();
+      else void pasteIntoTable();
+      return;
+    }
     const kind = gridKeyAction({
       key: e.key, ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey, altKey: e.altKey,
       isComposing: e.nativeEvent.isComposing, keyCode: e.keyCode, inEditor: target.closest(".ag-cell-inline-editing") !== null,
@@ -386,7 +438,7 @@ export function ColumnGrid({ ctx, tableId, addRequest }: ColumnGridProps) {
     e.preventDefault();
     e.stopPropagation();
     barHandle.current?.trigger(kind);
-  }, []);
+  }, [copyFocused, pasteIntoTable]);
 
   return (
     <div ref={wrapRef} data-testid="erd-colgrid" style={WRAP} onKeyDownCapture={onKeyDownCapture}>

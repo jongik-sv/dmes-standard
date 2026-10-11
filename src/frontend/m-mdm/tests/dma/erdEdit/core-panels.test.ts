@@ -159,6 +159,40 @@ describe("모델 등록 창", () => {
   });
 });
 
+describe("모델 등록 창 예시·모듈 기본값(p3)", () => {
+  const input = (key: string) => document.querySelector<HTMLInputElement>(`[data-testid="erd-reg-${key}"]`)!;
+  const type = async (key: string, v: string) => {
+    await act(async () => {
+      const el = input(key);
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(el, v);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  };
+  const submit = () => act(async () => {
+    document.querySelector<HTMLElement>('[data-testid="erd-reg-submit"]')?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+
+  it("칸마다 예시를 보이고, 모듈은 고치기 전까지 모델 ID 를 따른다", async () => {
+    const onRegister = vi.fn(async () => false);
+    await render(createElement(ModelRegisterModal, { opened: true, onClose: vi.fn(), onRegister }));
+    expect(["modelId", "moduleId", "schemaName", "modelName"].map((k) => input(k).placeholder)).toEqual(["mcm", "mcm", "MCMAPUSER", "MCM 스키마"]);
+    await type("modelId", "mls");
+    expect(input("moduleId").value).toBe("mls");
+    await submit();
+    expect(onRegister).toHaveBeenLastCalledWith({ modelId: "mls", moduleId: "mls", schemaName: "", modelName: "" });
+  });
+
+  it("모듈을 직접 고치면 모델 ID 를 따르지 않는다", async () => {
+    const onRegister = vi.fn(async () => false);
+    await render(createElement(ModelRegisterModal, { opened: true, onClose: vi.fn(), onRegister }));
+    await type("moduleId", "mcm");
+    await type("modelId", "mcm2");
+    expect(input("moduleId").value).toBe("mcm");
+    await submit();
+    expect(onRegister).toHaveBeenLastCalledWith(expect.objectContaining({ modelId: "mcm2", moduleId: "mcm" }));
+  });
+});
+
 describe("변경 기록 행", () => {
   it("최근 rev 부터 쓰고 내 세션 행에 '나' 를 단다", () => {
     const d = (rev: number, session: string): ErdDelta => ({ modelId: "mcm", rev, userId: "u", session, source: "UI", changes: [] });

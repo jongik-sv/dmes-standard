@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { isDiagramOp, noticeFromRejection } from "../../../pages/dma/erdEdit/edit-context";
 import { applyDelta, withVersion } from "../../../pages/dma/erdEdit/state/model-delta";
 import {
-  LOST_TEXT, NO_OWNER_DIAGRAM_TEXT, NO_RIGHT_TEXT, RELEASED_TEXT, blockedNotice, editRights, notEditorText, readOnlyBanner, readOnlyKind, shortReason,
+  LOST_TEXT, NO_OWNER_DIAGRAM_TEXT, NO_RIGHT_TEXT, RELEASED_TEXT, autoDraftEligible, blockedNotice, editRights, notEditorText, readOnlyBanner, readOnlyKind, shortReason,
 } from "../../../pages/dma/erdEdit/state/permissions";
 import type { ErdRejection } from "../../../pages/dma/erdEdit/types";
 import { MENU_DIAGRAMS, menuModel, stateOf } from "./erd-fixtures";
@@ -53,6 +53,21 @@ describe("화면 권한 나누기(S2-20)", () => {
     const stranger = editRights(draft, "stranger", ALL, true);
     expect(stranger.model.reason).toContain("소유자(tester)");
     expect(editRights(draft, "tester", { ...ALL, save: false }, true).model.reason).toBe(NO_RIGHT_TEXT);
+  });
+
+  it("자동 DRAFT(p4): copy 권한이 있으면 확정본에서도 모델·다이어그램 권한이 열리고 읽기 전용 안내가 없다. copy 권한이 없으면 그대로 막는다", () => {
+    const rel = { ...draft, status: "RELEASED", ownerId: null, editors: [] as string[] };
+    const withCopy = editRights(rel, "tester", { ...ALL, copy: true }, true);
+    expect([withCopy.model.ok, withCopy.diagram.ok]).toEqual([true, true]);
+    expect(readOnlyBanner(withCopy)).toBeNull();
+    expect(withCopy.confirm.ok).toBe(false); // 확정할 DRAFT 가 아직 없다
+    const noCopy = editRights(rel, "tester", { ...ALL, copy: false }, true);
+    expect(noCopy.model).toEqual({ ok: false, reason: RELEASED_TEXT });
+    expect(editRights(rel, "tester", { ...ALL, copy: true, save: false }, true).model.reason).toBe(NO_RIGHT_TEXT);
+    expect(editRights(rel, "tester", { ...ALL, copy: true }, false).model.reason).toBe(LOST_TEXT);
+    expect(autoDraftEligible(rel, true)).toBe(true);
+    expect(autoDraftEligible(draft, true)).toBe(false);
+    expect(autoDraftEligible({ ...rel, status: "REQUESTED" }, true)).toBe(false);
   });
 
   it("RELEASED 는 모델을 막고 그 버전 소유자의 다이어그램 편집은 둔다. 소유자가 없으면 deferred 37 문구를 보인다", () => {

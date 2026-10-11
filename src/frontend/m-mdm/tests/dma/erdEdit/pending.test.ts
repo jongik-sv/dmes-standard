@@ -4,7 +4,7 @@ import {
   enqueue, initLayers, markSending, onReloaded, onResult, onStream, onTick, pendingIds, project, projectCommand, type Layers,
 } from "../../../pages/dma/erdEdit/state/pending";
 import type { ErdApplyResult, ErdChange, ErdCommandJson, ErdDelta, ErdRejection } from "../../../pages/dma/erdEdit/types";
-import { MENU_DIAGRAMS, menuModel, stateOf } from "./erd-fixtures";
+import { MENU_DIAGRAMS, MENU_ROUTES, menuModel, stateOf } from "./erd-fixtures";
 
 const ME = { userId: "tester", session: "ui-me" };
 const base = (): Layers => initLayers(stateOf(menuModel(), MENU_DIAGRAMS)); // rev 3, rowVersion 0
@@ -126,5 +126,35 @@ describe("두 층 모델(스펙 4.4, 시험 8)", () => {
       { op: "addColumn", table: "t-1", logical: "비고" }, { op: "setFold", diagram: "d-all", tables: ["t-2"], foldMode: "KEYS" },
     ] }]);
     expect([...ids].sort()).toEqual(["t-1", "t-2"]);
+  });
+});
+
+describe("경유점 명령 미리 보기(§7.1)", () => {
+  const routed = () => initLayers(stateOf(menuModel(), { ...MENU_DIAGRAMS, ...MENU_ROUTES }));
+
+  it("setRoute 는 경유점을 바꿔 보이고, clearRoutes 는 지운다. 서버층은 그대로", () => {
+    const l = enqueue(routed(), { id: 1, label: "꺾임", baseRev: 3, commands: [
+      { op: "setRoute", diagram: "d-all", relation: "r-1", points: [{ x: 5, y: 6 }] },
+    ] });
+    expect(project(l.server, l.pending).routes["d-all:r-1"].points).toEqual([{ x: 5, y: 6 }]);
+    expect(l.server.routes["d-all:r-1"].points).toHaveLength(2);
+    const c = enqueue(routed(), { id: 2, label: "꺾임 지움", baseRev: 3, commands: [{ op: "clearRoutes", diagram: "d-all", relations: ["r-1"] }] });
+    expect(project(c.server, c.pending).routes).toEqual({});
+  });
+
+  it("빈 points 는 미리 보이지 않고, deleteDiagram 은 그 다이어그램의 경유점을 함께 뺀다", () => {
+    const e = enqueue(routed(), { id: 1, label: "빈", baseRev: 3, commands: [{ op: "setRoute", diagram: "d-all", relation: "r-1", points: [] }] });
+    expect(project(e.server, e.pending).routes["d-all:r-1"].points).toHaveLength(2);
+    const d = enqueue(routed(), { id: 2, label: "삭제", baseRev: 3, commands: [{ op: "deleteDiagram", id: "d-all" }] });
+    expect(project(d.server, d.pending).routes).toEqual({});
+  });
+
+  it("이 버전에 없는 관계의 setRoute 는 미리 보이지 않고(서버 INVALID), 빈 relations 의 clearRoutes 는 아무것도 바꾸지 않는다(서버 no-op)", () => {
+    const n = enqueue(routed(), { id: 1, label: "없는 관계", baseRev: 3, commands: [
+      { op: "setRoute", diagram: "d-all", relation: "r-nope", points: [{ x: 1, y: 2 }] },
+    ] });
+    expect(project(n.server, n.pending).routes["d-all:r-nope"]).toBeUndefined();
+    const c = enqueue(routed(), { id: 2, label: "빈 지움", baseRev: 3, commands: [{ op: "clearRoutes", diagram: "d-all", relations: [] }] });
+    expect(project(c.server, c.pending).routes["d-all:r-1"].points).toHaveLength(2);
   });
 });

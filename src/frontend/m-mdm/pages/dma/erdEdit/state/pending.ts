@@ -12,7 +12,7 @@
 import { landingIndex } from "../audit-columns";
 import { noticeFromRejection, type ErdNotice } from "../edit-context";
 import type { ErdApplyResult, ErdColumn, ErdCommandJson, ErdDelta, ErdDiagram, ErdFoldMode, ErdModelJson, ErdState, ErdTable } from "../types";
-import { applyDelta, nodeKey } from "./model-delta";
+import { applyDelta, nodeKey, routeKey } from "./model-delta";
 
 export const HOLD_LIMIT_MS = 5000;
 
@@ -163,7 +163,28 @@ export function projectCommand(state: ErdState, cmd: ErdCommandJson): ErdState {
       if (!id || !state.diagrams[id]) return state;
       const diagrams = { ...state.diagrams };
       delete diagrams[id];
-      return { ...state, diagrams, nodes: Object.fromEntries(Object.entries(state.nodes).filter(([, n]) => n.diagram !== id)) };
+      return {
+        ...state, diagrams,
+        nodes: Object.fromEntries(Object.entries(state.nodes).filter(([, n]) => n.diagram !== id)),
+        routes: Object.fromEntries(Object.entries(state.routes).filter(([, r]) => r.diagram !== id)),
+      };
+    }
+    case "setRoute": {
+      // 경유점(§7.1). 빈 목록·이 버전에 없는 관계는 서버가 INVALID 로 거절하므로 미리 보이지 않는다.
+      const diagram = str(cmd.diagram);
+      const relation = str(cmd.relation);
+      const points = Array.isArray(cmd.points) ? (cmd.points as { x: number; y: number }[]) : [];
+      if (!diagram || !relation || points.length === 0 || !state.model.relations[relation]) return state;
+      return { ...state, routes: { ...state.routes, [routeKey(diagram, relation)]: { diagram, relation, points } } };
+    }
+    case "clearRoutes": {
+      // 빈 relations 는 서버도 no-op(거절 아님)이다.
+      const diagram = str(cmd.diagram);
+      const rels = strList(cmd.relations);
+      if (!diagram || rels.length === 0) return state;
+      const routes = { ...state.routes };
+      for (const r of rels) delete routes[routeKey(diagram, r)];
+      return { ...state, routes };
     }
     case "placeTables":
     case "moveNodes": {

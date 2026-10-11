@@ -190,6 +190,10 @@
       "types": "./dist/types/components/code-editor/index.d.ts",
       "import": "./dist/code-editor.js"
     },
+    "./tour": {
+      "types": "./dist/types/components/tour/index.d.ts",
+      "import": "./dist/tour.js"
+    },
     "./floating-panel": {
       "types": "./dist/types/components/floating-panel/index.d.ts",
       "import": "./dist/floating-panel.js"

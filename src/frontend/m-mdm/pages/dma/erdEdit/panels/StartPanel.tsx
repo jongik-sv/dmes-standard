@@ -23,6 +23,8 @@ export interface StartPanelProps {
   onPick(modelId: string): void;
   onRegister(): void;
   onImport(): void;
+  /** 있으면 모델 카드 아래 [모델 관리] 를 둔다. */
+  onManageModels?(): void;
 }
 
 const NO_RIGHT = "권한 없음";
@@ -53,7 +55,12 @@ export function StartPanel(p: StartPanelProps) {
             </Button>
           ))}
         </div>
-        <div className="erd-start__actions">{reg}</div>
+        <div className="erd-start__actions">
+          {reg}
+          {p.onManageModels && (
+            <Button data-testid="erd-start-manage" onClick={p.onManageModels}>모델 관리</Button>
+          )}
+        </div>
       </>
     );
   } else if (p.error) {

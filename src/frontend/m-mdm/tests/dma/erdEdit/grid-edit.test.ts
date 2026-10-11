@@ -11,7 +11,7 @@ import { GridInputBar, addColumnBatch, newElementId, withPhys } from "../../../p
 import { composePhys, toTokenChoices } from "../../../pages/dma/erdEdit/panels/TokenChoiceModal";
 import { menuModel } from "./erd-fixtures";
 import { flush, typeInto } from "../../dme/helpers/render";
-import { DESC_CHOICES, fakeCtx, inDoc, installStorage, mount, previewOf, stubOasis, wait, type Mounted } from "./grid-fixtures";
+import { DESC_CHOICES, fakeCtx, inDoc, installStorage, key, mount, previewOf, stubOasis, wait, type Mounted } from "./grid-fixtures";
 
 describe("그리드 칸 정의", () => {
   it("열 최소 폭 합은 오른쪽 칸 400px 에서 세로 스크롤바 몫 17px 을 뺀 383px 이하다(Local-Rules §30)", () => {
@@ -224,5 +224,56 @@ describe("입력 칸 [물리명도] — 기본 끔·물리명 바뀜 경고(U37)
     await flush();
     expect(check().checked).toBe(false);
     expect(inDoc("erd-grid-phys-warn")).toBeNull();
+  });
+});
+
+describe("입력 칸 모드 — [추가]·[이름 바꾸기]", () => {
+  const originalFetch = globalThis.fetch;
+  let view: Mounted | null = null;
+  beforeEach(() => installStorage());
+  afterEach(() => {
+    view?.unmount();
+    view = null;
+    globalThis.fetch = originalFetch;
+    vi.unstubAllGlobals();
+  });
+
+  const bar = (ctx: ReturnType<typeof fakeCtx>["ctx"], focusColumnId: string | null) =>
+    createElement(GridInputBar, { ctx, tableId: "t-1", focusColumnId, handle: { current: null }, onAdded: () => {}, renderStatus: () => null });
+  const modeRadio = (v: string) => inDoc("erd-grid-mode")!.querySelector<HTMLInputElement>(`input[value="${v}"]`)!;
+  async function open(focusColumnId: string | null) {
+    stubOasis({ "erdEdit/compare": () => previewOf("MENU_NAME", { logicalName: "메뉴 이름" }) });
+    const f = fakeCtx();
+    view = await mount(bar(f.ctx, focusColumnId));
+    return f;
+  }
+
+  it("컬럼을 고르면 이름 바꾸기가 기본이고 Enter 는 updateColumn 을 보낸다", async () => {
+    const f = await open("c-4");
+    expect(modeRadio("rename").checked).toBe(true);
+    expect(inDoc("erd-grid-add")).toBeNull();
+    await typeInto(inDoc<HTMLInputElement>("erd-grid-input")!, "메뉴이름");
+    await key(inDoc("erd-grid-input")!, { key: "Enter" });
+    await flush();
+    expect(f.apply).toHaveBeenCalledWith([{ op: "updateColumn", id: "c-4", set: { logical: "메뉴이름" } }], "논리명 바꾸기");
+  });
+
+  it("[추가] 로 바꾸면 Enter 가 addColumn 을 보낸다. 다른 컬럼을 고르면 다시 이름 바꾸기가 기본이다", async () => {
+    const f = await open("c-4");
+    await act(async () => modeRadio("add").click());
+    expect(inDoc("erd-grid-add")).not.toBeNull();
+    await typeInto(inDoc<HTMLInputElement>("erd-grid-input")!, "비고");
+    await key(inDoc("erd-grid-input")!, { key: "Enter" });
+    await flush();
+    expect(f.apply).toHaveBeenCalledWith([{ op: "addColumn", id: expect.stringMatching(/^c-/), table: "t-1", logical: "비고" }], "컬럼 추가");
+    await view!.rerender(bar(f.ctx, "c-1"));
+    await flush();
+    expect(modeRadio("rename").checked).toBe(true);
+  });
+
+  it("고른 컬럼이 없으면 추가 모드이고 [이름 바꾸기] 는 고를 수 없다", async () => {
+    await open(null);
+    expect(modeRadio("add").checked).toBe(true);
+    expect(modeRadio("rename").disabled).toBe(true);
   });
 });

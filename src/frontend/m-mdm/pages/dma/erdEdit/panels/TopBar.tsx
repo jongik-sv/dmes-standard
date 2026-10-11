@@ -89,6 +89,10 @@ export interface TopBarProps {
   /** [+ 모델] — 등록 창을 연다. */
   onOpenRegister(): void;
   onImport(): void;
+  /** 있으면 [모델 관리] 단추를 둔다(모델 목록 관리 창을 연다). */
+  onManageModels?(): void;
+  /** 있으면 [둘러보기] 단추를 둔다(처음 둘러보기를 다시 연다). */
+  onTour?(): void;
 }
 
 const BOTH_MODE_TITLE = "논리+물리 동시 보기에서는 쓰지 않습니다";
@@ -120,6 +124,11 @@ export const TopBar = memo(function TopBar(p: TopBarProps) {
               {m.modelName}
             </Button>
           ))}
+          {p.onManageModels && p.models.length > 0 && (
+            <Button size="sm" data-testid="erd-models-manage" title="모델 목록 관리·삭제" onClick={p.onManageModels}>
+              모델 관리
+            </Button>
+          )}
           {p.canReg && (
             <Button size="sm" data-testid="erd-reg-open" title="새 모델 등록" onClick={p.onOpenRegister}>
               + 모델
@@ -171,6 +180,11 @@ export const TopBar = memo(function TopBar(p: TopBarProps) {
           content={<Legend />}>
           <span className="erd-chip__text" data-testid="erd-legend-open">범례</span>
         </DetailPopover>
+        {p.onTour && (
+          <Button size="sm" data-testid="erd-tour-open" title="처음 둘러보기 다시 보기" onClick={p.onTour}>
+            둘러보기
+          </Button>
+        )}
         {empty && p.canImport && (
           <Button size="sm" variant="primary" data-testid="erd-import" disabled={p.locked} onClick={p.onImport}>
             DB 에서 가져오기

@@ -62,6 +62,7 @@ export const GROUPS = [
   ['화면 문맥 — 업무 화면 ↔ 도구 창 위젯 (`@dk-oasis/shared/screen-context`)', ['screen-context']],
   ['위젯 도크·떠 있는 창·탭 분리 창·분리 상태 이어받기 (`@dk-oasis/shared/portal-shell`)', ['widget-dock', 'floating-window', 'portal-page-window', 'use-carry-state']],
   ['떠 있는 창 — 비모달 (`@dk-oasis/shared/floating-panel`)', ['floating-panel']],
+  ['처음 둘러보기 — 말풍선 안내 (`@dk-oasis/shared/tour`)', ['tour']],
   ['React Flow 캔버스 (`@dk-oasis/shared/react-flow`)', ['react-flow']],
   ['MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)', ['mdm-meta']],
   ['탭·트리·룩업·기타', [

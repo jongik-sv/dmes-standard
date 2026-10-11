@@ -14,7 +14,8 @@ export const LOST_TEXT = "실시간 연결이 끊겨 편집을 멈췄습니다. 
 export const notEditorText = (ownerId: string | null): string =>
   `공동 편집자가 아니어서 읽기만 할 수 있습니다. 소유자(${ownerId ?? "없음"})에게 공동 편집자 등록을 요청하세요.`;
 
-export interface RbacFlags { loading: boolean; save: boolean; confirm: boolean; execute: boolean }
+/** copy: 새 버전(copy) 권한. 없으면(undefined) 자동 DRAFT 를 쓰지 않는다. */
+export interface RbacFlags { loading: boolean; save: boolean; confirm: boolean; execute: boolean; copy?: boolean }
 
 const OK: Right = { ok: true, reason: null };
 const no = (reason: string | null): Right => ({ ok: false, reason });
@@ -22,6 +23,14 @@ const no = (reason: string | null): Right => ({ ok: false, reason });
 /** 소유자이거나, 소유자가 있는 버전의 공동 편집자(R7-1). */
 export function isEditor(state: ErdState, me: string | null): boolean {
   return !!me && state.ownerId !== null && (me === state.ownerId || state.editors.includes(me));
+}
+
+/**
+ * 자동 DRAFT(버전 숨기기, 2차 p4) — 확정본(RELEASED)을 보고 있고 새 버전을 만들 수 있으면, 첫 편집 때 화면이 copy MINOR 로 DRAFT 를 만든 뒤 적용한다.
+ * 확정본을 보여 주는 버전은 DRAFT 가 없을 때의 최신 확정본이다(view 가 ver 없이 부르면 DRAFT 우선). 만들 때 서버가 막으면 그 거절을 그대로 보인다.
+ */
+export function autoDraftEligible(state: ErdState | null, canCopy: boolean): boolean {
+  return !!state && canCopy && state.status === "RELEASED";
 }
 
 /** 단계 1 읽기 전용 이유(시험 호환). 권한 → 확정 버전 → 공동 편집자 순서. */
@@ -41,10 +50,12 @@ export function editRights(state: ErdState | null, me: string | null, rbac: Rbac
   const draft = state.status === "DRAFT";
   const editor = isEditor(state, me);
   const live = (r: Right): Right => (r.ok && !connected ? no(LOST_TEXT) : r);
+  // 자동 DRAFT: 편집하면 내 DRAFT 가 만들어지므로 확정본이라도 모델·다이어그램을 고칠 수 있다(소유자 판정도 내 것이 된다).
+  const auto = autoDraftEligible(state, !!rbac.copy);
   const ownerName = state.ownerId ?? "없음";
   return {
-    model: live(!rbac.save ? no(NO_RIGHT_TEXT) : !draft ? no(RELEASED_TEXT) : !editor ? no(notEditorText(state.ownerId)) : OK),
-    diagram: live(!rbac.save ? no(NO_RIGHT_TEXT) : state.ownerId === null ? no(NO_OWNER_DIAGRAM_TEXT)
+    model: live(!rbac.save ? no(NO_RIGHT_TEXT) : auto ? OK : !draft ? no(RELEASED_TEXT) : !editor ? no(notEditorText(state.ownerId)) : OK),
+    diagram: live(!rbac.save ? no(NO_RIGHT_TEXT) : auto ? OK : state.ownerId === null ? no(NO_OWNER_DIAGRAM_TEXT)
       : !editor ? no(notEditorText(state.ownerId)) : OK),
     confirm: live(!rbac.confirm ? no("확정 권한이 없습니다. 권한은 시스템 관리자에게 요청하세요.")
       : !draft ? no("확정할 DRAFT 가 없습니다.") : !owner ? no(`확정은 DRAFT 소유자(${ownerName})만 할 수 있습니다.`) : OK),

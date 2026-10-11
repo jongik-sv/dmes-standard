@@ -47,6 +47,25 @@ export async function searchModels(): Promise<ErdModelRow[]> {
   return Array.isArray(out.result) ? (out.result as ErdModelRow[]) : [];
 }
 
+/**
+ * 스키마 이름 목록(search kind=SCHEMAS, 2차 §7.2) — 새 모델 등록 창이 고른다. 서버가 행을 이름 글이나 `{schemaName|name}` 로 줄 수 있어 둘 다 읽는다.
+ * 실패하거나 비면 빈 목록이다(화면은 직접 입력을 받는다). 던지지 않는다.
+ */
+export async function searchSchemas(): Promise<string[]> {
+  try {
+    const out = await callOasisAt<{ result?: unknown }>(MDM_OASIS_BASE, SCREEN_ID, "search", { kind: "SCHEMAS" }, undefined, OASIS_GRIDS);
+    if (!Array.isArray(out.result)) return [];
+    const names = out.result.map((r) => {
+      if (typeof r === "string") return r;
+      const o = r as { schemaName?: unknown; name?: unknown };
+      return String(o?.schemaName ?? o?.name ?? "");
+    });
+    return names.filter((n) => n !== "");
+  } catch {
+    return [];
+  }
+}
+
 /** 모델 전체. ver 를 빼면 서버가 DRAFT, 없으면 최신 RELEASED 를 고른다. */
 export function viewModel(modelId: string, ver?: string | null): Promise<ErdModelView> {
   return erdCall("view", { modelId, ver });
@@ -138,6 +157,14 @@ export function newVersion(modelId: string, verKind: "MAJOR" | "MINOR"): Promise
 
 export function deleteDraft(modelId: string, ver: string, rowVersion: number): Promise<{ ok: boolean }> {
   return erdCall("delete", { modelId, ver, rowVersion });
+}
+
+/**
+ * 모델 완전 삭제(2차 §7.2) — 되돌리기 없음. 화면 확인 창에서 모델 ID 를 입력해야 부른다.
+ * 거절(권한)은 업무 오류로 던져진다 — 문구를 그대로 보인다.
+ */
+export function deleteModel(modelId: string): Promise<{ ok: boolean }> {
+  return erdCall("delete", { modelId, kind: "MODEL" });
 }
 
 export function lockDraft(modelId: string, ver: string, rowVersion: number): Promise<{ rowVersion: number }> {

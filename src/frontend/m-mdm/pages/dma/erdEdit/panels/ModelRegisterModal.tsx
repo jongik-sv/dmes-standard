@@ -19,32 +19,37 @@ export interface ModelRegisterModalProps {
 }
 
 const EMPTY_REG: RegInput = { modelId: "", moduleId: "", schemaName: "", modelName: "" };
-const REG_FIELDS: readonly { key: keyof RegInput; label: string }[] = [
-  { key: "modelId", label: "모델 ID" },
-  { key: "moduleId", label: "모듈" },
-  { key: "schemaName", label: "스키마" },
-  { key: "modelName", label: "모델 이름" },
+/** 칸마다 예시(placeholder) — 값이 아니라 흐린 안내 글이다. */
+const REG_FIELDS: readonly { key: keyof RegInput; label: string; placeholder: string }[] = [
+  { key: "modelId", label: "모델 ID", placeholder: "mcm" },
+  { key: "moduleId", label: "모듈", placeholder: "mcm" },
+  { key: "schemaName", label: "스키마", placeholder: "MCMAPUSER" },
+  { key: "modelName", label: "모델 이름", placeholder: "MCM 스키마" },
 ];
 
 export function ModelRegisterModal({ opened, onClose, onRegister }: ModelRegisterModalProps) {
   const [reg, setReg] = useState<RegInput>(EMPTY_REG);
+  // 모듈은 직접 고치기 전까지 모델 ID 를 따른다(보통 같다).
+  const [moduleTouched, setModuleTouched] = useState(false);
   const [pending, setPending] = useState(false); // 등록 요청 중에만 켜는 등록 단추 전용 상태(R5)
   const idBase = useId();
   const close = () => {
     if (pending) return;
     setReg(EMPTY_REG);
+    setModuleTouched(false);
     onClose();
   };
   const submit = async () => {
     setPending(true);
     let done = false;
     try {
-      done = await onRegister(reg);
+      done = await onRegister(moduleTouched ? reg : { ...reg, moduleId: reg.modelId });
     } finally {
       setPending(false);
     }
     if (done) {
       setReg(EMPTY_REG);
+      setModuleTouched(false);
       onClose();
     }
   };
@@ -62,8 +67,12 @@ export function ModelRegisterModal({ opened, onClose, onRegister }: ModelRegiste
           return (
             <div key={f.key} className="erd-reg__row">
               <label className="erd-reg__label" htmlFor={id}>{f.label}</label>
-              <Input id={id} data-testid={`erd-reg-${f.key}`} value={reg[f.key]}
-                onChange={(v) => setReg((r) => ({ ...r, [f.key]: v }))} />
+              <Input id={id} data-testid={`erd-reg-${f.key}`} placeholder={f.placeholder}
+                value={f.key === "moduleId" && !moduleTouched ? reg.modelId : reg[f.key]}
+                onChange={(v) => {
+                  if (f.key === "moduleId") setModuleTouched(true);
+                  setReg((r) => ({ ...r, [f.key]: v }));
+                }} />
             </div>
           );
         })}

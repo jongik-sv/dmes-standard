@@ -48,6 +48,7 @@ export default defineConfig((options) => ({
     dashboard: "src/components/dashboard/index.ts",
     "code-editor": "src/components/code-editor/index.ts",
     "floating-panel": "src/components/floating-panel/index.ts",
+    tour: "src/components/tour/index.ts",
     widget: "src/widget/index.ts",
     "screen-context": "src/screen-context/index.ts",
     oasis: "src/oasis/index.ts",

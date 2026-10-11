@@ -5,6 +5,8 @@
  * - 새 버전(copy)·삭제 뒤에는 서버가 reload 를 보내지만, 단계 2 서버가 머지되기 전에도 맞도록 응답을 받으면 바로 다시 읽는다.
  * - 선점·해제는 응답 rowVersion 을 곧바로 반영한다(version 이벤트를 기다리지 않는다, deferred 39).
  * - 넘기기는 담당자 조회가 없어 끈다(handover.ts). 확정은 ConfirmDialog, 공동 편집자는 EditorsModal 이 맡는다.
+ * - 버전 숨기기(2차 p4): DRAFT 이면 [기준본으로 저장](= 확정) 단추 하나만 위 막대에 두고, 나머지 버전 동작은 [버전 ▾] 안에 둔다.
+ *   확정본을 보고 있어도 편집하면 ErdViewer 의 apply 가 DRAFT 를 먼저 만든다(state/permissions autoDraftEligible).
  * - UX 1차(U16): 위 막대의 [버전 1.000 · 작성 중 ▾] 를 누르면 shared DetailPopover 안에 번호(rev)와 VersionActionBar 를 그대로 보인다.
  */
 import { memo, useRef, useState } from "react";
@@ -148,6 +150,14 @@ export const VersionBar = memo(function VersionBar({ ctx, onReload, onVersion }:
           버전 {s.ver} · <VersionStatusBadge status={s.status as MdmVersionStatus} /> ▾
         </span>
       </DetailPopover>
+      {s.status === "DRAFT" && (
+        // 버전 숨기기(p4): 위 막대에는 이것 하나만 둔다. 이력·새 버전·선점 같은 나머지는 [버전 ▾] 안에 있다.
+        <Button size="sm" variant="primary" data-testid="erd-save-baseline" disabled={busy || !b.confirm.enabled}
+          title={b.confirm.enabled ? "검사 뒤 지금 모델을 기준본(확정본)으로 저장합니다" : b.confirm.title}
+          onClick={() => setConfirmOpen(true)}>
+          기준본으로 저장
+        </Button>
+      )}
       <ConfirmDialog ctx={ctx} opened={confirmOpen} onClose={() => setConfirmOpen(false)}
         onConfirmed={() => {
           setConfirmOpen(false);

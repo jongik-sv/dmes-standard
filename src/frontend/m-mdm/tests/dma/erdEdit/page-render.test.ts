@@ -54,6 +54,9 @@ let historyDeltas: Array<Record<string, unknown> & { rev: number }> = [];
 /** 다시 읽기 지점(표시 행) rev. 서버 규칙대로 sinceRev 가 이보다 작으면 reload·fromRev 를 준다(ErdCommandService.changesSince). */
 let historyMarker = 0;
 let validateResult: unknown;
+/** 버튼 권한 행. 기본은 전부 허용, 시험이 copy 를 뺄 수 있다(자동 DRAFT 가 꺼진 확정본 시험). */
+let buttonRows: Array<{ objId: string; action: string }> = [{ objId: "*", action: "*" }];
+const NO_COPY_ROWS = ["save", "confirm", "execute", "import", "reg", "delete", "lock", "unlock"].map((action) => ({ objId: "erdEdit", action }));
 let host: HTMLDivElement;
 let root: Root | null = null;
 /** 시험마다 새로 만드는 localStorage 흉내(beforeEach). 작업 상태(prefs)를 미리 넣을 때 쓴다. */
@@ -75,7 +78,7 @@ function stubFetch() {
     const u = String(url);
     if (u === "/api/auth/me") return new Response(JSON.stringify({ user: { id: "tester" } }), { status: 200 });
     if (u === "/api/mcm/oasis/secUser/myButtonEndpoints") {
-      return new Response(JSON.stringify({ grids: { buttons: { rows: [{ objId: "*", action: "*" }] } } }), { status: 200 });
+      return new Response(JSON.stringify({ grids: { buttons: { rows: buttonRows } } }), { status: 200 });
     }
     if (!u.startsWith("/api/mdm/oasis/erdEdit/")) return new Response("{}", { status: 401 });
     const action = u.split("/").pop() ?? "";
@@ -98,6 +101,10 @@ function stubFetch() {
     if (action === "restore") return ok(restoreResult);
     if (action === "lock" || action === "unlock") return ok({ rowVersion: Number(params.rowVersion) + 1 });
     if (action === "validate") return ok(validateResult);
+    if (action === "copy") {
+      currentView = { ...currentView, ver: "1.001", status: "DRAFT", ownerId: "tester", rev: currentView.rev + 1 };
+      return ok({ ver: "1.001" });
+    }
     if (action === "confirm" || action === "execute") return ok({ ok: true });
     if (action === "import") {
       return ok({ applied: true, rev: 4, changes: [], warnings: [], rejection: null,
@@ -198,6 +205,7 @@ beforeEach(() => {
   statusResult = STATUS;
   historyDeltas = [];
   historyMarker = 0;
+  buttonRows = [{ objId: "*", action: "*" }];
   validateResult = { errors: [], warnings: [] };
   restoreResult = { applied: true, rev: 5, rowVersion: 2, warnings: [], rejection: null,
     changes: [{ kind: "relation", id: "r-1", op: "patch", value: { state: "INFERRED" } }] };
@@ -255,6 +263,7 @@ describe("erdEdit 화면", () => {
   });
 
   it("확정된 버전을 보면 [읽기 전용] 칩을 보이고(처음 한 번은 이유를 저절로 펼침) 확정을 막는다", async () => {
+    buttonRows = NO_COPY_ROWS; // 새 버전을 만들 수 없으면 자동 DRAFT 가 꺼져 읽기 전용이다(p4)
     currentView = viewOf(menuModel(), { ...MENU_DIAGRAMS, status: "RELEASED" });
     await openModel();
     expect(byTestId("erd-readonly-chip")?.getAttribute("title")).toBe(shortReason(RELEASED_TEXT));
@@ -264,6 +273,20 @@ describe("erdEdit 화면", () => {
     await waitFor(() => ((JSON.parse(prefsStore.get(prefsKey("tester")) ?? "{}").seenReadOnly ?? []).includes("mcm:released") ? true : null));
     await click(byTestId("erd-tab-inferred"));
     expect(((await waitFor(() => byTestId("erd-confirm-r-1"))) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("자동 DRAFT(p4): 확정본을 보고 있어도 읽기 전용 칩이 없고, 첫 편집이 copy MINOR 뒤 save 한다", async () => {
+    currentView = viewOf(menuModel(), { ...MENU_DIAGRAMS, status: "RELEASED", ownerId: null });
+    await openModel();
+    expect(byTestId("erd-readonly-chip")).toBeNull();
+    expect(byTestId("erd-save-baseline")).toBeNull(); // DRAFT 가 아니라 [기준본으로 저장] 도 없다
+    await click(byTestId("erd-tab-inferred"));
+    await click((await waitFor(() => byTestId("erd-confirm-r-1"))) as HTMLElement);
+    await settle(100);
+    const seq = calls.map((c) => c.action).filter((a) => a === "copy" || a === "save");
+    expect(seq).toEqual(["copy", "save"]);
+    expect(calls.find((c) => c.action === "copy")?.params).toMatchObject({ modelId: "mcm", verKind: "MINOR" });
+    expect(byTestId("erd-save-baseline")).not.toBeNull(); // 다시 읽은 모델이 DRAFT 라 위 막대에 [기준본으로 저장] 하나
   });
 
   it("표가 없는 모델은 [DB 가져오기] 로 import kind=FROM_DB 를 보내고 모델을 다시 읽는다", async () => {
@@ -648,6 +671,7 @@ describe("erdEdit 화면", () => {
   });
 
   it("version 이벤트는 버전 칸만 바꿔 다시 읽지 않고, ver 가 바뀌면 모델을 다시 읽는다", async () => {
+    buttonRows = NO_COPY_ROWS;
     await openModel();
     expect(viewCalls()).toHaveLength(1);
     const ev = { modelId: "mcm", ver: "1.000", status: "RELEASED", ownerId: "tester", editors: [], rowVersion: 9,
@@ -955,5 +979,43 @@ describe("erdEdit 화면", () => {
     await settleGrid(byTestId("erd-review-inferred")!);
     expect(byTestId("erd-review-inferred")).not.toBeNull();
     expect(host.querySelector(".ag-row.ag-row-highlighted")?.getAttribute("row-id")).toBe("r-1");
+  });
+
+  it("처음 둘러보기(p6): 모델을 읽으면 4단계를 열고, [완료] 하면 다시 보지 않기가 저장된다", async () => {
+    await openModel();
+    await waitFor(() => docTestId("erd-tour-bubble"));
+    expect(docTestId("erd-tour-step")?.textContent).toBe("1 / 4");
+    for (let i = 0; i < 3; i++) await click(docTestId("erd-tour-next") as HTMLElement);
+    expect(docTestId("erd-tour-step")?.textContent).toBe("4 / 4");
+    await click(docTestId("erd-tour-next") as HTMLElement);
+    expect(docTestId("erd-tour-bubble")).toBeNull();
+    await waitFor(() => (JSON.parse(prefsStore.get(prefsKey("tester")) ?? "{}").tourSeen === true ? true : null));
+  });
+
+  it("처음 둘러보기(p6): 본 적 있으면 열지 않고, [둘러보기] 단추로 다시 연다", async () => {
+    prefsStore.set(prefsKey("tester"), JSON.stringify({ lastModelId: "mcm", tourSeen: true }));
+    await openModel();
+    await waitFor(() => byTestId("erd-tour-open"));
+    expect(docTestId("erd-tour-bubble")).toBeNull();
+    await click(byTestId("erd-tour-open") as HTMLElement);
+    expect(docTestId("erd-tour-step")?.textContent).toBe("1 / 4");
+  });
+
+  it("모델 관리(p2): 지금 연 모델을 완전 삭제하면 delete kind=MODEL 을 보내고 목록을 다시 읽어 시작 화면으로 간다", async () => {
+    await openModel();
+    await click(await waitFor(() => byTestId("erd-models-manage")));
+    await settleGrid(await waitFor(() => docTestId("erd-models")));
+    await click(await waitFor(() => document.querySelector<HTMLElement>('.ag-row[row-id="mcm"] [col-id="name"]')));
+    await click(docTestId("erd-models-delete") as HTMLElement);
+    await typeInto(docTestId("erd-model-delete-input"), "mcm");
+    searchRows = []; // 삭제 뒤 목록
+    await click(docTestId("erd-model-delete-ok") as HTMLElement);
+    await settle(100);
+    const del = calls.filter((c) => c.action === "delete");
+    expect(del).toHaveLength(1);
+    expect(del[0].params).toEqual({ modelId: "mcm", kind: "MODEL" });
+    expect(docTestId("erd-model-delete")).toBeNull();
+    expect(byTestId("erd-start-reg")).not.toBeNull(); // 시작 화면(등록된 모델이 없습니다)
+    expect(byTestId("erd-model-mcm")).toBeNull();
   });
 });

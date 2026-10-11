@@ -3,7 +3,9 @@
 /**
  * 컬럼 그리드 아래 입력 칸(S2-6) — 새 컬럼 논리명·논리명 미리보기(300ms)·고른 컬럼의 논리명 바꾸기·도메인 적용.
  * shared AgDataGrid 의 칸 편집기는 글자마다 콜백을 주지 않으므로, 입력 중 미리보기가 필요한 입력을 그리드 밖에 둔다(조사 A E4).
- * - Enter(그리드·입력 칸의 Ctrl/⌘+Enter 와 같다): 새 컬럼. 논리명만 보내고 물리명·도메인은 서버가 채운다(스펙 4.1).
+ * - 입력 칸 모드 두 개: [추가]·[이름 바꾸기]. 컬럼을 고르면 이름 바꾸기가 기본이고(다른 컬럼으로 옮기면 다시 기본으로), 그리드의
+ *   Ctrl/⌘+Enter 는 추가 모드로 바꾼다. 입력 칸 Enter 는 지금 모드의 동작이다.
+ * - 추가 모드 Enter(그리드·입력 칸의 Ctrl/⌘+Enter 와 같다): 새 컬럼. 논리명만 보내고 물리명·도메인은 서버가 채운다(스펙 4.1).
  *   Ctrl/⌘+Shift+Enter 로 연 경우 PK 컬럼이다. 새 컬럼 id 는 화면이 정한다(같은 묶음의 setPrimaryKey 가 가리킨다).
  * - 서버가 NEEDS_CHOICE 로 거절하면 토막 고르기 창을 띄우고, 고른 물리명과 그 추천 도메인을 넣어 같은 묶음을 다시 보낸다.
  * - 미리보기는 입력이 300ms 멈춘 뒤 한 번 부르고, 요청 순번으로 늦은 응답을 버린다(Local-Rules §20·§34·§37).
@@ -11,7 +13,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type MutableRefObject, type ReactNode } from "react";
 
-import { Badge, Button, Checkbox, Input } from "@dk-oasis/shared/form";
+import { Badge, Button, Checkbox, Input, SegmentedControl } from "@dk-oasis/shared/form";
 import { callOasisAt, type OasisCallOptions } from "@dk-oasis/shared/http";
 
 import { DomainField, type DomainRow } from "@/domain";
@@ -25,6 +27,8 @@ import type { ErdColumnStatus, ErdCommandJson, ErdModelJson, ErdNamePreview } fr
 import { TOKEN_STATUS_LABEL, TokenChoiceModal, toTokenChoices, tokenTone, type TokenChoice } from "./TokenChoiceModal";
 
 export type AddKind = "add" | "addPk";
+export type InputMode = "add" | "rename";
+const MODE_OPTIONS = [{ value: "add", label: "추가" }, { value: "rename", label: "이름 바꾸기" }];
 /** ColumnGrid 의 그리드 키가 부른다. 글자가 있으면 보내고, 없으면 입력 칸으로 초점을 옮긴다. */
 export interface BarHandle { trigger(kind: AddKind): void }
 
@@ -136,6 +140,8 @@ export function GridInputBar({ ctx, tableId, focusColumnId, handle, onAdded, ren
   ctxRef.current = ctx;
   const [text, setText] = useState("");
   const [kind, setKind] = useState<AddKind>("add");
+  // 모드: 고른 컬럼이 있으면 이름 바꾸기가 기본이다. 사용자가 바꾼 모드는 그 컬럼에만 걸린다(다른 컬럼을 고르면 기본으로).
+  const [modeSet, setModeSet] = useState<{ col: string | null; mode: InputMode } | null>(null);
   // [물리명도] 는 기본 끔이다 — 컬럼을 고를 때마다 끔으로 돌아간다(U37). 조용히 물리명이 바뀌어 DB 와 달라지는 일을 막는다.
   // 켠 컬럼 id 를 기억한다 — 다른 컬럼으로 옮기면 값이 달라져 저절로 꺼지므로 한 프레임도 옛 켜짐이 남지 않는다.
   const [physFor, setPhysFor] = useState<string | null>(null);
@@ -143,8 +149,8 @@ export function GridInputBar({ ctx, tableId, focusColumnId, handle, onAdded, ren
   const [busy, setBusy] = useState(false);
   const [choice, setChoice] = useState<Choice | null>(null);
   const lastNewId = useRef<string | null>(null);
-  const live = useRef({ text, tableId, busy });
-  live.current = { text, tableId, busy };
+  const live = useRef({ text, tableId, busy, focusColumnId });
+  live.current = { text, tableId, busy, focusColumnId };
 
   const model = ctx.state.model;
   const canEdit = ctx.rights.model.ok && tableId !== null;
@@ -152,6 +158,7 @@ export function GridInputBar({ ctx, tableId, focusColumnId, handle, onAdded, ren
   const shown = preview && preview.forText === text.trim() ? preview : null;
   const settled = shown?.preview && shown.preview.tokens.every((t) => settledStatus(t.status)) ? shown.preview : null;
   const focusCol = focusColumnId && model.columns[focusColumnId]?.table === tableId ? model.columns[focusColumnId] : undefined;
+  const mode: InputMode = modeSet && modeSet.col === focusColumnId ? modeSet.mode : focusCol ? "rename" : "add";
   const focusLocked = !canEdit || !focusCol || (focusColumnId !== null && ctx.pendingIds.has(focusColumnId));
 
   const focusInput = useCallback(() => {
@@ -193,10 +200,11 @@ export function GridInputBar({ ctx, tableId, focusColumnId, handle, onAdded, ren
 
   const add = useCallback(
     (k: AddKind) => {
-      const { text: t, tableId: table, busy: b } = live.current;
+      const { text: t, tableId: table, busy: b, focusColumnId: fc } = live.current;
       const c = ctxRef.current;
       if (!c.rights.model.ok || !table || b) return;
       const logical = t.trim();
+      setModeSet({ col: fc, mode: "add" });
       if (logical === "") {
         setKind(k);
         focusInput();
@@ -301,22 +309,33 @@ export function GridInputBar({ ctx, tableId, focusColumnId, handle, onAdded, ren
 
   return (
     <div ref={boxRef} data-testid="erd-grid-bar" style={BAR}>
+      <SegmentedControl testId="erd-grid-mode" ariaLabel="입력 칸 모드" value={mode} disabled={!canEdit}
+        options={[MODE_OPTIONS[0], { ...MODE_OPTIONS[1], disabled: !focusCol }]}
+        onChange={(v) => setModeSet({ col: focusColumnId, mode: v === "rename" ? "rename" : "add" })} />
       <div style={ROW}>
-        <Input data-testid="erd-grid-input" aria-label="새 컬럼 논리명" style={GROW} value={text} disabled={!canEdit}
-          placeholder={kind === "addPk" ? "PK 컬럼 논리명 — Enter 로 추가" : "새 컬럼 논리명 — Enter·Ctrl+Enter 로 추가"}
+        <Input data-testid="erd-grid-input" aria-label={mode === "rename" ? "새 논리명" : "새 컬럼 논리명"} style={GROW} value={text} disabled={!canEdit}
+          placeholder={mode === "rename" ? "고른 컬럼의 새 논리명 — Enter 로 이름 바꾸기"
+            : kind === "addPk" ? "PK 컬럼 논리명 — Enter 로 추가" : "새 컬럼 논리명 — Enter·Ctrl+Enter 로 추가"}
           onChange={setText}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229 && !e.ctrlKey && !e.metaKey && !e.altKey) {
               e.preventDefault();
-              add(kind);
+              if (mode === "rename") rename();
+              else add(kind);
             } else if (e.key === "Escape") {
               setText("");
               setKind("add");
             }
           }} />
-        <Button size="sm" data-testid="erd-grid-add" disabled={!canEdit || busy || text.trim() === ""} onClick={() => add(kind)}>
-          {kind === "addPk" ? "PK 추가" : "추가"}
-        </Button>
+        {mode === "rename" ? (
+          <Button size="sm" data-testid="erd-grid-rename" disabled={focusLocked || busy || text.trim() === ""} onClick={rename}>
+            이름 바꾸기
+          </Button>
+        ) : (
+          <Button size="sm" data-testid="erd-grid-add" disabled={!canEdit || busy || text.trim() === ""} onClick={() => add(kind)}>
+            {kind === "addPk" ? "PK 추가" : "추가"}
+          </Button>
+        )}
       </div>
       <div data-testid="erd-grid-preview" style={LINE}>
         {shown?.error ? (
@@ -344,7 +363,7 @@ export function GridInputBar({ ctx, tableId, focusColumnId, handle, onAdded, ren
           {hText}
         </div>
       )}
-      {withPhysName && settled && focusCol && settled.physName !== focusCol.phys && (
+      {mode === "rename" && withPhysName && settled && focusCol && settled.physName !== focusCol.phys && (
         <div data-testid="erd-grid-phys-warn" style={WARN}>
           물리명도 {focusCol.phys} → {settled.physName} 으로 바뀝니다(DB 와 달라짐)
         </div>
@@ -358,10 +377,9 @@ export function GridInputBar({ ctx, tableId, focusColumnId, handle, onAdded, ren
         <>
           <div style={ROW}>
             <span data-testid="erd-grid-target" className="erd-mono" style={TARGET}>{focusCol.phys}</span>
-            <Button size="sm" data-testid="erd-grid-rename" disabled={focusLocked || busy || text.trim() === ""} onClick={rename}>
-              논리명 바꾸기
-            </Button>
-            <Checkbox aria-label="물리명도 바꾸기" label="물리명도" checked={withPhysName} disabled={focusLocked} onChange={(on) => setPhysFor(on ? focusColumnId : null)} />
+            {mode === "rename" && (
+              <Checkbox aria-label="물리명도 바꾸기" label="물리명도" checked={withPhysName} disabled={focusLocked} onChange={(on) => setPhysFor(on ? focusColumnId : null)} />
+            )}
           </div>
           <div style={ROW}>
             <span style={MUTED}>도메인</span>

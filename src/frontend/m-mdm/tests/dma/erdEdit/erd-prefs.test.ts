@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_PREFS, PREFS_MAX_VIEWPORTS, loadPrefs, prefsKey, savePrefs, withSeen, withViewport } from "../../../pages/dma/erdEdit/state/prefs";
+import { DEFAULT_PREFS, PREFS_MAX_VIEWPORTS, loadPrefs, prefsKey, savePrefs, withSeen, withTourSeen, withViewport } from "../../../pages/dma/erdEdit/state/prefs";
 import { isCountedViolation, modelSummary, summaryText } from "../../../pages/dma/erdEdit/state/violations";
 import { menuModel } from "./erd-fixtures";
 
@@ -32,6 +32,17 @@ describe("작업 상태 저장(U21)", () => {
     expect(p.viewports["m/d0"]).toBeUndefined();
     p = withViewport(p, "m", "d2", { x: 9, y: 9, zoom: 0.5 });
     expect(Object.keys(p.viewports).at(-1)).toBe("m/d2");
+  });
+  it("tourSeen — 기본은 false, 기록하면 저장·복원되고, 깨진 값은 false", () => {
+    expect(DEFAULT_PREFS.tourSeen).toBe(false);
+    const seen = withTourSeen(DEFAULT_PREFS);
+    expect(seen.tourSeen).toBe(true);
+    expect(withTourSeen(seen)).toBe(seen);
+    const s = mem();
+    savePrefs("u1", seen, s);
+    expect(loadPrefs("u1", s).tourSeen).toBe(true);
+    s.setItem(prefsKey("u1"), JSON.stringify({ tourSeen: "yes" }));
+    expect(loadPrefs("u1", s).tourSeen).toBe(false);
   });
   it("seenReadOnly 는 같은 키를 두 번 넣지 않고 20개까지", () => {
     let p = withSeen(withSeen(DEFAULT_PREFS, "mcm:released"), "mcm:released");

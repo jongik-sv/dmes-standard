@@ -47,6 +47,7 @@ UI(폼·모달·메시지·탭·트리·레이아웃·portal-shell·로그인 �
 | `@dk-oasis/shared/card`                       | SHOULD                 | 제목 줄 카드 틀·함께 접는 카드 묶음·흐린 보조 글 | §18              |
 | `@dk-oasis/shared/transfer-list`              | SHOULD                 | 좌(가능)·우(소속) 전송 목록과 집합 함수 | §18              |
 | `@dk-oasis/shared/dashboard`                  | SHOULD                 | 대시보드 격자·카드·KPI 타일·추이 선  | §18              |
+| `@dk-oasis/shared/tour`                       | SHOULD                 | 처음 둘러보기 말풍선 안내(단계별 강조·다시 보지 않기 값 전달) | §18              |
 | `@dk-oasis/shared/tabs`                       | SHOULD                 | 영역 안 밑줄형 탭 머리줄(본문 전환은 화면) | —                |
 | `@dk-oasis/shared/closable-tabs`              | SHOULD                 | 닫을 수 있는 탭 머리 + 마운트 유지 패널 | §18              |
 | `@dk-oasis/shared/widget`                     | SHOULD                 | 위젯 자유 배치(탭·보드·틀·서랍·작업 공간) | §18              |

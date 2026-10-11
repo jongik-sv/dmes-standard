@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { applyDelta, nodeKey, touchesColumns } from "../../../pages/dma/erdEdit/state/model-delta";
+import { applyDelta, nodeKey, routeKey, touchesColumns } from "../../../pages/dma/erdEdit/state/model-delta";
 import type { ErdChange, ErdDelta, ErdState } from "../../../pages/dma/erdEdit/types";
-import { MENU_DIAGRAMS, column, menuModel, stateOf, table } from "./erd-fixtures";
+import { MENU_DIAGRAMS, MENU_ROUTES, column, menuModel, stateOf, table } from "./erd-fixtures";
 
 const v = (x: object) => x as Record<string, unknown>;
 const delta = (rev: number, changes: ErdChange[]): ErdDelta => ({ modelId: "mcm", rev, userId: "u", session: "s", source: "UI", changes });
@@ -21,6 +21,34 @@ describe("fromView", () => {
     expect(Object.keys(s.nodes)).toEqual(["d-all:t-1", "d-all:t-2"]);
     expect(s.diagrams["d-all"].diagramName).toBe("전체");
     expect(s.claims).toEqual([]);
+  });
+});
+
+describe("경유점 diagramRoute(§7.1)", () => {
+  const withRoutes = () => stateOf(menuModel(), { ...MENU_DIAGRAMS, ...MENU_ROUTES });
+  const pts = [{ x: 10, y: 20 }];
+
+  it("fromView 는 routes 를 '다이어그램:관계' 키로 두고, 없는 서버는 빈 모음", () => {
+    expect(Object.keys(withRoutes().routes)).toEqual([routeKey("d-all", "r-1")]);
+    expect(withRoutes().routes["d-all:r-1"].points).toHaveLength(2);
+    expect(stateOf(menuModel(), MENU_DIAGRAMS).routes).toEqual({});
+  });
+
+  it("upsert 는 넣고 delete 는 지운다. 다른 모음 참조는 그대로", () => {
+    const s = withRoutes();
+    const up = applied(s, delta(4, [{ kind: "diagramRoute", id: "d-all:r-2", op: "upsert", value: { diagram: "d-all", relation: "r-2", points: pts } }]));
+    expect(up.routes["d-all:r-2"].points).toEqual(pts);
+    expect(up.nodes).toBe(s.nodes);
+    expect(up.model).toBe(s.model);
+    const del = applied(up, delta(5, [{ kind: "diagramRoute", id: "d-all:r-1", op: "delete", value: null }]));
+    expect(Object.keys(del.routes)).toEqual(["d-all:r-2"]);
+    expect(s.routes["d-all:r-1"]).toBeDefined();
+  });
+
+  it("route 가 없는 델타는 routes 참조를 그대로 둔다", () => {
+    const s = withRoutes();
+    const next = applied(s, delta(4, [{ kind: "column", id: "c-4", op: "delete", value: null }]));
+    expect(next.routes).toBe(s.routes);
   });
 });
 

@@ -23,6 +23,8 @@ export interface ErdPrefs {
   viewports: Record<string, ErdViewport>;
   /** 저절로 연 읽기 전용 안내 `${modelId}:${reasonKind}`. 최대 20개. */
   seenReadOnly: string[];
+  /** 처음 둘러보기를 끝냈거나 「다시 보지 않기」 를 켠 적이 있다(사용자별). */
+  tourSeen: boolean;
 }
 
 export const PREFS_MAX_VIEWPORTS = 30;
@@ -32,7 +34,7 @@ export const prefsKey = (userId: string): string => `dmes:erdEdit:v1:${userId}`;
 
 export const DEFAULT_PREFS: ErdPrefs = {
   lastModelId: null, lastDiagram: {}, mode: "logical", preset: "basic", reviewOpen: false, reviewTab: "inferred",
-  sideOpen: true, propsOpen: true, viewports: {}, seenReadOnly: [],
+  sideOpen: true, propsOpen: true, viewports: {}, seenReadOnly: [], tourSeen: false,
 };
 
 const MODES: readonly string[] = ["logical", "physical"];
@@ -88,6 +90,7 @@ export function loadPrefs(userId: string | null, storage?: Pick<Storage, "getIte
       viewports: readViewports(raw.viewports),
       seenReadOnly: Array.isArray(raw.seenReadOnly)
         ? raw.seenReadOnly.filter((s): s is string => typeof s === "string").slice(0, PREFS_MAX_SEEN) : [],
+      tourSeen: bool(raw.tourSeen, fresh.tourSeen),
     };
   } catch {
     return fresh;
@@ -118,6 +121,11 @@ export function withViewport(p: ErdPrefs, modelId: string, diagramId: string, vp
 export function withSeen(p: ErdPrefs, key: string): ErdPrefs {
   if (p.seenReadOnly.includes(key)) return p;
   return { ...p, seenReadOnly: [...p.seenReadOnly, key].slice(-PREFS_MAX_SEEN) };
+}
+
+/** 처음 둘러보기를 봤다고 기록한다. 이미 기록돼 있으면 그대로. */
+export function withTourSeen(p: ErdPrefs): ErdPrefs {
+  return p.tourSeen ? p : { ...p, tourSeen: true };
 }
 
 /**

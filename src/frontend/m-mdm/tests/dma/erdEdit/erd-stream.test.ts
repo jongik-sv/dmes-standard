@@ -288,6 +288,56 @@ describe("useErdModel + useErdStream", () => {
     expect(attr("data-rev")).toBe("8");
   });
 
+  it("reload 이벤트가 몰려도(dropMine 다시 읽기·느린 응답·읽기 실패) 연결을 닫고 다시 열지 않는다 — SSE 되먹임 후보 1 기각(deferred 121)", async () => {
+    // ErdViewer 와 같은 처리: onReload → reload({dropMine:true}), onHello → rev 다르면 reload, ready = 상태가 있고 모델이 같음.
+    const loads: Array<(v: ErdModelView | Error) => void> = [];
+    const load = vi.fn((_id: string) => new Promise<ErdModelView>((res, rej) => {
+      loads.push((v) => (v instanceof Error ? rej(v) : res(v)));
+    }));
+    function Viewer() {
+      const m = useErdModel("mcm", "ui-t", "tester", load);
+      const ready = m.state !== null && m.state.modelId === "mcm";
+      const handlers = useMemo(() => ({
+        onHello: (rev: number) => { if (rev !== m.state?.rev) void m.reload(); },
+        onDelta: m.applyDelta, onReload: () => void m.reload({ dropMine: true }), onPresence: m.setPresence, onClaims: m.setClaims,
+      }), [m.applyDelta, m.reload, m.setPresence, m.setClaims, m.state?.rev]);
+      const status = useErdStream({ modelId: "mcm", session: "ui-t", ready, lastRev: m.state?.rev ?? null, handlers, factory });
+      return createElement("div", { "data-testid": "h", "data-status": status, "data-rev": String(m.state?.rev ?? "") });
+    }
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root!.render(createElement(Viewer));
+    });
+    await act(async () => loads.shift()!(viewAt(5, "t-a"))); // 처음 읽기
+    expect(FakeES.all).toHaveLength(1);
+    expect(FakeES.all[0].url).toContain("sinceRev=5");
+    act(() => FakeES.all[0].emit("open"));
+
+    // reload 가 연달아 온다 — 읽는 동안 상태는 남아 ready 가 내려가지 않는다.
+    for (const rev of [9, 12, 15]) {
+      await act(async () => {
+        FakeES.all[0].emit("reload", { rev });
+      });
+      expect(FakeES.all).toHaveLength(1);
+      expect(FakeES.all[0].closed).toBe(false);
+      await act(async () => loads.shift()!(viewAt(rev, "t-a")));
+      expect(attr("data-rev")).toBe(String(rev));
+    }
+    // 읽기가 실패해도 마찬가지다.
+    await act(async () => {
+      FakeES.all[0].emit("reload", { rev: 20 });
+    });
+    await act(async () => loads.shift()!(new Error("읽기 실패")));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(FakeES.all).toHaveLength(1);
+    expect(FakeES.all[0].closed).toBe(false);
+    expect(load).toHaveBeenCalledTimes(5);
+  });
+
   it("되돌리기 요청이 서버에 닿지 않으면(던짐·다시 읽는 중 거절) 그 rev 를 myRevs 에 돌려 둔다", async () => {
     const load = vi.fn(async (_id: string) => viewAt(5, "t-a"));
     let restoreFails = true;

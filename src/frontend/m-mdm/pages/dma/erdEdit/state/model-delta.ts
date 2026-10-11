@@ -8,6 +8,8 @@
 import type { ErdChange, ErdDelta, ErdModelJson, ErdModelView, ErdState, ErdVersionEvent, ErdVersionReason } from "../types";
 
 export const nodeKey = (diagram: string, table: string): string => `${diagram}:${table}`;
+/** 경유점 키 — diagramRoute 델타 id 와 같다("다이어그램:관계"). */
+export const routeKey = (diagram: string, relation: string): string => `${diagram}:${relation}`;
 
 export function fromView(v: ErdModelView): ErdState {
   const model = JSON.parse(v.model) as ErdModelJson;
@@ -15,9 +17,11 @@ export function fromView(v: ErdModelView): ErdState {
   for (const d of v.diagrams) diagrams[d.id] = d;
   const nodes: ErdState["nodes"] = {};
   for (const n of v.nodes) nodes[nodeKey(n.diagram, n.table)] = n;
+  const routes: ErdState["routes"] = {};
+  for (const r of v.routes ?? []) routes[routeKey(r.diagram, r.relation)] = r;
   return {
     modelId: v.modelId, rev: v.rev, ver: v.ver, status: v.status, ownerId: v.ownerId, editors: v.editors, rowVersion: v.rowVersion,
-    model, diagrams, nodes, presence: v.presence, claims: [],
+    model, diagrams, nodes, routes, presence: v.presence, claims: [],
   };
 }
 
@@ -55,6 +59,7 @@ export function applyDelta(state: ErdState, d: ErdDelta): DeltaOutcome {
   let model: ErdModelJson = state.model;
   let diagrams = state.diagrams;
   let nodes = state.nodes;
+  let routes = state.routes;
   const copied = new Set<ModelCollection>();
   for (const c of d.changes) {
     const name = MODEL_COLLECTION[c.kind];
@@ -71,10 +76,13 @@ export function applyDelta(state: ErdState, d: ErdDelta): DeltaOutcome {
     } else if (c.kind === "diagramNode") {
       if (nodes === state.nodes) nodes = { ...nodes };
       if (!put(nodes as unknown as Record<string, unknown>, c)) return { kind: "gap" };
+    } else if (c.kind === "diagramRoute") {
+      if (routes === state.routes) routes = { ...routes };
+      if (!put(routes as unknown as Record<string, unknown>, c)) return { kind: "gap" };
     }
   }
   // rowVersion 은 값이 있을 때만(재전송·다이어그램만은 null, S2-16)
-  return { kind: "applied", state: { ...state, rev: d.rev, rowVersion: d.rowVersion ?? state.rowVersion, model, diagrams, nodes } };
+  return { kind: "applied", state: { ...state, rev: d.rev, rowVersion: d.rowVersion ?? state.rowVersion, model, diagrams, nodes, routes } };
 }
 
 /** 표준 상태를 다시 읽어야 하는 델타인가(표·컬럼이 바뀜). */

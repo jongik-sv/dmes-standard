@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  addEditor, applyCommands, applyDbDiff, claimTable, compareDbDiff, confirmVersion, decideRelation, deleteDraft, importFromDb,
-  lockDraft, newVersion, previewName, rejectionText, releaseTable, removeEditor, searchModels, setViewState, undoRev, unlockDraft,
+  addEditor, applyCommands, applyDbDiff, claimTable, compareDbDiff, confirmVersion, decideRelation, deleteDraft, deleteModel, importFromDb,
+  lockDraft, newVersion, previewName, rejectionText, releaseTable, removeEditor, searchModels, searchSchemas, setViewState, undoRev, unlockDraft,
   validateConfirm, viewChanges, viewStatus,
 } from "../../../pages/dma/erdEdit/api";
 
@@ -37,6 +37,17 @@ describe("erdEdit api", () => {
     expect(rows.map((r) => r.modelId)).toEqual(["mcm", "mdm"]);
     expect(calls[0].url).toBe("/api/mdm/oasis/erdEdit/search");
     expect(calls[0].body.meta.menuId).toBe("erdEdit");
+  });
+
+  it("searchSchemas 는 kind=SCHEMAS 로 부르고 이름 목록을 준다(글·객체 행 모두). 실패하거나 비면 빈 목록", async () => {
+    stubBody({ meta: { success: true }, data: {}, grids: { result: { rows: ["MCMAPUSER", { schemaName: "MDMUSER" }, ""] } } });
+    expect(await searchSchemas()).toEqual(["MCMAPUSER", "MDMUSER"]);
+    expect(calls[0].url).toBe("/api/mdm/oasis/erdEdit/search");
+    expect(calls[0].body.params).toEqual({ kind: "SCHEMAS" });
+    stubBody({ meta: { success: false, message: "권한 없음" }, data: {} });
+    expect(await searchSchemas()).toEqual([]);
+    stubBody({ meta: { success: true }, data: {}, grids: { result: { rows: [] } } });
+    expect(await searchSchemas()).toEqual([]);
   });
 
   it("SET_VIEW 는 view 액션에 viewJson 문자열로 보낸다", async () => {
@@ -95,6 +106,7 @@ describe("erdEdit api", () => {
     await removeEditor("mcm", "erd-mcp-a");
     await newVersion("mcm", "MINOR");
     await deleteDraft("mcm", "1.001", 0);
+    await deleteModel("mcm");
     await lockDraft("mcm", "1.001", 3);
     await unlockDraft("mcm", "1.001", 4);
     await validateConfirm("mcm");
@@ -111,6 +123,7 @@ describe("erdEdit api", () => {
       ["execute", { modelId: "mcm", kind: "REMOVE_EDITOR", userId: "erd-mcp-a" }],
       ["copy", { modelId: "mcm", verKind: "MINOR" }],
       ["delete", { modelId: "mcm", ver: "1.001", rowVersion: 0 }],
+      ["delete", { modelId: "mcm", kind: "MODEL" }],
       ["lock", { modelId: "mcm", ver: "1.001", rowVersion: 3 }],
       ["unlock", { modelId: "mcm", ver: "1.001", rowVersion: 4 }],
       ["validate", { modelId: "mcm" }],
