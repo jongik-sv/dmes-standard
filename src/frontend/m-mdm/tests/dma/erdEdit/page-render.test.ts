@@ -1,9 +1,13 @@
 /** @vitest-environment happy-dom */
-import { act, createElement } from "react";
+import { act, createElement, useContext } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { isMacPlatform } from "@dk-oasis/shared/react-flow";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
+
+import { RelationPickContext } from "../../../pages/dma/erdEdit/canvas/ErdRelationEdge";
+import { settleGrid } from "../../dme/helpers/render";
 
 import ErdEditPage from "../../../pages/dma/erdEdit/page";
 import { LOST_TEXT, RELEASED_TEXT, shortReason } from "../../../pages/dma/erdEdit/state/permissions";
@@ -11,6 +15,23 @@ import { prefsKey } from "../../../pages/dma/erdEdit/state/prefs";
 import { countTableViolations, modelSummary } from "../../../pages/dma/erdEdit/state/violations";
 import type { ErdModelView } from "../../../pages/dma/erdEdit/types";
 import { FakeEventSource as FakeES, MENU_DIAGRAMS, column, emptyModel, menuModel, viewOf } from "./erd-fixtures";
+
+// happy-dom 은 손잡이를 재지 못해 React Flow 가 노드·선을 그리지 않는다. 캔버스 안(Provider 아래)에 눌림 단추 하나를 얹어
+// 화면이 건 RelationPickContext 값(추정 선을 눌렀을 때 실제로 불리는 콜백)을 그대로 부른다. 운영 코드는 건드리지 않는다.
+vi.mock("../../../pages/dma/erdEdit/canvas/useCanvasEditing", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("../../../pages/dma/erdEdit/canvas/useCanvasEditing")>();
+  const PickProbe = () => {
+    const onPick = useContext(RelationPickContext);
+    return createElement("button", { type: "button", "data-testid": "erd-probe-pick", onClick: () => onPick?.("r-1") });
+  };
+  return {
+    ...orig,
+    useCanvasEditing: (...args: Parameters<typeof orig.useCanvasEditing>) => {
+      const r = orig.useCanvasEditing(...args);
+      return { ...r, overlay: createElement("div", null, r.overlay, createElement(PickProbe)) };
+    },
+  };
+});
 
 const RBAC_STORE_KEY = "__dkOasisButtonRbacStore__";
 const originalFetch = globalThis.fetch;
@@ -444,6 +465,65 @@ describe("erdEdit 화면", () => {
     expect(host.querySelector(".erd-area-grid")).toBeNull();
   });
 
+  /** d-all(t-1·t-2) + d-obj(t-2 만). */
+  const TWO_DIAGRAMS = {
+    diagrams: [...MENU_DIAGRAMS.diagrams, { id: "d-obj", areaName: "기본", diagramName: "오브젝트", sortSeq: 1 }],
+    nodes: [...MENU_DIAGRAMS.nodes, { diagram: "d-obj", table: "t-2", x: 0, y: 0, foldMode: "NONE" as const }],
+  };
+  /** 컬럼 점프로 그 컬럼의 표를 고른다(happy-dom 은 노드를 그리지 않는다). */
+  async function jumpTo(text: string) {
+    await key(document.body, { key: "ø", code: "KeyO", altKey: true });
+    const box = await waitFor(() => docTestId("erd-jump-input"));
+    await typeInto(box, text);
+    await key(box, { key: "Enter" });
+    await waitFor(() => host.querySelector(".erd-area-grid"));
+  }
+
+  it("staleSelectionClearedOnDiagramSwitch — 표를 고른 채 다른 다이어그램을 열면 속성 패널이 사라진다(U66)", async () => {
+    currentView = viewOf(menuModel(), TWO_DIAGRAMS);
+    await openModel();
+    await jumpTo("menu_nm");
+    // 패널 안에 초점이 있어도(U12 초점 유지) 다이어그램을 바꾸면 비운다
+    const input = await waitFor(() => byTestId("erd-grid-input"));
+    await act(async () => {
+      input.focus();
+    });
+    await click(byTestId("erd-diagram-d-obj"));
+    await settle();
+    expect(byTestId("erd-diagram-d-obj")?.getAttribute("aria-current")).toBe("true");
+    expect(host.querySelector(".erd-area-grid")).toBeNull();
+  });
+
+  it("crossDiagramSelectKeepsTable — 지금 다이어그램에 없는 표를 컬럼 점프로 고르면 그 다이어그램으로 가고 패널이 그 표를 보인다", async () => {
+    currentView = viewOf(menuModel(), TWO_DIAGRAMS);
+    await openModel();
+    await click(byTestId("erd-diagram-d-obj"));
+    await settle();
+    await jumpTo("menu_nm"); // t-1 은 d-obj 에 없다
+    expect(byTestId("erd-diagram-d-all")?.getAttribute("aria-current")).toBe("true");
+    expect(byTestId("erd-columns")).not.toBeNull();
+  });
+
+  it("고른 표가 둘이면 속성 패널 머리에 '고른 표 2개 중 <첫 표>'(U65)", async () => {
+    await openModel();
+    const host2 = await waitFor(() => byTestId("erd-canvas-host"));
+    await key(host2, { key: "a", ...(isMacPlatform() ? { metaKey: true } : { ctrlKey: true }) });
+    await settle();
+    expect(byTestId("erd-props-multi")?.textContent).toBe("속성 · 고른 표 2개 중 TB_MCM_SEC_MENU");
+    await key(host2, { key: "Escape" });
+    await settle();
+    expect(byTestId("erd-props-multi")).toBeNull();
+  });
+
+  it("같은 다이어그램을 다시 눌러도 선택은 남는다", async () => {
+    currentView = viewOf(menuModel(), TWO_DIAGRAMS);
+    await openModel();
+    await jumpTo("menu_nm");
+    await click(byTestId("erd-diagram-d-all"));
+    await settle();
+    expect(host.querySelector(".erd-area-grid")).not.toBeNull();
+  });
+
   it("속성 패널 [접기] 는 레일로 남기고 다시 펼칠 수 있다. 왼쪽 목록도 접고 펼친다", async () => {
     await openModel();
     await key(document.body, { key: "ø", code: "KeyO", altKey: true });
@@ -843,5 +923,37 @@ describe("erdEdit 화면", () => {
     expect(text).not.toContain("getChangesSince");
     expect(byTestId("erd-rev")).toBeNull();
     expect(byTestId("erd-ver")).toBeNull();
+  });
+  it("pickInferredRelationOpensTabAndHighlightsRow — 캔버스 점선을 누른 것과 같은 콜백이 접힌 검토 패널의 추정 탭을 펼치고 그 행에 커서를 둔다(Task 6)", async () => {
+    prefsStore.set(prefsKey("tester"), JSON.stringify({ lastModelId: "mcm", reviewOpen: false, reviewTab: "violations" }));
+    await openModel();
+    expect(byTestId("erd-review-strip")).not.toBeNull();
+    expect(byTestId("erd-review")).toBeNull();
+    await click(await waitFor(() => byTestId("erd-probe-pick")));
+    await waitFor(() => byTestId("erd-review-inferred"));
+    expect(byTestId("erd-review-strip")).toBeNull();
+    await settleGrid(byTestId("erd-review-inferred")!);
+    const lit = () => [...host.querySelectorAll(".ag-row.ag-row-highlighted")].map((e) => e.getAttribute("row-id"));
+    expect(lit()).toEqual(["r-1"]);
+    // 저장값도 추정 탭·펼침으로 바뀐다(탭을 직접 누른 것과 같다).
+    await waitFor(() => {
+      const saved = JSON.parse(prefsStore.get(prefsKey("tester")) ?? "{}");
+      return saved.reviewTab === "inferred" && saved.reviewOpen === true ? true : null;
+    });
+  });
+
+  it("pickInferredRelationOnOtherTab — 펼친 채 다른 탭(표준 위반)에 있어도 추정 탭으로 옮기고, 이미 추정 탭이면 탭을 그대로 둔 채 다시 눌러도 커서가 남는다", async () => {
+    prefsStore.set(prefsKey("tester"), JSON.stringify({ lastModelId: "mcm", reviewOpen: true, reviewTab: "violations" }));
+    await openModel();
+    await waitFor(() => byTestId("erd-review-violations"));
+    await click(await waitFor(() => byTestId("erd-probe-pick")));
+    await waitFor(() => byTestId("erd-review-inferred"));
+    expect(byTestId("erd-review-violations")).toBeNull();
+    await settleGrid(byTestId("erd-review-inferred")!);
+    expect(host.querySelector(".ag-row.ag-row-highlighted")?.getAttribute("row-id")).toBe("r-1");
+    await click(byTestId("erd-probe-pick")); // 같은 선을 다시 눌러도 탭은 그대로, 커서도 그대로 남는다
+    await settleGrid(byTestId("erd-review-inferred")!);
+    expect(byTestId("erd-review-inferred")).not.toBeNull();
+    expect(host.querySelector(".ag-row.ag-row-highlighted")?.getAttribute("row-id")).toBe("r-1");
   });
 });

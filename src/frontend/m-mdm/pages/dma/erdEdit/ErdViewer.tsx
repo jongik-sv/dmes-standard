@@ -9,7 +9,7 @@
  * - 전역 키는 window 캡처 단계에서 받는다(S2-27): F3 논리·물리, Ctrl/⌘+T·K 표 찾기, Ctrl/⌘+O·Alt+O 컬럼 점프, Ctrl/⌘+Z 내 마지막 변경 되돌리기.
  *   포털 셸의 document 버블 단계 F3 보다 먼저 받아 끊는다. 입력 칸이면 F3 밖의 키는 넘긴다.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent } from "react";
 
 import { FloatingPanel } from "@dk-oasis/shared/floating-panel";
 import { Button, useBusy } from "@dk-oasis/shared/form";
@@ -26,7 +26,7 @@ import {
   type RegInput, type RelationDecision,
 } from "./api";
 import { loadShowAudit, needsAuditReveal, saveShowAudit } from "./audit-columns";
-import { ErdRelationEdge } from "./canvas/ErdRelationEdge";
+import { ErdRelationEdge, RelationPickContext } from "./canvas/ErdRelationEdge";
 import { ErdTableNode, namesOnlySelector } from "./canvas/ErdTableNode";
 import { buildFlow, useStableById, type ErdFlowEdge, type ErdFlowNode, type ErdMode, type ErdPreset } from "./canvas/erd-flow";
 import { NODE_WIDTH } from "./canvas/erd-geometry";
@@ -40,7 +40,7 @@ import { ColumnJump } from "./panels/ColumnJump";
 import { DiagramTree, sortedDiagrams } from "./panels/DiagramTree";
 import { ModelRegisterModal } from "./panels/ModelRegisterModal";
 import { NoticeBar } from "./panels/NoticeBar";
-import { ReviewPanel, type ReviewTab } from "./panels/ReviewPanel";
+import { ReviewPanel, createInferredPick, type InferredPick, type ReviewTab } from "./panels/ReviewPanel";
 import { StartPanel } from "./panels/StartPanel";
 import { TopBar, nextMode, type ReadOnlyInfo } from "./panels/TopBar";
 import { VersionBar } from "./panels/VersionBar";
@@ -71,6 +71,8 @@ const UNDO_CONFLICT_HINT = "변경 기록에서 다른 변경을 고르세요.";
 const DEFAULT_PANE = { width: 1000, height: 600 };
 /** 최대화 때 떠 있는 속성 카드의 처음 크기(저장값이 없을 때). */
 const FLOAT_RECT = { width: 440, height: 420 };
+/** 속성 패널 머리 글 — 길면 말줄임(U65). */
+const MULTI_HEAD: CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const MAXIMIZE_TITLE = "캔버스 최대화 (Alt+M)";
 const RESTORE_TITLE = "캔버스 최대화 풀기 (Alt+M)";
 const paneWidthSelector = (s: ReactFlowState): number => s.width;
@@ -328,6 +330,8 @@ export function ErdViewer() {
   // 속성 패널 안에 초점이 있는 동안은 선택이 풀려도 마지막 표로 패널을 남긴다(U12).
   const [propsFocused, setPropsFocused] = useState(false);
   const lastFocusTable = useRef<string | null>(null);
+  // 캔버스 점선으로 고른 추정 관계 행(Task 6) — 작은 외부 저장소 하나. 값이 바뀌어도 ReviewPanel 만 다시 그린다(R7·R16).
+  const [pick] = useState<InferredPick>(createInferredPick);
   const [diff, setDiff] = useState<ErdDbDiffView | null>(null);
   const [history, setHistory] = useState<ErdChangesView | null>(null);
   const historyRef = useRef(history);
@@ -421,13 +425,14 @@ export function ErdViewer() {
     setReveal(null);
     setNotice(null);
     setHighlight(null);
+    pick.set(null);
     setJumpOpen(false);
     setPropsFocused(false);
     lastFocusTable.current = null;
     statusReadKey.current = null;
     diffSeq.current += 1;
     historySeq.current += 1;
-  }, [modelId]);
+  }, [modelId, pick]);
 
   // 포털 탭이 숨겨졌거나 문서가 가려진 동안은 표준 상태를 읽지 않는다(R10).
   useEffect(() => {
@@ -494,7 +499,15 @@ export function ErdViewer() {
       return cur && cur.x === vp.x && cur.y === vp.y && cur.zoom === vp.zoom ? p : withViewport(p, m, d, vp);
     });
   }, [updateQuiet]);
-  const focusTable = selected.size > 0 ? [...selected][0] : null;
+  // 살아 있는 선택 — 모델에서 지운 표는 뺀다(U66). 늘 거르지는 않는다: 다이어그램에 없는 표(컬럼 점프·찾기)도 고를 수 있다.
+  const liveSelected = useMemo(() => {
+    const tables = state?.model.tables;
+    const out: string[] = [];
+    if (tables) for (const id of selected) if (tables[id]) out.push(id);
+    return out;
+  }, [selected, state]);
+  const focusTable = liveSelected[0] ?? null;
+  const pickedCount = liveSelected.length;
   // 다른 표로 옮기면 남은 컬럼 추가 요청을 지운다(나중에 그 표를 다시 골라 그리드가 새로 붙을 때 다시 돌지 않게).
   useEffect(() => {
     setAddRequest((r) => (r && r.tableId !== focusTable ? null : r));
@@ -503,6 +516,8 @@ export function ErdViewer() {
   // 속성 패널에 보일 표 — 실제 선택(focusTable)은 ctx·동기화에 그대로 쓰고, 이 값은 패널·그리드에만 쓴다.
   const keptTable = !focusTable && propsFocused ? lastFocusTable.current : null;
   const propsTable = focusTable ?? (keptTable && state?.model.tables[keptTable] ? keptTable : null);
+  // 여러 표를 골랐을 때 패널 머리 글 — 파생 값이라 새 상태가 없다(U65).
+  const multiText = pickedCount > 1 && propsTable ? `속성 · 고른 표 ${pickedCount}개 중 ${state?.model.tables[propsTable]?.phys ?? propsTable}` : "";
 
   // ── 패널 접기·펼치기(U11-U13). 값이 같으면 prefs 를 그대로 돌려 다시 그리지 않는다. ──
   const collapseSide = useCallback(() => update((p) => (p.sideOpen ? { ...p, sideOpen: false } : p)), [update]);
@@ -537,6 +552,13 @@ export function ErdViewer() {
     (open: boolean) => update((p) => (p.reviewOpen === open ? p : { ...p, reviewOpen: open })),
     [update],
   );
+  // 캔버스 점선 → 검토 패널 추정 탭의 그 행(Task 6). 콜백은 [update] 만 보는 안정 함수라 Provider 값이 안 바뀌어 선·노드가 다시 그려지지 않는다. 노드 선택은 건드리지 않는다.
+  const onPickRelation = useCallback((relationId: string) => {
+    // 같은 선을 다시 누르면 값이 같아 그리드가 다시 굴리지 않는다(행이 이미 커서라 그대로 둔다).
+    pick.set(relationId);
+    // 이미 추정 탭이 펼쳐져 있으면 prefs 가 그대로라 화면 루트를 다시 그리지 않는다(탭을 누른 것과 같은 1회).
+    update((p) => (p.reviewTab === "inferred" && p.reviewOpen ? p : { ...p, reviewTab: "inferred", reviewOpen: true }));
+  }, [pick, update]);
 
   const onSelect = useCallback((changes: { id: string; selected: boolean }[]) => {
     setSelected((cur) => {
@@ -571,6 +593,14 @@ export function ErdViewer() {
   const pendingDiagram = useRef<string | null>(null);
   const onSelectDiagram = useCallback((id: string) => {
     pendingDiagram.current = null;
+    // 다른 다이어그램으로 가면 선택·고른 컬럼·패널 초점 유지를 비운다(UX 1.5 U66, staleSelectionAcrossDiagram).
+    // 같은 다이어그램을 다시 누르면 그대로 둔다. selectTable 의 다른 다이어그램 길은 여기를 거치지 않는다(선택을 지킨다).
+    if (id !== activeRef.current) {
+      setSelected((cur) => (cur.size === 0 ? cur : NO_SELECTION));
+      setSelectedColumnId(null);
+      setPropsFocused(false);
+      lastFocusTable.current = null;
+    }
     setDiagramId(id);
     setReveal(null);
   }, []);
@@ -871,7 +901,7 @@ export function ErdViewer() {
     <ReviewPanel ctx={ctx} model={state?.model ?? null} status={status} tab={tab} onTab={onReviewTab} diff={diff} history={history}
       onReloadDiff={loadDiff} onReloadHistory={loadHistory} onDecide={onDecide} onSelectTable={selectTable} locked={locked} lockReason={lockReason}
       mySession={session} canUndo={rights.model.ok || rights.diagram.ok} undoReason={undoReason} onUndo={onUndo}
-      collapsed={collapsed} onToggle={onReviewToggle} />
+      collapsed={collapsed} onToggle={onReviewToggle} pick={pick} />
   );
 
   return (
@@ -912,10 +942,12 @@ export function ErdViewer() {
             <div className="erd-area-center">
               {ctx && activeDiagram ? (
                 <ReactFlowProvider key={activeDiagram}>
-                  <div className="erd-canvas" data-mode={mode}>
-                    <CanvasPane ctx={ctx} diagramId={activeDiagram} mode={mode} preset={preset} selected={selected} reveal={reveal} onSelect={onSelect}
-                      getSavedViewport={getSavedViewport} onViewport={onViewport} maximized={maximized} onToggleMaximize={toggleMaximize} />
-                  </div>
+                  <RelationPickContext.Provider value={onPickRelation}>
+                    <div className="erd-canvas" data-mode={mode}>
+                      <CanvasPane ctx={ctx} diagramId={activeDiagram} mode={mode} preset={preset} selected={selected} reveal={reveal} onSelect={onSelect}
+                        getSavedViewport={getSavedViewport} onViewport={onViewport} maximized={maximized} onToggleMaximize={toggleMaximize} />
+                    </div>
+                  </RelationPickContext.Provider>
                 </ReactFlowProvider>
               ) : (
                 <div className="erd-start-host" data-testid="erd-canvas-empty">
@@ -930,7 +962,13 @@ export function ErdViewer() {
             <ContentPanel key="props" width={400} minSize={320}>
               <div className="erd-area-grid" onFocusCapture={onPropsFocus} onBlurCapture={onPropsBlur}>
                 <div className="erd-panel-head">
-                  <span className="erd-panel-head__title">속성</span>
+                  {pickedCount > 1 ? (
+                    <span className="erd-panel-head__title" data-testid="erd-props-multi" style={MULTI_HEAD} title={multiText}>
+                      {multiText}
+                    </span>
+                  ) : (
+                    <span className="erd-panel-head__title">속성</span>
+                  )}
                   <Button size="mini" data-testid="erd-props-toggle" title="속성 접기" aria-label="속성 접기" onClick={collapseProps}>
                     ›
                   </Button>

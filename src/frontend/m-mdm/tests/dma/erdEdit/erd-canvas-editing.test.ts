@@ -771,20 +771,22 @@ describe("도구 막대 글자 단추·표 메뉴·안내 줄(U41·U43·U44)", (
     expect(ctx.nav.startColumnAdd).toHaveBeenLastCalledWith("t-1", true);
   });
 
-  it("표를 둘 고르거나 안 고르면 [컬럼 추가]·[PK 추가]가 꺼지고 감싼 span title 에 이유", async () => {
+  it("표를 둘 고르면 [PK 추가]만 꺼지고, 안 고르면 둘 다 꺼진다", async () => {
     const ctx = fakeCtx();
     await mount(ctx, ["t-1", "t-2"]);
-    expect(btn("erd-tool-addcol").disabled).toBe(true);
+    expect(btn("erd-tool-addcol").disabled).toBe(false);
+    expect(btn("erd-tool-addcol").getAttribute("title")).toBe("컬럼 추가 — 고른 표 2개에 같은 컬럼");
     expect(btn("erd-tool-addpk").disabled).toBe(true);
-    expect(btn("erd-tool-addcol").parentElement?.getAttribute("title")).toBe("컬럼 추가 — 표를 하나만 고르세요");
+    expect(btn("erd-tool-addpk").parentElement?.getAttribute("title")).toBe("PK 추가 — 표를 하나만 고르세요");
     // 꺼진 단추: 보이지 않는 이유 글을 aria-describedby 로 가리키고, 단추 자체 title 은 없다
-    const reason = document.querySelector<HTMLElement>('[data-testid="erd-tool-addcol-reason"]')!;
-    expect(reason.textContent).toBe("컬럼 추가 — 표를 하나만 고르세요");
+    const reason = document.querySelector<HTMLElement>('[data-testid="erd-tool-addpk-reason"]')!;
+    expect(reason.textContent).toBe("PK 추가 — 표를 하나만 고르세요");
     expect(reason.id).not.toBe("");
-    expect(btn("erd-tool-addcol").getAttribute("aria-describedby")).toBe(reason.id);
-    expect(btn("erd-tool-addcol").getAttribute("title")).toBeNull();
+    expect(btn("erd-tool-addpk").getAttribute("aria-describedby")).toBe(reason.id);
+    expect(btn("erd-tool-addpk").getAttribute("title")).toBeNull();
     act(() => root?.unmount());
     await mount(fakeCtx());
+    expect(btn("erd-tool-addcol").disabled).toBe(true);
     expect(btn("erd-tool-addpk").disabled).toBe(true);
     expect(btn("erd-tool-addpk").parentElement?.getAttribute("title")).toBe("PK 추가 — 표를 먼저 고르세요");
   });

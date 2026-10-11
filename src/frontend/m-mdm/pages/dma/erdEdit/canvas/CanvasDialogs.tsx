@@ -32,7 +32,7 @@ interface NewTablePreview {
 }
 
 /** 미리보기 응답이 쓸 만한가 — 사전에 없는 토막(`***` 표식 포함)이 있으면 쓰지 않는다. */
-function usablePhys(p: ErdNamePreview): string | null {
+export function usablePhys(p: ErdNamePreview): string | null {
   const phys = (p.physName ?? "").trim();
   if (phys === "" || phys.includes("***") || p.tokens?.some((t) => isUnknownToken(t.status))) return null;
   return phys;

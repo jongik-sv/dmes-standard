@@ -5,9 +5,11 @@
  * [맞음]·[아님] 단추는 읽기 전용·연결 끊김·처리 중이면 막고 감싼 span 의 title 에 짧은 이유를 둔다(locked·lockReason, U34).
  * 단추 열 정의는 locked·lockReason·onDecide 가 바뀔 때만 새로 만든다(Local-Rules §20).
  * 위반 행을 누르면 그 컬럼을 고르고(표 + 그리드 행, U39), 추정 관계 행을 누르면 자식 표를 고른다(컬럼 그리드·캔버스가 따라간다).
+ * 캔버스에서 추정 관계선(점선)을 누르면 InferredPick 저장소에 그 관계 id 가 들어와 추정 탭 그리드가 그 행에 커서를 두고 스크롤한다(Task 6).
+ * 추정 행을 누르면 같은 저장소를 갱신해 커서가 따라간다. 저장소가 없거나 비어 있으면 그리드가 커서를 스스로 관리한다.
  * 위반 행·건수는 "고칠 위반" 규칙 하나(state/violations.ts, U25)를 쓴다 — 요약 줄·왼쪽 목록 수와 같은 수다.
  */
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 
 import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
@@ -21,6 +23,35 @@ import type { ErdChangesView, ErdColumnStatus, ErdDbDiffView, ErdModelJson, ErdS
 import { ChangeLog, historyNote } from "./ChangeLog";
 import { statusBadge } from "./ColumnGrid";
 import { DbDiffApply } from "./DbDiffApply";
+
+/** 캔버스 점선 → 추정 탭 행 고르기용 작은 외부 저장소(화면이 하나 만들어 캔버스 쪽 콜백과 이 패널에 같이 넘긴다). */
+export interface InferredPick {
+  get(): string | null;
+  set(id: string | null): void;
+  subscribe(fn: () => void): () => void;
+}
+
+export function createInferredPick(): InferredPick {
+  let cur: string | null = null;
+  const subs = new Set<() => void>();
+  return {
+    get: () => cur,
+    set(id) {
+      if (id === cur) return;
+      cur = id;
+      subs.forEach((fn) => fn());
+    },
+    subscribe(fn) {
+      subs.add(fn);
+      return () => {
+        subs.delete(fn);
+      };
+    },
+  };
+}
+
+const NO_SUBSCRIBE = () => () => {};
+const NO_PICK = (): string | null => null;
 
 export type ReviewTab = "violations" | "inferred" | "diff" | "history";
 
@@ -148,12 +179,15 @@ export interface ReviewPanelProps {
   /** 접힘 = 머리 줄(탭·[펼치기])만 그린다(UX 1차 U11). 탭을 누르면 그 탭을 열고 펼친다. */
   collapsed: boolean;
   onToggle(open: boolean): void;
+  /** 캔버스에서 고른 추정 관계 id 저장소(Task 6). 없으면 추정 탭 커서는 그리드가 스스로 관리한다. */
+  pick?: InferredPick;
 }
 
 export function ReviewPanel({
   ctx, model, status, tab, onTab, diff, history, onReloadDiff, onReloadHistory, onDecide, onSelectTable, locked, lockReason,
-  mySession, canUndo, undoReason, onUndo, collapsed, onToggle,
+  mySession, canUndo, undoReason, onUndo, collapsed, onToggle, pick,
 }: ReviewPanelProps) {
+  const picked = useSyncExternalStore(pick?.subscribe ?? NO_SUBSCRIBE, pick?.get ?? NO_PICK, NO_PICK);
   const showAudit = ctx?.audit.show ?? false;
   const violations = useMemo(() => (model ? violationRows(model, status, showAudit) : []), [model, status, showAudit]);
   const inferred = useMemo(() => (model ? inferredRows(model) : []), [model]);
@@ -164,9 +198,15 @@ export function ReviewPanel({
     if (selectColumn) selectColumn(String(row.id));
     else if (typeof row.tableId === "string") onSelectTable(row.tableId);
   }, [selectColumn, onSelectTable]);
+  // 추정 행 → 자식 표를 고르고, 고른 행 id 를 저장소에도 넣어 커서가 따라가게 한다.
   const onRow = useCallback((row: Record<string, unknown>) => {
     if (typeof row.tableId === "string") onSelectTable(row.tableId);
-  }, [onSelectTable]);
+    if (pick && typeof row.id === "string") pick.set(row.id);
+  }, [onSelectTable, pick]);
+  // 저장소가 커서를 쥔 뒤에도 ↑/↓ 로 커서가 움직이게 한다. 표 선택은 지금처럼 누를 때만 바꾼다.
+  const onInferredFocus = useCallback((row: Record<string, unknown>) => {
+    if (pick && typeof row.id === "string") pick.set(row.id);
+  }, [pick]);
   const items: TabItem[] = [
     { key: "violations", label: <span data-testid="erd-tab-violations">표준 위반({violations.length})</span> },
     { key: "inferred", label: <span data-testid="erd-tab-inferred">추정 관계 검토({inferred.length})</span> },
@@ -218,7 +258,8 @@ export function ReviewPanel({
           )}
           {tab === "inferred" && (
             <AgDataGrid gridId="erdInferred" columnSizing="fit" columns={inferredCols} data={inferred} rowKey="id" onRowClick={onRow}
-              emptyMessage="검토할 추정 관계가 없습니다." />
+              onFocusedRowChange={pick ? onInferredFocus : undefined}
+              highlightedRowKey={picked ?? undefined} emptyMessage="검토할 추정 관계가 없습니다." />
           )}
           {tab === "diff" && ctx && <DbDiffApply ctx={ctx} diff={diff} onReload={onReloadDiff} />}
           {tab === "history" && (

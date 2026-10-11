@@ -4,6 +4,7 @@
  * 캔버스 편집(단계 2 Task 13) — 끌기 → moveNodes, 표 추가(도구 2), 관계 도구(4 비식별·5 식별) + 이름 겹침 창, Delete(다이어그램에서 빼기)·
  * Alt+Delete(모델에서 삭제), 접기, 자동 배치, 우클릭 메뉴, 부모·자식 표(Ctrl/⌘+↑↓·Alt+↑↓), 표 찾기(Ctrl/⌘+F), 이름표 만료,
  * 맞춤(Shift+1 전체·Shift+2 고른 표, U38), 자기 참조 알림(U42), 단계별 그리기의 --erd-zoom·data-lod(U50), 미니맵(U51), 주제별로 나누기(U52),
+ * 정렬·간격 [정렬 ▾]·표 메뉴 정렬(U58-U60)·Ctrl/⌘+A 모두 고르기(U67), 다른 다이어그램에 넣기(U61)·같은 컬럼 여러 표에(U63) 창,
  * 도구 막대 [컬럼 추가]·[PK 추가](U43), 표 메뉴 컬럼 추가·PK 컬럼 추가·관계 시작(U44), 관계 도구 안내 줄(U41).
  * - 안내 줄의 "시작 뒤" 상태(connecting·fromTable)는 도구 막대에만 간다. 노드 꾸밈·flowProps 는 이 상태를 보지 않는다(Local-Rules §19).
  * ErdViewer 의 CanvasPane(ReactFlowProvider 안)이 부른다(README "화면 내부 계약"). rf 는 CanvasPane 의 useReactFlow() 값이다.
@@ -25,6 +26,7 @@ import type { ApplyOutcome, ErdEditContext, Right } from "../edit-context";
 import { shortReason } from "../state/permissions";
 import type { ErdCommandJson, ErdFoldMode } from "../types";
 import { DeleteTablesModal, NewTableModal } from "./CanvasDialogs";
+import { BulkColumnModal, PLACE_ALL_PRESENT_TEXT, PlaceIntoDialog, type PlaceTarget } from "./MultiDialogs";
 import { ErdToolbar } from "./ErdToolbar";
 import {
   MAX_BATCH, addRelationCommand, addTableCommands, deleteTablesCommands, moveNodesCommand, newElementId, nextNeighbor, parseClashChoices,
@@ -32,7 +34,11 @@ import {
 } from "./erd-commands";
 import { nextExpiry, viewersAt, type ErdFlowEdge, type ErdFlowNode } from "./erd-flow";
 import { NODE_WIDTH, ZOOM_NAMES_ONLY, lodTier, nodeHeight, type LodTier } from "./erd-geometry";
-import { autoLayoutCommand } from "./erd-layout";
+import { autoLayoutCommand, type Size } from "./erd-layout";
+import {
+  ALIGN_LABEL, ALIGN_MIN, ALIGN_MODES, DISTRIBUTE_LABEL, DISTRIBUTE_MIN, alignBoxes, alreadyIn, arrangeLabel, bulkColumnCommands, bulkColumnPlan,
+  distributeBoxes, placeIntoCommand, type ArrangeKind, type BulkColumnInput, type NodeBox,
+} from "./erd-multi";
 import { loadShowMiniMap, miniMapNodeColor, saveShowMiniMap } from "./erd-minimap";
 import { ERD_CANVAS_SHORTCUTS, deleteKeyLabel, undoKeyLabel, type ErdCanvasKey, type ErdTool } from "./erd-shortcuts";
 import { RelationClashModal } from "./RelationClashModal";
@@ -92,6 +98,8 @@ const NO_DRAG: ReadonlyMap<string, XYPosition> = new Map();
 const NO_ITEMS: MenuItem[] = [];
 const NO_CHOICES: ClashChoice[] = [];
 const NO_NAMES: string[] = [];
+const NO_TARGETS: PlaceTarget[] = [];
+const NO_TABLES: string[] = [];
 const FOLD_LABEL: Readonly<Record<ErdFoldMode, string>> = { NONE: "접기 풀기", KEYS: "키만 보이기", NAME: "이름만 보이기" };
 
 interface ClashState {
@@ -118,6 +126,10 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
   const [deleting, setDeleting] = useState<string[] | null>(null);
   const [newTableAt, setNewTableAt] = useState<XYPosition | null>(null);
   const [splitOpen, setSplitOpen] = useState(false);
+  /** 다른 다이어그램에 넣기 창의 대상 표(U61). null = 닫힘. */
+  const [placing, setPlacing] = useState<string[] | null>(null);
+  /** 같은 컬럼 창의 대상 표(U63). null = 닫힘. */
+  const [bulkCol, setBulkCol] = useState<string[] | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [clock, setClock] = useState(() => Date.now());
   const selection = useStore((s) => s.nodes.reduce((k, n) => (n.selected ? k + 1 : k), 0));
@@ -133,6 +145,12 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
     return k;
   }, [stateNodes, viewDiagram]);
   const autoMiniMap = useMemo(() => loadShowMiniMap(tableCount), [tableCount]);
+  // 다른 다이어그램 수(도구 막대용) — 다이어그램 목록이 바뀔 때만 다시 센다.
+  const stateDiagrams = ctx.state.diagrams;
+  const otherDiagrams = useMemo(
+    () => (viewDiagram ? Object.keys(stateDiagrams).filter((id) => id !== viewDiagram).length : 0),
+    [stateDiagrams, viewDiagram],
+  );
   const [miniMapSet, setMiniMapSet] = useState<boolean | null>(null);
   const miniMap = miniMapSet ?? autoMiniMap;
   const miniMapRef = useRef(miniMap);
@@ -455,6 +473,67 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
     focusHost();
   }, [deleting, send, focusHost]);
 
+  // ── 다른 다이어그램에 넣기(U61)·같은 컬럼 여러 표에(U63) ──
+  const openPlace = useCallback((tables?: readonly string[]) => {
+    const c = ctxRef.current;
+    const ids = tables ?? selectedIds();
+    if (ids.length === 0 || !c.diagramId) return;
+    if (!c.rights.diagram.ok) {
+      deny(c.rights.diagram);
+      return;
+    }
+    setMenu(null);
+    setPlacing([...ids]);
+  }, [selectedIds, deny]);
+
+  const submitPlace = useCallback(async (to: string): Promise<string | null> => {
+    const c = ctxRef.current;
+    const ids = placing;
+    if (!ids || !c.diagramId) return null;
+    const plan = placeIntoCommand(c.state, c.diagramId, to, ids, c.audit.show);
+    if (!plan.command) return PLACE_ALL_PRESENT_TEXT;
+    const { out, current } = await send([plan.command], `다른 다이어그램에 넣기(표 ${plan.placed.length}개)`);
+    if (!current) return null;
+    if (!out.ok) return out.notice.message;
+    setPlacing(null);
+    const d = ctxRef.current.state.diagrams[to];
+    const skip = plan.skipped.length > 0 ? `(이미 있던 ${plan.skipped.length}개 뺌)` : "";
+    ctxRef.current.notify(`표 ${plan.placed.length}개를 「${d ? `${d.areaName} / ${d.diagramName}` : to}」에 넣었습니다${skip}.`, "info");
+    focusHost();
+    return null;
+  }, [placing, send, focusHost]);
+
+  const openBulkColumn = useCallback((tables: readonly string[]) => {
+    const c = ctxRef.current;
+    if (!c.rights.model.ok) {
+      deny(c.rights.model);
+      return;
+    }
+    if (tables.length > MAX_BATCH) {
+      c.notify(`한 번에 ${MAX_BATCH}개 표까지 넣을 수 있습니다.`, "warn");
+      return;
+    }
+    setMenu(null);
+    setBulkCol([...tables]);
+  }, [deny]);
+
+  const submitBulkColumn = useCallback(async (col: BulkColumnInput): Promise<string | null> => {
+    const c = ctxRef.current;
+    const ids = bulkCol;
+    if (!ids) return null;
+    const plan = bulkColumnPlan(c.state.model, ids, col.phys);
+    if (plan.targets.length === 0) return "고른 표에 모두 같은 물리명 컬럼이 있습니다.";
+    const commands = bulkColumnCommands(c.state.model, plan.targets, col, () => newElementId("c"));
+    const { out, current } = await send(commands, `컬럼 추가(표 ${plan.targets.length}개)`);
+    if (!current) return null;
+    if (!out.ok) return out.notice.message;
+    setBulkCol(null);
+    const skip = plan.skipped.length > 0 ? `(이미 있던 ${plan.skipped.length}개 건너뜀)` : "";
+    ctxRef.current.notify(`${col.phys} 컬럼을 표 ${plan.targets.length}개에 더했습니다${skip}.`, "info");
+    focusHost();
+    return null;
+  }, [bulkCol, send, focusHost]);
+
   const fold = useCallback((mode: ErdFoldMode, tables?: readonly string[]) => {
     const c = ctxRef.current;
     const ids = tables ?? selectedIds();
@@ -467,6 +546,48 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
     if (cmd) void c.apply([cmd], FOLD_LABEL[mode]);
   }, [selectedIds, deny]);
 
+  /** 잰 크기(자동 배치·정렬 공용, U59). 이름만 배율이면 잰 높이에 컬럼 행이 빠져 있어 initialHeight 를 쓴다. 화면 밖 노드도 initial 값. */
+  const measuredSizes = useCallback((): Map<string, Size> => {
+    const namesOnly = storeApi.getState().transform[2] < ZOOM_NAMES_ONLY;
+    return new Map(rf.getNodes().map((n) => {
+      const m = namesOnly ? undefined : rf.getInternalNode(n.id)?.measured;
+      return [n.id, {
+        width: m?.width || (n.initialWidth ?? NODE_WIDTH),
+        height: m?.height || (n.initialHeight ?? nodeHeight(0, false)),
+      }] as const;
+    }));
+  }, [rf, storeApi]);
+
+  /** 정렬·간격(U58). 자리는 보이는 자리(rf 노드, 끄는 중 덮개 포함), 크기는 누를 때 잰다. 한 apply = 되돌리기 한 번. */
+  const arrange = useCallback((kind: ArrangeKind, tables?: readonly string[]) => {
+    const c = ctxRef.current;
+    const ids = tables ?? selectedIds();
+    const need = "align" in kind ? ALIGN_MIN : DISTRIBUTE_MIN;
+    if (!c.diagramId) return;
+    if (!c.rights.diagram.ok) {
+      deny(c.rights.diagram);
+      return;
+    }
+    if (ids.length < need) {
+      c.notify(`표를 ${need}개 이상 고르세요.`, "info");
+      return;
+    }
+    const sizes = measuredSizes();
+    const boxes: NodeBox[] = [];
+    for (const id of ids) {
+      const n = rf.getNode(id);
+      const sz = sizes.get(id);
+      if (n && sz) boxes.push({ table: id, x: n.position.x, y: n.position.y, width: sz.width, height: sz.height });
+    }
+    const placed = "align" in kind ? alignBoxes(boxes, kind.align) : distributeBoxes(boxes, kind.distribute);
+    const cmd = moveNodesCommand(c.diagramId, placed, c.state.nodes);
+    if (!cmd) {
+      c.notify("이미 맞춰져 있습니다.", "info");
+      return;
+    }
+    void c.apply([cmd], `${arrangeLabel(kind)}(표 ${ids.length}개)`);
+  }, [selectedIds, deny, measuredSizes, rf]);
+
   const layout = useCallback(async () => {
     const c = ctxRef.current;
     if (!c.diagramId) return;
@@ -474,16 +595,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       deny(c.rights.diagram);
       return;
     }
-    // 잰 크기는 내부 노드에만 있다(CanvasPane 이 dimensions 변경을 노드에 싣지 않는다). 이름만 보이는 확대율이면 잰 높이에
-    // 컬럼 행이 빠져 있어 buildFlow 의 initialHeight 를 쓴다. 화면 밖이라 그리지 않은 노드도 initialWidth·initialHeight 다.
-    const namesOnly = storeApi.getState().transform[2] < ZOOM_NAMES_ONLY;
-    const measured = new Map(rf.getNodes().map((n) => {
-      const m = namesOnly ? undefined : rf.getInternalNode(n.id)?.measured;
-      return [n.id, {
-        width: m?.width || (n.initialWidth ?? NODE_WIDTH),
-        height: m?.height || (n.initialHeight ?? nodeHeight(0, false)),
-      }] as const;
-    }));
+    const measured = measuredSizes();
     // 캔버스 가로/세로 비를 목표 모양으로 넘긴다(2-D 배치, U23). 크기를 모르면 기본 1.6.
     const { width, height } = storeApi.getState();
     const aspect = width > 0 && height > 0 ? width / height : 1.6;
@@ -496,7 +608,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
     if (!out.ok || !current) return;
     ctxRef.current.notify(`자동 배치했습니다. ${undoKeyLabel(mac)} 로 되돌릴 수 있습니다.`, "info");
     void rf.fitView({ includeHiddenNodes: true, padding: 0.1, maxZoom: 1, duration: 200 });
-  }, [rf, storeApi, send, deny, mac]);
+  }, [rf, storeApi, send, deny, mac, measuredSizes]);
 
   // ── 주제별로 나누기(U52) ──
   const openSplit = useCallback(() => {
@@ -563,12 +675,17 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       return;
     }
     const ids = selectedIds();
-    if (ids.length !== 1) {
-      c.notify(ids.length === 0 ? "표를 먼저 고르세요." : "표를 하나만 고르세요.", "info");
+    if (ids.length === 0) {
+      c.notify("표를 먼저 고르세요.", "info");
+      return;
+    }
+    if (ids.length > 1) {
+      if (pk) c.notify("표를 하나만 고르세요.", "info"); // PK 는 표 하나씩(U64)
+      else openBulkColumn(ids);
       return;
     }
     c.nav.startColumnAdd(ids[0], pk);
-  }, [deny, selectedIds]);
+  }, [deny, selectedIds, openBulkColumn]);
 
   /** 그 표들에 곧바로 맞춘다(배율 상한 1, Local-Rules §33) — ErdViewer [화면 맞춤]과 같은 방식. */
   const fitTo = useCallback((ids: readonly string[]) => {
@@ -588,6 +705,12 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       toolIdentifying: () => chooseTool("identifying"),
       delete: () => (removeTables() ? undefined : UNHANDLED),
       deleteModel: () => (askDelete() ? undefined : UNHANDLED),
+      selectAll: () => {
+        const ids = rf.getNodes().map((n) => n.id);
+        if (ids.length === 0) return UNHANDLED;
+        storeApi.getState().addSelectedNodes(ids); // select 변경 → CanvasPane → ErdViewer 선택
+        return undefined;
+      },
       parentTable: () => goNeighbor("parent"),
       childTable: () => goNeighbor("child"),
       escape,
@@ -604,7 +727,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       },
     };
     dispatchShortcut(e, handlers, mac, ERD_CANVAS_SHORTCUTS);
-  }, [chooseTool, removeTables, askDelete, goNeighbor, escape, fitTo, rf, selectedIds, mac]);
+  }, [chooseTool, removeTables, askDelete, goNeighbor, escape, fitTo, rf, storeApi, selectedIds, mac]);
 
   // ── 누르기·우클릭 ──
   const onPaneClick = useCallback<NonNullable<FlowProps["onPaneClick"]>>((e) => {
@@ -640,14 +763,33 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
         },
       );
     }
-    items.push(
-      {
-        id: "fold", label: "접기", children: [
-          { id: "fold-none", label: "컬럼 모두 보이기", run: () => fold("NONE", targets), ...off(r.diagram) },
-          { id: "fold-keys", label: "키 컬럼만", run: () => fold("KEYS", targets), ...off(r.diagram) },
-          { id: "fold-name", label: "표 이름만", run: () => fold("NAME", targets), ...off(r.diagram) },
+    items.push({
+      id: "fold", label: "접기", children: [
+        { id: "fold-none", label: "컬럼 모두 보이기", run: () => fold("NONE", targets), ...off(r.diagram) },
+        { id: "fold-keys", label: "키 컬럼만", run: () => fold("KEYS", targets), ...off(r.diagram) },
+        { id: "fold-name", label: "표 이름만", run: () => fold("NAME", targets), ...off(r.diagram) },
+      ],
+    });
+    if (targets.length >= ALIGN_MIN) {
+      const fewForDist = targets.length < DISTRIBUTE_MIN ? { disabled: true, title: `표를 ${DISTRIBUTE_MIN}개 이상 고르세요` } : {};
+      items.push({
+        id: "align", label: "정렬", children: [
+          ...ALIGN_MODES.map((m) => ({ id: `align-${m}`, label: ALIGN_LABEL[m], run: () => arrange({ align: m }, targets), ...off(r.diagram) })),
+          ...(["x", "y"] as const).map((a) => ({
+            id: `dist-${a}`, label: DISTRIBUTE_LABEL[a], run: () => arrange({ distribute: a }, targets), ...off(r.diagram), ...(r.diagram.ok ? fewForDist : {}),
+          })),
         ],
-      },
+      });
+    }
+    const noOther = Object.keys(ctxRef.current.state.diagrams).length < 2;
+    items.push({
+      id: "place", label: `${what} 다른 다이어그램에 넣기…`, run: () => openPlace(targets),
+      ...(noOther ? { disabled: true, title: "다른 다이어그램이 없습니다" } : off(r.diagram)),
+    });
+    if (targets.length > 1) {
+      items.push({ id: "bulkcol", label: `${what}에 같은 컬럼 추가…`, run: () => openBulkColumn(targets), ...off(r.model) });
+    }
+    items.push(
       { id: "remove", label: `${what} 다이어그램에서 빼기 (Delete)`, run: () => void removeTables(targets), ...off(r.diagram) },
       { id: "delete", label: `${what} 모델에서 삭제 (${deleteKeyLabel(mac)})`, danger: true, run: () => void askDelete(targets), ...off(r.model) },
     );
@@ -658,7 +800,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       );
     }
     setMenu({ at: { x: e.clientX, y: e.clientY }, items });
-  }, [selectedIds, storeApi, fold, removeTables, askDelete, goNeighbor, startRelationFrom, mac]);
+  }, [selectedIds, storeApi, fold, arrange, openPlace, openBulkColumn, removeTables, askDelete, goNeighbor, startRelationFrom, mac]);
 
   const onPaneContextMenu = useCallback<NonNullable<FlowProps["onPaneContextMenu"]>>((e) => {
     e.preventDefault();
@@ -738,10 +880,10 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
   const toolbar = useMemo(() => h(ErdToolbar, {
     tool, mac, model: rightModel, diagram: rightDiagram, selection,
     onTool: chooseTool, onAddColumn: addColumn, onFold: (m: ErdFoldMode) => fold(m), onRemove: () => void removeTables(),
-    onDelete: () => void askDelete(), onAutoLayout: () => void layout(), onSplit: openSplit,
-    showAudit, onToggleAudit, miniMap, onToggleMiniMap: toggleMiniMap, hint,
-  }), [tool, mac, rightModel, rightDiagram, selection, chooseTool, addColumn, fold, removeTables, askDelete, layout, openSplit, showAudit,
-    onToggleAudit, miniMap, toggleMiniMap, hint]);
+    onDelete: () => void askDelete(), onAutoLayout: () => void layout(), onSplit: openSplit, onArrange: arrange,
+    onPlaceInto: () => openPlace(), otherDiagrams, showAudit, onToggleAudit, miniMap, onToggleMiniMap: toggleMiniMap, hint,
+  }), [tool, mac, rightModel, rightDiagram, selection, chooseTool, addColumn, fold, removeTables, askDelete, layout, openSplit, arrange, openPlace, otherDiagrams,
+    showAudit, onToggleAudit, miniMap, toggleMiniMap, hint]);
 
   const model = ctx.state.model;
   // 나누기 창은 열린 동안만 상태를 받는다(닫혀 있으면 모델이 바뀌어도 overlay 를 다시 만들지 않는다).
@@ -753,6 +895,22 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
   const pickClash = useCallback((mode: NameClashMode) => {
     if (clash) void addRelation(clash.parent, clash.child, clash.identifying, mode);
   }, [clash, addRelation]);
+  // 넣기 대상 목록은 창이 열린 동안만 만든다(닫혀 있으면 늘 같은 NO_TARGETS 라 overlay 를 다시 만들지 않는다, U70).
+  const placeTargets = useMemo<PlaceTarget[]>(() => {
+    if (!placing || !viewDiagram) return NO_TARGETS;
+    return Object.values(stateDiagrams)
+      .filter((d) => d.id !== viewDiagram)
+      .sort((a, b) => a.sortSeq - b.sortSeq || a.id.localeCompare(b.id))
+      .map((d) => ({ id: d.id, label: `${d.areaName} / ${d.diagramName}`, already: alreadyIn(ctx.state, d.id, placing) }));
+  }, [placing, viewDiagram, stateDiagrams, ctx.state]);
+  const closePlace = useCallback(() => {
+    setPlacing(null);
+    focusHost();
+  }, [focusHost]);
+  const closeBulkColumn = useCallback(() => {
+    setBulkCol(null);
+    focusHost();
+  }, [focusHost]);
   const runConfirmDelete = useCallback(() => void confirmDelete(), [confirmDelete]);
 
   const overlay = useMemo(() => {
@@ -771,6 +929,12 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       h(SplitDialog, {
         state: splitState, right: rightDiagram, showAudit, getAspect: splitAspect, apply: splitApply, onClose: closeSplit, onCreated: onSplitCreated,
       }),
+      h(PlaceIntoDialog, {
+        open: placing !== null, count: placing?.length ?? 0, targets: placeTargets, onSubmit: submitPlace, onClose: closePlace,
+      }),
+      h(BulkColumnModal, {
+        open: bulkCol !== null, model, tables: bulkCol ?? NO_TABLES, onSubmit: submitBulkColumn, onClose: closeBulkColumn,
+      }),
       // MiniMap 은 data-testid 를 넘기지 않아(xyflow Panel 이 rf__minimap 을 단다) display:contents 칸으로 감싼다.
       miniMap && h("div", { className: "erd-minimap-slot", "data-testid": "erd-minimap" },
         h(MiniMap<ErdFlowNode>, {
@@ -779,7 +943,8 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
         })),
     );
   }, [model, menu, clash, relationPending, deleting, newTableAt, mac, closeMenu, pickClash, closeClash, runConfirmDelete, closeDelete,
-    submitNewTable, closeNewTable, miniMap, splitState, rightDiagram, showAudit, splitAspect, splitApply, closeSplit, onSplitCreated]);
+    submitNewTable, closeNewTable, miniMap, splitState, rightDiagram, showAudit, splitAspect, splitApply, closeSplit, onSplitCreated,
+    placing, placeTargets, submitPlace, closePlace, bulkCol, submitBulkColumn, closeBulkColumn]);
 
   return { flowProps, onNodesChange, decorateNodes, onKeyDown, toolbar, overlay };
 }

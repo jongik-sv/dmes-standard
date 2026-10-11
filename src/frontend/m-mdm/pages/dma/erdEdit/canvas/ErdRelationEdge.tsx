@@ -6,8 +6,10 @@
  * 이름표는 EdgeLabelRenderer 층(pointer-events:none, Local-Rules §19)에 둔다. 누를 것이 없어 다시 켜지 않는다.
  * 두 끝이 같은 변(위아래로 쌓인 표)이면 smoothStepPoints 가 같은 Position 쌍을 ㄷ 모양으로 상자 밖을 돌려 그린다(erd-geometry relationSides).
  * 그린 변은 g 의 data-sides("rl"·"rr" 처럼 자식·부모 끝)에 단다.
+ * 추정(INFERRED) 선은 RelationPickContext 가 있으면 본선 위에 투명한 두꺼운 눌림 영역(erd-rel__hit)을 얹는다. 누르면 그 관계 id 를 콜백에 넘긴다(Task 6).
+ * 눌림 영역에는 react-flow__edge-path 를 붙이지 않는다(브라우저 확인이 본선만 센다). 확정 선에는 얹지 않는다.
  */
-import { memo, useMemo } from "react";
+import { createContext, memo, useContext, useMemo } from "react";
 
 import {
   EdgeLabelRenderer, ROUTE_RADIUS, routeMidpoint, routePath, smoothStepPoints, useStore, type EdgeProps, type ReactFlowState,
@@ -15,6 +17,9 @@ import {
 
 import type { ErdFlowEdge } from "./erd-flow";
 import { END_STUB, crowFootPath, endStub, liveEnds, oneBarsPath, zeroCirclePos, type LiveEnd } from "./erd-geometry";
+
+/** 추정 관계선을 눌렀을 때 부르는 콜백(관계 id). 값이 없으면 눌림 영역을 그리지 않는다. 값은 안정된 콜백이어야 선이 불필요하게 다시 그려지지 않는다. */
+export const RelationPickContext = createContext<((relationId: string) => void) | null>(null);
 
 /** 그 노드의 지금 왼쪽 x(끄는 중이면 덮개 위치). 숫자만 돌려줘 이 선이 걸린 노드가 움직일 때만 다시 그린다. */
 const leftSelector = (id: string) => (s: ReactFlowState): number | undefined => s.nodeLookup.get(id)?.internals.positionAbsolute.x;
@@ -33,6 +38,7 @@ export const ErdRelationEdge = memo(function ErdRelationEdge({
   const tgtSel = useMemo(() => leftSelector(target), [target]);
   const srcLeft = useStore(srcSel);
   const tgtLeft = useStore(tgtSel);
+  const onPick = useContext(RelationPickContext);
   const srcEnd = endOf(sourceX, String(sourcePosition));
   const tgtEnd = endOf(targetX, String(targetPosition));
   const live = source !== target && srcEnd && tgtEnd && srcLeft !== undefined && tgtLeft !== undefined
@@ -52,10 +58,20 @@ export const ErdRelationEdge = memo(function ErdRelationEdge({
   const zero = data?.zeroChild ? zeroCirclePos(childEnd, childInner) : null;
   const folded = data?.folded ?? 0;
   const mid = folded > 0 ? routeMidpoint(pts) : null;
+  const d = routePath(pts, ROUTE_RADIUS);
   return (
     <>
       <g className="erd-rel" data-state={data?.state} data-sides={`${String(sp)[0]}${String(tp)[0]}`} data-testid={`erd-rel-${id}`}>
-        <path className="react-flow__edge-path erd-rel__line" d={routePath(pts, ROUTE_RADIUS)} fill="none" />
+        <path className="react-flow__edge-path erd-rel__line" d={d} fill="none" />
+        {onPick && data?.state === "INFERRED" && (
+          <path
+            className="erd-rel__hit" data-testid={`erd-rel-hit-${id}`} d={d} fill="none" stroke="transparent" strokeWidth={12} pointerEvents="stroke"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPick(id);
+            }}
+          />
+        )}
         <path className="erd-rel__end" d={crowFootPath(childEnd, childInner)} fill="none" />
         {zero && <circle className="erd-rel__zero" cx={zero.x} cy={zero.y} r={4} />}
         <path className="erd-rel__end" d={oneBarsPath(parentEnd, parentInner)} fill="none" />
