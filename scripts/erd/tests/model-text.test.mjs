@@ -8,7 +8,7 @@ import {
   formatViolations,
   getModelText,
 } from "../lib/model-text.mjs";
-import { GOLDEN, STATUS, VIEW } from "./fixtures/erd-view.mjs";
+import { GOLDEN, MODEL, STATUS, VIEW, VIEW_ROUTES } from "./fixtures/erd-view.mjs";
 import { formatAt, TEXT_LIMIT } from "../lib/model-text.mjs";
 
 test("getModelText 골든: 표 물리명 순·컬럼 순서·PK·NN·FK(?)·도메인·!상태·Ref 줄", () => {
@@ -258,4 +258,119 @@ test("getModelText 크기 상한: 큰 모델에서도 어떤 인자든 TEXT_LIMI
   const wide = getModelText(bigView(2, 1000), st, { tables: ["TB_BIG_00001"] });
   assert.ok(wide.length <= TEXT_LIMIT, `넓은 표 ${wide.length}자`);
   assert.match(wide, /^ {2}… 컬럼 \d+개를 더 싣지 못했다\(상한 40000자\)\.\n\}$/m);
+});
+
+test("getModelText diagram: 경유점이 있는 관계는 Ref 줄 아래에 via 줄", () => {
+  const text = getModelText(VIEW_ROUTES, STATUS, { diagram: "메뉴 화면" });
+  const lines = text.split("\n");
+  const at = lines.findIndex((l) => l.startsWith("Ref TB_MCM_SEC_MENU.OBJECT_ID"));
+  assert.equal(lines[at + 1], "  via (120,40) → (120,200)");
+  const fav = lines.findIndex((l) => l.startsWith("Ref TB_MCM_SEC_USER_FAVORITE.MENU_ID"));
+  assert.equal(lines[fav + 1], "  via (400,10) → (400,90) → (300,90)");
+  assert.equal(lines.filter((l) => l.startsWith("  via ")).length, 2); // d-all 의 r-2 는 이 다이어그램 밖
+  // 다른 다이어그램의 route 는 그 다이어그램에서만. 점이 하나면 한 점.
+  assert.match(getModelText(VIEW_ROUTES, STATUS, { diagram: "d-all" }), /^Ref TB_MCM_SEC_USER_FAVORITE\.USER_ID > TB_MCM_SEC_USER\.USER_ID CONFIRMED .*\n {2}via \(10,20\)$/m);
+  assert.doesNotMatch(getModelText(VIEW_ROUTES, STATUS, { diagram: "d-all" }), /\(120,40\)/);
+});
+
+test("getModelText: diagram 이 없으면 경유점을 싣지 않고, 경유점이 없는 view 는 글이 그대로", () => {
+  assert.equal(getModelText(VIEW_ROUTES, STATUS), GOLDEN);
+  assert.equal(getModelText({ ...VIEW, routes: [] }, STATUS, { diagram: "d-menu" }), getModelText(VIEW, STATUS, { diagram: "d-menu" }));
+  // 그 버전에 없는 관계의 route 행은 그리지 않는다(README 7.1).
+  const stray = { ...VIEW, routes: [{ diagram: "d-menu", relation: "r-gone", points: [{ x: 1, y: 1 }] }] };
+  assert.equal(getModelText(stray, STATUS, { diagram: "d-menu" }), getModelText(VIEW, STATUS, { diagram: "d-menu" }));
+});
+
+const NOW = { now: Date.parse("2026-10-10T10:00:30Z"), offsetMin: 0 };
+const ui = (session, diagramId) => ({ session, userId: "41000207", source: "UI", diagramId, selectedTables: [], at: "2026-10-10T10:00:00Z" });
+
+test("formatCurrentView: 화면 세션의 다이어그램 경유점을 다이어그램마다 한 번, 관계별로", () => {
+  const out = formatCurrentView(VIEW_ROUTES, NOW);
+  assert.deepEqual(out.split("\n").slice(2), [
+    "경유점 메뉴/메뉴 화면 2개:",
+    "  TB_MCM_SEC_MENU.OBJECT_ID > TB_MCM_SEC_OBJ.OBJECT_ID: (120,40) → (120,200)",
+    "  TB_MCM_SEC_USER_FAVORITE.MENU_ID > TB_MCM_SEC_MENU.MENU_ID: (400,10) → (400,90) → (300,90)",
+  ]);
+  assert.equal(formatCurrentView(VIEW, NOW).split("\n").length, 2); // 경유점이 없으면 줄이 늘지 않는다
+});
+
+test("formatCurrentView: 같은 다이어그램을 보는 세션이 여럿이어도 경유점 블록은 한 번", () => {
+  const view = { ...VIEW_ROUTES, presence: [ui("ui-a", "d-menu"), ui("ui-b", "d-menu"), ui("ui-c", "d-all")] };
+  const lines = formatCurrentView(view, NOW).split("\n");
+  assert.equal(lines.filter((l) => l.startsWith("경유점 메뉴/메뉴 화면")).length, 1);
+  assert.equal(lines.filter((l) => l.startsWith("경유점 기본/전체")).length, 1);
+  assert.equal(lines.filter((l) => l.includes("(120,40)")).length, 1);
+  assert.deepEqual(lines.slice(-2), ["경유점 기본/전체 1개:", "  TB_MCM_SEC_USER_FAVORITE.USER_ID > TB_MCM_SEC_USER.USER_ID: (10,20)"]);
+});
+
+test("formatCurrentView: 경유점 줄은 50줄까지, 나머지는 개수와 읽는 길을 알린다", () => {
+  const relations = {};
+  const routes = [];
+  for (let i = 0; i < 80; i++) {
+    relations[`r-x${i}`] = { ...MODEL.relations["r-1"] };
+    routes.push({ diagram: "d-menu", relation: `r-x${i}`, points: [{ x: i, y: i }] });
+  }
+  const view = { ...VIEW, model: JSON.stringify({ ...MODEL, relations }), routes };
+  const lines = formatCurrentView(view, NOW).split("\n");
+  assert.equal(lines[2], "경유점 메뉴/메뉴 화면 80개:");
+  assert.equal(lines.filter((l) => l.startsWith("  TB_")).length, 50);
+  assert.equal(lines.at(-1), "  … 30개 더. getModelText(diagram) 로 읽으세요.");
+});
+
+test("formatCurrentView: 한 줄에 점은 5개까지 보이고 나머지는 「… n점 더」", () => {
+  const points = Array.from({ length: 9 }, (_, i) => ({ x: i, y: i * 10 }));
+  const view = { ...VIEW_ROUTES, routes: [{ diagram: "d-menu", relation: "r-1", points }] };
+  const out = formatCurrentView(view, NOW);
+  assert.match(out, /^  TB_MCM_SEC_MENU\.OBJECT_ID > TB_MCM_SEC_OBJ\.OBJECT_ID: \(0,0\) → \(1,10\) → \(2,20\) → \(3,30\) → \(4,40\) … 4점 더$/m);
+  assert.ok(!out.includes("(5,50)"));
+  // 정확히 5개면 줄이지 않는다.
+  const five = { ...VIEW_ROUTES, routes: [{ diagram: "d-menu", relation: "r-1", points: points.slice(0, 5) }] };
+  assert.match(formatCurrentView(five, NOW), /\(4,40\)$/m);
+});
+
+test("formatCurrentView: 경유점 블록 전체는 약 4,000자까지, 넘으면 남은 개수와 읽는 길", () => {
+  const relations = {};
+  const routes = [];
+  for (let i = 0; i < 50; i++) {
+    relations[`r-y${i}`] = { ...MODEL.relations["r-1"] };
+    routes.push({ diagram: "d-menu", relation: `r-y${i}`, points: Array.from({ length: 5 }, (_, j) => ({ x: 1000 + j, y: 2000 + i })) });
+  }
+  const view = { ...VIEW, model: JSON.stringify({ ...MODEL, relations }), routes };
+  const lines = formatCurrentView(view, NOW).split("\n");
+  const head = lines.indexOf("경유점 메뉴/메뉴 화면 50개:");
+  const block = lines.slice(head + 1);
+  const rows = block.filter((l) => l.startsWith("  TB_"));
+  assert.ok(rows.length > 0 && rows.length < 50, `rows ${rows.length}`);
+  assert.ok(rows.join("\n").length <= 4000);
+  assert.equal(block.at(-1), `  … ${50 - rows.length}개 더. getModelText(diagram) 로 읽으세요.`);
+});
+
+test("거절(REJECTED)된 관계의 경유점은 Ref 줄이 없으므로 글에도 나오지 않는다", () => {
+  const view = { ...VIEW, routes: [{ diagram: "d-all", relation: "r-5", points: [{ x: 7, y: 7 }] }, { diagram: "d-all", relation: "r-2", points: [{ x: 1, y: 2 }] }], presence: [ui("ui-a", "d-all")] };
+  const text = getModelText(view, STATUS, { diagram: "d-all" });
+  assert.equal(text.split("\n").filter((l) => l.startsWith("  via ")).length, 1);
+  assert.doesNotMatch(text, /\(7,7\)/);
+  const cur = formatCurrentView(view, NOW);
+  assert.doesNotMatch(cur, /\(7,7\)/);
+  assert.match(cur, /^경유점 기본\/전체 1개:$/m);
+});
+
+test("getModelText 크기: 경유점 줄이 상한 판단을 뒤집지 않고, 개요는 경유점이 있다고 알린다", () => {
+  const base = getModelText(VIEW, STATUS, { diagram: "d-menu" });
+  const withVia = getModelText(VIEW_ROUTES, STATUS, { diagram: "d-menu", limit: 100000 });
+  assert.ok(withVia.length > base.length);
+  // 기본 글은 들어가지만 경유점까지는 못 들어가는 상한: 개요로 떨어지지 않고, 경유점은 알림 한 줄로 바뀐다.
+  const tight = getModelText(VIEW_ROUTES, STATUS, { diagram: "d-menu", limit: withVia.length - 1 });
+  assert.ok(tight.length <= withVia.length - 1, `${tight.length}자`);
+  assert.ok(tight.startsWith(base.split("\n").slice(0, 1).join("\n")));
+  assert.match(tight, /^TB_MCM_SEC_MENU 메뉴 \{$/m); // 개요가 아니라 전체 글
+  assert.doesNotMatch(tight, /^ {2}via /m);
+  assert.match(tight, /^경유점 2개는 글이 길어 싣지 못했다\. tables 를 좁혀 부르면 Ref 줄 아래에 보인다\.$/m);
+  // 넉넉하면 경유점까지.
+  assert.equal(getModelText(VIEW_ROUTES, STATUS, { diagram: "d-menu", limit: withVia.length }), withVia);
+  // 기본 글도 못 들어가면 개요 + 경유점 알림.
+  const over = getModelText(VIEW_ROUTES, STATUS, { diagram: "d-menu", limit: base.length - 1 });
+  assert.match(over, /^개요만 보인다/m);
+  assert.match(over, /^경유점 2개는 이 개요에 없다\. tables 를 좁혀 부르면 Ref 줄 아래에 보인다\.$/m);
+  assert.doesNotMatch(getModelText(VIEW, STATUS, { diagram: "d-menu", limit: base.length - 1 }), /경유점/);
 });

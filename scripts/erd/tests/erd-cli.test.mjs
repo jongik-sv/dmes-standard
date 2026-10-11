@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { APPLIED_13, CONFLICT_REJECTION, DELTA_ME_13, DELTA_UI_11, STATUS, VIEW } from "./fixtures/erd-view.mjs";
-import { failure, gridSuccess, startFakeOasis, success } from "./fixtures/fake-oasis.mjs";
+import { failure, gridSuccess, startFakeOasis, success, withRoutes } from "./fixtures/fake-oasis.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLI = join(HERE, "..", "erd-cli.mjs");
@@ -136,7 +136,7 @@ test("사용 오류는 종료 코드 2 이고 서버를 부르지 않는다", as
       [["confirm", "--model", "mcm", "r-1", "--base-rev", "--apply"], /--base-rev 에 값이 없습니다/],
       [["text", "--model", "--json"], /--model 에 값이 없습니다/],
       // --apply 는 쓰기 명령에만 쓴다
-      [["text", "--model", "mcm", "--apply"], /--apply 는 apply·confirm·reject·undo 에만 씁니다\(text 는 읽기다\)/],
+      [["text", "--model", "mcm", "--apply"], /--apply 는 쓰기 명령\(apply·confirm·reject·undo·diagram-rename·diagram-delete·diagram-copy·register·import\)에만 씁니다\(text 는 읽기다\)/],
       [["changes", "--model", "mcm", "--since", "1", "--apply"], /\(changes 는 읽기다\)/],
       [["violations", "--model", "mcm", "--apply"], /\(violations 는 읽기다\)/],
       [["inferred", "--model", "mcm", "--apply"], /\(inferred 는 읽기다\)/],
@@ -187,7 +187,7 @@ test("undo: --rev·--session, 두 번째 되돌리기는 INVALID 로 1. claim �
     assert.deepEqual([exec.kind, exec.tableId, exec.session, exec.source, exec.dryRun], ["CLAIM", "t-menu", "cli-erd-mcp", "CLI", undefined]);
 
     const models = await cli(["models"], { env });
-    assert.equal(models.stdout, "# 모델 1개\nmcm mcm MCMAPUSER MCM · rev 12 · DRAFT 1.001 · 소유자 admin\n");
+    assert.equal(models.stdout, "# 모델 1개\nmcm mcm MCMAPUSER MCM · rev 12 · DRAFT 1.001 · 소유자 admin · 상태 - · 확정 확인 불가 · 만든 사람 -\n"); // 옛 서버 응답(새 칸 없음)도 깨지지 않는다
     const text = await cli(["text", "--model", "mcm", "--tables", "TB_MCM_SEC_OBJ"], { env });
     assert.match(text.stdout, /^# MCM 모델 \(MCMAPUSER\) ver 1\.000 DRAFT rev 12\nTB_MCM_SEC_OBJ 오브젝트 \{/);
     const changes = await cli(["changes", "--model", "mcm", "--since", "10", "--session", "ui-41000207"], { env });
@@ -307,4 +307,120 @@ test("CLI 는 MCP SDK·zod 를 import 하지 않는다(pnpm install 없이 돈�
   };
   walk(CLI);
   assert.ok(seen.size >= 5, [...seen].join(", ")); // erd-cli, flows, commands, results, model-text, oasis
+});
+
+test("경유점: apply 로 setRoute·clearRoutes 를 이름으로 보내고, text --diagram·changes 에 보인다", async () => {
+  const backend = withRoutes(makeRoute());
+  const fake = await startFakeOasis(backend);
+  const dir = mkdtempSync(join(tmpdir(), "erd-cli-"));
+  try {
+    const file = join(dir, "route.json");
+    const env = { ERD_BASE: fake.url, ERD_USER: "erd-mcp-b" };
+    const REL = "TB_MCM_SEC_MENU.OBJECT_ID > TB_MCM_SEC_OBJ.OBJECT_ID";
+    writeFileSync(file, JSON.stringify({ modelId: "mcm", baseRev: 12, commands: [{ op: "setRoute", diagram: "메뉴 화면", relation: REL, points: [{ x: 120, y: 40 }, { x: 120, y: 200 }] }] }));
+
+    const dry = await cli(["apply", "--model", "mcm", "--file", file], { env });
+    assert.equal(dry.code, 0, dry.stderr);
+    assert.deepEqual(backend.routes, []); // 시험 실행은 저장하지 않는다
+    const sent = JSON.parse(fake.requests.filter((r) => r.action === "save")[0].params.commandsJson);
+    assert.deepEqual(sent, [{ op: "setRoute", diagram: "d-menu", relation: "r-1", points: [{ x: 120, y: 40 }, { x: 120, y: 200 }] }]);
+
+    const applied = await cli(["apply", "--model", "mcm", "--file", file, "--apply"], { env });
+    assert.equal(applied.code, 0, applied.stderr);
+    assert.match(applied.stdout, /^반영 rev 13 \(baseRev 12\) · 변경 1 /m);
+    assert.match(applied.stdout, /^diagramRoute upsert 메뉴\/메뉴 화면:TB_MCM_SEC_MENU\.OBJECT_ID > TB_MCM_SEC_OBJ\.OBJECT_ID via \(120,40\) → \(120,200\)$/m);
+
+    const text = await cli(["text", "--model", "mcm", "--diagram", "메뉴 화면"], { env });
+    assert.match(text.stdout, /^Ref TB_MCM_SEC_MENU\.OBJECT_ID > TB_MCM_SEC_OBJ\.OBJECT_ID INFERRED .*\n {2}via \(120,40\) → \(120,200\)$/m);
+
+    const changes = await cli(["changes", "--model", "mcm", "--since", "12"], { env });
+    assert.match(changes.stdout, /diagramRoute upsert 메뉴\/메뉴 화면:TB_MCM_SEC_MENU\.OBJECT_ID > TB_MCM_SEC_OBJ\.OBJECT_ID via \(120,40\) → \(120,200\)/);
+
+    writeFileSync(file, JSON.stringify({ modelId: "mcm", baseRev: 13, commands: [{ op: "clearRoutes", diagram: "d-menu", relations: [REL, "r-3"] }] }));
+    const cleared = await cli(["apply", "--model", "mcm", "--file", file, "--apply"], { env });
+    assert.equal(cleared.code, 0, cleared.stderr);
+    assert.match(cleared.stdout, /^diagramRoute delete 메뉴\/메뉴 화면:TB_MCM_SEC_MENU\.OBJECT_ID > TB_MCM_SEC_OBJ\.OBJECT_ID$/m);
+    assert.deepEqual(backend.routes, []);
+
+    // points 모양(빈 목록)은 보내기 전에 막고, 이름 풀기 실패와 같이 save 없이 1
+    const saves = fake.requests.filter((r) => r.action === "save").length;
+    writeFileSync(file, JSON.stringify({ modelId: "mcm", baseRev: 14, commands: [{ op: "setRoute", diagram: "d-menu", relation: REL, points: [] }] }));
+    const empty = await cli(["apply", "--model", "mcm", "--file", file, "--apply"], { env });
+    assert.equal(empty.code, 1);
+    assert.match(empty.stdout, /^이름 풀기 실패 1건/);
+    assert.match(empty.stdout, /points "\[\]"/);
+    assert.equal(fake.requests.filter((r) => r.action === "save").length, saves);
+    writeFileSync(file, JSON.stringify({ modelId: "mcm", baseRev: 14, commands: [{ op: "setRoute", diagram: "d-menu", relation: "TB_MCM_SEC_MENU.X > TB_MCM_SEC_OBJ.OBJECT_ID", points: [{ x: 1, y: 1 }] }] }));
+    const unknown = await cli(["apply", "--model", "mcm", "--file", file], { env });
+    assert.equal(unknown.code, 1);
+    assert.match(unknown.stdout, /^이름 풀기 실패 1건/);
+    assert.equal(fake.requests.filter((r) => r.action === "save").length, saves);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    await fake.close();
+  }
+});
+
+test("경유점: 자동 배치 모양의 혼합 묶음(moveNodes + clearRoutes), 서버 거절 글, 일반 변경과 섞인 changes", async () => {
+  const REL = "TB_MCM_SEC_MENU.OBJECT_ID > TB_MCM_SEC_OBJ.OBJECT_ID";
+  const backend = withRoutes(makeRoute(), { routes: [{ diagram: "d-menu", relation: "r-1", points: [{ x: 5, y: 5 }] }, { diagram: "d-menu", relation: "r-3", points: [{ x: 6, y: 6 }] }] });
+  const fake = await startFakeOasis(backend);
+  const dir = mkdtempSync(join(tmpdir(), "erd-cli-"));
+  try {
+    const file = join(dir, "mixed.json");
+    const env = { ERD_BASE: fake.url, ERD_USER: "erd-mcp-b" };
+    writeFileSync(file, JSON.stringify({ modelId: "mcm", baseRev: 12, commands: [
+      { op: "moveNodes", diagram: "메뉴 화면", nodes: [{ table: "TB_MCM_SEC_OBJ", x: 10, y: 20 }] },
+      { op: "clearRoutes", diagram: "메뉴 화면", relations: [REL] },
+    ] }));
+    const mixed = await cli(["apply", "--model", "mcm", "--file", file, "--apply"], { env });
+    assert.equal(mixed.code, 0, mixed.stderr + mixed.stdout);
+    const sent = JSON.parse(fake.requests.filter((r) => r.action === "save")[0].params.commandsJson);
+    assert.deepEqual(sent, [
+      { op: "moveNodes", diagram: "d-menu", nodes: [{ table: "t-obj", x: 10, y: 20 }] },
+      { op: "clearRoutes", diagram: "d-menu", relations: ["r-1"] },
+    ]);
+    assert.deepEqual(backend.routes.map((r) => r.relation), ["r-3"]); // 경유점 명령은 묶음에 다른 명령이 있어도 반영된다
+    assert.match(mixed.stdout, /^diagramRoute delete 메뉴\/메뉴 화면:TB_MCM_SEC_MENU\.OBJECT_ID > TB_MCM_SEC_OBJ\.OBJECT_ID$/m);
+
+    // 일반 변경(rev 11·13)과 경유점(rev 13)이 한 changes 글에 rev 순으로 같이 나온다.
+    const changes = await cli(["changes", "--model", "mcm", "--since", "10"], { env });
+    const rows = changes.stdout.split("\n").filter((l) => l.startsWith("rev "));
+    assert.equal(rows.length, 3);
+    assert.match(rows[0], /^rev 11 .*table upsert/);
+    assert.match(changes.stdout, /^rev 13 .*diagramRoute delete /m);
+    assert.match(changes.stdout, /^rev 13 .*column upsert TB_MCM_SEC_MENU\.MENU_NM/m);
+
+    // 서버 거절(없는 관계·없는 다이어그램 = INVALID, 오래된 baseRev = CONFLICT)은 거절 글과 종료 코드 1
+    writeFileSync(file, JSON.stringify({ modelId: "mcm", baseRev: 13, commands: [{ op: "setRoute", diagram: "d-menu", relation: "r-zzz", points: [{ x: 1, y: 1 }] }] }));
+    const noRel = await cli(["apply", "--model", "mcm", "--file", file, "--apply"], { env });
+    assert.equal(noRel.code, 1);
+    assert.match(noRel.stdout, /^거절 INVALID · 명령 #1 setRoute r-zzz /m);
+    writeFileSync(file, JSON.stringify({ modelId: "mcm", baseRev: 13, commands: [{ op: "setRoute", diagram: "d-nope", relation: "r-1", points: [{ x: 1, y: 1 }] }] }));
+    const noDia = await cli(["apply", "--model", "mcm", "--file", file, "--apply"], { env });
+    assert.equal(noDia.code, 1);
+    assert.match(noDia.stdout, /^거절 INVALID /m);
+    // 걸린 관계가 없어 빈 목록이 온 clearRoutes 는 거절하지 않고 건너뛴다(저장한 것 없음, rev 그대로)
+    writeFileSync(file, JSON.stringify({ modelId: "mcm", baseRev: 13, commands: [{ op: "clearRoutes", diagram: "d-menu", relations: [] }] }));
+    const none = await cli(["apply", "--model", "mcm", "--file", file, "--apply"], { env });
+    assert.equal(none.code, 0, none.stdout + none.stderr);
+    assert.deepEqual(backend.routes.map((r) => r.relation), ["r-3"]);
+    writeFileSync(file, JSON.stringify({ modelId: "mcm", baseRev: 5, commands: [{ op: "setRoute", diagram: "d-menu", relation: "r-1", points: [{ x: 1, y: 1 }] }] }));
+    const stale = await cli(["apply", "--model", "mcm", "--file", file, "--apply"], { env });
+    assert.equal(stale.code, 1);
+    assert.match(stale.stdout, /^거절 CONFLICT /m);
+    assert.deepEqual(backend.routes.map((r) => r.relation), ["r-3"]); // 거절은 저장한 것이 없다
+
+    // 같은 묶음에서 만든 관계(id 없음)를 이름으로 꺾는다
+    writeFileSync(file, JSON.stringify({ modelId: "mcm", baseRev: 13, commands: [
+      { op: "addRelation", id: "r-fresh", child: "TB_MCM_SEC_MENU_FLD", parent: "TB_MCM_SEC_MENU", pairs: [["TB_MCM_SEC_MENU_FLD.MENU_ID", "TB_MCM_SEC_MENU.MENU_ID"]] },
+      { op: "setRoute", diagram: "d-menu", relation: "TB_MCM_SEC_MENU_FLD.MENU_ID > TB_MCM_SEC_MENU.MENU_ID", points: [{ x: 3, y: 3 }] },
+    ] }));
+    const fresh = await cli(["apply", "--model", "mcm", "--file", file, "--apply"], { env });
+    assert.equal(fresh.code, 0, fresh.stdout + fresh.stderr);
+    assert.deepEqual(backend.routes.map((r) => r.relation).sort(), ["r-3", "r-fresh"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    await fake.close();
+  }
 });

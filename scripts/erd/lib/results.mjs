@@ -3,7 +3,7 @@
 // 서버가 아직 싣지 않을 수 있는 칸(byUserId·rowVersion·dryRun·summary)은 없으면 null 로 읽는다(S2-1).
 import { describeTargets, modelOf, pickTableIds, tablesOfChange } from "./commands.mjs";
 import { isAuditColumn } from "./audit.mjs";
-import { fromRevHint, tableArgs } from "./model-text.mjs";
+import { fromRevHint, pointsText, tableArgs } from "./model-text.mjs";
 
 /** 쓰기·변경 결과 글 상한(S2-21). getModelText 의 TEXT_LIMIT(40,000)보다 작다 — 한글이 많아 같은 글자 수에 토큰이 더 든다. */
 export const WRITE_TEXT_LIMIT = 25000;
@@ -108,9 +108,19 @@ function propsText(c, before, rev) {
   return props.length ? ` (${props.join(", ")})` : "";
 }
 
-function changeText(c, labels, before, rev) {
+/** 한 델타에 경유점 설정이 이만큼 넘으면 점 목록 대신 점 수만 적는다(점 50개 × 여러 건이 한 줄 상한을 넘지 않게). */
+const ROUTE_FULL_MAX = 3;
+
+function changeText(c, labels, before, rev, brief = false) {
   let name = labels.get(c.id) ?? c.id;
   if (c.op === "delete" && name === c.id) name = `${c.id}(지움)`;
+  if (c.kind === "diagramRoute") {
+    // 지운 관계의 경유점(연쇄 삭제)은 이름을 못 풀어 r- id 가 남는다 — diagramNode 삭제와 같이 (지움)을 붙인다.
+    if (c.op === "delete" && /:r-[^:]+$/.test(name)) name = `${name}(지움)`;
+    const n = Array.isArray(c.value?.points) ? c.value.points.length : 0;
+    const via = c.op === "delete" ? "" : ` via ${brief && n ? `${n}점` : pointsText(c.value?.points)}`;
+    return `${c.kind} ${c.op} ${name}${via}`;
+  }
   return `${c.kind} ${c.op} ${name}${c.op === "delete" ? "" : propsText(c, before, rev)}`;
 }
 
@@ -157,6 +167,7 @@ export function changeLinesOf(changes, labels, before, rev) {
   }
   const done = new Set();
   const out = [];
+  const brief = changes.filter((c) => c.kind === "diagramRoute" && c.op === "upsert").length > ROUTE_FULL_MAX;
   for (const c of changes) {
     const t = fold(c);
     if (t && counts.get(t) >= 2) {
@@ -164,7 +175,7 @@ export function changeLinesOf(changes, labels, before, rev) {
         done.add(t);
         out.push(`column upsert ${labels.get(t) ?? t}.(감사 컬럼 ${counts.get(t)}개 추가)`);
       }
-    } else out.push(changeText(c, labels, before, rev));
+    } else out.push(changeText(c, labels, before, rev, brief));
   }
   return out;
 }
@@ -219,7 +230,7 @@ export function othersLine(others, baseRev, view) {
   const sessions = [...range].map(([s, r]) => `${s} rev ${r.min === r.max ? r.min : `${r.min}~${r.max}`}`).join(", ");
   const m = modelOf(view);
   const changes = ds.flatMap((d) => d.changes ?? []);
-  const tableIds = [...new Set(changes.flatMap((c) => tablesOfChange(m, c)))];
+  const tableIds = [...new Set(changes.flatMap((c) => tablesOfChange(m, c, changes)))];
   const labels = describeTargets(view, tableIds, changes);
   const names = [...new Set(tableIds.map((id) => labels.get(id)))].sort();
   const shown = names.slice(0, TABLES_IN_LINE).join(", ") + (names.length > TABLES_IN_LINE ? ` 외 ${names.length - TABLES_IN_LINE}개` : "");
@@ -412,7 +423,7 @@ export function formatChangesText(cv, ctx) {
     (d) =>
       (!ctx.session || d.session === ctx.session) &&
       !(ctx.excludeMine && d.session === ctx.mySession) &&
-      (!picked || (d.changes ?? []).some((c) => tablesOfChange(m, c).some((t) => picked.ids.has(t)))),
+      (!picked || (d.changes ?? []).some((c) => tablesOfChange(m, c, d.changes).some((t) => picked.ids.has(t)))),
   );
   const filters = [
     ctx.session ? `세션 ${ctx.session} 만` : null,

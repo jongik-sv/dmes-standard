@@ -102,7 +102,7 @@ test("목록 액션(search)은 grids.result.rows 로 읽는다", async () => {
 
 test("업무 오류·JSON 아닌 본문은 OasisError, 다음 할 일이 붙는다", async () => {
   const fake = await startFakeOasis((action) =>
-    action === "view" ? failure("MDM029", "ERD 모델이 없습니다") : action === "save" ? failure("MDM003", "DRAFT 소유자만 할 수 있습니다") : { status: 401, body: "Unauthorized" },
+    action === "view" ? failure("MDM029", "ERD 모델이 없습니다") : action === "save" ? failure("MDM003", "DRAFT 소유자만 할 수 있습니다") : action === "delete" ? failure("MDM003", "DRAFT 소유자만 할 수 있습니다: 확정·요청·승인된 버전(RELEASED 1.000)이 있는 모델은 관리자(MDM_STD_ADMIN·SYSADMIN)만 지울 수 있습니다") : { status: 401, body: "Unauthorized" },
   );
   try {
     const config = { ...configFromEnv({ ERD_BASE: fake.url }), timeoutMs: 2000 };
@@ -110,13 +110,18 @@ test("업무 오류·JSON 아닌 본문은 OasisError, 다음 할 일이 붙는�
     const e1 = await client.call("view", { modelId: "x" }).catch((e) => e);
     assert.ok(e1 instanceof OasisError);
     assert.equal(e1.code, "MDM029");
-    assert.match(describeError(e1, config), /^\[MDM029\] ERD 모델이 없습니다\n다음: modelId 를 확인하세요/);
+    assert.match(describeError(e1, config), /^\[MDM029\] ERD 모델이 없습니다\n다음: modelId 를 확인하세요\. 모델 목록은 models\(CLI\)·listModels\(MCP\)로 봅니다/);
     const e2 = await client.call("compare", { modelId: "x" }).catch((e) => e);
     assert.ok(e2 instanceof OasisError);
     assert.equal(e2.status, 401);
     assert.match(describeError(e2, config), /BACKEND_CLIENT_KEY/);
     // MDM002(DRAFT 아님)·MDM003(DRAFT 소유자 아님)은 늘 나는 경우와 경쟁(deferred 27 수정 뒤)이 같은 코드다. 상태를 보고 한 번만 다시 보내라고 한다.
     const e3 = await client.call("save", { modelId: "mcm" }).catch((e) => e);
+    // 모델 삭제(delete)의 MDM003 은 편집 안내가 아니라 서버의 이유 + 삭제 권한 안내다
+    const e4 = await client.call("delete", { modelId: "mcm", kind: "MODEL" }).catch((e) => e);
+    const t4 = describeError(e4, config);
+    assert.match(t4, /^\[MDM003\] DRAFT 소유자만 할 수 있습니다: 확정·요청·승인된 버전\(RELEASED 1\.000\)이 있는 모델은 관리자\(MDM_STD_ADMIN·SYSADMIN\)만 지울 수 있습니다\n다음: 모델 삭제는 관리자\(MDM_STD_ADMIN·SYSADMIN\)나 RELEASED·REQUESTED·APPROVED 버전이 하나도 없고 DRAFT 소유자일 때만 됩니다/);
+    assert.doesNotMatch(t4, /공동 편집자|getModelText/);
     assert.match(describeError(e3, config), /^\[MDM003\] .*\n다음: getModelText 머리줄로 DRAFT 인지 보고, .*다시 읽고 한 번만 다시 보내세요\. 아니면 사용자에게/);
   } finally {
     await fake.close();
@@ -137,4 +142,37 @@ test("닿지 못함·시간 초과는 OasisUnreachableError 이고 ERD_BASE 를 
   const down = await createOasisClient(closed).call("view", { modelId: "mcm" }).catch((e) => e);
   assert.ok(down instanceof OasisUnreachableError);
   assert.match(down.message, /127\.0\.0\.1:9 에 닿지 못했습니다\(erdEdit\/view\)/);
+});
+
+test("모델 삭제 거절(b2): MDM016 은 관리자 역할 안내, MDM001 은 잠시 뒤 다시, MDM029 는 지워졌을 수 있음. 코드가 있으면 HTTP 403 도 인증 거절로 오해하지 않는다", async () => {
+  const fake = await startFakeOasis((action, params) => {
+    if (params.modelId === "nodraft") return failure("MDM016", "표준 관리자 역할이 있어야 할 수 있습니다: DRAFT 가 없는 모델은 관리자(MDM_STD_ADMIN·SYSADMIN)만 지울 수 있습니다");
+    if (params.modelId === "busy") return failure("MDM001", "다른 사용자가 수정했습니다. 다시 불러오세요: 모델을 지우는 동안 작업 중 표시가 계속 들어옵니다. 잠시 뒤 다시 시도하세요");
+    if (params.modelId === "gone") return failure("MDM029", "ERD 모델이 없습니다");
+    if (params.modelId === "http403") return { status: 403, body: { meta: { success: false, code: "MDM003", message: "DRAFT 소유자만 할 수 있습니다: 모델 삭제는 DRAFT 소유자(a) 또는 관리자(MDM_STD_ADMIN·SYSADMIN)만 할 수 있습니다" } } };
+    return { status: 403, body: "Forbidden" };
+  });
+  try {
+    const config = { ...configFromEnv({ ERD_BASE: fake.url, ERD_USER: "u1", ERD_ROLE: "MDM_STEWARD" }), timeoutMs: 2000 };
+    const client = createOasisClient(config);
+    const text = async (modelId, action = "delete") => describeError(await client.call(action, { modelId, kind: "MODEL" }).catch((e) => e), config);
+    const t16 = await text("nodraft");
+    assert.match(t16, /^\[MDM016\] 표준 관리자 역할이 있어야 할 수 있습니다: DRAFT 가 없는 모델은 /);
+    assert.match(t16, /\n다음: DRAFT 가 없는 모델은 관리자\(MDM_STD_ADMIN·SYSADMIN\) 역할이 있어야 지울 수 있습니다\. 사용자\(u1\)·역할\(MDM_STEWARD\)/);
+    assert.doesNotMatch(t16, /공동 편집자|getModelText|입력을 고쳐/);
+    const t1 = await text("busy");
+    assert.match(t1, /^\[MDM001\] 다른 사용자가 수정했습니다\. 다시 불러오세요: 모델을 지우는 동안/);
+    assert.match(t1, /\n다음: 아무것도 지워지지 않았습니다\. 잠시 뒤 같은 삭제를 다시 하세요/);
+    assert.doesNotMatch(t1, /입력을 고쳐/);
+    const t29 = await text("gone");
+    assert.match(t29, /^\[MDM029\] ERD 모델이 없습니다\n다음: modelId 를 확인하세요\. 모델 목록은 models\(CLI\)·listModels\(MCP\)로 봅니다\. 이미 지워진 모델일 수 있습니다/);
+    // 실제 서버가 ACCESS_DENIED 업무 오류를 HTTP 403 으로 내도 meta.code 가 있으면 인증 오류가 아니다
+    const t403 = await text("http403");
+    assert.match(t403, /^\[MDM003\] DRAFT 소유자만 할 수 있습니다: 모델 삭제는 DRAFT 소유자\(a\)/);
+    assert.doesNotMatch(t403, /인증이 거절/);
+    // 코드 없는 403(client-key 거절)은 그대로 인증 안내
+    assert.match(await text("other"), /^인증이 거절되었습니다\(HTTP 403\)/);
+  } finally {
+    await fake.close();
+  }
 });

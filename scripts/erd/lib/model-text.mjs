@@ -170,13 +170,34 @@ function tableBlock(m, tid, rels, statuses, domains, audit = false) {
   return out.join("\n");
 }
 
-function refLine(m, r) {
-  const child = `${m.tables[r.child].phys}.${colsText(m, (r.pairs ?? []).map((p) => p[0]))}`;
+/** 관계 글 "자식표.컬럼 > 부모표.컬럼"(Ref 줄의 앞부분). */
+function relPlain(m, r) {
+  const child = `${m.tables[r.child]?.phys ?? "?"}.${colsText(m, (r.pairs ?? []).map((p) => p[0]))}`;
   const parent = r.parentRef
     ? `@${r.parentRef.model}`
     : `${m.tables[r.parent]?.phys ?? "?"}.${colsText(m, (r.pairs ?? []).map((p) => p[1]))}`;
+  return `${child} > ${parent}`;
+}
+
+function refLine(m, r) {
   const ev = evidenceText(r.evidence);
-  return `Ref ${child} > ${parent} ${r.state}${ev ? ` (${ev})` : ""}`;
+  return `Ref ${relPlain(m, r)} ${r.state}${ev ? ` (${ev})` : ""}`;
+}
+
+/** 경유점 목록 글: (x,y) → (x,y). max 를 주면 앞의 max 개만 보이고 나머지는 「… n점 더」. 정수가 아닌 점은 (?,?), 점이 없거나 배열이 아니면 (점 없음) — 값이 없는 것처럼 숨기지 않는다. */
+export function pointsText(points, max = Infinity) {
+  if (!Array.isArray(points) || points.length === 0) return "(점 없음)";
+  const text = points.slice(0, max).map((p) => (Number.isInteger(p?.x) && Number.isInteger(p?.y) ? `(${p.x},${p.y})` : "(?,?)")).join(" → ");
+  return points.length > max ? `${text} … ${points.length - max}점 더` : text;
+}
+
+/** 다이어그램 하나의 경유점: 관계 id → 점 목록 글. view.routes = [{diagram, relation, points}]. */
+function routesOf(view, diagramId, maxPoints = Infinity) {
+  const out = new Map();
+  for (const rt of view.routes ?? []) {
+    if (rt?.diagram === diagramId && typeof rt.relation === "string" && Array.isArray(rt.points) && rt.points.length) out.set(rt.relation, pointsText(rt.points, maxPoints));
+  }
+  return out;
 }
 
 /** 이름 목록을 budget 글자 안에서 잇는다. 넘치면 "외 n개". */
@@ -226,9 +247,10 @@ export function getModelText(view, status, opts = {}) {
   const headBase = `# ${String(m.info.module ?? view.modelId).toUpperCase()} 모델 (${m.info.schema ?? "-"}) ver ${view.ver} ${view.status} rev ${view.rev}`;
   const head = diagram ? `${headBase} 다이어그램 ${diagram.areaName}/${diagram.diagramName}` : headBase;
 
-  // Ref 줄과 그 양 끝 표.
+  // Ref 줄과 그 양 끝 표. diagram 을 주면 경유점이 있는 관계는 Ref 줄 아래에 "  via (x,y) → (x,y)" 줄을 붙인다.
+  const routes = diagram ? routesOf(view, diagram.id) : new Map();
   const refs = [];
-  for (const [, r] of rels) {
+  for (const [rid, r] of rels) {
     if (!m.tables[r.child]) continue;
     if (names.length) {
       if (!inSet.has(r.child) && !(r.parent && inSet.has(r.parent))) continue;
@@ -236,16 +258,26 @@ export function getModelText(view, status, opts = {}) {
       if (!inSet.has(r.child)) continue;
       if (diagram && !r.parentRef && !inSet.has(r.parent)) continue;
     }
-    refs.push({ line: refLine(m, r), child: r.child, parent: r.parent });
+    const via = routes.get(rid);
+    refs.push({ line: refLine(m, r), via: via ? `  via ${via}` : null, child: r.child, parent: r.parent });
   }
   refs.sort((a, b) => cmp(a.line, b.line));
   const blocks = new Map(ids.map((tid) => [tid, tableBlock(m, tid, rels, statuses, domains, opts.audit === true)]));
   const pre = [head];
   if (missing.length) pre.push(missingLine(m, scope, missing));
   if (ids.length === 0) pre.push("(표 없음)");
+  // 상한 판단은 경유점(via 줄) 없이 한다 — via 가 개요/전체 판정을 뒤집지 않는다. 경유점은 들어갈 때만 싣는다.
+  const refText = (r) => (r.via ? `${r.line}\n${r.via}` : r.line);
+  const nVia = refs.filter((r) => r.via).length;
   const full = [...pre, ...blocks.values(), ...refs.map((r) => r.line)].join("\n");
-  if (full.length <= limit) return full;
-  if (!names.length) return overview(m, ids, rels, statuses, { head, limit, size: full.length, diagram });
+  if (full.length <= limit) {
+    if (!nVia) return full;
+    const withVia = [...pre, ...blocks.values(), ...refs.map(refText)].join("\n");
+    if (withVia.length <= limit) return withVia;
+    const note = `경유점 ${nVia}개는 글이 길어 싣지 못했다. tables 를 좁혀 부르면 Ref 줄 아래에 보인다.`;
+    return full.length + 1 + note.length <= limit ? `${full}\n${note}` : full;
+  }
+  if (!names.length) return overview(m, ids, rels, statuses, { head, limit, size: full.length, diagram, routes: nVia });
 
   // tables 로 골랐는데도 넘친다: 들어가는 표까지만 싣는다.
   const reserve = Math.min(3000, Math.floor(limit / 4));
@@ -254,7 +286,7 @@ export function getModelText(view, status, opts = {}) {
   const keptRefs = new Set();
   for (const tid of ids) {
     const extra = refs.filter((r) => !keptRefs.has(r) && (r.child === tid || r.parent === tid));
-    const add = blocks.get(tid).length + 1 + extra.reduce((s, r) => s + r.line.length + 1, 0);
+    const add = blocks.get(tid).length + 1 + extra.reduce((s, r) => s + refText(r).length + 1, 0);
     if (used + add > limit - reserve) break;
     used += add;
     kept.push(tid);
@@ -289,12 +321,12 @@ export function getModelText(view, status, opts = {}) {
     ...pre,
     note + namesWithin(left, reserve - note.length - 50),
     ...kept.map((tid) => blocks.get(tid)),
-    ...refs.filter((r) => keptRefs.has(r)).map((r) => r.line),
+    ...refs.filter((r) => keptRefs.has(r)).map(refText),
   ].join("\n");
 }
 
 /** 전체 글이 상한을 넘을 때의 개요. 표 수·컬럼 수·관계 수와 표마다 컬럼 수·PK 를 준다. 그 자체도 limit 안에 맞춘다. */
-function overview(m, ids, rels, statuses, { head, limit, size, diagram }) {
+function overview(m, ids, rels, statuses, { head, limit, size, diagram, routes = 0 }) {
   const inSet = new Set(ids);
   const touching = rels.filter(([, r]) => inSet.has(r.child) || (r.parent && inSet.has(r.parent)));
   const byState = {};
@@ -322,6 +354,7 @@ function overview(m, ids, rels, statuses, { head, limit, size, diagram }) {
       '예: tables=["TB_MCM_SEC_MENU"]. 접두사는 끝에 * 를 붙인다(예: ["TB_MCM_SEC_*"]). Ref 줄은 고른 표가 자식이든 부모든 나온다.',
     `표 ${ids.length}개 · 컬럼 ${colCount}개 · 관계 ${touching.length}개(${stateText || "없음"}) · 기각 ${rejected}개 · 접힌 후보 ${folded}개(관계 수에 없음)`,
     `PK 없는 표 ${noPk.length}개${noPk.length ? `: ${namesWithin(noPk, Math.floor(limit / 8))}` : ""}`,
+    ...(routes ? [`경유점 ${routes}개는 이 개요에 없다. tables 를 좁혀 부르면 Ref 줄 아래에 보인다.`] : []),
     "표 목록(물리명 논리명 · 컬럼 수 · PK 컬럼 · FK 관계 수(이 표가 자식) · 참조됨(이 표가 부모) · 표준 위반 컬럼 수):",
   ];
   let used = lines.join("\n").length;
@@ -366,6 +399,13 @@ export function formatAt(at, opts = {}) {
   return `${iso} (${ago})`;
 }
 
+/** getCurrentView 가 다이어그램마다 적는 경유점 줄 수 상한. */
+const ROUTE_ROWS_MAX = 50;
+/** getCurrentView 경유점 한 줄에 보이는 점 수 상한. 넘으면 「… n점 더」. */
+const ROUTE_POINTS_MAX = 5;
+/** getCurrentView 경유점 블록(줄 글자 합, 줄바꿈 포함)의 대략 상한. 넘는 줄부터는 남은 개수만 알린다. */
+const ROUTE_CHARS_MAX = 4000;
+
 /** getCurrentView: 화면 세션(source=UI)마다 다이어그램과 선택한 표. session 을 주면 그 세션만. 시각은 지역 시각과 지난 시간. */
 export function formatCurrentView(view, opts = {}) {
   const m = modelOf(view);
@@ -384,6 +424,25 @@ export function formatCurrentView(view, opts = {}) {
       return t ? (t.logical ? `${t.phys} ${t.logical}` : t.phys) : `${id}(모델에 없음)`;
     });
     lines.push(`- ${p.session} (${p.userId}) ${where} · 선택 ${sel.length}개${sel.length ? `: ${sel.join(", ")}` : ""} · 마지막 알림 ${formatAt(p.at, opts)}`);
+  }
+  // 경유점: 다이어그램마다 한 번(세션이 여럿이어도), 줄 수 상한 안에서.
+  const seen = new Set();
+  for (const p of ui) {
+    const d = (view.diagrams ?? []).find((x) => x.id === p.diagramId);
+    if (!d || seen.has(d.id)) continue;
+    seen.add(d.id);
+    const routes = routesOf(view, d.id, ROUTE_POINTS_MAX);
+    const rows = Object.entries(m.relations)
+      .filter(([rid, r]) => routes.has(rid) && isShown(r))
+      .map(([rid, r]) => `  ${relPlain(m, r)}: ${routes.get(rid)}`)
+      .sort(cmp);
+    if (!rows.length) continue;
+    // 줄 수(50)와 글자 수(약 4,000)가 먼저 닿는 쪽까지만 싣는다. 첫 줄은 항상 싣는다.
+    let chars = 0;
+    let shown = 0;
+    while (shown < rows.length && shown < ROUTE_ROWS_MAX && (shown === 0 || chars + rows[shown].length + 1 <= ROUTE_CHARS_MAX)) chars += rows[shown++].length + 1;
+    lines.push(`경유점 ${d.areaName}/${d.diagramName} ${rows.length}개:`, ...rows.slice(0, shown));
+    if (rows.length > shown) lines.push(`  … ${rows.length - shown}개 더. getModelText(diagram) 로 읽으세요.`);
   }
   return lines.join("\n");
 }

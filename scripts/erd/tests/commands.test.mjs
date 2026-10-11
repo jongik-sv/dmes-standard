@@ -166,3 +166,131 @@ test("newId 는 서버 요소 id 규칙을 지킨다", () => {
     }
   }
 });
+
+test("setRoute·clearRoutes: 다이어그램과 관계를 이름이나 id 로 가리킨다", () => {
+  const { commands, errors } = resolveCommands(VIEW, [
+    { op: "setRoute", diagram: "메뉴 화면", relation: "TB_MCM_SEC_MENU.OBJECT_ID > TB_MCM_SEC_OBJ.OBJECT_ID", points: [{ x: 1, y: 2 }, { x: 3, y: 4 }] },
+    { op: "setRoute", diagram: "d-all", relation: "r-2", points: [{ x: 5, y: 6 }] },
+    { op: "setRoute", diagram: "기본/전체", relation: "Ref TB_MCM_SEC_USER_FAVORITE.USER_ID > TB_MCM_SEC_USER.USER_ID CONFIRMED (DOC csa-menu.dbml:512)", points: [{ x: 0, y: 0 }] },
+    { op: "clearRoutes", diagram: "메뉴/메뉴 화면", relations: ["TB_MCM_SEC_MENU.OBJECT_ID > TB_MCM_SEC_OBJ.OBJECT_ID", "r-3"] },
+  ]);
+  assert.deepEqual(errors, []);
+  assert.deepEqual(commands.map((c) => [c.diagram, c.relation ?? c.relations]), [
+    ["d-menu", "r-1"], ["d-all", "r-2"], ["d-all", "r-2"], ["d-menu", ["r-1", "r-3"]],
+  ]);
+  assert.deepEqual(commands[0].points, [{ x: 1, y: 2 }, { x: 3, y: 4 }]); // 점은 그대로
+});
+
+test("setRoute·clearRoutes: 없는 관계·다이어그램은 칸 이름과 가까운 후보를 알린다", () => {
+  const { errors } = resolveCommands(VIEW, [
+    { op: "setRoute", diagram: "없는 화면", relation: "r-1", points: [{ x: 1, y: 1 }] },
+    { op: "setRoute", diagram: "d-all", relation: "TB_MCM_SEC_MENU.NOPE > TB_MCM_SEC_OBJ.OBJECT_ID", points: [{ x: 1, y: 1 }] },
+    { op: "clearRoutes", diagram: "d-all", relations: ["r-1", "TB_MCM_SEC_USER_FAVORITE.USER_ID > TB_MCM_SEC_USER.NOPE"] },
+  ]);
+  assert.deepEqual(errors.map((e) => [e.index, e.field, e.message.split(".")[0]]), [
+    [0, "diagram", "다이어그램을 찾을 수 없습니다: 없는 화면"],
+    [1, "relation", "없는 관계입니다"],
+    [2, "relations[1]", "없는 관계입니다"],
+  ]);
+  assert.ok(errors[1].near.length > 0);
+});
+
+test("묶음 안에서 만든 관계(id 없음·있음)를 같은 묶음의 setRoute·clearRoutes 가 이름으로 가리킨다", () => {
+  const { commands, errors } = resolveCommands(VIEW, [
+    { op: "addTable", phys: "TB_NEW_CHILD", logical: "새 자식" },
+    { op: "addColumn", table: "TB_NEW_CHILD", phys: "MENU_ID" },
+    { op: "addRelation", child: "TB_NEW_CHILD", parent: "TB_MCM_SEC_MENU", pairs: [["TB_NEW_CHILD.MENU_ID", "TB_MCM_SEC_MENU.MENU_ID"]] },
+    { op: "addRelation", id: "r-fresh", child: "TB_MCM_SEC_MENU_FLD", parent: "TB_MCM_SEC_MENU", pairs: [["TB_MCM_SEC_MENU_FLD.MENU_ID", "TB_MCM_SEC_MENU.MENU_ID"]] },
+    { op: "setRoute", diagram: "d-all", relation: "TB_NEW_CHILD.MENU_ID > TB_MCM_SEC_MENU.MENU_ID", points: [{ x: 9, y: 9 }] },
+    { op: "setRoute", diagram: "d-all", relation: "r-fresh", points: [{ x: 9, y: 9 }] },
+    { op: "clearRoutes", diagram: "d-all", relations: ["TB_MCM_SEC_MENU_FLD.MENU_ID > TB_MCM_SEC_MENU.MENU_ID"] },
+  ], { newId: ids });
+  assert.deepEqual(errors, []);
+  assert.equal(commands[4].relation, commands[2].id); // 자동 id 로 풀렸다
+  assert.match(commands[2].id, /^r-new\d+$/);
+  assert.equal(commands[5].relation, "r-fresh");
+  assert.deepEqual(commands[6].relations, ["r-fresh"]);
+  // 모델에 이미 같은 글의 관계가 있으면 모호하다고 알린다(같은 묶음의 새 관계도 후보에 든다).
+  const dup = resolveCommands(VIEW, [
+    { op: "addRelation", id: "r-copy", child: "TB_MCM_SEC_MENU", parent: "TB_MCM_SEC_OBJ", pairs: [["TB_MCM_SEC_MENU.OBJECT_ID", "TB_MCM_SEC_OBJ.OBJECT_ID"]] },
+    { op: "setRoute", diagram: "d-all", relation: "TB_MCM_SEC_MENU.OBJECT_ID > TB_MCM_SEC_OBJ.OBJECT_ID", points: [{ x: 1, y: 1 }] },
+  ]);
+  assert.deepEqual(dup.errors.map((e) => [e.index, e.field, e.message]), [[1, "relation", "같은 글의 관계가 여러 개입니다. r- id 로 고르세요"]]);
+  assert.deepEqual(dup.errors[0].near, ["r-1(INFERRED)", "r-copy(CONFIRMED)"]);
+});
+
+test("setRoute·clearRoutes: 모호한 관계 글은 칸 이름(relation, relations[1])과 후보를 알린다", () => {
+  const v = viewWith({ relations: { ...MODEL.relations, "r-dup": { ...MODEL.relations["r-1"], state: "CONFIRMED" } } });
+  const { errors } = resolveCommands(v, [
+    { op: "setRoute", diagram: "d-all", relation: "TB_MCM_SEC_MENU.OBJECT_ID > TB_MCM_SEC_OBJ.OBJECT_ID", points: [{ x: 1, y: 1 }] },
+    { op: "clearRoutes", diagram: "d-all", relations: ["r-3", "TB_MCM_SEC_MENU.OBJECT_ID > TB_MCM_SEC_OBJ.OBJECT_ID"] },
+  ]);
+  assert.deepEqual(errors.map((e) => [e.index, e.field, e.message]), [
+    [0, "relation", "같은 글의 관계가 여러 개입니다. r- id 로 고르세요"],
+    [1, "relations[1]", "같은 글의 관계가 여러 개입니다. r- id 로 고르세요"],
+  ]);
+  assert.deepEqual(errors[0].near, ["r-1(INFERRED)", "r-dup(CONFIRMED)"]);
+});
+
+test("setRoute 에 relation 이 없거나 clearRoutes 의 relations 가 배열이 아니면 바로 오류", () => {
+  const { errors } = resolveCommands(VIEW, [
+    { op: "setRoute", diagram: "d-all", points: [{ x: 1, y: 1 }] },
+    { op: "clearRoutes", diagram: "d-all", relations: "r-1" },
+    { op: "clearRoutes", diagram: "d-all" },
+  ]);
+  assert.deepEqual(errors.map((e) => [e.index, e.field]), [[0, "relation"], [1, "relations"], [2, "relations"]]);
+  assert.match(errors[0].message, /relation 이 필요합니다/);
+  assert.match(errors[1].message, /relations 는 관계 목록/);
+});
+
+test("pairs 없는 같은 묶음 addRelation 은 색인하지 않아 글로 못 찾고, 오류 near 에 pairs·r- id 안내가 붙는다", () => {
+  const { errors } = resolveCommands(VIEW, [
+    { op: "addRelation", id: "r-nop", child: "TB_MCM_SEC_MENU_FLD", parent: "TB_MCM_SEC_MENU" },
+    { op: "setRoute", diagram: "d-all", relation: "TB_MCM_SEC_MENU_FLD.MENU_ID > TB_MCM_SEC_MENU.MENU_ID", points: [{ x: 1, y: 1 }] },
+    { op: "clearRoutes", diagram: "d-all", relations: ["r-nop"] }, // r- id 로는 가리킨다
+  ]);
+  assert.deepEqual(errors.map((e) => [e.index, e.field, e.message]), [[1, "relation", "없는 관계입니다"]]);
+  assert.ok(errors[0].near.includes("addRelation 에 pairs 를 주거나 r- id 로 가리키세요"));
+  // 빈 pairs 도 같다. 그리고 pairless 가 없으면 안내를 붙이지 않는다.
+  const empty = resolveCommands(VIEW, [
+    { op: "addRelation", child: "TB_MCM_SEC_MENU_FLD", parent: "TB_MCM_SEC_MENU", pairs: [] },
+    { op: "setRoute", diagram: "d-all", relation: "TB_MCM_SEC_MENU_FLD.MENU_ID > TB_MCM_SEC_MENU.MENU_ID", points: [{ x: 1, y: 1 }] },
+  ]);
+  assert.ok(empty.errors[0].near.some((n) => n.includes("pairs 를 주거나")));
+  const plain = resolveCommands(VIEW, [{ op: "setRoute", diagram: "d-all", relation: "TB_MCM_SEC_MENU_FLD.NOPE > TB_MCM_SEC_MENU.MENU_ID", points: [{ x: 1, y: 1 }] }]);
+  assert.ok(!plain.errors[0].near.some((n) => n.includes("pairs 를 주거나")));
+});
+
+test("setRoute points 모양은 서버로 보내기 전에 검사한다(배열 1~50개, 정수 x·y 객체)", () => {
+  const bad = (points) => resolveCommands(VIEW, [{ op: "setRoute", diagram: "d-all", relation: "r-1", points }]).errors;
+  for (const points of [undefined, null, "x", {}, []]) {
+    const e = bad(points);
+    assert.equal(e.length, 1, JSON.stringify(points));
+    assert.equal(e[0].field, "points");
+    assert.match(e[0].message, /1~50개/);
+  }
+  assert.equal(bad(Array.from({ length: 51 }, (_, i) => ({ x: i, y: i })))[0].field, "points");
+  const e = bad([{ x: 1, y: 2 }, { x: 1.5, y: 2 }, null, { x: "3", y: 4 }, [1, 2], { x: 1 }]);
+  assert.deepEqual(e.map((x) => x.field), ["points[1]", "points[2]", "points[3]", "points[4]", "points[5]"]);
+  assert.match(e[0].message, /정수 x, y/);
+  assert.deepEqual(bad(Array.from({ length: 50 }, (_, i) => ({ x: i, y: -i }))), []); // 50개·음수 정수는 통과
+  assert.deepEqual(bad([{ x: 0, y: 0 }]), []);
+});
+
+test("이름표·표 거르기: diagramRoute 델타", () => {
+  const labels = describeTargets(VIEW, ["d-menu:r-1", "d-menu:r-gone", "d-new:r-n"], [
+    { kind: "relation", id: "r-n", op: "upsert", value: { ...MODEL.relations["r-2"] } },
+  ]);
+  assert.deepEqual([...labels.values()], [
+    "메뉴/메뉴 화면:TB_MCM_SEC_MENU.OBJECT_ID > TB_MCM_SEC_OBJ.OBJECT_ID",
+    "메뉴/메뉴 화면:r-gone",
+    "d-new:TB_MCM_SEC_USER_FAVORITE.USER_ID > TB_MCM_SEC_USER.USER_ID",
+  ]);
+  const m = modelOf(VIEW);
+  assert.deepEqual(tablesOfChange(m, { kind: "diagramRoute", id: "d-menu:r-1", op: "upsert", value: { diagram: "d-menu", relation: "r-1", points: [] } }), ["t-menu", "t-obj"]);
+  assert.deepEqual(tablesOfChange(m, { kind: "diagramRoute", id: "d-all:r-2", op: "delete", value: null }), ["t-fav", "t-user"]);
+  assert.deepEqual(tablesOfChange(m, { kind: "diagramRoute", id: "d-all:r-none", op: "delete", value: null }), []);
+  // 같은 변경 목록에서 새로 만든 관계의 경유점은 그 upsert 값으로 표를 안다.
+  const rel = { kind: "relation", id: "r-n", op: "upsert", value: { ...MODEL.relations["r-2"] } };
+  assert.deepEqual(tablesOfChange(m, { kind: "diagramRoute", id: "d-all:r-n", op: "upsert", value: { diagram: "d-all", relation: "r-n", points: [] } }, [rel]), ["t-fav", "t-user"]);
+});

@@ -8,6 +8,8 @@ import { findDiagram } from "./model-text.mjs";
 /** 서버 ErdIds 의 요소 id 규칙. */
 export const ELEMENT_ID = /^[a-z]-[0-9a-zA-Z-]{1,48}$/;
 const NEAR = 5;
+/** setRoute points 개수 상한(서버 MAX_POINTS). */
+const MAX_ROUTE_POINTS = 50;
 
 /** 새 요소 id. prefix 는 "t-"·"c-"·"k-"·"r-"·"d-". randomUUID 는 36글자라 규칙의 48글자 안이다. */
 export function newId(prefix) {
@@ -73,7 +75,9 @@ function indexOf(view) {
     if (k.name) keys.set(up(k.name), [...(keys.get(up(k.name)) ?? []), id]);
     if (k.kind === "PK") pks.set(k.table, id);
   }
-  return { view: { ...(view ?? {}), diagrams: [...(view?.diagrams ?? [])] }, m, tables, tablePhys, columns, keys, pks };
+  // m 은 modelOf 가 캐시한 객체라 같은 묶음의 새 요소(remember)를 더하려면 복사본이어야 한다.
+  const mine = { ...m, tables: { ...m.tables }, columns: { ...m.columns }, relations: { ...m.relations } };
+  return { view: { ...(view ?? {}), diagrams: [...(view?.diagrams ?? [])] }, m: mine, tables, tablePhys, columns, keys, pks, pairless: new Set() };
 }
 
 function table(ix, value) {
@@ -109,6 +113,8 @@ function side(text) {
   return cols.length ? { table: dropSchema(mt[1].trim()), cols } : null;
 }
 
+const PAIRLESS_HINT = "addRelation 에 pairs 를 주거나 r- id 로 가리키세요";
+
 function relation(ix, value) {
   if (typeof value !== "string" || !value.trim()) return { error: "관계 글이나 r- id 가 비었습니다", near: [] };
   if (isId(value, "r-")) return { id: value };
@@ -142,6 +148,8 @@ function relation(ix, value) {
     .map(([id, r]) => `${id} ${relText(m, r)}`)
     .sort()
     .slice(0, NEAR);
+  // 같은 묶음의 addRelation 이 pairs 없이 와서 색인하지 못한 관계가 있으면 그 탓일 수 있다 — 안내를 덧붙인다.
+  if (ix.pairless.size) near.push(PAIRLESS_HINT);
   return { error: "없는 관계입니다", near };
 }
 
@@ -173,7 +181,7 @@ function diagram(ix, value) {
 }
 
 /** 새 요소를 만드는 명령과 id 앞글자. id 를 주지 않으면 newId 로 만든다. */
-const NEW_PREFIX = { addTable: "t-", addColumn: "c-", addKey: "k-", addRelation: "r-", addDiagram: "d-" };
+const NEW_PREFIX = { addTable: "t-", addColumn: "c-", addKey: "k-", addRelation: "r-", addDiagram: "d-", copyDiagram: "d-" };
 /** 기존 요소를 id 칸으로 가리키는 명령과 그 요소 종류. */
 const ID_OF = {
   updateTable: table, deleteTable: table,
@@ -185,20 +193,33 @@ const ID_OF = {
 
 /**
  * 해석한 새 요소를 색인에 더한다. 같은 묶음의 뒤 명령이 물리명으로 가리킬 수 있다.
- * 알려진 한계: 같은 묶음 안의 이름 바꾸기(set.phys·updateDiagram 의 이름), setPrimaryKey, 같은 묶음에서 만든
- * 관계 글은 색인에 반영하지 않는다. 그런 것은 id 로 가리키거나 묶음을 나눈다.
+ * 같은 묶음의 addRelation 도 색인에 든다 — 뒤 명령이 "자식표.컬럼 > 부모표.컬럼" 으로 가리킬 수 있다.
+ * 알려진 한계: 같은 묶음 안의 이름 바꾸기(set.phys·updateDiagram 의 이름), setPrimaryKey 는 색인에 반영하지 않는다.
+ * 그런 것은 id 로 가리키거나 묶음을 나눈다.
  */
 function remember(ix, cmd) {
   if (cmd.op === "addTable" && typeof cmd.phys === "string") {
     ix.tables.set(up(cmd.phys), cmd.id);
     ix.tablePhys.set(cmd.id, cmd.phys);
+    // 의도적으로 최소 항목이다 — 이름 해석(table·column·relText)이 읽는 phys 만 있다. logical·schema·PK/키 정보·컬럼 목록은 없으므로
+    // 소비자(table(), column(), relText, describeTargets)는 phys 외의 값에 기대면 안 된다. 필요한 값이 늘면 여기서 함께 채운다.
+    ix.m.tables[cmd.id] = { phys: cmd.phys };
   } else if (cmd.op === "addColumn" && typeof cmd.phys === "string") {
     const tp = ix.tablePhys.get(cmd.table);
     if (tp != null) ix.columns.set(`${up(tp)}.${up(cmd.phys)}`, cmd.id);
+    ix.m.columns[cmd.id] = { table: cmd.table, phys: cmd.phys };
+  } else if (cmd.op === "addRelation" && typeof cmd.id === "string") {
+    // 관계 글("자식.컬럼 > 부모.컬럼")로 가리킬 수 있게 이름 해석용 최소 항목을 넣는다(pairs 는 이미 컬럼 id 로 풀린 값).
+    // pairs 가 없거나 비면 글이 "자식. > 부모." 꼴이라 글로는 못 가리킨다 — 색인하지 않고(r- id 로는 가리킬 수 있다) 기억만 해 둔다.
+    if (!Array.isArray(cmd.pairs) || cmd.pairs.length === 0) {
+      ix.pairless.add(cmd.id);
+      return;
+    }
+    ix.m.relations[cmd.id] = { child: cmd.child, parent: cmd.parent ?? null, pairs: cmd.pairs, parentRef: cmd.parentRef ?? null, state: cmd.state ?? "CONFIRMED" };
   } else if (cmd.op === "addKey" && typeof cmd.name === "string") {
     ix.keys.set(up(cmd.name), [...(ix.keys.get(up(cmd.name)) ?? []), cmd.id]);
     if (cmd.kind === "PK" && typeof cmd.table === "string") ix.pks.set(cmd.table, cmd.id);
-  } else if (cmd.op === "addDiagram") {
+  } else if (cmd.op === "addDiagram" || cmd.op === "copyDiagram") {
     ix.view.diagrams.push({ id: cmd.id, areaName: cmd.areaName, diagramName: cmd.diagramName });
   }
 }
@@ -209,7 +230,8 @@ function remember(ix, cmd) {
  * - 컬럼: id(컬럼 명령)·columns[]·updateKey 의 set.columns[]·pairs[][] — c- id 또는 "표.컬럼". parentRef 가 있으면 pairs 의 부모 쪽은 그대로 둔다
  * - 관계: id(관계 명령) — r- id 또는 "자식표.컬럼 > 부모표.컬럼"
  * - 키: id(키 명령) — k- id, 키 이름, "표:PK"
- * - 다이어그램: diagram·id(다이어그램 명령) — d- id, "업무영역/이름", 이름(유일할 때)
+ * - 다이어그램: diagram·id(다이어그램 명령)·copyDiagram 의 from — d- id, "업무영역/이름", 이름(유일할 때). copyDiagram 의 id 는 새 d- id(빼면 만든다)
+ * - 경유점: setRoute 의 diagram·relation, clearRoutes 의 diagram·relations[] — 위의 다이어그램·관계 규칙. 같은 묶음의 addRelation 이 만든 관계도 글로 가리킬 수 있다.
  * id 모양(t-·c-·…)의 값은 있는지 보지 않고 그대로 보낸다. 지운 요소면 서버가 누가 언제 지웠는지 NOT_FOUND 로 알려 준다.
  * 모르는 op 는 고치지 않고 보낸다(서버 ErdStrictReader 가 판정한다).
  * @returns {{ commands: object[], errors: { index: number, field: string, value: string, message: string, near: string[] }[] }}
@@ -253,6 +275,27 @@ export function resolveCommands(view, commands, { newId: makeId = newId } = {}) 
       });
     }
     fix(cmd, "diagram", diagram, "diagram");
+    if (op === "copyDiagram") fix(cmd, "from", diagram, "from"); // README 7.2: 복사 원본
+    // 경유점 명령(README 7.1): setRoute 의 relation, clearRoutes 의 relations[] — r- id 또는 "자식표.컬럼 > 부모표.컬럼".
+    if (op === "setRoute") {
+      if (cmd.relation === null || cmd.relation === undefined) fail("relation", "", { error: "relation 이 필요합니다(관계 글이나 r- id)", near: [] });
+      else fix(cmd, "relation", relation, "relation");
+      // points 모양은 서버가 INVALID 로 거절하지만, 보내기 전에 칸 이름과 함께 알린다(서버: 1~50개, 정수 x·y).
+      const pts = cmd.points;
+      if (!Array.isArray(pts) || pts.length < 1 || pts.length > MAX_ROUTE_POINTS) {
+        fail("points", pts ?? "", { error: `points 는 정수 x, y 를 가진 점 1~${MAX_ROUTE_POINTS}개의 배열이어야 합니다`, near: [] });
+      } else {
+        pts.forEach((p, i) => {
+          if (!p || typeof p !== "object" || Array.isArray(p) || !Number.isInteger(p.x) || !Number.isInteger(p.y)) {
+            fail(`points[${i}]`, p ?? "", { error: "점은 정수 x, y 를 가진 객체여야 합니다(예: {\"x\":120,\"y\":40})", near: [] });
+          }
+        });
+      }
+    }
+    if (op === "clearRoutes") {
+      if (!Array.isArray(cmd.relations)) fail("relations", cmd.relations ?? "", { error: "relations 는 관계 목록(배열)이어야 합니다(관계 글이나 r- id)", near: [] });
+      else fixList(cmd.relations, relation, "relations");
+    }
     if (errors.length === before) remember(ix, cmd);
     out.push(cmd);
   });
@@ -294,7 +337,7 @@ export function pickTableIds(view, names) {
 }
 
 /** 델타 한 건이 건드린 표 id. 지운 요소는 m(지우기 전 모델)에서 찾는다. */
-export function tablesOfChange(m, ch) {
+export function tablesOfChange(m, ch, changes = []) {
   const v = ch?.value ?? null;
   switch (ch?.kind) {
     case "table":
@@ -309,6 +352,13 @@ export function tablesOfChange(m, ch) {
     }
     case "diagramNode":
       return [String(ch.id).split(":")[1]].filter(Boolean);
+    case "diagramRoute": {
+      const rid = v?.relation ?? String(ch.id).split(":")[1];
+      // 같은 변경 목록에서 새로 만든 관계는 그 upsert 값으로 표를 안다(지운 관계의 연쇄 삭제 경유점은 어느 쪽에도 없어 못 찾는다).
+      const made = changes.find((c) => c?.kind === "relation" && c.op === "upsert" && c.id === rid)?.value;
+      const r = m.relations[rid] ?? made ?? null;
+      return r ? [r.child, r.parent].filter(Boolean) : [];
+    }
     default:
       return [];
   }
@@ -316,7 +366,7 @@ export function tablesOfChange(m, ch) {
 
 /**
  * 요소 id → 사람이 읽는 이름: 표 "TB_X", 컬럼 "TB_X.COL", 키 "TB_X:PK"·"TB_X:키이름", 관계 "TB_X.COL > TB_Y.COL",
- * 다이어그램 "업무영역/이름", 다이어그램 노드 "업무영역/이름:TB_X". 모르는 id 는 그대로 둔다.
+ * 다이어그램 "업무영역/이름", 다이어그램 노드 "업무영역/이름:TB_X", 관계 경유점 "업무영역/이름:자식표.컬럼 > 부모표.컬럼". 모르는 id 는 그대로 둔다.
  * changes(델타의 upsert 값)를 주면 그 값을 먼저 쓴다 — 새로 만든 요소와 이름을 바꾼 요소도 이름이 나온다.
  * @returns {Map<string, string>}
  */
@@ -348,6 +398,11 @@ export function describeTargets(view, ids, changes = []) {
     if (diagrams.has(id)) return diagrams.get(id);
     const node = /^(d-[^:]+):(t-.+)$/.exec(id);
     if (node) return `${diagrams.get(node[1]) ?? node[1]}:${tp(node[2]) ?? node[2]}`;
+    const route = /^(d-[^:]+):(r-.+)$/.exec(id);
+    if (route) {
+      const r = m.relations[route[2]];
+      return `${diagrams.get(route[1]) ?? route[1]}:${r ? relText(m, r) : route[2]}`;
+    }
     return id;
   };
   return new Map(ids.map((id) => [id, label(id)]));

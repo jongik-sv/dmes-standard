@@ -9,7 +9,7 @@ import {
   formatResolveErrors,
   formatWriteResult,
 } from "../lib/results.mjs";
-import { APPLIED_13, CONFLICT_REJECTION, DELTA_ME_13, DELTA_UI_11, MODEL, VIEW } from "./fixtures/erd-view.mjs";
+import { APPLIED_13, CONFLICT_REJECTION, DELTA_ME_13, DELTA_UI_11, MODEL, VIEW, VIEW_ROUTES } from "./fixtures/erd-view.mjs";
 
 const KST = { offsetMin: 540 };
 const UPDATE = [{ op: "updateColumn", id: "c-m3", set: { logical: "메뉴이름" } }];
@@ -255,4 +255,68 @@ test("사용자·세션·출처가 없는 델타도 undefined·null 을 글에 �
   assert.match(out.text, /^rev 14 \?\/\? \?: column upsert TB_MCM_SEC_MENU\.MENU_NM/m);
   const line = formatWriteResult(APPLIED_13, ctx({ others: { reload: false, deltas: [bare] } })).text;
   assert.doesNotMatch(line, /undefined|null/);
+});
+
+const ROUTE_SET = { kind: "diagramRoute", id: "d-menu:r-1", op: "upsert", value: { diagram: "d-menu", relation: "r-1", points: [{ x: 120, y: 40 }, { x: 120, y: 200 }] } };
+const ROUTE_CLEAR = { kind: "diagramRoute", id: "d-menu:r-3", op: "delete", value: null };
+const ROUTE_DELTA = { modelId: "mcm", rev: 14, userId: "41000207", session: "claude-test", source: "MCP", rowVersion: null, changes: [ROUTE_SET, ROUTE_CLEAR] };
+
+test("getChangesSince 글: diagramRoute 는 diagramNode 처럼 다이어그램:이름으로, 설정은 via 점, 지움은 delete", () => {
+  const { text } = formatChangesText({ rev: 14, reload: false, deltas: [ROUTE_DELTA] }, { view: VIEW, sinceRev: 13, mySession: "x" });
+  assert.equal(
+    text,
+    [
+      "# rev 13 이후 변경 1건 (현재 rev 14)",
+      "rev 14 41000207/claude-test MCP: diagramRoute upsert 메뉴/메뉴 화면:TB_MCM_SEC_MENU.OBJECT_ID > TB_MCM_SEC_OBJ.OBJECT_ID via (120,40) → (120,200), " +
+        "diagramRoute delete 메뉴/메뉴 화면:TB_MCM_SEC_USER_FAVORITE.MENU_ID > TB_MCM_SEC_MENU.MENU_ID",
+      "다음 baseRev: 14",
+    ].join("\n"),
+  );
+  // 표 거르기: 관계의 양 끝 표로 거른다.
+  const picked = formatChangesText({ rev: 14, reload: false, deltas: [ROUTE_DELTA] }, { view: VIEW, sinceRev: 13, mySession: "x", tables: ["TB_MCM_SEC_OBJ"] }).text;
+  assert.match(picked, /보인 것 1건/);
+  const none = formatChangesText({ rev: 14, reload: false, deltas: [ROUTE_DELTA] }, { view: VIEW, sinceRev: 13, mySession: "x", tables: ["TB_MCM_SEC_WIDGET*"] }).text;
+  assert.match(none, /보인 것 0건/);
+});
+
+test("반영 글: setRoute·clearRoutes 결과의 diagramRoute 변경 줄", () => {
+  const r = { ...APPLIED_13, rev: 14, changes: [ROUTE_SET, ROUTE_CLEAR] };
+  const out = formatWriteResult(r, ctx({ commands: [], view: VIEW_ROUTES }));
+  assert.equal(out.isError, false);
+  const lines = out.text.split("\n");
+  assert.equal(lines[1], "diagramRoute upsert 메뉴/메뉴 화면:TB_MCM_SEC_MENU.OBJECT_ID > TB_MCM_SEC_OBJ.OBJECT_ID via (120,40) → (120,200)");
+  assert.equal(lines[2], "diagramRoute delete 메뉴/메뉴 화면:TB_MCM_SEC_USER_FAVORITE.MENU_ID > TB_MCM_SEC_MENU.MENU_ID");
+});
+
+test("diagramRoute 델타: 점이 비정상이면 숨기지 않고 드러낸다", () => {
+  const odd = (points) => ({ kind: "diagramRoute", id: "d-menu:r-1", op: "upsert", value: { diagram: "d-menu", relation: "r-1", points } });
+  const line = (c) => formatChangesText({ rev: 14, reload: false, deltas: [{ ...ROUTE_DELTA, changes: [c] }] }, { view: VIEW, sinceRev: 13, mySession: "x" }).text.split("\n")[1];
+  assert.match(line(odd("[{\"x\":1,\"y\":2}]")), /via \(점 없음\)$/); // 문자열
+  assert.match(line(odd([])), /via \(점 없음\)$/);
+  assert.match(line(odd([{ x: 1 }, { x: 2, y: "a" }, { x: 3, y: 4 }])), /via \(\?,\?\) → \(\?,\?\) → \(3,4\)$/);
+});
+
+test("diagramRoute 삭제: 관계 이름을 못 풀면 r- id 에 (지움)", () => {
+  const del = { kind: "diagramRoute", id: "d-menu:r-9", op: "delete", value: null };
+  const text = formatChangesText({ rev: 14, reload: false, deltas: [{ ...ROUTE_DELTA, changes: [del] }] }, { view: VIEW, sinceRev: 13, mySession: "x" }).text;
+  assert.match(text, /diagramRoute delete 메뉴\/메뉴 화면:r-9\(지움\)$/m);
+});
+
+test("diagramRoute 설정이 한 델타에 4건 넘으면 점 수만 적는다(한 줄 상한을 넘기지 않게)", () => {
+  const set = (i) => ({ kind: "diagramRoute", id: `d-menu:r-${i}`, op: "upsert", value: { diagram: "d-menu", relation: `r-${i}`, points: Array.from({ length: 50 }, (_, k) => ({ x: k, y: i })) } });
+  const four = formatChangesText({ rev: 14, reload: false, deltas: [{ ...ROUTE_DELTA, changes: [1, 2, 3, 4].map(set) }] }, { view: VIEW, sinceRev: 13, mySession: "x" }).text;
+  assert.equal((four.match(/via 50점/g) ?? []).length, 4);
+  assert.doesNotMatch(four, /\(0,1\)/);
+  const three = formatChangesText({ rev: 14, reload: false, deltas: [{ ...ROUTE_DELTA, changes: [1, 2, 3].map(set) }] }, { view: VIEW, sinceRev: 13, mySession: "x" }).text;
+  assert.match(three, /via \(0,1\) → \(1,1\)/);
+});
+
+test("othersLine·표 거르기: 같은 변경에서 새로 만든 관계의 경유점은 그 관계 양 끝 표로 센다", () => {
+  const rel = { kind: "relation", id: "r-new", op: "upsert", value: { ...MODEL.relations["r-2"] } };
+  const route = { kind: "diagramRoute", id: "d-all:r-new", op: "upsert", value: { diagram: "d-all", relation: "r-new", points: [{ x: 1, y: 1 }] } };
+  const delta = { ...ROUTE_DELTA, changes: [rel, route] };
+  const picked = formatChangesText({ rev: 14, reload: false, deltas: [{ ...delta, changes: [route, rel] }] }, { view: VIEW, sinceRev: 13, mySession: "x", tables: ["TB_MCM_SEC_USER"] }).text;
+  assert.match(picked, /보인 것 1건/);
+  const routeOnly = formatChangesText({ rev: 14, reload: false, deltas: [{ ...delta, changes: [route] }] }, { view: VIEW, sinceRev: 13, mySession: "x", tables: ["TB_MCM_SEC_USER"] }).text;
+  assert.match(routeOnly, /보인 것 0건/); // 관계 정보가 델타에도 모델에도 없으면 표를 모른다(한계)
 });

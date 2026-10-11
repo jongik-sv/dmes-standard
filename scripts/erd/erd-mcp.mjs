@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// ERD 모델 stdio MCP 서버(단계 1 읽기 6개 + 단계 2 쓰기 6개). MDM 서버 OASIS erdEdit 를 감싸기만 한다(스펙 2.3).
+// ERD 모델 stdio MCP 서버(단계 1 읽기 6개 + 단계 2 쓰기 6개 + 2차 모델 관리 4개). MDM 서버 OASIS erdEdit 를 감싸기만 한다(스펙 2.3).
 // stdout 은 MCP 프로토콜 전용이다. 로그는 stderr(console.error)로만 쓴다.
 // 환경변수: ERD_BASE(기본 http://localhost:8096) · ERD_USER(erd-mcp) · ERD_ROLE(MDM_STEWARD)
 //           · BACKEND_CLIENT_KEY(dmes-bff-local-client-key-2026)
@@ -12,6 +12,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { applyFlow, changesFlow, claimFlow, InputError, MAX_COMMANDS, MAX_TABLES, newState, releaseAll, releaseFlow, undoFlow } from "./lib/flows.mjs";
+import { importFlow, listDiagramsFlow, listModelsFlow, registerFlow } from "./lib/models.mjs";
 import { formatCurrentView, formatDbDiff, formatInferred, formatViolations, getModelText, TEXT_LIMIT } from "./lib/model-text.mjs";
 import { configFromEnv, createOasisClient, describeError } from "./lib/oasis.mjs";
 import { WRITE_TEXT_LIMIT } from "./lib/results.mjs";
@@ -33,6 +34,10 @@ export function instructions(session) {
     "   저장 전에 확인하려면 dryRun=true 로 보낸다(서버가 모든 검사를 하고 저장하지 않는다). 추정 관계는 confirmRelation·rejectRelation, 되돌리기는 undo 다.",
     "4. CONFLICT 를 받으면 getChangesSince(rev) 로 최신 상태를 확인하고 다시 보낸다.",
     "5. 끝나면 releaseTable 로 선언을 푼다. 선언은 600초가 지나면 저절로 풀린다.",
+    "모델 관리: listModels 로 모델 목록(상태·확정본·만든 사람)을, listDiagrams 로 한 모델의 다이어그램 목록(id·업무영역/이름·표 수)을 본다.",
+    "   새 모델은 registerModel(모듈·스키마·모델 이름)로 등록하고, 그 모델의 DB 스키마에서 표·관계를 가져오려면 importModel 을 한 번 부른다(저장 전 시험 실행은 없다).",
+    "   다이어그램 이름 바꾸기·지우기·복사와 관계 경유점은 apply 명령(updateDiagram·deleteDiagram·copyDiagram·setRoute·clearRoutes)으로 한다.",
+    "   모델 삭제는 MCP 로 할 수 없다. 되돌릴 수 없어 사용자가 직접 한다. 필요하면 사용자에게 지워 달라고 말하고, 에이전트가 다른 길로 지우지 않는다.",
     "표준 위반은 listViolations, 사람이 확인할 추정 관계는 listInferredRelations, DB 와 모델의 차이는 getDbDiff 로 본다.",
     "쓰기가 NOT_EDITOR 로 거절되면 DRAFT 소유자에게 ERD_USER 를 공동 편집자로 등록해 달라고 한다(execute kind=ADD_EDITOR).",
   ].join("\n");
@@ -58,7 +63,7 @@ export const TOOLS = {
       "(표 수, PK 없는 표, 표마다 논리명·컬럼 수·PK 컬럼·관계 수·표준 위반 수). 개요에는 컬럼 줄과 Ref 줄이 없다. " +
       "질문에 표 이름이 나오면 처음부터 tables 에 그 물리명을 넣어 부른다(예: tables=[\"TB_MCM_SEC_MENU\"]). " +
       "tables 는 정확한 물리명(대소문자 무관)이고, 끝에 * 를 붙이면 접두사다(예: TB_MCM_SEC_*). " +
-      "tables 를 주면 Ref 줄은 고른 표가 자식이든 부모든 나온다. diagram 을 주면 그 다이어그램의 표만 쓴다. " +
+      "tables 를 주면 Ref 줄은 고른 표가 자식이든 부모든 나온다. diagram 을 주면 그 다이어그램의 표만 쓰고, 경유점(꺾임점)이 있는 관계는 Ref 줄 아래에 '  via (x,y) → (x,y)' 줄이 붙는다. " +
       "감사 컬럼 8개(C_USR_ID C_AT C_SVC_ID C_PGM_ID U_USR_ID U_AT U_SVC_ID U_PGM_ID)는 표마다 한 줄('감사 컬럼 n개: …')로 접는다. audit=true 면 보통 컬럼 줄로 펼친다.",
     inputSchema: {
       modelId,
@@ -72,9 +77,40 @@ export const TOOLS = {
     // Claude Code 가 큰 결과를 파일로 빼는 기준을 올리는 힌트. 결과는 TEXT_LIMIT 안이라 이 값에 기대지 않는다.
     _meta: { "anthropic/maxResultSizeChars": 100000 },
   },
+  listModels: {
+    description:
+      "ERD 모델 목록을 돌려준다(모델 ID·모듈·스키마·이름·rev·DRAFT 버전·소유자, 그리고 상태(status)·최신 확정본 버전·만든 사람). " +
+      "확정 칸: 버전이면 그 버전, '확정 없음' 이면 확정본이 없고, '확인 불가' 면 서버가 그 칸을 주지 않은 것이다(없다는 뜻이 아니다). " +
+      "어떤 모델이 있는지 모를 때 먼저 부른다. 모델 ID 가 다른 도구의 modelId 다. 모델 삭제는 이 서버에 없다.",
+    inputSchema: {},
+  },
+  listDiagrams: {
+    description:
+      "한 모델의 다이어그램 목록(id·업무영역/이름·표 수·관계 경유점 수)을 돌려준다. 이름 바꾸기·지우기·복사 apply 명령이 가리킬 다이어그램을 찾을 때 부른다. " +
+      "모델 전체를 읽으므로 큰 모델은 조금 걸린다.",
+    inputSchema: { modelId },
+  },
+  registerModel: {
+    description:
+      "새 ERD 모델을 등록한다(빈 DRAFT 1.000, 소유자는 ERD_USER, rev 는 새 모델이면 0 이고 지운 모델을 다시 등록하면 이어진다). 시험 실행이 없고 MCP 로 모델을 지울 수도 없으니, 사용자가 등록을 요청했을 때만 부른다. " +
+      "modelId 를 빼면 moduleId 와 같다(모듈 하나 = 모델 하나). 같은 modelId 가 있거나 같은 모듈의 모델이 이미 있으면 거절된다. 등록 뒤 DB 스키마의 표를 가져오려면 importModel 을 부른다.",
+    inputSchema: {
+      moduleId: z.string().min(1).max(20).describe("모듈 ID(예: mes)"),
+      schemaName: z.string().min(1).max(128).describe("Oracle 스키마 이름. 서버가 대문자로 바꾼다"),
+      modelName: z.string().min(1).max(200).describe("모델 이름"),
+      modelId: z.string().min(1).max(50).optional().describe("ERD 모델 ID. 빼면 moduleId"),
+    },
+  },
+  importModel: {
+    description:
+      "모델에 등록된 DB 스키마에서 표·컬럼·키·관계를 한 번에 가져온다(첫 가져오기, kind=FROM_DB) — 저장 전 시험 실행이 없고 바로 반영한다. " +
+      "결과에 가져온 표·컬럼·키 수와 관계 상태별 수, 새 다이어그램 id, 경고가 나온다. 이미 가져온 모델의 다시 가져오기·차이 반영은 사람이 화면 DB 차이 탭에서 한다(getDbDiff 로 차이만 본다). " +
+      "baseRev 를 빼면 지금 rev 를 읽어 쓴다.",
+    inputSchema: { modelId, baseRev: baseRev.optional() },
+  },
   getCurrentView: {
     description:
-      "사용자가 m-mdm ERD 화면에서 보고 있는 다이어그램과 선택한 표(물리명·논리명)를 세션마다 돌려준다. 순서 1단계: 사용자가 '이 표', '선택한 표' 라고 하면 먼저 부른다.",
+      "사용자가 m-mdm ERD 화면에서 보고 있는 다이어그램과 선택한 표(물리명·논리명)를 세션마다 돌려준다(그 다이어그램의 관계 경유점이 있으면 '경유점 업무영역/이름 n개:' 아래 '  자식표.컬럼 > 부모표.컬럼: (x,y) → …' 줄로 덧붙는다(다이어그램마다 한 번, 50줄까지)). 순서 1단계: 사용자가 '이 표', '선택한 표' 라고 하면 먼저 부른다.",
     inputSchema: { modelId, session: z.string().min(1).optional().describe("화면 세션 이름. 주지 않으면 화면 세션 전부") },
   },
   getChangesSince: {
@@ -113,9 +149,12 @@ export const TOOLS = {
     description:
       "모델·다이어그램 명령 묶음을 한 번에 반영한다(모두 반영 또는 모두 거절). 순서 3단계. " +
       "명령 예: {\"op\":\"updateColumn\",\"id\":\"TB_X.COL\",\"set\":{\"logical\":\"…\"}}, {\"op\":\"addColumn\",\"table\":\"TB_X\",\"logical\":\"사용여부\"}, " +
-      "{\"op\":\"addRelation\",\"child\":\"TB_C\",\"parent\":\"TB_P\",\"pairs\":[[\"TB_C.P_ID\",\"TB_P.P_ID\"]],\"identifying\":false}, {\"op\":\"moveNodes\",\"diagram\":\"업무영역/이름\",\"nodes\":[{\"table\":\"TB_X\",\"x\":0,\"y\":0}]}. " +
+      "{\"op\":\"addRelation\",\"child\":\"TB_C\",\"parent\":\"TB_P\",\"pairs\":[[\"TB_C.P_ID\",\"TB_P.P_ID\"]],\"identifying\":false}, {\"op\":\"moveNodes\",\"diagram\":\"업무영역/이름\",\"nodes\":[{\"table\":\"TB_X\",\"x\":0,\"y\":0}]}, " +
+      "{\"op\":\"setRoute\",\"diagram\":\"업무영역/이름\",\"relation\":\"TB_C.P_ID > TB_P.P_ID\",\"points\":[{\"x\":120,\"y\":40},{\"x\":120,\"y\":200}]}(관계 선이 지나갈 경유점 1~50개, 캔버스 절대 좌표), {\"op\":\"clearRoutes\",\"diagram\":\"업무영역/이름\",\"relations\":[\"TB_C.P_ID > TB_P.P_ID\"]}(경유점 지우기). " +
+      "다이어그램: {\"op\":\"updateDiagram\",\"id\":\"업무영역/이름\",\"set\":{\"diagramName\":\"새 이름\",\"areaName\":\"새 업무영역\"}}(이름 바꾸기), {\"op\":\"deleteDiagram\",\"id\":\"업무영역/이름\"}(지우기), " +
+      "{\"op\":\"copyDiagram\",\"from\":\"업무영역/이름\",\"areaName\":\"…\",\"diagramName\":\"…\"}(노드 위치·접기와 경유점까지 복사, 새 id 는 \"id\":\"d-…\" 로 줄 수 있고 빼면 만든다). 다이어그램 목록은 listDiagrams. " +
       "요소는 id 대신 이름으로 써도 된다: 표 = 물리명, 컬럼 = '표.컬럼', 관계 = '자식표.컬럼 > 부모표.컬럼', 키 = 키 이름 또는 '표:PK', 다이어그램 = '업무영역/이름'. " +
-      "같은 묶음에서 앞에서 만든 표·컬럼은 뒤 명령이 물리명으로 가리킬 수 있다. " +
+      "같은 묶음에서 앞에서 만든 표·컬럼·관계는 뒤 명령이 이름(물리명, '표.컬럼', '자식표.컬럼 > 부모표.컬럼')으로 가리킬 수 있다. " +
       "addTable 은 감사 컬럼 8개(C_USR_ID C_AT C_SVC_ID C_PGM_ID U_USR_ID U_AT U_SVC_ID U_PGM_ID)를 표 끝에 자동으로 붙인다(끄려면 audit:false, 가져오기는 붙이지 않는다). " +
       "position 없는 addColumn·끝으로 가는 moveColumn 은 표 끝이 감사 컬럼 블록이면 그 블록 바로 앞에 넣는다(넣는 컬럼이 감사 컬럼이면 맨 끝. 컬럼 수 이상의 position 도 끝으로 보고, 안쪽 position 은 그대로). " +
       "결과 끝의 '다음 baseRev' 를 다음 apply 에 쓴다. " +
@@ -181,6 +220,18 @@ const needDiff = (diff) => {
 /** 도구 처리기. OASIS 오류는 던지고 createErdServer 가 isError 결과로 바꾼다. state 는 프로세스 동안 하나다. */
 export function handlers(client, state = newState()) {
   return {
+    async listModels() {
+      return fromFlow(await listModelsFlow(client));
+    },
+    async listDiagrams({ modelId }) {
+      return fromFlow(await listDiagramsFlow(client, { modelId }));
+    },
+    async registerModel({ modelId, moduleId, schemaName, modelName }) {
+      return fromFlow(await registerFlow(client, { modelId, moduleId, schemaName, modelName }));
+    },
+    async importModel({ modelId, baseRev }) {
+      return fromFlow(await importFlow(client, { modelId, baseRev }));
+    },
     async getModelText({ modelId, diagram, tables, audit }) {
       const view = await client.call("view", { modelId });
       const status = needStatus(await client.call("view", { modelId, kind: "STATUS", ver: view.ver }));

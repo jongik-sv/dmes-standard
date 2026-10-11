@@ -148,11 +148,23 @@ export function describeError(e, config) {
     return `${e.message}\n다음: MDM 서버(기본 포트 8096)를 켜거나 ERD_BASE 환경변수를 확인한 뒤 같은 도구를 다시 부르세요.`;
   }
   if (e instanceof OasisError) {
-    if (e.status === 401 || e.status === 403) {
+    // meta.code 가 있으면 서버가 업무 오류로 답한 것이다(HTTP 상태가 403 이어도 인증 거절이 아니다). 코드 없는 401·403 이 client-key·게이트웨이 거절이다.
+    if ((e.status === 401 || e.status === 403) && !e.code) {
       return `인증이 거절되었습니다(HTTP ${e.status}): ${e.message}\n다음: BACKEND_CLIENT_KEY 가 서버의 cactus.security.client-key 와 같은지, ERD_USER(${config.user})·ERD_ROLE(${config.role})이 맞는지 확인하세요.`;
     }
     if (e.code === "MDM029") {
-      return `[MDM029] ${e.message}\n다음: modelId 를 확인하세요. 모델 목록은 m-mdm ERD 화면에서 보거나 OASIS erdEdit/search 로 읽습니다.`;
+      return `[MDM029] ${e.message}\n다음: modelId 를 확인하세요. 모델 목록은 models(CLI)·listModels(MCP)로 봅니다. 이미 지워진 모델일 수 있습니다(모델 삭제는 되돌릴 수 없고, 같은 모듈로 다시 등록할 수 있습니다).`;
+    }
+    // 모델 삭제(delete kind=MODEL) 거절. 서버가 준 이유(메시지)를 앞에 두고 코드별 규칙만 알린다. 편집 안내(공동 편집자·getModelText)는 붙이지 않는다.
+    if (e.action === "delete" && e.code === "MDM016") {
+      return `[MDM016] ${e.message}\n다음: DRAFT 가 없는 모델은 관리자(MDM_STD_ADMIN·SYSADMIN) 역할이 있어야 지울 수 있습니다. 사용자(${config.user})·역할(${config.role})을 확인하고, 관리자에게 부탁하거나 관리자 역할(ERD_ROLE)로 다시 하세요.`;
+    }
+    if (e.action === "delete" && e.code === "MDM001") {
+      return `[MDM001] ${e.message}\n다음: 아무것도 지워지지 않았습니다. 잠시 뒤 같은 삭제를 다시 하세요. 같은 오류가 이어지면 그 모델을 보는 화면·에이전트가 계속 표시를 보내는 것이니 닫은 뒤 하세요.`;
+    }
+    // 모델 삭제(delete kind=MODEL)의 권한 거절은 편집 권한이 아니다. 서버가 준 이유(메시지)를 앞에 두고 삭제 규칙만 알린다.
+    if (e.action === "delete" && (e.code === "MDM003" || e.code === "MDM002")) {
+      return `[${e.code}] ${e.message}\n다음: 모델 삭제는 관리자(MDM_STD_ADMIN·SYSADMIN)나 RELEASED·REQUESTED·APPROVED 버전이 하나도 없고 DRAFT 소유자일 때만 됩니다. 사용자(${config.user})·역할(${config.role})을 확인하세요.`;
     }
     if (e.code === "MDM003" || e.code === "MDM002") {
       return `[${e.code}] ${e.message}\n다음: getModelText 머리줄로 DRAFT 인지 보고, 소유자·공동 편집자인지 확인하세요. 둘 다 맞는데 이 오류면 그사이 DRAFT 소유자나 상태가 바뀐 것이니 다시 읽고 한 번만 다시 보내세요. 아니면 사용자에게 DRAFT 선점·공동 편집자 등록을 부탁하세요.`;

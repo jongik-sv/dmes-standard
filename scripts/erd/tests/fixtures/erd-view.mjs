@@ -89,6 +89,15 @@ export const VIEW = {
   ],
 };
 
+// 단계 2-2: 관계 경유점(README 7.1). routes = [{diagram, relation, points}]. relation 은 r- id.
+/** d-menu: r-1 에 2점, r-3 에 3점. d-all: r-2 에 1점. */
+export const ROUTES = [
+  { diagram: "d-menu", relation: "r-1", points: [{ x: 120, y: 40 }, { x: 120, y: 200 }] },
+  { diagram: "d-menu", relation: "r-3", points: [{ x: 400, y: 10 }, { x: 400, y: 90 }, { x: 300, y: 90 }] },
+  { diagram: "d-all", relation: "r-2", points: [{ x: 10, y: 20 }] },
+];
+export const VIEW_ROUTES = { ...VIEW, routes: ROUTES };
+
 export const STATUS = {
   modelId: "mcm",
   ver: "1.000",

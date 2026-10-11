@@ -6,12 +6,13 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { handlers } from "../erd-mcp.mjs";
 import { APPLIED_13, CONFLICT_REJECTION, DELTA_ME_13, DELTA_UI_11, GOLDEN, STATUS, VIEW } from "./fixtures/erd-view.mjs";
-import { failure, startFakeOasis, success } from "./fixtures/fake-oasis.mjs";
+import { failure, startFakeOasis, success, withRoutes } from "./fixtures/fake-oasis.mjs";
 
 const SERVER = join(dirname(fileURLToPath(import.meta.url)), "..", "erd-mcp.mjs");
 const TOOL_NAMES = [
   "apply", "claimTable", "confirmRelation", "getChangesSince", "getCurrentView", "getDbDiff",
-  "getModelText", "listInferredRelations", "listViolations", "rejectRelation", "releaseTable", "undo",
+  "getModelText", "importModel", "listDiagrams", "listInferredRelations", "listModels", "listViolations", "registerModel",
+  "rejectRelation", "releaseTable", "undo",
 ];
 
 /** VIEW 는 rev 12. save 는 baseRev 5 면 CONFLICT, dryRun 이면 통과(저장 안 함), 아니면 rev 13 반영. restore 는 rev 14. */
@@ -50,7 +51,7 @@ async function startMcp(fake, env) {
 
 const text = (r) => r.content.map((c) => c.text).join("\n");
 
-test("stdio MCP 서버: 도구 12개, 읽기 도구 그대로, 모든 요청에 session·source", async () => {
+test("stdio MCP 서버: 도구 16개, 읽기 도구 그대로, 모든 요청에 session·source", async () => {
   const fake = await startFakeOasis(route);
   const mcp = await startMcp(fake, { ERD_SESSION: "claude-test" });
   try {
@@ -295,4 +296,38 @@ test("STATUS·DB_DIFF 를 모르는 서버의 응답은 빈 결과가 아니라 
   await assert.rejects(h.listViolations({ modelId: "mcm" }), /view kind=STATUS 응답 모양이 다릅니다/);
   await assert.rejects(h.getModelText({ modelId: "mcm" }), /view kind=STATUS/);
   await assert.rejects(h.getDbDiff({ modelId: "mcm" }), /compare kind=DB_DIFF 응답 모양이 다릅니다/);
+});
+
+test("stdio MCP 경유점: setRoute·clearRoutes 를 이름으로 보내고 getModelText diagram·getCurrentView·getChangesSince 에 보인다", async () => {
+  const fake = await startFakeOasis(withRoutes(route));
+  const mcp = await startMcp(fake, { ERD_SESSION: "claude-test" });
+  const REL = "TB_MCM_SEC_MENU.OBJECT_ID > TB_MCM_SEC_OBJ.OBJECT_ID";
+  try {
+    const set = await mcp.client.callTool({
+      name: "apply",
+      arguments: { modelId: "mcm", baseRev: 12, commands: [{ op: "setRoute", diagram: "메뉴/메뉴 화면", relation: REL, points: [{ x: 120, y: 40 }, { x: 120, y: 200 }] }] },
+    });
+    assert.equal(set.isError ?? false, false, text(set));
+    assert.deepEqual(JSON.parse(fake.requests.find((r) => r.action === "save").params.commandsJson), [
+      { op: "setRoute", diagram: "d-menu", relation: "r-1", points: [{ x: 120, y: 40 }, { x: 120, y: 200 }] },
+    ]);
+    assert.match(text(set), /^diagramRoute upsert 메뉴\/메뉴 화면:TB_MCM_SEC_MENU\.OBJECT_ID > TB_MCM_SEC_OBJ\.OBJECT_ID via \(120,40\) → \(120,200\)$/m);
+
+    const model = await mcp.client.callTool({ name: "getModelText", arguments: { modelId: "mcm", diagram: "d-menu" } });
+    assert.match(text(model), /^Ref TB_MCM_SEC_MENU\.OBJECT_ID > TB_MCM_SEC_OBJ\.OBJECT_ID INFERRED .*\n {2}via \(120,40\) → \(120,200\)$/m);
+    const cur = await mcp.client.callTool({ name: "getCurrentView", arguments: { modelId: "mcm" } });
+    assert.match(text(cur), /^경유점 메뉴\/메뉴 화면 1개:\n {2}TB_MCM_SEC_MENU\.OBJECT_ID > TB_MCM_SEC_OBJ\.OBJECT_ID: \(120,40\) → \(120,200\)$/m);
+    const ch = await mcp.client.callTool({ name: "getChangesSince", arguments: { modelId: "mcm", rev: 12 } });
+    assert.match(text(ch), /diagramRoute upsert 메뉴\/메뉴 화면:TB_MCM_SEC_MENU\.OBJECT_ID > TB_MCM_SEC_OBJ\.OBJECT_ID via \(120,40\) → \(120,200\)/);
+
+    const clear = await mcp.client.callTool({
+      name: "apply",
+      arguments: { modelId: "mcm", baseRev: 13, commands: [{ op: "clearRoutes", diagram: "d-menu", relations: [REL] }] },
+    });
+    assert.equal(clear.isError ?? false, false, text(clear));
+    assert.match(text(clear), /^diagramRoute delete 메뉴\/메뉴 화면:TB_MCM_SEC_MENU\.OBJECT_ID > TB_MCM_SEC_OBJ\.OBJECT_ID$/m);
+  } finally {
+    await mcp.client.close();
+    await fake.close();
+  }
 });
