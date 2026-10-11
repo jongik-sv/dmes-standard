@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * 오른쪽 컬럼 그리드(단계 2 편집, 스펙 2.2·4.4·8절) — 고른 표의 컬럼: 키|논리명|물리명|도메인|타입|NN|표준.
+ * 오른쪽 컬럼 그리드(단계 2 편집, 스펙 2.2·4.4·8절) — 고른 표의 컬럼: 키|논리명|사전 재구성|물리명|도메인|타입|NN|표준.
+ * - 논리명 칸은 `***` 자리에 물리 토막을 넣어 보이고(placeholder-name, §7.3), 행의 logical 값과 편집·저장은 저장 값이다. 사전 재구성 칸은 저장 값을 읽기 전용으로 보인다.
  * - 칸 편집은 ag-grid 기본(F2·더블클릭)이다. 칸을 떠날 때 updateColumn 한 건을 보내고, 같은 값이면 보내지 않는다.
  * - 행 끌기(키 칸 손잡이)는 moveColumn 한 건이다.
  * - 그리드 키는 그리드와 입력 칸을 감싼 div 의 onKeyDownCapture 로 받는다(S2-6·S2-27). shared AgDataGrid 의 props 는 바꾸지 않는다.
@@ -20,6 +21,7 @@ import { hiddenAuditCount, isAuditColumn, landingIndex, toRealPosition, visibleC
 import { keyMarks } from "../canvas/erd-flow";
 import { typeText } from "../canvas/erd-geometry";
 import type { ErdEditContext, ErdHighlight } from "../edit-context";
+import { placeholderName, type PlaceholderName } from "../placeholder-name";
 import type { ErdColumnStatus, ErdCommandJson, ErdModelJson, ErdStatusView } from "../types";
 import { GridInputBar, type AddKind, type BarHandle } from "./GridInputBar";
 import { ORACLE_ID_RE } from "./TokenChoiceModal";
@@ -59,17 +61,44 @@ export function columnRows(model: ErdModelJson, tableId: string | null, status: 
     });
 }
 
-export interface GridRow extends Record<string, unknown> { id: string; pending: boolean; editable: boolean }
+export interface GridRow extends Record<string, unknown> {
+  id: string; pending: boolean; editable: boolean;
+  /** 사전 재구성 칸 = 저장된 논리명 그대로(`***` 포함). logical 은 저장 값이라 편집기가 저장 값으로 시작한다(§7.3). */
+  reconstructed: string;
+  /** 논리명 칸 표시용 — `***` 자리에 물리 토막을 넣은 이름. 저장하지 않는다. */
+  logicalShown: PlaceholderName;
+}
 
-/** 편집 그리드 행 — 단계 1 행에 대기 여부와 고칠 수 있는지를 더한다. */
+/** 편집 그리드 행 — 단계 1 행에 대기 여부와 고칠 수 있는지, 표시용 논리명을 더한다. */
 export function gridRows(
   model: ErdModelJson, tableId: string | null, status: ErdStatusView | null, pending: ReadonlySet<string>, canEdit: boolean, showAudit = true,
 ): GridRow[] {
   return columnRows(model, tableId, status, showAudit).map((r) => {
     const id = String(r.id);
     const isPending = pending.has(id);
-    return { ...r, id, pending: isPending, editable: canEdit && !isPending };
+    const shown = placeholderName(String(r.logical ?? ""), String(r.phys ?? ""));
+    return { ...r, id, pending: isPending, editable: canEdit && !isPending, reconstructed: shown.reconstructed, logicalShown: shown };
   });
+}
+
+const UNKNOWN_WORD_STYLE: CSSProperties = { fontStyle: "italic", color: "var(--color-text-muted)" };
+
+/** 논리명 칸 — display 를 보이고, 사전에 없는 단어는 기울임·회색 + 툴팁. 수가 맞지 않으면 툴팁에 물리명 전체. 셀 값(logical)은 저장 값이다. */
+export function logicalCell(_value: unknown, row: Record<string, unknown>) {
+  const s = row.logicalShown as PlaceholderName | undefined;
+  if (!s) return String(_value ?? "");
+  if (s.unknownWords.length === 0) return <span title={s.mismatch ? String(row.phys ?? "") : undefined}>{s.display}</span>;
+  const words = s.display.split(/\s+/).filter((w) => w !== "");
+  return (
+    <span>
+      {words.map((w, i) => (
+        <span key={i}>
+          {i > 0 ? " " : ""}
+          {s.unknownWords.includes(i) ? <span style={UNKNOWN_WORD_STYLE} title="사전에 없는 단어">{w}</span> : w}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 /** 이 표의 대기 컬럼 id 를 정렬해 이은 글. ctx.pendingIds 가 새 Set 이어도 같은 글이면 행을 다시 만들지 않는다. */
@@ -84,13 +113,14 @@ export function pendingKeyOf(model: ErdModelJson, tableId: string | null, pendin
 const isEditableRow = (row: Record<string, unknown>) => row.editable === true;
 
 export const GRID_COLUMNS: GridColumn[] = [
-  { key: "key", header: "키", width: 44, minWidth: 32, align: "center", meta: false },
-  { key: "logical", header: "논리명", width: 110, minWidth: 70, meta: false, editable: isEditableRow },
-  { key: "phys", header: "물리명", width: 120, minWidth: 80, meta: false, editable: isEditableRow },
-  { key: "domain", header: "도메인", width: 80, minWidth: 50, meta: false },
-  { key: "type", header: "타입", width: 100, minWidth: 60, meta: false, editable: isEditableRow },
-  { key: "nn", header: "NN", width: 40, minWidth: 32, align: "center", meta: false, editable: isEditableRow, cellEditor: "select", cellEditorValues: ["Y", "N"] },
-  { key: "status", header: "표준", width: 90, minWidth: 56, align: "center", meta: false, tooltip: false, render: statusBadge },
+  { key: "key", header: "키", width: 40, minWidth: 28, align: "center", meta: false },
+  { key: "logical", header: "논리명", width: 100, minWidth: 60, meta: false, editable: isEditableRow, tooltip: false, render: logicalCell },
+  { key: "reconstructed", header: "사전 재구성", width: 100, minWidth: 60, meta: false },
+  { key: "phys", header: "물리명", width: 110, minWidth: 70, meta: false, editable: isEditableRow },
+  { key: "domain", header: "도메인", width: 70, minWidth: 40, meta: false },
+  { key: "type", header: "타입", width: 90, minWidth: 50, meta: false, editable: isEditableRow },
+  { key: "nn", header: "NN", width: 40, minWidth: 28, align: "center", meta: false, editable: isEditableRow, cellEditor: "select", cellEditorValues: ["Y", "N"] },
+  { key: "status", header: "표준", width: 80, minWidth: 44, align: "center", meta: false, tooltip: false, render: statusBadge },
 ];
 
 // ── 칸 편집 → 명령 ──
