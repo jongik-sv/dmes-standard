@@ -3,7 +3,7 @@
 // 서버가 아직 싣지 않을 수 있는 칸(byUserId·rowVersion·dryRun·summary)은 없으면 null 로 읽는다(S2-1).
 import { describeTargets, modelOf, pickTableIds, tablesOfChange } from "./commands.mjs";
 import { isAuditColumn } from "./audit.mjs";
-import { tableArgs } from "./model-text.mjs";
+import { fromRevHint, tableArgs } from "./model-text.mjs";
 
 /** 쓰기·변경 결과 글 상한(S2-21). getModelText 의 TEXT_LIMIT(40,000)보다 작다 — 한글이 많아 같은 글자 수에 토큰이 더 든다. */
 export const WRITE_TEXT_LIMIT = 25000;
@@ -401,8 +401,8 @@ export function formatChangesText(cv, ctx) {
   const limit = ctx.limit ?? WRITE_TEXT_LIMIT;
   const textLimit = ctx.raw ? Math.floor(limit * 0.4) : limit;
   if (cv?.reload) {
-    const text = `# reload: rev ${ctx.sinceRev} 이후 변경을 이어 줄 수 없습니다(DRAFT 를 새로 만들었거나 지웠거나, 500건을 넘었습니다). 현재 rev ${cv.rev}. getModelText 로 모델 전체를 다시 읽으세요.`;
-    return { text, raw: ctx.raw ? JSON.stringify({ rev: cv.rev, reload: true, deltas: [] }) : null };
+    const text = `# reload: rev ${ctx.sinceRev} 이후 변경을 이어 줄 수 없습니다(DRAFT 를 새로 만들었거나 지웠거나, 500건을 넘었습니다). 현재 rev ${cv.rev}. getModelText 로 모델 전체를 다시 읽으세요.${fromRevHint(cv.fromRev)}`;
+    return { text, raw: ctx.raw ? JSON.stringify({ rev: cv.rev, reload: true, deltas: [], fromRev: cv.fromRev ?? null }) : null };
   }
   const all = cv?.deltas ?? [];
   const m = modelOf(ctx.view);

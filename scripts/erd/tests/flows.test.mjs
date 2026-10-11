@@ -108,6 +108,47 @@ test("undo: rev 를 빼면 이 프로세스의 마지막 반영, 되돌린 rev �
   assert.match(out.text, /^되돌린 변경: rev 11 · 41000207 \(세션 ui-41000207\) · 1건$/m);
 });
 
+/** server() 에 다시 읽기 지점을 더한다. 서버 규칙대로 sinceRev 가 marker 보다 작으면 reload(fromRev 는 withFromRev 일 때만 — 옛 서버는 없다). */
+function markerServer(marker, { withFromRev = true, ...opts } = {}) {
+  const base = server(opts);
+  return (action, params, calls) => {
+    if (action === "view" && params.sinceRev != null && params.sinceRev < marker) {
+      return { rev: 13, reload: true, deltas: [], ...(withFromRev ? { fromRev: marker } : {}) };
+    }
+    return base(action, params, calls);
+  };
+}
+
+test("undo: 재시작 뒤 찾는 구간 앞에 다시 읽기 지점(copy 로 만든 DRAFT)이 있으면 fromRev 부터 한 번 더 읽어 내 세션 델타를 찾는다", async () => {
+  // defect.mcpUndoReload: 다시 읽기 지점 rev 10. sinceRev 0 은 reload·fromRev 10 이다.
+  const c = fakeClient(markerServer(10));
+  const out = await undoFlow(c, newState(), { modelId: "mcm" });
+  assert.equal(out.isError, false);
+  assert.deepEqual(c.calls, [
+    ["view", { modelId: "mcm" }],
+    ["view", { modelId: "mcm", sinceRev: 0 }],
+    ["view", { modelId: "mcm", sinceRev: 10 }],
+    ["view", { modelId: "mcm", sinceRev: 12 }],
+    ["restore", { modelId: "mcm", rev: 13, dryRun: undefined }],
+  ]);
+  assert.match(out.text, /^되돌린 변경: rev 13 · 41000207 \(세션 claude-test\) · 1건$/m);
+});
+
+test("undo: fromRev 가 없는 reload(옛 서버)는 다시 읽지 않고 찾지 못했다고 알린다. rev 를 줄 때 그 rev 가 다시 읽기 지점 앞이면 누가 했는지 없이 되돌린다", async () => {
+  const old = fakeClient(markerServer(10, { withFromRev: false }));
+  const out = await undoFlow(old, newState(), { modelId: "mcm" });
+  assert.equal(out.isError, true);
+  assert.match(out.text, /^되돌릴 rev 를 찾지 못했습니다/);
+  assert.deepEqual(old.calls.filter((x) => x[0] === "view" && x[1].sinceRev != null).map((x) => x[1].sinceRev), [0]);
+  assert.equal(old.calls.some((x) => x[0] === "restore"), false);
+  // rev 11 은 다시 읽기 지점(11) 앞이다: sinceRev 10 → reload·fromRev 11 → 한 번 더 읽어도 rev 11 은 없다. restore 는 보낸다(서버가 판정).
+  const given = fakeClient(markerServer(11));
+  const g = await undoFlow(given, newState(), { modelId: "mcm", rev: 11 });
+  assert.deepEqual(given.calls.filter((x) => x[0] === "view" && x[1].sinceRev != null).map((x) => x[1].sinceRev), [10, 11]);
+  assert.deepEqual(given.calls.at(-1), ["restore", { modelId: "mcm", rev: 11, dryRun: undefined }]);
+  assert.doesNotMatch(g.text, /세션 ui-41000207/);
+});
+
 test("claim·release: 물리명 → t- id, 잡은 표는 상태에 두고 tables 없는 release·종료 때 놓는다", async () => {
   const c = fakeClient(server());
   const state = newState();

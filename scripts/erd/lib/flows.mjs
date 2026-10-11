@@ -86,21 +86,34 @@ export async function applyFlow(client, state, { modelId, baseRev, commands, dry
   return { ...out, result };
 }
 
-/** rev 하나의 델타(누가 했는가). 500건을 넘게 지났거나 없으면 null. */
+/**
+ * view sinceRev 델타. reload 이고 서버가 fromRev(기록을 줄 수 있는 가장 이른 sinceRev — 다시 읽기 지점·500건 한도)를 주면
+ * 거기부터 한 번만 다시 읽는다. 그래도 reload 거나 fromRev 가 없으면(옛 서버) null.
+ */
+async function changesFrom(client, modelId, sinceRev) {
+  let cv = await client.call("view", { modelId, sinceRev });
+  if (cv.reload && cv.fromRev != null && cv.fromRev > sinceRev) cv = await client.call("view", { modelId, sinceRev: cv.fromRev });
+  return cv.reload ? null : cv;
+}
+
+/** rev 하나의 델타(누가 했는가). 기록 구간 밖(다시 읽기 지점 앞·500건을 넘게 지남)이거나 없으면 null. */
 async function deltaAt(client, modelId, rev) {
   if (!(rev >= 1)) return null;
-  const cv = await client.call("view", { modelId, sinceRev: rev - 1 });
-  if (cv.reload) return null;
+  const cv = await changesFrom(client, modelId, rev - 1);
+  if (!cv) return null;
   return (cv.deltas ?? []).find((d) => d.rev === rev) ?? null;
 }
 
-/** rev 없는 undo 의 대상: 이 프로세스가 반영한 마지막 rev, 없으면(재시작) 최근 500 rev 에서 내 세션의 마지막 델타. 건너뛸 rev 는 뺀다. */
+/**
+ * rev 없는 undo 의 대상: 이 프로세스가 반영한 마지막 rev, 없으면(재시작) 최근 500 rev 에서 내 세션의 마지막 델타. 건너뛸 rev 는 뺀다.
+ * copy 로 만든 DRAFT 처럼 그 구간 앞에 다시 읽기 지점이 있으면 서버 fromRev 부터 다시 읽는다(defect.mcpUndoReload).
+ */
 async function lastOwnRev(client, state, modelId, view) {
   const skip = setIn(state.skip, modelId);
   const mine = state.applied.get(modelId) ?? [];
   for (let i = mine.length - 1; i >= 0; i--) if (!skip.has(mine[i])) return mine[i];
-  const cv = await client.call("view", { modelId, sinceRev: Math.max(0, (view.rev ?? 0) - UNDO_SCAN) });
-  if (cv.reload) return null;
+  const cv = await changesFrom(client, modelId, Math.max(0, (view.rev ?? 0) - UNDO_SCAN));
+  if (!cv) return null;
   const ds = cv.deltas ?? [];
   for (let i = ds.length - 1; i >= 0; i--) {
     if (ds[i].session === client.config.session && !skip.has(ds[i].rev)) return ds[i].rev;

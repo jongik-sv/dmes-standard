@@ -14,7 +14,7 @@ import { Tabs, type TabItem } from "@dk-oasis/shared/tabs";
 import type { RelationDecision } from "../api";
 import type { ErdEditContext } from "../edit-context";
 import type { ErdChangesView, ErdColumnStatus, ErdDbDiffView, ErdModelJson, ErdStatusView } from "../types";
-import { ChangeLog } from "./ChangeLog";
+import { ChangeLog, historyNote } from "./ChangeLog";
 import { statusBadge } from "./ColumnGrid";
 import { DbDiffApply } from "./DbDiffApply";
 
@@ -156,8 +156,8 @@ export function ReviewPanel({
           </Button>
         )}
       </div>
-      {tab === "history" && history?.reload && (
-        <div className="erd-review__note">rev {history.rev} 앞에 다시 읽기 지점이 있어 그 앞의 기록은 보이지 않습니다.</div>
+      {tab === "history" && historyNote(history) && (
+        <div className="erd-review__note" data-testid="erd-history-note">{historyNote(history)}</div>
       )}
       <div className="erd-review__body" data-testid={`erd-review-${tab}`}>
         <div className="erd-review__grid">

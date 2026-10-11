@@ -168,6 +168,7 @@ docs/mdm/screens/erdEdit/erdEdit_기능설계서.md, 이 README "단계 2 구현
 | `view`·`compare`·`save`·`restore`·`import`·`execute` | `source` 가 MCP·CLI 이고 `session` 이 있으면 접속자 항목을 만들거나 늘린다(S2-11) | 그대로 | 그대로 | 4 |
 | `compare`(kind 없음) | 타입 표시가 `ErdTypeMapping` 을 따른다. `tokens` 를 `plain()` 으로 내보낸다 | `ErdNamePreview` | READ | 5 |
 | `confirm`·`lock`·`unlock`·`handover`·`execute ADD_EDITOR·REMOVE_EDITOR` | 커밋 뒤 SSE `version` 을 낸다 | 그대로 | 그대로 | 4 |
+| `view`(`sinceRev`) | 요청 구간을 줄 수 없어 `reload:true` 면 `fromRev` 에 기록을 줄 수 있는 가장 이른 sinceRev 를 싣는다(구간 안 마지막 다시 읽기 표시 rev, 없으면 rev-500). 그 밖에는 null. 화면 변경 기록은 `fromRev` 부터 한 번 더 읽는다(마감 defect.historyEmptyBeforeSpan) | `ErdChangesView`(+`fromRev`) | READ | 마감 |
 
 ```jsonc
 // 요청 params 예(MCP 의 시험 실행). commandsJson 은 JSON 배열 문자열이다. dryRun 을 빼면 false.

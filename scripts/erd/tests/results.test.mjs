@@ -216,6 +216,9 @@ test("getChangesSince 글: 이름, 거르기, raw 는 원할 때만, 500건도 2
   assert.equal(byTable[1], "없는 표: TB_NOPE");
   assert.deepEqual(JSON.parse(formatChangesText(cv, { ...base, session: "ui-41000207", raw: true }).raw).deltas.map((d) => d.rev), [11]);
   assert.match(formatChangesText({ rev: 900, reload: true, deltas: [] }, base).text, /^# reload: .*현재 rev 900\. getModelText 로/);
+  const fr = formatChangesText({ rev: 900, reload: true, deltas: [], fromRev: 880 }, { ...base, raw: true });
+  assert.match(fr.text, /getChangesSince\(880\) 부터 읽을 수 있습니다\.$/);
+  assert.equal(JSON.parse(fr.raw).fromRev, 880);
 
   const many = Array.from({ length: 500 }, (_, i) => ({
     ...DELTA_ME_13,

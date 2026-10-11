@@ -551,9 +551,19 @@ export function ErdViewer() {
     const s = stateRef.current;
     if (!s) return;
     const seq = ++historySeq.current;
+    const current = () => modelIdRef.current === s.modelId && historySeq.current === seq;
     try {
-      const v = await viewChanges(s.modelId, Math.max(0, s.rev - HISTORY_SPAN));
-      if (modelIdRef.current === s.modelId && historySeq.current === seq) setHistory(v);
+      let v = await viewChanges(s.modelId, Math.max(0, s.rev - HISTORY_SPAN));
+      if (!current()) return;
+      // 요청 구간 앞에 다시 읽기 지점이 있으면(copy 로 만든 DRAFT 등) 서버가 알려 준 fromRev 부터 한 번만 더 읽는다.
+      // 다시 읽은 결과에 fromRev 를 남겨 안내문이 그 앞의 기록은 안 보인다고 알리게 한다. 또 reload 면 그대로 둔다.
+      const from = v.reload ? (v.fromRev ?? null) : null;
+      if (from !== null) {
+        const retry = await viewChanges(s.modelId, from);
+        if (!current()) return;
+        v = retry.reload ? retry : { ...retry, fromRev: from };
+      }
+      setHistory(v);
     } catch (e) {
       if (historySeq.current === seq) notify(errText(e), "error");
     }

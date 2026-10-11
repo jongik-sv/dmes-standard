@@ -388,10 +388,15 @@ export function formatCurrentView(view, opts = {}) {
   return lines.join("\n");
 }
 
-/** getChangesSince 요약. reload 면 다시 읽으라고 쓴다. */
+/** reload 응답의 fromRev(기록을 줄 수 있는 가장 이른 sinceRev) 안내. 없으면 빈 글. */
+export function fromRevHint(fromRev) {
+  return fromRev == null ? "" : ` 변경 기록은 getChangesSince(${fromRev}) 부터 읽을 수 있습니다.`;
+}
+
+/** getChangesSince 요약. reload 면 다시 읽으라고 쓰고, 서버가 fromRev 를 주면 거기부터 읽으라고 덧붙인다. */
 export function formatChanges(changes, sinceRev) {
   if (changes.reload) {
-    return `# reload: rev ${sinceRev} 이후 변경을 이어 줄 수 없습니다(DRAFT 를 새로 만들었거나 지웠거나, 500건을 넘었습니다). 현재 rev ${changes.rev}. getModelText 로 모델 전체를 다시 읽으세요.`;
+    return `# reload: rev ${sinceRev} 이후 변경을 이어 줄 수 없습니다(DRAFT 를 새로 만들었거나 지웠거나, 500건을 넘었습니다). 현재 rev ${changes.rev}. getModelText 로 모델 전체를 다시 읽으세요.${fromRevHint(changes.fromRev)}`;
   }
   const deltas = changes.deltas ?? [];
   const lines = [`# rev ${sinceRev} 이후 변경 ${deltas.length}건 (현재 rev ${changes.rev})`];

@@ -2,6 +2,7 @@
 
 /**
  * 변경 기록 탭(view sinceRev, 스펙 4.4 되돌리기). 최근 rev 부터, 변경은 종류별 수로 줄인다. 내 세션 행에 "나" 를 단다.
+ * 요청 구간 앞에 다시 읽기 지점이 있으면 화면(ErdViewer)이 서버 fromRev 부터 다시 읽고, 안내문(historyNote)이 그 앞은 안 보인다고 알린다.
  * 행마다 [되돌리기] — 그 rev 의 역명령을 새 rev 로 넣는다(restore). 뒤에 같은 속성을 바꾼 변경이 있으면 CONFLICT 다(S2-5).
  * 그리드 data 는 history·mySession 이 바뀔 때만, 단추 열은 canUndo·onUndo 가 바뀔 때만 다시 만든다(Screen-Performance R7, Local-Rules §20).
  */
@@ -24,6 +25,17 @@ export function historyRows(view: ErdChangesView | null, mySession = ""): Record
       summary: [...counts].map(([k, n]) => `${KIND_LABEL[k] ?? k} ${n}`).join("·"),
     };
   });
+}
+
+/**
+ * 변경 기록 안내문. fromRev 부터 다시 읽었으면 그 rev 앞의 기록이 안 보인다고, 다시 읽어도 reload 면(옛 서버·그사이 새 다시 읽기 지점)
+ * 지금 rev 앞에 다시 읽기 지점이 있다고 알린다. 알릴 것이 없으면 null.
+ */
+export function historyNote(view: ErdChangesView | null): string | null {
+  if (!view) return null;
+  if (view.reload) return `rev ${view.rev} 앞에 다시 읽기 지점이 있어 그 앞의 기록은 보이지 않습니다.`;
+  if (view.fromRev != null) return `rev ${view.fromRev} 에 다시 읽기 지점이 있어 그 앞의 기록은 보이지 않습니다.`;
+  return null;
 }
 
 function historyColumns(canUndo: boolean, onUndo: (rev: number) => void): GridColumn[] {

@@ -4,7 +4,7 @@ import { DEFAULT_FIND_OPTIONS } from "@dk-oasis/shared/react-flow";
 
 import { columnRows } from "../../../pages/dma/erdEdit/panels/ColumnGrid";
 import { diagramGroups, findTables, unplacedCount } from "../../../pages/dma/erdEdit/panels/DiagramTree";
-import { historyRows } from "../../../pages/dma/erdEdit/panels/ChangeLog";
+import { historyNote, historyRows } from "../../../pages/dma/erdEdit/panels/ChangeLog";
 import { diffRows } from "../../../pages/dma/erdEdit/panels/DbDiffApply";
 import { inferredRows, violationRows } from "../../../pages/dma/erdEdit/panels/ReviewPanel";
 import { nextMode, readOnlyReason } from "../../../pages/dma/erdEdit/panels/TopBar";
@@ -93,6 +93,14 @@ describe("검토 패널·컬럼 그리드 행", () => {
     expect(d).toEqual([{ id: "COLUMN_CHANGED:TB_A.NM", kind: "컬럼 다름", table: "TB_A", column: "NM", before: "VARCHAR2(100) NN", after: "NUMBER(10,2)" }]);
     expect(historyRows(null)).toEqual([]);
     expect(diffRows(null)).toEqual([]);
+  });
+
+  it("변경 기록 안내문은 fromRev 부터 다시 읽었으면 그 rev 를, 그래도 reload 면 지금 rev 를 알리고, 아니면 없다", () => {
+    expect(historyNote({ rev: 40, reload: false, deltas: [], fromRev: 38 })).toBe("rev 38 에 다시 읽기 지점이 있어 그 앞의 기록은 보이지 않습니다.");
+    expect(historyNote({ rev: 40, reload: true, deltas: [], fromRev: 38 })).toBe("rev 40 앞에 다시 읽기 지점이 있어 그 앞의 기록은 보이지 않습니다.");
+    expect(historyNote({ rev: 40, reload: false, deltas: [] })).toBeNull();
+    expect(historyNote({ rev: 40, reload: false, deltas: [], fromRev: null })).toBeNull();
+    expect(historyNote(null)).toBeNull();
   });
 
   it("컬럼 그리드 행은 키·도메인 이름·타입·NN·표준 상태를 싣는다", () => {

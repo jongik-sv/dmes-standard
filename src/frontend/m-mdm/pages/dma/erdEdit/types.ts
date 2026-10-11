@@ -77,7 +77,11 @@ export interface ErdChange { kind: ErdChangeKind; id: string; op: "upsert" | "de
 export interface ErdDelta {
   modelId: string; rev: number; userId: string; session: string; source: ErdSource; rowVersion?: number | null; changes: ErdChange[];
 }
-export interface ErdChangesView { rev: number; reload: boolean; deltas: ErdDelta[] }
+/**
+ * view sinceRev 응답. fromRev: 요청 구간 앞에 다시 읽기 지점(새 DRAFT·DRAFT 삭제)이 있거나 500건을 넘어 reload 일 때, 기록을 줄 수 있는
+ * 가장 이른 sinceRev. 그 밖에는 null(옛 서버는 싣지 않는다 — 읽을 때 `?? null`). 변경 기록 화면은 그 값으로 다시 읽은 결과에 fromRev 를 남겨 안내문에 쓴다.
+ */
+export interface ErdChangesView { rev: number; reload: boolean; deltas: ErdDelta[]; fromRev?: number | null }
 
 export interface ErdRejection {
   code: string; commandIndex: number; message: string; hint: string | null; elementId: string | null; property: string | null;

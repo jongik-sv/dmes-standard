@@ -79,6 +79,17 @@ public class ErdCommandLogStore {
         return Optional.of(out);
     }
 
+    /** afterRev 뒤 currentRev 까지 사이 마지막 표시 행의 rev(변경 기록 fromRev — 그 rev 를 sinceRev 로 주면 표시 행을 넘는다). */
+    @Transactional(readOnly = true)
+    public Optional<Long> lastMarker(String modelId, long afterRev, long currentRev) {
+        Number n = (Number) em.createNativeQuery("""
+                SELECT MAX(REV) FROM TB_MDM_ERD_CMD_LOG
+                 WHERE ERD_MODEL_ID = ? AND REV > ? AND REV <= ? AND SOURCE = ?""")
+                .setParameter(1, modelId).setParameter(2, afterRev).setParameter(3, currentRev)
+                .setParameter(4, ErdDelta.MARKER_SOURCE).getSingleResult();
+        return Optional.ofNullable(n).map(Number::longValue);
+    }
+
     /** afterRev 뒤 currentRev 까지 사이에 표시 행이 있는가(되돌리기 판정 — 지운 DRAFT 의 명령을 다음 DRAFT 로 되돌리지 않는다). */
     public boolean markerBetween(String modelId, long afterRev, long currentRev) {
         Number n = (Number) em.createNativeQuery("""

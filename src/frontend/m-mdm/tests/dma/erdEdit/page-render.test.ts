@@ -25,7 +25,9 @@ const STATUS = {
 let calls: Array<{ action: string; params: Record<string, unknown> }> = [];
 let currentView: ErdModelView;
 let restoreResult: unknown;
-let historyDeltas: unknown[] = [];
+let historyDeltas: Array<Record<string, unknown> & { rev: number }> = [];
+/** 다시 읽기 지점(표시 행) rev. 서버 규칙대로 sinceRev 가 이보다 작으면 reload·fromRev 를 준다(ErdCommandService.changesSince). */
+let historyMarker = 0;
 let validateResult: unknown;
 let host: HTMLDivElement;
 let root: Root | null = null;
@@ -54,7 +56,11 @@ function stubFetch() {
     if (action === "search") return okRows([MODEL_ROW]);
     if (action === "view" && params.kind === "STATUS") return ok(STATUS);
     if (action === "view" && params.kind === "SET_VIEW") return ok({ ok: true });
-    if (action === "view" && params.sinceRev !== undefined) return ok({ rev: currentView.rev, reload: false, deltas: historyDeltas });
+    if (action === "view" && params.sinceRev !== undefined) {
+      const since = Number(params.sinceRev);
+      if (since < historyMarker) return ok({ rev: currentView.rev, reload: true, deltas: [], fromRev: historyMarker });
+      return ok({ rev: currentView.rev, reload: false, deltas: historyDeltas.filter((d) => d.rev > since), fromRev: null });
+    }
     if (action === "view") return ok(currentView);
     if (action === "compare") return ok({ modelId: "mcm", rev: currentView.rev, schema: "MCMAPUSER", items: [] });
     if (action === "save") {
@@ -143,6 +149,7 @@ beforeEach(() => {
   vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {}, removeItem: () => {}, clear: () => {} });
   currentView = viewOf(menuModel(), MENU_DIAGRAMS);
   historyDeltas = [];
+  historyMarker = 0;
   validateResult = { errors: [], warnings: [] };
   restoreResult = { applied: true, rev: 5, rowVersion: 2, warnings: [], rejection: null,
     changes: [{ kind: "relation", id: "r-1", op: "patch", value: { state: "INFERRED" } }] };
@@ -408,6 +415,23 @@ describe("erdEdit 화면", () => {
     await settle();
     expect(calls.filter((c) => c.action === "restore")).toHaveLength(2);
     expect(byTestId("erd-message")?.textContent).toBe("되돌릴 내 변경이 없습니다.");
+  });
+
+  it("변경 기록 요청 구간 앞에 다시 읽기 지점이 있으면(copy 로 만든 DRAFT) 서버 fromRev 부터 한 번 더 읽어 행과 [되돌리기] 를 보인다", async () => {
+    // defect.historyEmptyBeforeSpan: rev 3 인 DRAFT 가 rev 1 의 표시 행 뒤에 있다. 화면은 sinceRev 0 을 묻고 서버는 reload·fromRev 1 을 준다.
+    historyMarker = 1;
+    historyDeltas = [
+      { modelId: "mcm", rev: 2, userId: "tester", session: "ui-peer", source: "UI", changes: [{ kind: "column", id: "c-4", op: "patch", value: { comment: "가" } }] },
+      { modelId: "mcm", rev: 3, userId: "tester", session: "ui-peer", source: "CLI", changes: [{ kind: "column", id: "c-4", op: "patch", value: { comment: "나" } }] },
+    ];
+    await openModel();
+    await click(byTestId("erd-tab-history"));
+    await waitFor(() => byTestId("erd-undo-3"));
+    expect(byTestId("erd-undo-2")).not.toBeNull();
+    expect(calls.filter((c) => c.action === "view" && c.params.sinceRev !== undefined).map((c) => c.params.sinceRev)).toEqual([0, 1]);
+    expect(byTestId("erd-history-note")?.textContent).toBe("rev 1 에 다시 읽기 지점이 있어 그 앞의 기록은 보이지 않습니다.");
+    await click(byTestId("erd-undo-2"));
+    expect(calls.filter((c) => c.action === "restore").map((c) => c.params.rev)).toEqual([2]);
   });
 
   it("연결이 끊긴 동안 Ctrl+Z 는 보내지 않고 NETWORK 알림을 보이며, 다시 붙으면 같은 rev 를 되돌린다", async () => {

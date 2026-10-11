@@ -92,6 +92,8 @@ test("getChangesSince 요약과 reload", () => {
   };
   assert.equal(formatChanges(changes, 12), "# rev 12 이후 변경 1건 (현재 rev 14)\nrev 13 41000207/ui-41000207 UI: table upsert t-1");
   assert.match(formatChanges({ rev: 20, reload: true, deltas: [] }, 12), /^# reload: .*현재 rev 20\. getModelText 로/);
+  assert.doesNotMatch(formatChanges({ rev: 20, reload: true, deltas: [] }, 12), /getChangesSince\(/);
+  assert.match(formatChanges({ rev: 20, reload: true, deltas: [], fromRev: 18 }, 0), /변경 기록은 getChangesSince\(18\) 부터 읽을 수 있습니다\.$/);
 });
 
 test("listViolations: OK·ALIAS 를 뺀 컬럼, 상태 거르기", () => {
