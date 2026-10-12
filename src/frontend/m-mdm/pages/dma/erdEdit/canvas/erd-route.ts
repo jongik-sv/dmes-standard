@@ -9,6 +9,8 @@ import { useCallback, useSyncExternalStore } from "react";
 
 import { useStoreApi } from "@dk-oasis/shared/react-flow";
 
+import type { FixedSides } from "./erd-geometry";
+
 /** 한 선의 꺾임점 상한(서버 POINTS_JSON 1~50). */
 export const MAX_ROUTE_POINTS = 50;
 /** 상한을 넘는 꺾임점을 보내려 할 때의 알림. */
@@ -19,6 +21,11 @@ export const ROUTE_HOVER_GRACE_MS = 150;
 export interface RouteHandlers {
   /** 끌어 놓음·빼기·더하기의 결과. 빈 목록 = 자동 경로로 되돌리기(clearRoutes). */
   commit(relation: string, points: { x: number; y: number }[]): Promise<void> | void;
+  /**
+   * 끝점 변 바꾸기(§7.5) — fixed = 저장할 두 끝의 변(키 없음 = 자동). points = 함께 바꿀 꺾임점: undefined = 그대로, 빈 목록 = 비우기.
+   * 명령은 한 묶음(되돌리기 1번)이다.
+   */
+  commitSides(relation: string, fixed: FixedSides, points?: { x: number; y: number }[]): Promise<void> | void;
   /** 꺾임점을 고칠 수 있는가(다이어그램 편집 권한). 없으면 손잡이를 그리지 않는다. */
   canEdit: boolean;
   /**

@@ -13,11 +13,12 @@ import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 
 import { ErdRelationEdge } from "../../../pages/dma/erdEdit/canvas/ErdRelationEdge";
 import { ErdTableNode } from "../../../pages/dma/erdEdit/canvas/ErdTableNode";
-import { buildFlow, type ErdFlowEdge, type ErdFlowNode } from "../../../pages/dma/erdEdit/canvas/erd-flow";
-import { endStub } from "../../../pages/dma/erdEdit/canvas/erd-geometry";
+import { buildFlow, handleId, type ErdFlowEdge, type ErdFlowNode } from "../../../pages/dma/erdEdit/canvas/erd-flow";
+import { endStub, type FixedSides } from "../../../pages/dma/erdEdit/canvas/erd-geometry";
 import { ROUTE_HOVER_GRACE_MS } from "../../../pages/dma/erdEdit/canvas/erd-route";
 import { useCanvasEditing, type CanvasEditing } from "../../../pages/dma/erdEdit/canvas/useCanvasEditing";
 import type { ErdEditContext } from "../../../pages/dma/erdEdit/edit-context";
+import { projectCommand } from "../../../pages/dma/erdEdit/state/pending";
 import type { ErdCommandJson, ErdDiagramRoute, ErdState } from "../../../pages/dma/erdEdit/types";
 import { flush } from "../../dme/helpers/render";
 import { deny, fakeCtx, type FakeCtx } from "./erd-canvas-fixtures";
@@ -60,22 +61,17 @@ let root: Root | null = null;
 let editing: CanvasEditing;
 
 /** happy-dom 은 손잡이를 재지 못해 React Flow 가 선을 그리지 않는다 — 같은 선 부품을 r-1 로 직접 그린다(손잡이 점 고정). */
-function Probe({ route }: { route: ErdDiagramRoute["points"] | null }) {
+function Probe({ route, fixed = null }: { route: ErdDiagramRoute["points"] | null; fixed?: FixedSides | null }) {
   const props = {
     id: "r-1", source: "t-1", target: "t-2", sourceX: SRC.x, sourceY: SRC.y, targetX: TGT.x, targetY: TGT.y,
-    sourcePosition: "right", targetPosition: "left", data: { state: "CONFIRMED", folded: 0, zeroChild: false, route },
+    sourcePosition: "right", targetPosition: "left", data: { state: "CONFIRMED", folded: 0, zeroChild: false, route, fixed },
   } as unknown as EdgeProps<ErdFlowEdge>;
   return h("svg", null, h(ErdRelationEdge, props));
 }
 
-/** setRoute·clearRoutes 만 상태에 반영한다(live 일 때). 나머지 명령은 기록만 남는다. */
+/** setRoute·setRouteSides·clearRoutes 만 상태에 반영한다(live 일 때, 낙관 반영과 같은 projectCommand). 나머지 명령은 기록만 남는다. */
 function applyRoutes(state: ErdState, commands: ErdCommandJson[]): ErdState {
-  const routes = { ...state.routes };
-  for (const c of commands) {
-    if (c.op === "setRoute") routes[`${c.diagram}:${c.relation}`] = { diagram: c.diagram as string, relation: c.relation as string, points: c.points as FlowPos[] };
-    if (c.op === "clearRoutes") for (const r of c.relations as string[]) delete routes[`${c.diagram}:${r}`];
-  }
-  return { ...state, routes };
+  return commands.filter((c) => ["setRoute", "setRouteSides", "clearRoutes"].includes(c.op as string)).reduce(projectCommand, state);
 }
 
 /**
@@ -106,7 +102,7 @@ function Harness({ ctx, live }: { ctx: ErdEditContext; live: boolean }) {
     }),
     [eff.state, eff.diagramId, eff.session],
   );
-  const route = flow.edges.find((x) => x.id === "r-1")?.data?.route ?? null;
+  const data = flow.edges.find((x) => x.id === "r-1")?.data;
   return h("div", { tabIndex: 0, "data-testid": "erd-host", onKeyDown: e.onKeyDown, style: { position: "relative", width: 1200, height: 800 } },
     e.toolbar,
     h(ReactFlow<ErdFlowNode, ErdFlowEdge>, {
@@ -114,7 +110,7 @@ function Harness({ ctx, live }: { ctx: ErdEditContext; live: boolean }) {
       onNodesChange: e.onNodesChange, ...e.flowProps, fitView: false, defaultViewport: { x: 0, y: 0, zoom: 1 },
     }),
     e.overlay,
-    h(Probe, { route }));
+    h(Probe, { route: data?.route ?? null, fixed: data?.fixed ?? null }));
 }
 
 async function mount(ctx: FakeCtx, live = false) {
@@ -760,5 +756,192 @@ describe("리뷰 반영 — 낡은 고른 점·제자리 놓기·끝 모양 두 
     expect(ctx.applied).toEqual([]);
     await dbl(`${tid("erd-rel-r-1")} .erd-rel__sel`, P(300, 150));
     expect(ctx.applied).toHaveLength(1);
+  });
+});
+
+// ── 끝점 변 바꾸기(§7.5) — 끝점 손잡이 끌기. t-1(0~240, 가운데 120) 자식 끝 (242,50), t-2(400~640, 가운데 520) 부모 끝 (398,150). ──
+const grip = (end: "child" | "parent") => tid(`erd-rel-end-r-1-${end}`);
+const CHILD_GRIP = P(248, 50);
+const PARENT_GRIP = P(392, 150);
+const SIDES = (childSide: "L" | "R" | null, parentSide: "L" | "R" | null) => ({ op: "setRouteSides", diagram: "d-all", relation: "r-1", childSide, parentSide });
+const CLEAR_CMD = { op: "clearRoutes", diagram: "d-all", relations: ["r-1"] };
+const sidesBatch = (...commands: object[]) => ({ commands, label: "끝점 변 바꾸기" });
+
+describe("buildFlow 의 끝점 변(§7.5)", () => {
+  const flowOf = (routes: ErdDiagramRoute[]) => buildFlow({
+    state: withRoutes(routes), diagramId: "d-all", mode: "logical", preset: "basic", namesOnly: false, showAudit: true,
+    statuses: {}, domains: {}, selected: new Set(), mySession: "ui-me",
+  }).edges.find((e) => e.id === "r-1")!;
+
+  it("고른 변은 위치 규칙보다 앞선다. 변만 고른 행은 자동 경로(route null)로 그린다", () => {
+    const e = flowOf([{ diagram: "d-all", relation: "r-1", points: [], childSide: "L" }]);
+    expect(e.data?.route).toBeNull();
+    expect(e.data?.fixed).toEqual({ child: "L" });
+    expect(e.sourceHandle).toBe(handleId("c-2", "L", "source"));
+    expect(e.targetHandle).toBe(handleId("c-3", "L", "target")); // 부모는 자동(마주 보는 변)
+  });
+
+  it("고른 변이 없으면 fixed = null, 손잡이는 위치 규칙 그대로", () => {
+    const e = flowOf(routeOf([P(300, 200)]));
+    expect(e.data?.fixed).toBeNull();
+    expect(e.sourceHandle).toBe(handleId("c-2", "R", "source"));
+  });
+});
+
+describe("끝점 손잡이 끌기(§7.5)", () => {
+  it("고른 선 양 끝에 끝점 손잡이가 뜬다. 고르지 않거나 권한이 없으면 없다", async () => {
+    await mount(fakeCtx());
+    expect(q(grip("child"))).toBeNull();
+    await pickLine();
+    expect(q(grip("child"))).not.toBeNull();
+    expect(q(grip("parent"))).not.toBeNull();
+    act(() => root?.unmount());
+    host.remove();
+    await mount(fakeCtx({ rights: { ...fakeCtx().rights, diagram: deny("보기 전용입니다.") } }));
+    await pickLine();
+    expect(q(grip("child"))).toBeNull();
+  });
+
+  it("자식 끝을 표 왼쪽으로 끌면 끄는 동안 미리 그리고 놓을 때 setRouteSides 한 번 → 다시 그려도 유지, 자동 변으로 끌면 지정 해제", async () => {
+    const ctx = fakeCtx();
+    await mount(ctx, true);
+    await pickLine();
+    expect(rel().getAttribute("data-sides")).toBe("rl");
+    await down(grip("child"), CHILD_GRIP);
+    await move(P(100, 50));
+    await move(P(30, 50));
+    expect(ctx.applied).toEqual([]); // 끄는 동안은 보내지 않는다
+    expect(rel().getAttribute("data-sides")).toBe("ll");
+    expect(q(grip("child"))!.hasAttribute("data-dragging")).toBe(true);
+    await up(P(30, 50));
+    expect(ctx.applied).toEqual([sidesBatch(SIDES("L", null))]);
+    // 상태에 반영된 뒤(다시 읽기와 같은 buildFlow)에도 왼쪽 변 그대로
+    expect(rel().getAttribute("data-sides")).toBe("ll");
+    expect(q(grip("child"))!.hasAttribute("data-fixed")).toBe(true);
+    // 자동 변(오른쪽)으로 다시 끌어 놓으면 지정을 푼다 — 두 변 null = 행 없음
+    await drag(grip("child"), P(-8, 50), P(200, 50));
+    expect(ctx.applied[1]).toEqual(sidesBatch(SIDES(null, null)));
+    expect(rel().getAttribute("data-sides")).toBe("rl");
+    expect(q(grip("child"))!.hasAttribute("data-fixed")).toBe(false);
+  });
+
+  it("같은 변(가운데를 넘지 않음)에 놓으면 보내지 않는다", async () => {
+    const ctx = fakeCtx();
+    await mount(ctx);
+    await pickLine();
+    await drag(grip("child"), CHILD_GRIP, P(150, 50));
+    expect(ctx.applied).toEqual([]);
+    expect(rel().getAttribute("data-sides")).toBe("rl");
+  });
+
+  it("부모 끝도 따로 고른다", async () => {
+    const ctx = fakeCtx();
+    await mount(ctx);
+    await pickLine();
+    await drag(grip("parent"), PARENT_GRIP, P(600, 150));
+    expect(ctx.applied).toEqual([sidesBatch(SIDES(null, "R"))]);
+  });
+
+  it("경로 첫 점이 새 변 안쪽이면 점을 비우고 변과 한 묶음(clearRoutes → setRouteSides)", async () => {
+    const ctx = fakeCtx({ state: withRoutes(routeOf([P(300, 200)])) });
+    await mount(ctx);
+    await pickLine();
+    await down(grip("child"), CHILD_GRIP);
+    await move(P(30, 50));
+    expect(rel().hasAttribute("data-routed")).toBe(false); // 놓았을 때 모양(자동 경로)으로 미리 그린다
+    await up(P(30, 50));
+    expect(ctx.applied).toEqual([sidesBatch(CLEAR_CMD, SIDES("L", null))]);
+  });
+
+  it("경로 첫 점이 새 변 바깥쪽이면 끝 마디만 직각으로 다시 맞춘다(setRouteSides + setRoute)", async () => {
+    const ctx = fakeCtx({ state: withRoutes(routeOf([P(-60, 120), P(300, 200)])) });
+    await mount(ctx);
+    await pickLine();
+    await drag(grip("child"), CHILD_GRIP, P(30, 50));
+    // 왼쪽 변 끝 = 가운데로 접은 x(2*120-242 = -2). 첫 점 x -60 ≤ -2 - END_STUB → 두고, 높이 50 에서 꺾는 점을 끼운다
+    expect(ctx.applied).toEqual([sidesBatch(SIDES("L", null), { op: "setRoute", diagram: "d-all", relation: "r-1", points: [P(-60, 50), P(-60, 120), P(300, 200)] })]);
+  });
+
+  it("고른 변이 있는 선의 마지막 점 지우기 = clearRoutes + setRouteSides(지금 변)", async () => {
+    const ctx = fakeCtx({ state: withRoutes([{ diagram: "d-all", relation: "r-1", points: [P(-60, 200)], childSide: "L" }]) });
+    await mount(ctx);
+    await pickLine();
+    await dbl(pt(0), P(-60, 200));
+    expect(ctx.applied).toEqual([{ commands: [CLEAR_CMD, SIDES("L", null)], label: "자동 경로로 되돌리기" }]);
+  });
+
+  it("선 메뉴 [끝점 변 자동으로] = 지정 해제. 고른 변이 없으면 꺼져 있다", async () => {
+    const ctx = fakeCtx({ state: withRoutes([{ diagram: "d-all", relation: "r-1", points: [], childSide: "L" }]) });
+    await mount(ctx);
+    const openMenu = async () => {
+      await act(async () => {
+        editing.flowProps.onEdgeContextMenu!({ preventDefault() {}, clientX: 10, clientY: 10 } as never, edge);
+      });
+      await flush();
+    };
+    await openMenu();
+    expect(q<HTMLButtonElement>('[data-testid="erd-menu-item-route-reset"]')!.disabled).toBe(true); // 점이 없다
+    await act(async () => {
+      q<HTMLElement>('[data-testid="erd-menu-item-route-sides-reset"]')!.click();
+    });
+    await flush();
+    expect(ctx.applied).toEqual([sidesBatch(SIDES(null, null))]);
+    act(() => root?.unmount());
+    host.remove();
+    await mount(fakeCtx());
+    await openMenu();
+    expect(q<HTMLButtonElement>('[data-testid="erd-menu-item-route-sides-reset"]')!.disabled).toBe(true);
+  });
+});
+
+describe("끝점 손잡이 — 리뷰 보강(§7.5)", () => {
+  it("움직이지 않고 누르고 떼면 보내지 않는다(지정 변 = 자동 변이어도)", async () => {
+    const ctx = fakeCtx({ state: withRoutes([{ diagram: "d-all", relation: "r-1", points: [], childSide: "R" }]) });
+    await mount(ctx);
+    await pickLine();
+    await press(grip("child"), CHILD_GRIP);
+    expect(ctx.applied).toEqual([]);
+  });
+
+  it("부모 끝을 오른쪽 변으로 옮기면 끝 점이 바깥이므로 끝 마디만 다시 맞춘다", async () => {
+    const ctx = fakeCtx({ state: withRoutes(routeOf([P(300, 200), P(700, 100)])) });
+    await mount(ctx);
+    await pickLine();
+    await drag(grip("parent"), PARENT_GRIP, P(600, 150));
+    // 오른쪽 변 끝 = 2*520-398 = 642. 끝 점 x 700 ≥ 642 + END_STUB → 두고, 높이 150 에서 꺾는 점을 끝에 붙인다
+    expect(ctx.applied).toEqual([sidesBatch(SIDES(null, "R"), { op: "setRoute", diagram: "d-all", relation: "r-1", points: [P(300, 200), P(700, 100), P(700, 150)] })]);
+  });
+
+  it("고른 변이 있는 선의 마지막 점을 Delete 로 지워도 변을 다시 적는다", async () => {
+    const ctx = fakeCtx({ state: withRoutes([{ diagram: "d-all", relation: "r-1", points: [P(-60, 200)], parentSide: "R" }]) });
+    await mount(ctx);
+    await pickLine();
+    await press(pt(0), P(-60, 200));
+    await key("Delete");
+    expect(ctx.applied).toEqual([{ commands: [CLEAR_CMD, SIDES(null, "R")], label: "자동 경로로 되돌리기" }]);
+  });
+
+  const menuReset = async (ctx: FakeCtx) => {
+    await mount(ctx);
+    await act(async () => {
+      editing.flowProps.onEdgeContextMenu!({ preventDefault() {}, clientX: 10, clientY: 10 } as never, edge);
+    });
+    await flush();
+    await act(async () => {
+      q<HTMLElement>('[data-testid="erd-menu-item-route-sides-reset"]')!.click();
+    });
+    await flush();
+  };
+
+  it("선 메뉴 [끝점 변 자동으로] — 경로가 있고 그린 변이 바뀌면 clearRoutes 하나(행 통째)", async () => {
+    const ctx = fakeCtx({ state: withRoutes([{ diagram: "d-all", relation: "r-1", points: [P(-60, 200)], childSide: "L" }]) });
+    await menuReset(ctx);
+    expect(ctx.applied).toEqual([sidesBatch(CLEAR_CMD)]);
+  });
+
+  it("선 메뉴 [끝점 변 자동으로] — 지정 변이 자동 변과 같으면 점은 두고 변만 푼다", async () => {
+    const ctx = fakeCtx({ state: withRoutes([{ diagram: "d-all", relation: "r-1", points: [P(300, 200)], childSide: "R" }]) });
+    await menuReset(ctx);
+    expect(ctx.applied).toEqual([sidesBatch(SIDES(null, null))]);
   });
 });

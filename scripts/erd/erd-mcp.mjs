@@ -158,7 +158,7 @@ export const TOOLS = {
       "addTable 은 감사 컬럼 8개(C_USR_ID C_AT C_SVC_ID C_PGM_ID U_USR_ID U_AT U_SVC_ID U_PGM_ID)를 표 끝에 자동으로 붙인다(끄려면 audit:false, 가져오기는 붙이지 않는다). " +
       "position 없는 addColumn·끝으로 가는 moveColumn 은 표 끝이 감사 컬럼 블록이면 그 블록 바로 앞에 넣는다(넣는 컬럼이 감사 컬럼이면 맨 끝. 컬럼 수 이상의 position 도 끝으로 보고, 안쪽 position 은 그대로). " +
       "결과 끝의 '다음 baseRev' 를 다음 apply 에 쓴다. " +
-      "거절(CONFLICT·NOT_FOUND·INVALID·NEEDS_CHOICE·NOT_EDITOR)은 오류 결과이고 '다음:' 줄에 할 일이 있다. dryRun=true 면 저장하지 않고 판정만 본다.",
+      "거절(CONFLICT·NOT_FOUND·INVALID·BAD_COMMAND·NEEDS_CHOICE·NOT_EDITOR)은 오류 결과이고 '다음:' 줄에 할 일이 있다. BAD_COMMAND = 명령 JSON 형식 오류 또는 서버가 모르는 op(서버가 옛 버전이면 다시 띄운다). dryRun=true 면 저장하지 않고 판정만 본다.",
     inputSchema: {
       modelId,
       baseRev,

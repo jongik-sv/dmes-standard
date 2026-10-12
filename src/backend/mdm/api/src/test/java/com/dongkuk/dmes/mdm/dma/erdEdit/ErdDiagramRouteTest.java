@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdApplyResult;
+import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdChange;
 import com.dongkuk.dmes.mdm.dma.erdEdit.service.ErdCommandService;
 import com.dongkuk.dmes.mdm.dma.erdEdit.service.ErdVersionService;
@@ -12,21 +13,25 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * 관계선 꺾임점(ERD 2차 §7.1) — setRoute·clearRoutes, 관계·표·다이어그램 삭제의 연쇄 삭제와 되돌리기 1번 복원, 델타.
+ * 관계선 꺾임점(ERD 2차 §7.1)·끝점 변(README §7.5) — setRoute·clearRoutes·setRouteSides, 관계·표·다이어그램 삭제의 연쇄 삭제와 되돌리기 1번 복원, 델타.
  * 준비(rev 3): 표 t-r(부모)·t-m(자식)·t-x, 관계 r-1(t-m → t-r), 다이어그램 d-1·d-2 에 세 표를 놓는다.
  */
-@SpringBootTest
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "cactus.security.client-key=" + ErdStage2ContractTest.KEY)
 @ActiveProfiles("local")
 class ErdDiagramRouteTest extends AbstractMdmSharedDbTest {
 
+    @LocalServerPort int port;
     @Autowired JdbcTemplate jdbc;
     @Autowired ErdVersionService versions;
     @Autowired ErdCommandService commands;
@@ -136,7 +141,8 @@ class ErdDiagramRouteTest extends AbstractMdmSharedDbTest {
                 "{\"op\":\"setRoute\",\"diagram\":\"d-1\",\"points\":" + P1 + "}")) {
             var r = apply(3, "[" + bad + "]");
             assertThat(r.applied()).as(bad).isFalse();
-            assertThat(r.rejection().code()).as(bad).isEqualTo("INVALID");
+            // 값 규칙 위반 = INVALID, 엄격 읽기(필드 형식) 실패 = BAD_COMMAND(erd-side-2)
+            assertThat(r.rejection().code()).as(bad).isIn("INVALID", "BAD_COMMAND");
         }
         assertThat(rev()).isEqualTo(3);
         assertThat(routes("d-1")).isZero();
@@ -352,6 +358,256 @@ class ErdDiagramRouteTest extends AbstractMdmSharedDbTest {
         var r = commands.apply("mcm", 3, "stranger", "s", "UI", cmds("[" + setRoute("d-1", "r-1", P1) + "]"));
         assertThat(r.rejection().code()).isEqualTo("NOT_EDITOR");
         assertThat(routes("d-1")).isZero();
+    }
+
+    // ---- 끝점 변 setRouteSides (README §7.5) ----
+
+    static String sides(String diagram, String relation, String child, String parent) {
+        return "{\"op\":\"setRouteSides\",\"diagram\":\"" + diagram + "\",\"relation\":\"" + relation + "\",\"childSide\":"
+                + (child == null ? "null" : "\"" + child + "\"") + ",\"parentSide\":" + (parent == null ? "null" : "\"" + parent + "\"") + "}";
+    }
+
+    /** [CHILD_SIDE, PARENT_SIDE] (NULL 은 null). 행이 없으면 null. */
+    List<String> dbSides(String diagram, String relation) {
+        List<List<String>> v = jdbc.query("SELECT CHILD_SIDE, PARENT_SIDE FROM TB_MDM_ERD_DIAGRAM_ROUTE WHERE DIAGRAM_ID = ? AND REL_UUID = ?",
+                (rs, i) -> {
+                    List<String> l = new ArrayList<>();
+                    l.add(rs.getString(1));
+                    l.add(rs.getString(2));
+                    return l;
+                }, diagram, relation);
+        return v.isEmpty() ? null : v.get(0);
+    }
+
+    static List<String> pair(String child, String parent) {
+        List<String> l = new ArrayList<>();
+        l.add(child);
+        l.add(parent);
+        return l;
+    }
+
+    JsonNode routeDelta(ErdApplyResult r, String id) {
+        return r.changes().stream().filter(c -> c.kind().equals("diagramRoute") && c.id().equals(id)).findFirst().orElseThrow().value();
+    }
+
+    JsonNode viewRoute(String diagram, String relation) throws Exception {
+        JsonNode view = new ErdTestClient(port, ErdStage2ContractTest.KEY).call("view", "owner", Map.of("modelId", "mcm")).at("/data/result");
+        for (JsonNode r : view.path("routes")) {
+            if (r.path("diagram").asText().equals(diagram) && r.path("relation").asText().equals(relation)) return r;
+        }
+        return null;
+    }
+
+    /** 행이 없는 선에 변만 지정하면 points [] 인 행이 생기고, 델타·view 에 변 키가 있다. 다시 보내면 두 변을 덮어쓰고 null 변은 키가 없다. */
+    @Test
+    void setRouteSidesCreatesSidesOnlyRowAndOverwritesBoth() throws Exception {
+        var r = ok(3, "[" + sides("d-1", "r-1", "L", "R") + "]");  // rev 4
+        assertThat(dbSides("d-1", "r-1")).isEqualTo(pair("L", "R"));
+        assertThat(points("d-1", "r-1")).isEqualTo(om.readTree("[]"));
+        assertThat(routeDelta(r, "d-1:r-1")).isEqualTo(om.readTree(
+                "{\"diagram\":\"d-1\",\"relation\":\"r-1\",\"points\":[],\"childSide\":\"L\",\"parentSide\":\"R\"}"));
+        JsonNode v = viewRoute("d-1", "r-1");
+        assertThat(v).isNotNull();
+        assertThat(v.path("points").isArray()).isTrue();
+        assertThat(v.path("points").size()).isZero();
+        assertThat(v.path("childSide").asText()).isEqualTo("L");
+        assertThat(v.path("parentSide").asText()).isEqualTo("R");
+        // 덮어쓰기: 한쪽만 null — 그 키가 없다
+        var o = ok(4, "[" + sides("d-1", "r-1", "R", null) + "]");  // rev 5
+        assertThat(dbSides("d-1", "r-1")).isEqualTo(pair("R", null));
+        assertThat(routeDelta(o, "d-1:r-1")).isEqualTo(om.readTree("{\"diagram\":\"d-1\",\"relation\":\"r-1\",\"points\":[],\"childSide\":\"R\"}"));
+        JsonNode v2 = viewRoute("d-1", "r-1");
+        assertThat(v2.has("parentSide")).isFalse();
+        assertThat(v2.path("childSide").asText()).isEqualTo("R");
+        // 키 없음 = null
+        ok(5, "[{\"op\":\"setRouteSides\",\"diagram\":\"d-1\",\"relation\":\"r-1\",\"parentSide\":\"L\"}]");
+        assertThat(dbSides("d-1", "r-1")).isEqualTo(pair(null, "L"));
+        // 다른 다이어그램은 영향 없음
+        assertThat(routes("d-2")).isZero();
+    }
+
+    /** 점 없는 선에는 변 키가 없고(V9 전 모양), setRoute 는 점만 바꿔 변을 유지한다. 새 행은 변 NULL. */
+    @Test
+    void setRouteKeepsSidesAndNewRowHasNone() throws Exception {
+        var first = ok(3, "[" + setRoute("d-1", "r-1", P1) + "]");  // rev 4
+        assertThat(dbSides("d-1", "r-1")).isEqualTo(pair(null, null));
+        assertThat(routeDelta(first, "d-1:r-1").has("childSide")).isFalse();
+        assertThat(viewRoute("d-1", "r-1").has("childSide")).isFalse();
+        ok(4, "[" + sides("d-1", "r-1", "L", "R") + "]");  // rev 5
+        assertThat(points("d-1", "r-1")).isEqualTo(om.readTree(P1));  // 점은 그대로
+        var again = ok(5, "[" + setRoute("d-1", "r-1", "[{\"x\":1,\"y\":2}]") + "]");  // rev 6
+        assertThat(dbSides("d-1", "r-1")).isEqualTo(pair("L", "R"));
+        assertThat(points("d-1", "r-1")).isEqualTo(om.readTree("[{\"x\":1,\"y\":2}]"));
+        assertThat(routeDelta(again, "d-1:r-1")).isEqualTo(om.readTree(
+                "{\"diagram\":\"d-1\",\"relation\":\"r-1\",\"points\":[{\"x\":1,\"y\":2}],\"childSide\":\"L\",\"parentSide\":\"R\"}"));
+        // 변만 있는 행에 setRoute 해도 변이 남는다
+        ok(6, "[" + sides("d-2", "r-1", "R", null) + "]");
+        ok(7, "[" + setRoute("d-2", "r-1", "[{\"x\":9,\"y\":9}]") + "]");
+        assertThat(dbSides("d-2", "r-1")).isEqualTo(pair("R", null));
+    }
+
+    /** 점 없고 변만 있는 행: 두 변을 null 로 지우면 행을 지운다. 점이 있는 행은 변만 비우고 행을 둔다. 행이 없고 둘 다 null 이면 no-op(rev 만 오른다). */
+    @Test
+    void clearingBothSidesDeletesSidesOnlyRowKeepsRowWithPointsAndNullIsNoOp() throws Exception {
+        var noop = ok(3, "[" + sides("d-1", "r-1", null, null) + "]");  // rev 4
+        assertThat(noop.rev()).isEqualTo(4);
+        assertThat(noop.changes()).isEmpty();
+        assertThat(routes("d-1")).isZero();
+        ok(4, "[" + sides("d-1", "r-1", "L", null) + "]");  // rev 5
+        assertThat(routes("d-1")).isEqualTo(1);
+        var gone = ok(5, "[" + sides("d-1", "r-1", null, null) + "]");  // rev 6
+        assertThat(routes("d-1")).isZero();
+        assertThat(routeChanges(gone)).containsExactly("d-1:r-1|delete");
+        assertThat(viewRoute("d-1", "r-1")).isNull();
+        // 점이 있는 행
+        ok(6, "[" + setRoute("d-2", "r-1", P1) + "," + sides("d-2", "r-1", "L", "R") + "]");  // rev 7
+        var cleared = ok(7, "[" + sides("d-2", "r-1", null, null) + "]");
+        assertThat(dbSides("d-2", "r-1")).isEqualTo(pair(null, null));
+        assertThat(points("d-2", "r-1")).isEqualTo(om.readTree(P1));
+        assertThat(routeDelta(cleared, "d-2:r-1").has("childSide")).isFalse();
+    }
+
+    /** 되돌리기: 변이 없던 행(키 없음 → NULL)·행이 없던 선(→ 행 삭제)·변만 있던 행(지운 것을 되살림)이 모두 돌아온다. */
+    @Test
+    void undoSetRouteSidesRestoresPreviousIncludingAbsentKeysAsNull() throws Exception {
+        ok(3, "[" + setRoute("d-1", "r-1", P1) + "]");                 // rev 4 — 변 NULL
+        ok(4, "[" + sides("d-1", "r-1", "L", "R") + "]");              // rev 5
+        var undo = commands.undo("mcm", 5, "owner", "ui", "UI");       // rev 6
+        assertThat(undo.applied()).as(String.valueOf(undo.rejection())).isTrue();
+        assertThat(dbSides("d-1", "r-1")).isEqualTo(pair(null, null));  // 키 없음 → NULL 로 덮어쓴다
+        assertThat(points("d-1", "r-1")).isEqualTo(om.readTree(P1));
+        assertThat(routeDelta(undo, "d-1:r-1").has("childSide")).isFalse();
+        // 되돌리기의 되돌리기 = 다시 하기
+        var redo = commands.undo("mcm", 6, "owner", "ui", "UI");       // rev 7
+        assertThat(redo.applied()).as(String.valueOf(redo.rejection())).isTrue();
+        assertThat(dbSides("d-1", "r-1")).isEqualTo(pair("L", "R"));
+        // 행이 없던 선: 되돌리면 행이 사라진다
+        ok(7, "[" + sides("d-2", "r-1", "R", "R") + "]");              // rev 8
+        assertThat(routes("d-2")).isEqualTo(1);
+        var gone = commands.undo("mcm", 8, "owner", "ui", "UI");       // rev 9
+        assertThat(gone.applied()).as(String.valueOf(gone.rejection())).isTrue();
+        assertThat(routes("d-2")).isZero();
+        assertThat(routeChanges(gone)).containsExactly("d-2:r-1|delete");
+        // 변만 있던 행을 두 변 null 로 지운 것(rev 10)을 되돌리면 변만 있는 행(points [])이 돌아온다
+        ok(9, "[" + sides("d-2", "r-1", "L", null) + "]");             // rev 10
+        ok(10, "[" + sides("d-2", "r-1", null, null) + "]");           // rev 11
+        assertThat(routes("d-2")).isZero();
+        var back = commands.undo("mcm", 11, "owner", "ui", "UI");      // rev 12
+        assertThat(back.applied()).as(String.valueOf(back.rejection())).isTrue();
+        assertThat(dbSides("d-2", "r-1")).isEqualTo(pair("L", null));
+        assertThat(points("d-2", "r-1")).isEqualTo(om.readTree("[]"));
+    }
+
+    /** 변을 바꾼 뒤 점을 다시 바꾸면(행 전체 비교) 변 바꾸기 되돌리기는 CONFLICT. */
+    @Test
+    void undoSetRouteSidesConflictsAfterLaterSetRoute() throws Exception {
+        ok(3, "[" + sides("d-1", "r-1", "L", "R") + "]");              // rev 4
+        ok(4, "[" + setRoute("d-1", "r-1", P1) + "]");                  // rev 5
+        var undo = commands.undo("mcm", 4, "owner", "ui", "UI");
+        assertThat(undo.applied()).isFalse();
+        assertThat(undo.rejection().code()).isEqualTo("CONFLICT");
+        assertThat(dbSides("d-1", "r-1")).isEqualTo(pair("L", "R"));
+    }
+
+    /** clearRoutes 는 행을 통째로 지운다(점과 변). 그 되돌리기는 점과 변을 함께 되살린다. */
+    @Test
+    void clearRoutesRemovesSidesAndUndoRestoresThem() throws Exception {
+        ok(3, "[" + setRoute("d-1", "r-1", P1) + "," + sides("d-1", "r-1", "L", "R") + ","
+                + sides("d-2", "r-1", "R", null) + "]");                // rev 4 — d-2 는 변만 있는 행
+        var clear = ok(4, "[{\"op\":\"clearRoutes\",\"diagram\":\"d-1\",\"relations\":[\"r-1\"]},"
+                + "{\"op\":\"clearRoutes\",\"diagram\":\"d-2\",\"relations\":[\"r-1\"]}]");  // rev 5
+        assertThat(routes("d-1") + routes("d-2")).isZero();
+        assertThat(routeChanges(clear)).containsExactlyInAnyOrder("d-1:r-1|delete", "d-2:r-1|delete");
+        var undo = commands.undo("mcm", 5, "owner", "ui", "UI");
+        assertThat(undo.applied()).as(String.valueOf(undo.rejection())).isTrue();
+        assertThat(dbSides("d-1", "r-1")).isEqualTo(pair("L", "R"));
+        assertThat(points("d-1", "r-1")).isEqualTo(om.readTree(P1));
+        assertThat(dbSides("d-2", "r-1")).isEqualTo(pair("R", null));
+        assertThat(points("d-2", "r-1")).isEqualTo(om.readTree("[]"));
+    }
+
+    /**
+     * 화면의 마지막 점 지우기(변이 있는 선) = clearRoutes + setRouteSides(지금 변) 한 묶음. 델타는 한 건(점 [] 과 변),
+     * DB 는 '[]' 와 변, 되돌리기 1번이면 점과 변이 함께 돌아온다.
+     */
+    @Test
+    void lastPointDeleteBatchKeepsSidesAndUndoRestoresPoints() throws Exception {
+        ok(3, "[" + setRoute("d-1", "r-1", P1) + "," + sides("d-1", "r-1", "L", "R") + "]");  // rev 4
+        var del = ok(4, "[{\"op\":\"clearRoutes\",\"diagram\":\"d-1\",\"relations\":[\"r-1\"]}," + sides("d-1", "r-1", "L", "R") + "]");  // rev 5
+        assertThat(routeChanges(del)).containsExactly("d-1:r-1|upsert");
+        assertThat(routeDelta(del, "d-1:r-1")).isEqualTo(om.readTree(
+                "{\"diagram\":\"d-1\",\"relation\":\"r-1\",\"points\":[],\"childSide\":\"L\",\"parentSide\":\"R\"}"));
+        assertThat(points("d-1", "r-1")).isEqualTo(om.readTree("[]"));
+        assertThat(dbSides("d-1", "r-1")).isEqualTo(pair("L", "R"));
+        var undo = commands.undo("mcm", 5, "owner", "ui", "UI");
+        assertThat(undo.applied()).as(String.valueOf(undo.rejection())).isTrue();
+        assertThat(points("d-1", "r-1")).isEqualTo(om.readTree(P1));
+        assertThat(dbSides("d-1", "r-1")).isEqualTo(pair("L", "R"));
+    }
+
+    /** 연쇄 삭제(관계 삭제·다이어그램 삭제)도 변을 기억해 되돌리기 1번으로 되살린다. */
+    @Test
+    void cascadeDeletesRememberSidesAndUndoRestores() throws Exception {
+        ok(3, "[" + setRoute("d-1", "r-1", P1) + "," + sides("d-1", "r-1", "L", "R") + "," + sides("d-2", "r-1", null, "L") + "]");  // rev 4
+        ok(4, "[{\"op\":\"deleteRelation\",\"id\":\"r-1\"}]");          // rev 5
+        assertThat(routes("d-1") + routes("d-2")).isZero();
+        assertThat(commands.undo("mcm", 5, "owner", "ui", "UI").applied()).isTrue();  // rev 6
+        assertThat(dbSides("d-1", "r-1")).isEqualTo(pair("L", "R"));
+        assertThat(dbSides("d-2", "r-1")).isEqualTo(pair(null, "L"));
+        ok(6, "[{\"op\":\"deleteDiagram\",\"id\":\"d-2\"}]");           // rev 7
+        assertThat(commands.undo("mcm", 7, "owner", "ui", "UI").applied()).isTrue();  // rev 8
+        assertThat(dbSides("d-2", "r-1")).isEqualTo(pair(null, "L"));
+        ok(8, "[{\"op\":\"removeFromDiagram\",\"diagram\":\"d-1\",\"tables\":[\"t-m\"]}]");  // rev 9
+        assertThat(routes("d-1")).isZero();
+        assertThat(commands.undo("mcm", 9, "owner", "ui", "UI").applied()).isTrue();
+        assertThat(dbSides("d-1", "r-1")).isEqualTo(pair("L", "R"));
+    }
+
+    @Test
+    void copyDiagramCopiesSides() throws Exception {
+        ok(3, "[" + setRoute("d-1", "r-1", P1) + "," + sides("d-1", "r-1", "R", "L") + "]");  // rev 4
+        ok(4, "[{\"op\":\"copyDiagram\",\"from\":\"d-1\",\"id\":\"d-3\"}]");  // rev 5
+        assertThat(dbSides("d-3", "r-1")).isEqualTo(pair("R", "L"));
+        assertThat(points("d-3", "r-1")).isEqualTo(om.readTree(P1));
+        // 변만 있는 행도 복사한다
+        ok(5, "[" + sides("d-2", "r-1", null, "R") + "]");
+        ok(6, "[{\"op\":\"copyDiagram\",\"from\":\"d-2\",\"id\":\"d-4\"}]");
+        assertThat(dbSides("d-4", "r-1")).isEqualTo(pair(null, "R"));
+        assertThat(points("d-4", "r-1")).isEqualTo(om.readTree("[]"));
+    }
+
+    @Test
+    void setRouteSidesRejectsBadSideSelfRelationUnknownRelationAndDiagram() throws Exception {
+        ok(3, "[{\"op\":\"addRelation\",\"id\":\"r-self\",\"child\":\"t-r\",\"parent\":\"t-r\",\"onNameClash\":\"REUSE\"}]");  // rev 4
+        for (String bad : List.of(
+                sides("d-1", "r-1", "X", null), sides("d-1", "r-1", null, "l"), sides("d-1", "r-1", "", null),
+                sides("d-1", "r-1", "LR", "R"), sides("d-1", "r-1", " ", null),
+                sides("d-1", "r-self", "L", "R"), sides("d-1", "r-self", null, null),
+                sides("d-1", "r-none", "L", "R"), sides("d-none", "r-1", "L", "R"),
+                "{\"op\":\"setRouteSides\",\"diagram\":\"d-1\",\"childSide\":\"L\"}",
+                "{\"op\":\"setRouteSides\",\"diagram\":\"d-1\",\"relation\":\"\",\"childSide\":\"L\"}",
+                "{\"op\":\"setRouteSides\",\"relation\":\"r-1\",\"childSide\":\"L\"}",
+                "{\"op\":\"setRouteSides\",\"diagram\":\"d-1\",\"relation\":\"r-1\",\"childSide\":1}")) {
+            var r = apply(4, "[" + bad + "]");
+            assertThat(r.applied()).as(bad).isFalse();
+            assertThat(r.rejection().code()).as(bad).isEqualTo("INVALID");
+        }
+        assertThat(rev()).isEqualTo(4);
+        assertThat(routes("d-1")).isZero();
+    }
+
+    @Test
+    void strangerCannotSetRouteSides() throws Exception {
+        var r = commands.apply("mcm", 3, "stranger", "s", "UI", cmds("[" + sides("d-1", "r-1", "L", "R") + "]"));
+        assertThat(r.rejection().code()).isEqualTo("NOT_EDITOR");
+        assertThat(routes("d-1")).isZero();
+    }
+
+    @Test
+    void setRouteSidesIsDiagramOp() {
+        assertThat(ErdDiagramCommand.isDiagramOp("setRouteSides")).isTrue();
+        assertThat(ErdDiagramCommand.isDiagramOp("setRoute")).isTrue();
+        assertThat(ErdDiagramCommand.isDiagramOp("setRouteSide")).isFalse();
     }
 
     JsonNode relations() throws Exception {

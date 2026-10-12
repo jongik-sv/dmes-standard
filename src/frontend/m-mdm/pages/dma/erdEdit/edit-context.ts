@@ -7,7 +7,7 @@ import type { ErdCommandJson, ErdRejection, ErdState, ErdStatusView, ErdWarning 
 export interface Right { ok: boolean; reason: string | null }
 export interface EditRights { model: Right; diagram: Right; confirm: Right; manageEditors: Right; owner: boolean }
 
-export type ErdNoticeCode = "CONFLICT" | "NOT_FOUND" | "INVALID" | "NEEDS_CHOICE" | "NOT_EDITOR" | "NETWORK" | "RELOAD";
+export type ErdNoticeCode = "CONFLICT" | "NOT_FOUND" | "INVALID" | "BAD_COMMAND" | "NEEDS_CHOICE" | "NOT_EDITOR" | "NETWORK" | "RELOAD";
 export interface ErdNotice {
   code: ErdNoticeCode;
   label: string; message: string; hint: string | null; commandIndex: number | null; elementId: string | null;
@@ -59,16 +59,17 @@ export interface ErdEditContext {
 }
 
 export const NOTICE_LABEL: Readonly<Record<ErdNoticeCode, string>> = {
-  CONFLICT: "충돌", NOT_FOUND: "이미 지워짐", INVALID: "규칙 위반", NEEDS_CHOICE: "선택 필요",
+  CONFLICT: "충돌", NOT_FOUND: "이미 지워짐", INVALID: "규칙 위반", BAD_COMMAND: "요청 형식 오류", NEEDS_CHOICE: "선택 필요",
   NOT_EDITOR: "편집 권한 없음", NETWORK: "연결 문제", RELOAD: "다시 읽음",
 };
 
-const SERVER_CODES: ReadonlySet<string> = new Set(["CONFLICT", "NOT_FOUND", "INVALID", "NEEDS_CHOICE", "NOT_EDITOR"]);
+// BAD_COMMAND = 서버가 명령 JSON 을 읽지 못함(모르는 op 포함, 예: 화면보다 옛 서버). 규칙 위반(INVALID)과 다른 제목으로 보인다.
+const SERVER_CODES: ReadonlySet<string> = new Set(["CONFLICT", "NOT_FOUND", "INVALID", "BAD_COMMAND", "NEEDS_CHOICE", "NOT_EDITOR"]);
 
 /** 다이어그램 명령(버전 밖, R9-2). Java ErdDiagramCommand.isDiagramOp 와 같은 목록이다. */
 const DIAGRAM_OPS: ReadonlySet<string> = new Set([
   "addDiagram", "updateDiagram", "deleteDiagram", "placeTables", "moveNodes", "setFold", "removeFromDiagram", "restoreDiagram",
-  "resizeNodes", "setRoute", "clearRoutes", "copyDiagram",
+  "resizeNodes", "setRoute", "setRouteSides", "clearRoutes", "copyDiagram",
 ]);
 
 export function isDiagramOp(op: string): boolean {

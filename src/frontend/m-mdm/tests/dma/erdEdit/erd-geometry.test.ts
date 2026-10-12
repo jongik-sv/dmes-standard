@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { smoothStepPoints } from "@dk-oasis/shared/react-flow";
 
 import {
-  END_STUB, FACING_MIN_GAP, HANDLE_REACH, NODE_WIDTH, crowFootPath, endStub, liveEnds, nodeHeight, oneBarsPath, relationSides, typeText, zeroCirclePos,
+  END_STUB, FACING_MIN_GAP, HANDLE_REACH, NODE_WIDTH, crowFootPath, endStub, liveEnds, nextFixedSides, nodeHeight, oneBarsPath, refitRouteEnd, relationSides,
+  sideAt, typeText, withFixedSides, zeroCirclePos,
 } from "../../../pages/dma/erdEdit/canvas/erd-geometry";
 import { column } from "./erd-fixtures";
 
@@ -146,5 +147,54 @@ describe("erd-geometry", () => {
     expect(nodeHeight(0, false)).toBe(32);
     expect(nodeHeight(3, true)).toBe(112);
     expect(NODE_WIDTH).toBe(240);
+  });
+});
+
+describe("끝점 변(§7.5)", () => {
+  const AUTO = { child: "R", parent: "L" } as const;
+
+  it("withFixedSides — 고른 끝만 덮는다", () => {
+    expect(withFixedSides(AUTO, null)).toBe(AUTO);
+    expect(withFixedSides(AUTO, {})).toBe(AUTO);
+    expect(withFixedSides(AUTO, { parent: "R" })).toEqual({ child: "R", parent: "R" });
+  });
+
+  it("sideAt — 표 가운데보다 왼쪽이면 L, 가운데부터 R", () => {
+    expect(sideAt(119, 0)).toBe("L");
+    expect(sideAt(120, 0)).toBe("R");
+    expect(sideAt(150, 100, 100)).toBe("R");
+    expect(sideAt(149, 100, 100)).toBe("L");
+  });
+
+  it("nextFixedSides — 자동 변이면 지정 해제, 다르면 지정, 저장 값과 같으면 null", () => {
+    expect(nextFixedSides({}, "child", "L", AUTO)).toEqual({ child: "L" });
+    expect(nextFixedSides({}, "child", "R", AUTO)).toBeNull();
+    expect(nextFixedSides({ child: "L", parent: "R" }, "child", "R", AUTO)).toEqual({ parent: "R" });
+    expect(nextFixedSides({ child: "L" }, "child", "L", AUTO)).toBeNull();
+  });
+
+  it("refitRouteEnd — 가까운 점이 새 변 바깥(END_STUB 이상)이면 두고 높이가 다르면 모서리 점을 끼운다. 안쪽이면 null", () => {
+    const src = { x: -2, y: 50 };
+    const tgt = { x: 398, y: 150 };
+    expect(refitRouteEnd([{ x: -2 - END_STUB, y: 50 }], "child", "L", src, tgt, 50)).toEqual([{ x: -2 - END_STUB, y: 50 }]);
+    expect(refitRouteEnd([{ x: -60, y: 120 }], "child", "L", src, tgt, 50)).toEqual([{ x: -60, y: 50 }, { x: -60, y: 120 }]);
+    expect(refitRouteEnd([{ x: -2 - END_STUB + 1, y: 50 }], "child", "L", src, tgt, 50)).toBeNull();
+    // 부모 끝(오른쪽 변으로 옮김) = 끝 점을 본다
+    const right = { x: 642, y: 150 };
+    expect(refitRouteEnd([{ x: 300, y: 50 }, { x: 700, y: 100 }], "parent", "R", { x: 242, y: 50 }, right, 50))
+      .toEqual([{ x: 300, y: 50 }, { x: 700, y: 100 }, { x: 700, y: 150 }]);
+    expect(refitRouteEnd([{ x: 300, y: 50 }], "parent", "R", { x: 242, y: 50 }, right, 50)).toBeNull();
+    // 모서리 점을 끼우면 상한을 넘는다 → 끼우지 않고 점은 둔다(끝 마디 비스듬)
+    expect(refitRouteEnd([{ x: -60, y: 120 }], "child", "L", src, tgt, 1)).toEqual([{ x: -60, y: 120 }]);
+    // 끝 높이가 소수면 반올림해 견준다 — 같은 높이 점에 모서리 점을 겹쳐 끼우지 않는다
+    expect(refitRouteEnd([{ x: -60, y: 50 }], "child", "L", { x: -2, y: 50.4 }, tgt, 50)).toEqual([{ x: -60, y: 50 }]);
+    expect(refitRouteEnd([], "child", "L", src, tgt, 50)).toBeNull();
+  });
+
+  it("liveEnds — 고른 끝은 위치 규칙과 관계없이 그 변으로 접는다", () => {
+    const src = { x: 242, position: "right" } as const;
+    const tgt = { x: 398, position: "left" } as const;
+    expect(liveEnds(src, 0, tgt, 400)).toEqual({ source: src, target: tgt });
+    expect(liveEnds(src, 0, tgt, 400, NODE_WIDTH, NODE_WIDTH, { child: "L" })).toEqual({ source: { x: -2, position: "left" }, target: tgt });
   });
 });

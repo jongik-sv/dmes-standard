@@ -260,6 +260,8 @@ public class ErdEditService {
                 SELECT R.DIAGRAM_ID
                      , R.REL_UUID
                      , R.POINTS_JSON
+                     , R.CHILD_SIDE
+                     , R.PARENT_SIDE
                   FROM TB_MDM_ERD_DIAGRAM_ROUTE R
                      , TB_MDM_ERD_DIAGRAM D
                  WHERE D.DIAGRAM_ID = R.DIAGRAM_ID
@@ -270,6 +272,11 @@ public class ErdEditService {
             o.put("diagram", rs.getString("DIAGRAM_ID"));
             o.put("relation", rs.getString("REL_UUID"));
             o.put("points", routePoints(rs.getString("POINTS_JSON")));
+            // 끝점 변(README §7.5). NULL = 자동 변이라 키를 넣지 않는다.
+            String childSide = rs.getString("CHILD_SIDE");
+            if (childSide != null) o.put("childSide", childSide);
+            String parentSide = rs.getString("PARENT_SIDE");
+            if (parentSide != null) o.put("parentSide", parentSide);
             return o;
         }, modelId);
         return new ErdModelView(modelId, rev, VersionNumbers.plain(v.getVer()), v.getStatus(), v.getOwnerId(), editors,

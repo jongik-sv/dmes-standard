@@ -169,6 +169,58 @@ export function relationSides(
   return childX < parentX ? { child: "R", parent: "L" } : { child: "L", parent: "R" };
 }
 
+/** 사용자가 고른 끝점 변(§7.5). 키가 없는 끝은 자동(relationSides). */
+export interface FixedSides {
+  child?: NodeSide;
+  parent?: NodeSide;
+}
+
+/** 자동 변에 고른 변을 덮는다. 자기 참조는 고를 수 없어 자동 그대로다. */
+export function withFixedSides(auto: { child: NodeSide; parent: NodeSide }, fixed: FixedSides | null | undefined): { child: NodeSide; parent: NodeSide } {
+  if (!fixed || (!fixed.child && !fixed.parent)) return auto;
+  return { child: fixed.child ?? auto.child, parent: fixed.parent ?? auto.parent };
+}
+
+/** 끝점을 놓은 흐름 x 가 붙을 변 — 표 가운데보다 왼쪽이면 L, 아니면 R(§7.5). */
+export function sideAt(x: number, left: number, width: number = NODE_WIDTH): NodeSide {
+  return x < left + width / 2 ? "L" : "R";
+}
+
+/**
+ * 끝점 하나를 dropped 변에 놓은 뒤 저장할 변 — 자동 변과 같으면 그 끝은 지정 해제(키 없음), 다르면 그 변으로 지정한다.
+ * 지금 저장 값과 같으면 null(명령 없음).
+ */
+export function nextFixedSides(
+  fixed: FixedSides, end: "child" | "parent", dropped: NodeSide, auto: { child: NodeSide; parent: NodeSide },
+): FixedSides | null {
+  const value = dropped === auto[end] ? undefined : dropped;
+  if (fixed[end] === value) return null;
+  const out: FixedSides = { ...fixed };
+  if (value) out[end] = value;
+  else delete out[end];
+  return out;
+}
+
+/**
+ * 변을 바꾼 끝에 맞춰 저장 꺾임점을 고친다(§7.5). src·tgt = 새 변 기준 양 끝(자식 끝·부모 끝), side = 바꾼 끝의 새 변.
+ * 그 끝에 가장 가까운 점(자식 = 첫 점, 부모 = 끝 점)이 새 변의 바깥쪽(END_STUB 이상)에 있으면 점을 두고, 높이가 다르면 끝에서 수평으로 나가 꺾이는
+ * 모서리 점을 하나 끼운다. 바깥쪽이 아니면(선이 표를 가로지른다) null = 점을 비운다. 모서리 점을 끼우면 상한(max)을 넘으면 끼우지 않는다
+ * (끝 마디가 비스듬해진다 — 점을 잃는 것보다 낫다).
+ */
+export function refitRouteEnd(
+  points: readonly FlowPos[], end: "child" | "parent", side: NodeSide, src: FlowPos, tgt: FlowPos, max: number,
+): FlowPos[] | null {
+  if (points.length === 0) return null;
+  const at = end === "child" ? src : tgt;
+  const near = end === "child" ? points[0] : points[points.length - 1];
+  const outward = side === "L" ? near.x <= at.x - END_STUB : near.x >= at.x + END_STUB;
+  if (!outward) return null;
+  const y = Math.round(at.y);
+  const corner = near.y === y || points.length + 1 > max ? [] : [{ x: near.x, y }];
+  const out = end === "child" ? [...corner, ...points] : [...points, ...corner];
+  return out.map((p) => ({ x: p.x, y: p.y }));
+}
+
 export interface LiveEnd {
   /** 손잡이 점의 흐름 x. */
   x: number;
@@ -182,11 +234,13 @@ const mirrorX = (x: number, left: number, width: number = NODE_WIDTH): number =>
  * 끄는 동안 관계선 양 끝(원천 = 자식, 대상 = 부모)을 규칙(relationSides)에 맞춘다. 손잡이 id 는 모델에서 정해진 채라서
  * (buildFlow 는 놓은 뒤에야 다시 짠다) 끄는 중에는 손잡이와 규칙이 어긋날 수 있다. 어긋난 끝은 상자 가운데로 접어 반대편 변에 붙인다 —
  * 높이(y)는 같으므로 손잡이가 없는 쪽도 정확한 점이 된다. x 는 각 끝 노드의 현재 왼쪽 x(srcLeft·tgtLeft)와 손잡이 점이 같은 시점 값이어야 한다.
+ * fixed = 고른 끝점 변(§7.5). 고른 끝은 위치와 관계없이 그 변에 붙는다.
  */
 export function liveEnds(
   source: LiveEnd, srcLeft: number, target: LiveEnd, tgtLeft: number, srcWidth: number = NODE_WIDTH, tgtWidth: number = NODE_WIDTH,
+  fixed?: FixedSides | null,
 ): { source: LiveEnd; target: LiveEnd } {
-  const sides = relationSides(srcLeft, tgtLeft, false, srcWidth, tgtWidth);
+  const sides = withFixedSides(relationSides(srcLeft, tgtLeft, false, srcWidth, tgtWidth), fixed);
   const fit = (end: LiveEnd, left: number, width: number, side: NodeSide): LiveEnd => {
     const position = side === "R" ? "right" : "left";
     return end.position === position ? end : { x: mirrorX(end.x, left, width), position };

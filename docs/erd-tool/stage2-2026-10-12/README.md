@@ -187,6 +187,33 @@
   - 끄기에서 실제로 바뀐 축만 보낸다(안 바뀐 축은 지금 저장 값, 자동이면 null). 둘 다 그대로면 명령 없음
 - MCP·CLI(`scripts/erd`) 는 노드 위치를 내보내지 않으므로 바꾸지 않는다
 
+### 7.5 관계선 끝점 변 (erd-side d1 이 만들고 erd-side d2 가 따른다, 사용자 결정 10-12)
+
+- 칸 = `TB_MDM_ERD_DIAGRAM_ROUTE.CHILD_SIDE`·`PARENT_SIDE`(mdm V9, `VARCHAR2(1 CHAR)`, NULL 허용, `CHECK IN ('L','R')`). NULL = 자동 변(relationSides, 지금 동작). 끝마다 따로 둔다
+  - 경로 행과 같은 행이다. 점 없이 변만 지정한 행은 `POINTS_JSON = '[]'` 로 둔다(NOT NULL 유지, §7.1 의 1~50 은 `setRoute` 입력 규칙)
+  - 점이 비고 두 변이 모두 NULL 이 되면 행을 지운다(빈 행을 남기지 않는다)
+- 다이어그램 명령(save 묶음, 버전 밖)
+  - `{"op":"setRouteSides","diagram":"<d>","relation":"<r>","childSide":"L"|"R"|null,"parentSide":"L"|"R"|null}` — 두 변을 함께 덮어쓴다(키 없음 = null = 자동). 점은 건드리지 않는다
+  - 다른 값 = INVALID. 관계 확인은 `setRoute` 와 같다(그 DRAFT, 없으면 현재 버전에 없는 관계 = INVALID). 자기 참조 관계 = INVALID
+  - 행이 없고 두 변이 null = no-op(rev 는 올린다)
+  - `setRoute` = 점만 바꾼다(변 유지). 새 행이면 변 NULL
+  - `clearRoutes` = 행을 통째로 지운다(점과 변). [자동 배치]가 옮긴 표의 선을 자동으로 돌린다(§7.1 그대로)
+  - 권한·rev·SSE·되돌리기 = `setRoute` 와 같은 길. `edit-context.ts` `DIAGRAM_OPS` 와 서버 `isDiagramOp` 에 더한다
+- 델타 kind `diagramRoute` 값 = `{diagram, relation, points}` + 변이 있을 때만 `childSide`·`parentSide`(NULL 이면 키 없음 — V9 전 되돌리기 기록과 값 비교가 같게). 변만 있는 행은 `points: []`
+- view 응답 `routes[]` 도 같은 모양
+- 연관 명령: `deleteRelation`·`deleteTable`·`removeFromDiagram`·`deleteDiagram` = 행과 함께 지우고 되돌리기로 돌아온다(§7.1). `copyDiagram` = 변도 복사. `restoreDiagram`·되돌리기 값에 변 키가 없으면 NULL 로 되살린다
+- 화면 규칙(erd-side d2)
+  - 손잡이 = 편집 가능할 때 고른 선·올린 선(선 손잡이와 같은 표시 규칙) 양 끝의 네모. 개요 단계(0.35 미만)에서는 그리지 않는다. 자기 참조 선에는 없다
+  - 해제 방법 두 가지 = 끝점을 자동 변으로 끌어 놓기, 선 우클릭 메뉴 [끝점 변 자동으로](풀었을 때 그린 변이 바뀌면 꺾임점도 비운다)
+  - 끄는 동안 선 안 state 만 바뀐다. 놓은 자리 x 가 표 가운데 x 보다 왼쪽이면 L, 아니면 R
+  - 놓은 변이 자동 변(relationSides)과 같으면 그 끝은 null(지정 해제), 다르면 그 변으로 지정. 새 값이 지금 저장 값과 같으면 명령 없음
+  - 세로 위치 = 지금처럼 컬럼 행(가려진 행·스크롤 표는 머리 손잡이, §7.4)
+  - 표를 옮겨도 지정한 변은 유지. 끄는 동안의 접기(liveEnds)도 지정한 끝은 접지 않는다
+  - 경로 점이 있는 선의 변을 바꾸면 = 새 끝의 바깥쪽에 첫(또는 끝) 점이 있으면 점을 두고 끝 마디만 직각으로 다시 맞춘다. 아니면 점을 비운다(선이 표를 가로지르지 않게). 모서리 점을 끼우면 50개를 넘는 경우는 끼우지 않는다(끝 마디가 비스듬). 변 바꾸기와 점 바꾸기는 한 묶음(되돌리기 1번)
+  - 누르고 움직이지 않은 채 떼면(3px 미만) 보내지 않는다. 끄는 사이 그 선의 경로·변이 남의 편집으로 바뀌면 보내지 않는다
+  - 마지막 점 지우기(Delete·두 번 누르기) = 변이 지정된 선이면 `clearRoutes` + `setRouteSides`(지금 변) 한 묶음. 지정이 없으면 지금처럼 `clearRoutes`
+- MCP·CLI(`scripts/erd`) 는 바꾸지 않는다
+
 ## 8. 기록 문서
 
 - 이 회차는 성능 비교 기록이 없다(렌더 측정은 3차).

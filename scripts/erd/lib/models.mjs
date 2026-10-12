@@ -44,7 +44,7 @@ export function diagramsOf(view) {
       diagramName: d.diagramName,
       sortSeq: d.sortSeq ?? null,
       ...(nodes ? { nodeCount: nodes.filter((n) => n.diagram === d.id).length } : {}),
-      ...(routes ? { routeCount: routes.filter((r) => r.diagram === d.id).length } : {}),
+      ...(routes ? { routeCount: routes.filter((r) => r.diagram === d.id && Array.isArray(r.points) && r.points.length > 0).length } : {}),
     }));
 }
 

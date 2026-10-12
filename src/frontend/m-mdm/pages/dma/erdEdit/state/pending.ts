@@ -186,7 +186,28 @@ export function projectCommand(state: ErdState, cmd: ErdCommandJson): ErdState {
       const relation = str(cmd.relation);
       const points = Array.isArray(cmd.points) ? (cmd.points as { x: number; y: number }[]) : [];
       if (!diagram || !relation || points.length === 0 || !state.model.relations[relation]) return state;
-      return { ...state, routes: { ...state.routes, [routeKey(diagram, relation)]: { diagram, relation, points } } };
+      // 점만 바꾼다 — 고른 끝점 변(§7.5)은 그대로 둔다.
+      const key = routeKey(diagram, relation);
+      return { ...state, routes: { ...state.routes, [key]: { ...state.routes[key], diagram, relation, points } } };
+    }
+    case "setRouteSides": {
+      // 끝점 변(§7.5) — 두 변을 함께 덮어쓴다(null·키 없음 = 자동). 점은 그대로. 점도 변도 없으면 행이 사라진다.
+      const diagram = str(cmd.diagram);
+      const relation = str(cmd.relation);
+      const r = relation ? state.model.relations[relation] : undefined;
+      if (!diagram || !relation || !r || r.child === r.parent) return state;
+      // 다른 값은 서버가 묶음째 INVALID 로 거절한다 — 미리 보이지 않는다.
+      const okSide = (v: unknown): boolean => v === undefined || v === null || v === "L" || v === "R";
+      if (!okSide(cmd.childSide) || !okSide(cmd.parentSide)) return state;
+      const side = (v: unknown): "L" | "R" | undefined => (v === "L" || v === "R" ? v : undefined);
+      const childSide = side(cmd.childSide);
+      const parentSide = side(cmd.parentSide);
+      const key = routeKey(diagram, relation);
+      const points = state.routes[key]?.points ?? [];
+      const routes = { ...state.routes };
+      if (points.length === 0 && !childSide && !parentSide) delete routes[key];
+      else routes[key] = { diagram, relation, points, ...(childSide ? { childSide } : {}), ...(parentSide ? { parentSide } : {}) };
+      return { ...state, routes };
     }
     case "clearRoutes": {
       // 빈 relations 는 서버도 no-op(거절 아님)이다.

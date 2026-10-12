@@ -76,6 +76,9 @@ button.erd-node__clip:hover { color: var(--color-primary); }
 .erd-rel__pt[data-auto] { stroke-dasharray: 2 2; }
 .erd-rel__seg[data-axis="h"] { cursor: ns-resize; }
 .erd-rel__seg[data-axis="v"] { cursor: ew-resize; }
+.erd-rel__endgrip { fill: transparent; stroke: var(--color-primary); stroke-width: 1.5; pointer-events: all; touch-action: none; cursor: ew-resize; }
+.erd-rel__endgrip:hover, .erd-rel__endgrip[data-dragging] { fill: var(--color-primary-soft); }
+.erd-rel__endgrip[data-fixed] { fill: var(--color-primary); }
 /* 손잡이가 뜬 선을 다른 선 위로 — xyflow 는 선마다 따로 svg 이고 고른 선을 올리지 않아(elevateEdgesOnSelect false) 뒤에 그린 선의 투명 고르기 영역이 손잡이를 덮는다. */
 .react-flow__edges > svg:has(.erd-rel[data-handles]) { z-index: 1000 !important; }
 .erd-rel__guide { stroke: var(--color-primary); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }

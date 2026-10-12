@@ -24,6 +24,15 @@ describe("거절 → 알림(스펙 4.5, S2-13)", () => {
     expect(n.hint).toBe("화면이 최신 값으로 바뀌었습니다. 확인한 뒤 다시 고치세요.");
   });
 
+  it("BAD_COMMAND(서버가 모르는 명령)는 「요청 형식 오류」 제목에 서버 본문·userHint 를 그대로 보인다(erd-side-2)", () => {
+    const n = noticeFromRejection({
+      ...conflict, code: "BAD_COMMAND", message: "서버가 모르는 명령입니다: setRouteSides", hint: "서버가 이 명령을 모릅니다. 화면보다 서버가 옛 버전이면 서버를 다시 띄우세요.",
+      userHint: "서버가 이 명령을 모릅니다. 화면보다 서버가 옛 버전이면 서버를 다시 띄우세요.", byRev: null, byUserId: null, bySession: null,
+    }, [{ op: "setRouteSides", diagram: "d-all", relation: "r-1", childSide: "L", parentSide: null }]);
+    expect(n).toMatchObject({ code: "BAD_COMMAND", label: "요청 형식 오류", message: "서버가 모르는 명령입니다: setRouteSides" });
+    expect(n.hint).toBe("서버가 이 명령을 모릅니다. 화면보다 서버가 옛 버전이면 서버를 다시 띄우세요.");
+  });
+
   it("hint 만 있고 userHint 가 없으면(LLM 용 글뿐) 안내를 보이지 않는다(U27)", () => {
     const n = noticeFromRejection(conflict, []);
     expect(n.hint).toBeNull();
@@ -38,7 +47,7 @@ describe("거절 → 알림(스펙 4.5, S2-13)", () => {
     expect(isDiagramOp("moveNodes")).toBe(true);
     expect(isDiagramOp("restoreDiagram")).toBe(true);
     // 표 크기(§7.4)·꺾임점(§7.1)·다이어그램 복사도 다이어그램 명령(버전 밖) — Java isDiagramOp 와 같은 목록
-    for (const op of ["resizeNodes", "setRoute", "clearRoutes", "copyDiagram"]) expect(isDiagramOp(op)).toBe(true);
+    for (const op of ["resizeNodes", "setRoute", "setRouteSides", "clearRoutes", "copyDiagram"]) expect(isDiagramOp(op)).toBe(true);
     expect(isDiagramOp("updateColumn")).toBe(false);
   });
 });

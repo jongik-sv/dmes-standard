@@ -59,7 +59,7 @@ class ErdSchemaTest extends AbstractMdmSharedDbTest {
         }
     }
 
-    /** V7: 꺾임점 표와 칼럼 12개 모두 주석이 있다(V5 관례). */
+    /** V7·V9: 꺾임점 표와 칼럼 14개(V9 끝점 변 2개 포함) 모두 주석이 있다(V5 관례). */
     @Test
     void routeTableAndColumnsHaveComments() {
         assertThat(jdbc.queryForObject("SELECT COMMENTS FROM USER_TAB_COMMENTS WHERE TABLE_NAME = 'TB_MDM_ERD_DIAGRAM_ROUTE'", String.class))
@@ -67,9 +67,20 @@ class ErdSchemaTest extends AbstractMdmSharedDbTest {
         List<String> columns = jdbc.queryForList(
                 "SELECT C.COLUMN_NAME FROM USER_TAB_COLUMNS C WHERE C.TABLE_NAME = 'TB_MDM_ERD_DIAGRAM_ROUTE' ORDER BY C.COLUMN_ID", String.class);
         assertThat(columns).containsExactly("DIAGRAM_ID", "REL_UUID", "POINTS_JSON", "C_USR_ID", "C_AT", "C_SVC_ID", "C_PGM_ID",
-                "U_USR_ID", "U_AT", "U_SVC_ID", "U_PGM_ID", "VER");
+                "U_USR_ID", "U_AT", "U_SVC_ID", "U_PGM_ID", "VER", "CHILD_SIDE", "PARENT_SIDE");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM USER_COL_COMMENTS WHERE TABLE_NAME = 'TB_MDM_ERD_DIAGRAM_ROUTE' "
-                + "AND COMMENTS IS NOT NULL", Integer.class)).isEqualTo(12);
+                + "AND COMMENTS IS NOT NULL", Integer.class)).isEqualTo(14);
+    }
+
+    /** V9: 끝점 변 칸 CHILD_SIDE·PARENT_SIDE 는 NULL 허용(자동 변)이고 L·R 만 받는다. */
+    @Test
+    void routeSideColumnsAreNullableAndCheckedLR() {
+        assertThat(jdbc.queryForList("SELECT COLUMN_NAME || ':' || NULLABLE FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'TB_MDM_ERD_DIAGRAM_ROUTE' "
+                + "AND COLUMN_NAME IN ('CHILD_SIDE', 'PARENT_SIDE') ORDER BY COLUMN_NAME", String.class))
+                .containsExactly("CHILD_SIDE:Y", "PARENT_SIDE:Y");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM USER_CONSTRAINTS WHERE TABLE_NAME = 'TB_MDM_ERD_DIAGRAM_ROUTE' "
+                + "AND CONSTRAINT_TYPE = 'C' AND CONSTRAINT_NAME IN ('CK_TB_MDM_ERD_DIAGRAM_ROUTE_CSIDE', 'CK_TB_MDM_ERD_DIAGRAM_ROUTE_PSIDE')",
+                Integer.class)).isEqualTo(2);
     }
 
     /** V8: 다이어그램 노드의 표 크기 칸 SIZE_W·SIZE_H 는 NULL 허용(자동 크기)이고 주석이 있다. */

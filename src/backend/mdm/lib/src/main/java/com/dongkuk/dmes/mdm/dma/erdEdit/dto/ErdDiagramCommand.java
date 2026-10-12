@@ -20,7 +20,8 @@ import java.util.Map;
         @JsonSubTypes.Type(value = ErdDiagramCommand.ClearRoutes.class, name = "clearRoutes"),
         @JsonSubTypes.Type(value = ErdDiagramCommand.CopyDiagram.class, name = "copyDiagram"),
         @JsonSubTypes.Type(value = ErdDiagramCommand.RestoreDiagram.class, name = "restoreDiagram"),
-        @JsonSubTypes.Type(value = ErdDiagramCommand.ResizeNodes.class, name = "resizeNodes")
+        @JsonSubTypes.Type(value = ErdDiagramCommand.ResizeNodes.class, name = "resizeNodes"),
+        @JsonSubTypes.Type(value = ErdDiagramCommand.SetRouteSides.class, name = "setRouteSides")
 })
 public sealed interface ErdDiagramCommand {
 
@@ -56,10 +57,17 @@ public sealed interface ErdDiagramCommand {
     /** 그 다이어그램에서 표들의 크기를 바꾼다(위치·접기는 그대로). w 160~1600, h 52~4000. */
     record ResizeNodes(String diagram, List<NodeSize> nodes) implements ErdDiagramCommand {}
 
+    /**
+     * 그 다이어그램에서 그 관계선 두 끝점의 변을 함께 덮어쓴다(README §7.5). childSide·parentSide = "L"|"R"|null(null = 자동 변).
+     * 꺾임점은 건드리지 않는다. 자기 참조 관계는 거절.
+     */
+    record SetRouteSides(String diagram, String relation, String childSide, String parentSide) implements ErdDiagramCommand {}
+
     static boolean isDiagramOp(String op) {
         return switch (op) {
             case "addDiagram", "updateDiagram", "deleteDiagram", "placeTables", "moveNodes", "setFold",
-                 "removeFromDiagram", "setRoute", "clearRoutes", "copyDiagram", "restoreDiagram", "resizeNodes" -> true;
+                 "removeFromDiagram", "setRoute", "clearRoutes", "copyDiagram", "restoreDiagram", "resizeNodes",
+                 "setRouteSides" -> true;
             default -> false;
         };
     }

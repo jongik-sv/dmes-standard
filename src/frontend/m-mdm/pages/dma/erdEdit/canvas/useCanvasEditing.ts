@@ -40,7 +40,7 @@ import {
 } from "./erd-commands";
 import { PASTE_GAP, copyTables, nextPasteRound, pasteTablesPlan, readClip, writeClip } from "./erd-clipboard";
 import { nextExpiry, viewersAt, type ErdFlowEdge, type ErdFlowNode, type InlineEdit } from "./erd-flow";
-import { NODE_WIDTH, ZOOM_NAMES_ONLY, ZOOM_OVERVIEW, lodTier, nodeHeight, type LodTier } from "./erd-geometry";
+import { NODE_WIDTH, ZOOM_NAMES_ONLY, ZOOM_OVERVIEW, lodTier, nodeHeight, relationSides, type FixedSides, type LodTier } from "./erd-geometry";
 import { dragSize, minNodeHeight, setSizeDraft, sizeBusOf, type GripPress, type SizeDraft, type SizeGrip } from "./erd-geometry";
 import { autoLayoutCommand, type Size } from "./erd-layout";
 import {
@@ -1134,11 +1134,31 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       return;
     }
     if (points.length === 0) {
-      if (!c.state.routes[routeKey(c.diagramId, relation)]) return;
-      await send([{ op: "clearRoutes", diagram: c.diagramId, relations: [relation] }], "자동 경로로 되돌리기");
+      const row = c.state.routes[routeKey(c.diagramId, relation)];
+      if (!row || row.points.length === 0) return;
+      // clearRoutes 는 행을 통째로 지운다 — 고른 끝점 변(§7.5)은 같은 묶음에서 다시 적는다(되돌리기 1번).
+      const keep = row.childSide || row.parentSide
+        ? [{ op: "setRouteSides", diagram: c.diagramId, relation, childSide: row.childSide ?? null, parentSide: row.parentSide ?? null }] : [];
+      await send([{ op: "clearRoutes", diagram: c.diagramId, relations: [relation] }, ...keep], "자동 경로로 되돌리기");
       return;
     }
     await send([{ op: "setRoute", diagram: c.diagramId, relation, points }], "꺾임점 바꾸기");
+  }, [deny, send]);
+  // 끝점 변 바꾸기(§7.5) — 변과 (바꿀 때) 꺾임점을 한 묶음으로. 점을 비우면 clearRoutes 뒤에 변을 적는다(clearRoutes 는 행을 통째로 지운다).
+  const commitSides = useCallback(async (relation: string, fixed: FixedSides, points?: { x: number; y: number }[]) => {
+    const c = ctxRef.current;
+    if (!c.diagramId) return;
+    if (!c.rights.diagram.ok) {
+      deny(c.rights.diagram);
+      return;
+    }
+    const sides = { op: "setRouteSides", diagram: c.diagramId, relation, childSide: fixed.child ?? null, parentSide: fixed.parent ?? null };
+    const routed = (c.state.routes[routeKey(c.diagramId, relation)]?.points.length ?? 0) > 0;
+    const commands = points === undefined || (points.length === 0 && !routed) ? [sides]
+      // clearRoutes 가 행을 통째로 지우므로 두 변을 다 푸는 경우엔 setRouteSides 가 필요 없다.
+      : points.length === 0 ? [{ op: "clearRoutes", diagram: c.diagramId, relations: [relation] }, ...(fixed.child || fixed.parent ? [sides] : [])]
+        : [sides, { op: "setRoute", diagram: c.diagramId, relation, points }];
+    await send(commands, "끝점 변 바꾸기");
   }, [deny, send]);
   const onEdgeClick = useCallback<NonNullable<FlowProps["onEdgeClick"]>>((_e, edge) => {
     setMenu(null);
@@ -1148,7 +1168,15 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
     e.preventDefault();
     selectRoute(routeBus, edge.id);
     const c = ctxRef.current;
-    const routed = !!c.diagramId && !!c.state.routes[routeKey(c.diagramId, edge.id)];
+    const row = c.diagramId ? c.state.routes[routeKey(c.diagramId, edge.id)] : undefined;
+    const routed = (row?.points.length ?? 0) > 0;
+    const sided = !!(row?.childSide || row?.parentSide);
+    // 풀었을 때 그린 변이 바뀌는 끝이 있으면 꺾임점도 비운다(새 변에서 표를 가로지르지 않게). 안 바뀌면 점은 그대로.
+    const r = c.state.model.relations[edge.id];
+    const cn = r && c.diagramId ? c.state.nodes[nodeKey(c.diagramId, r.child)] : undefined;
+    const pn = r?.parent && c.diagramId ? c.state.nodes[nodeKey(c.diagramId, r.parent)] : undefined;
+    const auto = cn && pn ? relationSides(cn.x, pn.x, false, cn.w ?? NODE_WIDTH, pn.w ?? NODE_WIDTH) : null;
+    const flips = !auto || (!!row?.childSide && row.childSide !== auto.child) || (!!row?.parentSide && row.parentSide !== auto.parent);
     setMenu({
       at: { x: e.clientX, y: e.clientY },
       items: [{
@@ -1157,12 +1185,20 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
           void commitRoute(edge.id, []);
         },
         ...(routed ? offIf(c.rights.diagram) : { disabled: true, title: "꺾임점이 없습니다" }),
+      }, {
+        // 고른 끝점 변(§7.5)을 풀어 두 끝을 자동 변으로 돌린다.
+        id: "route-sides-reset", label: "끝점 변 자동으로", run: () => {
+          selectRoutePoint(routeBus, null);
+          void commitSides(edge.id, {}, routed && flips ? [] : undefined);
+        },
+        ...(sided ? offIf(c.rights.diagram) : { disabled: true, title: "고른 끝점 변이 없습니다" }),
       }],
     });
-  }, [routeBus, commitRoute]);
+  }, [routeBus, commitRoute, commitSides]);
   useEffect(() => {
     setRouteHandlers(routeBus, {
       commit: commitRoute,
+      commitSides,
       canEdit: canDiagram,
       pressed: () => {
         if (selectedIds().length > 0) storeApi.getState().unselectNodesAndEdges(); // select 변경으로 CanvasPane → ErdViewer 선택이 비워진다
@@ -1170,7 +1206,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       },
     });
     return () => setRouteHandlers(routeBus, null, true);
-  }, [routeBus, commitRoute, canDiagram, focusHost, selectedIds, storeApi]);
+  }, [routeBus, commitRoute, commitSides, canDiagram, focusHost, selectedIds, storeApi]);
   useEffect(() => () => resetRouteHover(routeBus), [routeBus]);
 
   // ── 누르기·우클릭 ──

@@ -15,6 +15,7 @@ import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.ResizeNodes;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.RestoreDiagram;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.SetFold;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.SetRoute;
+import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.SetRouteSides;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.UpdateDiagram;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdChange;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdIds;
@@ -168,6 +169,19 @@ public class ErdDiagramStore {
                     remember(before, modelId, "diagramRoute", s.diagram() + ":" + s.relation());
                     mergeRoute(s.diagram(), s.relation(), pointsJson(s.points()), userId);
                 }
+                case SetRouteSides ss -> {
+                    requireDiagram(modelId, ss.diagram(), index);
+                    if (ss.relation() == null || ss.relation().isBlank()) throw reject(index, "relation 이 비었습니다", ss.diagram());
+                    var rel = model.relations.get(ss.relation());
+                    if (rel == null) throw reject(index, "모델에 없는 관계입니다: " + ss.relation(), ss.relation());
+                    if (java.util.Objects.equals(rel.child, rel.parent)) {
+                        throw reject(index, "자기 참조 관계선은 끝점 변을 지정할 수 없습니다: " + ss.relation(), ss.relation());
+                    }
+                    requireSide(ss.childSide(), "childSide", ss.relation(), index);
+                    requireSide(ss.parentSide(), "parentSide", ss.relation(), index);
+                    remember(before, modelId, "diagramRoute", ss.diagram() + ":" + ss.relation());
+                    writeRouteSides(ss.diagram(), ss.relation(), ss.childSide(), ss.parentSide(), userId);
+                }
                 case ClearRoutes cr -> {
                     requireDiagram(modelId, cr.diagram(), index);
                     // [자동 배치]는 옮긴 표에 걸린 관계를 모두 보낸다 — 빈 목록(걸린 관계가 없다)과 꺾임점이 없는 관계는 거절하지 않고 건너뛴다
@@ -245,7 +259,7 @@ public class ErdDiagramStore {
     }
 
     /**
-     * 다이어그램 복사(ERD 2차 §7.2). 원본 노드(위치·접기·크기)와 꺾임점을 새 id 로 한 번씩(INSERT … SELECT) 복사한다. 새 id 는 어느 모델에도
+     * 다이어그램 복사(ERD 2차 §7.2). 원본 노드(위치·접기·크기)와 꺾임점(끝점 변 포함, §7.5)을 새 id 로 한 번씩(INSERT … SELECT) 복사한다. 새 id 는 어느 모델에도
      * 없으므로(PK 전역) 고치기 전 행은 모두 null 이다 — 노드·꺾임점 키는 읽지 않고 null 로 기억한다. 그래서 델타는 upsert, 역명령은
      * 복사본 지우기(diagram·노드·꺾임점 delete)이고, 되돌리기의 FK 순서는 RestoreDiagram 이 맞춘다. 원본에 남은 "지금 버전에 없는 표·관계"의
      * 행도 그대로 복사한다(그리지 않는 행, §7.1).
@@ -284,9 +298,9 @@ public class ErdDiagramStore {
         }
         if (!relations.isEmpty()) {
             em.createNativeQuery("""
-                    INSERT INTO TB_MDM_ERD_DIAGRAM_ROUTE (DIAGRAM_ID, REL_UUID, POINTS_JSON,
+                    INSERT INTO TB_MDM_ERD_DIAGRAM_ROUTE (DIAGRAM_ID, REL_UUID, POINTS_JSON, CHILD_SIDE, PARENT_SIDE,
                       C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER)
-                    SELECT ?, REL_UUID, POINTS_JSON, ?, SYSTIMESTAMP, 'erdEdit', 'erdEdit', ?, SYSTIMESTAMP, 'erdEdit', 'erdEdit', 0
+                    SELECT ?, REL_UUID, POINTS_JSON, CHILD_SIDE, PARENT_SIDE, ?, SYSTIMESTAMP, 'erdEdit', 'erdEdit', ?, SYSTIMESTAMP, 'erdEdit', 'erdEdit', 0
                       FROM TB_MDM_ERD_DIAGRAM_ROUTE
                      WHERE DIAGRAM_ID = ?""")
                     .setParameter(1, id).setParameter(2, userId).setParameter(3, userId).setParameter(4, cp.from()).executeUpdate();
@@ -309,7 +323,8 @@ public class ErdDiagramStore {
     /**
      * 행 JSON. diagram: {id, areaName, diagramName, sortSeq}, diagramNode: {diagram, table, x, y, foldMode} + 크기가 있으면 w·h
      * (NULL 이면 키를 넣지 않는다 — V8 전 되돌리기 기록의 값과 같게 비교되도록, README §7.4),
-     * diagramRoute: {diagram, relation, points:[{x, y}, …]}. 없으면 null.
+     * diagramRoute: {diagram, relation, points:[{x, y}, …]} + 변이 지정돼 있으면 childSide·parentSide(NULL 이면 키 없음, README §7.5).
+     * 없으면 null.
      */
     @SuppressWarnings("unchecked")
     JsonNode row(String modelId, String kind, String id) {
@@ -326,12 +341,13 @@ public class ErdDiagramStore {
         String[] k = id.split(":", 2);
         if (k.length < 2) return null;
         if (kind.equals("diagramRoute")) {
-            List<Object> points = em.createNativeQuery(
-                            "SELECT POINTS_JSON FROM TB_MDM_ERD_DIAGRAM_ROUTE WHERE DIAGRAM_ID = ? AND REL_UUID = ? "
+            List<Object[]> routeRows = em.createNativeQuery(
+                            "SELECT POINTS_JSON, CHILD_SIDE, PARENT_SIDE FROM TB_MDM_ERD_DIAGRAM_ROUTE WHERE DIAGRAM_ID = ? AND REL_UUID = ? "
                                     + "AND DIAGRAM_ID IN (SELECT DIAGRAM_ID FROM TB_MDM_ERD_DIAGRAM WHERE ERD_MODEL_ID = ?)")
                     .setParameter(1, k[0]).setParameter(2, k[1]).setParameter(3, modelId).getResultList();
-            if (points.isEmpty()) return null;
-            return routeRow(k[0], k[1], ErdCommandLogStore.clob(points.get(0)));
+            if (routeRows.isEmpty()) return null;
+            Object[] rr = routeRows.get(0);
+            return routeRow(k[0], k[1], ErdCommandLogStore.clob(rr[0]), text(rr[1]), text(rr[2]));
         }
         List<Object[]> rows = em.createNativeQuery(
                         "SELECT POS_X, POS_Y, FOLD_MODE, SIZE_W, SIZE_H FROM TB_MDM_ERD_DIAGRAM_NODE WHERE DIAGRAM_ID = ? AND TABLE_UUID = ? "
@@ -402,13 +418,13 @@ public class ErdDiagramStore {
         for (List<String> chunk : chunks) {
             String where = " WHERE R.DIAGRAM_ID IN (SELECT DIAGRAM_ID FROM TB_MDM_ERD_DIAGRAM WHERE ERD_MODEL_ID = :m)"
                     + (diagram == null ? "" : " AND R.DIAGRAM_ID = :d") + (chunk == null ? "" : " AND R.REL_UUID IN (:rels)");
-            Query q = bindRoutes(em.createNativeQuery("SELECT R.DIAGRAM_ID, R.REL_UUID, R.POINTS_JSON FROM TB_MDM_ERD_DIAGRAM_ROUTE R"
+            Query q = bindRoutes(em.createNativeQuery("SELECT R.DIAGRAM_ID, R.REL_UUID, R.POINTS_JSON, R.CHILD_SIDE, R.PARENT_SIDE FROM TB_MDM_ERD_DIAGRAM_ROUTE R"
                     + where + " ORDER BY R.DIAGRAM_ID, R.REL_UUID"), modelId, diagram, chunk);
             List<Object[]> rows = q.getResultList();
             if (rows.isEmpty()) continue;
             for (Object[] r : rows) {
                 String d = (String) r[0], rel = (String) r[1], key = "diagramRoute|" + d + ":" + rel;
-                if (!before.containsKey(key)) before.put(key, routeRow(d, rel, ErdCommandLogStore.clob(r[2])));
+                if (!before.containsKey(key)) before.put(key, routeRow(d, rel, ErdCommandLogStore.clob(r[2]), text(r[3]), text(r[4])));
                 keys.add(key);
             }
             bindRoutes(em.createNativeQuery("DELETE FROM TB_MDM_ERD_DIAGRAM_ROUTE R" + where), modelId, diagram, chunk).executeUpdate();
@@ -423,10 +439,64 @@ public class ErdDiagramStore {
         return q;
     }
 
-    /** diagramRoute 행 JSON {diagram, relation, points}. row() 와 dropRoutes 가 같은 모양을 쓴다(되돌리기 충돌 판정이 JsonNode 로 비교한다). */
-    private static JsonNode routeRow(String diagram, String relation, String pointsJson) {
+    /**
+     * diagramRoute 행 JSON {diagram, relation, points} + 변이 있을 때만 childSide·parentSide. row() 와 dropRoutes 가 같은 모양을 쓴다
+     * (되돌리기 충돌 판정이 JsonNode 로 비교한다 — NULL 변은 키를 넣지 않아 V9 전 기록과 같게 비교된다).
+     */
+    private static JsonNode routeRow(String diagram, String relation, String pointsJson, String childSide, String parentSide) {
         ObjectNode o = ErdModelCodec.MAPPER.createObjectNode().put("diagram", diagram).put("relation", relation);
-        return o.set("points", readPoints(pointsJson));
+        o.set("points", readPoints(pointsJson));
+        if (childSide != null) o.put("childSide", childSide);
+        if (parentSide != null) o.put("parentSide", parentSide);
+        return o;
+    }
+
+    private static void requireSide(String v, String field, String elementId, int index) {
+        if (v != null && !v.equals("L") && !v.equals("R")) throw reject(index, field + " 는 L·R·null 입니다", elementId);
+    }
+
+    /**
+     * 끝점 변을 쓴다(점은 건드리지 않는다). 행이 없고 두 변이 null 이면 아무것도 안 한다. 행이 있으면 변을 고치고, 점이 비었는데 두 변이
+     * 모두 null 이 되면 행을 지운다(빈 행을 남기지 않는다). 행이 없고 변이 있으면 POINTS_JSON '[]' 로 만든다.
+     */
+    @SuppressWarnings("unchecked")
+    private void writeRouteSides(String diagram, String relation, String childSide, String parentSide, String userId) {
+        List<Object> found = em.createNativeQuery("SELECT POINTS_JSON FROM TB_MDM_ERD_DIAGRAM_ROUTE WHERE DIAGRAM_ID = ? AND REL_UUID = ?")
+                .setParameter(1, diagram).setParameter(2, relation).getResultList();
+        boolean none = childSide == null && parentSide == null;
+        if (found.isEmpty()) {
+            if (none) return;
+            em.createNativeQuery("""
+                    INSERT INTO TB_MDM_ERD_DIAGRAM_ROUTE (DIAGRAM_ID, REL_UUID, POINTS_JSON, CHILD_SIDE, PARENT_SIDE,
+                      C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER)
+                    VALUES (?, ?, '[]', NULLIF(?, '-'), NULLIF(?, '-'), ?, SYSTIMESTAMP, 'erdEdit', 'erdEdit', ?, SYSTIMESTAMP, 'erdEdit', 'erdEdit', 0)""")
+                    .setParameter(1, diagram).setParameter(2, relation).setParameter(3, sideOrDash(childSide))
+                    .setParameter(4, sideOrDash(parentSide)).setParameter(5, userId).setParameter(6, userId).executeUpdate();
+            return;
+        }
+        if (none && readPoints(ErdCommandLogStore.clob(found.get(0))).isEmpty()) {
+            em.createNativeQuery("DELETE FROM TB_MDM_ERD_DIAGRAM_ROUTE WHERE DIAGRAM_ID = ? AND REL_UUID = ?")
+                    .setParameter(1, diagram).setParameter(2, relation).executeUpdate();
+            return;
+        }
+        updateSides(diagram, relation, childSide, parentSide, userId);
+    }
+
+    /** 길이 1 문자 칸은 드라이버·하이버네이트에 따라 Character 로 올 수 있다 — 글자로 바꾼다. */
+    private static String text(Object v) {
+        return v == null ? null : v.toString();
+    }
+
+    /** NULL 바인딩 대신 쓰는 표지(NULLIF 로 NULL 이 된다 — 변 값 L·R 과 겹치지 않는다). */
+    private static String sideOrDash(String side) {
+        return side == null ? "-" : side;
+    }
+
+    private void updateSides(String diagram, String relation, String childSide, String parentSide, String userId) {
+        em.createNativeQuery("UPDATE TB_MDM_ERD_DIAGRAM_ROUTE SET CHILD_SIDE = NULLIF(?, '-'), PARENT_SIDE = NULLIF(?, '-'), "
+                        + "U_USR_ID = ?, U_AT = SYSTIMESTAMP WHERE DIAGRAM_ID = ? AND REL_UUID = ?")
+                .setParameter(1, sideOrDash(childSide)).setParameter(2, sideOrDash(parentSide)).setParameter(3, userId)
+                .setParameter(4, diagram).setParameter(5, relation).executeUpdate();
     }
 
     /** 꺾임점 JSON — [{"x":정수,"y":정수},…]. 같은 값이면 같은 글이 되어 되돌리기 충돌 판정(JsonNode 비교)이 흔들리지 않는다. */
@@ -516,8 +586,24 @@ public class ErdDiagramStore {
         requireDiagram(modelId, k[0], index);
         if (route) {
             JsonNode pts = v.get("points");
-            if (pts == null || !pts.isArray() || pts.isEmpty()) throw reject(index, "restoreDiagram 꺾임점 값에 points 가 없습니다: " + e.id(), e.id());
-            mergeRoute(k[0], k[1], pts.toString(), userId);
+            if (pts == null || !pts.isArray()) throw reject(index, "restoreDiagram 꺾임점 값에 points 가 없습니다: " + e.id(), e.id());
+            // 변 키가 없으면(자동 변·V9 전 기록) NULL 로 되살린다.
+            String childSide = v.hasNonNull("childSide") ? v.get("childSide").asText() : null;
+            String parentSide = v.hasNonNull("parentSide") ? v.get("parentSide").asText() : null;
+            requireSide(childSide, "childSide", e.id(), index);
+            requireSide(parentSide, "parentSide", e.id(), index);
+            if (pts.isEmpty()) {
+                // 변만 있는 행이다(points []). 변도 없으면 빈 행을 만들지 않고 있던 행을 지운다.
+                if (childSide == null && parentSide == null) {
+                    em.createNativeQuery("DELETE FROM TB_MDM_ERD_DIAGRAM_ROUTE WHERE DIAGRAM_ID = ? AND REL_UUID = ?")
+                            .setParameter(1, k[0]).setParameter(2, k[1]).executeUpdate();
+                    return;
+                }
+                mergeRoute(k[0], k[1], "[]", userId);
+            } else {
+                mergeRoute(k[0], k[1], pts.toString(), userId);
+            }
+            updateSides(k[0], k[1], childSide, parentSide, userId);
             return;
         }
         mergeNode(k[0], new Node(k[1], v.path("x").asInt(), v.path("y").asInt()), userId);

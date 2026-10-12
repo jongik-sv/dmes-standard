@@ -344,6 +344,16 @@ describe("캔버스 편집 — 끌기·관계·표 추가·배치·꾸밈", () =
     expect(ctx.applied[0].label).toBe("자동 배치");
   });
 
+  it("[자동 배치]는 변만 고른 선(§7.5, 점 없음)도 clearRoutes 에 넣어 자동 변으로 돌린다", async () => {
+    const base = fakeCtx();
+    const ctx = fakeCtx({
+      state: { ...base.state, routes: { "d-all:r-1": { diagram: "d-all", relation: "r-1", points: [], childSide: "L" } } },
+    });
+    await mount(ctx);
+    await click('[data-testid="erd-tool-layout"]');
+    expect(ctx.applied[0].commands[1]).toEqual({ op: "clearRoutes", diagram: "d-all", relations: ["r-1"] });
+  });
+
   it("[키만] 접기는 고른 표에 setFold 를 보낸다", async () => {
     const ctx = fakeCtx({ selectedTableId: "t-1" });
     await mount(ctx, ["t-1"]);

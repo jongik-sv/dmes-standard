@@ -16,6 +16,8 @@ public record ErdRejection(String code, int commandIndex, String message, String
     public static final String NOT_FOUND = "NOT_FOUND";
     public static final String NEEDS_CHOICE = "NEEDS_CHOICE";
     public static final String NOT_EDITOR = "NOT_EDITOR";
+    /** 명령 JSON 을 읽을 수 없다(모양·필드 형식·서버가 모르는 op). 규칙 위반(INVALID)과 나눠 화면이 「요청 형식 오류」로 보인다. */
+    public static final String BAD_COMMAND = "BAD_COMMAND";
 
     /** 단계 1 모양(byUserId 없음). */
     public ErdRejection(String code, int commandIndex, String message, String hint, String elementId,

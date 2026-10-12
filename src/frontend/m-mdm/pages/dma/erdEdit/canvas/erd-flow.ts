@@ -9,7 +9,7 @@
  *   서로 세지 않는다 — 접기로 안 보일 감사 컬럼은 auditHidden 이 아니라 hiddenCount 몫이라 「감사 n」과 「접힘」이 겹쳐 뜨지 않는다.
  *   감사 컬럼 쪽을 짝으로 둔 관계는 그 행이 없으므로 아래 "행이 안 보이면" 규칙대로 표 머리 손잡이에 붙는다.
  * - 선이 붙는 변은 두 표의 가로 위치로 정한다(relationSides): 떨어져 있으면 마주 보는 변, 겹치면 둘 다 오른쪽. 끄는 동안은 손잡이 id 가 옛 위치 기준이라
- *   ErdRelationEdge 가 덮개 위치로 변을 다시 정해 그린다(이 함수는 저장 위치로만 짠다).
+ *   ErdRelationEdge 가 덮개 위치로 변을 다시 정해 그린다(이 함수는 저장 위치로만 짠다). 사용자가 고른 끝점 변(§7.5, route 행의 childSide·parentSide)이 있으면 그 끝은 그 변이다.
  * - 컬럼 행이 안 보이면(축소·개요·접기) 선은 표 머리 손잡이에 붙는다. 컬럼 손잡이는 선이 쓰는 것만 행 데이터에 싣는다.
  *   행 데이터는 확대율과 무관하게 만든다. 그래서 확대율이 경계를 넘어도 노드 객체는 그대로이고 선만 바뀐다.
  * - 이름표(단계 2): 접속자가 고른 표와 작업 중 표시를 따로 모은다(조사 A GAP-2). 만료 시각(until·claimUntil)을 실어 두고, now 를 주면 지난 것을 뺀다.
@@ -24,7 +24,7 @@ import { placeholderName } from "../placeholder-name";
 import { routeKey } from "../state/model-delta";
 import { countTableViolations } from "../state/violations";
 import type { ErdClaim, ErdColumnStatus, ErdDiagramNode, ErdModelJson, ErdPresence, ErdRelation, ErdRelationState, ErdRoutePoint, ErdState } from "../types";
-import { NODE_WIDTH, bodyLayout, nodeHeight, relationSides, typeText, type NodeSide } from "./erd-geometry";
+import { NODE_WIDTH, bodyLayout, nodeHeight, relationSides, typeText, withFixedSides, type FixedSides, type NodeSide } from "./erd-geometry";
 
 export type ErdMode = "logical" | "physical";
 export type ErdPreset = "basic" | "overview" | "both";
@@ -129,6 +129,8 @@ export interface ErdEdgeData extends Record<string, unknown> {
   zeroChild: boolean;
   /** 이 다이어그램에 저장된 꺾임점(2차 c5, 캔버스 절대 좌표). 없으면 null = 자동 경로. */
   route: readonly ErdRoutePoint[] | null;
+  /** 고른 끝점 변(§7.5). 없으면 null = 두 끝 모두 자동. 자기 참조는 늘 null. */
+  fixed: FixedSides | null;
 }
 export type ErdFlowEdge = Edge<ErdEdgeData, "erdRelation">;
 
@@ -355,7 +357,11 @@ export function buildFlow(i: BuildFlowInput): ErdFlow {
     const c = at.get(r.child);
     const p = at.get(r.parent);
     if (!c || !p) continue;
-    const sides = relationSides(c.x, p.x, r.child === r.parent, c.w ?? NODE_WIDTH, p.w ?? NODE_WIDTH);
+    const self = r.child === r.parent;
+    const row = i.state.routes[routeKey(i.diagramId, id)];
+    const fixed: FixedSides | null = !self && row && (row.childSide || row.parentSide)
+      ? { ...(row.childSide ? { child: row.childSide } : {}), ...(row.parentSide ? { parent: row.parentSide } : {}) } : null;
+    const sides = withFixedSides(relationSides(c.x, p.x, self, c.w ?? NODE_WIDTH, p.w ?? NODE_WIDTH), fixed);
     const [childCol, parentCol] = r.pairs[0];
     const childRow = visible.get(r.child)!.has(childCol);
     const parentRow = visible.get(r.parent)!.has(parentCol);
@@ -373,7 +379,9 @@ export function buildFlow(i: BuildFlowInput): ErdFlow {
         state: r.state, folded: head ? head.folded : 0,
         zeroChild: r.cardinality.child.startsWith("ZERO"),
         // 선은 모델 관계에서만 만든다 — 그 버전에 없는 관계의 route 는 저절로 그리지 않는다(§7.1).
-        route: i.state.routes[routeKey(i.diagramId, id)]?.points ?? null,
+        // 변만 고른 행(§7.5)은 점이 비어 있다 — 자동 경로로 그린다.
+        route: row && row.points.length > 0 ? row.points : null,
+        fixed,
       },
     });
   }

@@ -27,6 +27,7 @@ import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdDelta;
 import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdEventHub;
 import com.dongkuk.dmes.mdm.entity.MdmErdModelVer;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import jakarta.persistence.EntityManager;
@@ -169,7 +170,7 @@ public class ErdCommandService {
         for (int i = 0; i < raw.size(); i++) {
             JsonNode n = raw.get(i);
             if (n == null || !n.isObject()) {
-                return rejectedNow(modelId, invalid(i, "명령은 JSON 객체여야 합니다", "{\"op\":\"...\", ...} 모양으로 보내세요"));
+                return rejectedNow(modelId, badCommand(i, "명령은 JSON 객체여야 합니다", "{\"op\":\"...\", ...} 모양으로 보내세요"));
             }
             String op = n.path("op").asText("");
             if (!o.allowRestore() && (op.equals("restore") || op.equals("restoreDiagram"))) {
@@ -183,11 +184,18 @@ public class ErdCommandService {
                     modelCmds.add(ErdStrictReader.read(ErdStrictReader.withOptionalBooleans(n, op), ErdCommand.class));
                     modelIdx.add(i);
                 }
+            } catch (InvalidTypeIdException e) {
+                // op 가 없으면 형식 오류다. 있는데 모르면 화면이 서버보다 새 버전일 때(재기동 전)다 — 규칙 위반으로 오해하지 않게 따로 알린다.
+                if (op.isBlank()) {
+                    return rejectedNow(modelId, badCommand(i, "명령 JSON 을 읽을 수 없습니다: " + ErdStrictReader.brief(e), "op 를 넣으세요"));
+                }
+                return rejectedNow(modelId, badCommand(i, "서버가 모르는 명령입니다: " + op,
+                        "서버가 이 명령을 모릅니다. 화면보다 서버가 옛 버전이면 서버를 다시 띄우세요."));
             } catch (JsonProcessingException e) {
-                return rejectedNow(modelId, invalid(i, "명령 JSON 을 읽을 수 없습니다: " + ErdStrictReader.brief(e),
+                return rejectedNow(modelId, badCommand(i, "명령 JSON 을 읽을 수 없습니다: " + ErdStrictReader.brief(e),
                         "op 와 필드 이름·값 형식(숫자·불리언은 따옴표 없이)을 확인하세요"));
             } catch (IllegalArgumentException e) {
-                return rejectedNow(modelId, invalid(i, "명령 JSON 을 읽을 수 없습니다: " + e.getMessage(),
+                return rejectedNow(modelId, badCommand(i, "명령 JSON 을 읽을 수 없습니다: " + e.getMessage(),
                         "op 와 필드 이름·값 형식을 확인하세요"));
             }
         }
@@ -238,10 +246,11 @@ public class ErdCommandService {
                         : invalid(0, "baseRev(" + baseRev + ") 뒤에 DRAFT 가 지워지거나 새로 만들어졌습니다",
                                 "getChangesSince 가 reload 를 주면 모델을 다시 읽고(view) 새 rev 를 baseRev 로 다시 보내세요"));
             }
-            // 모델 JSON 은 엔진이나 placeTables(표 존재 확인)·setRoute(관계 존재 확인)·removeFromDiagram(표에 걸린 관계의 꺾임점)이 쓸 때만
+            // 모델 JSON 은 엔진이나 placeTables(표 존재 확인)·setRoute·setRouteSides(관계 존재·자기 참조 확인)·removeFromDiagram(표에 걸린 관계의 꺾임점)이 쓸 때만
             // 읽는다 — 표를 끌어 옮기는 moveNodes 는 자주 오므로 파싱을 아낀다.
             boolean needModel = modelBatch || diagramCmds.stream().anyMatch(c -> c instanceof ErdDiagramCommand.PlaceTables
-                    || c instanceof ErdDiagramCommand.SetRoute || c instanceof ErdDiagramCommand.RemoveFromDiagram);
+                    || c instanceof ErdDiagramCommand.SetRoute || c instanceof ErdDiagramCommand.SetRouteSides
+                    || c instanceof ErdDiagramCommand.RemoveFromDiagram);
             ErdModel model = needModel ? ErdModelCodec.read(shown.getModelJson()) : null;
             if (o.requireEmptyModel() && !model.tables.isEmpty()) {
                 discard.run();
@@ -552,6 +561,10 @@ public class ErdCommandService {
                 .forEach(cl -> out.add(new ErdWarning("CLAIMED", cl.tableId(),
                         cl.session() + " 가 " + cl.expiresAt() + " 까지 작업 중인 표입니다", cl.session(), cl.expiresAt())));
         return out;
+    }
+
+    private static ErdRejection badCommand(int index, String message, String hint) {
+        return new ErdRejection(ErdRejection.BAD_COMMAND, index, message, hint, null, null, null, null, null, null);
     }
 
     private static ErdRejection invalid(int index, String message, String hint) {

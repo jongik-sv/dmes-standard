@@ -91,7 +91,7 @@ describe("buildFlow", () => {
   it("기각·접힌 후보·다른 모델 부모는 그리지 않고, 1순위 후보에 접힌 후보 수를 단다", () => {
     const f = buildFlow(input({ state: hubState() }));
     expect(f.edges.map((e) => e.id)).toEqual(["r-1", "r-3"]);
-    expect(f.edges[0].data).toEqual({ state: "INFERRED", folded: 0, zeroChild: true, route: null });
+    expect(f.edges[0].data).toEqual({ state: "INFERRED", folded: 0, zeroChild: true, route: null, fixed: null });
     expect(f.edges[1].data?.folded).toBe(1);
     expect(keyMarks(hubState().model).get("c-3")).toBe("PK"); // 기각 관계(r-2)의 자식 표시는 그대로 PK
   });

@@ -55,7 +55,10 @@ export interface ErdDiagram { id: string; areaName: string; diagramName: string;
 export interface ErdDiagramNode { diagram: string; table: string; x: number; y: number; foldMode: ErdFoldMode; w?: number; h?: number }
 /** 관계 선의 경유점(2차 §7.1). 좌표는 캔버스 절대 좌표, 1~50개. 다이어그램마다 따로 둔다. */
 export interface ErdRoutePoint { x: number; y: number }
-export interface ErdDiagramRoute { diagram: string; relation: string; points: ErdRoutePoint[] }
+/**
+ * childSide·parentSide = 사용자가 고른 끝점 변(§7.5). 키가 없으면 자동 변(relationSides). 변만 고른 행은 points 가 빈 목록이다.
+ */
+export interface ErdDiagramRoute { diagram: string; relation: string; points: ErdRoutePoint[]; childSide?: "L" | "R"; parentSide?: "L" | "R" }
 /** 접속자. expiresAt: SSE 구독자는 null, MCP·CLI 시한 항목은 만료 시각(S2-11). 단계 1 서버는 이 칸을 싣지 않는다. */
 export interface ErdPresence {
   session: string; userId: string; source: ErdSource; diagramId: string | null; selectedTables: string[]; at: string; expiresAt?: string | null;

@@ -116,7 +116,8 @@ class ErdDiagramNodeSizeTest extends AbstractMdmSharedDbTest {
                 "{\"op\":\"resizeNodes\",\"diagram\":\"d-none\",\"nodes\":[{\"table\":\"t-a\",\"w\":200,\"h\":100}]}")) {
             var r = apply(2, "[" + bad + "]");
             assertThat(r.applied()).as(bad).isFalse();
-            assertThat(r.rejection().code()).as(bad).isEqualTo("INVALID");
+            // 값 규칙 위반 = INVALID, 엄격 읽기(필드 형식) 실패 = BAD_COMMAND(erd-side-2)
+            assertThat(r.rejection().code()).as(bad).isIn("INVALID", "BAD_COMMAND");
         }
         assertThat(size("d-1", "t-a")).isEqualTo(pair(null, null));
         // 경계값과 키 없음(= 자동)은 된다

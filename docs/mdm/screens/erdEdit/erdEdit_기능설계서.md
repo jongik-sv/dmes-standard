@@ -13,7 +13,7 @@
 | compare | 논리명·물리명 미리보기(표준 판정) | READ |
 | validate | 확정 검사 미리보기 | EDIT |
 | reg | 빈 모델 만들기 | EDIT |
-| save | 명령 묶음 적용(`apply`). 다이어그램 명령 `setRoute`·`clearRoutes`·`copyDiagram` 이 있다(2차 7절) | EDIT |
+| save | 명령 묶음 적용(`apply`). 다이어그램 명령 `setRoute`·`setRouteSides`·`clearRoutes`·`copyDiagram` 이 있다(2차 7절) | EDIT |
 | restore | 명령 되돌리기 | EDIT |
 | execute | 작업 중 표시와 공동 편집자 등록·해제. `kind` 값은 ADD_EDITOR·REMOVE_EDITOR·CLAIM·RELEASE | EDIT |
 | copy | 새 버전(DRAFT) | EDIT |
@@ -270,6 +270,9 @@
   - 권한은 다른 다이어그램 명령과 같다.
 - 선 모양은 룰 세트 편집과 같다(erd-route 레인, 사용자 결정 10-12). 꺾임점이 있으면 표 끝 → 꺾임점들 → 표 끝을 지나는 둥근 꺾은선(shared `routePath`)이고, 없으면 자동 직각 경로다. 끝 모양은 끝 마디 방향을 따른다. 경로 계산은 `@dk-oasis/shared/react-flow` 의 route-path 순수 함수를 룰 세트 편집과 함께 쓴다.
 - 화면(`canvas/ErdRelationEdge.tsx`·`canvas/erd-route.ts`): 다이어그램 편집 권한이 있으면 선에 마우스를 올리거나(떠난 뒤 150ms 유예) 선을 고를 때 저장 점·자동 경로 점·가로·세로 선분 막대가 뜬다. 막대를 끌면 선분이 수직으로만 움직인다(표에 붙은 선분은 짧은 선분을 끼우고, 이웃과 화면 6px 안이면 일직선으로 맞춘다). 점을 끌면 자유롭게 옮기고, 이웃과 6px 안이면 x·y 를 맞추고 안내선을 그린다(Alt 를 누르면 맞추지 않는다). 놓을 때 한 번 보낸다(선분 끌기는 겹친 점·한 줄 점을 정리한다). 저장 점을 누른 뒤 Delete·Backspace 를 누르면 그 점을 빼고 이웃 점을 고른 채로 둔다. 선을 두 번 누르면 그 자리에 점을 더하고(경로 없는 선은 자동 경로의 꺾임을 이어받는다), 저장 점을 두 번 누르면 뺀다. 50개를 넘으면 보내지 않고 알린다. 선을 오른쪽 단추로 누르면 [자동 경로로 되돌리기] 가 있다. 개요 단계(0.35 미만)에서는 손잡이를 그리지 않는다.
+- 끝점 변(erd-side 레인, 사용자 결정 10-12, README §7.5): `TB_MDM_ERD_DIAGRAM_ROUTE.CHILD_SIDE`·`PARENT_SIDE`(mdm V9, `'L'|'R'|NULL`). 명령 `{"op":"setRouteSides","diagram","relation","childSide","parentSide"}` 은 두 변을 덮어쓰고 점은 두지 않는다(null = 자동). 점 없이 변만 고른 행은 `POINTS_JSON = '[]'` 이고, 점도 변도 없어지면 행을 지운다. `setRoute` 는 변을 유지하고 `clearRoutes` 는 행을 통째로 지운다([자동 배치] = 자동 변으로 돌아감). 자기 참조 관계는 `INVALID`. 델타·view 의 route 값에는 변이 있을 때만 `childSide`·`parentSide` 키를 넣는다.
+  - 화면: 손잡이가 보일 때 양 끝에 끝점 네모가 뜬다. 끌어서 표 가운데 x 보다 왼쪽에 놓으면 L, 아니면 R. 자동 변(`relationSides`)에 놓으면 그 끝의 지정을 풀고, 저장 값과 같으면 보내지 않는다. 고른 변은 표를 옮겨도 유지한다(`buildFlow`·`liveEnds` 가 `withFixedSides` 로 덮는다).
+  - 꺾임점이 있는 선의 변을 바꾸면 `refitRouteEnd` 로 끝 마디만 다시 맞춘다(가까운 점이 새 변 바깥 END_STUB 이상이면 두고 높이가 다르면 모서리 점을 끼운다). 맞출 수 없으면 점을 비운다(`clearRoutes` → `setRouteSides`). 변과 점은 한 묶음이다. 마지막 점 지우기도 변이 있으면 `clearRoutes` + `setRouteSides` 한 묶음이다. 선 오른쪽 단추 메뉴 [끝점 변 자동으로] 는 지정을 풀고, 그린 변이 바뀌는 끝이 있으면 점도 비운다.
 - 알려진 한계(deferred 133·134): `onlyRenderVisibleElements` 가 꺾임점을 보지 않아 표 둘이 모두 화면 밖이면 선이 안 보인다. [자동 배치] 결과가 지금과 같으면 꺾임점이 남는다(계약대로).
 
 ### 9.2 모델 관리·다이어그램 목록 관리

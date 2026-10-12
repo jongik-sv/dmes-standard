@@ -158,3 +158,43 @@ describe("경유점 명령 미리 보기(§7.1)", () => {
     expect(project(c.server, c.pending).routes["d-all:r-1"].points).toHaveLength(2);
   });
 });
+
+describe("끝점 변 명령 미리 보기(§7.5)", () => {
+  const routed = () => initLayers(stateOf(menuModel(), { ...MENU_DIAGRAMS, ...MENU_ROUTES }));
+  const plain = () => initLayers(stateOf(menuModel(), MENU_DIAGRAMS));
+  const shown = (l: ReturnType<typeof routed>) => project(l.server, l.pending).routes["d-all:r-1"];
+
+  it("setRouteSides 는 점을 두고 두 변을 덮어쓴다. 뒤이은 setRoute 는 변을 지킨다", () => {
+    const l = enqueue(routed(), { id: 1, label: "변", baseRev: 3, commands: [
+      { op: "setRouteSides", diagram: "d-all", relation: "r-1", childSide: "L", parentSide: null },
+      { op: "setRoute", diagram: "d-all", relation: "r-1", points: [{ x: 5, y: 6 }] },
+    ] });
+    expect(shown(l)).toEqual({ diagram: "d-all", relation: "r-1", points: [{ x: 5, y: 6 }], childSide: "L" });
+  });
+
+  it("행이 없으면 변만 있는 행(points 빈 목록)을 만들고, 두 변을 풀면 행이 사라진다", () => {
+    const l = enqueue(plain(), { id: 1, label: "변", baseRev: 3, commands: [
+      { op: "setRouteSides", diagram: "d-all", relation: "r-1", childSide: null, parentSide: "R" },
+    ] });
+    expect(shown(l)).toEqual({ diagram: "d-all", relation: "r-1", points: [], parentSide: "R" });
+    const off = enqueue(l, { id: 2, label: "풂", baseRev: 3, commands: [
+      { op: "setRouteSides", diagram: "d-all", relation: "r-1", childSide: null, parentSide: null },
+    ] });
+    expect(shown(off)).toBeUndefined();
+  });
+
+  it("clearRoutes 는 변까지 지운다(행 통째). 다른 값·없는 관계는 미리 보이지 않는다", () => {
+    const l = enqueue(plain(), { id: 1, label: "변", baseRev: 3, commands: [
+      { op: "setRouteSides", diagram: "d-all", relation: "r-1", childSide: "L", parentSide: "X" },
+      { op: "setRouteSides", diagram: "d-all", relation: "r-nope", childSide: "L", parentSide: null },
+    ] });
+    expect(shown(l)).toBeUndefined(); // "X" = 서버 INVALID → 미리 보이지 않는다
+    expect(project(l.server, l.pending).routes["d-all:r-nope"]).toBeUndefined();
+    const s = enqueue(plain(), { id: 3, label: "변", baseRev: 3, commands: [
+      { op: "setRouteSides", diagram: "d-all", relation: "r-1", childSide: "L", parentSide: null },
+    ] });
+    expect(shown(s)).toEqual({ diagram: "d-all", relation: "r-1", points: [], childSide: "L" });
+    const c = enqueue(s, { id: 2, label: "지움", baseRev: 3, commands: [{ op: "clearRoutes", diagram: "d-all", relations: ["r-1"] }] });
+    expect(shown(c)).toBeUndefined();
+  });
+});

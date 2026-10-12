@@ -182,7 +182,8 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
     private void assertInvalidAndUnchanged(String json, long expectedRev) throws Exception {
         ErdApplyResult r = commands.apply("mcm", expectedRev, "owner", "ui", "UI", cmds(json));
         assertThat(r.applied()).isFalse();
-        assertThat(r.rejection().code()).isEqualTo("INVALID");
+        // 엄격 읽기(필드 형식) 실패는 규칙 위반이 아니라 요청 형식 오류다(erd-side-2).
+        assertThat(r.rejection().code()).isEqualTo("BAD_COMMAND");
         assertThat(jdbc.queryForObject("SELECT REV FROM TB_MDM_ERD_MODEL WHERE ERD_MODEL_ID='mcm'", Long.class)).isEqualTo(expectedRev);
     }
 
@@ -217,12 +218,19 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void unknownOpAndNonObjectAreInvalidAtTheirIndex() throws Exception {
+    void unknownOpAndNonObjectAreBadCommandAtTheirIndex() throws Exception {
         var r = commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[{\"op\":\"addTable\",\"audit\":false,\"phys\":\"TB_A\",\"logical\":\"에이\"},{\"op\":\"nope\"}]"));
-        assertThat(r.rejection().code()).isEqualTo("INVALID");
+        // 서버가 모르는 op(화면이 서버보다 새 버전) = BAD_COMMAND. 화면에 보이는 userHint 가 서버 재기동을 안내한다(erd-side-2).
+        assertThat(r.rejection().code()).isEqualTo("BAD_COMMAND");
         assertThat(r.rejection().commandIndex()).isEqualTo(1);
+        assertThat(r.rejection().message()).isEqualTo("서버가 모르는 명령입니다: nope");
+        assertThat(r.rejection().userHint()).contains("서버를 다시 띄우세요");
         var r2 = commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[\"addTable\"]"));
-        assertThat(r2.rejection().code()).isEqualTo("INVALID");
+        assertThat(r2.rejection().code()).isEqualTo("BAD_COMMAND");
+        var r3 = commands.apply("mcm", 0, "owner", "ui", "UI", cmds("[{\"phys\":\"TB_A\"}]"));
+        assertThat(r3.rejection().code()).isEqualTo("BAD_COMMAND");
+        assertThat(r3.rejection().message()).startsWith("명령 JSON 을 읽을 수 없습니다");
+        assertThat(jdbc.queryForObject("SELECT REV FROM TB_MDM_ERD_MODEL WHERE ERD_MODEL_ID='mcm'", Long.class)).isZero();
     }
 
     @Test
@@ -364,10 +372,10 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
         assertThat(r.applied()).as(String.valueOf(r.rejection())).isTrue();
         var rel = r.changes().stream().filter(c -> c.kind().equals("relation")).findFirst().orElseThrow();
         assertThat(rel.value().path("identifying").asBoolean(true)).isFalse();
-        // 명시한 null·틀린 형은 그대로 거절
+        // 명시한 null·틀린 형은 그대로 거절(엄격 읽기 실패 = 요청 형식 오류, erd-side-2)
         for (String bad : List.of("null", "\"true\"", "1")) {
             var b = commands.apply("mcm", 2, "owner", "ui", "UI", cmds("[{\"op\":\"addRelation\",\"id\":\"r-2\",\"child\":\"t-m\",\"parent\":\"t-r\",\"identifying\":" + bad + "}]"));
-            assertThat(b.rejection().code()).as(bad).isEqualTo("INVALID");
+            assertThat(b.rejection().code()).as(bad).isEqualTo("BAD_COMMAND");
         }
     }
 
