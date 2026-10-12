@@ -16,17 +16,25 @@ import {
   allExpandable,
   bindParams,
   clampPropsWidth,
+  clampTreeCol,
   defaultExpanded,
   findNode,
   firstSelection,
   flattenRows,
   formatRunTime,
+  formatTimestamp,
   heatLevel,
   MSG_GROUP,
+  parseTreeCols,
   PROPS_WIDTH_DEFAULT,
   propRowsOf,
+  propsGridHeight,
   toTreeRequests,
+  TREE_COL_DEFAULT,
+  TREE_COL_KEYS,
   type PropGridRow,
+  type TreeColKey,
+  type TreeCols,
   type TreeRow,
 } from "./tree-model";
 
@@ -34,7 +42,10 @@ const ROW_HEIGHT = 26;
 const OVERSCAN = 8;
 const VIEWER_STORAGE_KEY = "analog-log-viewer:tree-query-viewer";
 const PROPS_WIDTH_KEY = "analog-log-viewer:tree-props-width";
+const TREE_COLS_KEY = "analog-log-viewer:tree-cols";
 const SPLIT_KEY_STEP = 16;
+const COL_KEY_STEP = 16;
+const COL_HEADERS: Record<TreeColKey, string> = { svc: "서비스", start: "시작일시", time: "실행시간" };
 const VIEWER_DEFAULT_RECT = { x: 160, y: 200, width: 480, height: 380 };
 
 interface TreeTabProps {
@@ -114,6 +125,7 @@ const TreeRowView = memo(function TreeRowView({ row, selected, onToggle, onSelec
           {node.label}
         </button>
       </div>
+      <span className="anl-tree-start">{node.startMs !== undefined ? formatTimestamp(node.startMs) : ""}</span>
       <RunTimeCell runTime={node.runTime} className="anl-tree-time" />
     </div>
   );
@@ -150,6 +162,23 @@ function readPropsWidth(): number {
 function writePropsWidth(width: number) {
   try {
     window.localStorage.setItem(PROPS_WIDTH_KEY, String(width));
+  } catch {
+    /* 저장소를 못 쓰면 이번 세션 폭만 유지한다. */
+  }
+}
+
+/** 트리 칸 폭을 localStorage 에서 읽는다(막히거나 값이 이상하면 기본 폭). */
+function readTreeCols(): TreeCols {
+  try {
+    return parseTreeCols(window.localStorage.getItem(TREE_COLS_KEY));
+  } catch {
+    return { ...TREE_COL_DEFAULT };
+  }
+}
+
+function writeTreeCols(cols: TreeCols) {
+  try {
+    window.localStorage.setItem(TREE_COLS_KEY, JSON.stringify(cols));
   } catch {
     /* 저장소를 못 쓰면 이번 세션 폭만 유지한다. */
   }
@@ -212,6 +241,59 @@ function TreeTabComponent({ data, active, onSendToBinder }: TreeTabProps) {
     writePropsWidth(PROPS_WIDTH_DEFAULT);
   };
 
+  // 트리 칸 폭(서비스·시작일시·실행시간) — 머리 칸 오른쪽 손잡이를 끌어 바꾼다.
+  // 끄는 동안에는 컨테이너의 CSS 변수만 바꾸고(행은 다시 그리지 않는다), 놓을 때 state·저장소에 반영한다.
+  const gridRef = useRef<HTMLDivElement>(null);
+  const headWrapRef = useRef<HTMLDivElement>(null);
+  const [cols, setCols] = useState<TreeCols>(() => ({ ...TREE_COL_DEFAULT }));
+  const colsRef = useRef(cols);
+  colsRef.current = cols;
+  const [resizingCol, setResizingCol] = useState<TreeColKey | null>(null);
+  useEffect(() => setCols(readTreeCols()), []);
+  const applyColVar = (key: TreeColKey, width: number) => gridRef.current?.style.setProperty(`--anl-col-${key}`, `${width}px`);
+  const commitCols = (next: TreeCols) => {
+    setCols(next);
+    writeTreeCols(next);
+  };
+  const onColPointerDown = (key: TreeColKey) => (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = colsRef.current[key];
+    let latest = startW;
+    setResizingCol(key);
+    const onMove = (ev: PointerEvent) => {
+      latest = clampTreeCol(key, startW + (ev.clientX - startX));
+      applyColVar(key, latest);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+      setResizingCol(null);
+      commitCols({ ...colsRef.current, [key]: latest });
+    };
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+  };
+  const onColKeyDown = (key: TreeColKey) => (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const next = clampTreeCol(key, colsRef.current[key] + (e.key === "ArrowRight" ? COL_KEY_STEP : -COL_KEY_STEP));
+    commitCols({ ...colsRef.current, [key]: next });
+  };
+  const onColReset = (key: TreeColKey) => () => commitCols({ ...colsRef.current, [key]: TREE_COL_DEFAULT[key] });
+  const colVars = {
+    "--anl-col-svc": `${cols.svc}px`,
+    "--anl-col-start": `${cols.start}px`,
+    "--anl-col-time": `${cols.time}px`,
+  } as React.CSSProperties;
+
   useEffect(() => setRequestIdx(0), [data]);
   // 새 조회 결과(또는 다른 Request)로 바뀌면 펼침·선택을 처음 상태로 되돌린다.
   useEffect(() => {
@@ -247,7 +329,23 @@ function TreeTabComponent({ data, active, onSendToBinder }: TreeTabProps) {
   useEffect(() => {
     if (active) setScrollTop(scrollRef.current?.scrollTop ?? 0);
   }, [active]);
-  const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => setScrollTop(e.currentTarget.scrollTop), []);
+  // 머리줄은 본문과 가로 스크롤을 맞추고, 본문 세로 스크롤바 폭만큼 오른쪽을 비워 끝이 어긋나지 않게 한다.
+  const syncHead = useCallback((el: HTMLDivElement) => {
+    const head = headWrapRef.current;
+    if (!head) return;
+    head.scrollLeft = el.scrollLeft;
+    head.style.paddingRight = `${el.offsetWidth - el.clientWidth}px`;
+  }, []);
+  const onScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      setScrollTop(e.currentTarget.scrollTop);
+      syncHead(e.currentTarget);
+    },
+    [syncHead],
+  );
+  useEffect(() => {
+    if (scrollRef.current) syncHead(scrollRef.current);
+  }, [rows, cols, viewportH, syncHead]);
 
   const start = Math.min(Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN), Math.max(0, rows.length - 1));
   const end = Math.min(rows.length, Math.ceil((scrollTop + viewportH) / ROW_HEIGHT) + OVERSCAN);
@@ -340,12 +438,29 @@ function TreeTabComponent({ data, active, onSendToBinder }: TreeTabProps) {
               </Button>
             ) : null}
           </div>
-          <div className="anl-tree-head">
-            <span>서비스</span>
-            <span className="anl-tree-head-right">수행시간</span>
+          <div ref={gridRef} className="anl-tree-grid" style={colVars}>
+          <div ref={headWrapRef} className="anl-tree-head-wrap">
+            <div className="anl-tree-head">
+              {TREE_COL_KEYS.map((key) => (
+                <div key={key} className={`anl-tree-head-cell ${key === "time" ? "anl-tree-head-right" : ""}`.trim()}>
+                  {COL_HEADERS[key]}
+                  <div
+                    className={`anl-tree-colresize ${resizingCol === key ? "anl-tree-colresize-active" : ""}`.trim()}
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label={`${COL_HEADERS[key]} 칸 폭 조절`}
+                    tabIndex={0}
+                    title="드래그하여 폭 조절 · 더블클릭하면 기본 폭"
+                    onPointerDown={onColPointerDown(key)}
+                    onKeyDown={onColKeyDown(key)}
+                    onDoubleClick={onColReset(key)}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
           <div ref={scrollRef} className="anl-tree-scroll" role="tree" aria-label="서비스 실행 트리" onScroll={onScroll}>
-            <div style={{ height: rows.length * ROW_HEIGHT, position: "relative" }}>
+            <div style={{ height: rows.length * ROW_HEIGHT, position: "relative", minWidth: "var(--anl-col-total)" }}>
               <div style={{ position: "absolute", top: start * ROW_HEIGHT, left: 0, right: 0 }}>
                 {rows.slice(start, end).map((row) => (
                   <TreeRowView
@@ -359,6 +474,7 @@ function TreeTabComponent({ data, active, onSendToBinder }: TreeTabProps) {
               </div>
               {rows.length === 0 ? <div className="anl-tree-empty-inline">일치하는 노드가 없습니다.</div> : null}
             </div>
+          </div>
           </div>
         </section>
         <div
@@ -382,7 +498,7 @@ function TreeTabComponent({ data, active, onSendToBinder }: TreeTabProps) {
             ) : null}
           </div>
           {/* 속성·Time·Param 은 짧은 이름-값 짝이라 표(AgDataGrid) 한 장으로, 줄바꿈이 필요한 긴 글은 아래 상세 영역이 맡는다. */}
-          <div className="anl-tree-props-grid">
+          <div className="anl-tree-props-grid" style={{ height: propsGridHeight(propRows.length) }}>
             <AgDataGrid
               columns={PROP_COLUMNS}
               data={propRows as unknown as Record<string, unknown>[]}

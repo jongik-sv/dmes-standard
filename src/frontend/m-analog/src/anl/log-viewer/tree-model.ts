@@ -437,6 +437,44 @@ export function clampPropsWidth(width: number, total: number): number {
   return Math.round(Math.min(Math.max(w, PROPS_WIDTH_MIN), max));
 }
 
+/** 트리 머리줄 칸 — 서비스 · 시작일시 · 실행시간. */
+export type TreeColKey = "svc" | "start" | "time";
+export type TreeCols = Record<TreeColKey, number>;
+export const TREE_COL_KEYS: readonly TreeColKey[] = ["svc", "start", "time"];
+export const TREE_COL_DEFAULT: Readonly<TreeCols> = { svc: 420, start: 180, time: 100 };
+export const TREE_COL_MIN: Readonly<TreeCols> = { svc: 160, start: 140, time: 60 };
+export const TREE_COL_MAX = 1600;
+
+/** 칸 폭을 [칸별 최소, 최대] 안으로 맞춘다. 숫자가 아니면 기본 폭. */
+export function clampTreeCol(key: TreeColKey, width: number): number {
+  const w = Number.isFinite(width) ? width : TREE_COL_DEFAULT[key];
+  return Math.round(Math.min(Math.max(w, TREE_COL_MIN[key]), TREE_COL_MAX));
+}
+
+/** 저장된 칸 폭(JSON) 읽기 — 깨졌거나 빠진 칸은 기본 폭, 범위를 벗어난 값은 맞춘다. */
+export function parseTreeCols(raw: string | null | undefined): TreeCols {
+  let obj: Record<string, unknown> = {};
+  try {
+    const v: unknown = raw ? JSON.parse(raw) : null;
+    if (v && typeof v === "object") obj = v as Record<string, unknown>;
+  } catch {
+    /* 깨진 값은 기본 폭으로. */
+  }
+  const out = { ...TREE_COL_DEFAULT };
+  for (const k of TREE_COL_KEYS) {
+    const n = obj[k];
+    if (typeof n === "number" && Number.isFinite(n)) out[k] = clampTreeCol(k, n);
+  }
+  return out;
+}
+
+/** 속성 표 높이 — 행 수만큼(최소 3칸). 머리줄 없는 표라 행 높이 × 칸 수 + 테두리. */
+export const PROP_ROW_HEIGHT = 26;
+export const PROP_ROWS_MIN = 3;
+export function propsGridHeight(rowCount: number): number {
+  return Math.max(PROP_ROWS_MIN, rowCount) * PROP_ROW_HEIGHT + 2;
+}
+
 /** 서비스 노드(최상위 SVC · 중첩 SUB). */
 const isService = (k: TreeKind) => k === "SVC" || k === "SUB";
 

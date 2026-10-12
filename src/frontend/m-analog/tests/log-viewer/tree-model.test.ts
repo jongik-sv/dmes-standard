@@ -4,6 +4,12 @@ import {
   allExpandable,
   bindParams,
   clampPropsWidth,
+  clampTreeCol,
+  parseTreeCols,
+  propsGridHeight,
+  TREE_COL_DEFAULT,
+  TREE_COL_MAX,
+  TREE_COL_MIN,
   cleanSql,
   defaultExpanded,
   firstSelection,
@@ -434,5 +440,33 @@ describe("속성 표 줄 · 속성 패널 폭", () => {
     expect(clampPropsWidth(400, 1000)).toBe(400);
     expect(clampPropsWidth(400, 400)).toBe(PROPS_WIDTH_MIN);
     expect(clampPropsWidth(Number.NaN, 1000)).toBe(PROPS_WIDTH_DEFAULT);
+  });
+
+  it("clampTreeCol: 칸별 최소·공통 최대 안으로 맞춘다", () => {
+    expect(clampTreeCol("svc", 10)).toBe(TREE_COL_MIN.svc);
+    expect(clampTreeCol("start", 10)).toBe(TREE_COL_MIN.start);
+    expect(clampTreeCol("time", 10)).toBe(TREE_COL_MIN.time);
+    expect(clampTreeCol("svc", 99999)).toBe(TREE_COL_MAX);
+    expect(clampTreeCol("svc", 300.4)).toBe(300);
+    expect(clampTreeCol("time", Number.NaN)).toBe(TREE_COL_DEFAULT.time);
+  });
+
+  it("parseTreeCols: 저장값 읽기 — 깨지면 기본, 빠진 칸은 기본, 범위 밖은 맞춤", () => {
+    expect(parseTreeCols(null)).toEqual(TREE_COL_DEFAULT);
+    expect(parseTreeCols("{깨짐")).toEqual(TREE_COL_DEFAULT);
+    expect(parseTreeCols("[1,2]")).toEqual(TREE_COL_DEFAULT);
+    expect(parseTreeCols('{"svc":500}')).toEqual({ ...TREE_COL_DEFAULT, svc: 500 });
+    expect(parseTreeCols('{"svc":5,"start":"x","time":99999}')).toEqual({
+      svc: TREE_COL_MIN.svc,
+      start: TREE_COL_DEFAULT.start,
+      time: TREE_COL_MAX,
+    });
+  });
+
+  it("propsGridHeight: 행 수만큼, 최소 3칸", () => {
+    expect(propsGridHeight(0)).toBe(80);
+    expect(propsGridHeight(2)).toBe(80);
+    expect(propsGridHeight(3)).toBe(80);
+    expect(propsGridHeight(8)).toBe(210);
   });
 });
