@@ -122,10 +122,24 @@
       "assignValue": [ "runTime:runTime" ]
     },
     {
+      "tokenName": "TaskFinishWithException",
+      "tokenType": "Task",
+      "nodeStatus": "Finish",
+      "discard": false,
+      "finishWithException": true,
+      "stringMatchers": {
+        "startWith": [ "Task" ],
+        "containsAny": [ " finish with exceptions." ]
+      },
+      "regExMatcher": { "test": "Task \\[(?<objectId>.*)\\]\\((?<objectName>.*)\\) finish with exceptions\\.\\((?<runTime>[0-9]+)ms\\)" },
+      "assignValue": [ "runTime:runTime", "message:exception.Arr" ]
+    },
+    {
       "tokenName": "ProcessStart",
       "tokenType": "Process",
       "nodeStatus": "Start",
       "discard": false,
+      "foldIntoSubService": true,
       "stringMatchers": {
         "startWith": [ "Process" ],
         "containsAny": [ "start." ]
@@ -138,6 +152,7 @@
       "tokenType": "Process",
       "nodeStatus": "Finish",
       "discard": false,
+      "foldIntoSubService": true,
       "stringMatchers": {
         "startWith": [ "Process" ],
         "containsAny": [ " finish." ]
@@ -146,10 +161,65 @@
       "assignValue": [ "runTime:runTime" ]
     },
     {
+      "tokenName": "ProcessFinishWithException",
+      "tokenType": "Process",
+      "nodeStatus": "Finish",
+      "discard": false,
+      "finishWithException": true,
+      "foldIntoSubService": true,
+      "stringMatchers": {
+        "startWith": [ "Process" ],
+        "containsAny": [ " finish with exceptions." ]
+      },
+      "regExMatcher": { "test": "Process \\[(?<objectId>.*)\\]\\((?<objectName>.*)\\) finish with exceptions\\.\\((?<runTime>[0-9]+)ms\\)" },
+      "assignValue": [ "runTime:runTime", "message:exception.Arr" ]
+    },
+    {
+      "tokenName": "SubProcessStart",
+      "tokenType": "Process",
+      "nodeStatus": "Start",
+      "discard": false,
+      "foldIntoSubService": true,
+      "stringMatchers": {
+        "startWith": [ "Sub Process" ],
+        "containsAny": [ " start." ]
+      },
+      "regExMatcher": { "test": "Sub Process \\[(?<objectId>.*)\\]\\((?<objectName>.*)\\) start\\." },
+      "assignValue": [ "objectId:objectId", "objectName:objectName" ]
+    },
+    {
+      "tokenName": "SubProcessFinish",
+      "tokenType": "Process",
+      "nodeStatus": "Finish",
+      "discard": false,
+      "foldIntoSubService": true,
+      "stringMatchers": {
+        "startWith": [ "Sub Process" ],
+        "containsAny": [ " finish." ]
+      },
+      "regExMatcher": { "test": "Sub Process \\[(?<objectId>.*)\\]\\((?<objectName>.*)\\) finish\\.\\((?<runTime>[0-9]+)ms\\)" },
+      "assignValue": [ "runTime:runTime" ]
+    },
+    {
+      "tokenName": "SubProcessFinishWithException",
+      "tokenType": "Process",
+      "nodeStatus": "Finish",
+      "discard": false,
+      "finishWithException": true,
+      "foldIntoSubService": true,
+      "stringMatchers": {
+        "startWith": [ "Sub Process" ],
+        "containsAny": [ " finish with exceptions." ]
+      },
+      "regExMatcher": { "test": "Sub Process \\[(?<objectId>.*)\\]\\((?<objectName>.*)\\) finish with exceptions\\.\\((?<runTime>[0-9]+)ms\\)" },
+      "assignValue": [ "runTime:runTime", "message:exception.Arr" ]
+    },
+    {
       "tokenName": "ServiceStart",
       "tokenType": "Service",
       "nodeStatus": "Start",
       "discard": false,
+      "foldIntoSubService": true,
       "stringMatchers": {
         "startWith": [ "Service" ],
         "containsAny": [ "start. Request Tag" ]
@@ -162,6 +232,7 @@
       "tokenType": "Service",
       "nodeStatus": "Finish",
       "discard": false,
+      "foldIntoSubService": true,
       "stringMatchers": {
         "startWith": [ "Service" ],
         "containsAny": [ " finish." ]
@@ -170,10 +241,65 @@
       "assignValue": [ "runTime:runTime", "objectId:#{root}service.set" ]
     },
     {
+      "tokenName": "ServiceFinishWithException",
+      "tokenType": "Service",
+      "nodeStatus": "Finish",
+      "discard": false,
+      "finishWithException": true,
+      "foldIntoSubService": true,
+      "stringMatchers": {
+        "startWith": [ "Service" ],
+        "containsAny": [ " finish with exceptions." ]
+      },
+      "regExMatcher": { "test": "Service \\[(?<objectId>.*)\\] finish with exceptions\\.\\((?<runTime>[0-9]+)ms\\)$" },
+      "assignValue": [ "runTime:runTime", "objectId:#{root}service.set", "message:exception.Arr" ]
+    },
+    {
+      "tokenName": "SubServiceLoggerStart",
+      "tokenType": "Service",
+      "nodeStatus": "Start",
+      "discard": false,
+      "foldIntoSubService": true,
+      "stringMatchers": {
+        "startWith": [ "Sub Service" ],
+        "containsAny": [ " start." ]
+      },
+      "regExMatcher": { "test": "Sub Service \\[(?<objectId>.*)\\] start\\." },
+      "assignValue": [ "objectId:objectId" ]
+    },
+    {
+      "tokenName": "SubServiceLoggerFinish",
+      "tokenType": "Service",
+      "nodeStatus": "Finish",
+      "discard": false,
+      "foldIntoSubService": true,
+      "stringMatchers": {
+        "startWith": [ "Sub Service" ],
+        "containsAny": [ " finish." ]
+      },
+      "regExMatcher": { "test": "Sub Service \\[(?<objectId>.*)\\] finish\\.\\((?<runTime>[0-9]+)ms\\)" },
+      "assignValue": [ "runTime:runTime" ]
+    },
+    {
+      "tokenName": "SubServiceLoggerFinishWithException",
+      "tokenType": "Service",
+      "nodeStatus": "Finish",
+      "discard": false,
+      "finishWithException": true,
+      "foldIntoSubService": true,
+      "stringMatchers": {
+        "startWith": [ "Sub Service" ],
+        "containsAny": [ " finish with exceptions." ]
+      },
+      "regExMatcher": { "test": "Sub Service \\[(?<objectId>.*)\\] finish with exceptions\\.\\((?<runTime>[0-9]+)ms\\)" },
+      "assignValue": [ "runTime:runTime", "message:exception.Arr" ]
+    },
+    {
       "tokenName": "SubServiceStart",
       "tokenType": "Service",
       "nodeStatus": "Start",
       "discard": false,
+      "opensSubService": true,
       "stringMatchers": {
         "startWith": [ "Sub-service" ],
         "containsAny": [ "start." ]
@@ -188,10 +314,48 @@
       "discard": false,
       "stringMatchers": {
         "startWith": [ "Sub-service" ],
-        "containsAny": [ "finish." ]
+        "containsAny": [ " finish." ]
       },
       "regExMatcher": { "test": "Sub-service \\[(?<objectId>.*)\\] finish\\." },
-      "assignValue": [ "runTime:runTime", "objectId:#{root}service.set" ]
+      "assignValue": [ "objectId:#{root}service.set" ]
+    },
+    {
+      "tokenName": "SubServiceFinishWithException",
+      "tokenType": "Service",
+      "nodeStatus": "Finish",
+      "discard": false,
+      "finishWithException": true,
+      "stringMatchers": {
+        "startWith": [ "Sub-service" ],
+        "containsAny": [ " finish with exceptions." ]
+      },
+      "regExMatcher": { "test": "Sub-service \\[(?<objectId>.*)\\] finish with exceptions\\." },
+      "assignValue": [ "objectId:#{root}service.set", "message:exception.Arr" ]
+    },
+    {
+      "tokenName": "DisconnectedSubServiceStart",
+      "tokenType": "Service",
+      "nodeStatus": "Start",
+      "discard": false,
+      "opensSubService": true,
+      "stringMatchers": {
+        "startWith": [ "Disconnected Sub-service" ],
+        "containsAny": [ " start." ]
+      },
+      "regExMatcher": { "test": "Disconnected Sub-service \\[(?<objectId>.*)\\] *start\\." },
+      "assignValue": [ "objectId:objectId", "objectId:objectName", "'y':#{Parent}hasSubService", "objectId:#{root}service.set" ]
+    },
+    {
+      "tokenName": "DisconnectedSubServiceFinish",
+      "tokenType": "Service",
+      "nodeStatus": "Finish",
+      "discard": false,
+      "stringMatchers": {
+        "startWith": [ "Disconnected Sub-service" ],
+        "containsAny": [ " finish." ]
+      },
+      "regExMatcher": { "test": "Disconnected Sub-service \\[(?<objectId>.*)\\] *finish\\." },
+      "assignValue": [ "objectId:#{root}service.set" ]
     },
     {
       "tokenName": "RequestLog",

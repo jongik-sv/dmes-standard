@@ -9,9 +9,11 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Start로 시작하고 Finish로 끝나는 타입(예외 Request)
@@ -33,6 +35,11 @@ public class ObjectNode extends Node {
     private Map<String, Object> properties;
     private ParseStack parseStack;
     private boolean complete = false;
+    // 서브서비스(SUB) 노드인가 — Sub-service 시작 토큰으로 열린 서비스 노드.
+    private boolean subService = false;
+    // 서브서비스 노드가 흡수한 Service·Process 래퍼의 열림/끝남 상태(타입별).
+    private final Set<TokenType> foldOpen = EnumSet.noneOf(TokenType.class);
+    private final Set<TokenType> foldDone = EnumSet.noneOf(TokenType.class);
 
     // 일반 Node
     public ObjectNode(LogToken logToken, ParseStack parseStack) {
@@ -44,6 +51,7 @@ public class ObjectNode extends Node {
         else if(matches.containsKey("objectId")) name = matches.get("objectId");
 
         this.objectType = logToken.getTokenType().toString();
+        this.subService = logToken.getTokenDefine().isOpensSubService();
         this.properties = new HashMap<>();
         this.children = new ArrayList<>();
         this.parseStack = parseStack;
@@ -90,6 +98,8 @@ public class ObjectNode extends Node {
     public void parse(LogToken logToken) {
         boolean afterClose = false;
         if(logToken.getTokenType().isObject()) {
+            // 서브서비스 노드 바로 아래의 Service·Process 래퍼 로그는 노드를 따로 만들지 않고 SUB 노드에 흡수한다.
+            if(foldIntoSubService(logToken)) return;
             if(logToken.getTokenDefine().getNodeStatus().equals("Start")) {
                 // 새로운 노드를 연다.
                 ObjectNode childNode = new ObjectNode(logToken, parseStack);
@@ -143,6 +153,47 @@ public class ObjectNode extends Node {
         if(afterClose) {
             closeNode();
         }
+    }
+
+    /**
+     * 이 노드가 서브서비스(SUB)이고 토큰이 흡수 대상이면 SUB 노드에 값만 얹고 true 를 돌려준다(노드를 열고 닫지 않는다).
+     * 흡수 대상: 서브서비스 바로 아래 한 번 나오는 Service 래퍼(Sub Service · 분리 호출의 Service)와 Process 래퍼
+     * (Sub Process · 일반 Process). 그래서 SUB 아래에는 Task 가 바로 붙는다.
+     * 타입별로 열림 → 끝남 한 번만 흡수하고, 그 밖의 줄은 평소처럼 노드를 열고 닫는다.
+     */
+    private boolean foldIntoSubService(LogToken logToken) {
+        if(!subService || !logToken.getTokenDefine().isFoldIntoSubService()) return false;
+
+        TokenType type = logToken.getTokenType();
+        Map<String, String> matches = logToken.getMatches();
+        if(logToken.getTokenDefine().getNodeStatus().equals("Start")) {
+            if(foldOpen.contains(type) || foldDone.contains(type)) return false;
+            foldOpen.add(type);
+            if(type == TokenType.Process) {
+                // Process 래퍼의 id·이름은 SUB 노드의 processId·processName 으로 남긴다.
+                if(matches.get("objectId") != null) properties.put("processId", matches.get("objectId"));
+                if(matches.get("objectName") != null) properties.put("processName", matches.get("objectName"));
+            }
+            return true;
+        }
+
+        // 종료
+        if(!foldOpen.contains(type)) return false;
+        foldOpen.remove(type);
+        foldDone.add(type);
+        String runTime = matches.get("runTime");
+        if(runTime != null) {
+            // Service 래퍼 시간이 서비스 전체 시간이라 우선한다. Process 시간은 비어 있을 때만 채운다.
+            if(type == TokenType.Service) properties.put("runTime", runTime);
+            else properties.putIfAbsent("runTime", runTime);
+        }
+        if(logToken.getTokenDefine().isFinishWithException()) addException(logToken.getLogData().getMessage());
+        return true;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void addException(String message) {
+        ((List<String>) properties.computeIfAbsent("exception", k -> new ArrayList<String>())).add(message);
     }
 
     public void closeNode() {

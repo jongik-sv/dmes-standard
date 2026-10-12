@@ -50,6 +50,19 @@ public class LogPattern {
         @JsonProperty("discard")
         private boolean discard;
 
+        // 이 토큰으로 열리는 서비스 노드는 서브서비스(SUB)다 — Sub-service · Disconnected Sub-service 시작 토큰.
+        @JsonProperty("opensSubService")
+        private boolean opensSubService;
+
+        // 서브서비스 노드가 맨 위에 있을 때 이 토큰은 새 노드를 열고 닫지 않고 그 노드에 흡수된다
+        // (서브서비스 바로 아래 Service·Process 래퍼 로그 — Sub Service, Sub Process, 일반 Service·Process).
+        @JsonProperty("foldIntoSubService")
+        private boolean foldIntoSubService;
+
+        // "finish with exceptions" 로 끝나는 종료 토큰 — 닫으면서 노드에 예외 표시를 남긴다.
+        @JsonProperty("finishWithException")
+        private boolean finishWithException;
+
         @JsonProperty("stringMatchers")
         private StringMatchers stringMatchers = null;
 
@@ -78,6 +91,18 @@ public class LogPattern {
 
         public boolean isDiscard() {
             return discard;
+        }
+
+        public boolean isOpensSubService() {
+            return opensSubService;
+        }
+
+        public boolean isFoldIntoSubService() {
+            return foldIntoSubService;
+        }
+
+        public boolean isFinishWithException() {
+            return finishWithException;
         }
 
         public StringMatchers getStringMatchers() {
