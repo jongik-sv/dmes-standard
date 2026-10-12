@@ -96,7 +96,7 @@ export function placeIntoCommand(state: ErdState, from: string, to: string, tabl
   let top = Number.POSITIVE_INFINITY;
   for (const n of Object.values(state.nodes)) {
     if (n.diagram !== to || !state.model.tables[n.table]) continue;
-    right = Math.max(right, n.x + estimatedSize(state.model, n.table, n.foldMode, keys, showAudit).width);
+    right = Math.max(right, n.x + estimatedSize(state.model, n.table, n.foldMode, keys, showAudit, n).width);
     top = Math.min(top, n.y);
   }
   const baseX = Number.isFinite(right) ? right + PLACE_GAP : 0;

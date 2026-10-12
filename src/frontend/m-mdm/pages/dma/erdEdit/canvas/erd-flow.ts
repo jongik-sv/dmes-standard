@@ -23,8 +23,8 @@ import { isAuditColumnId } from "../audit-columns";
 import { placeholderName } from "../placeholder-name";
 import { routeKey } from "../state/model-delta";
 import { countTableViolations } from "../state/violations";
-import type { ErdClaim, ErdColumnStatus, ErdModelJson, ErdPresence, ErdRelation, ErdRelationState, ErdRoutePoint, ErdState } from "../types";
-import { NODE_WIDTH, nodeHeight, relationSides, typeText, type NodeSide } from "./erd-geometry";
+import type { ErdClaim, ErdColumnStatus, ErdDiagramNode, ErdModelJson, ErdPresence, ErdRelation, ErdRelationState, ErdRoutePoint, ErdState } from "../types";
+import { NODE_WIDTH, bodyLayout, nodeHeight, relationSides, typeText, type NodeSide } from "./erd-geometry";
 
 export type ErdMode = "logical" | "physical";
 export type ErdPreset = "basic" | "overview" | "both";
@@ -108,6 +108,16 @@ export interface ErdNodeData extends Record<string, unknown> {
   viewers: ErdNodeViewer[];
   /** 관계 도구(4·5) 동안 노드 전체를 덮는 잇기 손잡이를 단다(useCanvasEditing 이 꾸민다). */
   pickable?: boolean;
+  /** 저장된 표 너비(§7.4). 없으면 자동(NODE_WIDTH). 접기 상태에서도 쓴다. */
+  w?: number;
+  /** 쓰는 저장 높이. 없으면 자동 높이. 접기(KEYS·NAME)·개요 보기면 저장 높이를 쓰지 않으므로 늘 없다. */
+  h?: number;
+  /** 저장 높이를 쓰지 않는 상태(접기·개요) — 아래 손잡이(s·se)를 주지 않는다. */
+  heightLocked?: true;
+  /** 크기 손잡이 e·s·se 를 단다 — 편집 가능할 때 고른 표 하나(useCanvasEditing 이 꾸민다). */
+  resizable?: true;
+  /** 「▾ N개 더」 막대를 눌러 높이를 자동으로 되돌릴 수 있다 — 편집 가능할 때(useCanvasEditing 이 꾸민다). */
+  expandable?: true;
 }
 export type ErdFlowNode = Node<ErdNodeData, "erdTable">;
 
@@ -318,7 +328,16 @@ export function buildFlow(i: BuildFlowInput): ErdFlow {
     shown.set(n.table, rows);
     auditHiddenOf.set(n.table, foldRows.length - rows.length);
   }
-  const visible = new Map([...shown].map(([t, rows]) => [t, new Set(rows)] as const));
+  // 저장 높이(§7.4)는 접기 없음·개요 아님일 때만 쓴다. 높이를 줄여 스크롤 칸이 생긴 표는 일반 컬럼 전부의 선을 표 머리 손잡이에 붙인다 —
+  // 스크롤해도 xyflow 는 손잡이를 다시 재지 않아 처음 보이던 행의 손잡이 점이 엉뚱한 행/상자 밖을 가리키기 때문이다(접기로 가린 행과 같은 규칙).
+  // 머리 아래 고정된 PK 묶음은 스크롤하지 않으므로 컬럼 손잡이를 그대로 쓴다.
+  const heightOf = (n: ErdDiagramNode): number | null => (n.foldMode === "NONE" && i.preset !== "overview" ? n.h ?? null : null);
+  const visible = new Map<string, Set<string>>();
+  for (const [t, rows] of shown) {
+    const keyRows = rows.filter((c) => marks.get(c) === "PK").length;
+    const { hidden } = bodyLayout(heightOf(at.get(t)!), keyRows, rows.length - keyRows);
+    visible.set(t, new Set(hidden > 0 ? rows.slice(0, keyRows) : rows));
+  }
 
   // 2. 선과 선이 쓰는 컬럼 손잡이
   const heads = candidateHeads(m);
@@ -336,7 +355,7 @@ export function buildFlow(i: BuildFlowInput): ErdFlow {
     const c = at.get(r.child);
     const p = at.get(r.parent);
     if (!c || !p) continue;
-    const sides = relationSides(c.x, p.x, r.child === r.parent);
+    const sides = relationSides(c.x, p.x, r.child === r.parent, c.w ?? NODE_WIDTH, p.w ?? NODE_WIDTH);
     const [childCol, parentCol] = r.pairs[0];
     const childRow = visible.get(r.child)!.has(childCol);
     const parentRow = visible.get(r.parent)!.has(parentCol);
@@ -392,7 +411,8 @@ export function buildFlow(i: BuildFlowInput): ErdFlow {
     // 고칠 위반 수 = 요약 줄·왼쪽 목록·[표준 위반] 탭과 같은 규칙(U25, 감사 컬럼은 감사 보기일 때만)
     const violations = countTableViolations(m, n.table, i.statuses, i.showAudit);
     // 행은 namesOnly 와 상관없이 만든다 — 높이는 늘 상세 단계 높이다(개요 단계 상자 높이 = boxHeight, U50).
-    const boxHeight = nodeHeight(rows.length, hiddenCount > 0);
+    const storedH = heightOf(n);
+    const boxHeight = storedH ?? nodeHeight(rows.length, hiddenCount > 0);
     const tn = placeholderName(t.logical, t.phys);
     return {
       id: n.table, type: "erdTable", position: { x: n.x, y: n.y },
@@ -404,9 +424,12 @@ export function buildFlow(i: BuildFlowInput): ErdFlow {
         subtitle: physical ? tn.display : t.phys,
         logicalName: tn.display, physName: t.phys, boxHeight,
         rows, hiddenCount, auditHidden, violations, viewers: viewers.get(n.table) ?? NO_VIEWERS,
+        // 크기 키는 값이 있을 때만 둔다(§7.4 — 서버 응답과 같게, 키 없음 = 자동).
+        ...(n.w != null ? { w: n.w } : {}), ...(storedH !== null ? { h: storedH } : {}),
+        ...(n.foldMode !== "NONE" || i.preset === "overview" ? { heightLocked: true as const } : {}),
       },
       selected: i.selected.has(n.table),
-      initialWidth: NODE_WIDTH, initialHeight: boxHeight,
+      initialWidth: n.w ?? NODE_WIDTH, initialHeight: boxHeight,
     };
   });
   return { nodes, edges };

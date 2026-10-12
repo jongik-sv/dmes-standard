@@ -51,7 +51,8 @@ export interface ErdModelJson {
 }
 
 export interface ErdDiagram { id: string; areaName: string; diagramName: string; sortSeq: number }
-export interface ErdDiagramNode { diagram: string; table: string; x: number; y: number; foldMode: ErdFoldMode }
+/** w·h = 표 크기(px, §7.4). 키가 없으면 자동 크기(NULL). 값은 정수다 — w 160~1600, h 52~4000. */
+export interface ErdDiagramNode { diagram: string; table: string; x: number; y: number; foldMode: ErdFoldMode; w?: number; h?: number }
 /** 관계 선의 경유점(2차 §7.1). 좌표는 캔버스 절대 좌표, 1~50개. 다이어그램마다 따로 둔다. */
 export interface ErdRoutePoint { x: number; y: number }
 export interface ErdDiagramRoute { diagram: string; relation: string; points: ErdRoutePoint[] }

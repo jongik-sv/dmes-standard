@@ -32,6 +32,103 @@ export function nodeHeight(rows: number, more: boolean): number {
   return HEADER_HEIGHT + rows * ROW_HEIGHT + (more ? ROW_HEIGHT : 0) + 2;
 }
 
+// ── 표 크기(§7.4) ──
+
+/** 서버 범위(resizeNodes) — 정수, 벗어나면 INVALID. */
+export const NODE_W_MIN = 160;
+export const NODE_W_MAX = 1600;
+export const NODE_H_MIN = 52;
+export const NODE_H_MAX = 4000;
+/** 높이를 자동보다 줄였을 때 가려진 컬럼이 있으면 상자 아래에 붙는 「▾ N개 더」 막대의 높이. */
+export const CLIP_BAR_HEIGHT = ROW_HEIGHT;
+
+const clampTo = (n: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, Math.round(n)));
+export const clampNodeW = (w: number): number => clampTo(w, NODE_W_MIN, NODE_W_MAX);
+export const clampNodeH = (h: number): number => clampTo(h, NODE_H_MIN, NODE_H_MAX);
+
+/**
+ * 저장 높이 h(null = 자동)로 줄였을 때 일반 컬럼 가운데 처음부터 보이는 수와 가려지는 수(스크롤 위치 0 기준).
+ * PK 묶음(keyRows)은 머리 아래에 고정이라 늘 보인다. 가려지는 컬럼이 있으면 아래 막대(CLIP_BAR_HEIGHT)가 한 줄을 차지한다.
+ * 자동 높이 이상이거나 일반 컬럼이 없으면 가려지는 것이 없다. DOM 을 재지 않는 순수 계산이라 화면·buildFlow 가 같은 답을 낸다.
+ */
+export function bodyLayout(h: number | null, keyRows: number, bodyRows: number): { visible: number; hidden: number } {
+  if (h === null || bodyRows === 0 || h >= nodeHeight(keyRows + bodyRows, false)) return { visible: bodyRows, hidden: 0 };
+  const space = h - 2 - HEADER_HEIGHT - keyRows * ROW_HEIGHT - CLIP_BAR_HEIGHT;
+  const visible = Math.max(0, Math.min(bodyRows, Math.floor(space / ROW_HEIGHT)));
+  return { visible, hidden: bodyRows - visible };
+}
+
+/**
+ * 이 표를 끌어 줄일 수 있는 가장 낮은 높이. 서버 범위(52)가 바닥이지만, 머리 + 고정된 PK 묶음 + 스크롤 줄 하나 + 「▾ N개 더」 막대 + 테두리가
+ * 상자 밖으로 넘치면 안 된다. 일반 컬럼이 없거나 하나뿐이면 줄일 것이 없으니 자동 높이가 바닥이다(막대 없이 넘침 없이).
+ */
+export function minNodeHeight(keyRows: number, bodyRows: number): number {
+  const auto = nodeHeight(keyRows + bodyRows, false);
+  return Math.max(NODE_H_MIN, Math.min(auto, nodeHeight(keyRows + 1, false) + CLIP_BAR_HEIGHT));
+}
+
+/** 오른쪽 변(e)·아래 변(s)·오른쪽 아래 모서리(se) 손잡이. */
+export type SizeGrip = "e" | "s" | "se";
+export const SIZE_GRIPS: readonly SizeGrip[] = ["e", "s", "se"];
+
+/** 손잡이 grip 을 흐름 좌표 (dx, dy) 만큼 끈 크기 — 정수로 반올림해 범위로 자른다(높이는 minH 아래로 내리지 않는다). 끌지 않는 방향은 base 그대로. */
+export function dragSize(
+  base: { w: number; h: number }, grip: SizeGrip, dx: number, dy: number, minH: number = NODE_H_MIN,
+): { w: number; h: number } {
+  return {
+    w: grip.includes("e") ? clampNodeW(base.w + dx) : base.w,
+    h: grip.includes("s") ? Math.max(minH, clampNodeH(base.h + dy)) : base.h,
+  };
+}
+
+/** 끄는 중인 크기. null = 그 방향 자동. */
+export interface SizeDraft {
+  id: string;
+  w: number | null;
+  h: number | null;
+}
+
+/** 손잡이를 누른 이벤트에서 쓰는 것만(React 의존 없이). */
+export interface GripPress {
+  button: number;
+  clientX: number;
+  clientY: number;
+  preventDefault(): void;
+  stopPropagation(): void;
+}
+
+/**
+ * 표 크기 버스 — 캔버스(xyflow store)마다 하나. 끄는 동안의 크기(draft)는 여기에만 두고 그 표 노드만 구독한다(캔버스 전체를 다시 그리지 않는다,
+ * Local-Rules §19). 노드 데이터에 콜백을 넣지 않으려고 누르기·펴기 처리도 여기로 받는다(useCanvasEditing 이 등록).
+ */
+export interface SizeBus {
+  draft: SizeDraft | null;
+  listeners: Set<() => void>;
+  start: ((e: GripPress, id: string, grip: SizeGrip) => void) | null;
+  expand: ((id: string) => void) | null;
+}
+
+const sizeBuses = new WeakMap<object, SizeBus>();
+
+/** 이 캔버스(xyflow store)의 버스. 없으면 만든다. 열쇠는 store.getState 함수(캔버스마다 하나, routeBusOf 와 같다). */
+export function sizeBusOf(store: { getState: unknown }): SizeBus {
+  const key = store.getState as object;
+  let b = sizeBuses.get(key);
+  if (!b) {
+    b = { draft: null, listeners: new Set(), start: null, expand: null };
+    sizeBuses.set(key, b);
+  }
+  return b;
+}
+
+/** 끄는 중 크기를 바꾸고 구독자에게 알린다. 같으면 아무것도 하지 않는다(참조도 그대로). */
+export function setSizeDraft(bus: SizeBus, draft: SizeDraft | null): void {
+  const cur = bus.draft;
+  if (cur === draft || (cur && draft && cur.id === draft.id && cur.w === draft.w && cur.h === draft.h)) return;
+  bus.draft = draft;
+  for (const l of bus.listeners) l();
+}
+
 /**
  * 표 손잡이 점이 상자 변에서 바깥으로 나온 거리(px). 손잡이가 4px 이고 변에 걸쳐 있어(erd-styles.ts .erd-handle) 왼쪽 점은 상자 왼쪽 -2,
  * 오른쪽 점은 상자 오른쪽 +2 에 선다.
@@ -53,7 +150,7 @@ export function endStub(handleGap: number): number {
 }
 
 /**
- * 관계선이 붙는 변(상자 왼쪽 x 로 정한다, 너비는 NODE_WIDTH).
+ * 관계선이 붙는 변(상자 왼쪽 x 와 너비로 정한다, 너비를 주지 않으면 NODE_WIDTH).
  * - 띠 ① 빈 폭 > FACING_MIN_GAP(8): 마주 보는 변 — 왼쪽 표는 오른쪽 변, 오른쪽 표는 왼쪽 변. 자식이 어느 쪽이든 같다.
  *   틈이 END_STUB 두 개와 손잡이 두 개(2 * (END_STUB + HANDLE_REACH) = 60)보다 좁아도 마주 보고, 꼬리를 endStub 으로 줄여 겹침을 피한다.
  * - 띠 ② 가로로 겹치거나 빈 폭이 FACING_MIN_GAP 이하(위아래로 쌓인 표)면 둘 다 오른쪽 변 — 선이 ㄷ 모양으로 상자 밖을 돌아 들어간다.
@@ -62,9 +159,12 @@ export function endStub(handleGap: number): number {
  * - 경계 띠: 판정은 빈 폭만 보는 상태 없는 함수라 끄는 동안 FACING_MIN_GAP 을 지나며 바뀌는 곳은 한 군데뿐이고 되돌아 떨리지 않는다.
  * - 자기 참조는 둘 다 오른쪽(시안).
  */
-export function relationSides(childX: number, parentX: number, self: boolean): { child: NodeSide; parent: NodeSide } {
+export function relationSides(
+  childX: number, parentX: number, self: boolean, childW: number = NODE_WIDTH, parentW: number = NODE_WIDTH,
+): { child: NodeSide; parent: NodeSide } {
   if (self) return { child: "R", parent: "R" };
-  const gap = Math.abs(childX - parentX) - NODE_WIDTH;
+  // 두 상자 사이 빈 폭 = 왼쪽 상자 오른쪽 변에서 오른쪽 상자 왼쪽 변까지(표 크기를 바꾸면 너비가 다르다, §7.4). 너비가 같으면 |x 차이| - 너비.
+  const gap = childX < parentX ? parentX - (childX + childW) : childX - (parentX + parentW);
   if (gap <= FACING_MIN_GAP) return { child: "R", parent: "R" };
   return childX < parentX ? { child: "R", parent: "L" } : { child: "L", parent: "R" };
 }
@@ -76,20 +176,22 @@ export interface LiveEnd {
 }
 
 /** 노드 가운데를 기준으로 x 를 접는다 — 같은 높이의 반대편 손잡이 점. */
-const mirrorX = (x: number, left: number): number => 2 * (left + NODE_WIDTH / 2) - x;
+const mirrorX = (x: number, left: number, width: number = NODE_WIDTH): number => 2 * (left + width / 2) - x;
 
 /**
  * 끄는 동안 관계선 양 끝(원천 = 자식, 대상 = 부모)을 규칙(relationSides)에 맞춘다. 손잡이 id 는 모델에서 정해진 채라서
  * (buildFlow 는 놓은 뒤에야 다시 짠다) 끄는 중에는 손잡이와 규칙이 어긋날 수 있다. 어긋난 끝은 상자 가운데로 접어 반대편 변에 붙인다 —
  * 높이(y)는 같으므로 손잡이가 없는 쪽도 정확한 점이 된다. x 는 각 끝 노드의 현재 왼쪽 x(srcLeft·tgtLeft)와 손잡이 점이 같은 시점 값이어야 한다.
  */
-export function liveEnds(source: LiveEnd, srcLeft: number, target: LiveEnd, tgtLeft: number): { source: LiveEnd; target: LiveEnd } {
-  const sides = relationSides(srcLeft, tgtLeft, false);
-  const fit = (end: LiveEnd, left: number, side: NodeSide): LiveEnd => {
+export function liveEnds(
+  source: LiveEnd, srcLeft: number, target: LiveEnd, tgtLeft: number, srcWidth: number = NODE_WIDTH, tgtWidth: number = NODE_WIDTH,
+): { source: LiveEnd; target: LiveEnd } {
+  const sides = relationSides(srcLeft, tgtLeft, false, srcWidth, tgtWidth);
+  const fit = (end: LiveEnd, left: number, width: number, side: NodeSide): LiveEnd => {
     const position = side === "R" ? "right" : "left";
-    return end.position === position ? end : { x: mirrorX(end.x, left), position };
+    return end.position === position ? end : { x: mirrorX(end.x, left, width), position };
   };
-  return { source: fit(source, srcLeft, sides.child), target: fit(target, tgtLeft, sides.parent) };
+  return { source: fit(source, srcLeft, srcWidth, sides.child), target: fit(target, tgtLeft, tgtWidth, sides.parent) };
 }
 
 /** 소수 둘째 자리까지. -0 은 0 으로 쓴다. */

@@ -72,6 +72,15 @@ class ErdSchemaTest extends AbstractMdmSharedDbTest {
                 + "AND COMMENTS IS NOT NULL", Integer.class)).isEqualTo(12);
     }
 
+    /** V8: 다이어그램 노드의 표 크기 칸 SIZE_W·SIZE_H 는 NULL 허용(자동 크기)이고 주석이 있다. */
+    @Test
+    void nodeSizeColumnsAreNullableWithComments() {
+        assertThat(jdbc.queryForList("SELECT COLUMN_NAME || ':' || NULLABLE FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'TB_MDM_ERD_DIAGRAM_NODE' "
+                + "AND COLUMN_NAME IN ('SIZE_W', 'SIZE_H') ORDER BY COLUMN_NAME", String.class)).containsExactly("SIZE_H:Y", "SIZE_W:Y");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM USER_COL_COMMENTS WHERE TABLE_NAME = 'TB_MDM_ERD_DIAGRAM_NODE' "
+                + "AND COLUMN_NAME IN ('SIZE_W', 'SIZE_H') AND COMMENTS IS NOT NULL", Integer.class)).isEqualTo(2);
+    }
+
     @Test
     void registryKnowsErdModel() {
         var spec = registry.spec(VersionTarget.ERD_MODEL);

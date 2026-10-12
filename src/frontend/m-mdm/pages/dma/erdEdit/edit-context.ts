@@ -68,6 +68,7 @@ const SERVER_CODES: ReadonlySet<string> = new Set(["CONFLICT", "NOT_FOUND", "INV
 /** 다이어그램 명령(버전 밖, R9-2). Java ErdDiagramCommand.isDiagramOp 와 같은 목록이다. */
 const DIAGRAM_OPS: ReadonlySet<string> = new Set([
   "addDiagram", "updateDiagram", "deleteDiagram", "placeTables", "moveNodes", "setFold", "removeFromDiagram", "restoreDiagram",
+  "resizeNodes", "setRoute", "clearRoutes", "copyDiagram",
 ]);
 
 export function isDiagramOp(op: string): boolean {

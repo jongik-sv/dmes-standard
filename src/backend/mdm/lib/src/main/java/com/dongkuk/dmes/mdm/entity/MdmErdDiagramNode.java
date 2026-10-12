@@ -18,6 +18,9 @@ public class MdmErdDiagramNode extends CactusAuditEntity {
     @Column(name = "POS_X", nullable = false) private int posX;
     @Column(name = "POS_Y", nullable = false) private int posY;
     @Column(name = "FOLD_MODE", nullable = false) private String foldMode;
+    /** 표 너비·높이(V8). NULL = 자동 크기. */
+    @Column(name = "SIZE_W") private Integer sizeW;
+    @Column(name = "SIZE_H") private Integer sizeH;
 
     protected MdmErdDiagramNode() {
         // JPA 기본 생성자
@@ -39,4 +42,8 @@ public class MdmErdDiagramNode extends CactusAuditEntity {
     public void setPosY(int v) { this.posY = v; }
     public String getFoldMode() { return foldMode; }
     public void setFoldMode(String v) { this.foldMode = v; }
+    public Integer getSizeW() { return sizeW; }
+    public void setSizeW(Integer v) { this.sizeW = v; }
+    public Integer getSizeH() { return sizeH; }
+    public void setSizeH(Integer v) { this.sizeH = v; }
 }

@@ -11,7 +11,7 @@
  */
 import { landingIndex } from "../audit-columns";
 import { noticeFromRejection, type ErdNotice } from "../edit-context";
-import type { ErdApplyResult, ErdColumn, ErdCommandJson, ErdDelta, ErdDiagram, ErdFoldMode, ErdModelJson, ErdState, ErdTable } from "../types";
+import type { ErdApplyResult, ErdColumn, ErdCommandJson, ErdDelta, ErdDiagram, ErdDiagramNode, ErdFoldMode, ErdModelJson, ErdState, ErdTable } from "../types";
 import { applyDelta, nodeKey, routeKey } from "./model-delta";
 
 export const HOLD_LIMIT_MS = 5000;
@@ -42,6 +42,16 @@ const nodeList = (v: unknown): { table: string; x: number; y: number }[] =>
     })
     : [];
 
+/** resizeNodes 의 노드(§7.4) — 표 id 와 w·h(숫자가 아니면 null = 자동 크기). */
+const sizeList = (v: unknown): { table: string; w: number | null; h: number | null }[] =>
+  Array.isArray(v)
+    ? v.flatMap((n) => {
+      const o = rec(n);
+      const t = str(o?.table);
+      return o && t ? [{ table: t, w: typeof o.w === "number" ? o.w : null, h: typeof o.h === "number" ? o.h : null }] : [];
+    })
+    : [];
+
 export function initLayers(server: ErdState): Layers {
   return { server, pending: [], held: [] };
 }
@@ -66,6 +76,7 @@ export function pendingIds(pending: readonly PendingBatch[]): ReadonlySet<string
       }
       for (const t of strList(c.tables)) out.add(t);
       for (const n of nodeList(c.nodes)) out.add(n.table);
+      if (c.op === "resizeNodes") for (const n of sizeList(c.nodes)) out.add(n.table);
     }
   }
   return out;
@@ -197,6 +208,25 @@ export function projectCommand(state: ErdState, cmd: ErdCommandJson): ErdState {
         const prev = nodes[key];
         if (prev) nodes[key] = { ...prev, x: n.x, y: n.y };
         else if (cmd.op === "placeTables") nodes[key] = { diagram, table: n.table, x: n.x, y: n.y, foldMode: "NONE" };
+      }
+      return { ...state, nodes };
+    }
+    case "resizeNodes": {
+      // 표 크기(§7.4). null(또는 키 없음) = 자동 크기 — 키를 지운다(undefined 로 두면 참조 재사용 비교가 키 수로 어긋난다).
+      const diagram = str(cmd.diagram);
+      const list = sizeList(cmd.nodes);
+      if (!diagram || list.length === 0) return state;
+      const nodes = { ...state.nodes };
+      for (const n of list) {
+        const key = nodeKey(diagram, n.table);
+        const prev = nodes[key];
+        if (!prev) continue;
+        const next: ErdDiagramNode = { ...prev };
+        delete next.w;
+        delete next.h;
+        if (n.w !== null) next.w = n.w;
+        if (n.h !== null) next.h = n.h;
+        nodes[key] = next;
       }
       return { ...state, nodes };
     }

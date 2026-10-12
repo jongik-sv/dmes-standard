@@ -6,6 +6,7 @@ import type { FlowPos } from "@dk-oasis/shared/react-flow";
 
 import { nodeKey } from "../state/model-delta";
 import type { ErdCommandJson, ErdDiagram, ErdDiagramNode, ErdFoldMode, ErdModelJson, ErdState } from "../types";
+import { clampNodeH, clampNodeW } from "./erd-geometry";
 
 /** save 한 묶음의 명령 수 상한(서버 ErdCommandService). */
 export const MAX_BATCH = 200;
@@ -47,6 +48,30 @@ export function moveNodesCommand(diagram: string, moved: readonly PlacedNode[], 
     out.push({ table: m.table, x, y });
   }
   return out.length > 0 ? { op: "moveNodes", diagram, nodes: out } : null;
+}
+
+export interface SizedNode {
+  table: string;
+  /** null = 그 방향 자동 크기. */
+  w: number | null;
+  h: number | null;
+}
+
+/**
+ * 표 크기 바꾸기(§7.4). 값은 정수로 반올림해 서버 범위(w 160~1600, h 52~4000)로 자른다. 지금 저장된 크기와 같은 표(없음 = null)와
+ * 이 다이어그램에 없는 표는 뺀다. 남는 것이 없으면 null. 끌지 않은 방향은 부른 쪽이 저장 값(없으면 null)을 그대로 넘겨야 자동 크기가 굳지 않는다.
+ */
+export function resizeNodesCommand(diagram: string, sized: readonly SizedNode[], nodes: Readonly<Record<string, ErdDiagramNode>>): ErdCommandJson | null {
+  const out: SizedNode[] = [];
+  for (const n of sized) {
+    const cur = nodes[nodeKey(diagram, n.table)];
+    if (!cur) continue;
+    const w = n.w === null ? null : clampNodeW(n.w);
+    const h = n.h === null ? null : clampNodeH(n.h);
+    if ((cur.w ?? null) === w && (cur.h ?? null) === h) continue;
+    out.push({ table: n.table, w, h });
+  }
+  return out.length > 0 ? { op: "resizeNodes", diagram, nodes: out } : null;
 }
 
 const placedOnly = (diagram: string, tables: readonly string[], nodes: Readonly<Record<string, ErdDiagramNode>>): string[] =>

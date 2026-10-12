@@ -162,6 +162,31 @@
 - 캔버스 표 노드 = `display` 만(추가 칸 없음). 그 자리 편집 입력도 저장 값으로 시작
 - 누름 전환 없음. 저장 값과 「사전 없음」 위반은 바꾸지 않는다
 
+### 7.4 표 크기 (erd-size s1 이 만들고 erd-size s2 가 따른다, 사용자 결정 10-12)
+
+- 칸 = `TB_MDM_ERD_DIAGRAM_NODE.SIZE_W`·`SIZE_H`(mdm V8, `NUMBER(5)`, NULL 허용). NULL = 자동 크기(지금 동작). 다이어그램마다 따로 둔다
+- 다이어그램 명령(save 묶음, 버전 밖)
+  - `{"op":"resizeNodes","diagram":"<d>","nodes":[{"table":"<t>","w":<int|null>,"h":<int|null>},…]}`
+  - `w`·`h` 는 따로 null 이 될 수 있다. null(또는 키 없음) = 그 방향 자동 크기로 되돌림
+  - 범위: `w` 160~1600, `h` 52~4000(정수). 벗어나면 INVALID. 다이어그램에 없는 표 = INVALID. 빈 `nodes`·null 원소 = INVALID
+  - 권한·rev·SSE·되돌리기 = `moveNodes` 와 같은 길. `edit-context.ts` `DIAGRAM_OPS` 에 `resizeNodes` 를 더한다
+- 델타 kind `diagramNode` 값 = `{diagram, table, x, y, foldMode}` + 크기가 있을 때만 `w`·`h`(NULL 이면 키를 넣지 않는다 — V8 전 되돌리기 기록과 값 비교가 같게)
+- view 응답 `nodes[]` 에 `w`·`h`(NULL 이면 키 없음)
+- 연관 명령
+  - `moveNodes`·`placeTables`(이미 놓인 표)·`setFold` = 크기 유지. `placeTables` 새 표 = NULL
+  - `copyDiagram` = 크기도 복사. `removeFromDiagram`·`deleteDiagram` = 행과 함께 사라지고 되돌리기로 돌아온다
+  - `restoreDiagram` 노드 값에 `w`·`h` 가 없으면 NULL 로 되살린다
+  - 되돌리기 충돌 판정은 노드 행 전체(위치·접기·크기)를 본다. 크기를 바꾼 뒤 같은 표를 옮기거나 접으면 그 크기 변경 되돌리기는 CONFLICT(그 반대도 같다)
+- 화면 규칙(erd-size-2, 사용자 결정 10-12)
+  - 손잡이 = 편집 가능할 때, 고른 표 하나. 끄는 동안 화면만 바뀌고 놓을 때 `resizeNodes` 1회
+  - 너비를 키우면 긴 표 이름이 다 보인다
+  - 높이를 자동 높이보다 줄이면 PK 컬럼 묶음은 고정, 일반 컬럼만 세로 스크롤(`nowheel`). 표 아래 「▾ N개 더」 막대 → 누르면 `h:null` 명령 1회(되돌리기 가능). 다 보이면 막대 없음
+  - 접기(fold) 상태 = 기존 접기 동작 우선(저장 높이를 쓰지 않는다. 너비는 쓴다)
+  - 화면 높이 하한 = max(52, 머리 + PK 행 + 일반 컬럼 한 줄 + 막대 + 테두리). 일반 컬럼 1개 이하인 표는 자동 높이 아래로 못 줄임
+  - 막대가 보이는 표 = 일반 컬럼의 관계선은 표 머리 손잡이에, PK 컬럼은 컬럼 손잡이에 붙는다(스크롤해도 끝점이 어긋나지 않게)
+  - 끄기에서 실제로 바뀐 축만 보낸다(안 바뀐 축은 지금 저장 값, 자동이면 null). 둘 다 그대로면 명령 없음
+- MCP·CLI(`scripts/erd`) 는 노드 위치를 내보내지 않으므로 바꾸지 않는다
+
 ## 8. 기록 문서
 
 - 이 회차는 성능 비교 기록이 없다(렌더 측정은 3차).

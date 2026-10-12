@@ -88,6 +88,13 @@ describe("다른 다이어그램에 넣기(U61)", () => {
     expect(plan.command).toEqual({ op: "placeTables", diagram: "d-sub", nodes: [{ table: "t-0", x: x0, y: 50 }, { table: "t-2", x: x0 + 560, y: 50 }] });
   });
 
+  it("placeIntoUsesStoredWidth — 대상의 표 너비를 키웠으면(§7.4 w) 그 오른쪽 + 80 에 놓는다", () => {
+    const s = twoDiagrams();
+    const state = { ...s, nodes: { ...s.nodes, "d-sub:t-1": { ...s.nodes["d-sub:t-1"], w: 600 } } };
+    const plan = placeIntoCommand(state, "d-all", "d-sub", ["t-0"], false);
+    expect(plan.command).toEqual({ op: "placeTables", diagram: "d-sub", nodes: [{ table: "t-0", x: 100 + 600 + 80, y: 50 }] });
+  });
+
   it("빈 대상이면 (0,0) 부터", () => {
     const plan = placeIntoCommand(twoDiagrams(), "d-all", "d-empty", ["t-2", "t-3"], false);
     expect(plan.command).toEqual({ op: "placeTables", diagram: "d-empty", nodes: [{ table: "t-2", x: 0, y: 0 }, { table: "t-3", x: 280, y: 0 }] });

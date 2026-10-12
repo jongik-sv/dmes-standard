@@ -42,6 +42,8 @@ export const RelationPickContext = createContext<((relationId: string) => void) 
 
 /** 그 노드의 지금 왼쪽 x(끄는 중이면 덮개 위치). 숫자만 돌려줘 이 선이 걸린 노드가 움직일 때만 다시 그린다. */
 const leftSelector = (id: string) => (s: ReactFlowState): number | undefined => s.nodeLookup.get(id)?.internals.positionAbsolute.x;
+/** 그 노드의 잰 너비(표 크기 §7.4 로 바뀔 수 있다). 재기 전이면 undefined — liveEnds 가 기본 너비를 쓴다. */
+const widthSelector = (id: string) => (s: ReactFlowState): number | undefined => s.nodeLookup.get(id)?.measured.width;
 
 const endOf = (x: number, position: string): LiveEnd | null => (position === "left" || position === "right" ? { x, position } : null);
 
@@ -65,6 +67,8 @@ export const ErdRelationEdge = memo(function ErdRelationEdge({
   const tgtSel = useMemo(() => leftSelector(target), [target]);
   const srcLeft = useStore(srcSel);
   const tgtLeft = useStore(tgtSel);
+  const srcWidth = useStore(useMemo(() => widthSelector(source), [source]));
+  const tgtWidth = useStore(useMemo(() => widthSelector(target), [target]));
   const onPick = useContext(RelationPickContext);
   const rf = useReactFlow();
   const { selected, hovered, pointIndex, editable, bus } = useRouteSelection(id);
@@ -91,7 +95,7 @@ export const ErdRelationEdge = memo(function ErdRelationEdge({
   const srcEnd = endOf(sourceX, String(sourcePosition));
   const tgtEnd = endOf(targetX, String(targetPosition));
   const live = source !== target && srcEnd && tgtEnd && srcLeft !== undefined && tgtLeft !== undefined
-    ? liveEnds(srcEnd, srcLeft, tgtEnd, tgtLeft) : null;
+    ? liveEnds(srcEnd, srcLeft, tgtEnd, tgtLeft, srcWidth, tgtWidth) : null;
   const sx = live ? live.source.x : sourceX;
   const tx = live ? live.target.x : targetX;
   // 룰 세트 편집기와 같이 xyflow Position 을 그대로 넘긴다(값이 "left"·"right" 라 Side 에 맞는다).

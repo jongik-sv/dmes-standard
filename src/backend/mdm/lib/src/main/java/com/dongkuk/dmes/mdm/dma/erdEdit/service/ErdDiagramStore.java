@@ -7,9 +7,11 @@ import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.CopyDiagram;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.DeleteDiagram;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.MoveNodes;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.Node;
+import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.NodeSize;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.PlaceTables;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.Point;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.RemoveFromDiagram;
+import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.ResizeNodes;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.RestoreDiagram;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.SetFold;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdDiagramCommand.SetRoute;
@@ -46,6 +48,8 @@ public class ErdDiagramStore {
     static final int MAX_POINTS = 50;
     /** 꺾임점 묶음 조회·삭제의 IN 목록 크기(Oracle IN 목록 상한 1000). */
     static final int IN_CHUNK = 1000;
+    /** 표 상자 크기 범위(README §7.4). 높이 하한 = 머리 30 + 한 줄 20 + 테두리 2. */
+    static final int SIZE_W_MIN = 160, SIZE_W_MAX = 1600, SIZE_H_MIN = 52, SIZE_H_MAX = 4000;
 
     public record Result(List<ErdChange> changes, ErdDiagramCommand inverse) {}
 
@@ -110,6 +114,19 @@ public class ErdDiagramStore {
                                 .setParameter(1, n.x()).setParameter(2, n.y()).setParameter(3, userId)
                                 .setParameter(4, mv.diagram()).setParameter(5, n.table()).executeUpdate();
                         if (updated == 0) throw reject(index, "다이어그램에 없는 표입니다: " + n.table(), n.table());
+                    }
+                }
+                case ResizeNodes rs -> {
+                    requireDiagram(modelId, rs.diagram(), index);
+                    requireList(rs.nodes(), "nodes", rs.diagram(), index);
+                    for (NodeSize n : rs.nodes()) {
+                        if (n.table() == null || n.table().isBlank()) throw reject(index, "nodes 의 table 이 비었습니다", rs.diagram());
+                        requireSize(n.w(), SIZE_W_MIN, SIZE_W_MAX, "w", n.table(), index);
+                        requireSize(n.h(), SIZE_H_MIN, SIZE_H_MAX, "h", n.table(), index);
+                        remember(before, modelId, "diagramNode", rs.diagram() + ":" + n.table());
+                        if (updateSize(rs.diagram(), n.table(), n.w(), n.h(), userId) == 0) {
+                            throw reject(index, "다이어그램에 없는 표입니다: " + n.table(), n.table());
+                        }
                     }
                 }
                 case SetFold f -> {
@@ -228,7 +245,7 @@ public class ErdDiagramStore {
     }
 
     /**
-     * 다이어그램 복사(ERD 2차 §7.2). 원본 노드(위치·접기)와 꺾임점을 새 id 로 한 번씩(INSERT … SELECT) 복사한다. 새 id 는 어느 모델에도
+     * 다이어그램 복사(ERD 2차 §7.2). 원본 노드(위치·접기·크기)와 꺾임점을 새 id 로 한 번씩(INSERT … SELECT) 복사한다. 새 id 는 어느 모델에도
      * 없으므로(PK 전역) 고치기 전 행은 모두 null 이다 — 노드·꺾임점 키는 읽지 않고 null 로 기억한다. 그래서 델타는 upsert, 역명령은
      * 복사본 지우기(diagram·노드·꺾임점 delete)이고, 되돌리기의 FK 순서는 RestoreDiagram 이 맞춘다. 원본에 남은 "지금 버전에 없는 표·관계"의
      * 행도 그대로 복사한다(그리지 않는 행, §7.1).
@@ -258,9 +275,9 @@ public class ErdDiagramStore {
         }
         if (!tables.isEmpty()) {
             em.createNativeQuery("""
-                    INSERT INTO TB_MDM_ERD_DIAGRAM_NODE (DIAGRAM_ID, TABLE_UUID, POS_X, POS_Y, FOLD_MODE,
+                    INSERT INTO TB_MDM_ERD_DIAGRAM_NODE (DIAGRAM_ID, TABLE_UUID, POS_X, POS_Y, FOLD_MODE, SIZE_W, SIZE_H,
                       C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER)
-                    SELECT ?, TABLE_UUID, POS_X, POS_Y, FOLD_MODE, ?, SYSTIMESTAMP, 'erdEdit', 'erdEdit', ?, SYSTIMESTAMP, 'erdEdit', 'erdEdit', 0
+                    SELECT ?, TABLE_UUID, POS_X, POS_Y, FOLD_MODE, SIZE_W, SIZE_H, ?, SYSTIMESTAMP, 'erdEdit', 'erdEdit', ?, SYSTIMESTAMP, 'erdEdit', 'erdEdit', 0
                       FROM TB_MDM_ERD_DIAGRAM_NODE
                      WHERE DIAGRAM_ID = ?""")
                     .setParameter(1, id).setParameter(2, userId).setParameter(3, userId).setParameter(4, cp.from()).executeUpdate();
@@ -290,7 +307,8 @@ public class ErdDiagramStore {
     }
 
     /**
-     * 행 JSON. diagram: {id, areaName, diagramName, sortSeq}, diagramNode: {diagram, table, x, y, foldMode},
+     * 행 JSON. diagram: {id, areaName, diagramName, sortSeq}, diagramNode: {diagram, table, x, y, foldMode} + 크기가 있으면 w·h
+     * (NULL 이면 키를 넣지 않는다 — V8 전 되돌리기 기록의 값과 같게 비교되도록, README §7.4),
      * diagramRoute: {diagram, relation, points:[{x, y}, …]}. 없으면 null.
      */
     @SuppressWarnings("unchecked")
@@ -316,13 +334,16 @@ public class ErdDiagramStore {
             return routeRow(k[0], k[1], ErdCommandLogStore.clob(points.get(0)));
         }
         List<Object[]> rows = em.createNativeQuery(
-                        "SELECT POS_X, POS_Y, FOLD_MODE FROM TB_MDM_ERD_DIAGRAM_NODE WHERE DIAGRAM_ID = ? AND TABLE_UUID = ? "
+                        "SELECT POS_X, POS_Y, FOLD_MODE, SIZE_W, SIZE_H FROM TB_MDM_ERD_DIAGRAM_NODE WHERE DIAGRAM_ID = ? AND TABLE_UUID = ? "
                                 + "AND DIAGRAM_ID IN (SELECT DIAGRAM_ID FROM TB_MDM_ERD_DIAGRAM WHERE ERD_MODEL_ID = ?)")
                 .setParameter(1, k[0]).setParameter(2, k[1]).setParameter(3, modelId).getResultList();
         if (rows.isEmpty()) return null;
         Object[] r = rows.get(0);
-        return o.put("diagram", k[0]).put("table", k[1]).put("x", ((Number) r[0]).intValue())
+        o.put("diagram", k[0]).put("table", k[1]).put("x", ((Number) r[0]).intValue())
                 .put("y", ((Number) r[1]).intValue()).put("foldMode", (String) r[2]);
+        if (r[3] != null) o.put("w", ((Number) r[3]).intValue());
+        if (r[4] != null) o.put("h", ((Number) r[4]).intValue());
+        return o;
     }
 
     /**
@@ -502,6 +523,16 @@ public class ErdDiagramStore {
         mergeNode(k[0], new Node(k[1], v.path("x").asInt(), v.path("y").asInt()), userId);
         em.createNativeQuery("UPDATE TB_MDM_ERD_DIAGRAM_NODE SET FOLD_MODE = ? WHERE DIAGRAM_ID = ? AND TABLE_UUID = ?")
                 .setParameter(1, v.path("foldMode").asText("NONE")).setParameter(2, k[0]).setParameter(3, k[1]).executeUpdate();
+        // 크기 키가 없으면(자동 크기·V8 전 기록) NULL 로 되살린다.
+        updateSize(k[0], k[1], v.hasNonNull("w") ? v.get("w").asInt() : null, v.hasNonNull("h") ? v.get("h").asInt() : null, userId);
+    }
+
+    /** 크기를 쓴다(null = 자동, 0 을 NULL 로 바꿔 넣는다 — 범위 하한이 0 보다 커서 겹치지 않는다). 고친 행 수를 돌려준다. */
+    private int updateSize(String diagram, String table, Integer w, Integer h, String userId) {
+        return em.createNativeQuery("UPDATE TB_MDM_ERD_DIAGRAM_NODE SET SIZE_W = NULLIF(?, 0), SIZE_H = NULLIF(?, 0), U_USR_ID = ?, "
+                        + "U_AT = SYSTIMESTAMP WHERE DIAGRAM_ID = ? AND TABLE_UUID = ?")
+                .setParameter(1, w == null ? 0 : w).setParameter(2, h == null ? 0 : h).setParameter(3, userId)
+                .setParameter(4, diagram).setParameter(5, table).executeUpdate();
     }
 
     private void mergeNode(String diagram, Node n, String userId) {
@@ -526,6 +557,10 @@ public class ErdDiagramStore {
     private static void requireList(List<?> v, String field, String elementId, int index) {
         if (v == null || v.isEmpty()) throw reject(index, field + " 가 비었습니다", elementId);
         if (v.stream().anyMatch(x -> x == null)) throw reject(index, field + " 에 빈 항목이 있습니다", elementId);
+    }
+
+    private static void requireSize(Integer v, int min, int max, String field, String elementId, int index) {
+        if (v != null && (v < min || v > max)) throw reject(index, field + " 는 " + min + "~" + max + " 사이여야 합니다(null = 자동)", elementId);
     }
 
     private static void requireNode(Node n, String elementId, int index) {

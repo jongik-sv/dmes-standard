@@ -235,6 +235,8 @@ public class ErdEditService {
                      , N.POS_X
                      , N.POS_Y
                      , N.FOLD_MODE
+                     , N.SIZE_W
+                     , N.SIZE_H
                   FROM TB_MDM_ERD_DIAGRAM_NODE N
                      , TB_MDM_ERD_DIAGRAM D
                  WHERE D.DIAGRAM_ID = N.DIAGRAM_ID
@@ -246,6 +248,11 @@ public class ErdEditService {
             n.put("x", rs.getInt("POS_X"));
             n.put("y", rs.getInt("POS_Y"));
             n.put("foldMode", rs.getString("FOLD_MODE"));
+            // 표 크기(README §7.4). NULL = 자동 크기라 키를 넣지 않는다.
+            int w = rs.getInt("SIZE_W");
+            if (!rs.wasNull()) n.put("w", w);
+            int h = rs.getInt("SIZE_H");
+            if (!rs.wasNull()) n.put("h", h);
             return n;
         }, modelId);
         // 관계선 꺾임점(ERD 2차 §7.1). points 는 [{x, y}, …] 를 맵 목록으로 풀어 싣는다(OASIS 가 평범한 값으로 직렬화한다).

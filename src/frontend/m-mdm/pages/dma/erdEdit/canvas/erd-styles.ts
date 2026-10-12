@@ -42,6 +42,20 @@ export const ERD_CSS = `
 .erd-col__name-sub { margin-left: var(--spacing-xs); font-family: var(--font-family-mono); color: var(--color-text-muted); }
 .erd-col__sub { font-family: var(--font-family-mono); color: var(--color-text-muted); white-space: nowrap; }
 .erd-node__more { height: 20px; line-height: 20px; padding: 0 var(--spacing-sm); border-top: 1px dashed var(--color-border); color: var(--color-text-muted); }
+.erd-node[data-clipped] { display: flex; flex-direction: column; }
+.erd-node[data-clipped] > .erd-node__hd, .erd-node[data-clipped] > .erd-col { flex: none; }
+.erd-node__body { flex: 1 1 0; min-height: 0; overflow-x: hidden; overflow-y: auto; }
+.erd-node__body > .erd-col { flex: none; }
+.erd-node__clip { flex: none; display: block; width: 100%; height: 20px; margin: 0; padding: 0 var(--spacing-sm); box-sizing: border-box; text-align: left;
+  font: inherit; line-height: 20px; color: var(--color-text-muted); background: var(--color-bg-header); border: 0; border-top: 1px dashed var(--color-border); }
+button.erd-node__clip { cursor: pointer; }
+.erd-node__clip { position: relative; z-index: 4; }
+button.erd-node__clip:hover { color: var(--color-primary); }
+.erd-grip { position: absolute; z-index: 3; touch-action: none; }
+.erd-grip[data-grip="e"] { top: 8px; right: -4px; width: 8px; height: calc(100% - 16px); cursor: ew-resize; }
+.erd-grip[data-grip="s"] { left: 8px; bottom: -4px; height: 8px; width: calc(100% - 16px); cursor: ns-resize; }
+.erd-grip[data-grip="se"] { right: -5px; bottom: -5px; width: 10px; height: 10px; cursor: nwse-resize; background: var(--color-primary);
+  border: 1px solid var(--color-bg); border-radius: 2px; }
 .erd-node .erd-handle { width: 4px; height: 4px; min-width: 0; min-height: 0; border: 0; background: transparent; pointer-events: none; }
 .erd-node__viewers { position: absolute; left: 0; bottom: 100%; display: flex; gap: 2px; }
 .erd-viewer { padding: 0 var(--spacing-xs); border-radius: var(--radius-sm) var(--radius-sm) 0 0; font-size: var(--font-size-xs);

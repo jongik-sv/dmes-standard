@@ -90,7 +90,7 @@ function diagramRects(state: ErdState, diagramId: string, showAudit: boolean): R
   const out: Rect[] = [];
   for (const n of Object.values(state.nodes)) {
     if (n.diagram !== diagramId || !state.model.tables[n.table]) continue;
-    const s = estimatedSize(state.model, n.table, n.foldMode, keys, showAudit);
+    const s = estimatedSize(state.model, n.table, n.foldMode, keys, showAudit, n);
     out.push({ x: n.x, y: n.y, width: s.width, height: s.height });
   }
   return out;
@@ -157,7 +157,7 @@ function CanvasPane({
     if (!reveal) return;
     const n = stateRef.current.nodes[nodeKey(diagramId, reveal.tableId)];
     if (!n) return;
-    void rf.setCenter(n.x + NODE_WIDTH / 2, n.y + 60, { zoom: Math.max(rf.getZoom(), 0.8), duration: 200 });
+    void rf.setCenter(n.x + (n.w ?? NODE_WIDTH) / 2, n.y + 60, { zoom: Math.max(rf.getZoom(), 0.8), duration: 200 });
   }, [reveal, diagramId, rf]);
 
   // ── 첫 viewport(U22). 마운트 때 한 번 정한다. 저장값이 없고 reveal 도 없으면 실제 캔버스 크기를 안 뒤 한 번 더 맞춘다. ──
@@ -198,7 +198,7 @@ function CanvasPane({
     const n = tableId ? stateRef.current.nodes[nodeKey(diagramId, tableId)] : undefined;
     if (!tableId || !n) return;
     const live = rf.getNode(tableId);
-    const est = estimatedSize(stateRef.current.model, tableId, n.foldMode, undefined, showAuditRef.current);
+    const est = estimatedSize(stateRef.current.model, tableId, n.foldMode, undefined, showAuditRef.current, n);
     const rect: Rect = {
       x: live?.position.x ?? n.x, y: live?.position.y ?? n.y,
       width: live?.measured?.width ?? est.width, height: live?.measured?.height ?? est.height,

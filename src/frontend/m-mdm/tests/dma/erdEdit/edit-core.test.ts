@@ -37,6 +37,8 @@ describe("거절 → 알림(스펙 4.5, S2-13)", () => {
     expect(noticeFromRejection(null, []).code).toBe("INVALID");
     expect(isDiagramOp("moveNodes")).toBe(true);
     expect(isDiagramOp("restoreDiagram")).toBe(true);
+    // 표 크기(§7.4)·꺾임점(§7.1)·다이어그램 복사도 다이어그램 명령(버전 밖) — Java isDiagramOp 와 같은 목록
+    for (const op of ["resizeNodes", "setRoute", "clearRoutes", "copyDiagram"]) expect(isDiagramOp(op)).toBe(true);
     expect(isDiagramOp("updateColumn")).toBe(false);
   });
 });

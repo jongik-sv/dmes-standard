@@ -14,6 +14,8 @@
  * - 권한(S2-20): addTable·addRelation·deleteTable 은 rights.model, 다이어그램 명령은 rights.diagram.
  * - 키(S2-27): 캔버스 host 의 onKeyDown 에서만 받는다. 입력 칸·대화상자 안 키는 넘긴다. Ctrl/⌘+Z·T·K·O·F3 은 ErdViewer 의 window 캡처가 받는다.
  * - 끄는 동안 위치는 덮개(drag)에만 둔다. 놓으면 moveNodes 를 한 번 보내고 응답이 오면 덮개를 지운다(스펙 4.4).
+ * - 표 크기(§7.4): 고른 표 하나의 손잡이(e·s·se)를 끌면 크기는 sizeBus.draft 에만 두고(그 노드만 다시 그린다) 놓을 때 resizeNodes 를 한 번 보낸다.
+ *   「▾ N개 더」 막대는 h:null(너비 유지) 한 번. 손잡이·막대는 노드 데이터(resizable·expandable)로 decorateNodes 가 단다.
  * - 응답을 기다리는 동안 모델이 바뀌었으면 창을 띄우지 않는다(Local-Rules §37).
  */
 import { Fragment, createElement as h, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
@@ -26,7 +28,7 @@ import {
 
 import { isAuditColumn } from "../audit-columns";
 import type { ApplyOutcome, ErdEditContext, Right } from "../edit-context";
-import { routeKey } from "../state/model-delta";
+import { nodeKey, routeKey } from "../state/model-delta";
 import { shortReason } from "../state/permissions";
 import type { ErdCommandJson, ErdFoldMode } from "../types";
 import { DeleteTablesModal, NewTableModal, PropsWindow } from "./CanvasDialogs";
@@ -34,11 +36,12 @@ import { BulkColumnModal, PLACE_ALL_PRESENT_TEXT, PlaceIntoDialog, type PlaceTar
 import { ErdToolbar } from "./ErdToolbar";
 import {
   MAX_BATCH, addRelationCommand, addTableCommands, deleteTablesCommands, moveNodesCommand, newElementId, nextNeighbor, parseClashChoices,
-  removeFromDiagramCommand, renameCommand, setFoldCommand, tableOfElement, type ClashChoice, type NameClashMode, type RenameField,
+  removeFromDiagramCommand, renameCommand, resizeNodesCommand, setFoldCommand, tableOfElement, type ClashChoice, type NameClashMode, type RenameField,
 } from "./erd-commands";
 import { PASTE_GAP, copyTables, nextPasteRound, pasteTablesPlan, readClip, writeClip } from "./erd-clipboard";
 import { nextExpiry, viewersAt, type ErdFlowEdge, type ErdFlowNode, type InlineEdit } from "./erd-flow";
 import { NODE_WIDTH, ZOOM_NAMES_ONLY, ZOOM_OVERVIEW, lodTier, nodeHeight, type LodTier } from "./erd-geometry";
+import { dragSize, minNodeHeight, setSizeDraft, sizeBusOf, type GripPress, type SizeDraft, type SizeGrip } from "./erd-geometry";
 import { autoLayoutCommand, type Size } from "./erd-layout";
 import {
   MAX_ROUTE_POINTS, ROUTE_LIMIT_TEXT, handlePressedRecently, resetRouteHover, routeBusOf, selectRoute, selectRoutePoint, setRouteHandlers,
@@ -331,6 +334,130 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
     for (const id of ids) dragTokens.current.set(id, token);
     void c.apply([cmd], ids.length > 1 ? `표 ${ids.length}개 옮기기` : "표 옮기기").finally(() => clearDrag(ids, token));
   }, [clearDrag]);
+
+  // ── 표 크기(§7.4) ──
+  const sizeBus = useMemo(() => sizeBusOf(storeApi), [storeApi]);
+  /** 놓기 token. 응답이 오면 token 이 그대로인 끌기의 크기 덮개만 지운다(더 뒤에 끈 덮개는 둔다). */
+  const sizeToken = useRef(0);
+  const sizeDragRef = useRef<{ stop: () => void } | null>(null);
+
+  const startSizeDrag = useCallback((e: GripPress, id: string, grip: SizeGrip) => {
+    const c = ctxRef.current;
+    if (e.button !== 0 || !c.diagramId) return;
+    if (!c.rights.diagram.ok) {
+      deny(c.rights.diagram);
+      return;
+    }
+    const diagram = c.diagramId;
+    const stored = c.state.nodes[nodeKey(diagram, id)];
+    if (!stored) return;
+    e.preventDefault();
+    e.stopPropagation();
+    sizeDragRef.current?.stop();
+    sizeToken.current += 1; // 앞선 놓기의 응답이 이 끌기의 덮개를 지우지 않게
+    // 끌기 기준 크기 = 저장 값, 없으면 잰 크기(잰 값이 없으면 그리기 전 어림 크기). 정수로 맞춰 둬야 안 움직인 축을 "바뀜"으로 보지 않는다.
+    const flowNode = rf.getNode(id);
+    const measured = rf.getInternalNode(id)?.measured;
+    const base = {
+      w: Math.round(stored.w ?? (measured?.width || (flowNode?.initialWidth ?? NODE_WIDTH))),
+      h: Math.round(stored.h ?? (measured?.height || (flowNode?.initialHeight ?? nodeHeight(0, false)))),
+    };
+    // 이 표를 줄일 수 있는 바닥 — 고정된 PK 묶음·막대가 상자 밖으로 넘치지 않게
+    const rows = flowNode?.data.rows ?? [];
+    const keyRows = rows.findIndex((r) => r.key !== "PK");
+    const minH = minNodeHeight(keyRows < 0 ? rows.length : keyRows, rows.length - (keyRows < 0 ? rows.length : keyRows));
+    const sx = e.clientX;
+    const sy = e.clientY;
+    // 끌어서 실제로 바뀐 축만 새 값이다. 안 바뀐(끌지 않았거나 시작 크기로 돌아온) 축은 그때그때의 최신 저장 값(없으면 null)을 쓴다 —
+    // 자동 크기가 굳지 않게, 끄는 동안 다른 곳에서 바뀐 반대 축을 되돌리지 않게.
+    const latest = () => ctxRef.current.state.nodes[nodeKey(diagram, id)];
+    let dragged: { w: number | null; h: number | null } = { w: null, h: null };
+    const draftOf = (): SizeDraft => {
+      const cur = latest();
+      return { id, w: dragged.w ?? cur?.w ?? null, h: dragged.h ?? cur?.h ?? null };
+    };
+    const onMove = (ev: PointerEvent) => {
+      if (ev.buttons === 0) {
+        finish(false); // pointerup 을 잃었다(창 밖에서 놓음) — 보내지 않고 버린다
+        return;
+      }
+      const k = rf.getZoom() || 1;
+      const d = dragSize(base, grip, (ev.clientX - sx) / k, (ev.clientY - sy) / k, minH);
+      dragged = { w: d.w !== base.w ? d.w : null, h: d.h !== base.h ? d.h : null };
+      setSizeDraft(sizeBus, draftOf());
+    };
+    const onKey = (ev: globalThis.KeyboardEvent) => {
+      if (ev.key !== "Escape") return;
+      ev.stopPropagation(); // 끌기만 그만둔다 — 캔버스의 Esc(도구·선택 풀기)로 가지 않게
+      finish(false);
+    };
+    const stop = () => {
+      sizeDragRef.current = null;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+      window.removeEventListener("keydown", onKey, true);
+    };
+    const finish = (commit: boolean) => {
+      stop();
+      const changed = dragged.w !== null || dragged.h !== null;
+      if (commit && changed) {
+        // 놓은 자리가 빈 캔버스 위면 뒤따르는 click 이 빈 곳 누르기가 되어 표 선택이 풀린다 — 이 click 하나를 삼킨다.
+        const swallow = (ev: MouseEvent) => ev.stopPropagation();
+        window.addEventListener("click", swallow, { capture: true, once: true });
+        setTimeout(() => window.removeEventListener("click", swallow, true), 0);
+      }
+      const cur = latest();
+      const cmd = commit && changed && cur && ctxRef.current.diagramId === diagram
+        ? resizeNodesCommand(diagram, [{ table: id, w: dragged.w ?? cur.w ?? null, h: dragged.h ?? cur.h ?? null }], ctxRef.current.state.nodes) : null;
+      if (!cmd) {
+        setSizeDraft(sizeBus, null);
+        return;
+      }
+      const token = ++sizeToken.current;
+      void ctxRef.current.apply([cmd], "표 크기 바꾸기").finally(() => {
+        if (sizeToken.current === token) setSizeDraft(sizeBus, null);
+      });
+    };
+    const onUp = () => finish(true);
+    const onCancel = () => finish(false);
+    sizeDragRef.current = { stop };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
+    window.addEventListener("keydown", onKey, true);
+  }, [rf, sizeBus, deny]);
+
+  /** 「▾ N개 더」 막대 — 높이만 자동으로(너비 유지). 한 명령 = 되돌리기 한 번. */
+  const expandHeight = useCallback((id: string) => {
+    const c = ctxRef.current;
+    if (!c.diagramId) return;
+    if (!c.rights.diagram.ok) {
+      deny(c.rights.diagram);
+      return;
+    }
+    const n = c.state.nodes[nodeKey(c.diagramId, id)];
+    const cmd = n ? resizeNodesCommand(c.diagramId, [{ table: id, w: n.w ?? null, h: null }], c.state.nodes) : null;
+    if (cmd) void c.apply([cmd], "표 높이 자동");
+  }, [deny]);
+
+  useEffect(() => {
+    sizeBus.start = startSizeDrag;
+    sizeBus.expand = expandHeight;
+    return () => {
+      sizeBus.start = null;
+      sizeBus.expand = null;
+      sizeDragRef.current?.stop();
+      setSizeDraft(sizeBus, null); // 끄던 중이면 미리보기가 남지 않게
+    };
+  }, [sizeBus, startSizeDrag, expandHeight]);
+
+  // 편집 권한이 사라지면 끄던 크기를 버린다.
+  useEffect(() => {
+    if (canDiagram) return;
+    sizeDragRef.current?.stop();
+    setSizeDraft(sizeBus, null);
+  }, [canDiagram, sizeBus]);
 
   // ── 관계 도구 ──
   const addRelation = useCallback(async (parent: string, child: string, identifying: boolean, mode: NameClashMode) => {
@@ -836,7 +963,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
     // 화면 밖 노드는 그려지지 않는다(onlyRenderVisibleElements) — 같은 배율로 가운데에 데려온다.
     const view = { x: -tx / zoom, y: -ty / zoom, width: width / zoom, height: height / zoom };
     if (width > 0 && height > 0 && !rf.isNodeIntersecting({ id: n.id }, view, true)) {
-      const w = n.measured?.width ?? NODE_WIDTH;
+      const w = n.measured?.width ?? n.initialWidth ?? NODE_WIDTH;
       const hgt = n.measured?.height ?? 0;
       void rf.setCenter(n.position.x + w / 2, n.position.y + hgt / 2, { zoom });
     }
@@ -1162,27 +1289,34 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
   const pickable = relationTool && canModel;
   const pendingIds = ctx.pendingIds;
   const inlineFor = inline?.table ?? null;
+  const sizable = canDiagram && tool === "select";
   const decorateNodes = useCallback((nodes: ErdFlowNode[]): ErdFlowNode[] => {
     let changed = false;
+    // 크기 손잡이(§7.4) = 편집 가능할 때 고른 표 하나. 막대로 높이 되돌리기 = 편집 가능하고 저장 높이가 있는 표.
+    let soleId: string | null = null;
+    let selectedCount = 0;
+    if (sizable) for (const n of nodes) if (n.selected) { selectedCount++; soleId = n.id; }
     const out = nodes.map((n) => {
       const pos = drag.get(n.id);
+      const grips = selectedCount === 1 && soleId === n.id;
+      const expand = sizable && n.data.h !== undefined;
       const viewers = viewersAt(n.data.viewers, clock);
       const pending = pendingIds.has(n.id); // pendingIds 키는 요소 id 다. 다이어그램 명령의 노드도 표 id 로 든다(README "pendingIds 키")
       const cls = [pending ? "erd-pending" : "", hlTable === n.id ? "erd-hl" : ""].filter(Boolean).join(" ");
       const edit = inlineEdit && inlineFor === n.id ? inlineEdit : null;
-      if (!pos && viewers === n.data.viewers && !cls && !pickable && !edit) return n;
+      if (!pos && viewers === n.data.viewers && !cls && !pickable && !edit && !grips && !expand) return n;
       changed = true;
-      const key = `${pos ? `${pos.x},${pos.y}` : "-"}|${viewers.map((v) => `${v.session}${v.claimed ? "*" : ""}`).join(",")}|${cls}|${pickable ? 1 : 0}`;
+      const key = `${pos ? `${pos.x},${pos.y}` : "-"}|${viewers.map((v) => `${v.session}${v.claimed ? "*" : ""}`).join(",")}|${cls}|${pickable ? 1 : 0}|${grips ? 1 : 0}${expand ? 1 : 0}`;
       const hit = cache.current.get(n);
       if (hit?.key === key && hit.out.data.inline === (edit ?? undefined)) return hit.out;
-      const data = viewers !== n.data.viewers || pickable || edit
-        ? { ...n.data, viewers, ...(pickable ? { pickable: true } : {}), ...(edit ? { inline: edit } : {}) } : n.data;
+      const data = viewers !== n.data.viewers || pickable || edit || grips || expand
+        ? { ...n.data, viewers, ...(pickable ? { pickable: true } : {}), ...(edit ? { inline: edit } : {}), ...(grips ? { resizable: true as const } : {}), ...(expand ? { expandable: true as const } : {}) } : n.data;
       const d: ErdFlowNode = { ...n, ...(pos ? { position: pos } : {}), ...(cls ? { className: cls } : {}), data };
       cache.current.set(n, { key, out: d });
       return d;
     });
     return changed ? out : nodes;
-  }, [drag, clock, pendingIds, hlTable, pickable, inlineEdit, inlineFor]);
+  }, [drag, clock, pendingIds, hlTable, pickable, inlineEdit, inlineFor, sizable]);
 
   const flowProps = useMemo<CanvasEditing["flowProps"]>(() => ({
     nodesDraggable: canDiagram && tool === "select",

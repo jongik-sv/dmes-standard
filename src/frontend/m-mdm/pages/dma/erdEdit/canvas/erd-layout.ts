@@ -8,7 +8,7 @@ import { autoLayout, type FlowPos, type LayoutEdge } from "@dk-oasis/shared/reac
 
 import { isAuditColumnId } from "../audit-columns";
 import { nodeKey } from "../state/model-delta";
-import type { ErdCommandJson, ErdFoldMode, ErdModelJson, ErdState } from "../types";
+import type { ErdCommandJson, ErdDiagramNode, ErdFoldMode, ErdModelJson, ErdState } from "../types";
 import { moveNodesCommand, type PlacedNode } from "./erd-commands";
 import { keyMarks } from "./erd-flow";
 import { NODE_WIDTH, nodeHeight } from "./erd-geometry";
@@ -32,18 +32,23 @@ export function keyColumns(model: ErdModelJson): Set<string> {
 
 /**
  * 그리기 전 노드 크기 어림(buildFlow 의 initialHeight 와 같다). 모르는 표는 머리만.
+ * stored = 다이어그램에 저장된 표 크기(w·h, §7.4) — 자동 배치·화면 맞춤이 실제 크기를 쓰게 한다.
  * showAudit=false 면 감사 컬럼 행을 뺀다(노드에 빈 자리가 남지 않게). 「접힘」 줄은 접기로 가린 행이 있을 때만이다(buildFlow hiddenCount 와 같다).
  */
 export function estimatedSize(
   model: ErdModelJson, tableId: string, foldMode: ErdFoldMode = "NONE", keys?: ReadonlySet<string>, showAudit = true,
+  stored?: Pick<ErdDiagramNode, "w" | "h">,
 ): Size {
   const t = model.tables[tableId];
-  if (!t) return { width: NODE_WIDTH, height: nodeHeight(0, false) };
+  const width = stored?.w ?? NODE_WIDTH;
+  if (!t) return { width, height: nodeHeight(0, false) };
   const cols = t.columnOrder.filter((c) => model.columns[c]);
   const ks = keys ?? keyColumns(model);
   const fold = foldMode === "NAME" ? [] : foldMode === "KEYS" ? cols.filter((c) => ks.has(c)) : cols;
   const rows = showAudit ? fold.length : fold.filter((c) => !isAuditColumnId(model, c)).length;
-  return { width: NODE_WIDTH, height: nodeHeight(rows, fold.length < cols.length) };
+  // 저장 높이(§7.4)는 접기가 없을 때만 쓴다 — 접기(KEYS·NAME)는 기존 접기 높이가 우선이다. 너비는 늘 쓴다.
+  const height = foldMode === "NONE" && stored?.h ? stored.h : nodeHeight(rows, fold.length < cols.length);
+  return { width, height };
 }
 
 /** 고른 표 안의 그리는 관계(기각·다른 모델 부모·자기 참조 제외)를 부모 → 자식 선으로. id 순이라 결과가 흔들리지 않는다. */
@@ -216,7 +221,10 @@ export function autoLayoutCommand(state: ErdState, diagramId: string, measured: 
   if (placed.length === 0) return null;
   const keys = keyColumns(state.model);
   const origin = { x: Math.min(...placed.map((n) => n.x)), y: Math.min(...placed.map((n) => n.y)) };
-  const size = (id: string): Size => measured.get(id) ?? estimatedSize(state.model, id, state.nodes[nodeKey(diagramId, id)].foldMode, keys, showAudit);
+  const size = (id: string): Size => {
+    const n = state.nodes[nodeKey(diagramId, id)];
+    return measured.get(id) ?? estimatedSize(state.model, id, n.foldMode, keys, showAudit, n);
+  };
   const pos = layoutTables(state.model, placed.map((n) => n.table), size, origin, aspect);
   return moveNodesCommand(diagramId, Object.entries(pos).map(([table, p]) => ({ table, x: p.x, y: p.y })), state.nodes);
 }
