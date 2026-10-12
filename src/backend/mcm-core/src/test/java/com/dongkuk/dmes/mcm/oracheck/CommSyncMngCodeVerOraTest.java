@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>SQL 문자열은 복사하지 않는다. 식을 가진 private 메서드 {@code selectNextCodeVer} 를 리플렉션
  * ({@link ReflectionTestUtils#invokeMethod})으로 부르고, 전체 경로는 공개 {@code reg} 로 한 번 더 돌린다
- * (원장 CODE_VER 갱신 → 사본 DELETE/INSERT SELECT * → audit UPDATE).
+ * (원장 CODE_VER 갱신 → 사본 DELETE/INSERT SELECT(컬럼 명시) → audit UPDATE).
  */
 @SpringJUnitConfig(OraCheckJpaConfig.class)
 class CommSyncMngCodeVerOraTest {

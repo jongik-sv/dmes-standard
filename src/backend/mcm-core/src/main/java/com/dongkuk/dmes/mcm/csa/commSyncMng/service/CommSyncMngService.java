@@ -82,6 +82,24 @@ public class CommSyncMngService {
             "TB_MCM_CODE_CATEGORY"
     };
 
+    /**
+     * 표별 컬럼 목록. INSERT·SELECT 양쪽에 이름으로 적어 세 스키마의 컬럼 순서가 달라도 값이 어긋나지 않는다.
+     * 스키마 컬럼 집합 일치는 CommSyncMngColumnSetOraTest 가 확인한다.
+     */
+    private static final Map<String, String> TABLE_COLUMNS = Map.of(
+            "TB_MCM_CODE_MASTER",
+            "CODE_ID, MASTER_CODE, CODE_NM, CODE_DESC, CODE_CHARACTER, CODE_VER, CODE_OWNER_DEPT_NM, "
+                    + "CODE_OWNER_EMP_NO, START_ACTIVE_DATE, END_ACTIVE_DATE, USE_TP, "
+                    + "MASTER_CODE_REF1, MASTER_CODE_REF2, MASTER_CODE_REF3, MASTER_CODE_REF4, MASTER_CODE_REF5, "
+                    + "VER, C_AT, C_PGM_ID, C_SVC_ID, C_USR_ID, U_AT, U_PGM_ID, U_SVC_ID, U_USR_ID",
+            "TB_MCM_CODE_DETAIL",
+            "CODE_VAL, MASTER_CODE, CATEGORY_ID, CODE_VAL_MEAN, CODE_VAL_DESC, CODE_VER, SORT_SEQ, "
+                    + "CODE_VAL_REF1, CODE_VAL_REF2, CODE_VAL_REF3, CODE_VAL_REF4, CODE_VAL_REF5, CODE_VAL_REMARK, "
+                    + "VER, C_AT, C_PGM_ID, C_SVC_ID, C_USR_ID, U_AT, U_PGM_ID, U_SVC_ID, U_USR_ID",
+            "TB_MCM_CODE_CATEGORY",
+            "MASTER_CODE, CATEGORY_ID, CATEGORY_NM, SORT_SEQ, "
+                    + "VER, C_AT, C_PGM_ID, C_SVC_ID, C_USR_ID, U_AT, U_PGM_ID, U_SVC_ID, U_USR_ID");
+
     /** 본 화면 책임 schema 화이트리스트 (Q-001 / V-006). */
     private static final Set<String> ALLOWED_SCHEMAS = Set.of(
             "MCM_SOURCE", "MCMAPUSER", "MCM_BACKUP"
@@ -284,10 +302,10 @@ public class CommSyncMngService {
                 .setParameter("v", whereValue)
                 .executeUpdate();
 
-        // (2) INSERT INTO target.table SELECT * FROM source.table WHERE MASTER_CODE = :v
+        // (2) INSERT INTO target.table (cols) SELECT cols FROM source.table WHERE MASTER_CODE = :v
         int inserted = em.createNativeQuery(
-                "INSERT INTO " + toSchema + "." + table +
-                " SELECT * FROM " + fromSchema + "." + table +
+                "INSERT INTO " + toSchema + "." + table + " (" + TABLE_COLUMNS.get(table) + ")" +
+                " SELECT " + TABLE_COLUMNS.get(table) + " FROM " + fromSchema + "." + table +
                 " WHERE " + whereColumn + " = :v")
                 .setParameter("v", whereValue)
                 .executeUpdate();

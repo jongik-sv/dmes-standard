@@ -12,6 +12,7 @@ description: "Flyway 마이그레이션(Oracle 하나)을 추가할 때 스키�
 1. **Flyway 이력은 스키마(위치)마다 독립이다.** 번호는 그 위치(폴더) 최대 번호 + 1 이다. 다른 위치의 번호와 맞출 필요가 없다.
 2. **이미 머지된 V 파일은 고치지 않는다.** V1 baseline 도 같다. 머리 주석 한 줄, 공백 하나도 Flyway 체크섬을 바꿔 이미 적용한 DB 에서 검증 실패(`Migration checksum mismatch`)가 난다. 변경은 V2 이상을 새로 추가한다. 머지 전(아직 어느 DB 에도 적용 안 된) 파일만 고칠 수 있다.
 3. **스키마마다 주인 앱이 하나다.** 그 스키마의 V 파일은 그 앱(모듈)이 소유한다(`docs/oracle-1007/schema-owners.md`). 다른 모듈의 스키마 V 파일을 고치지 않는다.
+4. **컬럼 순서는 규칙 순서다**(아래 §4-1). 새 표는 규칙 순서로 만들고, 기존 표에 컬럼을 더하면 같은 V 파일에서 그 표를 재배치한다. 복제 PDB 의 실제 컬럼 순서를 보는 시험이 이를 확인한다.
 
 ## 1. 위치 구성
 
@@ -59,6 +60,26 @@ node .claude/skills/flyway-migration-add/scripts/migration_tool.mjs scaffold --m
 - V 파일의 뷰·인덱스 정의와 앱 SQL 의 조건은 **칼럼 쪽에 함수·형변환을 씌우지 않는다**(`TO_CHAR(칼럼,…) >= :d` 금지 → `칼럼 >= TO_DATE(:d,…)`). 함수 기반 인덱스가 정말 필요하면 DBA 와 합의한다. 규칙은 [Oracle SQL 작성 규칙의 「인덱스를 살리는 조건(sargable)」](../../../docs/guide/Database/oracle-sql-rules.md#인덱스를-살리는-조건sargable).
 - V 파일에 조회문(뷰 정의·시드 SELECT 등)을 쓸 때와 이 스킬의 SQL 예시는 [쿼리 서식](../../../docs/guide/Database/oracle-sql-rules.md#4-쿼리-서식)을 따른다(대문자, 절 키워드 맨 앞 열·본문 7번째 열, 항목은 앞 쉼표, 조인은 쉼표 조인과 `(+)`, 칼럼 별칭 `AS` 는 선택·표 별칭은 `AS` 불가). 기존 V 파일은 서식 때문에 고치지 않는다(체크섬).
 - 자리표시자 `${app_user}`(= `MCMAPUSER`)는 `pdb.mjs template-schema` 와 앱 Flyway 가 풀어 준다. 새 자리표시자를 쓰면 양쪽에 같이 등록한다.
+
+## 4-1. 컬럼 순서 규칙
+
+순서(사용자 결정 2026-10-11·10-12): **PK 컬럼**(PK 제약 순서, 업무 PK 의 `VER` 포함) → **엔티티 필드 선언 순서**(상속 필드는 부모 클래스 먼저) → **버전 컬럼**(`VER`·`AUD_VER`·`ROW_VERSION`) → **감사 컬럼**(가진 것만, 감사 기반 클래스 `McmAuditEntity`·`CactusAuditEntity`·`CaravanAuditBase` 의 선언 순서). 엔티티가 없는 표는 PK 를 앞에, 버전·감사 컬럼을 뒤에 두고 나머지는 현재 순서를 유지한다.
+
+- **새 표**: `create table` 의 컬럼 줄을 위 순서로 쓴다.
+- **기존 표에 컬럼을 추가**: `add` 만 하면 맨 뒤(감사 컬럼 뒤)에 붙어 규칙이 깨진다. 같은 V 파일에서 그 표를 재배치한다. 비-PK 컬럼 전부를 규칙 순서로 `INVISIBLE` 로 바꾼 뒤 같은 순서로 `VISIBLE` 로 되돌린다(`INVISIBLE`→`VISIBLE` 때마다 컬럼이 맨 뒤로 가므로, 마지막 컬럼을 되돌린 순서가 최종 순서다).
+
+```sql
+alter table TB_FOO add (FOO_NEW varchar2(50 char));
+alter table TB_FOO modify (FOO_NM invisible, FOO_NEW invisible, VER invisible, C_AT invisible, C_USR_ID invisible);  -- 비-PK 전부
+alter table TB_FOO modify (FOO_NM visible);    -- 규칙 순서대로 한 컬럼씩(또는 한 문장에 순서대로)
+alter table TB_FOO modify (FOO_NEW visible);
+alter table TB_FOO modify (VER visible);
+alter table TB_FOO modify (C_AT visible);
+alter table TB_FOO modify (C_USR_ID visible);
+```
+
+- 컬럼 이름 없는 `INSERT … VALUES`·`INSERT … SELECT *` 는 쓰지 않는다. 컬럼을 이름으로 적는다.
+- 순서 규칙의 표별 기대 순서는 `scripts/db-order/` 생성기가 낸다. 정본 규칙·배경은 `docs/db-column-order/README.md`.
 
 ## 5. 작성 후 검증
 
