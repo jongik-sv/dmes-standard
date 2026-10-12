@@ -66,8 +66,9 @@ class ErdSchemaTest extends AbstractMdmSharedDbTest {
                 .isNotBlank();
         List<String> columns = jdbc.queryForList(
                 "SELECT C.COLUMN_NAME FROM USER_TAB_COLUMNS C WHERE C.TABLE_NAME = 'TB_MDM_ERD_DIAGRAM_ROUTE' ORDER BY C.COLUMN_ID", String.class);
-        assertThat(columns).containsExactly("DIAGRAM_ID", "REL_UUID", "POINTS_JSON", "C_USR_ID", "C_AT", "C_SVC_ID", "C_PGM_ID",
-                "U_USR_ID", "U_AT", "U_SVC_ID", "U_PGM_ID", "VER", "CHILD_SIDE", "PARENT_SIDE");
+        // 컬럼 순서 규칙: PK → 엔티티 필드 → VER → 감사 8개(docs/db-column-order/README.md §0)
+        assertThat(columns).containsExactly("DIAGRAM_ID", "REL_UUID", "POINTS_JSON", "CHILD_SIDE", "PARENT_SIDE", "VER",
+                "C_USR_ID", "C_AT", "C_SVC_ID", "C_PGM_ID", "U_USR_ID", "U_AT", "U_SVC_ID", "U_PGM_ID");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM USER_COL_COMMENTS WHERE TABLE_NAME = 'TB_MDM_ERD_DIAGRAM_ROUTE' "
                 + "AND COMMENTS IS NOT NULL", Integer.class)).isEqualTo(14);
     }
