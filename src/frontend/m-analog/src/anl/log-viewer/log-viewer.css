@@ -643,6 +643,24 @@
   color: var(--color-danger);
 }
 
+.anl-log-viewer .anl-tree-badge-SUB {
+  /* 레거시 뷰어의 분홍 SUB 배지 — 테마 토큰이 없어 고정색을 투명도로 섞는다(라이트·다크 공용). */
+  background: color-mix(in srgb, #d6336c 16%, transparent);
+  color: #d6336c;
+}
+
+/* 서브서비스를 부른 노드 앞의 작은 "s" 표식 */
+.anl-log-viewer .anl-tree-submark {
+  margin-right: 3px;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--color-danger);
+  opacity: 0.7;
+  cursor: default;
+}
+
 .anl-log-viewer .anl-tree-badge-TSK {
   background: var(--color-warning-soft);
   color: var(--color-warning);

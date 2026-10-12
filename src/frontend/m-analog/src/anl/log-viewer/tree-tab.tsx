@@ -86,6 +86,11 @@ const TreeRowView = memo(function TreeRowView({ row, selected, onToggle, onSelec
         ) : (
           <span className="anl-tree-toggle-gap" aria-hidden="true" />
         )}
+        {node.subMark ? (
+          <span className="anl-tree-submark" title="서브서비스 호출" aria-label="서브서비스 호출">
+            s
+          </span>
+        ) : null}
         <span className={badgeClass(isGroup ? "MSG" : node.kind)}>{isGroup ? "MSG" : node.kind}</span>
         {isGroup ? <span className="anl-tree-group-count">×{node.children.length}</span> : null}
         <button type="button" className={cls} title={node.label} onClick={() => onSelect(node.id)}>

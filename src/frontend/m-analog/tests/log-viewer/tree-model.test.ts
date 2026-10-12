@@ -247,27 +247,27 @@ describe("연속 MSG 묶음", () => {
   });
 });
 
-describe("SubService (Task 안에서 부른 서비스)", () => {
+describe("SubService (Task 안에서 부른 서비스 — objectType Service 중첩 + 부모 hasSubService)", () => {
   const raw = [
     {
-      property: { objectType: "Request" },
+      property: { objectType: "Request", hasSubService: "y" },
       child: [
         "req",
         {
-          property: { objectType: "Process", objectName: "Main" },
+          property: { objectType: "Service", objectName: "Main", hasSubService: "y" },
           child: [
             {
-              property: { objectType: "Task", objectName: "call", objectId: "callTask" },
+              property: { objectType: "Task", objectName: "call", objectId: "callTask", hasSubService: "y" },
               child: [
                 {
-                  property: { objectType: "SubService", objectName: "Sub", runTime: 3 },
+                  property: { objectType: "Service", objectName: "Sub", runTime: 3, hasSubService: "y" },
                   child: [
                     "m1",
                     "m2",
                     {
-                      property: { objectType: "Task", objectName: "inner" },
+                      property: { objectType: "Task", objectName: "inner", hasSubService: "y" },
                       child: [
-                        { property: { objectType: "SubService", objectName: "Deep" }, child: [{ property: { objectType: "Query", query: "select 1 from deep_t" } }] },
+                        { property: { objectType: "Service", objectName: "Deep" }, child: [{ property: { objectType: "Query", query: "select 1 from deep_t" } }] },
                       ],
                     },
                   ],
@@ -281,21 +281,73 @@ describe("SubService (Task 안에서 부른 서비스)", () => {
   ];
   const [req] = toTreeRequests(raw);
 
-  it("SubService → SVC 로 Task 밑에 재귀로 이어 붙고 SQL·MSG 개수에 합산", () => {
+  it("Request 바로 아래 Service 는 SVC, 중첩된 Service 는 SUB(2단 재귀) — ObjectType 은 원문 Service", () => {
     const tsk = collect(req.root, "TSK")[0];
-    expect(tsk.children[0].kind).toBe("SVC");
-    expect(collect(req.root, "SVC").map((n) => n.label)).toEqual(["Main", "Sub", "Deep"]);
+    expect(tsk.children[0].kind).toBe("SUB");
+    expect(req.root.children.find((c) => c.kind === "SVC")?.label).toBe("Main");
+    expect(collect(req.root, "SVC").map((n) => n.label)).toEqual(["Main"]);
+    expect(collect(req.root, "SUB").map((n) => n.label)).toEqual(["Sub", "Deep"]);
+    expect(propsOf(tsk.children[0])[0]).toEqual({ key: "ObjectType", value: "Service" });
     expect(req.sqlCount).toBe(1);
     expect(req.msgCount).toBe(3);
   });
 
-  it("기본 펼침·검색·업무 노드만이 하위까지 동작", () => {
+  it("subMark: hasSubService 부모에만, Request 는 제외", () => {
+    expect(req.root.subMark).toBe(false);
+    expect(collect(req.root, "SVC")[0].subMark).toBe(true);
+    expect(collect(req.root, "TSK").every((t) => t.subMark)).toBe(true);
+    expect(collect(req.root, "SUB").map((n) => n.subMark)).toEqual([true, false]);
+  });
+
+  it("플래그가 없어도 SUB 자식이 있으면 subMark", () => {
+    const [r] = toTreeRequests([
+      {
+        property: { objectType: "Request" },
+        child: [{ property: { objectType: "Service" }, child: [{ property: { objectType: "Task" }, child: [{ property: { objectType: "Service" } }] }] }],
+      },
+    ]);
+    expect(collect(r.root, "TSK")[0].subMark).toBe(true);
+    expect(collect(r.root, "SVC")[0].subMark).toBe(false);
+  });
+
+  it("기본 펼침·검색·업무 노드만이 SUB 까지 동작", () => {
     const open = defaultExpanded(req.root);
     expect(open.has(collect(req.root, "TSK")[0].id)).toBe(true);
+    expect(collect(req.root, "SUB").every((n) => open.has(n.id))).toBe(true);
     const found = flattenRows(req.root, new Set(), { ...NO_FILTER, query: "deep_t" });
-    expect(found.map((r) => r.node.kind)).toEqual(["REQ", "SVC", "TSK", "SVC", "TSK", "SVC", "SQL"]);
+    expect(found.map((r) => r.node.kind)).toEqual(["REQ", "SVC", "TSK", "SUB", "TSK", "SUB", "SQL"]);
     const biz = flattenRows(req.root, allExpandable(req.root), { ...NO_FILTER, bizOnly: true });
     expect(biz.some((r) => r.node.kind.startsWith("MSG"))).toBe(false);
-    expect(biz.some((r) => r.node.label === "Deep")).toBe(true);
+    expect(biz.filter((r) => r.node.kind === "SUB").map((r) => r.node.label)).toEqual(["Sub", "Deep"]);
+  });
+});
+
+describe("SUB 판정 범위 (Task 바로 아래 Service 만)", () => {
+  it("Request > Service(top) > Process > Task > Service(sub) → SVC, SVC, TSK, SUB", () => {
+    const [r] = toTreeRequests([
+      {
+        property: { objectType: "Request" },
+        child: [
+          {
+            property: { objectType: "Service", objectName: "Top", serviceTag: "T1" },
+            child: [
+              {
+                property: { objectType: "Process", objectName: "Proc" },
+                child: [
+                  {
+                    property: { objectType: "Task", objectName: "call", hasSubService: "y" },
+                    child: [{ property: { objectType: "Service", objectName: "Sub" } }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    const top = r.root.children[0];
+    const proc = top.children[0];
+    const tsk = proc.children[0];
+    expect([top.kind, proc.kind, tsk.kind, tsk.children[0].kind]).toEqual(["SVC", "SVC", "TSK", "SUB"]);
   });
 });

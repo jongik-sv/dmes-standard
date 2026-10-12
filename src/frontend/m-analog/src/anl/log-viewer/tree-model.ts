@@ -4,7 +4,12 @@
  * 보이는 행 계산·검색·값 바인딩 같은 순수 함수를 둔다(화면 코드는 tree-tab.tsx).
  *
  * 응답 노드 = `{ property: { objectType, … }, child: [ 노드 | 문자열 ] }`. 실제 계층은 Request → Process → Task → Query.
- *  - objectType 대응: Request→REQ, Process→SVC(이름에 Service·Process 가 든 모르는 종류도 SVC, 예 SubService), Task→TSK, Query→SQL. 모르는 objectType 은 원문 그대로 배지.
+ *  - objectType 대응: Request→REQ, Service·Process→SVC, Task→TSK, Query→SQL. 모르는 objectType 은 원문 그대로 배지.
+ *  - 서브서비스: 로그 "Sub-service [X] start." 는 objectType "Service" 노드로 호출한 Task 아래에 중첩되어 오고,
+ *    호출한 부모 노드 property 에 `hasSubService: "y"` 가 붙는다. objectType "SubService" 는 따로 없다.
+ *    그래서 Task 바로 아래에 중첩된 objectType Service 노드만 kind SUB(레거시 뷰어의 SUB 배지)로 보인다.
+ *    "Service [X] start." 로 생긴 최상위 Service 와 그 아래 Process 는 SVC 로 둔다(Request > Service > Process > Task).
+ *    sub 호출 부모는 `subMark` 로 "s" 표식을 받는다(Request 는 최상위 서비스 때문에 플래그만 있으므로 제외).
  *  - child 의 문자열 → MSG. Query 바로 뒤의 `binding parameter (1:BIGINT) <- [185]` 문자열은 그 SQL 의 Param 이 되고
  *    트리에서는 그 SQL 아래 BND 자식으로 묶는다. property.exception → ERR 자식.
  *  - runTime 은 문자열·숫자로 모두 와서 숫자로 맞춘다. 문자열 "More......" 는 생략 표식이지만 일반 MSG 로 둔다.
@@ -26,7 +31,7 @@ export interface TreeParam {
 export interface TreeNode {
   /** 변환 순서로 매긴 유일 키. */
   id: string;
-  /** 배지 글자 — REQ·SVC·TSK·SQL·MSG·BND·ERR, 모르는 종류는 objectType 원문. */
+  /** 배지 글자 — REQ·SVC·SUB·TSK·SQL·MSG·BND·ERR, 모르는 종류는 objectType 원문. */
   kind: TreeKind;
   /** 응답 objectType 원문(문자열·BND·ERR 노드는 없음). */
   objectType?: string;
@@ -39,6 +44,8 @@ export interface TreeNode {
   params?: TreeParam[];
   /** 응답 property 원본(속성 패널용). */
   prop: Record<string, unknown>;
+  /** 서브서비스를 부른 노드(property.hasSubService === "y" 이거나 SUB 자식이 있음) — 행에 "s" 표식. Request 는 제외. */
+  subMark: boolean;
   /** 시작 시각(ms, 시각 문자열을 UTC 로 해석 — 차이 계산·표시 전용). */
   startMs?: number;
   /** 수행시간(ms). */
@@ -73,7 +80,7 @@ const KIND_BY_TYPE: Record<string, TreeKind> = {
   Query: "SQL",
 };
 
-/** 알려진 종류 밖이어도 이름에 Service·Process 가 들면 서비스 노드(예: SubService). */
+/** 알려진 종류 밖이어도 이름에 Service·Process 가 들면 서비스 노드로 본다(실제 응답엔 없는 대비용 폴백). */
 const SERVICE_LIKE_RE = /service|process/i;
 const BIND_RE = /^binding parameter \((\d+):([A-Za-z_]+)\) <- \[(.*)\]$/s;
 const NUM_TYPES = /INT|NUMERIC|DECIMAL|DOUBLE|FLOAT|REAL|NUMBER/i;
@@ -187,6 +194,7 @@ class Builder {
       label,
       text,
       prop: {},
+      subMark: false,
       hasError: kind === "ERR",
       searchText: text.toLowerCase(),
       children: [],
@@ -205,6 +213,7 @@ class Builder {
           kind: MSG_GROUP,
           label: first.split("\n", 1)[0],
           prop: {},
+          subMark: false,
           hasError: false,
           searchText: "",
           children: run,
@@ -223,14 +232,18 @@ class Builder {
     return out;
   }
 
-  node(raw: unknown): TreeNode {
+  /** parentKind: 부모 노드 kind — Request 아래가 아닌 서비스 노드를 SUB 로 가르는 데 쓴다(뿌리는 undefined). */
+  node(raw: unknown, parentKind?: TreeKind): TreeNode {
     if (typeof raw === "string") return this.leaf("MSG", raw);
     const rec = isRecord(raw) ? raw : {};
     const prop = isRecord(rec.property) ? rec.property : {};
     const objectType = str(prop.objectType);
-    const kind =
+    let kind =
       KIND_BY_TYPE[objectType] ??
       (prop.exception ? "ERR" : SERVICE_LIKE_RE.test(objectType) ? "SVC" : objectType || "?");
+    // Sub-service 는 서비스 호출 Task 가 부르므로 Task 바로 아래의 objectType Service 만 SUB.
+    // Process 는 SUB 가 되지 않고, Request·다른 서비스 바로 아래 Service(ServiceStart)도 SVC 다.
+    if (kind === "SVC" && objectType === "Service" && parentKind === "TSK") kind = "SUB";
     const node: TreeNode = {
       id: this.nextId(),
       kind,
@@ -239,6 +252,7 @@ class Builder {
       prop,
       startMs: parseTimestamp(prop.timestamp),
       runTime: normalizeRunTime(prop.runTime),
+      subMark: false,
       hasError: false,
       searchText: "",
       children: [],
@@ -267,7 +281,7 @@ class Builder {
           continue;
         }
       }
-      const k = this.node(c);
+      const k = this.node(c, kind);
       if (k.kind === "SQL") lastSql = k;
       else if (k.kind !== "MSG") lastSql = null;
       node.children.push(k);
@@ -292,6 +306,7 @@ class Builder {
       if (node.runTime === undefined && proc) node.runTime = proc.runTime;
     }
 
+    node.subMark = kind !== "REQ" && (str(prop.hasSubService).toLowerCase() === "y" || node.children.some((k) => k.kind === "SUB"));
     node.hasError = kind === "ERR" || node.children.some((k) => k.hasError);
     node.searchText = [node.label, node.sql ?? ""].join(" ").toLowerCase();
     return node;
@@ -365,12 +380,15 @@ export function propsOf(node: TreeNode): TreeProp[] {
   return out;
 }
 
-/** 기본 펼침: 뿌리, 그리고 SVC·SQL(서브서비스 포함)을 가진 TSK. */
+/** 서비스 노드(최상위 SVC · 중첩 SUB). */
+const isService = (k: TreeKind) => k === "SVC" || k === "SUB";
+
+/** 기본 펼침: 뿌리, 서비스(SVC·SUB), 그리고 SQL·서비스를 가진 TSK. */
 export function defaultExpanded(root: TreeNode | undefined): Set<string> {
   const open = new Set<string>();
   if (!root) return open;
   const walk = (n: TreeNode) => {
-    if (n.kind === "REQ" || n.kind === "SVC" || (n.kind === "TSK" && n.children.some((k) => k.kind === "SQL" || k.kind === "SVC"))) {
+    if (n.kind === "REQ" || isService(n.kind) || (n.kind === "TSK" && n.children.some((k) => k.kind === "SQL" || isService(k.kind)))) {
       open.add(n.id);
     }
     n.children.forEach(walk);
@@ -407,7 +425,7 @@ export interface FlattenOptions {
   bizOnly: boolean;
 }
 
-const BIZ_KINDS = new Set(["REQ", "SVC", "TSK", "SQL", "ERR"]);
+const BIZ_KINDS = new Set(["REQ", "SVC", "SUB", "TSK", "SQL", "ERR"]);
 
 /**
  * 화면에 그릴 행(펼친 노드만). 검색어가 있으면 일치 노드와 조상만 남기고 조상을 펼친다.
