@@ -9,7 +9,7 @@
  *    호출한 부모 노드 property 에 `hasSubService: "y"` 가 붙는다. objectType "SubService" 는 따로 없다.
  *    그래서 Task 바로 아래에 중첩된 objectType Service 노드만 kind SUB(레거시 뷰어의 SUB 배지)로 보인다.
  *    "Service [X] start." 로 생긴 최상위 Service 와 그 아래 Process 는 SVC 로 둔다(Request > Service > Process > Task).
- *    sub 호출 부모는 `subMark` 로 "s" 표식을 받는다(Request 는 최상위 서비스 때문에 플래그만 있으므로 제외).
+ *    sub 호출 부모는 `subMark` 로 "S" 표식을 받는다(Request 는 최상위 서비스 때문에 플래그만 있으므로 제외).
  *  - child 의 문자열 → MSG. Query 바로 뒤의 `binding parameter (1:BIGINT) <- [185]` 문자열은 그 SQL 의 Param 이 되고
  *    트리에서는 그 SQL 아래 BND 자식으로 묶는다. property.exception → ERR 자식.
  *  - runTime 은 문자열·숫자로 모두 와서 숫자로 맞춘다. 문자열 "More......" 는 생략 표식이지만 일반 MSG 로 둔다.
@@ -44,8 +44,12 @@ export interface TreeNode {
   params?: TreeParam[];
   /** 응답 property 원본(속성 패널용). */
   prop: Record<string, unknown>;
-  /** 서브서비스를 부른 노드(property.hasSubService === "y" 이거나 SUB 자식이 있음) — 행에 "s" 표식. Request 는 제외. */
+  /** 서브서비스를 부른 노드(property.hasSubService === "y" 이거나 SUB 자식이 있음) — 행에 "S" 표식. Request 는 제외. */
   subMark: boolean;
+  /** 노드 자신이 쿼리를 실행함(직접 자식 중 SQL 이 있음) — 행에 "?" 표식. 업무(objectType) 노드만. */
+  queryMark: boolean;
+  /** 노드 자신이 Exception 을 가짐(자기 property.exception 또는 직접 ERR 자식) — 행에 "!" 표식. 하위 노드 오류는 제외(hasError 가 맡음). */
+  errorMark: boolean;
   /** 시작 시각(ms, 시각 문자열을 UTC 로 해석 — 차이 계산·표시 전용). */
   startMs?: number;
   /** 수행시간(ms). */
@@ -195,6 +199,8 @@ class Builder {
       text,
       prop: {},
       subMark: false,
+      queryMark: false,
+      errorMark: false,
       hasError: kind === "ERR",
       searchText: text.toLowerCase(),
       children: [],
@@ -214,6 +220,8 @@ class Builder {
           label: first.split("\n", 1)[0],
           prop: {},
           subMark: false,
+      queryMark: false,
+      errorMark: false,
           hasError: false,
           searchText: "",
           children: run,
@@ -253,6 +261,8 @@ class Builder {
       startMs: parseTimestamp(prop.timestamp),
       runTime: normalizeRunTime(prop.runTime),
       subMark: false,
+      queryMark: false,
+      errorMark: false,
       hasError: false,
       searchText: "",
       children: [],
@@ -306,7 +316,11 @@ class Builder {
       if (node.runTime === undefined && proc) node.runTime = proc.runTime;
     }
 
-    node.subMark = kind !== "REQ" && (str(prop.hasSubService).toLowerCase() === "y" || node.children.some((k) => k.kind === "SUB"));
+    // 표식은 업무 노드(objectType 있음)에만. Request·SQL·ERR 는 제외.
+    const marked = !!objectType && kind !== "REQ" && kind !== "SQL" && kind !== "ERR";
+    node.subMark = marked && (str(prop.hasSubService).toLowerCase() === "y" || node.children.some((k) => k.kind === "SUB"));
+    node.queryMark = marked && node.children.some((k) => k.kind === "SQL");
+    node.errorMark = marked && (exceptions.length > 0 || node.children.some((k) => k.kind === "ERR"));
     node.hasError = kind === "ERR" || node.children.some((k) => k.hasError);
     node.searchText = [node.label, node.sql ?? ""].join(" ").toLowerCase();
     return node;

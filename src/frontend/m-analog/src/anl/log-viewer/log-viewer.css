@@ -649,16 +649,23 @@
   color: #d6336c;
 }
 
-/* 서브서비스를 부른 노드 앞의 작은 "s" 표식 */
-.anl-log-viewer .anl-tree-submark {
+/* 노드 앞 표식: S(서브서비스 호출)·!(오류)·?(쿼리) */
+.anl-log-viewer .anl-tree-mark {
   margin-right: 3px;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1;
-  color: var(--color-danger);
-  opacity: 0.7;
   cursor: default;
+}
+
+.anl-log-viewer .anl-tree-mark-sub,
+.anl-log-viewer .anl-tree-mark-err {
+  color: var(--color-danger);
+}
+
+.anl-log-viewer .anl-tree-mark-query {
+  color: var(--color-primary);
 }
 
 .anl-log-viewer .anl-tree-badge-TSK {

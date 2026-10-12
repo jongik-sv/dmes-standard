@@ -351,3 +351,50 @@ describe("SUB 판정 범위 (Task 바로 아래 Service 만)", () => {
     expect([top.kind, proc.kind, tsk.kind, tsk.children[0].kind]).toEqual(["SVC", "SVC", "TSK", "SUB"]);
   });
 });
+
+describe("노드 앞 표식 (queryMark·errorMark)", () => {
+  const mk = (child: unknown[], extra: Record<string, unknown> = {}) => ({ property: { objectType: "Task", ...extra }, child });
+  const sql = { property: { objectType: "SQL", query: "select 1" } };
+  const build = (task: unknown) =>
+    toTreeRequests([{ property: { objectType: "Request" }, child: [{ property: { objectType: "Service" }, child: [task] }] }])[0];
+
+  it("queryMark: 직접 SQL 자식만 true, 손자 SQL 은 조부모에서 false", () => {
+    const r = build(mk([sql, "msg"]));
+    expect(collect(r.root, "TSK")[0].queryMark).toBe(true);
+    expect(collect(r.root, "SVC")[0].queryMark).toBe(false);
+    const r2 = build(mk([mk([sql])]));
+    const [outer, inner] = collect(r2.root, "TSK");
+    expect(outer.queryMark).toBe(false);
+    expect(inner.queryMark).toBe(true);
+  });
+
+  it("errorMark: 자기 exception 은 true, 하위 오류만 있으면 false 이고 hasError 는 true", () => {
+    const own = build(mk([], { exception: "java.lang.Boom\n at x" }));
+    expect(collect(own.root, "TSK")[0].errorMark).toBe(true);
+    const nested = build(mk([mk([], { exception: "Boom" })]));
+    const [outer, inner] = collect(nested.root, "TSK");
+    expect(outer.errorMark).toBe(false);
+    expect(outer.hasError).toBe(true);
+    expect(inner.errorMark).toBe(true);
+  });
+
+  it("직접 ERR 자식(objectType 없는 exception 노드)도 errorMark", () => {
+    const r = build(mk([{ property: { exception: "Boom" } }]));
+    expect(collect(r.root, "TSK")[0].errorMark).toBe(true);
+  });
+
+  it("subMark 유지, REQ·말단 노드는 표식 모두 false", () => {
+    const r = build(mk([sql, { property: { exception: "x" } }, "m1", "m2"], { hasSubService: "y" }));
+    const t = collect(r.root, "TSK")[0];
+    expect([t.subMark, t.queryMark, t.errorMark]).toEqual([true, true, true]);
+    const all: TreeNode[] = [];
+    const walk = (n: TreeNode) => {
+      all.push(n);
+      n.children.forEach(walk);
+    };
+    walk(r.root);
+    const leaves = all.filter((x) => ["REQ", "SQL", "ERR", "MSG", "MSGS", "BND"].includes(x.kind));
+    expect(leaves.length).toBeGreaterThanOrEqual(4);
+    for (const n of leaves) expect([n.kind, n.subMark, n.queryMark, n.errorMark]).toEqual([n.kind, false, false, false]);
+  });
+});

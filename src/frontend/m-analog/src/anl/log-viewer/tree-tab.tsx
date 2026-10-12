@@ -87,8 +87,18 @@ const TreeRowView = memo(function TreeRowView({ row, selected, onToggle, onSelec
           <span className="anl-tree-toggle-gap" aria-hidden="true" />
         )}
         {node.subMark ? (
-          <span className="anl-tree-submark" title="서브서비스 호출" aria-label="서브서비스 호출">
-            s
+          <span className="anl-tree-mark anl-tree-mark-sub" title="서브서비스 호출" aria-label="서브서비스 호출">
+            S
+          </span>
+        ) : null}
+        {node.errorMark ? (
+          <span className="anl-tree-mark anl-tree-mark-err" title="오류(Exception) 있음" aria-label="오류(Exception) 있음">
+            !
+          </span>
+        ) : null}
+        {node.queryMark ? (
+          <span className="anl-tree-mark anl-tree-mark-query" title="쿼리 있음" aria-label="쿼리 있음">
+            ?
           </span>
         ) : null}
         <span className={badgeClass(isGroup ? "MSG" : node.kind)}>{isGroup ? "MSG" : node.kind}</span>
