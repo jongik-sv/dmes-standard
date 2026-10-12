@@ -53,6 +53,15 @@ mdm:
   embedding:
     encoder: none
     model-dir: ""
+  # ── 메타 변경 신호(ADR-0007 D2 개정, 2026-10-12) ──
+  # 변경 기록(TB_MDM_META_REV)을 커밋한 뒤 업무 모듈에 POST {target}/internal/mdm/metaSignal 을 보내 곧바로 확인하게 한다(최선 노력).
+  # targets 는 모듈 인스턴스 기준 주소 목록(쉼표). 비면 보내지 않고 모듈은 정기 확인(cactus.mdm.poll-interval, 기본 5분)으로만 따라온다.
+  # 로컬 주소는 application-local.yml, 운영(wildfly)은 환경 변수 MDM_META_SIGNAL_TARGETS 로 준다. 키는 BACKEND_CLIENT_KEY(cactus.security.client-key).
+  meta-signal:
+    enabled: ${MDM_META_SIGNAL_ENABLED:true}
+    targets: ${MDM_META_SIGNAL_TARGETS:}
+    connect-timeout: 1s
+    read-timeout: 2s
 
 # ── 로깅 ──
 # OASIS 메서드 해석(Try binding·Strategy) 요청마다 남는 INFO 를 끈다 — analog 가 쓰는 문구(Task·Process·Service·Invoking class)는 이 패키지에서 나오지 않는다(버리는 규칙 'has bound by name' 만 해당).

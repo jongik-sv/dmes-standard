@@ -55,12 +55,19 @@ public class MdmAutoConfiguration {
         return new MdmMetaService(client, cache, Clock.systemUTC(), props.getVersionedFeed() != MdmClientProperties.VersionedFeed.OFF);
     }
 
-    /** 되돌아보기({@code revision-lookback})를 넘기는 7인자 생성자를 쓴다 — 6인자는 설정을 버리고 기본값을 쓴다. */
+    /** 되돌아보기({@code revision-lookback})·신호 대기({@code signal-debounce})를 넘기는 8인자 생성자를 쓴다 — 6인자는 설정을 버리고 기본값을 쓴다. */
     @Bean(initMethod = "start", destroyMethod = "close")
     @ConditionalOnMissingBean
     public MdmRevisionPoller mdmRevisionPoller(MdmMetaClient client, MdmMetaCache cache, MdmMetaService service, MdmClientProperties props) {
         return new MdmRevisionPoller(client, cache, service, Clock.systemUTC(), props.getPollInterval(), props.getPageLimit(),
-                props.getRevisionLookback());
+                props.getRevisionLookback(), props.getSignalDebounce());
+    }
+
+    /** MDM 변경 신호 접수 {@code POST /internal/mdm/metaSignal}(mdm ADR-0007 D2 개정) — 주체 {@code system:mdm} 만. */
+    @Bean
+    @ConditionalOnMissingBean
+    public MdmMetaSignalController mdmMetaSignalController(MdmRevisionPoller poller) {
+        return new MdmMetaSignalController(poller);
     }
 
     @Bean

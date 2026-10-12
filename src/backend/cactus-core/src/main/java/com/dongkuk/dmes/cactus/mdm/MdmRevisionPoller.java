@@ -13,8 +13,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +36,13 @@ import org.slf4j.LoggerFactory;
  *
  * <p>스케줄러는 자체 단일 데몬 스레드다(cactus-core 에 스케줄링 선례가 없고, mcm-core 의 {@code @EnableScheduling} 에 기대지 않는다).
  * 로그는 첫 실패만 WARN, 복구 때 INFO 한 줄(Ruling R12).
+ *
+ * <p>변경 신호 + 안전망 폴링(mdm ADR-0007 D2 개정, 2026-10-12): MDM 이 변경 기록을 커밋한 뒤 보내는 확인 신호({@link MdmMetaSignalController})가
+ * {@link #requestPoll()} 을 부르면 {@code signal-debounce} 뒤 같은 스레드에서 한 번 확인한다. 신호가 연달아 와도 기다리는 확인은 하나뿐이다 —
+ * 대기 표시는 확인 직전에 내리므로 확인 중에 온 신호는 확인 하나를 더 남긴다(그 확인이 보지 못한 변경일 수 있다). 신호는 내용을 싣지 않고 확인은
+ * 늘 {@code changes(since)} 로 받으므로 신호를 잃거나 위조돼도 확인이 늦어지거나 한 번 더 돌 뿐이다. 정기 확인({@code poll-interval}, 기본 5분)은
+ * 신호를 놓친 경우의 안전망이다. 기동 첫 확인은 기다리지 않고 바로 하고, 확인이 실패하는 동안은 정기 주기 대신 {@value #FAILURE_RETRY_SECONDS}초
+ * 뒤에 다시 확인한다(MDM 이 늦게 뜬 경우 5분을 기다리지 않게).
  */
 public class MdmRevisionPoller implements AutoCloseable {
 
@@ -41,6 +50,11 @@ public class MdmRevisionPoller implements AutoCloseable {
     static final String RELOAD = "RELOAD";
     /** {@code cactus.mdm.revision-lookback} 기본값. */
     public static final int DEFAULT_LOOKBACK = 100;
+    /** {@code cactus.mdm.signal-debounce} 기본값 — 신호 묶음을 한 번 확인으로 모으는 대기. */
+    public static final Duration DEFAULT_SIGNAL_DEBOUNCE = Duration.ofMillis(300);
+    static final long FAILURE_RETRY_SECONDS = 30L;
+    /** 확인이 실패하는 동안 다시 확인하는 간격(정기 주기가 더 짧으면 정기 주기를 따른다). */
+    static final Duration FAILURE_RETRY = Duration.ofSeconds(FAILURE_RETRY_SECONDS);
 
     private final MdmMetaFeed feed;
     private final MdmMetaCache cache;
@@ -55,7 +69,14 @@ public class MdmRevisionPoller implements AutoCloseable {
     private volatile long latestSeq = -1L;
     private volatile Instant lastSuccessAt;
     private volatile String lastError;
-    private ScheduledExecutorService executor;
+    /** 신호로 기다리는 확인이 있다 — 확인 직전에 내린다. */
+    private final AtomicBoolean signalPending = new AtomicBoolean();
+    /** 실패 뒤 다시 확인이 예약돼 있다. 신호 대기와 따로 둔다(신호가 실패 재시도 대기에 묶여 늦어지지 않게). */
+    private final AtomicBoolean retryPending = new AtomicBoolean();
+    private final Duration signalDebounce;
+    /** {@link #start}·{@link #close} 잠금 — {@link #pollOnce} 의 잠금(this)과 나눠 신호 접수가 진행 중 확인을 기다리지 않게 한다. */
+    private final Object lifecycle = new Object();
+    private volatile ScheduledExecutorService executor;
 
     /** 되돌아보기 기본값({@value #DEFAULT_LOOKBACK})으로 만든다. */
     public MdmRevisionPoller(MdmMetaFeed feed, MdmMetaCache cache, MdmMetaService service, Clock clock, Duration interval, int pageLimit) {
@@ -65,6 +86,13 @@ public class MdmRevisionPoller implements AutoCloseable {
     /** @throws IllegalArgumentException {@code lookback < 0} 이거나, 켰는데 {@code pageLimit <= lookback} 이면(기동 시 설정 검증) */
     public MdmRevisionPoller(MdmMetaFeed feed, MdmMetaCache cache, MdmMetaService service, Clock clock, Duration interval, int pageLimit,
                              int lookback) {
+        this(feed, cache, service, clock, interval, pageLimit, lookback, DEFAULT_SIGNAL_DEBOUNCE);
+    }
+
+    /** {@code signalDebounce} — 신호 뒤 확인까지 기다리는 시간(음수·null 이면 0). */
+    public MdmRevisionPoller(MdmMetaFeed feed, MdmMetaCache cache, MdmMetaService service, Clock clock, Duration interval, int pageLimit,
+                             int lookback, Duration signalDebounce) {
+        this.signalDebounce = signalDebounce == null || signalDebounce.isNegative() ? Duration.ZERO : signalDebounce;
         this.feed = feed;
         this.cache = cache;
         this.service = service;
@@ -88,25 +116,64 @@ public class MdmRevisionPoller implements AutoCloseable {
         return new Status(cache.appliedSeq(), latestSeq, lastSuccessAt, consecutiveFailures.get(), lastError);
     }
 
-    public synchronized void start() {
-        if (executor != null) {
-            return;
+    /** 정기 확인을 시작한다. 첫 확인은 기다리지 않는다(초기 지연 0 — 정기 주기가 5분이어도 기동 직전 변경을 바로 맞춘다). */
+    public void start() {
+        synchronized (lifecycle) {
+            if (executor != null) {
+                return;
+            }
+            ScheduledExecutorService ex = Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "mdm-revision-poller");
+                t.setDaemon(true);
+                return t;
+            });
+            // 자체 스케줄러라 @Scheduled 용 데코레이터가 닿지 않는다 — 같은 로그 태그를 직접 건다. 시작·끝 줄은 DEBUG.
+            ex.scheduleWithFixedDelay(() -> ScheduledJobLogContext.runQuiet(ScheduledJobLogContext.jobName("mdmRevisionPoller.poll"), this::pollQuietly),
+                    0L, interval.toMillis(), TimeUnit.MILLISECONDS);
+            executor = ex;
         }
-        executor = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "mdm-revision-poller");
-            t.setDaemon(true);
-            return t;
-        });
-        // 자체 스케줄러라 @Scheduled 용 데코레이터가 닿지 않는다 — 같은 로그 태그를 직접 건다. 간격이 짧아 시작·끝 줄은 DEBUG.
-        executor.scheduleWithFixedDelay(() -> ScheduledJobLogContext.runQuiet(ScheduledJobLogContext.jobName("mdmRevisionPoller.poll"), this::pollQuietly),
-                0L, interval.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     @Override
-    public synchronized void close() {
-        if (executor != null) {
-            executor.shutdownNow();
-            executor = null;
+    public void close() {
+        synchronized (lifecycle) {
+            if (executor != null) {
+                executor.shutdownNow();
+                executor = null;
+            }
+            // 취소된 예약의 대기 표시가 남으면 다시 시작한 뒤 신호가 모두 그 표시에 합쳐져 버려진다
+            signalPending.set(false);
+            retryPending.set(false);
+        }
+    }
+
+    /**
+     * MDM 변경 신호 — {@code signal-debounce} 뒤 폴러 스레드에서 한 번 확인한다. 이미 기다리는 확인이 있으면 그 확인에 합친다. 요청 스레드에서
+     * 확인하지 않는다(확인은 잠금을 쥐고 MDM 을 부르고, 신호를 보낸 쪽은 짧은 시간 초과로 기다린다).
+     *
+     * @return 접수했으면(합친 경우 포함) true, 폴러가 시작 전이거나 닫혔으면 false
+     */
+    public boolean requestPoll() {
+        return schedule(signalPending, signalDebounce, "mdmRevisionPoller.signal");
+    }
+
+    private boolean schedule(AtomicBoolean pending, Duration delay, String name) {
+        ScheduledExecutorService ex = executor;
+        if (ex == null) {
+            return false;
+        }
+        if (!pending.compareAndSet(false, true)) {
+            return true; // 기다리는 확인에 합친다
+        }
+        try {
+            ex.schedule(() -> ScheduledJobLogContext.runQuiet(ScheduledJobLogContext.jobName(name), () -> {
+                pending.set(false); // 확인 직전에 내린다 — 확인 중에 온 신호는 확인 하나를 더 남긴다
+                pollQuietly();
+            }), delay.toMillis(), TimeUnit.MILLISECONDS);
+            return true;
+        } catch (RejectedExecutionException e) {
+            pending.set(false);
+            return false;
         }
     }
 
@@ -174,6 +241,11 @@ public class MdmRevisionPoller implements AutoCloseable {
         return processed.size();
     }
 
+    /** 시험용 — 신호로 기다리는 확인이 있는가. */
+    boolean signalPending() {
+        return signalPending.get();
+    }
+
     private void clearAll(long newAppliedSeq) {
         cache.clear(newAppliedSeq);
         processed.clear();
@@ -184,6 +256,10 @@ public class MdmRevisionPoller implements AutoCloseable {
             pollOnce();
         } catch (Throwable t) {
             log.error("[mdm] 폴러 오류", t);
+        }
+        // 실패하는 동안은 정기 주기(기본 5분)보다 짧게 다시 확인한다 — 기동 때 MDM 이 아직 안 떴거나 잠깐 멈춘 경우.
+        if (consecutiveFailures.get() > 0 && interval.compareTo(FAILURE_RETRY) > 0) {
+            schedule(retryPending, FAILURE_RETRY, "mdmRevisionPoller.retry");
         }
     }
 

@@ -404,7 +404,7 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
       system-code: MES                  # 컬럼 별칭 매칭 시스템. 표준 물리명으로 못 찾는 이름을 이 시스템의 별칭(TB_MDM_COLUMN_SYSTEM)으로 찾는다. 비우면 끔
       base-url: ${MDM_WAS_URL:http://localhost:8096}
       client-key: ${BACKEND_CLIENT_KEY:dmes-bff-local-client-key-2026}   # MDM 이 받는 키와 같아야 한다. 기본값은 로컬 개발용
-      poll-interval: 10s
+      poll-interval: 5m                 # 안전망 정기 확인. 변경은 MDM 신호(POST /internal/mdm/metaSignal)로 곧바로 확인한다(mdm ADR-0007 D2 개정)
       page-limit: 1000                  # 폴 요청 한 번에 최대 응답 행 수. revision-lookback 이 0 보다 크면 page-limit 은 revision-lookback 보다 커야 한다(아니면 기동 시 예외)
       revision-lookback: 100            # 늦게 커밋된 기록 재처리 구간. 0 이면 끔(보강 안 함)
       max-entries: 20000
@@ -460,6 +460,10 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
   (2026-10-02 사용자 결정, 캐시 관리 화면 상세 보기). 캐시를 읽기만 하고(조회 수·적재 없음) 캐시에 없으면 404 다. `status` 는 대상별 추정
   크기(`bytes`·`totalBytes` — UTF-8 JSON 직렬화 기준, 실제 힙 점유는 이보다 크다)·JVM `heap`·`maxIdleSeconds` 도 주고, `entries` 는
   `sort=key|bytes|hits` 로 정렬한다(그 밖의 값 400).
+- 변경 신호 `POST /internal/mdm/metaSignal`(2026-10-12, [mdm ADR-0007](../../mdm/adr/0007-mdm-meta-hybrid-cache-revision.md) D2 개정): MDM 이 변경 기록을
+  커밋한 뒤 보내면 폴러가 곧바로(약 0.3초 모아서) 확인한다. `/api/` 로 시작하지 않아 BFF 로는 닿지 않고, `X-Client-Key` + 주체 `system:mdm`·역할
+  `SYSTEM` 만 받는다(예약 작업 `/internal/job/run` 과 같은 방식). 새 모듈은 MDM 의 `mdm.meta-signal.targets`(로컬은 mdm `application-local.yml`,
+  운영은 환경 변수 `MDM_META_SIGNAL_TARGETS`)에 기준 주소를 더해야 곧바로 반영된다 — 빠지면 정기 확인(`poll-interval`, 기본 5분)으로만 따라온다.
 - 무효화: MDM 원장 쓰기 서비스는 같은 트랜잭션에서 `MetaRevisionRecorder` 를 부른다(판정 값이 바뀌는 쓰기만, 의심스러우면 건다). 새 원장
   쓰기 경로를 만들면 기록 호출을 함께 넣는다. 버전 있는 정의(룰·룰 세트)는 RELEASED 버전 목록째 캐시하고 판정 시각으로 고르므로 DRAFT 쓰기에는
   기록하지 않는다. 확정·확정 취소는 공통 `DefaultVersionStateService` 한 곳에서 기록한다(호출하는 쪽에 또 걸면 이중 기록).

@@ -25,3 +25,9 @@ logging:
     org.hibernate.orm.jdbc.bind: TRACE
     org.springframework.jdbc.core.JdbcTemplate: DEBUG
     org.springframework.jdbc.core.StatementCreatorUtils: TRACE
+
+# ── 메타 변경 신호 대상(local) — be-run.sh 포트: mcm 8100 · mls 8092 · mqc 8093 · mpp 8094 · mpn 8095 ──
+# 꺼진 모듈은 연결 거부로 조용히 넘어간다(대상마다 첫 실패만 WARN). 환경 변수 MDM_META_SIGNAL_TARGETS 로 덮어쓴다.
+mdm:
+  meta-signal:
+    targets: ${MDM_META_SIGNAL_TARGETS:http://localhost:8100,http://localhost:8092,http://localhost:8093,http://localhost:8094,http://localhost:8095}

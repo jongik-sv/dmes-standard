@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import org.hibernate.query.NativeQuery;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -26,6 +27,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <p>쓰기는 {@code INSERT … SELECT … FROM DUAL UNION ALL …} 네이티브 INSERT 한 문장이다({@link #CHUNK} 행씩). 키 수와 무관하게 SQL 문이
  * 하나라 서비스의 SQL 문 수 가드가 키 수만큼 늘지 않는다(Ruling R1). 여러 행 {@code VALUES (…), (…)} 는 Oracle 23 부터라 운영 Oracle 이
  * 23 미만이어도 되는 이 문법을 쓴다. 순번 {@code REV_SEQ} 는 IDENTITY 가 행마다 채운다.
+ *
+ * <p>변경 신호(ADR-0007 D2 개정, 2026-10-12): 행을 하나라도 넣으면 {@link MetaChangeSignaler#afterCommit()} 으로 그 트랜잭션이 커밋된 뒤 업무
+ * 모듈에 확인 신호를 보내게 한다. 모든 기록(원장 SAVE·강제 EVICT·RELOAD)이 {@link #insert} 를 지나므로 여기 한 곳이다. 신호는 최선 노력이라
+ * 기록·원장 트랜잭션에 영향을 주지 않는다. 신호기 빈이 없으면(시험 슬라이스) 건너뛴다.
  */
 @Component
 public class MetaRevisionRecorder {
@@ -41,11 +46,13 @@ public class MetaRevisionRecorder {
     private final MdmTemporalBinder temporal;
     private final TransactionTemplate tx;
     private final List<LayoutColumnUsers> layoutUsers;
+    private final ObjectProvider<MetaChangeSignaler> signaler;
 
     public MetaRevisionRecorder(EntityManager entityManager, DomainImpactQueries domainQueries, MasterCodeRemoval codeRemoval,
                                 MdmNativeAuditSupport audit, MdmTemporalBinder temporal, PlatformTransactionManager transactionManager,
-                                List<LayoutColumnUsers> layoutUsers) {
+                                List<LayoutColumnUsers> layoutUsers, ObjectProvider<MetaChangeSignaler> signaler) {
         this.entityManager = entityManager;
+        this.signaler = signaler;
         this.layoutUsers = List.copyOf(layoutUsers);
         this.domainQueries = domainQueries;
         this.codeRemoval = codeRemoval;
@@ -265,6 +272,9 @@ public class MetaRevisionRecorder {
             q.setParameter("pgm", stamp.programId(), String.class);
             q.setParameter("at", at);
             written += q.executeUpdate();
+        }
+        if (written > 0) {
+            signaler.ifAvailable(MetaChangeSignaler::afterCommit);
         }
         return written;
     }

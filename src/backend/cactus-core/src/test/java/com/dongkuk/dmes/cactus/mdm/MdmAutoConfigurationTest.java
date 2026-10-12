@@ -70,13 +70,13 @@ class MdmAutoConfigurationTest {
     void 켜면_구성_요소가_모두_생기고_DefinitionLookup_은_MdmDefinitionLookup_이며_CacheManager_는_없다() {
         runner.withPropertyValues(ON).withPropertyValues("cactus.mdm.module=mls").run(ctx -> {
             assertThat(ctx).hasSingleBean(MdmMetaClient.class).hasSingleBean(MdmMetaCache.class).hasSingleBean(MdmMetaService.class)
-                    .hasSingleBean(MdmRevisionPoller.class).hasSingleBean(MdmMetaController.class);
+                    .hasSingleBean(MdmRevisionPoller.class).hasSingleBean(MdmMetaController.class).hasSingleBean(MdmMetaSignalController.class);
             assertThat(ctx.getBean(DefinitionLookup.class)).isInstanceOf(MdmDefinitionLookup.class);
             assertThat(ctx.getBean(CodeLookup.class)).isInstanceOf(MdmDefinitionLookup.class);
             assertThat(ctx.getBeansOfType(CacheManager.class)).isEmpty();
             assertThat(ctx.getBean(MdmMetaController.class).module()).isEqualTo("mls");
             MdmClientProperties p = ctx.getBean(MdmClientProperties.class);
-            assertThat(p.getPollInterval()).isEqualTo(Duration.ofSeconds(10));
+            assertThat(p.getPollInterval()).isEqualTo(Duration.ofMinutes(5));
             assertThat(p.getMaxEntries()).isEqualTo(20_000);
             assertThat(p.getMaxAge()).as("적재 뒤 절대 상한").isEqualTo(Duration.ofHours(24));
             assertThat(p.getMaxIdle()).as("마지막 조회 뒤 유휴 수명").isEqualTo(Duration.ofMinutes(60));

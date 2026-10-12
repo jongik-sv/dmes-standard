@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * <p>수명(A2, 2026-10-02): 마지막 조회({@link #get} 히트 — 적재 직후에는 적재 시각) 뒤 {@code max-idle} 동안 다시 조회되지 않거나, 적재 뒤
  * {@code max-age}(절대 상한 — 폴링이 오래 끊겨 지움 기록을 놓친 경우의 안전망)가 지나면 만료다. 즉 자주 조회되는 항목일수록 오래 남되
- * {@code max-age} 를 넘지는 않는다. 만료 항목은 조회 때 버리고, 다시 조회되지 않는 항목도 남지 않게 폴링마다({@link #markApplied}, 약 10초)
+ * {@code max-age} 를 넘지는 않는다. 만료 항목은 조회 때 버리고, 다시 조회되지 않는 항목도 남지 않게 확인이 성공할 때마다({@link #markApplied} — 변경 신호 때와 정기 확인 때)
  * 쓸어 낸다. 폴링이 실패해 쓸지 못하는 동안에도 {@link #sizes}·{@link #bytes}(관리 화면 상태)는 만료 항목을 세지 않는다 — {@link #entries} 와
  * 같은 기준. {@link #peek}·{@link #entries}(관리 화면)는 마지막 조회 시각·조회 수를 바꾸지 않는다. 적재 시각은 밀리초로 자른다(마지막 조회
  * 시각과 같은 정밀도 — 조회 전에는 둘이 같다).
@@ -59,6 +59,11 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class MdmMetaCache {
 
+    /**
+     * 지움 기록 보관 시간. 지움 기록은 "지움보다 먼저 Ticket 을 받은 진행 중 적재"만 막으면 되므로 적재 한 번의 길이(MDM 호출 연결 2초·읽기 5초
+     * 시간 초과)보다 길면 된다 — 폴링 주기와 무관하다(지움 뒤에 시작한 적재는 Ticket 의 표지가 더 커서 막히지 않는다). 정리는
+     * {@link #markApplied} 에서만 하므로 정기 주기가 5분이면 기록이 최대 약 10분 남는다 — 더 오래 남는 쪽이라 안전하다(mdm mdm ADR-0007 D2 개정 검토).
+     */
     static final Duration TOMBSTONE_TTL = Duration.ofMinutes(5);
     /** 상한을 넘었을 때 줄이는 목표 비율. */
     static final double TRIM_TARGET_RATIO = 0.95;
@@ -334,7 +339,7 @@ public final class MdmMetaCache {
     }
 
     /**
-     * 폴링이 순번을 반영한 뒤 부른다(약 10초마다). 5분 지난 지움 기록을 정리하고, 만료된 머리·본문과 빈 묶음을 쓸어 낸다 — 한 번 적재되고 다시
+     * 폴링이 순번을 반영한 뒤 부른다(변경 신호 때와 정기 확인 때 — 정기 주기 기본 5분). 5분 지난 지움 기록을 정리하고, 만료된 머리·본문과 빈 묶음을 쓸어 낸다 — 한 번 적재되고 다시
      * 조회되지 않는 항목이 {@link #get}·상한 정리 때까지 맵에 남지 않게. 본문을 먼저 본다(최종 판정에 목차를 쓴다). 쓸기는 만료 항목만 지운다
      * ({@code remove(ver, entry)}·{@code compareAndSet(entry, null)}·{@code remove(key, group)} — 그사이 새로 넣은 값은 남는다). 살아 있는 항목·조회 수·
      * 마지막 조회 시각·지움 기록(5분 규칙 밖)·세대는 건드리지 않는다.

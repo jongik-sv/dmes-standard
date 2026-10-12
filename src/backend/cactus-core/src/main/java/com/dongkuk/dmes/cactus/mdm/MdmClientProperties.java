@@ -21,7 +21,13 @@ public class MdmClientProperties {
      * 기본 없음 = 별칭 매칭 끔(spec 2026-10-03-mdm-column-system-alias-design L2).
      */
     private String systemCode;
-    private Duration pollInterval = Duration.ofSeconds(10);
+    /**
+     * 정기 확인(안전망 폴링) 주기. MDM 이 변경을 커밋하면 보내는 확인 신호({@code POST /internal/mdm/metaSignal})로 곧바로 확인하므로 이 주기는
+     * 신호를 놓친 경우만 맞춘다(mdm ADR-0007 D2 개정, 2026-10-12 — 10초 → 5분). 기동 첫 확인은 기다리지 않고, 실패하는 동안은 30초마다 다시 확인한다.
+     */
+    private Duration pollInterval = Duration.ofMinutes(5);
+    /** 신호 뒤 확인까지 기다리는 시간 — 연달아 온 신호를 한 번 확인으로 모은다. */
+    private Duration signalDebounce = MdmRevisionPoller.DEFAULT_SIGNAL_DEBOUNCE;
     /** 대상 합계 상한. 넘으면 만료 항목, 그다음 오래 조회되지 않은 순(LRU)으로 지운다. */
     private int maxEntries = 20_000;
     /**
@@ -75,6 +81,7 @@ public class MdmClientProperties {
     public String getBaseUrl() { return baseUrl; }
     public String getClientKey() { return clientKey; }
     public Duration getPollInterval() { return pollInterval; }
+    public Duration getSignalDebounce() { return signalDebounce; }
     public int getMaxEntries() { return maxEntries; }
     public Duration getMaxAge() { return maxAge; }
     public Duration getMaxIdle() { return maxIdle; }
@@ -90,6 +97,7 @@ public class MdmClientProperties {
     public void setBaseUrl(String v) { this.baseUrl = v; }
     public void setClientKey(String v) { this.clientKey = v; }
     public void setPollInterval(Duration v) { this.pollInterval = v; }
+    public void setSignalDebounce(Duration v) { this.signalDebounce = v; }
     public void setMaxEntries(int v) { this.maxEntries = v; }
     public void setMaxAge(Duration v) { this.maxAge = v; }
     public void setMaxIdle(Duration v) { this.maxIdle = v; }

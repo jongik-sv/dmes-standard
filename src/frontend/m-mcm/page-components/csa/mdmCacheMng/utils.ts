@@ -74,7 +74,10 @@ export function withEntryKind(rows: CacheEntryRow[]): (CacheEntryRow & { kind: s
 export const ESTIMATED_SIZE_HELP = "JSON 직렬화 크기 기준, 실제 힙 점유는 이보다 큼";
 
 
-/** 강제 기록(삭제·재등록) 뒤 모듈이 반영하기를 기다리는 한도 — 모듈 확인 주기(기본 10초)의 2.5 배쯤. */
+/**
+ * 강제 기록(삭제·재등록) 뒤 모듈이 반영하기를 기다리는 한도. 모듈은 MDM 변경 신호로 곧바로 확인하므로 보통 몇 초 안에 끝난다(mdm ADR-0007 D2 개정).
+ * 신호를 놓친 모듈은 정기 확인(기본 5분)까지 걸리므로 한도를 넘기면 "아직 반영 전" 안내로 끝낸다 — 한도를 정기 주기에 맞춰 늘리지 않는다.
+ */
 export const FORCE_WAIT_LIMIT_MS = 25_000;
 /** 반영 순번을 다시 읽는 간격. */
 export const FORCE_WAIT_INTERVAL_MS = 2_500;

@@ -361,7 +361,7 @@ export default function MdmCacheMngPage() {
 
   /**
    * 대상 종류마다 강제 기록한다. 하나라도 반영하면 항목 목록을 다시 조회하고, 중간에 실패하면 어느 종류까지 반영했는지 알린다.
-   * 강제 기록은 각 모듈이 다음 확인(약 10초) 때 반영하므로 바로 다시 조회한 목록에는 옛 행이 남아 있을 수 있다. 모두 반영됐고 순번(toSeq)이
+   * 강제 기록은 각 모듈이 MDM 변경 신호를 받아 곧바로(신호를 놓치면 다음 정기 확인, 기본 5분) 반영하므로 바로 다시 조회한 목록에는 옛 행이 남아 있을 수 있다. 모두 반영됐고 순번(toSeq)이
    * 있으면 고른 모듈의 적용 순번이 따라올 때까지(최대 약 25초) 기다렸다가 표와 상세를 다시 조회한다(forceWait).
    */
   const runForce = useCallback(
@@ -424,7 +424,7 @@ export default function MdmCacheMngPage() {
     [filters, loadEntries, refreshDetail, selectedEntries, selectedModule, showMessage, setEntries, setSelectedKeys],
   );
 
-  /** 중요 액션(Local-Rules §9) — 영향 범위(모든 모듈·인스턴스, 다음 확인 약 10초)를 보여 주고 확인을 받는다. */
+  /** 중요 액션(Local-Rules §9) — 영향 범위(모든 모듈·인스턴스, 변경 신호로 곧바로·놓치면 정기 확인 5분)를 보여 주고 확인을 받는다. */
   const confirmForce = (kind: ForceKind) => {
     const versioned = selectedEntries.some((r) => VERSIONED_TARGET_TYPES.includes(r.type));
     const scope = versioned ? " 룰·룰 세트·코드·전문은 이 정의의 목차와 모든 버전 본문이 함께 처리됩니다." : "";
@@ -432,8 +432,8 @@ export default function MdmCacheMngPage() {
       title: "확인",
       message:
         kind === "EVICT"
-          ? `선택한 ${selectedEntries.length}건을 모든 모듈 캐시에서 삭제하시겠습니까? 각 모듈이 다음 확인(약 10초) 때 지웁니다.${scope}`
-          : `선택한 ${selectedEntries.length}건을 모든 모듈에서 다시 적재하시겠습니까? 각 모듈이 다음 확인(약 10초) 때 지우고 다시 받습니다.${scope}`,
+          ? `선택한 ${selectedEntries.length}건을 모든 모듈 캐시에서 삭제하시겠습니까? 각 모듈이 변경 신호를 받아 곧바로 지웁니다(신호를 놓친 모듈은 정기 확인 때, 최대 5분).${scope}`
+          : `선택한 ${selectedEntries.length}건을 모든 모듈에서 다시 적재하시겠습니까? 각 모듈이 변경 신호를 받아 곧바로 지우고 다시 받습니다(신호를 놓친 모듈은 정기 확인 때, 최대 5분).${scope}`,
       alertType: "confirm",
       onConfirm: () => void runForce(kind),
     });
