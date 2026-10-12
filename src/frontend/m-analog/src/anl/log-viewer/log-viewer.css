@@ -553,6 +553,7 @@
   align-items: center;
   gap: var(--spacing-sm);
   min-width: var(--anl-col-total);
+  cursor: pointer;
 }
 
 .anl-log-viewer .anl-tree-head {

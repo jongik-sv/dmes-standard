@@ -86,6 +86,11 @@ const TreeRowView = memo(function TreeRowView({ row, selected, onToggle, onSelec
       role="treeitem"
       aria-selected={selected}
       aria-expanded={hasKids ? open : undefined}
+      onClick={(e) => {
+        // 행 어디를 눌러도(배지·표식·빈 곳·시각 칸) 선택한다. 펼치기 단추만 제외. 이름 단추 클릭·Enter 도 여기로 올라온다.
+        if ((e.target as HTMLElement).closest(".anl-tree-toggle")) return;
+        onSelect(node.id);
+      }}
     >
       <div className="anl-tree-cell" style={{ paddingLeft: depth * 20 + 4 }}>
         {hasKids ? (
@@ -121,7 +126,7 @@ const TreeRowView = memo(function TreeRowView({ row, selected, onToggle, onSelec
         </span>
         <span className={badgeClass(isGroup ? "MSG" : node.kind)}>{isGroup ? "MSG" : node.kind}</span>
         {isGroup ? <span className="anl-tree-group-count">×{node.children.length}</span> : null}
-        <button type="button" className={cls} title={node.label} onClick={() => onSelect(node.id)}>
+        <button type="button" className={cls} title={node.label}>
           {node.label}
         </button>
       </div>
